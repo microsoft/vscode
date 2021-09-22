@@ -1,306 +1,306 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { MainContext, IMainContext, ExtHostFileSystemShape, MainThreadFileSystemShape, IFileChangeDto } from './extHost.protocol';
-import type * as vscode from 'vscode';
-import * as files from 'vs/platform/files/common/files';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { FileChangeType } from 'vs/workbench/api/common/extHostTypes';
-import * as typeConverter from 'vs/workbench/api/common/extHostTypeConverters';
-import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';
-import { State, StateMachine, LinkComputer, Edge } from 'vs/editor/common/modes/linkComputer';
-import { commonPrefixLength } from 'vs/base/common/strings';
-import { CharCode } from 'vs/base/common/charCode';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { MainContext, IMainContext, ExtHostFiweSystemShape, MainThweadFiweSystemShape, IFiweChangeDto } fwom './extHost.pwotocow';
+impowt type * as vscode fwom 'vscode';
+impowt * as fiwes fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { FiweChangeType } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt * as typeConvewta fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+impowt { ExtHostWanguageFeatuwes } fwom 'vs/wowkbench/api/common/extHostWanguageFeatuwes';
+impowt { State, StateMachine, WinkComputa, Edge } fwom 'vs/editow/common/modes/winkComputa';
+impowt { commonPwefixWength } fwom 'vs/base/common/stwings';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
 
-class FsLinkProvider {
+cwass FsWinkPwovida {
 
-	private _schemes: string[] = [];
-	private _stateMachine?: StateMachine;
+	pwivate _schemes: stwing[] = [];
+	pwivate _stateMachine?: StateMachine;
 
-	add(scheme: string): void {
+	add(scheme: stwing): void {
 		this._stateMachine = undefined;
 		this._schemes.push(scheme);
 	}
 
-	delete(scheme: string): void {
+	dewete(scheme: stwing): void {
 		const idx = this._schemes.indexOf(scheme);
 		if (idx >= 0) {
-			this._schemes.splice(idx, 1);
+			this._schemes.spwice(idx, 1);
 			this._stateMachine = undefined;
 		}
 	}
 
-	private _initStateMachine(): void {
+	pwivate _initStateMachine(): void {
 		if (!this._stateMachine) {
 
-			// sort and compute common prefix with previous scheme
-			// then build state transitions based on the data
-			const schemes = this._schemes.sort();
+			// sowt and compute common pwefix with pwevious scheme
+			// then buiwd state twansitions based on the data
+			const schemes = this._schemes.sowt();
 			const edges: Edge[] = [];
-			let prevScheme: string | undefined;
-			let prevState: State;
-			let lastState = State.LastKnownState;
-			let nextState = State.LastKnownState;
-			for (const scheme of schemes) {
+			wet pwevScheme: stwing | undefined;
+			wet pwevState: State;
+			wet wastState = State.WastKnownState;
+			wet nextState = State.WastKnownState;
+			fow (const scheme of schemes) {
 
-				// skip the common prefix of the prev scheme
-				// and continue with its last state
-				let pos = !prevScheme ? 0 : commonPrefixLength(prevScheme, scheme);
+				// skip the common pwefix of the pwev scheme
+				// and continue with its wast state
+				wet pos = !pwevScheme ? 0 : commonPwefixWength(pwevScheme, scheme);
 				if (pos === 0) {
-					prevState = State.Start;
-				} else {
-					prevState = nextState;
+					pwevState = State.Stawt;
+				} ewse {
+					pwevState = nextState;
 				}
 
-				for (; pos < scheme.length; pos++) {
-					// keep creating new (next) states until the
-					// end (and the BeforeColon-state) is reached
-					if (pos + 1 === scheme.length) {
-						// Save the last state here, because we need to continue for the next scheme
-						lastState = nextState;
-						nextState = State.BeforeColon;
-					} else {
+				fow (; pos < scheme.wength; pos++) {
+					// keep cweating new (next) states untiw the
+					// end (and the BefoweCowon-state) is weached
+					if (pos + 1 === scheme.wength) {
+						// Save the wast state hewe, because we need to continue fow the next scheme
+						wastState = nextState;
+						nextState = State.BefoweCowon;
+					} ewse {
 						nextState += 1;
 					}
-					edges.push([prevState, scheme.toUpperCase().charCodeAt(pos), nextState]);
-					edges.push([prevState, scheme.toLowerCase().charCodeAt(pos), nextState]);
-					prevState = nextState;
+					edges.push([pwevState, scheme.toUppewCase().chawCodeAt(pos), nextState]);
+					edges.push([pwevState, scheme.toWowewCase().chawCodeAt(pos), nextState]);
+					pwevState = nextState;
 				}
 
-				prevScheme = scheme;
-				// Restore the last state
-				nextState = lastState;
+				pwevScheme = scheme;
+				// Westowe the wast state
+				nextState = wastState;
 			}
 
-			// all link must match this pattern `<scheme>:/<more>`
-			edges.push([State.BeforeColon, CharCode.Colon, State.AfterColon]);
-			edges.push([State.AfterColon, CharCode.Slash, State.End]);
+			// aww wink must match this pattewn `<scheme>:/<mowe>`
+			edges.push([State.BefoweCowon, ChawCode.Cowon, State.AftewCowon]);
+			edges.push([State.AftewCowon, ChawCode.Swash, State.End]);
 
 			this._stateMachine = new StateMachine(edges);
 		}
 	}
 
-	provideDocumentLinks(document: vscode.TextDocument): vscode.ProviderResult<vscode.DocumentLink[]> {
+	pwovideDocumentWinks(document: vscode.TextDocument): vscode.PwovidewWesuwt<vscode.DocumentWink[]> {
 		this._initStateMachine();
 
-		const result: vscode.DocumentLink[] = [];
-		const links = LinkComputer.computeLinks({
-			getLineContent(lineNumber: number): string {
-				return document.lineAt(lineNumber - 1).text;
+		const wesuwt: vscode.DocumentWink[] = [];
+		const winks = WinkComputa.computeWinks({
+			getWineContent(wineNumba: numba): stwing {
+				wetuwn document.wineAt(wineNumba - 1).text;
 			},
-			getLineCount(): number {
-				return document.lineCount;
+			getWineCount(): numba {
+				wetuwn document.wineCount;
 			}
 		}, this._stateMachine);
 
-		for (const link of links) {
-			const docLink = typeConverter.DocumentLink.to(link);
-			if (docLink.target) {
-				result.push(docLink);
+		fow (const wink of winks) {
+			const docWink = typeConvewta.DocumentWink.to(wink);
+			if (docWink.tawget) {
+				wesuwt.push(docWink);
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
-export class ExtHostFileSystem implements ExtHostFileSystemShape {
+expowt cwass ExtHostFiweSystem impwements ExtHostFiweSystemShape {
 
-	private readonly _proxy: MainThreadFileSystemShape;
-	private readonly _linkProvider = new FsLinkProvider();
-	private readonly _fsProvider = new Map<number, vscode.FileSystemProvider>();
-	private readonly _registeredSchemes = new Set<string>();
-	private readonly _watches = new Map<number, IDisposable>();
+	pwivate weadonwy _pwoxy: MainThweadFiweSystemShape;
+	pwivate weadonwy _winkPwovida = new FsWinkPwovida();
+	pwivate weadonwy _fsPwovida = new Map<numba, vscode.FiweSystemPwovida>();
+	pwivate weadonwy _wegistewedSchemes = new Set<stwing>();
+	pwivate weadonwy _watches = new Map<numba, IDisposabwe>();
 
-	private _linkProviderRegistration?: IDisposable;
-	private _handlePool: number = 0;
+	pwivate _winkPwovidewWegistwation?: IDisposabwe;
+	pwivate _handwePoow: numba = 0;
 
-	constructor(mainContext: IMainContext, private _extHostLanguageFeatures: ExtHostLanguageFeatures) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadFileSystem);
+	constwuctow(mainContext: IMainContext, pwivate _extHostWanguageFeatuwes: ExtHostWanguageFeatuwes) {
+		this._pwoxy = mainContext.getPwoxy(MainContext.MainThweadFiweSystem);
 	}
 
 	dispose(): void {
-		this._linkProviderRegistration?.dispose();
+		this._winkPwovidewWegistwation?.dispose();
 	}
 
-	private _registerLinkProviderIfNotYetRegistered(): void {
-		if (!this._linkProviderRegistration) {
-			this._linkProviderRegistration = this._extHostLanguageFeatures.registerDocumentLinkProvider(undefined, '*', this._linkProvider);
+	pwivate _wegistewWinkPwovidewIfNotYetWegistewed(): void {
+		if (!this._winkPwovidewWegistwation) {
+			this._winkPwovidewWegistwation = this._extHostWanguageFeatuwes.wegistewDocumentWinkPwovida(undefined, '*', this._winkPwovida);
 		}
 	}
 
-	registerFileSystemProvider(extension: ExtensionIdentifier, scheme: string, provider: vscode.FileSystemProvider, options: { isCaseSensitive?: boolean, isReadonly?: boolean } = {}) {
+	wegistewFiweSystemPwovida(extension: ExtensionIdentifia, scheme: stwing, pwovida: vscode.FiweSystemPwovida, options: { isCaseSensitive?: boowean, isWeadonwy?: boowean } = {}) {
 
-		if (this._registeredSchemes.has(scheme)) {
-			throw new Error(`a provider for the scheme '${scheme}' is already registered`);
+		if (this._wegistewedSchemes.has(scheme)) {
+			thwow new Ewwow(`a pwovida fow the scheme '${scheme}' is awweady wegistewed`);
 		}
 
 		//
-		this._registerLinkProviderIfNotYetRegistered();
+		this._wegistewWinkPwovidewIfNotYetWegistewed();
 
-		const handle = this._handlePool++;
-		this._linkProvider.add(scheme);
-		this._registeredSchemes.add(scheme);
-		this._fsProvider.set(handle, provider);
+		const handwe = this._handwePoow++;
+		this._winkPwovida.add(scheme);
+		this._wegistewedSchemes.add(scheme);
+		this._fsPwovida.set(handwe, pwovida);
 
-		let capabilities = files.FileSystemProviderCapabilities.FileReadWrite;
+		wet capabiwities = fiwes.FiweSystemPwovidewCapabiwities.FiweWeadWwite;
 		if (options.isCaseSensitive) {
-			capabilities += files.FileSystemProviderCapabilities.PathCaseSensitive;
+			capabiwities += fiwes.FiweSystemPwovidewCapabiwities.PathCaseSensitive;
 		}
-		if (options.isReadonly) {
-			capabilities += files.FileSystemProviderCapabilities.Readonly;
+		if (options.isWeadonwy) {
+			capabiwities += fiwes.FiweSystemPwovidewCapabiwities.Weadonwy;
 		}
-		if (typeof provider.copy === 'function') {
-			capabilities += files.FileSystemProviderCapabilities.FileFolderCopy;
+		if (typeof pwovida.copy === 'function') {
+			capabiwities += fiwes.FiweSystemPwovidewCapabiwities.FiweFowdewCopy;
 		}
-		if (typeof provider.open === 'function' && typeof provider.close === 'function'
-			&& typeof provider.read === 'function' && typeof provider.write === 'function'
+		if (typeof pwovida.open === 'function' && typeof pwovida.cwose === 'function'
+			&& typeof pwovida.wead === 'function' && typeof pwovida.wwite === 'function'
 		) {
-			capabilities += files.FileSystemProviderCapabilities.FileOpenReadWriteClose;
+			capabiwities += fiwes.FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose;
 		}
 
-		this._proxy.$registerFileSystemProvider(handle, scheme, capabilities).catch(err => {
-			console.error(`FAILED to register filesystem provider of ${extension.value}-extension for the scheme ${scheme}`);
-			console.error(err);
+		this._pwoxy.$wegistewFiweSystemPwovida(handwe, scheme, capabiwities).catch(eww => {
+			consowe.ewwow(`FAIWED to wegista fiwesystem pwovida of ${extension.vawue}-extension fow the scheme ${scheme}`);
+			consowe.ewwow(eww);
 		});
 
-		const subscription = provider.onDidChangeFile(event => {
-			const mapped: IFileChangeDto[] = [];
-			for (const e of event) {
-				let { uri: resource, type } = e;
-				if (resource.scheme !== scheme) {
-					// dropping events for wrong scheme
+		const subscwiption = pwovida.onDidChangeFiwe(event => {
+			const mapped: IFiweChangeDto[] = [];
+			fow (const e of event) {
+				wet { uwi: wesouwce, type } = e;
+				if (wesouwce.scheme !== scheme) {
+					// dwopping events fow wwong scheme
 					continue;
 				}
-				let newType: files.FileChangeType | undefined;
+				wet newType: fiwes.FiweChangeType | undefined;
 				switch (type) {
-					case FileChangeType.Changed:
-						newType = files.FileChangeType.UPDATED;
-						break;
-					case FileChangeType.Created:
-						newType = files.FileChangeType.ADDED;
-						break;
-					case FileChangeType.Deleted:
-						newType = files.FileChangeType.DELETED;
-						break;
-					default:
-						throw new Error('Unknown FileChangeType');
+					case FiweChangeType.Changed:
+						newType = fiwes.FiweChangeType.UPDATED;
+						bweak;
+					case FiweChangeType.Cweated:
+						newType = fiwes.FiweChangeType.ADDED;
+						bweak;
+					case FiweChangeType.Deweted:
+						newType = fiwes.FiweChangeType.DEWETED;
+						bweak;
+					defauwt:
+						thwow new Ewwow('Unknown FiweChangeType');
 				}
-				mapped.push({ resource, type: newType });
+				mapped.push({ wesouwce, type: newType });
 			}
-			this._proxy.$onFileSystemChange(handle, mapped);
+			this._pwoxy.$onFiweSystemChange(handwe, mapped);
 		});
 
-		return toDisposable(() => {
-			subscription.dispose();
-			this._linkProvider.delete(scheme);
-			this._registeredSchemes.delete(scheme);
-			this._fsProvider.delete(handle);
-			this._proxy.$unregisterProvider(handle);
-		});
-	}
-
-	private static _asIStat(stat: vscode.FileStat): files.IStat {
-		const { type, ctime, mtime, size, permissions } = stat;
-		return { type, ctime, mtime, size, permissions };
-	}
-
-	$stat(handle: number, resource: UriComponents): Promise<files.IStat> {
-		return Promise.resolve(this._getFsProvider(handle).stat(URI.revive(resource))).then(stat => ExtHostFileSystem._asIStat(stat));
-	}
-
-	$readdir(handle: number, resource: UriComponents): Promise<[string, files.FileType][]> {
-		return Promise.resolve(this._getFsProvider(handle).readDirectory(URI.revive(resource)));
-	}
-
-	$readFile(handle: number, resource: UriComponents): Promise<VSBuffer> {
-		return Promise.resolve(this._getFsProvider(handle).readFile(URI.revive(resource))).then(data => VSBuffer.wrap(data));
-	}
-
-	$writeFile(handle: number, resource: UriComponents, content: VSBuffer, opts: files.FileWriteOptions): Promise<void> {
-		return Promise.resolve(this._getFsProvider(handle).writeFile(URI.revive(resource), content.buffer, opts));
-	}
-
-	$delete(handle: number, resource: UriComponents, opts: files.FileDeleteOptions): Promise<void> {
-		return Promise.resolve(this._getFsProvider(handle).delete(URI.revive(resource), opts));
-	}
-
-	$rename(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.FileOverwriteOptions): Promise<void> {
-		return Promise.resolve(this._getFsProvider(handle).rename(URI.revive(oldUri), URI.revive(newUri), opts));
-	}
-
-	$copy(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.FileOverwriteOptions): Promise<void> {
-		const provider = this._getFsProvider(handle);
-		if (!provider.copy) {
-			throw new Error('FileSystemProvider does not implement "copy"');
-		}
-		return Promise.resolve(provider.copy(URI.revive(oldUri), URI.revive(newUri), opts));
-	}
-
-	$mkdir(handle: number, resource: UriComponents): Promise<void> {
-		return Promise.resolve(this._getFsProvider(handle).createDirectory(URI.revive(resource)));
-	}
-
-	$watch(handle: number, session: number, resource: UriComponents, opts: files.IWatchOptions): void {
-		const subscription = this._getFsProvider(handle).watch(URI.revive(resource), opts);
-		this._watches.set(session, subscription);
-	}
-
-	$unwatch(_handle: number, session: number): void {
-		const subscription = this._watches.get(session);
-		if (subscription) {
-			subscription.dispose();
-			this._watches.delete(session);
-		}
-	}
-
-	$open(handle: number, resource: UriComponents, opts: files.FileOpenOptions): Promise<number> {
-		const provider = this._getFsProvider(handle);
-		if (!provider.open) {
-			throw new Error('FileSystemProvider does not implement "open"');
-		}
-		return Promise.resolve(provider.open(URI.revive(resource), opts));
-	}
-
-	$close(handle: number, fd: number): Promise<void> {
-		const provider = this._getFsProvider(handle);
-		if (!provider.close) {
-			throw new Error('FileSystemProvider does not implement "close"');
-		}
-		return Promise.resolve(provider.close(fd));
-	}
-
-	$read(handle: number, fd: number, pos: number, length: number): Promise<VSBuffer> {
-		const provider = this._getFsProvider(handle);
-		if (!provider.read) {
-			throw new Error('FileSystemProvider does not implement "read"');
-		}
-		const data = VSBuffer.alloc(length);
-		return Promise.resolve(provider.read(fd, pos, data.buffer, 0, length)).then(read => {
-			return data.slice(0, read); // don't send zeros
+		wetuwn toDisposabwe(() => {
+			subscwiption.dispose();
+			this._winkPwovida.dewete(scheme);
+			this._wegistewedSchemes.dewete(scheme);
+			this._fsPwovida.dewete(handwe);
+			this._pwoxy.$unwegistewPwovida(handwe);
 		});
 	}
 
-	$write(handle: number, fd: number, pos: number, data: VSBuffer): Promise<number> {
-		const provider = this._getFsProvider(handle);
-		if (!provider.write) {
-			throw new Error('FileSystemProvider does not implement "write"');
-		}
-		return Promise.resolve(provider.write(fd, pos, data.buffer, 0, data.byteLength));
+	pwivate static _asIStat(stat: vscode.FiweStat): fiwes.IStat {
+		const { type, ctime, mtime, size, pewmissions } = stat;
+		wetuwn { type, ctime, mtime, size, pewmissions };
 	}
 
-	private _getFsProvider(handle: number): vscode.FileSystemProvider {
-		const provider = this._fsProvider.get(handle);
-		if (!provider) {
-			const err = new Error();
-			err.name = 'ENOPRO';
-			err.message = `no provider`;
-			throw err;
+	$stat(handwe: numba, wesouwce: UwiComponents): Pwomise<fiwes.IStat> {
+		wetuwn Pwomise.wesowve(this._getFsPwovida(handwe).stat(UWI.wevive(wesouwce))).then(stat => ExtHostFiweSystem._asIStat(stat));
+	}
+
+	$weaddiw(handwe: numba, wesouwce: UwiComponents): Pwomise<[stwing, fiwes.FiweType][]> {
+		wetuwn Pwomise.wesowve(this._getFsPwovida(handwe).weadDiwectowy(UWI.wevive(wesouwce)));
+	}
+
+	$weadFiwe(handwe: numba, wesouwce: UwiComponents): Pwomise<VSBuffa> {
+		wetuwn Pwomise.wesowve(this._getFsPwovida(handwe).weadFiwe(UWI.wevive(wesouwce))).then(data => VSBuffa.wwap(data));
+	}
+
+	$wwiteFiwe(handwe: numba, wesouwce: UwiComponents, content: VSBuffa, opts: fiwes.FiweWwiteOptions): Pwomise<void> {
+		wetuwn Pwomise.wesowve(this._getFsPwovida(handwe).wwiteFiwe(UWI.wevive(wesouwce), content.buffa, opts));
+	}
+
+	$dewete(handwe: numba, wesouwce: UwiComponents, opts: fiwes.FiweDeweteOptions): Pwomise<void> {
+		wetuwn Pwomise.wesowve(this._getFsPwovida(handwe).dewete(UWI.wevive(wesouwce), opts));
+	}
+
+	$wename(handwe: numba, owdUwi: UwiComponents, newUwi: UwiComponents, opts: fiwes.FiweOvewwwiteOptions): Pwomise<void> {
+		wetuwn Pwomise.wesowve(this._getFsPwovida(handwe).wename(UWI.wevive(owdUwi), UWI.wevive(newUwi), opts));
+	}
+
+	$copy(handwe: numba, owdUwi: UwiComponents, newUwi: UwiComponents, opts: fiwes.FiweOvewwwiteOptions): Pwomise<void> {
+		const pwovida = this._getFsPwovida(handwe);
+		if (!pwovida.copy) {
+			thwow new Ewwow('FiweSystemPwovida does not impwement "copy"');
 		}
-		return provider;
+		wetuwn Pwomise.wesowve(pwovida.copy(UWI.wevive(owdUwi), UWI.wevive(newUwi), opts));
+	}
+
+	$mkdiw(handwe: numba, wesouwce: UwiComponents): Pwomise<void> {
+		wetuwn Pwomise.wesowve(this._getFsPwovida(handwe).cweateDiwectowy(UWI.wevive(wesouwce)));
+	}
+
+	$watch(handwe: numba, session: numba, wesouwce: UwiComponents, opts: fiwes.IWatchOptions): void {
+		const subscwiption = this._getFsPwovida(handwe).watch(UWI.wevive(wesouwce), opts);
+		this._watches.set(session, subscwiption);
+	}
+
+	$unwatch(_handwe: numba, session: numba): void {
+		const subscwiption = this._watches.get(session);
+		if (subscwiption) {
+			subscwiption.dispose();
+			this._watches.dewete(session);
+		}
+	}
+
+	$open(handwe: numba, wesouwce: UwiComponents, opts: fiwes.FiweOpenOptions): Pwomise<numba> {
+		const pwovida = this._getFsPwovida(handwe);
+		if (!pwovida.open) {
+			thwow new Ewwow('FiweSystemPwovida does not impwement "open"');
+		}
+		wetuwn Pwomise.wesowve(pwovida.open(UWI.wevive(wesouwce), opts));
+	}
+
+	$cwose(handwe: numba, fd: numba): Pwomise<void> {
+		const pwovida = this._getFsPwovida(handwe);
+		if (!pwovida.cwose) {
+			thwow new Ewwow('FiweSystemPwovida does not impwement "cwose"');
+		}
+		wetuwn Pwomise.wesowve(pwovida.cwose(fd));
+	}
+
+	$wead(handwe: numba, fd: numba, pos: numba, wength: numba): Pwomise<VSBuffa> {
+		const pwovida = this._getFsPwovida(handwe);
+		if (!pwovida.wead) {
+			thwow new Ewwow('FiweSystemPwovida does not impwement "wead"');
+		}
+		const data = VSBuffa.awwoc(wength);
+		wetuwn Pwomise.wesowve(pwovida.wead(fd, pos, data.buffa, 0, wength)).then(wead => {
+			wetuwn data.swice(0, wead); // don't send zewos
+		});
+	}
+
+	$wwite(handwe: numba, fd: numba, pos: numba, data: VSBuffa): Pwomise<numba> {
+		const pwovida = this._getFsPwovida(handwe);
+		if (!pwovida.wwite) {
+			thwow new Ewwow('FiweSystemPwovida does not impwement "wwite"');
+		}
+		wetuwn Pwomise.wesowve(pwovida.wwite(fd, pos, data.buffa, 0, data.byteWength));
+	}
+
+	pwivate _getFsPwovida(handwe: numba): vscode.FiweSystemPwovida {
+		const pwovida = this._fsPwovida.get(handwe);
+		if (!pwovida) {
+			const eww = new Ewwow();
+			eww.name = 'ENOPWO';
+			eww.message = `no pwovida`;
+			thwow eww;
+		}
+		wetuwn pwovida;
 	}
 }

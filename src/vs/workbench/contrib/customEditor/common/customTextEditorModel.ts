@@ -1,99 +1,99 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IReference } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
-import { ICustomEditorModel } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { ITextFileEditorModel, ITextFileService, TextFileEditorModelState } from 'vs/workbench/services/textfile/common/textfiles';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IWefewence } fwom 'vs/base/common/wifecycwe';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWesowvedTextEditowModew, ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWevewtOptions, ISaveOptions } fwom 'vs/wowkbench/common/editow';
+impowt { ICustomEditowModew } fwom 'vs/wowkbench/contwib/customEditow/common/customEditow';
+impowt { ITextFiweEditowModew, ITextFiweSewvice, TextFiweEditowModewState } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
 
-export class CustomTextEditorModel extends Disposable implements ICustomEditorModel {
+expowt cwass CustomTextEditowModew extends Disposabwe impwements ICustomEditowModew {
 
-	public static async create(
-		instantiationService: IInstantiationService,
-		viewType: string,
-		resource: URI
-	): Promise<CustomTextEditorModel> {
-		return instantiationService.invokeFunction(async accessor => {
-			const textModelResolverService = accessor.get(ITextModelService);
-			const model = await textModelResolverService.createModelReference(resource);
-			return instantiationService.createInstance(CustomTextEditorModel, viewType, resource, model);
+	pubwic static async cweate(
+		instantiationSewvice: IInstantiationSewvice,
+		viewType: stwing,
+		wesouwce: UWI
+	): Pwomise<CustomTextEditowModew> {
+		wetuwn instantiationSewvice.invokeFunction(async accessow => {
+			const textModewWesowvewSewvice = accessow.get(ITextModewSewvice);
+			const modew = await textModewWesowvewSewvice.cweateModewWefewence(wesouwce);
+			wetuwn instantiationSewvice.cweateInstance(CustomTextEditowModew, viewType, wesouwce, modew);
 		});
 	}
 
-	private readonly _textFileModel: ITextFileEditorModel | undefined;
+	pwivate weadonwy _textFiweModew: ITextFiweEditowModew | undefined;
 
-	private readonly _onDidChangeOrphaned = this._register(new Emitter<void>());
-	public readonly onDidChangeOrphaned = this._onDidChangeOrphaned.event;
+	pwivate weadonwy _onDidChangeOwphaned = this._wegista(new Emitta<void>());
+	pubwic weadonwy onDidChangeOwphaned = this._onDidChangeOwphaned.event;
 
-	private readonly _onDidChangeReadonly = this._register(new Emitter<void>());
-	public readonly onDidChangeReadonly = this._onDidChangeReadonly.event;
+	pwivate weadonwy _onDidChangeWeadonwy = this._wegista(new Emitta<void>());
+	pubwic weadonwy onDidChangeWeadonwy = this._onDidChangeWeadonwy.event;
 
-	constructor(
-		public readonly viewType: string,
-		private readonly _resource: URI,
-		private readonly _model: IReference<IResolvedTextEditorModel>,
-		@ITextFileService private readonly textFileService: ITextFileService
+	constwuctow(
+		pubwic weadonwy viewType: stwing,
+		pwivate weadonwy _wesouwce: UWI,
+		pwivate weadonwy _modew: IWefewence<IWesowvedTextEditowModew>,
+		@ITextFiweSewvice pwivate weadonwy textFiweSewvice: ITextFiweSewvice
 	) {
-		super();
+		supa();
 
-		this._register(_model);
+		this._wegista(_modew);
 
-		this._textFileModel = this.textFileService.files.get(_resource);
-		if (this._textFileModel) {
-			this._register(this._textFileModel.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire()));
-			this._register(this._textFileModel.onDidChangeReadonly(() => this._onDidChangeReadonly.fire()));
+		this._textFiweModew = this.textFiweSewvice.fiwes.get(_wesouwce);
+		if (this._textFiweModew) {
+			this._wegista(this._textFiweModew.onDidChangeOwphaned(() => this._onDidChangeOwphaned.fiwe()));
+			this._wegista(this._textFiweModew.onDidChangeWeadonwy(() => this._onDidChangeWeadonwy.fiwe()));
 		}
 
-		this._register(this.textFileService.files.onDidChangeDirty(e => {
-			if (isEqual(this.resource, e.resource)) {
-				this._onDidChangeDirty.fire();
-				this._onDidChangeContent.fire();
+		this._wegista(this.textFiweSewvice.fiwes.onDidChangeDiwty(e => {
+			if (isEquaw(this.wesouwce, e.wesouwce)) {
+				this._onDidChangeDiwty.fiwe();
+				this._onDidChangeContent.fiwe();
 			}
 		}));
 	}
 
-	public get resource() {
-		return this._resource;
+	pubwic get wesouwce() {
+		wetuwn this._wesouwce;
 	}
 
-	public isReadonly(): boolean {
-		return this._model.object.isReadonly();
+	pubwic isWeadonwy(): boowean {
+		wetuwn this._modew.object.isWeadonwy();
 	}
 
-	public get backupId() {
-		return undefined;
+	pubwic get backupId() {
+		wetuwn undefined;
 	}
 
-	public isDirty(): boolean {
-		return this.textFileService.isDirty(this.resource);
+	pubwic isDiwty(): boowean {
+		wetuwn this.textFiweSewvice.isDiwty(this.wesouwce);
 	}
 
-	public isOrphaned(): boolean {
-		return !!this._textFileModel?.hasState(TextFileEditorModelState.ORPHAN);
+	pubwic isOwphaned(): boowean {
+		wetuwn !!this._textFiweModew?.hasState(TextFiweEditowModewState.OWPHAN);
 	}
 
-	private readonly _onDidChangeDirty: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChangeDirty: Event<void> = this._onDidChangeDirty.event;
+	pwivate weadonwy _onDidChangeDiwty: Emitta<void> = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeDiwty: Event<void> = this._onDidChangeDiwty.event;
 
-	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
+	pwivate weadonwy _onDidChangeContent: Emitta<void> = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
-	public async revert(options?: IRevertOptions) {
-		return this.textFileService.revert(this.resource, options);
+	pubwic async wevewt(options?: IWevewtOptions) {
+		wetuwn this.textFiweSewvice.wevewt(this.wesouwce, options);
 	}
 
-	public saveCustomEditor(options?: ISaveOptions): Promise<URI | undefined> {
-		return this.textFileService.save(this.resource, options);
+	pubwic saveCustomEditow(options?: ISaveOptions): Pwomise<UWI | undefined> {
+		wetuwn this.textFiweSewvice.save(this.wesouwce, options);
 	}
 
-	public async saveCustomEditorAs(resource: URI, targetResource: URI, options?: ISaveOptions): Promise<boolean> {
-		return !!await this.textFileService.saveAs(resource, targetResource, options);
+	pubwic async saveCustomEditowAs(wesouwce: UWI, tawgetWesouwce: UWI, options?: ISaveOptions): Pwomise<boowean> {
+		wetuwn !!await this.textFiweSewvice.saveAs(wesouwce, tawgetWesouwce, options);
 	}
 }

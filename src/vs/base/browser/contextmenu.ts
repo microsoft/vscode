@@ -1,36 +1,36 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { AnchorAlignment, AnchorAxisAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { IAction, IActionRunner } from 'vs/base/common/actions';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+impowt { IActionViewItem } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { AnchowAwignment, AnchowAxisAwignment } fwom 'vs/base/bwowsa/ui/contextview/contextview';
+impowt { IAction, IActionWunna } fwom 'vs/base/common/actions';
+impowt { WesowvedKeybinding } fwom 'vs/base/common/keyCodes';
 
-export interface IContextMenuEvent {
-	readonly shiftKey?: boolean;
-	readonly ctrlKey?: boolean;
-	readonly altKey?: boolean;
-	readonly metaKey?: boolean;
+expowt intewface IContextMenuEvent {
+	weadonwy shiftKey?: boowean;
+	weadonwy ctwwKey?: boowean;
+	weadonwy awtKey?: boowean;
+	weadonwy metaKey?: boowean;
 }
 
-export interface IContextMenuDelegate {
-	getAnchor(): HTMLElement | { x: number; y: number; width?: number; height?: number; };
-	getActions(): readonly IAction[];
-	getCheckedActionsRepresentation?(action: IAction): 'radio' | 'checkbox';
+expowt intewface IContextMenuDewegate {
+	getAnchow(): HTMWEwement | { x: numba; y: numba; width?: numba; height?: numba; };
+	getActions(): weadonwy IAction[];
+	getCheckedActionsWepwesentation?(action: IAction): 'wadio' | 'checkbox';
 	getActionViewItem?(action: IAction): IActionViewItem | undefined;
 	getActionsContext?(event?: IContextMenuEvent): unknown;
-	getKeyBinding?(action: IAction): ResolvedKeybinding | undefined;
-	getMenuClassName?(): string;
-	onHide?(didCancel: boolean): void;
-	actionRunner?: IActionRunner;
-	autoSelectFirstItem?: boolean;
-	anchorAlignment?: AnchorAlignment;
-	anchorAxisAlignment?: AnchorAxisAlignment;
-	domForShadowRoot?: HTMLElement;
+	getKeyBinding?(action: IAction): WesowvedKeybinding | undefined;
+	getMenuCwassName?(): stwing;
+	onHide?(didCancew: boowean): void;
+	actionWunna?: IActionWunna;
+	autoSewectFiwstItem?: boowean;
+	anchowAwignment?: AnchowAwignment;
+	anchowAxisAwignment?: AnchowAxisAwignment;
+	domFowShadowWoot?: HTMWEwement;
 }
 
-export interface IContextMenuProvider {
-	showContextMenu(delegate: IContextMenuDelegate): void;
+expowt intewface IContextMenuPwovida {
+	showContextMenu(dewegate: IContextMenuDewegate): void;
 }

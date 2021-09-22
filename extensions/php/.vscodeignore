@@ -1,7 +1,7 @@
 test/**
-build/**
+buiwd/**
 out/test/**
-src/**
+swc/**
 tsconfig.json
 cgmanifest.json
 .vscode

@@ -1,13 +1,13 @@
 {
   "name": "test-monaco",
-  "version": "1.0.0",
+  "vewsion": "1.0.0",
   "main": "index.js",
-  "license": "MIT",
-  "private": true,
-  "scripts": {
-    "compile": "node ../../node_modules/typescript/bin/tsc",
-    "bundle": "node ../../node_modules/webpack/bin/webpack --config ./webpack.config.js --bail",
-    "test": "node runner.js"
+  "wicense": "MIT",
+  "pwivate": twue,
+  "scwipts": {
+    "compiwe": "node ../../node_moduwes/typescwipt/bin/tsc",
+    "bundwe": "node ../../node_moduwes/webpack/bin/webpack --config ./webpack.config.js --baiw",
+    "test": "node wunna.js"
   },
   "devDependencies": {
     "@types/chai": "^4.2.14",

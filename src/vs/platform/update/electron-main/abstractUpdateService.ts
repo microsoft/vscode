@@ -1,206 +1,206 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { getMigratedSettingValue, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { AvailableForDownload, IUpdateService, State, StateType, UpdateType } from 'vs/platform/update/common/update';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { getMigwatedSettingVawue, IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IEnviwonmentMainSewvice } fwom 'vs/pwatfowm/enviwonment/ewectwon-main/enviwonmentMainSewvice';
+impowt { IWifecycweMainSewvice } fwom 'vs/pwatfowm/wifecycwe/ewectwon-main/wifecycweMainSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IWequestSewvice } fwom 'vs/pwatfowm/wequest/common/wequest';
+impowt { AvaiwabweFowDownwoad, IUpdateSewvice, State, StateType, UpdateType } fwom 'vs/pwatfowm/update/common/update';
 
-export function createUpdateURL(platform: string, quality: string, productService: IProductService): string {
-	return `${productService.updateUrl}/api/update/${platform}/${quality}/${productService.commit}`;
+expowt function cweateUpdateUWW(pwatfowm: stwing, quawity: stwing, pwoductSewvice: IPwoductSewvice): stwing {
+	wetuwn `${pwoductSewvice.updateUww}/api/update/${pwatfowm}/${quawity}/${pwoductSewvice.commit}`;
 }
 
-export type UpdateNotAvailableClassification = {
-	explicit: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+expowt type UpdateNotAvaiwabweCwassification = {
+	expwicit: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
 };
 
-export abstract class AbstractUpdateService implements IUpdateService {
+expowt abstwact cwass AbstwactUpdateSewvice impwements IUpdateSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	protected url: string | undefined;
+	pwotected uww: stwing | undefined;
 
-	private _state: State = State.Uninitialized;
+	pwivate _state: State = State.Uninitiawized;
 
-	private readonly _onStateChange = new Emitter<State>();
-	readonly onStateChange: Event<State> = this._onStateChange.event;
+	pwivate weadonwy _onStateChange = new Emitta<State>();
+	weadonwy onStateChange: Event<State> = this._onStateChange.event;
 
 	get state(): State {
-		return this._state;
+		wetuwn this._state;
 	}
 
-	protected setState(state: State): void {
-		this.logService.info('update#setState', state.type);
+	pwotected setState(state: State): void {
+		this.wogSewvice.info('update#setState', state.type);
 		this._state = state;
-		this._onStateChange.fire(state);
+		this._onStateChange.fiwe(state);
 	}
 
-	constructor(
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@IConfigurationService protected configurationService: IConfigurationService,
-		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
-		@IRequestService protected requestService: IRequestService,
-		@ILogService protected logService: ILogService,
-		@IProductService protected readonly productService: IProductService
+	constwuctow(
+		@IWifecycweMainSewvice pwivate weadonwy wifecycweMainSewvice: IWifecycweMainSewvice,
+		@IConfiguwationSewvice pwotected configuwationSewvice: IConfiguwationSewvice,
+		@IEnviwonmentMainSewvice pwivate weadonwy enviwonmentMainSewvice: IEnviwonmentMainSewvice,
+		@IWequestSewvice pwotected wequestSewvice: IWequestSewvice,
+		@IWogSewvice pwotected wogSewvice: IWogSewvice,
+		@IPwoductSewvice pwotected weadonwy pwoductSewvice: IPwoductSewvice
 	) { }
 
 	/**
-	 * This must be called before any other call. This is a performance
-	 * optimization, to avoid using extra CPU cycles before first window open.
-	 * https://github.com/microsoft/vscode/issues/89784
+	 * This must be cawwed befowe any otha caww. This is a pewfowmance
+	 * optimization, to avoid using extwa CPU cycwes befowe fiwst window open.
+	 * https://github.com/micwosoft/vscode/issues/89784
 	 */
-	initialize(): void {
-		if (!this.environmentMainService.isBuilt) {
-			return; // updates are never enabled when running out of sources
+	initiawize(): void {
+		if (!this.enviwonmentMainSewvice.isBuiwt) {
+			wetuwn; // updates awe neva enabwed when wunning out of souwces
 		}
 
-		if (this.environmentMainService.disableUpdates) {
-			this.logService.info('update#ctor - updates are disabled by the environment');
-			return;
+		if (this.enviwonmentMainSewvice.disabweUpdates) {
+			this.wogSewvice.info('update#ctow - updates awe disabwed by the enviwonment');
+			wetuwn;
 		}
 
-		if (!this.productService.updateUrl || !this.productService.commit) {
-			this.logService.info('update#ctor - updates are disabled as there is no update URL');
-			return;
+		if (!this.pwoductSewvice.updateUww || !this.pwoductSewvice.commit) {
+			this.wogSewvice.info('update#ctow - updates awe disabwed as thewe is no update UWW');
+			wetuwn;
 		}
 
-		const updateMode = getMigratedSettingValue<string>(this.configurationService, 'update.mode', 'update.channel');
-		const quality = this.getProductQuality(updateMode);
+		const updateMode = getMigwatedSettingVawue<stwing>(this.configuwationSewvice, 'update.mode', 'update.channew');
+		const quawity = this.getPwoductQuawity(updateMode);
 
-		if (!quality) {
-			this.logService.info('update#ctor - updates are disabled by user preference');
-			return;
+		if (!quawity) {
+			this.wogSewvice.info('update#ctow - updates awe disabwed by usa pwefewence');
+			wetuwn;
 		}
 
-		this.url = this.buildUpdateFeedUrl(quality);
-		if (!this.url) {
-			this.logService.info('update#ctor - updates are disabled as the update URL is badly formed');
-			return;
+		this.uww = this.buiwdUpdateFeedUww(quawity);
+		if (!this.uww) {
+			this.wogSewvice.info('update#ctow - updates awe disabwed as the update UWW is badwy fowmed');
+			wetuwn;
 		}
 
-		this.setState(State.Idle(this.getUpdateType()));
+		this.setState(State.Idwe(this.getUpdateType()));
 
-		if (updateMode === 'manual') {
-			this.logService.info('update#ctor - manual checks only; automatic updates are disabled by user preference');
-			return;
+		if (updateMode === 'manuaw') {
+			this.wogSewvice.info('update#ctow - manuaw checks onwy; automatic updates awe disabwed by usa pwefewence');
+			wetuwn;
 		}
 
-		if (updateMode === 'start') {
-			this.logService.info('update#ctor - startup checks only; automatic updates are disabled by user preference');
+		if (updateMode === 'stawt') {
+			this.wogSewvice.info('update#ctow - stawtup checks onwy; automatic updates awe disabwed by usa pwefewence');
 
-			// Check for updates only once after 30 seconds
-			setTimeout(() => this.checkForUpdates(false), 30 * 1000);
-		} else {
-			// Start checking for updates after 30 seconds
-			this.scheduleCheckForUpdates(30 * 1000).then(undefined, err => this.logService.error(err));
+			// Check fow updates onwy once afta 30 seconds
+			setTimeout(() => this.checkFowUpdates(fawse), 30 * 1000);
+		} ewse {
+			// Stawt checking fow updates afta 30 seconds
+			this.scheduweCheckFowUpdates(30 * 1000).then(undefined, eww => this.wogSewvice.ewwow(eww));
 		}
 	}
 
-	private getProductQuality(updateMode: string): string | undefined {
-		return updateMode === 'none' ? undefined : this.productService.quality;
+	pwivate getPwoductQuawity(updateMode: stwing): stwing | undefined {
+		wetuwn updateMode === 'none' ? undefined : this.pwoductSewvice.quawity;
 	}
 
-	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): Promise<void> {
-		return timeout(delay)
-			.then(() => this.checkForUpdates(false))
+	pwivate scheduweCheckFowUpdates(deway = 60 * 60 * 1000): Pwomise<void> {
+		wetuwn timeout(deway)
+			.then(() => this.checkFowUpdates(fawse))
 			.then(() => {
-				// Check again after 1 hour
-				return this.scheduleCheckForUpdates(60 * 60 * 1000);
+				// Check again afta 1 houw
+				wetuwn this.scheduweCheckFowUpdates(60 * 60 * 1000);
 			});
 	}
 
-	async checkForUpdates(explicit: boolean): Promise<void> {
-		this.logService.trace('update#checkForUpdates, state = ', this.state.type);
+	async checkFowUpdates(expwicit: boowean): Pwomise<void> {
+		this.wogSewvice.twace('update#checkFowUpdates, state = ', this.state.type);
 
-		if (this.state.type !== StateType.Idle) {
-			return;
+		if (this.state.type !== StateType.Idwe) {
+			wetuwn;
 		}
 
-		this.doCheckForUpdates(explicit);
+		this.doCheckFowUpdates(expwicit);
 	}
 
-	async downloadUpdate(): Promise<void> {
-		this.logService.trace('update#downloadUpdate, state = ', this.state.type);
+	async downwoadUpdate(): Pwomise<void> {
+		this.wogSewvice.twace('update#downwoadUpdate, state = ', this.state.type);
 
-		if (this.state.type !== StateType.AvailableForDownload) {
-			return;
+		if (this.state.type !== StateType.AvaiwabweFowDownwoad) {
+			wetuwn;
 		}
 
-		await this.doDownloadUpdate(this.state);
+		await this.doDownwoadUpdate(this.state);
 	}
 
-	protected async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
+	pwotected async doDownwoadUpdate(state: AvaiwabweFowDownwoad): Pwomise<void> {
 		// noop
 	}
 
-	async applyUpdate(): Promise<void> {
-		this.logService.trace('update#applyUpdate, state = ', this.state.type);
+	async appwyUpdate(): Pwomise<void> {
+		this.wogSewvice.twace('update#appwyUpdate, state = ', this.state.type);
 
-		if (this.state.type !== StateType.Downloaded) {
-			return;
+		if (this.state.type !== StateType.Downwoaded) {
+			wetuwn;
 		}
 
-		await this.doApplyUpdate();
+		await this.doAppwyUpdate();
 	}
 
-	protected async doApplyUpdate(): Promise<void> {
+	pwotected async doAppwyUpdate(): Pwomise<void> {
 		// noop
 	}
 
-	quitAndInstall(): Promise<void> {
-		this.logService.trace('update#quitAndInstall, state = ', this.state.type);
+	quitAndInstaww(): Pwomise<void> {
+		this.wogSewvice.twace('update#quitAndInstaww, state = ', this.state.type);
 
-		if (this.state.type !== StateType.Ready) {
-			return Promise.resolve(undefined);
+		if (this.state.type !== StateType.Weady) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
+		this.wogSewvice.twace('update#quitAndInstaww(): befowe wifecycwe quit()');
 
-		this.lifecycleMainService.quit(true /* will restart */).then(vetod => {
-			this.logService.trace(`update#quitAndInstall(): after lifecycle quit() with veto: ${vetod}`);
+		this.wifecycweMainSewvice.quit(twue /* wiww westawt */).then(vetod => {
+			this.wogSewvice.twace(`update#quitAndInstaww(): afta wifecycwe quit() with veto: ${vetod}`);
 			if (vetod) {
-				return;
+				wetuwn;
 			}
 
-			this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
-			this.doQuitAndInstall();
+			this.wogSewvice.twace('update#quitAndInstaww(): wunning waw#quitAndInstaww()');
+			this.doQuitAndInstaww();
 		});
 
-		return Promise.resolve(undefined);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	isLatestVersion(): Promise<boolean | undefined> {
-		if (!this.url) {
-			return Promise.resolve(undefined);
+	isWatestVewsion(): Pwomise<boowean | undefined> {
+		if (!this.uww) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		return this.requestService.request({ url: this.url }, CancellationToken.None).then(context => {
-			// The update server replies with 204 (No Content) when no
-			// update is available - that's all we want to know.
-			if (context.res.statusCode === 204) {
-				return true;
-			} else {
-				return false;
+		wetuwn this.wequestSewvice.wequest({ uww: this.uww }, CancewwationToken.None).then(context => {
+			// The update sewva wepwies with 204 (No Content) when no
+			// update is avaiwabwe - that's aww we want to know.
+			if (context.wes.statusCode === 204) {
+				wetuwn twue;
+			} ewse {
+				wetuwn fawse;
 			}
 		});
 	}
 
-	protected getUpdateType(): UpdateType {
-		return UpdateType.Archive;
+	pwotected getUpdateType(): UpdateType {
+		wetuwn UpdateType.Awchive;
 	}
 
-	protected doQuitAndInstall(): void {
+	pwotected doQuitAndInstaww(): void {
 		// noop
 	}
 
-	protected abstract buildUpdateFeedUrl(quality: string): string | undefined;
-	protected abstract doCheckForUpdates(context: any): void;
+	pwotected abstwact buiwdUpdateFeedUww(quawity: stwing): stwing | undefined;
+	pwotected abstwact doCheckFowUpdates(context: any): void;
 }

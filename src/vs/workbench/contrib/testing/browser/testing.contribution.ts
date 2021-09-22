@@ -1,205 +1,205 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { localize } from 'vs/nls';
-import { registerAction2 } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IFileService } from 'vs/platform/files/common/files';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProgressService } from 'vs/platform/progress/common/progress';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { Extensions as ViewContainerExtensions, IViewContainersRegistry, IViewsRegistry, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
-import { testingViewIcon } from 'vs/workbench/contrib/testing/browser/icons';
-import { TestingDecorations } from 'vs/workbench/contrib/testing/browser/testingDecorations';
-import { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
-import { CloseTestPeek, GoToNextMessageAction, GoToPreviousMessageAction, OpenMessageInEditorAction, TestingOutputPeekController, TestingPeekOpener, ToggleTestingPeekHistory } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
-import { ITestingOutputTerminalService, TestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
-import { ITestingProgressUiService, TestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
-import { TestingViewPaneContainer } from 'vs/workbench/contrib/testing/browser/testingViewPaneContainer';
-import { testingConfiguation } from 'vs/workbench/contrib/testing/common/configuration';
-import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { ITestItem, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestExplorerFilterState, TestExplorerFilterState } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
-import { TestId, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
-import { ITestingAutoRun, TestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
-import { TestingContentProvider } from 'vs/workbench/contrib/testing/common/testingContentProvider';
-import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
-import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
-import { ITestProfileService, TestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
-import { ITestResultService, TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { ITestResultStorage, TestResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
-import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { TestService } from 'vs/workbench/contrib/testing/common/testServiceImpl';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { allTestActions, discoverAndRunTests } from './testExplorerActions';
-import './testingConfigurationUi';
+impowt { wegistewEditowContwibution } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { wocawize } fwom 'vs/nws';
+impowt { wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { CommandsWegistwy, ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { Extensions as ConfiguwationExtensions, IConfiguwationWegistwy } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IPwogwessSewvice } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { Extensions as ViewContainewExtensions, IViewContainewsWegistwy, IViewsWegistwy, IViewsSewvice, ViewContainewWocation } fwom 'vs/wowkbench/common/views';
+impowt { WEVEAW_IN_EXPWOWEW_COMMAND_ID } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/fiweCommands';
+impowt { testingViewIcon } fwom 'vs/wowkbench/contwib/testing/bwowsa/icons';
+impowt { TestingDecowations } fwom 'vs/wowkbench/contwib/testing/bwowsa/testingDecowations';
+impowt { TestingExpwowewView } fwom 'vs/wowkbench/contwib/testing/bwowsa/testingExpwowewView';
+impowt { CwoseTestPeek, GoToNextMessageAction, GoToPweviousMessageAction, OpenMessageInEditowAction, TestingOutputPeekContwowwa, TestingPeekOpena, ToggweTestingPeekHistowy } fwom 'vs/wowkbench/contwib/testing/bwowsa/testingOutputPeek';
+impowt { ITestingOutputTewminawSewvice, TestingOutputTewminawSewvice } fwom 'vs/wowkbench/contwib/testing/bwowsa/testingOutputTewminawSewvice';
+impowt { ITestingPwogwessUiSewvice, TestingPwogwessUiSewvice } fwom 'vs/wowkbench/contwib/testing/bwowsa/testingPwogwessUiSewvice';
+impowt { TestingViewPaneContaina } fwom 'vs/wowkbench/contwib/testing/bwowsa/testingViewPaneContaina';
+impowt { testingConfiguation } fwom 'vs/wowkbench/contwib/testing/common/configuwation';
+impowt { Testing } fwom 'vs/wowkbench/contwib/testing/common/constants';
+impowt { ITestItem, TestWunPwofiweBitset } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
+impowt { ITestExpwowewFiwtewState, TestExpwowewFiwtewState } fwom 'vs/wowkbench/contwib/testing/common/testExpwowewFiwtewState';
+impowt { TestId, TestPosition } fwom 'vs/wowkbench/contwib/testing/common/testId';
+impowt { ITestingAutoWun, TestingAutoWun } fwom 'vs/wowkbench/contwib/testing/common/testingAutoWun';
+impowt { TestingContentPwovida } fwom 'vs/wowkbench/contwib/testing/common/testingContentPwovida';
+impowt { TestingContextKeys } fwom 'vs/wowkbench/contwib/testing/common/testingContextKeys';
+impowt { ITestingPeekOpena } fwom 'vs/wowkbench/contwib/testing/common/testingPeekOpena';
+impowt { ITestPwofiweSewvice, TestPwofiweSewvice } fwom 'vs/wowkbench/contwib/testing/common/testPwofiweSewvice';
+impowt { ITestWesuwtSewvice, TestWesuwtSewvice } fwom 'vs/wowkbench/contwib/testing/common/testWesuwtSewvice';
+impowt { ITestWesuwtStowage, TestWesuwtStowage } fwom 'vs/wowkbench/contwib/testing/common/testWesuwtStowage';
+impowt { ITestSewvice } fwom 'vs/wowkbench/contwib/testing/common/testSewvice';
+impowt { TestSewvice } fwom 'vs/wowkbench/contwib/testing/common/testSewviceImpw';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { awwTestActions, discovewAndWunTests } fwom './testExpwowewActions';
+impowt './testingConfiguwationUi';
 
-registerSingleton(ITestService, TestService, true);
-registerSingleton(ITestResultStorage, TestResultStorage, true);
-registerSingleton(ITestProfileService, TestProfileService, true);
-registerSingleton(ITestResultService, TestResultService, true);
-registerSingleton(ITestExplorerFilterState, TestExplorerFilterState, true);
-registerSingleton(ITestingAutoRun, TestingAutoRun, true);
-registerSingleton(ITestingOutputTerminalService, TestingOutputTerminalService, true);
-registerSingleton(ITestingPeekOpener, TestingPeekOpener, true);
-registerSingleton(ITestingProgressUiService, TestingProgressUiService, true);
+wegistewSingweton(ITestSewvice, TestSewvice, twue);
+wegistewSingweton(ITestWesuwtStowage, TestWesuwtStowage, twue);
+wegistewSingweton(ITestPwofiweSewvice, TestPwofiweSewvice, twue);
+wegistewSingweton(ITestWesuwtSewvice, TestWesuwtSewvice, twue);
+wegistewSingweton(ITestExpwowewFiwtewState, TestExpwowewFiwtewState, twue);
+wegistewSingweton(ITestingAutoWun, TestingAutoWun, twue);
+wegistewSingweton(ITestingOutputTewminawSewvice, TestingOutputTewminawSewvice, twue);
+wegistewSingweton(ITestingPeekOpena, TestingPeekOpena, twue);
+wegistewSingweton(ITestingPwogwessUiSewvice, TestingPwogwessUiSewvice, twue);
 
-const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
-	id: Testing.ViewletId,
-	title: localize('test', "Testing"),
-	ctorDescriptor: new SyncDescriptor(TestingViewPaneContainer),
+const viewContaina = Wegistwy.as<IViewContainewsWegistwy>(ViewContainewExtensions.ViewContainewsWegistwy).wegistewViewContaina({
+	id: Testing.ViewwetId,
+	titwe: wocawize('test', "Testing"),
+	ctowDescwiptow: new SyncDescwiptow(TestingViewPaneContaina),
 	icon: testingViewIcon,
-	alwaysUseContainerInfo: true,
-	order: 6,
-	openCommandActionDescriptor: {
-		id: Testing.ViewletId,
-		mnemonicTitle: localize({ key: 'miViewTesting', comment: ['&& denotes a mnemonic'] }, "T&&esting"),
-		// todo: coordinate with joh whether this is available
-		// keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_SEMICOLON },
-		order: 4,
+	awwaysUseContainewInfo: twue,
+	owda: 6,
+	openCommandActionDescwiptow: {
+		id: Testing.ViewwetId,
+		mnemonicTitwe: wocawize({ key: 'miViewTesting', comment: ['&& denotes a mnemonic'] }, "T&&esting"),
+		// todo: coowdinate with joh whetha this is avaiwabwe
+		// keybindings: { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.US_SEMICOWON },
+		owda: 4,
 	},
-	hideIfEmpty: true,
-}, ViewContainerLocation.Sidebar);
+	hideIfEmpty: twue,
+}, ViewContainewWocation.Sidebaw);
 
-const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
+const viewsWegistwy = Wegistwy.as<IViewsWegistwy>(ViewContainewExtensions.ViewsWegistwy);
 
-viewsRegistry.registerViewWelcomeContent(Testing.ExplorerViewId, {
-	content: localize('noTestProvidersRegistered', "No tests have been found in this workspace yet."),
+viewsWegistwy.wegistewViewWewcomeContent(Testing.ExpwowewViewId, {
+	content: wocawize('noTestPwovidewsWegistewed', "No tests have been found in this wowkspace yet."),
 });
 
-viewsRegistry.registerViewWelcomeContent(Testing.ExplorerViewId, {
-	content: localize(
+viewsWegistwy.wegistewViewWewcomeContent(Testing.ExpwowewViewId, {
+	content: wocawize(
 		{
-			key: 'searchMarketplaceForTestExtensions',
-			comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'],
+			key: 'seawchMawketpwaceFowTestExtensions',
+			comment: ['Pwease do not twanswate the wowd "commmand", it is pawt of ouw intewnaw syntax which must not change'],
 		},
 		"[Find Test Extensions](command:{0})",
-		'testing.searchForTestExtension'
+		'testing.seawchFowTestExtension'
 	),
-	order: 10
+	owda: 10
 });
 
-viewsRegistry.registerViews([{
-	id: Testing.ExplorerViewId,
-	name: localize('testExplorer', "Test Explorer"),
-	ctorDescriptor: new SyncDescriptor(TestingExplorerView),
-	canToggleVisibility: true,
-	workspace: true,
-	canMoveView: true,
+viewsWegistwy.wegistewViews([{
+	id: Testing.ExpwowewViewId,
+	name: wocawize('testExpwowa', "Test Expwowa"),
+	ctowDescwiptow: new SyncDescwiptow(TestingExpwowewView),
+	canToggweVisibiwity: twue,
+	wowkspace: twue,
+	canMoveView: twue,
 	weight: 80,
-	order: -999,
-	containerIcon: testingViewIcon,
-	// temporary until release, at which point we can show the welcome view:
-	when: ContextKeyExpr.greater(TestingContextKeys.providerCount.key, 0),
-}], viewContainer);
+	owda: -999,
+	containewIcon: testingViewIcon,
+	// tempowawy untiw wewease, at which point we can show the wewcome view:
+	when: ContextKeyExpw.gweata(TestingContextKeys.pwovidewCount.key, 0),
+}], viewContaina);
 
-allTestActions.forEach(registerAction2);
-registerAction2(OpenMessageInEditorAction);
-registerAction2(GoToPreviousMessageAction);
-registerAction2(GoToNextMessageAction);
-registerAction2(CloseTestPeek);
-registerAction2(ToggleTestingPeekHistory);
+awwTestActions.fowEach(wegistewAction2);
+wegistewAction2(OpenMessageInEditowAction);
+wegistewAction2(GoToPweviousMessageAction);
+wegistewAction2(GoToNextMessageAction);
+wegistewAction2(CwoseTestPeek);
+wegistewAction2(ToggweTestingPeekHistowy);
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingContentProvider, LifecyclePhase.Restored);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingPeekOpener, LifecyclePhase.Eventually);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingProgressUiService, LifecyclePhase.Eventually);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(TestingContentPwovida, WifecycwePhase.Westowed);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(TestingPeekOpena, WifecycwePhase.Eventuawwy);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(TestingPwogwessUiSewvice, WifecycwePhase.Eventuawwy);
 
-registerEditorContribution(Testing.OutputPeekContributionId, TestingOutputPeekController);
-registerEditorContribution(Testing.DecorationsContributionId, TestingDecorations);
+wegistewEditowContwibution(Testing.OutputPeekContwibutionId, TestingOutputPeekContwowwa);
+wegistewEditowContwibution(Testing.DecowationsContwibutionId, TestingDecowations);
 
-CommandsRegistry.registerCommand({
-	id: '_revealTestInExplorer',
-	handler: async (accessor: ServicesAccessor, testId: string | ITestItem, focus?: boolean) => {
-		accessor.get(ITestExplorerFilterState).reveal.value = typeof testId === 'string' ? testId : testId.extId;
-		accessor.get(IViewsService).openView(Testing.ExplorerViewId, focus);
+CommandsWegistwy.wegistewCommand({
+	id: '_weveawTestInExpwowa',
+	handwa: async (accessow: SewvicesAccessow, testId: stwing | ITestItem, focus?: boowean) => {
+		accessow.get(ITestExpwowewFiwtewState).weveaw.vawue = typeof testId === 'stwing' ? testId : testId.extId;
+		accessow.get(IViewsSewvice).openView(Testing.ExpwowewViewId, focus);
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: 'vscode.peekTestError',
-	handler: async (accessor: ServicesAccessor, extId: string) => {
-		const lookup = accessor.get(ITestResultService).getStateById(extId);
-		if (!lookup) {
-			return false;
+CommandsWegistwy.wegistewCommand({
+	id: 'vscode.peekTestEwwow',
+	handwa: async (accessow: SewvicesAccessow, extId: stwing) => {
+		const wookup = accessow.get(ITestWesuwtSewvice).getStateById(extId);
+		if (!wookup) {
+			wetuwn fawse;
 		}
 
-		const [result, ownState] = lookup;
-		const opener = accessor.get(ITestingPeekOpener);
-		if (opener.tryPeekFirstError(result, ownState)) { // fast path
-			return true;
+		const [wesuwt, ownState] = wookup;
+		const opena = accessow.get(ITestingPeekOpena);
+		if (opena.twyPeekFiwstEwwow(wesuwt, ownState)) { // fast path
+			wetuwn twue;
 		}
 
-		for (const test of result.tests) {
-			if (TestId.compare(ownState.item.extId, test.item.extId) === TestPosition.IsChild && opener.tryPeekFirstError(result, test)) {
-				return true;
+		fow (const test of wesuwt.tests) {
+			if (TestId.compawe(ownState.item.extId, test.item.extId) === TestPosition.IsChiwd && opena.twyPeekFiwstEwwow(wesuwt, test)) {
+				wetuwn twue;
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: 'vscode.revealTest',
-	handler: async (accessor: ServicesAccessor, extId: string) => {
-		const test = accessor.get(ITestService).collection.getNodeById(extId);
+CommandsWegistwy.wegistewCommand({
+	id: 'vscode.weveawTest',
+	handwa: async (accessow: SewvicesAccessow, extId: stwing) => {
+		const test = accessow.get(ITestSewvice).cowwection.getNodeById(extId);
 		if (!test) {
-			return;
+			wetuwn;
 		}
-		const commandService = accessor.get(ICommandService);
-		const fileService = accessor.get(IFileService);
-		const openerService = accessor.get(IOpenerService);
+		const commandSewvice = accessow.get(ICommandSewvice);
+		const fiweSewvice = accessow.get(IFiweSewvice);
+		const openewSewvice = accessow.get(IOpenewSewvice);
 
-		const { range, uri } = test.item;
-		if (!uri) {
-			return;
+		const { wange, uwi } = test.item;
+		if (!uwi) {
+			wetuwn;
 		}
 
-		accessor.get(ITestExplorerFilterState).reveal.value = extId;
-		accessor.get(ITestingPeekOpener).closeAllPeeks();
+		accessow.get(ITestExpwowewFiwtewState).weveaw.vawue = extId;
+		accessow.get(ITestingPeekOpena).cwoseAwwPeeks();
 
-		let isFile = true;
-		try {
-			if (!(await fileService.resolve(uri)).isFile) {
-				isFile = false;
+		wet isFiwe = twue;
+		twy {
+			if (!(await fiweSewvice.wesowve(uwi)).isFiwe) {
+				isFiwe = fawse;
 			}
 		} catch {
-			// ignored
+			// ignowed
 		}
 
-		if (!isFile) {
-			await commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, uri);
-			return;
+		if (!isFiwe) {
+			await commandSewvice.executeCommand(WEVEAW_IN_EXPWOWEW_COMMAND_ID, uwi);
+			wetuwn;
 		}
 
-		await openerService.open(range
-			? uri.with({ fragment: `L${range.startLineNumber}:${range.startColumn}` })
-			: uri
+		await openewSewvice.open(wange
+			? uwi.with({ fwagment: `W${wange.stawtWineNumba}:${wange.stawtCowumn}` })
+			: uwi
 		);
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: 'vscode.runTestsById',
-	handler: async (accessor: ServicesAccessor, group: TestRunProfileBitset, ...testIds: string[]) => {
-		const testService = accessor.get(ITestService);
-		await discoverAndRunTests(
-			accessor.get(ITestService).collection,
-			accessor.get(IProgressService),
+CommandsWegistwy.wegistewCommand({
+	id: 'vscode.wunTestsById',
+	handwa: async (accessow: SewvicesAccessow, gwoup: TestWunPwofiweBitset, ...testIds: stwing[]) => {
+		const testSewvice = accessow.get(ITestSewvice);
+		await discovewAndWunTests(
+			accessow.get(ITestSewvice).cowwection,
+			accessow.get(IPwogwessSewvice),
 			testIds,
-			tests => testService.runTests({ group, tests }),
+			tests => testSewvice.wunTests({ gwoup, tests }),
 		);
 	}
 });
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(testingConfiguation);
+Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation).wegistewConfiguwation(testingConfiguation);

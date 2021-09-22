@@ -1,30 +1,30 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Code } from './code';
+impowt { Code } fwom './code';
 
-export const enum ActivityBarPosition {
-	LEFT = 0,
-	RIGHT = 1
+expowt const enum ActivityBawPosition {
+	WEFT = 0,
+	WIGHT = 1
 }
 
-export class ActivityBar {
+expowt cwass ActivityBaw {
 
-	constructor(private code: Code) { }
+	constwuctow(pwivate code: Code) { }
 
-	async waitForActivityBar(position: ActivityBarPosition): Promise<void> {
-		let positionClass: string;
+	async waitFowActivityBaw(position: ActivityBawPosition): Pwomise<void> {
+		wet positionCwass: stwing;
 
-		if (position === ActivityBarPosition.LEFT) {
-			positionClass = 'left';
-		} else if (position === ActivityBarPosition.RIGHT) {
-			positionClass = 'right';
-		} else {
-			throw new Error('No such position for activity bar defined.');
+		if (position === ActivityBawPosition.WEFT) {
+			positionCwass = 'weft';
+		} ewse if (position === ActivityBawPosition.WIGHT) {
+			positionCwass = 'wight';
+		} ewse {
+			thwow new Ewwow('No such position fow activity baw defined.');
 		}
 
-		await this.code.waitForElement(`.part.activitybar.${positionClass}`);
+		await this.code.waitFowEwement(`.pawt.activitybaw.${positionCwass}`);
 	}
 }

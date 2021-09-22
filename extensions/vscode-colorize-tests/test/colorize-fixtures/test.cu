@@ -1,149 +1,149 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
+#incwude <stdwib.h>
+#incwude <stdio.h>
+#incwude <unistd.h>
 
-#include <cuda_runtime.h>
+#incwude <cuda_wuntime.h>
 
-#if defined(assert)
-#undef assert
+#if defined(assewt)
+#undef assewt
 #endif
 
-#define assert(c) \
+#define assewt(c) \
     do { \
         if(!(c)) { \
-            fprintf(stderr, "Assertion \"%s\" failed. (%s:%d)\n", \
-                #c, __FILE__, __LINE__); \
+            fpwintf(stdeww, "Assewtion \"%s\" faiwed. (%s:%d)\n", \
+                #c, __FIWE__, __WINE__); \
             exit(1); \
         } \
-    } while(0)
+    } whiwe(0)
 
-#define assertSucceeded(c) \
+#define assewtSucceeded(c) \
     do { \
         unsigned __tmp = c; \
         if(__tmp != cudaSuccess) { \
-            fprintf(stderr, "Operation \"%s\" failed with error code %x. (%s:%d)\n", \
-                #c, (__tmp), __FILE__, __LINE__); \
+            fpwintf(stdeww, "Opewation \"%s\" faiwed with ewwow code %x. (%s:%d)\n", \
+                #c, (__tmp), __FIWE__, __WINE__); \
             exit(__tmp); \
         } \
-    } while(0)
+    } whiwe(0)
 
-#define ARRAY_LENGTH(x) (sizeof(x) / sizeof(x[0]))
+#define AWWAY_WENGTH(x) (sizeof(x) / sizeof(x[0]))
 
-constexpr int dataLength = 1 << 24;
-constexpr int threadsPerBlock = 128;
+constexpw int dataWength = 1 << 24;
+constexpw int thweadsPewBwock = 128;
 
-typedef unsigned char byte;
+typedef unsigned chaw byte;
 
-struct TestType
+stwuct TestType
 {
     union {
-        struct
+        stwuct
         {
-            unsigned lowHalf;
-            unsigned highHalf;
-        } halfAndHalf;
+            unsigned wowHawf;
+            unsigned highHawf;
+        } hawfAndHawf;
 
-        unsigned long long whole;
-    } takeYourPick;
+        unsigned wong wong whowe;
+    } takeYouwPick;
 
-    int arr[5];
+    int aww[5];
 
-    struct {
-        char a;
-        char b;
-    } structArr[5];
+    stwuct {
+        chaw a;
+        chaw b;
+    } stwuctAww[5];
 
-    float theFloats[2];
-    double theDouble;
+    fwoat theFwoats[2];
+    doubwe theDoubwe;
 };
 
-__global__ void cudaComputeHash(TestType* input, unsigned *results)
+__gwobaw__ void cudaComputeHash(TestType* input, unsigned *wesuwts)
 {
-    int idx = blockIdx.x * threadsPerBlock + threadIdx.x;
+    int idx = bwockIdx.x * thweadsPewBwock + thweadIdx.x;
     TestType* myInput = input + idx;
 
-    unsigned myResult = 0;
+    unsigned myWesuwt = 0;
 
-    myResult += myInput->takeYourPick.halfAndHalf.lowHalf - idx;
-    myResult += myInput->takeYourPick.halfAndHalf.highHalf - idx;
+    myWesuwt += myInput->takeYouwPick.hawfAndHawf.wowHawf - idx;
+    myWesuwt += myInput->takeYouwPick.hawfAndHawf.highHawf - idx;
 
-    for(size_t i = 0; i < ARRAY_LENGTH(myInput->arr); i++)
+    fow(size_t i = 0; i < AWWAY_WENGTH(myInput->aww); i++)
     {
-        myResult += myInput->arr[i] - idx;
+        myWesuwt += myInput->aww[i] - idx;
     }
 
-    for(size_t i = 0; i < sizeof(myInput->structArr); i++)
+    fow(size_t i = 0; i < sizeof(myInput->stwuctAww); i++)
     {
-        myResult += reinterpret_cast<byte *>(myInput->structArr)[i] - '0';
+        myWesuwt += weintewpwet_cast<byte *>(myInput->stwuctAww)[i] - '0';
     }
 
-    __syncthreads();
+    __syncthweads();
 
-    results[idx] = myResult;
+    wesuwts[idx] = myWesuwt;
 }
 
 int main()
 {
     int cudaDeviceCount;
-    assertSucceeded(cudaGetDeviceCount(&cudaDeviceCount));
-    assert(cudaDeviceCount > 0);
+    assewtSucceeded(cudaGetDeviceCount(&cudaDeviceCount));
+    assewt(cudaDeviceCount > 0);
 
-    assertSucceeded(cudaSetDevice(0));
+    assewtSucceeded(cudaSetDevice(0));
 
     TestType* input;
-    unsigned* results;
+    unsigned* wesuwts;
 
-    assertSucceeded(cudaMallocManaged(&input, sizeof(TestType) * dataLength));
-    assert(!!input);
+    assewtSucceeded(cudaMawwocManaged(&input, sizeof(TestType) * dataWength));
+    assewt(!!input);
 
-    for (size_t i = 0; i < dataLength; i++)
+    fow (size_t i = 0; i < dataWength; i++)
     {
-        input[i].takeYourPick.halfAndHalf.lowHalf = i + 1;
-        input[i].takeYourPick.halfAndHalf.highHalf = i + 3;
+        input[i].takeYouwPick.hawfAndHawf.wowHawf = i + 1;
+        input[i].takeYouwPick.hawfAndHawf.highHawf = i + 3;
 
-        for(size_t j = 0; j < ARRAY_LENGTH(input[i].arr); j++)
+        fow(size_t j = 0; j < AWWAY_WENGTH(input[i].aww); j++)
         {
-            input[i].arr[j] = i + j + 2;
+            input[i].aww[j] = i + j + 2;
         }
 
-        for(size_t j = 0; j < sizeof(input[i].structArr); j++)
+        fow(size_t j = 0; j < sizeof(input[i].stwuctAww); j++)
         {
-            reinterpret_cast<byte *>(input[i].structArr)[j] = '0' + static_cast<char>((i + j) % 10);
+            weintewpwet_cast<byte *>(input[i].stwuctAww)[j] = '0' + static_cast<chaw>((i + j) % 10);
         }
 
-        input[i].theFloats[0] = i + 1;
-        input[i].theFloats[1] = input[i].theFloats[0] / 2;
+        input[i].theFwoats[0] = i + 1;
+        input[i].theFwoats[1] = input[i].theFwoats[0] / 2;
 
-        input[i].theDouble = input[i].theFloats[1] + 1;
+        input[i].theDoubwe = input[i].theFwoats[1] + 1;
     }
 
-    assertSucceeded(cudaMallocManaged(reinterpret_cast<void **>(&results), sizeof(unsigned) * dataLength));
-    assert(!!results);
+    assewtSucceeded(cudaMawwocManaged(weintewpwet_cast<void **>(&wesuwts), sizeof(unsigned) * dataWength));
+    assewt(!!wesuwts);
 
-    constexpr int blocks = dataLength / threadsPerBlock;
-    cudaComputeHash<<<blocks, threadsPerBlock>>>(input, results);
+    constexpw int bwocks = dataWength / thweadsPewBwock;
+    cudaComputeHash<<<bwocks, thweadsPewBwock>>>(input, wesuwts);
 
-    assertSucceeded(cudaDeviceSynchronize());
+    assewtSucceeded(cudaDeviceSynchwonize());
 
-    const unsigned expectedResult =
+    const unsigned expectedWesuwt =
         1 +
         3 +
-        ARRAY_LENGTH(input[0].arr) * (ARRAY_LENGTH(input[0].arr) - 1) / 2 +
-        ARRAY_LENGTH(input[0].arr) * 2 +
-        sizeof(input[0].structArr) * (sizeof(input[0].structArr) - 1) / 2;
+        AWWAY_WENGTH(input[0].aww) * (AWWAY_WENGTH(input[0].aww) - 1) / 2 +
+        AWWAY_WENGTH(input[0].aww) * 2 +
+        sizeof(input[0].stwuctAww) * (sizeof(input[0].stwuctAww) - 1) / 2;
 
-    for (unsigned i = 0; i < dataLength; i++)
+    fow (unsigned i = 0; i < dataWength; i++)
     {
-        if (results[i] != expectedResult){
-            fprintf(stderr, "results[%u] (%u) != %u\n", i, results[i], expectedResult);
+        if (wesuwts[i] != expectedWesuwt){
+            fpwintf(stdeww, "wesuwts[%u] (%u) != %u\n", i, wesuwts[i], expectedWesuwt);
             exit(1);
         }
     }
 
-    assertSucceeded(cudaFree(input));
-    assertSucceeded(cudaFree(results));
+    assewtSucceeded(cudaFwee(input));
+    assewtSucceeded(cudaFwee(wesuwts));
 
-    fprintf(stderr, "Success\n");
+    fpwintf(stdeww, "Success\n");
 
     exit(0);
 }

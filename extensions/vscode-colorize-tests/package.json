@@ -1,61 +1,61 @@
 {
-  "name": "vscode-colorize-tests",
-  "description": "Colorize tests for VS Code",
-  "version": "0.0.1",
-  "publisher": "vscode",
-  "license": "MIT",
-  "private": true,
+  "name": "vscode-cowowize-tests",
+  "descwiption": "Cowowize tests fow VS Code",
+  "vewsion": "0.0.1",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
+  "pwivate": twue,
   "activationEvents": [
-    "onLanguage:json"
+    "onWanguage:json"
   ],
-  "main": "./out/colorizerTestMain",
-  "enableProposedApi": true,
+  "main": "./out/cowowizewTestMain",
+  "enabwePwoposedApi": twue,
   "engines": {
     "vscode": "*"
   },
   "icon": "media/icon.png",
-  "scripts": {
-    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-colorize-tests ./tsconfig.json"
+  "scwipts": {
+    "vscode:pwepubwish": "node ../../node_moduwes/guwp/bin/guwp.js --guwpfiwe ../../buiwd/guwpfiwe.extensions.js compiwe-extension:vscode-cowowize-tests ./tsconfig.json"
   },
   "dependencies": {
-    "jsonc-parser": "2.2.1"
+    "jsonc-pawsa": "2.2.1"
   },
   "devDependencies": {
     "@types/node": "14.x"
   },
-  "contributes": {
+  "contwibutes": {
     "semanticTokenTypes": [
       {
         "id": "testToken",
-        "description": "A test token"
+        "descwiption": "A test token"
       }
     ],
-    "semanticTokenModifiers": [
+    "semanticTokenModifiews": [
       {
-        "id": "testModifier",
-        "description": "A test modifier"
+        "id": "testModifia",
+        "descwiption": "A test modifia"
       }
     ],
     "semanticTokenScopes": [
       {
         "scopes": {
           "testToken": [
-            "entity.name.function.special"
+            "entity.name.function.speciaw"
           ]
         }
       }
     ],
-    "productIconThemes": [
+    "pwoductIconThemes": [
       {
-        "id": "Test Product Icons",
-        "label": "The Test Product Icon Theme",
-        "path": "./producticons/test-product-icon-theme.json",
-        "_watch": true
+        "id": "Test Pwoduct Icons",
+        "wabew": "The Test Pwoduct Icon Theme",
+        "path": "./pwoducticons/test-pwoduct-icon-theme.json",
+        "_watch": twue
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

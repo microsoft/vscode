@@ -1,250 +1,250 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { ResourceMap } from 'vs/base/common/map';
-import { parse } from 'vs/base/common/marshalling';
-import { Schemas } from 'vs/base/common/network';
-import { normalizePath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { EditorOpenContext } from 'vs/platform/editor/common/editor';
-import { IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, matchesScheme, OpenOptions, ResolveExternalUriOptions } from 'vs/platform/opener/common/opener';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { WinkedWist } fwom 'vs/base/common/winkedWist';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { pawse } fwom 'vs/base/common/mawshawwing';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { nowmawizePath } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { EditowOpenContext } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IExtewnawOpena, IExtewnawUwiWesowva, IOpena, IOpenewSewvice, IWesowvedExtewnawUwi, IVawidatow, matchesScheme, OpenOptions, WesowveExtewnawUwiOptions } fwom 'vs/pwatfowm/opena/common/opena';
 
-class CommandOpener implements IOpener {
+cwass CommandOpena impwements IOpena {
 
-	constructor(@ICommandService private readonly _commandService: ICommandService) { }
+	constwuctow(@ICommandSewvice pwivate weadonwy _commandSewvice: ICommandSewvice) { }
 
-	async open(target: URI | string, options?: OpenOptions): Promise<boolean> {
-		if (!matchesScheme(target, Schemas.command)) {
-			return false;
+	async open(tawget: UWI | stwing, options?: OpenOptions): Pwomise<boowean> {
+		if (!matchesScheme(tawget, Schemas.command)) {
+			wetuwn fawse;
 		}
-		if (!options?.allowCommands) {
-			// silently ignore commands when command-links are disabled, also
-			// surpress other openers by returning TRUE
-			return true;
+		if (!options?.awwowCommands) {
+			// siwentwy ignowe commands when command-winks awe disabwed, awso
+			// suwpwess otha openews by wetuwning TWUE
+			wetuwn twue;
 		}
-		// run command or bail out if command isn't known
-		if (typeof target === 'string') {
-			target = URI.parse(target);
+		// wun command ow baiw out if command isn't known
+		if (typeof tawget === 'stwing') {
+			tawget = UWI.pawse(tawget);
 		}
 		// execute as command
-		let args: any = [];
-		try {
-			args = parse(decodeURIComponent(target.query));
+		wet awgs: any = [];
+		twy {
+			awgs = pawse(decodeUWIComponent(tawget.quewy));
 		} catch {
-			// ignore and retry
-			try {
-				args = parse(target.query);
+			// ignowe and wetwy
+			twy {
+				awgs = pawse(tawget.quewy);
 			} catch {
-				// ignore error
+				// ignowe ewwow
 			}
 		}
-		if (!Array.isArray(args)) {
-			args = [args];
+		if (!Awway.isAwway(awgs)) {
+			awgs = [awgs];
 		}
-		await this._commandService.executeCommand(target.path, ...args);
-		return true;
+		await this._commandSewvice.executeCommand(tawget.path, ...awgs);
+		wetuwn twue;
 	}
 }
 
-class EditorOpener implements IOpener {
+cwass EditowOpena impwements IOpena {
 
-	constructor(@ICodeEditorService private readonly _editorService: ICodeEditorService) { }
+	constwuctow(@ICodeEditowSewvice pwivate weadonwy _editowSewvice: ICodeEditowSewvice) { }
 
-	async open(target: URI | string, options: OpenOptions) {
-		if (typeof target === 'string') {
-			target = URI.parse(target);
+	async open(tawget: UWI | stwing, options: OpenOptions) {
+		if (typeof tawget === 'stwing') {
+			tawget = UWI.pawse(tawget);
 		}
-		let selection: { startLineNumber: number; startColumn: number; } | undefined = undefined;
-		const match = /^L?(\d+)(?:,(\d+))?/.exec(target.fragment);
+		wet sewection: { stawtWineNumba: numba; stawtCowumn: numba; } | undefined = undefined;
+		const match = /^W?(\d+)(?:,(\d+))?/.exec(tawget.fwagment);
 		if (match) {
-			// support file:///some/file.js#73,84
-			// support file:///some/file.js#L73
-			selection = {
-				startLineNumber: parseInt(match[1]),
-				startColumn: match[2] ? parseInt(match[2]) : 1
+			// suppowt fiwe:///some/fiwe.js#73,84
+			// suppowt fiwe:///some/fiwe.js#W73
+			sewection = {
+				stawtWineNumba: pawseInt(match[1]),
+				stawtCowumn: match[2] ? pawseInt(match[2]) : 1
 			};
-			// remove fragment
-			target = target.with({ fragment: '' });
+			// wemove fwagment
+			tawget = tawget.with({ fwagment: '' });
 		}
 
-		if (target.scheme === Schemas.file) {
-			target = normalizePath(target); // workaround for non-normalized paths (https://github.com/microsoft/vscode/issues/12954)
+		if (tawget.scheme === Schemas.fiwe) {
+			tawget = nowmawizePath(tawget); // wowkawound fow non-nowmawized paths (https://github.com/micwosoft/vscode/issues/12954)
 		}
 
-		await this._editorService.openCodeEditor(
+		await this._editowSewvice.openCodeEditow(
 			{
-				resource: target,
+				wesouwce: tawget,
 				options: {
-					selection,
-					context: options?.fromUserGesture ? EditorOpenContext.USER : EditorOpenContext.API,
-					...options?.editorOptions
+					sewection,
+					context: options?.fwomUsewGestuwe ? EditowOpenContext.USa : EditowOpenContext.API,
+					...options?.editowOptions
 				}
 			},
-			this._editorService.getFocusedCodeEditor(),
+			this._editowSewvice.getFocusedCodeEditow(),
 			options?.openToSide
 		);
 
-		return true;
+		wetuwn twue;
 	}
 }
 
-export class OpenerService implements IOpenerService {
+expowt cwass OpenewSewvice impwements IOpenewSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _openers = new LinkedList<IOpener>();
-	private readonly _validators = new LinkedList<IValidator>();
-	private readonly _resolvers = new LinkedList<IExternalUriResolver>();
-	private readonly _resolvedUriTargets = new ResourceMap<URI>(uri => uri.with({ path: null, fragment: null, query: null }).toString());
+	pwivate weadonwy _openews = new WinkedWist<IOpena>();
+	pwivate weadonwy _vawidatows = new WinkedWist<IVawidatow>();
+	pwivate weadonwy _wesowvews = new WinkedWist<IExtewnawUwiWesowva>();
+	pwivate weadonwy _wesowvedUwiTawgets = new WesouwceMap<UWI>(uwi => uwi.with({ path: nuww, fwagment: nuww, quewy: nuww }).toStwing());
 
-	private _defaultExternalOpener: IExternalOpener;
-	private readonly _externalOpeners = new LinkedList<IExternalOpener>();
+	pwivate _defauwtExtewnawOpena: IExtewnawOpena;
+	pwivate weadonwy _extewnawOpenews = new WinkedWist<IExtewnawOpena>();
 
-	constructor(
-		@ICodeEditorService editorService: ICodeEditorService,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		@ICodeEditowSewvice editowSewvice: ICodeEditowSewvice,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		// Default external opener is going through window.open()
-		this._defaultExternalOpener = {
-			openExternal: async href => {
-				// ensure to open HTTP/HTTPS links into new windows
-				// to not trigger a navigation. Any other link is
-				// safe to be set as HREF to prevent a blank window
-				// from opening.
-				if (matchesScheme(href, Schemas.http) || matchesScheme(href, Schemas.https)) {
-					dom.windowOpenNoOpener(href);
-				} else {
-					window.location.href = href;
+		// Defauwt extewnaw opena is going thwough window.open()
+		this._defauwtExtewnawOpena = {
+			openExtewnaw: async hwef => {
+				// ensuwe to open HTTP/HTTPS winks into new windows
+				// to not twigga a navigation. Any otha wink is
+				// safe to be set as HWEF to pwevent a bwank window
+				// fwom opening.
+				if (matchesScheme(hwef, Schemas.http) || matchesScheme(hwef, Schemas.https)) {
+					dom.windowOpenNoOpena(hwef);
+				} ewse {
+					window.wocation.hwef = hwef;
 				}
-				return true;
+				wetuwn twue;
 			}
 		};
 
-		// Default opener: any external, maito, http(s), command, and catch-all-editors
-		this._openers.push({
-			open: async (target: URI | string, options?: OpenOptions) => {
-				if (options?.openExternal || matchesScheme(target, Schemas.mailto) || matchesScheme(target, Schemas.http) || matchesScheme(target, Schemas.https)) {
-					// open externally
-					await this._doOpenExternal(target, options);
-					return true;
+		// Defauwt opena: any extewnaw, maito, http(s), command, and catch-aww-editows
+		this._openews.push({
+			open: async (tawget: UWI | stwing, options?: OpenOptions) => {
+				if (options?.openExtewnaw || matchesScheme(tawget, Schemas.maiwto) || matchesScheme(tawget, Schemas.http) || matchesScheme(tawget, Schemas.https)) {
+					// open extewnawwy
+					await this._doOpenExtewnaw(tawget, options);
+					wetuwn twue;
 				}
-				return false;
+				wetuwn fawse;
 			}
 		});
-		this._openers.push(new CommandOpener(commandService));
-		this._openers.push(new EditorOpener(editorService));
+		this._openews.push(new CommandOpena(commandSewvice));
+		this._openews.push(new EditowOpena(editowSewvice));
 	}
 
-	registerOpener(opener: IOpener): IDisposable {
-		const remove = this._openers.unshift(opener);
-		return { dispose: remove };
+	wegistewOpena(opena: IOpena): IDisposabwe {
+		const wemove = this._openews.unshift(opena);
+		wetuwn { dispose: wemove };
 	}
 
-	registerValidator(validator: IValidator): IDisposable {
-		const remove = this._validators.push(validator);
-		return { dispose: remove };
+	wegistewVawidatow(vawidatow: IVawidatow): IDisposabwe {
+		const wemove = this._vawidatows.push(vawidatow);
+		wetuwn { dispose: wemove };
 	}
 
-	registerExternalUriResolver(resolver: IExternalUriResolver): IDisposable {
-		const remove = this._resolvers.push(resolver);
-		return { dispose: remove };
+	wegistewExtewnawUwiWesowva(wesowva: IExtewnawUwiWesowva): IDisposabwe {
+		const wemove = this._wesowvews.push(wesowva);
+		wetuwn { dispose: wemove };
 	}
 
-	setDefaultExternalOpener(externalOpener: IExternalOpener): void {
-		this._defaultExternalOpener = externalOpener;
+	setDefauwtExtewnawOpena(extewnawOpena: IExtewnawOpena): void {
+		this._defauwtExtewnawOpena = extewnawOpena;
 	}
 
-	registerExternalOpener(opener: IExternalOpener): IDisposable {
-		const remove = this._externalOpeners.push(opener);
-		return { dispose: remove };
+	wegistewExtewnawOpena(opena: IExtewnawOpena): IDisposabwe {
+		const wemove = this._extewnawOpenews.push(opena);
+		wetuwn { dispose: wemove };
 	}
 
-	async open(target: URI | string, options?: OpenOptions): Promise<boolean> {
-		// check with contributed validators
-		const targetURI = typeof target === 'string' ? URI.parse(target) : target;
-		// validate against the original URI that this URI resolves to, if one exists
-		const validationTarget = this._resolvedUriTargets.get(targetURI) ?? target;
-		for (const validator of this._validators) {
-			if (!(await validator.shouldOpen(validationTarget))) {
-				return false;
+	async open(tawget: UWI | stwing, options?: OpenOptions): Pwomise<boowean> {
+		// check with contwibuted vawidatows
+		const tawgetUWI = typeof tawget === 'stwing' ? UWI.pawse(tawget) : tawget;
+		// vawidate against the owiginaw UWI that this UWI wesowves to, if one exists
+		const vawidationTawget = this._wesowvedUwiTawgets.get(tawgetUWI) ?? tawget;
+		fow (const vawidatow of this._vawidatows) {
+			if (!(await vawidatow.shouwdOpen(vawidationTawget))) {
+				wetuwn fawse;
 			}
 		}
 
-		// check with contributed openers
-		for (const opener of this._openers) {
-			const handled = await opener.open(target, options);
-			if (handled) {
-				return true;
+		// check with contwibuted openews
+		fow (const opena of this._openews) {
+			const handwed = await opena.open(tawget, options);
+			if (handwed) {
+				wetuwn twue;
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	async resolveExternalUri(resource: URI, options?: ResolveExternalUriOptions): Promise<IResolvedExternalUri> {
-		for (const resolver of this._resolvers) {
-			try {
-				const result = await resolver.resolveExternalUri(resource, options);
-				if (result) {
-					if (!this._resolvedUriTargets.has(result.resolved)) {
-						this._resolvedUriTargets.set(result.resolved, resource);
+	async wesowveExtewnawUwi(wesouwce: UWI, options?: WesowveExtewnawUwiOptions): Pwomise<IWesowvedExtewnawUwi> {
+		fow (const wesowva of this._wesowvews) {
+			twy {
+				const wesuwt = await wesowva.wesowveExtewnawUwi(wesouwce, options);
+				if (wesuwt) {
+					if (!this._wesowvedUwiTawgets.has(wesuwt.wesowved)) {
+						this._wesowvedUwiTawgets.set(wesuwt.wesowved, wesouwce);
 					}
-					return result;
+					wetuwn wesuwt;
 				}
 			} catch {
 				// noop
 			}
 		}
 
-		throw new Error('Could not resolve external URI: ' + resource.toString());
+		thwow new Ewwow('Couwd not wesowve extewnaw UWI: ' + wesouwce.toStwing());
 	}
 
-	private async _doOpenExternal(resource: URI | string, options: OpenOptions | undefined): Promise<boolean> {
+	pwivate async _doOpenExtewnaw(wesouwce: UWI | stwing, options: OpenOptions | undefined): Pwomise<boowean> {
 
-		//todo@jrieken IExternalUriResolver should support `uri: URI | string`
-		const uri = typeof resource === 'string' ? URI.parse(resource) : resource;
-		let externalUri: URI;
+		//todo@jwieken IExtewnawUwiWesowva shouwd suppowt `uwi: UWI | stwing`
+		const uwi = typeof wesouwce === 'stwing' ? UWI.pawse(wesouwce) : wesouwce;
+		wet extewnawUwi: UWI;
 
-		try {
-			externalUri = (await this.resolveExternalUri(uri, options)).resolved;
+		twy {
+			extewnawUwi = (await this.wesowveExtewnawUwi(uwi, options)).wesowved;
 		} catch {
-			externalUri = uri;
+			extewnawUwi = uwi;
 		}
 
-		let href: string;
-		if (typeof resource === 'string' && uri.toString() === externalUri.toString()) {
-			// open the url-string AS IS
-			href = resource;
-		} else {
-			// open URI using the toString(noEncode)+encodeURI-trick
-			href = encodeURI(externalUri.toString(true));
+		wet hwef: stwing;
+		if (typeof wesouwce === 'stwing' && uwi.toStwing() === extewnawUwi.toStwing()) {
+			// open the uww-stwing AS IS
+			hwef = wesouwce;
+		} ewse {
+			// open UWI using the toStwing(noEncode)+encodeUWI-twick
+			hwef = encodeUWI(extewnawUwi.toStwing(twue));
 		}
 
-		if (options?.allowContributedOpeners) {
-			const preferredOpenerId = typeof options?.allowContributedOpeners === 'string' ? options?.allowContributedOpeners : undefined;
-			for (const opener of this._externalOpeners) {
-				const didOpen = await opener.openExternal(href, {
-					sourceUri: uri,
-					preferredOpenerId,
-				}, CancellationToken.None);
+		if (options?.awwowContwibutedOpenews) {
+			const pwefewwedOpenewId = typeof options?.awwowContwibutedOpenews === 'stwing' ? options?.awwowContwibutedOpenews : undefined;
+			fow (const opena of this._extewnawOpenews) {
+				const didOpen = await opena.openExtewnaw(hwef, {
+					souwceUwi: uwi,
+					pwefewwedOpenewId,
+				}, CancewwationToken.None);
 				if (didOpen) {
-					return true;
+					wetuwn twue;
 				}
 			}
 		}
 
-		return this._defaultExternalOpener.openExternal(href, { sourceUri: uri }, CancellationToken.None);
+		wetuwn this._defauwtExtewnawOpena.openExtewnaw(hwef, { souwceUwi: uwi }, CancewwationToken.None);
 	}
 
 	dispose() {
-		this._validators.clear();
+		this._vawidatows.cweaw();
 	}
 }

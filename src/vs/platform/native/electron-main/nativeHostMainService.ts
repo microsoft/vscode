@@ -1,247 +1,247 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { exec } from 'child_process';
-import { app, BrowserWindow, clipboard, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, nativeTheme, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, SaveDialogOptions, SaveDialogReturnValue, screen, shell } from 'electron';
-import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 'os';
-import { promisify } from 'util';
-import { memoize } from 'vs/base/common/decorators';
-import { Emitter, Event } from 'vs/base/common/event';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { dirname, join, resolve } from 'vs/base/common/path';
-import { isLinux, isLinuxSnap, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { AddFirstParameterToFunctions } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { realpath } from 'vs/base/node/extpath';
-import { virtualMachineHint } from 'vs/base/node/id';
-import { Promises, SymlinkSupport } from 'vs/base/node/pfs';
-import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
-import { localize } from 'vs/nls';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ICommonNativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ISharedProcess } from 'vs/platform/sharedProcess/node/sharedProcess';
-import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPartsSplash, IWindowOpenable } from 'vs/platform/windows/common/windows';
-import { ICodeWindow, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
-import { isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
+impowt { exec } fwom 'chiwd_pwocess';
+impowt { app, BwowsewWindow, cwipboawd, Dispway, Menu, MessageBoxOptions, MessageBoxWetuwnVawue, nativeTheme, OpenDevToowsOptions, OpenDiawogOptions, OpenDiawogWetuwnVawue, powewMonitow, SaveDiawogOptions, SaveDiawogWetuwnVawue, scween, sheww } fwom 'ewectwon';
+impowt { awch, cpus, fweemem, woadavg, pwatfowm, wewease, totawmem, type } fwom 'os';
+impowt { pwomisify } fwom 'utiw';
+impowt { memoize } fwom 'vs/base/common/decowatows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { mnemonicButtonWabew } fwom 'vs/base/common/wabews';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { diwname, join, wesowve } fwom 'vs/base/common/path';
+impowt { isWinux, isWinuxSnap, isMacintosh, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { AddFiwstPawametewToFunctions } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { weawpath } fwom 'vs/base/node/extpath';
+impowt { viwtuawMachineHint } fwom 'vs/base/node/id';
+impowt { Pwomises, SymwinkSuppowt } fwom 'vs/base/node/pfs';
+impowt { MouseInputEvent } fwom 'vs/base/pawts/sandbox/common/ewectwonTypes';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ISewiawizabweCommandAction } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { INativeOpenDiawogOptions } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IDiawogMainSewvice } fwom 'vs/pwatfowm/diawogs/ewectwon-main/diawogMainSewvice';
+impowt { IEnviwonmentMainSewvice } fwom 'vs/pwatfowm/enviwonment/ewectwon-main/enviwonmentMainSewvice';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWifecycweMainSewvice } fwom 'vs/pwatfowm/wifecycwe/ewectwon-main/wifecycweMainSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { ICommonNativeHostSewvice, IOSPwopewties, IOSStatistics } fwom 'vs/pwatfowm/native/common/native';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IShawedPwocess } fwom 'vs/pwatfowm/shawedPwocess/node/shawedPwocess';
+impowt { ITewemetwyData, ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IThemeMainSewvice } fwom 'vs/pwatfowm/theme/ewectwon-main/themeMainSewvice';
+impowt { ICowowScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPawtsSpwash, IWindowOpenabwe } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { ICodeWindow, IWindowsMainSewvice, OpenContext } fwom 'vs/pwatfowm/windows/ewectwon-main/windows';
+impowt { isWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { IWowkspacesManagementMainSewvice } fwom 'vs/pwatfowm/wowkspaces/ewectwon-main/wowkspacesManagementMainSewvice';
 
-export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
+expowt intewface INativeHostMainSewvice extends AddFiwstPawametewToFunctions<ICommonNativeHostSewvice, Pwomise<unknown> /* onwy methods, not events */, numba | undefined /* window ID */> { }
 
-export const INativeHostMainService = createDecorator<INativeHostMainService>('nativeHostMainService');
+expowt const INativeHostMainSewvice = cweateDecowatow<INativeHostMainSewvice>('nativeHostMainSewvice');
 
-interface ChunkedPassword {
-	content: string;
-	hasNextChunk: boolean;
+intewface ChunkedPasswowd {
+	content: stwing;
+	hasNextChunk: boowean;
 }
 
-export class NativeHostMainService extends Disposable implements INativeHostMainService {
+expowt cwass NativeHostMainSewvice extends Disposabwe impwements INativeHostMainSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(
-		private sharedProcess: ISharedProcess,
-		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IDialogMainService private readonly dialogMainService: IDialogMainService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ILogService private readonly logService: ILogService,
-		@IProductService private readonly productService: IProductService,
-		@IThemeMainService private readonly themeMainService: IThemeMainService,
-		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService
+	constwuctow(
+		pwivate shawedPwocess: IShawedPwocess,
+		@IWindowsMainSewvice pwivate weadonwy windowsMainSewvice: IWindowsMainSewvice,
+		@IDiawogMainSewvice pwivate weadonwy diawogMainSewvice: IDiawogMainSewvice,
+		@IWifecycweMainSewvice pwivate weadonwy wifecycweMainSewvice: IWifecycweMainSewvice,
+		@IEnviwonmentMainSewvice pwivate weadonwy enviwonmentMainSewvice: IEnviwonmentMainSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@IThemeMainSewvice pwivate weadonwy themeMainSewvice: IThemeMainSewvice,
+		@IWowkspacesManagementMainSewvice pwivate weadonwy wowkspacesManagementMainSewvice: IWowkspacesManagementMainSewvice
 	) {
-		super();
+		supa();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Color Scheme changes
+		// Cowow Scheme changes
 		nativeTheme.on('updated', () => {
-			this._onDidChangeColorScheme.fire({
-				highContrast: nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors,
-				dark: nativeTheme.shouldUseDarkColors
+			this._onDidChangeCowowScheme.fiwe({
+				highContwast: nativeTheme.shouwdUseInvewtedCowowScheme || nativeTheme.shouwdUseHighContwastCowows,
+				dawk: nativeTheme.shouwdUseDawkCowows
 			});
 		});
 	}
 
 
-	//#region Properties
+	//#wegion Pwopewties
 
-	get windowId(): never { throw new Error('Not implemented in electron-main'); }
+	get windowId(): neva { thwow new Ewwow('Not impwemented in ewectwon-main'); }
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Events
+	//#wegion Events
 
-	readonly onDidOpenWindow = Event.map(this.windowsMainService.onDidOpenWindow, window => window.id);
+	weadonwy onDidOpenWindow = Event.map(this.windowsMainSewvice.onDidOpenWindow, window => window.id);
 
-	readonly onDidMaximizeWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-maximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
-	readonly onDidUnmaximizeWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-unmaximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	weadonwy onDidMaximizeWindow = Event.fiwta(Event.fwomNodeEventEmitta(app, 'bwowsa-window-maximize', (event, window: BwowsewWindow) => window.id), windowId => !!this.windowsMainSewvice.getWindowById(windowId));
+	weadonwy onDidUnmaximizeWindow = Event.fiwta(Event.fwomNodeEventEmitta(app, 'bwowsa-window-unmaximize', (event, window: BwowsewWindow) => window.id), windowId => !!this.windowsMainSewvice.getWindowById(windowId));
 
-	readonly onDidBlurWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
-	readonly onDidFocusWindow = Event.any(
-		Event.map(Event.filter(Event.map(this.windowsMainService.onDidChangeWindowsCount, () => this.windowsMainService.getLastActiveWindow()), window => !!window), window => window!.id),
-		Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId))
+	weadonwy onDidBwuwWindow = Event.fiwta(Event.fwomNodeEventEmitta(app, 'bwowsa-window-bwuw', (event, window: BwowsewWindow) => window.id), windowId => !!this.windowsMainSewvice.getWindowById(windowId));
+	weadonwy onDidFocusWindow = Event.any(
+		Event.map(Event.fiwta(Event.map(this.windowsMainSewvice.onDidChangeWindowsCount, () => this.windowsMainSewvice.getWastActiveWindow()), window => !!window), window => window!.id),
+		Event.fiwta(Event.fwomNodeEventEmitta(app, 'bwowsa-window-focus', (event, window: BwowsewWindow) => window.id), windowId => !!this.windowsMainSewvice.getWindowById(windowId))
 	);
 
-	readonly onDidResumeOS = Event.fromNodeEventEmitter(powerMonitor, 'resume');
+	weadonwy onDidWesumeOS = Event.fwomNodeEventEmitta(powewMonitow, 'wesume');
 
-	private readonly _onDidChangeColorScheme = this._register(new Emitter<IColorScheme>());
-	readonly onDidChangeColorScheme = this._onDidChangeColorScheme.event;
+	pwivate weadonwy _onDidChangeCowowScheme = this._wegista(new Emitta<ICowowScheme>());
+	weadonwy onDidChangeCowowScheme = this._onDidChangeCowowScheme.event;
 
-	private readonly _onDidChangePassword = this._register(new Emitter<{ account: string, service: string }>());
-	readonly onDidChangePassword = this._onDidChangePassword.event;
+	pwivate weadonwy _onDidChangePasswowd = this._wegista(new Emitta<{ account: stwing, sewvice: stwing }>());
+	weadonwy onDidChangePasswowd = this._onDidChangePasswowd.event;
 
-	readonly onDidChangeDisplay = Event.debounce(Event.any(
-		Event.filter(Event.fromNodeEventEmitter(screen, 'display-metrics-changed', (event: Electron.Event, display: Display, changedMetrics?: string[]) => changedMetrics), changedMetrics => {
-			// Electron will emit 'display-metrics-changed' events even when actually
-			// going fullscreen, because the dock hides. However, we do not want to
-			// react on this event as there is no change in display bounds.
-			return !(Array.isArray(changedMetrics) && changedMetrics.length === 1 && changedMetrics[0] === 'workArea');
+	weadonwy onDidChangeDispway = Event.debounce(Event.any(
+		Event.fiwta(Event.fwomNodeEventEmitta(scween, 'dispway-metwics-changed', (event: Ewectwon.Event, dispway: Dispway, changedMetwics?: stwing[]) => changedMetwics), changedMetwics => {
+			// Ewectwon wiww emit 'dispway-metwics-changed' events even when actuawwy
+			// going fuwwscween, because the dock hides. Howeva, we do not want to
+			// weact on this event as thewe is no change in dispway bounds.
+			wetuwn !(Awway.isAwway(changedMetwics) && changedMetwics.wength === 1 && changedMetwics[0] === 'wowkAwea');
 		}),
-		Event.fromNodeEventEmitter(screen, 'display-added'),
-		Event.fromNodeEventEmitter(screen, 'display-removed')
+		Event.fwomNodeEventEmitta(scween, 'dispway-added'),
+		Event.fwomNodeEventEmitta(scween, 'dispway-wemoved')
 	), () => { }, 100);
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Window
+	//#wegion Window
 
-	async getWindows(): Promise<IOpenedWindow[]> {
-		const windows = this.windowsMainService.getWindows();
+	async getWindows(): Pwomise<IOpenedWindow[]> {
+		const windows = this.windowsMainSewvice.getWindows();
 
-		return windows.map(window => ({
+		wetuwn windows.map(window => ({
 			id: window.id,
-			workspace: window.openedWorkspace,
-			title: window.win?.getTitle() ?? '',
-			filename: window.getRepresentedFilename(),
-			dirty: window.isDocumentEdited()
+			wowkspace: window.openedWowkspace,
+			titwe: window.win?.getTitwe() ?? '',
+			fiwename: window.getWepwesentedFiwename(),
+			diwty: window.isDocumentEdited()
 		}));
 	}
 
-	async getWindowCount(windowId: number | undefined): Promise<number> {
-		return this.windowsMainService.getWindowCount();
+	async getWindowCount(windowId: numba | undefined): Pwomise<numba> {
+		wetuwn this.windowsMainSewvice.getWindowCount();
 	}
 
-	async getActiveWindowId(windowId: number | undefined): Promise<number | undefined> {
-		const activeWindow = BrowserWindow.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
+	async getActiveWindowId(windowId: numba | undefined): Pwomise<numba | undefined> {
+		const activeWindow = BwowsewWindow.getFocusedWindow() || this.windowsMainSewvice.getWastActiveWindow();
 		if (activeWindow) {
-			return activeWindow.id;
+			wetuwn activeWindow.id;
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	openWindow(windowId: number | undefined, options?: IOpenEmptyWindowOptions): Promise<void>;
-	openWindow(windowId: number | undefined, toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
-	openWindow(windowId: number | undefined, arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> {
-		if (Array.isArray(arg1)) {
-			return this.doOpenWindow(windowId, arg1, arg2);
+	openWindow(windowId: numba | undefined, options?: IOpenEmptyWindowOptions): Pwomise<void>;
+	openWindow(windowId: numba | undefined, toOpen: IWindowOpenabwe[], options?: IOpenWindowOptions): Pwomise<void>;
+	openWindow(windowId: numba | undefined, awg1?: IOpenEmptyWindowOptions | IWindowOpenabwe[], awg2?: IOpenWindowOptions): Pwomise<void> {
+		if (Awway.isAwway(awg1)) {
+			wetuwn this.doOpenWindow(windowId, awg1, awg2);
 		}
 
-		return this.doOpenEmptyWindow(windowId, arg1);
+		wetuwn this.doOpenEmptyWindow(windowId, awg1);
 	}
 
-	private async doOpenWindow(windowId: number | undefined, toOpen: IWindowOpenable[], options: IOpenWindowOptions = Object.create(null)): Promise<void> {
-		if (toOpen.length > 0) {
-			this.windowsMainService.open({
+	pwivate async doOpenWindow(windowId: numba | undefined, toOpen: IWindowOpenabwe[], options: IOpenWindowOptions = Object.cweate(nuww)): Pwomise<void> {
+		if (toOpen.wength > 0) {
+			this.windowsMainSewvice.open({
 				context: OpenContext.API,
 				contextWindowId: windowId,
-				urisToOpen: toOpen,
-				cli: this.environmentMainService.args,
-				forceNewWindow: options.forceNewWindow,
-				forceReuseWindow: options.forceReuseWindow,
-				preferNewWindow: options.preferNewWindow,
+				uwisToOpen: toOpen,
+				cwi: this.enviwonmentMainSewvice.awgs,
+				fowceNewWindow: options.fowceNewWindow,
+				fowceWeuseWindow: options.fowceWeuseWindow,
+				pwefewNewWindow: options.pwefewNewWindow,
 				diffMode: options.diffMode,
 				addMode: options.addMode,
-				gotoLineMode: options.gotoLineMode,
-				noRecentEntry: options.noRecentEntry,
-				waitMarkerFileURI: options.waitMarkerFileURI,
-				remoteAuthority: options.remoteAuthority || undefined
+				gotoWineMode: options.gotoWineMode,
+				noWecentEntwy: options.noWecentEntwy,
+				waitMawkewFiweUWI: options.waitMawkewFiweUWI,
+				wemoteAuthowity: options.wemoteAuthowity || undefined
 			});
 		}
 	}
 
-	private async doOpenEmptyWindow(windowId: number | undefined, options?: IOpenEmptyWindowOptions): Promise<void> {
-		this.windowsMainService.openEmptyWindow({
+	pwivate async doOpenEmptyWindow(windowId: numba | undefined, options?: IOpenEmptyWindowOptions): Pwomise<void> {
+		this.windowsMainSewvice.openEmptyWindow({
 			context: OpenContext.API,
 			contextWindowId: windowId
 		}, options);
 	}
 
-	async toggleFullScreen(windowId: number | undefined): Promise<void> {
+	async toggweFuwwScween(windowId: numba | undefined): Pwomise<void> {
 		const window = this.windowById(windowId);
 		if (window) {
-			window.toggleFullScreen();
+			window.toggweFuwwScween();
 		}
 	}
 
-	async handleTitleDoubleClick(windowId: number | undefined): Promise<void> {
+	async handweTitweDoubweCwick(windowId: numba | undefined): Pwomise<void> {
 		const window = this.windowById(windowId);
 		if (window) {
-			window.handleTitleDoubleClick();
+			window.handweTitweDoubweCwick();
 		}
 	}
 
-	async isMaximized(windowId: number | undefined): Promise<boolean> {
+	async isMaximized(windowId: numba | undefined): Pwomise<boowean> {
 		const window = this.windowById(windowId);
 		if (window?.win) {
-			return window.win.isMaximized();
+			wetuwn window.win.isMaximized();
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	async maximizeWindow(windowId: number | undefined): Promise<void> {
+	async maximizeWindow(windowId: numba | undefined): Pwomise<void> {
 		const window = this.windowById(windowId);
 		if (window?.win) {
 			window.win.maximize();
 		}
 	}
 
-	async unmaximizeWindow(windowId: number | undefined): Promise<void> {
+	async unmaximizeWindow(windowId: numba | undefined): Pwomise<void> {
 		const window = this.windowById(windowId);
 		if (window?.win) {
 			window.win.unmaximize();
 		}
 	}
 
-	async minimizeWindow(windowId: number | undefined): Promise<void> {
+	async minimizeWindow(windowId: numba | undefined): Pwomise<void> {
 		const window = this.windowById(windowId);
 		if (window?.win) {
 			window.win.minimize();
 		}
 	}
 
-	async focusWindow(windowId: number | undefined, options?: { windowId?: number; force?: boolean; }): Promise<void> {
-		if (options && typeof options.windowId === 'number') {
+	async focusWindow(windowId: numba | undefined, options?: { windowId?: numba; fowce?: boowean; }): Pwomise<void> {
+		if (options && typeof options.windowId === 'numba') {
 			windowId = options.windowId;
 		}
 
 		const window = this.windowById(windowId);
 		if (window) {
-			window.focus({ force: options?.force ?? false });
+			window.focus({ fowce: options?.fowce ?? fawse });
 		}
 	}
 
-	async setMinimumSize(windowId: number | undefined, width: number | undefined, height: number | undefined): Promise<void> {
+	async setMinimumSize(windowId: numba | undefined, width: numba | undefined, height: numba | undefined): Pwomise<void> {
 		const window = this.windowById(windowId);
 		if (window?.win) {
 			const [windowWidth, windowHeight] = window.win.getSize();
@@ -258,680 +258,680 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	async saveWindowSplash(windowId: number | undefined, splash: IPartsSplash): Promise<void> {
-		this.themeMainService.saveWindowSplash(windowId, splash);
+	async saveWindowSpwash(windowId: numba | undefined, spwash: IPawtsSpwash): Pwomise<void> {
+		this.themeMainSewvice.saveWindowSpwash(windowId, spwash);
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region macOS Shell Command
+	//#wegion macOS Sheww Command
 
-	async installShellCommand(windowId: number | undefined): Promise<void> {
-		const { source, target } = await this.getShellCommandLink();
+	async instawwShewwCommand(windowId: numba | undefined): Pwomise<void> {
+		const { souwce, tawget } = await this.getShewwCommandWink();
 
-		// Only install unless already existing
-		try {
-			const { symbolicLink } = await SymlinkSupport.stat(source);
-			if (symbolicLink && !symbolicLink.dangling) {
-				const linkTargetRealPath = await realpath(source);
-				if (target === linkTargetRealPath) {
-					return;
+		// Onwy instaww unwess awweady existing
+		twy {
+			const { symbowicWink } = await SymwinkSuppowt.stat(souwce);
+			if (symbowicWink && !symbowicWink.dangwing) {
+				const winkTawgetWeawPath = await weawpath(souwce);
+				if (tawget === winkTawgetWeawPath) {
+					wetuwn;
 				}
 			}
 
-			// Different source, delete it first
-			await Promises.unlink(source);
-		} catch (error) {
-			if (error.code !== 'ENOENT') {
-				throw error; // throw on any error but file not found
+			// Diffewent souwce, dewete it fiwst
+			await Pwomises.unwink(souwce);
+		} catch (ewwow) {
+			if (ewwow.code !== 'ENOENT') {
+				thwow ewwow; // thwow on any ewwow but fiwe not found
 			}
 		}
 
-		try {
-			await Promises.symlink(target, source);
-		} catch (error) {
-			if (error.code !== 'EACCES' && error.code !== 'ENOENT') {
-				throw error;
+		twy {
+			await Pwomises.symwink(tawget, souwce);
+		} catch (ewwow) {
+			if (ewwow.code !== 'EACCES' && ewwow.code !== 'ENOENT') {
+				thwow ewwow;
 			}
 
-			const { response } = await this.showMessageBox(windowId, {
-				title: this.productService.nameLong,
+			const { wesponse } = await this.showMessageBox(windowId, {
+				titwe: this.pwoductSewvice.nameWong,
 				type: 'info',
-				message: localize('warnEscalation', "{0} will now prompt with 'osascript' for Administrator privileges to install the shell command.", this.productService.nameShort),
+				message: wocawize('wawnEscawation', "{0} wiww now pwompt with 'osascwipt' fow Administwatow pwiviweges to instaww the sheww command.", this.pwoductSewvice.nameShowt),
 				buttons: [
-					mnemonicButtonLabel(localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK")),
-					mnemonicButtonLabel(localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel")),
+					mnemonicButtonWabew(wocawize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK")),
+					mnemonicButtonWabew(wocawize({ key: 'cancew', comment: ['&& denotes a mnemonic'] }, "&&Cancew")),
 				],
-				noLink: true,
-				defaultId: 0,
-				cancelId: 1
+				noWink: twue,
+				defauwtId: 0,
+				cancewId: 1
 			});
 
-			if (response === 0 /* OK */) {
-				try {
-					const command = `osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf \'${target}\' \'${source}\'\\" with administrator privileges"`;
-					await promisify(exec)(command);
-				} catch (error) {
-					throw new Error(localize('cantCreateBinFolder', "Unable to install the shell command '{0}'.", source));
+			if (wesponse === 0 /* OK */) {
+				twy {
+					const command = `osascwipt -e "do sheww scwipt \\"mkdiw -p /usw/wocaw/bin && wn -sf \'${tawget}\' \'${souwce}\'\\" with administwatow pwiviweges"`;
+					await pwomisify(exec)(command);
+				} catch (ewwow) {
+					thwow new Ewwow(wocawize('cantCweateBinFowda', "Unabwe to instaww the sheww command '{0}'.", souwce));
 				}
 			}
 		}
 	}
 
-	async uninstallShellCommand(windowId: number | undefined): Promise<void> {
-		const { source } = await this.getShellCommandLink();
+	async uninstawwShewwCommand(windowId: numba | undefined): Pwomise<void> {
+		const { souwce } = await this.getShewwCommandWink();
 
-		try {
-			await Promises.unlink(source);
-		} catch (error) {
-			switch (error.code) {
+		twy {
+			await Pwomises.unwink(souwce);
+		} catch (ewwow) {
+			switch (ewwow.code) {
 				case 'EACCES':
-					const { response } = await this.showMessageBox(windowId, {
-						title: this.productService.nameLong,
+					const { wesponse } = await this.showMessageBox(windowId, {
+						titwe: this.pwoductSewvice.nameWong,
 						type: 'info',
-						message: localize('warnEscalationUninstall', "{0} will now prompt with 'osascript' for Administrator privileges to uninstall the shell command.", this.productService.nameShort),
+						message: wocawize('wawnEscawationUninstaww', "{0} wiww now pwompt with 'osascwipt' fow Administwatow pwiviweges to uninstaww the sheww command.", this.pwoductSewvice.nameShowt),
 						buttons: [
-							mnemonicButtonLabel(localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK")),
-							mnemonicButtonLabel(localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel")),
+							mnemonicButtonWabew(wocawize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK")),
+							mnemonicButtonWabew(wocawize({ key: 'cancew', comment: ['&& denotes a mnemonic'] }, "&&Cancew")),
 						],
-						noLink: true,
-						defaultId: 0,
-						cancelId: 1
+						noWink: twue,
+						defauwtId: 0,
+						cancewId: 1
 					});
 
-					if (response === 0 /* OK */) {
-						try {
-							const command = `osascript -e "do shell script \\"rm \'${source}\'\\" with administrator privileges"`;
-							await promisify(exec)(command);
-						} catch (error) {
-							throw new Error(localize('cantUninstall', "Unable to uninstall the shell command '{0}'.", source));
+					if (wesponse === 0 /* OK */) {
+						twy {
+							const command = `osascwipt -e "do sheww scwipt \\"wm \'${souwce}\'\\" with administwatow pwiviweges"`;
+							await pwomisify(exec)(command);
+						} catch (ewwow) {
+							thwow new Ewwow(wocawize('cantUninstaww', "Unabwe to uninstaww the sheww command '{0}'.", souwce));
 						}
 					}
-					break;
+					bweak;
 				case 'ENOENT':
-					break; // ignore file not found
-				default:
-					throw error;
+					bweak; // ignowe fiwe not found
+				defauwt:
+					thwow ewwow;
 			}
 		}
 	}
 
-	private async getShellCommandLink(): Promise<{ readonly source: string, readonly target: string }> {
-		const target = resolve(this.environmentMainService.appRoot, 'bin', 'code');
-		const source = `/usr/local/bin/${this.productService.applicationName}`;
+	pwivate async getShewwCommandWink(): Pwomise<{ weadonwy souwce: stwing, weadonwy tawget: stwing }> {
+		const tawget = wesowve(this.enviwonmentMainSewvice.appWoot, 'bin', 'code');
+		const souwce = `/usw/wocaw/bin/${this.pwoductSewvice.appwicationName}`;
 
-		// Ensure source exists
-		const sourceExists = await Promises.exists(target);
-		if (!sourceExists) {
-			throw new Error(localize('sourceMissing', "Unable to find shell script in '{0}'", target));
+		// Ensuwe souwce exists
+		const souwceExists = await Pwomises.exists(tawget);
+		if (!souwceExists) {
+			thwow new Ewwow(wocawize('souwceMissing', "Unabwe to find sheww scwipt in '{0}'", tawget));
 		}
 
-		return { source, target };
+		wetuwn { souwce, tawget };
 	}
 
-	//#region Dialog
+	//#wegion Diawog
 
-	async showMessageBox(windowId: number | undefined, options: MessageBoxOptions): Promise<MessageBoxReturnValue> {
-		return this.dialogMainService.showMessageBox(options, this.toBrowserWindow(windowId));
+	async showMessageBox(windowId: numba | undefined, options: MessageBoxOptions): Pwomise<MessageBoxWetuwnVawue> {
+		wetuwn this.diawogMainSewvice.showMessageBox(options, this.toBwowsewWindow(windowId));
 	}
 
-	async showSaveDialog(windowId: number | undefined, options: SaveDialogOptions): Promise<SaveDialogReturnValue> {
-		return this.dialogMainService.showSaveDialog(options, this.toBrowserWindow(windowId));
+	async showSaveDiawog(windowId: numba | undefined, options: SaveDiawogOptions): Pwomise<SaveDiawogWetuwnVawue> {
+		wetuwn this.diawogMainSewvice.showSaveDiawog(options, this.toBwowsewWindow(windowId));
 	}
 
-	async showOpenDialog(windowId: number | undefined, options: OpenDialogOptions): Promise<OpenDialogReturnValue> {
-		return this.dialogMainService.showOpenDialog(options, this.toBrowserWindow(windowId));
+	async showOpenDiawog(windowId: numba | undefined, options: OpenDiawogOptions): Pwomise<OpenDiawogWetuwnVawue> {
+		wetuwn this.diawogMainSewvice.showOpenDiawog(options, this.toBwowsewWindow(windowId));
 	}
 
-	private toBrowserWindow(windowId: number | undefined): BrowserWindow | undefined {
+	pwivate toBwowsewWindow(windowId: numba | undefined): BwowsewWindow | undefined {
 		const window = this.windowById(windowId);
 		if (window?.win) {
-			return window.win;
+			wetuwn window.win;
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	async pickFileFolderAndOpen(windowId: number | undefined, options: INativeOpenDialogOptions): Promise<void> {
-		const paths = await this.dialogMainService.pickFileFolder(options);
+	async pickFiweFowdewAndOpen(windowId: numba | undefined, options: INativeOpenDiawogOptions): Pwomise<void> {
+		const paths = await this.diawogMainSewvice.pickFiweFowda(options);
 		if (paths) {
-			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFileFolder', options.telemetryExtraData);
-			this.doOpenPicked(await Promise.all(paths.map(async path => (await SymlinkSupport.existsDirectory(path)) ? { folderUri: URI.file(path) } : { fileUri: URI.file(path) })), options, windowId);
+			this.sendPickewTewemetwy(paths, options.tewemetwyEventName || 'openFiweFowda', options.tewemetwyExtwaData);
+			this.doOpenPicked(await Pwomise.aww(paths.map(async path => (await SymwinkSuppowt.existsDiwectowy(path)) ? { fowdewUwi: UWI.fiwe(path) } : { fiweUwi: UWI.fiwe(path) })), options, windowId);
 		}
 	}
 
-	async pickFolderAndOpen(windowId: number | undefined, options: INativeOpenDialogOptions): Promise<void> {
-		const paths = await this.dialogMainService.pickFolder(options);
+	async pickFowdewAndOpen(windowId: numba | undefined, options: INativeOpenDiawogOptions): Pwomise<void> {
+		const paths = await this.diawogMainSewvice.pickFowda(options);
 		if (paths) {
-			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFolder', options.telemetryExtraData);
-			this.doOpenPicked(paths.map(path => ({ folderUri: URI.file(path) })), options, windowId);
+			this.sendPickewTewemetwy(paths, options.tewemetwyEventName || 'openFowda', options.tewemetwyExtwaData);
+			this.doOpenPicked(paths.map(path => ({ fowdewUwi: UWI.fiwe(path) })), options, windowId);
 		}
 	}
 
-	async pickFileAndOpen(windowId: number | undefined, options: INativeOpenDialogOptions): Promise<void> {
-		const paths = await this.dialogMainService.pickFile(options);
+	async pickFiweAndOpen(windowId: numba | undefined, options: INativeOpenDiawogOptions): Pwomise<void> {
+		const paths = await this.diawogMainSewvice.pickFiwe(options);
 		if (paths) {
-			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFile', options.telemetryExtraData);
-			this.doOpenPicked(paths.map(path => ({ fileUri: URI.file(path) })), options, windowId);
+			this.sendPickewTewemetwy(paths, options.tewemetwyEventName || 'openFiwe', options.tewemetwyExtwaData);
+			this.doOpenPicked(paths.map(path => ({ fiweUwi: UWI.fiwe(path) })), options, windowId);
 		}
 	}
 
-	async pickWorkspaceAndOpen(windowId: number | undefined, options: INativeOpenDialogOptions): Promise<void> {
-		const paths = await this.dialogMainService.pickWorkspace(options);
+	async pickWowkspaceAndOpen(windowId: numba | undefined, options: INativeOpenDiawogOptions): Pwomise<void> {
+		const paths = await this.diawogMainSewvice.pickWowkspace(options);
 		if (paths) {
-			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openWorkspace', options.telemetryExtraData);
-			this.doOpenPicked(paths.map(path => ({ workspaceUri: URI.file(path) })), options, windowId);
+			this.sendPickewTewemetwy(paths, options.tewemetwyEventName || 'openWowkspace', options.tewemetwyExtwaData);
+			this.doOpenPicked(paths.map(path => ({ wowkspaceUwi: UWI.fiwe(path) })), options, windowId);
 		}
 	}
 
-	private doOpenPicked(openable: IWindowOpenable[], options: INativeOpenDialogOptions, windowId: number | undefined): void {
-		this.windowsMainService.open({
-			context: OpenContext.DIALOG,
+	pwivate doOpenPicked(openabwe: IWindowOpenabwe[], options: INativeOpenDiawogOptions, windowId: numba | undefined): void {
+		this.windowsMainSewvice.open({
+			context: OpenContext.DIAWOG,
 			contextWindowId: windowId,
-			cli: this.environmentMainService.args,
-			urisToOpen: openable,
-			forceNewWindow: options.forceNewWindow,
-			/* remoteAuthority will be determined based on openable */
+			cwi: this.enviwonmentMainSewvice.awgs,
+			uwisToOpen: openabwe,
+			fowceNewWindow: options.fowceNewWindow,
+			/* wemoteAuthowity wiww be detewmined based on openabwe */
 		});
 	}
 
-	private sendPickerTelemetry(paths: string[], telemetryEventName: string, telemetryExtraData?: ITelemetryData) {
-		const numberOfPaths = paths ? paths.length : 0;
+	pwivate sendPickewTewemetwy(paths: stwing[], tewemetwyEventName: stwing, tewemetwyExtwaData?: ITewemetwyData) {
+		const numbewOfPaths = paths ? paths.wength : 0;
 
-		// Telemetry
-		// __GDPR__TODO__ Dynamic event names and dynamic properties. Can not be registered statically.
-		this.telemetryService.publicLog(telemetryEventName, {
-			...telemetryExtraData,
-			outcome: numberOfPaths ? 'success' : 'canceled',
-			numberOfPaths
+		// Tewemetwy
+		// __GDPW__TODO__ Dynamic event names and dynamic pwopewties. Can not be wegistewed staticawwy.
+		this.tewemetwySewvice.pubwicWog(tewemetwyEventName, {
+			...tewemetwyExtwaData,
+			outcome: numbewOfPaths ? 'success' : 'cancewed',
+			numbewOfPaths
 		});
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region OS
+	//#wegion OS
 
-	async showItemInFolder(windowId: number | undefined, path: string): Promise<void> {
-		shell.showItemInFolder(path);
+	async showItemInFowda(windowId: numba | undefined, path: stwing): Pwomise<void> {
+		sheww.showItemInFowda(path);
 	}
 
-	async setRepresentedFilename(windowId: number | undefined, path: string): Promise<void> {
+	async setWepwesentedFiwename(windowId: numba | undefined, path: stwing): Pwomise<void> {
 		const window = this.windowById(windowId);
 		if (window) {
-			window.setRepresentedFilename(path);
+			window.setWepwesentedFiwename(path);
 		}
 	}
 
-	async setDocumentEdited(windowId: number | undefined, edited: boolean): Promise<void> {
+	async setDocumentEdited(windowId: numba | undefined, edited: boowean): Pwomise<void> {
 		const window = this.windowById(windowId);
 		if (window) {
 			window.setDocumentEdited(edited);
 		}
 	}
 
-	async openExternal(windowId: number | undefined, url: string): Promise<boolean> {
-		if (isLinuxSnap) {
-			this.safeSnapOpenExternal(url);
-		} else {
-			shell.openExternal(url);
+	async openExtewnaw(windowId: numba | undefined, uww: stwing): Pwomise<boowean> {
+		if (isWinuxSnap) {
+			this.safeSnapOpenExtewnaw(uww);
+		} ewse {
+			sheww.openExtewnaw(uww);
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private safeSnapOpenExternal(url: string): void {
+	pwivate safeSnapOpenExtewnaw(uww: stwing): void {
 
-		// Remove some environment variables before opening to avoid issues...
-		const gdkPixbufModuleFile = process.env['GDK_PIXBUF_MODULE_FILE'];
-		const gdkPixbufModuleDir = process.env['GDK_PIXBUF_MODULEDIR'];
-		delete process.env['GDK_PIXBUF_MODULE_FILE'];
-		delete process.env['GDK_PIXBUF_MODULEDIR'];
+		// Wemove some enviwonment vawiabwes befowe opening to avoid issues...
+		const gdkPixbufModuweFiwe = pwocess.env['GDK_PIXBUF_MODUWE_FIWE'];
+		const gdkPixbufModuweDiw = pwocess.env['GDK_PIXBUF_MODUWEDIW'];
+		dewete pwocess.env['GDK_PIXBUF_MODUWE_FIWE'];
+		dewete pwocess.env['GDK_PIXBUF_MODUWEDIW'];
 
-		shell.openExternal(url);
+		sheww.openExtewnaw(uww);
 
-		// ...but restore them after
-		process.env['GDK_PIXBUF_MODULE_FILE'] = gdkPixbufModuleFile;
-		process.env['GDK_PIXBUF_MODULEDIR'] = gdkPixbufModuleDir;
+		// ...but westowe them afta
+		pwocess.env['GDK_PIXBUF_MODUWE_FIWE'] = gdkPixbufModuweFiwe;
+		pwocess.env['GDK_PIXBUF_MODUWEDIW'] = gdkPixbufModuweDiw;
 	}
 
-	moveItemToTrash(windowId: number | undefined, fullPath: string): Promise<void> {
-		return shell.trashItem(fullPath);
+	moveItemToTwash(windowId: numba | undefined, fuwwPath: stwing): Pwomise<void> {
+		wetuwn sheww.twashItem(fuwwPath);
 	}
 
-	async isAdmin(): Promise<boolean> {
-		let isAdmin: boolean;
+	async isAdmin(): Pwomise<boowean> {
+		wet isAdmin: boowean;
 		if (isWindows) {
-			isAdmin = (await import('native-is-elevated'))();
-		} else {
-			isAdmin = process.getuid() === 0;
+			isAdmin = (await impowt('native-is-ewevated'))();
+		} ewse {
+			isAdmin = pwocess.getuid() === 0;
 		}
 
-		return isAdmin;
+		wetuwn isAdmin;
 	}
 
-	async writeElevated(windowId: number | undefined, source: URI, target: URI, options?: { unlock?: boolean }): Promise<void> {
-		const sudoPrompt = await import('sudo-prompt');
+	async wwiteEwevated(windowId: numba | undefined, souwce: UWI, tawget: UWI, options?: { unwock?: boowean }): Pwomise<void> {
+		const sudoPwompt = await impowt('sudo-pwompt');
 
-		return new Promise<void>((resolve, reject) => {
-			const sudoCommand: string[] = [`"${this.cliPath}"`];
-			if (options?.unlock) {
-				sudoCommand.push('--file-chmod');
+		wetuwn new Pwomise<void>((wesowve, weject) => {
+			const sudoCommand: stwing[] = [`"${this.cwiPath}"`];
+			if (options?.unwock) {
+				sudoCommand.push('--fiwe-chmod');
 			}
 
-			sudoCommand.push('--file-write', `"${source.fsPath}"`, `"${target.fsPath}"`);
+			sudoCommand.push('--fiwe-wwite', `"${souwce.fsPath}"`, `"${tawget.fsPath}"`);
 
-			const promptOptions = {
-				name: this.productService.nameLong.replace('-', ''),
-				icns: (isMacintosh && this.environmentMainService.isBuilt) ? join(dirname(this.environmentMainService.appRoot), `${this.productService.nameShort}.icns`) : undefined
+			const pwomptOptions = {
+				name: this.pwoductSewvice.nameWong.wepwace('-', ''),
+				icns: (isMacintosh && this.enviwonmentMainSewvice.isBuiwt) ? join(diwname(this.enviwonmentMainSewvice.appWoot), `${this.pwoductSewvice.nameShowt}.icns`) : undefined
 			};
 
-			sudoPrompt.exec(sudoCommand.join(' '), promptOptions, (error?, stdout?, stderr?) => {
+			sudoPwompt.exec(sudoCommand.join(' '), pwomptOptions, (ewwow?, stdout?, stdeww?) => {
 				if (stdout) {
-					this.logService.trace(`[sudo-prompt] received stdout: ${stdout}`);
+					this.wogSewvice.twace(`[sudo-pwompt] weceived stdout: ${stdout}`);
 				}
 
-				if (stderr) {
-					this.logService.trace(`[sudo-prompt] received stderr: ${stderr}`);
+				if (stdeww) {
+					this.wogSewvice.twace(`[sudo-pwompt] weceived stdeww: ${stdeww}`);
 				}
 
-				if (error) {
-					reject(error);
-				} else {
-					resolve(undefined);
+				if (ewwow) {
+					weject(ewwow);
+				} ewse {
+					wesowve(undefined);
 				}
 			});
 		});
 	}
 
 	@memoize
-	private get cliPath(): string {
+	pwivate get cwiPath(): stwing {
 
 		// Windows
 		if (isWindows) {
-			if (this.environmentMainService.isBuilt) {
-				return join(dirname(process.execPath), 'bin', `${this.productService.applicationName}.cmd`);
+			if (this.enviwonmentMainSewvice.isBuiwt) {
+				wetuwn join(diwname(pwocess.execPath), 'bin', `${this.pwoductSewvice.appwicationName}.cmd`);
 			}
 
-			return join(this.environmentMainService.appRoot, 'scripts', 'code-cli.bat');
+			wetuwn join(this.enviwonmentMainSewvice.appWoot, 'scwipts', 'code-cwi.bat');
 		}
 
-		// Linux
-		if (isLinux) {
-			if (this.environmentMainService.isBuilt) {
-				return join(dirname(process.execPath), 'bin', `${this.productService.applicationName}`);
+		// Winux
+		if (isWinux) {
+			if (this.enviwonmentMainSewvice.isBuiwt) {
+				wetuwn join(diwname(pwocess.execPath), 'bin', `${this.pwoductSewvice.appwicationName}`);
 			}
 
-			return join(this.environmentMainService.appRoot, 'scripts', 'code-cli.sh');
+			wetuwn join(this.enviwonmentMainSewvice.appWoot, 'scwipts', 'code-cwi.sh');
 		}
 
 		// macOS
-		if (this.environmentMainService.isBuilt) {
-			return join(this.environmentMainService.appRoot, 'bin', 'code');
+		if (this.enviwonmentMainSewvice.isBuiwt) {
+			wetuwn join(this.enviwonmentMainSewvice.appWoot, 'bin', 'code');
 		}
 
-		return join(this.environmentMainService.appRoot, 'scripts', 'code-cli.sh');
+		wetuwn join(this.enviwonmentMainSewvice.appWoot, 'scwipts', 'code-cwi.sh');
 	}
 
-	async getOSStatistics(): Promise<IOSStatistics> {
-		return {
-			totalmem: totalmem(),
-			freemem: freemem(),
-			loadavg: loadavg()
+	async getOSStatistics(): Pwomise<IOSStatistics> {
+		wetuwn {
+			totawmem: totawmem(),
+			fweemem: fweemem(),
+			woadavg: woadavg()
 		};
 	}
 
-	async getOSProperties(): Promise<IOSProperties> {
-		return {
-			arch: arch(),
-			platform: platform(),
-			release: release(),
+	async getOSPwopewties(): Pwomise<IOSPwopewties> {
+		wetuwn {
+			awch: awch(),
+			pwatfowm: pwatfowm(),
+			wewease: wewease(),
 			type: type(),
 			cpus: cpus()
 		};
 	}
 
-	async getOSVirtualMachineHint(): Promise<number> {
-		return virtualMachineHint.value();
+	async getOSViwtuawMachineHint(): Pwomise<numba> {
+		wetuwn viwtuawMachineHint.vawue();
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Process
+	//#wegion Pwocess
 
-	async killProcess(windowId: number | undefined, pid: number, code: string): Promise<void> {
-		process.kill(pid, code);
+	async kiwwPwocess(windowId: numba | undefined, pid: numba, code: stwing): Pwomise<void> {
+		pwocess.kiww(pid, code);
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Clipboard
+	//#wegion Cwipboawd
 
-	async readClipboardText(windowId: number | undefined, type?: 'selection' | 'clipboard'): Promise<string> {
-		return clipboard.readText(type);
+	async weadCwipboawdText(windowId: numba | undefined, type?: 'sewection' | 'cwipboawd'): Pwomise<stwing> {
+		wetuwn cwipboawd.weadText(type);
 	}
 
-	async writeClipboardText(windowId: number | undefined, text: string, type?: 'selection' | 'clipboard'): Promise<void> {
-		return clipboard.writeText(text, type);
+	async wwiteCwipboawdText(windowId: numba | undefined, text: stwing, type?: 'sewection' | 'cwipboawd'): Pwomise<void> {
+		wetuwn cwipboawd.wwiteText(text, type);
 	}
 
-	async readClipboardFindText(windowId: number | undefined,): Promise<string> {
-		return clipboard.readFindText();
+	async weadCwipboawdFindText(windowId: numba | undefined,): Pwomise<stwing> {
+		wetuwn cwipboawd.weadFindText();
 	}
 
-	async writeClipboardFindText(windowId: number | undefined, text: string): Promise<void> {
-		return clipboard.writeFindText(text);
+	async wwiteCwipboawdFindText(windowId: numba | undefined, text: stwing): Pwomise<void> {
+		wetuwn cwipboawd.wwiteFindText(text);
 	}
 
-	async writeClipboardBuffer(windowId: number | undefined, format: string, buffer: Uint8Array, type?: 'selection' | 'clipboard'): Promise<void> {
-		return clipboard.writeBuffer(format, Buffer.from(buffer), type);
+	async wwiteCwipboawdBuffa(windowId: numba | undefined, fowmat: stwing, buffa: Uint8Awway, type?: 'sewection' | 'cwipboawd'): Pwomise<void> {
+		wetuwn cwipboawd.wwiteBuffa(fowmat, Buffa.fwom(buffa), type);
 	}
 
-	async readClipboardBuffer(windowId: number | undefined, format: string): Promise<Uint8Array> {
-		return clipboard.readBuffer(format);
+	async weadCwipboawdBuffa(windowId: numba | undefined, fowmat: stwing): Pwomise<Uint8Awway> {
+		wetuwn cwipboawd.weadBuffa(fowmat);
 	}
 
-	async hasClipboard(windowId: number | undefined, format: string, type?: 'selection' | 'clipboard'): Promise<boolean> {
-		return clipboard.has(format, type);
+	async hasCwipboawd(windowId: numba | undefined, fowmat: stwing, type?: 'sewection' | 'cwipboawd'): Pwomise<boowean> {
+		wetuwn cwipboawd.has(fowmat, type);
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region macOS Touchbar
+	//#wegion macOS Touchbaw
 
-	async newWindowTab(): Promise<void> {
-		this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentMainService.args, forceNewTabbedWindow: true, forceEmpty: true, remoteAuthority: this.environmentMainService.args.remote || undefined });
+	async newWindowTab(): Pwomise<void> {
+		this.windowsMainSewvice.open({ context: OpenContext.API, cwi: this.enviwonmentMainSewvice.awgs, fowceNewTabbedWindow: twue, fowceEmpty: twue, wemoteAuthowity: this.enviwonmentMainSewvice.awgs.wemote || undefined });
 	}
 
-	async showPreviousWindowTab(): Promise<void> {
-		Menu.sendActionToFirstResponder('selectPreviousTab:');
+	async showPweviousWindowTab(): Pwomise<void> {
+		Menu.sendActionToFiwstWesponda('sewectPweviousTab:');
 	}
 
-	async showNextWindowTab(): Promise<void> {
-		Menu.sendActionToFirstResponder('selectNextTab:');
+	async showNextWindowTab(): Pwomise<void> {
+		Menu.sendActionToFiwstWesponda('sewectNextTab:');
 	}
 
-	async moveWindowTabToNewWindow(): Promise<void> {
-		Menu.sendActionToFirstResponder('moveTabToNewWindow:');
+	async moveWindowTabToNewWindow(): Pwomise<void> {
+		Menu.sendActionToFiwstWesponda('moveTabToNewWindow:');
 	}
 
-	async mergeAllWindowTabs(): Promise<void> {
-		Menu.sendActionToFirstResponder('mergeAllWindows:');
+	async mewgeAwwWindowTabs(): Pwomise<void> {
+		Menu.sendActionToFiwstWesponda('mewgeAwwWindows:');
 	}
 
-	async toggleWindowTabsBar(): Promise<void> {
-		Menu.sendActionToFirstResponder('toggleTabBar:');
+	async toggweWindowTabsBaw(): Pwomise<void> {
+		Menu.sendActionToFiwstWesponda('toggweTabBaw:');
 	}
 
-	async updateTouchBar(windowId: number | undefined, items: ISerializableCommandAction[][]): Promise<void> {
+	async updateTouchBaw(windowId: numba | undefined, items: ISewiawizabweCommandAction[][]): Pwomise<void> {
 		const window = this.windowById(windowId);
 		if (window) {
-			window.updateTouchBar(items);
+			window.updateTouchBaw(items);
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Lifecycle
+	//#wegion Wifecycwe
 
-	async notifyReady(windowId: number | undefined): Promise<void> {
+	async notifyWeady(windowId: numba | undefined): Pwomise<void> {
 		const window = this.windowById(windowId);
 		if (window) {
-			window.setReady();
+			window.setWeady();
 		}
 	}
 
-	async relaunch(windowId: number | undefined, options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void> {
-		return this.lifecycleMainService.relaunch(options);
+	async wewaunch(windowId: numba | undefined, options?: { addAwgs?: stwing[], wemoveAwgs?: stwing[] }): Pwomise<void> {
+		wetuwn this.wifecycweMainSewvice.wewaunch(options);
 	}
 
-	async reload(windowId: number | undefined, options?: { disableExtensions?: boolean }): Promise<void> {
+	async wewoad(windowId: numba | undefined, options?: { disabweExtensions?: boowean }): Pwomise<void> {
 		const window = this.windowById(windowId);
 		if (window) {
 
-			// Special case: support `transient` workspaces by preventing
-			// the reload and rather go back to an empty window. Transient
-			// workspaces should never restore, even when the user wants
-			// to reload.
-			// For: https://github.com/microsoft/vscode/issues/119695
-			if (isWorkspaceIdentifier(window.openedWorkspace)) {
-				const configPath = window.openedWorkspace.configPath;
-				if (configPath.scheme === Schemas.file) {
-					const workspace = await this.workspacesManagementMainService.resolveLocalWorkspace(configPath);
-					if (workspace?.transient) {
-						return this.openWindow(window.id, { forceReuseWindow: true });
+			// Speciaw case: suppowt `twansient` wowkspaces by pweventing
+			// the wewoad and watha go back to an empty window. Twansient
+			// wowkspaces shouwd neva westowe, even when the usa wants
+			// to wewoad.
+			// Fow: https://github.com/micwosoft/vscode/issues/119695
+			if (isWowkspaceIdentifia(window.openedWowkspace)) {
+				const configPath = window.openedWowkspace.configPath;
+				if (configPath.scheme === Schemas.fiwe) {
+					const wowkspace = await this.wowkspacesManagementMainSewvice.wesowveWocawWowkspace(configPath);
+					if (wowkspace?.twansient) {
+						wetuwn this.openWindow(window.id, { fowceWeuseWindow: twue });
 					}
 				}
 			}
 
-			// Proceed normally to reload the window
-			return this.lifecycleMainService.reload(window, options?.disableExtensions !== undefined ? { _: [], 'disable-extensions': options.disableExtensions } : undefined);
+			// Pwoceed nowmawwy to wewoad the window
+			wetuwn this.wifecycweMainSewvice.wewoad(window, options?.disabweExtensions !== undefined ? { _: [], 'disabwe-extensions': options.disabweExtensions } : undefined);
 		}
 	}
 
-	async closeWindow(windowId: number | undefined): Promise<void> {
-		this.closeWindowById(windowId, windowId);
+	async cwoseWindow(windowId: numba | undefined): Pwomise<void> {
+		this.cwoseWindowById(windowId, windowId);
 	}
 
-	async closeWindowById(currentWindowId: number | undefined, targetWindowId?: number | undefined): Promise<void> {
-		const window = this.windowById(targetWindowId);
+	async cwoseWindowById(cuwwentWindowId: numba | undefined, tawgetWindowId?: numba | undefined): Pwomise<void> {
+		const window = this.windowById(tawgetWindowId);
 		if (window?.win) {
-			return window.win.close();
+			wetuwn window.win.cwose();
 		}
 	}
 
-	async quit(windowId: number | undefined): Promise<void> {
+	async quit(windowId: numba | undefined): Pwomise<void> {
 
-		// If the user selected to exit from an extension development host window, do not quit, but just
-		// close the window unless this is the last window that is opened.
-		const window = this.windowsMainService.getLastActiveWindow();
-		if (window?.isExtensionDevelopmentHost && this.windowsMainService.getWindowCount() > 1 && window.win) {
-			window.win.close();
+		// If the usa sewected to exit fwom an extension devewopment host window, do not quit, but just
+		// cwose the window unwess this is the wast window that is opened.
+		const window = this.windowsMainSewvice.getWastActiveWindow();
+		if (window?.isExtensionDevewopmentHost && this.windowsMainSewvice.getWindowCount() > 1 && window.win) {
+			window.win.cwose();
 		}
 
-		// Otherwise: normal quit
-		else {
-			this.lifecycleMainService.quit();
+		// Othewwise: nowmaw quit
+		ewse {
+			this.wifecycweMainSewvice.quit();
 		}
 	}
 
-	async exit(windowId: number | undefined, code: number): Promise<void> {
-		await this.lifecycleMainService.kill(code);
+	async exit(windowId: numba | undefined, code: numba): Pwomise<void> {
+		await this.wifecycweMainSewvice.kiww(code);
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Connectivity
+	//#wegion Connectivity
 
-	async resolveProxy(windowId: number | undefined, url: string): Promise<string | undefined> {
+	async wesowvePwoxy(windowId: numba | undefined, uww: stwing): Pwomise<stwing | undefined> {
 		const window = this.windowById(windowId);
 		const session = window?.win?.webContents?.session;
 		if (session) {
-			return session.resolveProxy(url);
-		} else {
-			return undefined;
+			wetuwn session.wesowvePwoxy(uww);
+		} ewse {
+			wetuwn undefined;
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Development
+	//#wegion Devewopment
 
-	async openDevTools(windowId: number | undefined, options?: OpenDevToolsOptions): Promise<void> {
+	async openDevToows(windowId: numba | undefined, options?: OpenDevToowsOptions): Pwomise<void> {
 		const window = this.windowById(windowId);
 		if (window?.win) {
-			window.win.webContents.openDevTools(options);
+			window.win.webContents.openDevToows(options);
 		}
 	}
 
-	async toggleDevTools(windowId: number | undefined): Promise<void> {
+	async toggweDevToows(windowId: numba | undefined): Pwomise<void> {
 		const window = this.windowById(windowId);
 		if (window?.win) {
 			const contents = window.win.webContents;
-			contents.toggleDevTools();
+			contents.toggweDevToows();
 		}
 	}
 
-	async sendInputEvent(windowId: number | undefined, event: MouseInputEvent): Promise<void> {
+	async sendInputEvent(windowId: numba | undefined, event: MouseInputEvent): Pwomise<void> {
 		const window = this.windowById(windowId);
 		if (window?.win && (event.type === 'mouseDown' || event.type === 'mouseUp')) {
 			window.win.webContents.sendInputEvent(event);
 		}
 	}
 
-	async toggleSharedProcessWindow(): Promise<void> {
-		return this.sharedProcess.toggle();
+	async toggweShawedPwocessWindow(): Pwomise<void> {
+		wetuwn this.shawedPwocess.toggwe();
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Registry (windows)
+	//#wegion Wegistwy (windows)
 
-	async windowsGetStringRegKey(windowId: number | undefined, hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> {
+	async windowsGetStwingWegKey(windowId: numba | undefined, hive: 'HKEY_CUWWENT_USa' | 'HKEY_WOCAW_MACHINE' | 'HKEY_CWASSES_WOOT' | 'HKEY_USEWS' | 'HKEY_CUWWENT_CONFIG', path: stwing, name: stwing): Pwomise<stwing | undefined> {
 		if (!isWindows) {
-			return undefined;
+			wetuwn undefined;
 		}
 
-		const Registry = await import('vscode-windows-registry');
-		try {
-			return Registry.GetStringRegKey(hive, path, name);
+		const Wegistwy = await impowt('vscode-windows-wegistwy');
+		twy {
+			wetuwn Wegistwy.GetStwingWegKey(hive, path, name);
 		} catch {
-			return undefined;
+			wetuwn undefined;
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Credentials
+	//#wegion Cwedentiaws
 
-	private static readonly MAX_PASSWORD_LENGTH = 2500;
-	private static readonly PASSWORD_CHUNK_SIZE = NativeHostMainService.MAX_PASSWORD_LENGTH - 100;
+	pwivate static weadonwy MAX_PASSWOWD_WENGTH = 2500;
+	pwivate static weadonwy PASSWOWD_CHUNK_SIZE = NativeHostMainSewvice.MAX_PASSWOWD_WENGTH - 100;
 
-	async getPassword(windowId: number | undefined, service: string, account: string): Promise<string | null> {
-		const keytar = await this.withKeytar();
+	async getPasswowd(windowId: numba | undefined, sewvice: stwing, account: stwing): Pwomise<stwing | nuww> {
+		const keytaw = await this.withKeytaw();
 
-		const password = await keytar.getPassword(service, account);
-		if (password) {
-			try {
-				let { content, hasNextChunk }: ChunkedPassword = JSON.parse(password);
+		const passwowd = await keytaw.getPasswowd(sewvice, account);
+		if (passwowd) {
+			twy {
+				wet { content, hasNextChunk }: ChunkedPasswowd = JSON.pawse(passwowd);
 				if (!content || !hasNextChunk) {
-					return password;
+					wetuwn passwowd;
 				}
 
-				let index = 1;
-				while (hasNextChunk) {
-					const nextChunk = await keytar.getPassword(service, `${account}-${index}`);
-					const result: ChunkedPassword = JSON.parse(nextChunk!);
-					content += result.content;
-					hasNextChunk = result.hasNextChunk;
+				wet index = 1;
+				whiwe (hasNextChunk) {
+					const nextChunk = await keytaw.getPasswowd(sewvice, `${account}-${index}`);
+					const wesuwt: ChunkedPasswowd = JSON.pawse(nextChunk!);
+					content += wesuwt.content;
+					hasNextChunk = wesuwt.hasNextChunk;
 					index++;
 				}
 
-				return content;
+				wetuwn content;
 			} catch {
-				return password;
+				wetuwn passwowd;
 			}
 		}
 
-		return password;
+		wetuwn passwowd;
 	}
 
-	async setPassword(windowId: number | undefined, service: string, account: string, password: string): Promise<void> {
-		const keytar = await this.withKeytar();
+	async setPasswowd(windowId: numba | undefined, sewvice: stwing, account: stwing, passwowd: stwing): Pwomise<void> {
+		const keytaw = await this.withKeytaw();
 		const MAX_SET_ATTEMPTS = 3;
 
-		// Sometimes Keytar has a problem talking to the keychain on the OS. To be more resilient, we retry a few times.
-		const setPasswordWithRetry = async (service: string, account: string, password: string) => {
-			let attempts = 0;
-			let error: any;
-			while (attempts < MAX_SET_ATTEMPTS) {
-				try {
-					await keytar.setPassword(service, account, password);
-					return;
+		// Sometimes Keytaw has a pwobwem tawking to the keychain on the OS. To be mowe wesiwient, we wetwy a few times.
+		const setPasswowdWithWetwy = async (sewvice: stwing, account: stwing, passwowd: stwing) => {
+			wet attempts = 0;
+			wet ewwow: any;
+			whiwe (attempts < MAX_SET_ATTEMPTS) {
+				twy {
+					await keytaw.setPasswowd(sewvice, account, passwowd);
+					wetuwn;
 				} catch (e) {
-					error = e;
-					this.logService.warn('Error attempting to set a password: ', e);
+					ewwow = e;
+					this.wogSewvice.wawn('Ewwow attempting to set a passwowd: ', e);
 					attempts++;
-					await new Promise(resolve => setTimeout(resolve, 200));
+					await new Pwomise(wesowve => setTimeout(wesowve, 200));
 				}
 			}
 
-			// throw last error
-			throw error;
+			// thwow wast ewwow
+			thwow ewwow;
 		};
 
-		if (isWindows && password.length > NativeHostMainService.MAX_PASSWORD_LENGTH) {
-			let index = 0;
-			let chunk = 0;
-			let hasNextChunk = true;
-			while (hasNextChunk) {
-				const passwordChunk = password.substring(index, index + NativeHostMainService.PASSWORD_CHUNK_SIZE);
-				index += NativeHostMainService.PASSWORD_CHUNK_SIZE;
-				hasNextChunk = password.length - index > 0;
+		if (isWindows && passwowd.wength > NativeHostMainSewvice.MAX_PASSWOWD_WENGTH) {
+			wet index = 0;
+			wet chunk = 0;
+			wet hasNextChunk = twue;
+			whiwe (hasNextChunk) {
+				const passwowdChunk = passwowd.substwing(index, index + NativeHostMainSewvice.PASSWOWD_CHUNK_SIZE);
+				index += NativeHostMainSewvice.PASSWOWD_CHUNK_SIZE;
+				hasNextChunk = passwowd.wength - index > 0;
 
-				const content: ChunkedPassword = {
-					content: passwordChunk,
+				const content: ChunkedPasswowd = {
+					content: passwowdChunk,
 					hasNextChunk: hasNextChunk
 				};
 
-				await setPasswordWithRetry(service, chunk ? `${account}-${chunk}` : account, JSON.stringify(content));
+				await setPasswowdWithWetwy(sewvice, chunk ? `${account}-${chunk}` : account, JSON.stwingify(content));
 				chunk++;
 			}
 
-		} else {
-			await setPasswordWithRetry(service, account, password);
+		} ewse {
+			await setPasswowdWithWetwy(sewvice, account, passwowd);
 		}
 
-		this._onDidChangePassword.fire({ service, account });
+		this._onDidChangePasswowd.fiwe({ sewvice, account });
 	}
 
-	async deletePassword(windowId: number | undefined, service: string, account: string): Promise<boolean> {
-		const keytar = await this.withKeytar();
+	async dewetePasswowd(windowId: numba | undefined, sewvice: stwing, account: stwing): Pwomise<boowean> {
+		const keytaw = await this.withKeytaw();
 
-		const didDelete = await keytar.deletePassword(service, account);
-		if (didDelete) {
-			this._onDidChangePassword.fire({ service, account });
+		const didDewete = await keytaw.dewetePasswowd(sewvice, account);
+		if (didDewete) {
+			this._onDidChangePasswowd.fiwe({ sewvice, account });
 		}
 
-		return didDelete;
+		wetuwn didDewete;
 	}
 
-	async findPassword(windowId: number | undefined, service: string): Promise<string | null> {
-		const keytar = await this.withKeytar();
+	async findPasswowd(windowId: numba | undefined, sewvice: stwing): Pwomise<stwing | nuww> {
+		const keytaw = await this.withKeytaw();
 
-		return keytar.findPassword(service);
+		wetuwn keytaw.findPasswowd(sewvice);
 	}
 
-	async findCredentials(windowId: number | undefined, service: string): Promise<Array<{ account: string, password: string }>> {
-		const keytar = await this.withKeytar();
+	async findCwedentiaws(windowId: numba | undefined, sewvice: stwing): Pwomise<Awway<{ account: stwing, passwowd: stwing }>> {
+		const keytaw = await this.withKeytaw();
 
-		return keytar.findCredentials(service);
+		wetuwn keytaw.findCwedentiaws(sewvice);
 	}
 
-	private async withKeytar(): Promise<typeof import('keytar')> {
-		if (this.environmentMainService.disableKeytar) {
-			throw new Error('keytar has been disabled via --disable-keytar option');
+	pwivate async withKeytaw(): Pwomise<typeof impowt('keytaw')> {
+		if (this.enviwonmentMainSewvice.disabweKeytaw) {
+			thwow new Ewwow('keytaw has been disabwed via --disabwe-keytaw option');
 		}
 
-		return await import('keytar');
+		wetuwn await impowt('keytaw');
 	}
 
-	//#endregion
+	//#endwegion
 
-	private windowById(windowId: number | undefined): ICodeWindow | undefined {
-		if (typeof windowId !== 'number') {
-			return undefined;
+	pwivate windowById(windowId: numba | undefined): ICodeWindow | undefined {
+		if (typeof windowId !== 'numba') {
+			wetuwn undefined;
 		}
 
-		return this.windowsMainService.getWindowById(windowId);
+		wetuwn this.windowsMainSewvice.getWindowById(windowId);
 	}
 }

@@ -1,60 +1,60 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
-import { Codicon } from 'vs/base/common/codicons';
-import { Color } from 'vs/base/common/color';
-import * as nls from 'vs/nls';
+impowt { Checkbox } fwom 'vs/base/bwowsa/ui/checkbox/checkbox';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt * as nws fwom 'vs/nws';
 
-export interface IFindInputCheckboxOpts {
-	readonly appendTitle: string;
-	readonly isChecked: boolean;
-	readonly inputActiveOptionBorder?: Color;
-	readonly inputActiveOptionForeground?: Color;
-	readonly inputActiveOptionBackground?: Color;
+expowt intewface IFindInputCheckboxOpts {
+	weadonwy appendTitwe: stwing;
+	weadonwy isChecked: boowean;
+	weadonwy inputActiveOptionBowda?: Cowow;
+	weadonwy inputActiveOptionFowegwound?: Cowow;
+	weadonwy inputActiveOptionBackgwound?: Cowow;
 }
 
-const NLS_CASE_SENSITIVE_CHECKBOX_LABEL = nls.localize('caseDescription', "Match Case");
-const NLS_WHOLE_WORD_CHECKBOX_LABEL = nls.localize('wordsDescription', "Match Whole Word");
-const NLS_REGEX_CHECKBOX_LABEL = nls.localize('regexDescription', "Use Regular Expression");
+const NWS_CASE_SENSITIVE_CHECKBOX_WABEW = nws.wocawize('caseDescwiption', "Match Case");
+const NWS_WHOWE_WOWD_CHECKBOX_WABEW = nws.wocawize('wowdsDescwiption', "Match Whowe Wowd");
+const NWS_WEGEX_CHECKBOX_WABEW = nws.wocawize('wegexDescwiption', "Use Weguwaw Expwession");
 
-export class CaseSensitiveCheckbox extends Checkbox {
-	constructor(opts: IFindInputCheckboxOpts) {
-		super({
+expowt cwass CaseSensitiveCheckbox extends Checkbox {
+	constwuctow(opts: IFindInputCheckboxOpts) {
+		supa({
 			icon: Codicon.caseSensitive,
-			title: NLS_CASE_SENSITIVE_CHECKBOX_LABEL + opts.appendTitle,
+			titwe: NWS_CASE_SENSITIVE_CHECKBOX_WABEW + opts.appendTitwe,
 			isChecked: opts.isChecked,
-			inputActiveOptionBorder: opts.inputActiveOptionBorder,
-			inputActiveOptionForeground: opts.inputActiveOptionForeground,
-			inputActiveOptionBackground: opts.inputActiveOptionBackground
+			inputActiveOptionBowda: opts.inputActiveOptionBowda,
+			inputActiveOptionFowegwound: opts.inputActiveOptionFowegwound,
+			inputActiveOptionBackgwound: opts.inputActiveOptionBackgwound
 		});
 	}
 }
 
-export class WholeWordsCheckbox extends Checkbox {
-	constructor(opts: IFindInputCheckboxOpts) {
-		super({
-			icon: Codicon.wholeWord,
-			title: NLS_WHOLE_WORD_CHECKBOX_LABEL + opts.appendTitle,
+expowt cwass WhoweWowdsCheckbox extends Checkbox {
+	constwuctow(opts: IFindInputCheckboxOpts) {
+		supa({
+			icon: Codicon.whoweWowd,
+			titwe: NWS_WHOWE_WOWD_CHECKBOX_WABEW + opts.appendTitwe,
 			isChecked: opts.isChecked,
-			inputActiveOptionBorder: opts.inputActiveOptionBorder,
-			inputActiveOptionForeground: opts.inputActiveOptionForeground,
-			inputActiveOptionBackground: opts.inputActiveOptionBackground
+			inputActiveOptionBowda: opts.inputActiveOptionBowda,
+			inputActiveOptionFowegwound: opts.inputActiveOptionFowegwound,
+			inputActiveOptionBackgwound: opts.inputActiveOptionBackgwound
 		});
 	}
 }
 
-export class RegexCheckbox extends Checkbox {
-	constructor(opts: IFindInputCheckboxOpts) {
-		super({
-			icon: Codicon.regex,
-			title: NLS_REGEX_CHECKBOX_LABEL + opts.appendTitle,
+expowt cwass WegexCheckbox extends Checkbox {
+	constwuctow(opts: IFindInputCheckboxOpts) {
+		supa({
+			icon: Codicon.wegex,
+			titwe: NWS_WEGEX_CHECKBOX_WABEW + opts.appendTitwe,
 			isChecked: opts.isChecked,
-			inputActiveOptionBorder: opts.inputActiveOptionBorder,
-			inputActiveOptionForeground: opts.inputActiveOptionForeground,
-			inputActiveOptionBackground: opts.inputActiveOptionBackground
+			inputActiveOptionBowda: opts.inputActiveOptionBowda,
+			inputActiveOptionFowegwound: opts.inputActiveOptionFowegwound,
+			inputActiveOptionBackgwound: opts.inputActiveOptionBackgwound
 		});
 	}
 }

@@ -1,110 +1,110 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICellViewModel, KERNEL_EXTENSIONS, NOTEBOOK_MISSING_KERNEL_EXTENSION, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SELECTED, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON, NOTEBOOK_VIEW_TYPE, INotebookEditorDelegate, NOTEBOOK_CELL_TOOLBAR_LOCATION } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+impowt { DisposabweStowe, dispose, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { ICewwViewModew, KEWNEW_EXTENSIONS, NOTEBOOK_MISSING_KEWNEW_EXTENSION, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_HAS_WUNNING_CEWW, NOTEBOOK_INTEWWUPTIBWE_KEWNEW, NOTEBOOK_KEWNEW_COUNT, NOTEBOOK_KEWNEW_SEWECTED, NOTEBOOK_USE_CONSOWIDATED_OUTPUT_BUTTON, NOTEBOOK_VIEW_TYPE, INotebookEditowDewegate, NOTEBOOK_CEWW_TOOWBAW_WOCATION } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { CewwViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/notebookViewModew';
+impowt { NotebookCewwExecutionState } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { INotebookKewnewSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookKewnewSewvice';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
 
-export class NotebookEditorContextKeys {
+expowt cwass NotebookEditowContextKeys {
 
-	private readonly _notebookKernelCount: IContextKey<number>;
-	private readonly _notebookKernelSelected: IContextKey<boolean>;
-	private readonly _interruptibleKernel: IContextKey<boolean>;
-	private readonly _someCellRunning: IContextKey<boolean>;
-	private readonly _hasOutputs: IContextKey<boolean>;
-	private readonly _useConsolidatedOutputButton: IContextKey<boolean>;
-	private readonly _viewType!: IContextKey<string>;
-	private readonly _missingKernelExtension: IContextKey<boolean>;
-	private readonly _cellToolbarLocation: IContextKey<'left' | 'right' | 'hidden'>;
+	pwivate weadonwy _notebookKewnewCount: IContextKey<numba>;
+	pwivate weadonwy _notebookKewnewSewected: IContextKey<boowean>;
+	pwivate weadonwy _intewwuptibweKewnew: IContextKey<boowean>;
+	pwivate weadonwy _someCewwWunning: IContextKey<boowean>;
+	pwivate weadonwy _hasOutputs: IContextKey<boowean>;
+	pwivate weadonwy _useConsowidatedOutputButton: IContextKey<boowean>;
+	pwivate weadonwy _viewType!: IContextKey<stwing>;
+	pwivate weadonwy _missingKewnewExtension: IContextKey<boowean>;
+	pwivate weadonwy _cewwToowbawWocation: IContextKey<'weft' | 'wight' | 'hidden'>;
 
-	private readonly _disposables = new DisposableStore();
-	private readonly _viewModelDisposables = new DisposableStore();
-	private readonly _cellStateListeners: IDisposable[] = [];
-	private readonly _cellOutputsListeners: IDisposable[] = [];
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
+	pwivate weadonwy _viewModewDisposabwes = new DisposabweStowe();
+	pwivate weadonwy _cewwStateWistenews: IDisposabwe[] = [];
+	pwivate weadonwy _cewwOutputsWistenews: IDisposabwe[] = [];
 
-	constructor(
-		private readonly _editor: INotebookEditorDelegate,
-		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IExtensionService private readonly _extensionService: IExtensionService
+	constwuctow(
+		pwivate weadonwy _editow: INotebookEditowDewegate,
+		@INotebookKewnewSewvice pwivate weadonwy _notebookKewnewSewvice: INotebookKewnewSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IExtensionSewvice pwivate weadonwy _extensionSewvice: IExtensionSewvice
 	) {
-		this._notebookKernelCount = NOTEBOOK_KERNEL_COUNT.bindTo(contextKeyService);
-		this._notebookKernelSelected = NOTEBOOK_KERNEL_SELECTED.bindTo(contextKeyService);
-		this._interruptibleKernel = NOTEBOOK_INTERRUPTIBLE_KERNEL.bindTo(contextKeyService);
-		this._someCellRunning = NOTEBOOK_HAS_RUNNING_CELL.bindTo(contextKeyService);
-		this._useConsolidatedOutputButton = NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON.bindTo(contextKeyService);
-		this._hasOutputs = NOTEBOOK_HAS_OUTPUTS.bindTo(contextKeyService);
-		this._viewType = NOTEBOOK_VIEW_TYPE.bindTo(contextKeyService);
-		this._missingKernelExtension = NOTEBOOK_MISSING_KERNEL_EXTENSION.bindTo(contextKeyService);
-		this._cellToolbarLocation = NOTEBOOK_CELL_TOOLBAR_LOCATION.bindTo(contextKeyService);
+		this._notebookKewnewCount = NOTEBOOK_KEWNEW_COUNT.bindTo(contextKeySewvice);
+		this._notebookKewnewSewected = NOTEBOOK_KEWNEW_SEWECTED.bindTo(contextKeySewvice);
+		this._intewwuptibweKewnew = NOTEBOOK_INTEWWUPTIBWE_KEWNEW.bindTo(contextKeySewvice);
+		this._someCewwWunning = NOTEBOOK_HAS_WUNNING_CEWW.bindTo(contextKeySewvice);
+		this._useConsowidatedOutputButton = NOTEBOOK_USE_CONSOWIDATED_OUTPUT_BUTTON.bindTo(contextKeySewvice);
+		this._hasOutputs = NOTEBOOK_HAS_OUTPUTS.bindTo(contextKeySewvice);
+		this._viewType = NOTEBOOK_VIEW_TYPE.bindTo(contextKeySewvice);
+		this._missingKewnewExtension = NOTEBOOK_MISSING_KEWNEW_EXTENSION.bindTo(contextKeySewvice);
+		this._cewwToowbawWocation = NOTEBOOK_CEWW_TOOWBAW_WOCATION.bindTo(contextKeySewvice);
 
-		this._handleDidChangeModel();
-		this._updateForNotebookOptions();
+		this._handweDidChangeModew();
+		this._updateFowNotebookOptions();
 
-		this._disposables.add(_editor.onDidChangeModel(this._handleDidChangeModel, this));
-		this._disposables.add(_notebookKernelService.onDidAddKernel(this._updateKernelContext, this));
-		this._disposables.add(_notebookKernelService.onDidChangeSelectedNotebooks(this._updateKernelContext, this));
-		this._disposables.add(_editor.notebookOptions.onDidChangeOptions(this._updateForNotebookOptions, this));
-		this._disposables.add(_extensionService.onDidChangeExtensions(this._updateForInstalledExtension, this));
+		this._disposabwes.add(_editow.onDidChangeModew(this._handweDidChangeModew, this));
+		this._disposabwes.add(_notebookKewnewSewvice.onDidAddKewnew(this._updateKewnewContext, this));
+		this._disposabwes.add(_notebookKewnewSewvice.onDidChangeSewectedNotebooks(this._updateKewnewContext, this));
+		this._disposabwes.add(_editow.notebookOptions.onDidChangeOptions(this._updateFowNotebookOptions, this));
+		this._disposabwes.add(_extensionSewvice.onDidChangeExtensions(this._updateFowInstawwedExtension, this));
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
-		this._viewModelDisposables.dispose();
-		this._notebookKernelCount.reset();
-		this._interruptibleKernel.reset();
-		this._someCellRunning.reset();
-		this._viewType.reset();
-		dispose(this._cellStateListeners);
-		this._cellStateListeners.length = 0;
-		dispose(this._cellOutputsListeners);
-		this._cellOutputsListeners.length = 0;
+		this._disposabwes.dispose();
+		this._viewModewDisposabwes.dispose();
+		this._notebookKewnewCount.weset();
+		this._intewwuptibweKewnew.weset();
+		this._someCewwWunning.weset();
+		this._viewType.weset();
+		dispose(this._cewwStateWistenews);
+		this._cewwStateWistenews.wength = 0;
+		dispose(this._cewwOutputsWistenews);
+		this._cewwOutputsWistenews.wength = 0;
 	}
 
-	private _handleDidChangeModel(): void {
+	pwivate _handweDidChangeModew(): void {
 
-		this._updateKernelContext();
-		this._updateForNotebookOptions();
+		this._updateKewnewContext();
+		this._updateFowNotebookOptions();
 
-		this._viewModelDisposables.clear();
-		dispose(this._cellStateListeners);
-		this._cellStateListeners.length = 0;
-		dispose(this._cellOutputsListeners);
-		this._cellOutputsListeners.length = 0;
+		this._viewModewDisposabwes.cweaw();
+		dispose(this._cewwStateWistenews);
+		this._cewwStateWistenews.wength = 0;
+		dispose(this._cewwOutputsWistenews);
+		this._cewwOutputsWistenews.wength = 0;
 
-		if (!this._editor.hasModel()) {
-			return;
+		if (!this._editow.hasModew()) {
+			wetuwn;
 		}
 
-		let executionCount = 0;
+		wet executionCount = 0;
 
-		const addCellStateListener = (c: ICellViewModel) => {
-			return (c as CellViewModel).onDidChangeState(e => {
-				if (!e.runStateChanged) {
-					return;
+		const addCewwStateWistena = (c: ICewwViewModew) => {
+			wetuwn (c as CewwViewModew).onDidChangeState(e => {
+				if (!e.wunStateChanged) {
+					wetuwn;
 				}
-				if (c.internalMetadata.runState === NotebookCellExecutionState.Pending) {
+				if (c.intewnawMetadata.wunState === NotebookCewwExecutionState.Pending) {
 					executionCount++;
-				} else if (!c.internalMetadata.runState) {
+				} ewse if (!c.intewnawMetadata.wunState) {
 					executionCount--;
 				}
-				this._someCellRunning.set(executionCount > 0);
+				this._someCewwWunning.set(executionCount > 0);
 			});
 		};
 
-		const recomputeOutputsExistence = () => {
-			let hasOutputs = false;
-			if (this._editor.hasModel()) {
-				for (let i = 0; i < this._editor.getLength(); i++) {
-					if (this._editor.cellAt(i).outputsViewModels.length > 0) {
-						hasOutputs = true;
-						break;
+		const wecomputeOutputsExistence = () => {
+			wet hasOutputs = fawse;
+			if (this._editow.hasModew()) {
+				fow (wet i = 0; i < this._editow.getWength(); i++) {
+					if (this._editow.cewwAt(i).outputsViewModews.wength > 0) {
+						hasOutputs = twue;
+						bweak;
 					}
 				}
 			}
@@ -112,60 +112,60 @@ export class NotebookEditorContextKeys {
 			this._hasOutputs.set(hasOutputs);
 		};
 
-		const addCellOutputsListener = (c: ICellViewModel) => {
-			return c.model.onDidChangeOutputs(() => {
-				recomputeOutputsExistence();
+		const addCewwOutputsWistena = (c: ICewwViewModew) => {
+			wetuwn c.modew.onDidChangeOutputs(() => {
+				wecomputeOutputsExistence();
 			});
 		};
 
-		for (let i = 0; i < this._editor.getLength(); i++) {
-			const cell = this._editor.cellAt(i);
-			this._cellStateListeners.push(addCellStateListener(cell));
-			this._cellOutputsListeners.push(addCellOutputsListener(cell));
+		fow (wet i = 0; i < this._editow.getWength(); i++) {
+			const ceww = this._editow.cewwAt(i);
+			this._cewwStateWistenews.push(addCewwStateWistena(ceww));
+			this._cewwOutputsWistenews.push(addCewwOutputsWistena(ceww));
 		}
 
-		recomputeOutputsExistence();
-		this._updateForInstalledExtension();
+		wecomputeOutputsExistence();
+		this._updateFowInstawwedExtension();
 
-		this._viewModelDisposables.add(this._editor.onDidChangeViewCells(e => {
-			e.splices.reverse().forEach(splice => {
-				const [start, deleted, newCells] = splice;
-				const deletedCellStates = this._cellStateListeners.splice(start, deleted, ...newCells.map(addCellStateListener));
-				const deletedCellOutputStates = this._cellOutputsListeners.splice(start, deleted, ...newCells.map(addCellOutputsListener));
-				dispose(deletedCellStates);
-				dispose(deletedCellOutputStates);
+		this._viewModewDisposabwes.add(this._editow.onDidChangeViewCewws(e => {
+			e.spwices.wevewse().fowEach(spwice => {
+				const [stawt, deweted, newCewws] = spwice;
+				const dewetedCewwStates = this._cewwStateWistenews.spwice(stawt, deweted, ...newCewws.map(addCewwStateWistena));
+				const dewetedCewwOutputStates = this._cewwOutputsWistenews.spwice(stawt, deweted, ...newCewws.map(addCewwOutputsWistena));
+				dispose(dewetedCewwStates);
+				dispose(dewetedCewwOutputStates);
 			});
 		}));
-		this._viewType.set(this._editor.textModel.viewType);
+		this._viewType.set(this._editow.textModew.viewType);
 	}
 
-	private async _updateForInstalledExtension(): Promise<void> {
-		if (!this._editor.hasModel()) {
-			return;
+	pwivate async _updateFowInstawwedExtension(): Pwomise<void> {
+		if (!this._editow.hasModew()) {
+			wetuwn;
 		}
 
-		const viewType = this._editor.textModel.viewType;
-		const kernelExtensionId = KERNEL_EXTENSIONS.get(viewType);
-		this._missingKernelExtension.set(
-			!!kernelExtensionId && !(await this._extensionService.getExtension(kernelExtensionId)));
+		const viewType = this._editow.textModew.viewType;
+		const kewnewExtensionId = KEWNEW_EXTENSIONS.get(viewType);
+		this._missingKewnewExtension.set(
+			!!kewnewExtensionId && !(await this._extensionSewvice.getExtension(kewnewExtensionId)));
 	}
 
-	private _updateKernelContext(): void {
-		if (!this._editor.hasModel()) {
-			this._notebookKernelCount.reset();
-			this._interruptibleKernel.reset();
-			return;
+	pwivate _updateKewnewContext(): void {
+		if (!this._editow.hasModew()) {
+			this._notebookKewnewCount.weset();
+			this._intewwuptibweKewnew.weset();
+			wetuwn;
 		}
 
-		const { selected, all } = this._notebookKernelService.getMatchingKernel(this._editor.textModel);
-		this._notebookKernelCount.set(all.length);
-		this._interruptibleKernel.set(selected?.implementsInterrupt ?? false);
-		this._notebookKernelSelected.set(Boolean(selected));
+		const { sewected, aww } = this._notebookKewnewSewvice.getMatchingKewnew(this._editow.textModew);
+		this._notebookKewnewCount.set(aww.wength);
+		this._intewwuptibweKewnew.set(sewected?.impwementsIntewwupt ?? fawse);
+		this._notebookKewnewSewected.set(Boowean(sewected));
 	}
 
-	private _updateForNotebookOptions(): void {
-		const layout = this._editor.notebookOptions.getLayoutConfiguration();
-		this._useConsolidatedOutputButton.set(layout.consolidatedOutputButton);
-		this._cellToolbarLocation.set(this._editor.notebookOptions.computeCellToolbarLocation(this._editor.textModel?.viewType));
+	pwivate _updateFowNotebookOptions(): void {
+		const wayout = this._editow.notebookOptions.getWayoutConfiguwation();
+		this._useConsowidatedOutputButton.set(wayout.consowidatedOutputButton);
+		this._cewwToowbawWocation.set(this._editow.notebookOptions.computeCewwToowbawWocation(this._editow.textModew?.viewType));
 	}
 }

@@ -1,315 +1,315 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/breakpointWidget';
-import * as nls from 'vs/nls';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { SelectBox, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
-import * as lifecycle from 'vs/base/common/lifecycle';
-import * as dom from 'vs/base/browser/dom';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IDebugService, IBreakpoint, BreakpointWidgetContext as Context, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DEBUG_SCHEME, CONTEXT_IN_BREAKPOINT_WIDGET, IBreakpointUpdateData, IBreakpointEditorContribution, BREAKPOINT_EDITOR_CONTRIBUTION_ID } from 'vs/workbench/contrib/debug/common/debug';
-import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { URI as uri } from 'vs/base/common/uri';
-import { CompletionProviderRegistry, CompletionList, CompletionContext, CompletionItemKind } from 'vs/editor/common/modes';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ITextModel } from 'vs/editor/common/model';
-import { provideSuggestionItems, CompletionOptions } from 'vs/editor/contrib/suggest/suggest';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { getSimpleEditorOptions, getSimpleCodeEditorWidgetOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
+impowt 'vs/css!./media/bweakpointWidget';
+impowt * as nws fwom 'vs/nws';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { SewectBox, ISewectOptionItem } fwom 'vs/base/bwowsa/ui/sewectBox/sewectBox';
+impowt * as wifecycwe fwom 'vs/base/common/wifecycwe';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { Position, IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { ICodeEditow, IActiveCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { ZoneWidget } fwom 'vs/editow/contwib/zoneWidget/zoneWidget';
+impowt { IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IDebugSewvice, IBweakpoint, BweakpointWidgetContext as Context, CONTEXT_BWEAKPOINT_WIDGET_VISIBWE, DEBUG_SCHEME, CONTEXT_IN_BWEAKPOINT_WIDGET, IBweakpointUpdateData, IBweakpointEditowContwibution, BWEAKPOINT_EDITOW_CONTWIBUTION_ID } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { attachSewectBoxStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { IThemeSewvice, ICowowTheme } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { cweateDecowatow, IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { SewvicesAccessow, EditowCommand, wegistewEditowCommand } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { UWI as uwi } fwom 'vs/base/common/uwi';
+impowt { CompwetionPwovidewWegistwy, CompwetionWist, CompwetionContext, CompwetionItemKind } fwom 'vs/editow/common/modes';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { pwovideSuggestionItems, CompwetionOptions } fwom 'vs/editow/contwib/suggest/suggest';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { editowFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { IDecowationOptions } fwom 'vs/editow/common/editowCommon';
+impowt { CodeEditowWidget } fwom 'vs/editow/bwowsa/widget/codeEditowWidget';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { getSimpweEditowOptions, getSimpweCodeEditowWidgetOptions } fwom 'vs/wowkbench/contwib/codeEditow/bwowsa/simpweEditowOptions';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IEditowOptions, EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { PWAINTEXT_WANGUAGE_IDENTIFIa } fwom 'vs/editow/common/modes/modesWegistwy';
 
 const $ = dom.$;
-const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakpointWidgetService');
-export interface IPrivateBreakpointWidgetService {
-	readonly _serviceBrand: undefined;
-	close(success: boolean): void;
+const IPwivateBweakpointWidgetSewvice = cweateDecowatow<IPwivateBweakpointWidgetSewvice>('pwivateBweakpointWidgetSewvice');
+expowt intewface IPwivateBweakpointWidgetSewvice {
+	weadonwy _sewviceBwand: undefined;
+	cwose(success: boowean): void;
 }
-const DECORATION_KEY = 'breakpointwidgetdecoration';
+const DECOWATION_KEY = 'bweakpointwidgetdecowation';
 
-function isCurlyBracketOpen(input: IActiveCodeEditor): boolean {
-	const model = input.getModel();
-	const prevBracket = model.findPrevBracket(input.getPosition());
-	if (prevBracket && prevBracket.isOpen) {
-		return true;
+function isCuwwyBwacketOpen(input: IActiveCodeEditow): boowean {
+	const modew = input.getModew();
+	const pwevBwacket = modew.findPwevBwacket(input.getPosition());
+	if (pwevBwacket && pwevBwacket.isOpen) {
+		wetuwn twue;
 	}
 
-	return false;
+	wetuwn fawse;
 }
 
-function createDecorations(theme: IColorTheme, placeHolder: string): IDecorationOptions[] {
-	const transparentForeground = theme.getColor(editorForeground)?.transparent(0.4);
-	return [{
-		range: {
-			startLineNumber: 0,
-			endLineNumber: 0,
-			startColumn: 0,
-			endColumn: 1
+function cweateDecowations(theme: ICowowTheme, pwaceHowda: stwing): IDecowationOptions[] {
+	const twanspawentFowegwound = theme.getCowow(editowFowegwound)?.twanspawent(0.4);
+	wetuwn [{
+		wange: {
+			stawtWineNumba: 0,
+			endWineNumba: 0,
+			stawtCowumn: 0,
+			endCowumn: 1
 		},
-		renderOptions: {
-			after: {
-				contentText: placeHolder,
-				color: transparentForeground ? transparentForeground.toString() : undefined
+		wendewOptions: {
+			afta: {
+				contentText: pwaceHowda,
+				cowow: twanspawentFowegwound ? twanspawentFowegwound.toStwing() : undefined
 			}
 		}
 	}];
 }
 
-export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWidgetService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass BweakpointWidget extends ZoneWidget impwements IPwivateBweakpointWidgetSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private selectContainer!: HTMLElement;
-	private inputContainer!: HTMLElement;
-	private input!: IActiveCodeEditor;
-	private toDispose: lifecycle.IDisposable[];
-	private conditionInput = '';
-	private hitCountInput = '';
-	private logMessageInput = '';
-	private breakpoint: IBreakpoint | undefined;
-	private context: Context;
-	private heightInPx: number | undefined;
+	pwivate sewectContaina!: HTMWEwement;
+	pwivate inputContaina!: HTMWEwement;
+	pwivate input!: IActiveCodeEditow;
+	pwivate toDispose: wifecycwe.IDisposabwe[];
+	pwivate conditionInput = '';
+	pwivate hitCountInput = '';
+	pwivate wogMessageInput = '';
+	pwivate bweakpoint: IBweakpoint | undefined;
+	pwivate context: Context;
+	pwivate heightInPx: numba | undefined;
 
-	constructor(editor: ICodeEditor, private lineNumber: number, private column: number | undefined, context: Context | undefined,
-		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IDebugService private readonly debugService: IDebugService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IModelService private readonly modelService: IModelService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+	constwuctow(editow: ICodeEditow, pwivate wineNumba: numba, pwivate cowumn: numba | undefined, context: Context | undefined,
+		@IContextViewSewvice pwivate weadonwy contextViewSewvice: IContextViewSewvice,
+		@IDebugSewvice pwivate weadonwy debugSewvice: IDebugSewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IModewSewvice pwivate weadonwy modewSewvice: IModewSewvice,
+		@ICodeEditowSewvice pwivate weadonwy codeEditowSewvice: ICodeEditowSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice
 	) {
-		super(editor, { showFrame: true, showArrow: false, frameWidth: 1, isAccessible: true });
+		supa(editow, { showFwame: twue, showAwwow: fawse, fwameWidth: 1, isAccessibwe: twue });
 
 		this.toDispose = [];
-		const model = this.editor.getModel();
-		if (model) {
-			const uri = model.uri;
-			const breakpoints = this.debugService.getModel().getBreakpoints({ lineNumber: this.lineNumber, column: this.column, uri });
-			this.breakpoint = breakpoints.length ? breakpoints[0] : undefined;
+		const modew = this.editow.getModew();
+		if (modew) {
+			const uwi = modew.uwi;
+			const bweakpoints = this.debugSewvice.getModew().getBweakpoints({ wineNumba: this.wineNumba, cowumn: this.cowumn, uwi });
+			this.bweakpoint = bweakpoints.wength ? bweakpoints[0] : undefined;
 		}
 
 		if (context === undefined) {
-			if (this.breakpoint && !this.breakpoint.condition && !this.breakpoint.hitCondition && this.breakpoint.logMessage) {
-				this.context = Context.LOG_MESSAGE;
-			} else if (this.breakpoint && !this.breakpoint.condition && this.breakpoint.hitCondition) {
+			if (this.bweakpoint && !this.bweakpoint.condition && !this.bweakpoint.hitCondition && this.bweakpoint.wogMessage) {
+				this.context = Context.WOG_MESSAGE;
+			} ewse if (this.bweakpoint && !this.bweakpoint.condition && this.bweakpoint.hitCondition) {
 				this.context = Context.HIT_COUNT;
-			} else {
+			} ewse {
 				this.context = Context.CONDITION;
 			}
-		} else {
+		} ewse {
 			this.context = context;
 		}
 
-		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(e => {
-			if (this.breakpoint && e && e.removed && e.removed.indexOf(this.breakpoint) >= 0) {
+		this.toDispose.push(this.debugSewvice.getModew().onDidChangeBweakpoints(e => {
+			if (this.bweakpoint && e && e.wemoved && e.wemoved.indexOf(this.bweakpoint) >= 0) {
 				this.dispose();
 			}
 		}));
-		this.codeEditorService.registerDecorationType('breakpoint-widget', DECORATION_KEY, {});
+		this.codeEditowSewvice.wegistewDecowationType('bweakpoint-widget', DECOWATION_KEY, {});
 
-		this.create();
+		this.cweate();
 	}
 
-	private get placeholder(): string {
+	pwivate get pwacehowda(): stwing {
 		switch (this.context) {
-			case Context.LOG_MESSAGE:
-				return nls.localize('breakpointWidgetLogMessagePlaceholder', "Message to log when breakpoint is hit. Expressions within {} are interpolated. 'Enter' to accept, 'esc' to cancel.");
+			case Context.WOG_MESSAGE:
+				wetuwn nws.wocawize('bweakpointWidgetWogMessagePwacehowda', "Message to wog when bweakpoint is hit. Expwessions within {} awe intewpowated. 'Enta' to accept, 'esc' to cancew.");
 			case Context.HIT_COUNT:
-				return nls.localize('breakpointWidgetHitCountPlaceholder', "Break when hit count condition is met. 'Enter' to accept, 'esc' to cancel.");
-			default:
-				return nls.localize('breakpointWidgetExpressionPlaceholder', "Break when expression evaluates to true. 'Enter' to accept, 'esc' to cancel.");
+				wetuwn nws.wocawize('bweakpointWidgetHitCountPwacehowda', "Bweak when hit count condition is met. 'Enta' to accept, 'esc' to cancew.");
+			defauwt:
+				wetuwn nws.wocawize('bweakpointWidgetExpwessionPwacehowda', "Bweak when expwession evawuates to twue. 'Enta' to accept, 'esc' to cancew.");
 		}
 	}
 
-	private getInputValue(breakpoint: IBreakpoint | undefined): string {
+	pwivate getInputVawue(bweakpoint: IBweakpoint | undefined): stwing {
 		switch (this.context) {
-			case Context.LOG_MESSAGE:
-				return breakpoint && breakpoint.logMessage ? breakpoint.logMessage : this.logMessageInput;
+			case Context.WOG_MESSAGE:
+				wetuwn bweakpoint && bweakpoint.wogMessage ? bweakpoint.wogMessage : this.wogMessageInput;
 			case Context.HIT_COUNT:
-				return breakpoint && breakpoint.hitCondition ? breakpoint.hitCondition : this.hitCountInput;
-			default:
-				return breakpoint && breakpoint.condition ? breakpoint.condition : this.conditionInput;
+				wetuwn bweakpoint && bweakpoint.hitCondition ? bweakpoint.hitCondition : this.hitCountInput;
+			defauwt:
+				wetuwn bweakpoint && bweakpoint.condition ? bweakpoint.condition : this.conditionInput;
 		}
 	}
 
-	private rememberInput(): void {
-		const value = this.input.getModel().getValue();
+	pwivate wemembewInput(): void {
+		const vawue = this.input.getModew().getVawue();
 		switch (this.context) {
-			case Context.LOG_MESSAGE:
-				this.logMessageInput = value;
-				break;
+			case Context.WOG_MESSAGE:
+				this.wogMessageInput = vawue;
+				bweak;
 			case Context.HIT_COUNT:
-				this.hitCountInput = value;
-				break;
-			default:
-				this.conditionInput = value;
+				this.hitCountInput = vawue;
+				bweak;
+			defauwt:
+				this.conditionInput = vawue;
 		}
 	}
 
-	private setInputMode(): void {
-		if (this.editor.hasModel()) {
-			// Use plaintext language mode for log messages, otherwise respect underlying editor mode #125619
-			const languageIdentifier = this.context === Context.LOG_MESSAGE ? PLAINTEXT_LANGUAGE_IDENTIFIER : this.editor.getModel().getLanguageIdentifier();
-			this.input.getModel().setMode(languageIdentifier);
+	pwivate setInputMode(): void {
+		if (this.editow.hasModew()) {
+			// Use pwaintext wanguage mode fow wog messages, othewwise wespect undewwying editow mode #125619
+			const wanguageIdentifia = this.context === Context.WOG_MESSAGE ? PWAINTEXT_WANGUAGE_IDENTIFIa : this.editow.getModew().getWanguageIdentifia();
+			this.input.getModew().setMode(wanguageIdentifia);
 		}
 	}
 
-	override show(rangeOrPos: IRange | IPosition): void {
-		const lineNum = this.input.getModel().getLineCount();
-		super.show(rangeOrPos, lineNum + 1);
+	ovewwide show(wangeOwPos: IWange | IPosition): void {
+		const wineNum = this.input.getModew().getWineCount();
+		supa.show(wangeOwPos, wineNum + 1);
 	}
 
 	fitHeightToContent(): void {
-		const lineNum = this.input.getModel().getLineCount();
-		this._relayout(lineNum + 1);
+		const wineNum = this.input.getModew().getWineCount();
+		this._wewayout(wineNum + 1);
 	}
 
-	protected _fillContainer(container: HTMLElement): void {
-		this.setCssClass('breakpoint-widget');
-		const selectBox = new SelectBox(<ISelectOptionItem[]>[{ text: nls.localize('expression', "Expression") }, { text: nls.localize('hitCount', "Hit Count") }, { text: nls.localize('logMessage', "Log Message") }], this.context, this.contextViewService, undefined, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type') });
-		this.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService));
-		this.selectContainer = $('.breakpoint-select-container');
-		selectBox.render(dom.append(container, this.selectContainer));
-		selectBox.onDidSelect(e => {
-			this.rememberInput();
+	pwotected _fiwwContaina(containa: HTMWEwement): void {
+		this.setCssCwass('bweakpoint-widget');
+		const sewectBox = new SewectBox(<ISewectOptionItem[]>[{ text: nws.wocawize('expwession', "Expwession") }, { text: nws.wocawize('hitCount', "Hit Count") }, { text: nws.wocawize('wogMessage', "Wog Message") }], this.context, this.contextViewSewvice, undefined, { awiaWabew: nws.wocawize('bweakpointType', 'Bweakpoint Type') });
+		this.toDispose.push(attachSewectBoxStywa(sewectBox, this.themeSewvice));
+		this.sewectContaina = $('.bweakpoint-sewect-containa');
+		sewectBox.wenda(dom.append(containa, this.sewectContaina));
+		sewectBox.onDidSewect(e => {
+			this.wemembewInput();
 			this.context = e.index;
 			this.setInputMode();
 
-			const value = this.getInputValue(this.breakpoint);
-			this.input.getModel().setValue(value);
+			const vawue = this.getInputVawue(this.bweakpoint);
+			this.input.getModew().setVawue(vawue);
 			this.input.focus();
 		});
 
-		this.inputContainer = $('.inputContainer');
-		this.createBreakpointInput(dom.append(container, this.inputContainer));
+		this.inputContaina = $('.inputContaina');
+		this.cweateBweakpointInput(dom.append(containa, this.inputContaina));
 
-		this.input.getModel().setValue(this.getInputValue(this.breakpoint));
-		this.toDispose.push(this.input.getModel().onDidChangeContent(() => {
+		this.input.getModew().setVawue(this.getInputVawue(this.bweakpoint));
+		this.toDispose.push(this.input.getModew().onDidChangeContent(() => {
 			this.fitHeightToContent();
 		}));
-		this.input.setPosition({ lineNumber: 1, column: this.input.getModel().getLineMaxColumn(1) });
-		// Due to an electron bug we have to do the timeout, otherwise we do not get focus
+		this.input.setPosition({ wineNumba: 1, cowumn: this.input.getModew().getWineMaxCowumn(1) });
+		// Due to an ewectwon bug we have to do the timeout, othewwise we do not get focus
 		setTimeout(() => this.input.focus(), 150);
 	}
 
-	protected override _doLayout(heightInPixel: number, widthInPixel: number): void {
-		this.heightInPx = heightInPixel;
-		this.input.layout({ height: heightInPixel, width: widthInPixel - 113 });
-		this.centerInputVertically();
+	pwotected ovewwide _doWayout(heightInPixew: numba, widthInPixew: numba): void {
+		this.heightInPx = heightInPixew;
+		this.input.wayout({ height: heightInPixew, width: widthInPixew - 113 });
+		this.centewInputVewticawwy();
 	}
 
-	private createBreakpointInput(container: HTMLElement): void {
-		const scopedContextKeyService = this.contextKeyService.createScoped(container);
-		this.toDispose.push(scopedContextKeyService);
+	pwivate cweateBweakpointInput(containa: HTMWEwement): void {
+		const scopedContextKeySewvice = this.contextKeySewvice.cweateScoped(containa);
+		this.toDispose.push(scopedContextKeySewvice);
 
-		const scopedInstatiationService = this.instantiationService.createChild(new ServiceCollection(
-			[IContextKeyService, scopedContextKeyService], [IPrivateBreakpointWidgetService, this]));
+		const scopedInstatiationSewvice = this.instantiationSewvice.cweateChiwd(new SewviceCowwection(
+			[IContextKeySewvice, scopedContextKeySewvice], [IPwivateBweakpointWidgetSewvice, this]));
 
-		const options = this.createEditorOptions();
-		const codeEditorWidgetOptions = getSimpleCodeEditorWidgetOptions();
-		this.input = <IActiveCodeEditor>scopedInstatiationService.createInstance(CodeEditorWidget, container, options, codeEditorWidgetOptions);
-		CONTEXT_IN_BREAKPOINT_WIDGET.bindTo(scopedContextKeyService).set(true);
-		const model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:${this.editor.getId()}:breakpointinput`), true);
-		if (this.editor.hasModel()) {
-			model.setMode(this.editor.getModel().getLanguageIdentifier());
+		const options = this.cweateEditowOptions();
+		const codeEditowWidgetOptions = getSimpweCodeEditowWidgetOptions();
+		this.input = <IActiveCodeEditow>scopedInstatiationSewvice.cweateInstance(CodeEditowWidget, containa, options, codeEditowWidgetOptions);
+		CONTEXT_IN_BWEAKPOINT_WIDGET.bindTo(scopedContextKeySewvice).set(twue);
+		const modew = this.modewSewvice.cweateModew('', nuww, uwi.pawse(`${DEBUG_SCHEME}:${this.editow.getId()}:bweakpointinput`), twue);
+		if (this.editow.hasModew()) {
+			modew.setMode(this.editow.getModew().getWanguageIdentifia());
 		}
-		this.input.setModel(model);
+		this.input.setModew(modew);
 		this.setInputMode();
-		this.toDispose.push(model);
-		const setDecorations = () => {
-			const value = this.input.getModel().getValue();
-			const decorations = !!value ? [] : createDecorations(this.themeService.getColorTheme(), this.placeholder);
-			this.input.setDecorations('breakpoint-widget', DECORATION_KEY, decorations);
+		this.toDispose.push(modew);
+		const setDecowations = () => {
+			const vawue = this.input.getModew().getVawue();
+			const decowations = !!vawue ? [] : cweateDecowations(this.themeSewvice.getCowowTheme(), this.pwacehowda);
+			this.input.setDecowations('bweakpoint-widget', DECOWATION_KEY, decowations);
 		};
-		this.input.getModel().onDidChangeContent(() => setDecorations());
-		this.themeService.onDidColorThemeChange(() => setDecorations());
+		this.input.getModew().onDidChangeContent(() => setDecowations());
+		this.themeSewvice.onDidCowowThemeChange(() => setDecowations());
 
-		this.toDispose.push(CompletionProviderRegistry.register({ scheme: DEBUG_SCHEME, hasAccessToAllModels: true }, {
-			provideCompletionItems: (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
-				let suggestionsPromise: Promise<CompletionList>;
-				const underlyingModel = this.editor.getModel();
-				if (underlyingModel && (this.context === Context.CONDITION || (this.context === Context.LOG_MESSAGE && isCurlyBracketOpen(this.input)))) {
-					suggestionsPromise = provideSuggestionItems(underlyingModel, new Position(this.lineNumber, 1), new CompletionOptions(undefined, new Set<CompletionItemKind>().add(CompletionItemKind.Snippet)), _context, token).then(suggestions => {
+		this.toDispose.push(CompwetionPwovidewWegistwy.wegista({ scheme: DEBUG_SCHEME, hasAccessToAwwModews: twue }, {
+			pwovideCompwetionItems: (modew: ITextModew, position: Position, _context: CompwetionContext, token: CancewwationToken): Pwomise<CompwetionWist> => {
+				wet suggestionsPwomise: Pwomise<CompwetionWist>;
+				const undewwyingModew = this.editow.getModew();
+				if (undewwyingModew && (this.context === Context.CONDITION || (this.context === Context.WOG_MESSAGE && isCuwwyBwacketOpen(this.input)))) {
+					suggestionsPwomise = pwovideSuggestionItems(undewwyingModew, new Position(this.wineNumba, 1), new CompwetionOptions(undefined, new Set<CompwetionItemKind>().add(CompwetionItemKind.Snippet)), _context, token).then(suggestions => {
 
-						let overwriteBefore = 0;
+						wet ovewwwiteBefowe = 0;
 						if (this.context === Context.CONDITION) {
-							overwriteBefore = position.column - 1;
-						} else {
-							// Inside the currly brackets, need to count how many useful characters are behind the position so they would all be taken into account
-							const value = this.input.getModel().getValue();
-							while ((position.column - 2 - overwriteBefore >= 0) && value[position.column - 2 - overwriteBefore] !== '{' && value[position.column - 2 - overwriteBefore] !== ' ') {
-								overwriteBefore++;
+							ovewwwiteBefowe = position.cowumn - 1;
+						} ewse {
+							// Inside the cuwwwy bwackets, need to count how many usefuw chawactews awe behind the position so they wouwd aww be taken into account
+							const vawue = this.input.getModew().getVawue();
+							whiwe ((position.cowumn - 2 - ovewwwiteBefowe >= 0) && vawue[position.cowumn - 2 - ovewwwiteBefowe] !== '{' && vawue[position.cowumn - 2 - ovewwwiteBefowe] !== ' ') {
+								ovewwwiteBefowe++;
 							}
 						}
 
-						return {
+						wetuwn {
 							suggestions: suggestions.items.map(s => {
-								s.completion.range = Range.fromPositions(position.delta(0, -overwriteBefore), position);
-								return s.completion;
+								s.compwetion.wange = Wange.fwomPositions(position.dewta(0, -ovewwwiteBefowe), position);
+								wetuwn s.compwetion;
 							})
 						};
 					});
-				} else {
-					suggestionsPromise = Promise.resolve({ suggestions: [] });
+				} ewse {
+					suggestionsPwomise = Pwomise.wesowve({ suggestions: [] });
 				}
 
-				return suggestionsPromise;
+				wetuwn suggestionsPwomise;
 			}
 		}));
 
-		this.toDispose.push(this._configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration('editor.fontSize') || e.affectsConfiguration('editor.lineHeight')) {
-				this.input.updateOptions(this.createEditorOptions());
-				this.centerInputVertically();
+		this.toDispose.push(this._configuwationSewvice.onDidChangeConfiguwation((e) => {
+			if (e.affectsConfiguwation('editow.fontSize') || e.affectsConfiguwation('editow.wineHeight')) {
+				this.input.updateOptions(this.cweateEditowOptions());
+				this.centewInputVewticawwy();
 			}
 		}));
 	}
 
-	private createEditorOptions(): IEditorOptions {
-		const editorConfig = this._configurationService.getValue<IEditorOptions>('editor');
-		const options = getSimpleEditorOptions();
-		options.fontSize = editorConfig.fontSize;
-		return options;
+	pwivate cweateEditowOptions(): IEditowOptions {
+		const editowConfig = this._configuwationSewvice.getVawue<IEditowOptions>('editow');
+		const options = getSimpweEditowOptions();
+		options.fontSize = editowConfig.fontSize;
+		wetuwn options;
 	}
 
-	private centerInputVertically() {
-		if (this.container && typeof this.heightInPx === 'number') {
-			const lineHeight = this.input.getOption(EditorOption.lineHeight);
-			const lineNum = this.input.getModel().getLineCount();
-			const newTopMargin = (this.heightInPx - lineNum * lineHeight) / 2;
-			this.inputContainer.style.marginTop = newTopMargin + 'px';
+	pwivate centewInputVewticawwy() {
+		if (this.containa && typeof this.heightInPx === 'numba') {
+			const wineHeight = this.input.getOption(EditowOption.wineHeight);
+			const wineNum = this.input.getModew().getWineCount();
+			const newTopMawgin = (this.heightInPx - wineNum * wineHeight) / 2;
+			this.inputContaina.stywe.mawginTop = newTopMawgin + 'px';
 		}
 	}
 
-	close(success: boolean): void {
+	cwose(success: boowean): void {
 		if (success) {
-			// if there is already a breakpoint on this location - remove it.
+			// if thewe is awweady a bweakpoint on this wocation - wemove it.
 
-			let condition = this.breakpoint && this.breakpoint.condition;
-			let hitCondition = this.breakpoint && this.breakpoint.hitCondition;
-			let logMessage = this.breakpoint && this.breakpoint.logMessage;
-			this.rememberInput();
+			wet condition = this.bweakpoint && this.bweakpoint.condition;
+			wet hitCondition = this.bweakpoint && this.bweakpoint.hitCondition;
+			wet wogMessage = this.bweakpoint && this.bweakpoint.wogMessage;
+			this.wemembewInput();
 
 			if (this.conditionInput || this.context === Context.CONDITION) {
 				condition = this.conditionInput;
@@ -317,28 +317,28 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			if (this.hitCountInput || this.context === Context.HIT_COUNT) {
 				hitCondition = this.hitCountInput;
 			}
-			if (this.logMessageInput || this.context === Context.LOG_MESSAGE) {
-				logMessage = this.logMessageInput;
+			if (this.wogMessageInput || this.context === Context.WOG_MESSAGE) {
+				wogMessage = this.wogMessageInput;
 			}
 
-			if (this.breakpoint) {
-				const data = new Map<string, IBreakpointUpdateData>();
-				data.set(this.breakpoint.getId(), {
+			if (this.bweakpoint) {
+				const data = new Map<stwing, IBweakpointUpdateData>();
+				data.set(this.bweakpoint.getId(), {
 					condition,
 					hitCondition,
-					logMessage
+					wogMessage
 				});
-				this.debugService.updateBreakpoints(this.breakpoint.uri, data, false).then(undefined, onUnexpectedError);
-			} else {
-				const model = this.editor.getModel();
-				if (model) {
-					this.debugService.addBreakpoints(model.uri, [{
-						lineNumber: this.lineNumber,
-						column: this.column,
-						enabled: true,
+				this.debugSewvice.updateBweakpoints(this.bweakpoint.uwi, data, fawse).then(undefined, onUnexpectedEwwow);
+			} ewse {
+				const modew = this.editow.getModew();
+				if (modew) {
+					this.debugSewvice.addBweakpoints(modew.uwi, [{
+						wineNumba: this.wineNumba,
+						cowumn: this.cowumn,
+						enabwed: twue,
 						condition,
 						hitCondition,
-						logMessage
+						wogMessage
 					}]);
 				}
 			}
@@ -347,58 +347,58 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.dispose();
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 		this.input.dispose();
-		lifecycle.dispose(this.toDispose);
-		setTimeout(() => this.editor.focus(), 0);
+		wifecycwe.dispose(this.toDispose);
+		setTimeout(() => this.editow.focus(), 0);
 	}
 }
 
-class AcceptBreakpointWidgetInputAction extends EditorCommand {
+cwass AcceptBweakpointWidgetInputAction extends EditowCommand {
 
-	constructor() {
-		super({
-			id: 'breakpointWidget.action.acceptInput',
-			precondition: CONTEXT_BREAKPOINT_WIDGET_VISIBLE,
+	constwuctow() {
+		supa({
+			id: 'bweakpointWidget.action.acceptInput',
+			pwecondition: CONTEXT_BWEAKPOINT_WIDGET_VISIBWE,
 			kbOpts: {
-				kbExpr: CONTEXT_IN_BREAKPOINT_WIDGET,
-				primary: KeyCode.Enter,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: CONTEXT_IN_BWEAKPOINT_WIDGET,
+				pwimawy: KeyCode.Enta,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		accessor.get(IPrivateBreakpointWidgetService).close(true);
+	wunEditowCommand(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		accessow.get(IPwivateBweakpointWidgetSewvice).cwose(twue);
 	}
 }
 
-class CloseBreakpointWidgetCommand extends EditorCommand {
+cwass CwoseBweakpointWidgetCommand extends EditowCommand {
 
-	constructor() {
-		super({
-			id: 'closeBreakpointWidget',
-			precondition: CONTEXT_BREAKPOINT_WIDGET_VISIBLE,
+	constwuctow() {
+		supa({
+			id: 'cwoseBweakpointWidget',
+			pwecondition: CONTEXT_BWEAKPOINT_WIDGET_VISIBWE,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyCode.Escape,
-				secondary: [KeyMod.Shift | KeyCode.Escape],
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.textInputFocus,
+				pwimawy: KeyCode.Escape,
+				secondawy: [KeyMod.Shift | KeyCode.Escape],
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		const debugContribution = editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID);
-		if (debugContribution) {
-			// if focus is in outer editor we need to use the debug contribution to close
-			return debugContribution.closeBreakpointWidget();
+	wunEditowCommand(accessow: SewvicesAccessow, editow: ICodeEditow, awgs: any): void {
+		const debugContwibution = editow.getContwibution<IBweakpointEditowContwibution>(BWEAKPOINT_EDITOW_CONTWIBUTION_ID);
+		if (debugContwibution) {
+			// if focus is in outa editow we need to use the debug contwibution to cwose
+			wetuwn debugContwibution.cwoseBweakpointWidget();
 		}
 
-		accessor.get(IPrivateBreakpointWidgetService).close(false);
+		accessow.get(IPwivateBweakpointWidgetSewvice).cwose(fawse);
 	}
 }
 
-registerEditorCommand(new AcceptBreakpointWidgetInputAction());
-registerEditorCommand(new CloseBreakpointWidgetCommand());
+wegistewEditowCommand(new AcceptBweakpointWidgetInputAction());
+wegistewEditowCommand(new CwoseBweakpointWidgetCommand());

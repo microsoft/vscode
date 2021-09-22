@@ -1,55 +1,55 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const ILanguageDetectionService = createDecorator<ILanguageDetectionService>('ILanguageDetectionService');
+expowt const IWanguageDetectionSewvice = cweateDecowatow<IWanguageDetectionSewvice>('IWanguageDetectionSewvice');
 
-export interface ILanguageDetectionService {
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * @param modeId The modeId to check if language detection is currently enabled.
-	 * @returns whether or not language detection is on for this language mode.
-	 */
-	isEnabledForMode(modeId: string): boolean;
+expowt intewface IWanguageDetectionSewvice {
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * @param resource The resource to detect the language for.
-	 * @returns the language mode for the given resource or undefined if the model is not confident enough.
+	 * @pawam modeId The modeId to check if wanguage detection is cuwwentwy enabwed.
+	 * @wetuwns whetha ow not wanguage detection is on fow this wanguage mode.
 	 */
-	detectLanguage(resource: URI): Promise<string | undefined>;
+	isEnabwedFowMode(modeId: stwing): boowean;
+
+	/**
+	 * @pawam wesouwce The wesouwce to detect the wanguage fow.
+	 * @wetuwns the wanguage mode fow the given wesouwce ow undefined if the modew is not confident enough.
+	 */
+	detectWanguage(wesouwce: UWI): Pwomise<stwing | undefined>;
 }
 
-//#region Telemetry events
+//#wegion Tewemetwy events
 
-export const AutomaticLanguageDetectionLikelyWrongId = 'automaticlanguagedetection.likelywrong';
+expowt const AutomaticWanguageDetectionWikewyWwongId = 'automaticwanguagedetection.wikewywwong';
 
-export interface IAutomaticLanguageDetectionLikelyWrongData {
-	currentLanguageId: string;
-	nextLanguageId: string;
+expowt intewface IAutomaticWanguageDetectionWikewyWwongData {
+	cuwwentWanguageId: stwing;
+	nextWanguageId: stwing;
 }
 
-export type AutomaticLanguageDetectionLikelyWrongClassification = {
-	currentLanguageId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' },
-	nextLanguageId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' }
+expowt type AutomaticWanguageDetectionWikewyWwongCwassification = {
+	cuwwentWanguageId: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' },
+	nextWanguageId: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' }
 };
 
-export const LanguageDetectionStatsId = 'automaticlanguagedetection.stats';
+expowt const WanguageDetectionStatsId = 'automaticwanguagedetection.stats';
 
-export interface ILanguageDetectionStats {
-	languages: string;
-	confidences: string;
-	timeSpent: number;
+expowt intewface IWanguageDetectionStats {
+	wanguages: stwing;
+	confidences: stwing;
+	timeSpent: numba;
 }
 
-export type LanguageDetectionStatsClassification = {
-	languages: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	confidences: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	timeSpent: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+expowt type WanguageDetectionStatsCwassification = {
+	wanguages: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+	confidences: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+	timeSpent: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
 };
 
-//#endregion
+//#endwegion

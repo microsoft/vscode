@@ -1,103 +1,103 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchConfiguration, IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { INativeWindowConfiguration, IOSConfiguration } from 'vs/platform/windows/common/windows';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { AbstractNativeEnvironmentService } from 'vs/platform/environment/common/environmentService';
-import { memoize } from 'vs/base/common/decorators';
-import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { join } from 'vs/base/common/path';
-import { IProductService } from 'vs/platform/product/common/productService';
+impowt { IWowkbenchConfiguwation, IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { INativeWindowConfiguwation, IOSConfiguwation } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { IEnviwonmentSewvice, INativeEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { wefineSewviceDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { AbstwactNativeEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonmentSewvice';
+impowt { memoize } fwom 'vs/base/common/decowatows';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { join } fwom 'vs/base/common/path';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
 
-export const INativeWorkbenchEnvironmentService = refineServiceDecorator<IEnvironmentService, INativeWorkbenchEnvironmentService>(IEnvironmentService);
+expowt const INativeWowkbenchEnviwonmentSewvice = wefineSewviceDecowatow<IEnviwonmentSewvice, INativeWowkbenchEnviwonmentSewvice>(IEnviwonmentSewvice);
 
-export interface INativeWorkbenchConfiguration extends IWorkbenchConfiguration, INativeWindowConfiguration { }
+expowt intewface INativeWowkbenchConfiguwation extends IWowkbenchConfiguwation, INativeWindowConfiguwation { }
 
 /**
- * A subclass of the `IWorkbenchEnvironmentService` to be used only in native
- * environments (Windows, Linux, macOS) but not e.g. web.
+ * A subcwass of the `IWowkbenchEnviwonmentSewvice` to be used onwy in native
+ * enviwonments (Windows, Winux, macOS) but not e.g. web.
  */
-export interface INativeWorkbenchEnvironmentService extends IWorkbenchEnvironmentService, INativeEnvironmentService {
+expowt intewface INativeWowkbenchEnviwonmentSewvice extends IWowkbenchEnviwonmentSewvice, INativeEnviwonmentSewvice {
 
-	readonly machineId: string;
+	weadonwy machineId: stwing;
 
-	readonly crashReporterDirectory?: string;
-	readonly crashReporterId?: string;
+	weadonwy cwashWepowtewDiwectowy?: stwing;
+	weadonwy cwashWepowtewId?: stwing;
 
-	readonly execPath: string;
+	weadonwy execPath: stwing;
 
-	readonly log?: string;
+	weadonwy wog?: stwing;
 
-	readonly os: IOSConfiguration;
+	weadonwy os: IOSConfiguwation;
 
 	/**
-	 * @deprecated this property will go away eventually as it
-	 * duplicates many properties of the environment service
+	 * @depwecated this pwopewty wiww go away eventuawwy as it
+	 * dupwicates many pwopewties of the enviwonment sewvice
 	 *
-	 * Please consider using the environment service directly
+	 * Pwease consida using the enviwonment sewvice diwectwy
 	 * if you can.
 	 */
-	readonly configuration: INativeWorkbenchConfiguration;
+	weadonwy configuwation: INativeWowkbenchConfiguwation;
 }
 
-export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironmentService implements INativeWorkbenchEnvironmentService {
+expowt cwass NativeWowkbenchEnviwonmentSewvice extends AbstwactNativeEnviwonmentSewvice impwements INativeWowkbenchEnviwonmentSewvice {
 
 	@memoize
-	get machineId() { return this.configuration.machineId; }
+	get machineId() { wetuwn this.configuwation.machineId; }
 
 	@memoize
-	get remoteAuthority() { return this.configuration.remoteAuthority; }
+	get wemoteAuthowity() { wetuwn this.configuwation.wemoteAuthowity; }
 
 	@memoize
-	get execPath() { return this.configuration.execPath; }
+	get execPath() { wetuwn this.configuwation.execPath; }
 
 	@memoize
-	override get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
+	ovewwide get usewWoamingDataHome(): UWI { wetuwn this.appSettingsHome.with({ scheme: Schemas.usewData }); }
 
 	@memoize
-	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.configuration.windowId}.log`)); }
+	get wogFiwe(): UWI { wetuwn UWI.fiwe(join(this.wogsPath, `wendewa${this.configuwation.windowId}.wog`)); }
 
 	@memoize
-	get extHostLogsPath(): URI { return URI.file(join(this.logsPath, `exthost${this.configuration.windowId}`)); }
+	get extHostWogsPath(): UWI { wetuwn UWI.fiwe(join(this.wogsPath, `exthost${this.configuwation.windowId}`)); }
 
 	@memoize
-	get webviewExternalEndpoint(): string { return `${Schemas.vscodeWebview}://{{uuid}}`; }
+	get webviewExtewnawEndpoint(): stwing { wetuwn `${Schemas.vscodeWebview}://{{uuid}}`; }
 
 	@memoize
-	get skipReleaseNotes(): boolean { return !!this.args['skip-release-notes']; }
+	get skipWeweaseNotes(): boowean { wetuwn !!this.awgs['skip-wewease-notes']; }
 
 	@memoize
-	get skipWelcome(): boolean { return !!this.args['skip-welcome']; }
+	get skipWewcome(): boowean { wetuwn !!this.awgs['skip-wewcome']; }
 
 	@memoize
-	get logExtensionHostCommunication(): boolean { return !!this.args.logExtensionHostCommunication; }
+	get wogExtensionHostCommunication(): boowean { wetuwn !!this.awgs.wogExtensionHostCommunication; }
 
 	@memoize
-	get extensionEnabledProposedApi(): string[] | undefined {
-		if (Array.isArray(this.args['enable-proposed-api'])) {
-			return this.args['enable-proposed-api'];
+	get extensionEnabwedPwoposedApi(): stwing[] | undefined {
+		if (Awway.isAwway(this.awgs['enabwe-pwoposed-api'])) {
+			wetuwn this.awgs['enabwe-pwoposed-api'];
 		}
 
-		if ('enable-proposed-api' in this.args) {
-			return [];
+		if ('enabwe-pwoposed-api' in this.awgs) {
+			wetuwn [];
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	get os(): IOSConfiguration {
-		return this.configuration.os;
+	get os(): IOSConfiguwation {
+		wetuwn this.configuwation.os;
 	}
 
-	constructor(
-		readonly configuration: INativeWorkbenchConfiguration,
-		productService: IProductService
+	constwuctow(
+		weadonwy configuwation: INativeWowkbenchConfiguwation,
+		pwoductSewvice: IPwoductSewvice
 	) {
-		super(configuration, { homeDir: configuration.homeDir, tmpDir: configuration.tmpDir, userDataDir: configuration.userDataDir }, productService);
+		supa(configuwation, { homeDiw: configuwation.homeDiw, tmpDiw: configuwation.tmpDiw, usewDataDiw: configuwation.usewDataDiw }, pwoductSewvice);
 	}
 }

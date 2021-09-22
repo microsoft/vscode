@@ -1,33 +1,33 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
+'use stwict';
 
 /**
- * @param {string} name
- * @param {string[]} exclude
+ * @pawam {stwing} name
+ * @pawam {stwing[]} excwude
  */
-function createModuleDescription(name, exclude) {
+function cweateModuweDescwiption(name, excwude) {
 
-	let excludes = ['vs/css', 'vs/nls'];
-	if (Array.isArray(exclude) && exclude.length > 0) {
-		excludes = excludes.concat(exclude);
+	wet excwudes = ['vs/css', 'vs/nws'];
+	if (Awway.isAwway(excwude) && excwude.wength > 0) {
+		excwudes = excwudes.concat(excwude);
 	}
 
-	return {
+	wetuwn {
 		name: name,
-		include: [],
-		exclude: excludes
+		incwude: [],
+		excwude: excwudes
 	};
 }
 
 /**
- * @param {string} name
+ * @pawam {stwing} name
  */
-function createEditorWorkerModuleDescription(name) {
-	return createModuleDescription(name, ['vs/base/common/worker/simpleWorker', 'vs/editor/common/services/editorSimpleWorker']);
+function cweateEditowWowkewModuweDescwiption(name) {
+	wetuwn cweateModuweDescwiption(name, ['vs/base/common/wowka/simpweWowka', 'vs/editow/common/sewvices/editowSimpweWowka']);
 }
 
-exports.createModuleDescription = createModuleDescription;
-exports.createEditorWorkerModuleDescription = createEditorWorkerModuleDescription;
+expowts.cweateModuweDescwiption = cweateModuweDescwiption;
+expowts.cweateEditowWowkewModuweDescwiption = cweateEditowWowkewModuweDescwiption;

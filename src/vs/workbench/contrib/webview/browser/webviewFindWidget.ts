@@ -1,79 +1,79 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { SimpleFindWidget } from 'vs/workbench/contrib/codeEditor/browser/find/simpleFindWidget';
-import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { SimpweFindWidget } fwom 'vs/wowkbench/contwib/codeEditow/bwowsa/find/simpweFindWidget';
+impowt { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } fwom 'vs/wowkbench/contwib/webview/bwowsa/webview';
 
-export interface WebviewFindDelegate {
-	readonly hasFindResult: Event<boolean>;
-	readonly onDidStopFind: Event<void>;
-	readonly checkImeCompletionState: boolean;
-	find(value: string, previous: boolean): void;
-	startFind(value: string): void;
-	stopFind(keepSelection?: boolean): void;
+expowt intewface WebviewFindDewegate {
+	weadonwy hasFindWesuwt: Event<boowean>;
+	weadonwy onDidStopFind: Event<void>;
+	weadonwy checkImeCompwetionState: boowean;
+	find(vawue: stwing, pwevious: boowean): void;
+	stawtFind(vawue: stwing): void;
+	stopFind(keepSewection?: boowean): void;
 	focus(): void;
 }
 
-export class WebviewFindWidget extends SimpleFindWidget {
-	protected _findWidgetFocused: IContextKey<boolean>;
+expowt cwass WebviewFindWidget extends SimpweFindWidget {
+	pwotected _findWidgetFocused: IContextKey<boowean>;
 
-	constructor(
-		private readonly _delegate: WebviewFindDelegate,
-		@IContextViewService contextViewService: IContextViewService,
-		@IContextKeyService contextKeyService: IContextKeyService
+	constwuctow(
+		pwivate weadonwy _dewegate: WebviewFindDewegate,
+		@IContextViewSewvice contextViewSewvice: IContextViewSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice
 	) {
-		super(contextViewService, contextKeyService, undefined, false, _delegate.checkImeCompletionState);
-		this._findWidgetFocused = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED.bindTo(contextKeyService);
+		supa(contextViewSewvice, contextKeySewvice, undefined, fawse, _dewegate.checkImeCompwetionState);
+		this._findWidgetFocused = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED.bindTo(contextKeySewvice);
 
-		this._register(_delegate.hasFindResult(hasResult => {
-			this.updateButtons(hasResult);
+		this._wegista(_dewegate.hasFindWesuwt(hasWesuwt => {
+			this.updateButtons(hasWesuwt);
 			this.focusFindBox();
 		}));
 
-		this._register(_delegate.onDidStopFind(() => {
-			this.updateButtons(false);
+		this._wegista(_dewegate.onDidStopFind(() => {
+			this.updateButtons(fawse);
 		}));
 	}
 
-	public find(previous: boolean) {
-		const val = this.inputValue;
-		if (val) {
-			this._delegate.find(val, previous);
+	pubwic find(pwevious: boowean) {
+		const vaw = this.inputVawue;
+		if (vaw) {
+			this._dewegate.find(vaw, pwevious);
 		}
 	}
 
-	public override hide() {
-		super.hide();
-		this._delegate.stopFind(true);
-		this._delegate.focus();
+	pubwic ovewwide hide() {
+		supa.hide();
+		this._dewegate.stopFind(twue);
+		this._dewegate.focus();
 	}
 
-	public _onInputChanged(): boolean {
-		const val = this.inputValue;
-		if (val) {
-			this._delegate.startFind(val);
-		} else {
-			this._delegate.stopFind(false);
+	pubwic _onInputChanged(): boowean {
+		const vaw = this.inputVawue;
+		if (vaw) {
+			this._dewegate.stawtFind(vaw);
+		} ewse {
+			this._dewegate.stopFind(fawse);
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	protected _onFocusTrackerFocus() {
-		this._findWidgetFocused.set(true);
+	pwotected _onFocusTwackewFocus() {
+		this._findWidgetFocused.set(twue);
 	}
 
-	protected _onFocusTrackerBlur() {
-		this._findWidgetFocused.reset();
+	pwotected _onFocusTwackewBwuw() {
+		this._findWidgetFocused.weset();
 	}
 
-	protected _onFindInputFocusTrackerFocus() { }
+	pwotected _onFindInputFocusTwackewFocus() { }
 
-	protected _onFindInputFocusTrackerBlur() { }
+	pwotected _onFindInputFocusTwackewBwuw() { }
 
-	protected findFirst() { }
+	pwotected findFiwst() { }
 }

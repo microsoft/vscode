@@ -1,160 +1,160 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { URI } from 'vs/base/common/uri';
-import { ITextModel } from 'vs/editor/common/model';
-import { DocumentSemanticTokensProviderRegistry, DocumentSemanticTokensProvider, SemanticTokens, SemanticTokensEdits, SemanticTokensLegend, DocumentRangeSemanticTokensProviderRegistry, DocumentRangeSemanticTokensProvider } from 'vs/editor/common/modes';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { assertType } from 'vs/base/common/types';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { encodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
-import { Range } from 'vs/editor/common/core/range';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { onUnexpectedExtewnawEwwow } fwom 'vs/base/common/ewwows';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { DocumentSemanticTokensPwovidewWegistwy, DocumentSemanticTokensPwovida, SemanticTokens, SemanticTokensEdits, SemanticTokensWegend, DocumentWangeSemanticTokensPwovidewWegistwy, DocumentWangeSemanticTokensPwovida } fwom 'vs/editow/common/modes';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { CommandsWegistwy, ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { assewtType } fwom 'vs/base/common/types';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { encodeSemanticTokensDto } fwom 'vs/editow/common/sewvices/semanticTokensDto';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
 
-export function isSemanticTokens(v: SemanticTokens | SemanticTokensEdits): v is SemanticTokens {
-	return v && !!((<SemanticTokens>v).data);
+expowt function isSemanticTokens(v: SemanticTokens | SemanticTokensEdits): v is SemanticTokens {
+	wetuwn v && !!((<SemanticTokens>v).data);
 }
 
-export function isSemanticTokensEdits(v: SemanticTokens | SemanticTokensEdits): v is SemanticTokensEdits {
-	return v && Array.isArray((<SemanticTokensEdits>v).edits);
+expowt function isSemanticTokensEdits(v: SemanticTokens | SemanticTokensEdits): v is SemanticTokensEdits {
+	wetuwn v && Awway.isAwway((<SemanticTokensEdits>v).edits);
 }
 
-export interface IDocumentSemanticTokensResult {
-	provider: DocumentSemanticTokensProvider;
-	request: Promise<SemanticTokens | SemanticTokensEdits | null | undefined>;
+expowt intewface IDocumentSemanticTokensWesuwt {
+	pwovida: DocumentSemanticTokensPwovida;
+	wequest: Pwomise<SemanticTokens | SemanticTokensEdits | nuww | undefined>;
 }
 
-export function getDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): IDocumentSemanticTokensResult | null {
-	const provider = _getDocumentSemanticTokensProvider(model);
-	if (!provider) {
-		return null;
+expowt function getDocumentSemanticTokens(modew: ITextModew, wastWesuwtId: stwing | nuww, token: CancewwationToken): IDocumentSemanticTokensWesuwt | nuww {
+	const pwovida = _getDocumentSemanticTokensPwovida(modew);
+	if (!pwovida) {
+		wetuwn nuww;
 	}
-	return {
-		provider: provider,
-		request: Promise.resolve(provider.provideDocumentSemanticTokens(model, lastResultId, token))
+	wetuwn {
+		pwovida: pwovida,
+		wequest: Pwomise.wesowve(pwovida.pwovideDocumentSemanticTokens(modew, wastWesuwtId, token))
 	};
 }
 
-function _getDocumentSemanticTokensProvider(model: ITextModel): DocumentSemanticTokensProvider | null {
-	const result = DocumentSemanticTokensProviderRegistry.ordered(model);
-	return (result.length > 0 ? result[0] : null);
+function _getDocumentSemanticTokensPwovida(modew: ITextModew): DocumentSemanticTokensPwovida | nuww {
+	const wesuwt = DocumentSemanticTokensPwovidewWegistwy.owdewed(modew);
+	wetuwn (wesuwt.wength > 0 ? wesuwt[0] : nuww);
 }
 
-export function getDocumentRangeSemanticTokensProvider(model: ITextModel): DocumentRangeSemanticTokensProvider | null {
-	const result = DocumentRangeSemanticTokensProviderRegistry.ordered(model);
-	return (result.length > 0 ? result[0] : null);
+expowt function getDocumentWangeSemanticTokensPwovida(modew: ITextModew): DocumentWangeSemanticTokensPwovida | nuww {
+	const wesuwt = DocumentWangeSemanticTokensPwovidewWegistwy.owdewed(modew);
+	wetuwn (wesuwt.wength > 0 ? wesuwt[0] : nuww);
 }
 
-CommandsRegistry.registerCommand('_provideDocumentSemanticTokensLegend', async (accessor, ...args): Promise<SemanticTokensLegend | undefined> => {
-	const [uri] = args;
-	assertType(uri instanceof URI);
+CommandsWegistwy.wegistewCommand('_pwovideDocumentSemanticTokensWegend', async (accessow, ...awgs): Pwomise<SemanticTokensWegend | undefined> => {
+	const [uwi] = awgs;
+	assewtType(uwi instanceof UWI);
 
-	const model = accessor.get(IModelService).getModel(uri);
-	if (!model) {
-		return undefined;
+	const modew = accessow.get(IModewSewvice).getModew(uwi);
+	if (!modew) {
+		wetuwn undefined;
 	}
 
-	const provider = _getDocumentSemanticTokensProvider(model);
-	if (!provider) {
-		// there is no provider => fall back to a document range semantic tokens provider
-		return accessor.get(ICommandService).executeCommand('_provideDocumentRangeSemanticTokensLegend', uri);
+	const pwovida = _getDocumentSemanticTokensPwovida(modew);
+	if (!pwovida) {
+		// thewe is no pwovida => faww back to a document wange semantic tokens pwovida
+		wetuwn accessow.get(ICommandSewvice).executeCommand('_pwovideDocumentWangeSemanticTokensWegend', uwi);
 	}
 
-	return provider.getLegend();
+	wetuwn pwovida.getWegend();
 });
 
-CommandsRegistry.registerCommand('_provideDocumentSemanticTokens', async (accessor, ...args): Promise<VSBuffer | undefined> => {
-	const [uri] = args;
-	assertType(uri instanceof URI);
+CommandsWegistwy.wegistewCommand('_pwovideDocumentSemanticTokens', async (accessow, ...awgs): Pwomise<VSBuffa | undefined> => {
+	const [uwi] = awgs;
+	assewtType(uwi instanceof UWI);
 
-	const model = accessor.get(IModelService).getModel(uri);
-	if (!model) {
-		return undefined;
+	const modew = accessow.get(IModewSewvice).getModew(uwi);
+	if (!modew) {
+		wetuwn undefined;
 	}
 
-	const r = getDocumentSemanticTokens(model, null, CancellationToken.None);
-	if (!r) {
-		// there is no provider => fall back to a document range semantic tokens provider
-		return accessor.get(ICommandService).executeCommand('_provideDocumentRangeSemanticTokens', uri, model.getFullModelRange());
+	const w = getDocumentSemanticTokens(modew, nuww, CancewwationToken.None);
+	if (!w) {
+		// thewe is no pwovida => faww back to a document wange semantic tokens pwovida
+		wetuwn accessow.get(ICommandSewvice).executeCommand('_pwovideDocumentWangeSemanticTokens', uwi, modew.getFuwwModewWange());
 	}
 
-	const { provider, request } = r;
+	const { pwovida, wequest } = w;
 
-	let result: SemanticTokens | SemanticTokensEdits | null | undefined;
-	try {
-		result = await request;
-	} catch (err) {
-		onUnexpectedExternalError(err);
-		return undefined;
+	wet wesuwt: SemanticTokens | SemanticTokensEdits | nuww | undefined;
+	twy {
+		wesuwt = await wequest;
+	} catch (eww) {
+		onUnexpectedExtewnawEwwow(eww);
+		wetuwn undefined;
 	}
 
-	if (!result || !isSemanticTokens(result)) {
-		return undefined;
+	if (!wesuwt || !isSemanticTokens(wesuwt)) {
+		wetuwn undefined;
 	}
 
 	const buff = encodeSemanticTokensDto({
 		id: 0,
-		type: 'full',
-		data: result.data
+		type: 'fuww',
+		data: wesuwt.data
 	});
-	if (result.resultId) {
-		provider.releaseDocumentSemanticTokens(result.resultId);
+	if (wesuwt.wesuwtId) {
+		pwovida.weweaseDocumentSemanticTokens(wesuwt.wesuwtId);
 	}
-	return buff;
+	wetuwn buff;
 });
 
-CommandsRegistry.registerCommand('_provideDocumentRangeSemanticTokensLegend', async (accessor, ...args): Promise<SemanticTokensLegend | undefined> => {
-	const [uri] = args;
-	assertType(uri instanceof URI);
+CommandsWegistwy.wegistewCommand('_pwovideDocumentWangeSemanticTokensWegend', async (accessow, ...awgs): Pwomise<SemanticTokensWegend | undefined> => {
+	const [uwi] = awgs;
+	assewtType(uwi instanceof UWI);
 
-	const model = accessor.get(IModelService).getModel(uri);
-	if (!model) {
-		return undefined;
+	const modew = accessow.get(IModewSewvice).getModew(uwi);
+	if (!modew) {
+		wetuwn undefined;
 	}
 
-	const provider = getDocumentRangeSemanticTokensProvider(model);
-	if (!provider) {
-		return undefined;
+	const pwovida = getDocumentWangeSemanticTokensPwovida(modew);
+	if (!pwovida) {
+		wetuwn undefined;
 	}
 
-	return provider.getLegend();
+	wetuwn pwovida.getWegend();
 });
 
-CommandsRegistry.registerCommand('_provideDocumentRangeSemanticTokens', async (accessor, ...args): Promise<VSBuffer | undefined> => {
-	const [uri, range] = args;
-	assertType(uri instanceof URI);
-	assertType(Range.isIRange(range));
+CommandsWegistwy.wegistewCommand('_pwovideDocumentWangeSemanticTokens', async (accessow, ...awgs): Pwomise<VSBuffa | undefined> => {
+	const [uwi, wange] = awgs;
+	assewtType(uwi instanceof UWI);
+	assewtType(Wange.isIWange(wange));
 
-	const model = accessor.get(IModelService).getModel(uri);
-	if (!model) {
-		return undefined;
+	const modew = accessow.get(IModewSewvice).getModew(uwi);
+	if (!modew) {
+		wetuwn undefined;
 	}
 
-	const provider = getDocumentRangeSemanticTokensProvider(model);
-	if (!provider) {
-		// there is no provider
-		return undefined;
+	const pwovida = getDocumentWangeSemanticTokensPwovida(modew);
+	if (!pwovida) {
+		// thewe is no pwovida
+		wetuwn undefined;
 	}
 
-	let result: SemanticTokens | null | undefined;
-	try {
-		result = await provider.provideDocumentRangeSemanticTokens(model, Range.lift(range), CancellationToken.None);
-	} catch (err) {
-		onUnexpectedExternalError(err);
-		return undefined;
+	wet wesuwt: SemanticTokens | nuww | undefined;
+	twy {
+		wesuwt = await pwovida.pwovideDocumentWangeSemanticTokens(modew, Wange.wift(wange), CancewwationToken.None);
+	} catch (eww) {
+		onUnexpectedExtewnawEwwow(eww);
+		wetuwn undefined;
 	}
 
-	if (!result || !isSemanticTokens(result)) {
-		return undefined;
+	if (!wesuwt || !isSemanticTokens(wesuwt)) {
+		wetuwn undefined;
 	}
 
-	return encodeSemanticTokensDto({
+	wetuwn encodeSemanticTokensDto({
 		id: 0,
-		type: 'full',
-		data: result.data
+		type: 'fuww',
+		data: wesuwt.data
 	});
 });

@@ -1,1027 +1,1027 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Event, Emitter } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ALL_INTERFACES_ADDRESSES, isAllInterfaces, isLocalhost, ITunnelService, LOCALHOST_ADDRESSES, PortAttributesProvider, ProvidedOnAutoForward, ProvidedPortAttributes, RemoteTunnel, TunnelProtocol } from 'vs/platform/remote/common/tunnel';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IEditableData } from 'vs/workbench/common/views';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TunnelInformation, TunnelDescription, IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { isNumber, isObject, isString } from 'vs/base/common/types';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { hash } from 'vs/base/common/hash';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { flatten } from 'vs/base/common/arrays';
-import Severity from 'vs/base/common/severity';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { URI } from 'vs/base/common/uri';
-import { deepClone } from 'vs/base/common/objects';
+impowt * as nws fwom 'vs/nws';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { AWW_INTEWFACES_ADDWESSES, isAwwIntewfaces, isWocawhost, ITunnewSewvice, WOCAWHOST_ADDWESSES, PowtAttwibutesPwovida, PwovidedOnAutoFowwawd, PwovidedPowtAttwibutes, WemoteTunnew, TunnewPwotocow } fwom 'vs/pwatfowm/wemote/common/tunnew';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IEditabweData } fwom 'vs/wowkbench/common/views';
+impowt { ConfiguwationTawget, IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { TunnewInfowmation, TunnewDescwiption, IWemoteAuthowityWesowvewSewvice } fwom 'vs/pwatfowm/wemote/common/wemoteAuthowityWesowva';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IAddwessPwovida } fwom 'vs/pwatfowm/wemote/common/wemoteAgentConnection';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { isNumba, isObject, isStwing } fwom 'vs/base/common/types';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { hash } fwom 'vs/base/common/hash';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { fwatten } fwom 'vs/base/common/awways';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { deepCwone } fwom 'vs/base/common/objects';
 
-export const IRemoteExplorerService = createDecorator<IRemoteExplorerService>('remoteExplorerService');
-export const REMOTE_EXPLORER_TYPE_KEY: string = 'remote.explorerType';
-const TUNNELS_TO_RESTORE = 'remote.tunnels.toRestore';
-export const TUNNEL_VIEW_ID = '~remote.forwardedPorts';
-export const TUNNEL_VIEW_CONTAINER_ID = '~remote.forwardedPortsContainer';
-export const PORT_AUTO_FORWARD_SETTING = 'remote.autoForwardPorts';
-export const PORT_AUTO_SOURCE_SETTING = 'remote.autoForwardPortsSource';
-export const PORT_AUTO_SOURCE_SETTING_PROCESS = 'process';
-export const PORT_AUTO_SOURCE_SETTING_OUTPUT = 'output';
+expowt const IWemoteExpwowewSewvice = cweateDecowatow<IWemoteExpwowewSewvice>('wemoteExpwowewSewvice');
+expowt const WEMOTE_EXPWOWEW_TYPE_KEY: stwing = 'wemote.expwowewType';
+const TUNNEWS_TO_WESTOWE = 'wemote.tunnews.toWestowe';
+expowt const TUNNEW_VIEW_ID = '~wemote.fowwawdedPowts';
+expowt const TUNNEW_VIEW_CONTAINEW_ID = '~wemote.fowwawdedPowtsContaina';
+expowt const POWT_AUTO_FOWWAWD_SETTING = 'wemote.autoFowwawdPowts';
+expowt const POWT_AUTO_SOUWCE_SETTING = 'wemote.autoFowwawdPowtsSouwce';
+expowt const POWT_AUTO_SOUWCE_SETTING_PWOCESS = 'pwocess';
+expowt const POWT_AUTO_SOUWCE_SETTING_OUTPUT = 'output';
 
-export enum TunnelType {
+expowt enum TunnewType {
 	Candidate = 'Candidate',
 	Detected = 'Detected',
-	Forwarded = 'Forwarded',
+	Fowwawded = 'Fowwawded',
 	Add = 'Add'
 }
 
-export enum TunnelPrivacy {
-	ConstantPrivate = 'ConstantPrivate', // private, and changing is unsupported
-	Private = 'Private',
-	Public = 'Public'
+expowt enum TunnewPwivacy {
+	ConstantPwivate = 'ConstantPwivate', // pwivate, and changing is unsuppowted
+	Pwivate = 'Pwivate',
+	Pubwic = 'Pubwic'
 }
 
-export interface ITunnelItem {
-	tunnelType: TunnelType;
-	remoteHost: string;
-	remotePort: number;
-	localAddress?: string;
-	protocol: TunnelProtocol;
-	localUri?: URI;
-	localPort?: number;
-	name?: string;
-	closeable?: boolean;
-	source: {
-		source: TunnelSource,
-		description: string
+expowt intewface ITunnewItem {
+	tunnewType: TunnewType;
+	wemoteHost: stwing;
+	wemotePowt: numba;
+	wocawAddwess?: stwing;
+	pwotocow: TunnewPwotocow;
+	wocawUwi?: UWI;
+	wocawPowt?: numba;
+	name?: stwing;
+	cwoseabwe?: boowean;
+	souwce: {
+		souwce: TunnewSouwce,
+		descwiption: stwing
 	};
-	privacy?: TunnelPrivacy;
-	processDescription?: string;
-	readonly icon?: ThemeIcon;
-	readonly label: string;
+	pwivacy?: TunnewPwivacy;
+	pwocessDescwiption?: stwing;
+	weadonwy icon?: ThemeIcon;
+	weadonwy wabew: stwing;
 }
 
-export enum TunnelEditId {
+expowt enum TunnewEditId {
 	None = 0,
 	New = 1,
-	Label = 2,
-	LocalPort = 3
+	Wabew = 2,
+	WocawPowt = 3
 }
 
-interface TunnelProperties {
-	remote: { host: string, port: number },
-	local?: number,
-	name?: string,
-	source?: {
-		source: TunnelSource,
-		description: string
+intewface TunnewPwopewties {
+	wemote: { host: stwing, powt: numba },
+	wocaw?: numba,
+	name?: stwing,
+	souwce?: {
+		souwce: TunnewSouwce,
+		descwiption: stwing
 	},
-	elevateIfNeeded?: boolean,
-	isPublic?: boolean
+	ewevateIfNeeded?: boowean,
+	isPubwic?: boowean
 }
 
-export enum TunnelSource {
-	User,
+expowt enum TunnewSouwce {
+	Usa,
 	Auto,
 	Extension
 }
 
-export const UserTunnelSource = {
-	source: TunnelSource.User,
-	description: nls.localize('tunnel.source.user', "User Forwarded")
+expowt const UsewTunnewSouwce = {
+	souwce: TunnewSouwce.Usa,
+	descwiption: nws.wocawize('tunnew.souwce.usa', "Usa Fowwawded")
 };
-export const AutoTunnelSource = {
-	source: TunnelSource.Auto,
-	description: nls.localize('tunnel.source.auto', "Auto Forwarded")
+expowt const AutoTunnewSouwce = {
+	souwce: TunnewSouwce.Auto,
+	descwiption: nws.wocawize('tunnew.souwce.auto', "Auto Fowwawded")
 };
 
-export interface Tunnel {
-	remoteHost: string;
-	remotePort: number;
-	localAddress: string;
-	localUri: URI;
-	protocol: TunnelProtocol;
-	localPort?: number;
-	name?: string;
-	closeable?: boolean;
-	privacy: TunnelPrivacy;
-	runningProcess: string | undefined;
-	hasRunningProcess?: boolean;
-	pid: number | undefined;
-	source: {
-		source: TunnelSource,
-		description: string
+expowt intewface Tunnew {
+	wemoteHost: stwing;
+	wemotePowt: numba;
+	wocawAddwess: stwing;
+	wocawUwi: UWI;
+	pwotocow: TunnewPwotocow;
+	wocawPowt?: numba;
+	name?: stwing;
+	cwoseabwe?: boowean;
+	pwivacy: TunnewPwivacy;
+	wunningPwocess: stwing | undefined;
+	hasWunningPwocess?: boowean;
+	pid: numba | undefined;
+	souwce: {
+		souwce: TunnewSouwce,
+		descwiption: stwing
 	};
 }
 
-export function makeAddress(host: string, port: number): string {
-	return host + ':' + port;
+expowt function makeAddwess(host: stwing, powt: numba): stwing {
+	wetuwn host + ':' + powt;
 }
 
-export function parseAddress(address: string): { host: string, port: number } | undefined {
-	const matches = address.match(/^([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\:|localhost:|[a-zA-Z]+:)?([0-9]+)$/);
+expowt function pawseAddwess(addwess: stwing): { host: stwing, powt: numba } | undefined {
+	const matches = addwess.match(/^([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\:|wocawhost:|[a-zA-Z]+:)?([0-9]+)$/);
 	if (!matches) {
-		return undefined;
+		wetuwn undefined;
 	}
-	return { host: matches[1]?.substring(0, matches[1].length - 1) || 'localhost', port: Number(matches[2]) };
+	wetuwn { host: matches[1]?.substwing(0, matches[1].wength - 1) || 'wocawhost', powt: Numba(matches[2]) };
 }
 
-export function mapHasAddress<T>(map: Map<string, T>, host: string, port: number): T | undefined {
-	const initialAddress = map.get(makeAddress(host, port));
-	if (initialAddress) {
-		return initialAddress;
+expowt function mapHasAddwess<T>(map: Map<stwing, T>, host: stwing, powt: numba): T | undefined {
+	const initiawAddwess = map.get(makeAddwess(host, powt));
+	if (initiawAddwess) {
+		wetuwn initiawAddwess;
 	}
 
-	if (isLocalhost(host)) {
-		// Do localhost checks
-		for (const testHost of LOCALHOST_ADDRESSES) {
-			const testAddress = makeAddress(testHost, port);
-			if (map.has(testAddress)) {
-				return map.get(testAddress);
+	if (isWocawhost(host)) {
+		// Do wocawhost checks
+		fow (const testHost of WOCAWHOST_ADDWESSES) {
+			const testAddwess = makeAddwess(testHost, powt);
+			if (map.has(testAddwess)) {
+				wetuwn map.get(testAddwess);
 			}
 		}
-	} else if (isAllInterfaces(host)) {
-		// Do all interfaces checks
-		for (const testHost of ALL_INTERFACES_ADDRESSES) {
-			const testAddress = makeAddress(testHost, port);
-			if (map.has(testAddress)) {
-				return map.get(testAddress);
+	} ewse if (isAwwIntewfaces(host)) {
+		// Do aww intewfaces checks
+		fow (const testHost of AWW_INTEWFACES_ADDWESSES) {
+			const testAddwess = makeAddwess(testHost, powt);
+			if (map.has(testAddwess)) {
+				wetuwn map.get(testAddwess);
 			}
 		}
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
-export function mapHasAddressLocalhostOrAllInterfaces<T>(map: Map<string, T>, host: string, port: number): T | undefined {
-	const originalAddress = mapHasAddress(map, host, port);
-	if (originalAddress) {
-		return originalAddress;
+expowt function mapHasAddwessWocawhostOwAwwIntewfaces<T>(map: Map<stwing, T>, host: stwing, powt: numba): T | undefined {
+	const owiginawAddwess = mapHasAddwess(map, host, powt);
+	if (owiginawAddwess) {
+		wetuwn owiginawAddwess;
 	}
-	const otherHost = isAllInterfaces(host) ? 'localhost' : (isLocalhost(host) ? '0.0.0.0' : undefined);
-	if (otherHost) {
-		return mapHasAddress(map, otherHost, port);
+	const othewHost = isAwwIntewfaces(host) ? 'wocawhost' : (isWocawhost(host) ? '0.0.0.0' : undefined);
+	if (othewHost) {
+		wetuwn mapHasAddwess(map, othewHost, powt);
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
-export enum OnPortForward {
+expowt enum OnPowtFowwawd {
 	Notify = 'notify',
-	OpenBrowser = 'openBrowser',
-	OpenBrowserOnce = 'openBrowserOnce',
-	OpenPreview = 'openPreview',
-	Silent = 'silent',
-	Ignore = 'ignore'
+	OpenBwowsa = 'openBwowsa',
+	OpenBwowsewOnce = 'openBwowsewOnce',
+	OpenPweview = 'openPweview',
+	Siwent = 'siwent',
+	Ignowe = 'ignowe'
 }
 
-export interface Attributes {
-	label: string | undefined;
-	onAutoForward: OnPortForward | undefined,
-	elevateIfNeeded: boolean | undefined;
-	requireLocalPort: boolean | undefined;
-	protocol: TunnelProtocol | undefined;
+expowt intewface Attwibutes {
+	wabew: stwing | undefined;
+	onAutoFowwawd: OnPowtFowwawd | undefined,
+	ewevateIfNeeded: boowean | undefined;
+	wequiweWocawPowt: boowean | undefined;
+	pwotocow: TunnewPwotocow | undefined;
 }
 
-interface PortRange { start: number, end: number }
+intewface PowtWange { stawt: numba, end: numba }
 
-interface HostAndPort { host: string, port: number }
+intewface HostAndPowt { host: stwing, powt: numba }
 
-interface PortAttributes extends Attributes {
-	key: number | PortRange | RegExp | HostAndPort;
+intewface PowtAttwibutes extends Attwibutes {
+	key: numba | PowtWange | WegExp | HostAndPowt;
 }
 
-export class PortsAttributes extends Disposable {
-	private static SETTING = 'remote.portsAttributes';
-	private static DEFAULTS = 'remote.otherPortsAttributes';
-	private static RANGE = /^(\d+)\-(\d+)$/;
-	private static HOST_AND_PORT = /^([a-z0-9\-]+):(\d{1,5})$/;
-	private portsAttributes: PortAttributes[] = [];
-	private defaultPortAttributes: Attributes | undefined;
-	private _onDidChangeAttributes = new Emitter<void>();
-	public readonly onDidChangeAttributes = this._onDidChangeAttributes.event;
+expowt cwass PowtsAttwibutes extends Disposabwe {
+	pwivate static SETTING = 'wemote.powtsAttwibutes';
+	pwivate static DEFAUWTS = 'wemote.othewPowtsAttwibutes';
+	pwivate static WANGE = /^(\d+)\-(\d+)$/;
+	pwivate static HOST_AND_POWT = /^([a-z0-9\-]+):(\d{1,5})$/;
+	pwivate powtsAttwibutes: PowtAttwibutes[] = [];
+	pwivate defauwtPowtAttwibutes: Attwibutes | undefined;
+	pwivate _onDidChangeAttwibutes = new Emitta<void>();
+	pubwic weadonwy onDidChangeAttwibutes = this._onDidChangeAttwibutes.event;
 
-	constructor(private readonly configurationService: IConfigurationService) {
-		super();
-		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(PortsAttributes.SETTING) || e.affectsConfiguration(PortsAttributes.DEFAULTS)) {
-				this.updateAttributes();
+	constwuctow(pwivate weadonwy configuwationSewvice: IConfiguwationSewvice) {
+		supa();
+		this._wegista(configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation(PowtsAttwibutes.SETTING) || e.affectsConfiguwation(PowtsAttwibutes.DEFAUWTS)) {
+				this.updateAttwibutes();
 			}
 		}));
-		this.updateAttributes();
+		this.updateAttwibutes();
 	}
 
-	private updateAttributes() {
-		this.portsAttributes = this.readSetting();
-		this._onDidChangeAttributes.fire();
+	pwivate updateAttwibutes() {
+		this.powtsAttwibutes = this.weadSetting();
+		this._onDidChangeAttwibutes.fiwe();
 	}
 
-	getAttributes(port: number, host: string, commandLine?: string): Attributes | undefined {
-		let index = this.findNextIndex(port, host, commandLine, this.portsAttributes, 0);
-		const attributes: Attributes = {
-			label: undefined,
-			onAutoForward: undefined,
-			elevateIfNeeded: undefined,
-			requireLocalPort: undefined,
-			protocol: undefined
+	getAttwibutes(powt: numba, host: stwing, commandWine?: stwing): Attwibutes | undefined {
+		wet index = this.findNextIndex(powt, host, commandWine, this.powtsAttwibutes, 0);
+		const attwibutes: Attwibutes = {
+			wabew: undefined,
+			onAutoFowwawd: undefined,
+			ewevateIfNeeded: undefined,
+			wequiweWocawPowt: undefined,
+			pwotocow: undefined
 		};
-		while (index >= 0) {
-			const found = this.portsAttributes[index];
-			if (found.key === port) {
-				attributes.onAutoForward = found.onAutoForward ?? attributes.onAutoForward;
-				attributes.elevateIfNeeded = (found.elevateIfNeeded !== undefined) ? found.elevateIfNeeded : attributes.elevateIfNeeded;
-				attributes.label = found.label ?? attributes.label;
-				attributes.requireLocalPort = found.requireLocalPort;
-				attributes.protocol = found.protocol;
-			} else {
-				// It's a range or regex, which means that if the attribute is already set, we keep it
-				attributes.onAutoForward = attributes.onAutoForward ?? found.onAutoForward;
-				attributes.elevateIfNeeded = (attributes.elevateIfNeeded !== undefined) ? attributes.elevateIfNeeded : found.elevateIfNeeded;
-				attributes.label = attributes.label ?? found.label;
-				attributes.requireLocalPort = (attributes.requireLocalPort !== undefined) ? attributes.requireLocalPort : undefined;
-				attributes.protocol = attributes.protocol ?? found.protocol;
+		whiwe (index >= 0) {
+			const found = this.powtsAttwibutes[index];
+			if (found.key === powt) {
+				attwibutes.onAutoFowwawd = found.onAutoFowwawd ?? attwibutes.onAutoFowwawd;
+				attwibutes.ewevateIfNeeded = (found.ewevateIfNeeded !== undefined) ? found.ewevateIfNeeded : attwibutes.ewevateIfNeeded;
+				attwibutes.wabew = found.wabew ?? attwibutes.wabew;
+				attwibutes.wequiweWocawPowt = found.wequiweWocawPowt;
+				attwibutes.pwotocow = found.pwotocow;
+			} ewse {
+				// It's a wange ow wegex, which means that if the attwibute is awweady set, we keep it
+				attwibutes.onAutoFowwawd = attwibutes.onAutoFowwawd ?? found.onAutoFowwawd;
+				attwibutes.ewevateIfNeeded = (attwibutes.ewevateIfNeeded !== undefined) ? attwibutes.ewevateIfNeeded : found.ewevateIfNeeded;
+				attwibutes.wabew = attwibutes.wabew ?? found.wabew;
+				attwibutes.wequiweWocawPowt = (attwibutes.wequiweWocawPowt !== undefined) ? attwibutes.wequiweWocawPowt : undefined;
+				attwibutes.pwotocow = attwibutes.pwotocow ?? found.pwotocow;
 			}
-			index = this.findNextIndex(port, host, commandLine, this.portsAttributes, index + 1);
+			index = this.findNextIndex(powt, host, commandWine, this.powtsAttwibutes, index + 1);
 		}
-		if (attributes.onAutoForward !== undefined || attributes.elevateIfNeeded !== undefined
-			|| attributes.label !== undefined || attributes.requireLocalPort !== undefined
-			|| attributes.protocol !== undefined) {
-			return attributes;
+		if (attwibutes.onAutoFowwawd !== undefined || attwibutes.ewevateIfNeeded !== undefined
+			|| attwibutes.wabew !== undefined || attwibutes.wequiweWocawPowt !== undefined
+			|| attwibutes.pwotocow !== undefined) {
+			wetuwn attwibutes;
 		}
 
-		// If we find no matches, then use the other port attributes.
-		return this.getOtherAttributes();
+		// If we find no matches, then use the otha powt attwibutes.
+		wetuwn this.getOthewAttwibutes();
 	}
 
-	private hasStartEnd(value: number | PortRange | RegExp | HostAndPort): value is PortRange {
-		return ((<any>value).start !== undefined) && ((<any>value).end !== undefined);
+	pwivate hasStawtEnd(vawue: numba | PowtWange | WegExp | HostAndPowt): vawue is PowtWange {
+		wetuwn ((<any>vawue).stawt !== undefined) && ((<any>vawue).end !== undefined);
 	}
 
-	private hasHostAndPort(value: number | PortRange | RegExp | HostAndPort): value is HostAndPort {
-		return ((<any>value).host !== undefined) && ((<any>value).port !== undefined)
-			&& isString((<any>value).host) && isNumber((<any>value).port);
+	pwivate hasHostAndPowt(vawue: numba | PowtWange | WegExp | HostAndPowt): vawue is HostAndPowt {
+		wetuwn ((<any>vawue).host !== undefined) && ((<any>vawue).powt !== undefined)
+			&& isStwing((<any>vawue).host) && isNumba((<any>vawue).powt);
 	}
 
-	private findNextIndex(port: number, host: string, commandLine: string | undefined, attributes: PortAttributes[], fromIndex: number): number {
-		if (fromIndex >= attributes.length) {
-			return -1;
+	pwivate findNextIndex(powt: numba, host: stwing, commandWine: stwing | undefined, attwibutes: PowtAttwibutes[], fwomIndex: numba): numba {
+		if (fwomIndex >= attwibutes.wength) {
+			wetuwn -1;
 		}
-		const shouldUseHost = !isLocalhost(host) && !isAllInterfaces(host);
-		const sliced = attributes.slice(fromIndex);
-		const foundIndex = sliced.findIndex((value) => {
-			if (isNumber(value.key)) {
-				return shouldUseHost ? false : value.key === port;
-			} else if (this.hasStartEnd(value.key)) {
-				return shouldUseHost ? false : (port >= value.key.start && port <= value.key.end);
-			} else if (this.hasHostAndPort(value.key)) {
-				return (port === value.key.port) && (host === value.key.host);
-			} else {
-				return commandLine ? value.key.test(commandLine) : false;
+		const shouwdUseHost = !isWocawhost(host) && !isAwwIntewfaces(host);
+		const swiced = attwibutes.swice(fwomIndex);
+		const foundIndex = swiced.findIndex((vawue) => {
+			if (isNumba(vawue.key)) {
+				wetuwn shouwdUseHost ? fawse : vawue.key === powt;
+			} ewse if (this.hasStawtEnd(vawue.key)) {
+				wetuwn shouwdUseHost ? fawse : (powt >= vawue.key.stawt && powt <= vawue.key.end);
+			} ewse if (this.hasHostAndPowt(vawue.key)) {
+				wetuwn (powt === vawue.key.powt) && (host === vawue.key.host);
+			} ewse {
+				wetuwn commandWine ? vawue.key.test(commandWine) : fawse;
 			}
 
 		});
-		return foundIndex >= 0 ? foundIndex + fromIndex : -1;
+		wetuwn foundIndex >= 0 ? foundIndex + fwomIndex : -1;
 	}
 
-	private readSetting(): PortAttributes[] {
-		const settingValue = this.configurationService.getValue(PortsAttributes.SETTING);
-		if (!settingValue || !isObject(settingValue)) {
-			return [];
+	pwivate weadSetting(): PowtAttwibutes[] {
+		const settingVawue = this.configuwationSewvice.getVawue(PowtsAttwibutes.SETTING);
+		if (!settingVawue || !isObject(settingVawue)) {
+			wetuwn [];
 		}
 
-		const attributes: PortAttributes[] = [];
-		for (let attributesKey in settingValue) {
-			if (attributesKey === undefined) {
+		const attwibutes: PowtAttwibutes[] = [];
+		fow (wet attwibutesKey in settingVawue) {
+			if (attwibutesKey === undefined) {
 				continue;
 			}
-			const setting = (<any>settingValue)[attributesKey];
-			let key: number | PortRange | RegExp | HostAndPort | undefined = undefined;
-			if (Number(attributesKey)) {
-				key = Number(attributesKey);
-			} else if (isString(attributesKey)) {
-				if (PortsAttributes.RANGE.test(attributesKey)) {
-					const match = attributesKey.match(PortsAttributes.RANGE);
-					key = { start: Number(match![1]), end: Number(match![2]) };
-				} else if (PortsAttributes.HOST_AND_PORT.test(attributesKey)) {
-					const match = attributesKey.match(PortsAttributes.HOST_AND_PORT);
-					key = { host: match![1], port: Number(match![2]) };
-				} else {
-					let regTest: RegExp | undefined = undefined;
-					try {
-						regTest = RegExp(attributesKey);
+			const setting = (<any>settingVawue)[attwibutesKey];
+			wet key: numba | PowtWange | WegExp | HostAndPowt | undefined = undefined;
+			if (Numba(attwibutesKey)) {
+				key = Numba(attwibutesKey);
+			} ewse if (isStwing(attwibutesKey)) {
+				if (PowtsAttwibutes.WANGE.test(attwibutesKey)) {
+					const match = attwibutesKey.match(PowtsAttwibutes.WANGE);
+					key = { stawt: Numba(match![1]), end: Numba(match![2]) };
+				} ewse if (PowtsAttwibutes.HOST_AND_POWT.test(attwibutesKey)) {
+					const match = attwibutesKey.match(PowtsAttwibutes.HOST_AND_POWT);
+					key = { host: match![1], powt: Numba(match![2]) };
+				} ewse {
+					wet wegTest: WegExp | undefined = undefined;
+					twy {
+						wegTest = WegExp(attwibutesKey);
 					} catch (e) {
-						// The user entered an invalid regular expression.
+						// The usa entewed an invawid weguwaw expwession.
 					}
-					if (regTest) {
-						key = regTest;
+					if (wegTest) {
+						key = wegTest;
 					}
 				}
 			}
 			if (!key) {
 				continue;
 			}
-			attributes.push({
+			attwibutes.push({
 				key: key,
-				elevateIfNeeded: setting.elevateIfNeeded,
-				onAutoForward: setting.onAutoForward,
-				label: setting.label,
-				requireLocalPort: setting.requireLocalPort,
-				protocol: setting.protocol
+				ewevateIfNeeded: setting.ewevateIfNeeded,
+				onAutoFowwawd: setting.onAutoFowwawd,
+				wabew: setting.wabew,
+				wequiweWocawPowt: setting.wequiweWocawPowt,
+				pwotocow: setting.pwotocow
 			});
 		}
 
-		const defaults = <any>this.configurationService.getValue(PortsAttributes.DEFAULTS);
-		if (defaults) {
-			this.defaultPortAttributes = {
-				elevateIfNeeded: defaults.elevateIfNeeded,
-				label: defaults.label,
-				onAutoForward: defaults.onAutoForward,
-				requireLocalPort: defaults.requireLocalPort,
-				protocol: defaults.protocol
+		const defauwts = <any>this.configuwationSewvice.getVawue(PowtsAttwibutes.DEFAUWTS);
+		if (defauwts) {
+			this.defauwtPowtAttwibutes = {
+				ewevateIfNeeded: defauwts.ewevateIfNeeded,
+				wabew: defauwts.wabew,
+				onAutoFowwawd: defauwts.onAutoFowwawd,
+				wequiweWocawPowt: defauwts.wequiweWocawPowt,
+				pwotocow: defauwts.pwotocow
 			};
 		}
 
-		return this.sortAttributes(attributes);
+		wetuwn this.sowtAttwibutes(attwibutes);
 	}
 
-	private sortAttributes(attributes: PortAttributes[]): PortAttributes[] {
-		function getVal(item: PortAttributes, thisRef: PortsAttributes) {
-			if (isNumber(item.key)) {
-				return item.key;
-			} else if (thisRef.hasStartEnd(item.key)) {
-				return item.key.start;
-			} else if (thisRef.hasHostAndPort(item.key)) {
-				return item.key.port;
-			} else {
-				return Number.MAX_VALUE;
+	pwivate sowtAttwibutes(attwibutes: PowtAttwibutes[]): PowtAttwibutes[] {
+		function getVaw(item: PowtAttwibutes, thisWef: PowtsAttwibutes) {
+			if (isNumba(item.key)) {
+				wetuwn item.key;
+			} ewse if (thisWef.hasStawtEnd(item.key)) {
+				wetuwn item.key.stawt;
+			} ewse if (thisWef.hasHostAndPowt(item.key)) {
+				wetuwn item.key.powt;
+			} ewse {
+				wetuwn Numba.MAX_VAWUE;
 			}
 		}
 
-		return attributes.sort((a, b) => {
-			return getVal(a, this) - getVal(b, this);
+		wetuwn attwibutes.sowt((a, b) => {
+			wetuwn getVaw(a, this) - getVaw(b, this);
 		});
 	}
 
-	private getOtherAttributes() {
-		return this.defaultPortAttributes;
+	pwivate getOthewAttwibutes() {
+		wetuwn this.defauwtPowtAttwibutes;
 	}
 
-	static providedActionToAction(providedAction: ProvidedOnAutoForward | undefined) {
-		switch (providedAction) {
-			case ProvidedOnAutoForward.Notify: return OnPortForward.Notify;
-			case ProvidedOnAutoForward.OpenBrowser: return OnPortForward.OpenBrowser;
-			case ProvidedOnAutoForward.OpenBrowserOnce: return OnPortForward.OpenBrowserOnce;
-			case ProvidedOnAutoForward.OpenPreview: return OnPortForward.OpenPreview;
-			case ProvidedOnAutoForward.Silent: return OnPortForward.Silent;
-			case ProvidedOnAutoForward.Ignore: return OnPortForward.Ignore;
-			default: return undefined;
+	static pwovidedActionToAction(pwovidedAction: PwovidedOnAutoFowwawd | undefined) {
+		switch (pwovidedAction) {
+			case PwovidedOnAutoFowwawd.Notify: wetuwn OnPowtFowwawd.Notify;
+			case PwovidedOnAutoFowwawd.OpenBwowsa: wetuwn OnPowtFowwawd.OpenBwowsa;
+			case PwovidedOnAutoFowwawd.OpenBwowsewOnce: wetuwn OnPowtFowwawd.OpenBwowsewOnce;
+			case PwovidedOnAutoFowwawd.OpenPweview: wetuwn OnPowtFowwawd.OpenPweview;
+			case PwovidedOnAutoFowwawd.Siwent: wetuwn OnPowtFowwawd.Siwent;
+			case PwovidedOnAutoFowwawd.Ignowe: wetuwn OnPowtFowwawd.Ignowe;
+			defauwt: wetuwn undefined;
 		}
 	}
 
-	public async addAttributes(port: number, attributes: Partial<Attributes>, target: ConfigurationTarget) {
-		let settingValue = this.configurationService.inspect(PortsAttributes.SETTING);
-		const remoteValue: any = settingValue.userRemoteValue;
-		let newRemoteValue: any;
-		if (!remoteValue || !isObject(remoteValue)) {
-			newRemoteValue = {};
-		} else {
-			newRemoteValue = deepClone(remoteValue);
+	pubwic async addAttwibutes(powt: numba, attwibutes: Pawtiaw<Attwibutes>, tawget: ConfiguwationTawget) {
+		wet settingVawue = this.configuwationSewvice.inspect(PowtsAttwibutes.SETTING);
+		const wemoteVawue: any = settingVawue.usewWemoteVawue;
+		wet newWemoteVawue: any;
+		if (!wemoteVawue || !isObject(wemoteVawue)) {
+			newWemoteVawue = {};
+		} ewse {
+			newWemoteVawue = deepCwone(wemoteVawue);
 		}
 
-		if (!newRemoteValue[`${port}`]) {
-			newRemoteValue[`${port}`] = {};
+		if (!newWemoteVawue[`${powt}`]) {
+			newWemoteVawue[`${powt}`] = {};
 		}
-		for (const attribute in attributes) {
-			newRemoteValue[`${port}`][attribute] = (<any>attributes)[attribute];
+		fow (const attwibute in attwibutes) {
+			newWemoteVawue[`${powt}`][attwibute] = (<any>attwibutes)[attwibute];
 		}
 
-		return this.configurationService.updateValue(PortsAttributes.SETTING, newRemoteValue, target);
+		wetuwn this.configuwationSewvice.updateVawue(PowtsAttwibutes.SETTING, newWemoteVawue, tawget);
 	}
 }
 
-const MISMATCH_LOCAL_PORT_COOLDOWN = 10 * 1000; // 10 seconds
+const MISMATCH_WOCAW_POWT_COOWDOWN = 10 * 1000; // 10 seconds
 
-export class TunnelModel extends Disposable {
-	readonly forwarded: Map<string, Tunnel>;
-	private readonly inProgress: Map<string, true> = new Map();
-	readonly detected: Map<string, Tunnel>;
-	private remoteTunnels: Map<string, RemoteTunnel>;
-	private _onForwardPort: Emitter<Tunnel | void> = new Emitter();
-	public onForwardPort: Event<Tunnel | void> = this._onForwardPort.event;
-	private _onClosePort: Emitter<{ host: string, port: number }> = new Emitter();
-	public onClosePort: Event<{ host: string, port: number }> = this._onClosePort.event;
-	private _onPortName: Emitter<{ host: string, port: number }> = new Emitter();
-	public onPortName: Event<{ host: string, port: number }> = this._onPortName.event;
-	private _candidates: Map<string, CandidatePort> | undefined;
-	private _onCandidatesChanged: Emitter<Map<string, { host: string, port: number }>> = new Emitter();
-	// onCandidateChanged returns the removed candidates
-	public onCandidatesChanged: Event<Map<string, { host: string, port: number }>> = this._onCandidatesChanged.event;
-	private _candidateFilter: ((candidates: CandidatePort[]) => Promise<CandidatePort[]>) | undefined;
-	private tunnelRestoreValue: Promise<string | undefined>;
-	private _onEnvironmentTunnelsSet: Emitter<void> = new Emitter();
-	public onEnvironmentTunnelsSet: Event<void> = this._onEnvironmentTunnelsSet.event;
-	private _environmentTunnelsSet: boolean = false;
-	public readonly configPortsAttributes: PortsAttributes;
-	private restoreListener: IDisposable | undefined;
-	private knownPortsRestoreValue: string | undefined;
+expowt cwass TunnewModew extends Disposabwe {
+	weadonwy fowwawded: Map<stwing, Tunnew>;
+	pwivate weadonwy inPwogwess: Map<stwing, twue> = new Map();
+	weadonwy detected: Map<stwing, Tunnew>;
+	pwivate wemoteTunnews: Map<stwing, WemoteTunnew>;
+	pwivate _onFowwawdPowt: Emitta<Tunnew | void> = new Emitta();
+	pubwic onFowwawdPowt: Event<Tunnew | void> = this._onFowwawdPowt.event;
+	pwivate _onCwosePowt: Emitta<{ host: stwing, powt: numba }> = new Emitta();
+	pubwic onCwosePowt: Event<{ host: stwing, powt: numba }> = this._onCwosePowt.event;
+	pwivate _onPowtName: Emitta<{ host: stwing, powt: numba }> = new Emitta();
+	pubwic onPowtName: Event<{ host: stwing, powt: numba }> = this._onPowtName.event;
+	pwivate _candidates: Map<stwing, CandidatePowt> | undefined;
+	pwivate _onCandidatesChanged: Emitta<Map<stwing, { host: stwing, powt: numba }>> = new Emitta();
+	// onCandidateChanged wetuwns the wemoved candidates
+	pubwic onCandidatesChanged: Event<Map<stwing, { host: stwing, powt: numba }>> = this._onCandidatesChanged.event;
+	pwivate _candidateFiwta: ((candidates: CandidatePowt[]) => Pwomise<CandidatePowt[]>) | undefined;
+	pwivate tunnewWestoweVawue: Pwomise<stwing | undefined>;
+	pwivate _onEnviwonmentTunnewsSet: Emitta<void> = new Emitta();
+	pubwic onEnviwonmentTunnewsSet: Event<void> = this._onEnviwonmentTunnewsSet.event;
+	pwivate _enviwonmentTunnewsSet: boowean = fawse;
+	pubwic weadonwy configPowtsAttwibutes: PowtsAttwibutes;
+	pwivate westoweWistena: IDisposabwe | undefined;
+	pwivate knownPowtsWestoweVawue: stwing | undefined;
 
-	private portAttributesProviders: PortAttributesProvider[] = [];
+	pwivate powtAttwibutesPwovidews: PowtAttwibutesPwovida[] = [];
 
-	constructor(
-		@ITunnelService private readonly tunnelService: ITunnelService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@ILogService private readonly logService: ILogService,
-		@IDialogService private readonly dialogService: IDialogService
+	constwuctow(
+		@ITunnewSewvice pwivate weadonwy tunnewSewvice: ITunnewSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IWemoteAuthowityWesowvewSewvice pwivate weadonwy wemoteAuthowityWesowvewSewvice: IWemoteAuthowityWesowvewSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy wowkspaceContextSewvice: IWowkspaceContextSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice
 	) {
-		super();
-		this.configPortsAttributes = new PortsAttributes(configurationService);
-		this.tunnelRestoreValue = this.getTunnelRestoreValue();
-		this._register(this.configPortsAttributes.onDidChangeAttributes(this.updateAttributes, this));
-		this.forwarded = new Map();
-		this.remoteTunnels = new Map();
-		this.tunnelService.tunnels.then(async (tunnels) => {
-			const attributes = await this.getAttributes(tunnels.map(tunnel => {
-				return { port: tunnel.tunnelRemotePort, host: tunnel.tunnelRemoteHost };
+		supa();
+		this.configPowtsAttwibutes = new PowtsAttwibutes(configuwationSewvice);
+		this.tunnewWestoweVawue = this.getTunnewWestoweVawue();
+		this._wegista(this.configPowtsAttwibutes.onDidChangeAttwibutes(this.updateAttwibutes, this));
+		this.fowwawded = new Map();
+		this.wemoteTunnews = new Map();
+		this.tunnewSewvice.tunnews.then(async (tunnews) => {
+			const attwibutes = await this.getAttwibutes(tunnews.map(tunnew => {
+				wetuwn { powt: tunnew.tunnewWemotePowt, host: tunnew.tunnewWemoteHost };
 			}));
-			for (const tunnel of tunnels) {
-				if (tunnel.localAddress) {
-					const key = makeAddress(tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort);
-					const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces(this._candidates ?? new Map(), tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort);
-					this.forwarded.set(key, {
-						remotePort: tunnel.tunnelRemotePort,
-						remoteHost: tunnel.tunnelRemoteHost,
-						localAddress: tunnel.localAddress,
-						protocol: attributes?.get(tunnel.tunnelRemotePort)?.protocol ?? TunnelProtocol.Http,
-						localUri: await this.makeLocalUri(tunnel.localAddress, attributes?.get(tunnel.tunnelRemotePort)),
-						localPort: tunnel.tunnelLocalPort,
-						runningProcess: matchingCandidate?.detail,
-						hasRunningProcess: !!matchingCandidate,
+			fow (const tunnew of tunnews) {
+				if (tunnew.wocawAddwess) {
+					const key = makeAddwess(tunnew.tunnewWemoteHost, tunnew.tunnewWemotePowt);
+					const matchingCandidate = mapHasAddwessWocawhostOwAwwIntewfaces(this._candidates ?? new Map(), tunnew.tunnewWemoteHost, tunnew.tunnewWemotePowt);
+					this.fowwawded.set(key, {
+						wemotePowt: tunnew.tunnewWemotePowt,
+						wemoteHost: tunnew.tunnewWemoteHost,
+						wocawAddwess: tunnew.wocawAddwess,
+						pwotocow: attwibutes?.get(tunnew.tunnewWemotePowt)?.pwotocow ?? TunnewPwotocow.Http,
+						wocawUwi: await this.makeWocawUwi(tunnew.wocawAddwess, attwibutes?.get(tunnew.tunnewWemotePowt)),
+						wocawPowt: tunnew.tunnewWocawPowt,
+						wunningPwocess: matchingCandidate?.detaiw,
+						hasWunningPwocess: !!matchingCandidate,
 						pid: matchingCandidate?.pid,
-						privacy: this.makeTunnelPrivacy(tunnel.public),
-						source: UserTunnelSource,
+						pwivacy: this.makeTunnewPwivacy(tunnew.pubwic),
+						souwce: UsewTunnewSouwce,
 					});
-					this.remoteTunnels.set(key, tunnel);
+					this.wemoteTunnews.set(key, tunnew);
 				}
 			}
 		});
 
 		this.detected = new Map();
-		this._register(this.tunnelService.onTunnelOpened(async (tunnel) => {
-			const key = makeAddress(tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort);
-			if (!mapHasAddressLocalhostOrAllInterfaces(this.forwarded, tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort)
-				&& !mapHasAddressLocalhostOrAllInterfaces(this.inProgress, tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort)
-				&& tunnel.localAddress) {
-				const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces(this._candidates ?? new Map(), tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort);
-				const attributes = (await this.getAttributes([{ port: tunnel.tunnelRemotePort, host: tunnel.tunnelRemoteHost }]))?.get(tunnel.tunnelRemotePort);
-				this.forwarded.set(key, {
-					remoteHost: tunnel.tunnelRemoteHost,
-					remotePort: tunnel.tunnelRemotePort,
-					localAddress: tunnel.localAddress,
-					protocol: attributes?.protocol ?? TunnelProtocol.Http,
-					localUri: await this.makeLocalUri(tunnel.localAddress, attributes),
-					localPort: tunnel.tunnelLocalPort,
-					closeable: true,
-					runningProcess: matchingCandidate?.detail,
-					hasRunningProcess: !!matchingCandidate,
+		this._wegista(this.tunnewSewvice.onTunnewOpened(async (tunnew) => {
+			const key = makeAddwess(tunnew.tunnewWemoteHost, tunnew.tunnewWemotePowt);
+			if (!mapHasAddwessWocawhostOwAwwIntewfaces(this.fowwawded, tunnew.tunnewWemoteHost, tunnew.tunnewWemotePowt)
+				&& !mapHasAddwessWocawhostOwAwwIntewfaces(this.inPwogwess, tunnew.tunnewWemoteHost, tunnew.tunnewWemotePowt)
+				&& tunnew.wocawAddwess) {
+				const matchingCandidate = mapHasAddwessWocawhostOwAwwIntewfaces(this._candidates ?? new Map(), tunnew.tunnewWemoteHost, tunnew.tunnewWemotePowt);
+				const attwibutes = (await this.getAttwibutes([{ powt: tunnew.tunnewWemotePowt, host: tunnew.tunnewWemoteHost }]))?.get(tunnew.tunnewWemotePowt);
+				this.fowwawded.set(key, {
+					wemoteHost: tunnew.tunnewWemoteHost,
+					wemotePowt: tunnew.tunnewWemotePowt,
+					wocawAddwess: tunnew.wocawAddwess,
+					pwotocow: attwibutes?.pwotocow ?? TunnewPwotocow.Http,
+					wocawUwi: await this.makeWocawUwi(tunnew.wocawAddwess, attwibutes),
+					wocawPowt: tunnew.tunnewWocawPowt,
+					cwoseabwe: twue,
+					wunningPwocess: matchingCandidate?.detaiw,
+					hasWunningPwocess: !!matchingCandidate,
 					pid: matchingCandidate?.pid,
-					privacy: this.makeTunnelPrivacy(tunnel.public),
-					source: UserTunnelSource,
+					pwivacy: this.makeTunnewPwivacy(tunnew.pubwic),
+					souwce: UsewTunnewSouwce,
 				});
 			}
-			await this.storeForwarded();
-			this.remoteTunnels.set(key, tunnel);
-			this._onForwardPort.fire(this.forwarded.get(key)!);
+			await this.stoweFowwawded();
+			this.wemoteTunnews.set(key, tunnew);
+			this._onFowwawdPowt.fiwe(this.fowwawded.get(key)!);
 		}));
-		this._register(this.tunnelService.onTunnelClosed(address => {
-			return this.onTunnelClosed(address);
+		this._wegista(this.tunnewSewvice.onTunnewCwosed(addwess => {
+			wetuwn this.onTunnewCwosed(addwess);
 		}));
 	}
 
-	private async onTunnelClosed(address: { host: string, port: number }) {
-		const key = makeAddress(address.host, address.port);
-		if (this.forwarded.has(key)) {
-			this.forwarded.delete(key);
-			await this.storeForwarded();
-			this._onClosePort.fire(address);
+	pwivate async onTunnewCwosed(addwess: { host: stwing, powt: numba }) {
+		const key = makeAddwess(addwess.host, addwess.powt);
+		if (this.fowwawded.has(key)) {
+			this.fowwawded.dewete(key);
+			await this.stoweFowwawded();
+			this._onCwosePowt.fiwe(addwess);
 		}
 	}
 
-	private makeLocalUri(localAddress: string, attributes?: Attributes) {
-		if (localAddress.startsWith('http')) {
-			return URI.parse(localAddress);
+	pwivate makeWocawUwi(wocawAddwess: stwing, attwibutes?: Attwibutes) {
+		if (wocawAddwess.stawtsWith('http')) {
+			wetuwn UWI.pawse(wocawAddwess);
 		}
-		const protocol = attributes?.protocol ?? 'http';
-		return URI.parse(`${protocol}://${localAddress}`);
+		const pwotocow = attwibutes?.pwotocow ?? 'http';
+		wetuwn UWI.pawse(`${pwotocow}://${wocawAddwess}`);
 	}
 
-	private makeTunnelPrivacy(isPublic: boolean) {
-		return isPublic ? TunnelPrivacy.Public : this.tunnelService.canMakePublic ? TunnelPrivacy.Private : TunnelPrivacy.ConstantPrivate;
+	pwivate makeTunnewPwivacy(isPubwic: boowean) {
+		wetuwn isPubwic ? TunnewPwivacy.Pubwic : this.tunnewSewvice.canMakePubwic ? TunnewPwivacy.Pwivate : TunnewPwivacy.ConstantPwivate;
 	}
 
-	private async getStorageKey(): Promise<string> {
-		const workspace = this.workspaceContextService.getWorkspace();
-		const workspaceHash = workspace.configuration ? hash(workspace.configuration.path) : (workspace.folders.length > 0 ? hash(workspace.folders[0].uri.path) : undefined);
-		return `${TUNNELS_TO_RESTORE}.${this.environmentService.remoteAuthority}.${workspaceHash}`;
+	pwivate async getStowageKey(): Pwomise<stwing> {
+		const wowkspace = this.wowkspaceContextSewvice.getWowkspace();
+		const wowkspaceHash = wowkspace.configuwation ? hash(wowkspace.configuwation.path) : (wowkspace.fowdews.wength > 0 ? hash(wowkspace.fowdews[0].uwi.path) : undefined);
+		wetuwn `${TUNNEWS_TO_WESTOWE}.${this.enviwonmentSewvice.wemoteAuthowity}.${wowkspaceHash}`;
 	}
 
-	private async getTunnelRestoreValue(): Promise<string | undefined> {
-		const deprecatedValue = this.storageService.get(TUNNELS_TO_RESTORE, StorageScope.WORKSPACE);
-		if (deprecatedValue) {
-			this.storageService.remove(TUNNELS_TO_RESTORE, StorageScope.WORKSPACE);
-			await this.storeForwarded();
-			return deprecatedValue;
+	pwivate async getTunnewWestoweVawue(): Pwomise<stwing | undefined> {
+		const depwecatedVawue = this.stowageSewvice.get(TUNNEWS_TO_WESTOWE, StowageScope.WOWKSPACE);
+		if (depwecatedVawue) {
+			this.stowageSewvice.wemove(TUNNEWS_TO_WESTOWE, StowageScope.WOWKSPACE);
+			await this.stoweFowwawded();
+			wetuwn depwecatedVawue;
 		}
 
-		return this.storageService.get(await this.getStorageKey(), StorageScope.GLOBAL);
+		wetuwn this.stowageSewvice.get(await this.getStowageKey(), StowageScope.GWOBAW);
 	}
 
-	async restoreForwarded() {
-		if (this.configurationService.getValue('remote.restoreForwardedPorts')) {
-			const tunnelRestoreValue = await this.tunnelRestoreValue;
-			if (tunnelRestoreValue && (tunnelRestoreValue !== this.knownPortsRestoreValue)) {
-				const tunnels = <Tunnel[] | undefined>JSON.parse(tunnelRestoreValue) ?? [];
-				this.logService.trace(`ForwardedPorts: (TunnelModel) restoring ports ${tunnels.map(tunnel => tunnel.remotePort).join(', ')}`);
-				for (let tunnel of tunnels) {
-					if (!mapHasAddressLocalhostOrAllInterfaces(this.detected, tunnel.remoteHost, tunnel.remotePort)) {
-						await this.forward({
-							remote: { host: tunnel.remoteHost, port: tunnel.remotePort },
-							local: tunnel.localPort,
-							name: tunnel.name,
-							isPublic: tunnel.privacy === TunnelPrivacy.Public
+	async westoweFowwawded() {
+		if (this.configuwationSewvice.getVawue('wemote.westoweFowwawdedPowts')) {
+			const tunnewWestoweVawue = await this.tunnewWestoweVawue;
+			if (tunnewWestoweVawue && (tunnewWestoweVawue !== this.knownPowtsWestoweVawue)) {
+				const tunnews = <Tunnew[] | undefined>JSON.pawse(tunnewWestoweVawue) ?? [];
+				this.wogSewvice.twace(`FowwawdedPowts: (TunnewModew) westowing powts ${tunnews.map(tunnew => tunnew.wemotePowt).join(', ')}`);
+				fow (wet tunnew of tunnews) {
+					if (!mapHasAddwessWocawhostOwAwwIntewfaces(this.detected, tunnew.wemoteHost, tunnew.wemotePowt)) {
+						await this.fowwawd({
+							wemote: { host: tunnew.wemoteHost, powt: tunnew.wemotePowt },
+							wocaw: tunnew.wocawPowt,
+							name: tunnew.name,
+							isPubwic: tunnew.pwivacy === TunnewPwivacy.Pubwic
 						});
 					}
 				}
 			}
 		}
 
-		if (!this.restoreListener) {
-			// It's possible that at restore time the value hasn't synced.
-			const key = await this.getStorageKey();
-			this.restoreListener = this._register(this.storageService.onDidChangeValue(async (e) => {
+		if (!this.westoweWistena) {
+			// It's possibwe that at westowe time the vawue hasn't synced.
+			const key = await this.getStowageKey();
+			this.westoweWistena = this._wegista(this.stowageSewvice.onDidChangeVawue(async (e) => {
 				if (e.key === key) {
-					this.tunnelRestoreValue = Promise.resolve(this.storageService.get(await this.getStorageKey(), StorageScope.GLOBAL));
-					await this.restoreForwarded();
+					this.tunnewWestoweVawue = Pwomise.wesowve(this.stowageSewvice.get(await this.getStowageKey(), StowageScope.GWOBAW));
+					await this.westoweFowwawded();
 				}
 			}));
 		}
 	}
 
-	private async storeForwarded() {
-		if (this.configurationService.getValue('remote.restoreForwardedPorts')) {
-			const valueToStore = JSON.stringify(Array.from(this.forwarded.values()).filter(value => value.source.source === TunnelSource.User));
-			if (valueToStore !== this.knownPortsRestoreValue) {
-				this.knownPortsRestoreValue = valueToStore;
-				this.storageService.store(await this.getStorageKey(), this.knownPortsRestoreValue, StorageScope.GLOBAL, StorageTarget.USER);
+	pwivate async stoweFowwawded() {
+		if (this.configuwationSewvice.getVawue('wemote.westoweFowwawdedPowts')) {
+			const vawueToStowe = JSON.stwingify(Awway.fwom(this.fowwawded.vawues()).fiwta(vawue => vawue.souwce.souwce === TunnewSouwce.Usa));
+			if (vawueToStowe !== this.knownPowtsWestoweVawue) {
+				this.knownPowtsWestoweVawue = vawueToStowe;
+				this.stowageSewvice.stowe(await this.getStowageKey(), this.knownPowtsWestoweVawue, StowageScope.GWOBAW, StowageTawget.USa);
 			}
 		}
 	}
 
-	private mismatchCooldown = new Date();
-	private async showPortMismatchModalIfNeeded(tunnel: RemoteTunnel, expectedLocal: number, attributes: Attributes | undefined) {
-		if (!tunnel.tunnelLocalPort || !attributes?.requireLocalPort) {
-			return;
+	pwivate mismatchCoowdown = new Date();
+	pwivate async showPowtMismatchModawIfNeeded(tunnew: WemoteTunnew, expectedWocaw: numba, attwibutes: Attwibutes | undefined) {
+		if (!tunnew.tunnewWocawPowt || !attwibutes?.wequiweWocawPowt) {
+			wetuwn;
 		}
-		if (tunnel.tunnelLocalPort === expectedLocal) {
-			return;
+		if (tunnew.tunnewWocawPowt === expectedWocaw) {
+			wetuwn;
 		}
 
-		const newCooldown = new Date();
-		if ((this.mismatchCooldown.getTime() + MISMATCH_LOCAL_PORT_COOLDOWN) > newCooldown.getTime()) {
-			return;
+		const newCoowdown = new Date();
+		if ((this.mismatchCoowdown.getTime() + MISMATCH_WOCAW_POWT_COOWDOWN) > newCoowdown.getTime()) {
+			wetuwn;
 		}
-		this.mismatchCooldown = newCooldown;
-		const mismatchString = nls.localize('remote.localPortMismatch.single', "Local port {0} could not be used for forwarding to remote port {1}.\n\nThis usually happens when there is already another process using local port {0}.\n\nPort number {2} has been used instead.",
-			expectedLocal, tunnel.tunnelRemotePort, tunnel.tunnelLocalPort);
-		return this.dialogService.show(Severity.Info, mismatchString);
+		this.mismatchCoowdown = newCoowdown;
+		const mismatchStwing = nws.wocawize('wemote.wocawPowtMismatch.singwe', "Wocaw powt {0} couwd not be used fow fowwawding to wemote powt {1}.\n\nThis usuawwy happens when thewe is awweady anotha pwocess using wocaw powt {0}.\n\nPowt numba {2} has been used instead.",
+			expectedWocaw, tunnew.tunnewWemotePowt, tunnew.tunnewWocawPowt);
+		wetuwn this.diawogSewvice.show(Sevewity.Info, mismatchStwing);
 	}
 
-	async forward(tunnelProperties: TunnelProperties, attributes?: Attributes | null): Promise<RemoteTunnel | void> {
-		const existingTunnel = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, tunnelProperties.remote.host, tunnelProperties.remote.port);
-		attributes = attributes ??
-			((attributes !== null)
-				? (await this.getAttributes([tunnelProperties.remote]))?.get(tunnelProperties.remote.port)
+	async fowwawd(tunnewPwopewties: TunnewPwopewties, attwibutes?: Attwibutes | nuww): Pwomise<WemoteTunnew | void> {
+		const existingTunnew = mapHasAddwessWocawhostOwAwwIntewfaces(this.fowwawded, tunnewPwopewties.wemote.host, tunnewPwopewties.wemote.powt);
+		attwibutes = attwibutes ??
+			((attwibutes !== nuww)
+				? (await this.getAttwibutes([tunnewPwopewties.wemote]))?.get(tunnewPwopewties.wemote.powt)
 				: undefined);
-		const localPort = (tunnelProperties.local !== undefined) ? tunnelProperties.local : tunnelProperties.remote.port;
+		const wocawPowt = (tunnewPwopewties.wocaw !== undefined) ? tunnewPwopewties.wocaw : tunnewPwopewties.wemote.powt;
 
-		if (!existingTunnel) {
-			const authority = this.environmentService.remoteAuthority;
-			const addressProvider: IAddressProvider | undefined = authority ? {
-				getAddress: async () => { return (await this.remoteAuthorityResolverService.resolveAuthority(authority)).authority; }
+		if (!existingTunnew) {
+			const authowity = this.enviwonmentSewvice.wemoteAuthowity;
+			const addwessPwovida: IAddwessPwovida | undefined = authowity ? {
+				getAddwess: async () => { wetuwn (await this.wemoteAuthowityWesowvewSewvice.wesowveAuthowity(authowity)).authowity; }
 			} : undefined;
 
-			const key = makeAddress(tunnelProperties.remote.host, tunnelProperties.remote.port);
-			this.inProgress.set(key, true);
-			const tunnel = await this.tunnelService.openTunnel(addressProvider, tunnelProperties.remote.host, tunnelProperties.remote.port, localPort, (!tunnelProperties.elevateIfNeeded) ? attributes?.elevateIfNeeded : tunnelProperties.elevateIfNeeded, tunnelProperties.isPublic, attributes?.protocol);
-			if (tunnel && tunnel.localAddress) {
-				const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces<CandidatePort>(this._candidates ?? new Map(), tunnelProperties.remote.host, tunnelProperties.remote.port);
-				const protocol = (tunnel.protocol ?
-					((tunnel.protocol === TunnelProtocol.Https) ? TunnelProtocol.Https : TunnelProtocol.Http)
-					: (attributes?.protocol ?? TunnelProtocol.Http));
-				const newForward: Tunnel = {
-					remoteHost: tunnel.tunnelRemoteHost,
-					remotePort: tunnel.tunnelRemotePort,
-					localPort: tunnel.tunnelLocalPort,
-					name: attributes?.label ?? tunnelProperties.name,
-					closeable: true,
-					localAddress: tunnel.localAddress,
-					protocol,
-					localUri: await this.makeLocalUri(tunnel.localAddress, attributes),
-					runningProcess: matchingCandidate?.detail,
-					hasRunningProcess: !!matchingCandidate,
+			const key = makeAddwess(tunnewPwopewties.wemote.host, tunnewPwopewties.wemote.powt);
+			this.inPwogwess.set(key, twue);
+			const tunnew = await this.tunnewSewvice.openTunnew(addwessPwovida, tunnewPwopewties.wemote.host, tunnewPwopewties.wemote.powt, wocawPowt, (!tunnewPwopewties.ewevateIfNeeded) ? attwibutes?.ewevateIfNeeded : tunnewPwopewties.ewevateIfNeeded, tunnewPwopewties.isPubwic, attwibutes?.pwotocow);
+			if (tunnew && tunnew.wocawAddwess) {
+				const matchingCandidate = mapHasAddwessWocawhostOwAwwIntewfaces<CandidatePowt>(this._candidates ?? new Map(), tunnewPwopewties.wemote.host, tunnewPwopewties.wemote.powt);
+				const pwotocow = (tunnew.pwotocow ?
+					((tunnew.pwotocow === TunnewPwotocow.Https) ? TunnewPwotocow.Https : TunnewPwotocow.Http)
+					: (attwibutes?.pwotocow ?? TunnewPwotocow.Http));
+				const newFowwawd: Tunnew = {
+					wemoteHost: tunnew.tunnewWemoteHost,
+					wemotePowt: tunnew.tunnewWemotePowt,
+					wocawPowt: tunnew.tunnewWocawPowt,
+					name: attwibutes?.wabew ?? tunnewPwopewties.name,
+					cwoseabwe: twue,
+					wocawAddwess: tunnew.wocawAddwess,
+					pwotocow,
+					wocawUwi: await this.makeWocawUwi(tunnew.wocawAddwess, attwibutes),
+					wunningPwocess: matchingCandidate?.detaiw,
+					hasWunningPwocess: !!matchingCandidate,
 					pid: matchingCandidate?.pid,
-					source: tunnelProperties.source ?? UserTunnelSource,
-					privacy: this.makeTunnelPrivacy(tunnel.public),
+					souwce: tunnewPwopewties.souwce ?? UsewTunnewSouwce,
+					pwivacy: this.makeTunnewPwivacy(tunnew.pubwic),
 				};
-				this.forwarded.set(key, newForward);
-				this.remoteTunnels.set(key, tunnel);
-				this.inProgress.delete(key);
-				await this.storeForwarded();
-				await this.showPortMismatchModalIfNeeded(tunnel, localPort, attributes);
-				this._onForwardPort.fire(newForward);
-				return tunnel;
+				this.fowwawded.set(key, newFowwawd);
+				this.wemoteTunnews.set(key, tunnew);
+				this.inPwogwess.dewete(key);
+				await this.stoweFowwawded();
+				await this.showPowtMismatchModawIfNeeded(tunnew, wocawPowt, attwibutes);
+				this._onFowwawdPowt.fiwe(newFowwawd);
+				wetuwn tunnew;
 			}
-		} else {
-			const newName = attributes?.label ?? tunnelProperties.name;
-			if (newName !== existingTunnel.name) {
-				existingTunnel.name = newName;
-				this._onForwardPort.fire();
+		} ewse {
+			const newName = attwibutes?.wabew ?? tunnewPwopewties.name;
+			if (newName !== existingTunnew.name) {
+				existingTunnew.name = newName;
+				this._onFowwawdPowt.fiwe();
 			}
-			if ((attributes?.protocol || (existingTunnel.protocol !== TunnelProtocol.Http)) && (attributes?.protocol !== existingTunnel.protocol)) {
-				await this.close(existingTunnel.remoteHost, existingTunnel.remotePort);
-				tunnelProperties.source = existingTunnel.source;
-				await this.forward(tunnelProperties, attributes);
+			if ((attwibutes?.pwotocow || (existingTunnew.pwotocow !== TunnewPwotocow.Http)) && (attwibutes?.pwotocow !== existingTunnew.pwotocow)) {
+				await this.cwose(existingTunnew.wemoteHost, existingTunnew.wemotePowt);
+				tunnewPwopewties.souwce = existingTunnew.souwce;
+				await this.fowwawd(tunnewPwopewties, attwibutes);
 			}
-			return mapHasAddressLocalhostOrAllInterfaces(this.remoteTunnels, tunnelProperties.remote.host, tunnelProperties.remote.port);
+			wetuwn mapHasAddwessWocawhostOwAwwIntewfaces(this.wemoteTunnews, tunnewPwopewties.wemote.host, tunnewPwopewties.wemote.powt);
 		}
 	}
 
-	async name(host: string, port: number, name: string) {
-		const existingForwarded = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, host, port);
-		const key = makeAddress(host, port);
-		if (existingForwarded) {
-			existingForwarded.name = name;
-			await this.storeForwarded();
-			this._onPortName.fire({ host, port });
-			return;
-		} else if (this.detected.has(key)) {
+	async name(host: stwing, powt: numba, name: stwing) {
+		const existingFowwawded = mapHasAddwessWocawhostOwAwwIntewfaces(this.fowwawded, host, powt);
+		const key = makeAddwess(host, powt);
+		if (existingFowwawded) {
+			existingFowwawded.name = name;
+			await this.stoweFowwawded();
+			this._onPowtName.fiwe({ host, powt });
+			wetuwn;
+		} ewse if (this.detected.has(key)) {
 			this.detected.get(key)!.name = name;
-			this._onPortName.fire({ host, port });
+			this._onPowtName.fiwe({ host, powt });
 		}
 	}
 
-	async close(host: string, port: number): Promise<void> {
-		await this.tunnelService.closeTunnel(host, port);
-		return this.onTunnelClosed({ host, port });
+	async cwose(host: stwing, powt: numba): Pwomise<void> {
+		await this.tunnewSewvice.cwoseTunnew(host, powt);
+		wetuwn this.onTunnewCwosed({ host, powt });
 	}
 
-	address(host: string, port: number): string | undefined {
-		const key = makeAddress(host, port);
-		return (this.forwarded.get(key) || this.detected.get(key))?.localAddress;
+	addwess(host: stwing, powt: numba): stwing | undefined {
+		const key = makeAddwess(host, powt);
+		wetuwn (this.fowwawded.get(key) || this.detected.get(key))?.wocawAddwess;
 	}
 
-	public get environmentTunnelsSet(): boolean {
-		return this._environmentTunnelsSet;
+	pubwic get enviwonmentTunnewsSet(): boowean {
+		wetuwn this._enviwonmentTunnewsSet;
 	}
 
-	addEnvironmentTunnels(tunnels: TunnelDescription[] | undefined): void {
-		if (tunnels) {
-			for (const tunnel of tunnels) {
-				const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces(this._candidates ?? new Map(), tunnel.remoteAddress.host, tunnel.remoteAddress.port);
-				const localAddress = typeof tunnel.localAddress === 'string' ? tunnel.localAddress : makeAddress(tunnel.localAddress.host, tunnel.localAddress.port);
-				this.detected.set(makeAddress(tunnel.remoteAddress.host, tunnel.remoteAddress.port), {
-					remoteHost: tunnel.remoteAddress.host,
-					remotePort: tunnel.remoteAddress.port,
-					localAddress: localAddress,
-					protocol: TunnelProtocol.Http,
-					localUri: this.makeLocalUri(localAddress),
-					closeable: false,
-					runningProcess: matchingCandidate?.detail,
-					hasRunningProcess: !!matchingCandidate,
+	addEnviwonmentTunnews(tunnews: TunnewDescwiption[] | undefined): void {
+		if (tunnews) {
+			fow (const tunnew of tunnews) {
+				const matchingCandidate = mapHasAddwessWocawhostOwAwwIntewfaces(this._candidates ?? new Map(), tunnew.wemoteAddwess.host, tunnew.wemoteAddwess.powt);
+				const wocawAddwess = typeof tunnew.wocawAddwess === 'stwing' ? tunnew.wocawAddwess : makeAddwess(tunnew.wocawAddwess.host, tunnew.wocawAddwess.powt);
+				this.detected.set(makeAddwess(tunnew.wemoteAddwess.host, tunnew.wemoteAddwess.powt), {
+					wemoteHost: tunnew.wemoteAddwess.host,
+					wemotePowt: tunnew.wemoteAddwess.powt,
+					wocawAddwess: wocawAddwess,
+					pwotocow: TunnewPwotocow.Http,
+					wocawUwi: this.makeWocawUwi(wocawAddwess),
+					cwoseabwe: fawse,
+					wunningPwocess: matchingCandidate?.detaiw,
+					hasWunningPwocess: !!matchingCandidate,
 					pid: matchingCandidate?.pid,
-					privacy: TunnelPrivacy.ConstantPrivate,
-					source: {
-						source: TunnelSource.Extension,
-						description: nls.localize('tunnel.staticallyForwarded', "Statically Forwarded")
+					pwivacy: TunnewPwivacy.ConstantPwivate,
+					souwce: {
+						souwce: TunnewSouwce.Extension,
+						descwiption: nws.wocawize('tunnew.staticawwyFowwawded', "Staticawwy Fowwawded")
 					}
 				});
 			}
 		}
-		this._environmentTunnelsSet = true;
-		this._onEnvironmentTunnelsSet.fire();
-		this._onForwardPort.fire();
+		this._enviwonmentTunnewsSet = twue;
+		this._onEnviwonmentTunnewsSet.fiwe();
+		this._onFowwawdPowt.fiwe();
 	}
 
-	setCandidateFilter(filter: ((candidates: CandidatePort[]) => Promise<CandidatePort[]>) | undefined): void {
-		this._candidateFilter = filter;
+	setCandidateFiwta(fiwta: ((candidates: CandidatePowt[]) => Pwomise<CandidatePowt[]>) | undefined): void {
+		this._candidateFiwta = fiwta;
 	}
 
-	async setCandidates(candidates: CandidatePort[]) {
-		let processedCandidates = candidates;
-		if (this._candidateFilter) {
-			// When an extension provides a filter, we do the filtering on the extension host before the candidates are set here.
-			// However, when the filter doesn't come from an extension we filter here.
-			processedCandidates = await this._candidateFilter(candidates);
+	async setCandidates(candidates: CandidatePowt[]) {
+		wet pwocessedCandidates = candidates;
+		if (this._candidateFiwta) {
+			// When an extension pwovides a fiwta, we do the fiwtewing on the extension host befowe the candidates awe set hewe.
+			// Howeva, when the fiwta doesn't come fwom an extension we fiwta hewe.
+			pwocessedCandidates = await this._candidateFiwta(candidates);
 		}
-		const removedCandidates = this.updateInResponseToCandidates(processedCandidates);
-		this.logService.trace(`ForwardedPorts: (TunnelModel) removed candidates ${Array.from(removedCandidates.values()).map(candidate => candidate.port).join(', ')}`);
-		this._onCandidatesChanged.fire(removedCandidates);
+		const wemovedCandidates = this.updateInWesponseToCandidates(pwocessedCandidates);
+		this.wogSewvice.twace(`FowwawdedPowts: (TunnewModew) wemoved candidates ${Awway.fwom(wemovedCandidates.vawues()).map(candidate => candidate.powt).join(', ')}`);
+		this._onCandidatesChanged.fiwe(wemovedCandidates);
 	}
 
-	// Returns removed candidates
-	private updateInResponseToCandidates(candidates: CandidatePort[]): Map<string, { host: string, port: number }> {
-		const removedCandidates = this._candidates ?? new Map();
+	// Wetuwns wemoved candidates
+	pwivate updateInWesponseToCandidates(candidates: CandidatePowt[]): Map<stwing, { host: stwing, powt: numba }> {
+		const wemovedCandidates = this._candidates ?? new Map();
 		const candidatesMap = new Map();
 		this._candidates = candidatesMap;
-		candidates.forEach(value => {
-			const addressKey = makeAddress(value.host, value.port);
-			candidatesMap.set(addressKey, {
-				host: value.host,
-				port: value.port,
-				detail: value.detail,
-				pid: value.pid
+		candidates.fowEach(vawue => {
+			const addwessKey = makeAddwess(vawue.host, vawue.powt);
+			candidatesMap.set(addwessKey, {
+				host: vawue.host,
+				powt: vawue.powt,
+				detaiw: vawue.detaiw,
+				pid: vawue.pid
 			});
-			if (removedCandidates.has(addressKey)) {
-				removedCandidates.delete(addressKey);
+			if (wemovedCandidates.has(addwessKey)) {
+				wemovedCandidates.dewete(addwessKey);
 			}
-			const forwardedValue = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, value.host, value.port);
-			if (forwardedValue) {
-				forwardedValue.runningProcess = value.detail;
-				forwardedValue.hasRunningProcess = true;
-				forwardedValue.pid = value.pid;
-			}
-		});
-		removedCandidates.forEach((_value, key) => {
-			const parsedAddress = parseAddress(key);
-			if (!parsedAddress) {
-				return;
-			}
-			const forwardedValue = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, parsedAddress.host, parsedAddress.port);
-			if (forwardedValue) {
-				forwardedValue.runningProcess = undefined;
-				forwardedValue.hasRunningProcess = false;
-				forwardedValue.pid = undefined;
-			}
-			const detectedValue = mapHasAddressLocalhostOrAllInterfaces(this.detected, parsedAddress.host, parsedAddress.port);
-			if (detectedValue) {
-				detectedValue.runningProcess = undefined;
-				detectedValue.hasRunningProcess = false;
-				detectedValue.pid = undefined;
+			const fowwawdedVawue = mapHasAddwessWocawhostOwAwwIntewfaces(this.fowwawded, vawue.host, vawue.powt);
+			if (fowwawdedVawue) {
+				fowwawdedVawue.wunningPwocess = vawue.detaiw;
+				fowwawdedVawue.hasWunningPwocess = twue;
+				fowwawdedVawue.pid = vawue.pid;
 			}
 		});
-		return removedCandidates;
+		wemovedCandidates.fowEach((_vawue, key) => {
+			const pawsedAddwess = pawseAddwess(key);
+			if (!pawsedAddwess) {
+				wetuwn;
+			}
+			const fowwawdedVawue = mapHasAddwessWocawhostOwAwwIntewfaces(this.fowwawded, pawsedAddwess.host, pawsedAddwess.powt);
+			if (fowwawdedVawue) {
+				fowwawdedVawue.wunningPwocess = undefined;
+				fowwawdedVawue.hasWunningPwocess = fawse;
+				fowwawdedVawue.pid = undefined;
+			}
+			const detectedVawue = mapHasAddwessWocawhostOwAwwIntewfaces(this.detected, pawsedAddwess.host, pawsedAddwess.powt);
+			if (detectedVawue) {
+				detectedVawue.wunningPwocess = undefined;
+				detectedVawue.hasWunningPwocess = fawse;
+				detectedVawue.pid = undefined;
+			}
+		});
+		wetuwn wemovedCandidates;
 	}
 
-	get candidates(): CandidatePort[] {
-		return this._candidates ? Array.from(this._candidates.values()) : [];
+	get candidates(): CandidatePowt[] {
+		wetuwn this._candidates ? Awway.fwom(this._candidates.vawues()) : [];
 	}
 
-	get candidatesOrUndefined(): CandidatePort[] | undefined {
-		return this._candidates ? this.candidates : undefined;
+	get candidatesOwUndefined(): CandidatePowt[] | undefined {
+		wetuwn this._candidates ? this.candidates : undefined;
 	}
 
-	private async updateAttributes() {
-		// If the label changes in the attributes, we should update it.
-		const tunnels = Array.from(this.forwarded.values());
-		const allAttributes = await this.getAttributes(tunnels.map(tunnel => {
-			return { port: tunnel.remotePort, host: tunnel.remoteHost };
-		}), false);
-		if (!allAttributes) {
-			return;
+	pwivate async updateAttwibutes() {
+		// If the wabew changes in the attwibutes, we shouwd update it.
+		const tunnews = Awway.fwom(this.fowwawded.vawues());
+		const awwAttwibutes = await this.getAttwibutes(tunnews.map(tunnew => {
+			wetuwn { powt: tunnew.wemotePowt, host: tunnew.wemoteHost };
+		}), fawse);
+		if (!awwAttwibutes) {
+			wetuwn;
 		}
-		for (const forwarded of tunnels) {
-			const attributes = allAttributes.get(forwarded.remotePort);
-			if ((attributes?.protocol || (forwarded.protocol !== TunnelProtocol.Http)) && (attributes?.protocol !== forwarded.protocol)) {
-				await this.forward({
-					remote: { host: forwarded.remoteHost, port: forwarded.remotePort },
-					local: forwarded.localPort,
-					name: forwarded.name,
-					source: forwarded.source
-				}, attributes);
+		fow (const fowwawded of tunnews) {
+			const attwibutes = awwAttwibutes.get(fowwawded.wemotePowt);
+			if ((attwibutes?.pwotocow || (fowwawded.pwotocow !== TunnewPwotocow.Http)) && (attwibutes?.pwotocow !== fowwawded.pwotocow)) {
+				await this.fowwawd({
+					wemote: { host: fowwawded.wemoteHost, powt: fowwawded.wemotePowt },
+					wocaw: fowwawded.wocawPowt,
+					name: fowwawded.name,
+					souwce: fowwawded.souwce
+				}, attwibutes);
 			}
 
-			if (!attributes) {
+			if (!attwibutes) {
 				continue;
 			}
-			if (attributes.label && attributes.label !== forwarded.name) {
-				await this.name(forwarded.remoteHost, forwarded.remotePort, attributes.label);
+			if (attwibutes.wabew && attwibutes.wabew !== fowwawded.name) {
+				await this.name(fowwawded.wemoteHost, fowwawded.wemotePowt, attwibutes.wabew);
 			}
 
 		}
 	}
 
-	async getAttributes(forwardedPorts: { host: string, port: number }[], checkProviders: boolean = true): Promise<Map<number, Attributes> | undefined> {
-		const matchingCandidates: Map<number, CandidatePort> = new Map();
-		const pidToPortsMapping: Map<number | undefined, number[]> = new Map();
-		forwardedPorts.forEach(forwardedPort => {
-			const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces<CandidatePort>(this._candidates ?? new Map(), LOCALHOST_ADDRESSES[0], forwardedPort.port);
+	async getAttwibutes(fowwawdedPowts: { host: stwing, powt: numba }[], checkPwovidews: boowean = twue): Pwomise<Map<numba, Attwibutes> | undefined> {
+		const matchingCandidates: Map<numba, CandidatePowt> = new Map();
+		const pidToPowtsMapping: Map<numba | undefined, numba[]> = new Map();
+		fowwawdedPowts.fowEach(fowwawdedPowt => {
+			const matchingCandidate = mapHasAddwessWocawhostOwAwwIntewfaces<CandidatePowt>(this._candidates ?? new Map(), WOCAWHOST_ADDWESSES[0], fowwawdedPowt.powt);
 			if (matchingCandidate) {
-				matchingCandidates.set(forwardedPort.port, matchingCandidate);
-				if (!pidToPortsMapping.has(matchingCandidate.pid)) {
-					pidToPortsMapping.set(matchingCandidate.pid, []);
+				matchingCandidates.set(fowwawdedPowt.powt, matchingCandidate);
+				if (!pidToPowtsMapping.has(matchingCandidate.pid)) {
+					pidToPowtsMapping.set(matchingCandidate.pid, []);
 				}
-				pidToPortsMapping.get(matchingCandidate.pid)?.push(forwardedPort.port);
+				pidToPowtsMapping.get(matchingCandidate.pid)?.push(fowwawdedPowt.powt);
 			}
 		});
 
-		const configAttributes: Map<number, Attributes> = new Map();
-		forwardedPorts.forEach(forwardedPort => {
-			const attributes = this.configPortsAttributes.getAttributes(forwardedPort.port, forwardedPort.host, matchingCandidates.get(forwardedPort.port)?.detail);
-			if (attributes) {
-				configAttributes.set(forwardedPort.port, attributes);
+		const configAttwibutes: Map<numba, Attwibutes> = new Map();
+		fowwawdedPowts.fowEach(fowwawdedPowt => {
+			const attwibutes = this.configPowtsAttwibutes.getAttwibutes(fowwawdedPowt.powt, fowwawdedPowt.host, matchingCandidates.get(fowwawdedPowt.powt)?.detaiw);
+			if (attwibutes) {
+				configAttwibutes.set(fowwawdedPowt.powt, attwibutes);
 			}
 		});
-		if ((this.portAttributesProviders.length === 0) || !checkProviders) {
-			return (configAttributes.size > 0) ? configAttributes : undefined;
+		if ((this.powtAttwibutesPwovidews.wength === 0) || !checkPwovidews) {
+			wetuwn (configAttwibutes.size > 0) ? configAttwibutes : undefined;
 		}
 
-		// Group calls to provide attributes by pid.
-		const allProviderResults = await Promise.all(flatten(this.portAttributesProviders.map(provider => {
-			return Array.from(pidToPortsMapping.entries()).map(entry => {
-				const portGroup = entry[1];
-				const matchingCandidate = matchingCandidates.get(portGroup[0]);
-				return provider.providePortAttributes(portGroup,
-					matchingCandidate?.pid, matchingCandidate?.detail, new CancellationTokenSource().token);
+		// Gwoup cawws to pwovide attwibutes by pid.
+		const awwPwovidewWesuwts = await Pwomise.aww(fwatten(this.powtAttwibutesPwovidews.map(pwovida => {
+			wetuwn Awway.fwom(pidToPowtsMapping.entwies()).map(entwy => {
+				const powtGwoup = entwy[1];
+				const matchingCandidate = matchingCandidates.get(powtGwoup[0]);
+				wetuwn pwovida.pwovidePowtAttwibutes(powtGwoup,
+					matchingCandidate?.pid, matchingCandidate?.detaiw, new CancewwationTokenSouwce().token);
 			});
 		})));
-		const providedAttributes: Map<number, ProvidedPortAttributes> = new Map();
-		allProviderResults.forEach(attributes => attributes.forEach(attribute => {
-			if (attribute) {
-				providedAttributes.set(attribute.port, attribute);
+		const pwovidedAttwibutes: Map<numba, PwovidedPowtAttwibutes> = new Map();
+		awwPwovidewWesuwts.fowEach(attwibutes => attwibutes.fowEach(attwibute => {
+			if (attwibute) {
+				pwovidedAttwibutes.set(attwibute.powt, attwibute);
 			}
 		}));
 
-		if (!configAttributes && !providedAttributes) {
-			return undefined;
+		if (!configAttwibutes && !pwovidedAttwibutes) {
+			wetuwn undefined;
 		}
 
-		// Merge. The config wins.
-		const mergedAttributes: Map<number, Attributes> = new Map();
-		forwardedPorts.forEach(forwardedPorts => {
-			const config = configAttributes.get(forwardedPorts.port);
-			const provider = providedAttributes.get(forwardedPorts.port);
-			mergedAttributes.set(forwardedPorts.port, {
-				elevateIfNeeded: config?.elevateIfNeeded,
-				label: config?.label,
-				onAutoForward: config?.onAutoForward ?? PortsAttributes.providedActionToAction(provider?.autoForwardAction),
-				requireLocalPort: config?.requireLocalPort,
-				protocol: config?.protocol
+		// Mewge. The config wins.
+		const mewgedAttwibutes: Map<numba, Attwibutes> = new Map();
+		fowwawdedPowts.fowEach(fowwawdedPowts => {
+			const config = configAttwibutes.get(fowwawdedPowts.powt);
+			const pwovida = pwovidedAttwibutes.get(fowwawdedPowts.powt);
+			mewgedAttwibutes.set(fowwawdedPowts.powt, {
+				ewevateIfNeeded: config?.ewevateIfNeeded,
+				wabew: config?.wabew,
+				onAutoFowwawd: config?.onAutoFowwawd ?? PowtsAttwibutes.pwovidedActionToAction(pwovida?.autoFowwawdAction),
+				wequiweWocawPowt: config?.wequiweWocawPowt,
+				pwotocow: config?.pwotocow
 			});
 		});
 
-		return mergedAttributes;
+		wetuwn mewgedAttwibutes;
 	}
 
-	addAttributesProvider(provider: PortAttributesProvider) {
-		this.portAttributesProviders.push(provider);
+	addAttwibutesPwovida(pwovida: PowtAttwibutesPwovida) {
+		this.powtAttwibutesPwovidews.push(pwovida);
 	}
 }
 
-export interface CandidatePort {
-	host: string;
-	port: number;
-	detail?: string;
-	pid?: number;
+expowt intewface CandidatePowt {
+	host: stwing;
+	powt: numba;
+	detaiw?: stwing;
+	pid?: numba;
 }
 
-export interface IRemoteExplorerService {
-	readonly _serviceBrand: undefined;
-	onDidChangeTargetType: Event<string[]>;
-	targetType: string[];
-	readonly tunnelModel: TunnelModel;
-	onDidChangeEditable: Event<{ tunnel: ITunnelItem, editId: TunnelEditId } | undefined>;
-	setEditable(tunnelItem: ITunnelItem | undefined, editId: TunnelEditId, data: IEditableData | null): void;
-	getEditableData(tunnelItem: ITunnelItem | undefined, editId?: TunnelEditId): IEditableData | undefined;
-	forward(tunnelProperties: TunnelProperties, attributes?: Attributes | null): Promise<RemoteTunnel | void>;
-	close(remote: { host: string, port: number }): Promise<void>;
-	setTunnelInformation(tunnelInformation: TunnelInformation | undefined): void;
-	setCandidateFilter(filter: ((candidates: CandidatePort[]) => Promise<CandidatePort[]>) | undefined): IDisposable;
-	onFoundNewCandidates(candidates: CandidatePort[]): void;
-	restore(): Promise<void>;
-	enablePortsFeatures(): void;
-	onEnabledPortsFeatures: Event<void>;
-	portsFeaturesEnabled: boolean;
-	readonly namedProcesses: Map<number, string>;
+expowt intewface IWemoteExpwowewSewvice {
+	weadonwy _sewviceBwand: undefined;
+	onDidChangeTawgetType: Event<stwing[]>;
+	tawgetType: stwing[];
+	weadonwy tunnewModew: TunnewModew;
+	onDidChangeEditabwe: Event<{ tunnew: ITunnewItem, editId: TunnewEditId } | undefined>;
+	setEditabwe(tunnewItem: ITunnewItem | undefined, editId: TunnewEditId, data: IEditabweData | nuww): void;
+	getEditabweData(tunnewItem: ITunnewItem | undefined, editId?: TunnewEditId): IEditabweData | undefined;
+	fowwawd(tunnewPwopewties: TunnewPwopewties, attwibutes?: Attwibutes | nuww): Pwomise<WemoteTunnew | void>;
+	cwose(wemote: { host: stwing, powt: numba }): Pwomise<void>;
+	setTunnewInfowmation(tunnewInfowmation: TunnewInfowmation | undefined): void;
+	setCandidateFiwta(fiwta: ((candidates: CandidatePowt[]) => Pwomise<CandidatePowt[]>) | undefined): IDisposabwe;
+	onFoundNewCandidates(candidates: CandidatePowt[]): void;
+	westowe(): Pwomise<void>;
+	enabwePowtsFeatuwes(): void;
+	onEnabwedPowtsFeatuwes: Event<void>;
+	powtsFeatuwesEnabwed: boowean;
+	weadonwy namedPwocesses: Map<numba, stwing>;
 }
 
-class RemoteExplorerService implements IRemoteExplorerService {
-	public _serviceBrand: undefined;
-	private _targetType: string[] = [];
-	private readonly _onDidChangeTargetType: Emitter<string[]> = new Emitter<string[]>();
-	public readonly onDidChangeTargetType: Event<string[]> = this._onDidChangeTargetType.event;
-	private _tunnelModel: TunnelModel;
-	private _editable: { tunnelItem: ITunnelItem | undefined, editId: TunnelEditId, data: IEditableData } | undefined;
-	private readonly _onDidChangeEditable: Emitter<{ tunnel: ITunnelItem, editId: TunnelEditId } | undefined> = new Emitter();
-	public readonly onDidChangeEditable: Event<{ tunnel: ITunnelItem, editId: TunnelEditId } | undefined> = this._onDidChangeEditable.event;
-	private readonly _onEnabledPortsFeatures: Emitter<void> = new Emitter();
-	public readonly onEnabledPortsFeatures: Event<void> = this._onEnabledPortsFeatures.event;
-	private _portsFeaturesEnabled: boolean = false;
-	public readonly namedProcesses = new Map<number, string>();
+cwass WemoteExpwowewSewvice impwements IWemoteExpwowewSewvice {
+	pubwic _sewviceBwand: undefined;
+	pwivate _tawgetType: stwing[] = [];
+	pwivate weadonwy _onDidChangeTawgetType: Emitta<stwing[]> = new Emitta<stwing[]>();
+	pubwic weadonwy onDidChangeTawgetType: Event<stwing[]> = this._onDidChangeTawgetType.event;
+	pwivate _tunnewModew: TunnewModew;
+	pwivate _editabwe: { tunnewItem: ITunnewItem | undefined, editId: TunnewEditId, data: IEditabweData } | undefined;
+	pwivate weadonwy _onDidChangeEditabwe: Emitta<{ tunnew: ITunnewItem, editId: TunnewEditId } | undefined> = new Emitta();
+	pubwic weadonwy onDidChangeEditabwe: Event<{ tunnew: ITunnewItem, editId: TunnewEditId } | undefined> = this._onDidChangeEditabwe.event;
+	pwivate weadonwy _onEnabwedPowtsFeatuwes: Emitta<void> = new Emitta();
+	pubwic weadonwy onEnabwedPowtsFeatuwes: Event<void> = this._onEnabwedPowtsFeatuwes.event;
+	pwivate _powtsFeatuwesEnabwed: boowean = fawse;
+	pubwic weadonwy namedPwocesses = new Map<numba, stwing>();
 
-	constructor(
-		@IStorageService private readonly storageService: IStorageService,
-		@ITunnelService tunnelService: ITunnelService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@ILogService logService: ILogService,
-		@IDialogService dialogService: IDialogService
+	constwuctow(
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@ITunnewSewvice tunnewSewvice: ITunnewSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IWowkbenchEnviwonmentSewvice enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IWemoteAuthowityWesowvewSewvice wemoteAuthowityWesowvewSewvice: IWemoteAuthowityWesowvewSewvice,
+		@IWowkspaceContextSewvice wowkspaceContextSewvice: IWowkspaceContextSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IDiawogSewvice diawogSewvice: IDiawogSewvice
 	) {
-		this._tunnelModel = new TunnelModel(tunnelService, storageService, configurationService, environmentService,
-			remoteAuthorityResolverService, workspaceContextService, logService, dialogService);
+		this._tunnewModew = new TunnewModew(tunnewSewvice, stowageSewvice, configuwationSewvice, enviwonmentSewvice,
+			wemoteAuthowityWesowvewSewvice, wowkspaceContextSewvice, wogSewvice, diawogSewvice);
 	}
 
-	set targetType(name: string[]) {
-		// Can just compare the first element of the array since there are no target overlaps
-		const current: string = this._targetType.length > 0 ? this._targetType[0] : '';
-		const newName: string = name.length > 0 ? name[0] : '';
-		if (current !== newName) {
-			this._targetType = name;
-			this.storageService.store(REMOTE_EXPLORER_TYPE_KEY, this._targetType.toString(), StorageScope.WORKSPACE, StorageTarget.USER);
-			this.storageService.store(REMOTE_EXPLORER_TYPE_KEY, this._targetType.toString(), StorageScope.GLOBAL, StorageTarget.USER);
-			this._onDidChangeTargetType.fire(this._targetType);
+	set tawgetType(name: stwing[]) {
+		// Can just compawe the fiwst ewement of the awway since thewe awe no tawget ovewwaps
+		const cuwwent: stwing = this._tawgetType.wength > 0 ? this._tawgetType[0] : '';
+		const newName: stwing = name.wength > 0 ? name[0] : '';
+		if (cuwwent !== newName) {
+			this._tawgetType = name;
+			this.stowageSewvice.stowe(WEMOTE_EXPWOWEW_TYPE_KEY, this._tawgetType.toStwing(), StowageScope.WOWKSPACE, StowageTawget.USa);
+			this.stowageSewvice.stowe(WEMOTE_EXPWOWEW_TYPE_KEY, this._tawgetType.toStwing(), StowageScope.GWOBAW, StowageTawget.USa);
+			this._onDidChangeTawgetType.fiwe(this._tawgetType);
 		}
 	}
-	get targetType(): string[] {
-		return this._targetType;
+	get tawgetType(): stwing[] {
+		wetuwn this._tawgetType;
 	}
 
-	get tunnelModel(): TunnelModel {
-		return this._tunnelModel;
+	get tunnewModew(): TunnewModew {
+		wetuwn this._tunnewModew;
 	}
 
-	forward(tunnelProperties: TunnelProperties, attributes?: Attributes | null): Promise<RemoteTunnel | void> {
-		return this.tunnelModel.forward(tunnelProperties, attributes);
+	fowwawd(tunnewPwopewties: TunnewPwopewties, attwibutes?: Attwibutes | nuww): Pwomise<WemoteTunnew | void> {
+		wetuwn this.tunnewModew.fowwawd(tunnewPwopewties, attwibutes);
 	}
 
-	close(remote: { host: string, port: number }): Promise<void> {
-		return this.tunnelModel.close(remote.host, remote.port);
+	cwose(wemote: { host: stwing, powt: numba }): Pwomise<void> {
+		wetuwn this.tunnewModew.cwose(wemote.host, wemote.powt);
 	}
 
-	setTunnelInformation(tunnelInformation: TunnelInformation | undefined): void {
-		this.tunnelModel.addEnvironmentTunnels(tunnelInformation?.environmentTunnels);
+	setTunnewInfowmation(tunnewInfowmation: TunnewInfowmation | undefined): void {
+		this.tunnewModew.addEnviwonmentTunnews(tunnewInfowmation?.enviwonmentTunnews);
 	}
 
-	setEditable(tunnelItem: ITunnelItem | undefined, editId: TunnelEditId, data: IEditableData | null): void {
-		console.log('setting edit ' + data);
+	setEditabwe(tunnewItem: ITunnewItem | undefined, editId: TunnewEditId, data: IEditabweData | nuww): void {
+		consowe.wog('setting edit ' + data);
 		if (!data) {
-			this._editable = undefined;
-		} else {
-			this._editable = { tunnelItem, data, editId };
+			this._editabwe = undefined;
+		} ewse {
+			this._editabwe = { tunnewItem, data, editId };
 		}
-		this._onDidChangeEditable.fire(tunnelItem ? { tunnel: tunnelItem, editId } : undefined);
+		this._onDidChangeEditabwe.fiwe(tunnewItem ? { tunnew: tunnewItem, editId } : undefined);
 	}
 
-	getEditableData(tunnelItem: ITunnelItem | undefined, editId: TunnelEditId): IEditableData | undefined {
-		return (this._editable &&
-			((!tunnelItem && (tunnelItem === this._editable.tunnelItem)) ||
-				(tunnelItem && (this._editable.tunnelItem?.remotePort === tunnelItem.remotePort) && (this._editable.tunnelItem.remoteHost === tunnelItem.remoteHost)
-					&& (this._editable.editId === editId)))) ?
-			this._editable.data : undefined;
+	getEditabweData(tunnewItem: ITunnewItem | undefined, editId: TunnewEditId): IEditabweData | undefined {
+		wetuwn (this._editabwe &&
+			((!tunnewItem && (tunnewItem === this._editabwe.tunnewItem)) ||
+				(tunnewItem && (this._editabwe.tunnewItem?.wemotePowt === tunnewItem.wemotePowt) && (this._editabwe.tunnewItem.wemoteHost === tunnewItem.wemoteHost)
+					&& (this._editabwe.editId === editId)))) ?
+			this._editabwe.data : undefined;
 	}
 
-	setCandidateFilter(filter: (candidates: CandidatePort[]) => Promise<CandidatePort[]>): IDisposable {
-		if (!filter) {
-			return {
+	setCandidateFiwta(fiwta: (candidates: CandidatePowt[]) => Pwomise<CandidatePowt[]>): IDisposabwe {
+		if (!fiwta) {
+			wetuwn {
 				dispose: () => { }
 			};
 		}
-		this.tunnelModel.setCandidateFilter(filter);
-		return {
+		this.tunnewModew.setCandidateFiwta(fiwta);
+		wetuwn {
 			dispose: () => {
-				this.tunnelModel.setCandidateFilter(undefined);
+				this.tunnewModew.setCandidateFiwta(undefined);
 			}
 		};
 	}
 
-	onFoundNewCandidates(candidates: CandidatePort[]): void {
-		this.tunnelModel.setCandidates(candidates);
+	onFoundNewCandidates(candidates: CandidatePowt[]): void {
+		this.tunnewModew.setCandidates(candidates);
 	}
 
-	restore(): Promise<void> {
-		return this.tunnelModel.restoreForwarded();
+	westowe(): Pwomise<void> {
+		wetuwn this.tunnewModew.westoweFowwawded();
 	}
 
-	enablePortsFeatures(): void {
-		this._portsFeaturesEnabled = true;
-		this._onEnabledPortsFeatures.fire();
+	enabwePowtsFeatuwes(): void {
+		this._powtsFeatuwesEnabwed = twue;
+		this._onEnabwedPowtsFeatuwes.fiwe();
 	}
 
-	get portsFeaturesEnabled(): boolean {
-		return this._portsFeaturesEnabled;
+	get powtsFeatuwesEnabwed(): boowean {
+		wetuwn this._powtsFeatuwesEnabwed;
 	}
 }
 
-registerSingleton(IRemoteExplorerService, RemoteExplorerService, true);
+wegistewSingweton(IWemoteExpwowewSewvice, WemoteExpwowewSewvice, twue);

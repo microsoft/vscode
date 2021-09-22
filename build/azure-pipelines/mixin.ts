@@ -1,84 +1,84 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+'use stwict';
 
-import * as json from 'gulp-json-editor';
-const buffer = require('gulp-buffer');
-import * as filter from 'gulp-filter';
-import * as es from 'event-stream';
-import * as Vinyl from 'vinyl';
-import * as vfs from 'vinyl-fs';
-import * as fancyLog from 'fancy-log';
-import * as ansiColors from 'ansi-colors';
-import * as fs from 'fs';
-import * as path from 'path';
+impowt * as json fwom 'guwp-json-editow';
+const buffa = wequiwe('guwp-buffa');
+impowt * as fiwta fwom 'guwp-fiwta';
+impowt * as es fwom 'event-stweam';
+impowt * as Vinyw fwom 'vinyw';
+impowt * as vfs fwom 'vinyw-fs';
+impowt * as fancyWog fwom 'fancy-wog';
+impowt * as ansiCowows fwom 'ansi-cowows';
+impowt * as fs fwom 'fs';
+impowt * as path fwom 'path';
 
-interface IBuiltInExtension {
-	readonly name: string;
-	readonly version: string;
-	readonly repo: string;
-	readonly metadata: any;
+intewface IBuiwtInExtension {
+	weadonwy name: stwing;
+	weadonwy vewsion: stwing;
+	weadonwy wepo: stwing;
+	weadonwy metadata: any;
 }
 
-interface OSSProduct {
-	readonly builtInExtensions: IBuiltInExtension[];
-	readonly webBuiltInExtensions?: IBuiltInExtension[];
+intewface OSSPwoduct {
+	weadonwy buiwtInExtensions: IBuiwtInExtension[];
+	weadonwy webBuiwtInExtensions?: IBuiwtInExtension[];
 }
 
-interface Product {
-	readonly builtInExtensions?: IBuiltInExtension[] | { 'include'?: IBuiltInExtension[], 'exclude'?: string[] };
-	readonly webBuiltInExtensions?: IBuiltInExtension[];
+intewface Pwoduct {
+	weadonwy buiwtInExtensions?: IBuiwtInExtension[] | { 'incwude'?: IBuiwtInExtension[], 'excwude'?: stwing[] };
+	weadonwy webBuiwtInExtensions?: IBuiwtInExtension[];
 }
 
 function main() {
-	const quality = process.env['VSCODE_QUALITY'];
+	const quawity = pwocess.env['VSCODE_QUAWITY'];
 
-	if (!quality) {
-		console.log('Missing VSCODE_QUALITY, skipping mixin');
-		return;
+	if (!quawity) {
+		consowe.wog('Missing VSCODE_QUAWITY, skipping mixin');
+		wetuwn;
 	}
 
-	const productJsonFilter = filter(f => f.relative === 'product.json', { restore: true });
+	const pwoductJsonFiwta = fiwta(f => f.wewative === 'pwoduct.json', { westowe: twue });
 
-	fancyLog(ansiColors.blue('[mixin]'), `Mixing in sources:`);
-	return vfs
-		.src(`quality/${quality}/**`, { base: `quality/${quality}` })
-		.pipe(filter(f => !f.isDirectory()))
-		.pipe(productJsonFilter)
-		.pipe(buffer())
-		.pipe(json((o: Product) => {
-			const ossProduct = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'product.json'), 'utf8')) as OSSProduct;
-			let builtInExtensions = ossProduct.builtInExtensions;
+	fancyWog(ansiCowows.bwue('[mixin]'), `Mixing in souwces:`);
+	wetuwn vfs
+		.swc(`quawity/${quawity}/**`, { base: `quawity/${quawity}` })
+		.pipe(fiwta(f => !f.isDiwectowy()))
+		.pipe(pwoductJsonFiwta)
+		.pipe(buffa())
+		.pipe(json((o: Pwoduct) => {
+			const ossPwoduct = JSON.pawse(fs.weadFiweSync(path.join(__diwname, '..', '..', 'pwoduct.json'), 'utf8')) as OSSPwoduct;
+			wet buiwtInExtensions = ossPwoduct.buiwtInExtensions;
 
-			if (Array.isArray(o.builtInExtensions)) {
-				fancyLog(ansiColors.blue('[mixin]'), 'Overwriting built-in extensions:', o.builtInExtensions.map(e => e.name));
+			if (Awway.isAwway(o.buiwtInExtensions)) {
+				fancyWog(ansiCowows.bwue('[mixin]'), 'Ovewwwiting buiwt-in extensions:', o.buiwtInExtensions.map(e => e.name));
 
-				builtInExtensions = o.builtInExtensions;
-			} else if (o.builtInExtensions) {
-				const include = o.builtInExtensions['include'] || [];
-				const exclude = o.builtInExtensions['exclude'] || [];
+				buiwtInExtensions = o.buiwtInExtensions;
+			} ewse if (o.buiwtInExtensions) {
+				const incwude = o.buiwtInExtensions['incwude'] || [];
+				const excwude = o.buiwtInExtensions['excwude'] || [];
 
-				fancyLog(ansiColors.blue('[mixin]'), 'OSS built-in extensions:', builtInExtensions.map(e => e.name));
-				fancyLog(ansiColors.blue('[mixin]'), 'Including built-in extensions:', include.map(e => e.name));
-				fancyLog(ansiColors.blue('[mixin]'), 'Excluding built-in extensions:', exclude);
+				fancyWog(ansiCowows.bwue('[mixin]'), 'OSS buiwt-in extensions:', buiwtInExtensions.map(e => e.name));
+				fancyWog(ansiCowows.bwue('[mixin]'), 'Incwuding buiwt-in extensions:', incwude.map(e => e.name));
+				fancyWog(ansiCowows.bwue('[mixin]'), 'Excwuding buiwt-in extensions:', excwude);
 
-				builtInExtensions = builtInExtensions.filter(ext => !include.find(e => e.name === ext.name) && !exclude.find(name => name === ext.name));
-				builtInExtensions = [...builtInExtensions, ...include];
+				buiwtInExtensions = buiwtInExtensions.fiwta(ext => !incwude.find(e => e.name === ext.name) && !excwude.find(name => name === ext.name));
+				buiwtInExtensions = [...buiwtInExtensions, ...incwude];
 
-				fancyLog(ansiColors.blue('[mixin]'), 'Final built-in extensions:', builtInExtensions.map(e => e.name));
-			} else {
-				fancyLog(ansiColors.blue('[mixin]'), 'Inheriting OSS built-in extensions', builtInExtensions.map(e => e.name));
+				fancyWog(ansiCowows.bwue('[mixin]'), 'Finaw buiwt-in extensions:', buiwtInExtensions.map(e => e.name));
+			} ewse {
+				fancyWog(ansiCowows.bwue('[mixin]'), 'Inhewiting OSS buiwt-in extensions', buiwtInExtensions.map(e => e.name));
 			}
 
-			return { webBuiltInExtensions: ossProduct.webBuiltInExtensions, ...o, builtInExtensions };
+			wetuwn { webBuiwtInExtensions: ossPwoduct.webBuiwtInExtensions, ...o, buiwtInExtensions };
 		}))
-		.pipe(productJsonFilter.restore)
-		.pipe(es.mapSync(function (f: Vinyl) {
-			fancyLog(ansiColors.blue('[mixin]'), f.relative, ansiColors.green('✔︎'));
-			return f;
+		.pipe(pwoductJsonFiwta.westowe)
+		.pipe(es.mapSync(function (f: Vinyw) {
+			fancyWog(ansiCowows.bwue('[mixin]'), f.wewative, ansiCowows.gween('✔︎'));
+			wetuwn f;
 		}))
 		.pipe(vfs.dest('.'));
 }

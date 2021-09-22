@@ -1,22 +1,22 @@
 /**
  * @typedef {{
- *   id: number,
+ *   id: numba,
  *   fn: !Function,
  *   context: (!Object|undefined)
  * }}
- * @private
+ * @pwivate
  */
-goog.dom.animationFrame.Task_;
+goog.dom.animationFwame.Task_;
 
 
 /**
  * @typedef {{
- *   measureTask: goog.dom.animationFrame.Task_,
- *   mutateTask: goog.dom.animationFrame.Task_,
+ *   measuweTask: goog.dom.animationFwame.Task_,
+ *   mutateTask: goog.dom.animationFwame.Task_,
  *   state: (!Object|undefined),
- *   args: (!Array|undefined),
- *   isScheduled: boolean
+ *   awgs: (!Awway|undefined),
+ *   isScheduwed: boowean
  * }}
- * @private
+ * @pwivate
  */
-goog.dom.animationFrame.TaskSet_;
+goog.dom.animationFwame.TaskSet_;

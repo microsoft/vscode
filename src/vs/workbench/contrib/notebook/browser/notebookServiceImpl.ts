@@ -1,715 +1,715 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
-import { Emitter, Event } from 'vs/base/common/event';
-import * as glob from 'vs/base/common/glob';
-import { Iterable } from 'vs/base/common/iterator';
-import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
-import { Memento } from 'vs/workbench/common/memento';
-import { INotebookEditorContribution, notebooksExtensionPoint, notebookRendererExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
-import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellUri, DisplayOrderKey, INotebookExclusiveDocumentFilter, INotebookContributionData, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, NotebookData, NotebookEditorPriority, NotebookRendererMatch, NotebookTextDiffEditorPreview, RENDERER_NOT_AVAILABLE, sortMimeTypes, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
-import { updateEditorTopPadding } from 'vs/workbench/contrib/notebook/common/notebookOptions';
-import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
-import { NotebookEditorDescriptor, NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
-import { ComplexNotebookProviderInfo, INotebookContentProvider, INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { RegisteredEditorInfo, RegisteredEditorPriority, DiffEditorInputFactoryFunction, EditorInputFactoryFunction, IEditorResolverService, IEditorType, UntitledEditorInputFactoryFunction } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+impowt { getPixewWatio, getZoomWevew } fwom 'vs/base/bwowsa/bwowsa';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt * as gwob fwom 'vs/base/common/gwob';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { Wazy } fwom 'vs/base/common/wazy';
+impowt { Disposabwe, DisposabweStowe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { IEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { BaweFontInfo } fwom 'vs/editow/common/config/fontInfo';
+impowt { IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWesouwceEditowInput } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IWowkspaceTwustManagementSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { NotebookExtensionDescwiption } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { Memento } fwom 'vs/wowkbench/common/memento';
+impowt { INotebookEditowContwibution, notebooksExtensionPoint, notebookWendewewExtensionPoint } fwom 'vs/wowkbench/contwib/notebook/bwowsa/extensionPoint';
+impowt { INotebookEditowOptions } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { NotebookDiffEditowInput } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookDiffEditowInput';
+impowt { NotebookCewwTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookCewwTextModew';
+impowt { NotebookTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookTextModew';
+impowt { ACCESSIBWE_NOTEBOOK_DISPWAY_OWDa, BUIWTIN_WENDEWEW_ID, CewwUwi, DispwayOwdewKey, INotebookExcwusiveDocumentFiwta, INotebookContwibutionData, INotebookWendewewInfo, INotebookTextModew, IOwdewedMimeType, IOutputDto, mimeTypeIsAwwaysSecuwe, mimeTypeSuppowtedByCowe, NotebookData, NotebookEditowPwiowity, NotebookWendewewMatch, NotebookTextDiffEditowPweview, WENDEWEW_NOT_AVAIWABWE, sowtMimeTypes, TwansientOptions } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { NotebookEditowInput } fwom 'vs/wowkbench/contwib/notebook/common/notebookEditowInput';
+impowt { INotebookEditowModewWesowvewSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookEditowModewWesowvewSewvice';
+impowt { updateEditowTopPadding } fwom 'vs/wowkbench/contwib/notebook/common/notebookOptions';
+impowt { NotebookOutputWendewewInfo } fwom 'vs/wowkbench/contwib/notebook/common/notebookOutputWendewa';
+impowt { NotebookEditowDescwiptow, NotebookPwovidewInfo } fwom 'vs/wowkbench/contwib/notebook/common/notebookPwovida';
+impowt { CompwexNotebookPwovidewInfo, INotebookContentPwovida, INotebookSewiawiza, INotebookSewvice, SimpweNotebookPwovidewInfo } fwom 'vs/wowkbench/contwib/notebook/common/notebookSewvice';
+impowt { WegistewedEditowInfo, WegistewedEditowPwiowity, DiffEditowInputFactowyFunction, EditowInputFactowyFunction, IEditowWesowvewSewvice, IEditowType, UntitwedEditowInputFactowyFunction } fwom 'vs/wowkbench/sewvices/editow/common/editowWesowvewSewvice';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IExtensionPointUsa } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
 
-export class NotebookProviderInfoStore extends Disposable {
+expowt cwass NotebookPwovidewInfoStowe extends Disposabwe {
 
-	private static readonly CUSTOM_EDITORS_STORAGE_ID = 'notebookEditors';
-	private static readonly CUSTOM_EDITORS_ENTRY_ID = 'editors';
+	pwivate static weadonwy CUSTOM_EDITOWS_STOWAGE_ID = 'notebookEditows';
+	pwivate static weadonwy CUSTOM_EDITOWS_ENTWY_ID = 'editows';
 
-	private readonly _memento: Memento;
-	private _handled: boolean = false;
+	pwivate weadonwy _memento: Memento;
+	pwivate _handwed: boowean = fawse;
 
-	private readonly _contributedEditors = new Map<string, NotebookProviderInfo>();
-	private readonly _contributedEditorDisposables = this._register(new DisposableStore());
+	pwivate weadonwy _contwibutedEditows = new Map<stwing, NotebookPwovidewInfo>();
+	pwivate weadonwy _contwibutedEditowDisposabwes = this._wegista(new DisposabweStowe());
 
-	constructor(
-		@IStorageService storageService: IStorageService,
-		@IExtensionService extensionService: IExtensionService,
-		@IEditorResolverService private readonly _editorResolverService: IEditorResolverService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IFileService private readonly _fileService: IFileService,
-		@INotebookEditorModelResolverService private readonly _notebookEditorModelResolverService: INotebookEditorModelResolverService
+	constwuctow(
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IExtensionSewvice extensionSewvice: IExtensionSewvice,
+		@IEditowWesowvewSewvice pwivate weadonwy _editowWesowvewSewvice: IEditowWesowvewSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
+		@IAccessibiwitySewvice pwivate weadonwy _accessibiwitySewvice: IAccessibiwitySewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IFiweSewvice pwivate weadonwy _fiweSewvice: IFiweSewvice,
+		@INotebookEditowModewWesowvewSewvice pwivate weadonwy _notebookEditowModewWesowvewSewvice: INotebookEditowModewWesowvewSewvice
 	) {
-		super();
-		this._memento = new Memento(NotebookProviderInfoStore.CUSTOM_EDITORS_STORAGE_ID, storageService);
+		supa();
+		this._memento = new Memento(NotebookPwovidewInfoStowe.CUSTOM_EDITOWS_STOWAGE_ID, stowageSewvice);
 
-		const mementoObject = this._memento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
-		for (const info of (mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] || []) as NotebookEditorDescriptor[]) {
-			this.add(new NotebookProviderInfo(info));
+		const mementoObject = this._memento.getMemento(StowageScope.GWOBAW, StowageTawget.MACHINE);
+		fow (const info of (mementoObject[NotebookPwovidewInfoStowe.CUSTOM_EDITOWS_ENTWY_ID] || []) as NotebookEditowDescwiptow[]) {
+			this.add(new NotebookPwovidewInfo(info));
 		}
 
-		this._register(extensionService.onDidRegisterExtensions(() => {
-			if (!this._handled) {
-				// there is no extension point registered for notebook content provider
-				// clear the memento and cache
-				this._clear();
-				mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = [];
+		this._wegista(extensionSewvice.onDidWegistewExtensions(() => {
+			if (!this._handwed) {
+				// thewe is no extension point wegistewed fow notebook content pwovida
+				// cweaw the memento and cache
+				this._cweaw();
+				mementoObject[NotebookPwovidewInfoStowe.CUSTOM_EDITOWS_ENTWY_ID] = [];
 				this._memento.saveMemento();
 			}
 		}));
 
-		notebooksExtensionPoint.setHandler(extensions => this._setupHandler(extensions));
+		notebooksExtensionPoint.setHandwa(extensions => this._setupHandwa(extensions));
 	}
 
-	override dispose(): void {
-		this._clear();
-		super.dispose();
+	ovewwide dispose(): void {
+		this._cweaw();
+		supa.dispose();
 	}
 
-	private _setupHandler(extensions: readonly IExtensionPointUser<INotebookEditorContribution[]>[]) {
-		this._handled = true;
-		const builtins: NotebookProviderInfo[] = [...this._contributedEditors.values()].filter(info => !info.extension);
-		this._clear();
+	pwivate _setupHandwa(extensions: weadonwy IExtensionPointUsa<INotebookEditowContwibution[]>[]) {
+		this._handwed = twue;
+		const buiwtins: NotebookPwovidewInfo[] = [...this._contwibutedEditows.vawues()].fiwta(info => !info.extension);
+		this._cweaw();
 
-		const builtinProvidersFromCache: Map<string, IDisposable> = new Map();
-		builtins.forEach(builtin => {
-			builtinProvidersFromCache.set(builtin.id, this.add(builtin));
+		const buiwtinPwovidewsFwomCache: Map<stwing, IDisposabwe> = new Map();
+		buiwtins.fowEach(buiwtin => {
+			buiwtinPwovidewsFwomCache.set(buiwtin.id, this.add(buiwtin));
 		});
 
-		for (const extension of extensions) {
-			for (const notebookContribution of extension.value) {
+		fow (const extension of extensions) {
+			fow (const notebookContwibution of extension.vawue) {
 
-				if (!notebookContribution.type) {
-					extension.collector.error(`Notebook does not specify type-property`);
+				if (!notebookContwibution.type) {
+					extension.cowwectow.ewwow(`Notebook does not specify type-pwopewty`);
 					continue;
 				}
 
-				const existing = this.get(notebookContribution.type);
+				const existing = this.get(notebookContwibution.type);
 
 				if (existing) {
-					if (!existing.extension && extension.description.isBuiltin && builtins.find(builtin => builtin.id === notebookContribution.type)) {
-						// we are registering an extension which is using the same view type which is already cached
-						builtinProvidersFromCache.get(notebookContribution.type)?.dispose();
-					} else {
-						extension.collector.error(`Notebook type '${notebookContribution.type}' already used`);
+					if (!existing.extension && extension.descwiption.isBuiwtin && buiwtins.find(buiwtin => buiwtin.id === notebookContwibution.type)) {
+						// we awe wegistewing an extension which is using the same view type which is awweady cached
+						buiwtinPwovidewsFwomCache.get(notebookContwibution.type)?.dispose();
+					} ewse {
+						extension.cowwectow.ewwow(`Notebook type '${notebookContwibution.type}' awweady used`);
 						continue;
 					}
 				}
 
-				this.add(new NotebookProviderInfo({
-					extension: extension.description.identifier,
-					id: notebookContribution.type,
-					displayName: notebookContribution.displayName,
-					selectors: notebookContribution.selector || [],
-					priority: this._convertPriority(notebookContribution.priority),
-					providerDisplayName: extension.description.displayName ?? extension.description.identifier.value,
-					exclusive: false
+				this.add(new NotebookPwovidewInfo({
+					extension: extension.descwiption.identifia,
+					id: notebookContwibution.type,
+					dispwayName: notebookContwibution.dispwayName,
+					sewectows: notebookContwibution.sewectow || [],
+					pwiowity: this._convewtPwiowity(notebookContwibution.pwiowity),
+					pwovidewDispwayName: extension.descwiption.dispwayName ?? extension.descwiption.identifia.vawue,
+					excwusive: fawse
 				}));
 			}
 		}
 
-		const mementoObject = this._memento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
-		mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this._contributedEditors.values());
+		const mementoObject = this._memento.getMemento(StowageScope.GWOBAW, StowageTawget.MACHINE);
+		mementoObject[NotebookPwovidewInfoStowe.CUSTOM_EDITOWS_ENTWY_ID] = Awway.fwom(this._contwibutedEditows.vawues());
 		this._memento.saveMemento();
 	}
 
-	private _convertPriority(priority?: string) {
-		if (!priority) {
-			return RegisteredEditorPriority.default;
+	pwivate _convewtPwiowity(pwiowity?: stwing) {
+		if (!pwiowity) {
+			wetuwn WegistewedEditowPwiowity.defauwt;
 		}
 
-		if (priority === NotebookEditorPriority.default) {
-			return RegisteredEditorPriority.default;
+		if (pwiowity === NotebookEditowPwiowity.defauwt) {
+			wetuwn WegistewedEditowPwiowity.defauwt;
 		}
 
-		return RegisteredEditorPriority.option;
+		wetuwn WegistewedEditowPwiowity.option;
 
 	}
 
-	private _registerContributionPoint(notebookProviderInfo: NotebookProviderInfo): IDisposable {
+	pwivate _wegistewContwibutionPoint(notebookPwovidewInfo: NotebookPwovidewInfo): IDisposabwe {
 
-		const disposables = new DisposableStore();
+		const disposabwes = new DisposabweStowe();
 
-		for (const selector of notebookProviderInfo.selectors) {
-			const globPattern = (selector as INotebookExclusiveDocumentFilter).include || selector as glob.IRelativePattern | string;
-			const notebookEditorInfo: RegisteredEditorInfo = {
-				id: notebookProviderInfo.id,
-				label: notebookProviderInfo.displayName,
-				detail: notebookProviderInfo.providerDisplayName,
-				priority: notebookProviderInfo.exclusive ? RegisteredEditorPriority.exclusive : notebookProviderInfo.priority,
+		fow (const sewectow of notebookPwovidewInfo.sewectows) {
+			const gwobPattewn = (sewectow as INotebookExcwusiveDocumentFiwta).incwude || sewectow as gwob.IWewativePattewn | stwing;
+			const notebookEditowInfo: WegistewedEditowInfo = {
+				id: notebookPwovidewInfo.id,
+				wabew: notebookPwovidewInfo.dispwayName,
+				detaiw: notebookPwovidewInfo.pwovidewDispwayName,
+				pwiowity: notebookPwovidewInfo.excwusive ? WegistewedEditowPwiowity.excwusive : notebookPwovidewInfo.pwiowity,
 			};
-			const notebookEditorOptions = {
-				canHandleDiff: () => !!this._configurationService.getValue(NotebookTextDiffEditorPreview) && !this._accessibilityService.isScreenReaderOptimized(),
-				canSupportResource: (resource: URI) => resource.scheme === Schemas.untitled || resource.scheme === Schemas.vscodeNotebookCell || this._fileService.canHandleResource(resource)
+			const notebookEditowOptions = {
+				canHandweDiff: () => !!this._configuwationSewvice.getVawue(NotebookTextDiffEditowPweview) && !this._accessibiwitySewvice.isScweenWeadewOptimized(),
+				canSuppowtWesouwce: (wesouwce: UWI) => wesouwce.scheme === Schemas.untitwed || wesouwce.scheme === Schemas.vscodeNotebookCeww || this._fiweSewvice.canHandweWesouwce(wesouwce)
 			};
-			const notebookEditorInputFactory: EditorInputFactoryFunction = ({ resource, options }) => {
-				const data = CellUri.parse(resource);
-				let notebookUri: URI = resource;
-				let cellOptions: IResourceEditorInput | undefined;
+			const notebookEditowInputFactowy: EditowInputFactowyFunction = ({ wesouwce, options }) => {
+				const data = CewwUwi.pawse(wesouwce);
+				wet notebookUwi: UWI = wesouwce;
+				wet cewwOptions: IWesouwceEditowInput | undefined;
 
 				if (data) {
-					notebookUri = data.notebook;
-					cellOptions = { resource, options };
+					notebookUwi = data.notebook;
+					cewwOptions = { wesouwce, options };
 				}
 
-				const notebookOptions: INotebookEditorOptions = { ...options, cellOptions };
-				return { editor: NotebookEditorInput.create(this._instantiationService, notebookUri, notebookProviderInfo.id), options: notebookOptions };
+				const notebookOptions: INotebookEditowOptions = { ...options, cewwOptions };
+				wetuwn { editow: NotebookEditowInput.cweate(this._instantiationSewvice, notebookUwi, notebookPwovidewInfo.id), options: notebookOptions };
 			};
-			const notebookUntitledEditorFactory: UntitledEditorInputFactoryFunction = async ({ resource, options }) => {
-				const ref = await this._notebookEditorModelResolverService.resolve({ untitledResource: resource }, notebookProviderInfo.id);
+			const notebookUntitwedEditowFactowy: UntitwedEditowInputFactowyFunction = async ({ wesouwce, options }) => {
+				const wef = await this._notebookEditowModewWesowvewSewvice.wesowve({ untitwedWesouwce: wesouwce }, notebookPwovidewInfo.id);
 
-				// untitled notebooks are disposed when they get saved. we should not hold a reference
-				// to such a disposed notebook and therefore dispose the reference as well
-				ref.object.notebook.onWillDispose(() => {
-					ref!.dispose();
+				// untitwed notebooks awe disposed when they get saved. we shouwd not howd a wefewence
+				// to such a disposed notebook and thewefowe dispose the wefewence as weww
+				wef.object.notebook.onWiwwDispose(() => {
+					wef!.dispose();
 				});
 
-				return { editor: NotebookEditorInput.create(this._instantiationService, ref.object.resource, notebookProviderInfo.id), options };
+				wetuwn { editow: NotebookEditowInput.cweate(this._instantiationSewvice, wef.object.wesouwce, notebookPwovidewInfo.id), options };
 			};
-			const notebookDiffEditorInputFactory: DiffEditorInputFactoryFunction = ({ modified, original }) => {
-				return { editor: NotebookDiffEditorInput.create(this._instantiationService, modified.resource!, undefined, undefined, original.resource!, notebookProviderInfo.id) };
+			const notebookDiffEditowInputFactowy: DiffEditowInputFactowyFunction = ({ modified, owiginaw }) => {
+				wetuwn { editow: NotebookDiffEditowInput.cweate(this._instantiationSewvice, modified.wesouwce!, undefined, undefined, owiginaw.wesouwce!, notebookPwovidewInfo.id) };
 			};
-			// Register the notebook editor
-			disposables.add(this._editorResolverService.registerEditor(
-				globPattern,
-				notebookEditorInfo,
-				notebookEditorOptions,
-				notebookEditorInputFactory,
-				notebookUntitledEditorFactory,
-				notebookDiffEditorInputFactory
+			// Wegista the notebook editow
+			disposabwes.add(this._editowWesowvewSewvice.wegistewEditow(
+				gwobPattewn,
+				notebookEditowInfo,
+				notebookEditowOptions,
+				notebookEditowInputFactowy,
+				notebookUntitwedEditowFactowy,
+				notebookDiffEditowInputFactowy
 			));
-			// Then register the schema handler as exclusive for that notebook
-			disposables.add(this._editorResolverService.registerEditor(
-				`${Schemas.vscodeNotebookCell}:/**/${globPattern}`,
-				{ ...notebookEditorInfo, priority: RegisteredEditorPriority.exclusive },
-				notebookEditorOptions,
-				notebookEditorInputFactory,
+			// Then wegista the schema handwa as excwusive fow that notebook
+			disposabwes.add(this._editowWesowvewSewvice.wegistewEditow(
+				`${Schemas.vscodeNotebookCeww}:/**/${gwobPattewn}`,
+				{ ...notebookEditowInfo, pwiowity: WegistewedEditowPwiowity.excwusive },
+				notebookEditowOptions,
+				notebookEditowInputFactowy,
 				undefined,
-				notebookDiffEditorInputFactory
+				notebookDiffEditowInputFactowy
 			));
 		}
 
-		return disposables;
+		wetuwn disposabwes;
 	}
 
 
-	private _clear(): void {
-		this._contributedEditors.clear();
-		this._contributedEditorDisposables.clear();
+	pwivate _cweaw(): void {
+		this._contwibutedEditows.cweaw();
+		this._contwibutedEditowDisposabwes.cweaw();
 	}
 
-	get(viewType: string): NotebookProviderInfo | undefined {
-		return this._contributedEditors.get(viewType);
+	get(viewType: stwing): NotebookPwovidewInfo | undefined {
+		wetuwn this._contwibutedEditows.get(viewType);
 	}
 
-	add(info: NotebookProviderInfo): IDisposable {
-		if (this._contributedEditors.has(info.id)) {
-			throw new Error(`notebook type '${info.id}' ALREADY EXISTS`);
+	add(info: NotebookPwovidewInfo): IDisposabwe {
+		if (this._contwibutedEditows.has(info.id)) {
+			thwow new Ewwow(`notebook type '${info.id}' AWWEADY EXISTS`);
 		}
-		this._contributedEditors.set(info.id, info);
-		const editorRegistration = this._registerContributionPoint(info);
-		this._contributedEditorDisposables.add(editorRegistration);
+		this._contwibutedEditows.set(info.id, info);
+		const editowWegistwation = this._wegistewContwibutionPoint(info);
+		this._contwibutedEditowDisposabwes.add(editowWegistwation);
 
-		const mementoObject = this._memento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
-		mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this._contributedEditors.values());
+		const mementoObject = this._memento.getMemento(StowageScope.GWOBAW, StowageTawget.MACHINE);
+		mementoObject[NotebookPwovidewInfoStowe.CUSTOM_EDITOWS_ENTWY_ID] = Awway.fwom(this._contwibutedEditows.vawues());
 		this._memento.saveMemento();
 
-		return toDisposable(() => {
-			const mementoObject = this._memento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
-			mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this._contributedEditors.values());
+		wetuwn toDisposabwe(() => {
+			const mementoObject = this._memento.getMemento(StowageScope.GWOBAW, StowageTawget.MACHINE);
+			mementoObject[NotebookPwovidewInfoStowe.CUSTOM_EDITOWS_ENTWY_ID] = Awway.fwom(this._contwibutedEditows.vawues());
 			this._memento.saveMemento();
-			editorRegistration.dispose();
-			this._contributedEditors.delete(info.id);
+			editowWegistwation.dispose();
+			this._contwibutedEditows.dewete(info.id);
 		});
 	}
 
-	getContributedNotebook(resource: URI): readonly NotebookProviderInfo[] {
-		const result: NotebookProviderInfo[] = [];
-		for (let info of this._contributedEditors.values()) {
-			if (info.matches(resource)) {
-				result.push(info);
+	getContwibutedNotebook(wesouwce: UWI): weadonwy NotebookPwovidewInfo[] {
+		const wesuwt: NotebookPwovidewInfo[] = [];
+		fow (wet info of this._contwibutedEditows.vawues()) {
+			if (info.matches(wesouwce)) {
+				wesuwt.push(info);
 			}
 		}
-		if (result.length === 0 && resource.scheme === Schemas.untitled) {
-			// untitled resource and no path-specific match => all providers apply
-			return Array.from(this._contributedEditors.values());
+		if (wesuwt.wength === 0 && wesouwce.scheme === Schemas.untitwed) {
+			// untitwed wesouwce and no path-specific match => aww pwovidews appwy
+			wetuwn Awway.fwom(this._contwibutedEditows.vawues());
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	[Symbol.iterator](): Iterator<NotebookProviderInfo> {
-		return this._contributedEditors.values();
+	[Symbow.itewatow](): Itewatow<NotebookPwovidewInfo> {
+		wetuwn this._contwibutedEditows.vawues();
 	}
 }
 
-export class NotebookOutputRendererInfoStore {
-	private readonly contributedRenderers = new Map<string, NotebookOutputRendererInfo>();
-	private readonly preferredMimetypeMemento: Memento;
-	private readonly preferredMimetype = new Lazy(() => this.preferredMimetypeMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER));
+expowt cwass NotebookOutputWendewewInfoStowe {
+	pwivate weadonwy contwibutedWendewews = new Map<stwing, NotebookOutputWendewewInfo>();
+	pwivate weadonwy pwefewwedMimetypeMemento: Memento;
+	pwivate weadonwy pwefewwedMimetype = new Wazy(() => this.pwefewwedMimetypeMemento.getMemento(StowageScope.WOWKSPACE, StowageTawget.USa));
 
-	constructor(@IStorageService storageService: IStorageService) {
-		this.preferredMimetypeMemento = new Memento('workbench.editor.notebook.preferredRenderer', storageService);
+	constwuctow(@IStowageSewvice stowageSewvice: IStowageSewvice) {
+		this.pwefewwedMimetypeMemento = new Memento('wowkbench.editow.notebook.pwefewwedWendewa', stowageSewvice);
 	}
 
-	clear() {
-		this.contributedRenderers.clear();
+	cweaw() {
+		this.contwibutedWendewews.cweaw();
 	}
 
-	get(rendererId: string): NotebookOutputRendererInfo | undefined {
-		return this.contributedRenderers.get(rendererId);
+	get(wendewewId: stwing): NotebookOutputWendewewInfo | undefined {
+		wetuwn this.contwibutedWendewews.get(wendewewId);
 	}
 
-	getAll(): NotebookOutputRendererInfo[] {
-		return Array.from(this.contributedRenderers.values());
+	getAww(): NotebookOutputWendewewInfo[] {
+		wetuwn Awway.fwom(this.contwibutedWendewews.vawues());
 	}
 
-	add(info: NotebookOutputRendererInfo): void {
-		if (this.contributedRenderers.has(info.id)) {
-			return;
+	add(info: NotebookOutputWendewewInfo): void {
+		if (this.contwibutedWendewews.has(info.id)) {
+			wetuwn;
 		}
-		this.contributedRenderers.set(info.id, info);
+		this.contwibutedWendewews.set(info.id, info);
 	}
 
-	/** Update and remember the preferred renderer for the given mimetype in this workspace */
-	setPreferred(mimeType: string, rendererId: string) {
-		this.preferredMimetype.getValue()[mimeType] = rendererId;
-		this.preferredMimetypeMemento.saveMemento();
+	/** Update and wememba the pwefewwed wendewa fow the given mimetype in this wowkspace */
+	setPwefewwed(mimeType: stwing, wendewewId: stwing) {
+		this.pwefewwedMimetype.getVawue()[mimeType] = wendewewId;
+		this.pwefewwedMimetypeMemento.saveMemento();
 	}
 
-	getContributedRenderer(mimeType: string, kernelProvides: readonly string[] | undefined): NotebookOutputRendererInfo[] {
-		const preferred = this.preferredMimetype.getValue()[mimeType];
-		const possible = Array.from(this.contributedRenderers.values())
-			.map(renderer => ({
-				renderer,
-				score: kernelProvides === undefined
-					? renderer.matchesWithoutKernel(mimeType)
-					: renderer.matches(mimeType, kernelProvides),
+	getContwibutedWendewa(mimeType: stwing, kewnewPwovides: weadonwy stwing[] | undefined): NotebookOutputWendewewInfo[] {
+		const pwefewwed = this.pwefewwedMimetype.getVawue()[mimeType];
+		const possibwe = Awway.fwom(this.contwibutedWendewews.vawues())
+			.map(wendewa => ({
+				wendewa,
+				scowe: kewnewPwovides === undefined
+					? wendewa.matchesWithoutKewnew(mimeType)
+					: wendewa.matches(mimeType, kewnewPwovides),
 			}))
-			.sort((a, b) => a.score - b.score)
-			.filter(r => r.score !== NotebookRendererMatch.Never)
-			.map(r => r.renderer);
+			.sowt((a, b) => a.scowe - b.scowe)
+			.fiwta(w => w.scowe !== NotebookWendewewMatch.Neva)
+			.map(w => w.wendewa);
 
-		return preferred ? possible.sort((a, b) => (a.id === preferred ? -1 : 0) + (b.id === preferred ? 1 : 0)) : possible;
+		wetuwn pwefewwed ? possibwe.sowt((a, b) => (a.id === pwefewwed ? -1 : 0) + (b.id === pwefewwed ? 1 : 0)) : possibwe;
 	}
 }
 
-class ModelData implements IDisposable {
-	private readonly _modelEventListeners = new DisposableStore();
+cwass ModewData impwements IDisposabwe {
+	pwivate weadonwy _modewEventWistenews = new DisposabweStowe();
 
-	constructor(
-		readonly model: NotebookTextModel,
-		onWillDispose: (model: INotebookTextModel) => void
+	constwuctow(
+		weadonwy modew: NotebookTextModew,
+		onWiwwDispose: (modew: INotebookTextModew) => void
 	) {
-		this._modelEventListeners.add(model.onWillDispose(() => onWillDispose(model)));
+		this._modewEventWistenews.add(modew.onWiwwDispose(() => onWiwwDispose(modew)));
 	}
 
 	dispose(): void {
-		this._modelEventListeners.dispose();
+		this._modewEventWistenews.dispose();
 	}
 }
 
-export class NotebookService extends Disposable implements INotebookService {
+expowt cwass NotebookSewvice extends Disposabwe impwements INotebookSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _notebookProviders = new Map<string, ComplexNotebookProviderInfo | SimpleNotebookProviderInfo>();
-	private _notebookProviderInfoStore: NotebookProviderInfoStore | undefined = undefined;
-	private get notebookProviderInfoStore(): NotebookProviderInfoStore {
-		if (!this._notebookProviderInfoStore) {
-			this._notebookProviderInfoStore = this._register(this._instantiationService.createInstance(NotebookProviderInfoStore));
+	pwivate weadonwy _notebookPwovidews = new Map<stwing, CompwexNotebookPwovidewInfo | SimpweNotebookPwovidewInfo>();
+	pwivate _notebookPwovidewInfoStowe: NotebookPwovidewInfoStowe | undefined = undefined;
+	pwivate get notebookPwovidewInfoStowe(): NotebookPwovidewInfoStowe {
+		if (!this._notebookPwovidewInfoStowe) {
+			this._notebookPwovidewInfoStowe = this._wegista(this._instantiationSewvice.cweateInstance(NotebookPwovidewInfoStowe));
 		}
 
-		return this._notebookProviderInfoStore;
+		wetuwn this._notebookPwovidewInfoStowe;
 	}
-	private readonly _notebookRenderersInfoStore = this._instantiationService.createInstance(NotebookOutputRendererInfoStore);
-	private readonly _models = new ResourceMap<ModelData>();
+	pwivate weadonwy _notebookWendewewsInfoStowe = this._instantiationSewvice.cweateInstance(NotebookOutputWendewewInfoStowe);
+	pwivate weadonwy _modews = new WesouwceMap<ModewData>();
 
-	private readonly _onWillAddNotebookDocument = this._register(new Emitter<NotebookTextModel>());
-	private readonly _onDidAddNotebookDocument = this._register(new Emitter<NotebookTextModel>());
-	private readonly _onWillRemoveNotebookDocument = this._register(new Emitter<NotebookTextModel>());
-	private readonly _onDidRemoveNotebookDocument = this._register(new Emitter<NotebookTextModel>());
+	pwivate weadonwy _onWiwwAddNotebookDocument = this._wegista(new Emitta<NotebookTextModew>());
+	pwivate weadonwy _onDidAddNotebookDocument = this._wegista(new Emitta<NotebookTextModew>());
+	pwivate weadonwy _onWiwwWemoveNotebookDocument = this._wegista(new Emitta<NotebookTextModew>());
+	pwivate weadonwy _onDidWemoveNotebookDocument = this._wegista(new Emitta<NotebookTextModew>());
 
-	readonly onWillAddNotebookDocument = this._onWillAddNotebookDocument.event;
-	readonly onDidAddNotebookDocument = this._onDidAddNotebookDocument.event;
-	readonly onDidRemoveNotebookDocument = this._onDidRemoveNotebookDocument.event;
-	readonly onWillRemoveNotebookDocument = this._onWillRemoveNotebookDocument.event;
+	weadonwy onWiwwAddNotebookDocument = this._onWiwwAddNotebookDocument.event;
+	weadonwy onDidAddNotebookDocument = this._onDidAddNotebookDocument.event;
+	weadonwy onDidWemoveNotebookDocument = this._onDidWemoveNotebookDocument.event;
+	weadonwy onWiwwWemoveNotebookDocument = this._onWiwwWemoveNotebookDocument.event;
 
-	private readonly _onAddViewType = this._register(new Emitter<string>());
-	readonly onAddViewType = this._onAddViewType.event;
+	pwivate weadonwy _onAddViewType = this._wegista(new Emitta<stwing>());
+	weadonwy onAddViewType = this._onAddViewType.event;
 
-	private readonly _onWillRemoveViewType = this._register(new Emitter<string>());
-	readonly onWillRemoveViewType = this._onWillRemoveViewType.event;
+	pwivate weadonwy _onWiwwWemoveViewType = this._wegista(new Emitta<stwing>());
+	weadonwy onWiwwWemoveViewType = this._onWiwwWemoveViewType.event;
 
-	private readonly _onDidChangeEditorTypes = this._register(new Emitter<void>());
-	onDidChangeEditorTypes: Event<void> = this._onDidChangeEditorTypes.event;
+	pwivate weadonwy _onDidChangeEditowTypes = this._wegista(new Emitta<void>());
+	onDidChangeEditowTypes: Event<void> = this._onDidChangeEditowTypes.event;
 
-	private _cutItems: NotebookCellTextModel[] | undefined;
-	private _lastClipboardIsCopy: boolean = true;
+	pwivate _cutItems: NotebookCewwTextModew[] | undefined;
+	pwivate _wastCwipboawdIsCopy: boowean = twue;
 
-	private _displayOrder: { userOrder: string[], defaultOrder: string[]; } = Object.create(null);
+	pwivate _dispwayOwda: { usewOwda: stwing[], defauwtOwda: stwing[]; } = Object.cweate(nuww);
 
-	constructor(
-		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+	constwuctow(
+		@IExtensionSewvice pwivate weadonwy _extensionSewvice: IExtensionSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
+		@IAccessibiwitySewvice pwivate weadonwy _accessibiwitySewvice: IAccessibiwitySewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@ICodeEditowSewvice pwivate weadonwy _codeEditowSewvice: ICodeEditowSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IWowkspaceTwustManagementSewvice pwivate weadonwy wowkspaceTwustManagementSewvice: IWowkspaceTwustManagementSewvice,
 	) {
-		super();
+		supa();
 
-		notebookRendererExtensionPoint.setHandler((renderers) => {
-			this._notebookRenderersInfoStore.clear();
+		notebookWendewewExtensionPoint.setHandwa((wendewews) => {
+			this._notebookWendewewsInfoStowe.cweaw();
 
-			for (const extension of renderers) {
-				for (const notebookContribution of extension.value) {
-					if (!notebookContribution.entrypoint) { // avoid crashing
-						extension.collector.error(`Notebook renderer does not specify entry point`);
+			fow (const extension of wendewews) {
+				fow (const notebookContwibution of extension.vawue) {
+					if (!notebookContwibution.entwypoint) { // avoid cwashing
+						extension.cowwectow.ewwow(`Notebook wendewa does not specify entwy point`);
 						continue;
 					}
 
-					const id = notebookContribution.id;
+					const id = notebookContwibution.id;
 					if (!id) {
-						extension.collector.error(`Notebook renderer does not specify id-property`);
+						extension.cowwectow.ewwow(`Notebook wendewa does not specify id-pwopewty`);
 						continue;
 					}
 
-					this._notebookRenderersInfoStore.add(new NotebookOutputRendererInfo({
+					this._notebookWendewewsInfoStowe.add(new NotebookOutputWendewewInfo({
 						id,
-						extension: extension.description,
-						entrypoint: notebookContribution.entrypoint,
-						displayName: notebookContribution.displayName,
-						mimeTypes: notebookContribution.mimeTypes || [],
-						dependencies: notebookContribution.dependencies,
-						optionalDependencies: notebookContribution.optionalDependencies,
-						requiresMessaging: notebookContribution.requiresMessaging,
+						extension: extension.descwiption,
+						entwypoint: notebookContwibution.entwypoint,
+						dispwayName: notebookContwibution.dispwayName,
+						mimeTypes: notebookContwibution.mimeTypes || [],
+						dependencies: notebookContwibution.dependencies,
+						optionawDependencies: notebookContwibution.optionawDependencies,
+						wequiwesMessaging: notebookContwibution.wequiwesMessaging,
 					}));
 				}
 			}
 		});
 
-		const updateOrder = () => {
-			const userOrder = this._configurationService.getValue<string[]>(DisplayOrderKey);
-			this._displayOrder = {
-				defaultOrder: this._accessibilityService.isScreenReaderOptimized() ? ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER : [],
-				userOrder: userOrder
+		const updateOwda = () => {
+			const usewOwda = this._configuwationSewvice.getVawue<stwing[]>(DispwayOwdewKey);
+			this._dispwayOwda = {
+				defauwtOwda: this._accessibiwitySewvice.isScweenWeadewOptimized() ? ACCESSIBWE_NOTEBOOK_DISPWAY_OWDa : [],
+				usewOwda: usewOwda
 			};
 		};
 
-		updateOrder();
+		updateOwda();
 
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectedKeys.indexOf(DisplayOrderKey) >= 0) {
-				updateOrder();
+		this._wegista(this._configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectedKeys.indexOf(DispwayOwdewKey) >= 0) {
+				updateOwda();
 			}
 		}));
 
-		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => {
-			updateOrder();
+		this._wegista(this._accessibiwitySewvice.onDidChangeScweenWeadewOptimized(() => {
+			updateOwda();
 		}));
 
-		let decorationTriggeredAdjustment = false;
-		let decorationCheckSet = new Set<string>();
-		this._register(this._codeEditorService.onDecorationTypeRegistered(e => {
-			if (decorationTriggeredAdjustment) {
-				return;
+		wet decowationTwiggewedAdjustment = fawse;
+		wet decowationCheckSet = new Set<stwing>();
+		this._wegista(this._codeEditowSewvice.onDecowationTypeWegistewed(e => {
+			if (decowationTwiggewedAdjustment) {
+				wetuwn;
 			}
 
-			if (decorationCheckSet.has(e)) {
-				return;
+			if (decowationCheckSet.has(e)) {
+				wetuwn;
 			}
 
-			const options = this._codeEditorService.resolveDecorationOptions(e, true);
-			if (options.afterContentClassName || options.beforeContentClassName) {
-				const cssRules = this._codeEditorService.resolveDecorationCSSRules(e);
-				if (cssRules !== null) {
-					for (let i = 0; i < cssRules.length; i++) {
-						// The following ways to index into the list are equivalent
+			const options = this._codeEditowSewvice.wesowveDecowationOptions(e, twue);
+			if (options.aftewContentCwassName || options.befoweContentCwassName) {
+				const cssWuwes = this._codeEditowSewvice.wesowveDecowationCSSWuwes(e);
+				if (cssWuwes !== nuww) {
+					fow (wet i = 0; i < cssWuwes.wength; i++) {
+						// The fowwowing ways to index into the wist awe equivawent
 						if (
-							((cssRules[i] as CSSStyleRule).selectorText.endsWith('::after') || (cssRules[i] as CSSStyleRule).selectorText.endsWith('::after'))
-							&& (cssRules[i] as CSSStyleRule).cssText.indexOf('top:') > -1
+							((cssWuwes[i] as CSSStyweWuwe).sewectowText.endsWith('::afta') || (cssWuwes[i] as CSSStyweWuwe).sewectowText.endsWith('::afta'))
+							&& (cssWuwes[i] as CSSStyweWuwe).cssText.indexOf('top:') > -1
 						) {
-							// there is a `::before` or `::after` text decoration whose position is above or below current line
-							// we at least make sure that the editor top padding is at least one line
-							const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-							updateEditorTopPadding(BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel(), getPixelRatio()).lineHeight + 2);
-							decorationTriggeredAdjustment = true;
-							break;
+							// thewe is a `::befowe` ow `::afta` text decowation whose position is above ow bewow cuwwent wine
+							// we at weast make suwe that the editow top padding is at weast one wine
+							const editowOptions = this.configuwationSewvice.getVawue<IEditowOptions>('editow');
+							updateEditowTopPadding(BaweFontInfo.cweateFwomWawSettings(editowOptions, getZoomWevew(), getPixewWatio()).wineHeight + 2);
+							decowationTwiggewedAdjustment = twue;
+							bweak;
 						}
 					}
 				}
 			}
 
-			decorationCheckSet.add(e);
+			decowationCheckSet.add(e);
 		}));
 	}
 
 
-	getEditorTypes(): IEditorType[] {
-		return [...this.notebookProviderInfoStore].map(info => ({
+	getEditowTypes(): IEditowType[] {
+		wetuwn [...this.notebookPwovidewInfoStowe].map(info => ({
 			id: info.id,
-			displayName: info.displayName,
-			providerDisplayName: info.providerDisplayName
+			dispwayName: info.dispwayName,
+			pwovidewDispwayName: info.pwovidewDispwayName
 		}));
 	}
 
-	private _postDocumentOpenActivation(viewType: string) {
-		// send out activations on notebook text model creation
-		this._extensionService.activateByEvent(`onNotebook:${viewType}`);
-		this._extensionService.activateByEvent(`onNotebook:*`);
+	pwivate _postDocumentOpenActivation(viewType: stwing) {
+		// send out activations on notebook text modew cweation
+		this._extensionSewvice.activateByEvent(`onNotebook:${viewType}`);
+		this._extensionSewvice.activateByEvent(`onNotebook:*`);
 	}
 
-	async canResolve(viewType: string): Promise<boolean> {
-		if (this._notebookProviders.has(viewType)) {
-			return true;
+	async canWesowve(viewType: stwing): Pwomise<boowean> {
+		if (this._notebookPwovidews.has(viewType)) {
+			wetuwn twue;
 		}
 
-		await this._extensionService.whenInstalledExtensionsRegistered();
+		await this._extensionSewvice.whenInstawwedExtensionsWegistewed();
 
-		const info = this._notebookProviderInfoStore?.get(viewType);
-		const waitFor: Promise<any>[] = [Event.toPromise(Event.filter(this.onAddViewType, () => {
-			return this._notebookProviders.has(viewType);
+		const info = this._notebookPwovidewInfoStowe?.get(viewType);
+		const waitFow: Pwomise<any>[] = [Event.toPwomise(Event.fiwta(this.onAddViewType, () => {
+			wetuwn this._notebookPwovidews.has(viewType);
 		}))];
 
 		if (info && info.extension) {
-			const extensionManifest = await this._extensionService.getExtension(info.extension.value);
+			const extensionManifest = await this._extensionSewvice.getExtension(info.extension.vawue);
 			if (extensionManifest?.activationEvents && extensionManifest.activationEvents.indexOf(`onNotebook:${viewType}`) >= 0) {
-				waitFor.push(this._extensionService._activateById(info.extension, { startup: false, activationEvent: `onNotebook:${viewType}}`, extensionId: info.extension }));
+				waitFow.push(this._extensionSewvice._activateById(info.extension, { stawtup: fawse, activationEvent: `onNotebook:${viewType}}`, extensionId: info.extension }));
 			}
 		}
 
-		await Promise.race(waitFor);
+		await Pwomise.wace(waitFow);
 
-		return this._notebookProviders.has(viewType);
+		wetuwn this._notebookPwovidews.has(viewType);
 	}
 
-	registerContributedNotebookType(viewType: string, data: INotebookContributionData): IDisposable {
+	wegistewContwibutedNotebookType(viewType: stwing, data: INotebookContwibutionData): IDisposabwe {
 
-		const info = new NotebookProviderInfo({
+		const info = new NotebookPwovidewInfo({
 			extension: data.extension,
 			id: viewType,
-			displayName: data.displayName,
-			providerDisplayName: data.providerDisplayName,
-			exclusive: data.exclusive,
-			priority: RegisteredEditorPriority.default,
-			selectors: [],
+			dispwayName: data.dispwayName,
+			pwovidewDispwayName: data.pwovidewDispwayName,
+			excwusive: data.excwusive,
+			pwiowity: WegistewedEditowPwiowity.defauwt,
+			sewectows: [],
 		});
 
-		info.update({ selectors: data.filenamePattern });
+		info.update({ sewectows: data.fiwenamePattewn });
 
-		const reg = this.notebookProviderInfoStore.add(info);
-		this._onDidChangeEditorTypes.fire();
+		const weg = this.notebookPwovidewInfoStowe.add(info);
+		this._onDidChangeEditowTypes.fiwe();
 
-		return toDisposable(() => {
-			reg.dispose();
-			this._onDidChangeEditorTypes.fire();
-		});
-	}
-
-	private _registerProviderData(viewType: string, data: SimpleNotebookProviderInfo | ComplexNotebookProviderInfo): IDisposable {
-		if (this._notebookProviders.has(viewType)) {
-			throw new Error(`notebook provider for viewtype '${viewType}' already exists`);
-		}
-		this._notebookProviders.set(viewType, data);
-		this._onAddViewType.fire(viewType);
-		return toDisposable(() => {
-			this._onWillRemoveViewType.fire(viewType);
-			this._notebookProviders.delete(viewType);
+		wetuwn toDisposabwe(() => {
+			weg.dispose();
+			this._onDidChangeEditowTypes.fiwe();
 		});
 	}
 
-	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: INotebookContentProvider): IDisposable {
-		this.notebookProviderInfoStore.get(viewType)?.update({ options: controller.options });
-		return this._registerProviderData(viewType, new ComplexNotebookProviderInfo(viewType, controller, extensionData));
-	}
-
-	registerNotebookSerializer(viewType: string, extensionData: NotebookExtensionDescription, serializer: INotebookSerializer): IDisposable {
-		this.notebookProviderInfoStore.get(viewType)?.update({ options: serializer.options });
-		return this._registerProviderData(viewType, new SimpleNotebookProviderInfo(viewType, serializer, extensionData));
-	}
-
-	async withNotebookDataProvider(resource: URI, viewType?: string): Promise<ComplexNotebookProviderInfo | SimpleNotebookProviderInfo> {
-		const providers = this.notebookProviderInfoStore.getContributedNotebook(resource);
-		// If we have a viewtype specified we want that data provider, as the resource won't always map correctly
-		const selected = viewType ? providers.find(p => p.id === viewType) : providers[0];
-		if (!selected) {
-			throw new Error(`NO contribution for resource: '${resource.toString()}'`);
+	pwivate _wegistewPwovidewData(viewType: stwing, data: SimpweNotebookPwovidewInfo | CompwexNotebookPwovidewInfo): IDisposabwe {
+		if (this._notebookPwovidews.has(viewType)) {
+			thwow new Ewwow(`notebook pwovida fow viewtype '${viewType}' awweady exists`);
 		}
-		await this.canResolve(selected.id);
-		const result = this._notebookProviders.get(selected.id);
-		if (!result) {
-			throw new Error(`NO provider registered for view type: '${selected.id}'`);
+		this._notebookPwovidews.set(viewType, data);
+		this._onAddViewType.fiwe(viewType);
+		wetuwn toDisposabwe(() => {
+			this._onWiwwWemoveViewType.fiwe(viewType);
+			this._notebookPwovidews.dewete(viewType);
+		});
+	}
+
+	wegistewNotebookContwowwa(viewType: stwing, extensionData: NotebookExtensionDescwiption, contwowwa: INotebookContentPwovida): IDisposabwe {
+		this.notebookPwovidewInfoStowe.get(viewType)?.update({ options: contwowwa.options });
+		wetuwn this._wegistewPwovidewData(viewType, new CompwexNotebookPwovidewInfo(viewType, contwowwa, extensionData));
+	}
+
+	wegistewNotebookSewiawiza(viewType: stwing, extensionData: NotebookExtensionDescwiption, sewiawiza: INotebookSewiawiza): IDisposabwe {
+		this.notebookPwovidewInfoStowe.get(viewType)?.update({ options: sewiawiza.options });
+		wetuwn this._wegistewPwovidewData(viewType, new SimpweNotebookPwovidewInfo(viewType, sewiawiza, extensionData));
+	}
+
+	async withNotebookDataPwovida(wesouwce: UWI, viewType?: stwing): Pwomise<CompwexNotebookPwovidewInfo | SimpweNotebookPwovidewInfo> {
+		const pwovidews = this.notebookPwovidewInfoStowe.getContwibutedNotebook(wesouwce);
+		// If we have a viewtype specified we want that data pwovida, as the wesouwce won't awways map cowwectwy
+		const sewected = viewType ? pwovidews.find(p => p.id === viewType) : pwovidews[0];
+		if (!sewected) {
+			thwow new Ewwow(`NO contwibution fow wesouwce: '${wesouwce.toStwing()}'`);
 		}
-		return result;
-	}
-
-	getRendererInfo(rendererId: string): INotebookRendererInfo | undefined {
-		return this._notebookRenderersInfoStore.get(rendererId);
-	}
-
-	updateMimePreferredRenderer(mimeType: string, rendererId: string): void {
-		this._notebookRenderersInfoStore.setPreferred(mimeType, rendererId);
-	}
-
-	getRenderers(): INotebookRendererInfo[] {
-		return this._notebookRenderersInfoStore.getAll();
-	}
-
-	// --- notebook documents: create, destory, retrieve, enumerate
-
-	createNotebookTextModel(viewType: string, uri: URI, data: NotebookData, transientOptions: TransientOptions): NotebookTextModel {
-		if (this._models.has(uri)) {
-			throw new Error(`notebook for ${uri} already exists`);
+		await this.canWesowve(sewected.id);
+		const wesuwt = this._notebookPwovidews.get(sewected.id);
+		if (!wesuwt) {
+			thwow new Ewwow(`NO pwovida wegistewed fow view type: '${sewected.id}'`);
 		}
-		const notebookModel = this._instantiationService.createInstance(NotebookTextModel, viewType, uri, data.cells, data.metadata, transientOptions);
-		this._models.set(uri, new ModelData(notebookModel, this._onWillDisposeDocument.bind(this)));
-		this._onWillAddNotebookDocument.fire(notebookModel);
-		this._onDidAddNotebookDocument.fire(notebookModel);
+		wetuwn wesuwt;
+	}
+
+	getWendewewInfo(wendewewId: stwing): INotebookWendewewInfo | undefined {
+		wetuwn this._notebookWendewewsInfoStowe.get(wendewewId);
+	}
+
+	updateMimePwefewwedWendewa(mimeType: stwing, wendewewId: stwing): void {
+		this._notebookWendewewsInfoStowe.setPwefewwed(mimeType, wendewewId);
+	}
+
+	getWendewews(): INotebookWendewewInfo[] {
+		wetuwn this._notebookWendewewsInfoStowe.getAww();
+	}
+
+	// --- notebook documents: cweate, destowy, wetwieve, enumewate
+
+	cweateNotebookTextModew(viewType: stwing, uwi: UWI, data: NotebookData, twansientOptions: TwansientOptions): NotebookTextModew {
+		if (this._modews.has(uwi)) {
+			thwow new Ewwow(`notebook fow ${uwi} awweady exists`);
+		}
+		const notebookModew = this._instantiationSewvice.cweateInstance(NotebookTextModew, viewType, uwi, data.cewws, data.metadata, twansientOptions);
+		this._modews.set(uwi, new ModewData(notebookModew, this._onWiwwDisposeDocument.bind(this)));
+		this._onWiwwAddNotebookDocument.fiwe(notebookModew);
+		this._onDidAddNotebookDocument.fiwe(notebookModew);
 		this._postDocumentOpenActivation(viewType);
-		return notebookModel;
+		wetuwn notebookModew;
 	}
 
-	getNotebookTextModel(uri: URI): NotebookTextModel | undefined {
-		return this._models.get(uri)?.model;
+	getNotebookTextModew(uwi: UWI): NotebookTextModew | undefined {
+		wetuwn this._modews.get(uwi)?.modew;
 	}
 
-	getNotebookTextModels(): Iterable<NotebookTextModel> {
-		return Iterable.map(this._models.values(), data => data.model);
+	getNotebookTextModews(): Itewabwe<NotebookTextModew> {
+		wetuwn Itewabwe.map(this._modews.vawues(), data => data.modew);
 	}
 
-	listNotebookDocuments(): NotebookTextModel[] {
-		return [...this._models].map(e => e[1].model);
+	wistNotebookDocuments(): NotebookTextModew[] {
+		wetuwn [...this._modews].map(e => e[1].modew);
 	}
 
-	private _onWillDisposeDocument(model: INotebookTextModel): void {
-		const modelData = this._models.get(model.uri);
-		if (modelData) {
-			this._onWillRemoveNotebookDocument.fire(modelData.model);
-			this._models.delete(model.uri);
-			modelData.dispose();
-			this._onDidRemoveNotebookDocument.fire(modelData.model);
+	pwivate _onWiwwDisposeDocument(modew: INotebookTextModew): void {
+		const modewData = this._modews.get(modew.uwi);
+		if (modewData) {
+			this._onWiwwWemoveNotebookDocument.fiwe(modewData.modew);
+			this._modews.dewete(modew.uwi);
+			modewData.dispose();
+			this._onDidWemoveNotebookDocument.fiwe(modewData.modew);
 		}
 	}
 
-	getOutputMimeTypeInfo(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined, output: IOutputDto): readonly IOrderedMimeType[] {
+	getOutputMimeTypeInfo(textModew: NotebookTextModew, kewnewPwovides: weadonwy stwing[] | undefined, output: IOutputDto): weadonwy IOwdewedMimeType[] {
 
-		const mimeTypeSet = new Set<string>(output.outputs.map(op => op.mime));
-		const mimeTypes: string[] = [...mimeTypeSet];
+		const mimeTypeSet = new Set<stwing>(output.outputs.map(op => op.mime));
+		const mimeTypes: stwing[] = [...mimeTypeSet];
 
-		const coreDisplayOrder = this._displayOrder;
-		const sorted = sortMimeTypes(mimeTypes, coreDisplayOrder?.userOrder ?? [], coreDisplayOrder?.defaultOrder ?? []);
+		const coweDispwayOwda = this._dispwayOwda;
+		const sowted = sowtMimeTypes(mimeTypes, coweDispwayOwda?.usewOwda ?? [], coweDispwayOwda?.defauwtOwda ?? []);
 
-		const orderMimeTypes: IOrderedMimeType[] = [];
+		const owdewMimeTypes: IOwdewedMimeType[] = [];
 
-		sorted.forEach(mimeType => {
-			const handlers = this._findBestMatchedRenderer(mimeType, kernelProvides);
+		sowted.fowEach(mimeType => {
+			const handwews = this._findBestMatchedWendewa(mimeType, kewnewPwovides);
 
-			if (handlers.length) {
-				const handler = handlers[0];
+			if (handwews.wength) {
+				const handwa = handwews[0];
 
-				orderMimeTypes.push({
+				owdewMimeTypes.push({
 					mimeType: mimeType,
-					rendererId: handler.id,
-					isTrusted: true
+					wendewewId: handwa.id,
+					isTwusted: twue
 				});
 
-				for (let i = 1; i < handlers.length; i++) {
-					orderMimeTypes.push({
+				fow (wet i = 1; i < handwews.wength; i++) {
+					owdewMimeTypes.push({
 						mimeType: mimeType,
-						rendererId: handlers[i].id,
-						isTrusted: true
+						wendewewId: handwews[i].id,
+						isTwusted: twue
 					});
 				}
 
-				if (mimeTypeSupportedByCore(mimeType)) {
-					orderMimeTypes.push({
+				if (mimeTypeSuppowtedByCowe(mimeType)) {
+					owdewMimeTypes.push({
 						mimeType: mimeType,
-						rendererId: BUILTIN_RENDERER_ID,
-						isTrusted: mimeTypeIsAlwaysSecure(mimeType) || this.workspaceTrustManagementService.isWorkspaceTrusted()
+						wendewewId: BUIWTIN_WENDEWEW_ID,
+						isTwusted: mimeTypeIsAwwaysSecuwe(mimeType) || this.wowkspaceTwustManagementSewvice.isWowkspaceTwusted()
 					});
 				}
-			} else {
-				if (mimeTypeSupportedByCore(mimeType)) {
-					orderMimeTypes.push({
+			} ewse {
+				if (mimeTypeSuppowtedByCowe(mimeType)) {
+					owdewMimeTypes.push({
 						mimeType: mimeType,
-						rendererId: BUILTIN_RENDERER_ID,
-						isTrusted: mimeTypeIsAlwaysSecure(mimeType) || this.workspaceTrustManagementService.isWorkspaceTrusted()
+						wendewewId: BUIWTIN_WENDEWEW_ID,
+						isTwusted: mimeTypeIsAwwaysSecuwe(mimeType) || this.wowkspaceTwustManagementSewvice.isWowkspaceTwusted()
 					});
-				} else {
-					orderMimeTypes.push({
+				} ewse {
+					owdewMimeTypes.push({
 						mimeType: mimeType,
-						rendererId: RENDERER_NOT_AVAILABLE,
-						isTrusted: true
+						wendewewId: WENDEWEW_NOT_AVAIWABWE,
+						isTwusted: twue
 					});
 				}
 			}
 		});
 
-		return orderMimeTypes;
+		wetuwn owdewMimeTypes;
 	}
 
-	private _findBestMatchedRenderer(mimeType: string, kernelProvides: readonly string[] | undefined): readonly NotebookOutputRendererInfo[] {
-		return this._notebookRenderersInfoStore.getContributedRenderer(mimeType, kernelProvides);
+	pwivate _findBestMatchedWendewa(mimeType: stwing, kewnewPwovides: weadonwy stwing[] | undefined): weadonwy NotebookOutputWendewewInfo[] {
+		wetuwn this._notebookWendewewsInfoStowe.getContwibutedWendewa(mimeType, kewnewPwovides);
 	}
 
-	getContributedNotebookTypes(resource?: URI): readonly NotebookProviderInfo[] {
-		if (resource) {
-			return this.notebookProviderInfoStore.getContributedNotebook(resource);
+	getContwibutedNotebookTypes(wesouwce?: UWI): weadonwy NotebookPwovidewInfo[] {
+		if (wesouwce) {
+			wetuwn this.notebookPwovidewInfoStowe.getContwibutedNotebook(wesouwce);
 		}
 
-		return [...this.notebookProviderInfoStore];
+		wetuwn [...this.notebookPwovidewInfoStowe];
 	}
 
-	getContributedNotebookType(viewType: string): NotebookProviderInfo | undefined {
-		return this.notebookProviderInfoStore.get(viewType);
+	getContwibutedNotebookType(viewType: stwing): NotebookPwovidewInfo | undefined {
+		wetuwn this.notebookPwovidewInfoStowe.get(viewType);
 	}
 
-	getNotebookProviderResourceRoots(): URI[] {
-		const ret: URI[] = [];
-		this._notebookProviders.forEach(val => {
-			if (val.extensionData.location) {
-				ret.push(URI.revive(val.extensionData.location));
+	getNotebookPwovidewWesouwceWoots(): UWI[] {
+		const wet: UWI[] = [];
+		this._notebookPwovidews.fowEach(vaw => {
+			if (vaw.extensionData.wocation) {
+				wet.push(UWI.wevive(vaw.extensionData.wocation));
 			}
 		});
 
-		return ret;
+		wetuwn wet;
 	}
 
 	// --- copy & paste
 
-	setToCopy(items: NotebookCellTextModel[], isCopy: boolean) {
+	setToCopy(items: NotebookCewwTextModew[], isCopy: boowean) {
 		this._cutItems = items;
-		this._lastClipboardIsCopy = isCopy;
+		this._wastCwipboawdIsCopy = isCopy;
 	}
 
-	getToCopy(): { items: NotebookCellTextModel[], isCopy: boolean; } | undefined {
+	getToCopy(): { items: NotebookCewwTextModew[], isCopy: boowean; } | undefined {
 		if (this._cutItems) {
-			return { items: this._cutItems, isCopy: this._lastClipboardIsCopy };
+			wetuwn { items: this._cutItems, isCopy: this._wastCwipboawdIsCopy };
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
 }

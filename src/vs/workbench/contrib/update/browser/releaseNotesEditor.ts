@@ -1,227 +1,227 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/releasenoteseditor';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { escapeMarkdownSyntaxTokens } from 'vs/base/common/htmlContent';
-import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import { OS } from 'vs/base/common/platform';
-import { escape } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { TokenizationRegistry } from 'vs/editor/common/modes';
-import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import * as nls from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { asText, IRequestService } from 'vs/platform/request/common/request';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/browser/markdownDocumentRenderer';
-import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
-import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+impowt 'vs/css!./media/weweasenoteseditow';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { escapeMawkdownSyntaxTokens } fwom 'vs/base/common/htmwContent';
+impowt { KeybindingPawsa } fwom 'vs/base/common/keybindingPawsa';
+impowt { OS } fwom 'vs/base/common/pwatfowm';
+impowt { escape } fwom 'vs/base/common/stwings';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { TokenizationWegistwy } fwom 'vs/editow/common/modes';
+impowt { genewateTokensCSSFowCowowMap } fwom 'vs/editow/common/modes/suppowts/tokenization';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt * as nws fwom 'vs/nws';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { asText, IWequestSewvice } fwom 'vs/pwatfowm/wequest/common/wequest';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { DEFAUWT_MAWKDOWN_STYWES, wendewMawkdownDocument } fwom 'vs/wowkbench/contwib/mawkdown/bwowsa/mawkdownDocumentWendewa';
+impowt { WebviewInput } fwom 'vs/wowkbench/contwib/webviewPanew/bwowsa/webviewEditowInput';
+impowt { IWebviewWowkbenchSewvice } fwom 'vs/wowkbench/contwib/webviewPanew/bwowsa/webviewWowkbenchSewvice';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { ACTIVE_GWOUP, IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { suppowtsTewemetwy } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
 
-export class ReleaseNotesManager {
+expowt cwass WeweaseNotesManaga {
 
-	private readonly _releaseNotesCache = new Map<string, Promise<string>>();
+	pwivate weadonwy _weweaseNotesCache = new Map<stwing, Pwomise<stwing>>();
 
-	private _currentReleaseNotes: WebviewInput | undefined = undefined;
-	private _lastText: string | undefined;
+	pwivate _cuwwentWeweaseNotes: WebviewInput | undefined = undefined;
+	pwivate _wastText: stwing | undefined;
 
-	public constructor(
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IModeService private readonly _modeService: IModeService,
-		@IOpenerService private readonly _openerService: IOpenerService,
-		@IRequestService private readonly _requestService: IRequestService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
-		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
-		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IProductService private readonly _productService: IProductService
+	pubwic constwuctow(
+		@IEnviwonmentSewvice pwivate weadonwy _enviwonmentSewvice: IEnviwonmentSewvice,
+		@IKeybindingSewvice pwivate weadonwy _keybindingSewvice: IKeybindingSewvice,
+		@IModeSewvice pwivate weadonwy _modeSewvice: IModeSewvice,
+		@IOpenewSewvice pwivate weadonwy _openewSewvice: IOpenewSewvice,
+		@IWequestSewvice pwivate weadonwy _wequestSewvice: IWequestSewvice,
+		@ITewemetwySewvice pwivate weadonwy _tewemetwySewvice: ITewemetwySewvice,
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy _editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IWebviewWowkbenchSewvice pwivate weadonwy _webviewWowkbenchSewvice: IWebviewWowkbenchSewvice,
+		@IExtensionSewvice pwivate weadonwy _extensionSewvice: IExtensionSewvice,
+		@IPwoductSewvice pwivate weadonwy _pwoductSewvice: IPwoductSewvice
 	) {
-		TokenizationRegistry.onDidChange(async () => {
-			if (!this._currentReleaseNotes || !this._lastText) {
-				return;
+		TokenizationWegistwy.onDidChange(async () => {
+			if (!this._cuwwentWeweaseNotes || !this._wastText) {
+				wetuwn;
 			}
-			const html = await this.renderBody(this._lastText);
-			if (this._currentReleaseNotes) {
-				this._currentReleaseNotes.webview.html = html;
+			const htmw = await this.wendewBody(this._wastText);
+			if (this._cuwwentWeweaseNotes) {
+				this._cuwwentWeweaseNotes.webview.htmw = htmw;
 			}
 		});
 	}
 
-	public async show(
-		accessor: ServicesAccessor,
-		version: string
-	): Promise<boolean> {
-		const releaseNoteText = await this.loadReleaseNotes(version);
-		this._lastText = releaseNoteText;
-		const html = await this.renderBody(releaseNoteText);
-		const title = nls.localize('releaseNotesInputName', "Release Notes: {0}", version);
+	pubwic async show(
+		accessow: SewvicesAccessow,
+		vewsion: stwing
+	): Pwomise<boowean> {
+		const weweaseNoteText = await this.woadWeweaseNotes(vewsion);
+		this._wastText = weweaseNoteText;
+		const htmw = await this.wendewBody(weweaseNoteText);
+		const titwe = nws.wocawize('weweaseNotesInputName', "Wewease Notes: {0}", vewsion);
 
-		const activeEditorPane = this._editorService.activeEditorPane;
-		if (this._currentReleaseNotes) {
-			this._currentReleaseNotes.setName(title);
-			this._currentReleaseNotes.webview.html = html;
-			this._webviewWorkbenchService.revealWebview(this._currentReleaseNotes, activeEditorPane ? activeEditorPane.group : this._editorGroupService.activeGroup, false);
-		} else {
-			this._currentReleaseNotes = this._webviewWorkbenchService.createWebview(
-				generateUuid(),
-				'releaseNotes',
-				title,
-				{ group: ACTIVE_GROUP, preserveFocus: false },
+		const activeEditowPane = this._editowSewvice.activeEditowPane;
+		if (this._cuwwentWeweaseNotes) {
+			this._cuwwentWeweaseNotes.setName(titwe);
+			this._cuwwentWeweaseNotes.webview.htmw = htmw;
+			this._webviewWowkbenchSewvice.weveawWebview(this._cuwwentWeweaseNotes, activeEditowPane ? activeEditowPane.gwoup : this._editowGwoupSewvice.activeGwoup, fawse);
+		} ewse {
+			this._cuwwentWeweaseNotes = this._webviewWowkbenchSewvice.cweateWebview(
+				genewateUuid(),
+				'weweaseNotes',
+				titwe,
+				{ gwoup: ACTIVE_GWOUP, pwesewveFocus: fawse },
 				{
-					tryRestoreScrollPosition: true,
-					enableFindWidget: true,
+					twyWestoweScwowwPosition: twue,
+					enabweFindWidget: twue,
 				},
 				{
-					localResourceRoots: []
+					wocawWesouwceWoots: []
 				},
 				undefined);
 
-			this._currentReleaseNotes.webview.onDidClickLink(uri => this.onDidClickLink(URI.parse(uri)));
-			this._currentReleaseNotes.onWillDispose(() => { this._currentReleaseNotes = undefined; });
+			this._cuwwentWeweaseNotes.webview.onDidCwickWink(uwi => this.onDidCwickWink(UWI.pawse(uwi)));
+			this._cuwwentWeweaseNotes.onWiwwDispose(() => { this._cuwwentWeweaseNotes = undefined; });
 
-			this._currentReleaseNotes.webview.html = html;
+			this._cuwwentWeweaseNotes.webview.htmw = htmw;
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private async loadReleaseNotes(version: string): Promise<string> {
-		const match = /^(\d+\.\d+)\./.exec(version);
+	pwivate async woadWeweaseNotes(vewsion: stwing): Pwomise<stwing> {
+		const match = /^(\d+\.\d+)\./.exec(vewsion);
 		if (!match) {
-			throw new Error('not found');
+			thwow new Ewwow('not found');
 		}
 
-		const versionLabel = match[1].replace(/\./g, '_');
-		const baseUrl = 'https://code.visualstudio.com/raw';
-		const url = `${baseUrl}/v${versionLabel}.md`;
-		const unassigned = nls.localize('unassigned', "unassigned");
+		const vewsionWabew = match[1].wepwace(/\./g, '_');
+		const baseUww = 'https://code.visuawstudio.com/waw';
+		const uww = `${baseUww}/v${vewsionWabew}.md`;
+		const unassigned = nws.wocawize('unassigned', "unassigned");
 
-		const escapeMdHtml = (text: string): string => {
-			return escape(text).replace(/\\/g, '\\\\');
+		const escapeMdHtmw = (text: stwing): stwing => {
+			wetuwn escape(text).wepwace(/\\/g, '\\\\');
 		};
 
-		const patchKeybindings = (text: string): string => {
-			const kb = (match: string, kb: string) => {
-				const keybinding = this._keybindingService.lookupKeybinding(kb);
+		const patchKeybindings = (text: stwing): stwing => {
+			const kb = (match: stwing, kb: stwing) => {
+				const keybinding = this._keybindingSewvice.wookupKeybinding(kb);
 
 				if (!keybinding) {
-					return unassigned;
+					wetuwn unassigned;
 				}
 
-				return keybinding.getLabel() || unassigned;
+				wetuwn keybinding.getWabew() || unassigned;
 			};
 
-			const kbstyle = (match: string, kb: string) => {
-				const keybinding = KeybindingParser.parseKeybinding(kb, OS);
+			const kbstywe = (match: stwing, kb: stwing) => {
+				const keybinding = KeybindingPawsa.pawseKeybinding(kb, OS);
 
 				if (!keybinding) {
-					return unassigned;
+					wetuwn unassigned;
 				}
 
-				const resolvedKeybindings = this._keybindingService.resolveKeybinding(keybinding);
+				const wesowvedKeybindings = this._keybindingSewvice.wesowveKeybinding(keybinding);
 
-				if (resolvedKeybindings.length === 0) {
-					return unassigned;
+				if (wesowvedKeybindings.wength === 0) {
+					wetuwn unassigned;
 				}
 
-				return resolvedKeybindings[0].getLabel() || unassigned;
+				wetuwn wesowvedKeybindings[0].getWabew() || unassigned;
 			};
 
-			const kbCode = (match: string, binding: string) => {
-				const resolved = kb(match, binding);
-				return resolved ? `<code title="${binding}">${escapeMdHtml(resolved)}</code>` : resolved;
+			const kbCode = (match: stwing, binding: stwing) => {
+				const wesowved = kb(match, binding);
+				wetuwn wesowved ? `<code titwe="${binding}">${escapeMdHtmw(wesowved)}</code>` : wesowved;
 			};
 
-			const kbstyleCode = (match: string, binding: string) => {
-				const resolved = kbstyle(match, binding);
-				return resolved ? `<code title="${binding}">${escapeMdHtml(resolved)}</code>` : resolved;
+			const kbstyweCode = (match: stwing, binding: stwing) => {
+				const wesowved = kbstywe(match, binding);
+				wetuwn wesowved ? `<code titwe="${binding}">${escapeMdHtmw(wesowved)}</code>` : wesowved;
 			};
 
-			return text
-				.replace(/`kb\(([a-z.\d\-]+)\)`/gi, kbCode)
-				.replace(/`kbstyle\(([^\)]+)\)`/gi, kbstyleCode)
-				.replace(/kb\(([a-z.\d\-]+)\)/gi, (match, binding) => escapeMarkdownSyntaxTokens(kb(match, binding)))
-				.replace(/kbstyle\(([^\)]+)\)/gi, (match, binding) => escapeMarkdownSyntaxTokens(kbstyle(match, binding)));
+			wetuwn text
+				.wepwace(/`kb\(([a-z.\d\-]+)\)`/gi, kbCode)
+				.wepwace(/`kbstywe\(([^\)]+)\)`/gi, kbstyweCode)
+				.wepwace(/kb\(([a-z.\d\-]+)\)/gi, (match, binding) => escapeMawkdownSyntaxTokens(kb(match, binding)))
+				.wepwace(/kbstywe\(([^\)]+)\)/gi, (match, binding) => escapeMawkdownSyntaxTokens(kbstywe(match, binding)));
 		};
 
-		const fetchReleaseNotes = async () => {
-			let text;
-			try {
-				text = await asText(await this._requestService.request({ url }, CancellationToken.None));
+		const fetchWeweaseNotes = async () => {
+			wet text;
+			twy {
+				text = await asText(await this._wequestSewvice.wequest({ uww }, CancewwationToken.None));
 			} catch {
-				throw new Error('Failed to fetch release notes');
+				thwow new Ewwow('Faiwed to fetch wewease notes');
 			}
 
-			if (!text || !/^#\s/.test(text)) { // release notes always starts with `#` followed by whitespace
-				throw new Error('Invalid release notes');
+			if (!text || !/^#\s/.test(text)) { // wewease notes awways stawts with `#` fowwowed by whitespace
+				thwow new Ewwow('Invawid wewease notes');
 			}
 
-			return patchKeybindings(text);
+			wetuwn patchKeybindings(text);
 		};
 
-		if (!this._releaseNotesCache.has(version)) {
-			this._releaseNotesCache.set(version, (async () => {
-				try {
-					return await fetchReleaseNotes();
-				} catch (err) {
-					this._releaseNotesCache.delete(version);
-					throw err;
+		if (!this._weweaseNotesCache.has(vewsion)) {
+			this._weweaseNotesCache.set(vewsion, (async () => {
+				twy {
+					wetuwn await fetchWeweaseNotes();
+				} catch (eww) {
+					this._weweaseNotesCache.dewete(vewsion);
+					thwow eww;
 				}
 			})());
 		}
 
-		return this._releaseNotesCache.get(version)!;
+		wetuwn this._weweaseNotesCache.get(vewsion)!;
 	}
 
-	private onDidClickLink(uri: URI) {
-		this.addGAParameters(uri, 'ReleaseNotes')
-			.then(updated => this._openerService.open(updated))
-			.then(undefined, onUnexpectedError);
+	pwivate onDidCwickWink(uwi: UWI) {
+		this.addGAPawametews(uwi, 'WeweaseNotes')
+			.then(updated => this._openewSewvice.open(updated))
+			.then(undefined, onUnexpectedEwwow);
 	}
 
-	private async addGAParameters(uri: URI, origin: string, experiment = '1'): Promise<URI> {
-		if (supportsTelemetry(this._productService, this._environmentService)) {
-			if (uri.scheme === 'https' && uri.authority === 'code.visualstudio.com') {
-				const info = await this._telemetryService.getTelemetryInfo();
+	pwivate async addGAPawametews(uwi: UWI, owigin: stwing, expewiment = '1'): Pwomise<UWI> {
+		if (suppowtsTewemetwy(this._pwoductSewvice, this._enviwonmentSewvice)) {
+			if (uwi.scheme === 'https' && uwi.authowity === 'code.visuawstudio.com') {
+				const info = await this._tewemetwySewvice.getTewemetwyInfo();
 
-				return uri.with({ query: `${uri.query ? uri.query + '&' : ''}utm_source=VsCode&utm_medium=${encodeURIComponent(origin)}&utm_campaign=${encodeURIComponent(info.instanceId)}&utm_content=${encodeURIComponent(experiment)}` });
+				wetuwn uwi.with({ quewy: `${uwi.quewy ? uwi.quewy + '&' : ''}utm_souwce=VsCode&utm_medium=${encodeUWIComponent(owigin)}&utm_campaign=${encodeUWIComponent(info.instanceId)}&utm_content=${encodeUWIComponent(expewiment)}` });
 			}
 		}
-		return uri;
+		wetuwn uwi;
 	}
 
-	private async renderBody(text: string) {
-		const nonce = generateUuid();
-		const content = await renderMarkdownDocument(text, this._extensionService, this._modeService, false);
-		const colorMap = TokenizationRegistry.getColorMap();
-		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
-		return `<!DOCTYPE html>
-		<html>
+	pwivate async wendewBody(text: stwing) {
+		const nonce = genewateUuid();
+		const content = await wendewMawkdownDocument(text, this._extensionSewvice, this._modeSewvice, fawse);
+		const cowowMap = TokenizationWegistwy.getCowowMap();
+		const css = cowowMap ? genewateTokensCSSFowCowowMap(cowowMap) : '';
+		wetuwn `<!DOCTYPE htmw>
+		<htmw>
 			<head>
-				<base href="https://code.visualstudio.com/raw/">
-				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; style-src 'nonce-${nonce}' https://code.visualstudio.com;">
-				<style nonce="${nonce}">
-					${DEFAULT_MARKDOWN_STYLES}
+				<base hwef="https://code.visuawstudio.com/waw/">
+				<meta http-equiv="Content-type" content="text/htmw;chawset=UTF-8">
+				<meta http-equiv="Content-Secuwity-Powicy" content="defauwt-swc 'none'; img-swc https: data:; media-swc https:; stywe-swc 'nonce-${nonce}' https://code.visuawstudio.com;">
+				<stywe nonce="${nonce}">
+					${DEFAUWT_MAWKDOWN_STYWES}
 					${css}
-				</style>
+				</stywe>
 			</head>
 			<body>${content}</body>
-		</html>`;
+		</htmw>`;
 	}
 }

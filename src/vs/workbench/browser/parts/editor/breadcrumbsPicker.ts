@@ -1,518 +1,518 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareFileNames } from 'vs/base/common/comparers';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { createMatches, FuzzyScore } from 'vs/base/common/filters';
-import * as glob from 'vs/base/common/glob';
-import { IDisposable, DisposableStore, MutableDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { posix, relative } from 'vs/base/common/path';
-import { basename, dirname, isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/breadcrumbscontrol';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { WorkbenchDataTree, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { breadcrumbsPickerBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { isWorkspace, isWorkspaceFolder, IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ResourceLabels, IResourceLabel, DEFAULT_LABELS_CONTAINER } from 'vs/workbench/browser/labels';
-import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
-import { OutlineElement2, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
-import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
-import { IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
-import { IFileIconTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { localize } from 'vs/nls';
-import { IOutline, IOutlineComparator } from 'vs/workbench/services/outline/browser/outline';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+impowt { compaweFiweNames } fwom 'vs/base/common/compawews';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { cweateMatches, FuzzyScowe } fwom 'vs/base/common/fiwtews';
+impowt * as gwob fwom 'vs/base/common/gwob';
+impowt { IDisposabwe, DisposabweStowe, MutabweDisposabwe, Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { posix, wewative } fwom 'vs/base/common/path';
+impowt { basename, diwname, isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt 'vs/css!./media/bweadcwumbscontwow';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { FiweKind, IFiweSewvice, IFiweStat } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { WowkbenchDataTwee, WowkbenchAsyncDataTwee } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { bweadcwumbsPickewBackgwound, widgetShadow } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { isWowkspace, isWowkspaceFowda, IWowkspace, IWowkspaceContextSewvice, IWowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { WesouwceWabews, IWesouwceWabew, DEFAUWT_WABEWS_CONTAINa } fwom 'vs/wowkbench/bwowsa/wabews';
+impowt { BweadcwumbsConfig } fwom 'vs/wowkbench/bwowsa/pawts/editow/bweadcwumbs';
+impowt { OutwineEwement2, FiweEwement } fwom 'vs/wowkbench/bwowsa/pawts/editow/bweadcwumbsModew';
+impowt { IAsyncDataSouwce, ITweeWendewa, ITweeNode, ITweeFiwta, TweeVisibiwity, ITweeSowta } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { IIdentityPwovida, IWistViwtuawDewegate, IKeyboawdNavigationWabewPwovida } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { IFiweIconTheme, IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IWistAccessibiwityPwovida } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IOutwine, IOutwineCompawatow } fwom 'vs/wowkbench/sewvices/outwine/bwowsa/outwine';
+impowt { IEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IEditowSewvice, SIDE_GWOUP } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { ITextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
 
-interface ILayoutInfo {
-	maxHeight: number;
-	width: number;
-	arrowSize: number;
-	arrowOffset: number;
-	inputHeight: number;
+intewface IWayoutInfo {
+	maxHeight: numba;
+	width: numba;
+	awwowSize: numba;
+	awwowOffset: numba;
+	inputHeight: numba;
 }
 
-type Tree<I, E> = WorkbenchDataTree<I, E, FuzzyScore> | WorkbenchAsyncDataTree<I, E, FuzzyScore>;
+type Twee<I, E> = WowkbenchDataTwee<I, E, FuzzyScowe> | WowkbenchAsyncDataTwee<I, E, FuzzyScowe>;
 
-export interface SelectEvent {
-	target: any;
-	browserEvent: UIEvent;
+expowt intewface SewectEvent {
+	tawget: any;
+	bwowsewEvent: UIEvent;
 }
 
-export abstract class BreadcrumbsPicker {
+expowt abstwact cwass BweadcwumbsPicka {
 
-	protected readonly _disposables = new DisposableStore();
-	protected readonly _domNode: HTMLDivElement;
-	protected _arrow!: HTMLDivElement;
-	protected _treeContainer!: HTMLDivElement;
-	protected _tree!: Tree<any, any>;
-	protected _fakeEvent = new UIEvent('fakeEvent');
-	protected _layoutInfo!: ILayoutInfo;
+	pwotected weadonwy _disposabwes = new DisposabweStowe();
+	pwotected weadonwy _domNode: HTMWDivEwement;
+	pwotected _awwow!: HTMWDivEwement;
+	pwotected _tweeContaina!: HTMWDivEwement;
+	pwotected _twee!: Twee<any, any>;
+	pwotected _fakeEvent = new UIEvent('fakeEvent');
+	pwotected _wayoutInfo!: IWayoutInfo;
 
-	protected readonly _onWillPickElement = new Emitter<void>();
-	readonly onWillPickElement: Event<void> = this._onWillPickElement.event;
+	pwotected weadonwy _onWiwwPickEwement = new Emitta<void>();
+	weadonwy onWiwwPickEwement: Event<void> = this._onWiwwPickEwement.event;
 
-	private readonly _previewDispoables = new MutableDisposable();
+	pwivate weadonwy _pweviewDispoabwes = new MutabweDisposabwe();
 
-	constructor(
-		parent: HTMLElement,
-		protected resource: URI,
-		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
-		@IThemeService protected readonly _themeService: IThemeService,
-		@IConfigurationService protected readonly _configurationService: IConfigurationService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+	constwuctow(
+		pawent: HTMWEwement,
+		pwotected wesouwce: UWI,
+		@IInstantiationSewvice pwotected weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IThemeSewvice pwotected weadonwy _themeSewvice: IThemeSewvice,
+		@IConfiguwationSewvice pwotected weadonwy _configuwationSewvice: IConfiguwationSewvice,
+		@ITewemetwySewvice pwivate weadonwy _tewemetwySewvice: ITewemetwySewvice,
 	) {
-		this._domNode = document.createElement('div');
-		this._domNode.className = 'monaco-breadcrumbs-picker show-file-icons';
-		parent.appendChild(this._domNode);
+		this._domNode = document.cweateEwement('div');
+		this._domNode.cwassName = 'monaco-bweadcwumbs-picka show-fiwe-icons';
+		pawent.appendChiwd(this._domNode);
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
-		this._previewDispoables.dispose();
-		this._onWillPickElement.dispose();
-		this._domNode.remove();
-		setTimeout(() => this._tree.dispose(), 0); // tree cannot be disposed while being opened...
+		this._disposabwes.dispose();
+		this._pweviewDispoabwes.dispose();
+		this._onWiwwPickEwement.dispose();
+		this._domNode.wemove();
+		setTimeout(() => this._twee.dispose(), 0); // twee cannot be disposed whiwe being opened...
 	}
 
-	async show(input: any, maxHeight: number, width: number, arrowSize: number, arrowOffset: number): Promise<void> {
+	async show(input: any, maxHeight: numba, width: numba, awwowSize: numba, awwowOffset: numba): Pwomise<void> {
 
-		const theme = this._themeService.getColorTheme();
-		const color = theme.getColor(breadcrumbsPickerBackground);
+		const theme = this._themeSewvice.getCowowTheme();
+		const cowow = theme.getCowow(bweadcwumbsPickewBackgwound);
 
-		this._arrow = document.createElement('div');
-		this._arrow.className = 'arrow';
-		this._arrow.style.borderColor = `transparent transparent ${color ? color.toString() : ''}`;
-		this._domNode.appendChild(this._arrow);
+		this._awwow = document.cweateEwement('div');
+		this._awwow.cwassName = 'awwow';
+		this._awwow.stywe.bowdewCowow = `twanspawent twanspawent ${cowow ? cowow.toStwing() : ''}`;
+		this._domNode.appendChiwd(this._awwow);
 
-		this._treeContainer = document.createElement('div');
-		this._treeContainer.style.background = color ? color.toString() : '';
-		this._treeContainer.style.paddingTop = '2px';
-		this._treeContainer.style.boxShadow = `0 0 8px 2px ${this._themeService.getColorTheme().getColor(widgetShadow)}`;
-		this._domNode.appendChild(this._treeContainer);
+		this._tweeContaina = document.cweateEwement('div');
+		this._tweeContaina.stywe.backgwound = cowow ? cowow.toStwing() : '';
+		this._tweeContaina.stywe.paddingTop = '2px';
+		this._tweeContaina.stywe.boxShadow = `0 0 8px 2px ${this._themeSewvice.getCowowTheme().getCowow(widgetShadow)}`;
+		this._domNode.appendChiwd(this._tweeContaina);
 
-		this._layoutInfo = { maxHeight, width, arrowSize, arrowOffset, inputHeight: 0 };
-		this._tree = this._createTree(this._treeContainer, input);
+		this._wayoutInfo = { maxHeight, width, awwowSize, awwowOffset, inputHeight: 0 };
+		this._twee = this._cweateTwee(this._tweeContaina, input);
 
-		this._disposables.add(this._tree.onDidOpen(async e => {
-			const { element, editorOptions, sideBySide } = e;
-			const didReveal = await this._revealElement(element, { ...editorOptions, preserveFocus: false }, sideBySide);
-			if (!didReveal) {
-				return;
+		this._disposabwes.add(this._twee.onDidOpen(async e => {
+			const { ewement, editowOptions, sideBySide } = e;
+			const didWeveaw = await this._weveawEwement(ewement, { ...editowOptions, pwesewveFocus: fawse }, sideBySide);
+			if (!didWeveaw) {
+				wetuwn;
 			}
-			// send telemetry
-			interface OpenEvent { type: string }
-			interface OpenEventGDPR { type: { classification: 'SystemMetaData', purpose: 'FeatureInsight' } }
-			this._telemetryService.publicLog2<OpenEvent, OpenEventGDPR>('breadcrumbs/open', { type: element instanceof OutlineElement2 ? 'symbol' : 'file' });
+			// send tewemetwy
+			intewface OpenEvent { type: stwing }
+			intewface OpenEventGDPW { type: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' } }
+			this._tewemetwySewvice.pubwicWog2<OpenEvent, OpenEventGDPW>('bweadcwumbs/open', { type: ewement instanceof OutwineEwement2 ? 'symbow' : 'fiwe' });
 		}));
-		this._disposables.add(this._tree.onDidChangeFocus(e => {
-			this._previewDispoables.value = this._previewElement(e.elements[0]);
+		this._disposabwes.add(this._twee.onDidChangeFocus(e => {
+			this._pweviewDispoabwes.vawue = this._pweviewEwement(e.ewements[0]);
 		}));
-		this._disposables.add(this._tree.onDidChangeContentHeight(() => {
-			this._layout();
+		this._disposabwes.add(this._twee.onDidChangeContentHeight(() => {
+			this._wayout();
 		}));
 
 		this._domNode.focus();
-		try {
+		twy {
 			await this._setInput(input);
-			this._layout();
-		} catch (err) {
-			onUnexpectedError(err);
+			this._wayout();
+		} catch (eww) {
+			onUnexpectedEwwow(eww);
 		}
 	}
 
-	protected _layout(): void {
+	pwotected _wayout(): void {
 
-		const headerHeight = 2 * this._layoutInfo.arrowSize;
-		const treeHeight = Math.min(this._layoutInfo.maxHeight - headerHeight, this._tree.contentHeight);
-		const totalHeight = treeHeight + headerHeight;
+		const headewHeight = 2 * this._wayoutInfo.awwowSize;
+		const tweeHeight = Math.min(this._wayoutInfo.maxHeight - headewHeight, this._twee.contentHeight);
+		const totawHeight = tweeHeight + headewHeight;
 
-		this._domNode.style.height = `${totalHeight}px`;
-		this._domNode.style.width = `${this._layoutInfo.width}px`;
-		this._arrow.style.top = `-${2 * this._layoutInfo.arrowSize}px`;
-		this._arrow.style.borderWidth = `${this._layoutInfo.arrowSize}px`;
-		this._arrow.style.marginLeft = `${this._layoutInfo.arrowOffset}px`;
-		this._treeContainer.style.height = `${treeHeight}px`;
-		this._treeContainer.style.width = `${this._layoutInfo.width}px`;
-		this._tree.layout(treeHeight, this._layoutInfo.width);
+		this._domNode.stywe.height = `${totawHeight}px`;
+		this._domNode.stywe.width = `${this._wayoutInfo.width}px`;
+		this._awwow.stywe.top = `-${2 * this._wayoutInfo.awwowSize}px`;
+		this._awwow.stywe.bowdewWidth = `${this._wayoutInfo.awwowSize}px`;
+		this._awwow.stywe.mawginWeft = `${this._wayoutInfo.awwowOffset}px`;
+		this._tweeContaina.stywe.height = `${tweeHeight}px`;
+		this._tweeContaina.stywe.width = `${this._wayoutInfo.width}px`;
+		this._twee.wayout(tweeHeight, this._wayoutInfo.width);
 	}
 
-	restoreViewState(): void { }
+	westoweViewState(): void { }
 
-	protected abstract _setInput(element: FileElement | OutlineElement2): Promise<void>;
-	protected abstract _createTree(container: HTMLElement, input: any): Tree<any, any>;
-	protected abstract _previewElement(element: any): IDisposable;
-	protected abstract _revealElement(element: any, options: IEditorOptions, sideBySide: boolean): Promise<boolean>;
+	pwotected abstwact _setInput(ewement: FiweEwement | OutwineEwement2): Pwomise<void>;
+	pwotected abstwact _cweateTwee(containa: HTMWEwement, input: any): Twee<any, any>;
+	pwotected abstwact _pweviewEwement(ewement: any): IDisposabwe;
+	pwotected abstwact _weveawEwement(ewement: any, options: IEditowOptions, sideBySide: boowean): Pwomise<boowean>;
 
 }
 
-//#region - Files
+//#wegion - Fiwes
 
-class FileVirtualDelegate implements IListVirtualDelegate<IFileStat | IWorkspaceFolder> {
-	getHeight(_element: IFileStat | IWorkspaceFolder) {
-		return 22;
+cwass FiweViwtuawDewegate impwements IWistViwtuawDewegate<IFiweStat | IWowkspaceFowda> {
+	getHeight(_ewement: IFiweStat | IWowkspaceFowda) {
+		wetuwn 22;
 	}
-	getTemplateId(_element: IFileStat | IWorkspaceFolder): string {
-		return 'FileStat';
+	getTempwateId(_ewement: IFiweStat | IWowkspaceFowda): stwing {
+		wetuwn 'FiweStat';
 	}
 }
 
-class FileIdentityProvider implements IIdentityProvider<IWorkspace | IWorkspaceFolder | IFileStat | URI> {
-	getId(element: IWorkspace | IWorkspaceFolder | IFileStat | URI): { toString(): string; } {
-		if (URI.isUri(element)) {
-			return element.toString();
-		} else if (isWorkspace(element)) {
-			return element.id;
-		} else if (isWorkspaceFolder(element)) {
-			return element.uri.toString();
-		} else {
-			return element.resource.toString();
+cwass FiweIdentityPwovida impwements IIdentityPwovida<IWowkspace | IWowkspaceFowda | IFiweStat | UWI> {
+	getId(ewement: IWowkspace | IWowkspaceFowda | IFiweStat | UWI): { toStwing(): stwing; } {
+		if (UWI.isUwi(ewement)) {
+			wetuwn ewement.toStwing();
+		} ewse if (isWowkspace(ewement)) {
+			wetuwn ewement.id;
+		} ewse if (isWowkspaceFowda(ewement)) {
+			wetuwn ewement.uwi.toStwing();
+		} ewse {
+			wetuwn ewement.wesouwce.toStwing();
 		}
 	}
 }
 
 
-class FileDataSource implements IAsyncDataSource<IWorkspace | URI, IWorkspaceFolder | IFileStat> {
+cwass FiweDataSouwce impwements IAsyncDataSouwce<IWowkspace | UWI, IWowkspaceFowda | IFiweStat> {
 
-	constructor(
-		@IFileService private readonly _fileService: IFileService,
+	constwuctow(
+		@IFiweSewvice pwivate weadonwy _fiweSewvice: IFiweSewvice,
 	) { }
 
-	hasChildren(element: IWorkspace | URI | IWorkspaceFolder | IFileStat): boolean {
-		return URI.isUri(element)
-			|| isWorkspace(element)
-			|| isWorkspaceFolder(element)
-			|| element.isDirectory;
+	hasChiwdwen(ewement: IWowkspace | UWI | IWowkspaceFowda | IFiweStat): boowean {
+		wetuwn UWI.isUwi(ewement)
+			|| isWowkspace(ewement)
+			|| isWowkspaceFowda(ewement)
+			|| ewement.isDiwectowy;
 	}
 
-	async getChildren(element: IWorkspace | URI | IWorkspaceFolder | IFileStat): Promise<(IWorkspaceFolder | IFileStat)[]> {
-		if (isWorkspace(element)) {
-			return element.folders;
+	async getChiwdwen(ewement: IWowkspace | UWI | IWowkspaceFowda | IFiweStat): Pwomise<(IWowkspaceFowda | IFiweStat)[]> {
+		if (isWowkspace(ewement)) {
+			wetuwn ewement.fowdews;
 		}
-		let uri: URI;
-		if (isWorkspaceFolder(element)) {
-			uri = element.uri;
-		} else if (URI.isUri(element)) {
-			uri = element;
-		} else {
-			uri = element.resource;
+		wet uwi: UWI;
+		if (isWowkspaceFowda(ewement)) {
+			uwi = ewement.uwi;
+		} ewse if (UWI.isUwi(ewement)) {
+			uwi = ewement;
+		} ewse {
+			uwi = ewement.wesouwce;
 		}
-		const stat = await this._fileService.resolve(uri);
-		return stat.children ?? [];
+		const stat = await this._fiweSewvice.wesowve(uwi);
+		wetuwn stat.chiwdwen ?? [];
 	}
 }
 
-class FileRenderer implements ITreeRenderer<IFileStat | IWorkspaceFolder, FuzzyScore, IResourceLabel> {
+cwass FiweWendewa impwements ITweeWendewa<IFiweStat | IWowkspaceFowda, FuzzyScowe, IWesouwceWabew> {
 
-	readonly templateId: string = 'FileStat';
+	weadonwy tempwateId: stwing = 'FiweStat';
 
-	constructor(
-		private readonly _labels: ResourceLabels,
-		@IConfigurationService private readonly _configService: IConfigurationService,
+	constwuctow(
+		pwivate weadonwy _wabews: WesouwceWabews,
+		@IConfiguwationSewvice pwivate weadonwy _configSewvice: IConfiguwationSewvice,
 	) { }
 
 
-	renderTemplate(container: HTMLElement): IResourceLabel {
-		return this._labels.create(container, { supportHighlights: true });
+	wendewTempwate(containa: HTMWEwement): IWesouwceWabew {
+		wetuwn this._wabews.cweate(containa, { suppowtHighwights: twue });
 	}
 
-	renderElement(node: ITreeNode<IWorkspaceFolder | IFileStat, [number, number, number]>, index: number, templateData: IResourceLabel): void {
-		const fileDecorations = this._configService.getValue<{ colors: boolean, badges: boolean; }>('explorer.decorations');
-		const { element } = node;
-		let resource: URI;
-		let fileKind: FileKind;
-		if (isWorkspaceFolder(element)) {
-			resource = element.uri;
-			fileKind = FileKind.ROOT_FOLDER;
-		} else {
-			resource = element.resource;
-			fileKind = element.isDirectory ? FileKind.FOLDER : FileKind.FILE;
+	wendewEwement(node: ITweeNode<IWowkspaceFowda | IFiweStat, [numba, numba, numba]>, index: numba, tempwateData: IWesouwceWabew): void {
+		const fiweDecowations = this._configSewvice.getVawue<{ cowows: boowean, badges: boowean; }>('expwowa.decowations');
+		const { ewement } = node;
+		wet wesouwce: UWI;
+		wet fiweKind: FiweKind;
+		if (isWowkspaceFowda(ewement)) {
+			wesouwce = ewement.uwi;
+			fiweKind = FiweKind.WOOT_FOWDa;
+		} ewse {
+			wesouwce = ewement.wesouwce;
+			fiweKind = ewement.isDiwectowy ? FiweKind.FOWDa : FiweKind.FIWE;
 		}
-		templateData.setFile(resource, {
-			fileKind,
-			hidePath: true,
-			fileDecorations: fileDecorations,
-			matches: createMatches(node.filterData),
-			extraClasses: ['picker-item']
+		tempwateData.setFiwe(wesouwce, {
+			fiweKind,
+			hidePath: twue,
+			fiweDecowations: fiweDecowations,
+			matches: cweateMatches(node.fiwtewData),
+			extwaCwasses: ['picka-item']
 		});
 	}
 
-	disposeTemplate(templateData: IResourceLabel): void {
-		templateData.dispose();
+	disposeTempwate(tempwateData: IWesouwceWabew): void {
+		tempwateData.dispose();
 	}
 }
 
-class FileNavigationLabelProvider implements IKeyboardNavigationLabelProvider<IWorkspaceFolder | IFileStat> {
+cwass FiweNavigationWabewPwovida impwements IKeyboawdNavigationWabewPwovida<IWowkspaceFowda | IFiweStat> {
 
-	getKeyboardNavigationLabel(element: IWorkspaceFolder | IFileStat): { toString(): string; } {
-		return element.name;
+	getKeyboawdNavigationWabew(ewement: IWowkspaceFowda | IFiweStat): { toStwing(): stwing; } {
+		wetuwn ewement.name;
 	}
 }
 
-class FileAccessibilityProvider implements IListAccessibilityProvider<IWorkspaceFolder | IFileStat> {
+cwass FiweAccessibiwityPwovida impwements IWistAccessibiwityPwovida<IWowkspaceFowda | IFiweStat> {
 
-	getWidgetAriaLabel(): string {
-		return localize('breadcrumbs', "Breadcrumbs");
+	getWidgetAwiaWabew(): stwing {
+		wetuwn wocawize('bweadcwumbs', "Bweadcwumbs");
 	}
 
-	getAriaLabel(element: IWorkspaceFolder | IFileStat): string | null {
-		return element.name;
+	getAwiaWabew(ewement: IWowkspaceFowda | IFiweStat): stwing | nuww {
+		wetuwn ewement.name;
 	}
 }
 
-class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
+cwass FiweFiwta impwements ITweeFiwta<IWowkspaceFowda | IFiweStat> {
 
-	private readonly _cachedExpressions = new Map<string, glob.ParsedExpression>();
-	private readonly _disposables = new DisposableStore();
+	pwivate weadonwy _cachedExpwessions = new Map<stwing, gwob.PawsedExpwession>();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
 
-	constructor(
-		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
-		@IConfigurationService configService: IConfigurationService,
+	constwuctow(
+		@IWowkspaceContextSewvice pwivate weadonwy _wowkspaceSewvice: IWowkspaceContextSewvice,
+		@IConfiguwationSewvice configSewvice: IConfiguwationSewvice,
 	) {
-		const config = BreadcrumbsConfig.FileExcludes.bindTo(configService);
+		const config = BweadcwumbsConfig.FiweExcwudes.bindTo(configSewvice);
 		const update = () => {
-			_workspaceService.getWorkspace().folders.forEach(folder => {
-				const excludesConfig = config.getValue({ resource: folder.uri });
-				if (!excludesConfig) {
-					return;
+			_wowkspaceSewvice.getWowkspace().fowdews.fowEach(fowda => {
+				const excwudesConfig = config.getVawue({ wesouwce: fowda.uwi });
+				if (!excwudesConfig) {
+					wetuwn;
 				}
-				// adjust patterns to be absolute in case they aren't
-				// free floating (**/)
-				const adjustedConfig: glob.IExpression = {};
-				for (const pattern in excludesConfig) {
-					if (typeof excludesConfig[pattern] !== 'boolean') {
+				// adjust pattewns to be absowute in case they awen't
+				// fwee fwoating (**/)
+				const adjustedConfig: gwob.IExpwession = {};
+				fow (const pattewn in excwudesConfig) {
+					if (typeof excwudesConfig[pattewn] !== 'boowean') {
 						continue;
 					}
-					let patternAbs = pattern.indexOf('**/') !== 0
-						? posix.join(folder.uri.path, pattern)
-						: pattern;
+					wet pattewnAbs = pattewn.indexOf('**/') !== 0
+						? posix.join(fowda.uwi.path, pattewn)
+						: pattewn;
 
-					adjustedConfig[patternAbs] = excludesConfig[pattern];
+					adjustedConfig[pattewnAbs] = excwudesConfig[pattewn];
 				}
-				this._cachedExpressions.set(folder.uri.toString(), glob.parse(adjustedConfig));
+				this._cachedExpwessions.set(fowda.uwi.toStwing(), gwob.pawse(adjustedConfig));
 			});
 		};
 		update();
-		this._disposables.add(config);
-		this._disposables.add(config.onDidChange(update));
-		this._disposables.add(_workspaceService.onDidChangeWorkspaceFolders(update));
+		this._disposabwes.add(config);
+		this._disposabwes.add(config.onDidChange(update));
+		this._disposabwes.add(_wowkspaceSewvice.onDidChangeWowkspaceFowdews(update));
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
+		this._disposabwes.dispose();
 	}
 
-	filter(element: IWorkspaceFolder | IFileStat, _parentVisibility: TreeVisibility): boolean {
-		if (isWorkspaceFolder(element)) {
-			// not a file
-			return true;
+	fiwta(ewement: IWowkspaceFowda | IFiweStat, _pawentVisibiwity: TweeVisibiwity): boowean {
+		if (isWowkspaceFowda(ewement)) {
+			// not a fiwe
+			wetuwn twue;
 		}
-		const folder = this._workspaceService.getWorkspaceFolder(element.resource);
-		if (!folder || !this._cachedExpressions.has(folder.uri.toString())) {
-			// no folder or no filer
-			return true;
+		const fowda = this._wowkspaceSewvice.getWowkspaceFowda(ewement.wesouwce);
+		if (!fowda || !this._cachedExpwessions.has(fowda.uwi.toStwing())) {
+			// no fowda ow no fiwa
+			wetuwn twue;
 		}
 
-		const expression = this._cachedExpressions.get(folder.uri.toString())!;
-		return !expression(relative(folder.uri.path, element.resource.path), basename(element.resource));
-	}
-}
-
-
-export class FileSorter implements ITreeSorter<IFileStat | IWorkspaceFolder> {
-	compare(a: IFileStat | IWorkspaceFolder, b: IFileStat | IWorkspaceFolder): number {
-		if (isWorkspaceFolder(a) && isWorkspaceFolder(b)) {
-			return a.index - b.index;
-		}
-		if ((a as IFileStat).isDirectory === (b as IFileStat).isDirectory) {
-			// same type -> compare on names
-			return compareFileNames(a.name, b.name);
-		} else if ((a as IFileStat).isDirectory) {
-			return -1;
-		} else {
-			return 1;
-		}
+		const expwession = this._cachedExpwessions.get(fowda.uwi.toStwing())!;
+		wetuwn !expwession(wewative(fowda.uwi.path, ewement.wesouwce.path), basename(ewement.wesouwce));
 	}
 }
 
-export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 
-	constructor(
-		parent: HTMLElement,
-		resource: URI,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IConfigurationService configService: IConfigurationService,
-		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@ITelemetryService telemetryService: ITelemetryService,
+expowt cwass FiweSowta impwements ITweeSowta<IFiweStat | IWowkspaceFowda> {
+	compawe(a: IFiweStat | IWowkspaceFowda, b: IFiweStat | IWowkspaceFowda): numba {
+		if (isWowkspaceFowda(a) && isWowkspaceFowda(b)) {
+			wetuwn a.index - b.index;
+		}
+		if ((a as IFiweStat).isDiwectowy === (b as IFiweStat).isDiwectowy) {
+			// same type -> compawe on names
+			wetuwn compaweFiweNames(a.name, b.name);
+		} ewse if ((a as IFiweStat).isDiwectowy) {
+			wetuwn -1;
+		} ewse {
+			wetuwn 1;
+		}
+	}
+}
+
+expowt cwass BweadcwumbsFiwePicka extends BweadcwumbsPicka {
+
+	constwuctow(
+		pawent: HTMWEwement,
+		wesouwce: UWI,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IConfiguwationSewvice configSewvice: IConfiguwationSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy _wowkspaceSewvice: IWowkspaceContextSewvice,
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
 	) {
-		super(parent, resource, instantiationService, themeService, configService, telemetryService);
+		supa(pawent, wesouwce, instantiationSewvice, themeSewvice, configSewvice, tewemetwySewvice);
 	}
 
-	_createTree(container: HTMLElement) {
+	_cweateTwee(containa: HTMWEwement) {
 
-		// tree icon theme specials
-		this._treeContainer.classList.add('file-icon-themable-tree');
-		this._treeContainer.classList.add('show-file-icons');
-		const onFileIconThemeChange = (fileIconTheme: IFileIconTheme) => {
-			this._treeContainer.classList.toggle('align-icons-and-twisties', fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons);
-			this._treeContainer.classList.toggle('hide-arrows', fileIconTheme.hidesExplorerArrows === true);
+		// twee icon theme speciaws
+		this._tweeContaina.cwassWist.add('fiwe-icon-themabwe-twee');
+		this._tweeContaina.cwassWist.add('show-fiwe-icons');
+		const onFiweIconThemeChange = (fiweIconTheme: IFiweIconTheme) => {
+			this._tweeContaina.cwassWist.toggwe('awign-icons-and-twisties', fiweIconTheme.hasFiweIcons && !fiweIconTheme.hasFowdewIcons);
+			this._tweeContaina.cwassWist.toggwe('hide-awwows', fiweIconTheme.hidesExpwowewAwwows === twue);
 		};
-		this._disposables.add(this._themeService.onDidFileIconThemeChange(onFileIconThemeChange));
-		onFileIconThemeChange(this._themeService.getFileIconTheme());
+		this._disposabwes.add(this._themeSewvice.onDidFiweIconThemeChange(onFiweIconThemeChange));
+		onFiweIconThemeChange(this._themeSewvice.getFiweIconTheme());
 
-		const labels = this._instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER /* TODO@Jo visibility propagation */);
-		this._disposables.add(labels);
+		const wabews = this._instantiationSewvice.cweateInstance(WesouwceWabews, DEFAUWT_WABEWS_CONTAINa /* TODO@Jo visibiwity pwopagation */);
+		this._disposabwes.add(wabews);
 
-		return <WorkbenchAsyncDataTree<IWorkspace | URI, IWorkspaceFolder | IFileStat, FuzzyScore>>this._instantiationService.createInstance(
-			WorkbenchAsyncDataTree,
-			'BreadcrumbsFilePicker',
-			container,
-			new FileVirtualDelegate(),
-			[this._instantiationService.createInstance(FileRenderer, labels)],
-			this._instantiationService.createInstance(FileDataSource),
+		wetuwn <WowkbenchAsyncDataTwee<IWowkspace | UWI, IWowkspaceFowda | IFiweStat, FuzzyScowe>>this._instantiationSewvice.cweateInstance(
+			WowkbenchAsyncDataTwee,
+			'BweadcwumbsFiwePicka',
+			containa,
+			new FiweViwtuawDewegate(),
+			[this._instantiationSewvice.cweateInstance(FiweWendewa, wabews)],
+			this._instantiationSewvice.cweateInstance(FiweDataSouwce),
 			{
-				multipleSelectionSupport: false,
-				sorter: new FileSorter(),
-				filter: this._instantiationService.createInstance(FileFilter),
-				identityProvider: new FileIdentityProvider(),
-				keyboardNavigationLabelProvider: new FileNavigationLabelProvider(),
-				accessibilityProvider: this._instantiationService.createInstance(FileAccessibilityProvider),
-				overrideStyles: {
-					listBackground: breadcrumbsPickerBackground
+				muwtipweSewectionSuppowt: fawse,
+				sowta: new FiweSowta(),
+				fiwta: this._instantiationSewvice.cweateInstance(FiweFiwta),
+				identityPwovida: new FiweIdentityPwovida(),
+				keyboawdNavigationWabewPwovida: new FiweNavigationWabewPwovida(),
+				accessibiwityPwovida: this._instantiationSewvice.cweateInstance(FiweAccessibiwityPwovida),
+				ovewwideStywes: {
+					wistBackgwound: bweadcwumbsPickewBackgwound
 				},
 			});
 	}
 
-	async _setInput(element: FileElement | OutlineElement2): Promise<void> {
-		const { uri, kind } = (element as FileElement);
-		let input: IWorkspace | URI;
-		if (kind === FileKind.ROOT_FOLDER) {
-			input = this._workspaceService.getWorkspace();
-		} else {
-			input = dirname(uri);
+	async _setInput(ewement: FiweEwement | OutwineEwement2): Pwomise<void> {
+		const { uwi, kind } = (ewement as FiweEwement);
+		wet input: IWowkspace | UWI;
+		if (kind === FiweKind.WOOT_FOWDa) {
+			input = this._wowkspaceSewvice.getWowkspace();
+		} ewse {
+			input = diwname(uwi);
 		}
 
-		const tree = this._tree as WorkbenchAsyncDataTree<IWorkspace | URI, IWorkspaceFolder | IFileStat, FuzzyScore>;
-		await tree.setInput(input);
-		let focusElement: IWorkspaceFolder | IFileStat | undefined;
-		for (const { element } of tree.getNode().children) {
-			if (isWorkspaceFolder(element) && isEqual(element.uri, uri)) {
-				focusElement = element;
-				break;
-			} else if (isEqual((element as IFileStat).resource, uri)) {
-				focusElement = element as IFileStat;
-				break;
+		const twee = this._twee as WowkbenchAsyncDataTwee<IWowkspace | UWI, IWowkspaceFowda | IFiweStat, FuzzyScowe>;
+		await twee.setInput(input);
+		wet focusEwement: IWowkspaceFowda | IFiweStat | undefined;
+		fow (const { ewement } of twee.getNode().chiwdwen) {
+			if (isWowkspaceFowda(ewement) && isEquaw(ewement.uwi, uwi)) {
+				focusEwement = ewement;
+				bweak;
+			} ewse if (isEquaw((ewement as IFiweStat).wesouwce, uwi)) {
+				focusEwement = ewement as IFiweStat;
+				bweak;
 			}
 		}
-		if (focusElement) {
-			tree.reveal(focusElement, 0.5);
-			tree.setFocus([focusElement], this._fakeEvent);
+		if (focusEwement) {
+			twee.weveaw(focusEwement, 0.5);
+			twee.setFocus([focusEwement], this._fakeEvent);
 		}
-		tree.domFocus();
+		twee.domFocus();
 	}
 
-	protected _previewElement(_element: any): IDisposable {
-		return Disposable.None;
+	pwotected _pweviewEwement(_ewement: any): IDisposabwe {
+		wetuwn Disposabwe.None;
 	}
 
-	async _revealElement(element: IFileStat | IWorkspaceFolder, options: IEditorOptions, sideBySide: boolean): Promise<boolean> {
-		if (!isWorkspaceFolder(element) && element.isFile) {
-			this._onWillPickElement.fire();
-			await this._editorService.openEditor({ resource: element.resource, options }, sideBySide ? SIDE_GROUP : undefined);
-			return true;
+	async _weveawEwement(ewement: IFiweStat | IWowkspaceFowda, options: IEditowOptions, sideBySide: boowean): Pwomise<boowean> {
+		if (!isWowkspaceFowda(ewement) && ewement.isFiwe) {
+			this._onWiwwPickEwement.fiwe();
+			await this._editowSewvice.openEditow({ wesouwce: ewement.wesouwce, options }, sideBySide ? SIDE_GWOUP : undefined);
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 }
-//#endregion
+//#endwegion
 
-//#region - Outline
+//#wegion - Outwine
 
-class OutlineTreeSorter<E> implements ITreeSorter<E> {
+cwass OutwineTweeSowta<E> impwements ITweeSowta<E> {
 
-	private _order: 'name' | 'type' | 'position';
+	pwivate _owda: 'name' | 'type' | 'position';
 
-	constructor(
-		private comparator: IOutlineComparator<E>,
-		uri: URI | undefined,
-		@ITextResourceConfigurationService configService: ITextResourceConfigurationService,
+	constwuctow(
+		pwivate compawatow: IOutwineCompawatow<E>,
+		uwi: UWI | undefined,
+		@ITextWesouwceConfiguwationSewvice configSewvice: ITextWesouwceConfiguwationSewvice,
 	) {
-		this._order = configService.getValue(uri, 'breadcrumbs.symbolSortOrder');
+		this._owda = configSewvice.getVawue(uwi, 'bweadcwumbs.symbowSowtOwda');
 	}
 
-	compare(a: E, b: E): number {
-		if (this._order === 'name') {
-			return this.comparator.compareByName(a, b);
-		} else if (this._order === 'type') {
-			return this.comparator.compareByType(a, b);
-		} else {
-			return this.comparator.compareByPosition(a, b);
+	compawe(a: E, b: E): numba {
+		if (this._owda === 'name') {
+			wetuwn this.compawatow.compaweByName(a, b);
+		} ewse if (this._owda === 'type') {
+			wetuwn this.compawatow.compaweByType(a, b);
+		} ewse {
+			wetuwn this.compawatow.compaweByPosition(a, b);
 		}
 	}
 }
 
-export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
+expowt cwass BweadcwumbsOutwinePicka extends BweadcwumbsPicka {
 
-	protected _createTree(container: HTMLElement, input: OutlineElement2) {
+	pwotected _cweateTwee(containa: HTMWEwement, input: OutwineEwement2) {
 
-		const { config } = input.outline;
+		const { config } = input.outwine;
 
-		return <WorkbenchDataTree<IOutline<any>, any, FuzzyScore>>this._instantiationService.createInstance(
-			WorkbenchDataTree,
-			'BreadcrumbsOutlinePicker',
-			container,
-			config.delegate,
-			config.renderers,
-			config.treeDataSource,
+		wetuwn <WowkbenchDataTwee<IOutwine<any>, any, FuzzyScowe>>this._instantiationSewvice.cweateInstance(
+			WowkbenchDataTwee,
+			'BweadcwumbsOutwinePicka',
+			containa,
+			config.dewegate,
+			config.wendewews,
+			config.tweeDataSouwce,
 			{
 				...config.options,
-				sorter: this._instantiationService.createInstance(OutlineTreeSorter, config.comparator, undefined),
-				collapseByDefault: true,
-				expandOnlyOnTwistieClick: true,
-				multipleSelectionSupport: false,
+				sowta: this._instantiationSewvice.cweateInstance(OutwineTweeSowta, config.compawatow, undefined),
+				cowwapseByDefauwt: twue,
+				expandOnwyOnTwistieCwick: twue,
+				muwtipweSewectionSuppowt: fawse,
 			}
 		);
 	}
 
-	protected _setInput(input: OutlineElement2): Promise<void> {
+	pwotected _setInput(input: OutwineEwement2): Pwomise<void> {
 
-		const viewState = input.outline.captureViewState();
-		this.restoreViewState = () => { viewState.dispose(); };
+		const viewState = input.outwine.captuweViewState();
+		this.westoweViewState = () => { viewState.dispose(); };
 
-		const tree = this._tree as WorkbenchDataTree<IOutline<any>, any, FuzzyScore>;
+		const twee = this._twee as WowkbenchDataTwee<IOutwine<any>, any, FuzzyScowe>;
 
-		tree.setInput(input.outline);
-		if (input.element !== input.outline) {
-			tree.reveal(input.element, 0.5);
-			tree.setFocus([input.element], this._fakeEvent);
+		twee.setInput(input.outwine);
+		if (input.ewement !== input.outwine) {
+			twee.weveaw(input.ewement, 0.5);
+			twee.setFocus([input.ewement], this._fakeEvent);
 		}
-		tree.domFocus();
+		twee.domFocus();
 
-		return Promise.resolve();
+		wetuwn Pwomise.wesowve();
 	}
 
-	protected _previewElement(element: any): IDisposable {
-		const outline: IOutline<any> = this._tree.getInput();
-		return outline.preview(element);
+	pwotected _pweviewEwement(ewement: any): IDisposabwe {
+		const outwine: IOutwine<any> = this._twee.getInput();
+		wetuwn outwine.pweview(ewement);
 	}
 
-	async _revealElement(element: any, options: IEditorOptions, sideBySide: boolean): Promise<boolean> {
-		this._onWillPickElement.fire();
-		const outline: IOutline<any> = this._tree.getInput();
-		await outline.reveal(element, options, sideBySide);
-		return true;
+	async _weveawEwement(ewement: any, options: IEditowOptions, sideBySide: boowean): Pwomise<boowean> {
+		this._onWiwwPickEwement.fiwe();
+		const outwine: IOutwine<any> = this._twee.getInput();
+		await outwine.weveaw(ewement, options, sideBySide);
+		wetuwn twue;
 	}
 }
 
-//#endregion
+//#endwegion

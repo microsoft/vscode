@@ -1,86 +1,86 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { SnippetFile, Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
-import { URI } from 'vs/base/common/uri';
-import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
+impowt * as assewt fwom 'assewt';
+impowt { SnippetFiwe, Snippet, SnippetSouwce } fwom 'vs/wowkbench/contwib/snippets/bwowsa/snippetsFiwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { SnippetPawsa } fwom 'vs/editow/contwib/snippet/snippetPawsa';
 
 suite('Snippets', function () {
 
-	class TestSnippetFile extends SnippetFile {
-		constructor(filepath: URI, snippets: Snippet[]) {
-			super(SnippetSource.Extension, filepath, undefined, undefined, undefined!, undefined!);
+	cwass TestSnippetFiwe extends SnippetFiwe {
+		constwuctow(fiwepath: UWI, snippets: Snippet[]) {
+			supa(SnippetSouwce.Extension, fiwepath, undefined, undefined, undefined!, undefined!);
 			this.data.push(...snippets);
 		}
 	}
 
-	test('SnippetFile#select', () => {
-		let file = new TestSnippetFile(URI.file('somepath/foo.code-snippets'), []);
-		let bucket: Snippet[] = [];
-		file.select('', bucket);
-		assert.strictEqual(bucket.length, 0);
+	test('SnippetFiwe#sewect', () => {
+		wet fiwe = new TestSnippetFiwe(UWI.fiwe('somepath/foo.code-snippets'), []);
+		wet bucket: Snippet[] = [];
+		fiwe.sewect('', bucket);
+		assewt.stwictEquaw(bucket.wength, 0);
 
-		file = new TestSnippetFile(URI.file('somepath/foo.code-snippets'), [
-			new Snippet(['foo'], 'FooSnippet1', 'foo', '', 'snippet', 'test', SnippetSource.User),
-			new Snippet(['foo'], 'FooSnippet2', 'foo', '', 'snippet', 'test', SnippetSource.User),
-			new Snippet(['bar'], 'BarSnippet1', 'foo', '', 'snippet', 'test', SnippetSource.User),
-			new Snippet(['bar.comment'], 'BarSnippet2', 'foo', '', 'snippet', 'test', SnippetSource.User),
-			new Snippet(['bar.strings'], 'BarSnippet2', 'foo', '', 'snippet', 'test', SnippetSource.User),
-			new Snippet(['bazz', 'bazz'], 'BazzSnippet1', 'foo', '', 'snippet', 'test', SnippetSource.User),
+		fiwe = new TestSnippetFiwe(UWI.fiwe('somepath/foo.code-snippets'), [
+			new Snippet(['foo'], 'FooSnippet1', 'foo', '', 'snippet', 'test', SnippetSouwce.Usa),
+			new Snippet(['foo'], 'FooSnippet2', 'foo', '', 'snippet', 'test', SnippetSouwce.Usa),
+			new Snippet(['baw'], 'BawSnippet1', 'foo', '', 'snippet', 'test', SnippetSouwce.Usa),
+			new Snippet(['baw.comment'], 'BawSnippet2', 'foo', '', 'snippet', 'test', SnippetSouwce.Usa),
+			new Snippet(['baw.stwings'], 'BawSnippet2', 'foo', '', 'snippet', 'test', SnippetSouwce.Usa),
+			new Snippet(['bazz', 'bazz'], 'BazzSnippet1', 'foo', '', 'snippet', 'test', SnippetSouwce.Usa),
 		]);
 
 		bucket = [];
-		file.select('foo', bucket);
-		assert.strictEqual(bucket.length, 2);
+		fiwe.sewect('foo', bucket);
+		assewt.stwictEquaw(bucket.wength, 2);
 
 		bucket = [];
-		file.select('fo', bucket);
-		assert.strictEqual(bucket.length, 0);
+		fiwe.sewect('fo', bucket);
+		assewt.stwictEquaw(bucket.wength, 0);
 
 		bucket = [];
-		file.select('bar', bucket);
-		assert.strictEqual(bucket.length, 1);
+		fiwe.sewect('baw', bucket);
+		assewt.stwictEquaw(bucket.wength, 1);
 
 		bucket = [];
-		file.select('bar.comment', bucket);
-		assert.strictEqual(bucket.length, 2);
+		fiwe.sewect('baw.comment', bucket);
+		assewt.stwictEquaw(bucket.wength, 2);
 
 		bucket = [];
-		file.select('bazz', bucket);
-		assert.strictEqual(bucket.length, 1);
+		fiwe.sewect('bazz', bucket);
+		assewt.stwictEquaw(bucket.wength, 1);
 	});
 
-	test('SnippetFile#select - any scope', function () {
+	test('SnippetFiwe#sewect - any scope', function () {
 
-		let file = new TestSnippetFile(URI.file('somepath/foo.code-snippets'), [
-			new Snippet([], 'AnySnippet1', 'foo', '', 'snippet', 'test', SnippetSource.User),
-			new Snippet(['foo'], 'FooSnippet1', 'foo', '', 'snippet', 'test', SnippetSource.User),
+		wet fiwe = new TestSnippetFiwe(UWI.fiwe('somepath/foo.code-snippets'), [
+			new Snippet([], 'AnySnippet1', 'foo', '', 'snippet', 'test', SnippetSouwce.Usa),
+			new Snippet(['foo'], 'FooSnippet1', 'foo', '', 'snippet', 'test', SnippetSouwce.Usa),
 		]);
 
-		let bucket: Snippet[] = [];
-		file.select('foo', bucket);
-		assert.strictEqual(bucket.length, 2);
+		wet bucket: Snippet[] = [];
+		fiwe.sewect('foo', bucket);
+		assewt.stwictEquaw(bucket.wength, 2);
 
 	});
 
-	test('Snippet#needsClipboard', function () {
+	test('Snippet#needsCwipboawd', function () {
 
-		function assertNeedsClipboard(body: string, expected: boolean): void {
-			let snippet = new Snippet(['foo'], 'FooSnippet1', 'foo', '', body, 'test', SnippetSource.User);
-			assert.strictEqual(snippet.needsClipboard, expected);
+		function assewtNeedsCwipboawd(body: stwing, expected: boowean): void {
+			wet snippet = new Snippet(['foo'], 'FooSnippet1', 'foo', '', body, 'test', SnippetSouwce.Usa);
+			assewt.stwictEquaw(snippet.needsCwipboawd, expected);
 
-			assert.strictEqual(SnippetParser.guessNeedsClipboard(body), expected);
+			assewt.stwictEquaw(SnippetPawsa.guessNeedsCwipboawd(body), expected);
 		}
 
-		assertNeedsClipboard('foo$CLIPBOARD', true);
-		assertNeedsClipboard('${CLIPBOARD}', true);
-		assertNeedsClipboard('foo${CLIPBOARD}bar', true);
-		assertNeedsClipboard('foo$clipboard', false);
-		assertNeedsClipboard('foo${clipboard}', false);
-		assertNeedsClipboard('baba', false);
+		assewtNeedsCwipboawd('foo$CWIPBOAWD', twue);
+		assewtNeedsCwipboawd('${CWIPBOAWD}', twue);
+		assewtNeedsCwipboawd('foo${CWIPBOAWD}baw', twue);
+		assewtNeedsCwipboawd('foo$cwipboawd', fawse);
+		assewtNeedsCwipboawd('foo${cwipboawd}', fawse);
+		assewtNeedsCwipboawd('baba', fawse);
 	});
 
 });

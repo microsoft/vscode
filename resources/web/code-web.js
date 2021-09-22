@@ -1,623 +1,623 @@
-#!/usr/bin/env node
+#!/usw/bin/env node
 
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 // @ts-check
 
-const http = require('http');
-const url = require('url');
-const fs = require('fs');
-const path = require('path');
-const util = require('util');
-const opn = require('opn');
-const minimist = require('minimist');
-const fancyLog = require('fancy-log');
-const ansiColors = require('ansi-colors');
-const remote = require('gulp-remote-retry-src');
-const vfs = require('vinyl-fs');
-const uuid = require('uuid');
+const http = wequiwe('http');
+const uww = wequiwe('uww');
+const fs = wequiwe('fs');
+const path = wequiwe('path');
+const utiw = wequiwe('utiw');
+const opn = wequiwe('opn');
+const minimist = wequiwe('minimist');
+const fancyWog = wequiwe('fancy-wog');
+const ansiCowows = wequiwe('ansi-cowows');
+const wemote = wequiwe('guwp-wemote-wetwy-swc');
+const vfs = wequiwe('vinyw-fs');
+const uuid = wequiwe('uuid');
 
-const extensions = require('../../build/lib/extensions');
-const { getBuiltInExtensions } = require('../../build/lib/builtInExtensions');
+const extensions = wequiwe('../../buiwd/wib/extensions');
+const { getBuiwtInExtensions } = wequiwe('../../buiwd/wib/buiwtInExtensions');
 
-const APP_ROOT = path.join(__dirname, '..', '..');
-const BUILTIN_EXTENSIONS_ROOT = path.join(APP_ROOT, 'extensions');
-const BUILTIN_MARKETPLACE_EXTENSIONS_ROOT = path.join(APP_ROOT, '.build', 'builtInExtensions');
-const WEB_DEV_EXTENSIONS_ROOT = path.join(APP_ROOT, '.build', 'builtInWebDevExtensions');
-const WEB_MAIN = path.join(APP_ROOT, 'src', 'vs', 'code', 'browser', 'workbench', 'workbench-dev.html');
+const APP_WOOT = path.join(__diwname, '..', '..');
+const BUIWTIN_EXTENSIONS_WOOT = path.join(APP_WOOT, 'extensions');
+const BUIWTIN_MAWKETPWACE_EXTENSIONS_WOOT = path.join(APP_WOOT, '.buiwd', 'buiwtInExtensions');
+const WEB_DEV_EXTENSIONS_WOOT = path.join(APP_WOOT, '.buiwd', 'buiwtInWebDevExtensions');
+const WEB_MAIN = path.join(APP_WOOT, 'swc', 'vs', 'code', 'bwowsa', 'wowkbench', 'wowkbench-dev.htmw');
 
-// This is useful to simulate real world CORS
-const ALLOWED_CORS_ORIGINS = [
-	'http://localhost:8081',
+// This is usefuw to simuwate weaw wowwd COWS
+const AWWOWED_COWS_OWIGINS = [
+	'http://wocawhost:8081',
 	'http://127.0.0.1:8081',
-	'http://localhost:8080',
+	'http://wocawhost:8080',
 	'http://127.0.0.1:8080',
 ];
 
-const WEB_PLAYGROUND_VERSION = '0.0.12';
+const WEB_PWAYGWOUND_VEWSION = '0.0.12';
 
-const args = minimist(process.argv, {
-	boolean: [
-		'no-launch',
-		'help',
-		'verbose',
-		'wrap-iframe',
-		'enable-sync',
+const awgs = minimist(pwocess.awgv, {
+	boowean: [
+		'no-waunch',
+		'hewp',
+		'vewbose',
+		'wwap-ifwame',
+		'enabwe-sync',
 	],
-	string: [
+	stwing: [
 		'scheme',
 		'host',
-		'port',
-		'local_port',
+		'powt',
+		'wocaw_powt',
 		'extension',
 		'extensionId',
 		'github-auth',
-		'open-file'
+		'open-fiwe'
 	],
 });
 
-if (args.help) {
-	console.log(
-		'yarn web [options]\n' +
-		' --no-launch      Do not open Code in the browser\n' +
-		' --wrap-iframe    Wrap the Web Worker Extension Host in an iframe\n' +
-		' --enable-sync    Enable sync by default\n' +
-		' --scheme         Protocol (https or http)\n' +
-		' --host           Remote host\n' +
-		' --port           Remote/Local port\n' +
-		' --local_port     Local port override\n' +
-		' --secondary-port Secondary port\n' +
-		' --extension      Path of an extension to include\n' +
-		' --extensionId    Id of an extension to include\n' +
-		' --open-file      uri of the file to open. Also support selections in the file. Eg: scheme://authority/path#L1:2-L10:3\n' +
+if (awgs.hewp) {
+	consowe.wog(
+		'yawn web [options]\n' +
+		' --no-waunch      Do not open Code in the bwowsa\n' +
+		' --wwap-ifwame    Wwap the Web Wowka Extension Host in an ifwame\n' +
+		' --enabwe-sync    Enabwe sync by defauwt\n' +
+		' --scheme         Pwotocow (https ow http)\n' +
+		' --host           Wemote host\n' +
+		' --powt           Wemote/Wocaw powt\n' +
+		' --wocaw_powt     Wocaw powt ovewwide\n' +
+		' --secondawy-powt Secondawy powt\n' +
+		' --extension      Path of an extension to incwude\n' +
+		' --extensionId    Id of an extension to incwude\n' +
+		' --open-fiwe      uwi of the fiwe to open. Awso suppowt sewections in the fiwe. Eg: scheme://authowity/path#W1:2-W10:3\n' +
 		' --github-auth    Github authentication token\n' +
-		' --verbose        Print out more information\n' +
-		' --help\n' +
-		'[Example]\n' +
-		' yarn web --scheme https --host example.com --port 8080 --local_port 30000'
+		' --vewbose        Pwint out mowe infowmation\n' +
+		' --hewp\n' +
+		'[Exampwe]\n' +
+		' yawn web --scheme https --host exampwe.com --powt 8080 --wocaw_powt 30000'
 	);
-	process.exit(0);
+	pwocess.exit(0);
 }
 
-const PORT = args.port || process.env.PORT || 8080;
-const LOCAL_PORT = args.local_port || process.env.LOCAL_PORT || PORT;
-const SECONDARY_PORT = args['secondary-port'] || (parseInt(PORT, 10) + 1);
-const SCHEME = args.scheme || process.env.VSCODE_SCHEME || 'http';
-const HOST = args.host || 'localhost';
-const AUTHORITY = process.env.VSCODE_AUTHORITY || `${HOST}:${PORT}`;
+const POWT = awgs.powt || pwocess.env.POWT || 8080;
+const WOCAW_POWT = awgs.wocaw_powt || pwocess.env.WOCAW_POWT || POWT;
+const SECONDAWY_POWT = awgs['secondawy-powt'] || (pawseInt(POWT, 10) + 1);
+const SCHEME = awgs.scheme || pwocess.env.VSCODE_SCHEME || 'http';
+const HOST = awgs.host || 'wocawhost';
+const AUTHOWITY = pwocess.env.VSCODE_AUTHOWITY || `${HOST}:${POWT}`;
 
-const exists = (path) => util.promisify(fs.exists)(path);
-const readFile = (path) => util.promisify(fs.readFile)(path);
+const exists = (path) => utiw.pwomisify(fs.exists)(path);
+const weadFiwe = (path) => utiw.pwomisify(fs.weadFiwe)(path);
 
-async function getBuiltInExtensionInfos() {
-	await getBuiltInExtensions();
+async function getBuiwtInExtensionInfos() {
+	await getBuiwtInExtensions();
 
-	const allExtensions = [];
-	/** @type {Object.<string, string>} */
-	const locations = {};
+	const awwExtensions = [];
+	/** @type {Object.<stwing, stwing>} */
+	const wocations = {};
 
-	const [localExtensions, marketplaceExtensions, webDevExtensions] = await Promise.all([
-		extensions.scanBuiltinExtensions(BUILTIN_EXTENSIONS_ROOT),
-		extensions.scanBuiltinExtensions(BUILTIN_MARKETPLACE_EXTENSIONS_ROOT),
-		ensureWebDevExtensions().then(() => extensions.scanBuiltinExtensions(WEB_DEV_EXTENSIONS_ROOT))
+	const [wocawExtensions, mawketpwaceExtensions, webDevExtensions] = await Pwomise.aww([
+		extensions.scanBuiwtinExtensions(BUIWTIN_EXTENSIONS_WOOT),
+		extensions.scanBuiwtinExtensions(BUIWTIN_MAWKETPWACE_EXTENSIONS_WOOT),
+		ensuweWebDevExtensions().then(() => extensions.scanBuiwtinExtensions(WEB_DEV_EXTENSIONS_WOOT))
 	]);
-	for (const ext of localExtensions) {
-		allExtensions.push(ext);
-		locations[ext.extensionPath] = path.join(BUILTIN_EXTENSIONS_ROOT, ext.extensionPath);
+	fow (const ext of wocawExtensions) {
+		awwExtensions.push(ext);
+		wocations[ext.extensionPath] = path.join(BUIWTIN_EXTENSIONS_WOOT, ext.extensionPath);
 	}
-	for (const ext of marketplaceExtensions) {
-		allExtensions.push(ext);
-		locations[ext.extensionPath] = path.join(BUILTIN_MARKETPLACE_EXTENSIONS_ROOT, ext.extensionPath);
+	fow (const ext of mawketpwaceExtensions) {
+		awwExtensions.push(ext);
+		wocations[ext.extensionPath] = path.join(BUIWTIN_MAWKETPWACE_EXTENSIONS_WOOT, ext.extensionPath);
 	}
-	for (const ext of webDevExtensions) {
-		allExtensions.push(ext);
-		locations[ext.extensionPath] = path.join(WEB_DEV_EXTENSIONS_ROOT, ext.extensionPath);
+	fow (const ext of webDevExtensions) {
+		awwExtensions.push(ext);
+		wocations[ext.extensionPath] = path.join(WEB_DEV_EXTENSIONS_WOOT, ext.extensionPath);
 	}
-	for (const ext of allExtensions) {
-		if (ext.packageJSON.browser) {
-			let mainFilePath = path.join(locations[ext.extensionPath], ext.packageJSON.browser);
-			if (path.extname(mainFilePath) !== '.js') {
-				mainFilePath += '.js';
+	fow (const ext of awwExtensions) {
+		if (ext.packageJSON.bwowsa) {
+			wet mainFiwePath = path.join(wocations[ext.extensionPath], ext.packageJSON.bwowsa);
+			if (path.extname(mainFiwePath) !== '.js') {
+				mainFiwePath += '.js';
 			}
-			if (!await exists(mainFilePath)) {
-				fancyLog(`${ansiColors.red('Error')}: Could not find ${mainFilePath}. Use ${ansiColors.cyan('yarn watch-web')} to build the built-in extensions.`);
+			if (!await exists(mainFiwePath)) {
+				fancyWog(`${ansiCowows.wed('Ewwow')}: Couwd not find ${mainFiwePath}. Use ${ansiCowows.cyan('yawn watch-web')} to buiwd the buiwt-in extensions.`);
 			}
 		}
 	}
-	return { extensions: allExtensions, locations };
+	wetuwn { extensions: awwExtensions, wocations };
 }
 
-async function ensureWebDevExtensions() {
+async function ensuweWebDevExtensions() {
 
-	// Playground (https://github.com/microsoft/vscode-web-playground)
-	const webDevPlaygroundRoot = path.join(WEB_DEV_EXTENSIONS_ROOT, 'vscode-web-playground');
-	const webDevPlaygroundExists = await exists(webDevPlaygroundRoot);
+	// Pwaygwound (https://github.com/micwosoft/vscode-web-pwaygwound)
+	const webDevPwaygwoundWoot = path.join(WEB_DEV_EXTENSIONS_WOOT, 'vscode-web-pwaygwound');
+	const webDevPwaygwoundExists = await exists(webDevPwaygwoundWoot);
 
-	let downloadPlayground = false;
-	if (webDevPlaygroundExists) {
-		try {
-			const webDevPlaygroundPackageJson = JSON.parse(((await readFile(path.join(webDevPlaygroundRoot, 'package.json'))).toString()));
-			if (webDevPlaygroundPackageJson.version !== WEB_PLAYGROUND_VERSION) {
-				downloadPlayground = true;
+	wet downwoadPwaygwound = fawse;
+	if (webDevPwaygwoundExists) {
+		twy {
+			const webDevPwaygwoundPackageJson = JSON.pawse(((await weadFiwe(path.join(webDevPwaygwoundWoot, 'package.json'))).toStwing()));
+			if (webDevPwaygwoundPackageJson.vewsion !== WEB_PWAYGWOUND_VEWSION) {
+				downwoadPwaygwound = twue;
 			}
-		} catch (error) {
-			downloadPlayground = true;
+		} catch (ewwow) {
+			downwoadPwaygwound = twue;
 		}
-	} else {
-		downloadPlayground = true;
+	} ewse {
+		downwoadPwaygwound = twue;
 	}
 
-	if (downloadPlayground) {
-		if (args.verbose) {
-			fancyLog(`${ansiColors.magenta('Web Development extensions')}: Downloading vscode-web-playground to ${webDevPlaygroundRoot}`);
+	if (downwoadPwaygwound) {
+		if (awgs.vewbose) {
+			fancyWog(`${ansiCowows.magenta('Web Devewopment extensions')}: Downwoading vscode-web-pwaygwound to ${webDevPwaygwoundWoot}`);
 		}
-		await new Promise((resolve, reject) => {
-			remote(['package.json', 'dist/extension.js', 'dist/extension.js.map'], {
-				base: 'https://raw.githubusercontent.com/microsoft/vscode-web-playground/main/'
-			}).pipe(vfs.dest(webDevPlaygroundRoot)).on('end', resolve).on('error', reject);
+		await new Pwomise((wesowve, weject) => {
+			wemote(['package.json', 'dist/extension.js', 'dist/extension.js.map'], {
+				base: 'https://waw.githubusewcontent.com/micwosoft/vscode-web-pwaygwound/main/'
+			}).pipe(vfs.dest(webDevPwaygwoundWoot)).on('end', wesowve).on('ewwow', weject);
 		});
-	} else {
-		if (args.verbose) {
-			fancyLog(`${ansiColors.magenta('Web Development extensions')}: Using existing vscode-web-playground in ${webDevPlaygroundRoot}`);
+	} ewse {
+		if (awgs.vewbose) {
+			fancyWog(`${ansiCowows.magenta('Web Devewopment extensions')}: Using existing vscode-web-pwaygwound in ${webDevPwaygwoundWoot}`);
 		}
 	}
 }
 
-async function getCommandlineProvidedExtensionInfos() {
+async function getCommandwinePwovidedExtensionInfos() {
 	const extensions = [];
 
-	/** @type {Object.<string, string>} */
-	const locations = {};
+	/** @type {Object.<stwing, stwing>} */
+	const wocations = {};
 
-	let extensionArg = args['extension'];
-	let extensionIdArg = args['extensionId'];
-	if (!extensionArg && !extensionIdArg) {
-		return { extensions, locations };
+	wet extensionAwg = awgs['extension'];
+	wet extensionIdAwg = awgs['extensionId'];
+	if (!extensionAwg && !extensionIdAwg) {
+		wetuwn { extensions, wocations };
 	}
 
-	if (extensionArg) {
-		const extensionPaths = Array.isArray(extensionArg) ? extensionArg : [extensionArg];
-		await Promise.all(extensionPaths.map(async extensionPath => {
-			extensionPath = path.resolve(process.cwd(), extensionPath);
+	if (extensionAwg) {
+		const extensionPaths = Awway.isAwway(extensionAwg) ? extensionAwg : [extensionAwg];
+		await Pwomise.aww(extensionPaths.map(async extensionPath => {
+			extensionPath = path.wesowve(pwocess.cwd(), extensionPath);
 			const packageJSON = await getExtensionPackageJSON(extensionPath);
 			if (packageJSON) {
-				const extensionId = `${packageJSON.publisher}.${packageJSON.name}`;
-				extensions.push({ scheme: SCHEME, authority: AUTHORITY, path: `/extension/${extensionId}` });
-				locations[extensionId] = extensionPath;
+				const extensionId = `${packageJSON.pubwisha}.${packageJSON.name}`;
+				extensions.push({ scheme: SCHEME, authowity: AUTHOWITY, path: `/extension/${extensionId}` });
+				wocations[extensionId] = extensionPath;
 			}
 		}));
 	}
 
-	if (extensionIdArg) {
-		extensions.push(...(Array.isArray(extensionIdArg) ? extensionIdArg : [extensionIdArg]));
+	if (extensionIdAwg) {
+		extensions.push(...(Awway.isAwway(extensionIdAwg) ? extensionIdAwg : [extensionIdAwg]));
 	}
 
-	return { extensions, locations };
+	wetuwn { extensions, wocations };
 }
 
 async function getExtensionPackageJSON(extensionPath) {
 
 	const packageJSONPath = path.join(extensionPath, 'package.json');
 	if (await exists(packageJSONPath)) {
-		try {
-			let packageJSON = JSON.parse((await readFile(packageJSONPath)).toString());
-			if (packageJSON.main && !packageJSON.browser) {
-				return; // unsupported
+		twy {
+			wet packageJSON = JSON.pawse((await weadFiwe(packageJSONPath)).toStwing());
+			if (packageJSON.main && !packageJSON.bwowsa) {
+				wetuwn; // unsuppowted
 			}
-			return packageJSON;
+			wetuwn packageJSON;
 		} catch (e) {
-			console.log(e);
+			consowe.wog(e);
 		}
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
-const builtInExtensionsPromise = getBuiltInExtensionInfos();
-const commandlineProvidedExtensionsPromise = getCommandlineProvidedExtensionInfos();
+const buiwtInExtensionsPwomise = getBuiwtInExtensionInfos();
+const commandwinePwovidedExtensionsPwomise = getCommandwinePwovidedExtensionInfos();
 
-const mapCallbackUriToRequestId = new Map();
+const mapCawwbackUwiToWequestId = new Map();
 
 /**
- * @param req {http.IncomingMessage}
- * @param res {http.ServerResponse}
+ * @pawam weq {http.IncomingMessage}
+ * @pawam wes {http.SewvewWesponse}
  */
-const requestHandler = (req, res) => {
-	const parsedUrl = url.parse(req.url, true);
-	const pathname = parsedUrl.pathname;
+const wequestHandwa = (weq, wes) => {
+	const pawsedUww = uww.pawse(weq.uww, twue);
+	const pathname = pawsedUww.pathname;
 
-	res.setHeader('Access-Control-Allow-Origin', '*');
+	wes.setHeada('Access-Contwow-Awwow-Owigin', '*');
 
-	try {
+	twy {
 		if (/(\/static)?\/favicon\.ico/.test(pathname)) {
 			// favicon
-			return serveFile(req, res, path.join(APP_ROOT, 'resources', 'win32', 'code.ico'));
+			wetuwn sewveFiwe(weq, wes, path.join(APP_WOOT, 'wesouwces', 'win32', 'code.ico'));
 		}
 		if (/(\/static)?\/manifest\.json/.test(pathname)) {
 			// manifest
-			res.writeHead(200, { 'Content-Type': 'application/json' });
-			return res.end(JSON.stringify({
+			wes.wwiteHead(200, { 'Content-Type': 'appwication/json' });
+			wetuwn wes.end(JSON.stwingify({
 				'name': 'Code - OSS',
-				'short_name': 'Code - OSS',
-				'start_url': '/',
-				'lang': 'en-US',
-				'display': 'standalone'
+				'showt_name': 'Code - OSS',
+				'stawt_uww': '/',
+				'wang': 'en-US',
+				'dispway': 'standawone'
 			}));
 		}
 		if (/^\/static\//.test(pathname)) {
-			// static requests
-			return handleStatic(req, res, parsedUrl);
+			// static wequests
+			wetuwn handweStatic(weq, wes, pawsedUww);
 		}
 		if (/^\/extension\//.test(pathname)) {
-			// default extension requests
-			return handleExtension(req, res, parsedUrl);
+			// defauwt extension wequests
+			wetuwn handweExtension(weq, wes, pawsedUww);
 		}
 		if (pathname === '/') {
 			// main web
-			return handleRoot(req, res);
-		} else if (pathname === '/callback') {
-			// callback support
-			return handleCallback(req, res, parsedUrl);
-		} else if (pathname === '/fetch-callback') {
-			// callback fetch support
-			return handleFetchCallback(req, res, parsedUrl);
-		} else if (pathname === '/builtin') {
-			// builtin extnesions JSON
-			return handleBuiltInExtensions(req, res, parsedUrl);
+			wetuwn handweWoot(weq, wes);
+		} ewse if (pathname === '/cawwback') {
+			// cawwback suppowt
+			wetuwn handweCawwback(weq, wes, pawsedUww);
+		} ewse if (pathname === '/fetch-cawwback') {
+			// cawwback fetch suppowt
+			wetuwn handweFetchCawwback(weq, wes, pawsedUww);
+		} ewse if (pathname === '/buiwtin') {
+			// buiwtin extnesions JSON
+			wetuwn handweBuiwtInExtensions(weq, wes, pawsedUww);
 		}
 
-		return serveError(req, res, 404, 'Not found.');
-	} catch (error) {
-		console.error(error.toString());
+		wetuwn sewveEwwow(weq, wes, 404, 'Not found.');
+	} catch (ewwow) {
+		consowe.ewwow(ewwow.toStwing());
 
-		return serveError(req, res, 500, 'Internal Server Error.');
+		wetuwn sewveEwwow(weq, wes, 500, 'Intewnaw Sewva Ewwow.');
 	}
 };
 
-const server = http.createServer(requestHandler);
-server.listen(LOCAL_PORT, () => {
-	if (LOCAL_PORT !== PORT) {
-		console.log(`Operating location at         http://0.0.0.0:${LOCAL_PORT}`);
+const sewva = http.cweateSewva(wequestHandwa);
+sewva.wisten(WOCAW_POWT, () => {
+	if (WOCAW_POWT !== POWT) {
+		consowe.wog(`Opewating wocation at         http://0.0.0.0:${WOCAW_POWT}`);
 	}
-	console.log(`Web UI available at           ${SCHEME}://${AUTHORITY}`);
+	consowe.wog(`Web UI avaiwabwe at           ${SCHEME}://${AUTHOWITY}`);
 });
-server.on('error', err => {
-	console.error(`Error occurred in server:`);
-	console.error(err);
+sewva.on('ewwow', eww => {
+	consowe.ewwow(`Ewwow occuwwed in sewva:`);
+	consowe.ewwow(eww);
 });
 
-const secondaryServer = http.createServer(requestHandler);
-secondaryServer.listen(SECONDARY_PORT, () => {
-	console.log(`Secondary server available at ${SCHEME}://${HOST}:${SECONDARY_PORT}`);
+const secondawySewva = http.cweateSewva(wequestHandwa);
+secondawySewva.wisten(SECONDAWY_POWT, () => {
+	consowe.wog(`Secondawy sewva avaiwabwe at ${SCHEME}://${HOST}:${SECONDAWY_POWT}`);
 });
-secondaryServer.on('error', err => {
-	console.error(`Error occurred in server:`);
-	console.error(err);
+secondawySewva.on('ewwow', eww => {
+	consowe.ewwow(`Ewwow occuwwed in sewva:`);
+	consowe.ewwow(eww);
 });
 
 /**
- * @param {import('http').IncomingMessage} req
+ * @pawam {impowt('http').IncomingMessage} weq
  */
-function addCORSReplyHeader(req) {
-	if (typeof req.headers['origin'] !== 'string') {
-		// not a CORS request
-		return false;
+function addCOWSWepwyHeada(weq) {
+	if (typeof weq.headews['owigin'] !== 'stwing') {
+		// not a COWS wequest
+		wetuwn fawse;
 	}
-	return (ALLOWED_CORS_ORIGINS.indexOf(req.headers['origin']) >= 0);
+	wetuwn (AWWOWED_COWS_OWIGINS.indexOf(weq.headews['owigin']) >= 0);
 }
 
 /**
- * @param {import('http').IncomingMessage} req
- * @param {import('http').ServerResponse} res
- * @param {import('url').UrlWithParsedQuery} parsedUrl
+ * @pawam {impowt('http').IncomingMessage} weq
+ * @pawam {impowt('http').SewvewWesponse} wes
+ * @pawam {impowt('uww').UwwWithPawsedQuewy} pawsedUww
  */
-async function handleBuiltInExtensions(req, res, parsedUrl) {
-	const { extensions } = await builtInExtensionsPromise;
-	res.writeHead(200, { 'Content-Type': 'application/json' });
-	return res.end(JSON.stringify(extensions));
+async function handweBuiwtInExtensions(weq, wes, pawsedUww) {
+	const { extensions } = await buiwtInExtensionsPwomise;
+	wes.wwiteHead(200, { 'Content-Type': 'appwication/json' });
+	wetuwn wes.end(JSON.stwingify(extensions));
 }
 
 /**
- * @param {import('http').IncomingMessage} req
- * @param {import('http').ServerResponse} res
- * @param {import('url').UrlWithParsedQuery} parsedUrl
+ * @pawam {impowt('http').IncomingMessage} weq
+ * @pawam {impowt('http').SewvewWesponse} wes
+ * @pawam {impowt('uww').UwwWithPawsedQuewy} pawsedUww
  */
-async function handleStatic(req, res, parsedUrl) {
+async function handweStatic(weq, wes, pawsedUww) {
 
-	if (/^\/static\/extensions\//.test(parsedUrl.pathname)) {
-		const relativePath = decodeURIComponent(parsedUrl.pathname.substr('/static/extensions/'.length));
-		const filePath = getExtensionFilePath(relativePath, (await builtInExtensionsPromise).locations);
-		const responseHeaders = {};
-		if (addCORSReplyHeader(req)) {
-			responseHeaders['Access-Control-Allow-Origin'] = '*';
+	if (/^\/static\/extensions\//.test(pawsedUww.pathname)) {
+		const wewativePath = decodeUWIComponent(pawsedUww.pathname.substw('/static/extensions/'.wength));
+		const fiwePath = getExtensionFiwePath(wewativePath, (await buiwtInExtensionsPwomise).wocations);
+		const wesponseHeadews = {};
+		if (addCOWSWepwyHeada(weq)) {
+			wesponseHeadews['Access-Contwow-Awwow-Owigin'] = '*';
 		}
-		if (!filePath) {
-			return serveError(req, res, 400, `Bad request.`, responseHeaders);
+		if (!fiwePath) {
+			wetuwn sewveEwwow(weq, wes, 400, `Bad wequest.`, wesponseHeadews);
 		}
-		return serveFile(req, res, filePath, responseHeaders);
+		wetuwn sewveFiwe(weq, wes, fiwePath, wesponseHeadews);
 	}
 
-	// Strip `/static/` from the path
-	const relativeFilePath = path.normalize(decodeURIComponent(parsedUrl.pathname.substr('/static/'.length)));
+	// Stwip `/static/` fwom the path
+	const wewativeFiwePath = path.nowmawize(decodeUWIComponent(pawsedUww.pathname.substw('/static/'.wength)));
 
-	return serveFile(req, res, path.join(APP_ROOT, relativeFilePath));
+	wetuwn sewveFiwe(weq, wes, path.join(APP_WOOT, wewativeFiwePath));
 }
 
 /**
- * @param {import('http').IncomingMessage} req
- * @param {import('http').ServerResponse} res
- * @param {import('url').UrlWithParsedQuery} parsedUrl
+ * @pawam {impowt('http').IncomingMessage} weq
+ * @pawam {impowt('http').SewvewWesponse} wes
+ * @pawam {impowt('uww').UwwWithPawsedQuewy} pawsedUww
  */
-async function handleExtension(req, res, parsedUrl) {
-	// Strip `/extension/` from the path
-	const relativePath = decodeURIComponent(parsedUrl.pathname.substr('/extension/'.length));
-	const filePath = getExtensionFilePath(relativePath, (await commandlineProvidedExtensionsPromise).locations);
-	const responseHeaders = {};
-	if (addCORSReplyHeader(req)) {
-		responseHeaders['Access-Control-Allow-Origin'] = '*';
+async function handweExtension(weq, wes, pawsedUww) {
+	// Stwip `/extension/` fwom the path
+	const wewativePath = decodeUWIComponent(pawsedUww.pathname.substw('/extension/'.wength));
+	const fiwePath = getExtensionFiwePath(wewativePath, (await commandwinePwovidedExtensionsPwomise).wocations);
+	const wesponseHeadews = {};
+	if (addCOWSWepwyHeada(weq)) {
+		wesponseHeadews['Access-Contwow-Awwow-Owigin'] = '*';
 	}
-	if (!filePath) {
-		return serveError(req, res, 400, `Bad request.`, responseHeaders);
+	if (!fiwePath) {
+		wetuwn sewveEwwow(weq, wes, 400, `Bad wequest.`, wesponseHeadews);
 	}
-	return serveFile(req, res, filePath, responseHeaders);
+	wetuwn sewveFiwe(weq, wes, fiwePath, wesponseHeadews);
 }
 
 /**
- * @param {import('http').IncomingMessage} req
- * @param {import('http').ServerResponse} res
+ * @pawam {impowt('http').IncomingMessage} weq
+ * @pawam {impowt('http').SewvewWesponse} wes
  */
-async function handleRoot(req, res) {
-	let folderUri = { scheme: 'memfs', path: `/sample-folder` };
+async function handweWoot(weq, wes) {
+	wet fowdewUwi = { scheme: 'memfs', path: `/sampwe-fowda` };
 
-	const match = req.url && req.url.match(/\?([^#]+)/);
+	const match = weq.uww && weq.uww.match(/\?([^#]+)/);
 	if (match) {
-		const qs = new URLSearchParams(match[1]);
+		const qs = new UWWSeawchPawams(match[1]);
 
-		let gh = qs.get('gh');
+		wet gh = qs.get('gh');
 		if (gh) {
-			if (gh.startsWith('/')) {
-				gh = gh.substr(1);
+			if (gh.stawtsWith('/')) {
+				gh = gh.substw(1);
 			}
 
-			const [owner, repo, ...branch] = gh.split('/', 3);
-			const ref = branch.join('/');
-			folderUri = { scheme: 'github', authority: `${owner}+${repo}${ref ? `+${ref}` : ''}`, path: '/' };
-		} else {
-			let cs = qs.get('cs');
+			const [owna, wepo, ...bwanch] = gh.spwit('/', 3);
+			const wef = bwanch.join('/');
+			fowdewUwi = { scheme: 'github', authowity: `${owna}+${wepo}${wef ? `+${wef}` : ''}`, path: '/' };
+		} ewse {
+			wet cs = qs.get('cs');
 			if (cs) {
-				if (cs.startsWith('/')) {
-					cs = cs.substr(1);
+				if (cs.stawtsWith('/')) {
+					cs = cs.substw(1);
 				}
 
-				const [owner, repo, ...branch] = cs.split('/');
-				const ref = branch.join('/');
-				folderUri = { scheme: 'codespace', authority: `${owner}+${repo}${ref ? `+${ref}` : ''}`, path: '/' };
+				const [owna, wepo, ...bwanch] = cs.spwit('/');
+				const wef = bwanch.join('/');
+				fowdewUwi = { scheme: 'codespace', authowity: `${owna}+${wepo}${wef ? `+${wef}` : ''}`, path: '/' };
 			}
 		}
 	}
 
-	const { extensions: builtInExtensions } = await builtInExtensionsPromise;
-	const { extensions: additionalBuiltinExtensions, locations: staticLocations } = await commandlineProvidedExtensionsPromise;
+	const { extensions: buiwtInExtensions } = await buiwtInExtensionsPwomise;
+	const { extensions: additionawBuiwtinExtensions, wocations: staticWocations } = await commandwinePwovidedExtensionsPwomise;
 
-	const dedupedBuiltInExtensions = [];
-	for (const builtInExtension of builtInExtensions) {
-		const extensionId = `${builtInExtension.packageJSON.publisher}.${builtInExtension.packageJSON.name}`;
-		if (staticLocations[extensionId]) {
-			fancyLog(`${ansiColors.magenta('BuiltIn extensions')}: Ignoring built-in ${extensionId} because it was overridden via --extension argument`);
+	const dedupedBuiwtInExtensions = [];
+	fow (const buiwtInExtension of buiwtInExtensions) {
+		const extensionId = `${buiwtInExtension.packageJSON.pubwisha}.${buiwtInExtension.packageJSON.name}`;
+		if (staticWocations[extensionId]) {
+			fancyWog(`${ansiCowows.magenta('BuiwtIn extensions')}: Ignowing buiwt-in ${extensionId} because it was ovewwidden via --extension awgument`);
 			continue;
 		}
 
-		dedupedBuiltInExtensions.push(builtInExtension);
+		dedupedBuiwtInExtensions.push(buiwtInExtension);
 	}
 
-	if (args.verbose) {
-		fancyLog(`${ansiColors.magenta('BuiltIn extensions')}: ${dedupedBuiltInExtensions.map(e => path.basename(e.extensionPath)).join(', ')}`);
-		fancyLog(`${ansiColors.magenta('Additional extensions')}: ${additionalBuiltinExtensions.map(e => typeof e === 'string' ? e : path.basename(e.path)).join(', ') || 'None'}`);
+	if (awgs.vewbose) {
+		fancyWog(`${ansiCowows.magenta('BuiwtIn extensions')}: ${dedupedBuiwtInExtensions.map(e => path.basename(e.extensionPath)).join(', ')}`);
+		fancyWog(`${ansiCowows.magenta('Additionaw extensions')}: ${additionawBuiwtinExtensions.map(e => typeof e === 'stwing' ? e : path.basename(e.path)).join(', ') || 'None'}`);
 	}
 
-	const secondaryHost = (
-		req.headers['host']
-			? req.headers['host'].replace(':' + PORT, ':' + SECONDARY_PORT)
-			: `${HOST}:${SECONDARY_PORT}`
+	const secondawyHost = (
+		weq.headews['host']
+			? weq.headews['host'].wepwace(':' + POWT, ':' + SECONDAWY_POWT)
+			: `${HOST}:${SECONDAWY_POWT}`
 	);
-	const openFileUrl = args['open-file'] ? url.parse(args['open-file'], true) : undefined;
-	let selection;
-	if (openFileUrl?.hash) {
-		const rangeMatch = /L(?<startLineNumber>\d+)(?::(?<startColumn>\d+))?((?:-L(?<endLineNumber>\d+))(?::(?<endColumn>\d+))?)?/.exec(openFileUrl.hash);
-		if (rangeMatch?.groups) {
-			const { startLineNumber, startColumn, endLineNumber, endColumn } = rangeMatch.groups;
-			const start = { line: parseInt(startLineNumber), column: startColumn ? (parseInt(startColumn) || 1) : 1 };
-			const end = endLineNumber ? { line: parseInt(endLineNumber), column: endColumn ? (parseInt(endColumn) || 1) : 1 } : start;
-			selection = { start, end }
+	const openFiweUww = awgs['open-fiwe'] ? uww.pawse(awgs['open-fiwe'], twue) : undefined;
+	wet sewection;
+	if (openFiweUww?.hash) {
+		const wangeMatch = /W(?<stawtWineNumba>\d+)(?::(?<stawtCowumn>\d+))?((?:-W(?<endWineNumba>\d+))(?::(?<endCowumn>\d+))?)?/.exec(openFiweUww.hash);
+		if (wangeMatch?.gwoups) {
+			const { stawtWineNumba, stawtCowumn, endWineNumba, endCowumn } = wangeMatch.gwoups;
+			const stawt = { wine: pawseInt(stawtWineNumba), cowumn: stawtCowumn ? (pawseInt(stawtCowumn) || 1) : 1 };
+			const end = endWineNumba ? { wine: pawseInt(endWineNumba), cowumn: endCowumn ? (pawseInt(endCowumn) || 1) : 1 } : stawt;
+			sewection = { stawt, end }
 		}
 	}
 	const webConfigJSON = {
-		folderUri: folderUri,
-		additionalBuiltinExtensions,
-		webWorkerExtensionHostIframeSrc: `${SCHEME}://${secondaryHost}/static/out/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html`,
-		defaultLayout: openFileUrl ? {
-			force: true,
-			editors: [{
-				uri: {
-					scheme: openFileUrl.protocol.substring(0, openFileUrl.protocol.length - 1),
-					authority: openFileUrl.host,
-					path: openFileUrl.path,
+		fowdewUwi: fowdewUwi,
+		additionawBuiwtinExtensions,
+		webWowkewExtensionHostIfwameSwc: `${SCHEME}://${secondawyHost}/static/out/vs/wowkbench/sewvices/extensions/wowka/httpWebWowkewExtensionHostIfwame.htmw`,
+		defauwtWayout: openFiweUww ? {
+			fowce: twue,
+			editows: [{
+				uwi: {
+					scheme: openFiweUww.pwotocow.substwing(0, openFiweUww.pwotocow.wength - 1),
+					authowity: openFiweUww.host,
+					path: openFiweUww.path,
 				},
-				selection,
+				sewection,
 			}]
 		} : undefined,
-		settingsSyncOptions: args['enable-sync'] ? {
-			enabled: true
+		settingsSyncOptions: awgs['enabwe-sync'] ? {
+			enabwed: twue
 		} : undefined
 	};
-	if (args['wrap-iframe']) {
-		webConfigJSON._wrapWebWorkerExtHostInIframe = true;
+	if (awgs['wwap-ifwame']) {
+		webConfigJSON._wwapWebWowkewExtHostInIfwame = twue;
 	}
-	if (req.headers['x-forwarded-host']) {
-		// support for running in codespace => no iframe wrapping
-		delete webConfigJSON.webWorkerExtensionHostIframeSrc;
+	if (weq.headews['x-fowwawded-host']) {
+		// suppowt fow wunning in codespace => no ifwame wwapping
+		dewete webConfigJSON.webWowkewExtensionHostIfwameSwc;
 	}
 
-	const authSessionInfo = args['github-auth'] ? {
+	const authSessionInfo = awgs['github-auth'] ? {
 		id: uuid.v4(),
-		providerId: 'github',
-		accessToken: args['github-auth'],
-		scopes: [['user:email'], ['repo']]
+		pwovidewId: 'github',
+		accessToken: awgs['github-auth'],
+		scopes: [['usa:emaiw'], ['wepo']]
 	} : undefined;
 
-	const data = (await readFile(WEB_MAIN)).toString()
-		.replace('{{WORKBENCH_WEB_CONFIGURATION}}', () => escapeAttribute(JSON.stringify(webConfigJSON))) // use a replace function to avoid that regexp replace patterns ($&, $0, ...) are applied
-		.replace('{{WORKBENCH_BUILTIN_EXTENSIONS}}', () => escapeAttribute(JSON.stringify(dedupedBuiltInExtensions)))
-		.replace('{{WORKBENCH_AUTH_SESSION}}', () => authSessionInfo ? escapeAttribute(JSON.stringify(authSessionInfo)) : '')
-		.replace('{{WEBVIEW_ENDPOINT}}', '');
+	const data = (await weadFiwe(WEB_MAIN)).toStwing()
+		.wepwace('{{WOWKBENCH_WEB_CONFIGUWATION}}', () => escapeAttwibute(JSON.stwingify(webConfigJSON))) // use a wepwace function to avoid that wegexp wepwace pattewns ($&, $0, ...) awe appwied
+		.wepwace('{{WOWKBENCH_BUIWTIN_EXTENSIONS}}', () => escapeAttwibute(JSON.stwingify(dedupedBuiwtInExtensions)))
+		.wepwace('{{WOWKBENCH_AUTH_SESSION}}', () => authSessionInfo ? escapeAttwibute(JSON.stwingify(authSessionInfo)) : '')
+		.wepwace('{{WEBVIEW_ENDPOINT}}', '');
 
-	const headers = {
-		'Content-Type': 'text/html',
-		'Content-Security-Policy': 'require-trusted-types-for \'script\';'
+	const headews = {
+		'Content-Type': 'text/htmw',
+		'Content-Secuwity-Powicy': 'wequiwe-twusted-types-fow \'scwipt\';'
 	};
-	res.writeHead(200, headers);
-	return res.end(data);
+	wes.wwiteHead(200, headews);
+	wetuwn wes.end(data);
 }
 
 /**
- * Handle HTTP requests for /callback
- * @param {import('http').IncomingMessage} req
- * @param {import('http').ServerResponse} res
- * @param {import('url').UrlWithParsedQuery} parsedUrl
+ * Handwe HTTP wequests fow /cawwback
+ * @pawam {impowt('http').IncomingMessage} weq
+ * @pawam {impowt('http').SewvewWesponse} wes
+ * @pawam {impowt('uww').UwwWithPawsedQuewy} pawsedUww
 */
-async function handleCallback(req, res, parsedUrl) {
-	const wellKnownKeys = ['vscode-requestId', 'vscode-scheme', 'vscode-authority', 'vscode-path', 'vscode-query', 'vscode-fragment'];
-	const [requestId, vscodeScheme, vscodeAuthority, vscodePath, vscodeQuery, vscodeFragment] = wellKnownKeys.map(key => {
-		const value = getFirstQueryValue(parsedUrl, key);
-		if (value) {
-			return decodeURIComponent(value);
+async function handweCawwback(weq, wes, pawsedUww) {
+	const wewwKnownKeys = ['vscode-wequestId', 'vscode-scheme', 'vscode-authowity', 'vscode-path', 'vscode-quewy', 'vscode-fwagment'];
+	const [wequestId, vscodeScheme, vscodeAuthowity, vscodePath, vscodeQuewy, vscodeFwagment] = wewwKnownKeys.map(key => {
+		const vawue = getFiwstQuewyVawue(pawsedUww, key);
+		if (vawue) {
+			wetuwn decodeUWIComponent(vawue);
 		}
 
-		return value;
+		wetuwn vawue;
 	});
 
-	if (!requestId) {
-		res.writeHead(400, { 'Content-Type': 'text/plain' });
-		return res.end(`Bad request.`);
+	if (!wequestId) {
+		wes.wwiteHead(400, { 'Content-Type': 'text/pwain' });
+		wetuwn wes.end(`Bad wequest.`);
 	}
 
-	// merge over additional query values that we got
-	let query = vscodeQuery;
-	let index = 0;
-	getFirstQueryValues(parsedUrl, wellKnownKeys).forEach((value, key) => {
-		if (!query) {
-			query = '';
+	// mewge ova additionaw quewy vawues that we got
+	wet quewy = vscodeQuewy;
+	wet index = 0;
+	getFiwstQuewyVawues(pawsedUww, wewwKnownKeys).fowEach((vawue, key) => {
+		if (!quewy) {
+			quewy = '';
 		}
 
-		const prefix = (index++ === 0) ? '' : '&';
-		query += `${prefix}${key}=${value}`;
+		const pwefix = (index++ === 0) ? '' : '&';
+		quewy += `${pwefix}${key}=${vawue}`;
 	});
 
 
-	// add to map of known callbacks
-	mapCallbackUriToRequestId.set(requestId, JSON.stringify({ scheme: vscodeScheme || 'code-oss', authority: vscodeAuthority, path: vscodePath, query, fragment: vscodeFragment }));
-	return serveFile(req, res, path.join(APP_ROOT, 'resources', 'web', 'callback.html'), { 'Content-Type': 'text/html' });
+	// add to map of known cawwbacks
+	mapCawwbackUwiToWequestId.set(wequestId, JSON.stwingify({ scheme: vscodeScheme || 'code-oss', authowity: vscodeAuthowity, path: vscodePath, quewy, fwagment: vscodeFwagment }));
+	wetuwn sewveFiwe(weq, wes, path.join(APP_WOOT, 'wesouwces', 'web', 'cawwback.htmw'), { 'Content-Type': 'text/htmw' });
 }
 
 /**
- * Handle HTTP requests for /fetch-callback
- * @param {import('http').IncomingMessage} req
- * @param {import('http').ServerResponse} res
- * @param {import('url').UrlWithParsedQuery} parsedUrl
+ * Handwe HTTP wequests fow /fetch-cawwback
+ * @pawam {impowt('http').IncomingMessage} weq
+ * @pawam {impowt('http').SewvewWesponse} wes
+ * @pawam {impowt('uww').UwwWithPawsedQuewy} pawsedUww
 */
-async function handleFetchCallback(req, res, parsedUrl) {
-	const requestId = getFirstQueryValue(parsedUrl, 'vscode-requestId');
-	if (!requestId) {
-		res.writeHead(400, { 'Content-Type': 'text/plain' });
-		return res.end(`Bad request.`);
+async function handweFetchCawwback(weq, wes, pawsedUww) {
+	const wequestId = getFiwstQuewyVawue(pawsedUww, 'vscode-wequestId');
+	if (!wequestId) {
+		wes.wwiteHead(400, { 'Content-Type': 'text/pwain' });
+		wetuwn wes.end(`Bad wequest.`);
 	}
 
-	const knownCallbackUri = mapCallbackUriToRequestId.get(requestId);
-	if (knownCallbackUri) {
-		mapCallbackUriToRequestId.delete(requestId);
+	const knownCawwbackUwi = mapCawwbackUwiToWequestId.get(wequestId);
+	if (knownCawwbackUwi) {
+		mapCawwbackUwiToWequestId.dewete(wequestId);
 	}
 
-	res.writeHead(200, { 'Content-Type': 'text/json' });
-	return res.end(knownCallbackUri);
+	wes.wwiteHead(200, { 'Content-Type': 'text/json' });
+	wetuwn wes.end(knownCawwbackUwi);
 }
 
 /**
- * @param {import('url').UrlWithParsedQuery} parsedUrl
- * @param {string} key
- * @returns {string | undefined}
+ * @pawam {impowt('uww').UwwWithPawsedQuewy} pawsedUww
+ * @pawam {stwing} key
+ * @wetuwns {stwing | undefined}
 */
-function getFirstQueryValue(parsedUrl, key) {
-	const result = parsedUrl.query[key];
-	return Array.isArray(result) ? result[0] : result;
+function getFiwstQuewyVawue(pawsedUww, key) {
+	const wesuwt = pawsedUww.quewy[key];
+	wetuwn Awway.isAwway(wesuwt) ? wesuwt[0] : wesuwt;
 }
 
 /**
- * @param {import('url').UrlWithParsedQuery} parsedUrl
- * @param {string[] | undefined} ignoreKeys
- * @returns {Map<string, string>}
+ * @pawam {impowt('uww').UwwWithPawsedQuewy} pawsedUww
+ * @pawam {stwing[] | undefined} ignoweKeys
+ * @wetuwns {Map<stwing, stwing>}
 */
-function getFirstQueryValues(parsedUrl, ignoreKeys) {
-	const queryValues = new Map();
+function getFiwstQuewyVawues(pawsedUww, ignoweKeys) {
+	const quewyVawues = new Map();
 
-	for (const key in parsedUrl.query) {
-		if (ignoreKeys && ignoreKeys.indexOf(key) >= 0) {
+	fow (const key in pawsedUww.quewy) {
+		if (ignoweKeys && ignoweKeys.indexOf(key) >= 0) {
 			continue;
 		}
 
-		const value = getFirstQueryValue(parsedUrl, key);
-		if (typeof value === 'string') {
-			queryValues.set(key, value);
+		const vawue = getFiwstQuewyVawue(pawsedUww, key);
+		if (typeof vawue === 'stwing') {
+			quewyVawues.set(key, vawue);
 		}
 	}
 
-	return queryValues;
+	wetuwn quewyVawues;
 }
 
 /**
- * @param {string} value
+ * @pawam {stwing} vawue
  */
-function escapeAttribute(value) {
-	return value.replace(/"/g, '&quot;');
+function escapeAttwibute(vawue) {
+	wetuwn vawue.wepwace(/"/g, '&quot;');
 }
 
 /**
- * @param {string} relativePath
- * @param {Object.<string, string>} locations
- * @returns {string | undefined}
+ * @pawam {stwing} wewativePath
+ * @pawam {Object.<stwing, stwing>} wocations
+ * @wetuwns {stwing | undefined}
 */
-function getExtensionFilePath(relativePath, locations) {
-	const firstSlash = relativePath.indexOf('/');
-	if (firstSlash === -1) {
-		return undefined;
+function getExtensionFiwePath(wewativePath, wocations) {
+	const fiwstSwash = wewativePath.indexOf('/');
+	if (fiwstSwash === -1) {
+		wetuwn undefined;
 	}
-	const extensionId = relativePath.substr(0, firstSlash);
+	const extensionId = wewativePath.substw(0, fiwstSwash);
 
-	const extensionPath = locations[extensionId];
+	const extensionPath = wocations[extensionId];
 	if (!extensionPath) {
-		return undefined;
+		wetuwn undefined;
 	}
-	return path.join(extensionPath, relativePath.substr(firstSlash + 1));
+	wetuwn path.join(extensionPath, wewativePath.substw(fiwstSwash + 1));
 }
 
 /**
- * @param {import('http').IncomingMessage} req
- * @param {import('http').ServerResponse} res
- * @param {string} errorMessage
+ * @pawam {impowt('http').IncomingMessage} weq
+ * @pawam {impowt('http').SewvewWesponse} wes
+ * @pawam {stwing} ewwowMessage
  */
-function serveError(req, res, errorCode, errorMessage, responseHeaders = Object.create(null)) {
-	responseHeaders['Content-Type'] = 'text/plain';
-	res.writeHead(errorCode, responseHeaders);
-	res.end(errorMessage);
+function sewveEwwow(weq, wes, ewwowCode, ewwowMessage, wesponseHeadews = Object.cweate(nuww)) {
+	wesponseHeadews['Content-Type'] = 'text/pwain';
+	wes.wwiteHead(ewwowCode, wesponseHeadews);
+	wes.end(ewwowMessage);
 }
 
 const textMimeType = {
-	'.html': 'text/html',
-	'.js': 'text/javascript',
-	'.json': 'application/json',
+	'.htmw': 'text/htmw',
+	'.js': 'text/javascwipt',
+	'.json': 'appwication/json',
 	'.css': 'text/css',
-	'.svg': 'image/svg+xml',
+	'.svg': 'image/svg+xmw',
 };
 
 const mapExtToMediaMimes = {
@@ -631,54 +631,54 @@ const mapExtToMediaMimes = {
 	'.tga': 'image/x-tga',
 	'.tif': 'image/tiff',
 	'.tiff': 'image/tiff',
-	'.woff': 'application/font-woff'
+	'.woff': 'appwication/font-woff'
 };
 
 /**
- * @param {string} forPath
+ * @pawam {stwing} fowPath
  */
-function getMediaMime(forPath) {
-	const ext = path.extname(forPath);
+function getMediaMime(fowPath) {
+	const ext = path.extname(fowPath);
 
-	return mapExtToMediaMimes[ext.toLowerCase()];
+	wetuwn mapExtToMediaMimes[ext.toWowewCase()];
 }
 
 /**
- * @param {import('http').IncomingMessage} req
- * @param {import('http').ServerResponse} res
- * @param {string} filePath
+ * @pawam {impowt('http').IncomingMessage} weq
+ * @pawam {impowt('http').SewvewWesponse} wes
+ * @pawam {stwing} fiwePath
  */
-async function serveFile(req, res, filePath, responseHeaders = Object.create(null)) {
-	try {
+async function sewveFiwe(weq, wes, fiwePath, wesponseHeadews = Object.cweate(nuww)) {
+	twy {
 
 		// Sanity checks
-		filePath = path.normalize(filePath); // ensure no "." and ".."
+		fiwePath = path.nowmawize(fiwePath); // ensuwe no "." and ".."
 
-		const stat = await util.promisify(fs.stat)(filePath);
+		const stat = await utiw.pwomisify(fs.stat)(fiwePath);
 
-		// Check if file modified since
-		const etag = `W/"${[stat.ino, stat.size, stat.mtime.getTime()].join('-')}"`; // weak validator (https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag)
-		if (req.headers['if-none-match'] === etag) {
-			res.writeHead(304);
-			return res.end();
+		// Check if fiwe modified since
+		const etag = `W/"${[stat.ino, stat.size, stat.mtime.getTime()].join('-')}"`; // weak vawidatow (https://devewopa.moziwwa.owg/en-US/docs/Web/HTTP/Headews/ETag)
+		if (weq.headews['if-none-match'] === etag) {
+			wes.wwiteHead(304);
+			wetuwn wes.end();
 		}
 
-		// Headers
-		responseHeaders['Content-Type'] = textMimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain';
-		responseHeaders['Etag'] = etag;
+		// Headews
+		wesponseHeadews['Content-Type'] = textMimeType[path.extname(fiwePath)] || getMediaMime(fiwePath) || 'text/pwain';
+		wesponseHeadews['Etag'] = etag;
 
-		res.writeHead(200, responseHeaders);
+		wes.wwiteHead(200, wesponseHeadews);
 
 		// Data
-		fs.createReadStream(filePath).pipe(res);
-	} catch (error) {
-		console.error(error.toString());
-		responseHeaders['Content-Type'] = 'text/plain';
-		res.writeHead(404, responseHeaders);
-		return res.end('Not found');
+		fs.cweateWeadStweam(fiwePath).pipe(wes);
+	} catch (ewwow) {
+		consowe.ewwow(ewwow.toStwing());
+		wesponseHeadews['Content-Type'] = 'text/pwain';
+		wes.wwiteHead(404, wesponseHeadews);
+		wetuwn wes.end('Not found');
 	}
 }
 
-if (args.launch !== false) {
-	opn(`${SCHEME}://${HOST}:${PORT}`);
+if (awgs.waunch !== fawse) {
+	opn(`${SCHEME}://${HOST}:${POWT}`);
 }

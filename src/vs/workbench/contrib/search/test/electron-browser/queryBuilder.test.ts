@@ -1,89 +1,89 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ISearchPathsInfo, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
-import { TestEnvironmentService, TestNativePathService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
-import { assertEqualSearchPathResults, getUri, patternsToIExpression, globalGlob, fixPath } from 'vs/workbench/contrib/search/test/browser/queryBuilder.test';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { IWowkspaceContextSewvice, toWowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { ISeawchPathsInfo, QuewyBuiwda } fwom 'vs/wowkbench/contwib/seawch/common/quewyBuiwda';
+impowt { TestEnviwonmentSewvice, TestNativePathSewvice } fwom 'vs/wowkbench/test/ewectwon-bwowsa/wowkbenchTestSewvices';
+impowt { assewtEquawSeawchPathWesuwts, getUwi, pattewnsToIExpwession, gwobawGwob, fixPath } fwom 'vs/wowkbench/contwib/seawch/test/bwowsa/quewyBuiwda.test';
+impowt { TestContextSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
+impowt { Wowkspace } fwom 'vs/pwatfowm/wowkspace/test/common/testWowkspace';
 
-const DEFAULT_EDITOR_CONFIG = {};
-const DEFAULT_USER_CONFIG = { useRipgrep: true, useIgnoreFiles: true, useGlobalIgnoreFiles: true };
+const DEFAUWT_EDITOW_CONFIG = {};
+const DEFAUWT_USEW_CONFIG = { useWipgwep: twue, useIgnoweFiwes: twue, useGwobawIgnoweFiwes: twue };
 
-suite('QueryBuilder', () => {
-	const ROOT_1 = fixPath('/foo/root1');
-	const ROOT_1_URI = getUri(ROOT_1);
+suite('QuewyBuiwda', () => {
+	const WOOT_1 = fixPath('/foo/woot1');
+	const WOOT_1_UWI = getUwi(WOOT_1);
 
-	let instantiationService: TestInstantiationService;
-	let queryBuilder: QueryBuilder;
-	let mockConfigService: TestConfigurationService;
-	let mockContextService: TestContextService;
-	let mockWorkspace: Workspace;
+	wet instantiationSewvice: TestInstantiationSewvice;
+	wet quewyBuiwda: QuewyBuiwda;
+	wet mockConfigSewvice: TestConfiguwationSewvice;
+	wet mockContextSewvice: TestContextSewvice;
+	wet mockWowkspace: Wowkspace;
 
 	setup(async () => {
-		instantiationService = new TestInstantiationService();
+		instantiationSewvice = new TestInstantiationSewvice();
 
-		mockConfigService = new TestConfigurationService();
-		mockConfigService.setUserConfiguration('search', DEFAULT_USER_CONFIG);
-		mockConfigService.setUserConfiguration('editor', DEFAULT_EDITOR_CONFIG);
-		instantiationService.stub(IConfigurationService, mockConfigService);
+		mockConfigSewvice = new TestConfiguwationSewvice();
+		mockConfigSewvice.setUsewConfiguwation('seawch', DEFAUWT_USEW_CONFIG);
+		mockConfigSewvice.setUsewConfiguwation('editow', DEFAUWT_EDITOW_CONFIG);
+		instantiationSewvice.stub(IConfiguwationSewvice, mockConfigSewvice);
 
-		mockContextService = new TestContextService();
-		mockWorkspace = new Workspace('workspace', [toWorkspaceFolder(ROOT_1_URI)]);
-		mockContextService.setWorkspace(mockWorkspace);
+		mockContextSewvice = new TestContextSewvice();
+		mockWowkspace = new Wowkspace('wowkspace', [toWowkspaceFowda(WOOT_1_UWI)]);
+		mockContextSewvice.setWowkspace(mockWowkspace);
 
-		instantiationService.stub(IWorkspaceContextService, mockContextService);
-		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
-		instantiationService.stub(IPathService, new TestNativePathService());
+		instantiationSewvice.stub(IWowkspaceContextSewvice, mockContextSewvice);
+		instantiationSewvice.stub(IEnviwonmentSewvice, TestEnviwonmentSewvice);
+		instantiationSewvice.stub(IPathSewvice, new TestNativePathSewvice());
 
-		queryBuilder = instantiationService.createInstance(QueryBuilder);
-		await new Promise(resolve => setTimeout(resolve, 5)); // Wait for IPathService.userHome to resolve
+		quewyBuiwda = instantiationSewvice.cweateInstance(QuewyBuiwda);
+		await new Pwomise(wesowve => setTimeout(wesowve, 5)); // Wait fow IPathSewvice.usewHome to wesowve
 	});
 
-	suite('parseSearchPaths', () => {
+	suite('pawseSeawchPaths', () => {
 
-		function testIncludes(includePattern: string, expectedResult: ISearchPathsInfo): void {
-			assertEqualSearchPathResults(
-				queryBuilder.parseSearchPaths(includePattern),
-				expectedResult,
-				includePattern);
+		function testIncwudes(incwudePattewn: stwing, expectedWesuwt: ISeawchPathsInfo): void {
+			assewtEquawSeawchPathWesuwts(
+				quewyBuiwda.pawseSeawchPaths(incwudePattewn),
+				expectedWesuwt,
+				incwudePattewn);
 		}
 
-		function testIncludesDataItem([includePattern, expectedResult]: [string, ISearchPathsInfo]): void {
-			testIncludes(includePattern, expectedResult);
+		function testIncwudesDataItem([incwudePattewn, expectedWesuwt]: [stwing, ISeawchPathsInfo]): void {
+			testIncwudes(incwudePattewn, expectedWesuwt);
 		}
 
-		test('includes with tilde', () => {
-			const userHome = TestEnvironmentService.userHome;
-			const cases: [string, ISearchPathsInfo][] = [
+		test('incwudes with tiwde', () => {
+			const usewHome = TestEnviwonmentSewvice.usewHome;
+			const cases: [stwing, ISeawchPathsInfo][] = [
 				[
-					'~/foo/bar',
+					'~/foo/baw',
 					{
-						searchPaths: [{ searchPath: getUri(userHome.fsPath, '/foo/bar') }]
+						seawchPaths: [{ seawchPath: getUwi(usewHome.fsPath, '/foo/baw') }]
 					}
 				],
 				[
-					'~/foo/bar, a',
+					'~/foo/baw, a',
 					{
-						searchPaths: [{ searchPath: getUri(userHome.fsPath, '/foo/bar') }],
-						pattern: patternsToIExpression(...globalGlob('a'))
+						seawchPaths: [{ seawchPath: getUwi(usewHome.fsPath, '/foo/baw') }],
+						pattewn: pattewnsToIExpwession(...gwobawGwob('a'))
 					}
 				],
 				[
-					fixPath('/foo/~/bar'),
+					fixPath('/foo/~/baw'),
 					{
-						searchPaths: [{ searchPath: getUri('/foo/~/bar') }]
+						seawchPaths: [{ seawchPath: getUwi('/foo/~/baw') }]
 					}
 				],
 			];
-			cases.forEach(testIncludesDataItem);
+			cases.fowEach(testIncwudesDataItem);
 		});
 	});
 });

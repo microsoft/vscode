@@ -1,60 +1,60 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAccess/gotoLineQuickAccess';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { GoToLineNLS } from 'vs/editor/common/standaloneStrings';
-import { Event } from 'vs/base/common/event';
-import { EditorAction, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+impowt { AbstwactGotoWineQuickAccessPwovida } fwom 'vs/editow/contwib/quickAccess/gotoWineQuickAccess';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IQuickAccessWegistwy, Extensions } fwom 'vs/pwatfowm/quickinput/common/quickAccess';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { GoToWineNWS } fwom 'vs/editow/common/standawoneStwings';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { EditowAction, wegistewEditowAction, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { KeyMod, KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
 
-export class StandaloneGotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProvider {
+expowt cwass StandawoneGotoWineQuickAccessPwovida extends AbstwactGotoWineQuickAccessPwovida {
 
-	protected readonly onDidActiveTextEditorControlChange = Event.None;
+	pwotected weadonwy onDidActiveTextEditowContwowChange = Event.None;
 
-	constructor(@ICodeEditorService private readonly editorService: ICodeEditorService) {
-		super();
+	constwuctow(@ICodeEditowSewvice pwivate weadonwy editowSewvice: ICodeEditowSewvice) {
+		supa();
 	}
 
-	protected get activeTextEditorControl() {
-		return withNullAsUndefined(this.editorService.getFocusedCodeEditor());
+	pwotected get activeTextEditowContwow() {
+		wetuwn withNuwwAsUndefined(this.editowSewvice.getFocusedCodeEditow());
 	}
 }
 
-Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
-	ctor: StandaloneGotoLineQuickAccessProvider,
-	prefix: StandaloneGotoLineQuickAccessProvider.PREFIX,
-	helpEntries: [{ description: GoToLineNLS.gotoLineActionLabel, needsEditor: true }]
+Wegistwy.as<IQuickAccessWegistwy>(Extensions.Quickaccess).wegistewQuickAccessPwovida({
+	ctow: StandawoneGotoWineQuickAccessPwovida,
+	pwefix: StandawoneGotoWineQuickAccessPwovida.PWEFIX,
+	hewpEntwies: [{ descwiption: GoToWineNWS.gotoWineActionWabew, needsEditow: twue }]
 });
 
-export class GotoLineAction extends EditorAction {
+expowt cwass GotoWineAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.gotoLine',
-			label: GoToLineNLS.gotoLineActionLabel,
-			alias: 'Go to Line/Column...',
-			precondition: undefined,
+	constwuctow() {
+		supa({
+			id: 'editow.action.gotoWine',
+			wabew: GoToWineNWS.gotoWineActionWabew,
+			awias: 'Go to Wine/Cowumn...',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_G,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_G },
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.focus,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_G,
+				mac: { pwimawy: KeyMod.WinCtww | KeyCode.KEY_G },
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IQuickInputService).quickAccess.show(StandaloneGotoLineQuickAccessProvider.PREFIX);
+	wun(accessow: SewvicesAccessow): void {
+		accessow.get(IQuickInputSewvice).quickAccess.show(StandawoneGotoWineQuickAccessPwovida.PWEFIX);
 	}
 }
 
-registerEditorAction(GotoLineAction);
+wegistewEditowAction(GotoWineAction);

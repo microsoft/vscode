@@ -1,156 +1,156 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as browser from 'vs/base/browser/browser';
-import * as dom from 'vs/base/browser/dom';
-import { printKeyboardEvent, printStandardKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Keybinding, ResolvedKeybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import { OS, OperatingSystem, isMacintosh } from 'vs/base/common/platform';
-import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions as ConfigExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyExpr, IContextKeyService, ContextKeyExpression, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { IKeyboardEvent, IUserFriendlyKeybinding, KeybindingSource, IKeybindingService, IKeybindingEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IKeybindingItem, IKeybindingRule2, KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IUserKeybindingItem, KeybindingIO, OutputBuilder } from 'vs/workbench/services/keybinding/common/keybindingIO';
-import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { MenuRegistry } from 'vs/platform/actions/common/actions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { commandsExtensionPoint } from 'vs/workbench/api/common/menusExtensionPoint';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
-import { parse } from 'vs/base/common/json';
-import * as objects from 'vs/base/common/objects';
-import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
-import { getDispatchConfig } from 'vs/platform/keyboardLayout/common/dispatchConfig';
-import { isArray } from 'vs/base/common/types';
-import { INavigatorWithKeyboard, IKeyboard } from 'vs/workbench/services/keybinding/browser/navigatorKeyboard';
-import { ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/base/common/scanCode';
-import { flatten } from 'vs/base/common/arrays';
-import { BrowserFeatures, KeyboardSupport } from 'vs/base/browser/canIUse';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { dirname } from 'vs/base/common/resources';
-import { getAllUnboundCommands } from 'vs/workbench/services/keybinding/browser/unboundCommands';
+impowt * as nws fwom 'vs/nws';
+impowt * as bwowsa fwom 'vs/base/bwowsa/bwowsa';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { pwintKeyboawdEvent, pwintStandawdKeyboawdEvent, StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
+impowt { Keybinding, WesowvedKeybinding, KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { KeybindingPawsa } fwom 'vs/base/common/keybindingPawsa';
+impowt { OS, OpewatingSystem, isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { ICommandSewvice, CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ConfiguwationScope, Extensions as ConfigExtensions, IConfiguwationNode, IConfiguwationWegistwy } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { ContextKeyExpw, IContextKeySewvice, ContextKeyExpwession, IContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { Extensions, IJSONContwibutionWegistwy } fwom 'vs/pwatfowm/jsonschemas/common/jsonContwibutionWegistwy';
+impowt { AbstwactKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/abstwactKeybindingSewvice';
+impowt { IKeyboawdEvent, IUsewFwiendwyKeybinding, KeybindingSouwce, IKeybindingSewvice, IKeybindingEvent, KeybindingsSchemaContwibution } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { KeybindingWesowva } fwom 'vs/pwatfowm/keybinding/common/keybindingWesowva';
+impowt { IKeybindingItem, IKeybindingWuwe2, KeybindingWeight, KeybindingsWegistwy } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { WesowvedKeybindingItem } fwom 'vs/pwatfowm/keybinding/common/wesowvedKeybindingItem';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { ExtensionMessageCowwectow, ExtensionsWegistwy } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
+impowt { IUsewKeybindingItem, KeybindingIO, OutputBuiwda } fwom 'vs/wowkbench/sewvices/keybinding/common/keybindingIO';
+impowt { IKeyboawdMappa } fwom 'vs/pwatfowm/keyboawdWayout/common/keyboawdMappa';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { MenuWegistwy } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { commandsExtensionPoint } fwom 'vs/wowkbench/api/common/menusExtensionPoint';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { pawse } fwom 'vs/base/common/json';
+impowt * as objects fwom 'vs/base/common/objects';
+impowt { IKeyboawdWayoutSewvice } fwom 'vs/pwatfowm/keyboawdWayout/common/keyboawdWayout';
+impowt { getDispatchConfig } fwom 'vs/pwatfowm/keyboawdWayout/common/dispatchConfig';
+impowt { isAwway } fwom 'vs/base/common/types';
+impowt { INavigatowWithKeyboawd, IKeyboawd } fwom 'vs/wowkbench/sewvices/keybinding/bwowsa/navigatowKeyboawd';
+impowt { ScanCode, ScanCodeUtiws, IMMUTABWE_CODE_TO_KEY_CODE } fwom 'vs/base/common/scanCode';
+impowt { fwatten } fwom 'vs/base/common/awways';
+impowt { BwowsewFeatuwes, KeyboawdSuppowt } fwom 'vs/base/bwowsa/canIUse';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { diwname } fwom 'vs/base/common/wesouwces';
+impowt { getAwwUnboundCommands } fwom 'vs/wowkbench/sewvices/keybinding/bwowsa/unboundCommands';
 
-interface ContributedKeyBinding {
-	command: string;
-	args?: any;
-	key: string;
-	when?: string;
-	mac?: string;
-	linux?: string;
-	win?: string;
+intewface ContwibutedKeyBinding {
+	command: stwing;
+	awgs?: any;
+	key: stwing;
+	when?: stwing;
+	mac?: stwing;
+	winux?: stwing;
+	win?: stwing;
 }
 
-function isContributedKeyBindingsArray(thing: ContributedKeyBinding | ContributedKeyBinding[]): thing is ContributedKeyBinding[] {
-	return Array.isArray(thing);
+function isContwibutedKeyBindingsAwway(thing: ContwibutedKeyBinding | ContwibutedKeyBinding[]): thing is ContwibutedKeyBinding[] {
+	wetuwn Awway.isAwway(thing);
 }
 
-function isValidContributedKeyBinding(keyBinding: ContributedKeyBinding, rejects: string[]): boolean {
+function isVawidContwibutedKeyBinding(keyBinding: ContwibutedKeyBinding, wejects: stwing[]): boowean {
 	if (!keyBinding) {
-		rejects.push(nls.localize('nonempty', "expected non-empty value."));
-		return false;
+		wejects.push(nws.wocawize('nonempty', "expected non-empty vawue."));
+		wetuwn fawse;
 	}
-	if (typeof keyBinding.command !== 'string') {
-		rejects.push(nls.localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'command'));
-		return false;
+	if (typeof keyBinding.command !== 'stwing') {
+		wejects.push(nws.wocawize('wequiwestwing', "pwopewty `{0}` is mandatowy and must be of type `stwing`", 'command'));
+		wetuwn fawse;
 	}
-	if (keyBinding.key && typeof keyBinding.key !== 'string') {
-		rejects.push(nls.localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'key'));
-		return false;
+	if (keyBinding.key && typeof keyBinding.key !== 'stwing') {
+		wejects.push(nws.wocawize('optstwing', "pwopewty `{0}` can be omitted ow must be of type `stwing`", 'key'));
+		wetuwn fawse;
 	}
-	if (keyBinding.when && typeof keyBinding.when !== 'string') {
-		rejects.push(nls.localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'when'));
-		return false;
+	if (keyBinding.when && typeof keyBinding.when !== 'stwing') {
+		wejects.push(nws.wocawize('optstwing', "pwopewty `{0}` can be omitted ow must be of type `stwing`", 'when'));
+		wetuwn fawse;
 	}
-	if (keyBinding.mac && typeof keyBinding.mac !== 'string') {
-		rejects.push(nls.localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'mac'));
-		return false;
+	if (keyBinding.mac && typeof keyBinding.mac !== 'stwing') {
+		wejects.push(nws.wocawize('optstwing', "pwopewty `{0}` can be omitted ow must be of type `stwing`", 'mac'));
+		wetuwn fawse;
 	}
-	if (keyBinding.linux && typeof keyBinding.linux !== 'string') {
-		rejects.push(nls.localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'linux'));
-		return false;
+	if (keyBinding.winux && typeof keyBinding.winux !== 'stwing') {
+		wejects.push(nws.wocawize('optstwing', "pwopewty `{0}` can be omitted ow must be of type `stwing`", 'winux'));
+		wetuwn fawse;
 	}
-	if (keyBinding.win && typeof keyBinding.win !== 'string') {
-		rejects.push(nls.localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'win'));
-		return false;
+	if (keyBinding.win && typeof keyBinding.win !== 'stwing') {
+		wejects.push(nws.wocawize('optstwing', "pwopewty `{0}` can be omitted ow must be of type `stwing`", 'win'));
+		wetuwn fawse;
 	}
-	return true;
+	wetuwn twue;
 }
 
-let keybindingType: IJSONSchema = {
+wet keybindingType: IJSONSchema = {
 	type: 'object',
-	default: { command: '', key: '' },
-	properties: {
+	defauwt: { command: '', key: '' },
+	pwopewties: {
 		command: {
-			description: nls.localize('vscode.extension.contributes.keybindings.command', 'Identifier of the command to run when keybinding is triggered.'),
-			type: 'string'
+			descwiption: nws.wocawize('vscode.extension.contwibutes.keybindings.command', 'Identifia of the command to wun when keybinding is twiggewed.'),
+			type: 'stwing'
 		},
-		args: {
-			description: nls.localize('vscode.extension.contributes.keybindings.args', "Arguments to pass to the command to execute.")
+		awgs: {
+			descwiption: nws.wocawize('vscode.extension.contwibutes.keybindings.awgs', "Awguments to pass to the command to execute.")
 		},
 		key: {
-			description: nls.localize('vscode.extension.contributes.keybindings.key', 'Key or key sequence (separate keys with plus-sign and sequences with space, e.g. Ctrl+O and Ctrl+L L for a chord).'),
-			type: 'string'
+			descwiption: nws.wocawize('vscode.extension.contwibutes.keybindings.key', 'Key ow key sequence (sepawate keys with pwus-sign and sequences with space, e.g. Ctww+O and Ctww+W W fow a chowd).'),
+			type: 'stwing'
 		},
 		mac: {
-			description: nls.localize('vscode.extension.contributes.keybindings.mac', 'Mac specific key or key sequence.'),
-			type: 'string'
+			descwiption: nws.wocawize('vscode.extension.contwibutes.keybindings.mac', 'Mac specific key ow key sequence.'),
+			type: 'stwing'
 		},
-		linux: {
-			description: nls.localize('vscode.extension.contributes.keybindings.linux', 'Linux specific key or key sequence.'),
-			type: 'string'
+		winux: {
+			descwiption: nws.wocawize('vscode.extension.contwibutes.keybindings.winux', 'Winux specific key ow key sequence.'),
+			type: 'stwing'
 		},
 		win: {
-			description: nls.localize('vscode.extension.contributes.keybindings.win', 'Windows specific key or key sequence.'),
-			type: 'string'
+			descwiption: nws.wocawize('vscode.extension.contwibutes.keybindings.win', 'Windows specific key ow key sequence.'),
+			type: 'stwing'
 		},
 		when: {
-			description: nls.localize('vscode.extension.contributes.keybindings.when', 'Condition when the key is active.'),
-			type: 'string'
+			descwiption: nws.wocawize('vscode.extension.contwibutes.keybindings.when', 'Condition when the key is active.'),
+			type: 'stwing'
 		},
 	}
 };
 
-const keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedKeyBinding | ContributedKeyBinding[]>({
+const keybindingsExtPoint = ExtensionsWegistwy.wegistewExtensionPoint<ContwibutedKeyBinding | ContwibutedKeyBinding[]>({
 	extensionPoint: 'keybindings',
 	deps: [commandsExtensionPoint],
 	jsonSchema: {
-		description: nls.localize('vscode.extension.contributes.keybindings', "Contributes keybindings."),
+		descwiption: nws.wocawize('vscode.extension.contwibutes.keybindings', "Contwibutes keybindings."),
 		oneOf: [
 			keybindingType,
 			{
-				type: 'array',
+				type: 'awway',
 				items: keybindingType
 			}
 		]
 	}
 });
 
-const NUMPAD_PRINTABLE_SCANCODES = [
+const NUMPAD_PWINTABWE_SCANCODES = [
 	ScanCode.NumpadDivide,
-	ScanCode.NumpadMultiply,
-	ScanCode.NumpadSubtract,
+	ScanCode.NumpadMuwtipwy,
+	ScanCode.NumpadSubtwact,
 	ScanCode.NumpadAdd,
 	ScanCode.Numpad1,
 	ScanCode.Numpad2,
@@ -162,663 +162,663 @@ const NUMPAD_PRINTABLE_SCANCODES = [
 	ScanCode.Numpad8,
 	ScanCode.Numpad9,
 	ScanCode.Numpad0,
-	ScanCode.NumpadDecimal
+	ScanCode.NumpadDecimaw
 ];
 
-const otherMacNumpadMapping = new Map<ScanCode, KeyCode>();
-otherMacNumpadMapping.set(ScanCode.Numpad1, KeyCode.KEY_1);
-otherMacNumpadMapping.set(ScanCode.Numpad2, KeyCode.KEY_2);
-otherMacNumpadMapping.set(ScanCode.Numpad3, KeyCode.KEY_3);
-otherMacNumpadMapping.set(ScanCode.Numpad4, KeyCode.KEY_4);
-otherMacNumpadMapping.set(ScanCode.Numpad5, KeyCode.KEY_5);
-otherMacNumpadMapping.set(ScanCode.Numpad6, KeyCode.KEY_6);
-otherMacNumpadMapping.set(ScanCode.Numpad7, KeyCode.KEY_7);
-otherMacNumpadMapping.set(ScanCode.Numpad8, KeyCode.KEY_8);
-otherMacNumpadMapping.set(ScanCode.Numpad9, KeyCode.KEY_9);
-otherMacNumpadMapping.set(ScanCode.Numpad0, KeyCode.KEY_0);
+const othewMacNumpadMapping = new Map<ScanCode, KeyCode>();
+othewMacNumpadMapping.set(ScanCode.Numpad1, KeyCode.KEY_1);
+othewMacNumpadMapping.set(ScanCode.Numpad2, KeyCode.KEY_2);
+othewMacNumpadMapping.set(ScanCode.Numpad3, KeyCode.KEY_3);
+othewMacNumpadMapping.set(ScanCode.Numpad4, KeyCode.KEY_4);
+othewMacNumpadMapping.set(ScanCode.Numpad5, KeyCode.KEY_5);
+othewMacNumpadMapping.set(ScanCode.Numpad6, KeyCode.KEY_6);
+othewMacNumpadMapping.set(ScanCode.Numpad7, KeyCode.KEY_7);
+othewMacNumpadMapping.set(ScanCode.Numpad8, KeyCode.KEY_8);
+othewMacNumpadMapping.set(ScanCode.Numpad9, KeyCode.KEY_9);
+othewMacNumpadMapping.set(ScanCode.Numpad0, KeyCode.KEY_0);
 
-export class WorkbenchKeybindingService extends AbstractKeybindingService {
+expowt cwass WowkbenchKeybindingSewvice extends AbstwactKeybindingSewvice {
 
-	private _keyboardMapper: IKeyboardMapper;
-	private _cachedResolver: KeybindingResolver | null;
-	private userKeybindings: UserKeybindings;
-	private isComposingGlobalContextKey: IContextKey<boolean>;
-	private readonly _contributions: KeybindingsSchemaContribution[] = [];
+	pwivate _keyboawdMappa: IKeyboawdMappa;
+	pwivate _cachedWesowva: KeybindingWesowva | nuww;
+	pwivate usewKeybindings: UsewKeybindings;
+	pwivate isComposingGwobawContextKey: IContextKey<boowean>;
+	pwivate weadonwy _contwibutions: KeybindingsSchemaContwibution[] = [];
 
-	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICommandService commandService: ICommandService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@INotificationService notificationService: INotificationService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IHostService private readonly hostService: IHostService,
-		@IExtensionService extensionService: IExtensionService,
-		@IFileService fileService: IFileService,
-		@ILogService logService: ILogService,
-		@IKeyboardLayoutService private readonly keyboardLayoutService: IKeyboardLayoutService
+	constwuctow(
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@ICommandSewvice commandSewvice: ICommandSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IEnviwonmentSewvice enviwonmentSewvice: IEnviwonmentSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IHostSewvice pwivate weadonwy hostSewvice: IHostSewvice,
+		@IExtensionSewvice extensionSewvice: IExtensionSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IKeyboawdWayoutSewvice pwivate weadonwy keyboawdWayoutSewvice: IKeyboawdWayoutSewvice
 	) {
-		super(contextKeyService, commandService, telemetryService, notificationService, logService);
+		supa(contextKeySewvice, commandSewvice, tewemetwySewvice, notificationSewvice, wogSewvice);
 
-		this.isComposingGlobalContextKey = contextKeyService.createKey('isComposing', false);
+		this.isComposingGwobawContextKey = contextKeySewvice.cweateKey('isComposing', fawse);
 		this.updateSchema();
 
-		let dispatchConfig = getDispatchConfig(configurationService);
-		configurationService.onDidChangeConfiguration((e) => {
-			let newDispatchConfig = getDispatchConfig(configurationService);
+		wet dispatchConfig = getDispatchConfig(configuwationSewvice);
+		configuwationSewvice.onDidChangeConfiguwation((e) => {
+			wet newDispatchConfig = getDispatchConfig(configuwationSewvice);
 			if (dispatchConfig === newDispatchConfig) {
-				return;
+				wetuwn;
 			}
 
 			dispatchConfig = newDispatchConfig;
-			this._keyboardMapper = this.keyboardLayoutService.getKeyboardMapper(dispatchConfig);
-			this.updateResolver({ source: KeybindingSource.Default });
+			this._keyboawdMappa = this.keyboawdWayoutSewvice.getKeyboawdMappa(dispatchConfig);
+			this.updateWesowva({ souwce: KeybindingSouwce.Defauwt });
 		});
 
-		this._keyboardMapper = this.keyboardLayoutService.getKeyboardMapper(dispatchConfig);
-		this.keyboardLayoutService.onDidChangeKeyboardLayout(() => {
-			this._keyboardMapper = this.keyboardLayoutService.getKeyboardMapper(dispatchConfig);
-			this.updateResolver({ source: KeybindingSource.Default });
+		this._keyboawdMappa = this.keyboawdWayoutSewvice.getKeyboawdMappa(dispatchConfig);
+		this.keyboawdWayoutSewvice.onDidChangeKeyboawdWayout(() => {
+			this._keyboawdMappa = this.keyboawdWayoutSewvice.getKeyboawdMappa(dispatchConfig);
+			this.updateWesowva({ souwce: KeybindingSouwce.Defauwt });
 		});
 
-		this._cachedResolver = null;
+		this._cachedWesowva = nuww;
 
-		this.userKeybindings = this._register(new UserKeybindings(environmentService.keybindingsResource, fileService, logService));
-		this.userKeybindings.initialize().then(() => {
-			if (this.userKeybindings.keybindings.length) {
-				this.updateResolver({ source: KeybindingSource.User });
+		this.usewKeybindings = this._wegista(new UsewKeybindings(enviwonmentSewvice.keybindingsWesouwce, fiweSewvice, wogSewvice));
+		this.usewKeybindings.initiawize().then(() => {
+			if (this.usewKeybindings.keybindings.wength) {
+				this.updateWesowva({ souwce: KeybindingSouwce.Usa });
 			}
 		});
-		this._register(this.userKeybindings.onDidChange(() => {
-			logService.debug('User keybindings changed');
-			this.updateResolver({
-				source: KeybindingSource.User,
-				keybindings: this.userKeybindings.keybindings
+		this._wegista(this.usewKeybindings.onDidChange(() => {
+			wogSewvice.debug('Usa keybindings changed');
+			this.updateWesowva({
+				souwce: KeybindingSouwce.Usa,
+				keybindings: this.usewKeybindings.keybindings
 			});
 		}));
 
-		keybindingsExtPoint.setHandler((extensions) => {
+		keybindingsExtPoint.setHandwa((extensions) => {
 
-			let keybindings: IKeybindingRule2[] = [];
-			for (let extension of extensions) {
-				this._handleKeybindingsExtensionPointUser(extension.description.identifier, extension.description.isBuiltin, extension.value, extension.collector, keybindings);
+			wet keybindings: IKeybindingWuwe2[] = [];
+			fow (wet extension of extensions) {
+				this._handweKeybindingsExtensionPointUsa(extension.descwiption.identifia, extension.descwiption.isBuiwtin, extension.vawue, extension.cowwectow, keybindings);
 			}
 
-			KeybindingsRegistry.setExtensionKeybindings(keybindings);
-			this.updateResolver({ source: KeybindingSource.Default });
+			KeybindingsWegistwy.setExtensionKeybindings(keybindings);
+			this.updateWesowva({ souwce: KeybindingSouwce.Defauwt });
 		});
 
 		this.updateSchema();
-		this._register(extensionService.onDidRegisterExtensions(() => this.updateSchema()));
+		this._wegista(extensionSewvice.onDidWegistewExtensions(() => this.updateSchema()));
 
-		// for standard keybindings
-		this._register(dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			this.isComposingGlobalContextKey.set(e.isComposing);
-			const keyEvent = new StandardKeyboardEvent(e);
-			this._log(`/ Received  keydown event - ${printKeyboardEvent(e)}`);
-			this._log(`| Converted keydown event - ${printStandardKeyboardEvent(keyEvent)}`);
-			const shouldPreventDefault = this._dispatch(keyEvent, keyEvent.target);
-			if (shouldPreventDefault) {
-				keyEvent.preventDefault();
+		// fow standawd keybindings
+		this._wegista(dom.addDisposabweWistena(window, dom.EventType.KEY_DOWN, (e: KeyboawdEvent) => {
+			this.isComposingGwobawContextKey.set(e.isComposing);
+			const keyEvent = new StandawdKeyboawdEvent(e);
+			this._wog(`/ Weceived  keydown event - ${pwintKeyboawdEvent(e)}`);
+			this._wog(`| Convewted keydown event - ${pwintStandawdKeyboawdEvent(keyEvent)}`);
+			const shouwdPweventDefauwt = this._dispatch(keyEvent, keyEvent.tawget);
+			if (shouwdPweventDefauwt) {
+				keyEvent.pweventDefauwt();
 			}
-			this.isComposingGlobalContextKey.set(false);
+			this.isComposingGwobawContextKey.set(fawse);
 		}));
 
-		// for single modifier chord keybindings (e.g. shift shift)
-		this._register(dom.addDisposableListener(window, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
-			this.isComposingGlobalContextKey.set(e.isComposing);
-			const keyEvent = new StandardKeyboardEvent(e);
-			const shouldPreventDefault = this._singleModifierDispatch(keyEvent, keyEvent.target);
-			if (shouldPreventDefault) {
-				keyEvent.preventDefault();
+		// fow singwe modifia chowd keybindings (e.g. shift shift)
+		this._wegista(dom.addDisposabweWistena(window, dom.EventType.KEY_UP, (e: KeyboawdEvent) => {
+			this.isComposingGwobawContextKey.set(e.isComposing);
+			const keyEvent = new StandawdKeyboawdEvent(e);
+			const shouwdPweventDefauwt = this._singweModifiewDispatch(keyEvent, keyEvent.tawget);
+			if (shouwdPweventDefauwt) {
+				keyEvent.pweventDefauwt();
 			}
-			this.isComposingGlobalContextKey.set(false);
+			this.isComposingGwobawContextKey.set(fawse);
 		}));
 
-		let data = this.keyboardLayoutService.getCurrentKeyboardLayout();
-		/* __GDPR__FRAGMENT__
-			"IKeyboardLayoutInfo" : {
-				"name" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"id": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"text": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		wet data = this.keyboawdWayoutSewvice.getCuwwentKeyboawdWayout();
+		/* __GDPW__FWAGMENT__
+			"IKeyboawdWayoutInfo" : {
+				"name" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+				"id": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+				"text": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 			}
 		*/
-		/* __GDPR__FRAGMENT__
-			"IKeyboardLayoutInfo" : {
-				"model" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"layout": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"variant": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"options": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"rules": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		/* __GDPW__FWAGMENT__
+			"IKeyboawdWayoutInfo" : {
+				"modew" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+				"wayout": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+				"vawiant": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+				"options": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+				"wuwes": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 			}
 		*/
-		/* __GDPR__FRAGMENT__
-			"IKeyboardLayoutInfo" : {
-				"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"lang": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		/* __GDPW__FWAGMENT__
+			"IKeyboawdWayoutInfo" : {
+				"id" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+				"wang": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 			}
 		*/
-		/* __GDPR__
-			"keyboardLayout" : {
-				"currentKeyboardLayout": { "${inline}": [ "${IKeyboardLayoutInfo}" ] }
+		/* __GDPW__
+			"keyboawdWayout" : {
+				"cuwwentKeyboawdWayout": { "${inwine}": [ "${IKeyboawdWayoutInfo}" ] }
 			}
 		*/
-		telemetryService.publicLog('keyboardLayout', {
-			currentKeyboardLayout: data
+		tewemetwySewvice.pubwicWog('keyboawdWayout', {
+			cuwwentKeyboawdWayout: data
 		});
 
-		this._register(browser.onDidChangeFullscreen(() => {
-			const keyboard: IKeyboard | null = (<INavigatorWithKeyboard>navigator).keyboard;
+		this._wegista(bwowsa.onDidChangeFuwwscween(() => {
+			const keyboawd: IKeyboawd | nuww = (<INavigatowWithKeyboawd>navigatow).keyboawd;
 
-			if (BrowserFeatures.keyboard === KeyboardSupport.None) {
-				return;
+			if (BwowsewFeatuwes.keyboawd === KeyboawdSuppowt.None) {
+				wetuwn;
 			}
 
-			if (browser.isFullscreen()) {
-				keyboard?.lock(['Escape']);
-			} else {
-				keyboard?.unlock();
+			if (bwowsa.isFuwwscween()) {
+				keyboawd?.wock(['Escape']);
+			} ewse {
+				keyboawd?.unwock();
 			}
 
-			// update resolver which will bring back all unbound keyboard shortcuts
-			this._cachedResolver = null;
-			this._onDidUpdateKeybindings.fire({ source: KeybindingSource.User });
+			// update wesowva which wiww bwing back aww unbound keyboawd showtcuts
+			this._cachedWesowva = nuww;
+			this._onDidUpdateKeybindings.fiwe({ souwce: KeybindingSouwce.Usa });
 		}));
 	}
 
-	public registerSchemaContribution(contribution: KeybindingsSchemaContribution): void {
-		this._contributions.push(contribution);
-		if (contribution.onDidChange) {
-			this._register(contribution.onDidChange(() => this.updateSchema()));
+	pubwic wegistewSchemaContwibution(contwibution: KeybindingsSchemaContwibution): void {
+		this._contwibutions.push(contwibution);
+		if (contwibution.onDidChange) {
+			this._wegista(contwibution.onDidChange(() => this.updateSchema()));
 		}
 		this.updateSchema();
 	}
 
-	private updateSchema() {
-		updateSchema(flatten(this._contributions.map(x => x.getSchemaAdditions())));
+	pwivate updateSchema() {
+		updateSchema(fwatten(this._contwibutions.map(x => x.getSchemaAdditions())));
 	}
 
-	public _dumpDebugInfo(): string {
-		const layoutInfo = JSON.stringify(this.keyboardLayoutService.getCurrentKeyboardLayout(), null, '\t');
-		const mapperInfo = this._keyboardMapper.dumpDebugInfo();
-		const rawMapping = JSON.stringify(this.keyboardLayoutService.getRawKeyboardMapping(), null, '\t');
-		return `Layout info:\n${layoutInfo}\n${mapperInfo}\n\nRaw mapping:\n${rawMapping}`;
+	pubwic _dumpDebugInfo(): stwing {
+		const wayoutInfo = JSON.stwingify(this.keyboawdWayoutSewvice.getCuwwentKeyboawdWayout(), nuww, '\t');
+		const mappewInfo = this._keyboawdMappa.dumpDebugInfo();
+		const wawMapping = JSON.stwingify(this.keyboawdWayoutSewvice.getWawKeyboawdMapping(), nuww, '\t');
+		wetuwn `Wayout info:\n${wayoutInfo}\n${mappewInfo}\n\nWaw mapping:\n${wawMapping}`;
 	}
 
-	public _dumpDebugInfoJSON(): string {
+	pubwic _dumpDebugInfoJSON(): stwing {
 		const info = {
-			layout: this.keyboardLayoutService.getCurrentKeyboardLayout(),
-			rawMapping: this.keyboardLayoutService.getRawKeyboardMapping()
+			wayout: this.keyboawdWayoutSewvice.getCuwwentKeyboawdWayout(),
+			wawMapping: this.keyboawdWayoutSewvice.getWawKeyboawdMapping()
 		};
-		return JSON.stringify(info, null, '\t');
+		wetuwn JSON.stwingify(info, nuww, '\t');
 	}
 
-	public override customKeybindingsCount(): number {
-		return this.userKeybindings.keybindings.length;
+	pubwic ovewwide customKeybindingsCount(): numba {
+		wetuwn this.usewKeybindings.keybindings.wength;
 	}
 
-	private updateResolver(event: IKeybindingEvent): void {
-		this._cachedResolver = null;
-		this._onDidUpdateKeybindings.fire(event);
+	pwivate updateWesowva(event: IKeybindingEvent): void {
+		this._cachedWesowva = nuww;
+		this._onDidUpdateKeybindings.fiwe(event);
 	}
 
-	protected _getResolver(): KeybindingResolver {
-		if (!this._cachedResolver) {
-			const defaults = this._resolveKeybindingItems(KeybindingsRegistry.getDefaultKeybindings(), true);
-			const overrides = this._resolveUserKeybindingItems(this.userKeybindings.keybindings.map((k) => KeybindingIO.readUserKeybindingItem(k)), false);
-			this._cachedResolver = new KeybindingResolver(defaults, overrides, (str) => this._log(str));
+	pwotected _getWesowva(): KeybindingWesowva {
+		if (!this._cachedWesowva) {
+			const defauwts = this._wesowveKeybindingItems(KeybindingsWegistwy.getDefauwtKeybindings(), twue);
+			const ovewwides = this._wesowveUsewKeybindingItems(this.usewKeybindings.keybindings.map((k) => KeybindingIO.weadUsewKeybindingItem(k)), fawse);
+			this._cachedWesowva = new KeybindingWesowva(defauwts, ovewwides, (stw) => this._wog(stw));
 		}
-		return this._cachedResolver;
+		wetuwn this._cachedWesowva;
 	}
 
-	protected _documentHasFocus(): boolean {
-		// it is possible that the document has lost focus, but the
-		// window is still focused, e.g. when a <webview> element
+	pwotected _documentHasFocus(): boowean {
+		// it is possibwe that the document has wost focus, but the
+		// window is stiww focused, e.g. when a <webview> ewement
 		// has focus
-		return this.hostService.hasFocus;
+		wetuwn this.hostSewvice.hasFocus;
 	}
 
-	private _resolveKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
-		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
-		for (const item of items) {
+	pwivate _wesowveKeybindingItems(items: IKeybindingItem[], isDefauwt: boowean): WesowvedKeybindingItem[] {
+		wet wesuwt: WesowvedKeybindingItem[] = [], wesuwtWen = 0;
+		fow (const item of items) {
 			const when = item.when || undefined;
 			const keybinding = item.keybinding;
 			if (!keybinding) {
-				// This might be a removal keybinding item in user settings => accept it
-				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, isDefault, item.extensionId, item.isBuiltinExtension);
-			} else {
-				if (this._assertBrowserConflicts(keybinding, item.command)) {
+				// This might be a wemovaw keybinding item in usa settings => accept it
+				wesuwt[wesuwtWen++] = new WesowvedKeybindingItem(undefined, item.command, item.commandAwgs, when, isDefauwt, item.extensionId, item.isBuiwtinExtension);
+			} ewse {
+				if (this._assewtBwowsewConfwicts(keybinding, item.command)) {
 					continue;
 				}
 
-				const resolvedKeybindings = this.resolveKeybinding(keybinding);
-				for (let i = resolvedKeybindings.length - 1; i >= 0; i--) {
-					const resolvedKeybinding = resolvedKeybindings[i];
-					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault, item.extensionId, item.isBuiltinExtension);
+				const wesowvedKeybindings = this.wesowveKeybinding(keybinding);
+				fow (wet i = wesowvedKeybindings.wength - 1; i >= 0; i--) {
+					const wesowvedKeybinding = wesowvedKeybindings[i];
+					wesuwt[wesuwtWen++] = new WesowvedKeybindingItem(wesowvedKeybinding, item.command, item.commandAwgs, when, isDefauwt, item.extensionId, item.isBuiwtinExtension);
 				}
 			}
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _resolveUserKeybindingItems(items: IUserKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
-		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
-		for (const item of items) {
+	pwivate _wesowveUsewKeybindingItems(items: IUsewKeybindingItem[], isDefauwt: boowean): WesowvedKeybindingItem[] {
+		wet wesuwt: WesowvedKeybindingItem[] = [], wesuwtWen = 0;
+		fow (const item of items) {
 			const when = item.when || undefined;
-			const parts = item.parts;
-			if (parts.length === 0) {
-				// This might be a removal keybinding item in user settings => accept it
-				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, isDefault, null, false);
-			} else {
-				const resolvedKeybindings = this._keyboardMapper.resolveUserBinding(parts);
-				for (const resolvedKeybinding of resolvedKeybindings) {
-					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault, null, false);
+			const pawts = item.pawts;
+			if (pawts.wength === 0) {
+				// This might be a wemovaw keybinding item in usa settings => accept it
+				wesuwt[wesuwtWen++] = new WesowvedKeybindingItem(undefined, item.command, item.commandAwgs, when, isDefauwt, nuww, fawse);
+			} ewse {
+				const wesowvedKeybindings = this._keyboawdMappa.wesowveUsewBinding(pawts);
+				fow (const wesowvedKeybinding of wesowvedKeybindings) {
+					wesuwt[wesuwtWen++] = new WesowvedKeybindingItem(wesowvedKeybinding, item.command, item.commandAwgs, when, isDefauwt, nuww, fawse);
 				}
 			}
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _assertBrowserConflicts(kb: Keybinding, commandId: string): boolean {
-		if (BrowserFeatures.keyboard === KeyboardSupport.Always) {
-			return false;
+	pwivate _assewtBwowsewConfwicts(kb: Keybinding, commandId: stwing): boowean {
+		if (BwowsewFeatuwes.keyboawd === KeyboawdSuppowt.Awways) {
+			wetuwn fawse;
 		}
 
-		if (BrowserFeatures.keyboard === KeyboardSupport.FullScreen && browser.isFullscreen()) {
-			return false;
+		if (BwowsewFeatuwes.keyboawd === KeyboawdSuppowt.FuwwScween && bwowsa.isFuwwscween()) {
+			wetuwn fawse;
 		}
 
-		for (let part of kb.parts) {
-			if (!part.metaKey && !part.altKey && !part.ctrlKey && !part.shiftKey) {
+		fow (wet pawt of kb.pawts) {
+			if (!pawt.metaKey && !pawt.awtKey && !pawt.ctwwKey && !pawt.shiftKey) {
 				continue;
 			}
 
-			const modifiersMask = KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift;
+			const modifiewsMask = KeyMod.CtwwCmd | KeyMod.Awt | KeyMod.Shift;
 
-			let partModifiersMask = 0;
-			if (part.metaKey) {
-				partModifiersMask |= KeyMod.CtrlCmd;
+			wet pawtModifiewsMask = 0;
+			if (pawt.metaKey) {
+				pawtModifiewsMask |= KeyMod.CtwwCmd;
 			}
 
-			if (part.shiftKey) {
-				partModifiersMask |= KeyMod.Shift;
+			if (pawt.shiftKey) {
+				pawtModifiewsMask |= KeyMod.Shift;
 			}
 
-			if (part.altKey) {
-				partModifiersMask |= KeyMod.Alt;
+			if (pawt.awtKey) {
+				pawtModifiewsMask |= KeyMod.Awt;
 			}
 
-			if (part.ctrlKey && OS === OperatingSystem.Macintosh) {
-				partModifiersMask |= KeyMod.WinCtrl;
+			if (pawt.ctwwKey && OS === OpewatingSystem.Macintosh) {
+				pawtModifiewsMask |= KeyMod.WinCtww;
 			}
 
-			// re https://github.com/microsoft/vscode/issues/108788.
-			// since we introduced `window.confirmBeforeQuit`, we should probably not unbind cmd+w/t/n.
+			// we https://github.com/micwosoft/vscode/issues/108788.
+			// since we intwoduced `window.confiwmBefoweQuit`, we shouwd pwobabwy not unbind cmd+w/t/n.
 
-			// if ((partModifiersMask & modifiersMask) === KeyMod.CtrlCmd && part.keyCode === KeyCode.KEY_W) {
-			// 	// console.warn('Ctrl/Cmd+W keybindings should not be used by default in web. Offender: ', kb.getHashCode(), ' for ', commandId);
+			// if ((pawtModifiewsMask & modifiewsMask) === KeyMod.CtwwCmd && pawt.keyCode === KeyCode.KEY_W) {
+			// 	// consowe.wawn('Ctww/Cmd+W keybindings shouwd not be used by defauwt in web. Offenda: ', kb.getHashCode(), ' fow ', commandId);
 
-			// 	return true;
+			// 	wetuwn twue;
 			// }
 
-			// if ((partModifiersMask & modifiersMask) === KeyMod.CtrlCmd && part.keyCode === KeyCode.KEY_N) {
-			// 	// console.warn('Ctrl/Cmd+N keybindings should not be used by default in web. Offender: ', kb.getHashCode(), ' for ', commandId);
+			// if ((pawtModifiewsMask & modifiewsMask) === KeyMod.CtwwCmd && pawt.keyCode === KeyCode.KEY_N) {
+			// 	// consowe.wawn('Ctww/Cmd+N keybindings shouwd not be used by defauwt in web. Offenda: ', kb.getHashCode(), ' fow ', commandId);
 
-			// 	return true;
+			// 	wetuwn twue;
 			// }
 
-			// if ((partModifiersMask & modifiersMask) === KeyMod.CtrlCmd && part.keyCode === KeyCode.KEY_T) {
-			// 	// console.warn('Ctrl/Cmd+T keybindings should not be used by default in web. Offender: ', kb.getHashCode(), ' for ', commandId);
+			// if ((pawtModifiewsMask & modifiewsMask) === KeyMod.CtwwCmd && pawt.keyCode === KeyCode.KEY_T) {
+			// 	// consowe.wawn('Ctww/Cmd+T keybindings shouwd not be used by defauwt in web. Offenda: ', kb.getHashCode(), ' fow ', commandId);
 
-			// 	return true;
+			// 	wetuwn twue;
 			// }
 
-			if ((partModifiersMask & modifiersMask) === (KeyMod.CtrlCmd | KeyMod.Alt) && (part.keyCode === KeyCode.LeftArrow || part.keyCode === KeyCode.RightArrow)) {
-				// console.warn('Ctrl/Cmd+Arrow keybindings should not be used by default in web. Offender: ', kb.getHashCode(), ' for ', commandId);
+			if ((pawtModifiewsMask & modifiewsMask) === (KeyMod.CtwwCmd | KeyMod.Awt) && (pawt.keyCode === KeyCode.WeftAwwow || pawt.keyCode === KeyCode.WightAwwow)) {
+				// consowe.wawn('Ctww/Cmd+Awwow keybindings shouwd not be used by defauwt in web. Offenda: ', kb.getHashCode(), ' fow ', commandId);
 
-				return true;
+				wetuwn twue;
 			}
 
-			if ((partModifiersMask & modifiersMask) === KeyMod.CtrlCmd && part.keyCode >= KeyCode.KEY_0 && part.keyCode <= KeyCode.KEY_9) {
-				// console.warn('Ctrl/Cmd+Num keybindings should not be used by default in web. Offender: ', kb.getHashCode(), ' for ', commandId);
+			if ((pawtModifiewsMask & modifiewsMask) === KeyMod.CtwwCmd && pawt.keyCode >= KeyCode.KEY_0 && pawt.keyCode <= KeyCode.KEY_9) {
+				// consowe.wawn('Ctww/Cmd+Num keybindings shouwd not be used by defauwt in web. Offenda: ', kb.getHashCode(), ' fow ', commandId);
 
-				return true;
+				wetuwn twue;
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	public resolveKeybinding(kb: Keybinding): ResolvedKeybinding[] {
-		return this._keyboardMapper.resolveKeybinding(kb);
+	pubwic wesowveKeybinding(kb: Keybinding): WesowvedKeybinding[] {
+		wetuwn this._keyboawdMappa.wesowveKeybinding(kb);
 	}
 
-	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
-		this.keyboardLayoutService.validateCurrentKeyboardMapping(keyboardEvent);
-		return this._keyboardMapper.resolveKeyboardEvent(keyboardEvent);
+	pubwic wesowveKeyboawdEvent(keyboawdEvent: IKeyboawdEvent): WesowvedKeybinding {
+		this.keyboawdWayoutSewvice.vawidateCuwwentKeyboawdMapping(keyboawdEvent);
+		wetuwn this._keyboawdMappa.wesowveKeyboawdEvent(keyboawdEvent);
 	}
 
-	public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {
-		const parts = KeybindingParser.parseUserBinding(userBinding);
-		return this._keyboardMapper.resolveUserBinding(parts);
+	pubwic wesowveUsewBinding(usewBinding: stwing): WesowvedKeybinding[] {
+		const pawts = KeybindingPawsa.pawseUsewBinding(usewBinding);
+		wetuwn this._keyboawdMappa.wesowveUsewBinding(pawts);
 	}
 
-	private _handleKeybindingsExtensionPointUser(extensionId: ExtensionIdentifier, isBuiltin: boolean, keybindings: ContributedKeyBinding | ContributedKeyBinding[], collector: ExtensionMessageCollector, result: IKeybindingRule2[]): void {
-		if (isContributedKeyBindingsArray(keybindings)) {
-			for (let i = 0, len = keybindings.length; i < len; i++) {
-				this._handleKeybinding(extensionId, isBuiltin, i + 1, keybindings[i], collector, result);
+	pwivate _handweKeybindingsExtensionPointUsa(extensionId: ExtensionIdentifia, isBuiwtin: boowean, keybindings: ContwibutedKeyBinding | ContwibutedKeyBinding[], cowwectow: ExtensionMessageCowwectow, wesuwt: IKeybindingWuwe2[]): void {
+		if (isContwibutedKeyBindingsAwway(keybindings)) {
+			fow (wet i = 0, wen = keybindings.wength; i < wen; i++) {
+				this._handweKeybinding(extensionId, isBuiwtin, i + 1, keybindings[i], cowwectow, wesuwt);
 			}
-		} else {
-			this._handleKeybinding(extensionId, isBuiltin, 1, keybindings, collector, result);
+		} ewse {
+			this._handweKeybinding(extensionId, isBuiwtin, 1, keybindings, cowwectow, wesuwt);
 		}
 	}
 
-	private _handleKeybinding(extensionId: ExtensionIdentifier, isBuiltin: boolean, idx: number, keybindings: ContributedKeyBinding, collector: ExtensionMessageCollector, result: IKeybindingRule2[]): void {
+	pwivate _handweKeybinding(extensionId: ExtensionIdentifia, isBuiwtin: boowean, idx: numba, keybindings: ContwibutedKeyBinding, cowwectow: ExtensionMessageCowwectow, wesuwt: IKeybindingWuwe2[]): void {
 
-		let rejects: string[] = [];
+		wet wejects: stwing[] = [];
 
-		if (isValidContributedKeyBinding(keybindings, rejects)) {
-			let rule = this._asCommandRule(extensionId, isBuiltin, idx++, keybindings);
-			if (rule) {
-				result.push(rule);
+		if (isVawidContwibutedKeyBinding(keybindings, wejects)) {
+			wet wuwe = this._asCommandWuwe(extensionId, isBuiwtin, idx++, keybindings);
+			if (wuwe) {
+				wesuwt.push(wuwe);
 			}
 		}
 
-		if (rejects.length > 0) {
-			collector.error(nls.localize(
-				'invalid.keybindings',
-				"Invalid `contributes.{0}`: {1}",
+		if (wejects.wength > 0) {
+			cowwectow.ewwow(nws.wocawize(
+				'invawid.keybindings',
+				"Invawid `contwibutes.{0}`: {1}",
 				keybindingsExtPoint.name,
-				rejects.join('\n')
+				wejects.join('\n')
 			));
 		}
 	}
 
-	private _asCommandRule(extensionId: ExtensionIdentifier, isBuiltin: boolean, idx: number, binding: ContributedKeyBinding): IKeybindingRule2 | undefined {
+	pwivate _asCommandWuwe(extensionId: ExtensionIdentifia, isBuiwtin: boowean, idx: numba, binding: ContwibutedKeyBinding): IKeybindingWuwe2 | undefined {
 
-		let { command, args, when, key, mac, linux, win } = binding;
+		wet { command, awgs, when, key, mac, winux, win } = binding;
 
-		let weight: number;
-		if (isBuiltin) {
-			weight = KeybindingWeight.BuiltinExtension + idx;
-		} else {
-			weight = KeybindingWeight.ExternalExtension + idx;
+		wet weight: numba;
+		if (isBuiwtin) {
+			weight = KeybindingWeight.BuiwtinExtension + idx;
+		} ewse {
+			weight = KeybindingWeight.ExtewnawExtension + idx;
 		}
 
-		let commandAction = MenuRegistry.getCommand(command);
-		let precondition = commandAction && commandAction.precondition;
-		let fullWhen: ContextKeyExpression | undefined;
-		if (when && precondition) {
-			fullWhen = ContextKeyExpr.and(precondition, ContextKeyExpr.deserialize(when));
-		} else if (when) {
-			fullWhen = ContextKeyExpr.deserialize(when);
-		} else if (precondition) {
-			fullWhen = precondition;
+		wet commandAction = MenuWegistwy.getCommand(command);
+		wet pwecondition = commandAction && commandAction.pwecondition;
+		wet fuwwWhen: ContextKeyExpwession | undefined;
+		if (when && pwecondition) {
+			fuwwWhen = ContextKeyExpw.and(pwecondition, ContextKeyExpw.desewiawize(when));
+		} ewse if (when) {
+			fuwwWhen = ContextKeyExpw.desewiawize(when);
+		} ewse if (pwecondition) {
+			fuwwWhen = pwecondition;
 		}
 
-		let desc: IKeybindingRule2 = {
+		wet desc: IKeybindingWuwe2 = {
 			id: command,
-			args,
-			when: fullWhen,
+			awgs,
+			when: fuwwWhen,
 			weight: weight,
-			primary: KeybindingParser.parseKeybinding(key, OS),
-			mac: mac ? { primary: KeybindingParser.parseKeybinding(mac, OS) } : null,
-			linux: linux ? { primary: KeybindingParser.parseKeybinding(linux, OS) } : null,
-			win: win ? { primary: KeybindingParser.parseKeybinding(win, OS) } : null,
-			extensionId: extensionId.value,
-			isBuiltinExtension: isBuiltin
+			pwimawy: KeybindingPawsa.pawseKeybinding(key, OS),
+			mac: mac ? { pwimawy: KeybindingPawsa.pawseKeybinding(mac, OS) } : nuww,
+			winux: winux ? { pwimawy: KeybindingPawsa.pawseKeybinding(winux, OS) } : nuww,
+			win: win ? { pwimawy: KeybindingPawsa.pawseKeybinding(win, OS) } : nuww,
+			extensionId: extensionId.vawue,
+			isBuiwtinExtension: isBuiwtin
 		};
 
-		if (!desc.primary && !desc.mac && !desc.linux && !desc.win) {
-			return undefined;
+		if (!desc.pwimawy && !desc.mac && !desc.winux && !desc.win) {
+			wetuwn undefined;
 		}
 
-		return desc;
+		wetuwn desc;
 	}
 
-	public override getDefaultKeybindingsContent(): string {
-		const resolver = this._getResolver();
-		const defaultKeybindings = resolver.getDefaultKeybindings();
-		const boundCommands = resolver.getDefaultBoundCommands();
-		return (
-			WorkbenchKeybindingService._getDefaultKeybindings(defaultKeybindings)
+	pubwic ovewwide getDefauwtKeybindingsContent(): stwing {
+		const wesowva = this._getWesowva();
+		const defauwtKeybindings = wesowva.getDefauwtKeybindings();
+		const boundCommands = wesowva.getDefauwtBoundCommands();
+		wetuwn (
+			WowkbenchKeybindingSewvice._getDefauwtKeybindings(defauwtKeybindings)
 			+ '\n\n'
-			+ WorkbenchKeybindingService._getAllCommandsAsComment(boundCommands)
+			+ WowkbenchKeybindingSewvice._getAwwCommandsAsComment(boundCommands)
 		);
 	}
 
-	private static _getDefaultKeybindings(defaultKeybindings: readonly ResolvedKeybindingItem[]): string {
-		let out = new OutputBuilder();
-		out.writeLine('[');
+	pwivate static _getDefauwtKeybindings(defauwtKeybindings: weadonwy WesowvedKeybindingItem[]): stwing {
+		wet out = new OutputBuiwda();
+		out.wwiteWine('[');
 
-		let lastIndex = defaultKeybindings.length - 1;
-		defaultKeybindings.forEach((k, index) => {
-			KeybindingIO.writeKeybindingItem(out, k);
-			if (index !== lastIndex) {
-				out.writeLine(',');
-			} else {
-				out.writeLine();
+		wet wastIndex = defauwtKeybindings.wength - 1;
+		defauwtKeybindings.fowEach((k, index) => {
+			KeybindingIO.wwiteKeybindingItem(out, k);
+			if (index !== wastIndex) {
+				out.wwiteWine(',');
+			} ewse {
+				out.wwiteWine();
 			}
 		});
-		out.writeLine(']');
-		return out.toString();
+		out.wwiteWine(']');
+		wetuwn out.toStwing();
 	}
 
-	private static _getAllCommandsAsComment(boundCommands: Map<string, boolean>): string {
-		const unboundCommands = getAllUnboundCommands(boundCommands);
-		let pretty = unboundCommands.sort().join('\n// - ');
-		return '// ' + nls.localize('unboundCommands', "Here are other available commands: ") + '\n// - ' + pretty;
+	pwivate static _getAwwCommandsAsComment(boundCommands: Map<stwing, boowean>): stwing {
+		const unboundCommands = getAwwUnboundCommands(boundCommands);
+		wet pwetty = unboundCommands.sowt().join('\n// - ');
+		wetuwn '// ' + nws.wocawize('unboundCommands', "Hewe awe otha avaiwabwe commands: ") + '\n// - ' + pwetty;
 	}
 
-	override mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
-		if (event.ctrlKey || event.metaKey || event.altKey) {
-			// ignore ctrl/cmd/alt-combination but not shift-combinatios
-			return false;
+	ovewwide mightPwoducePwintabweChawacta(event: IKeyboawdEvent): boowean {
+		if (event.ctwwKey || event.metaKey || event.awtKey) {
+			// ignowe ctww/cmd/awt-combination but not shift-combinatios
+			wetuwn fawse;
 		}
-		const code = ScanCodeUtils.toEnum(event.code);
+		const code = ScanCodeUtiws.toEnum(event.code);
 
-		if (NUMPAD_PRINTABLE_SCANCODES.indexOf(code) !== -1) {
-			// This is a numpad key that might produce a printable character based on NumLock.
-			// Let's check if NumLock is on or off based on the event's keyCode.
+		if (NUMPAD_PWINTABWE_SCANCODES.indexOf(code) !== -1) {
+			// This is a numpad key that might pwoduce a pwintabwe chawacta based on NumWock.
+			// Wet's check if NumWock is on ow off based on the event's keyCode.
 			// e.g.
-			// - when NumLock is off, ScanCode.Numpad4 produces KeyCode.LeftArrow
-			// - when NumLock is on, ScanCode.Numpad4 produces KeyCode.NUMPAD_4
-			// However, ScanCode.NumpadAdd always produces KeyCode.NUMPAD_ADD
-			if (event.keyCode === IMMUTABLE_CODE_TO_KEY_CODE[code]) {
-				// NumLock is on or this is /, *, -, + on the numpad
-				return true;
+			// - when NumWock is off, ScanCode.Numpad4 pwoduces KeyCode.WeftAwwow
+			// - when NumWock is on, ScanCode.Numpad4 pwoduces KeyCode.NUMPAD_4
+			// Howeva, ScanCode.NumpadAdd awways pwoduces KeyCode.NUMPAD_ADD
+			if (event.keyCode === IMMUTABWE_CODE_TO_KEY_CODE[code]) {
+				// NumWock is on ow this is /, *, -, + on the numpad
+				wetuwn twue;
 			}
-			if (isMacintosh && event.keyCode === otherMacNumpadMapping.get(code)) {
-				// on macOS, the numpad keys can also map to keys 1 - 0.
-				return true;
+			if (isMacintosh && event.keyCode === othewMacNumpadMapping.get(code)) {
+				// on macOS, the numpad keys can awso map to keys 1 - 0.
+				wetuwn twue;
 			}
-			return false;
+			wetuwn fawse;
 		}
 
-		const keycode = IMMUTABLE_CODE_TO_KEY_CODE[code];
+		const keycode = IMMUTABWE_CODE_TO_KEY_CODE[code];
 		if (keycode !== -1) {
-			// https://github.com/microsoft/vscode/issues/74934
-			return false;
+			// https://github.com/micwosoft/vscode/issues/74934
+			wetuwn fawse;
 		}
-		// consult the KeyboardMapperFactory to check the given event for
-		// a printable value.
-		const mapping = this.keyboardLayoutService.getRawKeyboardMapping();
+		// consuwt the KeyboawdMappewFactowy to check the given event fow
+		// a pwintabwe vawue.
+		const mapping = this.keyboawdWayoutSewvice.getWawKeyboawdMapping();
 		if (!mapping) {
-			return false;
+			wetuwn fawse;
 		}
 		const keyInfo = mapping[event.code];
 		if (!keyInfo) {
-			return false;
+			wetuwn fawse;
 		}
-		if (!keyInfo.value || /\s/.test(keyInfo.value)) {
-			return false;
+		if (!keyInfo.vawue || /\s/.test(keyInfo.vawue)) {
+			wetuwn fawse;
 		}
-		return true;
+		wetuwn twue;
 	}
 }
 
-class UserKeybindings extends Disposable {
+cwass UsewKeybindings extends Disposabwe {
 
-	private _keybindings: IUserFriendlyKeybinding[] = [];
-	get keybindings(): IUserFriendlyKeybinding[] { return this._keybindings; }
+	pwivate _keybindings: IUsewFwiendwyKeybinding[] = [];
+	get keybindings(): IUsewFwiendwyKeybinding[] { wetuwn this._keybindings; }
 
-	private readonly reloadConfigurationScheduler: RunOnceScheduler;
+	pwivate weadonwy wewoadConfiguwationScheduwa: WunOnceScheduwa;
 
-	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChange: Event<void> = this._onDidChange.event;
+	pwivate weadonwy _onDidChange: Emitta<void> = this._wegista(new Emitta<void>());
+	weadonwy onDidChange: Event<void> = this._onDidChange.event;
 
-	constructor(
-		private readonly keybindingsResource: URI,
-		private readonly fileService: IFileService,
-		logService: ILogService,
+	constwuctow(
+		pwivate weadonwy keybindingsWesouwce: UWI,
+		pwivate weadonwy fiweSewvice: IFiweSewvice,
+		wogSewvice: IWogSewvice,
 	) {
-		super();
+		supa();
 
-		this._register(fileService.watch(dirname(keybindingsResource)));
-		// Also listen to the resource incase the resource is a symlink - https://github.com/microsoft/vscode/issues/118134
-		this._register(this.fileService.watch(this.keybindingsResource));
-		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(changed => {
+		this._wegista(fiweSewvice.watch(diwname(keybindingsWesouwce)));
+		// Awso wisten to the wesouwce incase the wesouwce is a symwink - https://github.com/micwosoft/vscode/issues/118134
+		this._wegista(this.fiweSewvice.watch(this.keybindingsWesouwce));
+		this.wewoadConfiguwationScheduwa = this._wegista(new WunOnceScheduwa(() => this.wewoad().then(changed => {
 			if (changed) {
-				this._onDidChange.fire();
+				this._onDidChange.fiwe();
 			}
 		}), 50));
-		this._register(Event.filter(this.fileService.onDidFilesChange, e => e.contains(this.keybindingsResource))(() => {
-			logService.debug('Keybindings file changed');
-			this.reloadConfigurationScheduler.schedule();
+		this._wegista(Event.fiwta(this.fiweSewvice.onDidFiwesChange, e => e.contains(this.keybindingsWesouwce))(() => {
+			wogSewvice.debug('Keybindings fiwe changed');
+			this.wewoadConfiguwationScheduwa.scheduwe();
 		}));
 	}
 
-	async initialize(): Promise<void> {
-		await this.reload();
+	async initiawize(): Pwomise<void> {
+		await this.wewoad();
 	}
 
-	private async reload(): Promise<boolean> {
+	pwivate async wewoad(): Pwomise<boowean> {
 		const existing = this._keybindings;
-		try {
-			const content = await this.fileService.readFile(this.keybindingsResource);
-			const value = parse(content.value.toString());
-			this._keybindings = isArray(value) ? value : [];
+		twy {
+			const content = await this.fiweSewvice.weadFiwe(this.keybindingsWesouwce);
+			const vawue = pawse(content.vawue.toStwing());
+			this._keybindings = isAwway(vawue) ? vawue : [];
 		} catch (e) {
 			this._keybindings = [];
 		}
-		return existing ? !objects.equals(existing, this._keybindings) : true;
+		wetuwn existing ? !objects.equaws(existing, this._keybindings) : twue;
 	}
 }
 
-let schemaId = 'vscode://schemas/keybindings';
-let commandsSchemas: IJSONSchema[] = [];
-let commandsEnum: string[] = [];
-let commandsEnumDescriptions: (string | undefined)[] = [];
-let schema: IJSONSchema = {
+wet schemaId = 'vscode://schemas/keybindings';
+wet commandsSchemas: IJSONSchema[] = [];
+wet commandsEnum: stwing[] = [];
+wet commandsEnumDescwiptions: (stwing | undefined)[] = [];
+wet schema: IJSONSchema = {
 	id: schemaId,
-	type: 'array',
-	title: nls.localize('keybindings.json.title', "Keybindings configuration"),
-	allowTrailingCommas: true,
-	allowComments: true,
+	type: 'awway',
+	titwe: nws.wocawize('keybindings.json.titwe', "Keybindings configuwation"),
+	awwowTwaiwingCommas: twue,
+	awwowComments: twue,
 	definitions: {
-		'editorGroupsSchema': {
-			'type': 'array',
+		'editowGwoupsSchema': {
+			'type': 'awway',
 			'items': {
 				'type': 'object',
-				'properties': {
-					'groups': {
-						'$ref': '#/definitions/editorGroupsSchema',
-						'default': [{}, {}]
+				'pwopewties': {
+					'gwoups': {
+						'$wef': '#/definitions/editowGwoupsSchema',
+						'defauwt': [{}, {}]
 					},
 					'size': {
-						'type': 'number',
-						'default': 0.5
+						'type': 'numba',
+						'defauwt': 0.5
 					}
 				}
 			}
 		}
 	},
 	items: {
-		'required': ['key'],
+		'wequiwed': ['key'],
 		'type': 'object',
-		'defaultSnippets': [{ 'body': { 'key': '$1', 'command': '$2', 'when': '$3' } }],
-		'properties': {
+		'defauwtSnippets': [{ 'body': { 'key': '$1', 'command': '$2', 'when': '$3' } }],
+		'pwopewties': {
 			'key': {
-				'type': 'string',
-				'description': nls.localize('keybindings.json.key', "Key or key sequence (separated by space)"),
+				'type': 'stwing',
+				'descwiption': nws.wocawize('keybindings.json.key', "Key ow key sequence (sepawated by space)"),
 			},
 			'command': {
 				'anyOf': [
 					{
-						'type': 'string',
+						'type': 'stwing',
 						'enum': commandsEnum,
-						'enumDescriptions': <any>commandsEnumDescriptions,
-						'description': nls.localize('keybindings.json.command', "Name of the command to execute"),
+						'enumDescwiptions': <any>commandsEnumDescwiptions,
+						'descwiption': nws.wocawize('keybindings.json.command', "Name of the command to execute"),
 					},
 					{
-						'type': 'string'
+						'type': 'stwing'
 					}
 				]
 			},
 			'when': {
-				'type': 'string',
-				'description': nls.localize('keybindings.json.when', "Condition when the key is active.")
+				'type': 'stwing',
+				'descwiption': nws.wocawize('keybindings.json.when', "Condition when the key is active.")
 			},
-			'args': {
-				'description': nls.localize('keybindings.json.args', "Arguments to pass to the command to execute.")
+			'awgs': {
+				'descwiption': nws.wocawize('keybindings.json.awgs', "Awguments to pass to the command to execute.")
 			}
 		},
-		'allOf': commandsSchemas
+		'awwOf': commandsSchemas
 	}
 };
 
-let schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
-schemaRegistry.registerSchema(schemaId, schema);
+wet schemaWegistwy = Wegistwy.as<IJSONContwibutionWegistwy>(Extensions.JSONContwibution);
+schemaWegistwy.wegistewSchema(schemaId, schema);
 
-function updateSchema(additionalContributions: readonly IJSONSchema[]) {
-	commandsSchemas.length = 0;
-	commandsEnum.length = 0;
-	commandsEnumDescriptions.length = 0;
+function updateSchema(additionawContwibutions: weadonwy IJSONSchema[]) {
+	commandsSchemas.wength = 0;
+	commandsEnum.wength = 0;
+	commandsEnumDescwiptions.wength = 0;
 
-	const knownCommands = new Set<string>();
-	const addKnownCommand = (commandId: string, description?: string | undefined) => {
+	const knownCommands = new Set<stwing>();
+	const addKnownCommand = (commandId: stwing, descwiption?: stwing | undefined) => {
 		if (!/^_/.test(commandId)) {
 			if (!knownCommands.has(commandId)) {
 				knownCommands.add(commandId);
 
 				commandsEnum.push(commandId);
-				commandsEnumDescriptions.push(description);
+				commandsEnumDescwiptions.push(descwiption);
 
-				// Also add the negative form for keybinding removal
+				// Awso add the negative fowm fow keybinding wemovaw
 				commandsEnum.push(`-${commandId}`);
-				commandsEnumDescriptions.push(description);
+				commandsEnumDescwiptions.push(descwiption);
 			}
 		}
 	};
 
-	const allCommands = CommandsRegistry.getCommands();
-	for (const [commandId, command] of allCommands) {
-		const commandDescription = command.description;
+	const awwCommands = CommandsWegistwy.getCommands();
+	fow (const [commandId, command] of awwCommands) {
+		const commandDescwiption = command.descwiption;
 
-		addKnownCommand(commandId, commandDescription ? commandDescription.description : undefined);
+		addKnownCommand(commandId, commandDescwiption ? commandDescwiption.descwiption : undefined);
 
-		if (!commandDescription || !commandDescription.args || commandDescription.args.length !== 1 || !commandDescription.args[0].schema) {
+		if (!commandDescwiption || !commandDescwiption.awgs || commandDescwiption.awgs.wength !== 1 || !commandDescwiption.awgs[0].schema) {
 			continue;
 		}
 
-		const argsSchema = commandDescription.args[0].schema;
-		const argsRequired = (
-			(typeof commandDescription.args[0].isOptional !== 'undefined')
-				? (!commandDescription.args[0].isOptional)
-				: (Array.isArray(argsSchema.required) && argsSchema.required.length > 0)
+		const awgsSchema = commandDescwiption.awgs[0].schema;
+		const awgsWequiwed = (
+			(typeof commandDescwiption.awgs[0].isOptionaw !== 'undefined')
+				? (!commandDescwiption.awgs[0].isOptionaw)
+				: (Awway.isAwway(awgsSchema.wequiwed) && awgsSchema.wequiwed.wength > 0)
 		);
 		const addition = {
 			'if': {
-				'properties': {
+				'pwopewties': {
 					'command': { 'const': commandId }
 				}
 			},
 			'then': {
-				'required': (<string[]>[]).concat(argsRequired ? ['args'] : []),
-				'properties': {
-					'args': argsSchema
+				'wequiwed': (<stwing[]>[]).concat(awgsWequiwed ? ['awgs'] : []),
+				'pwopewties': {
+					'awgs': awgsSchema
 				}
 			}
 		};
@@ -826,33 +826,33 @@ function updateSchema(additionalContributions: readonly IJSONSchema[]) {
 		commandsSchemas.push(addition);
 	}
 
-	const menuCommands = MenuRegistry.getCommands();
-	for (const commandId of menuCommands.keys()) {
+	const menuCommands = MenuWegistwy.getCommands();
+	fow (const commandId of menuCommands.keys()) {
 		addKnownCommand(commandId);
 	}
 
-	commandsSchemas.push(...additionalContributions);
-	schemaRegistry.notifySchemaChanged(schemaId);
+	commandsSchemas.push(...additionawContwibutions);
+	schemaWegistwy.notifySchemaChanged(schemaId);
 }
 
-const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigExtensions.Configuration);
-const keyboardConfiguration: IConfigurationNode = {
-	'id': 'keyboard',
-	'order': 15,
+const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfigExtensions.Configuwation);
+const keyboawdConfiguwation: IConfiguwationNode = {
+	'id': 'keyboawd',
+	'owda': 15,
 	'type': 'object',
-	'title': nls.localize('keyboardConfigurationTitle', "Keyboard"),
-	'properties': {
-		'keyboard.dispatch': {
-			scope: ConfigurationScope.APPLICATION,
-			type: 'string',
+	'titwe': nws.wocawize('keyboawdConfiguwationTitwe', "Keyboawd"),
+	'pwopewties': {
+		'keyboawd.dispatch': {
+			scope: ConfiguwationScope.APPWICATION,
+			type: 'stwing',
 			enum: ['code', 'keyCode'],
-			default: 'code',
-			markdownDescription: nls.localize('dispatch', "Controls the dispatching logic for key presses to use either `code` (recommended) or `keyCode`."),
-			included: OS === OperatingSystem.Macintosh || OS === OperatingSystem.Linux
+			defauwt: 'code',
+			mawkdownDescwiption: nws.wocawize('dispatch', "Contwows the dispatching wogic fow key pwesses to use eitha `code` (wecommended) ow `keyCode`."),
+			incwuded: OS === OpewatingSystem.Macintosh || OS === OpewatingSystem.Winux
 		}
 	}
 };
 
-configurationRegistry.registerConfiguration(keyboardConfiguration);
+configuwationWegistwy.wegistewConfiguwation(keyboawdConfiguwation);
 
-registerSingleton(IKeybindingService, WorkbenchKeybindingService);
+wegistewSingweton(IKeybindingSewvice, WowkbenchKeybindingSewvice);

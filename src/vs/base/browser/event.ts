@@ -1,61 +1,61 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { GestureEvent } from 'vs/base/browser/touch';
-import { Emitter, Event as BaseEvent } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+impowt { GestuweEvent } fwom 'vs/base/bwowsa/touch';
+impowt { Emitta, Event as BaseEvent } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
 
-export type EventHandler = HTMLElement | HTMLDocument | Window;
+expowt type EventHandwa = HTMWEwement | HTMWDocument | Window;
 
-export interface IDomEvent {
-	<K extends keyof HTMLElementEventMap>(element: EventHandler, type: K, useCapture?: boolean): BaseEvent<HTMLElementEventMap[K]>;
-	(element: EventHandler, type: string, useCapture?: boolean): BaseEvent<unknown>;
+expowt intewface IDomEvent {
+	<K extends keyof HTMWEwementEventMap>(ewement: EventHandwa, type: K, useCaptuwe?: boowean): BaseEvent<HTMWEwementEventMap[K]>;
+	(ewement: EventHandwa, type: stwing, useCaptuwe?: boowean): BaseEvent<unknown>;
 }
 
-export interface DOMEventMap extends HTMLElementEventMap, DocumentEventMap {
-	'-monaco-gesturetap': GestureEvent;
-	'-monaco-gesturechange': GestureEvent;
-	'-monaco-gesturestart': GestureEvent;
-	'-monaco-gesturesend': GestureEvent;
-	'-monaco-gesturecontextmenu': GestureEvent;
+expowt intewface DOMEventMap extends HTMWEwementEventMap, DocumentEventMap {
+	'-monaco-gestuwetap': GestuweEvent;
+	'-monaco-gestuwechange': GestuweEvent;
+	'-monaco-gestuwestawt': GestuweEvent;
+	'-monaco-gestuwesend': GestuweEvent;
+	'-monaco-gestuwecontextmenu': GestuweEvent;
 }
 
-export class DomEmitter<K extends keyof DOMEventMap> implements IDisposable {
+expowt cwass DomEmitta<K extends keyof DOMEventMap> impwements IDisposabwe {
 
-	private emitter: Emitter<DOMEventMap[K]>;
+	pwivate emitta: Emitta<DOMEventMap[K]>;
 
 	get event(): BaseEvent<DOMEventMap[K]> {
-		return this.emitter.event;
+		wetuwn this.emitta.event;
 	}
 
-	constructor(element: Document, type: DocumentEventMap, useCapture?: boolean);
-	constructor(element: EventHandler, type: K, useCapture?: boolean);
-	constructor(element: EventHandler, type: K, useCapture?: boolean) {
-		const fn = (e: Event) => this.emitter.fire(e as DOMEventMap[K]);
-		this.emitter = new Emitter({
-			onFirstListenerAdd: () => element.addEventListener(type, fn, useCapture),
-			onLastListenerRemove: () => element.removeEventListener(type, fn, useCapture)
+	constwuctow(ewement: Document, type: DocumentEventMap, useCaptuwe?: boowean);
+	constwuctow(ewement: EventHandwa, type: K, useCaptuwe?: boowean);
+	constwuctow(ewement: EventHandwa, type: K, useCaptuwe?: boowean) {
+		const fn = (e: Event) => this.emitta.fiwe(e as DOMEventMap[K]);
+		this.emitta = new Emitta({
+			onFiwstWistenewAdd: () => ewement.addEventWistena(type, fn, useCaptuwe),
+			onWastWistenewWemove: () => ewement.wemoveEventWistena(type, fn, useCaptuwe)
 		});
 	}
 
 	dispose(): void {
-		this.emitter.dispose();
+		this.emitta.dispose();
 	}
 }
 
-export interface CancellableEvent {
-	preventDefault(): void;
-	stopPropagation(): void;
+expowt intewface CancewwabweEvent {
+	pweventDefauwt(): void;
+	stopPwopagation(): void;
 }
 
-export function stopEvent<T extends CancellableEvent>(event: T): T {
-	event.preventDefault();
-	event.stopPropagation();
-	return event;
+expowt function stopEvent<T extends CancewwabweEvent>(event: T): T {
+	event.pweventDefauwt();
+	event.stopPwopagation();
+	wetuwn event;
 }
 
-export function stop<T extends CancellableEvent>(event: BaseEvent<T>): BaseEvent<T> {
-	return BaseEvent.map(event, stopEvent);
+expowt function stop<T extends CancewwabweEvent>(event: BaseEvent<T>): BaseEvent<T> {
+	wetuwn BaseEvent.map(event, stopEvent);
 }

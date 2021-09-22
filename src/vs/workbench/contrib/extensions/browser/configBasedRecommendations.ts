@@ -1,80 +1,80 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionTipsService, IConfigBasedExtensionTip } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
-import { localize } from 'vs/nls';
-import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
-import { Emitter } from 'vs/base/common/event';
+impowt { IExtensionTipsSewvice, IConfigBasedExtensionTip } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { ExtensionWecommendations, ExtensionWecommendation } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionWecommendations';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ExtensionWecommendationWeason } fwom 'vs/wowkbench/sewvices/extensionWecommendations/common/extensionWecommendations';
+impowt { IWowkspaceContextSewvice, IWowkspaceFowdewsChangeEvent } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { Emitta } fwom 'vs/base/common/event';
 
-export class ConfigBasedRecommendations extends ExtensionRecommendations {
+expowt cwass ConfigBasedWecommendations extends ExtensionWecommendations {
 
-	private importantTips: IConfigBasedExtensionTip[] = [];
-	private otherTips: IConfigBasedExtensionTip[] = [];
+	pwivate impowtantTips: IConfigBasedExtensionTip[] = [];
+	pwivate othewTips: IConfigBasedExtensionTip[] = [];
 
-	private _onDidChangeRecommendations = this._register(new Emitter<void>());
-	readonly onDidChangeRecommendations = this._onDidChangeRecommendations.event;
+	pwivate _onDidChangeWecommendations = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeWecommendations = this._onDidChangeWecommendations.event;
 
-	private _otherRecommendations: ExtensionRecommendation[] = [];
-	get otherRecommendations(): ReadonlyArray<ExtensionRecommendation> { return this._otherRecommendations; }
+	pwivate _othewWecommendations: ExtensionWecommendation[] = [];
+	get othewWecommendations(): WeadonwyAwway<ExtensionWecommendation> { wetuwn this._othewWecommendations; }
 
-	private _importantRecommendations: ExtensionRecommendation[] = [];
-	get importantRecommendations(): ReadonlyArray<ExtensionRecommendation> { return this._importantRecommendations; }
+	pwivate _impowtantWecommendations: ExtensionWecommendation[] = [];
+	get impowtantWecommendations(): WeadonwyAwway<ExtensionWecommendation> { wetuwn this._impowtantWecommendations; }
 
-	get recommendations(): ReadonlyArray<ExtensionRecommendation> { return [...this.importantRecommendations, ...this.otherRecommendations]; }
+	get wecommendations(): WeadonwyAwway<ExtensionWecommendation> { wetuwn [...this.impowtantWecommendations, ...this.othewWecommendations]; }
 
-	constructor(
-		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+	constwuctow(
+		@IExtensionTipsSewvice pwivate weadonwy extensionTipsSewvice: IExtensionTipsSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy wowkspaceContextSewvice: IWowkspaceContextSewvice,
 	) {
-		super();
+		supa();
 	}
 
-	protected async doActivate(): Promise<void> {
+	pwotected async doActivate(): Pwomise<void> {
 		await this.fetch();
-		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(e => this.onWorkspaceFoldersChanged(e)));
+		this._wegista(this.wowkspaceContextSewvice.onDidChangeWowkspaceFowdews(e => this.onWowkspaceFowdewsChanged(e)));
 	}
 
-	private async fetch(): Promise<void> {
-		const workspace = this.workspaceContextService.getWorkspace();
-		const importantTips: Map<string, IConfigBasedExtensionTip> = new Map<string, IConfigBasedExtensionTip>();
-		const otherTips: Map<string, IConfigBasedExtensionTip> = new Map<string, IConfigBasedExtensionTip>();
-		for (const folder of workspace.folders) {
-			const configBasedTips = await this.extensionTipsService.getConfigBasedTips(folder.uri);
-			for (const tip of configBasedTips) {
-				if (tip.important) {
-					importantTips.set(tip.extensionId, tip);
-				} else {
-					otherTips.set(tip.extensionId, tip);
+	pwivate async fetch(): Pwomise<void> {
+		const wowkspace = this.wowkspaceContextSewvice.getWowkspace();
+		const impowtantTips: Map<stwing, IConfigBasedExtensionTip> = new Map<stwing, IConfigBasedExtensionTip>();
+		const othewTips: Map<stwing, IConfigBasedExtensionTip> = new Map<stwing, IConfigBasedExtensionTip>();
+		fow (const fowda of wowkspace.fowdews) {
+			const configBasedTips = await this.extensionTipsSewvice.getConfigBasedTips(fowda.uwi);
+			fow (const tip of configBasedTips) {
+				if (tip.impowtant) {
+					impowtantTips.set(tip.extensionId, tip);
+				} ewse {
+					othewTips.set(tip.extensionId, tip);
 				}
 			}
 		}
-		this.importantTips = [...importantTips.values()];
-		this.otherTips = [...otherTips.values()].filter(tip => !importantTips.has(tip.extensionId));
-		this._otherRecommendations = this.otherTips.map(tip => this.toExtensionRecommendation(tip));
-		this._importantRecommendations = this.importantTips.map(tip => this.toExtensionRecommendation(tip));
+		this.impowtantTips = [...impowtantTips.vawues()];
+		this.othewTips = [...othewTips.vawues()].fiwta(tip => !impowtantTips.has(tip.extensionId));
+		this._othewWecommendations = this.othewTips.map(tip => this.toExtensionWecommendation(tip));
+		this._impowtantWecommendations = this.impowtantTips.map(tip => this.toExtensionWecommendation(tip));
 	}
 
-	private async onWorkspaceFoldersChanged(event: IWorkspaceFoldersChangeEvent): Promise<void> {
-		if (event.added.length) {
-			const oldImportantRecommended = this.importantTips;
+	pwivate async onWowkspaceFowdewsChanged(event: IWowkspaceFowdewsChangeEvent): Pwomise<void> {
+		if (event.added.wength) {
+			const owdImpowtantWecommended = this.impowtantTips;
 			await this.fetch();
-			// Suggest only if at least one of the newly added recommendations was not suggested before
-			if (this.importantTips.some(current => oldImportantRecommended.every(old => current.extensionId !== old.extensionId))) {
-				this._onDidChangeRecommendations.fire();
+			// Suggest onwy if at weast one of the newwy added wecommendations was not suggested befowe
+			if (this.impowtantTips.some(cuwwent => owdImpowtantWecommended.evewy(owd => cuwwent.extensionId !== owd.extensionId))) {
+				this._onDidChangeWecommendations.fiwe();
 			}
 		}
 	}
 
-	private toExtensionRecommendation(tip: IConfigBasedExtensionTip): ExtensionRecommendation {
-		return {
+	pwivate toExtensionWecommendation(tip: IConfigBasedExtensionTip): ExtensionWecommendation {
+		wetuwn {
 			extensionId: tip.extensionId,
-			reason: {
-				reasonId: ExtensionRecommendationReason.WorkspaceConfig,
-				reasonText: localize('exeBasedRecommendation', "This extension is recommended because of the current workspace configuration")
+			weason: {
+				weasonId: ExtensionWecommendationWeason.WowkspaceConfig,
+				weasonText: wocawize('exeBasedWecommendation', "This extension is wecommended because of the cuwwent wowkspace configuwation")
 			}
 		};
 	}

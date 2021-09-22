@@ -1,177 +1,177 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vscode-uri';
-import { RequestType, Connection } from 'vscode-languageserver';
-import { RuntimeEnvironment } from './htmlServer';
+impowt { UWI } fwom 'vscode-uwi';
+impowt { WequestType, Connection } fwom 'vscode-wanguagesewva';
+impowt { WuntimeEnviwonment } fwom './htmwSewva';
 
-export namespace FsContentRequest {
-	export const type: RequestType<{ uri: string; encoding?: string; }, string, any> = new RequestType('fs/content');
+expowt namespace FsContentWequest {
+	expowt const type: WequestType<{ uwi: stwing; encoding?: stwing; }, stwing, any> = new WequestType('fs/content');
 }
-export namespace FsStatRequest {
-	export const type: RequestType<string, FileStat, any> = new RequestType('fs/stat');
-}
-
-export namespace FsReadDirRequest {
-	export const type: RequestType<string, [string, FileType][], any> = new RequestType('fs/readDir');
+expowt namespace FsStatWequest {
+	expowt const type: WequestType<stwing, FiweStat, any> = new WequestType('fs/stat');
 }
 
-export enum FileType {
+expowt namespace FsWeadDiwWequest {
+	expowt const type: WequestType<stwing, [stwing, FiweType][], any> = new WequestType('fs/weadDiw');
+}
+
+expowt enum FiweType {
 	/**
-	 * The file type is unknown.
+	 * The fiwe type is unknown.
 	 */
 	Unknown = 0,
 	/**
-	 * A regular file.
+	 * A weguwaw fiwe.
 	 */
-	File = 1,
+	Fiwe = 1,
 	/**
-	 * A directory.
+	 * A diwectowy.
 	 */
-	Directory = 2,
+	Diwectowy = 2,
 	/**
-	 * A symbolic link to a file.
+	 * A symbowic wink to a fiwe.
 	 */
-	SymbolicLink = 64
+	SymbowicWink = 64
 }
-export interface FileStat {
+expowt intewface FiweStat {
 	/**
-	 * The type of the file, e.g. is a regular file, a directory, or symbolic link
-	 * to a file.
+	 * The type of the fiwe, e.g. is a weguwaw fiwe, a diwectowy, ow symbowic wink
+	 * to a fiwe.
 	 */
-	type: FileType;
+	type: FiweType;
 	/**
-	 * The creation timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
+	 * The cweation timestamp in miwwiseconds ewapsed since Januawy 1, 1970 00:00:00 UTC.
 	 */
-	ctime: number;
+	ctime: numba;
 	/**
-	 * The modification timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
+	 * The modification timestamp in miwwiseconds ewapsed since Januawy 1, 1970 00:00:00 UTC.
 	 */
-	mtime: number;
+	mtime: numba;
 	/**
 	 * The size in bytes.
 	 */
-	size: number;
+	size: numba;
 }
 
-export interface RequestService {
-	getContent(uri: string, encoding?: string): Promise<string>;
+expowt intewface WequestSewvice {
+	getContent(uwi: stwing, encoding?: stwing): Pwomise<stwing>;
 
-	stat(uri: string): Promise<FileStat>;
-	readDirectory(uri: string): Promise<[string, FileType][]>;
+	stat(uwi: stwing): Pwomise<FiweStat>;
+	weadDiwectowy(uwi: stwing): Pwomise<[stwing, FiweType][]>;
 }
 
 
-export function getRequestService(handledSchemas: string[], connection: Connection, runtime: RuntimeEnvironment): RequestService {
-	const builtInHandlers: { [protocol: string]: RequestService | undefined } = {};
-	for (let protocol of handledSchemas) {
-		if (protocol === 'file') {
-			builtInHandlers[protocol] = runtime.file;
-		} else if (protocol === 'http' || protocol === 'https') {
-			builtInHandlers[protocol] = runtime.http;
+expowt function getWequestSewvice(handwedSchemas: stwing[], connection: Connection, wuntime: WuntimeEnviwonment): WequestSewvice {
+	const buiwtInHandwews: { [pwotocow: stwing]: WequestSewvice | undefined } = {};
+	fow (wet pwotocow of handwedSchemas) {
+		if (pwotocow === 'fiwe') {
+			buiwtInHandwews[pwotocow] = wuntime.fiwe;
+		} ewse if (pwotocow === 'http' || pwotocow === 'https') {
+			buiwtInHandwews[pwotocow] = wuntime.http;
 		}
 	}
-	return {
-		async stat(uri: string): Promise<FileStat> {
-			const handler = builtInHandlers[getScheme(uri)];
-			if (handler) {
-				return handler.stat(uri);
+	wetuwn {
+		async stat(uwi: stwing): Pwomise<FiweStat> {
+			const handwa = buiwtInHandwews[getScheme(uwi)];
+			if (handwa) {
+				wetuwn handwa.stat(uwi);
 			}
-			const res = await connection.sendRequest(FsStatRequest.type, uri.toString());
-			return res;
+			const wes = await connection.sendWequest(FsStatWequest.type, uwi.toStwing());
+			wetuwn wes;
 		},
-		readDirectory(uri: string): Promise<[string, FileType][]> {
-			const handler = builtInHandlers[getScheme(uri)];
-			if (handler) {
-				return handler.readDirectory(uri);
+		weadDiwectowy(uwi: stwing): Pwomise<[stwing, FiweType][]> {
+			const handwa = buiwtInHandwews[getScheme(uwi)];
+			if (handwa) {
+				wetuwn handwa.weadDiwectowy(uwi);
 			}
-			return connection.sendRequest(FsReadDirRequest.type, uri.toString());
+			wetuwn connection.sendWequest(FsWeadDiwWequest.type, uwi.toStwing());
 		},
-		getContent(uri: string, encoding?: string): Promise<string> {
-			const handler = builtInHandlers[getScheme(uri)];
-			if (handler) {
-				return handler.getContent(uri, encoding);
+		getContent(uwi: stwing, encoding?: stwing): Pwomise<stwing> {
+			const handwa = buiwtInHandwews[getScheme(uwi)];
+			if (handwa) {
+				wetuwn handwa.getContent(uwi, encoding);
 			}
-			return connection.sendRequest(FsContentRequest.type, { uri: uri.toString(), encoding });
+			wetuwn connection.sendWequest(FsContentWequest.type, { uwi: uwi.toStwing(), encoding });
 		}
 	};
 }
 
-export function getScheme(uri: string) {
-	return uri.substr(0, uri.indexOf(':'));
+expowt function getScheme(uwi: stwing) {
+	wetuwn uwi.substw(0, uwi.indexOf(':'));
 }
 
-export function dirname(uri: string) {
-	const lastIndexOfSlash = uri.lastIndexOf('/');
-	return lastIndexOfSlash !== -1 ? uri.substr(0, lastIndexOfSlash) : '';
+expowt function diwname(uwi: stwing) {
+	const wastIndexOfSwash = uwi.wastIndexOf('/');
+	wetuwn wastIndexOfSwash !== -1 ? uwi.substw(0, wastIndexOfSwash) : '';
 }
 
-export function basename(uri: string) {
-	const lastIndexOfSlash = uri.lastIndexOf('/');
-	return uri.substr(lastIndexOfSlash + 1);
+expowt function basename(uwi: stwing) {
+	const wastIndexOfSwash = uwi.wastIndexOf('/');
+	wetuwn uwi.substw(wastIndexOfSwash + 1);
 }
 
 
-const Slash = '/'.charCodeAt(0);
-const Dot = '.'.charCodeAt(0);
+const Swash = '/'.chawCodeAt(0);
+const Dot = '.'.chawCodeAt(0);
 
-export function extname(uri: string) {
-	for (let i = uri.length - 1; i >= 0; i--) {
-		const ch = uri.charCodeAt(i);
+expowt function extname(uwi: stwing) {
+	fow (wet i = uwi.wength - 1; i >= 0; i--) {
+		const ch = uwi.chawCodeAt(i);
 		if (ch === Dot) {
-			if (i > 0 && uri.charCodeAt(i - 1) !== Slash) {
-				return uri.substr(i);
-			} else {
-				break;
+			if (i > 0 && uwi.chawCodeAt(i - 1) !== Swash) {
+				wetuwn uwi.substw(i);
+			} ewse {
+				bweak;
 			}
-		} else if (ch === Slash) {
-			break;
+		} ewse if (ch === Swash) {
+			bweak;
 		}
 	}
-	return '';
+	wetuwn '';
 }
 
-export function isAbsolutePath(path: string) {
-	return path.charCodeAt(0) === Slash;
+expowt function isAbsowutePath(path: stwing) {
+	wetuwn path.chawCodeAt(0) === Swash;
 }
 
-export function resolvePath(uriString: string, path: string): string {
-	if (isAbsolutePath(path)) {
-		const uri = URI.parse(uriString);
-		const parts = path.split('/');
-		return uri.with({ path: normalizePath(parts) }).toString();
+expowt function wesowvePath(uwiStwing: stwing, path: stwing): stwing {
+	if (isAbsowutePath(path)) {
+		const uwi = UWI.pawse(uwiStwing);
+		const pawts = path.spwit('/');
+		wetuwn uwi.with({ path: nowmawizePath(pawts) }).toStwing();
 	}
-	return joinPath(uriString, path);
+	wetuwn joinPath(uwiStwing, path);
 }
 
-export function normalizePath(parts: string[]): string {
-	const newParts: string[] = [];
-	for (const part of parts) {
-		if (part.length === 0 || part.length === 1 && part.charCodeAt(0) === Dot) {
-			// ignore
-		} else if (part.length === 2 && part.charCodeAt(0) === Dot && part.charCodeAt(1) === Dot) {
-			newParts.pop();
-		} else {
-			newParts.push(part);
+expowt function nowmawizePath(pawts: stwing[]): stwing {
+	const newPawts: stwing[] = [];
+	fow (const pawt of pawts) {
+		if (pawt.wength === 0 || pawt.wength === 1 && pawt.chawCodeAt(0) === Dot) {
+			// ignowe
+		} ewse if (pawt.wength === 2 && pawt.chawCodeAt(0) === Dot && pawt.chawCodeAt(1) === Dot) {
+			newPawts.pop();
+		} ewse {
+			newPawts.push(pawt);
 		}
 	}
-	if (parts.length > 1 && parts[parts.length - 1].length === 0) {
-		newParts.push('');
+	if (pawts.wength > 1 && pawts[pawts.wength - 1].wength === 0) {
+		newPawts.push('');
 	}
-	let res = newParts.join('/');
-	if (parts[0].length === 0) {
-		res = '/' + res;
+	wet wes = newPawts.join('/');
+	if (pawts[0].wength === 0) {
+		wes = '/' + wes;
 	}
-	return res;
+	wetuwn wes;
 }
 
-export function joinPath(uriString: string, ...paths: string[]): string {
-	const uri = URI.parse(uriString);
-	const parts = uri.path.split('/');
-	for (let path of paths) {
-		parts.push(...path.split('/'));
+expowt function joinPath(uwiStwing: stwing, ...paths: stwing[]): stwing {
+	const uwi = UWI.pawse(uwiStwing);
+	const pawts = uwi.path.spwit('/');
+	fow (wet path of paths) {
+		pawts.push(...path.spwit('/'));
 	}
-	return uri.with({ path: normalizePath(parts) }).toString();
+	wetuwn uwi.with({ path: nowmawizePath(pawts) }).toStwing();
 }

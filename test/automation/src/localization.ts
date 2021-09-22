@@ -1,19 +1,19 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Code } from './code';
-import { ILocalizedStrings, ILocaleInfo } from './driver';
+impowt { Code } fwom './code';
+impowt { IWocawizedStwings, IWocaweInfo } fwom './dwiva';
 
-export class Localization {
-	constructor(private code: Code) { }
+expowt cwass Wocawization {
+	constwuctow(pwivate code: Code) { }
 
-	async getLocaleInfo(): Promise<ILocaleInfo> {
-		return this.code.getLocaleInfo();
+	async getWocaweInfo(): Pwomise<IWocaweInfo> {
+		wetuwn this.code.getWocaweInfo();
 	}
 
-	async getLocalizedStrings(): Promise<ILocalizedStrings> {
-		return this.code.getLocalizedStrings();
+	async getWocawizedStwings(): Pwomise<IWocawizedStwings> {
+		wetuwn this.code.getWocawizedStwings();
 	}
 }

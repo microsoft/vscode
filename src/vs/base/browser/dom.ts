@@ -1,1623 +1,1623 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { TimeoutTimer } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import * as dompurify from 'vs/base/browser/dompurify/dompurify';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { FileAccess, RemoteAuthorities, Schemas } from 'vs/base/common/network';
-import * as platform from 'vs/base/common/platform';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
+impowt * as bwowsa fwom 'vs/base/bwowsa/bwowsa';
+impowt { BwowsewFeatuwes } fwom 'vs/base/bwowsa/canIUse';
+impowt { IKeyboawdEvent, StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { IMouseEvent, StandawdMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { TimeoutTima } fwom 'vs/base/common/async';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt * as dompuwify fwom 'vs/base/bwowsa/dompuwify/dompuwify';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe, DisposabweStowe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { FiweAccess, WemoteAuthowities, Schemas } fwom 'vs/base/common/netwowk';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export function clearNode(node: HTMLElement): void {
-	while (node.firstChild) {
-		node.firstChild.remove();
+expowt function cweawNode(node: HTMWEwement): void {
+	whiwe (node.fiwstChiwd) {
+		node.fiwstChiwd.wemove();
 	}
 }
 
 /**
- * @deprecated Use node.isConnected directly
+ * @depwecated Use node.isConnected diwectwy
  */
-export function isInDOM(node: Node | null): boolean {
-	return node?.isConnected ?? false;
+expowt function isInDOM(node: Node | nuww): boowean {
+	wetuwn node?.isConnected ?? fawse;
 }
 
-class DomListener implements IDisposable {
+cwass DomWistena impwements IDisposabwe {
 
-	private _handler: (e: any) => void;
-	private _node: EventTarget;
-	private readonly _type: string;
-	private readonly _options: boolean | AddEventListenerOptions;
+	pwivate _handwa: (e: any) => void;
+	pwivate _node: EventTawget;
+	pwivate weadonwy _type: stwing;
+	pwivate weadonwy _options: boowean | AddEventWistenewOptions;
 
-	constructor(node: EventTarget, type: string, handler: (e: any) => void, options?: boolean | AddEventListenerOptions) {
+	constwuctow(node: EventTawget, type: stwing, handwa: (e: any) => void, options?: boowean | AddEventWistenewOptions) {
 		this._node = node;
 		this._type = type;
-		this._handler = handler;
-		this._options = (options || false);
-		this._node.addEventListener(this._type, this._handler, this._options);
+		this._handwa = handwa;
+		this._options = (options || fawse);
+		this._node.addEventWistena(this._type, this._handwa, this._options);
 	}
 
-	public dispose(): void {
-		if (!this._handler) {
-			// Already disposed
-			return;
+	pubwic dispose(): void {
+		if (!this._handwa) {
+			// Awweady disposed
+			wetuwn;
 		}
 
-		this._node.removeEventListener(this._type, this._handler, this._options);
+		this._node.wemoveEventWistena(this._type, this._handwa, this._options);
 
-		// Prevent leakers from holding on to the dom or handler func
-		this._node = null!;
-		this._handler = null!;
+		// Pwevent weakews fwom howding on to the dom ow handwa func
+		this._node = nuww!;
+		this._handwa = nuww!;
 	}
 }
 
-export function addDisposableListener<K extends keyof GlobalEventHandlersEventMap>(node: EventTarget, type: K, handler: (event: GlobalEventHandlersEventMap[K]) => void, useCapture?: boolean): IDisposable;
-export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
-export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, options: AddEventListenerOptions): IDisposable;
-export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCaptureOrOptions?: boolean | AddEventListenerOptions): IDisposable {
-	return new DomListener(node, type, handler, useCaptureOrOptions);
+expowt function addDisposabweWistena<K extends keyof GwobawEventHandwewsEventMap>(node: EventTawget, type: K, handwa: (event: GwobawEventHandwewsEventMap[K]) => void, useCaptuwe?: boowean): IDisposabwe;
+expowt function addDisposabweWistena(node: EventTawget, type: stwing, handwa: (event: any) => void, useCaptuwe?: boowean): IDisposabwe;
+expowt function addDisposabweWistena(node: EventTawget, type: stwing, handwa: (event: any) => void, options: AddEventWistenewOptions): IDisposabwe;
+expowt function addDisposabweWistena(node: EventTawget, type: stwing, handwa: (event: any) => void, useCaptuweOwOptions?: boowean | AddEventWistenewOptions): IDisposabwe {
+	wetuwn new DomWistena(node, type, handwa, useCaptuweOwOptions);
 }
 
-export interface IAddStandardDisposableListenerSignature {
-	(node: HTMLElement, type: 'click', handler: (event: IMouseEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'mousedown', handler: (event: IMouseEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'keydown', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'keypress', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'keyup', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
+expowt intewface IAddStandawdDisposabweWistenewSignatuwe {
+	(node: HTMWEwement, type: 'cwick', handwa: (event: IMouseEvent) => void, useCaptuwe?: boowean): IDisposabwe;
+	(node: HTMWEwement, type: 'mousedown', handwa: (event: IMouseEvent) => void, useCaptuwe?: boowean): IDisposabwe;
+	(node: HTMWEwement, type: 'keydown', handwa: (event: IKeyboawdEvent) => void, useCaptuwe?: boowean): IDisposabwe;
+	(node: HTMWEwement, type: 'keypwess', handwa: (event: IKeyboawdEvent) => void, useCaptuwe?: boowean): IDisposabwe;
+	(node: HTMWEwement, type: 'keyup', handwa: (event: IKeyboawdEvent) => void, useCaptuwe?: boowean): IDisposabwe;
+	(node: HTMWEwement, type: stwing, handwa: (event: any) => void, useCaptuwe?: boowean): IDisposabwe;
 }
-function _wrapAsStandardMouseEvent(handler: (e: IMouseEvent) => void): (e: MouseEvent) => void {
-	return function (e: MouseEvent) {
-		return handler(new StandardMouseEvent(e));
+function _wwapAsStandawdMouseEvent(handwa: (e: IMouseEvent) => void): (e: MouseEvent) => void {
+	wetuwn function (e: MouseEvent) {
+		wetuwn handwa(new StandawdMouseEvent(e));
 	};
 }
-function _wrapAsStandardKeyboardEvent(handler: (e: IKeyboardEvent) => void): (e: KeyboardEvent) => void {
-	return function (e: KeyboardEvent) {
-		return handler(new StandardKeyboardEvent(e));
+function _wwapAsStandawdKeyboawdEvent(handwa: (e: IKeyboawdEvent) => void): (e: KeyboawdEvent) => void {
+	wetuwn function (e: KeyboawdEvent) {
+		wetuwn handwa(new StandawdKeyboawdEvent(e));
 	};
 }
-export let addStandardDisposableListener: IAddStandardDisposableListenerSignature = function addStandardDisposableListener(node: HTMLElement, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
-	let wrapHandler = handler;
+expowt wet addStandawdDisposabweWistena: IAddStandawdDisposabweWistenewSignatuwe = function addStandawdDisposabweWistena(node: HTMWEwement, type: stwing, handwa: (event: any) => void, useCaptuwe?: boowean): IDisposabwe {
+	wet wwapHandwa = handwa;
 
-	if (type === 'click' || type === 'mousedown') {
-		wrapHandler = _wrapAsStandardMouseEvent(handler);
-	} else if (type === 'keydown' || type === 'keypress' || type === 'keyup') {
-		wrapHandler = _wrapAsStandardKeyboardEvent(handler);
+	if (type === 'cwick' || type === 'mousedown') {
+		wwapHandwa = _wwapAsStandawdMouseEvent(handwa);
+	} ewse if (type === 'keydown' || type === 'keypwess' || type === 'keyup') {
+		wwapHandwa = _wwapAsStandawdKeyboawdEvent(handwa);
 	}
 
-	return addDisposableListener(node, type, wrapHandler, useCapture);
+	wetuwn addDisposabweWistena(node, type, wwapHandwa, useCaptuwe);
 };
 
-export let addStandardDisposableGenericMouseDownListner = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
-	let wrapHandler = _wrapAsStandardMouseEvent(handler);
+expowt wet addStandawdDisposabweGenewicMouseDownWistna = function addStandawdDisposabweWistena(node: HTMWEwement, handwa: (event: any) => void, useCaptuwe?: boowean): IDisposabwe {
+	wet wwapHandwa = _wwapAsStandawdMouseEvent(handwa);
 
-	return addDisposableGenericMouseDownListner(node, wrapHandler, useCapture);
+	wetuwn addDisposabweGenewicMouseDownWistna(node, wwapHandwa, useCaptuwe);
 };
 
-export let addStandardDisposableGenericMouseUpListner = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
-	let wrapHandler = _wrapAsStandardMouseEvent(handler);
+expowt wet addStandawdDisposabweGenewicMouseUpWistna = function addStandawdDisposabweWistena(node: HTMWEwement, handwa: (event: any) => void, useCaptuwe?: boowean): IDisposabwe {
+	wet wwapHandwa = _wwapAsStandawdMouseEvent(handwa);
 
-	return addDisposableGenericMouseUpListner(node, wrapHandler, useCapture);
+	wetuwn addDisposabweGenewicMouseUpWistna(node, wwapHandwa, useCaptuwe);
 };
-export function addDisposableGenericMouseDownListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
-	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_DOWN : EventType.MOUSE_DOWN, handler, useCapture);
+expowt function addDisposabweGenewicMouseDownWistna(node: EventTawget, handwa: (event: any) => void, useCaptuwe?: boowean): IDisposabwe {
+	wetuwn addDisposabweWistena(node, pwatfowm.isIOS && BwowsewFeatuwes.pointewEvents ? EventType.POINTEW_DOWN : EventType.MOUSE_DOWN, handwa, useCaptuwe);
 }
 
-export function addDisposableGenericMouseMoveListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
-	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_MOVE : EventType.MOUSE_MOVE, handler, useCapture);
+expowt function addDisposabweGenewicMouseMoveWistna(node: EventTawget, handwa: (event: any) => void, useCaptuwe?: boowean): IDisposabwe {
+	wetuwn addDisposabweWistena(node, pwatfowm.isIOS && BwowsewFeatuwes.pointewEvents ? EventType.POINTEW_MOVE : EventType.MOUSE_MOVE, handwa, useCaptuwe);
 }
 
-export function addDisposableGenericMouseUpListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
-	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_UP : EventType.MOUSE_UP, handler, useCapture);
+expowt function addDisposabweGenewicMouseUpWistna(node: EventTawget, handwa: (event: any) => void, useCaptuwe?: boowean): IDisposabwe {
+	wetuwn addDisposabweWistena(node, pwatfowm.isIOS && BwowsewFeatuwes.pointewEvents ? EventType.POINTEW_UP : EventType.MOUSE_UP, handwa, useCaptuwe);
 }
-export function addDisposableNonBubblingMouseOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
-	return addDisposableListener(node, 'mouseout', (e: MouseEvent) => {
-		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
-		let toElement: Node | null = <Node>(e.relatedTarget);
-		while (toElement && toElement !== node) {
-			toElement = toElement.parentNode;
+expowt function addDisposabweNonBubbwingMouseOutWistena(node: Ewement, handwa: (event: MouseEvent) => void): IDisposabwe {
+	wetuwn addDisposabweWistena(node, 'mouseout', (e: MouseEvent) => {
+		// Mouse out bubbwes, so this is an attempt to ignowe faux mouse outs coming fwom chiwdwen ewements
+		wet toEwement: Node | nuww = <Node>(e.wewatedTawget);
+		whiwe (toEwement && toEwement !== node) {
+			toEwement = toEwement.pawentNode;
 		}
-		if (toElement === node) {
-			return;
+		if (toEwement === node) {
+			wetuwn;
 		}
 
-		handler(e);
+		handwa(e);
 	});
 }
 
-export function addDisposableNonBubblingPointerOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
-	return addDisposableListener(node, 'pointerout', (e: MouseEvent) => {
-		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
-		let toElement: Node | null = <Node>(e.relatedTarget);
-		while (toElement && toElement !== node) {
-			toElement = toElement.parentNode;
+expowt function addDisposabweNonBubbwingPointewOutWistena(node: Ewement, handwa: (event: MouseEvent) => void): IDisposabwe {
+	wetuwn addDisposabweWistena(node, 'pointewout', (e: MouseEvent) => {
+		// Mouse out bubbwes, so this is an attempt to ignowe faux mouse outs coming fwom chiwdwen ewements
+		wet toEwement: Node | nuww = <Node>(e.wewatedTawget);
+		whiwe (toEwement && toEwement !== node) {
+			toEwement = toEwement.pawentNode;
 		}
-		if (toElement === node) {
-			return;
+		if (toEwement === node) {
+			wetuwn;
 		}
 
-		handler(e);
+		handwa(e);
 	});
 }
 
-interface IRequestAnimationFrame {
-	(callback: (time: number) => void): number;
+intewface IWequestAnimationFwame {
+	(cawwback: (time: numba) => void): numba;
 }
-let _animationFrame: IRequestAnimationFrame | null = null;
-function doRequestAnimationFrame(callback: (time: number) => void): number {
-	if (!_animationFrame) {
-		const emulatedRequestAnimationFrame = (callback: (time: number) => void): any => {
-			return setTimeout(() => callback(new Date().getTime()), 0);
+wet _animationFwame: IWequestAnimationFwame | nuww = nuww;
+function doWequestAnimationFwame(cawwback: (time: numba) => void): numba {
+	if (!_animationFwame) {
+		const emuwatedWequestAnimationFwame = (cawwback: (time: numba) => void): any => {
+			wetuwn setTimeout(() => cawwback(new Date().getTime()), 0);
 		};
-		_animationFrame = (
-			self.requestAnimationFrame
-			|| (<any>self).msRequestAnimationFrame
-			|| (<any>self).webkitRequestAnimationFrame
-			|| (<any>self).mozRequestAnimationFrame
-			|| (<any>self).oRequestAnimationFrame
-			|| emulatedRequestAnimationFrame
+		_animationFwame = (
+			sewf.wequestAnimationFwame
+			|| (<any>sewf).msWequestAnimationFwame
+			|| (<any>sewf).webkitWequestAnimationFwame
+			|| (<any>sewf).mozWequestAnimationFwame
+			|| (<any>sewf).oWequestAnimationFwame
+			|| emuwatedWequestAnimationFwame
 		);
 	}
-	return _animationFrame.call(self, callback);
+	wetuwn _animationFwame.caww(sewf, cawwback);
 }
 
 /**
- * Schedule a callback to be run at the next animation frame.
- * This allows multiple parties to register callbacks that should run at the next animation frame.
- * If currently in an animation frame, `runner` will be executed immediately.
- * @return token that can be used to cancel the scheduled runner (only if `runner` was not executed immediately).
+ * Scheduwe a cawwback to be wun at the next animation fwame.
+ * This awwows muwtipwe pawties to wegista cawwbacks that shouwd wun at the next animation fwame.
+ * If cuwwentwy in an animation fwame, `wunna` wiww be executed immediatewy.
+ * @wetuwn token that can be used to cancew the scheduwed wunna (onwy if `wunna` was not executed immediatewy).
  */
-export let runAtThisOrScheduleAtNextAnimationFrame: (runner: () => void, priority?: number) => IDisposable;
+expowt wet wunAtThisOwScheduweAtNextAnimationFwame: (wunna: () => void, pwiowity?: numba) => IDisposabwe;
 /**
- * Schedule a callback to be run at the next animation frame.
- * This allows multiple parties to register callbacks that should run at the next animation frame.
- * If currently in an animation frame, `runner` will be executed at the next animation frame.
- * @return token that can be used to cancel the scheduled runner.
+ * Scheduwe a cawwback to be wun at the next animation fwame.
+ * This awwows muwtipwe pawties to wegista cawwbacks that shouwd wun at the next animation fwame.
+ * If cuwwentwy in an animation fwame, `wunna` wiww be executed at the next animation fwame.
+ * @wetuwn token that can be used to cancew the scheduwed wunna.
  */
-export let scheduleAtNextAnimationFrame: (runner: () => void, priority?: number) => IDisposable;
+expowt wet scheduweAtNextAnimationFwame: (wunna: () => void, pwiowity?: numba) => IDisposabwe;
 
-class AnimationFrameQueueItem implements IDisposable {
+cwass AnimationFwameQueueItem impwements IDisposabwe {
 
-	private _runner: () => void;
-	public priority: number;
-	private _canceled: boolean;
+	pwivate _wunna: () => void;
+	pubwic pwiowity: numba;
+	pwivate _cancewed: boowean;
 
-	constructor(runner: () => void, priority: number = 0) {
-		this._runner = runner;
-		this.priority = priority;
-		this._canceled = false;
+	constwuctow(wunna: () => void, pwiowity: numba = 0) {
+		this._wunna = wunna;
+		this.pwiowity = pwiowity;
+		this._cancewed = fawse;
 	}
 
-	public dispose(): void {
-		this._canceled = true;
+	pubwic dispose(): void {
+		this._cancewed = twue;
 	}
 
-	public execute(): void {
-		if (this._canceled) {
-			return;
+	pubwic execute(): void {
+		if (this._cancewed) {
+			wetuwn;
 		}
 
-		try {
-			this._runner();
+		twy {
+			this._wunna();
 		} catch (e) {
-			onUnexpectedError(e);
+			onUnexpectedEwwow(e);
 		}
 	}
 
-	// Sort by priority (largest to lowest)
-	public static sort(a: AnimationFrameQueueItem, b: AnimationFrameQueueItem): number {
-		return b.priority - a.priority;
+	// Sowt by pwiowity (wawgest to wowest)
+	pubwic static sowt(a: AnimationFwameQueueItem, b: AnimationFwameQueueItem): numba {
+		wetuwn b.pwiowity - a.pwiowity;
 	}
 }
 
 (function () {
 	/**
-	 * The runners scheduled at the next animation frame
+	 * The wunnews scheduwed at the next animation fwame
 	 */
-	let NEXT_QUEUE: AnimationFrameQueueItem[] = [];
+	wet NEXT_QUEUE: AnimationFwameQueueItem[] = [];
 	/**
-	 * The runners scheduled at the current animation frame
+	 * The wunnews scheduwed at the cuwwent animation fwame
 	 */
-	let CURRENT_QUEUE: AnimationFrameQueueItem[] | null = null;
+	wet CUWWENT_QUEUE: AnimationFwameQueueItem[] | nuww = nuww;
 	/**
-	 * A flag to keep track if the native requestAnimationFrame was already called
+	 * A fwag to keep twack if the native wequestAnimationFwame was awweady cawwed
 	 */
-	let animFrameRequested = false;
+	wet animFwameWequested = fawse;
 	/**
-	 * A flag to indicate if currently handling a native requestAnimationFrame callback
+	 * A fwag to indicate if cuwwentwy handwing a native wequestAnimationFwame cawwback
 	 */
-	let inAnimationFrameRunner = false;
+	wet inAnimationFwameWunna = fawse;
 
-	let animationFrameRunner = () => {
-		animFrameRequested = false;
+	wet animationFwameWunna = () => {
+		animFwameWequested = fawse;
 
-		CURRENT_QUEUE = NEXT_QUEUE;
+		CUWWENT_QUEUE = NEXT_QUEUE;
 		NEXT_QUEUE = [];
 
-		inAnimationFrameRunner = true;
-		while (CURRENT_QUEUE.length > 0) {
-			CURRENT_QUEUE.sort(AnimationFrameQueueItem.sort);
-			let top = CURRENT_QUEUE.shift()!;
+		inAnimationFwameWunna = twue;
+		whiwe (CUWWENT_QUEUE.wength > 0) {
+			CUWWENT_QUEUE.sowt(AnimationFwameQueueItem.sowt);
+			wet top = CUWWENT_QUEUE.shift()!;
 			top.execute();
 		}
-		inAnimationFrameRunner = false;
+		inAnimationFwameWunna = fawse;
 	};
 
-	scheduleAtNextAnimationFrame = (runner: () => void, priority: number = 0) => {
-		let item = new AnimationFrameQueueItem(runner, priority);
+	scheduweAtNextAnimationFwame = (wunna: () => void, pwiowity: numba = 0) => {
+		wet item = new AnimationFwameQueueItem(wunna, pwiowity);
 		NEXT_QUEUE.push(item);
 
-		if (!animFrameRequested) {
-			animFrameRequested = true;
-			doRequestAnimationFrame(animationFrameRunner);
+		if (!animFwameWequested) {
+			animFwameWequested = twue;
+			doWequestAnimationFwame(animationFwameWunna);
 		}
 
-		return item;
+		wetuwn item;
 	};
 
-	runAtThisOrScheduleAtNextAnimationFrame = (runner: () => void, priority?: number) => {
-		if (inAnimationFrameRunner) {
-			let item = new AnimationFrameQueueItem(runner, priority);
-			CURRENT_QUEUE!.push(item);
-			return item;
-		} else {
-			return scheduleAtNextAnimationFrame(runner, priority);
+	wunAtThisOwScheduweAtNextAnimationFwame = (wunna: () => void, pwiowity?: numba) => {
+		if (inAnimationFwameWunna) {
+			wet item = new AnimationFwameQueueItem(wunna, pwiowity);
+			CUWWENT_QUEUE!.push(item);
+			wetuwn item;
+		} ewse {
+			wetuwn scheduweAtNextAnimationFwame(wunna, pwiowity);
 		}
 	};
 })();
 
-export function measure(callback: () => void): IDisposable {
-	return scheduleAtNextAnimationFrame(callback, 10000 /* must be early */);
+expowt function measuwe(cawwback: () => void): IDisposabwe {
+	wetuwn scheduweAtNextAnimationFwame(cawwback, 10000 /* must be eawwy */);
 }
 
-export function modify(callback: () => void): IDisposable {
-	return scheduleAtNextAnimationFrame(callback, -10000 /* must be late */);
+expowt function modify(cawwback: () => void): IDisposabwe {
+	wetuwn scheduweAtNextAnimationFwame(cawwback, -10000 /* must be wate */);
 }
 
 /**
- * Add a throttled listener. `handler` is fired at most every 8.33333ms or with the next animation frame (if browser supports it).
+ * Add a thwottwed wistena. `handwa` is fiwed at most evewy 8.33333ms ow with the next animation fwame (if bwowsa suppowts it).
  */
-export interface IEventMerger<R, E> {
-	(lastEvent: R | null, currentEvent: E): R;
+expowt intewface IEventMewga<W, E> {
+	(wastEvent: W | nuww, cuwwentEvent: E): W;
 }
 
-export interface DOMEvent {
-	preventDefault(): void;
-	stopPropagation(): void;
+expowt intewface DOMEvent {
+	pweventDefauwt(): void;
+	stopPwopagation(): void;
 }
 
 const MINIMUM_TIME_MS = 8;
-const DEFAULT_EVENT_MERGER: IEventMerger<DOMEvent, DOMEvent> = function (lastEvent: DOMEvent | null, currentEvent: DOMEvent) {
-	return currentEvent;
+const DEFAUWT_EVENT_MEWGa: IEventMewga<DOMEvent, DOMEvent> = function (wastEvent: DOMEvent | nuww, cuwwentEvent: DOMEvent) {
+	wetuwn cuwwentEvent;
 };
 
-class TimeoutThrottledDomListener<R, E extends DOMEvent> extends Disposable {
+cwass TimeoutThwottwedDomWistena<W, E extends DOMEvent> extends Disposabwe {
 
-	constructor(node: any, type: string, handler: (event: R) => void, eventMerger: IEventMerger<R, E> = <any>DEFAULT_EVENT_MERGER, minimumTimeMs: number = MINIMUM_TIME_MS) {
-		super();
+	constwuctow(node: any, type: stwing, handwa: (event: W) => void, eventMewga: IEventMewga<W, E> = <any>DEFAUWT_EVENT_MEWGa, minimumTimeMs: numba = MINIMUM_TIME_MS) {
+		supa();
 
-		let lastEvent: R | null = null;
-		let lastHandlerTime = 0;
-		let timeout = this._register(new TimeoutTimer());
+		wet wastEvent: W | nuww = nuww;
+		wet wastHandwewTime = 0;
+		wet timeout = this._wegista(new TimeoutTima());
 
-		let invokeHandler = () => {
-			lastHandlerTime = (new Date()).getTime();
-			handler(<R>lastEvent);
-			lastEvent = null;
+		wet invokeHandwa = () => {
+			wastHandwewTime = (new Date()).getTime();
+			handwa(<W>wastEvent);
+			wastEvent = nuww;
 		};
 
-		this._register(addDisposableListener(node, type, (e) => {
+		this._wegista(addDisposabweWistena(node, type, (e) => {
 
-			lastEvent = eventMerger(lastEvent, e);
-			let elapsedTime = (new Date()).getTime() - lastHandlerTime;
+			wastEvent = eventMewga(wastEvent, e);
+			wet ewapsedTime = (new Date()).getTime() - wastHandwewTime;
 
-			if (elapsedTime >= minimumTimeMs) {
-				timeout.cancel();
-				invokeHandler();
-			} else {
-				timeout.setIfNotSet(invokeHandler, minimumTimeMs - elapsedTime);
+			if (ewapsedTime >= minimumTimeMs) {
+				timeout.cancew();
+				invokeHandwa();
+			} ewse {
+				timeout.setIfNotSet(invokeHandwa, minimumTimeMs - ewapsedTime);
 			}
 		}));
 	}
 }
 
-export function addDisposableThrottledListener<R, E extends DOMEvent = DOMEvent>(node: any, type: string, handler: (event: R) => void, eventMerger?: IEventMerger<R, E>, minimumTimeMs?: number): IDisposable {
-	return new TimeoutThrottledDomListener<R, E>(node, type, handler, eventMerger, minimumTimeMs);
+expowt function addDisposabweThwottwedWistena<W, E extends DOMEvent = DOMEvent>(node: any, type: stwing, handwa: (event: W) => void, eventMewga?: IEventMewga<W, E>, minimumTimeMs?: numba): IDisposabwe {
+	wetuwn new TimeoutThwottwedDomWistena<W, E>(node, type, handwa, eventMewga, minimumTimeMs);
 }
 
-export function getComputedStyle(el: HTMLElement): CSSStyleDeclaration {
-	return document.defaultView!.getComputedStyle(el, null);
+expowt function getComputedStywe(ew: HTMWEwement): CSSStyweDecwawation {
+	wetuwn document.defauwtView!.getComputedStywe(ew, nuww);
 }
 
-export function getClientArea(element: HTMLElement): Dimension {
+expowt function getCwientAwea(ewement: HTMWEwement): Dimension {
 
-	// Try with DOM clientWidth / clientHeight
-	if (element !== document.body) {
-		return new Dimension(element.clientWidth, element.clientHeight);
+	// Twy with DOM cwientWidth / cwientHeight
+	if (ewement !== document.body) {
+		wetuwn new Dimension(ewement.cwientWidth, ewement.cwientHeight);
 	}
 
-	// If visual view port exits and it's on mobile, it should be used instead of window innerWidth / innerHeight, or document.body.clientWidth / document.body.clientHeight
-	if (platform.isIOS && window.visualViewport) {
-		return new Dimension(window.visualViewport.width, window.visualViewport.height);
+	// If visuaw view powt exits and it's on mobiwe, it shouwd be used instead of window innewWidth / innewHeight, ow document.body.cwientWidth / document.body.cwientHeight
+	if (pwatfowm.isIOS && window.visuawViewpowt) {
+		wetuwn new Dimension(window.visuawViewpowt.width, window.visuawViewpowt.height);
 	}
 
-	// Try innerWidth / innerHeight
-	if (window.innerWidth && window.innerHeight) {
-		return new Dimension(window.innerWidth, window.innerHeight);
+	// Twy innewWidth / innewHeight
+	if (window.innewWidth && window.innewHeight) {
+		wetuwn new Dimension(window.innewWidth, window.innewHeight);
 	}
 
-	// Try with document.body.clientWidth / document.body.clientHeight
-	if (document.body && document.body.clientWidth && document.body.clientHeight) {
-		return new Dimension(document.body.clientWidth, document.body.clientHeight);
+	// Twy with document.body.cwientWidth / document.body.cwientHeight
+	if (document.body && document.body.cwientWidth && document.body.cwientHeight) {
+		wetuwn new Dimension(document.body.cwientWidth, document.body.cwientHeight);
 	}
 
-	// Try with document.documentElement.clientWidth / document.documentElement.clientHeight
-	if (document.documentElement && document.documentElement.clientWidth && document.documentElement.clientHeight) {
-		return new Dimension(document.documentElement.clientWidth, document.documentElement.clientHeight);
+	// Twy with document.documentEwement.cwientWidth / document.documentEwement.cwientHeight
+	if (document.documentEwement && document.documentEwement.cwientWidth && document.documentEwement.cwientHeight) {
+		wetuwn new Dimension(document.documentEwement.cwientWidth, document.documentEwement.cwientHeight);
 	}
 
-	throw new Error('Unable to figure out browser width and height');
+	thwow new Ewwow('Unabwe to figuwe out bwowsa width and height');
 }
 
-class SizeUtils {
-	// Adapted from WinJS
-	// Converts a CSS positioning string for the specified element to pixels.
-	private static convertToPixels(element: HTMLElement, value: string): number {
-		return parseFloat(value) || 0;
+cwass SizeUtiws {
+	// Adapted fwom WinJS
+	// Convewts a CSS positioning stwing fow the specified ewement to pixews.
+	pwivate static convewtToPixews(ewement: HTMWEwement, vawue: stwing): numba {
+		wetuwn pawseFwoat(vawue) || 0;
 	}
 
-	private static getDimension(element: HTMLElement, cssPropertyName: string, jsPropertyName: string): number {
-		let computedStyle: CSSStyleDeclaration = getComputedStyle(element);
-		let value = '0';
-		if (computedStyle) {
-			if (computedStyle.getPropertyValue) {
-				value = computedStyle.getPropertyValue(cssPropertyName);
-			} else {
+	pwivate static getDimension(ewement: HTMWEwement, cssPwopewtyName: stwing, jsPwopewtyName: stwing): numba {
+		wet computedStywe: CSSStyweDecwawation = getComputedStywe(ewement);
+		wet vawue = '0';
+		if (computedStywe) {
+			if (computedStywe.getPwopewtyVawue) {
+				vawue = computedStywe.getPwopewtyVawue(cssPwopewtyName);
+			} ewse {
 				// IE8
-				value = (<any>computedStyle).getAttribute(jsPropertyName);
+				vawue = (<any>computedStywe).getAttwibute(jsPwopewtyName);
 			}
 		}
-		return SizeUtils.convertToPixels(element, value);
+		wetuwn SizeUtiws.convewtToPixews(ewement, vawue);
 	}
 
-	static getBorderLeftWidth(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'border-left-width', 'borderLeftWidth');
+	static getBowdewWeftWidth(ewement: HTMWEwement): numba {
+		wetuwn SizeUtiws.getDimension(ewement, 'bowda-weft-width', 'bowdewWeftWidth');
 	}
-	static getBorderRightWidth(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'border-right-width', 'borderRightWidth');
+	static getBowdewWightWidth(ewement: HTMWEwement): numba {
+		wetuwn SizeUtiws.getDimension(ewement, 'bowda-wight-width', 'bowdewWightWidth');
 	}
-	static getBorderTopWidth(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'border-top-width', 'borderTopWidth');
+	static getBowdewTopWidth(ewement: HTMWEwement): numba {
+		wetuwn SizeUtiws.getDimension(ewement, 'bowda-top-width', 'bowdewTopWidth');
 	}
-	static getBorderBottomWidth(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'border-bottom-width', 'borderBottomWidth');
-	}
-
-	static getPaddingLeft(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'padding-left', 'paddingLeft');
-	}
-	static getPaddingRight(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'padding-right', 'paddingRight');
-	}
-	static getPaddingTop(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'padding-top', 'paddingTop');
-	}
-	static getPaddingBottom(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'padding-bottom', 'paddingBottom');
+	static getBowdewBottomWidth(ewement: HTMWEwement): numba {
+		wetuwn SizeUtiws.getDimension(ewement, 'bowda-bottom-width', 'bowdewBottomWidth');
 	}
 
-	static getMarginLeft(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'margin-left', 'marginLeft');
+	static getPaddingWeft(ewement: HTMWEwement): numba {
+		wetuwn SizeUtiws.getDimension(ewement, 'padding-weft', 'paddingWeft');
 	}
-	static getMarginTop(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'margin-top', 'marginTop');
+	static getPaddingWight(ewement: HTMWEwement): numba {
+		wetuwn SizeUtiws.getDimension(ewement, 'padding-wight', 'paddingWight');
 	}
-	static getMarginRight(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'margin-right', 'marginRight');
+	static getPaddingTop(ewement: HTMWEwement): numba {
+		wetuwn SizeUtiws.getDimension(ewement, 'padding-top', 'paddingTop');
 	}
-	static getMarginBottom(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'margin-bottom', 'marginBottom');
+	static getPaddingBottom(ewement: HTMWEwement): numba {
+		wetuwn SizeUtiws.getDimension(ewement, 'padding-bottom', 'paddingBottom');
+	}
+
+	static getMawginWeft(ewement: HTMWEwement): numba {
+		wetuwn SizeUtiws.getDimension(ewement, 'mawgin-weft', 'mawginWeft');
+	}
+	static getMawginTop(ewement: HTMWEwement): numba {
+		wetuwn SizeUtiws.getDimension(ewement, 'mawgin-top', 'mawginTop');
+	}
+	static getMawginWight(ewement: HTMWEwement): numba {
+		wetuwn SizeUtiws.getDimension(ewement, 'mawgin-wight', 'mawginWight');
+	}
+	static getMawginBottom(ewement: HTMWEwement): numba {
+		wetuwn SizeUtiws.getDimension(ewement, 'mawgin-bottom', 'mawginBottom');
 	}
 }
 
 // ----------------------------------------------------------------------------------------
 // Position & Dimension
 
-export interface IDimension {
-	readonly width: number;
-	readonly height: number;
+expowt intewface IDimension {
+	weadonwy width: numba;
+	weadonwy height: numba;
 }
 
-export class Dimension implements IDimension {
+expowt cwass Dimension impwements IDimension {
 
-	static readonly None = new Dimension(0, 0);
+	static weadonwy None = new Dimension(0, 0);
 
-	constructor(
-		public readonly width: number,
-		public readonly height: number,
+	constwuctow(
+		pubwic weadonwy width: numba,
+		pubwic weadonwy height: numba,
 	) { }
 
-	with(width: number = this.width, height: number = this.height): Dimension {
+	with(width: numba = this.width, height: numba = this.height): Dimension {
 		if (width !== this.width || height !== this.height) {
-			return new Dimension(width, height);
-		} else {
-			return this;
+			wetuwn new Dimension(width, height);
+		} ewse {
+			wetuwn this;
 		}
 	}
 
 	static is(obj: unknown): obj is IDimension {
-		return typeof obj === 'object' && typeof (<IDimension>obj).height === 'number' && typeof (<IDimension>obj).width === 'number';
+		wetuwn typeof obj === 'object' && typeof (<IDimension>obj).height === 'numba' && typeof (<IDimension>obj).width === 'numba';
 	}
 
-	static lift(obj: IDimension): Dimension {
+	static wift(obj: IDimension): Dimension {
 		if (obj instanceof Dimension) {
-			return obj;
-		} else {
-			return new Dimension(obj.width, obj.height);
+			wetuwn obj;
+		} ewse {
+			wetuwn new Dimension(obj.width, obj.height);
 		}
 	}
 
-	static equals(a: Dimension | undefined, b: Dimension | undefined): boolean {
+	static equaws(a: Dimension | undefined, b: Dimension | undefined): boowean {
 		if (a === b) {
-			return true;
+			wetuwn twue;
 		}
 		if (!a || !b) {
-			return false;
+			wetuwn fawse;
 		}
-		return a.width === b.width && a.height === b.height;
+		wetuwn a.width === b.width && a.height === b.height;
 	}
 }
 
-export function getTopLeftOffset(element: HTMLElement): { left: number; top: number; } {
-	// Adapted from WinJS.Utilities.getPosition
-	// and added borders to the mix
+expowt function getTopWeftOffset(ewement: HTMWEwement): { weft: numba; top: numba; } {
+	// Adapted fwom WinJS.Utiwities.getPosition
+	// and added bowdews to the mix
 
-	let offsetParent = element.offsetParent;
-	let top = element.offsetTop;
-	let left = element.offsetLeft;
+	wet offsetPawent = ewement.offsetPawent;
+	wet top = ewement.offsetTop;
+	wet weft = ewement.offsetWeft;
 
-	while (
-		(element = <HTMLElement>element.parentNode) !== null
-		&& element !== document.body
-		&& element !== document.documentElement
+	whiwe (
+		(ewement = <HTMWEwement>ewement.pawentNode) !== nuww
+		&& ewement !== document.body
+		&& ewement !== document.documentEwement
 	) {
-		top -= element.scrollTop;
-		const c = isShadowRoot(element) ? null : getComputedStyle(element);
+		top -= ewement.scwowwTop;
+		const c = isShadowWoot(ewement) ? nuww : getComputedStywe(ewement);
 		if (c) {
-			left -= c.direction !== 'rtl' ? element.scrollLeft : -element.scrollLeft;
+			weft -= c.diwection !== 'wtw' ? ewement.scwowwWeft : -ewement.scwowwWeft;
 		}
 
-		if (element === offsetParent) {
-			left += SizeUtils.getBorderLeftWidth(element);
-			top += SizeUtils.getBorderTopWidth(element);
-			top += element.offsetTop;
-			left += element.offsetLeft;
-			offsetParent = element.offsetParent;
+		if (ewement === offsetPawent) {
+			weft += SizeUtiws.getBowdewWeftWidth(ewement);
+			top += SizeUtiws.getBowdewTopWidth(ewement);
+			top += ewement.offsetTop;
+			weft += ewement.offsetWeft;
+			offsetPawent = ewement.offsetPawent;
 		}
 	}
 
-	return {
-		left: left,
+	wetuwn {
+		weft: weft,
 		top: top
 	};
 }
 
-export interface IDomNodePagePosition {
-	left: number;
-	top: number;
-	width: number;
-	height: number;
+expowt intewface IDomNodePagePosition {
+	weft: numba;
+	top: numba;
+	width: numba;
+	height: numba;
 }
 
-export function size(element: HTMLElement, width: number | null, height: number | null): void {
-	if (typeof width === 'number') {
-		element.style.width = `${width}px`;
+expowt function size(ewement: HTMWEwement, width: numba | nuww, height: numba | nuww): void {
+	if (typeof width === 'numba') {
+		ewement.stywe.width = `${width}px`;
 	}
 
-	if (typeof height === 'number') {
-		element.style.height = `${height}px`;
+	if (typeof height === 'numba') {
+		ewement.stywe.height = `${height}px`;
 	}
 }
 
-export function position(element: HTMLElement, top: number, right?: number, bottom?: number, left?: number, position: string = 'absolute'): void {
-	if (typeof top === 'number') {
-		element.style.top = `${top}px`;
+expowt function position(ewement: HTMWEwement, top: numba, wight?: numba, bottom?: numba, weft?: numba, position: stwing = 'absowute'): void {
+	if (typeof top === 'numba') {
+		ewement.stywe.top = `${top}px`;
 	}
 
-	if (typeof right === 'number') {
-		element.style.right = `${right}px`;
+	if (typeof wight === 'numba') {
+		ewement.stywe.wight = `${wight}px`;
 	}
 
-	if (typeof bottom === 'number') {
-		element.style.bottom = `${bottom}px`;
+	if (typeof bottom === 'numba') {
+		ewement.stywe.bottom = `${bottom}px`;
 	}
 
-	if (typeof left === 'number') {
-		element.style.left = `${left}px`;
+	if (typeof weft === 'numba') {
+		ewement.stywe.weft = `${weft}px`;
 	}
 
-	element.style.position = position;
+	ewement.stywe.position = position;
 }
 
 /**
- * Returns the position of a dom node relative to the entire page.
+ * Wetuwns the position of a dom node wewative to the entiwe page.
  */
-export function getDomNodePagePosition(domNode: HTMLElement): IDomNodePagePosition {
-	let bb = domNode.getBoundingClientRect();
-	return {
-		left: bb.left + StandardWindow.scrollX,
-		top: bb.top + StandardWindow.scrollY,
+expowt function getDomNodePagePosition(domNode: HTMWEwement): IDomNodePagePosition {
+	wet bb = domNode.getBoundingCwientWect();
+	wetuwn {
+		weft: bb.weft + StandawdWindow.scwowwX,
+		top: bb.top + StandawdWindow.scwowwY,
 		width: bb.width,
 		height: bb.height
 	};
 }
 
-export interface IStandardWindow {
-	readonly scrollX: number;
-	readonly scrollY: number;
+expowt intewface IStandawdWindow {
+	weadonwy scwowwX: numba;
+	weadonwy scwowwY: numba;
 }
 
-export const StandardWindow: IStandardWindow = new class implements IStandardWindow {
-	get scrollX(): number {
-		if (typeof window.scrollX === 'number') {
-			// modern browsers
-			return window.scrollX;
-		} else {
-			return document.body.scrollLeft + document.documentElement!.scrollLeft;
+expowt const StandawdWindow: IStandawdWindow = new cwass impwements IStandawdWindow {
+	get scwowwX(): numba {
+		if (typeof window.scwowwX === 'numba') {
+			// modewn bwowsews
+			wetuwn window.scwowwX;
+		} ewse {
+			wetuwn document.body.scwowwWeft + document.documentEwement!.scwowwWeft;
 		}
 	}
 
-	get scrollY(): number {
-		if (typeof window.scrollY === 'number') {
-			// modern browsers
-			return window.scrollY;
-		} else {
-			return document.body.scrollTop + document.documentElement!.scrollTop;
+	get scwowwY(): numba {
+		if (typeof window.scwowwY === 'numba') {
+			// modewn bwowsews
+			wetuwn window.scwowwY;
+		} ewse {
+			wetuwn document.body.scwowwTop + document.documentEwement!.scwowwTop;
 		}
 	}
 };
 
-// Adapted from WinJS
-// Gets the width of the element, including margins.
-export function getTotalWidth(element: HTMLElement): number {
-	let margin = SizeUtils.getMarginLeft(element) + SizeUtils.getMarginRight(element);
-	return element.offsetWidth + margin;
+// Adapted fwom WinJS
+// Gets the width of the ewement, incwuding mawgins.
+expowt function getTotawWidth(ewement: HTMWEwement): numba {
+	wet mawgin = SizeUtiws.getMawginWeft(ewement) + SizeUtiws.getMawginWight(ewement);
+	wetuwn ewement.offsetWidth + mawgin;
 }
 
-export function getContentWidth(element: HTMLElement): number {
-	let border = SizeUtils.getBorderLeftWidth(element) + SizeUtils.getBorderRightWidth(element);
-	let padding = SizeUtils.getPaddingLeft(element) + SizeUtils.getPaddingRight(element);
-	return element.offsetWidth - border - padding;
+expowt function getContentWidth(ewement: HTMWEwement): numba {
+	wet bowda = SizeUtiws.getBowdewWeftWidth(ewement) + SizeUtiws.getBowdewWightWidth(ewement);
+	wet padding = SizeUtiws.getPaddingWeft(ewement) + SizeUtiws.getPaddingWight(ewement);
+	wetuwn ewement.offsetWidth - bowda - padding;
 }
 
-export function getTotalScrollWidth(element: HTMLElement): number {
-	let margin = SizeUtils.getMarginLeft(element) + SizeUtils.getMarginRight(element);
-	return element.scrollWidth + margin;
+expowt function getTotawScwowwWidth(ewement: HTMWEwement): numba {
+	wet mawgin = SizeUtiws.getMawginWeft(ewement) + SizeUtiws.getMawginWight(ewement);
+	wetuwn ewement.scwowwWidth + mawgin;
 }
 
-// Adapted from WinJS
-// Gets the height of the content of the specified element. The content height does not include borders or padding.
-export function getContentHeight(element: HTMLElement): number {
-	let border = SizeUtils.getBorderTopWidth(element) + SizeUtils.getBorderBottomWidth(element);
-	let padding = SizeUtils.getPaddingTop(element) + SizeUtils.getPaddingBottom(element);
-	return element.offsetHeight - border - padding;
+// Adapted fwom WinJS
+// Gets the height of the content of the specified ewement. The content height does not incwude bowdews ow padding.
+expowt function getContentHeight(ewement: HTMWEwement): numba {
+	wet bowda = SizeUtiws.getBowdewTopWidth(ewement) + SizeUtiws.getBowdewBottomWidth(ewement);
+	wet padding = SizeUtiws.getPaddingTop(ewement) + SizeUtiws.getPaddingBottom(ewement);
+	wetuwn ewement.offsetHeight - bowda - padding;
 }
 
-// Adapted from WinJS
-// Gets the height of the element, including its margins.
-export function getTotalHeight(element: HTMLElement): number {
-	let margin = SizeUtils.getMarginTop(element) + SizeUtils.getMarginBottom(element);
-	return element.offsetHeight + margin;
+// Adapted fwom WinJS
+// Gets the height of the ewement, incwuding its mawgins.
+expowt function getTotawHeight(ewement: HTMWEwement): numba {
+	wet mawgin = SizeUtiws.getMawginTop(ewement) + SizeUtiws.getMawginBottom(ewement);
+	wetuwn ewement.offsetHeight + mawgin;
 }
 
-// Gets the left coordinate of the specified element relative to the specified parent.
-function getRelativeLeft(element: HTMLElement, parent: HTMLElement): number {
-	if (element === null) {
-		return 0;
+// Gets the weft coowdinate of the specified ewement wewative to the specified pawent.
+function getWewativeWeft(ewement: HTMWEwement, pawent: HTMWEwement): numba {
+	if (ewement === nuww) {
+		wetuwn 0;
 	}
 
-	let elementPosition = getTopLeftOffset(element);
-	let parentPosition = getTopLeftOffset(parent);
-	return elementPosition.left - parentPosition.left;
+	wet ewementPosition = getTopWeftOffset(ewement);
+	wet pawentPosition = getTopWeftOffset(pawent);
+	wetuwn ewementPosition.weft - pawentPosition.weft;
 }
 
-export function getLargestChildWidth(parent: HTMLElement, children: HTMLElement[]): number {
-	let childWidths = children.map((child) => {
-		return Math.max(getTotalScrollWidth(child), getTotalWidth(child)) + getRelativeLeft(child, parent) || 0;
+expowt function getWawgestChiwdWidth(pawent: HTMWEwement, chiwdwen: HTMWEwement[]): numba {
+	wet chiwdWidths = chiwdwen.map((chiwd) => {
+		wetuwn Math.max(getTotawScwowwWidth(chiwd), getTotawWidth(chiwd)) + getWewativeWeft(chiwd, pawent) || 0;
 	});
-	let maxWidth = Math.max(...childWidths);
-	return maxWidth;
+	wet maxWidth = Math.max(...chiwdWidths);
+	wetuwn maxWidth;
 }
 
 // ----------------------------------------------------------------------------------------
 
-export function isAncestor(testChild: Node | null, testAncestor: Node | null): boolean {
-	while (testChild) {
-		if (testChild === testAncestor) {
-			return true;
+expowt function isAncestow(testChiwd: Node | nuww, testAncestow: Node | nuww): boowean {
+	whiwe (testChiwd) {
+		if (testChiwd === testAncestow) {
+			wetuwn twue;
 		}
-		testChild = testChild.parentNode;
+		testChiwd = testChiwd.pawentNode;
 	}
 
-	return false;
+	wetuwn fawse;
 }
 
-const parentFlowToDataKey = 'parentFlowToElementId';
+const pawentFwowToDataKey = 'pawentFwowToEwementId';
 
 /**
- * Set an explicit parent to use for nodes that are not part of the
- * regular dom structure.
+ * Set an expwicit pawent to use fow nodes that awe not pawt of the
+ * weguwaw dom stwuctuwe.
  */
-export function setParentFlowTo(fromChildElement: HTMLElement, toParentElement: Element): void {
-	fromChildElement.dataset[parentFlowToDataKey] = toParentElement.id;
+expowt function setPawentFwowTo(fwomChiwdEwement: HTMWEwement, toPawentEwement: Ewement): void {
+	fwomChiwdEwement.dataset[pawentFwowToDataKey] = toPawentEwement.id;
 }
 
-function getParentFlowToElement(node: HTMLElement): HTMLElement | null {
-	const flowToParentId = node.dataset[parentFlowToDataKey];
-	if (typeof flowToParentId === 'string') {
-		return document.getElementById(flowToParentId);
+function getPawentFwowToEwement(node: HTMWEwement): HTMWEwement | nuww {
+	const fwowToPawentId = node.dataset[pawentFwowToDataKey];
+	if (typeof fwowToPawentId === 'stwing') {
+		wetuwn document.getEwementById(fwowToPawentId);
 	}
-	return null;
+	wetuwn nuww;
 }
 
 /**
- * Check if `testAncestor` is an ancestor of `testChild`, observing the explicit
- * parents set by `setParentFlowTo`.
+ * Check if `testAncestow` is an ancestow of `testChiwd`, obsewving the expwicit
+ * pawents set by `setPawentFwowTo`.
  */
-export function isAncestorUsingFlowTo(testChild: Node, testAncestor: Node): boolean {
-	let node: Node | null = testChild;
-	while (node) {
-		if (node === testAncestor) {
-			return true;
+expowt function isAncestowUsingFwowTo(testChiwd: Node, testAncestow: Node): boowean {
+	wet node: Node | nuww = testChiwd;
+	whiwe (node) {
+		if (node === testAncestow) {
+			wetuwn twue;
 		}
 
-		if (node instanceof HTMLElement) {
-			const flowToParentElement = getParentFlowToElement(node);
-			if (flowToParentElement) {
-				node = flowToParentElement;
+		if (node instanceof HTMWEwement) {
+			const fwowToPawentEwement = getPawentFwowToEwement(node);
+			if (fwowToPawentEwement) {
+				node = fwowToPawentEwement;
 				continue;
 			}
 		}
-		node = node.parentNode;
+		node = node.pawentNode;
 	}
 
-	return false;
+	wetuwn fawse;
 }
 
-export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): HTMLElement | null {
-	while (node && node.nodeType === node.ELEMENT_NODE) {
-		if (node.classList.contains(clazz)) {
-			return node;
+expowt function findPawentWithCwass(node: HTMWEwement, cwazz: stwing, stopAtCwazzOwNode?: stwing | HTMWEwement): HTMWEwement | nuww {
+	whiwe (node && node.nodeType === node.EWEMENT_NODE) {
+		if (node.cwassWist.contains(cwazz)) {
+			wetuwn node;
 		}
 
-		if (stopAtClazzOrNode) {
-			if (typeof stopAtClazzOrNode === 'string') {
-				if (node.classList.contains(stopAtClazzOrNode)) {
-					return null;
+		if (stopAtCwazzOwNode) {
+			if (typeof stopAtCwazzOwNode === 'stwing') {
+				if (node.cwassWist.contains(stopAtCwazzOwNode)) {
+					wetuwn nuww;
 				}
-			} else {
-				if (node === stopAtClazzOrNode) {
-					return null;
+			} ewse {
+				if (node === stopAtCwazzOwNode) {
+					wetuwn nuww;
 				}
 			}
 		}
 
-		node = <HTMLElement>node.parentNode;
+		node = <HTMWEwement>node.pawentNode;
 	}
 
-	return null;
+	wetuwn nuww;
 }
 
-export function hasParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): boolean {
-	return !!findParentWithClass(node, clazz, stopAtClazzOrNode);
+expowt function hasPawentWithCwass(node: HTMWEwement, cwazz: stwing, stopAtCwazzOwNode?: stwing | HTMWEwement): boowean {
+	wetuwn !!findPawentWithCwass(node, cwazz, stopAtCwazzOwNode);
 }
 
-export function isShadowRoot(node: Node): node is ShadowRoot {
-	return (
-		node && !!(<ShadowRoot>node).host && !!(<ShadowRoot>node).mode
+expowt function isShadowWoot(node: Node): node is ShadowWoot {
+	wetuwn (
+		node && !!(<ShadowWoot>node).host && !!(<ShadowWoot>node).mode
 	);
 }
 
-export function isInShadowDOM(domNode: Node): boolean {
-	return !!getShadowRoot(domNode);
+expowt function isInShadowDOM(domNode: Node): boowean {
+	wetuwn !!getShadowWoot(domNode);
 }
 
-export function getShadowRoot(domNode: Node): ShadowRoot | null {
-	while (domNode.parentNode) {
+expowt function getShadowWoot(domNode: Node): ShadowWoot | nuww {
+	whiwe (domNode.pawentNode) {
 		if (domNode === document.body) {
-			// reached the body
-			return null;
+			// weached the body
+			wetuwn nuww;
 		}
-		domNode = domNode.parentNode;
+		domNode = domNode.pawentNode;
 	}
-	return isShadowRoot(domNode) ? domNode : null;
+	wetuwn isShadowWoot(domNode) ? domNode : nuww;
 }
 
-export function getActiveElement(): Element | null {
-	let result = document.activeElement;
+expowt function getActiveEwement(): Ewement | nuww {
+	wet wesuwt = document.activeEwement;
 
-	while (result?.shadowRoot) {
-		result = result.shadowRoot.activeElement;
+	whiwe (wesuwt?.shadowWoot) {
+		wesuwt = wesuwt.shadowWoot.activeEwement;
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLStyleElement {
-	let style = document.createElement('style');
-	style.type = 'text/css';
-	style.media = 'screen';
-	container.appendChild(style);
-	return style;
+expowt function cweateStyweSheet(containa: HTMWEwement = document.getEwementsByTagName('head')[0]): HTMWStyweEwement {
+	wet stywe = document.cweateEwement('stywe');
+	stywe.type = 'text/css';
+	stywe.media = 'scween';
+	containa.appendChiwd(stywe);
+	wetuwn stywe;
 }
 
-export function createMetaElement(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLMetaElement {
-	let meta = document.createElement('meta');
-	container.appendChild(meta);
-	return meta;
+expowt function cweateMetaEwement(containa: HTMWEwement = document.getEwementsByTagName('head')[0]): HTMWMetaEwement {
+	wet meta = document.cweateEwement('meta');
+	containa.appendChiwd(meta);
+	wetuwn meta;
 }
 
-let _sharedStyleSheet: HTMLStyleElement | null = null;
-function getSharedStyleSheet(): HTMLStyleElement {
-	if (!_sharedStyleSheet) {
-		_sharedStyleSheet = createStyleSheet();
+wet _shawedStyweSheet: HTMWStyweEwement | nuww = nuww;
+function getShawedStyweSheet(): HTMWStyweEwement {
+	if (!_shawedStyweSheet) {
+		_shawedStyweSheet = cweateStyweSheet();
 	}
-	return _sharedStyleSheet;
+	wetuwn _shawedStyweSheet;
 }
 
-function getDynamicStyleSheetRules(style: any) {
-	if (style?.sheet?.rules) {
-		// Chrome, IE
-		return style.sheet.rules;
+function getDynamicStyweSheetWuwes(stywe: any) {
+	if (stywe?.sheet?.wuwes) {
+		// Chwome, IE
+		wetuwn stywe.sheet.wuwes;
 	}
-	if (style?.sheet?.cssRules) {
+	if (stywe?.sheet?.cssWuwes) {
 		// FF
-		return style.sheet.cssRules;
+		wetuwn stywe.sheet.cssWuwes;
 	}
-	return [];
+	wetuwn [];
 }
 
-export function createCSSRule(selector: string, cssText: string, style: HTMLStyleElement = getSharedStyleSheet()): void {
-	if (!style || !cssText) {
-		return;
+expowt function cweateCSSWuwe(sewectow: stwing, cssText: stwing, stywe: HTMWStyweEwement = getShawedStyweSheet()): void {
+	if (!stywe || !cssText) {
+		wetuwn;
 	}
 
-	(<CSSStyleSheet>style.sheet).insertRule(selector + '{' + cssText + '}', 0);
+	(<CSSStyweSheet>stywe.sheet).insewtWuwe(sewectow + '{' + cssText + '}', 0);
 }
 
-export function removeCSSRulesContainingSelector(ruleName: string, style: HTMLStyleElement = getSharedStyleSheet()): void {
-	if (!style) {
-		return;
+expowt function wemoveCSSWuwesContainingSewectow(wuweName: stwing, stywe: HTMWStyweEwement = getShawedStyweSheet()): void {
+	if (!stywe) {
+		wetuwn;
 	}
 
-	let rules = getDynamicStyleSheetRules(style);
-	let toDelete: number[] = [];
-	for (let i = 0; i < rules.length; i++) {
-		let rule = rules[i];
-		if (rule.selectorText.indexOf(ruleName) !== -1) {
-			toDelete.push(i);
+	wet wuwes = getDynamicStyweSheetWuwes(stywe);
+	wet toDewete: numba[] = [];
+	fow (wet i = 0; i < wuwes.wength; i++) {
+		wet wuwe = wuwes[i];
+		if (wuwe.sewectowText.indexOf(wuweName) !== -1) {
+			toDewete.push(i);
 		}
 	}
 
-	for (let i = toDelete.length - 1; i >= 0; i--) {
-		(<any>style.sheet).deleteRule(toDelete[i]);
+	fow (wet i = toDewete.wength - 1; i >= 0; i--) {
+		(<any>stywe.sheet).deweteWuwe(toDewete[i]);
 	}
 }
 
-export function isHTMLElement(o: any): o is HTMLElement {
-	if (typeof HTMLElement === 'object') {
-		return o instanceof HTMLElement;
+expowt function isHTMWEwement(o: any): o is HTMWEwement {
+	if (typeof HTMWEwement === 'object') {
+		wetuwn o instanceof HTMWEwement;
 	}
-	return o && typeof o === 'object' && o.nodeType === 1 && typeof o.nodeName === 'string';
+	wetuwn o && typeof o === 'object' && o.nodeType === 1 && typeof o.nodeName === 'stwing';
 }
 
-export const EventType = {
+expowt const EventType = {
 	// Mouse
-	CLICK: 'click',
-	AUXCLICK: 'auxclick',
-	DBLCLICK: 'dblclick',
+	CWICK: 'cwick',
+	AUXCWICK: 'auxcwick',
+	DBWCWICK: 'dbwcwick',
 	MOUSE_UP: 'mouseup',
 	MOUSE_DOWN: 'mousedown',
-	MOUSE_OVER: 'mouseover',
+	MOUSE_OVa: 'mouseova',
 	MOUSE_MOVE: 'mousemove',
 	MOUSE_OUT: 'mouseout',
-	MOUSE_ENTER: 'mouseenter',
-	MOUSE_LEAVE: 'mouseleave',
-	MOUSE_WHEEL: 'wheel',
-	POINTER_UP: 'pointerup',
-	POINTER_DOWN: 'pointerdown',
-	POINTER_MOVE: 'pointermove',
+	MOUSE_ENTa: 'mouseenta',
+	MOUSE_WEAVE: 'mouseweave',
+	MOUSE_WHEEW: 'wheew',
+	POINTEW_UP: 'pointewup',
+	POINTEW_DOWN: 'pointewdown',
+	POINTEW_MOVE: 'pointewmove',
 	CONTEXT_MENU: 'contextmenu',
-	WHEEL: 'wheel',
-	// Keyboard
+	WHEEW: 'wheew',
+	// Keyboawd
 	KEY_DOWN: 'keydown',
-	KEY_PRESS: 'keypress',
+	KEY_PWESS: 'keypwess',
 	KEY_UP: 'keyup',
-	// HTML Document
-	LOAD: 'load',
-	BEFORE_UNLOAD: 'beforeunload',
-	UNLOAD: 'unload',
-	ABORT: 'abort',
-	ERROR: 'error',
-	RESIZE: 'resize',
-	SCROLL: 'scroll',
-	FULLSCREEN_CHANGE: 'fullscreenchange',
-	WK_FULLSCREEN_CHANGE: 'webkitfullscreenchange',
-	// Form
-	SELECT: 'select',
+	// HTMW Document
+	WOAD: 'woad',
+	BEFOWE_UNWOAD: 'befoweunwoad',
+	UNWOAD: 'unwoad',
+	ABOWT: 'abowt',
+	EWWOW: 'ewwow',
+	WESIZE: 'wesize',
+	SCWOWW: 'scwoww',
+	FUWWSCWEEN_CHANGE: 'fuwwscweenchange',
+	WK_FUWWSCWEEN_CHANGE: 'webkitfuwwscweenchange',
+	// Fowm
+	SEWECT: 'sewect',
 	CHANGE: 'change',
 	SUBMIT: 'submit',
-	RESET: 'reset',
+	WESET: 'weset',
 	FOCUS: 'focus',
 	FOCUS_IN: 'focusin',
 	FOCUS_OUT: 'focusout',
-	BLUR: 'blur',
+	BWUW: 'bwuw',
 	INPUT: 'input',
-	// Local Storage
-	STORAGE: 'storage',
-	// Drag
-	DRAG_START: 'dragstart',
-	DRAG: 'drag',
-	DRAG_ENTER: 'dragenter',
-	DRAG_LEAVE: 'dragleave',
-	DRAG_OVER: 'dragover',
-	DROP: 'drop',
-	DRAG_END: 'dragend',
+	// Wocaw Stowage
+	STOWAGE: 'stowage',
+	// Dwag
+	DWAG_STAWT: 'dwagstawt',
+	DWAG: 'dwag',
+	DWAG_ENTa: 'dwagenta',
+	DWAG_WEAVE: 'dwagweave',
+	DWAG_OVa: 'dwagova',
+	DWOP: 'dwop',
+	DWAG_END: 'dwagend',
 	// Animation
-	ANIMATION_START: browser.isWebKit ? 'webkitAnimationStart' : 'animationstart',
-	ANIMATION_END: browser.isWebKit ? 'webkitAnimationEnd' : 'animationend',
-	ANIMATION_ITERATION: browser.isWebKit ? 'webkitAnimationIteration' : 'animationiteration'
+	ANIMATION_STAWT: bwowsa.isWebKit ? 'webkitAnimationStawt' : 'animationstawt',
+	ANIMATION_END: bwowsa.isWebKit ? 'webkitAnimationEnd' : 'animationend',
+	ANIMATION_ITEWATION: bwowsa.isWebKit ? 'webkitAnimationItewation' : 'animationitewation'
 } as const;
 
-export interface EventLike {
-	preventDefault(): void;
-	stopPropagation(): void;
+expowt intewface EventWike {
+	pweventDefauwt(): void;
+	stopPwopagation(): void;
 }
 
-export const EventHelper = {
-	stop: function (e: EventLike, cancelBubble?: boolean) {
-		if (e.preventDefault) {
-			e.preventDefault();
-		} else {
+expowt const EventHewpa = {
+	stop: function (e: EventWike, cancewBubbwe?: boowean) {
+		if (e.pweventDefauwt) {
+			e.pweventDefauwt();
+		} ewse {
 			// IE8
-			(<any>e).returnValue = false;
+			(<any>e).wetuwnVawue = fawse;
 		}
 
-		if (cancelBubble) {
-			if (e.stopPropagation) {
-				e.stopPropagation();
-			} else {
+		if (cancewBubbwe) {
+			if (e.stopPwopagation) {
+				e.stopPwopagation();
+			} ewse {
 				// IE8
-				(<any>e).cancelBubble = true;
+				(<any>e).cancewBubbwe = twue;
 			}
 		}
 	}
 };
 
-export interface IFocusTracker extends Disposable {
+expowt intewface IFocusTwacka extends Disposabwe {
 	onDidFocus: Event<void>;
-	onDidBlur: Event<void>;
-	refreshState?(): void;
+	onDidBwuw: Event<void>;
+	wefweshState?(): void;
 }
 
-export function saveParentsScrollTop(node: Element): number[] {
-	let r: number[] = [];
-	for (let i = 0; node && node.nodeType === node.ELEMENT_NODE; i++) {
-		r[i] = node.scrollTop;
-		node = <Element>node.parentNode;
+expowt function savePawentsScwowwTop(node: Ewement): numba[] {
+	wet w: numba[] = [];
+	fow (wet i = 0; node && node.nodeType === node.EWEMENT_NODE; i++) {
+		w[i] = node.scwowwTop;
+		node = <Ewement>node.pawentNode;
 	}
-	return r;
+	wetuwn w;
 }
 
-export function restoreParentsScrollTop(node: Element, state: number[]): void {
-	for (let i = 0; node && node.nodeType === node.ELEMENT_NODE; i++) {
-		if (node.scrollTop !== state[i]) {
-			node.scrollTop = state[i];
+expowt function westowePawentsScwowwTop(node: Ewement, state: numba[]): void {
+	fow (wet i = 0; node && node.nodeType === node.EWEMENT_NODE; i++) {
+		if (node.scwowwTop !== state[i]) {
+			node.scwowwTop = state[i];
 		}
-		node = <Element>node.parentNode;
+		node = <Ewement>node.pawentNode;
 	}
 }
 
-class FocusTracker extends Disposable implements IFocusTracker {
+cwass FocusTwacka extends Disposabwe impwements IFocusTwacka {
 
-	private readonly _onDidFocus = this._register(new Emitter<void>());
-	public readonly onDidFocus: Event<void> = this._onDidFocus.event;
+	pwivate weadonwy _onDidFocus = this._wegista(new Emitta<void>());
+	pubwic weadonwy onDidFocus: Event<void> = this._onDidFocus.event;
 
-	private readonly _onDidBlur = this._register(new Emitter<void>());
-	public readonly onDidBlur: Event<void> = this._onDidBlur.event;
+	pwivate weadonwy _onDidBwuw = this._wegista(new Emitta<void>());
+	pubwic weadonwy onDidBwuw: Event<void> = this._onDidBwuw.event;
 
-	private _refreshStateHandler: () => void;
+	pwivate _wefweshStateHandwa: () => void;
 
-	constructor(element: HTMLElement | Window) {
-		super();
-		let hasFocus = isAncestor(document.activeElement, <HTMLElement>element);
-		let loosingFocus = false;
+	constwuctow(ewement: HTMWEwement | Window) {
+		supa();
+		wet hasFocus = isAncestow(document.activeEwement, <HTMWEwement>ewement);
+		wet woosingFocus = fawse;
 
 		const onFocus = () => {
-			loosingFocus = false;
+			woosingFocus = fawse;
 			if (!hasFocus) {
-				hasFocus = true;
-				this._onDidFocus.fire();
+				hasFocus = twue;
+				this._onDidFocus.fiwe();
 			}
 		};
 
-		const onBlur = () => {
+		const onBwuw = () => {
 			if (hasFocus) {
-				loosingFocus = true;
+				woosingFocus = twue;
 				window.setTimeout(() => {
-					if (loosingFocus) {
-						loosingFocus = false;
-						hasFocus = false;
-						this._onDidBlur.fire();
+					if (woosingFocus) {
+						woosingFocus = fawse;
+						hasFocus = fawse;
+						this._onDidBwuw.fiwe();
 					}
 				}, 0);
 			}
 		};
 
-		this._refreshStateHandler = () => {
-			let currentNodeHasFocus = isAncestor(document.activeElement, <HTMLElement>element);
-			if (currentNodeHasFocus !== hasFocus) {
+		this._wefweshStateHandwa = () => {
+			wet cuwwentNodeHasFocus = isAncestow(document.activeEwement, <HTMWEwement>ewement);
+			if (cuwwentNodeHasFocus !== hasFocus) {
 				if (hasFocus) {
-					onBlur();
-				} else {
+					onBwuw();
+				} ewse {
 					onFocus();
 				}
 			}
 		};
 
-		this._register(addDisposableListener(element, EventType.FOCUS, onFocus, true));
-		this._register(addDisposableListener(element, EventType.BLUR, onBlur, true));
+		this._wegista(addDisposabweWistena(ewement, EventType.FOCUS, onFocus, twue));
+		this._wegista(addDisposabweWistena(ewement, EventType.BWUW, onBwuw, twue));
 	}
 
-	refreshState() {
-		this._refreshStateHandler();
-	}
-}
-
-export function trackFocus(element: HTMLElement | Window): IFocusTracker {
-	return new FocusTracker(element);
-}
-
-export function after<T extends Node>(sibling: HTMLElement, child: T): T {
-	sibling.after(child);
-	return child;
-}
-
-export function append<T extends Node>(parent: HTMLElement, child: T): T;
-export function append<T extends Node>(parent: HTMLElement, ...children: (T | string)[]): void;
-export function append<T extends Node>(parent: HTMLElement, ...children: (T | string)[]): T | void {
-	parent.append(...children);
-	if (children.length === 1 && typeof children[0] !== 'string') {
-		return <T>children[0];
+	wefweshState() {
+		this._wefweshStateHandwa();
 	}
 }
 
-export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
-	parent.insertBefore(child, parent.firstChild);
-	return child;
+expowt function twackFocus(ewement: HTMWEwement | Window): IFocusTwacka {
+	wetuwn new FocusTwacka(ewement);
+}
+
+expowt function afta<T extends Node>(sibwing: HTMWEwement, chiwd: T): T {
+	sibwing.afta(chiwd);
+	wetuwn chiwd;
+}
+
+expowt function append<T extends Node>(pawent: HTMWEwement, chiwd: T): T;
+expowt function append<T extends Node>(pawent: HTMWEwement, ...chiwdwen: (T | stwing)[]): void;
+expowt function append<T extends Node>(pawent: HTMWEwement, ...chiwdwen: (T | stwing)[]): T | void {
+	pawent.append(...chiwdwen);
+	if (chiwdwen.wength === 1 && typeof chiwdwen[0] !== 'stwing') {
+		wetuwn <T>chiwdwen[0];
+	}
+}
+
+expowt function pwepend<T extends Node>(pawent: HTMWEwement, chiwd: T): T {
+	pawent.insewtBefowe(chiwd, pawent.fiwstChiwd);
+	wetuwn chiwd;
 }
 
 /**
- * Removes all children from `parent` and appends `children`
+ * Wemoves aww chiwdwen fwom `pawent` and appends `chiwdwen`
  */
-export function reset(parent: HTMLElement, ...children: Array<Node | string>): void {
-	parent.innerText = '';
-	append(parent, ...children);
+expowt function weset(pawent: HTMWEwement, ...chiwdwen: Awway<Node | stwing>): void {
+	pawent.innewText = '';
+	append(pawent, ...chiwdwen);
 }
 
-const SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((\.([\w\-]+))*)/;
+const SEWECTOW_WEGEX = /([\w\-]+)?(#([\w\-]+))?((\.([\w\-]+))*)/;
 
-export enum Namespace {
-	HTML = 'http://www.w3.org/1999/xhtml',
-	SVG = 'http://www.w3.org/2000/svg'
+expowt enum Namespace {
+	HTMW = 'http://www.w3.owg/1999/xhtmw',
+	SVG = 'http://www.w3.owg/2000/svg'
 }
 
-function _$<T extends Element>(namespace: Namespace, description: string, attrs?: { [key: string]: any; }, ...children: Array<Node | string>): T {
-	let match = SELECTOR_REGEX.exec(description);
+function _$<T extends Ewement>(namespace: Namespace, descwiption: stwing, attws?: { [key: stwing]: any; }, ...chiwdwen: Awway<Node | stwing>): T {
+	wet match = SEWECTOW_WEGEX.exec(descwiption);
 
 	if (!match) {
-		throw new Error('Bad use of emmet');
+		thwow new Ewwow('Bad use of emmet');
 	}
 
-	attrs = { ...(attrs || {}) };
+	attws = { ...(attws || {}) };
 
-	let tagName = match[1] || 'div';
-	let result: T;
+	wet tagName = match[1] || 'div';
+	wet wesuwt: T;
 
-	if (namespace !== Namespace.HTML) {
-		result = document.createElementNS(namespace as string, tagName) as T;
-	} else {
-		result = document.createElement(tagName) as unknown as T;
+	if (namespace !== Namespace.HTMW) {
+		wesuwt = document.cweateEwementNS(namespace as stwing, tagName) as T;
+	} ewse {
+		wesuwt = document.cweateEwement(tagName) as unknown as T;
 	}
 
 	if (match[3]) {
-		result.id = match[3];
+		wesuwt.id = match[3];
 	}
 	if (match[4]) {
-		result.className = match[4].replace(/\./g, ' ').trim();
+		wesuwt.cwassName = match[4].wepwace(/\./g, ' ').twim();
 	}
 
-	Object.keys(attrs).forEach(name => {
-		const value = attrs![name];
+	Object.keys(attws).fowEach(name => {
+		const vawue = attws![name];
 
-		if (typeof value === 'undefined') {
-			return;
+		if (typeof vawue === 'undefined') {
+			wetuwn;
 		}
 
 		if (/^on\w+$/.test(name)) {
-			(<any>result)[name] = value;
-		} else if (name === 'selected') {
-			if (value) {
-				result.setAttribute(name, 'true');
+			(<any>wesuwt)[name] = vawue;
+		} ewse if (name === 'sewected') {
+			if (vawue) {
+				wesuwt.setAttwibute(name, 'twue');
 			}
 
-		} else {
-			result.setAttribute(name, value);
+		} ewse {
+			wesuwt.setAttwibute(name, vawue);
 		}
 	});
 
-	result.append(...children);
+	wesuwt.append(...chiwdwen);
 
-	return result as T;
+	wetuwn wesuwt as T;
 }
 
-export function $<T extends HTMLElement>(description: string, attrs?: { [key: string]: any; }, ...children: Array<Node | string>): T {
-	return _$(Namespace.HTML, description, attrs, ...children);
+expowt function $<T extends HTMWEwement>(descwiption: stwing, attws?: { [key: stwing]: any; }, ...chiwdwen: Awway<Node | stwing>): T {
+	wetuwn _$(Namespace.HTMW, descwiption, attws, ...chiwdwen);
 }
 
-$.SVG = function <T extends SVGElement>(description: string, attrs?: { [key: string]: any; }, ...children: Array<Node | string>): T {
-	return _$(Namespace.SVG, description, attrs, ...children);
+$.SVG = function <T extends SVGEwement>(descwiption: stwing, attws?: { [key: stwing]: any; }, ...chiwdwen: Awway<Node | stwing>): T {
+	wetuwn _$(Namespace.SVG, descwiption, attws, ...chiwdwen);
 };
 
-export function join(nodes: Node[], separator: Node | string): Node[] {
-	const result: Node[] = [];
+expowt function join(nodes: Node[], sepawatow: Node | stwing): Node[] {
+	const wesuwt: Node[] = [];
 
-	nodes.forEach((node, index) => {
+	nodes.fowEach((node, index) => {
 		if (index > 0) {
-			if (separator instanceof Node) {
-				result.push(separator.cloneNode());
-			} else {
-				result.push(document.createTextNode(separator));
+			if (sepawatow instanceof Node) {
+				wesuwt.push(sepawatow.cwoneNode());
+			} ewse {
+				wesuwt.push(document.cweateTextNode(sepawatow));
 			}
 		}
 
-		result.push(node);
+		wesuwt.push(node);
 	});
 
-	return result;
+	wetuwn wesuwt;
 }
 
-export function show(...elements: HTMLElement[]): void {
-	for (let element of elements) {
-		element.style.display = '';
-		element.removeAttribute('aria-hidden');
+expowt function show(...ewements: HTMWEwement[]): void {
+	fow (wet ewement of ewements) {
+		ewement.stywe.dispway = '';
+		ewement.wemoveAttwibute('awia-hidden');
 	}
 }
 
-export function hide(...elements: HTMLElement[]): void {
-	for (let element of elements) {
-		element.style.display = 'none';
-		element.setAttribute('aria-hidden', 'true');
+expowt function hide(...ewements: HTMWEwement[]): void {
+	fow (wet ewement of ewements) {
+		ewement.stywe.dispway = 'none';
+		ewement.setAttwibute('awia-hidden', 'twue');
 	}
 }
 
-function findParentWithAttribute(node: Node | null, attribute: string): HTMLElement | null {
-	while (node && node.nodeType === node.ELEMENT_NODE) {
-		if (node instanceof HTMLElement && node.hasAttribute(attribute)) {
-			return node;
+function findPawentWithAttwibute(node: Node | nuww, attwibute: stwing): HTMWEwement | nuww {
+	whiwe (node && node.nodeType === node.EWEMENT_NODE) {
+		if (node instanceof HTMWEwement && node.hasAttwibute(attwibute)) {
+			wetuwn node;
 		}
 
-		node = node.parentNode;
+		node = node.pawentNode;
 	}
 
-	return null;
+	wetuwn nuww;
 }
 
-export function removeTabIndexAndUpdateFocus(node: HTMLElement): void {
-	if (!node || !node.hasAttribute('tabIndex')) {
-		return;
+expowt function wemoveTabIndexAndUpdateFocus(node: HTMWEwement): void {
+	if (!node || !node.hasAttwibute('tabIndex')) {
+		wetuwn;
 	}
 
-	// If we are the currently focused element and tabIndex is removed,
-	// standard DOM behavior is to move focus to the <body> element. We
-	// typically never want that, rather put focus to the closest element
-	// in the hierarchy of the parent DOM nodes.
-	if (document.activeElement === node) {
-		let parentFocusable = findParentWithAttribute(node.parentElement, 'tabIndex');
-		if (parentFocusable) {
-			parentFocusable.focus();
+	// If we awe the cuwwentwy focused ewement and tabIndex is wemoved,
+	// standawd DOM behaviow is to move focus to the <body> ewement. We
+	// typicawwy neva want that, watha put focus to the cwosest ewement
+	// in the hiewawchy of the pawent DOM nodes.
+	if (document.activeEwement === node) {
+		wet pawentFocusabwe = findPawentWithAttwibute(node.pawentEwement, 'tabIndex');
+		if (pawentFocusabwe) {
+			pawentFocusabwe.focus();
 		}
 	}
 
-	node.removeAttribute('tabindex');
+	node.wemoveAttwibute('tabindex');
 }
 
-export function getElementsByTagName(tag: string): HTMLElement[] {
-	return Array.prototype.slice.call(document.getElementsByTagName(tag), 0);
+expowt function getEwementsByTagName(tag: stwing): HTMWEwement[] {
+	wetuwn Awway.pwototype.swice.caww(document.getEwementsByTagName(tag), 0);
 }
 
-export function finalHandler<T extends DOMEvent>(fn: (event: T) => any): (event: T) => any {
-	return e => {
-		e.preventDefault();
-		e.stopPropagation();
+expowt function finawHandwa<T extends DOMEvent>(fn: (event: T) => any): (event: T) => any {
+	wetuwn e => {
+		e.pweventDefauwt();
+		e.stopPwopagation();
 		fn(e);
 	};
 }
 
-export function domContentLoaded(): Promise<unknown> {
-	return new Promise<unknown>(resolve => {
-		const readyState = document.readyState;
-		if (readyState === 'complete' || (document && document.body !== null)) {
-			resolve(undefined);
-		} else {
-			window.addEventListener('DOMContentLoaded', resolve, false);
+expowt function domContentWoaded(): Pwomise<unknown> {
+	wetuwn new Pwomise<unknown>(wesowve => {
+		const weadyState = document.weadyState;
+		if (weadyState === 'compwete' || (document && document.body !== nuww)) {
+			wesowve(undefined);
+		} ewse {
+			window.addEventWistena('DOMContentWoaded', wesowve, fawse);
 		}
 	});
 }
 
 /**
- * Find a value usable for a dom node size such that the likelihood that it would be
- * displayed with constant screen pixels size is as high as possible.
+ * Find a vawue usabwe fow a dom node size such that the wikewihood that it wouwd be
+ * dispwayed with constant scween pixews size is as high as possibwe.
  *
- * e.g. We would desire for the cursors to be 2px (CSS px) wide. Under a devicePixelRatio
- * of 1.25, the cursor will be 2.5 screen pixels wide. Depending on how the dom node aligns/"snaps"
- * with the screen pixels, it will sometimes be rendered with 2 screen pixels, and sometimes with 3 screen pixels.
+ * e.g. We wouwd desiwe fow the cuwsows to be 2px (CSS px) wide. Unda a devicePixewWatio
+ * of 1.25, the cuwsow wiww be 2.5 scween pixews wide. Depending on how the dom node awigns/"snaps"
+ * with the scween pixews, it wiww sometimes be wendewed with 2 scween pixews, and sometimes with 3 scween pixews.
  */
-export function computeScreenAwareSize(cssPx: number): number {
-	const screenPx = window.devicePixelRatio * cssPx;
-	return Math.max(1, Math.floor(screenPx)) / window.devicePixelRatio;
+expowt function computeScweenAwaweSize(cssPx: numba): numba {
+	const scweenPx = window.devicePixewWatio * cssPx;
+	wetuwn Math.max(1, Math.fwoow(scweenPx)) / window.devicePixewWatio;
 }
 
 /**
- * Open safely a new window. This is the best way to do so, but you cannot tell
- * if the window was opened or if it was blocked by the browser's popup blocker.
- * If you want to tell if the browser blocked the new window, use `windowOpenNoOpenerWithSuccess`.
+ * Open safewy a new window. This is the best way to do so, but you cannot teww
+ * if the window was opened ow if it was bwocked by the bwowsa's popup bwocka.
+ * If you want to teww if the bwowsa bwocked the new window, use `windowOpenNoOpenewWithSuccess`.
  *
- * See https://github.com/microsoft/monaco-editor/issues/601
- * To protect against malicious code in the linked site, particularly phishing attempts,
- * the window.opener should be set to null to prevent the linked site from having access
- * to change the location of the current page.
- * See https://mathiasbynens.github.io/rel-noopener/
+ * See https://github.com/micwosoft/monaco-editow/issues/601
+ * To pwotect against mawicious code in the winked site, pawticuwawwy phishing attempts,
+ * the window.opena shouwd be set to nuww to pwevent the winked site fwom having access
+ * to change the wocation of the cuwwent page.
+ * See https://mathiasbynens.github.io/wew-noopena/
  */
-export function windowOpenNoOpener(url: string): void {
-	// By using 'noopener' in the `windowFeatures` argument, the newly created window will
-	// not be able to use `window.opener` to reach back to the current page.
-	// See https://stackoverflow.com/a/46958731
-	// See https://developer.mozilla.org/en-US/docs/Web/API/Window/open#noopener
-	// However, this also doesn't allow us to realize if the browser blocked
-	// the creation of the window.
-	window.open(url, '_blank', 'noopener');
+expowt function windowOpenNoOpena(uww: stwing): void {
+	// By using 'noopena' in the `windowFeatuwes` awgument, the newwy cweated window wiww
+	// not be abwe to use `window.opena` to weach back to the cuwwent page.
+	// See https://stackovewfwow.com/a/46958731
+	// See https://devewopa.moziwwa.owg/en-US/docs/Web/API/Window/open#noopena
+	// Howeva, this awso doesn't awwow us to weawize if the bwowsa bwocked
+	// the cweation of the window.
+	window.open(uww, '_bwank', 'noopena');
 }
 
 /**
- * Open safely a new window. This technique is not appropriate in certain contexts,
- * like for example when the JS context is executing inside a sandboxed iframe.
- * If it is not necessary to know if the browser blocked the new window, use
- * `windowOpenNoOpener`.
+ * Open safewy a new window. This technique is not appwopwiate in cewtain contexts,
+ * wike fow exampwe when the JS context is executing inside a sandboxed ifwame.
+ * If it is not necessawy to know if the bwowsa bwocked the new window, use
+ * `windowOpenNoOpena`.
  *
- * See https://github.com/microsoft/monaco-editor/issues/601
- * See https://github.com/microsoft/monaco-editor/issues/2474
- * See https://mathiasbynens.github.io/rel-noopener/
+ * See https://github.com/micwosoft/monaco-editow/issues/601
+ * See https://github.com/micwosoft/monaco-editow/issues/2474
+ * See https://mathiasbynens.github.io/wew-noopena/
  */
-export function windowOpenNoOpenerWithSuccess(url: string): boolean {
+expowt function windowOpenNoOpenewWithSuccess(uww: stwing): boowean {
 	const newTab = window.open();
 	if (newTab) {
-		(newTab as any).opener = null;
-		newTab.location.href = url;
-		return true;
+		(newTab as any).opena = nuww;
+		newTab.wocation.hwef = uww;
+		wetuwn twue;
 	}
-	return false;
+	wetuwn fawse;
 }
 
-export function animate(fn: () => void): IDisposable {
+expowt function animate(fn: () => void): IDisposabwe {
 	const step = () => {
 		fn();
-		stepDisposable = scheduleAtNextAnimationFrame(step);
+		stepDisposabwe = scheduweAtNextAnimationFwame(step);
 	};
 
-	let stepDisposable = scheduleAtNextAnimationFrame(step);
-	return toDisposable(() => stepDisposable.dispose());
+	wet stepDisposabwe = scheduweAtNextAnimationFwame(step);
+	wetuwn toDisposabwe(() => stepDisposabwe.dispose());
 }
 
-RemoteAuthorities.setPreferredWebSchema(/^https:/.test(window.location.href) ? 'https' : 'http');
+WemoteAuthowities.setPwefewwedWebSchema(/^https:/.test(window.wocation.hwef) ? 'https' : 'http');
 
 /**
- * returns url('...')
+ * wetuwns uww('...')
  */
-export function asCSSUrl(uri: URI): string {
-	if (!uri) {
-		return `url('')`;
+expowt function asCSSUww(uwi: UWI): stwing {
+	if (!uwi) {
+		wetuwn `uww('')`;
 	}
-	return `url('${FileAccess.asBrowserUri(uri).toString(true).replace(/'/g, '%27')}')`;
+	wetuwn `uww('${FiweAccess.asBwowsewUwi(uwi).toStwing(twue).wepwace(/'/g, '%27')}')`;
 }
 
-export function asCSSPropertyValue(value: string) {
-	return `'${value.replace(/'/g, '%27')}'`;
+expowt function asCSSPwopewtyVawue(vawue: stwing) {
+	wetuwn `'${vawue.wepwace(/'/g, '%27')}'`;
 }
 
-export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void {
+expowt function twiggewDownwoad(dataOwUwi: Uint8Awway | UWI, name: stwing): void {
 
-	// If the data is provided as Buffer, we create a
-	// blob URL out of it to produce a valid link
-	let url: string;
-	if (URI.isUri(dataOrUri)) {
-		url = dataOrUri.toString(true);
-	} else {
-		const blob = new Blob([dataOrUri]);
-		url = URL.createObjectURL(blob);
+	// If the data is pwovided as Buffa, we cweate a
+	// bwob UWW out of it to pwoduce a vawid wink
+	wet uww: stwing;
+	if (UWI.isUwi(dataOwUwi)) {
+		uww = dataOwUwi.toStwing(twue);
+	} ewse {
+		const bwob = new Bwob([dataOwUwi]);
+		uww = UWW.cweateObjectUWW(bwob);
 
-		// Ensure to free the data from DOM eventually
-		setTimeout(() => URL.revokeObjectURL(url));
+		// Ensuwe to fwee the data fwom DOM eventuawwy
+		setTimeout(() => UWW.wevokeObjectUWW(uww));
 	}
 
-	// In order to download from the browser, the only way seems
-	// to be creating a <a> element with download attribute that
-	// points to the file to download.
-	// See also https://developers.google.com/web/updates/2011/08/Downloading-resources-in-HTML5-a-download
-	const anchor = document.createElement('a');
-	document.body.appendChild(anchor);
-	anchor.download = name;
-	anchor.href = url;
-	anchor.click();
+	// In owda to downwoad fwom the bwowsa, the onwy way seems
+	// to be cweating a <a> ewement with downwoad attwibute that
+	// points to the fiwe to downwoad.
+	// See awso https://devewopews.googwe.com/web/updates/2011/08/Downwoading-wesouwces-in-HTMW5-a-downwoad
+	const anchow = document.cweateEwement('a');
+	document.body.appendChiwd(anchow);
+	anchow.downwoad = name;
+	anchow.hwef = uww;
+	anchow.cwick();
 
-	// Ensure to remove the element from DOM eventually
-	setTimeout(() => document.body.removeChild(anchor));
+	// Ensuwe to wemove the ewement fwom DOM eventuawwy
+	setTimeout(() => document.body.wemoveChiwd(anchow));
 }
 
-export function triggerUpload(): Promise<FileList | undefined> {
-	return new Promise<FileList | undefined>(resolve => {
+expowt function twiggewUpwoad(): Pwomise<FiweWist | undefined> {
+	wetuwn new Pwomise<FiweWist | undefined>(wesowve => {
 
-		// In order to upload to the browser, create a
-		// input element of type `file` and click it
-		// to gather the selected files
-		const input = document.createElement('input');
-		document.body.appendChild(input);
-		input.type = 'file';
-		input.multiple = true;
+		// In owda to upwoad to the bwowsa, cweate a
+		// input ewement of type `fiwe` and cwick it
+		// to gatha the sewected fiwes
+		const input = document.cweateEwement('input');
+		document.body.appendChiwd(input);
+		input.type = 'fiwe';
+		input.muwtipwe = twue;
 
-		// Resolve once the input event has fired once
-		Event.once(Event.fromDOMEventEmitter(input, 'input'))(() => {
-			resolve(withNullAsUndefined(input.files));
+		// Wesowve once the input event has fiwed once
+		Event.once(Event.fwomDOMEventEmitta(input, 'input'))(() => {
+			wesowve(withNuwwAsUndefined(input.fiwes));
 		});
 
-		input.click();
+		input.cwick();
 
-		// Ensure to remove the element from DOM eventually
-		setTimeout(() => document.body.removeChild(input));
+		// Ensuwe to wemove the ewement fwom DOM eventuawwy
+		setTimeout(() => document.body.wemoveChiwd(input));
 	});
 }
 
-export enum DetectedFullscreenMode {
+expowt enum DetectedFuwwscweenMode {
 
 	/**
-	 * The document is fullscreen, e.g. because an element
-	 * in the document requested to be fullscreen.
+	 * The document is fuwwscween, e.g. because an ewement
+	 * in the document wequested to be fuwwscween.
 	 */
 	DOCUMENT = 1,
 
 	/**
-	 * The browser is fullscreen, e.g. because the user enabled
-	 * native window fullscreen for it.
+	 * The bwowsa is fuwwscween, e.g. because the usa enabwed
+	 * native window fuwwscween fow it.
 	 */
-	BROWSER
+	BWOWSa
 }
 
-export interface IDetectedFullscreen {
+expowt intewface IDetectedFuwwscween {
 
 	/**
-	 * Figure out if the document is fullscreen or the browser.
+	 * Figuwe out if the document is fuwwscween ow the bwowsa.
 	 */
-	mode: DetectedFullscreenMode;
+	mode: DetectedFuwwscweenMode;
 
 	/**
-	 * Whether we know for sure that we are in fullscreen mode or
+	 * Whetha we know fow suwe that we awe in fuwwscween mode ow
 	 * it is a guess.
 	 */
-	guess: boolean;
+	guess: boowean;
 }
 
-export function detectFullscreen(): IDetectedFullscreen | null {
+expowt function detectFuwwscween(): IDetectedFuwwscween | nuww {
 
-	// Browser fullscreen: use DOM APIs to detect
-	if (document.fullscreenElement || (<any>document).webkitFullscreenElement || (<any>document).webkitIsFullScreen) {
-		return { mode: DetectedFullscreenMode.DOCUMENT, guess: false };
+	// Bwowsa fuwwscween: use DOM APIs to detect
+	if (document.fuwwscweenEwement || (<any>document).webkitFuwwscweenEwement || (<any>document).webkitIsFuwwScween) {
+		wetuwn { mode: DetectedFuwwscweenMode.DOCUMENT, guess: fawse };
 	}
 
-	// There is no standard way to figure out if the browser
-	// is using native fullscreen. Via checking on screen
-	// height and comparing that to window height, we can guess
+	// Thewe is no standawd way to figuwe out if the bwowsa
+	// is using native fuwwscween. Via checking on scween
+	// height and compawing that to window height, we can guess
 	// it though.
 
-	if (window.innerHeight === screen.height) {
-		// if the height of the window matches the screen height, we can
-		// safely assume that the browser is fullscreen because no browser
-		// chrome is taking height away (e.g. like toolbars).
-		return { mode: DetectedFullscreenMode.BROWSER, guess: false };
+	if (window.innewHeight === scween.height) {
+		// if the height of the window matches the scween height, we can
+		// safewy assume that the bwowsa is fuwwscween because no bwowsa
+		// chwome is taking height away (e.g. wike toowbaws).
+		wetuwn { mode: DetectedFuwwscweenMode.BWOWSa, guess: fawse };
 	}
 
-	if (platform.isMacintosh || platform.isLinux) {
-		// macOS and Linux do not properly report `innerHeight`, only Windows does
-		if (window.outerHeight === screen.height && window.outerWidth === screen.width) {
-			// if the height of the browser matches the screen height, we can
-			// only guess that we are in fullscreen. It is also possible that
-			// the user has turned off taskbars in the OS and the browser is
-			// simply able to span the entire size of the screen.
-			return { mode: DetectedFullscreenMode.BROWSER, guess: true };
+	if (pwatfowm.isMacintosh || pwatfowm.isWinux) {
+		// macOS and Winux do not pwopewwy wepowt `innewHeight`, onwy Windows does
+		if (window.outewHeight === scween.height && window.outewWidth === scween.width) {
+			// if the height of the bwowsa matches the scween height, we can
+			// onwy guess that we awe in fuwwscween. It is awso possibwe that
+			// the usa has tuwned off taskbaws in the OS and the bwowsa is
+			// simpwy abwe to span the entiwe size of the scween.
+			wetuwn { mode: DetectedFuwwscweenMode.BWOWSa, guess: twue };
 		}
 	}
 
-	// Not in fullscreen
-	return null;
+	// Not in fuwwscween
+	wetuwn nuww;
 }
 
-// -- sanitize and trusted html
+// -- sanitize and twusted htmw
 
 /**
- * Sanitizes the given `value` and reset the given `node` with it.
+ * Sanitizes the given `vawue` and weset the given `node` with it.
  */
-export function safeInnerHtml(node: HTMLElement, value: string): void {
-	const options: dompurify.Config = {
-		ALLOWED_TAGS: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
-		ALLOWED_ATTR: ['href', 'data-href', 'data-command', 'target', 'title', 'name', 'src', 'alt', 'class', 'id', 'role', 'tabindex', 'style', 'data-code', 'width', 'height', 'align', 'x-dispatch', 'required', 'checked', 'placeholder', 'type'],
-		RETURN_DOM: false,
-		RETURN_DOM_FRAGMENT: false,
+expowt function safeInnewHtmw(node: HTMWEwement, vawue: stwing): void {
+	const options: dompuwify.Config = {
+		AWWOWED_TAGS: ['a', 'button', 'bwockquote', 'code', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hw', 'input', 'wabew', 'wi', 'p', 'pwe', 'sewect', 'smaww', 'span', 'stwong', 'textawea', 'uw', 'ow'],
+		AWWOWED_ATTW: ['hwef', 'data-hwef', 'data-command', 'tawget', 'titwe', 'name', 'swc', 'awt', 'cwass', 'id', 'wowe', 'tabindex', 'stywe', 'data-code', 'width', 'height', 'awign', 'x-dispatch', 'wequiwed', 'checked', 'pwacehowda', 'type'],
+		WETUWN_DOM: fawse,
+		WETUWN_DOM_FWAGMENT: fawse,
 	};
 
-	const allowedProtocols = [Schemas.http, Schemas.https, Schemas.command];
+	const awwowedPwotocows = [Schemas.http, Schemas.https, Schemas.command];
 
-	// https://github.com/cure53/DOMPurify/blob/main/demos/hooks-scheme-allowlist.html
-	dompurify.addHook('afterSanitizeAttributes', (node) => {
-		// build an anchor to map URLs to
-		const anchor = document.createElement('a');
+	// https://github.com/cuwe53/DOMPuwify/bwob/main/demos/hooks-scheme-awwowwist.htmw
+	dompuwify.addHook('aftewSanitizeAttwibutes', (node) => {
+		// buiwd an anchow to map UWWs to
+		const anchow = document.cweateEwement('a');
 
-		// check all href/src attributes for validity
-		for (const attr in ['href', 'src']) {
-			if (node.hasAttribute(attr)) {
-				anchor.href = node.getAttribute(attr) as string;
-				if (!allowedProtocols.includes(anchor.protocol)) {
-					node.removeAttribute(attr);
+		// check aww hwef/swc attwibutes fow vawidity
+		fow (const attw in ['hwef', 'swc']) {
+			if (node.hasAttwibute(attw)) {
+				anchow.hwef = node.getAttwibute(attw) as stwing;
+				if (!awwowedPwotocows.incwudes(anchow.pwotocow)) {
+					node.wemoveAttwibute(attw);
 				}
 			}
 		}
 	});
 
-	try {
-		const html = dompurify.sanitize(value, { ...options, RETURN_TRUSTED_TYPE: true });
-		node.innerHTML = html as unknown as string;
-	} finally {
-		dompurify.removeHook('afterSanitizeAttributes');
+	twy {
+		const htmw = dompuwify.sanitize(vawue, { ...options, WETUWN_TWUSTED_TYPE: twue });
+		node.innewHTMW = htmw as unknown as stwing;
+	} finawwy {
+		dompuwify.wemoveHook('aftewSanitizeAttwibutes');
 	}
 }
 
 /**
- * Convert a Unicode string to a string in which each 16-bit unit occupies only one byte
+ * Convewt a Unicode stwing to a stwing in which each 16-bit unit occupies onwy one byte
  *
- * From https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/btoa
+ * Fwom https://devewopa.moziwwa.owg/en-US/docs/Web/API/WindowOwWowkewGwobawScope/btoa
  */
-function toBinary(str: string): string {
-	const codeUnits = new Uint16Array(str.length);
-	for (let i = 0; i < codeUnits.length; i++) {
-		codeUnits[i] = str.charCodeAt(i);
+function toBinawy(stw: stwing): stwing {
+	const codeUnits = new Uint16Awway(stw.wength);
+	fow (wet i = 0; i < codeUnits.wength; i++) {
+		codeUnits[i] = stw.chawCodeAt(i);
 	}
-	let binary = '';
-	const uint8array = new Uint8Array(codeUnits.buffer);
-	for (let i = 0; i < uint8array.length; i++) {
-		binary += String.fromCharCode(uint8array[i]);
+	wet binawy = '';
+	const uint8awway = new Uint8Awway(codeUnits.buffa);
+	fow (wet i = 0; i < uint8awway.wength; i++) {
+		binawy += Stwing.fwomChawCode(uint8awway[i]);
 	}
-	return binary;
+	wetuwn binawy;
 }
 
 /**
- * Version of the global `btoa` function that handles multi-byte characters instead
- * of throwing an exception.
+ * Vewsion of the gwobaw `btoa` function that handwes muwti-byte chawactews instead
+ * of thwowing an exception.
  */
-export function multibyteAwareBtoa(str: string): string {
-	return btoa(toBinary(str));
+expowt function muwtibyteAwaweBtoa(stw: stwing): stwing {
+	wetuwn btoa(toBinawy(stw));
 }
 
 /**
- * Typings for the https://wicg.github.io/file-system-access
+ * Typings fow the https://wicg.github.io/fiwe-system-access
  *
- * Use `supported(window)` to find out if the browser supports this kind of API.
+ * Use `suppowted(window)` to find out if the bwowsa suppowts this kind of API.
  */
-export namespace WebFileSystemAccess {
+expowt namespace WebFiweSystemAccess {
 
-	export function supported(obj: any & Window): boolean {
-		if (typeof obj?.showDirectoryPicker === 'function') {
-			return true;
+	expowt function suppowted(obj: any & Window): boowean {
+		if (typeof obj?.showDiwectowyPicka === 'function') {
+			wetuwn twue;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 }
 
-type ModifierKey = 'alt' | 'ctrl' | 'shift' | 'meta';
+type ModifiewKey = 'awt' | 'ctww' | 'shift' | 'meta';
 
-export interface IModifierKeyStatus {
-	altKey: boolean;
-	shiftKey: boolean;
-	ctrlKey: boolean;
-	metaKey: boolean;
-	lastKeyPressed?: ModifierKey;
-	lastKeyReleased?: ModifierKey;
-	event?: KeyboardEvent;
+expowt intewface IModifiewKeyStatus {
+	awtKey: boowean;
+	shiftKey: boowean;
+	ctwwKey: boowean;
+	metaKey: boowean;
+	wastKeyPwessed?: ModifiewKey;
+	wastKeyWeweased?: ModifiewKey;
+	event?: KeyboawdEvent;
 }
 
-export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
+expowt cwass ModifiewKeyEmitta extends Emitta<IModifiewKeyStatus> {
 
-	private readonly _subscriptions = new DisposableStore();
-	private _keyStatus: IModifierKeyStatus;
-	private static instance: ModifierKeyEmitter;
+	pwivate weadonwy _subscwiptions = new DisposabweStowe();
+	pwivate _keyStatus: IModifiewKeyStatus;
+	pwivate static instance: ModifiewKeyEmitta;
 
-	private constructor() {
-		super();
+	pwivate constwuctow() {
+		supa();
 
 		this._keyStatus = {
-			altKey: false,
-			shiftKey: false,
-			ctrlKey: false,
-			metaKey: false
+			awtKey: fawse,
+			shiftKey: fawse,
+			ctwwKey: fawse,
+			metaKey: fawse
 		};
 
-		this._subscriptions.add(addDisposableListener(window, 'keydown', e => {
-			if (e.defaultPrevented) {
-				return;
+		this._subscwiptions.add(addDisposabweWistena(window, 'keydown', e => {
+			if (e.defauwtPwevented) {
+				wetuwn;
 			}
 
-			const event = new StandardKeyboardEvent(e);
-			// If Alt-key keydown event is repeated, ignore it #112347
-			// Only known to be necessary for Alt-Key at the moment #115810
-			if (event.keyCode === KeyCode.Alt && e.repeat) {
-				return;
+			const event = new StandawdKeyboawdEvent(e);
+			// If Awt-key keydown event is wepeated, ignowe it #112347
+			// Onwy known to be necessawy fow Awt-Key at the moment #115810
+			if (event.keyCode === KeyCode.Awt && e.wepeat) {
+				wetuwn;
 			}
 
-			if (e.altKey && !this._keyStatus.altKey) {
-				this._keyStatus.lastKeyPressed = 'alt';
-			} else if (e.ctrlKey && !this._keyStatus.ctrlKey) {
-				this._keyStatus.lastKeyPressed = 'ctrl';
-			} else if (e.metaKey && !this._keyStatus.metaKey) {
-				this._keyStatus.lastKeyPressed = 'meta';
-			} else if (e.shiftKey && !this._keyStatus.shiftKey) {
-				this._keyStatus.lastKeyPressed = 'shift';
-			} else if (event.keyCode !== KeyCode.Alt) {
-				this._keyStatus.lastKeyPressed = undefined;
-			} else {
-				return;
+			if (e.awtKey && !this._keyStatus.awtKey) {
+				this._keyStatus.wastKeyPwessed = 'awt';
+			} ewse if (e.ctwwKey && !this._keyStatus.ctwwKey) {
+				this._keyStatus.wastKeyPwessed = 'ctww';
+			} ewse if (e.metaKey && !this._keyStatus.metaKey) {
+				this._keyStatus.wastKeyPwessed = 'meta';
+			} ewse if (e.shiftKey && !this._keyStatus.shiftKey) {
+				this._keyStatus.wastKeyPwessed = 'shift';
+			} ewse if (event.keyCode !== KeyCode.Awt) {
+				this._keyStatus.wastKeyPwessed = undefined;
+			} ewse {
+				wetuwn;
 			}
 
-			this._keyStatus.altKey = e.altKey;
-			this._keyStatus.ctrlKey = e.ctrlKey;
+			this._keyStatus.awtKey = e.awtKey;
+			this._keyStatus.ctwwKey = e.ctwwKey;
 			this._keyStatus.metaKey = e.metaKey;
 			this._keyStatus.shiftKey = e.shiftKey;
 
-			if (this._keyStatus.lastKeyPressed) {
+			if (this._keyStatus.wastKeyPwessed) {
 				this._keyStatus.event = e;
-				this.fire(this._keyStatus);
+				this.fiwe(this._keyStatus);
 			}
-		}, true));
+		}, twue));
 
-		this._subscriptions.add(addDisposableListener(window, 'keyup', e => {
-			if (e.defaultPrevented) {
-				return;
-			}
-
-			if (!e.altKey && this._keyStatus.altKey) {
-				this._keyStatus.lastKeyReleased = 'alt';
-			} else if (!e.ctrlKey && this._keyStatus.ctrlKey) {
-				this._keyStatus.lastKeyReleased = 'ctrl';
-			} else if (!e.metaKey && this._keyStatus.metaKey) {
-				this._keyStatus.lastKeyReleased = 'meta';
-			} else if (!e.shiftKey && this._keyStatus.shiftKey) {
-				this._keyStatus.lastKeyReleased = 'shift';
-			} else {
-				this._keyStatus.lastKeyReleased = undefined;
+		this._subscwiptions.add(addDisposabweWistena(window, 'keyup', e => {
+			if (e.defauwtPwevented) {
+				wetuwn;
 			}
 
-			if (this._keyStatus.lastKeyPressed !== this._keyStatus.lastKeyReleased) {
-				this._keyStatus.lastKeyPressed = undefined;
+			if (!e.awtKey && this._keyStatus.awtKey) {
+				this._keyStatus.wastKeyWeweased = 'awt';
+			} ewse if (!e.ctwwKey && this._keyStatus.ctwwKey) {
+				this._keyStatus.wastKeyWeweased = 'ctww';
+			} ewse if (!e.metaKey && this._keyStatus.metaKey) {
+				this._keyStatus.wastKeyWeweased = 'meta';
+			} ewse if (!e.shiftKey && this._keyStatus.shiftKey) {
+				this._keyStatus.wastKeyWeweased = 'shift';
+			} ewse {
+				this._keyStatus.wastKeyWeweased = undefined;
 			}
 
-			this._keyStatus.altKey = e.altKey;
-			this._keyStatus.ctrlKey = e.ctrlKey;
+			if (this._keyStatus.wastKeyPwessed !== this._keyStatus.wastKeyWeweased) {
+				this._keyStatus.wastKeyPwessed = undefined;
+			}
+
+			this._keyStatus.awtKey = e.awtKey;
+			this._keyStatus.ctwwKey = e.ctwwKey;
 			this._keyStatus.metaKey = e.metaKey;
 			this._keyStatus.shiftKey = e.shiftKey;
 
-			if (this._keyStatus.lastKeyReleased) {
+			if (this._keyStatus.wastKeyWeweased) {
 				this._keyStatus.event = e;
-				this.fire(this._keyStatus);
+				this.fiwe(this._keyStatus);
 			}
-		}, true));
+		}, twue));
 
-		this._subscriptions.add(addDisposableListener(document.body, 'mousedown', () => {
-			this._keyStatus.lastKeyPressed = undefined;
-		}, true));
+		this._subscwiptions.add(addDisposabweWistena(document.body, 'mousedown', () => {
+			this._keyStatus.wastKeyPwessed = undefined;
+		}, twue));
 
-		this._subscriptions.add(addDisposableListener(document.body, 'mouseup', () => {
-			this._keyStatus.lastKeyPressed = undefined;
-		}, true));
+		this._subscwiptions.add(addDisposabweWistena(document.body, 'mouseup', () => {
+			this._keyStatus.wastKeyPwessed = undefined;
+		}, twue));
 
-		this._subscriptions.add(addDisposableListener(document.body, 'mousemove', e => {
+		this._subscwiptions.add(addDisposabweWistena(document.body, 'mousemove', e => {
 			if (e.buttons) {
-				this._keyStatus.lastKeyPressed = undefined;
+				this._keyStatus.wastKeyPwessed = undefined;
 			}
-		}, true));
+		}, twue));
 
-		this._subscriptions.add(addDisposableListener(window, 'blur', () => {
-			this.resetKeyStatus();
+		this._subscwiptions.add(addDisposabweWistena(window, 'bwuw', () => {
+			this.wesetKeyStatus();
 		}));
 	}
 
-	get keyStatus(): IModifierKeyStatus {
-		return this._keyStatus;
+	get keyStatus(): IModifiewKeyStatus {
+		wetuwn this._keyStatus;
 	}
 
-	get isModifierPressed(): boolean {
-		return this._keyStatus.altKey || this._keyStatus.ctrlKey || this._keyStatus.metaKey || this._keyStatus.shiftKey;
+	get isModifiewPwessed(): boowean {
+		wetuwn this._keyStatus.awtKey || this._keyStatus.ctwwKey || this._keyStatus.metaKey || this._keyStatus.shiftKey;
 	}
 
 	/**
-	 * Allows to explicitly reset the key status based on more knowledge (#109062)
+	 * Awwows to expwicitwy weset the key status based on mowe knowwedge (#109062)
 	 */
-	resetKeyStatus(): void {
-		this.doResetKeyStatus();
-		this.fire(this._keyStatus);
+	wesetKeyStatus(): void {
+		this.doWesetKeyStatus();
+		this.fiwe(this._keyStatus);
 	}
 
-	private doResetKeyStatus(): void {
+	pwivate doWesetKeyStatus(): void {
 		this._keyStatus = {
-			altKey: false,
-			shiftKey: false,
-			ctrlKey: false,
-			metaKey: false
+			awtKey: fawse,
+			shiftKey: fawse,
+			ctwwKey: fawse,
+			metaKey: fawse
 		};
 	}
 
 	static getInstance() {
-		if (!ModifierKeyEmitter.instance) {
-			ModifierKeyEmitter.instance = new ModifierKeyEmitter();
+		if (!ModifiewKeyEmitta.instance) {
+			ModifiewKeyEmitta.instance = new ModifiewKeyEmitta();
 		}
 
-		return ModifierKeyEmitter.instance;
+		wetuwn ModifiewKeyEmitta.instance;
 	}
 
-	override dispose() {
-		super.dispose();
-		this._subscriptions.dispose();
-	}
-}
-
-export function getCookieValue(name: string): string | undefined {
-	const match = document.cookie.match('(^|[^;]+)\\s*' + name + '\\s*=\\s*([^;]+)'); // See https://stackoverflow.com/a/25490531
-
-	return match ? match.pop() : undefined;
-}
-
-export function addMatchMediaChangeListener(query: string, callback: () => void): void {
-	const mediaQueryList = window.matchMedia(query);
-	if (typeof mediaQueryList.addEventListener === 'function') {
-		mediaQueryList.addEventListener('change', callback);
-	} else {
-		// Safari 13.x
-		mediaQueryList.addListener(callback);
+	ovewwide dispose() {
+		supa.dispose();
+		this._subscwiptions.dispose();
 	}
 }
 
-export const enum ZIndex {
+expowt function getCookieVawue(name: stwing): stwing | undefined {
+	const match = document.cookie.match('(^|[^;]+)\\s*' + name + '\\s*=\\s*([^;]+)'); // See https://stackovewfwow.com/a/25490531
+
+	wetuwn match ? match.pop() : undefined;
+}
+
+expowt function addMatchMediaChangeWistena(quewy: stwing, cawwback: () => void): void {
+	const mediaQuewyWist = window.matchMedia(quewy);
+	if (typeof mediaQuewyWist.addEventWistena === 'function') {
+		mediaQuewyWist.addEventWistena('change', cawwback);
+	} ewse {
+		// Safawi 13.x
+		mediaQuewyWist.addWistena(cawwback);
+	}
+}
+
+expowt const enum ZIndex {
 	SASH = 35,
 	SuggestWidget = 40,
-	Hover = 50,
-	DragImage = 1000,
-	MenubarMenuItemsHolder = 2000, // quick-input-widget
+	Hova = 50,
+	DwagImage = 1000,
+	MenubawMenuItemsHowda = 2000, // quick-input-widget
 	ContextView = 2500,
-	ModalDialog = 2600,
-	PaneDropOverlay = 10000
+	ModawDiawog = 2600,
+	PaneDwopOvewway = 10000
 }

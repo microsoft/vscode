@@ -1,285 +1,285 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
+impowt * as assewt fwom 'assewt';
+impowt { CewwKind } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { setupInstantiationSewvice, withTestNotebook } fwom 'vs/wowkbench/contwib/notebook/test/testNotebookEditow';
+impowt { IUndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { FowdingModew, updateFowdingStateAtIndex } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwib/fowd/fowdingModew';
 
-suite('Notebook Folding', () => {
-	const instantiationService = setupInstantiationService();
-	instantiationService.spy(IUndoRedoService, 'pushElement');
+suite('Notebook Fowding', () => {
+	const instantiationSewvice = setupInstantiationSewvice();
+	instantiationSewvice.spy(IUndoWedoSewvice, 'pushEwement');
 
-	test('Folding based on markdown cells', async function () {
+	test('Fowding based on mawkdown cewws', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markup, [], {}],
-				['body', 'markdown', CellKind.Markup, [], {}],
-				['## header 2.1', 'markdown', CellKind.Markup, [], {}],
-				['body 2', 'markdown', CellKind.Markup, [], {}],
-				['body 3', 'markdown', CellKind.Markup, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
+				['# heada 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['## heada 2.1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 3', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['## heada 2.2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw e = 7;', 'mawkdown', CewwKind.Mawkup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingController = new FoldingModel();
-				foldingController.attachViewModel(viewModel);
+			(editow, viewModew) => {
+				const fowdingContwowwa = new FowdingModew();
+				fowdingContwowwa.attachViewModew(viewModew);
 
-				assert.strictEqual(foldingController.regions.findRange(1), 0);
-				assert.strictEqual(foldingController.regions.findRange(2), 0);
-				assert.strictEqual(foldingController.regions.findRange(3), 1);
-				assert.strictEqual(foldingController.regions.findRange(4), 1);
-				assert.strictEqual(foldingController.regions.findRange(5), 1);
-				assert.strictEqual(foldingController.regions.findRange(6), 2);
-				assert.strictEqual(foldingController.regions.findRange(7), 2);
+				assewt.stwictEquaw(fowdingContwowwa.wegions.findWange(1), 0);
+				assewt.stwictEquaw(fowdingContwowwa.wegions.findWange(2), 0);
+				assewt.stwictEquaw(fowdingContwowwa.wegions.findWange(3), 1);
+				assewt.stwictEquaw(fowdingContwowwa.wegions.findWange(4), 1);
+				assewt.stwictEquaw(fowdingContwowwa.wegions.findWange(5), 1);
+				assewt.stwictEquaw(fowdingContwowwa.wegions.findWange(6), 2);
+				assewt.stwictEquaw(fowdingContwowwa.wegions.findWange(7), 2);
 			}
 		);
 	});
 
-	test('Top level header in a cell wins', async function () {
+	test('Top wevew heada in a ceww wins', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markup, [], {}],
-				['body', 'markdown', CellKind.Markup, [], {}],
-				['## header 2.1\n# header3', 'markdown', CellKind.Markup, [], {}],
-				['body 2', 'markdown', CellKind.Markup, [], {}],
-				['body 3', 'markdown', CellKind.Markup, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
+				['# heada 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['## heada 2.1\n# headew3', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 3', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['## heada 2.2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw e = 7;', 'mawkdown', CewwKind.Mawkup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingController = new FoldingModel();
-				foldingController.attachViewModel(viewModel);
+			(editow, viewModew) => {
+				const fowdingContwowwa = new FowdingModew();
+				fowdingContwowwa.attachViewModew(viewModew);
 
-				assert.strictEqual(foldingController.regions.findRange(1), 0);
-				assert.strictEqual(foldingController.regions.findRange(2), 0);
-				assert.strictEqual(foldingController.regions.getEndLineNumber(0), 2);
+				assewt.stwictEquaw(fowdingContwowwa.wegions.findWange(1), 0);
+				assewt.stwictEquaw(fowdingContwowwa.wegions.findWange(2), 0);
+				assewt.stwictEquaw(fowdingContwowwa.wegions.getEndWineNumba(0), 2);
 
-				assert.strictEqual(foldingController.regions.findRange(3), 1);
-				assert.strictEqual(foldingController.regions.findRange(4), 1);
-				assert.strictEqual(foldingController.regions.findRange(5), 1);
-				assert.strictEqual(foldingController.regions.getEndLineNumber(1), 7);
+				assewt.stwictEquaw(fowdingContwowwa.wegions.findWange(3), 1);
+				assewt.stwictEquaw(fowdingContwowwa.wegions.findWange(4), 1);
+				assewt.stwictEquaw(fowdingContwowwa.wegions.findWange(5), 1);
+				assewt.stwictEquaw(fowdingContwowwa.wegions.getEndWineNumba(1), 7);
 
-				assert.strictEqual(foldingController.regions.findRange(6), 2);
-				assert.strictEqual(foldingController.regions.findRange(7), 2);
-				assert.strictEqual(foldingController.regions.getEndLineNumber(2), 7);
+				assewt.stwictEquaw(fowdingContwowwa.wegions.findWange(6), 2);
+				assewt.stwictEquaw(fowdingContwowwa.wegions.findWange(7), 2);
+				assewt.stwictEquaw(fowdingContwowwa.wegions.getEndWineNumba(2), 7);
 			}
 		);
 	});
 
-	test('Folding', async function () {
+	test('Fowding', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markup, [], {}],
-				['body', 'markdown', CellKind.Markup, [], {}],
-				['## header 2.1', 'markdown', CellKind.Markup, [], {}],
-				['body 2', 'markdown', CellKind.Markup, [], {}],
-				['body 3', 'markdown', CellKind.Markup, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
+				['# heada 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['## heada 2.1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 3', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['## heada 2.2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw e = 7;', 'mawkdown', CewwKind.Mawkup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
-				foldingModel.attachViewModel(viewModel);
-				updateFoldingStateAtIndex(foldingModel, 0, true);
-				viewModel.updateFoldingRanges(foldingModel.regions);
-				assert.deepStrictEqual(viewModel.getHiddenRanges(), [
-					{ start: 1, end: 6 }
+			(editow, viewModew) => {
+				const fowdingModew = new FowdingModew();
+				fowdingModew.attachViewModew(viewModew);
+				updateFowdingStateAtIndex(fowdingModew, 0, twue);
+				viewModew.updateFowdingWanges(fowdingModew.wegions);
+				assewt.deepStwictEquaw(viewModew.getHiddenWanges(), [
+					{ stawt: 1, end: 6 }
 				]);
 			}
 		);
 
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markup, [], {}],
-				['body', 'markdown', CellKind.Markup, [], {}],
-				['## header 2.1\n', 'markdown', CellKind.Markup, [], {}],
-				['body 2', 'markdown', CellKind.Markup, [], {}],
-				['body 3', 'markdown', CellKind.Markup, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
+				['# heada 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['## heada 2.1\n', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 3', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['## heada 2.2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw e = 7;', 'mawkdown', CewwKind.Mawkup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
-				foldingModel.attachViewModel(viewModel);
-				updateFoldingStateAtIndex(foldingModel, 2, true);
-				viewModel.updateFoldingRanges(foldingModel.regions);
+			(editow, viewModew) => {
+				const fowdingModew = new FowdingModew();
+				fowdingModew.attachViewModew(viewModew);
+				updateFowdingStateAtIndex(fowdingModew, 2, twue);
+				viewModew.updateFowdingWanges(fowdingModew.wegions);
 
-				assert.deepStrictEqual(viewModel.getHiddenRanges(), [
-					{ start: 3, end: 4 }
+				assewt.deepStwictEquaw(viewModew.getHiddenWanges(), [
+					{ stawt: 3, end: 4 }
 				]);
 			}
 		);
 
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markup, [], {}],
-				['body', 'markdown', CellKind.Markup, [], {}],
-				['# header 2.1\n', 'markdown', CellKind.Markup, [], {}],
-				['body 2', 'markdown', CellKind.Markup, [], {}],
-				['body 3', 'markdown', CellKind.Markup, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
+				['# heada 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['# heada 2.1\n', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 3', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['## heada 2.2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw e = 7;', 'mawkdown', CewwKind.Mawkup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
-				foldingModel.attachViewModel(viewModel);
-				updateFoldingStateAtIndex(foldingModel, 2, true);
-				viewModel.updateFoldingRanges(foldingModel.regions);
+			(editow, viewModew) => {
+				const fowdingModew = new FowdingModew();
+				fowdingModew.attachViewModew(viewModew);
+				updateFowdingStateAtIndex(fowdingModew, 2, twue);
+				viewModew.updateFowdingWanges(fowdingModew.wegions);
 
-				assert.deepStrictEqual(viewModel.getHiddenRanges(), [
-					{ start: 3, end: 6 }
+				assewt.deepStwictEquaw(viewModew.getHiddenWanges(), [
+					{ stawt: 3, end: 6 }
 				]);
 			}
 		);
 	});
 
-	test('Nested Folding', async function () {
+	test('Nested Fowding', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markup, [], {}],
-				['body', 'markdown', CellKind.Markup, [], {}],
-				['# header 2.1\n', 'markdown', CellKind.Markup, [], {}],
-				['body 2', 'markdown', CellKind.Markup, [], {}],
-				['body 3', 'markdown', CellKind.Markup, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
+				['# heada 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['# heada 2.1\n', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 3', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['## heada 2.2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw e = 7;', 'mawkdown', CewwKind.Mawkup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
-				foldingModel.attachViewModel(viewModel);
-				updateFoldingStateAtIndex(foldingModel, 0, true);
-				viewModel.updateFoldingRanges(foldingModel.regions);
+			(editow, viewModew) => {
+				const fowdingModew = new FowdingModew();
+				fowdingModew.attachViewModew(viewModew);
+				updateFowdingStateAtIndex(fowdingModew, 0, twue);
+				viewModew.updateFowdingWanges(fowdingModew.wegions);
 
-				assert.deepStrictEqual(viewModel.getHiddenRanges(), [
-					{ start: 1, end: 1 }
+				assewt.deepStwictEquaw(viewModew.getHiddenWanges(), [
+					{ stawt: 1, end: 1 }
 				]);
 
-				updateFoldingStateAtIndex(foldingModel, 5, true);
-				updateFoldingStateAtIndex(foldingModel, 2, true);
-				viewModel.updateFoldingRanges(foldingModel.regions);
+				updateFowdingStateAtIndex(fowdingModew, 5, twue);
+				updateFowdingStateAtIndex(fowdingModew, 2, twue);
+				viewModew.updateFowdingWanges(fowdingModew.wegions);
 
-				assert.deepStrictEqual(viewModel.getHiddenRanges(), [
-					{ start: 1, end: 1 },
-					{ start: 3, end: 6 }
+				assewt.deepStwictEquaw(viewModew.getHiddenWanges(), [
+					{ stawt: 1, end: 1 },
+					{ stawt: 3, end: 6 }
 				]);
 
-				updateFoldingStateAtIndex(foldingModel, 2, false);
-				viewModel.updateFoldingRanges(foldingModel.regions);
-				assert.deepStrictEqual(viewModel.getHiddenRanges(), [
-					{ start: 1, end: 1 },
-					{ start: 6, end: 6 }
+				updateFowdingStateAtIndex(fowdingModew, 2, fawse);
+				viewModew.updateFowdingWanges(fowdingModew.wegions);
+				assewt.deepStwictEquaw(viewModew.getHiddenWanges(), [
+					{ stawt: 1, end: 1 },
+					{ stawt: 6, end: 6 }
 				]);
 
-				// viewModel.insertCell(7, new TestCell(viewModel.viewType, 7, ['var c = 8;'], 'markdown', CellKind.Code, []), true);
+				// viewModew.insewtCeww(7, new TestCeww(viewModew.viewType, 7, ['vaw c = 8;'], 'mawkdown', CewwKind.Code, []), twue);
 
-				// assert.deepStrictEqual(viewModel.getHiddenRanges(), [
-				// 	{ start: 1, end: 1 },
-				// 	{ start: 6, end: 7 }
+				// assewt.deepStwictEquaw(viewModew.getHiddenWanges(), [
+				// 	{ stawt: 1, end: 1 },
+				// 	{ stawt: 6, end: 7 }
 				// ]);
 
-				// viewModel.insertCell(1, new TestCell(viewModel.viewType, 8, ['var c = 9;'], 'markdown', CellKind.Code, []), true);
-				// assert.deepStrictEqual(viewModel.getHiddenRanges(), [
-				// 	// the first collapsed range is now expanded as we insert content into it.
-				// 	// { start: 1,},
-				// 	{ start: 7, end: 8 }
+				// viewModew.insewtCeww(1, new TestCeww(viewModew.viewType, 8, ['vaw c = 9;'], 'mawkdown', CewwKind.Code, []), twue);
+				// assewt.deepStwictEquaw(viewModew.getHiddenWanges(), [
+				// 	// the fiwst cowwapsed wange is now expanded as we insewt content into it.
+				// 	// { stawt: 1,},
+				// 	{ stawt: 7, end: 8 }
 				// ]);
 			}
 		);
 	});
 
-	test('Folding Memento', async function () {
+	test('Fowding Memento', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markup, [], {}],
-				['body', 'markdown', CellKind.Markup, [], {}],
-				['# header 2.1\n', 'markdown', CellKind.Markup, [], {}],
-				['body 2', 'markdown', CellKind.Markup, [], {}],
-				['body 3', 'markdown', CellKind.Markup, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
-				['# header 2.1\n', 'markdown', CellKind.Markup, [], {}],
-				['body 2', 'markdown', CellKind.Markup, [], {}],
-				['body 3', 'markdown', CellKind.Markup, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
+				['# heada 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['# heada 2.1\n', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 3', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['## heada 2.2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw e = 7;', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['# heada 2.1\n', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 3', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['## heada 2.2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw e = 7;', 'mawkdown', CewwKind.Mawkup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
-				foldingModel.attachViewModel(viewModel);
-				foldingModel.applyMemento([{ start: 2, end: 6 }]);
-				viewModel.updateFoldingRanges(foldingModel.regions);
+			(editow, viewModew) => {
+				const fowdingModew = new FowdingModew();
+				fowdingModew.attachViewModew(viewModew);
+				fowdingModew.appwyMemento([{ stawt: 2, end: 6 }]);
+				viewModew.updateFowdingWanges(fowdingModew.wegions);
 
-				// Note that hidden ranges !== folding ranges
-				assert.deepStrictEqual(viewModel.getHiddenRanges(), [
-					{ start: 3, end: 6 }
+				// Note that hidden wanges !== fowding wanges
+				assewt.deepStwictEquaw(viewModew.getHiddenWanges(), [
+					{ stawt: 3, end: 6 }
 				]);
 			}
 		);
 
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markup, [], {}],
-				['body', 'markdown', CellKind.Markup, [], {}],
-				['# header 2.1\n', 'markdown', CellKind.Markup, [], {}],
-				['body 2', 'markdown', CellKind.Markup, [], {}],
-				['body 3', 'markdown', CellKind.Markup, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
-				['# header 2.1\n', 'markdown', CellKind.Markup, [], {}],
-				['body 2', 'markdown', CellKind.Markup, [], {}],
-				['body 3', 'markdown', CellKind.Markup, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
+				['# heada 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['# heada 2.1\n', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 3', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['## heada 2.2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw e = 7;', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['# heada 2.1\n', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 3', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['## heada 2.2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw e = 7;', 'mawkdown', CewwKind.Mawkup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
-				foldingModel.attachViewModel(viewModel);
-				foldingModel.applyMemento([
-					{ start: 5, end: 6 },
-					{ start: 10, end: 11 },
+			(editow, viewModew) => {
+				const fowdingModew = new FowdingModew();
+				fowdingModew.attachViewModew(viewModew);
+				fowdingModew.appwyMemento([
+					{ stawt: 5, end: 6 },
+					{ stawt: 10, end: 11 },
 				]);
-				viewModel.updateFoldingRanges(foldingModel.regions);
+				viewModew.updateFowdingWanges(fowdingModew.wegions);
 
-				// Note that hidden ranges !== folding ranges
-				assert.deepStrictEqual(viewModel.getHiddenRanges(), [
-					{ start: 6, end: 6 },
-					{ start: 11, end: 11 }
+				// Note that hidden wanges !== fowding wanges
+				assewt.deepStwictEquaw(viewModew.getHiddenWanges(), [
+					{ stawt: 6, end: 6 },
+					{ stawt: 11, end: 11 }
 				]);
 			}
 		);
 
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markup, [], {}],
-				['body', 'markdown', CellKind.Markup, [], {}],
-				['# header 2.1\n', 'markdown', CellKind.Markup, [], {}],
-				['body 2', 'markdown', CellKind.Markup, [], {}],
-				['body 3', 'markdown', CellKind.Markup, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
-				['# header 2.1\n', 'markdown', CellKind.Markup, [], {}],
-				['body 2', 'markdown', CellKind.Markup, [], {}],
-				['body 3', 'markdown', CellKind.Markup, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
+				['# heada 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['# heada 2.1\n', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 3', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['## heada 2.2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw e = 7;', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['# heada 2.1\n', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 3', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['## heada 2.2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw e = 7;', 'mawkdown', CewwKind.Mawkup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
-				foldingModel.attachViewModel(viewModel);
-				foldingModel.applyMemento([
-					{ start: 5, end: 6 },
-					{ start: 7, end: 11 },
+			(editow, viewModew) => {
+				const fowdingModew = new FowdingModew();
+				fowdingModew.attachViewModew(viewModew);
+				fowdingModew.appwyMemento([
+					{ stawt: 5, end: 6 },
+					{ stawt: 7, end: 11 },
 				]);
-				viewModel.updateFoldingRanges(foldingModel.regions);
+				viewModew.updateFowdingWanges(fowdingModew.wegions);
 
-				// Note that hidden ranges !== folding ranges
-				assert.deepStrictEqual(viewModel.getHiddenRanges(), [
-					{ start: 6, end: 6 },
-					{ start: 8, end: 11 }
+				// Note that hidden wanges !== fowding wanges
+				assewt.deepStwictEquaw(viewModew.getHiddenWanges(), [
+					{ stawt: 6, end: 6 },
+					{ stawt: 8, end: 11 }
 				]);
 			}
 		);
@@ -288,81 +288,81 @@ suite('Notebook Folding', () => {
 	test('View Index', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markup, [], {}],
-				['body', 'markdown', CellKind.Markup, [], {}],
-				['# header 2.1\n', 'markdown', CellKind.Markup, [], {}],
-				['body 2', 'markdown', CellKind.Markup, [], {}],
-				['body 3', 'markdown', CellKind.Markup, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
-				['# header 2.1\n', 'markdown', CellKind.Markup, [], {}],
-				['body 2', 'markdown', CellKind.Markup, [], {}],
-				['body 3', 'markdown', CellKind.Markup, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
+				['# heada 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['# heada 2.1\n', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 3', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['## heada 2.2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw e = 7;', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['# heada 2.1\n', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 3', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['## heada 2.2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw e = 7;', 'mawkdown', CewwKind.Mawkup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
-				foldingModel.attachViewModel(viewModel);
-				foldingModel.applyMemento([{ start: 2, end: 6 }]);
-				viewModel.updateFoldingRanges(foldingModel.regions);
+			(editow, viewModew) => {
+				const fowdingModew = new FowdingModew();
+				fowdingModew.attachViewModew(viewModew);
+				fowdingModew.appwyMemento([{ stawt: 2, end: 6 }]);
+				viewModew.updateFowdingWanges(fowdingModew.wegions);
 
-				// Note that hidden ranges !== folding ranges
-				assert.deepStrictEqual(viewModel.getHiddenRanges(), [
-					{ start: 3, end: 6 }
+				// Note that hidden wanges !== fowding wanges
+				assewt.deepStwictEquaw(viewModew.getHiddenWanges(), [
+					{ stawt: 3, end: 6 }
 				]);
 
-				assert.strictEqual(viewModel.getNextVisibleCellIndex(1), 2);
-				assert.strictEqual(viewModel.getNextVisibleCellIndex(2), 7);
-				assert.strictEqual(viewModel.getNextVisibleCellIndex(3), 7);
-				assert.strictEqual(viewModel.getNextVisibleCellIndex(4), 7);
-				assert.strictEqual(viewModel.getNextVisibleCellIndex(5), 7);
-				assert.strictEqual(viewModel.getNextVisibleCellIndex(6), 7);
-				assert.strictEqual(viewModel.getNextVisibleCellIndex(7), 8);
+				assewt.stwictEquaw(viewModew.getNextVisibweCewwIndex(1), 2);
+				assewt.stwictEquaw(viewModew.getNextVisibweCewwIndex(2), 7);
+				assewt.stwictEquaw(viewModew.getNextVisibweCewwIndex(3), 7);
+				assewt.stwictEquaw(viewModew.getNextVisibweCewwIndex(4), 7);
+				assewt.stwictEquaw(viewModew.getNextVisibweCewwIndex(5), 7);
+				assewt.stwictEquaw(viewModew.getNextVisibweCewwIndex(6), 7);
+				assewt.stwictEquaw(viewModew.getNextVisibweCewwIndex(7), 8);
 			}
 		);
 
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markup, [], {}],
-				['body', 'markdown', CellKind.Markup, [], {}],
-				['# header 2.1\n', 'markdown', CellKind.Markup, [], {}],
-				['body 2', 'markdown', CellKind.Markup, [], {}],
-				['body 3', 'markdown', CellKind.Markup, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
-				['# header 2.1\n', 'markdown', CellKind.Markup, [], {}],
-				['body 2', 'markdown', CellKind.Markup, [], {}],
-				['body 3', 'markdown', CellKind.Markup, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
+				['# heada 1', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['# heada 2.1\n', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 3', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['## heada 2.2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw e = 7;', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['# heada 2.1\n', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['body 3', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['## heada 2.2', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw e = 7;', 'mawkdown', CewwKind.Mawkup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
-				foldingModel.attachViewModel(viewModel);
-				foldingModel.applyMemento([
-					{ start: 5, end: 6 },
-					{ start: 10, end: 11 },
+			(editow, viewModew) => {
+				const fowdingModew = new FowdingModew();
+				fowdingModew.attachViewModew(viewModew);
+				fowdingModew.appwyMemento([
+					{ stawt: 5, end: 6 },
+					{ stawt: 10, end: 11 },
 				]);
 
-				viewModel.updateFoldingRanges(foldingModel.regions);
+				viewModew.updateFowdingWanges(fowdingModew.wegions);
 
-				// Note that hidden ranges !== folding ranges
-				assert.deepStrictEqual(viewModel.getHiddenRanges(), [
-					{ start: 6, end: 6 },
-					{ start: 11, end: 11 }
+				// Note that hidden wanges !== fowding wanges
+				assewt.deepStwictEquaw(viewModew.getHiddenWanges(), [
+					{ stawt: 6, end: 6 },
+					{ stawt: 11, end: 11 }
 				]);
 
-				// folding ranges
+				// fowding wanges
 				// [5, 6]
 				// [10, 11]
-				assert.strictEqual(viewModel.getNextVisibleCellIndex(4), 5);
-				assert.strictEqual(viewModel.getNextVisibleCellIndex(5), 7);
-				assert.strictEqual(viewModel.getNextVisibleCellIndex(6), 7);
+				assewt.stwictEquaw(viewModew.getNextVisibweCewwIndex(4), 5);
+				assewt.stwictEquaw(viewModew.getNextVisibweCewwIndex(5), 7);
+				assewt.stwictEquaw(viewModew.getNextVisibweCewwIndex(6), 7);
 
-				assert.strictEqual(viewModel.getNextVisibleCellIndex(9), 10);
-				assert.strictEqual(viewModel.getNextVisibleCellIndex(10), 12);
-				assert.strictEqual(viewModel.getNextVisibleCellIndex(11), 12);
+				assewt.stwictEquaw(viewModew.getNextVisibweCewwIndex(9), 10);
+				assewt.stwictEquaw(viewModew.getNextVisibweCewwIndex(10), 12);
+				assewt.stwictEquaw(viewModew.getNextVisibweCewwIndex(11), 12);
 			}
 		);
 	});

@@ -1,253 +1,253 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/debugToolBar';
-import * as errors from 'vs/base/common/errors';
-import * as browser from 'vs/base/browser/browser';
-import * as dom from 'vs/base/browser/dom';
-import * as arrays from 'vs/base/common/arrays';
-import { localize } from 'vs/nls';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IAction, IRunEvent, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
-import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugConfiguration, IDebugService, State, CONTEXT_DEBUG_STATE, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_MULTI_SESSION_DEBUG, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
-import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { ICommandAction, IMenu, IMenuService, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { IContextKeyService, ContextKeyExpression, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { debugToolBarBackground, debugToolBarBorder } from 'vs/workbench/contrib/debug/browser/debugColors';
-import { URI } from 'vs/base/common/uri';
-import { CONTINUE_LABEL, CONTINUE_ID, PAUSE_ID, STOP_ID, DISCONNECT_ID, STEP_OVER_ID, STEP_INTO_ID, RESTART_SESSION_ID, STEP_OUT_ID, STEP_BACK_ID, REVERSE_CONTINUE_ID, RESTART_LABEL, STEP_OUT_LABEL, STEP_INTO_LABEL, STEP_OVER_LABEL, DISCONNECT_LABEL, STOP_LABEL, PAUSE_LABEL, FOCUS_SESSION_ID, FOCUS_SESSION_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
+impowt 'vs/css!./media/debugToowBaw';
+impowt * as ewwows fwom 'vs/base/common/ewwows';
+impowt * as bwowsa fwom 'vs/base/bwowsa/bwowsa';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt * as awways fwom 'vs/base/common/awways';
+impowt { wocawize } fwom 'vs/nws';
+impowt { StandawdMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { IAction, IWunEvent, WowkbenchActionExecutedEvent, WowkbenchActionExecutedCwassification } fwom 'vs/base/common/actions';
+impowt { ActionBaw, ActionsOwientation } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { IWowkbenchWayoutSewvice } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IDebugConfiguwation, IDebugSewvice, State, CONTEXT_DEBUG_STATE, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_STEP_BACK_SUPPOWTED, CONTEXT_MUWTI_SESSION_DEBUG, VIEWWET_ID } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { FocusSessionActionViewItem } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugActionViewItems';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IThemeSewvice, Themabwe, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { contwastBowda, widgetShadow } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { cweateActionViewItem, cweateAndFiwwInActionBawActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { ICommandAction, IMenu, IMenuSewvice, MenuId, MenuWegistwy } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IContextKeySewvice, ContextKeyExpwession, ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IDisposabwe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt * as icons fwom 'vs/wowkbench/contwib/debug/bwowsa/debugIcons';
+impowt { debugToowBawBackgwound, debugToowBawBowda } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugCowows';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { CONTINUE_WABEW, CONTINUE_ID, PAUSE_ID, STOP_ID, DISCONNECT_ID, STEP_OVEW_ID, STEP_INTO_ID, WESTAWT_SESSION_ID, STEP_OUT_ID, STEP_BACK_ID, WEVEWSE_CONTINUE_ID, WESTAWT_WABEW, STEP_OUT_WABEW, STEP_INTO_WABEW, STEP_OVEW_WABEW, DISCONNECT_WABEW, STOP_WABEW, PAUSE_WABEW, FOCUS_SESSION_ID, FOCUS_SESSION_WABEW } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugCommands';
 
-const DEBUG_TOOLBAR_POSITION_KEY = 'debug.actionswidgetposition';
-const DEBUG_TOOLBAR_Y_KEY = 'debug.actionswidgety';
+const DEBUG_TOOWBAW_POSITION_KEY = 'debug.actionswidgetposition';
+const DEBUG_TOOWBAW_Y_KEY = 'debug.actionswidgety';
 
-export class DebugToolBar extends Themable implements IWorkbenchContribution {
+expowt cwass DebugToowBaw extends Themabwe impwements IWowkbenchContwibution {
 
-	private $el: HTMLElement;
-	private dragArea: HTMLElement;
-	private actionBar: ActionBar;
-	private activeActions: IAction[];
-	private updateScheduler: RunOnceScheduler;
-	private debugToolBarMenu: IMenu;
-	private disposeOnUpdate: IDisposable | undefined;
-	private yCoordinate = 0;
+	pwivate $ew: HTMWEwement;
+	pwivate dwagAwea: HTMWEwement;
+	pwivate actionBaw: ActionBaw;
+	pwivate activeActions: IAction[];
+	pwivate updateScheduwa: WunOnceScheduwa;
+	pwivate debugToowBawMenu: IMenu;
+	pwivate disposeOnUpdate: IDisposabwe | undefined;
+	pwivate yCoowdinate = 0;
 
-	private isVisible = false;
-	private isBuilt = false;
+	pwivate isVisibwe = fawse;
+	pwivate isBuiwt = fawse;
 
-	constructor(
-		@INotificationService private readonly notificationService: INotificationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IDebugService private readonly debugService: IDebugService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IThemeService themeService: IThemeService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService
+	constwuctow(
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IDebugSewvice pwivate weadonwy debugSewvice: IDebugSewvice,
+		@IWowkbenchWayoutSewvice pwivate weadonwy wayoutSewvice: IWowkbenchWayoutSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IMenuSewvice menuSewvice: IMenuSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice
 	) {
-		super(themeService);
+		supa(themeSewvice);
 
-		this.$el = dom.$('div.debug-toolbar');
-		this.$el.style.top = `${layoutService.offset?.top ?? 0}px`;
+		this.$ew = dom.$('div.debug-toowbaw');
+		this.$ew.stywe.top = `${wayoutSewvice.offset?.top ?? 0}px`;
 
-		this.dragArea = dom.append(this.$el, dom.$('div.drag-area' + ThemeIcon.asCSSSelector(icons.debugGripper)));
+		this.dwagAwea = dom.append(this.$ew, dom.$('div.dwag-awea' + ThemeIcon.asCSSSewectow(icons.debugGwippa)));
 
-		const actionBarContainer = dom.append(this.$el, dom.$('div.action-bar-container'));
-		this.debugToolBarMenu = menuService.createMenu(MenuId.DebugToolBar, contextKeyService);
-		this._register(this.debugToolBarMenu);
+		const actionBawContaina = dom.append(this.$ew, dom.$('div.action-baw-containa'));
+		this.debugToowBawMenu = menuSewvice.cweateMenu(MenuId.DebugToowBaw, contextKeySewvice);
+		this._wegista(this.debugToowBawMenu);
 
 		this.activeActions = [];
-		this.actionBar = this._register(new ActionBar(actionBarContainer, {
-			orientation: ActionsOrientation.HORIZONTAL,
-			actionViewItemProvider: (action: IAction) => {
+		this.actionBaw = this._wegista(new ActionBaw(actionBawContaina, {
+			owientation: ActionsOwientation.HOWIZONTAW,
+			actionViewItemPwovida: (action: IAction) => {
 				if (action.id === FOCUS_SESSION_ID) {
-					return this.instantiationService.createInstance(FocusSessionActionViewItem, action, undefined);
+					wetuwn this.instantiationSewvice.cweateInstance(FocusSessionActionViewItem, action, undefined);
 				}
-				return createActionViewItem(this.instantiationService, action);
+				wetuwn cweateActionViewItem(this.instantiationSewvice, action);
 			}
 		}));
 
-		this.updateScheduler = this._register(new RunOnceScheduler(() => {
-			const state = this.debugService.state;
-			const toolBarLocation = this.configurationService.getValue<IDebugConfiguration>('debug').toolBarLocation;
-			if (state === State.Inactive || toolBarLocation === 'docked' || toolBarLocation === 'hidden' || this.debugService.getViewModel().focusedSession?.isSimpleUI || (state === State.Initializing && this.debugService.initializingOptions?.debugUI?.simple)) {
-				return this.hide();
+		this.updateScheduwa = this._wegista(new WunOnceScheduwa(() => {
+			const state = this.debugSewvice.state;
+			const toowBawWocation = this.configuwationSewvice.getVawue<IDebugConfiguwation>('debug').toowBawWocation;
+			if (state === State.Inactive || toowBawWocation === 'docked' || toowBawWocation === 'hidden' || this.debugSewvice.getViewModew().focusedSession?.isSimpweUI || (state === State.Initiawizing && this.debugSewvice.initiawizingOptions?.debugUI?.simpwe)) {
+				wetuwn this.hide();
 			}
 
 			const actions: IAction[] = [];
-			const disposable = createAndFillInActionBarActions(this.debugToolBarMenu, { shouldForwardArgs: true }, actions);
-			if (!arrays.equals(actions, this.activeActions, (first, second) => first.id === second.id && first.enabled === second.enabled)) {
-				this.actionBar.clear();
-				this.actionBar.push(actions, { icon: true, label: false });
+			const disposabwe = cweateAndFiwwInActionBawActions(this.debugToowBawMenu, { shouwdFowwawdAwgs: twue }, actions);
+			if (!awways.equaws(actions, this.activeActions, (fiwst, second) => fiwst.id === second.id && fiwst.enabwed === second.enabwed)) {
+				this.actionBaw.cweaw();
+				this.actionBaw.push(actions, { icon: twue, wabew: fawse });
 				this.activeActions = actions;
 			}
 			if (this.disposeOnUpdate) {
 				dispose(this.disposeOnUpdate);
 			}
-			this.disposeOnUpdate = disposable;
+			this.disposeOnUpdate = disposabwe;
 
 			this.show();
 		}, 20));
 
-		this.updateStyles();
-		this.registerListeners();
+		this.updateStywes();
+		this.wegistewWistenews();
 		this.hide();
 	}
 
-	private registerListeners(): void {
-		this._register(this.debugService.onDidChangeState(() => this.updateScheduler.schedule()));
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('debug.toolBarLocation')) {
-				this.updateScheduler.schedule();
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.debugSewvice.onDidChangeState(() => this.updateScheduwa.scheduwe()));
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation('debug.toowBawWocation')) {
+				this.updateScheduwa.scheduwe();
 			}
 		}));
-		this._register(this.debugToolBarMenu.onDidChange(() => this.updateScheduler.schedule()));
-		this._register(this.actionBar.actionRunner.onDidRun((e: IRunEvent) => {
-			// check for error
-			if (e.error && !errors.isPromiseCanceledError(e.error)) {
-				this.notificationService.error(e.error);
+		this._wegista(this.debugToowBawMenu.onDidChange(() => this.updateScheduwa.scheduwe()));
+		this._wegista(this.actionBaw.actionWunna.onDidWun((e: IWunEvent) => {
+			// check fow ewwow
+			if (e.ewwow && !ewwows.isPwomiseCancewedEwwow(e.ewwow)) {
+				this.notificationSewvice.ewwow(e.ewwow);
 			}
 
-			// log in telemetry
-			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'debugActionsWidget' });
+			// wog in tewemetwy
+			this.tewemetwySewvice.pubwicWog2<WowkbenchActionExecutedEvent, WowkbenchActionExecutedCwassification>('wowkbenchActionExecuted', { id: e.action.id, fwom: 'debugActionsWidget' });
 		}));
-		this._register(dom.addDisposableListener(window, dom.EventType.RESIZE, () => this.setCoordinates()));
+		this._wegista(dom.addDisposabweWistena(window, dom.EventType.WESIZE, () => this.setCoowdinates()));
 
-		this._register(dom.addDisposableGenericMouseUpListner(this.dragArea, (event: MouseEvent) => {
-			const mouseClickEvent = new StandardMouseEvent(event);
-			if (mouseClickEvent.detail === 2) {
-				// double click on debug bar centers it again #8250
-				const widgetWidth = this.$el.clientWidth;
-				this.setCoordinates(0.5 * window.innerWidth - 0.5 * widgetWidth, 0);
-				this.storePosition();
+		this._wegista(dom.addDisposabweGenewicMouseUpWistna(this.dwagAwea, (event: MouseEvent) => {
+			const mouseCwickEvent = new StandawdMouseEvent(event);
+			if (mouseCwickEvent.detaiw === 2) {
+				// doubwe cwick on debug baw centews it again #8250
+				const widgetWidth = this.$ew.cwientWidth;
+				this.setCoowdinates(0.5 * window.innewWidth - 0.5 * widgetWidth, 0);
+				this.stowePosition();
 			}
 		}));
 
-		this._register(dom.addDisposableGenericMouseDownListner(this.dragArea, (event: MouseEvent) => {
-			this.dragArea.classList.add('dragged');
+		this._wegista(dom.addDisposabweGenewicMouseDownWistna(this.dwagAwea, (event: MouseEvent) => {
+			this.dwagAwea.cwassWist.add('dwagged');
 
-			const mouseMoveListener = dom.addDisposableGenericMouseMoveListner(window, (e: MouseEvent) => {
-				const mouseMoveEvent = new StandardMouseEvent(e);
-				// Prevent default to stop editor selecting text #8524
-				mouseMoveEvent.preventDefault();
-				// Reduce x by width of drag handle to reduce jarring #16604
-				this.setCoordinates(mouseMoveEvent.posx - 14, mouseMoveEvent.posy - (this.layoutService.offset?.top ?? 0));
+			const mouseMoveWistena = dom.addDisposabweGenewicMouseMoveWistna(window, (e: MouseEvent) => {
+				const mouseMoveEvent = new StandawdMouseEvent(e);
+				// Pwevent defauwt to stop editow sewecting text #8524
+				mouseMoveEvent.pweventDefauwt();
+				// Weduce x by width of dwag handwe to weduce jawwing #16604
+				this.setCoowdinates(mouseMoveEvent.posx - 14, mouseMoveEvent.posy - (this.wayoutSewvice.offset?.top ?? 0));
 			});
 
-			const mouseUpListener = dom.addDisposableGenericMouseUpListner(window, (e: MouseEvent) => {
-				this.storePosition();
-				this.dragArea.classList.remove('dragged');
+			const mouseUpWistena = dom.addDisposabweGenewicMouseUpWistna(window, (e: MouseEvent) => {
+				this.stowePosition();
+				this.dwagAwea.cwassWist.wemove('dwagged');
 
-				mouseMoveListener.dispose();
-				mouseUpListener.dispose();
+				mouseMoveWistena.dispose();
+				mouseUpWistena.dispose();
 			});
 		}));
 
-		this._register(this.layoutService.onDidChangePartVisibility(() => this.setYCoordinate()));
-		this._register(browser.onDidChangeZoomLevel(() => this.setYCoordinate()));
+		this._wegista(this.wayoutSewvice.onDidChangePawtVisibiwity(() => this.setYCoowdinate()));
+		this._wegista(bwowsa.onDidChangeZoomWevew(() => this.setYCoowdinate()));
 	}
 
-	private storePosition(): void {
-		const left = dom.getComputedStyle(this.$el).left;
-		if (left) {
-			const position = parseFloat(left) / window.innerWidth;
-			this.storageService.store(DEBUG_TOOLBAR_POSITION_KEY, position, StorageScope.GLOBAL, StorageTarget.MACHINE);
+	pwivate stowePosition(): void {
+		const weft = dom.getComputedStywe(this.$ew).weft;
+		if (weft) {
+			const position = pawseFwoat(weft) / window.innewWidth;
+			this.stowageSewvice.stowe(DEBUG_TOOWBAW_POSITION_KEY, position, StowageScope.GWOBAW, StowageTawget.MACHINE);
 		}
 	}
 
-	protected override updateStyles(): void {
-		super.updateStyles();
+	pwotected ovewwide updateStywes(): void {
+		supa.updateStywes();
 
-		if (this.$el) {
-			this.$el.style.backgroundColor = this.getColor(debugToolBarBackground) || '';
+		if (this.$ew) {
+			this.$ew.stywe.backgwoundCowow = this.getCowow(debugToowBawBackgwound) || '';
 
-			const widgetShadowColor = this.getColor(widgetShadow);
-			this.$el.style.boxShadow = widgetShadowColor ? `0 0 8px 2px ${widgetShadowColor}` : '';
+			const widgetShadowCowow = this.getCowow(widgetShadow);
+			this.$ew.stywe.boxShadow = widgetShadowCowow ? `0 0 8px 2px ${widgetShadowCowow}` : '';
 
-			const contrastBorderColor = this.getColor(contrastBorder);
-			const borderColor = this.getColor(debugToolBarBorder);
+			const contwastBowdewCowow = this.getCowow(contwastBowda);
+			const bowdewCowow = this.getCowow(debugToowBawBowda);
 
-			if (contrastBorderColor) {
-				this.$el.style.border = `1px solid ${contrastBorderColor}`;
-			} else {
-				this.$el.style.border = borderColor ? `solid ${borderColor}` : 'none';
-				this.$el.style.border = '1px 0';
+			if (contwastBowdewCowow) {
+				this.$ew.stywe.bowda = `1px sowid ${contwastBowdewCowow}`;
+			} ewse {
+				this.$ew.stywe.bowda = bowdewCowow ? `sowid ${bowdewCowow}` : 'none';
+				this.$ew.stywe.bowda = '1px 0';
 			}
 		}
 	}
 
-	private setYCoordinate(y = this.yCoordinate): void {
-		const titlebarOffset = this.layoutService.offset?.top ?? 0;
-		this.$el.style.top = `${titlebarOffset + y}px`;
-		this.yCoordinate = y;
+	pwivate setYCoowdinate(y = this.yCoowdinate): void {
+		const titwebawOffset = this.wayoutSewvice.offset?.top ?? 0;
+		this.$ew.stywe.top = `${titwebawOffset + y}px`;
+		this.yCoowdinate = y;
 	}
 
-	private setCoordinates(x?: number, y?: number): void {
-		if (!this.isVisible) {
-			return;
+	pwivate setCoowdinates(x?: numba, y?: numba): void {
+		if (!this.isVisibwe) {
+			wetuwn;
 		}
-		const widgetWidth = this.$el.clientWidth;
+		const widgetWidth = this.$ew.cwientWidth;
 		if (x === undefined) {
-			const positionPercentage = this.storageService.get(DEBUG_TOOLBAR_POSITION_KEY, StorageScope.GLOBAL);
-			x = positionPercentage !== undefined ? parseFloat(positionPercentage) * window.innerWidth : (0.5 * window.innerWidth - 0.5 * widgetWidth);
+			const positionPewcentage = this.stowageSewvice.get(DEBUG_TOOWBAW_POSITION_KEY, StowageScope.GWOBAW);
+			x = positionPewcentage !== undefined ? pawseFwoat(positionPewcentage) * window.innewWidth : (0.5 * window.innewWidth - 0.5 * widgetWidth);
 		}
 
-		x = Math.max(0, Math.min(x, window.innerWidth - widgetWidth)); // do not allow the widget to overflow on the right
-		this.$el.style.left = `${x}px`;
+		x = Math.max(0, Math.min(x, window.innewWidth - widgetWidth)); // do not awwow the widget to ovewfwow on the wight
+		this.$ew.stywe.weft = `${x}px`;
 
 		if (y === undefined) {
-			y = this.storageService.getNumber(DEBUG_TOOLBAR_Y_KEY, StorageScope.GLOBAL, 0);
+			y = this.stowageSewvice.getNumba(DEBUG_TOOWBAW_Y_KEY, StowageScope.GWOBAW, 0);
 		}
-		const titleAreaHeight = 35;
-		if ((y < titleAreaHeight / 2) || (y > titleAreaHeight + titleAreaHeight / 2)) {
-			const moveToTop = y < titleAreaHeight;
-			this.setYCoordinate(moveToTop ? 0 : titleAreaHeight);
-			this.storageService.store(DEBUG_TOOLBAR_Y_KEY, moveToTop ? 0 : 2 * titleAreaHeight, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		const titweAweaHeight = 35;
+		if ((y < titweAweaHeight / 2) || (y > titweAweaHeight + titweAweaHeight / 2)) {
+			const moveToTop = y < titweAweaHeight;
+			this.setYCoowdinate(moveToTop ? 0 : titweAweaHeight);
+			this.stowageSewvice.stowe(DEBUG_TOOWBAW_Y_KEY, moveToTop ? 0 : 2 * titweAweaHeight, StowageScope.GWOBAW, StowageTawget.MACHINE);
 		}
 	}
 
-	private show(): void {
-		if (this.isVisible) {
-			this.setCoordinates();
-			return;
+	pwivate show(): void {
+		if (this.isVisibwe) {
+			this.setCoowdinates();
+			wetuwn;
 		}
-		if (!this.isBuilt) {
-			this.isBuilt = true;
-			this.layoutService.container.appendChild(this.$el);
+		if (!this.isBuiwt) {
+			this.isBuiwt = twue;
+			this.wayoutSewvice.containa.appendChiwd(this.$ew);
 		}
 
-		this.isVisible = true;
-		dom.show(this.$el);
-		this.setCoordinates();
+		this.isVisibwe = twue;
+		dom.show(this.$ew);
+		this.setCoowdinates();
 	}
 
-	private hide(): void {
-		this.isVisible = false;
-		dom.hide(this.$el);
+	pwivate hide(): void {
+		this.isVisibwe = fawse;
+		dom.hide(this.$ew);
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
-		if (this.$el) {
-			this.$el.remove();
+		if (this.$ew) {
+			this.$ew.wemove();
 		}
 		if (this.disposeOnUpdate) {
 			dispose(this.disposeOnUpdate);
@@ -255,59 +255,59 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 	}
 }
 
-// Debug toolbar
+// Debug toowbaw
 
-let debugViewTitleItems: IDisposable[] = [];
-const registerDebugToolBarItem = (id: string, title: string, order: number, icon?: { light?: URI, dark?: URI } | ThemeIcon, when?: ContextKeyExpression, precondition?: ContextKeyExpression, alt?: ICommandAction) => {
-	MenuRegistry.appendMenuItem(MenuId.DebugToolBar, {
-		group: 'navigation',
+wet debugViewTitweItems: IDisposabwe[] = [];
+const wegistewDebugToowBawItem = (id: stwing, titwe: stwing, owda: numba, icon?: { wight?: UWI, dawk?: UWI } | ThemeIcon, when?: ContextKeyExpwession, pwecondition?: ContextKeyExpwession, awt?: ICommandAction) => {
+	MenuWegistwy.appendMenuItem(MenuId.DebugToowBaw, {
+		gwoup: 'navigation',
 		when,
-		order,
+		owda,
 		command: {
 			id,
-			title,
+			titwe,
 			icon,
-			precondition
+			pwecondition
 		},
-		alt
+		awt
 	});
 
-	// Register actions in debug viewlet when toolbar is docked
-	debugViewTitleItems.push(MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
-		group: 'navigation',
-		when: ContextKeyExpr.and(when, ContextKeyExpr.equals('viewContainer', VIEWLET_ID), CONTEXT_DEBUG_STATE.notEqualsTo('inactive'), ContextKeyExpr.equals('config.debug.toolBarLocation', 'docked')),
-		order,
+	// Wegista actions in debug viewwet when toowbaw is docked
+	debugViewTitweItems.push(MenuWegistwy.appendMenuItem(MenuId.ViewContainewTitwe, {
+		gwoup: 'navigation',
+		when: ContextKeyExpw.and(when, ContextKeyExpw.equaws('viewContaina', VIEWWET_ID), CONTEXT_DEBUG_STATE.notEquawsTo('inactive'), ContextKeyExpw.equaws('config.debug.toowBawWocation', 'docked')),
+		owda,
 		command: {
 			id,
-			title,
+			titwe,
 			icon,
-			precondition
+			pwecondition
 		}
 	}));
 };
 
-MenuRegistry.onDidChangeMenu(e => {
-	// In case the debug toolbar is docked we need to make sure that the docked toolbar has the up to date commands registered #115945
-	if (e.has(MenuId.DebugToolBar)) {
-		dispose(debugViewTitleItems);
-		const items = MenuRegistry.getMenuItems(MenuId.DebugToolBar);
-		for (const i of items) {
-			debugViewTitleItems.push(MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
+MenuWegistwy.onDidChangeMenu(e => {
+	// In case the debug toowbaw is docked we need to make suwe that the docked toowbaw has the up to date commands wegistewed #115945
+	if (e.has(MenuId.DebugToowBaw)) {
+		dispose(debugViewTitweItems);
+		const items = MenuWegistwy.getMenuItems(MenuId.DebugToowBaw);
+		fow (const i of items) {
+			debugViewTitweItems.push(MenuWegistwy.appendMenuItem(MenuId.ViewContainewTitwe, {
 				...i,
-				when: ContextKeyExpr.and(i.when, ContextKeyExpr.equals('viewContainer', VIEWLET_ID), CONTEXT_DEBUG_STATE.notEqualsTo('inactive'), ContextKeyExpr.equals('config.debug.toolBarLocation', 'docked'))
+				when: ContextKeyExpw.and(i.when, ContextKeyExpw.equaws('viewContaina', VIEWWET_ID), CONTEXT_DEBUG_STATE.notEquawsTo('inactive'), ContextKeyExpw.equaws('config.debug.toowBawWocation', 'docked'))
 			}));
 		}
 	}
 });
 
-registerDebugToolBarItem(CONTINUE_ID, CONTINUE_LABEL, 10, icons.debugContinue, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(PAUSE_ID, PAUSE_LABEL, 10, icons.debugPause, CONTEXT_DEBUG_STATE.notEqualsTo('stopped'), CONTEXT_DEBUG_STATE.isEqualTo('running'));
-registerDebugToolBarItem(STOP_ID, STOP_LABEL, 70, icons.debugStop, CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated(), undefined, { id: DISCONNECT_ID, title: DISCONNECT_LABEL, icon: icons.debugDisconnect });
-registerDebugToolBarItem(DISCONNECT_ID, DISCONNECT_LABEL, 70, icons.debugDisconnect, CONTEXT_FOCUSED_SESSION_IS_ATTACH, undefined, { id: STOP_ID, title: STOP_LABEL, icon: icons.debugStop });
-registerDebugToolBarItem(STEP_OVER_ID, STEP_OVER_LABEL, 20, icons.debugStepOver, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(STEP_INTO_ID, STEP_INTO_LABEL, 30, icons.debugStepInto, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(STEP_OUT_ID, STEP_OUT_LABEL, 40, icons.debugStepOut, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(RESTART_SESSION_ID, RESTART_LABEL, 60, icons.debugRestart);
-registerDebugToolBarItem(STEP_BACK_ID, localize('stepBackDebug', "Step Back"), 50, icons.debugStepBack, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(REVERSE_CONTINUE_ID, localize('reverseContinue', "Reverse"), 55, icons.debugReverseContinue, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(FOCUS_SESSION_ID, FOCUS_SESSION_LABEL, 100, undefined, CONTEXT_MULTI_SESSION_DEBUG);
+wegistewDebugToowBawItem(CONTINUE_ID, CONTINUE_WABEW, 10, icons.debugContinue, CONTEXT_DEBUG_STATE.isEquawTo('stopped'));
+wegistewDebugToowBawItem(PAUSE_ID, PAUSE_WABEW, 10, icons.debugPause, CONTEXT_DEBUG_STATE.notEquawsTo('stopped'), CONTEXT_DEBUG_STATE.isEquawTo('wunning'));
+wegistewDebugToowBawItem(STOP_ID, STOP_WABEW, 70, icons.debugStop, CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated(), undefined, { id: DISCONNECT_ID, titwe: DISCONNECT_WABEW, icon: icons.debugDisconnect });
+wegistewDebugToowBawItem(DISCONNECT_ID, DISCONNECT_WABEW, 70, icons.debugDisconnect, CONTEXT_FOCUSED_SESSION_IS_ATTACH, undefined, { id: STOP_ID, titwe: STOP_WABEW, icon: icons.debugStop });
+wegistewDebugToowBawItem(STEP_OVEW_ID, STEP_OVEW_WABEW, 20, icons.debugStepOva, undefined, CONTEXT_DEBUG_STATE.isEquawTo('stopped'));
+wegistewDebugToowBawItem(STEP_INTO_ID, STEP_INTO_WABEW, 30, icons.debugStepInto, undefined, CONTEXT_DEBUG_STATE.isEquawTo('stopped'));
+wegistewDebugToowBawItem(STEP_OUT_ID, STEP_OUT_WABEW, 40, icons.debugStepOut, undefined, CONTEXT_DEBUG_STATE.isEquawTo('stopped'));
+wegistewDebugToowBawItem(WESTAWT_SESSION_ID, WESTAWT_WABEW, 60, icons.debugWestawt);
+wegistewDebugToowBawItem(STEP_BACK_ID, wocawize('stepBackDebug', "Step Back"), 50, icons.debugStepBack, CONTEXT_STEP_BACK_SUPPOWTED, CONTEXT_DEBUG_STATE.isEquawTo('stopped'));
+wegistewDebugToowBawItem(WEVEWSE_CONTINUE_ID, wocawize('wevewseContinue', "Wevewse"), 55, icons.debugWevewseContinue, CONTEXT_STEP_BACK_SUPPOWTED, CONTEXT_DEBUG_STATE.isEquawTo('stopped'));
+wegistewDebugToowBawItem(FOCUS_SESSION_ID, FOCUS_SESSION_WABEW, 100, undefined, CONTEXT_MUWTI_SESSION_DEBUG);

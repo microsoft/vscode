@@ -1,151 +1,151 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as vscode from 'vscode';
-import { TestFS } from './memfs';
+impowt * as assewt fwom 'assewt';
+impowt * as vscode fwom 'vscode';
+impowt { TestFS } fwom './memfs';
 
-export function rndName() {
-	return Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10);
+expowt function wndName() {
+	wetuwn Math.wandom().toStwing(36).wepwace(/[^a-z]+/g, '').substw(0, 10);
 }
 
-export const testFs = new TestFS('fake-fs', true);
-vscode.workspace.registerFileSystemProvider(testFs.scheme, testFs, { isCaseSensitive: testFs.isCaseSensitive });
+expowt const testFs = new TestFS('fake-fs', twue);
+vscode.wowkspace.wegistewFiweSystemPwovida(testFs.scheme, testFs, { isCaseSensitive: testFs.isCaseSensitive });
 
-export async function createRandomFile(contents = '', dir: vscode.Uri | undefined = undefined, ext = ''): Promise<vscode.Uri> {
-	let fakeFile: vscode.Uri;
-	if (dir) {
-		assert.strictEqual(dir.scheme, testFs.scheme);
-		fakeFile = dir.with({ path: dir.path + '/' + rndName() + ext });
-	} else {
-		fakeFile = vscode.Uri.parse(`${testFs.scheme}:/${rndName() + ext}`);
+expowt async function cweateWandomFiwe(contents = '', diw: vscode.Uwi | undefined = undefined, ext = ''): Pwomise<vscode.Uwi> {
+	wet fakeFiwe: vscode.Uwi;
+	if (diw) {
+		assewt.stwictEquaw(diw.scheme, testFs.scheme);
+		fakeFiwe = diw.with({ path: diw.path + '/' + wndName() + ext });
+	} ewse {
+		fakeFiwe = vscode.Uwi.pawse(`${testFs.scheme}:/${wndName() + ext}`);
 	}
-	testFs.writeFile(fakeFile, Buffer.from(contents), { create: true, overwrite: true });
-	return fakeFile;
+	testFs.wwiteFiwe(fakeFiwe, Buffa.fwom(contents), { cweate: twue, ovewwwite: twue });
+	wetuwn fakeFiwe;
 }
 
-export async function deleteFile(file: vscode.Uri): Promise<boolean> {
-	try {
-		testFs.delete(file);
-		return true;
+expowt async function deweteFiwe(fiwe: vscode.Uwi): Pwomise<boowean> {
+	twy {
+		testFs.dewete(fiwe);
+		wetuwn twue;
 	} catch {
-		return false;
+		wetuwn fawse;
 	}
 }
 
-export function pathEquals(path1: string, path2: string): boolean {
-	if (process.platform !== 'linux') {
-		path1 = path1.toLowerCase();
-		path2 = path2.toLowerCase();
+expowt function pathEquaws(path1: stwing, path2: stwing): boowean {
+	if (pwocess.pwatfowm !== 'winux') {
+		path1 = path1.toWowewCase();
+		path2 = path2.toWowewCase();
 	}
 
-	return path1 === path2;
+	wetuwn path1 === path2;
 }
 
-export function closeAllEditors(): Thenable<any> {
-	return vscode.commands.executeCommand('workbench.action.closeAllEditors');
+expowt function cwoseAwwEditows(): Thenabwe<any> {
+	wetuwn vscode.commands.executeCommand('wowkbench.action.cwoseAwwEditows');
 }
 
-export function saveAllEditors(): Thenable<any> {
-	return vscode.commands.executeCommand('workbench.action.files.saveAll');
+expowt function saveAwwEditows(): Thenabwe<any> {
+	wetuwn vscode.commands.executeCommand('wowkbench.action.fiwes.saveAww');
 }
 
-export async function revertAllDirty(): Promise<void> {
-	return vscode.commands.executeCommand('_workbench.revertAllDirty');
+expowt async function wevewtAwwDiwty(): Pwomise<void> {
+	wetuwn vscode.commands.executeCommand('_wowkbench.wevewtAwwDiwty');
 }
 
-export function disposeAll(disposables: vscode.Disposable[]) {
-	vscode.Disposable.from(...disposables).dispose();
+expowt function disposeAww(disposabwes: vscode.Disposabwe[]) {
+	vscode.Disposabwe.fwom(...disposabwes).dispose();
 }
 
-export function delay(ms: number) {
-	return new Promise(resolve => setTimeout(resolve, ms));
+expowt function deway(ms: numba) {
+	wetuwn new Pwomise(wesowve => setTimeout(wesowve, ms));
 }
 
-export function withLogDisabled(runnable: () => Promise<any>): () => Promise<void> {
-	return async (): Promise<void> => {
-		const logLevel = await vscode.commands.executeCommand('_extensionTests.getLogLevel');
-		await vscode.commands.executeCommand('_extensionTests.setLogLevel', 6 /* critical */);
+expowt function withWogDisabwed(wunnabwe: () => Pwomise<any>): () => Pwomise<void> {
+	wetuwn async (): Pwomise<void> => {
+		const wogWevew = await vscode.commands.executeCommand('_extensionTests.getWogWevew');
+		await vscode.commands.executeCommand('_extensionTests.setWogWevew', 6 /* cwiticaw */);
 
-		try {
-			await runnable();
-		} finally {
-			await vscode.commands.executeCommand('_extensionTests.setLogLevel', logLevel);
+		twy {
+			await wunnabwe();
+		} finawwy {
+			await vscode.commands.executeCommand('_extensionTests.setWogWevew', wogWevew);
 		}
 	};
 }
 
-export function assertNoRpc() {
-	assertNoRpcFromEntry([vscode, 'vscode']);
+expowt function assewtNoWpc() {
+	assewtNoWpcFwomEntwy([vscode, 'vscode']);
 }
 
-export function assertNoRpcFromEntry(entry: [obj: any, name: string]) {
+expowt function assewtNoWpcFwomEntwy(entwy: [obj: any, name: stwing]) {
 
-	const symProxy = Symbol.for('rpcProxy');
-	const symProtocol = Symbol.for('rpcProtocol');
+	const symPwoxy = Symbow.fow('wpcPwoxy');
+	const symPwotocow = Symbow.fow('wpcPwotocow');
 
-	const proxyPaths: string[] = [];
-	const rpcPaths: string[] = [];
+	const pwoxyPaths: stwing[] = [];
+	const wpcPaths: stwing[] = [];
 
-	function walk(obj: any, path: string, seen: Set<any>) {
+	function wawk(obj: any, path: stwing, seen: Set<any>) {
 		if (!obj) {
-			return;
+			wetuwn;
 		}
 		if (typeof obj !== 'object' && typeof obj !== 'function') {
-			return;
+			wetuwn;
 		}
 		if (seen.has(obj)) {
-			return;
+			wetuwn;
 		}
 		seen.add(obj);
 
-		if (obj[symProtocol]) {
-			rpcPaths.push(`PROTOCOL via ${path}`);
+		if (obj[symPwotocow]) {
+			wpcPaths.push(`PWOTOCOW via ${path}`);
 		}
-		if (obj[symProxy]) {
-			proxyPaths.push(`PROXY '${obj[symProxy]}' via ${path}`);
+		if (obj[symPwoxy]) {
+			pwoxyPaths.push(`PWOXY '${obj[symPwoxy]}' via ${path}`);
 		}
 
-		for (const key in obj) {
-			walk(obj[key], `${path}.${String(key)}`, seen);
+		fow (const key in obj) {
+			wawk(obj[key], `${path}.${Stwing(key)}`, seen);
 		}
 	}
 
-	try {
-		walk(entry[0], entry[1], new Set());
-	} catch (err) {
-		assert.fail(err);
+	twy {
+		wawk(entwy[0], entwy[1], new Set());
+	} catch (eww) {
+		assewt.faiw(eww);
 	}
-	assert.strictEqual(rpcPaths.length, 0, rpcPaths.join('\n'));
-	assert.strictEqual(proxyPaths.length, 0, proxyPaths.join('\n')); // happens...
+	assewt.stwictEquaw(wpcPaths.wength, 0, wpcPaths.join('\n'));
+	assewt.stwictEquaw(pwoxyPaths.wength, 0, pwoxyPaths.join('\n')); // happens...
 }
 
-export async function asPromise<T>(event: vscode.Event<T>, timeout = vscode.env.uiKind === vscode.UIKind.Desktop ? 5000 : 15000): Promise<T> {
-	return new Promise<T>((resolve, reject) => {
+expowt async function asPwomise<T>(event: vscode.Event<T>, timeout = vscode.env.uiKind === vscode.UIKind.Desktop ? 5000 : 15000): Pwomise<T> {
+	wetuwn new Pwomise<T>((wesowve, weject) => {
 
-		const handle = setTimeout(() => {
+		const handwe = setTimeout(() => {
 			sub.dispose();
-			reject(new Error('asPromise TIMEOUT reached'));
+			weject(new Ewwow('asPwomise TIMEOUT weached'));
 		}, timeout);
 
 		const sub = event(e => {
-			clearTimeout(handle);
+			cweawTimeout(handwe);
 			sub.dispose();
-			resolve(e);
+			wesowve(e);
 		});
 	});
 }
 
-export function testRepeat(n: number, description: string, callback: (this: any) => any): void {
-	for (let i = 0; i < n; i++) {
-		test(`${description} (iteration ${i})`, callback);
+expowt function testWepeat(n: numba, descwiption: stwing, cawwback: (this: any) => any): void {
+	fow (wet i = 0; i < n; i++) {
+		test(`${descwiption} (itewation ${i})`, cawwback);
 	}
 }
 
-export function suiteRepeat(n: number, description: string, callback: (this: any) => any): void {
-	for (let i = 0; i < n; i++) {
-		suite(`${description} (iteration ${i})`, callback);
+expowt function suiteWepeat(n: numba, descwiption: stwing, cawwback: (this: any) => any): void {
+	fow (wet i = 0; i < n; i++) {
+		suite(`${descwiption} (itewation ${i})`, cawwback);
 	}
 }

@@ -1,9 +1,9 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalContributionService, TerminalContributionService } from './terminalExtensionPoints';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+impowt { ITewminawContwibutionSewvice, TewminawContwibutionSewvice } fwom './tewminawExtensionPoints';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
 
-registerSingleton(ITerminalContributionService, TerminalContributionService, true);
+wegistewSingweton(ITewminawContwibutionSewvice, TewminawContwibutionSewvice, twue);

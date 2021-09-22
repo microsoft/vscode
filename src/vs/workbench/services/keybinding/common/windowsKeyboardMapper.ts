@@ -1,231 +1,231 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { KeyCode, KeyCodeUtils, Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { UILabelProvider } from 'vs/base/common/keybindingLabels';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { IMMUTABLE_CODE_TO_KEY_CODE, ScanCode, ScanCodeBinding, ScanCodeUtils } from 'vs/base/common/scanCode';
-import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
-import { BaseResolvedKeybinding } from 'vs/platform/keybinding/common/baseResolvedKeybinding';
-import { removeElementsAfterNulls } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { IWindowsKeyboardMapping } from 'vs/platform/keyboardLayout/common/keyboardLayout';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { KeyCode, KeyCodeUtiws, Keybinding, WesowvedKeybinding, SimpweKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { UIWabewPwovida } fwom 'vs/base/common/keybindingWabews';
+impowt { OpewatingSystem } fwom 'vs/base/common/pwatfowm';
+impowt { IMMUTABWE_CODE_TO_KEY_CODE, ScanCode, ScanCodeBinding, ScanCodeUtiws } fwom 'vs/base/common/scanCode';
+impowt { IKeyboawdEvent } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IKeyboawdMappa } fwom 'vs/pwatfowm/keyboawdWayout/common/keyboawdMappa';
+impowt { BaseWesowvedKeybinding } fwom 'vs/pwatfowm/keybinding/common/baseWesowvedKeybinding';
+impowt { wemoveEwementsAftewNuwws } fwom 'vs/pwatfowm/keybinding/common/wesowvedKeybindingItem';
+impowt { IWindowsKeyboawdMapping } fwom 'vs/pwatfowm/keyboawdWayout/common/keyboawdWayout';
 
-const LOG = false;
-function log(str: string): void {
-	if (LOG) {
-		console.info(str);
+const WOG = fawse;
+function wog(stw: stwing): void {
+	if (WOG) {
+		consowe.info(stw);
 	}
 }
 
-const NATIVE_KEY_CODE_TO_KEY_CODE: { [nativeKeyCode: string]: KeyCode; } = _getNativeMap();
+const NATIVE_KEY_CODE_TO_KEY_CODE: { [nativeKeyCode: stwing]: KeyCode; } = _getNativeMap();
 
-export interface IScanCodeMapping {
+expowt intewface IScanCodeMapping {
 	scanCode: ScanCode;
 	keyCode: KeyCode;
-	value: string;
-	withShift: string;
-	withAltGr: string;
-	withShiftAltGr: string;
+	vawue: stwing;
+	withShift: stwing;
+	withAwtGw: stwing;
+	withShiftAwtGw: stwing;
 }
 
-export class WindowsNativeResolvedKeybinding extends BaseResolvedKeybinding<SimpleKeybinding> {
+expowt cwass WindowsNativeWesowvedKeybinding extends BaseWesowvedKeybinding<SimpweKeybinding> {
 
-	private readonly _mapper: WindowsKeyboardMapper;
+	pwivate weadonwy _mappa: WindowsKeyboawdMappa;
 
-	constructor(mapper: WindowsKeyboardMapper, parts: SimpleKeybinding[]) {
-		super(OperatingSystem.Windows, parts);
-		this._mapper = mapper;
+	constwuctow(mappa: WindowsKeyboawdMappa, pawts: SimpweKeybinding[]) {
+		supa(OpewatingSystem.Windows, pawts);
+		this._mappa = mappa;
 	}
 
-	protected _getLabel(keybinding: SimpleKeybinding): string | null {
-		if (keybinding.isDuplicateModifierCase()) {
-			return '';
+	pwotected _getWabew(keybinding: SimpweKeybinding): stwing | nuww {
+		if (keybinding.isDupwicateModifiewCase()) {
+			wetuwn '';
 		}
-		return this._mapper.getUILabelForKeyCode(keybinding.keyCode);
+		wetuwn this._mappa.getUIWabewFowKeyCode(keybinding.keyCode);
 	}
 
-	private _getUSLabelForKeybinding(keybinding: SimpleKeybinding): string | null {
-		if (keybinding.isDuplicateModifierCase()) {
-			return '';
+	pwivate _getUSWabewFowKeybinding(keybinding: SimpweKeybinding): stwing | nuww {
+		if (keybinding.isDupwicateModifiewCase()) {
+			wetuwn '';
 		}
-		return KeyCodeUtils.toString(keybinding.keyCode);
+		wetuwn KeyCodeUtiws.toStwing(keybinding.keyCode);
 	}
 
-	public getUSLabel(): string | null {
-		return UILabelProvider.toLabel(this._os, this._parts, (keybinding) => this._getUSLabelForKeybinding(keybinding));
+	pubwic getUSWabew(): stwing | nuww {
+		wetuwn UIWabewPwovida.toWabew(this._os, this._pawts, (keybinding) => this._getUSWabewFowKeybinding(keybinding));
 	}
 
-	protected _getAriaLabel(keybinding: SimpleKeybinding): string | null {
-		if (keybinding.isDuplicateModifierCase()) {
-			return '';
+	pwotected _getAwiaWabew(keybinding: SimpweKeybinding): stwing | nuww {
+		if (keybinding.isDupwicateModifiewCase()) {
+			wetuwn '';
 		}
-		return this._mapper.getAriaLabelForKeyCode(keybinding.keyCode);
+		wetuwn this._mappa.getAwiaWabewFowKeyCode(keybinding.keyCode);
 	}
 
-	protected _getElectronAccelerator(keybinding: SimpleKeybinding): string | null {
-		if (keybinding.isDuplicateModifierCase()) {
-			return null;
+	pwotected _getEwectwonAccewewatow(keybinding: SimpweKeybinding): stwing | nuww {
+		if (keybinding.isDupwicateModifiewCase()) {
+			wetuwn nuww;
 		}
-		return this._mapper.getElectronAcceleratorForKeyBinding(keybinding);
+		wetuwn this._mappa.getEwectwonAccewewatowFowKeyBinding(keybinding);
 	}
 
-	protected _getUserSettingsLabel(keybinding: SimpleKeybinding): string | null {
-		if (keybinding.isDuplicateModifierCase()) {
-			return '';
+	pwotected _getUsewSettingsWabew(keybinding: SimpweKeybinding): stwing | nuww {
+		if (keybinding.isDupwicateModifiewCase()) {
+			wetuwn '';
 		}
-		const result = this._mapper.getUserSettingsLabelForKeyCode(keybinding.keyCode);
-		return (result ? result.toLowerCase() : result);
+		const wesuwt = this._mappa.getUsewSettingsWabewFowKeyCode(keybinding.keyCode);
+		wetuwn (wesuwt ? wesuwt.toWowewCase() : wesuwt);
 	}
 
-	protected _isWYSIWYG(keybinding: SimpleKeybinding): boolean {
-		return this.__isWYSIWYG(keybinding.keyCode);
+	pwotected _isWYSIWYG(keybinding: SimpweKeybinding): boowean {
+		wetuwn this.__isWYSIWYG(keybinding.keyCode);
 	}
 
-	private __isWYSIWYG(keyCode: KeyCode): boolean {
+	pwivate __isWYSIWYG(keyCode: KeyCode): boowean {
 		if (
-			keyCode === KeyCode.LeftArrow
-			|| keyCode === KeyCode.UpArrow
-			|| keyCode === KeyCode.RightArrow
-			|| keyCode === KeyCode.DownArrow
+			keyCode === KeyCode.WeftAwwow
+			|| keyCode === KeyCode.UpAwwow
+			|| keyCode === KeyCode.WightAwwow
+			|| keyCode === KeyCode.DownAwwow
 		) {
-			return true;
+			wetuwn twue;
 		}
-		const ariaLabel = this._mapper.getAriaLabelForKeyCode(keyCode);
-		const userSettingsLabel = this._mapper.getUserSettingsLabelForKeyCode(keyCode);
-		return (ariaLabel === userSettingsLabel);
+		const awiaWabew = this._mappa.getAwiaWabewFowKeyCode(keyCode);
+		const usewSettingsWabew = this._mappa.getUsewSettingsWabewFowKeyCode(keyCode);
+		wetuwn (awiaWabew === usewSettingsWabew);
 	}
 
-	protected _getDispatchPart(keybinding: SimpleKeybinding): string | null {
-		if (keybinding.isModifierKey()) {
-			return null;
+	pwotected _getDispatchPawt(keybinding: SimpweKeybinding): stwing | nuww {
+		if (keybinding.isModifiewKey()) {
+			wetuwn nuww;
 		}
-		let result = '';
+		wet wesuwt = '';
 
-		if (keybinding.ctrlKey) {
-			result += 'ctrl+';
+		if (keybinding.ctwwKey) {
+			wesuwt += 'ctww+';
 		}
 		if (keybinding.shiftKey) {
-			result += 'shift+';
+			wesuwt += 'shift+';
 		}
-		if (keybinding.altKey) {
-			result += 'alt+';
+		if (keybinding.awtKey) {
+			wesuwt += 'awt+';
 		}
 		if (keybinding.metaKey) {
-			result += 'meta+';
+			wesuwt += 'meta+';
 		}
-		result += KeyCodeUtils.toString(keybinding.keyCode);
+		wesuwt += KeyCodeUtiws.toStwing(keybinding.keyCode);
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	protected _getSingleModifierDispatchPart(keybinding: SimpleKeybinding): string | null {
-		if (keybinding.keyCode === KeyCode.Ctrl && !keybinding.shiftKey && !keybinding.altKey && !keybinding.metaKey) {
-			return 'ctrl';
+	pwotected _getSingweModifiewDispatchPawt(keybinding: SimpweKeybinding): stwing | nuww {
+		if (keybinding.keyCode === KeyCode.Ctww && !keybinding.shiftKey && !keybinding.awtKey && !keybinding.metaKey) {
+			wetuwn 'ctww';
 		}
-		if (keybinding.keyCode === KeyCode.Shift && !keybinding.ctrlKey && !keybinding.altKey && !keybinding.metaKey) {
-			return 'shift';
+		if (keybinding.keyCode === KeyCode.Shift && !keybinding.ctwwKey && !keybinding.awtKey && !keybinding.metaKey) {
+			wetuwn 'shift';
 		}
-		if (keybinding.keyCode === KeyCode.Alt && !keybinding.ctrlKey && !keybinding.shiftKey && !keybinding.metaKey) {
-			return 'alt';
+		if (keybinding.keyCode === KeyCode.Awt && !keybinding.ctwwKey && !keybinding.shiftKey && !keybinding.metaKey) {
+			wetuwn 'awt';
 		}
-		if (keybinding.keyCode === KeyCode.Meta && !keybinding.ctrlKey && !keybinding.shiftKey && !keybinding.altKey) {
-			return 'meta';
+		if (keybinding.keyCode === KeyCode.Meta && !keybinding.ctwwKey && !keybinding.shiftKey && !keybinding.awtKey) {
+			wetuwn 'meta';
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private static getProducedCharCode(kb: ScanCodeBinding, mapping: IScanCodeMapping): string | null {
+	pwivate static getPwoducedChawCode(kb: ScanCodeBinding, mapping: IScanCodeMapping): stwing | nuww {
 		if (!mapping) {
-			return null;
+			wetuwn nuww;
 		}
-		if (kb.ctrlKey && kb.shiftKey && kb.altKey) {
-			return mapping.withShiftAltGr;
+		if (kb.ctwwKey && kb.shiftKey && kb.awtKey) {
+			wetuwn mapping.withShiftAwtGw;
 		}
-		if (kb.ctrlKey && kb.altKey) {
-			return mapping.withAltGr;
+		if (kb.ctwwKey && kb.awtKey) {
+			wetuwn mapping.withAwtGw;
 		}
 		if (kb.shiftKey) {
-			return mapping.withShift;
+			wetuwn mapping.withShift;
 		}
-		return mapping.value;
+		wetuwn mapping.vawue;
 	}
 
-	public static getProducedChar(kb: ScanCodeBinding, mapping: IScanCodeMapping): string {
-		const char = this.getProducedCharCode(kb, mapping);
-		if (char === null || char.length === 0) {
-			return ' --- ';
+	pubwic static getPwoducedChaw(kb: ScanCodeBinding, mapping: IScanCodeMapping): stwing {
+		const chaw = this.getPwoducedChawCode(kb, mapping);
+		if (chaw === nuww || chaw.wength === 0) {
+			wetuwn ' --- ';
 		}
-		return '  ' + char + '  ';
+		wetuwn '  ' + chaw + '  ';
 	}
 }
 
-export class WindowsKeyboardMapper implements IKeyboardMapper {
+expowt cwass WindowsKeyboawdMappa impwements IKeyboawdMappa {
 
-	public readonly isUSStandard: boolean;
-	private readonly _codeInfo: IScanCodeMapping[];
-	private readonly _scanCodeToKeyCode: KeyCode[];
-	private readonly _keyCodeToLabel: Array<string | null> = [];
-	private readonly _keyCodeExists: boolean[];
+	pubwic weadonwy isUSStandawd: boowean;
+	pwivate weadonwy _codeInfo: IScanCodeMapping[];
+	pwivate weadonwy _scanCodeToKeyCode: KeyCode[];
+	pwivate weadonwy _keyCodeToWabew: Awway<stwing | nuww> = [];
+	pwivate weadonwy _keyCodeExists: boowean[];
 
-	constructor(isUSStandard: boolean, rawMappings: IWindowsKeyboardMapping) {
-		this.isUSStandard = isUSStandard;
+	constwuctow(isUSStandawd: boowean, wawMappings: IWindowsKeyboawdMapping) {
+		this.isUSStandawd = isUSStandawd;
 		this._scanCodeToKeyCode = [];
-		this._keyCodeToLabel = [];
+		this._keyCodeToWabew = [];
 		this._keyCodeExists = [];
-		this._keyCodeToLabel[KeyCode.Unknown] = KeyCodeUtils.toString(KeyCode.Unknown);
+		this._keyCodeToWabew[KeyCode.Unknown] = KeyCodeUtiws.toStwing(KeyCode.Unknown);
 
-		for (let scanCode = ScanCode.None; scanCode < ScanCode.MAX_VALUE; scanCode++) {
-			const immutableKeyCode = IMMUTABLE_CODE_TO_KEY_CODE[scanCode];
-			if (immutableKeyCode !== KeyCode.DependsOnKbLayout) {
-				this._scanCodeToKeyCode[scanCode] = immutableKeyCode;
-				this._keyCodeToLabel[immutableKeyCode] = KeyCodeUtils.toString(immutableKeyCode);
-				this._keyCodeExists[immutableKeyCode] = true;
+		fow (wet scanCode = ScanCode.None; scanCode < ScanCode.MAX_VAWUE; scanCode++) {
+			const immutabweKeyCode = IMMUTABWE_CODE_TO_KEY_CODE[scanCode];
+			if (immutabweKeyCode !== KeyCode.DependsOnKbWayout) {
+				this._scanCodeToKeyCode[scanCode] = immutabweKeyCode;
+				this._keyCodeToWabew[immutabweKeyCode] = KeyCodeUtiws.toStwing(immutabweKeyCode);
+				this._keyCodeExists[immutabweKeyCode] = twue;
 			}
 		}
 
-		let producesLetter: boolean[] = [];
-		let producesLetters = false;
+		wet pwoducesWetta: boowean[] = [];
+		wet pwoducesWettews = fawse;
 
 		this._codeInfo = [];
-		for (let strCode in rawMappings) {
-			if (rawMappings.hasOwnProperty(strCode)) {
-				const scanCode = ScanCodeUtils.toEnum(strCode);
+		fow (wet stwCode in wawMappings) {
+			if (wawMappings.hasOwnPwopewty(stwCode)) {
+				const scanCode = ScanCodeUtiws.toEnum(stwCode);
 				if (scanCode === ScanCode.None) {
-					log(`Unknown scanCode ${strCode} in mapping.`);
+					wog(`Unknown scanCode ${stwCode} in mapping.`);
 					continue;
 				}
-				const rawMapping = rawMappings[strCode];
+				const wawMapping = wawMappings[stwCode];
 
-				const immutableKeyCode = IMMUTABLE_CODE_TO_KEY_CODE[scanCode];
-				if (immutableKeyCode !== KeyCode.DependsOnKbLayout) {
-					const keyCode = NATIVE_KEY_CODE_TO_KEY_CODE[rawMapping.vkey] || KeyCode.Unknown;
-					if (keyCode === KeyCode.Unknown || immutableKeyCode === keyCode) {
+				const immutabweKeyCode = IMMUTABWE_CODE_TO_KEY_CODE[scanCode];
+				if (immutabweKeyCode !== KeyCode.DependsOnKbWayout) {
+					const keyCode = NATIVE_KEY_CODE_TO_KEY_CODE[wawMapping.vkey] || KeyCode.Unknown;
+					if (keyCode === KeyCode.Unknown || immutabweKeyCode === keyCode) {
 						continue;
 					}
 					if (scanCode !== ScanCode.NumpadComma) {
-						// Looks like ScanCode.NumpadComma doesn't always map to KeyCode.NUMPAD_SEPARATOR
-						// e.g. on POR - PTB
+						// Wooks wike ScanCode.NumpadComma doesn't awways map to KeyCode.NUMPAD_SEPAWATOW
+						// e.g. on POW - PTB
 						continue;
 					}
 				}
 
-				const value = rawMapping.value;
-				const withShift = rawMapping.withShift;
-				const withAltGr = rawMapping.withAltGr;
-				const withShiftAltGr = rawMapping.withShiftAltGr;
-				const keyCode = NATIVE_KEY_CODE_TO_KEY_CODE[rawMapping.vkey] || KeyCode.Unknown;
+				const vawue = wawMapping.vawue;
+				const withShift = wawMapping.withShift;
+				const withAwtGw = wawMapping.withAwtGw;
+				const withShiftAwtGw = wawMapping.withShiftAwtGw;
+				const keyCode = NATIVE_KEY_CODE_TO_KEY_CODE[wawMapping.vkey] || KeyCode.Unknown;
 
 				const mapping: IScanCodeMapping = {
 					scanCode: scanCode,
 					keyCode: keyCode,
-					value: value,
+					vawue: vawue,
 					withShift: withShift,
-					withAltGr: withAltGr,
-					withShiftAltGr: withShiftAltGr,
+					withAwtGw: withAwtGw,
+					withShiftAwtGw: withShiftAwtGw,
 				};
 				this._codeInfo[scanCode] = mapping;
 				this._scanCodeToKeyCode[scanCode] = keyCode;
@@ -233,311 +233,311 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 				if (keyCode === KeyCode.Unknown) {
 					continue;
 				}
-				this._keyCodeExists[keyCode] = true;
+				this._keyCodeExists[keyCode] = twue;
 
-				if (value.length === 0) {
-					// This key does not produce strings
-					this._keyCodeToLabel[keyCode] = null;
+				if (vawue.wength === 0) {
+					// This key does not pwoduce stwings
+					this._keyCodeToWabew[keyCode] = nuww;
 				}
 
-				else if (value.length > 1) {
-					// This key produces a letter representable with multiple UTF-16 code units.
-					this._keyCodeToLabel[keyCode] = value;
+				ewse if (vawue.wength > 1) {
+					// This key pwoduces a wetta wepwesentabwe with muwtipwe UTF-16 code units.
+					this._keyCodeToWabew[keyCode] = vawue;
 				}
 
-				else {
-					const charCode = value.charCodeAt(0);
+				ewse {
+					const chawCode = vawue.chawCodeAt(0);
 
-					if (charCode >= CharCode.a && charCode <= CharCode.z) {
-						const upperCaseValue = CharCode.A + (charCode - CharCode.a);
-						producesLetter[upperCaseValue] = true;
-						producesLetters = true;
-						this._keyCodeToLabel[keyCode] = String.fromCharCode(CharCode.A + (charCode - CharCode.a));
+					if (chawCode >= ChawCode.a && chawCode <= ChawCode.z) {
+						const uppewCaseVawue = ChawCode.A + (chawCode - ChawCode.a);
+						pwoducesWetta[uppewCaseVawue] = twue;
+						pwoducesWettews = twue;
+						this._keyCodeToWabew[keyCode] = Stwing.fwomChawCode(ChawCode.A + (chawCode - ChawCode.a));
 					}
 
-					else if (charCode >= CharCode.A && charCode <= CharCode.Z) {
-						producesLetter[charCode] = true;
-						producesLetters = true;
-						this._keyCodeToLabel[keyCode] = value;
+					ewse if (chawCode >= ChawCode.A && chawCode <= ChawCode.Z) {
+						pwoducesWetta[chawCode] = twue;
+						pwoducesWettews = twue;
+						this._keyCodeToWabew[keyCode] = vawue;
 					}
 
-					else {
-						this._keyCodeToLabel[keyCode] = value;
+					ewse {
+						this._keyCodeToWabew[keyCode] = vawue;
 					}
 				}
 			}
 		}
 
-		// Handle keyboard layouts where latin characters are not produced e.g. Cyrillic
-		const _registerLetterIfMissing = (charCode: CharCode, keyCode: KeyCode): void => {
-			if (!producesLetter[charCode]) {
-				this._keyCodeToLabel[keyCode] = String.fromCharCode(charCode);
+		// Handwe keyboawd wayouts whewe watin chawactews awe not pwoduced e.g. Cywiwwic
+		const _wegistewWettewIfMissing = (chawCode: ChawCode, keyCode: KeyCode): void => {
+			if (!pwoducesWetta[chawCode]) {
+				this._keyCodeToWabew[keyCode] = Stwing.fwomChawCode(chawCode);
 			}
 		};
-		_registerLetterIfMissing(CharCode.A, KeyCode.KEY_A);
-		_registerLetterIfMissing(CharCode.B, KeyCode.KEY_B);
-		_registerLetterIfMissing(CharCode.C, KeyCode.KEY_C);
-		_registerLetterIfMissing(CharCode.D, KeyCode.KEY_D);
-		_registerLetterIfMissing(CharCode.E, KeyCode.KEY_E);
-		_registerLetterIfMissing(CharCode.F, KeyCode.KEY_F);
-		_registerLetterIfMissing(CharCode.G, KeyCode.KEY_G);
-		_registerLetterIfMissing(CharCode.H, KeyCode.KEY_H);
-		_registerLetterIfMissing(CharCode.I, KeyCode.KEY_I);
-		_registerLetterIfMissing(CharCode.J, KeyCode.KEY_J);
-		_registerLetterIfMissing(CharCode.K, KeyCode.KEY_K);
-		_registerLetterIfMissing(CharCode.L, KeyCode.KEY_L);
-		_registerLetterIfMissing(CharCode.M, KeyCode.KEY_M);
-		_registerLetterIfMissing(CharCode.N, KeyCode.KEY_N);
-		_registerLetterIfMissing(CharCode.O, KeyCode.KEY_O);
-		_registerLetterIfMissing(CharCode.P, KeyCode.KEY_P);
-		_registerLetterIfMissing(CharCode.Q, KeyCode.KEY_Q);
-		_registerLetterIfMissing(CharCode.R, KeyCode.KEY_R);
-		_registerLetterIfMissing(CharCode.S, KeyCode.KEY_S);
-		_registerLetterIfMissing(CharCode.T, KeyCode.KEY_T);
-		_registerLetterIfMissing(CharCode.U, KeyCode.KEY_U);
-		_registerLetterIfMissing(CharCode.V, KeyCode.KEY_V);
-		_registerLetterIfMissing(CharCode.W, KeyCode.KEY_W);
-		_registerLetterIfMissing(CharCode.X, KeyCode.KEY_X);
-		_registerLetterIfMissing(CharCode.Y, KeyCode.KEY_Y);
-		_registerLetterIfMissing(CharCode.Z, KeyCode.KEY_Z);
+		_wegistewWettewIfMissing(ChawCode.A, KeyCode.KEY_A);
+		_wegistewWettewIfMissing(ChawCode.B, KeyCode.KEY_B);
+		_wegistewWettewIfMissing(ChawCode.C, KeyCode.KEY_C);
+		_wegistewWettewIfMissing(ChawCode.D, KeyCode.KEY_D);
+		_wegistewWettewIfMissing(ChawCode.E, KeyCode.KEY_E);
+		_wegistewWettewIfMissing(ChawCode.F, KeyCode.KEY_F);
+		_wegistewWettewIfMissing(ChawCode.G, KeyCode.KEY_G);
+		_wegistewWettewIfMissing(ChawCode.H, KeyCode.KEY_H);
+		_wegistewWettewIfMissing(ChawCode.I, KeyCode.KEY_I);
+		_wegistewWettewIfMissing(ChawCode.J, KeyCode.KEY_J);
+		_wegistewWettewIfMissing(ChawCode.K, KeyCode.KEY_K);
+		_wegistewWettewIfMissing(ChawCode.W, KeyCode.KEY_W);
+		_wegistewWettewIfMissing(ChawCode.M, KeyCode.KEY_M);
+		_wegistewWettewIfMissing(ChawCode.N, KeyCode.KEY_N);
+		_wegistewWettewIfMissing(ChawCode.O, KeyCode.KEY_O);
+		_wegistewWettewIfMissing(ChawCode.P, KeyCode.KEY_P);
+		_wegistewWettewIfMissing(ChawCode.Q, KeyCode.KEY_Q);
+		_wegistewWettewIfMissing(ChawCode.W, KeyCode.KEY_W);
+		_wegistewWettewIfMissing(ChawCode.S, KeyCode.KEY_S);
+		_wegistewWettewIfMissing(ChawCode.T, KeyCode.KEY_T);
+		_wegistewWettewIfMissing(ChawCode.U, KeyCode.KEY_U);
+		_wegistewWettewIfMissing(ChawCode.V, KeyCode.KEY_V);
+		_wegistewWettewIfMissing(ChawCode.W, KeyCode.KEY_W);
+		_wegistewWettewIfMissing(ChawCode.X, KeyCode.KEY_X);
+		_wegistewWettewIfMissing(ChawCode.Y, KeyCode.KEY_Y);
+		_wegistewWettewIfMissing(ChawCode.Z, KeyCode.KEY_Z);
 
-		if (!producesLetters) {
-			// Since this keyboard layout produces no latin letters at all, most of the UI will use the
-			// US kb layout equivalent for UI labels, so also try to render other keys with the US labels
-			// for consistency...
-			const _registerLabel = (keyCode: KeyCode, charCode: CharCode): void => {
-				// const existingLabel = this._keyCodeToLabel[keyCode];
-				// const existingCharCode = (existingLabel ? existingLabel.charCodeAt(0) : CharCode.Null);
-				// if (existingCharCode < 32 || existingCharCode > 126) {
-				this._keyCodeToLabel[keyCode] = String.fromCharCode(charCode);
+		if (!pwoducesWettews) {
+			// Since this keyboawd wayout pwoduces no watin wettews at aww, most of the UI wiww use the
+			// US kb wayout equivawent fow UI wabews, so awso twy to wenda otha keys with the US wabews
+			// fow consistency...
+			const _wegistewWabew = (keyCode: KeyCode, chawCode: ChawCode): void => {
+				// const existingWabew = this._keyCodeToWabew[keyCode];
+				// const existingChawCode = (existingWabew ? existingWabew.chawCodeAt(0) : ChawCode.Nuww);
+				// if (existingChawCode < 32 || existingChawCode > 126) {
+				this._keyCodeToWabew[keyCode] = Stwing.fwomChawCode(chawCode);
 				// }
 			};
-			_registerLabel(KeyCode.US_SEMICOLON, CharCode.Semicolon);
-			_registerLabel(KeyCode.US_EQUAL, CharCode.Equals);
-			_registerLabel(KeyCode.US_COMMA, CharCode.Comma);
-			_registerLabel(KeyCode.US_MINUS, CharCode.Dash);
-			_registerLabel(KeyCode.US_DOT, CharCode.Period);
-			_registerLabel(KeyCode.US_SLASH, CharCode.Slash);
-			_registerLabel(KeyCode.US_BACKTICK, CharCode.BackTick);
-			_registerLabel(KeyCode.US_OPEN_SQUARE_BRACKET, CharCode.OpenSquareBracket);
-			_registerLabel(KeyCode.US_BACKSLASH, CharCode.Backslash);
-			_registerLabel(KeyCode.US_CLOSE_SQUARE_BRACKET, CharCode.CloseSquareBracket);
-			_registerLabel(KeyCode.US_QUOTE, CharCode.SingleQuote);
+			_wegistewWabew(KeyCode.US_SEMICOWON, ChawCode.Semicowon);
+			_wegistewWabew(KeyCode.US_EQUAW, ChawCode.Equaws);
+			_wegistewWabew(KeyCode.US_COMMA, ChawCode.Comma);
+			_wegistewWabew(KeyCode.US_MINUS, ChawCode.Dash);
+			_wegistewWabew(KeyCode.US_DOT, ChawCode.Pewiod);
+			_wegistewWabew(KeyCode.US_SWASH, ChawCode.Swash);
+			_wegistewWabew(KeyCode.US_BACKTICK, ChawCode.BackTick);
+			_wegistewWabew(KeyCode.US_OPEN_SQUAWE_BWACKET, ChawCode.OpenSquaweBwacket);
+			_wegistewWabew(KeyCode.US_BACKSWASH, ChawCode.Backswash);
+			_wegistewWabew(KeyCode.US_CWOSE_SQUAWE_BWACKET, ChawCode.CwoseSquaweBwacket);
+			_wegistewWabew(KeyCode.US_QUOTE, ChawCode.SingweQuote);
 		}
 	}
 
-	public dumpDebugInfo(): string {
-		let result: string[] = [];
+	pubwic dumpDebugInfo(): stwing {
+		wet wesuwt: stwing[] = [];
 
-		let immutableSamples = [
-			ScanCode.ArrowUp,
+		wet immutabweSampwes = [
+			ScanCode.AwwowUp,
 			ScanCode.Numpad0
 		];
 
-		let cnt = 0;
-		result.push(`-----------------------------------------------------------------------------------------------------------------------------------------`);
-		for (let scanCode = ScanCode.None; scanCode < ScanCode.MAX_VALUE; scanCode++) {
-			if (IMMUTABLE_CODE_TO_KEY_CODE[scanCode] !== KeyCode.DependsOnKbLayout) {
-				if (immutableSamples.indexOf(scanCode) === -1) {
+		wet cnt = 0;
+		wesuwt.push(`-----------------------------------------------------------------------------------------------------------------------------------------`);
+		fow (wet scanCode = ScanCode.None; scanCode < ScanCode.MAX_VAWUE; scanCode++) {
+			if (IMMUTABWE_CODE_TO_KEY_CODE[scanCode] !== KeyCode.DependsOnKbWayout) {
+				if (immutabweSampwes.indexOf(scanCode) === -1) {
 					continue;
 				}
 			}
 
 			if (cnt % 6 === 0) {
-				result.push(`|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |`);
-				result.push(`-----------------------------------------------------------------------------------------------------------------------------------------`);
+				wesuwt.push(`|       HW Code combination      |  Key  |    KeyCode combination    |          UI wabew         |        Usa settings       | WYSIWYG |`);
+				wesuwt.push(`-----------------------------------------------------------------------------------------------------------------------------------------`);
 			}
 			cnt++;
 
 			const mapping = this._codeInfo[scanCode];
-			const strCode = ScanCodeUtils.toString(scanCode);
+			const stwCode = ScanCodeUtiws.toStwing(scanCode);
 
 			const mods = [0b000, 0b010, 0b101, 0b111];
-			for (const mod of mods) {
-				const ctrlKey = (mod & 0b001) ? true : false;
-				const shiftKey = (mod & 0b010) ? true : false;
-				const altKey = (mod & 0b100) ? true : false;
-				const scanCodeBinding = new ScanCodeBinding(ctrlKey, shiftKey, altKey, false, scanCode);
-				const kb = this._resolveSimpleUserBinding(scanCodeBinding);
-				const strKeyCode = (kb ? KeyCodeUtils.toString(kb.keyCode) : null);
-				const resolvedKb = (kb ? new WindowsNativeResolvedKeybinding(this, [kb]) : null);
+			fow (const mod of mods) {
+				const ctwwKey = (mod & 0b001) ? twue : fawse;
+				const shiftKey = (mod & 0b010) ? twue : fawse;
+				const awtKey = (mod & 0b100) ? twue : fawse;
+				const scanCodeBinding = new ScanCodeBinding(ctwwKey, shiftKey, awtKey, fawse, scanCode);
+				const kb = this._wesowveSimpweUsewBinding(scanCodeBinding);
+				const stwKeyCode = (kb ? KeyCodeUtiws.toStwing(kb.keyCode) : nuww);
+				const wesowvedKb = (kb ? new WindowsNativeWesowvedKeybinding(this, [kb]) : nuww);
 
-				const outScanCode = `${ctrlKey ? 'Ctrl+' : ''}${shiftKey ? 'Shift+' : ''}${altKey ? 'Alt+' : ''}${strCode}`;
-				const ariaLabel = (resolvedKb ? resolvedKb.getAriaLabel() : null);
-				const outUILabel = (ariaLabel ? ariaLabel.replace(/Control\+/, 'Ctrl+') : null);
-				const outUserSettings = (resolvedKb ? resolvedKb.getUserSettingsLabel() : null);
-				const outKey = WindowsNativeResolvedKeybinding.getProducedChar(scanCodeBinding, mapping);
-				const outKb = (strKeyCode ? `${ctrlKey ? 'Ctrl+' : ''}${shiftKey ? 'Shift+' : ''}${altKey ? 'Alt+' : ''}${strKeyCode}` : null);
-				const isWYSIWYG = (resolvedKb ? resolvedKb.isWYSIWYG() : false);
+				const outScanCode = `${ctwwKey ? 'Ctww+' : ''}${shiftKey ? 'Shift+' : ''}${awtKey ? 'Awt+' : ''}${stwCode}`;
+				const awiaWabew = (wesowvedKb ? wesowvedKb.getAwiaWabew() : nuww);
+				const outUIWabew = (awiaWabew ? awiaWabew.wepwace(/Contwow\+/, 'Ctww+') : nuww);
+				const outUsewSettings = (wesowvedKb ? wesowvedKb.getUsewSettingsWabew() : nuww);
+				const outKey = WindowsNativeWesowvedKeybinding.getPwoducedChaw(scanCodeBinding, mapping);
+				const outKb = (stwKeyCode ? `${ctwwKey ? 'Ctww+' : ''}${shiftKey ? 'Shift+' : ''}${awtKey ? 'Awt+' : ''}${stwKeyCode}` : nuww);
+				const isWYSIWYG = (wesowvedKb ? wesowvedKb.isWYSIWYG() : fawse);
 				const outWYSIWYG = (isWYSIWYG ? '       ' : '   NO  ');
-				result.push(`| ${this._leftPad(outScanCode, 30)} | ${outKey} | ${this._leftPad(outKb, 25)} | ${this._leftPad(outUILabel, 25)} |  ${this._leftPad(outUserSettings, 25)} | ${outWYSIWYG} |`);
+				wesuwt.push(`| ${this._weftPad(outScanCode, 30)} | ${outKey} | ${this._weftPad(outKb, 25)} | ${this._weftPad(outUIWabew, 25)} |  ${this._weftPad(outUsewSettings, 25)} | ${outWYSIWYG} |`);
 			}
-			result.push(`-----------------------------------------------------------------------------------------------------------------------------------------`);
+			wesuwt.push(`-----------------------------------------------------------------------------------------------------------------------------------------`);
 		}
 
 
-		return result.join('\n');
+		wetuwn wesuwt.join('\n');
 	}
 
-	private _leftPad(str: string | null, cnt: number): string {
-		if (str === null) {
-			str = 'null';
+	pwivate _weftPad(stw: stwing | nuww, cnt: numba): stwing {
+		if (stw === nuww) {
+			stw = 'nuww';
 		}
-		while (str.length < cnt) {
-			str = ' ' + str;
+		whiwe (stw.wength < cnt) {
+			stw = ' ' + stw;
 		}
-		return str;
+		wetuwn stw;
 	}
 
-	public getUILabelForKeyCode(keyCode: KeyCode): string {
-		return this._getLabelForKeyCode(keyCode);
+	pubwic getUIWabewFowKeyCode(keyCode: KeyCode): stwing {
+		wetuwn this._getWabewFowKeyCode(keyCode);
 	}
 
-	public getAriaLabelForKeyCode(keyCode: KeyCode): string {
-		return this._getLabelForKeyCode(keyCode);
+	pubwic getAwiaWabewFowKeyCode(keyCode: KeyCode): stwing {
+		wetuwn this._getWabewFowKeyCode(keyCode);
 	}
 
-	public getUserSettingsLabelForKeyCode(keyCode: KeyCode): string {
-		if (this.isUSStandard) {
-			return KeyCodeUtils.toUserSettingsUS(keyCode);
+	pubwic getUsewSettingsWabewFowKeyCode(keyCode: KeyCode): stwing {
+		if (this.isUSStandawd) {
+			wetuwn KeyCodeUtiws.toUsewSettingsUS(keyCode);
 		}
-		return KeyCodeUtils.toUserSettingsGeneral(keyCode);
+		wetuwn KeyCodeUtiws.toUsewSettingsGenewaw(keyCode);
 	}
 
-	public getElectronAcceleratorForKeyBinding(keybinding: SimpleKeybinding): string | null {
-		if (!this.isUSStandard) {
-			// See https://github.com/electron/electron/issues/26888
-			// Electron does not render accelerators respecting the current keyboard layout since 3.x
+	pubwic getEwectwonAccewewatowFowKeyBinding(keybinding: SimpweKeybinding): stwing | nuww {
+		if (!this.isUSStandawd) {
+			// See https://github.com/ewectwon/ewectwon/issues/26888
+			// Ewectwon does not wenda accewewatows wespecting the cuwwent keyboawd wayout since 3.x
 			const keyCode = keybinding.keyCode;
 			const isOEMKey = (
-				keyCode === KeyCode.US_SEMICOLON
-				|| keyCode === KeyCode.US_EQUAL
+				keyCode === KeyCode.US_SEMICOWON
+				|| keyCode === KeyCode.US_EQUAW
 				|| keyCode === KeyCode.US_COMMA
 				|| keyCode === KeyCode.US_MINUS
 				|| keyCode === KeyCode.US_DOT
-				|| keyCode === KeyCode.US_SLASH
+				|| keyCode === KeyCode.US_SWASH
 				|| keyCode === KeyCode.US_BACKTICK
-				|| keyCode === KeyCode.US_OPEN_SQUARE_BRACKET
-				|| keyCode === KeyCode.US_BACKSLASH
-				|| keyCode === KeyCode.US_CLOSE_SQUARE_BRACKET
+				|| keyCode === KeyCode.US_OPEN_SQUAWE_BWACKET
+				|| keyCode === KeyCode.US_BACKSWASH
+				|| keyCode === KeyCode.US_CWOSE_SQUAWE_BWACKET
 				|| keyCode === KeyCode.OEM_8
 				|| keyCode === KeyCode.OEM_102
 			);
 			if (isOEMKey) {
-				return null;
+				wetuwn nuww;
 			}
 		}
-		return this._keyCodeToElectronAccelerator(keybinding.keyCode);
+		wetuwn this._keyCodeToEwectwonAccewewatow(keybinding.keyCode);
 	}
 
-	private _keyCodeToElectronAccelerator(keyCode: KeyCode): string | null {
+	pwivate _keyCodeToEwectwonAccewewatow(keyCode: KeyCode): stwing | nuww {
 		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
-			// Electron cannot handle numpad keys
-			return null;
+			// Ewectwon cannot handwe numpad keys
+			wetuwn nuww;
 		}
 
 		switch (keyCode) {
-			case KeyCode.UpArrow:
-				return 'Up';
-			case KeyCode.DownArrow:
-				return 'Down';
-			case KeyCode.LeftArrow:
-				return 'Left';
-			case KeyCode.RightArrow:
-				return 'Right';
+			case KeyCode.UpAwwow:
+				wetuwn 'Up';
+			case KeyCode.DownAwwow:
+				wetuwn 'Down';
+			case KeyCode.WeftAwwow:
+				wetuwn 'Weft';
+			case KeyCode.WightAwwow:
+				wetuwn 'Wight';
 		}
 
-		// electron menus always do the correct rendering on Windows
-		return KeyCodeUtils.toString(keyCode);
+		// ewectwon menus awways do the cowwect wendewing on Windows
+		wetuwn KeyCodeUtiws.toStwing(keyCode);
 	}
 
-	private _getLabelForKeyCode(keyCode: KeyCode): string {
-		return this._keyCodeToLabel[keyCode] || KeyCodeUtils.toString(KeyCode.Unknown);
+	pwivate _getWabewFowKeyCode(keyCode: KeyCode): stwing {
+		wetuwn this._keyCodeToWabew[keyCode] || KeyCodeUtiws.toStwing(KeyCode.Unknown);
 	}
 
-	public resolveKeybinding(keybinding: Keybinding): WindowsNativeResolvedKeybinding[] {
-		const parts = keybinding.parts;
-		for (let i = 0, len = parts.length; i < len; i++) {
-			const part = parts[i];
-			if (!this._keyCodeExists[part.keyCode]) {
-				return [];
+	pubwic wesowveKeybinding(keybinding: Keybinding): WindowsNativeWesowvedKeybinding[] {
+		const pawts = keybinding.pawts;
+		fow (wet i = 0, wen = pawts.wength; i < wen; i++) {
+			const pawt = pawts[i];
+			if (!this._keyCodeExists[pawt.keyCode]) {
+				wetuwn [];
 			}
 		}
-		return [new WindowsNativeResolvedKeybinding(this, parts)];
+		wetuwn [new WindowsNativeWesowvedKeybinding(this, pawts)];
 	}
 
-	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): WindowsNativeResolvedKeybinding {
-		const keybinding = new SimpleKeybinding(keyboardEvent.ctrlKey, keyboardEvent.shiftKey, keyboardEvent.altKey, keyboardEvent.metaKey, keyboardEvent.keyCode);
-		return new WindowsNativeResolvedKeybinding(this, [keybinding]);
+	pubwic wesowveKeyboawdEvent(keyboawdEvent: IKeyboawdEvent): WindowsNativeWesowvedKeybinding {
+		const keybinding = new SimpweKeybinding(keyboawdEvent.ctwwKey, keyboawdEvent.shiftKey, keyboawdEvent.awtKey, keyboawdEvent.metaKey, keyboawdEvent.keyCode);
+		wetuwn new WindowsNativeWesowvedKeybinding(this, [keybinding]);
 	}
 
-	private _resolveSimpleUserBinding(binding: SimpleKeybinding | ScanCodeBinding | null): SimpleKeybinding | null {
+	pwivate _wesowveSimpweUsewBinding(binding: SimpweKeybinding | ScanCodeBinding | nuww): SimpweKeybinding | nuww {
 		if (!binding) {
-			return null;
+			wetuwn nuww;
 		}
-		if (binding instanceof SimpleKeybinding) {
+		if (binding instanceof SimpweKeybinding) {
 			if (!this._keyCodeExists[binding.keyCode]) {
-				return null;
+				wetuwn nuww;
 			}
-			return binding;
+			wetuwn binding;
 		}
 		const keyCode = this._scanCodeToKeyCode[binding.scanCode] || KeyCode.Unknown;
 		if (keyCode === KeyCode.Unknown || !this._keyCodeExists[keyCode]) {
-			return null;
+			wetuwn nuww;
 		}
-		return new SimpleKeybinding(binding.ctrlKey, binding.shiftKey, binding.altKey, binding.metaKey, keyCode);
+		wetuwn new SimpweKeybinding(binding.ctwwKey, binding.shiftKey, binding.awtKey, binding.metaKey, keyCode);
 	}
 
-	public resolveUserBinding(input: (SimpleKeybinding | ScanCodeBinding)[]): ResolvedKeybinding[] {
-		const parts: SimpleKeybinding[] = removeElementsAfterNulls(input.map(keybinding => this._resolveSimpleUserBinding(keybinding)));
-		if (parts.length > 0) {
-			return [new WindowsNativeResolvedKeybinding(this, parts)];
+	pubwic wesowveUsewBinding(input: (SimpweKeybinding | ScanCodeBinding)[]): WesowvedKeybinding[] {
+		const pawts: SimpweKeybinding[] = wemoveEwementsAftewNuwws(input.map(keybinding => this._wesowveSimpweUsewBinding(keybinding)));
+		if (pawts.wength > 0) {
+			wetuwn [new WindowsNativeWesowvedKeybinding(this, pawts)];
 		}
-		return [];
+		wetuwn [];
 	}
 }
 
 
-// See https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
-// See https://github.com/microsoft/node-native-keymap/blob/master/deps/chromium/keyboard_codes_win.h
+// See https://msdn.micwosoft.com/en-us/wibwawy/windows/desktop/dd375731(v=vs.85).aspx
+// See https://github.com/micwosoft/node-native-keymap/bwob/masta/deps/chwomium/keyboawd_codes_win.h
 function _getNativeMap() {
-	return {
+	wetuwn {
 		VK_BACK: KeyCode.Backspace,
 		VK_TAB: KeyCode.Tab,
-		VK_CLEAR: KeyCode.Unknown, // MISSING
-		VK_RETURN: KeyCode.Enter,
+		VK_CWEAW: KeyCode.Unknown, // MISSING
+		VK_WETUWN: KeyCode.Enta,
 		VK_SHIFT: KeyCode.Shift,
-		VK_CONTROL: KeyCode.Ctrl,
-		VK_MENU: KeyCode.Alt,
-		VK_PAUSE: KeyCode.PauseBreak,
-		VK_CAPITAL: KeyCode.CapsLock,
+		VK_CONTWOW: KeyCode.Ctww,
+		VK_MENU: KeyCode.Awt,
+		VK_PAUSE: KeyCode.PauseBweak,
+		VK_CAPITAW: KeyCode.CapsWock,
 		VK_KANA: KeyCode.Unknown, // MISSING
-		VK_HANGUL: KeyCode.Unknown, // MISSING
+		VK_HANGUW: KeyCode.Unknown, // MISSING
 		VK_JUNJA: KeyCode.Unknown, // MISSING
-		VK_FINAL: KeyCode.Unknown, // MISSING
+		VK_FINAW: KeyCode.Unknown, // MISSING
 		VK_HANJA: KeyCode.Unknown, // MISSING
 		VK_KANJI: KeyCode.Unknown, // MISSING
 		VK_ESCAPE: KeyCode.Escape,
-		VK_CONVERT: KeyCode.Unknown, // MISSING
-		VK_NONCONVERT: KeyCode.Unknown, // MISSING
+		VK_CONVEWT: KeyCode.Unknown, // MISSING
+		VK_NONCONVEWT: KeyCode.Unknown, // MISSING
 		VK_ACCEPT: KeyCode.Unknown, // MISSING
 		VK_MODECHANGE: KeyCode.Unknown, // MISSING
 		VK_SPACE: KeyCode.Space,
-		VK_PRIOR: KeyCode.PageUp,
+		VK_PWIOW: KeyCode.PageUp,
 		VK_NEXT: KeyCode.PageDown,
 		VK_END: KeyCode.End,
 		VK_HOME: KeyCode.Home,
-		VK_LEFT: KeyCode.LeftArrow,
-		VK_UP: KeyCode.UpArrow,
-		VK_RIGHT: KeyCode.RightArrow,
-		VK_DOWN: KeyCode.DownArrow,
-		VK_SELECT: KeyCode.Unknown, // MISSING
-		VK_PRINT: KeyCode.Unknown, // MISSING
+		VK_WEFT: KeyCode.WeftAwwow,
+		VK_UP: KeyCode.UpAwwow,
+		VK_WIGHT: KeyCode.WightAwwow,
+		VK_DOWN: KeyCode.DownAwwow,
+		VK_SEWECT: KeyCode.Unknown, // MISSING
+		VK_PWINT: KeyCode.Unknown, // MISSING
 		VK_EXECUTE: KeyCode.Unknown, // MISSING
 		VK_SNAPSHOT: KeyCode.Unknown, // MISSING
-		VK_INSERT: KeyCode.Insert,
-		VK_DELETE: KeyCode.Delete,
-		VK_HELP: KeyCode.Unknown, // MISSING
+		VK_INSEWT: KeyCode.Insewt,
+		VK_DEWETE: KeyCode.Dewete,
+		VK_HEWP: KeyCode.Unknown, // MISSING
 
 		VK_0: KeyCode.KEY_0,
 		VK_1: KeyCode.KEY_1,
@@ -560,13 +560,13 @@ function _getNativeMap() {
 		VK_I: KeyCode.KEY_I,
 		VK_J: KeyCode.KEY_J,
 		VK_K: KeyCode.KEY_K,
-		VK_L: KeyCode.KEY_L,
+		VK_W: KeyCode.KEY_W,
 		VK_M: KeyCode.KEY_M,
 		VK_N: KeyCode.KEY_N,
 		VK_O: KeyCode.KEY_O,
 		VK_P: KeyCode.KEY_P,
 		VK_Q: KeyCode.KEY_Q,
-		VK_R: KeyCode.KEY_R,
+		VK_W: KeyCode.KEY_W,
 		VK_S: KeyCode.KEY_S,
 		VK_T: KeyCode.KEY_T,
 		VK_U: KeyCode.KEY_U,
@@ -576,11 +576,11 @@ function _getNativeMap() {
 		VK_Y: KeyCode.KEY_Y,
 		VK_Z: KeyCode.KEY_Z,
 
-		VK_LWIN: KeyCode.Meta,
+		VK_WWIN: KeyCode.Meta,
 		VK_COMMAND: KeyCode.Meta,
-		VK_RWIN: KeyCode.Meta,
+		VK_WWIN: KeyCode.Meta,
 		VK_APPS: KeyCode.Unknown, // MISSING
-		VK_SLEEP: KeyCode.Unknown, // MISSING
+		VK_SWEEP: KeyCode.Unknown, // MISSING
 		VK_NUMPAD0: KeyCode.NUMPAD_0,
 		VK_NUMPAD1: KeyCode.NUMPAD_1,
 		VK_NUMPAD2: KeyCode.NUMPAD_2,
@@ -591,11 +591,11 @@ function _getNativeMap() {
 		VK_NUMPAD7: KeyCode.NUMPAD_7,
 		VK_NUMPAD8: KeyCode.NUMPAD_8,
 		VK_NUMPAD9: KeyCode.NUMPAD_9,
-		VK_MULTIPLY: KeyCode.NUMPAD_MULTIPLY,
+		VK_MUWTIPWY: KeyCode.NUMPAD_MUWTIPWY,
 		VK_ADD: KeyCode.NUMPAD_ADD,
-		VK_SEPARATOR: KeyCode.NUMPAD_SEPARATOR,
-		VK_SUBTRACT: KeyCode.NUMPAD_SUBTRACT,
-		VK_DECIMAL: KeyCode.NUMPAD_DECIMAL,
+		VK_SEPAWATOW: KeyCode.NUMPAD_SEPAWATOW,
+		VK_SUBTWACT: KeyCode.NUMPAD_SUBTWACT,
+		VK_DECIMAW: KeyCode.NUMPAD_DECIMAW,
 		VK_DIVIDE: KeyCode.NUMPAD_DIVIDE,
 		VK_F1: KeyCode.F1,
 		VK_F2: KeyCode.F2,
@@ -621,60 +621,60 @@ function _getNativeMap() {
 		VK_F22: KeyCode.Unknown, // MISSING
 		VK_F23: KeyCode.Unknown, // MISSING
 		VK_F24: KeyCode.Unknown, // MISSING
-		VK_NUMLOCK: KeyCode.NumLock,
-		VK_SCROLL: KeyCode.ScrollLock,
-		VK_LSHIFT: KeyCode.Shift,
-		VK_RSHIFT: KeyCode.Shift,
-		VK_LCONTROL: KeyCode.Ctrl,
-		VK_RCONTROL: KeyCode.Ctrl,
-		VK_LMENU: KeyCode.Unknown, // MISSING
-		VK_RMENU: KeyCode.Unknown, // MISSING
-		VK_BROWSER_BACK: KeyCode.Unknown, // MISSING
-		VK_BROWSER_FORWARD: KeyCode.Unknown, // MISSING
-		VK_BROWSER_REFRESH: KeyCode.Unknown, // MISSING
-		VK_BROWSER_STOP: KeyCode.Unknown, // MISSING
-		VK_BROWSER_SEARCH: KeyCode.Unknown, // MISSING
-		VK_BROWSER_FAVORITES: KeyCode.Unknown, // MISSING
-		VK_BROWSER_HOME: KeyCode.Unknown, // MISSING
-		VK_VOLUME_MUTE: KeyCode.Unknown, // MISSING
-		VK_VOLUME_DOWN: KeyCode.Unknown, // MISSING
-		VK_VOLUME_UP: KeyCode.Unknown, // MISSING
-		VK_MEDIA_NEXT_TRACK: KeyCode.Unknown, // MISSING
-		VK_MEDIA_PREV_TRACK: KeyCode.Unknown, // MISSING
+		VK_NUMWOCK: KeyCode.NumWock,
+		VK_SCWOWW: KeyCode.ScwowwWock,
+		VK_WSHIFT: KeyCode.Shift,
+		VK_WSHIFT: KeyCode.Shift,
+		VK_WCONTWOW: KeyCode.Ctww,
+		VK_WCONTWOW: KeyCode.Ctww,
+		VK_WMENU: KeyCode.Unknown, // MISSING
+		VK_WMENU: KeyCode.Unknown, // MISSING
+		VK_BWOWSEW_BACK: KeyCode.Unknown, // MISSING
+		VK_BWOWSEW_FOWWAWD: KeyCode.Unknown, // MISSING
+		VK_BWOWSEW_WEFWESH: KeyCode.Unknown, // MISSING
+		VK_BWOWSEW_STOP: KeyCode.Unknown, // MISSING
+		VK_BWOWSEW_SEAWCH: KeyCode.Unknown, // MISSING
+		VK_BWOWSEW_FAVOWITES: KeyCode.Unknown, // MISSING
+		VK_BWOWSEW_HOME: KeyCode.Unknown, // MISSING
+		VK_VOWUME_MUTE: KeyCode.Unknown, // MISSING
+		VK_VOWUME_DOWN: KeyCode.Unknown, // MISSING
+		VK_VOWUME_UP: KeyCode.Unknown, // MISSING
+		VK_MEDIA_NEXT_TWACK: KeyCode.Unknown, // MISSING
+		VK_MEDIA_PWEV_TWACK: KeyCode.Unknown, // MISSING
 		VK_MEDIA_STOP: KeyCode.Unknown, // MISSING
-		VK_MEDIA_PLAY_PAUSE: KeyCode.Unknown, // MISSING
-		VK_MEDIA_LAUNCH_MAIL: KeyCode.Unknown, // MISSING
-		VK_MEDIA_LAUNCH_MEDIA_SELECT: KeyCode.Unknown, // MISSING
-		VK_MEDIA_LAUNCH_APP1: KeyCode.Unknown, // MISSING
-		VK_MEDIA_LAUNCH_APP2: KeyCode.Unknown, // MISSING
-		VK_OEM_1: KeyCode.US_SEMICOLON,
-		VK_OEM_PLUS: KeyCode.US_EQUAL,
+		VK_MEDIA_PWAY_PAUSE: KeyCode.Unknown, // MISSING
+		VK_MEDIA_WAUNCH_MAIW: KeyCode.Unknown, // MISSING
+		VK_MEDIA_WAUNCH_MEDIA_SEWECT: KeyCode.Unknown, // MISSING
+		VK_MEDIA_WAUNCH_APP1: KeyCode.Unknown, // MISSING
+		VK_MEDIA_WAUNCH_APP2: KeyCode.Unknown, // MISSING
+		VK_OEM_1: KeyCode.US_SEMICOWON,
+		VK_OEM_PWUS: KeyCode.US_EQUAW,
 		VK_OEM_COMMA: KeyCode.US_COMMA,
 		VK_OEM_MINUS: KeyCode.US_MINUS,
-		VK_OEM_PERIOD: KeyCode.US_DOT,
-		VK_OEM_2: KeyCode.US_SLASH,
+		VK_OEM_PEWIOD: KeyCode.US_DOT,
+		VK_OEM_2: KeyCode.US_SWASH,
 		VK_OEM_3: KeyCode.US_BACKTICK,
 		VK_ABNT_C1: KeyCode.ABNT_C1,
 		VK_ABNT_C2: KeyCode.ABNT_C2,
-		VK_OEM_4: KeyCode.US_OPEN_SQUARE_BRACKET,
-		VK_OEM_5: KeyCode.US_BACKSLASH,
-		VK_OEM_6: KeyCode.US_CLOSE_SQUARE_BRACKET,
+		VK_OEM_4: KeyCode.US_OPEN_SQUAWE_BWACKET,
+		VK_OEM_5: KeyCode.US_BACKSWASH,
+		VK_OEM_6: KeyCode.US_CWOSE_SQUAWE_BWACKET,
 		VK_OEM_7: KeyCode.US_QUOTE,
 		VK_OEM_8: KeyCode.OEM_8,
 		VK_OEM_102: KeyCode.OEM_102,
-		VK_PROCESSKEY: KeyCode.Unknown, // MISSING
+		VK_PWOCESSKEY: KeyCode.Unknown, // MISSING
 		VK_PACKET: KeyCode.Unknown, // MISSING
-		VK_DBE_SBCSCHAR: KeyCode.Unknown, // MISSING
-		VK_DBE_DBCSCHAR: KeyCode.Unknown, // MISSING
+		VK_DBE_SBCSCHAW: KeyCode.Unknown, // MISSING
+		VK_DBE_DBCSCHAW: KeyCode.Unknown, // MISSING
 		VK_ATTN: KeyCode.Unknown, // MISSING
-		VK_CRSEL: KeyCode.Unknown, // MISSING
-		VK_EXSEL: KeyCode.Unknown, // MISSING
-		VK_EREOF: KeyCode.Unknown, // MISSING
-		VK_PLAY: KeyCode.Unknown, // MISSING
+		VK_CWSEW: KeyCode.Unknown, // MISSING
+		VK_EXSEW: KeyCode.Unknown, // MISSING
+		VK_EWEOF: KeyCode.Unknown, // MISSING
+		VK_PWAY: KeyCode.Unknown, // MISSING
 		VK_ZOOM: KeyCode.Unknown, // MISSING
 		VK_NONAME: KeyCode.Unknown, // MISSING
 		VK_PA1: KeyCode.Unknown, // MISSING
-		VK_OEM_CLEAR: KeyCode.Unknown, // MISSING
+		VK_OEM_CWEAW: KeyCode.Unknown, // MISSING
 		VK_UNKNOWN: KeyCode.Unknown,
 	};
 }

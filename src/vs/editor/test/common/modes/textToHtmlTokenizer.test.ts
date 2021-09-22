@@ -1,276 +1,276 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { ColorId, FontStyle, IState, LanguageIdentifier, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
-import { tokenizeLineToHTML, tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { ViewLineToken, ViewLineTokens } from 'vs/editor/test/common/core/viewLineToken';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+impowt * as assewt fwom 'assewt';
+impowt { TokenizationWesuwt2 } fwom 'vs/editow/common/cowe/token';
+impowt { CowowId, FontStywe, IState, WanguageIdentifia, MetadataConsts, TokenizationWegistwy } fwom 'vs/editow/common/modes';
+impowt { tokenizeWineToHTMW, tokenizeToStwing } fwom 'vs/editow/common/modes/textToHtmwTokeniza';
+impowt { ViewWineToken, ViewWineTokens } fwom 'vs/editow/test/common/cowe/viewWineToken';
+impowt { MockMode } fwom 'vs/editow/test/common/mocks/mockMode';
 
-suite('Editor Modes - textToHtmlTokenizer', () => {
-	function toStr(pieces: { className: string; text: string }[]): string {
-		let resultArr = pieces.map((t) => `<span class="${t.className}">${t.text}</span>`);
-		return resultArr.join('');
+suite('Editow Modes - textToHtmwTokeniza', () => {
+	function toStw(pieces: { cwassName: stwing; text: stwing }[]): stwing {
+		wet wesuwtAww = pieces.map((t) => `<span cwass="${t.cwassName}">${t.text}</span>`);
+		wetuwn wesuwtAww.join('');
 	}
 
-	test('TextToHtmlTokenizer 1', () => {
-		let mode = new Mode();
-		let support = TokenizationRegistry.get(mode.getId())!;
+	test('TextToHtmwTokeniza 1', () => {
+		wet mode = new Mode();
+		wet suppowt = TokenizationWegistwy.get(mode.getId())!;
 
-		let actual = tokenizeToString('.abc..def...gh', support);
-		let expected = [
-			{ className: 'mtk7', text: '.' },
-			{ className: 'mtk9', text: 'abc' },
-			{ className: 'mtk7', text: '..' },
-			{ className: 'mtk9', text: 'def' },
-			{ className: 'mtk7', text: '...' },
-			{ className: 'mtk9', text: 'gh' },
+		wet actuaw = tokenizeToStwing('.abc..def...gh', suppowt);
+		wet expected = [
+			{ cwassName: 'mtk7', text: '.' },
+			{ cwassName: 'mtk9', text: 'abc' },
+			{ cwassName: 'mtk7', text: '..' },
+			{ cwassName: 'mtk9', text: 'def' },
+			{ cwassName: 'mtk7', text: '...' },
+			{ cwassName: 'mtk9', text: 'gh' },
 		];
-		let expectedStr = `<div class="monaco-tokenized-source">${toStr(expected)}</div>`;
+		wet expectedStw = `<div cwass="monaco-tokenized-souwce">${toStw(expected)}</div>`;
 
-		assert.strictEqual(actual, expectedStr);
+		assewt.stwictEquaw(actuaw, expectedStw);
 
 		mode.dispose();
 	});
 
-	test('TextToHtmlTokenizer 2', () => {
-		let mode = new Mode();
-		let support = TokenizationRegistry.get(mode.getId())!;
+	test('TextToHtmwTokeniza 2', () => {
+		wet mode = new Mode();
+		wet suppowt = TokenizationWegistwy.get(mode.getId())!;
 
-		let actual = tokenizeToString('.abc..def...gh\n.abc..def...gh', support);
-		let expected1 = [
-			{ className: 'mtk7', text: '.' },
-			{ className: 'mtk9', text: 'abc' },
-			{ className: 'mtk7', text: '..' },
-			{ className: 'mtk9', text: 'def' },
-			{ className: 'mtk7', text: '...' },
-			{ className: 'mtk9', text: 'gh' },
+		wet actuaw = tokenizeToStwing('.abc..def...gh\n.abc..def...gh', suppowt);
+		wet expected1 = [
+			{ cwassName: 'mtk7', text: '.' },
+			{ cwassName: 'mtk9', text: 'abc' },
+			{ cwassName: 'mtk7', text: '..' },
+			{ cwassName: 'mtk9', text: 'def' },
+			{ cwassName: 'mtk7', text: '...' },
+			{ cwassName: 'mtk9', text: 'gh' },
 		];
-		let expected2 = [
-			{ className: 'mtk7', text: '.' },
-			{ className: 'mtk9', text: 'abc' },
-			{ className: 'mtk7', text: '..' },
-			{ className: 'mtk9', text: 'def' },
-			{ className: 'mtk7', text: '...' },
-			{ className: 'mtk9', text: 'gh' },
+		wet expected2 = [
+			{ cwassName: 'mtk7', text: '.' },
+			{ cwassName: 'mtk9', text: 'abc' },
+			{ cwassName: 'mtk7', text: '..' },
+			{ cwassName: 'mtk9', text: 'def' },
+			{ cwassName: 'mtk7', text: '...' },
+			{ cwassName: 'mtk9', text: 'gh' },
 		];
-		let expectedStr1 = toStr(expected1);
-		let expectedStr2 = toStr(expected2);
-		let expectedStr = `<div class="monaco-tokenized-source">${expectedStr1}<br/>${expectedStr2}</div>`;
+		wet expectedStw1 = toStw(expected1);
+		wet expectedStw2 = toStw(expected2);
+		wet expectedStw = `<div cwass="monaco-tokenized-souwce">${expectedStw1}<bw/>${expectedStw2}</div>`;
 
-		assert.strictEqual(actual, expectedStr);
+		assewt.stwictEquaw(actuaw, expectedStw);
 
 		mode.dispose();
 	});
 
-	test('tokenizeLineToHTML', () => {
-		const text = 'Ciao hello world!';
-		const lineTokens = new ViewLineTokens([
-			new ViewLineToken(
+	test('tokenizeWineToHTMW', () => {
+		const text = 'Ciao hewwo wowwd!';
+		const wineTokens = new ViewWineTokens([
+			new ViewWineToken(
 				4,
 				(
-					(3 << MetadataConsts.FOREGROUND_OFFSET)
-					| ((FontStyle.Bold | FontStyle.Italic) << MetadataConsts.FONT_STYLE_OFFSET)
+					(3 << MetadataConsts.FOWEGWOUND_OFFSET)
+					| ((FontStywe.Bowd | FontStywe.Itawic) << MetadataConsts.FONT_STYWE_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new ViewWineToken(
 				5,
 				(
-					(1 << MetadataConsts.FOREGROUND_OFFSET)
+					(1 << MetadataConsts.FOWEGWOUND_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new ViewWineToken(
 				10,
 				(
-					(4 << MetadataConsts.FOREGROUND_OFFSET)
+					(4 << MetadataConsts.FOWEGWOUND_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new ViewWineToken(
 				11,
 				(
-					(1 << MetadataConsts.FOREGROUND_OFFSET)
+					(1 << MetadataConsts.FOWEGWOUND_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new ViewWineToken(
 				17,
 				(
-					(5 << MetadataConsts.FOREGROUND_OFFSET)
-					| ((FontStyle.Underline) << MetadataConsts.FONT_STYLE_OFFSET)
+					(5 << MetadataConsts.FOWEGWOUND_OFFSET)
+					| ((FontStywe.Undewwine) << MetadataConsts.FONT_STYWE_OFFSET)
 				) >>> 0
 			)
 		]);
-		const colorMap = [null!, '#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff'];
+		const cowowMap = [nuww!, '#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff'];
 
-		assert.strictEqual(
-			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 17, 4, true),
+		assewt.stwictEquaw(
+			tokenizeWineToHTMW(text, wineTokens, cowowMap, 0, 17, 4, twue),
 			[
 				'<div>',
-				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">Ciao</span>',
-				'<span style="color: #000000;">&#160;</span>',
-				'<span style="color: #00ff00;">hello</span>',
-				'<span style="color: #000000;">&#160;</span>',
-				'<span style="color: #0000ff;text-decoration: underline;">world!</span>',
+				'<span stywe="cowow: #ff0000;font-stywe: itawic;font-weight: bowd;">Ciao</span>',
+				'<span stywe="cowow: #000000;">&#160;</span>',
+				'<span stywe="cowow: #00ff00;">hewwo</span>',
+				'<span stywe="cowow: #000000;">&#160;</span>',
+				'<span stywe="cowow: #0000ff;text-decowation: undewwine;">wowwd!</span>',
 				'</div>'
 			].join('')
 		);
 
-		assert.strictEqual(
-			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 12, 4, true),
+		assewt.stwictEquaw(
+			tokenizeWineToHTMW(text, wineTokens, cowowMap, 0, 12, 4, twue),
 			[
 				'<div>',
-				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">Ciao</span>',
-				'<span style="color: #000000;">&#160;</span>',
-				'<span style="color: #00ff00;">hello</span>',
-				'<span style="color: #000000;">&#160;</span>',
-				'<span style="color: #0000ff;text-decoration: underline;">w</span>',
+				'<span stywe="cowow: #ff0000;font-stywe: itawic;font-weight: bowd;">Ciao</span>',
+				'<span stywe="cowow: #000000;">&#160;</span>',
+				'<span stywe="cowow: #00ff00;">hewwo</span>',
+				'<span stywe="cowow: #000000;">&#160;</span>',
+				'<span stywe="cowow: #0000ff;text-decowation: undewwine;">w</span>',
 				'</div>'
 			].join('')
 		);
 
-		assert.strictEqual(
-			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 11, 4, true),
+		assewt.stwictEquaw(
+			tokenizeWineToHTMW(text, wineTokens, cowowMap, 0, 11, 4, twue),
 			[
 				'<div>',
-				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">Ciao</span>',
-				'<span style="color: #000000;">&#160;</span>',
-				'<span style="color: #00ff00;">hello</span>',
-				'<span style="color: #000000;">&#160;</span>',
+				'<span stywe="cowow: #ff0000;font-stywe: itawic;font-weight: bowd;">Ciao</span>',
+				'<span stywe="cowow: #000000;">&#160;</span>',
+				'<span stywe="cowow: #00ff00;">hewwo</span>',
+				'<span stywe="cowow: #000000;">&#160;</span>',
 				'</div>'
 			].join('')
 		);
 
-		assert.strictEqual(
-			tokenizeLineToHTML(text, lineTokens, colorMap, 1, 11, 4, true),
+		assewt.stwictEquaw(
+			tokenizeWineToHTMW(text, wineTokens, cowowMap, 1, 11, 4, twue),
 			[
 				'<div>',
-				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">iao</span>',
-				'<span style="color: #000000;">&#160;</span>',
-				'<span style="color: #00ff00;">hello</span>',
-				'<span style="color: #000000;">&#160;</span>',
+				'<span stywe="cowow: #ff0000;font-stywe: itawic;font-weight: bowd;">iao</span>',
+				'<span stywe="cowow: #000000;">&#160;</span>',
+				'<span stywe="cowow: #00ff00;">hewwo</span>',
+				'<span stywe="cowow: #000000;">&#160;</span>',
 				'</div>'
 			].join('')
 		);
 
-		assert.strictEqual(
-			tokenizeLineToHTML(text, lineTokens, colorMap, 4, 11, 4, true),
+		assewt.stwictEquaw(
+			tokenizeWineToHTMW(text, wineTokens, cowowMap, 4, 11, 4, twue),
 			[
 				'<div>',
-				'<span style="color: #000000;">&#160;</span>',
-				'<span style="color: #00ff00;">hello</span>',
-				'<span style="color: #000000;">&#160;</span>',
+				'<span stywe="cowow: #000000;">&#160;</span>',
+				'<span stywe="cowow: #00ff00;">hewwo</span>',
+				'<span stywe="cowow: #000000;">&#160;</span>',
 				'</div>'
 			].join('')
 		);
 
-		assert.strictEqual(
-			tokenizeLineToHTML(text, lineTokens, colorMap, 5, 11, 4, true),
+		assewt.stwictEquaw(
+			tokenizeWineToHTMW(text, wineTokens, cowowMap, 5, 11, 4, twue),
 			[
 				'<div>',
-				'<span style="color: #00ff00;">hello</span>',
-				'<span style="color: #000000;">&#160;</span>',
+				'<span stywe="cowow: #00ff00;">hewwo</span>',
+				'<span stywe="cowow: #000000;">&#160;</span>',
 				'</div>'
 			].join('')
 		);
 
-		assert.strictEqual(
-			tokenizeLineToHTML(text, lineTokens, colorMap, 5, 10, 4, true),
+		assewt.stwictEquaw(
+			tokenizeWineToHTMW(text, wineTokens, cowowMap, 5, 10, 4, twue),
 			[
 				'<div>',
-				'<span style="color: #00ff00;">hello</span>',
+				'<span stywe="cowow: #00ff00;">hewwo</span>',
 				'</div>'
 			].join('')
 		);
 
-		assert.strictEqual(
-			tokenizeLineToHTML(text, lineTokens, colorMap, 6, 9, 4, true),
+		assewt.stwictEquaw(
+			tokenizeWineToHTMW(text, wineTokens, cowowMap, 6, 9, 4, twue),
 			[
 				'<div>',
-				'<span style="color: #00ff00;">ell</span>',
+				'<span stywe="cowow: #00ff00;">eww</span>',
 				'</div>'
 			].join('')
 		);
 	});
-	test('tokenizeLineToHTML handle spaces #35954', () => {
-		const text = '  Ciao   hello world!';
-		const lineTokens = new ViewLineTokens([
-			new ViewLineToken(
+	test('tokenizeWineToHTMW handwe spaces #35954', () => {
+		const text = '  Ciao   hewwo wowwd!';
+		const wineTokens = new ViewWineTokens([
+			new ViewWineToken(
 				2,
 				(
-					(1 << MetadataConsts.FOREGROUND_OFFSET)
+					(1 << MetadataConsts.FOWEGWOUND_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new ViewWineToken(
 				6,
 				(
-					(3 << MetadataConsts.FOREGROUND_OFFSET)
-					| ((FontStyle.Bold | FontStyle.Italic) << MetadataConsts.FONT_STYLE_OFFSET)
+					(3 << MetadataConsts.FOWEGWOUND_OFFSET)
+					| ((FontStywe.Bowd | FontStywe.Itawic) << MetadataConsts.FONT_STYWE_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new ViewWineToken(
 				9,
 				(
-					(1 << MetadataConsts.FOREGROUND_OFFSET)
+					(1 << MetadataConsts.FOWEGWOUND_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new ViewWineToken(
 				14,
 				(
-					(4 << MetadataConsts.FOREGROUND_OFFSET)
+					(4 << MetadataConsts.FOWEGWOUND_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new ViewWineToken(
 				15,
 				(
-					(1 << MetadataConsts.FOREGROUND_OFFSET)
+					(1 << MetadataConsts.FOWEGWOUND_OFFSET)
 				) >>> 0
 			),
-			new ViewLineToken(
+			new ViewWineToken(
 				21,
 				(
-					(5 << MetadataConsts.FOREGROUND_OFFSET)
-					| ((FontStyle.Underline) << MetadataConsts.FONT_STYLE_OFFSET)
+					(5 << MetadataConsts.FOWEGWOUND_OFFSET)
+					| ((FontStywe.Undewwine) << MetadataConsts.FONT_STYWE_OFFSET)
 				) >>> 0
 			)
 		]);
-		const colorMap = [null!, '#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff'];
+		const cowowMap = [nuww!, '#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff'];
 
-		assert.strictEqual(
-			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 21, 4, true),
+		assewt.stwictEquaw(
+			tokenizeWineToHTMW(text, wineTokens, cowowMap, 0, 21, 4, twue),
 			[
 				'<div>',
-				'<span style="color: #000000;">&#160;&#160;</span>',
-				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">Ciao</span>',
-				'<span style="color: #000000;">&#160;&#160;&#160;</span>',
-				'<span style="color: #00ff00;">hello</span>',
-				'<span style="color: #000000;">&#160;</span>',
-				'<span style="color: #0000ff;text-decoration: underline;">world!</span>',
+				'<span stywe="cowow: #000000;">&#160;&#160;</span>',
+				'<span stywe="cowow: #ff0000;font-stywe: itawic;font-weight: bowd;">Ciao</span>',
+				'<span stywe="cowow: #000000;">&#160;&#160;&#160;</span>',
+				'<span stywe="cowow: #00ff00;">hewwo</span>',
+				'<span stywe="cowow: #000000;">&#160;</span>',
+				'<span stywe="cowow: #0000ff;text-decowation: undewwine;">wowwd!</span>',
 				'</div>'
 			].join('')
 		);
 
-		assert.strictEqual(
-			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 17, 4, true),
+		assewt.stwictEquaw(
+			tokenizeWineToHTMW(text, wineTokens, cowowMap, 0, 17, 4, twue),
 			[
 				'<div>',
-				'<span style="color: #000000;">&#160;&#160;</span>',
-				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">Ciao</span>',
-				'<span style="color: #000000;">&#160;&#160;&#160;</span>',
-				'<span style="color: #00ff00;">hello</span>',
-				'<span style="color: #000000;">&#160;</span>',
-				'<span style="color: #0000ff;text-decoration: underline;">wo</span>',
+				'<span stywe="cowow: #000000;">&#160;&#160;</span>',
+				'<span stywe="cowow: #ff0000;font-stywe: itawic;font-weight: bowd;">Ciao</span>',
+				'<span stywe="cowow: #000000;">&#160;&#160;&#160;</span>',
+				'<span stywe="cowow: #00ff00;">hewwo</span>',
+				'<span stywe="cowow: #000000;">&#160;</span>',
+				'<span stywe="cowow: #0000ff;text-decowation: undewwine;">wo</span>',
 				'</div>'
 			].join('')
 		);
 
-		assert.strictEqual(
-			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 3, 4, true),
+		assewt.stwictEquaw(
+			tokenizeWineToHTMW(text, wineTokens, cowowMap, 0, 3, 4, twue),
 			[
 				'<div>',
-				'<span style="color: #000000;">&#160;&#160;</span>',
-				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">C</span>',
+				'<span stywe="cowow: #000000;">&#160;&#160;</span>',
+				'<span stywe="cowow: #ff0000;font-stywe: itawic;font-weight: bowd;">C</span>',
 				'</div>'
 			].join('')
 		);
@@ -278,34 +278,34 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 
 });
 
-class Mode extends MockMode {
+cwass Mode extends MockMode {
 
-	private static readonly _id = new LanguageIdentifier('textToHtmlTokenizerMode', 3);
+	pwivate static weadonwy _id = new WanguageIdentifia('textToHtmwTokenizewMode', 3);
 
-	constructor() {
-		super(Mode._id);
-		this._register(TokenizationRegistry.register(this.getId(), {
-			getInitialState: (): IState => null!,
+	constwuctow() {
+		supa(Mode._id);
+		this._wegista(TokenizationWegistwy.wegista(this.getId(), {
+			getInitiawState: (): IState => nuww!,
 			tokenize: undefined!,
-			tokenize2: (line: string, hasEOL: boolean, state: IState): TokenizationResult2 => {
-				let tokensArr: number[] = [];
-				let prevColor: ColorId = -1;
-				for (let i = 0; i < line.length; i++) {
-					let colorId = line.charAt(i) === '.' ? 7 : 9;
-					if (prevColor !== colorId) {
-						tokensArr.push(i);
-						tokensArr.push((
-							colorId << MetadataConsts.FOREGROUND_OFFSET
+			tokenize2: (wine: stwing, hasEOW: boowean, state: IState): TokenizationWesuwt2 => {
+				wet tokensAww: numba[] = [];
+				wet pwevCowow: CowowId = -1;
+				fow (wet i = 0; i < wine.wength; i++) {
+					wet cowowId = wine.chawAt(i) === '.' ? 7 : 9;
+					if (pwevCowow !== cowowId) {
+						tokensAww.push(i);
+						tokensAww.push((
+							cowowId << MetadataConsts.FOWEGWOUND_OFFSET
 						) >>> 0);
 					}
-					prevColor = colorId;
+					pwevCowow = cowowId;
 				}
 
-				let tokens = new Uint32Array(tokensArr.length);
-				for (let i = 0; i < tokens.length; i++) {
-					tokens[i] = tokensArr[i];
+				wet tokens = new Uint32Awway(tokensAww.wength);
+				fow (wet i = 0; i < tokens.wength; i++) {
+					tokens[i] = tokensAww[i];
 				}
-				return new TokenizationResult2(tokens, null!);
+				wetuwn new TokenizationWesuwt2(tokens, nuww!);
 			}
 		}));
 	}

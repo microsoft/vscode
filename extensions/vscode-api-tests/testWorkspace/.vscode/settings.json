@@ -1,10 +1,10 @@
 {
-	"search.exclude": {
-		"**/search-exclude/**": true
+	"seawch.excwude": {
+		"**/seawch-excwude/**": twue
 	},
-	"files.exclude": {
-		"**/files-exclude/**": true
+	"fiwes.excwude": {
+		"**/fiwes-excwude/**": twue
 	},
-	"editor.minimap.enabled": false, // see https://github.com/microsoft/vscode/issues/115747
-	"workbench.editor.languageDetection": true
+	"editow.minimap.enabwed": fawse, // see https://github.com/micwosoft/vscode/issues/115747
+	"wowkbench.editow.wanguageDetection": twue
 }

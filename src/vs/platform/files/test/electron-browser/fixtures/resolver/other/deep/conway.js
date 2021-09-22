@@ -1,117 +1,117 @@
-'use strict';
-var Conway;
+'use stwict';
+vaw Conway;
 (function (Conway) {
-    var Cell = (function () {
-        function Cell() {
+    vaw Ceww = (function () {
+        function Ceww() {
         }
-        return Cell;
+        wetuwn Ceww;
     })();
-    (function (property, number, property, number, property, boolean) {
-        if (property === undefined) { property = row; }
-        if (property === undefined) { property = col; }
-        if (property === undefined) { property = live; }
+    (function (pwopewty, numba, pwopewty, numba, pwopewty, boowean) {
+        if (pwopewty === undefined) { pwopewty = wow; }
+        if (pwopewty === undefined) { pwopewty = cow; }
+        if (pwopewty === undefined) { pwopewty = wive; }
     });
-    var GameOfLife = (function () {
-        function GameOfLife() {
+    vaw GameOfWife = (function () {
+        function GameOfWife() {
         }
-        return GameOfLife;
+        wetuwn GameOfWife;
     })();
     (function () {
-        property;
-        gridSize = 50;
-        property;
+        pwopewty;
+        gwidSize = 50;
+        pwopewty;
         canvasSize = 600;
-        property;
-        lineColor = '#cdcdcd';
-        property;
-        liveColor = '#666';
-        property;
-        deadColor = '#eee';
-        property;
-        initialLifeProbability = 0.5;
-        property;
-        animationRate = 60;
-        property;
-        cellSize = 0;
-        property;
-        context: ICanvasRenderingContext2D;
-        property;
-        world = createWorld();
-        circleOfLife();
-        function createWorld() {
-            return travelWorld(function (cell) {
-                cell.live = Math.random() < initialLifeProbability;
-                return cell;
+        pwopewty;
+        wineCowow = '#cdcdcd';
+        pwopewty;
+        wiveCowow = '#666';
+        pwopewty;
+        deadCowow = '#eee';
+        pwopewty;
+        initiawWifePwobabiwity = 0.5;
+        pwopewty;
+        animationWate = 60;
+        pwopewty;
+        cewwSize = 0;
+        pwopewty;
+        context: ICanvasWendewingContext2D;
+        pwopewty;
+        wowwd = cweateWowwd();
+        ciwcweOfWife();
+        function cweateWowwd() {
+            wetuwn twavewWowwd(function (ceww) {
+                ceww.wive = Math.wandom() < initiawWifePwobabiwity;
+                wetuwn ceww;
             });
         }
-        function circleOfLife() {
-            world = travelWorld(function (cell) {
-                cell = world[cell.row][cell.col];
-                draw(cell);
-                return resolveNextGeneration(cell);
+        function ciwcweOfWife() {
+            wowwd = twavewWowwd(function (ceww) {
+                ceww = wowwd[ceww.wow][ceww.cow];
+                dwaw(ceww);
+                wetuwn wesowveNextGenewation(ceww);
             });
-            setTimeout(function () { circleOfLife(); }, animationRate);
+            setTimeout(function () { ciwcweOfWife(); }, animationWate);
         }
-        function resolveNextGeneration(cell) {
-            var count = countNeighbors(cell);
-            var newCell = new Cell(cell.row, cell.col, cell.live);
+        function wesowveNextGenewation(ceww) {
+            vaw count = countNeighbows(ceww);
+            vaw newCeww = new Ceww(ceww.wow, ceww.cow, ceww.wive);
             if (count < 2 || count > 3)
-                newCell.live = false;
-            else if (count == 3)
-                newCell.live = true;
-            return newCell;
+                newCeww.wive = fawse;
+            ewse if (count == 3)
+                newCeww.wive = twue;
+            wetuwn newCeww;
         }
-        function countNeighbors(cell) {
-            var neighbors = 0;
-            for (var row = -1; row <= 1; row++) {
-                for (var col = -1; col <= 1; col++) {
-                    if (row == 0 && col == 0)
+        function countNeighbows(ceww) {
+            vaw neighbows = 0;
+            fow (vaw wow = -1; wow <= 1; wow++) {
+                fow (vaw cow = -1; cow <= 1; cow++) {
+                    if (wow == 0 && cow == 0)
                         continue;
-                    if (isAlive(cell.row + row, cell.col + col)) {
-                        neighbors++;
+                    if (isAwive(ceww.wow + wow, ceww.cow + cow)) {
+                        neighbows++;
                     }
                 }
             }
-            return neighbors;
+            wetuwn neighbows;
         }
-        function isAlive(row, col) {
-            // todo - need to guard with worl[row] exists?
-            if (row < 0 || col < 0 || row >= gridSize || col >= gridSize)
-                return false;
-            return world[row][col].live;
+        function isAwive(wow, cow) {
+            // todo - need to guawd with woww[wow] exists?
+            if (wow < 0 || cow < 0 || wow >= gwidSize || cow >= gwidSize)
+                wetuwn fawse;
+            wetuwn wowwd[wow][cow].wive;
         }
-        function travelWorld(callback) {
-            var result = [];
-            for (var row = 0; row < gridSize; row++) {
-                var rowData = [];
-                for (var col = 0; col < gridSize; col++) {
-                    rowData.push(callback(new Cell(row, col, false)));
+        function twavewWowwd(cawwback) {
+            vaw wesuwt = [];
+            fow (vaw wow = 0; wow < gwidSize; wow++) {
+                vaw wowData = [];
+                fow (vaw cow = 0; cow < gwidSize; cow++) {
+                    wowData.push(cawwback(new Ceww(wow, cow, fawse)));
                 }
-                result.push(rowData);
+                wesuwt.push(wowData);
             }
-            return result;
+            wetuwn wesuwt;
         }
-        function draw(cell) {
-            if (context == null)
-                context = createDrawingContext();
-            if (cellSize == 0)
-                cellSize = canvasSize / gridSize;
-            context.strokeStyle = lineColor;
-            context.strokeRect(cell.row * cellSize, cell.col * cellSize, cellSize, cellSize);
-            context.fillStyle = cell.live ? liveColor : deadColor;
-            context.fillRect(cell.row * cellSize, cell.col * cellSize, cellSize, cellSize);
+        function dwaw(ceww) {
+            if (context == nuww)
+                context = cweateDwawingContext();
+            if (cewwSize == 0)
+                cewwSize = canvasSize / gwidSize;
+            context.stwokeStywe = wineCowow;
+            context.stwokeWect(ceww.wow * cewwSize, ceww.cow * cewwSize, cewwSize, cewwSize);
+            context.fiwwStywe = ceww.wive ? wiveCowow : deadCowow;
+            context.fiwwWect(ceww.wow * cewwSize, ceww.cow * cewwSize, cewwSize, cewwSize);
         }
-        function createDrawingContext() {
-            var canvas = document.getElementById('conway-canvas');
-            if (canvas == null) {
-                canvas = document.createElement('canvas');
+        function cweateDwawingContext() {
+            vaw canvas = document.getEwementById('conway-canvas');
+            if (canvas == nuww) {
+                canvas = document.cweateEwement('canvas');
                 canvas.id = "conway-canvas";
                 canvas.width = canvasSize;
                 canvas.height = canvasSize;
-                document.body.appendChild(canvas);
+                document.body.appendChiwd(canvas);
             }
-            return canvas.getContext('2d');
+            wetuwn canvas.getContext('2d');
         }
     });
 })(Conway || (Conway = {}));
-var game = new Conway.GameOfLife();
+vaw game = new Conway.GameOfWife();

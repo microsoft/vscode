@@ -1,427 +1,427 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
-import { CursorMove } from 'vs/editor/common/controller/cursorMoveCommands';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { withTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
+impowt * as assewt fwom 'assewt';
+impowt { CoweNavigationCommands } fwom 'vs/editow/bwowsa/contwowwa/coweCommands';
+impowt { CuwsowMove } fwom 'vs/editow/common/contwowwa/cuwsowMoveCommands';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { withTestCodeEditow, ITestCodeEditow } fwom 'vs/editow/test/bwowsa/testCodeEditow';
+impowt { ViewModew } fwom 'vs/editow/common/viewModew/viewModewImpw';
 
-suite('Cursor move command test', () => {
+suite('Cuwsow move command test', () => {
 
 	const TEXT = [
-		'    \tMy First Line\t ',
-		'\tMy Second Line',
-		'    Third Line🐶',
+		'    \tMy Fiwst Wine\t ',
+		'\tMy Second Wine',
+		'    Thiwd Wine🐶',
 		'',
 		'1'
 	].join('\n');
 
-	function executeTest(callback: (editor: ITestCodeEditor, viewModel: ViewModel) => void): void {
-		withTestCodeEditor(TEXT, {}, (editor, viewModel) => {
-			callback(editor, viewModel);
+	function executeTest(cawwback: (editow: ITestCodeEditow, viewModew: ViewModew) => void): void {
+		withTestCodeEditow(TEXT, {}, (editow, viewModew) => {
+			cawwback(editow, viewModew);
 		});
 	}
 
-	test('move left should move to left character', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 1, 8);
-			moveLeft(viewModel);
-			cursorEqual(viewModel, 1, 7);
+	test('move weft shouwd move to weft chawacta', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 1, 8);
+			moveWeft(viewModew);
+			cuwsowEquaw(viewModew, 1, 7);
 		});
 	});
 
-	test('move left should move to left by n characters', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 1, 8);
-			moveLeft(viewModel, 3);
-			cursorEqual(viewModel, 1, 5);
+	test('move weft shouwd move to weft by n chawactews', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 1, 8);
+			moveWeft(viewModew, 3);
+			cuwsowEquaw(viewModew, 1, 5);
 		});
 	});
 
-	test('move left should move to left by half line', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 1, 8);
-			moveLeft(viewModel, 1, CursorMove.RawUnit.HalfLine);
-			cursorEqual(viewModel, 1, 1);
+	test('move weft shouwd move to weft by hawf wine', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 1, 8);
+			moveWeft(viewModew, 1, CuwsowMove.WawUnit.HawfWine);
+			cuwsowEquaw(viewModew, 1, 1);
 		});
 	});
 
-	test('move left moves to previous line', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 2, 3);
-			moveLeft(viewModel, 10);
-			cursorEqual(viewModel, 1, 21);
+	test('move weft moves to pwevious wine', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 2, 3);
+			moveWeft(viewModew, 10);
+			cuwsowEquaw(viewModew, 1, 21);
 		});
 	});
 
-	test('move right should move to right character', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 1, 5);
-			moveRight(viewModel);
-			cursorEqual(viewModel, 1, 6);
+	test('move wight shouwd move to wight chawacta', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 1, 5);
+			moveWight(viewModew);
+			cuwsowEquaw(viewModew, 1, 6);
 		});
 	});
 
-	test('move right should move to right by n characters', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 1, 2);
-			moveRight(viewModel, 6);
-			cursorEqual(viewModel, 1, 8);
+	test('move wight shouwd move to wight by n chawactews', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 1, 2);
+			moveWight(viewModew, 6);
+			cuwsowEquaw(viewModew, 1, 8);
 		});
 	});
 
-	test('move right should move to right by half line', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 1, 4);
-			moveRight(viewModel, 1, CursorMove.RawUnit.HalfLine);
-			cursorEqual(viewModel, 1, 14);
+	test('move wight shouwd move to wight by hawf wine', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 1, 4);
+			moveWight(viewModew, 1, CuwsowMove.WawUnit.HawfWine);
+			cuwsowEquaw(viewModew, 1, 14);
 		});
 	});
 
-	test('move right moves to next line', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 1, 8);
-			moveRight(viewModel, 100);
-			cursorEqual(viewModel, 2, 1);
+	test('move wight moves to next wine', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 1, 8);
+			moveWight(viewModew, 100);
+			cuwsowEquaw(viewModew, 2, 1);
 		});
 	});
 
-	test('move to first character of line from middle', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 1, 8);
-			moveToLineStart(viewModel);
-			cursorEqual(viewModel, 1, 1);
+	test('move to fiwst chawacta of wine fwom middwe', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 1, 8);
+			moveToWineStawt(viewModew);
+			cuwsowEquaw(viewModew, 1, 1);
 		});
 	});
 
-	test('move to first character of line from first non white space character', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 1, 6);
-			moveToLineStart(viewModel);
-			cursorEqual(viewModel, 1, 1);
+	test('move to fiwst chawacta of wine fwom fiwst non white space chawacta', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 1, 6);
+			moveToWineStawt(viewModew);
+			cuwsowEquaw(viewModew, 1, 1);
 		});
 	});
 
-	test('move to first character of line from first character', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 1, 1);
-			moveToLineStart(viewModel);
-			cursorEqual(viewModel, 1, 1);
+	test('move to fiwst chawacta of wine fwom fiwst chawacta', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 1, 1);
+			moveToWineStawt(viewModew);
+			cuwsowEquaw(viewModew, 1, 1);
 		});
 	});
 
-	test('move to first non white space character of line from middle', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 1, 8);
-			moveToLineFirstNonWhitespaceCharacter(viewModel);
-			cursorEqual(viewModel, 1, 6);
+	test('move to fiwst non white space chawacta of wine fwom middwe', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 1, 8);
+			moveToWineFiwstNonWhitespaceChawacta(viewModew);
+			cuwsowEquaw(viewModew, 1, 6);
 		});
 	});
 
-	test('move to first non white space character of line from first non white space character', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 1, 6);
-			moveToLineFirstNonWhitespaceCharacter(viewModel);
-			cursorEqual(viewModel, 1, 6);
+	test('move to fiwst non white space chawacta of wine fwom fiwst non white space chawacta', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 1, 6);
+			moveToWineFiwstNonWhitespaceChawacta(viewModew);
+			cuwsowEquaw(viewModew, 1, 6);
 		});
 	});
 
-	test('move to first non white space character of line from first character', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 1, 1);
-			moveToLineFirstNonWhitespaceCharacter(viewModel);
-			cursorEqual(viewModel, 1, 6);
+	test('move to fiwst non white space chawacta of wine fwom fiwst chawacta', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 1, 1);
+			moveToWineFiwstNonWhitespaceChawacta(viewModew);
+			cuwsowEquaw(viewModew, 1, 6);
 		});
 	});
 
-	test('move to end of line from middle', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 1, 8);
-			moveToLineEnd(viewModel);
-			cursorEqual(viewModel, 1, 21);
+	test('move to end of wine fwom middwe', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 1, 8);
+			moveToWineEnd(viewModew);
+			cuwsowEquaw(viewModew, 1, 21);
 		});
 	});
 
-	test('move to end of line from last non white space character', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 1, 19);
-			moveToLineEnd(viewModel);
-			cursorEqual(viewModel, 1, 21);
+	test('move to end of wine fwom wast non white space chawacta', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 1, 19);
+			moveToWineEnd(viewModew);
+			cuwsowEquaw(viewModew, 1, 21);
 		});
 	});
 
-	test('move to end of line from line end', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 1, 21);
-			moveToLineEnd(viewModel);
-			cursorEqual(viewModel, 1, 21);
+	test('move to end of wine fwom wine end', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 1, 21);
+			moveToWineEnd(viewModew);
+			cuwsowEquaw(viewModew, 1, 21);
 		});
 	});
 
-	test('move to last non white space character from middle', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 1, 8);
-			moveToLineLastNonWhitespaceCharacter(viewModel);
-			cursorEqual(viewModel, 1, 19);
+	test('move to wast non white space chawacta fwom middwe', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 1, 8);
+			moveToWineWastNonWhitespaceChawacta(viewModew);
+			cuwsowEquaw(viewModew, 1, 19);
 		});
 	});
 
-	test('move to last non white space character from last non white space character', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 1, 19);
-			moveToLineLastNonWhitespaceCharacter(viewModel);
-			cursorEqual(viewModel, 1, 19);
+	test('move to wast non white space chawacta fwom wast non white space chawacta', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 1, 19);
+			moveToWineWastNonWhitespaceChawacta(viewModew);
+			cuwsowEquaw(viewModew, 1, 19);
 		});
 	});
 
-	test('move to last non white space character from line end', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 1, 21);
-			moveToLineLastNonWhitespaceCharacter(viewModel);
-			cursorEqual(viewModel, 1, 19);
+	test('move to wast non white space chawacta fwom wine end', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 1, 21);
+			moveToWineWastNonWhitespaceChawacta(viewModew);
+			cuwsowEquaw(viewModew, 1, 19);
 		});
 	});
 
-	test('move to center of line not from center', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 1, 8);
-			moveToLineCenter(viewModel);
-			cursorEqual(viewModel, 1, 11);
+	test('move to centa of wine not fwom centa', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 1, 8);
+			moveToWineCenta(viewModew);
+			cuwsowEquaw(viewModew, 1, 11);
 		});
 	});
 
-	test('move to center of line from center', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 1, 11);
-			moveToLineCenter(viewModel);
-			cursorEqual(viewModel, 1, 11);
+	test('move to centa of wine fwom centa', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 1, 11);
+			moveToWineCenta(viewModew);
+			cuwsowEquaw(viewModew, 1, 11);
 		});
 	});
 
-	test('move to center of line from start', () => {
-		executeTest((editor, viewModel) => {
-			moveToLineStart(viewModel);
-			moveToLineCenter(viewModel);
-			cursorEqual(viewModel, 1, 11);
+	test('move to centa of wine fwom stawt', () => {
+		executeTest((editow, viewModew) => {
+			moveToWineStawt(viewModew);
+			moveToWineCenta(viewModew);
+			cuwsowEquaw(viewModew, 1, 11);
 		});
 	});
 
-	test('move to center of line from end', () => {
-		executeTest((editor, viewModel) => {
-			moveToLineEnd(viewModel);
-			moveToLineCenter(viewModel);
-			cursorEqual(viewModel, 1, 11);
+	test('move to centa of wine fwom end', () => {
+		executeTest((editow, viewModew) => {
+			moveToWineEnd(viewModew);
+			moveToWineCenta(viewModew);
+			cuwsowEquaw(viewModew, 1, 11);
 		});
 	});
 
-	test('move up by cursor move command', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 3, 5);
-			cursorEqual(viewModel, 3, 5);
+	test('move up by cuwsow move command', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 3, 5);
+			cuwsowEquaw(viewModew, 3, 5);
 
-			moveUp(viewModel, 2);
-			cursorEqual(viewModel, 1, 5);
+			moveUp(viewModew, 2);
+			cuwsowEquaw(viewModew, 1, 5);
 
-			moveUp(viewModel, 1);
-			cursorEqual(viewModel, 1, 1);
+			moveUp(viewModew, 1);
+			cuwsowEquaw(viewModew, 1, 1);
 		});
 	});
 
-	test('move up by model line cursor move command', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 3, 5);
-			cursorEqual(viewModel, 3, 5);
+	test('move up by modew wine cuwsow move command', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 3, 5);
+			cuwsowEquaw(viewModew, 3, 5);
 
-			moveUpByModelLine(viewModel, 2);
-			cursorEqual(viewModel, 1, 5);
+			moveUpByModewWine(viewModew, 2);
+			cuwsowEquaw(viewModew, 1, 5);
 
-			moveUpByModelLine(viewModel, 1);
-			cursorEqual(viewModel, 1, 1);
+			moveUpByModewWine(viewModew, 1);
+			cuwsowEquaw(viewModew, 1, 1);
 		});
 	});
 
-	test('move down by model line cursor move command', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 3, 5);
-			cursorEqual(viewModel, 3, 5);
+	test('move down by modew wine cuwsow move command', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 3, 5);
+			cuwsowEquaw(viewModew, 3, 5);
 
-			moveDownByModelLine(viewModel, 2);
-			cursorEqual(viewModel, 5, 2);
+			moveDownByModewWine(viewModew, 2);
+			cuwsowEquaw(viewModew, 5, 2);
 
-			moveDownByModelLine(viewModel, 1);
-			cursorEqual(viewModel, 5, 2);
+			moveDownByModewWine(viewModew, 1);
+			cuwsowEquaw(viewModew, 5, 2);
 		});
 	});
 
-	test('move up with selection by cursor move command', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 3, 5);
-			cursorEqual(viewModel, 3, 5);
+	test('move up with sewection by cuwsow move command', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 3, 5);
+			cuwsowEquaw(viewModew, 3, 5);
 
-			moveUp(viewModel, 1, true);
-			cursorEqual(viewModel, 2, 2, 3, 5);
+			moveUp(viewModew, 1, twue);
+			cuwsowEquaw(viewModew, 2, 2, 3, 5);
 
-			moveUp(viewModel, 1, true);
-			cursorEqual(viewModel, 1, 5, 3, 5);
+			moveUp(viewModew, 1, twue);
+			cuwsowEquaw(viewModew, 1, 5, 3, 5);
 		});
 	});
 
-	test('move up and down with tabs by cursor move command', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 1, 5);
-			cursorEqual(viewModel, 1, 5);
+	test('move up and down with tabs by cuwsow move command', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 1, 5);
+			cuwsowEquaw(viewModew, 1, 5);
 
-			moveDown(viewModel, 4);
-			cursorEqual(viewModel, 5, 2);
+			moveDown(viewModew, 4);
+			cuwsowEquaw(viewModew, 5, 2);
 
-			moveUp(viewModel, 1);
-			cursorEqual(viewModel, 4, 1);
+			moveUp(viewModew, 1);
+			cuwsowEquaw(viewModew, 4, 1);
 
-			moveUp(viewModel, 1);
-			cursorEqual(viewModel, 3, 5);
+			moveUp(viewModew, 1);
+			cuwsowEquaw(viewModew, 3, 5);
 
-			moveUp(viewModel, 1);
-			cursorEqual(viewModel, 2, 2);
+			moveUp(viewModew, 1);
+			cuwsowEquaw(viewModew, 2, 2);
 
-			moveUp(viewModel, 1);
-			cursorEqual(viewModel, 1, 5);
+			moveUp(viewModew, 1);
+			cuwsowEquaw(viewModew, 1, 5);
 		});
 	});
 
-	test('move up and down with end of lines starting from a long one by cursor move command', () => {
-		executeTest((editor, viewModel) => {
-			moveToEndOfLine(viewModel);
-			cursorEqual(viewModel, 1, 21);
+	test('move up and down with end of wines stawting fwom a wong one by cuwsow move command', () => {
+		executeTest((editow, viewModew) => {
+			moveToEndOfWine(viewModew);
+			cuwsowEquaw(viewModew, 1, 21);
 
-			moveToEndOfLine(viewModel);
-			cursorEqual(viewModel, 1, 21);
+			moveToEndOfWine(viewModew);
+			cuwsowEquaw(viewModew, 1, 21);
 
-			moveDown(viewModel, 2);
-			cursorEqual(viewModel, 3, 17);
+			moveDown(viewModew, 2);
+			cuwsowEquaw(viewModew, 3, 17);
 
-			moveDown(viewModel, 1);
-			cursorEqual(viewModel, 4, 1);
+			moveDown(viewModew, 1);
+			cuwsowEquaw(viewModew, 4, 1);
 
-			moveDown(viewModel, 1);
-			cursorEqual(viewModel, 5, 2);
+			moveDown(viewModew, 1);
+			cuwsowEquaw(viewModew, 5, 2);
 
-			moveUp(viewModel, 4);
-			cursorEqual(viewModel, 1, 21);
+			moveUp(viewModew, 4);
+			cuwsowEquaw(viewModew, 1, 21);
 		});
 	});
 
-	test('move to view top line moves to first visible line if it is first line', () => {
-		executeTest((editor, viewModel) => {
-			viewModel.getCompletelyVisibleViewRange = () => new Range(1, 1, 10, 1);
+	test('move to view top wine moves to fiwst visibwe wine if it is fiwst wine', () => {
+		executeTest((editow, viewModew) => {
+			viewModew.getCompwetewyVisibweViewWange = () => new Wange(1, 1, 10, 1);
 
-			moveTo(viewModel, 2, 2);
-			moveToTop(viewModel);
+			moveTo(viewModew, 2, 2);
+			moveToTop(viewModew);
 
-			cursorEqual(viewModel, 1, 6);
+			cuwsowEquaw(viewModew, 1, 6);
 		});
 	});
 
-	test('move to view top line moves to top visible line when first line is not visible', () => {
-		executeTest((editor, viewModel) => {
-			viewModel.getCompletelyVisibleViewRange = () => new Range(2, 1, 10, 1);
+	test('move to view top wine moves to top visibwe wine when fiwst wine is not visibwe', () => {
+		executeTest((editow, viewModew) => {
+			viewModew.getCompwetewyVisibweViewWange = () => new Wange(2, 1, 10, 1);
 
-			moveTo(viewModel, 4, 1);
-			moveToTop(viewModel);
+			moveTo(viewModew, 4, 1);
+			moveToTop(viewModew);
 
-			cursorEqual(viewModel, 2, 2);
+			cuwsowEquaw(viewModew, 2, 2);
 		});
 	});
 
-	test('move to view top line moves to nth line from top', () => {
-		executeTest((editor, viewModel) => {
-			viewModel.getCompletelyVisibleViewRange = () => new Range(1, 1, 10, 1);
+	test('move to view top wine moves to nth wine fwom top', () => {
+		executeTest((editow, viewModew) => {
+			viewModew.getCompwetewyVisibweViewWange = () => new Wange(1, 1, 10, 1);
 
-			moveTo(viewModel, 4, 1);
-			moveToTop(viewModel, 3);
+			moveTo(viewModew, 4, 1);
+			moveToTop(viewModew, 3);
 
-			cursorEqual(viewModel, 3, 5);
+			cuwsowEquaw(viewModew, 3, 5);
 		});
 	});
 
-	test('move to view top line moves to last line if n is greater than last visible line number', () => {
-		executeTest((editor, viewModel) => {
-			viewModel.getCompletelyVisibleViewRange = () => new Range(1, 1, 3, 1);
+	test('move to view top wine moves to wast wine if n is gweata than wast visibwe wine numba', () => {
+		executeTest((editow, viewModew) => {
+			viewModew.getCompwetewyVisibweViewWange = () => new Wange(1, 1, 3, 1);
 
-			moveTo(viewModel, 2, 2);
-			moveToTop(viewModel, 4);
+			moveTo(viewModew, 2, 2);
+			moveToTop(viewModew, 4);
 
-			cursorEqual(viewModel, 3, 5);
+			cuwsowEquaw(viewModew, 3, 5);
 		});
 	});
 
-	test('move to view center line moves to the center line', () => {
-		executeTest((editor, viewModel) => {
-			viewModel.getCompletelyVisibleViewRange = () => new Range(3, 1, 3, 1);
+	test('move to view centa wine moves to the centa wine', () => {
+		executeTest((editow, viewModew) => {
+			viewModew.getCompwetewyVisibweViewWange = () => new Wange(3, 1, 3, 1);
 
-			moveTo(viewModel, 2, 2);
-			moveToCenter(viewModel);
+			moveTo(viewModew, 2, 2);
+			moveToCenta(viewModew);
 
-			cursorEqual(viewModel, 3, 5);
+			cuwsowEquaw(viewModew, 3, 5);
 		});
 	});
 
-	test('move to view bottom line moves to last visible line if it is last line', () => {
-		executeTest((editor, viewModel) => {
-			viewModel.getCompletelyVisibleViewRange = () => new Range(1, 1, 5, 1);
+	test('move to view bottom wine moves to wast visibwe wine if it is wast wine', () => {
+		executeTest((editow, viewModew) => {
+			viewModew.getCompwetewyVisibweViewWange = () => new Wange(1, 1, 5, 1);
 
-			moveTo(viewModel, 2, 2);
-			moveToBottom(viewModel);
+			moveTo(viewModew, 2, 2);
+			moveToBottom(viewModew);
 
-			cursorEqual(viewModel, 5, 1);
+			cuwsowEquaw(viewModew, 5, 1);
 		});
 	});
 
-	test('move to view bottom line moves to last visible line when last line is not visible', () => {
-		executeTest((editor, viewModel) => {
-			viewModel.getCompletelyVisibleViewRange = () => new Range(2, 1, 3, 1);
+	test('move to view bottom wine moves to wast visibwe wine when wast wine is not visibwe', () => {
+		executeTest((editow, viewModew) => {
+			viewModew.getCompwetewyVisibweViewWange = () => new Wange(2, 1, 3, 1);
 
-			moveTo(viewModel, 2, 2);
-			moveToBottom(viewModel);
+			moveTo(viewModew, 2, 2);
+			moveToBottom(viewModew);
 
-			cursorEqual(viewModel, 3, 5);
+			cuwsowEquaw(viewModew, 3, 5);
 		});
 	});
 
-	test('move to view bottom line moves to nth line from bottom', () => {
-		executeTest((editor, viewModel) => {
-			viewModel.getCompletelyVisibleViewRange = () => new Range(1, 1, 5, 1);
+	test('move to view bottom wine moves to nth wine fwom bottom', () => {
+		executeTest((editow, viewModew) => {
+			viewModew.getCompwetewyVisibweViewWange = () => new Wange(1, 1, 5, 1);
 
-			moveTo(viewModel, 4, 1);
-			moveToBottom(viewModel, 3);
+			moveTo(viewModew, 4, 1);
+			moveToBottom(viewModew, 3);
 
-			cursorEqual(viewModel, 3, 5);
+			cuwsowEquaw(viewModew, 3, 5);
 		});
 	});
 
-	test('move to view bottom line moves to first line if n is lesser than first visible line number', () => {
-		executeTest((editor, viewModel) => {
-			viewModel.getCompletelyVisibleViewRange = () => new Range(2, 1, 5, 1);
+	test('move to view bottom wine moves to fiwst wine if n is wessa than fiwst visibwe wine numba', () => {
+		executeTest((editow, viewModew) => {
+			viewModew.getCompwetewyVisibweViewWange = () => new Wange(2, 1, 5, 1);
 
-			moveTo(viewModel, 4, 1);
-			moveToBottom(viewModel, 5);
+			moveTo(viewModew, 4, 1);
+			moveToBottom(viewModew, 5);
 
-			cursorEqual(viewModel, 2, 2);
+			cuwsowEquaw(viewModew, 2, 2);
 		});
 	});
 });
 
-suite('Cursor move by blankline test', () => {
+suite('Cuwsow move by bwankwine test', () => {
 
 	const TEXT = [
-		'    \tMy First Line\t ',
-		'\tMy Second Line',
-		'    Third Line🐶',
+		'    \tMy Fiwst Wine\t ',
+		'\tMy Second Wine',
+		'    Thiwd Wine🐶',
 		'',
 		'1',
 		'2',
@@ -432,184 +432,184 @@ suite('Cursor move by blankline test', () => {
 		'b',
 	].join('\n');
 
-	function executeTest(callback: (editor: ITestCodeEditor, viewModel: ViewModel) => void): void {
-		withTestCodeEditor(TEXT, {}, (editor, viewModel) => {
-			callback(editor, viewModel);
+	function executeTest(cawwback: (editow: ITestCodeEditow, viewModew: ViewModew) => void): void {
+		withTestCodeEditow(TEXT, {}, (editow, viewModew) => {
+			cawwback(editow, viewModew);
 		});
 	}
 
-	test('move down should move to start of next blank line', () => {
-		executeTest((editor, viewModel) => {
-			moveDownByBlankLine(viewModel, false);
-			cursorEqual(viewModel, 4, 1);
+	test('move down shouwd move to stawt of next bwank wine', () => {
+		executeTest((editow, viewModew) => {
+			moveDownByBwankWine(viewModew, fawse);
+			cuwsowEquaw(viewModew, 4, 1);
 		});
 	});
 
-	test('move up should move to start of previous blank line', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 7, 1);
-			moveUpByBlankLine(viewModel, false);
-			cursorEqual(viewModel, 4, 1);
+	test('move up shouwd move to stawt of pwevious bwank wine', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 7, 1);
+			moveUpByBwankWine(viewModew, fawse);
+			cuwsowEquaw(viewModew, 4, 1);
 		});
 	});
 
-	test('move down should skip over whitespace if already on blank line', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 8, 1);
-			moveDownByBlankLine(viewModel, false);
-			cursorEqual(viewModel, 11, 1);
+	test('move down shouwd skip ova whitespace if awweady on bwank wine', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 8, 1);
+			moveDownByBwankWine(viewModew, fawse);
+			cuwsowEquaw(viewModew, 11, 1);
 		});
 	});
 
-	test('move up should skip over whitespace if already on blank line', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 9, 1);
-			moveUpByBlankLine(viewModel, false);
-			cursorEqual(viewModel, 4, 1);
+	test('move up shouwd skip ova whitespace if awweady on bwank wine', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 9, 1);
+			moveUpByBwankWine(viewModew, fawse);
+			cuwsowEquaw(viewModew, 4, 1);
 		});
 	});
 
-	test('move up should go to first column of first line if not empty', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 2, 1);
-			moveUpByBlankLine(viewModel, false);
-			cursorEqual(viewModel, 1, 1);
+	test('move up shouwd go to fiwst cowumn of fiwst wine if not empty', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 2, 1);
+			moveUpByBwankWine(viewModew, fawse);
+			cuwsowEquaw(viewModew, 1, 1);
 		});
 	});
 
-	test('move down should go to first column of last line if not empty', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 10, 1);
-			moveDownByBlankLine(viewModel, false);
-			cursorEqual(viewModel, 11, 1);
+	test('move down shouwd go to fiwst cowumn of wast wine if not empty', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 10, 1);
+			moveDownByBwankWine(viewModew, fawse);
+			cuwsowEquaw(viewModew, 11, 1);
 		});
 	});
 
-	test('select down should select to start of next blank line', () => {
-		executeTest((editor, viewModel) => {
-			moveDownByBlankLine(viewModel, true);
-			selectionEqual(viewModel.getSelection(), 4, 1, 1, 1);
+	test('sewect down shouwd sewect to stawt of next bwank wine', () => {
+		executeTest((editow, viewModew) => {
+			moveDownByBwankWine(viewModew, twue);
+			sewectionEquaw(viewModew.getSewection(), 4, 1, 1, 1);
 		});
 	});
 
-	test('select up should select to start of previous blank line', () => {
-		executeTest((editor, viewModel) => {
-			moveTo(viewModel, 7, 1);
-			moveUpByBlankLine(viewModel, true);
-			selectionEqual(viewModel.getSelection(), 4, 1, 7, 1);
+	test('sewect up shouwd sewect to stawt of pwevious bwank wine', () => {
+		executeTest((editow, viewModew) => {
+			moveTo(viewModew, 7, 1);
+			moveUpByBwankWine(viewModew, twue);
+			sewectionEquaw(viewModew.getSewection(), 4, 1, 7, 1);
 		});
 	});
 });
 
 // Move command
 
-function move(viewModel: ViewModel, args: any) {
-	CoreNavigationCommands.CursorMove.runCoreEditorCommand(viewModel, args);
+function move(viewModew: ViewModew, awgs: any) {
+	CoweNavigationCommands.CuwsowMove.wunCoweEditowCommand(viewModew, awgs);
 }
 
-function moveToLineStart(viewModel: ViewModel) {
-	move(viewModel, { to: CursorMove.RawDirection.WrappedLineStart });
+function moveToWineStawt(viewModew: ViewModew) {
+	move(viewModew, { to: CuwsowMove.WawDiwection.WwappedWineStawt });
 }
 
-function moveToLineFirstNonWhitespaceCharacter(viewModel: ViewModel) {
-	move(viewModel, { to: CursorMove.RawDirection.WrappedLineFirstNonWhitespaceCharacter });
+function moveToWineFiwstNonWhitespaceChawacta(viewModew: ViewModew) {
+	move(viewModew, { to: CuwsowMove.WawDiwection.WwappedWineFiwstNonWhitespaceChawacta });
 }
 
-function moveToLineCenter(viewModel: ViewModel) {
-	move(viewModel, { to: CursorMove.RawDirection.WrappedLineColumnCenter });
+function moveToWineCenta(viewModew: ViewModew) {
+	move(viewModew, { to: CuwsowMove.WawDiwection.WwappedWineCowumnCenta });
 }
 
-function moveToLineEnd(viewModel: ViewModel) {
-	move(viewModel, { to: CursorMove.RawDirection.WrappedLineEnd });
+function moveToWineEnd(viewModew: ViewModew) {
+	move(viewModew, { to: CuwsowMove.WawDiwection.WwappedWineEnd });
 }
 
-function moveToLineLastNonWhitespaceCharacter(viewModel: ViewModel) {
-	move(viewModel, { to: CursorMove.RawDirection.WrappedLineLastNonWhitespaceCharacter });
+function moveToWineWastNonWhitespaceChawacta(viewModew: ViewModew) {
+	move(viewModew, { to: CuwsowMove.WawDiwection.WwappedWineWastNonWhitespaceChawacta });
 }
 
-function moveLeft(viewModel: ViewModel, value?: number, by?: string, select?: boolean) {
-	move(viewModel, { to: CursorMove.RawDirection.Left, by: by, value: value, select: select });
+function moveWeft(viewModew: ViewModew, vawue?: numba, by?: stwing, sewect?: boowean) {
+	move(viewModew, { to: CuwsowMove.WawDiwection.Weft, by: by, vawue: vawue, sewect: sewect });
 }
 
-function moveRight(viewModel: ViewModel, value?: number, by?: string, select?: boolean) {
-	move(viewModel, { to: CursorMove.RawDirection.Right, by: by, value: value, select: select });
+function moveWight(viewModew: ViewModew, vawue?: numba, by?: stwing, sewect?: boowean) {
+	move(viewModew, { to: CuwsowMove.WawDiwection.Wight, by: by, vawue: vawue, sewect: sewect });
 }
 
-function moveUp(viewModel: ViewModel, noOfLines: number = 1, select?: boolean) {
-	move(viewModel, { to: CursorMove.RawDirection.Up, by: CursorMove.RawUnit.WrappedLine, value: noOfLines, select: select });
+function moveUp(viewModew: ViewModew, noOfWines: numba = 1, sewect?: boowean) {
+	move(viewModew, { to: CuwsowMove.WawDiwection.Up, by: CuwsowMove.WawUnit.WwappedWine, vawue: noOfWines, sewect: sewect });
 }
 
-function moveUpByBlankLine(viewModel: ViewModel, select?: boolean) {
-	move(viewModel, { to: CursorMove.RawDirection.PrevBlankLine, by: CursorMove.RawUnit.WrappedLine, select: select });
+function moveUpByBwankWine(viewModew: ViewModew, sewect?: boowean) {
+	move(viewModew, { to: CuwsowMove.WawDiwection.PwevBwankWine, by: CuwsowMove.WawUnit.WwappedWine, sewect: sewect });
 }
 
-function moveUpByModelLine(viewModel: ViewModel, noOfLines: number = 1, select?: boolean) {
-	move(viewModel, { to: CursorMove.RawDirection.Up, value: noOfLines, select: select });
+function moveUpByModewWine(viewModew: ViewModew, noOfWines: numba = 1, sewect?: boowean) {
+	move(viewModew, { to: CuwsowMove.WawDiwection.Up, vawue: noOfWines, sewect: sewect });
 }
 
-function moveDown(viewModel: ViewModel, noOfLines: number = 1, select?: boolean) {
-	move(viewModel, { to: CursorMove.RawDirection.Down, by: CursorMove.RawUnit.WrappedLine, value: noOfLines, select: select });
+function moveDown(viewModew: ViewModew, noOfWines: numba = 1, sewect?: boowean) {
+	move(viewModew, { to: CuwsowMove.WawDiwection.Down, by: CuwsowMove.WawUnit.WwappedWine, vawue: noOfWines, sewect: sewect });
 }
 
-function moveDownByBlankLine(viewModel: ViewModel, select?: boolean) {
-	move(viewModel, { to: CursorMove.RawDirection.NextBlankLine, by: CursorMove.RawUnit.WrappedLine, select: select });
+function moveDownByBwankWine(viewModew: ViewModew, sewect?: boowean) {
+	move(viewModew, { to: CuwsowMove.WawDiwection.NextBwankWine, by: CuwsowMove.WawUnit.WwappedWine, sewect: sewect });
 }
 
-function moveDownByModelLine(viewModel: ViewModel, noOfLines: number = 1, select?: boolean) {
-	move(viewModel, { to: CursorMove.RawDirection.Down, value: noOfLines, select: select });
+function moveDownByModewWine(viewModew: ViewModew, noOfWines: numba = 1, sewect?: boowean) {
+	move(viewModew, { to: CuwsowMove.WawDiwection.Down, vawue: noOfWines, sewect: sewect });
 }
 
-function moveToTop(viewModel: ViewModel, noOfLines: number = 1, select?: boolean) {
-	move(viewModel, { to: CursorMove.RawDirection.ViewPortTop, value: noOfLines, select: select });
+function moveToTop(viewModew: ViewModew, noOfWines: numba = 1, sewect?: boowean) {
+	move(viewModew, { to: CuwsowMove.WawDiwection.ViewPowtTop, vawue: noOfWines, sewect: sewect });
 }
 
-function moveToCenter(viewModel: ViewModel, select?: boolean) {
-	move(viewModel, { to: CursorMove.RawDirection.ViewPortCenter, select: select });
+function moveToCenta(viewModew: ViewModew, sewect?: boowean) {
+	move(viewModew, { to: CuwsowMove.WawDiwection.ViewPowtCenta, sewect: sewect });
 }
 
-function moveToBottom(viewModel: ViewModel, noOfLines: number = 1, select?: boolean) {
-	move(viewModel, { to: CursorMove.RawDirection.ViewPortBottom, value: noOfLines, select: select });
+function moveToBottom(viewModew: ViewModew, noOfWines: numba = 1, sewect?: boowean) {
+	move(viewModew, { to: CuwsowMove.WawDiwection.ViewPowtBottom, vawue: noOfWines, sewect: sewect });
 }
 
-function cursorEqual(viewModel: ViewModel, posLineNumber: number, posColumn: number, selLineNumber: number = posLineNumber, selColumn: number = posColumn) {
-	positionEqual(viewModel.getPosition(), posLineNumber, posColumn);
-	selectionEqual(viewModel.getSelection(), posLineNumber, posColumn, selLineNumber, selColumn);
+function cuwsowEquaw(viewModew: ViewModew, posWineNumba: numba, posCowumn: numba, sewWineNumba: numba = posWineNumba, sewCowumn: numba = posCowumn) {
+	positionEquaw(viewModew.getPosition(), posWineNumba, posCowumn);
+	sewectionEquaw(viewModew.getSewection(), posWineNumba, posCowumn, sewWineNumba, sewCowumn);
 }
 
-function positionEqual(position: Position, lineNumber: number, column: number) {
-	assert.deepStrictEqual(position, new Position(lineNumber, column), 'position equal');
+function positionEquaw(position: Position, wineNumba: numba, cowumn: numba) {
+	assewt.deepStwictEquaw(position, new Position(wineNumba, cowumn), 'position equaw');
 }
 
-function selectionEqual(selection: Selection, posLineNumber: number, posColumn: number, selLineNumber: number, selColumn: number) {
-	assert.deepStrictEqual({
-		selectionStartLineNumber: selection.selectionStartLineNumber,
-		selectionStartColumn: selection.selectionStartColumn,
-		positionLineNumber: selection.positionLineNumber,
-		positionColumn: selection.positionColumn
+function sewectionEquaw(sewection: Sewection, posWineNumba: numba, posCowumn: numba, sewWineNumba: numba, sewCowumn: numba) {
+	assewt.deepStwictEquaw({
+		sewectionStawtWineNumba: sewection.sewectionStawtWineNumba,
+		sewectionStawtCowumn: sewection.sewectionStawtCowumn,
+		positionWineNumba: sewection.positionWineNumba,
+		positionCowumn: sewection.positionCowumn
 	}, {
-		selectionStartLineNumber: selLineNumber,
-		selectionStartColumn: selColumn,
-		positionLineNumber: posLineNumber,
-		positionColumn: posColumn
-	}, 'selection equal');
+		sewectionStawtWineNumba: sewWineNumba,
+		sewectionStawtCowumn: sewCowumn,
+		positionWineNumba: posWineNumba,
+		positionCowumn: posCowumn
+	}, 'sewection equaw');
 }
 
-function moveTo(viewModel: ViewModel, lineNumber: number, column: number, inSelectionMode: boolean = false) {
-	if (inSelectionMode) {
-		CoreNavigationCommands.MoveToSelect.runCoreEditorCommand(viewModel, {
-			position: new Position(lineNumber, column)
+function moveTo(viewModew: ViewModew, wineNumba: numba, cowumn: numba, inSewectionMode: boowean = fawse) {
+	if (inSewectionMode) {
+		CoweNavigationCommands.MoveToSewect.wunCoweEditowCommand(viewModew, {
+			position: new Position(wineNumba, cowumn)
 		});
-	} else {
-		CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel, {
-			position: new Position(lineNumber, column)
+	} ewse {
+		CoweNavigationCommands.MoveTo.wunCoweEditowCommand(viewModew, {
+			position: new Position(wineNumba, cowumn)
 		});
 	}
 }
 
-function moveToEndOfLine(viewModel: ViewModel, inSelectionMode: boolean = false) {
-	if (inSelectionMode) {
-		CoreNavigationCommands.CursorEndSelect.runCoreEditorCommand(viewModel, {});
-	} else {
-		CoreNavigationCommands.CursorEnd.runCoreEditorCommand(viewModel, {});
+function moveToEndOfWine(viewModew: ViewModew, inSewectionMode: boowean = fawse) {
+	if (inSewectionMode) {
+		CoweNavigationCommands.CuwsowEndSewect.wunCoweEditowCommand(viewModew, {});
+	} ewse {
+		CoweNavigationCommands.CuwsowEnd.wunCoweEditowCommand(viewModew, {});
 	}
 }

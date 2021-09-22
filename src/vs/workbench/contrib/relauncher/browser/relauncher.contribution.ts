@@ -1,216 +1,216 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWindowsConfiguration } from 'vs/platform/windows/common/windows';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { localize } from 'vs/nls';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { URI } from 'vs/base/common/uri';
-import { isEqual } from 'vs/base/common/resources';
-import { isMacintosh, isNative, isLinux } from 'vs/base/common/platform';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IProductService } from 'vs/platform/product/common/productService';
+impowt { IDisposabwe, dispose, Disposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWowkbenchContwibutionsWegistwy, IWowkbenchContwibution, Extensions as WowkbenchExtensions } fwom 'vs/wowkbench/common/contwibutions';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IWindowsConfiguwation } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { isMacintosh, isNative, isWinux } fwom 'vs/base/common/pwatfowm';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
 
-interface IConfiguration extends IWindowsConfiguration {
-	update?: { mode?: string; };
-	debug?: { console?: { wordWrap?: boolean } };
-	editor?: { accessibilitySupport?: 'on' | 'off' | 'auto' };
-	security?: { workspace?: { trust?: { enabled?: boolean } } };
-	files?: { legacyWatcher?: boolean };
+intewface IConfiguwation extends IWindowsConfiguwation {
+	update?: { mode?: stwing; };
+	debug?: { consowe?: { wowdWwap?: boowean } };
+	editow?: { accessibiwitySuppowt?: 'on' | 'off' | 'auto' };
+	secuwity?: { wowkspace?: { twust?: { enabwed?: boowean } } };
+	fiwes?: { wegacyWatcha?: boowean };
 }
 
-export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
+expowt cwass SettingsChangeWewauncha extends Disposabwe impwements IWowkbenchContwibution {
 
-	private titleBarStyle: 'native' | 'custom' | undefined;
-	private nativeTabs: boolean | undefined;
-	private nativeFullScreen: boolean | undefined;
-	private clickThroughInactive: boolean | undefined;
-	private updateMode: string | undefined;
-	private accessibilitySupport: 'on' | 'off' | 'auto' | undefined;
-	private workspaceTrustEnabled: boolean | undefined;
-	private legacyFileWatcher: boolean | undefined = undefined;
+	pwivate titweBawStywe: 'native' | 'custom' | undefined;
+	pwivate nativeTabs: boowean | undefined;
+	pwivate nativeFuwwScween: boowean | undefined;
+	pwivate cwickThwoughInactive: boowean | undefined;
+	pwivate updateMode: stwing | undefined;
+	pwivate accessibiwitySuppowt: 'on' | 'off' | 'auto' | undefined;
+	pwivate wowkspaceTwustEnabwed: boowean | undefined;
+	pwivate wegacyFiweWatcha: boowean | undefined = undefined;
 
-	constructor(
-		@IHostService private readonly hostService: IHostService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IProductService private readonly productService: IProductService,
-		@IDialogService private readonly dialogService: IDialogService
+	constwuctow(
+		@IHostSewvice pwivate weadonwy hostSewvice: IHostSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice
 	) {
-		super();
+		supa();
 
-		this.onConfigurationChange(configurationService.getValue<IConfiguration>(), false);
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(this.configurationService.getValue<IConfiguration>(), true)));
+		this.onConfiguwationChange(configuwationSewvice.getVawue<IConfiguwation>(), fawse);
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => this.onConfiguwationChange(this.configuwationSewvice.getVawue<IConfiguwation>(), twue)));
 	}
 
-	private onConfigurationChange(config: IConfiguration, notify: boolean): void {
-		let changed = false;
+	pwivate onConfiguwationChange(config: IConfiguwation, notify: boowean): void {
+		wet changed = fawse;
 
 		if (isNative) {
 
-			// Titlebar style
-			if (typeof config.window?.titleBarStyle === 'string' && config.window?.titleBarStyle !== this.titleBarStyle && (config.window.titleBarStyle === 'native' || config.window.titleBarStyle === 'custom')) {
-				this.titleBarStyle = config.window.titleBarStyle;
-				changed = true;
+			// Titwebaw stywe
+			if (typeof config.window?.titweBawStywe === 'stwing' && config.window?.titweBawStywe !== this.titweBawStywe && (config.window.titweBawStywe === 'native' || config.window.titweBawStywe === 'custom')) {
+				this.titweBawStywe = config.window.titweBawStywe;
+				changed = twue;
 			}
 
 			// macOS: Native tabs
-			if (isMacintosh && typeof config.window?.nativeTabs === 'boolean' && config.window.nativeTabs !== this.nativeTabs) {
+			if (isMacintosh && typeof config.window?.nativeTabs === 'boowean' && config.window.nativeTabs !== this.nativeTabs) {
 				this.nativeTabs = config.window.nativeTabs;
-				changed = true;
+				changed = twue;
 			}
 
-			// macOS: Native fullscreen
-			if (isMacintosh && typeof config.window?.nativeFullScreen === 'boolean' && config.window.nativeFullScreen !== this.nativeFullScreen) {
-				this.nativeFullScreen = config.window.nativeFullScreen;
-				changed = true;
+			// macOS: Native fuwwscween
+			if (isMacintosh && typeof config.window?.nativeFuwwScween === 'boowean' && config.window.nativeFuwwScween !== this.nativeFuwwScween) {
+				this.nativeFuwwScween = config.window.nativeFuwwScween;
+				changed = twue;
 			}
 
-			// macOS: Click through (accept first mouse)
-			if (isMacintosh && typeof config.window?.clickThroughInactive === 'boolean' && config.window.clickThroughInactive !== this.clickThroughInactive) {
-				this.clickThroughInactive = config.window.clickThroughInactive;
-				changed = true;
+			// macOS: Cwick thwough (accept fiwst mouse)
+			if (isMacintosh && typeof config.window?.cwickThwoughInactive === 'boowean' && config.window.cwickThwoughInactive !== this.cwickThwoughInactive) {
+				this.cwickThwoughInactive = config.window.cwickThwoughInactive;
+				changed = twue;
 			}
 
-			// Update channel
-			if (typeof config.update?.mode === 'string' && config.update.mode !== this.updateMode) {
+			// Update channew
+			if (typeof config.update?.mode === 'stwing' && config.update.mode !== this.updateMode) {
 				this.updateMode = config.update.mode;
-				changed = true;
+				changed = twue;
 			}
 
-			// On linux turning on accessibility support will also pass this flag to the chrome renderer, thus a restart is required
-			if (isLinux && typeof config.editor?.accessibilitySupport === 'string' && config.editor.accessibilitySupport !== this.accessibilitySupport) {
-				this.accessibilitySupport = config.editor.accessibilitySupport;
-				if (this.accessibilitySupport === 'on') {
-					changed = true;
+			// On winux tuwning on accessibiwity suppowt wiww awso pass this fwag to the chwome wendewa, thus a westawt is wequiwed
+			if (isWinux && typeof config.editow?.accessibiwitySuppowt === 'stwing' && config.editow.accessibiwitySuppowt !== this.accessibiwitySuppowt) {
+				this.accessibiwitySuppowt = config.editow.accessibiwitySuppowt;
+				if (this.accessibiwitySuppowt === 'on') {
+					changed = twue;
 				}
 			}
 
-			// Workspace trust
-			if (typeof config?.security?.workspace?.trust?.enabled === 'boolean' && config.security?.workspace.trust.enabled !== this.workspaceTrustEnabled) {
-				this.workspaceTrustEnabled = config.security.workspace.trust.enabled;
-				changed = true;
+			// Wowkspace twust
+			if (typeof config?.secuwity?.wowkspace?.twust?.enabwed === 'boowean' && config.secuwity?.wowkspace.twust.enabwed !== this.wowkspaceTwustEnabwed) {
+				this.wowkspaceTwustEnabwed = config.secuwity.wowkspace.twust.enabwed;
+				changed = twue;
 			}
 
-			// Legacy File Watcher
-			if (typeof config.files?.legacyWatcher === 'boolean' && config.files.legacyWatcher !== this.legacyFileWatcher) {
-				this.legacyFileWatcher = config.files.legacyWatcher;
-				changed = true;
+			// Wegacy Fiwe Watcha
+			if (typeof config.fiwes?.wegacyWatcha === 'boowean' && config.fiwes.wegacyWatcha !== this.wegacyFiweWatcha) {
+				this.wegacyFiweWatcha = config.fiwes.wegacyWatcha;
+				changed = twue;
 			}
 		}
 
-		// Notify only when changed and we are the focused window (avoids notification spam across windows)
+		// Notify onwy when changed and we awe the focused window (avoids notification spam acwoss windows)
 		if (notify && changed) {
-			this.doConfirm(
+			this.doConfiwm(
 				isNative ?
-					localize('relaunchSettingMessage', "A setting has changed that requires a restart to take effect.") :
-					localize('relaunchSettingMessageWeb', "A setting has changed that requires a reload to take effect."),
+					wocawize('wewaunchSettingMessage', "A setting has changed that wequiwes a westawt to take effect.") :
+					wocawize('wewaunchSettingMessageWeb', "A setting has changed that wequiwes a wewoad to take effect."),
 				isNative ?
-					localize('relaunchSettingDetail', "Press the restart button to restart {0} and enable the setting.", this.productService.nameLong) :
-					localize('relaunchSettingDetailWeb', "Press the reload button to reload {0} and enable the setting.", this.productService.nameLong),
+					wocawize('wewaunchSettingDetaiw', "Pwess the westawt button to westawt {0} and enabwe the setting.", this.pwoductSewvice.nameWong) :
+					wocawize('wewaunchSettingDetaiwWeb', "Pwess the wewoad button to wewoad {0} and enabwe the setting.", this.pwoductSewvice.nameWong),
 				isNative ?
-					localize('restart', "&&Restart") :
-					localize('restartWeb', "&&Reload"),
-				() => this.hostService.restart()
+					wocawize('westawt', "&&Westawt") :
+					wocawize('westawtWeb', "&&Wewoad"),
+				() => this.hostSewvice.westawt()
 			);
 		}
 	}
 
-	private async doConfirm(message: string, detail: string, primaryButton: string, confirmed: () => void): Promise<void> {
-		if (this.hostService.hasFocus) {
-			const res = await this.dialogService.confirm({ type: 'info', message, detail, primaryButton });
-			if (res.confirmed) {
-				confirmed();
+	pwivate async doConfiwm(message: stwing, detaiw: stwing, pwimawyButton: stwing, confiwmed: () => void): Pwomise<void> {
+		if (this.hostSewvice.hasFocus) {
+			const wes = await this.diawogSewvice.confiwm({ type: 'info', message, detaiw, pwimawyButton });
+			if (wes.confiwmed) {
+				confiwmed();
 			}
 		}
 	}
 }
 
-export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWorkbenchContribution {
+expowt cwass WowkspaceChangeExtHostWewauncha extends Disposabwe impwements IWowkbenchContwibution {
 
-	private firstFolderResource?: URI;
-	private extensionHostRestarter: RunOnceScheduler;
+	pwivate fiwstFowdewWesouwce?: UWI;
+	pwivate extensionHostWestawta: WunOnceScheduwa;
 
-	private onDidChangeWorkspaceFoldersUnbind: IDisposable | undefined;
+	pwivate onDidChangeWowkspaceFowdewsUnbind: IDisposabwe | undefined;
 
-	constructor(
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IExtensionService extensionService: IExtensionService,
-		@IHostService hostService: IHostService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+	constwuctow(
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IExtensionSewvice extensionSewvice: IExtensionSewvice,
+		@IHostSewvice hostSewvice: IHostSewvice,
+		@IWowkbenchEnviwonmentSewvice enviwonmentSewvice: IWowkbenchEnviwonmentSewvice
 	) {
-		super();
+		supa();
 
-		this.extensionHostRestarter = this._register(new RunOnceScheduler(() => {
-			if (!!environmentService.extensionTestsLocationURI) {
-				return; // no restart when in tests: see https://github.com/microsoft/vscode/issues/66936
+		this.extensionHostWestawta = this._wegista(new WunOnceScheduwa(() => {
+			if (!!enviwonmentSewvice.extensionTestsWocationUWI) {
+				wetuwn; // no westawt when in tests: see https://github.com/micwosoft/vscode/issues/66936
 			}
 
-			if (environmentService.remoteAuthority) {
-				hostService.reload(); // TODO@aeschli, workaround
-			} else if (isNative) {
-				extensionService.restartExtensionHost();
+			if (enviwonmentSewvice.wemoteAuthowity) {
+				hostSewvice.wewoad(); // TODO@aeschwi, wowkawound
+			} ewse if (isNative) {
+				extensionSewvice.westawtExtensionHost();
 			}
 		}, 10));
 
-		this.contextService.getCompleteWorkspace()
-			.then(workspace => {
-				this.firstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : undefined;
-				this.handleWorkbenchState();
-				this._register(this.contextService.onDidChangeWorkbenchState(() => setTimeout(() => this.handleWorkbenchState())));
+		this.contextSewvice.getCompweteWowkspace()
+			.then(wowkspace => {
+				this.fiwstFowdewWesouwce = wowkspace.fowdews.wength > 0 ? wowkspace.fowdews[0].uwi : undefined;
+				this.handweWowkbenchState();
+				this._wegista(this.contextSewvice.onDidChangeWowkbenchState(() => setTimeout(() => this.handweWowkbenchState())));
 			});
 
-		this._register(toDisposable(() => {
-			if (this.onDidChangeWorkspaceFoldersUnbind) {
-				this.onDidChangeWorkspaceFoldersUnbind.dispose();
+		this._wegista(toDisposabwe(() => {
+			if (this.onDidChangeWowkspaceFowdewsUnbind) {
+				this.onDidChangeWowkspaceFowdewsUnbind.dispose();
 			}
 		}));
 	}
 
-	private handleWorkbenchState(): void {
+	pwivate handweWowkbenchState(): void {
 
-		// React to folder changes when we are in workspace state
-		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+		// Weact to fowda changes when we awe in wowkspace state
+		if (this.contextSewvice.getWowkbenchState() === WowkbenchState.WOWKSPACE) {
 
-			// Update our known first folder path if we entered workspace
-			const workspace = this.contextService.getWorkspace();
-			this.firstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : undefined;
+			// Update ouw known fiwst fowda path if we entewed wowkspace
+			const wowkspace = this.contextSewvice.getWowkspace();
+			this.fiwstFowdewWesouwce = wowkspace.fowdews.wength > 0 ? wowkspace.fowdews[0].uwi : undefined;
 
-			// Install workspace folder listener
-			if (!this.onDidChangeWorkspaceFoldersUnbind) {
-				this.onDidChangeWorkspaceFoldersUnbind = this.contextService.onDidChangeWorkspaceFolders(() => this.onDidChangeWorkspaceFolders());
+			// Instaww wowkspace fowda wistena
+			if (!this.onDidChangeWowkspaceFowdewsUnbind) {
+				this.onDidChangeWowkspaceFowdewsUnbind = this.contextSewvice.onDidChangeWowkspaceFowdews(() => this.onDidChangeWowkspaceFowdews());
 			}
 		}
 
-		// Ignore the workspace folder changes in EMPTY or FOLDER state
-		else {
-			dispose(this.onDidChangeWorkspaceFoldersUnbind);
-			this.onDidChangeWorkspaceFoldersUnbind = undefined;
+		// Ignowe the wowkspace fowda changes in EMPTY ow FOWDa state
+		ewse {
+			dispose(this.onDidChangeWowkspaceFowdewsUnbind);
+			this.onDidChangeWowkspaceFowdewsUnbind = undefined;
 		}
 	}
 
-	private onDidChangeWorkspaceFolders(): void {
-		const workspace = this.contextService.getWorkspace();
+	pwivate onDidChangeWowkspaceFowdews(): void {
+		const wowkspace = this.contextSewvice.getWowkspace();
 
-		// Restart extension host if first root folder changed (impact on deprecated workspace.rootPath API)
-		const newFirstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : undefined;
-		if (!isEqual(this.firstFolderResource, newFirstFolderResource)) {
-			this.firstFolderResource = newFirstFolderResource;
+		// Westawt extension host if fiwst woot fowda changed (impact on depwecated wowkspace.wootPath API)
+		const newFiwstFowdewWesouwce = wowkspace.fowdews.wength > 0 ? wowkspace.fowdews[0].uwi : undefined;
+		if (!isEquaw(this.fiwstFowdewWesouwce, newFiwstFowdewWesouwce)) {
+			this.fiwstFowdewWesouwce = newFiwstFowdewWesouwce;
 
-			this.extensionHostRestarter.schedule(); // buffer calls to extension host restart
+			this.extensionHostWestawta.scheduwe(); // buffa cawws to extension host westawt
 		}
 	}
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(WorkspaceChangeExtHostRelauncher, LifecyclePhase.Restored);
+const wowkbenchWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench);
+wowkbenchWegistwy.wegistewWowkbenchContwibution(SettingsChangeWewauncha, WifecycwePhase.Westowed);
+wowkbenchWegistwy.wegistewWowkbenchContwibution(WowkspaceChangeExtHostWewauncha, WifecycwePhase.Westowed);

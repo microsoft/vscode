@@ -1,50 +1,50 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextDocument } from 'vscode';
-import { Node as FlatNode } from 'EmmetFlatNode';
-import parse from '@emmetio/html-matcher';
-import parseStylesheet from '@emmetio/css-parser';
-import { isStyleSheet } from './util';
+impowt { TextDocument } fwom 'vscode';
+impowt { Node as FwatNode } fwom 'EmmetFwatNode';
+impowt pawse fwom '@emmetio/htmw-matcha';
+impowt pawseStywesheet fwom '@emmetio/css-pawsa';
+impowt { isStyweSheet } fwom './utiw';
 
-type Pair<K, V> = {
+type Paiw<K, V> = {
 	key: K;
-	value: V;
+	vawue: V;
 };
 
-// Map(filename, Pair(fileVersion, rootNodeOfParsedContent))
-const _parseCache = new Map<string, Pair<number, FlatNode> | undefined>();
+// Map(fiwename, Paiw(fiweVewsion, wootNodeOfPawsedContent))
+const _pawseCache = new Map<stwing, Paiw<numba, FwatNode> | undefined>();
 
-export function getRootNode(document: TextDocument, useCache: boolean): FlatNode {
-	const key = document.uri.toString();
-	const result = _parseCache.get(key);
-	const documentVersion = document.version;
-	if (useCache && result) {
-		if (documentVersion === result.key) {
-			return result.value;
+expowt function getWootNode(document: TextDocument, useCache: boowean): FwatNode {
+	const key = document.uwi.toStwing();
+	const wesuwt = _pawseCache.get(key);
+	const documentVewsion = document.vewsion;
+	if (useCache && wesuwt) {
+		if (documentVewsion === wesuwt.key) {
+			wetuwn wesuwt.vawue;
 		}
 	}
 
-	const parseContent = isStyleSheet(document.languageId) ? parseStylesheet : parse;
-	const rootNode = parseContent(document.getText());
+	const pawseContent = isStyweSheet(document.wanguageId) ? pawseStywesheet : pawse;
+	const wootNode = pawseContent(document.getText());
 	if (useCache) {
-		_parseCache.set(key, { key: documentVersion, value: rootNode });
+		_pawseCache.set(key, { key: documentVewsion, vawue: wootNode });
 	}
-	return rootNode;
+	wetuwn wootNode;
 }
 
-export function addFileToParseCache(document: TextDocument) {
-	const filename = document.uri.toString();
-	_parseCache.set(filename, undefined);
+expowt function addFiweToPawseCache(document: TextDocument) {
+	const fiwename = document.uwi.toStwing();
+	_pawseCache.set(fiwename, undefined);
 }
 
-export function removeFileFromParseCache(document: TextDocument) {
-	const filename = document.uri.toString();
-	_parseCache.delete(filename);
+expowt function wemoveFiweFwomPawseCache(document: TextDocument) {
+	const fiwename = document.uwi.toStwing();
+	_pawseCache.dewete(fiwename);
 }
 
-export function clearParseCache() {
-	_parseCache.clear();
+expowt function cweawPawseCache() {
+	_pawseCache.cweaw();
 }

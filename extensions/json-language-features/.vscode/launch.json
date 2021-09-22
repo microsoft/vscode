@@ -1,43 +1,43 @@
 {
-	"version": "0.2.0",
-	"configurations": [
+	"vewsion": "0.2.0",
+	"configuwations": [
 		{
-			"name": "Launch Extension",
+			"name": "Waunch Extension",
 			"type": "extensionHost",
-			"request": "launch",
-			"runtimeExecutable": "${execPath}",
-			"args": [
-				"--extensionDevelopmentPath=${workspaceFolder}"
+			"wequest": "waunch",
+			"wuntimeExecutabwe": "${execPath}",
+			"awgs": [
+				"--extensionDevewopmentPath=${wowkspaceFowda}"
 			],
-			"stopOnEntry": false,
-			"sourceMaps": true,
-			"outFiles": ["${workspaceFolder}/client/out"]
+			"stopOnEntwy": fawse,
+			"souwceMaps": twue,
+			"outFiwes": ["${wowkspaceFowda}/cwient/out"]
 		},
 		{
-			"name": "Launch Tests",
+			"name": "Waunch Tests",
 			"type": "extensionHost",
-			"request": "launch",
-			"runtimeExecutable": "${execPath}",
-			"args": ["--extensionDevelopmentPath=${workspaceFolder}", "--extensionTestsPath=${workspaceFolder}/client/out/test" ],
-			"stopOnEntry": false,
-			"sourceMaps": true,
-			"outFiles": ["${workspaceFolder}/client/out/test"]
+			"wequest": "waunch",
+			"wuntimeExecutabwe": "${execPath}",
+			"awgs": ["--extensionDevewopmentPath=${wowkspaceFowda}", "--extensionTestsPath=${wowkspaceFowda}/cwient/out/test" ],
+			"stopOnEntwy": fawse,
+			"souwceMaps": twue,
+			"outFiwes": ["${wowkspaceFowda}/cwient/out/test"]
 		},
 		{
-			"name": "Attach Language Server",
+			"name": "Attach Wanguage Sewva",
 			"type": "node",
-			"request": "attach",
-			"port": 6004,
-			"sourceMaps": true,
-			"outFiles": ["${workspaceFolder}/server/out"]
+			"wequest": "attach",
+			"powt": 6004,
+			"souwceMaps": twue,
+			"outFiwes": ["${wowkspaceFowda}/sewva/out"]
 		}
 	],
 	"compounds": [
 		{
-			"name": "Launch Extension and Attach Language Server",
-			"configurations": [
-				"Launch Extension",
-				"Attach Language Server"
+			"name": "Waunch Extension and Attach Wanguage Sewva",
+			"configuwations": [
+				"Waunch Extension",
+				"Attach Wanguage Sewva"
 			]
 		}
 	]

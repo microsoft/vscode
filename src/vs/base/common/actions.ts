@@ -1,272 +1,272 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import * as nls from 'vs/nls';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as nws fwom 'vs/nws';
 
-export interface ITelemetryData {
-	readonly from?: string;
-	readonly target?: string;
-	[key: string]: unknown;
+expowt intewface ITewemetwyData {
+	weadonwy fwom?: stwing;
+	weadonwy tawget?: stwing;
+	[key: stwing]: unknown;
 }
 
-export type WorkbenchActionExecutedClassification = {
-	id: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-	from: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+expowt type WowkbenchActionExecutedCwassification = {
+	id: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight'; };
+	fwom: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight'; };
 };
 
-export type WorkbenchActionExecutedEvent = {
-	id: string;
-	from: string;
+expowt type WowkbenchActionExecutedEvent = {
+	id: stwing;
+	fwom: stwing;
 };
 
-export interface IAction extends IDisposable {
-	readonly id: string;
-	label: string;
-	tooltip: string;
-	class: string | undefined;
-	enabled: boolean;
-	checked: boolean;
-	run(event?: unknown): unknown;
+expowt intewface IAction extends IDisposabwe {
+	weadonwy id: stwing;
+	wabew: stwing;
+	toowtip: stwing;
+	cwass: stwing | undefined;
+	enabwed: boowean;
+	checked: boowean;
+	wun(event?: unknown): unknown;
 }
 
-export interface IActionRunner extends IDisposable {
-	readonly onDidRun: Event<IRunEvent>;
-	readonly onBeforeRun: Event<IRunEvent>;
+expowt intewface IActionWunna extends IDisposabwe {
+	weadonwy onDidWun: Event<IWunEvent>;
+	weadonwy onBefoweWun: Event<IWunEvent>;
 
-	run(action: IAction, context?: unknown): unknown;
+	wun(action: IAction, context?: unknown): unknown;
 }
 
-export interface IActionChangeEvent {
-	readonly label?: string;
-	readonly tooltip?: string;
-	readonly class?: string;
-	readonly enabled?: boolean;
-	readonly checked?: boolean;
+expowt intewface IActionChangeEvent {
+	weadonwy wabew?: stwing;
+	weadonwy toowtip?: stwing;
+	weadonwy cwass?: stwing;
+	weadonwy enabwed?: boowean;
+	weadonwy checked?: boowean;
 }
 
-export class Action extends Disposable implements IAction {
+expowt cwass Action extends Disposabwe impwements IAction {
 
-	protected _onDidChange = this._register(new Emitter<IActionChangeEvent>());
-	readonly onDidChange = this._onDidChange.event;
+	pwotected _onDidChange = this._wegista(new Emitta<IActionChangeEvent>());
+	weadonwy onDidChange = this._onDidChange.event;
 
-	protected readonly _id: string;
-	protected _label: string;
-	protected _tooltip: string | undefined;
-	protected _cssClass: string | undefined;
-	protected _enabled: boolean = true;
-	protected _checked: boolean = false;
-	protected readonly _actionCallback?: (event?: unknown) => unknown;
+	pwotected weadonwy _id: stwing;
+	pwotected _wabew: stwing;
+	pwotected _toowtip: stwing | undefined;
+	pwotected _cssCwass: stwing | undefined;
+	pwotected _enabwed: boowean = twue;
+	pwotected _checked: boowean = fawse;
+	pwotected weadonwy _actionCawwback?: (event?: unknown) => unknown;
 
-	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: unknown) => unknown) {
-		super();
+	constwuctow(id: stwing, wabew: stwing = '', cssCwass: stwing = '', enabwed: boowean = twue, actionCawwback?: (event?: unknown) => unknown) {
+		supa();
 		this._id = id;
-		this._label = label;
-		this._cssClass = cssClass;
-		this._enabled = enabled;
-		this._actionCallback = actionCallback;
+		this._wabew = wabew;
+		this._cssCwass = cssCwass;
+		this._enabwed = enabwed;
+		this._actionCawwback = actionCawwback;
 	}
 
-	get id(): string {
-		return this._id;
+	get id(): stwing {
+		wetuwn this._id;
 	}
 
-	get label(): string {
-		return this._label;
+	get wabew(): stwing {
+		wetuwn this._wabew;
 	}
 
-	set label(value: string) {
-		this._setLabel(value);
+	set wabew(vawue: stwing) {
+		this._setWabew(vawue);
 	}
 
-	private _setLabel(value: string): void {
-		if (this._label !== value) {
-			this._label = value;
-			this._onDidChange.fire({ label: value });
+	pwivate _setWabew(vawue: stwing): void {
+		if (this._wabew !== vawue) {
+			this._wabew = vawue;
+			this._onDidChange.fiwe({ wabew: vawue });
 		}
 	}
 
-	get tooltip(): string {
-		return this._tooltip || '';
+	get toowtip(): stwing {
+		wetuwn this._toowtip || '';
 	}
 
-	set tooltip(value: string) {
-		this._setTooltip(value);
+	set toowtip(vawue: stwing) {
+		this._setToowtip(vawue);
 	}
 
-	protected _setTooltip(value: string): void {
-		if (this._tooltip !== value) {
-			this._tooltip = value;
-			this._onDidChange.fire({ tooltip: value });
+	pwotected _setToowtip(vawue: stwing): void {
+		if (this._toowtip !== vawue) {
+			this._toowtip = vawue;
+			this._onDidChange.fiwe({ toowtip: vawue });
 		}
 	}
 
-	get class(): string | undefined {
-		return this._cssClass;
+	get cwass(): stwing | undefined {
+		wetuwn this._cssCwass;
 	}
 
-	set class(value: string | undefined) {
-		this._setClass(value);
+	set cwass(vawue: stwing | undefined) {
+		this._setCwass(vawue);
 	}
 
-	protected _setClass(value: string | undefined): void {
-		if (this._cssClass !== value) {
-			this._cssClass = value;
-			this._onDidChange.fire({ class: value });
+	pwotected _setCwass(vawue: stwing | undefined): void {
+		if (this._cssCwass !== vawue) {
+			this._cssCwass = vawue;
+			this._onDidChange.fiwe({ cwass: vawue });
 		}
 	}
 
-	get enabled(): boolean {
-		return this._enabled;
+	get enabwed(): boowean {
+		wetuwn this._enabwed;
 	}
 
-	set enabled(value: boolean) {
-		this._setEnabled(value);
+	set enabwed(vawue: boowean) {
+		this._setEnabwed(vawue);
 	}
 
-	protected _setEnabled(value: boolean): void {
-		if (this._enabled !== value) {
-			this._enabled = value;
-			this._onDidChange.fire({ enabled: value });
+	pwotected _setEnabwed(vawue: boowean): void {
+		if (this._enabwed !== vawue) {
+			this._enabwed = vawue;
+			this._onDidChange.fiwe({ enabwed: vawue });
 		}
 	}
 
-	get checked(): boolean {
-		return this._checked;
+	get checked(): boowean {
+		wetuwn this._checked;
 	}
 
-	set checked(value: boolean) {
-		this._setChecked(value);
+	set checked(vawue: boowean) {
+		this._setChecked(vawue);
 	}
 
-	protected _setChecked(value: boolean): void {
-		if (this._checked !== value) {
-			this._checked = value;
-			this._onDidChange.fire({ checked: value });
+	pwotected _setChecked(vawue: boowean): void {
+		if (this._checked !== vawue) {
+			this._checked = vawue;
+			this._onDidChange.fiwe({ checked: vawue });
 		}
 	}
 
-	async run(event?: unknown, data?: ITelemetryData): Promise<void> {
-		if (this._actionCallback) {
-			await this._actionCallback(event);
+	async wun(event?: unknown, data?: ITewemetwyData): Pwomise<void> {
+		if (this._actionCawwback) {
+			await this._actionCawwback(event);
 		}
 	}
 }
 
-export interface IRunEvent {
-	readonly action: IAction;
-	readonly error?: Error;
+expowt intewface IWunEvent {
+	weadonwy action: IAction;
+	weadonwy ewwow?: Ewwow;
 }
 
-export class ActionRunner extends Disposable implements IActionRunner {
+expowt cwass ActionWunna extends Disposabwe impwements IActionWunna {
 
-	private _onBeforeRun = this._register(new Emitter<IRunEvent>());
-	readonly onBeforeRun = this._onBeforeRun.event;
+	pwivate _onBefoweWun = this._wegista(new Emitta<IWunEvent>());
+	weadonwy onBefoweWun = this._onBefoweWun.event;
 
-	private _onDidRun = this._register(new Emitter<IRunEvent>());
-	readonly onDidRun = this._onDidRun.event;
+	pwivate _onDidWun = this._wegista(new Emitta<IWunEvent>());
+	weadonwy onDidWun = this._onDidWun.event;
 
-	async run(action: IAction, context?: unknown): Promise<void> {
-		if (!action.enabled) {
-			return;
+	async wun(action: IAction, context?: unknown): Pwomise<void> {
+		if (!action.enabwed) {
+			wetuwn;
 		}
 
-		this._onBeforeRun.fire({ action });
+		this._onBefoweWun.fiwe({ action });
 
-		let error: Error | undefined = undefined;
-		try {
-			await this.runAction(action, context);
+		wet ewwow: Ewwow | undefined = undefined;
+		twy {
+			await this.wunAction(action, context);
 		} catch (e) {
-			error = e;
+			ewwow = e;
 		}
 
-		this._onDidRun.fire({ action, error });
+		this._onDidWun.fiwe({ action, ewwow });
 	}
 
-	protected async runAction(action: IAction, context?: unknown): Promise<void> {
-		await action.run(context);
+	pwotected async wunAction(action: IAction, context?: unknown): Pwomise<void> {
+		await action.wun(context);
 	}
 }
 
-export class Separator extends Action {
+expowt cwass Sepawatow extends Action {
 
 	/**
-	 * Joins all non-empty lists of actions with separators.
+	 * Joins aww non-empty wists of actions with sepawatows.
 	 */
-	public static join(...actionLists: readonly IAction[][]) {
-		let out: IAction[] = [];
-		for (const list of actionLists) {
-			if (!list.length) {
+	pubwic static join(...actionWists: weadonwy IAction[][]) {
+		wet out: IAction[] = [];
+		fow (const wist of actionWists) {
+			if (!wist.wength) {
 				// skip
-			} else if (out.length) {
-				out = [...out, new Separator(), ...list];
-			} else {
-				out = list;
+			} ewse if (out.wength) {
+				out = [...out, new Sepawatow(), ...wist];
+			} ewse {
+				out = wist;
 			}
 		}
 
-		return out;
+		wetuwn out;
 	}
 
-	static readonly ID = 'vs.actions.separator';
+	static weadonwy ID = 'vs.actions.sepawatow';
 
-	constructor(label?: string) {
-		super(Separator.ID, label, label ? 'separator text' : 'separator');
+	constwuctow(wabew?: stwing) {
+		supa(Sepawatow.ID, wabew, wabew ? 'sepawatow text' : 'sepawatow');
 
-		this.checked = false;
-		this.enabled = false;
+		this.checked = fawse;
+		this.enabwed = fawse;
 	}
 }
 
-export class SubmenuAction implements IAction {
+expowt cwass SubmenuAction impwements IAction {
 
-	readonly id: string;
-	readonly label: string;
-	readonly class: string | undefined;
-	readonly tooltip: string = '';
-	readonly enabled: boolean = true;
-	readonly checked: boolean = false;
+	weadonwy id: stwing;
+	weadonwy wabew: stwing;
+	weadonwy cwass: stwing | undefined;
+	weadonwy toowtip: stwing = '';
+	weadonwy enabwed: boowean = twue;
+	weadonwy checked: boowean = fawse;
 
-	private readonly _actions: readonly IAction[];
-	get actions(): readonly IAction[] { return this._actions; }
+	pwivate weadonwy _actions: weadonwy IAction[];
+	get actions(): weadonwy IAction[] { wetuwn this._actions; }
 
-	constructor(id: string, label: string, actions: readonly IAction[], cssClass?: string) {
+	constwuctow(id: stwing, wabew: stwing, actions: weadonwy IAction[], cssCwass?: stwing) {
 		this.id = id;
-		this.label = label;
-		this.class = cssClass;
+		this.wabew = wabew;
+		this.cwass = cssCwass;
 		this._actions = actions;
 	}
 
 	dispose(): void {
-		// there is NOTHING to dispose and the SubmenuAction should
-		// never have anything to dispose as it is a convenience type
-		// to bridge into the rendering world.
+		// thewe is NOTHING to dispose and the SubmenuAction shouwd
+		// neva have anything to dispose as it is a convenience type
+		// to bwidge into the wendewing wowwd.
 	}
 
-	async run(): Promise<void> { }
+	async wun(): Pwomise<void> { }
 }
 
-export class EmptySubmenuAction extends Action {
+expowt cwass EmptySubmenuAction extends Action {
 
-	static readonly ID = 'vs.actions.empty';
+	static weadonwy ID = 'vs.actions.empty';
 
-	constructor() {
-		super(EmptySubmenuAction.ID, nls.localize('submenu.empty', '(empty)'), undefined, false);
+	constwuctow() {
+		supa(EmptySubmenuAction.ID, nws.wocawize('submenu.empty', '(empty)'), undefined, fawse);
 	}
 }
 
-export function toAction(props: { id: string, label: string, enabled?: boolean, checked?: boolean, run: Function; }): IAction {
-	return {
-		id: props.id,
-		label: props.label,
-		class: undefined,
-		enabled: props.enabled ?? true,
-		checked: props.checked ?? false,
-		run: async () => props.run(),
-		tooltip: props.label,
+expowt function toAction(pwops: { id: stwing, wabew: stwing, enabwed?: boowean, checked?: boowean, wun: Function; }): IAction {
+	wetuwn {
+		id: pwops.id,
+		wabew: pwops.wabew,
+		cwass: undefined,
+		enabwed: pwops.enabwed ?? twue,
+		checked: pwops.checked ?? fawse,
+		wun: async () => pwops.wun(),
+		toowtip: pwops.wabew,
 		dispose: () => { }
 	};
 }

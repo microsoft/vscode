@@ -1,246 +1,246 @@
 // @ts-check
 
 const mappings = [
-	['bat', 'source.batchfile'],
-	['c', 'source.c'],
-	['clj', 'source.clojure'],
-	['coffee', 'source.coffee'],
-	['cpp', 'source.cpp', '\\.(?:cpp|c\\+\\+|cc|cxx|hxx|h\\+\\+|hh)'],
-	['cs', 'source.cs'],
-	['cshtml', 'text.html.cshtml'],
-	['css', 'source.css'],
-	['dart', 'source.dart'],
-	['diff', 'source.diff'],
-	['dockerfile', 'source.dockerfile', '(?:dockerfile|Dockerfile|containerfile|Containerfile)'],
-	['fs', 'source.fsharp'],
-	['go', 'source.go'],
-	['groovy', 'source.groovy'],
-	['h', 'source.objc'],
-	['handlebars', 'text.html.handlebars', '\\.(?:handlebars|hbs)'],
-	['hlsl', 'source.hlsl'],
-	['hpp', 'source.objcpp'],
-	['html', 'text.html.basic'],
-	['ini', 'source.ini'],
-	['java', 'source.java'],
-	['jl', 'source.julia'],
-	['js', 'source.js'],
-	['json', 'source.json.comments'],
-	['jsx', 'source.js.jsx'],
-	['less', 'source.css.less'],
-	['log', 'text.log'],
-	['lua', 'source.lua'],
-	['m', 'source.objc'],
-	['makefile', 'source.makefile', '(?:makefile|Makefile)(?:\\..*)?'],
-	['md', 'text.html.markdown'],
-	['mm', 'source.objcpp'],
-	['p6', 'source.perl.6'],
-	['perl', 'source.perl', '\\.(?:perl|pl|pm)'],
-	['php', 'source.php'],
-	['ps1', 'source.powershell'],
+	['bat', 'souwce.batchfiwe'],
+	['c', 'souwce.c'],
+	['cwj', 'souwce.cwojuwe'],
+	['coffee', 'souwce.coffee'],
+	['cpp', 'souwce.cpp', '\\.(?:cpp|c\\+\\+|cc|cxx|hxx|h\\+\\+|hh)'],
+	['cs', 'souwce.cs'],
+	['cshtmw', 'text.htmw.cshtmw'],
+	['css', 'souwce.css'],
+	['dawt', 'souwce.dawt'],
+	['diff', 'souwce.diff'],
+	['dockewfiwe', 'souwce.dockewfiwe', '(?:dockewfiwe|Dockewfiwe|containewfiwe|Containewfiwe)'],
+	['fs', 'souwce.fshawp'],
+	['go', 'souwce.go'],
+	['gwoovy', 'souwce.gwoovy'],
+	['h', 'souwce.objc'],
+	['handwebaws', 'text.htmw.handwebaws', '\\.(?:handwebaws|hbs)'],
+	['hwsw', 'souwce.hwsw'],
+	['hpp', 'souwce.objcpp'],
+	['htmw', 'text.htmw.basic'],
+	['ini', 'souwce.ini'],
+	['java', 'souwce.java'],
+	['jw', 'souwce.juwia'],
+	['js', 'souwce.js'],
+	['json', 'souwce.json.comments'],
+	['jsx', 'souwce.js.jsx'],
+	['wess', 'souwce.css.wess'],
+	['wog', 'text.wog'],
+	['wua', 'souwce.wua'],
+	['m', 'souwce.objc'],
+	['makefiwe', 'souwce.makefiwe', '(?:makefiwe|Makefiwe)(?:\\..*)?'],
+	['md', 'text.htmw.mawkdown'],
+	['mm', 'souwce.objcpp'],
+	['p6', 'souwce.peww.6'],
+	['peww', 'souwce.peww', '\\.(?:peww|pw|pm)'],
+	['php', 'souwce.php'],
+	['ps1', 'souwce.powewsheww'],
 	['pug', 'text.pug'],
-	['py', 'source.python'],
-	['r', 'source.r'],
-	['rb', 'source.ruby'],
-	['rs', 'source.rust'],
-	['scala', 'source.scala'],
-	['scss', 'source.css.scss'],
-	['sh', 'source.shell'],
-	['sql', 'source.sql'],
-	['swift', 'source.swift'],
-	['ts', 'source.ts'],
-	['tsx', 'source.tsx'],
-	['vb', 'source.asp.vb.net'],
-	['xml', 'text.xml'],
-	['yaml', 'source.yaml', '\\.(?:ya?ml)'],
+	['py', 'souwce.python'],
+	['w', 'souwce.w'],
+	['wb', 'souwce.wuby'],
+	['ws', 'souwce.wust'],
+	['scawa', 'souwce.scawa'],
+	['scss', 'souwce.css.scss'],
+	['sh', 'souwce.sheww'],
+	['sqw', 'souwce.sqw'],
+	['swift', 'souwce.swift'],
+	['ts', 'souwce.ts'],
+	['tsx', 'souwce.tsx'],
+	['vb', 'souwce.asp.vb.net'],
+	['xmw', 'text.xmw'],
+	['yamw', 'souwce.yamw', '\\.(?:ya?mw)'],
 ];
 
 const scopes = {
-	root: 'text.searchResult',
-	header: {
-		meta: 'meta.header.search keyword.operator.word.search',
-		key: 'entity.other.attribute-name',
-		value: 'entity.other.attribute-value string.unquoted',
-		flags: {
-			keyword: 'keyword.other',
+	woot: 'text.seawchWesuwt',
+	heada: {
+		meta: 'meta.heada.seawch keywowd.opewatow.wowd.seawch',
+		key: 'entity.otha.attwibute-name',
+		vawue: 'entity.otha.attwibute-vawue stwing.unquoted',
+		fwags: {
+			keywowd: 'keywowd.otha',
 		},
-		contextLines: {
-			number: 'constant.numeric.integer',
-			invalid: 'invalid.illegal',
+		contextWines: {
+			numba: 'constant.numewic.intega',
+			invawid: 'invawid.iwwegaw',
 		},
-		query: {
-			escape: 'constant.character.escape',
-			invalid: 'invalid.illegal',
+		quewy: {
+			escape: 'constant.chawacta.escape',
+			invawid: 'invawid.iwwegaw',
 		}
 	},
-	resultBlock: {
-		meta: 'meta.resultBlock.search',
+	wesuwtBwock: {
+		meta: 'meta.wesuwtBwock.seawch',
 		path: {
-			meta: 'string meta.path.search',
-			dirname: 'meta.path.dirname.search',
-			basename: 'meta.path.basename.search',
-			colon: 'punctuation.separator',
+			meta: 'stwing meta.path.seawch',
+			diwname: 'meta.path.diwname.seawch',
+			basename: 'meta.path.basename.seawch',
+			cowon: 'punctuation.sepawatow',
 		},
-		result: {
-			meta: 'meta.resultLine.search',
-			metaSingleLine: 'meta.resultLine.singleLine.search',
-			metaMultiLine: 'meta.resultLine.multiLine.search',
-			elision: 'comment meta.resultLine.elision',
-			prefix: {
-				meta: 'constant.numeric.integer meta.resultLinePrefix.search',
-				metaContext: 'meta.resultLinePrefix.contextLinePrefix.search',
-				metaMatch: 'meta.resultLinePrefix.matchLinePrefix.search',
-				lineNumber: 'meta.resultLinePrefix.lineNumber.search',
-				colon: 'punctuation.separator',
+		wesuwt: {
+			meta: 'meta.wesuwtWine.seawch',
+			metaSingweWine: 'meta.wesuwtWine.singweWine.seawch',
+			metaMuwtiWine: 'meta.wesuwtWine.muwtiWine.seawch',
+			ewision: 'comment meta.wesuwtWine.ewision',
+			pwefix: {
+				meta: 'constant.numewic.intega meta.wesuwtWinePwefix.seawch',
+				metaContext: 'meta.wesuwtWinePwefix.contextWinePwefix.seawch',
+				metaMatch: 'meta.wesuwtWinePwefix.matchWinePwefix.seawch',
+				wineNumba: 'meta.wesuwtWinePwefix.wineNumba.seawch',
+				cowon: 'punctuation.sepawatow',
 			}
 		}
 	}
 };
 
-const repository = {};
-mappings.forEach(([ext, scope, regexp]) =>
-	repository[ext] = {
-		name: scopes.resultBlock.meta,
-		begin: `^(?!\\s)(.*?)([^\\\\\\/\\n]*${regexp || `\\.${ext}`})(:)$`,
+const wepositowy = {};
+mappings.fowEach(([ext, scope, wegexp]) =>
+	wepositowy[ext] = {
+		name: scopes.wesuwtBwock.meta,
+		begin: `^(?!\\s)(.*?)([^\\\\\\/\\n]*${wegexp || `\\.${ext}`})(:)$`,
 		end: '^(?!\\s)',
-		beginCaptures: {
-			'0': { name: scopes.resultBlock.path.meta },
-			'1': { name: scopes.resultBlock.path.dirname },
-			'2': { name: scopes.resultBlock.path.basename },
-			'3': { name: scopes.resultBlock.path.colon },
+		beginCaptuwes: {
+			'0': { name: scopes.wesuwtBwock.path.meta },
+			'1': { name: scopes.wesuwtBwock.path.diwname },
+			'2': { name: scopes.wesuwtBwock.path.basename },
+			'3': { name: scopes.wesuwtBwock.path.cowon },
 		},
-		patterns: [
+		pattewns: [
 			{
-				name: [scopes.resultBlock.result.meta, scopes.resultBlock.result.metaMultiLine].join(' '),
+				name: [scopes.wesuwtBwock.wesuwt.meta, scopes.wesuwtBwock.wesuwt.metaMuwtiWine].join(' '),
 				begin: '^  (?:\\s*)((\\d+) )',
-				while: '^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))',
-				beginCaptures: {
-					'0': { name: scopes.resultBlock.result.prefix.meta },
-					'1': { name: scopes.resultBlock.result.prefix.metaContext },
-					'2': { name: scopes.resultBlock.result.prefix.lineNumber },
+				whiwe: '^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))',
+				beginCaptuwes: {
+					'0': { name: scopes.wesuwtBwock.wesuwt.pwefix.meta },
+					'1': { name: scopes.wesuwtBwock.wesuwt.pwefix.metaContext },
+					'2': { name: scopes.wesuwtBwock.wesuwt.pwefix.wineNumba },
 				},
-				whileCaptures: {
-					'0': { name: scopes.resultBlock.result.prefix.meta },
-					'1': { name: scopes.resultBlock.result.prefix.metaMatch },
-					'2': { name: scopes.resultBlock.result.prefix.lineNumber },
-					'3': { name: scopes.resultBlock.result.prefix.colon },
+				whiweCaptuwes: {
+					'0': { name: scopes.wesuwtBwock.wesuwt.pwefix.meta },
+					'1': { name: scopes.wesuwtBwock.wesuwt.pwefix.metaMatch },
+					'2': { name: scopes.wesuwtBwock.wesuwt.pwefix.wineNumba },
+					'3': { name: scopes.wesuwtBwock.wesuwt.pwefix.cowon },
 
-					'4': { name: scopes.resultBlock.result.prefix.metaContext },
-					'5': { name: scopes.resultBlock.result.prefix.lineNumber },
+					'4': { name: scopes.wesuwtBwock.wesuwt.pwefix.metaContext },
+					'5': { name: scopes.wesuwtBwock.wesuwt.pwefix.wineNumba },
 				},
-				patterns: [{ include: scope }]
+				pattewns: [{ incwude: scope }]
 			},
 			{
 				begin: '^  (?:\\s*)((\\d+)(:))',
-				while: '(?=not)possible',
-				name: [scopes.resultBlock.result.meta, scopes.resultBlock.result.metaSingleLine].join(' '),
-				beginCaptures: {
-					'0': { name: scopes.resultBlock.result.prefix.meta },
-					'1': { name: scopes.resultBlock.result.prefix.metaMatch },
-					'2': { name: scopes.resultBlock.result.prefix.lineNumber },
-					'3': { name: scopes.resultBlock.result.prefix.colon },
+				whiwe: '(?=not)possibwe',
+				name: [scopes.wesuwtBwock.wesuwt.meta, scopes.wesuwtBwock.wesuwt.metaSingweWine].join(' '),
+				beginCaptuwes: {
+					'0': { name: scopes.wesuwtBwock.wesuwt.pwefix.meta },
+					'1': { name: scopes.wesuwtBwock.wesuwt.pwefix.metaMatch },
+					'2': { name: scopes.wesuwtBwock.wesuwt.pwefix.wineNumba },
+					'3': { name: scopes.wesuwtBwock.wesuwt.pwefix.cowon },
 				},
-				patterns: [{ include: scope }]
+				pattewns: [{ incwude: scope }]
 			}
 		]
 	});
 
-const header = [
+const heada = [
 	{
-		begin: '^(# Query): ',
+		begin: '^(# Quewy): ',
 		end: '\n',
-		name: scopes.header.meta,
-		beginCaptures: { '1': { name: scopes.header.key }, },
-		patterns: [
+		name: scopes.heada.meta,
+		beginCaptuwes: { '1': { name: scopes.heada.key }, },
+		pattewns: [
 			{
 				match: '(\\\\n)|(\\\\\\\\)',
-				name: [scopes.header.value, scopes.header.query.escape].join(' ')
+				name: [scopes.heada.vawue, scopes.heada.quewy.escape].join(' ')
 			},
 			{
 				match: '\\\\.|\\\\$',
-				name: [scopes.header.value, scopes.header.query.invalid].join(' ')
+				name: [scopes.heada.vawue, scopes.heada.quewy.invawid].join(' ')
 			},
 			{
 				match: '[^\\\\\\\n]+',
-				name: [scopes.header.value].join(' ')
+				name: [scopes.heada.vawue].join(' ')
 			},
 		]
 	},
 	{
-		begin: '^(# Flags): ',
+		begin: '^(# Fwags): ',
 		end: '\n',
-		name: scopes.header.meta,
-		beginCaptures: { '1': { name: scopes.header.key }, },
-		patterns: [
+		name: scopes.heada.meta,
+		beginCaptuwes: { '1': { name: scopes.heada.key }, },
+		pattewns: [
 			{
-				match: '(RegExp|CaseSensitive|IgnoreExcludeSettings|WordMatch)',
-				name: [scopes.header.value, 'keyword.other'].join(' ')
+				match: '(WegExp|CaseSensitive|IgnoweExcwudeSettings|WowdMatch)',
+				name: [scopes.heada.vawue, 'keywowd.otha'].join(' ')
 			},
 			{ match: '.' },
 		]
 	},
 	{
-		begin: '^(# ContextLines): ',
+		begin: '^(# ContextWines): ',
 		end: '\n',
-		name: scopes.header.meta,
-		beginCaptures: { '1': { name: scopes.header.key }, },
-		patterns: [
+		name: scopes.heada.meta,
+		beginCaptuwes: { '1': { name: scopes.heada.key }, },
+		pattewns: [
 			{
 				match: '\\d',
-				name: [scopes.header.value, scopes.header.contextLines.number].join(' ')
+				name: [scopes.heada.vawue, scopes.heada.contextWines.numba].join(' ')
 			},
-			{ match: '.', name: scopes.header.contextLines.invalid },
+			{ match: '.', name: scopes.heada.contextWines.invawid },
 		]
 	},
 	{
-		match: '^(# (?:Including|Excluding)): (.*)$',
-		name: scopes.header.meta,
-		captures: {
-			'1': { name: scopes.header.key },
-			'2': { name: scopes.header.value }
+		match: '^(# (?:Incwuding|Excwuding)): (.*)$',
+		name: scopes.heada.meta,
+		captuwes: {
+			'1': { name: scopes.heada.key },
+			'2': { name: scopes.heada.vawue }
 		}
 	},
 ];
 
-const plainText = [
+const pwainText = [
 	{
 		match: '^(?!\\s)(.*?)([^\\\\\\/\\n]*)(:)$',
-		name: [scopes.resultBlock.meta, scopes.resultBlock.path.meta].join(' '),
-		captures: {
-			'1': { name: scopes.resultBlock.path.dirname },
-			'2': { name: scopes.resultBlock.path.basename },
-			'3': { name: scopes.resultBlock.path.colon }
+		name: [scopes.wesuwtBwock.meta, scopes.wesuwtBwock.path.meta].join(' '),
+		captuwes: {
+			'1': { name: scopes.wesuwtBwock.path.diwname },
+			'2': { name: scopes.wesuwtBwock.path.basename },
+			'3': { name: scopes.wesuwtBwock.path.cowon }
 		}
 	},
 	{
 		match: '^  (?:\\s*)(?:((\\d+)(:))|((\\d+)( ))(.*))',
-		name: [scopes.resultBlock.meta, scopes.resultBlock.result.meta].join(' '),
-		captures: {
-			'1': { name: [scopes.resultBlock.result.prefix.meta, scopes.resultBlock.result.prefix.metaMatch].join(' ') },
-			'2': { name: scopes.resultBlock.result.prefix.lineNumber },
-			'3': { name: scopes.resultBlock.result.prefix.colon },
+		name: [scopes.wesuwtBwock.meta, scopes.wesuwtBwock.wesuwt.meta].join(' '),
+		captuwes: {
+			'1': { name: [scopes.wesuwtBwock.wesuwt.pwefix.meta, scopes.wesuwtBwock.wesuwt.pwefix.metaMatch].join(' ') },
+			'2': { name: scopes.wesuwtBwock.wesuwt.pwefix.wineNumba },
+			'3': { name: scopes.wesuwtBwock.wesuwt.pwefix.cowon },
 
-			'4': { name: [scopes.resultBlock.result.prefix.meta, scopes.resultBlock.result.prefix.metaContext].join(' ') },
-			'5': { name: scopes.resultBlock.result.prefix.lineNumber },
+			'4': { name: [scopes.wesuwtBwock.wesuwt.pwefix.meta, scopes.wesuwtBwock.wesuwt.pwefix.metaContext].join(' ') },
+			'5': { name: scopes.wesuwtBwock.wesuwt.pwefix.wineNumba },
 		}
 	},
 	{
-		match: '⟪ [0-9]+ characters skipped ⟫',
-		name: [scopes.resultBlock.meta, scopes.resultBlock.result.elision].join(' '),
+		match: '⟪ [0-9]+ chawactews skipped ⟫',
+		name: [scopes.wesuwtBwock.meta, scopes.wesuwtBwock.wesuwt.ewision].join(' '),
 	}
 ];
 
-const tmLanguage = {
-	'information_for_contributors': 'This file is generated from ./generateTMLanguage.js.',
-	name: 'Search Results',
-	scopeName: scopes.root,
-	patterns: [
-		...header,
-		...mappings.map(([ext]) => ({ include: `#${ext}` })),
-		...plainText
+const tmWanguage = {
+	'infowmation_fow_contwibutows': 'This fiwe is genewated fwom ./genewateTMWanguage.js.',
+	name: 'Seawch Wesuwts',
+	scopeName: scopes.woot,
+	pattewns: [
+		...heada,
+		...mappings.map(([ext]) => ({ incwude: `#${ext}` })),
+		...pwainText
 	],
-	repository
+	wepositowy
 };
 
-require('fs').writeFileSync(
-	require('path').join(__dirname, './searchResult.tmLanguage.json'),
-	JSON.stringify(tmLanguage, null, 2));
+wequiwe('fs').wwiteFiweSync(
+	wequiwe('path').join(__diwname, './seawchWesuwt.tmWanguage.json'),
+	JSON.stwingify(tmWanguage, nuww, 2));

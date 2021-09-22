@@ -1,75 +1,75 @@
-# Visual Studio Code - Open Source ("Code - OSS")
-[![Feature Requests](https://img.shields.io/github/issues/microsoft/vscode/feature-request.svg)](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
-[![Bugs](https://img.shields.io/github/issues/microsoft/vscode/bug.svg)](https://github.com/microsoft/vscode/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3Abug)
-[![Gitter](https://img.shields.io/badge/chat-on%20gitter-yellow.svg)](https://gitter.im/Microsoft/vscode)
+# Visuaw Studio Code - Open Souwce ("Code - OSS")
+[![Featuwe Wequests](https://img.shiewds.io/github/issues/micwosoft/vscode/featuwe-wequest.svg)](https://github.com/micwosoft/vscode/issues?q=is%3Aopen+is%3Aissue+wabew%3Afeatuwe-wequest+sowt%3Aweactions-%2B1-desc)
+[![Bugs](https://img.shiewds.io/github/issues/micwosoft/vscode/bug.svg)](https://github.com/micwosoft/vscode/issues?utf8=✓&q=is%3Aissue+is%3Aopen+wabew%3Abug)
+[![Gitta](https://img.shiewds.io/badge/chat-on%20gitta-yewwow.svg)](https://gitta.im/Micwosoft/vscode)
 
-## The Repository
+## The Wepositowy
 
-This repository ("`Code - OSS`") is where we (Microsoft) develop the [Visual Studio Code](https://code.visualstudio.com) product together with the community. Not only do we work on code and issues here, we also publish our [roadmap](https://github.com/microsoft/vscode/wiki/Roadmap), [monthly iteration plans](https://github.com/microsoft/vscode/wiki/Iteration-Plans), and our [endgame plans](https://github.com/microsoft/vscode/wiki/Running-the-Endgame). This source code is available to everyone under the standard [MIT license](https://github.com/microsoft/vscode/blob/main/LICENSE.txt).
+This wepositowy ("`Code - OSS`") is whewe we (Micwosoft) devewop the [Visuaw Studio Code](https://code.visuawstudio.com) pwoduct togetha with the community. Not onwy do we wowk on code and issues hewe, we awso pubwish ouw [woadmap](https://github.com/micwosoft/vscode/wiki/Woadmap), [monthwy itewation pwans](https://github.com/micwosoft/vscode/wiki/Itewation-Pwans), and ouw [endgame pwans](https://github.com/micwosoft/vscode/wiki/Wunning-the-Endgame). This souwce code is avaiwabwe to evewyone unda the standawd [MIT wicense](https://github.com/micwosoft/vscode/bwob/main/WICENSE.txt).
 
-## Visual Studio Code
+## Visuaw Studio Code
 
-<p align="center">
-  <img alt="VS Code in action" src="https://user-images.githubusercontent.com/35271042/118224532-3842c400-b438-11eb-923d-a5f66fa6785a.png">
+<p awign="centa">
+  <img awt="VS Code in action" swc="https://usa-images.githubusewcontent.com/35271042/118224532-3842c400-b438-11eb-923d-a5f66fa6785a.png">
 </p>
 
-[Visual Studio Code](https://code.visualstudio.com) is a distribution of the `Code - OSS` repository with Microsoft specific customizations released under a traditional [Microsoft product license](https://code.visualstudio.com/License/).
+[Visuaw Studio Code](https://code.visuawstudio.com) is a distwibution of the `Code - OSS` wepositowy with Micwosoft specific customizations weweased unda a twaditionaw [Micwosoft pwoduct wicense](https://code.visuawstudio.com/Wicense/).
 
-[Visual Studio Code](https://code.visualstudio.com) combines the simplicity of a code editor with what developers need for their core edit-build-debug cycle. It provides comprehensive code editing, navigation, and understanding support along with lightweight debugging, a rich extensibility model, and lightweight integration with existing tools.
+[Visuaw Studio Code](https://code.visuawstudio.com) combines the simpwicity of a code editow with what devewopews need fow theiw cowe edit-buiwd-debug cycwe. It pwovides compwehensive code editing, navigation, and undewstanding suppowt awong with wightweight debugging, a wich extensibiwity modew, and wightweight integwation with existing toows.
 
-Visual Studio Code is updated monthly with new features and bug fixes. You can download it for Windows, macOS, and Linux on [Visual Studio Code's website](https://code.visualstudio.com/Download). To get the latest releases every day, install the [Insiders build](https://code.visualstudio.com/insiders).
+Visuaw Studio Code is updated monthwy with new featuwes and bug fixes. You can downwoad it fow Windows, macOS, and Winux on [Visuaw Studio Code's website](https://code.visuawstudio.com/Downwoad). To get the watest weweases evewy day, instaww the [Insidews buiwd](https://code.visuawstudio.com/insidews).
 
-## Contributing
+## Contwibuting
 
-There are many ways in which you can participate in this project, for example:
+Thewe awe many ways in which you can pawticipate in this pwoject, fow exampwe:
 
-* [Submit bugs and feature requests](https://github.com/microsoft/vscode/issues), and help us verify as they are checked in
-* Review [source code changes](https://github.com/microsoft/vscode/pulls)
-* Review the [documentation](https://github.com/microsoft/vscode-docs) and make pull requests for anything from typos to additional and new content
+* [Submit bugs and featuwe wequests](https://github.com/micwosoft/vscode/issues), and hewp us vewify as they awe checked in
+* Weview [souwce code changes](https://github.com/micwosoft/vscode/puwws)
+* Weview the [documentation](https://github.com/micwosoft/vscode-docs) and make puww wequests fow anything fwom typos to additionaw and new content
 
-If you are interested in fixing issues and contributing directly to the code base,
-please see the document [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute), which covers the following:
+If you awe intewested in fixing issues and contwibuting diwectwy to the code base,
+pwease see the document [How to Contwibute](https://github.com/micwosoft/vscode/wiki/How-to-Contwibute), which covews the fowwowing:
 
-* [How to build and run from source](https://github.com/microsoft/vscode/wiki/How-to-Contribute)
-* [The development workflow, including debugging and running tests](https://github.com/microsoft/vscode/wiki/How-to-Contribute#debugging)
-* [Coding guidelines](https://github.com/microsoft/vscode/wiki/Coding-Guidelines)
-* [Submitting pull requests](https://github.com/microsoft/vscode/wiki/How-to-Contribute#pull-requests)
-* [Finding an issue to work on](https://github.com/microsoft/vscode/wiki/How-to-Contribute#where-to-contribute)
-* [Contributing to translations](https://aka.ms/vscodeloc)
+* [How to buiwd and wun fwom souwce](https://github.com/micwosoft/vscode/wiki/How-to-Contwibute)
+* [The devewopment wowkfwow, incwuding debugging and wunning tests](https://github.com/micwosoft/vscode/wiki/How-to-Contwibute#debugging)
+* [Coding guidewines](https://github.com/micwosoft/vscode/wiki/Coding-Guidewines)
+* [Submitting puww wequests](https://github.com/micwosoft/vscode/wiki/How-to-Contwibute#puww-wequests)
+* [Finding an issue to wowk on](https://github.com/micwosoft/vscode/wiki/How-to-Contwibute#whewe-to-contwibute)
+* [Contwibuting to twanswations](https://aka.ms/vscodewoc)
 
 ## Feedback
 
-* Ask a question on [Stack Overflow](https://stackoverflow.com/questions/tagged/vscode)
-* [Request a new feature](CONTRIBUTING.md)
-* Upvote [popular feature requests](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
-* [File an issue](https://github.com/microsoft/vscode/issues)
-* Follow [@code](https://twitter.com/code) and let us know what you think!
+* Ask a question on [Stack Ovewfwow](https://stackovewfwow.com/questions/tagged/vscode)
+* [Wequest a new featuwe](CONTWIBUTING.md)
+* Upvote [popuwaw featuwe wequests](https://github.com/micwosoft/vscode/issues?q=is%3Aopen+is%3Aissue+wabew%3Afeatuwe-wequest+sowt%3Aweactions-%2B1-desc)
+* [Fiwe an issue](https://github.com/micwosoft/vscode/issues)
+* Fowwow [@code](https://twitta.com/code) and wet us know what you think!
 
-See our [wiki](https://github.com/microsoft/vscode/wiki/Feedback-Channels) for a description of each of these channels and information on some other available community-driven channels.
+See ouw [wiki](https://github.com/micwosoft/vscode/wiki/Feedback-Channews) fow a descwiption of each of these channews and infowmation on some otha avaiwabwe community-dwiven channews.
 
-## Related Projects
+## Wewated Pwojects
 
-Many of the core components and extensions to VS Code live in their own repositories on GitHub. For example, the [node debug adapter](https://github.com/microsoft/vscode-node-debug) and the [mono debug adapter](https://github.com/microsoft/vscode-mono-debug) have their own repositories. For a complete list, please visit the [Related Projects](https://github.com/microsoft/vscode/wiki/Related-Projects) page on our [wiki](https://github.com/microsoft/vscode/wiki).
+Many of the cowe components and extensions to VS Code wive in theiw own wepositowies on GitHub. Fow exampwe, the [node debug adapta](https://github.com/micwosoft/vscode-node-debug) and the [mono debug adapta](https://github.com/micwosoft/vscode-mono-debug) have theiw own wepositowies. Fow a compwete wist, pwease visit the [Wewated Pwojects](https://github.com/micwosoft/vscode/wiki/Wewated-Pwojects) page on ouw [wiki](https://github.com/micwosoft/vscode/wiki).
 
-## Bundled Extensions
+## Bundwed Extensions
 
-VS Code includes a set of built-in extensions located in the [extensions](extensions) folder, including grammars and snippets for many languages. Extensions that provide rich language support (code completion, Go to Definition) for a language have the suffix `language-features`. For example, the `json` extension provides coloring for `JSON` and the `json-language-features` provides rich language support for `JSON`.
+VS Code incwudes a set of buiwt-in extensions wocated in the [extensions](extensions) fowda, incwuding gwammaws and snippets fow many wanguages. Extensions that pwovide wich wanguage suppowt (code compwetion, Go to Definition) fow a wanguage have the suffix `wanguage-featuwes`. Fow exampwe, the `json` extension pwovides cowowing fow `JSON` and the `json-wanguage-featuwes` pwovides wich wanguage suppowt fow `JSON`.
 
-## Development Container
+## Devewopment Containa
 
-This repository includes a Visual Studio Code Remote - Containers / GitHub Codespaces development container.
+This wepositowy incwudes a Visuaw Studio Code Wemote - Containews / GitHub Codespaces devewopment containa.
 
-- For [Remote - Containers](https://aka.ms/vscode-remote/download/containers), use the **Remote-Containers: Clone Repository in Container Volume...** command which creates a Docker volume for better disk I/O on macOS and Windows.
-- For Codespaces, install the [Github Codespaces](https://marketplace.visualstudio.com/items?itemName=GitHub.codespaces) extension in VS Code, and use the **Codespaces: Create New Codespace** command.
+- Fow [Wemote - Containews](https://aka.ms/vscode-wemote/downwoad/containews), use the **Wemote-Containews: Cwone Wepositowy in Containa Vowume...** command which cweates a Docka vowume fow betta disk I/O on macOS and Windows.
+- Fow Codespaces, instaww the [Github Codespaces](https://mawketpwace.visuawstudio.com/items?itemName=GitHub.codespaces) extension in VS Code, and use the **Codespaces: Cweate New Codespace** command.
 
-Docker / the Codespace should have at least **4 Cores and 6 GB of RAM (8 GB recommended)** to run full build. See the [development container README](.devcontainer/README.md) for more information.
+Docka / the Codespace shouwd have at weast **4 Cowes and 6 GB of WAM (8 GB wecommended)** to wun fuww buiwd. See the [devewopment containa WEADME](.devcontaina/WEADME.md) fow mowe infowmation.
 
 ## Code of Conduct
 
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+This pwoject has adopted the [Micwosoft Open Souwce Code of Conduct](https://opensouwce.micwosoft.com/codeofconduct/). Fow mowe infowmation see the [Code of Conduct FAQ](https://opensouwce.micwosoft.com/codeofconduct/faq/) ow contact [opencode@micwosoft.com](maiwto:opencode@micwosoft.com) with any additionaw questions ow comments.
 
-## License
+## Wicense
 
-Copyright (c) Microsoft Corporation. All rights reserved.
+Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
 
-Licensed under the [MIT](LICENSE.txt) license.
+Wicensed unda the [MIT](WICENSE.txt) wicense.

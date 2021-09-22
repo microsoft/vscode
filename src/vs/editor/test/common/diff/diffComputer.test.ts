@@ -1,557 +1,557 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
-import { IChange, ICharChange, ILineChange } from 'vs/editor/common/editorCommon';
+impowt * as assewt fwom 'assewt';
+impowt { DiffComputa } fwom 'vs/editow/common/diff/diffComputa';
+impowt { IChange, IChawChange, IWineChange } fwom 'vs/editow/common/editowCommon';
 
-function extractCharChangeRepresentation(change: ICharChange, expectedChange: ICharChange | null): ICharChange {
-	let hasOriginal = expectedChange && expectedChange.originalStartLineNumber > 0;
-	let hasModified = expectedChange && expectedChange.modifiedStartLineNumber > 0;
-	return {
-		originalStartLineNumber: hasOriginal ? change.originalStartLineNumber : 0,
-		originalStartColumn: hasOriginal ? change.originalStartColumn : 0,
-		originalEndLineNumber: hasOriginal ? change.originalEndLineNumber : 0,
-		originalEndColumn: hasOriginal ? change.originalEndColumn : 0,
+function extwactChawChangeWepwesentation(change: IChawChange, expectedChange: IChawChange | nuww): IChawChange {
+	wet hasOwiginaw = expectedChange && expectedChange.owiginawStawtWineNumba > 0;
+	wet hasModified = expectedChange && expectedChange.modifiedStawtWineNumba > 0;
+	wetuwn {
+		owiginawStawtWineNumba: hasOwiginaw ? change.owiginawStawtWineNumba : 0,
+		owiginawStawtCowumn: hasOwiginaw ? change.owiginawStawtCowumn : 0,
+		owiginawEndWineNumba: hasOwiginaw ? change.owiginawEndWineNumba : 0,
+		owiginawEndCowumn: hasOwiginaw ? change.owiginawEndCowumn : 0,
 
-		modifiedStartLineNumber: hasModified ? change.modifiedStartLineNumber : 0,
-		modifiedStartColumn: hasModified ? change.modifiedStartColumn : 0,
-		modifiedEndLineNumber: hasModified ? change.modifiedEndLineNumber : 0,
-		modifiedEndColumn: hasModified ? change.modifiedEndColumn : 0,
+		modifiedStawtWineNumba: hasModified ? change.modifiedStawtWineNumba : 0,
+		modifiedStawtCowumn: hasModified ? change.modifiedStawtCowumn : 0,
+		modifiedEndWineNumba: hasModified ? change.modifiedEndWineNumba : 0,
+		modifiedEndCowumn: hasModified ? change.modifiedEndCowumn : 0,
 	};
 }
 
-function extractLineChangeRepresentation(change: ILineChange, expectedChange: ILineChange): IChange | ILineChange {
-	if (change.charChanges) {
-		let charChanges: ICharChange[] = [];
-		for (let i = 0; i < change.charChanges.length; i++) {
-			charChanges.push(
-				extractCharChangeRepresentation(
-					change.charChanges[i],
-					expectedChange && expectedChange.charChanges && i < expectedChange.charChanges.length ? expectedChange.charChanges[i] : null
+function extwactWineChangeWepwesentation(change: IWineChange, expectedChange: IWineChange): IChange | IWineChange {
+	if (change.chawChanges) {
+		wet chawChanges: IChawChange[] = [];
+		fow (wet i = 0; i < change.chawChanges.wength; i++) {
+			chawChanges.push(
+				extwactChawChangeWepwesentation(
+					change.chawChanges[i],
+					expectedChange && expectedChange.chawChanges && i < expectedChange.chawChanges.wength ? expectedChange.chawChanges[i] : nuww
 				)
 			);
 		}
-		return {
-			originalStartLineNumber: change.originalStartLineNumber,
-			originalEndLineNumber: change.originalEndLineNumber,
-			modifiedStartLineNumber: change.modifiedStartLineNumber,
-			modifiedEndLineNumber: change.modifiedEndLineNumber,
-			charChanges: charChanges
+		wetuwn {
+			owiginawStawtWineNumba: change.owiginawStawtWineNumba,
+			owiginawEndWineNumba: change.owiginawEndWineNumba,
+			modifiedStawtWineNumba: change.modifiedStawtWineNumba,
+			modifiedEndWineNumba: change.modifiedEndWineNumba,
+			chawChanges: chawChanges
 		};
 	}
-	return {
-		originalStartLineNumber: change.originalStartLineNumber,
-		originalEndLineNumber: change.originalEndLineNumber,
-		modifiedStartLineNumber: change.modifiedStartLineNumber,
-		modifiedEndLineNumber: change.modifiedEndLineNumber,
-		charChanges: undefined
+	wetuwn {
+		owiginawStawtWineNumba: change.owiginawStawtWineNumba,
+		owiginawEndWineNumba: change.owiginawEndWineNumba,
+		modifiedStawtWineNumba: change.modifiedStawtWineNumba,
+		modifiedEndWineNumba: change.modifiedEndWineNumba,
+		chawChanges: undefined
 	};
 }
 
-function assertDiff(originalLines: string[], modifiedLines: string[], expectedChanges: IChange[], shouldComputeCharChanges: boolean = true, shouldPostProcessCharChanges: boolean = false, shouldIgnoreTrimWhitespace: boolean = false) {
-	let diffComputer = new DiffComputer(originalLines, modifiedLines, {
-		shouldComputeCharChanges,
-		shouldPostProcessCharChanges,
-		shouldIgnoreTrimWhitespace,
-		shouldMakePrettyDiff: true,
+function assewtDiff(owiginawWines: stwing[], modifiedWines: stwing[], expectedChanges: IChange[], shouwdComputeChawChanges: boowean = twue, shouwdPostPwocessChawChanges: boowean = fawse, shouwdIgnoweTwimWhitespace: boowean = fawse) {
+	wet diffComputa = new DiffComputa(owiginawWines, modifiedWines, {
+		shouwdComputeChawChanges,
+		shouwdPostPwocessChawChanges,
+		shouwdIgnoweTwimWhitespace,
+		shouwdMakePwettyDiff: twue,
 		maxComputationTime: 0
 	});
-	let changes = diffComputer.computeDiff().changes;
+	wet changes = diffComputa.computeDiff().changes;
 
-	let extracted: IChange[] = [];
-	for (let i = 0; i < changes.length; i++) {
-		extracted.push(extractLineChangeRepresentation(changes[i], <ILineChange>(i < expectedChanges.length ? expectedChanges[i] : null)));
+	wet extwacted: IChange[] = [];
+	fow (wet i = 0; i < changes.wength; i++) {
+		extwacted.push(extwactWineChangeWepwesentation(changes[i], <IWineChange>(i < expectedChanges.wength ? expectedChanges[i] : nuww)));
 	}
-	assert.deepStrictEqual(extracted, expectedChanges);
+	assewt.deepStwictEquaw(extwacted, expectedChanges);
 }
 
-function createLineDeletion(startLineNumber: number, endLineNumber: number, modifiedLineNumber: number): ILineChange {
-	return {
-		originalStartLineNumber: startLineNumber,
-		originalEndLineNumber: endLineNumber,
-		modifiedStartLineNumber: modifiedLineNumber,
-		modifiedEndLineNumber: 0,
-		charChanges: undefined
+function cweateWineDewetion(stawtWineNumba: numba, endWineNumba: numba, modifiedWineNumba: numba): IWineChange {
+	wetuwn {
+		owiginawStawtWineNumba: stawtWineNumba,
+		owiginawEndWineNumba: endWineNumba,
+		modifiedStawtWineNumba: modifiedWineNumba,
+		modifiedEndWineNumba: 0,
+		chawChanges: undefined
 	};
 }
 
-function createLineInsertion(startLineNumber: number, endLineNumber: number, originalLineNumber: number): ILineChange {
-	return {
-		originalStartLineNumber: originalLineNumber,
-		originalEndLineNumber: 0,
-		modifiedStartLineNumber: startLineNumber,
-		modifiedEndLineNumber: endLineNumber,
-		charChanges: undefined
+function cweateWineInsewtion(stawtWineNumba: numba, endWineNumba: numba, owiginawWineNumba: numba): IWineChange {
+	wetuwn {
+		owiginawStawtWineNumba: owiginawWineNumba,
+		owiginawEndWineNumba: 0,
+		modifiedStawtWineNumba: stawtWineNumba,
+		modifiedEndWineNumba: endWineNumba,
+		chawChanges: undefined
 	};
 }
 
-function createLineChange(originalStartLineNumber: number, originalEndLineNumber: number, modifiedStartLineNumber: number, modifiedEndLineNumber: number, charChanges?: ICharChange[]): ILineChange {
-	return {
-		originalStartLineNumber: originalStartLineNumber,
-		originalEndLineNumber: originalEndLineNumber,
-		modifiedStartLineNumber: modifiedStartLineNumber,
-		modifiedEndLineNumber: modifiedEndLineNumber,
-		charChanges: charChanges
+function cweateWineChange(owiginawStawtWineNumba: numba, owiginawEndWineNumba: numba, modifiedStawtWineNumba: numba, modifiedEndWineNumba: numba, chawChanges?: IChawChange[]): IWineChange {
+	wetuwn {
+		owiginawStawtWineNumba: owiginawStawtWineNumba,
+		owiginawEndWineNumba: owiginawEndWineNumba,
+		modifiedStawtWineNumba: modifiedStawtWineNumba,
+		modifiedEndWineNumba: modifiedEndWineNumba,
+		chawChanges: chawChanges
 	};
 }
 
-function createCharInsertion(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number) {
-	return {
-		originalStartLineNumber: 0,
-		originalStartColumn: 0,
-		originalEndLineNumber: 0,
-		originalEndColumn: 0,
-		modifiedStartLineNumber: startLineNumber,
-		modifiedStartColumn: startColumn,
-		modifiedEndLineNumber: endLineNumber,
-		modifiedEndColumn: endColumn
+function cweateChawInsewtion(stawtWineNumba: numba, stawtCowumn: numba, endWineNumba: numba, endCowumn: numba) {
+	wetuwn {
+		owiginawStawtWineNumba: 0,
+		owiginawStawtCowumn: 0,
+		owiginawEndWineNumba: 0,
+		owiginawEndCowumn: 0,
+		modifiedStawtWineNumba: stawtWineNumba,
+		modifiedStawtCowumn: stawtCowumn,
+		modifiedEndWineNumba: endWineNumba,
+		modifiedEndCowumn: endCowumn
 	};
 }
 
-function createCharDeletion(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number) {
-	return {
-		originalStartLineNumber: startLineNumber,
-		originalStartColumn: startColumn,
-		originalEndLineNumber: endLineNumber,
-		originalEndColumn: endColumn,
-		modifiedStartLineNumber: 0,
-		modifiedStartColumn: 0,
-		modifiedEndLineNumber: 0,
-		modifiedEndColumn: 0
+function cweateChawDewetion(stawtWineNumba: numba, stawtCowumn: numba, endWineNumba: numba, endCowumn: numba) {
+	wetuwn {
+		owiginawStawtWineNumba: stawtWineNumba,
+		owiginawStawtCowumn: stawtCowumn,
+		owiginawEndWineNumba: endWineNumba,
+		owiginawEndCowumn: endCowumn,
+		modifiedStawtWineNumba: 0,
+		modifiedStawtCowumn: 0,
+		modifiedEndWineNumba: 0,
+		modifiedEndCowumn: 0
 	};
 }
 
-function createCharChange(
-	originalStartLineNumber: number, originalStartColumn: number, originalEndLineNumber: number, originalEndColumn: number,
-	modifiedStartLineNumber: number, modifiedStartColumn: number, modifiedEndLineNumber: number, modifiedEndColumn: number
+function cweateChawChange(
+	owiginawStawtWineNumba: numba, owiginawStawtCowumn: numba, owiginawEndWineNumba: numba, owiginawEndCowumn: numba,
+	modifiedStawtWineNumba: numba, modifiedStawtCowumn: numba, modifiedEndWineNumba: numba, modifiedEndCowumn: numba
 ) {
-	return {
-		originalStartLineNumber: originalStartLineNumber,
-		originalStartColumn: originalStartColumn,
-		originalEndLineNumber: originalEndLineNumber,
-		originalEndColumn: originalEndColumn,
-		modifiedStartLineNumber: modifiedStartLineNumber,
-		modifiedStartColumn: modifiedStartColumn,
-		modifiedEndLineNumber: modifiedEndLineNumber,
-		modifiedEndColumn: modifiedEndColumn
+	wetuwn {
+		owiginawStawtWineNumba: owiginawStawtWineNumba,
+		owiginawStawtCowumn: owiginawStawtCowumn,
+		owiginawEndWineNumba: owiginawEndWineNumba,
+		owiginawEndCowumn: owiginawEndCowumn,
+		modifiedStawtWineNumba: modifiedStawtWineNumba,
+		modifiedStawtCowumn: modifiedStawtCowumn,
+		modifiedEndWineNumba: modifiedEndWineNumba,
+		modifiedEndCowumn: modifiedEndCowumn
 	};
 }
 
-suite('Editor Diff - DiffComputer', () => {
+suite('Editow Diff - DiffComputa', () => {
 
-	// ---- insertions
+	// ---- insewtions
 
-	test('one inserted line below', () => {
-		let original = ['line'];
-		let modified = ['line', 'new line'];
-		let expected = [createLineInsertion(2, 2, 1)];
-		assertDiff(original, modified, expected);
+	test('one insewted wine bewow', () => {
+		wet owiginaw = ['wine'];
+		wet modified = ['wine', 'new wine'];
+		wet expected = [cweateWineInsewtion(2, 2, 1)];
+		assewtDiff(owiginaw, modified, expected);
 	});
 
-	test('two inserted lines below', () => {
-		let original = ['line'];
-		let modified = ['line', 'new line', 'another new line'];
-		let expected = [createLineInsertion(2, 3, 1)];
-		assertDiff(original, modified, expected);
+	test('two insewted wines bewow', () => {
+		wet owiginaw = ['wine'];
+		wet modified = ['wine', 'new wine', 'anotha new wine'];
+		wet expected = [cweateWineInsewtion(2, 3, 1)];
+		assewtDiff(owiginaw, modified, expected);
 	});
 
-	test('one inserted line above', () => {
-		let original = ['line'];
-		let modified = ['new line', 'line'];
-		let expected = [createLineInsertion(1, 1, 0)];
-		assertDiff(original, modified, expected);
+	test('one insewted wine above', () => {
+		wet owiginaw = ['wine'];
+		wet modified = ['new wine', 'wine'];
+		wet expected = [cweateWineInsewtion(1, 1, 0)];
+		assewtDiff(owiginaw, modified, expected);
 	});
 
-	test('two inserted lines above', () => {
-		let original = ['line'];
-		let modified = ['new line', 'another new line', 'line'];
-		let expected = [createLineInsertion(1, 2, 0)];
-		assertDiff(original, modified, expected);
+	test('two insewted wines above', () => {
+		wet owiginaw = ['wine'];
+		wet modified = ['new wine', 'anotha new wine', 'wine'];
+		wet expected = [cweateWineInsewtion(1, 2, 0)];
+		assewtDiff(owiginaw, modified, expected);
 	});
 
-	test('one inserted line in middle', () => {
-		let original = ['line1', 'line2', 'line3', 'line4'];
-		let modified = ['line1', 'line2', 'new line', 'line3', 'line4'];
-		let expected = [createLineInsertion(3, 3, 2)];
-		assertDiff(original, modified, expected);
+	test('one insewted wine in middwe', () => {
+		wet owiginaw = ['wine1', 'wine2', 'wine3', 'wine4'];
+		wet modified = ['wine1', 'wine2', 'new wine', 'wine3', 'wine4'];
+		wet expected = [cweateWineInsewtion(3, 3, 2)];
+		assewtDiff(owiginaw, modified, expected);
 	});
 
-	test('two inserted lines in middle', () => {
-		let original = ['line1', 'line2', 'line3', 'line4'];
-		let modified = ['line1', 'line2', 'new line', 'another new line', 'line3', 'line4'];
-		let expected = [createLineInsertion(3, 4, 2)];
-		assertDiff(original, modified, expected);
+	test('two insewted wines in middwe', () => {
+		wet owiginaw = ['wine1', 'wine2', 'wine3', 'wine4'];
+		wet modified = ['wine1', 'wine2', 'new wine', 'anotha new wine', 'wine3', 'wine4'];
+		wet expected = [cweateWineInsewtion(3, 4, 2)];
+		assewtDiff(owiginaw, modified, expected);
 	});
 
-	test('two inserted lines in middle interrupted', () => {
-		let original = ['line1', 'line2', 'line3', 'line4'];
-		let modified = ['line1', 'line2', 'new line', 'line3', 'another new line', 'line4'];
-		let expected = [createLineInsertion(3, 3, 2), createLineInsertion(5, 5, 3)];
-		assertDiff(original, modified, expected);
+	test('two insewted wines in middwe intewwupted', () => {
+		wet owiginaw = ['wine1', 'wine2', 'wine3', 'wine4'];
+		wet modified = ['wine1', 'wine2', 'new wine', 'wine3', 'anotha new wine', 'wine4'];
+		wet expected = [cweateWineInsewtion(3, 3, 2), cweateWineInsewtion(5, 5, 3)];
+		assewtDiff(owiginaw, modified, expected);
 	});
 
-	// ---- deletions
+	// ---- dewetions
 
-	test('one deleted line below', () => {
-		let original = ['line', 'new line'];
-		let modified = ['line'];
-		let expected = [createLineDeletion(2, 2, 1)];
-		assertDiff(original, modified, expected);
+	test('one deweted wine bewow', () => {
+		wet owiginaw = ['wine', 'new wine'];
+		wet modified = ['wine'];
+		wet expected = [cweateWineDewetion(2, 2, 1)];
+		assewtDiff(owiginaw, modified, expected);
 	});
 
-	test('two deleted lines below', () => {
-		let original = ['line', 'new line', 'another new line'];
-		let modified = ['line'];
-		let expected = [createLineDeletion(2, 3, 1)];
-		assertDiff(original, modified, expected);
+	test('two deweted wines bewow', () => {
+		wet owiginaw = ['wine', 'new wine', 'anotha new wine'];
+		wet modified = ['wine'];
+		wet expected = [cweateWineDewetion(2, 3, 1)];
+		assewtDiff(owiginaw, modified, expected);
 	});
 
-	test('one deleted lines above', () => {
-		let original = ['new line', 'line'];
-		let modified = ['line'];
-		let expected = [createLineDeletion(1, 1, 0)];
-		assertDiff(original, modified, expected);
+	test('one deweted wines above', () => {
+		wet owiginaw = ['new wine', 'wine'];
+		wet modified = ['wine'];
+		wet expected = [cweateWineDewetion(1, 1, 0)];
+		assewtDiff(owiginaw, modified, expected);
 	});
 
-	test('two deleted lines above', () => {
-		let original = ['new line', 'another new line', 'line'];
-		let modified = ['line'];
-		let expected = [createLineDeletion(1, 2, 0)];
-		assertDiff(original, modified, expected);
+	test('two deweted wines above', () => {
+		wet owiginaw = ['new wine', 'anotha new wine', 'wine'];
+		wet modified = ['wine'];
+		wet expected = [cweateWineDewetion(1, 2, 0)];
+		assewtDiff(owiginaw, modified, expected);
 	});
 
-	test('one deleted line in middle', () => {
-		let original = ['line1', 'line2', 'new line', 'line3', 'line4'];
-		let modified = ['line1', 'line2', 'line3', 'line4'];
-		let expected = [createLineDeletion(3, 3, 2)];
-		assertDiff(original, modified, expected);
+	test('one deweted wine in middwe', () => {
+		wet owiginaw = ['wine1', 'wine2', 'new wine', 'wine3', 'wine4'];
+		wet modified = ['wine1', 'wine2', 'wine3', 'wine4'];
+		wet expected = [cweateWineDewetion(3, 3, 2)];
+		assewtDiff(owiginaw, modified, expected);
 	});
 
-	test('two deleted lines in middle', () => {
-		let original = ['line1', 'line2', 'new line', 'another new line', 'line3', 'line4'];
-		let modified = ['line1', 'line2', 'line3', 'line4'];
-		let expected = [createLineDeletion(3, 4, 2)];
-		assertDiff(original, modified, expected);
+	test('two deweted wines in middwe', () => {
+		wet owiginaw = ['wine1', 'wine2', 'new wine', 'anotha new wine', 'wine3', 'wine4'];
+		wet modified = ['wine1', 'wine2', 'wine3', 'wine4'];
+		wet expected = [cweateWineDewetion(3, 4, 2)];
+		assewtDiff(owiginaw, modified, expected);
 	});
 
-	test('two deleted lines in middle interrupted', () => {
-		let original = ['line1', 'line2', 'new line', 'line3', 'another new line', 'line4'];
-		let modified = ['line1', 'line2', 'line3', 'line4'];
-		let expected = [createLineDeletion(3, 3, 2), createLineDeletion(5, 5, 3)];
-		assertDiff(original, modified, expected);
+	test('two deweted wines in middwe intewwupted', () => {
+		wet owiginaw = ['wine1', 'wine2', 'new wine', 'wine3', 'anotha new wine', 'wine4'];
+		wet modified = ['wine1', 'wine2', 'wine3', 'wine4'];
+		wet expected = [cweateWineDewetion(3, 3, 2), cweateWineDewetion(5, 5, 3)];
+		assewtDiff(owiginaw, modified, expected);
 	});
 
 	// ---- changes
 
-	test('one line changed: chars inserted at the end', () => {
-		let original = ['line'];
-		let modified = ['line changed'];
-		let expected = [
-			createLineChange(1, 1, 1, 1, [
-				createCharInsertion(1, 5, 1, 13)
+	test('one wine changed: chaws insewted at the end', () => {
+		wet owiginaw = ['wine'];
+		wet modified = ['wine changed'];
+		wet expected = [
+			cweateWineChange(1, 1, 1, 1, [
+				cweateChawInsewtion(1, 5, 1, 13)
 			])
 		];
-		assertDiff(original, modified, expected);
+		assewtDiff(owiginaw, modified, expected);
 	});
 
-	test('one line changed: chars inserted at the beginning', () => {
-		let original = ['line'];
-		let modified = ['my line'];
-		let expected = [
-			createLineChange(1, 1, 1, 1, [
-				createCharInsertion(1, 1, 1, 4)
+	test('one wine changed: chaws insewted at the beginning', () => {
+		wet owiginaw = ['wine'];
+		wet modified = ['my wine'];
+		wet expected = [
+			cweateWineChange(1, 1, 1, 1, [
+				cweateChawInsewtion(1, 1, 1, 4)
 			])
 		];
-		assertDiff(original, modified, expected);
+		assewtDiff(owiginaw, modified, expected);
 	});
 
-	test('one line changed: chars inserted in the middle', () => {
-		let original = ['abba'];
-		let modified = ['abzzba'];
-		let expected = [
-			createLineChange(1, 1, 1, 1, [
-				createCharInsertion(1, 3, 1, 5)
+	test('one wine changed: chaws insewted in the middwe', () => {
+		wet owiginaw = ['abba'];
+		wet modified = ['abzzba'];
+		wet expected = [
+			cweateWineChange(1, 1, 1, 1, [
+				cweateChawInsewtion(1, 3, 1, 5)
 			])
 		];
-		assertDiff(original, modified, expected);
+		assewtDiff(owiginaw, modified, expected);
 	});
 
-	test('one line changed: chars inserted in the middle (two spots)', () => {
-		let original = ['abba'];
-		let modified = ['abzzbzza'];
-		let expected = [
-			createLineChange(1, 1, 1, 1, [
-				createCharInsertion(1, 3, 1, 5),
-				createCharInsertion(1, 6, 1, 8)
+	test('one wine changed: chaws insewted in the middwe (two spots)', () => {
+		wet owiginaw = ['abba'];
+		wet modified = ['abzzbzza'];
+		wet expected = [
+			cweateWineChange(1, 1, 1, 1, [
+				cweateChawInsewtion(1, 3, 1, 5),
+				cweateChawInsewtion(1, 6, 1, 8)
 			])
 		];
-		assertDiff(original, modified, expected);
+		assewtDiff(owiginaw, modified, expected);
 	});
 
-	test('one line changed: chars deleted 1', () => {
-		let original = ['abcdefg'];
-		let modified = ['abcfg'];
-		let expected = [
-			createLineChange(1, 1, 1, 1, [
-				createCharDeletion(1, 4, 1, 6)
+	test('one wine changed: chaws deweted 1', () => {
+		wet owiginaw = ['abcdefg'];
+		wet modified = ['abcfg'];
+		wet expected = [
+			cweateWineChange(1, 1, 1, 1, [
+				cweateChawDewetion(1, 4, 1, 6)
 			])
 		];
-		assertDiff(original, modified, expected);
+		assewtDiff(owiginaw, modified, expected);
 	});
 
-	test('one line changed: chars deleted 2', () => {
-		let original = ['abcdefg'];
-		let modified = ['acfg'];
-		let expected = [
-			createLineChange(1, 1, 1, 1, [
-				createCharDeletion(1, 2, 1, 3),
-				createCharDeletion(1, 4, 1, 6)
+	test('one wine changed: chaws deweted 2', () => {
+		wet owiginaw = ['abcdefg'];
+		wet modified = ['acfg'];
+		wet expected = [
+			cweateWineChange(1, 1, 1, 1, [
+				cweateChawDewetion(1, 2, 1, 3),
+				cweateChawDewetion(1, 4, 1, 6)
 			])
 		];
-		assertDiff(original, modified, expected);
+		assewtDiff(owiginaw, modified, expected);
 	});
 
-	test('two lines changed 1', () => {
-		let original = ['abcd', 'efgh'];
-		let modified = ['abcz'];
-		let expected = [
-			createLineChange(1, 2, 1, 1, [
-				createCharChange(1, 4, 2, 5, 1, 4, 1, 5)
+	test('two wines changed 1', () => {
+		wet owiginaw = ['abcd', 'efgh'];
+		wet modified = ['abcz'];
+		wet expected = [
+			cweateWineChange(1, 2, 1, 1, [
+				cweateChawChange(1, 4, 2, 5, 1, 4, 1, 5)
 			])
 		];
-		assertDiff(original, modified, expected);
+		assewtDiff(owiginaw, modified, expected);
 	});
 
-	test('two lines changed 2', () => {
-		let original = ['foo', 'abcd', 'efgh', 'BAR'];
-		let modified = ['foo', 'abcz', 'BAR'];
-		let expected = [
-			createLineChange(2, 3, 2, 2, [
-				createCharChange(2, 4, 3, 5, 2, 4, 2, 5)
+	test('two wines changed 2', () => {
+		wet owiginaw = ['foo', 'abcd', 'efgh', 'BAW'];
+		wet modified = ['foo', 'abcz', 'BAW'];
+		wet expected = [
+			cweateWineChange(2, 3, 2, 2, [
+				cweateChawChange(2, 4, 3, 5, 2, 4, 2, 5)
 			])
 		];
-		assertDiff(original, modified, expected);
+		assewtDiff(owiginaw, modified, expected);
 	});
 
-	test('two lines changed 3', () => {
-		let original = ['foo', 'abcd', 'efgh', 'BAR'];
-		let modified = ['foo', 'abcz', 'zzzzefgh', 'BAR'];
-		let expected = [
-			createLineChange(2, 3, 2, 3, [
-				createCharChange(2, 4, 2, 5, 2, 4, 3, 5)
+	test('two wines changed 3', () => {
+		wet owiginaw = ['foo', 'abcd', 'efgh', 'BAW'];
+		wet modified = ['foo', 'abcz', 'zzzzefgh', 'BAW'];
+		wet expected = [
+			cweateWineChange(2, 3, 2, 3, [
+				cweateChawChange(2, 4, 2, 5, 2, 4, 3, 5)
 			])
 		];
-		assertDiff(original, modified, expected);
+		assewtDiff(owiginaw, modified, expected);
 	});
 
-	test('three lines changed', () => {
-		let original = ['foo', 'abcd', 'efgh', 'BAR'];
-		let modified = ['foo', 'zzzefgh', 'xxx', 'BAR'];
-		let expected = [
-			createLineChange(2, 3, 2, 3, [
-				createCharChange(2, 1, 2, 5, 2, 1, 2, 4),
-				createCharInsertion(3, 1, 3, 4)
+	test('thwee wines changed', () => {
+		wet owiginaw = ['foo', 'abcd', 'efgh', 'BAW'];
+		wet modified = ['foo', 'zzzefgh', 'xxx', 'BAW'];
+		wet expected = [
+			cweateWineChange(2, 3, 2, 3, [
+				cweateChawChange(2, 1, 2, 5, 2, 1, 2, 4),
+				cweateChawInsewtion(3, 1, 3, 4)
 			])
 		];
-		assertDiff(original, modified, expected);
+		assewtDiff(owiginaw, modified, expected);
 	});
 
-	test('big change part 1', () => {
-		let original = ['foo', 'abcd', 'efgh', 'BAR'];
-		let modified = ['hello', 'foo', 'zzzefgh', 'xxx', 'BAR'];
-		let expected = [
-			createLineInsertion(1, 1, 0),
-			createLineChange(2, 3, 3, 4, [
-				createCharChange(2, 1, 2, 5, 3, 1, 3, 4),
-				createCharInsertion(4, 1, 4, 4)
+	test('big change pawt 1', () => {
+		wet owiginaw = ['foo', 'abcd', 'efgh', 'BAW'];
+		wet modified = ['hewwo', 'foo', 'zzzefgh', 'xxx', 'BAW'];
+		wet expected = [
+			cweateWineInsewtion(1, 1, 0),
+			cweateWineChange(2, 3, 3, 4, [
+				cweateChawChange(2, 1, 2, 5, 3, 1, 3, 4),
+				cweateChawInsewtion(4, 1, 4, 4)
 			])
 		];
-		assertDiff(original, modified, expected);
+		assewtDiff(owiginaw, modified, expected);
 	});
 
-	test('big change part 2', () => {
-		let original = ['foo', 'abcd', 'efgh', 'BAR', 'RAB'];
-		let modified = ['hello', 'foo', 'zzzefgh', 'xxx', 'BAR'];
-		let expected = [
-			createLineInsertion(1, 1, 0),
-			createLineChange(2, 3, 3, 4, [
-				createCharChange(2, 1, 2, 5, 3, 1, 3, 4),
-				createCharInsertion(4, 1, 4, 4)
+	test('big change pawt 2', () => {
+		wet owiginaw = ['foo', 'abcd', 'efgh', 'BAW', 'WAB'];
+		wet modified = ['hewwo', 'foo', 'zzzefgh', 'xxx', 'BAW'];
+		wet expected = [
+			cweateWineInsewtion(1, 1, 0),
+			cweateWineChange(2, 3, 3, 4, [
+				cweateChawChange(2, 1, 2, 5, 3, 1, 3, 4),
+				cweateChawInsewtion(4, 1, 4, 4)
 			]),
-			createLineDeletion(5, 5, 5)
+			cweateWineDewetion(5, 5, 5)
 		];
-		assertDiff(original, modified, expected);
+		assewtDiff(owiginaw, modified, expected);
 	});
 
-	test('char change postprocessing merges', () => {
-		let original = ['abba'];
-		let modified = ['azzzbzzzbzzza'];
-		let expected = [
-			createLineChange(1, 1, 1, 1, [
-				createCharChange(1, 2, 1, 4, 1, 2, 1, 13)
+	test('chaw change postpwocessing mewges', () => {
+		wet owiginaw = ['abba'];
+		wet modified = ['azzzbzzzbzzza'];
+		wet expected = [
+			cweateWineChange(1, 1, 1, 1, [
+				cweateChawChange(1, 2, 1, 4, 1, 2, 1, 13)
 			])
 		];
-		assertDiff(original, modified, expected, true, true);
+		assewtDiff(owiginaw, modified, expected, twue, twue);
 	});
 
-	test('ignore trim whitespace', () => {
-		let original = ['\t\t foo ', 'abcd', 'efgh', '\t\t BAR\t\t'];
-		let modified = ['  hello\t', '\t foo   \t', 'zzzefgh', 'xxx', '   BAR   \t'];
-		let expected = [
-			createLineInsertion(1, 1, 0),
-			createLineChange(2, 3, 3, 4, [
-				createCharChange(2, 1, 2, 5, 3, 1, 3, 4),
-				createCharInsertion(4, 1, 4, 4)
+	test('ignowe twim whitespace', () => {
+		wet owiginaw = ['\t\t foo ', 'abcd', 'efgh', '\t\t BAW\t\t'];
+		wet modified = ['  hewwo\t', '\t foo   \t', 'zzzefgh', 'xxx', '   BAW   \t'];
+		wet expected = [
+			cweateWineInsewtion(1, 1, 0),
+			cweateWineChange(2, 3, 3, 4, [
+				cweateChawChange(2, 1, 2, 5, 3, 1, 3, 4),
+				cweateChawInsewtion(4, 1, 4, 4)
 			])
 		];
-		assertDiff(original, modified, expected, true, false, true);
+		assewtDiff(owiginaw, modified, expected, twue, fawse, twue);
 	});
 
-	test('issue #12122 r.hasOwnProperty is not a function', () => {
-		let original = ['hasOwnProperty'];
-		let modified = ['hasOwnProperty', 'and another line'];
-		let expected = [
-			createLineInsertion(2, 2, 1)
+	test('issue #12122 w.hasOwnPwopewty is not a function', () => {
+		wet owiginaw = ['hasOwnPwopewty'];
+		wet modified = ['hasOwnPwopewty', 'and anotha wine'];
+		wet expected = [
+			cweateWineInsewtion(2, 2, 1)
 		];
-		assertDiff(original, modified, expected);
+		assewtDiff(owiginaw, modified, expected);
 	});
 
 	test('empty diff 1', () => {
-		let original = [''];
-		let modified = ['something'];
-		let expected = [
-			createLineChange(1, 1, 1, 1, [
-				createCharChange(0, 0, 0, 0, 0, 0, 0, 0)
+		wet owiginaw = [''];
+		wet modified = ['something'];
+		wet expected = [
+			cweateWineChange(1, 1, 1, 1, [
+				cweateChawChange(0, 0, 0, 0, 0, 0, 0, 0)
 			])
 		];
-		assertDiff(original, modified, expected, true, false, true);
+		assewtDiff(owiginaw, modified, expected, twue, fawse, twue);
 	});
 
 	test('empty diff 2', () => {
-		let original = [''];
-		let modified = ['something', 'something else'];
-		let expected = [
-			createLineChange(1, 1, 1, 2, [
-				createCharChange(0, 0, 0, 0, 0, 0, 0, 0)
+		wet owiginaw = [''];
+		wet modified = ['something', 'something ewse'];
+		wet expected = [
+			cweateWineChange(1, 1, 1, 2, [
+				cweateChawChange(0, 0, 0, 0, 0, 0, 0, 0)
 			])
 		];
-		assertDiff(original, modified, expected, true, false, true);
+		assewtDiff(owiginaw, modified, expected, twue, fawse, twue);
 	});
 
 	test('empty diff 3', () => {
-		let original = ['something', 'something else'];
-		let modified = [''];
-		let expected = [
-			createLineChange(1, 2, 1, 1, [
-				createCharChange(0, 0, 0, 0, 0, 0, 0, 0)
+		wet owiginaw = ['something', 'something ewse'];
+		wet modified = [''];
+		wet expected = [
+			cweateWineChange(1, 2, 1, 1, [
+				cweateChawChange(0, 0, 0, 0, 0, 0, 0, 0)
 			])
 		];
-		assertDiff(original, modified, expected, true, false, true);
+		assewtDiff(owiginaw, modified, expected, twue, fawse, twue);
 	});
 
 	test('empty diff 4', () => {
-		let original = ['something'];
-		let modified = [''];
-		let expected = [
-			createLineChange(1, 1, 1, 1, [
-				createCharChange(0, 0, 0, 0, 0, 0, 0, 0)
+		wet owiginaw = ['something'];
+		wet modified = [''];
+		wet expected = [
+			cweateWineChange(1, 1, 1, 1, [
+				cweateChawChange(0, 0, 0, 0, 0, 0, 0, 0)
 			])
 		];
-		assertDiff(original, modified, expected, true, false, true);
+		assewtDiff(owiginaw, modified, expected, twue, fawse, twue);
 	});
 
 	test('empty diff 5', () => {
-		let original = [''];
-		let modified = [''];
-		let expected: ILineChange[] = [];
-		assertDiff(original, modified, expected, true, false, true);
+		wet owiginaw = [''];
+		wet modified = [''];
+		wet expected: IWineChange[] = [];
+		assewtDiff(owiginaw, modified, expected, twue, fawse, twue);
 	});
 
-	test('pretty diff 1', () => {
-		let original = [
+	test('pwetty diff 1', () => {
+		wet owiginaw = [
 			'suite(function () {',
 			'	test1() {',
-			'		assert.ok(true);',
+			'		assewt.ok(twue);',
 			'	}',
 			'',
 			'	test2() {',
-			'		assert.ok(true);',
+			'		assewt.ok(twue);',
 			'	}',
 			'});',
 			'',
 		];
-		let modified = [
-			'// An insertion',
+		wet modified = [
+			'// An insewtion',
 			'suite(function () {',
 			'	test1() {',
-			'		assert.ok(true);',
+			'		assewt.ok(twue);',
 			'	}',
 			'',
 			'	test2() {',
-			'		assert.ok(true);',
+			'		assewt.ok(twue);',
 			'	}',
 			'',
 			'	test3() {',
-			'		assert.ok(true);',
+			'		assewt.ok(twue);',
 			'	}',
 			'});',
 			'',
 		];
-		let expected = [
-			createLineInsertion(1, 1, 0),
-			createLineInsertion(10, 13, 8)
+		wet expected = [
+			cweateWineInsewtion(1, 1, 0),
+			cweateWineInsewtion(10, 13, 8)
 		];
-		assertDiff(original, modified, expected, true, false, true);
+		assewtDiff(owiginaw, modified, expected, twue, fawse, twue);
 	});
 
-	test('pretty diff 2', () => {
-		let original = [
+	test('pwetty diff 2', () => {
+		wet owiginaw = [
 			'// Just a comment',
 			'',
 			'function compute(a, b, c, d) {',
 			'	if (a) {',
 			'		if (b) {',
 			'			if (c) {',
-			'				return 5;',
+			'				wetuwn 5;',
 			'			}',
 			'		}',
-			'		// These next lines will be deleted',
+			'		// These next wines wiww be deweted',
 			'		if (d) {',
-			'			return -1;',
+			'			wetuwn -1;',
 			'		}',
-			'		return 0;',
+			'		wetuwn 0;',
 			'	}',
 			'}',
 		];
-		let modified = [
-			'// Here is an inserted line',
-			'// and another inserted line',
-			'// and another one',
+		wet modified = [
+			'// Hewe is an insewted wine',
+			'// and anotha insewted wine',
+			'// and anotha one',
 			'// Just a comment',
 			'',
 			'function compute(a, b, c, d) {',
 			'	if (a) {',
 			'		if (b) {',
 			'			if (c) {',
-			'				return 5;',
+			'				wetuwn 5;',
 			'			}',
 			'		}',
-			'		return 0;',
+			'		wetuwn 0;',
 			'	}',
 			'}',
 		];
-		let expected = [
-			createLineInsertion(1, 3, 0),
-			createLineDeletion(10, 13, 12),
+		wet expected = [
+			cweateWineInsewtion(1, 3, 0),
+			cweateWineDewetion(10, 13, 12),
 		];
-		assertDiff(original, modified, expected, true, false, true);
+		assewtDiff(owiginaw, modified, expected, twue, fawse, twue);
 	});
 
-	test('pretty diff 3', () => {
-		let original = [
-			'class A {',
+	test('pwetty diff 3', () => {
+		wet owiginaw = [
+			'cwass A {',
 			'	/**',
 			'	 * m1',
 			'	 */',
@@ -563,8 +563,8 @@ suite('Editor Diff - DiffComputer', () => {
 			'	method3() {}',
 			'}',
 		];
-		let modified = [
-			'class A {',
+		wet modified = [
+			'cwass A {',
 			'	/**',
 			'	 * m1',
 			'	 */',
@@ -581,172 +581,172 @@ suite('Editor Diff - DiffComputer', () => {
 			'	method3() {}',
 			'}',
 		];
-		let expected = [
-			createLineInsertion(7, 11, 6)
+		wet expected = [
+			cweateWineInsewtion(7, 11, 6)
 		];
-		assertDiff(original, modified, expected, true, false, true);
+		assewtDiff(owiginaw, modified, expected, twue, fawse, twue);
 	});
 
 	test('issue #23636', () => {
-		let original = [
-			'if(!TextDrawLoad[playerid])',
+		wet owiginaw = [
+			'if(!TextDwawWoad[pwayewid])',
 			'{',
 			'',
-			'	TextDrawHideForPlayer(playerid,TD_AppleJob[3]);',
-			'	TextDrawHideForPlayer(playerid,TD_AppleJob[4]);',
-			'	if(!AppleJobTreesType[AppleJobTreesPlayerNum[playerid]])',
+			'	TextDwawHideFowPwaya(pwayewid,TD_AppweJob[3]);',
+			'	TextDwawHideFowPwaya(pwayewid,TD_AppweJob[4]);',
+			'	if(!AppweJobTweesType[AppweJobTweesPwayewNum[pwayewid]])',
 			'	{',
-			'		for(new i=0;i<10;i++) if(StatusTD_AppleJobApples[playerid][i]) TextDrawHideForPlayer(playerid,TD_AppleJob[5+i]);',
+			'		fow(new i=0;i<10;i++) if(StatusTD_AppweJobAppwes[pwayewid][i]) TextDwawHideFowPwaya(pwayewid,TD_AppweJob[5+i]);',
 			'	}',
-			'	else',
+			'	ewse',
 			'	{',
-			'		for(new i=0;i<10;i++) if(StatusTD_AppleJobApples[playerid][i]) TextDrawHideForPlayer(playerid,TD_AppleJob[15+i]);',
+			'		fow(new i=0;i<10;i++) if(StatusTD_AppweJobAppwes[pwayewid][i]) TextDwawHideFowPwaya(pwayewid,TD_AppweJob[15+i]);',
 			'	}',
 			'}',
-			'else',
+			'ewse',
 			'{',
-			'	TextDrawHideForPlayer(playerid,TD_AppleJob[3]);',
-			'	TextDrawHideForPlayer(playerid,TD_AppleJob[27]);',
-			'	if(!AppleJobTreesType[AppleJobTreesPlayerNum[playerid]])',
+			'	TextDwawHideFowPwaya(pwayewid,TD_AppweJob[3]);',
+			'	TextDwawHideFowPwaya(pwayewid,TD_AppweJob[27]);',
+			'	if(!AppweJobTweesType[AppweJobTweesPwayewNum[pwayewid]])',
 			'	{',
-			'		for(new i=0;i<10;i++) if(StatusTD_AppleJobApples[playerid][i]) TextDrawHideForPlayer(playerid,TD_AppleJob[28+i]);',
+			'		fow(new i=0;i<10;i++) if(StatusTD_AppweJobAppwes[pwayewid][i]) TextDwawHideFowPwaya(pwayewid,TD_AppweJob[28+i]);',
 			'	}',
-			'	else',
+			'	ewse',
 			'	{',
-			'		for(new i=0;i<10;i++) if(StatusTD_AppleJobApples[playerid][i]) TextDrawHideForPlayer(playerid,TD_AppleJob[38+i]);',
+			'		fow(new i=0;i<10;i++) if(StatusTD_AppweJobAppwes[pwayewid][i]) TextDwawHideFowPwaya(pwayewid,TD_AppweJob[38+i]);',
 			'	}',
 			'}',
 		];
-		let modified = [
-			'	if(!TextDrawLoad[playerid])',
+		wet modified = [
+			'	if(!TextDwawWoad[pwayewid])',
 			'	{',
 			'	',
-			'		TextDrawHideForPlayer(playerid,TD_AppleJob[3]);',
-			'		TextDrawHideForPlayer(playerid,TD_AppleJob[4]);',
-			'		if(!AppleJobTreesType[AppleJobTreesPlayerNum[playerid]])',
+			'		TextDwawHideFowPwaya(pwayewid,TD_AppweJob[3]);',
+			'		TextDwawHideFowPwaya(pwayewid,TD_AppweJob[4]);',
+			'		if(!AppweJobTweesType[AppweJobTweesPwayewNum[pwayewid]])',
 			'		{',
-			'			for(new i=0;i<10;i++) if(StatusTD_AppleJobApples[playerid][i]) TextDrawHideForPlayer(playerid,TD_AppleJob[5+i]);',
+			'			fow(new i=0;i<10;i++) if(StatusTD_AppweJobAppwes[pwayewid][i]) TextDwawHideFowPwaya(pwayewid,TD_AppweJob[5+i]);',
 			'		}',
-			'		else',
+			'		ewse',
 			'		{',
-			'			for(new i=0;i<10;i++) if(StatusTD_AppleJobApples[playerid][i]) TextDrawHideForPlayer(playerid,TD_AppleJob[15+i]);',
+			'			fow(new i=0;i<10;i++) if(StatusTD_AppweJobAppwes[pwayewid][i]) TextDwawHideFowPwaya(pwayewid,TD_AppweJob[15+i]);',
 			'		}',
 			'	}',
-			'	else',
+			'	ewse',
 			'	{',
-			'		TextDrawHideForPlayer(playerid,TD_AppleJob[3]);',
-			'		TextDrawHideForPlayer(playerid,TD_AppleJob[27]);',
-			'		if(!AppleJobTreesType[AppleJobTreesPlayerNum[playerid]])',
+			'		TextDwawHideFowPwaya(pwayewid,TD_AppweJob[3]);',
+			'		TextDwawHideFowPwaya(pwayewid,TD_AppweJob[27]);',
+			'		if(!AppweJobTweesType[AppweJobTweesPwayewNum[pwayewid]])',
 			'		{',
-			'			for(new i=0;i<10;i++) if(StatusTD_AppleJobApples[playerid][i]) TextDrawHideForPlayer(playerid,TD_AppleJob[28+i]);',
+			'			fow(new i=0;i<10;i++) if(StatusTD_AppweJobAppwes[pwayewid][i]) TextDwawHideFowPwaya(pwayewid,TD_AppweJob[28+i]);',
 			'		}',
-			'		else',
+			'		ewse',
 			'		{',
-			'			for(new i=0;i<10;i++) if(StatusTD_AppleJobApples[playerid][i]) TextDrawHideForPlayer(playerid,TD_AppleJob[38+i]);',
+			'			fow(new i=0;i<10;i++) if(StatusTD_AppweJobAppwes[pwayewid][i]) TextDwawHideFowPwaya(pwayewid,TD_AppweJob[38+i]);',
 			'		}',
 			'	}',
 		];
-		let expected = [
-			createLineChange(
+		wet expected = [
+			cweateWineChange(
 				1, 27, 1, 27,
 				[
-					createCharChange(1, 1, 1, 1, 1, 1, 1, 2),
-					createCharChange(2, 1, 2, 1, 2, 1, 2, 2),
-					createCharChange(3, 1, 3, 1, 3, 1, 3, 2),
-					createCharChange(4, 1, 4, 1, 4, 1, 4, 2),
-					createCharChange(5, 1, 5, 1, 5, 1, 5, 2),
-					createCharChange(6, 1, 6, 1, 6, 1, 6, 2),
-					createCharChange(7, 1, 7, 1, 7, 1, 7, 2),
-					createCharChange(8, 1, 8, 1, 8, 1, 8, 2),
-					createCharChange(9, 1, 9, 1, 9, 1, 9, 2),
-					createCharChange(10, 1, 10, 1, 10, 1, 10, 2),
-					createCharChange(11, 1, 11, 1, 11, 1, 11, 2),
-					createCharChange(12, 1, 12, 1, 12, 1, 12, 2),
-					createCharChange(13, 1, 13, 1, 13, 1, 13, 2),
-					createCharChange(14, 1, 14, 1, 14, 1, 14, 2),
-					createCharChange(15, 1, 15, 1, 15, 1, 15, 2),
-					createCharChange(16, 1, 16, 1, 16, 1, 16, 2),
-					createCharChange(17, 1, 17, 1, 17, 1, 17, 2),
-					createCharChange(18, 1, 18, 1, 18, 1, 18, 2),
-					createCharChange(19, 1, 19, 1, 19, 1, 19, 2),
-					createCharChange(20, 1, 20, 1, 20, 1, 20, 2),
-					createCharChange(21, 1, 21, 1, 21, 1, 21, 2),
-					createCharChange(22, 1, 22, 1, 22, 1, 22, 2),
-					createCharChange(23, 1, 23, 1, 23, 1, 23, 2),
-					createCharChange(24, 1, 24, 1, 24, 1, 24, 2),
-					createCharChange(25, 1, 25, 1, 25, 1, 25, 2),
-					createCharChange(26, 1, 26, 1, 26, 1, 26, 2),
-					createCharChange(27, 1, 27, 1, 27, 1, 27, 2),
+					cweateChawChange(1, 1, 1, 1, 1, 1, 1, 2),
+					cweateChawChange(2, 1, 2, 1, 2, 1, 2, 2),
+					cweateChawChange(3, 1, 3, 1, 3, 1, 3, 2),
+					cweateChawChange(4, 1, 4, 1, 4, 1, 4, 2),
+					cweateChawChange(5, 1, 5, 1, 5, 1, 5, 2),
+					cweateChawChange(6, 1, 6, 1, 6, 1, 6, 2),
+					cweateChawChange(7, 1, 7, 1, 7, 1, 7, 2),
+					cweateChawChange(8, 1, 8, 1, 8, 1, 8, 2),
+					cweateChawChange(9, 1, 9, 1, 9, 1, 9, 2),
+					cweateChawChange(10, 1, 10, 1, 10, 1, 10, 2),
+					cweateChawChange(11, 1, 11, 1, 11, 1, 11, 2),
+					cweateChawChange(12, 1, 12, 1, 12, 1, 12, 2),
+					cweateChawChange(13, 1, 13, 1, 13, 1, 13, 2),
+					cweateChawChange(14, 1, 14, 1, 14, 1, 14, 2),
+					cweateChawChange(15, 1, 15, 1, 15, 1, 15, 2),
+					cweateChawChange(16, 1, 16, 1, 16, 1, 16, 2),
+					cweateChawChange(17, 1, 17, 1, 17, 1, 17, 2),
+					cweateChawChange(18, 1, 18, 1, 18, 1, 18, 2),
+					cweateChawChange(19, 1, 19, 1, 19, 1, 19, 2),
+					cweateChawChange(20, 1, 20, 1, 20, 1, 20, 2),
+					cweateChawChange(21, 1, 21, 1, 21, 1, 21, 2),
+					cweateChawChange(22, 1, 22, 1, 22, 1, 22, 2),
+					cweateChawChange(23, 1, 23, 1, 23, 1, 23, 2),
+					cweateChawChange(24, 1, 24, 1, 24, 1, 24, 2),
+					cweateChawChange(25, 1, 25, 1, 25, 1, 25, 2),
+					cweateChawChange(26, 1, 26, 1, 26, 1, 26, 2),
+					cweateChawChange(27, 1, 27, 1, 27, 1, 27, 2),
 				]
 			)
-			// createLineInsertion(7, 11, 6)
+			// cweateWineInsewtion(7, 11, 6)
 		];
-		assertDiff(original, modified, expected, true, true, false);
+		assewtDiff(owiginaw, modified, expected, twue, twue, fawse);
 	});
 
 	test('issue #43922', () => {
-		let original = [
-			' * `yarn [install]` -- Install project NPM dependencies. This is automatically done when you first create the project. You should only need to run this if you add dependencies in `package.json`.',
+		wet owiginaw = [
+			' * `yawn [instaww]` -- Instaww pwoject NPM dependencies. This is automaticawwy done when you fiwst cweate the pwoject. You shouwd onwy need to wun this if you add dependencies in `package.json`.',
 		];
-		let modified = [
-			' * `yarn` -- Install project NPM dependencies. You should only need to run this if you add dependencies in `package.json`.',
+		wet modified = [
+			' * `yawn` -- Instaww pwoject NPM dependencies. You shouwd onwy need to wun this if you add dependencies in `package.json`.',
 		];
-		let expected = [
-			createLineChange(
+		wet expected = [
+			cweateWineChange(
 				1, 1, 1, 1,
 				[
-					createCharChange(1, 9, 1, 19, 0, 0, 0, 0),
-					createCharChange(1, 58, 1, 120, 0, 0, 0, 0),
+					cweateChawChange(1, 9, 1, 19, 0, 0, 0, 0),
+					cweateChawChange(1, 58, 1, 120, 0, 0, 0, 0),
 				]
 			)
 		];
-		assertDiff(original, modified, expected, true, true, false);
+		assewtDiff(owiginaw, modified, expected, twue, twue, fawse);
 	});
 
 	test('issue #42751', () => {
-		let original = [
+		wet owiginaw = [
 			'    1',
 			'  2',
 		];
-		let modified = [
+		wet modified = [
 			'    1',
 			'   3',
 		];
-		let expected = [
-			createLineChange(
+		wet expected = [
+			cweateWineChange(
 				2, 2, 2, 2,
 				[
-					createCharChange(2, 3, 2, 4, 2, 3, 2, 5)
+					cweateChawChange(2, 3, 2, 4, 2, 3, 2, 5)
 				]
 			)
 		];
-		assertDiff(original, modified, expected, true, true, false);
+		assewtDiff(owiginaw, modified, expected, twue, twue, fawse);
 	});
 
-	test('does not give character changes', () => {
-		let original = [
+	test('does not give chawacta changes', () => {
+		wet owiginaw = [
 			'    1',
 			'  2',
 			'A',
 		];
-		let modified = [
+		wet modified = [
 			'    1',
 			'   3',
 			' A',
 		];
-		let expected = [
-			createLineChange(
+		wet expected = [
+			cweateWineChange(
 				2, 3, 2, 3
 			)
 		];
-		assertDiff(original, modified, expected, false, false, false);
+		assewtDiff(owiginaw, modified, expected, fawse, fawse, fawse);
 	});
 
-	test('issue #44422: Less than ideal diff results', () => {
-		let original = [
-			'export class C {',
+	test('issue #44422: Wess than ideaw diff wesuwts', () => {
+		wet owiginaw = [
+			'expowt cwass C {',
 			'',
-			'	public m1(): void {',
+			'	pubwic m1(): void {',
 			'		{',
 			'		//2',
 			'		//3',
@@ -768,7 +768,7 @@ suite('Editor Diff - DiffComputer', () => {
 			'		}',
 			'	}',
 			'',
-			'	public m2(): void {',
+			'	pubwic m2(): void {',
 			'		if (a) {',
 			'			if (b) {',
 			'				//A1',
@@ -791,7 +791,7 @@ suite('Editor Diff - DiffComputer', () => {
 			'		//A15',
 			'	}',
 			'',
-			'	public m3(): void {',
+			'	pubwic m3(): void {',
 			'		if (a) {',
 			'			//B1',
 			'		}',
@@ -799,7 +799,7 @@ suite('Editor Diff - DiffComputer', () => {
 			'		//B3',
 			'	}',
 			'',
-			'	public m4(): boolean {',
+			'	pubwic m4(): boowean {',
 			'		//1',
 			'		//2',
 			'		//3',
@@ -808,17 +808,17 @@ suite('Editor Diff - DiffComputer', () => {
 			'',
 			'}',
 		];
-		let modified = [
-			'export class C {',
+		wet modified = [
+			'expowt cwass C {',
 			'',
-			'	constructor() {',
+			'	constwuctow() {',
 			'',
 			'',
 			'',
 			'',
 			'	}',
 			'',
-			'	public m1(): void {',
+			'	pubwic m1(): void {',
 			'		{',
 			'		//2',
 			'		//3',
@@ -840,7 +840,7 @@ suite('Editor Diff - DiffComputer', () => {
 			'		}',
 			'	}',
 			'',
-			'	public m4(): boolean {',
+			'	pubwic m4(): boowean {',
 			'		//1',
 			'		//2',
 			'		//3',
@@ -849,25 +849,25 @@ suite('Editor Diff - DiffComputer', () => {
 			'',
 			'}',
 		];
-		let expected = [
-			createLineChange(
+		wet expected = [
+			cweateWineChange(
 				2, 0, 3, 9
 			),
-			createLineChange(
+			cweateWineChange(
 				25, 55, 31, 0
 			)
 		];
-		assertDiff(original, modified, expected, false, false, false);
+		assewtDiff(owiginaw, modified, expected, fawse, fawse, fawse);
 	});
 
-	test('gives preference to matching longer lines', () => {
-		let original = [
+	test('gives pwefewence to matching wonga wines', () => {
+		wet owiginaw = [
 			'A',
 			'A',
 			'BB',
 			'C',
 		];
-		let modified = [
+		wet modified = [
 			'A',
 			'BB',
 			'A',
@@ -876,19 +876,19 @@ suite('Editor Diff - DiffComputer', () => {
 			'A',
 			'C',
 		];
-		let expected = [
-			createLineChange(
+		wet expected = [
+			cweateWineChange(
 				2, 2, 1, 0
 			),
-			createLineChange(
+			cweateWineChange(
 				3, 0, 3, 6
 			)
 		];
-		assertDiff(original, modified, expected, false, false, false);
+		assewtDiff(owiginaw, modified, expected, fawse, fawse, fawse);
 	});
 
-	test('issue #119051: gives preference to fewer diff hunks', () => {
-		const original = [
+	test('issue #119051: gives pwefewence to fewa diff hunks', () => {
+		const owiginaw = [
 			'1',
 			'',
 			'',
@@ -907,64 +907,64 @@ suite('Editor Diff - DiffComputer', () => {
 			'',
 		];
 		const expected = [
-			createLineChange(
+			cweateWineChange(
 				2, 0, 3, 4
 			),
-			createLineChange(
+			cweateWineChange(
 				5, 0, 8, 9
 			)
 		];
-		assertDiff(original, modified, expected, false, false, false);
+		assewtDiff(owiginaw, modified, expected, fawse, fawse, fawse);
 	});
 
-	test('issue #121436: Diff chunk contains an unchanged line part 1', () => {
-		const original = [
+	test('issue #121436: Diff chunk contains an unchanged wine pawt 1', () => {
+		const owiginaw = [
 			'if (cond) {',
 			'    cmd',
 			'}',
 		];
 		const modified = [
 			'if (cond) {',
-			'    if (other_cond) {',
+			'    if (othew_cond) {',
 			'        cmd',
 			'    }',
 			'}',
 		];
 		const expected = [
-			createLineChange(
+			cweateWineChange(
 				1, 0, 2, 2
 			),
-			createLineChange(
+			cweateWineChange(
 				2, 0, 4, 4
 			)
 		];
-		assertDiff(original, modified, expected, false, false, true);
+		assewtDiff(owiginaw, modified, expected, fawse, fawse, twue);
 	});
 
-	test('issue #121436: Diff chunk contains an unchanged line part 2', () => {
-		const original = [
+	test('issue #121436: Diff chunk contains an unchanged wine pawt 2', () => {
+		const owiginaw = [
 			'if (cond) {',
 			'    cmd',
 			'}',
 		];
 		const modified = [
 			'if (cond) {',
-			'    if (other_cond) {',
+			'    if (othew_cond) {',
 			'        cmd',
 			'    }',
 			'}',
 		];
 		const expected = [
-			createLineChange(
+			cweateWineChange(
 				1, 0, 2, 2
 			),
-			createLineChange(
+			cweateWineChange(
 				2, 2, 3, 3
 			),
-			createLineChange(
+			cweateWineChange(
 				2, 0, 4, 4
 			)
 		];
-		assertDiff(original, modified, expected, false, false, false);
+		assewtDiff(owiginaw, modified, expected, fawse, fawse, fawse);
 	});
 });

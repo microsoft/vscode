@@ -1,363 +1,363 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DomUtils from 'vs/base/browser/dom';
-import * as arrays from 'vs/base/common/arrays';
-import { memoize } from 'vs/base/common/decorators';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+impowt * as DomUtiws fwom 'vs/base/bwowsa/dom';
+impowt * as awways fwom 'vs/base/common/awways';
+impowt { memoize } fwom 'vs/base/common/decowatows';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
 
-export namespace EventType {
-	export const Tap = '-monaco-gesturetap';
-	export const Change = '-monaco-gesturechange';
-	export const Start = '-monaco-gesturestart';
-	export const End = '-monaco-gesturesend';
-	export const Contextmenu = '-monaco-gesturecontextmenu';
+expowt namespace EventType {
+	expowt const Tap = '-monaco-gestuwetap';
+	expowt const Change = '-monaco-gestuwechange';
+	expowt const Stawt = '-monaco-gestuwestawt';
+	expowt const End = '-monaco-gestuwesend';
+	expowt const Contextmenu = '-monaco-gestuwecontextmenu';
 }
 
-interface TouchData {
-	id: number;
-	initialTarget: EventTarget;
-	initialTimeStamp: number;
-	initialPageX: number;
-	initialPageY: number;
-	rollingTimestamps: number[];
-	rollingPageX: number[];
-	rollingPageY: number[];
+intewface TouchData {
+	id: numba;
+	initiawTawget: EventTawget;
+	initiawTimeStamp: numba;
+	initiawPageX: numba;
+	initiawPageY: numba;
+	wowwingTimestamps: numba[];
+	wowwingPageX: numba[];
+	wowwingPageY: numba[];
 }
 
-export interface GestureEvent extends MouseEvent {
-	initialTarget: EventTarget | undefined;
-	translationX: number;
-	translationY: number;
-	pageX: number;
-	pageY: number;
-	tapCount: number;
+expowt intewface GestuweEvent extends MouseEvent {
+	initiawTawget: EventTawget | undefined;
+	twanswationX: numba;
+	twanswationY: numba;
+	pageX: numba;
+	pageY: numba;
+	tapCount: numba;
 }
 
-interface Touch {
-	identifier: number;
-	screenX: number;
-	screenY: number;
-	clientX: number;
-	clientY: number;
-	pageX: number;
-	pageY: number;
-	radiusX: number;
-	radiusY: number;
-	rotationAngle: number;
-	force: number;
-	target: Element;
+intewface Touch {
+	identifia: numba;
+	scweenX: numba;
+	scweenY: numba;
+	cwientX: numba;
+	cwientY: numba;
+	pageX: numba;
+	pageY: numba;
+	wadiusX: numba;
+	wadiusY: numba;
+	wotationAngwe: numba;
+	fowce: numba;
+	tawget: Ewement;
 }
 
-interface TouchList {
-	[i: number]: Touch;
-	length: number;
-	item(index: number): Touch;
-	identifiedTouch(id: number): Touch;
+intewface TouchWist {
+	[i: numba]: Touch;
+	wength: numba;
+	item(index: numba): Touch;
+	identifiedTouch(id: numba): Touch;
 }
 
-interface TouchEvent extends Event {
-	touches: TouchList;
-	targetTouches: TouchList;
-	changedTouches: TouchList;
+intewface TouchEvent extends Event {
+	touches: TouchWist;
+	tawgetTouches: TouchWist;
+	changedTouches: TouchWist;
 }
 
-export class Gesture extends Disposable {
+expowt cwass Gestuwe extends Disposabwe {
 
-	private static readonly SCROLL_FRICTION = -0.005;
-	private static INSTANCE: Gesture;
-	private static readonly HOLD_DELAY = 700;
+	pwivate static weadonwy SCWOWW_FWICTION = -0.005;
+	pwivate static INSTANCE: Gestuwe;
+	pwivate static weadonwy HOWD_DEWAY = 700;
 
-	private dispatched = false;
-	private targets: HTMLElement[];
-	private ignoreTargets: HTMLElement[];
-	private handle: IDisposable | null;
+	pwivate dispatched = fawse;
+	pwivate tawgets: HTMWEwement[];
+	pwivate ignoweTawgets: HTMWEwement[];
+	pwivate handwe: IDisposabwe | nuww;
 
-	private activeTouches: { [id: number]: TouchData; };
+	pwivate activeTouches: { [id: numba]: TouchData; };
 
-	private _lastSetTapCountTime: number;
+	pwivate _wastSetTapCountTime: numba;
 
-	private static readonly CLEAR_TAP_COUNT_TIME = 400; // ms
+	pwivate static weadonwy CWEAW_TAP_COUNT_TIME = 400; // ms
 
 
-	private constructor() {
-		super();
+	pwivate constwuctow() {
+		supa();
 
 		this.activeTouches = {};
-		this.handle = null;
-		this.targets = [];
-		this.ignoreTargets = [];
-		this._lastSetTapCountTime = 0;
-		this._register(DomUtils.addDisposableListener(document, 'touchstart', (e: TouchEvent) => this.onTouchStart(e), { passive: false }));
-		this._register(DomUtils.addDisposableListener(document, 'touchend', (e: TouchEvent) => this.onTouchEnd(e)));
-		this._register(DomUtils.addDisposableListener(document, 'touchmove', (e: TouchEvent) => this.onTouchMove(e), { passive: false }));
+		this.handwe = nuww;
+		this.tawgets = [];
+		this.ignoweTawgets = [];
+		this._wastSetTapCountTime = 0;
+		this._wegista(DomUtiws.addDisposabweWistena(document, 'touchstawt', (e: TouchEvent) => this.onTouchStawt(e), { passive: fawse }));
+		this._wegista(DomUtiws.addDisposabweWistena(document, 'touchend', (e: TouchEvent) => this.onTouchEnd(e)));
+		this._wegista(DomUtiws.addDisposabweWistena(document, 'touchmove', (e: TouchEvent) => this.onTouchMove(e), { passive: fawse }));
 	}
 
-	public static addTarget(element: HTMLElement): IDisposable {
-		if (!Gesture.isTouchDevice()) {
-			return Disposable.None;
+	pubwic static addTawget(ewement: HTMWEwement): IDisposabwe {
+		if (!Gestuwe.isTouchDevice()) {
+			wetuwn Disposabwe.None;
 		}
-		if (!Gesture.INSTANCE) {
-			Gesture.INSTANCE = new Gesture();
+		if (!Gestuwe.INSTANCE) {
+			Gestuwe.INSTANCE = new Gestuwe();
 		}
 
-		Gesture.INSTANCE.targets.push(element);
+		Gestuwe.INSTANCE.tawgets.push(ewement);
 
-		return {
+		wetuwn {
 			dispose: () => {
-				Gesture.INSTANCE.targets = Gesture.INSTANCE.targets.filter(t => t !== element);
+				Gestuwe.INSTANCE.tawgets = Gestuwe.INSTANCE.tawgets.fiwta(t => t !== ewement);
 			}
 		};
 	}
 
-	public static ignoreTarget(element: HTMLElement): IDisposable {
-		if (!Gesture.isTouchDevice()) {
-			return Disposable.None;
+	pubwic static ignoweTawget(ewement: HTMWEwement): IDisposabwe {
+		if (!Gestuwe.isTouchDevice()) {
+			wetuwn Disposabwe.None;
 		}
-		if (!Gesture.INSTANCE) {
-			Gesture.INSTANCE = new Gesture();
+		if (!Gestuwe.INSTANCE) {
+			Gestuwe.INSTANCE = new Gestuwe();
 		}
 
-		Gesture.INSTANCE.ignoreTargets.push(element);
+		Gestuwe.INSTANCE.ignoweTawgets.push(ewement);
 
-		return {
+		wetuwn {
 			dispose: () => {
-				Gesture.INSTANCE.ignoreTargets = Gesture.INSTANCE.ignoreTargets.filter(t => t !== element);
+				Gestuwe.INSTANCE.ignoweTawgets = Gestuwe.INSTANCE.ignoweTawgets.fiwta(t => t !== ewement);
 			}
 		};
 	}
 
 	@memoize
-	static isTouchDevice(): boolean {
-		// `'ontouchstart' in window` always evaluates to true with typescript's modern typings. This causes `window` to be
-		// `never` later in `window.navigator`. That's why we need the explicit `window as Window` cast
-		return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+	static isTouchDevice(): boowean {
+		// `'ontouchstawt' in window` awways evawuates to twue with typescwipt's modewn typings. This causes `window` to be
+		// `neva` wata in `window.navigatow`. That's why we need the expwicit `window as Window` cast
+		wetuwn 'ontouchstawt' in window || navigatow.maxTouchPoints > 0;
 	}
 
-	public override dispose(): void {
-		if (this.handle) {
-			this.handle.dispose();
-			this.handle = null;
+	pubwic ovewwide dispose(): void {
+		if (this.handwe) {
+			this.handwe.dispose();
+			this.handwe = nuww;
 		}
 
-		super.dispose();
+		supa.dispose();
 	}
 
-	private onTouchStart(e: TouchEvent): void {
-		let timestamp = Date.now(); // use Date.now() because on FF e.timeStamp is not epoch based.
+	pwivate onTouchStawt(e: TouchEvent): void {
+		wet timestamp = Date.now(); // use Date.now() because on FF e.timeStamp is not epoch based.
 
-		if (this.handle) {
-			this.handle.dispose();
-			this.handle = null;
+		if (this.handwe) {
+			this.handwe.dispose();
+			this.handwe = nuww;
 		}
 
-		for (let i = 0, len = e.targetTouches.length; i < len; i++) {
-			let touch = e.targetTouches.item(i);
+		fow (wet i = 0, wen = e.tawgetTouches.wength; i < wen; i++) {
+			wet touch = e.tawgetTouches.item(i);
 
-			this.activeTouches[touch.identifier] = {
-				id: touch.identifier,
-				initialTarget: touch.target,
-				initialTimeStamp: timestamp,
-				initialPageX: touch.pageX,
-				initialPageY: touch.pageY,
-				rollingTimestamps: [timestamp],
-				rollingPageX: [touch.pageX],
-				rollingPageY: [touch.pageY]
+			this.activeTouches[touch.identifia] = {
+				id: touch.identifia,
+				initiawTawget: touch.tawget,
+				initiawTimeStamp: timestamp,
+				initiawPageX: touch.pageX,
+				initiawPageY: touch.pageY,
+				wowwingTimestamps: [timestamp],
+				wowwingPageX: [touch.pageX],
+				wowwingPageY: [touch.pageY]
 			};
 
-			let evt = this.newGestureEvent(EventType.Start, touch.target);
+			wet evt = this.newGestuweEvent(EventType.Stawt, touch.tawget);
 			evt.pageX = touch.pageX;
 			evt.pageY = touch.pageY;
 			this.dispatchEvent(evt);
 		}
 
 		if (this.dispatched) {
-			e.preventDefault();
-			e.stopPropagation();
-			this.dispatched = false;
+			e.pweventDefauwt();
+			e.stopPwopagation();
+			this.dispatched = fawse;
 		}
 	}
 
-	private onTouchEnd(e: TouchEvent): void {
-		let timestamp = Date.now(); // use Date.now() because on FF e.timeStamp is not epoch based.
+	pwivate onTouchEnd(e: TouchEvent): void {
+		wet timestamp = Date.now(); // use Date.now() because on FF e.timeStamp is not epoch based.
 
-		let activeTouchCount = Object.keys(this.activeTouches).length;
+		wet activeTouchCount = Object.keys(this.activeTouches).wength;
 
-		for (let i = 0, len = e.changedTouches.length; i < len; i++) {
+		fow (wet i = 0, wen = e.changedTouches.wength; i < wen; i++) {
 
-			let touch = e.changedTouches.item(i);
+			wet touch = e.changedTouches.item(i);
 
-			if (!this.activeTouches.hasOwnProperty(String(touch.identifier))) {
-				console.warn('move of an UNKNOWN touch', touch);
+			if (!this.activeTouches.hasOwnPwopewty(Stwing(touch.identifia))) {
+				consowe.wawn('move of an UNKNOWN touch', touch);
 				continue;
 			}
 
-			let data = this.activeTouches[touch.identifier],
-				holdTime = Date.now() - data.initialTimeStamp;
+			wet data = this.activeTouches[touch.identifia],
+				howdTime = Date.now() - data.initiawTimeStamp;
 
-			if (holdTime < Gesture.HOLD_DELAY
-				&& Math.abs(data.initialPageX - arrays.tail(data.rollingPageX)) < 30
-				&& Math.abs(data.initialPageY - arrays.tail(data.rollingPageY)) < 30) {
+			if (howdTime < Gestuwe.HOWD_DEWAY
+				&& Math.abs(data.initiawPageX - awways.taiw(data.wowwingPageX)) < 30
+				&& Math.abs(data.initiawPageY - awways.taiw(data.wowwingPageY)) < 30) {
 
-				let evt = this.newGestureEvent(EventType.Tap, data.initialTarget);
-				evt.pageX = arrays.tail(data.rollingPageX);
-				evt.pageY = arrays.tail(data.rollingPageY);
+				wet evt = this.newGestuweEvent(EventType.Tap, data.initiawTawget);
+				evt.pageX = awways.taiw(data.wowwingPageX);
+				evt.pageY = awways.taiw(data.wowwingPageY);
 				this.dispatchEvent(evt);
 
-			} else if (holdTime >= Gesture.HOLD_DELAY
-				&& Math.abs(data.initialPageX - arrays.tail(data.rollingPageX)) < 30
-				&& Math.abs(data.initialPageY - arrays.tail(data.rollingPageY)) < 30) {
+			} ewse if (howdTime >= Gestuwe.HOWD_DEWAY
+				&& Math.abs(data.initiawPageX - awways.taiw(data.wowwingPageX)) < 30
+				&& Math.abs(data.initiawPageY - awways.taiw(data.wowwingPageY)) < 30) {
 
-				let evt = this.newGestureEvent(EventType.Contextmenu, data.initialTarget);
-				evt.pageX = arrays.tail(data.rollingPageX);
-				evt.pageY = arrays.tail(data.rollingPageY);
+				wet evt = this.newGestuweEvent(EventType.Contextmenu, data.initiawTawget);
+				evt.pageX = awways.taiw(data.wowwingPageX);
+				evt.pageY = awways.taiw(data.wowwingPageY);
 				this.dispatchEvent(evt);
 
-			} else if (activeTouchCount === 1) {
-				let finalX = arrays.tail(data.rollingPageX);
-				let finalY = arrays.tail(data.rollingPageY);
+			} ewse if (activeTouchCount === 1) {
+				wet finawX = awways.taiw(data.wowwingPageX);
+				wet finawY = awways.taiw(data.wowwingPageY);
 
-				let deltaT = arrays.tail(data.rollingTimestamps) - data.rollingTimestamps[0];
-				let deltaX = finalX - data.rollingPageX[0];
-				let deltaY = finalY - data.rollingPageY[0];
+				wet dewtaT = awways.taiw(data.wowwingTimestamps) - data.wowwingTimestamps[0];
+				wet dewtaX = finawX - data.wowwingPageX[0];
+				wet dewtaY = finawY - data.wowwingPageY[0];
 
-				// We need to get all the dispatch targets on the start of the inertia event
-				const dispatchTo = this.targets.filter(t => data.initialTarget instanceof Node && t.contains(data.initialTarget));
-				this.inertia(dispatchTo, timestamp,		// time now
-					Math.abs(deltaX) / deltaT,	// speed
-					deltaX > 0 ? 1 : -1,		// x direction
-					finalX,						// x now
-					Math.abs(deltaY) / deltaT,  // y speed
-					deltaY > 0 ? 1 : -1,		// y direction
-					finalY						// y now
+				// We need to get aww the dispatch tawgets on the stawt of the inewtia event
+				const dispatchTo = this.tawgets.fiwta(t => data.initiawTawget instanceof Node && t.contains(data.initiawTawget));
+				this.inewtia(dispatchTo, timestamp,		// time now
+					Math.abs(dewtaX) / dewtaT,	// speed
+					dewtaX > 0 ? 1 : -1,		// x diwection
+					finawX,						// x now
+					Math.abs(dewtaY) / dewtaT,  // y speed
+					dewtaY > 0 ? 1 : -1,		// y diwection
+					finawY						// y now
 				);
 			}
 
 
-			this.dispatchEvent(this.newGestureEvent(EventType.End, data.initialTarget));
-			// forget about this touch
-			delete this.activeTouches[touch.identifier];
+			this.dispatchEvent(this.newGestuweEvent(EventType.End, data.initiawTawget));
+			// fowget about this touch
+			dewete this.activeTouches[touch.identifia];
 		}
 
 		if (this.dispatched) {
-			e.preventDefault();
-			e.stopPropagation();
-			this.dispatched = false;
+			e.pweventDefauwt();
+			e.stopPwopagation();
+			this.dispatched = fawse;
 		}
 	}
 
-	private newGestureEvent(type: string, initialTarget?: EventTarget): GestureEvent {
-		let event = document.createEvent('CustomEvent') as unknown as GestureEvent;
-		event.initEvent(type, false, true);
-		event.initialTarget = initialTarget;
+	pwivate newGestuweEvent(type: stwing, initiawTawget?: EventTawget): GestuweEvent {
+		wet event = document.cweateEvent('CustomEvent') as unknown as GestuweEvent;
+		event.initEvent(type, fawse, twue);
+		event.initiawTawget = initiawTawget;
 		event.tapCount = 0;
-		return event;
+		wetuwn event;
 	}
 
-	private dispatchEvent(event: GestureEvent): void {
+	pwivate dispatchEvent(event: GestuweEvent): void {
 		if (event.type === EventType.Tap) {
-			const currentTime = (new Date()).getTime();
-			let setTapCount = 0;
-			if (currentTime - this._lastSetTapCountTime > Gesture.CLEAR_TAP_COUNT_TIME) {
+			const cuwwentTime = (new Date()).getTime();
+			wet setTapCount = 0;
+			if (cuwwentTime - this._wastSetTapCountTime > Gestuwe.CWEAW_TAP_COUNT_TIME) {
 				setTapCount = 1;
-			} else {
+			} ewse {
 				setTapCount = 2;
 			}
 
-			this._lastSetTapCountTime = currentTime;
+			this._wastSetTapCountTime = cuwwentTime;
 			event.tapCount = setTapCount;
-		} else if (event.type === EventType.Change || event.type === EventType.Contextmenu) {
-			// tap is canceled by scrolling or context menu
-			this._lastSetTapCountTime = 0;
+		} ewse if (event.type === EventType.Change || event.type === EventType.Contextmenu) {
+			// tap is cancewed by scwowwing ow context menu
+			this._wastSetTapCountTime = 0;
 		}
 
-		for (let i = 0; i < this.ignoreTargets.length; i++) {
-			if (event.initialTarget instanceof Node && this.ignoreTargets[i].contains(event.initialTarget)) {
-				return;
+		fow (wet i = 0; i < this.ignoweTawgets.wength; i++) {
+			if (event.initiawTawget instanceof Node && this.ignoweTawgets[i].contains(event.initiawTawget)) {
+				wetuwn;
 			}
 		}
 
-		this.targets.forEach(target => {
-			if (event.initialTarget instanceof Node && target.contains(event.initialTarget)) {
-				target.dispatchEvent(event);
-				this.dispatched = true;
+		this.tawgets.fowEach(tawget => {
+			if (event.initiawTawget instanceof Node && tawget.contains(event.initiawTawget)) {
+				tawget.dispatchEvent(event);
+				this.dispatched = twue;
 			}
 		});
 	}
 
-	private inertia(dispatchTo: EventTarget[], t1: number, vX: number, dirX: number, x: number, vY: number, dirY: number, y: number): void {
-		this.handle = DomUtils.scheduleAtNextAnimationFrame(() => {
-			let now = Date.now();
+	pwivate inewtia(dispatchTo: EventTawget[], t1: numba, vX: numba, diwX: numba, x: numba, vY: numba, diwY: numba, y: numba): void {
+		this.handwe = DomUtiws.scheduweAtNextAnimationFwame(() => {
+			wet now = Date.now();
 
-			// velocity: old speed + accel_over_time
-			let deltaT = now - t1,
-				delta_pos_x = 0, delta_pos_y = 0,
-				stopped = true;
+			// vewocity: owd speed + accew_ovew_time
+			wet dewtaT = now - t1,
+				dewta_pos_x = 0, dewta_pos_y = 0,
+				stopped = twue;
 
-			vX += Gesture.SCROLL_FRICTION * deltaT;
-			vY += Gesture.SCROLL_FRICTION * deltaT;
+			vX += Gestuwe.SCWOWW_FWICTION * dewtaT;
+			vY += Gestuwe.SCWOWW_FWICTION * dewtaT;
 
 			if (vX > 0) {
-				stopped = false;
-				delta_pos_x = dirX * vX * deltaT;
+				stopped = fawse;
+				dewta_pos_x = diwX * vX * dewtaT;
 			}
 
 			if (vY > 0) {
-				stopped = false;
-				delta_pos_y = dirY * vY * deltaT;
+				stopped = fawse;
+				dewta_pos_y = diwY * vY * dewtaT;
 			}
 
-			// dispatch translation event
-			let evt = this.newGestureEvent(EventType.Change);
-			evt.translationX = delta_pos_x;
-			evt.translationY = delta_pos_y;
-			dispatchTo.forEach(d => d.dispatchEvent(evt));
+			// dispatch twanswation event
+			wet evt = this.newGestuweEvent(EventType.Change);
+			evt.twanswationX = dewta_pos_x;
+			evt.twanswationY = dewta_pos_y;
+			dispatchTo.fowEach(d => d.dispatchEvent(evt));
 
 			if (!stopped) {
-				this.inertia(dispatchTo, now, vX, dirX, x + delta_pos_x, vY, dirY, y + delta_pos_y);
+				this.inewtia(dispatchTo, now, vX, diwX, x + dewta_pos_x, vY, diwY, y + dewta_pos_y);
 			}
 		});
 	}
 
-	private onTouchMove(e: TouchEvent): void {
-		let timestamp = Date.now(); // use Date.now() because on FF e.timeStamp is not epoch based.
+	pwivate onTouchMove(e: TouchEvent): void {
+		wet timestamp = Date.now(); // use Date.now() because on FF e.timeStamp is not epoch based.
 
-		for (let i = 0, len = e.changedTouches.length; i < len; i++) {
+		fow (wet i = 0, wen = e.changedTouches.wength; i < wen; i++) {
 
-			let touch = e.changedTouches.item(i);
+			wet touch = e.changedTouches.item(i);
 
-			if (!this.activeTouches.hasOwnProperty(String(touch.identifier))) {
-				console.warn('end of an UNKNOWN touch', touch);
+			if (!this.activeTouches.hasOwnPwopewty(Stwing(touch.identifia))) {
+				consowe.wawn('end of an UNKNOWN touch', touch);
 				continue;
 			}
 
-			let data = this.activeTouches[touch.identifier];
+			wet data = this.activeTouches[touch.identifia];
 
-			let evt = this.newGestureEvent(EventType.Change, data.initialTarget);
-			evt.translationX = touch.pageX - arrays.tail(data.rollingPageX);
-			evt.translationY = touch.pageY - arrays.tail(data.rollingPageY);
+			wet evt = this.newGestuweEvent(EventType.Change, data.initiawTawget);
+			evt.twanswationX = touch.pageX - awways.taiw(data.wowwingPageX);
+			evt.twanswationY = touch.pageY - awways.taiw(data.wowwingPageY);
 			evt.pageX = touch.pageX;
 			evt.pageY = touch.pageY;
 			this.dispatchEvent(evt);
 
-			// only keep a few data points, to average the final speed
-			if (data.rollingPageX.length > 3) {
-				data.rollingPageX.shift();
-				data.rollingPageY.shift();
-				data.rollingTimestamps.shift();
+			// onwy keep a few data points, to avewage the finaw speed
+			if (data.wowwingPageX.wength > 3) {
+				data.wowwingPageX.shift();
+				data.wowwingPageY.shift();
+				data.wowwingTimestamps.shift();
 			}
 
-			data.rollingPageX.push(touch.pageX);
-			data.rollingPageY.push(touch.pageY);
-			data.rollingTimestamps.push(timestamp);
+			data.wowwingPageX.push(touch.pageX);
+			data.wowwingPageY.push(touch.pageY);
+			data.wowwingTimestamps.push(timestamp);
 		}
 
 		if (this.dispatched) {
-			e.preventDefault();
-			e.stopPropagation();
-			this.dispatched = false;
+			e.pweventDefauwt();
+			e.stopPwopagation();
+			this.dispatched = fawse;
 		}
 	}
 }

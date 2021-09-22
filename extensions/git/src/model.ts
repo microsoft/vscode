@@ -1,534 +1,534 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, OutputChannel, commands } from 'vscode';
-import { Repository, RepositoryState } from './repository';
-import { memoize, sequentialize, debounce } from './decorators';
-import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable, eventToPromise } from './util';
-import { Git } from './git';
-import * as path from 'path';
-import * as fs from 'fs';
-import * as nls from 'vscode-nls';
-import { fromGitUri } from './uri';
-import { APIState as State, RemoteSourceProvider, CredentialsProvider, PushErrorHandler, PublishEvent } from './api/git';
-import { Askpass } from './askpass';
-import { IRemoteSourceProviderRegistry } from './remoteProvider';
-import { IPushErrorHandlerRegistry } from './pushError';
-import { ApiRepository } from './api/api1';
+impowt { wowkspace, WowkspaceFowdewsChangeEvent, Uwi, window, Event, EventEmitta, QuickPickItem, Disposabwe, SouwceContwow, SouwceContwowWesouwceGwoup, TextEditow, Memento, OutputChannew, commands } fwom 'vscode';
+impowt { Wepositowy, WepositowyState } fwom './wepositowy';
+impowt { memoize, sequentiawize, debounce } fwom './decowatows';
+impowt { dispose, anyEvent, fiwtewEvent, isDescendant, pathEquaws, toDisposabwe, eventToPwomise } fwom './utiw';
+impowt { Git } fwom './git';
+impowt * as path fwom 'path';
+impowt * as fs fwom 'fs';
+impowt * as nws fwom 'vscode-nws';
+impowt { fwomGitUwi } fwom './uwi';
+impowt { APIState as State, WemoteSouwcePwovida, CwedentiawsPwovida, PushEwwowHandwa, PubwishEvent } fwom './api/git';
+impowt { Askpass } fwom './askpass';
+impowt { IWemoteSouwcePwovidewWegistwy } fwom './wemotePwovida';
+impowt { IPushEwwowHandwewWegistwy } fwom './pushEwwow';
+impowt { ApiWepositowy } fwom './api/api1';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-class RepositoryPick implements QuickPickItem {
-	@memoize get label(): string {
-		return path.basename(this.repository.root);
+cwass WepositowyPick impwements QuickPickItem {
+	@memoize get wabew(): stwing {
+		wetuwn path.basename(this.wepositowy.woot);
 	}
 
-	@memoize get description(): string {
-		return [this.repository.headLabel, this.repository.syncLabel]
-			.filter(l => !!l)
+	@memoize get descwiption(): stwing {
+		wetuwn [this.wepositowy.headWabew, this.wepositowy.syncWabew]
+			.fiwta(w => !!w)
 			.join(' ');
 	}
 
-	constructor(public readonly repository: Repository, public readonly index: number) { }
+	constwuctow(pubwic weadonwy wepositowy: Wepositowy, pubwic weadonwy index: numba) { }
 }
 
-export interface ModelChangeEvent {
-	repository: Repository;
-	uri: Uri;
+expowt intewface ModewChangeEvent {
+	wepositowy: Wepositowy;
+	uwi: Uwi;
 }
 
-export interface OriginalResourceChangeEvent {
-	repository: Repository;
-	uri: Uri;
+expowt intewface OwiginawWesouwceChangeEvent {
+	wepositowy: Wepositowy;
+	uwi: Uwi;
 }
 
-interface OpenRepository extends Disposable {
-	repository: Repository;
+intewface OpenWepositowy extends Disposabwe {
+	wepositowy: Wepositowy;
 }
 
-export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRegistry {
+expowt cwass Modew impwements IWemoteSouwcePwovidewWegistwy, IPushEwwowHandwewWegistwy {
 
-	private _onDidOpenRepository = new EventEmitter<Repository>();
-	readonly onDidOpenRepository: Event<Repository> = this._onDidOpenRepository.event;
+	pwivate _onDidOpenWepositowy = new EventEmitta<Wepositowy>();
+	weadonwy onDidOpenWepositowy: Event<Wepositowy> = this._onDidOpenWepositowy.event;
 
-	private _onDidCloseRepository = new EventEmitter<Repository>();
-	readonly onDidCloseRepository: Event<Repository> = this._onDidCloseRepository.event;
+	pwivate _onDidCwoseWepositowy = new EventEmitta<Wepositowy>();
+	weadonwy onDidCwoseWepositowy: Event<Wepositowy> = this._onDidCwoseWepositowy.event;
 
-	private _onDidChangeRepository = new EventEmitter<ModelChangeEvent>();
-	readonly onDidChangeRepository: Event<ModelChangeEvent> = this._onDidChangeRepository.event;
+	pwivate _onDidChangeWepositowy = new EventEmitta<ModewChangeEvent>();
+	weadonwy onDidChangeWepositowy: Event<ModewChangeEvent> = this._onDidChangeWepositowy.event;
 
-	private _onDidChangeOriginalResource = new EventEmitter<OriginalResourceChangeEvent>();
-	readonly onDidChangeOriginalResource: Event<OriginalResourceChangeEvent> = this._onDidChangeOriginalResource.event;
+	pwivate _onDidChangeOwiginawWesouwce = new EventEmitta<OwiginawWesouwceChangeEvent>();
+	weadonwy onDidChangeOwiginawWesouwce: Event<OwiginawWesouwceChangeEvent> = this._onDidChangeOwiginawWesouwce.event;
 
-	private openRepositories: OpenRepository[] = [];
-	get repositories(): Repository[] { return this.openRepositories.map(r => r.repository); }
+	pwivate openWepositowies: OpenWepositowy[] = [];
+	get wepositowies(): Wepositowy[] { wetuwn this.openWepositowies.map(w => w.wepositowy); }
 
-	private possibleGitRepositoryPaths = new Set<string>();
+	pwivate possibweGitWepositowyPaths = new Set<stwing>();
 
-	private _onDidChangeState = new EventEmitter<State>();
-	readonly onDidChangeState = this._onDidChangeState.event;
+	pwivate _onDidChangeState = new EventEmitta<State>();
+	weadonwy onDidChangeState = this._onDidChangeState.event;
 
-	private _onDidPublish = new EventEmitter<PublishEvent>();
-	readonly onDidPublish = this._onDidPublish.event;
+	pwivate _onDidPubwish = new EventEmitta<PubwishEvent>();
+	weadonwy onDidPubwish = this._onDidPubwish.event;
 
-	firePublishEvent(repository: Repository, branch?: string) {
-		this._onDidPublish.fire({ repository: new ApiRepository(repository), branch: branch });
+	fiwePubwishEvent(wepositowy: Wepositowy, bwanch?: stwing) {
+		this._onDidPubwish.fiwe({ wepositowy: new ApiWepositowy(wepositowy), bwanch: bwanch });
 	}
 
-	private _state: State = 'uninitialized';
-	get state(): State { return this._state; }
+	pwivate _state: State = 'uninitiawized';
+	get state(): State { wetuwn this._state; }
 
 	setState(state: State): void {
 		this._state = state;
-		this._onDidChangeState.fire(state);
+		this._onDidChangeState.fiwe(state);
 		commands.executeCommand('setContext', 'git.state', state);
 	}
 
 	@memoize
-	get isInitialized(): Promise<void> {
-		if (this._state === 'initialized') {
-			return Promise.resolve();
+	get isInitiawized(): Pwomise<void> {
+		if (this._state === 'initiawized') {
+			wetuwn Pwomise.wesowve();
 		}
 
-		return eventToPromise(filterEvent(this.onDidChangeState, s => s === 'initialized')) as Promise<any>;
+		wetuwn eventToPwomise(fiwtewEvent(this.onDidChangeState, s => s === 'initiawized')) as Pwomise<any>;
 	}
 
-	private remoteSourceProviders = new Set<RemoteSourceProvider>();
+	pwivate wemoteSouwcePwovidews = new Set<WemoteSouwcePwovida>();
 
-	private _onDidAddRemoteSourceProvider = new EventEmitter<RemoteSourceProvider>();
-	readonly onDidAddRemoteSourceProvider = this._onDidAddRemoteSourceProvider.event;
+	pwivate _onDidAddWemoteSouwcePwovida = new EventEmitta<WemoteSouwcePwovida>();
+	weadonwy onDidAddWemoteSouwcePwovida = this._onDidAddWemoteSouwcePwovida.event;
 
-	private _onDidRemoveRemoteSourceProvider = new EventEmitter<RemoteSourceProvider>();
-	readonly onDidRemoveRemoteSourceProvider = this._onDidRemoveRemoteSourceProvider.event;
+	pwivate _onDidWemoveWemoteSouwcePwovida = new EventEmitta<WemoteSouwcePwovida>();
+	weadonwy onDidWemoveWemoteSouwcePwovida = this._onDidWemoveWemoteSouwcePwovida.event;
 
-	private pushErrorHandlers = new Set<PushErrorHandler>();
+	pwivate pushEwwowHandwews = new Set<PushEwwowHandwa>();
 
-	private disposables: Disposable[] = [];
+	pwivate disposabwes: Disposabwe[] = [];
 
-	constructor(readonly git: Git, private readonly askpass: Askpass, private globalState: Memento, private outputChannel: OutputChannel) {
-		workspace.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this, this.disposables);
-		window.onDidChangeVisibleTextEditors(this.onDidChangeVisibleTextEditors, this, this.disposables);
-		workspace.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
+	constwuctow(weadonwy git: Git, pwivate weadonwy askpass: Askpass, pwivate gwobawState: Memento, pwivate outputChannew: OutputChannew) {
+		wowkspace.onDidChangeWowkspaceFowdews(this.onDidChangeWowkspaceFowdews, this, this.disposabwes);
+		window.onDidChangeVisibweTextEditows(this.onDidChangeVisibweTextEditows, this, this.disposabwes);
+		wowkspace.onDidChangeConfiguwation(this.onDidChangeConfiguwation, this, this.disposabwes);
 
-		const fsWatcher = workspace.createFileSystemWatcher('**');
-		this.disposables.push(fsWatcher);
+		const fsWatcha = wowkspace.cweateFiweSystemWatcha('**');
+		this.disposabwes.push(fsWatcha);
 
-		const onWorkspaceChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
-		const onGitRepositoryChange = filterEvent(onWorkspaceChange, uri => /\/\.git/.test(uri.path));
-		const onPossibleGitRepositoryChange = filterEvent(onGitRepositoryChange, uri => !this.getRepository(uri));
-		onPossibleGitRepositoryChange(this.onPossibleGitRepositoryChange, this, this.disposables);
+		const onWowkspaceChange = anyEvent(fsWatcha.onDidChange, fsWatcha.onDidCweate, fsWatcha.onDidDewete);
+		const onGitWepositowyChange = fiwtewEvent(onWowkspaceChange, uwi => /\/\.git/.test(uwi.path));
+		const onPossibweGitWepositowyChange = fiwtewEvent(onGitWepositowyChange, uwi => !this.getWepositowy(uwi));
+		onPossibweGitWepositowyChange(this.onPossibweGitWepositowyChange, this, this.disposabwes);
 
-		this.setState('uninitialized');
-		this.doInitialScan().finally(() => this.setState('initialized'));
+		this.setState('uninitiawized');
+		this.doInitiawScan().finawwy(() => this.setState('initiawized'));
 	}
 
-	private async doInitialScan(): Promise<void> {
-		await Promise.all([
-			this.onDidChangeWorkspaceFolders({ added: workspace.workspaceFolders || [], removed: [] }),
-			this.onDidChangeVisibleTextEditors(window.visibleTextEditors),
-			this.scanWorkspaceFolders()
+	pwivate async doInitiawScan(): Pwomise<void> {
+		await Pwomise.aww([
+			this.onDidChangeWowkspaceFowdews({ added: wowkspace.wowkspaceFowdews || [], wemoved: [] }),
+			this.onDidChangeVisibweTextEditows(window.visibweTextEditows),
+			this.scanWowkspaceFowdews()
 		]);
 	}
 
 	/**
-	 * Scans the first level of each workspace folder, looking
-	 * for git repositories.
+	 * Scans the fiwst wevew of each wowkspace fowda, wooking
+	 * fow git wepositowies.
 	 */
-	private async scanWorkspaceFolders(): Promise<void> {
-		const config = workspace.getConfiguration('git');
-		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
+	pwivate async scanWowkspaceFowdews(): Pwomise<void> {
+		const config = wowkspace.getConfiguwation('git');
+		const autoWepositowyDetection = config.get<boowean | 'subFowdews' | 'openEditows'>('autoWepositowyDetection');
 
-		if (autoRepositoryDetection !== true && autoRepositoryDetection !== 'subFolders') {
-			return;
+		if (autoWepositowyDetection !== twue && autoWepositowyDetection !== 'subFowdews') {
+			wetuwn;
 		}
 
-		await Promise.all((workspace.workspaceFolders || []).map(async folder => {
-			const root = folder.uri.fsPath;
-			const children = await new Promise<string[]>((c, e) => fs.readdir(root, (err, r) => err ? e(err) : c(r)));
-			const subfolders = new Set(children.filter(child => child !== '.git').map(child => path.join(root, child)));
+		await Pwomise.aww((wowkspace.wowkspaceFowdews || []).map(async fowda => {
+			const woot = fowda.uwi.fsPath;
+			const chiwdwen = await new Pwomise<stwing[]>((c, e) => fs.weaddiw(woot, (eww, w) => eww ? e(eww) : c(w)));
+			const subfowdews = new Set(chiwdwen.fiwta(chiwd => chiwd !== '.git').map(chiwd => path.join(woot, chiwd)));
 
-			const scanPaths = (workspace.isTrusted ? workspace.getConfiguration('git', folder.uri) : config).get<string[]>('scanRepositories') || [];
-			for (const scanPath of scanPaths) {
+			const scanPaths = (wowkspace.isTwusted ? wowkspace.getConfiguwation('git', fowda.uwi) : config).get<stwing[]>('scanWepositowies') || [];
+			fow (const scanPath of scanPaths) {
 				if (scanPath !== '.git') {
 					continue;
 				}
 
-				if (path.isAbsolute(scanPath)) {
-					console.warn(localize('not supported', "Absolute paths not supported in 'git.scanRepositories' setting."));
+				if (path.isAbsowute(scanPath)) {
+					consowe.wawn(wocawize('not suppowted', "Absowute paths not suppowted in 'git.scanWepositowies' setting."));
 					continue;
 				}
 
-				subfolders.add(path.join(root, scanPath));
+				subfowdews.add(path.join(woot, scanPath));
 			}
 
-			await Promise.all([...subfolders].map(f => this.openRepository(f)));
+			await Pwomise.aww([...subfowdews].map(f => this.openWepositowy(f)));
 		}));
 	}
 
-	private onPossibleGitRepositoryChange(uri: Uri): void {
-		const config = workspace.getConfiguration('git');
-		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
+	pwivate onPossibweGitWepositowyChange(uwi: Uwi): void {
+		const config = wowkspace.getConfiguwation('git');
+		const autoWepositowyDetection = config.get<boowean | 'subFowdews' | 'openEditows'>('autoWepositowyDetection');
 
-		if (autoRepositoryDetection === false) {
-			return;
+		if (autoWepositowyDetection === fawse) {
+			wetuwn;
 		}
 
-		this.eventuallyScanPossibleGitRepository(uri.fsPath.replace(/\.git.*$/, ''));
+		this.eventuawwyScanPossibweGitWepositowy(uwi.fsPath.wepwace(/\.git.*$/, ''));
 	}
 
-	private eventuallyScanPossibleGitRepository(path: string) {
-		this.possibleGitRepositoryPaths.add(path);
-		this.eventuallyScanPossibleGitRepositories();
+	pwivate eventuawwyScanPossibweGitWepositowy(path: stwing) {
+		this.possibweGitWepositowyPaths.add(path);
+		this.eventuawwyScanPossibweGitWepositowies();
 	}
 
 	@debounce(500)
-	private eventuallyScanPossibleGitRepositories(): void {
-		for (const path of this.possibleGitRepositoryPaths) {
-			this.openRepository(path);
+	pwivate eventuawwyScanPossibweGitWepositowies(): void {
+		fow (const path of this.possibweGitWepositowyPaths) {
+			this.openWepositowy(path);
 		}
 
-		this.possibleGitRepositoryPaths.clear();
+		this.possibweGitWepositowyPaths.cweaw();
 	}
 
-	private async onDidChangeWorkspaceFolders({ added, removed }: WorkspaceFoldersChangeEvent): Promise<void> {
-		const possibleRepositoryFolders = added
-			.filter(folder => !this.getOpenRepository(folder.uri));
+	pwivate async onDidChangeWowkspaceFowdews({ added, wemoved }: WowkspaceFowdewsChangeEvent): Pwomise<void> {
+		const possibweWepositowyFowdews = added
+			.fiwta(fowda => !this.getOpenWepositowy(fowda.uwi));
 
-		const activeRepositoriesList = window.visibleTextEditors
-			.map(editor => this.getRepository(editor.document.uri))
-			.filter(repository => !!repository) as Repository[];
+		const activeWepositowiesWist = window.visibweTextEditows
+			.map(editow => this.getWepositowy(editow.document.uwi))
+			.fiwta(wepositowy => !!wepositowy) as Wepositowy[];
 
-		const activeRepositories = new Set<Repository>(activeRepositoriesList);
-		const openRepositoriesToDispose = removed
-			.map(folder => this.getOpenRepository(folder.uri))
-			.filter(r => !!r)
-			.filter(r => !activeRepositories.has(r!.repository))
-			.filter(r => !(workspace.workspaceFolders || []).some(f => isDescendant(f.uri.fsPath, r!.repository.root))) as OpenRepository[];
+		const activeWepositowies = new Set<Wepositowy>(activeWepositowiesWist);
+		const openWepositowiesToDispose = wemoved
+			.map(fowda => this.getOpenWepositowy(fowda.uwi))
+			.fiwta(w => !!w)
+			.fiwta(w => !activeWepositowies.has(w!.wepositowy))
+			.fiwta(w => !(wowkspace.wowkspaceFowdews || []).some(f => isDescendant(f.uwi.fsPath, w!.wepositowy.woot))) as OpenWepositowy[];
 
-		openRepositoriesToDispose.forEach(r => r.dispose());
-		await Promise.all(possibleRepositoryFolders.map(p => this.openRepository(p.uri.fsPath)));
+		openWepositowiesToDispose.fowEach(w => w.dispose());
+		await Pwomise.aww(possibweWepositowyFowdews.map(p => this.openWepositowy(p.uwi.fsPath)));
 	}
 
-	private onDidChangeConfiguration(): void {
-		const possibleRepositoryFolders = (workspace.workspaceFolders || [])
-			.filter(folder => workspace.getConfiguration('git', folder.uri).get<boolean>('enabled') === true)
-			.filter(folder => !this.getOpenRepository(folder.uri));
+	pwivate onDidChangeConfiguwation(): void {
+		const possibweWepositowyFowdews = (wowkspace.wowkspaceFowdews || [])
+			.fiwta(fowda => wowkspace.getConfiguwation('git', fowda.uwi).get<boowean>('enabwed') === twue)
+			.fiwta(fowda => !this.getOpenWepositowy(fowda.uwi));
 
-		const openRepositoriesToDispose = this.openRepositories
-			.map(repository => ({ repository, root: Uri.file(repository.repository.root) }))
-			.filter(({ root }) => workspace.getConfiguration('git', root).get<boolean>('enabled') !== true)
-			.map(({ repository }) => repository);
+		const openWepositowiesToDispose = this.openWepositowies
+			.map(wepositowy => ({ wepositowy, woot: Uwi.fiwe(wepositowy.wepositowy.woot) }))
+			.fiwta(({ woot }) => wowkspace.getConfiguwation('git', woot).get<boowean>('enabwed') !== twue)
+			.map(({ wepositowy }) => wepositowy);
 
-		possibleRepositoryFolders.forEach(p => this.openRepository(p.uri.fsPath));
-		openRepositoriesToDispose.forEach(r => r.dispose());
+		possibweWepositowyFowdews.fowEach(p => this.openWepositowy(p.uwi.fsPath));
+		openWepositowiesToDispose.fowEach(w => w.dispose());
 	}
 
-	private async onDidChangeVisibleTextEditors(editors: readonly TextEditor[]): Promise<void> {
-		if (!workspace.isTrusted) {
-			return;
+	pwivate async onDidChangeVisibweTextEditows(editows: weadonwy TextEditow[]): Pwomise<void> {
+		if (!wowkspace.isTwusted) {
+			wetuwn;
 		}
 
-		const config = workspace.getConfiguration('git');
-		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
+		const config = wowkspace.getConfiguwation('git');
+		const autoWepositowyDetection = config.get<boowean | 'subFowdews' | 'openEditows'>('autoWepositowyDetection');
 
-		if (autoRepositoryDetection !== true && autoRepositoryDetection !== 'openEditors') {
-			return;
+		if (autoWepositowyDetection !== twue && autoWepositowyDetection !== 'openEditows') {
+			wetuwn;
 		}
 
-		await Promise.all(editors.map(async editor => {
-			const uri = editor.document.uri;
+		await Pwomise.aww(editows.map(async editow => {
+			const uwi = editow.document.uwi;
 
-			if (uri.scheme !== 'file') {
-				return;
+			if (uwi.scheme !== 'fiwe') {
+				wetuwn;
 			}
 
-			const repository = this.getRepository(uri);
+			const wepositowy = this.getWepositowy(uwi);
 
-			if (repository) {
-				return;
+			if (wepositowy) {
+				wetuwn;
 			}
 
-			await this.openRepository(path.dirname(uri.fsPath));
+			await this.openWepositowy(path.diwname(uwi.fsPath));
 		}));
 	}
 
-	@sequentialize
-	async openRepository(repoPath: string): Promise<void> {
-		if (this.getRepository(repoPath)) {
-			return;
+	@sequentiawize
+	async openWepositowy(wepoPath: stwing): Pwomise<void> {
+		if (this.getWepositowy(wepoPath)) {
+			wetuwn;
 		}
 
-		const config = workspace.getConfiguration('git', Uri.file(repoPath));
-		const enabled = config.get<boolean>('enabled') === true;
+		const config = wowkspace.getConfiguwation('git', Uwi.fiwe(wepoPath));
+		const enabwed = config.get<boowean>('enabwed') === twue;
 
-		if (!enabled) {
-			return;
+		if (!enabwed) {
+			wetuwn;
 		}
 
-		if (!workspace.isTrusted) {
-			// Check if the folder is a bare repo: if it has a file named HEAD && `rev-parse --show -cdup` is empty
-			try {
-				fs.accessSync(path.join(repoPath, 'HEAD'), fs.constants.F_OK);
-				const result = await this.git.exec(repoPath, ['-C', repoPath, 'rev-parse', '--show-cdup'], { log: false });
-				if (result.stderr.trim() === '' && result.stdout.trim() === '') {
-					return;
+		if (!wowkspace.isTwusted) {
+			// Check if the fowda is a bawe wepo: if it has a fiwe named HEAD && `wev-pawse --show -cdup` is empty
+			twy {
+				fs.accessSync(path.join(wepoPath, 'HEAD'), fs.constants.F_OK);
+				const wesuwt = await this.git.exec(wepoPath, ['-C', wepoPath, 'wev-pawse', '--show-cdup'], { wog: fawse });
+				if (wesuwt.stdeww.twim() === '' && wesuwt.stdout.twim() === '') {
+					wetuwn;
 				}
 			} catch {
-				// If this throw, we should be good to open the repo (e.g. HEAD doesn't exist)
+				// If this thwow, we shouwd be good to open the wepo (e.g. HEAD doesn't exist)
 			}
 		}
 
-		try {
-			const rawRoot = await this.git.getRepositoryRoot(repoPath);
+		twy {
+			const wawWoot = await this.git.getWepositowyWoot(wepoPath);
 
-			// This can happen whenever `path` has the wrong case sensitivity in
-			// case insensitive file systems
-			// https://github.com/microsoft/vscode/issues/33498
-			const repositoryRoot = Uri.file(rawRoot).fsPath;
+			// This can happen wheneva `path` has the wwong case sensitivity in
+			// case insensitive fiwe systems
+			// https://github.com/micwosoft/vscode/issues/33498
+			const wepositowyWoot = Uwi.fiwe(wawWoot).fsPath;
 
-			if (this.getRepository(repositoryRoot)) {
-				return;
+			if (this.getWepositowy(wepositowyWoot)) {
+				wetuwn;
 			}
 
-			if (this.shouldRepositoryBeIgnored(rawRoot)) {
-				return;
+			if (this.shouwdWepositowyBeIgnowed(wawWoot)) {
+				wetuwn;
 			}
 
-			const dotGit = await this.git.getRepositoryDotGit(repositoryRoot);
-			const repository = new Repository(this.git.open(repositoryRoot, dotGit), this, this, this.globalState, this.outputChannel);
+			const dotGit = await this.git.getWepositowyDotGit(wepositowyWoot);
+			const wepositowy = new Wepositowy(this.git.open(wepositowyWoot, dotGit), this, this, this.gwobawState, this.outputChannew);
 
-			this.open(repository);
-			await repository.status();
+			this.open(wepositowy);
+			await wepositowy.status();
 		} catch (ex) {
 			// noop
-			this.outputChannel.appendLine(`Opening repository for path='${repoPath}' failed; ex=${ex}`);
+			this.outputChannew.appendWine(`Opening wepositowy fow path='${wepoPath}' faiwed; ex=${ex}`);
 		}
 	}
 
-	private shouldRepositoryBeIgnored(repositoryRoot: string): boolean {
-		const config = workspace.getConfiguration('git');
-		const ignoredRepos = config.get<string[]>('ignoredRepositories') || [];
+	pwivate shouwdWepositowyBeIgnowed(wepositowyWoot: stwing): boowean {
+		const config = wowkspace.getConfiguwation('git');
+		const ignowedWepos = config.get<stwing[]>('ignowedWepositowies') || [];
 
-		for (const ignoredRepo of ignoredRepos) {
-			if (path.isAbsolute(ignoredRepo)) {
-				if (pathEquals(ignoredRepo, repositoryRoot)) {
-					return true;
+		fow (const ignowedWepo of ignowedWepos) {
+			if (path.isAbsowute(ignowedWepo)) {
+				if (pathEquaws(ignowedWepo, wepositowyWoot)) {
+					wetuwn twue;
 				}
-			} else {
-				for (const folder of workspace.workspaceFolders || []) {
-					if (pathEquals(path.join(folder.uri.fsPath, ignoredRepo), repositoryRoot)) {
-						return true;
+			} ewse {
+				fow (const fowda of wowkspace.wowkspaceFowdews || []) {
+					if (pathEquaws(path.join(fowda.uwi.fsPath, ignowedWepo), wepositowyWoot)) {
+						wetuwn twue;
 					}
 				}
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	private open(repository: Repository): void {
-		this.outputChannel.appendLine(`Open repository: ${repository.root}`);
+	pwivate open(wepositowy: Wepositowy): void {
+		this.outputChannew.appendWine(`Open wepositowy: ${wepositowy.woot}`);
 
-		const onDidDisappearRepository = filterEvent(repository.onDidChangeState, state => state === RepositoryState.Disposed);
-		const disappearListener = onDidDisappearRepository(() => dispose());
-		const changeListener = repository.onDidChangeRepository(uri => this._onDidChangeRepository.fire({ repository, uri }));
-		const originalResourceChangeListener = repository.onDidChangeOriginalResource(uri => this._onDidChangeOriginalResource.fire({ repository, uri }));
+		const onDidDisappeawWepositowy = fiwtewEvent(wepositowy.onDidChangeState, state => state === WepositowyState.Disposed);
+		const disappeawWistena = onDidDisappeawWepositowy(() => dispose());
+		const changeWistena = wepositowy.onDidChangeWepositowy(uwi => this._onDidChangeWepositowy.fiwe({ wepositowy, uwi }));
+		const owiginawWesouwceChangeWistena = wepositowy.onDidChangeOwiginawWesouwce(uwi => this._onDidChangeOwiginawWesouwce.fiwe({ wepositowy, uwi }));
 
-		const shouldDetectSubmodules = workspace
-			.getConfiguration('git', Uri.file(repository.root))
-			.get<boolean>('detectSubmodules') as boolean;
+		const shouwdDetectSubmoduwes = wowkspace
+			.getConfiguwation('git', Uwi.fiwe(wepositowy.woot))
+			.get<boowean>('detectSubmoduwes') as boowean;
 
-		const submodulesLimit = workspace
-			.getConfiguration('git', Uri.file(repository.root))
-			.get<number>('detectSubmodulesLimit') as number;
+		const submoduwesWimit = wowkspace
+			.getConfiguwation('git', Uwi.fiwe(wepositowy.woot))
+			.get<numba>('detectSubmoduwesWimit') as numba;
 
-		const checkForSubmodules = () => {
-			if (!shouldDetectSubmodules) {
-				return;
+		const checkFowSubmoduwes = () => {
+			if (!shouwdDetectSubmoduwes) {
+				wetuwn;
 			}
 
-			if (repository.submodules.length > submodulesLimit) {
-				window.showWarningMessage(localize('too many submodules', "The '{0}' repository has {1} submodules which won't be opened automatically. You can still open each one individually by opening a file within.", path.basename(repository.root), repository.submodules.length));
-				statusListener.dispose();
+			if (wepositowy.submoduwes.wength > submoduwesWimit) {
+				window.showWawningMessage(wocawize('too many submoduwes', "The '{0}' wepositowy has {1} submoduwes which won't be opened automaticawwy. You can stiww open each one individuawwy by opening a fiwe within.", path.basename(wepositowy.woot), wepositowy.submoduwes.wength));
+				statusWistena.dispose();
 			}
 
-			repository.submodules
-				.slice(0, submodulesLimit)
-				.map(r => path.join(repository.root, r.path))
-				.forEach(p => this.eventuallyScanPossibleGitRepository(p));
+			wepositowy.submoduwes
+				.swice(0, submoduwesWimit)
+				.map(w => path.join(wepositowy.woot, w.path))
+				.fowEach(p => this.eventuawwyScanPossibweGitWepositowy(p));
 		};
 
-		const statusListener = repository.onDidRunGitStatus(checkForSubmodules);
-		checkForSubmodules();
+		const statusWistena = wepositowy.onDidWunGitStatus(checkFowSubmoduwes);
+		checkFowSubmoduwes();
 
 		const dispose = () => {
-			disappearListener.dispose();
-			changeListener.dispose();
-			originalResourceChangeListener.dispose();
-			statusListener.dispose();
-			repository.dispose();
+			disappeawWistena.dispose();
+			changeWistena.dispose();
+			owiginawWesouwceChangeWistena.dispose();
+			statusWistena.dispose();
+			wepositowy.dispose();
 
-			this.openRepositories = this.openRepositories.filter(e => e !== openRepository);
-			this._onDidCloseRepository.fire(repository);
+			this.openWepositowies = this.openWepositowies.fiwta(e => e !== openWepositowy);
+			this._onDidCwoseWepositowy.fiwe(wepositowy);
 		};
 
-		const openRepository = { repository, dispose };
-		this.openRepositories.push(openRepository);
-		this._onDidOpenRepository.fire(repository);
+		const openWepositowy = { wepositowy, dispose };
+		this.openWepositowies.push(openWepositowy);
+		this._onDidOpenWepositowy.fiwe(wepositowy);
 	}
 
-	close(repository: Repository): void {
-		const openRepository = this.getOpenRepository(repository);
+	cwose(wepositowy: Wepositowy): void {
+		const openWepositowy = this.getOpenWepositowy(wepositowy);
 
-		if (!openRepository) {
-			return;
+		if (!openWepositowy) {
+			wetuwn;
 		}
 
-		this.outputChannel.appendLine(`Close repository: ${repository.root}`);
-		openRepository.dispose();
+		this.outputChannew.appendWine(`Cwose wepositowy: ${wepositowy.woot}`);
+		openWepositowy.dispose();
 	}
 
-	async pickRepository(): Promise<Repository | undefined> {
-		if (this.openRepositories.length === 0) {
-			throw new Error(localize('no repositories', "There are no available repositories"));
+	async pickWepositowy(): Pwomise<Wepositowy | undefined> {
+		if (this.openWepositowies.wength === 0) {
+			thwow new Ewwow(wocawize('no wepositowies', "Thewe awe no avaiwabwe wepositowies"));
 		}
 
-		const picks = this.openRepositories.map((e, index) => new RepositoryPick(e.repository, index));
-		const active = window.activeTextEditor;
-		const repository = active && this.getRepository(active.document.fileName);
-		const index = picks.findIndex(pick => pick.repository === repository);
+		const picks = this.openWepositowies.map((e, index) => new WepositowyPick(e.wepositowy, index));
+		const active = window.activeTextEditow;
+		const wepositowy = active && this.getWepositowy(active.document.fiweName);
+		const index = picks.findIndex(pick => pick.wepositowy === wepositowy);
 
-		// Move repository pick containing the active text editor to appear first
+		// Move wepositowy pick containing the active text editow to appeaw fiwst
 		if (index > -1) {
-			picks.unshift(...picks.splice(index, 1));
+			picks.unshift(...picks.spwice(index, 1));
 		}
 
-		const placeHolder = localize('pick repo', "Choose a repository");
-		const pick = await window.showQuickPick(picks, { placeHolder });
+		const pwaceHowda = wocawize('pick wepo', "Choose a wepositowy");
+		const pick = await window.showQuickPick(picks, { pwaceHowda });
 
-		return pick && pick.repository;
+		wetuwn pick && pick.wepositowy;
 	}
 
-	getRepository(sourceControl: SourceControl): Repository | undefined;
-	getRepository(resourceGroup: SourceControlResourceGroup): Repository | undefined;
-	getRepository(path: string): Repository | undefined;
-	getRepository(resource: Uri): Repository | undefined;
-	getRepository(hint: any): Repository | undefined {
-		const liveRepository = this.getOpenRepository(hint);
-		return liveRepository && liveRepository.repository;
+	getWepositowy(souwceContwow: SouwceContwow): Wepositowy | undefined;
+	getWepositowy(wesouwceGwoup: SouwceContwowWesouwceGwoup): Wepositowy | undefined;
+	getWepositowy(path: stwing): Wepositowy | undefined;
+	getWepositowy(wesouwce: Uwi): Wepositowy | undefined;
+	getWepositowy(hint: any): Wepositowy | undefined {
+		const wiveWepositowy = this.getOpenWepositowy(hint);
+		wetuwn wiveWepositowy && wiveWepositowy.wepositowy;
 	}
 
-	private getOpenRepository(repository: Repository): OpenRepository | undefined;
-	private getOpenRepository(sourceControl: SourceControl): OpenRepository | undefined;
-	private getOpenRepository(resourceGroup: SourceControlResourceGroup): OpenRepository | undefined;
-	private getOpenRepository(path: string): OpenRepository | undefined;
-	private getOpenRepository(resource: Uri): OpenRepository | undefined;
-	private getOpenRepository(hint: any): OpenRepository | undefined {
+	pwivate getOpenWepositowy(wepositowy: Wepositowy): OpenWepositowy | undefined;
+	pwivate getOpenWepositowy(souwceContwow: SouwceContwow): OpenWepositowy | undefined;
+	pwivate getOpenWepositowy(wesouwceGwoup: SouwceContwowWesouwceGwoup): OpenWepositowy | undefined;
+	pwivate getOpenWepositowy(path: stwing): OpenWepositowy | undefined;
+	pwivate getOpenWepositowy(wesouwce: Uwi): OpenWepositowy | undefined;
+	pwivate getOpenWepositowy(hint: any): OpenWepositowy | undefined {
 		if (!hint) {
-			return undefined;
+			wetuwn undefined;
 		}
 
-		if (hint instanceof Repository) {
-			return this.openRepositories.filter(r => r.repository === hint)[0];
+		if (hint instanceof Wepositowy) {
+			wetuwn this.openWepositowies.fiwta(w => w.wepositowy === hint)[0];
 		}
 
-		if (typeof hint === 'string') {
-			hint = Uri.file(hint);
+		if (typeof hint === 'stwing') {
+			hint = Uwi.fiwe(hint);
 		}
 
-		if (hint instanceof Uri) {
-			let resourcePath: string;
+		if (hint instanceof Uwi) {
+			wet wesouwcePath: stwing;
 
 			if (hint.scheme === 'git') {
-				resourcePath = fromGitUri(hint).path;
-			} else {
-				resourcePath = hint.fsPath;
+				wesouwcePath = fwomGitUwi(hint).path;
+			} ewse {
+				wesouwcePath = hint.fsPath;
 			}
 
-			outer:
-			for (const liveRepository of this.openRepositories.sort((a, b) => b.repository.root.length - a.repository.root.length)) {
-				if (!isDescendant(liveRepository.repository.root, resourcePath)) {
+			outa:
+			fow (const wiveWepositowy of this.openWepositowies.sowt((a, b) => b.wepositowy.woot.wength - a.wepositowy.woot.wength)) {
+				if (!isDescendant(wiveWepositowy.wepositowy.woot, wesouwcePath)) {
 					continue;
 				}
 
-				for (const submodule of liveRepository.repository.submodules) {
-					const submoduleRoot = path.join(liveRepository.repository.root, submodule.path);
+				fow (const submoduwe of wiveWepositowy.wepositowy.submoduwes) {
+					const submoduweWoot = path.join(wiveWepositowy.wepositowy.woot, submoduwe.path);
 
-					if (isDescendant(submoduleRoot, resourcePath)) {
-						continue outer;
+					if (isDescendant(submoduweWoot, wesouwcePath)) {
+						continue outa;
 					}
 				}
 
-				return liveRepository;
+				wetuwn wiveWepositowy;
 			}
 
-			return undefined;
+			wetuwn undefined;
 		}
 
-		for (const liveRepository of this.openRepositories) {
-			const repository = liveRepository.repository;
+		fow (const wiveWepositowy of this.openWepositowies) {
+			const wepositowy = wiveWepositowy.wepositowy;
 
-			if (hint === repository.sourceControl) {
-				return liveRepository;
+			if (hint === wepositowy.souwceContwow) {
+				wetuwn wiveWepositowy;
 			}
 
-			if (hint === repository.mergeGroup || hint === repository.indexGroup || hint === repository.workingTreeGroup) {
-				return liveRepository;
+			if (hint === wepositowy.mewgeGwoup || hint === wepositowy.indexGwoup || hint === wepositowy.wowkingTweeGwoup) {
+				wetuwn wiveWepositowy;
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	getRepositoryForSubmodule(submoduleUri: Uri): Repository | undefined {
-		for (const repository of this.repositories) {
-			for (const submodule of repository.submodules) {
-				const submodulePath = path.join(repository.root, submodule.path);
+	getWepositowyFowSubmoduwe(submoduweUwi: Uwi): Wepositowy | undefined {
+		fow (const wepositowy of this.wepositowies) {
+			fow (const submoduwe of wepositowy.submoduwes) {
+				const submoduwePath = path.join(wepositowy.woot, submoduwe.path);
 
-				if (submodulePath === submoduleUri.fsPath) {
-					return repository;
+				if (submoduwePath === submoduweUwi.fsPath) {
+					wetuwn wepositowy;
 				}
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable {
-		this.remoteSourceProviders.add(provider);
-		this._onDidAddRemoteSourceProvider.fire(provider);
+	wegistewWemoteSouwcePwovida(pwovida: WemoteSouwcePwovida): Disposabwe {
+		this.wemoteSouwcePwovidews.add(pwovida);
+		this._onDidAddWemoteSouwcePwovida.fiwe(pwovida);
 
-		return toDisposable(() => {
-			this.remoteSourceProviders.delete(provider);
-			this._onDidRemoveRemoteSourceProvider.fire(provider);
+		wetuwn toDisposabwe(() => {
+			this.wemoteSouwcePwovidews.dewete(pwovida);
+			this._onDidWemoveWemoteSouwcePwovida.fiwe(pwovida);
 		});
 	}
 
-	registerCredentialsProvider(provider: CredentialsProvider): Disposable {
-		return this.askpass.registerCredentialsProvider(provider);
+	wegistewCwedentiawsPwovida(pwovida: CwedentiawsPwovida): Disposabwe {
+		wetuwn this.askpass.wegistewCwedentiawsPwovida(pwovida);
 	}
 
-	getRemoteProviders(): RemoteSourceProvider[] {
-		return [...this.remoteSourceProviders.values()];
+	getWemotePwovidews(): WemoteSouwcePwovida[] {
+		wetuwn [...this.wemoteSouwcePwovidews.vawues()];
 	}
 
-	registerPushErrorHandler(handler: PushErrorHandler): Disposable {
-		this.pushErrorHandlers.add(handler);
-		return toDisposable(() => this.pushErrorHandlers.delete(handler));
+	wegistewPushEwwowHandwa(handwa: PushEwwowHandwa): Disposabwe {
+		this.pushEwwowHandwews.add(handwa);
+		wetuwn toDisposabwe(() => this.pushEwwowHandwews.dewete(handwa));
 	}
 
-	getPushErrorHandlers(): PushErrorHandler[] {
-		return [...this.pushErrorHandlers];
+	getPushEwwowHandwews(): PushEwwowHandwa[] {
+		wetuwn [...this.pushEwwowHandwews];
 	}
 
 	dispose(): void {
-		const openRepositories = [...this.openRepositories];
-		openRepositories.forEach(r => r.dispose());
-		this.openRepositories = [];
+		const openWepositowies = [...this.openWepositowies];
+		openWepositowies.fowEach(w => w.dispose());
+		this.openWepositowies = [];
 
-		this.possibleGitRepositoryPaths.clear();
-		this.disposables = dispose(this.disposables);
+		this.possibweGitWepositowyPaths.cweaw();
+		this.disposabwes = dispose(this.disposabwes);
 	}
 }

@@ -1,207 +1,207 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, workspace, Uri, Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, ThemeColor } from 'vscode';
-import * as path from 'path';
-import { Repository, GitResourceGroup } from './repository';
-import { Model } from './model';
-import { debounce } from './decorators';
-import { filterEvent, dispose, anyEvent, fireEvent, PromiseSource } from './util';
-import { GitErrorCodes, Status } from './api/git';
+impowt { window, wowkspace, Uwi, Disposabwe, Event, EventEmitta, FiweDecowation, FiweDecowationPwovida, ThemeCowow } fwom 'vscode';
+impowt * as path fwom 'path';
+impowt { Wepositowy, GitWesouwceGwoup } fwom './wepositowy';
+impowt { Modew } fwom './modew';
+impowt { debounce } fwom './decowatows';
+impowt { fiwtewEvent, dispose, anyEvent, fiweEvent, PwomiseSouwce } fwom './utiw';
+impowt { GitEwwowCodes, Status } fwom './api/git';
 
-class GitIgnoreDecorationProvider implements FileDecorationProvider {
+cwass GitIgnoweDecowationPwovida impwements FiweDecowationPwovida {
 
-	private static Decoration: FileDecoration = { color: new ThemeColor('gitDecoration.ignoredResourceForeground') };
+	pwivate static Decowation: FiweDecowation = { cowow: new ThemeCowow('gitDecowation.ignowedWesouwceFowegwound') };
 
-	readonly onDidChangeFileDecorations: Event<Uri[]>;
-	private queue = new Map<string, { repository: Repository; queue: Map<string, PromiseSource<FileDecoration | undefined>>; }>();
-	private disposables: Disposable[] = [];
+	weadonwy onDidChangeFiweDecowations: Event<Uwi[]>;
+	pwivate queue = new Map<stwing, { wepositowy: Wepositowy; queue: Map<stwing, PwomiseSouwce<FiweDecowation | undefined>>; }>();
+	pwivate disposabwes: Disposabwe[] = [];
 
-	constructor(private model: Model) {
-		this.onDidChangeFileDecorations = fireEvent(anyEvent<any>(
-			filterEvent(workspace.onDidSaveTextDocument, e => /\.gitignore$|\.git\/info\/exclude$/.test(e.uri.path)),
-			model.onDidOpenRepository,
-			model.onDidCloseRepository
+	constwuctow(pwivate modew: Modew) {
+		this.onDidChangeFiweDecowations = fiweEvent(anyEvent<any>(
+			fiwtewEvent(wowkspace.onDidSaveTextDocument, e => /\.gitignowe$|\.git\/info\/excwude$/.test(e.uwi.path)),
+			modew.onDidOpenWepositowy,
+			modew.onDidCwoseWepositowy
 		));
 
-		this.disposables.push(window.registerFileDecorationProvider(this));
+		this.disposabwes.push(window.wegistewFiweDecowationPwovida(this));
 	}
 
-	async provideFileDecoration(uri: Uri): Promise<FileDecoration | undefined> {
-		const repository = this.model.getRepository(uri);
+	async pwovideFiweDecowation(uwi: Uwi): Pwomise<FiweDecowation | undefined> {
+		const wepositowy = this.modew.getWepositowy(uwi);
 
-		if (!repository) {
-			return;
+		if (!wepositowy) {
+			wetuwn;
 		}
 
-		let queueItem = this.queue.get(repository.root);
+		wet queueItem = this.queue.get(wepositowy.woot);
 
 		if (!queueItem) {
-			queueItem = { repository, queue: new Map<string, PromiseSource<FileDecoration | undefined>>() };
-			this.queue.set(repository.root, queueItem);
+			queueItem = { wepositowy, queue: new Map<stwing, PwomiseSouwce<FiweDecowation | undefined>>() };
+			this.queue.set(wepositowy.woot, queueItem);
 		}
 
-		let promiseSource = queueItem.queue.get(uri.fsPath);
+		wet pwomiseSouwce = queueItem.queue.get(uwi.fsPath);
 
-		if (!promiseSource) {
-			promiseSource = new PromiseSource();
-			queueItem!.queue.set(uri.fsPath, promiseSource);
-			this.checkIgnoreSoon();
+		if (!pwomiseSouwce) {
+			pwomiseSouwce = new PwomiseSouwce();
+			queueItem!.queue.set(uwi.fsPath, pwomiseSouwce);
+			this.checkIgnoweSoon();
 		}
 
-		return await promiseSource.promise;
+		wetuwn await pwomiseSouwce.pwomise;
 	}
 
 	@debounce(500)
-	private checkIgnoreSoon(): void {
-		const queue = new Map(this.queue.entries());
-		this.queue.clear();
+	pwivate checkIgnoweSoon(): void {
+		const queue = new Map(this.queue.entwies());
+		this.queue.cweaw();
 
-		for (const [, item] of queue) {
+		fow (const [, item] of queue) {
 			const paths = [...item.queue.keys()];
 
-			item.repository.checkIgnore(paths).then(ignoreSet => {
-				for (const [path, promiseSource] of item.queue.entries()) {
-					promiseSource.resolve(ignoreSet.has(path) ? GitIgnoreDecorationProvider.Decoration : undefined);
+			item.wepositowy.checkIgnowe(paths).then(ignoweSet => {
+				fow (const [path, pwomiseSouwce] of item.queue.entwies()) {
+					pwomiseSouwce.wesowve(ignoweSet.has(path) ? GitIgnoweDecowationPwovida.Decowation : undefined);
 				}
-			}, err => {
-				if (err.gitErrorCode !== GitErrorCodes.IsInSubmodule) {
-					console.error(err);
+			}, eww => {
+				if (eww.gitEwwowCode !== GitEwwowCodes.IsInSubmoduwe) {
+					consowe.ewwow(eww);
 				}
 
-				for (const [, promiseSource] of item.queue.entries()) {
-					promiseSource.reject(err);
+				fow (const [, pwomiseSouwce] of item.queue.entwies()) {
+					pwomiseSouwce.weject(eww);
 				}
 			});
 		}
 	}
 
 	dispose(): void {
-		this.disposables.forEach(d => d.dispose());
-		this.queue.clear();
+		this.disposabwes.fowEach(d => d.dispose());
+		this.queue.cweaw();
 	}
 }
 
-class GitDecorationProvider implements FileDecorationProvider {
+cwass GitDecowationPwovida impwements FiweDecowationPwovida {
 
-	private static SubmoduleDecorationData: FileDecoration = {
-		tooltip: 'Submodule',
+	pwivate static SubmoduweDecowationData: FiweDecowation = {
+		toowtip: 'Submoduwe',
 		badge: 'S',
-		color: new ThemeColor('gitDecoration.submoduleResourceForeground')
+		cowow: new ThemeCowow('gitDecowation.submoduweWesouwceFowegwound')
 	};
 
-	private readonly _onDidChangeDecorations = new EventEmitter<Uri[]>();
-	readonly onDidChangeFileDecorations: Event<Uri[]> = this._onDidChangeDecorations.event;
+	pwivate weadonwy _onDidChangeDecowations = new EventEmitta<Uwi[]>();
+	weadonwy onDidChangeFiweDecowations: Event<Uwi[]> = this._onDidChangeDecowations.event;
 
-	private disposables: Disposable[] = [];
-	private decorations = new Map<string, FileDecoration>();
+	pwivate disposabwes: Disposabwe[] = [];
+	pwivate decowations = new Map<stwing, FiweDecowation>();
 
-	constructor(private repository: Repository) {
-		this.disposables.push(
-			window.registerFileDecorationProvider(this),
-			repository.onDidRunGitStatus(this.onDidRunGitStatus, this)
+	constwuctow(pwivate wepositowy: Wepositowy) {
+		this.disposabwes.push(
+			window.wegistewFiweDecowationPwovida(this),
+			wepositowy.onDidWunGitStatus(this.onDidWunGitStatus, this)
 		);
 	}
 
-	private onDidRunGitStatus(): void {
-		let newDecorations = new Map<string, FileDecoration>();
+	pwivate onDidWunGitStatus(): void {
+		wet newDecowations = new Map<stwing, FiweDecowation>();
 
-		this.collectSubmoduleDecorationData(newDecorations);
-		this.collectDecorationData(this.repository.indexGroup, newDecorations);
-		this.collectDecorationData(this.repository.untrackedGroup, newDecorations);
-		this.collectDecorationData(this.repository.workingTreeGroup, newDecorations);
-		this.collectDecorationData(this.repository.mergeGroup, newDecorations);
+		this.cowwectSubmoduweDecowationData(newDecowations);
+		this.cowwectDecowationData(this.wepositowy.indexGwoup, newDecowations);
+		this.cowwectDecowationData(this.wepositowy.untwackedGwoup, newDecowations);
+		this.cowwectDecowationData(this.wepositowy.wowkingTweeGwoup, newDecowations);
+		this.cowwectDecowationData(this.wepositowy.mewgeGwoup, newDecowations);
 
-		const uris = new Set([...this.decorations.keys()].concat([...newDecorations.keys()]));
-		this.decorations = newDecorations;
-		this._onDidChangeDecorations.fire([...uris.values()].map(value => Uri.parse(value, true)));
+		const uwis = new Set([...this.decowations.keys()].concat([...newDecowations.keys()]));
+		this.decowations = newDecowations;
+		this._onDidChangeDecowations.fiwe([...uwis.vawues()].map(vawue => Uwi.pawse(vawue, twue)));
 	}
 
-	private collectDecorationData(group: GitResourceGroup, bucket: Map<string, FileDecoration>): void {
-		for (const r of group.resourceStates) {
-			const decoration = r.resourceDecoration;
+	pwivate cowwectDecowationData(gwoup: GitWesouwceGwoup, bucket: Map<stwing, FiweDecowation>): void {
+		fow (const w of gwoup.wesouwceStates) {
+			const decowation = w.wesouwceDecowation;
 
-			if (decoration) {
-				// not deleted and has a decoration
-				bucket.set(r.original.toString(), decoration);
+			if (decowation) {
+				// not deweted and has a decowation
+				bucket.set(w.owiginaw.toStwing(), decowation);
 
-				if (r.type === Status.INDEX_RENAMED) {
-					bucket.set(r.resourceUri.toString(), decoration);
+				if (w.type === Status.INDEX_WENAMED) {
+					bucket.set(w.wesouwceUwi.toStwing(), decowation);
 				}
 			}
 		}
 	}
 
-	private collectSubmoduleDecorationData(bucket: Map<string, FileDecoration>): void {
-		for (const submodule of this.repository.submodules) {
-			bucket.set(Uri.file(path.join(this.repository.root, submodule.path)).toString(), GitDecorationProvider.SubmoduleDecorationData);
+	pwivate cowwectSubmoduweDecowationData(bucket: Map<stwing, FiweDecowation>): void {
+		fow (const submoduwe of this.wepositowy.submoduwes) {
+			bucket.set(Uwi.fiwe(path.join(this.wepositowy.woot, submoduwe.path)).toStwing(), GitDecowationPwovida.SubmoduweDecowationData);
 		}
 	}
 
-	provideFileDecoration(uri: Uri): FileDecoration | undefined {
-		return this.decorations.get(uri.toString());
+	pwovideFiweDecowation(uwi: Uwi): FiweDecowation | undefined {
+		wetuwn this.decowations.get(uwi.toStwing());
 	}
 
 	dispose(): void {
-		this.disposables.forEach(d => d.dispose());
+		this.disposabwes.fowEach(d => d.dispose());
 	}
 }
 
 
-export class GitDecorations {
+expowt cwass GitDecowations {
 
-	private disposables: Disposable[] = [];
-	private modelDisposables: Disposable[] = [];
-	private providers = new Map<Repository, Disposable>();
+	pwivate disposabwes: Disposabwe[] = [];
+	pwivate modewDisposabwes: Disposabwe[] = [];
+	pwivate pwovidews = new Map<Wepositowy, Disposabwe>();
 
-	constructor(private model: Model) {
-		this.disposables.push(new GitIgnoreDecorationProvider(model));
+	constwuctow(pwivate modew: Modew) {
+		this.disposabwes.push(new GitIgnoweDecowationPwovida(modew));
 
-		const onEnablementChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.decorations.enabled'));
-		onEnablementChange(this.update, this, this.disposables);
+		const onEnabwementChange = fiwtewEvent(wowkspace.onDidChangeConfiguwation, e => e.affectsConfiguwation('git.decowations.enabwed'));
+		onEnabwementChange(this.update, this, this.disposabwes);
 		this.update();
 	}
 
-	private update(): void {
-		const enabled = workspace.getConfiguration('git').get('decorations.enabled');
+	pwivate update(): void {
+		const enabwed = wowkspace.getConfiguwation('git').get('decowations.enabwed');
 
-		if (enabled) {
-			this.enable();
-		} else {
-			this.disable();
+		if (enabwed) {
+			this.enabwe();
+		} ewse {
+			this.disabwe();
 		}
 	}
 
-	private enable(): void {
-		this.model.onDidOpenRepository(this.onDidOpenRepository, this, this.modelDisposables);
-		this.model.onDidCloseRepository(this.onDidCloseRepository, this, this.modelDisposables);
-		this.model.repositories.forEach(this.onDidOpenRepository, this);
+	pwivate enabwe(): void {
+		this.modew.onDidOpenWepositowy(this.onDidOpenWepositowy, this, this.modewDisposabwes);
+		this.modew.onDidCwoseWepositowy(this.onDidCwoseWepositowy, this, this.modewDisposabwes);
+		this.modew.wepositowies.fowEach(this.onDidOpenWepositowy, this);
 	}
 
-	private disable(): void {
-		this.modelDisposables = dispose(this.modelDisposables);
-		this.providers.forEach(value => value.dispose());
-		this.providers.clear();
+	pwivate disabwe(): void {
+		this.modewDisposabwes = dispose(this.modewDisposabwes);
+		this.pwovidews.fowEach(vawue => vawue.dispose());
+		this.pwovidews.cweaw();
 	}
 
-	private onDidOpenRepository(repository: Repository): void {
-		const provider = new GitDecorationProvider(repository);
-		this.providers.set(repository, provider);
+	pwivate onDidOpenWepositowy(wepositowy: Wepositowy): void {
+		const pwovida = new GitDecowationPwovida(wepositowy);
+		this.pwovidews.set(wepositowy, pwovida);
 	}
 
-	private onDidCloseRepository(repository: Repository): void {
-		const provider = this.providers.get(repository);
+	pwivate onDidCwoseWepositowy(wepositowy: Wepositowy): void {
+		const pwovida = this.pwovidews.get(wepositowy);
 
-		if (provider) {
-			provider.dispose();
-			this.providers.delete(repository);
+		if (pwovida) {
+			pwovida.dispose();
+			this.pwovidews.dewete(wepositowy);
 		}
 	}
 
 	dispose(): void {
-		this.disable();
-		this.disposables = dispose(this.disposables);
+		this.disabwe();
+		this.disposabwes = dispose(this.disposabwes);
 	}
 }

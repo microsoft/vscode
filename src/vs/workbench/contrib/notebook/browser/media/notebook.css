@@ -1,908 +1,908 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .notebookOverlay.notebook-editor {
-	box-sizing: border-box;
-	line-height: 22px;
-	user-select: initial;
-	-webkit-user-select: initial;
-	position: relative;
+.monaco-wowkbench .notebookOvewway.notebook-editow {
+	box-sizing: bowda-box;
+	wine-height: 22px;
+	usa-sewect: initiaw;
+	-webkit-usa-sewect: initiaw;
+	position: wewative;
 }
 
-.monaco-workbench .notebookOverlay .notebook-toolbar-container {
+.monaco-wowkbench .notebookOvewway .notebook-toowbaw-containa {
 	width: 100%;
-	display: none;
-	margin-top: 2px;
-	margin-bottom: 2px;
+	dispway: none;
+	mawgin-top: 2px;
+	mawgin-bottom: 2px;
 }
 
-.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item {
+.monaco-wowkbench .notebookOvewway .notebook-toowbaw-containa .monaco-action-baw .action-item {
 	height: 22px;
-	display: flex;
-	align-items: center;
-	border-radius: 5px;
-	margin-right: 8px;
+	dispway: fwex;
+	awign-items: centa;
+	bowda-wadius: 5px;
+	mawgin-wight: 8px;
 }
 
-.monaco-workbench .notebookOverlay .notebook-toolbar-container > .monaco-scrollable-element {
-	flex: 1;
+.monaco-wowkbench .notebookOvewway .notebook-toowbaw-containa > .monaco-scwowwabwe-ewement {
+	fwex: 1;
 }
 
-.monaco-workbench .notebookOverlay .notebook-toolbar-container > .monaco-scrollable-element .notebook-toolbar-left {
+.monaco-wowkbench .notebookOvewway .notebook-toowbaw-containa > .monaco-scwowwabwe-ewement .notebook-toowbaw-weft {
 	padding: 0px 0px 0px 8px;
 }
 
-.monaco-workbench .notebookOverlay .notebook-toolbar-container .notebook-toolbar-right {
-	display: flex;
+.monaco-wowkbench .notebookOvewway .notebook-toowbaw-containa .notebook-toowbaw-wight {
+	dispway: fwex;
 	padding: 0px 0px 0px 0px;
 }
 
-.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item  .kernel-label {
-	background-size: 16px;
+.monaco-wowkbench .notebookOvewway .notebook-toowbaw-containa .monaco-action-baw .action-item  .kewnew-wabew {
+	backgwound-size: 16px;
 	padding: 0px 5px 0px 3px;
-	border-radius: 5px;
+	bowda-wadius: 5px;
 	font-size: 13px;
 	height: 22px;
 }
 
-.monaco-workbench .notebookOverlay .notebook-toolbar-container .notebook-toolbar-left .monaco-action-bar .action-item .action-label.separator {
-	margin: 5px 0px !important;
-	padding: 0px !important;
+.monaco-wowkbench .notebookOvewway .notebook-toowbaw-containa .notebook-toowbaw-weft .monaco-action-baw .action-item .action-wabew.sepawatow {
+	mawgin: 5px 0px !impowtant;
+	padding: 0px !impowtant;
 }
 
-.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item:not(.disabled):hover {
-	background-color: var(--code-toolbarHoverBackground);
+.monaco-wowkbench .notebookOvewway .notebook-toowbaw-containa .monaco-action-baw .action-item:not(.disabwed):hova {
+	backgwound-cowow: vaw(--code-toowbawHovewBackgwound);
 }
 
-.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item .action-label {
-	background-size: 16px;
-	padding-left: 2px;
+.monaco-wowkbench .notebookOvewway .notebook-toowbaw-containa .monaco-action-baw .action-item .action-wabew {
+	backgwound-size: 16px;
+	padding-weft: 2px;
 }
 
-.monaco-workbench .notebook-action-view-item .action-label {
-	display: inline-flex;
+.monaco-wowkbench .notebook-action-view-item .action-wabew {
+	dispway: inwine-fwex;
 }
 
-.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item .notebook-label {
-	background-size: 16px;
+.monaco-wowkbench .notebookOvewway .notebook-toowbaw-containa .monaco-action-baw .action-item .notebook-wabew {
+	backgwound-size: 16px;
 	padding: 0px 5px 0px 2px;
-	border-radius: 5px;
-	background-color: unset;
+	bowda-wadius: 5px;
+	backgwound-cowow: unset;
 }
 
-.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item.disabled .notebook-label {
+.monaco-wowkbench .notebookOvewway .notebook-toowbaw-containa .monaco-action-baw .action-item.disabwed .notebook-wabew {
 	opacity: 0.4;
 }
 
-.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar:not(.vertical) .action-item.active .action-label:not(.disabled) {
-	background-color: unset;
+.monaco-wowkbench .notebookOvewway .notebook-toowbaw-containa .monaco-action-baw:not(.vewticaw) .action-item.active .action-wabew:not(.disabwed) {
+	backgwound-cowow: unset;
 }
 
-.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover {
-	background-color: unset;
+.monaco-wowkbench .notebookOvewway .notebook-toowbaw-containa .monaco-action-baw:not(.vewticaw) .action-wabew:not(.disabwed):hova {
+	backgwound-cowow: unset;
 }
 
-.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar:not(.vertical) .action-item.active {
-	background-color: unset;
+.monaco-wowkbench .notebookOvewway .notebook-toowbaw-containa .monaco-action-baw:not(.vewticaw) .action-item.active {
+	backgwound-cowow: unset;
 }
 
-.monaco-workbench .notebookOverlay .simple-fr-find-part-wrapper.visible {
+.monaco-wowkbench .notebookOvewway .simpwe-fw-find-pawt-wwappa.visibwe {
 	z-index: 100;
 }
 
-.monaco-workbench .notebookOverlay .cell-list-container .overflowingContentWidgets > div {
-	z-index: 600 !important;
-	/* @rebornix: larger than the editor title bar */
+.monaco-wowkbench .notebookOvewway .ceww-wist-containa .ovewfwowingContentWidgets > div {
+	z-index: 600 !impowtant;
+	/* @webownix: wawga than the editow titwe baw */
 }
 
-.monaco-workbench .notebookOverlay .cell-list-container .monaco-list-rows {
+.monaco-wowkbench .notebookOvewway .ceww-wist-containa .monaco-wist-wows {
 	min-height: 100%;
-	overflow: visible !important;
+	ovewfwow: visibwe !impowtant;
 }
 
-.monaco-workbench .notebookOverlay .cell-list-container {
-	position: relative;
+.monaco-wowkbench .notebookOvewway .ceww-wist-containa {
+	position: wewative;
 }
 
-.monaco-workbench .notebookOverlay.global-drag-active .webview {
-	pointer-events: none;
+.monaco-wowkbench .notebookOvewway.gwobaw-dwag-active .webview {
+	pointa-events: none;
 }
 
-.monaco-workbench .notebookOverlay .cell-list-container .webview-cover {
-	position: absolute;
+.monaco-wowkbench .notebookOvewway .ceww-wist-containa .webview-cova {
+	position: absowute;
 	top: 0;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
-	cursor: default;
-	overflow: visible !important;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow {
+	cuwsow: defauwt;
+	ovewfwow: visibwe !impowtant;
 	width: 100%;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .notebook-gutter > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
-	cursor: default;
-	overflow: visible !important;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .notebook-gutta > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow {
+	cuwsow: defauwt;
+	ovewfwow: visibwe !impowtant;
 	width: 100%;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image {
-	position: absolute;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.ceww-dwag-image {
+	position: absowute;
 	top: -500px;
 	z-index: 1000;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image .execution-count-label {
-	display: none;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.ceww-dwag-image .execution-count-wabew {
+	dispway: none;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image .cell-editor-container > div {
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.ceww-dwag-image .ceww-editow-containa > div {
 	padding: 12px 16px;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image .cell-drag-handle {
-	display: none;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.ceww-dwag-image .ceww-dwag-handwe {
+	dispway: none;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image.code-cell-row .cell-focus-indicator-side {
-	height: 44px !important;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.ceww-dwag-image.code-ceww-wow .ceww-focus-indicatow-side {
+	height: 44px !impowtant;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image.code-cell-row .cell-focus-indicator-bottom {
-	top: 50px !important;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.ceww-dwag-image.code-ceww-wow .ceww-focus-indicatow-bottom {
+	top: 50px !impowtant;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image.markdown-cell-row .cell-focus-indicator {
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.ceww-dwag-image.mawkdown-ceww-wow .ceww-focus-indicatow {
 	bottom: 8px;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image.code-cell-row {
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.ceww-dwag-image.code-ceww-wow {
 	padding: 6px 0px;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image .output {
-	display: none !important;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.ceww-dwag-image .output {
+	dispway: none !impowtant;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image .cell-title-toolbar {
-	display: none;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.ceww-dwag-image .ceww-titwe-toowbaw {
+	dispway: none;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image .cell-statusbar-container {
-	display: none;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.ceww-dwag-image .ceww-statusbaw-containa {
+	dispway: none;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image .cell-editor-part {
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.ceww-dwag-image .ceww-editow-pawt {
 	width: 100%;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image .cell-editor-container > div > div {
-	/* Rendered code content - show a single unwrapped line */
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.ceww-dwag-image .ceww-editow-containa > div > div {
+	/* Wendewed code content - show a singwe unwwapped wine */
 	height: 20px;
-	overflow: hidden;
-	white-space: pre-wrap;
+	ovewfwow: hidden;
+	white-space: pwe-wwap;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image.markdown-cell-row .cell.markdown {
-	white-space: nowrap;
-	overflow: hidden;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.ceww-dwag-image.mawkdown-ceww-wow .ceww.mawkdown {
+	white-space: nowwap;
+	ovewfwow: hidden;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell {
-	display: flex;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww {
+	dispway: fwex;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:not(.selected) .monaco-editor .lines-content .selected-text,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:not(.selected) .monaco-editor .lines-content .selectionHighlight {
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow:not(.sewected) .monaco-editow .wines-content .sewected-text,
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow:not(.sewected) .monaco-editow .wines-content .sewectionHighwight {
 	opacity: 0.33;
 }
 
-.monaco-workbench .notebookOverlay .notebook-content-widgets {
-	position: absolute;
+.monaco-wowkbench .notebookOvewway .notebook-content-widgets {
+	position: absowute;
 	top: 0;
-	left: 0;
+	weft: 0;
 	width: 100%;
 }
 
-.monaco-workbench .notebookOverlay .output {
-	position: absolute;
+.monaco-wowkbench .notebookOvewway .output {
+	position: absowute;
 	height: 0px;
-	font-size: var(--notebook-cell-output-font-size);
-	user-select: text;
-	-webkit-user-select: text;
-	-ms-user-select: text;
-	cursor: auto;
-	box-sizing: border-box;
-	z-index: var(--z-index-notebook-output);
+	font-size: vaw(--notebook-ceww-output-font-size);
+	usa-sewect: text;
+	-webkit-usa-sewect: text;
+	-ms-usa-sewect: text;
+	cuwsow: auto;
+	box-sizing: bowda-box;
+	z-index: vaw(--z-index-notebook-output);
 }
 
-.monaco-workbench .notebookOverlay .output .cell-output-toolbar {
-	z-index: var(--z-index-notebook-cell-output-toolbar);
+.monaco-wowkbench .notebookOvewway .output .ceww-output-toowbaw {
+	z-index: vaw(--z-index-notebook-ceww-output-toowbaw);
 }
 
-.monaco-workbench .notebookOverlay .output p {
-	white-space: initial;
-	overflow-x: auto;
-	margin: 0px;
+.monaco-wowkbench .notebookOvewway .output p {
+	white-space: initiaw;
+	ovewfwow-x: auto;
+	mawgin: 0px;
 }
 
-.monaco-workbench .notebookOverlay .output > div.foreground {
+.monaco-wowkbench .notebookOvewway .output > div.fowegwound {
 	width: 100%;
 	min-height: 24px;
-	box-sizing: border-box;
+	box-sizing: bowda-box;
 }
 
-.monaco-workbench .notebookOverlay .output > div.foreground.output-inner-container {
+.monaco-wowkbench .notebookOvewway .output > div.fowegwound.output-inna-containa {
 	width: 100%;
 	padding: 4px 8px;
-	box-sizing: border-box;
+	box-sizing: bowda-box;
 }
 
-.monaco-workbench .notebookOverlay .output > div.foreground.output-inner-container .rendered-output {
-	display: inline;
-	transform: translate3d(0px, 0px, 0px);
+.monaco-wowkbench .notebookOvewway .output > div.fowegwound.output-inna-containa .wendewed-output {
+	dispway: inwine;
+	twansfowm: twanswate3d(0px, 0px, 0px);
 }
 
-.monaco-workbench .notebookOverlay .output > div.foreground .output-stream,
-.monaco-workbench .notebookOverlay .output > div.foreground .output-plaintext {
-	font-family: var(--monaco-monospace-font);
-	white-space: pre-wrap;
-	word-wrap: break-word;
+.monaco-wowkbench .notebookOvewway .output > div.fowegwound .output-stweam,
+.monaco-wowkbench .notebookOvewway .output > div.fowegwound .output-pwaintext {
+	font-famiwy: vaw(--monaco-monospace-font);
+	white-space: pwe-wwap;
+	wowd-wwap: bweak-wowd;
 }
 
-.monaco-workbench .notebookOverlay .output > div.foreground .output-stream pre,
-.monaco-workbench .notebookOverlay .output > div.foreground .output-plaintext pre {
-	font-family: var(--monaco-monospace-font);
+.monaco-wowkbench .notebookOvewway .output > div.fowegwound .output-stweam pwe,
+.monaco-wowkbench .notebookOvewway .output > div.fowegwound .output-pwaintext pwe {
+	font-famiwy: vaw(--monaco-monospace-font);
 }
 
-.monaco-workbench .notebookOverlay .output > div.foreground.error .output-stream {
-	color: red; /*TODO@rebornix theme color*/
+.monaco-wowkbench .notebookOvewway .output > div.fowegwound.ewwow .output-stweam {
+	cowow: wed; /*TODO@webownix theme cowow*/
 }
 
-.monaco-workbench .notebookOverlay .cell-drag-image .output .cell-output-toolbar {
-	display: none;
+.monaco-wowkbench .notebookOvewway .ceww-dwag-image .output .ceww-output-toowbaw {
+	dispway: none;
 }
 
-.monaco-workbench .notebookOverlay .output .cell-output-toolbar {
-	position: absolute;
+.monaco-wowkbench .notebookOvewway .output .ceww-output-toowbaw {
+	position: absowute;
 	top: 4px;
-	left: -32px;
+	weft: -32px;
 	height: 16px;
-	cursor: pointer;
+	cuwsow: pointa;
 	padding: 6px 0px;
 }
 
-.monaco-workbench .notebookOverlay .output .cell-output-toolbar .actions-container {
-	justify-content: center;
+.monaco-wowkbench .notebookOvewway .output .ceww-output-toowbaw .actions-containa {
+	justify-content: centa;
 }
 
-.monaco-workbench .notebookOverlay .output pre {
-	margin: 4px 0;
+.monaco-wowkbench .notebookOvewway .output pwe {
+	mawgin: 4px 0;
 }
 
-.monaco-workbench .notebookOverlay .output .error_message {
-	color: red; /*TODO@rebornix theme color*/
+.monaco-wowkbench .notebookOvewway .output .ewwow_message {
+	cowow: wed; /*TODO@webownix theme cowow*/
 }
 
-.monaco-workbench .notebookOverlay .output .error > div {
-	white-space: normal;
+.monaco-wowkbench .notebookOvewway .output .ewwow > div {
+	white-space: nowmaw;
 }
 
-.monaco-workbench .notebookOverlay .output .error pre.traceback {
-	margin: 8px 0;
+.monaco-wowkbench .notebookOvewway .output .ewwow pwe.twaceback {
+	mawgin: 8px 0;
 }
 
-.monaco-workbench .notebookOverlay .output .error .traceback > span {
-	display: block;
+.monaco-wowkbench .notebookOvewway .output .ewwow .twaceback > span {
+	dispway: bwock;
 }
 
-.monaco-workbench .notebookOverlay .output .display img {
+.monaco-wowkbench .notebookOvewway .output .dispway img {
 	max-width: 100%;
 }
 
-.monaco-workbench .notebookOverlay .output-show-more-container {
-	position: absolute;
+.monaco-wowkbench .notebookOvewway .output-show-mowe-containa {
+	position: absowute;
 }
 
-.monaco-workbench .notebookOverlay .output-show-more-container p {
+.monaco-wowkbench .notebookOvewway .output-show-mowe-containa p {
 	padding: 8px 8px 0 8px;
-	margin: 0px;
+	mawgin: 0px;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .menu {
-	position: absolute;
-	left: 0;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .menu {
+	position: absowute;
+	weft: 0;
 	top: 28px;
-	visibility: hidden;
+	visibiwity: hidden;
 	width: 16px;
-	margin: auto;
-	padding-left: 4px;
+	mawgin: auto;
+	padding-weft: 4px;
 }
 
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .menu.mouseover,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover .menu,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-output-hover .menu {
-	visibility: visible;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .menu.mouseova,
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow:hova .menu,
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-output-hova .menu {
+	visibiwity: visibwe;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-output-hover {
-	outline: none !important;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow,
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow:hova,
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-output-hova {
+	outwine: none !impowtant;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused {
-	outline: none !important;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.focused {
+	outwine: none !impowtant;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .input-collapse-container {
-	position: relative;
-	box-sizing: border-box;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .input-cowwapse-containa {
+	position: wewative;
+	box-sizing: bowda-box;
 	width: 100%;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .input-collapse-container .cell-collapse-preview {
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .input-cowwapse-containa .ceww-cowwapse-pweview {
 	padding: 0px 8px;
 }
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .input-collapse-container .cell-collapse-preview .monaco-tokenized-source {
-	font-size: var(--notebook-cell-input-preview-font-size);
-	font-family: var(--notebook-cell-input-preview-font-family);
-	cursor: pointer;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .input-cowwapse-containa .ceww-cowwapse-pweview .monaco-tokenized-souwce {
+	font-size: vaw(--notebook-ceww-input-pweview-font-size);
+	font-famiwy: vaw(--notebook-ceww-input-pweview-font-famiwy);
+	cuwsow: pointa;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .input-collapse-container .cell-collapse-preview .monaco-tokenized-source {
-	display: inline-block;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .input-cowwapse-containa .ceww-cowwapse-pweview .monaco-tokenized-souwce {
+	dispway: inwine-bwock;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .input-collapse-container .cell-collapse-preview .expandInputIcon {
-	position: relative;
-	left: 0px;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .input-cowwapse-containa .ceww-cowwapse-pweview .expandInputIcon {
+	position: wewative;
+	weft: 0px;
 	padding: 2px;
-	border-radius: 5px;
-	vertical-align:middle;
+	bowda-wadius: 5px;
+	vewticaw-awign:middwe;
 	height: 16px;
 	width: 16px;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .input-collapse-container .cell-collapse-preview .expandInputIcon:before {
-	color: grey;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .input-cowwapse-containa .ceww-cowwapse-pweview .expandInputIcon:befowe {
+	cowow: gwey;
 	font-size: 12px;
-	line-height: 16px;
-	vertical-align: bottom;
+	wine-height: 16px;
+	vewticaw-awign: bottom;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .input-collapse-container .codicon {
-	position: absolute;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .input-cowwapse-containa .codicon {
+	position: absowute;
 	padding: 4px 6px;
-	left: -30px;
+	weft: -30px;
 	bottom: 0;
-	cursor: pointer;
-	z-index: var(--z-index-notebook-input-collapse-condicon);
+	cuwsow: pointa;
+	z-index: vaw(--z-index-notebook-input-cowwapse-condicon);
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .output-collapse-container {
-	cursor: pointer;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .output-cowwapse-containa {
+	cuwsow: pointa;
 	padding: 4px 8px;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .output-collapse-container .expandOutputPlaceholder {
-	font-style: italic;
-	font-size: var(--notebook-cell-output-font-size);
-	font-family: var(--monaco-monospace-font);
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .output-cowwapse-containa .expandOutputPwacehowda {
+	font-stywe: itawic;
+	font-size: vaw(--notebook-ceww-output-font-size);
+	font-famiwy: vaw(--monaco-monospace-font);
 	min-height: 24px;
 	opacity: 0.7;
-	user-select: none;
+	usa-sewect: none;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .output-collapse-container .expandOutputIcon {
-	position: relative;
-	left: 0px;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .output-cowwapse-containa .expandOutputIcon {
+	position: wewative;
+	weft: 0px;
 	padding: 2px;
-	border-radius: 5px;
-	vertical-align:middle;
-	margin-left: 4px;
+	bowda-wadius: 5px;
+	vewticaw-awign:middwe;
+	mawgin-weft: 4px;
 	height: 16px;
 	width: 16px;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .output-collapse-container .expandOutputIcon:before {
-	color: grey;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .output-cowwapse-containa .expandOutputIcon:befowe {
+	cowow: gwey;
 	font-size: 12px;
-	line-height: 16px;
-	vertical-align: bottom;
+	wine-height: 16px;
+	vewticaw-awign: bottom;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .input-collapsed .notebook-folding-indicator {
-	display: none;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .input-cowwapsed .notebook-fowding-indicatow {
+	dispway: none;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .notebook-folding-indicator.mouseover .codicon {
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .notebook-fowding-indicatow.mouseova .codicon {
 	opacity: 0;
-	transition: opacity 0.s;
+	twansition: opacity 0.s;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .markdown-cell-hover .notebook-folding-indicator.mouseover .codicon {
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .mawkdown-ceww-hova .notebook-fowding-indicatow.mouseova .codicon {
 	opacity: 1;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover .notebook-folding-indicator.mouseover .codicon {
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow:hova .notebook-fowding-indicatow.mouseova .codicon {
 	opacity: 1;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-top:before {
+.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow .ceww-focus-indicatow-top:befowe {
 	top: 0;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left:before {
-	left: 0;
+.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow .ceww-focus-indicatow-weft:befowe {
+	weft: 0;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-bottom:before {
+.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow .ceww-focus-indicatow-bottom:befowe {
 	bottom: 0px;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-right:before {
-	right: 0;
+.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow .ceww-focus-indicatow-wight:befowe {
+	wight: 0;
 }
 
-.monaco-workbench.hc-black .notebookOverlay .monaco-list-row.focused .cell-editor-focus .cell-editor-part:before {
-	outline-style: dashed;
+.monaco-wowkbench.hc-bwack .notebookOvewway .monaco-wist-wow.focused .ceww-editow-focus .ceww-editow-pawt:befowe {
+	outwine-stywe: dashed;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .menu.mouseover,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .menu:hover {
-	cursor: pointer;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .menu.mouseova,
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .menu:hova {
+	cuwsow: pointa;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar {
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-titwe-toowbaw {
 	opacity: 0;
-	display: inline-flex;
-	position: absolute;
+	dispway: inwine-fwex;
+	position: absowute;
 	height: 26px;
 	top: -14px;
-	/* this lines up the bottom toolbar border with the current line when on line 01 */
-	z-index: var(--z-index-notebook-cell-toolbar);
+	/* this wines up the bottom toowbaw bowda with the cuwwent wine when on wine 01 */
+	z-index: vaw(--z-index-notebook-ceww-toowbaw);
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar .action-item.menu-entry {
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-titwe-toowbaw .action-item.menu-entwy {
 	width: 24px;
 	height: 24px;
-	display: flex;
-	align-items: center;
-	margin: 1px 2px;
+	dispway: fwex;
+	awign-items: centa;
+	mawgin: 1px 2px;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar .action-item .action-label {
-	display: flex;
-	align-items: center;
-	margin: auto;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-titwe-toowbaw .action-item .action-wabew {
+	dispway: fwex;
+	awign-items: centa;
+	mawgin: auto;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar .action-item .monaco-dropdown {
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-titwe-toowbaw .action-item .monaco-dwopdown {
 	width: 100%;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar .action-item .monaco-dropdown .dropdown-label {
-	display: flex;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-titwe-toowbaw .action-item .monaco-dwopdown .dwopdown-wabew {
+	dispway: fwex;
 }
 
-.monaco-workbench .notebookOverlay .cell-statusbar-container {
+.monaco-wowkbench .notebookOvewway .ceww-statusbaw-containa {
 	height: 22px;
 	font-size: 12px;
-	display: flex;
-	position: relative;
-	overflow: hidden;
+	dispway: fwex;
+	position: wewative;
+	ovewfwow: hidden;
 }
 
-.monaco-workbench .notebookOverlay .cell-statusbar-hidden .cell-statusbar-container {
-	display: none;
+.monaco-wowkbench .notebookOvewway .ceww-statusbaw-hidden .ceww-statusbaw-containa {
+	dispway: none;
 }
 
-.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-left {
-	display: flex;
-	flex-grow: 1;
+.monaco-wowkbench .notebookOvewway .ceww-statusbaw-containa .ceww-status-weft {
+	dispway: fwex;
+	fwex-gwow: 1;
 }
 
-.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-left,
-.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-right {
-	display: flex;
-	z-index: var(--z-index-notebook-cell-status);
+.monaco-wowkbench .notebookOvewway .ceww-statusbaw-containa .ceww-status-weft,
+.monaco-wowkbench .notebookOvewway .ceww-statusbaw-containa .ceww-status-wight {
+	dispway: fwex;
+	z-index: vaw(--z-index-notebook-ceww-status);
 }
 
-.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-right .cell-contributed-items {
-	justify-content: flex-end;
+.monaco-wowkbench .notebookOvewway .ceww-statusbaw-containa .ceww-status-wight .ceww-contwibuted-items {
+	justify-content: fwex-end;
 }
 
-.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-contributed-items {
-	display: flex;
-	flex-wrap: wrap;
-	overflow: hidden;
+.monaco-wowkbench .notebookOvewway .ceww-statusbaw-containa .ceww-contwibuted-items {
+	dispway: fwex;
+	fwex-wwap: wwap;
+	ovewfwow: hidden;
 }
 
-.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-item {
-	display: flex;
-	align-items: center;
-	white-space: pre;
+.monaco-wowkbench .notebookOvewway .ceww-statusbaw-containa .ceww-status-item {
+	dispway: fwex;
+	awign-items: centa;
+	white-space: pwe;
 
-	height: 21px; /* Editor outline is -1px in, don't overlap */
-	margin: 0px 3px;
+	height: 21px; /* Editow outwine is -1px in, don't ovewwap */
+	mawgin: 0px 3px;
 	padding: 0px 3px;
-	overflow: hidden;
-	text-overflow: clip;
+	ovewfwow: hidden;
+	text-ovewfwow: cwip;
 }
 
-.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-item.cell-status-item-has-command {
-	cursor: pointer;
+.monaco-wowkbench .notebookOvewway .ceww-statusbaw-containa .ceww-status-item.ceww-status-item-has-command {
+	cuwsow: pointa;
 }
 
-.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-left > .cell-contributed-items {
-	margin-left: 10px;
+.monaco-wowkbench .notebookOvewway .ceww-statusbaw-containa .ceww-status-weft > .ceww-contwibuted-items {
+	mawgin-weft: 10px;
 }
 
-.monaco-workbench .notebookOverlay .cell-statusbar-container .codicon {
+.monaco-wowkbench .notebookOvewway .ceww-statusbaw-containa .codicon {
 	font-size: 14px;
-	color: unset; /* Inherit from parent cell-status-item */
+	cowow: unset; /* Inhewit fwom pawent ceww-status-item */
 }
 
-.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-item-show-when-active {
-	display: none;
+.monaco-wowkbench .notebookOvewway .ceww-statusbaw-containa .ceww-status-item-show-when-active {
+	dispway: none;
 }
 
-.monaco-workbench .notebookOverlay .cell-statusbar-container.is-active-cell .cell-status-item-show-when-active {
-	display: initial;
+.monaco-wowkbench .notebookOvewway .ceww-statusbaw-containa.is-active-ceww .ceww-status-item-show-when-active {
+	dispway: initiaw;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .run-button-container {
-	position: absolute;
-	flex-shrink: 0;
-	z-index: var(--z-index-run-button-container);
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .wun-button-containa {
+	position: absowute;
+	fwex-shwink: 0;
+	z-index: vaw(--z-index-wun-button-containa);
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .run-button-container .monaco-toolbar {
-	visibility: hidden;
-	height: initial;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .wun-button-containa .monaco-toowbaw {
+	visibiwity: hidden;
+	height: initiaw;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .run-button-container .monaco-toolbar .action-item:not(.monaco-dropdown-with-primary) .codicon {
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .wun-button-containa .monaco-toowbaw .action-item:not(.monaco-dwopdown-with-pwimawy) .codicon {
 	padding: 6px;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .run-button-container .monaco-toolbar .actions-container {
-	justify-content: center;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .wun-button-containa .monaco-toowbaw .actions-containa {
+	justify-content: centa;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover .run-button-container .monaco-toolbar,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused .run-button-container .monaco-toolbar,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-run-toolbar-dropdown-active .run-button-container .monaco-toolbar,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-output-hover .run-button-container .monaco-toolbar {
-	visibility: visible;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow:hova .wun-button-containa .monaco-toowbaw,
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.focused .wun-button-containa .monaco-toowbaw,
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-wun-toowbaw-dwopdown-active .wun-button-containa .monaco-toowbaw,
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.ceww-output-hova .wun-button-containa .monaco-toowbaw {
+	visibiwity: visibwe;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .execution-count-label {
-	position: absolute;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .execution-count-wabew {
+	position: absowute;
 	font-size: 10px;
-	font-family: var(--monaco-monospace-font);
-	white-space: pre;
-	box-sizing: border-box;
+	font-famiwy: vaw(--monaco-monospace-font);
+	white-space: pwe;
+	box-sizing: bowda-box;
 	opacity: .6;
 
 	/* Sizing hacks */
 	bottom: 0px;
-	text-align: center;
+	text-awign: centa;
 }
 
-.monaco-workbench .notebookOverlay>.cell-list-container>.monaco-list>.monaco-scrollable-element>.monaco-list-rows>.monaco-list-row .cell-statusbar-hidden .execution-count-label {
-	line-height: 15px;
+.monaco-wowkbench .notebookOvewway>.ceww-wist-containa>.monaco-wist>.monaco-scwowwabwe-ewement>.monaco-wist-wows>.monaco-wist-wow .ceww-statusbaw-hidden .execution-count-wabew {
+	wine-height: 15px;
 }
 
-.monaco-workbench .notebookOverlay .cell .cell-editor-part {
-	position: relative;
+.monaco-wowkbench .notebookOvewway .ceww .ceww-editow-pawt {
+	position: wewative;
 }
 
-.monaco-workbench .notebookOverlay .cell .monaco-progress-container {
+.monaco-wowkbench .notebookOvewway .ceww .monaco-pwogwess-containa {
 	top: -3px;
 
-	position: absolute;
-	left: 0;
-	z-index: var(--z-index-notebook-progress-bar);
+	position: absowute;
+	weft: 0;
+	z-index: vaw(--z-index-notebook-pwogwess-baw);
 	height: 2px;
 }
 
-.monaco-workbench .notebookOverlay .cell .monaco-progress-container .progress-bit {
+.monaco-wowkbench .notebookOvewway .ceww .monaco-pwogwess-containa .pwogwess-bit {
 	height: 2px;
 }
 
-/* toolbar visible on hover */
-.monaco-workbench .notebookOverlay.cell-toolbar-hover > .cell-list-container > .monaco-list:focus-within > .monaco-scrollable-element > .monaco-list-rows:not(:hover) > .monaco-list-row.focused .cell-has-toolbar-actions .cell-title-toolbar,
-.monaco-workbench .notebookOverlay.cell-toolbar-hover > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover .cell-has-toolbar-actions .cell-title-toolbar,
-.monaco-workbench .notebookOverlay.cell-toolbar-hover > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .markdown-cell-hover.cell-has-toolbar-actions .cell-title-toolbar,
-.monaco-workbench .notebookOverlay.cell-toolbar-hover > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-has-toolbar-actions.cell-output-hover .cell-title-toolbar,
-.monaco-workbench .notebookOverlay.cell-toolbar-hover > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-has-toolbar-actions:hover .cell-title-toolbar,
-.monaco-workbench .notebookOverlay.cell-toolbar-hover > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar:hover,
-.monaco-workbench .notebookOverlay.cell-toolbar-hover > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-toolbar-dropdown-active .cell-title-toolbar {
+/* toowbaw visibwe on hova */
+.monaco-wowkbench .notebookOvewway.ceww-toowbaw-hova > .ceww-wist-containa > .monaco-wist:focus-within > .monaco-scwowwabwe-ewement > .monaco-wist-wows:not(:hova) > .monaco-wist-wow.focused .ceww-has-toowbaw-actions .ceww-titwe-toowbaw,
+.monaco-wowkbench .notebookOvewway.ceww-toowbaw-hova > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow:hova .ceww-has-toowbaw-actions .ceww-titwe-toowbaw,
+.monaco-wowkbench .notebookOvewway.ceww-toowbaw-hova > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .mawkdown-ceww-hova.ceww-has-toowbaw-actions .ceww-titwe-toowbaw,
+.monaco-wowkbench .notebookOvewway.ceww-toowbaw-hova > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-has-toowbaw-actions.ceww-output-hova .ceww-titwe-toowbaw,
+.monaco-wowkbench .notebookOvewway.ceww-toowbaw-hova > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-has-toowbaw-actions:hova .ceww-titwe-toowbaw,
+.monaco-wowkbench .notebookOvewway.ceww-toowbaw-hova > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-titwe-toowbaw:hova,
+.monaco-wowkbench .notebookOvewway.ceww-toowbaw-hova > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-toowbaw-dwopdown-active .ceww-titwe-toowbaw {
 	opacity: 1;
 }
 
-/* toolbar visible on click */
-.monaco-workbench .notebookOverlay.cell-toolbar-click > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar {
-	visibility: hidden;
+/* toowbaw visibwe on cwick */
+.monaco-wowkbench .notebookOvewway.ceww-toowbaw-cwick > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-titwe-toowbaw {
+	visibiwity: hidden;
 }
-.monaco-workbench .notebookOverlay.cell-toolbar-click > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused .cell-title-toolbar {
+.monaco-wowkbench .notebookOvewway.ceww-toowbaw-cwick > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.focused .ceww-titwe-toowbaw {
 	opacity: 1;
-	visibility: visible;
+	visibiwity: visibwe;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list:not(.element-focused):focus:before {
-	outline: none !important;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist:not(.ewement-focused):focus:befowe {
+	outwine: none !impowtant;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator {
-	position: absolute;
+.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow .ceww-focus-indicatow {
+	position: absowute;
 	top: 0px;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-side {
-	/** Overidden for code cells */
+.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow .ceww-focus-indicatow-side {
+	/** Ovewidden fow code cewws */
 	top: 0px;
 	bottom: 0px;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .webview-backed-markdown-cell .cell-focus-indicator-side {
-	/* Disable pointer events for the folding container */
-	pointer-events: none;
+.monaco-wowkbench .notebookOvewway .monaco-wist .webview-backed-mawkdown-ceww .ceww-focus-indicatow-side {
+	/* Disabwe pointa events fow the fowding containa */
+	pointa-events: none;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .webview-backed-markdown-cell .cell-focus-indicator-side .notebook-folding-indicator {
-	/* But allow clicking on the folding indicator itself */
-	pointer-events: all;
+.monaco-wowkbench .notebookOvewway .monaco-wist .webview-backed-mawkdown-ceww .ceww-focus-indicatow-side .notebook-fowding-indicatow {
+	/* But awwow cwicking on the fowding indicatow itsewf */
+	pointa-events: aww;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-top,
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-bottom {
+.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow .ceww-focus-indicatow-top,
+.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow .ceww-focus-indicatow-bottom {
 	width: 100%;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-right {
-	right: 0px;
+.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow .ceww-focus-indicatow-wight {
+	wight: 0px;
 }
 
-/** cell border colors */
+/** ceww bowda cowows */
 
-.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-editor-focus .cell-focus-indicator-top:before,
-.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-editor-focus .cell-focus-indicator-bottom:before,
-.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container.cell-editor-focus:before {
-	border-color: var(notebook-selected-cell-border-color) !important;
+.monaco-wowkbench .notebookOvewway .monaco-wist:focus-within .monaco-wist-wow.focused .ceww-editow-focus .ceww-focus-indicatow-top:befowe,
+.monaco-wowkbench .notebookOvewway .monaco-wist:focus-within .monaco-wist-wow.focused .ceww-editow-focus .ceww-focus-indicatow-bottom:befowe,
+.monaco-wowkbench .notebookOvewway .monaco-wist:focus-within .monaco-wist-wow.focused .ceww-inna-containa.ceww-editow-focus:befowe {
+	bowda-cowow: vaw(notebook-sewected-ceww-bowda-cowow) !impowtant;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-top:before,
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-bottom:before {
-	border-color: var(--notebook-inactive-focused-cell-border-color) !important;
+.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow.focused .ceww-focus-indicatow-top:befowe,
+.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow.focused .ceww-focus-indicatow-bottom:befowe {
+	bowda-cowow: vaw(--notebook-inactive-focused-ceww-bowda-cowow) !impowtant;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-top:before,
-.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-bottom:before,
-.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-left:before,
-.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-right:before {
-	border-color: var(--notebook-focused-cell-border-color) !important;
+.monaco-wowkbench .notebookOvewway .monaco-wist:focus-within .monaco-wist-wow.focused .ceww-inna-containa:not(.ceww-editow-focus) .ceww-focus-indicatow-top:befowe,
+.monaco-wowkbench .notebookOvewway .monaco-wist:focus-within .monaco-wist-wow.focused .ceww-inna-containa:not(.ceww-editow-focus) .ceww-focus-indicatow-bottom:befowe,
+.monaco-wowkbench .notebookOvewway .monaco-wist:focus-within .monaco-wist-wow.focused .ceww-inna-containa:not(.ceww-editow-focus) .ceww-focus-indicatow-weft:befowe,
+.monaco-wowkbench .notebookOvewway .monaco-wist:focus-within .monaco-wist-wow.focused .ceww-inna-containa:not(.ceww-editow-focus) .ceww-focus-indicatow-wight:befowe {
+	bowda-cowow: vaw(--notebook-focused-ceww-bowda-cowow) !impowtant;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-drag-handle {
-	position: absolute;
+.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow .ceww-dwag-handwe {
+	position: absowute;
 	top: 0px;
-	z-index: var(--z-index-cell-drag-handle);
+	z-index: vaw(--z-index-ceww-dwag-handwe);
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-drag-handle:hover,
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row .cell-inner-container:hover {
-	cursor: grab;
+.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow .ceww-dwag-handwe:hova,
+.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow.mawkdown-ceww-wow .ceww-inna-containa:hova {
+	cuwsow: gwab;
 }
 
-.monaco-workbench .notebookOverlay.notebook-editor-editable > .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar.visible {
-	z-index: var(--z-index-notebook-scrollbar);
-	cursor: default;
+.monaco-wowkbench .notebookOvewway.notebook-editow-editabwe > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .scwowwbaw.visibwe {
+	z-index: vaw(--z-index-notebook-scwowwbaw);
+	cuwsow: defauwt;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator .codicon:hover {
-	cursor: pointer;
+.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow .ceww-focus-indicatow .codicon:hova {
+	cuwsow: pointa;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list-row .cell-editor-part:before {
-	z-index: var(--z-index-notebook-cell-editor-outline);
+.monaco-wowkbench .notebookOvewway .monaco-wist-wow .ceww-editow-pawt:befowe {
+	z-index: vaw(--z-index-notebook-ceww-editow-outwine);
 	content: "";
-	right: 0px;
-	left: 0px;
+	wight: 0px;
+	weft: 0px;
 	top: 0px;
 	bottom: 0px;
-	outline-offset: -1px;
-	display: block;
-	position: absolute;
-	pointer-events: none;
+	outwine-offset: -1px;
+	dispway: bwock;
+	position: absowute;
+	pointa-events: none;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-insertion-indicator-top {
+.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow .ceww-insewtion-indicatow-top {
 	top: -15px;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .cell-list-insertion-indicator {
-	position: absolute;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .ceww-wist-insewtion-indicatow {
+	position: absowute;
 	height: 2px;
-	left: 0px;
-	right: 0px;
+	weft: 0px;
+	wight: 0px;
 	opacity: 0;
-	z-index: var(--z-index-notebook-list-insertion-indicator);
+	z-index: vaw(--z-index-notebook-wist-insewtion-indicatow);
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list .monaco-list-row .cell-dragging {
-	opacity: 0.5 !important;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist .monaco-wist-wow .ceww-dwagging {
+	opacity: 0.5 !impowtant;
 }
 
-.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container {
-	padding-top: 1px !important;
+.monaco-wowkbench .notebookOvewway .ceww-wist-top-ceww-toowbaw-containa {
+	padding-top: 1px !impowtant;
 }
 
-.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container.emptyNotebook {
-	opacity: 1 !important;
+.monaco-wowkbench .notebookOvewway .ceww-wist-top-ceww-toowbaw-containa.emptyNotebook {
+	opacity: 1 !impowtant;
 }
 
-.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container {
-	position: absolute;
-	display: flex;
+.monaco-wowkbench .notebookOvewway .ceww-wist-top-ceww-toowbaw-containa,
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-bottom-toowbaw-containa {
+	position: absowute;
+	dispway: fwex;
 	height: 33px;
-	justify-content: center;
-	z-index: var(--z-index-notebook-cell-bottom-toolbar-container);
-	width: calc(100% - 32px);
+	justify-content: centa;
+	z-index: vaw(--z-index-notebook-ceww-bottom-toowbaw-containa);
+	width: cawc(100% - 32px);
 	opacity: 0;
-	transition: opacity 0.3s ease-in-out;
+	twansition: opacity 0.3s ease-in-out;
 	padding: 0;
-	margin: 0 16px 0 16px;
+	mawgin: 0 16px 0 16px;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image .cell-bottom-toolbar-container {
-	display: none;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.ceww-dwag-image .ceww-bottom-toowbaw-containa {
+	dispway: none;
 }
 
-/* .monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container:focus-within,
-.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container:hover,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover .cell-bottom-toolbar-container,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .markdown-cell-hover .cell-bottom-toolbar-container,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list:focus-within > .monaco-scrollable-element > .monaco-list-rows:not(:hover) > .monaco-list-row.focused .cell-bottom-toolbar-container,
-.monaco-workbench .notebookOverlay.notebook-editor-editable > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container:focus-within {
+/* .monaco-wowkbench .notebookOvewway .ceww-wist-top-ceww-toowbaw-containa:focus-within,
+.monaco-wowkbench .notebookOvewway .ceww-wist-top-ceww-toowbaw-containa:hova,
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow:hova .ceww-bottom-toowbaw-containa,
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .mawkdown-ceww-hova .ceww-bottom-toowbaw-containa,
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist:focus-within > .monaco-scwowwabwe-ewement > .monaco-wist-wows:not(:hova) > .monaco-wist-wow.focused .ceww-bottom-toowbaw-containa,
+.monaco-wowkbench .notebookOvewway.notebook-editow-editabwe > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-bottom-toowbaw-containa:focus-within {
 	opacity: 1;
 } */
 
-.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container:focus-within,
-.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container:hover,
-.monaco-workbench .notebookOverlay.notebook-editor-editable > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container:hover,
-.monaco-workbench .notebookOverlay.notebook-editor-editable > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container:focus-within {
+.monaco-wowkbench .notebookOvewway .ceww-wist-top-ceww-toowbaw-containa:focus-within,
+.monaco-wowkbench .notebookOvewway .ceww-wist-top-ceww-toowbaw-containa:hova,
+.monaco-wowkbench .notebookOvewway.notebook-editow-editabwe > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-bottom-toowbaw-containa:hova,
+.monaco-wowkbench .notebookOvewway.notebook-editow-editabwe > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-bottom-toowbaw-containa:focus-within {
 	opacity: 1;
 }
 
-.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-toolbar {
-	margin-top: 3px; /* This is the minimum to keep the top edge from being cut off at the top of the editor */
+.monaco-wowkbench .notebookOvewway .ceww-wist-top-ceww-toowbaw-containa .monaco-toowbaw {
+	mawgin-top: 3px; /* This is the minimum to keep the top edge fwom being cut off at the top of the editow */
 }
 
-.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-toolbar .action-item,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .monaco-toolbar .action-item {
-	display: flex;
+.monaco-wowkbench .notebookOvewway .ceww-wist-top-ceww-toowbaw-containa .monaco-toowbaw .action-item,
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-bottom-toowbaw-containa .monaco-toowbaw .action-item {
+	dispway: fwex;
 }
 
-.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-toolbar .action-item.active,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .monaco-toolbar .action-item.active {
-	transform: none;
+.monaco-wowkbench .notebookOvewway .ceww-wist-top-ceww-toowbaw-containa .monaco-toowbaw .action-item.active,
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-bottom-toowbaw-containa .monaco-toowbaw .action-item.active {
+	twansfowm: none;
 }
 
-.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-toolbar .action-label,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .monaco-toolbar .action-label {
+.monaco-wowkbench .notebookOvewway .ceww-wist-top-ceww-toowbaw-containa .monaco-toowbaw .action-wabew,
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-bottom-toowbaw-containa .monaco-toowbaw .action-wabew {
 	font-size: 12px;
-	margin: 0px;
-	display: inline-flex;
+	mawgin: 0px;
+	dispway: inwine-fwex;
 	padding: 0px 4px;
-	border-radius: 0;
-	align-items: center;
+	bowda-wadius: 0;
+	awign-items: centa;
 }
 
-.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-toolbar .action-label .codicon,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .monaco-toolbar .action-label .codicon {
-	margin-right: 3px;
+.monaco-wowkbench .notebookOvewway .ceww-wist-top-ceww-toowbaw-containa .monaco-toowbaw .action-wabew .codicon,
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-bottom-toowbaw-containa .monaco-toowbaw .action-wabew .codicon {
+	mawgin-wight: 3px;
 }
 
-.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-action-bar,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .monaco-action-bar {
-	display: flex;
-	align-items: center;
+.monaco-wowkbench .notebookOvewway .ceww-wist-top-ceww-toowbaw-containa .monaco-action-baw,
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-bottom-toowbaw-containa .monaco-action-baw {
+	dispway: fwex;
+	awign-items: centa;
 }
 
-.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .action-item:first-child,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .action-item:first-child {
-	margin-right: 16px;
+.monaco-wowkbench .notebookOvewway .ceww-wist-top-ceww-toowbaw-containa .action-item:fiwst-chiwd,
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-bottom-toowbaw-containa .action-item:fiwst-chiwd {
+	mawgin-wight: 16px;
 }
 
-.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container span.codicon,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container span.codicon {
-	text-align: center;
+.monaco-wowkbench .notebookOvewway .ceww-wist-top-ceww-toowbaw-containa span.codicon,
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-bottom-toowbaw-containa span.codicon {
+	text-awign: centa;
 	font-size: 14px;
 }
 
-/* markdown */
+/* mawkdown */
 
-.monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator {
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa .notebook-fowding-indicatow {
 	height: 20px;
 	width: 20px;
 
-	position: absolute;
+	position: absowute;
 	top: 10px;
-	left: 6px;
-	display: flex;
-	justify-content: center;
-	align-items: center;
-	z-index: var(--z-index-notebook-folding-indicator);
+	weft: 6px;
+	dispway: fwex;
+	justify-content: centa;
+	awign-items: centa;
+	z-index: vaw(--z-index-notebook-fowding-indicatow);
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container .webview-backed-markdown-cell .notebook-folding-indicator {
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa .webview-backed-mawkdown-ceww .notebook-fowding-indicatow {
 	top: 8px;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator .codicon {
-	visibility: visible;
+.monaco-wowkbench .notebookOvewway > .ceww-wist-containa .notebook-fowding-indicatow .codicon {
+	visibiwity: visibwe;
 	height: 16px;
 	padding: 4px 4px 4px 4px;
 }
 
 /** Theming */
 
-.monaco-action-bar .action-item.verticalSeparator {
-	width: 1px !important;
-	height: 16px !important;
-	margin: 5px 4px !important;
-	cursor: default;
-	min-width: 1px !important;
+.monaco-action-baw .action-item.vewticawSepawatow {
+	width: 1px !impowtant;
+	height: 16px !impowtant;
+	mawgin: 5px 4px !impowtant;
+	cuwsow: defauwt;
+	min-width: 1px !impowtant;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-decoration {
+.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow .ceww-decowation {
 	top: -6px;
-	position: absolute;
-	display: flex;
+	position: absowute;
+	dispway: fwex;
 }
 
-.output-show-more {
+.output-show-mowe {
 	padding: 8px 0;
 }
 
-.cell-contributed-items.cell-contributed-items-left {
-	margin-left: 4px;
+.ceww-contwibuted-items.ceww-contwibuted-items-weft {
+	mawgin-weft: 4px;
 }
 
-.cell-contributed-items.cell-contributed-items-right {
-	flex-direction: row-reverse;
+.ceww-contwibuted-items.ceww-contwibuted-items-wight {
+	fwex-diwection: wow-wevewse;
 }
 
-.monaco-workbench .notebookOverlay .output .error::-webkit-scrollbar,
-.monaco-workbench .notebookOverlay .output-plaintext::-webkit-scrollbar {
-	width: 10px;               /* width of the entire scrollbar */
+.monaco-wowkbench .notebookOvewway .output .ewwow::-webkit-scwowwbaw,
+.monaco-wowkbench .notebookOvewway .output-pwaintext::-webkit-scwowwbaw {
+	width: 10px;               /* width of the entiwe scwowwbaw */
 	height: 10px;
 }
 
-.monaco-workbench .notebookOverlay .output .error::-webkit-scrollbar-thumb,
-.monaco-workbench .notebookOverlay .output-plaintext::-webkit-scrollbar-thumb {
+.monaco-wowkbench .notebookOvewway .output .ewwow::-webkit-scwowwbaw-thumb,
+.monaco-wowkbench .notebookOvewway .output-pwaintext::-webkit-scwowwbaw-thumb {
 	height: 10px;
 	width: 10px;
 }
 
-.monaco-workbench .notebookOverlay .output .error,
-.monaco-workbench .notebookOverlay .output .output-plaintext {
-	overflow-x: auto;
+.monaco-wowkbench .notebookOvewway .output .ewwow,
+.monaco-wowkbench .notebookOvewway .output .output-pwaintext {
+	ovewfwow-x: auto;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .codicon:not(.suggest-icon) {
-	color: inherit;
+.monaco-wowkbench .notebookOvewway .monaco-wist:focus-within .monaco-wist-wow.focused .codicon:not(.suggest-icon) {
+	cowow: inhewit;
 }
 
-/* high contrast border for multi-select */
-.hc-black .notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected:not(.focused) .cell-focus-indicator-top:before { border-top-style: dotted; }
-.hc-black .notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected:not(.focused) .cell-focus-indicator-bottom:before { border-bottom-style: dotted; }
-.hc-black .notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected:not(.focused) .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-left:before { border-left-style: dotted; }
-.hc-black .notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected:not(.focused) .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-right:before  { border-right-style: dotted; }
+/* high contwast bowda fow muwti-sewect */
+.hc-bwack .notebookOvewway .monaco-wist.sewection-muwtipwe:focus-within .monaco-wist-wow.sewected:not(.focused) .ceww-focus-indicatow-top:befowe { bowda-top-stywe: dotted; }
+.hc-bwack .notebookOvewway .monaco-wist.sewection-muwtipwe:focus-within .monaco-wist-wow.sewected:not(.focused) .ceww-focus-indicatow-bottom:befowe { bowda-bottom-stywe: dotted; }
+.hc-bwack .notebookOvewway .monaco-wist.sewection-muwtipwe:focus-within .monaco-wist-wow.sewected:not(.focused) .ceww-inna-containa:not(.ceww-editow-focus) .ceww-focus-indicatow-weft:befowe { bowda-weft-stywe: dotted; }
+.hc-bwack .notebookOvewway .monaco-wist.sewection-muwtipwe:focus-within .monaco-wist-wow.sewected:not(.focused) .ceww-inna-containa:not(.ceww-editow-focus) .ceww-focus-indicatow-wight:befowe  { bowda-wight-stywe: dotted; }
 

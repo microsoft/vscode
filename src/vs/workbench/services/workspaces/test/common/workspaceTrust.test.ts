@@ -1,146 +1,146 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceTrustEnablementService, IWorkspaceTrustInfo } from 'vs/platform/workspace/common/workspaceTrust';
-import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { Memento } from 'vs/workbench/common/memento';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
-import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService, WORKSPACE_TRUST_STORAGE_KEY } from 'vs/workbench/services/workspaces/common/workspaceTrust';
-import { TestWorkspaceTrustEnablementService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
-import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { FiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiweSewvice';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IWemoteAuthowityWesowvewSewvice } fwom 'vs/pwatfowm/wemote/common/wemoteAuthowityWesowva';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IWowkspaceTwustEnabwementSewvice, IWowkspaceTwustInfo } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { Wowkspace } fwom 'vs/pwatfowm/wowkspace/test/common/testWowkspace';
+impowt { Memento } fwom 'vs/wowkbench/common/memento';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { UwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentitySewvice';
+impowt { WowkspaceTwustEnabwementSewvice, WowkspaceTwustManagementSewvice, WOWKSPACE_TWUST_STOWAGE_KEY } fwom 'vs/wowkbench/sewvices/wowkspaces/common/wowkspaceTwust';
+impowt { TestWowkspaceTwustEnabwementSewvice } fwom 'vs/wowkbench/sewvices/wowkspaces/test/common/testWowkspaceTwustSewvice';
+impowt { TestContextSewvice, TestStowageSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
 
-suite('Workspace Trust', () => {
-	let instantiationService: TestInstantiationService;
-	let configurationService: TestConfigurationService;
-	let environmentService: IWorkbenchEnvironmentService;
+suite('Wowkspace Twust', () => {
+	wet instantiationSewvice: TestInstantiationSewvice;
+	wet configuwationSewvice: TestConfiguwationSewvice;
+	wet enviwonmentSewvice: IWowkbenchEnviwonmentSewvice;
 
 	setup(async () => {
-		instantiationService = new TestInstantiationService();
+		instantiationSewvice = new TestInstantiationSewvice();
 
-		configurationService = new TestConfigurationService();
-		instantiationService.stub(IConfigurationService, configurationService);
+		configuwationSewvice = new TestConfiguwationSewvice();
+		instantiationSewvice.stub(IConfiguwationSewvice, configuwationSewvice);
 
-		environmentService = { configuration: {} } as IWorkbenchEnvironmentService;
-		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
+		enviwonmentSewvice = { configuwation: {} } as IWowkbenchEnviwonmentSewvice;
+		instantiationSewvice.stub(IWowkbenchEnviwonmentSewvice, enviwonmentSewvice);
 
-		instantiationService.stub(IUriIdentityService, new UriIdentityService(new FileService(new NullLogService())));
-		instantiationService.stub(IRemoteAuthorityResolverService, new class extends mock<IRemoteAuthorityResolverService>() { });
+		instantiationSewvice.stub(IUwiIdentitySewvice, new UwiIdentitySewvice(new FiweSewvice(new NuwwWogSewvice())));
+		instantiationSewvice.stub(IWemoteAuthowityWesowvewSewvice, new cwass extends mock<IWemoteAuthowityWesowvewSewvice>() { });
 	});
 
-	suite('Enablement', () => {
-		let testObject: WorkspaceTrustEnablementService;
+	suite('Enabwement', () => {
+		wet testObject: WowkspaceTwustEnabwementSewvice;
 
-		teardown(() => testObject.dispose());
+		teawdown(() => testObject.dispose());
 
-		test('workspace trust enabled', async () => {
-			await configurationService.setUserConfiguration('security', getUserSettings(true, true));
-			testObject = instantiationService.createInstance(WorkspaceTrustEnablementService);
+		test('wowkspace twust enabwed', async () => {
+			await configuwationSewvice.setUsewConfiguwation('secuwity', getUsewSettings(twue, twue));
+			testObject = instantiationSewvice.cweateInstance(WowkspaceTwustEnabwementSewvice);
 
-			assert.strictEqual(testObject.isWorkspaceTrustEnabled(), true);
+			assewt.stwictEquaw(testObject.isWowkspaceTwustEnabwed(), twue);
 		});
 
-		test('workspace trust disabled (user setting)', async () => {
-			await configurationService.setUserConfiguration('security', getUserSettings(false, true));
-			testObject = instantiationService.createInstance(WorkspaceTrustEnablementService);
+		test('wowkspace twust disabwed (usa setting)', async () => {
+			await configuwationSewvice.setUsewConfiguwation('secuwity', getUsewSettings(fawse, twue));
+			testObject = instantiationSewvice.cweateInstance(WowkspaceTwustEnabwementSewvice);
 
-			assert.strictEqual(testObject.isWorkspaceTrustEnabled(), false);
+			assewt.stwictEquaw(testObject.isWowkspaceTwustEnabwed(), fawse);
 		});
 
-		test('workspace trust disabled (--disable-workspace-trust)', () => {
-			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService, disableWorkspaceTrust: true });
-			testObject = instantiationService.createInstance(WorkspaceTrustEnablementService);
+		test('wowkspace twust disabwed (--disabwe-wowkspace-twust)', () => {
+			instantiationSewvice.stub(IWowkbenchEnviwonmentSewvice, { ...enviwonmentSewvice, disabweWowkspaceTwust: twue });
+			testObject = instantiationSewvice.cweateInstance(WowkspaceTwustEnabwementSewvice);
 
-			assert.strictEqual(testObject.isWorkspaceTrustEnabled(), false);
+			assewt.stwictEquaw(testObject.isWowkspaceTwustEnabwed(), fawse);
 		});
 	});
 
 	suite('Management', () => {
-		let testObject: WorkspaceTrustManagementService;
+		wet testObject: WowkspaceTwustManagementSewvice;
 
-		let storageService: TestStorageService;
-		let workspaceService: TestContextService;
+		wet stowageSewvice: TestStowageSewvice;
+		wet wowkspaceSewvice: TestContextSewvice;
 
 		setup(() => {
-			storageService = new TestStorageService();
-			instantiationService.stub(IStorageService, storageService);
+			stowageSewvice = new TestStowageSewvice();
+			instantiationSewvice.stub(IStowageSewvice, stowageSewvice);
 
-			workspaceService = new TestContextService();
-			instantiationService.stub(IWorkspaceContextService, workspaceService);
+			wowkspaceSewvice = new TestContextSewvice();
+			instantiationSewvice.stub(IWowkspaceContextSewvice, wowkspaceSewvice);
 
-			instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService());
+			instantiationSewvice.stub(IWowkspaceTwustEnabwementSewvice, new TestWowkspaceTwustEnabwementSewvice());
 		});
 
-		teardown(() => {
+		teawdown(() => {
 			testObject.dispose();
-			Memento.clear(StorageScope.WORKSPACE);
+			Memento.cweaw(StowageScope.WOWKSPACE);
 		});
 
-		test('empty workspace - trusted', async () => {
-			await configurationService.setUserConfiguration('security', getUserSettings(true, true));
-			workspaceService.setWorkspace(new Workspace('empty-workspace'));
-			testObject = await initializeTestObject();
+		test('empty wowkspace - twusted', async () => {
+			await configuwationSewvice.setUsewConfiguwation('secuwity', getUsewSettings(twue, twue));
+			wowkspaceSewvice.setWowkspace(new Wowkspace('empty-wowkspace'));
+			testObject = await initiawizeTestObject();
 
-			assert.strictEqual(true, testObject.isWorkspaceTrusted());
+			assewt.stwictEquaw(twue, testObject.isWowkspaceTwusted());
 		});
 
-		test('empty workspace - untrusted', async () => {
-			await configurationService.setUserConfiguration('security', getUserSettings(true, false));
-			workspaceService.setWorkspace(new Workspace('empty-workspace'));
-			testObject = await initializeTestObject();
+		test('empty wowkspace - untwusted', async () => {
+			await configuwationSewvice.setUsewConfiguwation('secuwity', getUsewSettings(twue, fawse));
+			wowkspaceSewvice.setWowkspace(new Wowkspace('empty-wowkspace'));
+			testObject = await initiawizeTestObject();
 
-			assert.strictEqual(false, testObject.isWorkspaceTrusted());
+			assewt.stwictEquaw(fawse, testObject.isWowkspaceTwusted());
 		});
 
-		test('empty workspace - trusted, open trusted file', async () => {
-			await configurationService.setUserConfiguration('security', getUserSettings(true, true));
-			const trustInfo: IWorkspaceTrustInfo = { uriTrustInfo: [{ uri: URI.parse('file:///Folder'), trusted: true }] };
-			storageService.store(WORKSPACE_TRUST_STORAGE_KEY, JSON.stringify(trustInfo), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		test('empty wowkspace - twusted, open twusted fiwe', async () => {
+			await configuwationSewvice.setUsewConfiguwation('secuwity', getUsewSettings(twue, twue));
+			const twustInfo: IWowkspaceTwustInfo = { uwiTwustInfo: [{ uwi: UWI.pawse('fiwe:///Fowda'), twusted: twue }] };
+			stowageSewvice.stowe(WOWKSPACE_TWUST_STOWAGE_KEY, JSON.stwingify(twustInfo), StowageScope.GWOBAW, StowageTawget.MACHINE);
 
-			environmentService.configuration.filesToOpenOrCreate = [{ fileUri: URI.parse('file:///Folder/file.txt') }];
-			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });
+			enviwonmentSewvice.configuwation.fiwesToOpenOwCweate = [{ fiweUwi: UWI.pawse('fiwe:///Fowda/fiwe.txt') }];
+			instantiationSewvice.stub(IWowkbenchEnviwonmentSewvice, { ...enviwonmentSewvice });
 
-			workspaceService.setWorkspace(new Workspace('empty-workspace'));
-			testObject = await initializeTestObject();
+			wowkspaceSewvice.setWowkspace(new Wowkspace('empty-wowkspace'));
+			testObject = await initiawizeTestObject();
 
-			assert.strictEqual(true, testObject.isWorkspaceTrusted());
+			assewt.stwictEquaw(twue, testObject.isWowkspaceTwusted());
 		});
 
-		test('empty workspace - trusted, open untrusted file', async () => {
-			await configurationService.setUserConfiguration('security', getUserSettings(true, true));
+		test('empty wowkspace - twusted, open untwusted fiwe', async () => {
+			await configuwationSewvice.setUsewConfiguwation('secuwity', getUsewSettings(twue, twue));
 
-			environmentService.configuration.filesToOpenOrCreate = [{ fileUri: URI.parse('file:///Folder/foo.txt') }];
-			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });
+			enviwonmentSewvice.configuwation.fiwesToOpenOwCweate = [{ fiweUwi: UWI.pawse('fiwe:///Fowda/foo.txt') }];
+			instantiationSewvice.stub(IWowkbenchEnviwonmentSewvice, { ...enviwonmentSewvice });
 
-			workspaceService.setWorkspace(new Workspace('empty-workspace'));
-			testObject = await initializeTestObject();
+			wowkspaceSewvice.setWowkspace(new Wowkspace('empty-wowkspace'));
+			testObject = await initiawizeTestObject();
 
-			assert.strictEqual(false, testObject.isWorkspaceTrusted());
+			assewt.stwictEquaw(fawse, testObject.isWowkspaceTwusted());
 		});
 
-		async function initializeTestObject(): Promise<WorkspaceTrustManagementService> {
-			const workspaceTrustManagementService = instantiationService.createInstance(WorkspaceTrustManagementService);
-			await workspaceTrustManagementService.workspaceTrustInitialized;
+		async function initiawizeTestObject(): Pwomise<WowkspaceTwustManagementSewvice> {
+			const wowkspaceTwustManagementSewvice = instantiationSewvice.cweateInstance(WowkspaceTwustManagementSewvice);
+			await wowkspaceTwustManagementSewvice.wowkspaceTwustInitiawized;
 
-			return workspaceTrustManagementService;
+			wetuwn wowkspaceTwustManagementSewvice;
 		}
 	});
 
-	function getUserSettings(enabled: boolean, emptyWindow: boolean) {
-		return { workspace: { trust: { emptyWindow, enabled } } };
+	function getUsewSettings(enabwed: boowean, emptyWindow: boowean) {
+		wetuwn { wowkspace: { twust: { emptyWindow, enabwed } } };
 	}
 });

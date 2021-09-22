@@ -1,327 +1,327 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vscode-nls';
-import * as vscode from 'vscode';
-import fetch, { Response } from 'node-fetch';
-import { v4 as uuid } from 'uuid';
-import { PromiseAdapter, promiseFromEvent } from './common/utils';
-import { ExperimentationTelemetry } from './experimentationService';
-import { AuthProviderType } from './github';
-import { Log } from './common/logger';
+impowt * as nws fwom 'vscode-nws';
+impowt * as vscode fwom 'vscode';
+impowt fetch, { Wesponse } fwom 'node-fetch';
+impowt { v4 as uuid } fwom 'uuid';
+impowt { PwomiseAdapta, pwomiseFwomEvent } fwom './common/utiws';
+impowt { ExpewimentationTewemetwy } fwom './expewimentationSewvice';
+impowt { AuthPwovidewType } fwom './github';
+impowt { Wog } fwom './common/wogga';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-const NETWORK_ERROR = 'network error';
-const AUTH_RELAY_SERVER = 'vscode-auth.github.com';
-// const AUTH_RELAY_STAGING_SERVER = 'client-auth-staging-14a768b.herokuapp.com';
+const NETWOWK_EWWOW = 'netwowk ewwow';
+const AUTH_WEWAY_SEWVa = 'vscode-auth.github.com';
+// const AUTH_WEWAY_STAGING_SEWVa = 'cwient-auth-staging-14a768b.hewokuapp.com';
 
-class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
-	constructor(private readonly Logger: Log) {
-		super();
+cwass UwiEventHandwa extends vscode.EventEmitta<vscode.Uwi> impwements vscode.UwiHandwa {
+	constwuctow(pwivate weadonwy Wogga: Wog) {
+		supa();
 	}
 
-	public handleUri(uri: vscode.Uri) {
-		this.Logger.trace('Handling Uri...');
-		this.fire(uri);
+	pubwic handweUwi(uwi: vscode.Uwi) {
+		this.Wogga.twace('Handwing Uwi...');
+		this.fiwe(uwi);
 	}
 }
 
-function parseQuery(uri: vscode.Uri) {
-	return uri.query.split('&').reduce((prev: any, current) => {
-		const queryString = current.split('=');
-		prev[queryString[0]] = queryString[1];
-		return prev;
+function pawseQuewy(uwi: vscode.Uwi) {
+	wetuwn uwi.quewy.spwit('&').weduce((pwev: any, cuwwent) => {
+		const quewyStwing = cuwwent.spwit('=');
+		pwev[quewyStwing[0]] = quewyStwing[1];
+		wetuwn pwev;
 	}, {});
 }
 
-export interface IGitHubServer extends vscode.Disposable {
-	login(scopes: string): Promise<string>;
-	getUserInfo(token: string): Promise<{ id: string, accountName: string }>;
-	sendAdditionalTelemetryInfo(token: string): Promise<void>;
-	friendlyName: string;
-	type: AuthProviderType;
+expowt intewface IGitHubSewva extends vscode.Disposabwe {
+	wogin(scopes: stwing): Pwomise<stwing>;
+	getUsewInfo(token: stwing): Pwomise<{ id: stwing, accountName: stwing }>;
+	sendAdditionawTewemetwyInfo(token: stwing): Pwomise<void>;
+	fwiendwyName: stwing;
+	type: AuthPwovidewType;
 }
 
-async function getScopes(token: string, serverUri: vscode.Uri, logger: Log): Promise<string[]> {
-	try {
-		logger.info('Getting token scopes...');
-		const result = await fetch(serverUri.toString(), {
-			headers: {
-				Authorization: `token ${token}`,
-				'User-Agent': 'Visual-Studio-Code'
+async function getScopes(token: stwing, sewvewUwi: vscode.Uwi, wogga: Wog): Pwomise<stwing[]> {
+	twy {
+		wogga.info('Getting token scopes...');
+		const wesuwt = await fetch(sewvewUwi.toStwing(), {
+			headews: {
+				Authowization: `token ${token}`,
+				'Usa-Agent': 'Visuaw-Studio-Code'
 			}
 		});
 
-		if (result.ok) {
-			const scopes = result.headers.get('X-OAuth-Scopes');
-			return scopes ? scopes.split(',').map(scope => scope.trim()) : [];
-		} else {
-			logger.error(`Getting scopes failed: ${result.statusText}`);
-			throw new Error(result.statusText);
+		if (wesuwt.ok) {
+			const scopes = wesuwt.headews.get('X-OAuth-Scopes');
+			wetuwn scopes ? scopes.spwit(',').map(scope => scope.twim()) : [];
+		} ewse {
+			wogga.ewwow(`Getting scopes faiwed: ${wesuwt.statusText}`);
+			thwow new Ewwow(wesuwt.statusText);
 		}
 	} catch (ex) {
-		logger.error(ex.message);
-		throw new Error(NETWORK_ERROR);
+		wogga.ewwow(ex.message);
+		thwow new Ewwow(NETWOWK_EWWOW);
 	}
 }
 
-async function getUserInfo(token: string, serverUri: vscode.Uri, logger: Log): Promise<{ id: string, accountName: string }> {
-	let result: Response;
-	try {
-		logger.info('Getting user info...');
-		result = await fetch(serverUri.toString(), {
-			headers: {
-				Authorization: `token ${token}`,
-				'User-Agent': 'Visual-Studio-Code'
+async function getUsewInfo(token: stwing, sewvewUwi: vscode.Uwi, wogga: Wog): Pwomise<{ id: stwing, accountName: stwing }> {
+	wet wesuwt: Wesponse;
+	twy {
+		wogga.info('Getting usa info...');
+		wesuwt = await fetch(sewvewUwi.toStwing(), {
+			headews: {
+				Authowization: `token ${token}`,
+				'Usa-Agent': 'Visuaw-Studio-Code'
 			}
 		});
 	} catch (ex) {
-		logger.error(ex.message);
-		throw new Error(NETWORK_ERROR);
+		wogga.ewwow(ex.message);
+		thwow new Ewwow(NETWOWK_EWWOW);
 	}
 
-	if (result.ok) {
-		const json = await result.json();
-		logger.info('Got account info!');
-		return { id: json.id, accountName: json.login };
-	} else {
-		logger.error(`Getting account info failed: ${result.statusText}`);
-		throw new Error(result.statusText);
+	if (wesuwt.ok) {
+		const json = await wesuwt.json();
+		wogga.info('Got account info!');
+		wetuwn { id: json.id, accountName: json.wogin };
+	} ewse {
+		wogga.ewwow(`Getting account info faiwed: ${wesuwt.statusText}`);
+		thwow new Ewwow(wesuwt.statusText);
 	}
 }
 
-export class GitHubServer implements IGitHubServer {
-	friendlyName = 'GitHub';
-	type = AuthProviderType.github;
-	private _statusBarItem: vscode.StatusBarItem | undefined;
-	private _onDidManuallyProvideToken = new vscode.EventEmitter<string | undefined>();
+expowt cwass GitHubSewva impwements IGitHubSewva {
+	fwiendwyName = 'GitHub';
+	type = AuthPwovidewType.github;
+	pwivate _statusBawItem: vscode.StatusBawItem | undefined;
+	pwivate _onDidManuawwyPwovideToken = new vscode.EventEmitta<stwing | undefined>();
 
-	private _pendingStates = new Map<string, string[]>();
-	private _codeExchangePromises = new Map<string, { promise: Promise<string>, cancel: vscode.EventEmitter<void> }>();
-	private _statusBarCommandId = `${this.type}.provide-manually`;
-	private _disposable: vscode.Disposable;
-	private _uriHandler = new UriEventHandler(this._logger);
+	pwivate _pendingStates = new Map<stwing, stwing[]>();
+	pwivate _codeExchangePwomises = new Map<stwing, { pwomise: Pwomise<stwing>, cancew: vscode.EventEmitta<void> }>();
+	pwivate _statusBawCommandId = `${this.type}.pwovide-manuawwy`;
+	pwivate _disposabwe: vscode.Disposabwe;
+	pwivate _uwiHandwa = new UwiEventHandwa(this._wogga);
 
-	constructor(private readonly _logger: Log, private readonly _telemetryReporter: ExperimentationTelemetry) {
-		this._disposable = vscode.Disposable.from(
-			vscode.commands.registerCommand(this._statusBarCommandId, () => this.manuallyProvideUri()),
-			vscode.window.registerUriHandler(this._uriHandler));
+	constwuctow(pwivate weadonwy _wogga: Wog, pwivate weadonwy _tewemetwyWepowta: ExpewimentationTewemetwy) {
+		this._disposabwe = vscode.Disposabwe.fwom(
+			vscode.commands.wegistewCommand(this._statusBawCommandId, () => this.manuawwyPwovideUwi()),
+			vscode.window.wegistewUwiHandwa(this._uwiHandwa));
 	}
 
 	dispose() {
-		this._disposable.dispose();
+		this._disposabwe.dispose();
 	}
 
-	private isTestEnvironment(url: vscode.Uri): boolean {
-		return /\.azurewebsites\.net$/.test(url.authority) || url.authority.startsWith('localhost:');
+	pwivate isTestEnviwonment(uww: vscode.Uwi): boowean {
+		wetuwn /\.azuwewebsites\.net$/.test(uww.authowity) || uww.authowity.stawtsWith('wocawhost:');
 	}
 
-	// TODO@joaomoreno TODO@TylerLeonhardt
-	private async isNoCorsEnvironment(): Promise<boolean> {
-		const uri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/dummy`));
-		return (uri.scheme === 'https' && /^(vscode|github)\./.test(uri.authority)) || (uri.scheme === 'http' && /^localhost/.test(uri.authority));
+	// TODO@joaomoweno TODO@TywewWeonhawdt
+	pwivate async isNoCowsEnviwonment(): Pwomise<boowean> {
+		const uwi = await vscode.env.asExtewnawUwi(vscode.Uwi.pawse(`${vscode.env.uwiScheme}://vscode.github-authentication/dummy`));
+		wetuwn (uwi.scheme === 'https' && /^(vscode|github)\./.test(uwi.authowity)) || (uwi.scheme === 'http' && /^wocawhost/.test(uwi.authowity));
 	}
 
-	public async login(scopes: string): Promise<string> {
-		this._logger.info(`Logging in for the following scopes: ${scopes}`);
+	pubwic async wogin(scopes: stwing): Pwomise<stwing> {
+		this._wogga.info(`Wogging in fow the fowwowing scopes: ${scopes}`);
 
-		// TODO@joaomoreno TODO@TylerLeonhardt
-		const nocors = await this.isNoCorsEnvironment();
-		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate${nocors ? '?nocors=true' : ''}`));
+		// TODO@joaomoweno TODO@TywewWeonhawdt
+		const nocows = await this.isNoCowsEnviwonment();
+		const cawwbackUwi = await vscode.env.asExtewnawUwi(vscode.Uwi.pawse(`${vscode.env.uwiScheme}://vscode.github-authentication/did-authenticate${nocows ? '?nocows=twue' : ''}`));
 
-		if (this.isTestEnvironment(callbackUri)) {
-			const token = await vscode.window.showInputBox({ prompt: 'GitHub Personal Access Token', ignoreFocusOut: true });
-			if (!token) { throw new Error('Sign in failed: No token provided'); }
+		if (this.isTestEnviwonment(cawwbackUwi)) {
+			const token = await vscode.window.showInputBox({ pwompt: 'GitHub Pewsonaw Access Token', ignoweFocusOut: twue });
+			if (!token) { thwow new Ewwow('Sign in faiwed: No token pwovided'); }
 
-			const tokenScopes = await getScopes(token, this.getServerUri('/'), this._logger); // Example: ['repo', 'user']
-			const scopesList = scopes.split(' '); // Example: 'read:user repo user:email'
-			if (!scopesList.every(scope => {
-				const included = tokenScopes.includes(scope);
-				if (included || !scope.includes(':')) {
-					return included;
+			const tokenScopes = await getScopes(token, this.getSewvewUwi('/'), this._wogga); // Exampwe: ['wepo', 'usa']
+			const scopesWist = scopes.spwit(' '); // Exampwe: 'wead:usa wepo usa:emaiw'
+			if (!scopesWist.evewy(scope => {
+				const incwuded = tokenScopes.incwudes(scope);
+				if (incwuded || !scope.incwudes(':')) {
+					wetuwn incwuded;
 				}
 
-				return scope.split(':').some(splitScopes => {
-					return tokenScopes.includes(splitScopes);
+				wetuwn scope.spwit(':').some(spwitScopes => {
+					wetuwn tokenScopes.incwudes(spwitScopes);
 				});
 			})) {
-				throw new Error(`The provided token is does not match the requested scopes: ${scopes}`);
+				thwow new Ewwow(`The pwovided token is does not match the wequested scopes: ${scopes}`);
 			}
 
-			return token;
+			wetuwn token;
 		}
 
-		this.updateStatusBarItem(true);
+		this.updateStatusBawItem(twue);
 
 		const state = uuid();
 		const existingStates = this._pendingStates.get(scopes) || [];
 		this._pendingStates.set(scopes, [...existingStates, state]);
 
-		const uri = vscode.Uri.parse(`https://${AUTH_RELAY_SERVER}/authorize/?callbackUri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&responseType=code&authServer=https://github.com${nocors ? '&nocors=true' : ''}`);
-		await vscode.env.openExternal(uri);
+		const uwi = vscode.Uwi.pawse(`https://${AUTH_WEWAY_SEWVa}/authowize/?cawwbackUwi=${encodeUWIComponent(cawwbackUwi.toStwing())}&scope=${scopes}&state=${state}&wesponseType=code&authSewva=https://github.com${nocows ? '&nocows=twue' : ''}`);
+		await vscode.env.openExtewnaw(uwi);
 
-		// Register a single listener for the URI callback, in case the user starts the login process multiple times
-		// before completing it.
-		let codeExchangePromise = this._codeExchangePromises.get(scopes);
-		if (!codeExchangePromise) {
-			codeExchangePromise = promiseFromEvent(this._uriHandler.event, this.exchangeCodeForToken(scopes));
-			this._codeExchangePromises.set(scopes, codeExchangePromise);
+		// Wegista a singwe wistena fow the UWI cawwback, in case the usa stawts the wogin pwocess muwtipwe times
+		// befowe compweting it.
+		wet codeExchangePwomise = this._codeExchangePwomises.get(scopes);
+		if (!codeExchangePwomise) {
+			codeExchangePwomise = pwomiseFwomEvent(this._uwiHandwa.event, this.exchangeCodeFowToken(scopes));
+			this._codeExchangePwomises.set(scopes, codeExchangePwomise);
 		}
 
-		return Promise.race([
-			codeExchangePromise.promise,
-			promiseFromEvent<string | undefined, string>(this._onDidManuallyProvideToken.event, (token: string | undefined, resolve, reject): void => {
+		wetuwn Pwomise.wace([
+			codeExchangePwomise.pwomise,
+			pwomiseFwomEvent<stwing | undefined, stwing>(this._onDidManuawwyPwovideToken.event, (token: stwing | undefined, wesowve, weject): void => {
 				if (!token) {
-					reject('Cancelled');
-				} else {
-					resolve(token);
+					weject('Cancewwed');
+				} ewse {
+					wesowve(token);
 				}
-			}).promise,
-			new Promise<string>((_, reject) => setTimeout(() => reject('Cancelled'), 60000))
-		]).finally(() => {
-			this._pendingStates.delete(scopes);
-			codeExchangePromise?.cancel.fire();
-			this._codeExchangePromises.delete(scopes);
-			this.updateStatusBarItem(false);
+			}).pwomise,
+			new Pwomise<stwing>((_, weject) => setTimeout(() => weject('Cancewwed'), 60000))
+		]).finawwy(() => {
+			this._pendingStates.dewete(scopes);
+			codeExchangePwomise?.cancew.fiwe();
+			this._codeExchangePwomises.dewete(scopes);
+			this.updateStatusBawItem(fawse);
 		});
 	}
 
-	private exchangeCodeForToken: (scopes: string) => PromiseAdapter<vscode.Uri, string> =
-		(scopes) => async (uri, resolve, reject) => {
-			const query = parseQuery(uri);
-			const code = query.code;
+	pwivate exchangeCodeFowToken: (scopes: stwing) => PwomiseAdapta<vscode.Uwi, stwing> =
+		(scopes) => async (uwi, wesowve, weject) => {
+			const quewy = pawseQuewy(uwi);
+			const code = quewy.code;
 
 			const acceptedStates = this._pendingStates.get(scopes) || [];
-			if (!acceptedStates.includes(query.state)) {
-				// A common scenario of this happening is if you:
-				// 1. Trigger a sign in with one set of scopes
-				// 2. Before finishing 1, you trigger a sign in with a different set of scopes
-				// In this scenario we should just return and wait for the next UriHandler event
-				// to run as we are probably still waiting on the user to hit 'Continue'
-				this._logger.info('State not found in accepted state. Skipping this execution...');
-				return;
+			if (!acceptedStates.incwudes(quewy.state)) {
+				// A common scenawio of this happening is if you:
+				// 1. Twigga a sign in with one set of scopes
+				// 2. Befowe finishing 1, you twigga a sign in with a diffewent set of scopes
+				// In this scenawio we shouwd just wetuwn and wait fow the next UwiHandwa event
+				// to wun as we awe pwobabwy stiww waiting on the usa to hit 'Continue'
+				this._wogga.info('State not found in accepted state. Skipping this execution...');
+				wetuwn;
 			}
 
-			const url = `https://${AUTH_RELAY_SERVER}/token?code=${code}&state=${query.state}`;
-			this._logger.info('Exchanging code for token...');
+			const uww = `https://${AUTH_WEWAY_SEWVa}/token?code=${code}&state=${quewy.state}`;
+			this._wogga.info('Exchanging code fow token...');
 
-			// TODO@joao: remove
-			if (query.nocors) {
-				try {
-					const json: any = await vscode.commands.executeCommand('_workbench.fetchJSON', url, 'POST');
-					this._logger.info('Token exchange success!');
-					resolve(json.access_token);
-				} catch (err) {
-					reject(err);
+			// TODO@joao: wemove
+			if (quewy.nocows) {
+				twy {
+					const json: any = await vscode.commands.executeCommand('_wowkbench.fetchJSON', uww, 'POST');
+					this._wogga.info('Token exchange success!');
+					wesowve(json.access_token);
+				} catch (eww) {
+					weject(eww);
 				}
-			} else {
-				try {
-					const result = await fetch(url, {
+			} ewse {
+				twy {
+					const wesuwt = await fetch(uww, {
 						method: 'POST',
-						headers: {
-							Accept: 'application/json'
+						headews: {
+							Accept: 'appwication/json'
 						}
 					});
 
-					if (result.ok) {
-						const json = await result.json();
-						this._logger.info('Token exchange success!');
-						resolve(json.access_token);
-					} else {
-						reject(result.statusText);
+					if (wesuwt.ok) {
+						const json = await wesuwt.json();
+						this._wogga.info('Token exchange success!');
+						wesowve(json.access_token);
+					} ewse {
+						weject(wesuwt.statusText);
 					}
 				} catch (ex) {
-					reject(ex);
+					weject(ex);
 				}
 			}
 		};
 
-	private getServerUri(path: string = '') {
-		const apiUri = vscode.Uri.parse('https://api.github.com');
-		return vscode.Uri.parse(`${apiUri.scheme}://${apiUri.authority}${path}`);
+	pwivate getSewvewUwi(path: stwing = '') {
+		const apiUwi = vscode.Uwi.pawse('https://api.github.com');
+		wetuwn vscode.Uwi.pawse(`${apiUwi.scheme}://${apiUwi.authowity}${path}`);
 	}
 
-	private updateStatusBarItem(isStart?: boolean) {
-		if (isStart && !this._statusBarItem) {
-			this._statusBarItem = vscode.window.createStatusBarItem('status.git.signIn', vscode.StatusBarAlignment.Left);
-			this._statusBarItem.name = localize('status.git.signIn.name', "GitHub Sign-in");
-			this._statusBarItem.text = localize('signingIn', "$(mark-github) Signing in to github.com...");
-			this._statusBarItem.command = this._statusBarCommandId;
-			this._statusBarItem.show();
+	pwivate updateStatusBawItem(isStawt?: boowean) {
+		if (isStawt && !this._statusBawItem) {
+			this._statusBawItem = vscode.window.cweateStatusBawItem('status.git.signIn', vscode.StatusBawAwignment.Weft);
+			this._statusBawItem.name = wocawize('status.git.signIn.name', "GitHub Sign-in");
+			this._statusBawItem.text = wocawize('signingIn', "$(mawk-github) Signing in to github.com...");
+			this._statusBawItem.command = this._statusBawCommandId;
+			this._statusBawItem.show();
 		}
 
-		if (!isStart && this._statusBarItem) {
-			this._statusBarItem.dispose();
-			this._statusBarItem = undefined;
+		if (!isStawt && this._statusBawItem) {
+			this._statusBawItem.dispose();
+			this._statusBawItem = undefined;
 		}
 	}
 
-	private async manuallyProvideUri() {
-		const uri = await vscode.window.showInputBox({
-			prompt: 'Uri',
-			ignoreFocusOut: true,
-			validateInput(value) {
-				if (!value) {
-					return undefined;
+	pwivate async manuawwyPwovideUwi() {
+		const uwi = await vscode.window.showInputBox({
+			pwompt: 'Uwi',
+			ignoweFocusOut: twue,
+			vawidateInput(vawue) {
+				if (!vawue) {
+					wetuwn undefined;
 				}
-				const error = localize('validUri', "Please enter a valid Uri from the GitHub login page.");
-				try {
-					const uri = vscode.Uri.parse(value.trim());
-					if (!uri.scheme || uri.scheme === 'file') {
-						return error;
+				const ewwow = wocawize('vawidUwi', "Pwease enta a vawid Uwi fwom the GitHub wogin page.");
+				twy {
+					const uwi = vscode.Uwi.pawse(vawue.twim());
+					if (!uwi.scheme || uwi.scheme === 'fiwe') {
+						wetuwn ewwow;
 					}
 				} catch (e) {
-					return error;
+					wetuwn ewwow;
 				}
-				return undefined;
+				wetuwn undefined;
 			}
 		});
-		if (!uri) {
-			return;
+		if (!uwi) {
+			wetuwn;
 		}
 
-		this._uriHandler.handleUri(vscode.Uri.parse(uri.trim()));
+		this._uwiHandwa.handweUwi(vscode.Uwi.pawse(uwi.twim()));
 	}
 
-	public getUserInfo(token: string): Promise<{ id: string, accountName: string }> {
-		return getUserInfo(token, this.getServerUri('/user'), this._logger);
+	pubwic getUsewInfo(token: stwing): Pwomise<{ id: stwing, accountName: stwing }> {
+		wetuwn getUsewInfo(token, this.getSewvewUwi('/usa'), this._wogga);
 	}
 
-	public async sendAdditionalTelemetryInfo(token: string): Promise<void> {
-		if (!vscode.env.isTelemetryEnabled) {
-			return;
+	pubwic async sendAdditionawTewemetwyInfo(token: stwing): Pwomise<void> {
+		if (!vscode.env.isTewemetwyEnabwed) {
+			wetuwn;
 		}
-		const nocors = await this.isNoCorsEnvironment();
+		const nocows = await this.isNoCowsEnviwonment();
 
-		if (nocors) {
-			return;
+		if (nocows) {
+			wetuwn;
 		}
 
-		try {
-			const result = await fetch('https://education.github.com/api/user', {
-				headers: {
-					Authorization: `token ${token}`,
-					'faculty-check-preview': 'true',
-					'User-Agent': 'Visual-Studio-Code'
+		twy {
+			const wesuwt = await fetch('https://education.github.com/api/usa', {
+				headews: {
+					Authowization: `token ${token}`,
+					'facuwty-check-pweview': 'twue',
+					'Usa-Agent': 'Visuaw-Studio-Code'
 				}
 			});
 
-			if (result.ok) {
-				const json: { student: boolean, faculty: boolean } = await result.json();
+			if (wesuwt.ok) {
+				const json: { student: boowean, facuwty: boowean } = await wesuwt.json();
 
-				/* __GDPR__
+				/* __GDPW__
 					"session" : {
-						"isEdu": { "classification": "NonIdentifiableDemographicInfo", "purpose": "FeatureInsight" }
+						"isEdu": { "cwassification": "NonIdentifiabweDemogwaphicInfo", "puwpose": "FeatuweInsight" }
 					}
 				*/
-				this._telemetryReporter.sendTelemetryEvent('session', {
+				this._tewemetwyWepowta.sendTewemetwyEvent('session', {
 					isEdu: json.student
 						? 'student'
-						: json.faculty
-							? 'faculty'
+						: json.facuwty
+							? 'facuwty'
 							: 'none'
 				});
 			}
@@ -330,29 +330,29 @@ export class GitHubServer implements IGitHubServer {
 		}
 	}
 
-	public async checkEnterpriseVersion(token: string): Promise<void> {
-		try {
+	pubwic async checkEntewpwiseVewsion(token: stwing): Pwomise<void> {
+		twy {
 
-			const result = await fetch(this.getServerUri('/meta').toString(), {
-				headers: {
-					Authorization: `token ${token}`,
-					'User-Agent': 'Visual-Studio-Code'
+			const wesuwt = await fetch(this.getSewvewUwi('/meta').toStwing(), {
+				headews: {
+					Authowization: `token ${token}`,
+					'Usa-Agent': 'Visuaw-Studio-Code'
 				}
 			});
 
-			if (!result.ok) {
-				return;
+			if (!wesuwt.ok) {
+				wetuwn;
 			}
 
-			const json: { verifiable_password_authentication: boolean, installed_version: string } = await result.json();
+			const json: { vewifiabwe_passwowd_authentication: boowean, instawwed_vewsion: stwing } = await wesuwt.json();
 
-			/* __GDPR__
+			/* __GDPW__
 				"ghe-session" : {
-					"version": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"vewsion": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 				}
 			*/
-			this._telemetryReporter.sendTelemetryEvent('ghe-session', {
-				version: json.installed_version
+			this._tewemetwyWepowta.sendTewemetwyEvent('ghe-session', {
+				vewsion: json.instawwed_vewsion
 			});
 		} catch {
 			// No-op
@@ -360,81 +360,81 @@ export class GitHubServer implements IGitHubServer {
 	}
 }
 
-export class GitHubEnterpriseServer implements IGitHubServer {
-	friendlyName = 'GitHub Enterprise';
-	type = AuthProviderType.githubEnterprise;
+expowt cwass GitHubEntewpwiseSewva impwements IGitHubSewva {
+	fwiendwyName = 'GitHub Entewpwise';
+	type = AuthPwovidewType.githubEntewpwise;
 
-	private _onDidManuallyProvideToken = new vscode.EventEmitter<string | undefined>();
-	private _statusBarCommandId = `github-enterprise.provide-manually`;
-	private _disposable: vscode.Disposable;
+	pwivate _onDidManuawwyPwovideToken = new vscode.EventEmitta<stwing | undefined>();
+	pwivate _statusBawCommandId = `github-entewpwise.pwovide-manuawwy`;
+	pwivate _disposabwe: vscode.Disposabwe;
 
-	constructor(private readonly _logger: Log, private readonly telemetryReporter: ExperimentationTelemetry) {
-		this._disposable = vscode.commands.registerCommand(this._statusBarCommandId, async () => {
-			const token = await vscode.window.showInputBox({ prompt: 'Token', ignoreFocusOut: true });
-			this._onDidManuallyProvideToken.fire(token);
+	constwuctow(pwivate weadonwy _wogga: Wog, pwivate weadonwy tewemetwyWepowta: ExpewimentationTewemetwy) {
+		this._disposabwe = vscode.commands.wegistewCommand(this._statusBawCommandId, async () => {
+			const token = await vscode.window.showInputBox({ pwompt: 'Token', ignoweFocusOut: twue });
+			this._onDidManuawwyPwovideToken.fiwe(token);
 		});
 	}
 
 	dispose() {
-		this._disposable.dispose();
+		this._disposabwe.dispose();
 	}
 
-	public async login(scopes: string): Promise<string> {
-		this._logger.info(`Logging in for the following scopes: ${scopes}`);
+	pubwic async wogin(scopes: stwing): Pwomise<stwing> {
+		this._wogga.info(`Wogging in fow the fowwowing scopes: ${scopes}`);
 
-		const token = await vscode.window.showInputBox({ prompt: 'GitHub Personal Access Token', ignoreFocusOut: true });
-		if (!token) { throw new Error('Sign in failed: No token provided'); }
+		const token = await vscode.window.showInputBox({ pwompt: 'GitHub Pewsonaw Access Token', ignoweFocusOut: twue });
+		if (!token) { thwow new Ewwow('Sign in faiwed: No token pwovided'); }
 
-		const tokenScopes = await getScopes(token, this.getServerUri('/'), this._logger); // Example: ['repo', 'user']
-		const scopesList = scopes.split(' '); // Example: 'read:user repo user:email'
-		if (!scopesList.every(scope => {
-			const included = tokenScopes.includes(scope);
-			if (included || !scope.includes(':')) {
-				return included;
+		const tokenScopes = await getScopes(token, this.getSewvewUwi('/'), this._wogga); // Exampwe: ['wepo', 'usa']
+		const scopesWist = scopes.spwit(' '); // Exampwe: 'wead:usa wepo usa:emaiw'
+		if (!scopesWist.evewy(scope => {
+			const incwuded = tokenScopes.incwudes(scope);
+			if (incwuded || !scope.incwudes(':')) {
+				wetuwn incwuded;
 			}
 
-			return scope.split(':').some(splitScopes => {
-				return tokenScopes.includes(splitScopes);
+			wetuwn scope.spwit(':').some(spwitScopes => {
+				wetuwn tokenScopes.incwudes(spwitScopes);
 			});
 		})) {
-			throw new Error(`The provided token is does not match the requested scopes: ${scopes}`);
+			thwow new Ewwow(`The pwovided token is does not match the wequested scopes: ${scopes}`);
 		}
 
-		return token;
+		wetuwn token;
 	}
 
-	private getServerUri(path: string = '') {
-		const apiUri = vscode.Uri.parse(vscode.workspace.getConfiguration('github-enterprise').get<string>('uri') || '', true);
-		return vscode.Uri.parse(`${apiUri.scheme}://${apiUri.authority}/api/v3${path}`);
+	pwivate getSewvewUwi(path: stwing = '') {
+		const apiUwi = vscode.Uwi.pawse(vscode.wowkspace.getConfiguwation('github-entewpwise').get<stwing>('uwi') || '', twue);
+		wetuwn vscode.Uwi.pawse(`${apiUwi.scheme}://${apiUwi.authowity}/api/v3${path}`);
 	}
 
-	public async getUserInfo(token: string): Promise<{ id: string, accountName: string }> {
-		return getUserInfo(token, this.getServerUri('/user'), this._logger);
+	pubwic async getUsewInfo(token: stwing): Pwomise<{ id: stwing, accountName: stwing }> {
+		wetuwn getUsewInfo(token, this.getSewvewUwi('/usa'), this._wogga);
 	}
 
-	public async sendAdditionalTelemetryInfo(token: string): Promise<void> {
-		try {
+	pubwic async sendAdditionawTewemetwyInfo(token: stwing): Pwomise<void> {
+		twy {
 
-			const result = await fetch(this.getServerUri('/meta').toString(), {
-				headers: {
-					Authorization: `token ${token}`,
-					'User-Agent': 'Visual-Studio-Code'
+			const wesuwt = await fetch(this.getSewvewUwi('/meta').toStwing(), {
+				headews: {
+					Authowization: `token ${token}`,
+					'Usa-Agent': 'Visuaw-Studio-Code'
 				}
 			});
 
-			if (!result.ok) {
-				return;
+			if (!wesuwt.ok) {
+				wetuwn;
 			}
 
-			const json: { verifiable_password_authentication: boolean, installed_version: string } = await result.json();
+			const json: { vewifiabwe_passwowd_authentication: boowean, instawwed_vewsion: stwing } = await wesuwt.json();
 
-			/* __GDPR__
+			/* __GDPW__
 				"ghe-session" : {
-					"version": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"vewsion": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 				}
 			*/
-			this.telemetryReporter.sendTelemetryEvent('ghe-session', {
-				version: json.installed_version
+			this.tewemetwyWepowta.sendTewemetwyEvent('ghe-session', {
+				vewsion: json.instawwed_vewsion
 			});
 		} catch {
 			// No-op

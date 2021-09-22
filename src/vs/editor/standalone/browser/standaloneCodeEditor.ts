@@ -1,594 +1,594 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IDiffEditor, IDiffEditorConstructionOptions, IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
-import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { InternalEditorAction } from 'vs/editor/common/editorAction';
-import { IModelChangedEvent } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { StandaloneKeybindingService, updateConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
-import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
-import { IMenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { StandaloneCodeEditorNLS } from 'vs/editor/common/standaloneStrings';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ILanguageSelection, IModeService } from 'vs/editor/common/services/modeService';
-import { URI } from 'vs/base/common/uri';
-import { StandaloneCodeEditorServiceImpl } from 'vs/editor/standalone/browser/standaloneCodeServiceImpl';
-import { Mimes } from 'vs/base/common/mime';
+impowt * as awia fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt { Disposabwe, IDisposabwe, toDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { ICodeEditow, IDiffEditow, IDiffEditowConstwuctionOptions, IEditowConstwuctionOptions } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { CodeEditowWidget } fwom 'vs/editow/bwowsa/widget/codeEditowWidget';
+impowt { DiffEditowWidget } fwom 'vs/editow/bwowsa/widget/diffEditowWidget';
+impowt { IDiffEditowOptions, IEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { IntewnawEditowAction } fwom 'vs/editow/common/editowAction';
+impowt { IModewChangedEvent } fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { IEditowWowkewSewvice } fwom 'vs/editow/common/sewvices/editowWowkewSewvice';
+impowt { StandawoneKeybindingSewvice, updateConfiguwationSewvice } fwom 'vs/editow/standawone/bwowsa/simpweSewvices';
+impowt { IStandawoneThemeSewvice } fwom 'vs/editow/standawone/common/standawoneThemeSewvice';
+impowt { IMenuItem, MenuId, MenuWegistwy } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { CommandsWegistwy, ICommandHandwa, ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ContextKeyExpw, IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IContextViewSewvice, IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { ContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextViewSewvice';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { StandawoneCodeEditowNWS } fwom 'vs/editow/common/standawoneStwings';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { IEditowPwogwessSewvice } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { StandawoneThemeSewviceImpw } fwom 'vs/editow/standawone/bwowsa/standawoneThemeSewviceImpw';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IWanguageSewection, IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { StandawoneCodeEditowSewviceImpw } fwom 'vs/editow/standawone/bwowsa/standawoneCodeSewviceImpw';
+impowt { Mimes } fwom 'vs/base/common/mime';
 
 /**
- * Description of an action contribution
+ * Descwiption of an action contwibution
  */
-export interface IActionDescriptor {
+expowt intewface IActionDescwiptow {
 	/**
-	 * An unique identifier of the contributed action.
+	 * An unique identifia of the contwibuted action.
 	 */
-	id: string;
+	id: stwing;
 	/**
-	 * A label of the action that will be presented to the user.
+	 * A wabew of the action that wiww be pwesented to the usa.
 	 */
-	label: string;
+	wabew: stwing;
 	/**
-	 * Precondition rule.
+	 * Pwecondition wuwe.
 	 */
-	precondition?: string;
+	pwecondition?: stwing;
 	/**
-	 * An array of keybindings for the action.
+	 * An awway of keybindings fow the action.
 	 */
-	keybindings?: number[];
+	keybindings?: numba[];
 	/**
-	 * The keybinding rule (condition on top of precondition).
+	 * The keybinding wuwe (condition on top of pwecondition).
 	 */
-	keybindingContext?: string;
+	keybindingContext?: stwing;
 	/**
-	 * Control if the action should show up in the context menu and where.
-	 * The context menu of the editor has these default:
-	 *   navigation - The navigation group comes first in all cases.
-	 *   1_modification - This group comes next and contains commands that modify your code.
-	 *   9_cutcopypaste - The last default group with the basic editing commands.
-	 * You can also create your own group.
-	 * Defaults to null (don't show in context menu).
+	 * Contwow if the action shouwd show up in the context menu and whewe.
+	 * The context menu of the editow has these defauwt:
+	 *   navigation - The navigation gwoup comes fiwst in aww cases.
+	 *   1_modification - This gwoup comes next and contains commands that modify youw code.
+	 *   9_cutcopypaste - The wast defauwt gwoup with the basic editing commands.
+	 * You can awso cweate youw own gwoup.
+	 * Defauwts to nuww (don't show in context menu).
 	 */
-	contextMenuGroupId?: string;
+	contextMenuGwoupId?: stwing;
 	/**
-	 * Control the order in the context menu group.
+	 * Contwow the owda in the context menu gwoup.
 	 */
-	contextMenuOrder?: number;
+	contextMenuOwda?: numba;
 	/**
-	 * Method that will be executed when the action is triggered.
-	 * @param editor The editor instance is passed in as a convenience
+	 * Method that wiww be executed when the action is twiggewed.
+	 * @pawam editow The editow instance is passed in as a convenience
 	 */
-	run(editor: ICodeEditor, ...args: any[]): void | Promise<void>;
+	wun(editow: ICodeEditow, ...awgs: any[]): void | Pwomise<void>;
 }
 
 /**
- * Options which apply for all editors.
+ * Options which appwy fow aww editows.
  */
-export interface IGlobalEditorOptions {
+expowt intewface IGwobawEditowOptions {
 	/**
-	 * The number of spaces a tab is equal to.
-	 * This setting is overridden based on the file contents when `detectIndentation` is on.
-	 * Defaults to 4.
+	 * The numba of spaces a tab is equaw to.
+	 * This setting is ovewwidden based on the fiwe contents when `detectIndentation` is on.
+	 * Defauwts to 4.
 	 */
-	tabSize?: number;
+	tabSize?: numba;
 	/**
-	 * Insert spaces when pressing `Tab`.
-	 * This setting is overridden based on the file contents when `detectIndentation` is on.
-	 * Defaults to true.
+	 * Insewt spaces when pwessing `Tab`.
+	 * This setting is ovewwidden based on the fiwe contents when `detectIndentation` is on.
+	 * Defauwts to twue.
 	 */
-	insertSpaces?: boolean;
+	insewtSpaces?: boowean;
 	/**
-	 * Controls whether `tabSize` and `insertSpaces` will be automatically detected when a file is opened based on the file contents.
-	 * Defaults to true.
+	 * Contwows whetha `tabSize` and `insewtSpaces` wiww be automaticawwy detected when a fiwe is opened based on the fiwe contents.
+	 * Defauwts to twue.
 	 */
-	detectIndentation?: boolean;
+	detectIndentation?: boowean;
 	/**
-	 * Remove trailing auto inserted whitespace.
-	 * Defaults to true.
+	 * Wemove twaiwing auto insewted whitespace.
+	 * Defauwts to twue.
 	 */
-	trimAutoWhitespace?: boolean;
+	twimAutoWhitespace?: boowean;
 	/**
-	 * Special handling for large files to disable certain memory intensive features.
-	 * Defaults to true.
+	 * Speciaw handwing fow wawge fiwes to disabwe cewtain memowy intensive featuwes.
+	 * Defauwts to twue.
 	 */
-	largeFileOptimizations?: boolean;
+	wawgeFiweOptimizations?: boowean;
 	/**
-	 * Controls whether completions should be computed based on words in the document.
-	 * Defaults to true.
+	 * Contwows whetha compwetions shouwd be computed based on wowds in the document.
+	 * Defauwts to twue.
 	 */
-	wordBasedSuggestions?: boolean;
+	wowdBasedSuggestions?: boowean;
 	/**
-	 * Controls whether word based completions should be included from opened documents of the same language or any language.
+	 * Contwows whetha wowd based compwetions shouwd be incwuded fwom opened documents of the same wanguage ow any wanguage.
 	 */
-	wordBasedSuggestionsOnlySameLanguage?: boolean;
+	wowdBasedSuggestionsOnwySameWanguage?: boowean;
 	/**
-	 * Controls whether the semanticHighlighting is shown for the languages that support it.
-	 * true: semanticHighlighting is enabled for all themes
-	 * false: semanticHighlighting is disabled for all themes
-	 * 'configuredByTheme': semanticHighlighting is controlled by the current color theme's semanticHighlighting setting.
-	 * Defaults to 'byTheme'.
+	 * Contwows whetha the semanticHighwighting is shown fow the wanguages that suppowt it.
+	 * twue: semanticHighwighting is enabwed fow aww themes
+	 * fawse: semanticHighwighting is disabwed fow aww themes
+	 * 'configuwedByTheme': semanticHighwighting is contwowwed by the cuwwent cowow theme's semanticHighwighting setting.
+	 * Defauwts to 'byTheme'.
 	 */
-	'semanticHighlighting.enabled'?: true | false | 'configuredByTheme';
+	'semanticHighwighting.enabwed'?: twue | fawse | 'configuwedByTheme';
 	/**
-	 * Keep peek editors open even when double clicking their content or when hitting `Escape`.
-	 * Defaults to false.
+	 * Keep peek editows open even when doubwe cwicking theiw content ow when hitting `Escape`.
+	 * Defauwts to fawse.
 	 */
-	stablePeek?: boolean;
+	stabwePeek?: boowean;
 	/**
-	 * Lines above this length will not be tokenized for performance reasons.
-	 * Defaults to 20000.
+	 * Wines above this wength wiww not be tokenized fow pewfowmance weasons.
+	 * Defauwts to 20000.
 	 */
-	maxTokenizationLineLength?: number;
+	maxTokenizationWineWength?: numba;
 	/**
-	 * Theme to be used for rendering.
-	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
-	 * You can create custom themes via `monaco.editor.defineTheme`.
-	 * To switch a theme, use `monaco.editor.setTheme`.
-	 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
+	 * Theme to be used fow wendewing.
+	 * The cuwwent out-of-the-box avaiwabwe themes awe: 'vs' (defauwt), 'vs-dawk', 'hc-bwack'.
+	 * You can cweate custom themes via `monaco.editow.defineTheme`.
+	 * To switch a theme, use `monaco.editow.setTheme`.
+	 * **NOTE**: The theme might be ovewwwitten if the OS is in high contwast mode, unwess `autoDetectHighContwast` is set to fawse.
 	 */
-	theme?: string;
+	theme?: stwing;
 	/**
-	 * If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme.
-	 * Defaults to true.
+	 * If enabwed, wiww automaticawwy change to high contwast theme if the OS is using a high contwast theme.
+	 * Defauwts to twue.
 	 */
-	autoDetectHighContrast?: boolean;
+	autoDetectHighContwast?: boowean;
 }
 
 /**
- * The options to create an editor.
+ * The options to cweate an editow.
  */
-export interface IStandaloneEditorConstructionOptions extends IEditorConstructionOptions, IGlobalEditorOptions {
+expowt intewface IStandawoneEditowConstwuctionOptions extends IEditowConstwuctionOptions, IGwobawEditowOptions {
 	/**
-	 * The initial model associated with this code editor.
+	 * The initiaw modew associated with this code editow.
 	 */
-	model?: ITextModel | null;
+	modew?: ITextModew | nuww;
 	/**
-	 * The initial value of the auto created model in the editor.
-	 * To not automatically create a model, use `model: null`.
+	 * The initiaw vawue of the auto cweated modew in the editow.
+	 * To not automaticawwy cweate a modew, use `modew: nuww`.
 	 */
-	value?: string;
+	vawue?: stwing;
 	/**
-	 * The initial language of the auto created model in the editor.
-	 * To not automatically create a model, use `model: null`.
+	 * The initiaw wanguage of the auto cweated modew in the editow.
+	 * To not automaticawwy cweate a modew, use `modew: nuww`.
 	 */
-	language?: string;
+	wanguage?: stwing;
 	/**
-	 * Initial theme to be used for rendering.
-	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
-	 * You can create custom themes via `monaco.editor.defineTheme`.
-	 * To switch a theme, use `monaco.editor.setTheme`.
-	 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
+	 * Initiaw theme to be used fow wendewing.
+	 * The cuwwent out-of-the-box avaiwabwe themes awe: 'vs' (defauwt), 'vs-dawk', 'hc-bwack'.
+	 * You can cweate custom themes via `monaco.editow.defineTheme`.
+	 * To switch a theme, use `monaco.editow.setTheme`.
+	 * **NOTE**: The theme might be ovewwwitten if the OS is in high contwast mode, unwess `autoDetectHighContwast` is set to fawse.
 	 */
-	theme?: string;
+	theme?: stwing;
 	/**
-	 * If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme.
-	 * Defaults to true.
+	 * If enabwed, wiww automaticawwy change to high contwast theme if the OS is using a high contwast theme.
+	 * Defauwts to twue.
 	 */
-	autoDetectHighContrast?: boolean;
+	autoDetectHighContwast?: boowean;
 	/**
-	 * An URL to open when Ctrl+H (Windows and Linux) or Cmd+H (OSX) is pressed in
-	 * the accessibility help dialog in the editor.
+	 * An UWW to open when Ctww+H (Windows and Winux) ow Cmd+H (OSX) is pwessed in
+	 * the accessibiwity hewp diawog in the editow.
 	 *
-	 * Defaults to "https://go.microsoft.com/fwlink/?linkid=852450"
+	 * Defauwts to "https://go.micwosoft.com/fwwink/?winkid=852450"
 	 */
-	accessibilityHelpUrl?: string;
+	accessibiwityHewpUww?: stwing;
 	/**
-	 * Container element to use for ARIA messages.
-	 * Defaults to document.body.
+	 * Containa ewement to use fow AWIA messages.
+	 * Defauwts to document.body.
 	 */
-	ariaContainerElement?: HTMLElement;
+	awiaContainewEwement?: HTMWEwement;
 }
 
 /**
- * The options to create a diff editor.
+ * The options to cweate a diff editow.
  */
-export interface IStandaloneDiffEditorConstructionOptions extends IDiffEditorConstructionOptions {
+expowt intewface IStandawoneDiffEditowConstwuctionOptions extends IDiffEditowConstwuctionOptions {
 	/**
-	 * Initial theme to be used for rendering.
-	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
-	 * You can create custom themes via `monaco.editor.defineTheme`.
-	 * To switch a theme, use `monaco.editor.setTheme`.
-	 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
+	 * Initiaw theme to be used fow wendewing.
+	 * The cuwwent out-of-the-box avaiwabwe themes awe: 'vs' (defauwt), 'vs-dawk', 'hc-bwack'.
+	 * You can cweate custom themes via `monaco.editow.defineTheme`.
+	 * To switch a theme, use `monaco.editow.setTheme`.
+	 * **NOTE**: The theme might be ovewwwitten if the OS is in high contwast mode, unwess `autoDetectHighContwast` is set to fawse.
 	 */
-	theme?: string;
+	theme?: stwing;
 	/**
-	 * If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme.
-	 * Defaults to true.
+	 * If enabwed, wiww automaticawwy change to high contwast theme if the OS is using a high contwast theme.
+	 * Defauwts to twue.
 	 */
-	autoDetectHighContrast?: boolean;
+	autoDetectHighContwast?: boowean;
 }
 
-export interface IStandaloneCodeEditor extends ICodeEditor {
-	updateOptions(newOptions: IEditorOptions & IGlobalEditorOptions): void;
-	addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null;
-	createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
-	addAction(descriptor: IActionDescriptor): IDisposable;
+expowt intewface IStandawoneCodeEditow extends ICodeEditow {
+	updateOptions(newOptions: IEditowOptions & IGwobawEditowOptions): void;
+	addCommand(keybinding: numba, handwa: ICommandHandwa, context?: stwing): stwing | nuww;
+	cweateContextKey<T>(key: stwing, defauwtVawue: T): IContextKey<T>;
+	addAction(descwiptow: IActionDescwiptow): IDisposabwe;
 }
 
-export interface IStandaloneDiffEditor extends IDiffEditor {
-	addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null;
-	createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
-	addAction(descriptor: IActionDescriptor): IDisposable;
+expowt intewface IStandawoneDiffEditow extends IDiffEditow {
+	addCommand(keybinding: numba, handwa: ICommandHandwa, context?: stwing): stwing | nuww;
+	cweateContextKey<T>(key: stwing, defauwtVawue: T): IContextKey<T>;
+	addAction(descwiptow: IActionDescwiptow): IDisposabwe;
 
-	getOriginalEditor(): IStandaloneCodeEditor;
-	getModifiedEditor(): IStandaloneCodeEditor;
+	getOwiginawEditow(): IStandawoneCodeEditow;
+	getModifiedEditow(): IStandawoneCodeEditow;
 }
 
-let LAST_GENERATED_COMMAND_ID = 0;
+wet WAST_GENEWATED_COMMAND_ID = 0;
 
-let ariaDomNodeCreated = false;
+wet awiaDomNodeCweated = fawse;
 /**
- * Create ARIA dom node inside parent,
- * or only for the first editor instantiation inside document.body.
- * @param parent container element for ARIA dom node
+ * Cweate AWIA dom node inside pawent,
+ * ow onwy fow the fiwst editow instantiation inside document.body.
+ * @pawam pawent containa ewement fow AWIA dom node
  */
-function createAriaDomNode(parent: HTMLElement | undefined) {
-	if (!parent) {
-		if (ariaDomNodeCreated) {
-			return;
+function cweateAwiaDomNode(pawent: HTMWEwement | undefined) {
+	if (!pawent) {
+		if (awiaDomNodeCweated) {
+			wetuwn;
 		}
-		ariaDomNodeCreated = true;
+		awiaDomNodeCweated = twue;
 	}
-	aria.setARIAContainer(parent || document.body);
+	awia.setAWIAContaina(pawent || document.body);
 }
 
 /**
- * A code editor to be used both by the standalone editor and the standalone diff editor.
+ * A code editow to be used both by the standawone editow and the standawone diff editow.
  */
-export class StandaloneCodeEditor extends CodeEditorWidget implements IStandaloneCodeEditor {
+expowt cwass StandawoneCodeEditow extends CodeEditowWidget impwements IStandawoneCodeEditow {
 
-	private readonly _standaloneKeybindingService: StandaloneKeybindingService | null;
+	pwivate weadonwy _standawoneKeybindingSewvice: StandawoneKeybindingSewvice | nuww;
 
-	constructor(
-		domElement: HTMLElement,
-		_options: Readonly<IStandaloneEditorConstructionOptions>,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@ICommandService commandService: ICommandService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IThemeService themeService: IThemeService,
-		@INotificationService notificationService: INotificationService,
-		@IAccessibilityService accessibilityService: IAccessibilityService
+	constwuctow(
+		domEwement: HTMWEwement,
+		_options: Weadonwy<IStandawoneEditowConstwuctionOptions>,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@ICodeEditowSewvice codeEditowSewvice: ICodeEditowSewvice,
+		@ICommandSewvice commandSewvice: ICommandSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IAccessibiwitySewvice accessibiwitySewvice: IAccessibiwitySewvice
 	) {
 		const options = { ..._options };
-		options.ariaLabel = options.ariaLabel || StandaloneCodeEditorNLS.editorViewAccessibleLabel;
-		options.ariaLabel = options.ariaLabel + ';' + (StandaloneCodeEditorNLS.accessibilityHelpMessage);
-		super(domElement, options, {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService);
+		options.awiaWabew = options.awiaWabew || StandawoneCodeEditowNWS.editowViewAccessibweWabew;
+		options.awiaWabew = options.awiaWabew + ';' + (StandawoneCodeEditowNWS.accessibiwityHewpMessage);
+		supa(domEwement, options, {}, instantiationSewvice, codeEditowSewvice, commandSewvice, contextKeySewvice, themeSewvice, notificationSewvice, accessibiwitySewvice);
 
-		if (keybindingService instanceof StandaloneKeybindingService) {
-			this._standaloneKeybindingService = keybindingService;
-		} else {
-			this._standaloneKeybindingService = null;
+		if (keybindingSewvice instanceof StandawoneKeybindingSewvice) {
+			this._standawoneKeybindingSewvice = keybindingSewvice;
+		} ewse {
+			this._standawoneKeybindingSewvice = nuww;
 		}
 
-		createAriaDomNode(options.ariaContainerElement);
+		cweateAwiaDomNode(options.awiaContainewEwement);
 	}
 
-	public addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null {
-		if (!this._standaloneKeybindingService) {
-			console.warn('Cannot add command because the editor is configured with an unrecognized KeybindingService');
-			return null;
+	pubwic addCommand(keybinding: numba, handwa: ICommandHandwa, context?: stwing): stwing | nuww {
+		if (!this._standawoneKeybindingSewvice) {
+			consowe.wawn('Cannot add command because the editow is configuwed with an unwecognized KeybindingSewvice');
+			wetuwn nuww;
 		}
-		let commandId = 'DYNAMIC_' + (++LAST_GENERATED_COMMAND_ID);
-		let whenExpression = ContextKeyExpr.deserialize(context);
-		this._standaloneKeybindingService.addDynamicKeybinding(commandId, keybinding, handler, whenExpression);
-		return commandId;
+		wet commandId = 'DYNAMIC_' + (++WAST_GENEWATED_COMMAND_ID);
+		wet whenExpwession = ContextKeyExpw.desewiawize(context);
+		this._standawoneKeybindingSewvice.addDynamicKeybinding(commandId, keybinding, handwa, whenExpwession);
+		wetuwn commandId;
 	}
 
-	public createContextKey<T>(key: string, defaultValue: T): IContextKey<T> {
-		return this._contextKeyService.createKey(key, defaultValue);
+	pubwic cweateContextKey<T>(key: stwing, defauwtVawue: T): IContextKey<T> {
+		wetuwn this._contextKeySewvice.cweateKey(key, defauwtVawue);
 	}
 
-	public addAction(_descriptor: IActionDescriptor): IDisposable {
-		if ((typeof _descriptor.id !== 'string') || (typeof _descriptor.label !== 'string') || (typeof _descriptor.run !== 'function')) {
-			throw new Error('Invalid action descriptor, `id`, `label` and `run` are required properties!');
+	pubwic addAction(_descwiptow: IActionDescwiptow): IDisposabwe {
+		if ((typeof _descwiptow.id !== 'stwing') || (typeof _descwiptow.wabew !== 'stwing') || (typeof _descwiptow.wun !== 'function')) {
+			thwow new Ewwow('Invawid action descwiptow, `id`, `wabew` and `wun` awe wequiwed pwopewties!');
 		}
-		if (!this._standaloneKeybindingService) {
-			console.warn('Cannot add keybinding because the editor is configured with an unrecognized KeybindingService');
-			return Disposable.None;
+		if (!this._standawoneKeybindingSewvice) {
+			consowe.wawn('Cannot add keybinding because the editow is configuwed with an unwecognized KeybindingSewvice');
+			wetuwn Disposabwe.None;
 		}
 
-		// Read descriptor options
-		const id = _descriptor.id;
-		const label = _descriptor.label;
-		const precondition = ContextKeyExpr.and(
-			ContextKeyExpr.equals('editorId', this.getId()),
-			ContextKeyExpr.deserialize(_descriptor.precondition)
+		// Wead descwiptow options
+		const id = _descwiptow.id;
+		const wabew = _descwiptow.wabew;
+		const pwecondition = ContextKeyExpw.and(
+			ContextKeyExpw.equaws('editowId', this.getId()),
+			ContextKeyExpw.desewiawize(_descwiptow.pwecondition)
 		);
-		const keybindings = _descriptor.keybindings;
-		const keybindingsWhen = ContextKeyExpr.and(
-			precondition,
-			ContextKeyExpr.deserialize(_descriptor.keybindingContext)
+		const keybindings = _descwiptow.keybindings;
+		const keybindingsWhen = ContextKeyExpw.and(
+			pwecondition,
+			ContextKeyExpw.desewiawize(_descwiptow.keybindingContext)
 		);
-		const contextMenuGroupId = _descriptor.contextMenuGroupId || null;
-		const contextMenuOrder = _descriptor.contextMenuOrder || 0;
-		const run = (accessor?: ServicesAccessor, ...args: any[]): Promise<void> => {
-			return Promise.resolve(_descriptor.run(this, ...args));
+		const contextMenuGwoupId = _descwiptow.contextMenuGwoupId || nuww;
+		const contextMenuOwda = _descwiptow.contextMenuOwda || 0;
+		const wun = (accessow?: SewvicesAccessow, ...awgs: any[]): Pwomise<void> => {
+			wetuwn Pwomise.wesowve(_descwiptow.wun(this, ...awgs));
 		};
 
 
-		const toDispose = new DisposableStore();
+		const toDispose = new DisposabweStowe();
 
-		// Generate a unique id to allow the same descriptor.id across multiple editor instances
+		// Genewate a unique id to awwow the same descwiptow.id acwoss muwtipwe editow instances
 		const uniqueId = this.getId() + ':' + id;
 
-		// Register the command
-		toDispose.add(CommandsRegistry.registerCommand(uniqueId, run));
+		// Wegista the command
+		toDispose.add(CommandsWegistwy.wegistewCommand(uniqueId, wun));
 
-		// Register the context menu item
-		if (contextMenuGroupId) {
-			let menuItem: IMenuItem = {
+		// Wegista the context menu item
+		if (contextMenuGwoupId) {
+			wet menuItem: IMenuItem = {
 				command: {
 					id: uniqueId,
-					title: label
+					titwe: wabew
 				},
-				when: precondition,
-				group: contextMenuGroupId,
-				order: contextMenuOrder
+				when: pwecondition,
+				gwoup: contextMenuGwoupId,
+				owda: contextMenuOwda
 			};
-			toDispose.add(MenuRegistry.appendMenuItem(MenuId.EditorContext, menuItem));
+			toDispose.add(MenuWegistwy.appendMenuItem(MenuId.EditowContext, menuItem));
 		}
 
-		// Register the keybindings
-		if (Array.isArray(keybindings)) {
-			for (const kb of keybindings) {
-				toDispose.add(this._standaloneKeybindingService.addDynamicKeybinding(uniqueId, kb, run, keybindingsWhen));
+		// Wegista the keybindings
+		if (Awway.isAwway(keybindings)) {
+			fow (const kb of keybindings) {
+				toDispose.add(this._standawoneKeybindingSewvice.addDynamicKeybinding(uniqueId, kb, wun, keybindingsWhen));
 			}
 		}
 
-		// Finally, register an internal editor action
-		let internalAction = new InternalEditorAction(
+		// Finawwy, wegista an intewnaw editow action
+		wet intewnawAction = new IntewnawEditowAction(
 			uniqueId,
-			label,
-			label,
-			precondition,
-			run,
-			this._contextKeyService
+			wabew,
+			wabew,
+			pwecondition,
+			wun,
+			this._contextKeySewvice
 		);
 
-		// Store it under the original id, such that trigger with the original id will work
-		this._actions[id] = internalAction;
-		toDispose.add(toDisposable(() => {
-			delete this._actions[id];
+		// Stowe it unda the owiginaw id, such that twigga with the owiginaw id wiww wowk
+		this._actions[id] = intewnawAction;
+		toDispose.add(toDisposabwe(() => {
+			dewete this._actions[id];
 		}));
 
-		return toDispose;
+		wetuwn toDispose;
 	}
 
-	protected override _triggerCommand(handlerId: string, payload: any): void {
-		if (this._codeEditorService instanceof StandaloneCodeEditorServiceImpl) {
-			// Help commands find this editor as the active editor
-			try {
-				this._codeEditorService.setActiveCodeEditor(this);
-				super._triggerCommand(handlerId, payload);
-			} finally {
-				this._codeEditorService.setActiveCodeEditor(null);
+	pwotected ovewwide _twiggewCommand(handwewId: stwing, paywoad: any): void {
+		if (this._codeEditowSewvice instanceof StandawoneCodeEditowSewviceImpw) {
+			// Hewp commands find this editow as the active editow
+			twy {
+				this._codeEditowSewvice.setActiveCodeEditow(this);
+				supa._twiggewCommand(handwewId, paywoad);
+			} finawwy {
+				this._codeEditowSewvice.setActiveCodeEditow(nuww);
 			}
-		} else {
-			super._triggerCommand(handlerId, payload);
+		} ewse {
+			supa._twiggewCommand(handwewId, paywoad);
 		}
 	}
 }
 
-export class StandaloneEditor extends StandaloneCodeEditor implements IStandaloneCodeEditor {
+expowt cwass StandawoneEditow extends StandawoneCodeEditow impwements IStandawoneCodeEditow {
 
-	private readonly _contextViewService: ContextViewService;
-	private readonly _configurationService: IConfigurationService;
-	private readonly _standaloneThemeService: IStandaloneThemeService;
-	private _ownsModel: boolean;
+	pwivate weadonwy _contextViewSewvice: ContextViewSewvice;
+	pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice;
+	pwivate weadonwy _standawoneThemeSewvice: IStandawoneThemeSewvice;
+	pwivate _ownsModew: boowean;
 
-	constructor(
-		domElement: HTMLElement,
-		_options: Readonly<IStandaloneEditorConstructionOptions> | undefined,
-		toDispose: IDisposable,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@ICommandService commandService: ICommandService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextViewService contextViewService: IContextViewService,
-		@IStandaloneThemeService themeService: IStandaloneThemeService,
-		@INotificationService notificationService: INotificationService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@IModelService modelService: IModelService,
-		@IModeService modeService: IModeService,
+	constwuctow(
+		domEwement: HTMWEwement,
+		_options: Weadonwy<IStandawoneEditowConstwuctionOptions> | undefined,
+		toDispose: IDisposabwe,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@ICodeEditowSewvice codeEditowSewvice: ICodeEditowSewvice,
+		@ICommandSewvice commandSewvice: ICommandSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IContextViewSewvice contextViewSewvice: IContextViewSewvice,
+		@IStandawoneThemeSewvice themeSewvice: IStandawoneThemeSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IAccessibiwitySewvice accessibiwitySewvice: IAccessibiwitySewvice,
+		@IModewSewvice modewSewvice: IModewSewvice,
+		@IModeSewvice modeSewvice: IModeSewvice,
 	) {
 		const options = { ..._options };
-		updateConfigurationService(configurationService, options, false);
-		const themeDomRegistration = (<StandaloneThemeServiceImpl>themeService).registerEditorContainer(domElement);
-		if (typeof options.theme === 'string') {
-			themeService.setTheme(options.theme);
+		updateConfiguwationSewvice(configuwationSewvice, options, fawse);
+		const themeDomWegistwation = (<StandawoneThemeSewviceImpw>themeSewvice).wegistewEditowContaina(domEwement);
+		if (typeof options.theme === 'stwing') {
+			themeSewvice.setTheme(options.theme);
 		}
-		if (typeof options.autoDetectHighContrast !== 'undefined') {
-			themeService.setAutoDetectHighContrast(Boolean(options.autoDetectHighContrast));
+		if (typeof options.autoDetectHighContwast !== 'undefined') {
+			themeSewvice.setAutoDetectHighContwast(Boowean(options.autoDetectHighContwast));
 		}
-		let _model: ITextModel | null | undefined = options.model;
-		delete options.model;
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService, themeService, notificationService, accessibilityService);
+		wet _modew: ITextModew | nuww | undefined = options.modew;
+		dewete options.modew;
+		supa(domEwement, options, instantiationSewvice, codeEditowSewvice, commandSewvice, contextKeySewvice, keybindingSewvice, themeSewvice, notificationSewvice, accessibiwitySewvice);
 
-		this._contextViewService = <ContextViewService>contextViewService;
-		this._configurationService = configurationService;
-		this._standaloneThemeService = themeService;
-		this._register(toDispose);
-		this._register(themeDomRegistration);
+		this._contextViewSewvice = <ContextViewSewvice>contextViewSewvice;
+		this._configuwationSewvice = configuwationSewvice;
+		this._standawoneThemeSewvice = themeSewvice;
+		this._wegista(toDispose);
+		this._wegista(themeDomWegistwation);
 
-		let model: ITextModel | null;
-		if (typeof _model === 'undefined') {
-			model = createTextModel(modelService, modeService, options.value || '', options.language || Mimes.text, undefined);
-			this._ownsModel = true;
-		} else {
-			model = _model;
-			this._ownsModel = false;
+		wet modew: ITextModew | nuww;
+		if (typeof _modew === 'undefined') {
+			modew = cweateTextModew(modewSewvice, modeSewvice, options.vawue || '', options.wanguage || Mimes.text, undefined);
+			this._ownsModew = twue;
+		} ewse {
+			modew = _modew;
+			this._ownsModew = fawse;
 		}
 
-		this._attachModel(model);
-		if (model) {
-			let e: IModelChangedEvent = {
-				oldModelUrl: null,
-				newModelUrl: model.uri
+		this._attachModew(modew);
+		if (modew) {
+			wet e: IModewChangedEvent = {
+				owdModewUww: nuww,
+				newModewUww: modew.uwi
 			};
-			this._onDidChangeModel.fire(e);
+			this._onDidChangeModew.fiwe(e);
 		}
 	}
 
-	public override dispose(): void {
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		supa.dispose();
 	}
 
-	public override updateOptions(newOptions: Readonly<IEditorOptions & IGlobalEditorOptions>): void {
-		updateConfigurationService(this._configurationService, newOptions, false);
-		if (typeof newOptions.theme === 'string') {
-			this._standaloneThemeService.setTheme(newOptions.theme);
+	pubwic ovewwide updateOptions(newOptions: Weadonwy<IEditowOptions & IGwobawEditowOptions>): void {
+		updateConfiguwationSewvice(this._configuwationSewvice, newOptions, fawse);
+		if (typeof newOptions.theme === 'stwing') {
+			this._standawoneThemeSewvice.setTheme(newOptions.theme);
 		}
-		if (typeof newOptions.autoDetectHighContrast !== 'undefined') {
-			this._standaloneThemeService.setAutoDetectHighContrast(Boolean(newOptions.autoDetectHighContrast));
+		if (typeof newOptions.autoDetectHighContwast !== 'undefined') {
+			this._standawoneThemeSewvice.setAutoDetectHighContwast(Boowean(newOptions.autoDetectHighContwast));
 		}
-		super.updateOptions(newOptions);
+		supa.updateOptions(newOptions);
 	}
 
-	override _attachModel(model: ITextModel | null): void {
-		super._attachModel(model);
-		if (this._modelData) {
-			this._contextViewService.setContainer(this._modelData.view.domNode.domNode);
+	ovewwide _attachModew(modew: ITextModew | nuww): void {
+		supa._attachModew(modew);
+		if (this._modewData) {
+			this._contextViewSewvice.setContaina(this._modewData.view.domNode.domNode);
 		}
 	}
 
-	override _postDetachModelCleanup(detachedModel: ITextModel): void {
-		super._postDetachModelCleanup(detachedModel);
-		if (detachedModel && this._ownsModel) {
-			detachedModel.dispose();
-			this._ownsModel = false;
+	ovewwide _postDetachModewCweanup(detachedModew: ITextModew): void {
+		supa._postDetachModewCweanup(detachedModew);
+		if (detachedModew && this._ownsModew) {
+			detachedModew.dispose();
+			this._ownsModew = fawse;
 		}
 	}
 }
 
-export class StandaloneDiffEditor extends DiffEditorWidget implements IStandaloneDiffEditor {
+expowt cwass StandawoneDiffEditow extends DiffEditowWidget impwements IStandawoneDiffEditow {
 
-	private readonly _contextViewService: ContextViewService;
-	private readonly _configurationService: IConfigurationService;
-	private readonly _standaloneThemeService: IStandaloneThemeService;
+	pwivate weadonwy _contextViewSewvice: ContextViewSewvice;
+	pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice;
+	pwivate weadonwy _standawoneThemeSewvice: IStandawoneThemeSewvice;
 
-	constructor(
-		domElement: HTMLElement,
-		_options: Readonly<IStandaloneDiffEditorConstructionOptions> | undefined,
-		toDispose: IDisposable,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextViewService contextViewService: IContextViewService,
-		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IStandaloneThemeService themeService: IStandaloneThemeService,
-		@INotificationService notificationService: INotificationService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IEditorProgressService editorProgressService: IEditorProgressService,
-		@IClipboardService clipboardService: IClipboardService,
+	constwuctow(
+		domEwement: HTMWEwement,
+		_options: Weadonwy<IStandawoneDiffEditowConstwuctionOptions> | undefined,
+		toDispose: IDisposabwe,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IContextViewSewvice contextViewSewvice: IContextViewSewvice,
+		@IEditowWowkewSewvice editowWowkewSewvice: IEditowWowkewSewvice,
+		@ICodeEditowSewvice codeEditowSewvice: ICodeEditowSewvice,
+		@IStandawoneThemeSewvice themeSewvice: IStandawoneThemeSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IEditowPwogwessSewvice editowPwogwessSewvice: IEditowPwogwessSewvice,
+		@ICwipboawdSewvice cwipboawdSewvice: ICwipboawdSewvice,
 	) {
 		const options = { ..._options };
-		updateConfigurationService(configurationService, options, true);
-		const themeDomRegistration = (<StandaloneThemeServiceImpl>themeService).registerEditorContainer(domElement);
-		if (typeof options.theme === 'string') {
-			themeService.setTheme(options.theme);
+		updateConfiguwationSewvice(configuwationSewvice, options, twue);
+		const themeDomWegistwation = (<StandawoneThemeSewviceImpw>themeSewvice).wegistewEditowContaina(domEwement);
+		if (typeof options.theme === 'stwing') {
+			themeSewvice.setTheme(options.theme);
 		}
-		if (typeof options.autoDetectHighContrast !== 'undefined') {
-			themeService.setAutoDetectHighContrast(Boolean(options.autoDetectHighContrast));
+		if (typeof options.autoDetectHighContwast !== 'undefined') {
+			themeSewvice.setAutoDetectHighContwast(Boowean(options.autoDetectHighContwast));
 		}
 
-		super(domElement, options, {}, clipboardService, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
+		supa(domEwement, options, {}, cwipboawdSewvice, editowWowkewSewvice, contextKeySewvice, instantiationSewvice, codeEditowSewvice, themeSewvice, notificationSewvice, contextMenuSewvice, editowPwogwessSewvice);
 
-		this._contextViewService = <ContextViewService>contextViewService;
-		this._configurationService = configurationService;
-		this._standaloneThemeService = themeService;
+		this._contextViewSewvice = <ContextViewSewvice>contextViewSewvice;
+		this._configuwationSewvice = configuwationSewvice;
+		this._standawoneThemeSewvice = themeSewvice;
 
-		this._register(toDispose);
-		this._register(themeDomRegistration);
+		this._wegista(toDispose);
+		this._wegista(themeDomWegistwation);
 
-		this._contextViewService.setContainer(this._containerDomElement);
+		this._contextViewSewvice.setContaina(this._containewDomEwement);
 	}
 
-	public override dispose(): void {
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		supa.dispose();
 	}
 
-	public override updateOptions(newOptions: Readonly<IDiffEditorOptions & IGlobalEditorOptions>): void {
-		updateConfigurationService(this._configurationService, newOptions, true);
-		if (typeof newOptions.theme === 'string') {
-			this._standaloneThemeService.setTheme(newOptions.theme);
+	pubwic ovewwide updateOptions(newOptions: Weadonwy<IDiffEditowOptions & IGwobawEditowOptions>): void {
+		updateConfiguwationSewvice(this._configuwationSewvice, newOptions, twue);
+		if (typeof newOptions.theme === 'stwing') {
+			this._standawoneThemeSewvice.setTheme(newOptions.theme);
 		}
-		if (typeof newOptions.autoDetectHighContrast !== 'undefined') {
-			this._standaloneThemeService.setAutoDetectHighContrast(Boolean(newOptions.autoDetectHighContrast));
+		if (typeof newOptions.autoDetectHighContwast !== 'undefined') {
+			this._standawoneThemeSewvice.setAutoDetectHighContwast(Boowean(newOptions.autoDetectHighContwast));
 		}
-		super.updateOptions(newOptions);
+		supa.updateOptions(newOptions);
 	}
 
-	protected override _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: Readonly<IEditorOptions>): CodeEditorWidget {
-		return instantiationService.createInstance(StandaloneCodeEditor, container, options);
+	pwotected ovewwide _cweateInnewEditow(instantiationSewvice: IInstantiationSewvice, containa: HTMWEwement, options: Weadonwy<IEditowOptions>): CodeEditowWidget {
+		wetuwn instantiationSewvice.cweateInstance(StandawoneCodeEditow, containa, options);
 	}
 
-	public override getOriginalEditor(): IStandaloneCodeEditor {
-		return <StandaloneCodeEditor>super.getOriginalEditor();
+	pubwic ovewwide getOwiginawEditow(): IStandawoneCodeEditow {
+		wetuwn <StandawoneCodeEditow>supa.getOwiginawEditow();
 	}
 
-	public override getModifiedEditor(): IStandaloneCodeEditor {
-		return <StandaloneCodeEditor>super.getModifiedEditor();
+	pubwic ovewwide getModifiedEditow(): IStandawoneCodeEditow {
+		wetuwn <StandawoneCodeEditow>supa.getModifiedEditow();
 	}
 
-	public addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null {
-		return this.getModifiedEditor().addCommand(keybinding, handler, context);
+	pubwic addCommand(keybinding: numba, handwa: ICommandHandwa, context?: stwing): stwing | nuww {
+		wetuwn this.getModifiedEditow().addCommand(keybinding, handwa, context);
 	}
 
-	public createContextKey<T>(key: string, defaultValue: T): IContextKey<T> {
-		return this.getModifiedEditor().createContextKey(key, defaultValue);
+	pubwic cweateContextKey<T>(key: stwing, defauwtVawue: T): IContextKey<T> {
+		wetuwn this.getModifiedEditow().cweateContextKey(key, defauwtVawue);
 	}
 
-	public addAction(descriptor: IActionDescriptor): IDisposable {
-		return this.getModifiedEditor().addAction(descriptor);
+	pubwic addAction(descwiptow: IActionDescwiptow): IDisposabwe {
+		wetuwn this.getModifiedEditow().addAction(descwiptow);
 	}
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export function createTextModel(modelService: IModelService, modeService: IModeService, value: string, language: string | undefined, uri: URI | undefined): ITextModel {
-	value = value || '';
-	if (!language) {
-		const firstLF = value.indexOf('\n');
-		let firstLine = value;
-		if (firstLF !== -1) {
-			firstLine = value.substring(0, firstLF);
+expowt function cweateTextModew(modewSewvice: IModewSewvice, modeSewvice: IModeSewvice, vawue: stwing, wanguage: stwing | undefined, uwi: UWI | undefined): ITextModew {
+	vawue = vawue || '';
+	if (!wanguage) {
+		const fiwstWF = vawue.indexOf('\n');
+		wet fiwstWine = vawue;
+		if (fiwstWF !== -1) {
+			fiwstWine = vawue.substwing(0, fiwstWF);
 		}
-		return doCreateModel(modelService, value, modeService.createByFilepathOrFirstLine(uri || null, firstLine), uri);
+		wetuwn doCweateModew(modewSewvice, vawue, modeSewvice.cweateByFiwepathOwFiwstWine(uwi || nuww, fiwstWine), uwi);
 	}
-	return doCreateModel(modelService, value, modeService.create(language), uri);
+	wetuwn doCweateModew(modewSewvice, vawue, modeSewvice.cweate(wanguage), uwi);
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-function doCreateModel(modelService: IModelService, value: string, languageSelection: ILanguageSelection, uri: URI | undefined): ITextModel {
-	return modelService.createModel(value, languageSelection, uri);
+function doCweateModew(modewSewvice: IModewSewvice, vawue: stwing, wanguageSewection: IWanguageSewection, uwi: UWI | undefined): ITextModew {
+	wetuwn modewSewvice.cweateModew(vawue, wanguageSewection, uwi);
 }

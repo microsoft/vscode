@@ -1,477 +1,477 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Event } from 'vs/base/common/event';
-import { parse } from 'vs/base/common/json';
-import { applyEdits } from 'vs/base/common/jsonEdit';
-import { format } from 'vs/base/common/jsonFormatter';
-import { isWeb } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IHeaders } from 'vs/base/parts/request/common/request';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { AbstractInitializer, AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview, isSyncData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
-import { edit } from 'vs/platform/userDataSync/common/content';
-import { merge } from 'vs/platform/userDataSync/common/globalStateMerge';
-import { ALL_SYNC_RESOURCES, Change, createSyncHeaders, getEnablementKey, IGlobalState, IRemoteUserData, IStorageValue, ISyncData, ISyncResourceHandle, IUserData, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncResourceEnablementService, IUserDataSyncStoreService, SyncResource, SYNC_SERVICE_URL_TYPE, UserDataSyncError, UserDataSyncErrorCode, UserDataSyncStoreType, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { pawse } fwom 'vs/base/common/json';
+impowt { appwyEdits } fwom 'vs/base/common/jsonEdit';
+impowt { fowmat } fwom 'vs/base/common/jsonFowmatta';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { IHeadews } fwom 'vs/base/pawts/wequest/common/wequest';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { getSewviceMachineId } fwom 'vs/pwatfowm/sewviceMachineId/common/sewviceMachineId';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { AbstwactInitiawiza, AbstwactSynchwonisa, IAcceptWesuwt, IMewgeWesuwt, IWesouwcePweview, isSyncData } fwom 'vs/pwatfowm/usewDataSync/common/abstwactSynchwoniza';
+impowt { edit } fwom 'vs/pwatfowm/usewDataSync/common/content';
+impowt { mewge } fwom 'vs/pwatfowm/usewDataSync/common/gwobawStateMewge';
+impowt { AWW_SYNC_WESOUWCES, Change, cweateSyncHeadews, getEnabwementKey, IGwobawState, IWemoteUsewData, IStowageVawue, ISyncData, ISyncWesouwceHandwe, IUsewData, IUsewDataSyncBackupStoweSewvice, IUsewDataSynchwonisa, IUsewDataSyncWogSewvice, IUsewDataSyncWesouwceEnabwementSewvice, IUsewDataSyncStoweSewvice, SyncWesouwce, SYNC_SEWVICE_UWW_TYPE, UsewDataSyncEwwow, UsewDataSyncEwwowCode, UsewDataSyncStoweType, USEW_DATA_SYNC_SCHEME } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { UsewDataSyncStoweCwient } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncStoweSewvice';
 
-const argvStoragePrefx = 'globalState.argv.';
-const argvProperties: string[] = ['locale'];
+const awgvStowagePwefx = 'gwobawState.awgv.';
+const awgvPwopewties: stwing[] = ['wocawe'];
 
-type StorageKeys = { machine: string[], user: string[], unregistered: string[] };
+type StowageKeys = { machine: stwing[], usa: stwing[], unwegistewed: stwing[] };
 
-interface IGlobalStateResourceMergeResult extends IAcceptResult {
-	readonly local: { added: IStringDictionary<IStorageValue>, removed: string[], updated: IStringDictionary<IStorageValue> };
-	readonly remote: IStringDictionary<IStorageValue> | null;
+intewface IGwobawStateWesouwceMewgeWesuwt extends IAcceptWesuwt {
+	weadonwy wocaw: { added: IStwingDictionawy<IStowageVawue>, wemoved: stwing[], updated: IStwingDictionawy<IStowageVawue> };
+	weadonwy wemote: IStwingDictionawy<IStowageVawue> | nuww;
 }
 
-export interface IGlobalStateResourcePreview extends IResourcePreview {
-	readonly localUserData: IGlobalState;
-	readonly previewResult: IGlobalStateResourceMergeResult;
-	readonly storageKeys: StorageKeys;
+expowt intewface IGwobawStateWesouwcePweview extends IWesouwcePweview {
+	weadonwy wocawUsewData: IGwobawState;
+	weadonwy pweviewWesuwt: IGwobawStateWesouwceMewgeWesuwt;
+	weadonwy stowageKeys: StowageKeys;
 }
 
-function formatAndStringify(globalState: IGlobalState): string {
-	const storageKeys = globalState.storage ? Object.keys(globalState.storage).sort() : [];
-	const storage: IStringDictionary<IStorageValue> = {};
-	storageKeys.forEach(key => storage[key] = globalState.storage[key]);
-	globalState.storage = storage;
-	const content = JSON.stringify(globalState);
-	const edits = format(content, undefined, {});
-	return applyEdits(content, edits);
+function fowmatAndStwingify(gwobawState: IGwobawState): stwing {
+	const stowageKeys = gwobawState.stowage ? Object.keys(gwobawState.stowage).sowt() : [];
+	const stowage: IStwingDictionawy<IStowageVawue> = {};
+	stowageKeys.fowEach(key => stowage[key] = gwobawState.stowage[key]);
+	gwobawState.stowage = stowage;
+	const content = JSON.stwingify(gwobawState);
+	const edits = fowmat(content, undefined, {});
+	wetuwn appwyEdits(content, edits);
 }
 
-const GLOBAL_STATE_DATA_VERSION = 1;
+const GWOBAW_STATE_DATA_VEWSION = 1;
 
 /**
- * Synchronises global state that includes
- * 	- Global storage with user scope
- * 	- Locale from argv properties
+ * Synchwonises gwobaw state that incwudes
+ * 	- Gwobaw stowage with usa scope
+ * 	- Wocawe fwom awgv pwopewties
  *
- * Global storage is synced without checking version just like other resources (settings, keybindings).
- * If there is a change in format of the value of a storage key which requires migration then
- * 		Owner of that key should remove that key from user scope and replace that with new user scoped key.
+ * Gwobaw stowage is synced without checking vewsion just wike otha wesouwces (settings, keybindings).
+ * If thewe is a change in fowmat of the vawue of a stowage key which wequiwes migwation then
+ * 		Owna of that key shouwd wemove that key fwom usa scope and wepwace that with new usa scoped key.
  */
-export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
+expowt cwass GwobawStateSynchwonisa extends AbstwactSynchwonisa impwements IUsewDataSynchwonisa {
 
-	private static readonly GLOBAL_STATE_DATA_URI = URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'globalState', path: `/globalState.json` });
-	protected readonly version: number = GLOBAL_STATE_DATA_VERSION;
-	private readonly previewResource: URI = this.extUri.joinPath(this.syncPreviewFolder, 'globalState.json');
-	private readonly localResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' });
-	private readonly remoteResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' });
-	private readonly acceptedResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' });
+	pwivate static weadonwy GWOBAW_STATE_DATA_UWI = UWI.fwom({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'gwobawState', path: `/gwobawState.json` });
+	pwotected weadonwy vewsion: numba = GWOBAW_STATE_DATA_VEWSION;
+	pwivate weadonwy pweviewWesouwce: UWI = this.extUwi.joinPath(this.syncPweviewFowda, 'gwobawState.json');
+	pwivate weadonwy wocawWesouwce: UWI = this.pweviewWesouwce.with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wocaw' });
+	pwivate weadonwy wemoteWesouwce: UWI = this.pweviewWesouwce.with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wemote' });
+	pwivate weadonwy acceptedWesouwce: UWI = this.pweviewWesouwce.with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'accepted' });
 
-	constructor(
-		@IFileService fileService: IFileService,
-		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
-		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
-		@IUserDataSyncLogService logService: IUserDataSyncLogService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IUserDataSyncResourceEnablementService userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IStorageService private readonly storageService: IStorageService,
+	constwuctow(
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IUsewDataSyncStoweSewvice usewDataSyncStoweSewvice: IUsewDataSyncStoweSewvice,
+		@IUsewDataSyncBackupStoweSewvice usewDataSyncBackupStoweSewvice: IUsewDataSyncBackupStoweSewvice,
+		@IUsewDataSyncWogSewvice wogSewvice: IUsewDataSyncWogSewvice,
+		@IEnviwonmentSewvice enviwonmentSewvice: IEnviwonmentSewvice,
+		@IUsewDataSyncWesouwceEnabwementSewvice usewDataSyncWesouwceEnabwementSewvice: IUsewDataSyncWesouwceEnabwementSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
 	) {
-		super(SyncResource.GlobalState, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, configurationService);
-		this._register(fileService.watch(this.extUri.dirname(this.environmentService.argvResource)));
-		this._register(
+		supa(SyncWesouwce.GwobawState, fiweSewvice, enviwonmentSewvice, stowageSewvice, usewDataSyncStoweSewvice, usewDataSyncBackupStoweSewvice, usewDataSyncWesouwceEnabwementSewvice, tewemetwySewvice, wogSewvice, configuwationSewvice);
+		this._wegista(fiweSewvice.watch(this.extUwi.diwname(this.enviwonmentSewvice.awgvWesouwce)));
+		this._wegista(
 			Event.any(
-				/* Locale change */
-				Event.filter(fileService.onDidFilesChange, e => e.contains(this.environmentService.argvResource)),
-				/* Global storage with user target has changed */
-				Event.filter(storageService.onDidChangeValue, e => e.scope === StorageScope.GLOBAL && e.target !== undefined ? e.target === StorageTarget.USER : storageService.keys(StorageScope.GLOBAL, StorageTarget.USER).includes(e.key)),
-				/* Storage key target has changed */
-				this.storageService.onDidChangeTarget
-			)((() => this.triggerLocalChange()))
+				/* Wocawe change */
+				Event.fiwta(fiweSewvice.onDidFiwesChange, e => e.contains(this.enviwonmentSewvice.awgvWesouwce)),
+				/* Gwobaw stowage with usa tawget has changed */
+				Event.fiwta(stowageSewvice.onDidChangeVawue, e => e.scope === StowageScope.GWOBAW && e.tawget !== undefined ? e.tawget === StowageTawget.USa : stowageSewvice.keys(StowageScope.GWOBAW, StowageTawget.USa).incwudes(e.key)),
+				/* Stowage key tawget has changed */
+				this.stowageSewvice.onDidChangeTawget
+			)((() => this.twiggewWocawChange()))
 		);
 	}
 
-	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, isRemoteDataFromCurrentMachine: boolean, token: CancellationToken): Promise<IGlobalStateResourcePreview[]> {
-		const remoteGlobalState: IGlobalState = remoteUserData.syncData ? JSON.parse(remoteUserData.syncData.content) : null;
+	pwotected async genewateSyncPweview(wemoteUsewData: IWemoteUsewData, wastSyncUsewData: IWemoteUsewData | nuww, isWemoteDataFwomCuwwentMachine: boowean, token: CancewwationToken): Pwomise<IGwobawStateWesouwcePweview[]> {
+		const wemoteGwobawState: IGwobawState = wemoteUsewData.syncData ? JSON.pawse(wemoteUsewData.syncData.content) : nuww;
 
-		// Use remote data as last sync data if last sync data does not exist and remote data is from same machine
-		lastSyncUserData = lastSyncUserData === null && isRemoteDataFromCurrentMachine ? remoteUserData : lastSyncUserData;
-		const lastSyncGlobalState: IGlobalState | null = lastSyncUserData && lastSyncUserData.syncData ? JSON.parse(lastSyncUserData.syncData.content) : null;
+		// Use wemote data as wast sync data if wast sync data does not exist and wemote data is fwom same machine
+		wastSyncUsewData = wastSyncUsewData === nuww && isWemoteDataFwomCuwwentMachine ? wemoteUsewData : wastSyncUsewData;
+		const wastSyncGwobawState: IGwobawState | nuww = wastSyncUsewData && wastSyncUsewData.syncData ? JSON.pawse(wastSyncUsewData.syncData.content) : nuww;
 
-		const localGlobalState = await this.getLocalGlobalState();
+		const wocawGwobawState = await this.getWocawGwobawState();
 
-		if (remoteGlobalState) {
-			this.logService.trace(`${this.syncResourceLogLabel}: Merging remote ui state with local ui state...`);
-		} else {
-			this.logService.trace(`${this.syncResourceLogLabel}: Remote ui state does not exist. Synchronizing ui state for the first time.`);
+		if (wemoteGwobawState) {
+			this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Mewging wemote ui state with wocaw ui state...`);
+		} ewse {
+			this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Wemote ui state does not exist. Synchwonizing ui state fow the fiwst time.`);
 		}
 
-		const storageKeys = this.getStorageKeys(lastSyncGlobalState);
-		const { local, remote } = merge(localGlobalState.storage, remoteGlobalState ? remoteGlobalState.storage : null, lastSyncGlobalState ? lastSyncGlobalState.storage : null, storageKeys, this.logService);
-		const previewResult: IGlobalStateResourceMergeResult = {
-			content: null,
-			local,
-			remote,
-			localChange: Object.keys(local.added).length > 0 || Object.keys(local.updated).length > 0 || local.removed.length > 0 ? Change.Modified : Change.None,
-			remoteChange: remote !== null ? Change.Modified : Change.None,
+		const stowageKeys = this.getStowageKeys(wastSyncGwobawState);
+		const { wocaw, wemote } = mewge(wocawGwobawState.stowage, wemoteGwobawState ? wemoteGwobawState.stowage : nuww, wastSyncGwobawState ? wastSyncGwobawState.stowage : nuww, stowageKeys, this.wogSewvice);
+		const pweviewWesuwt: IGwobawStateWesouwceMewgeWesuwt = {
+			content: nuww,
+			wocaw,
+			wemote,
+			wocawChange: Object.keys(wocaw.added).wength > 0 || Object.keys(wocaw.updated).wength > 0 || wocaw.wemoved.wength > 0 ? Change.Modified : Change.None,
+			wemoteChange: wemote !== nuww ? Change.Modified : Change.None,
 		};
 
-		return [{
-			localResource: this.localResource,
-			localContent: formatAndStringify(localGlobalState),
-			localUserData: localGlobalState,
-			remoteResource: this.remoteResource,
-			remoteContent: remoteGlobalState ? formatAndStringify(remoteGlobalState) : null,
-			previewResource: this.previewResource,
-			previewResult,
-			localChange: previewResult.localChange,
-			remoteChange: previewResult.remoteChange,
-			acceptedResource: this.acceptedResource,
-			storageKeys
+		wetuwn [{
+			wocawWesouwce: this.wocawWesouwce,
+			wocawContent: fowmatAndStwingify(wocawGwobawState),
+			wocawUsewData: wocawGwobawState,
+			wemoteWesouwce: this.wemoteWesouwce,
+			wemoteContent: wemoteGwobawState ? fowmatAndStwingify(wemoteGwobawState) : nuww,
+			pweviewWesouwce: this.pweviewWesouwce,
+			pweviewWesuwt,
+			wocawChange: pweviewWesuwt.wocawChange,
+			wemoteChange: pweviewWesuwt.wemoteChange,
+			acceptedWesouwce: this.acceptedWesouwce,
+			stowageKeys
 		}];
 	}
 
-	protected async getMergeResult(resourcePreview: IGlobalStateResourcePreview, token: CancellationToken): Promise<IMergeResult> {
-		return { ...resourcePreview.previewResult, hasConflicts: false };
+	pwotected async getMewgeWesuwt(wesouwcePweview: IGwobawStateWesouwcePweview, token: CancewwationToken): Pwomise<IMewgeWesuwt> {
+		wetuwn { ...wesouwcePweview.pweviewWesuwt, hasConfwicts: fawse };
 	}
 
-	protected async getAcceptResult(resourcePreview: IGlobalStateResourcePreview, resource: URI, content: string | null | undefined, token: CancellationToken): Promise<IGlobalStateResourceMergeResult> {
+	pwotected async getAcceptWesuwt(wesouwcePweview: IGwobawStateWesouwcePweview, wesouwce: UWI, content: stwing | nuww | undefined, token: CancewwationToken): Pwomise<IGwobawStateWesouwceMewgeWesuwt> {
 
-		/* Accept local resource */
-		if (this.extUri.isEqual(resource, this.localResource)) {
-			return this.acceptLocal(resourcePreview);
+		/* Accept wocaw wesouwce */
+		if (this.extUwi.isEquaw(wesouwce, this.wocawWesouwce)) {
+			wetuwn this.acceptWocaw(wesouwcePweview);
 		}
 
-		/* Accept remote resource */
-		if (this.extUri.isEqual(resource, this.remoteResource)) {
-			return this.acceptRemote(resourcePreview);
+		/* Accept wemote wesouwce */
+		if (this.extUwi.isEquaw(wesouwce, this.wemoteWesouwce)) {
+			wetuwn this.acceptWemote(wesouwcePweview);
 		}
 
-		/* Accept preview resource */
-		if (this.extUri.isEqual(resource, this.previewResource)) {
-			return resourcePreview.previewResult;
+		/* Accept pweview wesouwce */
+		if (this.extUwi.isEquaw(wesouwce, this.pweviewWesouwce)) {
+			wetuwn wesouwcePweview.pweviewWesuwt;
 		}
 
-		throw new Error(`Invalid Resource: ${resource.toString()}`);
+		thwow new Ewwow(`Invawid Wesouwce: ${wesouwce.toStwing()}`);
 	}
 
-	private async acceptLocal(resourcePreview: IGlobalStateResourcePreview): Promise<IGlobalStateResourceMergeResult> {
-		return {
-			content: resourcePreview.localContent,
-			local: { added: {}, removed: [], updated: {} },
-			remote: resourcePreview.localUserData.storage,
-			localChange: Change.None,
-			remoteChange: Change.Modified,
+	pwivate async acceptWocaw(wesouwcePweview: IGwobawStateWesouwcePweview): Pwomise<IGwobawStateWesouwceMewgeWesuwt> {
+		wetuwn {
+			content: wesouwcePweview.wocawContent,
+			wocaw: { added: {}, wemoved: [], updated: {} },
+			wemote: wesouwcePweview.wocawUsewData.stowage,
+			wocawChange: Change.None,
+			wemoteChange: Change.Modified,
 		};
 	}
 
-	private async acceptRemote(resourcePreview: IGlobalStateResourcePreview): Promise<IGlobalStateResourceMergeResult> {
-		if (resourcePreview.remoteContent !== null) {
-			const remoteGlobalState: IGlobalState = JSON.parse(resourcePreview.remoteContent);
-			const { local, remote } = merge(resourcePreview.localUserData.storage, remoteGlobalState.storage, null, resourcePreview.storageKeys, this.logService);
-			return {
-				content: resourcePreview.remoteContent,
-				local,
-				remote,
-				localChange: Object.keys(local.added).length > 0 || Object.keys(local.updated).length > 0 || local.removed.length > 0 ? Change.Modified : Change.None,
-				remoteChange: remote !== null ? Change.Modified : Change.None,
+	pwivate async acceptWemote(wesouwcePweview: IGwobawStateWesouwcePweview): Pwomise<IGwobawStateWesouwceMewgeWesuwt> {
+		if (wesouwcePweview.wemoteContent !== nuww) {
+			const wemoteGwobawState: IGwobawState = JSON.pawse(wesouwcePweview.wemoteContent);
+			const { wocaw, wemote } = mewge(wesouwcePweview.wocawUsewData.stowage, wemoteGwobawState.stowage, nuww, wesouwcePweview.stowageKeys, this.wogSewvice);
+			wetuwn {
+				content: wesouwcePweview.wemoteContent,
+				wocaw,
+				wemote,
+				wocawChange: Object.keys(wocaw.added).wength > 0 || Object.keys(wocaw.updated).wength > 0 || wocaw.wemoved.wength > 0 ? Change.Modified : Change.None,
+				wemoteChange: wemote !== nuww ? Change.Modified : Change.None,
 			};
-		} else {
-			return {
-				content: resourcePreview.remoteContent,
-				local: { added: {}, removed: [], updated: {} },
-				remote: null,
-				localChange: Change.None,
-				remoteChange: Change.None,
+		} ewse {
+			wetuwn {
+				content: wesouwcePweview.wemoteContent,
+				wocaw: { added: {}, wemoved: [], updated: {} },
+				wemote: nuww,
+				wocawChange: Change.None,
+				wemoteChange: Change.None,
 			};
 		}
 	}
 
-	protected async applyResult(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resourcePreviews: [IGlobalStateResourcePreview, IGlobalStateResourceMergeResult][], force: boolean): Promise<void> {
-		let { localUserData } = resourcePreviews[0][0];
-		let { local, remote, localChange, remoteChange } = resourcePreviews[0][1];
+	pwotected async appwyWesuwt(wemoteUsewData: IWemoteUsewData, wastSyncUsewData: IWemoteUsewData | nuww, wesouwcePweviews: [IGwobawStateWesouwcePweview, IGwobawStateWesouwceMewgeWesuwt][], fowce: boowean): Pwomise<void> {
+		wet { wocawUsewData } = wesouwcePweviews[0][0];
+		wet { wocaw, wemote, wocawChange, wemoteChange } = wesouwcePweviews[0][1];
 
-		if (localChange === Change.None && remoteChange === Change.None) {
-			this.logService.info(`${this.syncResourceLogLabel}: No changes found during synchronizing ui state.`);
+		if (wocawChange === Change.None && wemoteChange === Change.None) {
+			this.wogSewvice.info(`${this.syncWesouwceWogWabew}: No changes found duwing synchwonizing ui state.`);
 		}
 
-		if (localChange !== Change.None) {
-			// update local
-			this.logService.trace(`${this.syncResourceLogLabel}: Updating local ui state...`);
-			await this.backupLocal(JSON.stringify(localUserData));
-			await this.writeLocalGlobalState(local);
-			this.logService.info(`${this.syncResourceLogLabel}: Updated local ui state`);
+		if (wocawChange !== Change.None) {
+			// update wocaw
+			this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Updating wocaw ui state...`);
+			await this.backupWocaw(JSON.stwingify(wocawUsewData));
+			await this.wwiteWocawGwobawState(wocaw);
+			this.wogSewvice.info(`${this.syncWesouwceWogWabew}: Updated wocaw ui state`);
 		}
 
-		if (remoteChange !== Change.None) {
-			// update remote
-			this.logService.trace(`${this.syncResourceLogLabel}: Updating remote ui state...`);
-			const content = JSON.stringify(<IGlobalState>{ storage: remote });
-			remoteUserData = await this.updateRemoteUserData(content, force ? null : remoteUserData.ref);
-			this.logService.info(`${this.syncResourceLogLabel}: Updated remote ui state`);
+		if (wemoteChange !== Change.None) {
+			// update wemote
+			this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Updating wemote ui state...`);
+			const content = JSON.stwingify(<IGwobawState>{ stowage: wemote });
+			wemoteUsewData = await this.updateWemoteUsewData(content, fowce ? nuww : wemoteUsewData.wef);
+			this.wogSewvice.info(`${this.syncWesouwceWogWabew}: Updated wemote ui state`);
 		}
 
-		if (lastSyncUserData?.ref !== remoteUserData.ref) {
-			// update last sync
-			this.logService.trace(`${this.syncResourceLogLabel}: Updating last synchronized ui state...`);
-			await this.updateLastSyncUserData(remoteUserData);
-			this.logService.info(`${this.syncResourceLogLabel}: Updated last synchronized ui state`);
+		if (wastSyncUsewData?.wef !== wemoteUsewData.wef) {
+			// update wast sync
+			this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Updating wast synchwonized ui state...`);
+			await this.updateWastSyncUsewData(wemoteUsewData);
+			this.wogSewvice.info(`${this.syncWesouwceWogWabew}: Updated wast synchwonized ui state`);
 		}
 	}
 
-	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]> {
-		return [{ resource: this.extUri.joinPath(uri, 'globalState.json'), comparableResource: GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI }];
+	async getAssociatedWesouwces({ uwi }: ISyncWesouwceHandwe): Pwomise<{ wesouwce: UWI, compawabweWesouwce: UWI }[]> {
+		wetuwn [{ wesouwce: this.extUwi.joinPath(uwi, 'gwobawState.json'), compawabweWesouwce: GwobawStateSynchwonisa.GWOBAW_STATE_DATA_UWI }];
 	}
 
-	override async resolveContent(uri: URI): Promise<string | null> {
-		if (this.extUri.isEqual(uri, GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI)) {
-			const localGlobalState = await this.getLocalGlobalState();
-			return formatAndStringify(localGlobalState);
+	ovewwide async wesowveContent(uwi: UWI): Pwomise<stwing | nuww> {
+		if (this.extUwi.isEquaw(uwi, GwobawStateSynchwonisa.GWOBAW_STATE_DATA_UWI)) {
+			const wocawGwobawState = await this.getWocawGwobawState();
+			wetuwn fowmatAndStwingify(wocawGwobawState);
 		}
 
-		if (this.extUri.isEqual(this.remoteResource, uri) || this.extUri.isEqual(this.localResource, uri) || this.extUri.isEqual(this.acceptedResource, uri)) {
-			return this.resolvePreviewContent(uri);
+		if (this.extUwi.isEquaw(this.wemoteWesouwce, uwi) || this.extUwi.isEquaw(this.wocawWesouwce, uwi) || this.extUwi.isEquaw(this.acceptedWesouwce, uwi)) {
+			wetuwn this.wesowvePweviewContent(uwi);
 		}
 
-		let content = await super.resolveContent(uri);
+		wet content = await supa.wesowveContent(uwi);
 		if (content) {
-			return content;
+			wetuwn content;
 		}
 
-		content = await super.resolveContent(this.extUri.dirname(uri));
+		content = await supa.wesowveContent(this.extUwi.diwname(uwi));
 		if (content) {
-			const syncData = this.parseSyncData(content);
+			const syncData = this.pawseSyncData(content);
 			if (syncData) {
-				switch (this.extUri.basename(uri)) {
-					case 'globalState.json':
-						return formatAndStringify(JSON.parse(syncData.content));
+				switch (this.extUwi.basename(uwi)) {
+					case 'gwobawState.json':
+						wetuwn fowmatAndStwingify(JSON.pawse(syncData.content));
 				}
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	async hasLocalData(): Promise<boolean> {
-		try {
-			const { storage } = await this.getLocalGlobalState();
-			if (Object.keys(storage).length > 1 || storage[`${argvStoragePrefx}.locale`]?.value !== 'en') {
-				return true;
+	async hasWocawData(): Pwomise<boowean> {
+		twy {
+			const { stowage } = await this.getWocawGwobawState();
+			if (Object.keys(stowage).wength > 1 || stowage[`${awgvStowagePwefx}.wocawe`]?.vawue !== 'en') {
+				wetuwn twue;
 			}
-		} catch (error) {
-			/* ignore error */
+		} catch (ewwow) {
+			/* ignowe ewwow */
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private async getLocalGlobalState(): Promise<IGlobalState> {
-		const storage: IStringDictionary<IStorageValue> = {};
-		const argvContent: string = await this.getLocalArgvContent();
-		const argvValue: IStringDictionary<any> = parse(argvContent);
-		for (const argvProperty of argvProperties) {
-			if (argvValue[argvProperty] !== undefined) {
-				storage[`${argvStoragePrefx}${argvProperty}`] = { version: 1, value: argvValue[argvProperty] };
-			}
-		}
-		for (const key of this.storageService.keys(StorageScope.GLOBAL, StorageTarget.USER)) {
-			const value = this.storageService.get(key, StorageScope.GLOBAL);
-			if (value) {
-				storage[key] = { version: 1, value };
+	pwivate async getWocawGwobawState(): Pwomise<IGwobawState> {
+		const stowage: IStwingDictionawy<IStowageVawue> = {};
+		const awgvContent: stwing = await this.getWocawAwgvContent();
+		const awgvVawue: IStwingDictionawy<any> = pawse(awgvContent);
+		fow (const awgvPwopewty of awgvPwopewties) {
+			if (awgvVawue[awgvPwopewty] !== undefined) {
+				stowage[`${awgvStowagePwefx}${awgvPwopewty}`] = { vewsion: 1, vawue: awgvVawue[awgvPwopewty] };
 			}
 		}
-		return { storage };
+		fow (const key of this.stowageSewvice.keys(StowageScope.GWOBAW, StowageTawget.USa)) {
+			const vawue = this.stowageSewvice.get(key, StowageScope.GWOBAW);
+			if (vawue) {
+				stowage[key] = { vewsion: 1, vawue };
+			}
+		}
+		wetuwn { stowage };
 	}
 
-	private async getLocalArgvContent(): Promise<string> {
-		try {
-			const content = await this.fileService.readFile(this.environmentService.argvResource);
-			return content.value.toString();
-		} catch (error) { }
-		return '{}';
+	pwivate async getWocawAwgvContent(): Pwomise<stwing> {
+		twy {
+			const content = await this.fiweSewvice.weadFiwe(this.enviwonmentSewvice.awgvWesouwce);
+			wetuwn content.vawue.toStwing();
+		} catch (ewwow) { }
+		wetuwn '{}';
 	}
 
-	private async writeLocalGlobalState({ added, removed, updated }: { added: IStringDictionary<IStorageValue>, updated: IStringDictionary<IStorageValue>, removed: string[] }): Promise<void> {
-		const argv: IStringDictionary<any> = {};
-		const updatedStorage: IStringDictionary<any> = {};
-		const handleUpdatedStorage = (keys: string[], storage?: IStringDictionary<IStorageValue>): void => {
-			for (const key of keys) {
-				if (key.startsWith(argvStoragePrefx)) {
-					argv[key.substring(argvStoragePrefx.length)] = storage ? storage[key].value : undefined;
+	pwivate async wwiteWocawGwobawState({ added, wemoved, updated }: { added: IStwingDictionawy<IStowageVawue>, updated: IStwingDictionawy<IStowageVawue>, wemoved: stwing[] }): Pwomise<void> {
+		const awgv: IStwingDictionawy<any> = {};
+		const updatedStowage: IStwingDictionawy<any> = {};
+		const handweUpdatedStowage = (keys: stwing[], stowage?: IStwingDictionawy<IStowageVawue>): void => {
+			fow (const key of keys) {
+				if (key.stawtsWith(awgvStowagePwefx)) {
+					awgv[key.substwing(awgvStowagePwefx.wength)] = stowage ? stowage[key].vawue : undefined;
 					continue;
 				}
-				if (storage) {
-					const storageValue = storage[key];
-					if (storageValue.value !== String(this.storageService.get(key, StorageScope.GLOBAL))) {
-						updatedStorage[key] = storageValue.value;
+				if (stowage) {
+					const stowageVawue = stowage[key];
+					if (stowageVawue.vawue !== Stwing(this.stowageSewvice.get(key, StowageScope.GWOBAW))) {
+						updatedStowage[key] = stowageVawue.vawue;
 					}
-				} else {
-					if (this.storageService.get(key, StorageScope.GLOBAL) !== undefined) {
-						updatedStorage[key] = undefined;
+				} ewse {
+					if (this.stowageSewvice.get(key, StowageScope.GWOBAW) !== undefined) {
+						updatedStowage[key] = undefined;
 					}
 				}
 			}
 		};
-		handleUpdatedStorage(Object.keys(added), added);
-		handleUpdatedStorage(Object.keys(updated), updated);
-		handleUpdatedStorage(removed);
-		if (Object.keys(argv).length) {
-			this.logService.trace(`${this.syncResourceLogLabel}: Updating locale...`);
-			await this.updateArgv(argv);
-			this.logService.info(`${this.syncResourceLogLabel}: Updated locale`);
+		handweUpdatedStowage(Object.keys(added), added);
+		handweUpdatedStowage(Object.keys(updated), updated);
+		handweUpdatedStowage(wemoved);
+		if (Object.keys(awgv).wength) {
+			this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Updating wocawe...`);
+			await this.updateAwgv(awgv);
+			this.wogSewvice.info(`${this.syncWesouwceWogWabew}: Updated wocawe`);
 		}
-		const updatedStorageKeys: string[] = Object.keys(updatedStorage);
-		if (updatedStorageKeys.length) {
-			this.logService.trace(`${this.syncResourceLogLabel}: Updating global state...`);
-			for (const key of Object.keys(updatedStorage)) {
-				this.storageService.store(key, updatedStorage[key], StorageScope.GLOBAL, StorageTarget.USER);
+		const updatedStowageKeys: stwing[] = Object.keys(updatedStowage);
+		if (updatedStowageKeys.wength) {
+			this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Updating gwobaw state...`);
+			fow (const key of Object.keys(updatedStowage)) {
+				this.stowageSewvice.stowe(key, updatedStowage[key], StowageScope.GWOBAW, StowageTawget.USa);
 			}
-			this.logService.info(`${this.syncResourceLogLabel}: Updated global state`, Object.keys(updatedStorage));
+			this.wogSewvice.info(`${this.syncWesouwceWogWabew}: Updated gwobaw state`, Object.keys(updatedStowage));
 		}
 	}
 
-	private async updateArgv(argv: IStringDictionary<any>): Promise<void> {
-		const argvContent = await this.getLocalArgvContent();
-		let content = argvContent;
-		for (const argvProperty of Object.keys(argv)) {
-			content = edit(content, [argvProperty], argv[argvProperty], {});
+	pwivate async updateAwgv(awgv: IStwingDictionawy<any>): Pwomise<void> {
+		const awgvContent = await this.getWocawAwgvContent();
+		wet content = awgvContent;
+		fow (const awgvPwopewty of Object.keys(awgv)) {
+			content = edit(content, [awgvPwopewty], awgv[awgvPwopewty], {});
 		}
-		if (argvContent !== content) {
-			this.logService.trace(`${this.syncResourceLogLabel}: Updating locale...`);
-			await this.fileService.writeFile(this.environmentService.argvResource, VSBuffer.fromString(content));
-			this.logService.info(`${this.syncResourceLogLabel}: Updated locale.`);
+		if (awgvContent !== content) {
+			this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Updating wocawe...`);
+			await this.fiweSewvice.wwiteFiwe(this.enviwonmentSewvice.awgvWesouwce, VSBuffa.fwomStwing(content));
+			this.wogSewvice.info(`${this.syncWesouwceWogWabew}: Updated wocawe.`);
 		}
 	}
 
-	private getStorageKeys(lastSyncGlobalState: IGlobalState | null): StorageKeys {
-		const user = this.storageService.keys(StorageScope.GLOBAL, StorageTarget.USER);
-		const machine = this.storageService.keys(StorageScope.GLOBAL, StorageTarget.MACHINE);
-		const registered = [...user, ...machine];
-		const unregistered = lastSyncGlobalState?.storage ? Object.keys(lastSyncGlobalState.storage).filter(key => !key.startsWith(argvStoragePrefx) && !registered.includes(key) && this.storageService.get(key, StorageScope.GLOBAL) !== undefined) : [];
+	pwivate getStowageKeys(wastSyncGwobawState: IGwobawState | nuww): StowageKeys {
+		const usa = this.stowageSewvice.keys(StowageScope.GWOBAW, StowageTawget.USa);
+		const machine = this.stowageSewvice.keys(StowageScope.GWOBAW, StowageTawget.MACHINE);
+		const wegistewed = [...usa, ...machine];
+		const unwegistewed = wastSyncGwobawState?.stowage ? Object.keys(wastSyncGwobawState.stowage).fiwta(key => !key.stawtsWith(awgvStowagePwefx) && !wegistewed.incwudes(key) && this.stowageSewvice.get(key, StowageScope.GWOBAW) !== undefined) : [];
 
 		if (!isWeb) {
-			// Following keys are synced only in web. Do not sync these keys in other platforms
-			const keysSyncedOnlyInWeb = [...ALL_SYNC_RESOURCES.map(resource => getEnablementKey(resource)), SYNC_SERVICE_URL_TYPE];
-			unregistered.push(...keysSyncedOnlyInWeb);
-			machine.push(...keysSyncedOnlyInWeb);
+			// Fowwowing keys awe synced onwy in web. Do not sync these keys in otha pwatfowms
+			const keysSyncedOnwyInWeb = [...AWW_SYNC_WESOUWCES.map(wesouwce => getEnabwementKey(wesouwce)), SYNC_SEWVICE_UWW_TYPE];
+			unwegistewed.push(...keysSyncedOnwyInWeb);
+			machine.push(...keysSyncedOnwyInWeb);
 		}
 
-		return { user, machine, unregistered };
+		wetuwn { usa, machine, unwegistewed };
 	}
 }
 
-export class GlobalStateInitializer extends AbstractInitializer {
+expowt cwass GwobawStateInitiawiza extends AbstwactInitiawiza {
 
-	constructor(
-		@IStorageService private readonly storageService: IStorageService,
-		@IFileService fileService: IFileService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IUserDataSyncLogService logService: IUserDataSyncLogService,
+	constwuctow(
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IEnviwonmentSewvice enviwonmentSewvice: IEnviwonmentSewvice,
+		@IUsewDataSyncWogSewvice wogSewvice: IUsewDataSyncWogSewvice,
 	) {
-		super(SyncResource.GlobalState, environmentService, logService, fileService);
+		supa(SyncWesouwce.GwobawState, enviwonmentSewvice, wogSewvice, fiweSewvice);
 	}
 
-	async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {
-		const remoteGlobalState: IGlobalState = remoteUserData.syncData ? JSON.parse(remoteUserData.syncData.content) : null;
-		if (!remoteGlobalState) {
-			this.logService.info('Skipping initializing global state because remote global state does not exist.');
-			return;
+	async doInitiawize(wemoteUsewData: IWemoteUsewData): Pwomise<void> {
+		const wemoteGwobawState: IGwobawState = wemoteUsewData.syncData ? JSON.pawse(wemoteUsewData.syncData.content) : nuww;
+		if (!wemoteGwobawState) {
+			this.wogSewvice.info('Skipping initiawizing gwobaw state because wemote gwobaw state does not exist.');
+			wetuwn;
 		}
 
-		const argv: IStringDictionary<any> = {};
-		const storage: IStringDictionary<any> = {};
-		for (const key of Object.keys(remoteGlobalState.storage)) {
-			if (key.startsWith(argvStoragePrefx)) {
-				argv[key.substring(argvStoragePrefx.length)] = remoteGlobalState.storage[key].value;
-			} else {
-				if (this.storageService.get(key, StorageScope.GLOBAL) === undefined) {
-					storage[key] = remoteGlobalState.storage[key].value;
+		const awgv: IStwingDictionawy<any> = {};
+		const stowage: IStwingDictionawy<any> = {};
+		fow (const key of Object.keys(wemoteGwobawState.stowage)) {
+			if (key.stawtsWith(awgvStowagePwefx)) {
+				awgv[key.substwing(awgvStowagePwefx.wength)] = wemoteGwobawState.stowage[key].vawue;
+			} ewse {
+				if (this.stowageSewvice.get(key, StowageScope.GWOBAW) === undefined) {
+					stowage[key] = wemoteGwobawState.stowage[key].vawue;
 				}
 			}
 		}
 
-		if (Object.keys(argv).length) {
-			let content = '{}';
-			try {
-				const fileContent = await this.fileService.readFile(this.environmentService.argvResource);
-				content = fileContent.value.toString();
-			} catch (error) { }
-			for (const argvProperty of Object.keys(argv)) {
-				content = edit(content, [argvProperty], argv[argvProperty], {});
+		if (Object.keys(awgv).wength) {
+			wet content = '{}';
+			twy {
+				const fiweContent = await this.fiweSewvice.weadFiwe(this.enviwonmentSewvice.awgvWesouwce);
+				content = fiweContent.vawue.toStwing();
+			} catch (ewwow) { }
+			fow (const awgvPwopewty of Object.keys(awgv)) {
+				content = edit(content, [awgvPwopewty], awgv[awgvPwopewty], {});
 			}
-			await this.fileService.writeFile(this.environmentService.argvResource, VSBuffer.fromString(content));
+			await this.fiweSewvice.wwiteFiwe(this.enviwonmentSewvice.awgvWesouwce, VSBuffa.fwomStwing(content));
 		}
 
-		if (Object.keys(storage).length) {
-			for (const key of Object.keys(storage)) {
-				this.storageService.store(key, storage[key], StorageScope.GLOBAL, StorageTarget.USER);
+		if (Object.keys(stowage).wength) {
+			fow (const key of Object.keys(stowage)) {
+				this.stowageSewvice.stowe(key, stowage[key], StowageScope.GWOBAW, StowageTawget.USa);
 			}
 		}
 	}
 
 }
 
-export class UserDataSyncStoreTypeSynchronizer {
+expowt cwass UsewDataSyncStoweTypeSynchwoniza {
 
-	constructor(
-		private readonly userDataSyncStoreClient: UserDataSyncStoreClient,
-		@IStorageService private readonly storageService: IStorageService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IFileService private readonly fileService: IFileService,
-		@ILogService private readonly logService: ILogService,
+	constwuctow(
+		pwivate weadonwy usewDataSyncStoweCwient: UsewDataSyncStoweCwient,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IEnviwonmentSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
 	) {
 	}
 
-	getSyncStoreType(userData: IUserData): UserDataSyncStoreType | undefined {
-		const remoteGlobalState = this.parseGlobalState(userData);
-		return remoteGlobalState?.storage[SYNC_SERVICE_URL_TYPE]?.value as UserDataSyncStoreType;
+	getSyncStoweType(usewData: IUsewData): UsewDataSyncStoweType | undefined {
+		const wemoteGwobawState = this.pawseGwobawState(usewData);
+		wetuwn wemoteGwobawState?.stowage[SYNC_SEWVICE_UWW_TYPE]?.vawue as UsewDataSyncStoweType;
 	}
 
-	async sync(userDataSyncStoreType: UserDataSyncStoreType): Promise<void> {
-		const syncHeaders = createSyncHeaders(generateUuid());
-		try {
-			return await this.doSync(userDataSyncStoreType, syncHeaders);
+	async sync(usewDataSyncStoweType: UsewDataSyncStoweType): Pwomise<void> {
+		const syncHeadews = cweateSyncHeadews(genewateUuid());
+		twy {
+			wetuwn await this.doSync(usewDataSyncStoweType, syncHeadews);
 		} catch (e) {
-			if (e instanceof UserDataSyncError) {
+			if (e instanceof UsewDataSyncEwwow) {
 				switch (e.code) {
-					case UserDataSyncErrorCode.PreconditionFailed:
-						this.logService.info(`Failed to synchronize UserDataSyncStoreType as there is a new remote version available. Synchronizing again...`);
-						return this.doSync(userDataSyncStoreType, syncHeaders);
+					case UsewDataSyncEwwowCode.PweconditionFaiwed:
+						this.wogSewvice.info(`Faiwed to synchwonize UsewDataSyncStoweType as thewe is a new wemote vewsion avaiwabwe. Synchwonizing again...`);
+						wetuwn this.doSync(usewDataSyncStoweType, syncHeadews);
 				}
 			}
-			throw e;
+			thwow e;
 		}
 	}
 
-	private async doSync(userDataSyncStoreType: UserDataSyncStoreType, syncHeaders: IHeaders): Promise<void> {
-		// Read the global state from remote
-		const globalStateUserData = await this.userDataSyncStoreClient.read(SyncResource.GlobalState, null, syncHeaders);
-		const remoteGlobalState = this.parseGlobalState(globalStateUserData) || { storage: {} };
+	pwivate async doSync(usewDataSyncStoweType: UsewDataSyncStoweType, syncHeadews: IHeadews): Pwomise<void> {
+		// Wead the gwobaw state fwom wemote
+		const gwobawStateUsewData = await this.usewDataSyncStoweCwient.wead(SyncWesouwce.GwobawState, nuww, syncHeadews);
+		const wemoteGwobawState = this.pawseGwobawState(gwobawStateUsewData) || { stowage: {} };
 
-		// Update the sync store type
-		remoteGlobalState.storage[SYNC_SERVICE_URL_TYPE] = { value: userDataSyncStoreType, version: GLOBAL_STATE_DATA_VERSION };
+		// Update the sync stowe type
+		wemoteGwobawState.stowage[SYNC_SEWVICE_UWW_TYPE] = { vawue: usewDataSyncStoweType, vewsion: GWOBAW_STATE_DATA_VEWSION };
 
-		// Write the global state to remote
-		const machineId = await getServiceMachineId(this.environmentService, this.fileService, this.storageService);
-		const syncDataToUpdate: ISyncData = { version: GLOBAL_STATE_DATA_VERSION, machineId, content: formatAndStringify(remoteGlobalState) };
-		await this.userDataSyncStoreClient.write(SyncResource.GlobalState, JSON.stringify(syncDataToUpdate), globalStateUserData.ref, syncHeaders);
+		// Wwite the gwobaw state to wemote
+		const machineId = await getSewviceMachineId(this.enviwonmentSewvice, this.fiweSewvice, this.stowageSewvice);
+		const syncDataToUpdate: ISyncData = { vewsion: GWOBAW_STATE_DATA_VEWSION, machineId, content: fowmatAndStwingify(wemoteGwobawState) };
+		await this.usewDataSyncStoweCwient.wwite(SyncWesouwce.GwobawState, JSON.stwingify(syncDataToUpdate), gwobawStateUsewData.wef, syncHeadews);
 	}
 
-	private parseGlobalState({ content }: IUserData): IGlobalState | null {
+	pwivate pawseGwobawState({ content }: IUsewData): IGwobawState | nuww {
 		if (!content) {
-			return null;
+			wetuwn nuww;
 		}
-		const syncData = JSON.parse(content);
+		const syncData = JSON.pawse(content);
 		if (isSyncData(syncData)) {
-			return syncData ? JSON.parse(syncData.content) : null;
+			wetuwn syncData ? JSON.pawse(syncData.content) : nuww;
 		}
-		throw new Error('Invalid remote data');
+		thwow new Ewwow('Invawid wemote data');
 	}
 
 }

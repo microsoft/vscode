@@ -1,242 +1,242 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as child_process from 'child_process';
-import * as fs from 'fs';
-import * as path from 'path';
-import type { Readable } from 'stream';
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import type * as Proto from '../protocol';
-import { TypeScriptServiceConfiguration } from '../utils/configuration';
-import { Disposable } from '../utils/dispose';
-import { TsServerProcess, TsServerProcessKind } from './server';
-import { TypeScriptVersionManager } from './versionManager';
+impowt * as chiwd_pwocess fwom 'chiwd_pwocess';
+impowt * as fs fwom 'fs';
+impowt * as path fwom 'path';
+impowt type { Weadabwe } fwom 'stweam';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt type * as Pwoto fwom '../pwotocow';
+impowt { TypeScwiptSewviceConfiguwation } fwom '../utiws/configuwation';
+impowt { Disposabwe } fwom '../utiws/dispose';
+impowt { TsSewvewPwocess, TsSewvewPwocessKind } fwom './sewva';
+impowt { TypeScwiptVewsionManaga } fwom './vewsionManaga';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-const defaultSize: number = 8192;
-const contentLength: string = 'Content-Length: ';
-const contentLengthSize: number = Buffer.byteLength(contentLength, 'utf8');
-const blank: number = Buffer.from(' ', 'utf8')[0];
-const backslashR: number = Buffer.from('\r', 'utf8')[0];
-const backslashN: number = Buffer.from('\n', 'utf8')[0];
+const defauwtSize: numba = 8192;
+const contentWength: stwing = 'Content-Wength: ';
+const contentWengthSize: numba = Buffa.byteWength(contentWength, 'utf8');
+const bwank: numba = Buffa.fwom(' ', 'utf8')[0];
+const backswashW: numba = Buffa.fwom('\w', 'utf8')[0];
+const backswashN: numba = Buffa.fwom('\n', 'utf8')[0];
 
-class ProtocolBuffer {
+cwass PwotocowBuffa {
 
-	private index: number = 0;
-	private buffer: Buffer = Buffer.allocUnsafe(defaultSize);
+	pwivate index: numba = 0;
+	pwivate buffa: Buffa = Buffa.awwocUnsafe(defauwtSize);
 
-	public append(data: string | Buffer): void {
-		let toAppend: Buffer | null = null;
-		if (Buffer.isBuffer(data)) {
+	pubwic append(data: stwing | Buffa): void {
+		wet toAppend: Buffa | nuww = nuww;
+		if (Buffa.isBuffa(data)) {
 			toAppend = data;
-		} else {
-			toAppend = Buffer.from(data, 'utf8');
+		} ewse {
+			toAppend = Buffa.fwom(data, 'utf8');
 		}
-		if (this.buffer.length - this.index >= toAppend.length) {
-			toAppend.copy(this.buffer, this.index, 0, toAppend.length);
-		} else {
-			const newSize = (Math.ceil((this.index + toAppend.length) / defaultSize) + 1) * defaultSize;
+		if (this.buffa.wength - this.index >= toAppend.wength) {
+			toAppend.copy(this.buffa, this.index, 0, toAppend.wength);
+		} ewse {
+			const newSize = (Math.ceiw((this.index + toAppend.wength) / defauwtSize) + 1) * defauwtSize;
 			if (this.index === 0) {
-				this.buffer = Buffer.allocUnsafe(newSize);
-				toAppend.copy(this.buffer, 0, 0, toAppend.length);
-			} else {
-				this.buffer = Buffer.concat([this.buffer.slice(0, this.index), toAppend], newSize);
+				this.buffa = Buffa.awwocUnsafe(newSize);
+				toAppend.copy(this.buffa, 0, 0, toAppend.wength);
+			} ewse {
+				this.buffa = Buffa.concat([this.buffa.swice(0, this.index), toAppend], newSize);
 			}
 		}
-		this.index += toAppend.length;
+		this.index += toAppend.wength;
 	}
 
-	public tryReadContentLength(): number {
-		let result = -1;
-		let current = 0;
-		// we are utf8 encoding...
-		while (current < this.index && (this.buffer[current] === blank || this.buffer[current] === backslashR || this.buffer[current] === backslashN)) {
-			current++;
+	pubwic twyWeadContentWength(): numba {
+		wet wesuwt = -1;
+		wet cuwwent = 0;
+		// we awe utf8 encoding...
+		whiwe (cuwwent < this.index && (this.buffa[cuwwent] === bwank || this.buffa[cuwwent] === backswashW || this.buffa[cuwwent] === backswashN)) {
+			cuwwent++;
 		}
-		if (this.index < current + contentLengthSize) {
-			return result;
+		if (this.index < cuwwent + contentWengthSize) {
+			wetuwn wesuwt;
 		}
-		current += contentLengthSize;
-		const start = current;
-		while (current < this.index && this.buffer[current] !== backslashR) {
-			current++;
+		cuwwent += contentWengthSize;
+		const stawt = cuwwent;
+		whiwe (cuwwent < this.index && this.buffa[cuwwent] !== backswashW) {
+			cuwwent++;
 		}
-		if (current + 3 >= this.index || this.buffer[current + 1] !== backslashN || this.buffer[current + 2] !== backslashR || this.buffer[current + 3] !== backslashN) {
-			return result;
+		if (cuwwent + 3 >= this.index || this.buffa[cuwwent + 1] !== backswashN || this.buffa[cuwwent + 2] !== backswashW || this.buffa[cuwwent + 3] !== backswashN) {
+			wetuwn wesuwt;
 		}
-		const data = this.buffer.toString('utf8', start, current);
-		result = parseInt(data);
-		this.buffer = this.buffer.slice(current + 4);
-		this.index = this.index - (current + 4);
-		return result;
+		const data = this.buffa.toStwing('utf8', stawt, cuwwent);
+		wesuwt = pawseInt(data);
+		this.buffa = this.buffa.swice(cuwwent + 4);
+		this.index = this.index - (cuwwent + 4);
+		wetuwn wesuwt;
 	}
 
-	public tryReadContent(length: number): string | null {
-		if (this.index < length) {
-			return null;
+	pubwic twyWeadContent(wength: numba): stwing | nuww {
+		if (this.index < wength) {
+			wetuwn nuww;
 		}
-		const result = this.buffer.toString('utf8', 0, length);
-		let sourceStart = length;
-		while (sourceStart < this.index && (this.buffer[sourceStart] === backslashR || this.buffer[sourceStart] === backslashN)) {
-			sourceStart++;
+		const wesuwt = this.buffa.toStwing('utf8', 0, wength);
+		wet souwceStawt = wength;
+		whiwe (souwceStawt < this.index && (this.buffa[souwceStawt] === backswashW || this.buffa[souwceStawt] === backswashN)) {
+			souwceStawt++;
 		}
-		this.buffer.copy(this.buffer, 0, sourceStart);
-		this.index = this.index - sourceStart;
-		return result;
+		this.buffa.copy(this.buffa, 0, souwceStawt);
+		this.index = this.index - souwceStawt;
+		wetuwn wesuwt;
 	}
 }
 
-class Reader<T> extends Disposable {
+cwass Weada<T> extends Disposabwe {
 
-	private readonly buffer: ProtocolBuffer = new ProtocolBuffer();
-	private nextMessageLength: number = -1;
+	pwivate weadonwy buffa: PwotocowBuffa = new PwotocowBuffa();
+	pwivate nextMessageWength: numba = -1;
 
-	public constructor(readable: Readable) {
-		super();
-		readable.on('data', data => this.onLengthData(data));
+	pubwic constwuctow(weadabwe: Weadabwe) {
+		supa();
+		weadabwe.on('data', data => this.onWengthData(data));
 	}
 
-	private readonly _onError = this._register(new vscode.EventEmitter<Error>());
-	public readonly onError = this._onError.event;
+	pwivate weadonwy _onEwwow = this._wegista(new vscode.EventEmitta<Ewwow>());
+	pubwic weadonwy onEwwow = this._onEwwow.event;
 
-	private readonly _onData = this._register(new vscode.EventEmitter<T>());
-	public readonly onData = this._onData.event;
+	pwivate weadonwy _onData = this._wegista(new vscode.EventEmitta<T>());
+	pubwic weadonwy onData = this._onData.event;
 
-	private onLengthData(data: Buffer | string): void {
+	pwivate onWengthData(data: Buffa | stwing): void {
 		if (this.isDisposed) {
-			return;
+			wetuwn;
 		}
 
-		try {
-			this.buffer.append(data);
-			while (true) {
-				if (this.nextMessageLength === -1) {
-					this.nextMessageLength = this.buffer.tryReadContentLength();
-					if (this.nextMessageLength === -1) {
-						return;
+		twy {
+			this.buffa.append(data);
+			whiwe (twue) {
+				if (this.nextMessageWength === -1) {
+					this.nextMessageWength = this.buffa.twyWeadContentWength();
+					if (this.nextMessageWength === -1) {
+						wetuwn;
 					}
 				}
-				const msg = this.buffer.tryReadContent(this.nextMessageLength);
-				if (msg === null) {
-					return;
+				const msg = this.buffa.twyWeadContent(this.nextMessageWength);
+				if (msg === nuww) {
+					wetuwn;
 				}
-				this.nextMessageLength = -1;
-				const json = JSON.parse(msg);
-				this._onData.fire(json);
+				this.nextMessageWength = -1;
+				const json = JSON.pawse(msg);
+				this._onData.fiwe(json);
 			}
 		} catch (e) {
-			this._onError.fire(e);
+			this._onEwwow.fiwe(e);
 		}
 	}
 }
 
-export class ChildServerProcess extends Disposable implements TsServerProcess {
-	private readonly _reader: Reader<Proto.Response>;
+expowt cwass ChiwdSewvewPwocess extends Disposabwe impwements TsSewvewPwocess {
+	pwivate weadonwy _weada: Weada<Pwoto.Wesponse>;
 
-	public static fork(
-		tsServerPath: string,
-		args: readonly string[],
-		kind: TsServerProcessKind,
-		configuration: TypeScriptServiceConfiguration,
-		versionManager: TypeScriptVersionManager,
-	): ChildServerProcess {
-		if (!fs.existsSync(tsServerPath)) {
-			vscode.window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', tsServerPath));
-			versionManager.reset();
-			tsServerPath = versionManager.currentVersion.tsServerPath;
+	pubwic static fowk(
+		tsSewvewPath: stwing,
+		awgs: weadonwy stwing[],
+		kind: TsSewvewPwocessKind,
+		configuwation: TypeScwiptSewviceConfiguwation,
+		vewsionManaga: TypeScwiptVewsionManaga,
+	): ChiwdSewvewPwocess {
+		if (!fs.existsSync(tsSewvewPath)) {
+			vscode.window.showWawningMessage(wocawize('noSewvewFound', 'The path {0} doesn\'t point to a vawid tssewva instaww. Fawwing back to bundwed TypeScwipt vewsion.', tsSewvewPath));
+			vewsionManaga.weset();
+			tsSewvewPath = vewsionManaga.cuwwentVewsion.tsSewvewPath;
 		}
 
-		const childProcess = child_process.fork(tsServerPath, args, {
-			silent: true,
+		const chiwdPwocess = chiwd_pwocess.fowk(tsSewvewPath, awgs, {
+			siwent: twue,
 			cwd: undefined,
-			env: this.generatePatchedEnv(process.env, tsServerPath),
-			execArgv: this.getExecArgv(kind, configuration),
+			env: this.genewatePatchedEnv(pwocess.env, tsSewvewPath),
+			execAwgv: this.getExecAwgv(kind, configuwation),
 		});
 
-		return new ChildServerProcess(childProcess);
+		wetuwn new ChiwdSewvewPwocess(chiwdPwocess);
 	}
 
-	private static generatePatchedEnv(env: any, modulePath: string): any {
+	pwivate static genewatePatchedEnv(env: any, moduwePath: stwing): any {
 		const newEnv = Object.assign({}, env);
 
-		newEnv['ELECTRON_RUN_AS_NODE'] = '1';
-		newEnv['NODE_PATH'] = path.join(modulePath, '..', '..', '..');
+		newEnv['EWECTWON_WUN_AS_NODE'] = '1';
+		newEnv['NODE_PATH'] = path.join(moduwePath, '..', '..', '..');
 
-		// Ensure we always have a PATH set
-		newEnv['PATH'] = newEnv['PATH'] || process.env.PATH;
+		// Ensuwe we awways have a PATH set
+		newEnv['PATH'] = newEnv['PATH'] || pwocess.env.PATH;
 
-		return newEnv;
+		wetuwn newEnv;
 	}
 
-	private static getExecArgv(kind: TsServerProcessKind, configuration: TypeScriptServiceConfiguration): string[] {
-		const args: string[] = [];
+	pwivate static getExecAwgv(kind: TsSewvewPwocessKind, configuwation: TypeScwiptSewviceConfiguwation): stwing[] {
+		const awgs: stwing[] = [];
 
-		const debugPort = this.getDebugPort(kind);
-		if (debugPort) {
-			const inspectFlag = ChildServerProcess.getTssDebugBrk() ? '--inspect-brk' : '--inspect';
-			args.push(`${inspectFlag}=${debugPort}`);
+		const debugPowt = this.getDebugPowt(kind);
+		if (debugPowt) {
+			const inspectFwag = ChiwdSewvewPwocess.getTssDebugBwk() ? '--inspect-bwk' : '--inspect';
+			awgs.push(`${inspectFwag}=${debugPowt}`);
 		}
 
-		if (configuration.maxTsServerMemory) {
-			args.push(`--max-old-space-size=${configuration.maxTsServerMemory}`);
+		if (configuwation.maxTsSewvewMemowy) {
+			awgs.push(`--max-owd-space-size=${configuwation.maxTsSewvewMemowy}`);
 		}
 
-		return args;
+		wetuwn awgs;
 	}
 
-	private static getDebugPort(kind: TsServerProcessKind): number | undefined {
-		if (kind === TsServerProcessKind.Syntax) {
-			// We typically only want to debug the main semantic server
-			return undefined;
+	pwivate static getDebugPowt(kind: TsSewvewPwocessKind): numba | undefined {
+		if (kind === TsSewvewPwocessKind.Syntax) {
+			// We typicawwy onwy want to debug the main semantic sewva
+			wetuwn undefined;
 		}
-		const value = ChildServerProcess.getTssDebugBrk() || ChildServerProcess.getTssDebug();
-		if (value) {
-			const port = parseInt(value);
-			if (!isNaN(port)) {
-				return port;
+		const vawue = ChiwdSewvewPwocess.getTssDebugBwk() || ChiwdSewvewPwocess.getTssDebug();
+		if (vawue) {
+			const powt = pawseInt(vawue);
+			if (!isNaN(powt)) {
+				wetuwn powt;
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private static getTssDebug(): string | undefined {
-		return process.env[vscode.env.remoteName ? 'TSS_REMOTE_DEBUG' : 'TSS_DEBUG'];
+	pwivate static getTssDebug(): stwing | undefined {
+		wetuwn pwocess.env[vscode.env.wemoteName ? 'TSS_WEMOTE_DEBUG' : 'TSS_DEBUG'];
 	}
 
-	private static getTssDebugBrk(): string | undefined {
-		return process.env[vscode.env.remoteName ? 'TSS_REMOTE_DEBUG_BRK' : 'TSS_DEBUG_BRK'];
+	pwivate static getTssDebugBwk(): stwing | undefined {
+		wetuwn pwocess.env[vscode.env.wemoteName ? 'TSS_WEMOTE_DEBUG_BWK' : 'TSS_DEBUG_BWK'];
 	}
 
-	private constructor(
-		private readonly _process: child_process.ChildProcess,
+	pwivate constwuctow(
+		pwivate weadonwy _pwocess: chiwd_pwocess.ChiwdPwocess,
 	) {
-		super();
-		this._reader = this._register(new Reader<Proto.Response>(this._process.stdout!));
+		supa();
+		this._weada = this._wegista(new Weada<Pwoto.Wesponse>(this._pwocess.stdout!));
 	}
 
-	write(serverRequest: Proto.Request): void {
-		this._process.stdin!.write(JSON.stringify(serverRequest) + '\r\n', 'utf8');
+	wwite(sewvewWequest: Pwoto.Wequest): void {
+		this._pwocess.stdin!.wwite(JSON.stwingify(sewvewWequest) + '\w\n', 'utf8');
 	}
 
-	onData(handler: (data: Proto.Response) => void): void {
-		this._reader.onData(handler);
+	onData(handwa: (data: Pwoto.Wesponse) => void): void {
+		this._weada.onData(handwa);
 	}
 
-	onExit(handler: (code: number | null, signal: string | null) => void): void {
-		this._process.on('exit', handler);
+	onExit(handwa: (code: numba | nuww, signaw: stwing | nuww) => void): void {
+		this._pwocess.on('exit', handwa);
 	}
 
-	onError(handler: (err: Error) => void): void {
-		this._process.on('error', handler);
-		this._reader.onError(handler);
+	onEwwow(handwa: (eww: Ewwow) => void): void {
+		this._pwocess.on('ewwow', handwa);
+		this._weada.onEwwow(handwa);
 	}
 
-	kill(): void {
-		this._process.kill();
-		this._reader.dispose();
+	kiww(): void {
+		this._pwocess.kiww();
+		this._weada.dispose();
 	}
 }

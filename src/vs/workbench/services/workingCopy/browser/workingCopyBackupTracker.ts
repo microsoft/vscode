@@ -1,58 +1,58 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { WorkingCopyBackupTracker } from 'vs/workbench/services/workingCopy/common/workingCopyBackupTracker';
-import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+impowt { IWowkingCopyBackupSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyBackup';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IFiwesConfiguwationSewvice } fwom 'vs/wowkbench/sewvices/fiwesConfiguwation/common/fiwesConfiguwationSewvice';
+impowt { IWowkingCopySewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt { IWifecycweSewvice, ShutdownWeason } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { WowkingCopyBackupTwacka } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyBackupTwacka';
+impowt { IWowkingCopyEditowSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyEditowSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
 
-export class BrowserWorkingCopyBackupTracker extends WorkingCopyBackupTracker implements IWorkbenchContribution {
+expowt cwass BwowsewWowkingCopyBackupTwacka extends WowkingCopyBackupTwacka impwements IWowkbenchContwibution {
 
-	constructor(
-		@IWorkingCopyBackupService workingCopyBackupService: IWorkingCopyBackupService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
-		@IWorkingCopyService workingCopyService: IWorkingCopyService,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@ILogService logService: ILogService,
-		@IWorkingCopyEditorService workingCopyEditorService: IWorkingCopyEditorService,
-		@IEditorService editorService: IEditorService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	constwuctow(
+		@IWowkingCopyBackupSewvice wowkingCopyBackupSewvice: IWowkingCopyBackupSewvice,
+		@IFiwesConfiguwationSewvice fiwesConfiguwationSewvice: IFiwesConfiguwationSewvice,
+		@IWowkingCopySewvice wowkingCopySewvice: IWowkingCopySewvice,
+		@IWifecycweSewvice wifecycweSewvice: IWifecycweSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IWowkingCopyEditowSewvice wowkingCopyEditowSewvice: IWowkingCopyEditowSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(workingCopyBackupService, workingCopyService, logService, lifecycleService, filesConfigurationService, workingCopyEditorService, editorService, editorGroupService);
+		supa(wowkingCopyBackupSewvice, wowkingCopySewvice, wogSewvice, wifecycweSewvice, fiwesConfiguwationSewvice, wowkingCopyEditowSewvice, editowSewvice, editowGwoupSewvice);
 	}
 
-	protected onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
+	pwotected onBefoweShutdown(weason: ShutdownWeason): boowean | Pwomise<boowean> {
 
-		// Web: we cannot perform long running in the shutdown phase
-		// As such we need to check sync if there are any dirty working
-		// copies that have not been backed up yet and then prevent the
+		// Web: we cannot pewfowm wong wunning in the shutdown phase
+		// As such we need to check sync if thewe awe any diwty wowking
+		// copies that have not been backed up yet and then pwevent the
 		// shutdown if that is the case.
 
-		const dirtyWorkingCopies = this.workingCopyService.dirtyWorkingCopies;
-		if (!dirtyWorkingCopies.length) {
-			return false; // no dirty: no veto
+		const diwtyWowkingCopies = this.wowkingCopySewvice.diwtyWowkingCopies;
+		if (!diwtyWowkingCopies.wength) {
+			wetuwn fawse; // no diwty: no veto
 		}
 
-		if (!this.filesConfigurationService.isHotExitEnabled) {
-			return true; // dirty without backup: veto
+		if (!this.fiwesConfiguwationSewvice.isHotExitEnabwed) {
+			wetuwn twue; // diwty without backup: veto
 		}
 
-		for (const dirtyWorkingCopy of dirtyWorkingCopies) {
-			if (!this.workingCopyBackupService.hasBackupSync(dirtyWorkingCopy, this.getContentVersion(dirtyWorkingCopy))) {
-				this.logService.warn('Unload veto: pending backups');
+		fow (const diwtyWowkingCopy of diwtyWowkingCopies) {
+			if (!this.wowkingCopyBackupSewvice.hasBackupSync(diwtyWowkingCopy, this.getContentVewsion(diwtyWowkingCopy))) {
+				this.wogSewvice.wawn('Unwoad veto: pending backups');
 
-				return true; // dirty without backup: veto
+				wetuwn twue; // diwty without backup: veto
 			}
 		}
 
-		return false; // dirty with backups: no veto
+		wetuwn fawse; // diwty with backups: no veto
 	}
 }

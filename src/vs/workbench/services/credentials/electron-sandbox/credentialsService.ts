@@ -1,50 +1,50 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICredentialsChangeEvent, ICredentialsService } from 'vs/workbench/services/credentials/common/credentials';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+impowt { ICwedentiawsChangeEvent, ICwedentiawsSewvice } fwom 'vs/wowkbench/sewvices/cwedentiaws/common/cwedentiaws';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
 
-export class KeytarCredentialsService extends Disposable implements ICredentialsService {
+expowt cwass KeytawCwedentiawsSewvice extends Disposabwe impwements ICwedentiawsSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private _onDidChangePassword: Emitter<ICredentialsChangeEvent> = this._register(new Emitter());
-	readonly onDidChangePassword = this._onDidChangePassword.event;
+	pwivate _onDidChangePasswowd: Emitta<ICwedentiawsChangeEvent> = this._wegista(new Emitta());
+	weadonwy onDidChangePasswowd = this._onDidChangePasswowd.event;
 
-	constructor(@INativeHostService private readonly nativeHostService: INativeHostService) {
-		super();
+	constwuctow(@INativeHostSewvice pwivate weadonwy nativeHostSewvice: INativeHostSewvice) {
+		supa();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.nativeHostService.onDidChangePassword(event => this._onDidChangePassword.fire(event)));
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.nativeHostSewvice.onDidChangePasswowd(event => this._onDidChangePasswowd.fiwe(event)));
 	}
 
-	getPassword(service: string, account: string): Promise<string | null> {
-		return this.nativeHostService.getPassword(service, account);
+	getPasswowd(sewvice: stwing, account: stwing): Pwomise<stwing | nuww> {
+		wetuwn this.nativeHostSewvice.getPasswowd(sewvice, account);
 	}
 
-	setPassword(service: string, account: string, password: string): Promise<void> {
-		return this.nativeHostService.setPassword(service, account, password);
+	setPasswowd(sewvice: stwing, account: stwing, passwowd: stwing): Pwomise<void> {
+		wetuwn this.nativeHostSewvice.setPasswowd(sewvice, account, passwowd);
 	}
 
-	deletePassword(service: string, account: string): Promise<boolean> {
-		return this.nativeHostService.deletePassword(service, account);
+	dewetePasswowd(sewvice: stwing, account: stwing): Pwomise<boowean> {
+		wetuwn this.nativeHostSewvice.dewetePasswowd(sewvice, account);
 	}
 
-	findPassword(service: string): Promise<string | null> {
-		return this.nativeHostService.findPassword(service);
+	findPasswowd(sewvice: stwing): Pwomise<stwing | nuww> {
+		wetuwn this.nativeHostSewvice.findPasswowd(sewvice);
 	}
 
-	findCredentials(service: string): Promise<Array<{ account: string, password: string }>> {
-		return this.nativeHostService.findCredentials(service);
+	findCwedentiaws(sewvice: stwing): Pwomise<Awway<{ account: stwing, passwowd: stwing }>> {
+		wetuwn this.nativeHostSewvice.findCwedentiaws(sewvice);
 	}
 }
 
-registerSingleton(ICredentialsService, KeytarCredentialsService, true);
+wegistewSingweton(ICwedentiawsSewvice, KeytawCwedentiawsSewvice, twue);

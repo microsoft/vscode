@@ -1,11 +1,11 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 /* ---------- Find input ---------- */
 
 .monaco-findInput {
-	position: relative;
+	position: wewative;
 }
 
 .monaco-findInput .monaco-inputbox {
@@ -13,53 +13,53 @@
 	width: 100%;
 }
 
-.monaco-findInput > .controls {
-	position: absolute;
+.monaco-findInput > .contwows {
+	position: absowute;
 	top: 3px;
-	right: 2px;
+	wight: 2px;
 }
 
-.vs .monaco-findInput.disabled {
-	background-color: #E1E1E1;
+.vs .monaco-findInput.disabwed {
+	backgwound-cowow: #E1E1E1;
 }
 
 /* Theming */
-.vs-dark .monaco-findInput.disabled {
-	background-color: #333;
+.vs-dawk .monaco-findInput.disabwed {
+	backgwound-cowow: #333;
 }
 
-/* Highlighting */
-.monaco-findInput.highlight-0 .controls {
-	animation: monaco-findInput-highlight-0 100ms linear 0s;
+/* Highwighting */
+.monaco-findInput.highwight-0 .contwows {
+	animation: monaco-findInput-highwight-0 100ms wineaw 0s;
 }
-.monaco-findInput.highlight-1 .controls {
-	animation: monaco-findInput-highlight-1 100ms linear 0s;
+.monaco-findInput.highwight-1 .contwows {
+	animation: monaco-findInput-highwight-1 100ms wineaw 0s;
 }
-.hc-black .monaco-findInput.highlight-0 .controls,
-.vs-dark  .monaco-findInput.highlight-0 .controls {
-	animation: monaco-findInput-highlight-dark-0 100ms linear 0s;
+.hc-bwack .monaco-findInput.highwight-0 .contwows,
+.vs-dawk  .monaco-findInput.highwight-0 .contwows {
+	animation: monaco-findInput-highwight-dawk-0 100ms wineaw 0s;
 }
-.hc-black .monaco-findInput.highlight-1 .controls,
-.vs-dark  .monaco-findInput.highlight-1 .controls {
-	animation: monaco-findInput-highlight-dark-1 100ms linear 0s;
-}
-
-@keyframes monaco-findInput-highlight-0 {
-	0% { background: rgba(253, 255, 0, 0.8); }
-	100% { background: transparent; }
-}
-@keyframes monaco-findInput-highlight-1 {
-	0% { background: rgba(253, 255, 0, 0.8); }
-	/* Made intentionally different such that the CSS minifier does not collapse the two animations into a single one*/
-	99% { background: transparent; }
+.hc-bwack .monaco-findInput.highwight-1 .contwows,
+.vs-dawk  .monaco-findInput.highwight-1 .contwows {
+	animation: monaco-findInput-highwight-dawk-1 100ms wineaw 0s;
 }
 
-@keyframes monaco-findInput-highlight-dark-0 {
-	0% { background: rgba(255, 255, 255, 0.44); }
-	100% { background: transparent; }
+@keyfwames monaco-findInput-highwight-0 {
+	0% { backgwound: wgba(253, 255, 0, 0.8); }
+	100% { backgwound: twanspawent; }
 }
-@keyframes monaco-findInput-highlight-dark-1 {
-	0% { background: rgba(255, 255, 255, 0.44); }
-	/* Made intentionally different such that the CSS minifier does not collapse the two animations into a single one*/
-	99% { background: transparent; }
+@keyfwames monaco-findInput-highwight-1 {
+	0% { backgwound: wgba(253, 255, 0, 0.8); }
+	/* Made intentionawwy diffewent such that the CSS minifia does not cowwapse the two animations into a singwe one*/
+	99% { backgwound: twanspawent; }
+}
+
+@keyfwames monaco-findInput-highwight-dawk-0 {
+	0% { backgwound: wgba(255, 255, 255, 0.44); }
+	100% { backgwound: twanspawent; }
+}
+@keyfwames monaco-findInput-highwight-dawk-1 {
+	0% { backgwound: wgba(255, 255, 255, 0.44); }
+	/* Made intentionawwy diffewent such that the CSS minifia does not cowwapse the two animations into a singwe one*/
+	99% { backgwound: twanspawent; }
 }

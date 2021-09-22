@@ -1,320 +1,320 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { EditorExtensions, EditorInputCapabilities, IEditorOpenContext, IVisibleEditorPane } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { Dimension, show, hide } from 'vs/base/browser/dom';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorPaneRegistry, IEditorPaneDescriptor } from 'vs/workbench/browser/editor';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
-import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
-import { Emitter } from 'vs/base/common/event';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { UnavailableResourceErrorEditor, UnknownErrorEditor, WorkspaceTrustRequiredEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { EditowExtensions, EditowInputCapabiwities, IEditowOpenContext, IVisibweEditowPane } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { Dimension, show, hide } fwom 'vs/base/bwowsa/dom';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IEditowPaneWegistwy, IEditowPaneDescwiptow } fwom 'vs/wowkbench/bwowsa/editow';
+impowt { IWowkbenchWayoutSewvice } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { EditowPane } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPane';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IEditowPwogwessSewvice, WongWunningOpewation } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { IEditowGwoupView, DEFAUWT_EDITOW_MIN_DIMENSIONS, DEFAUWT_EDITOW_MAX_DIMENSIONS } fwom 'vs/wowkbench/bwowsa/pawts/editow/editow';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { IWowkspaceTwustManagementSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { UnavaiwabweWesouwceEwwowEditow, UnknownEwwowEditow, WowkspaceTwustWequiwedEditow } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPwacehowda';
+impowt { IEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { FiweOpewationEwwow, FiweOpewationWesuwt } fwom 'vs/pwatfowm/fiwes/common/fiwes';
 
-export interface IOpenEditorResult {
+expowt intewface IOpenEditowWesuwt {
 
 	/**
-	 * The editor pane used for opening. This can be a generic
-	 * placeholder in certain cases, e.g. when workspace trust
-	 * is required, or an editor fails to restore.
+	 * The editow pane used fow opening. This can be a genewic
+	 * pwacehowda in cewtain cases, e.g. when wowkspace twust
+	 * is wequiwed, ow an editow faiws to westowe.
 	 *
-	 * Will be `undefined` if an error occured while trying to
-	 * open the editor and in cases where no placeholder is being
+	 * Wiww be `undefined` if an ewwow occuwed whiwe twying to
+	 * open the editow and in cases whewe no pwacehowda is being
 	 * used.
 	 */
-	readonly editorPane?: EditorPane;
+	weadonwy editowPane?: EditowPane;
 
 	/**
-	 * Whether the editor changed as a result of opening.
+	 * Whetha the editow changed as a wesuwt of opening.
 	 */
-	readonly editorChanged?: boolean;
+	weadonwy editowChanged?: boowean;
 
 	/**
-	 * This property is set when an editor fails to restore and
-	 * is shown with a generic place holder. It allows callers
-	 * to still present the error to the user in that case.
+	 * This pwopewty is set when an editow faiws to westowe and
+	 * is shown with a genewic pwace howda. It awwows cawwews
+	 * to stiww pwesent the ewwow to the usa in that case.
 	 */
-	readonly error?: Error;
+	weadonwy ewwow?: Ewwow;
 }
 
-export class EditorPanes extends Disposable {
+expowt cwass EditowPanes extends Disposabwe {
 
-	//#region Events
+	//#wegion Events
 
-	private readonly _onDidFocus = this._register(new Emitter<void>());
-	readonly onDidFocus = this._onDidFocus.event;
+	pwivate weadonwy _onDidFocus = this._wegista(new Emitta<void>());
+	weadonwy onDidFocus = this._onDidFocus.event;
 
-	private _onDidChangeSizeConstraints = this._register(new Emitter<{ width: number; height: number; } | undefined>());
-	readonly onDidChangeSizeConstraints = this._onDidChangeSizeConstraints.event;
+	pwivate _onDidChangeSizeConstwaints = this._wegista(new Emitta<{ width: numba; height: numba; } | undefined>());
+	weadonwy onDidChangeSizeConstwaints = this._onDidChangeSizeConstwaints.event;
 
-	//#endregion
+	//#endwegion
 
-	get minimumWidth() { return this._activeEditorPane?.minimumWidth ?? DEFAULT_EDITOR_MIN_DIMENSIONS.width; }
-	get minimumHeight() { return this._activeEditorPane?.minimumHeight ?? DEFAULT_EDITOR_MIN_DIMENSIONS.height; }
-	get maximumWidth() { return this._activeEditorPane?.maximumWidth ?? DEFAULT_EDITOR_MAX_DIMENSIONS.width; }
-	get maximumHeight() { return this._activeEditorPane?.maximumHeight ?? DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
+	get minimumWidth() { wetuwn this._activeEditowPane?.minimumWidth ?? DEFAUWT_EDITOW_MIN_DIMENSIONS.width; }
+	get minimumHeight() { wetuwn this._activeEditowPane?.minimumHeight ?? DEFAUWT_EDITOW_MIN_DIMENSIONS.height; }
+	get maximumWidth() { wetuwn this._activeEditowPane?.maximumWidth ?? DEFAUWT_EDITOW_MAX_DIMENSIONS.width; }
+	get maximumHeight() { wetuwn this._activeEditowPane?.maximumHeight ?? DEFAUWT_EDITOW_MAX_DIMENSIONS.height; }
 
-	private _activeEditorPane: EditorPane | null = null;
-	get activeEditorPane(): IVisibleEditorPane | null { return this._activeEditorPane as IVisibleEditorPane | null; }
+	pwivate _activeEditowPane: EditowPane | nuww = nuww;
+	get activeEditowPane(): IVisibweEditowPane | nuww { wetuwn this._activeEditowPane as IVisibweEditowPane | nuww; }
 
-	private readonly editorPanes: EditorPane[] = [];
+	pwivate weadonwy editowPanes: EditowPane[] = [];
 
-	private readonly activeEditorPaneDisposables = this._register(new DisposableStore());
-	private dimension: Dimension | undefined;
-	private readonly editorOperation = this._register(new LongRunningOperation(this.editorProgressService));
-	private readonly editorPanesRegistry = Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane);
+	pwivate weadonwy activeEditowPaneDisposabwes = this._wegista(new DisposabweStowe());
+	pwivate dimension: Dimension | undefined;
+	pwivate weadonwy editowOpewation = this._wegista(new WongWunningOpewation(this.editowPwogwessSewvice));
+	pwivate weadonwy editowPanesWegistwy = Wegistwy.as<IEditowPaneWegistwy>(EditowExtensions.EditowPane);
 
-	constructor(
-		private parent: HTMLElement,
-		private groupView: IEditorGroupView,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService
+	constwuctow(
+		pwivate pawent: HTMWEwement,
+		pwivate gwoupView: IEditowGwoupView,
+		@IWowkbenchWayoutSewvice pwivate weadonwy wayoutSewvice: IWowkbenchWayoutSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IEditowPwogwessSewvice pwivate weadonwy editowPwogwessSewvice: IEditowPwogwessSewvice,
+		@IWowkspaceTwustManagementSewvice pwivate weadonwy wowkspaceTwustSewvice: IWowkspaceTwustManagementSewvice
 	) {
-		super();
+		supa();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.workspaceTrustService.onDidChangeTrust(() => this.onDidChangeWorkspaceTrust()));
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.wowkspaceTwustSewvice.onDidChangeTwust(() => this.onDidChangeWowkspaceTwust()));
 	}
 
-	private onDidChangeWorkspaceTrust() {
+	pwivate onDidChangeWowkspaceTwust() {
 
-		// If the active editor pane requires workspace trust
-		// we need to re-open it anytime trust changes to
-		// account for it.
-		// For that we explicitly call into the group-view
-		// to handle errors properly.
-		const editor = this._activeEditorPane?.input;
-		const options = this._activeEditorPane?.options;
-		if (editor?.hasCapability(EditorInputCapabilities.RequiresTrust)) {
-			this.groupView.openEditor(editor, options);
+		// If the active editow pane wequiwes wowkspace twust
+		// we need to we-open it anytime twust changes to
+		// account fow it.
+		// Fow that we expwicitwy caww into the gwoup-view
+		// to handwe ewwows pwopewwy.
+		const editow = this._activeEditowPane?.input;
+		const options = this._activeEditowPane?.options;
+		if (editow?.hasCapabiwity(EditowInputCapabiwities.WequiwesTwust)) {
+			this.gwoupView.openEditow(editow, options);
 		}
 	}
 
-	async openEditor(editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
-		try {
-			return await this.doOpenEditor(this.getEditorPaneDescriptor(editor), editor, options, context);
-		} catch (error) {
-			if (!context.newInGroup) {
-				const isUnavailableResource = (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
-				const editorPlaceholder = isUnavailableResource ? UnavailableResourceErrorEditor.DESCRIPTOR : UnknownErrorEditor.DESCRIPTOR;
+	async openEditow(editow: EditowInput, options: IEditowOptions | undefined, context: IEditowOpenContext = Object.cweate(nuww)): Pwomise<IOpenEditowWesuwt> {
+		twy {
+			wetuwn await this.doOpenEditow(this.getEditowPaneDescwiptow(editow), editow, options, context);
+		} catch (ewwow) {
+			if (!context.newInGwoup) {
+				const isUnavaiwabweWesouwce = (<FiweOpewationEwwow>ewwow).fiweOpewationWesuwt === FiweOpewationWesuwt.FIWE_NOT_FOUND;
+				const editowPwacehowda = isUnavaiwabweWesouwce ? UnavaiwabweWesouwceEwwowEditow.DESCWIPTOW : UnknownEwwowEditow.DESCWIPTOW;
 
-				// The editor is restored (as opposed to being newly opened) and as
-				// such we want to preserve the fact that an editor was opened here
-				// before by falling back to a editor placeholder that allows the
-				// user to retry the operation.
+				// The editow is westowed (as opposed to being newwy opened) and as
+				// such we want to pwesewve the fact that an editow was opened hewe
+				// befowe by fawwing back to a editow pwacehowda that awwows the
+				// usa to wetwy the opewation.
 				//
-				// This is especially important when an editor is dirty and fails to
-				// restore after a restart to prevent the impression that any user
-				// data is lost.
+				// This is especiawwy impowtant when an editow is diwty and faiws to
+				// westowe afta a westawt to pwevent the impwession that any usa
+				// data is wost.
 				//
-				// Related: https://github.com/microsoft/vscode/issues/110062
-				return {
-					...(await this.doOpenEditor(editorPlaceholder, editor, options, context)),
-					error
+				// Wewated: https://github.com/micwosoft/vscode/issues/110062
+				wetuwn {
+					...(await this.doOpenEditow(editowPwacehowda, editow, options, context)),
+					ewwow
 				};
 			}
 
-			return { error };
+			wetuwn { ewwow };
 		}
 	}
 
-	private async doOpenEditor(descriptor: IEditorPaneDescriptor, editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
+	pwivate async doOpenEditow(descwiptow: IEditowPaneDescwiptow, editow: EditowInput, options: IEditowOptions | undefined, context: IEditowOpenContext = Object.cweate(nuww)): Pwomise<IOpenEditowWesuwt> {
 
-		// Editor pane
-		const editorPane = this.doShowEditorPane(descriptor);
+		// Editow pane
+		const editowPane = this.doShowEditowPane(descwiptow);
 
-		// Apply input to pane
-		const editorChanged = await this.doSetInput(editorPane, editor, options, context);
-		return { editorPane, editorChanged };
+		// Appwy input to pane
+		const editowChanged = await this.doSetInput(editowPane, editow, options, context);
+		wetuwn { editowPane, editowChanged };
 	}
 
-	private getEditorPaneDescriptor(editor: EditorInput): IEditorPaneDescriptor {
-		if (editor.hasCapability(EditorInputCapabilities.RequiresTrust) && !this.workspaceTrustService.isWorkspaceTrusted()) {
-			// Workspace trust: if an editor signals it needs workspace trust
-			// but the current workspace is untrusted, we fallback to a generic
-			// editor descriptor to indicate this an do NOT load the registered
-			// editor.
-			return WorkspaceTrustRequiredEditor.DESCRIPTOR;
+	pwivate getEditowPaneDescwiptow(editow: EditowInput): IEditowPaneDescwiptow {
+		if (editow.hasCapabiwity(EditowInputCapabiwities.WequiwesTwust) && !this.wowkspaceTwustSewvice.isWowkspaceTwusted()) {
+			// Wowkspace twust: if an editow signaws it needs wowkspace twust
+			// but the cuwwent wowkspace is untwusted, we fawwback to a genewic
+			// editow descwiptow to indicate this an do NOT woad the wegistewed
+			// editow.
+			wetuwn WowkspaceTwustWequiwedEditow.DESCWIPTOW;
 		}
 
-		return assertIsDefined(this.editorPanesRegistry.getEditorPane(editor));
+		wetuwn assewtIsDefined(this.editowPanesWegistwy.getEditowPane(editow));
 	}
 
-	private doShowEditorPane(descriptor: IEditorPaneDescriptor): EditorPane {
+	pwivate doShowEditowPane(descwiptow: IEditowPaneDescwiptow): EditowPane {
 
-		// Return early if the currently active editor pane can handle the input
-		if (this._activeEditorPane && descriptor.describes(this._activeEditorPane)) {
-			return this._activeEditorPane;
+		// Wetuwn eawwy if the cuwwentwy active editow pane can handwe the input
+		if (this._activeEditowPane && descwiptow.descwibes(this._activeEditowPane)) {
+			wetuwn this._activeEditowPane;
 		}
 
-		// Hide active one first
-		this.doHideActiveEditorPane();
+		// Hide active one fiwst
+		this.doHideActiveEditowPane();
 
-		// Create editor pane
-		const editorPane = this.doCreateEditorPane(descriptor);
+		// Cweate editow pane
+		const editowPane = this.doCweateEditowPane(descwiptow);
 
-		// Set editor as active
-		this.doSetActiveEditorPane(editorPane);
+		// Set editow as active
+		this.doSetActiveEditowPane(editowPane);
 
-		// Show editor
-		const container = assertIsDefined(editorPane.getContainer());
-		this.parent.appendChild(container);
-		show(container);
+		// Show editow
+		const containa = assewtIsDefined(editowPane.getContaina());
+		this.pawent.appendChiwd(containa);
+		show(containa);
 
-		// Indicate to editor that it is now visible
-		editorPane.setVisible(true, this.groupView);
+		// Indicate to editow that it is now visibwe
+		editowPane.setVisibwe(twue, this.gwoupView);
 
-		// Layout
+		// Wayout
 		if (this.dimension) {
-			editorPane.layout(this.dimension);
+			editowPane.wayout(this.dimension);
 		}
 
-		return editorPane;
+		wetuwn editowPane;
 	}
 
-	private doCreateEditorPane(descriptor: IEditorPaneDescriptor): EditorPane {
+	pwivate doCweateEditowPane(descwiptow: IEditowPaneDescwiptow): EditowPane {
 
-		// Instantiate editor
-		const editorPane = this.doInstantiateEditorPane(descriptor);
+		// Instantiate editow
+		const editowPane = this.doInstantiateEditowPane(descwiptow);
 
-		// Create editor container as needed
-		if (!editorPane.getContainer()) {
-			const editorPaneContainer = document.createElement('div');
-			editorPaneContainer.classList.add('editor-instance');
+		// Cweate editow containa as needed
+		if (!editowPane.getContaina()) {
+			const editowPaneContaina = document.cweateEwement('div');
+			editowPaneContaina.cwassWist.add('editow-instance');
 
-			editorPane.create(editorPaneContainer);
+			editowPane.cweate(editowPaneContaina);
 		}
 
-		return editorPane;
+		wetuwn editowPane;
 	}
 
-	private doInstantiateEditorPane(descriptor: IEditorPaneDescriptor): EditorPane {
+	pwivate doInstantiateEditowPane(descwiptow: IEditowPaneDescwiptow): EditowPane {
 
-		// Return early if already instantiated
-		const existingEditorPane = this.editorPanes.find(editorPane => descriptor.describes(editorPane));
-		if (existingEditorPane) {
-			return existingEditorPane;
+		// Wetuwn eawwy if awweady instantiated
+		const existingEditowPane = this.editowPanes.find(editowPane => descwiptow.descwibes(editowPane));
+		if (existingEditowPane) {
+			wetuwn existingEditowPane;
 		}
 
-		// Otherwise instantiate new
-		const editorPane = this._register(descriptor.instantiate(this.instantiationService));
-		this.editorPanes.push(editorPane);
+		// Othewwise instantiate new
+		const editowPane = this._wegista(descwiptow.instantiate(this.instantiationSewvice));
+		this.editowPanes.push(editowPane);
 
-		return editorPane;
+		wetuwn editowPane;
 	}
 
-	private doSetActiveEditorPane(editorPane: EditorPane | null) {
-		this._activeEditorPane = editorPane;
+	pwivate doSetActiveEditowPane(editowPane: EditowPane | nuww) {
+		this._activeEditowPane = editowPane;
 
-		// Clear out previous active editor pane listeners
-		this.activeEditorPaneDisposables.clear();
+		// Cweaw out pwevious active editow pane wistenews
+		this.activeEditowPaneDisposabwes.cweaw();
 
-		// Listen to editor pane changes
-		if (editorPane) {
-			this.activeEditorPaneDisposables.add(editorPane.onDidChangeSizeConstraints(e => this._onDidChangeSizeConstraints.fire(e)));
-			this.activeEditorPaneDisposables.add(editorPane.onDidFocus(() => this._onDidFocus.fire()));
+		// Wisten to editow pane changes
+		if (editowPane) {
+			this.activeEditowPaneDisposabwes.add(editowPane.onDidChangeSizeConstwaints(e => this._onDidChangeSizeConstwaints.fiwe(e)));
+			this.activeEditowPaneDisposabwes.add(editowPane.onDidFocus(() => this._onDidFocus.fiwe()));
 		}
 
-		// Indicate that size constraints could have changed due to new editor
-		this._onDidChangeSizeConstraints.fire(undefined);
+		// Indicate that size constwaints couwd have changed due to new editow
+		this._onDidChangeSizeConstwaints.fiwe(undefined);
 	}
 
-	private async doSetInput(editorPane: EditorPane, editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext): Promise<boolean> {
+	pwivate async doSetInput(editowPane: EditowPane, editow: EditowInput, options: IEditowOptions | undefined, context: IEditowOpenContext): Pwomise<boowean> {
 
-		// If the input did not change, return early and only apply the options
-		// unless the options instruct us to force open it even if it is the same
-		const forceReload = options?.forceReload;
-		const inputMatches = editorPane.input && editorPane.input.matches(editor);
-		if (inputMatches && !forceReload) {
+		// If the input did not change, wetuwn eawwy and onwy appwy the options
+		// unwess the options instwuct us to fowce open it even if it is the same
+		const fowceWewoad = options?.fowceWewoad;
+		const inputMatches = editowPane.input && editowPane.input.matches(editow);
+		if (inputMatches && !fowceWewoad) {
 
-			// Forward options
-			editorPane.setOptions(options);
+			// Fowwawd options
+			editowPane.setOptions(options);
 
-			// Still focus as needed
-			const focus = !options || !options.preserveFocus;
+			// Stiww focus as needed
+			const focus = !options || !options.pwesewveFocus;
 			if (focus) {
-				editorPane.focus();
+				editowPane.focus();
 			}
 
-			return false;
+			wetuwn fawse;
 		}
 
-		// Show progress while setting input after a certain timeout. If the workbench is opening
-		// be more relaxed about progress showing by increasing the delay a little bit to reduce flicker.
-		const operation = this.editorOperation.start(this.layoutService.isRestored() ? 800 : 3200);
+		// Show pwogwess whiwe setting input afta a cewtain timeout. If the wowkbench is opening
+		// be mowe wewaxed about pwogwess showing by incweasing the deway a wittwe bit to weduce fwicka.
+		const opewation = this.editowOpewation.stawt(this.wayoutSewvice.isWestowed() ? 800 : 3200);
 
-		// Call into editor pane
-		const editorWillChange = !inputMatches;
-		try {
-			await editorPane.setInput(editor, options, context, operation.token);
+		// Caww into editow pane
+		const editowWiwwChange = !inputMatches;
+		twy {
+			await editowPane.setInput(editow, options, context, opewation.token);
 
-			// Focus (unless prevented or another operation is running)
-			if (operation.isCurrent()) {
-				const focus = !options || !options.preserveFocus;
+			// Focus (unwess pwevented ow anotha opewation is wunning)
+			if (opewation.isCuwwent()) {
+				const focus = !options || !options.pwesewveFocus;
 				if (focus) {
-					editorPane.focus();
+					editowPane.focus();
 				}
 			}
 
-			return editorWillChange;
-		} finally {
-			operation.stop();
+			wetuwn editowWiwwChange;
+		} finawwy {
+			opewation.stop();
 		}
 	}
 
-	private doHideActiveEditorPane(): void {
-		if (!this._activeEditorPane) {
-			return;
+	pwivate doHideActiveEditowPane(): void {
+		if (!this._activeEditowPane) {
+			wetuwn;
 		}
 
-		// Stop any running operation
-		this.editorOperation.stop();
+		// Stop any wunning opewation
+		this.editowOpewation.stop();
 
-		// Indicate to editor pane before removing the editor from
-		// the DOM to give a chance to persist certain state that
-		// might depend on still being the active DOM element.
-		this._activeEditorPane.clearInput();
-		this._activeEditorPane.setVisible(false, this.groupView);
+		// Indicate to editow pane befowe wemoving the editow fwom
+		// the DOM to give a chance to pewsist cewtain state that
+		// might depend on stiww being the active DOM ewement.
+		this._activeEditowPane.cweawInput();
+		this._activeEditowPane.setVisibwe(fawse, this.gwoupView);
 
-		// Remove editor pane from parent
-		const editorPaneContainer = this._activeEditorPane.getContainer();
-		if (editorPaneContainer) {
-			this.parent.removeChild(editorPaneContainer);
-			hide(editorPaneContainer);
+		// Wemove editow pane fwom pawent
+		const editowPaneContaina = this._activeEditowPane.getContaina();
+		if (editowPaneContaina) {
+			this.pawent.wemoveChiwd(editowPaneContaina);
+			hide(editowPaneContaina);
 		}
 
-		// Clear active editor pane
-		this.doSetActiveEditorPane(null);
+		// Cweaw active editow pane
+		this.doSetActiveEditowPane(nuww);
 	}
 
-	closeEditor(editor: EditorInput): void {
-		if (this._activeEditorPane && this._activeEditorPane.input && editor.matches(this._activeEditorPane.input)) {
-			this.doHideActiveEditorPane();
+	cwoseEditow(editow: EditowInput): void {
+		if (this._activeEditowPane && this._activeEditowPane.input && editow.matches(this._activeEditowPane.input)) {
+			this.doHideActiveEditowPane();
 		}
 	}
 
-	setVisible(visible: boolean): void {
-		this._activeEditorPane?.setVisible(visible, this.groupView);
+	setVisibwe(visibwe: boowean): void {
+		this._activeEditowPane?.setVisibwe(visibwe, this.gwoupView);
 	}
 
-	layout(dimension: Dimension): void {
+	wayout(dimension: Dimension): void {
 		this.dimension = dimension;
 
-		this._activeEditorPane?.layout(dimension);
+		this._activeEditowPane?.wayout(dimension);
 	}
 }

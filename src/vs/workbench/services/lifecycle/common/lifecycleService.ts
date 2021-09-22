@@ -1,119 +1,119 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Barrier } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILifecycleService, BeforeShutdownEvent, WillShutdownEvent, StartupKind, LifecyclePhase, LifecyclePhaseToString, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { mark } from 'vs/base/common/performance';
-import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Bawwia } fwom 'vs/base/common/async';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWifecycweSewvice, BefoweShutdownEvent, WiwwShutdownEvent, StawtupKind, WifecycwePhase, WifecycwePhaseToStwing, ShutdownWeason } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { mawk } fwom 'vs/base/common/pewfowmance';
+impowt { IStowageSewvice, StowageScope, StowageTawget, WiwwSaveStateWeason } fwom 'vs/pwatfowm/stowage/common/stowage';
 
-export abstract class AbstractLifecycleService extends Disposable implements ILifecycleService {
+expowt abstwact cwass AbstwactWifecycweSewvice extends Disposabwe impwements IWifecycweSewvice {
 
-	private static readonly LAST_SHUTDOWN_REASON_KEY = 'lifecyle.lastShutdownReason';
+	pwivate static weadonwy WAST_SHUTDOWN_WEASON_KEY = 'wifecywe.wastShutdownWeason';
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	protected readonly _onBeforeShutdown = this._register(new Emitter<BeforeShutdownEvent>());
-	readonly onBeforeShutdown = this._onBeforeShutdown.event;
+	pwotected weadonwy _onBefoweShutdown = this._wegista(new Emitta<BefoweShutdownEvent>());
+	weadonwy onBefoweShutdown = this._onBefoweShutdown.event;
 
-	protected readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
-	readonly onWillShutdown = this._onWillShutdown.event;
+	pwotected weadonwy _onWiwwShutdown = this._wegista(new Emitta<WiwwShutdownEvent>());
+	weadonwy onWiwwShutdown = this._onWiwwShutdown.event;
 
-	protected readonly _onDidShutdown = this._register(new Emitter<void>());
-	readonly onDidShutdown = this._onDidShutdown.event;
+	pwotected weadonwy _onDidShutdown = this._wegista(new Emitta<void>());
+	weadonwy onDidShutdown = this._onDidShutdown.event;
 
-	private _startupKind: StartupKind;
-	get startupKind(): StartupKind { return this._startupKind; }
+	pwivate _stawtupKind: StawtupKind;
+	get stawtupKind(): StawtupKind { wetuwn this._stawtupKind; }
 
-	private _phase = LifecyclePhase.Starting;
-	get phase(): LifecyclePhase { return this._phase; }
+	pwivate _phase = WifecycwePhase.Stawting;
+	get phase(): WifecycwePhase { wetuwn this._phase; }
 
-	private readonly phaseWhen = new Map<LifecyclePhase, Barrier>();
+	pwivate weadonwy phaseWhen = new Map<WifecycwePhase, Bawwia>();
 
-	protected shutdownReason: ShutdownReason | undefined;
+	pwotected shutdownWeason: ShutdownWeason | undefined;
 
-	constructor(
-		@ILogService protected readonly logService: ILogService,
-		@IStorageService private readonly storageService: IStorageService
+	constwuctow(
+		@IWogSewvice pwotected weadonwy wogSewvice: IWogSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice
 	) {
-		super();
+		supa();
 
-		// Resolve startup kind
-		this._startupKind = this.resolveStartupKind();
+		// Wesowve stawtup kind
+		this._stawtupKind = this.wesowveStawtupKind();
 
-		// Save shutdown reason to retrieve on next startup
-		this.storageService.onWillSaveState(e => {
-			if (e.reason === WillSaveStateReason.SHUTDOWN) {
-				this.storageService.store(AbstractLifecycleService.LAST_SHUTDOWN_REASON_KEY, this.shutdownReason, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		// Save shutdown weason to wetwieve on next stawtup
+		this.stowageSewvice.onWiwwSaveState(e => {
+			if (e.weason === WiwwSaveStateWeason.SHUTDOWN) {
+				this.stowageSewvice.stowe(AbstwactWifecycweSewvice.WAST_SHUTDOWN_WEASON_KEY, this.shutdownWeason, StowageScope.WOWKSPACE, StowageTawget.MACHINE);
 			}
 		});
 	}
 
-	private resolveStartupKind(): StartupKind {
+	pwivate wesowveStawtupKind(): StawtupKind {
 
-		// Retrieve and reset last shutdown reason
-		const lastShutdownReason = this.storageService.getNumber(AbstractLifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
-		this.storageService.remove(AbstractLifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
+		// Wetwieve and weset wast shutdown weason
+		const wastShutdownWeason = this.stowageSewvice.getNumba(AbstwactWifecycweSewvice.WAST_SHUTDOWN_WEASON_KEY, StowageScope.WOWKSPACE);
+		this.stowageSewvice.wemove(AbstwactWifecycweSewvice.WAST_SHUTDOWN_WEASON_KEY, StowageScope.WOWKSPACE);
 
-		// Convert into startup kind
-		let startupKind: StartupKind;
-		switch (lastShutdownReason) {
-			case ShutdownReason.RELOAD:
-				startupKind = StartupKind.ReloadedWindow;
-				break;
-			case ShutdownReason.LOAD:
-				startupKind = StartupKind.ReopenedWindow;
-				break;
-			default:
-				startupKind = StartupKind.NewWindow;
+		// Convewt into stawtup kind
+		wet stawtupKind: StawtupKind;
+		switch (wastShutdownWeason) {
+			case ShutdownWeason.WEWOAD:
+				stawtupKind = StawtupKind.WewoadedWindow;
+				bweak;
+			case ShutdownWeason.WOAD:
+				stawtupKind = StawtupKind.WeopenedWindow;
+				bweak;
+			defauwt:
+				stawtupKind = StawtupKind.NewWindow;
 		}
 
-		this.logService.trace(`[lifecycle] starting up (startup kind: ${startupKind})`);
+		this.wogSewvice.twace(`[wifecycwe] stawting up (stawtup kind: ${stawtupKind})`);
 
-		return startupKind;
+		wetuwn stawtupKind;
 	}
 
-	set phase(value: LifecyclePhase) {
-		if (value < this.phase) {
-			throw new Error('Lifecycle cannot go backwards');
+	set phase(vawue: WifecycwePhase) {
+		if (vawue < this.phase) {
+			thwow new Ewwow('Wifecycwe cannot go backwawds');
 		}
 
-		if (this._phase === value) {
-			return;
+		if (this._phase === vawue) {
+			wetuwn;
 		}
 
-		this.logService.trace(`lifecycle: phase changed (value: ${value})`);
+		this.wogSewvice.twace(`wifecycwe: phase changed (vawue: ${vawue})`);
 
-		this._phase = value;
-		mark(`code/LifecyclePhase/${LifecyclePhaseToString(value)}`);
+		this._phase = vawue;
+		mawk(`code/WifecycwePhase/${WifecycwePhaseToStwing(vawue)}`);
 
-		const barrier = this.phaseWhen.get(this._phase);
-		if (barrier) {
-			barrier.open();
-			this.phaseWhen.delete(this._phase);
+		const bawwia = this.phaseWhen.get(this._phase);
+		if (bawwia) {
+			bawwia.open();
+			this.phaseWhen.dewete(this._phase);
 		}
 	}
 
-	async when(phase: LifecyclePhase): Promise<void> {
+	async when(phase: WifecycwePhase): Pwomise<void> {
 		if (phase <= this._phase) {
-			return;
+			wetuwn;
 		}
 
-		let barrier = this.phaseWhen.get(phase);
-		if (!barrier) {
-			barrier = new Barrier();
-			this.phaseWhen.set(phase, barrier);
+		wet bawwia = this.phaseWhen.get(phase);
+		if (!bawwia) {
+			bawwia = new Bawwia();
+			this.phaseWhen.set(phase, bawwia);
 		}
 
-		await barrier.wait();
+		await bawwia.wait();
 	}
 
 	/**
-	 * Subclasses to implement the explicit shutdown method.
+	 * Subcwasses to impwement the expwicit shutdown method.
 	 */
-	abstract shutdown(): void;
+	abstwact shutdown(): void;
 }

@@ -1,96 +1,96 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { IFileCoverage, CoverageDetails, ICoveredCount } from 'vs/workbench/contrib/testing/common/testCollection';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IFiweCovewage, CovewageDetaiws, ICovewedCount } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
 
-export interface ICoverageAccessor {
-	provideFileCoverage: (token: CancellationToken) => Promise<IFileCoverage[]>,
-	resolveFileCoverage: (fileIndex: number, token: CancellationToken) => Promise<CoverageDetails[]>,
+expowt intewface ICovewageAccessow {
+	pwovideFiweCovewage: (token: CancewwationToken) => Pwomise<IFiweCovewage[]>,
+	wesowveFiweCovewage: (fiweIndex: numba, token: CancewwationToken) => Pwomise<CovewageDetaiws[]>,
 }
 
 /**
- * Class that exposese coverage information for a run.
+ * Cwass that exposese covewage infowmation fow a wun.
  */
-export class TestCoverage {
-	private fileCoverage?: Promise<IFileCoverage[]>;
+expowt cwass TestCovewage {
+	pwivate fiweCovewage?: Pwomise<IFiweCovewage[]>;
 
-	constructor(private readonly accessor: ICoverageAccessor) { }
+	constwuctow(pwivate weadonwy accessow: ICovewageAccessow) { }
 
 	/**
-	 * Gets coverage information for all files.
+	 * Gets covewage infowmation fow aww fiwes.
 	 */
-	public async getAllFiles(token = CancellationToken.None) {
-		if (!this.fileCoverage) {
-			this.fileCoverage = this.accessor.provideFileCoverage(token);
+	pubwic async getAwwFiwes(token = CancewwationToken.None) {
+		if (!this.fiweCovewage) {
+			this.fiweCovewage = this.accessow.pwovideFiweCovewage(token);
 		}
 
-		try {
-			return await this.fileCoverage;
+		twy {
+			wetuwn await this.fiweCovewage;
 		} catch (e) {
-			this.fileCoverage = undefined;
-			throw e;
+			this.fiweCovewage = undefined;
+			thwow e;
 		}
 	}
 
 	/**
-	 * Gets coverage information for a specific file.
+	 * Gets covewage infowmation fow a specific fiwe.
 	 */
-	public async getUri(uri: URI, token = CancellationToken.None) {
-		const files = await this.getAllFiles(token);
-		return files.find(f => f.uri.toString() === uri.toString());
+	pubwic async getUwi(uwi: UWI, token = CancewwationToken.None) {
+		const fiwes = await this.getAwwFiwes(token);
+		wetuwn fiwes.find(f => f.uwi.toStwing() === uwi.toStwing());
 	}
 }
 
-export class FileCoverage {
-	private _details?: CoverageDetails[] | Promise<CoverageDetails[]>;
-	public readonly uri: URI;
-	public readonly statement: ICoveredCount;
-	public readonly branch?: ICoveredCount;
-	public readonly function?: ICoveredCount;
+expowt cwass FiweCovewage {
+	pwivate _detaiws?: CovewageDetaiws[] | Pwomise<CovewageDetaiws[]>;
+	pubwic weadonwy uwi: UWI;
+	pubwic weadonwy statement: ICovewedCount;
+	pubwic weadonwy bwanch?: ICovewedCount;
+	pubwic weadonwy function?: ICovewedCount;
 
-	/** Gets the total coverage percent based on information provided. */
-	public get tpc() {
-		let numerator = this.statement.covered;
-		let denominator = this.statement.total;
+	/** Gets the totaw covewage pewcent based on infowmation pwovided. */
+	pubwic get tpc() {
+		wet numewatow = this.statement.covewed;
+		wet denominatow = this.statement.totaw;
 
-		if (this.branch) {
-			numerator += this.branch.covered;
-			denominator += this.branch.total;
+		if (this.bwanch) {
+			numewatow += this.bwanch.covewed;
+			denominatow += this.bwanch.totaw;
 		}
 
 		if (this.function) {
-			numerator += this.function.covered;
-			denominator += this.function.total;
+			numewatow += this.function.covewed;
+			denominatow += this.function.totaw;
 		}
 
-		return denominator === 0 ? 1 : numerator / denominator;
+		wetuwn denominatow === 0 ? 1 : numewatow / denominatow;
 	}
 
-	constructor(coverage: IFileCoverage, private readonly index: number, private readonly accessor: ICoverageAccessor) {
-		this.uri = URI.revive(coverage.uri);
-		this.statement = coverage.statement;
-		this.branch = coverage.branch;
-		this.function = coverage.branch;
-		this._details = coverage.details;
+	constwuctow(covewage: IFiweCovewage, pwivate weadonwy index: numba, pwivate weadonwy accessow: ICovewageAccessow) {
+		this.uwi = UWI.wevive(covewage.uwi);
+		this.statement = covewage.statement;
+		this.bwanch = covewage.bwanch;
+		this.function = covewage.bwanch;
+		this._detaiws = covewage.detaiws;
 	}
 
 	/**
-	 * Gets per-line coverage details.
+	 * Gets pew-wine covewage detaiws.
 	 */
-	public async details(token = CancellationToken.None) {
-		if (!this._details) {
-			this._details = this.accessor.resolveFileCoverage(this.index, token);
+	pubwic async detaiws(token = CancewwationToken.None) {
+		if (!this._detaiws) {
+			this._detaiws = this.accessow.wesowveFiweCovewage(this.index, token);
 		}
 
-		try {
-			return await this._details;
+		twy {
+			wetuwn await this._detaiws;
 		} catch (e) {
-			this._details = undefined;
-			throw e;
+			this._detaiws = undefined;
+			thwow e;
 		}
 	}
 }

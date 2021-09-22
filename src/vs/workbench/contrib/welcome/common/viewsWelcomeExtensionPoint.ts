@@ -1,81 +1,81 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
+impowt * as nws fwom 'vs/nws';
+impowt { IConfiguwationPwopewtySchema } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
 
-export enum ViewsWelcomeExtensionPointFields {
+expowt enum ViewsWewcomeExtensionPointFiewds {
 	view = 'view',
 	contents = 'contents',
 	when = 'when',
-	group = 'group',
-	enablement = 'enablement',
+	gwoup = 'gwoup',
+	enabwement = 'enabwement',
 }
 
-export interface ViewWelcome {
-	readonly [ViewsWelcomeExtensionPointFields.view]: string;
-	readonly [ViewsWelcomeExtensionPointFields.contents]: string;
-	readonly [ViewsWelcomeExtensionPointFields.when]: string;
-	readonly [ViewsWelcomeExtensionPointFields.group]: string;
-	readonly [ViewsWelcomeExtensionPointFields.enablement]: string;
+expowt intewface ViewWewcome {
+	weadonwy [ViewsWewcomeExtensionPointFiewds.view]: stwing;
+	weadonwy [ViewsWewcomeExtensionPointFiewds.contents]: stwing;
+	weadonwy [ViewsWewcomeExtensionPointFiewds.when]: stwing;
+	weadonwy [ViewsWewcomeExtensionPointFiewds.gwoup]: stwing;
+	weadonwy [ViewsWewcomeExtensionPointFiewds.enabwement]: stwing;
 }
 
-export type ViewsWelcomeExtensionPoint = ViewWelcome[];
+expowt type ViewsWewcomeExtensionPoint = ViewWewcome[];
 
-export const ViewIdentifierMap: { [key: string]: string } = {
-	'explorer': 'workbench.explorer.emptyView',
-	'debug': 'workbench.debug.welcome',
-	'scm': 'workbench.scm',
-	'testing': 'workbench.view.testing'
+expowt const ViewIdentifiewMap: { [key: stwing]: stwing } = {
+	'expwowa': 'wowkbench.expwowa.emptyView',
+	'debug': 'wowkbench.debug.wewcome',
+	'scm': 'wowkbench.scm',
+	'testing': 'wowkbench.view.testing'
 };
 
-const viewsWelcomeExtensionPointSchema = Object.freeze<IConfigurationPropertySchema>({
-	type: 'array',
-	description: nls.localize('contributes.viewsWelcome', "Contributed views welcome content. Welcome content will be rendered in tree based views whenever they have no meaningful content to display, ie. the File Explorer when no folder is open. Such content is useful as in-product documentation to drive users to use certain features before they are available. A good example would be a `Clone Repository` button in the File Explorer welcome view."),
+const viewsWewcomeExtensionPointSchema = Object.fweeze<IConfiguwationPwopewtySchema>({
+	type: 'awway',
+	descwiption: nws.wocawize('contwibutes.viewsWewcome', "Contwibuted views wewcome content. Wewcome content wiww be wendewed in twee based views wheneva they have no meaningfuw content to dispway, ie. the Fiwe Expwowa when no fowda is open. Such content is usefuw as in-pwoduct documentation to dwive usews to use cewtain featuwes befowe they awe avaiwabwe. A good exampwe wouwd be a `Cwone Wepositowy` button in the Fiwe Expwowa wewcome view."),
 	items: {
 		type: 'object',
-		description: nls.localize('contributes.viewsWelcome.view', "Contributed welcome content for a specific view."),
-		required: [
-			ViewsWelcomeExtensionPointFields.view,
-			ViewsWelcomeExtensionPointFields.contents
+		descwiption: nws.wocawize('contwibutes.viewsWewcome.view', "Contwibuted wewcome content fow a specific view."),
+		wequiwed: [
+			ViewsWewcomeExtensionPointFiewds.view,
+			ViewsWewcomeExtensionPointFiewds.contents
 		],
-		properties: {
-			[ViewsWelcomeExtensionPointFields.view]: {
+		pwopewties: {
+			[ViewsWewcomeExtensionPointFiewds.view]: {
 				anyOf: [
 					{
-						type: 'string',
-						description: nls.localize('contributes.viewsWelcome.view.view', "Target view identifier for this welcome content. Only tree based views are supported.")
+						type: 'stwing',
+						descwiption: nws.wocawize('contwibutes.viewsWewcome.view.view', "Tawget view identifia fow this wewcome content. Onwy twee based views awe suppowted.")
 					},
 					{
-						type: 'string',
-						description: nls.localize('contributes.viewsWelcome.view.view', "Target view identifier for this welcome content. Only tree based views are supported."),
-						enum: Object.keys(ViewIdentifierMap)
+						type: 'stwing',
+						descwiption: nws.wocawize('contwibutes.viewsWewcome.view.view', "Tawget view identifia fow this wewcome content. Onwy twee based views awe suppowted."),
+						enum: Object.keys(ViewIdentifiewMap)
 					}
 				]
 			},
-			[ViewsWelcomeExtensionPointFields.contents]: {
-				type: 'string',
-				description: nls.localize('contributes.viewsWelcome.view.contents', "Welcome content to be displayed. The format of the contents is a subset of Markdown, with support for links only."),
+			[ViewsWewcomeExtensionPointFiewds.contents]: {
+				type: 'stwing',
+				descwiption: nws.wocawize('contwibutes.viewsWewcome.view.contents', "Wewcome content to be dispwayed. The fowmat of the contents is a subset of Mawkdown, with suppowt fow winks onwy."),
 			},
-			[ViewsWelcomeExtensionPointFields.when]: {
-				type: 'string',
-				description: nls.localize('contributes.viewsWelcome.view.when', "Condition when the welcome content should be displayed."),
+			[ViewsWewcomeExtensionPointFiewds.when]: {
+				type: 'stwing',
+				descwiption: nws.wocawize('contwibutes.viewsWewcome.view.when', "Condition when the wewcome content shouwd be dispwayed."),
 			},
-			[ViewsWelcomeExtensionPointFields.group]: {
-				type: 'string',
-				description: nls.localize('contributes.viewsWelcome.view.group', "Group to which this welcome content belongs."),
+			[ViewsWewcomeExtensionPointFiewds.gwoup]: {
+				type: 'stwing',
+				descwiption: nws.wocawize('contwibutes.viewsWewcome.view.gwoup', "Gwoup to which this wewcome content bewongs."),
 			},
-			[ViewsWelcomeExtensionPointFields.enablement]: {
-				type: 'string',
-				description: nls.localize('contributes.viewsWelcome.view.enablement', "Condition when the welcome content buttons and command links should be enabled."),
+			[ViewsWewcomeExtensionPointFiewds.enabwement]: {
+				type: 'stwing',
+				descwiption: nws.wocawize('contwibutes.viewsWewcome.view.enabwement', "Condition when the wewcome content buttons and command winks shouwd be enabwed."),
 			},
 		}
 	}
 });
 
-export const viewsWelcomeExtensionPointDescriptor = {
-	extensionPoint: 'viewsWelcome',
-	jsonSchema: viewsWelcomeExtensionPointSchema
+expowt const viewsWewcomeExtensionPointDescwiptow = {
+	extensionPoint: 'viewsWewcome',
+	jsonSchema: viewsWewcomeExtensionPointSchema
 };

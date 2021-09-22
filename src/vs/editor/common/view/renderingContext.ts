@@ -1,159 +1,159 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { IViewLayout, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ViewpowtData } fwom 'vs/editow/common/viewWayout/viewWinesViewpowtData';
+impowt { IViewWayout, ViewModewDecowation } fwom 'vs/editow/common/viewModew/viewModew';
 
-export interface IViewLines {
-	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null;
-	visibleRangeForPosition(position: Position): HorizontalPosition | null;
+expowt intewface IViewWines {
+	winesVisibweWangesFowWange(wange: Wange, incwudeNewWines: boowean): WineVisibweWanges[] | nuww;
+	visibweWangeFowPosition(position: Position): HowizontawPosition | nuww;
 }
 
-export abstract class RestrictedRenderingContext {
-	_restrictedRenderingContextBrand: void = undefined;
+expowt abstwact cwass WestwictedWendewingContext {
+	_westwictedWendewingContextBwand: void = undefined;
 
-	public readonly viewportData: ViewportData;
+	pubwic weadonwy viewpowtData: ViewpowtData;
 
-	public readonly scrollWidth: number;
-	public readonly scrollHeight: number;
+	pubwic weadonwy scwowwWidth: numba;
+	pubwic weadonwy scwowwHeight: numba;
 
-	public readonly visibleRange: Range;
-	public readonly bigNumbersDelta: number;
+	pubwic weadonwy visibweWange: Wange;
+	pubwic weadonwy bigNumbewsDewta: numba;
 
-	public readonly scrollTop: number;
-	public readonly scrollLeft: number;
+	pubwic weadonwy scwowwTop: numba;
+	pubwic weadonwy scwowwWeft: numba;
 
-	public readonly viewportWidth: number;
-	public readonly viewportHeight: number;
+	pubwic weadonwy viewpowtWidth: numba;
+	pubwic weadonwy viewpowtHeight: numba;
 
-	private readonly _viewLayout: IViewLayout;
+	pwivate weadonwy _viewWayout: IViewWayout;
 
-	constructor(viewLayout: IViewLayout, viewportData: ViewportData) {
-		this._viewLayout = viewLayout;
-		this.viewportData = viewportData;
+	constwuctow(viewWayout: IViewWayout, viewpowtData: ViewpowtData) {
+		this._viewWayout = viewWayout;
+		this.viewpowtData = viewpowtData;
 
-		this.scrollWidth = this._viewLayout.getScrollWidth();
-		this.scrollHeight = this._viewLayout.getScrollHeight();
+		this.scwowwWidth = this._viewWayout.getScwowwWidth();
+		this.scwowwHeight = this._viewWayout.getScwowwHeight();
 
-		this.visibleRange = this.viewportData.visibleRange;
-		this.bigNumbersDelta = this.viewportData.bigNumbersDelta;
+		this.visibweWange = this.viewpowtData.visibweWange;
+		this.bigNumbewsDewta = this.viewpowtData.bigNumbewsDewta;
 
-		const vInfo = this._viewLayout.getCurrentViewport();
-		this.scrollTop = vInfo.top;
-		this.scrollLeft = vInfo.left;
-		this.viewportWidth = vInfo.width;
-		this.viewportHeight = vInfo.height;
+		const vInfo = this._viewWayout.getCuwwentViewpowt();
+		this.scwowwTop = vInfo.top;
+		this.scwowwWeft = vInfo.weft;
+		this.viewpowtWidth = vInfo.width;
+		this.viewpowtHeight = vInfo.height;
 	}
 
-	public getScrolledTopFromAbsoluteTop(absoluteTop: number): number {
-		return absoluteTop - this.scrollTop;
+	pubwic getScwowwedTopFwomAbsowuteTop(absowuteTop: numba): numba {
+		wetuwn absowuteTop - this.scwowwTop;
 	}
 
-	public getVerticalOffsetForLineNumber(lineNumber: number): number {
-		return this._viewLayout.getVerticalOffsetForLineNumber(lineNumber);
+	pubwic getVewticawOffsetFowWineNumba(wineNumba: numba): numba {
+		wetuwn this._viewWayout.getVewticawOffsetFowWineNumba(wineNumba);
 	}
 
-	public getDecorationsInViewport(): ViewModelDecoration[] {
-		return this.viewportData.getDecorationsInViewport();
+	pubwic getDecowationsInViewpowt(): ViewModewDecowation[] {
+		wetuwn this.viewpowtData.getDecowationsInViewpowt();
 	}
 
 }
 
-export class RenderingContext extends RestrictedRenderingContext {
-	_renderingContextBrand: void = undefined;
+expowt cwass WendewingContext extends WestwictedWendewingContext {
+	_wendewingContextBwand: void = undefined;
 
-	private readonly _viewLines: IViewLines;
+	pwivate weadonwy _viewWines: IViewWines;
 
-	constructor(viewLayout: IViewLayout, viewportData: ViewportData, viewLines: IViewLines) {
-		super(viewLayout, viewportData);
-		this._viewLines = viewLines;
+	constwuctow(viewWayout: IViewWayout, viewpowtData: ViewpowtData, viewWines: IViewWines) {
+		supa(viewWayout, viewpowtData);
+		this._viewWines = viewWines;
 	}
 
-	public linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
-		return this._viewLines.linesVisibleRangesForRange(range, includeNewLines);
+	pubwic winesVisibweWangesFowWange(wange: Wange, incwudeNewWines: boowean): WineVisibweWanges[] | nuww {
+		wetuwn this._viewWines.winesVisibweWangesFowWange(wange, incwudeNewWines);
 	}
 
-	public visibleRangeForPosition(position: Position): HorizontalPosition | null {
-		return this._viewLines.visibleRangeForPosition(position);
+	pubwic visibweWangeFowPosition(position: Position): HowizontawPosition | nuww {
+		wetuwn this._viewWines.visibweWangeFowPosition(position);
 	}
 }
 
-export class LineVisibleRanges {
-	constructor(
-		public readonly outsideRenderedLine: boolean,
-		public readonly lineNumber: number,
-		public readonly ranges: HorizontalRange[]
+expowt cwass WineVisibweWanges {
+	constwuctow(
+		pubwic weadonwy outsideWendewedWine: boowean,
+		pubwic weadonwy wineNumba: numba,
+		pubwic weadonwy wanges: HowizontawWange[]
 	) { }
 }
 
-export class HorizontalRange {
-	_horizontalRangeBrand: void = undefined;
+expowt cwass HowizontawWange {
+	_howizontawWangeBwand: void = undefined;
 
-	public left: number;
-	public width: number;
+	pubwic weft: numba;
+	pubwic width: numba;
 
-	public static from(ranges: FloatHorizontalRange[]): HorizontalRange[] {
-		const result = new Array(ranges.length);
-		for (let i = 0, len = ranges.length; i < len; i++) {
-			const range = ranges[i];
-			result[i] = new HorizontalRange(range.left, range.width);
+	pubwic static fwom(wanges: FwoatHowizontawWange[]): HowizontawWange[] {
+		const wesuwt = new Awway(wanges.wength);
+		fow (wet i = 0, wen = wanges.wength; i < wen; i++) {
+			const wange = wanges[i];
+			wesuwt[i] = new HowizontawWange(wange.weft, wange.width);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	constructor(left: number, width: number) {
-		this.left = Math.round(left);
-		this.width = Math.round(width);
+	constwuctow(weft: numba, width: numba) {
+		this.weft = Math.wound(weft);
+		this.width = Math.wound(width);
 	}
 
-	public toString(): string {
-		return `[${this.left},${this.width}]`;
+	pubwic toStwing(): stwing {
+		wetuwn `[${this.weft},${this.width}]`;
 	}
 }
 
-export class FloatHorizontalRange {
-	_floatHorizontalRangeBrand: void = undefined;
+expowt cwass FwoatHowizontawWange {
+	_fwoatHowizontawWangeBwand: void = undefined;
 
-	public left: number;
-	public width: number;
+	pubwic weft: numba;
+	pubwic width: numba;
 
-	constructor(left: number, width: number) {
-		this.left = left;
+	constwuctow(weft: numba, width: numba) {
+		this.weft = weft;
 		this.width = width;
 	}
 
-	public toString(): string {
-		return `[${this.left},${this.width}]`;
+	pubwic toStwing(): stwing {
+		wetuwn `[${this.weft},${this.width}]`;
 	}
 
-	public static compare(a: FloatHorizontalRange, b: FloatHorizontalRange): number {
-		return a.left - b.left;
+	pubwic static compawe(a: FwoatHowizontawWange, b: FwoatHowizontawWange): numba {
+		wetuwn a.weft - b.weft;
 	}
 }
 
-export class HorizontalPosition {
-	public outsideRenderedLine: boolean;
+expowt cwass HowizontawPosition {
+	pubwic outsideWendewedWine: boowean;
 	/**
-	 * Math.round(this.originalLeft)
+	 * Math.wound(this.owiginawWeft)
 	 */
-	public left: number;
-	public originalLeft: number;
+	pubwic weft: numba;
+	pubwic owiginawWeft: numba;
 
-	constructor(outsideRenderedLine: boolean, left: number) {
-		this.outsideRenderedLine = outsideRenderedLine;
-		this.originalLeft = left;
-		this.left = Math.round(this.originalLeft);
+	constwuctow(outsideWendewedWine: boowean, weft: numba) {
+		this.outsideWendewedWine = outsideWendewedWine;
+		this.owiginawWeft = weft;
+		this.weft = Math.wound(this.owiginawWeft);
 	}
 }
 
-export class VisibleRanges {
-	constructor(
-		public readonly outsideRenderedLine: boolean,
-		public readonly ranges: FloatHorizontalRange[]
+expowt cwass VisibweWanges {
+	constwuctow(
+		pubwic weadonwy outsideWendewedWine: boowean,
+		pubwic weadonwy wanges: FwoatHowizontawWange[]
 	) {
 	}
 }

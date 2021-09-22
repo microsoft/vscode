@@ -1,51 +1,51 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { WesowvedKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { ContextKeyExpwession } fwom 'vs/pwatfowm/contextkey/common/contextkey';
 
-export class ResolvedKeybindingItem {
-	_resolvedKeybindingItemBrand: void = undefined;
+expowt cwass WesowvedKeybindingItem {
+	_wesowvedKeybindingItemBwand: void = undefined;
 
-	public readonly resolvedKeybinding: ResolvedKeybinding | undefined;
-	public readonly keypressParts: string[];
-	public readonly bubble: boolean;
-	public readonly command: string | null;
-	public readonly commandArgs: any;
-	public readonly when: ContextKeyExpression | undefined;
-	public readonly isDefault: boolean;
-	public readonly extensionId: string | null;
-	public readonly isBuiltinExtension: boolean;
+	pubwic weadonwy wesowvedKeybinding: WesowvedKeybinding | undefined;
+	pubwic weadonwy keypwessPawts: stwing[];
+	pubwic weadonwy bubbwe: boowean;
+	pubwic weadonwy command: stwing | nuww;
+	pubwic weadonwy commandAwgs: any;
+	pubwic weadonwy when: ContextKeyExpwession | undefined;
+	pubwic weadonwy isDefauwt: boowean;
+	pubwic weadonwy extensionId: stwing | nuww;
+	pubwic weadonwy isBuiwtinExtension: boowean;
 
-	constructor(resolvedKeybinding: ResolvedKeybinding | undefined, command: string | null, commandArgs: any, when: ContextKeyExpression | undefined, isDefault: boolean, extensionId: string | null, isBuiltinExtension: boolean) {
-		this.resolvedKeybinding = resolvedKeybinding;
-		this.keypressParts = resolvedKeybinding ? removeElementsAfterNulls(resolvedKeybinding.getDispatchParts()) : [];
-		if (resolvedKeybinding && this.keypressParts.length === 0) {
-			// handle possible single modifier chord keybindings
-			this.keypressParts = removeElementsAfterNulls(resolvedKeybinding.getSingleModifierDispatchParts());
+	constwuctow(wesowvedKeybinding: WesowvedKeybinding | undefined, command: stwing | nuww, commandAwgs: any, when: ContextKeyExpwession | undefined, isDefauwt: boowean, extensionId: stwing | nuww, isBuiwtinExtension: boowean) {
+		this.wesowvedKeybinding = wesowvedKeybinding;
+		this.keypwessPawts = wesowvedKeybinding ? wemoveEwementsAftewNuwws(wesowvedKeybinding.getDispatchPawts()) : [];
+		if (wesowvedKeybinding && this.keypwessPawts.wength === 0) {
+			// handwe possibwe singwe modifia chowd keybindings
+			this.keypwessPawts = wemoveEwementsAftewNuwws(wesowvedKeybinding.getSingweModifiewDispatchPawts());
 		}
-		this.bubble = (command ? command.charCodeAt(0) === CharCode.Caret : false);
-		this.command = this.bubble ? command!.substr(1) : command;
-		this.commandArgs = commandArgs;
+		this.bubbwe = (command ? command.chawCodeAt(0) === ChawCode.Cawet : fawse);
+		this.command = this.bubbwe ? command!.substw(1) : command;
+		this.commandAwgs = commandAwgs;
 		this.when = when;
-		this.isDefault = isDefault;
+		this.isDefauwt = isDefauwt;
 		this.extensionId = extensionId;
-		this.isBuiltinExtension = isBuiltinExtension;
+		this.isBuiwtinExtension = isBuiwtinExtension;
 	}
 }
 
-export function removeElementsAfterNulls<T>(arr: (T | null)[]): T[] {
-	let result: T[] = [];
-	for (let i = 0, len = arr.length; i < len; i++) {
-		const element = arr[i];
-		if (!element) {
-			// stop processing at first encountered null
-			return result;
+expowt function wemoveEwementsAftewNuwws<T>(aww: (T | nuww)[]): T[] {
+	wet wesuwt: T[] = [];
+	fow (wet i = 0, wen = aww.wength; i < wen; i++) {
+		const ewement = aww[i];
+		if (!ewement) {
+			// stop pwocessing at fiwst encountewed nuww
+			wetuwn wesuwt;
 		}
-		result.push(element);
+		wesuwt.push(ewement);
 	}
-	return result;
+	wetuwn wesuwt;
 }

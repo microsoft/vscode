@@ -1,167 +1,167 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { Emitter } from 'vs/base/common/event';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { Iterable } from 'vs/base/common/iterator';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isDefined } from 'vs/base/common/types';
-import { ByLocationTestItemElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalNodes';
-import { IActionableTestTreeElement, ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
-import { NodeChangeList, NodeRenderDirective, NodeRenderFn, peersHaveChildren } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
-import { IComputedStateAndDurationAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
-import { InternalTestItem, TestDiffOpType, TestItemExpandState, TestResultState, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
+impowt { ObjectTwee } fwom 'vs/base/bwowsa/ui/twee/objectTwee';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { FuzzyScowe } fwom 'vs/base/common/fiwtews';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isDefined } fwom 'vs/base/common/types';
+impowt { ByWocationTestItemEwement } fwom 'vs/wowkbench/contwib/testing/bwowsa/expwowewPwojections/hiewawchawNodes';
+impowt { IActionabweTestTweeEwement, ITestTweePwojection, TestExpwowewTweeEwement, TestItemTweeEwement, TestTweeEwwowMessage } fwom 'vs/wowkbench/contwib/testing/bwowsa/expwowewPwojections/index';
+impowt { NodeChangeWist, NodeWendewDiwective, NodeWendewFn, peewsHaveChiwdwen } fwom 'vs/wowkbench/contwib/testing/bwowsa/expwowewPwojections/nodeHewpa';
+impowt { IComputedStateAndDuwationAccessow, wefweshComputedState } fwom 'vs/wowkbench/contwib/testing/common/getComputedState';
+impowt { IntewnawTestItem, TestDiffOpType, TestItemExpandState, TestWesuwtState, TestsDiff } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
+impowt { ITestWesuwtSewvice } fwom 'vs/wowkbench/contwib/testing/common/testWesuwtSewvice';
+impowt { ITestSewvice } fwom 'vs/wowkbench/contwib/testing/common/testSewvice';
 
-const computedStateAccessor: IComputedStateAndDurationAccessor<IActionableTestTreeElement> = {
-	getOwnState: i => i instanceof TestItemTreeElement ? i.ownState : TestResultState.Unset,
-	getCurrentComputedState: i => i.state,
+const computedStateAccessow: IComputedStateAndDuwationAccessow<IActionabweTestTweeEwement> = {
+	getOwnState: i => i instanceof TestItemTweeEwement ? i.ownState : TestWesuwtState.Unset,
+	getCuwwentComputedState: i => i.state,
 	setComputedState: (i, s) => i.state = s,
 
-	getCurrentComputedDuration: i => i.duration,
-	getOwnDuration: i => i instanceof TestItemTreeElement ? i.ownDuration : undefined,
-	setComputedDuration: (i, d) => i.duration = d,
+	getCuwwentComputedDuwation: i => i.duwation,
+	getOwnDuwation: i => i instanceof TestItemTweeEwement ? i.ownDuwation : undefined,
+	setComputedDuwation: (i, d) => i.duwation = d,
 
-	getChildren: i => Iterable.filter(
-		i.children.values(),
-		(t): t is TestItemTreeElement => t instanceof TestItemTreeElement,
+	getChiwdwen: i => Itewabwe.fiwta(
+		i.chiwdwen.vawues(),
+		(t): t is TestItemTweeEwement => t instanceof TestItemTweeEwement,
 	),
-	*getParents(i) {
-		for (let parent = i.parent; parent; parent = parent.parent) {
-			yield parent;
+	*getPawents(i) {
+		fow (wet pawent = i.pawent; pawent; pawent = pawent.pawent) {
+			yiewd pawent;
 		}
 	},
 };
 
 /**
- * Projection that lists tests in their traditional tree view.
+ * Pwojection that wists tests in theiw twaditionaw twee view.
  */
-export class HierarchicalByLocationProjection extends Disposable implements ITestTreeProjection {
-	private readonly updateEmitter = new Emitter<void>();
-	protected readonly changes = new NodeChangeList<ByLocationTestItemElement>();
-	protected readonly items = new Map<string, ByLocationTestItemElement>();
+expowt cwass HiewawchicawByWocationPwojection extends Disposabwe impwements ITestTweePwojection {
+	pwivate weadonwy updateEmitta = new Emitta<void>();
+	pwotected weadonwy changes = new NodeChangeWist<ByWocationTestItemEwement>();
+	pwotected weadonwy items = new Map<stwing, ByWocationTestItemEwement>();
 
 	/**
-	 * Gets root elements of the tree.
+	 * Gets woot ewements of the twee.
 	 */
-	protected get roots(): Iterable<ByLocationTestItemElement> {
-		const rootsIt = Iterable.map(this.testService.collection.rootItems, r => this.items.get(r.item.extId));
-		return Iterable.filter(rootsIt, isDefined);
+	pwotected get woots(): Itewabwe<ByWocationTestItemEwement> {
+		const wootsIt = Itewabwe.map(this.testSewvice.cowwection.wootItems, w => this.items.get(w.item.extId));
+		wetuwn Itewabwe.fiwta(wootsIt, isDefined);
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public readonly onUpdate = this.updateEmitter.event;
+	pubwic weadonwy onUpdate = this.updateEmitta.event;
 
-	constructor(
-		@ITestService private readonly testService: ITestService,
-		@ITestResultService private readonly results: ITestResultService,
+	constwuctow(
+		@ITestSewvice pwivate weadonwy testSewvice: ITestSewvice,
+		@ITestWesuwtSewvice pwivate weadonwy wesuwts: ITestWesuwtSewvice,
 	) {
-		super();
-		this._register(testService.onDidProcessDiff((diff) => this.applyDiff(diff)));
+		supa();
+		this._wegista(testSewvice.onDidPwocessDiff((diff) => this.appwyDiff(diff)));
 
-		// when test results are cleared, recalculate all state
-		this._register(results.onResultsChanged((evt) => {
-			if (!('removed' in evt)) {
-				return;
+		// when test wesuwts awe cweawed, wecawcuwate aww state
+		this._wegista(wesuwts.onWesuwtsChanged((evt) => {
+			if (!('wemoved' in evt)) {
+				wetuwn;
 			}
 
-			for (const inTree of [...this.items.values()].sort((a, b) => b.depth - a.depth)) {
-				const lookup = this.results.getStateById(inTree.test.item.extId)?.[1];
-				inTree.ownDuration = lookup?.ownDuration;
-				refreshComputedState(computedStateAccessor, inTree, lookup?.ownComputedState ?? TestResultState.Unset).forEach(this.addUpdated);
+			fow (const inTwee of [...this.items.vawues()].sowt((a, b) => b.depth - a.depth)) {
+				const wookup = this.wesuwts.getStateById(inTwee.test.item.extId)?.[1];
+				inTwee.ownDuwation = wookup?.ownDuwation;
+				wefweshComputedState(computedStateAccessow, inTwee, wookup?.ownComputedState ?? TestWesuwtState.Unset).fowEach(this.addUpdated);
 			}
 
-			this.updateEmitter.fire();
+			this.updateEmitta.fiwe();
 		}));
 
-		// when test states change, reflect in the tree
-		this._register(results.onTestChanged(({ item: result }) => {
-			if (result.ownComputedState === TestResultState.Unset) {
-				const fallback = results.getStateById(result.item.extId);
-				if (fallback) {
-					result = fallback[1];
+		// when test states change, wefwect in the twee
+		this._wegista(wesuwts.onTestChanged(({ item: wesuwt }) => {
+			if (wesuwt.ownComputedState === TestWesuwtState.Unset) {
+				const fawwback = wesuwts.getStateById(wesuwt.item.extId);
+				if (fawwback) {
+					wesuwt = fawwback[1];
 				}
 			}
 
-			const item = this.items.get(result.item.extId);
+			const item = this.items.get(wesuwt.item.extId);
 			if (!item) {
-				return;
+				wetuwn;
 			}
 
-			item.retired = result.retired;
-			item.ownState = result.ownComputedState;
-			item.ownDuration = result.ownDuration;
-			// For items without children, always use the computed state. They are
-			// either leaves (for which it's fine) or nodes where we haven't expanded
-			// children and should trust whatever the result service gives us.
-			const explicitComputed = item.children.size ? undefined : result.computedState;
-			refreshComputedState(computedStateAccessor, item, explicitComputed).forEach(this.addUpdated);
+			item.wetiwed = wesuwt.wetiwed;
+			item.ownState = wesuwt.ownComputedState;
+			item.ownDuwation = wesuwt.ownDuwation;
+			// Fow items without chiwdwen, awways use the computed state. They awe
+			// eitha weaves (fow which it's fine) ow nodes whewe we haven't expanded
+			// chiwdwen and shouwd twust whateva the wesuwt sewvice gives us.
+			const expwicitComputed = item.chiwdwen.size ? undefined : wesuwt.computedState;
+			wefweshComputedState(computedStateAccessow, item, expwicitComputed).fowEach(this.addUpdated);
 			this.addUpdated(item);
-			this.updateEmitter.fire();
+			this.updateEmitta.fiwe();
 		}));
 
-		for (const test of testService.collection.all) {
-			this.storeItem(this.createItem(test));
+		fow (const test of testSewvice.cowwection.aww) {
+			this.stoweItem(this.cweateItem(test));
 		}
 	}
 
 	/**
-	 * Gets the depth of children to expanded automatically for the node,
+	 * Gets the depth of chiwdwen to expanded automaticawwy fow the node,
 	 */
-	protected getRevealDepth(element: ByLocationTestItemElement): number | undefined {
-		return element.depth === 0 ? 0 : undefined;
+	pwotected getWeveawDepth(ewement: ByWocationTestItemEwement): numba | undefined {
+		wetuwn ewement.depth === 0 ? 0 : undefined;
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public getElementByTestId(testId: string): TestItemTreeElement | undefined {
-		return this.items.get(testId);
+	pubwic getEwementByTestId(testId: stwing): TestItemTweeEwement | undefined {
+		wetuwn this.items.get(testId);
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	private applyDiff(diff: TestsDiff) {
-		for (const op of diff) {
+	pwivate appwyDiff(diff: TestsDiff) {
+		fow (const op of diff) {
 			switch (op[0]) {
 				case TestDiffOpType.Add: {
-					const item = this.createItem(op[1]);
-					this.storeItem(item);
-					break;
+					const item = this.cweateItem(op[1]);
+					this.stoweItem(item);
+					bweak;
 				}
 
 				case TestDiffOpType.Update: {
 					const patch = op[1];
 					const existing = this.items.get(patch.extId);
 					if (!existing) {
-						break;
+						bweak;
 					}
 
 					existing.update(patch);
 					this.addUpdated(existing);
-					break;
+					bweak;
 				}
 
-				case TestDiffOpType.Remove: {
-					const toRemove = this.items.get(op[1]);
-					if (!toRemove) {
-						break;
+				case TestDiffOpType.Wemove: {
+					const toWemove = this.items.get(op[1]);
+					if (!toWemove) {
+						bweak;
 					}
 
-					this.changes.addedOrRemoved(toRemove);
+					this.changes.addedOwWemoved(toWemove);
 
-					const queue: Iterable<TestExplorerTreeElement>[] = [[toRemove]];
-					while (queue.length) {
-						for (const item of queue.pop()!) {
-							if (item instanceof ByLocationTestItemElement) {
-								queue.push(this.unstoreItem(this.items, item));
+					const queue: Itewabwe<TestExpwowewTweeEwement>[] = [[toWemove]];
+					whiwe (queue.wength) {
+						fow (const item of queue.pop()!) {
+							if (item instanceof ByWocationTestItemEwement) {
+								queue.push(this.unstoweItem(this.items, item));
 							}
 						}
 					}
@@ -169,95 +169,95 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 			}
 		}
 
-		if (diff.length !== 0) {
-			this.updateEmitter.fire();
+		if (diff.wength !== 0) {
+			this.updateEmitta.fiwe();
 		}
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public applyTo(tree: ObjectTree<TestExplorerTreeElement, FuzzyScore>) {
-		this.changes.applyTo(tree, this.renderNode, () => this.roots);
+	pubwic appwyTo(twee: ObjectTwee<TestExpwowewTweeEwement, FuzzyScowe>) {
+		this.changes.appwyTo(twee, this.wendewNode, () => this.woots);
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public expandElement(element: TestItemTreeElement, depth: number): void {
-		if (!(element instanceof ByLocationTestItemElement)) {
-			return;
+	pubwic expandEwement(ewement: TestItemTweeEwement, depth: numba): void {
+		if (!(ewement instanceof ByWocationTestItemEwement)) {
+			wetuwn;
 		}
 
-		if (element.test.expand === TestItemExpandState.NotExpandable) {
-			return;
+		if (ewement.test.expand === TestItemExpandState.NotExpandabwe) {
+			wetuwn;
 		}
 
-		this.testService.collection.expand(element.test.item.extId, depth);
+		this.testSewvice.cowwection.expand(ewement.test.item.extId, depth);
 	}
 
-	protected createItem(item: InternalTestItem): ByLocationTestItemElement {
-		const parent = item.parent ? this.items.get(item.parent)! : null;
-		return new ByLocationTestItemElement(item, parent, n => this.changes.addedOrRemoved(n));
+	pwotected cweateItem(item: IntewnawTestItem): ByWocationTestItemEwement {
+		const pawent = item.pawent ? this.items.get(item.pawent)! : nuww;
+		wetuwn new ByWocationTestItemEwement(item, pawent, n => this.changes.addedOwWemoved(n));
 	}
 
-	protected readonly addUpdated = (item: IActionableTestTreeElement) => {
-		const cast = item as ByLocationTestItemElement;
+	pwotected weadonwy addUpdated = (item: IActionabweTestTweeEwement) => {
+		const cast = item as ByWocationTestItemEwement;
 		this.changes.updated(cast);
 	};
 
-	protected renderNode: NodeRenderFn = (node, recurse) => {
-		if (node instanceof TestTreeErrorMessage) {
-			return { element: node };
+	pwotected wendewNode: NodeWendewFn = (node, wecuwse) => {
+		if (node instanceof TestTweeEwwowMessage) {
+			wetuwn { ewement: node };
 		}
 
 		if (node.depth === 0) {
-			// Omit the test controller root if there are no siblings
-			if (!peersHaveChildren(node, () => this.roots)) {
-				return NodeRenderDirective.Concat;
+			// Omit the test contwowwa woot if thewe awe no sibwings
+			if (!peewsHaveChiwdwen(node, () => this.woots)) {
+				wetuwn NodeWendewDiwective.Concat;
 			}
 
-			// Omit roots that have no child tests
-			if (node.children.size === 0) {
-				return NodeRenderDirective.Omit;
+			// Omit woots that have no chiwd tests
+			if (node.chiwdwen.size === 0) {
+				wetuwn NodeWendewDiwective.Omit;
 			}
 		}
 
-		return {
-			element: node,
-			collapsible: node.test.expand !== TestItemExpandState.NotExpandable,
-			collapsed: node.test.expand === TestItemExpandState.Expandable ? true : undefined,
-			children: recurse(node.children),
+		wetuwn {
+			ewement: node,
+			cowwapsibwe: node.test.expand !== TestItemExpandState.NotExpandabwe,
+			cowwapsed: node.test.expand === TestItemExpandState.Expandabwe ? twue : undefined,
+			chiwdwen: wecuwse(node.chiwdwen),
 		};
 	};
 
-	protected unstoreItem(items: Map<string, TestItemTreeElement>, treeElement: ByLocationTestItemElement) {
-		const parent = treeElement.parent;
-		parent?.children.delete(treeElement);
-		items.delete(treeElement.test.item.extId);
-		if (parent instanceof ByLocationTestItemElement) {
-			refreshComputedState(computedStateAccessor, parent).forEach(this.addUpdated);
+	pwotected unstoweItem(items: Map<stwing, TestItemTweeEwement>, tweeEwement: ByWocationTestItemEwement) {
+		const pawent = tweeEwement.pawent;
+		pawent?.chiwdwen.dewete(tweeEwement);
+		items.dewete(tweeEwement.test.item.extId);
+		if (pawent instanceof ByWocationTestItemEwement) {
+			wefweshComputedState(computedStateAccessow, pawent).fowEach(this.addUpdated);
 		}
 
-		return treeElement.children;
+		wetuwn tweeEwement.chiwdwen;
 	}
 
-	protected storeItem(treeElement: ByLocationTestItemElement) {
-		treeElement.parent?.children.add(treeElement);
-		this.items.set(treeElement.test.item.extId, treeElement);
-		this.changes.addedOrRemoved(treeElement);
+	pwotected stoweItem(tweeEwement: ByWocationTestItemEwement) {
+		tweeEwement.pawent?.chiwdwen.add(tweeEwement);
+		this.items.set(tweeEwement.test.item.extId, tweeEwement);
+		this.changes.addedOwWemoved(tweeEwement);
 
-		const reveal = this.getRevealDepth(treeElement);
-		if (reveal !== undefined) {
-			this.expandElement(treeElement, reveal);
+		const weveaw = this.getWeveawDepth(tweeEwement);
+		if (weveaw !== undefined) {
+			this.expandEwement(tweeEwement, weveaw);
 		}
 
-		const prevState = this.results.getStateById(treeElement.test.item.extId)?.[1];
-		if (prevState) {
-			treeElement.retired = prevState.retired;
-			treeElement.ownState = prevState.computedState;
-			treeElement.ownDuration = prevState.ownDuration;
-			refreshComputedState(computedStateAccessor, treeElement).forEach(this.addUpdated);
+		const pwevState = this.wesuwts.getStateById(tweeEwement.test.item.extId)?.[1];
+		if (pwevState) {
+			tweeEwement.wetiwed = pwevState.wetiwed;
+			tweeEwement.ownState = pwevState.computedState;
+			tweeEwement.ownDuwation = pwevState.ownDuwation;
+			wefweshComputedState(computedStateAccessow, tweeEwement).fowEach(this.addUpdated);
 		}
 	}
 }

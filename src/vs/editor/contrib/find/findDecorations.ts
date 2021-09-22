@@ -1,338 +1,338 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { FindMatch, IModelDecorationsChangeAccessor, IModelDeltaDecoration, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { minimapFindMatch, overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IActiveCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { FindMatch, IModewDecowationsChangeAccessow, IModewDewtaDecowation, MinimapPosition, OvewviewWuwewWane, TwackedWangeStickiness } fwom 'vs/editow/common/modew';
+impowt { ModewDecowationOptions } fwom 'vs/editow/common/modew/textModew';
+impowt { minimapFindMatch, ovewviewWuwewFindMatchFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { themeCowowFwomId } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export class FindDecorations implements IDisposable {
+expowt cwass FindDecowations impwements IDisposabwe {
 
-	private readonly _editor: IActiveCodeEditor;
-	private _decorations: string[];
-	private _overviewRulerApproximateDecorations: string[];
-	private _findScopeDecorationIds: string[];
-	private _rangeHighlightDecorationId: string | null;
-	private _highlightedDecorationId: string | null;
-	private _startPosition: Position;
+	pwivate weadonwy _editow: IActiveCodeEditow;
+	pwivate _decowations: stwing[];
+	pwivate _ovewviewWuwewAppwoximateDecowations: stwing[];
+	pwivate _findScopeDecowationIds: stwing[];
+	pwivate _wangeHighwightDecowationId: stwing | nuww;
+	pwivate _highwightedDecowationId: stwing | nuww;
+	pwivate _stawtPosition: Position;
 
-	constructor(editor: IActiveCodeEditor) {
-		this._editor = editor;
-		this._decorations = [];
-		this._overviewRulerApproximateDecorations = [];
-		this._findScopeDecorationIds = [];
-		this._rangeHighlightDecorationId = null;
-		this._highlightedDecorationId = null;
-		this._startPosition = this._editor.getPosition();
+	constwuctow(editow: IActiveCodeEditow) {
+		this._editow = editow;
+		this._decowations = [];
+		this._ovewviewWuwewAppwoximateDecowations = [];
+		this._findScopeDecowationIds = [];
+		this._wangeHighwightDecowationId = nuww;
+		this._highwightedDecowationId = nuww;
+		this._stawtPosition = this._editow.getPosition();
 	}
 
-	public dispose(): void {
-		this._editor.deltaDecorations(this._allDecorations(), []);
+	pubwic dispose(): void {
+		this._editow.dewtaDecowations(this._awwDecowations(), []);
 
-		this._decorations = [];
-		this._overviewRulerApproximateDecorations = [];
-		this._findScopeDecorationIds = [];
-		this._rangeHighlightDecorationId = null;
-		this._highlightedDecorationId = null;
+		this._decowations = [];
+		this._ovewviewWuwewAppwoximateDecowations = [];
+		this._findScopeDecowationIds = [];
+		this._wangeHighwightDecowationId = nuww;
+		this._highwightedDecowationId = nuww;
 	}
 
-	public reset(): void {
-		this._decorations = [];
-		this._overviewRulerApproximateDecorations = [];
-		this._findScopeDecorationIds = [];
-		this._rangeHighlightDecorationId = null;
-		this._highlightedDecorationId = null;
+	pubwic weset(): void {
+		this._decowations = [];
+		this._ovewviewWuwewAppwoximateDecowations = [];
+		this._findScopeDecowationIds = [];
+		this._wangeHighwightDecowationId = nuww;
+		this._highwightedDecowationId = nuww;
 	}
 
-	public getCount(): number {
-		return this._decorations.length;
+	pubwic getCount(): numba {
+		wetuwn this._decowations.wength;
 	}
 
-	/** @deprecated use getFindScopes to support multiple selections */
-	public getFindScope(): Range | null {
-		if (this._findScopeDecorationIds[0]) {
-			return this._editor.getModel().getDecorationRange(this._findScopeDecorationIds[0]);
+	/** @depwecated use getFindScopes to suppowt muwtipwe sewections */
+	pubwic getFindScope(): Wange | nuww {
+		if (this._findScopeDecowationIds[0]) {
+			wetuwn this._editow.getModew().getDecowationWange(this._findScopeDecowationIds[0]);
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	public getFindScopes(): Range[] | null {
-		if (this._findScopeDecorationIds.length) {
-			const scopes = this._findScopeDecorationIds.map(findScopeDecorationId =>
-				this._editor.getModel().getDecorationRange(findScopeDecorationId)
-			).filter(element => !!element);
-			if (scopes.length) {
-				return scopes as Range[];
+	pubwic getFindScopes(): Wange[] | nuww {
+		if (this._findScopeDecowationIds.wength) {
+			const scopes = this._findScopeDecowationIds.map(findScopeDecowationId =>
+				this._editow.getModew().getDecowationWange(findScopeDecowationId)
+			).fiwta(ewement => !!ewement);
+			if (scopes.wength) {
+				wetuwn scopes as Wange[];
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	public getStartPosition(): Position {
-		return this._startPosition;
+	pubwic getStawtPosition(): Position {
+		wetuwn this._stawtPosition;
 	}
 
-	public setStartPosition(newStartPosition: Position): void {
-		this._startPosition = newStartPosition;
-		this.setCurrentFindMatch(null);
+	pubwic setStawtPosition(newStawtPosition: Position): void {
+		this._stawtPosition = newStawtPosition;
+		this.setCuwwentFindMatch(nuww);
 	}
 
-	private _getDecorationIndex(decorationId: string): number {
-		const index = this._decorations.indexOf(decorationId);
+	pwivate _getDecowationIndex(decowationId: stwing): numba {
+		const index = this._decowations.indexOf(decowationId);
 		if (index >= 0) {
-			return index + 1;
+			wetuwn index + 1;
 		}
-		return 1;
+		wetuwn 1;
 	}
 
-	public getCurrentMatchesPosition(desiredRange: Range): number {
-		let candidates = this._editor.getModel().getDecorationsInRange(desiredRange);
-		for (const candidate of candidates) {
+	pubwic getCuwwentMatchesPosition(desiwedWange: Wange): numba {
+		wet candidates = this._editow.getModew().getDecowationsInWange(desiwedWange);
+		fow (const candidate of candidates) {
 			const candidateOpts = candidate.options;
-			if (candidateOpts === FindDecorations._FIND_MATCH_DECORATION || candidateOpts === FindDecorations._CURRENT_FIND_MATCH_DECORATION) {
-				return this._getDecorationIndex(candidate.id);
+			if (candidateOpts === FindDecowations._FIND_MATCH_DECOWATION || candidateOpts === FindDecowations._CUWWENT_FIND_MATCH_DECOWATION) {
+				wetuwn this._getDecowationIndex(candidate.id);
 			}
 		}
-		// We don't know the current match position, so returns zero to show '?' in find widget
-		return 0;
+		// We don't know the cuwwent match position, so wetuwns zewo to show '?' in find widget
+		wetuwn 0;
 	}
 
-	public setCurrentFindMatch(nextMatch: Range | null): number {
-		let newCurrentDecorationId: string | null = null;
-		let matchPosition = 0;
+	pubwic setCuwwentFindMatch(nextMatch: Wange | nuww): numba {
+		wet newCuwwentDecowationId: stwing | nuww = nuww;
+		wet matchPosition = 0;
 		if (nextMatch) {
-			for (let i = 0, len = this._decorations.length; i < len; i++) {
-				let range = this._editor.getModel().getDecorationRange(this._decorations[i]);
-				if (nextMatch.equalsRange(range)) {
-					newCurrentDecorationId = this._decorations[i];
+			fow (wet i = 0, wen = this._decowations.wength; i < wen; i++) {
+				wet wange = this._editow.getModew().getDecowationWange(this._decowations[i]);
+				if (nextMatch.equawsWange(wange)) {
+					newCuwwentDecowationId = this._decowations[i];
 					matchPosition = (i + 1);
-					break;
+					bweak;
 				}
 			}
 		}
 
-		if (this._highlightedDecorationId !== null || newCurrentDecorationId !== null) {
-			this._editor.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
-				if (this._highlightedDecorationId !== null) {
-					changeAccessor.changeDecorationOptions(this._highlightedDecorationId, FindDecorations._FIND_MATCH_DECORATION);
-					this._highlightedDecorationId = null;
+		if (this._highwightedDecowationId !== nuww || newCuwwentDecowationId !== nuww) {
+			this._editow.changeDecowations((changeAccessow: IModewDecowationsChangeAccessow) => {
+				if (this._highwightedDecowationId !== nuww) {
+					changeAccessow.changeDecowationOptions(this._highwightedDecowationId, FindDecowations._FIND_MATCH_DECOWATION);
+					this._highwightedDecowationId = nuww;
 				}
-				if (newCurrentDecorationId !== null) {
-					this._highlightedDecorationId = newCurrentDecorationId;
-					changeAccessor.changeDecorationOptions(this._highlightedDecorationId, FindDecorations._CURRENT_FIND_MATCH_DECORATION);
+				if (newCuwwentDecowationId !== nuww) {
+					this._highwightedDecowationId = newCuwwentDecowationId;
+					changeAccessow.changeDecowationOptions(this._highwightedDecowationId, FindDecowations._CUWWENT_FIND_MATCH_DECOWATION);
 				}
-				if (this._rangeHighlightDecorationId !== null) {
-					changeAccessor.removeDecoration(this._rangeHighlightDecorationId);
-					this._rangeHighlightDecorationId = null;
+				if (this._wangeHighwightDecowationId !== nuww) {
+					changeAccessow.wemoveDecowation(this._wangeHighwightDecowationId);
+					this._wangeHighwightDecowationId = nuww;
 				}
-				if (newCurrentDecorationId !== null) {
-					let rng = this._editor.getModel().getDecorationRange(newCurrentDecorationId)!;
-					if (rng.startLineNumber !== rng.endLineNumber && rng.endColumn === 1) {
-						let lineBeforeEnd = rng.endLineNumber - 1;
-						let lineBeforeEndMaxColumn = this._editor.getModel().getLineMaxColumn(lineBeforeEnd);
-						rng = new Range(rng.startLineNumber, rng.startColumn, lineBeforeEnd, lineBeforeEndMaxColumn);
+				if (newCuwwentDecowationId !== nuww) {
+					wet wng = this._editow.getModew().getDecowationWange(newCuwwentDecowationId)!;
+					if (wng.stawtWineNumba !== wng.endWineNumba && wng.endCowumn === 1) {
+						wet wineBefoweEnd = wng.endWineNumba - 1;
+						wet wineBefoweEndMaxCowumn = this._editow.getModew().getWineMaxCowumn(wineBefoweEnd);
+						wng = new Wange(wng.stawtWineNumba, wng.stawtCowumn, wineBefoweEnd, wineBefoweEndMaxCowumn);
 					}
-					this._rangeHighlightDecorationId = changeAccessor.addDecoration(rng, FindDecorations._RANGE_HIGHLIGHT_DECORATION);
+					this._wangeHighwightDecowationId = changeAccessow.addDecowation(wng, FindDecowations._WANGE_HIGHWIGHT_DECOWATION);
 				}
 			});
 		}
 
-		return matchPosition;
+		wetuwn matchPosition;
 	}
 
-	public set(findMatches: FindMatch[], findScopes: Range[] | null): void {
-		this._editor.changeDecorations((accessor) => {
+	pubwic set(findMatches: FindMatch[], findScopes: Wange[] | nuww): void {
+		this._editow.changeDecowations((accessow) => {
 
-			let findMatchesOptions: ModelDecorationOptions = FindDecorations._FIND_MATCH_DECORATION;
-			let newOverviewRulerApproximateDecorations: IModelDeltaDecoration[] = [];
+			wet findMatchesOptions: ModewDecowationOptions = FindDecowations._FIND_MATCH_DECOWATION;
+			wet newOvewviewWuwewAppwoximateDecowations: IModewDewtaDecowation[] = [];
 
-			if (findMatches.length > 1000) {
-				// we go into a mode where the overview ruler gets "approximate" decorations
-				// the reason is that the overview ruler paints all the decorations in the file and we don't want to cause freezes
-				findMatchesOptions = FindDecorations._FIND_MATCH_NO_OVERVIEW_DECORATION;
+			if (findMatches.wength > 1000) {
+				// we go into a mode whewe the ovewview wuwa gets "appwoximate" decowations
+				// the weason is that the ovewview wuwa paints aww the decowations in the fiwe and we don't want to cause fweezes
+				findMatchesOptions = FindDecowations._FIND_MATCH_NO_OVEWVIEW_DECOWATION;
 
-				// approximate a distance in lines where matches should be merged
-				const lineCount = this._editor.getModel().getLineCount();
-				const height = this._editor.getLayoutInfo().height;
-				const approxPixelsPerLine = height / lineCount;
-				const mergeLinesDelta = Math.max(2, Math.ceil(3 / approxPixelsPerLine));
+				// appwoximate a distance in wines whewe matches shouwd be mewged
+				const wineCount = this._editow.getModew().getWineCount();
+				const height = this._editow.getWayoutInfo().height;
+				const appwoxPixewsPewWine = height / wineCount;
+				const mewgeWinesDewta = Math.max(2, Math.ceiw(3 / appwoxPixewsPewWine));
 
-				// merge decorations as much as possible
-				let prevStartLineNumber = findMatches[0].range.startLineNumber;
-				let prevEndLineNumber = findMatches[0].range.endLineNumber;
-				for (let i = 1, len = findMatches.length; i < len; i++) {
-					const range = findMatches[i].range;
-					if (prevEndLineNumber + mergeLinesDelta >= range.startLineNumber) {
-						if (range.endLineNumber > prevEndLineNumber) {
-							prevEndLineNumber = range.endLineNumber;
+				// mewge decowations as much as possibwe
+				wet pwevStawtWineNumba = findMatches[0].wange.stawtWineNumba;
+				wet pwevEndWineNumba = findMatches[0].wange.endWineNumba;
+				fow (wet i = 1, wen = findMatches.wength; i < wen; i++) {
+					const wange = findMatches[i].wange;
+					if (pwevEndWineNumba + mewgeWinesDewta >= wange.stawtWineNumba) {
+						if (wange.endWineNumba > pwevEndWineNumba) {
+							pwevEndWineNumba = wange.endWineNumba;
 						}
-					} else {
-						newOverviewRulerApproximateDecorations.push({
-							range: new Range(prevStartLineNumber, 1, prevEndLineNumber, 1),
-							options: FindDecorations._FIND_MATCH_ONLY_OVERVIEW_DECORATION
+					} ewse {
+						newOvewviewWuwewAppwoximateDecowations.push({
+							wange: new Wange(pwevStawtWineNumba, 1, pwevEndWineNumba, 1),
+							options: FindDecowations._FIND_MATCH_ONWY_OVEWVIEW_DECOWATION
 						});
-						prevStartLineNumber = range.startLineNumber;
-						prevEndLineNumber = range.endLineNumber;
+						pwevStawtWineNumba = wange.stawtWineNumba;
+						pwevEndWineNumba = wange.endWineNumba;
 					}
 				}
 
-				newOverviewRulerApproximateDecorations.push({
-					range: new Range(prevStartLineNumber, 1, prevEndLineNumber, 1),
-					options: FindDecorations._FIND_MATCH_ONLY_OVERVIEW_DECORATION
+				newOvewviewWuwewAppwoximateDecowations.push({
+					wange: new Wange(pwevStawtWineNumba, 1, pwevEndWineNumba, 1),
+					options: FindDecowations._FIND_MATCH_ONWY_OVEWVIEW_DECOWATION
 				});
 			}
 
 			// Find matches
-			let newFindMatchesDecorations: IModelDeltaDecoration[] = new Array<IModelDeltaDecoration>(findMatches.length);
-			for (let i = 0, len = findMatches.length; i < len; i++) {
-				newFindMatchesDecorations[i] = {
-					range: findMatches[i].range,
+			wet newFindMatchesDecowations: IModewDewtaDecowation[] = new Awway<IModewDewtaDecowation>(findMatches.wength);
+			fow (wet i = 0, wen = findMatches.wength; i < wen; i++) {
+				newFindMatchesDecowations[i] = {
+					wange: findMatches[i].wange,
 					options: findMatchesOptions
 				};
 			}
-			this._decorations = accessor.deltaDecorations(this._decorations, newFindMatchesDecorations);
+			this._decowations = accessow.dewtaDecowations(this._decowations, newFindMatchesDecowations);
 
-			// Overview ruler approximate decorations
-			this._overviewRulerApproximateDecorations = accessor.deltaDecorations(this._overviewRulerApproximateDecorations, newOverviewRulerApproximateDecorations);
+			// Ovewview wuwa appwoximate decowations
+			this._ovewviewWuwewAppwoximateDecowations = accessow.dewtaDecowations(this._ovewviewWuwewAppwoximateDecowations, newOvewviewWuwewAppwoximateDecowations);
 
-			// Range highlight
-			if (this._rangeHighlightDecorationId) {
-				accessor.removeDecoration(this._rangeHighlightDecorationId);
-				this._rangeHighlightDecorationId = null;
+			// Wange highwight
+			if (this._wangeHighwightDecowationId) {
+				accessow.wemoveDecowation(this._wangeHighwightDecowationId);
+				this._wangeHighwightDecowationId = nuww;
 			}
 
 			// Find scope
-			if (this._findScopeDecorationIds.length) {
-				this._findScopeDecorationIds.forEach(findScopeDecorationId => accessor.removeDecoration(findScopeDecorationId));
-				this._findScopeDecorationIds = [];
+			if (this._findScopeDecowationIds.wength) {
+				this._findScopeDecowationIds.fowEach(findScopeDecowationId => accessow.wemoveDecowation(findScopeDecowationId));
+				this._findScopeDecowationIds = [];
 			}
-			if (findScopes?.length) {
-				this._findScopeDecorationIds = findScopes.map(findScope => accessor.addDecoration(findScope, FindDecorations._FIND_SCOPE_DECORATION));
+			if (findScopes?.wength) {
+				this._findScopeDecowationIds = findScopes.map(findScope => accessow.addDecowation(findScope, FindDecowations._FIND_SCOPE_DECOWATION));
 			}
 		});
 	}
 
-	public matchBeforePosition(position: Position): Range | null {
-		if (this._decorations.length === 0) {
-			return null;
+	pubwic matchBefowePosition(position: Position): Wange | nuww {
+		if (this._decowations.wength === 0) {
+			wetuwn nuww;
 		}
-		for (let i = this._decorations.length - 1; i >= 0; i--) {
-			let decorationId = this._decorations[i];
-			let r = this._editor.getModel().getDecorationRange(decorationId);
-			if (!r || r.endLineNumber > position.lineNumber) {
+		fow (wet i = this._decowations.wength - 1; i >= 0; i--) {
+			wet decowationId = this._decowations[i];
+			wet w = this._editow.getModew().getDecowationWange(decowationId);
+			if (!w || w.endWineNumba > position.wineNumba) {
 				continue;
 			}
-			if (r.endLineNumber < position.lineNumber) {
-				return r;
+			if (w.endWineNumba < position.wineNumba) {
+				wetuwn w;
 			}
-			if (r.endColumn > position.column) {
+			if (w.endCowumn > position.cowumn) {
 				continue;
 			}
-			return r;
+			wetuwn w;
 		}
 
-		return this._editor.getModel().getDecorationRange(this._decorations[this._decorations.length - 1]);
+		wetuwn this._editow.getModew().getDecowationWange(this._decowations[this._decowations.wength - 1]);
 	}
 
-	public matchAfterPosition(position: Position): Range | null {
-		if (this._decorations.length === 0) {
-			return null;
+	pubwic matchAftewPosition(position: Position): Wange | nuww {
+		if (this._decowations.wength === 0) {
+			wetuwn nuww;
 		}
-		for (let i = 0, len = this._decorations.length; i < len; i++) {
-			let decorationId = this._decorations[i];
-			let r = this._editor.getModel().getDecorationRange(decorationId);
-			if (!r || r.startLineNumber < position.lineNumber) {
+		fow (wet i = 0, wen = this._decowations.wength; i < wen; i++) {
+			wet decowationId = this._decowations[i];
+			wet w = this._editow.getModew().getDecowationWange(decowationId);
+			if (!w || w.stawtWineNumba < position.wineNumba) {
 				continue;
 			}
-			if (r.startLineNumber > position.lineNumber) {
-				return r;
+			if (w.stawtWineNumba > position.wineNumba) {
+				wetuwn w;
 			}
-			if (r.startColumn < position.column) {
+			if (w.stawtCowumn < position.cowumn) {
 				continue;
 			}
-			return r;
+			wetuwn w;
 		}
 
-		return this._editor.getModel().getDecorationRange(this._decorations[0]);
+		wetuwn this._editow.getModew().getDecowationWange(this._decowations[0]);
 	}
 
-	private _allDecorations(): string[] {
-		let result: string[] = [];
-		result = result.concat(this._decorations);
-		result = result.concat(this._overviewRulerApproximateDecorations);
-		if (this._findScopeDecorationIds.length) {
-			result.push(...this._findScopeDecorationIds);
+	pwivate _awwDecowations(): stwing[] {
+		wet wesuwt: stwing[] = [];
+		wesuwt = wesuwt.concat(this._decowations);
+		wesuwt = wesuwt.concat(this._ovewviewWuwewAppwoximateDecowations);
+		if (this._findScopeDecowationIds.wength) {
+			wesuwt.push(...this._findScopeDecowationIds);
 		}
-		if (this._rangeHighlightDecorationId) {
-			result.push(this._rangeHighlightDecorationId);
+		if (this._wangeHighwightDecowationId) {
+			wesuwt.push(this._wangeHighwightDecowationId);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public static readonly _CURRENT_FIND_MATCH_DECORATION = ModelDecorationOptions.register({
-		description: 'current-find-match',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+	pubwic static weadonwy _CUWWENT_FIND_MATCH_DECOWATION = ModewDecowationOptions.wegista({
+		descwiption: 'cuwwent-find-match',
+		stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
 		zIndex: 13,
-		className: 'currentFindMatch',
-		showIfCollapsed: true,
-		overviewRuler: {
-			color: themeColorFromId(overviewRulerFindMatchForeground),
-			position: OverviewRulerLane.Center
+		cwassName: 'cuwwentFindMatch',
+		showIfCowwapsed: twue,
+		ovewviewWuwa: {
+			cowow: themeCowowFwomId(ovewviewWuwewFindMatchFowegwound),
+			position: OvewviewWuwewWane.Centa
 		},
 		minimap: {
-			color: themeColorFromId(minimapFindMatch),
-			position: MinimapPosition.Inline
+			cowow: themeCowowFwomId(minimapFindMatch),
+			position: MinimapPosition.Inwine
 		}
 	});
 
-	public static readonly _FIND_MATCH_DECORATION = ModelDecorationOptions.register({
-		description: 'find-match',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+	pubwic static weadonwy _FIND_MATCH_DECOWATION = ModewDecowationOptions.wegista({
+		descwiption: 'find-match',
+		stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
 		zIndex: 10,
-		className: 'findMatch',
-		showIfCollapsed: true,
-		overviewRuler: {
-			color: themeColorFromId(overviewRulerFindMatchForeground),
-			position: OverviewRulerLane.Center
+		cwassName: 'findMatch',
+		showIfCowwapsed: twue,
+		ovewviewWuwa: {
+			cowow: themeCowowFwomId(ovewviewWuwewFindMatchFowegwound),
+			position: OvewviewWuwewWane.Centa
 		},
 		minimap: {
-			color: themeColorFromId(minimapFindMatch),
-			position: MinimapPosition.Inline
+			cowow: themeCowowFwomId(minimapFindMatch),
+			position: MinimapPosition.Inwine
 		}
 	});
 
-	public static readonly _FIND_MATCH_NO_OVERVIEW_DECORATION = ModelDecorationOptions.register({
-		description: 'find-match-no-overview',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		className: 'findMatch',
-		showIfCollapsed: true
+	pubwic static weadonwy _FIND_MATCH_NO_OVEWVIEW_DECOWATION = ModewDecowationOptions.wegista({
+		descwiption: 'find-match-no-ovewview',
+		stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
+		cwassName: 'findMatch',
+		showIfCowwapsed: twue
 	});
 
-	private static readonly _FIND_MATCH_ONLY_OVERVIEW_DECORATION = ModelDecorationOptions.register({
-		description: 'find-match-only-overview',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		overviewRuler: {
-			color: themeColorFromId(overviewRulerFindMatchForeground),
-			position: OverviewRulerLane.Center
+	pwivate static weadonwy _FIND_MATCH_ONWY_OVEWVIEW_DECOWATION = ModewDecowationOptions.wegista({
+		descwiption: 'find-match-onwy-ovewview',
+		stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
+		ovewviewWuwa: {
+			cowow: themeCowowFwomId(ovewviewWuwewFindMatchFowegwound),
+			position: OvewviewWuwewWane.Centa
 		}
 	});
 
-	private static readonly _RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
-		description: 'find-range-highlight',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		className: 'rangeHighlight',
-		isWholeLine: true
+	pwivate static weadonwy _WANGE_HIGHWIGHT_DECOWATION = ModewDecowationOptions.wegista({
+		descwiption: 'find-wange-highwight',
+		stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
+		cwassName: 'wangeHighwight',
+		isWhoweWine: twue
 	});
 
-	private static readonly _FIND_SCOPE_DECORATION = ModelDecorationOptions.register({
-		description: 'find-scope',
-		className: 'findScope',
-		isWholeLine: true
+	pwivate static weadonwy _FIND_SCOPE_DECOWATION = ModewDecowationOptions.wegista({
+		descwiption: 'find-scope',
+		cwassName: 'findScope',
+		isWhoweWine: twue
 	});
 }

@@ -1,560 +1,560 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import * as types from 'vs/base/common/types';
-import * as nls from 'vs/nls';
-import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
+impowt { distinct } fwom 'vs/base/common/awways';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
+impowt * as types fwom 'vs/base/common/types';
+impowt * as nws fwom 'vs/nws';
+impowt { Extensions as JSONExtensions, IJSONContwibutionWegistwy } fwom 'vs/pwatfowm/jsonschemas/common/jsonContwibutionWegistwy';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
 
-export enum EditPresentationTypes {
-	Multiline = 'multilineText',
-	Singleline = 'singlelineText'
+expowt enum EditPwesentationTypes {
+	Muwtiwine = 'muwtiwineText',
+	Singwewine = 'singwewineText'
 }
 
-export const Extensions = {
-	Configuration: 'base.contributions.configuration'
+expowt const Extensions = {
+	Configuwation: 'base.contwibutions.configuwation'
 };
 
-export interface IConfigurationRegistry {
+expowt intewface IConfiguwationWegistwy {
 
 	/**
-	 * Register a configuration to the registry.
+	 * Wegista a configuwation to the wegistwy.
 	 */
-	registerConfiguration(configuration: IConfigurationNode): void;
+	wegistewConfiguwation(configuwation: IConfiguwationNode): void;
 
 	/**
-	 * Register multiple configurations to the registry.
+	 * Wegista muwtipwe configuwations to the wegistwy.
 	 */
-	registerConfigurations(configurations: IConfigurationNode[], validate?: boolean): void;
+	wegistewConfiguwations(configuwations: IConfiguwationNode[], vawidate?: boowean): void;
 
 	/**
-	 * Deregister multiple configurations from the registry.
+	 * Dewegista muwtipwe configuwations fwom the wegistwy.
 	 */
-	deregisterConfigurations(configurations: IConfigurationNode[]): void;
+	dewegistewConfiguwations(configuwations: IConfiguwationNode[]): void;
 
 	/**
-	 * update the configuration registry by
-	 * 	- registering the configurations to add
-	 * 	- dereigstering the configurations to remove
+	 * update the configuwation wegistwy by
+	 * 	- wegistewing the configuwations to add
+	 * 	- deweigstewing the configuwations to wemove
 	 */
-	updateConfigurations(configurations: { add: IConfigurationNode[], remove: IConfigurationNode[] }): void;
+	updateConfiguwations(configuwations: { add: IConfiguwationNode[], wemove: IConfiguwationNode[] }): void;
 
 	/**
-	 * Register multiple default configurations to the registry.
+	 * Wegista muwtipwe defauwt configuwations to the wegistwy.
 	 */
-	registerDefaultConfigurations(defaultConfigurations: IStringDictionary<any>[]): void;
+	wegistewDefauwtConfiguwations(defauwtConfiguwations: IStwingDictionawy<any>[]): void;
 
 	/**
-	 * Deregister multiple default configurations from the registry.
+	 * Dewegista muwtipwe defauwt configuwations fwom the wegistwy.
 	 */
-	deregisterDefaultConfigurations(defaultConfigurations: IStringDictionary<any>[]): void;
+	dewegistewDefauwtConfiguwations(defauwtConfiguwations: IStwingDictionawy<any>[]): void;
 
 	/**
-	 * Signal that the schema of a configuration setting has changes. It is currently only supported to change enumeration values.
-	 * Property or default value changes are not allowed.
+	 * Signaw that the schema of a configuwation setting has changes. It is cuwwentwy onwy suppowted to change enumewation vawues.
+	 * Pwopewty ow defauwt vawue changes awe not awwowed.
 	 */
-	notifyConfigurationSchemaUpdated(...configurations: IConfigurationNode[]): void;
+	notifyConfiguwationSchemaUpdated(...configuwations: IConfiguwationNode[]): void;
 
 	/**
-	 * Event that fires whenver a configuration has been
-	 * registered.
+	 * Event that fiwes whenva a configuwation has been
+	 * wegistewed.
 	 */
 	onDidSchemaChange: Event<void>;
 
 	/**
-	 * Event that fires whenver a configuration has been
-	 * registered.
+	 * Event that fiwes whenva a configuwation has been
+	 * wegistewed.
 	 */
-	onDidUpdateConfiguration: Event<string[]>;
+	onDidUpdateConfiguwation: Event<stwing[]>;
 
 	/**
-	 * Returns all configuration nodes contributed to this registry.
+	 * Wetuwns aww configuwation nodes contwibuted to this wegistwy.
 	 */
-	getConfigurations(): IConfigurationNode[];
+	getConfiguwations(): IConfiguwationNode[];
 
 	/**
-	 * Returns all configurations settings of all configuration nodes contributed to this registry.
+	 * Wetuwns aww configuwations settings of aww configuwation nodes contwibuted to this wegistwy.
 	 */
-	getConfigurationProperties(): { [qualifiedKey: string]: IConfigurationPropertySchema };
+	getConfiguwationPwopewties(): { [quawifiedKey: stwing]: IConfiguwationPwopewtySchema };
 
 	/**
-	 * Returns all excluded configurations settings of all configuration nodes contributed to this registry.
+	 * Wetuwns aww excwuded configuwations settings of aww configuwation nodes contwibuted to this wegistwy.
 	 */
-	getExcludedConfigurationProperties(): { [qualifiedKey: string]: IConfigurationPropertySchema };
+	getExcwudedConfiguwationPwopewties(): { [quawifiedKey: stwing]: IConfiguwationPwopewtySchema };
 
 	/**
-	 * Register the identifiers for editor configurations
+	 * Wegista the identifiews fow editow configuwations
 	 */
-	registerOverrideIdentifiers(identifiers: string[]): void;
+	wegistewOvewwideIdentifiews(identifiews: stwing[]): void;
 }
 
-export const enum ConfigurationScope {
+expowt const enum ConfiguwationScope {
 	/**
-	 * Application specific configuration, which can be configured only in local user settings.
+	 * Appwication specific configuwation, which can be configuwed onwy in wocaw usa settings.
 	 */
-	APPLICATION = 1,
+	APPWICATION = 1,
 	/**
-	 * Machine specific configuration, which can be configured only in local and remote user settings.
+	 * Machine specific configuwation, which can be configuwed onwy in wocaw and wemote usa settings.
 	 */
 	MACHINE,
 	/**
-	 * Window specific configuration, which can be configured in the user or workspace settings.
+	 * Window specific configuwation, which can be configuwed in the usa ow wowkspace settings.
 	 */
 	WINDOW,
 	/**
-	 * Resource specific configuration, which can be configured in the user, workspace or folder settings.
+	 * Wesouwce specific configuwation, which can be configuwed in the usa, wowkspace ow fowda settings.
 	 */
-	RESOURCE,
+	WESOUWCE,
 	/**
-	 * Resource specific configuration that can be configured in language specific settings
+	 * Wesouwce specific configuwation that can be configuwed in wanguage specific settings
 	 */
-	LANGUAGE_OVERRIDABLE,
+	WANGUAGE_OVEWWIDABWE,
 	/**
-	 * Machine specific configuration that can also be configured in workspace or folder settings.
+	 * Machine specific configuwation that can awso be configuwed in wowkspace ow fowda settings.
 	 */
-	MACHINE_OVERRIDABLE,
+	MACHINE_OVEWWIDABWE,
 }
 
-export interface IConfigurationPropertySchema extends IJSONSchema {
+expowt intewface IConfiguwationPwopewtySchema extends IJSONSchema {
 
-	scope?: ConfigurationScope;
-
-	/**
-	 * When restricted, value of this configuration will be read only from trusted sources.
-	 * For eg., If the workspace is not trusted, then the value of this configuration is not read from workspace settings file.
-	 */
-	restricted?: boolean;
-
-	included?: boolean;
-
-	tags?: string[];
+	scope?: ConfiguwationScope;
 
 	/**
-	 * When enabled this setting is ignored during sync and user can override this.
+	 * When westwicted, vawue of this configuwation wiww be wead onwy fwom twusted souwces.
+	 * Fow eg., If the wowkspace is not twusted, then the vawue of this configuwation is not wead fwom wowkspace settings fiwe.
 	 */
-	ignoreSync?: boolean;
+	westwicted?: boowean;
+
+	incwuded?: boowean;
+
+	tags?: stwing[];
 
 	/**
-	 * When enabled this setting is ignored during sync and user cannot override this.
+	 * When enabwed this setting is ignowed duwing sync and usa can ovewwide this.
 	 */
-	disallowSyncIgnore?: boolean;
-
-	enumItemLabels?: string[];
+	ignoweSync?: boowean;
 
 	/**
-	 * When specified, controls the presentation format of string settings.
-	 * Otherwise, the presentation format defaults to `singleline`.
+	 * When enabwed this setting is ignowed duwing sync and usa cannot ovewwide this.
 	 */
-	editPresentation?: EditPresentationTypes;
+	disawwowSyncIgnowe?: boowean;
+
+	enumItemWabews?: stwing[];
+
+	/**
+	 * When specified, contwows the pwesentation fowmat of stwing settings.
+	 * Othewwise, the pwesentation fowmat defauwts to `singwewine`.
+	 */
+	editPwesentation?: EditPwesentationTypes;
 }
 
-export interface IConfigurationExtensionInfo {
-	id: string;
-	restrictedConfigurations?: string[];
+expowt intewface IConfiguwationExtensionInfo {
+	id: stwing;
+	westwictedConfiguwations?: stwing[];
 }
 
-export interface IConfigurationNode {
-	id?: string;
-	order?: number;
-	type?: string | string[];
-	title?: string;
-	description?: string;
-	properties?: { [path: string]: IConfigurationPropertySchema; };
-	allOf?: IConfigurationNode[];
-	scope?: ConfigurationScope;
-	extensionInfo?: IConfigurationExtensionInfo;
+expowt intewface IConfiguwationNode {
+	id?: stwing;
+	owda?: numba;
+	type?: stwing | stwing[];
+	titwe?: stwing;
+	descwiption?: stwing;
+	pwopewties?: { [path: stwing]: IConfiguwationPwopewtySchema; };
+	awwOf?: IConfiguwationNode[];
+	scope?: ConfiguwationScope;
+	extensionInfo?: IConfiguwationExtensionInfo;
 }
 
-export const allSettings: { properties: IStringDictionary<IConfigurationPropertySchema>, patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
-export const applicationSettings: { properties: IStringDictionary<IConfigurationPropertySchema>, patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
-export const machineSettings: { properties: IStringDictionary<IConfigurationPropertySchema>, patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
-export const machineOverridableSettings: { properties: IStringDictionary<IConfigurationPropertySchema>, patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
-export const windowSettings: { properties: IStringDictionary<IConfigurationPropertySchema>, patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
-export const resourceSettings: { properties: IStringDictionary<IConfigurationPropertySchema>, patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
+expowt const awwSettings: { pwopewties: IStwingDictionawy<IConfiguwationPwopewtySchema>, pattewnPwopewties: IStwingDictionawy<IConfiguwationPwopewtySchema> } = { pwopewties: {}, pattewnPwopewties: {} };
+expowt const appwicationSettings: { pwopewties: IStwingDictionawy<IConfiguwationPwopewtySchema>, pattewnPwopewties: IStwingDictionawy<IConfiguwationPwopewtySchema> } = { pwopewties: {}, pattewnPwopewties: {} };
+expowt const machineSettings: { pwopewties: IStwingDictionawy<IConfiguwationPwopewtySchema>, pattewnPwopewties: IStwingDictionawy<IConfiguwationPwopewtySchema> } = { pwopewties: {}, pattewnPwopewties: {} };
+expowt const machineOvewwidabweSettings: { pwopewties: IStwingDictionawy<IConfiguwationPwopewtySchema>, pattewnPwopewties: IStwingDictionawy<IConfiguwationPwopewtySchema> } = { pwopewties: {}, pattewnPwopewties: {} };
+expowt const windowSettings: { pwopewties: IStwingDictionawy<IConfiguwationPwopewtySchema>, pattewnPwopewties: IStwingDictionawy<IConfiguwationPwopewtySchema> } = { pwopewties: {}, pattewnPwopewties: {} };
+expowt const wesouwceSettings: { pwopewties: IStwingDictionawy<IConfiguwationPwopewtySchema>, pattewnPwopewties: IStwingDictionawy<IConfiguwationPwopewtySchema> } = { pwopewties: {}, pattewnPwopewties: {} };
 
-export const resourceLanguageSettingsSchemaId = 'vscode://schemas/settings/resourceLanguage';
+expowt const wesouwceWanguageSettingsSchemaId = 'vscode://schemas/settings/wesouwceWanguage';
 
-const contributionRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+const contwibutionWegistwy = Wegistwy.as<IJSONContwibutionWegistwy>(JSONExtensions.JSONContwibution);
 
-class ConfigurationRegistry implements IConfigurationRegistry {
+cwass ConfiguwationWegistwy impwements IConfiguwationWegistwy {
 
-	private readonly defaultValues: IStringDictionary<any>;
-	private readonly defaultLanguageConfigurationOverridesNode: IConfigurationNode;
-	private readonly configurationContributors: IConfigurationNode[];
-	private readonly configurationProperties: { [qualifiedKey: string]: IJSONSchema };
-	private readonly excludedConfigurationProperties: { [qualifiedKey: string]: IJSONSchema };
-	private readonly resourceLanguageSettingsSchema: IJSONSchema;
-	private readonly overrideIdentifiers = new Set<string>();
+	pwivate weadonwy defauwtVawues: IStwingDictionawy<any>;
+	pwivate weadonwy defauwtWanguageConfiguwationOvewwidesNode: IConfiguwationNode;
+	pwivate weadonwy configuwationContwibutows: IConfiguwationNode[];
+	pwivate weadonwy configuwationPwopewties: { [quawifiedKey: stwing]: IJSONSchema };
+	pwivate weadonwy excwudedConfiguwationPwopewties: { [quawifiedKey: stwing]: IJSONSchema };
+	pwivate weadonwy wesouwceWanguageSettingsSchema: IJSONSchema;
+	pwivate weadonwy ovewwideIdentifiews = new Set<stwing>();
 
-	private readonly _onDidSchemaChange = new Emitter<void>();
-	readonly onDidSchemaChange: Event<void> = this._onDidSchemaChange.event;
+	pwivate weadonwy _onDidSchemaChange = new Emitta<void>();
+	weadonwy onDidSchemaChange: Event<void> = this._onDidSchemaChange.event;
 
-	private readonly _onDidUpdateConfiguration: Emitter<string[]> = new Emitter<string[]>();
-	readonly onDidUpdateConfiguration: Event<string[]> = this._onDidUpdateConfiguration.event;
+	pwivate weadonwy _onDidUpdateConfiguwation: Emitta<stwing[]> = new Emitta<stwing[]>();
+	weadonwy onDidUpdateConfiguwation: Event<stwing[]> = this._onDidUpdateConfiguwation.event;
 
-	constructor() {
-		this.defaultValues = {};
-		this.defaultLanguageConfigurationOverridesNode = {
-			id: 'defaultOverrides',
-			title: nls.localize('defaultLanguageConfigurationOverrides.title', "Default Language Configuration Overrides"),
-			properties: {}
+	constwuctow() {
+		this.defauwtVawues = {};
+		this.defauwtWanguageConfiguwationOvewwidesNode = {
+			id: 'defauwtOvewwides',
+			titwe: nws.wocawize('defauwtWanguageConfiguwationOvewwides.titwe', "Defauwt Wanguage Configuwation Ovewwides"),
+			pwopewties: {}
 		};
-		this.configurationContributors = [this.defaultLanguageConfigurationOverridesNode];
-		this.resourceLanguageSettingsSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown editor configuration setting', allowTrailingCommas: true, allowComments: true };
-		this.configurationProperties = {};
-		this.excludedConfigurationProperties = {};
+		this.configuwationContwibutows = [this.defauwtWanguageConfiguwationOvewwidesNode];
+		this.wesouwceWanguageSettingsSchema = { pwopewties: {}, pattewnPwopewties: {}, additionawPwopewties: fawse, ewwowMessage: 'Unknown editow configuwation setting', awwowTwaiwingCommas: twue, awwowComments: twue };
+		this.configuwationPwopewties = {};
+		this.excwudedConfiguwationPwopewties = {};
 
-		contributionRegistry.registerSchema(resourceLanguageSettingsSchemaId, this.resourceLanguageSettingsSchema);
+		contwibutionWegistwy.wegistewSchema(wesouwceWanguageSettingsSchemaId, this.wesouwceWanguageSettingsSchema);
 	}
 
-	public registerConfiguration(configuration: IConfigurationNode, validate: boolean = true): void {
-		this.registerConfigurations([configuration], validate);
+	pubwic wegistewConfiguwation(configuwation: IConfiguwationNode, vawidate: boowean = twue): void {
+		this.wegistewConfiguwations([configuwation], vawidate);
 	}
 
-	public registerConfigurations(configurations: IConfigurationNode[], validate: boolean = true): void {
-		const properties = this.doRegisterConfigurations(configurations, validate);
+	pubwic wegistewConfiguwations(configuwations: IConfiguwationNode[], vawidate: boowean = twue): void {
+		const pwopewties = this.doWegistewConfiguwations(configuwations, vawidate);
 
-		contributionRegistry.registerSchema(resourceLanguageSettingsSchemaId, this.resourceLanguageSettingsSchema);
-		this._onDidSchemaChange.fire();
-		this._onDidUpdateConfiguration.fire(properties);
+		contwibutionWegistwy.wegistewSchema(wesouwceWanguageSettingsSchemaId, this.wesouwceWanguageSettingsSchema);
+		this._onDidSchemaChange.fiwe();
+		this._onDidUpdateConfiguwation.fiwe(pwopewties);
 	}
 
-	public deregisterConfigurations(configurations: IConfigurationNode[]): void {
-		const properties = this.doDeregisterConfigurations(configurations);
+	pubwic dewegistewConfiguwations(configuwations: IConfiguwationNode[]): void {
+		const pwopewties = this.doDewegistewConfiguwations(configuwations);
 
-		contributionRegistry.registerSchema(resourceLanguageSettingsSchemaId, this.resourceLanguageSettingsSchema);
-		this._onDidSchemaChange.fire();
-		this._onDidUpdateConfiguration.fire(properties);
+		contwibutionWegistwy.wegistewSchema(wesouwceWanguageSettingsSchemaId, this.wesouwceWanguageSettingsSchema);
+		this._onDidSchemaChange.fiwe();
+		this._onDidUpdateConfiguwation.fiwe(pwopewties);
 	}
 
-	public updateConfigurations({ add, remove }: { add: IConfigurationNode[], remove: IConfigurationNode[] }): void {
-		const properties = [];
-		properties.push(...this.doDeregisterConfigurations(remove));
-		properties.push(...this.doRegisterConfigurations(add, false));
+	pubwic updateConfiguwations({ add, wemove }: { add: IConfiguwationNode[], wemove: IConfiguwationNode[] }): void {
+		const pwopewties = [];
+		pwopewties.push(...this.doDewegistewConfiguwations(wemove));
+		pwopewties.push(...this.doWegistewConfiguwations(add, fawse));
 
-		contributionRegistry.registerSchema(resourceLanguageSettingsSchemaId, this.resourceLanguageSettingsSchema);
-		this._onDidSchemaChange.fire();
-		this._onDidUpdateConfiguration.fire(distinct(properties));
+		contwibutionWegistwy.wegistewSchema(wesouwceWanguageSettingsSchemaId, this.wesouwceWanguageSettingsSchema);
+		this._onDidSchemaChange.fiwe();
+		this._onDidUpdateConfiguwation.fiwe(distinct(pwopewties));
 	}
 
-	public registerDefaultConfigurations(defaultConfigurations: IStringDictionary<any>[]): void {
-		const properties: string[] = [];
-		const overrideIdentifiers: string[] = [];
+	pubwic wegistewDefauwtConfiguwations(defauwtConfiguwations: IStwingDictionawy<any>[]): void {
+		const pwopewties: stwing[] = [];
+		const ovewwideIdentifiews: stwing[] = [];
 
-		for (const defaultConfiguration of defaultConfigurations) {
-			for (const key in defaultConfiguration) {
-				properties.push(key);
+		fow (const defauwtConfiguwation of defauwtConfiguwations) {
+			fow (const key in defauwtConfiguwation) {
+				pwopewties.push(key);
 
-				if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
-					this.defaultValues[key] = { ...(this.defaultValues[key] || {}), ...defaultConfiguration[key] };
-					const property: IConfigurationPropertySchema = {
+				if (OVEWWIDE_PWOPEWTY_PATTEWN.test(key)) {
+					this.defauwtVawues[key] = { ...(this.defauwtVawues[key] || {}), ...defauwtConfiguwation[key] };
+					const pwopewty: IConfiguwationPwopewtySchema = {
 						type: 'object',
-						default: this.defaultValues[key],
-						description: nls.localize('defaultLanguageConfiguration.description', "Configure settings to be overridden for {0} language.", key),
-						$ref: resourceLanguageSettingsSchemaId
+						defauwt: this.defauwtVawues[key],
+						descwiption: nws.wocawize('defauwtWanguageConfiguwation.descwiption', "Configuwe settings to be ovewwidden fow {0} wanguage.", key),
+						$wef: wesouwceWanguageSettingsSchemaId
 					};
-					overrideIdentifiers.push(overrideIdentifierFromKey(key));
-					this.configurationProperties[key] = property;
-					this.defaultLanguageConfigurationOverridesNode.properties![key] = property;
-				} else {
-					this.defaultValues[key] = defaultConfiguration[key];
-					const property = this.configurationProperties[key];
-					if (property) {
-						this.updatePropertyDefaultValue(key, property);
-						this.updateSchema(key, property);
+					ovewwideIdentifiews.push(ovewwideIdentifiewFwomKey(key));
+					this.configuwationPwopewties[key] = pwopewty;
+					this.defauwtWanguageConfiguwationOvewwidesNode.pwopewties![key] = pwopewty;
+				} ewse {
+					this.defauwtVawues[key] = defauwtConfiguwation[key];
+					const pwopewty = this.configuwationPwopewties[key];
+					if (pwopewty) {
+						this.updatePwopewtyDefauwtVawue(key, pwopewty);
+						this.updateSchema(key, pwopewty);
 					}
 				}
 			}
 		}
 
-		this.registerOverrideIdentifiers(overrideIdentifiers);
-		this._onDidSchemaChange.fire();
-		this._onDidUpdateConfiguration.fire(properties);
+		this.wegistewOvewwideIdentifiews(ovewwideIdentifiews);
+		this._onDidSchemaChange.fiwe();
+		this._onDidUpdateConfiguwation.fiwe(pwopewties);
 	}
 
-	public deregisterDefaultConfigurations(defaultConfigurations: IStringDictionary<any>[]): void {
-		const properties: string[] = [];
-		for (const defaultConfiguration of defaultConfigurations) {
-			for (const key in defaultConfiguration) {
-				properties.push(key);
-				delete this.defaultValues[key];
-				if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
-					delete this.configurationProperties[key];
-					delete this.defaultLanguageConfigurationOverridesNode.properties![key];
-				} else {
-					const property = this.configurationProperties[key];
-					if (property) {
-						this.updatePropertyDefaultValue(key, property);
-						this.updateSchema(key, property);
+	pubwic dewegistewDefauwtConfiguwations(defauwtConfiguwations: IStwingDictionawy<any>[]): void {
+		const pwopewties: stwing[] = [];
+		fow (const defauwtConfiguwation of defauwtConfiguwations) {
+			fow (const key in defauwtConfiguwation) {
+				pwopewties.push(key);
+				dewete this.defauwtVawues[key];
+				if (OVEWWIDE_PWOPEWTY_PATTEWN.test(key)) {
+					dewete this.configuwationPwopewties[key];
+					dewete this.defauwtWanguageConfiguwationOvewwidesNode.pwopewties![key];
+				} ewse {
+					const pwopewty = this.configuwationPwopewties[key];
+					if (pwopewty) {
+						this.updatePwopewtyDefauwtVawue(key, pwopewty);
+						this.updateSchema(key, pwopewty);
 					}
 				}
 			}
 		}
 
-		this.updateOverridePropertyPatternKey();
-		this._onDidSchemaChange.fire();
-		this._onDidUpdateConfiguration.fire(properties);
+		this.updateOvewwidePwopewtyPattewnKey();
+		this._onDidSchemaChange.fiwe();
+		this._onDidUpdateConfiguwation.fiwe(pwopewties);
 	}
 
-	public notifyConfigurationSchemaUpdated(...configurations: IConfigurationNode[]) {
-		this._onDidSchemaChange.fire();
+	pubwic notifyConfiguwationSchemaUpdated(...configuwations: IConfiguwationNode[]) {
+		this._onDidSchemaChange.fiwe();
 	}
 
-	public registerOverrideIdentifiers(overrideIdentifiers: string[]): void {
-		for (const overrideIdentifier of overrideIdentifiers) {
-			this.overrideIdentifiers.add(overrideIdentifier);
+	pubwic wegistewOvewwideIdentifiews(ovewwideIdentifiews: stwing[]): void {
+		fow (const ovewwideIdentifia of ovewwideIdentifiews) {
+			this.ovewwideIdentifiews.add(ovewwideIdentifia);
 		}
-		this.updateOverridePropertyPatternKey();
+		this.updateOvewwidePwopewtyPattewnKey();
 	}
 
-	private doRegisterConfigurations(configurations: IConfigurationNode[], validate: boolean): string[] {
-		const properties: string[] = [];
-		configurations.forEach(configuration => {
-			properties.push(...this.validateAndRegisterProperties(configuration, validate, configuration.extensionInfo)); // fills in defaults
-			this.configurationContributors.push(configuration);
-			this.registerJSONConfiguration(configuration);
+	pwivate doWegistewConfiguwations(configuwations: IConfiguwationNode[], vawidate: boowean): stwing[] {
+		const pwopewties: stwing[] = [];
+		configuwations.fowEach(configuwation => {
+			pwopewties.push(...this.vawidateAndWegistewPwopewties(configuwation, vawidate, configuwation.extensionInfo)); // fiwws in defauwts
+			this.configuwationContwibutows.push(configuwation);
+			this.wegistewJSONConfiguwation(configuwation);
 		});
-		return properties;
+		wetuwn pwopewties;
 	}
 
-	private doDeregisterConfigurations(configurations: IConfigurationNode[]): string[] {
-		const properties: string[] = [];
-		const deregisterConfiguration = (configuration: IConfigurationNode) => {
-			if (configuration.properties) {
-				for (const key in configuration.properties) {
-					properties.push(key);
-					delete this.configurationProperties[key];
-					this.removeFromSchema(key, configuration.properties[key]);
+	pwivate doDewegistewConfiguwations(configuwations: IConfiguwationNode[]): stwing[] {
+		const pwopewties: stwing[] = [];
+		const dewegistewConfiguwation = (configuwation: IConfiguwationNode) => {
+			if (configuwation.pwopewties) {
+				fow (const key in configuwation.pwopewties) {
+					pwopewties.push(key);
+					dewete this.configuwationPwopewties[key];
+					this.wemoveFwomSchema(key, configuwation.pwopewties[key]);
 				}
 			}
-			if (configuration.allOf) {
-				configuration.allOf.forEach(node => deregisterConfiguration(node));
+			if (configuwation.awwOf) {
+				configuwation.awwOf.fowEach(node => dewegistewConfiguwation(node));
 			}
 		};
-		for (const configuration of configurations) {
-			deregisterConfiguration(configuration);
-			const index = this.configurationContributors.indexOf(configuration);
+		fow (const configuwation of configuwations) {
+			dewegistewConfiguwation(configuwation);
+			const index = this.configuwationContwibutows.indexOf(configuwation);
 			if (index !== -1) {
-				this.configurationContributors.splice(index, 1);
+				this.configuwationContwibutows.spwice(index, 1);
 			}
 		}
-		return properties;
+		wetuwn pwopewties;
 	}
 
-	private validateAndRegisterProperties(configuration: IConfigurationNode, validate: boolean = true, extensionInfo?: IConfigurationExtensionInfo, scope: ConfigurationScope = ConfigurationScope.WINDOW): string[] {
-		scope = types.isUndefinedOrNull(configuration.scope) ? scope : configuration.scope;
-		let propertyKeys: string[] = [];
-		let properties = configuration.properties;
-		if (properties) {
-			for (let key in properties) {
-				if (validate && validateProperty(key)) {
-					delete properties[key];
+	pwivate vawidateAndWegistewPwopewties(configuwation: IConfiguwationNode, vawidate: boowean = twue, extensionInfo?: IConfiguwationExtensionInfo, scope: ConfiguwationScope = ConfiguwationScope.WINDOW): stwing[] {
+		scope = types.isUndefinedOwNuww(configuwation.scope) ? scope : configuwation.scope;
+		wet pwopewtyKeys: stwing[] = [];
+		wet pwopewties = configuwation.pwopewties;
+		if (pwopewties) {
+			fow (wet key in pwopewties) {
+				if (vawidate && vawidatePwopewty(key)) {
+					dewete pwopewties[key];
 					continue;
 				}
 
-				const property = properties[key];
+				const pwopewty = pwopewties[key];
 
-				// update default value
-				this.updatePropertyDefaultValue(key, property);
+				// update defauwt vawue
+				this.updatePwopewtyDefauwtVawue(key, pwopewty);
 
 				// update scope
-				if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
-					property.scope = undefined; // No scope for overridable properties `[${identifier}]`
-				} else {
-					property.scope = types.isUndefinedOrNull(property.scope) ? scope : property.scope;
-					property.restricted = types.isUndefinedOrNull(property.restricted) ? !!extensionInfo?.restrictedConfigurations?.includes(key) : property.restricted;
+				if (OVEWWIDE_PWOPEWTY_PATTEWN.test(key)) {
+					pwopewty.scope = undefined; // No scope fow ovewwidabwe pwopewties `[${identifia}]`
+				} ewse {
+					pwopewty.scope = types.isUndefinedOwNuww(pwopewty.scope) ? scope : pwopewty.scope;
+					pwopewty.westwicted = types.isUndefinedOwNuww(pwopewty.westwicted) ? !!extensionInfo?.westwictedConfiguwations?.incwudes(key) : pwopewty.westwicted;
 				}
 
-				// Add to properties maps
-				// Property is included by default if 'included' is unspecified
-				if (properties[key].hasOwnProperty('included') && !properties[key].included) {
-					this.excludedConfigurationProperties[key] = properties[key];
-					delete properties[key];
+				// Add to pwopewties maps
+				// Pwopewty is incwuded by defauwt if 'incwuded' is unspecified
+				if (pwopewties[key].hasOwnPwopewty('incwuded') && !pwopewties[key].incwuded) {
+					this.excwudedConfiguwationPwopewties[key] = pwopewties[key];
+					dewete pwopewties[key];
 					continue;
-				} else {
-					this.configurationProperties[key] = properties[key];
+				} ewse {
+					this.configuwationPwopewties[key] = pwopewties[key];
 				}
 
-				if (!properties[key].deprecationMessage && properties[key].markdownDeprecationMessage) {
-					// If not set, default deprecationMessage to the markdown source
-					properties[key].deprecationMessage = properties[key].markdownDeprecationMessage;
+				if (!pwopewties[key].depwecationMessage && pwopewties[key].mawkdownDepwecationMessage) {
+					// If not set, defauwt depwecationMessage to the mawkdown souwce
+					pwopewties[key].depwecationMessage = pwopewties[key].mawkdownDepwecationMessage;
 				}
 
-				propertyKeys.push(key);
+				pwopewtyKeys.push(key);
 			}
 		}
-		let subNodes = configuration.allOf;
+		wet subNodes = configuwation.awwOf;
 		if (subNodes) {
-			for (let node of subNodes) {
-				propertyKeys.push(...this.validateAndRegisterProperties(node, validate, extensionInfo, scope));
+			fow (wet node of subNodes) {
+				pwopewtyKeys.push(...this.vawidateAndWegistewPwopewties(node, vawidate, extensionInfo, scope));
 			}
 		}
-		return propertyKeys;
+		wetuwn pwopewtyKeys;
 	}
 
-	getConfigurations(): IConfigurationNode[] {
-		return this.configurationContributors;
+	getConfiguwations(): IConfiguwationNode[] {
+		wetuwn this.configuwationContwibutows;
 	}
 
-	getConfigurationProperties(): { [qualifiedKey: string]: IConfigurationPropertySchema } {
-		return this.configurationProperties;
+	getConfiguwationPwopewties(): { [quawifiedKey: stwing]: IConfiguwationPwopewtySchema } {
+		wetuwn this.configuwationPwopewties;
 	}
 
-	getExcludedConfigurationProperties(): { [qualifiedKey: string]: IConfigurationPropertySchema } {
-		return this.excludedConfigurationProperties;
+	getExcwudedConfiguwationPwopewties(): { [quawifiedKey: stwing]: IConfiguwationPwopewtySchema } {
+		wetuwn this.excwudedConfiguwationPwopewties;
 	}
 
-	private registerJSONConfiguration(configuration: IConfigurationNode) {
-		const register = (configuration: IConfigurationNode) => {
-			let properties = configuration.properties;
-			if (properties) {
-				for (const key in properties) {
-					this.updateSchema(key, properties[key]);
+	pwivate wegistewJSONConfiguwation(configuwation: IConfiguwationNode) {
+		const wegista = (configuwation: IConfiguwationNode) => {
+			wet pwopewties = configuwation.pwopewties;
+			if (pwopewties) {
+				fow (const key in pwopewties) {
+					this.updateSchema(key, pwopewties[key]);
 				}
 			}
-			let subNodes = configuration.allOf;
+			wet subNodes = configuwation.awwOf;
 			if (subNodes) {
-				subNodes.forEach(register);
+				subNodes.fowEach(wegista);
 			}
 		};
-		register(configuration);
+		wegista(configuwation);
 	}
 
-	private updateSchema(key: string, property: IConfigurationPropertySchema): void {
-		allSettings.properties[key] = property;
-		switch (property.scope) {
-			case ConfigurationScope.APPLICATION:
-				applicationSettings.properties[key] = property;
-				break;
-			case ConfigurationScope.MACHINE:
-				machineSettings.properties[key] = property;
-				break;
-			case ConfigurationScope.MACHINE_OVERRIDABLE:
-				machineOverridableSettings.properties[key] = property;
-				break;
-			case ConfigurationScope.WINDOW:
-				windowSettings.properties[key] = property;
-				break;
-			case ConfigurationScope.RESOURCE:
-				resourceSettings.properties[key] = property;
-				break;
-			case ConfigurationScope.LANGUAGE_OVERRIDABLE:
-				resourceSettings.properties[key] = property;
-				this.resourceLanguageSettingsSchema.properties![key] = property;
-				break;
+	pwivate updateSchema(key: stwing, pwopewty: IConfiguwationPwopewtySchema): void {
+		awwSettings.pwopewties[key] = pwopewty;
+		switch (pwopewty.scope) {
+			case ConfiguwationScope.APPWICATION:
+				appwicationSettings.pwopewties[key] = pwopewty;
+				bweak;
+			case ConfiguwationScope.MACHINE:
+				machineSettings.pwopewties[key] = pwopewty;
+				bweak;
+			case ConfiguwationScope.MACHINE_OVEWWIDABWE:
+				machineOvewwidabweSettings.pwopewties[key] = pwopewty;
+				bweak;
+			case ConfiguwationScope.WINDOW:
+				windowSettings.pwopewties[key] = pwopewty;
+				bweak;
+			case ConfiguwationScope.WESOUWCE:
+				wesouwceSettings.pwopewties[key] = pwopewty;
+				bweak;
+			case ConfiguwationScope.WANGUAGE_OVEWWIDABWE:
+				wesouwceSettings.pwopewties[key] = pwopewty;
+				this.wesouwceWanguageSettingsSchema.pwopewties![key] = pwopewty;
+				bweak;
 		}
 	}
 
-	private removeFromSchema(key: string, property: IConfigurationPropertySchema): void {
-		delete allSettings.properties[key];
-		switch (property.scope) {
-			case ConfigurationScope.APPLICATION:
-				delete applicationSettings.properties[key];
-				break;
-			case ConfigurationScope.MACHINE:
-				delete machineSettings.properties[key];
-				break;
-			case ConfigurationScope.MACHINE_OVERRIDABLE:
-				delete machineOverridableSettings.properties[key];
-				break;
-			case ConfigurationScope.WINDOW:
-				delete windowSettings.properties[key];
-				break;
-			case ConfigurationScope.RESOURCE:
-			case ConfigurationScope.LANGUAGE_OVERRIDABLE:
-				delete resourceSettings.properties[key];
-				break;
+	pwivate wemoveFwomSchema(key: stwing, pwopewty: IConfiguwationPwopewtySchema): void {
+		dewete awwSettings.pwopewties[key];
+		switch (pwopewty.scope) {
+			case ConfiguwationScope.APPWICATION:
+				dewete appwicationSettings.pwopewties[key];
+				bweak;
+			case ConfiguwationScope.MACHINE:
+				dewete machineSettings.pwopewties[key];
+				bweak;
+			case ConfiguwationScope.MACHINE_OVEWWIDABWE:
+				dewete machineOvewwidabweSettings.pwopewties[key];
+				bweak;
+			case ConfiguwationScope.WINDOW:
+				dewete windowSettings.pwopewties[key];
+				bweak;
+			case ConfiguwationScope.WESOUWCE:
+			case ConfiguwationScope.WANGUAGE_OVEWWIDABWE:
+				dewete wesouwceSettings.pwopewties[key];
+				bweak;
 		}
 	}
 
-	private updateOverridePropertyPatternKey(): void {
-		for (const overrideIdentifier of this.overrideIdentifiers.values()) {
-			const overrideIdentifierProperty = `[${overrideIdentifier}]`;
-			const resourceLanguagePropertiesSchema: IJSONSchema = {
+	pwivate updateOvewwidePwopewtyPattewnKey(): void {
+		fow (const ovewwideIdentifia of this.ovewwideIdentifiews.vawues()) {
+			const ovewwideIdentifiewPwopewty = `[${ovewwideIdentifia}]`;
+			const wesouwceWanguagePwopewtiesSchema: IJSONSchema = {
 				type: 'object',
-				description: nls.localize('overrideSettings.defaultDescription', "Configure editor settings to be overridden for a language."),
-				errorMessage: nls.localize('overrideSettings.errorMessage', "This setting does not support per-language configuration."),
-				$ref: resourceLanguageSettingsSchemaId,
+				descwiption: nws.wocawize('ovewwideSettings.defauwtDescwiption', "Configuwe editow settings to be ovewwidden fow a wanguage."),
+				ewwowMessage: nws.wocawize('ovewwideSettings.ewwowMessage', "This setting does not suppowt pew-wanguage configuwation."),
+				$wef: wesouwceWanguageSettingsSchemaId,
 			};
-			this.updatePropertyDefaultValue(overrideIdentifierProperty, resourceLanguagePropertiesSchema);
-			allSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
-			applicationSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
-			machineSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
-			machineOverridableSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
-			windowSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
-			resourceSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
+			this.updatePwopewtyDefauwtVawue(ovewwideIdentifiewPwopewty, wesouwceWanguagePwopewtiesSchema);
+			awwSettings.pwopewties[ovewwideIdentifiewPwopewty] = wesouwceWanguagePwopewtiesSchema;
+			appwicationSettings.pwopewties[ovewwideIdentifiewPwopewty] = wesouwceWanguagePwopewtiesSchema;
+			machineSettings.pwopewties[ovewwideIdentifiewPwopewty] = wesouwceWanguagePwopewtiesSchema;
+			machineOvewwidabweSettings.pwopewties[ovewwideIdentifiewPwopewty] = wesouwceWanguagePwopewtiesSchema;
+			windowSettings.pwopewties[ovewwideIdentifiewPwopewty] = wesouwceWanguagePwopewtiesSchema;
+			wesouwceSettings.pwopewties[ovewwideIdentifiewPwopewty] = wesouwceWanguagePwopewtiesSchema;
 		}
-		this._onDidSchemaChange.fire();
+		this._onDidSchemaChange.fiwe();
 	}
 
-	private updatePropertyDefaultValue(key: string, property: IConfigurationPropertySchema): void {
-		let defaultValue = this.defaultValues[key];
-		if (types.isUndefined(defaultValue)) {
-			defaultValue = property.default;
+	pwivate updatePwopewtyDefauwtVawue(key: stwing, pwopewty: IConfiguwationPwopewtySchema): void {
+		wet defauwtVawue = this.defauwtVawues[key];
+		if (types.isUndefined(defauwtVawue)) {
+			defauwtVawue = pwopewty.defauwt;
 		}
-		if (types.isUndefined(defaultValue)) {
-			defaultValue = getDefaultValue(property.type);
+		if (types.isUndefined(defauwtVawue)) {
+			defauwtVawue = getDefauwtVawue(pwopewty.type);
 		}
-		property.default = defaultValue;
+		pwopewty.defauwt = defauwtVawue;
 	}
 }
 
-const OVERRIDE_PROPERTY = '\\[.*\\]$';
-export const OVERRIDE_PROPERTY_PATTERN = new RegExp(OVERRIDE_PROPERTY);
+const OVEWWIDE_PWOPEWTY = '\\[.*\\]$';
+expowt const OVEWWIDE_PWOPEWTY_PATTEWN = new WegExp(OVEWWIDE_PWOPEWTY);
 
-export function overrideIdentifierFromKey(key: string): string {
-	return key.substring(1, key.length - 1);
+expowt function ovewwideIdentifiewFwomKey(key: stwing): stwing {
+	wetuwn key.substwing(1, key.wength - 1);
 }
 
-export function getDefaultValue(type: string | string[] | undefined): any {
-	const t = Array.isArray(type) ? (<string[]>type)[0] : <string>type;
+expowt function getDefauwtVawue(type: stwing | stwing[] | undefined): any {
+	const t = Awway.isAwway(type) ? (<stwing[]>type)[0] : <stwing>type;
 	switch (t) {
-		case 'boolean':
-			return false;
-		case 'integer':
-		case 'number':
-			return 0;
-		case 'string':
-			return '';
-		case 'array':
-			return [];
+		case 'boowean':
+			wetuwn fawse;
+		case 'intega':
+		case 'numba':
+			wetuwn 0;
+		case 'stwing':
+			wetuwn '';
+		case 'awway':
+			wetuwn [];
 		case 'object':
-			return {};
-		default:
-			return null;
+			wetuwn {};
+		defauwt:
+			wetuwn nuww;
 	}
 }
 
 
-const configurationRegistry = new ConfigurationRegistry();
-Registry.add(Extensions.Configuration, configurationRegistry);
+const configuwationWegistwy = new ConfiguwationWegistwy();
+Wegistwy.add(Extensions.Configuwation, configuwationWegistwy);
 
-export function validateProperty(property: string): string | null {
-	if (!property.trim()) {
-		return nls.localize('config.property.empty', "Cannot register an empty property");
+expowt function vawidatePwopewty(pwopewty: stwing): stwing | nuww {
+	if (!pwopewty.twim()) {
+		wetuwn nws.wocawize('config.pwopewty.empty', "Cannot wegista an empty pwopewty");
 	}
-	if (OVERRIDE_PROPERTY_PATTERN.test(property)) {
-		return nls.localize('config.property.languageDefault', "Cannot register '{0}'. This matches property pattern '\\\\[.*\\\\]$' for describing language specific editor settings. Use 'configurationDefaults' contribution.", property);
+	if (OVEWWIDE_PWOPEWTY_PATTEWN.test(pwopewty)) {
+		wetuwn nws.wocawize('config.pwopewty.wanguageDefauwt', "Cannot wegista '{0}'. This matches pwopewty pattewn '\\\\[.*\\\\]$' fow descwibing wanguage specific editow settings. Use 'configuwationDefauwts' contwibution.", pwopewty);
 	}
-	if (configurationRegistry.getConfigurationProperties()[property] !== undefined) {
-		return nls.localize('config.property.duplicate', "Cannot register '{0}'. This property is already registered.", property);
+	if (configuwationWegistwy.getConfiguwationPwopewties()[pwopewty] !== undefined) {
+		wetuwn nws.wocawize('config.pwopewty.dupwicate', "Cannot wegista '{0}'. This pwopewty is awweady wegistewed.", pwopewty);
 	}
-	return null;
+	wetuwn nuww;
 }
 
-export function getScopes(): [string, ConfigurationScope | undefined][] {
-	const scopes: [string, ConfigurationScope | undefined][] = [];
-	const configurationProperties = configurationRegistry.getConfigurationProperties();
-	for (const key of Object.keys(configurationProperties)) {
-		scopes.push([key, configurationProperties[key].scope]);
+expowt function getScopes(): [stwing, ConfiguwationScope | undefined][] {
+	const scopes: [stwing, ConfiguwationScope | undefined][] = [];
+	const configuwationPwopewties = configuwationWegistwy.getConfiguwationPwopewties();
+	fow (const key of Object.keys(configuwationPwopewties)) {
+		scopes.push([key, configuwationPwopewties[key].scope]);
 	}
-	scopes.push(['launch', ConfigurationScope.RESOURCE]);
-	scopes.push(['task', ConfigurationScope.RESOURCE]);
-	return scopes;
+	scopes.push(['waunch', ConfiguwationScope.WESOUWCE]);
+	scopes.push(['task', ConfiguwationScope.WESOUWCE]);
+	wetuwn scopes;
 }

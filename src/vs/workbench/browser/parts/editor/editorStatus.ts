@@ -1,762 +1,762 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/editorstatus';
-import { localize } from 'vs/nls';
-import { runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
-import { format, compare, splitLines } from 'vs/base/common/strings';
-import { extname, basename, isEqual } from 'vs/base/common/resources';
-import { areFunctions, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { Action, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import { Language } from 'vs/base/common/platform';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { IFileEditorInput, EditorResourceAccessor, IEditorPane, SideBySideEditor, EditorInputCapabilities } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { Disposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IEditorAction } from 'vs/editor/common/editorCommon';
-import { EndOfLineSequence } from 'vs/editor/common/model';
-import { TrimTrailingWhitespaceAction } from 'vs/editor/contrib/linesOperations/linesOperations';
-import { IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from 'vs/editor/contrib/indentation/indentation';
-import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/binaryEditor';
-import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IFileService, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
-import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { EncodingMode, IEncodingSupport, IModeSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/encoding';
-import { ConfigurationChangedEvent, IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { deepClone } from 'vs/base/common/objects';
-import { ICodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Schemas } from 'vs/base/common/network';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { getIconClassesForModeId } from 'vs/editor/common/services/getIconClasses';
-import { Promises, timeout } from 'vs/base/common/async';
-import { INotificationHandle, INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { Event } from 'vs/base/common/event';
-import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IMarker, IMarkerService, MarkerSeverity, IMarkerData } from 'vs/platform/markers/common/markers';
-import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { AutomaticLanguageDetectionLikelyWrongClassification, AutomaticLanguageDetectionLikelyWrongId, IAutomaticLanguageDetectionLikelyWrongData, ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
+impowt 'vs/css!./media/editowstatus';
+impowt { wocawize } fwom 'vs/nws';
+impowt { wunAtThisOwScheduweAtNextAnimationFwame } fwom 'vs/base/bwowsa/dom';
+impowt { fowmat, compawe, spwitWines } fwom 'vs/base/common/stwings';
+impowt { extname, basename, isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { aweFunctions, withNuwwAsUndefined, withUndefinedAsNuww } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Action, WowkbenchActionExecutedCwassification, WowkbenchActionExecutedEvent } fwom 'vs/base/common/actions';
+impowt { Wanguage } fwom 'vs/base/common/pwatfowm';
+impowt { UntitwedTextEditowInput } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowInput';
+impowt { IFiweEditowInput, EditowWesouwceAccessow, IEditowPane, SideBySideEditow, EditowInputCapabiwities } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { Disposabwe, MutabweDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IEditowAction } fwom 'vs/editow/common/editowCommon';
+impowt { EndOfWineSequence } fwom 'vs/editow/common/modew';
+impowt { TwimTwaiwingWhitespaceAction } fwom 'vs/editow/contwib/winesOpewations/winesOpewations';
+impowt { IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } fwom 'vs/editow/contwib/indentation/indentation';
+impowt { BaseBinawyWesouwceEditow } fwom 'vs/wowkbench/bwowsa/pawts/editow/binawyEditow';
+impowt { BinawyWesouwceDiffEditow } fwom 'vs/wowkbench/bwowsa/pawts/editow/binawyDiffEditow';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IFiweSewvice, FIWES_ASSOCIATIONS_CONFIG } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IModeSewvice, IWanguageSewection } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { TabFocus } fwom 'vs/editow/common/config/commonEditowConfig';
+impowt { ICommandSewvice, CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IExtensionGawwewySewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { EncodingMode, IEncodingSuppowt, IModeSuppowt, ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { SUPPOWTED_ENCODINGS } fwom 'vs/wowkbench/sewvices/textfiwe/common/encoding';
+impowt { ConfiguwationChangedEvent, IEditowOptions, EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { ITextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { ConfiguwationTawget, IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { deepCwone } fwom 'vs/base/common/objects';
+impowt { ICodeEditow, getCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IPwefewencesSewvice } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
+impowt { IQuickInputSewvice, IQuickPickItem, QuickPickInput } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { getIconCwassesFowModeId } fwom 'vs/editow/common/sewvices/getIconCwasses';
+impowt { Pwomises, timeout } fwom 'vs/base/common/async';
+impowt { INotificationHandwe, INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IAccessibiwitySewvice, AccessibiwitySuppowt } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IStatusbawEntwyAccessow, IStatusbawSewvice, StatusbawAwignment, IStatusbawEntwy } fwom 'vs/wowkbench/sewvices/statusbaw/bwowsa/statusbaw';
+impowt { IMawka, IMawkewSewvice, MawkewSevewity, IMawkewData } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { STATUS_BAW_PWOMINENT_ITEM_BACKGWOUND, STATUS_BAW_PWOMINENT_ITEM_FOWEGWOUND } fwom 'vs/wowkbench/common/theme';
+impowt { themeCowowFwomId } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { ITewemetwyData, ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { SideBySideEditowInput } fwom 'vs/wowkbench/common/editow/sideBySideEditowInput';
+impowt { AutomaticWanguageDetectionWikewyWwongCwassification, AutomaticWanguageDetectionWikewyWwongId, IAutomaticWanguageDetectionWikewyWwongData, IWanguageDetectionSewvice } fwom 'vs/wowkbench/sewvices/wanguageDetection/common/wanguageDetectionWowkewSewvice';
 
-class SideBySideEditorEncodingSupport implements IEncodingSupport {
-	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
+cwass SideBySideEditowEncodingSuppowt impwements IEncodingSuppowt {
+	constwuctow(pwivate pwimawy: IEncodingSuppowt, pwivate secondawy: IEncodingSuppowt) { }
 
-	getEncoding(): string | undefined {
-		return this.primary.getEncoding(); // always report from modified (right hand) side
+	getEncoding(): stwing | undefined {
+		wetuwn this.pwimawy.getEncoding(); // awways wepowt fwom modified (wight hand) side
 	}
 
-	async setEncoding(encoding: string, mode: EncodingMode): Promise<void> {
-		await Promises.settled([this.primary, this.secondary].map(editor => editor.setEncoding(encoding, mode)));
-	}
-}
-
-class SideBySideEditorModeSupport implements IModeSupport {
-	constructor(private primary: IModeSupport, private secondary: IModeSupport) { }
-
-	setMode(mode: string): void {
-		[this.primary, this.secondary].forEach(editor => editor.setMode(mode));
+	async setEncoding(encoding: stwing, mode: EncodingMode): Pwomise<void> {
+		await Pwomises.settwed([this.pwimawy, this.secondawy].map(editow => editow.setEncoding(encoding, mode)));
 	}
 }
 
-function toEditorWithEncodingSupport(input: EditorInput): IEncodingSupport | null {
+cwass SideBySideEditowModeSuppowt impwements IModeSuppowt {
+	constwuctow(pwivate pwimawy: IModeSuppowt, pwivate secondawy: IModeSuppowt) { }
 
-	// Untitled Text Editor
-	if (input instanceof UntitledTextEditorInput) {
-		return input;
+	setMode(mode: stwing): void {
+		[this.pwimawy, this.secondawy].fowEach(editow => editow.setMode(mode));
+	}
+}
+
+function toEditowWithEncodingSuppowt(input: EditowInput): IEncodingSuppowt | nuww {
+
+	// Untitwed Text Editow
+	if (input instanceof UntitwedTextEditowInput) {
+		wetuwn input;
 	}
 
-	// Side by Side (diff) Editor
-	if (input instanceof SideBySideEditorInput) {
-		const primaryEncodingSupport = toEditorWithEncodingSupport(input.primary);
-		const secondaryEncodingSupport = toEditorWithEncodingSupport(input.secondary);
+	// Side by Side (diff) Editow
+	if (input instanceof SideBySideEditowInput) {
+		const pwimawyEncodingSuppowt = toEditowWithEncodingSuppowt(input.pwimawy);
+		const secondawyEncodingSuppowt = toEditowWithEncodingSuppowt(input.secondawy);
 
-		if (primaryEncodingSupport && secondaryEncodingSupport) {
-			return new SideBySideEditorEncodingSupport(primaryEncodingSupport, secondaryEncodingSupport);
+		if (pwimawyEncodingSuppowt && secondawyEncodingSuppowt) {
+			wetuwn new SideBySideEditowEncodingSuppowt(pwimawyEncodingSuppowt, secondawyEncodingSuppowt);
 		}
 
-		return primaryEncodingSupport;
+		wetuwn pwimawyEncodingSuppowt;
 	}
 
-	// File or Resource Editor
-	const encodingSupport = input as IFileEditorInput;
-	if (areFunctions(encodingSupport.setEncoding, encodingSupport.getEncoding)) {
-		return encodingSupport;
+	// Fiwe ow Wesouwce Editow
+	const encodingSuppowt = input as IFiweEditowInput;
+	if (aweFunctions(encodingSuppowt.setEncoding, encodingSuppowt.getEncoding)) {
+		wetuwn encodingSuppowt;
 	}
 
-	// Unsupported for any other editor
-	return null;
+	// Unsuppowted fow any otha editow
+	wetuwn nuww;
 }
 
-function toEditorWithModeSupport(input: EditorInput): IModeSupport | null {
+function toEditowWithModeSuppowt(input: EditowInput): IModeSuppowt | nuww {
 
-	// Untitled Text Editor
-	if (input instanceof UntitledTextEditorInput) {
-		return input;
+	// Untitwed Text Editow
+	if (input instanceof UntitwedTextEditowInput) {
+		wetuwn input;
 	}
 
-	// Side by Side (diff) Editor
-	if (input instanceof SideBySideEditorInput) {
-		const primaryModeSupport = toEditorWithModeSupport(input.primary);
-		const secondaryModeSupport = toEditorWithModeSupport(input.secondary);
+	// Side by Side (diff) Editow
+	if (input instanceof SideBySideEditowInput) {
+		const pwimawyModeSuppowt = toEditowWithModeSuppowt(input.pwimawy);
+		const secondawyModeSuppowt = toEditowWithModeSuppowt(input.secondawy);
 
-		if (primaryModeSupport && secondaryModeSupport) {
-			return new SideBySideEditorModeSupport(primaryModeSupport, secondaryModeSupport);
+		if (pwimawyModeSuppowt && secondawyModeSuppowt) {
+			wetuwn new SideBySideEditowModeSuppowt(pwimawyModeSuppowt, secondawyModeSuppowt);
 		}
 
-		return primaryModeSupport;
+		wetuwn pwimawyModeSuppowt;
 	}
 
-	// File or Resource Editor
-	const modeSupport = input as IFileEditorInput;
-	if (typeof modeSupport.setMode === 'function') {
-		return modeSupport;
+	// Fiwe ow Wesouwce Editow
+	const modeSuppowt = input as IFiweEditowInput;
+	if (typeof modeSuppowt.setMode === 'function') {
+		wetuwn modeSuppowt;
 	}
 
-	// Unsupported for any other editor
-	return null;
+	// Unsuppowted fow any otha editow
+	wetuwn nuww;
 }
 
-interface IEditorSelectionStatus {
-	selections?: Selection[];
-	charactersSelected?: number;
+intewface IEditowSewectionStatus {
+	sewections?: Sewection[];
+	chawactewsSewected?: numba;
 }
 
-class StateChange {
-	indentation: boolean = false;
-	selectionStatus: boolean = false;
-	mode: boolean = false;
-	languageStatus: boolean = false;
-	encoding: boolean = false;
-	EOL: boolean = false;
-	tabFocusMode: boolean = false;
-	columnSelectionMode: boolean = false;
-	screenReaderMode: boolean = false;
-	metadata: boolean = false;
+cwass StateChange {
+	indentation: boowean = fawse;
+	sewectionStatus: boowean = fawse;
+	mode: boowean = fawse;
+	wanguageStatus: boowean = fawse;
+	encoding: boowean = fawse;
+	EOW: boowean = fawse;
+	tabFocusMode: boowean = fawse;
+	cowumnSewectionMode: boowean = fawse;
+	scweenWeadewMode: boowean = fawse;
+	metadata: boowean = fawse;
 
-	combine(other: StateChange) {
-		this.indentation = this.indentation || other.indentation;
-		this.selectionStatus = this.selectionStatus || other.selectionStatus;
-		this.mode = this.mode || other.mode;
-		this.languageStatus = this.languageStatus || other.languageStatus;
-		this.encoding = this.encoding || other.encoding;
-		this.EOL = this.EOL || other.EOL;
-		this.tabFocusMode = this.tabFocusMode || other.tabFocusMode;
-		this.columnSelectionMode = this.columnSelectionMode || other.columnSelectionMode;
-		this.screenReaderMode = this.screenReaderMode || other.screenReaderMode;
-		this.metadata = this.metadata || other.metadata;
+	combine(otha: StateChange) {
+		this.indentation = this.indentation || otha.indentation;
+		this.sewectionStatus = this.sewectionStatus || otha.sewectionStatus;
+		this.mode = this.mode || otha.mode;
+		this.wanguageStatus = this.wanguageStatus || otha.wanguageStatus;
+		this.encoding = this.encoding || otha.encoding;
+		this.EOW = this.EOW || otha.EOW;
+		this.tabFocusMode = this.tabFocusMode || otha.tabFocusMode;
+		this.cowumnSewectionMode = this.cowumnSewectionMode || otha.cowumnSewectionMode;
+		this.scweenWeadewMode = this.scweenWeadewMode || otha.scweenWeadewMode;
+		this.metadata = this.metadata || otha.metadata;
 	}
 
-	hasChanges(): boolean {
-		return this.indentation
-			|| this.selectionStatus
+	hasChanges(): boowean {
+		wetuwn this.indentation
+			|| this.sewectionStatus
 			|| this.mode
-			|| this.languageStatus
+			|| this.wanguageStatus
 			|| this.encoding
-			|| this.EOL
+			|| this.EOW
 			|| this.tabFocusMode
-			|| this.columnSelectionMode
-			|| this.screenReaderMode
+			|| this.cowumnSewectionMode
+			|| this.scweenWeadewMode
 			|| this.metadata;
 	}
 }
 
-type StateDelta = (
-	{ type: 'selectionStatus'; selectionStatus: string | undefined; }
-	| { type: 'mode'; mode: string | undefined; }
-	| { type: 'encoding'; encoding: string | undefined; }
-	| { type: 'EOL'; EOL: string | undefined; }
-	| { type: 'indentation'; indentation: string | undefined; }
-	| { type: 'tabFocusMode'; tabFocusMode: boolean; }
-	| { type: 'columnSelectionMode'; columnSelectionMode: boolean; }
-	| { type: 'screenReaderMode'; screenReaderMode: boolean; }
-	| { type: 'metadata'; metadata: string | undefined; }
+type StateDewta = (
+	{ type: 'sewectionStatus'; sewectionStatus: stwing | undefined; }
+	| { type: 'mode'; mode: stwing | undefined; }
+	| { type: 'encoding'; encoding: stwing | undefined; }
+	| { type: 'EOW'; EOW: stwing | undefined; }
+	| { type: 'indentation'; indentation: stwing | undefined; }
+	| { type: 'tabFocusMode'; tabFocusMode: boowean; }
+	| { type: 'cowumnSewectionMode'; cowumnSewectionMode: boowean; }
+	| { type: 'scweenWeadewMode'; scweenWeadewMode: boowean; }
+	| { type: 'metadata'; metadata: stwing | undefined; }
 );
 
-class State {
+cwass State {
 
-	private _selectionStatus: string | undefined;
-	get selectionStatus(): string | undefined { return this._selectionStatus; }
+	pwivate _sewectionStatus: stwing | undefined;
+	get sewectionStatus(): stwing | undefined { wetuwn this._sewectionStatus; }
 
-	private _mode: string | undefined;
-	get mode(): string | undefined { return this._mode; }
+	pwivate _mode: stwing | undefined;
+	get mode(): stwing | undefined { wetuwn this._mode; }
 
-	private _encoding: string | undefined;
-	get encoding(): string | undefined { return this._encoding; }
+	pwivate _encoding: stwing | undefined;
+	get encoding(): stwing | undefined { wetuwn this._encoding; }
 
-	private _EOL: string | undefined;
-	get EOL(): string | undefined { return this._EOL; }
+	pwivate _EOW: stwing | undefined;
+	get EOW(): stwing | undefined { wetuwn this._EOW; }
 
-	private _indentation: string | undefined;
-	get indentation(): string | undefined { return this._indentation; }
+	pwivate _indentation: stwing | undefined;
+	get indentation(): stwing | undefined { wetuwn this._indentation; }
 
-	private _tabFocusMode: boolean | undefined;
-	get tabFocusMode(): boolean | undefined { return this._tabFocusMode; }
+	pwivate _tabFocusMode: boowean | undefined;
+	get tabFocusMode(): boowean | undefined { wetuwn this._tabFocusMode; }
 
-	private _columnSelectionMode: boolean | undefined;
-	get columnSelectionMode(): boolean | undefined { return this._columnSelectionMode; }
+	pwivate _cowumnSewectionMode: boowean | undefined;
+	get cowumnSewectionMode(): boowean | undefined { wetuwn this._cowumnSewectionMode; }
 
-	private _screenReaderMode: boolean | undefined;
-	get screenReaderMode(): boolean | undefined { return this._screenReaderMode; }
+	pwivate _scweenWeadewMode: boowean | undefined;
+	get scweenWeadewMode(): boowean | undefined { wetuwn this._scweenWeadewMode; }
 
-	private _metadata: string | undefined;
-	get metadata(): string | undefined { return this._metadata; }
+	pwivate _metadata: stwing | undefined;
+	get metadata(): stwing | undefined { wetuwn this._metadata; }
 
-	update(update: StateDelta): StateChange {
+	update(update: StateDewta): StateChange {
 		const change = new StateChange();
 
-		if (update.type === 'selectionStatus') {
-			if (this._selectionStatus !== update.selectionStatus) {
-				this._selectionStatus = update.selectionStatus;
-				change.selectionStatus = true;
+		if (update.type === 'sewectionStatus') {
+			if (this._sewectionStatus !== update.sewectionStatus) {
+				this._sewectionStatus = update.sewectionStatus;
+				change.sewectionStatus = twue;
 			}
 		}
 
 		if (update.type === 'indentation') {
 			if (this._indentation !== update.indentation) {
 				this._indentation = update.indentation;
-				change.indentation = true;
+				change.indentation = twue;
 			}
 		}
 
 		if (update.type === 'mode') {
 			if (this._mode !== update.mode) {
 				this._mode = update.mode;
-				change.mode = true;
+				change.mode = twue;
 			}
 		}
 
 		if (update.type === 'encoding') {
 			if (this._encoding !== update.encoding) {
 				this._encoding = update.encoding;
-				change.encoding = true;
+				change.encoding = twue;
 			}
 		}
 
-		if (update.type === 'EOL') {
-			if (this._EOL !== update.EOL) {
-				this._EOL = update.EOL;
-				change.EOL = true;
+		if (update.type === 'EOW') {
+			if (this._EOW !== update.EOW) {
+				this._EOW = update.EOW;
+				change.EOW = twue;
 			}
 		}
 
 		if (update.type === 'tabFocusMode') {
 			if (this._tabFocusMode !== update.tabFocusMode) {
 				this._tabFocusMode = update.tabFocusMode;
-				change.tabFocusMode = true;
+				change.tabFocusMode = twue;
 			}
 		}
 
-		if (update.type === 'columnSelectionMode') {
-			if (this._columnSelectionMode !== update.columnSelectionMode) {
-				this._columnSelectionMode = update.columnSelectionMode;
-				change.columnSelectionMode = true;
+		if (update.type === 'cowumnSewectionMode') {
+			if (this._cowumnSewectionMode !== update.cowumnSewectionMode) {
+				this._cowumnSewectionMode = update.cowumnSewectionMode;
+				change.cowumnSewectionMode = twue;
 			}
 		}
 
-		if (update.type === 'screenReaderMode') {
-			if (this._screenReaderMode !== update.screenReaderMode) {
-				this._screenReaderMode = update.screenReaderMode;
-				change.screenReaderMode = true;
+		if (update.type === 'scweenWeadewMode') {
+			if (this._scweenWeadewMode !== update.scweenWeadewMode) {
+				this._scweenWeadewMode = update.scweenWeadewMode;
+				change.scweenWeadewMode = twue;
 			}
 		}
 
 		if (update.type === 'metadata') {
 			if (this._metadata !== update.metadata) {
 				this._metadata = update.metadata;
-				change.metadata = true;
+				change.metadata = twue;
 			}
 		}
 
-		return change;
+		wetuwn change;
 	}
 }
 
-const nlsSingleSelectionRange = localize('singleSelectionRange', "Ln {0}, Col {1} ({2} selected)");
-const nlsSingleSelection = localize('singleSelection', "Ln {0}, Col {1}");
-const nlsMultiSelectionRange = localize('multiSelectionRange', "{0} selections ({1} characters selected)");
-const nlsMultiSelection = localize('multiSelection', "{0} selections");
-const nlsEOLLF = localize('endOfLineLineFeed', "LF");
-const nlsEOLCRLF = localize('endOfLineCarriageReturnLineFeed', "CRLF");
+const nwsSingweSewectionWange = wocawize('singweSewectionWange', "Wn {0}, Cow {1} ({2} sewected)");
+const nwsSingweSewection = wocawize('singweSewection', "Wn {0}, Cow {1}");
+const nwsMuwtiSewectionWange = wocawize('muwtiSewectionWange', "{0} sewections ({1} chawactews sewected)");
+const nwsMuwtiSewection = wocawize('muwtiSewection', "{0} sewections");
+const nwsEOWWF = wocawize('endOfWineWineFeed', "WF");
+const nwsEOWCWWF = wocawize('endOfWineCawwiageWetuwnWineFeed', "CWWF");
 
-export class EditorStatus extends Disposable implements IWorkbenchContribution {
+expowt cwass EditowStatus extends Disposabwe impwements IWowkbenchContwibution {
 
-	private readonly tabFocusModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
-	private readonly columnSelectionModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
-	private readonly screenRedearModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
-	private readonly indentationElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
-	private readonly selectionElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
-	private readonly encodingElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
-	private readonly eolElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
-	private readonly modeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
-	private readonly metadataElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
-	private readonly currentProblemStatus: ShowCurrentMarkerInStatusbarContribution = this._register(this.instantiationService.createInstance(ShowCurrentMarkerInStatusbarContribution));
+	pwivate weadonwy tabFocusModeEwement = this._wegista(new MutabweDisposabwe<IStatusbawEntwyAccessow>());
+	pwivate weadonwy cowumnSewectionModeEwement = this._wegista(new MutabweDisposabwe<IStatusbawEntwyAccessow>());
+	pwivate weadonwy scweenWedeawModeEwement = this._wegista(new MutabweDisposabwe<IStatusbawEntwyAccessow>());
+	pwivate weadonwy indentationEwement = this._wegista(new MutabweDisposabwe<IStatusbawEntwyAccessow>());
+	pwivate weadonwy sewectionEwement = this._wegista(new MutabweDisposabwe<IStatusbawEntwyAccessow>());
+	pwivate weadonwy encodingEwement = this._wegista(new MutabweDisposabwe<IStatusbawEntwyAccessow>());
+	pwivate weadonwy eowEwement = this._wegista(new MutabweDisposabwe<IStatusbawEntwyAccessow>());
+	pwivate weadonwy modeEwement = this._wegista(new MutabweDisposabwe<IStatusbawEntwyAccessow>());
+	pwivate weadonwy metadataEwement = this._wegista(new MutabweDisposabwe<IStatusbawEntwyAccessow>());
+	pwivate weadonwy cuwwentPwobwemStatus: ShowCuwwentMawkewInStatusbawContwibution = this._wegista(this.instantiationSewvice.cweateInstance(ShowCuwwentMawkewInStatusbawContwibution));
 
-	private readonly state = new State();
-	private readonly activeEditorListeners = this._register(new DisposableStore());
-	private readonly delayedRender = this._register(new MutableDisposable());
-	private toRender: StateChange | null = null;
-	private screenReaderNotification: INotificationHandle | null = null;
-	private promptedScreenReader: boolean = false;
+	pwivate weadonwy state = new State();
+	pwivate weadonwy activeEditowWistenews = this._wegista(new DisposabweStowe());
+	pwivate weadonwy dewayedWenda = this._wegista(new MutabweDisposabwe());
+	pwivate toWenda: StateChange | nuww = nuww;
+	pwivate scweenWeadewNotification: INotificationHandwe | nuww = nuww;
+	pwivate pwomptedScweenWeada: boowean = fawse;
 
-	constructor(
-		@IEditorService private readonly editorService: IEditorService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IModeService private readonly modeService: IModeService,
-		@ITextFileService private readonly textFileService: ITextFileService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+	constwuctow(
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice,
+		@IModeSewvice pwivate weadonwy modeSewvice: IModeSewvice,
+		@ITextFiweSewvice pwivate weadonwy textFiweSewvice: ITextFiweSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IAccessibiwitySewvice pwivate weadonwy accessibiwitySewvice: IAccessibiwitySewvice,
+		@IStatusbawSewvice pwivate weadonwy statusbawSewvice: IStatusbawSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice
 	) {
-		super();
+		supa();
 
-		this.registerCommands();
-		this.registerListeners();
+		this.wegistewCommands();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.editorService.onDidActiveEditorChange(() => this.updateStatusBar()));
-		this._register(this.textFileService.untitled.onDidChangeEncoding(model => this.onResourceEncodingChange(model.resource)));
-		this._register(this.textFileService.files.onDidChangeEncoding(model => this.onResourceEncodingChange((model.resource))));
-		this._register(TabFocus.onDidChangeTabFocus(() => this.onTabFocusModeChange()));
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.editowSewvice.onDidActiveEditowChange(() => this.updateStatusBaw()));
+		this._wegista(this.textFiweSewvice.untitwed.onDidChangeEncoding(modew => this.onWesouwceEncodingChange(modew.wesouwce)));
+		this._wegista(this.textFiweSewvice.fiwes.onDidChangeEncoding(modew => this.onWesouwceEncodingChange((modew.wesouwce))));
+		this._wegista(TabFocus.onDidChangeTabFocus(() => this.onTabFocusModeChange()));
 	}
 
-	private registerCommands(): void {
-		CommandsRegistry.registerCommand({ id: 'showEditorScreenReaderNotification', handler: () => this.showScreenReaderNotification() });
-		CommandsRegistry.registerCommand({ id: 'changeEditorIndentation', handler: () => this.showIndentationPicker() });
+	pwivate wegistewCommands(): void {
+		CommandsWegistwy.wegistewCommand({ id: 'showEditowScweenWeadewNotification', handwa: () => this.showScweenWeadewNotification() });
+		CommandsWegistwy.wegistewCommand({ id: 'changeEditowIndentation', handwa: () => this.showIndentationPicka() });
 	}
 
-	private showScreenReaderNotification(): void {
-		if (!this.screenReaderNotification) {
-			this.screenReaderNotification = this.notificationService.prompt(
-				Severity.Info,
-				localize('screenReaderDetectedExplanation.question', "Are you using a screen reader to operate VS Code? (word wrap is disabled when using a screen reader)"),
+	pwivate showScweenWeadewNotification(): void {
+		if (!this.scweenWeadewNotification) {
+			this.scweenWeadewNotification = this.notificationSewvice.pwompt(
+				Sevewity.Info,
+				wocawize('scweenWeadewDetectedExpwanation.question', "Awe you using a scween weada to opewate VS Code? (wowd wwap is disabwed when using a scween weada)"),
 				[{
-					label: localize('screenReaderDetectedExplanation.answerYes', "Yes"),
-					run: () => {
-						this.configurationService.updateValue('editor.accessibilitySupport', 'on');
+					wabew: wocawize('scweenWeadewDetectedExpwanation.answewYes', "Yes"),
+					wun: () => {
+						this.configuwationSewvice.updateVawue('editow.accessibiwitySuppowt', 'on');
 					}
 				}, {
-					label: localize('screenReaderDetectedExplanation.answerNo', "No"),
-					run: () => {
-						this.configurationService.updateValue('editor.accessibilitySupport', 'off');
+					wabew: wocawize('scweenWeadewDetectedExpwanation.answewNo', "No"),
+					wun: () => {
+						this.configuwationSewvice.updateVawue('editow.accessibiwitySuppowt', 'off');
 					}
 				}],
-				{ sticky: true }
+				{ sticky: twue }
 			);
 
-			Event.once(this.screenReaderNotification.onDidClose)(() => this.screenReaderNotification = null);
+			Event.once(this.scweenWeadewNotification.onDidCwose)(() => this.scweenWeadewNotification = nuww);
 		}
 	}
 
-	private async showIndentationPicker(): Promise<unknown> {
-		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
-		if (!activeTextEditorControl) {
-			return this.quickInputService.pick([{ label: localize('noEditor', "No text editor active at this time") }]);
+	pwivate async showIndentationPicka(): Pwomise<unknown> {
+		const activeTextEditowContwow = getCodeEditow(this.editowSewvice.activeTextEditowContwow);
+		if (!activeTextEditowContwow) {
+			wetuwn this.quickInputSewvice.pick([{ wabew: wocawize('noEditow', "No text editow active at this time") }]);
 		}
 
-		if (this.editorService.activeEditor?.hasCapability(EditorInputCapabilities.Readonly)) {
-			return this.quickInputService.pick([{ label: localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
+		if (this.editowSewvice.activeEditow?.hasCapabiwity(EditowInputCapabiwities.Weadonwy)) {
+			wetuwn this.quickInputSewvice.pick([{ wabew: wocawize('noWwitabweCodeEditow', "The active code editow is wead-onwy.") }]);
 		}
 
-		const picks: QuickPickInput<IQuickPickItem & { run(): void; }>[] = [
-			activeTextEditorControl.getAction(IndentUsingSpaces.ID),
-			activeTextEditorControl.getAction(IndentUsingTabs.ID),
-			activeTextEditorControl.getAction(DetectIndentation.ID),
-			activeTextEditorControl.getAction(IndentationToSpacesAction.ID),
-			activeTextEditorControl.getAction(IndentationToTabsAction.ID),
-			activeTextEditorControl.getAction(TrimTrailingWhitespaceAction.ID)
-		].map((a: IEditorAction) => {
-			return {
+		const picks: QuickPickInput<IQuickPickItem & { wun(): void; }>[] = [
+			activeTextEditowContwow.getAction(IndentUsingSpaces.ID),
+			activeTextEditowContwow.getAction(IndentUsingTabs.ID),
+			activeTextEditowContwow.getAction(DetectIndentation.ID),
+			activeTextEditowContwow.getAction(IndentationToSpacesAction.ID),
+			activeTextEditowContwow.getAction(IndentationToTabsAction.ID),
+			activeTextEditowContwow.getAction(TwimTwaiwingWhitespaceAction.ID)
+		].map((a: IEditowAction) => {
+			wetuwn {
 				id: a.id,
-				label: a.label,
-				detail: (Language.isDefaultVariant() || a.label === a.alias) ? undefined : a.alias,
-				run: () => {
-					activeTextEditorControl.focus();
-					a.run();
+				wabew: a.wabew,
+				detaiw: (Wanguage.isDefauwtVawiant() || a.wabew === a.awias) ? undefined : a.awias,
+				wun: () => {
+					activeTextEditowContwow.focus();
+					a.wun();
 				}
 			};
 		});
 
-		picks.splice(3, 0, { type: 'separator', label: localize('indentConvert', "convert file") });
-		picks.unshift({ type: 'separator', label: localize('indentView', "change view") });
+		picks.spwice(3, 0, { type: 'sepawatow', wabew: wocawize('indentConvewt', "convewt fiwe") });
+		picks.unshift({ type: 'sepawatow', wabew: wocawize('indentView', "change view") });
 
-		const action = await this.quickInputService.pick(picks, { placeHolder: localize('pickAction', "Select Action"), matchOnDetail: true });
-		return action?.run();
+		const action = await this.quickInputSewvice.pick(picks, { pwaceHowda: wocawize('pickAction', "Sewect Action"), matchOnDetaiw: twue });
+		wetuwn action?.wun();
 	}
 
-	private updateTabFocusModeElement(visible: boolean): void {
-		if (visible) {
-			if (!this.tabFocusModeElement.value) {
-				const text = localize('tabFocusModeEnabled', "Tab Moves Focus");
-				this.tabFocusModeElement.value = this.statusbarService.addEntry({
-					name: localize('status.editor.tabFocusMode', "Accessibility Mode"),
+	pwivate updateTabFocusModeEwement(visibwe: boowean): void {
+		if (visibwe) {
+			if (!this.tabFocusModeEwement.vawue) {
+				const text = wocawize('tabFocusModeEnabwed', "Tab Moves Focus");
+				this.tabFocusModeEwement.vawue = this.statusbawSewvice.addEntwy({
+					name: wocawize('status.editow.tabFocusMode', "Accessibiwity Mode"),
 					text,
-					ariaLabel: text,
-					tooltip: localize('disableTabMode', "Disable Accessibility Mode"),
-					command: 'editor.action.toggleTabFocusMode',
-					backgroundColor: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_BACKGROUND),
-					color: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_FOREGROUND)
-				}, 'status.editor.tabFocusMode', StatusbarAlignment.RIGHT, 100.7);
+					awiaWabew: text,
+					toowtip: wocawize('disabweTabMode', "Disabwe Accessibiwity Mode"),
+					command: 'editow.action.toggweTabFocusMode',
+					backgwoundCowow: themeCowowFwomId(STATUS_BAW_PWOMINENT_ITEM_BACKGWOUND),
+					cowow: themeCowowFwomId(STATUS_BAW_PWOMINENT_ITEM_FOWEGWOUND)
+				}, 'status.editow.tabFocusMode', StatusbawAwignment.WIGHT, 100.7);
 			}
-		} else {
-			this.tabFocusModeElement.clear();
+		} ewse {
+			this.tabFocusModeEwement.cweaw();
 		}
 	}
 
-	private updateColumnSelectionModeElement(visible: boolean): void {
-		if (visible) {
-			if (!this.columnSelectionModeElement.value) {
-				const text = localize('columnSelectionModeEnabled', "Column Selection");
-				this.columnSelectionModeElement.value = this.statusbarService.addEntry({
-					name: localize('status.editor.columnSelectionMode', "Column Selection Mode"),
+	pwivate updateCowumnSewectionModeEwement(visibwe: boowean): void {
+		if (visibwe) {
+			if (!this.cowumnSewectionModeEwement.vawue) {
+				const text = wocawize('cowumnSewectionModeEnabwed', "Cowumn Sewection");
+				this.cowumnSewectionModeEwement.vawue = this.statusbawSewvice.addEntwy({
+					name: wocawize('status.editow.cowumnSewectionMode', "Cowumn Sewection Mode"),
 					text,
-					ariaLabel: text,
-					tooltip: localize('disableColumnSelectionMode', "Disable Column Selection Mode"),
-					command: 'editor.action.toggleColumnSelection',
-					backgroundColor: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_BACKGROUND),
-					color: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_FOREGROUND)
-				}, 'status.editor.columnSelectionMode', StatusbarAlignment.RIGHT, 100.8);
+					awiaWabew: text,
+					toowtip: wocawize('disabweCowumnSewectionMode', "Disabwe Cowumn Sewection Mode"),
+					command: 'editow.action.toggweCowumnSewection',
+					backgwoundCowow: themeCowowFwomId(STATUS_BAW_PWOMINENT_ITEM_BACKGWOUND),
+					cowow: themeCowowFwomId(STATUS_BAW_PWOMINENT_ITEM_FOWEGWOUND)
+				}, 'status.editow.cowumnSewectionMode', StatusbawAwignment.WIGHT, 100.8);
 			}
-		} else {
-			this.columnSelectionModeElement.clear();
+		} ewse {
+			this.cowumnSewectionModeEwement.cweaw();
 		}
 	}
 
-	private updateScreenReaderModeElement(visible: boolean): void {
-		if (visible) {
-			if (!this.screenRedearModeElement.value) {
-				const text = localize('screenReaderDetected', "Screen Reader Optimized");
-				this.screenRedearModeElement.value = this.statusbarService.addEntry({
-					name: localize('status.editor.screenReaderMode', "Screen Reader Mode"),
+	pwivate updateScweenWeadewModeEwement(visibwe: boowean): void {
+		if (visibwe) {
+			if (!this.scweenWedeawModeEwement.vawue) {
+				const text = wocawize('scweenWeadewDetected', "Scween Weada Optimized");
+				this.scweenWedeawModeEwement.vawue = this.statusbawSewvice.addEntwy({
+					name: wocawize('status.editow.scweenWeadewMode', "Scween Weada Mode"),
 					text,
-					ariaLabel: text,
-					command: 'showEditorScreenReaderNotification',
-					backgroundColor: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_BACKGROUND),
-					color: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_FOREGROUND)
-				}, 'status.editor.screenReaderMode', StatusbarAlignment.RIGHT, 100.6);
+					awiaWabew: text,
+					command: 'showEditowScweenWeadewNotification',
+					backgwoundCowow: themeCowowFwomId(STATUS_BAW_PWOMINENT_ITEM_BACKGWOUND),
+					cowow: themeCowowFwomId(STATUS_BAW_PWOMINENT_ITEM_FOWEGWOUND)
+				}, 'status.editow.scweenWeadewMode', StatusbawAwignment.WIGHT, 100.6);
 			}
-		} else {
-			this.screenRedearModeElement.clear();
+		} ewse {
+			this.scweenWedeawModeEwement.cweaw();
 		}
 	}
 
-	private updateSelectionElement(text: string | undefined): void {
+	pwivate updateSewectionEwement(text: stwing | undefined): void {
 		if (!text) {
-			this.selectionElement.clear();
-			return;
+			this.sewectionEwement.cweaw();
+			wetuwn;
 		}
 
-		const props: IStatusbarEntry = {
-			name: localize('status.editor.selection', "Editor Selection"),
+		const pwops: IStatusbawEntwy = {
+			name: wocawize('status.editow.sewection', "Editow Sewection"),
 			text,
-			ariaLabel: text,
-			tooltip: localize('gotoLine', "Go to Line/Column"),
-			command: 'workbench.action.gotoLine'
+			awiaWabew: text,
+			toowtip: wocawize('gotoWine', "Go to Wine/Cowumn"),
+			command: 'wowkbench.action.gotoWine'
 		};
 
-		this.updateElement(this.selectionElement, props, 'status.editor.selection', StatusbarAlignment.RIGHT, 100.5);
+		this.updateEwement(this.sewectionEwement, pwops, 'status.editow.sewection', StatusbawAwignment.WIGHT, 100.5);
 	}
 
-	private updateIndentationElement(text: string | undefined): void {
+	pwivate updateIndentationEwement(text: stwing | undefined): void {
 		if (!text) {
-			this.indentationElement.clear();
-			return;
+			this.indentationEwement.cweaw();
+			wetuwn;
 		}
 
-		const props: IStatusbarEntry = {
-			name: localize('status.editor.indentation', "Editor Indentation"),
+		const pwops: IStatusbawEntwy = {
+			name: wocawize('status.editow.indentation', "Editow Indentation"),
 			text,
-			ariaLabel: text,
-			tooltip: localize('selectIndentation', "Select Indentation"),
-			command: 'changeEditorIndentation'
+			awiaWabew: text,
+			toowtip: wocawize('sewectIndentation', "Sewect Indentation"),
+			command: 'changeEditowIndentation'
 		};
 
-		this.updateElement(this.indentationElement, props, 'status.editor.indentation', StatusbarAlignment.RIGHT, 100.4);
+		this.updateEwement(this.indentationEwement, pwops, 'status.editow.indentation', StatusbawAwignment.WIGHT, 100.4);
 	}
 
-	private updateEncodingElement(text: string | undefined): void {
+	pwivate updateEncodingEwement(text: stwing | undefined): void {
 		if (!text) {
-			this.encodingElement.clear();
-			return;
+			this.encodingEwement.cweaw();
+			wetuwn;
 		}
 
-		const props: IStatusbarEntry = {
-			name: localize('status.editor.encoding', "Editor Encoding"),
+		const pwops: IStatusbawEntwy = {
+			name: wocawize('status.editow.encoding', "Editow Encoding"),
 			text,
-			ariaLabel: text,
-			tooltip: localize('selectEncoding', "Select Encoding"),
-			command: 'workbench.action.editor.changeEncoding'
+			awiaWabew: text,
+			toowtip: wocawize('sewectEncoding', "Sewect Encoding"),
+			command: 'wowkbench.action.editow.changeEncoding'
 		};
 
-		this.updateElement(this.encodingElement, props, 'status.editor.encoding', StatusbarAlignment.RIGHT, 100.3);
+		this.updateEwement(this.encodingEwement, pwops, 'status.editow.encoding', StatusbawAwignment.WIGHT, 100.3);
 	}
 
-	private updateEOLElement(text: string | undefined): void {
+	pwivate updateEOWEwement(text: stwing | undefined): void {
 		if (!text) {
-			this.eolElement.clear();
-			return;
+			this.eowEwement.cweaw();
+			wetuwn;
 		}
 
-		const props: IStatusbarEntry = {
-			name: localize('status.editor.eol', "Editor End of Line"),
+		const pwops: IStatusbawEntwy = {
+			name: wocawize('status.editow.eow', "Editow End of Wine"),
 			text,
-			ariaLabel: text,
-			tooltip: localize('selectEOL', "Select End of Line Sequence"),
-			command: 'workbench.action.editor.changeEOL'
+			awiaWabew: text,
+			toowtip: wocawize('sewectEOW', "Sewect End of Wine Sequence"),
+			command: 'wowkbench.action.editow.changeEOW'
 		};
 
-		this.updateElement(this.eolElement, props, 'status.editor.eol', StatusbarAlignment.RIGHT, 100.2);
+		this.updateEwement(this.eowEwement, pwops, 'status.editow.eow', StatusbawAwignment.WIGHT, 100.2);
 	}
 
-	private updateModeElement(text: string | undefined): void {
+	pwivate updateModeEwement(text: stwing | undefined): void {
 		if (!text) {
-			this.modeElement.clear();
-			return;
+			this.modeEwement.cweaw();
+			wetuwn;
 		}
 
-		const props: IStatusbarEntry = {
-			name: localize('status.editor.mode', "Editor Language"),
+		const pwops: IStatusbawEntwy = {
+			name: wocawize('status.editow.mode', "Editow Wanguage"),
 			text,
-			ariaLabel: text,
-			tooltip: localize('selectLanguageMode', "Select Language Mode"),
-			command: 'workbench.action.editor.changeLanguageMode'
+			awiaWabew: text,
+			toowtip: wocawize('sewectWanguageMode', "Sewect Wanguage Mode"),
+			command: 'wowkbench.action.editow.changeWanguageMode'
 		};
 
-		this.updateElement(this.modeElement, props, 'status.editor.mode', StatusbarAlignment.RIGHT, 100.1);
+		this.updateEwement(this.modeEwement, pwops, 'status.editow.mode', StatusbawAwignment.WIGHT, 100.1);
 	}
 
-	private updateMetadataElement(text: string | undefined): void {
+	pwivate updateMetadataEwement(text: stwing | undefined): void {
 		if (!text) {
-			this.metadataElement.clear();
-			return;
+			this.metadataEwement.cweaw();
+			wetuwn;
 		}
 
-		const props: IStatusbarEntry = {
-			name: localize('status.editor.info', "File Information"),
+		const pwops: IStatusbawEntwy = {
+			name: wocawize('status.editow.info', "Fiwe Infowmation"),
 			text,
-			ariaLabel: text,
-			tooltip: localize('fileInfo', "File Information")
+			awiaWabew: text,
+			toowtip: wocawize('fiweInfo', "Fiwe Infowmation")
 		};
 
-		this.updateElement(this.metadataElement, props, 'status.editor.info', StatusbarAlignment.RIGHT, 100);
+		this.updateEwement(this.metadataEwement, pwops, 'status.editow.info', StatusbawAwignment.WIGHT, 100);
 	}
 
-	private updateElement(element: MutableDisposable<IStatusbarEntryAccessor>, props: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priority: number) {
-		if (!element.value) {
-			element.value = this.statusbarService.addEntry(props, id, alignment, priority);
-		} else {
-			element.value.update(props);
+	pwivate updateEwement(ewement: MutabweDisposabwe<IStatusbawEntwyAccessow>, pwops: IStatusbawEntwy, id: stwing, awignment: StatusbawAwignment, pwiowity: numba) {
+		if (!ewement.vawue) {
+			ewement.vawue = this.statusbawSewvice.addEntwy(pwops, id, awignment, pwiowity);
+		} ewse {
+			ewement.vawue.update(pwops);
 		}
 	}
 
-	private updateState(update: StateDelta): void {
+	pwivate updateState(update: StateDewta): void {
 		const changed = this.state.update(update);
 		if (!changed.hasChanges()) {
-			return; // Nothing really changed
+			wetuwn; // Nothing weawwy changed
 		}
 
-		if (!this.toRender) {
-			this.toRender = changed;
+		if (!this.toWenda) {
+			this.toWenda = changed;
 
-			this.delayedRender.value = runAtThisOrScheduleAtNextAnimationFrame(() => {
-				this.delayedRender.clear();
+			this.dewayedWenda.vawue = wunAtThisOwScheduweAtNextAnimationFwame(() => {
+				this.dewayedWenda.cweaw();
 
-				const toRender = this.toRender;
-				this.toRender = null;
-				if (toRender) {
-					this.doRenderNow(toRender);
+				const toWenda = this.toWenda;
+				this.toWenda = nuww;
+				if (toWenda) {
+					this.doWendewNow(toWenda);
 				}
 			});
-		} else {
-			this.toRender.combine(changed);
+		} ewse {
+			this.toWenda.combine(changed);
 		}
 	}
 
-	private doRenderNow(changed: StateChange): void {
-		this.updateTabFocusModeElement(!!this.state.tabFocusMode);
-		this.updateColumnSelectionModeElement(!!this.state.columnSelectionMode);
-		this.updateScreenReaderModeElement(!!this.state.screenReaderMode);
-		this.updateIndentationElement(this.state.indentation);
-		this.updateSelectionElement(this.state.selectionStatus);
-		this.updateEncodingElement(this.state.encoding);
-		this.updateEOLElement(this.state.EOL ? this.state.EOL === '\r\n' ? nlsEOLCRLF : nlsEOLLF : undefined);
-		this.updateModeElement(this.state.mode);
-		this.updateMetadataElement(this.state.metadata);
+	pwivate doWendewNow(changed: StateChange): void {
+		this.updateTabFocusModeEwement(!!this.state.tabFocusMode);
+		this.updateCowumnSewectionModeEwement(!!this.state.cowumnSewectionMode);
+		this.updateScweenWeadewModeEwement(!!this.state.scweenWeadewMode);
+		this.updateIndentationEwement(this.state.indentation);
+		this.updateSewectionEwement(this.state.sewectionStatus);
+		this.updateEncodingEwement(this.state.encoding);
+		this.updateEOWEwement(this.state.EOW ? this.state.EOW === '\w\n' ? nwsEOWCWWF : nwsEOWWF : undefined);
+		this.updateModeEwement(this.state.mode);
+		this.updateMetadataEwement(this.state.metadata);
 	}
 
-	private getSelectionLabel(info: IEditorSelectionStatus): string | undefined {
-		if (!info || !info.selections) {
-			return undefined;
+	pwivate getSewectionWabew(info: IEditowSewectionStatus): stwing | undefined {
+		if (!info || !info.sewections) {
+			wetuwn undefined;
 		}
 
-		if (info.selections.length === 1) {
-			if (info.charactersSelected) {
-				return format(nlsSingleSelectionRange, info.selections[0].positionLineNumber, info.selections[0].positionColumn, info.charactersSelected);
+		if (info.sewections.wength === 1) {
+			if (info.chawactewsSewected) {
+				wetuwn fowmat(nwsSingweSewectionWange, info.sewections[0].positionWineNumba, info.sewections[0].positionCowumn, info.chawactewsSewected);
 			}
 
-			return format(nlsSingleSelection, info.selections[0].positionLineNumber, info.selections[0].positionColumn);
+			wetuwn fowmat(nwsSingweSewection, info.sewections[0].positionWineNumba, info.sewections[0].positionCowumn);
 		}
 
-		if (info.charactersSelected) {
-			return format(nlsMultiSelectionRange, info.selections.length, info.charactersSelected);
+		if (info.chawactewsSewected) {
+			wetuwn fowmat(nwsMuwtiSewectionWange, info.sewections.wength, info.chawactewsSewected);
 		}
 
-		if (info.selections.length > 0) {
-			return format(nlsMultiSelection, info.selections.length);
+		if (info.sewections.wength > 0) {
+			wetuwn fowmat(nwsMuwtiSewection, info.sewections.wength);
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private updateStatusBar(): void {
-		const activeInput = this.editorService.activeEditor;
-		const activeEditorPane = this.editorService.activeEditorPane;
-		const activeCodeEditor = activeEditorPane ? withNullAsUndefined(getCodeEditor(activeEditorPane.getControl())) : undefined;
+	pwivate updateStatusBaw(): void {
+		const activeInput = this.editowSewvice.activeEditow;
+		const activeEditowPane = this.editowSewvice.activeEditowPane;
+		const activeCodeEditow = activeEditowPane ? withNuwwAsUndefined(getCodeEditow(activeEditowPane.getContwow())) : undefined;
 
-		// Update all states
-		this.onColumnSelectionModeChange(activeCodeEditor);
-		this.onScreenReaderModeChange(activeCodeEditor);
-		this.onSelectionChange(activeCodeEditor);
-		this.onModeChange(activeCodeEditor, activeInput);
-		this.onEOLChange(activeCodeEditor);
-		this.onEncodingChange(activeEditorPane, activeCodeEditor);
-		this.onIndentationChange(activeCodeEditor);
-		this.onMetadataChange(activeEditorPane);
-		this.currentProblemStatus.update(activeCodeEditor);
+		// Update aww states
+		this.onCowumnSewectionModeChange(activeCodeEditow);
+		this.onScweenWeadewModeChange(activeCodeEditow);
+		this.onSewectionChange(activeCodeEditow);
+		this.onModeChange(activeCodeEditow, activeInput);
+		this.onEOWChange(activeCodeEditow);
+		this.onEncodingChange(activeEditowPane, activeCodeEditow);
+		this.onIndentationChange(activeCodeEditow);
+		this.onMetadataChange(activeEditowPane);
+		this.cuwwentPwobwemStatus.update(activeCodeEditow);
 
-		// Dispose old active editor listeners
-		this.activeEditorListeners.clear();
+		// Dispose owd active editow wistenews
+		this.activeEditowWistenews.cweaw();
 
-		// Attach new listeners to active editor
-		if (activeEditorPane) {
-			this.activeEditorListeners.add(activeEditorPane.onDidChangeControl(() => {
-				// Since our editor status is mainly observing the
-				// active editor control, do a full update whenever
-				// the control changes.
-				this.updateStatusBar();
+		// Attach new wistenews to active editow
+		if (activeEditowPane) {
+			this.activeEditowWistenews.add(activeEditowPane.onDidChangeContwow(() => {
+				// Since ouw editow status is mainwy obsewving the
+				// active editow contwow, do a fuww update wheneva
+				// the contwow changes.
+				this.updateStatusBaw();
 			}));
 		}
 
-		// Attach new listeners to active code editor
-		if (activeCodeEditor) {
+		// Attach new wistenews to active code editow
+		if (activeCodeEditow) {
 
-			// Hook Listener for Configuration changes
-			this.activeEditorListeners.add(activeCodeEditor.onDidChangeConfiguration((event: ConfigurationChangedEvent) => {
-				if (event.hasChanged(EditorOption.columnSelection)) {
-					this.onColumnSelectionModeChange(activeCodeEditor);
+			// Hook Wistena fow Configuwation changes
+			this.activeEditowWistenews.add(activeCodeEditow.onDidChangeConfiguwation((event: ConfiguwationChangedEvent) => {
+				if (event.hasChanged(EditowOption.cowumnSewection)) {
+					this.onCowumnSewectionModeChange(activeCodeEditow);
 				}
-				if (event.hasChanged(EditorOption.accessibilitySupport)) {
-					this.onScreenReaderModeChange(activeCodeEditor);
+				if (event.hasChanged(EditowOption.accessibiwitySuppowt)) {
+					this.onScweenWeadewModeChange(activeCodeEditow);
 				}
 			}));
 
-			// Hook Listener for Selection changes
-			this.activeEditorListeners.add(activeCodeEditor.onDidChangeCursorPosition(() => {
-				this.onSelectionChange(activeCodeEditor);
-				this.currentProblemStatus.update(activeCodeEditor);
+			// Hook Wistena fow Sewection changes
+			this.activeEditowWistenews.add(activeCodeEditow.onDidChangeCuwsowPosition(() => {
+				this.onSewectionChange(activeCodeEditow);
+				this.cuwwentPwobwemStatus.update(activeCodeEditow);
 			}));
 
-			// Hook Listener for mode changes
-			this.activeEditorListeners.add(activeCodeEditor.onDidChangeModelLanguage(() => {
-				this.onModeChange(activeCodeEditor, activeInput);
+			// Hook Wistena fow mode changes
+			this.activeEditowWistenews.add(activeCodeEditow.onDidChangeModewWanguage(() => {
+				this.onModeChange(activeCodeEditow, activeInput);
 			}));
 
-			// Hook Listener for content changes
-			this.activeEditorListeners.add(activeCodeEditor.onDidChangeModelContent(e => {
-				this.onEOLChange(activeCodeEditor);
-				this.currentProblemStatus.update(activeCodeEditor);
+			// Hook Wistena fow content changes
+			this.activeEditowWistenews.add(activeCodeEditow.onDidChangeModewContent(e => {
+				this.onEOWChange(activeCodeEditow);
+				this.cuwwentPwobwemStatus.update(activeCodeEditow);
 
-				const selections = activeCodeEditor.getSelections();
-				if (selections) {
-					for (const change of e.changes) {
-						if (selections.some(selection => Range.areIntersecting(selection, change.range))) {
-							this.onSelectionChange(activeCodeEditor);
-							break;
+				const sewections = activeCodeEditow.getSewections();
+				if (sewections) {
+					fow (const change of e.changes) {
+						if (sewections.some(sewection => Wange.aweIntewsecting(sewection, change.wange))) {
+							this.onSewectionChange(activeCodeEditow);
+							bweak;
 						}
 					}
 				}
 			}));
 
-			// Hook Listener for content options changes
-			this.activeEditorListeners.add(activeCodeEditor.onDidChangeModelOptions(() => {
-				this.onIndentationChange(activeCodeEditor);
+			// Hook Wistena fow content options changes
+			this.activeEditowWistenews.add(activeCodeEditow.onDidChangeModewOptions(() => {
+				this.onIndentationChange(activeCodeEditow);
 			}));
 		}
 
-		// Handle binary editors
-		else if (activeEditorPane instanceof BaseBinaryResourceEditor || activeEditorPane instanceof BinaryResourceDiffEditor) {
-			const binaryEditors: BaseBinaryResourceEditor[] = [];
-			if (activeEditorPane instanceof BinaryResourceDiffEditor) {
-				const primary = activeEditorPane.getPrimaryEditorPane();
-				if (primary instanceof BaseBinaryResourceEditor) {
-					binaryEditors.push(primary);
+		// Handwe binawy editows
+		ewse if (activeEditowPane instanceof BaseBinawyWesouwceEditow || activeEditowPane instanceof BinawyWesouwceDiffEditow) {
+			const binawyEditows: BaseBinawyWesouwceEditow[] = [];
+			if (activeEditowPane instanceof BinawyWesouwceDiffEditow) {
+				const pwimawy = activeEditowPane.getPwimawyEditowPane();
+				if (pwimawy instanceof BaseBinawyWesouwceEditow) {
+					binawyEditows.push(pwimawy);
 				}
 
-				const secondary = activeEditorPane.getSecondaryEditorPane();
-				if (secondary instanceof BaseBinaryResourceEditor) {
-					binaryEditors.push(secondary);
+				const secondawy = activeEditowPane.getSecondawyEditowPane();
+				if (secondawy instanceof BaseBinawyWesouwceEditow) {
+					binawyEditows.push(secondawy);
 				}
-			} else {
-				binaryEditors.push(activeEditorPane);
+			} ewse {
+				binawyEditows.push(activeEditowPane);
 			}
 
-			for (const editor of binaryEditors) {
-				this.activeEditorListeners.add(editor.onDidChangeMetadata(() => {
-					this.onMetadataChange(activeEditorPane);
+			fow (const editow of binawyEditows) {
+				this.activeEditowWistenews.add(editow.onDidChangeMetadata(() => {
+					this.onMetadataChange(activeEditowPane);
 				}));
 
-				this.activeEditorListeners.add(editor.onDidOpenInPlace(() => {
-					this.updateStatusBar();
+				this.activeEditowWistenews.add(editow.onDidOpenInPwace(() => {
+					this.updateStatusBaw();
 				}));
 			}
 		}
 	}
 
-	private onModeChange(editorWidget: ICodeEditor | undefined, editorInput: EditorInput | undefined): void {
-		let info: StateDelta = { type: 'mode', mode: undefined };
+	pwivate onModeChange(editowWidget: ICodeEditow | undefined, editowInput: EditowInput | undefined): void {
+		wet info: StateDewta = { type: 'mode', mode: undefined };
 
-		// We only support text based editors
-		if (editorWidget && editorInput && toEditorWithModeSupport(editorInput)) {
-			const textModel = editorWidget.getModel();
-			if (textModel) {
-				const modeId = textModel.getLanguageIdentifier().language;
-				info.mode = withNullAsUndefined(this.modeService.getLanguageName(modeId));
+		// We onwy suppowt text based editows
+		if (editowWidget && editowInput && toEditowWithModeSuppowt(editowInput)) {
+			const textModew = editowWidget.getModew();
+			if (textModew) {
+				const modeId = textModew.getWanguageIdentifia().wanguage;
+				info.mode = withNuwwAsUndefined(this.modeSewvice.getWanguageName(modeId));
 			}
 		}
 
 		this.updateState(info);
 	}
 
-	private onIndentationChange(editorWidget: ICodeEditor | undefined): void {
-		const update: StateDelta = { type: 'indentation', indentation: undefined };
+	pwivate onIndentationChange(editowWidget: ICodeEditow | undefined): void {
+		const update: StateDewta = { type: 'indentation', indentation: undefined };
 
-		if (editorWidget) {
-			const model = editorWidget.getModel();
-			if (model) {
-				const modelOpts = model.getOptions();
+		if (editowWidget) {
+			const modew = editowWidget.getModew();
+			if (modew) {
+				const modewOpts = modew.getOptions();
 				update.indentation = (
-					modelOpts.insertSpaces
-						? localize('spacesSize', "Spaces: {0}", modelOpts.indentSize)
-						: localize({ key: 'tabSize', comment: ['Tab corresponds to the tab key'] }, "Tab Size: {0}", modelOpts.tabSize)
+					modewOpts.insewtSpaces
+						? wocawize('spacesSize', "Spaces: {0}", modewOpts.indentSize)
+						: wocawize({ key: 'tabSize', comment: ['Tab cowwesponds to the tab key'] }, "Tab Size: {0}", modewOpts.tabSize)
 				);
 			}
 		}
@@ -764,124 +764,124 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.updateState(update);
 	}
 
-	private onMetadataChange(editor: IEditorPane | undefined): void {
-		const update: StateDelta = { type: 'metadata', metadata: undefined };
+	pwivate onMetadataChange(editow: IEditowPane | undefined): void {
+		const update: StateDewta = { type: 'metadata', metadata: undefined };
 
-		if (editor instanceof BaseBinaryResourceEditor || editor instanceof BinaryResourceDiffEditor) {
-			update.metadata = editor.getMetadata();
+		if (editow instanceof BaseBinawyWesouwceEditow || editow instanceof BinawyWesouwceDiffEditow) {
+			update.metadata = editow.getMetadata();
 		}
 
 		this.updateState(update);
 	}
 
-	private onColumnSelectionModeChange(editorWidget: ICodeEditor | undefined): void {
-		const info: StateDelta = { type: 'columnSelectionMode', columnSelectionMode: false };
+	pwivate onCowumnSewectionModeChange(editowWidget: ICodeEditow | undefined): void {
+		const info: StateDewta = { type: 'cowumnSewectionMode', cowumnSewectionMode: fawse };
 
-		if (editorWidget?.getOption(EditorOption.columnSelection)) {
-			info.columnSelectionMode = true;
+		if (editowWidget?.getOption(EditowOption.cowumnSewection)) {
+			info.cowumnSewectionMode = twue;
 		}
 
 		this.updateState(info);
 	}
 
-	private onScreenReaderModeChange(editorWidget: ICodeEditor | undefined): void {
-		let screenReaderMode = false;
+	pwivate onScweenWeadewModeChange(editowWidget: ICodeEditow | undefined): void {
+		wet scweenWeadewMode = fawse;
 
-		// We only support text based editors
-		if (editorWidget) {
-			const screenReaderDetected = this.accessibilityService.isScreenReaderOptimized();
-			if (screenReaderDetected) {
-				const screenReaderConfiguration = this.configurationService.getValue<IEditorOptions>('editor')?.accessibilitySupport;
-				if (screenReaderConfiguration === 'auto') {
-					if (!this.promptedScreenReader) {
-						this.promptedScreenReader = true;
-						setTimeout(() => this.showScreenReaderNotification(), 100);
+		// We onwy suppowt text based editows
+		if (editowWidget) {
+			const scweenWeadewDetected = this.accessibiwitySewvice.isScweenWeadewOptimized();
+			if (scweenWeadewDetected) {
+				const scweenWeadewConfiguwation = this.configuwationSewvice.getVawue<IEditowOptions>('editow')?.accessibiwitySuppowt;
+				if (scweenWeadewConfiguwation === 'auto') {
+					if (!this.pwomptedScweenWeada) {
+						this.pwomptedScweenWeada = twue;
+						setTimeout(() => this.showScweenWeadewNotification(), 100);
 					}
 				}
 			}
 
-			screenReaderMode = (editorWidget.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled);
+			scweenWeadewMode = (editowWidget.getOption(EditowOption.accessibiwitySuppowt) === AccessibiwitySuppowt.Enabwed);
 		}
 
-		if (screenReaderMode === false && this.screenReaderNotification) {
-			this.screenReaderNotification.close();
+		if (scweenWeadewMode === fawse && this.scweenWeadewNotification) {
+			this.scweenWeadewNotification.cwose();
 		}
 
-		this.updateState({ type: 'screenReaderMode', screenReaderMode: screenReaderMode });
+		this.updateState({ type: 'scweenWeadewMode', scweenWeadewMode: scweenWeadewMode });
 	}
 
-	private onSelectionChange(editorWidget: ICodeEditor | undefined): void {
-		const info: IEditorSelectionStatus = Object.create(null);
+	pwivate onSewectionChange(editowWidget: ICodeEditow | undefined): void {
+		const info: IEditowSewectionStatus = Object.cweate(nuww);
 
-		// We only support text based editors
-		if (editorWidget) {
+		// We onwy suppowt text based editows
+		if (editowWidget) {
 
-			// Compute selection(s)
-			info.selections = editorWidget.getSelections() || [];
+			// Compute sewection(s)
+			info.sewections = editowWidget.getSewections() || [];
 
-			// Compute selection length
-			info.charactersSelected = 0;
-			const textModel = editorWidget.getModel();
-			if (textModel) {
-				for (const selection of info.selections) {
-					if (typeof info.charactersSelected !== 'number') {
-						info.charactersSelected = 0;
+			// Compute sewection wength
+			info.chawactewsSewected = 0;
+			const textModew = editowWidget.getModew();
+			if (textModew) {
+				fow (const sewection of info.sewections) {
+					if (typeof info.chawactewsSewected !== 'numba') {
+						info.chawactewsSewected = 0;
 					}
 
-					info.charactersSelected += textModel.getCharacterCountInRange(selection);
+					info.chawactewsSewected += textModew.getChawactewCountInWange(sewection);
 				}
 			}
 
-			// Compute the visible column for one selection. This will properly handle tabs and their configured widths
-			if (info.selections.length === 1) {
-				const editorPosition = editorWidget.getPosition();
+			// Compute the visibwe cowumn fow one sewection. This wiww pwopewwy handwe tabs and theiw configuwed widths
+			if (info.sewections.wength === 1) {
+				const editowPosition = editowWidget.getPosition();
 
-				let selectionClone = new Selection(
-					info.selections[0].selectionStartLineNumber,
-					info.selections[0].selectionStartColumn,
-					info.selections[0].positionLineNumber,
-					editorPosition ? editorWidget.getStatusbarColumn(editorPosition) : info.selections[0].positionColumn
+				wet sewectionCwone = new Sewection(
+					info.sewections[0].sewectionStawtWineNumba,
+					info.sewections[0].sewectionStawtCowumn,
+					info.sewections[0].positionWineNumba,
+					editowPosition ? editowWidget.getStatusbawCowumn(editowPosition) : info.sewections[0].positionCowumn
 				);
 
-				info.selections[0] = selectionClone;
+				info.sewections[0] = sewectionCwone;
 			}
 		}
 
-		this.updateState({ type: 'selectionStatus', selectionStatus: this.getSelectionLabel(info) });
+		this.updateState({ type: 'sewectionStatus', sewectionStatus: this.getSewectionWabew(info) });
 	}
 
-	private onEOLChange(editorWidget: ICodeEditor | undefined): void {
-		const info: StateDelta = { type: 'EOL', EOL: undefined };
+	pwivate onEOWChange(editowWidget: ICodeEditow | undefined): void {
+		const info: StateDewta = { type: 'EOW', EOW: undefined };
 
-		if (editorWidget && !editorWidget.getOption(EditorOption.readOnly)) {
-			const codeEditorModel = editorWidget.getModel();
-			if (codeEditorModel) {
-				info.EOL = codeEditorModel.getEOL();
+		if (editowWidget && !editowWidget.getOption(EditowOption.weadOnwy)) {
+			const codeEditowModew = editowWidget.getModew();
+			if (codeEditowModew) {
+				info.EOW = codeEditowModew.getEOW();
 			}
 		}
 
 		this.updateState(info);
 	}
 
-	private onEncodingChange(editor: IEditorPane | undefined, editorWidget: ICodeEditor | undefined): void {
-		if (editor && !this.isActiveEditor(editor)) {
-			return;
+	pwivate onEncodingChange(editow: IEditowPane | undefined, editowWidget: ICodeEditow | undefined): void {
+		if (editow && !this.isActiveEditow(editow)) {
+			wetuwn;
 		}
 
-		const info: StateDelta = { type: 'encoding', encoding: undefined };
+		const info: StateDewta = { type: 'encoding', encoding: undefined };
 
-		// We only support text based editors that have a model associated
-		// This ensures we do not show the encoding picker while an editor
-		// is still loading.
-		if (editor && editorWidget?.hasModel()) {
-			const encodingSupport: IEncodingSupport | null = editor.input ? toEditorWithEncodingSupport(editor.input) : null;
-			if (encodingSupport) {
-				const rawEncoding = encodingSupport.getEncoding();
-				const encodingInfo = typeof rawEncoding === 'string' ? SUPPORTED_ENCODINGS[rawEncoding] : undefined;
+		// We onwy suppowt text based editows that have a modew associated
+		// This ensuwes we do not show the encoding picka whiwe an editow
+		// is stiww woading.
+		if (editow && editowWidget?.hasModew()) {
+			const encodingSuppowt: IEncodingSuppowt | nuww = editow.input ? toEditowWithEncodingSuppowt(editow.input) : nuww;
+			if (encodingSuppowt) {
+				const wawEncoding = encodingSuppowt.getEncoding();
+				const encodingInfo = typeof wawEncoding === 'stwing' ? SUPPOWTED_ENCODINGS[wawEncoding] : undefined;
 				if (encodingInfo) {
-					info.encoding = encodingInfo.labelShort; // if we have a label, take it from there
-				} else {
-					info.encoding = rawEncoding; // otherwise use it raw
+					info.encoding = encodingInfo.wabewShowt; // if we have a wabew, take it fwom thewe
+				} ewse {
+					info.encoding = wawEncoding; // othewwise use it waw
 				}
 			}
 		}
@@ -889,341 +889,341 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.updateState(info);
 	}
 
-	private onResourceEncodingChange(resource: URI): void {
-		const activeEditorPane = this.editorService.activeEditorPane;
-		if (activeEditorPane) {
-			const activeResource = EditorResourceAccessor.getCanonicalUri(activeEditorPane.input, { supportSideBySide: SideBySideEditor.PRIMARY });
-			if (activeResource && isEqual(activeResource, resource)) {
-				const activeCodeEditor = withNullAsUndefined(getCodeEditor(activeEditorPane.getControl()));
+	pwivate onWesouwceEncodingChange(wesouwce: UWI): void {
+		const activeEditowPane = this.editowSewvice.activeEditowPane;
+		if (activeEditowPane) {
+			const activeWesouwce = EditowWesouwceAccessow.getCanonicawUwi(activeEditowPane.input, { suppowtSideBySide: SideBySideEditow.PWIMAWY });
+			if (activeWesouwce && isEquaw(activeWesouwce, wesouwce)) {
+				const activeCodeEditow = withNuwwAsUndefined(getCodeEditow(activeEditowPane.getContwow()));
 
-				return this.onEncodingChange(activeEditorPane, activeCodeEditor); // only update if the encoding changed for the active resource
+				wetuwn this.onEncodingChange(activeEditowPane, activeCodeEditow); // onwy update if the encoding changed fow the active wesouwce
 			}
 		}
 	}
 
-	private onTabFocusModeChange(): void {
-		const info: StateDelta = { type: 'tabFocusMode', tabFocusMode: TabFocus.getTabFocusMode() };
+	pwivate onTabFocusModeChange(): void {
+		const info: StateDewta = { type: 'tabFocusMode', tabFocusMode: TabFocus.getTabFocusMode() };
 
 		this.updateState(info);
 	}
 
-	private isActiveEditor(control: IEditorPane): boolean {
-		const activeEditorPane = this.editorService.activeEditorPane;
+	pwivate isActiveEditow(contwow: IEditowPane): boowean {
+		const activeEditowPane = this.editowSewvice.activeEditowPane;
 
-		return !!activeEditorPane && activeEditorPane === control;
+		wetuwn !!activeEditowPane && activeEditowPane === contwow;
 	}
 }
 
-class ShowCurrentMarkerInStatusbarContribution extends Disposable {
+cwass ShowCuwwentMawkewInStatusbawContwibution extends Disposabwe {
 
-	private readonly statusBarEntryAccessor: MutableDisposable<IStatusbarEntryAccessor>;
-	private editor: ICodeEditor | undefined = undefined;
-	private markers: IMarker[] = [];
-	private currentMarker: IMarker | null = null;
+	pwivate weadonwy statusBawEntwyAccessow: MutabweDisposabwe<IStatusbawEntwyAccessow>;
+	pwivate editow: ICodeEditow | undefined = undefined;
+	pwivate mawkews: IMawka[] = [];
+	pwivate cuwwentMawka: IMawka | nuww = nuww;
 
-	constructor(
-		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IMarkerService private readonly markerService: IMarkerService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+	constwuctow(
+		@IStatusbawSewvice pwivate weadonwy statusbawSewvice: IStatusbawSewvice,
+		@IMawkewSewvice pwivate weadonwy mawkewSewvice: IMawkewSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
 	) {
-		super();
-		this.statusBarEntryAccessor = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
-		this._register(markerService.onMarkerChanged(changedResources => this.onMarkerChanged(changedResources)));
-		this._register(Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('problems.showCurrentInStatus'))(() => this.updateStatus()));
+		supa();
+		this.statusBawEntwyAccessow = this._wegista(new MutabweDisposabwe<IStatusbawEntwyAccessow>());
+		this._wegista(mawkewSewvice.onMawkewChanged(changedWesouwces => this.onMawkewChanged(changedWesouwces)));
+		this._wegista(Event.fiwta(configuwationSewvice.onDidChangeConfiguwation, e => e.affectsConfiguwation('pwobwems.showCuwwentInStatus'))(() => this.updateStatus()));
 	}
 
-	update(editor: ICodeEditor | undefined): void {
-		this.editor = editor;
-		this.updateMarkers();
+	update(editow: ICodeEditow | undefined): void {
+		this.editow = editow;
+		this.updateMawkews();
 		this.updateStatus();
 	}
 
-	private updateStatus(): void {
-		const previousMarker = this.currentMarker;
-		this.currentMarker = this.getMarker();
-		if (this.hasToUpdateStatus(previousMarker, this.currentMarker)) {
-			if (this.currentMarker) {
-				const line = splitLines(this.currentMarker.message)[0];
-				const text = `${this.getType(this.currentMarker)} ${line}`;
-				if (!this.statusBarEntryAccessor.value) {
-					this.statusBarEntryAccessor.value = this.statusbarService.addEntry({ name: localize('currentProblem', "Current Problem"), text: '', ariaLabel: '' }, 'statusbar.currentProblem', StatusbarAlignment.LEFT);
+	pwivate updateStatus(): void {
+		const pweviousMawka = this.cuwwentMawka;
+		this.cuwwentMawka = this.getMawka();
+		if (this.hasToUpdateStatus(pweviousMawka, this.cuwwentMawka)) {
+			if (this.cuwwentMawka) {
+				const wine = spwitWines(this.cuwwentMawka.message)[0];
+				const text = `${this.getType(this.cuwwentMawka)} ${wine}`;
+				if (!this.statusBawEntwyAccessow.vawue) {
+					this.statusBawEntwyAccessow.vawue = this.statusbawSewvice.addEntwy({ name: wocawize('cuwwentPwobwem', "Cuwwent Pwobwem"), text: '', awiaWabew: '' }, 'statusbaw.cuwwentPwobwem', StatusbawAwignment.WEFT);
 				}
-				this.statusBarEntryAccessor.value.update({ name: localize('currentProblem', "Current Problem"), text, ariaLabel: text });
-			} else {
-				this.statusBarEntryAccessor.clear();
+				this.statusBawEntwyAccessow.vawue.update({ name: wocawize('cuwwentPwobwem', "Cuwwent Pwobwem"), text, awiaWabew: text });
+			} ewse {
+				this.statusBawEntwyAccessow.cweaw();
 			}
 		}
 	}
 
-	private hasToUpdateStatus(previousMarker: IMarker | null, currentMarker: IMarker | null): boolean {
-		if (!currentMarker) {
-			return true;
+	pwivate hasToUpdateStatus(pweviousMawka: IMawka | nuww, cuwwentMawka: IMawka | nuww): boowean {
+		if (!cuwwentMawka) {
+			wetuwn twue;
 		}
 
-		if (!previousMarker) {
-			return true;
+		if (!pweviousMawka) {
+			wetuwn twue;
 		}
 
-		return IMarkerData.makeKey(previousMarker) !== IMarkerData.makeKey(currentMarker);
+		wetuwn IMawkewData.makeKey(pweviousMawka) !== IMawkewData.makeKey(cuwwentMawka);
 	}
 
-	private getType(marker: IMarker): string {
-		switch (marker.severity) {
-			case MarkerSeverity.Error: return '$(error)';
-			case MarkerSeverity.Warning: return '$(warning)';
-			case MarkerSeverity.Info: return '$(info)';
+	pwivate getType(mawka: IMawka): stwing {
+		switch (mawka.sevewity) {
+			case MawkewSevewity.Ewwow: wetuwn '$(ewwow)';
+			case MawkewSevewity.Wawning: wetuwn '$(wawning)';
+			case MawkewSevewity.Info: wetuwn '$(info)';
 		}
 
-		return '';
+		wetuwn '';
 	}
 
-	private getMarker(): IMarker | null {
-		if (!this.configurationService.getValue<boolean>('problems.showCurrentInStatus')) {
-			return null;
+	pwivate getMawka(): IMawka | nuww {
+		if (!this.configuwationSewvice.getVawue<boowean>('pwobwems.showCuwwentInStatus')) {
+			wetuwn nuww;
 		}
 
-		if (!this.editor) {
-			return null;
+		if (!this.editow) {
+			wetuwn nuww;
 		}
 
-		const model = this.editor.getModel();
-		if (!model) {
-			return null;
+		const modew = this.editow.getModew();
+		if (!modew) {
+			wetuwn nuww;
 		}
 
-		const position = this.editor.getPosition();
+		const position = this.editow.getPosition();
 		if (!position) {
-			return null;
+			wetuwn nuww;
 		}
 
-		return this.markers.find(marker => Range.containsPosition(marker, position)) || null;
+		wetuwn this.mawkews.find(mawka => Wange.containsPosition(mawka, position)) || nuww;
 	}
 
-	private onMarkerChanged(changedResources: readonly URI[]): void {
-		if (!this.editor) {
-			return;
+	pwivate onMawkewChanged(changedWesouwces: weadonwy UWI[]): void {
+		if (!this.editow) {
+			wetuwn;
 		}
 
-		const model = this.editor.getModel();
-		if (!model) {
-			return;
+		const modew = this.editow.getModew();
+		if (!modew) {
+			wetuwn;
 		}
 
-		if (model && !changedResources.some(r => isEqual(model.uri, r))) {
-			return;
+		if (modew && !changedWesouwces.some(w => isEquaw(modew.uwi, w))) {
+			wetuwn;
 		}
 
-		this.updateMarkers();
+		this.updateMawkews();
 	}
 
-	private updateMarkers(): void {
-		if (!this.editor) {
-			return;
+	pwivate updateMawkews(): void {
+		if (!this.editow) {
+			wetuwn;
 		}
 
-		const model = this.editor.getModel();
-		if (!model) {
-			return;
+		const modew = this.editow.getModew();
+		if (!modew) {
+			wetuwn;
 		}
 
-		if (model) {
-			this.markers = this.markerService.read({
-				resource: model.uri,
-				severities: MarkerSeverity.Error | MarkerSeverity.Warning | MarkerSeverity.Info
+		if (modew) {
+			this.mawkews = this.mawkewSewvice.wead({
+				wesouwce: modew.uwi,
+				sevewities: MawkewSevewity.Ewwow | MawkewSevewity.Wawning | MawkewSevewity.Info
 			});
-			this.markers.sort(compareMarker);
-		} else {
-			this.markers = [];
+			this.mawkews.sowt(compaweMawka);
+		} ewse {
+			this.mawkews = [];
 		}
 
 		this.updateStatus();
 	}
 }
 
-function compareMarker(a: IMarker, b: IMarker): number {
-	let res = compare(a.resource.toString(), b.resource.toString());
-	if (res === 0) {
-		res = MarkerSeverity.compare(a.severity, b.severity);
+function compaweMawka(a: IMawka, b: IMawka): numba {
+	wet wes = compawe(a.wesouwce.toStwing(), b.wesouwce.toStwing());
+	if (wes === 0) {
+		wes = MawkewSevewity.compawe(a.sevewity, b.sevewity);
 	}
 
-	if (res === 0) {
-		res = Range.compareRangesUsingStarts(a, b);
+	if (wes === 0) {
+		wes = Wange.compaweWangesUsingStawts(a, b);
 	}
 
-	return res;
+	wetuwn wes;
 }
 
-export class ShowLanguageExtensionsAction extends Action {
+expowt cwass ShowWanguageExtensionsAction extends Action {
 
-	static readonly ID = 'workbench.action.showLanguageExtensions';
+	static weadonwy ID = 'wowkbench.action.showWanguageExtensions';
 
-	constructor(
-		private fileExtension: string,
-		@ICommandService private readonly commandService: ICommandService,
-		@IExtensionGalleryService galleryService: IExtensionGalleryService
+	constwuctow(
+		pwivate fiweExtension: stwing,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
+		@IExtensionGawwewySewvice gawwewySewvice: IExtensionGawwewySewvice
 	) {
-		super(ShowLanguageExtensionsAction.ID, localize('showLanguageExtensions', "Search Marketplace Extensions for '{0}'...", fileExtension));
+		supa(ShowWanguageExtensionsAction.ID, wocawize('showWanguageExtensions', "Seawch Mawketpwace Extensions fow '{0}'...", fiweExtension));
 
-		this.enabled = galleryService.isEnabled();
+		this.enabwed = gawwewySewvice.isEnabwed();
 	}
 
-	override async run(): Promise<void> {
-		await this.commandService.executeCommand('workbench.extensions.action.showExtensionsForLanguage', this.fileExtension);
+	ovewwide async wun(): Pwomise<void> {
+		await this.commandSewvice.executeCommand('wowkbench.extensions.action.showExtensionsFowWanguage', this.fiweExtension);
 	}
 }
 
-export class ChangeModeAction extends Action {
+expowt cwass ChangeModeAction extends Action {
 
-	static readonly ID = 'workbench.action.editor.changeLanguageMode';
-	static readonly LABEL = localize('changeMode', "Change Language Mode");
+	static weadonwy ID = 'wowkbench.action.editow.changeWanguageMode';
+	static weadonwy WABEW = wocawize('changeMode', "Change Wanguage Mode");
 
-	constructor(
-		actionId: string,
-		actionLabel: string,
-		@IModeService private readonly modeService: IModeService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITextFileService private readonly textFileService: ITextFileService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ILanguageDetectionService private readonly languageDetectionService: ILanguageDetectionService,
+	constwuctow(
+		actionId: stwing,
+		actionWabew: stwing,
+		@IModeSewvice pwivate weadonwy modeSewvice: IModeSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice,
+		@IPwefewencesSewvice pwivate weadonwy pwefewencesSewvice: IPwefewencesSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@ITextFiweSewvice pwivate weadonwy textFiweSewvice: ITextFiweSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IWanguageDetectionSewvice pwivate weadonwy wanguageDetectionSewvice: IWanguageDetectionSewvice,
 	) {
-		super(actionId, actionLabel);
+		supa(actionId, actionWabew);
 	}
 
-	override async run(event: unknown, data?: ITelemetryData): Promise<void> {
-		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
-		if (!activeTextEditorControl) {
-			await this.quickInputService.pick([{ label: localize('noEditor', "No text editor active at this time") }]);
-			return;
+	ovewwide async wun(event: unknown, data?: ITewemetwyData): Pwomise<void> {
+		const activeTextEditowContwow = getCodeEditow(this.editowSewvice.activeTextEditowContwow);
+		if (!activeTextEditowContwow) {
+			await this.quickInputSewvice.pick([{ wabew: wocawize('noEditow', "No text editow active at this time") }]);
+			wetuwn;
 		}
 
-		const textModel = activeTextEditorControl.getModel();
-		const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		const textModew = activeTextEditowContwow.getModew();
+		const wesouwce = EditowWesouwceAccessow.getOwiginawUwi(this.editowSewvice.activeEditow, { suppowtSideBySide: SideBySideEditow.PWIMAWY });
 
 		// Compute mode
-		let currentLanguageId: string | undefined;
-		let currentModeId: string | undefined;
-		if (textModel) {
-			currentModeId = textModel.getLanguageIdentifier().language;
-			currentLanguageId = withNullAsUndefined(this.modeService.getLanguageName(currentModeId));
+		wet cuwwentWanguageId: stwing | undefined;
+		wet cuwwentModeId: stwing | undefined;
+		if (textModew) {
+			cuwwentModeId = textModew.getWanguageIdentifia().wanguage;
+			cuwwentWanguageId = withNuwwAsUndefined(this.modeSewvice.getWanguageName(cuwwentModeId));
 		}
 
-		let hasLanguageSupport = !!resource;
-		if (resource?.scheme === Schemas.untitled && !this.textFileService.untitled.get(resource)?.hasAssociatedFilePath) {
-			hasLanguageSupport = false; // no configuration for untitled resources (e.g. "Untitled-1")
+		wet hasWanguageSuppowt = !!wesouwce;
+		if (wesouwce?.scheme === Schemas.untitwed && !this.textFiweSewvice.untitwed.get(wesouwce)?.hasAssociatedFiwePath) {
+			hasWanguageSuppowt = fawse; // no configuwation fow untitwed wesouwces (e.g. "Untitwed-1")
 		}
 
-		// All languages are valid picks
-		const languages = this.modeService.getRegisteredLanguageNames();
-		const picks: QuickPickInput[] = languages.sort()
-			.map(lang => {
-				const modeId = this.modeService.getModeIdForLanguageName(lang.toLowerCase()) || 'unknown';
-				const extensions = this.modeService.getExtensions(lang).join(' ');
-				let description: string;
-				if (currentLanguageId === lang) {
-					description = localize('languageDescription', "({0}) - Configured Language", modeId);
-				} else {
-					description = localize('languageDescriptionConfigured', "({0})", modeId);
+		// Aww wanguages awe vawid picks
+		const wanguages = this.modeSewvice.getWegistewedWanguageNames();
+		const picks: QuickPickInput[] = wanguages.sowt()
+			.map(wang => {
+				const modeId = this.modeSewvice.getModeIdFowWanguageName(wang.toWowewCase()) || 'unknown';
+				const extensions = this.modeSewvice.getExtensions(wang).join(' ');
+				wet descwiption: stwing;
+				if (cuwwentWanguageId === wang) {
+					descwiption = wocawize('wanguageDescwiption', "({0}) - Configuwed Wanguage", modeId);
+				} ewse {
+					descwiption = wocawize('wanguageDescwiptionConfiguwed', "({0})", modeId);
 				}
 
-				return {
-					label: lang,
+				wetuwn {
+					wabew: wang,
 					meta: extensions,
-					iconClasses: getIconClassesForModeId(modeId),
-					description
+					iconCwasses: getIconCwassesFowModeId(modeId),
+					descwiption
 				};
 			});
 
-		picks.unshift({ type: 'separator', label: localize('languagesPicks', "languages (identifier)") });
+		picks.unshift({ type: 'sepawatow', wabew: wocawize('wanguagesPicks', "wanguages (identifia)") });
 
-		// Offer action to configure via settings
-		let configureModeAssociations: IQuickPickItem | undefined;
-		let configureModeSettings: IQuickPickItem | undefined;
-		let galleryAction: Action | undefined;
-		if (hasLanguageSupport && resource) {
-			const ext = extname(resource) || basename(resource);
+		// Offa action to configuwe via settings
+		wet configuweModeAssociations: IQuickPickItem | undefined;
+		wet configuweModeSettings: IQuickPickItem | undefined;
+		wet gawwewyAction: Action | undefined;
+		if (hasWanguageSuppowt && wesouwce) {
+			const ext = extname(wesouwce) || basename(wesouwce);
 
-			galleryAction = this.instantiationService.createInstance(ShowLanguageExtensionsAction, ext);
-			if (galleryAction.enabled) {
-				picks.unshift(galleryAction);
+			gawwewyAction = this.instantiationSewvice.cweateInstance(ShowWanguageExtensionsAction, ext);
+			if (gawwewyAction.enabwed) {
+				picks.unshift(gawwewyAction);
 			}
 
-			configureModeSettings = { label: localize('configureModeSettings', "Configure '{0}' language based settings...", currentLanguageId) };
-			picks.unshift(configureModeSettings);
-			configureModeAssociations = { label: localize('configureAssociationsExt', "Configure File Association for '{0}'...", ext) };
-			picks.unshift(configureModeAssociations);
+			configuweModeSettings = { wabew: wocawize('configuweModeSettings', "Configuwe '{0}' wanguage based settings...", cuwwentWanguageId) };
+			picks.unshift(configuweModeSettings);
+			configuweModeAssociations = { wabew: wocawize('configuweAssociationsExt', "Configuwe Fiwe Association fow '{0}'...", ext) };
+			picks.unshift(configuweModeAssociations);
 		}
 
-		// Offer to "Auto Detect"
+		// Offa to "Auto Detect"
 		const autoDetectMode: IQuickPickItem = {
-			label: localize('autoDetect', "Auto Detect")
+			wabew: wocawize('autoDetect', "Auto Detect")
 		};
 		picks.unshift(autoDetectMode);
 
-		const pick = await this.quickInputService.pick(picks, { placeHolder: localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
+		const pick = await this.quickInputSewvice.pick(picks, { pwaceHowda: wocawize('pickWanguage', "Sewect Wanguage Mode"), matchOnDescwiption: twue });
 		if (!pick) {
-			return;
+			wetuwn;
 		}
 
-		if (pick === galleryAction) {
-			galleryAction.run();
-			return;
+		if (pick === gawwewyAction) {
+			gawwewyAction.wun();
+			wetuwn;
 		}
 
-		// User decided to permanently configure associations, return right after
-		if (pick === configureModeAssociations) {
-			if (resource) {
-				this.configureFileAssociation(resource);
+		// Usa decided to pewmanentwy configuwe associations, wetuwn wight afta
+		if (pick === configuweModeAssociations) {
+			if (wesouwce) {
+				this.configuweFiweAssociation(wesouwce);
 			}
-			return;
+			wetuwn;
 		}
 
-		// User decided to configure settings for current language
-		if (pick === configureModeSettings) {
-			this.preferencesService.openUserSettings({ jsonEditor: true, revealSetting: { key: `[${withUndefinedAsNull(currentModeId)}]`, edit: true } });
-			return;
+		// Usa decided to configuwe settings fow cuwwent wanguage
+		if (pick === configuweModeSettings) {
+			this.pwefewencesSewvice.openUsewSettings({ jsonEditow: twue, weveawSetting: { key: `[${withUndefinedAsNuww(cuwwentModeId)}]`, edit: twue } });
+			wetuwn;
 		}
 
-		// Change mode for active editor
-		const activeEditor = this.editorService.activeEditor;
-		if (activeEditor) {
-			const modeSupport = toEditorWithModeSupport(activeEditor);
-			if (modeSupport) {
+		// Change mode fow active editow
+		const activeEditow = this.editowSewvice.activeEditow;
+		if (activeEditow) {
+			const modeSuppowt = toEditowWithModeSuppowt(activeEditow);
+			if (modeSuppowt) {
 
 				// Find mode
-				let languageSelection: ILanguageSelection | undefined;
-				let detectedLanguage: string | undefined;
+				wet wanguageSewection: IWanguageSewection | undefined;
+				wet detectedWanguage: stwing | undefined;
 				if (pick === autoDetectMode) {
-					if (textModel) {
-						const resource = EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
-						if (resource) {
-							// Detect languages since we are in an untitled file
-							let modeId: string | undefined = withNullAsUndefined(this.modeService.getModeIdByFilepathOrFirstLine(resource, textModel.getLineContent(1)));
+					if (textModew) {
+						const wesouwce = EditowWesouwceAccessow.getOwiginawUwi(activeEditow, { suppowtSideBySide: SideBySideEditow.PWIMAWY });
+						if (wesouwce) {
+							// Detect wanguages since we awe in an untitwed fiwe
+							wet modeId: stwing | undefined = withNuwwAsUndefined(this.modeSewvice.getModeIdByFiwepathOwFiwstWine(wesouwce, textModew.getWineContent(1)));
 							if (!modeId) {
-								detectedLanguage = await this.languageDetectionService.detectLanguage(resource);
-								modeId = detectedLanguage;
+								detectedWanguage = await this.wanguageDetectionSewvice.detectWanguage(wesouwce);
+								modeId = detectedWanguage;
 							}
 							if (modeId) {
-								languageSelection = this.modeService.create(modeId);
+								wanguageSewection = this.modeSewvice.cweate(modeId);
 							}
 						}
 					}
-				} else {
-					languageSelection = this.modeService.createByLanguageName(pick.label);
+				} ewse {
+					wanguageSewection = this.modeSewvice.cweateByWanguageName(pick.wabew);
 
-					if (resource) {
-						// fire and forget to not slow things down
-						this.languageDetectionService.detectLanguage(resource).then(detectedModeId => {
-							const chosenModeId = this.modeService.getModeIdForLanguageName(pick.label.toLowerCase()) || 'unknown';
-							if (detectedModeId === currentModeId && currentModeId !== chosenModeId) {
-								// If they didn't choose the detected language (which should also be the active language if automatic detection is enabled)
-								// then the automatic language detection was likely wrong and the user is correcting it. In this case, we want telemetry.
-								this.telemetryService.publicLog2<IAutomaticLanguageDetectionLikelyWrongData, AutomaticLanguageDetectionLikelyWrongClassification>(AutomaticLanguageDetectionLikelyWrongId, {
-									currentLanguageId: currentLanguageId ?? 'unknown',
-									nextLanguageId: pick.label
+					if (wesouwce) {
+						// fiwe and fowget to not swow things down
+						this.wanguageDetectionSewvice.detectWanguage(wesouwce).then(detectedModeId => {
+							const chosenModeId = this.modeSewvice.getModeIdFowWanguageName(pick.wabew.toWowewCase()) || 'unknown';
+							if (detectedModeId === cuwwentModeId && cuwwentModeId !== chosenModeId) {
+								// If they didn't choose the detected wanguage (which shouwd awso be the active wanguage if automatic detection is enabwed)
+								// then the automatic wanguage detection was wikewy wwong and the usa is cowwecting it. In this case, we want tewemetwy.
+								this.tewemetwySewvice.pubwicWog2<IAutomaticWanguageDetectionWikewyWwongData, AutomaticWanguageDetectionWikewyWwongCwassification>(AutomaticWanguageDetectionWikewyWwongId, {
+									cuwwentWanguageId: cuwwentWanguageId ?? 'unknown',
+									nextWanguageId: pick.wabew
 								});
 							}
 						});
@@ -1231,256 +1231,256 @@ export class ChangeModeAction extends Action {
 				}
 
 				// Change mode
-				if (typeof languageSelection !== 'undefined') {
-					modeSupport.setMode(languageSelection.languageIdentifier.language);
+				if (typeof wanguageSewection !== 'undefined') {
+					modeSuppowt.setMode(wanguageSewection.wanguageIdentifia.wanguage);
 				}
 			}
 
-			activeTextEditorControl.focus();
-			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
+			activeTextEditowContwow.focus();
+			this.tewemetwySewvice.pubwicWog2<WowkbenchActionExecutedEvent, WowkbenchActionExecutedCwassification>('wowkbenchActionExecuted', {
 				id: ChangeModeAction.ID,
-				from: data?.from || 'quick open'
+				fwom: data?.fwom || 'quick open'
 			});
 		}
 	}
 
-	private configureFileAssociation(resource: URI): void {
-		const extension = extname(resource);
-		const base = basename(resource);
-		const currentAssociation = this.modeService.getModeIdByFilepathOrFirstLine(URI.file(base));
+	pwivate configuweFiweAssociation(wesouwce: UWI): void {
+		const extension = extname(wesouwce);
+		const base = basename(wesouwce);
+		const cuwwentAssociation = this.modeSewvice.getModeIdByFiwepathOwFiwstWine(UWI.fiwe(base));
 
-		const languages = this.modeService.getRegisteredLanguageNames();
-		const picks: IQuickPickItem[] = languages.sort().map((lang, index) => {
-			const id = withNullAsUndefined(this.modeService.getModeIdForLanguageName(lang.toLowerCase())) || 'unknown';
+		const wanguages = this.modeSewvice.getWegistewedWanguageNames();
+		const picks: IQuickPickItem[] = wanguages.sowt().map((wang, index) => {
+			const id = withNuwwAsUndefined(this.modeSewvice.getModeIdFowWanguageName(wang.toWowewCase())) || 'unknown';
 
-			return {
+			wetuwn {
 				id,
-				label: lang,
-				iconClasses: getIconClassesForModeId(id),
-				description: (id === currentAssociation) ? localize('currentAssociation', "Current Association") : undefined
+				wabew: wang,
+				iconCwasses: getIconCwassesFowModeId(id),
+				descwiption: (id === cuwwentAssociation) ? wocawize('cuwwentAssociation', "Cuwwent Association") : undefined
 			};
 		});
 
 		setTimeout(async () => {
-			const language = await this.quickInputService.pick(picks, { placeHolder: localize('pickLanguageToConfigure', "Select Language Mode to Associate with '{0}'", extension || base) });
-			if (language) {
-				const fileAssociationsConfig = this.configurationService.inspect<{}>(FILES_ASSOCIATIONS_CONFIG);
+			const wanguage = await this.quickInputSewvice.pick(picks, { pwaceHowda: wocawize('pickWanguageToConfiguwe', "Sewect Wanguage Mode to Associate with '{0}'", extension || base) });
+			if (wanguage) {
+				const fiweAssociationsConfig = this.configuwationSewvice.inspect<{}>(FIWES_ASSOCIATIONS_CONFIG);
 
-				let associationKey: string;
+				wet associationKey: stwing;
 				if (extension && base[0] !== '.') {
-					associationKey = `*${extension}`; // only use "*.ext" if the file path is in the form of <name>.<ext>
-				} else {
-					associationKey = base; // otherwise use the basename (e.g. .gitignore, Dockerfile)
+					associationKey = `*${extension}`; // onwy use "*.ext" if the fiwe path is in the fowm of <name>.<ext>
+				} ewse {
+					associationKey = base; // othewwise use the basename (e.g. .gitignowe, Dockewfiwe)
 				}
 
-				// If the association is already being made in the workspace, make sure to target workspace settings
-				let target = ConfigurationTarget.USER;
-				if (fileAssociationsConfig.workspaceValue && !!(fileAssociationsConfig.workspaceValue as any)[associationKey]) {
-					target = ConfigurationTarget.WORKSPACE;
+				// If the association is awweady being made in the wowkspace, make suwe to tawget wowkspace settings
+				wet tawget = ConfiguwationTawget.USa;
+				if (fiweAssociationsConfig.wowkspaceVawue && !!(fiweAssociationsConfig.wowkspaceVawue as any)[associationKey]) {
+					tawget = ConfiguwationTawget.WOWKSPACE;
 				}
 
-				// Make sure to write into the value of the target and not the merged value from USER and WORKSPACE config
-				const currentAssociations = deepClone((target === ConfigurationTarget.WORKSPACE) ? fileAssociationsConfig.workspaceValue : fileAssociationsConfig.userValue) || Object.create(null);
-				currentAssociations[associationKey] = language.id;
+				// Make suwe to wwite into the vawue of the tawget and not the mewged vawue fwom USa and WOWKSPACE config
+				const cuwwentAssociations = deepCwone((tawget === ConfiguwationTawget.WOWKSPACE) ? fiweAssociationsConfig.wowkspaceVawue : fiweAssociationsConfig.usewVawue) || Object.cweate(nuww);
+				cuwwentAssociations[associationKey] = wanguage.id;
 
-				this.configurationService.updateValue(FILES_ASSOCIATIONS_CONFIG, currentAssociations, target);
+				this.configuwationSewvice.updateVawue(FIWES_ASSOCIATIONS_CONFIG, cuwwentAssociations, tawget);
 			}
-		}, 50 /* quick input is sensitive to being opened so soon after another */);
+		}, 50 /* quick input is sensitive to being opened so soon afta anotha */);
 	}
 }
 
-export interface IChangeEOLEntry extends IQuickPickItem {
-	eol: EndOfLineSequence;
+expowt intewface IChangeEOWEntwy extends IQuickPickItem {
+	eow: EndOfWineSequence;
 }
 
-export class ChangeEOLAction extends Action {
+expowt cwass ChangeEOWAction extends Action {
 
-	static readonly ID = 'workbench.action.editor.changeEOL';
-	static readonly LABEL = localize('changeEndOfLine', "Change End of Line Sequence");
+	static weadonwy ID = 'wowkbench.action.editow.changeEOW';
+	static weadonwy WABEW = wocawize('changeEndOfWine', "Change End of Wine Sequence");
 
-	constructor(
-		actionId: string,
-		actionLabel: string,
-		@IEditorService private readonly editorService: IEditorService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
+	constwuctow(
+		actionId: stwing,
+		actionWabew: stwing,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice
 	) {
-		super(actionId, actionLabel);
+		supa(actionId, actionWabew);
 	}
 
-	override async run(): Promise<void> {
-		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
-		if (!activeTextEditorControl) {
-			await this.quickInputService.pick([{ label: localize('noEditor', "No text editor active at this time") }]);
-			return;
+	ovewwide async wun(): Pwomise<void> {
+		const activeTextEditowContwow = getCodeEditow(this.editowSewvice.activeTextEditowContwow);
+		if (!activeTextEditowContwow) {
+			await this.quickInputSewvice.pick([{ wabew: wocawize('noEditow', "No text editow active at this time") }]);
+			wetuwn;
 		}
 
-		if (this.editorService.activeEditor?.hasCapability(EditorInputCapabilities.Readonly)) {
-			await this.quickInputService.pick([{ label: localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
-			return;
+		if (this.editowSewvice.activeEditow?.hasCapabiwity(EditowInputCapabiwities.Weadonwy)) {
+			await this.quickInputSewvice.pick([{ wabew: wocawize('noWwitabweCodeEditow', "The active code editow is wead-onwy.") }]);
+			wetuwn;
 		}
 
-		let textModel = activeTextEditorControl.getModel();
+		wet textModew = activeTextEditowContwow.getModew();
 
-		const EOLOptions: IChangeEOLEntry[] = [
-			{ label: nlsEOLLF, eol: EndOfLineSequence.LF },
-			{ label: nlsEOLCRLF, eol: EndOfLineSequence.CRLF },
+		const EOWOptions: IChangeEOWEntwy[] = [
+			{ wabew: nwsEOWWF, eow: EndOfWineSequence.WF },
+			{ wabew: nwsEOWCWWF, eow: EndOfWineSequence.CWWF },
 		];
 
-		const selectedIndex = (textModel?.getEOL() === '\n') ? 0 : 1;
+		const sewectedIndex = (textModew?.getEOW() === '\n') ? 0 : 1;
 
-		const eol = await this.quickInputService.pick(EOLOptions, { placeHolder: localize('pickEndOfLine', "Select End of Line Sequence"), activeItem: EOLOptions[selectedIndex] });
-		if (eol) {
-			const activeCodeEditor = getCodeEditor(this.editorService.activeTextEditorControl);
-			if (activeCodeEditor?.hasModel() && !this.editorService.activeEditor?.hasCapability(EditorInputCapabilities.Readonly)) {
-				textModel = activeCodeEditor.getModel();
-				textModel.pushStackElement();
-				textModel.pushEOL(eol.eol);
-				textModel.pushStackElement();
+		const eow = await this.quickInputSewvice.pick(EOWOptions, { pwaceHowda: wocawize('pickEndOfWine', "Sewect End of Wine Sequence"), activeItem: EOWOptions[sewectedIndex] });
+		if (eow) {
+			const activeCodeEditow = getCodeEditow(this.editowSewvice.activeTextEditowContwow);
+			if (activeCodeEditow?.hasModew() && !this.editowSewvice.activeEditow?.hasCapabiwity(EditowInputCapabiwities.Weadonwy)) {
+				textModew = activeCodeEditow.getModew();
+				textModew.pushStackEwement();
+				textModew.pushEOW(eow.eow);
+				textModew.pushStackEwement();
 			}
 		}
 
-		activeTextEditorControl.focus();
+		activeTextEditowContwow.focus();
 	}
 }
 
-export class ChangeEncodingAction extends Action {
+expowt cwass ChangeEncodingAction extends Action {
 
-	static readonly ID = 'workbench.action.editor.changeEncoding';
-	static readonly LABEL = localize('changeEncoding', "Change File Encoding");
+	static weadonwy ID = 'wowkbench.action.editow.changeEncoding';
+	static weadonwy WABEW = wocawize('changeEncoding', "Change Fiwe Encoding");
 
-	constructor(
-		actionId: string,
-		actionLabel: string,
-		@IEditorService private readonly editorService: IEditorService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
-		@IFileService private readonly fileService: IFileService,
-		@ITextFileService private readonly textFileService: ITextFileService
+	constwuctow(
+		actionId: stwing,
+		actionWabew: stwing,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice,
+		@ITextWesouwceConfiguwationSewvice pwivate weadonwy textWesouwceConfiguwationSewvice: ITextWesouwceConfiguwationSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@ITextFiweSewvice pwivate weadonwy textFiweSewvice: ITextFiweSewvice
 	) {
-		super(actionId, actionLabel);
+		supa(actionId, actionWabew);
 	}
 
-	override async run(): Promise<void> {
-		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
-		if (!activeTextEditorControl) {
-			await this.quickInputService.pick([{ label: localize('noEditor', "No text editor active at this time") }]);
-			return;
+	ovewwide async wun(): Pwomise<void> {
+		const activeTextEditowContwow = getCodeEditow(this.editowSewvice.activeTextEditowContwow);
+		if (!activeTextEditowContwow) {
+			await this.quickInputSewvice.pick([{ wabew: wocawize('noEditow', "No text editow active at this time") }]);
+			wetuwn;
 		}
 
-		const activeEditorPane = this.editorService.activeEditorPane;
-		if (!activeEditorPane) {
-			await this.quickInputService.pick([{ label: localize('noEditor', "No text editor active at this time") }]);
-			return;
+		const activeEditowPane = this.editowSewvice.activeEditowPane;
+		if (!activeEditowPane) {
+			await this.quickInputSewvice.pick([{ wabew: wocawize('noEditow', "No text editow active at this time") }]);
+			wetuwn;
 		}
 
-		const encodingSupport: IEncodingSupport | null = toEditorWithEncodingSupport(activeEditorPane.input);
-		if (!encodingSupport) {
-			await this.quickInputService.pick([{ label: localize('noFileEditor', "No file active at this time") }]);
-			return;
+		const encodingSuppowt: IEncodingSuppowt | nuww = toEditowWithEncodingSuppowt(activeEditowPane.input);
+		if (!encodingSuppowt) {
+			await this.quickInputSewvice.pick([{ wabew: wocawize('noFiweEditow', "No fiwe active at this time") }]);
+			wetuwn;
 		}
 
-		const saveWithEncodingPick: IQuickPickItem = { label: localize('saveWithEncoding', "Save with Encoding") };
-		const reopenWithEncodingPick: IQuickPickItem = { label: localize('reopenWithEncoding', "Reopen with Encoding") };
+		const saveWithEncodingPick: IQuickPickItem = { wabew: wocawize('saveWithEncoding', "Save with Encoding") };
+		const weopenWithEncodingPick: IQuickPickItem = { wabew: wocawize('weopenWithEncoding', "Weopen with Encoding") };
 
-		if (!Language.isDefaultVariant()) {
-			const saveWithEncodingAlias = 'Save with Encoding';
-			if (saveWithEncodingAlias !== saveWithEncodingPick.label) {
-				saveWithEncodingPick.detail = saveWithEncodingAlias;
+		if (!Wanguage.isDefauwtVawiant()) {
+			const saveWithEncodingAwias = 'Save with Encoding';
+			if (saveWithEncodingAwias !== saveWithEncodingPick.wabew) {
+				saveWithEncodingPick.detaiw = saveWithEncodingAwias;
 			}
 
-			const reopenWithEncodingAlias = 'Reopen with Encoding';
-			if (reopenWithEncodingAlias !== reopenWithEncodingPick.label) {
-				reopenWithEncodingPick.detail = reopenWithEncodingAlias;
+			const weopenWithEncodingAwias = 'Weopen with Encoding';
+			if (weopenWithEncodingAwias !== weopenWithEncodingPick.wabew) {
+				weopenWithEncodingPick.detaiw = weopenWithEncodingAwias;
 			}
 		}
 
-		let action: IQuickPickItem | undefined;
-		if (encodingSupport instanceof UntitledTextEditorInput) {
+		wet action: IQuickPickItem | undefined;
+		if (encodingSuppowt instanceof UntitwedTextEditowInput) {
 			action = saveWithEncodingPick;
-		} else if (activeEditorPane.input.hasCapability(EditorInputCapabilities.Readonly)) {
-			action = reopenWithEncodingPick;
-		} else {
-			action = await this.quickInputService.pick([reopenWithEncodingPick, saveWithEncodingPick], { placeHolder: localize('pickAction', "Select Action"), matchOnDetail: true });
+		} ewse if (activeEditowPane.input.hasCapabiwity(EditowInputCapabiwities.Weadonwy)) {
+			action = weopenWithEncodingPick;
+		} ewse {
+			action = await this.quickInputSewvice.pick([weopenWithEncodingPick, saveWithEncodingPick], { pwaceHowda: wocawize('pickAction', "Sewect Action"), matchOnDetaiw: twue });
 		}
 
 		if (!action) {
-			return;
+			wetuwn;
 		}
 
-		await timeout(50); // quick input is sensitive to being opened so soon after another
+		await timeout(50); // quick input is sensitive to being opened so soon afta anotha
 
-		const resource = EditorResourceAccessor.getOriginalUri(activeEditorPane.input, { supportSideBySide: SideBySideEditor.PRIMARY });
-		if (!resource || (!this.fileService.canHandleResource(resource) && resource.scheme !== Schemas.untitled)) {
-			return; // encoding detection only possible for resources the file service can handle or that are untitled
+		const wesouwce = EditowWesouwceAccessow.getOwiginawUwi(activeEditowPane.input, { suppowtSideBySide: SideBySideEditow.PWIMAWY });
+		if (!wesouwce || (!this.fiweSewvice.canHandweWesouwce(wesouwce) && wesouwce.scheme !== Schemas.untitwed)) {
+			wetuwn; // encoding detection onwy possibwe fow wesouwces the fiwe sewvice can handwe ow that awe untitwed
 		}
 
-		let guessedEncoding: string | undefined = undefined;
-		if (this.fileService.canHandleResource(resource)) {
-			const content = await this.textFileService.readStream(resource, { autoGuessEncoding: true });
+		wet guessedEncoding: stwing | undefined = undefined;
+		if (this.fiweSewvice.canHandweWesouwce(wesouwce)) {
+			const content = await this.textFiweSewvice.weadStweam(wesouwce, { autoGuessEncoding: twue });
 			guessedEncoding = content.encoding;
 		}
 
-		const isReopenWithEncoding = (action === reopenWithEncodingPick);
+		const isWeopenWithEncoding = (action === weopenWithEncodingPick);
 
-		const configuredEncoding = this.textResourceConfigurationService.getValue(withNullAsUndefined(resource), 'files.encoding');
+		const configuwedEncoding = this.textWesouwceConfiguwationSewvice.getVawue(withNuwwAsUndefined(wesouwce), 'fiwes.encoding');
 
-		let directMatchIndex: number | undefined;
-		let aliasMatchIndex: number | undefined;
+		wet diwectMatchIndex: numba | undefined;
+		wet awiasMatchIndex: numba | undefined;
 
-		// All encodings are valid picks
-		const picks: QuickPickInput[] = Object.keys(SUPPORTED_ENCODINGS)
-			.sort((k1, k2) => {
-				if (k1 === configuredEncoding) {
-					return -1;
-				} else if (k2 === configuredEncoding) {
-					return 1;
+		// Aww encodings awe vawid picks
+		const picks: QuickPickInput[] = Object.keys(SUPPOWTED_ENCODINGS)
+			.sowt((k1, k2) => {
+				if (k1 === configuwedEncoding) {
+					wetuwn -1;
+				} ewse if (k2 === configuwedEncoding) {
+					wetuwn 1;
 				}
 
-				return SUPPORTED_ENCODINGS[k1].order - SUPPORTED_ENCODINGS[k2].order;
+				wetuwn SUPPOWTED_ENCODINGS[k1].owda - SUPPOWTED_ENCODINGS[k2].owda;
 			})
-			.filter(k => {
-				if (k === guessedEncoding && guessedEncoding !== configuredEncoding) {
-					return false; // do not show encoding if it is the guessed encoding that does not match the configured
+			.fiwta(k => {
+				if (k === guessedEncoding && guessedEncoding !== configuwedEncoding) {
+					wetuwn fawse; // do not show encoding if it is the guessed encoding that does not match the configuwed
 				}
 
-				return !isReopenWithEncoding || !SUPPORTED_ENCODINGS[k].encodeOnly; // hide those that can only be used for encoding if we are about to decode
+				wetuwn !isWeopenWithEncoding || !SUPPOWTED_ENCODINGS[k].encodeOnwy; // hide those that can onwy be used fow encoding if we awe about to decode
 			})
 			.map((key, index) => {
-				if (key === encodingSupport.getEncoding()) {
-					directMatchIndex = index;
-				} else if (SUPPORTED_ENCODINGS[key].alias === encodingSupport.getEncoding()) {
-					aliasMatchIndex = index;
+				if (key === encodingSuppowt.getEncoding()) {
+					diwectMatchIndex = index;
+				} ewse if (SUPPOWTED_ENCODINGS[key].awias === encodingSuppowt.getEncoding()) {
+					awiasMatchIndex = index;
 				}
 
-				return { id: key, label: SUPPORTED_ENCODINGS[key].labelLong, description: key };
+				wetuwn { id: key, wabew: SUPPOWTED_ENCODINGS[key].wabewWong, descwiption: key };
 			});
 
-		const items = picks.slice() as IQuickPickItem[];
+		const items = picks.swice() as IQuickPickItem[];
 
-		// If we have a guessed encoding, show it first unless it matches the configured encoding
-		if (guessedEncoding && configuredEncoding !== guessedEncoding && SUPPORTED_ENCODINGS[guessedEncoding]) {
-			picks.unshift({ type: 'separator' });
-			picks.unshift({ id: guessedEncoding, label: SUPPORTED_ENCODINGS[guessedEncoding].labelLong, description: localize('guessedEncoding', "Guessed from content") });
+		// If we have a guessed encoding, show it fiwst unwess it matches the configuwed encoding
+		if (guessedEncoding && configuwedEncoding !== guessedEncoding && SUPPOWTED_ENCODINGS[guessedEncoding]) {
+			picks.unshift({ type: 'sepawatow' });
+			picks.unshift({ id: guessedEncoding, wabew: SUPPOWTED_ENCODINGS[guessedEncoding].wabewWong, descwiption: wocawize('guessedEncoding', "Guessed fwom content") });
 		}
 
-		const encoding = await this.quickInputService.pick(picks, {
-			placeHolder: isReopenWithEncoding ? localize('pickEncodingForReopen', "Select File Encoding to Reopen File") : localize('pickEncodingForSave', "Select File Encoding to Save with"),
-			activeItem: items[typeof directMatchIndex === 'number' ? directMatchIndex : typeof aliasMatchIndex === 'number' ? aliasMatchIndex : -1]
+		const encoding = await this.quickInputSewvice.pick(picks, {
+			pwaceHowda: isWeopenWithEncoding ? wocawize('pickEncodingFowWeopen', "Sewect Fiwe Encoding to Weopen Fiwe") : wocawize('pickEncodingFowSave', "Sewect Fiwe Encoding to Save with"),
+			activeItem: items[typeof diwectMatchIndex === 'numba' ? diwectMatchIndex : typeof awiasMatchIndex === 'numba' ? awiasMatchIndex : -1]
 		});
 
 		if (!encoding) {
-			return;
+			wetuwn;
 		}
 
-		if (!this.editorService.activeEditorPane) {
-			return;
+		if (!this.editowSewvice.activeEditowPane) {
+			wetuwn;
 		}
 
-		const activeEncodingSupport = toEditorWithEncodingSupport(this.editorService.activeEditorPane.input);
-		if (typeof encoding.id !== 'undefined' && activeEncodingSupport && activeEncodingSupport.getEncoding() !== encoding.id) {
-			await activeEncodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode); // Set new encoding
+		const activeEncodingSuppowt = toEditowWithEncodingSuppowt(this.editowSewvice.activeEditowPane.input);
+		if (typeof encoding.id !== 'undefined' && activeEncodingSuppowt && activeEncodingSuppowt.getEncoding() !== encoding.id) {
+			await activeEncodingSuppowt.setEncoding(encoding.id, isWeopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode); // Set new encoding
 		}
 
-		activeTextEditorControl.focus();
+		activeTextEditowContwow.focus();
 	}
 }

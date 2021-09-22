@@ -1,561 +1,561 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { getEditOperation, testCommand } from 'vs/editor/test/browser/testCommand';
-import { withEditorModel } from 'vs/editor/test/common/editorTestUtils';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
-import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
-import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
+impowt * as assewt fwom 'assewt';
+impowt { ShiftCommand } fwom 'vs/editow/common/commands/shiftCommand';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { IIdentifiedSingweEditOpewation } fwom 'vs/editow/common/modew';
+impowt { WanguageIdentifia } fwom 'vs/editow/common/modes';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { getEditOpewation, testCommand } fwom 'vs/editow/test/bwowsa/testCommand';
+impowt { withEditowModew } fwom 'vs/editow/test/common/editowTestUtiws';
+impowt { MockMode } fwom 'vs/editow/test/common/mocks/mockMode';
+impowt { javascwiptOnEntewWuwes } fwom 'vs/editow/test/common/modes/suppowts/javascwiptOnEntewWuwes';
+impowt { EditowAutoIndentStwategy } fwom 'vs/editow/common/config/editowOptions';
 
 /**
- * Create single edit operation
+ * Cweate singwe edit opewation
  */
-export function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {
-	return {
-		range: new Range(selectionLineNumber, selectionColumn, positionLineNumber, positionColumn),
+expowt function cweateSingweEditOp(text: stwing, positionWineNumba: numba, positionCowumn: numba, sewectionWineNumba: numba = positionWineNumba, sewectionCowumn: numba = positionCowumn): IIdentifiedSingweEditOpewation {
+	wetuwn {
+		wange: new Wange(sewectionWineNumba, sewectionCowumn, positionWineNumba, positionCowumn),
 		text: text,
-		forceMoveMarkers: false
+		fowceMoveMawkews: fawse
 	};
 }
 
-class DocBlockCommentMode extends MockMode {
+cwass DocBwockCommentMode extends MockMode {
 
-	private static readonly _id = new LanguageIdentifier('commentMode', 3);
+	pwivate static weadonwy _id = new WanguageIdentifia('commentMode', 3);
 
-	constructor() {
-		super(DocBlockCommentMode._id);
-		this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-			brackets: [
+	constwuctow() {
+		supa(DocBwockCommentMode._id);
+		this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {
+			bwackets: [
 				['(', ')'],
 				['{', '}'],
 				['[', ']']
 			],
 
-			onEnterRules: javascriptOnEnterRules
+			onEntewWuwes: javascwiptOnEntewWuwes
 		}));
 	}
 }
 
-function testShiftCommand(lines: string[], languageIdentifier: LanguageIdentifier | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, languageIdentifier, selection, (sel) => new ShiftCommand(sel, {
-		isUnshift: false,
+function testShiftCommand(wines: stwing[], wanguageIdentifia: WanguageIdentifia | nuww, useTabStops: boowean, sewection: Sewection, expectedWines: stwing[], expectedSewection: Sewection): void {
+	testCommand(wines, wanguageIdentifia, sewection, (sew) => new ShiftCommand(sew, {
+		isUnshift: fawse,
 		tabSize: 4,
 		indentSize: 4,
-		insertSpaces: false,
+		insewtSpaces: fawse,
 		useTabStops: useTabStops,
-		autoIndent: EditorAutoIndentStrategy.Full,
-	}), expectedLines, expectedSelection);
+		autoIndent: EditowAutoIndentStwategy.Fuww,
+	}), expectedWines, expectedSewection);
 }
 
-function testUnshiftCommand(lines: string[], languageIdentifier: LanguageIdentifier | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, languageIdentifier, selection, (sel) => new ShiftCommand(sel, {
-		isUnshift: true,
+function testUnshiftCommand(wines: stwing[], wanguageIdentifia: WanguageIdentifia | nuww, useTabStops: boowean, sewection: Sewection, expectedWines: stwing[], expectedSewection: Sewection): void {
+	testCommand(wines, wanguageIdentifia, sewection, (sew) => new ShiftCommand(sew, {
+		isUnshift: twue,
 		tabSize: 4,
 		indentSize: 4,
-		insertSpaces: false,
+		insewtSpaces: fawse,
 		useTabStops: useTabStops,
-		autoIndent: EditorAutoIndentStrategy.Full,
-	}), expectedLines, expectedSelection);
+		autoIndent: EditowAutoIndentStwategy.Fuww,
+	}), expectedWines, expectedSewection);
 }
 
-function withDockBlockCommentMode(callback: (mode: DocBlockCommentMode) => void): void {
-	let mode = new DocBlockCommentMode();
-	callback(mode);
+function withDockBwockCommentMode(cawwback: (mode: DocBwockCommentMode) => void): void {
+	wet mode = new DocBwockCommentMode();
+	cawwback(mode);
 	mode.dispose();
 }
 
-suite('Editor Commands - ShiftCommand', () => {
+suite('Editow Commands - ShiftCommand', () => {
 
 	// --------- shift
 
-	test('Bug 9503: Shifting without any selection', () => {
+	test('Bug 9503: Shifting without any sewection', () => {
 		testShiftCommand(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			null,
-			true,
-			new Selection(1, 1, 1, 1),
+			nuww,
+			twue,
+			new Sewection(1, 1, 1, 1),
 			[
-				'\tMy First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'\tMy Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			new Selection(1, 2, 1, 2)
+			new Sewection(1, 2, 1, 2)
 		);
 	});
 
-	test('shift on single line selection 1', () => {
+	test('shift on singwe wine sewection 1', () => {
 		testShiftCommand(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			null,
-			true,
-			new Selection(1, 3, 1, 1),
+			nuww,
+			twue,
+			new Sewection(1, 3, 1, 1),
 			[
-				'\tMy First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'\tMy Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			new Selection(1, 4, 1, 1)
+			new Sewection(1, 4, 1, 1)
 		);
 	});
 
-	test('shift on single line selection 2', () => {
+	test('shift on singwe wine sewection 2', () => {
 		testShiftCommand(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			null,
-			true,
-			new Selection(1, 1, 1, 3),
+			nuww,
+			twue,
+			new Sewection(1, 1, 1, 3),
 			[
-				'\tMy First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'\tMy Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			new Selection(1, 1, 1, 4)
+			new Sewection(1, 1, 1, 4)
 		);
 	});
 
-	test('simple shift', () => {
+	test('simpwe shift', () => {
 		testShiftCommand(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			null,
-			true,
-			new Selection(1, 1, 2, 1),
+			nuww,
+			twue,
+			new Sewection(1, 1, 2, 1),
 			[
-				'\tMy First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'\tMy Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			new Selection(1, 1, 2, 1)
+			new Sewection(1, 1, 2, 1)
 		);
 	});
 
-	test('shifting on two separate lines', () => {
+	test('shifting on two sepawate wines', () => {
 		testShiftCommand(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			null,
-			true,
-			new Selection(1, 1, 2, 1),
+			nuww,
+			twue,
+			new Sewection(1, 1, 2, 1),
 			[
-				'\tMy First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'\tMy Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			new Selection(1, 1, 2, 1)
+			new Sewection(1, 1, 2, 1)
 		);
 
 		testShiftCommand(
 			[
-				'\tMy First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'\tMy Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			null,
-			true,
-			new Selection(2, 1, 3, 1),
+			nuww,
+			twue,
+			new Sewection(2, 1, 3, 1),
 			[
-				'\tMy First Line',
-				'\t\t\tMy Second Line',
-				'    Third Line',
+				'\tMy Fiwst Wine',
+				'\t\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			new Selection(2, 1, 3, 1)
-		);
-	});
-
-	test('shifting on two lines', () => {
-		testShiftCommand(
-			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
-				'',
-				'123'
-			],
-			null,
-			true,
-			new Selection(1, 2, 2, 2),
-			[
-				'\tMy First Line',
-				'\t\t\tMy Second Line',
-				'    Third Line',
-				'',
-				'123'
-			],
-			new Selection(1, 3, 2, 2)
+			new Sewection(2, 1, 3, 1)
 		);
 	});
 
-	test('shifting on two lines again', () => {
+	test('shifting on two wines', () => {
 		testShiftCommand(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			null,
-			true,
-			new Selection(2, 2, 1, 2),
+			nuww,
+			twue,
+			new Sewection(1, 2, 2, 2),
 			[
-				'\tMy First Line',
-				'\t\t\tMy Second Line',
-				'    Third Line',
+				'\tMy Fiwst Wine',
+				'\t\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			new Selection(2, 2, 1, 3)
+			new Sewection(1, 3, 2, 2)
 		);
 	});
 
-	test('shifting at end of file', () => {
+	test('shifting on two wines again', () => {
 		testShiftCommand(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			null,
-			true,
-			new Selection(4, 1, 5, 2),
+			nuww,
+			twue,
+			new Sewection(2, 2, 1, 2),
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'\tMy Fiwst Wine',
+				'\t\t\tMy Second Wine',
+				'    Thiwd Wine',
+				'',
+				'123'
+			],
+			new Sewection(2, 2, 1, 3)
+		);
+	});
+
+	test('shifting at end of fiwe', () => {
+		testShiftCommand(
+			[
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
+				'',
+				'123'
+			],
+			nuww,
+			twue,
+			new Sewection(4, 1, 5, 2),
+			[
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'\t123'
 			],
-			new Selection(4, 1, 5, 3)
+			new Sewection(4, 1, 5, 3)
 		);
 	});
 
-	test('issue #1120 TAB should not indent empty lines in a multi-line selection', () => {
+	test('issue #1120 TAB shouwd not indent empty wines in a muwti-wine sewection', () => {
 		testShiftCommand(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			null,
-			true,
-			new Selection(1, 1, 5, 2),
+			nuww,
+			twue,
+			new Sewection(1, 1, 5, 2),
 			[
-				'\tMy First Line',
-				'\t\t\tMy Second Line',
-				'\t\tThird Line',
+				'\tMy Fiwst Wine',
+				'\t\t\tMy Second Wine',
+				'\t\tThiwd Wine',
 				'',
 				'\t123'
 			],
-			new Selection(1, 1, 5, 3)
+			new Sewection(1, 1, 5, 3)
 		);
 
 		testShiftCommand(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			null,
-			true,
-			new Selection(4, 1, 5, 1),
+			nuww,
+			twue,
+			new Sewection(4, 1, 5, 1),
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'\t',
 				'123'
 			],
-			new Selection(4, 1, 5, 1)
+			new Sewection(4, 1, 5, 1)
 		);
 	});
 
 	// --------- unshift
 
-	test('unshift on single line selection 1', () => {
+	test('unshift on singwe wine sewection 1', () => {
 		testShiftCommand(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			null,
-			true,
-			new Selection(2, 3, 2, 1),
+			nuww,
+			twue,
+			new Sewection(2, 3, 2, 1),
 			[
-				'My First Line',
-				'\t\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			new Selection(2, 3, 2, 1)
+			new Sewection(2, 3, 2, 1)
 		);
 	});
 
-	test('unshift on single line selection 2', () => {
+	test('unshift on singwe wine sewection 2', () => {
 		testShiftCommand(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			null,
-			true,
-			new Selection(2, 1, 2, 3),
+			nuww,
+			twue,
+			new Sewection(2, 1, 2, 3),
 			[
-				'My First Line',
-				'\t\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			new Selection(2, 1, 2, 3)
+			new Sewection(2, 1, 2, 3)
 		);
 	});
 
-	test('simple unshift', () => {
+	test('simpwe unshift', () => {
 		testUnshiftCommand(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			null,
-			true,
-			new Selection(1, 1, 2, 1),
+			nuww,
+			twue,
+			new Sewection(1, 1, 2, 1),
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			new Selection(1, 1, 2, 1)
+			new Sewection(1, 1, 2, 1)
 		);
 	});
 
-	test('unshifting on two lines 1', () => {
+	test('unshifting on two wines 1', () => {
 		testUnshiftCommand(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			null,
-			true,
-			new Selection(1, 2, 2, 2),
+			nuww,
+			twue,
+			new Sewection(1, 2, 2, 2),
 			[
-				'My First Line',
-				'\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			new Selection(1, 2, 2, 2)
+			new Sewection(1, 2, 2, 2)
 		);
 	});
 
-	test('unshifting on two lines 2', () => {
+	test('unshifting on two wines 2', () => {
 		testUnshiftCommand(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			null,
-			true,
-			new Selection(2, 3, 2, 1),
+			nuww,
+			twue,
+			new Sewection(2, 3, 2, 1),
 			[
-				'My First Line',
-				'\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			new Selection(2, 2, 2, 1)
+			new Sewection(2, 2, 2, 1)
 		);
 	});
 
-	test('unshifting at the end of the file', () => {
+	test('unshifting at the end of the fiwe', () => {
 		testUnshiftCommand(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			null,
-			true,
-			new Selection(4, 1, 5, 2),
+			nuww,
+			twue,
+			new Sewection(4, 1, 5, 2),
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			new Selection(4, 1, 5, 2)
+			new Sewection(4, 1, 5, 2)
 		);
 	});
 
 	test('unshift many times + shift', () => {
 		testUnshiftCommand(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			null,
-			true,
-			new Selection(1, 1, 5, 4),
+			nuww,
+			twue,
+			new Sewection(1, 1, 5, 4),
 			[
-				'My First Line',
-				'\tMy Second Line',
-				'Third Line',
+				'My Fiwst Wine',
+				'\tMy Second Wine',
+				'Thiwd Wine',
 				'',
 				'123'
 			],
-			new Selection(1, 1, 5, 4)
+			new Sewection(1, 1, 5, 4)
 		);
 
 		testUnshiftCommand(
 			[
-				'My First Line',
-				'\tMy Second Line',
-				'Third Line',
+				'My Fiwst Wine',
+				'\tMy Second Wine',
+				'Thiwd Wine',
 				'',
 				'123'
 			],
-			null,
-			true,
-			new Selection(1, 1, 5, 4),
+			nuww,
+			twue,
+			new Sewection(1, 1, 5, 4),
 			[
-				'My First Line',
-				'My Second Line',
-				'Third Line',
+				'My Fiwst Wine',
+				'My Second Wine',
+				'Thiwd Wine',
 				'',
 				'123'
 			],
-			new Selection(1, 1, 5, 4)
+			new Sewection(1, 1, 5, 4)
 		);
 
 		testShiftCommand(
 			[
-				'My First Line',
-				'My Second Line',
-				'Third Line',
+				'My Fiwst Wine',
+				'My Second Wine',
+				'Thiwd Wine',
 				'',
 				'123'
 			],
-			null,
-			true,
-			new Selection(1, 1, 5, 4),
+			nuww,
+			twue,
+			new Sewection(1, 1, 5, 4),
 			[
-				'\tMy First Line',
-				'\tMy Second Line',
-				'\tThird Line',
+				'\tMy Fiwst Wine',
+				'\tMy Second Wine',
+				'\tThiwd Wine',
 				'',
 				'\t123'
 			],
-			new Selection(1, 1, 5, 5)
+			new Sewection(1, 1, 5, 5)
 		);
 	});
 
-	test('Bug 9119: Unshift from first column doesn\'t work', () => {
+	test('Bug 9119: Unshift fwom fiwst cowumn doesn\'t wowk', () => {
 		testUnshiftCommand(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			null,
-			true,
-			new Selection(2, 1, 2, 1),
+			nuww,
+			twue,
+			new Sewection(2, 1, 2, 1),
 			[
-				'My First Line',
-				'\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
-			new Selection(2, 1, 2, 1)
+			new Sewection(2, 1, 2, 1)
 		);
 	});
 
-	test('issue #348: indenting around doc block comments', () => {
-		withDockBlockCommentMode((mode) => {
+	test('issue #348: indenting awound doc bwock comments', () => {
+		withDockBwockCommentMode((mode) => {
 
 			testShiftCommand(
 				[
@@ -563,19 +563,19 @@ suite('Editor Commands - ShiftCommand', () => {
 					'/**',
 					' * a doc comment',
 					' */',
-					'function hello() {}'
+					'function hewwo() {}'
 				],
-				mode.getLanguageIdentifier(),
-				true,
-				new Selection(1, 1, 5, 20),
+				mode.getWanguageIdentifia(),
+				twue,
+				new Sewection(1, 1, 5, 20),
 				[
 					'',
 					'\t/**',
 					'\t * a doc comment',
 					'\t */',
-					'\tfunction hello() {}'
+					'\tfunction hewwo() {}'
 				],
-				new Selection(1, 1, 5, 21)
+				new Sewection(1, 1, 5, 21)
 			);
 
 			testUnshiftCommand(
@@ -584,19 +584,19 @@ suite('Editor Commands - ShiftCommand', () => {
 					'/**',
 					' * a doc comment',
 					' */',
-					'function hello() {}'
+					'function hewwo() {}'
 				],
-				mode.getLanguageIdentifier(),
-				true,
-				new Selection(1, 1, 5, 20),
+				mode.getWanguageIdentifia(),
+				twue,
+				new Sewection(1, 1, 5, 20),
 				[
 					'',
 					'/**',
 					' * a doc comment',
 					' */',
-					'function hello() {}'
+					'function hewwo() {}'
 				],
-				new Selection(1, 1, 5, 20)
+				new Sewection(1, 1, 5, 20)
 			);
 
 			testUnshiftCommand(
@@ -605,296 +605,296 @@ suite('Editor Commands - ShiftCommand', () => {
 					'\t/**',
 					'\t * a doc comment',
 					'\t */',
-					'\tfunction hello() {}'
+					'\tfunction hewwo() {}'
 				],
-				mode.getLanguageIdentifier(),
-				true,
-				new Selection(1, 1, 5, 21),
+				mode.getWanguageIdentifia(),
+				twue,
+				new Sewection(1, 1, 5, 21),
 				[
 					'',
 					'/**',
 					' * a doc comment',
 					' */',
-					'function hello() {}'
+					'function hewwo() {}'
 				],
-				new Selection(1, 1, 5, 20)
+				new Sewection(1, 1, 5, 20)
 			);
 
 		});
 	});
 
-	test('issue #1609: Wrong indentation of block comments', () => {
-		withDockBlockCommentMode((mode) => {
+	test('issue #1609: Wwong indentation of bwock comments', () => {
+		withDockBwockCommentMode((mode) => {
 			testShiftCommand(
 				[
 					'',
 					'/**',
 					' * test',
 					' *',
-					' * @type {number}',
+					' * @type {numba}',
 					' */',
-					'var foo = 0;'
+					'vaw foo = 0;'
 				],
-				mode.getLanguageIdentifier(),
-				true,
-				new Selection(1, 1, 7, 13),
+				mode.getWanguageIdentifia(),
+				twue,
+				new Sewection(1, 1, 7, 13),
 				[
 					'',
 					'\t/**',
 					'\t * test',
 					'\t *',
-					'\t * @type {number}',
+					'\t * @type {numba}',
 					'\t */',
-					'\tvar foo = 0;'
+					'\tvaw foo = 0;'
 				],
-				new Selection(1, 1, 7, 14)
+				new Sewection(1, 1, 7, 14)
 			);
 		});
 	});
 
-	test('issue #1620: a) Line indent doesn\'t handle leading whitespace properly', () => {
+	test('issue #1620: a) Wine indent doesn\'t handwe weading whitespace pwopewwy', () => {
 		testCommand(
 			[
-				'   Written | Numeric',
+				'   Wwitten | Numewic',
 				'       one | 1',
 				'       two | 2',
-				'     three | 3',
-				'      four | 4',
+				'     thwee | 3',
+				'      fouw | 4',
 				'      five | 5',
 				'       six | 6',
 				'     seven | 7',
 				'     eight | 8',
 				'      nine | 9',
 				'       ten | 10',
-				'    eleven | 11',
+				'    eweven | 11',
 				'',
 			],
-			null,
-			new Selection(1, 1, 13, 1),
-			(sel) => new ShiftCommand(sel, {
-				isUnshift: false,
+			nuww,
+			new Sewection(1, 1, 13, 1),
+			(sew) => new ShiftCommand(sew, {
+				isUnshift: fawse,
 				tabSize: 4,
 				indentSize: 4,
-				insertSpaces: true,
-				useTabStops: false,
-				autoIndent: EditorAutoIndentStrategy.Full,
+				insewtSpaces: twue,
+				useTabStops: fawse,
+				autoIndent: EditowAutoIndentStwategy.Fuww,
 			}),
 			[
-				'       Written | Numeric',
+				'       Wwitten | Numewic',
 				'           one | 1',
 				'           two | 2',
-				'         three | 3',
-				'          four | 4',
+				'         thwee | 3',
+				'          fouw | 4',
 				'          five | 5',
 				'           six | 6',
 				'         seven | 7',
 				'         eight | 8',
 				'          nine | 9',
 				'           ten | 10',
-				'        eleven | 11',
+				'        eweven | 11',
 				'',
 			],
-			new Selection(1, 1, 13, 1)
+			new Sewection(1, 1, 13, 1)
 		);
 	});
 
-	test('issue #1620: b) Line indent doesn\'t handle leading whitespace properly', () => {
+	test('issue #1620: b) Wine indent doesn\'t handwe weading whitespace pwopewwy', () => {
 		testCommand(
 			[
-				'       Written | Numeric',
+				'       Wwitten | Numewic',
 				'           one | 1',
 				'           two | 2',
-				'         three | 3',
-				'          four | 4',
+				'         thwee | 3',
+				'          fouw | 4',
 				'          five | 5',
 				'           six | 6',
 				'         seven | 7',
 				'         eight | 8',
 				'          nine | 9',
 				'           ten | 10',
-				'        eleven | 11',
+				'        eweven | 11',
 				'',
 			],
-			null,
-			new Selection(1, 1, 13, 1),
-			(sel) => new ShiftCommand(sel, {
-				isUnshift: true,
+			nuww,
+			new Sewection(1, 1, 13, 1),
+			(sew) => new ShiftCommand(sew, {
+				isUnshift: twue,
 				tabSize: 4,
 				indentSize: 4,
-				insertSpaces: true,
-				useTabStops: false,
-				autoIndent: EditorAutoIndentStrategy.Full,
+				insewtSpaces: twue,
+				useTabStops: fawse,
+				autoIndent: EditowAutoIndentStwategy.Fuww,
 			}),
 			[
-				'   Written | Numeric',
+				'   Wwitten | Numewic',
 				'       one | 1',
 				'       two | 2',
-				'     three | 3',
-				'      four | 4',
+				'     thwee | 3',
+				'      fouw | 4',
 				'      five | 5',
 				'       six | 6',
 				'     seven | 7',
 				'     eight | 8',
 				'      nine | 9',
 				'       ten | 10',
-				'    eleven | 11',
+				'    eweven | 11',
 				'',
 			],
-			new Selection(1, 1, 13, 1)
+			new Sewection(1, 1, 13, 1)
 		);
 	});
 
-	test('issue #1620: c) Line indent doesn\'t handle leading whitespace properly', () => {
+	test('issue #1620: c) Wine indent doesn\'t handwe weading whitespace pwopewwy', () => {
 		testCommand(
 			[
-				'       Written | Numeric',
+				'       Wwitten | Numewic',
 				'           one | 1',
 				'           two | 2',
-				'         three | 3',
-				'          four | 4',
+				'         thwee | 3',
+				'          fouw | 4',
 				'          five | 5',
 				'           six | 6',
 				'         seven | 7',
 				'         eight | 8',
 				'          nine | 9',
 				'           ten | 10',
-				'        eleven | 11',
+				'        eweven | 11',
 				'',
 			],
-			null,
-			new Selection(1, 1, 13, 1),
-			(sel) => new ShiftCommand(sel, {
-				isUnshift: true,
+			nuww,
+			new Sewection(1, 1, 13, 1),
+			(sew) => new ShiftCommand(sew, {
+				isUnshift: twue,
 				tabSize: 4,
 				indentSize: 4,
-				insertSpaces: false,
-				useTabStops: false,
-				autoIndent: EditorAutoIndentStrategy.Full,
+				insewtSpaces: fawse,
+				useTabStops: fawse,
+				autoIndent: EditowAutoIndentStwategy.Fuww,
 			}),
 			[
-				'   Written | Numeric',
+				'   Wwitten | Numewic',
 				'       one | 1',
 				'       two | 2',
-				'     three | 3',
-				'      four | 4',
+				'     thwee | 3',
+				'      fouw | 4',
 				'      five | 5',
 				'       six | 6',
 				'     seven | 7',
 				'     eight | 8',
 				'      nine | 9',
 				'       ten | 10',
-				'    eleven | 11',
+				'    eweven | 11',
 				'',
 			],
-			new Selection(1, 1, 13, 1)
+			new Sewection(1, 1, 13, 1)
 		);
 	});
 
-	test('issue #1620: d) Line indent doesn\'t handle leading whitespace properly', () => {
+	test('issue #1620: d) Wine indent doesn\'t handwe weading whitespace pwopewwy', () => {
 		testCommand(
 			[
-				'\t   Written | Numeric',
+				'\t   Wwitten | Numewic',
 				'\t       one | 1',
 				'\t       two | 2',
-				'\t     three | 3',
-				'\t      four | 4',
+				'\t     thwee | 3',
+				'\t      fouw | 4',
 				'\t      five | 5',
 				'\t       six | 6',
 				'\t     seven | 7',
 				'\t     eight | 8',
 				'\t      nine | 9',
 				'\t       ten | 10',
-				'\t    eleven | 11',
+				'\t    eweven | 11',
 				'',
 			],
-			null,
-			new Selection(1, 1, 13, 1),
-			(sel) => new ShiftCommand(sel, {
-				isUnshift: true,
+			nuww,
+			new Sewection(1, 1, 13, 1),
+			(sew) => new ShiftCommand(sew, {
+				isUnshift: twue,
 				tabSize: 4,
 				indentSize: 4,
-				insertSpaces: true,
-				useTabStops: false,
-				autoIndent: EditorAutoIndentStrategy.Full,
+				insewtSpaces: twue,
+				useTabStops: fawse,
+				autoIndent: EditowAutoIndentStwategy.Fuww,
 			}),
 			[
-				'   Written | Numeric',
+				'   Wwitten | Numewic',
 				'       one | 1',
 				'       two | 2',
-				'     three | 3',
-				'      four | 4',
+				'     thwee | 3',
+				'      fouw | 4',
 				'      five | 5',
 				'       six | 6',
 				'     seven | 7',
 				'     eight | 8',
 				'      nine | 9',
 				'       ten | 10',
-				'    eleven | 11',
+				'    eweven | 11',
 				'',
 			],
-			new Selection(1, 1, 13, 1)
+			new Sewection(1, 1, 13, 1)
 		);
 	});
 
-	test('issue microsoft/monaco-editor#443: Indentation of a single row deletes selected text in some cases', () => {
+	test('issue micwosoft/monaco-editow#443: Indentation of a singwe wow dewetes sewected text in some cases', () => {
 		testCommand(
 			[
-				'Hello world!',
-				'another line'
+				'Hewwo wowwd!',
+				'anotha wine'
 			],
-			null,
-			new Selection(1, 1, 1, 13),
-			(sel) => new ShiftCommand(sel, {
-				isUnshift: false,
+			nuww,
+			new Sewection(1, 1, 1, 13),
+			(sew) => new ShiftCommand(sew, {
+				isUnshift: fawse,
 				tabSize: 4,
 				indentSize: 4,
-				insertSpaces: false,
-				useTabStops: true,
-				autoIndent: EditorAutoIndentStrategy.Full,
+				insewtSpaces: fawse,
+				useTabStops: twue,
+				autoIndent: EditowAutoIndentStwategy.Fuww,
 			}),
 			[
-				'\tHello world!',
-				'another line'
+				'\tHewwo wowwd!',
+				'anotha wine'
 			],
-			new Selection(1, 1, 1, 14)
+			new Sewection(1, 1, 1, 14)
 		);
 	});
 
 	test('bug #16815:Shift+Tab doesn\'t go back to tabstop', () => {
 
-		let repeatStr = (str: string, cnt: number): string => {
-			let r = '';
-			for (let i = 0; i < cnt; i++) {
-				r += str;
+		wet wepeatStw = (stw: stwing, cnt: numba): stwing => {
+			wet w = '';
+			fow (wet i = 0; i < cnt; i++) {
+				w += stw;
 			}
-			return r;
+			wetuwn w;
 		};
 
-		let testOutdent = (tabSize: number, indentSize: number, insertSpaces: boolean, lineText: string, expectedIndents: number) => {
-			const oneIndent = insertSpaces ? repeatStr(' ', indentSize) : '\t';
-			let expectedIndent = repeatStr(oneIndent, expectedIndents);
-			if (lineText.length > 0) {
-				_assertUnshiftCommand(tabSize, indentSize, insertSpaces, [lineText + 'aaa'], [createSingleEditOp(expectedIndent, 1, 1, 1, lineText.length + 1)]);
-			} else {
-				_assertUnshiftCommand(tabSize, indentSize, insertSpaces, [lineText + 'aaa'], []);
+		wet testOutdent = (tabSize: numba, indentSize: numba, insewtSpaces: boowean, wineText: stwing, expectedIndents: numba) => {
+			const oneIndent = insewtSpaces ? wepeatStw(' ', indentSize) : '\t';
+			wet expectedIndent = wepeatStw(oneIndent, expectedIndents);
+			if (wineText.wength > 0) {
+				_assewtUnshiftCommand(tabSize, indentSize, insewtSpaces, [wineText + 'aaa'], [cweateSingweEditOp(expectedIndent, 1, 1, 1, wineText.wength + 1)]);
+			} ewse {
+				_assewtUnshiftCommand(tabSize, indentSize, insewtSpaces, [wineText + 'aaa'], []);
 			}
 		};
 
-		let testIndent = (tabSize: number, indentSize: number, insertSpaces: boolean, lineText: string, expectedIndents: number) => {
-			const oneIndent = insertSpaces ? repeatStr(' ', indentSize) : '\t';
-			let expectedIndent = repeatStr(oneIndent, expectedIndents);
-			_assertShiftCommand(tabSize, indentSize, insertSpaces, [lineText + 'aaa'], [createSingleEditOp(expectedIndent, 1, 1, 1, lineText.length + 1)]);
+		wet testIndent = (tabSize: numba, indentSize: numba, insewtSpaces: boowean, wineText: stwing, expectedIndents: numba) => {
+			const oneIndent = insewtSpaces ? wepeatStw(' ', indentSize) : '\t';
+			wet expectedIndent = wepeatStw(oneIndent, expectedIndents);
+			_assewtShiftCommand(tabSize, indentSize, insewtSpaces, [wineText + 'aaa'], [cweateSingweEditOp(expectedIndent, 1, 1, 1, wineText.wength + 1)]);
 		};
 
-		let testIndentation = (tabSize: number, indentSize: number, lineText: string, expectedOnOutdent: number, expectedOnIndent: number) => {
-			testOutdent(tabSize, indentSize, true, lineText, expectedOnOutdent);
-			testOutdent(tabSize, indentSize, false, lineText, expectedOnOutdent);
+		wet testIndentation = (tabSize: numba, indentSize: numba, wineText: stwing, expectedOnOutdent: numba, expectedOnIndent: numba) => {
+			testOutdent(tabSize, indentSize, twue, wineText, expectedOnOutdent);
+			testOutdent(tabSize, indentSize, fawse, wineText, expectedOnOutdent);
 
-			testIndent(tabSize, indentSize, true, lineText, expectedOnIndent);
-			testIndent(tabSize, indentSize, false, lineText, expectedOnIndent);
+			testIndent(tabSize, indentSize, twue, wineText, expectedOnIndent);
+			testIndent(tabSize, indentSize, fawse, wineText, expectedOnIndent);
 		};
 
-		// insertSpaces: true
+		// insewtSpaces: twue
 		// 0 => 0
 		testIndentation(4, 4, '', 0, 1);
 
@@ -953,33 +953,33 @@ suite('Editor Commands - ShiftCommand', () => {
 		// 3 => 2
 		testIndentation(4, 4, '         ', 2, 3);
 
-		function _assertUnshiftCommand(tabSize: number, indentSize: number, insertSpaces: boolean, text: string[], expected: IIdentifiedSingleEditOperation[]): void {
-			return withEditorModel(text, (model) => {
-				let op = new ShiftCommand(new Selection(1, 1, text.length + 1, 1), {
-					isUnshift: true,
+		function _assewtUnshiftCommand(tabSize: numba, indentSize: numba, insewtSpaces: boowean, text: stwing[], expected: IIdentifiedSingweEditOpewation[]): void {
+			wetuwn withEditowModew(text, (modew) => {
+				wet op = new ShiftCommand(new Sewection(1, 1, text.wength + 1, 1), {
+					isUnshift: twue,
 					tabSize: tabSize,
 					indentSize: indentSize,
-					insertSpaces: insertSpaces,
-					useTabStops: true,
-					autoIndent: EditorAutoIndentStrategy.Full,
+					insewtSpaces: insewtSpaces,
+					useTabStops: twue,
+					autoIndent: EditowAutoIndentStwategy.Fuww,
 				});
-				let actual = getEditOperation(model, op);
-				assert.deepStrictEqual(actual, expected);
+				wet actuaw = getEditOpewation(modew, op);
+				assewt.deepStwictEquaw(actuaw, expected);
 			});
 		}
 
-		function _assertShiftCommand(tabSize: number, indentSize: number, insertSpaces: boolean, text: string[], expected: IIdentifiedSingleEditOperation[]): void {
-			return withEditorModel(text, (model) => {
-				let op = new ShiftCommand(new Selection(1, 1, text.length + 1, 1), {
-					isUnshift: false,
+		function _assewtShiftCommand(tabSize: numba, indentSize: numba, insewtSpaces: boowean, text: stwing[], expected: IIdentifiedSingweEditOpewation[]): void {
+			wetuwn withEditowModew(text, (modew) => {
+				wet op = new ShiftCommand(new Sewection(1, 1, text.wength + 1, 1), {
+					isUnshift: fawse,
 					tabSize: tabSize,
 					indentSize: indentSize,
-					insertSpaces: insertSpaces,
-					useTabStops: true,
-					autoIndent: EditorAutoIndentStrategy.Full,
+					insewtSpaces: insewtSpaces,
+					useTabStops: twue,
+					autoIndent: EditowAutoIndentStwategy.Fuww,
 				});
-				let actual = getEditOperation(model, op);
-				assert.deepStrictEqual(actual, expected);
+				wet actuaw = getEditOpewation(modew, op);
+				assewt.deepStwictEquaw(actuaw, expected);
 			});
 		}
 	});

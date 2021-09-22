@@ -1,186 +1,186 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainContext, MainThreadLanguagesShape, IMainContext, ExtHostLanguagesShape } from './extHost.protocol';
-import type * as vscode from 'vscode';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { StandardTokenType, Range, Position, LanguageStatusSeverity } from 'vs/workbench/api/common/extHostTypes';
-import Severity from 'vs/base/common/severity';
-import { disposableTimeout } from 'vs/base/common/async';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
-import { IURITransformer } from 'vs/base/common/uriIpc';
+impowt { MainContext, MainThweadWanguagesShape, IMainContext, ExtHostWanguagesShape } fwom './extHost.pwotocow';
+impowt type * as vscode fwom 'vscode';
+impowt { ExtHostDocuments } fwom 'vs/wowkbench/api/common/extHostDocuments';
+impowt * as typeConvewt fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+impowt { StandawdTokenType, Wange, Position, WanguageStatusSevewity } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { disposabweTimeout } fwom 'vs/base/common/async';
+impowt { DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { CommandsConvewta } fwom 'vs/wowkbench/api/common/extHostCommands';
+impowt { IUWITwansfowma } fwom 'vs/base/common/uwiIpc';
 
-export class ExtHostLanguages implements ExtHostLanguagesShape {
+expowt cwass ExtHostWanguages impwements ExtHostWanguagesShape {
 
-	private readonly _proxy: MainThreadLanguagesShape;
+	pwivate weadonwy _pwoxy: MainThweadWanguagesShape;
 
-	private _languageIds: string[] = [];
+	pwivate _wanguageIds: stwing[] = [];
 
-	constructor(
+	constwuctow(
 		mainContext: IMainContext,
-		private readonly _documents: ExtHostDocuments,
-		private readonly _commands: CommandsConverter,
-		private readonly _uriTransformer: IURITransformer | undefined
+		pwivate weadonwy _documents: ExtHostDocuments,
+		pwivate weadonwy _commands: CommandsConvewta,
+		pwivate weadonwy _uwiTwansfowma: IUWITwansfowma | undefined
 	) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadLanguages);
+		this._pwoxy = mainContext.getPwoxy(MainContext.MainThweadWanguages);
 	}
 
-	$acceptLanguageIds(ids: string[]): void {
-		this._languageIds = ids;
+	$acceptWanguageIds(ids: stwing[]): void {
+		this._wanguageIds = ids;
 	}
 
-	async getLanguages(): Promise<string[]> {
-		return this._languageIds.slice(0);
+	async getWanguages(): Pwomise<stwing[]> {
+		wetuwn this._wanguageIds.swice(0);
 	}
 
-	async changeLanguage(uri: vscode.Uri, languageId: string): Promise<vscode.TextDocument> {
-		await this._proxy.$changeLanguage(uri, languageId);
-		const data = this._documents.getDocumentData(uri);
+	async changeWanguage(uwi: vscode.Uwi, wanguageId: stwing): Pwomise<vscode.TextDocument> {
+		await this._pwoxy.$changeWanguage(uwi, wanguageId);
+		const data = this._documents.getDocumentData(uwi);
 		if (!data) {
-			throw new Error(`document '${uri.toString}' NOT found`);
+			thwow new Ewwow(`document '${uwi.toStwing}' NOT found`);
 		}
-		return data.document;
+		wetuwn data.document;
 	}
 
-	async tokenAtPosition(document: vscode.TextDocument, position: vscode.Position): Promise<vscode.TokenInformation> {
-		const versionNow = document.version;
-		const pos = typeConvert.Position.from(position);
-		const info = await this._proxy.$tokensAtPosition(document.uri, pos);
-		const defaultRange = {
-			type: StandardTokenType.Other,
-			range: document.getWordRangeAtPosition(position) ?? new Range(position.line, position.character, position.line, position.character)
+	async tokenAtPosition(document: vscode.TextDocument, position: vscode.Position): Pwomise<vscode.TokenInfowmation> {
+		const vewsionNow = document.vewsion;
+		const pos = typeConvewt.Position.fwom(position);
+		const info = await this._pwoxy.$tokensAtPosition(document.uwi, pos);
+		const defauwtWange = {
+			type: StandawdTokenType.Otha,
+			wange: document.getWowdWangeAtPosition(position) ?? new Wange(position.wine, position.chawacta, position.wine, position.chawacta)
 		};
 		if (!info) {
-			// no result
-			return defaultRange;
+			// no wesuwt
+			wetuwn defauwtWange;
 		}
-		const result = {
-			range: typeConvert.Range.to(info.range),
-			type: typeConvert.TokenType.to(info.type)
+		const wesuwt = {
+			wange: typeConvewt.Wange.to(info.wange),
+			type: typeConvewt.TokenType.to(info.type)
 		};
-		if (!result.range.contains(<Position>position)) {
-			// bogous result
-			return defaultRange;
+		if (!wesuwt.wange.contains(<Position>position)) {
+			// bogous wesuwt
+			wetuwn defauwtWange;
 		}
-		if (versionNow !== document.version) {
-			// concurrent change
-			return defaultRange;
+		if (vewsionNow !== document.vewsion) {
+			// concuwwent change
+			wetuwn defauwtWange;
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _handlePool: number = 0;
-	private _ids = new Set<string>();
+	pwivate _handwePoow: numba = 0;
+	pwivate _ids = new Set<stwing>();
 
-	createLanguageStatusItem(extension: IExtensionDescription, id: string, selector: vscode.DocumentSelector): vscode.LanguageStatusItem {
+	cweateWanguageStatusItem(extension: IExtensionDescwiption, id: stwing, sewectow: vscode.DocumentSewectow): vscode.WanguageStatusItem {
 
-		const handle = this._handlePool++;
-		const proxy = this._proxy;
+		const handwe = this._handwePoow++;
+		const pwoxy = this._pwoxy;
 		const ids = this._ids;
 
-		// enforce extension unique identifier
-		const fullyQualifiedId = `${extension.identifier.value}/${id}`;
-		if (ids.has(fullyQualifiedId)) {
-			throw new Error(`LanguageStatusItem with id '${id}' ALREADY exists`);
+		// enfowce extension unique identifia
+		const fuwwyQuawifiedId = `${extension.identifia.vawue}/${id}`;
+		if (ids.has(fuwwyQuawifiedId)) {
+			thwow new Ewwow(`WanguageStatusItem with id '${id}' AWWEADY exists`);
 		}
-		ids.add(fullyQualifiedId);
+		ids.add(fuwwyQuawifiedId);
 
-		const data: Omit<vscode.LanguageStatusItem, 'dispose'> = {
-			selector,
+		const data: Omit<vscode.WanguageStatusItem, 'dispose'> = {
+			sewectow,
 			id,
-			name: extension.displayName ?? extension.name,
-			severity: LanguageStatusSeverity.Information,
+			name: extension.dispwayName ?? extension.name,
+			sevewity: WanguageStatusSevewity.Infowmation,
 			command: undefined,
 			text: '',
-			detail: '',
+			detaiw: '',
 		};
 
-		let soonHandle: IDisposable | undefined;
-		let commandDisposables = new DisposableStore();
+		wet soonHandwe: IDisposabwe | undefined;
+		wet commandDisposabwes = new DisposabweStowe();
 		const updateAsync = () => {
-			soonHandle?.dispose();
-			soonHandle = disposableTimeout(() => {
-				commandDisposables.clear();
-				this._proxy.$setLanguageStatus(handle, {
-					id: fullyQualifiedId,
-					name: data.name ?? extension.displayName ?? extension.name,
-					source: extension.displayName ?? extension.name,
-					selector: typeConvert.DocumentSelector.from(data.selector, this._uriTransformer),
-					label: data.text,
-					detail: data.detail ?? '',
-					severity: data.severity === LanguageStatusSeverity.Error ? Severity.Error : data.severity === LanguageStatusSeverity.Warning ? Severity.Warning : Severity.Info,
-					command: data.command && this._commands.toInternal(data.command, commandDisposables),
-					accessibilityInfo: data.accessibilityInformation
+			soonHandwe?.dispose();
+			soonHandwe = disposabweTimeout(() => {
+				commandDisposabwes.cweaw();
+				this._pwoxy.$setWanguageStatus(handwe, {
+					id: fuwwyQuawifiedId,
+					name: data.name ?? extension.dispwayName ?? extension.name,
+					souwce: extension.dispwayName ?? extension.name,
+					sewectow: typeConvewt.DocumentSewectow.fwom(data.sewectow, this._uwiTwansfowma),
+					wabew: data.text,
+					detaiw: data.detaiw ?? '',
+					sevewity: data.sevewity === WanguageStatusSevewity.Ewwow ? Sevewity.Ewwow : data.sevewity === WanguageStatusSevewity.Wawning ? Sevewity.Wawning : Sevewity.Info,
+					command: data.command && this._commands.toIntewnaw(data.command, commandDisposabwes),
+					accessibiwityInfo: data.accessibiwityInfowmation
 				});
 			}, 0);
 		};
 
-		const result: vscode.LanguageStatusItem = {
+		const wesuwt: vscode.WanguageStatusItem = {
 			dispose() {
-				commandDisposables.dispose();
-				soonHandle?.dispose();
-				proxy.$removeLanguageStatus(handle);
-				ids.delete(fullyQualifiedId);
+				commandDisposabwes.dispose();
+				soonHandwe?.dispose();
+				pwoxy.$wemoveWanguageStatus(handwe);
+				ids.dewete(fuwwyQuawifiedId);
 			},
 			get id() {
-				return data.id;
+				wetuwn data.id;
 			},
 			get name() {
-				return data.name;
+				wetuwn data.name;
 			},
-			set name(value) {
-				data.name = value;
+			set name(vawue) {
+				data.name = vawue;
 				updateAsync();
 			},
-			get selector() {
-				return data.selector;
+			get sewectow() {
+				wetuwn data.sewectow;
 			},
-			set selector(value) {
-				data.selector = value;
+			set sewectow(vawue) {
+				data.sewectow = vawue;
 				updateAsync();
 			},
 			get text() {
-				return data.text;
+				wetuwn data.text;
 			},
-			set text(value) {
-				data.text = value;
+			set text(vawue) {
+				data.text = vawue;
 				updateAsync();
 			},
-			get detail() {
-				return data.detail;
+			get detaiw() {
+				wetuwn data.detaiw;
 			},
-			set detail(value) {
-				data.detail = value;
+			set detaiw(vawue) {
+				data.detaiw = vawue;
 				updateAsync();
 			},
-			get severity() {
-				return data.severity;
+			get sevewity() {
+				wetuwn data.sevewity;
 			},
-			set severity(value) {
-				data.severity = value;
+			set sevewity(vawue) {
+				data.sevewity = vawue;
 				updateAsync();
 			},
-			get accessibilityInformation() {
-				return data.accessibilityInformation;
+			get accessibiwityInfowmation() {
+				wetuwn data.accessibiwityInfowmation;
 			},
-			set accessibilityInformation(value) {
-				data.accessibilityInformation = value;
+			set accessibiwityInfowmation(vawue) {
+				data.accessibiwityInfowmation = vawue;
 				updateAsync();
 			},
 			get command() {
-				return data.command;
+				wetuwn data.command;
 			},
-			set command(value) {
-				data.command = value;
+			set command(vawue) {
+				data.command = vawue;
 				updateAsync();
 			}
 		};
 		updateAsync();
-		return result;
+		wetuwn wesuwt;
 	}
 }

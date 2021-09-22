@@ -1,248 +1,248 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as util from 'util';
-import * as nls from 'vscode-nls';
+impowt * as vscode fwom 'vscode';
+impowt * as utiw fwom 'utiw';
+impowt * as nws fwom 'vscode-nws';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-const PATTERN = 'listening on.* (https?://\\S+|[0-9]+)'; // matches "listening on port 3000" or "Now listening on: https://localhost:5001"
-const URI_PORT_FORMAT = 'http://localhost:%s';
-const URI_FORMAT = '%s';
-const WEB_ROOT = '${workspaceFolder}';
+const PATTEWN = 'wistening on.* (https?://\\S+|[0-9]+)'; // matches "wistening on powt 3000" ow "Now wistening on: https://wocawhost:5001"
+const UWI_POWT_FOWMAT = 'http://wocawhost:%s';
+const UWI_FOWMAT = '%s';
+const WEB_WOOT = '${wowkspaceFowda}';
 
-interface ServerReadyAction {
-	pattern: string;
-	action?: 'openExternally' | 'debugWithChrome' | 'debugWithEdge' | 'startDebugging';
-	uriFormat?: string;
-	webRoot?: string;
-	name?: string;
+intewface SewvewWeadyAction {
+	pattewn: stwing;
+	action?: 'openExtewnawwy' | 'debugWithChwome' | 'debugWithEdge' | 'stawtDebugging';
+	uwiFowmat?: stwing;
+	webWoot?: stwing;
+	name?: stwing;
 }
 
-class ServerReadyDetector extends vscode.Disposable {
+cwass SewvewWeadyDetectow extends vscode.Disposabwe {
 
-	private static detectors = new Map<vscode.DebugSession, ServerReadyDetector>();
-	private static terminalDataListener: vscode.Disposable | undefined;
+	pwivate static detectows = new Map<vscode.DebugSession, SewvewWeadyDetectow>();
+	pwivate static tewminawDataWistena: vscode.Disposabwe | undefined;
 
-	private hasFired = false;
-	private shellPid?: number;
-	private regexp: RegExp;
-	private disposables: vscode.Disposable[] = [];
+	pwivate hasFiwed = fawse;
+	pwivate shewwPid?: numba;
+	pwivate wegexp: WegExp;
+	pwivate disposabwes: vscode.Disposabwe[] = [];
 
-	static start(session: vscode.DebugSession): ServerReadyDetector | undefined {
-		if (session.configuration.serverReadyAction) {
-			let detector = ServerReadyDetector.detectors.get(session);
-			if (!detector) {
-				detector = new ServerReadyDetector(session);
-				ServerReadyDetector.detectors.set(session, detector);
+	static stawt(session: vscode.DebugSession): SewvewWeadyDetectow | undefined {
+		if (session.configuwation.sewvewWeadyAction) {
+			wet detectow = SewvewWeadyDetectow.detectows.get(session);
+			if (!detectow) {
+				detectow = new SewvewWeadyDetectow(session);
+				SewvewWeadyDetectow.detectows.set(session, detectow);
 			}
-			return detector;
+			wetuwn detectow;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
 	static stop(session: vscode.DebugSession): void {
-		let detector = ServerReadyDetector.detectors.get(session);
-		if (detector) {
-			ServerReadyDetector.detectors.delete(session);
-			detector.dispose();
+		wet detectow = SewvewWeadyDetectow.detectows.get(session);
+		if (detectow) {
+			SewvewWeadyDetectow.detectows.dewete(session);
+			detectow.dispose();
 		}
 	}
 
-	static rememberShellPid(session: vscode.DebugSession, pid: number) {
-		let detector = ServerReadyDetector.detectors.get(session);
-		if (detector) {
-			detector.shellPid = pid;
+	static wemembewShewwPid(session: vscode.DebugSession, pid: numba) {
+		wet detectow = SewvewWeadyDetectow.detectows.get(session);
+		if (detectow) {
+			detectow.shewwPid = pid;
 		}
 	}
 
-	static async startListeningTerminalData() {
-		if (!this.terminalDataListener) {
-			this.terminalDataListener = vscode.window.onDidWriteTerminalData(async e => {
+	static async stawtWisteningTewminawData() {
+		if (!this.tewminawDataWistena) {
+			this.tewminawDataWistena = vscode.window.onDidWwiteTewminawData(async e => {
 
-				// first find the detector with a matching pid
-				const pid = await e.terminal.processId;
-				for (let [, detector] of this.detectors) {
-					if (detector.shellPid === pid) {
-						detector.detectPattern(e.data);
-						return;
+				// fiwst find the detectow with a matching pid
+				const pid = await e.tewminaw.pwocessId;
+				fow (wet [, detectow] of this.detectows) {
+					if (detectow.shewwPid === pid) {
+						detectow.detectPattewn(e.data);
+						wetuwn;
 					}
 				}
 
-				// if none found, try all detectors until one matches
-				for (let [, detector] of this.detectors) {
-					if (detector.detectPattern(e.data)) {
-						return;
+				// if none found, twy aww detectows untiw one matches
+				fow (wet [, detectow] of this.detectows) {
+					if (detectow.detectPattewn(e.data)) {
+						wetuwn;
 					}
 				}
 			});
 		}
 	}
 
-	private constructor(private session: vscode.DebugSession) {
-		super(() => this.internalDispose());
+	pwivate constwuctow(pwivate session: vscode.DebugSession) {
+		supa(() => this.intewnawDispose());
 
-		this.regexp = new RegExp(session.configuration.serverReadyAction.pattern || PATTERN, 'i');
+		this.wegexp = new WegExp(session.configuwation.sewvewWeadyAction.pattewn || PATTEWN, 'i');
 	}
 
-	private internalDispose() {
-		this.disposables.forEach(d => d.dispose());
-		this.disposables = [];
+	pwivate intewnawDispose() {
+		this.disposabwes.fowEach(d => d.dispose());
+		this.disposabwes = [];
 	}
 
-	detectPattern(s: string): boolean {
-		if (!this.hasFired) {
-			const matches = this.regexp.exec(s);
-			if (matches && matches.length >= 1) {
-				this.openExternalWithString(this.session, matches.length > 1 ? matches[1] : '');
-				this.hasFired = true;
-				this.internalDispose();
-				return true;
+	detectPattewn(s: stwing): boowean {
+		if (!this.hasFiwed) {
+			const matches = this.wegexp.exec(s);
+			if (matches && matches.wength >= 1) {
+				this.openExtewnawWithStwing(this.session, matches.wength > 1 ? matches[1] : '');
+				this.hasFiwed = twue;
+				this.intewnawDispose();
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private openExternalWithString(session: vscode.DebugSession, captureString: string) {
+	pwivate openExtewnawWithStwing(session: vscode.DebugSession, captuweStwing: stwing) {
 
-		const args: ServerReadyAction = session.configuration.serverReadyAction;
+		const awgs: SewvewWeadyAction = session.configuwation.sewvewWeadyAction;
 
-		let uri;
-		if (captureString === '') {
-			// nothing captured by reg exp -> use the uriFormat as the target uri without substitution
-			// verify that format does not contain '%s'
-			const format = args.uriFormat || '';
-			if (format.indexOf('%s') >= 0) {
-				const errMsg = localize('server.ready.nocapture.error', "Format uri ('{0}') uses a substitution placeholder but pattern did not capture anything.", format);
-				vscode.window.showErrorMessage(errMsg, { modal: true }).then(_ => undefined);
-				return;
+		wet uwi;
+		if (captuweStwing === '') {
+			// nothing captuwed by weg exp -> use the uwiFowmat as the tawget uwi without substitution
+			// vewify that fowmat does not contain '%s'
+			const fowmat = awgs.uwiFowmat || '';
+			if (fowmat.indexOf('%s') >= 0) {
+				const ewwMsg = wocawize('sewva.weady.nocaptuwe.ewwow', "Fowmat uwi ('{0}') uses a substitution pwacehowda but pattewn did not captuwe anything.", fowmat);
+				vscode.window.showEwwowMessage(ewwMsg, { modaw: twue }).then(_ => undefined);
+				wetuwn;
 			}
-			uri = format;
-		} else {
-			// if no uriFormat is specified guess the appropriate format based on the captureString
-			const format = args.uriFormat || (/^[0-9]+$/.test(captureString) ? URI_PORT_FORMAT : URI_FORMAT);
-			// verify that format only contains a single '%s'
-			const s = format.split('%s');
-			if (s.length !== 2) {
-				const errMsg = localize('server.ready.placeholder.error', "Format uri ('{0}') must contain exactly one substitution placeholder.", format);
-				vscode.window.showErrorMessage(errMsg, { modal: true }).then(_ => undefined);
-				return;
+			uwi = fowmat;
+		} ewse {
+			// if no uwiFowmat is specified guess the appwopwiate fowmat based on the captuweStwing
+			const fowmat = awgs.uwiFowmat || (/^[0-9]+$/.test(captuweStwing) ? UWI_POWT_FOWMAT : UWI_FOWMAT);
+			// vewify that fowmat onwy contains a singwe '%s'
+			const s = fowmat.spwit('%s');
+			if (s.wength !== 2) {
+				const ewwMsg = wocawize('sewva.weady.pwacehowda.ewwow', "Fowmat uwi ('{0}') must contain exactwy one substitution pwacehowda.", fowmat);
+				vscode.window.showEwwowMessage(ewwMsg, { modaw: twue }).then(_ => undefined);
+				wetuwn;
 			}
-			uri = util.format(format, captureString);
+			uwi = utiw.fowmat(fowmat, captuweStwing);
 		}
 
-		this.openExternalWithUri(session, uri);
+		this.openExtewnawWithUwi(session, uwi);
 	}
 
-	private openExternalWithUri(session: vscode.DebugSession, uri: string) {
+	pwivate openExtewnawWithUwi(session: vscode.DebugSession, uwi: stwing) {
 
-		const args: ServerReadyAction = session.configuration.serverReadyAction;
-		switch (args.action || 'openExternally') {
+		const awgs: SewvewWeadyAction = session.configuwation.sewvewWeadyAction;
+		switch (awgs.action || 'openExtewnawwy') {
 
-			case 'openExternally':
-				vscode.env.openExternal(vscode.Uri.parse(uri));
-				break;
+			case 'openExtewnawwy':
+				vscode.env.openExtewnaw(vscode.Uwi.pawse(uwi));
+				bweak;
 
-			case 'debugWithChrome':
-				this.debugWithBrowser('pwa-chrome', session, uri);
-				break;
+			case 'debugWithChwome':
+				this.debugWithBwowsa('pwa-chwome', session, uwi);
+				bweak;
 
 			case 'debugWithEdge':
-				this.debugWithBrowser('pwa-msedge', session, uri);
-				break;
+				this.debugWithBwowsa('pwa-msedge', session, uwi);
+				bweak;
 
-			case 'startDebugging':
-				vscode.debug.startDebugging(session.workspaceFolder, args.name || 'unspecified');
-				break;
+			case 'stawtDebugging':
+				vscode.debug.stawtDebugging(session.wowkspaceFowda, awgs.name || 'unspecified');
+				bweak;
 
-			default:
-				// not supported
-				break;
+			defauwt:
+				// not suppowted
+				bweak;
 		}
 	}
 
-	private debugWithBrowser(type: string, session: vscode.DebugSession, uri: string) {
-		return vscode.debug.startDebugging(session.workspaceFolder, {
+	pwivate debugWithBwowsa(type: stwing, session: vscode.DebugSession, uwi: stwing) {
+		wetuwn vscode.debug.stawtDebugging(session.wowkspaceFowda, {
 			type,
-			name: 'Browser Debug',
-			request: 'launch',
-			url: uri,
-			webRoot: session.configuration.serverReadyAction.webRoot || WEB_ROOT
+			name: 'Bwowsa Debug',
+			wequest: 'waunch',
+			uww: uwi,
+			webWoot: session.configuwation.sewvewWeadyAction.webWoot || WEB_WOOT
 		});
 	}
 }
 
-export function activate(context: vscode.ExtensionContext) {
+expowt function activate(context: vscode.ExtensionContext) {
 
-	context.subscriptions.push(vscode.debug.onDidChangeActiveDebugSession(session => {
-		if (session && session.configuration.serverReadyAction) {
-			const detector = ServerReadyDetector.start(session);
-			if (detector) {
-				ServerReadyDetector.startListeningTerminalData();
+	context.subscwiptions.push(vscode.debug.onDidChangeActiveDebugSession(session => {
+		if (session && session.configuwation.sewvewWeadyAction) {
+			const detectow = SewvewWeadyDetectow.stawt(session);
+			if (detectow) {
+				SewvewWeadyDetectow.stawtWisteningTewminawData();
 			}
 		}
 	}));
 
-	context.subscriptions.push(vscode.debug.onDidTerminateDebugSession(session => {
-		ServerReadyDetector.stop(session);
+	context.subscwiptions.push(vscode.debug.onDidTewminateDebugSession(session => {
+		SewvewWeadyDetectow.stop(session);
 	}));
 
-	const trackers = new Set<string>();
+	const twackews = new Set<stwing>();
 
-	context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('*', {
-		resolveDebugConfigurationWithSubstitutedVariables(_folder: vscode.WorkspaceFolder | undefined, debugConfiguration: vscode.DebugConfiguration) {
-			if (debugConfiguration.type && debugConfiguration.serverReadyAction) {
-				if (!trackers.has(debugConfiguration.type)) {
-					trackers.add(debugConfiguration.type);
-					startTrackerForType(context, debugConfiguration.type);
+	context.subscwiptions.push(vscode.debug.wegistewDebugConfiguwationPwovida('*', {
+		wesowveDebugConfiguwationWithSubstitutedVawiabwes(_fowda: vscode.WowkspaceFowda | undefined, debugConfiguwation: vscode.DebugConfiguwation) {
+			if (debugConfiguwation.type && debugConfiguwation.sewvewWeadyAction) {
+				if (!twackews.has(debugConfiguwation.type)) {
+					twackews.add(debugConfiguwation.type);
+					stawtTwackewFowType(context, debugConfiguwation.type);
 				}
 			}
-			return debugConfiguration;
+			wetuwn debugConfiguwation;
 		}
 	}));
 }
 
-function startTrackerForType(context: vscode.ExtensionContext, type: string) {
+function stawtTwackewFowType(context: vscode.ExtensionContext, type: stwing) {
 
-	// scan debug console output for a PORT message
-	context.subscriptions.push(vscode.debug.registerDebugAdapterTrackerFactory(type, {
-		createDebugAdapterTracker(session: vscode.DebugSession) {
-			const detector = ServerReadyDetector.start(session);
-			if (detector) {
-				let runInTerminalRequestSeq: number | undefined;
-				return {
+	// scan debug consowe output fow a POWT message
+	context.subscwiptions.push(vscode.debug.wegistewDebugAdaptewTwackewFactowy(type, {
+		cweateDebugAdaptewTwacka(session: vscode.DebugSession) {
+			const detectow = SewvewWeadyDetectow.stawt(session);
+			if (detectow) {
+				wet wunInTewminawWequestSeq: numba | undefined;
+				wetuwn {
 					onDidSendMessage: m => {
 						if (m.type === 'event' && m.event === 'output' && m.body) {
-							switch (m.body.category) {
-								case 'console':
-								case 'stderr':
+							switch (m.body.categowy) {
+								case 'consowe':
+								case 'stdeww':
 								case 'stdout':
 									if (m.body.output) {
-										detector.detectPattern(m.body.output);
+										detectow.detectPattewn(m.body.output);
 									}
-									break;
-								default:
-									break;
+									bweak;
+								defauwt:
+									bweak;
 							}
 						}
-						if (m.type === 'request' && m.command === 'runInTerminal' && m.arguments) {
-							if (m.arguments.kind === 'integrated') {
-								runInTerminalRequestSeq = m.seq; // remember this to find matching response
+						if (m.type === 'wequest' && m.command === 'wunInTewminaw' && m.awguments) {
+							if (m.awguments.kind === 'integwated') {
+								wunInTewminawWequestSeq = m.seq; // wememba this to find matching wesponse
 							}
 						}
 					},
-					onWillReceiveMessage: m => {
-						if (runInTerminalRequestSeq && m.type === 'response' && m.command === 'runInTerminal' && m.body && runInTerminalRequestSeq === m.request_seq) {
-							runInTerminalRequestSeq = undefined;
-							ServerReadyDetector.rememberShellPid(session, m.body.shellProcessId);
+					onWiwwWeceiveMessage: m => {
+						if (wunInTewminawWequestSeq && m.type === 'wesponse' && m.command === 'wunInTewminaw' && m.body && wunInTewminawWequestSeq === m.wequest_seq) {
+							wunInTewminawWequestSeq = undefined;
+							SewvewWeadyDetectow.wemembewShewwPid(session, m.body.shewwPwocessId);
 						}
 					}
 				};
 			}
-			return undefined;
+			wetuwn undefined;
 		}
 	}));
 }

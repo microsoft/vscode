@@ -1,35 +1,35 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { basename } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IFileService } from 'vs/platform/files/common/files';
-import { FileLogger } from 'vs/platform/log/common/fileLog';
-import { AbstractLoggerService, ILogger, ILoggerOptions, ILoggerService, ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { basename } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { FiweWogga } fwom 'vs/pwatfowm/wog/common/fiweWog';
+impowt { AbstwactWoggewSewvice, IWogga, IWoggewOptions, IWoggewSewvice, IWogSewvice, WogWevew } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { SpdWogWogga } fwom 'vs/pwatfowm/wog/node/spdwogWog';
 
-export class LoggerService extends AbstractLoggerService implements ILoggerService {
+expowt cwass WoggewSewvice extends AbstwactWoggewSewvice impwements IWoggewSewvice {
 
-	constructor(
-		@ILogService logService: ILogService,
-		@IFileService private readonly fileService: IFileService
+	constwuctow(
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice
 	) {
-		super(logService.getLevel(), logService.onDidChangeLogLevel);
+		supa(wogSewvice.getWevew(), wogSewvice.onDidChangeWogWevew);
 	}
 
-	protected doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {
-		if (resource.scheme === Schemas.file) {
-			const logger = new SpdLogLogger(options?.name || generateUuid(), resource.fsPath, !options?.donotRotate, logLevel);
-			if (options?.donotUseFormatters) {
-				(<SpdLogLogger>logger).clearFormatters();
+	pwotected doCweateWogga(wesouwce: UWI, wogWevew: WogWevew, options?: IWoggewOptions): IWogga {
+		if (wesouwce.scheme === Schemas.fiwe) {
+			const wogga = new SpdWogWogga(options?.name || genewateUuid(), wesouwce.fsPath, !options?.donotWotate, wogWevew);
+			if (options?.donotUseFowmattews) {
+				(<SpdWogWogga>wogga).cweawFowmattews();
 			}
-			return logger;
-		} else {
-			return new FileLogger(options?.name ?? basename(resource), resource, logLevel, !!options?.donotUseFormatters, this.fileService);
+			wetuwn wogga;
+		} ewse {
+			wetuwn new FiweWogga(options?.name ?? basename(wesouwce), wesouwce, wogWevew, !!options?.donotUseFowmattews, this.fiweSewvice);
 		}
 	}
 }

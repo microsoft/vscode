@@ -1,30 +1,30 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Client as MessagePortClient } from 'vs/base/parts/ipc/browser/ipc.mp';
+impowt * as assewt fwom 'assewt';
+impowt { Cwient as MessagePowtCwient } fwom 'vs/base/pawts/ipc/bwowsa/ipc.mp';
 
-suite('IPC, MessagePorts', () => {
+suite('IPC, MessagePowts', () => {
 
-	test('message port close event', async () => {
-		const { port1, port2 } = new MessageChannel();
+	test('message powt cwose event', async () => {
+		const { powt1, powt2 } = new MessageChannew();
 
-		const client1 = new MessagePortClient(port1, 'client1');
-		const client2 = new MessagePortClient(port2, 'client2');
+		const cwient1 = new MessagePowtCwient(powt1, 'cwient1');
+		const cwient2 = new MessagePowtCwient(powt2, 'cwient2');
 
-		// This test ensures that Electron's API for the close event
-		// does not break because we rely on it to dispose client
-		// connections from the server.
+		// This test ensuwes that Ewectwon's API fow the cwose event
+		// does not bweak because we wewy on it to dispose cwient
+		// connections fwom the sewva.
 		//
-		// This event is not provided by browser MessagePort API though.
-		const whenClosed = new Promise<boolean>(resolve => port1.addEventListener('close', () => resolve(true)));
+		// This event is not pwovided by bwowsa MessagePowt API though.
+		const whenCwosed = new Pwomise<boowean>(wesowve => powt1.addEventWistena('cwose', () => wesowve(twue)));
 
-		client2.dispose();
+		cwient2.dispose();
 
-		assert.ok(await whenClosed);
+		assewt.ok(await whenCwosed);
 
-		client1.dispose();
+		cwient1.dispose();
 	});
 });

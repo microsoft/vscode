@@ -1,55 +1,55 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { WalkThroughInput } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughInput';
-import { WalkThroughPart } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughPart';
-import { WalkThroughArrowUp, WalkThroughArrowDown, WalkThroughPageUp, WalkThroughPageDown } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughActions';
-import { WalkThroughSnippetContentProvider } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughContentProvider';
-import { EditorWalkThroughAction, EditorWalkThroughInputSerializer } from 'vs/workbench/contrib/welcome/walkThrough/browser/editor/editorWalkThrough';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IWorkbenchActionRegistry, Extensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+impowt { wocawize } fwom 'vs/nws';
+impowt { WawkThwoughInput } fwom 'vs/wowkbench/contwib/wewcome/wawkThwough/bwowsa/wawkThwoughInput';
+impowt { WawkThwoughPawt } fwom 'vs/wowkbench/contwib/wewcome/wawkThwough/bwowsa/wawkThwoughPawt';
+impowt { WawkThwoughAwwowUp, WawkThwoughAwwowDown, WawkThwoughPageUp, WawkThwoughPageDown } fwom 'vs/wowkbench/contwib/wewcome/wawkThwough/bwowsa/wawkThwoughActions';
+impowt { WawkThwoughSnippetContentPwovida } fwom 'vs/wowkbench/contwib/wewcome/wawkThwough/common/wawkThwoughContentPwovida';
+impowt { EditowWawkThwoughAction, EditowWawkThwoughInputSewiawiza } fwom 'vs/wowkbench/contwib/wewcome/wawkThwough/bwowsa/editow/editowWawkThwough';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { EditowExtensions, IEditowFactowyWegistwy } fwom 'vs/wowkbench/common/editow';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { IWowkbenchActionWegistwy, Extensions, CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { SyncActionDescwiptow, MenuWegistwy, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IWowkbenchContwibutionsWegistwy, Extensions as WowkbenchExtensions } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IEditowPaneWegistwy, EditowPaneDescwiptow } fwom 'vs/wowkbench/bwowsa/editow';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { KeybindingsWegistwy } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
 
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane)
-	.registerEditorPane(EditorPaneDescriptor.create(
-		WalkThroughPart,
-		WalkThroughPart.ID,
-		localize('walkThrough.editor.label', "Interactive Playground"),
+Wegistwy.as<IEditowPaneWegistwy>(EditowExtensions.EditowPane)
+	.wegistewEditowPane(EditowPaneDescwiptow.cweate(
+		WawkThwoughPawt,
+		WawkThwoughPawt.ID,
+		wocawize('wawkThwough.editow.wabew', "Intewactive Pwaygwound"),
 	),
-		[new SyncDescriptor(WalkThroughInput)]);
+		[new SyncDescwiptow(WawkThwoughInput)]);
 
-Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
-	.registerWorkbenchAction(
-		SyncActionDescriptor.from(EditorWalkThroughAction),
-		'Help: Interactive Playground', CATEGORIES.Help.value);
+Wegistwy.as<IWowkbenchActionWegistwy>(Extensions.WowkbenchActions)
+	.wegistewWowkbenchAction(
+		SyncActionDescwiptow.fwom(EditowWawkThwoughAction),
+		'Hewp: Intewactive Pwaygwound', CATEGOWIES.Hewp.vawue);
 
-Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(EditorWalkThroughInputSerializer.ID, EditorWalkThroughInputSerializer);
+Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy).wegistewEditowSewiawiza(EditowWawkThwoughInputSewiawiza.ID, EditowWawkThwoughInputSewiawiza);
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WalkThroughSnippetContentProvider, LifecyclePhase.Starting);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench)
+	.wegistewWowkbenchContwibution(WawkThwoughSnippetContentPwovida, WifecycwePhase.Stawting);
 
-KeybindingsRegistry.registerCommandAndKeybindingRule(WalkThroughArrowUp);
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe(WawkThwoughAwwowUp);
 
-KeybindingsRegistry.registerCommandAndKeybindingRule(WalkThroughArrowDown);
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe(WawkThwoughAwwowDown);
 
-KeybindingsRegistry.registerCommandAndKeybindingRule(WalkThroughPageUp);
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe(WawkThwoughPageUp);
 
-KeybindingsRegistry.registerCommandAndKeybindingRule(WalkThroughPageDown);
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe(WawkThwoughPageDown);
 
-MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-	group: '1_welcome',
+MenuWegistwy.appendMenuItem(MenuId.MenubawHewpMenu, {
+	gwoup: '1_wewcome',
 	command: {
-		id: 'workbench.action.showInteractivePlayground',
-		title: localize({ key: 'miInteractivePlayground', comment: ['&& denotes a mnemonic'] }, "I&&nteractive Playground")
+		id: 'wowkbench.action.showIntewactivePwaygwound',
+		titwe: wocawize({ key: 'miIntewactivePwaygwound', comment: ['&& denotes a mnemonic'] }, "I&&ntewactive Pwaygwound")
 	},
-	order: 2
+	owda: 2
 });

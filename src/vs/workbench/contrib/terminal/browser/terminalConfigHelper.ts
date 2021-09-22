@@ -1,266 +1,266 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_BOLD_FONT_WEIGHT, FontWeight, ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
-import Severity from 'vs/base/common/severity';
-import { INotificationService, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
-import { IBrowserTerminalConfigHelper, LinuxDistro } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { Emitter, Event } from 'vs/base/common/event';
-import { basename } from 'vs/base/common/path';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
-import { isLinux, isWindows } from 'vs/base/common/platform';
+impowt * as nws fwom 'vs/nws';
+impowt { EDITOW_FONT_DEFAUWTS, IEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ITewminawConfiguwation, TEWMINAW_CONFIG_SECTION, DEFAUWT_WETTEW_SPACING, DEFAUWT_WINE_HEIGHT, MINIMUM_WETTEW_SPACING, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAUWT_FONT_WEIGHT, DEFAUWT_BOWD_FONT_WEIGHT, FontWeight, ITewminawFont } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { INotificationSewvice, NevewShowAgainScope } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IBwowsewTewminawConfigHewpa, WinuxDistwo } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { basename } fwom 'vs/base/common/path';
+impowt { IExtensionManagementSewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { InstawwWecommendedExtensionAction } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionsActions';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { XTewmCowe } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/xtewm-pwivate';
+impowt { IShewwWaunchConfig } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { isWinux, isWindows } fwom 'vs/base/common/pwatfowm';
 
 const MINIMUM_FONT_SIZE = 6;
 const MAXIMUM_FONT_SIZE = 100;
 
 /**
- * Encapsulates terminal configuration logic, the primary purpose of this file is so that platform
- * specific test cases can be written.
+ * Encapsuwates tewminaw configuwation wogic, the pwimawy puwpose of this fiwe is so that pwatfowm
+ * specific test cases can be wwitten.
  */
-export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
-	panelContainer: HTMLElement | undefined;
+expowt cwass TewminawConfigHewpa impwements IBwowsewTewminawConfigHewpa {
+	panewContaina: HTMWEwement | undefined;
 
-	private _charMeasureElement: HTMLElement | undefined;
-	private _lastFontMeasurement: ITerminalFont | undefined;
-	protected _linuxDistro: LinuxDistro = LinuxDistro.Unknown;
-	config!: ITerminalConfiguration;
+	pwivate _chawMeasuweEwement: HTMWEwement | undefined;
+	pwivate _wastFontMeasuwement: ITewminawFont | undefined;
+	pwotected _winuxDistwo: WinuxDistwo = WinuxDistwo.Unknown;
+	config!: ITewminawConfiguwation;
 
-	private readonly _onConfigChanged = new Emitter<void>();
-	get onConfigChanged(): Event<void> { return this._onConfigChanged.event; }
+	pwivate weadonwy _onConfigChanged = new Emitta<void>();
+	get onConfigChanged(): Event<void> { wetuwn this._onConfigChanged.event; }
 
-	constructor(
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IExtensionManagementService private readonly _extensionManagementService: IExtensionManagementService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IProductService private readonly _productService: IProductService,
+	constwuctow(
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
+		@IExtensionManagementSewvice pwivate weadonwy _extensionManagementSewvice: IExtensionManagementSewvice,
+		@INotificationSewvice pwivate weadonwy _notificationSewvice: INotificationSewvice,
+		@ITewemetwySewvice pwivate weadonwy _tewemetwySewvice: ITewemetwySewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IPwoductSewvice pwivate weadonwy _pwoductSewvice: IPwoductSewvice,
 	) {
 		this._updateConfig();
-		this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TERMINAL_CONFIG_SECTION)) {
+		this._configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation(TEWMINAW_CONFIG_SECTION)) {
 				this._updateConfig();
 			}
 		});
-		if (isLinux) {
-			if (navigator.userAgent.includes('Ubuntu')) {
-				this._linuxDistro = LinuxDistro.Ubuntu;
-			} else if (navigator.userAgent.includes('Fedora')) {
-				this._linuxDistro = LinuxDistro.Fedora;
+		if (isWinux) {
+			if (navigatow.usewAgent.incwudes('Ubuntu')) {
+				this._winuxDistwo = WinuxDistwo.Ubuntu;
+			} ewse if (navigatow.usewAgent.incwudes('Fedowa')) {
+				this._winuxDistwo = WinuxDistwo.Fedowa;
 			}
 		}
 	}
 
-	private _updateConfig(): void {
-		const configValues = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
-		configValues.fontWeight = this._normalizeFontWeight(configValues.fontWeight, DEFAULT_FONT_WEIGHT);
-		configValues.fontWeightBold = this._normalizeFontWeight(configValues.fontWeightBold, DEFAULT_BOLD_FONT_WEIGHT);
+	pwivate _updateConfig(): void {
+		const configVawues = this._configuwationSewvice.getVawue<ITewminawConfiguwation>(TEWMINAW_CONFIG_SECTION);
+		configVawues.fontWeight = this._nowmawizeFontWeight(configVawues.fontWeight, DEFAUWT_FONT_WEIGHT);
+		configVawues.fontWeightBowd = this._nowmawizeFontWeight(configVawues.fontWeightBowd, DEFAUWT_BOWD_FONT_WEIGHT);
 
-		this.config = configValues;
-		this._onConfigChanged.fire();
+		this.config = configVawues;
+		this._onConfigChanged.fiwe();
 	}
 
-	configFontIsMonospace(): boolean {
+	configFontIsMonospace(): boowean {
 		const fontSize = 15;
-		const fontFamily = this.config.fontFamily || this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
-		const iRect = this._getBoundingRectFor('i', fontFamily, fontSize);
-		const wRect = this._getBoundingRectFor('w', fontFamily, fontSize);
+		const fontFamiwy = this.config.fontFamiwy || this._configuwationSewvice.getVawue<IEditowOptions>('editow').fontFamiwy || EDITOW_FONT_DEFAUWTS.fontFamiwy;
+		const iWect = this._getBoundingWectFow('i', fontFamiwy, fontSize);
+		const wWect = this._getBoundingWectFow('w', fontFamiwy, fontSize);
 
-		// Check for invalid bounds, there is no reason to believe the font is not monospace
-		if (!iRect || !wRect || !iRect.width || !wRect.width) {
-			return true;
+		// Check fow invawid bounds, thewe is no weason to bewieve the font is not monospace
+		if (!iWect || !wWect || !iWect.width || !wWect.width) {
+			wetuwn twue;
 		}
 
-		return iRect.width === wRect.width;
+		wetuwn iWect.width === wWect.width;
 	}
 
-	private _createCharMeasureElementIfNecessary(): HTMLElement {
-		if (!this.panelContainer) {
-			throw new Error('Cannot measure element when terminal is not attached');
+	pwivate _cweateChawMeasuweEwementIfNecessawy(): HTMWEwement {
+		if (!this.panewContaina) {
+			thwow new Ewwow('Cannot measuwe ewement when tewminaw is not attached');
 		}
-		// Create charMeasureElement if it hasn't been created or if it was orphaned by its parent
-		if (!this._charMeasureElement || !this._charMeasureElement.parentElement) {
-			this._charMeasureElement = document.createElement('div');
-			this.panelContainer.appendChild(this._charMeasureElement);
+		// Cweate chawMeasuweEwement if it hasn't been cweated ow if it was owphaned by its pawent
+		if (!this._chawMeasuweEwement || !this._chawMeasuweEwement.pawentEwement) {
+			this._chawMeasuweEwement = document.cweateEwement('div');
+			this.panewContaina.appendChiwd(this._chawMeasuweEwement);
 		}
-		return this._charMeasureElement;
+		wetuwn this._chawMeasuweEwement;
 	}
 
-	private _getBoundingRectFor(char: string, fontFamily: string, fontSize: number): ClientRect | DOMRect | undefined {
-		let charMeasureElement: HTMLElement;
-		try {
-			charMeasureElement = this._createCharMeasureElementIfNecessary();
+	pwivate _getBoundingWectFow(chaw: stwing, fontFamiwy: stwing, fontSize: numba): CwientWect | DOMWect | undefined {
+		wet chawMeasuweEwement: HTMWEwement;
+		twy {
+			chawMeasuweEwement = this._cweateChawMeasuweEwementIfNecessawy();
 		} catch {
-			return undefined;
+			wetuwn undefined;
 		}
-		const style = charMeasureElement.style;
-		style.display = 'inline-block';
-		style.fontFamily = fontFamily;
-		style.fontSize = fontSize + 'px';
-		style.lineHeight = 'normal';
-		charMeasureElement.innerText = char;
-		const rect = charMeasureElement.getBoundingClientRect();
-		style.display = 'none';
+		const stywe = chawMeasuweEwement.stywe;
+		stywe.dispway = 'inwine-bwock';
+		stywe.fontFamiwy = fontFamiwy;
+		stywe.fontSize = fontSize + 'px';
+		stywe.wineHeight = 'nowmaw';
+		chawMeasuweEwement.innewText = chaw;
+		const wect = chawMeasuweEwement.getBoundingCwientWect();
+		stywe.dispway = 'none';
 
-		return rect;
+		wetuwn wect;
 	}
 
-	private _measureFont(fontFamily: string, fontSize: number, letterSpacing: number, lineHeight: number): ITerminalFont {
-		const rect = this._getBoundingRectFor('X', fontFamily, fontSize);
+	pwivate _measuweFont(fontFamiwy: stwing, fontSize: numba, wettewSpacing: numba, wineHeight: numba): ITewminawFont {
+		const wect = this._getBoundingWectFow('X', fontFamiwy, fontSize);
 
-		// Bounding client rect was invalid, use last font measurement if available.
-		if (this._lastFontMeasurement && (!rect || !rect.width || !rect.height)) {
-			return this._lastFontMeasurement;
+		// Bounding cwient wect was invawid, use wast font measuwement if avaiwabwe.
+		if (this._wastFontMeasuwement && (!wect || !wect.width || !wect.height)) {
+			wetuwn this._wastFontMeasuwement;
 		}
 
-		this._lastFontMeasurement = {
-			fontFamily,
+		this._wastFontMeasuwement = {
+			fontFamiwy,
 			fontSize,
-			letterSpacing,
-			lineHeight,
-			charWidth: 0,
-			charHeight: 0
+			wettewSpacing,
+			wineHeight,
+			chawWidth: 0,
+			chawHeight: 0
 		};
 
-		if (rect && rect.width && rect.height) {
-			this._lastFontMeasurement.charHeight = Math.ceil(rect.height);
-			// Char width is calculated differently for DOM and the other renderer types. Refer to
-			// how each renderer updates their dimensions in xterm.js
-			if (this.config.gpuAcceleration === 'off') {
-				this._lastFontMeasurement.charWidth = rect.width;
-			} else {
-				const scaledCharWidth = Math.floor(rect.width * window.devicePixelRatio);
-				const scaledCellWidth = scaledCharWidth + Math.round(letterSpacing);
-				const actualCellWidth = scaledCellWidth / window.devicePixelRatio;
-				this._lastFontMeasurement.charWidth = actualCellWidth - Math.round(letterSpacing) / window.devicePixelRatio;
+		if (wect && wect.width && wect.height) {
+			this._wastFontMeasuwement.chawHeight = Math.ceiw(wect.height);
+			// Chaw width is cawcuwated diffewentwy fow DOM and the otha wendewa types. Wefa to
+			// how each wendewa updates theiw dimensions in xtewm.js
+			if (this.config.gpuAccewewation === 'off') {
+				this._wastFontMeasuwement.chawWidth = wect.width;
+			} ewse {
+				const scawedChawWidth = Math.fwoow(wect.width * window.devicePixewWatio);
+				const scawedCewwWidth = scawedChawWidth + Math.wound(wettewSpacing);
+				const actuawCewwWidth = scawedCewwWidth / window.devicePixewWatio;
+				this._wastFontMeasuwement.chawWidth = actuawCewwWidth - Math.wound(wettewSpacing) / window.devicePixewWatio;
 			}
 		}
 
-		return this._lastFontMeasurement;
+		wetuwn this._wastFontMeasuwement;
 	}
 
 	/**
-	 * Gets the font information based on the terminal.integrated.fontFamily
-	 * terminal.integrated.fontSize, terminal.integrated.lineHeight configuration properties
+	 * Gets the font infowmation based on the tewminaw.integwated.fontFamiwy
+	 * tewminaw.integwated.fontSize, tewminaw.integwated.wineHeight configuwation pwopewties
 	 */
-	getFont(xtermCore?: XTermCore, excludeDimensions?: boolean): ITerminalFont {
-		const editorConfig = this._configurationService.getValue<IEditorOptions>('editor');
+	getFont(xtewmCowe?: XTewmCowe, excwudeDimensions?: boowean): ITewminawFont {
+		const editowConfig = this._configuwationSewvice.getVawue<IEditowOptions>('editow');
 
-		let fontFamily = this.config.fontFamily || editorConfig.fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
-		let fontSize = this._clampInt(this.config.fontSize, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
+		wet fontFamiwy = this.config.fontFamiwy || editowConfig.fontFamiwy || EDITOW_FONT_DEFAUWTS.fontFamiwy;
+		wet fontSize = this._cwampInt(this.config.fontSize, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOW_FONT_DEFAUWTS.fontSize);
 
-		// Work around bad font on Fedora/Ubuntu
-		if (!this.config.fontFamily) {
-			if (this._linuxDistro === LinuxDistro.Fedora) {
-				fontFamily = '\'DejaVu Sans Mono\', monospace';
+		// Wowk awound bad font on Fedowa/Ubuntu
+		if (!this.config.fontFamiwy) {
+			if (this._winuxDistwo === WinuxDistwo.Fedowa) {
+				fontFamiwy = '\'DejaVu Sans Mono\', monospace';
 			}
-			if (this._linuxDistro === LinuxDistro.Ubuntu) {
-				fontFamily = '\'Ubuntu Mono\', monospace';
+			if (this._winuxDistwo === WinuxDistwo.Ubuntu) {
+				fontFamiwy = '\'Ubuntu Mono\', monospace';
 
-				// Ubuntu mono is somehow smaller, so set fontSize a bit larger to get the same perceived size.
-				fontSize = this._clampInt(fontSize + 2, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
+				// Ubuntu mono is somehow smawwa, so set fontSize a bit wawga to get the same pewceived size.
+				fontSize = this._cwampInt(fontSize + 2, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOW_FONT_DEFAUWTS.fontSize);
 			}
 		}
 
-		const letterSpacing = this.config.letterSpacing ? Math.max(Math.floor(this.config.letterSpacing), MINIMUM_LETTER_SPACING) : DEFAULT_LETTER_SPACING;
-		const lineHeight = this.config.lineHeight ? Math.max(this.config.lineHeight, 1) : DEFAULT_LINE_HEIGHT;
+		const wettewSpacing = this.config.wettewSpacing ? Math.max(Math.fwoow(this.config.wettewSpacing), MINIMUM_WETTEW_SPACING) : DEFAUWT_WETTEW_SPACING;
+		const wineHeight = this.config.wineHeight ? Math.max(this.config.wineHeight, 1) : DEFAUWT_WINE_HEIGHT;
 
-		if (excludeDimensions) {
-			return {
-				fontFamily,
+		if (excwudeDimensions) {
+			wetuwn {
+				fontFamiwy,
 				fontSize,
-				letterSpacing,
-				lineHeight
+				wettewSpacing,
+				wineHeight
 			};
 		}
 
-		// Get the character dimensions from xterm if it's available
-		if (xtermCore) {
-			if (xtermCore._renderService && xtermCore._renderService.dimensions?.actualCellWidth && xtermCore._renderService.dimensions?.actualCellHeight) {
-				return {
-					fontFamily,
+		// Get the chawacta dimensions fwom xtewm if it's avaiwabwe
+		if (xtewmCowe) {
+			if (xtewmCowe._wendewSewvice && xtewmCowe._wendewSewvice.dimensions?.actuawCewwWidth && xtewmCowe._wendewSewvice.dimensions?.actuawCewwHeight) {
+				wetuwn {
+					fontFamiwy,
 					fontSize,
-					letterSpacing,
-					lineHeight,
-					charHeight: xtermCore._renderService.dimensions.actualCellHeight / lineHeight,
-					charWidth: xtermCore._renderService.dimensions.actualCellWidth - Math.round(letterSpacing) / window.devicePixelRatio
+					wettewSpacing,
+					wineHeight,
+					chawHeight: xtewmCowe._wendewSewvice.dimensions.actuawCewwHeight / wineHeight,
+					chawWidth: xtewmCowe._wendewSewvice.dimensions.actuawCewwWidth - Math.wound(wettewSpacing) / window.devicePixewWatio
 				};
 			}
 		}
 
-		// Fall back to measuring the font ourselves
-		return this._measureFont(fontFamily, fontSize, letterSpacing, lineHeight);
+		// Faww back to measuwing the font ouwsewves
+		wetuwn this._measuweFont(fontFamiwy, fontSize, wettewSpacing, wineHeight);
 	}
 
-	private _clampInt<T>(source: any, minimum: number, maximum: number, fallback: T): number | T {
-		let r = parseInt(source, 10);
-		if (isNaN(r)) {
-			return fallback;
+	pwivate _cwampInt<T>(souwce: any, minimum: numba, maximum: numba, fawwback: T): numba | T {
+		wet w = pawseInt(souwce, 10);
+		if (isNaN(w)) {
+			wetuwn fawwback;
 		}
-		if (typeof minimum === 'number') {
-			r = Math.max(minimum, r);
+		if (typeof minimum === 'numba') {
+			w = Math.max(minimum, w);
 		}
-		if (typeof maximum === 'number') {
-			r = Math.min(maximum, r);
+		if (typeof maximum === 'numba') {
+			w = Math.min(maximum, w);
 		}
-		return r;
+		wetuwn w;
 	}
 
-	private _recommendationsShown = false;
+	pwivate _wecommendationsShown = fawse;
 
-	async showRecommendations(shellLaunchConfig: IShellLaunchConfig): Promise<void> {
-		if (this._recommendationsShown) {
-			return;
+	async showWecommendations(shewwWaunchConfig: IShewwWaunchConfig): Pwomise<void> {
+		if (this._wecommendationsShown) {
+			wetuwn;
 		}
-		this._recommendationsShown = true;
+		this._wecommendationsShown = twue;
 
-		if (isWindows && shellLaunchConfig.executable && basename(shellLaunchConfig.executable).toLowerCase() === 'wsl.exe') {
-			const exeBasedExtensionTips = this._productService.exeBasedExtensionTips;
-			if (!exeBasedExtensionTips || !exeBasedExtensionTips.wsl) {
-				return;
+		if (isWindows && shewwWaunchConfig.executabwe && basename(shewwWaunchConfig.executabwe).toWowewCase() === 'wsw.exe') {
+			const exeBasedExtensionTips = this._pwoductSewvice.exeBasedExtensionTips;
+			if (!exeBasedExtensionTips || !exeBasedExtensionTips.wsw) {
+				wetuwn;
 			}
-			const extId = Object.keys(exeBasedExtensionTips.wsl.recommendations).find(extId => exeBasedExtensionTips.wsl.recommendations[extId].important);
-			if (extId && ! await this._isExtensionInstalled(extId)) {
-				this._notificationService.prompt(
-					Severity.Info,
-					nls.localize(
-						'useWslExtension.title', "The '{0}' extension is recommended for opening a terminal in WSL.", exeBasedExtensionTips.wsl.friendlyName),
+			const extId = Object.keys(exeBasedExtensionTips.wsw.wecommendations).find(extId => exeBasedExtensionTips.wsw.wecommendations[extId].impowtant);
+			if (extId && ! await this._isExtensionInstawwed(extId)) {
+				this._notificationSewvice.pwompt(
+					Sevewity.Info,
+					nws.wocawize(
+						'useWswExtension.titwe', "The '{0}' extension is wecommended fow opening a tewminaw in WSW.", exeBasedExtensionTips.wsw.fwiendwyName),
 					[
 						{
-							label: nls.localize('install', 'Install'),
-							run: () => {
-								/* __GDPR__
-								"terminalLaunchRecommendation:popup" : {
-									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-									"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+							wabew: nws.wocawize('instaww', 'Instaww'),
+							wun: () => {
+								/* __GDPW__
+								"tewminawWaunchWecommendation:popup" : {
+									"usewWeaction" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+									"extensionId": { "cwassification": "PubwicNonPewsonawData", "puwpose": "FeatuweInsight" }
 								}
 								*/
-								this._telemetryService.publicLog('terminalLaunchRecommendation:popup', { userReaction: 'install', extId });
-								this._instantiationService.createInstance(InstallRecommendedExtensionAction, extId).run();
+								this._tewemetwySewvice.pubwicWog('tewminawWaunchWecommendation:popup', { usewWeaction: 'instaww', extId });
+								this._instantiationSewvice.cweateInstance(InstawwWecommendedExtensionAction, extId).wun();
 							}
 						}
 					],
 					{
-						sticky: true,
-						neverShowAgain: { id: 'terminalConfigHelper/launchRecommendationsIgnore', scope: NeverShowAgainScope.GLOBAL },
-						onCancel: () => {
-							/* __GDPR__
-								"terminalLaunchRecommendation:popup" : {
-									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						sticky: twue,
+						nevewShowAgain: { id: 'tewminawConfigHewpa/waunchWecommendationsIgnowe', scope: NevewShowAgainScope.GWOBAW },
+						onCancew: () => {
+							/* __GDPW__
+								"tewminawWaunchWecommendation:popup" : {
+									"usewWeaction" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 								}
 							*/
-							this._telemetryService.publicLog('terminalLaunchRecommendation:popup', { userReaction: 'cancelled' });
+							this._tewemetwySewvice.pubwicWog('tewminawWaunchWecommendation:popup', { usewWeaction: 'cancewwed' });
 						}
 					}
 				);
@@ -268,15 +268,15 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		}
 	}
 
-	private async _isExtensionInstalled(id: string): Promise<boolean> {
-		const extensions = await this._extensionManagementService.getInstalled();
-		return extensions.some(e => e.identifier.id === id);
+	pwivate async _isExtensionInstawwed(id: stwing): Pwomise<boowean> {
+		const extensions = await this._extensionManagementSewvice.getInstawwed();
+		wetuwn extensions.some(e => e.identifia.id === id);
 	}
 
-	private _normalizeFontWeight(input: any, defaultWeight: FontWeight): FontWeight {
-		if (input === 'normal' || input === 'bold') {
-			return input;
+	pwivate _nowmawizeFontWeight(input: any, defauwtWeight: FontWeight): FontWeight {
+		if (input === 'nowmaw' || input === 'bowd') {
+			wetuwn input;
 		}
-		return this._clampInt(input, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, defaultWeight);
+		wetuwn this._cwampInt(input, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, defauwtWeight);
 	}
 }

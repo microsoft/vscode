@@ -1,217 +1,217 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { binarySearch } from 'vs/base/common/arrays';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { compare } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IMarker, IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
+impowt { binawySeawch } fwom 'vs/base/common/awways';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { DisposabweStowe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { WinkedWist } fwom 'vs/base/common/winkedWist';
+impowt { compawe } fwom 'vs/base/common/stwings';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IMawka, IMawkewSewvice, MawkewSevewity } fwom 'vs/pwatfowm/mawkews/common/mawkews';
 
-export class MarkerCoordinate {
-	constructor(
-		readonly marker: IMarker,
-		readonly index: number,
-		readonly total: number
+expowt cwass MawkewCoowdinate {
+	constwuctow(
+		weadonwy mawka: IMawka,
+		weadonwy index: numba,
+		weadonwy totaw: numba
 	) { }
 }
 
-export class MarkerList {
+expowt cwass MawkewWist {
 
-	private readonly _onDidChange = new Emitter<void>();
-	readonly onDidChange: Event<void> = this._onDidChange.event;
+	pwivate weadonwy _onDidChange = new Emitta<void>();
+	weadonwy onDidChange: Event<void> = this._onDidChange.event;
 
-	private readonly _resourceFilter?: (uri: URI) => boolean;
-	private readonly _dispoables = new DisposableStore();
+	pwivate weadonwy _wesouwceFiwta?: (uwi: UWI) => boowean;
+	pwivate weadonwy _dispoabwes = new DisposabweStowe();
 
-	private _markers: IMarker[] = [];
-	private _nextIdx: number = -1;
+	pwivate _mawkews: IMawka[] = [];
+	pwivate _nextIdx: numba = -1;
 
-	constructor(
-		resourceFilter: URI | ((uri: URI) => boolean) | undefined,
-		@IMarkerService private readonly _markerService: IMarkerService,
+	constwuctow(
+		wesouwceFiwta: UWI | ((uwi: UWI) => boowean) | undefined,
+		@IMawkewSewvice pwivate weadonwy _mawkewSewvice: IMawkewSewvice,
 	) {
-		if (URI.isUri(resourceFilter)) {
-			this._resourceFilter = uri => uri.toString() === resourceFilter.toString();
-		} else if (resourceFilter) {
-			this._resourceFilter = resourceFilter;
+		if (UWI.isUwi(wesouwceFiwta)) {
+			this._wesouwceFiwta = uwi => uwi.toStwing() === wesouwceFiwta.toStwing();
+		} ewse if (wesouwceFiwta) {
+			this._wesouwceFiwta = wesouwceFiwta;
 		}
 
-		const updateMarker = () => {
-			this._markers = this._markerService.read({
-				resource: URI.isUri(resourceFilter) ? resourceFilter : undefined,
-				severities: MarkerSeverity.Error | MarkerSeverity.Warning | MarkerSeverity.Info
+		const updateMawka = () => {
+			this._mawkews = this._mawkewSewvice.wead({
+				wesouwce: UWI.isUwi(wesouwceFiwta) ? wesouwceFiwta : undefined,
+				sevewities: MawkewSevewity.Ewwow | MawkewSevewity.Wawning | MawkewSevewity.Info
 			});
-			if (typeof resourceFilter === 'function') {
-				this._markers = this._markers.filter(m => this._resourceFilter!(m.resource));
+			if (typeof wesouwceFiwta === 'function') {
+				this._mawkews = this._mawkews.fiwta(m => this._wesouwceFiwta!(m.wesouwce));
 			}
-			this._markers.sort(MarkerList._compareMarker);
+			this._mawkews.sowt(MawkewWist._compaweMawka);
 		};
 
-		updateMarker();
+		updateMawka();
 
-		this._dispoables.add(_markerService.onMarkerChanged(uris => {
-			if (!this._resourceFilter || uris.some(uri => this._resourceFilter!(uri))) {
-				updateMarker();
+		this._dispoabwes.add(_mawkewSewvice.onMawkewChanged(uwis => {
+			if (!this._wesouwceFiwta || uwis.some(uwi => this._wesouwceFiwta!(uwi))) {
+				updateMawka();
 				this._nextIdx = -1;
-				this._onDidChange.fire();
+				this._onDidChange.fiwe();
 			}
 		}));
 	}
 
 	dispose(): void {
-		this._dispoables.dispose();
+		this._dispoabwes.dispose();
 		this._onDidChange.dispose();
 	}
 
-	matches(uri: URI | undefined) {
-		if (!this._resourceFilter && !uri) {
-			return true;
+	matches(uwi: UWI | undefined) {
+		if (!this._wesouwceFiwta && !uwi) {
+			wetuwn twue;
 		}
-		if (!this._resourceFilter || !uri) {
-			return false;
+		if (!this._wesouwceFiwta || !uwi) {
+			wetuwn fawse;
 		}
-		return this._resourceFilter(uri);
+		wetuwn this._wesouwceFiwta(uwi);
 	}
 
-	get selected(): MarkerCoordinate | undefined {
-		const marker = this._markers[this._nextIdx];
-		return marker && new MarkerCoordinate(marker, this._nextIdx + 1, this._markers.length);
+	get sewected(): MawkewCoowdinate | undefined {
+		const mawka = this._mawkews[this._nextIdx];
+		wetuwn mawka && new MawkewCoowdinate(mawka, this._nextIdx + 1, this._mawkews.wength);
 	}
 
-	private _initIdx(model: ITextModel, position: Position, fwd: boolean): void {
-		let found = false;
+	pwivate _initIdx(modew: ITextModew, position: Position, fwd: boowean): void {
+		wet found = fawse;
 
-		let idx = this._markers.findIndex(marker => marker.resource.toString() === model.uri.toString());
+		wet idx = this._mawkews.findIndex(mawka => mawka.wesouwce.toStwing() === modew.uwi.toStwing());
 		if (idx < 0) {
-			idx = binarySearch(this._markers, <any>{ resource: model.uri }, (a, b) => compare(a.resource.toString(), b.resource.toString()));
+			idx = binawySeawch(this._mawkews, <any>{ wesouwce: modew.uwi }, (a, b) => compawe(a.wesouwce.toStwing(), b.wesouwce.toStwing()));
 			if (idx < 0) {
 				idx = ~idx;
 			}
 		}
 
-		for (let i = idx; i < this._markers.length; i++) {
-			let range = Range.lift(this._markers[i]);
+		fow (wet i = idx; i < this._mawkews.wength; i++) {
+			wet wange = Wange.wift(this._mawkews[i]);
 
-			if (range.isEmpty()) {
-				const word = model.getWordAtPosition(range.getStartPosition());
-				if (word) {
-					range = new Range(range.startLineNumber, word.startColumn, range.startLineNumber, word.endColumn);
+			if (wange.isEmpty()) {
+				const wowd = modew.getWowdAtPosition(wange.getStawtPosition());
+				if (wowd) {
+					wange = new Wange(wange.stawtWineNumba, wowd.stawtCowumn, wange.stawtWineNumba, wowd.endCowumn);
 				}
 			}
 
-			if (position && (range.containsPosition(position) || position.isBeforeOrEqual(range.getStartPosition()))) {
+			if (position && (wange.containsPosition(position) || position.isBefoweOwEquaw(wange.getStawtPosition()))) {
 				this._nextIdx = i;
-				found = true;
-				break;
+				found = twue;
+				bweak;
 			}
 
-			if (this._markers[i].resource.toString() !== model.uri.toString()) {
-				break;
+			if (this._mawkews[i].wesouwce.toStwing() !== modew.uwi.toStwing()) {
+				bweak;
 			}
 		}
 
 		if (!found) {
-			// after the last change
-			this._nextIdx = fwd ? 0 : this._markers.length - 1;
+			// afta the wast change
+			this._nextIdx = fwd ? 0 : this._mawkews.wength - 1;
 		}
 		if (this._nextIdx < 0) {
-			this._nextIdx = this._markers.length - 1;
+			this._nextIdx = this._mawkews.wength - 1;
 		}
 	}
 
-	resetIndex() {
+	wesetIndex() {
 		this._nextIdx = -1;
 	}
 
-	move(fwd: boolean, model: ITextModel, position: Position): boolean {
-		if (this._markers.length === 0) {
-			return false;
+	move(fwd: boowean, modew: ITextModew, position: Position): boowean {
+		if (this._mawkews.wength === 0) {
+			wetuwn fawse;
 		}
 
-		let oldIdx = this._nextIdx;
+		wet owdIdx = this._nextIdx;
 		if (this._nextIdx === -1) {
-			this._initIdx(model, position, fwd);
-		} else if (fwd) {
-			this._nextIdx = (this._nextIdx + 1) % this._markers.length;
-		} else if (!fwd) {
-			this._nextIdx = (this._nextIdx - 1 + this._markers.length) % this._markers.length;
+			this._initIdx(modew, position, fwd);
+		} ewse if (fwd) {
+			this._nextIdx = (this._nextIdx + 1) % this._mawkews.wength;
+		} ewse if (!fwd) {
+			this._nextIdx = (this._nextIdx - 1 + this._mawkews.wength) % this._mawkews.wength;
 		}
 
-		if (oldIdx !== this._nextIdx) {
-			return true;
+		if (owdIdx !== this._nextIdx) {
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	find(uri: URI, position: Position): MarkerCoordinate | undefined {
-		let idx = this._markers.findIndex(marker => marker.resource.toString() === uri.toString());
+	find(uwi: UWI, position: Position): MawkewCoowdinate | undefined {
+		wet idx = this._mawkews.findIndex(mawka => mawka.wesouwce.toStwing() === uwi.toStwing());
 		if (idx < 0) {
-			return undefined;
+			wetuwn undefined;
 		}
-		for (; idx < this._markers.length; idx++) {
-			if (Range.containsPosition(this._markers[idx], position)) {
-				return new MarkerCoordinate(this._markers[idx], idx + 1, this._markers.length);
+		fow (; idx < this._mawkews.wength; idx++) {
+			if (Wange.containsPosition(this._mawkews[idx], position)) {
+				wetuwn new MawkewCoowdinate(this._mawkews[idx], idx + 1, this._mawkews.wength);
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private static _compareMarker(a: IMarker, b: IMarker): number {
-		let res = compare(a.resource.toString(), b.resource.toString());
-		if (res === 0) {
-			res = MarkerSeverity.compare(a.severity, b.severity);
+	pwivate static _compaweMawka(a: IMawka, b: IMawka): numba {
+		wet wes = compawe(a.wesouwce.toStwing(), b.wesouwce.toStwing());
+		if (wes === 0) {
+			wes = MawkewSevewity.compawe(a.sevewity, b.sevewity);
 		}
-		if (res === 0) {
-			res = Range.compareRangesUsingStarts(a, b);
+		if (wes === 0) {
+			wes = Wange.compaweWangesUsingStawts(a, b);
 		}
-		return res;
+		wetuwn wes;
 	}
 }
 
-export const IMarkerNavigationService = createDecorator<IMarkerNavigationService>('IMarkerNavigationService');
+expowt const IMawkewNavigationSewvice = cweateDecowatow<IMawkewNavigationSewvice>('IMawkewNavigationSewvice');
 
-export interface IMarkerNavigationService {
-	readonly _serviceBrand: undefined;
-	registerProvider(provider: IMarkerListProvider): IDisposable;
-	getMarkerList(resource: URI | undefined): MarkerList;
+expowt intewface IMawkewNavigationSewvice {
+	weadonwy _sewviceBwand: undefined;
+	wegistewPwovida(pwovida: IMawkewWistPwovida): IDisposabwe;
+	getMawkewWist(wesouwce: UWI | undefined): MawkewWist;
 }
 
-export interface IMarkerListProvider {
-	getMarkerList(resource: URI | undefined): MarkerList | undefined;
+expowt intewface IMawkewWistPwovida {
+	getMawkewWist(wesouwce: UWI | undefined): MawkewWist | undefined;
 }
 
-class MarkerNavigationService implements IMarkerNavigationService, IMarkerListProvider {
+cwass MawkewNavigationSewvice impwements IMawkewNavigationSewvice, IMawkewWistPwovida {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	private readonly _provider = new LinkedList<IMarkerListProvider>();
+	pwivate weadonwy _pwovida = new WinkedWist<IMawkewWistPwovida>();
 
-	constructor(@IMarkerService private readonly _markerService: IMarkerService) { }
+	constwuctow(@IMawkewSewvice pwivate weadonwy _mawkewSewvice: IMawkewSewvice) { }
 
-	registerProvider(provider: IMarkerListProvider): IDisposable {
-		const remove = this._provider.unshift(provider);
-		return toDisposable(() => remove());
+	wegistewPwovida(pwovida: IMawkewWistPwovida): IDisposabwe {
+		const wemove = this._pwovida.unshift(pwovida);
+		wetuwn toDisposabwe(() => wemove());
 	}
 
-	getMarkerList(resource: URI | undefined): MarkerList {
-		for (let provider of this._provider) {
-			const result = provider.getMarkerList(resource);
-			if (result) {
-				return result;
+	getMawkewWist(wesouwce: UWI | undefined): MawkewWist {
+		fow (wet pwovida of this._pwovida) {
+			const wesuwt = pwovida.getMawkewWist(wesouwce);
+			if (wesuwt) {
+				wetuwn wesuwt;
 			}
 		}
-		// default
-		return new MarkerList(resource, this._markerService);
+		// defauwt
+		wetuwn new MawkewWist(wesouwce, this._mawkewSewvice);
 	}
 }
 
-registerSingleton(IMarkerNavigationService, MarkerNavigationService, true);
+wegistewSingweton(IMawkewNavigationSewvice, MawkewNavigationSewvice, twue);

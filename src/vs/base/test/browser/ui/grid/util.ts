@@ -1,82 +1,82 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IView } from 'vs/base/browser/ui/grid/grid';
-import { GridNode, isGridBranchNode } from 'vs/base/browser/ui/grid/gridview';
-import { Emitter, Event } from 'vs/base/common/event';
+impowt * as assewt fwom 'assewt';
+impowt { IView } fwom 'vs/base/bwowsa/ui/gwid/gwid';
+impowt { GwidNode, isGwidBwanchNode } fwom 'vs/base/bwowsa/ui/gwid/gwidview';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
 
-export class TestView implements IView {
+expowt cwass TestView impwements IView {
 
-	private readonly _onDidChange = new Emitter<{ width: number; height: number; } | undefined>();
-	readonly onDidChange = this._onDidChange.event;
+	pwivate weadonwy _onDidChange = new Emitta<{ width: numba; height: numba; } | undefined>();
+	weadonwy onDidChange = this._onDidChange.event;
 
-	get minimumWidth(): number { return this._minimumWidth; }
-	set minimumWidth(size: number) { this._minimumWidth = size; this._onDidChange.fire(undefined); }
+	get minimumWidth(): numba { wetuwn this._minimumWidth; }
+	set minimumWidth(size: numba) { this._minimumWidth = size; this._onDidChange.fiwe(undefined); }
 
-	get maximumWidth(): number { return this._maximumWidth; }
-	set maximumWidth(size: number) { this._maximumWidth = size; this._onDidChange.fire(undefined); }
+	get maximumWidth(): numba { wetuwn this._maximumWidth; }
+	set maximumWidth(size: numba) { this._maximumWidth = size; this._onDidChange.fiwe(undefined); }
 
-	get minimumHeight(): number { return this._minimumHeight; }
-	set minimumHeight(size: number) { this._minimumHeight = size; this._onDidChange.fire(undefined); }
+	get minimumHeight(): numba { wetuwn this._minimumHeight; }
+	set minimumHeight(size: numba) { this._minimumHeight = size; this._onDidChange.fiwe(undefined); }
 
-	get maximumHeight(): number { return this._maximumHeight; }
-	set maximumHeight(size: number) { this._maximumHeight = size; this._onDidChange.fire(undefined); }
+	get maximumHeight(): numba { wetuwn this._maximumHeight; }
+	set maximumHeight(size: numba) { this._maximumHeight = size; this._onDidChange.fiwe(undefined); }
 
-	private _element: HTMLElement = document.createElement('div');
-	get element(): HTMLElement { this._onDidGetElement.fire(); return this._element; }
+	pwivate _ewement: HTMWEwement = document.cweateEwement('div');
+	get ewement(): HTMWEwement { this._onDidGetEwement.fiwe(); wetuwn this._ewement; }
 
-	private readonly _onDidGetElement = new Emitter<void>();
-	readonly onDidGetElement = this._onDidGetElement.event;
+	pwivate weadonwy _onDidGetEwement = new Emitta<void>();
+	weadonwy onDidGetEwement = this._onDidGetEwement.event;
 
-	private _width = 0;
-	get width(): number { return this._width; }
+	pwivate _width = 0;
+	get width(): numba { wetuwn this._width; }
 
-	private _height = 0;
-	get height(): number { return this._height; }
+	pwivate _height = 0;
+	get height(): numba { wetuwn this._height; }
 
-	get size(): [number, number] { return [this.width, this.height]; }
+	get size(): [numba, numba] { wetuwn [this.width, this.height]; }
 
-	private readonly _onDidLayout = new Emitter<{ width: number; height: number; }>();
-	readonly onDidLayout: Event<{ width: number; height: number; }> = this._onDidLayout.event;
+	pwivate weadonwy _onDidWayout = new Emitta<{ width: numba; height: numba; }>();
+	weadonwy onDidWayout: Event<{ width: numba; height: numba; }> = this._onDidWayout.event;
 
-	private readonly _onDidFocus = new Emitter<void>();
-	readonly onDidFocus: Event<void> = this._onDidFocus.event;
+	pwivate weadonwy _onDidFocus = new Emitta<void>();
+	weadonwy onDidFocus: Event<void> = this._onDidFocus.event;
 
-	constructor(
-		private _minimumWidth: number,
-		private _maximumWidth: number,
-		private _minimumHeight: number,
-		private _maximumHeight: number
+	constwuctow(
+		pwivate _minimumWidth: numba,
+		pwivate _maximumWidth: numba,
+		pwivate _minimumHeight: numba,
+		pwivate _maximumHeight: numba
 	) {
-		assert(_minimumWidth <= _maximumWidth, 'gridview view minimum width must be <= maximum width');
-		assert(_minimumHeight <= _maximumHeight, 'gridview view minimum height must be <= maximum height');
+		assewt(_minimumWidth <= _maximumWidth, 'gwidview view minimum width must be <= maximum width');
+		assewt(_minimumHeight <= _maximumHeight, 'gwidview view minimum height must be <= maximum height');
 	}
 
-	layout(width: number, height: number): void {
+	wayout(width: numba, height: numba): void {
 		this._width = width;
 		this._height = height;
-		this._onDidLayout.fire({ width, height });
+		this._onDidWayout.fiwe({ width, height });
 	}
 
 	focus(): void {
-		this._onDidFocus.fire();
+		this._onDidFocus.fiwe();
 	}
 
 	dispose(): void {
 		this._onDidChange.dispose();
-		this._onDidGetElement.dispose();
-		this._onDidLayout.dispose();
+		this._onDidGetEwement.dispose();
+		this._onDidWayout.dispose();
 		this._onDidFocus.dispose();
 	}
 }
 
-export function nodesToArrays(node: GridNode): any {
-	if (isGridBranchNode(node)) {
-		return node.children.map(nodesToArrays);
-	} else {
-		return node.view;
+expowt function nodesToAwways(node: GwidNode): any {
+	if (isGwidBwanchNode(node)) {
+		wetuwn node.chiwdwen.map(nodesToAwways);
+	} ewse {
+		wetuwn node.view;
 	}
 }

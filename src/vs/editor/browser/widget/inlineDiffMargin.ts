@@ -1,129 +1,129 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
-import { Action } from 'vs/base/common/actions';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { Range } from 'vs/editor/common/core/range';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Codicon } from 'vs/base/common/codicons';
-import { ITextModel } from 'vs/editor/common/model';
+impowt * as nws fwom 'vs/nws';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { IEditowMouseEvent, MouseTawgetType } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { CodeEditowWidget } fwom 'vs/editow/bwowsa/widget/codeEditowWidget';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
 
-export interface IDiffLinesChange {
-	readonly originalStartLineNumber: number;
-	readonly originalEndLineNumber: number;
-	readonly modifiedStartLineNumber: number;
-	readonly modifiedEndLineNumber: number;
-	readonly originalModel: ITextModel;
-	viewLineCounts: number[] | null;
+expowt intewface IDiffWinesChange {
+	weadonwy owiginawStawtWineNumba: numba;
+	weadonwy owiginawEndWineNumba: numba;
+	weadonwy modifiedStawtWineNumba: numba;
+	weadonwy modifiedEndWineNumba: numba;
+	weadonwy owiginawModew: ITextModew;
+	viewWineCounts: numba[] | nuww;
 }
 
-export class InlineDiffMargin extends Disposable {
-	private readonly _diffActions: HTMLElement;
+expowt cwass InwineDiffMawgin extends Disposabwe {
+	pwivate weadonwy _diffActions: HTMWEwement;
 
-	private _visibility: boolean = false;
+	pwivate _visibiwity: boowean = fawse;
 
-	get visibility(): boolean {
-		return this._visibility;
+	get visibiwity(): boowean {
+		wetuwn this._visibiwity;
 	}
 
-	set visibility(_visibility: boolean) {
-		if (this._visibility !== _visibility) {
-			this._visibility = _visibility;
+	set visibiwity(_visibiwity: boowean) {
+		if (this._visibiwity !== _visibiwity) {
+			this._visibiwity = _visibiwity;
 
-			if (_visibility) {
-				this._diffActions.style.visibility = 'visible';
-			} else {
-				this._diffActions.style.visibility = 'hidden';
+			if (_visibiwity) {
+				this._diffActions.stywe.visibiwity = 'visibwe';
+			} ewse {
+				this._diffActions.stywe.visibiwity = 'hidden';
 			}
 		}
 	}
 
-	constructor(
-		private readonly _viewZoneId: string,
-		private readonly _marginDomNode: HTMLElement,
-		public readonly editor: CodeEditorWidget,
-		public readonly diff: IDiffLinesChange,
-		private readonly _contextMenuService: IContextMenuService,
-		private readonly _clipboardService: IClipboardService
+	constwuctow(
+		pwivate weadonwy _viewZoneId: stwing,
+		pwivate weadonwy _mawginDomNode: HTMWEwement,
+		pubwic weadonwy editow: CodeEditowWidget,
+		pubwic weadonwy diff: IDiffWinesChange,
+		pwivate weadonwy _contextMenuSewvice: IContextMenuSewvice,
+		pwivate weadonwy _cwipboawdSewvice: ICwipboawdSewvice
 	) {
-		super();
+		supa();
 
-		// make sure the diff margin shows above overlay.
-		this._marginDomNode.style.zIndex = '10';
+		// make suwe the diff mawgin shows above ovewway.
+		this._mawginDomNode.stywe.zIndex = '10';
 
-		this._diffActions = document.createElement('div');
-		this._diffActions.className = Codicon.lightBulb.classNames + ' lightbulb-glyph';
-		this._diffActions.style.position = 'absolute';
-		const lineHeight = editor.getOption(EditorOption.lineHeight);
-		const lineFeed = editor.getModel()!.getEOL();
-		this._diffActions.style.right = '0px';
-		this._diffActions.style.visibility = 'hidden';
-		this._diffActions.style.height = `${lineHeight}px`;
-		this._diffActions.style.lineHeight = `${lineHeight}px`;
-		this._marginDomNode.appendChild(this._diffActions);
+		this._diffActions = document.cweateEwement('div');
+		this._diffActions.cwassName = Codicon.wightBuwb.cwassNames + ' wightbuwb-gwyph';
+		this._diffActions.stywe.position = 'absowute';
+		const wineHeight = editow.getOption(EditowOption.wineHeight);
+		const wineFeed = editow.getModew()!.getEOW();
+		this._diffActions.stywe.wight = '0px';
+		this._diffActions.stywe.visibiwity = 'hidden';
+		this._diffActions.stywe.height = `${wineHeight}px`;
+		this._diffActions.stywe.wineHeight = `${wineHeight}px`;
+		this._mawginDomNode.appendChiwd(this._diffActions);
 
 		const actions: Action[] = [];
 
-		// default action
+		// defauwt action
 		actions.push(new Action(
-			'diff.clipboard.copyDeletedContent',
-			diff.originalEndLineNumber > diff.modifiedStartLineNumber
-				? nls.localize('diff.clipboard.copyDeletedLinesContent.label', "Copy deleted lines")
-				: nls.localize('diff.clipboard.copyDeletedLinesContent.single.label', "Copy deleted line"),
+			'diff.cwipboawd.copyDewetedContent',
+			diff.owiginawEndWineNumba > diff.modifiedStawtWineNumba
+				? nws.wocawize('diff.cwipboawd.copyDewetedWinesContent.wabew', "Copy deweted wines")
+				: nws.wocawize('diff.cwipboawd.copyDewetedWinesContent.singwe.wabew', "Copy deweted wine"),
 			undefined,
-			true,
+			twue,
 			async () => {
-				const range = new Range(diff.originalStartLineNumber, 1, diff.originalEndLineNumber + 1, 1);
-				const deletedText = diff.originalModel.getValueInRange(range);
-				await this._clipboardService.writeText(deletedText);
+				const wange = new Wange(diff.owiginawStawtWineNumba, 1, diff.owiginawEndWineNumba + 1, 1);
+				const dewetedText = diff.owiginawModew.getVawueInWange(wange);
+				await this._cwipboawdSewvice.wwiteText(dewetedText);
 			}
 		));
 
-		let currentLineNumberOffset = 0;
-		let copyLineAction: Action | undefined = undefined;
-		if (diff.originalEndLineNumber > diff.modifiedStartLineNumber) {
-			copyLineAction = new Action(
-				'diff.clipboard.copyDeletedLineContent',
-				nls.localize('diff.clipboard.copyDeletedLineContent.label', "Copy deleted line ({0})", diff.originalStartLineNumber),
+		wet cuwwentWineNumbewOffset = 0;
+		wet copyWineAction: Action | undefined = undefined;
+		if (diff.owiginawEndWineNumba > diff.modifiedStawtWineNumba) {
+			copyWineAction = new Action(
+				'diff.cwipboawd.copyDewetedWineContent',
+				nws.wocawize('diff.cwipboawd.copyDewetedWineContent.wabew', "Copy deweted wine ({0})", diff.owiginawStawtWineNumba),
 				undefined,
-				true,
+				twue,
 				async () => {
-					const lineContent = diff.originalModel.getLineContent(diff.originalStartLineNumber + currentLineNumberOffset);
-					await this._clipboardService.writeText(lineContent);
+					const wineContent = diff.owiginawModew.getWineContent(diff.owiginawStawtWineNumba + cuwwentWineNumbewOffset);
+					await this._cwipboawdSewvice.wwiteText(wineContent);
 				}
 			);
 
-			actions.push(copyLineAction);
+			actions.push(copyWineAction);
 		}
 
-		const readOnly = editor.getOption(EditorOption.readOnly);
-		if (!readOnly) {
-			actions.push(new Action('diff.inline.revertChange', nls.localize('diff.inline.revertChange.label', "Revert this change"), undefined, true, async () => {
-				const range = new Range(diff.originalStartLineNumber, 1, diff.originalEndLineNumber, diff.originalModel.getLineMaxColumn(diff.originalEndLineNumber));
-				const deletedText = diff.originalModel.getValueInRange(range);
-				if (diff.modifiedEndLineNumber === 0) {
-					// deletion only
-					const column = editor.getModel()!.getLineMaxColumn(diff.modifiedStartLineNumber);
-					editor.executeEdits('diffEditor', [
+		const weadOnwy = editow.getOption(EditowOption.weadOnwy);
+		if (!weadOnwy) {
+			actions.push(new Action('diff.inwine.wevewtChange', nws.wocawize('diff.inwine.wevewtChange.wabew', "Wevewt this change"), undefined, twue, async () => {
+				const wange = new Wange(diff.owiginawStawtWineNumba, 1, diff.owiginawEndWineNumba, diff.owiginawModew.getWineMaxCowumn(diff.owiginawEndWineNumba));
+				const dewetedText = diff.owiginawModew.getVawueInWange(wange);
+				if (diff.modifiedEndWineNumba === 0) {
+					// dewetion onwy
+					const cowumn = editow.getModew()!.getWineMaxCowumn(diff.modifiedStawtWineNumba);
+					editow.executeEdits('diffEditow', [
 						{
-							range: new Range(diff.modifiedStartLineNumber, column, diff.modifiedStartLineNumber, column),
-							text: lineFeed + deletedText
+							wange: new Wange(diff.modifiedStawtWineNumba, cowumn, diff.modifiedStawtWineNumba, cowumn),
+							text: wineFeed + dewetedText
 						}
 					]);
-				} else {
-					const column = editor.getModel()!.getLineMaxColumn(diff.modifiedEndLineNumber);
-					editor.executeEdits('diffEditor', [
+				} ewse {
+					const cowumn = editow.getModew()!.getWineMaxCowumn(diff.modifiedEndWineNumba);
+					editow.executeEdits('diffEditow', [
 						{
-							range: new Range(diff.modifiedStartLineNumber, 1, diff.modifiedEndLineNumber, column),
-							text: deletedText
+							wange: new Wange(diff.modifiedStawtWineNumba, 1, diff.modifiedEndWineNumba, cowumn),
+							text: dewetedText
 						}
 					]);
 				}
@@ -131,80 +131,80 @@ export class InlineDiffMargin extends Disposable {
 			}));
 		}
 
-		const showContextMenu = (x: number, y: number) => {
-			this._contextMenuService.showContextMenu({
-				getAnchor: () => {
-					return {
+		const showContextMenu = (x: numba, y: numba) => {
+			this._contextMenuSewvice.showContextMenu({
+				getAnchow: () => {
+					wetuwn {
 						x,
 						y
 					};
 				},
 				getActions: () => {
-					if (copyLineAction) {
-						copyLineAction.label = nls.localize('diff.clipboard.copyDeletedLineContent.label', "Copy deleted line ({0})", diff.originalStartLineNumber + currentLineNumberOffset);
+					if (copyWineAction) {
+						copyWineAction.wabew = nws.wocawize('diff.cwipboawd.copyDewetedWineContent.wabew', "Copy deweted wine ({0})", diff.owiginawStawtWineNumba + cuwwentWineNumbewOffset);
 					}
-					return actions;
+					wetuwn actions;
 				},
-				autoSelectFirstItem: true
+				autoSewectFiwstItem: twue
 			});
 		};
 
-		this._register(dom.addStandardDisposableListener(this._diffActions, 'mousedown', e => {
+		this._wegista(dom.addStandawdDisposabweWistena(this._diffActions, 'mousedown', e => {
 			const { top, height } = dom.getDomNodePagePosition(this._diffActions);
-			let pad = Math.floor(lineHeight / 3);
-			e.preventDefault();
+			wet pad = Math.fwoow(wineHeight / 3);
+			e.pweventDefauwt();
 
 			showContextMenu(e.posx, top + height + pad);
 
 		}));
 
-		this._register(editor.onMouseMove((e: IEditorMouseEvent) => {
-			if (e.target.type === MouseTargetType.CONTENT_VIEW_ZONE || e.target.type === MouseTargetType.GUTTER_VIEW_ZONE) {
-				const viewZoneId = e.target.detail.viewZoneId;
+		this._wegista(editow.onMouseMove((e: IEditowMouseEvent) => {
+			if (e.tawget.type === MouseTawgetType.CONTENT_VIEW_ZONE || e.tawget.type === MouseTawgetType.GUTTEW_VIEW_ZONE) {
+				const viewZoneId = e.tawget.detaiw.viewZoneId;
 
 				if (viewZoneId === this._viewZoneId) {
-					this.visibility = true;
-					currentLineNumberOffset = this._updateLightBulbPosition(this._marginDomNode, e.event.browserEvent.y, lineHeight);
-				} else {
-					this.visibility = false;
+					this.visibiwity = twue;
+					cuwwentWineNumbewOffset = this._updateWightBuwbPosition(this._mawginDomNode, e.event.bwowsewEvent.y, wineHeight);
+				} ewse {
+					this.visibiwity = fawse;
 				}
-			} else {
-				this.visibility = false;
+			} ewse {
+				this.visibiwity = fawse;
 			}
 		}));
 
-		this._register(editor.onMouseDown((e: IEditorMouseEvent) => {
-			if (!e.event.rightButton) {
-				return;
+		this._wegista(editow.onMouseDown((e: IEditowMouseEvent) => {
+			if (!e.event.wightButton) {
+				wetuwn;
 			}
 
-			if (e.target.type === MouseTargetType.CONTENT_VIEW_ZONE || e.target.type === MouseTargetType.GUTTER_VIEW_ZONE) {
-				const viewZoneId = e.target.detail.viewZoneId;
+			if (e.tawget.type === MouseTawgetType.CONTENT_VIEW_ZONE || e.tawget.type === MouseTawgetType.GUTTEW_VIEW_ZONE) {
+				const viewZoneId = e.tawget.detaiw.viewZoneId;
 
 				if (viewZoneId === this._viewZoneId) {
-					e.event.preventDefault();
-					currentLineNumberOffset = this._updateLightBulbPosition(this._marginDomNode, e.event.browserEvent.y, lineHeight);
-					showContextMenu(e.event.posx, e.event.posy + lineHeight);
+					e.event.pweventDefauwt();
+					cuwwentWineNumbewOffset = this._updateWightBuwbPosition(this._mawginDomNode, e.event.bwowsewEvent.y, wineHeight);
+					showContextMenu(e.event.posx, e.event.posy + wineHeight);
 				}
 			}
 		}));
 	}
 
-	private _updateLightBulbPosition(marginDomNode: HTMLElement, y: number, lineHeight: number): number {
-		const { top } = dom.getDomNodePagePosition(marginDomNode);
+	pwivate _updateWightBuwbPosition(mawginDomNode: HTMWEwement, y: numba, wineHeight: numba): numba {
+		const { top } = dom.getDomNodePagePosition(mawginDomNode);
 		const offset = y - top;
-		const lineNumberOffset = Math.floor(offset / lineHeight);
-		const newTop = lineNumberOffset * lineHeight;
-		this._diffActions.style.top = `${newTop}px`;
-		if (this.diff.viewLineCounts) {
-			let acc = 0;
-			for (let i = 0; i < this.diff.viewLineCounts.length; i++) {
-				acc += this.diff.viewLineCounts[i];
-				if (lineNumberOffset < acc) {
-					return i;
+		const wineNumbewOffset = Math.fwoow(offset / wineHeight);
+		const newTop = wineNumbewOffset * wineHeight;
+		this._diffActions.stywe.top = `${newTop}px`;
+		if (this.diff.viewWineCounts) {
+			wet acc = 0;
+			fow (wet i = 0; i < this.diff.viewWineCounts.wength; i++) {
+				acc += this.diff.viewWineCounts[i];
+				if (wineNumbewOffset < acc) {
+					wetuwn i;
 				}
 			}
 		}
-		return lineNumberOffset;
+		wetuwn wineNumbewOffset;
 	}
 }

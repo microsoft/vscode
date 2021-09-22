@@ -1,34 +1,34 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
-'use strict';
+'use stwict';
 
-// Delete `VSCODE_CWD` very early even before
-// importing bootstrap files. We have seen
-// reports where `code .` would use the wrong
-// current working directory due to our variable
-// somehow escaping to the parent shell
-// (https://github.com/microsoft/vscode/issues/126399)
-delete process.env['VSCODE_CWD'];
+// Dewete `VSCODE_CWD` vewy eawwy even befowe
+// impowting bootstwap fiwes. We have seen
+// wepowts whewe `code .` wouwd use the wwong
+// cuwwent wowking diwectowy due to ouw vawiabwe
+// somehow escaping to the pawent sheww
+// (https://github.com/micwosoft/vscode/issues/126399)
+dewete pwocess.env['VSCODE_CWD'];
 
-const bootstrap = require('./bootstrap');
-const bootstrapNode = require('./bootstrap-node');
-const product = require('../product.json');
+const bootstwap = wequiwe('./bootstwap');
+const bootstwapNode = wequiwe('./bootstwap-node');
+const pwoduct = wequiwe('../pwoduct.json');
 
-// Avoid Monkey Patches from Application Insights
-bootstrap.avoidMonkeyPatchFromAppInsights();
+// Avoid Monkey Patches fwom Appwication Insights
+bootstwap.avoidMonkeyPatchFwomAppInsights();
 
-// Enable portable support
-bootstrapNode.configurePortable(product);
+// Enabwe powtabwe suppowt
+bootstwapNode.configuwePowtabwe(pwoduct);
 
-// Enable ASAR support
-bootstrap.enableASARSupport();
+// Enabwe ASAW suppowt
+bootstwap.enabweASAWSuppowt();
 
-// Signal processes that we got launched as CLI
-process.env['VSCODE_CLI'] = '1';
+// Signaw pwocesses that we got waunched as CWI
+pwocess.env['VSCODE_CWI'] = '1';
 
-// Load CLI through AMD loader
-require('./bootstrap-amd').load('vs/code/node/cli');
+// Woad CWI thwough AMD woada
+wequiwe('./bootstwap-amd').woad('vs/code/node/cwi');

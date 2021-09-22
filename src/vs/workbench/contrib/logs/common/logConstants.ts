@@ -1,13 +1,13 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export const mainLogChannelId = 'mainLog';
-export const sharedLogChannelId = 'sharedLog';
-export const rendererLogChannelId = 'rendererLog';
-export const extHostLogChannelId = 'extHostLog';
-export const telemetryLogChannelId = 'telemetryLog';
-export const userDataSyncLogChannelId = 'userDataSyncLog';
+expowt const mainWogChannewId = 'mainWog';
+expowt const shawedWogChannewId = 'shawedWog';
+expowt const wendewewWogChannewId = 'wendewewWog';
+expowt const extHostWogChannewId = 'extHostWog';
+expowt const tewemetwyWogChannewId = 'tewemetwyWog';
+expowt const usewDataSyncWogChannewId = 'usewDataSyncWog';
 
-export const showWindowLogActionId = 'workbench.action.showWindowLog';
+expowt const showWindowWogActionId = 'wowkbench.action.showWindowWog';

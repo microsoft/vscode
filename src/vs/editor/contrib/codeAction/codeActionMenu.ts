@@ -1,234 +1,234 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { getDomNodePagePosition } from 'vs/base/browser/dom';
-import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { Action, IAction, Separator } from 'vs/base/common/actions';
-import { canceled } from 'vs/base/common/errors';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { CodeAction, CodeActionProviderRegistry, Command } from 'vs/editor/common/modes';
-import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/codeAction';
-import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind, CodeActionTrigger } from 'vs/editor/contrib/codeAction/types';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+impowt { getDomNodePagePosition } fwom 'vs/base/bwowsa/dom';
+impowt { IAnchow } fwom 'vs/base/bwowsa/ui/contextview/contextview';
+impowt { Action, IAction, Sepawatow } fwom 'vs/base/common/actions';
+impowt { cancewed } fwom 'vs/base/common/ewwows';
+impowt { WesowvedKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { Wazy } fwom 'vs/base/common/wazy';
+impowt { Disposabwe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { IPosition, Position } fwom 'vs/editow/common/cowe/position';
+impowt { ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { CodeAction, CodeActionPwovidewWegistwy, Command } fwom 'vs/editow/common/modes';
+impowt { codeActionCommandId, CodeActionItem, CodeActionSet, fixAwwCommandId, owganizeImpowtsCommandId, wefactowCommandId, souwceActionCommandId } fwom 'vs/editow/contwib/codeAction/codeAction';
+impowt { CodeActionAutoAppwy, CodeActionCommandAwgs, CodeActionKind, CodeActionTwigga } fwom 'vs/editow/contwib/codeAction/types';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { WesowvedKeybindingItem } fwom 'vs/pwatfowm/keybinding/common/wesowvedKeybindingItem';
 
-interface CodeActionWidgetDelegate {
-	onSelectCodeAction: (action: CodeActionItem) => Promise<any>;
+intewface CodeActionWidgetDewegate {
+	onSewectCodeAction: (action: CodeActionItem) => Pwomise<any>;
 }
 
-interface ResolveCodeActionKeybinding {
-	readonly kind: CodeActionKind;
-	readonly preferred: boolean;
-	readonly resolvedKeybinding: ResolvedKeybinding;
+intewface WesowveCodeActionKeybinding {
+	weadonwy kind: CodeActionKind;
+	weadonwy pwefewwed: boowean;
+	weadonwy wesowvedKeybinding: WesowvedKeybinding;
 }
 
-class CodeActionAction extends Action {
-	constructor(
-		public readonly action: CodeAction,
-		callback: () => Promise<void>,
+cwass CodeActionAction extends Action {
+	constwuctow(
+		pubwic weadonwy action: CodeAction,
+		cawwback: () => Pwomise<void>,
 	) {
-		super(action.command ? action.command.id : action.title, stripNewlines(action.title), undefined, !action.disabled, callback);
+		supa(action.command ? action.command.id : action.titwe, stwipNewwines(action.titwe), undefined, !action.disabwed, cawwback);
 	}
 }
 
-function stripNewlines(str: string): string {
-	return str.replace(/\r\n|\r|\n/g, ' ');
+function stwipNewwines(stw: stwing): stwing {
+	wetuwn stw.wepwace(/\w\n|\w|\n/g, ' ');
 }
 
-export interface CodeActionShowOptions {
-	readonly includeDisabledActions: boolean;
+expowt intewface CodeActionShowOptions {
+	weadonwy incwudeDisabwedActions: boowean;
 }
 
-export class CodeActionMenu extends Disposable {
+expowt cwass CodeActionMenu extends Disposabwe {
 
-	private _visible: boolean = false;
-	private readonly _showingActions = this._register(new MutableDisposable<CodeActionSet>());
+	pwivate _visibwe: boowean = fawse;
+	pwivate weadonwy _showingActions = this._wegista(new MutabweDisposabwe<CodeActionSet>());
 
-	private readonly _keybindingResolver: CodeActionKeybindingResolver;
+	pwivate weadonwy _keybindingWesowva: CodeActionKeybindingWesowva;
 
-	constructor(
-		private readonly _editor: ICodeEditor,
-		private readonly _delegate: CodeActionWidgetDelegate,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IKeybindingService keybindingService: IKeybindingService,
+	constwuctow(
+		pwivate weadonwy _editow: ICodeEditow,
+		pwivate weadonwy _dewegate: CodeActionWidgetDewegate,
+		@IContextMenuSewvice pwivate weadonwy _contextMenuSewvice: IContextMenuSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
 	) {
-		super();
+		supa();
 
-		this._keybindingResolver = new CodeActionKeybindingResolver({
-			getKeybindings: () => keybindingService.getKeybindings()
+		this._keybindingWesowva = new CodeActionKeybindingWesowva({
+			getKeybindings: () => keybindingSewvice.getKeybindings()
 		});
 	}
 
-	get isVisible(): boolean {
-		return this._visible;
+	get isVisibwe(): boowean {
+		wetuwn this._visibwe;
 	}
 
-	public async show(trigger: CodeActionTrigger, codeActions: CodeActionSet, at: IAnchor | IPosition, options: CodeActionShowOptions): Promise<void> {
-		const actionsToShow = options.includeDisabledActions ? codeActions.allActions : codeActions.validActions;
-		if (!actionsToShow.length) {
-			this._visible = false;
-			return;
+	pubwic async show(twigga: CodeActionTwigga, codeActions: CodeActionSet, at: IAnchow | IPosition, options: CodeActionShowOptions): Pwomise<void> {
+		const actionsToShow = options.incwudeDisabwedActions ? codeActions.awwActions : codeActions.vawidActions;
+		if (!actionsToShow.wength) {
+			this._visibwe = fawse;
+			wetuwn;
 		}
 
-		if (!this._editor.getDomNode()) {
-			// cancel when editor went off-dom
-			this._visible = false;
-			throw canceled();
+		if (!this._editow.getDomNode()) {
+			// cancew when editow went off-dom
+			this._visibwe = fawse;
+			thwow cancewed();
 		}
 
-		this._visible = true;
-		this._showingActions.value = codeActions;
+		this._visibwe = twue;
+		this._showingActions.vawue = codeActions;
 
-		const menuActions = this.getMenuActions(trigger, actionsToShow, codeActions.documentation);
+		const menuActions = this.getMenuActions(twigga, actionsToShow, codeActions.documentation);
 
-		const anchor = Position.isIPosition(at) ? this._toCoords(at) : at || { x: 0, y: 0 };
-		const resolver = this._keybindingResolver.getResolver();
+		const anchow = Position.isIPosition(at) ? this._toCoowds(at) : at || { x: 0, y: 0 };
+		const wesowva = this._keybindingWesowva.getWesowva();
 
-		const useShadowDOM = this._editor.getOption(EditorOption.useShadowDOM);
+		const useShadowDOM = this._editow.getOption(EditowOption.useShadowDOM);
 
-		this._contextMenuService.showContextMenu({
-			domForShadowRoot: useShadowDOM ? this._editor.getDomNode()! : undefined,
-			getAnchor: () => anchor,
+		this._contextMenuSewvice.showContextMenu({
+			domFowShadowWoot: useShadowDOM ? this._editow.getDomNode()! : undefined,
+			getAnchow: () => anchow,
 			getActions: () => menuActions,
 			onHide: () => {
-				this._visible = false;
-				this._editor.focus();
+				this._visibwe = fawse;
+				this._editow.focus();
 			},
-			autoSelectFirstItem: true,
-			getKeyBinding: action => action instanceof CodeActionAction ? resolver(action.action) : undefined,
+			autoSewectFiwstItem: twue,
+			getKeyBinding: action => action instanceof CodeActionAction ? wesowva(action.action) : undefined,
 		});
 	}
 
-	private getMenuActions(
-		trigger: CodeActionTrigger,
-		actionsToShow: readonly CodeActionItem[],
-		documentation: readonly Command[]
+	pwivate getMenuActions(
+		twigga: CodeActionTwigga,
+		actionsToShow: weadonwy CodeActionItem[],
+		documentation: weadonwy Command[]
 	): IAction[] {
-		const toCodeActionAction = (item: CodeActionItem): CodeActionAction => new CodeActionAction(item.action, () => this._delegate.onSelectCodeAction(item));
+		const toCodeActionAction = (item: CodeActionItem): CodeActionAction => new CodeActionAction(item.action, () => this._dewegate.onSewectCodeAction(item));
 
-		const result: IAction[] = actionsToShow
+		const wesuwt: IAction[] = actionsToShow
 			.map(toCodeActionAction);
 
-		const allDocumentation: Command[] = [...documentation];
+		const awwDocumentation: Command[] = [...documentation];
 
-		const model = this._editor.getModel();
-		if (model && result.length) {
-			for (const provider of CodeActionProviderRegistry.all(model)) {
-				if (provider._getAdditionalMenuItems) {
-					allDocumentation.push(...provider._getAdditionalMenuItems({ trigger: trigger.type, only: trigger.filter?.include?.value }, actionsToShow.map(item => item.action)));
+		const modew = this._editow.getModew();
+		if (modew && wesuwt.wength) {
+			fow (const pwovida of CodeActionPwovidewWegistwy.aww(modew)) {
+				if (pwovida._getAdditionawMenuItems) {
+					awwDocumentation.push(...pwovida._getAdditionawMenuItems({ twigga: twigga.type, onwy: twigga.fiwta?.incwude?.vawue }, actionsToShow.map(item => item.action)));
 				}
 			}
 		}
 
-		if (allDocumentation.length) {
-			result.push(new Separator(), ...allDocumentation.map(command => toCodeActionAction(new CodeActionItem({
-				title: command.title,
+		if (awwDocumentation.wength) {
+			wesuwt.push(new Sepawatow(), ...awwDocumentation.map(command => toCodeActionAction(new CodeActionItem({
+				titwe: command.titwe,
 				command: command,
 			}, undefined))));
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _toCoords(position: IPosition): { x: number, y: number } {
-		if (!this._editor.hasModel()) {
-			return { x: 0, y: 0 };
+	pwivate _toCoowds(position: IPosition): { x: numba, y: numba } {
+		if (!this._editow.hasModew()) {
+			wetuwn { x: 0, y: 0 };
 		}
-		this._editor.revealPosition(position, ScrollType.Immediate);
-		this._editor.render();
+		this._editow.weveawPosition(position, ScwowwType.Immediate);
+		this._editow.wenda();
 
-		// Translate to absolute editor position
-		const cursorCoords = this._editor.getScrolledVisiblePosition(position);
-		const editorCoords = getDomNodePagePosition(this._editor.getDomNode());
-		const x = editorCoords.left + cursorCoords.left;
-		const y = editorCoords.top + cursorCoords.top + cursorCoords.height;
+		// Twanswate to absowute editow position
+		const cuwsowCoowds = this._editow.getScwowwedVisibwePosition(position);
+		const editowCoowds = getDomNodePagePosition(this._editow.getDomNode());
+		const x = editowCoowds.weft + cuwsowCoowds.weft;
+		const y = editowCoowds.top + cuwsowCoowds.top + cuwsowCoowds.height;
 
-		return { x, y };
+		wetuwn { x, y };
 	}
 }
 
-export class CodeActionKeybindingResolver {
-	private static readonly codeActionCommands: readonly string[] = [
-		refactorCommandId,
+expowt cwass CodeActionKeybindingWesowva {
+	pwivate static weadonwy codeActionCommands: weadonwy stwing[] = [
+		wefactowCommandId,
 		codeActionCommandId,
-		sourceActionCommandId,
-		organizeImportsCommandId,
-		fixAllCommandId
+		souwceActionCommandId,
+		owganizeImpowtsCommandId,
+		fixAwwCommandId
 	];
 
-	constructor(
-		private readonly _keybindingProvider: {
-			getKeybindings(): readonly ResolvedKeybindingItem[],
+	constwuctow(
+		pwivate weadonwy _keybindingPwovida: {
+			getKeybindings(): weadonwy WesowvedKeybindingItem[],
 		},
 	) { }
 
-	public getResolver(): (action: CodeAction) => ResolvedKeybinding | undefined {
-		// Lazy since we may not actually ever read the value
-		const allCodeActionBindings = new Lazy<readonly ResolveCodeActionKeybinding[]>(() =>
-			this._keybindingProvider.getKeybindings()
-				.filter(item => CodeActionKeybindingResolver.codeActionCommands.indexOf(item.command!) >= 0)
-				.filter(item => item.resolvedKeybinding)
-				.map((item): ResolveCodeActionKeybinding => {
-					// Special case these commands since they come built-in with VS Code and don't use 'commandArgs'
-					let commandArgs = item.commandArgs;
-					if (item.command === organizeImportsCommandId) {
-						commandArgs = { kind: CodeActionKind.SourceOrganizeImports.value };
-					} else if (item.command === fixAllCommandId) {
-						commandArgs = { kind: CodeActionKind.SourceFixAll.value };
+	pubwic getWesowva(): (action: CodeAction) => WesowvedKeybinding | undefined {
+		// Wazy since we may not actuawwy eva wead the vawue
+		const awwCodeActionBindings = new Wazy<weadonwy WesowveCodeActionKeybinding[]>(() =>
+			this._keybindingPwovida.getKeybindings()
+				.fiwta(item => CodeActionKeybindingWesowva.codeActionCommands.indexOf(item.command!) >= 0)
+				.fiwta(item => item.wesowvedKeybinding)
+				.map((item): WesowveCodeActionKeybinding => {
+					// Speciaw case these commands since they come buiwt-in with VS Code and don't use 'commandAwgs'
+					wet commandAwgs = item.commandAwgs;
+					if (item.command === owganizeImpowtsCommandId) {
+						commandAwgs = { kind: CodeActionKind.SouwceOwganizeImpowts.vawue };
+					} ewse if (item.command === fixAwwCommandId) {
+						commandAwgs = { kind: CodeActionKind.SouwceFixAww.vawue };
 					}
 
-					return {
-						resolvedKeybinding: item.resolvedKeybinding!,
-						...CodeActionCommandArgs.fromUser(commandArgs, {
+					wetuwn {
+						wesowvedKeybinding: item.wesowvedKeybinding!,
+						...CodeActionCommandAwgs.fwomUsa(commandAwgs, {
 							kind: CodeActionKind.None,
-							apply: CodeActionAutoApply.Never
+							appwy: CodeActionAutoAppwy.Neva
 						})
 					};
 				}));
 
-		return (action) => {
+		wetuwn (action) => {
 			if (action.kind) {
-				const binding = this.bestKeybindingForCodeAction(action, allCodeActionBindings.getValue());
-				return binding?.resolvedKeybinding;
+				const binding = this.bestKeybindingFowCodeAction(action, awwCodeActionBindings.getVawue());
+				wetuwn binding?.wesowvedKeybinding;
 			}
-			return undefined;
+			wetuwn undefined;
 		};
 	}
 
-	private bestKeybindingForCodeAction(
+	pwivate bestKeybindingFowCodeAction(
 		action: CodeAction,
-		candidates: readonly ResolveCodeActionKeybinding[],
-	): ResolveCodeActionKeybinding | undefined {
+		candidates: weadonwy WesowveCodeActionKeybinding[],
+	): WesowveCodeActionKeybinding | undefined {
 		if (!action.kind) {
-			return undefined;
+			wetuwn undefined;
 		}
 		const kind = new CodeActionKind(action.kind);
 
-		return candidates
-			.filter(candidate => candidate.kind.contains(kind))
-			.filter(candidate => {
-				if (candidate.preferred) {
-					// If the candidate keybinding only applies to preferred actions, the this action must also be preferred
-					return action.isPreferred;
+		wetuwn candidates
+			.fiwta(candidate => candidate.kind.contains(kind))
+			.fiwta(candidate => {
+				if (candidate.pwefewwed) {
+					// If the candidate keybinding onwy appwies to pwefewwed actions, the this action must awso be pwefewwed
+					wetuwn action.isPwefewwed;
 				}
-				return true;
+				wetuwn twue;
 			})
-			.reduceRight((currentBest, candidate) => {
-				if (!currentBest) {
-					return candidate;
+			.weduceWight((cuwwentBest, candidate) => {
+				if (!cuwwentBest) {
+					wetuwn candidate;
 				}
-				// Select the more specific binding
-				return currentBest.kind.contains(candidate.kind) ? candidate : currentBest;
-			}, undefined as ResolveCodeActionKeybinding | undefined);
+				// Sewect the mowe specific binding
+				wetuwn cuwwentBest.kind.contains(candidate.kind) ? candidate : cuwwentBest;
+			}, undefined as WesowveCodeActionKeybinding | undefined);
 	}
 }
 

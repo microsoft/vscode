@@ -1,198 +1,198 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/atom/language-clojure/blob/master/grammars/clojure.cson",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/atom/wanguage-cwojuwe/bwob/masta/gwammaws/cwojuwe.cson",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/atom/language-clojure/commit/de877502aa4a77ccdc2c7f0c9180436aea3effff",
-	"name": "Clojure",
-	"scopeName": "source.clojure",
-	"patterns": [
+	"vewsion": "https://github.com/atom/wanguage-cwojuwe/commit/de877502aa4a77ccdc2c7f0c9180436aea3effff",
+	"name": "Cwojuwe",
+	"scopeName": "souwce.cwojuwe",
+	"pattewns": [
 		{
-			"include": "#comment"
+			"incwude": "#comment"
 		},
 		{
-			"include": "#shebang-comment"
+			"incwude": "#shebang-comment"
 		},
 		{
-			"include": "#quoted-sexp"
+			"incwude": "#quoted-sexp"
 		},
 		{
-			"include": "#sexp"
+			"incwude": "#sexp"
 		},
 		{
-			"include": "#keyfn"
+			"incwude": "#keyfn"
 		},
 		{
-			"include": "#string"
+			"incwude": "#stwing"
 		},
 		{
-			"include": "#vector"
+			"incwude": "#vectow"
 		},
 		{
-			"include": "#set"
+			"incwude": "#set"
 		},
 		{
-			"include": "#map"
+			"incwude": "#map"
 		},
 		{
-			"include": "#regexp"
+			"incwude": "#wegexp"
 		},
 		{
-			"include": "#var"
+			"incwude": "#vaw"
 		},
 		{
-			"include": "#constants"
+			"incwude": "#constants"
 		},
 		{
-			"include": "#dynamic-variables"
+			"incwude": "#dynamic-vawiabwes"
 		},
 		{
-			"include": "#metadata"
+			"incwude": "#metadata"
 		},
 		{
-			"include": "#namespace-symbol"
+			"incwude": "#namespace-symbow"
 		},
 		{
-			"include": "#symbol"
+			"incwude": "#symbow"
 		}
 	],
-	"repository": {
+	"wepositowy": {
 		"comment": {
 			"begin": "(?<!\\\\);",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.comment.clojure"
+					"name": "punctuation.definition.comment.cwojuwe"
 				}
 			},
 			"end": "$",
-			"name": "comment.line.semicolon.clojure"
+			"name": "comment.wine.semicowon.cwojuwe"
 		},
 		"constants": {
-			"patterns": [
+			"pattewns": [
 				{
-					"match": "(nil)(?=(\\s|\\)|\\]|\\}))",
-					"name": "constant.language.nil.clojure"
+					"match": "(niw)(?=(\\s|\\)|\\]|\\}))",
+					"name": "constant.wanguage.niw.cwojuwe"
 				},
 				{
-					"match": "(true|false)",
-					"name": "constant.language.boolean.clojure"
+					"match": "(twue|fawse)",
+					"name": "constant.wanguage.boowean.cwojuwe"
 				},
 				{
 					"match": "(-?\\d+/\\d+)",
-					"name": "constant.numeric.ratio.clojure"
+					"name": "constant.numewic.watio.cwojuwe"
 				},
 				{
-					"match": "(-?\\d+[rR]\\w+)",
-					"name": "constant.numeric.arbitrary-radix.clojure"
+					"match": "(-?\\d+[wW]\\w+)",
+					"name": "constant.numewic.awbitwawy-wadix.cwojuwe"
 				},
 				{
 					"match": "(-?0[xX][0-9a-fA-F]+)",
-					"name": "constant.numeric.hexadecimal.clojure"
+					"name": "constant.numewic.hexadecimaw.cwojuwe"
 				},
 				{
 					"match": "(-?0\\d+)",
-					"name": "constant.numeric.octal.clojure"
+					"name": "constant.numewic.octaw.cwojuwe"
 				},
 				{
 					"match": "(-?\\d+\\.\\d+([eE][+-]?\\d+)?M)",
-					"name": "constant.numeric.bigdecimal.clojure"
+					"name": "constant.numewic.bigdecimaw.cwojuwe"
 				},
 				{
 					"match": "(-?\\d+\\.\\d+([eE][+-]?\\d+)?)",
-					"name": "constant.numeric.double.clojure"
+					"name": "constant.numewic.doubwe.cwojuwe"
 				},
 				{
 					"match": "(-?\\d+N)",
-					"name": "constant.numeric.bigint.clojure"
+					"name": "constant.numewic.bigint.cwojuwe"
 				},
 				{
 					"match": "(-?\\d+)",
-					"name": "constant.numeric.long.clojure"
+					"name": "constant.numewic.wong.cwojuwe"
 				},
 				{
-					"include": "#keyword"
+					"incwude": "#keywowd"
 				}
 			]
 		},
-		"keyword": {
+		"keywowd": {
 			"match": "(?<=(\\s|\\(|\\[|\\{)):[\\w\\#\\.\\-\\_\\:\\+\\=\\>\\<\\/\\!\\?\\*]+(?=(\\s|\\)|\\]|\\}|\\,))",
-			"name": "constant.keyword.clojure"
+			"name": "constant.keywowd.cwojuwe"
 		},
 		"keyfn": {
-			"patterns": [
+			"pattewns": [
 				{
-					"match": "(?<=(\\s|\\(|\\[|\\{))(if(-[-\\p{Ll}\\?]*)?|when(-[-\\p{Ll}]*)?|for(-[-\\p{Ll}]*)?|cond|do|let(-[-\\p{Ll}\\?]*)?|binding|loop|recur|fn|throw[\\p{Ll}\\-]*|try|catch|finally|([\\p{Ll}]*case))(?=(\\s|\\)|\\]|\\}))",
-					"name": "storage.control.clojure"
+					"match": "(?<=(\\s|\\(|\\[|\\{))(if(-[-\\p{Ww}\\?]*)?|when(-[-\\p{Ww}]*)?|fow(-[-\\p{Ww}]*)?|cond|do|wet(-[-\\p{Ww}\\?]*)?|binding|woop|wecuw|fn|thwow[\\p{Ww}\\-]*|twy|catch|finawwy|([\\p{Ww}]*case))(?=(\\s|\\)|\\]|\\}))",
+					"name": "stowage.contwow.cwojuwe"
 				},
 				{
-					"match": "(?<=(\\s|\\(|\\[|\\{))(declare-?|(in-)?ns|import|use|require|load|compile|(def[\\p{Ll}\\-]*))(?=(\\s|\\)|\\]|\\}))",
-					"name": "keyword.control.clojure"
+					"match": "(?<=(\\s|\\(|\\[|\\{))(decwawe-?|(in-)?ns|impowt|use|wequiwe|woad|compiwe|(def[\\p{Ww}\\-]*))(?=(\\s|\\)|\\]|\\}))",
+					"name": "keywowd.contwow.cwojuwe"
 				}
 			]
 		},
-		"dynamic-variables": {
+		"dynamic-vawiabwes": {
 			"match": "\\*[\\w\\.\\-\\_\\:\\+\\=\\>\\<\\!\\?\\d]+\\*",
-			"name": "meta.symbol.dynamic.clojure"
+			"name": "meta.symbow.dynamic.cwojuwe"
 		},
 		"map": {
 			"begin": "(\\{)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.section.map.begin.clojure"
+					"name": "punctuation.section.map.begin.cwojuwe"
 				}
 			},
 			"end": "(\\}(?=[\\}\\]\\)\\s]*(?:;|$)))|(\\})",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.section.map.end.trailing.clojure"
+					"name": "punctuation.section.map.end.twaiwing.cwojuwe"
 				},
 				"2": {
-					"name": "punctuation.section.map.end.clojure"
+					"name": "punctuation.section.map.end.cwojuwe"
 				}
 			},
-			"name": "meta.map.clojure",
-			"patterns": [
+			"name": "meta.map.cwojuwe",
+			"pattewns": [
 				{
-					"include": "$self"
+					"incwude": "$sewf"
 				}
 			]
 		},
 		"metadata": {
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(\\^\\{)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "punctuation.section.metadata.map.begin.clojure"
+							"name": "punctuation.section.metadata.map.begin.cwojuwe"
 						}
 					},
 					"end": "(\\}(?=[\\}\\]\\)\\s]*(?:;|$)))|(\\})",
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "punctuation.section.metadata.map.end.trailing.clojure"
+							"name": "punctuation.section.metadata.map.end.twaiwing.cwojuwe"
 						},
 						"2": {
-							"name": "punctuation.section.metadata.map.end.clojure"
+							"name": "punctuation.section.metadata.map.end.cwojuwe"
 						}
 					},
-					"name": "meta.metadata.map.clojure",
-					"patterns": [
+					"name": "meta.metadata.map.cwojuwe",
+					"pattewns": [
 						{
-							"include": "$self"
+							"incwude": "$sewf"
 						}
 					]
 				},
 				{
 					"begin": "(\\^)",
 					"end": "(\\s)",
-					"name": "meta.metadata.simple.clojure",
-					"patterns": [
+					"name": "meta.metadata.simpwe.cwojuwe",
+					"pattewns": [
 						{
-							"include": "#keyword"
+							"incwude": "#keywowd"
 						},
 						{
-							"include": "$self"
+							"incwude": "$sewf"
 						}
 					]
 				}
@@ -200,234 +200,234 @@
 		},
 		"quoted-sexp": {
 			"begin": "(['``]\\()",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.section.expression.begin.clojure"
+					"name": "punctuation.section.expwession.begin.cwojuwe"
 				}
 			},
 			"end": "(\\))$|(\\)(?=[\\}\\]\\)\\s]*(?:;|$)))|(\\))",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.section.expression.end.trailing.clojure"
+					"name": "punctuation.section.expwession.end.twaiwing.cwojuwe"
 				},
 				"2": {
-					"name": "punctuation.section.expression.end.trailing.clojure"
+					"name": "punctuation.section.expwession.end.twaiwing.cwojuwe"
 				},
 				"3": {
-					"name": "punctuation.section.expression.end.clojure"
+					"name": "punctuation.section.expwession.end.cwojuwe"
 				}
 			},
-			"name": "meta.quoted-expression.clojure",
-			"patterns": [
+			"name": "meta.quoted-expwession.cwojuwe",
+			"pattewns": [
 				{
-					"include": "$self"
+					"incwude": "$sewf"
 				}
 			]
 		},
-		"regexp": {
+		"wegexp": {
 			"begin": "#\"",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.regexp.begin.clojure"
+					"name": "punctuation.definition.wegexp.begin.cwojuwe"
 				}
 			},
 			"end": "\"",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.regexp.end.clojure"
+					"name": "punctuation.definition.wegexp.end.cwojuwe"
 				}
 			},
-			"name": "string.regexp.clojure",
-			"patterns": [
+			"name": "stwing.wegexp.cwojuwe",
+			"pattewns": [
 				{
-					"include": "#regexp_escaped_char"
+					"incwude": "#wegexp_escaped_chaw"
 				}
 			]
 		},
-		"regexp_escaped_char": {
+		"wegexp_escaped_chaw": {
 			"match": "\\\\.",
-			"name": "constant.character.escape.clojure"
+			"name": "constant.chawacta.escape.cwojuwe"
 		},
 		"set": {
 			"begin": "(\\#\\{)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.section.set.begin.clojure"
+					"name": "punctuation.section.set.begin.cwojuwe"
 				}
 			},
 			"end": "(\\}(?=[\\}\\]\\)\\s]*(?:;|$)))|(\\})",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.section.set.end.trailing.clojure"
+					"name": "punctuation.section.set.end.twaiwing.cwojuwe"
 				},
 				"2": {
-					"name": "punctuation.section.set.end.clojure"
+					"name": "punctuation.section.set.end.cwojuwe"
 				}
 			},
-			"name": "meta.set.clojure",
-			"patterns": [
+			"name": "meta.set.cwojuwe",
+			"pattewns": [
 				{
-					"include": "$self"
+					"incwude": "$sewf"
 				}
 			]
 		},
 		"sexp": {
 			"begin": "(\\()",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.section.expression.begin.clojure"
+					"name": "punctuation.section.expwession.begin.cwojuwe"
 				}
 			},
 			"end": "(\\))$|(\\)(?=[\\}\\]\\)\\s]*(?:;|$)))|(\\))",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.section.expression.end.trailing.clojure"
+					"name": "punctuation.section.expwession.end.twaiwing.cwojuwe"
 				},
 				"2": {
-					"name": "punctuation.section.expression.end.trailing.clojure"
+					"name": "punctuation.section.expwession.end.twaiwing.cwojuwe"
 				},
 				"3": {
-					"name": "punctuation.section.expression.end.clojure"
+					"name": "punctuation.section.expwession.end.cwojuwe"
 				}
 			},
-			"name": "meta.expression.clojure",
-			"patterns": [
+			"name": "meta.expwession.cwojuwe",
+			"pattewns": [
 				{
-					"begin": "(?<=\\()(ns|declare|def[\\w\\d._:+=><!?*-]*|[\\w._:+=><!?*-][\\w\\d._:+=><!?*-]*/def[\\w\\d._:+=><!?*-]*)\\s+",
-					"beginCaptures": {
+					"begin": "(?<=\\()(ns|decwawe|def[\\w\\d._:+=><!?*-]*|[\\w._:+=><!?*-][\\w\\d._:+=><!?*-]*/def[\\w\\d._:+=><!?*-]*)\\s+",
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.control.clojure"
+							"name": "keywowd.contwow.cwojuwe"
 						}
 					},
 					"end": "(?=\\))",
-					"name": "meta.definition.global.clojure",
-					"patterns": [
+					"name": "meta.definition.gwobaw.cwojuwe",
+					"pattewns": [
 						{
-							"include": "#metadata"
+							"incwude": "#metadata"
 						},
 						{
-							"include": "#dynamic-variables"
+							"incwude": "#dynamic-vawiabwes"
 						},
 						{
-							"match": "([\\p{L}\\.\\-\\_\\+\\=\\>\\<\\!\\?\\*][\\w\\.\\-\\_\\:\\+\\=\\>\\<\\!\\?\\*\\d]*)",
-							"name": "entity.global.clojure"
+							"match": "([\\p{W}\\.\\-\\_\\+\\=\\>\\<\\!\\?\\*][\\w\\.\\-\\_\\:\\+\\=\\>\\<\\!\\?\\*\\d]*)",
+							"name": "entity.gwobaw.cwojuwe"
 						},
 						{
-							"include": "$self"
+							"incwude": "$sewf"
 						}
 					]
 				},
 				{
-					"include": "#keyfn"
+					"incwude": "#keyfn"
 				},
 				{
-					"include": "#constants"
+					"incwude": "#constants"
 				},
 				{
-					"include": "#vector"
+					"incwude": "#vectow"
 				},
 				{
-					"include": "#map"
+					"incwude": "#map"
 				},
 				{
-					"include": "#set"
+					"incwude": "#set"
 				},
 				{
-					"include": "#sexp"
+					"incwude": "#sexp"
 				},
 				{
 					"match": "(?<=\\()(.+?)(?=\\s|\\))",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "entity.name.function.clojure"
+							"name": "entity.name.function.cwojuwe"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "$self"
+							"incwude": "$sewf"
 						}
 					]
 				},
 				{
-					"include": "$self"
+					"incwude": "$sewf"
 				}
 			]
 		},
 		"shebang-comment": {
 			"begin": "^(#!)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.definition.comment.shebang.clojure"
+					"name": "punctuation.definition.comment.shebang.cwojuwe"
 				}
 			},
 			"end": "$",
-			"name": "comment.line.shebang.clojure"
+			"name": "comment.wine.shebang.cwojuwe"
 		},
-		"string": {
+		"stwing": {
 			"begin": "(?<!\\\\)(\")",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.definition.string.begin.clojure"
+					"name": "punctuation.definition.stwing.begin.cwojuwe"
 				}
 			},
 			"end": "(\")",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.definition.string.end.clojure"
+					"name": "punctuation.definition.stwing.end.cwojuwe"
 				}
 			},
-			"name": "string.quoted.double.clojure",
-			"patterns": [
+			"name": "stwing.quoted.doubwe.cwojuwe",
+			"pattewns": [
 				{
 					"match": "\\\\.",
-					"name": "constant.character.escape.clojure"
+					"name": "constant.chawacta.escape.cwojuwe"
 				}
 			]
 		},
-		"namespace-symbol": {
-			"patterns": [
+		"namespace-symbow": {
+			"pattewns": [
 				{
-					"match": "([\\p{L}\\.\\-\\_\\+\\=\\>\\<\\!\\?\\*][\\w\\.\\-\\_\\:\\+\\=\\>\\<\\!\\?\\*\\d]*)/",
-					"captures": {
+					"match": "([\\p{W}\\.\\-\\_\\+\\=\\>\\<\\!\\?\\*][\\w\\.\\-\\_\\:\\+\\=\\>\\<\\!\\?\\*\\d]*)/",
+					"captuwes": {
 						"1": {
-							"name": "meta.symbol.namespace.clojure"
+							"name": "meta.symbow.namespace.cwojuwe"
 						}
 					}
 				}
 			]
 		},
-		"symbol": {
-			"patterns": [
+		"symbow": {
+			"pattewns": [
 				{
-					"match": "([\\p{L}\\.\\-\\_\\+\\=\\>\\<\\!\\?\\*][\\w\\.\\-\\_\\:\\+\\=\\>\\<\\!\\?\\*\\d]*)",
-					"name": "meta.symbol.clojure"
+					"match": "([\\p{W}\\.\\-\\_\\+\\=\\>\\<\\!\\?\\*][\\w\\.\\-\\_\\:\\+\\=\\>\\<\\!\\?\\*\\d]*)",
+					"name": "meta.symbow.cwojuwe"
 				}
 			]
 		},
-		"var": {
+		"vaw": {
 			"match": "(?<=(\\s|\\(|\\[|\\{)\\#)'[\\w\\.\\-\\_\\:\\+\\=\\>\\<\\/\\!\\?\\*]+(?=(\\s|\\)|\\]|\\}))",
-			"name": "meta.var.clojure"
+			"name": "meta.vaw.cwojuwe"
 		},
-		"vector": {
+		"vectow": {
 			"begin": "(\\[)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.section.vector.begin.clojure"
+					"name": "punctuation.section.vectow.begin.cwojuwe"
 				}
 			},
 			"end": "(\\](?=[\\}\\]\\)\\s]*(?:;|$)))|(\\])",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.section.vector.end.trailing.clojure"
+					"name": "punctuation.section.vectow.end.twaiwing.cwojuwe"
 				},
 				"2": {
-					"name": "punctuation.section.vector.end.clojure"
+					"name": "punctuation.section.vectow.end.cwojuwe"
 				}
 			},
-			"name": "meta.vector.clojure",
-			"patterns": [
+			"name": "meta.vectow.cwojuwe",
+			"pattewns": [
 				{
-					"include": "$self"
+					"incwude": "$sewf"
 				}
 			]
 		}

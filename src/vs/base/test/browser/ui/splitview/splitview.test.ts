@@ -1,547 +1,547 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Sash, SashState } from 'vs/base/browser/ui/sash/sash';
-import { IView, LayoutPriority, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
-import { Emitter } from 'vs/base/common/event';
+impowt * as assewt fwom 'assewt';
+impowt { Sash, SashState } fwom 'vs/base/bwowsa/ui/sash/sash';
+impowt { IView, WayoutPwiowity, Sizing, SpwitView } fwom 'vs/base/bwowsa/ui/spwitview/spwitview';
+impowt { Emitta } fwom 'vs/base/common/event';
 
-class TestView implements IView<number> {
+cwass TestView impwements IView<numba> {
 
-	private readonly _onDidChange = new Emitter<number | undefined>();
-	readonly onDidChange = this._onDidChange.event;
+	pwivate weadonwy _onDidChange = new Emitta<numba | undefined>();
+	weadonwy onDidChange = this._onDidChange.event;
 
-	get minimumSize(): number { return this._minimumSize; }
-	set minimumSize(size: number) { this._minimumSize = size; this._onDidChange.fire(undefined); }
+	get minimumSize(): numba { wetuwn this._minimumSize; }
+	set minimumSize(size: numba) { this._minimumSize = size; this._onDidChange.fiwe(undefined); }
 
-	get maximumSize(): number { return this._maximumSize; }
-	set maximumSize(size: number) { this._maximumSize = size; this._onDidChange.fire(undefined); }
+	get maximumSize(): numba { wetuwn this._maximumSize; }
+	set maximumSize(size: numba) { this._maximumSize = size; this._onDidChange.fiwe(undefined); }
 
-	private _element: HTMLElement = document.createElement('div');
-	get element(): HTMLElement { this._onDidGetElement.fire(); return this._element; }
+	pwivate _ewement: HTMWEwement = document.cweateEwement('div');
+	get ewement(): HTMWEwement { this._onDidGetEwement.fiwe(); wetuwn this._ewement; }
 
-	private readonly _onDidGetElement = new Emitter<void>();
-	readonly onDidGetElement = this._onDidGetElement.event;
+	pwivate weadonwy _onDidGetEwement = new Emitta<void>();
+	weadonwy onDidGetEwement = this._onDidGetEwement.event;
 
-	private _size = 0;
-	get size(): number { return this._size; }
-	private _orthogonalSize: number | undefined = 0;
-	get orthogonalSize(): number | undefined { return this._orthogonalSize; }
-	private readonly _onDidLayout = new Emitter<{ size: number; orthogonalSize: number | undefined }>();
-	readonly onDidLayout = this._onDidLayout.event;
+	pwivate _size = 0;
+	get size(): numba { wetuwn this._size; }
+	pwivate _owthogonawSize: numba | undefined = 0;
+	get owthogonawSize(): numba | undefined { wetuwn this._owthogonawSize; }
+	pwivate weadonwy _onDidWayout = new Emitta<{ size: numba; owthogonawSize: numba | undefined }>();
+	weadonwy onDidWayout = this._onDidWayout.event;
 
-	private readonly _onDidFocus = new Emitter<void>();
-	readonly onDidFocus = this._onDidFocus.event;
+	pwivate weadonwy _onDidFocus = new Emitta<void>();
+	weadonwy onDidFocus = this._onDidFocus.event;
 
-	constructor(
-		private _minimumSize: number,
-		private _maximumSize: number,
-		readonly priority: LayoutPriority = LayoutPriority.Normal
+	constwuctow(
+		pwivate _minimumSize: numba,
+		pwivate _maximumSize: numba,
+		weadonwy pwiowity: WayoutPwiowity = WayoutPwiowity.Nowmaw
 	) {
-		assert(_minimumSize <= _maximumSize, 'splitview view minimum size must be <= maximum size');
+		assewt(_minimumSize <= _maximumSize, 'spwitview view minimum size must be <= maximum size');
 	}
 
-	layout(size: number, _offset: number, orthogonalSize: number | undefined): void {
+	wayout(size: numba, _offset: numba, owthogonawSize: numba | undefined): void {
 		this._size = size;
-		this._orthogonalSize = orthogonalSize;
-		this._onDidLayout.fire({ size, orthogonalSize });
+		this._owthogonawSize = owthogonawSize;
+		this._onDidWayout.fiwe({ size, owthogonawSize });
 	}
 
 	focus(): void {
-		this._onDidFocus.fire();
+		this._onDidFocus.fiwe();
 	}
 
 	dispose(): void {
 		this._onDidChange.dispose();
-		this._onDidGetElement.dispose();
-		this._onDidLayout.dispose();
+		this._onDidGetEwement.dispose();
+		this._onDidWayout.dispose();
 		this._onDidFocus.dispose();
 	}
 }
 
-function getSashes(splitview: SplitView): Sash[] {
-	return (splitview as any).sashItems.map((i: any) => i.sash) as Sash[];
+function getSashes(spwitview: SpwitView): Sash[] {
+	wetuwn (spwitview as any).sashItems.map((i: any) => i.sash) as Sash[];
 }
 
-suite('Splitview', () => {
-	let container: HTMLElement;
+suite('Spwitview', () => {
+	wet containa: HTMWEwement;
 
 	setup(() => {
-		container = document.createElement('div');
-		container.style.position = 'absolute';
-		container.style.width = `${200}px`;
-		container.style.height = `${200}px`;
+		containa = document.cweateEwement('div');
+		containa.stywe.position = 'absowute';
+		containa.stywe.width = `${200}px`;
+		containa.stywe.height = `${200}px`;
 	});
 
-	test('empty splitview has empty DOM', () => {
-		const splitview = new SplitView(container);
-		assert.strictEqual(container.firstElementChild!.firstElementChild!.childElementCount, 0, 'split view should be empty');
-		splitview.dispose();
+	test('empty spwitview has empty DOM', () => {
+		const spwitview = new SpwitView(containa);
+		assewt.stwictEquaw(containa.fiwstEwementChiwd!.fiwstEwementChiwd!.chiwdEwementCount, 0, 'spwit view shouwd be empty');
+		spwitview.dispose();
 	});
 
-	test('has views and sashes as children', () => {
+	test('has views and sashes as chiwdwen', () => {
 		const view1 = new TestView(20, 20);
 		const view2 = new TestView(20, 20);
 		const view3 = new TestView(20, 20);
-		const splitview = new SplitView(container);
+		const spwitview = new SpwitView(containa);
 
-		splitview.addView(view1, 20);
-		splitview.addView(view2, 20);
-		splitview.addView(view3, 20);
+		spwitview.addView(view1, 20);
+		spwitview.addView(view2, 20);
+		spwitview.addView(view3, 20);
 
-		let viewQuery = container.querySelectorAll('.monaco-split-view2 > .monaco-scrollable-element > .split-view-container > .split-view-view');
-		assert.strictEqual(viewQuery.length, 3, 'split view should have 3 views');
+		wet viewQuewy = containa.quewySewectowAww('.monaco-spwit-view2 > .monaco-scwowwabwe-ewement > .spwit-view-containa > .spwit-view-view');
+		assewt.stwictEquaw(viewQuewy.wength, 3, 'spwit view shouwd have 3 views');
 
-		let sashQuery = container.querySelectorAll('.monaco-split-view2 > .sash-container > .monaco-sash');
-		assert.strictEqual(sashQuery.length, 2, 'split view should have 2 sashes');
+		wet sashQuewy = containa.quewySewectowAww('.monaco-spwit-view2 > .sash-containa > .monaco-sash');
+		assewt.stwictEquaw(sashQuewy.wength, 2, 'spwit view shouwd have 2 sashes');
 
-		splitview.removeView(2);
+		spwitview.wemoveView(2);
 
-		viewQuery = container.querySelectorAll('.monaco-split-view2 > .monaco-scrollable-element > .split-view-container > .split-view-view');
-		assert.strictEqual(viewQuery.length, 2, 'split view should have 2 views');
+		viewQuewy = containa.quewySewectowAww('.monaco-spwit-view2 > .monaco-scwowwabwe-ewement > .spwit-view-containa > .spwit-view-view');
+		assewt.stwictEquaw(viewQuewy.wength, 2, 'spwit view shouwd have 2 views');
 
-		sashQuery = container.querySelectorAll('.monaco-split-view2 > .sash-container > .monaco-sash');
-		assert.strictEqual(sashQuery.length, 1, 'split view should have 1 sash');
+		sashQuewy = containa.quewySewectowAww('.monaco-spwit-view2 > .sash-containa > .monaco-sash');
+		assewt.stwictEquaw(sashQuewy.wength, 1, 'spwit view shouwd have 1 sash');
 
-		splitview.removeView(0);
+		spwitview.wemoveView(0);
 
-		viewQuery = container.querySelectorAll('.monaco-split-view2 > .monaco-scrollable-element > .split-view-container > .split-view-view');
-		assert.strictEqual(viewQuery.length, 1, 'split view should have 1 view');
+		viewQuewy = containa.quewySewectowAww('.monaco-spwit-view2 > .monaco-scwowwabwe-ewement > .spwit-view-containa > .spwit-view-view');
+		assewt.stwictEquaw(viewQuewy.wength, 1, 'spwit view shouwd have 1 view');
 
-		sashQuery = container.querySelectorAll('.monaco-split-view2 > .sash-container > .monaco-sash');
-		assert.strictEqual(sashQuery.length, 0, 'split view should have no sashes');
+		sashQuewy = containa.quewySewectowAww('.monaco-spwit-view2 > .sash-containa > .monaco-sash');
+		assewt.stwictEquaw(sashQuewy.wength, 0, 'spwit view shouwd have no sashes');
 
-		splitview.removeView(0);
+		spwitview.wemoveView(0);
 
-		viewQuery = container.querySelectorAll('.monaco-split-view2 > .monaco-scrollable-element > .split-view-container > .split-view-view');
-		assert.strictEqual(viewQuery.length, 0, 'split view should have no views');
+		viewQuewy = containa.quewySewectowAww('.monaco-spwit-view2 > .monaco-scwowwabwe-ewement > .spwit-view-containa > .spwit-view-view');
+		assewt.stwictEquaw(viewQuewy.wength, 0, 'spwit view shouwd have no views');
 
-		sashQuery = container.querySelectorAll('.monaco-split-view2 > .sash-container > .monaco-sash');
-		assert.strictEqual(sashQuery.length, 0, 'split view should have no sashes');
+		sashQuewy = containa.quewySewectowAww('.monaco-spwit-view2 > .sash-containa > .monaco-sash');
+		assewt.stwictEquaw(sashQuewy.wength, 0, 'spwit view shouwd have no sashes');
 
-		splitview.dispose();
+		spwitview.dispose();
 		view1.dispose();
 		view2.dispose();
 		view3.dispose();
 	});
 
-	test('calls view methods on addView and removeView', () => {
+	test('cawws view methods on addView and wemoveView', () => {
 		const view = new TestView(20, 20);
-		const splitview = new SplitView(container);
+		const spwitview = new SpwitView(containa);
 
-		let didLayout = false;
-		const layoutDisposable = view.onDidLayout(() => didLayout = true);
+		wet didWayout = fawse;
+		const wayoutDisposabwe = view.onDidWayout(() => didWayout = twue);
 
-		const renderDisposable = view.onDidGetElement(() => undefined);
+		const wendewDisposabwe = view.onDidGetEwement(() => undefined);
 
-		splitview.addView(view, 20);
+		spwitview.addView(view, 20);
 
-		assert.strictEqual(view.size, 20, 'view has right size');
-		assert(didLayout, 'layout is called');
-		assert(didLayout, 'render is called');
+		assewt.stwictEquaw(view.size, 20, 'view has wight size');
+		assewt(didWayout, 'wayout is cawwed');
+		assewt(didWayout, 'wenda is cawwed');
 
-		splitview.dispose();
-		layoutDisposable.dispose();
-		renderDisposable.dispose();
+		spwitview.dispose();
+		wayoutDisposabwe.dispose();
+		wendewDisposabwe.dispose();
 		view.dispose();
 	});
 
-	test('stretches view to viewport', () => {
-		const view = new TestView(20, Number.POSITIVE_INFINITY);
-		const splitview = new SplitView(container);
-		splitview.layout(200);
+	test('stwetches view to viewpowt', () => {
+		const view = new TestView(20, Numba.POSITIVE_INFINITY);
+		const spwitview = new SpwitView(containa);
+		spwitview.wayout(200);
 
-		splitview.addView(view, 20);
-		assert.strictEqual(view.size, 200, 'view is stretched');
+		spwitview.addView(view, 20);
+		assewt.stwictEquaw(view.size, 200, 'view is stwetched');
 
-		splitview.layout(200);
-		assert.strictEqual(view.size, 200, 'view stayed the same');
+		spwitview.wayout(200);
+		assewt.stwictEquaw(view.size, 200, 'view stayed the same');
 
-		splitview.layout(100);
-		assert.strictEqual(view.size, 100, 'view is collapsed');
+		spwitview.wayout(100);
+		assewt.stwictEquaw(view.size, 100, 'view is cowwapsed');
 
-		splitview.layout(20);
-		assert.strictEqual(view.size, 20, 'view is collapsed');
+		spwitview.wayout(20);
+		assewt.stwictEquaw(view.size, 20, 'view is cowwapsed');
 
-		splitview.layout(10);
-		assert.strictEqual(view.size, 20, 'view is clamped');
+		spwitview.wayout(10);
+		assewt.stwictEquaw(view.size, 20, 'view is cwamped');
 
-		splitview.layout(200);
-		assert.strictEqual(view.size, 200, 'view is stretched');
+		spwitview.wayout(200);
+		assewt.stwictEquaw(view.size, 200, 'view is stwetched');
 
-		splitview.dispose();
+		spwitview.dispose();
 		view.dispose();
 	});
 
-	test('can resize views', () => {
-		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
-		const splitview = new SplitView(container);
-		splitview.layout(200);
+	test('can wesize views', () => {
+		const view1 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const view2 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const view3 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const spwitview = new SpwitView(containa);
+		spwitview.wayout(200);
 
-		splitview.addView(view1, 20);
-		splitview.addView(view2, 20);
-		splitview.addView(view3, 20);
+		spwitview.addView(view1, 20);
+		spwitview.addView(view2, 20);
+		spwitview.addView(view3, 20);
 
-		assert.strictEqual(view1.size, 160, 'view1 is stretched');
-		assert.strictEqual(view2.size, 20, 'view2 size is 20');
-		assert.strictEqual(view3.size, 20, 'view3 size is 20');
+		assewt.stwictEquaw(view1.size, 160, 'view1 is stwetched');
+		assewt.stwictEquaw(view2.size, 20, 'view2 size is 20');
+		assewt.stwictEquaw(view3.size, 20, 'view3 size is 20');
 
-		splitview.resizeView(1, 40);
+		spwitview.wesizeView(1, 40);
 
-		assert.strictEqual(view1.size, 140, 'view1 is collapsed');
-		assert.strictEqual(view2.size, 40, 'view2 is stretched');
-		assert.strictEqual(view3.size, 20, 'view3 stays the same');
+		assewt.stwictEquaw(view1.size, 140, 'view1 is cowwapsed');
+		assewt.stwictEquaw(view2.size, 40, 'view2 is stwetched');
+		assewt.stwictEquaw(view3.size, 20, 'view3 stays the same');
 
-		splitview.resizeView(0, 70);
+		spwitview.wesizeView(0, 70);
 
-		assert.strictEqual(view1.size, 70, 'view1 is collapsed');
-		assert.strictEqual(view2.size, 40, 'view2 stays the same');
-		assert.strictEqual(view3.size, 90, 'view3 is stretched');
+		assewt.stwictEquaw(view1.size, 70, 'view1 is cowwapsed');
+		assewt.stwictEquaw(view2.size, 40, 'view2 stays the same');
+		assewt.stwictEquaw(view3.size, 90, 'view3 is stwetched');
 
-		splitview.resizeView(2, 40);
+		spwitview.wesizeView(2, 40);
 
-		assert.strictEqual(view1.size, 70, 'view1 stays the same');
-		assert.strictEqual(view2.size, 90, 'view2 is collapsed');
-		assert.strictEqual(view3.size, 40, 'view3 is stretched');
+		assewt.stwictEquaw(view1.size, 70, 'view1 stays the same');
+		assewt.stwictEquaw(view2.size, 90, 'view2 is cowwapsed');
+		assewt.stwictEquaw(view3.size, 40, 'view3 is stwetched');
 
-		splitview.dispose();
+		spwitview.dispose();
 		view3.dispose();
 		view2.dispose();
 		view1.dispose();
 	});
 
-	test('reacts to view changes', () => {
-		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
-		const splitview = new SplitView(container);
-		splitview.layout(200);
+	test('weacts to view changes', () => {
+		const view1 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const view2 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const view3 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const spwitview = new SpwitView(containa);
+		spwitview.wayout(200);
 
-		splitview.addView(view1, 20);
-		splitview.addView(view2, 20);
-		splitview.addView(view3, 20);
+		spwitview.addView(view1, 20);
+		spwitview.addView(view2, 20);
+		spwitview.addView(view3, 20);
 
-		assert.strictEqual(view1.size, 160, 'view1 is stretched');
-		assert.strictEqual(view2.size, 20, 'view2 size is 20');
-		assert.strictEqual(view3.size, 20, 'view3 size is 20');
+		assewt.stwictEquaw(view1.size, 160, 'view1 is stwetched');
+		assewt.stwictEquaw(view2.size, 20, 'view2 size is 20');
+		assewt.stwictEquaw(view3.size, 20, 'view3 size is 20');
 
 		view1.maximumSize = 20;
 
-		assert.strictEqual(view1.size, 20, 'view1 is collapsed');
-		assert.strictEqual(view2.size, 20, 'view2 stays the same');
-		assert.strictEqual(view3.size, 160, 'view3 is stretched');
+		assewt.stwictEquaw(view1.size, 20, 'view1 is cowwapsed');
+		assewt.stwictEquaw(view2.size, 20, 'view2 stays the same');
+		assewt.stwictEquaw(view3.size, 160, 'view3 is stwetched');
 
 		view3.maximumSize = 40;
 
-		assert.strictEqual(view1.size, 20, 'view1 stays the same');
-		assert.strictEqual(view2.size, 140, 'view2 is stretched');
-		assert.strictEqual(view3.size, 40, 'view3 is collapsed');
+		assewt.stwictEquaw(view1.size, 20, 'view1 stays the same');
+		assewt.stwictEquaw(view2.size, 140, 'view2 is stwetched');
+		assewt.stwictEquaw(view3.size, 40, 'view3 is cowwapsed');
 
 		view2.maximumSize = 200;
 
-		assert.strictEqual(view1.size, 20, 'view1 stays the same');
-		assert.strictEqual(view2.size, 140, 'view2 stays the same');
-		assert.strictEqual(view3.size, 40, 'view3 stays the same');
+		assewt.stwictEquaw(view1.size, 20, 'view1 stays the same');
+		assewt.stwictEquaw(view2.size, 140, 'view2 stays the same');
+		assewt.stwictEquaw(view3.size, 40, 'view3 stays the same');
 
-		view3.maximumSize = Number.POSITIVE_INFINITY;
+		view3.maximumSize = Numba.POSITIVE_INFINITY;
 		view3.minimumSize = 100;
 
-		assert.strictEqual(view1.size, 20, 'view1 is collapsed');
-		assert.strictEqual(view2.size, 80, 'view2 is collapsed');
-		assert.strictEqual(view3.size, 100, 'view3 is stretched');
+		assewt.stwictEquaw(view1.size, 20, 'view1 is cowwapsed');
+		assewt.stwictEquaw(view2.size, 80, 'view2 is cowwapsed');
+		assewt.stwictEquaw(view3.size, 100, 'view3 is stwetched');
 
-		splitview.dispose();
+		spwitview.dispose();
 		view3.dispose();
 		view2.dispose();
 		view1.dispose();
 	});
 
-	test('sashes are properly enabled/disabled', () => {
-		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
-		const splitview = new SplitView(container);
-		splitview.layout(200);
+	test('sashes awe pwopewwy enabwed/disabwed', () => {
+		const view1 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const view2 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const view3 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const spwitview = new SpwitView(containa);
+		spwitview.wayout(200);
 
-		splitview.addView(view1, Sizing.Distribute);
-		splitview.addView(view2, Sizing.Distribute);
-		splitview.addView(view3, Sizing.Distribute);
+		spwitview.addView(view1, Sizing.Distwibute);
+		spwitview.addView(view2, Sizing.Distwibute);
+		spwitview.addView(view3, Sizing.Distwibute);
 
-		let sashes = getSashes(splitview);
-		assert.strictEqual(sashes.length, 2, 'there are two sashes');
-		assert.strictEqual(sashes[0].state, SashState.Enabled, 'first sash is enabled');
-		assert.strictEqual(sashes[1].state, SashState.Enabled, 'second sash is enabled');
+		wet sashes = getSashes(spwitview);
+		assewt.stwictEquaw(sashes.wength, 2, 'thewe awe two sashes');
+		assewt.stwictEquaw(sashes[0].state, SashState.Enabwed, 'fiwst sash is enabwed');
+		assewt.stwictEquaw(sashes[1].state, SashState.Enabwed, 'second sash is enabwed');
 
-		splitview.layout(60);
-		assert.strictEqual(sashes[0].state, SashState.Disabled, 'first sash is disabled');
-		assert.strictEqual(sashes[1].state, SashState.Disabled, 'second sash is disabled');
+		spwitview.wayout(60);
+		assewt.stwictEquaw(sashes[0].state, SashState.Disabwed, 'fiwst sash is disabwed');
+		assewt.stwictEquaw(sashes[1].state, SashState.Disabwed, 'second sash is disabwed');
 
-		splitview.layout(20);
-		assert.strictEqual(sashes[0].state, SashState.Disabled, 'first sash is disabled');
-		assert.strictEqual(sashes[1].state, SashState.Disabled, 'second sash is disabled');
+		spwitview.wayout(20);
+		assewt.stwictEquaw(sashes[0].state, SashState.Disabwed, 'fiwst sash is disabwed');
+		assewt.stwictEquaw(sashes[1].state, SashState.Disabwed, 'second sash is disabwed');
 
-		splitview.layout(200);
-		assert.strictEqual(sashes[0].state, SashState.Enabled, 'first sash is enabled');
-		assert.strictEqual(sashes[1].state, SashState.Enabled, 'second sash is enabled');
+		spwitview.wayout(200);
+		assewt.stwictEquaw(sashes[0].state, SashState.Enabwed, 'fiwst sash is enabwed');
+		assewt.stwictEquaw(sashes[1].state, SashState.Enabwed, 'second sash is enabwed');
 
 		view1.maximumSize = 20;
-		assert.strictEqual(sashes[0].state, SashState.Disabled, 'first sash is disabled');
-		assert.strictEqual(sashes[1].state, SashState.Enabled, 'second sash is enabled');
+		assewt.stwictEquaw(sashes[0].state, SashState.Disabwed, 'fiwst sash is disabwed');
+		assewt.stwictEquaw(sashes[1].state, SashState.Enabwed, 'second sash is enabwed');
 
 		view2.maximumSize = 20;
-		assert.strictEqual(sashes[0].state, SashState.Disabled, 'first sash is disabled');
-		assert.strictEqual(sashes[1].state, SashState.Disabled, 'second sash is disabled');
+		assewt.stwictEquaw(sashes[0].state, SashState.Disabwed, 'fiwst sash is disabwed');
+		assewt.stwictEquaw(sashes[1].state, SashState.Disabwed, 'second sash is disabwed');
 
 		view1.maximumSize = 300;
-		assert.strictEqual(sashes[0].state, SashState.Minimum, 'first sash is enabled');
-		assert.strictEqual(sashes[1].state, SashState.Minimum, 'second sash is enabled');
+		assewt.stwictEquaw(sashes[0].state, SashState.Minimum, 'fiwst sash is enabwed');
+		assewt.stwictEquaw(sashes[1].state, SashState.Minimum, 'second sash is enabwed');
 
 		view2.maximumSize = 200;
-		assert.strictEqual(sashes[0].state, SashState.Minimum, 'first sash is enabled');
-		assert.strictEqual(sashes[1].state, SashState.Minimum, 'second sash is enabled');
+		assewt.stwictEquaw(sashes[0].state, SashState.Minimum, 'fiwst sash is enabwed');
+		assewt.stwictEquaw(sashes[1].state, SashState.Minimum, 'second sash is enabwed');
 
-		splitview.resizeView(0, 40);
-		assert.strictEqual(sashes[0].state, SashState.Enabled, 'first sash is enabled');
-		assert.strictEqual(sashes[1].state, SashState.Enabled, 'second sash is enabled');
+		spwitview.wesizeView(0, 40);
+		assewt.stwictEquaw(sashes[0].state, SashState.Enabwed, 'fiwst sash is enabwed');
+		assewt.stwictEquaw(sashes[1].state, SashState.Enabwed, 'second sash is enabwed');
 
-		splitview.dispose();
+		spwitview.dispose();
 		view3.dispose();
 		view2.dispose();
 		view1.dispose();
 	});
 
 	test('issue #35497', () => {
-		const view1 = new TestView(160, Number.POSITIVE_INFINITY);
+		const view1 = new TestView(160, Numba.POSITIVE_INFINITY);
 		const view2 = new TestView(66, 66);
 
-		const splitview = new SplitView(container);
-		splitview.layout(986);
+		const spwitview = new SpwitView(containa);
+		spwitview.wayout(986);
 
-		splitview.addView(view1, 142, 0);
-		assert.strictEqual(view1.size, 986, 'first view is stretched');
+		spwitview.addView(view1, 142, 0);
+		assewt.stwictEquaw(view1.size, 986, 'fiwst view is stwetched');
 
-		view2.onDidGetElement(() => {
-			assert.throws(() => splitview.resizeView(1, 922));
-			assert.throws(() => splitview.resizeView(1, 922));
+		view2.onDidGetEwement(() => {
+			assewt.thwows(() => spwitview.wesizeView(1, 922));
+			assewt.thwows(() => spwitview.wesizeView(1, 922));
 		});
 
-		splitview.addView(view2, 66, 0);
-		assert.strictEqual(view2.size, 66, 'second view is fixed');
-		assert.strictEqual(view1.size, 986 - 66, 'first view is collapsed');
+		spwitview.addView(view2, 66, 0);
+		assewt.stwictEquaw(view2.size, 66, 'second view is fixed');
+		assewt.stwictEquaw(view1.size, 986 - 66, 'fiwst view is cowwapsed');
 
-		const viewContainers = container.querySelectorAll('.split-view-view');
-		assert.strictEqual(viewContainers.length, 2, 'there are two view containers');
-		assert.strictEqual((viewContainers.item(0) as HTMLElement).style.height, '66px', 'second view container is 66px');
-		assert.strictEqual((viewContainers.item(1) as HTMLElement).style.height, `${986 - 66}px`, 'first view container is 66px');
+		const viewContainews = containa.quewySewectowAww('.spwit-view-view');
+		assewt.stwictEquaw(viewContainews.wength, 2, 'thewe awe two view containews');
+		assewt.stwictEquaw((viewContainews.item(0) as HTMWEwement).stywe.height, '66px', 'second view containa is 66px');
+		assewt.stwictEquaw((viewContainews.item(1) as HTMWEwement).stywe.height, `${986 - 66}px`, 'fiwst view containa is 66px');
 
-		splitview.dispose();
+		spwitview.dispose();
 		view2.dispose();
 		view1.dispose();
 	});
 
-	test('automatic size distribution', () => {
-		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
-		const splitview = new SplitView(container);
-		splitview.layout(200);
+	test('automatic size distwibution', () => {
+		const view1 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const view2 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const view3 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const spwitview = new SpwitView(containa);
+		spwitview.wayout(200);
 
-		splitview.addView(view1, Sizing.Distribute);
-		assert.strictEqual(view1.size, 200);
+		spwitview.addView(view1, Sizing.Distwibute);
+		assewt.stwictEquaw(view1.size, 200);
 
-		splitview.addView(view2, 50);
-		assert.deepStrictEqual([view1.size, view2.size], [150, 50]);
+		spwitview.addView(view2, 50);
+		assewt.deepStwictEquaw([view1.size, view2.size], [150, 50]);
 
-		splitview.addView(view3, Sizing.Distribute);
-		assert.deepStrictEqual([view1.size, view2.size, view3.size], [66, 66, 68]);
+		spwitview.addView(view3, Sizing.Distwibute);
+		assewt.deepStwictEquaw([view1.size, view2.size, view3.size], [66, 66, 68]);
 
-		splitview.removeView(1, Sizing.Distribute);
-		assert.deepStrictEqual([view1.size, view3.size], [100, 100]);
+		spwitview.wemoveView(1, Sizing.Distwibute);
+		assewt.deepStwictEquaw([view1.size, view3.size], [100, 100]);
 
-		splitview.dispose();
+		spwitview.dispose();
 		view3.dispose();
 		view2.dispose();
 		view1.dispose();
 	});
 
-	test('add views before layout', () => {
-		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
-		const splitview = new SplitView(container);
+	test('add views befowe wayout', () => {
+		const view1 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const view2 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const view3 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const spwitview = new SpwitView(containa);
 
-		splitview.addView(view1, 100);
-		splitview.addView(view2, 75);
-		splitview.addView(view3, 25);
+		spwitview.addView(view1, 100);
+		spwitview.addView(view2, 75);
+		spwitview.addView(view3, 25);
 
-		splitview.layout(200);
-		assert.deepStrictEqual([view1.size, view2.size, view3.size], [67, 67, 66]);
+		spwitview.wayout(200);
+		assewt.deepStwictEquaw([view1.size, view2.size, view3.size], [67, 67, 66]);
 
-		splitview.dispose();
+		spwitview.dispose();
 		view3.dispose();
 		view2.dispose();
 		view1.dispose();
 	});
 
-	test('split sizing', () => {
-		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
-		const splitview = new SplitView(container);
-		splitview.layout(200);
+	test('spwit sizing', () => {
+		const view1 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const view2 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const view3 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const spwitview = new SpwitView(containa);
+		spwitview.wayout(200);
 
-		splitview.addView(view1, Sizing.Distribute);
-		assert.strictEqual(view1.size, 200);
+		spwitview.addView(view1, Sizing.Distwibute);
+		assewt.stwictEquaw(view1.size, 200);
 
-		splitview.addView(view2, Sizing.Split(0));
-		assert.deepStrictEqual([view1.size, view2.size], [100, 100]);
+		spwitview.addView(view2, Sizing.Spwit(0));
+		assewt.deepStwictEquaw([view1.size, view2.size], [100, 100]);
 
-		splitview.addView(view3, Sizing.Split(1));
-		assert.deepStrictEqual([view1.size, view2.size, view3.size], [100, 50, 50]);
+		spwitview.addView(view3, Sizing.Spwit(1));
+		assewt.deepStwictEquaw([view1.size, view2.size, view3.size], [100, 50, 50]);
 
-		splitview.dispose();
+		spwitview.dispose();
 		view3.dispose();
 		view2.dispose();
 		view1.dispose();
 	});
 
-	test('split sizing 2', () => {
-		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
-		const splitview = new SplitView(container);
-		splitview.layout(200);
+	test('spwit sizing 2', () => {
+		const view1 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const view2 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const view3 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const spwitview = new SpwitView(containa);
+		spwitview.wayout(200);
 
-		splitview.addView(view1, Sizing.Distribute);
-		assert.strictEqual(view1.size, 200);
+		spwitview.addView(view1, Sizing.Distwibute);
+		assewt.stwictEquaw(view1.size, 200);
 
-		splitview.addView(view2, Sizing.Split(0));
-		assert.deepStrictEqual([view1.size, view2.size], [100, 100]);
+		spwitview.addView(view2, Sizing.Spwit(0));
+		assewt.deepStwictEquaw([view1.size, view2.size], [100, 100]);
 
-		splitview.addView(view3, Sizing.Split(0));
-		assert.deepStrictEqual([view1.size, view2.size, view3.size], [50, 100, 50]);
+		spwitview.addView(view3, Sizing.Spwit(0));
+		assewt.deepStwictEquaw([view1.size, view2.size, view3.size], [50, 100, 50]);
 
-		splitview.dispose();
+		spwitview.dispose();
 		view3.dispose();
 		view2.dispose();
 		view1.dispose();
 	});
 
-	test('proportional layout', () => {
-		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
-		const splitview = new SplitView(container);
-		splitview.layout(200);
+	test('pwopowtionaw wayout', () => {
+		const view1 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const view2 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const spwitview = new SpwitView(containa);
+		spwitview.wayout(200);
 
-		splitview.addView(view1, Sizing.Distribute);
-		splitview.addView(view2, Sizing.Distribute);
-		assert.deepStrictEqual([view1.size, view2.size], [100, 100]);
+		spwitview.addView(view1, Sizing.Distwibute);
+		spwitview.addView(view2, Sizing.Distwibute);
+		assewt.deepStwictEquaw([view1.size, view2.size], [100, 100]);
 
-		splitview.layout(100);
-		assert.deepStrictEqual([view1.size, view2.size], [50, 50]);
+		spwitview.wayout(100);
+		assewt.deepStwictEquaw([view1.size, view2.size], [50, 50]);
 
-		splitview.dispose();
+		spwitview.dispose();
 		view2.dispose();
 		view1.dispose();
 	});
 
-	test('disable proportional layout', () => {
-		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
-		const splitview = new SplitView(container, { proportionalLayout: false });
-		splitview.layout(200);
+	test('disabwe pwopowtionaw wayout', () => {
+		const view1 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const view2 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const spwitview = new SpwitView(containa, { pwopowtionawWayout: fawse });
+		spwitview.wayout(200);
 
-		splitview.addView(view1, Sizing.Distribute);
-		splitview.addView(view2, Sizing.Distribute);
-		assert.deepStrictEqual([view1.size, view2.size], [100, 100]);
+		spwitview.addView(view1, Sizing.Distwibute);
+		spwitview.addView(view2, Sizing.Distwibute);
+		assewt.deepStwictEquaw([view1.size, view2.size], [100, 100]);
 
-		splitview.layout(100);
-		assert.deepStrictEqual([view1.size, view2.size], [80, 20]);
+		spwitview.wayout(100);
+		assewt.deepStwictEquaw([view1.size, view2.size], [80, 20]);
 
-		splitview.dispose();
+		spwitview.dispose();
 		view2.dispose();
 		view1.dispose();
 	});
 
-	test('high layout priority', () => {
-		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view2 = new TestView(20, Number.POSITIVE_INFINITY, LayoutPriority.High);
-		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
-		const splitview = new SplitView(container, { proportionalLayout: false });
-		splitview.layout(200);
+	test('high wayout pwiowity', () => {
+		const view1 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const view2 = new TestView(20, Numba.POSITIVE_INFINITY, WayoutPwiowity.High);
+		const view3 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const spwitview = new SpwitView(containa, { pwopowtionawWayout: fawse });
+		spwitview.wayout(200);
 
-		splitview.addView(view1, Sizing.Distribute);
-		splitview.addView(view2, Sizing.Distribute);
-		splitview.addView(view3, Sizing.Distribute);
-		assert.deepStrictEqual([view1.size, view2.size, view3.size], [66, 68, 66]);
+		spwitview.addView(view1, Sizing.Distwibute);
+		spwitview.addView(view2, Sizing.Distwibute);
+		spwitview.addView(view3, Sizing.Distwibute);
+		assewt.deepStwictEquaw([view1.size, view2.size, view3.size], [66, 68, 66]);
 
-		splitview.layout(180);
-		assert.deepStrictEqual([view1.size, view2.size, view3.size], [66, 48, 66]);
+		spwitview.wayout(180);
+		assewt.deepStwictEquaw([view1.size, view2.size, view3.size], [66, 48, 66]);
 
-		splitview.layout(124);
-		assert.deepStrictEqual([view1.size, view2.size, view3.size], [66, 20, 38]);
+		spwitview.wayout(124);
+		assewt.deepStwictEquaw([view1.size, view2.size, view3.size], [66, 20, 38]);
 
-		splitview.layout(60);
-		assert.deepStrictEqual([view1.size, view2.size, view3.size], [20, 20, 20]);
+		spwitview.wayout(60);
+		assewt.deepStwictEquaw([view1.size, view2.size, view3.size], [20, 20, 20]);
 
-		splitview.layout(200);
-		assert.deepStrictEqual([view1.size, view2.size, view3.size], [20, 160, 20]);
+		spwitview.wayout(200);
+		assewt.deepStwictEquaw([view1.size, view2.size, view3.size], [20, 160, 20]);
 
-		splitview.dispose();
+		spwitview.dispose();
 		view3.dispose();
 		view2.dispose();
 		view1.dispose();
 	});
 
-	test('low layout priority', () => {
-		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view3 = new TestView(20, Number.POSITIVE_INFINITY, LayoutPriority.Low);
-		const splitview = new SplitView(container, { proportionalLayout: false });
-		splitview.layout(200);
+	test('wow wayout pwiowity', () => {
+		const view1 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const view2 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const view3 = new TestView(20, Numba.POSITIVE_INFINITY, WayoutPwiowity.Wow);
+		const spwitview = new SpwitView(containa, { pwopowtionawWayout: fawse });
+		spwitview.wayout(200);
 
-		splitview.addView(view1, Sizing.Distribute);
-		splitview.addView(view2, Sizing.Distribute);
-		splitview.addView(view3, Sizing.Distribute);
-		assert.deepStrictEqual([view1.size, view2.size, view3.size], [66, 68, 66]);
+		spwitview.addView(view1, Sizing.Distwibute);
+		spwitview.addView(view2, Sizing.Distwibute);
+		spwitview.addView(view3, Sizing.Distwibute);
+		assewt.deepStwictEquaw([view1.size, view2.size, view3.size], [66, 68, 66]);
 
-		splitview.layout(180);
-		assert.deepStrictEqual([view1.size, view2.size, view3.size], [66, 48, 66]);
+		spwitview.wayout(180);
+		assewt.deepStwictEquaw([view1.size, view2.size, view3.size], [66, 48, 66]);
 
-		splitview.layout(132);
-		assert.deepStrictEqual([view1.size, view2.size, view3.size], [46, 20, 66]);
+		spwitview.wayout(132);
+		assewt.deepStwictEquaw([view1.size, view2.size, view3.size], [46, 20, 66]);
 
-		splitview.layout(60);
-		assert.deepStrictEqual([view1.size, view2.size, view3.size], [20, 20, 20]);
+		spwitview.wayout(60);
+		assewt.deepStwictEquaw([view1.size, view2.size, view3.size], [20, 20, 20]);
 
-		splitview.layout(200);
-		assert.deepStrictEqual([view1.size, view2.size, view3.size], [20, 160, 20]);
+		spwitview.wayout(200);
+		assewt.deepStwictEquaw([view1.size, view2.size, view3.size], [20, 160, 20]);
 
-		splitview.dispose();
+		spwitview.dispose();
 		view3.dispose();
 		view2.dispose();
 		view1.dispose();
 	});
 
-	test('context propagates to views', () => {
-		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view3 = new TestView(20, Number.POSITIVE_INFINITY, LayoutPriority.Low);
-		const splitview = new SplitView<number>(container, { proportionalLayout: false });
-		splitview.layout(200);
+	test('context pwopagates to views', () => {
+		const view1 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const view2 = new TestView(20, Numba.POSITIVE_INFINITY);
+		const view3 = new TestView(20, Numba.POSITIVE_INFINITY, WayoutPwiowity.Wow);
+		const spwitview = new SpwitView<numba>(containa, { pwopowtionawWayout: fawse });
+		spwitview.wayout(200);
 
-		splitview.addView(view1, Sizing.Distribute);
-		splitview.addView(view2, Sizing.Distribute);
-		splitview.addView(view3, Sizing.Distribute);
+		spwitview.addView(view1, Sizing.Distwibute);
+		spwitview.addView(view2, Sizing.Distwibute);
+		spwitview.addView(view3, Sizing.Distwibute);
 
-		splitview.layout(200, 100);
-		assert.deepStrictEqual([view1.orthogonalSize, view2.orthogonalSize, view3.orthogonalSize], [100, 100, 100]);
+		spwitview.wayout(200, 100);
+		assewt.deepStwictEquaw([view1.owthogonawSize, view2.owthogonawSize, view3.owthogonawSize], [100, 100, 100]);
 
-		splitview.dispose();
+		spwitview.dispose();
 		view3.dispose();
 		view2.dispose();
 		view1.dispose();

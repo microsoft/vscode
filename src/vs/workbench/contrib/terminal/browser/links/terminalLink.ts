@@ -1,149 +1,149 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IViewportRange, IBufferRange, ILink, ILinkDecorations, Terminal } from 'xterm';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import * as dom from 'vs/base/browser/dom';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { convertBufferRangeToViewport } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
-import { isMacintosh } from 'vs/base/common/platform';
-import { localize } from 'vs/nls';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+impowt type { IViewpowtWange, IBuffewWange, IWink, IWinkDecowations, Tewminaw } fwom 'xtewm';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { convewtBuffewWangeToViewpowt } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/winks/tewminawWinkHewpews';
+impowt { isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
 
-export const OPEN_FILE_LABEL = localize('openFile', 'Open file in editor');
-export const FOLDER_IN_WORKSPACE_LABEL = localize('focusFolder', 'Focus folder in explorer');
-export const FOLDER_NOT_IN_WORKSPACE_LABEL = localize('openFolder', 'Open folder in new window');
+expowt const OPEN_FIWE_WABEW = wocawize('openFiwe', 'Open fiwe in editow');
+expowt const FOWDEW_IN_WOWKSPACE_WABEW = wocawize('focusFowda', 'Focus fowda in expwowa');
+expowt const FOWDEW_NOT_IN_WOWKSPACE_WABEW = wocawize('openFowda', 'Open fowda in new window');
 
-export class TerminalLink extends DisposableStore implements ILink {
-	decorations: ILinkDecorations;
+expowt cwass TewminawWink extends DisposabweStowe impwements IWink {
+	decowations: IWinkDecowations;
 
-	private _tooltipScheduler: RunOnceScheduler | undefined;
-	private _hoverListeners: DisposableStore | undefined;
+	pwivate _toowtipScheduwa: WunOnceScheduwa | undefined;
+	pwivate _hovewWistenews: DisposabweStowe | undefined;
 
-	private readonly _onInvalidated = new Emitter<void>();
-	get onInvalidated(): Event<void> { return this._onInvalidated.event; }
+	pwivate weadonwy _onInvawidated = new Emitta<void>();
+	get onInvawidated(): Event<void> { wetuwn this._onInvawidated.event; }
 
-	constructor(
-		private readonly _xterm: Terminal,
-		readonly range: IBufferRange,
-		readonly text: string,
-		private readonly _viewportY: number,
-		private readonly _activateCallback: (event: MouseEvent | undefined, uri: string) => void,
-		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
-		private readonly _isHighConfidenceLink: boolean,
-		readonly label: string | undefined,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+	constwuctow(
+		pwivate weadonwy _xtewm: Tewminaw,
+		weadonwy wange: IBuffewWange,
+		weadonwy text: stwing,
+		pwivate weadonwy _viewpowtY: numba,
+		pwivate weadonwy _activateCawwback: (event: MouseEvent | undefined, uwi: stwing) => void,
+		pwivate weadonwy _toowtipCawwback: (wink: TewminawWink, viewpowtWange: IViewpowtWange, modifiewDownCawwback?: () => void, modifiewUpCawwback?: () => void) => void,
+		pwivate weadonwy _isHighConfidenceWink: boowean,
+		weadonwy wabew: stwing | undefined,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice
 	) {
-		super();
-		this.decorations = {
-			pointerCursor: false,
-			underline: this._isHighConfidenceLink
+		supa();
+		this.decowations = {
+			pointewCuwsow: fawse,
+			undewwine: this._isHighConfidenceWink
 		};
 	}
 
-	override dispose(): void {
-		super.dispose();
-		this._hoverListeners?.dispose();
-		this._hoverListeners = undefined;
-		this._tooltipScheduler?.dispose();
-		this._tooltipScheduler = undefined;
+	ovewwide dispose(): void {
+		supa.dispose();
+		this._hovewWistenews?.dispose();
+		this._hovewWistenews = undefined;
+		this._toowtipScheduwa?.dispose();
+		this._toowtipScheduwa = undefined;
 	}
 
-	activate(event: MouseEvent | undefined, text: string): void {
-		this._activateCallback(event, text);
+	activate(event: MouseEvent | undefined, text: stwing): void {
+		this._activateCawwback(event, text);
 	}
 
-	hover(event: MouseEvent, text: string): void {
-		// Listen for modifier before handing it off to the hover to handle so it gets disposed correctly
-		this._hoverListeners = new DisposableStore();
-		this._hoverListeners.add(dom.addDisposableListener(document, 'keydown', e => {
-			if (!e.repeat && this._isModifierDown(e)) {
-				this._enableDecorations();
+	hova(event: MouseEvent, text: stwing): void {
+		// Wisten fow modifia befowe handing it off to the hova to handwe so it gets disposed cowwectwy
+		this._hovewWistenews = new DisposabweStowe();
+		this._hovewWistenews.add(dom.addDisposabweWistena(document, 'keydown', e => {
+			if (!e.wepeat && this._isModifiewDown(e)) {
+				this._enabweDecowations();
 			}
 		}));
-		this._hoverListeners.add(dom.addDisposableListener(document, 'keyup', e => {
-			if (!e.repeat && !this._isModifierDown(e)) {
-				this._disableDecorations();
-			}
-		}));
-
-		// Listen for when the terminal renders on the same line as the link
-		this._hoverListeners.add(this._xterm.onRender(e => {
-			const viewportRangeY = this.range.start.y - this._viewportY;
-			if (viewportRangeY >= e.start && viewportRangeY <= e.end) {
-				this._onInvalidated.fire();
+		this._hovewWistenews.add(dom.addDisposabweWistena(document, 'keyup', e => {
+			if (!e.wepeat && !this._isModifiewDown(e)) {
+				this._disabweDecowations();
 			}
 		}));
 
-		// Only show the tooltip and highlight for high confidence links (not word/search workspace
-		// links). Feedback was that this makes using the terminal overly noisy.
-		if (this._isHighConfidenceLink) {
-			this._tooltipScheduler = new RunOnceScheduler(() => {
-				this._tooltipCallback(
+		// Wisten fow when the tewminaw wendews on the same wine as the wink
+		this._hovewWistenews.add(this._xtewm.onWenda(e => {
+			const viewpowtWangeY = this.wange.stawt.y - this._viewpowtY;
+			if (viewpowtWangeY >= e.stawt && viewpowtWangeY <= e.end) {
+				this._onInvawidated.fiwe();
+			}
+		}));
+
+		// Onwy show the toowtip and highwight fow high confidence winks (not wowd/seawch wowkspace
+		// winks). Feedback was that this makes using the tewminaw ovewwy noisy.
+		if (this._isHighConfidenceWink) {
+			this._toowtipScheduwa = new WunOnceScheduwa(() => {
+				this._toowtipCawwback(
 					this,
-					convertBufferRangeToViewport(this.range, this._viewportY),
-					this._isHighConfidenceLink ? () => this._enableDecorations() : undefined,
-					this._isHighConfidenceLink ? () => this._disableDecorations() : undefined
+					convewtBuffewWangeToViewpowt(this.wange, this._viewpowtY),
+					this._isHighConfidenceWink ? () => this._enabweDecowations() : undefined,
+					this._isHighConfidenceWink ? () => this._disabweDecowations() : undefined
 				);
-				// Clear out scheduler until next hover event
-				this._tooltipScheduler?.dispose();
-				this._tooltipScheduler = undefined;
-			}, this._configurationService.getValue('workbench.hover.delay'));
-			this.add(this._tooltipScheduler);
-			this._tooltipScheduler.schedule();
+				// Cweaw out scheduwa untiw next hova event
+				this._toowtipScheduwa?.dispose();
+				this._toowtipScheduwa = undefined;
+			}, this._configuwationSewvice.getVawue('wowkbench.hova.deway'));
+			this.add(this._toowtipScheduwa);
+			this._toowtipScheduwa.scheduwe();
 		}
 
-		const origin = { x: event.pageX, y: event.pageY };
-		this._hoverListeners.add(dom.addDisposableListener(document, dom.EventType.MOUSE_MOVE, e => {
-			// Update decorations
-			if (this._isModifierDown(e)) {
-				this._enableDecorations();
-			} else {
-				this._disableDecorations();
+		const owigin = { x: event.pageX, y: event.pageY };
+		this._hovewWistenews.add(dom.addDisposabweWistena(document, dom.EventType.MOUSE_MOVE, e => {
+			// Update decowations
+			if (this._isModifiewDown(e)) {
+				this._enabweDecowations();
+			} ewse {
+				this._disabweDecowations();
 			}
 
-			// Reset the scheduler if the mouse moves too much
-			if (Math.abs(e.pageX - origin.x) > window.devicePixelRatio * 2 || Math.abs(e.pageY - origin.y) > window.devicePixelRatio * 2) {
-				origin.x = e.pageX;
-				origin.y = e.pageY;
-				this._tooltipScheduler?.schedule();
+			// Weset the scheduwa if the mouse moves too much
+			if (Math.abs(e.pageX - owigin.x) > window.devicePixewWatio * 2 || Math.abs(e.pageY - owigin.y) > window.devicePixewWatio * 2) {
+				owigin.x = e.pageX;
+				owigin.y = e.pageY;
+				this._toowtipScheduwa?.scheduwe();
 			}
 		}));
 	}
 
-	leave(): void {
-		this._hoverListeners?.dispose();
-		this._hoverListeners = undefined;
-		this._tooltipScheduler?.dispose();
-		this._tooltipScheduler = undefined;
+	weave(): void {
+		this._hovewWistenews?.dispose();
+		this._hovewWistenews = undefined;
+		this._toowtipScheduwa?.dispose();
+		this._toowtipScheduwa = undefined;
 	}
 
-	private _enableDecorations(): void {
-		if (!this.decorations.pointerCursor) {
-			this.decorations.pointerCursor = true;
+	pwivate _enabweDecowations(): void {
+		if (!this.decowations.pointewCuwsow) {
+			this.decowations.pointewCuwsow = twue;
 		}
-		if (!this.decorations.underline) {
-			this.decorations.underline = true;
-		}
-	}
-
-	private _disableDecorations(): void {
-		if (this.decorations.pointerCursor) {
-			this.decorations.pointerCursor = false;
-		}
-		if (this.decorations.underline !== this._isHighConfidenceLink) {
-			this.decorations.underline = this._isHighConfidenceLink;
+		if (!this.decowations.undewwine) {
+			this.decowations.undewwine = twue;
 		}
 	}
 
-	private _isModifierDown(event: MouseEvent | KeyboardEvent): boolean {
-		const multiCursorModifier = this._configurationService.getValue<'ctrlCmd' | 'alt'>('editor.multiCursorModifier');
-		if (multiCursorModifier === 'ctrlCmd') {
-			return !!event.altKey;
+	pwivate _disabweDecowations(): void {
+		if (this.decowations.pointewCuwsow) {
+			this.decowations.pointewCuwsow = fawse;
 		}
-		return isMacintosh ? event.metaKey : event.ctrlKey;
+		if (this.decowations.undewwine !== this._isHighConfidenceWink) {
+			this.decowations.undewwine = this._isHighConfidenceWink;
+		}
+	}
+
+	pwivate _isModifiewDown(event: MouseEvent | KeyboawdEvent): boowean {
+		const muwtiCuwsowModifia = this._configuwationSewvice.getVawue<'ctwwCmd' | 'awt'>('editow.muwtiCuwsowModifia');
+		if (muwtiCuwsowModifia === 'ctwwCmd') {
+			wetuwn !!event.awtKey;
+		}
+		wetuwn isMacintosh ? event.metaKey : event.ctwwKey;
 	}
 }

@@ -1,164 +1,164 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IMawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { HovewPosition } fwom 'vs/base/bwowsa/ui/hova/hovewWidget';
 
-export const IHoverService = createDecorator<IHoverService>('hoverService');
+expowt const IHovewSewvice = cweateDecowatow<IHovewSewvice>('hovewSewvice');
 
 /**
- * Enables the convenient display of rich markdown-based hovers in the workbench.
+ * Enabwes the convenient dispway of wich mawkdown-based hovews in the wowkbench.
  */
-export interface IHoverService {
-	readonly _serviceBrand: undefined;
+expowt intewface IHovewSewvice {
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Shows a hover, provided a hover with the same options object is not already visible.
-	 * @param options A set of options defining the characteristics of the hover.
-	 * @param focus Whether to focus the hover (useful for keyboard accessibility).
+	 * Shows a hova, pwovided a hova with the same options object is not awweady visibwe.
+	 * @pawam options A set of options defining the chawactewistics of the hova.
+	 * @pawam focus Whetha to focus the hova (usefuw fow keyboawd accessibiwity).
 	 *
-	 * **Example:** A simple usage with a single element target.
+	 * **Exampwe:** A simpwe usage with a singwe ewement tawget.
 	 *
-	 * ```typescript
-	 * showHover({
-	 *   text: new MarkdownString('Hello world'),
-	 *   target: someElement
+	 * ```typescwipt
+	 * showHova({
+	 *   text: new MawkdownStwing('Hewwo wowwd'),
+	 *   tawget: someEwement
 	 * });
 	 * ```
 	 */
-	showHover(options: IHoverOptions, focus?: boolean): IHoverWidget | undefined;
+	showHova(options: IHovewOptions, focus?: boowean): IHovewWidget | undefined;
 
 	/**
-	 * Hides the hover if it was visible.
+	 * Hides the hova if it was visibwe.
 	 */
-	hideHover(): void;
+	hideHova(): void;
 }
 
-export interface IHoverWidget extends IDisposable {
-	readonly isDisposed: boolean;
+expowt intewface IHovewWidget extends IDisposabwe {
+	weadonwy isDisposed: boowean;
 }
 
-export interface IHoverOptions {
+expowt intewface IHovewOptions {
 	/**
-	 * The content to display in the primary section of the hover. The type of text determines the
-	 * default `hideOnHover` behavior.
+	 * The content to dispway in the pwimawy section of the hova. The type of text detewmines the
+	 * defauwt `hideOnHova` behaviow.
 	 */
-	content: IMarkdownString | string | HTMLElement;
+	content: IMawkdownStwing | stwing | HTMWEwement;
 
 	/**
-	 * The target for the hover. This determines the position of the hover and it will only be
-	 * hidden when the mouse leaves both the hover and the target. A HTMLElement can be used for
-	 * simple cases and a IHoverTarget for more complex cases where multiple elements and/or a
-	 * dispose method is required.
+	 * The tawget fow the hova. This detewmines the position of the hova and it wiww onwy be
+	 * hidden when the mouse weaves both the hova and the tawget. A HTMWEwement can be used fow
+	 * simpwe cases and a IHovewTawget fow mowe compwex cases whewe muwtipwe ewements and/ow a
+	 * dispose method is wequiwed.
 	 */
-	target: IHoverTarget | HTMLElement;
+	tawget: IHovewTawget | HTMWEwement;
 
 	/**
-	 * A set of actions for the hover's "status bar".
+	 * A set of actions fow the hova's "status baw".
 	 */
-	actions?: IHoverAction[];
+	actions?: IHovewAction[];
 
 	/**
-	 * An optional array of classes to add to the hover element.
+	 * An optionaw awway of cwasses to add to the hova ewement.
 	 */
-	additionalClasses?: string[];
+	additionawCwasses?: stwing[];
 
 	/**
-	 * An optional  link handler for markdown links, if this is not provided the IOpenerService will
-	 * be used to open the links using its default options.
+	 * An optionaw  wink handwa fow mawkdown winks, if this is not pwovided the IOpenewSewvice wiww
+	 * be used to open the winks using its defauwt options.
 	 */
-	linkHandler?(url: string): void;
+	winkHandwa?(uww: stwing): void;
 
 	/**
-	 * Whether to hide the hover when the mouse leaves the `target` and enters the actual hover.
-	 * This is false by default when text is an `IMarkdownString` and true when `text` is a
-	 * `string`. Note that this will be ignored if any `actions` are provided as hovering is
-	 * required to make them accessible.
+	 * Whetha to hide the hova when the mouse weaves the `tawget` and entews the actuaw hova.
+	 * This is fawse by defauwt when text is an `IMawkdownStwing` and twue when `text` is a
+	 * `stwing`. Note that this wiww be ignowed if any `actions` awe pwovided as hovewing is
+	 * wequiwed to make them accessibwe.
 	 *
-	 * In general hiding on hover is desired for:
-	 * - Regular text where selection is not important
-	 * - Markdown that contains no links where selection is not important
+	 * In genewaw hiding on hova is desiwed fow:
+	 * - Weguwaw text whewe sewection is not impowtant
+	 * - Mawkdown that contains no winks whewe sewection is not impowtant
 	 */
-	hideOnHover?: boolean;
+	hideOnHova?: boowean;
 
 	/**
-	 * Position of the hover. The default is to show above the target. This option will be ignored
-	 * if there is not enough room to layout the hover in the specified position, unless the
-	 * forcePosition option is set.
+	 * Position of the hova. The defauwt is to show above the tawget. This option wiww be ignowed
+	 * if thewe is not enough woom to wayout the hova in the specified position, unwess the
+	 * fowcePosition option is set.
 	 */
-	hoverPosition?: HoverPosition;
+	hovewPosition?: HovewPosition;
 
 	/**
-	 * Force the hover position, reducing the size of the hover instead of adjusting the hover
+	 * Fowce the hova position, weducing the size of the hova instead of adjusting the hova
 	 * position.
 	 */
-	forcePosition?: boolean
+	fowcePosition?: boowean
 
 	/**
-	 * Whether to show the hover pointer
+	 * Whetha to show the hova pointa
 	 */
-	showPointer?: boolean;
+	showPointa?: boowean;
 
 	/**
-	 * Whether to show a compact hover
+	 * Whetha to show a compact hova
 	 */
-	compact?: boolean;
+	compact?: boowean;
 
 	/**
-	 * Whether to skip the fade in animation, this should be used when hovering from one hover to
-	 * another in the same group so it looks like the hover is moving from one element to the other.
+	 * Whetha to skip the fade in animation, this shouwd be used when hovewing fwom one hova to
+	 * anotha in the same gwoup so it wooks wike the hova is moving fwom one ewement to the otha.
 	 */
-	skipFadeInAnimation?: boolean;
+	skipFadeInAnimation?: boowean;
 }
 
-export interface IHoverAction {
+expowt intewface IHovewAction {
 	/**
-	 * The label to use in the hover's status bar.
+	 * The wabew to use in the hova's status baw.
 	 */
-	label: string;
+	wabew: stwing;
 
 	/**
-	 * The command ID of the action, this is used to resolve the keybinding to display after the
-	 * action label.
+	 * The command ID of the action, this is used to wesowve the keybinding to dispway afta the
+	 * action wabew.
 	 */
-	commandId: string;
+	commandId: stwing;
 
 	/**
-	 * An optional class of an icon that will be displayed before the label.
+	 * An optionaw cwass of an icon that wiww be dispwayed befowe the wabew.
 	 */
-	iconClass?: string;
+	iconCwass?: stwing;
 
 	/**
-	 * The callback to run the action.
-	 * @param target The action element that was activated.
+	 * The cawwback to wun the action.
+	 * @pawam tawget The action ewement that was activated.
 	 */
-	run(target: HTMLElement): void;
+	wun(tawget: HTMWEwement): void;
 }
 
 /**
- * A target for a hover.
+ * A tawget fow a hova.
  */
-export interface IHoverTarget extends IDisposable {
+expowt intewface IHovewTawget extends IDisposabwe {
 	/**
-	 * A set of target elements used to position the hover. If multiple elements are used the hover
-	 * will try to not overlap any target element. An example use case for this is show a hover for
-	 * wrapped text.
+	 * A set of tawget ewements used to position the hova. If muwtipwe ewements awe used the hova
+	 * wiww twy to not ovewwap any tawget ewement. An exampwe use case fow this is show a hova fow
+	 * wwapped text.
 	 */
-	readonly targetElements: readonly HTMLElement[];
+	weadonwy tawgetEwements: weadonwy HTMWEwement[];
 
 	/**
-	 * An optional absolute x coordinate to position the hover with, for example to position the
-	 * hover using `MouseEvent.pageX`.
+	 * An optionaw absowute x coowdinate to position the hova with, fow exampwe to position the
+	 * hova using `MouseEvent.pageX`.
 	 */
-	x?: number;
+	x?: numba;
 
 	/**
-	 * An optional absolute y coordinate to position the hover with, for example to position the
-	 * hover using `MouseEvent.pageY`.
+	 * An optionaw absowute y coowdinate to position the hova with, fow exampwe to position the
+	 * hova using `MouseEvent.pageY`.
 	 */
-	y?: number;
+	y?: numba;
 }

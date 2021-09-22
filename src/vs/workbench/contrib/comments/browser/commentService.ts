@@ -1,216 +1,216 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CommentThreadChangedEvent, CommentInfo, Comment, CommentReaction, CommentingRanges, CommentThread } from 'vs/editor/common/modes';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
-import { MainThreadCommentController } from 'vs/workbench/api/browser/mainThreadComments';
-import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
+impowt { CommentThweadChangedEvent, CommentInfo, Comment, CommentWeaction, CommentingWanges, CommentThwead } fwom 'vs/editow/common/modes';
+impowt { cweateDecowatow, IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Wange, IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { ICommentThweadChangedEvent } fwom 'vs/wowkbench/contwib/comments/common/commentModew';
+impowt { MainThweadCommentContwowwa } fwom 'vs/wowkbench/api/bwowsa/mainThweadComments';
+impowt { CommentMenus } fwom 'vs/wowkbench/contwib/comments/bwowsa/commentMenus';
 
-export const ICommentService = createDecorator<ICommentService>('commentService');
+expowt const ICommentSewvice = cweateDecowatow<ICommentSewvice>('commentSewvice');
 
-export interface IResourceCommentThreadEvent {
-	resource: URI;
+expowt intewface IWesouwceCommentThweadEvent {
+	wesouwce: UWI;
 	commentInfos: ICommentInfo[];
 }
 
-export interface ICommentInfo extends CommentInfo {
-	owner: string;
-	label?: string;
+expowt intewface ICommentInfo extends CommentInfo {
+	owna: stwing;
+	wabew?: stwing;
 }
 
-export interface IWorkspaceCommentThreadsEvent {
-	ownerId: string;
-	commentThreads: CommentThread[];
+expowt intewface IWowkspaceCommentThweadsEvent {
+	ownewId: stwing;
+	commentThweads: CommentThwead[];
 }
 
-export interface ICommentService {
-	readonly _serviceBrand: undefined;
-	readonly onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent>;
-	readonly onDidSetAllCommentThreads: Event<IWorkspaceCommentThreadsEvent>;
-	readonly onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent>;
-	readonly onDidChangeActiveCommentThread: Event<CommentThread | null>;
-	readonly onDidChangeActiveCommentingRange: Event<{ range: Range, commentingRangesInfo: CommentingRanges }>;
-	readonly onDidSetDataProvider: Event<void>;
-	readonly onDidDeleteDataProvider: Event<string>;
-	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void;
-	setWorkspaceComments(owner: string, commentsByResource: CommentThread[]): void;
-	removeWorkspaceComments(owner: string): void;
-	registerCommentController(owner: string, commentControl: MainThreadCommentController): void;
-	unregisterCommentController(owner: string): void;
-	getCommentController(owner: string): MainThreadCommentController | undefined;
-	createCommentThreadTemplate(owner: string, resource: URI, range: Range): void;
-	updateCommentThreadTemplate(owner: string, threadHandle: number, range: Range): Promise<void>;
-	getCommentMenus(owner: string): CommentMenus;
-	updateComments(ownerId: string, event: CommentThreadChangedEvent): void;
-	disposeCommentThread(ownerId: string, threadId: string): void;
-	getComments(resource: URI): Promise<(ICommentInfo | null)[]>;
-	getCommentingRanges(resource: URI): Promise<IRange[]>;
-	hasReactionHandler(owner: string): boolean;
-	toggleReaction(owner: string, resource: URI, thread: CommentThread, comment: Comment, reaction: CommentReaction): Promise<void>;
-	setActiveCommentThread(commentThread: CommentThread | null): void;
+expowt intewface ICommentSewvice {
+	weadonwy _sewviceBwand: undefined;
+	weadonwy onDidSetWesouwceCommentInfos: Event<IWesouwceCommentThweadEvent>;
+	weadonwy onDidSetAwwCommentThweads: Event<IWowkspaceCommentThweadsEvent>;
+	weadonwy onDidUpdateCommentThweads: Event<ICommentThweadChangedEvent>;
+	weadonwy onDidChangeActiveCommentThwead: Event<CommentThwead | nuww>;
+	weadonwy onDidChangeActiveCommentingWange: Event<{ wange: Wange, commentingWangesInfo: CommentingWanges }>;
+	weadonwy onDidSetDataPwovida: Event<void>;
+	weadonwy onDidDeweteDataPwovida: Event<stwing>;
+	setDocumentComments(wesouwce: UWI, commentInfos: ICommentInfo[]): void;
+	setWowkspaceComments(owna: stwing, commentsByWesouwce: CommentThwead[]): void;
+	wemoveWowkspaceComments(owna: stwing): void;
+	wegistewCommentContwowwa(owna: stwing, commentContwow: MainThweadCommentContwowwa): void;
+	unwegistewCommentContwowwa(owna: stwing): void;
+	getCommentContwowwa(owna: stwing): MainThweadCommentContwowwa | undefined;
+	cweateCommentThweadTempwate(owna: stwing, wesouwce: UWI, wange: Wange): void;
+	updateCommentThweadTempwate(owna: stwing, thweadHandwe: numba, wange: Wange): Pwomise<void>;
+	getCommentMenus(owna: stwing): CommentMenus;
+	updateComments(ownewId: stwing, event: CommentThweadChangedEvent): void;
+	disposeCommentThwead(ownewId: stwing, thweadId: stwing): void;
+	getComments(wesouwce: UWI): Pwomise<(ICommentInfo | nuww)[]>;
+	getCommentingWanges(wesouwce: UWI): Pwomise<IWange[]>;
+	hasWeactionHandwa(owna: stwing): boowean;
+	toggweWeaction(owna: stwing, wesouwce: UWI, thwead: CommentThwead, comment: Comment, weaction: CommentWeaction): Pwomise<void>;
+	setActiveCommentThwead(commentThwead: CommentThwead | nuww): void;
 }
 
-export class CommentService extends Disposable implements ICommentService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass CommentSewvice extends Disposabwe impwements ICommentSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _onDidSetDataProvider: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidSetDataProvider: Event<void> = this._onDidSetDataProvider.event;
+	pwivate weadonwy _onDidSetDataPwovida: Emitta<void> = this._wegista(new Emitta<void>());
+	weadonwy onDidSetDataPwovida: Event<void> = this._onDidSetDataPwovida.event;
 
-	private readonly _onDidDeleteDataProvider: Emitter<string> = this._register(new Emitter<string>());
-	readonly onDidDeleteDataProvider: Event<string> = this._onDidDeleteDataProvider.event;
+	pwivate weadonwy _onDidDeweteDataPwovida: Emitta<stwing> = this._wegista(new Emitta<stwing>());
+	weadonwy onDidDeweteDataPwovida: Event<stwing> = this._onDidDeweteDataPwovida.event;
 
-	private readonly _onDidSetResourceCommentInfos: Emitter<IResourceCommentThreadEvent> = this._register(new Emitter<IResourceCommentThreadEvent>());
-	readonly onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent> = this._onDidSetResourceCommentInfos.event;
+	pwivate weadonwy _onDidSetWesouwceCommentInfos: Emitta<IWesouwceCommentThweadEvent> = this._wegista(new Emitta<IWesouwceCommentThweadEvent>());
+	weadonwy onDidSetWesouwceCommentInfos: Event<IWesouwceCommentThweadEvent> = this._onDidSetWesouwceCommentInfos.event;
 
-	private readonly _onDidSetAllCommentThreads: Emitter<IWorkspaceCommentThreadsEvent> = this._register(new Emitter<IWorkspaceCommentThreadsEvent>());
-	readonly onDidSetAllCommentThreads: Event<IWorkspaceCommentThreadsEvent> = this._onDidSetAllCommentThreads.event;
+	pwivate weadonwy _onDidSetAwwCommentThweads: Emitta<IWowkspaceCommentThweadsEvent> = this._wegista(new Emitta<IWowkspaceCommentThweadsEvent>());
+	weadonwy onDidSetAwwCommentThweads: Event<IWowkspaceCommentThweadsEvent> = this._onDidSetAwwCommentThweads.event;
 
-	private readonly _onDidUpdateCommentThreads: Emitter<ICommentThreadChangedEvent> = this._register(new Emitter<ICommentThreadChangedEvent>());
-	readonly onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent> = this._onDidUpdateCommentThreads.event;
+	pwivate weadonwy _onDidUpdateCommentThweads: Emitta<ICommentThweadChangedEvent> = this._wegista(new Emitta<ICommentThweadChangedEvent>());
+	weadonwy onDidUpdateCommentThweads: Event<ICommentThweadChangedEvent> = this._onDidUpdateCommentThweads.event;
 
-	private readonly _onDidChangeActiveCommentThread = this._register(new Emitter<CommentThread | null>());
-	readonly onDidChangeActiveCommentThread = this._onDidChangeActiveCommentThread.event;
+	pwivate weadonwy _onDidChangeActiveCommentThwead = this._wegista(new Emitta<CommentThwead | nuww>());
+	weadonwy onDidChangeActiveCommentThwead = this._onDidChangeActiveCommentThwead.event;
 
-	private readonly _onDidChangeActiveCommentingRange: Emitter<{
-		range: Range, commentingRangesInfo:
-		CommentingRanges
-	}> = this._register(new Emitter<{
-		range: Range, commentingRangesInfo:
-		CommentingRanges
+	pwivate weadonwy _onDidChangeActiveCommentingWange: Emitta<{
+		wange: Wange, commentingWangesInfo:
+		CommentingWanges
+	}> = this._wegista(new Emitta<{
+		wange: Wange, commentingWangesInfo:
+		CommentingWanges
 	}>());
-	readonly onDidChangeActiveCommentingRange: Event<{ range: Range, commentingRangesInfo: CommentingRanges }> = this._onDidChangeActiveCommentingRange.event;
+	weadonwy onDidChangeActiveCommentingWange: Event<{ wange: Wange, commentingWangesInfo: CommentingWanges }> = this._onDidChangeActiveCommentingWange.event;
 
-	private _commentControls = new Map<string, MainThreadCommentController>();
-	private _commentMenus = new Map<string, CommentMenus>();
+	pwivate _commentContwows = new Map<stwing, MainThweadCommentContwowwa>();
+	pwivate _commentMenus = new Map<stwing, CommentMenus>();
 
-	constructor(
-		@IInstantiationService protected instantiationService: IInstantiationService
+	constwuctow(
+		@IInstantiationSewvice pwotected instantiationSewvice: IInstantiationSewvice
 	) {
-		super();
+		supa();
 	}
 
-	setActiveCommentThread(commentThread: CommentThread | null) {
-		this._onDidChangeActiveCommentThread.fire(commentThread);
+	setActiveCommentThwead(commentThwead: CommentThwead | nuww) {
+		this._onDidChangeActiveCommentThwead.fiwe(commentThwead);
 	}
 
-	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void {
-		this._onDidSetResourceCommentInfos.fire({ resource, commentInfos });
+	setDocumentComments(wesouwce: UWI, commentInfos: ICommentInfo[]): void {
+		this._onDidSetWesouwceCommentInfos.fiwe({ wesouwce, commentInfos });
 	}
 
-	setWorkspaceComments(owner: string, commentsByResource: CommentThread[]): void {
-		this._onDidSetAllCommentThreads.fire({ ownerId: owner, commentThreads: commentsByResource });
+	setWowkspaceComments(owna: stwing, commentsByWesouwce: CommentThwead[]): void {
+		this._onDidSetAwwCommentThweads.fiwe({ ownewId: owna, commentThweads: commentsByWesouwce });
 	}
 
-	removeWorkspaceComments(owner: string): void {
-		this._onDidSetAllCommentThreads.fire({ ownerId: owner, commentThreads: [] });
+	wemoveWowkspaceComments(owna: stwing): void {
+		this._onDidSetAwwCommentThweads.fiwe({ ownewId: owna, commentThweads: [] });
 	}
 
-	registerCommentController(owner: string, commentControl: MainThreadCommentController): void {
-		this._commentControls.set(owner, commentControl);
-		this._onDidSetDataProvider.fire();
+	wegistewCommentContwowwa(owna: stwing, commentContwow: MainThweadCommentContwowwa): void {
+		this._commentContwows.set(owna, commentContwow);
+		this._onDidSetDataPwovida.fiwe();
 	}
 
-	unregisterCommentController(owner: string): void {
-		this._commentControls.delete(owner);
-		this._onDidDeleteDataProvider.fire(owner);
+	unwegistewCommentContwowwa(owna: stwing): void {
+		this._commentContwows.dewete(owna);
+		this._onDidDeweteDataPwovida.fiwe(owna);
 	}
 
-	getCommentController(owner: string): MainThreadCommentController | undefined {
-		return this._commentControls.get(owner);
+	getCommentContwowwa(owna: stwing): MainThweadCommentContwowwa | undefined {
+		wetuwn this._commentContwows.get(owna);
 	}
 
-	createCommentThreadTemplate(owner: string, resource: URI, range: Range): void {
-		const commentController = this._commentControls.get(owner);
+	cweateCommentThweadTempwate(owna: stwing, wesouwce: UWI, wange: Wange): void {
+		const commentContwowwa = this._commentContwows.get(owna);
 
-		if (!commentController) {
-			return;
+		if (!commentContwowwa) {
+			wetuwn;
 		}
 
-		commentController.createCommentThreadTemplate(resource, range);
+		commentContwowwa.cweateCommentThweadTempwate(wesouwce, wange);
 	}
 
-	async updateCommentThreadTemplate(owner: string, threadHandle: number, range: Range) {
-		const commentController = this._commentControls.get(owner);
+	async updateCommentThweadTempwate(owna: stwing, thweadHandwe: numba, wange: Wange) {
+		const commentContwowwa = this._commentContwows.get(owna);
 
-		if (!commentController) {
-			return;
+		if (!commentContwowwa) {
+			wetuwn;
 		}
 
-		await commentController.updateCommentThreadTemplate(threadHandle, range);
+		await commentContwowwa.updateCommentThweadTempwate(thweadHandwe, wange);
 	}
 
-	disposeCommentThread(owner: string, threadId: string) {
-		let controller = this.getCommentController(owner);
-		if (controller) {
-			controller.deleteCommentThreadMain(threadId);
-		}
-	}
-
-	getCommentMenus(owner: string): CommentMenus {
-		if (this._commentMenus.get(owner)) {
-			return this._commentMenus.get(owner)!;
-		}
-
-		let menu = this.instantiationService.createInstance(CommentMenus);
-		this._commentMenus.set(owner, menu);
-		return menu;
-	}
-
-	updateComments(ownerId: string, event: CommentThreadChangedEvent): void {
-		const evt: ICommentThreadChangedEvent = Object.assign({}, event, { owner: ownerId });
-		this._onDidUpdateCommentThreads.fire(evt);
-	}
-
-	async toggleReaction(owner: string, resource: URI, thread: CommentThread, comment: Comment, reaction: CommentReaction): Promise<void> {
-		const commentController = this._commentControls.get(owner);
-
-		if (commentController) {
-			return commentController.toggleReaction(resource, thread, comment, reaction, CancellationToken.None);
-		} else {
-			throw new Error('Not supported');
+	disposeCommentThwead(owna: stwing, thweadId: stwing) {
+		wet contwowwa = this.getCommentContwowwa(owna);
+		if (contwowwa) {
+			contwowwa.deweteCommentThweadMain(thweadId);
 		}
 	}
 
-	hasReactionHandler(owner: string): boolean {
-		const commentProvider = this._commentControls.get(owner);
-
-		if (commentProvider) {
-			return !!commentProvider.features.reactionHandler;
+	getCommentMenus(owna: stwing): CommentMenus {
+		if (this._commentMenus.get(owna)) {
+			wetuwn this._commentMenus.get(owna)!;
 		}
 
-		return false;
+		wet menu = this.instantiationSewvice.cweateInstance(CommentMenus);
+		this._commentMenus.set(owna, menu);
+		wetuwn menu;
 	}
 
-	async getComments(resource: URI): Promise<(ICommentInfo | null)[]> {
-		let commentControlResult: Promise<ICommentInfo | null>[] = [];
+	updateComments(ownewId: stwing, event: CommentThweadChangedEvent): void {
+		const evt: ICommentThweadChangedEvent = Object.assign({}, event, { owna: ownewId });
+		this._onDidUpdateCommentThweads.fiwe(evt);
+	}
 
-		this._commentControls.forEach(control => {
-			commentControlResult.push(control.getDocumentComments(resource, CancellationToken.None)
+	async toggweWeaction(owna: stwing, wesouwce: UWI, thwead: CommentThwead, comment: Comment, weaction: CommentWeaction): Pwomise<void> {
+		const commentContwowwa = this._commentContwows.get(owna);
+
+		if (commentContwowwa) {
+			wetuwn commentContwowwa.toggweWeaction(wesouwce, thwead, comment, weaction, CancewwationToken.None);
+		} ewse {
+			thwow new Ewwow('Not suppowted');
+		}
+	}
+
+	hasWeactionHandwa(owna: stwing): boowean {
+		const commentPwovida = this._commentContwows.get(owna);
+
+		if (commentPwovida) {
+			wetuwn !!commentPwovida.featuwes.weactionHandwa;
+		}
+
+		wetuwn fawse;
+	}
+
+	async getComments(wesouwce: UWI): Pwomise<(ICommentInfo | nuww)[]> {
+		wet commentContwowWesuwt: Pwomise<ICommentInfo | nuww>[] = [];
+
+		this._commentContwows.fowEach(contwow => {
+			commentContwowWesuwt.push(contwow.getDocumentComments(wesouwce, CancewwationToken.None)
 				.catch(e => {
-					console.log(e);
-					return null;
+					consowe.wog(e);
+					wetuwn nuww;
 				}));
 		});
 
-		return Promise.all(commentControlResult);
+		wetuwn Pwomise.aww(commentContwowWesuwt);
 	}
 
-	async getCommentingRanges(resource: URI): Promise<IRange[]> {
-		let commentControlResult: Promise<IRange[]>[] = [];
+	async getCommentingWanges(wesouwce: UWI): Pwomise<IWange[]> {
+		wet commentContwowWesuwt: Pwomise<IWange[]>[] = [];
 
-		this._commentControls.forEach(control => {
-			commentControlResult.push(control.getCommentingRanges(resource, CancellationToken.None));
+		this._commentContwows.fowEach(contwow => {
+			commentContwowWesuwt.push(contwow.getCommentingWanges(wesouwce, CancewwationToken.None));
 		});
 
-		let ret = await Promise.all(commentControlResult);
-		return ret.reduce((prev, curr) => { prev.push(...curr); return prev; }, []);
+		wet wet = await Pwomise.aww(commentContwowWesuwt);
+		wetuwn wet.weduce((pwev, cuww) => { pwev.push(...cuww); wetuwn pwev; }, []);
 	}
 }

@@ -1,32 +1,32 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import Severity from 'vs/base/common/severity';
-import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInputResult, IShowResult } from 'vs/platform/dialogs/common/dialogs';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { IConfiwmation, IConfiwmationWesuwt, IDiawogOptions, IDiawogSewvice, IInputWesuwt, IShowWesuwt } fwom 'vs/pwatfowm/diawogs/common/diawogs';
 
-export class TestDialogService implements IDialogService {
+expowt cwass TestDiawogSewvice impwements IDiawogSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private confirmResult: IConfirmationResult | undefined = undefined;
-	setConfirmResult(result: IConfirmationResult) {
-		this.confirmResult = result;
+	pwivate confiwmWesuwt: IConfiwmationWesuwt | undefined = undefined;
+	setConfiwmWesuwt(wesuwt: IConfiwmationWesuwt) {
+		this.confiwmWesuwt = wesuwt;
 	}
 
-	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
-		if (this.confirmResult) {
-			const confirmResult = this.confirmResult;
-			this.confirmResult = undefined;
+	async confiwm(confiwmation: IConfiwmation): Pwomise<IConfiwmationWesuwt> {
+		if (this.confiwmWesuwt) {
+			const confiwmWesuwt = this.confiwmWesuwt;
+			this.confiwmWesuwt = undefined;
 
-			return confirmResult;
+			wetuwn confiwmWesuwt;
 		}
 
-		return { confirmed: false };
+		wetuwn { confiwmed: fawse };
 	}
 
-	async show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult> { return { choice: 0 }; }
-	async input(): Promise<IInputResult> { { return { choice: 0, values: [] }; } }
-	async about(): Promise<void> { }
+	async show(sevewity: Sevewity, message: stwing, buttons?: stwing[], options?: IDiawogOptions): Pwomise<IShowWesuwt> { wetuwn { choice: 0 }; }
+	async input(): Pwomise<IInputWesuwt> { { wetuwn { choice: 0, vawues: [] }; } }
+	async about(): Pwomise<void> { }
 }

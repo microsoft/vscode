@@ -1,94 +1,94 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/atom/language-xml/blob/master/grammars/xsl.cson",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/atom/wanguage-xmw/bwob/masta/gwammaws/xsw.cson",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/atom/language-xml/commit/507de2ee7daca60cf02e9e21fbeb92bbae73e280",
-	"name": "XSL",
-	"scopeName": "text.xml.xsl",
-	"patterns": [
+	"vewsion": "https://github.com/atom/wanguage-xmw/commit/507de2ee7daca60cf02e9e21fbeb92bbae73e280",
+	"name": "XSW",
+	"scopeName": "text.xmw.xsw",
+	"pattewns": [
 		{
-			"begin": "(<)(xsl)((:))(template)",
-			"captures": {
+			"begin": "(<)(xsw)((:))(tempwate)",
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.tag.xml"
+					"name": "punctuation.definition.tag.xmw"
 				},
 				"2": {
-					"name": "entity.name.tag.namespace.xml"
+					"name": "entity.name.tag.namespace.xmw"
 				},
 				"3": {
-					"name": "entity.name.tag.xml"
+					"name": "entity.name.tag.xmw"
 				},
 				"4": {
-					"name": "punctuation.separator.namespace.xml"
+					"name": "punctuation.sepawatow.namespace.xmw"
 				},
 				"5": {
-					"name": "entity.name.tag.localname.xml"
+					"name": "entity.name.tag.wocawname.xmw"
 				}
 			},
 			"end": "(>)",
-			"name": "meta.tag.xml.template",
-			"patterns": [
+			"name": "meta.tag.xmw.tempwate",
+			"pattewns": [
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "entity.other.attribute-name.namespace.xml"
+							"name": "entity.otha.attwibute-name.namespace.xmw"
 						},
 						"2": {
-							"name": "entity.other.attribute-name.xml"
+							"name": "entity.otha.attwibute-name.xmw"
 						},
 						"3": {
-							"name": "punctuation.separator.namespace.xml"
+							"name": "punctuation.sepawatow.namespace.xmw"
 						},
 						"4": {
-							"name": "entity.other.attribute-name.localname.xml"
+							"name": "entity.otha.attwibute-name.wocawname.xmw"
 						}
 					},
 					"match": " (?:([-_a-zA-Z0-9]+)((:)))?([a-zA-Z-]+)"
 				},
 				{
-					"include": "#doublequotedString"
+					"incwude": "#doubwequotedStwing"
 				},
 				{
-					"include": "#singlequotedString"
+					"incwude": "#singwequotedStwing"
 				}
 			]
 		},
 		{
-			"include": "text.xml"
+			"incwude": "text.xmw"
 		}
 	],
-	"repository": {
-		"doublequotedString": {
+	"wepositowy": {
+		"doubwequotedStwing": {
 			"begin": "\"",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.xml"
+					"name": "punctuation.definition.stwing.begin.xmw"
 				}
 			},
 			"end": "\"",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.xml"
+					"name": "punctuation.definition.stwing.end.xmw"
 				}
 			},
-			"name": "string.quoted.double.xml"
+			"name": "stwing.quoted.doubwe.xmw"
 		},
-		"singlequotedString": {
+		"singwequotedStwing": {
 			"begin": "'",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.xml"
+					"name": "punctuation.definition.stwing.begin.xmw"
 				}
 			},
 			"end": "'",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.xml"
+					"name": "punctuation.definition.stwing.end.xmw"
 				}
 			},
-			"name": "string.quoted.single.xml"
+			"name": "stwing.quoted.singwe.xmw"
 		}
 	}
 }

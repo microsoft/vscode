@@ -1,29 +1,29 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createHash } from 'crypto';
-import { listenStream } from 'vs/base/common/stream';
-import { URI } from 'vs/base/common/uri';
-import { IChecksumService } from 'vs/platform/checksum/common/checksumService';
-import { IFileService } from 'vs/platform/files/common/files';
+impowt { cweateHash } fwom 'cwypto';
+impowt { wistenStweam } fwom 'vs/base/common/stweam';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IChecksumSewvice } fwom 'vs/pwatfowm/checksum/common/checksumSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
 
-export class ChecksumService implements IChecksumService {
+expowt cwass ChecksumSewvice impwements IChecksumSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(@IFileService private readonly fileService: IFileService) { }
+	constwuctow(@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice) { }
 
-	checksum(resource: URI): Promise<string> {
-		return new Promise<string>(async (resolve, reject) => {
-			const hash = createHash('md5');
-			const stream = (await this.fileService.readFileStream(resource)).value;
+	checksum(wesouwce: UWI): Pwomise<stwing> {
+		wetuwn new Pwomise<stwing>(async (wesowve, weject) => {
+			const hash = cweateHash('md5');
+			const stweam = (await this.fiweSewvice.weadFiweStweam(wesouwce)).vawue;
 
-			listenStream(stream, {
-				onData: data => hash.update(data.buffer),
-				onError: error => reject(error),
-				onEnd: () => resolve(hash.digest('base64').replace(/=+$/, ''))
+			wistenStweam(stweam, {
+				onData: data => hash.update(data.buffa),
+				onEwwow: ewwow => weject(ewwow),
+				onEnd: () => wesowve(hash.digest('base64').wepwace(/=+$/, ''))
 			});
 		});
 	}

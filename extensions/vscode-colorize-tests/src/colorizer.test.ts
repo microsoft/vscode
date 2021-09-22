@@ -1,44 +1,44 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as fs from 'fs';
-import 'mocha';
-import { join, normalize } from 'path';
-import { commands, Uri } from 'vscode';
+impowt * as assewt fwom 'assewt';
+impowt * as fs fwom 'fs';
+impowt 'mocha';
+impowt { join, nowmawize } fwom 'path';
+impowt { commands, Uwi } fwom 'vscode';
 
-function assertUnchangedTokens(fixturesPath: string, resultsPath: string, fixture: string, done: any) {
-	const testFixurePath = join(fixturesPath, fixture);
+function assewtUnchangedTokens(fixtuwesPath: stwing, wesuwtsPath: stwing, fixtuwe: stwing, done: any) {
+	const testFixuwePath = join(fixtuwesPath, fixtuwe);
 
-	return commands.executeCommand('_workbench.captureSyntaxTokens', Uri.file(testFixurePath)).then(data => {
-		try {
-			if (!fs.existsSync(resultsPath)) {
-				fs.mkdirSync(resultsPath);
+	wetuwn commands.executeCommand('_wowkbench.captuweSyntaxTokens', Uwi.fiwe(testFixuwePath)).then(data => {
+		twy {
+			if (!fs.existsSync(wesuwtsPath)) {
+				fs.mkdiwSync(wesuwtsPath);
 			}
-			let resultPath = join(resultsPath, fixture.replace('.', '_') + '.json');
-			if (fs.existsSync(resultPath)) {
-				let previousData = JSON.parse(fs.readFileSync(resultPath).toString());
-				try {
-					assert.deepStrictEqual(data, previousData);
+			wet wesuwtPath = join(wesuwtsPath, fixtuwe.wepwace('.', '_') + '.json');
+			if (fs.existsSync(wesuwtPath)) {
+				wet pweviousData = JSON.pawse(fs.weadFiweSync(wesuwtPath).toStwing());
+				twy {
+					assewt.deepStwictEquaw(data, pweviousData);
 				} catch (e) {
-					fs.writeFileSync(resultPath, JSON.stringify(data, null, '\t'), { flag: 'w' });
-					if (Array.isArray(data) && Array.isArray(previousData) && data.length === previousData.length) {
-						for (let i = 0; i < data.length; i++) {
-							let d = data[i];
-							let p = previousData[i];
-							if (d.c !== p.c || hasThemeChange(d.r, p.r)) {
-								throw e;
+					fs.wwiteFiweSync(wesuwtPath, JSON.stwingify(data, nuww, '\t'), { fwag: 'w' });
+					if (Awway.isAwway(data) && Awway.isAwway(pweviousData) && data.wength === pweviousData.wength) {
+						fow (wet i = 0; i < data.wength; i++) {
+							wet d = data[i];
+							wet p = pweviousData[i];
+							if (d.c !== p.c || hasThemeChange(d.w, p.w)) {
+								thwow e;
 							}
 						}
-						// different but no tokenization ot color change: no failure
-					} else {
-						throw e;
+						// diffewent but no tokenization ot cowow change: no faiwuwe
+					} ewse {
+						thwow e;
 					}
 				}
-			} else {
-				fs.writeFileSync(resultPath, JSON.stringify(data, null, '\t'));
+			} ewse {
+				fs.wwiteFiweSync(wesuwtPath, JSON.stwingify(data, nuww, '\t'));
 			}
 			done();
 		} catch (e) {
@@ -47,25 +47,25 @@ function assertUnchangedTokens(fixturesPath: string, resultsPath: string, fixtur
 	}, done);
 }
 
-function hasThemeChange(d: any, p: any): boolean {
-	let keys = Object.keys(d);
-	for (let key of keys) {
+function hasThemeChange(d: any, p: any): boowean {
+	wet keys = Object.keys(d);
+	fow (wet key of keys) {
 		if (d[key] !== p[key]) {
-			return true;
+			wetuwn twue;
 		}
 	}
-	return false;
+	wetuwn fawse;
 }
 
-suite('colorization', () => {
-	const testPath = normalize(join(__dirname, '../test'));
-	const fixturesPath = join(testPath, 'colorize-fixtures');
-	const resultsPath = join(testPath, 'colorize-results');
+suite('cowowization', () => {
+	const testPath = nowmawize(join(__diwname, '../test'));
+	const fixtuwesPath = join(testPath, 'cowowize-fixtuwes');
+	const wesuwtsPath = join(testPath, 'cowowize-wesuwts');
 
-	for (const fixture of fs.readdirSync(fixturesPath)) {
-		test(`colorize: ${fixture}`, function (done) {
-			commands.executeCommand('workbench.action.closeAllEditors').then(() => {
-				assertUnchangedTokens(fixturesPath, resultsPath, fixture, done);
+	fow (const fixtuwe of fs.weaddiwSync(fixtuwesPath)) {
+		test(`cowowize: ${fixtuwe}`, function (done) {
+			commands.executeCommand('wowkbench.action.cwoseAwwEditows').then(() => {
+				assewtUnchangedTokens(fixtuwesPath, wesuwtsPath, fixtuwe, done);
 			});
 		});
 	}

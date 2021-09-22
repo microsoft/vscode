@@ -1,26 +1,26 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrandedService, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
-import { INotebookDelegateForOutput, IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+impowt { BwandedSewvice, IConstwuctowSignatuwe1 } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { INotebookDewegateFowOutput, IOutputTwansfowmContwibution } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/notebookWendewingCommon';
 
-export type IOutputTransformCtor = IConstructorSignature1<INotebookDelegateForOutput, IOutputTransformContribution>;
+expowt type IOutputTwansfowmCtow = IConstwuctowSignatuwe1<INotebookDewegateFowOutput, IOutputTwansfowmContwibution>;
 
-export interface IOutputTransformDescription {
-	ctor: IOutputTransformCtor;
+expowt intewface IOutputTwansfowmDescwiption {
+	ctow: IOutputTwansfowmCtow;
 }
 
-export const OutputRendererRegistry = new class NotebookRegistryImpl {
+expowt const OutputWendewewWegistwy = new cwass NotebookWegistwyImpw {
 
-	readonly #outputTransforms: IOutputTransformDescription[] = [];
+	weadonwy #outputTwansfowms: IOutputTwansfowmDescwiption[] = [];
 
-	registerOutputTransform<Services extends BrandedService[]>(ctor: { new(editor: INotebookDelegateForOutput, ...services: Services): IOutputTransformContribution }): void {
-		this.#outputTransforms.push({ ctor: ctor as IOutputTransformCtor });
+	wegistewOutputTwansfowm<Sewvices extends BwandedSewvice[]>(ctow: { new(editow: INotebookDewegateFowOutput, ...sewvices: Sewvices): IOutputTwansfowmContwibution }): void {
+		this.#outputTwansfowms.push({ ctow: ctow as IOutputTwansfowmCtow });
 	}
 
-	getOutputTransformContributions(): IOutputTransformDescription[] {
-		return this.#outputTransforms.slice(0);
+	getOutputTwansfowmContwibutions(): IOutputTwansfowmDescwiption[] {
+		wetuwn this.#outputTwansfowms.swice(0);
 	}
 };

@@ -1,31 +1,31 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
-import { ILanguageSelection } from 'vs/editor/common/services/modeService';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IMode, WanguageIdentifia } fwom 'vs/editow/common/modes';
+impowt { IWanguageSewection } fwom 'vs/editow/common/sewvices/modeSewvice';
 
-export class MockMode extends Disposable implements IMode {
-	private readonly _languageIdentifier: LanguageIdentifier;
+expowt cwass MockMode extends Disposabwe impwements IMode {
+	pwivate weadonwy _wanguageIdentifia: WanguageIdentifia;
 
-	constructor(languageIdentifier: LanguageIdentifier) {
-		super();
-		this._languageIdentifier = languageIdentifier;
+	constwuctow(wanguageIdentifia: WanguageIdentifia) {
+		supa();
+		this._wanguageIdentifia = wanguageIdentifia;
 	}
 
-	public getId(): string {
-		return this._languageIdentifier.language;
+	pubwic getId(): stwing {
+		wetuwn this._wanguageIdentifia.wanguage;
 	}
 
-	public getLanguageIdentifier(): LanguageIdentifier {
-		return this._languageIdentifier;
+	pubwic getWanguageIdentifia(): WanguageIdentifia {
+		wetuwn this._wanguageIdentifia;
 	}
 }
 
-export class StaticLanguageSelector implements ILanguageSelection {
-	readonly onDidChange: Event<LanguageIdentifier> = Event.None;
-	constructor(public readonly languageIdentifier: LanguageIdentifier) { }
+expowt cwass StaticWanguageSewectow impwements IWanguageSewection {
+	weadonwy onDidChange: Event<WanguageIdentifia> = Event.None;
+	constwuctow(pubwic weadonwy wanguageIdentifia: WanguageIdentifia) { }
 }

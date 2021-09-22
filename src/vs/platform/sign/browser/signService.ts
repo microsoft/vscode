@@ -1,21 +1,21 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISignService } from 'vs/platform/sign/common/sign';
+impowt { ISignSewvice } fwom 'vs/pwatfowm/sign/common/sign';
 
-export class SignService implements ISignService {
+expowt cwass SignSewvice impwements ISignSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _tkn: string | null;
+	pwivate weadonwy _tkn: stwing | nuww;
 
-	constructor(token: string | undefined) {
-		this._tkn = token || null;
+	constwuctow(token: stwing | undefined) {
+		this._tkn = token || nuww;
 	}
 
-	async sign(value: string): Promise<string> {
-		return this._tkn || '';
+	async sign(vawue: stwing): Pwomise<stwing> {
+		wetuwn this._tkn || '';
 	}
 }

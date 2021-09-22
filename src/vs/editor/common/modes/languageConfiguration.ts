@@ -1,338 +1,338 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { StandardTokenType } from 'vs/editor/common/modes';
+impowt { StandawdTokenType } fwom 'vs/editow/common/modes';
 
 /**
- * Describes how comments for a language work.
+ * Descwibes how comments fow a wanguage wowk.
  */
-export interface CommentRule {
+expowt intewface CommentWuwe {
 	/**
-	 * The line comment token, like `// this is a comment`
+	 * The wine comment token, wike `// this is a comment`
 	 */
-	lineComment?: string | null;
+	wineComment?: stwing | nuww;
 	/**
-	 * The block comment character pair, like `/* block comment *&#47;`
+	 * The bwock comment chawacta paiw, wike `/* bwock comment *&#47;`
 	 */
-	blockComment?: CharacterPair | null;
+	bwockComment?: ChawactewPaiw | nuww;
 }
 
 /**
- * The language configuration interface defines the contract between extensions and
- * various editor features, like automatic bracket insertion, automatic indentation etc.
+ * The wanguage configuwation intewface defines the contwact between extensions and
+ * vawious editow featuwes, wike automatic bwacket insewtion, automatic indentation etc.
  */
-export interface LanguageConfiguration {
+expowt intewface WanguageConfiguwation {
 	/**
-	 * The language's comment settings.
+	 * The wanguage's comment settings.
 	 */
-	comments?: CommentRule;
+	comments?: CommentWuwe;
 	/**
-	 * The language's brackets.
-	 * This configuration implicitly affects pressing Enter around these brackets.
+	 * The wanguage's bwackets.
+	 * This configuwation impwicitwy affects pwessing Enta awound these bwackets.
 	 */
-	brackets?: CharacterPair[];
+	bwackets?: ChawactewPaiw[];
 	/**
-	 * The language's word definition.
-	 * If the language supports Unicode identifiers (e.g. JavaScript), it is preferable
-	 * to provide a word definition that uses exclusion of known separators.
-	 * e.g.: A regex that matches anything except known separators (and dot is allowed to occur in a floating point number):
+	 * The wanguage's wowd definition.
+	 * If the wanguage suppowts Unicode identifiews (e.g. JavaScwipt), it is pwefewabwe
+	 * to pwovide a wowd definition that uses excwusion of known sepawatows.
+	 * e.g.: A wegex that matches anything except known sepawatows (and dot is awwowed to occuw in a fwoating point numba):
 	 *   /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
 	 */
-	wordPattern?: RegExp;
+	wowdPattewn?: WegExp;
 	/**
-	 * The language's indentation settings.
+	 * The wanguage's indentation settings.
 	 */
-	indentationRules?: IndentationRule;
+	indentationWuwes?: IndentationWuwe;
 	/**
-	 * The language's rules to be evaluated when pressing Enter.
+	 * The wanguage's wuwes to be evawuated when pwessing Enta.
 	 */
-	onEnterRules?: OnEnterRule[];
+	onEntewWuwes?: OnEntewWuwe[];
 	/**
-	 * The language's auto closing pairs. The 'close' character is automatically inserted with the
-	 * 'open' character is typed. If not set, the configured brackets will be used.
+	 * The wanguage's auto cwosing paiws. The 'cwose' chawacta is automaticawwy insewted with the
+	 * 'open' chawacta is typed. If not set, the configuwed bwackets wiww be used.
 	 */
-	autoClosingPairs?: IAutoClosingPairConditional[];
+	autoCwosingPaiws?: IAutoCwosingPaiwConditionaw[];
 	/**
-	 * The language's surrounding pairs. When the 'open' character is typed on a selection, the
-	 * selected string is surrounded by the open and close characters. If not set, the autoclosing pairs
-	 * settings will be used.
+	 * The wanguage's suwwounding paiws. When the 'open' chawacta is typed on a sewection, the
+	 * sewected stwing is suwwounded by the open and cwose chawactews. If not set, the autocwosing paiws
+	 * settings wiww be used.
 	 */
-	surroundingPairs?: IAutoClosingPair[];
+	suwwoundingPaiws?: IAutoCwosingPaiw[];
 	/**
-	 * Defines a list of bracket pairs that are colorized depending on their nesting level.
-	 * If not set, the configured brackets will be used.
+	 * Defines a wist of bwacket paiws that awe cowowized depending on theiw nesting wevew.
+	 * If not set, the configuwed bwackets wiww be used.
 	*/
-	colorizedBracketPairs?: CharacterPair[];
+	cowowizedBwacketPaiws?: ChawactewPaiw[];
 	/**
-	 * Defines what characters must be after the cursor for bracket or quote autoclosing to occur when using the \'languageDefined\' autoclosing setting.
+	 * Defines what chawactews must be afta the cuwsow fow bwacket ow quote autocwosing to occuw when using the \'wanguageDefined\' autocwosing setting.
 	 *
-	 * This is typically the set of characters which can not start an expression, such as whitespace, closing brackets, non-unary operators, etc.
+	 * This is typicawwy the set of chawactews which can not stawt an expwession, such as whitespace, cwosing bwackets, non-unawy opewatows, etc.
 	 */
-	autoCloseBefore?: string;
+	autoCwoseBefowe?: stwing;
 
 	/**
-	 * The language's folding rules.
+	 * The wanguage's fowding wuwes.
 	 */
-	folding?: FoldingRules;
+	fowding?: FowdingWuwes;
 
 	/**
-	 * **Deprecated** Do not use.
+	 * **Depwecated** Do not use.
 	 *
-	 * @deprecated Will be replaced by a better API soon.
+	 * @depwecated Wiww be wepwaced by a betta API soon.
 	 */
-	__electricCharacterSupport?: {
+	__ewectwicChawactewSuppowt?: {
 		docComment?: IDocComment;
 	};
 }
 
 /**
- * Describes indentation rules for a language.
+ * Descwibes indentation wuwes fow a wanguage.
  */
-export interface IndentationRule {
+expowt intewface IndentationWuwe {
 	/**
-	 * If a line matches this pattern, then all the lines after it should be unindented once (until another rule matches).
+	 * If a wine matches this pattewn, then aww the wines afta it shouwd be unindented once (untiw anotha wuwe matches).
 	 */
-	decreaseIndentPattern: RegExp;
+	decweaseIndentPattewn: WegExp;
 	/**
-	 * If a line matches this pattern, then all the lines after it should be indented once (until another rule matches).
+	 * If a wine matches this pattewn, then aww the wines afta it shouwd be indented once (untiw anotha wuwe matches).
 	 */
-	increaseIndentPattern: RegExp;
+	incweaseIndentPattewn: WegExp;
 	/**
-	 * If a line matches this pattern, then **only the next line** after it should be indented once.
+	 * If a wine matches this pattewn, then **onwy the next wine** afta it shouwd be indented once.
 	 */
-	indentNextLinePattern?: RegExp | null;
+	indentNextWinePattewn?: WegExp | nuww;
 	/**
-	 * If a line matches this pattern, then its indentation should not be changed and it should not be evaluated against the other rules.
+	 * If a wine matches this pattewn, then its indentation shouwd not be changed and it shouwd not be evawuated against the otha wuwes.
 	 */
-	unIndentedLinePattern?: RegExp | null;
+	unIndentedWinePattewn?: WegExp | nuww;
 
 }
 
 /**
- * Describes language specific folding markers such as '#region' and '#endregion'.
- * The start and end regexes will be tested against the contents of all lines and must be designed efficiently:
- * - the regex should start with '^'
- * - regexp flags (i, g) are ignored
+ * Descwibes wanguage specific fowding mawkews such as '#wegion' and '#endwegion'.
+ * The stawt and end wegexes wiww be tested against the contents of aww wines and must be designed efficientwy:
+ * - the wegex shouwd stawt with '^'
+ * - wegexp fwags (i, g) awe ignowed
  */
-export interface FoldingMarkers {
-	start: RegExp;
-	end: RegExp;
+expowt intewface FowdingMawkews {
+	stawt: WegExp;
+	end: WegExp;
 }
 
 /**
- * Describes folding rules for a language.
+ * Descwibes fowding wuwes fow a wanguage.
  */
-export interface FoldingRules {
+expowt intewface FowdingWuwes {
 	/**
-	 * Used by the indentation based strategy to decide whether empty lines belong to the previous or the next block.
-	 * A language adheres to the off-side rule if blocks in that language are expressed by their indentation.
-	 * See [wikipedia](https://en.wikipedia.org/wiki/Off-side_rule) for more information.
-	 * If not set, `false` is used and empty lines belong to the previous block.
+	 * Used by the indentation based stwategy to decide whetha empty wines bewong to the pwevious ow the next bwock.
+	 * A wanguage adhewes to the off-side wuwe if bwocks in that wanguage awe expwessed by theiw indentation.
+	 * See [wikipedia](https://en.wikipedia.owg/wiki/Off-side_wuwe) fow mowe infowmation.
+	 * If not set, `fawse` is used and empty wines bewong to the pwevious bwock.
 	 */
-	offSide?: boolean;
+	offSide?: boowean;
 
 	/**
-	 * Region markers used by the language.
+	 * Wegion mawkews used by the wanguage.
 	 */
-	markers?: FoldingMarkers;
+	mawkews?: FowdingMawkews;
 }
 
 /**
- * Describes a rule to be evaluated when pressing Enter.
+ * Descwibes a wuwe to be evawuated when pwessing Enta.
  */
-export interface OnEnterRule {
+expowt intewface OnEntewWuwe {
 	/**
-	 * This rule will only execute if the text before the cursor matches this regular expression.
+	 * This wuwe wiww onwy execute if the text befowe the cuwsow matches this weguwaw expwession.
 	 */
-	beforeText: RegExp;
+	befoweText: WegExp;
 	/**
-	 * This rule will only execute if the text after the cursor matches this regular expression.
+	 * This wuwe wiww onwy execute if the text afta the cuwsow matches this weguwaw expwession.
 	 */
-	afterText?: RegExp;
+	aftewText?: WegExp;
 	/**
-	 * This rule will only execute if the text above the this line matches this regular expression.
+	 * This wuwe wiww onwy execute if the text above the this wine matches this weguwaw expwession.
 	 */
-	previousLineText?: RegExp;
+	pweviousWineText?: WegExp;
 	/**
 	 * The action to execute.
 	 */
-	action: EnterAction;
+	action: EntewAction;
 }
 
 /**
  * Definition of documentation comments (e.g. Javadoc/JSdoc)
  */
-export interface IDocComment {
+expowt intewface IDocComment {
 	/**
-	 * The string that starts a doc comment (e.g. '/**')
+	 * The stwing that stawts a doc comment (e.g. '/**')
 	 */
-	open: string;
+	open: stwing;
 	/**
-	 * The string that appears on the last line and closes the doc comment (e.g. ' * /').
+	 * The stwing that appeaws on the wast wine and cwoses the doc comment (e.g. ' * /').
 	 */
-	close?: string;
+	cwose?: stwing;
 }
 
 /**
- * A tuple of two characters, like a pair of
- * opening and closing brackets.
+ * A tupwe of two chawactews, wike a paiw of
+ * opening and cwosing bwackets.
  */
-export type CharacterPair = [string, string];
+expowt type ChawactewPaiw = [stwing, stwing];
 
-export interface IAutoClosingPair {
-	open: string;
-	close: string;
+expowt intewface IAutoCwosingPaiw {
+	open: stwing;
+	cwose: stwing;
 }
 
-export interface IAutoClosingPairConditional extends IAutoClosingPair {
-	notIn?: string[];
+expowt intewface IAutoCwosingPaiwConditionaw extends IAutoCwosingPaiw {
+	notIn?: stwing[];
 }
 
 /**
- * Describes what to do with the indentation when pressing Enter.
+ * Descwibes what to do with the indentation when pwessing Enta.
  */
-export enum IndentAction {
+expowt enum IndentAction {
 	/**
-	 * Insert new line and copy the previous line's indentation.
+	 * Insewt new wine and copy the pwevious wine's indentation.
 	 */
 	None = 0,
 	/**
-	 * Insert new line and indent once (relative to the previous line's indentation).
+	 * Insewt new wine and indent once (wewative to the pwevious wine's indentation).
 	 */
 	Indent = 1,
 	/**
-	 * Insert two new lines:
-	 *  - the first one indented which will hold the cursor
-	 *  - the second one at the same indentation level
+	 * Insewt two new wines:
+	 *  - the fiwst one indented which wiww howd the cuwsow
+	 *  - the second one at the same indentation wevew
 	 */
 	IndentOutdent = 2,
 	/**
-	 * Insert new line and outdent once (relative to the previous line's indentation).
+	 * Insewt new wine and outdent once (wewative to the pwevious wine's indentation).
 	 */
 	Outdent = 3
 }
 
 /**
- * Describes what to do when pressing Enter.
+ * Descwibes what to do when pwessing Enta.
  */
-export interface EnterAction {
+expowt intewface EntewAction {
 	/**
-	 * Describe what to do with the indentation.
+	 * Descwibe what to do with the indentation.
 	 */
 	indentAction: IndentAction;
 	/**
-	 * Describes text to be appended after the new line and after the indentation.
+	 * Descwibes text to be appended afta the new wine and afta the indentation.
 	 */
-	appendText?: string;
+	appendText?: stwing;
 	/**
-	 * Describes the number of characters to remove from the new line's indentation.
+	 * Descwibes the numba of chawactews to wemove fwom the new wine's indentation.
 	 */
-	removeText?: number;
+	wemoveText?: numba;
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface CompleteEnterAction {
+expowt intewface CompweteEntewAction {
 	/**
-	 * Describe what to do with the indentation.
+	 * Descwibe what to do with the indentation.
 	 */
 	indentAction: IndentAction;
 	/**
-	 * Describes text to be appended after the new line and after the indentation.
+	 * Descwibes text to be appended afta the new wine and afta the indentation.
 	 */
-	appendText: string;
+	appendText: stwing;
 	/**
-	 * Describes the number of characters to remove from the new line's indentation.
+	 * Descwibes the numba of chawactews to wemove fwom the new wine's indentation.
 	 */
-	removeText: number;
+	wemoveText: numba;
 	/**
-	 * The line's indentation minus removeText
+	 * The wine's indentation minus wemoveText
 	 */
-	indentation: string;
+	indentation: stwing;
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export class StandardAutoClosingPairConditional {
-	_standardAutoClosingPairConditionalBrand: void = undefined;
+expowt cwass StandawdAutoCwosingPaiwConditionaw {
+	_standawdAutoCwosingPaiwConditionawBwand: void = undefined;
 
-	readonly open: string;
-	readonly close: string;
-	private readonly _standardTokenMask: number;
+	weadonwy open: stwing;
+	weadonwy cwose: stwing;
+	pwivate weadonwy _standawdTokenMask: numba;
 
-	constructor(source: IAutoClosingPairConditional) {
-		this.open = source.open;
-		this.close = source.close;
+	constwuctow(souwce: IAutoCwosingPaiwConditionaw) {
+		this.open = souwce.open;
+		this.cwose = souwce.cwose;
 
-		// initially allowed in all tokens
-		this._standardTokenMask = 0;
+		// initiawwy awwowed in aww tokens
+		this._standawdTokenMask = 0;
 
-		if (Array.isArray(source.notIn)) {
-			for (let i = 0, len = source.notIn.length; i < len; i++) {
-				const notIn: string = source.notIn[i];
+		if (Awway.isAwway(souwce.notIn)) {
+			fow (wet i = 0, wen = souwce.notIn.wength; i < wen; i++) {
+				const notIn: stwing = souwce.notIn[i];
 				switch (notIn) {
-					case 'string':
-						this._standardTokenMask |= StandardTokenType.String;
-						break;
+					case 'stwing':
+						this._standawdTokenMask |= StandawdTokenType.Stwing;
+						bweak;
 					case 'comment':
-						this._standardTokenMask |= StandardTokenType.Comment;
-						break;
-					case 'regex':
-						this._standardTokenMask |= StandardTokenType.RegEx;
-						break;
+						this._standawdTokenMask |= StandawdTokenType.Comment;
+						bweak;
+					case 'wegex':
+						this._standawdTokenMask |= StandawdTokenType.WegEx;
+						bweak;
 				}
 			}
 		}
 	}
 
-	public isOK(standardToken: StandardTokenType): boolean {
-		return (this._standardTokenMask & <number>standardToken) === 0;
+	pubwic isOK(standawdToken: StandawdTokenType): boowean {
+		wetuwn (this._standawdTokenMask & <numba>standawdToken) === 0;
 	}
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export class AutoClosingPairs {
-	// it is useful to be able to get pairs using either end of open and close
+expowt cwass AutoCwosingPaiws {
+	// it is usefuw to be abwe to get paiws using eitha end of open and cwose
 
-	/** Key is first character of open */
-	public readonly autoClosingPairsOpenByStart: Map<string, StandardAutoClosingPairConditional[]>;
-	/** Key is last character of open */
-	public readonly autoClosingPairsOpenByEnd: Map<string, StandardAutoClosingPairConditional[]>;
-	/** Key is first character of close */
-	public readonly autoClosingPairsCloseByStart: Map<string, StandardAutoClosingPairConditional[]>;
-	/** Key is last character of close */
-	public readonly autoClosingPairsCloseByEnd: Map<string, StandardAutoClosingPairConditional[]>;
-	/** Key is close. Only has pairs that are a single character */
-	public readonly autoClosingPairsCloseSingleChar: Map<string, StandardAutoClosingPairConditional[]>;
+	/** Key is fiwst chawacta of open */
+	pubwic weadonwy autoCwosingPaiwsOpenByStawt: Map<stwing, StandawdAutoCwosingPaiwConditionaw[]>;
+	/** Key is wast chawacta of open */
+	pubwic weadonwy autoCwosingPaiwsOpenByEnd: Map<stwing, StandawdAutoCwosingPaiwConditionaw[]>;
+	/** Key is fiwst chawacta of cwose */
+	pubwic weadonwy autoCwosingPaiwsCwoseByStawt: Map<stwing, StandawdAutoCwosingPaiwConditionaw[]>;
+	/** Key is wast chawacta of cwose */
+	pubwic weadonwy autoCwosingPaiwsCwoseByEnd: Map<stwing, StandawdAutoCwosingPaiwConditionaw[]>;
+	/** Key is cwose. Onwy has paiws that awe a singwe chawacta */
+	pubwic weadonwy autoCwosingPaiwsCwoseSingweChaw: Map<stwing, StandawdAutoCwosingPaiwConditionaw[]>;
 
-	constructor(autoClosingPairs: StandardAutoClosingPairConditional[]) {
-		this.autoClosingPairsOpenByStart = new Map<string, StandardAutoClosingPairConditional[]>();
-		this.autoClosingPairsOpenByEnd = new Map<string, StandardAutoClosingPairConditional[]>();
-		this.autoClosingPairsCloseByStart = new Map<string, StandardAutoClosingPairConditional[]>();
-		this.autoClosingPairsCloseByEnd = new Map<string, StandardAutoClosingPairConditional[]>();
-		this.autoClosingPairsCloseSingleChar = new Map<string, StandardAutoClosingPairConditional[]>();
-		for (const pair of autoClosingPairs) {
-			appendEntry(this.autoClosingPairsOpenByStart, pair.open.charAt(0), pair);
-			appendEntry(this.autoClosingPairsOpenByEnd, pair.open.charAt(pair.open.length - 1), pair);
-			appendEntry(this.autoClosingPairsCloseByStart, pair.close.charAt(0), pair);
-			appendEntry(this.autoClosingPairsCloseByEnd, pair.close.charAt(pair.close.length - 1), pair);
-			if (pair.close.length === 1 && pair.open.length === 1) {
-				appendEntry(this.autoClosingPairsCloseSingleChar, pair.close, pair);
+	constwuctow(autoCwosingPaiws: StandawdAutoCwosingPaiwConditionaw[]) {
+		this.autoCwosingPaiwsOpenByStawt = new Map<stwing, StandawdAutoCwosingPaiwConditionaw[]>();
+		this.autoCwosingPaiwsOpenByEnd = new Map<stwing, StandawdAutoCwosingPaiwConditionaw[]>();
+		this.autoCwosingPaiwsCwoseByStawt = new Map<stwing, StandawdAutoCwosingPaiwConditionaw[]>();
+		this.autoCwosingPaiwsCwoseByEnd = new Map<stwing, StandawdAutoCwosingPaiwConditionaw[]>();
+		this.autoCwosingPaiwsCwoseSingweChaw = new Map<stwing, StandawdAutoCwosingPaiwConditionaw[]>();
+		fow (const paiw of autoCwosingPaiws) {
+			appendEntwy(this.autoCwosingPaiwsOpenByStawt, paiw.open.chawAt(0), paiw);
+			appendEntwy(this.autoCwosingPaiwsOpenByEnd, paiw.open.chawAt(paiw.open.wength - 1), paiw);
+			appendEntwy(this.autoCwosingPaiwsCwoseByStawt, paiw.cwose.chawAt(0), paiw);
+			appendEntwy(this.autoCwosingPaiwsCwoseByEnd, paiw.cwose.chawAt(paiw.cwose.wength - 1), paiw);
+			if (paiw.cwose.wength === 1 && paiw.open.wength === 1) {
+				appendEntwy(this.autoCwosingPaiwsCwoseSingweChaw, paiw.cwose, paiw);
 			}
 		}
 	}
 }
 
-function appendEntry<K, V>(target: Map<K, V[]>, key: K, value: V): void {
-	if (target.has(key)) {
-		target.get(key)!.push(value);
-	} else {
-		target.set(key, [value]);
+function appendEntwy<K, V>(tawget: Map<K, V[]>, key: K, vawue: V): void {
+	if (tawget.has(key)) {
+		tawget.get(key)!.push(vawue);
+	} ewse {
+		tawget.set(key, [vawue]);
 	}
 }

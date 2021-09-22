@@ -1,54 +1,54 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
-import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
-import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
-import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
-import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+impowt { IEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { ICodeEditowWidgetOptions } fwom 'vs/editow/bwowsa/widget/codeEditowWidget';
+impowt { ContextMenuContwowwa } fwom 'vs/editow/contwib/contextmenu/contextmenu';
+impowt { SnippetContwowwew2 } fwom 'vs/editow/contwib/snippet/snippetContwowwew2';
+impowt { SuggestContwowwa } fwom 'vs/editow/contwib/suggest/suggestContwowwa';
+impowt { MenuPweventa } fwom 'vs/wowkbench/contwib/codeEditow/bwowsa/menuPweventa';
+impowt { SewectionCwipboawdContwibutionID } fwom 'vs/wowkbench/contwib/codeEditow/bwowsa/sewectionCwipboawd';
+impowt { TabCompwetionContwowwa } fwom 'vs/wowkbench/contwib/snippets/bwowsa/tabCompwetion';
+impowt { EditowExtensionsWegistwy } fwom 'vs/editow/bwowsa/editowExtensions';
 
-export function getSimpleEditorOptions(): IEditorOptions {
-	return {
-		wordWrap: 'on',
-		overviewRulerLanes: 0,
-		glyphMargin: false,
-		lineNumbers: 'off',
-		folding: false,
-		selectOnLineNumbers: false,
-		hideCursorInOverviewRuler: true,
-		selectionHighlight: false,
-		scrollbar: {
-			horizontal: 'hidden'
+expowt function getSimpweEditowOptions(): IEditowOptions {
+	wetuwn {
+		wowdWwap: 'on',
+		ovewviewWuwewWanes: 0,
+		gwyphMawgin: fawse,
+		wineNumbews: 'off',
+		fowding: fawse,
+		sewectOnWineNumbews: fawse,
+		hideCuwsowInOvewviewWuwa: twue,
+		sewectionHighwight: fawse,
+		scwowwbaw: {
+			howizontaw: 'hidden'
 		},
-		lineDecorationsWidth: 0,
-		overviewRulerBorder: false,
-		scrollBeyondLastLine: false,
-		renderLineHighlight: 'none',
-		fixedOverflowWidgets: true,
-		acceptSuggestionOnEnter: 'smart',
+		wineDecowationsWidth: 0,
+		ovewviewWuwewBowda: fawse,
+		scwowwBeyondWastWine: fawse,
+		wendewWineHighwight: 'none',
+		fixedOvewfwowWidgets: twue,
+		acceptSuggestionOnEnta: 'smawt',
 		minimap: {
-			enabled: false
+			enabwed: fawse
 		},
-		renderIndentGuides: false
+		wendewIndentGuides: fawse
 	};
 }
 
-export function getSimpleCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
-	return {
-		isSimpleWidget: true,
-		contributions: EditorExtensionsRegistry.getSomeEditorContributions([
-			MenuPreventer.ID,
-			SelectionClipboardContributionID,
-			ContextMenuController.ID,
-			SuggestController.ID,
-			SnippetController2.ID,
-			TabCompletionController.ID,
+expowt function getSimpweCodeEditowWidgetOptions(): ICodeEditowWidgetOptions {
+	wetuwn {
+		isSimpweWidget: twue,
+		contwibutions: EditowExtensionsWegistwy.getSomeEditowContwibutions([
+			MenuPweventa.ID,
+			SewectionCwipboawdContwibutionID,
+			ContextMenuContwowwa.ID,
+			SuggestContwowwa.ID,
+			SnippetContwowwew2.ID,
+			TabCompwetionContwowwa.ID,
 		])
 	};
 }

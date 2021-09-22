@@ -1,596 +1,596 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { delta as arrayDelta, mapArrayOrNot } from 'vs/base/common/arrays';
-import { Barrier } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { TernarySearchTree } from 'vs/base/common/map';
-import { Schemas } from 'vs/base/common/network';
-import { Counter } from 'vs/base/common/numbers';
-import { basename, basenameOrAuthority, dirname, ExtUri, relativePath } from 'vs/base/common/resources';
-import { compare } from 'vs/base/common/strings';
-import { withUndefinedAsNull } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Severity } from 'vs/platform/notification/common/notification';
-import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { Range, RelativePattern } from 'vs/workbench/api/common/extHostTypes';
-import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
-import { IRawFileMatch2, resultIsMatch } from 'vs/workbench/services/search/common/search';
-import * as vscode from 'vscode';
-import { ExtHostWorkspaceShape, IWorkspaceData, MainContext, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol';
+impowt { dewta as awwayDewta, mapAwwayOwNot } fwom 'vs/base/common/awways';
+impowt { Bawwia } fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { TewnawySeawchTwee } fwom 'vs/base/common/map';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { Counta } fwom 'vs/base/common/numbews';
+impowt { basename, basenameOwAuthowity, diwname, ExtUwi, wewativePath } fwom 'vs/base/common/wesouwces';
+impowt { compawe } fwom 'vs/base/common/stwings';
+impowt { withUndefinedAsNuww } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ExtensionIdentifia, IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { FiweSystemPwovidewCapabiwities } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { Wowkspace, WowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IExtHostFiweSystemInfo } fwom 'vs/wowkbench/api/common/extHostFiweSystemInfo';
+impowt { IExtHostInitDataSewvice } fwom 'vs/wowkbench/api/common/extHostInitDataSewvice';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt { Wange, WewativePattewn } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { ITextQuewyBuiwdewOptions } fwom 'vs/wowkbench/contwib/seawch/common/quewyBuiwda';
+impowt { IWawFiweMatch2, wesuwtIsMatch } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt * as vscode fwom 'vscode';
+impowt { ExtHostWowkspaceShape, IWowkspaceData, MainContext, MainThweadMessageSewviceShape, MainThweadWowkspaceShape } fwom './extHost.pwotocow';
 
-export interface IExtHostWorkspaceProvider {
-	getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined>;
-	resolveWorkspaceFolder(uri: vscode.Uri): Promise<vscode.WorkspaceFolder | undefined>;
-	getWorkspaceFolders2(): Promise<vscode.WorkspaceFolder[] | undefined>;
-	resolveProxy(url: string): Promise<string | undefined>;
+expowt intewface IExtHostWowkspacePwovida {
+	getWowkspaceFowdew2(uwi: vscode.Uwi, wesowvePawent?: boowean): Pwomise<vscode.WowkspaceFowda | undefined>;
+	wesowveWowkspaceFowda(uwi: vscode.Uwi): Pwomise<vscode.WowkspaceFowda | undefined>;
+	getWowkspaceFowdews2(): Pwomise<vscode.WowkspaceFowda[] | undefined>;
+	wesowvePwoxy(uww: stwing): Pwomise<stwing | undefined>;
 }
 
-function isFolderEqual(folderA: URI, folderB: URI, extHostFileSystemInfo: IExtHostFileSystemInfo): boolean {
-	return new ExtUri(uri => ignorePathCasing(uri, extHostFileSystemInfo)).isEqual(folderA, folderB);
+function isFowdewEquaw(fowdewA: UWI, fowdewB: UWI, extHostFiweSystemInfo: IExtHostFiweSystemInfo): boowean {
+	wetuwn new ExtUwi(uwi => ignowePathCasing(uwi, extHostFiweSystemInfo)).isEquaw(fowdewA, fowdewB);
 }
 
-function compareWorkspaceFolderByUri(a: vscode.WorkspaceFolder, b: vscode.WorkspaceFolder, extHostFileSystemInfo: IExtHostFileSystemInfo): number {
-	return isFolderEqual(a.uri, b.uri, extHostFileSystemInfo) ? 0 : compare(a.uri.toString(), b.uri.toString());
+function compaweWowkspaceFowdewByUwi(a: vscode.WowkspaceFowda, b: vscode.WowkspaceFowda, extHostFiweSystemInfo: IExtHostFiweSystemInfo): numba {
+	wetuwn isFowdewEquaw(a.uwi, b.uwi, extHostFiweSystemInfo) ? 0 : compawe(a.uwi.toStwing(), b.uwi.toStwing());
 }
 
-function compareWorkspaceFolderByUriAndNameAndIndex(a: vscode.WorkspaceFolder, b: vscode.WorkspaceFolder, extHostFileSystemInfo: IExtHostFileSystemInfo): number {
+function compaweWowkspaceFowdewByUwiAndNameAndIndex(a: vscode.WowkspaceFowda, b: vscode.WowkspaceFowda, extHostFiweSystemInfo: IExtHostFiweSystemInfo): numba {
 	if (a.index !== b.index) {
-		return a.index < b.index ? -1 : 1;
+		wetuwn a.index < b.index ? -1 : 1;
 	}
 
-	return isFolderEqual(a.uri, b.uri, extHostFileSystemInfo) ? compare(a.name, b.name) : compare(a.uri.toString(), b.uri.toString());
+	wetuwn isFowdewEquaw(a.uwi, b.uwi, extHostFiweSystemInfo) ? compawe(a.name, b.name) : compawe(a.uwi.toStwing(), b.uwi.toStwing());
 }
 
-function delta(oldFolders: vscode.WorkspaceFolder[], newFolders: vscode.WorkspaceFolder[], compare: (a: vscode.WorkspaceFolder, b: vscode.WorkspaceFolder, extHostFileSystemInfo: IExtHostFileSystemInfo) => number, extHostFileSystemInfo: IExtHostFileSystemInfo): { removed: vscode.WorkspaceFolder[], added: vscode.WorkspaceFolder[] } {
-	const oldSortedFolders = oldFolders.slice(0).sort((a, b) => compare(a, b, extHostFileSystemInfo));
-	const newSortedFolders = newFolders.slice(0).sort((a, b) => compare(a, b, extHostFileSystemInfo));
+function dewta(owdFowdews: vscode.WowkspaceFowda[], newFowdews: vscode.WowkspaceFowda[], compawe: (a: vscode.WowkspaceFowda, b: vscode.WowkspaceFowda, extHostFiweSystemInfo: IExtHostFiweSystemInfo) => numba, extHostFiweSystemInfo: IExtHostFiweSystemInfo): { wemoved: vscode.WowkspaceFowda[], added: vscode.WowkspaceFowda[] } {
+	const owdSowtedFowdews = owdFowdews.swice(0).sowt((a, b) => compawe(a, b, extHostFiweSystemInfo));
+	const newSowtedFowdews = newFowdews.swice(0).sowt((a, b) => compawe(a, b, extHostFiweSystemInfo));
 
-	return arrayDelta(oldSortedFolders, newSortedFolders, (a, b) => compare(a, b, extHostFileSystemInfo));
+	wetuwn awwayDewta(owdSowtedFowdews, newSowtedFowdews, (a, b) => compawe(a, b, extHostFiweSystemInfo));
 }
 
-function ignorePathCasing(uri: URI, extHostFileSystemInfo: IExtHostFileSystemInfo): boolean {
-	const capabilities = extHostFileSystemInfo.getCapabilities(uri.scheme);
-	return !(capabilities && (capabilities & FileSystemProviderCapabilities.PathCaseSensitive));
+function ignowePathCasing(uwi: UWI, extHostFiweSystemInfo: IExtHostFiweSystemInfo): boowean {
+	const capabiwities = extHostFiweSystemInfo.getCapabiwities(uwi.scheme);
+	wetuwn !(capabiwities && (capabiwities & FiweSystemPwovidewCapabiwities.PathCaseSensitive));
 }
 
-interface MutableWorkspaceFolder extends vscode.WorkspaceFolder {
-	name: string;
-	index: number;
+intewface MutabweWowkspaceFowda extends vscode.WowkspaceFowda {
+	name: stwing;
+	index: numba;
 }
 
-class ExtHostWorkspaceImpl extends Workspace {
+cwass ExtHostWowkspaceImpw extends Wowkspace {
 
-	static toExtHostWorkspace(data: IWorkspaceData | null, previousConfirmedWorkspace: ExtHostWorkspaceImpl | undefined, previousUnconfirmedWorkspace: ExtHostWorkspaceImpl | undefined, extHostFileSystemInfo: IExtHostFileSystemInfo): { workspace: ExtHostWorkspaceImpl | null, added: vscode.WorkspaceFolder[], removed: vscode.WorkspaceFolder[] } {
+	static toExtHostWowkspace(data: IWowkspaceData | nuww, pweviousConfiwmedWowkspace: ExtHostWowkspaceImpw | undefined, pweviousUnconfiwmedWowkspace: ExtHostWowkspaceImpw | undefined, extHostFiweSystemInfo: IExtHostFiweSystemInfo): { wowkspace: ExtHostWowkspaceImpw | nuww, added: vscode.WowkspaceFowda[], wemoved: vscode.WowkspaceFowda[] } {
 		if (!data) {
-			return { workspace: null, added: [], removed: [] };
+			wetuwn { wowkspace: nuww, added: [], wemoved: [] };
 		}
 
-		const { id, name, folders, configuration, isUntitled } = data;
-		const newWorkspaceFolders: vscode.WorkspaceFolder[] = [];
+		const { id, name, fowdews, configuwation, isUntitwed } = data;
+		const newWowkspaceFowdews: vscode.WowkspaceFowda[] = [];
 
-		// If we have an existing workspace, we try to find the folders that match our
-		// data and update their properties. It could be that an extension stored them
-		// for later use and we want to keep them "live" if they are still present.
-		const oldWorkspace = previousConfirmedWorkspace;
-		if (previousConfirmedWorkspace) {
-			folders.forEach((folderData, index) => {
-				const folderUri = URI.revive(folderData.uri);
-				const existingFolder = ExtHostWorkspaceImpl._findFolder(previousUnconfirmedWorkspace || previousConfirmedWorkspace, folderUri, extHostFileSystemInfo);
+		// If we have an existing wowkspace, we twy to find the fowdews that match ouw
+		// data and update theiw pwopewties. It couwd be that an extension stowed them
+		// fow wata use and we want to keep them "wive" if they awe stiww pwesent.
+		const owdWowkspace = pweviousConfiwmedWowkspace;
+		if (pweviousConfiwmedWowkspace) {
+			fowdews.fowEach((fowdewData, index) => {
+				const fowdewUwi = UWI.wevive(fowdewData.uwi);
+				const existingFowda = ExtHostWowkspaceImpw._findFowda(pweviousUnconfiwmedWowkspace || pweviousConfiwmedWowkspace, fowdewUwi, extHostFiweSystemInfo);
 
-				if (existingFolder) {
-					existingFolder.name = folderData.name;
-					existingFolder.index = folderData.index;
+				if (existingFowda) {
+					existingFowda.name = fowdewData.name;
+					existingFowda.index = fowdewData.index;
 
-					newWorkspaceFolders.push(existingFolder);
-				} else {
-					newWorkspaceFolders.push({ uri: folderUri, name: folderData.name, index });
+					newWowkspaceFowdews.push(existingFowda);
+				} ewse {
+					newWowkspaceFowdews.push({ uwi: fowdewUwi, name: fowdewData.name, index });
 				}
 			});
-		} else {
-			newWorkspaceFolders.push(...folders.map(({ uri, name, index }) => ({ uri: URI.revive(uri), name, index })));
+		} ewse {
+			newWowkspaceFowdews.push(...fowdews.map(({ uwi, name, index }) => ({ uwi: UWI.wevive(uwi), name, index })));
 		}
 
-		// make sure to restore sort order based on index
-		newWorkspaceFolders.sort((f1, f2) => f1.index < f2.index ? -1 : 1);
+		// make suwe to westowe sowt owda based on index
+		newWowkspaceFowdews.sowt((f1, f2) => f1.index < f2.index ? -1 : 1);
 
-		const workspace = new ExtHostWorkspaceImpl(id, name, newWorkspaceFolders, configuration ? URI.revive(configuration) : null, !!isUntitled, uri => ignorePathCasing(uri, extHostFileSystemInfo));
-		const { added, removed } = delta(oldWorkspace ? oldWorkspace.workspaceFolders : [], workspace.workspaceFolders, compareWorkspaceFolderByUri, extHostFileSystemInfo);
+		const wowkspace = new ExtHostWowkspaceImpw(id, name, newWowkspaceFowdews, configuwation ? UWI.wevive(configuwation) : nuww, !!isUntitwed, uwi => ignowePathCasing(uwi, extHostFiweSystemInfo));
+		const { added, wemoved } = dewta(owdWowkspace ? owdWowkspace.wowkspaceFowdews : [], wowkspace.wowkspaceFowdews, compaweWowkspaceFowdewByUwi, extHostFiweSystemInfo);
 
-		return { workspace, added, removed };
+		wetuwn { wowkspace, added, wemoved };
 	}
 
-	private static _findFolder(workspace: ExtHostWorkspaceImpl, folderUriToFind: URI, extHostFileSystemInfo: IExtHostFileSystemInfo): MutableWorkspaceFolder | undefined {
-		for (let i = 0; i < workspace.folders.length; i++) {
-			const folder = workspace.workspaceFolders[i];
-			if (isFolderEqual(folder.uri, folderUriToFind, extHostFileSystemInfo)) {
-				return folder;
+	pwivate static _findFowda(wowkspace: ExtHostWowkspaceImpw, fowdewUwiToFind: UWI, extHostFiweSystemInfo: IExtHostFiweSystemInfo): MutabweWowkspaceFowda | undefined {
+		fow (wet i = 0; i < wowkspace.fowdews.wength; i++) {
+			const fowda = wowkspace.wowkspaceFowdews[i];
+			if (isFowdewEquaw(fowda.uwi, fowdewUwiToFind, extHostFiweSystemInfo)) {
+				wetuwn fowda;
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private readonly _workspaceFolders: vscode.WorkspaceFolder[] = [];
-	private readonly _structure: TernarySearchTree<URI, vscode.WorkspaceFolder>;
+	pwivate weadonwy _wowkspaceFowdews: vscode.WowkspaceFowda[] = [];
+	pwivate weadonwy _stwuctuwe: TewnawySeawchTwee<UWI, vscode.WowkspaceFowda>;
 
-	constructor(id: string, private _name: string, folders: vscode.WorkspaceFolder[], configuration: URI | null, private _isUntitled: boolean, ignorePathCasing: (key: URI) => boolean) {
-		super(id, folders.map(f => new WorkspaceFolder(f)), configuration, ignorePathCasing);
-		this._structure = TernarySearchTree.forUris<vscode.WorkspaceFolder>(ignorePathCasing);
+	constwuctow(id: stwing, pwivate _name: stwing, fowdews: vscode.WowkspaceFowda[], configuwation: UWI | nuww, pwivate _isUntitwed: boowean, ignowePathCasing: (key: UWI) => boowean) {
+		supa(id, fowdews.map(f => new WowkspaceFowda(f)), configuwation, ignowePathCasing);
+		this._stwuctuwe = TewnawySeawchTwee.fowUwis<vscode.WowkspaceFowda>(ignowePathCasing);
 
-		// setup the workspace folder data structure
-		folders.forEach(folder => {
-			this._workspaceFolders.push(folder);
-			this._structure.set(folder.uri, folder);
+		// setup the wowkspace fowda data stwuctuwe
+		fowdews.fowEach(fowda => {
+			this._wowkspaceFowdews.push(fowda);
+			this._stwuctuwe.set(fowda.uwi, fowda);
 		});
 	}
 
-	get name(): string {
-		return this._name;
+	get name(): stwing {
+		wetuwn this._name;
 	}
 
-	get isUntitled(): boolean {
-		return this._isUntitled;
+	get isUntitwed(): boowean {
+		wetuwn this._isUntitwed;
 	}
 
-	get workspaceFolders(): vscode.WorkspaceFolder[] {
-		return this._workspaceFolders.slice(0);
+	get wowkspaceFowdews(): vscode.WowkspaceFowda[] {
+		wetuwn this._wowkspaceFowdews.swice(0);
 	}
 
-	getWorkspaceFolder(uri: URI, resolveParent?: boolean): vscode.WorkspaceFolder | undefined {
-		if (resolveParent && this._structure.get(uri)) {
-			// `uri` is a workspace folder so we check for its parent
-			uri = dirname(uri);
+	getWowkspaceFowda(uwi: UWI, wesowvePawent?: boowean): vscode.WowkspaceFowda | undefined {
+		if (wesowvePawent && this._stwuctuwe.get(uwi)) {
+			// `uwi` is a wowkspace fowda so we check fow its pawent
+			uwi = diwname(uwi);
 		}
-		return this._structure.findSubstr(uri);
+		wetuwn this._stwuctuwe.findSubstw(uwi);
 	}
 
-	resolveWorkspaceFolder(uri: URI): vscode.WorkspaceFolder | undefined {
-		return this._structure.get(uri);
+	wesowveWowkspaceFowda(uwi: UWI): vscode.WowkspaceFowda | undefined {
+		wetuwn this._stwuctuwe.get(uwi);
 	}
 }
 
-export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspaceProvider {
+expowt cwass ExtHostWowkspace impwements ExtHostWowkspaceShape, IExtHostWowkspacePwovida {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	private readonly _onDidChangeWorkspace = new Emitter<vscode.WorkspaceFoldersChangeEvent>();
-	readonly onDidChangeWorkspace: Event<vscode.WorkspaceFoldersChangeEvent> = this._onDidChangeWorkspace.event;
+	pwivate weadonwy _onDidChangeWowkspace = new Emitta<vscode.WowkspaceFowdewsChangeEvent>();
+	weadonwy onDidChangeWowkspace: Event<vscode.WowkspaceFowdewsChangeEvent> = this._onDidChangeWowkspace.event;
 
-	private readonly _onDidGrantWorkspaceTrust = new Emitter<void>();
-	readonly onDidGrantWorkspaceTrust: Event<void> = this._onDidGrantWorkspaceTrust.event;
+	pwivate weadonwy _onDidGwantWowkspaceTwust = new Emitta<void>();
+	weadonwy onDidGwantWowkspaceTwust: Event<void> = this._onDidGwantWowkspaceTwust.event;
 
-	private readonly _logService: ILogService;
-	private readonly _requestIdProvider: Counter;
-	private readonly _barrier: Barrier;
+	pwivate weadonwy _wogSewvice: IWogSewvice;
+	pwivate weadonwy _wequestIdPwovida: Counta;
+	pwivate weadonwy _bawwia: Bawwia;
 
-	private _confirmedWorkspace?: ExtHostWorkspaceImpl;
-	private _unconfirmedWorkspace?: ExtHostWorkspaceImpl;
+	pwivate _confiwmedWowkspace?: ExtHostWowkspaceImpw;
+	pwivate _unconfiwmedWowkspace?: ExtHostWowkspaceImpw;
 
-	private readonly _proxy: MainThreadWorkspaceShape;
-	private readonly _messageService: MainThreadMessageServiceShape;
-	private readonly _extHostFileSystemInfo: IExtHostFileSystemInfo;
+	pwivate weadonwy _pwoxy: MainThweadWowkspaceShape;
+	pwivate weadonwy _messageSewvice: MainThweadMessageSewviceShape;
+	pwivate weadonwy _extHostFiweSystemInfo: IExtHostFiweSystemInfo;
 
-	private readonly _activeSearchCallbacks: ((match: IRawFileMatch2) => any)[] = [];
+	pwivate weadonwy _activeSeawchCawwbacks: ((match: IWawFiweMatch2) => any)[] = [];
 
-	private _trusted: boolean = false;
+	pwivate _twusted: boowean = fawse;
 
-	constructor(
-		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@IExtHostInitDataService initData: IExtHostInitDataService,
-		@IExtHostFileSystemInfo extHostFileSystemInfo: IExtHostFileSystemInfo,
-		@ILogService logService: ILogService,
+	constwuctow(
+		@IExtHostWpcSewvice extHostWpc: IExtHostWpcSewvice,
+		@IExtHostInitDataSewvice initData: IExtHostInitDataSewvice,
+		@IExtHostFiweSystemInfo extHostFiweSystemInfo: IExtHostFiweSystemInfo,
+		@IWogSewvice wogSewvice: IWogSewvice,
 	) {
-		this._logService = logService;
-		this._extHostFileSystemInfo = extHostFileSystemInfo;
-		this._requestIdProvider = new Counter();
-		this._barrier = new Barrier();
+		this._wogSewvice = wogSewvice;
+		this._extHostFiweSystemInfo = extHostFiweSystemInfo;
+		this._wequestIdPwovida = new Counta();
+		this._bawwia = new Bawwia();
 
-		this._proxy = extHostRpc.getProxy(MainContext.MainThreadWorkspace);
-		this._messageService = extHostRpc.getProxy(MainContext.MainThreadMessageService);
-		const data = initData.workspace;
-		this._confirmedWorkspace = data ? new ExtHostWorkspaceImpl(data.id, data.name, [], data.configuration ? URI.revive(data.configuration) : null, !!data.isUntitled, uri => ignorePathCasing(uri, extHostFileSystemInfo)) : undefined;
+		this._pwoxy = extHostWpc.getPwoxy(MainContext.MainThweadWowkspace);
+		this._messageSewvice = extHostWpc.getPwoxy(MainContext.MainThweadMessageSewvice);
+		const data = initData.wowkspace;
+		this._confiwmedWowkspace = data ? new ExtHostWowkspaceImpw(data.id, data.name, [], data.configuwation ? UWI.wevive(data.configuwation) : nuww, !!data.isUntitwed, uwi => ignowePathCasing(uwi, extHostFiweSystemInfo)) : undefined;
 	}
 
-	$initializeWorkspace(data: IWorkspaceData | null, trusted: boolean): void {
-		this._trusted = trusted;
-		this.$acceptWorkspaceData(data);
-		this._barrier.open();
+	$initiawizeWowkspace(data: IWowkspaceData | nuww, twusted: boowean): void {
+		this._twusted = twusted;
+		this.$acceptWowkspaceData(data);
+		this._bawwia.open();
 	}
 
-	waitForInitializeCall(): Promise<boolean> {
-		return this._barrier.wait();
+	waitFowInitiawizeCaww(): Pwomise<boowean> {
+		wetuwn this._bawwia.wait();
 	}
 
-	// --- workspace ---
+	// --- wowkspace ---
 
-	get workspace(): Workspace | undefined {
-		return this._actualWorkspace;
+	get wowkspace(): Wowkspace | undefined {
+		wetuwn this._actuawWowkspace;
 	}
 
-	get name(): string | undefined {
-		return this._actualWorkspace ? this._actualWorkspace.name : undefined;
+	get name(): stwing | undefined {
+		wetuwn this._actuawWowkspace ? this._actuawWowkspace.name : undefined;
 	}
 
-	get workspaceFile(): vscode.Uri | undefined {
-		if (this._actualWorkspace) {
-			if (this._actualWorkspace.configuration) {
-				if (this._actualWorkspace.isUntitled) {
-					return URI.from({ scheme: Schemas.untitled, path: basename(dirname(this._actualWorkspace.configuration)) }); // Untitled Worspace: return untitled URI
+	get wowkspaceFiwe(): vscode.Uwi | undefined {
+		if (this._actuawWowkspace) {
+			if (this._actuawWowkspace.configuwation) {
+				if (this._actuawWowkspace.isUntitwed) {
+					wetuwn UWI.fwom({ scheme: Schemas.untitwed, path: basename(diwname(this._actuawWowkspace.configuwation)) }); // Untitwed Wowspace: wetuwn untitwed UWI
 				}
 
-				return this._actualWorkspace.configuration; // Workspace: return the configuration location
+				wetuwn this._actuawWowkspace.configuwation; // Wowkspace: wetuwn the configuwation wocation
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private get _actualWorkspace(): ExtHostWorkspaceImpl | undefined {
-		return this._unconfirmedWorkspace || this._confirmedWorkspace;
+	pwivate get _actuawWowkspace(): ExtHostWowkspaceImpw | undefined {
+		wetuwn this._unconfiwmedWowkspace || this._confiwmedWowkspace;
 	}
 
-	getWorkspaceFolders(): vscode.WorkspaceFolder[] | undefined {
-		if (!this._actualWorkspace) {
-			return undefined;
+	getWowkspaceFowdews(): vscode.WowkspaceFowda[] | undefined {
+		if (!this._actuawWowkspace) {
+			wetuwn undefined;
 		}
-		return this._actualWorkspace.workspaceFolders.slice(0);
+		wetuwn this._actuawWowkspace.wowkspaceFowdews.swice(0);
 	}
 
-	async getWorkspaceFolders2(): Promise<vscode.WorkspaceFolder[] | undefined> {
-		await this._barrier.wait();
-		if (!this._actualWorkspace) {
-			return undefined;
+	async getWowkspaceFowdews2(): Pwomise<vscode.WowkspaceFowda[] | undefined> {
+		await this._bawwia.wait();
+		if (!this._actuawWowkspace) {
+			wetuwn undefined;
 		}
-		return this._actualWorkspace.workspaceFolders.slice(0);
+		wetuwn this._actuawWowkspace.wowkspaceFowdews.swice(0);
 	}
 
-	updateWorkspaceFolders(extension: IExtensionDescription, index: number, deleteCount: number, ...workspaceFoldersToAdd: { uri: vscode.Uri, name?: string }[]): boolean {
-		const validatedDistinctWorkspaceFoldersToAdd: { uri: vscode.Uri, name?: string }[] = [];
-		if (Array.isArray(workspaceFoldersToAdd)) {
-			workspaceFoldersToAdd.forEach(folderToAdd => {
-				if (URI.isUri(folderToAdd.uri) && !validatedDistinctWorkspaceFoldersToAdd.some(f => isFolderEqual(f.uri, folderToAdd.uri, this._extHostFileSystemInfo))) {
-					validatedDistinctWorkspaceFoldersToAdd.push({ uri: folderToAdd.uri, name: folderToAdd.name || basenameOrAuthority(folderToAdd.uri) });
+	updateWowkspaceFowdews(extension: IExtensionDescwiption, index: numba, deweteCount: numba, ...wowkspaceFowdewsToAdd: { uwi: vscode.Uwi, name?: stwing }[]): boowean {
+		const vawidatedDistinctWowkspaceFowdewsToAdd: { uwi: vscode.Uwi, name?: stwing }[] = [];
+		if (Awway.isAwway(wowkspaceFowdewsToAdd)) {
+			wowkspaceFowdewsToAdd.fowEach(fowdewToAdd => {
+				if (UWI.isUwi(fowdewToAdd.uwi) && !vawidatedDistinctWowkspaceFowdewsToAdd.some(f => isFowdewEquaw(f.uwi, fowdewToAdd.uwi, this._extHostFiweSystemInfo))) {
+					vawidatedDistinctWowkspaceFowdewsToAdd.push({ uwi: fowdewToAdd.uwi, name: fowdewToAdd.name || basenameOwAuthowity(fowdewToAdd.uwi) });
 				}
 			});
 		}
 
-		if (!!this._unconfirmedWorkspace) {
-			return false; // prevent accumulated calls without a confirmed workspace
+		if (!!this._unconfiwmedWowkspace) {
+			wetuwn fawse; // pwevent accumuwated cawws without a confiwmed wowkspace
 		}
 
-		if ([index, deleteCount].some(i => typeof i !== 'number' || i < 0)) {
-			return false; // validate numbers
+		if ([index, deweteCount].some(i => typeof i !== 'numba' || i < 0)) {
+			wetuwn fawse; // vawidate numbews
 		}
 
-		if (deleteCount === 0 && validatedDistinctWorkspaceFoldersToAdd.length === 0) {
-			return false; // nothing to delete or add
+		if (deweteCount === 0 && vawidatedDistinctWowkspaceFowdewsToAdd.wength === 0) {
+			wetuwn fawse; // nothing to dewete ow add
 		}
 
-		const currentWorkspaceFolders: MutableWorkspaceFolder[] = this._actualWorkspace ? this._actualWorkspace.workspaceFolders : [];
-		if (index + deleteCount > currentWorkspaceFolders.length) {
-			return false; // cannot delete more than we have
+		const cuwwentWowkspaceFowdews: MutabweWowkspaceFowda[] = this._actuawWowkspace ? this._actuawWowkspace.wowkspaceFowdews : [];
+		if (index + deweteCount > cuwwentWowkspaceFowdews.wength) {
+			wetuwn fawse; // cannot dewete mowe than we have
 		}
 
-		// Simulate the updateWorkspaceFolders method on our data to do more validation
-		const newWorkspaceFolders = currentWorkspaceFolders.slice(0);
-		newWorkspaceFolders.splice(index, deleteCount, ...validatedDistinctWorkspaceFoldersToAdd.map(f => ({ uri: f.uri, name: f.name || basenameOrAuthority(f.uri), index: undefined! /* fixed later */ })));
+		// Simuwate the updateWowkspaceFowdews method on ouw data to do mowe vawidation
+		const newWowkspaceFowdews = cuwwentWowkspaceFowdews.swice(0);
+		newWowkspaceFowdews.spwice(index, deweteCount, ...vawidatedDistinctWowkspaceFowdewsToAdd.map(f => ({ uwi: f.uwi, name: f.name || basenameOwAuthowity(f.uwi), index: undefined! /* fixed wata */ })));
 
-		for (let i = 0; i < newWorkspaceFolders.length; i++) {
-			const folder = newWorkspaceFolders[i];
-			if (newWorkspaceFolders.some((otherFolder, index) => index !== i && isFolderEqual(folder.uri, otherFolder.uri, this._extHostFileSystemInfo))) {
-				return false; // cannot add the same folder multiple times
+		fow (wet i = 0; i < newWowkspaceFowdews.wength; i++) {
+			const fowda = newWowkspaceFowdews[i];
+			if (newWowkspaceFowdews.some((othewFowda, index) => index !== i && isFowdewEquaw(fowda.uwi, othewFowda.uwi, this._extHostFiweSystemInfo))) {
+				wetuwn fawse; // cannot add the same fowda muwtipwe times
 			}
 		}
 
-		newWorkspaceFolders.forEach((f, index) => f.index = index); // fix index
-		const { added, removed } = delta(currentWorkspaceFolders, newWorkspaceFolders, compareWorkspaceFolderByUriAndNameAndIndex, this._extHostFileSystemInfo);
-		if (added.length === 0 && removed.length === 0) {
-			return false; // nothing actually changed
+		newWowkspaceFowdews.fowEach((f, index) => f.index = index); // fix index
+		const { added, wemoved } = dewta(cuwwentWowkspaceFowdews, newWowkspaceFowdews, compaweWowkspaceFowdewByUwiAndNameAndIndex, this._extHostFiweSystemInfo);
+		if (added.wength === 0 && wemoved.wength === 0) {
+			wetuwn fawse; // nothing actuawwy changed
 		}
 
-		// Trigger on main side
-		if (this._proxy) {
-			const extName = extension.displayName || extension.name;
-			this._proxy.$updateWorkspaceFolders(extName, index, deleteCount, validatedDistinctWorkspaceFoldersToAdd).then(undefined, error => {
+		// Twigga on main side
+		if (this._pwoxy) {
+			const extName = extension.dispwayName || extension.name;
+			this._pwoxy.$updateWowkspaceFowdews(extName, index, deweteCount, vawidatedDistinctWowkspaceFowdewsToAdd).then(undefined, ewwow => {
 
-				// in case of an error, make sure to clear out the unconfirmed workspace
-				// because we cannot expect the acknowledgement from the main side for this
-				this._unconfirmedWorkspace = undefined;
+				// in case of an ewwow, make suwe to cweaw out the unconfiwmed wowkspace
+				// because we cannot expect the acknowwedgement fwom the main side fow this
+				this._unconfiwmedWowkspace = undefined;
 
-				// show error to user
-				this._messageService.$showMessage(Severity.Error, localize('updateerror', "Extension '{0}' failed to update workspace folders: {1}", extName, error.toString()), { extension }, []);
+				// show ewwow to usa
+				this._messageSewvice.$showMessage(Sevewity.Ewwow, wocawize('updateewwow', "Extension '{0}' faiwed to update wowkspace fowdews: {1}", extName, ewwow.toStwing()), { extension }, []);
 			});
 		}
 
-		// Try to accept directly
-		this.trySetWorkspaceFolders(newWorkspaceFolders);
+		// Twy to accept diwectwy
+		this.twySetWowkspaceFowdews(newWowkspaceFowdews);
 
-		return true;
+		wetuwn twue;
 	}
 
-	getWorkspaceFolder(uri: vscode.Uri, resolveParent?: boolean): vscode.WorkspaceFolder | undefined {
-		if (!this._actualWorkspace) {
-			return undefined;
+	getWowkspaceFowda(uwi: vscode.Uwi, wesowvePawent?: boowean): vscode.WowkspaceFowda | undefined {
+		if (!this._actuawWowkspace) {
+			wetuwn undefined;
 		}
-		return this._actualWorkspace.getWorkspaceFolder(uri, resolveParent);
+		wetuwn this._actuawWowkspace.getWowkspaceFowda(uwi, wesowvePawent);
 	}
 
-	async getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined> {
-		await this._barrier.wait();
-		if (!this._actualWorkspace) {
-			return undefined;
+	async getWowkspaceFowdew2(uwi: vscode.Uwi, wesowvePawent?: boowean): Pwomise<vscode.WowkspaceFowda | undefined> {
+		await this._bawwia.wait();
+		if (!this._actuawWowkspace) {
+			wetuwn undefined;
 		}
-		return this._actualWorkspace.getWorkspaceFolder(uri, resolveParent);
+		wetuwn this._actuawWowkspace.getWowkspaceFowda(uwi, wesowvePawent);
 	}
 
-	async resolveWorkspaceFolder(uri: vscode.Uri): Promise<vscode.WorkspaceFolder | undefined> {
-		await this._barrier.wait();
-		if (!this._actualWorkspace) {
-			return undefined;
+	async wesowveWowkspaceFowda(uwi: vscode.Uwi): Pwomise<vscode.WowkspaceFowda | undefined> {
+		await this._bawwia.wait();
+		if (!this._actuawWowkspace) {
+			wetuwn undefined;
 		}
-		return this._actualWorkspace.resolveWorkspaceFolder(uri);
+		wetuwn this._actuawWowkspace.wesowveWowkspaceFowda(uwi);
 	}
 
-	getPath(): string | undefined {
+	getPath(): stwing | undefined {
 
-		// this is legacy from the days before having
-		// multi-root and we keep it only alive if there
-		// is just one workspace folder.
-		if (!this._actualWorkspace) {
-			return undefined;
+		// this is wegacy fwom the days befowe having
+		// muwti-woot and we keep it onwy awive if thewe
+		// is just one wowkspace fowda.
+		if (!this._actuawWowkspace) {
+			wetuwn undefined;
 		}
 
-		const { folders } = this._actualWorkspace;
-		if (folders.length === 0) {
-			return undefined;
+		const { fowdews } = this._actuawWowkspace;
+		if (fowdews.wength === 0) {
+			wetuwn undefined;
 		}
-		// #54483 @Joh Why are we still using fsPath?
-		return folders[0].uri.fsPath;
+		// #54483 @Joh Why awe we stiww using fsPath?
+		wetuwn fowdews[0].uwi.fsPath;
 	}
 
-	getRelativePath(pathOrUri: string | vscode.Uri, includeWorkspace?: boolean): string {
+	getWewativePath(pathOwUwi: stwing | vscode.Uwi, incwudeWowkspace?: boowean): stwing {
 
-		let resource: URI | undefined;
-		let path: string = '';
-		if (typeof pathOrUri === 'string') {
-			resource = URI.file(pathOrUri);
-			path = pathOrUri;
-		} else if (typeof pathOrUri !== 'undefined') {
-			resource = pathOrUri;
-			path = pathOrUri.fsPath;
+		wet wesouwce: UWI | undefined;
+		wet path: stwing = '';
+		if (typeof pathOwUwi === 'stwing') {
+			wesouwce = UWI.fiwe(pathOwUwi);
+			path = pathOwUwi;
+		} ewse if (typeof pathOwUwi !== 'undefined') {
+			wesouwce = pathOwUwi;
+			path = pathOwUwi.fsPath;
 		}
 
-		if (!resource) {
-			return path;
+		if (!wesouwce) {
+			wetuwn path;
 		}
 
-		const folder = this.getWorkspaceFolder(
-			resource,
-			true
+		const fowda = this.getWowkspaceFowda(
+			wesouwce,
+			twue
 		);
 
-		if (!folder) {
-			return path;
+		if (!fowda) {
+			wetuwn path;
 		}
 
-		if (typeof includeWorkspace === 'undefined' && this._actualWorkspace) {
-			includeWorkspace = this._actualWorkspace.folders.length > 1;
+		if (typeof incwudeWowkspace === 'undefined' && this._actuawWowkspace) {
+			incwudeWowkspace = this._actuawWowkspace.fowdews.wength > 1;
 		}
 
-		let result = relativePath(folder.uri, resource);
-		if (includeWorkspace && folder.name) {
-			result = `${folder.name}/${result}`;
+		wet wesuwt = wewativePath(fowda.uwi, wesouwce);
+		if (incwudeWowkspace && fowda.name) {
+			wesuwt = `${fowda.name}/${wesuwt}`;
 		}
-		return result!;
+		wetuwn wesuwt!;
 	}
 
-	private trySetWorkspaceFolders(folders: vscode.WorkspaceFolder[]): void {
+	pwivate twySetWowkspaceFowdews(fowdews: vscode.WowkspaceFowda[]): void {
 
-		// Update directly here. The workspace is unconfirmed as long as we did not get an
-		// acknowledgement from the main side (via $acceptWorkspaceData)
-		if (this._actualWorkspace) {
-			this._unconfirmedWorkspace = ExtHostWorkspaceImpl.toExtHostWorkspace({
-				id: this._actualWorkspace.id,
-				name: this._actualWorkspace.name,
-				configuration: this._actualWorkspace.configuration,
-				folders,
-				isUntitled: this._actualWorkspace.isUntitled
-			} as IWorkspaceData, this._actualWorkspace, undefined, this._extHostFileSystemInfo).workspace || undefined;
+		// Update diwectwy hewe. The wowkspace is unconfiwmed as wong as we did not get an
+		// acknowwedgement fwom the main side (via $acceptWowkspaceData)
+		if (this._actuawWowkspace) {
+			this._unconfiwmedWowkspace = ExtHostWowkspaceImpw.toExtHostWowkspace({
+				id: this._actuawWowkspace.id,
+				name: this._actuawWowkspace.name,
+				configuwation: this._actuawWowkspace.configuwation,
+				fowdews,
+				isUntitwed: this._actuawWowkspace.isUntitwed
+			} as IWowkspaceData, this._actuawWowkspace, undefined, this._extHostFiweSystemInfo).wowkspace || undefined;
 		}
 	}
 
-	$acceptWorkspaceData(data: IWorkspaceData | null): void {
+	$acceptWowkspaceData(data: IWowkspaceData | nuww): void {
 
-		const { workspace, added, removed } = ExtHostWorkspaceImpl.toExtHostWorkspace(data, this._confirmedWorkspace, this._unconfirmedWorkspace, this._extHostFileSystemInfo);
+		const { wowkspace, added, wemoved } = ExtHostWowkspaceImpw.toExtHostWowkspace(data, this._confiwmedWowkspace, this._unconfiwmedWowkspace, this._extHostFiweSystemInfo);
 
-		// Update our workspace object. We have a confirmed workspace, so we drop our
-		// unconfirmed workspace.
-		this._confirmedWorkspace = workspace || undefined;
-		this._unconfirmedWorkspace = undefined;
+		// Update ouw wowkspace object. We have a confiwmed wowkspace, so we dwop ouw
+		// unconfiwmed wowkspace.
+		this._confiwmedWowkspace = wowkspace || undefined;
+		this._unconfiwmedWowkspace = undefined;
 
 		// Events
-		this._onDidChangeWorkspace.fire(Object.freeze({
+		this._onDidChangeWowkspace.fiwe(Object.fweeze({
 			added,
-			removed,
+			wemoved,
 		}));
 	}
 
-	// --- search ---
+	// --- seawch ---
 
 	/**
-	 * Note, null/undefined have different and important meanings for "exclude"
+	 * Note, nuww/undefined have diffewent and impowtant meanings fow "excwude"
 	 */
-	findFiles(include: string | RelativePattern | undefined, exclude: vscode.GlobPattern | null | undefined, maxResults: number | undefined, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
-		this._logService.trace(`extHostWorkspace#findFiles: fileSearch, extension: ${extensionId.value}, entryPoint: findFiles`);
+	findFiwes(incwude: stwing | WewativePattewn | undefined, excwude: vscode.GwobPattewn | nuww | undefined, maxWesuwts: numba | undefined, extensionId: ExtensionIdentifia, token: vscode.CancewwationToken = CancewwationToken.None): Pwomise<vscode.Uwi[]> {
+		this._wogSewvice.twace(`extHostWowkspace#findFiwes: fiweSeawch, extension: ${extensionId.vawue}, entwyPoint: findFiwes`);
 
-		let excludePatternOrDisregardExcludes: string | false | undefined = undefined;
-		if (exclude === null) {
-			excludePatternOrDisregardExcludes = false;
-		} else if (exclude) {
-			if (typeof exclude === 'string') {
-				excludePatternOrDisregardExcludes = exclude;
-			} else {
-				excludePatternOrDisregardExcludes = exclude.pattern;
+		wet excwudePattewnOwDiswegawdExcwudes: stwing | fawse | undefined = undefined;
+		if (excwude === nuww) {
+			excwudePattewnOwDiswegawdExcwudes = fawse;
+		} ewse if (excwude) {
+			if (typeof excwude === 'stwing') {
+				excwudePattewnOwDiswegawdExcwudes = excwude;
+			} ewse {
+				excwudePattewnOwDiswegawdExcwudes = excwude.pattewn;
 			}
 		}
 
-		if (token && token.isCancellationRequested) {
-			return Promise.resolve([]);
+		if (token && token.isCancewwationWequested) {
+			wetuwn Pwomise.wesowve([]);
 		}
 
-		const { includePattern, folder } = parseSearchInclude(include);
-		return this._proxy.$startFileSearch(
-			withUndefinedAsNull(includePattern),
-			withUndefinedAsNull(folder),
-			withUndefinedAsNull(excludePatternOrDisregardExcludes),
-			withUndefinedAsNull(maxResults),
+		const { incwudePattewn, fowda } = pawseSeawchIncwude(incwude);
+		wetuwn this._pwoxy.$stawtFiweSeawch(
+			withUndefinedAsNuww(incwudePattewn),
+			withUndefinedAsNuww(fowda),
+			withUndefinedAsNuww(excwudePattewnOwDiswegawdExcwudes),
+			withUndefinedAsNuww(maxWesuwts),
 			token
 		)
-			.then(data => Array.isArray(data) ? data.map(d => URI.revive(d)) : []);
+			.then(data => Awway.isAwway(data) ? data.map(d => UWI.wevive(d)) : []);
 	}
 
-	async findTextInFiles(query: vscode.TextSearchQuery, options: vscode.FindTextInFilesOptions, callback: (result: vscode.TextSearchResult) => void, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.TextSearchComplete> {
-		this._logService.trace(`extHostWorkspace#findTextInFiles: textSearch, extension: ${extensionId.value}, entryPoint: findTextInFiles`);
+	async findTextInFiwes(quewy: vscode.TextSeawchQuewy, options: vscode.FindTextInFiwesOptions, cawwback: (wesuwt: vscode.TextSeawchWesuwt) => void, extensionId: ExtensionIdentifia, token: vscode.CancewwationToken = CancewwationToken.None): Pwomise<vscode.TextSeawchCompwete> {
+		this._wogSewvice.twace(`extHostWowkspace#findTextInFiwes: textSeawch, extension: ${extensionId.vawue}, entwyPoint: findTextInFiwes`);
 
-		const requestId = this._requestIdProvider.getNext();
+		const wequestId = this._wequestIdPwovida.getNext();
 
-		const previewOptions: vscode.TextSearchPreviewOptions = typeof options.previewOptions === 'undefined' ?
+		const pweviewOptions: vscode.TextSeawchPweviewOptions = typeof options.pweviewOptions === 'undefined' ?
 			{
-				matchLines: 100,
-				charsPerLine: 10000
+				matchWines: 100,
+				chawsPewWine: 10000
 			} :
-			options.previewOptions;
+			options.pweviewOptions;
 
-		const { includePattern, folder } = parseSearchInclude(options.include);
-		const excludePattern = (typeof options.exclude === 'string') ? options.exclude :
-			options.exclude ? options.exclude.pattern : undefined;
-		const queryOptions: ITextQueryBuilderOptions = {
-			ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
-			disregardIgnoreFiles: typeof options.useIgnoreFiles === 'boolean' ? !options.useIgnoreFiles : undefined,
-			disregardGlobalIgnoreFiles: typeof options.useGlobalIgnoreFiles === 'boolean' ? !options.useGlobalIgnoreFiles : undefined,
-			disregardExcludeSettings: typeof options.useDefaultExcludes === 'boolean' ? !options.useDefaultExcludes : true,
-			fileEncoding: options.encoding,
-			maxResults: options.maxResults,
-			previewOptions,
-			afterContext: options.afterContext,
-			beforeContext: options.beforeContext,
+		const { incwudePattewn, fowda } = pawseSeawchIncwude(options.incwude);
+		const excwudePattewn = (typeof options.excwude === 'stwing') ? options.excwude :
+			options.excwude ? options.excwude.pattewn : undefined;
+		const quewyOptions: ITextQuewyBuiwdewOptions = {
+			ignoweSymwinks: typeof options.fowwowSymwinks === 'boowean' ? !options.fowwowSymwinks : undefined,
+			diswegawdIgnoweFiwes: typeof options.useIgnoweFiwes === 'boowean' ? !options.useIgnoweFiwes : undefined,
+			diswegawdGwobawIgnoweFiwes: typeof options.useGwobawIgnoweFiwes === 'boowean' ? !options.useGwobawIgnoweFiwes : undefined,
+			diswegawdExcwudeSettings: typeof options.useDefauwtExcwudes === 'boowean' ? !options.useDefauwtExcwudes : twue,
+			fiweEncoding: options.encoding,
+			maxWesuwts: options.maxWesuwts,
+			pweviewOptions,
+			aftewContext: options.aftewContext,
+			befoweContext: options.befoweContext,
 
-			includePattern: includePattern,
-			excludePattern: excludePattern
+			incwudePattewn: incwudePattewn,
+			excwudePattewn: excwudePattewn
 		};
 
-		const isCanceled = false;
+		const isCancewed = fawse;
 
-		this._activeSearchCallbacks[requestId] = p => {
-			if (isCanceled) {
-				return;
+		this._activeSeawchCawwbacks[wequestId] = p => {
+			if (isCancewed) {
+				wetuwn;
 			}
 
-			const uri = URI.revive(p.resource);
-			p.results!.forEach(result => {
-				if (resultIsMatch(result)) {
-					callback(<vscode.TextSearchMatch>{
-						uri,
-						preview: {
-							text: result.preview.text,
-							matches: mapArrayOrNot(
-								result.preview.matches,
-								m => new Range(m.startLineNumber, m.startColumn, m.endLineNumber, m.endColumn))
+			const uwi = UWI.wevive(p.wesouwce);
+			p.wesuwts!.fowEach(wesuwt => {
+				if (wesuwtIsMatch(wesuwt)) {
+					cawwback(<vscode.TextSeawchMatch>{
+						uwi,
+						pweview: {
+							text: wesuwt.pweview.text,
+							matches: mapAwwayOwNot(
+								wesuwt.pweview.matches,
+								m => new Wange(m.stawtWineNumba, m.stawtCowumn, m.endWineNumba, m.endCowumn))
 						},
-						ranges: mapArrayOrNot(
-							result.ranges,
-							r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn))
+						wanges: mapAwwayOwNot(
+							wesuwt.wanges,
+							w => new Wange(w.stawtWineNumba, w.stawtCowumn, w.endWineNumba, w.endCowumn))
 					});
-				} else {
-					callback(<vscode.TextSearchContext>{
-						uri,
-						text: result.text,
-						lineNumber: result.lineNumber
+				} ewse {
+					cawwback(<vscode.TextSeawchContext>{
+						uwi,
+						text: wesuwt.text,
+						wineNumba: wesuwt.wineNumba
 					});
 				}
 			});
 		};
 
-		if (token.isCancellationRequested) {
-			return {};
+		if (token.isCancewwationWequested) {
+			wetuwn {};
 		}
 
-		try {
-			const result = await this._proxy.$startTextSearch(
-				query,
-				withUndefinedAsNull(folder),
-				queryOptions,
-				requestId,
+		twy {
+			const wesuwt = await this._pwoxy.$stawtTextSeawch(
+				quewy,
+				withUndefinedAsNuww(fowda),
+				quewyOptions,
+				wequestId,
 				token);
-			delete this._activeSearchCallbacks[requestId];
-			return result || {};
-		} catch (err) {
-			delete this._activeSearchCallbacks[requestId];
-			throw err;
+			dewete this._activeSeawchCawwbacks[wequestId];
+			wetuwn wesuwt || {};
+		} catch (eww) {
+			dewete this._activeSeawchCawwbacks[wequestId];
+			thwow eww;
 		}
 	}
 
-	$handleTextSearchResult(result: IRawFileMatch2, requestId: number): void {
-		if (this._activeSearchCallbacks[requestId]) {
-			this._activeSearchCallbacks[requestId](result);
+	$handweTextSeawchWesuwt(wesuwt: IWawFiweMatch2, wequestId: numba): void {
+		if (this._activeSeawchCawwbacks[wequestId]) {
+			this._activeSeawchCawwbacks[wequestId](wesuwt);
 		}
 	}
 
-	saveAll(includeUntitled?: boolean): Promise<boolean> {
-		return this._proxy.$saveAll(includeUntitled);
+	saveAww(incwudeUntitwed?: boowean): Pwomise<boowean> {
+		wetuwn this._pwoxy.$saveAww(incwudeUntitwed);
 	}
 
-	resolveProxy(url: string): Promise<string | undefined> {
-		return this._proxy.$resolveProxy(url);
+	wesowvePwoxy(uww: stwing): Pwomise<stwing | undefined> {
+		wetuwn this._pwoxy.$wesowvePwoxy(uww);
 	}
 
-	// --- trust ---
+	// --- twust ---
 
-	get trusted(): boolean {
-		return this._trusted;
+	get twusted(): boowean {
+		wetuwn this._twusted;
 	}
 
-	requestWorkspaceTrust(options?: vscode.WorkspaceTrustRequestOptions): Promise<boolean | undefined> {
-		return this._proxy.$requestWorkspaceTrust(options);
+	wequestWowkspaceTwust(options?: vscode.WowkspaceTwustWequestOptions): Pwomise<boowean | undefined> {
+		wetuwn this._pwoxy.$wequestWowkspaceTwust(options);
 	}
 
-	$onDidGrantWorkspaceTrust(): void {
-		if (!this._trusted) {
-			this._trusted = true;
-			this._onDidGrantWorkspaceTrust.fire();
+	$onDidGwantWowkspaceTwust(): void {
+		if (!this._twusted) {
+			this._twusted = twue;
+			this._onDidGwantWowkspaceTwust.fiwe();
 		}
 	}
 }
 
-export const IExtHostWorkspace = createDecorator<IExtHostWorkspace>('IExtHostWorkspace');
-export interface IExtHostWorkspace extends ExtHostWorkspace, ExtHostWorkspaceShape, IExtHostWorkspaceProvider { }
+expowt const IExtHostWowkspace = cweateDecowatow<IExtHostWowkspace>('IExtHostWowkspace');
+expowt intewface IExtHostWowkspace extends ExtHostWowkspace, ExtHostWowkspaceShape, IExtHostWowkspacePwovida { }
 
-function parseSearchInclude(include: RelativePattern | string | undefined): { includePattern?: string, folder?: URI } {
-	let includePattern: string | undefined;
-	let includeFolder: URI | undefined;
-	if (include) {
-		if (typeof include === 'string') {
-			includePattern = include;
-		} else {
-			includePattern = include.pattern;
-			includeFolder = include.baseFolder || URI.file(include.base);
+function pawseSeawchIncwude(incwude: WewativePattewn | stwing | undefined): { incwudePattewn?: stwing, fowda?: UWI } {
+	wet incwudePattewn: stwing | undefined;
+	wet incwudeFowda: UWI | undefined;
+	if (incwude) {
+		if (typeof incwude === 'stwing') {
+			incwudePattewn = incwude;
+		} ewse {
+			incwudePattewn = incwude.pattewn;
+			incwudeFowda = incwude.baseFowda || UWI.fiwe(incwude.base);
 		}
 	}
 
-	return {
-		includePattern,
-		folder: includeFolder
+	wetuwn {
+		incwudePattewn,
+		fowda: incwudeFowda
 	};
 }

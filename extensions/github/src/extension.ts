@@ -1,45 +1,45 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, ExtensionContext, extensions } from 'vscode';
-import { GithubRemoteSourceProvider } from './remoteSourceProvider';
-import { GitExtension } from './typings/git';
-import { registerCommands } from './commands';
-import { GithubCredentialProviderManager } from './credentialProvider';
-import { dispose, combinedDisposable } from './util';
-import { GithubPushErrorHandler } from './pushErrorHandler';
+impowt { Disposabwe, ExtensionContext, extensions } fwom 'vscode';
+impowt { GithubWemoteSouwcePwovida } fwom './wemoteSouwcePwovida';
+impowt { GitExtension } fwom './typings/git';
+impowt { wegistewCommands } fwom './commands';
+impowt { GithubCwedentiawPwovidewManaga } fwom './cwedentiawPwovida';
+impowt { dispose, combinedDisposabwe } fwom './utiw';
+impowt { GithubPushEwwowHandwa } fwom './pushEwwowHandwa';
 
-export function activate(context: ExtensionContext): void {
-	const disposables = new Set<Disposable>();
-	context.subscriptions.push(combinedDisposable(disposables));
+expowt function activate(context: ExtensionContext): void {
+	const disposabwes = new Set<Disposabwe>();
+	context.subscwiptions.push(combinedDisposabwe(disposabwes));
 
 	const init = () => {
-		try {
+		twy {
 			const gitAPI = gitExtension.getAPI(1);
 
-			disposables.add(registerCommands(gitAPI));
-			disposables.add(gitAPI.registerRemoteSourceProvider(new GithubRemoteSourceProvider(gitAPI)));
-			disposables.add(new GithubCredentialProviderManager(gitAPI));
-			disposables.add(gitAPI.registerPushErrorHandler(new GithubPushErrorHandler()));
-		} catch (err) {
-			console.error('Could not initialize GitHub extension');
-			console.warn(err);
+			disposabwes.add(wegistewCommands(gitAPI));
+			disposabwes.add(gitAPI.wegistewWemoteSouwcePwovida(new GithubWemoteSouwcePwovida(gitAPI)));
+			disposabwes.add(new GithubCwedentiawPwovidewManaga(gitAPI));
+			disposabwes.add(gitAPI.wegistewPushEwwowHandwa(new GithubPushEwwowHandwa()));
+		} catch (eww) {
+			consowe.ewwow('Couwd not initiawize GitHub extension');
+			consowe.wawn(eww);
 		}
 	};
 
-	const onDidChangeGitExtensionEnablement = (enabled: boolean) => {
-		if (!enabled) {
-			dispose(disposables);
-			disposables.clear();
-		} else {
+	const onDidChangeGitExtensionEnabwement = (enabwed: boowean) => {
+		if (!enabwed) {
+			dispose(disposabwes);
+			disposabwes.cweaw();
+		} ewse {
 			init();
 		}
 	};
 
 
-	const gitExtension = extensions.getExtension<GitExtension>('vscode.git')!.exports;
-	context.subscriptions.push(gitExtension.onDidChangeEnablement(onDidChangeGitExtensionEnablement));
-	onDidChangeGitExtensionEnablement(gitExtension.enabled);
+	const gitExtension = extensions.getExtension<GitExtension>('vscode.git')!.expowts;
+	context.subscwiptions.push(gitExtension.onDidChangeEnabwement(onDidChangeGitExtensionEnabwement));
+	onDidChangeGitExtensionEnabwement(gitExtension.enabwed);
 }

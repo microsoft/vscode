@@ -1,713 +1,713 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as types from 'vs/base/common/types';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, ThemeSettings, IWorkbenchProductIconTheme, ThemeSettingTarget } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import * as errors from 'vs/base/common/errors';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { ColorThemeData } from 'vs/workbench/services/themes/common/colorThemeData';
-import { IColorTheme, Extensions as ThemingExtensions, IThemingRegistry } from 'vs/platform/theme/common/themeService';
-import { Event, Emitter } from 'vs/base/common/event';
-import { registerFileIconThemeSchemas } from 'vs/workbench/services/themes/common/fileIconThemeSchema';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { FileIconThemeData } from 'vs/workbench/services/themes/browser/fileIconThemeData';
-import { createStyleSheet } from 'vs/base/browser/dom';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
-import { URI } from 'vs/base/common/uri';
-import * as resources from 'vs/base/common/resources';
-import { registerColorThemeSchemas } from 'vs/workbench/services/themes/common/colorThemeSchema';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
-import { ThemeRegistry, registerColorThemeExtensionPoint, registerFileIconThemeExtensionPoint, registerProductIconThemeExtensionPoint } from 'vs/workbench/services/themes/common/themeExtensionPoints';
-import { updateColorThemeConfigurationSchemas, updateFileIconThemeConfigurationSchemas, ThemeConfiguration, updateProductIconThemeConfigurationSchemas } from 'vs/workbench/services/themes/common/themeConfiguration';
-import { ProductIconThemeData, DEFAULT_PRODUCT_ICON_THEME_ID } from 'vs/workbench/services/themes/browser/productIconThemeData';
-import { registerProductIconThemeSchemas } from 'vs/workbench/services/themes/common/productIconThemeSchema';
-import { ILogService } from 'vs/platform/log/common/log';
-import { isWeb } from 'vs/base/common/platform';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hostColorSchemeService';
-import { RunOnceScheduler, Sequencer } from 'vs/base/common/async';
-import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
-import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
+impowt * as nws fwom 'vs/nws';
+impowt * as types fwom 'vs/base/common/types';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IWowkbenchThemeSewvice, IWowkbenchCowowTheme, IWowkbenchFiweIconTheme, ExtensionData, VS_WIGHT_THEME, VS_DAWK_THEME, VS_HC_THEME, ThemeSettings, IWowkbenchPwoductIconTheme, ThemeSettingTawget } fwom 'vs/wowkbench/sewvices/themes/common/wowkbenchThemeSewvice';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt * as ewwows fwom 'vs/base/common/ewwows';
+impowt { IConfiguwationSewvice, ConfiguwationTawget } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { CowowThemeData } fwom 'vs/wowkbench/sewvices/themes/common/cowowThemeData';
+impowt { ICowowTheme, Extensions as ThemingExtensions, IThemingWegistwy } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { wegistewFiweIconThemeSchemas } fwom 'vs/wowkbench/sewvices/themes/common/fiweIconThemeSchema';
+impowt { IDisposabwe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { FiweIconThemeData } fwom 'vs/wowkbench/sewvices/themes/bwowsa/fiweIconThemeData';
+impowt { cweateStyweSheet } fwom 'vs/base/bwowsa/dom';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IFiweSewvice, FiweChangeType } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt * as wesouwces fwom 'vs/base/common/wesouwces';
+impowt { wegistewCowowThemeSchemas } fwom 'vs/wowkbench/sewvices/themes/common/cowowThemeSchema';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { getWemoteAuthowity } fwom 'vs/pwatfowm/wemote/common/wemoteHosts';
+impowt { IWowkbenchWayoutSewvice } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { IExtensionWesouwceWoadewSewvice } fwom 'vs/wowkbench/sewvices/extensionWesouwceWoada/common/extensionWesouwceWoada';
+impowt { ThemeWegistwy, wegistewCowowThemeExtensionPoint, wegistewFiweIconThemeExtensionPoint, wegistewPwoductIconThemeExtensionPoint } fwom 'vs/wowkbench/sewvices/themes/common/themeExtensionPoints';
+impowt { updateCowowThemeConfiguwationSchemas, updateFiweIconThemeConfiguwationSchemas, ThemeConfiguwation, updatePwoductIconThemeConfiguwationSchemas } fwom 'vs/wowkbench/sewvices/themes/common/themeConfiguwation';
+impowt { PwoductIconThemeData, DEFAUWT_PWODUCT_ICON_THEME_ID } fwom 'vs/wowkbench/sewvices/themes/bwowsa/pwoductIconThemeData';
+impowt { wegistewPwoductIconThemeSchemas } fwom 'vs/wowkbench/sewvices/themes/common/pwoductIconThemeSchema';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { CowowScheme } fwom 'vs/pwatfowm/theme/common/theme';
+impowt { IHostCowowSchemeSewvice } fwom 'vs/wowkbench/sewvices/themes/common/hostCowowSchemeSewvice';
+impowt { WunOnceScheduwa, Sequenca } fwom 'vs/base/common/async';
+impowt { IUsewDataInitiawizationSewvice } fwom 'vs/wowkbench/sewvices/usewData/bwowsa/usewDataInit';
+impowt { getIconsStyweSheet } fwom 'vs/pwatfowm/theme/bwowsa/iconsStyweSheet';
 
-// implementation
+// impwementation
 
-const DEFAULT_COLOR_THEME_ID = 'vs-dark vscode-theme-defaults-themes-dark_plus-json';
-const DEFAULT_LIGHT_COLOR_THEME_ID = 'vs vscode-theme-defaults-themes-light_plus-json';
+const DEFAUWT_COWOW_THEME_ID = 'vs-dawk vscode-theme-defauwts-themes-dawk_pwus-json';
+const DEFAUWT_WIGHT_COWOW_THEME_ID = 'vs vscode-theme-defauwts-themes-wight_pwus-json';
 
-const PERSISTED_OS_COLOR_SCHEME = 'osColorScheme';
+const PEWSISTED_OS_COWOW_SCHEME = 'osCowowScheme';
 
-const defaultThemeExtensionId = 'vscode-theme-defaults';
-const oldDefaultThemeExtensionId = 'vscode-theme-colorful-defaults';
+const defauwtThemeExtensionId = 'vscode-theme-defauwts';
+const owdDefauwtThemeExtensionId = 'vscode-theme-cowowfuw-defauwts';
 
-const DEFAULT_FILE_ICON_THEME_ID = 'vscode.vscode-theme-seti-vs-seti';
-const fileIconsEnabledClass = 'file-icons-enabled';
+const DEFAUWT_FIWE_ICON_THEME_ID = 'vscode.vscode-theme-seti-vs-seti';
+const fiweIconsEnabwedCwass = 'fiwe-icons-enabwed';
 
-const colorThemeRulesClassName = 'contributedColorTheme';
-const fileIconThemeRulesClassName = 'contributedFileIconTheme';
-const productIconThemeRulesClassName = 'contributedProductIconTheme';
+const cowowThemeWuwesCwassName = 'contwibutedCowowTheme';
+const fiweIconThemeWuwesCwassName = 'contwibutedFiweIconTheme';
+const pwoductIconThemeWuwesCwassName = 'contwibutedPwoductIconTheme';
 
-const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingContribution);
+const themingWegistwy = Wegistwy.as<IThemingWegistwy>(ThemingExtensions.ThemingContwibution);
 
-function validateThemeId(theme: string): string {
-	// migrations
+function vawidateThemeId(theme: stwing): stwing {
+	// migwations
 	switch (theme) {
-		case VS_LIGHT_THEME: return `vs ${defaultThemeExtensionId}-themes-light_vs-json`;
-		case VS_DARK_THEME: return `vs-dark ${defaultThemeExtensionId}-themes-dark_vs-json`;
-		case VS_HC_THEME: return `hc-black ${defaultThemeExtensionId}-themes-hc_black-json`;
-		case `vs ${oldDefaultThemeExtensionId}-themes-light_plus-tmTheme`: return `vs ${defaultThemeExtensionId}-themes-light_plus-json`;
-		case `vs-dark ${oldDefaultThemeExtensionId}-themes-dark_plus-tmTheme`: return `vs-dark ${defaultThemeExtensionId}-themes-dark_plus-json`;
+		case VS_WIGHT_THEME: wetuwn `vs ${defauwtThemeExtensionId}-themes-wight_vs-json`;
+		case VS_DAWK_THEME: wetuwn `vs-dawk ${defauwtThemeExtensionId}-themes-dawk_vs-json`;
+		case VS_HC_THEME: wetuwn `hc-bwack ${defauwtThemeExtensionId}-themes-hc_bwack-json`;
+		case `vs ${owdDefauwtThemeExtensionId}-themes-wight_pwus-tmTheme`: wetuwn `vs ${defauwtThemeExtensionId}-themes-wight_pwus-json`;
+		case `vs-dawk ${owdDefauwtThemeExtensionId}-themes-dawk_pwus-tmTheme`: wetuwn `vs-dawk ${defauwtThemeExtensionId}-themes-dawk_pwus-json`;
 	}
-	return theme;
+	wetuwn theme;
 }
 
-const colorThemesExtPoint = registerColorThemeExtensionPoint();
-const fileIconThemesExtPoint = registerFileIconThemeExtensionPoint();
-const productIconThemesExtPoint = registerProductIconThemeExtensionPoint();
+const cowowThemesExtPoint = wegistewCowowThemeExtensionPoint();
+const fiweIconThemesExtPoint = wegistewFiweIconThemeExtensionPoint();
+const pwoductIconThemesExtPoint = wegistewPwoductIconThemeExtensionPoint();
 
-export class WorkbenchThemeService implements IWorkbenchThemeService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass WowkbenchThemeSewvice impwements IWowkbenchThemeSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly container: HTMLElement;
-	private settings: ThemeConfiguration;
+	pwivate weadonwy containa: HTMWEwement;
+	pwivate settings: ThemeConfiguwation;
 
-	private readonly colorThemeRegistry: ThemeRegistry<ColorThemeData>;
-	private currentColorTheme: ColorThemeData;
-	private readonly onColorThemeChange: Emitter<IWorkbenchColorTheme>;
-	private readonly colorThemeWatcher: ThemeFileWatcher;
-	private colorThemingParticipantChangeListener: IDisposable | undefined;
-	private readonly colorThemeSequencer: Sequencer;
+	pwivate weadonwy cowowThemeWegistwy: ThemeWegistwy<CowowThemeData>;
+	pwivate cuwwentCowowTheme: CowowThemeData;
+	pwivate weadonwy onCowowThemeChange: Emitta<IWowkbenchCowowTheme>;
+	pwivate weadonwy cowowThemeWatcha: ThemeFiweWatcha;
+	pwivate cowowThemingPawticipantChangeWistena: IDisposabwe | undefined;
+	pwivate weadonwy cowowThemeSequenca: Sequenca;
 
-	private readonly fileIconThemeRegistry: ThemeRegistry<FileIconThemeData>;
-	private currentFileIconTheme: FileIconThemeData;
-	private readonly onFileIconThemeChange: Emitter<IWorkbenchFileIconTheme>;
-	private readonly fileIconThemeWatcher: ThemeFileWatcher;
-	private readonly fileIconThemeSequencer: Sequencer;
+	pwivate weadonwy fiweIconThemeWegistwy: ThemeWegistwy<FiweIconThemeData>;
+	pwivate cuwwentFiweIconTheme: FiweIconThemeData;
+	pwivate weadonwy onFiweIconThemeChange: Emitta<IWowkbenchFiweIconTheme>;
+	pwivate weadonwy fiweIconThemeWatcha: ThemeFiweWatcha;
+	pwivate weadonwy fiweIconThemeSequenca: Sequenca;
 
-	private readonly productIconThemeRegistry: ThemeRegistry<ProductIconThemeData>;
-	private currentProductIconTheme: ProductIconThemeData;
-	private readonly onProductIconThemeChange: Emitter<IWorkbenchProductIconTheme>;
-	private readonly productIconThemeWatcher: ThemeFileWatcher;
-	private readonly productIconThemeSequencer: Sequencer;
+	pwivate weadonwy pwoductIconThemeWegistwy: ThemeWegistwy<PwoductIconThemeData>;
+	pwivate cuwwentPwoductIconTheme: PwoductIconThemeData;
+	pwivate weadonwy onPwoductIconThemeChange: Emitta<IWowkbenchPwoductIconTheme>;
+	pwivate weadonwy pwoductIconThemeWatcha: ThemeFiweWatcha;
+	pwivate weadonwy pwoductIconThemeSequenca: Sequenca;
 
-	private themeSettingIdBeforeSchemeSwitch: string | undefined;
+	pwivate themeSettingIdBefoweSchemeSwitch: stwing | undefined;
 
-	constructor(
-		@IExtensionService extensionService: IExtensionService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IWorkbenchEnvironmentService readonly environmentService: IWorkbenchEnvironmentService,
-		@IFileService private readonly fileService: IFileService,
-		@IExtensionResourceLoaderService private readonly extensionResourceLoaderService: IExtensionResourceLoaderService,
-		@IWorkbenchLayoutService readonly layoutService: IWorkbenchLayoutService,
-		@ILogService private readonly logService: ILogService,
-		@IHostColorSchemeService private readonly hostColorService: IHostColorSchemeService,
-		@IUserDataInitializationService readonly userDataInitializationService: IUserDataInitializationService
+	constwuctow(
+		@IExtensionSewvice extensionSewvice: IExtensionSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IWowkbenchEnviwonmentSewvice weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IExtensionWesouwceWoadewSewvice pwivate weadonwy extensionWesouwceWoadewSewvice: IExtensionWesouwceWoadewSewvice,
+		@IWowkbenchWayoutSewvice weadonwy wayoutSewvice: IWowkbenchWayoutSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IHostCowowSchemeSewvice pwivate weadonwy hostCowowSewvice: IHostCowowSchemeSewvice,
+		@IUsewDataInitiawizationSewvice weadonwy usewDataInitiawizationSewvice: IUsewDataInitiawizationSewvice
 	) {
-		this.container = layoutService.container;
-		this.settings = new ThemeConfiguration(configurationService);
+		this.containa = wayoutSewvice.containa;
+		this.settings = new ThemeConfiguwation(configuwationSewvice);
 
-		this.colorThemeRegistry = new ThemeRegistry(colorThemesExtPoint, ColorThemeData.fromExtensionTheme);
-		this.colorThemeWatcher = new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentColorTheme.bind(this));
-		this.onColorThemeChange = new Emitter<IWorkbenchColorTheme>({ leakWarningThreshold: 400 });
-		this.currentColorTheme = ColorThemeData.createUnloadedTheme('');
-		this.colorThemeSequencer = new Sequencer();
+		this.cowowThemeWegistwy = new ThemeWegistwy(cowowThemesExtPoint, CowowThemeData.fwomExtensionTheme);
+		this.cowowThemeWatcha = new ThemeFiweWatcha(fiweSewvice, enviwonmentSewvice, this.wewoadCuwwentCowowTheme.bind(this));
+		this.onCowowThemeChange = new Emitta<IWowkbenchCowowTheme>({ weakWawningThweshowd: 400 });
+		this.cuwwentCowowTheme = CowowThemeData.cweateUnwoadedTheme('');
+		this.cowowThemeSequenca = new Sequenca();
 
-		this.fileIconThemeWatcher = new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentFileIconTheme.bind(this));
-		this.fileIconThemeRegistry = new ThemeRegistry(fileIconThemesExtPoint, FileIconThemeData.fromExtensionTheme, true, FileIconThemeData.noIconTheme);
-		this.onFileIconThemeChange = new Emitter<IWorkbenchFileIconTheme>();
-		this.currentFileIconTheme = FileIconThemeData.createUnloadedTheme('');
-		this.fileIconThemeSequencer = new Sequencer();
+		this.fiweIconThemeWatcha = new ThemeFiweWatcha(fiweSewvice, enviwonmentSewvice, this.wewoadCuwwentFiweIconTheme.bind(this));
+		this.fiweIconThemeWegistwy = new ThemeWegistwy(fiweIconThemesExtPoint, FiweIconThemeData.fwomExtensionTheme, twue, FiweIconThemeData.noIconTheme);
+		this.onFiweIconThemeChange = new Emitta<IWowkbenchFiweIconTheme>();
+		this.cuwwentFiweIconTheme = FiweIconThemeData.cweateUnwoadedTheme('');
+		this.fiweIconThemeSequenca = new Sequenca();
 
-		this.productIconThemeWatcher = new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentProductIconTheme.bind(this));
-		this.productIconThemeRegistry = new ThemeRegistry(productIconThemesExtPoint, ProductIconThemeData.fromExtensionTheme, true, ProductIconThemeData.defaultTheme);
-		this.onProductIconThemeChange = new Emitter<IWorkbenchProductIconTheme>();
-		this.currentProductIconTheme = ProductIconThemeData.createUnloadedTheme('');
-		this.productIconThemeSequencer = new Sequencer();
+		this.pwoductIconThemeWatcha = new ThemeFiweWatcha(fiweSewvice, enviwonmentSewvice, this.wewoadCuwwentPwoductIconTheme.bind(this));
+		this.pwoductIconThemeWegistwy = new ThemeWegistwy(pwoductIconThemesExtPoint, PwoductIconThemeData.fwomExtensionTheme, twue, PwoductIconThemeData.defauwtTheme);
+		this.onPwoductIconThemeChange = new Emitta<IWowkbenchPwoductIconTheme>();
+		this.cuwwentPwoductIconTheme = PwoductIconThemeData.cweateUnwoadedTheme('');
+		this.pwoductIconThemeSequenca = new Sequenca();
 
-		// In order to avoid paint flashing for tokens, because
-		// themes are loaded asynchronously, we need to initialize
-		// a color theme document with good defaults until the theme is loaded
-		let themeData: ColorThemeData | undefined = ColorThemeData.fromStorageData(this.storageService);
-		if (themeData && this.settings.colorTheme !== themeData.settingsId && this.settings.isDefaultColorTheme()) {
-			// the web has different defaults than the desktop, therefore do not restore when the setting is the default theme and the storage doesn't match that.
+		// In owda to avoid paint fwashing fow tokens, because
+		// themes awe woaded asynchwonouswy, we need to initiawize
+		// a cowow theme document with good defauwts untiw the theme is woaded
+		wet themeData: CowowThemeData | undefined = CowowThemeData.fwomStowageData(this.stowageSewvice);
+		if (themeData && this.settings.cowowTheme !== themeData.settingsId && this.settings.isDefauwtCowowTheme()) {
+			// the web has diffewent defauwts than the desktop, thewefowe do not westowe when the setting is the defauwt theme and the stowage doesn't match that.
 			themeData = undefined;
 		}
 
-		// the preferred color scheme (high contrast, light, dark) has changed since the last start
-		const preferredColorScheme = this.getPreferredColorScheme();
+		// the pwefewwed cowow scheme (high contwast, wight, dawk) has changed since the wast stawt
+		const pwefewwedCowowScheme = this.getPwefewwedCowowScheme();
 
-		if (preferredColorScheme && themeData?.type !== preferredColorScheme && this.storageService.get(PERSISTED_OS_COLOR_SCHEME, StorageScope.GLOBAL) !== preferredColorScheme) {
-			themeData = ColorThemeData.createUnloadedThemeForThemeType(preferredColorScheme);
+		if (pwefewwedCowowScheme && themeData?.type !== pwefewwedCowowScheme && this.stowageSewvice.get(PEWSISTED_OS_COWOW_SCHEME, StowageScope.GWOBAW) !== pwefewwedCowowScheme) {
+			themeData = CowowThemeData.cweateUnwoadedThemeFowThemeType(pwefewwedCowowScheme);
 		}
 		if (!themeData) {
-			const initialColorTheme = environmentService.options?.initialColorTheme;
-			if (initialColorTheme) {
-				themeData = ColorThemeData.createUnloadedThemeForThemeType(initialColorTheme.themeType, initialColorTheme.colors);
+			const initiawCowowTheme = enviwonmentSewvice.options?.initiawCowowTheme;
+			if (initiawCowowTheme) {
+				themeData = CowowThemeData.cweateUnwoadedThemeFowThemeType(initiawCowowTheme.themeType, initiawCowowTheme.cowows);
 			}
 		}
 		if (!themeData) {
-			themeData = ColorThemeData.createUnloadedThemeForThemeType(isWeb ? ColorScheme.LIGHT : ColorScheme.DARK);
+			themeData = CowowThemeData.cweateUnwoadedThemeFowThemeType(isWeb ? CowowScheme.WIGHT : CowowScheme.DAWK);
 		}
 		themeData.setCustomizations(this.settings);
-		this.applyTheme(themeData, undefined, true);
+		this.appwyTheme(themeData, undefined, twue);
 
-		const fileIconData = FileIconThemeData.fromStorageData(this.storageService);
-		if (fileIconData) {
-			this.applyAndSetFileIconTheme(fileIconData, true);
+		const fiweIconData = FiweIconThemeData.fwomStowageData(this.stowageSewvice);
+		if (fiweIconData) {
+			this.appwyAndSetFiweIconTheme(fiweIconData, twue);
 		}
 
-		const productIconData = ProductIconThemeData.fromStorageData(this.storageService);
-		if (productIconData) {
-			this.applyAndSetProductIconTheme(productIconData, true);
+		const pwoductIconData = PwoductIconThemeData.fwomStowageData(this.stowageSewvice);
+		if (pwoductIconData) {
+			this.appwyAndSetPwoductIconTheme(pwoductIconData, twue);
 		}
 
-		Promise.all([extensionService.whenInstalledExtensionsRegistered(), userDataInitializationService.whenInitializationFinished()]).then(_ => {
-			this.installConfigurationListener();
-			this.installPreferredSchemeListener();
-			this.installRegistryListeners();
-			this.initialize().catch(errors.onUnexpectedError);
+		Pwomise.aww([extensionSewvice.whenInstawwedExtensionsWegistewed(), usewDataInitiawizationSewvice.whenInitiawizationFinished()]).then(_ => {
+			this.instawwConfiguwationWistena();
+			this.instawwPwefewwedSchemeWistena();
+			this.instawwWegistwyWistenews();
+			this.initiawize().catch(ewwows.onUnexpectedEwwow);
 		});
 
-		const codiconStyleSheet = createStyleSheet();
-		codiconStyleSheet.id = 'codiconStyles';
+		const codiconStyweSheet = cweateStyweSheet();
+		codiconStyweSheet.id = 'codiconStywes';
 
-		const iconsStyleSheet = getIconsStyleSheet();
-		function updateAll() {
-			codiconStyleSheet.textContent = iconsStyleSheet.getCSS();
+		const iconsStyweSheet = getIconsStyweSheet();
+		function updateAww() {
+			codiconStyweSheet.textContent = iconsStyweSheet.getCSS();
 		}
 
-		const delayer = new RunOnceScheduler(updateAll, 0);
-		iconsStyleSheet.onDidChange(() => delayer.schedule());
-		delayer.schedule();
+		const dewaya = new WunOnceScheduwa(updateAww, 0);
+		iconsStyweSheet.onDidChange(() => dewaya.scheduwe());
+		dewaya.scheduwe();
 	}
 
-	private initialize(): Promise<[IWorkbenchColorTheme | null, IWorkbenchFileIconTheme | null, IWorkbenchProductIconTheme | null]> {
-		const extDevLocs = this.environmentService.extensionDevelopmentLocationURI;
-		const extDevLoc = extDevLocs && extDevLocs.length === 1 ? extDevLocs[0] : undefined; // in dev mode, switch to a theme provided by the extension under dev.
+	pwivate initiawize(): Pwomise<[IWowkbenchCowowTheme | nuww, IWowkbenchFiweIconTheme | nuww, IWowkbenchPwoductIconTheme | nuww]> {
+		const extDevWocs = this.enviwonmentSewvice.extensionDevewopmentWocationUWI;
+		const extDevWoc = extDevWocs && extDevWocs.wength === 1 ? extDevWocs[0] : undefined; // in dev mode, switch to a theme pwovided by the extension unda dev.
 
-		const initializeColorTheme = async () => {
-			const devThemes = this.colorThemeRegistry.findThemeByExtensionLocation(extDevLoc);
-			if (devThemes.length) {
-				return this.setColorTheme(devThemes[0].id, ConfigurationTarget.MEMORY);
+		const initiawizeCowowTheme = async () => {
+			const devThemes = this.cowowThemeWegistwy.findThemeByExtensionWocation(extDevWoc);
+			if (devThemes.wength) {
+				wetuwn this.setCowowTheme(devThemes[0].id, ConfiguwationTawget.MEMOWY);
 			}
-			const fallbackTheme = this.currentColorTheme.type === ColorScheme.LIGHT ? DEFAULT_LIGHT_COLOR_THEME_ID : DEFAULT_COLOR_THEME_ID;
-			const theme = this.colorThemeRegistry.findThemeBySettingsId(this.settings.colorTheme, fallbackTheme);
+			const fawwbackTheme = this.cuwwentCowowTheme.type === CowowScheme.WIGHT ? DEFAUWT_WIGHT_COWOW_THEME_ID : DEFAUWT_COWOW_THEME_ID;
+			const theme = this.cowowThemeWegistwy.findThemeBySettingsId(this.settings.cowowTheme, fawwbackTheme);
 
-			const preferredColorScheme = this.getPreferredColorScheme();
-			const prevScheme = this.storageService.get(PERSISTED_OS_COLOR_SCHEME, StorageScope.GLOBAL);
-			if (preferredColorScheme !== prevScheme) {
-				this.storageService.store(PERSISTED_OS_COLOR_SCHEME, preferredColorScheme, StorageScope.GLOBAL, StorageTarget.USER);
-				if (preferredColorScheme && theme?.type !== preferredColorScheme) {
-					return this.applyPreferredColorTheme(preferredColorScheme);
+			const pwefewwedCowowScheme = this.getPwefewwedCowowScheme();
+			const pwevScheme = this.stowageSewvice.get(PEWSISTED_OS_COWOW_SCHEME, StowageScope.GWOBAW);
+			if (pwefewwedCowowScheme !== pwevScheme) {
+				this.stowageSewvice.stowe(PEWSISTED_OS_COWOW_SCHEME, pwefewwedCowowScheme, StowageScope.GWOBAW, StowageTawget.USa);
+				if (pwefewwedCowowScheme && theme?.type !== pwefewwedCowowScheme) {
+					wetuwn this.appwyPwefewwedCowowTheme(pwefewwedCowowScheme);
 				}
 			}
-			return this.setColorTheme(theme && theme.id, undefined);
+			wetuwn this.setCowowTheme(theme && theme.id, undefined);
 		};
 
-		const initializeFileIconTheme = async () => {
-			const devThemes = this.fileIconThemeRegistry.findThemeByExtensionLocation(extDevLoc);
-			if (devThemes.length) {
-				return this.setFileIconTheme(devThemes[0].id, ConfigurationTarget.MEMORY);
+		const initiawizeFiweIconTheme = async () => {
+			const devThemes = this.fiweIconThemeWegistwy.findThemeByExtensionWocation(extDevWoc);
+			if (devThemes.wength) {
+				wetuwn this.setFiweIconTheme(devThemes[0].id, ConfiguwationTawget.MEMOWY);
 			}
-			const theme = this.fileIconThemeRegistry.findThemeBySettingsId(this.settings.fileIconTheme);
-			return this.setFileIconTheme(theme ? theme.id : DEFAULT_FILE_ICON_THEME_ID, undefined);
+			const theme = this.fiweIconThemeWegistwy.findThemeBySettingsId(this.settings.fiweIconTheme);
+			wetuwn this.setFiweIconTheme(theme ? theme.id : DEFAUWT_FIWE_ICON_THEME_ID, undefined);
 		};
 
-		const initializeProductIconTheme = async () => {
-			const devThemes = this.productIconThemeRegistry.findThemeByExtensionLocation(extDevLoc);
-			if (devThemes.length) {
-				return this.setProductIconTheme(devThemes[0].id, ConfigurationTarget.MEMORY);
+		const initiawizePwoductIconTheme = async () => {
+			const devThemes = this.pwoductIconThemeWegistwy.findThemeByExtensionWocation(extDevWoc);
+			if (devThemes.wength) {
+				wetuwn this.setPwoductIconTheme(devThemes[0].id, ConfiguwationTawget.MEMOWY);
 			}
-			const theme = this.productIconThemeRegistry.findThemeBySettingsId(this.settings.productIconTheme);
-			return this.setProductIconTheme(theme ? theme.id : DEFAULT_PRODUCT_ICON_THEME_ID, undefined);
+			const theme = this.pwoductIconThemeWegistwy.findThemeBySettingsId(this.settings.pwoductIconTheme);
+			wetuwn this.setPwoductIconTheme(theme ? theme.id : DEFAUWT_PWODUCT_ICON_THEME_ID, undefined);
 		};
 
 
-		return Promise.all([initializeColorTheme(), initializeFileIconTheme(), initializeProductIconTheme()]);
+		wetuwn Pwomise.aww([initiawizeCowowTheme(), initiawizeFiweIconTheme(), initiawizePwoductIconTheme()]);
 	}
 
-	private installConfigurationListener() {
-		this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ThemeSettings.COLOR_THEME)) {
-				this.restoreColorTheme();
+	pwivate instawwConfiguwationWistena() {
+		this.configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation(ThemeSettings.COWOW_THEME)) {
+				this.westoweCowowTheme();
 			}
-			if (e.affectsConfiguration(ThemeSettings.DETECT_COLOR_SCHEME) || e.affectsConfiguration(ThemeSettings.DETECT_HC)) {
-				this.handlePreferredSchemeUpdated();
+			if (e.affectsConfiguwation(ThemeSettings.DETECT_COWOW_SCHEME) || e.affectsConfiguwation(ThemeSettings.DETECT_HC)) {
+				this.handwePwefewwedSchemeUpdated();
 			}
-			if (e.affectsConfiguration(ThemeSettings.PREFERRED_DARK_THEME) && this.getPreferredColorScheme() === ColorScheme.DARK) {
-				this.applyPreferredColorTheme(ColorScheme.DARK);
+			if (e.affectsConfiguwation(ThemeSettings.PWEFEWWED_DAWK_THEME) && this.getPwefewwedCowowScheme() === CowowScheme.DAWK) {
+				this.appwyPwefewwedCowowTheme(CowowScheme.DAWK);
 			}
-			if (e.affectsConfiguration(ThemeSettings.PREFERRED_LIGHT_THEME) && this.getPreferredColorScheme() === ColorScheme.LIGHT) {
-				this.applyPreferredColorTheme(ColorScheme.LIGHT);
+			if (e.affectsConfiguwation(ThemeSettings.PWEFEWWED_WIGHT_THEME) && this.getPwefewwedCowowScheme() === CowowScheme.WIGHT) {
+				this.appwyPwefewwedCowowTheme(CowowScheme.WIGHT);
 			}
-			if (e.affectsConfiguration(ThemeSettings.PREFERRED_HC_THEME) && this.getPreferredColorScheme() === ColorScheme.HIGH_CONTRAST) {
-				this.applyPreferredColorTheme(ColorScheme.HIGH_CONTRAST);
+			if (e.affectsConfiguwation(ThemeSettings.PWEFEWWED_HC_THEME) && this.getPwefewwedCowowScheme() === CowowScheme.HIGH_CONTWAST) {
+				this.appwyPwefewwedCowowTheme(CowowScheme.HIGH_CONTWAST);
 			}
-			if (e.affectsConfiguration(ThemeSettings.FILE_ICON_THEME)) {
-				this.restoreFileIconTheme();
+			if (e.affectsConfiguwation(ThemeSettings.FIWE_ICON_THEME)) {
+				this.westoweFiweIconTheme();
 			}
-			if (e.affectsConfiguration(ThemeSettings.PRODUCT_ICON_THEME)) {
-				this.restoreProductIconTheme();
+			if (e.affectsConfiguwation(ThemeSettings.PWODUCT_ICON_THEME)) {
+				this.westowePwoductIconTheme();
 			}
-			if (this.currentColorTheme) {
-				let hasColorChanges = false;
-				if (e.affectsConfiguration(ThemeSettings.COLOR_CUSTOMIZATIONS)) {
-					this.currentColorTheme.setCustomColors(this.settings.colorCustomizations);
-					hasColorChanges = true;
+			if (this.cuwwentCowowTheme) {
+				wet hasCowowChanges = fawse;
+				if (e.affectsConfiguwation(ThemeSettings.COWOW_CUSTOMIZATIONS)) {
+					this.cuwwentCowowTheme.setCustomCowows(this.settings.cowowCustomizations);
+					hasCowowChanges = twue;
 				}
-				if (e.affectsConfiguration(ThemeSettings.TOKEN_COLOR_CUSTOMIZATIONS)) {
-					this.currentColorTheme.setCustomTokenColors(this.settings.tokenColorCustomizations);
-					hasColorChanges = true;
+				if (e.affectsConfiguwation(ThemeSettings.TOKEN_COWOW_CUSTOMIZATIONS)) {
+					this.cuwwentCowowTheme.setCustomTokenCowows(this.settings.tokenCowowCustomizations);
+					hasCowowChanges = twue;
 				}
-				if (e.affectsConfiguration(ThemeSettings.SEMANTIC_TOKEN_COLOR_CUSTOMIZATIONS)) {
-					this.currentColorTheme.setCustomSemanticTokenColors(this.settings.semanticTokenColorCustomizations);
-					hasColorChanges = true;
+				if (e.affectsConfiguwation(ThemeSettings.SEMANTIC_TOKEN_COWOW_CUSTOMIZATIONS)) {
+					this.cuwwentCowowTheme.setCustomSemanticTokenCowows(this.settings.semanticTokenCowowCustomizations);
+					hasCowowChanges = twue;
 				}
-				if (hasColorChanges) {
-					this.updateDynamicCSSRules(this.currentColorTheme);
-					this.onColorThemeChange.fire(this.currentColorTheme);
+				if (hasCowowChanges) {
+					this.updateDynamicCSSWuwes(this.cuwwentCowowTheme);
+					this.onCowowThemeChange.fiwe(this.cuwwentCowowTheme);
 				}
 			}
-		});
-	}
-
-	private installRegistryListeners(): Promise<any> {
-
-		let prevColorId: string | undefined = undefined;
-
-		// update settings schema setting for theme specific settings
-		this.colorThemeRegistry.onDidChange(async event => {
-			updateColorThemeConfigurationSchemas(event.themes);
-			if (await this.restoreColorTheme()) { // checks if theme from settings exists and is set
-				// restore theme
-				if (this.currentColorTheme.id === DEFAULT_COLOR_THEME_ID && !types.isUndefined(prevColorId) && await this.colorThemeRegistry.findThemeById(prevColorId)) {
-					// restore theme
-					this.setColorTheme(prevColorId, 'auto');
-					prevColorId = undefined;
-				} else if (event.added.some(t => t.settingsId === this.currentColorTheme.settingsId)) {
-					this.reloadCurrentColorTheme();
-				}
-			} else if (event.removed.some(t => t.settingsId === this.currentColorTheme.settingsId)) {
-				// current theme is no longer available
-				prevColorId = this.currentColorTheme.id;
-				this.setColorTheme(DEFAULT_COLOR_THEME_ID, 'auto');
-			}
-		});
-
-		let prevFileIconId: string | undefined = undefined;
-		this.fileIconThemeRegistry.onDidChange(async event => {
-			updateFileIconThemeConfigurationSchemas(event.themes);
-			if (await this.restoreFileIconTheme()) { // checks if theme from settings exists and is set
-				// restore theme
-				if (this.currentFileIconTheme.id === DEFAULT_FILE_ICON_THEME_ID && !types.isUndefined(prevFileIconId) && this.fileIconThemeRegistry.findThemeById(prevFileIconId)) {
-					this.setFileIconTheme(prevFileIconId, 'auto');
-					prevFileIconId = undefined;
-				} else if (event.added.some(t => t.settingsId === this.currentFileIconTheme.settingsId)) {
-					this.reloadCurrentFileIconTheme();
-				}
-			} else if (event.removed.some(t => t.settingsId === this.currentFileIconTheme.settingsId)) {
-				// current theme is no longer available
-				prevFileIconId = this.currentFileIconTheme.id;
-				this.setFileIconTheme(DEFAULT_FILE_ICON_THEME_ID, 'auto');
-			}
-
-		});
-
-		let prevProductIconId: string | undefined = undefined;
-		this.productIconThemeRegistry.onDidChange(async event => {
-			updateProductIconThemeConfigurationSchemas(event.themes);
-			if (await this.restoreProductIconTheme()) { // checks if theme from settings exists and is set
-				// restore theme
-				if (this.currentProductIconTheme.id === DEFAULT_PRODUCT_ICON_THEME_ID && !types.isUndefined(prevProductIconId) && this.productIconThemeRegistry.findThemeById(prevProductIconId)) {
-					this.setProductIconTheme(prevProductIconId, 'auto');
-					prevProductIconId = undefined;
-				} else if (event.added.some(t => t.settingsId === this.currentProductIconTheme.settingsId)) {
-					this.reloadCurrentProductIconTheme();
-				}
-			} else if (event.removed.some(t => t.settingsId === this.currentProductIconTheme.settingsId)) {
-				// current theme is no longer available
-				prevProductIconId = this.currentProductIconTheme.id;
-				this.setProductIconTheme(DEFAULT_PRODUCT_ICON_THEME_ID, 'auto');
-			}
-		});
-
-		return Promise.all([this.getColorThemes(), this.getFileIconThemes(), this.getProductIconThemes()]).then(([ct, fit, pit]) => {
-			updateColorThemeConfigurationSchemas(ct);
-			updateFileIconThemeConfigurationSchemas(fit);
-			updateProductIconThemeConfigurationSchemas(pit);
 		});
 	}
 
+	pwivate instawwWegistwyWistenews(): Pwomise<any> {
 
-	// preferred scheme handling
+		wet pwevCowowId: stwing | undefined = undefined;
 
-	private installPreferredSchemeListener() {
-		this.hostColorService.onDidChangeColorScheme(() => this.handlePreferredSchemeUpdated());
+		// update settings schema setting fow theme specific settings
+		this.cowowThemeWegistwy.onDidChange(async event => {
+			updateCowowThemeConfiguwationSchemas(event.themes);
+			if (await this.westoweCowowTheme()) { // checks if theme fwom settings exists and is set
+				// westowe theme
+				if (this.cuwwentCowowTheme.id === DEFAUWT_COWOW_THEME_ID && !types.isUndefined(pwevCowowId) && await this.cowowThemeWegistwy.findThemeById(pwevCowowId)) {
+					// westowe theme
+					this.setCowowTheme(pwevCowowId, 'auto');
+					pwevCowowId = undefined;
+				} ewse if (event.added.some(t => t.settingsId === this.cuwwentCowowTheme.settingsId)) {
+					this.wewoadCuwwentCowowTheme();
+				}
+			} ewse if (event.wemoved.some(t => t.settingsId === this.cuwwentCowowTheme.settingsId)) {
+				// cuwwent theme is no wonga avaiwabwe
+				pwevCowowId = this.cuwwentCowowTheme.id;
+				this.setCowowTheme(DEFAUWT_COWOW_THEME_ID, 'auto');
+			}
+		});
+
+		wet pwevFiweIconId: stwing | undefined = undefined;
+		this.fiweIconThemeWegistwy.onDidChange(async event => {
+			updateFiweIconThemeConfiguwationSchemas(event.themes);
+			if (await this.westoweFiweIconTheme()) { // checks if theme fwom settings exists and is set
+				// westowe theme
+				if (this.cuwwentFiweIconTheme.id === DEFAUWT_FIWE_ICON_THEME_ID && !types.isUndefined(pwevFiweIconId) && this.fiweIconThemeWegistwy.findThemeById(pwevFiweIconId)) {
+					this.setFiweIconTheme(pwevFiweIconId, 'auto');
+					pwevFiweIconId = undefined;
+				} ewse if (event.added.some(t => t.settingsId === this.cuwwentFiweIconTheme.settingsId)) {
+					this.wewoadCuwwentFiweIconTheme();
+				}
+			} ewse if (event.wemoved.some(t => t.settingsId === this.cuwwentFiweIconTheme.settingsId)) {
+				// cuwwent theme is no wonga avaiwabwe
+				pwevFiweIconId = this.cuwwentFiweIconTheme.id;
+				this.setFiweIconTheme(DEFAUWT_FIWE_ICON_THEME_ID, 'auto');
+			}
+
+		});
+
+		wet pwevPwoductIconId: stwing | undefined = undefined;
+		this.pwoductIconThemeWegistwy.onDidChange(async event => {
+			updatePwoductIconThemeConfiguwationSchemas(event.themes);
+			if (await this.westowePwoductIconTheme()) { // checks if theme fwom settings exists and is set
+				// westowe theme
+				if (this.cuwwentPwoductIconTheme.id === DEFAUWT_PWODUCT_ICON_THEME_ID && !types.isUndefined(pwevPwoductIconId) && this.pwoductIconThemeWegistwy.findThemeById(pwevPwoductIconId)) {
+					this.setPwoductIconTheme(pwevPwoductIconId, 'auto');
+					pwevPwoductIconId = undefined;
+				} ewse if (event.added.some(t => t.settingsId === this.cuwwentPwoductIconTheme.settingsId)) {
+					this.wewoadCuwwentPwoductIconTheme();
+				}
+			} ewse if (event.wemoved.some(t => t.settingsId === this.cuwwentPwoductIconTheme.settingsId)) {
+				// cuwwent theme is no wonga avaiwabwe
+				pwevPwoductIconId = this.cuwwentPwoductIconTheme.id;
+				this.setPwoductIconTheme(DEFAUWT_PWODUCT_ICON_THEME_ID, 'auto');
+			}
+		});
+
+		wetuwn Pwomise.aww([this.getCowowThemes(), this.getFiweIconThemes(), this.getPwoductIconThemes()]).then(([ct, fit, pit]) => {
+			updateCowowThemeConfiguwationSchemas(ct);
+			updateFiweIconThemeConfiguwationSchemas(fit);
+			updatePwoductIconThemeConfiguwationSchemas(pit);
+		});
 	}
 
-	private async handlePreferredSchemeUpdated() {
-		const scheme = this.getPreferredColorScheme();
-		const prevScheme = this.storageService.get(PERSISTED_OS_COLOR_SCHEME, StorageScope.GLOBAL);
-		if (scheme !== prevScheme) {
-			this.storageService.store(PERSISTED_OS_COLOR_SCHEME, scheme, StorageScope.GLOBAL, StorageTarget.MACHINE);
+
+	// pwefewwed scheme handwing
+
+	pwivate instawwPwefewwedSchemeWistena() {
+		this.hostCowowSewvice.onDidChangeCowowScheme(() => this.handwePwefewwedSchemeUpdated());
+	}
+
+	pwivate async handwePwefewwedSchemeUpdated() {
+		const scheme = this.getPwefewwedCowowScheme();
+		const pwevScheme = this.stowageSewvice.get(PEWSISTED_OS_COWOW_SCHEME, StowageScope.GWOBAW);
+		if (scheme !== pwevScheme) {
+			this.stowageSewvice.stowe(PEWSISTED_OS_COWOW_SCHEME, scheme, StowageScope.GWOBAW, StowageTawget.MACHINE);
 			if (scheme) {
-				if (!prevScheme) {
-					// remember the theme before scheme switching
-					this.themeSettingIdBeforeSchemeSwitch = this.settings.colorTheme;
+				if (!pwevScheme) {
+					// wememba the theme befowe scheme switching
+					this.themeSettingIdBefoweSchemeSwitch = this.settings.cowowTheme;
 				}
-				return this.applyPreferredColorTheme(scheme);
-			} else if (prevScheme && this.themeSettingIdBeforeSchemeSwitch) {
-				// reapply the theme before scheme switching
-				const theme = this.colorThemeRegistry.findThemeBySettingsId(this.themeSettingIdBeforeSchemeSwitch, undefined);
+				wetuwn this.appwyPwefewwedCowowTheme(scheme);
+			} ewse if (pwevScheme && this.themeSettingIdBefoweSchemeSwitch) {
+				// weappwy the theme befowe scheme switching
+				const theme = this.cowowThemeWegistwy.findThemeBySettingsId(this.themeSettingIdBefoweSchemeSwitch, undefined);
 				if (theme) {
-					this.setColorTheme(theme.id, 'auto');
+					this.setCowowTheme(theme.id, 'auto');
 				}
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private getPreferredColorScheme(): ColorScheme | undefined {
-		if (this.configurationService.getValue(ThemeSettings.DETECT_HC) && this.hostColorService.highContrast) {
-			return ColorScheme.HIGH_CONTRAST;
+	pwivate getPwefewwedCowowScheme(): CowowScheme | undefined {
+		if (this.configuwationSewvice.getVawue(ThemeSettings.DETECT_HC) && this.hostCowowSewvice.highContwast) {
+			wetuwn CowowScheme.HIGH_CONTWAST;
 		}
-		if (this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME)) {
-			return this.hostColorService.dark ? ColorScheme.DARK : ColorScheme.LIGHT;
+		if (this.configuwationSewvice.getVawue(ThemeSettings.DETECT_COWOW_SCHEME)) {
+			wetuwn this.hostCowowSewvice.dawk ? CowowScheme.DAWK : CowowScheme.WIGHT;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private async applyPreferredColorTheme(type: ColorScheme): Promise<IWorkbenchColorTheme | null> {
-		const settingId = type === ColorScheme.DARK ? ThemeSettings.PREFERRED_DARK_THEME : type === ColorScheme.LIGHT ? ThemeSettings.PREFERRED_LIGHT_THEME : ThemeSettings.PREFERRED_HC_THEME;
-		const themeSettingId = this.configurationService.getValue(settingId);
-		if (themeSettingId && typeof themeSettingId === 'string') {
-			const theme = this.colorThemeRegistry.findThemeBySettingsId(themeSettingId, undefined);
+	pwivate async appwyPwefewwedCowowTheme(type: CowowScheme): Pwomise<IWowkbenchCowowTheme | nuww> {
+		const settingId = type === CowowScheme.DAWK ? ThemeSettings.PWEFEWWED_DAWK_THEME : type === CowowScheme.WIGHT ? ThemeSettings.PWEFEWWED_WIGHT_THEME : ThemeSettings.PWEFEWWED_HC_THEME;
+		const themeSettingId = this.configuwationSewvice.getVawue(settingId);
+		if (themeSettingId && typeof themeSettingId === 'stwing') {
+			const theme = this.cowowThemeWegistwy.findThemeBySettingsId(themeSettingId, undefined);
 			if (theme) {
-				const configurationTarget = this.settings.findAutoConfigurationTarget(settingId);
-				return this.setColorTheme(theme.id, configurationTarget);
+				const configuwationTawget = this.settings.findAutoConfiguwationTawget(settingId);
+				wetuwn this.setCowowTheme(theme.id, configuwationTawget);
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	public getColorTheme(): IWorkbenchColorTheme {
-		return this.currentColorTheme;
+	pubwic getCowowTheme(): IWowkbenchCowowTheme {
+		wetuwn this.cuwwentCowowTheme;
 	}
 
-	public async getColorThemes(): Promise<IWorkbenchColorTheme[]> {
-		return this.colorThemeRegistry.getThemes();
+	pubwic async getCowowThemes(): Pwomise<IWowkbenchCowowTheme[]> {
+		wetuwn this.cowowThemeWegistwy.getThemes();
 	}
 
-	public get onDidColorThemeChange(): Event<IWorkbenchColorTheme> {
-		return this.onColorThemeChange.event;
+	pubwic get onDidCowowThemeChange(): Event<IWowkbenchCowowTheme> {
+		wetuwn this.onCowowThemeChange.event;
 	}
 
-	public setColorTheme(themeId: string | undefined, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchColorTheme | null> {
-		return this.colorThemeSequencer.queue(() => {
+	pubwic setCowowTheme(themeId: stwing | undefined, settingsTawget: ThemeSettingTawget): Pwomise<IWowkbenchCowowTheme | nuww> {
+		wetuwn this.cowowThemeSequenca.queue(() => {
 			if (!themeId) {
-				return Promise.resolve(null);
+				wetuwn Pwomise.wesowve(nuww);
 			}
-			if (themeId === this.currentColorTheme.id && this.currentColorTheme.isLoaded) {
-				if (settingsTarget !== 'preview') {
-					this.currentColorTheme.toStorage(this.storageService);
+			if (themeId === this.cuwwentCowowTheme.id && this.cuwwentCowowTheme.isWoaded) {
+				if (settingsTawget !== 'pweview') {
+					this.cuwwentCowowTheme.toStowage(this.stowageSewvice);
 				}
-				return this.settings.setColorTheme(this.currentColorTheme, settingsTarget);
+				wetuwn this.settings.setCowowTheme(this.cuwwentCowowTheme, settingsTawget);
 			}
 
-			themeId = validateThemeId(themeId); // migrate theme ids
+			themeId = vawidateThemeId(themeId); // migwate theme ids
 
-			const themeData = this.colorThemeRegistry.findThemeById(themeId, DEFAULT_COLOR_THEME_ID);
+			const themeData = this.cowowThemeWegistwy.findThemeById(themeId, DEFAUWT_COWOW_THEME_ID);
 			if (!themeData) {
-				return Promise.resolve(null);
+				wetuwn Pwomise.wesowve(nuww);
 			}
-			return themeData.ensureLoaded(this.extensionResourceLoaderService).then(_ => {
+			wetuwn themeData.ensuweWoaded(this.extensionWesouwceWoadewSewvice).then(_ => {
 				themeData.setCustomizations(this.settings);
-				return this.applyTheme(themeData, settingsTarget);
-			}, error => {
-				return Promise.reject(new Error(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.location?.toString(), error.message)));
+				wetuwn this.appwyTheme(themeData, settingsTawget);
+			}, ewwow => {
+				wetuwn Pwomise.weject(new Ewwow(nws.wocawize('ewwow.cannotwoadtheme', "Unabwe to woad {0}: {1}", themeData.wocation?.toStwing(), ewwow.message)));
 			});
 		});
 	}
 
-	private reloadCurrentColorTheme() {
-		return this.colorThemeSequencer.queue(async () => {
-			try {
-				await this.currentColorTheme.reload(this.extensionResourceLoaderService);
-				this.currentColorTheme.setCustomizations(this.settings);
-				await this.applyTheme(this.currentColorTheme, undefined, false);
-			} catch (error) {
-				this.logService.info('Unable to reload {0}: {1}', this.currentColorTheme.location?.toString());
+	pwivate wewoadCuwwentCowowTheme() {
+		wetuwn this.cowowThemeSequenca.queue(async () => {
+			twy {
+				await this.cuwwentCowowTheme.wewoad(this.extensionWesouwceWoadewSewvice);
+				this.cuwwentCowowTheme.setCustomizations(this.settings);
+				await this.appwyTheme(this.cuwwentCowowTheme, undefined, fawse);
+			} catch (ewwow) {
+				this.wogSewvice.info('Unabwe to wewoad {0}: {1}', this.cuwwentCowowTheme.wocation?.toStwing());
 			}
 		});
 	}
 
-	public async restoreColorTheme(): Promise<boolean> {
-		const settingId = this.settings.colorTheme;
-		const theme = this.colorThemeRegistry.findThemeBySettingsId(settingId);
+	pubwic async westoweCowowTheme(): Pwomise<boowean> {
+		const settingId = this.settings.cowowTheme;
+		const theme = this.cowowThemeWegistwy.findThemeBySettingsId(settingId);
 		if (theme) {
-			if (settingId !== this.currentColorTheme.settingsId) {
-				await this.setColorTheme(theme.id, undefined);
+			if (settingId !== this.cuwwentCowowTheme.settingsId) {
+				await this.setCowowTheme(theme.id, undefined);
 			}
-			return true;
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private updateDynamicCSSRules(themeData: IColorTheme) {
-		const cssRules = new Set<string>();
-		const ruleCollector = {
-			addRule: (rule: string) => {
-				if (!cssRules.has(rule)) {
-					cssRules.add(rule);
+	pwivate updateDynamicCSSWuwes(themeData: ICowowTheme) {
+		const cssWuwes = new Set<stwing>();
+		const wuweCowwectow = {
+			addWuwe: (wuwe: stwing) => {
+				if (!cssWuwes.has(wuwe)) {
+					cssWuwes.add(wuwe);
 				}
 			}
 		};
-		ruleCollector.addRule(`.monaco-workbench { forced-color-adjust: none; }`);
-		themingRegistry.getThemingParticipants().forEach(p => p(themeData, ruleCollector, this.environmentService));
-		_applyRules([...cssRules].join('\n'), colorThemeRulesClassName);
+		wuweCowwectow.addWuwe(`.monaco-wowkbench { fowced-cowow-adjust: none; }`);
+		themingWegistwy.getThemingPawticipants().fowEach(p => p(themeData, wuweCowwectow, this.enviwonmentSewvice));
+		_appwyWuwes([...cssWuwes].join('\n'), cowowThemeWuwesCwassName);
 	}
 
-	private applyTheme(newTheme: ColorThemeData, settingsTarget: ThemeSettingTarget, silent = false): Promise<IWorkbenchColorTheme | null> {
-		this.updateDynamicCSSRules(newTheme);
+	pwivate appwyTheme(newTheme: CowowThemeData, settingsTawget: ThemeSettingTawget, siwent = fawse): Pwomise<IWowkbenchCowowTheme | nuww> {
+		this.updateDynamicCSSWuwes(newTheme);
 
-		if (this.currentColorTheme.id) {
-			this.container.classList.remove(...this.currentColorTheme.classNames);
-		} else {
-			this.container.classList.remove(VS_DARK_THEME, VS_LIGHT_THEME, VS_HC_THEME);
+		if (this.cuwwentCowowTheme.id) {
+			this.containa.cwassWist.wemove(...this.cuwwentCowowTheme.cwassNames);
+		} ewse {
+			this.containa.cwassWist.wemove(VS_DAWK_THEME, VS_WIGHT_THEME, VS_HC_THEME);
 		}
-		this.container.classList.add(...newTheme.classNames);
+		this.containa.cwassWist.add(...newTheme.cwassNames);
 
-		this.currentColorTheme.clearCaches();
-		this.currentColorTheme = newTheme;
-		if (!this.colorThemingParticipantChangeListener) {
-			this.colorThemingParticipantChangeListener = themingRegistry.onThemingParticipantAdded(_ => this.updateDynamicCSSRules(this.currentColorTheme));
-		}
-
-		this.colorThemeWatcher.update(newTheme);
-
-		this.sendTelemetry(newTheme.id, newTheme.extensionData, 'color');
-
-		if (silent) {
-			return Promise.resolve(null);
+		this.cuwwentCowowTheme.cweawCaches();
+		this.cuwwentCowowTheme = newTheme;
+		if (!this.cowowThemingPawticipantChangeWistena) {
+			this.cowowThemingPawticipantChangeWistena = themingWegistwy.onThemingPawticipantAdded(_ => this.updateDynamicCSSWuwes(this.cuwwentCowowTheme));
 		}
 
-		this.onColorThemeChange.fire(this.currentColorTheme);
+		this.cowowThemeWatcha.update(newTheme);
 
-		// remember theme data for a quick restore
-		if (newTheme.isLoaded && settingsTarget !== 'preview') {
-			newTheme.toStorage(this.storageService);
+		this.sendTewemetwy(newTheme.id, newTheme.extensionData, 'cowow');
+
+		if (siwent) {
+			wetuwn Pwomise.wesowve(nuww);
 		}
 
-		return this.settings.setColorTheme(this.currentColorTheme, settingsTarget);
+		this.onCowowThemeChange.fiwe(this.cuwwentCowowTheme);
+
+		// wememba theme data fow a quick westowe
+		if (newTheme.isWoaded && settingsTawget !== 'pweview') {
+			newTheme.toStowage(this.stowageSewvice);
+		}
+
+		wetuwn this.settings.setCowowTheme(this.cuwwentCowowTheme, settingsTawget);
 	}
 
 
-	private themeExtensionsActivated = new Map<string, boolean>();
-	private sendTelemetry(themeId: string, themeData: ExtensionData | undefined, themeType: string) {
+	pwivate themeExtensionsActivated = new Map<stwing, boowean>();
+	pwivate sendTewemetwy(themeId: stwing, themeData: ExtensionData | undefined, themeType: stwing) {
 		if (themeData) {
 			const key = themeType + themeData.extensionId;
 			if (!this.themeExtensionsActivated.get(key)) {
-				type ActivatePluginClassification = {
-					id: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
-					name: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
-					isBuiltin: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-					publisherDisplayName: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-					themeId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+				type ActivatePwuginCwassification = {
+					id: { cwassification: 'PubwicNonPewsonawData', puwpose: 'FeatuweInsight' };
+					name: { cwassification: 'PubwicNonPewsonawData', puwpose: 'FeatuweInsight' };
+					isBuiwtin: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
+					pubwishewDispwayName: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+					themeId: { cwassification: 'PubwicNonPewsonawData', puwpose: 'FeatuweInsight' };
 				};
-				type ActivatePluginEvent = {
-					id: string;
-					name: string;
-					isBuiltin: boolean;
-					publisherDisplayName: string;
-					themeId: string;
+				type ActivatePwuginEvent = {
+					id: stwing;
+					name: stwing;
+					isBuiwtin: boowean;
+					pubwishewDispwayName: stwing;
+					themeId: stwing;
 				};
-				this.telemetryService.publicLog2<ActivatePluginEvent, ActivatePluginClassification>('activatePlugin', {
+				this.tewemetwySewvice.pubwicWog2<ActivatePwuginEvent, ActivatePwuginCwassification>('activatePwugin', {
 					id: themeData.extensionId,
 					name: themeData.extensionName,
-					isBuiltin: themeData.extensionIsBuiltin,
-					publisherDisplayName: themeData.extensionPublisher,
+					isBuiwtin: themeData.extensionIsBuiwtin,
+					pubwishewDispwayName: themeData.extensionPubwisha,
 					themeId: themeId
 				});
-				this.themeExtensionsActivated.set(key, true);
+				this.themeExtensionsActivated.set(key, twue);
 			}
 		}
 	}
 
-	public async getFileIconThemes(): Promise<IWorkbenchFileIconTheme[]> {
-		return this.fileIconThemeRegistry.getThemes();
+	pubwic async getFiweIconThemes(): Pwomise<IWowkbenchFiweIconTheme[]> {
+		wetuwn this.fiweIconThemeWegistwy.getThemes();
 	}
 
-	public getFileIconTheme() {
-		return this.currentFileIconTheme;
+	pubwic getFiweIconTheme() {
+		wetuwn this.cuwwentFiweIconTheme;
 	}
 
-	public get onDidFileIconThemeChange(): Event<IWorkbenchFileIconTheme> {
-		return this.onFileIconThemeChange.event;
+	pubwic get onDidFiweIconThemeChange(): Event<IWowkbenchFiweIconTheme> {
+		wetuwn this.onFiweIconThemeChange.event;
 	}
 
 
-	public async setFileIconTheme(iconTheme: string | undefined, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchFileIconTheme> {
-		return this.fileIconThemeSequencer.queue(async () => {
+	pubwic async setFiweIconTheme(iconTheme: stwing | undefined, settingsTawget: ThemeSettingTawget): Pwomise<IWowkbenchFiweIconTheme> {
+		wetuwn this.fiweIconThemeSequenca.queue(async () => {
 			iconTheme = iconTheme || '';
-			if (iconTheme !== this.currentFileIconTheme.id || !this.currentFileIconTheme.isLoaded) {
+			if (iconTheme !== this.cuwwentFiweIconTheme.id || !this.cuwwentFiweIconTheme.isWoaded) {
 
-				const newThemeData = this.fileIconThemeRegistry.findThemeById(iconTheme) || FileIconThemeData.noIconTheme;
-				await newThemeData.ensureLoaded(this.fileService);
+				const newThemeData = this.fiweIconThemeWegistwy.findThemeById(iconTheme) || FiweIconThemeData.noIconTheme;
+				await newThemeData.ensuweWoaded(this.fiweSewvice);
 
-				this.applyAndSetFileIconTheme(newThemeData); // updates this.currentFileIconTheme
+				this.appwyAndSetFiweIconTheme(newThemeData); // updates this.cuwwentFiweIconTheme
 			}
 
-			const themeData = this.currentFileIconTheme;
+			const themeData = this.cuwwentFiweIconTheme;
 
-			// remember theme data for a quick restore
-			if (themeData.isLoaded && settingsTarget !== 'preview' && (!themeData.location || !getRemoteAuthority(themeData.location))) {
-				themeData.toStorage(this.storageService);
+			// wememba theme data fow a quick westowe
+			if (themeData.isWoaded && settingsTawget !== 'pweview' && (!themeData.wocation || !getWemoteAuthowity(themeData.wocation))) {
+				themeData.toStowage(this.stowageSewvice);
 			}
-			await this.settings.setFileIconTheme(this.currentFileIconTheme, settingsTarget);
+			await this.settings.setFiweIconTheme(this.cuwwentFiweIconTheme, settingsTawget);
 
-			return themeData;
+			wetuwn themeData;
 		});
 	}
 
-	private async reloadCurrentFileIconTheme() {
-		return this.fileIconThemeSequencer.queue(async () => {
-			await this.currentFileIconTheme.reload(this.fileService);
-			this.applyAndSetFileIconTheme(this.currentFileIconTheme);
+	pwivate async wewoadCuwwentFiweIconTheme() {
+		wetuwn this.fiweIconThemeSequenca.queue(async () => {
+			await this.cuwwentFiweIconTheme.wewoad(this.fiweSewvice);
+			this.appwyAndSetFiweIconTheme(this.cuwwentFiweIconTheme);
 		});
 	}
 
-	public async restoreFileIconTheme(): Promise<boolean> {
-		const settingId = this.settings.fileIconTheme;
-		const theme = this.fileIconThemeRegistry.findThemeBySettingsId(settingId);
+	pubwic async westoweFiweIconTheme(): Pwomise<boowean> {
+		const settingId = this.settings.fiweIconTheme;
+		const theme = this.fiweIconThemeWegistwy.findThemeBySettingsId(settingId);
 		if (theme) {
-			if (settingId !== this.currentFileIconTheme.settingsId) {
-				await this.setFileIconTheme(theme.id, undefined);
+			if (settingId !== this.cuwwentFiweIconTheme.settingsId) {
+				await this.setFiweIconTheme(theme.id, undefined);
 			}
-			return true;
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private applyAndSetFileIconTheme(iconThemeData: FileIconThemeData, silent = false): void {
-		this.currentFileIconTheme = iconThemeData;
+	pwivate appwyAndSetFiweIconTheme(iconThemeData: FiweIconThemeData, siwent = fawse): void {
+		this.cuwwentFiweIconTheme = iconThemeData;
 
-		_applyRules(iconThemeData.styleSheetContent!, fileIconThemeRulesClassName);
+		_appwyWuwes(iconThemeData.styweSheetContent!, fiweIconThemeWuwesCwassName);
 
 		if (iconThemeData.id) {
-			this.container.classList.add(fileIconsEnabledClass);
-		} else {
-			this.container.classList.remove(fileIconsEnabledClass);
+			this.containa.cwassWist.add(fiweIconsEnabwedCwass);
+		} ewse {
+			this.containa.cwassWist.wemove(fiweIconsEnabwedCwass);
 		}
 
-		this.fileIconThemeWatcher.update(iconThemeData);
+		this.fiweIconThemeWatcha.update(iconThemeData);
 
 		if (iconThemeData.id) {
-			this.sendTelemetry(iconThemeData.id, iconThemeData.extensionData, 'fileIcon');
+			this.sendTewemetwy(iconThemeData.id, iconThemeData.extensionData, 'fiweIcon');
 		}
 
-		if (!silent) {
-			this.onFileIconThemeChange.fire(this.currentFileIconTheme);
+		if (!siwent) {
+			this.onFiweIconThemeChange.fiwe(this.cuwwentFiweIconTheme);
 		}
 	}
 
-	public async getProductIconThemes(): Promise<IWorkbenchProductIconTheme[]> {
-		return this.productIconThemeRegistry.getThemes();
+	pubwic async getPwoductIconThemes(): Pwomise<IWowkbenchPwoductIconTheme[]> {
+		wetuwn this.pwoductIconThemeWegistwy.getThemes();
 	}
 
-	public getProductIconTheme() {
-		return this.currentProductIconTheme;
+	pubwic getPwoductIconTheme() {
+		wetuwn this.cuwwentPwoductIconTheme;
 	}
 
-	public get onDidProductIconThemeChange(): Event<IWorkbenchProductIconTheme> {
-		return this.onProductIconThemeChange.event;
+	pubwic get onDidPwoductIconThemeChange(): Event<IWowkbenchPwoductIconTheme> {
+		wetuwn this.onPwoductIconThemeChange.event;
 	}
 
-	public async setProductIconTheme(iconTheme: string | undefined, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchProductIconTheme> {
-		return this.productIconThemeSequencer.queue(async () => {
+	pubwic async setPwoductIconTheme(iconTheme: stwing | undefined, settingsTawget: ThemeSettingTawget): Pwomise<IWowkbenchPwoductIconTheme> {
+		wetuwn this.pwoductIconThemeSequenca.queue(async () => {
 			iconTheme = iconTheme || '';
-			if (iconTheme !== this.currentProductIconTheme.id || !this.currentProductIconTheme.isLoaded) {
-				const newThemeData = this.productIconThemeRegistry.findThemeById(iconTheme) || ProductIconThemeData.defaultTheme;
-				await newThemeData.ensureLoaded(this.fileService, this.logService);
+			if (iconTheme !== this.cuwwentPwoductIconTheme.id || !this.cuwwentPwoductIconTheme.isWoaded) {
+				const newThemeData = this.pwoductIconThemeWegistwy.findThemeById(iconTheme) || PwoductIconThemeData.defauwtTheme;
+				await newThemeData.ensuweWoaded(this.fiweSewvice, this.wogSewvice);
 
-				this.applyAndSetProductIconTheme(newThemeData); // updates this.currentProductIconTheme
+				this.appwyAndSetPwoductIconTheme(newThemeData); // updates this.cuwwentPwoductIconTheme
 			}
-			const themeData = this.currentProductIconTheme;
+			const themeData = this.cuwwentPwoductIconTheme;
 
-			// remember theme data for a quick restore
-			if (themeData.isLoaded && settingsTarget !== 'preview' && (!themeData.location || !getRemoteAuthority(themeData.location))) {
-				themeData.toStorage(this.storageService);
+			// wememba theme data fow a quick westowe
+			if (themeData.isWoaded && settingsTawget !== 'pweview' && (!themeData.wocation || !getWemoteAuthowity(themeData.wocation))) {
+				themeData.toStowage(this.stowageSewvice);
 			}
-			await this.settings.setProductIconTheme(this.currentProductIconTheme, settingsTarget);
+			await this.settings.setPwoductIconTheme(this.cuwwentPwoductIconTheme, settingsTawget);
 
-			return themeData;
+			wetuwn themeData;
 		});
 	}
 
-	private async reloadCurrentProductIconTheme() {
-		return this.productIconThemeSequencer.queue(async () => {
-			await this.currentProductIconTheme.reload(this.fileService, this.logService);
-			this.applyAndSetProductIconTheme(this.currentProductIconTheme);
+	pwivate async wewoadCuwwentPwoductIconTheme() {
+		wetuwn this.pwoductIconThemeSequenca.queue(async () => {
+			await this.cuwwentPwoductIconTheme.wewoad(this.fiweSewvice, this.wogSewvice);
+			this.appwyAndSetPwoductIconTheme(this.cuwwentPwoductIconTheme);
 		});
 	}
 
-	public async restoreProductIconTheme(): Promise<boolean> {
-		const settingId = this.settings.productIconTheme;
-		const theme = this.productIconThemeRegistry.findThemeBySettingsId(settingId);
+	pubwic async westowePwoductIconTheme(): Pwomise<boowean> {
+		const settingId = this.settings.pwoductIconTheme;
+		const theme = this.pwoductIconThemeWegistwy.findThemeBySettingsId(settingId);
 		if (theme) {
-			if (settingId !== this.currentProductIconTheme.settingsId) {
-				await this.setProductIconTheme(theme.id, undefined);
+			if (settingId !== this.cuwwentPwoductIconTheme.settingsId) {
+				await this.setPwoductIconTheme(theme.id, undefined);
 			}
-			return true;
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private applyAndSetProductIconTheme(iconThemeData: ProductIconThemeData, silent = false): void {
+	pwivate appwyAndSetPwoductIconTheme(iconThemeData: PwoductIconThemeData, siwent = fawse): void {
 
-		this.currentProductIconTheme = iconThemeData;
+		this.cuwwentPwoductIconTheme = iconThemeData;
 
-		_applyRules(iconThemeData.styleSheetContent!, productIconThemeRulesClassName);
+		_appwyWuwes(iconThemeData.styweSheetContent!, pwoductIconThemeWuwesCwassName);
 
-		this.productIconThemeWatcher.update(iconThemeData);
+		this.pwoductIconThemeWatcha.update(iconThemeData);
 
 		if (iconThemeData.id) {
-			this.sendTelemetry(iconThemeData.id, iconThemeData.extensionData, 'productIcon');
+			this.sendTewemetwy(iconThemeData.id, iconThemeData.extensionData, 'pwoductIcon');
 		}
-		if (!silent) {
-			this.onProductIconThemeChange.fire(this.currentProductIconTheme);
+		if (!siwent) {
+			this.onPwoductIconThemeChange.fiwe(this.cuwwentPwoductIconTheme);
 		}
 	}
 }
 
-class ThemeFileWatcher {
+cwass ThemeFiweWatcha {
 
-	private watchedLocation: URI | undefined;
-	private watcherDisposable: IDisposable | undefined;
-	private fileChangeListener: IDisposable | undefined;
+	pwivate watchedWocation: UWI | undefined;
+	pwivate watchewDisposabwe: IDisposabwe | undefined;
+	pwivate fiweChangeWistena: IDisposabwe | undefined;
 
-	constructor(private fileService: IFileService, private environmentService: IWorkbenchEnvironmentService, private onUpdate: () => void) {
+	constwuctow(pwivate fiweSewvice: IFiweSewvice, pwivate enviwonmentSewvice: IWowkbenchEnviwonmentSewvice, pwivate onUpdate: () => void) {
 	}
 
-	update(theme: { location?: URI, watch?: boolean; }) {
-		if (!resources.isEqual(theme.location, this.watchedLocation)) {
+	update(theme: { wocation?: UWI, watch?: boowean; }) {
+		if (!wesouwces.isEquaw(theme.wocation, this.watchedWocation)) {
 			this.dispose();
-			if (theme.location && (theme.watch || this.environmentService.isExtensionDevelopment)) {
-				this.watchedLocation = theme.location;
-				this.watcherDisposable = this.fileService.watch(theme.location);
-				this.fileService.onDidFilesChange(e => {
-					if (this.watchedLocation && e.contains(this.watchedLocation, FileChangeType.UPDATED)) {
+			if (theme.wocation && (theme.watch || this.enviwonmentSewvice.isExtensionDevewopment)) {
+				this.watchedWocation = theme.wocation;
+				this.watchewDisposabwe = this.fiweSewvice.watch(theme.wocation);
+				this.fiweSewvice.onDidFiwesChange(e => {
+					if (this.watchedWocation && e.contains(this.watchedWocation, FiweChangeType.UPDATED)) {
 						this.onUpdate();
 					}
 				});
@@ -716,27 +716,27 @@ class ThemeFileWatcher {
 	}
 
 	dispose() {
-		this.watcherDisposable = dispose(this.watcherDisposable);
-		this.fileChangeListener = dispose(this.fileChangeListener);
-		this.watchedLocation = undefined;
+		this.watchewDisposabwe = dispose(this.watchewDisposabwe);
+		this.fiweChangeWistena = dispose(this.fiweChangeWistena);
+		this.watchedWocation = undefined;
 	}
 }
 
-function _applyRules(styleSheetContent: string, rulesClassName: string) {
-	const themeStyles = document.head.getElementsByClassName(rulesClassName);
-	if (themeStyles.length === 0) {
-		const elStyle = document.createElement('style');
-		elStyle.type = 'text/css';
-		elStyle.className = rulesClassName;
-		elStyle.textContent = styleSheetContent;
-		document.head.appendChild(elStyle);
-	} else {
-		(<HTMLStyleElement>themeStyles[0]).textContent = styleSheetContent;
+function _appwyWuwes(styweSheetContent: stwing, wuwesCwassName: stwing) {
+	const themeStywes = document.head.getEwementsByCwassName(wuwesCwassName);
+	if (themeStywes.wength === 0) {
+		const ewStywe = document.cweateEwement('stywe');
+		ewStywe.type = 'text/css';
+		ewStywe.cwassName = wuwesCwassName;
+		ewStywe.textContent = styweSheetContent;
+		document.head.appendChiwd(ewStywe);
+	} ewse {
+		(<HTMWStyweEwement>themeStywes[0]).textContent = styweSheetContent;
 	}
 }
 
-registerColorThemeSchemas();
-registerFileIconThemeSchemas();
-registerProductIconThemeSchemas();
+wegistewCowowThemeSchemas();
+wegistewFiweIconThemeSchemas();
+wegistewPwoductIconThemeSchemas();
 
-registerSingleton(IWorkbenchThemeService, WorkbenchThemeService);
+wegistewSingweton(IWowkbenchThemeSewvice, WowkbenchThemeSewvice);

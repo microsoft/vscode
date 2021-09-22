@@ -1,326 +1,326 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/languageStatus';
-import * as dom from 'vs/base/browser/dom';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
-import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { localize } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { registerThemingParticipant, ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { NOTIFICATIONS_BORDER, NOTIFICATIONS_ERROR_ICON_FOREGROUND, NOTIFICATIONS_WARNING_ICON_FOREGROUND, STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_WARNING_ITEM_BACKGROUND, STATUS_BAR_WARNING_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ILanguageStatus, ILanguageStatusService } from 'vs/workbench/services/languageStatus/common/languageStatusService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { parseLinkedText } from 'vs/base/common/linkedText';
-import { Link } from 'vs/platform/opener/browser/link';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Action } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { equals } from 'vs/base/common/arrays';
-import { URI } from 'vs/base/common/uri';
+impowt 'vs/css!./media/wanguageStatus';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { wendewWabewWithIcons } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabews';
+impowt { DisposabweStowe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { getCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { wegistewThemingPawticipant, ThemeCowow, themeCowowFwomId } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IWowkbenchContwibutionsWegistwy, Extensions as WowkbenchExtensions, IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { NOTIFICATIONS_BOWDa, NOTIFICATIONS_EWWOW_ICON_FOWEGWOUND, NOTIFICATIONS_WAWNING_ICON_FOWEGWOUND, STATUS_BAW_EWWOW_ITEM_BACKGWOUND, STATUS_BAW_EWWOW_ITEM_FOWEGWOUND, STATUS_BAW_WAWNING_ITEM_BACKGWOUND, STATUS_BAW_WAWNING_ITEM_FOWEGWOUND } fwom 'vs/wowkbench/common/theme';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IWanguageStatus, IWanguageStatusSewvice } fwom 'vs/wowkbench/sewvices/wanguageStatus/common/wanguageStatusSewvice';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IStatusbawEntwy, IStatusbawEntwyAccessow, IStatusbawSewvice, ShowToowtipCommand, StatusbawAwignment } fwom 'vs/wowkbench/sewvices/statusbaw/bwowsa/statusbaw';
+impowt { pawseWinkedText } fwom 'vs/base/common/winkedText';
+impowt { Wink } fwom 'vs/pwatfowm/opena/bwowsa/wink';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { MawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { ActionBaw } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { IStowageSewvice, IStowageVawueChangeEvent, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { equaws } fwom 'vs/base/common/awways';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-class LanguageStatusViewModel {
+cwass WanguageStatusViewModew {
 
-	constructor(
-		readonly combined: readonly ILanguageStatus[],
-		readonly dedicated: readonly ILanguageStatus[]
+	constwuctow(
+		weadonwy combined: weadonwy IWanguageStatus[],
+		weadonwy dedicated: weadonwy IWanguageStatus[]
 	) { }
 
-	isEqual(other: LanguageStatusViewModel) {
-		return equals(this.combined, other.combined) && equals(this.dedicated, other.dedicated);
+	isEquaw(otha: WanguageStatusViewModew) {
+		wetuwn equaws(this.combined, otha.combined) && equaws(this.dedicated, otha.dedicated);
 	}
 }
 
-class EditorStatusContribution implements IWorkbenchContribution {
+cwass EditowStatusContwibution impwements IWowkbenchContwibution {
 
-	private static readonly _id = 'status.languageStatus';
+	pwivate static weadonwy _id = 'status.wanguageStatus';
 
-	private static readonly _keyDedicatedItems = 'languageStatus.dedicated';
+	pwivate static weadonwy _keyDedicatedItems = 'wanguageStatus.dedicated';
 
-	private readonly _disposables = new DisposableStore();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
 
-	private _dedicated = new Set<string>();
+	pwivate _dedicated = new Set<stwing>();
 
-	private _model?: LanguageStatusViewModel;
-	private _combinedEntry?: IStatusbarEntryAccessor;
-	private _dedicatedEntries = new Map<string, IStatusbarEntryAccessor>();
-	private _renderDisposables = new DisposableStore();
+	pwivate _modew?: WanguageStatusViewModew;
+	pwivate _combinedEntwy?: IStatusbawEntwyAccessow;
+	pwivate _dedicatedEntwies = new Map<stwing, IStatusbawEntwyAccessow>();
+	pwivate _wendewDisposabwes = new DisposabweStowe();
 
-	constructor(
-		@ILanguageStatusService private readonly _languageStatusService: ILanguageStatusService,
-		@IStatusbarService private readonly _statusBarService: IStatusbarService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@IOpenerService private readonly _openerService: IOpenerService,
-		@IStorageService private readonly _storageService: IStorageService,
+	constwuctow(
+		@IWanguageStatusSewvice pwivate weadonwy _wanguageStatusSewvice: IWanguageStatusSewvice,
+		@IStatusbawSewvice pwivate weadonwy _statusBawSewvice: IStatusbawSewvice,
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@IOpenewSewvice pwivate weadonwy _openewSewvice: IOpenewSewvice,
+		@IStowageSewvice pwivate weadonwy _stowageSewvice: IStowageSewvice,
 	) {
-		_storageService.onDidChangeValue(this._handleStorageChange, this, this._disposables);
-		this._restoreState();
+		_stowageSewvice.onDidChangeVawue(this._handweStowageChange, this, this._disposabwes);
+		this._westoweState();
 
-		_languageStatusService.onDidChange(this._update, this, this._disposables);
-		_editorService.onDidActiveEditorChange(this._update, this, this._disposables);
+		_wanguageStatusSewvice.onDidChange(this._update, this, this._disposabwes);
+		_editowSewvice.onDidActiveEditowChange(this._update, this, this._disposabwes);
 		this._update();
 
-		_statusBarService.onDidChangeEntryVisibility(e => {
-			if (!e.visible && this._dedicated.has(e.id)) {
-				this._dedicated.delete(e.id);
+		_statusBawSewvice.onDidChangeEntwyVisibiwity(e => {
+			if (!e.visibwe && this._dedicated.has(e.id)) {
+				this._dedicated.dewete(e.id);
 				this._update();
-				this._storeState();
+				this._stoweState();
 			}
-		}, this._disposables);
+		}, this._disposabwes);
 
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
-		this._combinedEntry?.dispose();
-		dispose(this._dedicatedEntries.values());
-		this._renderDisposables.dispose();
+		this._disposabwes.dispose();
+		this._combinedEntwy?.dispose();
+		dispose(this._dedicatedEntwies.vawues());
+		this._wendewDisposabwes.dispose();
 	}
 
-	// --- persisting dedicated items
+	// --- pewsisting dedicated items
 
-	private _handleStorageChange(e: IStorageValueChangeEvent) {
-		if (e.key !== EditorStatusContribution._keyDedicatedItems) {
-			return;
+	pwivate _handweStowageChange(e: IStowageVawueChangeEvent) {
+		if (e.key !== EditowStatusContwibution._keyDedicatedItems) {
+			wetuwn;
 		}
-		this._restoreState();
+		this._westoweState();
 		this._update();
 	}
 
-	private _restoreState(): void {
-		const raw = this._storageService.get(EditorStatusContribution._keyDedicatedItems, StorageScope.GLOBAL, '[]');
-		try {
-			const ids = <string[]>JSON.parse(raw);
+	pwivate _westoweState(): void {
+		const waw = this._stowageSewvice.get(EditowStatusContwibution._keyDedicatedItems, StowageScope.GWOBAW, '[]');
+		twy {
+			const ids = <stwing[]>JSON.pawse(waw);
 			this._dedicated = new Set(ids);
 		} catch {
-			this._dedicated.clear();
+			this._dedicated.cweaw();
 		}
 	}
 
-	private _storeState(): void {
+	pwivate _stoweState(): void {
 		if (this._dedicated.size === 0) {
-			this._storageService.remove(EditorStatusContribution._keyDedicatedItems, StorageScope.GLOBAL);
-		} else {
-			const raw = JSON.stringify(Array.from(this._dedicated.keys()));
-			this._storageService.store(EditorStatusContribution._keyDedicatedItems, raw, StorageScope.GLOBAL, StorageTarget.USER);
+			this._stowageSewvice.wemove(EditowStatusContwibution._keyDedicatedItems, StowageScope.GWOBAW);
+		} ewse {
+			const waw = JSON.stwingify(Awway.fwom(this._dedicated.keys()));
+			this._stowageSewvice.stowe(EditowStatusContwibution._keyDedicatedItems, waw, StowageScope.GWOBAW, StowageTawget.USa);
 		}
 	}
 
-	// --- language status model and UI
+	// --- wanguage status modew and UI
 
-	private _createViewModel(): LanguageStatusViewModel {
-		const editor = getCodeEditor(this._editorService.activeTextEditorControl);
-		if (!editor?.hasModel()) {
-			return new LanguageStatusViewModel([], []);
+	pwivate _cweateViewModew(): WanguageStatusViewModew {
+		const editow = getCodeEditow(this._editowSewvice.activeTextEditowContwow);
+		if (!editow?.hasModew()) {
+			wetuwn new WanguageStatusViewModew([], []);
 		}
-		const all = this._languageStatusService.getLanguageStatus(editor.getModel());
-		const combined: ILanguageStatus[] = [];
-		const dedicated: ILanguageStatus[] = [];
-		for (let item of all) {
+		const aww = this._wanguageStatusSewvice.getWanguageStatus(editow.getModew());
+		const combined: IWanguageStatus[] = [];
+		const dedicated: IWanguageStatus[] = [];
+		fow (wet item of aww) {
 			if (this._dedicated.has(item.id)) {
 				dedicated.push(item);
-			} else {
+			} ewse {
 				combined.push(item);
 			}
 		}
-		return new LanguageStatusViewModel(combined, dedicated);
+		wetuwn new WanguageStatusViewModew(combined, dedicated);
 	}
 
-	private _update(): void {
+	pwivate _update(): void {
 
-		const model = this._createViewModel();
+		const modew = this._cweateViewModew();
 
-		if (this._model?.isEqual(model)) {
-			return;
+		if (this._modew?.isEquaw(modew)) {
+			wetuwn;
 		}
 
-		this._model = model;
+		this._modew = modew;
 
-		this._renderDisposables.clear();
+		this._wendewDisposabwes.cweaw();
 
-		// combined status bar item is a single item which hover shows
+		// combined status baw item is a singwe item which hova shows
 		// each status item
-		if (model.combined.length === 0) {
+		if (modew.combined.wength === 0) {
 			// nothing
-			this._combinedEntry?.dispose();
-			this._combinedEntry = undefined;
+			this._combinedEntwy?.dispose();
+			this._combinedEntwy = undefined;
 
-		} else {
-			const [first] = model.combined;
-			const text = EditorStatusContribution._asCodicon(first.severity);
-			const showSeverity = first.severity >= Severity.Warning;
+		} ewse {
+			const [fiwst] = modew.combined;
+			const text = EditowStatusContwibution._asCodicon(fiwst.sevewity);
+			const showSevewity = fiwst.sevewity >= Sevewity.Wawning;
 
-			const ariaLabels: string[] = [];
-			const element = document.createElement('div');
-			for (const status of model.combined) {
-				element.appendChild(this._renderStatus(status, showSeverity, this._renderDisposables));
-				ariaLabels.push(this._asAriaLabel(status));
+			const awiaWabews: stwing[] = [];
+			const ewement = document.cweateEwement('div');
+			fow (const status of modew.combined) {
+				ewement.appendChiwd(this._wendewStatus(status, showSevewity, this._wendewDisposabwes));
+				awiaWabews.push(this._asAwiaWabew(status));
 			}
-			const props: IStatusbarEntry = {
-				name: localize('langStatus.name', "Editor Language Status"),
-				ariaLabel: localize('langStatus.aria', "Editor Language Status: {0}", ariaLabels.join(', next: ')),
-				tooltip: element,
+			const pwops: IStatusbawEntwy = {
+				name: wocawize('wangStatus.name', "Editow Wanguage Status"),
+				awiaWabew: wocawize('wangStatus.awia', "Editow Wanguage Status: {0}", awiaWabews.join(', next: ')),
+				toowtip: ewement,
 				text,
-				command: ShowTooltipCommand
+				command: ShowToowtipCommand
 			};
-			if (!this._combinedEntry) {
-				this._combinedEntry = this._statusBarService.addEntry(props, EditorStatusContribution._id, StatusbarAlignment.RIGHT, { id: 'status.editor.mode', alignment: StatusbarAlignment.LEFT, compact: true });
-			} else {
-				this._combinedEntry.update(props);
+			if (!this._combinedEntwy) {
+				this._combinedEntwy = this._statusBawSewvice.addEntwy(pwops, EditowStatusContwibution._id, StatusbawAwignment.WIGHT, { id: 'status.editow.mode', awignment: StatusbawAwignment.WEFT, compact: twue });
+			} ewse {
+				this._combinedEntwy.update(pwops);
 			}
 		}
 
-		// dedicated status bar items are shows as-is in the status bar
-		const newDedicatedEntries = new Map<string, IStatusbarEntryAccessor>();
-		for (const status of model.dedicated) {
-			const props = EditorStatusContribution._asStatusbarEntry(status);
-			let entry = this._dedicatedEntries.get(status.id);
-			if (!entry) {
-				entry = this._statusBarService.addEntry(props, status.id, StatusbarAlignment.RIGHT, 100.09999);
-			} else {
-				entry.update(props);
-				this._dedicatedEntries.delete(status.id);
+		// dedicated status baw items awe shows as-is in the status baw
+		const newDedicatedEntwies = new Map<stwing, IStatusbawEntwyAccessow>();
+		fow (const status of modew.dedicated) {
+			const pwops = EditowStatusContwibution._asStatusbawEntwy(status);
+			wet entwy = this._dedicatedEntwies.get(status.id);
+			if (!entwy) {
+				entwy = this._statusBawSewvice.addEntwy(pwops, status.id, StatusbawAwignment.WIGHT, 100.09999);
+			} ewse {
+				entwy.update(pwops);
+				this._dedicatedEntwies.dewete(status.id);
 			}
-			newDedicatedEntries.set(status.id, entry);
+			newDedicatedEntwies.set(status.id, entwy);
 		}
-		dispose(this._dedicatedEntries.values());
-		this._dedicatedEntries = newDedicatedEntries;
+		dispose(this._dedicatedEntwies.vawues());
+		this._dedicatedEntwies = newDedicatedEntwies;
 	}
 
-	private static _asCodicon(severity: Severity): string {
-		if (severity === Severity.Error) {
-			return '$(error)';
-		} else if (severity === Severity.Warning) {
-			return '$(warning)';
-		} else {
-			return '$(check-all)';
+	pwivate static _asCodicon(sevewity: Sevewity): stwing {
+		if (sevewity === Sevewity.Ewwow) {
+			wetuwn '$(ewwow)';
+		} ewse if (sevewity === Sevewity.Wawning) {
+			wetuwn '$(wawning)';
+		} ewse {
+			wetuwn '$(check-aww)';
 		}
 	}
 
-	private _renderStatus(status: ILanguageStatus, showSeverity: boolean, store: DisposableStore): HTMLElement {
+	pwivate _wendewStatus(status: IWanguageStatus, showSevewity: boowean, stowe: DisposabweStowe): HTMWEwement {
 
-		const parent = document.createElement('div');
-		parent.classList.add('hover-language-status');
+		const pawent = document.cweateEwement('div');
+		pawent.cwassWist.add('hova-wanguage-status');
 
-		const severity = document.createElement('div');
-		severity.classList.add('severity', `sev${status.severity}`);
-		severity.classList.toggle('show', showSeverity);
-		parent.appendChild(severity);
-		dom.append(severity, ...renderLabelWithIcons(EditorStatusContribution._asCodicon(status.severity)));
+		const sevewity = document.cweateEwement('div');
+		sevewity.cwassWist.add('sevewity', `sev${status.sevewity}`);
+		sevewity.cwassWist.toggwe('show', showSevewity);
+		pawent.appendChiwd(sevewity);
+		dom.append(sevewity, ...wendewWabewWithIcons(EditowStatusContwibution._asCodicon(status.sevewity)));
 
-		const element = document.createElement('div');
-		element.classList.add('element');
-		parent.appendChild(element);
+		const ewement = document.cweateEwement('div');
+		ewement.cwassWist.add('ewement');
+		pawent.appendChiwd(ewement);
 
-		const left = document.createElement('div');
-		left.classList.add('left');
-		element.appendChild(left);
+		const weft = document.cweateEwement('div');
+		weft.cwassWist.add('weft');
+		ewement.appendChiwd(weft);
 
-		const label = document.createElement('span');
-		label.classList.add('label');
-		dom.append(label, ...renderLabelWithIcons(status.label));
-		left.appendChild(label);
+		const wabew = document.cweateEwement('span');
+		wabew.cwassWist.add('wabew');
+		dom.append(wabew, ...wendewWabewWithIcons(status.wabew));
+		weft.appendChiwd(wabew);
 
-		const detail = document.createElement('span');
-		detail.classList.add('detail');
-		this._renderTextPlus(detail, status.detail, store);
-		left.appendChild(detail);
+		const detaiw = document.cweateEwement('span');
+		detaiw.cwassWist.add('detaiw');
+		this._wendewTextPwus(detaiw, status.detaiw, stowe);
+		weft.appendChiwd(detaiw);
 
-		const right = document.createElement('div');
-		right.classList.add('right');
-		element.appendChild(right);
+		const wight = document.cweateEwement('div');
+		wight.cwassWist.add('wight');
+		ewement.appendChiwd(wight);
 
-		// -- command (if available)
+		// -- command (if avaiwabwe)
 		const { command } = status;
 		if (command) {
-			store.add(new Link(right, {
-				label: command.title,
-				title: command.tooltip,
-				href: URI.from({
-					scheme: 'command', path: command.id, query: command.arguments && JSON.stringify(command.arguments)
-				}).toString()
-			}, undefined, this._openerService));
+			stowe.add(new Wink(wight, {
+				wabew: command.titwe,
+				titwe: command.toowtip,
+				hwef: UWI.fwom({
+					scheme: 'command', path: command.id, quewy: command.awguments && JSON.stwingify(command.awguments)
+				}).toStwing()
+			}, undefined, this._openewSewvice));
 		}
 
 		// -- pin
-		const actionBar = new ActionBar(right, {});
-		store.add(actionBar);
-		const action = new Action('pin', localize('pin', "Pin to Status Bar"), Codicon.pin.classNames, true, () => {
+		const actionBaw = new ActionBaw(wight, {});
+		stowe.add(actionBaw);
+		const action = new Action('pin', wocawize('pin', "Pin to Status Baw"), Codicon.pin.cwassNames, twue, () => {
 			this._dedicated.add(status.id);
-			this._statusBarService.updateEntryVisibility(status.id, true);
+			this._statusBawSewvice.updateEntwyVisibiwity(status.id, twue);
 			this._update();
-			this._storeState();
+			this._stoweState();
 		});
-		actionBar.push(action, { icon: true, label: false });
-		store.add(action);
+		actionBaw.push(action, { icon: twue, wabew: fawse });
+		stowe.add(action);
 
-		return parent;
+		wetuwn pawent;
 	}
 
-	private _renderTextPlus(target: HTMLElement, text: string, store: DisposableStore): void {
-		for (let node of parseLinkedText(text).nodes) {
-			if (typeof node === 'string') {
-				const parts = renderLabelWithIcons(node);
-				dom.append(target, ...parts);
-			} else {
-				store.add(new Link(target, node, undefined, this._openerService));
+	pwivate _wendewTextPwus(tawget: HTMWEwement, text: stwing, stowe: DisposabweStowe): void {
+		fow (wet node of pawseWinkedText(text).nodes) {
+			if (typeof node === 'stwing') {
+				const pawts = wendewWabewWithIcons(node);
+				dom.append(tawget, ...pawts);
+			} ewse {
+				stowe.add(new Wink(tawget, node, undefined, this._openewSewvice));
 			}
 		}
 	}
 
-	private _asAriaLabel(status: ILanguageStatus): string {
-		if (status.accessibilityInfo) {
-			return status.accessibilityInfo.label;
-		} else if (status.detail) {
-			return localize('aria.1', '{0}, {1}', status.label, status.detail);
-		} else {
-			return localize('aria.2', '{0}', status.label);
+	pwivate _asAwiaWabew(status: IWanguageStatus): stwing {
+		if (status.accessibiwityInfo) {
+			wetuwn status.accessibiwityInfo.wabew;
+		} ewse if (status.detaiw) {
+			wetuwn wocawize('awia.1', '{0}, {1}', status.wabew, status.detaiw);
+		} ewse {
+			wetuwn wocawize('awia.2', '{0}', status.wabew);
 		}
 	}
 
 	// ---
 
-	private static _asStatusbarEntry(item: ILanguageStatus): IStatusbarEntry {
+	pwivate static _asStatusbawEntwy(item: IWanguageStatus): IStatusbawEntwy {
 
-		let color: ThemeColor | undefined;
-		let backgroundColor: ThemeColor | undefined;
-		if (item.severity === Severity.Warning) {
-			color = themeColorFromId(STATUS_BAR_WARNING_ITEM_FOREGROUND);
-			backgroundColor = themeColorFromId(STATUS_BAR_WARNING_ITEM_BACKGROUND);
-		} else if (item.severity === Severity.Error) {
-			color = themeColorFromId(STATUS_BAR_ERROR_ITEM_FOREGROUND);
-			backgroundColor = themeColorFromId(STATUS_BAR_ERROR_ITEM_BACKGROUND);
+		wet cowow: ThemeCowow | undefined;
+		wet backgwoundCowow: ThemeCowow | undefined;
+		if (item.sevewity === Sevewity.Wawning) {
+			cowow = themeCowowFwomId(STATUS_BAW_WAWNING_ITEM_FOWEGWOUND);
+			backgwoundCowow = themeCowowFwomId(STATUS_BAW_WAWNING_ITEM_BACKGWOUND);
+		} ewse if (item.sevewity === Sevewity.Ewwow) {
+			cowow = themeCowowFwomId(STATUS_BAW_EWWOW_ITEM_FOWEGWOUND);
+			backgwoundCowow = themeCowowFwomId(STATUS_BAW_EWWOW_ITEM_BACKGWOUND);
 		}
 
-		return {
-			name: localize('name.pattern', '{0} (Language Status)', item.name),
-			text: item.label,
-			ariaLabel: item.accessibilityInfo?.label ?? item.label,
-			role: item.accessibilityInfo?.role,
-			tooltip: new MarkdownString(item.detail, true),
-			color,
-			backgroundColor,
+		wetuwn {
+			name: wocawize('name.pattewn', '{0} (Wanguage Status)', item.name),
+			text: item.wabew,
+			awiaWabew: item.accessibiwityInfo?.wabew ?? item.wabew,
+			wowe: item.accessibiwityInfo?.wowe,
+			toowtip: new MawkdownStwing(item.detaiw, twue),
+			cowow,
+			backgwoundCowow,
 			command: item.command
 		};
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	collector.addRule(`:root {
-		--code-notifications-border: ${theme.getColor(NOTIFICATIONS_BORDER)};
-		--code-language-status-warning-color: ${theme.getColor(NOTIFICATIONS_WARNING_ICON_FOREGROUND)};
-		--code-language-status-error-color: ${theme.getColor(NOTIFICATIONS_ERROR_ICON_FOREGROUND)};
+wegistewThemingPawticipant((theme, cowwectow) => {
+	cowwectow.addWuwe(`:woot {
+		--code-notifications-bowda: ${theme.getCowow(NOTIFICATIONS_BOWDa)};
+		--code-wanguage-status-wawning-cowow: ${theme.getCowow(NOTIFICATIONS_WAWNING_ICON_FOWEGWOUND)};
+		--code-wanguage-status-ewwow-cowow: ${theme.getCowow(NOTIFICATIONS_EWWOW_ICON_FOWEGWOUND)};
 	}`);
 });
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorStatusContribution, LifecyclePhase.Restored);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(EditowStatusContwibution, WifecycwePhase.Westowed);

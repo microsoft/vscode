@@ -1,44 +1,44 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange } from 'vs/editor/common/core/range';
-import { IEditor, IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
-import { ITextEditorOptions, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { IEditow, IEditowViewState, ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { ITextEditowOptions, TextEditowSewectionWeveawType } fwom 'vs/pwatfowm/editow/common/editow';
 
-export function applyTextEditorOptions(options: ITextEditorOptions, editor: IEditor, scrollType: ScrollType): boolean {
+expowt function appwyTextEditowOptions(options: ITextEditowOptions, editow: IEditow, scwowwType: ScwowwType): boowean {
 
-	// First try viewstate
+	// Fiwst twy viewstate
 	if (options.viewState) {
-		editor.restoreViewState(options.viewState as IEditorViewState);
+		editow.westoweViewState(options.viewState as IEditowViewState);
 
-		return true;
+		wetuwn twue;
 	}
 
-	// Otherwise check for selection
-	else if (options.selection) {
-		const range: IRange = {
-			startLineNumber: options.selection.startLineNumber,
-			startColumn: options.selection.startColumn,
-			endLineNumber: options.selection.endLineNumber ?? options.selection.startLineNumber,
-			endColumn: options.selection.endColumn ?? options.selection.startColumn
+	// Othewwise check fow sewection
+	ewse if (options.sewection) {
+		const wange: IWange = {
+			stawtWineNumba: options.sewection.stawtWineNumba,
+			stawtCowumn: options.sewection.stawtCowumn,
+			endWineNumba: options.sewection.endWineNumba ?? options.sewection.stawtWineNumba,
+			endCowumn: options.sewection.endCowumn ?? options.sewection.stawtCowumn
 		};
 
-		editor.setSelection(range);
+		editow.setSewection(wange);
 
-		if (options.selectionRevealType === TextEditorSelectionRevealType.NearTop) {
-			editor.revealRangeNearTop(range, scrollType);
-		} else if (options.selectionRevealType === TextEditorSelectionRevealType.NearTopIfOutsideViewport) {
-			editor.revealRangeNearTopIfOutsideViewport(range, scrollType);
-		} else if (options.selectionRevealType === TextEditorSelectionRevealType.CenterIfOutsideViewport) {
-			editor.revealRangeInCenterIfOutsideViewport(range, scrollType);
-		} else {
-			editor.revealRangeInCenter(range, scrollType);
+		if (options.sewectionWeveawType === TextEditowSewectionWeveawType.NeawTop) {
+			editow.weveawWangeNeawTop(wange, scwowwType);
+		} ewse if (options.sewectionWeveawType === TextEditowSewectionWeveawType.NeawTopIfOutsideViewpowt) {
+			editow.weveawWangeNeawTopIfOutsideViewpowt(wange, scwowwType);
+		} ewse if (options.sewectionWeveawType === TextEditowSewectionWeveawType.CentewIfOutsideViewpowt) {
+			editow.weveawWangeInCentewIfOutsideViewpowt(wange, scwowwType);
+		} ewse {
+			editow.weveawWangeInCenta(wange, scwowwType);
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	return false;
+	wetuwn fawse;
 }

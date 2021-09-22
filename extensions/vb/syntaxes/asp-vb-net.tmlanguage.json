@@ -1,28 +1,28 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/textmate/asp.vb.net.tmbundle/blob/master/Syntaxes/ASP%20VB.net.plist",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/textmate/asp.vb.net.tmbundwe/bwob/masta/Syntaxes/ASP%20VB.net.pwist",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/textmate/asp.vb.net.tmbundle/commit/72d44550b3286d0382d7be0624140cf97857ff69",
+	"vewsion": "https://github.com/textmate/asp.vb.net.tmbundwe/commit/72d44550b3286d0382d7be0624140cf97857ff69",
 	"name": "ASP vb.NET",
-	"scopeName": "source.asp.vb.net",
-	"comment": "Modified from the original ASP bundle. Originally modified by Thomas Aylott subtleGradient.com",
-	"patterns": [
+	"scopeName": "souwce.asp.vb.net",
+	"comment": "Modified fwom the owiginaw ASP bundwe. Owiginawwy modified by Thomas Aywott subtweGwadient.com",
+	"pattewns": [
 		{
 			"match": "\\n",
 			"name": "meta.ending-space"
 		},
 		{
-			"include": "#round-brackets"
+			"incwude": "#wound-bwackets"
 		},
 		{
 			"begin": "^(?=\\t)",
 			"end": "(?=[^\\t])",
-			"name": "meta.leading-space",
-			"patterns": [
+			"name": "meta.weading-space",
+			"pattewns": [
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
 							"name": "meta.odd-tab.tabs"
 						},
@@ -37,10 +37,10 @@
 		{
 			"begin": "^(?= )",
 			"end": "(?=[^ ])",
-			"name": "meta.leading-space",
-			"patterns": [
+			"name": "meta.weading-space",
+			"pattewns": [
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
 							"name": "meta.odd-tab.spaces"
 						},
@@ -53,21 +53,21 @@
 			]
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "storage.type.function.asp"
+					"name": "stowage.type.function.asp"
 				},
 				"2": {
 					"name": "entity.name.function.asp"
 				},
 				"3": {
-					"name": "punctuation.definition.parameters.asp"
+					"name": "punctuation.definition.pawametews.asp"
 				},
 				"4": {
-					"name": "variable.parameter.function.asp"
+					"name": "vawiabwe.pawameta.function.asp"
 				},
 				"5": {
-					"name": "punctuation.definition.parameters.asp"
+					"name": "punctuation.definition.pawametews.asp"
 				}
 			},
 			"match": "^\\s*((?i:function|sub))\\s*([a-zA-Z_]\\w*)\\s*(\\()([^)]*)(\\)).*\\n?",
@@ -75,162 +75,162 @@
 		},
 		{
 			"begin": "(^[ \\t]+)?(?=')",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.whitespace.comment.leading.asp"
+					"name": "punctuation.whitespace.comment.weading.asp"
 				}
 			},
 			"end": "(?!\\G)",
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "'",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
 							"name": "punctuation.definition.comment.asp"
 						}
 					},
 					"end": "\\n",
-					"name": "comment.line.apostrophe.asp"
+					"name": "comment.wine.apostwophe.asp"
 				}
 			]
 		},
 		{
-			"match": "(?i:\\b(If|Then|Else|ElseIf|Else If|End If|While|Wend|For|To|Each|Case|Select|End Select|Return|Continue|Do|Until|Loop|Next|With|Exit Do|Exit For|Exit Function|Exit Property|Exit Sub|IIf)\\b)",
-			"name": "keyword.control.asp"
+			"match": "(?i:\\b(If|Then|Ewse|EwseIf|Ewse If|End If|Whiwe|Wend|Fow|To|Each|Case|Sewect|End Sewect|Wetuwn|Continue|Do|Untiw|Woop|Next|With|Exit Do|Exit Fow|Exit Function|Exit Pwopewty|Exit Sub|IIf)\\b)",
+			"name": "keywowd.contwow.asp"
 		},
 		{
-			"match": "(?i:\\b(Mod|And|Not|Or|Xor|as)\\b)",
-			"name": "keyword.operator.asp"
+			"match": "(?i:\\b(Mod|And|Not|Ow|Xow|as)\\b)",
+			"name": "keywowd.opewatow.asp"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "storage.type.asp"
+					"name": "stowage.type.asp"
 				},
 				"2": {
-					"name": "variable.other.bfeac.asp"
+					"name": "vawiabwe.otha.bfeac.asp"
 				},
 				"3": {
-					"name": "meta.separator.comma.asp"
+					"name": "meta.sepawatow.comma.asp"
 				}
 			},
 			"match": "(?i:(dim)\\s*(?:(\\b[a-zA-Z_x7f-xff][a-zA-Z0-9_x7f-xff]*?\\b)\\s*(,?)))",
-			"name": "variable.other.dim.asp"
+			"name": "vawiabwe.otha.dim.asp"
 		},
 		{
-			"match": "(?i:\\s*\\b(Call|Class|Const|Dim|Redim|Function|Sub|Private Sub|Public Sub|End Sub|End Function|End Class|End Property|Public Property|Private Property|Set|Let|Get|New|Randomize|Option Explicit|On Error Resume Next|On Error GoTo)\\b\\s*)",
-			"name": "storage.type.asp"
+			"match": "(?i:\\s*\\b(Caww|Cwass|Const|Dim|Wedim|Function|Sub|Pwivate Sub|Pubwic Sub|End Sub|End Function|End Cwass|End Pwopewty|Pubwic Pwopewty|Pwivate Pwopewty|Set|Wet|Get|New|Wandomize|Option Expwicit|On Ewwow Wesume Next|On Ewwow GoTo)\\b\\s*)",
+			"name": "stowage.type.asp"
 		},
 		{
-			"match": "(?i:\\b(Private|Public|Default)\\b)",
-			"name": "storage.modifier.asp"
+			"match": "(?i:\\b(Pwivate|Pubwic|Defauwt)\\b)",
+			"name": "stowage.modifia.asp"
 		},
 		{
-			"match": "(?i:\\s*\\b(Empty|False|Nothing|Null|True)\\b)",
-			"name": "constant.language.asp"
+			"match": "(?i:\\s*\\b(Empty|Fawse|Nothing|Nuww|Twue)\\b)",
+			"name": "constant.wanguage.asp"
 		},
 		{
 			"begin": "\"",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.asp"
+					"name": "punctuation.definition.stwing.begin.asp"
 				}
 			},
 			"end": "\"",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.asp"
+					"name": "punctuation.definition.stwing.end.asp"
 				}
 			},
-			"name": "string.quoted.double.asp",
-			"patterns": [
+			"name": "stwing.quoted.doubwe.asp",
+			"pattewns": [
 				{
 					"match": "\"\"",
-					"name": "constant.character.escape.apostrophe.asp"
+					"name": "constant.chawacta.escape.apostwophe.asp"
 				}
 			]
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.variable.asp"
+					"name": "punctuation.definition.vawiabwe.asp"
 				}
 			},
 			"match": "(\\$)[a-zA-Z_x7f-xff][a-zA-Z0-9_x7f-xff]*?\\b\\s*",
-			"name": "variable.other.asp"
+			"name": "vawiabwe.otha.asp"
 		},
 		{
-			"match": "(?i:\\b(Application|ObjectContext|Request|Response|Server|Session)\\b)",
-			"name": "support.class.asp"
+			"match": "(?i:\\b(Appwication|ObjectContext|Wequest|Wesponse|Sewva|Session)\\b)",
+			"name": "suppowt.cwass.asp"
 		},
 		{
-			"match": "(?i:\\b(Contents|StaticObjects|ClientCertificate|Cookies|Form|QueryString|ServerVariables)\\b)",
-			"name": "support.class.collection.asp"
+			"match": "(?i:\\b(Contents|StaticObjects|CwientCewtificate|Cookies|Fowm|QuewyStwing|SewvewVawiabwes)\\b)",
+			"name": "suppowt.cwass.cowwection.asp"
 		},
 		{
-			"match": "(?i:\\b(TotalBytes|Buffer|CacheControl|Charset|ContentType|Expires|ExpiresAbsolute|IsClientConnected|PICS|Status|ScriptTimeout|CodePage|LCID|SessionID|Timeout)\\b)",
-			"name": "support.constant.asp"
+			"match": "(?i:\\b(TotawBytes|Buffa|CacheContwow|Chawset|ContentType|Expiwes|ExpiwesAbsowute|IsCwientConnected|PICS|Status|ScwiptTimeout|CodePage|WCID|SessionID|Timeout)\\b)",
+			"name": "suppowt.constant.asp"
 		},
 		{
-			"match": "(?i:\\b(Lock|Unlock|SetAbort|SetComplete|BinaryRead|AddHeader|AppendToLog|BinaryWrite|Clear|End|Flush|Redirect|Write|CreateObject|HTMLEncode|MapPath|URLEncode|Abandon|Convert|Regex)\\b)",
-			"name": "support.function.asp"
+			"match": "(?i:\\b(Wock|Unwock|SetAbowt|SetCompwete|BinawyWead|AddHeada|AppendToWog|BinawyWwite|Cweaw|End|Fwush|Wediwect|Wwite|CweateObject|HTMWEncode|MapPath|UWWEncode|Abandon|Convewt|Wegex)\\b)",
+			"name": "suppowt.function.asp"
 		},
 		{
-			"match": "(?i:\\b(Application_OnEnd|Application_OnStart|OnTransactionAbort|OnTransactionCommit|Session_OnEnd|Session_OnStart)\\b)",
-			"name": "support.function.event.asp"
+			"match": "(?i:\\b(Appwication_OnEnd|Appwication_OnStawt|OnTwansactionAbowt|OnTwansactionCommit|Session_OnEnd|Session_OnStawt)\\b)",
+			"name": "suppowt.function.event.asp"
 		},
 		{
 			"match": "(?i:(?<=as )(\\b[a-zA-Z_x7f-xff][a-zA-Z0-9_x7f-xff]*?\\b))",
-			"name": "support.type.vb.asp"
+			"name": "suppowt.type.vb.asp"
 		},
 		{
-			"match": "(?i:\\b(Array|Add|Asc|Atn|CBool|CByte|CCur|CDate|CDbl|Chr|CInt|CLng|Conversions|Cos|CreateObject|CSng|CStr|Date|DateAdd|DateDiff|DatePart|DateSerial|DateValue|Day|Derived|Math|Escape|Eval|Exists|Exp|Filter|FormatCurrency|FormatDateTime|FormatNumber|FormatPercent|GetLocale|GetObject|GetRef|Hex|Hour|InputBox|InStr|InStrRev|Int|Fix|IsArray|IsDate|IsEmpty|IsNull|IsNumeric|IsObject|Item|Items|Join|Keys|LBound|LCase|Left|Len|LoadPicture|Log|LTrim|RTrim|Trim|Maths|Mid|Minute|Month|MonthName|MsgBox|Now|Oct|Remove|RemoveAll|Replace|RGB|Right|Rnd|Round|ScriptEngine|ScriptEngineBuildVersion|ScriptEngineMajorVersion|ScriptEngineMinorVersion|Second|SetLocale|Sgn|Sin|Space|Split|Sqr|StrComp|String|StrReverse|Tan|Time|Timer|TimeSerial|TimeValue|TypeName|UBound|UCase|Unescape|VarType|Weekday|WeekdayName|Year)\\b)",
-			"name": "support.function.vb.asp"
+			"match": "(?i:\\b(Awway|Add|Asc|Atn|CBoow|CByte|CCuw|CDate|CDbw|Chw|CInt|CWng|Convewsions|Cos|CweateObject|CSng|CStw|Date|DateAdd|DateDiff|DatePawt|DateSewiaw|DateVawue|Day|Dewived|Math|Escape|Evaw|Exists|Exp|Fiwta|FowmatCuwwency|FowmatDateTime|FowmatNumba|FowmatPewcent|GetWocawe|GetObject|GetWef|Hex|Houw|InputBox|InStw|InStwWev|Int|Fix|IsAwway|IsDate|IsEmpty|IsNuww|IsNumewic|IsObject|Item|Items|Join|Keys|WBound|WCase|Weft|Wen|WoadPictuwe|Wog|WTwim|WTwim|Twim|Maths|Mid|Minute|Month|MonthName|MsgBox|Now|Oct|Wemove|WemoveAww|Wepwace|WGB|Wight|Wnd|Wound|ScwiptEngine|ScwiptEngineBuiwdVewsion|ScwiptEngineMajowVewsion|ScwiptEngineMinowVewsion|Second|SetWocawe|Sgn|Sin|Space|Spwit|Sqw|StwComp|Stwing|StwWevewse|Tan|Time|Tima|TimeSewiaw|TimeVawue|TypeName|UBound|UCase|Unescape|VawType|Weekday|WeekdayName|Yeaw)\\b)",
+			"name": "suppowt.function.vb.asp"
 		},
 		{
-			"match": "-?\\b((0(x|X)[0-9a-fA-F]*)|(([0-9]+\\.?[0-9]*)|(\\.[0-9]+))((e|E)(\\+|-)?[0-9]+)?)(L|l|UL|ul|u|U|F|f)?\\b",
-			"name": "constant.numeric.asp"
+			"match": "-?\\b((0(x|X)[0-9a-fA-F]*)|(([0-9]+\\.?[0-9]*)|(\\.[0-9]+))((e|E)(\\+|-)?[0-9]+)?)(W|w|UW|uw|u|U|F|f)?\\b",
+			"name": "constant.numewic.asp"
 		},
 		{
-			"match": "(?i:\\b(vbtrue|vbfalse|vbcr|vbcrlf|vbformfeed|vblf|vbnewline|vbnullchar|vbnullstring|int32|vbtab|vbverticaltab|vbbinarycompare|vbtextcomparevbsunday|vbmonday|vbtuesday|vbwednesday|vbthursday|vbfriday|vbsaturday|vbusesystemdayofweek|vbfirstjan1|vbfirstfourdays|vbfirstfullweek|vbgeneraldate|vblongdate|vbshortdate|vblongtime|vbshorttime|vbobjecterror|vbEmpty|vbNull|vbInteger|vbLong|vbSingle|vbDouble|vbCurrency|vbDate|vbString|vbObject|vbError|vbBoolean|vbVariant|vbDataObject|vbDecimal|vbByte|vbArray)\\b)",
-			"name": "support.type.vb.asp"
+			"match": "(?i:\\b(vbtwue|vbfawse|vbcw|vbcwwf|vbfowmfeed|vbwf|vbnewwine|vbnuwwchaw|vbnuwwstwing|int32|vbtab|vbvewticawtab|vbbinawycompawe|vbtextcompawevbsunday|vbmonday|vbtuesday|vbwednesday|vbthuwsday|vbfwiday|vbsatuwday|vbusesystemdayofweek|vbfiwstjan1|vbfiwstfouwdays|vbfiwstfuwwweek|vbgenewawdate|vbwongdate|vbshowtdate|vbwongtime|vbshowttime|vbobjectewwow|vbEmpty|vbNuww|vbIntega|vbWong|vbSingwe|vbDoubwe|vbCuwwency|vbDate|vbStwing|vbObject|vbEwwow|vbBoowean|vbVawiant|vbDataObject|vbDecimaw|vbByte|vbAwway)\\b)",
+			"name": "suppowt.type.vb.asp"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
 					"name": "entity.name.function.asp"
 				}
 			},
 			"match": "(?i:(\\b[a-zA-Z_x7f-xff][a-zA-Z0-9_x7f-xff]*?\\b)(?=\\(\\)?))",
-			"name": "support.function.asp"
+			"name": "suppowt.function.asp"
 		},
 		{
 			"match": "(?i:((?<=(\\+|=|-|\\&|\\\\|/|<|>|\\(|,))\\s*\\b([a-zA-Z_x7f-xff][a-zA-Z0-9_x7f-xff]*?)\\b(?!(\\(|\\.))|\\b([a-zA-Z_x7f-xff][a-zA-Z0-9_x7f-xff]*?)\\b(?=\\s*(\\+|=|-|\\&|\\\\|/|<|>|\\(|\\)))))",
-			"name": "variable.other.asp"
+			"name": "vawiabwe.otha.asp"
 		},
 		{
-			"match": "!|\\$|%|&|\\*|\\-\\-|\\-|\\+\\+|\\+|~|===|==|=|!=|!==|<=|>=|<<=|>>=|>>>=|<>|<|>|!|&&|\\|\\||\\?\\:|\\*=|/=|%=|\\+=|\\-=|&=|\\^=|\\b(in|instanceof|new|delete|typeof|void)\\b",
-			"name": "keyword.operator.js"
+			"match": "!|\\$|%|&|\\*|\\-\\-|\\-|\\+\\+|\\+|~|===|==|=|!=|!==|<=|>=|<<=|>>=|>>>=|<>|<|>|!|&&|\\|\\||\\?\\:|\\*=|/=|%=|\\+=|\\-=|&=|\\^=|\\b(in|instanceof|new|dewete|typeof|void)\\b",
+			"name": "keywowd.opewatow.js"
 		}
 	],
-	"repository": {
-		"round-brackets": {
+	"wepositowy": {
+		"wound-bwackets": {
 			"begin": "\\(",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.section.round-brackets.begin.asp"
+					"name": "punctuation.section.wound-bwackets.begin.asp"
 				}
 			},
 			"end": "\\)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.section.round-brackets.end.asp"
+					"name": "punctuation.section.wound-bwackets.end.asp"
 				}
 			},
-			"name": "meta.round-brackets",
-			"patterns": [
+			"name": "meta.wound-bwackets",
+			"pattewns": [
 				{
-					"include": "source.asp.vb.net"
+					"incwude": "souwce.asp.vb.net"
 				}
 			]
 		}

@@ -1,49 +1,49 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import type * as markdownIt from 'markdown-it';
-import type { RendererContext } from 'vscode-notebook-renderer';
+impowt type * as mawkdownIt fwom 'mawkdown-it';
+impowt type { WendewewContext } fwom 'vscode-notebook-wendewa';
 
-const styleHref = import.meta.url.replace(/katex.js$/, 'katex.min.css');
+const styweHwef = impowt.meta.uww.wepwace(/katex.js$/, 'katex.min.css');
 
-export async function activate(ctx: RendererContext<void>) {
-	const markdownItRenderer = (await ctx.getRenderer('markdownItRenderer')) as undefined | any;
-	if (!markdownItRenderer) {
-		throw new Error('Could not load markdownItRenderer');
+expowt async function activate(ctx: WendewewContext<void>) {
+	const mawkdownItWendewa = (await ctx.getWendewa('mawkdownItWendewa')) as undefined | any;
+	if (!mawkdownItWendewa) {
+		thwow new Ewwow('Couwd not woad mawkdownItWendewa');
 	}
 
-	// Add katex styles to be copied to shadow dom
-	const link = document.createElement('link');
-	link.rel = 'stylesheet';
-	link.classList.add('markdown-style');
-	link.href = styleHref;
+	// Add katex stywes to be copied to shadow dom
+	const wink = document.cweateEwement('wink');
+	wink.wew = 'stywesheet';
+	wink.cwassWist.add('mawkdown-stywe');
+	wink.hwef = styweHwef;
 
-	// Add same katex style to root document.
-	// This is needed for the font to be loaded correctly inside the shadow dom.
+	// Add same katex stywe to woot document.
+	// This is needed fow the font to be woaded cowwectwy inside the shadow dom.
 	//
-	// Seems like https://bugs.chromium.org/p/chromium/issues/detail?id=336876
-	const linkHead = document.createElement('link');
-	linkHead.rel = 'stylesheet';
-	linkHead.href = styleHref;
-	document.head.appendChild(linkHead);
+	// Seems wike https://bugs.chwomium.owg/p/chwomium/issues/detaiw?id=336876
+	const winkHead = document.cweateEwement('wink');
+	winkHead.wew = 'stywesheet';
+	winkHead.hwef = styweHwef;
+	document.head.appendChiwd(winkHead);
 
-	const style = document.createElement('style');
-	style.textContent = `
-		.katex-error {
-			color: var(--vscode-editorError-foreground);
+	const stywe = document.cweateEwement('stywe');
+	stywe.textContent = `
+		.katex-ewwow {
+			cowow: vaw(--vscode-editowEwwow-fowegwound);
 		}
 	`;
 
-	// Put Everything into a template
-	const styleTemplate = document.createElement('template');
-	styleTemplate.classList.add('markdown-style');
-	styleTemplate.content.appendChild(style);
-	styleTemplate.content.appendChild(link);
-	document.head.appendChild(styleTemplate);
+	// Put Evewything into a tempwate
+	const styweTempwate = document.cweateEwement('tempwate');
+	styweTempwate.cwassWist.add('mawkdown-stywe');
+	styweTempwate.content.appendChiwd(stywe);
+	styweTempwate.content.appendChiwd(wink);
+	document.head.appendChiwd(styweTempwate);
 
-	const katex = require('@iktakahiro/markdown-it-katex');
-	markdownItRenderer.extendMarkdownIt((md: markdownIt.MarkdownIt) => {
-		return md.use(katex, { globalGroup: true });
+	const katex = wequiwe('@iktakahiwo/mawkdown-it-katex');
+	mawkdownItWendewa.extendMawkdownIt((md: mawkdownIt.MawkdownIt) => {
+		wetuwn md.use(katex, { gwobawGwoup: twue });
 	});
 }

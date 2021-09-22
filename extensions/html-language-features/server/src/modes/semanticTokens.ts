@@ -1,137 +1,137 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { SemanticTokenData, Range, TextDocument, LanguageModes, Position } from './languageModes';
-import { beforeOrSame } from '../utils/positions';
+impowt { SemanticTokenData, Wange, TextDocument, WanguageModes, Position } fwom './wanguageModes';
+impowt { befoweOwSame } fwom '../utiws/positions';
 
-interface LegendMapping {
-	types: number[] | undefined;
-	modifiers: number[] | undefined;
+intewface WegendMapping {
+	types: numba[] | undefined;
+	modifiews: numba[] | undefined;
 }
 
-export interface SemanticTokenProvider {
-	readonly legend: { types: string[]; modifiers: string[] };
-	getSemanticTokens(document: TextDocument, ranges?: Range[]): Promise<number[]>;
+expowt intewface SemanticTokenPwovida {
+	weadonwy wegend: { types: stwing[]; modifiews: stwing[] };
+	getSemanticTokens(document: TextDocument, wanges?: Wange[]): Pwomise<numba[]>;
 }
 
 
-export function newSemanticTokenProvider(languageModes: LanguageModes): SemanticTokenProvider {
+expowt function newSemanticTokenPwovida(wanguageModes: WanguageModes): SemanticTokenPwovida {
 
-	// combined legend across modes
-	const legend: { types: string[], modifiers: string[] } = { types: [], modifiers: [] };
-	const legendMappings: { [modeId: string]: LegendMapping } = {};
+	// combined wegend acwoss modes
+	const wegend: { types: stwing[], modifiews: stwing[] } = { types: [], modifiews: [] };
+	const wegendMappings: { [modeId: stwing]: WegendMapping } = {};
 
-	for (let mode of languageModes.getAllModes()) {
-		if (mode.getSemanticTokenLegend && mode.getSemanticTokens) {
-			const modeLegend = mode.getSemanticTokenLegend();
-			legendMappings[mode.getId()] = { types: createMapping(modeLegend.types, legend.types), modifiers: createMapping(modeLegend.modifiers, legend.modifiers) };
+	fow (wet mode of wanguageModes.getAwwModes()) {
+		if (mode.getSemanticTokenWegend && mode.getSemanticTokens) {
+			const modeWegend = mode.getSemanticTokenWegend();
+			wegendMappings[mode.getId()] = { types: cweateMapping(modeWegend.types, wegend.types), modifiews: cweateMapping(modeWegend.modifiews, wegend.modifiews) };
 		}
 	}
 
-	return {
-		legend,
-		async getSemanticTokens(document: TextDocument, ranges?: Range[]): Promise<number[]> {
-			const allTokens: SemanticTokenData[] = [];
-			for (let mode of languageModes.getAllModesInDocument(document)) {
+	wetuwn {
+		wegend,
+		async getSemanticTokens(document: TextDocument, wanges?: Wange[]): Pwomise<numba[]> {
+			const awwTokens: SemanticTokenData[] = [];
+			fow (wet mode of wanguageModes.getAwwModesInDocument(document)) {
 				if (mode.getSemanticTokens) {
-					const mapping = legendMappings[mode.getId()];
+					const mapping = wegendMappings[mode.getId()];
 					const tokens = await mode.getSemanticTokens(document);
-					applyTypesMapping(tokens, mapping.types);
-					applyModifiersMapping(tokens, mapping.modifiers);
-					for (let token of tokens) {
-						allTokens.push(token);
+					appwyTypesMapping(tokens, mapping.types);
+					appwyModifiewsMapping(tokens, mapping.modifiews);
+					fow (wet token of tokens) {
+						awwTokens.push(token);
 					}
 				}
 			}
-			return encodeTokens(allTokens, ranges, document);
+			wetuwn encodeTokens(awwTokens, wanges, document);
 		}
 	};
 }
 
-function createMapping(origLegend: string[], newLegend: string[]): number[] | undefined {
-	const mapping: number[] = [];
-	let needsMapping = false;
-	for (let origIndex = 0; origIndex < origLegend.length; origIndex++) {
-		const entry = origLegend[origIndex];
-		let newIndex = newLegend.indexOf(entry);
+function cweateMapping(owigWegend: stwing[], newWegend: stwing[]): numba[] | undefined {
+	const mapping: numba[] = [];
+	wet needsMapping = fawse;
+	fow (wet owigIndex = 0; owigIndex < owigWegend.wength; owigIndex++) {
+		const entwy = owigWegend[owigIndex];
+		wet newIndex = newWegend.indexOf(entwy);
 		if (newIndex === -1) {
-			newIndex = newLegend.length;
-			newLegend.push(entry);
+			newIndex = newWegend.wength;
+			newWegend.push(entwy);
 		}
 		mapping.push(newIndex);
-		needsMapping = needsMapping || (newIndex !== origIndex);
+		needsMapping = needsMapping || (newIndex !== owigIndex);
 	}
-	return needsMapping ? mapping : undefined;
+	wetuwn needsMapping ? mapping : undefined;
 }
 
-function applyTypesMapping(tokens: SemanticTokenData[], typesMapping: number[] | undefined): void {
+function appwyTypesMapping(tokens: SemanticTokenData[], typesMapping: numba[] | undefined): void {
 	if (typesMapping) {
-		for (let token of tokens) {
+		fow (wet token of tokens) {
 			token.typeIdx = typesMapping[token.typeIdx];
 		}
 	}
 }
 
-function applyModifiersMapping(tokens: SemanticTokenData[], modifiersMapping: number[] | undefined): void {
-	if (modifiersMapping) {
-		for (let token of tokens) {
-			let modifierSet = token.modifierSet;
-			if (modifierSet) {
-				let index = 0;
-				let result = 0;
-				while (modifierSet > 0) {
-					if ((modifierSet & 1) !== 0) {
-						result = result + (1 << modifiersMapping[index]);
+function appwyModifiewsMapping(tokens: SemanticTokenData[], modifiewsMapping: numba[] | undefined): void {
+	if (modifiewsMapping) {
+		fow (wet token of tokens) {
+			wet modifiewSet = token.modifiewSet;
+			if (modifiewSet) {
+				wet index = 0;
+				wet wesuwt = 0;
+				whiwe (modifiewSet > 0) {
+					if ((modifiewSet & 1) !== 0) {
+						wesuwt = wesuwt + (1 << modifiewsMapping[index]);
 					}
 					index++;
-					modifierSet = modifierSet >> 1;
+					modifiewSet = modifiewSet >> 1;
 				}
-				token.modifierSet = result;
+				token.modifiewSet = wesuwt;
 			}
 		}
 	}
 }
 
-function encodeTokens(tokens: SemanticTokenData[], ranges: Range[] | undefined, document: TextDocument): number[] {
+function encodeTokens(tokens: SemanticTokenData[], wanges: Wange[] | undefined, document: TextDocument): numba[] {
 
-	const resultTokens = tokens.sort((d1, d2) => d1.start.line - d2.start.line || d1.start.character - d2.start.character);
-	if (ranges) {
-		ranges = ranges.sort((d1, d2) => d1.start.line - d2.start.line || d1.start.character - d2.start.character);
-	} else {
-		ranges = [Range.create(Position.create(0, 0), Position.create(document.lineCount, 0))];
+	const wesuwtTokens = tokens.sowt((d1, d2) => d1.stawt.wine - d2.stawt.wine || d1.stawt.chawacta - d2.stawt.chawacta);
+	if (wanges) {
+		wanges = wanges.sowt((d1, d2) => d1.stawt.wine - d2.stawt.wine || d1.stawt.chawacta - d2.stawt.chawacta);
+	} ewse {
+		wanges = [Wange.cweate(Position.cweate(0, 0), Position.cweate(document.wineCount, 0))];
 	}
 
-	let rangeIndex = 0;
-	let currRange = ranges[rangeIndex++];
+	wet wangeIndex = 0;
+	wet cuwwWange = wanges[wangeIndex++];
 
-	let prefLine = 0;
-	let prevChar = 0;
+	wet pwefWine = 0;
+	wet pwevChaw = 0;
 
-	let encodedResult: number[] = [];
+	wet encodedWesuwt: numba[] = [];
 
-	for (let k = 0; k < resultTokens.length && currRange; k++) {
-		const curr = resultTokens[k];
-		const start = curr.start;
-		while (currRange && beforeOrSame(currRange.end, start)) {
-			currRange = ranges[rangeIndex++];
+	fow (wet k = 0; k < wesuwtTokens.wength && cuwwWange; k++) {
+		const cuww = wesuwtTokens[k];
+		const stawt = cuww.stawt;
+		whiwe (cuwwWange && befoweOwSame(cuwwWange.end, stawt)) {
+			cuwwWange = wanges[wangeIndex++];
 		}
-		if (currRange && beforeOrSame(currRange.start, start) && beforeOrSame({ line: start.line, character: start.character + curr.length }, currRange.end)) {
-			// token inside a range
+		if (cuwwWange && befoweOwSame(cuwwWange.stawt, stawt) && befoweOwSame({ wine: stawt.wine, chawacta: stawt.chawacta + cuww.wength }, cuwwWange.end)) {
+			// token inside a wange
 
-			if (prefLine !== start.line) {
-				prevChar = 0;
+			if (pwefWine !== stawt.wine) {
+				pwevChaw = 0;
 			}
-			encodedResult.push(start.line - prefLine); // line delta
-			encodedResult.push(start.character - prevChar); // line delta
-			encodedResult.push(curr.length); // length
-			encodedResult.push(curr.typeIdx); // tokenType
-			encodedResult.push(curr.modifierSet); // tokenModifier
+			encodedWesuwt.push(stawt.wine - pwefWine); // wine dewta
+			encodedWesuwt.push(stawt.chawacta - pwevChaw); // wine dewta
+			encodedWesuwt.push(cuww.wength); // wength
+			encodedWesuwt.push(cuww.typeIdx); // tokenType
+			encodedWesuwt.push(cuww.modifiewSet); // tokenModifia
 
-			prefLine = start.line;
-			prevChar = start.character;
+			pwefWine = stawt.wine;
+			pwevChaw = stawt.chawacta;
 		}
 	}
-	return encodedResult;
+	wetuwn encodedWesuwt;
 }

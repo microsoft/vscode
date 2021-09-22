@@ -1,239 +1,239 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { MenuRegistry, MenuId, Action2, registerAction2, ILocalizedString } from 'vs/platform/actions/common/actions';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { KeybindingsRegistry, KeybindingWeight, IKeybindingRule } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { inQuickPickContext, defaultQuickAccessContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
+impowt { wocawize } fwom 'vs/nws';
+impowt { MenuWegistwy, MenuId, Action2, wegistewAction2, IWocawizedStwing } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { KeyMod, KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { KeybindingsWegistwy, KeybindingWeight, IKeybindingWuwe } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { IQuickInputSewvice, ItemActivation } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { inQuickPickContext, defauwtQuickAccessContext, getQuickNavigateHandwa } fwom 'vs/wowkbench/bwowsa/quickaccess';
 
-//#region Quick access management commands and keys
+//#wegion Quick access management commands and keys
 
-const globalQuickAccessKeybinding = {
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_P,
-	secondary: [KeyMod.CtrlCmd | KeyCode.KEY_E],
-	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_P, secondary: undefined }
+const gwobawQuickAccessKeybinding = {
+	pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_P,
+	secondawy: [KeyMod.CtwwCmd | KeyCode.KEY_E],
+	mac: { pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_P, secondawy: undefined }
 };
 
-const QUICKACCESS_ACTION_ID = 'workbench.action.quickOpen';
+const QUICKACCESS_ACTION_ID = 'wowkbench.action.quickOpen';
 
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: { id: QUICKACCESS_ACTION_ID, title: { value: localize('quickOpen', "Go to File..."), original: 'Go to File...' } }
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, {
+	command: { id: QUICKACCESS_ACTION_ID, titwe: { vawue: wocawize('quickOpen', "Go to Fiwe..."), owiginaw: 'Go to Fiwe...' } }
 });
 
-KeybindingsRegistry.registerKeybindingRule({
+KeybindingsWegistwy.wegistewKeybindingWuwe({
 	id: QUICKACCESS_ACTION_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
+	weight: KeybindingWeight.WowkbenchContwib,
 	when: undefined,
-	primary: globalQuickAccessKeybinding.primary,
-	secondary: globalQuickAccessKeybinding.secondary,
-	mac: globalQuickAccessKeybinding.mac
+	pwimawy: gwobawQuickAccessKeybinding.pwimawy,
+	secondawy: gwobawQuickAccessKeybinding.secondawy,
+	mac: gwobawQuickAccessKeybinding.mac
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.action.closeQuickOpen',
-	weight: KeybindingWeight.WorkbenchContrib,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wowkbench.action.cwoseQuickOpen',
+	weight: KeybindingWeight.WowkbenchContwib,
 	when: inQuickPickContext,
-	primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape],
-	handler: accessor => {
-		const quickInputService = accessor.get(IQuickInputService);
-		return quickInputService.cancel();
+	pwimawy: KeyCode.Escape, secondawy: [KeyMod.Shift | KeyCode.Escape],
+	handwa: accessow => {
+		const quickInputSewvice = accessow.get(IQuickInputSewvice);
+		wetuwn quickInputSewvice.cancew();
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.action.acceptSelectedQuickOpenItem',
-	weight: KeybindingWeight.WorkbenchContrib,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wowkbench.action.acceptSewectedQuickOpenItem',
+	weight: KeybindingWeight.WowkbenchContwib,
 	when: inQuickPickContext,
-	primary: 0,
-	handler: accessor => {
-		const quickInputService = accessor.get(IQuickInputService);
-		return quickInputService.accept();
+	pwimawy: 0,
+	handwa: accessow => {
+		const quickInputSewvice = accessow.get(IQuickInputSewvice);
+		wetuwn quickInputSewvice.accept();
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.action.alternativeAcceptSelectedQuickOpenItem',
-	weight: KeybindingWeight.WorkbenchContrib,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wowkbench.action.awtewnativeAcceptSewectedQuickOpenItem',
+	weight: KeybindingWeight.WowkbenchContwib,
 	when: inQuickPickContext,
-	primary: 0,
-	handler: accessor => {
-		const quickInputService = accessor.get(IQuickInputService);
-		return quickInputService.accept({ ctrlCmd: true, alt: false });
+	pwimawy: 0,
+	handwa: accessow => {
+		const quickInputSewvice = accessow.get(IQuickInputSewvice);
+		wetuwn quickInputSewvice.accept({ ctwwCmd: twue, awt: fawse });
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.action.focusQuickOpen',
-	weight: KeybindingWeight.WorkbenchContrib,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wowkbench.action.focusQuickOpen',
+	weight: KeybindingWeight.WowkbenchContwib,
 	when: inQuickPickContext,
-	primary: 0,
-	handler: accessor => {
-		const quickInputService = accessor.get(IQuickInputService);
-		quickInputService.focus();
+	pwimawy: 0,
+	handwa: accessow => {
+		const quickInputSewvice = accessow.get(IQuickInputSewvice);
+		quickInputSewvice.focus();
 	}
 });
 
-const quickAccessNavigateNextInFilePickerId = 'workbench.action.quickOpenNavigateNextInFilePicker';
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: quickAccessNavigateNextInFilePickerId,
-	weight: KeybindingWeight.WorkbenchContrib + 50,
-	handler: getQuickNavigateHandler(quickAccessNavigateNextInFilePickerId, true),
-	when: defaultQuickAccessContext,
-	primary: globalQuickAccessKeybinding.primary,
-	secondary: globalQuickAccessKeybinding.secondary,
-	mac: globalQuickAccessKeybinding.mac
+const quickAccessNavigateNextInFiwePickewId = 'wowkbench.action.quickOpenNavigateNextInFiwePicka';
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: quickAccessNavigateNextInFiwePickewId,
+	weight: KeybindingWeight.WowkbenchContwib + 50,
+	handwa: getQuickNavigateHandwa(quickAccessNavigateNextInFiwePickewId, twue),
+	when: defauwtQuickAccessContext,
+	pwimawy: gwobawQuickAccessKeybinding.pwimawy,
+	secondawy: gwobawQuickAccessKeybinding.secondawy,
+	mac: gwobawQuickAccessKeybinding.mac
 });
 
-const quickAccessNavigatePreviousInFilePickerId = 'workbench.action.quickOpenNavigatePreviousInFilePicker';
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: quickAccessNavigatePreviousInFilePickerId,
-	weight: KeybindingWeight.WorkbenchContrib + 50,
-	handler: getQuickNavigateHandler(quickAccessNavigatePreviousInFilePickerId, false),
-	when: defaultQuickAccessContext,
-	primary: globalQuickAccessKeybinding.primary | KeyMod.Shift,
-	secondary: [globalQuickAccessKeybinding.secondary[0] | KeyMod.Shift],
+const quickAccessNavigatePweviousInFiwePickewId = 'wowkbench.action.quickOpenNavigatePweviousInFiwePicka';
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: quickAccessNavigatePweviousInFiwePickewId,
+	weight: KeybindingWeight.WowkbenchContwib + 50,
+	handwa: getQuickNavigateHandwa(quickAccessNavigatePweviousInFiwePickewId, fawse),
+	when: defauwtQuickAccessContext,
+	pwimawy: gwobawQuickAccessKeybinding.pwimawy | KeyMod.Shift,
+	secondawy: [gwobawQuickAccessKeybinding.secondawy[0] | KeyMod.Shift],
 	mac: {
-		primary: globalQuickAccessKeybinding.mac.primary | KeyMod.Shift,
-		secondary: undefined
+		pwimawy: gwobawQuickAccessKeybinding.mac.pwimawy | KeyMod.Shift,
+		secondawy: undefined
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.action.quickPickManyToggle',
-	weight: KeybindingWeight.WorkbenchContrib,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wowkbench.action.quickPickManyToggwe',
+	weight: KeybindingWeight.WowkbenchContwib,
 	when: inQuickPickContext,
-	primary: 0,
-	handler: accessor => {
-		const quickInputService = accessor.get(IQuickInputService);
-		quickInputService.toggle();
+	pwimawy: 0,
+	handwa: accessow => {
+		const quickInputSewvice = accessow.get(IQuickInputSewvice);
+		quickInputSewvice.toggwe();
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.action.quickInputBack',
-	weight: KeybindingWeight.WorkbenchContrib + 50,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wowkbench.action.quickInputBack',
+	weight: KeybindingWeight.WowkbenchContwib + 50,
 	when: inQuickPickContext,
-	primary: 0,
-	win: { primary: KeyMod.Alt | KeyCode.LeftArrow },
-	mac: { primary: KeyMod.WinCtrl | KeyCode.US_MINUS },
-	linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_MINUS },
-	handler: accessor => {
-		const quickInputService = accessor.get(IQuickInputService);
-		quickInputService.back();
+	pwimawy: 0,
+	win: { pwimawy: KeyMod.Awt | KeyCode.WeftAwwow },
+	mac: { pwimawy: KeyMod.WinCtww | KeyCode.US_MINUS },
+	winux: { pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.US_MINUS },
+	handwa: accessow => {
+		const quickInputSewvice = accessow.get(IQuickInputSewvice);
+		quickInputSewvice.back();
 	}
 });
 
-CommandsRegistry.registerCommand({
+CommandsWegistwy.wegistewCommand({
 	id: QUICKACCESS_ACTION_ID,
-	handler: async function (accessor: ServicesAccessor, prefix: unknown) {
-		const quickInputService = accessor.get(IQuickInputService);
+	handwa: async function (accessow: SewvicesAccessow, pwefix: unknown) {
+		const quickInputSewvice = accessow.get(IQuickInputSewvice);
 
-		quickInputService.quickAccess.show(typeof prefix === 'string' ? prefix : undefined, { preserveValue: typeof prefix === 'string' /* preserve as is if provided */ });
+		quickInputSewvice.quickAccess.show(typeof pwefix === 'stwing' ? pwefix : undefined, { pwesewveVawue: typeof pwefix === 'stwing' /* pwesewve as is if pwovided */ });
 	},
-	description: {
-		description: `Quick access`,
-		args: [{
-			name: 'prefix',
+	descwiption: {
+		descwiption: `Quick access`,
+		awgs: [{
+			name: 'pwefix',
 			schema: {
-				'type': 'string'
+				'type': 'stwing'
 			}
 		}]
 	}
 });
 
-CommandsRegistry.registerCommand('workbench.action.quickOpenPreviousEditor', async accessor => {
-	const quickInputService = accessor.get(IQuickInputService);
+CommandsWegistwy.wegistewCommand('wowkbench.action.quickOpenPweviousEditow', async accessow => {
+	const quickInputSewvice = accessow.get(IQuickInputSewvice);
 
-	quickInputService.quickAccess.show('', { itemActivation: ItemActivation.SECOND });
+	quickInputSewvice.quickAccess.show('', { itemActivation: ItemActivation.SECOND });
 });
 
-//#endregion
+//#endwegion
 
-//#region Workbench actions
+//#wegion Wowkbench actions
 
-class BaseQuickAccessNavigateAction extends Action2 {
+cwass BaseQuickAccessNavigateAction extends Action2 {
 
-	constructor(
-		private id: string,
-		title: ILocalizedString,
-		private next: boolean,
-		private quickNavigate: boolean,
-		keybinding?: Omit<IKeybindingRule, 'id'>
+	constwuctow(
+		pwivate id: stwing,
+		titwe: IWocawizedStwing,
+		pwivate next: boowean,
+		pwivate quickNavigate: boowean,
+		keybinding?: Omit<IKeybindingWuwe, 'id'>
 	) {
-		super({ id, title, f1: true, keybinding });
+		supa({ id, titwe, f1: twue, keybinding });
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const keybindingService = accessor.get(IKeybindingService);
-		const quickInputService = accessor.get(IQuickInputService);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const keybindingSewvice = accessow.get(IKeybindingSewvice);
+		const quickInputSewvice = accessow.get(IQuickInputSewvice);
 
-		const keys = keybindingService.lookupKeybindings(this.id);
+		const keys = keybindingSewvice.wookupKeybindings(this.id);
 		const quickNavigate = this.quickNavigate ? { keybindings: keys } : undefined;
 
-		quickInputService.navigate(this.next, quickNavigate);
+		quickInputSewvice.navigate(this.next, quickNavigate);
 	}
 }
 
-class QuickAccessNavigateNextAction extends BaseQuickAccessNavigateAction {
+cwass QuickAccessNavigateNextAction extends BaseQuickAccessNavigateAction {
 
-	constructor() {
-		super('workbench.action.quickOpenNavigateNext', { value: localize('quickNavigateNext', "Navigate Next in Quick Open"), original: 'Navigate Next in Quick Open' }, true, true);
+	constwuctow() {
+		supa('wowkbench.action.quickOpenNavigateNext', { vawue: wocawize('quickNavigateNext', "Navigate Next in Quick Open"), owiginaw: 'Navigate Next in Quick Open' }, twue, twue);
 	}
 }
 
-class QuickAccessNavigatePreviousAction extends BaseQuickAccessNavigateAction {
+cwass QuickAccessNavigatePweviousAction extends BaseQuickAccessNavigateAction {
 
-	constructor() {
-		super('workbench.action.quickOpenNavigatePrevious', { value: localize('quickNavigatePrevious', "Navigate Previous in Quick Open"), original: 'Navigate Previous in Quick Open' }, false, true);
+	constwuctow() {
+		supa('wowkbench.action.quickOpenNavigatePwevious', { vawue: wocawize('quickNavigatePwevious', "Navigate Pwevious in Quick Open"), owiginaw: 'Navigate Pwevious in Quick Open' }, fawse, twue);
 	}
 }
 
-class QuickAccessSelectNextAction extends BaseQuickAccessNavigateAction {
+cwass QuickAccessSewectNextAction extends BaseQuickAccessNavigateAction {
 
-	constructor() {
-		super(
-			'workbench.action.quickOpenSelectNext',
-			{ value: localize('quickSelectNext', "Select Next in Quick Open"), original: 'Select Next in Quick Open' },
-			true,
-			false,
+	constwuctow() {
+		supa(
+			'wowkbench.action.quickOpenSewectNext',
+			{ vawue: wocawize('quickSewectNext', "Sewect Next in Quick Open"), owiginaw: 'Sewect Next in Quick Open' },
+			twue,
+			fawse,
 			{
-				weight: KeybindingWeight.WorkbenchContrib + 50,
+				weight: KeybindingWeight.WowkbenchContwib + 50,
 				when: inQuickPickContext,
-				primary: 0,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_N }
+				pwimawy: 0,
+				mac: { pwimawy: KeyMod.WinCtww | KeyCode.KEY_N }
 			}
 		);
 	}
 }
 
-class QuickAccessSelectPreviousAction extends BaseQuickAccessNavigateAction {
+cwass QuickAccessSewectPweviousAction extends BaseQuickAccessNavigateAction {
 
-	constructor() {
-		super(
-			'workbench.action.quickOpenSelectPrevious',
-			{ value: localize('quickSelectPrevious', "Select Previous in Quick Open"), original: 'Select Previous in Quick Open' },
-			false,
-			false,
+	constwuctow() {
+		supa(
+			'wowkbench.action.quickOpenSewectPwevious',
+			{ vawue: wocawize('quickSewectPwevious', "Sewect Pwevious in Quick Open"), owiginaw: 'Sewect Pwevious in Quick Open' },
+			fawse,
+			fawse,
 			{
-				weight: KeybindingWeight.WorkbenchContrib + 50,
+				weight: KeybindingWeight.WowkbenchContwib + 50,
 				when: inQuickPickContext,
-				primary: 0,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_P }
+				pwimawy: 0,
+				mac: { pwimawy: KeyMod.WinCtww | KeyCode.KEY_P }
 			}
 		);
 	}
 }
 
-registerAction2(QuickAccessSelectNextAction);
-registerAction2(QuickAccessSelectPreviousAction);
-registerAction2(QuickAccessNavigateNextAction);
-registerAction2(QuickAccessNavigatePreviousAction);
+wegistewAction2(QuickAccessSewectNextAction);
+wegistewAction2(QuickAccessSewectPweviousAction);
+wegistewAction2(QuickAccessNavigateNextAction);
+wegistewAction2(QuickAccessNavigatePweviousAction);
 
-//#endregion
+//#endwegion

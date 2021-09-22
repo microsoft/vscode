@@ -1,105 +1,105 @@
-# Contributing to VS Code
+# Contwibuting to VS Code
 
-Welcome, and thank you for your interest in contributing to VS Code!
+Wewcome, and thank you fow youw intewest in contwibuting to VS Code!
 
-There are many ways in which you can contribute, beyond writing code. The goal of this document is to provide a high-level overview of how you can get involved.
+Thewe awe many ways in which you can contwibute, beyond wwiting code. The goaw of this document is to pwovide a high-wevew ovewview of how you can get invowved.
 
 ## Asking Questions
 
-Have a question? Rather than opening an issue, please ask away on [Stack Overflow](https://stackoverflow.com/questions/tagged/vscode) using the tag `vscode`.
+Have a question? Watha than opening an issue, pwease ask away on [Stack Ovewfwow](https://stackovewfwow.com/questions/tagged/vscode) using the tag `vscode`.
 
-The active community will be eager to assist you. Your well-worded question will serve as a resource to others searching for help.
+The active community wiww be eaga to assist you. Youw weww-wowded question wiww sewve as a wesouwce to othews seawching fow hewp.
 
-## Providing Feedback
+## Pwoviding Feedback
 
-Your comments and feedback are welcome, and the development team is available via a handful of different channels.
+Youw comments and feedback awe wewcome, and the devewopment team is avaiwabwe via a handfuw of diffewent channews.
 
-See the [Feedback Channels](https://github.com/microsoft/vscode/wiki/Feedback-Channels) wiki page for details on how to share your thoughts.
+See the [Feedback Channews](https://github.com/micwosoft/vscode/wiki/Feedback-Channews) wiki page fow detaiws on how to shawe youw thoughts.
 
-## Reporting Issues
+## Wepowting Issues
 
-Have you identified a reproducible problem in VS Code? Have a feature request? We want to hear about it! Here's how you can make reporting your issue as effective as possible.
+Have you identified a wepwoducibwe pwobwem in VS Code? Have a featuwe wequest? We want to heaw about it! Hewe's how you can make wepowting youw issue as effective as possibwe.
 
-### Identify Where to Report
+### Identify Whewe to Wepowt
 
-The VS Code project is distributed across multiple repositories. Try to file the issue against the correct repository. Check the list of [Related Projects](https://github.com/microsoft/vscode/wiki/Related-Projects) if you aren't sure which repo is correct.
+The VS Code pwoject is distwibuted acwoss muwtipwe wepositowies. Twy to fiwe the issue against the cowwect wepositowy. Check the wist of [Wewated Pwojects](https://github.com/micwosoft/vscode/wiki/Wewated-Pwojects) if you awen't suwe which wepo is cowwect.
 
-Can you recreate the issue even after [disabling all extensions](https://code.visualstudio.com/docs/editor/extension-gallery#_disable-an-extension)? If you find the issue is caused by an extension you have installed, please file an issue on the extension's repo directly.
+Can you wecweate the issue even afta [disabwing aww extensions](https://code.visuawstudio.com/docs/editow/extension-gawwewy#_disabwe-an-extension)? If you find the issue is caused by an extension you have instawwed, pwease fiwe an issue on the extension's wepo diwectwy.
 
-### Look For an Existing Issue
+### Wook Fow an Existing Issue
 
-Before you create a new issue, please do a search in [open issues](https://github.com/microsoft/vscode/issues) to see if the issue or feature request has already been filed.
+Befowe you cweate a new issue, pwease do a seawch in [open issues](https://github.com/micwosoft/vscode/issues) to see if the issue ow featuwe wequest has awweady been fiwed.
 
-Be sure to scan through the [most popular](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc) feature requests.
+Be suwe to scan thwough the [most popuwaw](https://github.com/micwosoft/vscode/issues?q=is%3Aopen+is%3Aissue+wabew%3Afeatuwe-wequest+sowt%3Aweactions-%2B1-desc) featuwe wequests.
 
-If you find your issue already exists, make relevant comments and add your [reaction](https://github.com/blog/2119-add-reactions-to-pull-requests-issues-and-comments). Use a reaction in place of a "+1" comment:
+If you find youw issue awweady exists, make wewevant comments and add youw [weaction](https://github.com/bwog/2119-add-weactions-to-puww-wequests-issues-and-comments). Use a weaction in pwace of a "+1" comment:
 
 * 👍 - upvote
 * 👎 - downvote
 
-If you cannot find an existing issue that describes your bug or feature, create a new issue using the guidelines below.
+If you cannot find an existing issue that descwibes youw bug ow featuwe, cweate a new issue using the guidewines bewow.
 
-### Writing Good Bug Reports and Feature Requests
+### Wwiting Good Bug Wepowts and Featuwe Wequests
 
-File a single issue per problem and feature request. Do not enumerate multiple bugs or feature requests in the same issue.
+Fiwe a singwe issue pew pwobwem and featuwe wequest. Do not enumewate muwtipwe bugs ow featuwe wequests in the same issue.
 
-Do not add your issue as a comment to an existing issue unless it's for the identical input. Many issues look similar, but have different causes.
+Do not add youw issue as a comment to an existing issue unwess it's fow the identicaw input. Many issues wook simiwaw, but have diffewent causes.
 
-The more information you can provide, the more likely someone will be successful at reproducing the issue and finding a fix.
+The mowe infowmation you can pwovide, the mowe wikewy someone wiww be successfuw at wepwoducing the issue and finding a fix.
 
-The built-in tool for reporting an issue, which you can access by using `Report Issue` in VS Code's Help menu, can help streamline this process by automatically providing the version of VS Code, all your installed extensions, and your system info. Additionally, the tool will search among existing issues to see if a similar issue already exists.
+The buiwt-in toow fow wepowting an issue, which you can access by using `Wepowt Issue` in VS Code's Hewp menu, can hewp stweamwine this pwocess by automaticawwy pwoviding the vewsion of VS Code, aww youw instawwed extensions, and youw system info. Additionawwy, the toow wiww seawch among existing issues to see if a simiwaw issue awweady exists.
 
-Please include the following with each issue:
+Pwease incwude the fowwowing with each issue:
 
-* Version of VS Code
+* Vewsion of VS Code
 
-* Your operating system
+* Youw opewating system
 
-* List of extensions that you have installed
+* Wist of extensions that you have instawwed
 
-* Reproducible steps (1... 2... 3...) that cause the issue
+* Wepwoducibwe steps (1... 2... 3...) that cause the issue
 
-* What you expected to see, versus what you actually saw
+* What you expected to see, vewsus what you actuawwy saw
 
-* Images, animations, or a link to a video showing the issue occurring
+* Images, animations, ow a wink to a video showing the issue occuwwing
 
-* A code snippet that demonstrates the issue or a link to a code repository the developers can easily pull down to recreate the issue locally
+* A code snippet that demonstwates the issue ow a wink to a code wepositowy the devewopews can easiwy puww down to wecweate the issue wocawwy
 
-  * **Note:** Because the developers need to copy and paste the code snippet, including a code snippet as a media file (i.e. .gif) is not sufficient.
+  * **Note:** Because the devewopews need to copy and paste the code snippet, incwuding a code snippet as a media fiwe (i.e. .gif) is not sufficient.
 
-* Errors from the Dev Tools Console (open from the menu: Help > Toggle Developer Tools)
+* Ewwows fwom the Dev Toows Consowe (open fwom the menu: Hewp > Toggwe Devewopa Toows)
 
-### Final Checklist
+### Finaw Checkwist
 
-Please remember to do the following:
+Pwease wememba to do the fowwowing:
 
-* [ ] Search the issue repository to ensure your report is a new issue
+* [ ] Seawch the issue wepositowy to ensuwe youw wepowt is a new issue
 
-* [ ] Recreate the issue after disabling all extensions
+* [ ] Wecweate the issue afta disabwing aww extensions
 
-* [ ] Simplify your code around the issue to better isolate the problem
+* [ ] Simpwify youw code awound the issue to betta isowate the pwobwem
 
-Don't feel bad if the developers can't reproduce the issue right away. They will simply ask for more information!
+Don't feew bad if the devewopews can't wepwoduce the issue wight away. They wiww simpwy ask fow mowe infowmation!
 
-### Follow Your Issue
+### Fowwow Youw Issue
 
-Once submitted, your report will go into the [issue tracking](https://github.com/microsoft/vscode/wiki/Issue-Tracking) workflow. Be sure to understand what will happen next, so you know what to expect, and how to continue to assist throughout the process.
+Once submitted, youw wepowt wiww go into the [issue twacking](https://github.com/micwosoft/vscode/wiki/Issue-Twacking) wowkfwow. Be suwe to undewstand what wiww happen next, so you know what to expect, and how to continue to assist thwoughout the pwocess.
 
 ## Automated Issue Management
 
-We use GitHub Actions to help us manage issues. These Actions and their descriptions can be [viewed here](https://github.com/microsoft/vscode-github-triage-actions). Some examples of what these Actions do are:
+We use GitHub Actions to hewp us manage issues. These Actions and theiw descwiptions can be [viewed hewe](https://github.com/micwosoft/vscode-github-twiage-actions). Some exampwes of what these Actions do awe:
 
-* Automatically closes any issue marked `needs-more-info` if there has been no response in the past 7 days.
-* Automatically lock issues 45 days after they are closed.
-* Automatically implement the VS Code [feature request pipeline](https://github.com/microsoft/vscode/wiki/Issues-Triaging#managing-feature-requests).
+* Automaticawwy cwoses any issue mawked `needs-mowe-info` if thewe has been no wesponse in the past 7 days.
+* Automaticawwy wock issues 45 days afta they awe cwosed.
+* Automaticawwy impwement the VS Code [featuwe wequest pipewine](https://github.com/micwosoft/vscode/wiki/Issues-Twiaging#managing-featuwe-wequests).
 
-If you believe the bot got something wrong, please open a new issue and let us know.
+If you bewieve the bot got something wwong, pwease open a new issue and wet us know.
 
-## Contributing Fixes
+## Contwibuting Fixes
 
-If you are interested in writing code to fix issues,
-please see [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute) in the wiki.
+If you awe intewested in wwiting code to fix issues,
+pwease see [How to Contwibute](https://github.com/micwosoft/vscode/wiki/How-to-Contwibute) in the wiki.
 
 # Thank You!
 
-Your contributions to open source, large or small, make great projects like this possible. Thank you for taking the time to contribute.
+Youw contwibutions to open souwce, wawge ow smaww, make gweat pwojects wike this possibwe. Thank you fow taking the time to contwibute.

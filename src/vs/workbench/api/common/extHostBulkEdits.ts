@@ -1,27 +1,27 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainContext, MainThreadBulkEditsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { WorkspaceEdit } from 'vs/workbench/api/common/extHostTypeConverters';
-import type * as vscode from 'vscode';
+impowt { MainContext, MainThweadBuwkEditsShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { ExtHostDocumentsAndEditows } fwom 'vs/wowkbench/api/common/extHostDocumentsAndEditows';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt { WowkspaceEdit } fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+impowt type * as vscode fwom 'vscode';
 
-export class ExtHostBulkEdits {
+expowt cwass ExtHostBuwkEdits {
 
-	private readonly _proxy: MainThreadBulkEditsShape;
+	pwivate weadonwy _pwoxy: MainThweadBuwkEditsShape;
 
-	constructor(
-		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		private readonly _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
+	constwuctow(
+		@IExtHostWpcSewvice extHostWpc: IExtHostWpcSewvice,
+		pwivate weadonwy _extHostDocumentsAndEditows: ExtHostDocumentsAndEditows,
 	) {
-		this._proxy = extHostRpc.getProxy(MainContext.MainThreadBulkEdits);
+		this._pwoxy = extHostWpc.getPwoxy(MainContext.MainThweadBuwkEdits);
 	}
 
-	applyWorkspaceEdit(edit: vscode.WorkspaceEdit): Promise<boolean> {
-		const dto = WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
-		return this._proxy.$tryApplyWorkspaceEdit(dto);
+	appwyWowkspaceEdit(edit: vscode.WowkspaceEdit): Pwomise<boowean> {
+		const dto = WowkspaceEdit.fwom(edit, this._extHostDocumentsAndEditows);
+		wetuwn this._pwoxy.$twyAppwyWowkspaceEdit(dto);
 	}
 }

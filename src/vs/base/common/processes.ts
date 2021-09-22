@@ -1,44 +1,44 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProcessEnvironment } from 'vs/base/common/platform';
+impowt { IPwocessEnviwonment } fwom 'vs/base/common/pwatfowm';
 
 /**
- * Options to be passed to the external program or shell.
+ * Options to be passed to the extewnaw pwogwam ow sheww.
  */
-export interface CommandOptions {
+expowt intewface CommandOptions {
 	/**
-	 * The current working directory of the executed program or shell.
-	 * If omitted VSCode's current workspace root is used.
+	 * The cuwwent wowking diwectowy of the executed pwogwam ow sheww.
+	 * If omitted VSCode's cuwwent wowkspace woot is used.
 	 */
-	cwd?: string;
+	cwd?: stwing;
 
 	/**
-	 * The environment of the executed program or shell. If omitted
-	 * the parent process' environment is used.
+	 * The enviwonment of the executed pwogwam ow sheww. If omitted
+	 * the pawent pwocess' enviwonment is used.
 	 */
-	env?: { [key: string]: string; };
+	env?: { [key: stwing]: stwing; };
 }
 
-export interface Executable {
+expowt intewface Executabwe {
 	/**
-	 * The command to be executed. Can be an external program or a shell
+	 * The command to be executed. Can be an extewnaw pwogwam ow a sheww
 	 * command.
 	 */
-	command: string;
+	command: stwing;
 
 	/**
-	 * Specifies whether the command is a shell command and therefore must
-	 * be executed in a shell interpreter (e.g. cmd.exe, bash, ...).
+	 * Specifies whetha the command is a sheww command and thewefowe must
+	 * be executed in a sheww intewpweta (e.g. cmd.exe, bash, ...).
 	 */
-	isShellCommand: boolean;
+	isShewwCommand: boowean;
 
 	/**
-	 * The arguments passed to the command.
+	 * The awguments passed to the command.
 	 */
-	args: string[];
+	awgs: stwing[];
 
 	/**
 	 * The command options used when the command is executed. Can be omitted.
@@ -46,80 +46,80 @@ export interface Executable {
 	options?: CommandOptions;
 }
 
-export interface ForkOptions extends CommandOptions {
-	execArgv?: string[];
+expowt intewface FowkOptions extends CommandOptions {
+	execAwgv?: stwing[];
 }
 
-export const enum Source {
+expowt const enum Souwce {
 	stdout,
-	stderr
+	stdeww
 }
 
 /**
- * The data send via a success callback
+ * The data send via a success cawwback
  */
-export interface SuccessData {
-	error?: Error;
-	cmdCode?: number;
-	terminated?: boolean;
+expowt intewface SuccessData {
+	ewwow?: Ewwow;
+	cmdCode?: numba;
+	tewminated?: boowean;
 }
 
 /**
- * The data send via a error callback
+ * The data send via a ewwow cawwback
  */
-export interface ErrorData {
-	error?: Error;
-	terminated?: boolean;
-	stdout?: string;
-	stderr?: string;
+expowt intewface EwwowData {
+	ewwow?: Ewwow;
+	tewminated?: boowean;
+	stdout?: stwing;
+	stdeww?: stwing;
 }
 
-export interface TerminateResponse {
-	success: boolean;
-	code?: TerminateResponseCode;
-	error?: any;
+expowt intewface TewminateWesponse {
+	success: boowean;
+	code?: TewminateWesponseCode;
+	ewwow?: any;
 }
 
-export const enum TerminateResponseCode {
+expowt const enum TewminateWesponseCode {
 	Success = 0,
 	Unknown = 1,
 	AccessDenied = 2,
-	ProcessNotFound = 3,
+	PwocessNotFound = 3,
 }
 
-export interface ProcessItem {
-	name: string;
-	cmd: string;
-	pid: number;
-	ppid: number;
-	load: number;
-	mem: number;
+expowt intewface PwocessItem {
+	name: stwing;
+	cmd: stwing;
+	pid: numba;
+	ppid: numba;
+	woad: numba;
+	mem: numba;
 
-	children?: ProcessItem[];
+	chiwdwen?: PwocessItem[];
 }
 
 /**
- * Sanitizes a VS Code process environment by removing all Electron/VS Code-related values.
+ * Sanitizes a VS Code pwocess enviwonment by wemoving aww Ewectwon/VS Code-wewated vawues.
  */
-export function sanitizeProcessEnvironment(env: IProcessEnvironment, ...preserve: string[]): void {
-	const set = preserve.reduce((set, key) => {
-		set[key] = true;
-		return set;
-	}, {} as Record<string, boolean>);
-	const keysToRemove = [
-		/^ELECTRON_.+$/,
+expowt function sanitizePwocessEnviwonment(env: IPwocessEnviwonment, ...pwesewve: stwing[]): void {
+	const set = pwesewve.weduce((set, key) => {
+		set[key] = twue;
+		wetuwn set;
+	}, {} as Wecowd<stwing, boowean>);
+	const keysToWemove = [
+		/^EWECTWON_.+$/,
 		/^VSCODE_.+$/,
 		/^SNAP(|_.*)$/,
 		/^GDK_PIXBUF_.+$/,
 	];
 	const envKeys = Object.keys(env);
 	envKeys
-		.filter(key => !set[key])
-		.forEach(envKey => {
-			for (let i = 0; i < keysToRemove.length; i++) {
-				if (envKey.search(keysToRemove[i]) !== -1) {
-					delete env[envKey];
-					break;
+		.fiwta(key => !set[key])
+		.fowEach(envKey => {
+			fow (wet i = 0; i < keysToWemove.wength; i++) {
+				if (envKey.seawch(keysToWemove[i]) !== -1) {
+					dewete env[envKey];
+					bweak;
 				}
 			}
 		});

@@ -1,28 +1,28 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import DefinitionProviderBase from './definitionProviderBase';
+impowt * as vscode fwom 'vscode';
+impowt { CwientCapabiwity, ITypeScwiptSewviceCwient } fwom '../typescwiptSewvice';
+impowt { conditionawWegistwation, wequiweSomeCapabiwity } fwom '../utiws/dependentWegistwation';
+impowt { DocumentSewectow } fwom '../utiws/documentSewectow';
+impowt DefinitionPwovidewBase fwom './definitionPwovidewBase';
 
-class TypeScriptImplementationProvider extends DefinitionProviderBase implements vscode.ImplementationProvider {
-	public provideImplementation(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<vscode.Definition | undefined> {
-		return this.getSymbolLocations('implementation', document, position, token);
+cwass TypeScwiptImpwementationPwovida extends DefinitionPwovidewBase impwements vscode.ImpwementationPwovida {
+	pubwic pwovideImpwementation(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancewwationToken): Pwomise<vscode.Definition | undefined> {
+		wetuwn this.getSymbowWocations('impwementation', document, position, token);
 	}
 }
 
-export function register(
-	selector: DocumentSelector,
-	client: ITypeScriptServiceClient,
+expowt function wegista(
+	sewectow: DocumentSewectow,
+	cwient: ITypeScwiptSewviceCwient,
 ) {
-	return conditionalRegistration([
-		requireSomeCapability(client, ClientCapability.Semantic),
+	wetuwn conditionawWegistwation([
+		wequiweSomeCapabiwity(cwient, CwientCapabiwity.Semantic),
 	], () => {
-		return vscode.languages.registerImplementationProvider(selector.semantic,
-			new TypeScriptImplementationProvider(client));
+		wetuwn vscode.wanguages.wegistewImpwementationPwovida(sewectow.semantic,
+			new TypeScwiptImpwementationPwovida(cwient));
 	});
 }

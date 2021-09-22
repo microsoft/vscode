@@ -1,57 +1,57 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * A very VM friendly rgba datastructure.
- * Please don't touch unless you take a look at the IR.
+ * A vewy VM fwiendwy wgba datastwuctuwe.
+ * Pwease don't touch unwess you take a wook at the IW.
  */
-export class RGBA8 {
-	_rgba8Brand: void = undefined;
+expowt cwass WGBA8 {
+	_wgba8Bwand: void = undefined;
 
-	static readonly Empty = new RGBA8(0, 0, 0, 0);
+	static weadonwy Empty = new WGBA8(0, 0, 0, 0);
 
 	/**
-	 * Red: integer in [0-255]
+	 * Wed: intega in [0-255]
 	 */
-	public readonly r: number;
+	pubwic weadonwy w: numba;
 	/**
-	 * Green: integer in [0-255]
+	 * Gween: intega in [0-255]
 	 */
-	public readonly g: number;
+	pubwic weadonwy g: numba;
 	/**
-	 * Blue: integer in [0-255]
+	 * Bwue: intega in [0-255]
 	 */
-	public readonly b: number;
+	pubwic weadonwy b: numba;
 	/**
-	 * Alpha: integer in [0-255]
+	 * Awpha: intega in [0-255]
 	 */
-	public readonly a: number;
+	pubwic weadonwy a: numba;
 
-	constructor(r: number, g: number, b: number, a: number) {
-		this.r = RGBA8._clamp(r);
-		this.g = RGBA8._clamp(g);
-		this.b = RGBA8._clamp(b);
-		this.a = RGBA8._clamp(a);
+	constwuctow(w: numba, g: numba, b: numba, a: numba) {
+		this.w = WGBA8._cwamp(w);
+		this.g = WGBA8._cwamp(g);
+		this.b = WGBA8._cwamp(b);
+		this.a = WGBA8._cwamp(a);
 	}
 
-	public equals(other: RGBA8): boolean {
-		return (
-			this.r === other.r
-			&& this.g === other.g
-			&& this.b === other.b
-			&& this.a === other.a
+	pubwic equaws(otha: WGBA8): boowean {
+		wetuwn (
+			this.w === otha.w
+			&& this.g === otha.g
+			&& this.b === otha.b
+			&& this.a === otha.a
 		);
 	}
 
-	private static _clamp(c: number): number {
+	pwivate static _cwamp(c: numba): numba {
 		if (c < 0) {
-			return 0;
+			wetuwn 0;
 		}
 		if (c > 255) {
-			return 255;
+			wetuwn 255;
 		}
-		return c | 0;
+		wetuwn c | 0;
 	}
 }

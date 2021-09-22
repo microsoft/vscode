@@ -1,679 +1,679 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, Action, SubmenuAction, Separator } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { Schemas } from 'vs/base/common/network';
-import { localize } from 'vs/nls';
-import { MenuRegistry, MenuId, IMenuActionOptions, MenuItemAction, IMenu } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionTerminalProfile, ITerminalProfile, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { ICreateTerminalOptions, ITerminalLocationOptions, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalCommandId, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalContextKeys, TerminalContextKeyStrings } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+impowt { IAction, Action, SubmenuAction, Sepawatow } fwom 'vs/base/common/actions';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { wocawize } fwom 'vs/nws';
+impowt { MenuWegistwy, MenuId, IMenuActionOptions, MenuItemAction, IMenu } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ContextKeyExpw, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IExtensionTewminawPwofiwe, ITewminawPwofiwe, TewminawWocation, TewminawSettingId } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { WesouwceContextKey } fwom 'vs/wowkbench/common/wesouwces';
+impowt { ICweateTewminawOptions, ITewminawWocationOptions, ITewminawSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { TewminawCommandId, TEWMINAW_VIEW_ID } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
+impowt { TewminawContextKeys, TewminawContextKeyStwings } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawContextKey';
+impowt { tewminawStwings } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawStwings';
+impowt { ACTIVE_GWOUP, SIDE_GWOUP } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
 
-const enum ContextMenuGroup {
-	Create = '1_create',
+const enum ContextMenuGwoup {
+	Cweate = '1_cweate',
 	Edit = '2_edit',
-	Clear = '3_clear',
-	Kill = '4_kill',
+	Cweaw = '3_cweaw',
+	Kiww = '4_kiww',
 	Config = '5_config'
 }
 
-export const enum TerminalTabContextMenuGroup {
-	Default = '1_create_default',
-	Profile = '2_create_profile',
-	Configure = '3_configure'
+expowt const enum TewminawTabContextMenuGwoup {
+	Defauwt = '1_cweate_defauwt',
+	Pwofiwe = '2_cweate_pwofiwe',
+	Configuwe = '3_configuwe'
 }
 
-export const enum TerminalMenuBarGroup {
-	Create = '1_create',
-	Run = '2_run',
+expowt const enum TewminawMenuBawGwoup {
+	Cweate = '1_cweate',
+	Wun = '2_wun',
 	Manage = '3_manage',
-	Configure = '4_configure'
+	Configuwe = '4_configuwe'
 }
 
-export function setupTerminalMenus(): void {
-	MenuRegistry.appendMenuItems(
+expowt function setupTewminawMenus(): void {
+	MenuWegistwy.appendMenuItems(
 		[
 			{
-				id: MenuId.MenubarTerminalMenu,
+				id: MenuId.MenubawTewminawMenu,
 				item: {
-					group: TerminalMenuBarGroup.Create,
+					gwoup: TewminawMenuBawGwoup.Cweate,
 					command: {
-						id: TerminalCommandId.New,
-						title: localize({ key: 'miNewTerminal', comment: ['&& denotes a mnemonic'] }, "&&New Terminal")
+						id: TewminawCommandId.New,
+						titwe: wocawize({ key: 'miNewTewminaw', comment: ['&& denotes a mnemonic'] }, "&&New Tewminaw")
 					},
-					order: 1
+					owda: 1
 				}
 			},
 			{
-				id: MenuId.MenubarTerminalMenu,
+				id: MenuId.MenubawTewminawMenu,
 				item: {
-					group: TerminalMenuBarGroup.Create,
+					gwoup: TewminawMenuBawGwoup.Cweate,
 					command: {
-						id: TerminalCommandId.Split,
-						title: localize({ key: 'miSplitTerminal', comment: ['&& denotes a mnemonic'] }, "&&Split Terminal"),
-						precondition: ContextKeyExpr.has(TerminalContextKeyStrings.IsOpen)
+						id: TewminawCommandId.Spwit,
+						titwe: wocawize({ key: 'miSpwitTewminaw', comment: ['&& denotes a mnemonic'] }, "&&Spwit Tewminaw"),
+						pwecondition: ContextKeyExpw.has(TewminawContextKeyStwings.IsOpen)
 					},
-					order: 2,
-					when: TerminalContextKeys.processSupported
+					owda: 2,
+					when: TewminawContextKeys.pwocessSuppowted
 				}
 			},
 			{
-				id: MenuId.MenubarTerminalMenu,
+				id: MenuId.MenubawTewminawMenu,
 				item: {
-					group: TerminalMenuBarGroup.Run,
+					gwoup: TewminawMenuBawGwoup.Wun,
 					command: {
-						id: TerminalCommandId.RunActiveFile,
-						title: localize({ key: 'miRunActiveFile', comment: ['&& denotes a mnemonic'] }, "Run &&Active File")
+						id: TewminawCommandId.WunActiveFiwe,
+						titwe: wocawize({ key: 'miWunActiveFiwe', comment: ['&& denotes a mnemonic'] }, "Wun &&Active Fiwe")
 					},
-					order: 3,
-					when: TerminalContextKeys.processSupported
+					owda: 3,
+					when: TewminawContextKeys.pwocessSuppowted
 				}
 			},
 			{
-				id: MenuId.MenubarTerminalMenu,
+				id: MenuId.MenubawTewminawMenu,
 				item: {
-					group: TerminalMenuBarGroup.Run,
+					gwoup: TewminawMenuBawGwoup.Wun,
 					command: {
-						id: TerminalCommandId.RunSelectedText,
-						title: localize({ key: 'miRunSelectedText', comment: ['&& denotes a mnemonic'] }, "Run &&Selected Text")
+						id: TewminawCommandId.WunSewectedText,
+						titwe: wocawize({ key: 'miWunSewectedText', comment: ['&& denotes a mnemonic'] }, "Wun &&Sewected Text")
 					},
-					order: 4,
-					when: TerminalContextKeys.processSupported
+					owda: 4,
+					when: TewminawContextKeys.pwocessSuppowted
 				}
 			}
 		]
 	);
 
-	MenuRegistry.appendMenuItems(
+	MenuWegistwy.appendMenuItems(
 		[
 			{
-				id: MenuId.TerminalInstanceContext,
+				id: MenuId.TewminawInstanceContext,
 				item: {
-					group: ContextMenuGroup.Create,
+					gwoup: ContextMenuGwoup.Cweate,
 					command: {
-						id: TerminalCommandId.Split,
-						title: terminalStrings.split.value
+						id: TewminawCommandId.Spwit,
+						titwe: tewminawStwings.spwit.vawue
 					}
 				}
 			},
 			{
-				id: MenuId.TerminalInstanceContext,
+				id: MenuId.TewminawInstanceContext,
 				item: {
 					command: {
-						id: TerminalCommandId.New,
-						title: localize('workbench.action.terminal.new.short', "New Terminal")
+						id: TewminawCommandId.New,
+						titwe: wocawize('wowkbench.action.tewminaw.new.showt', "New Tewminaw")
 					},
-					group: ContextMenuGroup.Create
+					gwoup: ContextMenuGwoup.Cweate
 				}
 			},
 			{
-				id: MenuId.TerminalInstanceContext,
+				id: MenuId.TewminawInstanceContext,
 				item: {
 					command: {
-						id: TerminalCommandId.Kill,
-						title: terminalStrings.kill.value
+						id: TewminawCommandId.Kiww,
+						titwe: tewminawStwings.kiww.vawue
 					},
-					group: ContextMenuGroup.Kill
+					gwoup: ContextMenuGwoup.Kiww
 				}
 			},
 			{
-				id: MenuId.TerminalInstanceContext,
+				id: MenuId.TewminawInstanceContext,
 				item: {
 					command: {
-						id: TerminalCommandId.CopySelection,
-						title: localize('workbench.action.terminal.copySelection.short', "Copy")
+						id: TewminawCommandId.CopySewection,
+						titwe: wocawize('wowkbench.action.tewminaw.copySewection.showt', "Copy")
 					},
-					group: ContextMenuGroup.Edit,
-					order: 1
+					gwoup: ContextMenuGwoup.Edit,
+					owda: 1
 				}
 			},
 			{
-				id: MenuId.TerminalInstanceContext,
+				id: MenuId.TewminawInstanceContext,
 				item: {
 					command: {
-						id: TerminalCommandId.Paste,
-						title: localize('workbench.action.terminal.paste.short', "Paste")
+						id: TewminawCommandId.Paste,
+						titwe: wocawize('wowkbench.action.tewminaw.paste.showt', "Paste")
 					},
-					group: ContextMenuGroup.Edit,
-					order: 2
+					gwoup: ContextMenuGwoup.Edit,
+					owda: 2
 				}
 			},
 			{
-				id: MenuId.TerminalInstanceContext,
+				id: MenuId.TewminawInstanceContext,
 				item: {
 					command: {
-						id: TerminalCommandId.Clear,
-						title: localize('workbench.action.terminal.clear', "Clear")
+						id: TewminawCommandId.Cweaw,
+						titwe: wocawize('wowkbench.action.tewminaw.cweaw', "Cweaw")
 					},
-					group: ContextMenuGroup.Clear,
+					gwoup: ContextMenuGwoup.Cweaw,
 				}
 			},
 			{
-				id: MenuId.TerminalInstanceContext,
+				id: MenuId.TewminawInstanceContext,
 				item: {
 					command: {
-						id: TerminalCommandId.ShowTabs,
-						title: localize('workbench.action.terminal.showsTabs', "Show Tabs")
+						id: TewminawCommandId.ShowTabs,
+						titwe: wocawize('wowkbench.action.tewminaw.showsTabs', "Show Tabs")
 					},
-					when: ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
-					group: ContextMenuGroup.Config
+					when: ContextKeyExpw.not(`config.${TewminawSettingId.TabsEnabwed}`),
+					gwoup: ContextMenuGwoup.Config
 				}
 			},
 			{
-				id: MenuId.TerminalInstanceContext,
+				id: MenuId.TewminawInstanceContext,
 				item: {
 					command: {
-						id: TerminalCommandId.SelectAll,
-						title: localize('workbench.action.terminal.selectAll', "Select All"),
+						id: TewminawCommandId.SewectAww,
+						titwe: wocawize('wowkbench.action.tewminaw.sewectAww', "Sewect Aww"),
 					},
-					group: ContextMenuGroup.Edit,
-					order: 3
+					gwoup: ContextMenuGwoup.Edit,
+					owda: 3
 				}
 			},
 		]
 	);
 
-	MenuRegistry.appendMenuItems(
+	MenuWegistwy.appendMenuItems(
 		[
 			{
-				id: MenuId.TerminalTabEmptyAreaContext,
+				id: MenuId.TewminawTabEmptyAweaContext,
 				item: {
 					command: {
-						id: TerminalCommandId.NewWithProfile,
-						title: localize('workbench.action.terminal.newWithProfile.short', "New Terminal With Profile")
+						id: TewminawCommandId.NewWithPwofiwe,
+						titwe: wocawize('wowkbench.action.tewminaw.newWithPwofiwe.showt', "New Tewminaw With Pwofiwe")
 					},
-					group: ContextMenuGroup.Create
+					gwoup: ContextMenuGwoup.Cweate
 				}
 			},
 			{
-				id: MenuId.TerminalTabEmptyAreaContext,
+				id: MenuId.TewminawTabEmptyAweaContext,
 				item: {
 					command: {
-						id: TerminalCommandId.New,
-						title: localize('workbench.action.terminal.new.short', "New Terminal")
+						id: TewminawCommandId.New,
+						titwe: wocawize('wowkbench.action.tewminaw.new.showt', "New Tewminaw")
 					},
-					group: ContextMenuGroup.Create
+					gwoup: ContextMenuGwoup.Cweate
 				}
 			}
 		]
 	);
 
-	MenuRegistry.appendMenuItems(
+	MenuWegistwy.appendMenuItems(
 		[
 			{
-				id: MenuId.TerminalNewDropdownContext,
+				id: MenuId.TewminawNewDwopdownContext,
 				item: {
 					command: {
-						id: TerminalCommandId.SelectDefaultProfile,
-						title: { value: localize('workbench.action.terminal.selectDefaultProfile', "Select Default Profile"), original: 'Select Default Profile' }
+						id: TewminawCommandId.SewectDefauwtPwofiwe,
+						titwe: { vawue: wocawize('wowkbench.action.tewminaw.sewectDefauwtPwofiwe', "Sewect Defauwt Pwofiwe"), owiginaw: 'Sewect Defauwt Pwofiwe' }
 					},
-					group: TerminalTabContextMenuGroup.Configure
+					gwoup: TewminawTabContextMenuGwoup.Configuwe
 				}
 			},
 			{
-				id: MenuId.TerminalNewDropdownContext,
+				id: MenuId.TewminawNewDwopdownContext,
 				item: {
 					command: {
-						id: TerminalCommandId.ConfigureTerminalSettings,
-						title: localize('workbench.action.terminal.openSettings', "Configure Terminal Settings")
+						id: TewminawCommandId.ConfiguweTewminawSettings,
+						titwe: wocawize('wowkbench.action.tewminaw.openSettings', "Configuwe Tewminaw Settings")
 					},
-					group: TerminalTabContextMenuGroup.Configure
+					gwoup: TewminawTabContextMenuGwoup.Configuwe
 				}
 			}
 		]
 	);
 
-	MenuRegistry.appendMenuItems(
+	MenuWegistwy.appendMenuItems(
 		[
 			{
-				id: MenuId.ViewTitle,
+				id: MenuId.ViewTitwe,
 				item: {
 					command: {
-						id: TerminalCommandId.SwitchTerminal,
-						title: { value: localize('workbench.action.terminal.switchTerminal', "Switch Terminal"), original: 'Switch Terminal' }
+						id: TewminawCommandId.SwitchTewminaw,
+						titwe: { vawue: wocawize('wowkbench.action.tewminaw.switchTewminaw', "Switch Tewminaw"), owiginaw: 'Switch Tewminaw' }
 					},
-					group: 'navigation',
-					order: 0,
-					when: ContextKeyExpr.and(
-						ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
-						ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`)
+					gwoup: 'navigation',
+					owda: 0,
+					when: ContextKeyExpw.and(
+						ContextKeyExpw.equaws('view', TEWMINAW_VIEW_ID),
+						ContextKeyExpw.not(`config.${TewminawSettingId.TabsEnabwed}`)
 					),
 				}
 			},
 			{
-				// This is used to show instead of tabs when there is only a single terminal
-				id: MenuId.ViewTitle,
+				// This is used to show instead of tabs when thewe is onwy a singwe tewminaw
+				id: MenuId.ViewTitwe,
 				item: {
 					command: {
-						id: TerminalCommandId.Focus,
-						title: terminalStrings.focus
+						id: TewminawCommandId.Focus,
+						titwe: tewminawStwings.focus
 					},
-					group: 'navigation',
-					order: 0,
-					when: ContextKeyExpr.and(
-						ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
-						ContextKeyExpr.has(`config.${TerminalSettingId.TabsEnabled}`),
-						ContextKeyExpr.or(
-							ContextKeyExpr.and(
-								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'singleTerminal'),
-								ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1)
+					gwoup: 'navigation',
+					owda: 0,
+					when: ContextKeyExpw.and(
+						ContextKeyExpw.equaws('view', TEWMINAW_VIEW_ID),
+						ContextKeyExpw.has(`config.${TewminawSettingId.TabsEnabwed}`),
+						ContextKeyExpw.ow(
+							ContextKeyExpw.and(
+								ContextKeyExpw.equaws(`config.${TewminawSettingId.TabsShowActiveTewminaw}`, 'singweTewminaw'),
+								ContextKeyExpw.equaws(TewminawContextKeyStwings.Count, 1)
 							),
-							ContextKeyExpr.and(
-								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'singleTerminalOrNarrow'),
-								ContextKeyExpr.or(
-									ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1),
-									ContextKeyExpr.has(TerminalContextKeyStrings.TabsNarrow)
+							ContextKeyExpw.and(
+								ContextKeyExpw.equaws(`config.${TewminawSettingId.TabsShowActiveTewminaw}`, 'singweTewminawOwNawwow'),
+								ContextKeyExpw.ow(
+									ContextKeyExpw.equaws(TewminawContextKeyStwings.Count, 1),
+									ContextKeyExpw.has(TewminawContextKeyStwings.TabsNawwow)
 								)
 							),
-							ContextKeyExpr.and(
-								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'singleGroup'),
-								ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1)
+							ContextKeyExpw.and(
+								ContextKeyExpw.equaws(`config.${TewminawSettingId.TabsShowActiveTewminaw}`, 'singweGwoup'),
+								ContextKeyExpw.equaws(TewminawContextKeyStwings.GwoupCount, 1)
 							),
-							ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'always')
+							ContextKeyExpw.equaws(`config.${TewminawSettingId.TabsShowActiveTewminaw}`, 'awways')
 						)
 					),
 				}
 			},
 			{
-				id: MenuId.ViewTitle,
+				id: MenuId.ViewTitwe,
 				item: {
 					command: {
-						id: TerminalCommandId.Split,
-						title: terminalStrings.split,
-						icon: Codicon.splitHorizontal
+						id: TewminawCommandId.Spwit,
+						titwe: tewminawStwings.spwit,
+						icon: Codicon.spwitHowizontaw
 					},
-					group: 'navigation',
-					order: 2,
-					when: ContextKeyExpr.and(
-						ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
-						ContextKeyExpr.or(
-							ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
-							ContextKeyExpr.and(
-								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminal'),
-								ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1)
+					gwoup: 'navigation',
+					owda: 2,
+					when: ContextKeyExpw.and(
+						ContextKeyExpw.equaws('view', TEWMINAW_VIEW_ID),
+						ContextKeyExpw.ow(
+							ContextKeyExpw.not(`config.${TewminawSettingId.TabsEnabwed}`),
+							ContextKeyExpw.and(
+								ContextKeyExpw.equaws(`config.${TewminawSettingId.TabsShowActions}`, 'singweTewminaw'),
+								ContextKeyExpw.equaws(TewminawContextKeyStwings.Count, 1)
 							),
-							ContextKeyExpr.and(
-								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminalOrNarrow'),
-								ContextKeyExpr.or(
-									ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1),
-									ContextKeyExpr.has(TerminalContextKeyStrings.TabsNarrow)
+							ContextKeyExpw.and(
+								ContextKeyExpw.equaws(`config.${TewminawSettingId.TabsShowActions}`, 'singweTewminawOwNawwow'),
+								ContextKeyExpw.ow(
+									ContextKeyExpw.equaws(TewminawContextKeyStwings.Count, 1),
+									ContextKeyExpw.has(TewminawContextKeyStwings.TabsNawwow)
 								)
 							),
-							ContextKeyExpr.and(
-								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleGroup'),
-								ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1)
+							ContextKeyExpw.and(
+								ContextKeyExpw.equaws(`config.${TewminawSettingId.TabsShowActions}`, 'singweGwoup'),
+								ContextKeyExpw.equaws(TewminawContextKeyStwings.GwoupCount, 1)
 							),
-							ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'always')
+							ContextKeyExpw.equaws(`config.${TewminawSettingId.TabsShowActions}`, 'awways')
 						)
 					)
 				}
 			},
 			{
-				id: MenuId.ViewTitle,
+				id: MenuId.ViewTitwe,
 				item: {
 					command: {
-						id: TerminalCommandId.Kill,
-						title: terminalStrings.kill,
-						icon: Codicon.trash
+						id: TewminawCommandId.Kiww,
+						titwe: tewminawStwings.kiww,
+						icon: Codicon.twash
 					},
-					group: 'navigation',
-					order: 3,
-					when: ContextKeyExpr.and(
-						ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
-						ContextKeyExpr.or(
-							ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
-							ContextKeyExpr.and(
-								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminal'),
-								ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1)
+					gwoup: 'navigation',
+					owda: 3,
+					when: ContextKeyExpw.and(
+						ContextKeyExpw.equaws('view', TEWMINAW_VIEW_ID),
+						ContextKeyExpw.ow(
+							ContextKeyExpw.not(`config.${TewminawSettingId.TabsEnabwed}`),
+							ContextKeyExpw.and(
+								ContextKeyExpw.equaws(`config.${TewminawSettingId.TabsShowActions}`, 'singweTewminaw'),
+								ContextKeyExpw.equaws(TewminawContextKeyStwings.Count, 1)
 							),
-							ContextKeyExpr.and(
-								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminalOrNarrow'),
-								ContextKeyExpr.or(
-									ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1),
-									ContextKeyExpr.has(TerminalContextKeyStrings.TabsNarrow)
+							ContextKeyExpw.and(
+								ContextKeyExpw.equaws(`config.${TewminawSettingId.TabsShowActions}`, 'singweTewminawOwNawwow'),
+								ContextKeyExpw.ow(
+									ContextKeyExpw.equaws(TewminawContextKeyStwings.Count, 1),
+									ContextKeyExpw.has(TewminawContextKeyStwings.TabsNawwow)
 								)
 							),
-							ContextKeyExpr.and(
-								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleGroup'),
-								ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1)
+							ContextKeyExpw.and(
+								ContextKeyExpw.equaws(`config.${TewminawSettingId.TabsShowActions}`, 'singweGwoup'),
+								ContextKeyExpw.equaws(TewminawContextKeyStwings.GwoupCount, 1)
 							),
-							ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'always')
+							ContextKeyExpw.equaws(`config.${TewminawSettingId.TabsShowActions}`, 'awways')
 						)
 					)
 				}
 			},
 			{
-				id: MenuId.ViewTitle,
+				id: MenuId.ViewTitwe,
 				item: {
 					command: {
-						id: TerminalCommandId.CreateWithProfileButton,
-						title: TerminalCommandId.CreateWithProfileButton
+						id: TewminawCommandId.CweateWithPwofiweButton,
+						titwe: TewminawCommandId.CweateWithPwofiweButton
 					},
-					group: 'navigation',
-					order: 0,
-					when: ContextKeyExpr.and(
-						ContextKeyExpr.equals('view', TERMINAL_VIEW_ID)
+					gwoup: 'navigation',
+					owda: 0,
+					when: ContextKeyExpw.and(
+						ContextKeyExpw.equaws('view', TEWMINAW_VIEW_ID)
 					)
 				}
 			}
 		]
 	);
 
-	MenuRegistry.appendMenuItems(
+	MenuWegistwy.appendMenuItems(
 		[
 			{
-				id: MenuId.TerminalInlineTabContext,
+				id: MenuId.TewminawInwineTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.Split,
-						title: terminalStrings.split.value
+						id: TewminawCommandId.Spwit,
+						titwe: tewminawStwings.spwit.vawue
 					},
-					group: ContextMenuGroup.Create,
-					order: 1
+					gwoup: ContextMenuGwoup.Cweate,
+					owda: 1
 				}
 			},
 			{
-				id: MenuId.TerminalInlineTabContext,
+				id: MenuId.TewminawInwineTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.MoveToEditor,
-						title: terminalStrings.moveToEditor.short
+						id: TewminawCommandId.MoveToEditow,
+						titwe: tewminawStwings.moveToEditow.showt
 					},
-					group: ContextMenuGroup.Create,
-					order: 2
+					gwoup: ContextMenuGwoup.Cweate,
+					owda: 2
 				}
 			},
 			{
-				id: MenuId.TerminalInlineTabContext,
+				id: MenuId.TewminawInwineTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.ChangeIconPanel,
-						title: terminalStrings.changeIcon.value
+						id: TewminawCommandId.ChangeIconPanew,
+						titwe: tewminawStwings.changeIcon.vawue
 					},
-					group: ContextMenuGroup.Edit
+					gwoup: ContextMenuGwoup.Edit
 				}
 			},
 			{
-				id: MenuId.TerminalInlineTabContext,
+				id: MenuId.TewminawInwineTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.ChangeColorPanel,
-						title: terminalStrings.changeColor.value
+						id: TewminawCommandId.ChangeCowowPanew,
+						titwe: tewminawStwings.changeCowow.vawue
 					},
-					group: ContextMenuGroup.Edit
+					gwoup: ContextMenuGwoup.Edit
 				}
 			},
 			{
-				id: MenuId.TerminalInlineTabContext,
+				id: MenuId.TewminawInwineTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.RenamePanel,
-						title: terminalStrings.rename.value
+						id: TewminawCommandId.WenamePanew,
+						titwe: tewminawStwings.wename.vawue
 					},
-					group: ContextMenuGroup.Edit
+					gwoup: ContextMenuGwoup.Edit
 				}
 			},
 			{
-				id: MenuId.TerminalInlineTabContext,
+				id: MenuId.TewminawInwineTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.Kill,
-						title: terminalStrings.kill.value
+						id: TewminawCommandId.Kiww,
+						titwe: tewminawStwings.kiww.vawue
 					},
-					group: ContextMenuGroup.Kill
+					gwoup: ContextMenuGwoup.Kiww
 				}
 			}
 		]
 	);
 
-	MenuRegistry.appendMenuItems(
+	MenuWegistwy.appendMenuItems(
 		[
 			{
-				id: MenuId.TerminalTabContext,
+				id: MenuId.TewminawTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.SplitInstance,
-						title: terminalStrings.split.value,
+						id: TewminawCommandId.SpwitInstance,
+						titwe: tewminawStwings.spwit.vawue,
 					},
-					group: ContextMenuGroup.Create,
-					order: 1
+					gwoup: ContextMenuGwoup.Cweate,
+					owda: 1
 				}
 			},
 			{
-				id: MenuId.TerminalTabContext,
+				id: MenuId.TewminawTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.MoveToEditorInstance,
-						title: terminalStrings.moveToEditor.short
+						id: TewminawCommandId.MoveToEditowInstance,
+						titwe: tewminawStwings.moveToEditow.showt
 					},
-					group: ContextMenuGroup.Create,
-					order: 2
+					gwoup: ContextMenuGwoup.Cweate,
+					owda: 2
 				}
 			},
 			{
-				id: MenuId.TerminalTabContext,
+				id: MenuId.TewminawTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.RenameInstance,
-						title: localize('workbench.action.terminal.renameInstance', "Rename...")
+						id: TewminawCommandId.WenameInstance,
+						titwe: wocawize('wowkbench.action.tewminaw.wenameInstance', "Wename...")
 					},
-					group: ContextMenuGroup.Edit
+					gwoup: ContextMenuGwoup.Edit
 				}
 			},
 			{
-				id: MenuId.TerminalTabContext,
+				id: MenuId.TewminawTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.ChangeIconInstance,
-						title: localize('workbench.action.terminal.changeIcon', "Change Icon...")
+						id: TewminawCommandId.ChangeIconInstance,
+						titwe: wocawize('wowkbench.action.tewminaw.changeIcon', "Change Icon...")
 					},
-					group: ContextMenuGroup.Edit
+					gwoup: ContextMenuGwoup.Edit
 				}
 			},
 			{
-				id: MenuId.TerminalTabContext,
+				id: MenuId.TewminawTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.ChangeColorInstance,
-						title: localize('workbench.action.terminal.changeColor', "Change Color...")
+						id: TewminawCommandId.ChangeCowowInstance,
+						titwe: wocawize('wowkbench.action.tewminaw.changeCowow', "Change Cowow...")
 					},
-					group: ContextMenuGroup.Edit
+					gwoup: ContextMenuGwoup.Edit
 				}
 			},
 			{
-				id: MenuId.TerminalTabContext,
+				id: MenuId.TewminawTabContext,
 				item: {
-					group: ContextMenuGroup.Config,
+					gwoup: ContextMenuGwoup.Config,
 					command: {
-						id: TerminalCommandId.JoinInstance,
-						title: localize('workbench.action.terminal.joinInstance', "Join Terminals")
+						id: TewminawCommandId.JoinInstance,
+						titwe: wocawize('wowkbench.action.tewminaw.joinInstance', "Join Tewminaws")
 					},
-					when: TerminalContextKeys.tabsSingularSelection.toNegated()
+					when: TewminawContextKeys.tabsSinguwawSewection.toNegated()
 				}
 			},
 			{
-				id: MenuId.TerminalTabContext,
+				id: MenuId.TewminawTabContext,
 				item: {
-					group: ContextMenuGroup.Config,
+					gwoup: ContextMenuGwoup.Config,
 					command: {
-						id: TerminalCommandId.UnsplitInstance,
-						title: terminalStrings.unsplit.value
+						id: TewminawCommandId.UnspwitInstance,
+						titwe: tewminawStwings.unspwit.vawue
 					},
-					when: ContextKeyExpr.and(TerminalContextKeys.tabsSingularSelection, TerminalContextKeys.splitTerminal)
+					when: ContextKeyExpw.and(TewminawContextKeys.tabsSinguwawSewection, TewminawContextKeys.spwitTewminaw)
 				}
 			},
 			{
-				id: MenuId.TerminalTabContext,
+				id: MenuId.TewminawTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.KillInstance,
-						title: terminalStrings.kill.value
+						id: TewminawCommandId.KiwwInstance,
+						titwe: tewminawStwings.kiww.vawue
 					},
-					group: ContextMenuGroup.Kill,
+					gwoup: ContextMenuGwoup.Kiww,
 				}
 			}
 		]
 	);
 
-	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
+	MenuWegistwy.appendMenuItem(MenuId.EditowTitweContext, {
 		command: {
-			id: TerminalCommandId.MoveToTerminalPanel,
-			title: terminalStrings.moveToTerminalPanel
+			id: TewminawCommandId.MoveToTewminawPanew,
+			titwe: tewminawStwings.moveToTewminawPanew
 		},
-		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
-		group: '2_files'
+		when: WesouwceContextKey.Scheme.isEquawTo(Schemas.vscodeTewminaw),
+		gwoup: '2_fiwes'
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
+	MenuWegistwy.appendMenuItem(MenuId.EditowTitweContext, {
 		command: {
-			id: TerminalCommandId.Rename,
-			title: terminalStrings.rename
+			id: TewminawCommandId.Wename,
+			titwe: tewminawStwings.wename
 		},
-		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
-		group: '3_files'
+		when: WesouwceContextKey.Scheme.isEquawTo(Schemas.vscodeTewminaw),
+		gwoup: '3_fiwes'
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
+	MenuWegistwy.appendMenuItem(MenuId.EditowTitweContext, {
 		command: {
-			id: TerminalCommandId.ChangeColor,
-			title: terminalStrings.changeColor
+			id: TewminawCommandId.ChangeCowow,
+			titwe: tewminawStwings.changeCowow
 		},
-		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
-		group: '3_files'
+		when: WesouwceContextKey.Scheme.isEquawTo(Schemas.vscodeTewminaw),
+		gwoup: '3_fiwes'
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
+	MenuWegistwy.appendMenuItem(MenuId.EditowTitweContext, {
 		command: {
-			id: TerminalCommandId.ChangeIcon,
-			title: terminalStrings.changeIcon
+			id: TewminawCommandId.ChangeIcon,
+			titwe: tewminawStwings.changeIcon
 		},
-		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
-		group: '3_files'
+		when: WesouwceContextKey.Scheme.isEquawTo(Schemas.vscodeTewminaw),
+		gwoup: '3_fiwes'
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	MenuWegistwy.appendMenuItem(MenuId.EditowTitwe, {
 		command: {
-			id: TerminalCommandId.CreateWithProfileButton,
-			title: TerminalCommandId.CreateWithProfileButton
+			id: TewminawCommandId.CweateWithPwofiweButton,
+			titwe: TewminawCommandId.CweateWithPwofiweButton
 		},
-		group: 'navigation',
-		order: 0,
-		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal)
+		gwoup: 'navigation',
+		owda: 0,
+		when: WesouwceContextKey.Scheme.isEquawTo(Schemas.vscodeTewminaw)
 	});
 }
 
-export function getTerminalActionBarArgs(location: ITerminalLocationOptions, profiles: ITerminalProfile[], defaultProfileName: string, contributedProfiles: readonly IExtensionTerminalProfile[], instantiationService: IInstantiationService, terminalService: ITerminalService, contextKeyService: IContextKeyService, commandService: ICommandService, dropdownMenu: IMenu): {
-	primaryAction: MenuItemAction,
-	dropdownAction: IAction,
-	dropdownMenuActions: IAction[],
-	className: string,
-	dropdownIcon?: string
+expowt function getTewminawActionBawAwgs(wocation: ITewminawWocationOptions, pwofiwes: ITewminawPwofiwe[], defauwtPwofiweName: stwing, contwibutedPwofiwes: weadonwy IExtensionTewminawPwofiwe[], instantiationSewvice: IInstantiationSewvice, tewminawSewvice: ITewminawSewvice, contextKeySewvice: IContextKeySewvice, commandSewvice: ICommandSewvice, dwopdownMenu: IMenu): {
+	pwimawyAction: MenuItemAction,
+	dwopdownAction: IAction,
+	dwopdownMenuActions: IAction[],
+	cwassName: stwing,
+	dwopdownIcon?: stwing
 } {
-	let dropdownActions: IAction[] = [];
-	let submenuActions: IAction[] = [];
+	wet dwopdownActions: IAction[] = [];
+	wet submenuActions: IAction[] = [];
 
-	for (const p of profiles) {
-		const isDefault = p.profileName === defaultProfileName;
+	fow (const p of pwofiwes) {
+		const isDefauwt = p.pwofiweName === defauwtPwofiweName;
 		const options: IMenuActionOptions = {
-			arg: {
+			awg: {
 				config: p,
-				location
-			} as ICreateTerminalOptions,
-			shouldForwardArgs: true
+				wocation
+			} as ICweateTewminawOptions,
+			shouwdFowwawdAwgs: twue
 		};
-		const splitLocation = (location === TerminalLocation.Editor || location === { viewColumn: ACTIVE_GROUP }) ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
-		const splitOptions: IMenuActionOptions = {
-			arg: {
+		const spwitWocation = (wocation === TewminawWocation.Editow || wocation === { viewCowumn: ACTIVE_GWOUP }) ? { viewCowumn: SIDE_GWOUP } : { spwitActiveTewminaw: twue };
+		const spwitOptions: IMenuActionOptions = {
+			awg: {
 				config: p,
-				splitLocation
-			} as ICreateTerminalOptions,
-			shouldForwardArgs: true
+				spwitWocation
+			} as ICweateTewminawOptions,
+			shouwdFowwawdAwgs: twue
 		};
-		if (isDefault) {
-			dropdownActions.unshift(new MenuItemAction({ id: TerminalCommandId.NewWithProfile, title: localize('defaultTerminalProfile', "{0} (Default)", p.profileName), category: TerminalTabContextMenuGroup.Profile }, undefined, options, contextKeyService, commandService));
-			submenuActions.unshift(new MenuItemAction({ id: TerminalCommandId.Split, title: localize('defaultTerminalProfile', "{0} (Default)", p.profileName), category: TerminalTabContextMenuGroup.Profile }, undefined, splitOptions, contextKeyService, commandService));
-		} else {
-			dropdownActions.push(new MenuItemAction({ id: TerminalCommandId.NewWithProfile, title: p.profileName.replace(/[\n\r\t]/g, ''), category: TerminalTabContextMenuGroup.Profile }, undefined, options, contextKeyService, commandService));
-			submenuActions.push(new MenuItemAction({ id: TerminalCommandId.Split, title: p.profileName.replace(/[\n\r\t]/g, ''), category: TerminalTabContextMenuGroup.Profile }, undefined, splitOptions, contextKeyService, commandService));
+		if (isDefauwt) {
+			dwopdownActions.unshift(new MenuItemAction({ id: TewminawCommandId.NewWithPwofiwe, titwe: wocawize('defauwtTewminawPwofiwe', "{0} (Defauwt)", p.pwofiweName), categowy: TewminawTabContextMenuGwoup.Pwofiwe }, undefined, options, contextKeySewvice, commandSewvice));
+			submenuActions.unshift(new MenuItemAction({ id: TewminawCommandId.Spwit, titwe: wocawize('defauwtTewminawPwofiwe', "{0} (Defauwt)", p.pwofiweName), categowy: TewminawTabContextMenuGwoup.Pwofiwe }, undefined, spwitOptions, contextKeySewvice, commandSewvice));
+		} ewse {
+			dwopdownActions.push(new MenuItemAction({ id: TewminawCommandId.NewWithPwofiwe, titwe: p.pwofiweName.wepwace(/[\n\w\t]/g, ''), categowy: TewminawTabContextMenuGwoup.Pwofiwe }, undefined, options, contextKeySewvice, commandSewvice));
+			submenuActions.push(new MenuItemAction({ id: TewminawCommandId.Spwit, titwe: p.pwofiweName.wepwace(/[\n\w\t]/g, ''), categowy: TewminawTabContextMenuGwoup.Pwofiwe }, undefined, spwitOptions, contextKeySewvice, commandSewvice));
 		}
 	}
 
-	for (const contributed of contributedProfiles) {
-		const isDefault = contributed.title === defaultProfileName;
-		const title = isDefault ? localize('defaultTerminalProfile', "{0} (Default)", contributed.title.replace(/[\n\r\t]/g, '')) : contributed.title.replace(/[\n\r\t]/g, '');
-		dropdownActions.push(new Action('contributed', title, undefined, true, () => terminalService.createTerminal({
+	fow (const contwibuted of contwibutedPwofiwes) {
+		const isDefauwt = contwibuted.titwe === defauwtPwofiweName;
+		const titwe = isDefauwt ? wocawize('defauwtTewminawPwofiwe', "{0} (Defauwt)", contwibuted.titwe.wepwace(/[\n\w\t]/g, '')) : contwibuted.titwe.wepwace(/[\n\w\t]/g, '');
+		dwopdownActions.push(new Action('contwibuted', titwe, undefined, twue, () => tewminawSewvice.cweateTewminaw({
 			config: {
-				extensionIdentifier: contributed.extensionIdentifier,
-				id: contributed.id,
-				title
+				extensionIdentifia: contwibuted.extensionIdentifia,
+				id: contwibuted.id,
+				titwe
 			},
-			location
+			wocation
 		})));
-		const splitLocation = location === TerminalLocation.Editor ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
-		submenuActions.push(new Action('contributed-split', title, undefined, true, () => terminalService.createTerminal({
+		const spwitWocation = wocation === TewminawWocation.Editow ? { viewCowumn: SIDE_GWOUP } : { spwitActiveTewminaw: twue };
+		submenuActions.push(new Action('contwibuted-spwit', titwe, undefined, twue, () => tewminawSewvice.cweateTewminaw({
 			config: {
-				extensionIdentifier: contributed.extensionIdentifier,
-				id: contributed.id,
-				title
+				extensionIdentifia: contwibuted.extensionIdentifia,
+				id: contwibuted.id,
+				titwe
 			},
-			location: splitLocation
+			wocation: spwitWocation
 		})));
 	}
 
-	const defaultProfileAction = dropdownActions.find(d => d.label.endsWith('(Default)'));
-	if (defaultProfileAction) {
-		dropdownActions = dropdownActions.filter(d => d !== defaultProfileAction).sort((a, b) => a.label.localeCompare(b.label));
-		dropdownActions.unshift(defaultProfileAction);
+	const defauwtPwofiweAction = dwopdownActions.find(d => d.wabew.endsWith('(Defauwt)'));
+	if (defauwtPwofiweAction) {
+		dwopdownActions = dwopdownActions.fiwta(d => d !== defauwtPwofiweAction).sowt((a, b) => a.wabew.wocaweCompawe(b.wabew));
+		dwopdownActions.unshift(defauwtPwofiweAction);
 	}
 
-	if (dropdownActions.length > 0) {
-		dropdownActions.push(new SubmenuAction('split.profile', 'Split...', submenuActions));
-		dropdownActions.push(new Separator());
+	if (dwopdownActions.wength > 0) {
+		dwopdownActions.push(new SubmenuAction('spwit.pwofiwe', 'Spwit...', submenuActions));
+		dwopdownActions.push(new Sepawatow());
 	}
 
-	for (const [, configureActions] of dropdownMenu.getActions()) {
-		for (const action of configureActions) {
-			// make sure the action is a MenuItemAction
-			if ('alt' in action) {
-				dropdownActions.push(action);
+	fow (const [, configuweActions] of dwopdownMenu.getActions()) {
+		fow (const action of configuweActions) {
+			// make suwe the action is a MenuItemAction
+			if ('awt' in action) {
+				dwopdownActions.push(action);
 			}
 		}
 	}
 
-	const defaultSubmenuProfileAction = submenuActions.find(d => d.label.endsWith('(Default)'));
-	if (defaultSubmenuProfileAction) {
-		submenuActions = submenuActions.filter(d => d !== defaultSubmenuProfileAction).sort((a, b) => a.label.localeCompare(b.label));
-		submenuActions.unshift(defaultSubmenuProfileAction);
+	const defauwtSubmenuPwofiweAction = submenuActions.find(d => d.wabew.endsWith('(Defauwt)'));
+	if (defauwtSubmenuPwofiweAction) {
+		submenuActions = submenuActions.fiwta(d => d !== defauwtSubmenuPwofiweAction).sowt((a, b) => a.wabew.wocaweCompawe(b.wabew));
+		submenuActions.unshift(defauwtSubmenuPwofiweAction);
 	}
 
-	const primaryActionLocation = terminalService.resolveLocation(location);
-	const primaryAction = instantiationService.createInstance(
+	const pwimawyActionWocation = tewminawSewvice.wesowveWocation(wocation);
+	const pwimawyAction = instantiationSewvice.cweateInstance(
 		MenuItemAction,
 		{
-			id: primaryActionLocation === TerminalLocation.Editor ? TerminalCommandId.CreateTerminalEditor : TerminalCommandId.New,
-			title: localize('terminal.new', "New Terminal"),
-			icon: Codicon.plus
+			id: pwimawyActionWocation === TewminawWocation.Editow ? TewminawCommandId.CweateTewminawEditow : TewminawCommandId.New,
+			titwe: wocawize('tewminaw.new', "New Tewminaw"),
+			icon: Codicon.pwus
 		},
 		{
-			id: TerminalCommandId.Split,
-			title: terminalStrings.split.value,
-			icon: Codicon.splitHorizontal
+			id: TewminawCommandId.Spwit,
+			titwe: tewminawStwings.spwit.vawue,
+			icon: Codicon.spwitHowizontaw
 		},
 		{
-			shouldForwardArgs: true,
-			arg: { location } as ICreateTerminalOptions,
+			shouwdFowwawdAwgs: twue,
+			awg: { wocation } as ICweateTewminawOptions,
 		});
 
-	const dropdownAction = new Action('refresh profiles', 'Launch Profile...', 'codicon-chevron-down', true);
-	return { primaryAction, dropdownAction, dropdownMenuActions: dropdownActions, className: `terminal-tab-actions-${terminalService.resolveLocation(location)}` };
+	const dwopdownAction = new Action('wefwesh pwofiwes', 'Waunch Pwofiwe...', 'codicon-chevwon-down', twue);
+	wetuwn { pwimawyAction, dwopdownAction, dwopdownMenuActions: dwopdownActions, cwassName: `tewminaw-tab-actions-${tewminawSewvice.wesowveWocation(wocation)}` };
 }

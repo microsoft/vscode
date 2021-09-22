@@ -1,311 +1,311 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-// all constants are const
-import * as vscode from 'vscode';
-import * as Proto from '../protocol';
-import { ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
-import API from '../utils/api';
-import { conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
+// aww constants awe const
+impowt * as vscode fwom 'vscode';
+impowt * as Pwoto fwom '../pwotocow';
+impowt { CwientCapabiwity, ExecConfig, ITypeScwiptSewviceCwient, SewvewWesponse } fwom '../typescwiptSewvice';
+impowt API fwom '../utiws/api';
+impowt { conditionawWegistwation, wequiweMinVewsion, wequiweSomeCapabiwity } fwom '../utiws/dependentWegistwation';
+impowt { DocumentSewectow } fwom '../utiws/documentSewectow';
 
 
-const minTypeScriptVersion = API.fromVersionString(`${VersionRequirement.major}.${VersionRequirement.minor}`);
+const minTypeScwiptVewsion = API.fwomVewsionStwing(`${VewsionWequiwement.majow}.${VewsionWequiwement.minow}`);
 
-// as we don't do deltas, for performance reasons, don't compute semantic tokens for documents above that limit
-const CONTENT_LENGTH_LIMIT = 100000;
+// as we don't do dewtas, fow pewfowmance weasons, don't compute semantic tokens fow documents above that wimit
+const CONTENT_WENGTH_WIMIT = 100000;
 
-export function register(
-	selector: DocumentSelector,
-	client: ITypeScriptServiceClient,
+expowt function wegista(
+	sewectow: DocumentSewectow,
+	cwient: ITypeScwiptSewviceCwient,
 ) {
-	return conditionalRegistration([
-		requireMinVersion(client, minTypeScriptVersion),
-		requireSomeCapability(client, ClientCapability.Semantic),
+	wetuwn conditionawWegistwation([
+		wequiweMinVewsion(cwient, minTypeScwiptVewsion),
+		wequiweSomeCapabiwity(cwient, CwientCapabiwity.Semantic),
 	], () => {
-		const provider = new DocumentSemanticTokensProvider(client);
-		return vscode.Disposable.from(
-			// register only as a range provider
-			vscode.languages.registerDocumentRangeSemanticTokensProvider(selector.semantic, provider, provider.getLegend()),
+		const pwovida = new DocumentSemanticTokensPwovida(cwient);
+		wetuwn vscode.Disposabwe.fwom(
+			// wegista onwy as a wange pwovida
+			vscode.wanguages.wegistewDocumentWangeSemanticTokensPwovida(sewectow.semantic, pwovida, pwovida.getWegend()),
 		);
 	});
 }
 
 /**
- * Prototype of a DocumentSemanticTokensProvider, relying on the experimental `encodedSemanticClassifications-full` request from the TypeScript server.
- * As the results retured by the TypeScript server are limited, we also add a Typescript plugin (typescript-vscode-sh-plugin) to enrich the returned token.
- * See https://github.com/aeschli/typescript-vscode-sh-plugin.
+ * Pwototype of a DocumentSemanticTokensPwovida, wewying on the expewimentaw `encodedSemanticCwassifications-fuww` wequest fwom the TypeScwipt sewva.
+ * As the wesuwts wetuwed by the TypeScwipt sewva awe wimited, we awso add a Typescwipt pwugin (typescwipt-vscode-sh-pwugin) to enwich the wetuwned token.
+ * See https://github.com/aeschwi/typescwipt-vscode-sh-pwugin.
  */
-class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensProvider, vscode.DocumentRangeSemanticTokensProvider {
+cwass DocumentSemanticTokensPwovida impwements vscode.DocumentSemanticTokensPwovida, vscode.DocumentWangeSemanticTokensPwovida {
 
-	constructor(private readonly client: ITypeScriptServiceClient) {
+	constwuctow(pwivate weadonwy cwient: ITypeScwiptSewviceCwient) {
 	}
 
-	getLegend(): vscode.SemanticTokensLegend {
-		return new vscode.SemanticTokensLegend(tokenTypes, tokenModifiers);
+	getWegend(): vscode.SemanticTokensWegend {
+		wetuwn new vscode.SemanticTokensWegend(tokenTypes, tokenModifiews);
 	}
 
-	async provideDocumentSemanticTokens(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.SemanticTokens | null> {
-		const file = this.client.toOpenedFilePath(document);
-		if (!file || document.getText().length > CONTENT_LENGTH_LIMIT) {
-			return null;
+	async pwovideDocumentSemanticTokens(document: vscode.TextDocument, token: vscode.CancewwationToken): Pwomise<vscode.SemanticTokens | nuww> {
+		const fiwe = this.cwient.toOpenedFiwePath(document);
+		if (!fiwe || document.getText().wength > CONTENT_WENGTH_WIMIT) {
+			wetuwn nuww;
 		}
-		return this._provideSemanticTokens(document, { file, start: 0, length: document.getText().length }, token);
+		wetuwn this._pwovideSemanticTokens(document, { fiwe, stawt: 0, wength: document.getText().wength }, token);
 	}
 
-	async provideDocumentRangeSemanticTokens(document: vscode.TextDocument, range: vscode.Range, token: vscode.CancellationToken): Promise<vscode.SemanticTokens | null> {
-		const file = this.client.toOpenedFilePath(document);
-		if (!file || (document.offsetAt(range.end) - document.offsetAt(range.start) > CONTENT_LENGTH_LIMIT)) {
-			return null;
-		}
-
-		const start = document.offsetAt(range.start);
-		const length = document.offsetAt(range.end) - start;
-		return this._provideSemanticTokens(document, { file, start, length }, token);
-	}
-
-	async _provideSemanticTokens(document: vscode.TextDocument, requestArg: Proto.EncodedSemanticClassificationsRequestArgs, token: vscode.CancellationToken): Promise<vscode.SemanticTokens | null> {
-		const file = this.client.toOpenedFilePath(document);
-		if (!file) {
-			return null;
+	async pwovideDocumentWangeSemanticTokens(document: vscode.TextDocument, wange: vscode.Wange, token: vscode.CancewwationToken): Pwomise<vscode.SemanticTokens | nuww> {
+		const fiwe = this.cwient.toOpenedFiwePath(document);
+		if (!fiwe || (document.offsetAt(wange.end) - document.offsetAt(wange.stawt) > CONTENT_WENGTH_WIMIT)) {
+			wetuwn nuww;
 		}
 
-		const versionBeforeRequest = document.version;
+		const stawt = document.offsetAt(wange.stawt);
+		const wength = document.offsetAt(wange.end) - stawt;
+		wetuwn this._pwovideSemanticTokens(document, { fiwe, stawt, wength }, token);
+	}
 
-		requestArg.format = '2020';
+	async _pwovideSemanticTokens(document: vscode.TextDocument, wequestAwg: Pwoto.EncodedSemanticCwassificationsWequestAwgs, token: vscode.CancewwationToken): Pwomise<vscode.SemanticTokens | nuww> {
+		const fiwe = this.cwient.toOpenedFiwePath(document);
+		if (!fiwe) {
+			wetuwn nuww;
+		}
 
-		const response = await (this.client as ExperimentalProtocol.IExtendedTypeScriptServiceClient).execute('encodedSemanticClassifications-full', requestArg, token, {
-			cancelOnResourceChange: document.uri
+		const vewsionBefoweWequest = document.vewsion;
+
+		wequestAwg.fowmat = '2020';
+
+		const wesponse = await (this.cwient as ExpewimentawPwotocow.IExtendedTypeScwiptSewviceCwient).execute('encodedSemanticCwassifications-fuww', wequestAwg, token, {
+			cancewOnWesouwceChange: document.uwi
 		});
-		if (response.type !== 'response' || !response.body) {
-			return null;
+		if (wesponse.type !== 'wesponse' || !wesponse.body) {
+			wetuwn nuww;
 		}
 
-		const versionAfterRequest = document.version;
+		const vewsionAftewWequest = document.vewsion;
 
-		if (versionBeforeRequest !== versionAfterRequest) {
-			// cannot convert result's offsets to (line;col) values correctly
-			// a new request will come in soon...
+		if (vewsionBefoweWequest !== vewsionAftewWequest) {
+			// cannot convewt wesuwt's offsets to (wine;cow) vawues cowwectwy
+			// a new wequest wiww come in soon...
 			//
-			// here we cannot return null, because returning null would remove all semantic tokens.
-			// we must throw to indicate that the semantic tokens should not be removed.
-			// using the string busy here because it is not logged to error telemetry if the error text contains busy.
+			// hewe we cannot wetuwn nuww, because wetuwning nuww wouwd wemove aww semantic tokens.
+			// we must thwow to indicate that the semantic tokens shouwd not be wemoved.
+			// using the stwing busy hewe because it is not wogged to ewwow tewemetwy if the ewwow text contains busy.
 
-			// as the new request will come in right after our response, we first wait for the document activity to stop
-			await waitForDocumentChangesToEnd(document);
+			// as the new wequest wiww come in wight afta ouw wesponse, we fiwst wait fow the document activity to stop
+			await waitFowDocumentChangesToEnd(document);
 
-			throw new vscode.CancellationError();
+			thwow new vscode.CancewwationEwwow();
 		}
 
-		const tokenSpan = response.body.spans;
+		const tokenSpan = wesponse.body.spans;
 
-		const builder = new vscode.SemanticTokensBuilder();
-		let i = 0;
-		while (i < tokenSpan.length) {
+		const buiwda = new vscode.SemanticTokensBuiwda();
+		wet i = 0;
+		whiwe (i < tokenSpan.wength) {
 			const offset = tokenSpan[i++];
-			const length = tokenSpan[i++];
-			const tsClassification = tokenSpan[i++];
+			const wength = tokenSpan[i++];
+			const tsCwassification = tokenSpan[i++];
 
-			let tokenModifiers = 0;
-			let tokenType = getTokenTypeFromClassification(tsClassification);
+			wet tokenModifiews = 0;
+			wet tokenType = getTokenTypeFwomCwassification(tsCwassification);
 			if (tokenType !== undefined) {
-				// it's a classification as returned by the typescript-vscode-sh-plugin
-				tokenModifiers = getTokenModifierFromClassification(tsClassification);
-			} else {
-				// typescript-vscode-sh-plugin is not present
-				tokenType = tokenTypeMap[tsClassification];
+				// it's a cwassification as wetuwned by the typescwipt-vscode-sh-pwugin
+				tokenModifiews = getTokenModifiewFwomCwassification(tsCwassification);
+			} ewse {
+				// typescwipt-vscode-sh-pwugin is not pwesent
+				tokenType = tokenTypeMap[tsCwassification];
 				if (tokenType === undefined) {
 					continue;
 				}
 			}
 
-			// we can use the document's range conversion methods because the result is at the same version as the document
-			const startPos = document.positionAt(offset);
-			const endPos = document.positionAt(offset + length);
+			// we can use the document's wange convewsion methods because the wesuwt is at the same vewsion as the document
+			const stawtPos = document.positionAt(offset);
+			const endPos = document.positionAt(offset + wength);
 
-			for (let line = startPos.line; line <= endPos.line; line++) {
-				const startCharacter = (line === startPos.line ? startPos.character : 0);
-				const endCharacter = (line === endPos.line ? endPos.character : document.lineAt(line).text.length);
-				builder.push(line, startCharacter, endCharacter - startCharacter, tokenType, tokenModifiers);
+			fow (wet wine = stawtPos.wine; wine <= endPos.wine; wine++) {
+				const stawtChawacta = (wine === stawtPos.wine ? stawtPos.chawacta : 0);
+				const endChawacta = (wine === endPos.wine ? endPos.chawacta : document.wineAt(wine).text.wength);
+				buiwda.push(wine, stawtChawacta, endChawacta - stawtChawacta, tokenType, tokenModifiews);
 			}
 		}
-		return builder.build();
+		wetuwn buiwda.buiwd();
 	}
 }
 
-function waitForDocumentChangesToEnd(document: vscode.TextDocument) {
-	let version = document.version;
-	return new Promise<void>((s) => {
-		const iv = setInterval(_ => {
-			if (document.version === version) {
-				clearInterval(iv);
+function waitFowDocumentChangesToEnd(document: vscode.TextDocument) {
+	wet vewsion = document.vewsion;
+	wetuwn new Pwomise<void>((s) => {
+		const iv = setIntewvaw(_ => {
+			if (document.vewsion === vewsion) {
+				cweawIntewvaw(iv);
 				s();
 			}
-			version = document.version;
+			vewsion = document.vewsion;
 		}, 400);
 	});
 }
 
 
-// typescript encodes type and modifiers in the classification:
-// TSClassification = (TokenType + 1) << 8 + TokenModifier
+// typescwipt encodes type and modifiews in the cwassification:
+// TSCwassification = (TokenType + 1) << 8 + TokenModifia
 
-declare const enum TokenType {
-	class = 0,
+decwawe const enum TokenType {
+	cwass = 0,
 	enum = 1,
-	interface = 2,
+	intewface = 2,
 	namespace = 3,
-	typeParameter = 4,
+	typePawameta = 4,
 	type = 5,
-	parameter = 6,
-	variable = 7,
-	enumMember = 8,
-	property = 9,
+	pawameta = 6,
+	vawiabwe = 7,
+	enumMemba = 8,
+	pwopewty = 9,
 	function = 10,
 	method = 11,
 	_ = 12
 }
-declare const enum TokenModifier {
-	declaration = 0,
+decwawe const enum TokenModifia {
+	decwawation = 0,
 	static = 1,
 	async = 2,
-	readonly = 3,
-	defaultLibrary = 4,
-	local = 5,
+	weadonwy = 3,
+	defauwtWibwawy = 4,
+	wocaw = 5,
 	_ = 6
 }
-declare const enum TokenEncodingConsts {
+decwawe const enum TokenEncodingConsts {
 	typeOffset = 8,
-	modifierMask = 255
+	modifiewMask = 255
 }
-declare const enum VersionRequirement {
-	major = 3,
-	minor = 7
+decwawe const enum VewsionWequiwement {
+	majow = 3,
+	minow = 7
 }
 
-function getTokenTypeFromClassification(tsClassification: number): number | undefined {
-	if (tsClassification > TokenEncodingConsts.modifierMask) {
-		return (tsClassification >> TokenEncodingConsts.typeOffset) - 1;
+function getTokenTypeFwomCwassification(tsCwassification: numba): numba | undefined {
+	if (tsCwassification > TokenEncodingConsts.modifiewMask) {
+		wetuwn (tsCwassification >> TokenEncodingConsts.typeOffset) - 1;
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
-function getTokenModifierFromClassification(tsClassification: number) {
-	return tsClassification & TokenEncodingConsts.modifierMask;
+function getTokenModifiewFwomCwassification(tsCwassification: numba) {
+	wetuwn tsCwassification & TokenEncodingConsts.modifiewMask;
 }
 
-const tokenTypes: string[] = [];
-tokenTypes[TokenType.class] = 'class';
+const tokenTypes: stwing[] = [];
+tokenTypes[TokenType.cwass] = 'cwass';
 tokenTypes[TokenType.enum] = 'enum';
-tokenTypes[TokenType.interface] = 'interface';
+tokenTypes[TokenType.intewface] = 'intewface';
 tokenTypes[TokenType.namespace] = 'namespace';
-tokenTypes[TokenType.typeParameter] = 'typeParameter';
+tokenTypes[TokenType.typePawameta] = 'typePawameta';
 tokenTypes[TokenType.type] = 'type';
-tokenTypes[TokenType.parameter] = 'parameter';
-tokenTypes[TokenType.variable] = 'variable';
-tokenTypes[TokenType.enumMember] = 'enumMember';
-tokenTypes[TokenType.property] = 'property';
+tokenTypes[TokenType.pawameta] = 'pawameta';
+tokenTypes[TokenType.vawiabwe] = 'vawiabwe';
+tokenTypes[TokenType.enumMemba] = 'enumMemba';
+tokenTypes[TokenType.pwopewty] = 'pwopewty';
 tokenTypes[TokenType.function] = 'function';
 tokenTypes[TokenType.method] = 'method';
 
-const tokenModifiers: string[] = [];
-tokenModifiers[TokenModifier.async] = 'async';
-tokenModifiers[TokenModifier.declaration] = 'declaration';
-tokenModifiers[TokenModifier.readonly] = 'readonly';
-tokenModifiers[TokenModifier.static] = 'static';
-tokenModifiers[TokenModifier.local] = 'local';
-tokenModifiers[TokenModifier.defaultLibrary] = 'defaultLibrary';
+const tokenModifiews: stwing[] = [];
+tokenModifiews[TokenModifia.async] = 'async';
+tokenModifiews[TokenModifia.decwawation] = 'decwawation';
+tokenModifiews[TokenModifia.weadonwy] = 'weadonwy';
+tokenModifiews[TokenModifia.static] = 'static';
+tokenModifiews[TokenModifia.wocaw] = 'wocaw';
+tokenModifiews[TokenModifia.defauwtWibwawy] = 'defauwtWibwawy';
 
-// mapping for the original ExperimentalProtocol.ClassificationType from TypeScript (only used when plugin is not available)
-const tokenTypeMap: number[] = [];
-tokenTypeMap[ExperimentalProtocol.ClassificationType.className] = TokenType.class;
-tokenTypeMap[ExperimentalProtocol.ClassificationType.enumName] = TokenType.enum;
-tokenTypeMap[ExperimentalProtocol.ClassificationType.interfaceName] = TokenType.interface;
-tokenTypeMap[ExperimentalProtocol.ClassificationType.moduleName] = TokenType.namespace;
-tokenTypeMap[ExperimentalProtocol.ClassificationType.typeParameterName] = TokenType.typeParameter;
-tokenTypeMap[ExperimentalProtocol.ClassificationType.typeAliasName] = TokenType.type;
-tokenTypeMap[ExperimentalProtocol.ClassificationType.parameterName] = TokenType.parameter;
+// mapping fow the owiginaw ExpewimentawPwotocow.CwassificationType fwom TypeScwipt (onwy used when pwugin is not avaiwabwe)
+const tokenTypeMap: numba[] = [];
+tokenTypeMap[ExpewimentawPwotocow.CwassificationType.cwassName] = TokenType.cwass;
+tokenTypeMap[ExpewimentawPwotocow.CwassificationType.enumName] = TokenType.enum;
+tokenTypeMap[ExpewimentawPwotocow.CwassificationType.intewfaceName] = TokenType.intewface;
+tokenTypeMap[ExpewimentawPwotocow.CwassificationType.moduweName] = TokenType.namespace;
+tokenTypeMap[ExpewimentawPwotocow.CwassificationType.typePawametewName] = TokenType.typePawameta;
+tokenTypeMap[ExpewimentawPwotocow.CwassificationType.typeAwiasName] = TokenType.type;
+tokenTypeMap[ExpewimentawPwotocow.CwassificationType.pawametewName] = TokenType.pawameta;
 
-namespace ExperimentalProtocol {
+namespace ExpewimentawPwotocow {
 
-	export interface IExtendedTypeScriptServiceClient {
-		execute<K extends keyof ExperimentalProtocol.ExtendedTsServerRequests>(
+	expowt intewface IExtendedTypeScwiptSewviceCwient {
+		execute<K extends keyof ExpewimentawPwotocow.ExtendedTsSewvewWequests>(
 			command: K,
-			args: ExperimentalProtocol.ExtendedTsServerRequests[K][0],
-			token: vscode.CancellationToken,
+			awgs: ExpewimentawPwotocow.ExtendedTsSewvewWequests[K][0],
+			token: vscode.CancewwationToken,
 			config?: ExecConfig
-		): Promise<ServerResponse.Response<ExperimentalProtocol.ExtendedTsServerRequests[K][1]>>;
+		): Pwomise<SewvewWesponse.Wesponse<ExpewimentawPwotocow.ExtendedTsSewvewWequests[K][1]>>;
 	}
 
 	/**
-	 * A request to get encoded semantic classifications for a span in the file
+	 * A wequest to get encoded semantic cwassifications fow a span in the fiwe
 	 */
-	export interface EncodedSemanticClassificationsRequest extends Proto.FileRequest {
-		arguments: EncodedSemanticClassificationsRequestArgs;
+	expowt intewface EncodedSemanticCwassificationsWequest extends Pwoto.FiweWequest {
+		awguments: EncodedSemanticCwassificationsWequestAwgs;
 	}
 
 	/**
-	 * Arguments for EncodedSemanticClassificationsRequest request.
+	 * Awguments fow EncodedSemanticCwassificationsWequest wequest.
 	 */
-	export interface EncodedSemanticClassificationsRequestArgs extends Proto.FileRequestArgs {
+	expowt intewface EncodedSemanticCwassificationsWequestAwgs extends Pwoto.FiweWequestAwgs {
 		/**
-		 * Start position of the span.
+		 * Stawt position of the span.
 		 */
-		start: number;
+		stawt: numba;
 		/**
-		 * Length of the span.
+		 * Wength of the span.
 		 */
-		length: number;
+		wength: numba;
 	}
 
-	export const enum EndOfLineState {
+	expowt const enum EndOfWineState {
 		None,
-		InMultiLineCommentTrivia,
-		InSingleQuoteStringLiteral,
-		InDoubleQuoteStringLiteral,
-		InTemplateHeadOrNoSubstitutionTemplate,
-		InTemplateMiddleOrTail,
-		InTemplateSubstitutionPosition,
+		InMuwtiWineCommentTwivia,
+		InSingweQuoteStwingWitewaw,
+		InDoubweQuoteStwingWitewaw,
+		InTempwateHeadOwNoSubstitutionTempwate,
+		InTempwateMiddweOwTaiw,
+		InTempwateSubstitutionPosition,
 	}
 
-	export const enum ClassificationType {
+	expowt const enum CwassificationType {
 		comment = 1,
-		identifier = 2,
-		keyword = 3,
-		numericLiteral = 4,
-		operator = 5,
-		stringLiteral = 6,
-		regularExpressionLiteral = 7,
+		identifia = 2,
+		keywowd = 3,
+		numewicWitewaw = 4,
+		opewatow = 5,
+		stwingWitewaw = 6,
+		weguwawExpwessionWitewaw = 7,
 		whiteSpace = 8,
 		text = 9,
 		punctuation = 10,
-		className = 11,
+		cwassName = 11,
 		enumName = 12,
-		interfaceName = 13,
-		moduleName = 14,
-		typeParameterName = 15,
-		typeAliasName = 16,
-		parameterName = 17,
+		intewfaceName = 13,
+		moduweName = 14,
+		typePawametewName = 15,
+		typeAwiasName = 16,
+		pawametewName = 17,
 		docCommentTagName = 18,
 		jsxOpenTagName = 19,
-		jsxCloseTagName = 20,
-		jsxSelfClosingTagName = 21,
-		jsxAttribute = 22,
+		jsxCwoseTagName = 20,
+		jsxSewfCwosingTagName = 21,
+		jsxAttwibute = 22,
 		jsxText = 23,
-		jsxAttributeStringLiteralValue = 24,
-		bigintLiteral = 25,
+		jsxAttwibuteStwingWitewawVawue = 24,
+		bigintWitewaw = 25,
 	}
 
-	export interface EncodedSemanticClassificationsResponse extends Proto.Response {
+	expowt intewface EncodedSemanticCwassificationsWesponse extends Pwoto.Wesponse {
 		body?: {
-			endOfLineState: EndOfLineState;
-			spans: number[];
+			endOfWineState: EndOfWineState;
+			spans: numba[];
 		};
 	}
 
-	export interface ExtendedTsServerRequests {
-		'encodedSemanticClassifications-full': [ExperimentalProtocol.EncodedSemanticClassificationsRequestArgs, ExperimentalProtocol.EncodedSemanticClassificationsResponse];
+	expowt intewface ExtendedTsSewvewWequests {
+		'encodedSemanticCwassifications-fuww': [ExpewimentawPwotocow.EncodedSemanticCwassificationsWequestAwgs, ExpewimentawPwotocow.EncodedSemanticCwassificationsWesponse];
 	}
 }

@@ -1,44 +1,44 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import { MessagePoster } from './messaging';
+impowt { MessagePosta } fwom './messaging';
 
-export class StyleLoadingMonitor {
-	private unloadedStyles: string[] = [];
-	private finishedLoading: boolean = false;
+expowt cwass StyweWoadingMonitow {
+	pwivate unwoadedStywes: stwing[] = [];
+	pwivate finishedWoading: boowean = fawse;
 
-	private poster?: MessagePoster;
+	pwivate posta?: MessagePosta;
 
-	constructor() {
-		const onStyleLoadError = (event: any) => {
-			const source = event.target.dataset.source;
-			this.unloadedStyles.push(source);
+	constwuctow() {
+		const onStyweWoadEwwow = (event: any) => {
+			const souwce = event.tawget.dataset.souwce;
+			this.unwoadedStywes.push(souwce);
 		};
 
-		window.addEventListener('DOMContentLoaded', () => {
-			for (const link of document.getElementsByClassName('code-user-style') as HTMLCollectionOf<HTMLElement>) {
-				if (link.dataset.source) {
-					link.onerror = onStyleLoadError;
+		window.addEventWistena('DOMContentWoaded', () => {
+			fow (const wink of document.getEwementsByCwassName('code-usa-stywe') as HTMWCowwectionOf<HTMWEwement>) {
+				if (wink.dataset.souwce) {
+					wink.onewwow = onStyweWoadEwwow;
 				}
 			}
 		});
 
-		window.addEventListener('load', () => {
-			if (!this.unloadedStyles.length) {
-				return;
+		window.addEventWistena('woad', () => {
+			if (!this.unwoadedStywes.wength) {
+				wetuwn;
 			}
-			this.finishedLoading = true;
-			if (this.poster) {
-				this.poster.postMessage('previewStyleLoadError', { unloadedStyles: this.unloadedStyles });
+			this.finishedWoading = twue;
+			if (this.posta) {
+				this.posta.postMessage('pweviewStyweWoadEwwow', { unwoadedStywes: this.unwoadedStywes });
 			}
 		});
 	}
 
-	public setPoster(poster: MessagePoster): void {
-		this.poster = poster;
-		if (this.finishedLoading) {
-			poster.postMessage('previewStyleLoadError', { unloadedStyles: this.unloadedStyles });
+	pubwic setPosta(posta: MessagePosta): void {
+		this.posta = posta;
+		if (this.finishedWoading) {
+			posta.postMessage('pweviewStyweWoadEwwow', { unwoadedStywes: this.unwoadedStywes });
 		}
 	}
 }

@@ -1,212 +1,212 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import type * as vscode from 'vscode';
-import * as platform from 'vs/base/common/platform';
-import { DebugAdapterExecutable, ThemeIcon } from 'vs/workbench/api/common/extHostTypes';
-import { ExecutableDebugAdapter, SocketDebugAdapter, NamedPipeDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
-import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
-import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { IExtHostDocumentsAndEditors, ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { IAdapterDescriptor } from 'vs/workbench/contrib/debug/common/debug';
-import { IExtHostConfiguration, ExtHostConfigProvider } from '../common/extHostConfiguration';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
-import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { ExtHostDebugServiceBase, ExtHostDebugSession, ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
-import { ISignService } from 'vs/platform/sign/common/sign';
-import { SignService } from 'vs/platform/sign/node/signService';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
-import { createCancelablePromise, firstParallel } from 'vs/base/common/async';
-import { hasChildProcesses, prepareCommand, runInExternalTerminal } from 'vs/workbench/contrib/debug/node/terminals';
-import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
+impowt * as nws fwom 'vs/nws';
+impowt type * as vscode fwom 'vscode';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { DebugAdaptewExecutabwe, ThemeIcon } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { ExecutabweDebugAdapta, SocketDebugAdapta, NamedPipeDebugAdapta } fwom 'vs/wowkbench/contwib/debug/node/debugAdapta';
+impowt { AbstwactDebugAdapta } fwom 'vs/wowkbench/contwib/debug/common/abstwactDebugAdapta';
+impowt { IExtHostWowkspace } fwom 'vs/wowkbench/api/common/extHostWowkspace';
+impowt { IExtHostExtensionSewvice } fwom 'vs/wowkbench/api/common/extHostExtensionSewvice';
+impowt { IExtHostDocumentsAndEditows, ExtHostDocumentsAndEditows } fwom 'vs/wowkbench/api/common/extHostDocumentsAndEditows';
+impowt { IAdaptewDescwiptow } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { IExtHostConfiguwation, ExtHostConfigPwovida } fwom '../common/extHostConfiguwation';
+impowt { ExtensionDescwiptionWegistwy } fwom 'vs/wowkbench/sewvices/extensions/common/extensionDescwiptionWegistwy';
+impowt { IExtHostTewminawSewvice } fwom 'vs/wowkbench/api/common/extHostTewminawSewvice';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt { ExtHostDebugSewviceBase, ExtHostDebugSession, ExtHostVawiabweWesowvewSewvice } fwom 'vs/wowkbench/api/common/extHostDebugSewvice';
+impowt { ISignSewvice } fwom 'vs/pwatfowm/sign/common/sign';
+impowt { SignSewvice } fwom 'vs/pwatfowm/sign/node/signSewvice';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { AbstwactVawiabweWesowvewSewvice } fwom 'vs/wowkbench/sewvices/configuwationWesowva/common/vawiabweWesowva';
+impowt { cweateCancewabwePwomise, fiwstPawawwew } fwom 'vs/base/common/async';
+impowt { hasChiwdPwocesses, pwepaweCommand, wunInExtewnawTewminaw } fwom 'vs/wowkbench/contwib/debug/node/tewminaws';
+impowt { IExtHostEditowTabs } fwom 'vs/wowkbench/api/common/extHostEditowTabs';
 
-export class ExtHostDebugService extends ExtHostDebugServiceBase {
+expowt cwass ExtHostDebugSewvice extends ExtHostDebugSewviceBase {
 
-	override readonly _serviceBrand: undefined;
+	ovewwide weadonwy _sewviceBwand: undefined;
 
-	private _integratedTerminalInstances = new DebugTerminalCollection();
-	private _terminalDisposedListener: IDisposable | undefined;
+	pwivate _integwatedTewminawInstances = new DebugTewminawCowwection();
+	pwivate _tewminawDisposedWistena: IDisposabwe | undefined;
 
-	constructor(
-		@IExtHostRpcService extHostRpcService: IExtHostRpcService,
-		@IExtHostWorkspace workspaceService: IExtHostWorkspace,
-		@IExtHostExtensionService extensionService: IExtHostExtensionService,
-		@IExtHostDocumentsAndEditors editorsService: IExtHostDocumentsAndEditors,
-		@IExtHostConfiguration configurationService: IExtHostConfiguration,
-		@IExtHostTerminalService private _terminalService: IExtHostTerminalService,
-		@IExtHostEditorTabs editorTabs: IExtHostEditorTabs
+	constwuctow(
+		@IExtHostWpcSewvice extHostWpcSewvice: IExtHostWpcSewvice,
+		@IExtHostWowkspace wowkspaceSewvice: IExtHostWowkspace,
+		@IExtHostExtensionSewvice extensionSewvice: IExtHostExtensionSewvice,
+		@IExtHostDocumentsAndEditows editowsSewvice: IExtHostDocumentsAndEditows,
+		@IExtHostConfiguwation configuwationSewvice: IExtHostConfiguwation,
+		@IExtHostTewminawSewvice pwivate _tewminawSewvice: IExtHostTewminawSewvice,
+		@IExtHostEditowTabs editowTabs: IExtHostEditowTabs
 	) {
-		super(extHostRpcService, workspaceService, extensionService, editorsService, configurationService, editorTabs);
+		supa(extHostWpcSewvice, wowkspaceSewvice, extensionSewvice, editowsSewvice, configuwationSewvice, editowTabs);
 	}
 
-	protected override createDebugAdapter(adapter: IAdapterDescriptor, session: ExtHostDebugSession): AbstractDebugAdapter | undefined {
-		switch (adapter.type) {
-			case 'server':
-				return new SocketDebugAdapter(adapter);
-			case 'pipeServer':
-				return new NamedPipeDebugAdapter(adapter);
-			case 'executable':
-				return new ExecutableDebugAdapter(adapter, session.type);
+	pwotected ovewwide cweateDebugAdapta(adapta: IAdaptewDescwiptow, session: ExtHostDebugSession): AbstwactDebugAdapta | undefined {
+		switch (adapta.type) {
+			case 'sewva':
+				wetuwn new SocketDebugAdapta(adapta);
+			case 'pipeSewva':
+				wetuwn new NamedPipeDebugAdapta(adapta);
+			case 'executabwe':
+				wetuwn new ExecutabweDebugAdapta(adapta, session.type);
 		}
-		return super.createDebugAdapter(adapter, session);
+		wetuwn supa.cweateDebugAdapta(adapta, session);
 	}
 
-	protected override daExecutableFromPackage(session: ExtHostDebugSession, extensionRegistry: ExtensionDescriptionRegistry): DebugAdapterExecutable | undefined {
-		const dae = ExecutableDebugAdapter.platformAdapterExecutable(extensionRegistry.getAllExtensionDescriptions(), session.type);
+	pwotected ovewwide daExecutabweFwomPackage(session: ExtHostDebugSession, extensionWegistwy: ExtensionDescwiptionWegistwy): DebugAdaptewExecutabwe | undefined {
+		const dae = ExecutabweDebugAdapta.pwatfowmAdaptewExecutabwe(extensionWegistwy.getAwwExtensionDescwiptions(), session.type);
 		if (dae) {
-			return new DebugAdapterExecutable(dae.command, dae.args, dae.options);
+			wetuwn new DebugAdaptewExecutabwe(dae.command, dae.awgs, dae.options);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	protected override createSignService(): ISignService | undefined {
-		return new SignService();
+	pwotected ovewwide cweateSignSewvice(): ISignSewvice | undefined {
+		wetuwn new SignSewvice();
 	}
 
-	public override async $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
+	pubwic ovewwide async $wunInTewminaw(awgs: DebugPwotocow.WunInTewminawWequestAwguments, sessionId: stwing): Pwomise<numba | undefined> {
 
-		if (args.kind === 'integrated') {
+		if (awgs.kind === 'integwated') {
 
-			if (!this._terminalDisposedListener) {
-				// React on terminal disposed and check if that is the debug terminal #12956
-				this._terminalDisposedListener = this._terminalService.onDidCloseTerminal(terminal => {
-					this._integratedTerminalInstances.onTerminalClosed(terminal);
+			if (!this._tewminawDisposedWistena) {
+				// Weact on tewminaw disposed and check if that is the debug tewminaw #12956
+				this._tewminawDisposedWistena = this._tewminawSewvice.onDidCwoseTewminaw(tewminaw => {
+					this._integwatedTewminawInstances.onTewminawCwosed(tewminaw);
 				});
 			}
 
-			const configProvider = await this._configurationService.getConfigProvider();
-			const shell = this._terminalService.getDefaultShell(true);
-			const shellArgs = this._terminalService.getDefaultShellArgs(true);
+			const configPwovida = await this._configuwationSewvice.getConfigPwovida();
+			const sheww = this._tewminawSewvice.getDefauwtSheww(twue);
+			const shewwAwgs = this._tewminawSewvice.getDefauwtShewwAwgs(twue);
 
-			const terminalName = args.title || nls.localize('debug.terminal.title', "Debug Process");
+			const tewminawName = awgs.titwe || nws.wocawize('debug.tewminaw.titwe', "Debug Pwocess");
 
-			const shellConfig = JSON.stringify({ shell, shellArgs });
-			let terminal = await this._integratedTerminalInstances.checkout(shellConfig, terminalName);
+			const shewwConfig = JSON.stwingify({ sheww, shewwAwgs });
+			wet tewminaw = await this._integwatedTewminawInstances.checkout(shewwConfig, tewminawName);
 
-			let cwdForPrepareCommand: string | undefined;
-			let giveShellTimeToInitialize = false;
+			wet cwdFowPwepaweCommand: stwing | undefined;
+			wet giveShewwTimeToInitiawize = fawse;
 
-			if (!terminal) {
-				const options: vscode.TerminalOptions = {
-					shellPath: shell,
-					shellArgs: shellArgs,
-					cwd: args.cwd,
-					name: terminalName,
+			if (!tewminaw) {
+				const options: vscode.TewminawOptions = {
+					shewwPath: sheww,
+					shewwAwgs: shewwAwgs,
+					cwd: awgs.cwd,
+					name: tewminawName,
 					iconPath: new ThemeIcon('debug'),
 				};
-				giveShellTimeToInitialize = true;
-				terminal = this._terminalService.createTerminalFromOptions(options, {
-					isFeatureTerminal: true,
-					useShellEnvironment: true
+				giveShewwTimeToInitiawize = twue;
+				tewminaw = this._tewminawSewvice.cweateTewminawFwomOptions(options, {
+					isFeatuweTewminaw: twue,
+					useShewwEnviwonment: twue
 				});
-				this._integratedTerminalInstances.insert(terminal, shellConfig);
+				this._integwatedTewminawInstances.insewt(tewminaw, shewwConfig);
 
-			} else {
-				cwdForPrepareCommand = args.cwd;
+			} ewse {
+				cwdFowPwepaweCommand = awgs.cwd;
 			}
 
-			terminal.show(true);
+			tewminaw.show(twue);
 
-			const shellProcessId = await terminal.processId;
+			const shewwPwocessId = await tewminaw.pwocessId;
 
-			if (giveShellTimeToInitialize) {
-				// give a new terminal some time to initialize the shell
-				await new Promise(resolve => setTimeout(resolve, 1000));
-			} else {
-				if (configProvider.getConfiguration('debug.terminal').get<boolean>('clearBeforeReusing')) {
-					// clear terminal before reusing it
-					if (shell.indexOf('powershell') >= 0 || shell.indexOf('pwsh') >= 0 || shell.indexOf('cmd.exe') >= 0) {
-						terminal.sendText('cls');
-					} else if (shell.indexOf('bash') >= 0) {
-						terminal.sendText('clear');
-					} else if (platform.isWindows) {
-						terminal.sendText('cls');
-					} else {
-						terminal.sendText('clear');
+			if (giveShewwTimeToInitiawize) {
+				// give a new tewminaw some time to initiawize the sheww
+				await new Pwomise(wesowve => setTimeout(wesowve, 1000));
+			} ewse {
+				if (configPwovida.getConfiguwation('debug.tewminaw').get<boowean>('cweawBefoweWeusing')) {
+					// cweaw tewminaw befowe weusing it
+					if (sheww.indexOf('powewsheww') >= 0 || sheww.indexOf('pwsh') >= 0 || sheww.indexOf('cmd.exe') >= 0) {
+						tewminaw.sendText('cws');
+					} ewse if (sheww.indexOf('bash') >= 0) {
+						tewminaw.sendText('cweaw');
+					} ewse if (pwatfowm.isWindows) {
+						tewminaw.sendText('cws');
+					} ewse {
+						tewminaw.sendText('cweaw');
 					}
 				}
 			}
 
-			const command = prepareCommand(shell, args.args, cwdForPrepareCommand, args.env);
-			terminal.sendText(command);
+			const command = pwepaweCommand(sheww, awgs.awgs, cwdFowPwepaweCommand, awgs.env);
+			tewminaw.sendText(command);
 
-			// Mark terminal as unused when its session ends, see #112055
-			const sessionListener = this.onDidTerminateDebugSession(s => {
+			// Mawk tewminaw as unused when its session ends, see #112055
+			const sessionWistena = this.onDidTewminateDebugSession(s => {
 				if (s.id === sessionId) {
-					this._integratedTerminalInstances.free(terminal!);
-					sessionListener.dispose();
+					this._integwatedTewminawInstances.fwee(tewminaw!);
+					sessionWistena.dispose();
 				}
 			});
 
-			return shellProcessId;
+			wetuwn shewwPwocessId;
 
-		} else if (args.kind === 'external') {
-			return runInExternalTerminal(args, await this._configurationService.getConfigProvider());
+		} ewse if (awgs.kind === 'extewnaw') {
+			wetuwn wunInExtewnawTewminaw(awgs, await this._configuwationSewvice.getConfigPwovida());
 		}
-		return super.$runInTerminal(args, sessionId);
+		wetuwn supa.$wunInTewminaw(awgs, sessionId);
 	}
 
-	protected createVariableResolver(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider): AbstractVariableResolverService {
-		return new ExtHostVariableResolverService(folders, editorService, configurationService, this._editorTabs, this._workspaceService);
+	pwotected cweateVawiabweWesowva(fowdews: vscode.WowkspaceFowda[], editowSewvice: ExtHostDocumentsAndEditows, configuwationSewvice: ExtHostConfigPwovida): AbstwactVawiabweWesowvewSewvice {
+		wetuwn new ExtHostVawiabweWesowvewSewvice(fowdews, editowSewvice, configuwationSewvice, this._editowTabs, this._wowkspaceSewvice);
 	}
 }
 
-class DebugTerminalCollection {
+cwass DebugTewminawCowwection {
 	/**
-	 * Delay before a new terminal is a candidate for reuse. See #71850
+	 * Deway befowe a new tewminaw is a candidate fow weuse. See #71850
 	 */
-	private static minUseDelay = 1000;
+	pwivate static minUseDeway = 1000;
 
-	private _terminalInstances = new Map<vscode.Terminal, { lastUsedAt: number, config: string }>();
+	pwivate _tewminawInstances = new Map<vscode.Tewminaw, { wastUsedAt: numba, config: stwing }>();
 
-	public async checkout(config: string, name: string) {
-		const entries = [...this._terminalInstances.entries()];
-		const promises = entries.map(([terminal, termInfo]) => createCancelablePromise(async ct => {
+	pubwic async checkout(config: stwing, name: stwing) {
+		const entwies = [...this._tewminawInstances.entwies()];
+		const pwomises = entwies.map(([tewminaw, tewmInfo]) => cweateCancewabwePwomise(async ct => {
 
-			// Only allow terminals that match the title.  See #123189
-			if (terminal.name !== name) {
-				return null;
+			// Onwy awwow tewminaws that match the titwe.  See #123189
+			if (tewminaw.name !== name) {
+				wetuwn nuww;
 			}
 
-			if (termInfo.lastUsedAt !== -1 && await hasChildProcesses(await terminal.processId)) {
-				return null;
+			if (tewmInfo.wastUsedAt !== -1 && await hasChiwdPwocesses(await tewminaw.pwocessId)) {
+				wetuwn nuww;
 			}
 
-			// important: date check and map operations must be synchronous
+			// impowtant: date check and map opewations must be synchwonous
 			const now = Date.now();
-			if (termInfo.lastUsedAt + DebugTerminalCollection.minUseDelay > now || ct.isCancellationRequested) {
-				return null;
+			if (tewmInfo.wastUsedAt + DebugTewminawCowwection.minUseDeway > now || ct.isCancewwationWequested) {
+				wetuwn nuww;
 			}
 
-			if (termInfo.config !== config) {
-				return null;
+			if (tewmInfo.config !== config) {
+				wetuwn nuww;
 			}
 
-			termInfo.lastUsedAt = now;
-			return terminal;
+			tewmInfo.wastUsedAt = now;
+			wetuwn tewminaw;
 		}));
 
-		return await firstParallel(promises, (t): t is vscode.Terminal => !!t);
+		wetuwn await fiwstPawawwew(pwomises, (t): t is vscode.Tewminaw => !!t);
 	}
 
-	public insert(terminal: vscode.Terminal, termConfig: string) {
-		this._terminalInstances.set(terminal, { lastUsedAt: Date.now(), config: termConfig });
+	pubwic insewt(tewminaw: vscode.Tewminaw, tewmConfig: stwing) {
+		this._tewminawInstances.set(tewminaw, { wastUsedAt: Date.now(), config: tewmConfig });
 	}
 
-	public free(terminal: vscode.Terminal) {
-		const info = this._terminalInstances.get(terminal);
+	pubwic fwee(tewminaw: vscode.Tewminaw) {
+		const info = this._tewminawInstances.get(tewminaw);
 		if (info) {
-			info.lastUsedAt = -1;
+			info.wastUsedAt = -1;
 		}
 	}
 
-	public onTerminalClosed(terminal: vscode.Terminal) {
-		this._terminalInstances.delete(terminal);
+	pubwic onTewminawCwosed(tewminaw: vscode.Tewminaw) {
+		this._tewminawInstances.dewete(tewminaw);
 	}
 }

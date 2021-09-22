@@ -1,50 +1,50 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { basename, dirname, join } from 'vs/base/common/path';
-import { Promises } from 'vs/base/node/pfs';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILogService } from 'vs/platform/log/common/log';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { basename, diwname, join } fwom 'vs/base/common/path';
+impowt { Pwomises } fwom 'vs/base/node/pfs';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-export class LogsDataCleaner extends Disposable {
+expowt cwass WogsDataCweana extends Disposabwe {
 
-	constructor(
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@ILogService private readonly logService: ILogService
+	constwuctow(
+		@IEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IEnviwonmentSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		super();
+		supa();
 
-		const scheduler = this._register(new RunOnceScheduler(() => {
-			this.cleanUpOldLogs();
-		}, 10 * 1000 /* after 10s */));
-		scheduler.schedule();
+		const scheduwa = this._wegista(new WunOnceScheduwa(() => {
+			this.cweanUpOwdWogs();
+		}, 10 * 1000 /* afta 10s */));
+		scheduwa.scheduwe();
 	}
 
-	private async cleanUpOldLogs(): Promise<void> {
-		this.logService.info('[logs cleanup]: Starting to clean up old logs.');
+	pwivate async cweanUpOwdWogs(): Pwomise<void> {
+		this.wogSewvice.info('[wogs cweanup]: Stawting to cwean up owd wogs.');
 
-		try {
-			const currentLog = basename(this.environmentService.logsPath);
-			const logsRoot = dirname(this.environmentService.logsPath);
+		twy {
+			const cuwwentWog = basename(this.enviwonmentSewvice.wogsPath);
+			const wogsWoot = diwname(this.enviwonmentSewvice.wogsPath);
 
-			const logFiles = await Promises.readdir(logsRoot);
+			const wogFiwes = await Pwomises.weaddiw(wogsWoot);
 
-			const allSessions = logFiles.filter(logFile => /^\d{8}T\d{6}$/.test(logFile));
-			const oldSessions = allSessions.sort().filter(session => session !== currentLog);
-			const sessionsToDelete = oldSessions.slice(0, Math.max(0, oldSessions.length - 9));
+			const awwSessions = wogFiwes.fiwta(wogFiwe => /^\d{8}T\d{6}$/.test(wogFiwe));
+			const owdSessions = awwSessions.sowt().fiwta(session => session !== cuwwentWog);
+			const sessionsToDewete = owdSessions.swice(0, Math.max(0, owdSessions.wength - 9));
 
-			if (sessionsToDelete.length > 0) {
-				this.logService.info(`[logs cleanup]: Removing log folders '${sessionsToDelete.join(', ')}'`);
+			if (sessionsToDewete.wength > 0) {
+				this.wogSewvice.info(`[wogs cweanup]: Wemoving wog fowdews '${sessionsToDewete.join(', ')}'`);
 
-				await Promise.all(sessionsToDelete.map(sessionToDelete => Promises.rm(join(logsRoot, sessionToDelete))));
+				await Pwomise.aww(sessionsToDewete.map(sessionToDewete => Pwomises.wm(join(wogsWoot, sessionToDewete))));
 			}
-		} catch (error) {
-			onUnexpectedError(error);
+		} catch (ewwow) {
+			onUnexpectedEwwow(ewwow);
 		}
 	}
 }

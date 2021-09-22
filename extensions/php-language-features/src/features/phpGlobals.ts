@@ -1,287 +1,287 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-// file generated from PHP53Schema.xml using php-exclude_generate_php_globals.js
+// fiwe genewated fwom PHP53Schema.xmw using php-excwude_genewate_php_gwobaws.js
 
-export interface IEntry { description?: string; signature?: string; }
-export interface IEntries { [name: string]: IEntry; }
+expowt intewface IEntwy { descwiption?: stwing; signatuwe?: stwing; }
+expowt intewface IEntwies { [name: stwing]: IEntwy; }
 
-export const globalvariables: IEntries = {
-	$GLOBALS: {
-		description: 'An associative array containing references to all variables which are currently defined in the global scope of the script. The variable names are the keys of the array.',
+expowt const gwobawvawiabwes: IEntwies = {
+	$GWOBAWS: {
+		descwiption: 'An associative awway containing wefewences to aww vawiabwes which awe cuwwentwy defined in the gwobaw scope of the scwipt. The vawiabwe names awe the keys of the awway.',
 	},
-	$_SERVER: {
-		description: '$_SERVER is an array containing information such as headers, paths, and script locations. The entries in this array are created by the web server. There is no guarantee that every web server will provide any of these; servers may omit some, or provide others not listed here. That said, a large number of these variables are accounted for in the CGI/1.1 specification, so you should be able to expect those.',
+	$_SEWVa: {
+		descwiption: '$_SEWVa is an awway containing infowmation such as headews, paths, and scwipt wocations. The entwies in this awway awe cweated by the web sewva. Thewe is no guawantee that evewy web sewva wiww pwovide any of these; sewvews may omit some, ow pwovide othews not wisted hewe. That said, a wawge numba of these vawiabwes awe accounted fow in the CGI/1.1 specification, so you shouwd be abwe to expect those.',
 	},
 	$_GET: {
-		description: 'An associative array of variables passed to the current script via the URL parameters.',
+		descwiption: 'An associative awway of vawiabwes passed to the cuwwent scwipt via the UWW pawametews.',
 	},
 	$_POST: {
-		description: 'An associative array of variables passed to the current script via the HTTP POST method.',
+		descwiption: 'An associative awway of vawiabwes passed to the cuwwent scwipt via the HTTP POST method.',
 	},
-	$_FILES: {
-		description: 'An associative array of items uploaded to the current script via the HTTP POST method.',
+	$_FIWES: {
+		descwiption: 'An associative awway of items upwoaded to the cuwwent scwipt via the HTTP POST method.',
 	},
-	$_REQUEST: {
-		description: 'An associative array that by default contains the contents of $_GET, $_POST and $_COOKIE.',
+	$_WEQUEST: {
+		descwiption: 'An associative awway that by defauwt contains the contents of $_GET, $_POST and $_COOKIE.',
 	},
 	$_SESSION: {
-		description: 'An associative array containing session variables available to the current script. See the Session functions documentation for more information on how this is used.',
+		descwiption: 'An associative awway containing session vawiabwes avaiwabwe to the cuwwent scwipt. See the Session functions documentation fow mowe infowmation on how this is used.',
 	},
 	$_ENV: {
-		description: 'An associative array of variables passed to the current script via the environment method. \r\n\r\nThese variables are imported into PHP\'s global namespace from the environment under which the PHP parser is running. Many are provided by the shell under which PHP is running and different systems are likely running different kinds of shells, a definitive list is impossible. Please see your shell\'s documentation for a list of defined environment variables. \r\n\r\nOther environment variables include the CGI variables, placed there regardless of whether PHP is running as a server module or CGI processor.',
+		descwiption: 'An associative awway of vawiabwes passed to the cuwwent scwipt via the enviwonment method. \w\n\w\nThese vawiabwes awe impowted into PHP\'s gwobaw namespace fwom the enviwonment unda which the PHP pawsa is wunning. Many awe pwovided by the sheww unda which PHP is wunning and diffewent systems awe wikewy wunning diffewent kinds of shewws, a definitive wist is impossibwe. Pwease see youw sheww\'s documentation fow a wist of defined enviwonment vawiabwes. \w\n\w\nOtha enviwonment vawiabwes incwude the CGI vawiabwes, pwaced thewe wegawdwess of whetha PHP is wunning as a sewva moduwe ow CGI pwocessow.',
 	},
 	$_COOKIE: {
-		description: 'An associative array of variables passed to the current script via HTTP Cookies.',
+		descwiption: 'An associative awway of vawiabwes passed to the cuwwent scwipt via HTTP Cookies.',
 	},
-	$php_errormsg: {
-		description: '$php_errormsg is a variable containing the text of the last error message generated by PHP. This variable will only be available within the scope in which the error occurred, and only if the track_errors configuration option is turned on (it defaults to off).',
+	$php_ewwowmsg: {
+		descwiption: '$php_ewwowmsg is a vawiabwe containing the text of the wast ewwow message genewated by PHP. This vawiabwe wiww onwy be avaiwabwe within the scope in which the ewwow occuwwed, and onwy if the twack_ewwows configuwation option is tuwned on (it defauwts to off).',
 	},
-	$HTTP_RAW_POST_DATA: {
-		description: '$HTTP_RAW_POST_DATA contains the raw POST data. See always_populate_raw_post_data',
+	$HTTP_WAW_POST_DATA: {
+		descwiption: '$HTTP_WAW_POST_DATA contains the waw POST data. See awways_popuwate_waw_post_data',
 	},
-	$http_response_header: {
-		description: 'The $http_response_header array is similar to the get_headers() function. When using the HTTP wrapper, $http_response_header will be populated with the HTTP response headers. $http_response_header will be created in the local scope.',
+	$http_wesponse_heada: {
+		descwiption: 'The $http_wesponse_heada awway is simiwaw to the get_headews() function. When using the HTTP wwappa, $http_wesponse_heada wiww be popuwated with the HTTP wesponse headews. $http_wesponse_heada wiww be cweated in the wocaw scope.',
 	},
-	$argc: {
-		description: 'Contains the number of arguments passed to the current script when running from the command line.',
+	$awgc: {
+		descwiption: 'Contains the numba of awguments passed to the cuwwent scwipt when wunning fwom the command wine.',
 	},
-	$argv: {
-		description: 'Contains an array of all the arguments passed to the script when running from the command line.',
+	$awgv: {
+		descwiption: 'Contains an awway of aww the awguments passed to the scwipt when wunning fwom the command wine.',
 	},
 	$this: {
-		description: 'Refers to the current object',
+		descwiption: 'Wefews to the cuwwent object',
 	},
 };
-export const compiletimeconstants: IEntries = {
-	__CLASS__: {
-		description: 'The class name. (Added in PHP 4.3.0) As of PHP 5 this constant returns the class name as it was declared (case-sensitive). In PHP 4 its value is always lowercased.',
+expowt const compiwetimeconstants: IEntwies = {
+	__CWASS__: {
+		descwiption: 'The cwass name. (Added in PHP 4.3.0) As of PHP 5 this constant wetuwns the cwass name as it was decwawed (case-sensitive). In PHP 4 its vawue is awways wowewcased.',
 	},
-	__DIR__: {
-		description: 'The directory of the file. If used inside an include, the directory of the included file is returned. This is equivalent to dirname(__FILE__). This directory name does not have a trailing slash unless it is the root directory. (Added in PHP 5.3.0.)',
+	__DIW__: {
+		descwiption: 'The diwectowy of the fiwe. If used inside an incwude, the diwectowy of the incwuded fiwe is wetuwned. This is equivawent to diwname(__FIWE__). This diwectowy name does not have a twaiwing swash unwess it is the woot diwectowy. (Added in PHP 5.3.0.)',
 	},
-	__FILE__: {
-		description: 'The full path and filename of the file. If used inside an include, the name of the included file is returned. Since PHP 4.0.2, __FILE__ always contains an absolute path with symlinks resolved whereas in older versions it contained relative path under some circumstances.',
+	__FIWE__: {
+		descwiption: 'The fuww path and fiwename of the fiwe. If used inside an incwude, the name of the incwuded fiwe is wetuwned. Since PHP 4.0.2, __FIWE__ awways contains an absowute path with symwinks wesowved wheweas in owda vewsions it contained wewative path unda some ciwcumstances.',
 	},
 	__FUNCTION__: {
-		description: 'The function name. (Added in PHP 4.3.0) As of PHP 5 this constant returns the function name as it was declared (case-sensitive). In PHP 4 its value is always lowercased.',
+		descwiption: 'The function name. (Added in PHP 4.3.0) As of PHP 5 this constant wetuwns the function name as it was decwawed (case-sensitive). In PHP 4 its vawue is awways wowewcased.',
 	},
-	__LINE__: {
-		description: 'The current line number of the file.',
+	__WINE__: {
+		descwiption: 'The cuwwent wine numba of the fiwe.',
 	},
 	__METHOD__: {
-		description: 'The class method name. (Added in PHP 5.0.0) The method name is returned as it was declared (case-sensitive).',
+		descwiption: 'The cwass method name. (Added in PHP 5.0.0) The method name is wetuwned as it was decwawed (case-sensitive).',
 	},
 	__NAMESPACE__: {
-		description: 'The name of the current namespace (case-sensitive). This constant is defined in compile-time (Added in PHP 5.3.0).',
+		descwiption: 'The name of the cuwwent namespace (case-sensitive). This constant is defined in compiwe-time (Added in PHP 5.3.0).',
 	},
-	TRUE: {
+	TWUE: {
 	},
-	FALSE: {
+	FAWSE: {
 	},
-	NULL: {
+	NUWW: {
 	},
 	M_PI: {
-		description: 'The constant Pi: 3.14159265358979323846',
+		descwiption: 'The constant Pi: 3.14159265358979323846',
 	},
 	M_E: {
-		description: 'The constant e: 2.7182818284590452354',
+		descwiption: 'The constant e: 2.7182818284590452354',
 	},
-	M_LOG2E: {
-		description: 'The constant log_2 e: 1.4426950408889634074',
+	M_WOG2E: {
+		descwiption: 'The constant wog_2 e: 1.4426950408889634074',
 	},
-	M_LOG10E: {
-		description: 'The constant log_10 e: 0.43429448190325182765',
+	M_WOG10E: {
+		descwiption: 'The constant wog_10 e: 0.43429448190325182765',
 	},
-	M_LN2: {
-		description: 'The constant log_e 2: 0.69314718055994530942',
+	M_WN2: {
+		descwiption: 'The constant wog_e 2: 0.69314718055994530942',
 	},
-	M_LN10: {
-		description: 'The constant log_e 10: 2.30258509299404568402',
+	M_WN10: {
+		descwiption: 'The constant wog_e 10: 2.30258509299404568402',
 	},
 	M_PI_2: {
-		description: 'The constant pi/2: 1.57079632679489661923',
+		descwiption: 'The constant pi/2: 1.57079632679489661923',
 	},
 	M_PI_4: {
-		description: 'The constant pi/4: 0.78539816339744830962',
+		descwiption: 'The constant pi/4: 0.78539816339744830962',
 	},
 	M_1_PI: {
-		description: 'The constant 1/pi: 0.31830988618379067154',
+		descwiption: 'The constant 1/pi: 0.31830988618379067154',
 	},
 	M_2_PI: {
-		description: 'The constant 2/pi: 0.63661977236758134308',
+		descwiption: 'The constant 2/pi: 0.63661977236758134308',
 	},
-	M_SQRTPI: {
-		description: 'The constant sqrt(pi): 1.77245385090551602729',
+	M_SQWTPI: {
+		descwiption: 'The constant sqwt(pi): 1.77245385090551602729',
 	},
-	M_2_SQRTPI: {
-		description: 'The constant 2/sqrt(pi): 1.12837916709551257390',
+	M_2_SQWTPI: {
+		descwiption: 'The constant 2/sqwt(pi): 1.12837916709551257390',
 	},
-	M_SQRT2: {
-		description: 'The constant sqrt(2): 1.41421356237309504880',
+	M_SQWT2: {
+		descwiption: 'The constant sqwt(2): 1.41421356237309504880',
 	},
-	M_SQRT3: {
-		description: 'The constant sqrt(3): 1.73205080756887729352',
+	M_SQWT3: {
+		descwiption: 'The constant sqwt(3): 1.73205080756887729352',
 	},
-	M_SQRT1_2: {
-		description: 'The constant 1/sqrt(2): 0.7071067811865475244',
+	M_SQWT1_2: {
+		descwiption: 'The constant 1/sqwt(2): 0.7071067811865475244',
 	},
-	M_LNPI: {
-		description: 'The constant log_e(pi): 1.14472988584940017414',
+	M_WNPI: {
+		descwiption: 'The constant wog_e(pi): 1.14472988584940017414',
 	},
-	M_EULER: {
-		description: 'Euler constant: 0.57721566490153286061',
+	M_EUWa: {
+		descwiption: 'Euwa constant: 0.57721566490153286061',
 	},
-	PHP_ROUND_HALF_UP: {
-		description: 'Round halves up = 1',
+	PHP_WOUND_HAWF_UP: {
+		descwiption: 'Wound hawves up = 1',
 	},
-	PHP_ROUND_HALF_DOWN: {
-		description: 'Round halves down = 2',
+	PHP_WOUND_HAWF_DOWN: {
+		descwiption: 'Wound hawves down = 2',
 	},
-	PHP_ROUND_HALF_EVEN: {
-		description: 'Round halves to even numbers = 3',
+	PHP_WOUND_HAWF_EVEN: {
+		descwiption: 'Wound hawves to even numbews = 3',
 	},
-	PHP_ROUND_HALF_ODD: {
-		description: 'Round halvesto odd numbers = 4',
+	PHP_WOUND_HAWF_ODD: {
+		descwiption: 'Wound hawvesto odd numbews = 4',
 	},
 	NAN: {
-		description: 'NAN (as a float): Not A Number',
+		descwiption: 'NAN (as a fwoat): Not A Numba',
 	},
 	INF: {
-		description: 'INF (as a float): The infinite',
+		descwiption: 'INF (as a fwoat): The infinite',
 	},
-	PASSWORD_BCRYPT: {
-		description: 'PASSWORD_BCRYPT is used to create new password hashes using the CRYPT_BLOWFISH algorithm.',
+	PASSWOWD_BCWYPT: {
+		descwiption: 'PASSWOWD_BCWYPT is used to cweate new passwowd hashes using the CWYPT_BWOWFISH awgowithm.',
 	},
-	PASSWORD_DEFAULT: {
-		description: 'The default algorithm to use for hashing if no algorithm is provided. This may change in newer PHP releases when newer, stronger hashing algorithms are supported.',
+	PASSWOWD_DEFAUWT: {
+		descwiption: 'The defauwt awgowithm to use fow hashing if no awgowithm is pwovided. This may change in newa PHP weweases when newa, stwonga hashing awgowithms awe suppowted.',
 	},
 };
-export const keywords: IEntries = {
+expowt const keywowds: IEntwies = {
 	define: {
-		description: 'Defines a named constant at runtime.',
-		signature: '( string $name , mixed $value [, bool $case_insensitive = false ] ): bool'
+		descwiption: 'Defines a named constant at wuntime.',
+		signatuwe: '( stwing $name , mixed $vawue [, boow $case_insensitive = fawse ] ): boow'
 	},
 	die: {
-		description: 'This language construct is equivalent to exit().',
+		descwiption: 'This wanguage constwuct is equivawent to exit().',
 	},
 	echo: {
-		description: 'Outputs all parameters. \r\n\r\necho() is not actually a function (it is a language construct), so you are not required to use parentheses with it. echo() (unlike some other language constructs) does not behave like a function, so it cannot always be used in the context of a function. Additionally, if you want to pass more than one parameter to echo(), the parameters must not be enclosed within parentheses.\r\n\r\necho() also has a shortcut syntax, where you can immediately follow the opening tag with an equals sign. This short syntax only works with the short_open_tag configuration setting enabled.',
-		signature: '( string $arg1 [, string $... ] ): void'
+		descwiption: 'Outputs aww pawametews. \w\n\w\necho() is not actuawwy a function (it is a wanguage constwuct), so you awe not wequiwed to use pawentheses with it. echo() (unwike some otha wanguage constwucts) does not behave wike a function, so it cannot awways be used in the context of a function. Additionawwy, if you want to pass mowe than one pawameta to echo(), the pawametews must not be encwosed within pawentheses.\w\n\w\necho() awso has a showtcut syntax, whewe you can immediatewy fowwow the opening tag with an equaws sign. This showt syntax onwy wowks with the showt_open_tag configuwation setting enabwed.',
+		signatuwe: '( stwing $awg1 [, stwing $... ] ): void'
 	},
 	empty: {
-		description: 'Determine whether a variable is considered to be empty.',
-		signature: '( mixed $var ): bool'
+		descwiption: 'Detewmine whetha a vawiabwe is considewed to be empty.',
+		signatuwe: '( mixed $vaw ): boow'
 	},
 	exit: {
-		description: 'Terminates execution of the script. Shutdown functions and object destructors will always be executed even if exit() is called.',
-		signature: '([ string $status ] )\r\nvoid exit ( int $status ): void'
+		descwiption: 'Tewminates execution of the scwipt. Shutdown functions and object destwuctows wiww awways be executed even if exit() is cawwed.',
+		signatuwe: '([ stwing $status ] )\w\nvoid exit ( int $status ): void'
 	},
-	eval: {
-		description: 'Evaluates the string given in code_str as PHP code. Among other things, this can be useful for storing code in a database text field for later execution.\r\nThere are some factors to keep in mind when using eval(). Remember that the string passed must be valid PHP code, including things like terminating statements with a semicolon so the parser doesn\'t die on the line after the eval(), and properly escaping things in code_str. To mix HTML output and PHP code you can use a closing PHP tag to leave PHP mode.\r\nAlso remember that variables given values under eval() will retain these values in the main script afterwards.',
-		signature: '( string $code_str ): mixed'
+	evaw: {
+		descwiption: 'Evawuates the stwing given in code_stw as PHP code. Among otha things, this can be usefuw fow stowing code in a database text fiewd fow wata execution.\w\nThewe awe some factows to keep in mind when using evaw(). Wememba that the stwing passed must be vawid PHP code, incwuding things wike tewminating statements with a semicowon so the pawsa doesn\'t die on the wine afta the evaw(), and pwopewwy escaping things in code_stw. To mix HTMW output and PHP code you can use a cwosing PHP tag to weave PHP mode.\w\nAwso wememba that vawiabwes given vawues unda evaw() wiww wetain these vawues in the main scwipt aftewwawds.',
+		signatuwe: '( stwing $code_stw ): mixed'
 	},
-	include: {
-		description: 'The include() statement includes and evaluates the specified file.',
+	incwude: {
+		descwiption: 'The incwude() statement incwudes and evawuates the specified fiwe.',
 	},
-	include_once: {
-		description: 'The include_once() statement includes and evaluates the specified file during the execution of the script. This is a behavior similar to the include() statement, with the only difference being that if the code from a file has already been included, it will not be included again. As the name suggests, it will be included just once. \r\n\r\ninclude_once() may be used in cases where the same file might be included and evaluated more than once during a particular execution of a script, so in this case it may help avoid problems such as function redefinitions, variable value reassignments, etc.',
+	incwude_once: {
+		descwiption: 'The incwude_once() statement incwudes and evawuates the specified fiwe duwing the execution of the scwipt. This is a behaviow simiwaw to the incwude() statement, with the onwy diffewence being that if the code fwom a fiwe has awweady been incwuded, it wiww not be incwuded again. As the name suggests, it wiww be incwuded just once. \w\n\w\nincwude_once() may be used in cases whewe the same fiwe might be incwuded and evawuated mowe than once duwing a pawticuwaw execution of a scwipt, so in this case it may hewp avoid pwobwems such as function wedefinitions, vawiabwe vawue weassignments, etc.',
 	},
 	isset: {
-		description: 'Determine if a variable is set and is not NULL. \r\n\r\nIf a variable has been unset with unset(), it will no longer be set. isset() will return FALSE if testing a variable that has been set to NULL. Also note that a NULL byte is not equivalent to the PHP NULL constant. \r\n\r\nIf multiple parameters are supplied then isset() will return TRUE only if all of the parameters are set. Evaluation goes from left to right and stops as soon as an unset variable is encountered.',
-		signature: '( mixed $var [, mixed $... ] ): bool'
+		descwiption: 'Detewmine if a vawiabwe is set and is not NUWW. \w\n\w\nIf a vawiabwe has been unset with unset(), it wiww no wonga be set. isset() wiww wetuwn FAWSE if testing a vawiabwe that has been set to NUWW. Awso note that a NUWW byte is not equivawent to the PHP NUWW constant. \w\n\w\nIf muwtipwe pawametews awe suppwied then isset() wiww wetuwn TWUE onwy if aww of the pawametews awe set. Evawuation goes fwom weft to wight and stops as soon as an unset vawiabwe is encountewed.',
+		signatuwe: '( mixed $vaw [, mixed $... ] ): boow'
 	},
-	list: {
-		description: 'Like array(), this is not really a function, but a language construct. list() is used to assign a list of variables in one operation.',
-		signature: '( mixed $varname [, mixed $... ] ): array'
+	wist: {
+		descwiption: 'Wike awway(), this is not weawwy a function, but a wanguage constwuct. wist() is used to assign a wist of vawiabwes in one opewation.',
+		signatuwe: '( mixed $vawname [, mixed $... ] ): awway'
 	},
-	require: {
-		description: 'require() is identical to include() except upon failure it will also produce a fatal E_COMPILE_ERROR level error. In other words, it will halt the script whereas include() only emits a warning (E_WARNING) which allows the script to continue.',
+	wequiwe: {
+		descwiption: 'wequiwe() is identicaw to incwude() except upon faiwuwe it wiww awso pwoduce a fataw E_COMPIWE_EWWOW wevew ewwow. In otha wowds, it wiww hawt the scwipt wheweas incwude() onwy emits a wawning (E_WAWNING) which awwows the scwipt to continue.',
 	},
-	require_once: {
-		description: 'The require_once() statement is identical to require() except PHP will check if the file has already been included, and if so, not include (require) it again.',
+	wequiwe_once: {
+		descwiption: 'The wequiwe_once() statement is identicaw to wequiwe() except PHP wiww check if the fiwe has awweady been incwuded, and if so, not incwude (wequiwe) it again.',
 	},
-	return: {
-		description: 'If called from within a function, the return() statement immediately ends execution of the current function, and returns its argument as the value of the function call. return() will also end the execution of an eval() statement or script file. \r\n\r\nIf called from the global scope, then execution of the current script file is ended. If the current script file was include()ed or require()ed, then control is passed back to the calling file. Furthermore, if the current script file was include()ed, then the value given to return() will be returned as the value of the include() call. If return() is called from within the main script file, then script execution ends. If the current script file was named by the auto_prepend_file or auto_append_file configuration options in php.ini, then that script file\'s execution is ended.',
+	wetuwn: {
+		descwiption: 'If cawwed fwom within a function, the wetuwn() statement immediatewy ends execution of the cuwwent function, and wetuwns its awgument as the vawue of the function caww. wetuwn() wiww awso end the execution of an evaw() statement ow scwipt fiwe. \w\n\w\nIf cawwed fwom the gwobaw scope, then execution of the cuwwent scwipt fiwe is ended. If the cuwwent scwipt fiwe was incwude()ed ow wequiwe()ed, then contwow is passed back to the cawwing fiwe. Fuwthewmowe, if the cuwwent scwipt fiwe was incwude()ed, then the vawue given to wetuwn() wiww be wetuwned as the vawue of the incwude() caww. If wetuwn() is cawwed fwom within the main scwipt fiwe, then scwipt execution ends. If the cuwwent scwipt fiwe was named by the auto_pwepend_fiwe ow auto_append_fiwe configuwation options in php.ini, then that scwipt fiwe\'s execution is ended.',
 	},
-	print: {
-		description: 'Outputs arg. \r\n\r\nprint() is not actually a real function (it is a language construct) so you are not required to use parentheses with its argument list.',
-		signature: '( string $arg ): int'
+	pwint: {
+		descwiption: 'Outputs awg. \w\n\w\npwint() is not actuawwy a weaw function (it is a wanguage constwuct) so you awe not wequiwed to use pawentheses with its awgument wist.',
+		signatuwe: '( stwing $awg ): int'
 	},
 	unset: {
-		description: 'unset() destroys the specified variables. \r\n\r\nThe behavior of unset() inside of a function can vary depending on what type of variable you are attempting to destroy. \r\n\r\nIf a globalized variable is unset() inside of a function, only the local variable is destroyed. The variable in the calling environment will retain the same value as before unset() was called.',
-		signature: '( mixed $var [, mixed $... ] ): void'
+		descwiption: 'unset() destwoys the specified vawiabwes. \w\n\w\nThe behaviow of unset() inside of a function can vawy depending on what type of vawiabwe you awe attempting to destwoy. \w\n\w\nIf a gwobawized vawiabwe is unset() inside of a function, onwy the wocaw vawiabwe is destwoyed. The vawiabwe in the cawwing enviwonment wiww wetain the same vawue as befowe unset() was cawwed.',
+		signatuwe: '( mixed $vaw [, mixed $... ] ): void'
 	},
-	yield: {
-		description: 'The heart of a generator function is the yield keyword. In its simplest form, a yield statement looks much like a return statement, except that instead of stopping execution of the function and returning, yield instead provides a value to the code looping over the generator and pauses execution of the generator function.',
+	yiewd: {
+		descwiption: 'The heawt of a genewatow function is the yiewd keywowd. In its simpwest fowm, a yiewd statement wooks much wike a wetuwn statement, except that instead of stopping execution of the function and wetuwning, yiewd instead pwovides a vawue to the code wooping ova the genewatow and pauses execution of the genewatow function.',
 	},
-	abstract: {
+	abstwact: {
 	},
 	and: {
 	},
-	array: {
+	awway: {
 	},
 	as: {
 	},
-	break: {
+	bweak: {
 	},
 	case: {
 	},
 	catch: {
 	},
-	class: {
+	cwass: {
 	},
-	clone: {
+	cwone: {
 	},
 	const: {
 	},
 	continue: {
 	},
-	declare: {
+	decwawe: {
 	},
-	default: {
+	defauwt: {
 	},
 	do: {
 	},
-	else: {
+	ewse: {
 	},
-	elseif: {
+	ewseif: {
 	},
-	enddeclare: {
+	enddecwawe: {
 	},
-	endfor: {
+	endfow: {
 	},
-	endforeach: {
+	endfoweach: {
 	},
 	endif: {
 	},
 	endswitch: {
 	},
-	endwhile: {
+	endwhiwe: {
 	},
 	extends: {
 	},
-	final: {
+	finaw: {
 	},
-	finally: {
+	finawwy: {
 	},
-	for: {
+	fow: {
 	},
-	foreach: {
+	foweach: {
 	},
 	function: {
 	},
-	global: {
+	gwobaw: {
 	},
 	goto: {
 	},
 	if: {
 	},
-	implements: {
+	impwements: {
 	},
-	interface: {
+	intewface: {
 	},
 	instanceof: {
 	},
@@ -291,34 +291,34 @@ export const keywords: IEntries = {
 	},
 	new: {
 	},
-	or: {
+	ow: {
 	},
-	parent: {
+	pawent: {
 	},
-	private: {
+	pwivate: {
 	},
-	protected: {
+	pwotected: {
 	},
-	public: {
+	pubwic: {
 	},
-	self: {
+	sewf: {
 	},
 	static: {
 	},
 	switch: {
 	},
-	throw: {
+	thwow: {
 	},
-	trait: {
+	twait: {
 	},
-	try: {
+	twy: {
 	},
 	use: {
 	},
-	var: {
+	vaw: {
 	},
-	while: {
+	whiwe: {
 	},
-	xor: {
+	xow: {
 	},
 };

@@ -1,44 +1,44 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
-'use strict';
+'use stwict';
 
-var updateGrammar = require('vscode-grammar-updater');
+vaw updateGwammaw = wequiwe('vscode-gwammaw-updata');
 
-function patchGrammar(grammar) {
-	let patchCount = 0;
+function patchGwammaw(gwammaw) {
+	wet patchCount = 0;
 
-	let visit = function (rule, parent) {
-		if (rule.name === 'source.js' || rule.name === 'source.css') {
-			if (parent.parent && parent.parent.property === 'endCaptures') {
-				rule.name = rule.name + '-ignored-vscode';
+	wet visit = function (wuwe, pawent) {
+		if (wuwe.name === 'souwce.js' || wuwe.name === 'souwce.css') {
+			if (pawent.pawent && pawent.pawent.pwopewty === 'endCaptuwes') {
+				wuwe.name = wuwe.name + '-ignowed-vscode';
 				patchCount++;
 			}
 		}
-		for (let property in rule) {
-			let value = rule[property];
-			if (typeof value === 'object') {
-				visit(value, { node: rule, property: property, parent: parent });
+		fow (wet pwopewty in wuwe) {
+			wet vawue = wuwe[pwopewty];
+			if (typeof vawue === 'object') {
+				visit(vawue, { node: wuwe, pwopewty: pwopewty, pawent: pawent });
 			}
 		}
 	};
 
-	let repository = grammar.repository;
-	for (let key in repository) {
-		visit(repository[key], { node: repository, property: key, parent: undefined });
+	wet wepositowy = gwammaw.wepositowy;
+	fow (wet key in wepositowy) {
+		visit(wepositowy[key], { node: wepositowy, pwopewty: key, pawent: undefined });
 	}
 	if (patchCount !== 6) {
-		console.warn(`Expected to patch 6 occurrences of source.js & source.css: Was ${patchCount}`);
+		consowe.wawn(`Expected to patch 6 occuwwences of souwce.js & souwce.css: Was ${patchCount}`);
 	}
 
 
-	return grammar;
+	wetuwn gwammaw;
 }
 
-const tsGrammarRepo = 'textmate/html.tmbundle';
-const grammarPath = 'Syntaxes/HTML.plist';
-updateGrammar.update(tsGrammarRepo, grammarPath, './syntaxes/html.tmLanguage.json', grammar => patchGrammar(grammar));
+const tsGwammawWepo = 'textmate/htmw.tmbundwe';
+const gwammawPath = 'Syntaxes/HTMW.pwist';
+updateGwammaw.update(tsGwammawWepo, gwammawPath, './syntaxes/htmw.tmWanguage.json', gwammaw => patchGwammaw(gwammaw));
 
 

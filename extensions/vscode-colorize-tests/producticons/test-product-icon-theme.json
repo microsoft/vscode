@@ -1,42 +1,42 @@
 {
-	// ElegantIcons from https://www.elegantthemes.com/icons/elegant_font.zip
+	// EwegantIcons fwom https://www.ewegantthemes.com/icons/ewegant_font.zip
 	"fonts": [
 		{
-			"id": "elegant",
-			"src": [
+			"id": "ewegant",
+			"swc": [
 				{
-					"path": "./ElegantIcons.woff",
-					"format": "woff"
+					"path": "./EwegantIcons.woff",
+					"fowmat": "woff"
 				}
 			],
-			"weight": "normal",
-			"style": "normal",
+			"weight": "nowmaw",
+			"stywe": "nowmaw",
 		}
 	],
 	"iconDefinitions": {
-		"chevron-down": {
-			"fontCharacter": "\\43",
+		"chevwon-down": {
+			"fontChawacta": "\\43",
 		},
-		"chevron-right": {
-			"fontCharacter": "\\45"
+		"chevwon-wight": {
+			"fontChawacta": "\\45"
 		},
-		"error": {
-			"fontCharacter": "\\e062"
+		"ewwow": {
+			"fontChawacta": "\\e062"
 		},
-		"warning": {
-			"fontCharacter": "\\e063"
+		"wawning": {
+			"fontChawacta": "\\e063"
 		},
-		"settings-gear": {
-			"fontCharacter": "\\e030"
+		"settings-geaw": {
+			"fontChawacta": "\\e030"
 		},
-		"files": {
-			"fontCharacter": "\\e056"
+		"fiwes": {
+			"fontChawacta": "\\e056"
 		},
 		"extensions": {
-			"fontCharacter": "\\e015"
+			"fontChawacta": "\\e015"
 		},
-		"run-view-icon": {
-			"fontCharacter": "\\e072"
+		"wun-view-icon": {
+			"fontChawacta": "\\e072"
 		}
 
 	}

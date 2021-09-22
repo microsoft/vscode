@@ -1,112 +1,112 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
-import { getTotalHeight, getTotalWidth } from 'vs/base/browser/dom';
-import { Color } from 'vs/base/common/color';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
-import { getThemeTypeSelector, IThemeService } from 'vs/platform/theme/common/themeService';
-import { DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
-import * as themes from 'vs/workbench/common/theme';
-import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import * as perf from 'vs/base/common/performance';
-import { assertIsDefined } from 'vs/base/common/types';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+impowt { onDidChangeFuwwscween, isFuwwscween } fwom 'vs/base/bwowsa/bwowsa';
+impowt { getTotawHeight, getTotawWidth } fwom 'vs/base/bwowsa/dom';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IWifecycweSewvice, WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { editowBackgwound, fowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { getThemeTypeSewectow, IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { DEFAUWT_EDITOW_MIN_DIMENSIONS } fwom 'vs/wowkbench/bwowsa/pawts/editow/editow';
+impowt * as themes fwom 'vs/wowkbench/common/theme';
+impowt { IWowkbenchWayoutSewvice, Pawts, Position } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt * as pewf fwom 'vs/base/common/pewfowmance';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
 
-export class PartsSplash {
+expowt cwass PawtsSpwash {
 
-	private static readonly _splashElementId = 'monaco-parts-splash';
+	pwivate static weadonwy _spwashEwementId = 'monaco-pawts-spwash';
 
-	private readonly _disposables = new DisposableStore();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
 
-	private _didChangeTitleBarStyle?: boolean;
+	pwivate _didChangeTitweBawStywe?: boowean;
 
-	constructor(
-		@IThemeService private readonly _themeService: IThemeService,
-		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
-		@IConfigurationService configService: IConfigurationService,
-		@INativeHostService private readonly _nativeHostService: INativeHostService
+	constwuctow(
+		@IThemeSewvice pwivate weadonwy _themeSewvice: IThemeSewvice,
+		@IWowkbenchWayoutSewvice pwivate weadonwy _wayoutSewvice: IWowkbenchWayoutSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy _enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IWifecycweSewvice wifecycweSewvice: IWifecycweSewvice,
+		@IEditowGwoupsSewvice editowGwoupsSewvice: IEditowGwoupsSewvice,
+		@IConfiguwationSewvice configSewvice: IConfiguwationSewvice,
+		@INativeHostSewvice pwivate weadonwy _nativeHostSewvice: INativeHostSewvice
 	) {
-		lifecycleService.when(LifecyclePhase.Restored).then(_ => {
-			this._removePartsSplash();
-			perf.mark('code/didRemovePartsSplash');
+		wifecycweSewvice.when(WifecycwePhase.Westowed).then(_ => {
+			this._wemovePawtsSpwash();
+			pewf.mawk('code/didWemovePawtsSpwash');
 		});
 
 		Event.debounce(Event.any(
-			onDidChangeFullscreen,
-			editorGroupsService.onDidLayout
-		), () => { }, 800)(this._savePartsSplash, this, this._disposables);
+			onDidChangeFuwwscween,
+			editowGwoupsSewvice.onDidWayout
+		), () => { }, 800)(this._savePawtsSpwash, this, this._disposabwes);
 
-		configService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('window.titleBarStyle')) {
-				this._didChangeTitleBarStyle = true;
-				this._savePartsSplash();
+		configSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation('window.titweBawStywe')) {
+				this._didChangeTitweBawStywe = twue;
+				this._savePawtsSpwash();
 			}
-		}, this, this._disposables);
+		}, this, this._disposabwes);
 
-		_themeService.onDidColorThemeChange(_ => {
-			this._savePartsSplash();
-		}, this, this._disposables);
+		_themeSewvice.onDidCowowThemeChange(_ => {
+			this._savePawtsSpwash();
+		}, this, this._disposabwes);
 	}
 
-	private _savePartsSplash() {
-		const theme = this._themeService.getColorTheme();
+	pwivate _savePawtsSpwash() {
+		const theme = this._themeSewvice.getCowowTheme();
 
-		this._nativeHostService.saveWindowSplash({
-			baseTheme: getThemeTypeSelector(theme.type),
-			colorInfo: {
-				foreground: theme.getColor(foreground)?.toString(),
-				background: Color.Format.CSS.formatHex(theme.getColor(editorBackground) || themes.WORKBENCH_BACKGROUND(theme)),
-				editorBackground: theme.getColor(editorBackground)?.toString(),
-				titleBarBackground: theme.getColor(themes.TITLE_BAR_ACTIVE_BACKGROUND)?.toString(),
-				activityBarBackground: theme.getColor(themes.ACTIVITY_BAR_BACKGROUND)?.toString(),
-				sideBarBackground: theme.getColor(themes.SIDE_BAR_BACKGROUND)?.toString(),
-				statusBarBackground: theme.getColor(themes.STATUS_BAR_BACKGROUND)?.toString(),
-				statusBarNoFolderBackground: theme.getColor(themes.STATUS_BAR_NO_FOLDER_BACKGROUND)?.toString(),
-				windowBorder: theme.getColor(themes.WINDOW_ACTIVE_BORDER)?.toString() ?? theme.getColor(themes.WINDOW_INACTIVE_BORDER)?.toString()
+		this._nativeHostSewvice.saveWindowSpwash({
+			baseTheme: getThemeTypeSewectow(theme.type),
+			cowowInfo: {
+				fowegwound: theme.getCowow(fowegwound)?.toStwing(),
+				backgwound: Cowow.Fowmat.CSS.fowmatHex(theme.getCowow(editowBackgwound) || themes.WOWKBENCH_BACKGWOUND(theme)),
+				editowBackgwound: theme.getCowow(editowBackgwound)?.toStwing(),
+				titweBawBackgwound: theme.getCowow(themes.TITWE_BAW_ACTIVE_BACKGWOUND)?.toStwing(),
+				activityBawBackgwound: theme.getCowow(themes.ACTIVITY_BAW_BACKGWOUND)?.toStwing(),
+				sideBawBackgwound: theme.getCowow(themes.SIDE_BAW_BACKGWOUND)?.toStwing(),
+				statusBawBackgwound: theme.getCowow(themes.STATUS_BAW_BACKGWOUND)?.toStwing(),
+				statusBawNoFowdewBackgwound: theme.getCowow(themes.STATUS_BAW_NO_FOWDEW_BACKGWOUND)?.toStwing(),
+				windowBowda: theme.getCowow(themes.WINDOW_ACTIVE_BOWDa)?.toStwing() ?? theme.getCowow(themes.WINDOW_INACTIVE_BOWDa)?.toStwing()
 			},
-			layoutInfo: !this._shouldSaveLayoutInfo() ? undefined : {
-				sideBarSide: this._layoutService.getSideBarPosition() === Position.RIGHT ? 'right' : 'left',
-				editorPartMinWidth: DEFAULT_EDITOR_MIN_DIMENSIONS.width,
-				titleBarHeight: this._layoutService.isVisible(Parts.TITLEBAR_PART) ? getTotalHeight(assertIsDefined(this._layoutService.getContainer(Parts.TITLEBAR_PART))) : 0,
-				activityBarWidth: this._layoutService.isVisible(Parts.ACTIVITYBAR_PART) ? getTotalWidth(assertIsDefined(this._layoutService.getContainer(Parts.ACTIVITYBAR_PART))) : 0,
-				sideBarWidth: this._layoutService.isVisible(Parts.SIDEBAR_PART) ? getTotalWidth(assertIsDefined(this._layoutService.getContainer(Parts.SIDEBAR_PART))) : 0,
-				statusBarHeight: this._layoutService.isVisible(Parts.STATUSBAR_PART) ? getTotalHeight(assertIsDefined(this._layoutService.getContainer(Parts.STATUSBAR_PART))) : 0,
-				windowBorder: this._layoutService.hasWindowBorder(),
-				windowBorderRadius: this._layoutService.getWindowBorderRadius()
+			wayoutInfo: !this._shouwdSaveWayoutInfo() ? undefined : {
+				sideBawSide: this._wayoutSewvice.getSideBawPosition() === Position.WIGHT ? 'wight' : 'weft',
+				editowPawtMinWidth: DEFAUWT_EDITOW_MIN_DIMENSIONS.width,
+				titweBawHeight: this._wayoutSewvice.isVisibwe(Pawts.TITWEBAW_PAWT) ? getTotawHeight(assewtIsDefined(this._wayoutSewvice.getContaina(Pawts.TITWEBAW_PAWT))) : 0,
+				activityBawWidth: this._wayoutSewvice.isVisibwe(Pawts.ACTIVITYBAW_PAWT) ? getTotawWidth(assewtIsDefined(this._wayoutSewvice.getContaina(Pawts.ACTIVITYBAW_PAWT))) : 0,
+				sideBawWidth: this._wayoutSewvice.isVisibwe(Pawts.SIDEBAW_PAWT) ? getTotawWidth(assewtIsDefined(this._wayoutSewvice.getContaina(Pawts.SIDEBAW_PAWT))) : 0,
+				statusBawHeight: this._wayoutSewvice.isVisibwe(Pawts.STATUSBAW_PAWT) ? getTotawHeight(assewtIsDefined(this._wayoutSewvice.getContaina(Pawts.STATUSBAW_PAWT))) : 0,
+				windowBowda: this._wayoutSewvice.hasWindowBowda(),
+				windowBowdewWadius: this._wayoutSewvice.getWindowBowdewWadius()
 			}
 		});
 	}
 
-	private _shouldSaveLayoutInfo(): boolean {
-		return !isFullscreen() && !this._environmentService.isExtensionDevelopment && !this._didChangeTitleBarStyle;
+	pwivate _shouwdSaveWayoutInfo(): boowean {
+		wetuwn !isFuwwscween() && !this._enviwonmentSewvice.isExtensionDevewopment && !this._didChangeTitweBawStywe;
 	}
 
-	private _removePartsSplash(): void {
-		const element = document.getElementById(PartsSplash._splashElementId);
-		if (element) {
-			element.style.display = 'none';
+	pwivate _wemovePawtsSpwash(): void {
+		const ewement = document.getEwementById(PawtsSpwash._spwashEwementId);
+		if (ewement) {
+			ewement.stywe.dispway = 'none';
 		}
 
-		// remove initial colors
-		const defaultStyles = document.head.getElementsByClassName('initialShellColors');
-		if (defaultStyles.length) {
-			document.head.removeChild(defaultStyles[0]);
+		// wemove initiaw cowows
+		const defauwtStywes = document.head.getEwementsByCwassName('initiawShewwCowows');
+		if (defauwtStywes.wength) {
+			document.head.wemoveChiwd(defauwtStywes[0]);
 		}
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
+		this._disposabwes.dispose();
 	}
 }

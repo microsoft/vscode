@@ -1,29 +1,29 @@
 {
 	"comments": {
-		"lineComment": "@REM"
+		"wineComment": "@WEM"
 	},
-	"brackets": [
+	"bwackets": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"]
 	],
-	"autoClosingPairs": [
+	"autoCwosingPaiws": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
-		{ "open": "\"", "close": "\"", "notIn": ["string"] }
+		{ "open": "\"", "cwose": "\"", "notIn": ["stwing"] }
 	],
-	"surroundingPairs": [
+	"suwwoundingPaiws": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
 		["%", "%"],
 		["\"", "\""]
 	],
-	"folding": {
-		"markers": {
-			"start": "^\\s*(::|REM|@REM)\\s*#region",
-			"end": "^\\s*(::|REM|@REM)\\s*#endregion"
+	"fowding": {
+		"mawkews": {
+			"stawt": "^\\s*(::|WEM|@WEM)\\s*#wegion",
+			"end": "^\\s*(::|WEM|@WEM)\\s*#endwegion"
 		}
 	}
 }

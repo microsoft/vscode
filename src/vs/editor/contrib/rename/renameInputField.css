@@ -1,27 +1,27 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .rename-box {
+.monaco-editow .wename-box {
 	z-index: 100;
-	color: inherit;
+	cowow: inhewit;
 }
 
-.monaco-editor .rename-box.preview {
+.monaco-editow .wename-box.pweview {
 	padding: 3px 3px 0 3px;
 }
 
-.monaco-editor .rename-box .rename-input {
+.monaco-editow .wename-box .wename-input {
 	padding: 3px;
-	width: calc(100% - 6px);
+	width: cawc(100% - 6px);
 }
 
-.monaco-editor .rename-box .rename-label {
-	display: none;
+.monaco-editow .wename-box .wename-wabew {
+	dispway: none;
 	opacity: .8;
 }
 
-.monaco-editor .rename-box.preview .rename-label {
-	display: inherit;
+.monaco-editow .wename-box.pweview .wename-wabew {
+	dispway: inhewit;
 }

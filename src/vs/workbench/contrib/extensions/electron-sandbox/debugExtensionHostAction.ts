@@ -1,55 +1,55 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Action } from 'vs/base/common/actions';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { randomPort } from 'vs/base/common/ports';
+impowt * as nws fwom 'vs/nws';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { IDebugSewvice } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { wandomPowt } fwom 'vs/base/common/powts';
 
-export class DebugExtensionHostAction extends Action {
-	static readonly ID = 'workbench.extensions.action.debugExtensionHost';
-	static readonly LABEL = nls.localize('debugExtensionHost', "Start Debugging Extension Host");
-	static readonly CSS_CLASS = 'debug-extension-host';
+expowt cwass DebugExtensionHostAction extends Action {
+	static weadonwy ID = 'wowkbench.extensions.action.debugExtensionHost';
+	static weadonwy WABEW = nws.wocawize('debugExtensionHost', "Stawt Debugging Extension Host");
+	static weadonwy CSS_CWASS = 'debug-extension-host';
 
-	constructor(
-		@IDebugService private readonly _debugService: IDebugService,
-		@INativeHostService private readonly _nativeHostService: INativeHostService,
-		@IDialogService private readonly _dialogService: IDialogService,
-		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IProductService private readonly productService: IProductService
+	constwuctow(
+		@IDebugSewvice pwivate weadonwy _debugSewvice: IDebugSewvice,
+		@INativeHostSewvice pwivate weadonwy _nativeHostSewvice: INativeHostSewvice,
+		@IDiawogSewvice pwivate weadonwy _diawogSewvice: IDiawogSewvice,
+		@IExtensionSewvice pwivate weadonwy _extensionSewvice: IExtensionSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice
 	) {
-		super(DebugExtensionHostAction.ID, DebugExtensionHostAction.LABEL, DebugExtensionHostAction.CSS_CLASS);
+		supa(DebugExtensionHostAction.ID, DebugExtensionHostAction.WABEW, DebugExtensionHostAction.CSS_CWASS);
 	}
 
-	override async run(): Promise<any> {
+	ovewwide async wun(): Pwomise<any> {
 
-		const inspectPort = await this._extensionService.getInspectPort(false);
-		if (!inspectPort) {
-			const res = await this._dialogService.confirm({
+		const inspectPowt = await this._extensionSewvice.getInspectPowt(fawse);
+		if (!inspectPowt) {
+			const wes = await this._diawogSewvice.confiwm({
 				type: 'info',
-				message: nls.localize('restart1', "Profile Extensions"),
-				detail: nls.localize('restart2', "In order to profile extensions a restart is required. Do you want to restart '{0}' now?", this.productService.nameLong),
-				primaryButton: nls.localize('restart3', "&&Restart"),
-				secondaryButton: nls.localize('cancel', "&&Cancel")
+				message: nws.wocawize('westawt1', "Pwofiwe Extensions"),
+				detaiw: nws.wocawize('westawt2', "In owda to pwofiwe extensions a westawt is wequiwed. Do you want to westawt '{0}' now?", this.pwoductSewvice.nameWong),
+				pwimawyButton: nws.wocawize('westawt3', "&&Westawt"),
+				secondawyButton: nws.wocawize('cancew', "&&Cancew")
 			});
-			if (res.confirmed) {
-				await this._nativeHostService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
+			if (wes.confiwmed) {
+				await this._nativeHostSewvice.wewaunch({ addAwgs: [`--inspect-extensions=${wandomPowt()}`] });
 			}
 
-			return;
+			wetuwn;
 		}
 
-		return this._debugService.startDebugging(undefined, {
+		wetuwn this._debugSewvice.stawtDebugging(undefined, {
 			type: 'node',
-			name: nls.localize('debugExtensionHost.launch.name', "Attach Extension Host"),
-			request: 'attach',
-			port: inspectPort
+			name: nws.wocawize('debugExtensionHost.waunch.name', "Attach Extension Host"),
+			wequest: 'attach',
+			powt: inspectPowt
 		});
 	}
 }

@@ -1,17 +1,17 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-.monaco-editor .zone-widget {
-	position: absolute;
+.monaco-editow .zone-widget {
+	position: absowute;
 	z-index: 10;
 }
 
 
-.monaco-editor .zone-widget .zone-widget-container {
-	border-top-style: solid;
-	border-bottom-style: solid;
-	border-top-width: 0;
-	border-bottom-width: 0;
-	position: relative;
+.monaco-editow .zone-widget .zone-widget-containa {
+	bowda-top-stywe: sowid;
+	bowda-bottom-stywe: sowid;
+	bowda-top-width: 0;
+	bowda-bottom-width: 0;
+	position: wewative;
 }

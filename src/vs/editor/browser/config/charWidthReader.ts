@@ -1,156 +1,156 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
+impowt { BaweFontInfo } fwom 'vs/editow/common/config/fontInfo';
 
-export const enum CharWidthRequestType {
-	Regular = 0,
-	Italic = 1,
-	Bold = 2
+expowt const enum ChawWidthWequestType {
+	Weguwaw = 0,
+	Itawic = 1,
+	Bowd = 2
 }
 
-export class CharWidthRequest {
+expowt cwass ChawWidthWequest {
 
-	public readonly chr: string;
-	public readonly type: CharWidthRequestType;
-	public width: number;
+	pubwic weadonwy chw: stwing;
+	pubwic weadonwy type: ChawWidthWequestType;
+	pubwic width: numba;
 
-	constructor(chr: string, type: CharWidthRequestType) {
-		this.chr = chr;
+	constwuctow(chw: stwing, type: ChawWidthWequestType) {
+		this.chw = chw;
 		this.type = type;
 		this.width = 0;
 	}
 
-	public fulfill(width: number) {
+	pubwic fuwfiww(width: numba) {
 		this.width = width;
 	}
 }
 
-class DomCharWidthReader {
+cwass DomChawWidthWeada {
 
-	private readonly _bareFontInfo: BareFontInfo;
-	private readonly _requests: CharWidthRequest[];
+	pwivate weadonwy _baweFontInfo: BaweFontInfo;
+	pwivate weadonwy _wequests: ChawWidthWequest[];
 
-	private _container: HTMLElement | null;
-	private _testElements: HTMLSpanElement[] | null;
+	pwivate _containa: HTMWEwement | nuww;
+	pwivate _testEwements: HTMWSpanEwement[] | nuww;
 
-	constructor(bareFontInfo: BareFontInfo, requests: CharWidthRequest[]) {
-		this._bareFontInfo = bareFontInfo;
-		this._requests = requests;
+	constwuctow(baweFontInfo: BaweFontInfo, wequests: ChawWidthWequest[]) {
+		this._baweFontInfo = baweFontInfo;
+		this._wequests = wequests;
 
-		this._container = null;
-		this._testElements = null;
+		this._containa = nuww;
+		this._testEwements = nuww;
 	}
 
-	public read(): void {
-		// Create a test container with all these test elements
-		this._createDomElements();
+	pubwic wead(): void {
+		// Cweate a test containa with aww these test ewements
+		this._cweateDomEwements();
 
-		// Add the container to the DOM
-		document.body.appendChild(this._container!);
+		// Add the containa to the DOM
+		document.body.appendChiwd(this._containa!);
 
-		// Read character widths
-		this._readFromDomElements();
+		// Wead chawacta widths
+		this._weadFwomDomEwements();
 
-		// Remove the container from the DOM
-		document.body.removeChild(this._container!);
+		// Wemove the containa fwom the DOM
+		document.body.wemoveChiwd(this._containa!);
 
-		this._container = null;
-		this._testElements = null;
+		this._containa = nuww;
+		this._testEwements = nuww;
 	}
 
-	private _createDomElements(): void {
-		const container = document.createElement('div');
-		container.style.position = 'absolute';
-		container.style.top = '-50000px';
-		container.style.width = '50000px';
+	pwivate _cweateDomEwements(): void {
+		const containa = document.cweateEwement('div');
+		containa.stywe.position = 'absowute';
+		containa.stywe.top = '-50000px';
+		containa.stywe.width = '50000px';
 
-		const regularDomNode = document.createElement('div');
-		regularDomNode.style.fontFamily = this._bareFontInfo.getMassagedFontFamily();
-		regularDomNode.style.fontWeight = this._bareFontInfo.fontWeight;
-		regularDomNode.style.fontSize = this._bareFontInfo.fontSize + 'px';
-		regularDomNode.style.fontFeatureSettings = this._bareFontInfo.fontFeatureSettings;
-		regularDomNode.style.lineHeight = this._bareFontInfo.lineHeight + 'px';
-		regularDomNode.style.letterSpacing = this._bareFontInfo.letterSpacing + 'px';
-		container.appendChild(regularDomNode);
+		const weguwawDomNode = document.cweateEwement('div');
+		weguwawDomNode.stywe.fontFamiwy = this._baweFontInfo.getMassagedFontFamiwy();
+		weguwawDomNode.stywe.fontWeight = this._baweFontInfo.fontWeight;
+		weguwawDomNode.stywe.fontSize = this._baweFontInfo.fontSize + 'px';
+		weguwawDomNode.stywe.fontFeatuweSettings = this._baweFontInfo.fontFeatuweSettings;
+		weguwawDomNode.stywe.wineHeight = this._baweFontInfo.wineHeight + 'px';
+		weguwawDomNode.stywe.wettewSpacing = this._baweFontInfo.wettewSpacing + 'px';
+		containa.appendChiwd(weguwawDomNode);
 
-		const boldDomNode = document.createElement('div');
-		boldDomNode.style.fontFamily = this._bareFontInfo.getMassagedFontFamily();
-		boldDomNode.style.fontWeight = 'bold';
-		boldDomNode.style.fontSize = this._bareFontInfo.fontSize + 'px';
-		boldDomNode.style.fontFeatureSettings = this._bareFontInfo.fontFeatureSettings;
-		boldDomNode.style.lineHeight = this._bareFontInfo.lineHeight + 'px';
-		boldDomNode.style.letterSpacing = this._bareFontInfo.letterSpacing + 'px';
-		container.appendChild(boldDomNode);
+		const bowdDomNode = document.cweateEwement('div');
+		bowdDomNode.stywe.fontFamiwy = this._baweFontInfo.getMassagedFontFamiwy();
+		bowdDomNode.stywe.fontWeight = 'bowd';
+		bowdDomNode.stywe.fontSize = this._baweFontInfo.fontSize + 'px';
+		bowdDomNode.stywe.fontFeatuweSettings = this._baweFontInfo.fontFeatuweSettings;
+		bowdDomNode.stywe.wineHeight = this._baweFontInfo.wineHeight + 'px';
+		bowdDomNode.stywe.wettewSpacing = this._baweFontInfo.wettewSpacing + 'px';
+		containa.appendChiwd(bowdDomNode);
 
-		const italicDomNode = document.createElement('div');
-		italicDomNode.style.fontFamily = this._bareFontInfo.getMassagedFontFamily();
-		italicDomNode.style.fontWeight = this._bareFontInfo.fontWeight;
-		italicDomNode.style.fontSize = this._bareFontInfo.fontSize + 'px';
-		italicDomNode.style.fontFeatureSettings = this._bareFontInfo.fontFeatureSettings;
-		italicDomNode.style.lineHeight = this._bareFontInfo.lineHeight + 'px';
-		italicDomNode.style.letterSpacing = this._bareFontInfo.letterSpacing + 'px';
-		italicDomNode.style.fontStyle = 'italic';
-		container.appendChild(italicDomNode);
+		const itawicDomNode = document.cweateEwement('div');
+		itawicDomNode.stywe.fontFamiwy = this._baweFontInfo.getMassagedFontFamiwy();
+		itawicDomNode.stywe.fontWeight = this._baweFontInfo.fontWeight;
+		itawicDomNode.stywe.fontSize = this._baweFontInfo.fontSize + 'px';
+		itawicDomNode.stywe.fontFeatuweSettings = this._baweFontInfo.fontFeatuweSettings;
+		itawicDomNode.stywe.wineHeight = this._baweFontInfo.wineHeight + 'px';
+		itawicDomNode.stywe.wettewSpacing = this._baweFontInfo.wettewSpacing + 'px';
+		itawicDomNode.stywe.fontStywe = 'itawic';
+		containa.appendChiwd(itawicDomNode);
 
-		const testElements: HTMLSpanElement[] = [];
-		for (const request of this._requests) {
+		const testEwements: HTMWSpanEwement[] = [];
+		fow (const wequest of this._wequests) {
 
-			let parent: HTMLElement;
-			if (request.type === CharWidthRequestType.Regular) {
-				parent = regularDomNode;
+			wet pawent: HTMWEwement;
+			if (wequest.type === ChawWidthWequestType.Weguwaw) {
+				pawent = weguwawDomNode;
 			}
-			if (request.type === CharWidthRequestType.Bold) {
-				parent = boldDomNode;
+			if (wequest.type === ChawWidthWequestType.Bowd) {
+				pawent = bowdDomNode;
 			}
-			if (request.type === CharWidthRequestType.Italic) {
-				parent = italicDomNode;
+			if (wequest.type === ChawWidthWequestType.Itawic) {
+				pawent = itawicDomNode;
 			}
 
-			parent!.appendChild(document.createElement('br'));
+			pawent!.appendChiwd(document.cweateEwement('bw'));
 
-			const testElement = document.createElement('span');
-			DomCharWidthReader._render(testElement, request);
-			parent!.appendChild(testElement);
+			const testEwement = document.cweateEwement('span');
+			DomChawWidthWeada._wenda(testEwement, wequest);
+			pawent!.appendChiwd(testEwement);
 
-			testElements.push(testElement);
+			testEwements.push(testEwement);
 		}
 
-		this._container = container;
-		this._testElements = testElements;
+		this._containa = containa;
+		this._testEwements = testEwements;
 	}
 
-	private static _render(testElement: HTMLElement, request: CharWidthRequest): void {
-		if (request.chr === ' ') {
-			let htmlString = '\u00a0';
-			// Repeat character 256 (2^8) times
-			for (let i = 0; i < 8; i++) {
-				htmlString += htmlString;
+	pwivate static _wenda(testEwement: HTMWEwement, wequest: ChawWidthWequest): void {
+		if (wequest.chw === ' ') {
+			wet htmwStwing = '\u00a0';
+			// Wepeat chawacta 256 (2^8) times
+			fow (wet i = 0; i < 8; i++) {
+				htmwStwing += htmwStwing;
 			}
-			testElement.innerText = htmlString;
-		} else {
-			let testString = request.chr;
-			// Repeat character 256 (2^8) times
-			for (let i = 0; i < 8; i++) {
-				testString += testString;
+			testEwement.innewText = htmwStwing;
+		} ewse {
+			wet testStwing = wequest.chw;
+			// Wepeat chawacta 256 (2^8) times
+			fow (wet i = 0; i < 8; i++) {
+				testStwing += testStwing;
 			}
-			testElement.textContent = testString;
+			testEwement.textContent = testStwing;
 		}
 	}
 
-	private _readFromDomElements(): void {
-		for (let i = 0, len = this._requests.length; i < len; i++) {
-			const request = this._requests[i];
-			const testElement = this._testElements![i];
+	pwivate _weadFwomDomEwements(): void {
+		fow (wet i = 0, wen = this._wequests.wength; i < wen; i++) {
+			const wequest = this._wequests[i];
+			const testEwement = this._testEwements![i];
 
-			request.fulfill(testElement.offsetWidth / 256);
+			wequest.fuwfiww(testEwement.offsetWidth / 256);
 		}
 	}
 }
 
-export function readCharWidths(bareFontInfo: BareFontInfo, requests: CharWidthRequest[]): void {
-	const reader = new DomCharWidthReader(bareFontInfo, requests);
-	reader.read();
+expowt function weadChawWidths(baweFontInfo: BaweFontInfo, wequests: ChawWidthWequest[]): void {
+	const weada = new DomChawWidthWeada(baweFontInfo, wequests);
+	weada.wead();
 }

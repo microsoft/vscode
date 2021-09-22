@@ -1,266 +1,266 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { matchesFuzzy } from 'vs/base/common/filters';
-import { splitGlobAware } from 'vs/base/common/glob';
-import { ITreeFilter, TreeVisibility, TreeFilterResult } from 'vs/base/browser/ui/tree/tree';
-import { IReplElement } from 'vs/workbench/contrib/debug/common/debug';
-import * as DOM from 'vs/base/browser/dom';
-import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { Delayer } from 'vs/base/common/async';
-import { IAction } from 'vs/base/common/actions';
-import { HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { toDisposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
-import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { ReplEvaluationResult, ReplEvaluationInput } from 'vs/workbench/contrib/debug/common/replModel';
-import { localize } from 'vs/nls';
-import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
+impowt { matchesFuzzy } fwom 'vs/base/common/fiwtews';
+impowt { spwitGwobAwawe } fwom 'vs/base/common/gwob';
+impowt { ITweeFiwta, TweeVisibiwity, TweeFiwtewWesuwt } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { IWepwEwement } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { BaseActionViewItem } fwom 'vs/base/bwowsa/ui/actionbaw/actionViewItems';
+impowt { Dewaya } fwom 'vs/base/common/async';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { HistowyInputBox } fwom 'vs/base/bwowsa/ui/inputbox/inputBox';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { ContextScopedHistowyInputBox } fwom 'vs/pwatfowm/bwowsa/contextScopedHistowyWidget';
+impowt { attachInputBoxStywa, attachStywewCawwback } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { badgeBackgwound, badgeFowegwound, contwastBowda } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { WepwEvawuationWesuwt, WepwEvawuationInput } fwom 'vs/wowkbench/contwib/debug/common/wepwModew';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Vawiabwe } fwom 'vs/wowkbench/contwib/debug/common/debugModew';
 
 
-type ParsedQuery = {
-	type: 'include' | 'exclude',
-	query: string,
+type PawsedQuewy = {
+	type: 'incwude' | 'excwude',
+	quewy: stwing,
 };
 
-export class ReplFilter implements ITreeFilter<IReplElement> {
+expowt cwass WepwFiwta impwements ITweeFiwta<IWepwEwement> {
 
-	static matchQuery = matchesFuzzy;
+	static matchQuewy = matchesFuzzy;
 
-	private _parsedQueries: ParsedQuery[] = [];
-	set filterQuery(query: string) {
-		this._parsedQueries = [];
-		query = query.trim();
+	pwivate _pawsedQuewies: PawsedQuewy[] = [];
+	set fiwtewQuewy(quewy: stwing) {
+		this._pawsedQuewies = [];
+		quewy = quewy.twim();
 
-		if (query && query !== '') {
-			const filters = splitGlobAware(query, ',').map(s => s.trim()).filter(s => !!s.length);
-			for (const f of filters) {
-				if (f.startsWith('!')) {
-					this._parsedQueries.push({ type: 'exclude', query: f.slice(1) });
-				} else {
-					this._parsedQueries.push({ type: 'include', query: f });
+		if (quewy && quewy !== '') {
+			const fiwtews = spwitGwobAwawe(quewy, ',').map(s => s.twim()).fiwta(s => !!s.wength);
+			fow (const f of fiwtews) {
+				if (f.stawtsWith('!')) {
+					this._pawsedQuewies.push({ type: 'excwude', quewy: f.swice(1) });
+				} ewse {
+					this._pawsedQuewies.push({ type: 'incwude', quewy: f });
 				}
 			}
 		}
 	}
 
-	filter(element: IReplElement, parentVisibility: TreeVisibility): TreeFilterResult<void> {
-		if (element instanceof ReplEvaluationInput || element instanceof ReplEvaluationResult || element instanceof Variable) {
-			// Only filter the output events, everything else is visible https://github.com/microsoft/vscode/issues/105863
-			return TreeVisibility.Visible;
+	fiwta(ewement: IWepwEwement, pawentVisibiwity: TweeVisibiwity): TweeFiwtewWesuwt<void> {
+		if (ewement instanceof WepwEvawuationInput || ewement instanceof WepwEvawuationWesuwt || ewement instanceof Vawiabwe) {
+			// Onwy fiwta the output events, evewything ewse is visibwe https://github.com/micwosoft/vscode/issues/105863
+			wetuwn TweeVisibiwity.Visibwe;
 		}
 
-		let includeQueryPresent = false;
-		let includeQueryMatched = false;
+		wet incwudeQuewyPwesent = fawse;
+		wet incwudeQuewyMatched = fawse;
 
-		const text = element.toString(true);
+		const text = ewement.toStwing(twue);
 
-		for (let { type, query } of this._parsedQueries) {
-			if (type === 'exclude' && ReplFilter.matchQuery(query, text)) {
-				// If exclude query matches, ignore all other queries and hide
-				return false;
-			} else if (type === 'include') {
-				includeQueryPresent = true;
-				if (ReplFilter.matchQuery(query, text)) {
-					includeQueryMatched = true;
+		fow (wet { type, quewy } of this._pawsedQuewies) {
+			if (type === 'excwude' && WepwFiwta.matchQuewy(quewy, text)) {
+				// If excwude quewy matches, ignowe aww otha quewies and hide
+				wetuwn fawse;
+			} ewse if (type === 'incwude') {
+				incwudeQuewyPwesent = twue;
+				if (WepwFiwta.matchQuewy(quewy, text)) {
+					incwudeQuewyMatched = twue;
 				}
 			}
 		}
 
-		return includeQueryPresent ? includeQueryMatched : (typeof parentVisibility !== 'undefined' ? parentVisibility : TreeVisibility.Visible);
+		wetuwn incwudeQuewyPwesent ? incwudeQuewyMatched : (typeof pawentVisibiwity !== 'undefined' ? pawentVisibiwity : TweeVisibiwity.Visibwe);
 	}
 }
 
-export interface IFilterStatsProvider {
-	getFilterStats(): { total: number, filtered: number };
+expowt intewface IFiwtewStatsPwovida {
+	getFiwtewStats(): { totaw: numba, fiwtewed: numba };
 }
 
-export class ReplFilterState {
+expowt cwass WepwFiwtewState {
 
-	constructor(private filterStatsProvider: IFilterStatsProvider) { }
+	constwuctow(pwivate fiwtewStatsPwovida: IFiwtewStatsPwovida) { }
 
-	private readonly _onDidChange: Emitter<void> = new Emitter<void>();
+	pwivate weadonwy _onDidChange: Emitta<void> = new Emitta<void>();
 	get onDidChange(): Event<void> {
-		return this._onDidChange.event;
+		wetuwn this._onDidChange.event;
 	}
 
-	private readonly _onDidStatsChange: Emitter<void> = new Emitter<void>();
+	pwivate weadonwy _onDidStatsChange: Emitta<void> = new Emitta<void>();
 	get onDidStatsChange(): Event<void> {
-		return this._onDidStatsChange.event;
+		wetuwn this._onDidStatsChange.event;
 	}
 
-	private _filterText = '';
-	private _stats = { total: 0, filtered: 0 };
+	pwivate _fiwtewText = '';
+	pwivate _stats = { totaw: 0, fiwtewed: 0 };
 
-	get filterText(): string {
-		return this._filterText;
+	get fiwtewText(): stwing {
+		wetuwn this._fiwtewText;
 	}
 
-	get filterStats(): { total: number, filtered: number } {
-		return this._stats;
+	get fiwtewStats(): { totaw: numba, fiwtewed: numba } {
+		wetuwn this._stats;
 	}
 
-	set filterText(filterText: string) {
-		if (this._filterText !== filterText) {
-			this._filterText = filterText;
-			this._onDidChange.fire();
-			this.updateFilterStats();
+	set fiwtewText(fiwtewText: stwing) {
+		if (this._fiwtewText !== fiwtewText) {
+			this._fiwtewText = fiwtewText;
+			this._onDidChange.fiwe();
+			this.updateFiwtewStats();
 		}
 	}
 
-	updateFilterStats(): void {
-		const { total, filtered } = this.filterStatsProvider.getFilterStats();
-		if (this._stats.total !== total || this._stats.filtered !== filtered) {
-			this._stats = { total, filtered };
-			this._onDidStatsChange.fire();
+	updateFiwtewStats(): void {
+		const { totaw, fiwtewed } = this.fiwtewStatsPwovida.getFiwtewStats();
+		if (this._stats.totaw !== totaw || this._stats.fiwtewed !== fiwtewed) {
+			this._stats = { totaw, fiwtewed };
+			this._onDidStatsChange.fiwe();
 		}
 	}
 }
 
-export class ReplFilterActionViewItem extends BaseActionViewItem {
+expowt cwass WepwFiwtewActionViewItem extends BaseActionViewItem {
 
-	private delayedFilterUpdate: Delayer<void>;
-	private container!: HTMLElement;
-	private filterBadge!: HTMLElement;
-	private filterInputBox!: HistoryInputBox;
+	pwivate dewayedFiwtewUpdate: Dewaya<void>;
+	pwivate containa!: HTMWEwement;
+	pwivate fiwtewBadge!: HTMWEwement;
+	pwivate fiwtewInputBox!: HistowyInputBox;
 
-	constructor(
+	constwuctow(
 		action: IAction,
-		private placeholder: string,
-		private filters: ReplFilterState,
-		private history: string[],
-		private showHistoryHint: () => boolean,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IContextViewService private readonly contextViewService: IContextViewService) {
-		super(null, action);
-		this.delayedFilterUpdate = new Delayer<void>(400);
-		this._register(toDisposable(() => this.delayedFilterUpdate.cancel()));
+		pwivate pwacehowda: stwing,
+		pwivate fiwtews: WepwFiwtewState,
+		pwivate histowy: stwing[],
+		pwivate showHistowyHint: () => boowean,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
+		@IContextViewSewvice pwivate weadonwy contextViewSewvice: IContextViewSewvice) {
+		supa(nuww, action);
+		this.dewayedFiwtewUpdate = new Dewaya<void>(400);
+		this._wegista(toDisposabwe(() => this.dewayedFiwtewUpdate.cancew()));
 	}
 
-	override render(container: HTMLElement): void {
-		this.container = container;
-		this.container.classList.add('repl-panel-filter-container');
+	ovewwide wenda(containa: HTMWEwement): void {
+		this.containa = containa;
+		this.containa.cwassWist.add('wepw-panew-fiwta-containa');
 
-		this.element = DOM.append(this.container, DOM.$(''));
-		this.element.className = this.class;
-		this.createInput(this.element);
-		this.createBadge(this.element);
-		this.updateClass();
+		this.ewement = DOM.append(this.containa, DOM.$(''));
+		this.ewement.cwassName = this.cwass;
+		this.cweateInput(this.ewement);
+		this.cweateBadge(this.ewement);
+		this.updateCwass();
 	}
 
-	override focus(): void {
-		if (this.filterInputBox) {
-			this.filterInputBox.focus();
+	ovewwide focus(): void {
+		if (this.fiwtewInputBox) {
+			this.fiwtewInputBox.focus();
 		}
 	}
 
-	override blur(): void {
-		if (this.filterInputBox) {
-			this.filterInputBox.blur();
+	ovewwide bwuw(): void {
+		if (this.fiwtewInputBox) {
+			this.fiwtewInputBox.bwuw();
 		}
 	}
 
-	override setFocusable(): void {
-		// noop input elements are focusable by default
+	ovewwide setFocusabwe(): void {
+		// noop input ewements awe focusabwe by defauwt
 	}
 
-	getHistory(): string[] {
-		return this.filterInputBox.getHistory();
+	getHistowy(): stwing[] {
+		wetuwn this.fiwtewInputBox.getHistowy();
 	}
 
-	override get trapsArrowNavigation(): boolean {
-		return true;
+	ovewwide get twapsAwwowNavigation(): boowean {
+		wetuwn twue;
 	}
 
-	private clearFilterText(): void {
-		this.filterInputBox.value = '';
+	pwivate cweawFiwtewText(): void {
+		this.fiwtewInputBox.vawue = '';
 	}
 
-	private createInput(container: HTMLElement): void {
-		this.filterInputBox = this._register(this.instantiationService.createInstance(ContextScopedHistoryInputBox, container, this.contextViewService, {
-			placeholder: this.placeholder,
-			history: this.history,
-			showHistoryHint: this.showHistoryHint
+	pwivate cweateInput(containa: HTMWEwement): void {
+		this.fiwtewInputBox = this._wegista(this.instantiationSewvice.cweateInstance(ContextScopedHistowyInputBox, containa, this.contextViewSewvice, {
+			pwacehowda: this.pwacehowda,
+			histowy: this.histowy,
+			showHistowyHint: this.showHistowyHint
 		}));
-		this._register(attachInputBoxStyler(this.filterInputBox, this.themeService));
-		this.filterInputBox.value = this.filters.filterText;
+		this._wegista(attachInputBoxStywa(this.fiwtewInputBox, this.themeSewvice));
+		this.fiwtewInputBox.vawue = this.fiwtews.fiwtewText;
 
-		this._register(this.filterInputBox.onDidChange(() => this.delayedFilterUpdate.trigger(() => this.onDidInputChange(this.filterInputBox!))));
-		this._register(this.filters.onDidChange(() => {
-			this.filterInputBox.value = this.filters.filterText;
+		this._wegista(this.fiwtewInputBox.onDidChange(() => this.dewayedFiwtewUpdate.twigga(() => this.onDidInputChange(this.fiwtewInputBox!))));
+		this._wegista(this.fiwtews.onDidChange(() => {
+			this.fiwtewInputBox.vawue = this.fiwtews.fiwtewText;
 		}));
-		this._register(DOM.addStandardDisposableListener(this.filterInputBox.inputElement, DOM.EventType.KEY_DOWN, (e: any) => this.onInputKeyDown(e)));
-		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_DOWN, this.handleKeyboardEvent));
-		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_UP, this.handleKeyboardEvent));
-		this._register(DOM.addStandardDisposableListener(this.filterInputBox.inputElement, DOM.EventType.CLICK, (e) => {
-			e.stopPropagation();
-			e.preventDefault();
+		this._wegista(DOM.addStandawdDisposabweWistena(this.fiwtewInputBox.inputEwement, DOM.EventType.KEY_DOWN, (e: any) => this.onInputKeyDown(e)));
+		this._wegista(DOM.addStandawdDisposabweWistena(containa, DOM.EventType.KEY_DOWN, this.handweKeyboawdEvent));
+		this._wegista(DOM.addStandawdDisposabweWistena(containa, DOM.EventType.KEY_UP, this.handweKeyboawdEvent));
+		this._wegista(DOM.addStandawdDisposabweWistena(this.fiwtewInputBox.inputEwement, DOM.EventType.CWICK, (e) => {
+			e.stopPwopagation();
+			e.pweventDefauwt();
 		}));
 	}
 
-	private onDidInputChange(inputbox: HistoryInputBox) {
-		inputbox.addToHistory();
-		this.filters.filterText = inputbox.value;
+	pwivate onDidInputChange(inputbox: HistowyInputBox) {
+		inputbox.addToHistowy();
+		this.fiwtews.fiwtewText = inputbox.vawue;
 	}
 
-	// Action toolbar is swallowing some keys for action items which should not be for an input box
-	private handleKeyboardEvent(event: StandardKeyboardEvent) {
-		if (event.equals(KeyCode.Space)
-			|| event.equals(KeyCode.LeftArrow)
-			|| event.equals(KeyCode.RightArrow)
-			|| event.equals(KeyCode.Escape)
+	// Action toowbaw is swawwowing some keys fow action items which shouwd not be fow an input box
+	pwivate handweKeyboawdEvent(event: StandawdKeyboawdEvent) {
+		if (event.equaws(KeyCode.Space)
+			|| event.equaws(KeyCode.WeftAwwow)
+			|| event.equaws(KeyCode.WightAwwow)
+			|| event.equaws(KeyCode.Escape)
 		) {
-			event.stopPropagation();
+			event.stopPwopagation();
 		}
 	}
 
-	private onInputKeyDown(event: StandardKeyboardEvent) {
-		if (event.equals(KeyCode.Escape)) {
-			this.clearFilterText();
-			event.stopPropagation();
-			event.preventDefault();
+	pwivate onInputKeyDown(event: StandawdKeyboawdEvent) {
+		if (event.equaws(KeyCode.Escape)) {
+			this.cweawFiwtewText();
+			event.stopPwopagation();
+			event.pweventDefauwt();
 		}
 	}
 
-	private createBadge(container: HTMLElement): void {
-		const controlsContainer = DOM.append(container, DOM.$('.repl-panel-filter-controls'));
-		const filterBadge = this.filterBadge = DOM.append(controlsContainer, DOM.$('.repl-panel-filter-badge'));
-		this._register(attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
-			const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
-			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : '';
-			const border = colors.contrastBorder ? colors.contrastBorder.toString() : '';
+	pwivate cweateBadge(containa: HTMWEwement): void {
+		const contwowsContaina = DOM.append(containa, DOM.$('.wepw-panew-fiwta-contwows'));
+		const fiwtewBadge = this.fiwtewBadge = DOM.append(contwowsContaina, DOM.$('.wepw-panew-fiwta-badge'));
+		this._wegista(attachStywewCawwback(this.themeSewvice, { badgeBackgwound, badgeFowegwound, contwastBowda }, cowows => {
+			const backgwound = cowows.badgeBackgwound ? cowows.badgeBackgwound.toStwing() : '';
+			const fowegwound = cowows.badgeFowegwound ? cowows.badgeFowegwound.toStwing() : '';
+			const bowda = cowows.contwastBowda ? cowows.contwastBowda.toStwing() : '';
 
-			filterBadge.style.backgroundColor = background;
+			fiwtewBadge.stywe.backgwoundCowow = backgwound;
 
-			filterBadge.style.borderWidth = border ? '1px' : '';
-			filterBadge.style.borderStyle = border ? 'solid' : '';
-			filterBadge.style.borderColor = border;
-			filterBadge.style.color = foreground;
+			fiwtewBadge.stywe.bowdewWidth = bowda ? '1px' : '';
+			fiwtewBadge.stywe.bowdewStywe = bowda ? 'sowid' : '';
+			fiwtewBadge.stywe.bowdewCowow = bowda;
+			fiwtewBadge.stywe.cowow = fowegwound;
 		}));
 		this.updateBadge();
-		this._register(this.filters.onDidStatsChange(() => this.updateBadge()));
+		this._wegista(this.fiwtews.onDidStatsChange(() => this.updateBadge()));
 	}
 
-	private updateBadge(): void {
-		const { total, filtered } = this.filters.filterStats;
-		const filterBadgeHidden = total === filtered || total === 0;
+	pwivate updateBadge(): void {
+		const { totaw, fiwtewed } = this.fiwtews.fiwtewStats;
+		const fiwtewBadgeHidden = totaw === fiwtewed || totaw === 0;
 
-		this.filterBadge.classList.toggle('hidden', filterBadgeHidden);
-		this.filterBadge.textContent = localize('showing filtered repl lines', "Showing {0} of {1}", filtered, total);
-		this.filterInputBox.inputElement.style.paddingRight = filterBadgeHidden ? '4px' : '150px';
+		this.fiwtewBadge.cwassWist.toggwe('hidden', fiwtewBadgeHidden);
+		this.fiwtewBadge.textContent = wocawize('showing fiwtewed wepw wines', "Showing {0} of {1}", fiwtewed, totaw);
+		this.fiwtewInputBox.inputEwement.stywe.paddingWight = fiwtewBadgeHidden ? '4px' : '150px';
 	}
 
-	protected get class(): string {
-		return 'panel-action-tree-filter';
+	pwotected get cwass(): stwing {
+		wetuwn 'panew-action-twee-fiwta';
 	}
 }

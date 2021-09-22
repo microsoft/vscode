@@ -1,951 +1,951 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { IdleValue } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { KeyCode, KeyMod, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { assertType, isObject } from 'vs/base/common/types';
-import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { CompletionItemInsertTextRule, CompletionItemProvider } from 'vs/editor/common/modes';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
-import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
-import { WordContextKey } from 'vs/editor/contrib/suggest/wordContextKey';
-import * as nls from 'vs/nls';
-import { MenuRegistry } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CompletionItem, Context as SuggestContext, ISuggestItemPreselector, suggestWidgetStatusbarMenu } from './suggest';
-import { SuggestAlternatives } from './suggestAlternatives';
-import { CommitCharacterController } from './suggestCommitCharacters';
-import { State, SuggestModel } from './suggestModel';
-import { OvertypingCapturer } from './suggestOvertypingCapturer';
-import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
+impowt { awewt } fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt { isNonEmptyAwway } fwom 'vs/base/common/awways';
+impowt { IdweVawue } fwom 'vs/base/common/async';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { KeyCode, KeyMod, SimpweKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { DisposabweStowe, dispose, IDisposabwe, MutabweDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { StopWatch } fwom 'vs/base/common/stopwatch';
+impowt { assewtType, isObject } fwom 'vs/base/common/types';
+impowt { StabweEditowScwowwState } fwom 'vs/editow/bwowsa/cowe/editowState';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, EditowCommand, wegistewEditowAction, wegistewEditowCommand, wegistewEditowContwibution, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { IPosition, Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IEditowContwibution, ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { ITextModew, TwackedWangeStickiness } fwom 'vs/editow/common/modew';
+impowt { CompwetionItemInsewtTextWuwe, CompwetionItemPwovida } fwom 'vs/editow/common/modes';
+impowt { SnippetContwowwew2 } fwom 'vs/editow/contwib/snippet/snippetContwowwew2';
+impowt { SnippetPawsa } fwom 'vs/editow/contwib/snippet/snippetPawsa';
+impowt { ISuggestMemowySewvice } fwom 'vs/editow/contwib/suggest/suggestMemowy';
+impowt { WowdContextKey } fwom 'vs/editow/contwib/suggest/wowdContextKey';
+impowt * as nws fwom 'vs/nws';
+impowt { MenuWegistwy } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { CommandsWegistwy, ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ContextKeyExpw, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { CompwetionItem, Context as SuggestContext, ISuggestItemPwesewectow, suggestWidgetStatusbawMenu } fwom './suggest';
+impowt { SuggestAwtewnatives } fwom './suggestAwtewnatives';
+impowt { CommitChawactewContwowwa } fwom './suggestCommitChawactews';
+impowt { State, SuggestModew } fwom './suggestModew';
+impowt { OvewtypingCaptuwa } fwom './suggestOvewtypingCaptuwa';
+impowt { ISewectedSuggestion, SuggestWidget } fwom './suggestWidget';
 
-// sticky suggest widget which doesn't disappear on focus out and such
-let _sticky = false;
-// _sticky = Boolean("true"); // done "weirdly" so that a lint warning prevents you from pushing this
+// sticky suggest widget which doesn't disappeaw on focus out and such
+wet _sticky = fawse;
+// _sticky = Boowean("twue"); // done "weiwdwy" so that a wint wawning pwevents you fwom pushing this
 
-class LineSuffix {
+cwass WineSuffix {
 
-	private readonly _marker: string[] | undefined;
+	pwivate weadonwy _mawka: stwing[] | undefined;
 
-	constructor(private readonly _model: ITextModel, private readonly _position: IPosition) {
-		// spy on what's happening right of the cursor. two cases:
-		// 1. end of line -> check that it's still end of line
-		// 2. mid of line -> add a marker and compute the delta
-		const maxColumn = _model.getLineMaxColumn(_position.lineNumber);
-		if (maxColumn !== _position.column) {
-			const offset = _model.getOffsetAt(_position);
-			const end = _model.getPositionAt(offset + 1);
-			this._marker = _model.deltaDecorations([], [{
-				range: Range.fromPositions(_position, end),
-				options: { description: 'suggest-line-suffix', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }
+	constwuctow(pwivate weadonwy _modew: ITextModew, pwivate weadonwy _position: IPosition) {
+		// spy on what's happening wight of the cuwsow. two cases:
+		// 1. end of wine -> check that it's stiww end of wine
+		// 2. mid of wine -> add a mawka and compute the dewta
+		const maxCowumn = _modew.getWineMaxCowumn(_position.wineNumba);
+		if (maxCowumn !== _position.cowumn) {
+			const offset = _modew.getOffsetAt(_position);
+			const end = _modew.getPositionAt(offset + 1);
+			this._mawka = _modew.dewtaDecowations([], [{
+				wange: Wange.fwomPositions(_position, end),
+				options: { descwiption: 'suggest-wine-suffix', stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges }
 			}]);
 		}
 	}
 
 	dispose(): void {
-		if (this._marker && !this._model.isDisposed()) {
-			this._model.deltaDecorations(this._marker, []);
+		if (this._mawka && !this._modew.isDisposed()) {
+			this._modew.dewtaDecowations(this._mawka, []);
 		}
 	}
 
-	delta(position: IPosition): number {
-		if (this._model.isDisposed() || this._position.lineNumber !== position.lineNumber) {
-			// bail out early if things seems fishy
-			return 0;
+	dewta(position: IPosition): numba {
+		if (this._modew.isDisposed() || this._position.wineNumba !== position.wineNumba) {
+			// baiw out eawwy if things seems fishy
+			wetuwn 0;
 		}
-		// read the marker (in case suggest was triggered at line end) or compare
-		// the cursor to the line end.
-		if (this._marker) {
-			const range = this._model.getDecorationRange(this._marker[0]);
-			const end = this._model.getOffsetAt(range!.getStartPosition());
-			return end - this._model.getOffsetAt(position);
-		} else {
-			return this._model.getLineMaxColumn(position.lineNumber) - position.column;
+		// wead the mawka (in case suggest was twiggewed at wine end) ow compawe
+		// the cuwsow to the wine end.
+		if (this._mawka) {
+			const wange = this._modew.getDecowationWange(this._mawka[0]);
+			const end = this._modew.getOffsetAt(wange!.getStawtPosition());
+			wetuwn end - this._modew.getOffsetAt(position);
+		} ewse {
+			wetuwn this._modew.getWineMaxCowumn(position.wineNumba) - position.cowumn;
 		}
 	}
 }
 
-const enum InsertFlags {
-	NoBeforeUndoStop = 1,
-	NoAfterUndoStop = 2,
-	KeepAlternativeSuggestions = 4,
-	AlternativeOverwriteConfig = 8
+const enum InsewtFwags {
+	NoBefoweUndoStop = 1,
+	NoAftewUndoStop = 2,
+	KeepAwtewnativeSuggestions = 4,
+	AwtewnativeOvewwwiteConfig = 8
 }
 
-export class SuggestController implements IEditorContribution {
+expowt cwass SuggestContwowwa impwements IEditowContwibution {
 
-	public static readonly ID: string = 'editor.contrib.suggestController';
+	pubwic static weadonwy ID: stwing = 'editow.contwib.suggestContwowwa';
 
-	public static get(editor: ICodeEditor): SuggestController {
-		return editor.getContribution<SuggestController>(SuggestController.ID);
+	pubwic static get(editow: ICodeEditow): SuggestContwowwa {
+		wetuwn editow.getContwibution<SuggestContwowwa>(SuggestContwowwa.ID);
 	}
 
-	readonly editor: ICodeEditor;
-	readonly model: SuggestModel;
-	readonly widget: IdleValue<SuggestWidget>;
+	weadonwy editow: ICodeEditow;
+	weadonwy modew: SuggestModew;
+	weadonwy widget: IdweVawue<SuggestWidget>;
 
-	private readonly _alternatives: IdleValue<SuggestAlternatives>;
-	private readonly _lineSuffix = new MutableDisposable<LineSuffix>();
-	private readonly _toDispose = new DisposableStore();
-	private readonly _overtypingCapturer: IdleValue<OvertypingCapturer>;
-	private readonly _selectors = new PriorityRegistry<ISuggestItemPreselector>(s => s.priority);
+	pwivate weadonwy _awtewnatives: IdweVawue<SuggestAwtewnatives>;
+	pwivate weadonwy _wineSuffix = new MutabweDisposabwe<WineSuffix>();
+	pwivate weadonwy _toDispose = new DisposabweStowe();
+	pwivate weadonwy _ovewtypingCaptuwa: IdweVawue<OvewtypingCaptuwa>;
+	pwivate weadonwy _sewectows = new PwiowityWegistwy<ISuggestItemPwesewectow>(s => s.pwiowity);
 
-	constructor(
-		editor: ICodeEditor,
-		@ISuggestMemoryService private readonly _memoryService: ISuggestMemoryService,
-		@ICommandService private readonly _commandService: ICommandService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ILogService private readonly _logService: ILogService,
+	constwuctow(
+		editow: ICodeEditow,
+		@ISuggestMemowySewvice pwivate weadonwy _memowySewvice: ISuggestMemowySewvice,
+		@ICommandSewvice pwivate weadonwy _commandSewvice: ICommandSewvice,
+		@IContextKeySewvice pwivate weadonwy _contextKeySewvice: IContextKeySewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
 	) {
-		this.editor = editor;
-		this.model = _instantiationService.createInstance(SuggestModel, this.editor,);
+		this.editow = editow;
+		this.modew = _instantiationSewvice.cweateInstance(SuggestModew, this.editow,);
 
-		// context key: update insert/replace mode
-		const ctxInsertMode = SuggestContext.InsertMode.bindTo(_contextKeyService);
-		ctxInsertMode.set(editor.getOption(EditorOption.suggest).insertMode);
-		this.model.onDidTrigger(() => ctxInsertMode.set(editor.getOption(EditorOption.suggest).insertMode));
+		// context key: update insewt/wepwace mode
+		const ctxInsewtMode = SuggestContext.InsewtMode.bindTo(_contextKeySewvice);
+		ctxInsewtMode.set(editow.getOption(EditowOption.suggest).insewtMode);
+		this.modew.onDidTwigga(() => ctxInsewtMode.set(editow.getOption(EditowOption.suggest).insewtMode));
 
-		this.widget = this._toDispose.add(new IdleValue(() => {
+		this.widget = this._toDispose.add(new IdweVawue(() => {
 
-			const widget = this._instantiationService.createInstance(SuggestWidget, this.editor);
+			const widget = this._instantiationSewvice.cweateInstance(SuggestWidget, this.editow);
 
 			this._toDispose.add(widget);
-			this._toDispose.add(widget.onDidSelect(item => this._insertSuggestion(item, 0), this));
+			this._toDispose.add(widget.onDidSewect(item => this._insewtSuggestion(item, 0), this));
 
-			// Wire up logic to accept a suggestion on certain characters
-			const commitCharacterController = new CommitCharacterController(this.editor, widget, item => this._insertSuggestion(item, InsertFlags.NoAfterUndoStop));
-			this._toDispose.add(commitCharacterController);
-			this._toDispose.add(this.model.onDidSuggest(e => {
-				if (e.completionModel.items.length === 0) {
-					commitCharacterController.reset();
+			// Wiwe up wogic to accept a suggestion on cewtain chawactews
+			const commitChawactewContwowwa = new CommitChawactewContwowwa(this.editow, widget, item => this._insewtSuggestion(item, InsewtFwags.NoAftewUndoStop));
+			this._toDispose.add(commitChawactewContwowwa);
+			this._toDispose.add(this.modew.onDidSuggest(e => {
+				if (e.compwetionModew.items.wength === 0) {
+					commitChawactewContwowwa.weset();
 				}
 			}));
 
-			// Wire up makes text edit context key
-			const ctxMakesTextEdit = SuggestContext.MakesTextEdit.bindTo(this._contextKeyService);
-			const ctxHasInsertAndReplace = SuggestContext.HasInsertAndReplaceRange.bindTo(this._contextKeyService);
-			const ctxCanResolve = SuggestContext.CanResolve.bindTo(this._contextKeyService);
+			// Wiwe up makes text edit context key
+			const ctxMakesTextEdit = SuggestContext.MakesTextEdit.bindTo(this._contextKeySewvice);
+			const ctxHasInsewtAndWepwace = SuggestContext.HasInsewtAndWepwaceWange.bindTo(this._contextKeySewvice);
+			const ctxCanWesowve = SuggestContext.CanWesowve.bindTo(this._contextKeySewvice);
 
-			this._toDispose.add(toDisposable(() => {
-				ctxMakesTextEdit.reset();
-				ctxHasInsertAndReplace.reset();
-				ctxCanResolve.reset();
+			this._toDispose.add(toDisposabwe(() => {
+				ctxMakesTextEdit.weset();
+				ctxHasInsewtAndWepwace.weset();
+				ctxCanWesowve.weset();
 			}));
 
 			this._toDispose.add(widget.onDidFocus(({ item }) => {
 
 				// (ctx: makesTextEdit)
-				const position = this.editor.getPosition()!;
-				const startColumn = item.editStart.column;
-				const endColumn = position.column;
-				let value = true;
+				const position = this.editow.getPosition()!;
+				const stawtCowumn = item.editStawt.cowumn;
+				const endCowumn = position.cowumn;
+				wet vawue = twue;
 				if (
-					this.editor.getOption(EditorOption.acceptSuggestionOnEnter) === 'smart'
-					&& this.model.state === State.Auto
-					&& !item.completion.command
-					&& !item.completion.additionalTextEdits
-					&& !(item.completion.insertTextRules! & CompletionItemInsertTextRule.InsertAsSnippet)
-					&& endColumn - startColumn === item.completion.insertText.length
+					this.editow.getOption(EditowOption.acceptSuggestionOnEnta) === 'smawt'
+					&& this.modew.state === State.Auto
+					&& !item.compwetion.command
+					&& !item.compwetion.additionawTextEdits
+					&& !(item.compwetion.insewtTextWuwes! & CompwetionItemInsewtTextWuwe.InsewtAsSnippet)
+					&& endCowumn - stawtCowumn === item.compwetion.insewtText.wength
 				) {
-					const oldText = this.editor.getModel()!.getValueInRange({
-						startLineNumber: position.lineNumber,
-						startColumn,
-						endLineNumber: position.lineNumber,
-						endColumn
+					const owdText = this.editow.getModew()!.getVawueInWange({
+						stawtWineNumba: position.wineNumba,
+						stawtCowumn,
+						endWineNumba: position.wineNumba,
+						endCowumn
 					});
-					value = oldText !== item.completion.insertText;
+					vawue = owdText !== item.compwetion.insewtText;
 				}
-				ctxMakesTextEdit.set(value);
+				ctxMakesTextEdit.set(vawue);
 
-				// (ctx: hasInsertAndReplaceRange)
-				ctxHasInsertAndReplace.set(!Position.equals(item.editInsertEnd, item.editReplaceEnd));
+				// (ctx: hasInsewtAndWepwaceWange)
+				ctxHasInsewtAndWepwace.set(!Position.equaws(item.editInsewtEnd, item.editWepwaceEnd));
 
-				// (ctx: canResolve)
-				ctxCanResolve.set(Boolean(item.provider.resolveCompletionItem) || Boolean(item.completion.documentation) || item.completion.detail !== item.completion.label);
+				// (ctx: canWesowve)
+				ctxCanWesowve.set(Boowean(item.pwovida.wesowveCompwetionItem) || Boowean(item.compwetion.documentation) || item.compwetion.detaiw !== item.compwetion.wabew);
 			}));
 
-			this._toDispose.add(widget.onDetailsKeyDown(e => {
-				// cmd + c on macOS, ctrl + c on Win / Linux
+			this._toDispose.add(widget.onDetaiwsKeyDown(e => {
+				// cmd + c on macOS, ctww + c on Win / Winux
 				if (
-					e.toKeybinding().equals(new SimpleKeybinding(true, false, false, false, KeyCode.KEY_C)) ||
-					(platform.isMacintosh && e.toKeybinding().equals(new SimpleKeybinding(false, false, false, true, KeyCode.KEY_C)))
+					e.toKeybinding().equaws(new SimpweKeybinding(twue, fawse, fawse, fawse, KeyCode.KEY_C)) ||
+					(pwatfowm.isMacintosh && e.toKeybinding().equaws(new SimpweKeybinding(fawse, fawse, fawse, twue, KeyCode.KEY_C)))
 				) {
-					e.stopPropagation();
-					return;
+					e.stopPwopagation();
+					wetuwn;
 				}
 
-				if (!e.toKeybinding().isModifierKey()) {
-					this.editor.focus();
+				if (!e.toKeybinding().isModifiewKey()) {
+					this.editow.focus();
 				}
 			}));
 
-			return widget;
+			wetuwn widget;
 		}));
 
-		// Wire up text overtyping capture
-		this._overtypingCapturer = this._toDispose.add(new IdleValue(() => {
-			return this._toDispose.add(new OvertypingCapturer(this.editor, this.model));
+		// Wiwe up text ovewtyping captuwe
+		this._ovewtypingCaptuwa = this._toDispose.add(new IdweVawue(() => {
+			wetuwn this._toDispose.add(new OvewtypingCaptuwa(this.editow, this.modew));
 		}));
 
-		this._alternatives = this._toDispose.add(new IdleValue(() => {
-			return this._toDispose.add(new SuggestAlternatives(this.editor, this._contextKeyService));
+		this._awtewnatives = this._toDispose.add(new IdweVawue(() => {
+			wetuwn this._toDispose.add(new SuggestAwtewnatives(this.editow, this._contextKeySewvice));
 		}));
 
-		this._toDispose.add(_instantiationService.createInstance(WordContextKey, editor));
+		this._toDispose.add(_instantiationSewvice.cweateInstance(WowdContextKey, editow));
 
-		this._toDispose.add(this.model.onDidTrigger(e => {
-			this.widget.value.showTriggered(e.auto, e.shy ? 250 : 50);
-			this._lineSuffix.value = new LineSuffix(this.editor.getModel()!, e.position);
+		this._toDispose.add(this.modew.onDidTwigga(e => {
+			this.widget.vawue.showTwiggewed(e.auto, e.shy ? 250 : 50);
+			this._wineSuffix.vawue = new WineSuffix(this.editow.getModew()!, e.position);
 		}));
-		this._toDispose.add(this.model.onDidSuggest(e => {
+		this._toDispose.add(this.modew.onDidSuggest(e => {
 			if (!e.shy) {
-				let index = -1;
-				for (const selector of this._selectors.itemsOrderedByPriorityDesc) {
-					index = selector.select(this.editor.getModel()!, this.editor.getPosition()!, e.completionModel.items);
+				wet index = -1;
+				fow (const sewectow of this._sewectows.itemsOwdewedByPwiowityDesc) {
+					index = sewectow.sewect(this.editow.getModew()!, this.editow.getPosition()!, e.compwetionModew.items);
 					if (index !== -1) {
-						break;
+						bweak;
 					}
 				}
 				if (index === -1) {
-					index = this._memoryService.select(this.editor.getModel()!, this.editor.getPosition()!, e.completionModel.items);
+					index = this._memowySewvice.sewect(this.editow.getModew()!, this.editow.getPosition()!, e.compwetionModew.items);
 				}
-				this.widget.value.showSuggestions(e.completionModel, index, e.isFrozen, e.auto);
+				this.widget.vawue.showSuggestions(e.compwetionModew, index, e.isFwozen, e.auto);
 			}
 		}));
-		this._toDispose.add(this.model.onDidCancel(e => {
-			if (!e.retrigger) {
-				this.widget.value.hideWidget();
+		this._toDispose.add(this.modew.onDidCancew(e => {
+			if (!e.wetwigga) {
+				this.widget.vawue.hideWidget();
 			}
 		}));
-		this._toDispose.add(this.editor.onDidBlurEditorWidget(() => {
+		this._toDispose.add(this.editow.onDidBwuwEditowWidget(() => {
 			if (!_sticky) {
-				this.model.cancel();
-				this.model.clear();
+				this.modew.cancew();
+				this.modew.cweaw();
 			}
 		}));
 
-		// Manage the acceptSuggestionsOnEnter context key
-		let acceptSuggestionsOnEnter = SuggestContext.AcceptSuggestionsOnEnter.bindTo(_contextKeyService);
-		let updateFromConfig = () => {
-			const acceptSuggestionOnEnter = this.editor.getOption(EditorOption.acceptSuggestionOnEnter);
-			acceptSuggestionsOnEnter.set(acceptSuggestionOnEnter === 'on' || acceptSuggestionOnEnter === 'smart');
+		// Manage the acceptSuggestionsOnEnta context key
+		wet acceptSuggestionsOnEnta = SuggestContext.AcceptSuggestionsOnEnta.bindTo(_contextKeySewvice);
+		wet updateFwomConfig = () => {
+			const acceptSuggestionOnEnta = this.editow.getOption(EditowOption.acceptSuggestionOnEnta);
+			acceptSuggestionsOnEnta.set(acceptSuggestionOnEnta === 'on' || acceptSuggestionOnEnta === 'smawt');
 		};
-		this._toDispose.add(this.editor.onDidChangeConfiguration(() => updateFromConfig()));
-		updateFromConfig();
+		this._toDispose.add(this.editow.onDidChangeConfiguwation(() => updateFwomConfig()));
+		updateFwomConfig();
 	}
 
 	dispose(): void {
-		this._alternatives.dispose();
+		this._awtewnatives.dispose();
 		this._toDispose.dispose();
 		this.widget.dispose();
-		this.model.dispose();
-		this._lineSuffix.dispose();
+		this.modew.dispose();
+		this._wineSuffix.dispose();
 	}
 
-	protected _insertSuggestion(
-		event: ISelectedSuggestion | undefined,
-		flags: InsertFlags
+	pwotected _insewtSuggestion(
+		event: ISewectedSuggestion | undefined,
+		fwags: InsewtFwags
 	): void {
 		if (!event || !event.item) {
-			this._alternatives.value.reset();
-			this.model.cancel();
-			this.model.clear();
-			return;
+			this._awtewnatives.vawue.weset();
+			this.modew.cancew();
+			this.modew.cweaw();
+			wetuwn;
 		}
-		if (!this.editor.hasModel()) {
-			return;
+		if (!this.editow.hasModew()) {
+			wetuwn;
 		}
 
-		const model = this.editor.getModel();
-		const modelVersionNow = model.getAlternativeVersionId();
+		const modew = this.editow.getModew();
+		const modewVewsionNow = modew.getAwtewnativeVewsionId();
 		const { item } = event;
 
 		//
-		const tasks: Promise<any>[] = [];
-		const cts = new CancellationTokenSource();
+		const tasks: Pwomise<any>[] = [];
+		const cts = new CancewwationTokenSouwce();
 
-		// pushing undo stops *before* additional text edits and
-		// *after* the main edit
-		if (!(flags & InsertFlags.NoBeforeUndoStop)) {
-			this.editor.pushUndoStop();
+		// pushing undo stops *befowe* additionaw text edits and
+		// *afta* the main edit
+		if (!(fwags & InsewtFwags.NoBefoweUndoStop)) {
+			this.editow.pushUndoStop();
 		}
 
-		// compute overwrite[Before|After] deltas BEFORE applying extra edits
-		const info = this.getOverwriteInfo(item, Boolean(flags & InsertFlags.AlternativeOverwriteConfig));
+		// compute ovewwwite[Befowe|Afta] dewtas BEFOWE appwying extwa edits
+		const info = this.getOvewwwiteInfo(item, Boowean(fwags & InsewtFwags.AwtewnativeOvewwwiteConfig));
 
-		// keep item in memory
-		this._memoryService.memorize(model, this.editor.getPosition(), item);
+		// keep item in memowy
+		this._memowySewvice.memowize(modew, this.editow.getPosition(), item);
 
 
-		if (Array.isArray(item.completion.additionalTextEdits)) {
-			// sync additional edits
-			const scrollState = StableEditorScrollState.capture(this.editor);
-			this.editor.executeEdits(
-				'suggestController.additionalTextEdits.sync',
-				item.completion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text))
+		if (Awway.isAwway(item.compwetion.additionawTextEdits)) {
+			// sync additionaw edits
+			const scwowwState = StabweEditowScwowwState.captuwe(this.editow);
+			this.editow.executeEdits(
+				'suggestContwowwa.additionawTextEdits.sync',
+				item.compwetion.additionawTextEdits.map(edit => EditOpewation.wepwace(Wange.wift(edit.wange), edit.text))
 			);
-			scrollState.restoreRelativeVerticalPositionOfCursor(this.editor);
+			scwowwState.westoweWewativeVewticawPositionOfCuwsow(this.editow);
 
-		} else if (!item.isResolved) {
-			// async additional edits
-			const sw = new StopWatch(true);
-			let position: IPosition | undefined;
+		} ewse if (!item.isWesowved) {
+			// async additionaw edits
+			const sw = new StopWatch(twue);
+			wet position: IPosition | undefined;
 
-			const docListener = model.onDidChangeContent(e => {
-				if (e.isFlush) {
-					cts.cancel();
-					docListener.dispose();
-					return;
+			const docWistena = modew.onDidChangeContent(e => {
+				if (e.isFwush) {
+					cts.cancew();
+					docWistena.dispose();
+					wetuwn;
 				}
-				for (let change of e.changes) {
-					const thisPosition = Range.getEndPosition(change.range);
-					if (!position || Position.isBefore(thisPosition, position)) {
+				fow (wet change of e.changes) {
+					const thisPosition = Wange.getEndPosition(change.wange);
+					if (!position || Position.isBefowe(thisPosition, position)) {
 						position = thisPosition;
 					}
 				}
 			});
 
-			let oldFlags = flags;
-			flags |= InsertFlags.NoAfterUndoStop;
-			let didType = false;
-			let typeListener = this.editor.onWillType(() => {
-				typeListener.dispose();
-				didType = true;
-				if (!(oldFlags & InsertFlags.NoAfterUndoStop)) {
-					this.editor.pushUndoStop();
+			wet owdFwags = fwags;
+			fwags |= InsewtFwags.NoAftewUndoStop;
+			wet didType = fawse;
+			wet typeWistena = this.editow.onWiwwType(() => {
+				typeWistena.dispose();
+				didType = twue;
+				if (!(owdFwags & InsewtFwags.NoAftewUndoStop)) {
+					this.editow.pushUndoStop();
 				}
 			});
 
-			tasks.push(item.resolve(cts.token).then(() => {
-				if (!item.completion.additionalTextEdits || cts.token.isCancellationRequested) {
-					return false;
+			tasks.push(item.wesowve(cts.token).then(() => {
+				if (!item.compwetion.additionawTextEdits || cts.token.isCancewwationWequested) {
+					wetuwn fawse;
 				}
-				if (position && item.completion.additionalTextEdits.some(edit => Position.isBefore(position!, Range.getStartPosition(edit.range)))) {
-					return false;
+				if (position && item.compwetion.additionawTextEdits.some(edit => Position.isBefowe(position!, Wange.getStawtPosition(edit.wange)))) {
+					wetuwn fawse;
 				}
 				if (didType) {
-					this.editor.pushUndoStop();
+					this.editow.pushUndoStop();
 				}
-				const scrollState = StableEditorScrollState.capture(this.editor);
-				this.editor.executeEdits(
-					'suggestController.additionalTextEdits.async',
-					item.completion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text))
+				const scwowwState = StabweEditowScwowwState.captuwe(this.editow);
+				this.editow.executeEdits(
+					'suggestContwowwa.additionawTextEdits.async',
+					item.compwetion.additionawTextEdits.map(edit => EditOpewation.wepwace(Wange.wift(edit.wange), edit.text))
 				);
-				scrollState.restoreRelativeVerticalPositionOfCursor(this.editor);
-				if (didType || !(oldFlags & InsertFlags.NoAfterUndoStop)) {
-					this.editor.pushUndoStop();
+				scwowwState.westoweWewativeVewticawPositionOfCuwsow(this.editow);
+				if (didType || !(owdFwags & InsewtFwags.NoAftewUndoStop)) {
+					this.editow.pushUndoStop();
 				}
-				return true;
-			}).then(applied => {
-				this._logService.trace('[suggest] async resolving of edits DONE (ms, applied?)', sw.elapsed(), applied);
-				docListener.dispose();
-				typeListener.dispose();
+				wetuwn twue;
+			}).then(appwied => {
+				this._wogSewvice.twace('[suggest] async wesowving of edits DONE (ms, appwied?)', sw.ewapsed(), appwied);
+				docWistena.dispose();
+				typeWistena.dispose();
 			}));
 		}
 
-		let { insertText } = item.completion;
-		if (!(item.completion.insertTextRules! & CompletionItemInsertTextRule.InsertAsSnippet)) {
-			insertText = SnippetParser.escape(insertText);
+		wet { insewtText } = item.compwetion;
+		if (!(item.compwetion.insewtTextWuwes! & CompwetionItemInsewtTextWuwe.InsewtAsSnippet)) {
+			insewtText = SnippetPawsa.escape(insewtText);
 		}
 
-		SnippetController2.get(this.editor).insert(insertText, {
-			overwriteBefore: info.overwriteBefore,
-			overwriteAfter: info.overwriteAfter,
-			undoStopBefore: false,
-			undoStopAfter: false,
-			adjustWhitespace: !(item.completion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace),
-			clipboardText: event.model.clipboardText,
-			overtypingCapturer: this._overtypingCapturer.value
+		SnippetContwowwew2.get(this.editow).insewt(insewtText, {
+			ovewwwiteBefowe: info.ovewwwiteBefowe,
+			ovewwwiteAfta: info.ovewwwiteAfta,
+			undoStopBefowe: fawse,
+			undoStopAfta: fawse,
+			adjustWhitespace: !(item.compwetion.insewtTextWuwes! & CompwetionItemInsewtTextWuwe.KeepWhitespace),
+			cwipboawdText: event.modew.cwipboawdText,
+			ovewtypingCaptuwa: this._ovewtypingCaptuwa.vawue
 		});
 
-		if (!(flags & InsertFlags.NoAfterUndoStop)) {
-			this.editor.pushUndoStop();
+		if (!(fwags & InsewtFwags.NoAftewUndoStop)) {
+			this.editow.pushUndoStop();
 		}
 
-		if (!item.completion.command) {
+		if (!item.compwetion.command) {
 			// done
-			this.model.cancel();
+			this.modew.cancew();
 
-		} else if (item.completion.command.id === TriggerSuggestAction.id) {
-			// retigger
-			this.model.trigger({ auto: true, shy: false }, true);
+		} ewse if (item.compwetion.command.id === TwiggewSuggestAction.id) {
+			// wetigga
+			this.modew.twigga({ auto: twue, shy: fawse }, twue);
 
-		} else {
+		} ewse {
 			// exec command, done
-			tasks.push(this._commandService.executeCommand(item.completion.command.id, ...(item.completion.command.arguments ? [...item.completion.command.arguments] : [])).catch(onUnexpectedError));
-			this.model.cancel();
+			tasks.push(this._commandSewvice.executeCommand(item.compwetion.command.id, ...(item.compwetion.command.awguments ? [...item.compwetion.command.awguments] : [])).catch(onUnexpectedEwwow));
+			this.modew.cancew();
 		}
 
-		if (flags & InsertFlags.KeepAlternativeSuggestions) {
-			this._alternatives.value.set(event, next => {
+		if (fwags & InsewtFwags.KeepAwtewnativeSuggestions) {
+			this._awtewnatives.vawue.set(event, next => {
 
-				// cancel resolving of additional edits
-				cts.cancel();
+				// cancew wesowving of additionaw edits
+				cts.cancew();
 
-				// this is not so pretty. when inserting the 'next'
-				// suggestion we undo until we are at the state at
-				// which we were before inserting the previous suggestion...
-				while (model.canUndo()) {
-					if (modelVersionNow !== model.getAlternativeVersionId()) {
-						model.undo();
+				// this is not so pwetty. when insewting the 'next'
+				// suggestion we undo untiw we awe at the state at
+				// which we wewe befowe insewting the pwevious suggestion...
+				whiwe (modew.canUndo()) {
+					if (modewVewsionNow !== modew.getAwtewnativeVewsionId()) {
+						modew.undo();
 					}
-					this._insertSuggestion(
+					this._insewtSuggestion(
 						next,
-						InsertFlags.NoBeforeUndoStop | InsertFlags.NoAfterUndoStop | (flags & InsertFlags.AlternativeOverwriteConfig ? InsertFlags.AlternativeOverwriteConfig : 0)
+						InsewtFwags.NoBefoweUndoStop | InsewtFwags.NoAftewUndoStop | (fwags & InsewtFwags.AwtewnativeOvewwwiteConfig ? InsewtFwags.AwtewnativeOvewwwiteConfig : 0)
 					);
-					break;
+					bweak;
 				}
 			});
 		}
 
-		this._alertCompletionItem(item);
+		this._awewtCompwetionItem(item);
 
-		// clear only now - after all tasks are done
-		Promise.all(tasks).finally(() => {
-			this.model.clear();
+		// cweaw onwy now - afta aww tasks awe done
+		Pwomise.aww(tasks).finawwy(() => {
+			this.modew.cweaw();
 			cts.dispose();
 		});
 	}
 
-	getOverwriteInfo(item: CompletionItem, toggleMode: boolean): { overwriteBefore: number, overwriteAfter: number } {
-		assertType(this.editor.hasModel());
+	getOvewwwiteInfo(item: CompwetionItem, toggweMode: boowean): { ovewwwiteBefowe: numba, ovewwwiteAfta: numba } {
+		assewtType(this.editow.hasModew());
 
-		let replace = this.editor.getOption(EditorOption.suggest).insertMode === 'replace';
-		if (toggleMode) {
-			replace = !replace;
+		wet wepwace = this.editow.getOption(EditowOption.suggest).insewtMode === 'wepwace';
+		if (toggweMode) {
+			wepwace = !wepwace;
 		}
-		const overwriteBefore = item.position.column - item.editStart.column;
-		const overwriteAfter = (replace ? item.editReplaceEnd.column : item.editInsertEnd.column) - item.position.column;
-		const columnDelta = this.editor.getPosition().column - item.position.column;
-		const suffixDelta = this._lineSuffix.value ? this._lineSuffix.value.delta(this.editor.getPosition()) : 0;
+		const ovewwwiteBefowe = item.position.cowumn - item.editStawt.cowumn;
+		const ovewwwiteAfta = (wepwace ? item.editWepwaceEnd.cowumn : item.editInsewtEnd.cowumn) - item.position.cowumn;
+		const cowumnDewta = this.editow.getPosition().cowumn - item.position.cowumn;
+		const suffixDewta = this._wineSuffix.vawue ? this._wineSuffix.vawue.dewta(this.editow.getPosition()) : 0;
 
-		return {
-			overwriteBefore: overwriteBefore + columnDelta,
-			overwriteAfter: overwriteAfter + suffixDelta
+		wetuwn {
+			ovewwwiteBefowe: ovewwwiteBefowe + cowumnDewta,
+			ovewwwiteAfta: ovewwwiteAfta + suffixDewta
 		};
 	}
 
-	private _alertCompletionItem(item: CompletionItem): void {
-		if (isNonEmptyArray(item.completion.additionalTextEdits)) {
-			let msg = nls.localize('aria.alert.snippet', "Accepting '{0}' made {1} additional edits", item.textLabel, item.completion.additionalTextEdits.length);
-			alert(msg);
+	pwivate _awewtCompwetionItem(item: CompwetionItem): void {
+		if (isNonEmptyAwway(item.compwetion.additionawTextEdits)) {
+			wet msg = nws.wocawize('awia.awewt.snippet', "Accepting '{0}' made {1} additionaw edits", item.textWabew, item.compwetion.additionawTextEdits.wength);
+			awewt(msg);
 		}
 	}
 
-	triggerSuggest(onlyFrom?: Set<CompletionItemProvider>): void {
-		if (this.editor.hasModel()) {
-			this.model.trigger({ auto: false, shy: false }, false, onlyFrom);
-			this.editor.revealLine(this.editor.getPosition().lineNumber, ScrollType.Smooth);
-			this.editor.focus();
+	twiggewSuggest(onwyFwom?: Set<CompwetionItemPwovida>): void {
+		if (this.editow.hasModew()) {
+			this.modew.twigga({ auto: fawse, shy: fawse }, fawse, onwyFwom);
+			this.editow.weveawWine(this.editow.getPosition().wineNumba, ScwowwType.Smooth);
+			this.editow.focus();
 		}
 	}
 
-	triggerSuggestAndAcceptBest(arg: { fallback: string }): void {
-		if (!this.editor.hasModel()) {
-			return;
+	twiggewSuggestAndAcceptBest(awg: { fawwback: stwing }): void {
+		if (!this.editow.hasModew()) {
+			wetuwn;
 
 		}
-		const positionNow = this.editor.getPosition();
+		const positionNow = this.editow.getPosition();
 
-		const fallback = () => {
-			if (positionNow.equals(this.editor.getPosition()!)) {
-				this._commandService.executeCommand(arg.fallback);
+		const fawwback = () => {
+			if (positionNow.equaws(this.editow.getPosition()!)) {
+				this._commandSewvice.executeCommand(awg.fawwback);
 			}
 		};
 
-		const makesTextEdit = (item: CompletionItem): boolean => {
-			if (item.completion.insertTextRules! & CompletionItemInsertTextRule.InsertAsSnippet || item.completion.additionalTextEdits) {
-				// snippet, other editor -> makes edit
-				return true;
+		const makesTextEdit = (item: CompwetionItem): boowean => {
+			if (item.compwetion.insewtTextWuwes! & CompwetionItemInsewtTextWuwe.InsewtAsSnippet || item.compwetion.additionawTextEdits) {
+				// snippet, otha editow -> makes edit
+				wetuwn twue;
 			}
-			const position = this.editor.getPosition()!;
-			const startColumn = item.editStart.column;
-			const endColumn = position.column;
-			if (endColumn - startColumn !== item.completion.insertText.length) {
-				// unequal lengths -> makes edit
-				return true;
+			const position = this.editow.getPosition()!;
+			const stawtCowumn = item.editStawt.cowumn;
+			const endCowumn = position.cowumn;
+			if (endCowumn - stawtCowumn !== item.compwetion.insewtText.wength) {
+				// unequaw wengths -> makes edit
+				wetuwn twue;
 			}
-			const textNow = this.editor.getModel()!.getValueInRange({
-				startLineNumber: position.lineNumber,
-				startColumn,
-				endLineNumber: position.lineNumber,
-				endColumn
+			const textNow = this.editow.getModew()!.getVawueInWange({
+				stawtWineNumba: position.wineNumba,
+				stawtCowumn,
+				endWineNumba: position.wineNumba,
+				endCowumn
 			});
-			// unequal text -> makes edit
-			return textNow !== item.completion.insertText;
+			// unequaw text -> makes edit
+			wetuwn textNow !== item.compwetion.insewtText;
 		};
 
-		Event.once(this.model.onDidTrigger)(_ => {
-			// wait for trigger because only then the cancel-event is trustworthy
-			let listener: IDisposable[] = [];
+		Event.once(this.modew.onDidTwigga)(_ => {
+			// wait fow twigga because onwy then the cancew-event is twustwowthy
+			wet wistena: IDisposabwe[] = [];
 
-			Event.any<any>(this.model.onDidTrigger, this.model.onDidCancel)(() => {
-				// retrigger or cancel -> try to type default text
-				dispose(listener);
-				fallback();
-			}, undefined, listener);
+			Event.any<any>(this.modew.onDidTwigga, this.modew.onDidCancew)(() => {
+				// wetwigga ow cancew -> twy to type defauwt text
+				dispose(wistena);
+				fawwback();
+			}, undefined, wistena);
 
-			this.model.onDidSuggest(({ completionModel }) => {
-				dispose(listener);
-				if (completionModel.items.length === 0) {
-					fallback();
-					return;
+			this.modew.onDidSuggest(({ compwetionModew }) => {
+				dispose(wistena);
+				if (compwetionModew.items.wength === 0) {
+					fawwback();
+					wetuwn;
 				}
-				const index = this._memoryService.select(this.editor.getModel()!, this.editor.getPosition()!, completionModel.items);
-				const item = completionModel.items[index];
+				const index = this._memowySewvice.sewect(this.editow.getModew()!, this.editow.getPosition()!, compwetionModew.items);
+				const item = compwetionModew.items[index];
 				if (!makesTextEdit(item)) {
-					fallback();
-					return;
+					fawwback();
+					wetuwn;
 				}
-				this.editor.pushUndoStop();
-				this._insertSuggestion({ index, item, model: completionModel }, InsertFlags.KeepAlternativeSuggestions | InsertFlags.NoBeforeUndoStop | InsertFlags.NoAfterUndoStop);
+				this.editow.pushUndoStop();
+				this._insewtSuggestion({ index, item, modew: compwetionModew }, InsewtFwags.KeepAwtewnativeSuggestions | InsewtFwags.NoBefoweUndoStop | InsewtFwags.NoAftewUndoStop);
 
-			}, undefined, listener);
+			}, undefined, wistena);
 		});
 
-		this.model.trigger({ auto: false, shy: true });
-		this.editor.revealLine(positionNow.lineNumber, ScrollType.Smooth);
-		this.editor.focus();
+		this.modew.twigga({ auto: fawse, shy: twue });
+		this.editow.weveawWine(positionNow.wineNumba, ScwowwType.Smooth);
+		this.editow.focus();
 	}
 
-	acceptSelectedSuggestion(keepAlternativeSuggestions: boolean, alternativeOverwriteConfig: boolean): void {
-		const item = this.widget.value.getFocusedItem();
-		let flags = 0;
-		if (keepAlternativeSuggestions) {
-			flags |= InsertFlags.KeepAlternativeSuggestions;
+	acceptSewectedSuggestion(keepAwtewnativeSuggestions: boowean, awtewnativeOvewwwiteConfig: boowean): void {
+		const item = this.widget.vawue.getFocusedItem();
+		wet fwags = 0;
+		if (keepAwtewnativeSuggestions) {
+			fwags |= InsewtFwags.KeepAwtewnativeSuggestions;
 		}
-		if (alternativeOverwriteConfig) {
-			flags |= InsertFlags.AlternativeOverwriteConfig;
+		if (awtewnativeOvewwwiteConfig) {
+			fwags |= InsewtFwags.AwtewnativeOvewwwiteConfig;
 		}
-		this._insertSuggestion(item, flags);
+		this._insewtSuggestion(item, fwags);
 	}
 	acceptNextSuggestion() {
-		this._alternatives.value.next();
+		this._awtewnatives.vawue.next();
 	}
 
-	acceptPrevSuggestion() {
-		this._alternatives.value.prev();
+	acceptPwevSuggestion() {
+		this._awtewnatives.vawue.pwev();
 	}
 
-	cancelSuggestWidget(): void {
-		this.model.cancel();
-		this.model.clear();
-		this.widget.value.hideWidget();
+	cancewSuggestWidget(): void {
+		this.modew.cancew();
+		this.modew.cweaw();
+		this.widget.vawue.hideWidget();
 	}
 
-	selectNextSuggestion(): void {
-		this.widget.value.selectNext();
+	sewectNextSuggestion(): void {
+		this.widget.vawue.sewectNext();
 	}
 
-	selectNextPageSuggestion(): void {
-		this.widget.value.selectNextPage();
+	sewectNextPageSuggestion(): void {
+		this.widget.vawue.sewectNextPage();
 	}
 
-	selectLastSuggestion(): void {
-		this.widget.value.selectLast();
+	sewectWastSuggestion(): void {
+		this.widget.vawue.sewectWast();
 	}
 
-	selectPrevSuggestion(): void {
-		this.widget.value.selectPrevious();
+	sewectPwevSuggestion(): void {
+		this.widget.vawue.sewectPwevious();
 	}
 
-	selectPrevPageSuggestion(): void {
-		this.widget.value.selectPreviousPage();
+	sewectPwevPageSuggestion(): void {
+		this.widget.vawue.sewectPweviousPage();
 	}
 
-	selectFirstSuggestion(): void {
-		this.widget.value.selectFirst();
+	sewectFiwstSuggestion(): void {
+		this.widget.vawue.sewectFiwst();
 	}
 
-	toggleSuggestionDetails(): void {
-		this.widget.value.toggleDetails();
+	toggweSuggestionDetaiws(): void {
+		this.widget.vawue.toggweDetaiws();
 	}
 
-	toggleExplainMode(): void {
-		this.widget.value.toggleExplainMode();
+	toggweExpwainMode(): void {
+		this.widget.vawue.toggweExpwainMode();
 	}
 
-	toggleSuggestionFocus(): void {
-		this.widget.value.toggleDetailsFocus();
+	toggweSuggestionFocus(): void {
+		this.widget.vawue.toggweDetaiwsFocus();
 	}
 
-	resetWidgetSize(): void {
-		this.widget.value.resetPersistedSize();
+	wesetWidgetSize(): void {
+		this.widget.vawue.wesetPewsistedSize();
 	}
 
-	forceRenderingAbove() {
-		this.widget.value.forceRenderingAbove();
+	fowceWendewingAbove() {
+		this.widget.vawue.fowceWendewingAbove();
 	}
 
-	stopForceRenderingAbove() {
-		if (!this.widget.isInitialized) {
-			// This method has no effect if the widget is not initialized yet.
-			return;
+	stopFowceWendewingAbove() {
+		if (!this.widget.isInitiawized) {
+			// This method has no effect if the widget is not initiawized yet.
+			wetuwn;
 		}
-		this.widget.value.stopForceRenderingAbove();
+		this.widget.vawue.stopFowceWendewingAbove();
 	}
 
-	registerSelector(selector: ISuggestItemPreselector): IDisposable {
-		return this._selectors.register(selector);
+	wegistewSewectow(sewectow: ISuggestItemPwesewectow): IDisposabwe {
+		wetuwn this._sewectows.wegista(sewectow);
 	}
 }
 
-class PriorityRegistry<T> {
-	private readonly _items = new Array<T>();
+cwass PwiowityWegistwy<T> {
+	pwivate weadonwy _items = new Awway<T>();
 
-	constructor(private readonly prioritySelector: (item: T) => number) { }
+	constwuctow(pwivate weadonwy pwiowitySewectow: (item: T) => numba) { }
 
-	register(value: T): IDisposable {
-		if (this._items.indexOf(value) !== -1) {
-			throw new Error('Value is already registered');
+	wegista(vawue: T): IDisposabwe {
+		if (this._items.indexOf(vawue) !== -1) {
+			thwow new Ewwow('Vawue is awweady wegistewed');
 		}
-		this._items.push(value);
-		this._items.sort((s1, s2) => this.prioritySelector(s2) - this.prioritySelector(s1));
+		this._items.push(vawue);
+		this._items.sowt((s1, s2) => this.pwiowitySewectow(s2) - this.pwiowitySewectow(s1));
 
-		return {
+		wetuwn {
 			dispose: () => {
-				const idx = this._items.indexOf(value);
+				const idx = this._items.indexOf(vawue);
 				if (idx >= 0) {
-					this._items.splice(idx, 1);
+					this._items.spwice(idx, 1);
 				}
 			}
 		};
 	}
 
-	get itemsOrderedByPriorityDesc(): readonly T[] {
-		return this._items;
+	get itemsOwdewedByPwiowityDesc(): weadonwy T[] {
+		wetuwn this._items;
 	}
 }
 
-export class TriggerSuggestAction extends EditorAction {
+expowt cwass TwiggewSuggestAction extends EditowAction {
 
-	static readonly id = 'editor.action.triggerSuggest';
+	static weadonwy id = 'editow.action.twiggewSuggest';
 
-	constructor() {
-		super({
-			id: TriggerSuggestAction.id,
-			label: nls.localize('suggest.trigger.label', "Trigger Suggest"),
-			alias: 'Trigger Suggest',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCompletionItemProvider),
+	constwuctow() {
+		supa({
+			id: TwiggewSuggestAction.id,
+			wabew: nws.wocawize('suggest.twigga.wabew', "Twigga Suggest"),
+			awias: 'Twigga Suggest',
+			pwecondition: ContextKeyExpw.and(EditowContextKeys.wwitabwe, EditowContextKeys.hasCompwetionItemPwovida),
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.Space,
-				secondary: [KeyMod.CtrlCmd | KeyCode.KEY_I],
-				mac: { primary: KeyMod.WinCtrl | KeyCode.Space, secondary: [KeyMod.Alt | KeyCode.Escape, KeyMod.CtrlCmd | KeyCode.KEY_I] },
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.textInputFocus,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.Space,
+				secondawy: [KeyMod.CtwwCmd | KeyCode.KEY_I],
+				mac: { pwimawy: KeyMod.WinCtww | KeyCode.Space, secondawy: [KeyMod.Awt | KeyCode.Escape, KeyMod.CtwwCmd | KeyCode.KEY_I] },
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = SuggestController.get(editor);
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		const contwowwa = SuggestContwowwa.get(editow);
 
-		if (!controller) {
-			return;
+		if (!contwowwa) {
+			wetuwn;
 		}
 
-		controller.triggerSuggest();
+		contwowwa.twiggewSuggest();
 	}
 }
 
-registerEditorContribution(SuggestController.ID, SuggestController);
-registerEditorAction(TriggerSuggestAction);
+wegistewEditowContwibution(SuggestContwowwa.ID, SuggestContwowwa);
+wegistewEditowAction(TwiggewSuggestAction);
 
-const weight = KeybindingWeight.EditorContrib + 90;
+const weight = KeybindingWeight.EditowContwib + 90;
 
-const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(SuggestController.get);
+const SuggestCommand = EditowCommand.bindToContwibution<SuggestContwowwa>(SuggestContwowwa.get);
 
 
-registerEditorCommand(new SuggestCommand({
-	id: 'acceptSelectedSuggestion',
-	precondition: SuggestContext.Visible,
-	handler(x) {
-		x.acceptSelectedSuggestion(true, false);
+wegistewEditowCommand(new SuggestCommand({
+	id: 'acceptSewectedSuggestion',
+	pwecondition: SuggestContext.Visibwe,
+	handwa(x) {
+		x.acceptSewectedSuggestion(twue, fawse);
 	}
 }));
 
-// normal tab
-KeybindingsRegistry.registerKeybindingRule({
-	id: 'acceptSelectedSuggestion',
-	when: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus),
-	primary: KeyCode.Tab,
+// nowmaw tab
+KeybindingsWegistwy.wegistewKeybindingWuwe({
+	id: 'acceptSewectedSuggestion',
+	when: ContextKeyExpw.and(SuggestContext.Visibwe, EditowContextKeys.textInputFocus),
+	pwimawy: KeyCode.Tab,
 	weight
 });
 
-// accept on enter has special rules
-KeybindingsRegistry.registerKeybindingRule({
-	id: 'acceptSelectedSuggestion',
-	when: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus, SuggestContext.AcceptSuggestionsOnEnter, SuggestContext.MakesTextEdit),
-	primary: KeyCode.Enter,
+// accept on enta has speciaw wuwes
+KeybindingsWegistwy.wegistewKeybindingWuwe({
+	id: 'acceptSewectedSuggestion',
+	when: ContextKeyExpw.and(SuggestContext.Visibwe, EditowContextKeys.textInputFocus, SuggestContext.AcceptSuggestionsOnEnta, SuggestContext.MakesTextEdit),
+	pwimawy: KeyCode.Enta,
 	weight,
 });
 
-MenuRegistry.appendMenuItem(suggestWidgetStatusbarMenu, {
-	command: { id: 'acceptSelectedSuggestion', title: nls.localize('accept.insert', "Insert") },
-	group: 'left',
-	order: 1,
-	when: SuggestContext.HasInsertAndReplaceRange.toNegated()
+MenuWegistwy.appendMenuItem(suggestWidgetStatusbawMenu, {
+	command: { id: 'acceptSewectedSuggestion', titwe: nws.wocawize('accept.insewt', "Insewt") },
+	gwoup: 'weft',
+	owda: 1,
+	when: SuggestContext.HasInsewtAndWepwaceWange.toNegated()
 });
-MenuRegistry.appendMenuItem(suggestWidgetStatusbarMenu, {
-	command: { id: 'acceptSelectedSuggestion', title: nls.localize('accept.insert', "Insert") },
-	group: 'left',
-	order: 1,
-	when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('insert'))
+MenuWegistwy.appendMenuItem(suggestWidgetStatusbawMenu, {
+	command: { id: 'acceptSewectedSuggestion', titwe: nws.wocawize('accept.insewt', "Insewt") },
+	gwoup: 'weft',
+	owda: 1,
+	when: ContextKeyExpw.and(SuggestContext.HasInsewtAndWepwaceWange, SuggestContext.InsewtMode.isEquawTo('insewt'))
 });
-MenuRegistry.appendMenuItem(suggestWidgetStatusbarMenu, {
-	command: { id: 'acceptSelectedSuggestion', title: nls.localize('accept.replace', "Replace") },
-	group: 'left',
-	order: 1,
-	when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('replace'))
+MenuWegistwy.appendMenuItem(suggestWidgetStatusbawMenu, {
+	command: { id: 'acceptSewectedSuggestion', titwe: nws.wocawize('accept.wepwace', "Wepwace") },
+	gwoup: 'weft',
+	owda: 1,
+	when: ContextKeyExpw.and(SuggestContext.HasInsewtAndWepwaceWange, SuggestContext.InsewtMode.isEquawTo('wepwace'))
 });
 
-registerEditorCommand(new SuggestCommand({
-	id: 'acceptAlternativeSelectedSuggestion',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus),
+wegistewEditowCommand(new SuggestCommand({
+	id: 'acceptAwtewnativeSewectedSuggestion',
+	pwecondition: ContextKeyExpw.and(SuggestContext.Visibwe, EditowContextKeys.textInputFocus),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.textInputFocus,
-		primary: KeyMod.Shift | KeyCode.Enter,
-		secondary: [KeyMod.Shift | KeyCode.Tab],
+		kbExpw: EditowContextKeys.textInputFocus,
+		pwimawy: KeyMod.Shift | KeyCode.Enta,
+		secondawy: [KeyMod.Shift | KeyCode.Tab],
 	},
-	handler(x) {
-		x.acceptSelectedSuggestion(false, true);
+	handwa(x) {
+		x.acceptSewectedSuggestion(fawse, twue);
 	},
 	menuOpts: [{
-		menuId: suggestWidgetStatusbarMenu,
-		group: 'left',
-		order: 2,
-		when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('insert')),
-		title: nls.localize('accept.replace', "Replace")
+		menuId: suggestWidgetStatusbawMenu,
+		gwoup: 'weft',
+		owda: 2,
+		when: ContextKeyExpw.and(SuggestContext.HasInsewtAndWepwaceWange, SuggestContext.InsewtMode.isEquawTo('insewt')),
+		titwe: nws.wocawize('accept.wepwace', "Wepwace")
 	}, {
-		menuId: suggestWidgetStatusbarMenu,
-		group: 'left',
-		order: 2,
-		when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('replace')),
-		title: nls.localize('accept.insert', "Insert")
+		menuId: suggestWidgetStatusbawMenu,
+		gwoup: 'weft',
+		owda: 2,
+		when: ContextKeyExpw.and(SuggestContext.HasInsewtAndWepwaceWange, SuggestContext.InsewtMode.isEquawTo('wepwace')),
+		titwe: nws.wocawize('accept.insewt', "Insewt")
 	}]
 }));
 
 
-// continue to support the old command
-CommandsRegistry.registerCommandAlias('acceptSelectedSuggestionOnEnter', 'acceptSelectedSuggestion');
+// continue to suppowt the owd command
+CommandsWegistwy.wegistewCommandAwias('acceptSewectedSuggestionOnEnta', 'acceptSewectedSuggestion');
 
-registerEditorCommand(new SuggestCommand({
+wegistewEditowCommand(new SuggestCommand({
 	id: 'hideSuggestWidget',
-	precondition: SuggestContext.Visible,
-	handler: x => x.cancelSuggestWidget(),
+	pwecondition: SuggestContext.Visibwe,
+	handwa: x => x.cancewSuggestWidget(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.textInputFocus,
-		primary: KeyCode.Escape,
-		secondary: [KeyMod.Shift | KeyCode.Escape]
+		kbExpw: EditowContextKeys.textInputFocus,
+		pwimawy: KeyCode.Escape,
+		secondawy: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));
 
-registerEditorCommand(new SuggestCommand({
-	id: 'selectNextSuggestion',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
-	handler: c => c.selectNextSuggestion(),
+wegistewEditowCommand(new SuggestCommand({
+	id: 'sewectNextSuggestion',
+	pwecondition: ContextKeyExpw.and(SuggestContext.Visibwe, SuggestContext.MuwtipweSuggestions),
+	handwa: c => c.sewectNextSuggestion(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.textInputFocus,
-		primary: KeyCode.DownArrow,
-		secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow],
-		mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KEY_N] }
+		kbExpw: EditowContextKeys.textInputFocus,
+		pwimawy: KeyCode.DownAwwow,
+		secondawy: [KeyMod.CtwwCmd | KeyCode.DownAwwow],
+		mac: { pwimawy: KeyCode.DownAwwow, secondawy: [KeyMod.CtwwCmd | KeyCode.DownAwwow, KeyMod.WinCtww | KeyCode.KEY_N] }
 	}
 }));
 
-registerEditorCommand(new SuggestCommand({
-	id: 'selectNextPageSuggestion',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
-	handler: c => c.selectNextPageSuggestion(),
+wegistewEditowCommand(new SuggestCommand({
+	id: 'sewectNextPageSuggestion',
+	pwecondition: ContextKeyExpw.and(SuggestContext.Visibwe, SuggestContext.MuwtipweSuggestions),
+	handwa: c => c.sewectNextPageSuggestion(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.textInputFocus,
-		primary: KeyCode.PageDown,
-		secondary: [KeyMod.CtrlCmd | KeyCode.PageDown]
+		kbExpw: EditowContextKeys.textInputFocus,
+		pwimawy: KeyCode.PageDown,
+		secondawy: [KeyMod.CtwwCmd | KeyCode.PageDown]
 	}
 }));
 
-registerEditorCommand(new SuggestCommand({
-	id: 'selectLastSuggestion',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
-	handler: c => c.selectLastSuggestion()
+wegistewEditowCommand(new SuggestCommand({
+	id: 'sewectWastSuggestion',
+	pwecondition: ContextKeyExpw.and(SuggestContext.Visibwe, SuggestContext.MuwtipweSuggestions),
+	handwa: c => c.sewectWastSuggestion()
 }));
 
-registerEditorCommand(new SuggestCommand({
-	id: 'selectPrevSuggestion',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
-	handler: c => c.selectPrevSuggestion(),
+wegistewEditowCommand(new SuggestCommand({
+	id: 'sewectPwevSuggestion',
+	pwecondition: ContextKeyExpw.and(SuggestContext.Visibwe, SuggestContext.MuwtipweSuggestions),
+	handwa: c => c.sewectPwevSuggestion(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.textInputFocus,
-		primary: KeyCode.UpArrow,
-		secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow],
-		mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KEY_P] }
+		kbExpw: EditowContextKeys.textInputFocus,
+		pwimawy: KeyCode.UpAwwow,
+		secondawy: [KeyMod.CtwwCmd | KeyCode.UpAwwow],
+		mac: { pwimawy: KeyCode.UpAwwow, secondawy: [KeyMod.CtwwCmd | KeyCode.UpAwwow, KeyMod.WinCtww | KeyCode.KEY_P] }
 	}
 }));
 
-registerEditorCommand(new SuggestCommand({
-	id: 'selectPrevPageSuggestion',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
-	handler: c => c.selectPrevPageSuggestion(),
+wegistewEditowCommand(new SuggestCommand({
+	id: 'sewectPwevPageSuggestion',
+	pwecondition: ContextKeyExpw.and(SuggestContext.Visibwe, SuggestContext.MuwtipweSuggestions),
+	handwa: c => c.sewectPwevPageSuggestion(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.textInputFocus,
-		primary: KeyCode.PageUp,
-		secondary: [KeyMod.CtrlCmd | KeyCode.PageUp]
+		kbExpw: EditowContextKeys.textInputFocus,
+		pwimawy: KeyCode.PageUp,
+		secondawy: [KeyMod.CtwwCmd | KeyCode.PageUp]
 	}
 }));
 
-registerEditorCommand(new SuggestCommand({
-	id: 'selectFirstSuggestion',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
-	handler: c => c.selectFirstSuggestion()
+wegistewEditowCommand(new SuggestCommand({
+	id: 'sewectFiwstSuggestion',
+	pwecondition: ContextKeyExpw.and(SuggestContext.Visibwe, SuggestContext.MuwtipweSuggestions),
+	handwa: c => c.sewectFiwstSuggestion()
 }));
 
-registerEditorCommand(new SuggestCommand({
-	id: 'toggleSuggestionDetails',
-	precondition: SuggestContext.Visible,
-	handler: x => x.toggleSuggestionDetails(),
+wegistewEditowCommand(new SuggestCommand({
+	id: 'toggweSuggestionDetaiws',
+	pwecondition: SuggestContext.Visibwe,
+	handwa: x => x.toggweSuggestionDetaiws(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.textInputFocus,
-		primary: KeyMod.CtrlCmd | KeyCode.Space,
-		secondary: [KeyMod.CtrlCmd | KeyCode.KEY_I],
-		mac: { primary: KeyMod.WinCtrl | KeyCode.Space, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_I] }
+		kbExpw: EditowContextKeys.textInputFocus,
+		pwimawy: KeyMod.CtwwCmd | KeyCode.Space,
+		secondawy: [KeyMod.CtwwCmd | KeyCode.KEY_I],
+		mac: { pwimawy: KeyMod.WinCtww | KeyCode.Space, secondawy: [KeyMod.CtwwCmd | KeyCode.KEY_I] }
 	},
 	menuOpts: [{
-		menuId: suggestWidgetStatusbarMenu,
-		group: 'right',
-		order: 1,
-		when: ContextKeyExpr.and(SuggestContext.DetailsVisible, SuggestContext.CanResolve),
-		title: nls.localize('detail.more', "show less")
+		menuId: suggestWidgetStatusbawMenu,
+		gwoup: 'wight',
+		owda: 1,
+		when: ContextKeyExpw.and(SuggestContext.DetaiwsVisibwe, SuggestContext.CanWesowve),
+		titwe: nws.wocawize('detaiw.mowe', "show wess")
 	}, {
-		menuId: suggestWidgetStatusbarMenu,
-		group: 'right',
-		order: 1,
-		when: ContextKeyExpr.and(SuggestContext.DetailsVisible.toNegated(), SuggestContext.CanResolve),
-		title: nls.localize('detail.less', "show more")
+		menuId: suggestWidgetStatusbawMenu,
+		gwoup: 'wight',
+		owda: 1,
+		when: ContextKeyExpw.and(SuggestContext.DetaiwsVisibwe.toNegated(), SuggestContext.CanWesowve),
+		titwe: nws.wocawize('detaiw.wess', "show mowe")
 	}]
 }));
 
-registerEditorCommand(new SuggestCommand({
-	id: 'toggleExplainMode',
-	precondition: SuggestContext.Visible,
-	handler: x => x.toggleExplainMode(),
+wegistewEditowCommand(new SuggestCommand({
+	id: 'toggweExpwainMode',
+	pwecondition: SuggestContext.Visibwe,
+	handwa: x => x.toggweExpwainMode(),
 	kbOpts: {
-		weight: KeybindingWeight.EditorContrib,
-		primary: KeyMod.CtrlCmd | KeyCode.US_SLASH,
+		weight: KeybindingWeight.EditowContwib,
+		pwimawy: KeyMod.CtwwCmd | KeyCode.US_SWASH,
 	}
 }));
 
-registerEditorCommand(new SuggestCommand({
-	id: 'toggleSuggestionFocus',
-	precondition: SuggestContext.Visible,
-	handler: x => x.toggleSuggestionFocus(),
+wegistewEditowCommand(new SuggestCommand({
+	id: 'toggweSuggestionFocus',
+	pwecondition: SuggestContext.Visibwe,
+	handwa: x => x.toggweSuggestionFocus(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.textInputFocus,
-		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Space,
-		mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Space }
+		kbExpw: EditowContextKeys.textInputFocus,
+		pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.Space,
+		mac: { pwimawy: KeyMod.WinCtww | KeyMod.Awt | KeyCode.Space }
 	}
 }));
 
-//#region tab completions
+//#wegion tab compwetions
 
-registerEditorCommand(new SuggestCommand({
-	id: 'insertBestCompletion',
-	precondition: ContextKeyExpr.and(
-		EditorContextKeys.textInputFocus,
-		ContextKeyExpr.equals('config.editor.tabCompletion', 'on'),
-		WordContextKey.AtEnd,
-		SuggestContext.Visible.toNegated(),
-		SuggestAlternatives.OtherSuggestions.toNegated(),
-		SnippetController2.InSnippetMode.toNegated()
+wegistewEditowCommand(new SuggestCommand({
+	id: 'insewtBestCompwetion',
+	pwecondition: ContextKeyExpw.and(
+		EditowContextKeys.textInputFocus,
+		ContextKeyExpw.equaws('config.editow.tabCompwetion', 'on'),
+		WowdContextKey.AtEnd,
+		SuggestContext.Visibwe.toNegated(),
+		SuggestAwtewnatives.OthewSuggestions.toNegated(),
+		SnippetContwowwew2.InSnippetMode.toNegated()
 	),
-	handler: (x, arg) => {
+	handwa: (x, awg) => {
 
-		x.triggerSuggestAndAcceptBest(isObject(arg) ? { fallback: 'tab', ...arg } : { fallback: 'tab' });
+		x.twiggewSuggestAndAcceptBest(isObject(awg) ? { fawwback: 'tab', ...awg } : { fawwback: 'tab' });
 	},
 	kbOpts: {
 		weight,
-		primary: KeyCode.Tab
+		pwimawy: KeyCode.Tab
 	}
 }));
 
-registerEditorCommand(new SuggestCommand({
-	id: 'insertNextSuggestion',
-	precondition: ContextKeyExpr.and(
-		EditorContextKeys.textInputFocus,
-		ContextKeyExpr.equals('config.editor.tabCompletion', 'on'),
-		SuggestAlternatives.OtherSuggestions,
-		SuggestContext.Visible.toNegated(),
-		SnippetController2.InSnippetMode.toNegated()
+wegistewEditowCommand(new SuggestCommand({
+	id: 'insewtNextSuggestion',
+	pwecondition: ContextKeyExpw.and(
+		EditowContextKeys.textInputFocus,
+		ContextKeyExpw.equaws('config.editow.tabCompwetion', 'on'),
+		SuggestAwtewnatives.OthewSuggestions,
+		SuggestContext.Visibwe.toNegated(),
+		SnippetContwowwew2.InSnippetMode.toNegated()
 	),
-	handler: x => x.acceptNextSuggestion(),
+	handwa: x => x.acceptNextSuggestion(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.textInputFocus,
-		primary: KeyCode.Tab
+		kbExpw: EditowContextKeys.textInputFocus,
+		pwimawy: KeyCode.Tab
 	}
 }));
 
-registerEditorCommand(new SuggestCommand({
-	id: 'insertPrevSuggestion',
-	precondition: ContextKeyExpr.and(
-		EditorContextKeys.textInputFocus,
-		ContextKeyExpr.equals('config.editor.tabCompletion', 'on'),
-		SuggestAlternatives.OtherSuggestions,
-		SuggestContext.Visible.toNegated(),
-		SnippetController2.InSnippetMode.toNegated()
+wegistewEditowCommand(new SuggestCommand({
+	id: 'insewtPwevSuggestion',
+	pwecondition: ContextKeyExpw.and(
+		EditowContextKeys.textInputFocus,
+		ContextKeyExpw.equaws('config.editow.tabCompwetion', 'on'),
+		SuggestAwtewnatives.OthewSuggestions,
+		SuggestContext.Visibwe.toNegated(),
+		SnippetContwowwew2.InSnippetMode.toNegated()
 	),
-	handler: x => x.acceptPrevSuggestion(),
+	handwa: x => x.acceptPwevSuggestion(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.textInputFocus,
-		primary: KeyMod.Shift | KeyCode.Tab
+		kbExpw: EditowContextKeys.textInputFocus,
+		pwimawy: KeyMod.Shift | KeyCode.Tab
 	}
 }));
 
 
-registerEditorAction(class extends EditorAction {
+wegistewEditowAction(cwass extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.resetSuggestSize',
-			label: nls.localize('suggest.reset.label', "Reset Suggest Widget Size"),
-			alias: 'Reset Suggest Widget Size',
-			precondition: undefined
+	constwuctow() {
+		supa({
+			id: 'editow.action.wesetSuggestSize',
+			wabew: nws.wocawize('suggest.weset.wabew', "Weset Suggest Widget Size"),
+			awias: 'Weset Suggest Widget Size',
+			pwecondition: undefined
 		});
 	}
 
-	run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		SuggestController.get(editor).resetWidgetSize();
+	wun(_accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		SuggestContwowwa.get(editow).wesetWidgetSize();
 	}
 });

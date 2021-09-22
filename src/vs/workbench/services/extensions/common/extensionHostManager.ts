@@ -1,684 +1,684 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as errors from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ExtHostCustomersRegistry } from 'vs/workbench/api/common/extHostCustomers';
-import { ExtHostContext, ExtHostExtensionServiceShape, IExtHostContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
-import { RemoteAuthorityResolverError, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import * as nls from 'vs/nls';
-import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { IExtensionHost, ExtensionHostKind, ActivationKind, extensionHostKindToString } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { Barrier, timeout } from 'vs/base/common/async';
-import { URI } from 'vs/base/common/uri';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+impowt * as ewwows fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IMessagePassingPwotocow } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ExtHostCustomewsWegistwy } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { ExtHostContext, ExtHostExtensionSewviceShape, IExtHostContext, MainContext } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { PwoxyIdentifia } fwom 'vs/wowkbench/sewvices/extensions/common/pwoxyIdentifia';
+impowt { IWPCPwotocowWogga, WPCPwotocow, WequestInitiatow, WesponsiveState } fwom 'vs/wowkbench/sewvices/extensions/common/wpcPwotocow';
+impowt { WemoteAuthowityWesowvewEwwow, WesowvewWesuwt } fwom 'vs/pwatfowm/wemote/common/wemoteAuthowityWesowva';
+impowt { ExtensionIdentifia, IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt * as nws fwom 'vs/nws';
+impowt { wegistewAction2, Action2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { StopWatch } fwom 'vs/base/common/stopwatch';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { IExtensionHost, ExtensionHostKind, ActivationKind, extensionHostKindToStwing } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { ExtensionActivationWeason } fwom 'vs/wowkbench/api/common/extHostExtensionActivatow';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { Bawwia, timeout } fwom 'vs/base/common/async';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
 
-// Enable to see detailed message communication between window and extension host
-const LOG_EXTENSION_HOST_COMMUNICATION = false;
-const LOG_USE_COLORS = true;
+// Enabwe to see detaiwed message communication between window and extension host
+const WOG_EXTENSION_HOST_COMMUNICATION = fawse;
+const WOG_USE_COWOWS = twue;
 
-export interface IExtensionHostManager {
-	readonly kind: ExtensionHostKind;
-	readonly onDidExit: Event<[number, string | null]>;
-	readonly onDidChangeResponsiveState: Event<ResponsiveState>;
+expowt intewface IExtensionHostManaga {
+	weadonwy kind: ExtensionHostKind;
+	weadonwy onDidExit: Event<[numba, stwing | nuww]>;
+	weadonwy onDidChangeWesponsiveState: Event<WesponsiveState>;
 	dispose(): void;
-	ready(): Promise<void>;
-	deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void>;
-	activate(extension: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean>;
-	activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void>;
-	getInspectPort(tryEnableInspector: boolean): Promise<number>;
-	resolveAuthority(remoteAuthority: string): Promise<ResolverResult>;
-	getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI>;
-	start(enabledExtensionIds: ExtensionIdentifier[]): Promise<void>;
-	extensionTestsExecute(): Promise<number>;
-	extensionTestsSendExit(exitCode: number): Promise<void>;
-	setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
+	weady(): Pwomise<void>;
+	dewtaExtensions(toAdd: IExtensionDescwiption[], toWemove: ExtensionIdentifia[]): Pwomise<void>;
+	activate(extension: ExtensionIdentifia, weason: ExtensionActivationWeason): Pwomise<boowean>;
+	activateByEvent(activationEvent: stwing, activationKind: ActivationKind): Pwomise<void>;
+	getInspectPowt(twyEnabweInspectow: boowean): Pwomise<numba>;
+	wesowveAuthowity(wemoteAuthowity: stwing): Pwomise<WesowvewWesuwt>;
+	getCanonicawUWI(wemoteAuthowity: stwing, uwi: UWI): Pwomise<UWI>;
+	stawt(enabwedExtensionIds: ExtensionIdentifia[]): Pwomise<void>;
+	extensionTestsExecute(): Pwomise<numba>;
+	extensionTestsSendExit(exitCode: numba): Pwomise<void>;
+	setWemoteEnviwonment(env: { [key: stwing]: stwing | nuww }): Pwomise<void>;
 }
 
-export function createExtensionHostManager(instantiationService: IInstantiationService, extensionHost: IExtensionHost, isInitialStart: boolean, initialActivationEvents: string[]): IExtensionHostManager {
-	if (extensionHost.lazyStart && isInitialStart && initialActivationEvents.length === 0) {
-		return instantiationService.createInstance(LazyStartExtensionHostManager, extensionHost);
+expowt function cweateExtensionHostManaga(instantiationSewvice: IInstantiationSewvice, extensionHost: IExtensionHost, isInitiawStawt: boowean, initiawActivationEvents: stwing[]): IExtensionHostManaga {
+	if (extensionHost.wazyStawt && isInitiawStawt && initiawActivationEvents.wength === 0) {
+		wetuwn instantiationSewvice.cweateInstance(WazyStawtExtensionHostManaga, extensionHost);
 	}
-	return instantiationService.createInstance(ExtensionHostManager, extensionHost, initialActivationEvents);
+	wetuwn instantiationSewvice.cweateInstance(ExtensionHostManaga, extensionHost, initiawActivationEvents);
 }
 
-export type ExtensionHostStartupClassification = {
-	time: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-	action: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-	kind: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-	errorName?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-	errorMessage?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-	errorStack?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+expowt type ExtensionHostStawtupCwassification = {
+	time: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+	action: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+	kind: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+	ewwowName?: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+	ewwowMessage?: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+	ewwowStack?: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
 };
 
-export type ExtensionHostStartupEvent = {
-	time: number;
-	action: 'starting' | 'success' | 'error';
-	kind: string;
-	errorName?: string;
-	errorMessage?: string;
-	errorStack?: string;
+expowt type ExtensionHostStawtupEvent = {
+	time: numba;
+	action: 'stawting' | 'success' | 'ewwow';
+	kind: stwing;
+	ewwowName?: stwing;
+	ewwowMessage?: stwing;
+	ewwowStack?: stwing;
 };
 
-class ExtensionHostManager extends Disposable implements IExtensionHostManager {
+cwass ExtensionHostManaga extends Disposabwe impwements IExtensionHostManaga {
 
-	public readonly kind: ExtensionHostKind;
-	public readonly onDidExit: Event<[number, string | null]>;
+	pubwic weadonwy kind: ExtensionHostKind;
+	pubwic weadonwy onDidExit: Event<[numba, stwing | nuww]>;
 
-	private readonly _onDidChangeResponsiveState: Emitter<ResponsiveState> = this._register(new Emitter<ResponsiveState>());
-	public readonly onDidChangeResponsiveState: Event<ResponsiveState> = this._onDidChangeResponsiveState.event;
+	pwivate weadonwy _onDidChangeWesponsiveState: Emitta<WesponsiveState> = this._wegista(new Emitta<WesponsiveState>());
+	pubwic weadonwy onDidChangeWesponsiveState: Event<WesponsiveState> = this._onDidChangeWesponsiveState.event;
 
 	/**
-	 * A map of already requested activation events to speed things up if the same activation event is triggered multiple times.
+	 * A map of awweady wequested activation events to speed things up if the same activation event is twiggewed muwtipwe times.
 	 */
-	private readonly _cachedActivationEvents: Map<string, Promise<void>>;
-	private _rpcProtocol: RPCProtocol | null;
-	private readonly _customers: IDisposable[];
-	private readonly _extensionHost: IExtensionHost;
+	pwivate weadonwy _cachedActivationEvents: Map<stwing, Pwomise<void>>;
+	pwivate _wpcPwotocow: WPCPwotocow | nuww;
+	pwivate weadonwy _customews: IDisposabwe[];
+	pwivate weadonwy _extensionHost: IExtensionHost;
 	/**
-	 * winjs believes a proxy is a promise because it has a `then` method, so wrap the result in an object.
+	 * winjs bewieves a pwoxy is a pwomise because it has a `then` method, so wwap the wesuwt in an object.
 	 */
-	private _proxy: Promise<{ value: ExtHostExtensionServiceShape; } | null> | null;
-	private _resolveAuthorityAttempt: number;
-	private _hasStarted = false;
+	pwivate _pwoxy: Pwomise<{ vawue: ExtHostExtensionSewviceShape; } | nuww> | nuww;
+	pwivate _wesowveAuthowityAttempt: numba;
+	pwivate _hasStawted = fawse;
 
-	constructor(
+	constwuctow(
 		extensionHost: IExtensionHost,
-		initialActivationEvents: string[],
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
+		initiawActivationEvents: stwing[],
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy _enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@ITewemetwySewvice pwivate weadonwy _tewemetwySewvice: ITewemetwySewvice
 	) {
-		super();
-		this._cachedActivationEvents = new Map<string, Promise<void>>();
-		this._rpcProtocol = null;
-		this._customers = [];
+		supa();
+		this._cachedActivationEvents = new Map<stwing, Pwomise<void>>();
+		this._wpcPwotocow = nuww;
+		this._customews = [];
 
 		this._extensionHost = extensionHost;
 		this.kind = this._extensionHost.kind;
 		this.onDidExit = this._extensionHost.onExit;
 
-		const startingTelemetryEvent: ExtensionHostStartupEvent = {
+		const stawtingTewemetwyEvent: ExtensionHostStawtupEvent = {
 			time: Date.now(),
-			action: 'starting',
-			kind: extensionHostKindToString(this.kind)
+			action: 'stawting',
+			kind: extensionHostKindToStwing(this.kind)
 		};
-		this._telemetryService.publicLog2<ExtensionHostStartupEvent, ExtensionHostStartupClassification>('extensionHostStartup', startingTelemetryEvent);
+		this._tewemetwySewvice.pubwicWog2<ExtensionHostStawtupEvent, ExtensionHostStawtupCwassification>('extensionHostStawtup', stawtingTewemetwyEvent);
 
-		this._proxy = this._extensionHost.start()!.then(
-			(protocol) => {
-				this._hasStarted = true;
+		this._pwoxy = this._extensionHost.stawt()!.then(
+			(pwotocow) => {
+				this._hasStawted = twue;
 
-				// Track healthy extension host startup
-				const successTelemetryEvent: ExtensionHostStartupEvent = {
+				// Twack heawthy extension host stawtup
+				const successTewemetwyEvent: ExtensionHostStawtupEvent = {
 					time: Date.now(),
 					action: 'success',
-					kind: extensionHostKindToString(this.kind)
+					kind: extensionHostKindToStwing(this.kind)
 				};
-				this._telemetryService.publicLog2<ExtensionHostStartupEvent, ExtensionHostStartupClassification>('extensionHostStartup', successTelemetryEvent);
+				this._tewemetwySewvice.pubwicWog2<ExtensionHostStawtupEvent, ExtensionHostStawtupCwassification>('extensionHostStawtup', successTewemetwyEvent);
 
-				return { value: this._createExtensionHostCustomers(protocol) };
+				wetuwn { vawue: this._cweateExtensionHostCustomews(pwotocow) };
 			},
-			(err) => {
-				console.error(`Error received from starting extension host (kind: ${this.kind})`);
-				console.error(err);
+			(eww) => {
+				consowe.ewwow(`Ewwow weceived fwom stawting extension host (kind: ${this.kind})`);
+				consowe.ewwow(eww);
 
-				// Track errors during extension host startup
-				const failureTelemetryEvent: ExtensionHostStartupEvent = {
+				// Twack ewwows duwing extension host stawtup
+				const faiwuweTewemetwyEvent: ExtensionHostStawtupEvent = {
 					time: Date.now(),
-					action: 'error',
-					kind: extensionHostKindToString(this.kind)
+					action: 'ewwow',
+					kind: extensionHostKindToStwing(this.kind)
 				};
 
-				if (err && err.name) {
-					failureTelemetryEvent.errorName = err.name;
+				if (eww && eww.name) {
+					faiwuweTewemetwyEvent.ewwowName = eww.name;
 				}
-				if (err && err.message) {
-					failureTelemetryEvent.errorMessage = err.message;
+				if (eww && eww.message) {
+					faiwuweTewemetwyEvent.ewwowMessage = eww.message;
 				}
-				if (err && err.stack) {
-					failureTelemetryEvent.errorStack = err.stack;
+				if (eww && eww.stack) {
+					faiwuweTewemetwyEvent.ewwowStack = eww.stack;
 				}
-				this._telemetryService.publicLog2<ExtensionHostStartupEvent, ExtensionHostStartupClassification>('extensionHostStartup', failureTelemetryEvent, true);
+				this._tewemetwySewvice.pubwicWog2<ExtensionHostStawtupEvent, ExtensionHostStawtupCwassification>('extensionHostStawtup', faiwuweTewemetwyEvent, twue);
 
-				return null;
+				wetuwn nuww;
 			}
 		);
-		this._proxy.then(() => {
-			initialActivationEvents.forEach((activationEvent) => this.activateByEvent(activationEvent, ActivationKind.Normal));
-			this._register(registerLatencyTestProvider({
-				measure: () => this.measure()
+		this._pwoxy.then(() => {
+			initiawActivationEvents.fowEach((activationEvent) => this.activateByEvent(activationEvent, ActivationKind.Nowmaw));
+			this._wegista(wegistewWatencyTestPwovida({
+				measuwe: () => this.measuwe()
 			}));
 		});
-		this._resolveAuthorityAttempt = 0;
+		this._wesowveAuthowityAttempt = 0;
 	}
 
-	public override dispose(): void {
+	pubwic ovewwide dispose(): void {
 		if (this._extensionHost) {
 			this._extensionHost.dispose();
 		}
-		if (this._rpcProtocol) {
-			this._rpcProtocol.dispose();
+		if (this._wpcPwotocow) {
+			this._wpcPwotocow.dispose();
 		}
-		for (let i = 0, len = this._customers.length; i < len; i++) {
-			const customer = this._customers[i];
-			try {
-				customer.dispose();
-			} catch (err) {
-				errors.onUnexpectedError(err);
+		fow (wet i = 0, wen = this._customews.wength; i < wen; i++) {
+			const customa = this._customews[i];
+			twy {
+				customa.dispose();
+			} catch (eww) {
+				ewwows.onUnexpectedEwwow(eww);
 			}
 		}
-		this._proxy = null;
+		this._pwoxy = nuww;
 
-		super.dispose();
+		supa.dispose();
 	}
 
-	private async measure(): Promise<ExtHostLatencyResult | null> {
-		const proxy = await this._getProxy();
-		if (!proxy) {
-			return null;
+	pwivate async measuwe(): Pwomise<ExtHostWatencyWesuwt | nuww> {
+		const pwoxy = await this._getPwoxy();
+		if (!pwoxy) {
+			wetuwn nuww;
 		}
-		const latency = await this._measureLatency(proxy);
-		const down = await this._measureDown(proxy);
-		const up = await this._measureUp(proxy);
-		return {
-			remoteAuthority: this._extensionHost.remoteAuthority,
-			latency,
+		const watency = await this._measuweWatency(pwoxy);
+		const down = await this._measuweDown(pwoxy);
+		const up = await this._measuweUp(pwoxy);
+		wetuwn {
+			wemoteAuthowity: this._extensionHost.wemoteAuthowity,
+			watency,
 			down,
 			up
 		};
 	}
 
-	private async _getProxy(): Promise<ExtHostExtensionServiceShape | null> {
-		if (!this._proxy) {
-			return null;
+	pwivate async _getPwoxy(): Pwomise<ExtHostExtensionSewviceShape | nuww> {
+		if (!this._pwoxy) {
+			wetuwn nuww;
 		}
-		const p = await this._proxy;
+		const p = await this._pwoxy;
 		if (!p) {
-			return null;
+			wetuwn nuww;
 		}
-		return p.value;
+		wetuwn p.vawue;
 	}
 
-	public async ready(): Promise<void> {
-		await this._getProxy();
+	pubwic async weady(): Pwomise<void> {
+		await this._getPwoxy();
 	}
 
-	private async _measureLatency(proxy: ExtHostExtensionServiceShape): Promise<number> {
+	pwivate async _measuweWatency(pwoxy: ExtHostExtensionSewviceShape): Pwomise<numba> {
 		const COUNT = 10;
 
-		let sum = 0;
-		for (let i = 0; i < COUNT; i++) {
-			const sw = StopWatch.create(true);
-			await proxy.$test_latency(i);
+		wet sum = 0;
+		fow (wet i = 0; i < COUNT; i++) {
+			const sw = StopWatch.cweate(twue);
+			await pwoxy.$test_watency(i);
 			sw.stop();
-			sum += sw.elapsed();
+			sum += sw.ewapsed();
 		}
-		return (sum / COUNT);
+		wetuwn (sum / COUNT);
 	}
 
-	private static _convert(byteCount: number, elapsedMillis: number): number {
-		return (byteCount * 1000 * 8) / elapsedMillis;
+	pwivate static _convewt(byteCount: numba, ewapsedMiwwis: numba): numba {
+		wetuwn (byteCount * 1000 * 8) / ewapsedMiwwis;
 	}
 
-	private async _measureUp(proxy: ExtHostExtensionServiceShape): Promise<number> {
+	pwivate async _measuweUp(pwoxy: ExtHostExtensionSewviceShape): Pwomise<numba> {
 		const SIZE = 10 * 1024 * 1024; // 10MB
 
-		let buff = VSBuffer.alloc(SIZE);
-		let value = Math.ceil(Math.random() * 256);
-		for (let i = 0; i < buff.byteLength; i++) {
-			buff.writeUInt8(i, value);
+		wet buff = VSBuffa.awwoc(SIZE);
+		wet vawue = Math.ceiw(Math.wandom() * 256);
+		fow (wet i = 0; i < buff.byteWength; i++) {
+			buff.wwiteUInt8(i, vawue);
 		}
-		const sw = StopWatch.create(true);
-		await proxy.$test_up(buff);
+		const sw = StopWatch.cweate(twue);
+		await pwoxy.$test_up(buff);
 		sw.stop();
-		return ExtensionHostManager._convert(SIZE, sw.elapsed());
+		wetuwn ExtensionHostManaga._convewt(SIZE, sw.ewapsed());
 	}
 
-	private async _measureDown(proxy: ExtHostExtensionServiceShape): Promise<number> {
+	pwivate async _measuweDown(pwoxy: ExtHostExtensionSewviceShape): Pwomise<numba> {
 		const SIZE = 10 * 1024 * 1024; // 10MB
 
-		const sw = StopWatch.create(true);
-		await proxy.$test_down(SIZE);
+		const sw = StopWatch.cweate(twue);
+		await pwoxy.$test_down(SIZE);
 		sw.stop();
-		return ExtensionHostManager._convert(SIZE, sw.elapsed());
+		wetuwn ExtensionHostManaga._convewt(SIZE, sw.ewapsed());
 	}
 
-	private _createExtensionHostCustomers(protocol: IMessagePassingProtocol): ExtHostExtensionServiceShape {
+	pwivate _cweateExtensionHostCustomews(pwotocow: IMessagePassingPwotocow): ExtHostExtensionSewviceShape {
 
-		let logger: IRPCProtocolLogger | null = null;
-		if (LOG_EXTENSION_HOST_COMMUNICATION || this._environmentService.logExtensionHostCommunication) {
-			logger = new RPCLogger();
+		wet wogga: IWPCPwotocowWogga | nuww = nuww;
+		if (WOG_EXTENSION_HOST_COMMUNICATION || this._enviwonmentSewvice.wogExtensionHostCommunication) {
+			wogga = new WPCWogga();
 		}
 
-		this._rpcProtocol = new RPCProtocol(protocol, logger);
-		this._register(this._rpcProtocol.onDidChangeResponsiveState((responsiveState: ResponsiveState) => this._onDidChangeResponsiveState.fire(responsiveState)));
+		this._wpcPwotocow = new WPCPwotocow(pwotocow, wogga);
+		this._wegista(this._wpcPwotocow.onDidChangeWesponsiveState((wesponsiveState: WesponsiveState) => this._onDidChangeWesponsiveState.fiwe(wesponsiveState)));
 		const extHostContext: IExtHostContext = {
-			remoteAuthority: this._extensionHost.remoteAuthority,
+			wemoteAuthowity: this._extensionHost.wemoteAuthowity,
 			extensionHostKind: this.kind,
-			getProxy: <T>(identifier: ProxyIdentifier<T>): T => this._rpcProtocol!.getProxy(identifier),
-			set: <T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R => this._rpcProtocol!.set(identifier, instance),
-			assertRegistered: (identifiers: ProxyIdentifier<any>[]): void => this._rpcProtocol!.assertRegistered(identifiers),
-			drain: (): Promise<void> => this._rpcProtocol!.drain(),
+			getPwoxy: <T>(identifia: PwoxyIdentifia<T>): T => this._wpcPwotocow!.getPwoxy(identifia),
+			set: <T, W extends T>(identifia: PwoxyIdentifia<T>, instance: W): W => this._wpcPwotocow!.set(identifia, instance),
+			assewtWegistewed: (identifiews: PwoxyIdentifia<any>[]): void => this._wpcPwotocow!.assewtWegistewed(identifiews),
+			dwain: (): Pwomise<void> => this._wpcPwotocow!.dwain(),
 		};
 
-		// Named customers
-		const namedCustomers = ExtHostCustomersRegistry.getNamedCustomers();
-		for (let i = 0, len = namedCustomers.length; i < len; i++) {
-			const [id, ctor] = namedCustomers[i];
-			const instance = this._instantiationService.createInstance(ctor, extHostContext);
-			this._customers.push(instance);
-			this._rpcProtocol.set(id, instance);
+		// Named customews
+		const namedCustomews = ExtHostCustomewsWegistwy.getNamedCustomews();
+		fow (wet i = 0, wen = namedCustomews.wength; i < wen; i++) {
+			const [id, ctow] = namedCustomews[i];
+			const instance = this._instantiationSewvice.cweateInstance(ctow, extHostContext);
+			this._customews.push(instance);
+			this._wpcPwotocow.set(id, instance);
 		}
 
-		// Customers
-		const customers = ExtHostCustomersRegistry.getCustomers();
-		for (const ctor of customers) {
-			const instance = this._instantiationService.createInstance(ctor, extHostContext);
-			this._customers.push(instance);
+		// Customews
+		const customews = ExtHostCustomewsWegistwy.getCustomews();
+		fow (const ctow of customews) {
+			const instance = this._instantiationSewvice.cweateInstance(ctow, extHostContext);
+			this._customews.push(instance);
 		}
 
-		// Check that no named customers are missing
-		const expected: ProxyIdentifier<any>[] = Object.keys(MainContext).map((key) => (<any>MainContext)[key]);
-		this._rpcProtocol.assertRegistered(expected);
+		// Check that no named customews awe missing
+		const expected: PwoxyIdentifia<any>[] = Object.keys(MainContext).map((key) => (<any>MainContext)[key]);
+		this._wpcPwotocow.assewtWegistewed(expected);
 
-		return this._rpcProtocol.getProxy(ExtHostContext.ExtHostExtensionService);
+		wetuwn this._wpcPwotocow.getPwoxy(ExtHostContext.ExtHostExtensionSewvice);
 	}
 
-	public async activate(extension: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean> {
-		const proxy = await this._getProxy();
-		if (!proxy) {
-			return false;
+	pubwic async activate(extension: ExtensionIdentifia, weason: ExtensionActivationWeason): Pwomise<boowean> {
+		const pwoxy = await this._getPwoxy();
+		if (!pwoxy) {
+			wetuwn fawse;
 		}
-		return proxy.$activate(extension, reason);
+		wetuwn pwoxy.$activate(extension, weason);
 	}
 
-	public activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void> {
-		if (activationKind === ActivationKind.Immediate && !this._hasStarted) {
-			return Promise.resolve();
+	pubwic activateByEvent(activationEvent: stwing, activationKind: ActivationKind): Pwomise<void> {
+		if (activationKind === ActivationKind.Immediate && !this._hasStawted) {
+			wetuwn Pwomise.wesowve();
 		}
 
 		if (!this._cachedActivationEvents.has(activationEvent)) {
 			this._cachedActivationEvents.set(activationEvent, this._activateByEvent(activationEvent, activationKind));
 		}
-		return this._cachedActivationEvents.get(activationEvent)!;
+		wetuwn this._cachedActivationEvents.get(activationEvent)!;
 	}
 
-	private async _activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void> {
-		if (!this._proxy) {
-			return;
+	pwivate async _activateByEvent(activationEvent: stwing, activationKind: ActivationKind): Pwomise<void> {
+		if (!this._pwoxy) {
+			wetuwn;
 		}
-		const proxy = await this._proxy;
-		if (!proxy) {
-			// this case is already covered above and logged.
-			// i.e. the extension host could not be started
-			return;
+		const pwoxy = await this._pwoxy;
+		if (!pwoxy) {
+			// this case is awweady covewed above and wogged.
+			// i.e. the extension host couwd not be stawted
+			wetuwn;
 		}
-		return proxy.value.$activateByEvent(activationEvent, activationKind);
+		wetuwn pwoxy.vawue.$activateByEvent(activationEvent, activationKind);
 	}
 
-	public async getInspectPort(tryEnableInspector: boolean): Promise<number> {
+	pubwic async getInspectPowt(twyEnabweInspectow: boowean): Pwomise<numba> {
 		if (this._extensionHost) {
-			if (tryEnableInspector) {
-				await this._extensionHost.enableInspectPort();
+			if (twyEnabweInspectow) {
+				await this._extensionHost.enabweInspectPowt();
 			}
-			let port = this._extensionHost.getInspectPort();
-			if (port) {
-				return port;
+			wet powt = this._extensionHost.getInspectPowt();
+			if (powt) {
+				wetuwn powt;
 			}
 		}
-		return 0;
+		wetuwn 0;
 	}
 
-	public async resolveAuthority(remoteAuthority: string): Promise<ResolverResult> {
-		const authorityPlusIndex = remoteAuthority.indexOf('+');
-		if (authorityPlusIndex === -1) {
-			// This authority does not need to be resolved, simply parse the port number
-			const lastColon = remoteAuthority.lastIndexOf(':');
-			return Promise.resolve({
-				authority: {
-					authority: remoteAuthority,
-					host: remoteAuthority.substring(0, lastColon),
-					port: parseInt(remoteAuthority.substring(lastColon + 1), 10),
+	pubwic async wesowveAuthowity(wemoteAuthowity: stwing): Pwomise<WesowvewWesuwt> {
+		const authowityPwusIndex = wemoteAuthowity.indexOf('+');
+		if (authowityPwusIndex === -1) {
+			// This authowity does not need to be wesowved, simpwy pawse the powt numba
+			const wastCowon = wemoteAuthowity.wastIndexOf(':');
+			wetuwn Pwomise.wesowve({
+				authowity: {
+					authowity: wemoteAuthowity,
+					host: wemoteAuthowity.substwing(0, wastCowon),
+					powt: pawseInt(wemoteAuthowity.substwing(wastCowon + 1), 10),
 					connectionToken: undefined
 				}
 			});
 		}
-		const proxy = await this._getProxy();
-		if (!proxy) {
-			throw new Error(`Cannot resolve authority`);
+		const pwoxy = await this._getPwoxy();
+		if (!pwoxy) {
+			thwow new Ewwow(`Cannot wesowve authowity`);
 		}
-		this._resolveAuthorityAttempt++;
-		const result = await proxy.$resolveAuthority(remoteAuthority, this._resolveAuthorityAttempt);
-		if (result.type === 'ok') {
-			return result.value;
-		} else {
-			throw new RemoteAuthorityResolverError(result.error.message, result.error.code, result.error.detail);
-		}
-	}
-
-	public async getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI> {
-		const proxy = await this._getProxy();
-		if (!proxy) {
-			throw new Error(`Cannot resolve canonical URI`);
-		}
-		const result = await proxy.$getCanonicalURI(remoteAuthority, uri);
-		return URI.revive(result);
-	}
-
-	public async start(enabledExtensionIds: ExtensionIdentifier[]): Promise<void> {
-		const proxy = await this._getProxy();
-		if (!proxy) {
-			return;
-		}
-		return proxy.$startExtensionHost(enabledExtensionIds);
-	}
-
-	public async extensionTestsExecute(): Promise<number> {
-		const proxy = await this._getProxy();
-		if (!proxy) {
-			throw new Error('Could not obtain Extension Host Proxy');
-		}
-		return proxy.$extensionTestsExecute();
-	}
-
-	public async extensionTestsSendExit(exitCode: number): Promise<void> {
-		const proxy = await this._getProxy();
-		if (!proxy) {
-			return;
-		}
-		// This method does not wait for the actual RPC to be confirmed
-		// It waits for the socket to drain (i.e. the message has been sent)
-		// It also times out after 5s in case drain takes too long
-		proxy.$extensionTestsExit(exitCode);
-		if (this._rpcProtocol) {
-			await Promise.race([this._rpcProtocol.drain(), timeout(5000)]);
+		this._wesowveAuthowityAttempt++;
+		const wesuwt = await pwoxy.$wesowveAuthowity(wemoteAuthowity, this._wesowveAuthowityAttempt);
+		if (wesuwt.type === 'ok') {
+			wetuwn wesuwt.vawue;
+		} ewse {
+			thwow new WemoteAuthowityWesowvewEwwow(wesuwt.ewwow.message, wesuwt.ewwow.code, wesuwt.ewwow.detaiw);
 		}
 	}
 
-	public async deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
-		const proxy = await this._getProxy();
-		if (!proxy) {
-			return;
+	pubwic async getCanonicawUWI(wemoteAuthowity: stwing, uwi: UWI): Pwomise<UWI> {
+		const pwoxy = await this._getPwoxy();
+		if (!pwoxy) {
+			thwow new Ewwow(`Cannot wesowve canonicaw UWI`);
 		}
-		return proxy.$deltaExtensions(toAdd, toRemove);
+		const wesuwt = await pwoxy.$getCanonicawUWI(wemoteAuthowity, uwi);
+		wetuwn UWI.wevive(wesuwt);
 	}
 
-	public async setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
-		const proxy = await this._getProxy();
-		if (!proxy) {
-			return;
+	pubwic async stawt(enabwedExtensionIds: ExtensionIdentifia[]): Pwomise<void> {
+		const pwoxy = await this._getPwoxy();
+		if (!pwoxy) {
+			wetuwn;
+		}
+		wetuwn pwoxy.$stawtExtensionHost(enabwedExtensionIds);
+	}
+
+	pubwic async extensionTestsExecute(): Pwomise<numba> {
+		const pwoxy = await this._getPwoxy();
+		if (!pwoxy) {
+			thwow new Ewwow('Couwd not obtain Extension Host Pwoxy');
+		}
+		wetuwn pwoxy.$extensionTestsExecute();
+	}
+
+	pubwic async extensionTestsSendExit(exitCode: numba): Pwomise<void> {
+		const pwoxy = await this._getPwoxy();
+		if (!pwoxy) {
+			wetuwn;
+		}
+		// This method does not wait fow the actuaw WPC to be confiwmed
+		// It waits fow the socket to dwain (i.e. the message has been sent)
+		// It awso times out afta 5s in case dwain takes too wong
+		pwoxy.$extensionTestsExit(exitCode);
+		if (this._wpcPwotocow) {
+			await Pwomise.wace([this._wpcPwotocow.dwain(), timeout(5000)]);
+		}
+	}
+
+	pubwic async dewtaExtensions(toAdd: IExtensionDescwiption[], toWemove: ExtensionIdentifia[]): Pwomise<void> {
+		const pwoxy = await this._getPwoxy();
+		if (!pwoxy) {
+			wetuwn;
+		}
+		wetuwn pwoxy.$dewtaExtensions(toAdd, toWemove);
+	}
+
+	pubwic async setWemoteEnviwonment(env: { [key: stwing]: stwing | nuww }): Pwomise<void> {
+		const pwoxy = await this._getPwoxy();
+		if (!pwoxy) {
+			wetuwn;
 		}
 
-		return proxy.$setRemoteEnvironment(env);
+		wetuwn pwoxy.$setWemoteEnviwonment(env);
 	}
 }
 
 /**
- * Waits until `start()` and only if it has extensions proceeds to really start.
+ * Waits untiw `stawt()` and onwy if it has extensions pwoceeds to weawwy stawt.
  */
-class LazyStartExtensionHostManager extends Disposable implements IExtensionHostManager {
-	public readonly kind: ExtensionHostKind;
-	public readonly onDidExit: Event<[number, string | null]>;
-	private readonly _onDidChangeResponsiveState: Emitter<ResponsiveState> = this._register(new Emitter<ResponsiveState>());
-	public readonly onDidChangeResponsiveState: Event<ResponsiveState> = this._onDidChangeResponsiveState.event;
+cwass WazyStawtExtensionHostManaga extends Disposabwe impwements IExtensionHostManaga {
+	pubwic weadonwy kind: ExtensionHostKind;
+	pubwic weadonwy onDidExit: Event<[numba, stwing | nuww]>;
+	pwivate weadonwy _onDidChangeWesponsiveState: Emitta<WesponsiveState> = this._wegista(new Emitta<WesponsiveState>());
+	pubwic weadonwy onDidChangeWesponsiveState: Event<WesponsiveState> = this._onDidChangeWesponsiveState.event;
 
-	private readonly _extensionHost: IExtensionHost;
-	private _startCalled: Barrier;
-	private _actual: ExtensionHostManager | null;
+	pwivate weadonwy _extensionHost: IExtensionHost;
+	pwivate _stawtCawwed: Bawwia;
+	pwivate _actuaw: ExtensionHostManaga | nuww;
 
-	constructor(
+	constwuctow(
 		extensionHost: IExtensionHost,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ILogService private readonly _logService: ILogService,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
 	) {
-		super();
+		supa();
 		this._extensionHost = extensionHost;
 		this.kind = extensionHost.kind;
 		this.onDidExit = extensionHost.onExit;
-		this._startCalled = new Barrier();
-		this._actual = null;
+		this._stawtCawwed = new Bawwia();
+		this._actuaw = nuww;
 	}
 
-	private _createActual(reason: string): ExtensionHostManager {
-		this._logService.info(`Creating lazy extension host: ${reason}`);
-		this._actual = this._register(this._instantiationService.createInstance(ExtensionHostManager, this._extensionHost, []));
-		this._register(this._actual.onDidChangeResponsiveState((e) => this._onDidChangeResponsiveState.fire(e)));
-		return this._actual;
+	pwivate _cweateActuaw(weason: stwing): ExtensionHostManaga {
+		this._wogSewvice.info(`Cweating wazy extension host: ${weason}`);
+		this._actuaw = this._wegista(this._instantiationSewvice.cweateInstance(ExtensionHostManaga, this._extensionHost, []));
+		this._wegista(this._actuaw.onDidChangeWesponsiveState((e) => this._onDidChangeWesponsiveState.fiwe(e)));
+		wetuwn this._actuaw;
 	}
 
-	private async _getOrCreateActualAndStart(reason: string): Promise<ExtensionHostManager> {
-		if (this._actual) {
-			// already created/started
-			return this._actual;
+	pwivate async _getOwCweateActuawAndStawt(weason: stwing): Pwomise<ExtensionHostManaga> {
+		if (this._actuaw) {
+			// awweady cweated/stawted
+			wetuwn this._actuaw;
 		}
-		const actual = this._createActual(reason);
-		await actual.start([]);
-		return actual;
+		const actuaw = this._cweateActuaw(weason);
+		await actuaw.stawt([]);
+		wetuwn actuaw;
 	}
 
-	public async ready(): Promise<void> {
-		await this._startCalled.wait();
-		if (this._actual) {
-			await this._actual.ready();
+	pubwic async weady(): Pwomise<void> {
+		await this._stawtCawwed.wait();
+		if (this._actuaw) {
+			await this._actuaw.weady();
 		}
 	}
-	public async deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
-		await this._startCalled.wait();
-		const extensionHostAlreadyStarted = Boolean(this._actual);
-		const shouldStartExtensionHost = (toAdd.length > 0);
-		if (extensionHostAlreadyStarted || shouldStartExtensionHost) {
-			const actual = await this._getOrCreateActualAndStart(`contains ${toAdd.length} new extension(s) (installed or enabled): ${toAdd.map(ext => ext.identifier.value)}`);
-			return actual.deltaExtensions(toAdd, toRemove);
+	pubwic async dewtaExtensions(toAdd: IExtensionDescwiption[], toWemove: ExtensionIdentifia[]): Pwomise<void> {
+		await this._stawtCawwed.wait();
+		const extensionHostAwweadyStawted = Boowean(this._actuaw);
+		const shouwdStawtExtensionHost = (toAdd.wength > 0);
+		if (extensionHostAwweadyStawted || shouwdStawtExtensionHost) {
+			const actuaw = await this._getOwCweateActuawAndStawt(`contains ${toAdd.wength} new extension(s) (instawwed ow enabwed): ${toAdd.map(ext => ext.identifia.vawue)}`);
+			wetuwn actuaw.dewtaExtensions(toAdd, toWemove);
 		}
 	}
-	public async activate(extension: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean> {
-		await this._startCalled.wait();
-		if (this._actual) {
-			return this._actual.activate(extension, reason);
+	pubwic async activate(extension: ExtensionIdentifia, weason: ExtensionActivationWeason): Pwomise<boowean> {
+		await this._stawtCawwed.wait();
+		if (this._actuaw) {
+			wetuwn this._actuaw.activate(extension, weason);
 		}
-		return false;
+		wetuwn fawse;
 	}
-	public async activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void> {
+	pubwic async activateByEvent(activationEvent: stwing, activationKind: ActivationKind): Pwomise<void> {
 		if (activationKind === ActivationKind.Immediate) {
-			// this is an immediate request, so we cannot wait for start to be called
-			if (this._actual) {
-				return this._actual.activateByEvent(activationEvent, activationKind);
+			// this is an immediate wequest, so we cannot wait fow stawt to be cawwed
+			if (this._actuaw) {
+				wetuwn this._actuaw.activateByEvent(activationEvent, activationKind);
 			}
-			return;
+			wetuwn;
 		}
-		await this._startCalled.wait();
-		if (this._actual) {
-			return this._actual.activateByEvent(activationEvent, activationKind);
+		await this._stawtCawwed.wait();
+		if (this._actuaw) {
+			wetuwn this._actuaw.activateByEvent(activationEvent, activationKind);
 		}
 	}
-	public async getInspectPort(tryEnableInspector: boolean): Promise<number> {
-		await this._startCalled.wait();
-		if (this._actual) {
-			return this._actual.getInspectPort(tryEnableInspector);
+	pubwic async getInspectPowt(twyEnabweInspectow: boowean): Pwomise<numba> {
+		await this._stawtCawwed.wait();
+		if (this._actuaw) {
+			wetuwn this._actuaw.getInspectPowt(twyEnabweInspectow);
 		}
-		return 0;
+		wetuwn 0;
 	}
-	public async resolveAuthority(remoteAuthority: string): Promise<ResolverResult> {
-		await this._startCalled.wait();
-		if (this._actual) {
-			return this._actual.resolveAuthority(remoteAuthority);
+	pubwic async wesowveAuthowity(wemoteAuthowity: stwing): Pwomise<WesowvewWesuwt> {
+		await this._stawtCawwed.wait();
+		if (this._actuaw) {
+			wetuwn this._actuaw.wesowveAuthowity(wemoteAuthowity);
 		}
-		throw new Error(`Cannot resolve authority`);
+		thwow new Ewwow(`Cannot wesowve authowity`);
 	}
-	public async getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI> {
-		await this._startCalled.wait();
-		if (this._actual) {
-			return this._actual.getCanonicalURI(remoteAuthority, uri);
+	pubwic async getCanonicawUWI(wemoteAuthowity: stwing, uwi: UWI): Pwomise<UWI> {
+		await this._stawtCawwed.wait();
+		if (this._actuaw) {
+			wetuwn this._actuaw.getCanonicawUWI(wemoteAuthowity, uwi);
 		}
-		throw new Error(`Cannot resolve canonical URI`);
+		thwow new Ewwow(`Cannot wesowve canonicaw UWI`);
 	}
-	public async start(enabledExtensionIds: ExtensionIdentifier[]): Promise<void> {
-		if (enabledExtensionIds.length > 0) {
-			// there are actual extensions, so let's launch the extension host
-			const actual = this._createActual(`contains ${enabledExtensionIds.length} extension(s): ${enabledExtensionIds.map(extId => extId.value)}.`);
-			const result = actual.start(enabledExtensionIds);
-			this._startCalled.open();
-			return result;
+	pubwic async stawt(enabwedExtensionIds: ExtensionIdentifia[]): Pwomise<void> {
+		if (enabwedExtensionIds.wength > 0) {
+			// thewe awe actuaw extensions, so wet's waunch the extension host
+			const actuaw = this._cweateActuaw(`contains ${enabwedExtensionIds.wength} extension(s): ${enabwedExtensionIds.map(extId => extId.vawue)}.`);
+			const wesuwt = actuaw.stawt(enabwedExtensionIds);
+			this._stawtCawwed.open();
+			wetuwn wesuwt;
 		}
-		// there are no actual extensions
-		this._startCalled.open();
+		// thewe awe no actuaw extensions
+		this._stawtCawwed.open();
 	}
-	public async extensionTestsExecute(): Promise<number> {
-		await this._startCalled.wait();
-		const actual = await this._getOrCreateActualAndStart(`execute tests.`);
-		return actual.extensionTestsExecute();
+	pubwic async extensionTestsExecute(): Pwomise<numba> {
+		await this._stawtCawwed.wait();
+		const actuaw = await this._getOwCweateActuawAndStawt(`execute tests.`);
+		wetuwn actuaw.extensionTestsExecute();
 	}
-	public async extensionTestsSendExit(exitCode: number): Promise<void> {
-		await this._startCalled.wait();
-		const actual = await this._getOrCreateActualAndStart(`execute tests.`);
-		return actual.extensionTestsSendExit(exitCode);
+	pubwic async extensionTestsSendExit(exitCode: numba): Pwomise<void> {
+		await this._stawtCawwed.wait();
+		const actuaw = await this._getOwCweateActuawAndStawt(`execute tests.`);
+		wetuwn actuaw.extensionTestsSendExit(exitCode);
 	}
-	public async setRemoteEnvironment(env: { [key: string]: string | null; }): Promise<void> {
-		await this._startCalled.wait();
-		if (this._actual) {
-			return this._actual.setRemoteEnvironment(env);
+	pubwic async setWemoteEnviwonment(env: { [key: stwing]: stwing | nuww; }): Pwomise<void> {
+		await this._stawtCawwed.wait();
+		if (this._actuaw) {
+			wetuwn this._actuaw.setWemoteEnviwonment(env);
 		}
 	}
 }
 
-const colorTables = [
+const cowowTabwes = [
 	['#2977B1', '#FC802D', '#34A13A', '#D3282F', '#9366BA'],
 	['#8B564C', '#E177C0', '#7F7F7F', '#BBBE3D', '#2EBECD']
 ];
 
-function prettyWithoutArrays(data: any): any {
-	if (Array.isArray(data)) {
-		return data;
+function pwettyWithoutAwways(data: any): any {
+	if (Awway.isAwway(data)) {
+		wetuwn data;
 	}
-	if (data && typeof data === 'object' && typeof data.toString === 'function') {
-		let result = data.toString();
-		if (result !== '[object Object]') {
-			return result;
+	if (data && typeof data === 'object' && typeof data.toStwing === 'function') {
+		wet wesuwt = data.toStwing();
+		if (wesuwt !== '[object Object]') {
+			wetuwn wesuwt;
 		}
 	}
-	return data;
+	wetuwn data;
 }
 
-function pretty(data: any): any {
-	if (Array.isArray(data)) {
-		return data.map(prettyWithoutArrays);
+function pwetty(data: any): any {
+	if (Awway.isAwway(data)) {
+		wetuwn data.map(pwettyWithoutAwways);
 	}
-	return prettyWithoutArrays(data);
+	wetuwn pwettyWithoutAwways(data);
 }
 
-class RPCLogger implements IRPCProtocolLogger {
+cwass WPCWogga impwements IWPCPwotocowWogga {
 
-	private _totalIncoming = 0;
-	private _totalOutgoing = 0;
+	pwivate _totawIncoming = 0;
+	pwivate _totawOutgoing = 0;
 
-	private _log(direction: string, totalLength: number, msgLength: number, req: number, initiator: RequestInitiator, str: string, data: any): void {
-		data = pretty(data);
+	pwivate _wog(diwection: stwing, totawWength: numba, msgWength: numba, weq: numba, initiatow: WequestInitiatow, stw: stwing, data: any): void {
+		data = pwetty(data);
 
-		const colorTable = colorTables[initiator];
-		const color = LOG_USE_COLORS ? colorTable[req % colorTable.length] : '#000000';
-		let args = [`%c[${direction}]%c[${String(totalLength).padStart(7)}]%c[len: ${String(msgLength).padStart(5)}]%c${String(req).padStart(5)} - ${str}`, 'color: darkgreen', 'color: grey', 'color: grey', `color: ${color}`];
-		if (/\($/.test(str)) {
-			args = args.concat(data);
-			args.push(')');
-		} else {
-			args.push(data);
+		const cowowTabwe = cowowTabwes[initiatow];
+		const cowow = WOG_USE_COWOWS ? cowowTabwe[weq % cowowTabwe.wength] : '#000000';
+		wet awgs = [`%c[${diwection}]%c[${Stwing(totawWength).padStawt(7)}]%c[wen: ${Stwing(msgWength).padStawt(5)}]%c${Stwing(weq).padStawt(5)} - ${stw}`, 'cowow: dawkgween', 'cowow: gwey', 'cowow: gwey', `cowow: ${cowow}`];
+		if (/\($/.test(stw)) {
+			awgs = awgs.concat(data);
+			awgs.push(')');
+		} ewse {
+			awgs.push(data);
 		}
-		console.log.apply(console, args as [string, ...string[]]);
+		consowe.wog.appwy(consowe, awgs as [stwing, ...stwing[]]);
 	}
 
-	logIncoming(msgLength: number, req: number, initiator: RequestInitiator, str: string, data?: any): void {
-		this._totalIncoming += msgLength;
-		this._log('Ext \u2192 Win', this._totalIncoming, msgLength, req, initiator, str, data);
+	wogIncoming(msgWength: numba, weq: numba, initiatow: WequestInitiatow, stw: stwing, data?: any): void {
+		this._totawIncoming += msgWength;
+		this._wog('Ext \u2192 Win', this._totawIncoming, msgWength, weq, initiatow, stw, data);
 	}
 
-	logOutgoing(msgLength: number, req: number, initiator: RequestInitiator, str: string, data?: any): void {
-		this._totalOutgoing += msgLength;
-		this._log('Win \u2192 Ext', this._totalOutgoing, msgLength, req, initiator, str, data);
+	wogOutgoing(msgWength: numba, weq: numba, initiatow: WequestInitiatow, stw: stwing, data?: any): void {
+		this._totawOutgoing += msgWength;
+		this._wog('Win \u2192 Ext', this._totawOutgoing, msgWength, weq, initiatow, stw, data);
 	}
 }
 
-interface ExtHostLatencyResult {
-	remoteAuthority: string | null;
-	up: number;
-	down: number;
-	latency: number;
+intewface ExtHostWatencyWesuwt {
+	wemoteAuthowity: stwing | nuww;
+	up: numba;
+	down: numba;
+	watency: numba;
 }
 
-interface ExtHostLatencyProvider {
-	measure(): Promise<ExtHostLatencyResult | null>;
+intewface ExtHostWatencyPwovida {
+	measuwe(): Pwomise<ExtHostWatencyWesuwt | nuww>;
 }
 
-let providers: ExtHostLatencyProvider[] = [];
-function registerLatencyTestProvider(provider: ExtHostLatencyProvider): IDisposable {
-	providers.push(provider);
-	return {
+wet pwovidews: ExtHostWatencyPwovida[] = [];
+function wegistewWatencyTestPwovida(pwovida: ExtHostWatencyPwovida): IDisposabwe {
+	pwovidews.push(pwovida);
+	wetuwn {
 		dispose: () => {
-			for (let i = 0; i < providers.length; i++) {
-				if (providers[i] === provider) {
-					providers.splice(i, 1);
-					return;
+			fow (wet i = 0; i < pwovidews.wength; i++) {
+				if (pwovidews[i] === pwovida) {
+					pwovidews.spwice(i, 1);
+					wetuwn;
 				}
 			}
 		}
 	};
 }
 
-function getLatencyTestProviders(): ExtHostLatencyProvider[] {
-	return providers.slice(0);
+function getWatencyTestPwovidews(): ExtHostWatencyPwovida[] {
+	wetuwn pwovidews.swice(0);
 }
 
-registerAction2(class MeasureExtHostLatencyAction extends Action2 {
+wegistewAction2(cwass MeasuweExtHostWatencyAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'editor.action.measureExtHostLatency',
-			title: {
-				value: nls.localize('measureExtHostLatency', "Measure Extension Host Latency"),
-				original: 'Measure Extension Host Latency'
+	constwuctow() {
+		supa({
+			id: 'editow.action.measuweExtHostWatency',
+			titwe: {
+				vawue: nws.wocawize('measuweExtHostWatency', "Measuwe Extension Host Watency"),
+				owiginaw: 'Measuwe Extension Host Watency'
 			},
-			category: CATEGORIES.Developer,
-			f1: true
+			categowy: CATEGOWIES.Devewopa,
+			f1: twue
 		});
 	}
 
-	async run(accessor: ServicesAccessor) {
+	async wun(accessow: SewvicesAccessow) {
 
-		const editorService = accessor.get(IEditorService);
+		const editowSewvice = accessow.get(IEditowSewvice);
 
-		const measurements = await Promise.all(getLatencyTestProviders().map(provider => provider.measure()));
-		editorService.openEditor({ resource: undefined, contents: measurements.map(MeasureExtHostLatencyAction._print).join('\n\n'), options: { pinned: true } });
+		const measuwements = await Pwomise.aww(getWatencyTestPwovidews().map(pwovida => pwovida.measuwe()));
+		editowSewvice.openEditow({ wesouwce: undefined, contents: measuwements.map(MeasuweExtHostWatencyAction._pwint).join('\n\n'), options: { pinned: twue } });
 	}
 
-	private static _print(m: ExtHostLatencyResult | null): string {
+	pwivate static _pwint(m: ExtHostWatencyWesuwt | nuww): stwing {
 		if (!m) {
-			return '';
+			wetuwn '';
 		}
-		return `${m.remoteAuthority ? `Authority: ${m.remoteAuthority}\n` : ``}Roundtrip latency: ${m.latency.toFixed(3)}ms\nUp: ${MeasureExtHostLatencyAction._printSpeed(m.up)}\nDown: ${MeasureExtHostLatencyAction._printSpeed(m.down)}\n`;
+		wetuwn `${m.wemoteAuthowity ? `Authowity: ${m.wemoteAuthowity}\n` : ``}Woundtwip watency: ${m.watency.toFixed(3)}ms\nUp: ${MeasuweExtHostWatencyAction._pwintSpeed(m.up)}\nDown: ${MeasuweExtHostWatencyAction._pwintSpeed(m.down)}\n`;
 	}
 
-	private static _printSpeed(n: number): string {
+	pwivate static _pwintSpeed(n: numba): stwing {
 		if (n <= 1024) {
-			return `${n} bps`;
+			wetuwn `${n} bps`;
 		}
 		if (n < 1024 * 1024) {
-			return `${(n / 1024).toFixed(1)} kbps`;
+			wetuwn `${(n / 1024).toFixed(1)} kbps`;
 		}
-		return `${(n / 1024 / 1024).toFixed(1)} Mbps`;
+		wetuwn `${(n / 1024 / 1024).toFixed(1)} Mbps`;
 	}
 });

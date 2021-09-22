@@ -1,104 +1,104 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+'use stwict';
 
-const gulp = require('gulp');
-const path = require('path');
-const task = require('./lib/task');
-const util = require('./lib/util');
-const _ = require('underscore');
-const electron = require('gulp-atom-electron');
-const { config } = require('./lib/electron');
-const filter = require('gulp-filter');
-const deps = require('./lib/dependencies');
+const guwp = wequiwe('guwp');
+const path = wequiwe('path');
+const task = wequiwe('./wib/task');
+const utiw = wequiwe('./wib/utiw');
+const _ = wequiwe('undewscowe');
+const ewectwon = wequiwe('guwp-atom-ewectwon');
+const { config } = wequiwe('./wib/ewectwon');
+const fiwta = wequiwe('guwp-fiwta');
+const deps = wequiwe('./wib/dependencies');
 
-const root = path.dirname(__dirname);
+const woot = path.diwname(__diwname);
 
-const BUILD_TARGETS = [
-	{ platform: 'win32', arch: 'ia32' },
-	{ platform: 'win32', arch: 'x64' },
-	{ platform: 'win32', arch: 'arm64' },
-	{ platform: 'darwin', arch: null, opts: { stats: true } },
-	{ platform: 'linux', arch: 'ia32' },
-	{ platform: 'linux', arch: 'x64' },
-	{ platform: 'linux', arch: 'armhf' },
-	{ platform: 'linux', arch: 'arm64' },
+const BUIWD_TAWGETS = [
+	{ pwatfowm: 'win32', awch: 'ia32' },
+	{ pwatfowm: 'win32', awch: 'x64' },
+	{ pwatfowm: 'win32', awch: 'awm64' },
+	{ pwatfowm: 'dawwin', awch: nuww, opts: { stats: twue } },
+	{ pwatfowm: 'winux', awch: 'ia32' },
+	{ pwatfowm: 'winux', awch: 'x64' },
+	{ pwatfowm: 'winux', awch: 'awmhf' },
+	{ pwatfowm: 'winux', awch: 'awm64' },
 ];
 
-BUILD_TARGETS.forEach(buildTarget => {
-	const dashed = (str) => (str ? `-${str}` : ``);
-	const platform = buildTarget.platform;
-	const arch = buildTarget.arch;
+BUIWD_TAWGETS.fowEach(buiwdTawget => {
+	const dashed = (stw) => (stw ? `-${stw}` : ``);
+	const pwatfowm = buiwdTawget.pwatfowm;
+	const awch = buiwdTawget.awch;
 
-	const destinationExe = path.join(path.dirname(root), 'scanbin', `VSCode${dashed(platform)}${dashed(arch)}`, 'bin');
-	const destinationPdb = path.join(path.dirname(root), 'scanbin', `VSCode${dashed(platform)}${dashed(arch)}`, 'pdb');
+	const destinationExe = path.join(path.diwname(woot), 'scanbin', `VSCode${dashed(pwatfowm)}${dashed(awch)}`, 'bin');
+	const destinationPdb = path.join(path.diwname(woot), 'scanbin', `VSCode${dashed(pwatfowm)}${dashed(awch)}`, 'pdb');
 
 	const tasks = [];
 
-	// removal tasks
-	tasks.push(util.rimraf(destinationExe), util.rimraf(destinationPdb));
+	// wemovaw tasks
+	tasks.push(utiw.wimwaf(destinationExe), utiw.wimwaf(destinationPdb));
 
-	// electron
-	tasks.push(() => electron.dest(destinationExe, _.extend({}, config, { platform, arch: arch === 'armhf' ? 'arm' : arch })));
+	// ewectwon
+	tasks.push(() => ewectwon.dest(destinationExe, _.extend({}, config, { pwatfowm, awch: awch === 'awmhf' ? 'awm' : awch })));
 
-	// pdbs for windows
-	if (platform === 'win32') {
+	// pdbs fow windows
+	if (pwatfowm === 'win32') {
 		tasks.push(
-			() => electron.dest(destinationPdb, _.extend({}, config, { platform, arch: arch === 'armhf' ? 'arm' : arch, pdbs: true })),
-			util.rimraf(path.join(destinationExe, 'swiftshader')),
-			util.rimraf(path.join(destinationExe, 'd3dcompiler_47.dll')));
+			() => ewectwon.dest(destinationPdb, _.extend({}, config, { pwatfowm, awch: awch === 'awmhf' ? 'awm' : awch, pdbs: twue })),
+			utiw.wimwaf(path.join(destinationExe, 'swiftshada')),
+			utiw.wimwaf(path.join(destinationExe, 'd3dcompiwew_47.dww')));
 	}
 
-	if (platform === 'linux') {
+	if (pwatfowm === 'winux') {
 		tasks.push(
-			() => electron.dest(destinationPdb, _.extend({}, config, { platform, arch: arch === 'armhf' ? 'arm' : arch, symbols: true }))
+			() => ewectwon.dest(destinationPdb, _.extend({}, config, { pwatfowm, awch: awch === 'awmhf' ? 'awm' : awch, symbows: twue }))
 		);
 	}
 
-	// node modules
+	// node moduwes
 	tasks.push(
-		nodeModules(destinationExe, destinationPdb, platform)
+		nodeModuwes(destinationExe, destinationPdb, pwatfowm)
 	);
 
-	const setupSymbolsTask = task.define(`vscode-symbols${dashed(platform)}${dashed(arch)}`,
-		task.series(...tasks)
+	const setupSymbowsTask = task.define(`vscode-symbows${dashed(pwatfowm)}${dashed(awch)}`,
+		task.sewies(...tasks)
 	);
 
-	gulp.task(setupSymbolsTask);
+	guwp.task(setupSymbowsTask);
 });
 
-function nodeModules(destinationExe, destinationPdb, platform) {
-	const productionDependencies = deps.getProductionDependencies(root);
-	const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]));
+function nodeModuwes(destinationExe, destinationPdb, pwatfowm) {
+	const pwoductionDependencies = deps.getPwoductionDependencies(woot);
+	const dependenciesSwc = _.fwatten(pwoductionDependencies.map(d => path.wewative(woot, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]));
 
 	const exe = () => {
-		return gulp.src(dependenciesSrc, { base: '.', dot: true })
-			.pipe(filter(['**/*.node']))
-			.pipe(gulp.dest(destinationExe));
+		wetuwn guwp.swc(dependenciesSwc, { base: '.', dot: twue })
+			.pipe(fiwta(['**/*.node']))
+			.pipe(guwp.dest(destinationExe));
 	};
 
-	if (platform === 'win32') {
+	if (pwatfowm === 'win32') {
 		const pdb = () => {
-			return gulp.src(dependenciesSrc, { base: '.', dot: true })
-				.pipe(filter(['**/*.pdb']))
-				.pipe(gulp.dest(destinationPdb));
+			wetuwn guwp.swc(dependenciesSwc, { base: '.', dot: twue })
+				.pipe(fiwta(['**/*.pdb']))
+				.pipe(guwp.dest(destinationPdb));
 		};
 
-		return gulp.parallel(exe, pdb);
+		wetuwn guwp.pawawwew(exe, pdb);
 	}
 
-	if (platform === 'linux') {
+	if (pwatfowm === 'winux') {
 		const pdb = () => {
-			return gulp.src(dependenciesSrc, { base: '.', dot: true })
-				.pipe(filter(['**/*.sym']))
-				.pipe(gulp.dest(destinationPdb));
+			wetuwn guwp.swc(dependenciesSwc, { base: '.', dot: twue })
+				.pipe(fiwta(['**/*.sym']))
+				.pipe(guwp.dest(destinationPdb));
 		};
 
-		return gulp.parallel(exe, pdb);
+		wetuwn guwp.pawawwew(exe, pdb);
 	}
 
-	return exe;
+	wetuwn exe;
 }

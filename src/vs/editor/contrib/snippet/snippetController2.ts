@@ -1,231 +1,231 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorCommand, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CompletionItem, CompletionItemKind } from 'vs/editor/common/modes';
-import { Choice } from 'vs/editor/contrib/snippet/snippetParser';
-import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/suggest';
-import { OvertypingCapturer } from 'vs/editor/contrib/suggest/suggestOvertypingCapturer';
-import { localize } from 'vs/nls';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ILogService } from 'vs/platform/log/common/log';
-import { SnippetSession } from './snippetSession';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowCommand, wegistewEditowCommand, wegistewEditowContwibution } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { CompwetionItem, CompwetionItemKind } fwom 'vs/editow/common/modes';
+impowt { Choice } fwom 'vs/editow/contwib/snippet/snippetPawsa';
+impowt { showSimpweSuggestions } fwom 'vs/editow/contwib/suggest/suggest';
+impowt { OvewtypingCaptuwa } fwom 'vs/editow/contwib/suggest/suggestOvewtypingCaptuwa';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ContextKeyExpw, IContextKey, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { SnippetSession } fwom './snippetSession';
 
-export interface ISnippetInsertOptions {
-	overwriteBefore: number;
-	overwriteAfter: number;
-	adjustWhitespace: boolean;
-	undoStopBefore: boolean;
-	undoStopAfter: boolean;
-	clipboardText: string | undefined;
-	overtypingCapturer: OvertypingCapturer | undefined;
+expowt intewface ISnippetInsewtOptions {
+	ovewwwiteBefowe: numba;
+	ovewwwiteAfta: numba;
+	adjustWhitespace: boowean;
+	undoStopBefowe: boowean;
+	undoStopAfta: boowean;
+	cwipboawdText: stwing | undefined;
+	ovewtypingCaptuwa: OvewtypingCaptuwa | undefined;
 }
 
-const _defaultOptions: ISnippetInsertOptions = {
-	overwriteBefore: 0,
-	overwriteAfter: 0,
-	undoStopBefore: true,
-	undoStopAfter: true,
-	adjustWhitespace: true,
-	clipboardText: undefined,
-	overtypingCapturer: undefined
+const _defauwtOptions: ISnippetInsewtOptions = {
+	ovewwwiteBefowe: 0,
+	ovewwwiteAfta: 0,
+	undoStopBefowe: twue,
+	undoStopAfta: twue,
+	adjustWhitespace: twue,
+	cwipboawdText: undefined,
+	ovewtypingCaptuwa: undefined
 };
 
-export class SnippetController2 implements IEditorContribution {
+expowt cwass SnippetContwowwew2 impwements IEditowContwibution {
 
-	public static readonly ID = 'snippetController2';
+	pubwic static weadonwy ID = 'snippetContwowwew2';
 
-	static get(editor: ICodeEditor): SnippetController2 {
-		return editor.getContribution<SnippetController2>(SnippetController2.ID);
+	static get(editow: ICodeEditow): SnippetContwowwew2 {
+		wetuwn editow.getContwibution<SnippetContwowwew2>(SnippetContwowwew2.ID);
 	}
 
-	static readonly InSnippetMode = new RawContextKey('inSnippetMode', false, localize('inSnippetMode', "Whether the editor in current in snippet mode"));
-	static readonly HasNextTabstop = new RawContextKey('hasNextTabstop', false, localize('hasNextTabstop', "Whether there is a next tab stop when in snippet mode"));
-	static readonly HasPrevTabstop = new RawContextKey('hasPrevTabstop', false, localize('hasPrevTabstop', "Whether there is a previous tab stop when in snippet mode"));
+	static weadonwy InSnippetMode = new WawContextKey('inSnippetMode', fawse, wocawize('inSnippetMode', "Whetha the editow in cuwwent in snippet mode"));
+	static weadonwy HasNextTabstop = new WawContextKey('hasNextTabstop', fawse, wocawize('hasNextTabstop', "Whetha thewe is a next tab stop when in snippet mode"));
+	static weadonwy HasPwevTabstop = new WawContextKey('hasPwevTabstop', fawse, wocawize('hasPwevTabstop', "Whetha thewe is a pwevious tab stop when in snippet mode"));
 
-	private readonly _inSnippet: IContextKey<boolean>;
-	private readonly _hasNextTabstop: IContextKey<boolean>;
-	private readonly _hasPrevTabstop: IContextKey<boolean>;
+	pwivate weadonwy _inSnippet: IContextKey<boowean>;
+	pwivate weadonwy _hasNextTabstop: IContextKey<boowean>;
+	pwivate weadonwy _hasPwevTabstop: IContextKey<boowean>;
 
-	private _session?: SnippetSession;
-	private _snippetListener = new DisposableStore();
-	private _modelVersionId: number = -1;
-	private _currentChoice?: Choice;
+	pwivate _session?: SnippetSession;
+	pwivate _snippetWistena = new DisposabweStowe();
+	pwivate _modewVewsionId: numba = -1;
+	pwivate _cuwwentChoice?: Choice;
 
-	constructor(
-		private readonly _editor: ICodeEditor,
-		@ILogService private readonly _logService: ILogService,
-		@IContextKeyService contextKeyService: IContextKeyService
+	constwuctow(
+		pwivate weadonwy _editow: ICodeEditow,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice
 	) {
-		this._inSnippet = SnippetController2.InSnippetMode.bindTo(contextKeyService);
-		this._hasNextTabstop = SnippetController2.HasNextTabstop.bindTo(contextKeyService);
-		this._hasPrevTabstop = SnippetController2.HasPrevTabstop.bindTo(contextKeyService);
+		this._inSnippet = SnippetContwowwew2.InSnippetMode.bindTo(contextKeySewvice);
+		this._hasNextTabstop = SnippetContwowwew2.HasNextTabstop.bindTo(contextKeySewvice);
+		this._hasPwevTabstop = SnippetContwowwew2.HasPwevTabstop.bindTo(contextKeySewvice);
 	}
 
 	dispose(): void {
-		this._inSnippet.reset();
-		this._hasPrevTabstop.reset();
-		this._hasNextTabstop.reset();
+		this._inSnippet.weset();
+		this._hasPwevTabstop.weset();
+		this._hasNextTabstop.weset();
 		this._session?.dispose();
-		this._snippetListener.dispose();
+		this._snippetWistena.dispose();
 	}
 
-	insert(
-		template: string,
-		opts?: Partial<ISnippetInsertOptions>
+	insewt(
+		tempwate: stwing,
+		opts?: Pawtiaw<ISnippetInsewtOptions>
 	): void {
-		// this is here to find out more about the yet-not-understood
-		// error that sometimes happens when we fail to inserted a nested
+		// this is hewe to find out mowe about the yet-not-undewstood
+		// ewwow that sometimes happens when we faiw to insewted a nested
 		// snippet
-		try {
-			this._doInsert(template, typeof opts === 'undefined' ? _defaultOptions : { ..._defaultOptions, ...opts });
+		twy {
+			this._doInsewt(tempwate, typeof opts === 'undefined' ? _defauwtOptions : { ..._defauwtOptions, ...opts });
 
 		} catch (e) {
-			this.cancel();
-			this._logService.error(e);
-			this._logService.error('snippet_error');
-			this._logService.error('insert_template=', template);
-			this._logService.error('existing_template=', this._session ? this._session._logInfo() : '<no_session>');
+			this.cancew();
+			this._wogSewvice.ewwow(e);
+			this._wogSewvice.ewwow('snippet_ewwow');
+			this._wogSewvice.ewwow('insewt_tempwate=', tempwate);
+			this._wogSewvice.ewwow('existing_tempwate=', this._session ? this._session._wogInfo() : '<no_session>');
 		}
 	}
 
-	private _doInsert(
-		template: string,
-		opts: ISnippetInsertOptions
+	pwivate _doInsewt(
+		tempwate: stwing,
+		opts: ISnippetInsewtOptions
 	): void {
-		if (!this._editor.hasModel()) {
-			return;
+		if (!this._editow.hasModew()) {
+			wetuwn;
 		}
 
-		// don't listen while inserting the snippet
-		// as that is the inflight state causing cancelation
-		this._snippetListener.clear();
+		// don't wisten whiwe insewting the snippet
+		// as that is the infwight state causing cancewation
+		this._snippetWistena.cweaw();
 
-		if (opts.undoStopBefore) {
-			this._editor.getModel().pushStackElement();
+		if (opts.undoStopBefowe) {
+			this._editow.getModew().pushStackEwement();
 		}
 
 		if (!this._session) {
-			this._modelVersionId = this._editor.getModel().getAlternativeVersionId();
-			this._session = new SnippetSession(this._editor, template, opts);
-			this._session.insert();
-		} else {
-			this._session.merge(template, opts);
+			this._modewVewsionId = this._editow.getModew().getAwtewnativeVewsionId();
+			this._session = new SnippetSession(this._editow, tempwate, opts);
+			this._session.insewt();
+		} ewse {
+			this._session.mewge(tempwate, opts);
 		}
 
-		if (opts.undoStopAfter) {
-			this._editor.getModel().pushStackElement();
+		if (opts.undoStopAfta) {
+			this._editow.getModew().pushStackEwement();
 		}
 
 		this._updateState();
 
-		this._snippetListener.add(this._editor.onDidChangeModelContent(e => e.isFlush && this.cancel()));
-		this._snippetListener.add(this._editor.onDidChangeModel(() => this.cancel()));
-		this._snippetListener.add(this._editor.onDidChangeCursorSelection(() => this._updateState()));
+		this._snippetWistena.add(this._editow.onDidChangeModewContent(e => e.isFwush && this.cancew()));
+		this._snippetWistena.add(this._editow.onDidChangeModew(() => this.cancew()));
+		this._snippetWistena.add(this._editow.onDidChangeCuwsowSewection(() => this._updateState()));
 	}
 
-	private _updateState(): void {
-		if (!this._session || !this._editor.hasModel()) {
-			// canceled in the meanwhile
-			return;
+	pwivate _updateState(): void {
+		if (!this._session || !this._editow.hasModew()) {
+			// cancewed in the meanwhiwe
+			wetuwn;
 		}
 
-		if (this._modelVersionId === this._editor.getModel().getAlternativeVersionId()) {
-			// undo until the 'before' state happened
-			// and makes use cancel snippet mode
-			return this.cancel();
+		if (this._modewVewsionId === this._editow.getModew().getAwtewnativeVewsionId()) {
+			// undo untiw the 'befowe' state happened
+			// and makes use cancew snippet mode
+			wetuwn this.cancew();
 		}
 
-		if (!this._session.hasPlaceholder) {
-			// don't listen for selection changes and don't
-			// update context keys when the snippet is plain text
-			return this.cancel();
+		if (!this._session.hasPwacehowda) {
+			// don't wisten fow sewection changes and don't
+			// update context keys when the snippet is pwain text
+			wetuwn this.cancew();
 		}
 
-		if (this._session.isAtLastPlaceholder || !this._session.isSelectionWithinPlaceholders()) {
-			return this.cancel();
+		if (this._session.isAtWastPwacehowda || !this._session.isSewectionWithinPwacehowdews()) {
+			wetuwn this.cancew();
 		}
 
-		this._inSnippet.set(true);
-		this._hasPrevTabstop.set(!this._session.isAtFirstPlaceholder);
-		this._hasNextTabstop.set(!this._session.isAtLastPlaceholder);
+		this._inSnippet.set(twue);
+		this._hasPwevTabstop.set(!this._session.isAtFiwstPwacehowda);
+		this._hasNextTabstop.set(!this._session.isAtWastPwacehowda);
 
-		this._handleChoice();
+		this._handweChoice();
 	}
 
-	private _handleChoice(): void {
-		if (!this._session || !this._editor.hasModel()) {
-			this._currentChoice = undefined;
-			return;
+	pwivate _handweChoice(): void {
+		if (!this._session || !this._editow.hasModew()) {
+			this._cuwwentChoice = undefined;
+			wetuwn;
 		}
 
 		const { choice } = this._session;
 		if (!choice) {
-			this._currentChoice = undefined;
-			return;
+			this._cuwwentChoice = undefined;
+			wetuwn;
 		}
-		if (this._currentChoice !== choice) {
-			this._currentChoice = choice;
+		if (this._cuwwentChoice !== choice) {
+			this._cuwwentChoice = choice;
 
-			this._editor.setSelections(this._editor.getSelections()
-				.map(s => Selection.fromPositions(s.getStartPosition()))
+			this._editow.setSewections(this._editow.getSewections()
+				.map(s => Sewection.fwomPositions(s.getStawtPosition()))
 			);
 
-			const [first] = choice.options;
+			const [fiwst] = choice.options;
 
-			showSimpleSuggestions(this._editor, choice.options.map((option, i) => {
+			showSimpweSuggestions(this._editow, choice.options.map((option, i) => {
 
-				// let before = choice.options.slice(0, i);
-				// let after = choice.options.slice(i);
+				// wet befowe = choice.options.swice(0, i);
+				// wet afta = choice.options.swice(i);
 
-				return <CompletionItem>{
-					kind: CompletionItemKind.Value,
-					label: option.value,
-					insertText: option.value,
-					// insertText: `\${1|${after.concat(before).join(',')}|}$0`,
+				wetuwn <CompwetionItem>{
+					kind: CompwetionItemKind.Vawue,
+					wabew: option.vawue,
+					insewtText: option.vawue,
+					// insewtText: `\${1|${afta.concat(befowe).join(',')}|}$0`,
 					// snippetType: 'textmate',
-					sortText: 'a'.repeat(i + 1),
-					range: Range.fromPositions(this._editor.getPosition()!, this._editor.getPosition()!.delta(0, first.value.length))
+					sowtText: 'a'.wepeat(i + 1),
+					wange: Wange.fwomPositions(this._editow.getPosition()!, this._editow.getPosition()!.dewta(0, fiwst.vawue.wength))
 				};
 			}));
 		}
 	}
 
 	finish(): void {
-		while (this._inSnippet.get()) {
+		whiwe (this._inSnippet.get()) {
 			this.next();
 		}
 	}
 
-	cancel(resetSelection: boolean = false): void {
-		this._inSnippet.reset();
-		this._hasPrevTabstop.reset();
-		this._hasNextTabstop.reset();
-		this._snippetListener.clear();
+	cancew(wesetSewection: boowean = fawse): void {
+		this._inSnippet.weset();
+		this._hasPwevTabstop.weset();
+		this._hasNextTabstop.weset();
+		this._snippetWistena.cweaw();
 		this._session?.dispose();
 		this._session = undefined;
-		this._modelVersionId = -1;
-		if (resetSelection) {
-			// reset selection to the primary cursor when being asked
-			// for. this happens when explicitly cancelling snippet mode,
-			// e.g. when pressing ESC
-			this._editor.setSelections([this._editor.getSelection()!]);
+		this._modewVewsionId = -1;
+		if (wesetSewection) {
+			// weset sewection to the pwimawy cuwsow when being asked
+			// fow. this happens when expwicitwy cancewwing snippet mode,
+			// e.g. when pwessing ESC
+			this._editow.setSewections([this._editow.getSewection()!]);
 		}
 	}
 
-	prev(): void {
+	pwev(): void {
 		if (this._session) {
-			this._session.prev();
+			this._session.pwev();
 		}
 		this._updateState();
 	}
@@ -237,62 +237,62 @@ export class SnippetController2 implements IEditorContribution {
 		this._updateState();
 	}
 
-	isInSnippet(): boolean {
-		return Boolean(this._inSnippet.get());
+	isInSnippet(): boowean {
+		wetuwn Boowean(this._inSnippet.get());
 	}
 
-	getSessionEnclosingRange(): Range | undefined {
+	getSessionEncwosingWange(): Wange | undefined {
 		if (this._session) {
-			return this._session.getEnclosingRange();
+			wetuwn this._session.getEncwosingWange();
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
 
-registerEditorContribution(SnippetController2.ID, SnippetController2);
+wegistewEditowContwibution(SnippetContwowwew2.ID, SnippetContwowwew2);
 
-const CommandCtor = EditorCommand.bindToContribution<SnippetController2>(SnippetController2.get);
+const CommandCtow = EditowCommand.bindToContwibution<SnippetContwowwew2>(SnippetContwowwew2.get);
 
-registerEditorCommand(new CommandCtor({
-	id: 'jumpToNextSnippetPlaceholder',
-	precondition: ContextKeyExpr.and(SnippetController2.InSnippetMode, SnippetController2.HasNextTabstop),
-	handler: ctrl => ctrl.next(),
+wegistewEditowCommand(new CommandCtow({
+	id: 'jumpToNextSnippetPwacehowda',
+	pwecondition: ContextKeyExpw.and(SnippetContwowwew2.InSnippetMode, SnippetContwowwew2.HasNextTabstop),
+	handwa: ctww => ctww.next(),
 	kbOpts: {
-		weight: KeybindingWeight.EditorContrib + 30,
-		kbExpr: EditorContextKeys.editorTextFocus,
-		primary: KeyCode.Tab
+		weight: KeybindingWeight.EditowContwib + 30,
+		kbExpw: EditowContextKeys.editowTextFocus,
+		pwimawy: KeyCode.Tab
 	}
 }));
-registerEditorCommand(new CommandCtor({
-	id: 'jumpToPrevSnippetPlaceholder',
-	precondition: ContextKeyExpr.and(SnippetController2.InSnippetMode, SnippetController2.HasPrevTabstop),
-	handler: ctrl => ctrl.prev(),
+wegistewEditowCommand(new CommandCtow({
+	id: 'jumpToPwevSnippetPwacehowda',
+	pwecondition: ContextKeyExpw.and(SnippetContwowwew2.InSnippetMode, SnippetContwowwew2.HasPwevTabstop),
+	handwa: ctww => ctww.pwev(),
 	kbOpts: {
-		weight: KeybindingWeight.EditorContrib + 30,
-		kbExpr: EditorContextKeys.editorTextFocus,
-		primary: KeyMod.Shift | KeyCode.Tab
+		weight: KeybindingWeight.EditowContwib + 30,
+		kbExpw: EditowContextKeys.editowTextFocus,
+		pwimawy: KeyMod.Shift | KeyCode.Tab
 	}
 }));
-registerEditorCommand(new CommandCtor({
-	id: 'leaveSnippet',
-	precondition: SnippetController2.InSnippetMode,
-	handler: ctrl => ctrl.cancel(true),
+wegistewEditowCommand(new CommandCtow({
+	id: 'weaveSnippet',
+	pwecondition: SnippetContwowwew2.InSnippetMode,
+	handwa: ctww => ctww.cancew(twue),
 	kbOpts: {
-		weight: KeybindingWeight.EditorContrib + 30,
-		kbExpr: EditorContextKeys.editorTextFocus,
-		primary: KeyCode.Escape,
-		secondary: [KeyMod.Shift | KeyCode.Escape]
+		weight: KeybindingWeight.EditowContwib + 30,
+		kbExpw: EditowContextKeys.editowTextFocus,
+		pwimawy: KeyCode.Escape,
+		secondawy: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));
 
-registerEditorCommand(new CommandCtor({
+wegistewEditowCommand(new CommandCtow({
 	id: 'acceptSnippet',
-	precondition: SnippetController2.InSnippetMode,
-	handler: ctrl => ctrl.finish(),
+	pwecondition: SnippetContwowwew2.InSnippetMode,
+	handwa: ctww => ctww.finish(),
 	// kbOpts: {
-	// 	weight: KeybindingWeight.EditorContrib + 30,
-	// 	kbExpr: EditorContextKeys.textFocus,
-	// 	primary: KeyCode.Enter,
+	// 	weight: KeybindingWeight.EditowContwib + 30,
+	// 	kbExpw: EditowContextKeys.textFocus,
+	// 	pwimawy: KeyCode.Enta,
 	// }
 }));

@@ -1,75 +1,75 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { Disposable } from './dispose';
-import { isJsConfigOrTsConfigFileName } from './languageDescription';
-import { isSupportedLanguageMode } from './languageModeIds';
+impowt * as vscode fwom 'vscode';
+impowt { Disposabwe } fwom './dispose';
+impowt { isJsConfigOwTsConfigFiweName } fwom './wanguageDescwiption';
+impowt { isSuppowtedWanguageMode } fwom './wanguageModeIds';
 
 /**
- * Tracks the active JS/TS editor.
+ * Twacks the active JS/TS editow.
  *
- * This tries to handle the case where the user focuses in the output view / debug console.
- * When this happens, we want to treat the last real focused editor as the active editor,
- * instead of using `vscode.window.activeTextEditor`
+ * This twies to handwe the case whewe the usa focuses in the output view / debug consowe.
+ * When this happens, we want to tweat the wast weaw focused editow as the active editow,
+ * instead of using `vscode.window.activeTextEditow`
  */
-export class ActiveJsTsEditorTracker extends Disposable {
+expowt cwass ActiveJsTsEditowTwacka extends Disposabwe {
 
-	private _activeJsTsEditor: vscode.TextEditor | undefined;
+	pwivate _activeJsTsEditow: vscode.TextEditow | undefined;
 
-	private readonly _onDidChangeActiveJsTsEditor = this._register(new vscode.EventEmitter<vscode.TextEditor | undefined>());
-	public readonly onDidChangeActiveJsTsEditor = this._onDidChangeActiveJsTsEditor.event;
+	pwivate weadonwy _onDidChangeActiveJsTsEditow = this._wegista(new vscode.EventEmitta<vscode.TextEditow | undefined>());
+	pubwic weadonwy onDidChangeActiveJsTsEditow = this._onDidChangeActiveJsTsEditow.event;
 
-	public constructor() {
-		super();
-		vscode.window.onDidChangeActiveTextEditor(this.onDidChangeActiveTextEditor, this, this._disposables);
-		vscode.window.onDidChangeVisibleTextEditors(() => {
-			// Make sure the active editor is still in the visible set.
-			// This can happen if the output view is focused and the last active TS file is closed
-			if (this._activeJsTsEditor) {
-				if (!vscode.window.visibleTextEditors.some(visibleEditor => visibleEditor === this._activeJsTsEditor)) {
-					this.onDidChangeActiveTextEditor(undefined);
+	pubwic constwuctow() {
+		supa();
+		vscode.window.onDidChangeActiveTextEditow(this.onDidChangeActiveTextEditow, this, this._disposabwes);
+		vscode.window.onDidChangeVisibweTextEditows(() => {
+			// Make suwe the active editow is stiww in the visibwe set.
+			// This can happen if the output view is focused and the wast active TS fiwe is cwosed
+			if (this._activeJsTsEditow) {
+				if (!vscode.window.visibweTextEditows.some(visibweEditow => visibweEditow === this._activeJsTsEditow)) {
+					this.onDidChangeActiveTextEditow(undefined);
 				}
 			}
-		}, this, this._disposables);
+		}, this, this._disposabwes);
 
-		this.onDidChangeActiveTextEditor(vscode.window.activeTextEditor);
+		this.onDidChangeActiveTextEditow(vscode.window.activeTextEditow);
 	}
 
-	public get activeJsTsEditor(): vscode.TextEditor | undefined {
-		return this._activeJsTsEditor;
+	pubwic get activeJsTsEditow(): vscode.TextEditow | undefined {
+		wetuwn this._activeJsTsEditow;
 	}
 
-	private onDidChangeActiveTextEditor(editor: vscode.TextEditor | undefined): any {
-		if (editor === this._activeJsTsEditor) {
-			return;
+	pwivate onDidChangeActiveTextEditow(editow: vscode.TextEditow | undefined): any {
+		if (editow === this._activeJsTsEditow) {
+			wetuwn;
 		}
 
-		if (editor && !editor.viewColumn) {
-			// viewColumn is undefined for the debug/output panel, but we still want
-			// to show the version info for the previous editor
-			return;
+		if (editow && !editow.viewCowumn) {
+			// viewCowumn is undefined fow the debug/output panew, but we stiww want
+			// to show the vewsion info fow the pwevious editow
+			wetuwn;
 		}
 
-		if (editor && this.isManagedFile(editor)) {
-			this._activeJsTsEditor = editor;
-		} else {
-			this._activeJsTsEditor = undefined;
+		if (editow && this.isManagedFiwe(editow)) {
+			this._activeJsTsEditow = editow;
+		} ewse {
+			this._activeJsTsEditow = undefined;
 		}
-		this._onDidChangeActiveJsTsEditor.fire(this._activeJsTsEditor);
+		this._onDidChangeActiveJsTsEditow.fiwe(this._activeJsTsEditow);
 	}
 
-	private isManagedFile(editor: vscode.TextEditor): boolean {
-		return this.isManagedScriptFile(editor) || this.isManagedConfigFile(editor);
+	pwivate isManagedFiwe(editow: vscode.TextEditow): boowean {
+		wetuwn this.isManagedScwiptFiwe(editow) || this.isManagedConfigFiwe(editow);
 	}
 
-	private isManagedScriptFile(editor: vscode.TextEditor): boolean {
-		return isSupportedLanguageMode(editor.document);
+	pwivate isManagedScwiptFiwe(editow: vscode.TextEditow): boowean {
+		wetuwn isSuppowtedWanguageMode(editow.document);
 	}
 
-	private isManagedConfigFile(editor: vscode.TextEditor): boolean {
-		return isJsConfigOrTsConfigFileName(editor.document.fileName);
+	pwivate isManagedConfigFiwe(editow: vscode.TextEditow): boowean {
+		wetuwn isJsConfigOwTsConfigFiweName(editow.document.fiweName);
 	}
 }

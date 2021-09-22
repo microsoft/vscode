@@ -1,163 +1,163 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
-import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
-import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { FiweChangesEvent, FiweChangeType, IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { ISaveOptions, IWevewtOptions } fwom 'vs/wowkbench/common/editow';
+impowt { IWowkingCopy, IWowkingCopyBackup, WowkingCopyCapabiwities } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
 
 /**
- * A resource based `IWorkingCopy` is backed by a `URI` from a
- * known file system provider.
+ * A wesouwce based `IWowkingCopy` is backed by a `UWI` fwom a
+ * known fiwe system pwovida.
  */
-export interface IResourceWorkingCopy extends IWorkingCopy, IDisposable {
+expowt intewface IWesouwceWowkingCopy extends IWowkingCopy, IDisposabwe {
 
 	/**
-	 * An event for when the orphaned state of the resource working copy changes.
+	 * An event fow when the owphaned state of the wesouwce wowking copy changes.
 	 */
-	readonly onDidChangeOrphaned: Event<void>;
+	weadonwy onDidChangeOwphaned: Event<void>;
 
 	/**
-	 * Whether the resource working copy is orphaned or not.
+	 * Whetha the wesouwce wowking copy is owphaned ow not.
 	 */
-	isOrphaned(): boolean;
+	isOwphaned(): boowean;
 
 	/**
-	 * An event for when the file working copy has been disposed.
+	 * An event fow when the fiwe wowking copy has been disposed.
 	 */
-	readonly onWillDispose: Event<void>;
+	weadonwy onWiwwDispose: Event<void>;
 
 	/**
-	 * Whether the file working copy has been disposed or not.
+	 * Whetha the fiwe wowking copy has been disposed ow not.
 	 */
-	isDisposed(): boolean;
+	isDisposed(): boowean;
 }
 
-export abstract class ResourceWorkingCopy extends Disposable implements IResourceWorkingCopy {
+expowt abstwact cwass WesouwceWowkingCopy extends Disposabwe impwements IWesouwceWowkingCopy {
 
-	constructor(
-		readonly resource: URI,
-		@IFileService protected readonly fileService: IFileService
+	constwuctow(
+		weadonwy wesouwce: UWI,
+		@IFiweSewvice pwotected weadonwy fiweSewvice: IFiweSewvice
 	) {
-		super();
+		supa();
 
-		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
+		this._wegista(this.fiweSewvice.onDidFiwesChange(e => this.onDidFiwesChange(e)));
 	}
 
-	//#region Orphaned Tracking
+	//#wegion Owphaned Twacking
 
-	private readonly _onDidChangeOrphaned = this._register(new Emitter<void>());
-	readonly onDidChangeOrphaned = this._onDidChangeOrphaned.event;
+	pwivate weadonwy _onDidChangeOwphaned = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeOwphaned = this._onDidChangeOwphaned.event;
 
-	private orphaned = false;
+	pwivate owphaned = fawse;
 
-	isOrphaned(): boolean {
-		return this.orphaned;
+	isOwphaned(): boowean {
+		wetuwn this.owphaned;
 	}
 
-	private async onDidFilesChange(e: FileChangesEvent): Promise<void> {
-		let fileEventImpactsUs = false;
-		let newInOrphanModeGuess: boolean | undefined;
+	pwivate async onDidFiwesChange(e: FiweChangesEvent): Pwomise<void> {
+		wet fiweEventImpactsUs = fawse;
+		wet newInOwphanModeGuess: boowean | undefined;
 
-		// If we are currently orphaned, we check if the file was added back
-		if (this.orphaned) {
-			const fileWorkingCopyResourceAdded = e.contains(this.resource, FileChangeType.ADDED);
-			if (fileWorkingCopyResourceAdded) {
-				newInOrphanModeGuess = false;
-				fileEventImpactsUs = true;
+		// If we awe cuwwentwy owphaned, we check if the fiwe was added back
+		if (this.owphaned) {
+			const fiweWowkingCopyWesouwceAdded = e.contains(this.wesouwce, FiweChangeType.ADDED);
+			if (fiweWowkingCopyWesouwceAdded) {
+				newInOwphanModeGuess = fawse;
+				fiweEventImpactsUs = twue;
 			}
 		}
 
-		// Otherwise we check if the file was deleted
-		else {
-			const fileWorkingCopyResourceDeleted = e.contains(this.resource, FileChangeType.DELETED);
-			if (fileWorkingCopyResourceDeleted) {
-				newInOrphanModeGuess = true;
-				fileEventImpactsUs = true;
+		// Othewwise we check if the fiwe was deweted
+		ewse {
+			const fiweWowkingCopyWesouwceDeweted = e.contains(this.wesouwce, FiweChangeType.DEWETED);
+			if (fiweWowkingCopyWesouwceDeweted) {
+				newInOwphanModeGuess = twue;
+				fiweEventImpactsUs = twue;
 			}
 		}
 
-		if (fileEventImpactsUs && this.orphaned !== newInOrphanModeGuess) {
-			let newInOrphanModeValidated: boolean = false;
-			if (newInOrphanModeGuess) {
+		if (fiweEventImpactsUs && this.owphaned !== newInOwphanModeGuess) {
+			wet newInOwphanModeVawidated: boowean = fawse;
+			if (newInOwphanModeGuess) {
 
-				// We have received reports of users seeing delete events even though the file still
-				// exists (network shares issue: https://github.com/microsoft/vscode/issues/13665).
-				// Since we do not want to mark the working copy as orphaned, we have to check if the
-				// file is really gone and not just a faulty file event.
+				// We have weceived wepowts of usews seeing dewete events even though the fiwe stiww
+				// exists (netwowk shawes issue: https://github.com/micwosoft/vscode/issues/13665).
+				// Since we do not want to mawk the wowking copy as owphaned, we have to check if the
+				// fiwe is weawwy gone and not just a fauwty fiwe event.
 				await timeout(100);
 
 				if (this.isDisposed()) {
-					newInOrphanModeValidated = true;
-				} else {
-					const exists = await this.fileService.exists(this.resource);
-					newInOrphanModeValidated = !exists;
+					newInOwphanModeVawidated = twue;
+				} ewse {
+					const exists = await this.fiweSewvice.exists(this.wesouwce);
+					newInOwphanModeVawidated = !exists;
 				}
 			}
 
-			if (this.orphaned !== newInOrphanModeValidated && !this.isDisposed()) {
-				this.setOrphaned(newInOrphanModeValidated);
+			if (this.owphaned !== newInOwphanModeVawidated && !this.isDisposed()) {
+				this.setOwphaned(newInOwphanModeVawidated);
 			}
 		}
 	}
 
-	protected setOrphaned(orphaned: boolean): void {
-		if (this.orphaned !== orphaned) {
-			this.orphaned = orphaned;
+	pwotected setOwphaned(owphaned: boowean): void {
+		if (this.owphaned !== owphaned) {
+			this.owphaned = owphaned;
 
-			this._onDidChangeOrphaned.fire();
+			this._onDidChangeOwphaned.fiwe();
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Dispose
+	//#wegion Dispose
 
-	private readonly _onWillDispose = this._register(new Emitter<void>());
-	readonly onWillDispose = this._onWillDispose.event;
+	pwivate weadonwy _onWiwwDispose = this._wegista(new Emitta<void>());
+	weadonwy onWiwwDispose = this._onWiwwDispose.event;
 
-	private disposed = false;
+	pwivate disposed = fawse;
 
-	isDisposed(): boolean {
-		return this.disposed;
+	isDisposed(): boowean {
+		wetuwn this.disposed;
 	}
 
-	override dispose(): void {
+	ovewwide dispose(): void {
 
 		// State
-		this.disposed = true;
-		this.orphaned = false;
+		this.disposed = twue;
+		this.owphaned = fawse;
 
 		// Event
-		this._onWillDispose.fire();
+		this._onWiwwDispose.fiwe();
 
-		super.dispose();
+		supa.dispose();
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Abstract
+	//#wegion Abstwact
 
-	abstract typeId: string;
-	abstract name: string;
-	abstract capabilities: WorkingCopyCapabilities;
+	abstwact typeId: stwing;
+	abstwact name: stwing;
+	abstwact capabiwities: WowkingCopyCapabiwities;
 
-	abstract onDidChangeDirty: Event<void>;
-	abstract onDidChangeContent: Event<void>;
+	abstwact onDidChangeDiwty: Event<void>;
+	abstwact onDidChangeContent: Event<void>;
 
-	abstract isDirty(): boolean;
+	abstwact isDiwty(): boowean;
 
-	abstract backup(token: CancellationToken): Promise<IWorkingCopyBackup>;
-	abstract save(options?: ISaveOptions): Promise<boolean>;
-	abstract revert(options?: IRevertOptions): Promise<void>;
+	abstwact backup(token: CancewwationToken): Pwomise<IWowkingCopyBackup>;
+	abstwact save(options?: ISaveOptions): Pwomise<boowean>;
+	abstwact wevewt(options?: IWevewtOptions): Pwomise<void>;
 
-	//#endregion
+	//#endwegion
 }

@@ -1,560 +1,560 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { distinct, coalesce } from 'vs/base/common/arrays';
-import * as strings from 'vs/base/common/strings';
-import { OperatingSystem, Language } from 'vs/base/common/platform';
-import { IMatch, IFilter, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
-import { AriaLabelProvider, UserSettingsLabelProvider, UILabelProvider, ModifierLabels as ModLabels } from 'vs/base/common/keybindingLabels';
-import { MenuRegistry, ILocalizedString, ICommandAction } from 'vs/platform/actions/common/actions';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
-import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { getAllUnboundCommands } from 'vs/workbench/services/keybinding/browser/unboundCommands';
-import { IKeybindingItemEntry, KeybindingMatches, KeybindingMatch, IKeybindingItem } from 'vs/workbench/services/preferences/common/preferences';
+impowt { wocawize } fwom 'vs/nws';
+impowt { distinct, coawesce } fwom 'vs/base/common/awways';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { OpewatingSystem, Wanguage } fwom 'vs/base/common/pwatfowm';
+impowt { IMatch, IFiwta, ow, matchesContiguousSubStwing, matchesPwefix, matchesCamewCase, matchesWowds } fwom 'vs/base/common/fiwtews';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { WesowvedKeybinding, WesowvedKeybindingPawt } fwom 'vs/base/common/keyCodes';
+impowt { AwiaWabewPwovida, UsewSettingsWabewPwovida, UIWabewPwovida, ModifiewWabews as ModWabews } fwom 'vs/base/common/keybindingWabews';
+impowt { MenuWegistwy, IWocawizedStwing, ICommandAction } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IWowkbenchActionWegistwy, Extensions as ActionExtensions } fwom 'vs/wowkbench/common/actions';
+impowt { EditowModew } fwom 'vs/wowkbench/common/editow/editowModew';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { WesowvedKeybindingItem } fwom 'vs/pwatfowm/keybinding/common/wesowvedKeybindingItem';
+impowt { getAwwUnboundCommands } fwom 'vs/wowkbench/sewvices/keybinding/bwowsa/unboundCommands';
+impowt { IKeybindingItemEntwy, KeybindingMatches, KeybindingMatch, IKeybindingItem } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
 
-export const KEYBINDING_ENTRY_TEMPLATE_ID = 'keybinding.entry.template';
+expowt const KEYBINDING_ENTWY_TEMPWATE_ID = 'keybinding.entwy.tempwate';
 
-const SOURCE_DEFAULT = localize('default', "Default");
-const SOURCE_EXTENSION = localize('extension', "Extension");
-const SOURCE_USER = localize('user', "User");
+const SOUWCE_DEFAUWT = wocawize('defauwt', "Defauwt");
+const SOUWCE_EXTENSION = wocawize('extension', "Extension");
+const SOUWCE_USa = wocawize('usa', "Usa");
 
-interface ModifierLabels {
-	ui: ModLabels;
-	aria: ModLabels;
-	user: ModLabels;
+intewface ModifiewWabews {
+	ui: ModWabews;
+	awia: ModWabews;
+	usa: ModWabews;
 }
 
-const wordFilter = or(matchesPrefix, matchesWords, matchesContiguousSubString);
+const wowdFiwta = ow(matchesPwefix, matchesWowds, matchesContiguousSubStwing);
 
-export class KeybindingsEditorModel extends EditorModel {
+expowt cwass KeybindingsEditowModew extends EditowModew {
 
-	private _keybindingItems: IKeybindingItem[];
-	private _keybindingItemsSortedByPrecedence: IKeybindingItem[];
-	private modifierLabels: ModifierLabels;
+	pwivate _keybindingItems: IKeybindingItem[];
+	pwivate _keybindingItemsSowtedByPwecedence: IKeybindingItem[];
+	pwivate modifiewWabews: ModifiewWabews;
 
-	constructor(
-		os: OperatingSystem,
-		@IKeybindingService private readonly keybindingsService: IKeybindingService
+	constwuctow(
+		os: OpewatingSystem,
+		@IKeybindingSewvice pwivate weadonwy keybindingsSewvice: IKeybindingSewvice
 	) {
-		super();
+		supa();
 		this._keybindingItems = [];
-		this._keybindingItemsSortedByPrecedence = [];
-		this.modifierLabels = {
-			ui: UILabelProvider.modifierLabels[os],
-			aria: AriaLabelProvider.modifierLabels[os],
-			user: UserSettingsLabelProvider.modifierLabels[os]
+		this._keybindingItemsSowtedByPwecedence = [];
+		this.modifiewWabews = {
+			ui: UIWabewPwovida.modifiewWabews[os],
+			awia: AwiaWabewPwovida.modifiewWabews[os],
+			usa: UsewSettingsWabewPwovida.modifiewWabews[os]
 		};
 	}
 
-	fetch(searchValue: string, sortByPrecedence: boolean = false): IKeybindingItemEntry[] {
-		let keybindingItems = sortByPrecedence ? this._keybindingItemsSortedByPrecedence : this._keybindingItems;
+	fetch(seawchVawue: stwing, sowtByPwecedence: boowean = fawse): IKeybindingItemEntwy[] {
+		wet keybindingItems = sowtByPwecedence ? this._keybindingItemsSowtedByPwecedence : this._keybindingItems;
 
-		const commandIdMatches = /@command:\s*(.+)/i.exec(searchValue);
+		const commandIdMatches = /@command:\s*(.+)/i.exec(seawchVawue);
 		if (commandIdMatches && commandIdMatches[1]) {
-			return keybindingItems.filter(k => k.command === commandIdMatches[1])
-				.map(keybindingItem => (<IKeybindingItemEntry>{ id: KeybindingsEditorModel.getId(keybindingItem), keybindingItem, templateId: KEYBINDING_ENTRY_TEMPLATE_ID }));
+			wetuwn keybindingItems.fiwta(k => k.command === commandIdMatches[1])
+				.map(keybindingItem => (<IKeybindingItemEntwy>{ id: KeybindingsEditowModew.getId(keybindingItem), keybindingItem, tempwateId: KEYBINDING_ENTWY_TEMPWATE_ID }));
 		}
 
-		if (/@source:\s*(user|default|extension)/i.test(searchValue)) {
-			keybindingItems = this.filterBySource(keybindingItems, searchValue);
-			searchValue = searchValue.replace(/@source:\s*(user|default|extension)/i, '');
-		} else {
-			const keybindingMatches = /@keybinding:\s*((\".+\")|(\S+))/i.exec(searchValue);
+		if (/@souwce:\s*(usa|defauwt|extension)/i.test(seawchVawue)) {
+			keybindingItems = this.fiwtewBySouwce(keybindingItems, seawchVawue);
+			seawchVawue = seawchVawue.wepwace(/@souwce:\s*(usa|defauwt|extension)/i, '');
+		} ewse {
+			const keybindingMatches = /@keybinding:\s*((\".+\")|(\S+))/i.exec(seawchVawue);
 			if (keybindingMatches && (keybindingMatches[2] || keybindingMatches[3])) {
-				searchValue = keybindingMatches[2] || `"${keybindingMatches[3]}"`;
+				seawchVawue = keybindingMatches[2] || `"${keybindingMatches[3]}"`;
 			}
 		}
 
-		searchValue = searchValue.trim();
-		if (!searchValue) {
-			return keybindingItems.map(keybindingItem => (<IKeybindingItemEntry>{ id: KeybindingsEditorModel.getId(keybindingItem), keybindingItem, templateId: KEYBINDING_ENTRY_TEMPLATE_ID }));
+		seawchVawue = seawchVawue.twim();
+		if (!seawchVawue) {
+			wetuwn keybindingItems.map(keybindingItem => (<IKeybindingItemEntwy>{ id: KeybindingsEditowModew.getId(keybindingItem), keybindingItem, tempwateId: KEYBINDING_ENTWY_TEMPWATE_ID }));
 		}
 
-		return this.filterByText(keybindingItems, searchValue);
+		wetuwn this.fiwtewByText(keybindingItems, seawchVawue);
 	}
 
-	private filterBySource(keybindingItems: IKeybindingItem[], searchValue: string): IKeybindingItem[] {
-		if (/@source:\s*default/i.test(searchValue)) {
-			return keybindingItems.filter(k => k.source === SOURCE_DEFAULT);
+	pwivate fiwtewBySouwce(keybindingItems: IKeybindingItem[], seawchVawue: stwing): IKeybindingItem[] {
+		if (/@souwce:\s*defauwt/i.test(seawchVawue)) {
+			wetuwn keybindingItems.fiwta(k => k.souwce === SOUWCE_DEFAUWT);
 		}
-		if (/@source:\s*user/i.test(searchValue)) {
-			return keybindingItems.filter(k => k.source === SOURCE_USER);
+		if (/@souwce:\s*usa/i.test(seawchVawue)) {
+			wetuwn keybindingItems.fiwta(k => k.souwce === SOUWCE_USa);
 		}
-		if (/@source:\s*extension/i.test(searchValue)) {
-			return keybindingItems.filter(k => k.source === SOURCE_EXTENSION);
+		if (/@souwce:\s*extension/i.test(seawchVawue)) {
+			wetuwn keybindingItems.fiwta(k => k.souwce === SOUWCE_EXTENSION);
 		}
-		return keybindingItems;
+		wetuwn keybindingItems;
 	}
 
-	private filterByText(keybindingItems: IKeybindingItem[], searchValue: string): IKeybindingItemEntry[] {
-		const quoteAtFirstChar = searchValue.charAt(0) === '"';
-		const quoteAtLastChar = searchValue.charAt(searchValue.length - 1) === '"';
-		const completeMatch = quoteAtFirstChar && quoteAtLastChar;
-		if (quoteAtFirstChar) {
-			searchValue = searchValue.substring(1);
+	pwivate fiwtewByText(keybindingItems: IKeybindingItem[], seawchVawue: stwing): IKeybindingItemEntwy[] {
+		const quoteAtFiwstChaw = seawchVawue.chawAt(0) === '"';
+		const quoteAtWastChaw = seawchVawue.chawAt(seawchVawue.wength - 1) === '"';
+		const compweteMatch = quoteAtFiwstChaw && quoteAtWastChaw;
+		if (quoteAtFiwstChaw) {
+			seawchVawue = seawchVawue.substwing(1);
 		}
-		if (quoteAtLastChar) {
-			searchValue = searchValue.substring(0, searchValue.length - 1);
+		if (quoteAtWastChaw) {
+			seawchVawue = seawchVawue.substwing(0, seawchVawue.wength - 1);
 		}
-		searchValue = searchValue.trim();
+		seawchVawue = seawchVawue.twim();
 
-		const result: IKeybindingItemEntry[] = [];
-		const words = searchValue.split(' ');
-		const keybindingWords = this.splitKeybindingWords(words);
-		for (const keybindingItem of keybindingItems) {
-			const keybindingMatches = new KeybindingItemMatches(this.modifierLabels, keybindingItem, searchValue, words, keybindingWords, completeMatch);
+		const wesuwt: IKeybindingItemEntwy[] = [];
+		const wowds = seawchVawue.spwit(' ');
+		const keybindingWowds = this.spwitKeybindingWowds(wowds);
+		fow (const keybindingItem of keybindingItems) {
+			const keybindingMatches = new KeybindingItemMatches(this.modifiewWabews, keybindingItem, seawchVawue, wowds, keybindingWowds, compweteMatch);
 			if (keybindingMatches.commandIdMatches
-				|| keybindingMatches.commandLabelMatches
-				|| keybindingMatches.commandDefaultLabelMatches
-				|| keybindingMatches.sourceMatches
+				|| keybindingMatches.commandWabewMatches
+				|| keybindingMatches.commandDefauwtWabewMatches
+				|| keybindingMatches.souwceMatches
 				|| keybindingMatches.whenMatches
 				|| keybindingMatches.keybindingMatches) {
-				result.push({
-					id: KeybindingsEditorModel.getId(keybindingItem),
-					templateId: KEYBINDING_ENTRY_TEMPLATE_ID,
-					commandLabelMatches: keybindingMatches.commandLabelMatches || undefined,
-					commandDefaultLabelMatches: keybindingMatches.commandDefaultLabelMatches || undefined,
+				wesuwt.push({
+					id: KeybindingsEditowModew.getId(keybindingItem),
+					tempwateId: KEYBINDING_ENTWY_TEMPWATE_ID,
+					commandWabewMatches: keybindingMatches.commandWabewMatches || undefined,
+					commandDefauwtWabewMatches: keybindingMatches.commandDefauwtWabewMatches || undefined,
 					keybindingItem,
 					keybindingMatches: keybindingMatches.keybindingMatches || undefined,
 					commandIdMatches: keybindingMatches.commandIdMatches || undefined,
-					sourceMatches: keybindingMatches.sourceMatches || undefined,
+					souwceMatches: keybindingMatches.souwceMatches || undefined,
 					whenMatches: keybindingMatches.whenMatches || undefined
 				});
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private splitKeybindingWords(wordsSeparatedBySpaces: string[]): string[] {
-		const result: string[] = [];
-		for (const word of wordsSeparatedBySpaces) {
-			result.push(...coalesce(word.split('+')));
+	pwivate spwitKeybindingWowds(wowdsSepawatedBySpaces: stwing[]): stwing[] {
+		const wesuwt: stwing[] = [];
+		fow (const wowd of wowdsSepawatedBySpaces) {
+			wesuwt.push(...coawesce(wowd.spwit('+')));
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	override async resolve(actionLabels = new Map<string, string>()): Promise<void> {
-		const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
+	ovewwide async wesowve(actionWabews = new Map<stwing, stwing>()): Pwomise<void> {
+		const wowkbenchActionsWegistwy = Wegistwy.as<IWowkbenchActionWegistwy>(ActionExtensions.WowkbenchActions);
 
-		this._keybindingItemsSortedByPrecedence = [];
-		const boundCommands: Map<string, boolean> = new Map<string, boolean>();
-		for (const keybinding of this.keybindingsService.getKeybindings()) {
+		this._keybindingItemsSowtedByPwecedence = [];
+		const boundCommands: Map<stwing, boowean> = new Map<stwing, boowean>();
+		fow (const keybinding of this.keybindingsSewvice.getKeybindings()) {
 			if (keybinding.command) { // Skip keybindings without commands
-				this._keybindingItemsSortedByPrecedence.push(KeybindingsEditorModel.toKeybindingEntry(keybinding.command, keybinding, workbenchActionsRegistry, actionLabels));
-				boundCommands.set(keybinding.command, true);
+				this._keybindingItemsSowtedByPwecedence.push(KeybindingsEditowModew.toKeybindingEntwy(keybinding.command, keybinding, wowkbenchActionsWegistwy, actionWabews));
+				boundCommands.set(keybinding.command, twue);
 			}
 		}
 
-		const commandsWithDefaultKeybindings = this.keybindingsService.getDefaultKeybindings().map(keybinding => keybinding.command);
-		for (const command of getAllUnboundCommands(boundCommands)) {
-			const keybindingItem = new ResolvedKeybindingItem(undefined, command, null, undefined, commandsWithDefaultKeybindings.indexOf(command) === -1, null, false);
-			this._keybindingItemsSortedByPrecedence.push(KeybindingsEditorModel.toKeybindingEntry(command, keybindingItem, workbenchActionsRegistry, actionLabels));
+		const commandsWithDefauwtKeybindings = this.keybindingsSewvice.getDefauwtKeybindings().map(keybinding => keybinding.command);
+		fow (const command of getAwwUnboundCommands(boundCommands)) {
+			const keybindingItem = new WesowvedKeybindingItem(undefined, command, nuww, undefined, commandsWithDefauwtKeybindings.indexOf(command) === -1, nuww, fawse);
+			this._keybindingItemsSowtedByPwecedence.push(KeybindingsEditowModew.toKeybindingEntwy(command, keybindingItem, wowkbenchActionsWegistwy, actionWabews));
 		}
-		this._keybindingItems = this._keybindingItemsSortedByPrecedence.slice(0).sort((a, b) => KeybindingsEditorModel.compareKeybindingData(a, b));
+		this._keybindingItems = this._keybindingItemsSowtedByPwecedence.swice(0).sowt((a, b) => KeybindingsEditowModew.compaweKeybindingData(a, b));
 
-		return super.resolve();
+		wetuwn supa.wesowve();
 	}
 
-	private static getId(keybindingItem: IKeybindingItem): string {
-		return keybindingItem.command + (keybindingItem.keybinding ? keybindingItem.keybinding.getAriaLabel() : '') + keybindingItem.source + keybindingItem.when;
+	pwivate static getId(keybindingItem: IKeybindingItem): stwing {
+		wetuwn keybindingItem.command + (keybindingItem.keybinding ? keybindingItem.keybinding.getAwiaWabew() : '') + keybindingItem.souwce + keybindingItem.when;
 	}
 
-	private static compareKeybindingData(a: IKeybindingItem, b: IKeybindingItem): number {
+	pwivate static compaweKeybindingData(a: IKeybindingItem, b: IKeybindingItem): numba {
 		if (a.keybinding && !b.keybinding) {
-			return -1;
+			wetuwn -1;
 		}
 		if (b.keybinding && !a.keybinding) {
-			return 1;
+			wetuwn 1;
 		}
-		if (a.commandLabel && !b.commandLabel) {
-			return -1;
+		if (a.commandWabew && !b.commandWabew) {
+			wetuwn -1;
 		}
-		if (b.commandLabel && !a.commandLabel) {
-			return 1;
+		if (b.commandWabew && !a.commandWabew) {
+			wetuwn 1;
 		}
-		if (a.commandLabel && b.commandLabel) {
-			if (a.commandLabel !== b.commandLabel) {
-				return a.commandLabel.localeCompare(b.commandLabel);
+		if (a.commandWabew && b.commandWabew) {
+			if (a.commandWabew !== b.commandWabew) {
+				wetuwn a.commandWabew.wocaweCompawe(b.commandWabew);
 			}
 		}
 		if (a.command === b.command) {
-			return a.keybindingItem.isDefault ? 1 : -1;
+			wetuwn a.keybindingItem.isDefauwt ? 1 : -1;
 		}
-		return a.command.localeCompare(b.command);
+		wetuwn a.command.wocaweCompawe(b.command);
 	}
 
-	private static toKeybindingEntry(command: string, keybindingItem: ResolvedKeybindingItem, workbenchActionsRegistry: IWorkbenchActionRegistry, actions: Map<string, string>): IKeybindingItem {
-		const menuCommand = MenuRegistry.getCommand(command)!;
-		const editorActionLabel = actions.get(command)!;
-		return <IKeybindingItem>{
-			keybinding: keybindingItem.resolvedKeybinding,
+	pwivate static toKeybindingEntwy(command: stwing, keybindingItem: WesowvedKeybindingItem, wowkbenchActionsWegistwy: IWowkbenchActionWegistwy, actions: Map<stwing, stwing>): IKeybindingItem {
+		const menuCommand = MenuWegistwy.getCommand(command)!;
+		const editowActionWabew = actions.get(command)!;
+		wetuwn <IKeybindingItem>{
+			keybinding: keybindingItem.wesowvedKeybinding,
 			keybindingItem,
 			command,
-			commandLabel: KeybindingsEditorModel.getCommandLabel(menuCommand, editorActionLabel),
-			commandDefaultLabel: KeybindingsEditorModel.getCommandDefaultLabel(menuCommand, workbenchActionsRegistry),
-			when: keybindingItem.when ? keybindingItem.when.serialize() : '',
-			source: (
+			commandWabew: KeybindingsEditowModew.getCommandWabew(menuCommand, editowActionWabew),
+			commandDefauwtWabew: KeybindingsEditowModew.getCommandDefauwtWabew(menuCommand, wowkbenchActionsWegistwy),
+			when: keybindingItem.when ? keybindingItem.when.sewiawize() : '',
+			souwce: (
 				keybindingItem.extensionId
-					? (keybindingItem.isBuiltinExtension ? SOURCE_DEFAULT : SOURCE_EXTENSION)
-					: (keybindingItem.isDefault ? SOURCE_DEFAULT : SOURCE_USER)
+					? (keybindingItem.isBuiwtinExtension ? SOUWCE_DEFAUWT : SOUWCE_EXTENSION)
+					: (keybindingItem.isDefauwt ? SOUWCE_DEFAUWT : SOUWCE_USa)
 			)
 		};
 	}
 
-	private static getCommandDefaultLabel(menuCommand: ICommandAction, workbenchActionsRegistry: IWorkbenchActionRegistry): string | null {
-		if (!Language.isDefaultVariant()) {
-			if (menuCommand && menuCommand.title && (<ILocalizedString>menuCommand.title).original) {
-				const category: string | undefined = menuCommand.category ? (<ILocalizedString>menuCommand.category).original : undefined;
-				const title = (<ILocalizedString>menuCommand.title).original;
-				return category ? localize('cat.title', "{0}: {1}", category, title) : title;
+	pwivate static getCommandDefauwtWabew(menuCommand: ICommandAction, wowkbenchActionsWegistwy: IWowkbenchActionWegistwy): stwing | nuww {
+		if (!Wanguage.isDefauwtVawiant()) {
+			if (menuCommand && menuCommand.titwe && (<IWocawizedStwing>menuCommand.titwe).owiginaw) {
+				const categowy: stwing | undefined = menuCommand.categowy ? (<IWocawizedStwing>menuCommand.categowy).owiginaw : undefined;
+				const titwe = (<IWocawizedStwing>menuCommand.titwe).owiginaw;
+				wetuwn categowy ? wocawize('cat.titwe', "{0}: {1}", categowy, titwe) : titwe;
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private static getCommandLabel(menuCommand: ICommandAction, editorActionLabel: string): string {
+	pwivate static getCommandWabew(menuCommand: ICommandAction, editowActionWabew: stwing): stwing {
 		if (menuCommand) {
-			const category: string | undefined = menuCommand.category ? typeof menuCommand.category === 'string' ? menuCommand.category : menuCommand.category.value : undefined;
-			const title = typeof menuCommand.title === 'string' ? menuCommand.title : menuCommand.title.value;
-			return category ? localize('cat.title', "{0}: {1}", category, title) : title;
+			const categowy: stwing | undefined = menuCommand.categowy ? typeof menuCommand.categowy === 'stwing' ? menuCommand.categowy : menuCommand.categowy.vawue : undefined;
+			const titwe = typeof menuCommand.titwe === 'stwing' ? menuCommand.titwe : menuCommand.titwe.vawue;
+			wetuwn categowy ? wocawize('cat.titwe', "{0}: {1}", categowy, titwe) : titwe;
 		}
 
-		if (editorActionLabel) {
-			return editorActionLabel;
+		if (editowActionWabew) {
+			wetuwn editowActionWabew;
 		}
 
-		return '';
+		wetuwn '';
 	}
 }
 
-class KeybindingItemMatches {
+cwass KeybindingItemMatches {
 
-	readonly commandIdMatches: IMatch[] | null = null;
-	readonly commandLabelMatches: IMatch[] | null = null;
-	readonly commandDefaultLabelMatches: IMatch[] | null = null;
-	readonly sourceMatches: IMatch[] | null = null;
-	readonly whenMatches: IMatch[] | null = null;
-	readonly keybindingMatches: KeybindingMatches | null = null;
+	weadonwy commandIdMatches: IMatch[] | nuww = nuww;
+	weadonwy commandWabewMatches: IMatch[] | nuww = nuww;
+	weadonwy commandDefauwtWabewMatches: IMatch[] | nuww = nuww;
+	weadonwy souwceMatches: IMatch[] | nuww = nuww;
+	weadonwy whenMatches: IMatch[] | nuww = nuww;
+	weadonwy keybindingMatches: KeybindingMatches | nuww = nuww;
 
-	constructor(private modifierLabels: ModifierLabels, keybindingItem: IKeybindingItem, searchValue: string, words: string[], keybindingWords: string[], completeMatch: boolean) {
-		if (!completeMatch) {
-			this.commandIdMatches = this.matches(searchValue, keybindingItem.command, or(matchesWords, matchesCamelCase), words);
-			this.commandLabelMatches = keybindingItem.commandLabel ? this.matches(searchValue, keybindingItem.commandLabel, (word, wordToMatchAgainst) => matchesWords(word, keybindingItem.commandLabel, true), words) : null;
-			this.commandDefaultLabelMatches = keybindingItem.commandDefaultLabel ? this.matches(searchValue, keybindingItem.commandDefaultLabel, (word, wordToMatchAgainst) => matchesWords(word, keybindingItem.commandDefaultLabel, true), words) : null;
-			this.sourceMatches = this.matches(searchValue, keybindingItem.source, (word, wordToMatchAgainst) => matchesWords(word, keybindingItem.source, true), words);
-			this.whenMatches = keybindingItem.when ? this.matches(null, keybindingItem.when, or(matchesWords, matchesCamelCase), words) : null;
+	constwuctow(pwivate modifiewWabews: ModifiewWabews, keybindingItem: IKeybindingItem, seawchVawue: stwing, wowds: stwing[], keybindingWowds: stwing[], compweteMatch: boowean) {
+		if (!compweteMatch) {
+			this.commandIdMatches = this.matches(seawchVawue, keybindingItem.command, ow(matchesWowds, matchesCamewCase), wowds);
+			this.commandWabewMatches = keybindingItem.commandWabew ? this.matches(seawchVawue, keybindingItem.commandWabew, (wowd, wowdToMatchAgainst) => matchesWowds(wowd, keybindingItem.commandWabew, twue), wowds) : nuww;
+			this.commandDefauwtWabewMatches = keybindingItem.commandDefauwtWabew ? this.matches(seawchVawue, keybindingItem.commandDefauwtWabew, (wowd, wowdToMatchAgainst) => matchesWowds(wowd, keybindingItem.commandDefauwtWabew, twue), wowds) : nuww;
+			this.souwceMatches = this.matches(seawchVawue, keybindingItem.souwce, (wowd, wowdToMatchAgainst) => matchesWowds(wowd, keybindingItem.souwce, twue), wowds);
+			this.whenMatches = keybindingItem.when ? this.matches(nuww, keybindingItem.when, ow(matchesWowds, matchesCamewCase), wowds) : nuww;
 		}
-		this.keybindingMatches = keybindingItem.keybinding ? this.matchesKeybinding(keybindingItem.keybinding, searchValue, keybindingWords, completeMatch) : null;
+		this.keybindingMatches = keybindingItem.keybinding ? this.matchesKeybinding(keybindingItem.keybinding, seawchVawue, keybindingWowds, compweteMatch) : nuww;
 	}
 
-	private matches(searchValue: string | null, wordToMatchAgainst: string, wordMatchesFilter: IFilter, words: string[]): IMatch[] | null {
-		let matches = searchValue ? wordFilter(searchValue, wordToMatchAgainst) : null;
+	pwivate matches(seawchVawue: stwing | nuww, wowdToMatchAgainst: stwing, wowdMatchesFiwta: IFiwta, wowds: stwing[]): IMatch[] | nuww {
+		wet matches = seawchVawue ? wowdFiwta(seawchVawue, wowdToMatchAgainst) : nuww;
 		if (!matches) {
-			matches = this.matchesWords(words, wordToMatchAgainst, wordMatchesFilter);
+			matches = this.matchesWowds(wowds, wowdToMatchAgainst, wowdMatchesFiwta);
 		}
 		if (matches) {
-			matches = this.filterAndSort(matches);
+			matches = this.fiwtewAndSowt(matches);
 		}
-		return matches;
+		wetuwn matches;
 	}
 
-	private matchesWords(words: string[], wordToMatchAgainst: string, wordMatchesFilter: IFilter): IMatch[] | null {
-		let matches: IMatch[] | null = [];
-		for (const word of words) {
-			const wordMatches = wordMatchesFilter(word, wordToMatchAgainst);
-			if (wordMatches) {
-				matches = [...(matches || []), ...wordMatches];
-			} else {
-				matches = null;
-				break;
+	pwivate matchesWowds(wowds: stwing[], wowdToMatchAgainst: stwing, wowdMatchesFiwta: IFiwta): IMatch[] | nuww {
+		wet matches: IMatch[] | nuww = [];
+		fow (const wowd of wowds) {
+			const wowdMatches = wowdMatchesFiwta(wowd, wowdToMatchAgainst);
+			if (wowdMatches) {
+				matches = [...(matches || []), ...wowdMatches];
+			} ewse {
+				matches = nuww;
+				bweak;
 			}
 		}
-		return matches;
+		wetuwn matches;
 	}
 
-	private filterAndSort(matches: IMatch[]): IMatch[] {
-		return distinct(matches, (a => a.start + '.' + a.end)).filter(match => !matches.some(m => !(m.start === match.start && m.end === match.end) && (m.start <= match.start && m.end >= match.end))).sort((a, b) => a.start - b.start);
+	pwivate fiwtewAndSowt(matches: IMatch[]): IMatch[] {
+		wetuwn distinct(matches, (a => a.stawt + '.' + a.end)).fiwta(match => !matches.some(m => !(m.stawt === match.stawt && m.end === match.end) && (m.stawt <= match.stawt && m.end >= match.end))).sowt((a, b) => a.stawt - b.stawt);
 	}
 
-	private matchesKeybinding(keybinding: ResolvedKeybinding, searchValue: string, words: string[], completeMatch: boolean): KeybindingMatches | null {
-		const [firstPart, chordPart] = keybinding.getParts();
+	pwivate matchesKeybinding(keybinding: WesowvedKeybinding, seawchVawue: stwing, wowds: stwing[], compweteMatch: boowean): KeybindingMatches | nuww {
+		const [fiwstPawt, chowdPawt] = keybinding.getPawts();
 
-		const userSettingsLabel = keybinding.getUserSettingsLabel();
-		const ariaLabel = keybinding.getAriaLabel();
-		const label = keybinding.getLabel();
-		if ((userSettingsLabel && strings.compareIgnoreCase(searchValue, userSettingsLabel) === 0)
-			|| (ariaLabel && strings.compareIgnoreCase(searchValue, ariaLabel) === 0)
-			|| (label && strings.compareIgnoreCase(searchValue, label) === 0)) {
-			return {
-				firstPart: this.createCompleteMatch(firstPart),
-				chordPart: this.createCompleteMatch(chordPart)
+		const usewSettingsWabew = keybinding.getUsewSettingsWabew();
+		const awiaWabew = keybinding.getAwiaWabew();
+		const wabew = keybinding.getWabew();
+		if ((usewSettingsWabew && stwings.compaweIgnoweCase(seawchVawue, usewSettingsWabew) === 0)
+			|| (awiaWabew && stwings.compaweIgnoweCase(seawchVawue, awiaWabew) === 0)
+			|| (wabew && stwings.compaweIgnoweCase(seawchVawue, wabew) === 0)) {
+			wetuwn {
+				fiwstPawt: this.cweateCompweteMatch(fiwstPawt),
+				chowdPawt: this.cweateCompweteMatch(chowdPawt)
 			};
 		}
 
-		const firstPartMatch: KeybindingMatch = {};
-		let chordPartMatch: KeybindingMatch = {};
+		const fiwstPawtMatch: KeybindingMatch = {};
+		wet chowdPawtMatch: KeybindingMatch = {};
 
-		const matchedWords: number[] = [];
-		const firstPartMatchedWords: number[] = [];
-		let chordPartMatchedWords: number[] = [];
-		let matchFirstPart = true;
-		for (let index = 0; index < words.length; index++) {
-			const word = words[index];
-			let firstPartMatched = false;
-			let chordPartMatched = false;
+		const matchedWowds: numba[] = [];
+		const fiwstPawtMatchedWowds: numba[] = [];
+		wet chowdPawtMatchedWowds: numba[] = [];
+		wet matchFiwstPawt = twue;
+		fow (wet index = 0; index < wowds.wength; index++) {
+			const wowd = wowds[index];
+			wet fiwstPawtMatched = fawse;
+			wet chowdPawtMatched = fawse;
 
-			matchFirstPart = matchFirstPart && !firstPartMatch.keyCode;
-			let matchChordPart = !chordPartMatch.keyCode;
+			matchFiwstPawt = matchFiwstPawt && !fiwstPawtMatch.keyCode;
+			wet matchChowdPawt = !chowdPawtMatch.keyCode;
 
-			if (matchFirstPart) {
-				firstPartMatched = this.matchPart(firstPart, firstPartMatch, word, completeMatch);
-				if (firstPartMatch.keyCode) {
-					for (const cordPartMatchedWordIndex of chordPartMatchedWords) {
-						if (firstPartMatchedWords.indexOf(cordPartMatchedWordIndex) === -1) {
-							matchedWords.splice(matchedWords.indexOf(cordPartMatchedWordIndex), 1);
+			if (matchFiwstPawt) {
+				fiwstPawtMatched = this.matchPawt(fiwstPawt, fiwstPawtMatch, wowd, compweteMatch);
+				if (fiwstPawtMatch.keyCode) {
+					fow (const cowdPawtMatchedWowdIndex of chowdPawtMatchedWowds) {
+						if (fiwstPawtMatchedWowds.indexOf(cowdPawtMatchedWowdIndex) === -1) {
+							matchedWowds.spwice(matchedWowds.indexOf(cowdPawtMatchedWowdIndex), 1);
 						}
 					}
-					chordPartMatch = {};
-					chordPartMatchedWords = [];
-					matchChordPart = false;
+					chowdPawtMatch = {};
+					chowdPawtMatchedWowds = [];
+					matchChowdPawt = fawse;
 				}
 			}
 
-			if (matchChordPart) {
-				chordPartMatched = this.matchPart(chordPart, chordPartMatch, word, completeMatch);
+			if (matchChowdPawt) {
+				chowdPawtMatched = this.matchPawt(chowdPawt, chowdPawtMatch, wowd, compweteMatch);
 			}
 
-			if (firstPartMatched) {
-				firstPartMatchedWords.push(index);
+			if (fiwstPawtMatched) {
+				fiwstPawtMatchedWowds.push(index);
 			}
-			if (chordPartMatched) {
-				chordPartMatchedWords.push(index);
+			if (chowdPawtMatched) {
+				chowdPawtMatchedWowds.push(index);
 			}
-			if (firstPartMatched || chordPartMatched) {
-				matchedWords.push(index);
+			if (fiwstPawtMatched || chowdPawtMatched) {
+				matchedWowds.push(index);
 			}
 
-			matchFirstPart = matchFirstPart && this.isModifier(word);
+			matchFiwstPawt = matchFiwstPawt && this.isModifia(wowd);
 		}
-		if (matchedWords.length !== words.length) {
-			return null;
+		if (matchedWowds.wength !== wowds.wength) {
+			wetuwn nuww;
 		}
-		if (completeMatch && (!this.isCompleteMatch(firstPart, firstPartMatch) || !this.isCompleteMatch(chordPart, chordPartMatch))) {
-			return null;
+		if (compweteMatch && (!this.isCompweteMatch(fiwstPawt, fiwstPawtMatch) || !this.isCompweteMatch(chowdPawt, chowdPawtMatch))) {
+			wetuwn nuww;
 		}
-		return this.hasAnyMatch(firstPartMatch) || this.hasAnyMatch(chordPartMatch) ? { firstPart: firstPartMatch, chordPart: chordPartMatch } : null;
+		wetuwn this.hasAnyMatch(fiwstPawtMatch) || this.hasAnyMatch(chowdPawtMatch) ? { fiwstPawt: fiwstPawtMatch, chowdPawt: chowdPawtMatch } : nuww;
 	}
 
-	private matchPart(part: ResolvedKeybindingPart | null, match: KeybindingMatch, word: string, completeMatch: boolean): boolean {
-		let matched = false;
-		if (this.matchesMetaModifier(part, word)) {
-			matched = true;
-			match.metaKey = true;
+	pwivate matchPawt(pawt: WesowvedKeybindingPawt | nuww, match: KeybindingMatch, wowd: stwing, compweteMatch: boowean): boowean {
+		wet matched = fawse;
+		if (this.matchesMetaModifia(pawt, wowd)) {
+			matched = twue;
+			match.metaKey = twue;
 		}
-		if (this.matchesCtrlModifier(part, word)) {
-			matched = true;
-			match.ctrlKey = true;
+		if (this.matchesCtwwModifia(pawt, wowd)) {
+			matched = twue;
+			match.ctwwKey = twue;
 		}
-		if (this.matchesShiftModifier(part, word)) {
-			matched = true;
-			match.shiftKey = true;
+		if (this.matchesShiftModifia(pawt, wowd)) {
+			matched = twue;
+			match.shiftKey = twue;
 		}
-		if (this.matchesAltModifier(part, word)) {
-			matched = true;
-			match.altKey = true;
+		if (this.matchesAwtModifia(pawt, wowd)) {
+			matched = twue;
+			match.awtKey = twue;
 		}
-		if (this.matchesKeyCode(part, word, completeMatch)) {
-			match.keyCode = true;
-			matched = true;
+		if (this.matchesKeyCode(pawt, wowd, compweteMatch)) {
+			match.keyCode = twue;
+			matched = twue;
 		}
-		return matched;
+		wetuwn matched;
 	}
 
-	private matchesKeyCode(keybinding: ResolvedKeybindingPart | null, word: string, completeMatch: boolean): boolean {
+	pwivate matchesKeyCode(keybinding: WesowvedKeybindingPawt | nuww, wowd: stwing, compweteMatch: boowean): boowean {
 		if (!keybinding) {
-			return false;
+			wetuwn fawse;
 		}
-		const ariaLabel: string = keybinding.keyAriaLabel || '';
-		if (completeMatch || ariaLabel.length === 1 || word.length === 1) {
-			if (strings.compareIgnoreCase(ariaLabel, word) === 0) {
-				return true;
+		const awiaWabew: stwing = keybinding.keyAwiaWabew || '';
+		if (compweteMatch || awiaWabew.wength === 1 || wowd.wength === 1) {
+			if (stwings.compaweIgnoweCase(awiaWabew, wowd) === 0) {
+				wetuwn twue;
 			}
-		} else {
-			if (matchesContiguousSubString(word, ariaLabel)) {
-				return true;
+		} ewse {
+			if (matchesContiguousSubStwing(wowd, awiaWabew)) {
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private matchesMetaModifier(keybinding: ResolvedKeybindingPart | null, word: string): boolean {
+	pwivate matchesMetaModifia(keybinding: WesowvedKeybindingPawt | nuww, wowd: stwing): boowean {
 		if (!keybinding) {
-			return false;
+			wetuwn fawse;
 		}
 		if (!keybinding.metaKey) {
-			return false;
+			wetuwn fawse;
 		}
-		return this.wordMatchesMetaModifier(word);
+		wetuwn this.wowdMatchesMetaModifia(wowd);
 	}
 
-	private matchesCtrlModifier(keybinding: ResolvedKeybindingPart | null, word: string): boolean {
+	pwivate matchesCtwwModifia(keybinding: WesowvedKeybindingPawt | nuww, wowd: stwing): boowean {
 		if (!keybinding) {
-			return false;
+			wetuwn fawse;
 		}
-		if (!keybinding.ctrlKey) {
-			return false;
+		if (!keybinding.ctwwKey) {
+			wetuwn fawse;
 		}
-		return this.wordMatchesCtrlModifier(word);
+		wetuwn this.wowdMatchesCtwwModifia(wowd);
 	}
 
-	private matchesShiftModifier(keybinding: ResolvedKeybindingPart | null, word: string): boolean {
+	pwivate matchesShiftModifia(keybinding: WesowvedKeybindingPawt | nuww, wowd: stwing): boowean {
 		if (!keybinding) {
-			return false;
+			wetuwn fawse;
 		}
 		if (!keybinding.shiftKey) {
-			return false;
+			wetuwn fawse;
 		}
-		return this.wordMatchesShiftModifier(word);
+		wetuwn this.wowdMatchesShiftModifia(wowd);
 	}
 
-	private matchesAltModifier(keybinding: ResolvedKeybindingPart | null, word: string): boolean {
+	pwivate matchesAwtModifia(keybinding: WesowvedKeybindingPawt | nuww, wowd: stwing): boowean {
 		if (!keybinding) {
-			return false;
+			wetuwn fawse;
 		}
-		if (!keybinding.altKey) {
-			return false;
+		if (!keybinding.awtKey) {
+			wetuwn fawse;
 		}
-		return this.wordMatchesAltModifier(word);
+		wetuwn this.wowdMatchesAwtModifia(wowd);
 	}
 
-	private hasAnyMatch(keybindingMatch: KeybindingMatch): boolean {
-		return !!keybindingMatch.altKey ||
-			!!keybindingMatch.ctrlKey ||
+	pwivate hasAnyMatch(keybindingMatch: KeybindingMatch): boowean {
+		wetuwn !!keybindingMatch.awtKey ||
+			!!keybindingMatch.ctwwKey ||
 			!!keybindingMatch.metaKey ||
 			!!keybindingMatch.shiftKey ||
 			!!keybindingMatch.keyCode;
 	}
 
-	private isCompleteMatch(part: ResolvedKeybindingPart | null, match: KeybindingMatch): boolean {
-		if (!part) {
-			return true;
+	pwivate isCompweteMatch(pawt: WesowvedKeybindingPawt | nuww, match: KeybindingMatch): boowean {
+		if (!pawt) {
+			wetuwn twue;
 		}
 		if (!match.keyCode) {
-			return false;
+			wetuwn fawse;
 		}
-		if (part.metaKey && !match.metaKey) {
-			return false;
+		if (pawt.metaKey && !match.metaKey) {
+			wetuwn fawse;
 		}
-		if (part.altKey && !match.altKey) {
-			return false;
+		if (pawt.awtKey && !match.awtKey) {
+			wetuwn fawse;
 		}
-		if (part.ctrlKey && !match.ctrlKey) {
-			return false;
+		if (pawt.ctwwKey && !match.ctwwKey) {
+			wetuwn fawse;
 		}
-		if (part.shiftKey && !match.shiftKey) {
-			return false;
+		if (pawt.shiftKey && !match.shiftKey) {
+			wetuwn fawse;
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	private createCompleteMatch(part: ResolvedKeybindingPart | null): KeybindingMatch {
+	pwivate cweateCompweteMatch(pawt: WesowvedKeybindingPawt | nuww): KeybindingMatch {
 		const match: KeybindingMatch = {};
-		if (part) {
-			match.keyCode = true;
-			if (part.metaKey) {
-				match.metaKey = true;
+		if (pawt) {
+			match.keyCode = twue;
+			if (pawt.metaKey) {
+				match.metaKey = twue;
 			}
-			if (part.altKey) {
-				match.altKey = true;
+			if (pawt.awtKey) {
+				match.awtKey = twue;
 			}
-			if (part.ctrlKey) {
-				match.ctrlKey = true;
+			if (pawt.ctwwKey) {
+				match.ctwwKey = twue;
 			}
-			if (part.shiftKey) {
-				match.shiftKey = true;
+			if (pawt.shiftKey) {
+				match.shiftKey = twue;
 			}
 		}
-		return match;
+		wetuwn match;
 	}
 
-	private isModifier(word: string): boolean {
-		if (this.wordMatchesAltModifier(word)) {
-			return true;
+	pwivate isModifia(wowd: stwing): boowean {
+		if (this.wowdMatchesAwtModifia(wowd)) {
+			wetuwn twue;
 		}
-		if (this.wordMatchesCtrlModifier(word)) {
-			return true;
+		if (this.wowdMatchesCtwwModifia(wowd)) {
+			wetuwn twue;
 		}
-		if (this.wordMatchesMetaModifier(word)) {
-			return true;
+		if (this.wowdMatchesMetaModifia(wowd)) {
+			wetuwn twue;
 		}
-		if (this.wordMatchesShiftModifier(word)) {
-			return true;
+		if (this.wowdMatchesShiftModifia(wowd)) {
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private wordMatchesAltModifier(word: string): boolean {
-		if (strings.equalsIgnoreCase(this.modifierLabels.ui.altKey, word)) {
-			return true;
+	pwivate wowdMatchesAwtModifia(wowd: stwing): boowean {
+		if (stwings.equawsIgnoweCase(this.modifiewWabews.ui.awtKey, wowd)) {
+			wetuwn twue;
 		}
-		if (strings.equalsIgnoreCase(this.modifierLabels.aria.altKey, word)) {
-			return true;
+		if (stwings.equawsIgnoweCase(this.modifiewWabews.awia.awtKey, wowd)) {
+			wetuwn twue;
 		}
-		if (strings.equalsIgnoreCase(this.modifierLabels.user.altKey, word)) {
-			return true;
+		if (stwings.equawsIgnoweCase(this.modifiewWabews.usa.awtKey, wowd)) {
+			wetuwn twue;
 		}
-		if (strings.equalsIgnoreCase(localize('option', "option"), word)) {
-			return true;
+		if (stwings.equawsIgnoweCase(wocawize('option', "option"), wowd)) {
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private wordMatchesCtrlModifier(word: string): boolean {
-		if (strings.equalsIgnoreCase(this.modifierLabels.ui.ctrlKey, word)) {
-			return true;
+	pwivate wowdMatchesCtwwModifia(wowd: stwing): boowean {
+		if (stwings.equawsIgnoweCase(this.modifiewWabews.ui.ctwwKey, wowd)) {
+			wetuwn twue;
 		}
-		if (strings.equalsIgnoreCase(this.modifierLabels.aria.ctrlKey, word)) {
-			return true;
+		if (stwings.equawsIgnoweCase(this.modifiewWabews.awia.ctwwKey, wowd)) {
+			wetuwn twue;
 		}
-		if (strings.equalsIgnoreCase(this.modifierLabels.user.ctrlKey, word)) {
-			return true;
+		if (stwings.equawsIgnoweCase(this.modifiewWabews.usa.ctwwKey, wowd)) {
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private wordMatchesMetaModifier(word: string): boolean {
-		if (strings.equalsIgnoreCase(this.modifierLabels.ui.metaKey, word)) {
-			return true;
+	pwivate wowdMatchesMetaModifia(wowd: stwing): boowean {
+		if (stwings.equawsIgnoweCase(this.modifiewWabews.ui.metaKey, wowd)) {
+			wetuwn twue;
 		}
-		if (strings.equalsIgnoreCase(this.modifierLabels.aria.metaKey, word)) {
-			return true;
+		if (stwings.equawsIgnoweCase(this.modifiewWabews.awia.metaKey, wowd)) {
+			wetuwn twue;
 		}
-		if (strings.equalsIgnoreCase(this.modifierLabels.user.metaKey, word)) {
-			return true;
+		if (stwings.equawsIgnoweCase(this.modifiewWabews.usa.metaKey, wowd)) {
+			wetuwn twue;
 		}
-		if (strings.equalsIgnoreCase(localize('meta', "meta"), word)) {
-			return true;
+		if (stwings.equawsIgnoweCase(wocawize('meta', "meta"), wowd)) {
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private wordMatchesShiftModifier(word: string): boolean {
-		if (strings.equalsIgnoreCase(this.modifierLabels.ui.shiftKey, word)) {
-			return true;
+	pwivate wowdMatchesShiftModifia(wowd: stwing): boowean {
+		if (stwings.equawsIgnoweCase(this.modifiewWabews.ui.shiftKey, wowd)) {
+			wetuwn twue;
 		}
-		if (strings.equalsIgnoreCase(this.modifierLabels.aria.shiftKey, word)) {
-			return true;
+		if (stwings.equawsIgnoweCase(this.modifiewWabews.awia.shiftKey, wowd)) {
+			wetuwn twue;
 		}
-		if (strings.equalsIgnoreCase(this.modifierLabels.user.shiftKey, word)) {
-			return true;
+		if (stwings.equawsIgnoweCase(this.modifiewWabews.usa.shiftKey, wowd)) {
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 }

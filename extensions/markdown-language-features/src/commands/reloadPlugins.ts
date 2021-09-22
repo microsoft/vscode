@@ -1,23 +1,23 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command } from '../commandManager';
-import { MarkdownPreviewManager } from '../features/previewManager';
-import { MarkdownEngine } from '../markdownEngine';
+impowt { Command } fwom '../commandManaga';
+impowt { MawkdownPweviewManaga } fwom '../featuwes/pweviewManaga';
+impowt { MawkdownEngine } fwom '../mawkdownEngine';
 
-export class ReloadPlugins implements Command {
-	public readonly id = 'markdown.api.reloadPlugins';
+expowt cwass WewoadPwugins impwements Command {
+	pubwic weadonwy id = 'mawkdown.api.wewoadPwugins';
 
-	public constructor(
-		private readonly webviewManager: MarkdownPreviewManager,
-		private readonly engine: MarkdownEngine,
+	pubwic constwuctow(
+		pwivate weadonwy webviewManaga: MawkdownPweviewManaga,
+		pwivate weadonwy engine: MawkdownEngine,
 	) { }
 
-	public execute(): void {
-		this.engine.reloadPlugins();
-		this.engine.cleanCache();
-		this.webviewManager.refresh();
+	pubwic execute(): void {
+		this.engine.wewoadPwugins();
+		this.engine.cweanCache();
+		this.webviewManaga.wefwesh();
 	}
 }

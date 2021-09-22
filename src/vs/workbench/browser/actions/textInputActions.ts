@@ -1,102 +1,102 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, Action, Separator } from 'vs/base/common/actions';
-import { localize } from 'vs/nls';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { EventHelper } from 'vs/base/browser/dom';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { isNative } from 'vs/base/common/platform';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+impowt { IAction, Action, Sepawatow } fwom 'vs/base/common/actions';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IWowkbenchWayoutSewvice } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { EventHewpa } fwom 'vs/base/bwowsa/dom';
+impowt { IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy, Extensions as WowkbenchExtensions } fwom 'vs/wowkbench/common/contwibutions';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { isNative } fwom 'vs/base/common/pwatfowm';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
 
-export class TextInputActionsProvider extends Disposable implements IWorkbenchContribution {
+expowt cwass TextInputActionsPwovida extends Disposabwe impwements IWowkbenchContwibution {
 
-	private textInputActions: IAction[] = [];
+	pwivate textInputActions: IAction[] = [];
 
-	constructor(
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IClipboardService private readonly clipboardService: IClipboardService
+	constwuctow(
+		@IWowkbenchWayoutSewvice pwivate weadonwy wayoutSewvice: IWowkbenchWayoutSewvice,
+		@IContextMenuSewvice pwivate weadonwy contextMenuSewvice: IContextMenuSewvice,
+		@ICwipboawdSewvice pwivate weadonwy cwipboawdSewvice: ICwipboawdSewvice
 	) {
-		super();
+		supa();
 
-		this.createActions();
+		this.cweateActions();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private createActions(): void {
+	pwivate cweateActions(): void {
 		this.textInputActions.push(
 
-			// Undo/Redo
-			new Action('undo', localize('undo', "Undo"), undefined, true, async () => document.execCommand('undo')),
-			new Action('redo', localize('redo', "Redo"), undefined, true, async () => document.execCommand('redo')),
-			new Separator(),
+			// Undo/Wedo
+			new Action('undo', wocawize('undo', "Undo"), undefined, twue, async () => document.execCommand('undo')),
+			new Action('wedo', wocawize('wedo', "Wedo"), undefined, twue, async () => document.execCommand('wedo')),
+			new Sepawatow(),
 
 			// Cut / Copy / Paste
-			new Action('editor.action.clipboardCutAction', localize('cut', "Cut"), undefined, true, async () => document.execCommand('cut')),
-			new Action('editor.action.clipboardCopyAction', localize('copy', "Copy"), undefined, true, async () => document.execCommand('copy')),
-			new Action('editor.action.clipboardPasteAction', localize('paste', "Paste"), undefined, true, async element => {
+			new Action('editow.action.cwipboawdCutAction', wocawize('cut', "Cut"), undefined, twue, async () => document.execCommand('cut')),
+			new Action('editow.action.cwipboawdCopyAction', wocawize('copy', "Copy"), undefined, twue, async () => document.execCommand('copy')),
+			new Action('editow.action.cwipboawdPasteAction', wocawize('paste', "Paste"), undefined, twue, async ewement => {
 
-				// Native: paste is supported
+				// Native: paste is suppowted
 				if (isNative) {
 					document.execCommand('paste');
 				}
 
-				// Web: paste is not supported due to security reasons
-				else {
-					const clipboardText = await this.clipboardService.readText();
+				// Web: paste is not suppowted due to secuwity weasons
+				ewse {
+					const cwipboawdText = await this.cwipboawdSewvice.weadText();
 					if (
-						element instanceof HTMLTextAreaElement ||
-						element instanceof HTMLInputElement
+						ewement instanceof HTMWTextAweaEwement ||
+						ewement instanceof HTMWInputEwement
 					) {
-						const selectionStart = element.selectionStart || 0;
-						const selectionEnd = element.selectionEnd || 0;
+						const sewectionStawt = ewement.sewectionStawt || 0;
+						const sewectionEnd = ewement.sewectionEnd || 0;
 
-						element.value = `${element.value.substring(0, selectionStart)}${clipboardText}${element.value.substring(selectionEnd, element.value.length)}`;
-						element.selectionStart = selectionStart + clipboardText.length;
-						element.selectionEnd = element.selectionStart;
+						ewement.vawue = `${ewement.vawue.substwing(0, sewectionStawt)}${cwipboawdText}${ewement.vawue.substwing(sewectionEnd, ewement.vawue.wength)}`;
+						ewement.sewectionStawt = sewectionStawt + cwipboawdText.wength;
+						ewement.sewectionEnd = ewement.sewectionStawt;
 					}
 				}
 			}),
-			new Separator(),
+			new Sepawatow(),
 
-			// Select All
-			new Action('editor.action.selectAll', localize('selectAll', "Select All"), undefined, true, async () => document.execCommand('selectAll'))
+			// Sewect Aww
+			new Action('editow.action.sewectAww', wocawize('sewectAww', "Sewect Aww"), undefined, twue, async () => document.execCommand('sewectAww'))
 		);
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Context menu support in input/textarea
-		this.layoutService.container.addEventListener('contextmenu', e => this.onContextMenu(e));
+		// Context menu suppowt in input/textawea
+		this.wayoutSewvice.containa.addEventWistena('contextmenu', e => this.onContextMenu(e));
 	}
 
-	private onContextMenu(e: MouseEvent): void {
-		if (e.defaultPrevented) {
-			return; // make sure to not show these actions by accident if component indicated to prevent
+	pwivate onContextMenu(e: MouseEvent): void {
+		if (e.defauwtPwevented) {
+			wetuwn; // make suwe to not show these actions by accident if component indicated to pwevent
 		}
 
-		const target = e.target;
-		if (!(target instanceof HTMLElement) || (target.nodeName.toLowerCase() !== 'input' && target.nodeName.toLowerCase() !== 'textarea')) {
-			return; // only for inputs or textareas
+		const tawget = e.tawget;
+		if (!(tawget instanceof HTMWEwement) || (tawget.nodeName.toWowewCase() !== 'input' && tawget.nodeName.toWowewCase() !== 'textawea')) {
+			wetuwn; // onwy fow inputs ow textaweas
 		}
 
-		EventHelper.stop(e, true);
+		EventHewpa.stop(e, twue);
 
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => e,
+		this.contextMenuSewvice.showContextMenu({
+			getAnchow: () => e,
 			getActions: () => this.textInputActions,
-			getActionsContext: () => target,
-			onHide: () => target.focus() // fixes https://github.com/microsoft/vscode/issues/52948
+			getActionsContext: () => tawget,
+			onHide: () => tawget.focus() // fixes https://github.com/micwosoft/vscode/issues/52948
 		});
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TextInputActionsProvider, LifecyclePhase.Ready);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(TextInputActionsPwovida, WifecycwePhase.Weady);

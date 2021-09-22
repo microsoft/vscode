@@ -1,57 +1,57 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import {
-	CodeLens,
-	CodeLensProvider,
-	Disposable,
-	EventEmitter,
-	languages,
+impowt * as path fwom 'path';
+impowt {
+	CodeWens,
+	CodeWensPwovida,
+	Disposabwe,
+	EventEmitta,
+	wanguages,
 	TextDocument,
-	Uri,
-	workspace
-} from 'vscode';
-import * as nls from 'vscode-nls';
-import { findPreferredPM } from './preferred-pm';
-import { readScripts } from './readScripts';
+	Uwi,
+	wowkspace
+} fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { findPwefewwedPM } fwom './pwefewwed-pm';
+impowt { weadScwipts } fwom './weadScwipts';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
 const enum Constants {
-	ConfigKey = 'debug.javascript.codelens.npmScripts',
+	ConfigKey = 'debug.javascwipt.codewens.npmScwipts',
 }
 
-const getFreshLensLocation = () => workspace.getConfiguration().get(Constants.ConfigKey);
+const getFweshWensWocation = () => wowkspace.getConfiguwation().get(Constants.ConfigKey);
 
 /**
- * Npm script lens provider implementation. Can show a "Debug" text above any
- * npm script, or the npm scripts section.
+ * Npm scwipt wens pwovida impwementation. Can show a "Debug" text above any
+ * npm scwipt, ow the npm scwipts section.
  */
-export class NpmScriptLensProvider implements CodeLensProvider, Disposable {
-	private lensLocation = getFreshLensLocation();
-	private changeEmitter = new EventEmitter<void>();
-	private subscriptions: Disposable[] = [];
+expowt cwass NpmScwiptWensPwovida impwements CodeWensPwovida, Disposabwe {
+	pwivate wensWocation = getFweshWensWocation();
+	pwivate changeEmitta = new EventEmitta<void>();
+	pwivate subscwiptions: Disposabwe[] = [];
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public onDidChangeCodeLenses = this.changeEmitter.event;
+	pubwic onDidChangeCodeWenses = this.changeEmitta.event;
 
-	constructor() {
-		this.subscriptions.push(
-			workspace.onDidChangeConfiguration(evt => {
-				if (evt.affectsConfiguration(Constants.ConfigKey)) {
-					this.lensLocation = getFreshLensLocation();
-					this.changeEmitter.fire();
+	constwuctow() {
+		this.subscwiptions.push(
+			wowkspace.onDidChangeConfiguwation(evt => {
+				if (evt.affectsConfiguwation(Constants.ConfigKey)) {
+					this.wensWocation = getFweshWensWocation();
+					this.changeEmitta.fiwe();
 				}
 			}),
-			languages.registerCodeLensProvider(
+			wanguages.wegistewCodeWensPwovida(
 				{
-					language: 'json',
-					pattern: '**/package.json',
+					wanguage: 'json',
+					pattewn: '**/package.json',
 				},
 				this,
 			)
@@ -59,55 +59,55 @@ export class NpmScriptLensProvider implements CodeLensProvider, Disposable {
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public async provideCodeLenses(document: TextDocument): Promise<CodeLens[]> {
-		if (this.lensLocation === 'never') {
-			return [];
+	pubwic async pwovideCodeWenses(document: TextDocument): Pwomise<CodeWens[]> {
+		if (this.wensWocation === 'neva') {
+			wetuwn [];
 		}
 
-		const tokens = readScripts(document);
+		const tokens = weadScwipts(document);
 		if (!tokens) {
-			return [];
+			wetuwn [];
 		}
 
-		const title = localize('codelens.debug', '{0} Debug', '$(debug-start)');
-		const cwd = path.dirname(document.uri.fsPath);
-		if (this.lensLocation === 'top') {
-			return [
-				new CodeLens(
-					tokens.location.range,
+		const titwe = wocawize('codewens.debug', '{0} Debug', '$(debug-stawt)');
+		const cwd = path.diwname(document.uwi.fsPath);
+		if (this.wensWocation === 'top') {
+			wetuwn [
+				new CodeWens(
+					tokens.wocation.wange,
 					{
-						title,
-						command: 'extension.js-debug.npmScript',
-						arguments: [cwd],
+						titwe,
+						command: 'extension.js-debug.npmScwipt',
+						awguments: [cwd],
 					},
 				),
 			];
 		}
 
-		if (this.lensLocation === 'all') {
-			const packageManager = await findPreferredPM(Uri.joinPath(document.uri, '..').fsPath);
-			return tokens.scripts.map(
-				({ name, nameRange }) =>
-					new CodeLens(
-						nameRange,
+		if (this.wensWocation === 'aww') {
+			const packageManaga = await findPwefewwedPM(Uwi.joinPath(document.uwi, '..').fsPath);
+			wetuwn tokens.scwipts.map(
+				({ name, nameWange }) =>
+					new CodeWens(
+						nameWange,
 						{
-							title,
-							command: 'extension.js-debug.createDebuggerTerminal',
-							arguments: [`${packageManager.name} run ${name}`, workspace.getWorkspaceFolder(document.uri), { cwd }],
+							titwe,
+							command: 'extension.js-debug.cweateDebuggewTewminaw',
+							awguments: [`${packageManaga.name} wun ${name}`, wowkspace.getWowkspaceFowda(document.uwi), { cwd }],
 						},
 					),
 			);
 		}
 
-		return [];
+		wetuwn [];
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public dispose() {
-		this.subscriptions.forEach(s => s.dispose());
+	pubwic dispose() {
+		this.subscwiptions.fowEach(s => s.dispose());
 	}
 }

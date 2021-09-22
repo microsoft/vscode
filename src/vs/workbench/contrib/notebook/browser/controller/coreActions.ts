@@ -1,129 +1,129 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { Action2, IAction2Options, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, cellRangeToViewCells } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { ICellRange, isICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorCommandsContext } from 'vs/workbench/common/editor';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import { flatten } from 'vs/base/common/arrays';
-import { TypeConstraint } from 'vs/base/common/types';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { MarshalledId } from 'vs/base/common/marshalling';
-import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Action2, IAction2Options, MenuId, MenuWegistwy } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { getNotebookEditowFwomEditowPane, IActiveNotebookEditow, ICewwViewModew, NOTEBOOK_EDITOW_EDITABWE, NOTEBOOK_EDITOW_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOW, NOTEBOOK_KEWNEW_COUNT, cewwWangeToViewCewws } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { ICewwWange, isICewwWange } fwom 'vs/wowkbench/contwib/notebook/common/notebookWange';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IEditowCommandsContext } fwom 'vs/wowkbench/common/editow';
+impowt { INotebookEditowSewvice } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowSewvice';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { WowkbenchActionExecutedCwassification, WowkbenchActionExecutedEvent } fwom 'vs/base/common/actions';
+impowt { fwatten } fwom 'vs/base/common/awways';
+impowt { TypeConstwaint } fwom 'vs/base/common/types';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
+impowt { MawshawwedId } fwom 'vs/base/common/mawshawwing';
+impowt { BaseCewwWendewTempwate } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/notebookWendewingCommon';
 
-// Kernel Command
-export const SELECT_KERNEL_ID = '_notebook.selectKernel';
-export const NOTEBOOK_ACTIONS_CATEGORY = { value: localize('notebookActions.category', "Notebook"), original: 'Notebook' };
+// Kewnew Command
+expowt const SEWECT_KEWNEW_ID = '_notebook.sewectKewnew';
+expowt const NOTEBOOK_ACTIONS_CATEGOWY = { vawue: wocawize('notebookActions.categowy', "Notebook"), owiginaw: 'Notebook' };
 
-export const CELL_TITLE_CELL_GROUP_ID = 'inline/cell';
-export const CELL_TITLE_OUTPUT_GROUP_ID = 'inline/output';
+expowt const CEWW_TITWE_CEWW_GWOUP_ID = 'inwine/ceww';
+expowt const CEWW_TITWE_OUTPUT_GWOUP_ID = 'inwine/output';
 
-export const NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT = KeybindingWeight.EditorContrib; // smaller than Suggest Widget, etc
+expowt const NOTEBOOK_EDITOW_WIDGET_ACTION_WEIGHT = KeybindingWeight.EditowContwib; // smawwa than Suggest Widget, etc
 
-export const enum CellToolbarOrder {
-	EditCell,
-	ExecuteAboveCells,
-	ExecuteCellAndBelow,
-	SplitCell,
-	SaveCell,
-	ClearCellOutput
+expowt const enum CewwToowbawOwda {
+	EditCeww,
+	ExecuteAboveCewws,
+	ExecuteCewwAndBewow,
+	SpwitCeww,
+	SaveCeww,
+	CweawCewwOutput
 }
 
-export const enum CellOverflowToolbarGroups {
+expowt const enum CewwOvewfwowToowbawGwoups {
 	Copy = '1_copy',
-	Insert = '2_insert',
+	Insewt = '2_insewt',
 	Edit = '3_edit',
-	Collapse = '4_collapse',
+	Cowwapse = '4_cowwapse',
 }
 
-export interface INotebookActionContext {
-	readonly cellTemplate?: BaseCellRenderTemplate;
-	readonly cell?: ICellViewModel;
-	readonly notebookEditor: IActiveNotebookEditor;
-	readonly ui?: boolean;
-	readonly selectedCells?: readonly ICellViewModel[];
-	readonly autoReveal?: boolean;
+expowt intewface INotebookActionContext {
+	weadonwy cewwTempwate?: BaseCewwWendewTempwate;
+	weadonwy ceww?: ICewwViewModew;
+	weadonwy notebookEditow: IActiveNotebookEditow;
+	weadonwy ui?: boowean;
+	weadonwy sewectedCewws?: weadonwy ICewwViewModew[];
+	weadonwy autoWeveaw?: boowean;
 }
 
-export interface INotebookCellToolbarActionContext extends INotebookActionContext {
-	readonly ui: true;
-	readonly cell: ICellViewModel;
+expowt intewface INotebookCewwToowbawActionContext extends INotebookActionContext {
+	weadonwy ui: twue;
+	weadonwy ceww: ICewwViewModew;
 }
 
-export interface INotebookCommandContext extends INotebookActionContext {
-	readonly ui: false;
-	readonly selectedCells: readonly ICellViewModel[];
+expowt intewface INotebookCommandContext extends INotebookActionContext {
+	weadonwy ui: fawse;
+	weadonwy sewectedCewws: weadonwy ICewwViewModew[];
 }
 
-export interface INotebookCellActionContext extends INotebookActionContext {
-	cell: ICellViewModel;
+expowt intewface INotebookCewwActionContext extends INotebookActionContext {
+	ceww: ICewwViewModew;
 }
 
-export function getContextFromActiveEditor(editorService: IEditorService): INotebookActionContext | undefined {
-	const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-	if (!editor || !editor.hasModel()) {
-		return;
+expowt function getContextFwomActiveEditow(editowSewvice: IEditowSewvice): INotebookActionContext | undefined {
+	const editow = getNotebookEditowFwomEditowPane(editowSewvice.activeEditowPane);
+	if (!editow || !editow.hasModew()) {
+		wetuwn;
 	}
 
-	const activeCell = editor.getActiveCell();
-	const selectedCells = editor.getSelectionViewModels();
-	return {
-		cell: activeCell,
-		selectedCells,
-		notebookEditor: editor
+	const activeCeww = editow.getActiveCeww();
+	const sewectedCewws = editow.getSewectionViewModews();
+	wetuwn {
+		ceww: activeCeww,
+		sewectedCewws,
+		notebookEditow: editow
 	};
 }
 
-function getWidgetFromUri(accessor: ServicesAccessor, uri: URI) {
-	const notebookEditorService = accessor.get(INotebookEditorService);
-	const widget = notebookEditorService.listNotebookEditors().find(widget => widget.hasModel() && widget.textModel.uri.toString() === uri.toString());
+function getWidgetFwomUwi(accessow: SewvicesAccessow, uwi: UWI) {
+	const notebookEditowSewvice = accessow.get(INotebookEditowSewvice);
+	const widget = notebookEditowSewvice.wistNotebookEditows().find(widget => widget.hasModew() && widget.textModew.uwi.toStwing() === uwi.toStwing());
 
-	if (widget && widget.hasModel()) {
-		return widget;
+	if (widget && widget.hasModew()) {
+		wetuwn widget;
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
-export function getContextFromUri(accessor: ServicesAccessor, context?: any) {
-	const uri = URI.revive(context);
+expowt function getContextFwomUwi(accessow: SewvicesAccessow, context?: any) {
+	const uwi = UWI.wevive(context);
 
-	if (uri) {
-		const widget = getWidgetFromUri(accessor, uri);
+	if (uwi) {
+		const widget = getWidgetFwomUwi(accessow, uwi);
 
 		if (widget) {
-			return {
-				notebookEditor: widget,
+			wetuwn {
+				notebookEditow: widget,
 			};
 		}
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
-export abstract class NotebookAction extends Action2 {
-	constructor(desc: IAction2Options) {
-		if (desc.f1 !== false) {
-			desc.f1 = false;
+expowt abstwact cwass NotebookAction extends Action2 {
+	constwuctow(desc: IAction2Options) {
+		if (desc.f1 !== fawse) {
+			desc.f1 = fawse;
 			const f1Menu = {
-				id: MenuId.CommandPalette,
-				when: NOTEBOOK_IS_ACTIVE_EDITOR
+				id: MenuId.CommandPawette,
+				when: NOTEBOOK_IS_ACTIVE_EDITOW
 			};
 
 			if (!desc.menu) {
 				desc.menu = [];
-			} else if (!Array.isArray(desc.menu)) {
+			} ewse if (!Awway.isAwway(desc.menu)) {
 				desc.menu = [desc.menu];
 			}
 
@@ -133,53 +133,53 @@ export abstract class NotebookAction extends Action2 {
 			];
 		}
 
-		desc.category = NOTEBOOK_ACTIONS_CATEGORY;
+		desc.categowy = NOTEBOOK_ACTIONS_CATEGOWY;
 
-		super(desc);
+		supa(desc);
 	}
 
-	async run(accessor: ServicesAccessor, context?: any, ...additionalArgs: any[]): Promise<void> {
-		const isFromUI = !!context;
-		const from = isFromUI ? (this.isNotebookActionContext(context) ? 'notebookToolbar' : 'editorToolbar') : undefined;
+	async wun(accessow: SewvicesAccessow, context?: any, ...additionawAwgs: any[]): Pwomise<void> {
+		const isFwomUI = !!context;
+		const fwom = isFwomUI ? (this.isNotebookActionContext(context) ? 'notebookToowbaw' : 'editowToowbaw') : undefined;
 		if (!this.isNotebookActionContext(context)) {
-			context = this.getEditorContextFromArgsOrActive(accessor, context, ...additionalArgs);
+			context = this.getEditowContextFwomAwgsOwActive(accessow, context, ...additionawAwgs);
 			if (!context) {
-				return;
+				wetuwn;
 			}
 		}
 
-		if (from !== undefined) {
-			const telemetryService = accessor.get(ITelemetryService);
-			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: from });
+		if (fwom !== undefined) {
+			const tewemetwySewvice = accessow.get(ITewemetwySewvice);
+			tewemetwySewvice.pubwicWog2<WowkbenchActionExecutedEvent, WowkbenchActionExecutedCwassification>('wowkbenchActionExecuted', { id: this.desc.id, fwom: fwom });
 		}
 
-		return this.runWithContext(accessor, context);
+		wetuwn this.wunWithContext(accessow, context);
 	}
 
-	abstract runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void>;
+	abstwact wunWithContext(accessow: SewvicesAccessow, context: INotebookActionContext): Pwomise<void>;
 
-	private isNotebookActionContext(context?: unknown): context is INotebookActionContext {
-		return !!context && !!(context as INotebookActionContext).notebookEditor;
+	pwivate isNotebookActionContext(context?: unknown): context is INotebookActionContext {
+		wetuwn !!context && !!(context as INotebookActionContext).notebookEditow;
 	}
 
-	protected getEditorContextFromArgsOrActive(accessor: ServicesAccessor, context?: any, ...additionalArgs: any[]): INotebookActionContext | undefined {
-		return getContextFromActiveEditor(accessor.get(IEditorService));
+	pwotected getEditowContextFwomAwgsOwActive(accessow: SewvicesAccessow, context?: any, ...additionawAwgs: any[]): INotebookActionContext | undefined {
+		wetuwn getContextFwomActiveEditow(accessow.get(IEditowSewvice));
 	}
 }
 
-// todo@rebornix, replace NotebookAction with this
-export abstract class NotebookMultiCellAction extends Action2 {
-	constructor(desc: IAction2Options) {
-		if (desc.f1 !== false) {
-			desc.f1 = false;
+// todo@webownix, wepwace NotebookAction with this
+expowt abstwact cwass NotebookMuwtiCewwAction extends Action2 {
+	constwuctow(desc: IAction2Options) {
+		if (desc.f1 !== fawse) {
+			desc.f1 = fawse;
 			const f1Menu = {
-				id: MenuId.CommandPalette,
-				when: NOTEBOOK_IS_ACTIVE_EDITOR
+				id: MenuId.CommandPawette,
+				when: NOTEBOOK_IS_ACTIVE_EDITOW
 			};
 
 			if (!desc.menu) {
 				desc.menu = [];
-			} else if (!Array.isArray(desc.menu)) {
+			} ewse if (!Awway.isAwway(desc.menu)) {
 				desc.menu = [desc.menu];
 			}
 
@@ -189,215 +189,215 @@ export abstract class NotebookMultiCellAction extends Action2 {
 			];
 		}
 
-		desc.category = NOTEBOOK_ACTIONS_CATEGORY;
+		desc.categowy = NOTEBOOK_ACTIONS_CATEGOWY;
 
-		super(desc);
+		supa(desc);
 	}
 
-	parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookCommandContext | undefined {
-		return undefined;
+	pawseAwgs(accessow: SewvicesAccessow, ...awgs: any[]): INotebookCommandContext | undefined {
+		wetuwn undefined;
 	}
 
-	abstract runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void>;
+	abstwact wunWithContext(accessow: SewvicesAccessow, context: INotebookCommandContext | INotebookCewwToowbawActionContext): Pwomise<void>;
 
-	private isCellToolbarContext(context?: unknown): context is INotebookCellToolbarActionContext {
-		return !!context && !!(context as INotebookActionContext).notebookEditor && (context as any).$mid === MarshalledId.NotebookCellActionContext;
+	pwivate isCewwToowbawContext(context?: unknown): context is INotebookCewwToowbawActionContext {
+		wetuwn !!context && !!(context as INotebookActionContext).notebookEditow && (context as any).$mid === MawshawwedId.NotebookCewwActionContext;
 	}
-	private isEditorContext(context?: unknown): boolean {
-		return !!context && (context as IEditorCommandsContext).groupId !== undefined;
+	pwivate isEditowContext(context?: unknown): boowean {
+		wetuwn !!context && (context as IEditowCommandsContext).gwoupId !== undefined;
 	}
 
 	/**
-	 * The action/command args are resolved in following order
-	 * `run(accessor, cellToolbarContext)` from cell toolbar
-	 * `run(accessor, ...args)` from command service with arguments
-	 * `run(accessor, undefined)` from keyboard shortcuts, command palatte, etc
+	 * The action/command awgs awe wesowved in fowwowing owda
+	 * `wun(accessow, cewwToowbawContext)` fwom ceww toowbaw
+	 * `wun(accessow, ...awgs)` fwom command sewvice with awguments
+	 * `wun(accessow, undefined)` fwom keyboawd showtcuts, command pawatte, etc
 	 */
-	async run(accessor: ServicesAccessor, ...additionalArgs: any[]): Promise<void> {
-		const context = additionalArgs[0];
-		const isFromCellToolbar = this.isCellToolbarContext(context);
-		const isFromEditorToolbar = this.isEditorContext(context);
-		const from = isFromCellToolbar ? 'cellToolbar' : (isFromEditorToolbar ? 'editorToolbar' : 'other');
-		const telemetryService = accessor.get(ITelemetryService);
+	async wun(accessow: SewvicesAccessow, ...additionawAwgs: any[]): Pwomise<void> {
+		const context = additionawAwgs[0];
+		const isFwomCewwToowbaw = this.isCewwToowbawContext(context);
+		const isFwomEditowToowbaw = this.isEditowContext(context);
+		const fwom = isFwomCewwToowbaw ? 'cewwToowbaw' : (isFwomEditowToowbaw ? 'editowToowbaw' : 'otha');
+		const tewemetwySewvice = accessow.get(ITewemetwySewvice);
 
-		if (isFromCellToolbar) {
-			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: from });
-			return this.runWithContext(accessor, context);
+		if (isFwomCewwToowbaw) {
+			tewemetwySewvice.pubwicWog2<WowkbenchActionExecutedEvent, WowkbenchActionExecutedCwassification>('wowkbenchActionExecuted', { id: this.desc.id, fwom: fwom });
+			wetuwn this.wunWithContext(accessow, context);
 		}
 
-		// handle parsed args
+		// handwe pawsed awgs
 
-		const parsedArgs = this.parseArgs(accessor, ...additionalArgs);
-		if (parsedArgs) {
-			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: from });
-			return this.runWithContext(accessor, parsedArgs);
+		const pawsedAwgs = this.pawseAwgs(accessow, ...additionawAwgs);
+		if (pawsedAwgs) {
+			tewemetwySewvice.pubwicWog2<WowkbenchActionExecutedEvent, WowkbenchActionExecutedCwassification>('wowkbenchActionExecuted', { id: this.desc.id, fwom: fwom });
+			wetuwn this.wunWithContext(accessow, pawsedAwgs);
 		}
 
-		// no parsed args, try handle active editor
-		const editor = getEditorFromArgsOrActivePane(accessor);
-		if (editor) {
-			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: from });
+		// no pawsed awgs, twy handwe active editow
+		const editow = getEditowFwomAwgsOwActivePane(accessow);
+		if (editow) {
+			tewemetwySewvice.pubwicWog2<WowkbenchActionExecutedEvent, WowkbenchActionExecutedCwassification>('wowkbenchActionExecuted', { id: this.desc.id, fwom: fwom });
 
-			return this.runWithContext(accessor, {
-				ui: false,
-				notebookEditor: editor,
-				selectedCells: cellRangeToViewCells(editor, editor.getSelections())
+			wetuwn this.wunWithContext(accessow, {
+				ui: fawse,
+				notebookEditow: editow,
+				sewectedCewws: cewwWangeToViewCewws(editow, editow.getSewections())
 			});
 		}
 	}
 }
 
-export abstract class NotebookCellAction<T = INotebookCellActionContext> extends NotebookAction {
-	protected isCellActionContext(context?: unknown): context is INotebookCellActionContext {
-		return !!context && !!(context as INotebookCellActionContext).notebookEditor && !!(context as INotebookCellActionContext).cell;
+expowt abstwact cwass NotebookCewwAction<T = INotebookCewwActionContext> extends NotebookAction {
+	pwotected isCewwActionContext(context?: unknown): context is INotebookCewwActionContext {
+		wetuwn !!context && !!(context as INotebookCewwActionContext).notebookEditow && !!(context as INotebookCewwActionContext).ceww;
 	}
 
-	protected getCellContextFromArgs(accessor: ServicesAccessor, context?: T, ...additionalArgs: any[]): INotebookCellActionContext | undefined {
-		return undefined;
+	pwotected getCewwContextFwomAwgs(accessow: SewvicesAccessow, context?: T, ...additionawAwgs: any[]): INotebookCewwActionContext | undefined {
+		wetuwn undefined;
 	}
 
-	override async run(accessor: ServicesAccessor, context?: INotebookCellActionContext, ...additionalArgs: any[]): Promise<void> {
-		if (this.isCellActionContext(context)) {
-			const telemetryService = accessor.get(ITelemetryService);
-			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: 'cellToolbar' });
+	ovewwide async wun(accessow: SewvicesAccessow, context?: INotebookCewwActionContext, ...additionawAwgs: any[]): Pwomise<void> {
+		if (this.isCewwActionContext(context)) {
+			const tewemetwySewvice = accessow.get(ITewemetwySewvice);
+			tewemetwySewvice.pubwicWog2<WowkbenchActionExecutedEvent, WowkbenchActionExecutedCwassification>('wowkbenchActionExecuted', { id: this.desc.id, fwom: 'cewwToowbaw' });
 
-			return this.runWithContext(accessor, context);
+			wetuwn this.wunWithContext(accessow, context);
 		}
 
-		const contextFromArgs = this.getCellContextFromArgs(accessor, context, ...additionalArgs);
+		const contextFwomAwgs = this.getCewwContextFwomAwgs(accessow, context, ...additionawAwgs);
 
-		if (contextFromArgs) {
-			return this.runWithContext(accessor, contextFromArgs);
+		if (contextFwomAwgs) {
+			wetuwn this.wunWithContext(accessow, contextFwomAwgs);
 		}
 
-		const activeEditorContext = this.getEditorContextFromArgsOrActive(accessor);
-		if (this.isCellActionContext(activeEditorContext)) {
-			return this.runWithContext(accessor, activeEditorContext);
+		const activeEditowContext = this.getEditowContextFwomAwgsOwActive(accessow);
+		if (this.isCewwActionContext(activeEditowContext)) {
+			wetuwn this.wunWithContext(accessow, activeEditowContext);
 		}
 	}
 
-	abstract override runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void>;
+	abstwact ovewwide wunWithContext(accessow: SewvicesAccessow, context: INotebookCewwActionContext): Pwomise<void>;
 }
 
-export const executeNotebookCondition = ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.key, 0);
+expowt const executeNotebookCondition = ContextKeyExpw.gweata(NOTEBOOK_KEWNEW_COUNT.key, 0);
 
-interface IMultiCellArgs {
-	ranges: ICellRange[];
-	document?: URI;
-	autoReveal?: boolean;
+intewface IMuwtiCewwAwgs {
+	wanges: ICewwWange[];
+	document?: UWI;
+	autoWeveaw?: boowean;
 }
 
-function isMultiCellArgs(arg: unknown): arg is IMultiCellArgs {
-	if (arg === undefined) {
-		return false;
+function isMuwtiCewwAwgs(awg: unknown): awg is IMuwtiCewwAwgs {
+	if (awg === undefined) {
+		wetuwn fawse;
 	}
-	const ranges = (arg as IMultiCellArgs).ranges;
-	if (!ranges) {
-		return false;
-	}
-
-	if (!Array.isArray(ranges) || ranges.some(range => !isICellRange(range))) {
-		return false;
+	const wanges = (awg as IMuwtiCewwAwgs).wanges;
+	if (!wanges) {
+		wetuwn fawse;
 	}
 
-	if ((arg as IMultiCellArgs).document) {
-		const uri = URI.revive((arg as IMultiCellArgs).document);
+	if (!Awway.isAwway(wanges) || wanges.some(wange => !isICewwWange(wange))) {
+		wetuwn fawse;
+	}
 
-		if (!uri) {
-			return false;
+	if ((awg as IMuwtiCewwAwgs).document) {
+		const uwi = UWI.wevive((awg as IMuwtiCewwAwgs).document);
+
+		if (!uwi) {
+			wetuwn fawse;
 		}
 	}
 
-	return true;
+	wetuwn twue;
 }
 
-export function getEditorFromArgsOrActivePane(accessor: ServicesAccessor, context?: UriComponents): IActiveNotebookEditor | undefined {
-	const editorFromUri = getContextFromUri(accessor, context)?.notebookEditor;
+expowt function getEditowFwomAwgsOwActivePane(accessow: SewvicesAccessow, context?: UwiComponents): IActiveNotebookEditow | undefined {
+	const editowFwomUwi = getContextFwomUwi(accessow, context)?.notebookEditow;
 
-	if (editorFromUri) {
-		return editorFromUri;
+	if (editowFwomUwi) {
+		wetuwn editowFwomUwi;
 	}
 
-	const editor = getNotebookEditorFromEditorPane(accessor.get(IEditorService).activeEditorPane);
-	if (!editor || !editor.hasModel()) {
-		return;
+	const editow = getNotebookEditowFwomEditowPane(accessow.get(IEditowSewvice).activeEditowPane);
+	if (!editow || !editow.hasModew()) {
+		wetuwn;
 	}
 
-	return editor;
+	wetuwn editow;
 }
 
-export function parseMultiCellExecutionArgs(accessor: ServicesAccessor, ...args: any[]): INotebookCommandContext | undefined {
-	const firstArg = args[0];
+expowt function pawseMuwtiCewwExecutionAwgs(accessow: SewvicesAccessow, ...awgs: any[]): INotebookCommandContext | undefined {
+	const fiwstAwg = awgs[0];
 
-	if (isMultiCellArgs(firstArg)) {
-		const editor = getEditorFromArgsOrActivePane(accessor, firstArg.document);
-		if (!editor) {
-			return;
+	if (isMuwtiCewwAwgs(fiwstAwg)) {
+		const editow = getEditowFwomAwgsOwActivePane(accessow, fiwstAwg.document);
+		if (!editow) {
+			wetuwn;
 		}
 
-		const ranges = firstArg.ranges;
-		const selectedCells = flatten(ranges.map(range => editor.getCellsInRange(range).slice(0)));
-		const autoReveal = firstArg.autoReveal;
-		return {
-			ui: false,
-			notebookEditor: editor,
-			selectedCells,
-			autoReveal
+		const wanges = fiwstAwg.wanges;
+		const sewectedCewws = fwatten(wanges.map(wange => editow.getCewwsInWange(wange).swice(0)));
+		const autoWeveaw = fiwstAwg.autoWeveaw;
+		wetuwn {
+			ui: fawse,
+			notebookEditow: editow,
+			sewectedCewws,
+			autoWeveaw
 		};
 	}
 
-	// handle legacy arguments
-	if (isICellRange(firstArg)) {
-		// cellRange, document
-		const secondArg = args[1];
-		const editor = getEditorFromArgsOrActivePane(accessor, secondArg);
-		if (!editor) {
-			return;
+	// handwe wegacy awguments
+	if (isICewwWange(fiwstAwg)) {
+		// cewwWange, document
+		const secondAwg = awgs[1];
+		const editow = getEditowFwomAwgsOwActivePane(accessow, secondAwg);
+		if (!editow) {
+			wetuwn;
 		}
 
-		return {
-			ui: false,
-			notebookEditor: editor,
-			selectedCells: editor.getCellsInRange(firstArg)
+		wetuwn {
+			ui: fawse,
+			notebookEditow: editow,
+			sewectedCewws: editow.getCewwsInWange(fiwstAwg)
 		};
 	}
 
-	// let's just execute the active cell
-	const context = getContextFromActiveEditor(accessor.get(IEditorService));
-	return context ? {
-		ui: false,
-		notebookEditor: context.notebookEditor,
-		selectedCells: context.selectedCells ?? []
+	// wet's just execute the active ceww
+	const context = getContextFwomActiveEditow(accessow.get(IEditowSewvice));
+	wetuwn context ? {
+		ui: fawse,
+		notebookEditow: context.notebookEditow,
+		sewectedCewws: context.sewectedCewws ?? []
 	} : undefined;
 }
 
-export const cellExecutionArgs: ReadonlyArray<{
-	readonly name: string;
-	readonly isOptional?: boolean;
-	readonly description?: string;
-	readonly constraint?: TypeConstraint;
-	readonly schema?: IJSONSchema;
+expowt const cewwExecutionAwgs: WeadonwyAwway<{
+	weadonwy name: stwing;
+	weadonwy isOptionaw?: boowean;
+	weadonwy descwiption?: stwing;
+	weadonwy constwaint?: TypeConstwaint;
+	weadonwy schema?: IJSONSchema;
 }> = [
 		{
-			isOptional: true,
+			isOptionaw: twue,
 			name: 'options',
-			description: 'The cell range options',
+			descwiption: 'The ceww wange options',
 			schema: {
 				'type': 'object',
-				'required': ['ranges'],
-				'properties': {
-					'ranges': {
-						'type': 'array',
+				'wequiwed': ['wanges'],
+				'pwopewties': {
+					'wanges': {
+						'type': 'awway',
 						items: [
 							{
 								'type': 'object',
-								'required': ['start', 'end'],
-								'properties': {
-									'start': {
-										'type': 'number'
+								'wequiwed': ['stawt', 'end'],
+								'pwopewties': {
+									'stawt': {
+										'type': 'numba'
 									},
 									'end': {
-										'type': 'number'
+										'type': 'numba'
 									}
 								}
 							}
@@ -405,11 +405,11 @@ export const cellExecutionArgs: ReadonlyArray<{
 					},
 					'document': {
 						'type': 'object',
-						'description': 'The document uri',
+						'descwiption': 'The document uwi',
 					},
-					'autoReveal': {
-						'type': 'boolean',
-						'description': 'Whether the cell should be revealed into view automatically'
+					'autoWeveaw': {
+						'type': 'boowean',
+						'descwiption': 'Whetha the ceww shouwd be weveawed into view automaticawwy'
 					}
 				}
 			}
@@ -417,16 +417,16 @@ export const cellExecutionArgs: ReadonlyArray<{
 	];
 
 
-MenuRegistry.appendMenuItem(MenuId.NotebookCellTitle, {
-	submenu: MenuId.NotebookCellInsert,
-	title: localize('notebookMenu.insertCell', "Insert Cell"),
-	group: CellOverflowToolbarGroups.Insert,
-	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
+MenuWegistwy.appendMenuItem(MenuId.NotebookCewwTitwe, {
+	submenu: MenuId.NotebookCewwInsewt,
+	titwe: wocawize('notebookMenu.insewtCeww', "Insewt Ceww"),
+	gwoup: CewwOvewfwowToowbawGwoups.Insewt,
+	when: NOTEBOOK_EDITOW_EDITABWE.isEquawTo(twue)
 });
 
-MenuRegistry.appendMenuItem(MenuId.EditorContext, {
-	submenu: MenuId.NotebookCellTitle,
-	title: localize('notebookMenu.cellTitle', "Notebook Cell"),
-	group: CellOverflowToolbarGroups.Insert,
-	when: NOTEBOOK_EDITOR_FOCUSED
+MenuWegistwy.appendMenuItem(MenuId.EditowContext, {
+	submenu: MenuId.NotebookCewwTitwe,
+	titwe: wocawize('notebookMenu.cewwTitwe', "Notebook Ceww"),
+	gwoup: CewwOvewfwowToowbawGwoups.Insewt,
+	when: NOTEBOOK_EDITOW_FOCUSED
 });

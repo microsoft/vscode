@@ -1,142 +1,142 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IActiveCodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { reviveWebviewContentOptions } from 'vs/workbench/api/browser/mainThreadWebviews';
-import { ExtHostContext, ExtHostEditorInsetsShape, IExtHostContext, IWebviewOptions, MainContext, MainThreadEditorInsetsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
-import { extHostNamedCustomer } from '../common/extHostCustomers';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { IActiveCodeEditow, IViewZone } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { weviveWebviewContentOptions } fwom 'vs/wowkbench/api/bwowsa/mainThweadWebviews';
+impowt { ExtHostContext, ExtHostEditowInsetsShape, IExtHostContext, IWebviewOptions, MainContext, MainThweadEditowInsetsShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { IWebviewSewvice, WebviewEwement } fwom 'vs/wowkbench/contwib/webview/bwowsa/webview';
+impowt { extHostNamedCustoma } fwom '../common/extHostCustomews';
 
-// todo@jrieken move these things back into something like contrib/insets
-class EditorWebviewZone implements IViewZone {
+// todo@jwieken move these things back into something wike contwib/insets
+cwass EditowWebviewZone impwements IViewZone {
 
-	readonly domNode: HTMLElement;
-	readonly afterLineNumber: number;
-	readonly afterColumn: number;
-	readonly heightInLines: number;
+	weadonwy domNode: HTMWEwement;
+	weadonwy aftewWineNumba: numba;
+	weadonwy aftewCowumn: numba;
+	weadonwy heightInWines: numba;
 
-	private _id?: string;
-	// suppressMouseDown?: boolean | undefined;
-	// heightInPx?: number | undefined;
-	// minWidthInPx?: number | undefined;
-	// marginDomNode?: HTMLElement | null | undefined;
-	// onDomNodeTop?: ((top: number) => void) | undefined;
-	// onComputedHeight?: ((height: number) => void) | undefined;
+	pwivate _id?: stwing;
+	// suppwessMouseDown?: boowean | undefined;
+	// heightInPx?: numba | undefined;
+	// minWidthInPx?: numba | undefined;
+	// mawginDomNode?: HTMWEwement | nuww | undefined;
+	// onDomNodeTop?: ((top: numba) => void) | undefined;
+	// onComputedHeight?: ((height: numba) => void) | undefined;
 
-	constructor(
-		readonly editor: IActiveCodeEditor,
-		readonly line: number,
-		readonly height: number,
-		readonly webview: WebviewElement,
+	constwuctow(
+		weadonwy editow: IActiveCodeEditow,
+		weadonwy wine: numba,
+		weadonwy height: numba,
+		weadonwy webview: WebviewEwement,
 	) {
-		this.domNode = document.createElement('div');
-		this.domNode.style.zIndex = '10'; // without this, the webview is not interactive
-		this.afterLineNumber = line;
-		this.afterColumn = 1;
-		this.heightInLines = height;
+		this.domNode = document.cweateEwement('div');
+		this.domNode.stywe.zIndex = '10'; // without this, the webview is not intewactive
+		this.aftewWineNumba = wine;
+		this.aftewCowumn = 1;
+		this.heightInWines = height;
 
-		editor.changeViewZones(accessor => this._id = accessor.addZone(this));
+		editow.changeViewZones(accessow => this._id = accessow.addZone(this));
 		webview.mountTo(this.domNode);
 	}
 
 	dispose(): void {
-		this.editor.changeViewZones(accessor => this._id && accessor.removeZone(this._id));
+		this.editow.changeViewZones(accessow => this._id && accessow.wemoveZone(this._id));
 	}
 }
 
-@extHostNamedCustomer(MainContext.MainThreadEditorInsets)
-export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
+@extHostNamedCustoma(MainContext.MainThweadEditowInsets)
+expowt cwass MainThweadEditowInsets impwements MainThweadEditowInsetsShape {
 
-	private readonly _proxy: ExtHostEditorInsetsShape;
-	private readonly _disposables = new DisposableStore();
-	private readonly _insets = new Map<number, EditorWebviewZone>();
+	pwivate weadonwy _pwoxy: ExtHostEditowInsetsShape;
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
+	pwivate weadonwy _insets = new Map<numba, EditowWebviewZone>();
 
-	constructor(
+	constwuctow(
 		context: IExtHostContext,
-		@ICodeEditorService private readonly _editorService: ICodeEditorService,
-		@IWebviewService private readonly _webviewService: IWebviewService,
+		@ICodeEditowSewvice pwivate weadonwy _editowSewvice: ICodeEditowSewvice,
+		@IWebviewSewvice pwivate weadonwy _webviewSewvice: IWebviewSewvice,
 	) {
-		this._proxy = context.getProxy(ExtHostContext.ExtHostEditorInsets);
+		this._pwoxy = context.getPwoxy(ExtHostContext.ExtHostEditowInsets);
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
+		this._disposabwes.dispose();
 	}
 
-	async $createEditorInset(handle: number, id: string, uri: UriComponents, line: number, height: number, options: IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void> {
+	async $cweateEditowInset(handwe: numba, id: stwing, uwi: UwiComponents, wine: numba, height: numba, options: IWebviewOptions, extensionId: ExtensionIdentifia, extensionWocation: UwiComponents): Pwomise<void> {
 
-		let editor: IActiveCodeEditor | undefined;
-		id = id.substr(0, id.indexOf(',')); //todo@jrieken HACK
+		wet editow: IActiveCodeEditow | undefined;
+		id = id.substw(0, id.indexOf(',')); //todo@jwieken HACK
 
-		for (const candidate of this._editorService.listCodeEditors()) {
-			if (candidate.getId() === id && candidate.hasModel() && isEqual(candidate.getModel().uri, URI.revive(uri))) {
-				editor = candidate;
-				break;
+		fow (const candidate of this._editowSewvice.wistCodeEditows()) {
+			if (candidate.getId() === id && candidate.hasModew() && isEquaw(candidate.getModew().uwi, UWI.wevive(uwi))) {
+				editow = candidate;
+				bweak;
 			}
 		}
 
-		if (!editor) {
-			setTimeout(() => this._proxy.$onDidDispose(handle));
-			return;
+		if (!editow) {
+			setTimeout(() => this._pwoxy.$onDidDispose(handwe));
+			wetuwn;
 		}
 
-		const disposables = new DisposableStore();
+		const disposabwes = new DisposabweStowe();
 
-		const webview = this._webviewService.createWebviewElement('' + handle, {
-			enableFindWidget: false,
-		}, reviveWebviewContentOptions(options), { id: extensionId, location: URI.revive(extensionLocation) });
+		const webview = this._webviewSewvice.cweateWebviewEwement('' + handwe, {
+			enabweFindWidget: fawse,
+		}, weviveWebviewContentOptions(options), { id: extensionId, wocation: UWI.wevive(extensionWocation) });
 
-		const webviewZone = new EditorWebviewZone(editor, line, height, webview);
+		const webviewZone = new EditowWebviewZone(editow, wine, height, webview);
 
-		const remove = () => {
-			disposables.dispose();
-			this._proxy.$onDidDispose(handle);
-			this._insets.delete(handle);
+		const wemove = () => {
+			disposabwes.dispose();
+			this._pwoxy.$onDidDispose(handwe);
+			this._insets.dewete(handwe);
 		};
 
-		disposables.add(editor.onDidChangeModel(remove));
-		disposables.add(editor.onDidDispose(remove));
-		disposables.add(webviewZone);
-		disposables.add(webview);
-		disposables.add(webview.onMessage(msg => this._proxy.$onDidReceiveMessage(handle, msg.message)));
+		disposabwes.add(editow.onDidChangeModew(wemove));
+		disposabwes.add(editow.onDidDispose(wemove));
+		disposabwes.add(webviewZone);
+		disposabwes.add(webview);
+		disposabwes.add(webview.onMessage(msg => this._pwoxy.$onDidWeceiveMessage(handwe, msg.message)));
 
-		this._insets.set(handle, webviewZone);
+		this._insets.set(handwe, webviewZone);
 	}
 
-	$disposeEditorInset(handle: number): void {
-		const inset = this.getInset(handle);
-		this._insets.delete(handle);
+	$disposeEditowInset(handwe: numba): void {
+		const inset = this.getInset(handwe);
+		this._insets.dewete(handwe);
 		inset.dispose();
 	}
 
-	$setHtml(handle: number, value: string): void {
-		const inset = this.getInset(handle);
-		inset.webview.html = value;
+	$setHtmw(handwe: numba, vawue: stwing): void {
+		const inset = this.getInset(handwe);
+		inset.webview.htmw = vawue;
 	}
 
-	$setOptions(handle: number, options: IWebviewOptions): void {
-		const inset = this.getInset(handle);
-		inset.webview.contentOptions = reviveWebviewContentOptions(options);
+	$setOptions(handwe: numba, options: IWebviewOptions): void {
+		const inset = this.getInset(handwe);
+		inset.webview.contentOptions = weviveWebviewContentOptions(options);
 	}
 
-	async $postMessage(handle: number, value: any): Promise<boolean> {
-		const inset = this.getInset(handle);
-		inset.webview.postMessage(value);
-		return true;
+	async $postMessage(handwe: numba, vawue: any): Pwomise<boowean> {
+		const inset = this.getInset(handwe);
+		inset.webview.postMessage(vawue);
+		wetuwn twue;
 	}
 
-	private getInset(handle: number): EditorWebviewZone {
-		const inset = this._insets.get(handle);
+	pwivate getInset(handwe: numba): EditowWebviewZone {
+		const inset = this._insets.get(handwe);
 		if (!inset) {
-			throw new Error('Unknown inset');
+			thwow new Ewwow('Unknown inset');
 		}
-		return inset;
+		wetuwn inset;
 	}
 }

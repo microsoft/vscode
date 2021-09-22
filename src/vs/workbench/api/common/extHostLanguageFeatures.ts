@@ -1,1084 +1,1084 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { mixin } from 'vs/base/common/objects';
-import type * as vscode from 'vscode';
-import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit } from 'vs/workbench/api/common/extHostTypes';
-import { ISingleEditOperation } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
-import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
-import * as extHostProtocol from './extHost.protocol';
-import { regExpLeadsToEndlessLoop, regExpFlags } from 'vs/base/common/strings';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
-import { isFalsyOrEmpty, isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
-import { isArray, isObject } from 'vs/base/common/types';
-import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IURITransformer } from 'vs/base/common/uriIpc';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { encodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
-import { IdGenerator } from 'vs/base/common/idGenerator';
-import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
-import { Cache } from './cache';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { CancellationError } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { mixin } fwom 'vs/base/common/objects';
+impowt type * as vscode fwom 'vscode';
+impowt * as typeConvewt fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+impowt { Wange, Disposabwe, CompwetionWist, SnippetStwing, CodeActionKind, SymbowInfowmation, DocumentSymbow, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { ISingweEditOpewation } fwom 'vs/editow/common/modew';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { ExtHostDocuments } fwom 'vs/wowkbench/api/common/extHostDocuments';
+impowt { ExtHostCommands, CommandsConvewta } fwom 'vs/wowkbench/api/common/extHostCommands';
+impowt { ExtHostDiagnostics } fwom 'vs/wowkbench/api/common/extHostDiagnostics';
+impowt * as extHostPwotocow fwom './extHost.pwotocow';
+impowt { wegExpWeadsToEndwessWoop, wegExpFwags } fwom 'vs/base/common/stwings';
+impowt { IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { IWange, Wange as EditowWange } fwom 'vs/editow/common/cowe/wange';
+impowt { isFawsyOwEmpty, isNonEmptyAwway, coawesce } fwom 'vs/base/common/awways';
+impowt { isAwway, isObject } fwom 'vs/base/common/types';
+impowt { ISewection, Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { ExtensionIdentifia, IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IUWITwansfowma } fwom 'vs/base/common/uwiIpc';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { encodeSemanticTokensDto } fwom 'vs/editow/common/sewvices/semanticTokensDto';
+impowt { IdGenewatow } fwom 'vs/base/common/idGenewatow';
+impowt { IExtHostApiDepwecationSewvice } fwom 'vs/wowkbench/api/common/extHostApiDepwecationSewvice';
+impowt { Cache } fwom './cache';
+impowt { StopWatch } fwom 'vs/base/common/stopwatch';
+impowt { CancewwationEwwow } fwom 'vs/base/common/ewwows';
+impowt { Emitta } fwom 'vs/base/common/event';
 
-// --- adapter
+// --- adapta
 
-class DocumentSymbolAdapter {
+cwass DocumentSymbowAdapta {
 
-	private _documents: ExtHostDocuments;
-	private _provider: vscode.DocumentSymbolProvider;
+	pwivate _documents: ExtHostDocuments;
+	pwivate _pwovida: vscode.DocumentSymbowPwovida;
 
-	constructor(documents: ExtHostDocuments, provider: vscode.DocumentSymbolProvider) {
+	constwuctow(documents: ExtHostDocuments, pwovida: vscode.DocumentSymbowPwovida) {
 		this._documents = documents;
-		this._provider = provider;
+		this._pwovida = pwovida;
 	}
 
-	async provideDocumentSymbols(resource: URI, token: CancellationToken): Promise<modes.DocumentSymbol[] | undefined> {
-		const doc = this._documents.getDocument(resource);
-		const value = await this._provider.provideDocumentSymbols(doc, token);
-		if (isFalsyOrEmpty(value)) {
-			return undefined;
-		} else if (value![0] instanceof DocumentSymbol) {
-			return (<DocumentSymbol[]>value).map(typeConvert.DocumentSymbol.from);
-		} else {
-			return DocumentSymbolAdapter._asDocumentSymbolTree(<SymbolInformation[]>value);
+	async pwovideDocumentSymbows(wesouwce: UWI, token: CancewwationToken): Pwomise<modes.DocumentSymbow[] | undefined> {
+		const doc = this._documents.getDocument(wesouwce);
+		const vawue = await this._pwovida.pwovideDocumentSymbows(doc, token);
+		if (isFawsyOwEmpty(vawue)) {
+			wetuwn undefined;
+		} ewse if (vawue![0] instanceof DocumentSymbow) {
+			wetuwn (<DocumentSymbow[]>vawue).map(typeConvewt.DocumentSymbow.fwom);
+		} ewse {
+			wetuwn DocumentSymbowAdapta._asDocumentSymbowTwee(<SymbowInfowmation[]>vawue);
 		}
 	}
 
-	private static _asDocumentSymbolTree(infos: SymbolInformation[]): modes.DocumentSymbol[] {
-		// first sort by start (and end) and then loop over all elements
-		// and build a tree based on containment.
-		infos = infos.slice(0).sort((a, b) => {
-			let res = a.location.range.start.compareTo(b.location.range.start);
-			if (res === 0) {
-				res = b.location.range.end.compareTo(a.location.range.end);
+	pwivate static _asDocumentSymbowTwee(infos: SymbowInfowmation[]): modes.DocumentSymbow[] {
+		// fiwst sowt by stawt (and end) and then woop ova aww ewements
+		// and buiwd a twee based on containment.
+		infos = infos.swice(0).sowt((a, b) => {
+			wet wes = a.wocation.wange.stawt.compaweTo(b.wocation.wange.stawt);
+			if (wes === 0) {
+				wes = b.wocation.wange.end.compaweTo(a.wocation.wange.end);
 			}
-			return res;
+			wetuwn wes;
 		});
-		const res: modes.DocumentSymbol[] = [];
-		const parentStack: modes.DocumentSymbol[] = [];
-		for (const info of infos) {
-			const element: modes.DocumentSymbol = {
+		const wes: modes.DocumentSymbow[] = [];
+		const pawentStack: modes.DocumentSymbow[] = [];
+		fow (const info of infos) {
+			const ewement: modes.DocumentSymbow = {
 				name: info.name || '!!MISSING: name!!',
-				kind: typeConvert.SymbolKind.from(info.kind),
-				tags: info.tags?.map(typeConvert.SymbolTag.from) || [],
-				detail: '',
-				containerName: info.containerName,
-				range: typeConvert.Range.from(info.location.range),
-				selectionRange: typeConvert.Range.from(info.location.range),
-				children: []
+				kind: typeConvewt.SymbowKind.fwom(info.kind),
+				tags: info.tags?.map(typeConvewt.SymbowTag.fwom) || [],
+				detaiw: '',
+				containewName: info.containewName,
+				wange: typeConvewt.Wange.fwom(info.wocation.wange),
+				sewectionWange: typeConvewt.Wange.fwom(info.wocation.wange),
+				chiwdwen: []
 			};
 
-			while (true) {
-				if (parentStack.length === 0) {
-					parentStack.push(element);
-					res.push(element);
-					break;
+			whiwe (twue) {
+				if (pawentStack.wength === 0) {
+					pawentStack.push(ewement);
+					wes.push(ewement);
+					bweak;
 				}
-				const parent = parentStack[parentStack.length - 1];
-				if (EditorRange.containsRange(parent.range, element.range) && !EditorRange.equalsRange(parent.range, element.range)) {
-					if (parent.children) {
-						parent.children.push(element);
+				const pawent = pawentStack[pawentStack.wength - 1];
+				if (EditowWange.containsWange(pawent.wange, ewement.wange) && !EditowWange.equawsWange(pawent.wange, ewement.wange)) {
+					if (pawent.chiwdwen) {
+						pawent.chiwdwen.push(ewement);
 					}
-					parentStack.push(element);
-					break;
+					pawentStack.push(ewement);
+					bweak;
 				}
-				parentStack.pop();
+				pawentStack.pop();
 			}
 		}
-		return res;
+		wetuwn wes;
 	}
 }
 
-class CodeLensAdapter {
+cwass CodeWensAdapta {
 
-	private static _badCmd: vscode.Command = { command: 'missing', title: '!!MISSING: command!!' };
+	pwivate static _badCmd: vscode.Command = { command: 'missing', titwe: '!!MISSING: command!!' };
 
-	private readonly _cache = new Cache<vscode.CodeLens>('CodeLens');
-	private readonly _disposables = new Map<number, DisposableStore>();
+	pwivate weadonwy _cache = new Cache<vscode.CodeWens>('CodeWens');
+	pwivate weadonwy _disposabwes = new Map<numba, DisposabweStowe>();
 
-	constructor(
-		private readonly _documents: ExtHostDocuments,
-		private readonly _commands: CommandsConverter,
-		private readonly _provider: vscode.CodeLensProvider
+	constwuctow(
+		pwivate weadonwy _documents: ExtHostDocuments,
+		pwivate weadonwy _commands: CommandsConvewta,
+		pwivate weadonwy _pwovida: vscode.CodeWensPwovida
 	) { }
 
-	async provideCodeLenses(resource: URI, token: CancellationToken): Promise<extHostProtocol.ICodeLensListDto | undefined> {
-		const doc = this._documents.getDocument(resource);
+	async pwovideCodeWenses(wesouwce: UWI, token: CancewwationToken): Pwomise<extHostPwotocow.ICodeWensWistDto | undefined> {
+		const doc = this._documents.getDocument(wesouwce);
 
-		const lenses = await this._provider.provideCodeLenses(doc, token);
-		if (!lenses || token.isCancellationRequested) {
-			return undefined;
+		const wenses = await this._pwovida.pwovideCodeWenses(doc, token);
+		if (!wenses || token.isCancewwationWequested) {
+			wetuwn undefined;
 		}
-		const cacheId = this._cache.add(lenses);
-		const disposables = new DisposableStore();
-		this._disposables.set(cacheId, disposables);
-		const result: extHostProtocol.ICodeLensListDto = {
+		const cacheId = this._cache.add(wenses);
+		const disposabwes = new DisposabweStowe();
+		this._disposabwes.set(cacheId, disposabwes);
+		const wesuwt: extHostPwotocow.ICodeWensWistDto = {
 			cacheId,
-			lenses: [],
+			wenses: [],
 		};
-		for (let i = 0; i < lenses.length; i++) {
-			result.lenses.push({
+		fow (wet i = 0; i < wenses.wength; i++) {
+			wesuwt.wenses.push({
 				cacheId: [cacheId, i],
-				range: typeConvert.Range.from(lenses[i].range),
-				command: this._commands.toInternal(lenses[i].command, disposables)
+				wange: typeConvewt.Wange.fwom(wenses[i].wange),
+				command: this._commands.toIntewnaw(wenses[i].command, disposabwes)
 			});
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	async resolveCodeLens(symbol: extHostProtocol.ICodeLensDto, token: CancellationToken): Promise<extHostProtocol.ICodeLensDto | undefined> {
+	async wesowveCodeWens(symbow: extHostPwotocow.ICodeWensDto, token: CancewwationToken): Pwomise<extHostPwotocow.ICodeWensDto | undefined> {
 
-		const lens = symbol.cacheId && this._cache.get(...symbol.cacheId);
-		if (!lens) {
-			return undefined;
-		}
-
-		let resolvedLens: vscode.CodeLens | undefined | null;
-		if (typeof this._provider.resolveCodeLens !== 'function' || lens.isResolved) {
-			resolvedLens = lens;
-		} else {
-			resolvedLens = await this._provider.resolveCodeLens(lens, token);
-		}
-		if (!resolvedLens) {
-			resolvedLens = lens;
+		const wens = symbow.cacheId && this._cache.get(...symbow.cacheId);
+		if (!wens) {
+			wetuwn undefined;
 		}
 
-		if (token.isCancellationRequested) {
-			return undefined;
+		wet wesowvedWens: vscode.CodeWens | undefined | nuww;
+		if (typeof this._pwovida.wesowveCodeWens !== 'function' || wens.isWesowved) {
+			wesowvedWens = wens;
+		} ewse {
+			wesowvedWens = await this._pwovida.wesowveCodeWens(wens, token);
 		}
-		const disposables = symbol.cacheId && this._disposables.get(symbol.cacheId[0]);
-		if (!disposables) {
+		if (!wesowvedWens) {
+			wesowvedWens = wens;
+		}
+
+		if (token.isCancewwationWequested) {
+			wetuwn undefined;
+		}
+		const disposabwes = symbow.cacheId && this._disposabwes.get(symbow.cacheId[0]);
+		if (!disposabwes) {
 			// disposed in the meantime
-			return undefined;
+			wetuwn undefined;
 		}
-		symbol.command = this._commands.toInternal(resolvedLens.command ?? CodeLensAdapter._badCmd, disposables);
-		return symbol;
+		symbow.command = this._commands.toIntewnaw(wesowvedWens.command ?? CodeWensAdapta._badCmd, disposabwes);
+		wetuwn symbow;
 	}
 
-	releaseCodeLenses(cachedId: number): void {
-		this._disposables.get(cachedId)?.dispose();
-		this._disposables.delete(cachedId);
-		this._cache.delete(cachedId);
+	weweaseCodeWenses(cachedId: numba): void {
+		this._disposabwes.get(cachedId)?.dispose();
+		this._disposabwes.dewete(cachedId);
+		this._cache.dewete(cachedId);
 	}
 }
 
-function convertToLocationLinks(value: vscode.Location | vscode.Location[] | vscode.LocationLink[] | undefined | null): modes.LocationLink[] {
-	if (Array.isArray(value)) {
-		return (<any>value).map(typeConvert.DefinitionLink.from);
-	} else if (value) {
-		return [typeConvert.DefinitionLink.from(value)];
+function convewtToWocationWinks(vawue: vscode.Wocation | vscode.Wocation[] | vscode.WocationWink[] | undefined | nuww): modes.WocationWink[] {
+	if (Awway.isAwway(vawue)) {
+		wetuwn (<any>vawue).map(typeConvewt.DefinitionWink.fwom);
+	} ewse if (vawue) {
+		wetuwn [typeConvewt.DefinitionWink.fwom(vawue)];
 	}
-	return [];
+	wetuwn [];
 }
 
-class DefinitionAdapter {
+cwass DefinitionAdapta {
 
-	constructor(
-		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.DefinitionProvider
+	constwuctow(
+		pwivate weadonwy _documents: ExtHostDocuments,
+		pwivate weadonwy _pwovida: vscode.DefinitionPwovida
 	) { }
 
-	async provideDefinition(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
-		const doc = this._documents.getDocument(resource);
-		const pos = typeConvert.Position.to(position);
-		const value = await this._provider.provideDefinition(doc, pos, token);
-		return convertToLocationLinks(value);
+	async pwovideDefinition(wesouwce: UWI, position: IPosition, token: CancewwationToken): Pwomise<modes.WocationWink[]> {
+		const doc = this._documents.getDocument(wesouwce);
+		const pos = typeConvewt.Position.to(position);
+		const vawue = await this._pwovida.pwovideDefinition(doc, pos, token);
+		wetuwn convewtToWocationWinks(vawue);
 	}
 }
 
-class DeclarationAdapter {
+cwass DecwawationAdapta {
 
-	constructor(
-		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.DeclarationProvider
+	constwuctow(
+		pwivate weadonwy _documents: ExtHostDocuments,
+		pwivate weadonwy _pwovida: vscode.DecwawationPwovida
 	) { }
 
-	async provideDeclaration(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
-		const doc = this._documents.getDocument(resource);
-		const pos = typeConvert.Position.to(position);
-		const value = await this._provider.provideDeclaration(doc, pos, token);
-		return convertToLocationLinks(value);
+	async pwovideDecwawation(wesouwce: UWI, position: IPosition, token: CancewwationToken): Pwomise<modes.WocationWink[]> {
+		const doc = this._documents.getDocument(wesouwce);
+		const pos = typeConvewt.Position.to(position);
+		const vawue = await this._pwovida.pwovideDecwawation(doc, pos, token);
+		wetuwn convewtToWocationWinks(vawue);
 	}
 }
 
-class ImplementationAdapter {
+cwass ImpwementationAdapta {
 
-	constructor(
-		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.ImplementationProvider
+	constwuctow(
+		pwivate weadonwy _documents: ExtHostDocuments,
+		pwivate weadonwy _pwovida: vscode.ImpwementationPwovida
 	) { }
 
-	async provideImplementation(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
-		const doc = this._documents.getDocument(resource);
-		const pos = typeConvert.Position.to(position);
-		const value = await this._provider.provideImplementation(doc, pos, token);
-		return convertToLocationLinks(value);
+	async pwovideImpwementation(wesouwce: UWI, position: IPosition, token: CancewwationToken): Pwomise<modes.WocationWink[]> {
+		const doc = this._documents.getDocument(wesouwce);
+		const pos = typeConvewt.Position.to(position);
+		const vawue = await this._pwovida.pwovideImpwementation(doc, pos, token);
+		wetuwn convewtToWocationWinks(vawue);
 	}
 }
 
-class TypeDefinitionAdapter {
+cwass TypeDefinitionAdapta {
 
-	constructor(
-		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.TypeDefinitionProvider
+	constwuctow(
+		pwivate weadonwy _documents: ExtHostDocuments,
+		pwivate weadonwy _pwovida: vscode.TypeDefinitionPwovida
 	) { }
 
-	async provideTypeDefinition(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
-		const doc = this._documents.getDocument(resource);
-		const pos = typeConvert.Position.to(position);
-		const value = await this._provider.provideTypeDefinition(doc, pos, token);
-		return convertToLocationLinks(value);
+	async pwovideTypeDefinition(wesouwce: UWI, position: IPosition, token: CancewwationToken): Pwomise<modes.WocationWink[]> {
+		const doc = this._documents.getDocument(wesouwce);
+		const pos = typeConvewt.Position.to(position);
+		const vawue = await this._pwovida.pwovideTypeDefinition(doc, pos, token);
+		wetuwn convewtToWocationWinks(vawue);
 	}
 }
 
-class HoverAdapter {
+cwass HovewAdapta {
 
-	constructor(
-		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.HoverProvider,
+	constwuctow(
+		pwivate weadonwy _documents: ExtHostDocuments,
+		pwivate weadonwy _pwovida: vscode.HovewPwovida,
 	) { }
 
-	public async provideHover(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.Hover | undefined> {
+	pubwic async pwovideHova(wesouwce: UWI, position: IPosition, token: CancewwationToken): Pwomise<modes.Hova | undefined> {
 
-		const doc = this._documents.getDocument(resource);
-		const pos = typeConvert.Position.to(position);
+		const doc = this._documents.getDocument(wesouwce);
+		const pos = typeConvewt.Position.to(position);
 
-		const value = await this._provider.provideHover(doc, pos, token);
-		if (!value || isFalsyOrEmpty(value.contents)) {
-			return undefined;
+		const vawue = await this._pwovida.pwovideHova(doc, pos, token);
+		if (!vawue || isFawsyOwEmpty(vawue.contents)) {
+			wetuwn undefined;
 		}
-		if (!value.range) {
-			value.range = doc.getWordRangeAtPosition(pos);
+		if (!vawue.wange) {
+			vawue.wange = doc.getWowdWangeAtPosition(pos);
 		}
-		if (!value.range) {
-			value.range = new Range(pos, pos);
+		if (!vawue.wange) {
+			vawue.wange = new Wange(pos, pos);
 		}
-		return typeConvert.Hover.from(value);
+		wetuwn typeConvewt.Hova.fwom(vawue);
 	}
 }
 
-class EvaluatableExpressionAdapter {
+cwass EvawuatabweExpwessionAdapta {
 
-	constructor(
-		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.EvaluatableExpressionProvider,
+	constwuctow(
+		pwivate weadonwy _documents: ExtHostDocuments,
+		pwivate weadonwy _pwovida: vscode.EvawuatabweExpwessionPwovida,
 	) { }
 
-	async provideEvaluatableExpression(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.EvaluatableExpression | undefined> {
+	async pwovideEvawuatabweExpwession(wesouwce: UWI, position: IPosition, token: CancewwationToken): Pwomise<modes.EvawuatabweExpwession | undefined> {
 
-		const doc = this._documents.getDocument(resource);
-		const pos = typeConvert.Position.to(position);
+		const doc = this._documents.getDocument(wesouwce);
+		const pos = typeConvewt.Position.to(position);
 
-		const value = await this._provider.provideEvaluatableExpression(doc, pos, token);
-		if (value) {
-			return typeConvert.EvaluatableExpression.from(value);
+		const vawue = await this._pwovida.pwovideEvawuatabweExpwession(doc, pos, token);
+		if (vawue) {
+			wetuwn typeConvewt.EvawuatabweExpwession.fwom(vawue);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-class InlineValuesAdapter {
+cwass InwineVawuesAdapta {
 
-	constructor(
-		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.InlineValuesProvider,
+	constwuctow(
+		pwivate weadonwy _documents: ExtHostDocuments,
+		pwivate weadonwy _pwovida: vscode.InwineVawuesPwovida,
 	) { }
 
-	async provideInlineValues(resource: URI, viewPort: IRange, context: extHostProtocol.IInlineValueContextDto, token: CancellationToken): Promise<modes.InlineValue[] | undefined> {
-		const doc = this._documents.getDocument(resource);
-		const value = await this._provider.provideInlineValues(doc, typeConvert.Range.to(viewPort), typeConvert.InlineValueContext.to(context), token);
-		if (Array.isArray(value)) {
-			return value.map(iv => typeConvert.InlineValue.from(iv));
+	async pwovideInwineVawues(wesouwce: UWI, viewPowt: IWange, context: extHostPwotocow.IInwineVawueContextDto, token: CancewwationToken): Pwomise<modes.InwineVawue[] | undefined> {
+		const doc = this._documents.getDocument(wesouwce);
+		const vawue = await this._pwovida.pwovideInwineVawues(doc, typeConvewt.Wange.to(viewPowt), typeConvewt.InwineVawueContext.to(context), token);
+		if (Awway.isAwway(vawue)) {
+			wetuwn vawue.map(iv => typeConvewt.InwineVawue.fwom(iv));
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-class DocumentHighlightAdapter {
+cwass DocumentHighwightAdapta {
 
-	constructor(
-		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.DocumentHighlightProvider
+	constwuctow(
+		pwivate weadonwy _documents: ExtHostDocuments,
+		pwivate weadonwy _pwovida: vscode.DocumentHighwightPwovida
 	) { }
 
-	async provideDocumentHighlights(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.DocumentHighlight[] | undefined> {
+	async pwovideDocumentHighwights(wesouwce: UWI, position: IPosition, token: CancewwationToken): Pwomise<modes.DocumentHighwight[] | undefined> {
 
-		const doc = this._documents.getDocument(resource);
-		const pos = typeConvert.Position.to(position);
+		const doc = this._documents.getDocument(wesouwce);
+		const pos = typeConvewt.Position.to(position);
 
-		const value = await this._provider.provideDocumentHighlights(doc, pos, token);
-		if (Array.isArray(value)) {
-			return value.map(typeConvert.DocumentHighlight.from);
+		const vawue = await this._pwovida.pwovideDocumentHighwights(doc, pos, token);
+		if (Awway.isAwway(vawue)) {
+			wetuwn vawue.map(typeConvewt.DocumentHighwight.fwom);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-class LinkedEditingRangeAdapter {
-	constructor(
-		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.LinkedEditingRangeProvider
+cwass WinkedEditingWangeAdapta {
+	constwuctow(
+		pwivate weadonwy _documents: ExtHostDocuments,
+		pwivate weadonwy _pwovida: vscode.WinkedEditingWangePwovida
 	) { }
 
-	async provideLinkedEditingRanges(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.LinkedEditingRanges | undefined> {
+	async pwovideWinkedEditingWanges(wesouwce: UWI, position: IPosition, token: CancewwationToken): Pwomise<modes.WinkedEditingWanges | undefined> {
 
-		const doc = this._documents.getDocument(resource);
-		const pos = typeConvert.Position.to(position);
+		const doc = this._documents.getDocument(wesouwce);
+		const pos = typeConvewt.Position.to(position);
 
-		const value = await this._provider.provideLinkedEditingRanges(doc, pos, token);
-		if (value && Array.isArray(value.ranges)) {
-			return {
-				ranges: coalesce(value.ranges.map(typeConvert.Range.from)),
-				wordPattern: value.wordPattern
+		const vawue = await this._pwovida.pwovideWinkedEditingWanges(doc, pos, token);
+		if (vawue && Awway.isAwway(vawue.wanges)) {
+			wetuwn {
+				wanges: coawesce(vawue.wanges.map(typeConvewt.Wange.fwom)),
+				wowdPattewn: vawue.wowdPattewn
 			};
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-class ReferenceAdapter {
+cwass WefewenceAdapta {
 
-	constructor(
-		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.ReferenceProvider
+	constwuctow(
+		pwivate weadonwy _documents: ExtHostDocuments,
+		pwivate weadonwy _pwovida: vscode.WefewencePwovida
 	) { }
 
-	async provideReferences(resource: URI, position: IPosition, context: modes.ReferenceContext, token: CancellationToken): Promise<modes.Location[] | undefined> {
-		const doc = this._documents.getDocument(resource);
-		const pos = typeConvert.Position.to(position);
+	async pwovideWefewences(wesouwce: UWI, position: IPosition, context: modes.WefewenceContext, token: CancewwationToken): Pwomise<modes.Wocation[] | undefined> {
+		const doc = this._documents.getDocument(wesouwce);
+		const pos = typeConvewt.Position.to(position);
 
-		const value = await this._provider.provideReferences(doc, pos, context, token);
-		if (Array.isArray(value)) {
-			return value.map(typeConvert.location.from);
+		const vawue = await this._pwovida.pwovideWefewences(doc, pos, context, token);
+		if (Awway.isAwway(vawue)) {
+			wetuwn vawue.map(typeConvewt.wocation.fwom);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-export interface CustomCodeAction extends extHostProtocol.ICodeActionDto {
-	_isSynthetic?: boolean;
+expowt intewface CustomCodeAction extends extHostPwotocow.ICodeActionDto {
+	_isSynthetic?: boowean;
 }
 
-class CodeActionAdapter {
-	private static readonly _maxCodeActionsPerFile: number = 1000;
+cwass CodeActionAdapta {
+	pwivate static weadonwy _maxCodeActionsPewFiwe: numba = 1000;
 
-	private readonly _cache = new Cache<vscode.CodeAction | vscode.Command>('CodeAction');
-	private readonly _disposables = new Map<number, DisposableStore>();
+	pwivate weadonwy _cache = new Cache<vscode.CodeAction | vscode.Command>('CodeAction');
+	pwivate weadonwy _disposabwes = new Map<numba, DisposabweStowe>();
 
-	constructor(
-		private readonly _documents: ExtHostDocuments,
-		private readonly _commands: CommandsConverter,
-		private readonly _diagnostics: ExtHostDiagnostics,
-		private readonly _provider: vscode.CodeActionProvider,
-		private readonly _logService: ILogService,
-		private readonly _extension: IExtensionDescription,
-		private readonly _apiDeprecation: IExtHostApiDeprecationService,
+	constwuctow(
+		pwivate weadonwy _documents: ExtHostDocuments,
+		pwivate weadonwy _commands: CommandsConvewta,
+		pwivate weadonwy _diagnostics: ExtHostDiagnostics,
+		pwivate weadonwy _pwovida: vscode.CodeActionPwovida,
+		pwivate weadonwy _wogSewvice: IWogSewvice,
+		pwivate weadonwy _extension: IExtensionDescwiption,
+		pwivate weadonwy _apiDepwecation: IExtHostApiDepwecationSewvice,
 	) { }
 
-	async provideCodeActions(resource: URI, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Promise<extHostProtocol.ICodeActionListDto | undefined> {
+	async pwovideCodeActions(wesouwce: UWI, wangeOwSewection: IWange | ISewection, context: modes.CodeActionContext, token: CancewwationToken): Pwomise<extHostPwotocow.ICodeActionWistDto | undefined> {
 
-		const doc = this._documents.getDocument(resource);
-		const ran = Selection.isISelection(rangeOrSelection)
-			? <vscode.Selection>typeConvert.Selection.to(rangeOrSelection)
-			: <vscode.Range>typeConvert.Range.to(rangeOrSelection);
-		const allDiagnostics: vscode.Diagnostic[] = [];
+		const doc = this._documents.getDocument(wesouwce);
+		const wan = Sewection.isISewection(wangeOwSewection)
+			? <vscode.Sewection>typeConvewt.Sewection.to(wangeOwSewection)
+			: <vscode.Wange>typeConvewt.Wange.to(wangeOwSewection);
+		const awwDiagnostics: vscode.Diagnostic[] = [];
 
-		for (const diagnostic of this._diagnostics.getDiagnostics(resource)) {
-			if (ran.intersection(diagnostic.range)) {
-				const newLen = allDiagnostics.push(diagnostic);
-				if (newLen > CodeActionAdapter._maxCodeActionsPerFile) {
-					break;
+		fow (const diagnostic of this._diagnostics.getDiagnostics(wesouwce)) {
+			if (wan.intewsection(diagnostic.wange)) {
+				const newWen = awwDiagnostics.push(diagnostic);
+				if (newWen > CodeActionAdapta._maxCodeActionsPewFiwe) {
+					bweak;
 				}
 			}
 		}
 
 		const codeActionContext: vscode.CodeActionContext = {
-			diagnostics: allDiagnostics,
-			only: context.only ? new CodeActionKind(context.only) : undefined,
-			triggerKind: typeConvert.CodeActionTriggerKind.to(context.trigger),
+			diagnostics: awwDiagnostics,
+			onwy: context.onwy ? new CodeActionKind(context.onwy) : undefined,
+			twiggewKind: typeConvewt.CodeActionTwiggewKind.to(context.twigga),
 		};
 
-		const commandsOrActions = await this._provider.provideCodeActions(doc, ran, codeActionContext, token);
-		if (!isNonEmptyArray(commandsOrActions) || token.isCancellationRequested) {
-			return undefined;
+		const commandsOwActions = await this._pwovida.pwovideCodeActions(doc, wan, codeActionContext, token);
+		if (!isNonEmptyAwway(commandsOwActions) || token.isCancewwationWequested) {
+			wetuwn undefined;
 		}
-		const cacheId = this._cache.add(commandsOrActions);
-		const disposables = new DisposableStore();
-		this._disposables.set(cacheId, disposables);
+		const cacheId = this._cache.add(commandsOwActions);
+		const disposabwes = new DisposabweStowe();
+		this._disposabwes.set(cacheId, disposabwes);
 		const actions: CustomCodeAction[] = [];
-		for (let i = 0; i < commandsOrActions.length; i++) {
-			const candidate = commandsOrActions[i];
+		fow (wet i = 0; i < commandsOwActions.wength; i++) {
+			const candidate = commandsOwActions[i];
 			if (!candidate) {
 				continue;
 			}
-			if (CodeActionAdapter._isCommand(candidate)) {
-				// old school: synthetic code action
-				this._apiDeprecation.report('CodeActionProvider.provideCodeActions - return commands', this._extension,
-					`Return 'CodeAction' instances instead.`);
+			if (CodeActionAdapta._isCommand(candidate)) {
+				// owd schoow: synthetic code action
+				this._apiDepwecation.wepowt('CodeActionPwovida.pwovideCodeActions - wetuwn commands', this._extension,
+					`Wetuwn 'CodeAction' instances instead.`);
 
 				actions.push({
-					_isSynthetic: true,
-					title: candidate.title,
-					command: this._commands.toInternal(candidate, disposables),
+					_isSynthetic: twue,
+					titwe: candidate.titwe,
+					command: this._commands.toIntewnaw(candidate, disposabwes),
 				});
-			} else {
-				if (codeActionContext.only) {
+			} ewse {
+				if (codeActionContext.onwy) {
 					if (!candidate.kind) {
-						this._logService.warn(`${this._extension.identifier.value} - Code actions of kind '${codeActionContext.only.value} 'requested but returned code action does not have a 'kind'. Code action will be dropped. Please set 'CodeAction.kind'.`);
-					} else if (!codeActionContext.only.contains(candidate.kind)) {
-						this._logService.warn(`${this._extension.identifier.value} - Code actions of kind '${codeActionContext.only.value} 'requested but returned code action is of kind '${candidate.kind.value}'. Code action will be dropped. Please check 'CodeActionContext.only' to only return requested code actions.`);
+						this._wogSewvice.wawn(`${this._extension.identifia.vawue} - Code actions of kind '${codeActionContext.onwy.vawue} 'wequested but wetuwned code action does not have a 'kind'. Code action wiww be dwopped. Pwease set 'CodeAction.kind'.`);
+					} ewse if (!codeActionContext.onwy.contains(candidate.kind)) {
+						this._wogSewvice.wawn(`${this._extension.identifia.vawue} - Code actions of kind '${codeActionContext.onwy.vawue} 'wequested but wetuwned code action is of kind '${candidate.kind.vawue}'. Code action wiww be dwopped. Pwease check 'CodeActionContext.onwy' to onwy wetuwn wequested code actions.`);
 					}
 				}
 
-				// new school: convert code action
+				// new schoow: convewt code action
 				actions.push({
 					cacheId: [cacheId, i],
-					title: candidate.title,
-					command: candidate.command && this._commands.toInternal(candidate.command, disposables),
-					diagnostics: candidate.diagnostics && candidate.diagnostics.map(typeConvert.Diagnostic.from),
-					edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit),
-					kind: candidate.kind && candidate.kind.value,
-					isPreferred: candidate.isPreferred,
-					disabled: candidate.disabled?.reason
+					titwe: candidate.titwe,
+					command: candidate.command && this._commands.toIntewnaw(candidate.command, disposabwes),
+					diagnostics: candidate.diagnostics && candidate.diagnostics.map(typeConvewt.Diagnostic.fwom),
+					edit: candidate.edit && typeConvewt.WowkspaceEdit.fwom(candidate.edit),
+					kind: candidate.kind && candidate.kind.vawue,
+					isPwefewwed: candidate.isPwefewwed,
+					disabwed: candidate.disabwed?.weason
 				});
 			}
 		}
-		return { cacheId, actions };
+		wetuwn { cacheId, actions };
 	}
 
-	public async resolveCodeAction(id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<extHostProtocol.IWorkspaceEditDto | undefined> {
+	pubwic async wesowveCodeAction(id: extHostPwotocow.ChainedCacheId, token: CancewwationToken): Pwomise<extHostPwotocow.IWowkspaceEditDto | undefined> {
 		const [sessionId, itemId] = id;
 		const item = this._cache.get(sessionId, itemId);
-		if (!item || CodeActionAdapter._isCommand(item)) {
-			return undefined; // code actions only!
+		if (!item || CodeActionAdapta._isCommand(item)) {
+			wetuwn undefined; // code actions onwy!
 		}
-		if (!this._provider.resolveCodeAction) {
-			return; // this should not happen...
+		if (!this._pwovida.wesowveCodeAction) {
+			wetuwn; // this shouwd not happen...
 		}
-		const resolvedItem = (await this._provider.resolveCodeAction(item, token)) ?? item;
-		return resolvedItem?.edit
-			? typeConvert.WorkspaceEdit.from(resolvedItem.edit)
+		const wesowvedItem = (await this._pwovida.wesowveCodeAction(item, token)) ?? item;
+		wetuwn wesowvedItem?.edit
+			? typeConvewt.WowkspaceEdit.fwom(wesowvedItem.edit)
 			: undefined;
 	}
 
-	public releaseCodeActions(cachedId: number): void {
-		this._disposables.get(cachedId)?.dispose();
-		this._disposables.delete(cachedId);
-		this._cache.delete(cachedId);
+	pubwic weweaseCodeActions(cachedId: numba): void {
+		this._disposabwes.get(cachedId)?.dispose();
+		this._disposabwes.dewete(cachedId);
+		this._cache.dewete(cachedId);
 	}
 
-	private static _isCommand(thing: any): thing is vscode.Command {
-		return typeof (<vscode.Command>thing).command === 'string' && typeof (<vscode.Command>thing).title === 'string';
+	pwivate static _isCommand(thing: any): thing is vscode.Command {
+		wetuwn typeof (<vscode.Command>thing).command === 'stwing' && typeof (<vscode.Command>thing).titwe === 'stwing';
 	}
 }
 
-class DocumentFormattingAdapter {
+cwass DocumentFowmattingAdapta {
 
-	constructor(
-		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.DocumentFormattingEditProvider
+	constwuctow(
+		pwivate weadonwy _documents: ExtHostDocuments,
+		pwivate weadonwy _pwovida: vscode.DocumentFowmattingEditPwovida
 	) { }
 
-	async provideDocumentFormattingEdits(resource: URI, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> {
+	async pwovideDocumentFowmattingEdits(wesouwce: UWI, options: modes.FowmattingOptions, token: CancewwationToken): Pwomise<ISingweEditOpewation[] | undefined> {
 
-		const document = this._documents.getDocument(resource);
+		const document = this._documents.getDocument(wesouwce);
 
-		const value = await this._provider.provideDocumentFormattingEdits(document, <any>options, token);
-		if (Array.isArray(value)) {
-			return value.map(typeConvert.TextEdit.from);
+		const vawue = await this._pwovida.pwovideDocumentFowmattingEdits(document, <any>options, token);
+		if (Awway.isAwway(vawue)) {
+			wetuwn vawue.map(typeConvewt.TextEdit.fwom);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-class RangeFormattingAdapter {
+cwass WangeFowmattingAdapta {
 
-	constructor(
-		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.DocumentRangeFormattingEditProvider
+	constwuctow(
+		pwivate weadonwy _documents: ExtHostDocuments,
+		pwivate weadonwy _pwovida: vscode.DocumentWangeFowmattingEditPwovida
 	) { }
 
-	async provideDocumentRangeFormattingEdits(resource: URI, range: IRange, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> {
+	async pwovideDocumentWangeFowmattingEdits(wesouwce: UWI, wange: IWange, options: modes.FowmattingOptions, token: CancewwationToken): Pwomise<ISingweEditOpewation[] | undefined> {
 
-		const document = this._documents.getDocument(resource);
-		const ran = typeConvert.Range.to(range);
+		const document = this._documents.getDocument(wesouwce);
+		const wan = typeConvewt.Wange.to(wange);
 
-		const value = await this._provider.provideDocumentRangeFormattingEdits(document, ran, <any>options, token);
-		if (Array.isArray(value)) {
-			return value.map(typeConvert.TextEdit.from);
+		const vawue = await this._pwovida.pwovideDocumentWangeFowmattingEdits(document, wan, <any>options, token);
+		if (Awway.isAwway(vawue)) {
+			wetuwn vawue.map(typeConvewt.TextEdit.fwom);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-class OnTypeFormattingAdapter {
+cwass OnTypeFowmattingAdapta {
 
-	constructor(
-		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.OnTypeFormattingEditProvider
+	constwuctow(
+		pwivate weadonwy _documents: ExtHostDocuments,
+		pwivate weadonwy _pwovida: vscode.OnTypeFowmattingEditPwovida
 	) { }
 
-	autoFormatTriggerCharacters: string[] = []; // not here
+	autoFowmatTwiggewChawactews: stwing[] = []; // not hewe
 
-	async provideOnTypeFormattingEdits(resource: URI, position: IPosition, ch: string, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> {
+	async pwovideOnTypeFowmattingEdits(wesouwce: UWI, position: IPosition, ch: stwing, options: modes.FowmattingOptions, token: CancewwationToken): Pwomise<ISingweEditOpewation[] | undefined> {
 
-		const document = this._documents.getDocument(resource);
-		const pos = typeConvert.Position.to(position);
+		const document = this._documents.getDocument(wesouwce);
+		const pos = typeConvewt.Position.to(position);
 
-		const value = await this._provider.provideOnTypeFormattingEdits(document, pos, ch, <any>options, token);
-		if (Array.isArray(value)) {
-			return value.map(typeConvert.TextEdit.from);
+		const vawue = await this._pwovida.pwovideOnTypeFowmattingEdits(document, pos, ch, <any>options, token);
+		if (Awway.isAwway(vawue)) {
+			wetuwn vawue.map(typeConvewt.TextEdit.fwom);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-class NavigateTypeAdapter {
+cwass NavigateTypeAdapta {
 
-	private readonly _symbolCache = new Map<number, vscode.SymbolInformation>();
-	private readonly _resultCache = new Map<number, [number, number]>();
+	pwivate weadonwy _symbowCache = new Map<numba, vscode.SymbowInfowmation>();
+	pwivate weadonwy _wesuwtCache = new Map<numba, [numba, numba]>();
 
-	constructor(
-		private readonly _provider: vscode.WorkspaceSymbolProvider,
-		private readonly _logService: ILogService
+	constwuctow(
+		pwivate weadonwy _pwovida: vscode.WowkspaceSymbowPwovida,
+		pwivate weadonwy _wogSewvice: IWogSewvice
 	) { }
 
-	async provideWorkspaceSymbols(search: string, token: CancellationToken): Promise<extHostProtocol.IWorkspaceSymbolsDto> {
-		const result: extHostProtocol.IWorkspaceSymbolsDto = extHostProtocol.IdObject.mixin({ symbols: [] });
-		const value = await this._provider.provideWorkspaceSymbols(search, token);
-		if (isNonEmptyArray(value)) {
-			for (const item of value) {
+	async pwovideWowkspaceSymbows(seawch: stwing, token: CancewwationToken): Pwomise<extHostPwotocow.IWowkspaceSymbowsDto> {
+		const wesuwt: extHostPwotocow.IWowkspaceSymbowsDto = extHostPwotocow.IdObject.mixin({ symbows: [] });
+		const vawue = await this._pwovida.pwovideWowkspaceSymbows(seawch, token);
+		if (isNonEmptyAwway(vawue)) {
+			fow (const item of vawue) {
 				if (!item) {
-					// drop
+					// dwop
 					continue;
 				}
 				if (!item.name) {
-					this._logService.warn('INVALID SymbolInformation, lacks name', item);
+					this._wogSewvice.wawn('INVAWID SymbowInfowmation, wacks name', item);
 					continue;
 				}
-				const symbol = extHostProtocol.IdObject.mixin(typeConvert.WorkspaceSymbol.from(item));
-				this._symbolCache.set(symbol._id!, item);
-				result.symbols.push(symbol);
+				const symbow = extHostPwotocow.IdObject.mixin(typeConvewt.WowkspaceSymbow.fwom(item));
+				this._symbowCache.set(symbow._id!, item);
+				wesuwt.symbows.push(symbow);
 			}
 		}
-		if (result.symbols.length > 0) {
-			this._resultCache.set(result._id!, [result.symbols[0]._id!, result.symbols[result.symbols.length - 1]._id!]);
+		if (wesuwt.symbows.wength > 0) {
+			this._wesuwtCache.set(wesuwt._id!, [wesuwt.symbows[0]._id!, wesuwt.symbows[wesuwt.symbows.wength - 1]._id!]);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	async resolveWorkspaceSymbol(symbol: extHostProtocol.IWorkspaceSymbolDto, token: CancellationToken): Promise<extHostProtocol.IWorkspaceSymbolDto | undefined> {
-		if (typeof this._provider.resolveWorkspaceSymbol !== 'function') {
-			return symbol;
+	async wesowveWowkspaceSymbow(symbow: extHostPwotocow.IWowkspaceSymbowDto, token: CancewwationToken): Pwomise<extHostPwotocow.IWowkspaceSymbowDto | undefined> {
+		if (typeof this._pwovida.wesowveWowkspaceSymbow !== 'function') {
+			wetuwn symbow;
 		}
 
-		const item = this._symbolCache.get(symbol._id!);
+		const item = this._symbowCache.get(symbow._id!);
 		if (item) {
-			const value = await this._provider.resolveWorkspaceSymbol(item, token);
-			return value && mixin(symbol, typeConvert.WorkspaceSymbol.from(value), true);
+			const vawue = await this._pwovida.wesowveWowkspaceSymbow(item, token);
+			wetuwn vawue && mixin(symbow, typeConvewt.WowkspaceSymbow.fwom(vawue), twue);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	releaseWorkspaceSymbols(id: number): any {
-		const range = this._resultCache.get(id);
-		if (range) {
-			for (let [from, to] = range; from <= to; from++) {
-				this._symbolCache.delete(from);
+	weweaseWowkspaceSymbows(id: numba): any {
+		const wange = this._wesuwtCache.get(id);
+		if (wange) {
+			fow (wet [fwom, to] = wange; fwom <= to; fwom++) {
+				this._symbowCache.dewete(fwom);
 			}
-			this._resultCache.delete(id);
+			this._wesuwtCache.dewete(id);
 		}
 	}
 }
 
-class RenameAdapter {
+cwass WenameAdapta {
 
-	static supportsResolving(provider: vscode.RenameProvider): boolean {
-		return typeof provider.prepareRename === 'function';
+	static suppowtsWesowving(pwovida: vscode.WenamePwovida): boowean {
+		wetuwn typeof pwovida.pwepaweWename === 'function';
 	}
 
-	constructor(
-		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.RenameProvider,
-		private readonly _logService: ILogService
+	constwuctow(
+		pwivate weadonwy _documents: ExtHostDocuments,
+		pwivate weadonwy _pwovida: vscode.WenamePwovida,
+		pwivate weadonwy _wogSewvice: IWogSewvice
 	) { }
 
-	async provideRenameEdits(resource: URI, position: IPosition, newName: string, token: CancellationToken): Promise<extHostProtocol.IWorkspaceEditDto | undefined> {
+	async pwovideWenameEdits(wesouwce: UWI, position: IPosition, newName: stwing, token: CancewwationToken): Pwomise<extHostPwotocow.IWowkspaceEditDto | undefined> {
 
-		const doc = this._documents.getDocument(resource);
-		const pos = typeConvert.Position.to(position);
+		const doc = this._documents.getDocument(wesouwce);
+		const pos = typeConvewt.Position.to(position);
 
-		try {
-			const value = await this._provider.provideRenameEdits(doc, pos, newName, token);
-			if (!value) {
-				return undefined;
+		twy {
+			const vawue = await this._pwovida.pwovideWenameEdits(doc, pos, newName, token);
+			if (!vawue) {
+				wetuwn undefined;
 			}
-			return typeConvert.WorkspaceEdit.from(value);
+			wetuwn typeConvewt.WowkspaceEdit.fwom(vawue);
 
-		} catch (err) {
-			const rejectReason = RenameAdapter._asMessage(err);
-			if (rejectReason) {
-				return <extHostProtocol.IWorkspaceEditDto>{ rejectReason, edits: undefined! };
-			} else {
-				// generic error
-				return Promise.reject<extHostProtocol.IWorkspaceEditDto>(err);
-			}
-		}
-	}
-
-	async resolveRenameLocation(resource: URI, position: IPosition, token: CancellationToken): Promise<(modes.RenameLocation & modes.Rejection) | undefined> {
-		if (typeof this._provider.prepareRename !== 'function') {
-			return Promise.resolve(undefined);
-		}
-
-		const doc = this._documents.getDocument(resource);
-		const pos = typeConvert.Position.to(position);
-
-		try {
-			const rangeOrLocation = await this._provider.prepareRename(doc, pos, token);
-
-			let range: vscode.Range | undefined;
-			let text: string | undefined;
-			if (Range.isRange(rangeOrLocation)) {
-				range = rangeOrLocation;
-				text = doc.getText(rangeOrLocation);
-
-			} else if (isObject(rangeOrLocation)) {
-				range = rangeOrLocation.range;
-				text = rangeOrLocation.placeholder;
-			}
-
-			if (!range || !text) {
-				return undefined;
-			}
-			if (range.start.line > pos.line || range.end.line < pos.line) {
-				this._logService.warn('INVALID rename location: position line must be within range start/end lines');
-				return undefined;
-			}
-			return { range: typeConvert.Range.from(range), text };
-
-		} catch (err) {
-			const rejectReason = RenameAdapter._asMessage(err);
-			if (rejectReason) {
-				return <modes.RenameLocation & modes.Rejection>{ rejectReason, range: undefined!, text: undefined! };
-			} else {
-				return Promise.reject<any>(err);
+		} catch (eww) {
+			const wejectWeason = WenameAdapta._asMessage(eww);
+			if (wejectWeason) {
+				wetuwn <extHostPwotocow.IWowkspaceEditDto>{ wejectWeason, edits: undefined! };
+			} ewse {
+				// genewic ewwow
+				wetuwn Pwomise.weject<extHostPwotocow.IWowkspaceEditDto>(eww);
 			}
 		}
 	}
 
-	private static _asMessage(err: any): string | undefined {
-		if (typeof err === 'string') {
-			return err;
-		} else if (err instanceof Error && typeof err.message === 'string') {
-			return err.message;
-		} else {
-			return undefined;
+	async wesowveWenameWocation(wesouwce: UWI, position: IPosition, token: CancewwationToken): Pwomise<(modes.WenameWocation & modes.Wejection) | undefined> {
+		if (typeof this._pwovida.pwepaweWename !== 'function') {
+			wetuwn Pwomise.wesowve(undefined);
+		}
+
+		const doc = this._documents.getDocument(wesouwce);
+		const pos = typeConvewt.Position.to(position);
+
+		twy {
+			const wangeOwWocation = await this._pwovida.pwepaweWename(doc, pos, token);
+
+			wet wange: vscode.Wange | undefined;
+			wet text: stwing | undefined;
+			if (Wange.isWange(wangeOwWocation)) {
+				wange = wangeOwWocation;
+				text = doc.getText(wangeOwWocation);
+
+			} ewse if (isObject(wangeOwWocation)) {
+				wange = wangeOwWocation.wange;
+				text = wangeOwWocation.pwacehowda;
+			}
+
+			if (!wange || !text) {
+				wetuwn undefined;
+			}
+			if (wange.stawt.wine > pos.wine || wange.end.wine < pos.wine) {
+				this._wogSewvice.wawn('INVAWID wename wocation: position wine must be within wange stawt/end wines');
+				wetuwn undefined;
+			}
+			wetuwn { wange: typeConvewt.Wange.fwom(wange), text };
+
+		} catch (eww) {
+			const wejectWeason = WenameAdapta._asMessage(eww);
+			if (wejectWeason) {
+				wetuwn <modes.WenameWocation & modes.Wejection>{ wejectWeason, wange: undefined!, text: undefined! };
+			} ewse {
+				wetuwn Pwomise.weject<any>(eww);
+			}
+		}
+	}
+
+	pwivate static _asMessage(eww: any): stwing | undefined {
+		if (typeof eww === 'stwing') {
+			wetuwn eww;
+		} ewse if (eww instanceof Ewwow && typeof eww.message === 'stwing') {
+			wetuwn eww.message;
+		} ewse {
+			wetuwn undefined;
 		}
 	}
 }
 
-class SemanticTokensPreviousResult {
-	constructor(
-		public readonly resultId: string | undefined,
-		public readonly tokens?: Uint32Array,
+cwass SemanticTokensPweviousWesuwt {
+	constwuctow(
+		pubwic weadonwy wesuwtId: stwing | undefined,
+		pubwic weadonwy tokens?: Uint32Awway,
 	) { }
 }
 
-type RelaxedSemanticTokens = { readonly resultId?: string; readonly data: number[]; };
-type RelaxedSemanticTokensEdit = { readonly start: number; readonly deleteCount: number; readonly data?: number[]; };
-type RelaxedSemanticTokensEdits = { readonly resultId?: string; readonly edits: RelaxedSemanticTokensEdit[]; };
+type WewaxedSemanticTokens = { weadonwy wesuwtId?: stwing; weadonwy data: numba[]; };
+type WewaxedSemanticTokensEdit = { weadonwy stawt: numba; weadonwy deweteCount: numba; weadonwy data?: numba[]; };
+type WewaxedSemanticTokensEdits = { weadonwy wesuwtId?: stwing; weadonwy edits: WewaxedSemanticTokensEdit[]; };
 
-type ProvidedSemanticTokens = vscode.SemanticTokens | RelaxedSemanticTokens;
-type ProvidedSemanticTokensEdits = vscode.SemanticTokensEdits | RelaxedSemanticTokensEdits;
+type PwovidedSemanticTokens = vscode.SemanticTokens | WewaxedSemanticTokens;
+type PwovidedSemanticTokensEdits = vscode.SemanticTokensEdits | WewaxedSemanticTokensEdits;
 
-export class DocumentSemanticTokensAdapter {
+expowt cwass DocumentSemanticTokensAdapta {
 
-	private readonly _previousResults: Map<number, SemanticTokensPreviousResult>;
-	private _nextResultId = 1;
+	pwivate weadonwy _pweviousWesuwts: Map<numba, SemanticTokensPweviousWesuwt>;
+	pwivate _nextWesuwtId = 1;
 
-	constructor(
-		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.DocumentSemanticTokensProvider,
+	constwuctow(
+		pwivate weadonwy _documents: ExtHostDocuments,
+		pwivate weadonwy _pwovida: vscode.DocumentSemanticTokensPwovida,
 	) {
-		this._previousResults = new Map<number, SemanticTokensPreviousResult>();
+		this._pweviousWesuwts = new Map<numba, SemanticTokensPweviousWesuwt>();
 	}
 
-	async provideDocumentSemanticTokens(resource: URI, previousResultId: number, token: CancellationToken): Promise<VSBuffer | null> {
-		const doc = this._documents.getDocument(resource);
-		const previousResult = (previousResultId !== 0 ? this._previousResults.get(previousResultId) : null);
-		let value = typeof previousResult?.resultId === 'string' && typeof this._provider.provideDocumentSemanticTokensEdits === 'function'
-			? await this._provider.provideDocumentSemanticTokensEdits(doc, previousResult.resultId, token)
-			: await this._provider.provideDocumentSemanticTokens(doc, token);
+	async pwovideDocumentSemanticTokens(wesouwce: UWI, pweviousWesuwtId: numba, token: CancewwationToken): Pwomise<VSBuffa | nuww> {
+		const doc = this._documents.getDocument(wesouwce);
+		const pweviousWesuwt = (pweviousWesuwtId !== 0 ? this._pweviousWesuwts.get(pweviousWesuwtId) : nuww);
+		wet vawue = typeof pweviousWesuwt?.wesuwtId === 'stwing' && typeof this._pwovida.pwovideDocumentSemanticTokensEdits === 'function'
+			? await this._pwovida.pwovideDocumentSemanticTokensEdits(doc, pweviousWesuwt.wesuwtId, token)
+			: await this._pwovida.pwovideDocumentSemanticTokens(doc, token);
 
-		if (previousResult) {
-			this._previousResults.delete(previousResultId);
+		if (pweviousWesuwt) {
+			this._pweviousWesuwts.dewete(pweviousWesuwtId);
 		}
-		if (!value) {
-			return null;
+		if (!vawue) {
+			wetuwn nuww;
 		}
-		value = DocumentSemanticTokensAdapter._fixProvidedSemanticTokens(value);
-		return this._send(DocumentSemanticTokensAdapter._convertToEdits(previousResult, value), value);
+		vawue = DocumentSemanticTokensAdapta._fixPwovidedSemanticTokens(vawue);
+		wetuwn this._send(DocumentSemanticTokensAdapta._convewtToEdits(pweviousWesuwt, vawue), vawue);
 	}
 
-	async releaseDocumentSemanticColoring(semanticColoringResultId: number): Promise<void> {
-		this._previousResults.delete(semanticColoringResultId);
+	async weweaseDocumentSemanticCowowing(semanticCowowingWesuwtId: numba): Pwomise<void> {
+		this._pweviousWesuwts.dewete(semanticCowowingWesuwtId);
 	}
 
-	private static _fixProvidedSemanticTokens(v: ProvidedSemanticTokens | ProvidedSemanticTokensEdits): vscode.SemanticTokens | vscode.SemanticTokensEdits {
-		if (DocumentSemanticTokensAdapter._isSemanticTokens(v)) {
-			if (DocumentSemanticTokensAdapter._isCorrectSemanticTokens(v)) {
-				return v;
+	pwivate static _fixPwovidedSemanticTokens(v: PwovidedSemanticTokens | PwovidedSemanticTokensEdits): vscode.SemanticTokens | vscode.SemanticTokensEdits {
+		if (DocumentSemanticTokensAdapta._isSemanticTokens(v)) {
+			if (DocumentSemanticTokensAdapta._isCowwectSemanticTokens(v)) {
+				wetuwn v;
 			}
-			return new SemanticTokens(new Uint32Array(v.data), v.resultId);
-		} else if (DocumentSemanticTokensAdapter._isSemanticTokensEdits(v)) {
-			if (DocumentSemanticTokensAdapter._isCorrectSemanticTokensEdits(v)) {
-				return v;
+			wetuwn new SemanticTokens(new Uint32Awway(v.data), v.wesuwtId);
+		} ewse if (DocumentSemanticTokensAdapta._isSemanticTokensEdits(v)) {
+			if (DocumentSemanticTokensAdapta._isCowwectSemanticTokensEdits(v)) {
+				wetuwn v;
 			}
-			return new SemanticTokensEdits(v.edits.map(edit => new SemanticTokensEdit(edit.start, edit.deleteCount, edit.data ? new Uint32Array(edit.data) : edit.data)), v.resultId);
+			wetuwn new SemanticTokensEdits(v.edits.map(edit => new SemanticTokensEdit(edit.stawt, edit.deweteCount, edit.data ? new Uint32Awway(edit.data) : edit.data)), v.wesuwtId);
 		}
-		return v;
+		wetuwn v;
 	}
 
-	private static _isSemanticTokens(v: ProvidedSemanticTokens | ProvidedSemanticTokensEdits): v is ProvidedSemanticTokens {
-		return v && !!((v as ProvidedSemanticTokens).data);
+	pwivate static _isSemanticTokens(v: PwovidedSemanticTokens | PwovidedSemanticTokensEdits): v is PwovidedSemanticTokens {
+		wetuwn v && !!((v as PwovidedSemanticTokens).data);
 	}
 
-	private static _isCorrectSemanticTokens(v: ProvidedSemanticTokens): v is vscode.SemanticTokens {
-		return (v.data instanceof Uint32Array);
+	pwivate static _isCowwectSemanticTokens(v: PwovidedSemanticTokens): v is vscode.SemanticTokens {
+		wetuwn (v.data instanceof Uint32Awway);
 	}
 
-	private static _isSemanticTokensEdits(v: ProvidedSemanticTokens | ProvidedSemanticTokensEdits): v is ProvidedSemanticTokensEdits {
-		return v && Array.isArray((v as ProvidedSemanticTokensEdits).edits);
+	pwivate static _isSemanticTokensEdits(v: PwovidedSemanticTokens | PwovidedSemanticTokensEdits): v is PwovidedSemanticTokensEdits {
+		wetuwn v && Awway.isAwway((v as PwovidedSemanticTokensEdits).edits);
 	}
 
-	private static _isCorrectSemanticTokensEdits(v: ProvidedSemanticTokensEdits): v is vscode.SemanticTokensEdits {
-		for (const edit of v.edits) {
-			if (!(edit.data instanceof Uint32Array)) {
-				return false;
+	pwivate static _isCowwectSemanticTokensEdits(v: PwovidedSemanticTokensEdits): v is vscode.SemanticTokensEdits {
+		fow (const edit of v.edits) {
+			if (!(edit.data instanceof Uint32Awway)) {
+				wetuwn fawse;
 			}
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	private static _convertToEdits(previousResult: SemanticTokensPreviousResult | null | undefined, newResult: vscode.SemanticTokens | vscode.SemanticTokensEdits): vscode.SemanticTokens | vscode.SemanticTokensEdits {
-		if (!DocumentSemanticTokensAdapter._isSemanticTokens(newResult)) {
-			return newResult;
+	pwivate static _convewtToEdits(pweviousWesuwt: SemanticTokensPweviousWesuwt | nuww | undefined, newWesuwt: vscode.SemanticTokens | vscode.SemanticTokensEdits): vscode.SemanticTokens | vscode.SemanticTokensEdits {
+		if (!DocumentSemanticTokensAdapta._isSemanticTokens(newWesuwt)) {
+			wetuwn newWesuwt;
 		}
-		if (!previousResult || !previousResult.tokens) {
-			return newResult;
+		if (!pweviousWesuwt || !pweviousWesuwt.tokens) {
+			wetuwn newWesuwt;
 		}
-		const oldData = previousResult.tokens;
-		const oldLength = oldData.length;
-		const newData = newResult.data;
-		const newLength = newData.length;
+		const owdData = pweviousWesuwt.tokens;
+		const owdWength = owdData.wength;
+		const newData = newWesuwt.data;
+		const newWength = newData.wength;
 
-		let commonPrefixLength = 0;
-		const maxCommonPrefixLength = Math.min(oldLength, newLength);
-		while (commonPrefixLength < maxCommonPrefixLength && oldData[commonPrefixLength] === newData[commonPrefixLength]) {
-			commonPrefixLength++;
-		}
-
-		if (commonPrefixLength === oldLength && commonPrefixLength === newLength) {
-			// complete overlap!
-			return new SemanticTokensEdits([], newResult.resultId);
+		wet commonPwefixWength = 0;
+		const maxCommonPwefixWength = Math.min(owdWength, newWength);
+		whiwe (commonPwefixWength < maxCommonPwefixWength && owdData[commonPwefixWength] === newData[commonPwefixWength]) {
+			commonPwefixWength++;
 		}
 
-		let commonSuffixLength = 0;
-		const maxCommonSuffixLength = maxCommonPrefixLength - commonPrefixLength;
-		while (commonSuffixLength < maxCommonSuffixLength && oldData[oldLength - commonSuffixLength - 1] === newData[newLength - commonSuffixLength - 1]) {
-			commonSuffixLength++;
+		if (commonPwefixWength === owdWength && commonPwefixWength === newWength) {
+			// compwete ovewwap!
+			wetuwn new SemanticTokensEdits([], newWesuwt.wesuwtId);
 		}
 
-		return new SemanticTokensEdits([{
-			start: commonPrefixLength,
-			deleteCount: (oldLength - commonPrefixLength - commonSuffixLength),
-			data: newData.subarray(commonPrefixLength, newLength - commonSuffixLength)
-		}], newResult.resultId);
+		wet commonSuffixWength = 0;
+		const maxCommonSuffixWength = maxCommonPwefixWength - commonPwefixWength;
+		whiwe (commonSuffixWength < maxCommonSuffixWength && owdData[owdWength - commonSuffixWength - 1] === newData[newWength - commonSuffixWength - 1]) {
+			commonSuffixWength++;
+		}
+
+		wetuwn new SemanticTokensEdits([{
+			stawt: commonPwefixWength,
+			deweteCount: (owdWength - commonPwefixWength - commonSuffixWength),
+			data: newData.subawway(commonPwefixWength, newWength - commonSuffixWength)
+		}], newWesuwt.wesuwtId);
 	}
 
-	private _send(value: vscode.SemanticTokens | vscode.SemanticTokensEdits, original: vscode.SemanticTokens | vscode.SemanticTokensEdits): VSBuffer | null {
-		if (DocumentSemanticTokensAdapter._isSemanticTokens(value)) {
-			const myId = this._nextResultId++;
-			this._previousResults.set(myId, new SemanticTokensPreviousResult(value.resultId, value.data));
-			return encodeSemanticTokensDto({
+	pwivate _send(vawue: vscode.SemanticTokens | vscode.SemanticTokensEdits, owiginaw: vscode.SemanticTokens | vscode.SemanticTokensEdits): VSBuffa | nuww {
+		if (DocumentSemanticTokensAdapta._isSemanticTokens(vawue)) {
+			const myId = this._nextWesuwtId++;
+			this._pweviousWesuwts.set(myId, new SemanticTokensPweviousWesuwt(vawue.wesuwtId, vawue.data));
+			wetuwn encodeSemanticTokensDto({
 				id: myId,
-				type: 'full',
-				data: value.data
+				type: 'fuww',
+				data: vawue.data
 			});
 		}
 
-		if (DocumentSemanticTokensAdapter._isSemanticTokensEdits(value)) {
-			const myId = this._nextResultId++;
-			if (DocumentSemanticTokensAdapter._isSemanticTokens(original)) {
-				// store the original
-				this._previousResults.set(myId, new SemanticTokensPreviousResult(original.resultId, original.data));
-			} else {
-				this._previousResults.set(myId, new SemanticTokensPreviousResult(value.resultId));
+		if (DocumentSemanticTokensAdapta._isSemanticTokensEdits(vawue)) {
+			const myId = this._nextWesuwtId++;
+			if (DocumentSemanticTokensAdapta._isSemanticTokens(owiginaw)) {
+				// stowe the owiginaw
+				this._pweviousWesuwts.set(myId, new SemanticTokensPweviousWesuwt(owiginaw.wesuwtId, owiginaw.data));
+			} ewse {
+				this._pweviousWesuwts.set(myId, new SemanticTokensPweviousWesuwt(vawue.wesuwtId));
 			}
-			return encodeSemanticTokensDto({
+			wetuwn encodeSemanticTokensDto({
 				id: myId,
-				type: 'delta',
-				deltas: (value.edits || []).map(edit => ({ start: edit.start, deleteCount: edit.deleteCount, data: edit.data }))
+				type: 'dewta',
+				dewtas: (vawue.edits || []).map(edit => ({ stawt: edit.stawt, deweteCount: edit.deweteCount, data: edit.data }))
 			});
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 }
 
-export class DocumentRangeSemanticTokensAdapter {
+expowt cwass DocumentWangeSemanticTokensAdapta {
 
-	constructor(
-		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.DocumentRangeSemanticTokensProvider,
+	constwuctow(
+		pwivate weadonwy _documents: ExtHostDocuments,
+		pwivate weadonwy _pwovida: vscode.DocumentWangeSemanticTokensPwovida,
 	) {
 	}
 
-	async provideDocumentRangeSemanticTokens(resource: URI, range: IRange, token: CancellationToken): Promise<VSBuffer | null> {
-		const doc = this._documents.getDocument(resource);
-		const value = await this._provider.provideDocumentRangeSemanticTokens(doc, typeConvert.Range.to(range), token);
-		if (!value) {
-			return null;
+	async pwovideDocumentWangeSemanticTokens(wesouwce: UWI, wange: IWange, token: CancewwationToken): Pwomise<VSBuffa | nuww> {
+		const doc = this._documents.getDocument(wesouwce);
+		const vawue = await this._pwovida.pwovideDocumentWangeSemanticTokens(doc, typeConvewt.Wange.to(wange), token);
+		if (!vawue) {
+			wetuwn nuww;
 		}
-		return this._send(value);
+		wetuwn this._send(vawue);
 	}
 
-	private _send(value: vscode.SemanticTokens): VSBuffer {
-		return encodeSemanticTokensDto({
+	pwivate _send(vawue: vscode.SemanticTokens): VSBuffa {
+		wetuwn encodeSemanticTokensDto({
 			id: 0,
-			type: 'full',
-			data: value.data
+			type: 'fuww',
+			data: vawue.data
 		});
 	}
 }
 
-class SuggestAdapter {
+cwass SuggestAdapta {
 
-	static supportsResolving(provider: vscode.CompletionItemProvider): boolean {
-		return typeof provider.resolveCompletionItem === 'function';
+	static suppowtsWesowving(pwovida: vscode.CompwetionItemPwovida): boowean {
+		wetuwn typeof pwovida.wesowveCompwetionItem === 'function';
 	}
 
-	private _cache = new Cache<vscode.CompletionItem>('CompletionItem');
-	private _disposables = new Map<number, DisposableStore>();
+	pwivate _cache = new Cache<vscode.CompwetionItem>('CompwetionItem');
+	pwivate _disposabwes = new Map<numba, DisposabweStowe>();
 
-	constructor(
-		private readonly _documents: ExtHostDocuments,
-		private readonly _commands: CommandsConverter,
-		private readonly _provider: vscode.CompletionItemProvider,
-		private readonly _apiDeprecation: IExtHostApiDeprecationService,
-		private readonly _extension: IExtensionDescription,
+	constwuctow(
+		pwivate weadonwy _documents: ExtHostDocuments,
+		pwivate weadonwy _commands: CommandsConvewta,
+		pwivate weadonwy _pwovida: vscode.CompwetionItemPwovida,
+		pwivate weadonwy _apiDepwecation: IExtHostApiDepwecationSewvice,
+		pwivate weadonwy _extension: IExtensionDescwiption,
 	) { }
 
-	async provideCompletionItems(resource: URI, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<extHostProtocol.ISuggestResultDto | undefined> {
+	async pwovideCompwetionItems(wesouwce: UWI, position: IPosition, context: modes.CompwetionContext, token: CancewwationToken): Pwomise<extHostPwotocow.ISuggestWesuwtDto | undefined> {
 
-		const doc = this._documents.getDocument(resource);
-		const pos = typeConvert.Position.to(position);
+		const doc = this._documents.getDocument(wesouwce);
+		const pos = typeConvewt.Position.to(position);
 
-		// The default insert/replace ranges. It's important to compute them
-		// before asynchronously asking the provider for its results. See
-		// https://github.com/microsoft/vscode/issues/83400#issuecomment-546851421
-		const replaceRange = doc.getWordRangeAtPosition(pos) || new Range(pos, pos);
-		const insertRange = replaceRange.with({ end: pos });
+		// The defauwt insewt/wepwace wanges. It's impowtant to compute them
+		// befowe asynchwonouswy asking the pwovida fow its wesuwts. See
+		// https://github.com/micwosoft/vscode/issues/83400#issuecomment-546851421
+		const wepwaceWange = doc.getWowdWangeAtPosition(pos) || new Wange(pos, pos);
+		const insewtWange = wepwaceWange.with({ end: pos });
 
-		const sw = new StopWatch(true);
-		const itemsOrList = await this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.to(context));
+		const sw = new StopWatch(twue);
+		const itemsOwWist = await this._pwovida.pwovideCompwetionItems(doc, pos, token, typeConvewt.CompwetionContext.to(context));
 
-		if (!itemsOrList) {
-			// undefined and null are valid results
-			return undefined;
+		if (!itemsOwWist) {
+			// undefined and nuww awe vawid wesuwts
+			wetuwn undefined;
 		}
 
-		if (token.isCancellationRequested) {
-			// cancelled -> return without further ado, esp no caching
-			// of results as they will leak
-			return undefined;
+		if (token.isCancewwationWequested) {
+			// cancewwed -> wetuwn without fuwtha ado, esp no caching
+			// of wesuwts as they wiww weak
+			wetuwn undefined;
 		}
 
-		const list = Array.isArray(itemsOrList) ? new CompletionList(itemsOrList) : itemsOrList;
+		const wist = Awway.isAwway(itemsOwWist) ? new CompwetionWist(itemsOwWist) : itemsOwWist;
 
-		// keep result for providers that support resolving
-		const pid: number = SuggestAdapter.supportsResolving(this._provider) ? this._cache.add(list.items) : this._cache.add([]);
-		const disposables = new DisposableStore();
-		this._disposables.set(pid, disposables);
+		// keep wesuwt fow pwovidews that suppowt wesowving
+		const pid: numba = SuggestAdapta.suppowtsWesowving(this._pwovida) ? this._cache.add(wist.items) : this._cache.add([]);
+		const disposabwes = new DisposabweStowe();
+		this._disposabwes.set(pid, disposabwes);
 
-		const completions: extHostProtocol.ISuggestDataDto[] = [];
-		const result: extHostProtocol.ISuggestResultDto = {
+		const compwetions: extHostPwotocow.ISuggestDataDto[] = [];
+		const wesuwt: extHostPwotocow.ISuggestWesuwtDto = {
 			x: pid,
-			[extHostProtocol.ISuggestResultDtoField.completions]: completions,
-			[extHostProtocol.ISuggestResultDtoField.defaultRanges]: { replace: typeConvert.Range.from(replaceRange), insert: typeConvert.Range.from(insertRange) },
-			[extHostProtocol.ISuggestResultDtoField.isIncomplete]: list.isIncomplete || undefined,
-			[extHostProtocol.ISuggestResultDtoField.duration]: sw.elapsed()
+			[extHostPwotocow.ISuggestWesuwtDtoFiewd.compwetions]: compwetions,
+			[extHostPwotocow.ISuggestWesuwtDtoFiewd.defauwtWanges]: { wepwace: typeConvewt.Wange.fwom(wepwaceWange), insewt: typeConvewt.Wange.fwom(insewtWange) },
+			[extHostPwotocow.ISuggestWesuwtDtoFiewd.isIncompwete]: wist.isIncompwete || undefined,
+			[extHostPwotocow.ISuggestWesuwtDtoFiewd.duwation]: sw.ewapsed()
 		};
 
-		for (let i = 0; i < list.items.length; i++) {
-			const item = list.items[i];
-			// check for bad completion item first
-			const dto = this._convertCompletionItem(item, [pid, i], insertRange, replaceRange);
-			completions.push(dto);
+		fow (wet i = 0; i < wist.items.wength; i++) {
+			const item = wist.items[i];
+			// check fow bad compwetion item fiwst
+			const dto = this._convewtCompwetionItem(item, [pid, i], insewtWange, wepwaceWange);
+			compwetions.push(dto);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	async resolveCompletionItem(id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<extHostProtocol.ISuggestDataDto | undefined> {
+	async wesowveCompwetionItem(id: extHostPwotocow.ChainedCacheId, token: CancewwationToken): Pwomise<extHostPwotocow.ISuggestDataDto | undefined> {
 
-		if (typeof this._provider.resolveCompletionItem !== 'function') {
-			return undefined;
+		if (typeof this._pwovida.wesowveCompwetionItem !== 'function') {
+			wetuwn undefined;
 		}
 
 		const item = this._cache.get(...id);
 		if (!item) {
-			return undefined;
+			wetuwn undefined;
 		}
 
-		const resolvedItem = await this._provider.resolveCompletionItem!(item, token);
+		const wesowvedItem = await this._pwovida.wesowveCompwetionItem!(item, token);
 
-		if (!resolvedItem) {
-			return undefined;
+		if (!wesowvedItem) {
+			wetuwn undefined;
 		}
 
-		return this._convertCompletionItem(resolvedItem, id);
+		wetuwn this._convewtCompwetionItem(wesowvedItem, id);
 	}
 
-	releaseCompletionItems(id: number): any {
-		this._disposables.get(id)?.dispose();
-		this._disposables.delete(id);
-		this._cache.delete(id);
+	weweaseCompwetionItems(id: numba): any {
+		this._disposabwes.get(id)?.dispose();
+		this._disposabwes.dewete(id);
+		this._cache.dewete(id);
 	}
 
-	private _convertCompletionItem(item: vscode.CompletionItem, id: extHostProtocol.ChainedCacheId, defaultInsertRange?: vscode.Range, defaultReplaceRange?: vscode.Range): extHostProtocol.ISuggestDataDto {
+	pwivate _convewtCompwetionItem(item: vscode.CompwetionItem, id: extHostPwotocow.ChainedCacheId, defauwtInsewtWange?: vscode.Wange, defauwtWepwaceWange?: vscode.Wange): extHostPwotocow.ISuggestDataDto {
 
-		const disposables = this._disposables.get(id[0]);
-		if (!disposables) {
-			throw Error('DisposableStore is missing...');
+		const disposabwes = this._disposabwes.get(id[0]);
+		if (!disposabwes) {
+			thwow Ewwow('DisposabweStowe is missing...');
 		}
 
-		const result: extHostProtocol.ISuggestDataDto = {
+		const wesuwt: extHostPwotocow.ISuggestDataDto = {
 			//
 			x: id,
 			//
-			[extHostProtocol.ISuggestDataDtoField.label]: item.label,
-			[extHostProtocol.ISuggestDataDtoField.kind]: item.kind !== undefined ? typeConvert.CompletionItemKind.from(item.kind) : undefined,
-			[extHostProtocol.ISuggestDataDtoField.kindModifier]: item.tags && item.tags.map(typeConvert.CompletionItemTag.from),
-			[extHostProtocol.ISuggestDataDtoField.detail]: item.detail,
-			[extHostProtocol.ISuggestDataDtoField.documentation]: typeof item.documentation === 'undefined' ? undefined : typeConvert.MarkdownString.fromStrict(item.documentation),
-			[extHostProtocol.ISuggestDataDtoField.sortText]: item.sortText !== item.label ? item.sortText : undefined,
-			[extHostProtocol.ISuggestDataDtoField.filterText]: item.filterText !== item.label ? item.filterText : undefined,
-			[extHostProtocol.ISuggestDataDtoField.preselect]: item.preselect || undefined,
-			[extHostProtocol.ISuggestDataDtoField.insertTextRules]: item.keepWhitespace ? modes.CompletionItemInsertTextRule.KeepWhitespace : 0,
-			[extHostProtocol.ISuggestDataDtoField.commitCharacters]: item.commitCharacters,
-			[extHostProtocol.ISuggestDataDtoField.additionalTextEdits]: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
-			[extHostProtocol.ISuggestDataDtoField.command]: this._commands.toInternal(item.command, disposables),
+			[extHostPwotocow.ISuggestDataDtoFiewd.wabew]: item.wabew,
+			[extHostPwotocow.ISuggestDataDtoFiewd.kind]: item.kind !== undefined ? typeConvewt.CompwetionItemKind.fwom(item.kind) : undefined,
+			[extHostPwotocow.ISuggestDataDtoFiewd.kindModifia]: item.tags && item.tags.map(typeConvewt.CompwetionItemTag.fwom),
+			[extHostPwotocow.ISuggestDataDtoFiewd.detaiw]: item.detaiw,
+			[extHostPwotocow.ISuggestDataDtoFiewd.documentation]: typeof item.documentation === 'undefined' ? undefined : typeConvewt.MawkdownStwing.fwomStwict(item.documentation),
+			[extHostPwotocow.ISuggestDataDtoFiewd.sowtText]: item.sowtText !== item.wabew ? item.sowtText : undefined,
+			[extHostPwotocow.ISuggestDataDtoFiewd.fiwtewText]: item.fiwtewText !== item.wabew ? item.fiwtewText : undefined,
+			[extHostPwotocow.ISuggestDataDtoFiewd.pwesewect]: item.pwesewect || undefined,
+			[extHostPwotocow.ISuggestDataDtoFiewd.insewtTextWuwes]: item.keepWhitespace ? modes.CompwetionItemInsewtTextWuwe.KeepWhitespace : 0,
+			[extHostPwotocow.ISuggestDataDtoFiewd.commitChawactews]: item.commitChawactews,
+			[extHostPwotocow.ISuggestDataDtoFiewd.additionawTextEdits]: item.additionawTextEdits && item.additionawTextEdits.map(typeConvewt.TextEdit.fwom),
+			[extHostPwotocow.ISuggestDataDtoFiewd.command]: this._commands.toIntewnaw(item.command, disposabwes),
 		};
 
-		// 'insertText'-logic
+		// 'insewtText'-wogic
 		if (item.textEdit) {
-			this._apiDeprecation.report('CompletionItem.textEdit', this._extension, `Use 'CompletionItem.insertText' and 'CompletionItem.range' instead.`);
-			result[extHostProtocol.ISuggestDataDtoField.insertText] = item.textEdit.newText;
+			this._apiDepwecation.wepowt('CompwetionItem.textEdit', this._extension, `Use 'CompwetionItem.insewtText' and 'CompwetionItem.wange' instead.`);
+			wesuwt[extHostPwotocow.ISuggestDataDtoFiewd.insewtText] = item.textEdit.newText;
 
-		} else if (typeof item.insertText === 'string') {
-			result[extHostProtocol.ISuggestDataDtoField.insertText] = item.insertText;
+		} ewse if (typeof item.insewtText === 'stwing') {
+			wesuwt[extHostPwotocow.ISuggestDataDtoFiewd.insewtText] = item.insewtText;
 
-		} else if (item.insertText instanceof SnippetString) {
-			result[extHostProtocol.ISuggestDataDtoField.insertText] = item.insertText.value;
-			result[extHostProtocol.ISuggestDataDtoField.insertTextRules]! |= modes.CompletionItemInsertTextRule.InsertAsSnippet;
+		} ewse if (item.insewtText instanceof SnippetStwing) {
+			wesuwt[extHostPwotocow.ISuggestDataDtoFiewd.insewtText] = item.insewtText.vawue;
+			wesuwt[extHostPwotocow.ISuggestDataDtoFiewd.insewtTextWuwes]! |= modes.CompwetionItemInsewtTextWuwe.InsewtAsSnippet;
 		}
 
-		// 'overwrite[Before|After]'-logic
-		let range: vscode.Range | { inserting: vscode.Range, replacing: vscode.Range; } | undefined;
+		// 'ovewwwite[Befowe|Afta]'-wogic
+		wet wange: vscode.Wange | { insewting: vscode.Wange, wepwacing: vscode.Wange; } | undefined;
 		if (item.textEdit) {
-			range = item.textEdit.range;
-		} else if (item.range) {
-			range = item.range;
+			wange = item.textEdit.wange;
+		} ewse if (item.wange) {
+			wange = item.wange;
 		}
 
-		if (Range.isRange(range)) {
-			// "old" range
-			result[extHostProtocol.ISuggestDataDtoField.range] = typeConvert.Range.from(range);
+		if (Wange.isWange(wange)) {
+			// "owd" wange
+			wesuwt[extHostPwotocow.ISuggestDataDtoFiewd.wange] = typeConvewt.Wange.fwom(wange);
 
-		} else if (range && (!defaultInsertRange?.isEqual(range.inserting) || !defaultReplaceRange?.isEqual(range.replacing))) {
-			// ONLY send range when it's different from the default ranges (safe bandwidth)
-			result[extHostProtocol.ISuggestDataDtoField.range] = {
-				insert: typeConvert.Range.from(range.inserting),
-				replace: typeConvert.Range.from(range.replacing)
+		} ewse if (wange && (!defauwtInsewtWange?.isEquaw(wange.insewting) || !defauwtWepwaceWange?.isEquaw(wange.wepwacing))) {
+			// ONWY send wange when it's diffewent fwom the defauwt wanges (safe bandwidth)
+			wesuwt[extHostPwotocow.ISuggestDataDtoFiewd.wange] = {
+				insewt: typeConvewt.Wange.fwom(wange.insewting),
+				wepwace: typeConvewt.Wange.fwom(wange.wepwacing)
 			};
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
-class InlineCompletionAdapter {
-	private readonly _cache = new Cache<vscode.InlineCompletionItem>('InlineCompletionItem');
-	private readonly _disposables = new Map<number, DisposableStore>();
+cwass InwineCompwetionAdapta {
+	pwivate weadonwy _cache = new Cache<vscode.InwineCompwetionItem>('InwineCompwetionItem');
+	pwivate weadonwy _disposabwes = new Map<numba, DisposabweStowe>();
 
-	constructor(
-		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.InlineCompletionItemProvider,
-		private readonly _commands: CommandsConverter,
+	constwuctow(
+		pwivate weadonwy _documents: ExtHostDocuments,
+		pwivate weadonwy _pwovida: vscode.InwineCompwetionItemPwovida,
+		pwivate weadonwy _commands: CommandsConvewta,
 	) { }
 
-	public async provideInlineCompletions(resource: URI, position: IPosition, context: modes.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
-		const doc = this._documents.getDocument(resource);
-		const pos = typeConvert.Position.to(position);
+	pubwic async pwovideInwineCompwetions(wesouwce: UWI, position: IPosition, context: modes.InwineCompwetionContext, token: CancewwationToken): Pwomise<extHostPwotocow.IdentifiabweInwineCompwetions | undefined> {
+		const doc = this._documents.getDocument(wesouwce);
+		const pos = typeConvewt.Position.to(position);
 
-		const result = await this._provider.provideInlineCompletionItems(doc, pos, {
-			selectedCompletionInfo:
-				context.selectedSuggestionInfo
+		const wesuwt = await this._pwovida.pwovideInwineCompwetionItems(doc, pos, {
+			sewectedCompwetionInfo:
+				context.sewectedSuggestionInfo
 					? {
-						range: typeConvert.Range.to(context.selectedSuggestionInfo.range),
-						text: context.selectedSuggestionInfo.text
+						wange: typeConvewt.Wange.to(context.sewectedSuggestionInfo.wange),
+						text: context.sewectedSuggestionInfo.text
 					}
 					: undefined,
-			triggerKind: context.triggerKind
+			twiggewKind: context.twiggewKind
 		}, token);
 
-		if (!result) {
-			// undefined and null are valid results
-			return undefined;
+		if (!wesuwt) {
+			// undefined and nuww awe vawid wesuwts
+			wetuwn undefined;
 		}
 
-		if (token.isCancellationRequested) {
-			// cancelled -> return without further ado, esp no caching
-			// of results as they will leak
-			return undefined;
+		if (token.isCancewwationWequested) {
+			// cancewwed -> wetuwn without fuwtha ado, esp no caching
+			// of wesuwts as they wiww weak
+			wetuwn undefined;
 		}
 
-		const normalizedResult: vscode.InlineCompletionList = isArray(result) ? { items: result } : result;
+		const nowmawizedWesuwt: vscode.InwineCompwetionWist = isAwway(wesuwt) ? { items: wesuwt } : wesuwt;
 
-		const pid = this._cache.add(normalizedResult.items);
-		let disposableStore: DisposableStore | undefined = undefined;
+		const pid = this._cache.add(nowmawizedWesuwt.items);
+		wet disposabweStowe: DisposabweStowe | undefined = undefined;
 
-		return {
+		wetuwn {
 			pid,
-			items: normalizedResult.items.map<extHostProtocol.IdentifiableInlineCompletion>((item, idx) => {
-				let command: modes.Command | undefined = undefined;
+			items: nowmawizedWesuwt.items.map<extHostPwotocow.IdentifiabweInwineCompwetion>((item, idx) => {
+				wet command: modes.Command | undefined = undefined;
 				if (item.command) {
-					if (!disposableStore) {
-						disposableStore = new DisposableStore();
-						this._disposables.set(pid, disposableStore);
+					if (!disposabweStowe) {
+						disposabweStowe = new DisposabweStowe();
+						this._disposabwes.set(pid, disposabweStowe);
 					}
-					command = this._commands.toInternal(item.command, disposableStore);
+					command = this._commands.toIntewnaw(item.command, disposabweStowe);
 				}
 
-				return ({
+				wetuwn ({
 					text: item.text,
-					range: item.range ? typeConvert.Range.from(item.range) : undefined,
+					wange: item.wange ? typeConvewt.Wange.fwom(item.wange) : undefined,
 					command,
 					idx: idx,
 				});
@@ -1086,1104 +1086,1104 @@ class InlineCompletionAdapter {
 		};
 	}
 
-	public disposeCompletions(pid: number) {
-		this._cache.delete(pid);
-		const d = this._disposables.get(pid);
+	pubwic disposeCompwetions(pid: numba) {
+		this._cache.dewete(pid);
+		const d = this._disposabwes.get(pid);
 		if (d) {
-			d.clear();
+			d.cweaw();
 		}
-		this._disposables.delete(pid);
+		this._disposabwes.dewete(pid);
 	}
 
-	public handleDidShowCompletionItem(pid: number, idx: number): void {
-		const completionItem = this._cache.get(pid, idx);
-		if (completionItem) {
-			InlineCompletionController.get(this._provider).fireOnDidShowCompletionItem({
-				completionItem
+	pubwic handweDidShowCompwetionItem(pid: numba, idx: numba): void {
+		const compwetionItem = this._cache.get(pid, idx);
+		if (compwetionItem) {
+			InwineCompwetionContwowwa.get(this._pwovida).fiweOnDidShowCompwetionItem({
+				compwetionItem
 			});
 		}
 	}
 }
 
-export class InlineCompletionController<T extends vscode.InlineCompletionItem> implements vscode.InlineCompletionController<T> {
-	private static readonly map = new WeakMap<vscode.InlineCompletionItemProvider<any>, InlineCompletionController<any>>();
+expowt cwass InwineCompwetionContwowwa<T extends vscode.InwineCompwetionItem> impwements vscode.InwineCompwetionContwowwa<T> {
+	pwivate static weadonwy map = new WeakMap<vscode.InwineCompwetionItemPwovida<any>, InwineCompwetionContwowwa<any>>();
 
-	public static get<T extends vscode.InlineCompletionItem>(provider: vscode.InlineCompletionItemProvider<T>): InlineCompletionController<T> {
-		let existing = InlineCompletionController.map.get(provider);
+	pubwic static get<T extends vscode.InwineCompwetionItem>(pwovida: vscode.InwineCompwetionItemPwovida<T>): InwineCompwetionContwowwa<T> {
+		wet existing = InwineCompwetionContwowwa.map.get(pwovida);
 		if (!existing) {
-			existing = new InlineCompletionController();
-			InlineCompletionController.map.set(provider, existing);
+			existing = new InwineCompwetionContwowwa();
+			InwineCompwetionContwowwa.map.set(pwovida, existing);
 		}
-		return existing;
+		wetuwn existing;
 	}
 
-	private readonly _onDidShowCompletionItemEmitter = new Emitter<vscode.InlineCompletionItemDidShowEvent<T>>();
-	public readonly onDidShowCompletionItem: vscode.Event<vscode.InlineCompletionItemDidShowEvent<T>> = this._onDidShowCompletionItemEmitter.event;
+	pwivate weadonwy _onDidShowCompwetionItemEmitta = new Emitta<vscode.InwineCompwetionItemDidShowEvent<T>>();
+	pubwic weadonwy onDidShowCompwetionItem: vscode.Event<vscode.InwineCompwetionItemDidShowEvent<T>> = this._onDidShowCompwetionItemEmitta.event;
 
-	public fireOnDidShowCompletionItem(event: vscode.InlineCompletionItemDidShowEvent<T>): void {
-		this._onDidShowCompletionItemEmitter.fire(event);
+	pubwic fiweOnDidShowCompwetionItem(event: vscode.InwineCompwetionItemDidShowEvent<T>): void {
+		this._onDidShowCompwetionItemEmitta.fiwe(event);
 	}
 }
 
-class SignatureHelpAdapter {
+cwass SignatuweHewpAdapta {
 
-	private readonly _cache = new Cache<vscode.SignatureHelp>('SignatureHelp');
+	pwivate weadonwy _cache = new Cache<vscode.SignatuweHewp>('SignatuweHewp');
 
-	constructor(
-		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.SignatureHelpProvider,
+	constwuctow(
+		pwivate weadonwy _documents: ExtHostDocuments,
+		pwivate weadonwy _pwovida: vscode.SignatuweHewpPwovida,
 	) { }
 
-	async provideSignatureHelp(resource: URI, position: IPosition, context: extHostProtocol.ISignatureHelpContextDto, token: CancellationToken): Promise<extHostProtocol.ISignatureHelpDto | undefined> {
-		const doc = this._documents.getDocument(resource);
-		const pos = typeConvert.Position.to(position);
-		const vscodeContext = this.reviveContext(context);
+	async pwovideSignatuweHewp(wesouwce: UWI, position: IPosition, context: extHostPwotocow.ISignatuweHewpContextDto, token: CancewwationToken): Pwomise<extHostPwotocow.ISignatuweHewpDto | undefined> {
+		const doc = this._documents.getDocument(wesouwce);
+		const pos = typeConvewt.Position.to(position);
+		const vscodeContext = this.weviveContext(context);
 
-		const value = await this._provider.provideSignatureHelp(doc, pos, token, vscodeContext);
-		if (value) {
-			const id = this._cache.add([value]);
-			return { ...typeConvert.SignatureHelp.from(value), id };
+		const vawue = await this._pwovida.pwovideSignatuweHewp(doc, pos, token, vscodeContext);
+		if (vawue) {
+			const id = this._cache.add([vawue]);
+			wetuwn { ...typeConvewt.SignatuweHewp.fwom(vawue), id };
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private reviveContext(context: extHostProtocol.ISignatureHelpContextDto): vscode.SignatureHelpContext {
-		let activeSignatureHelp: vscode.SignatureHelp | undefined = undefined;
-		if (context.activeSignatureHelp) {
-			const revivedSignatureHelp = typeConvert.SignatureHelp.to(context.activeSignatureHelp);
-			const saved = this._cache.get(context.activeSignatureHelp.id, 0);
+	pwivate weviveContext(context: extHostPwotocow.ISignatuweHewpContextDto): vscode.SignatuweHewpContext {
+		wet activeSignatuweHewp: vscode.SignatuweHewp | undefined = undefined;
+		if (context.activeSignatuweHewp) {
+			const wevivedSignatuweHewp = typeConvewt.SignatuweHewp.to(context.activeSignatuweHewp);
+			const saved = this._cache.get(context.activeSignatuweHewp.id, 0);
 			if (saved) {
-				activeSignatureHelp = saved;
-				activeSignatureHelp.activeSignature = revivedSignatureHelp.activeSignature;
-				activeSignatureHelp.activeParameter = revivedSignatureHelp.activeParameter;
-			} else {
-				activeSignatureHelp = revivedSignatureHelp;
+				activeSignatuweHewp = saved;
+				activeSignatuweHewp.activeSignatuwe = wevivedSignatuweHewp.activeSignatuwe;
+				activeSignatuweHewp.activePawameta = wevivedSignatuweHewp.activePawameta;
+			} ewse {
+				activeSignatuweHewp = wevivedSignatuweHewp;
 			}
 		}
-		return { ...context, activeSignatureHelp };
+		wetuwn { ...context, activeSignatuweHewp };
 	}
 
-	releaseSignatureHelp(id: number): any {
-		this._cache.delete(id);
-	}
-}
-
-class InlayHintsAdapter {
-	constructor(
-		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.InlayHintsProvider,
-	) { }
-
-	async provideInlayHints(resource: URI, range: IRange, token: CancellationToken): Promise<extHostProtocol.IInlayHintsDto | undefined> {
-		const doc = this._documents.getDocument(resource);
-		const value = await this._provider.provideInlayHints(doc, typeConvert.Range.to(range), token);
-		return value ? { hints: value.map(typeConvert.InlayHint.from) } : undefined;
+	weweaseSignatuweHewp(id: numba): any {
+		this._cache.dewete(id);
 	}
 }
 
-class LinkProviderAdapter {
-
-	private _cache = new Cache<vscode.DocumentLink>('DocumentLink');
-
-	constructor(
-		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.DocumentLinkProvider
+cwass InwayHintsAdapta {
+	constwuctow(
+		pwivate weadonwy _documents: ExtHostDocuments,
+		pwivate weadonwy _pwovida: vscode.InwayHintsPwovida,
 	) { }
 
-	async provideLinks(resource: URI, token: CancellationToken): Promise<extHostProtocol.ILinksListDto | undefined> {
-		const doc = this._documents.getDocument(resource);
+	async pwovideInwayHints(wesouwce: UWI, wange: IWange, token: CancewwationToken): Pwomise<extHostPwotocow.IInwayHintsDto | undefined> {
+		const doc = this._documents.getDocument(wesouwce);
+		const vawue = await this._pwovida.pwovideInwayHints(doc, typeConvewt.Wange.to(wange), token);
+		wetuwn vawue ? { hints: vawue.map(typeConvewt.InwayHint.fwom) } : undefined;
+	}
+}
 
-		const links = await this._provider.provideDocumentLinks(doc, token);
-		if (!Array.isArray(links) || links.length === 0) {
-			// bad result
-			return undefined;
+cwass WinkPwovidewAdapta {
+
+	pwivate _cache = new Cache<vscode.DocumentWink>('DocumentWink');
+
+	constwuctow(
+		pwivate weadonwy _documents: ExtHostDocuments,
+		pwivate weadonwy _pwovida: vscode.DocumentWinkPwovida
+	) { }
+
+	async pwovideWinks(wesouwce: UWI, token: CancewwationToken): Pwomise<extHostPwotocow.IWinksWistDto | undefined> {
+		const doc = this._documents.getDocument(wesouwce);
+
+		const winks = await this._pwovida.pwovideDocumentWinks(doc, token);
+		if (!Awway.isAwway(winks) || winks.wength === 0) {
+			// bad wesuwt
+			wetuwn undefined;
 		}
-		if (token.isCancellationRequested) {
-			// cancelled -> return without further ado, esp no caching
-			// of results as they will leak
-			return undefined;
+		if (token.isCancewwationWequested) {
+			// cancewwed -> wetuwn without fuwtha ado, esp no caching
+			// of wesuwts as they wiww weak
+			wetuwn undefined;
 		}
-		if (typeof this._provider.resolveDocumentLink !== 'function') {
-			// no resolve -> no caching
-			return { links: links.filter(LinkProviderAdapter._validateLink).map(typeConvert.DocumentLink.from) };
+		if (typeof this._pwovida.wesowveDocumentWink !== 'function') {
+			// no wesowve -> no caching
+			wetuwn { winks: winks.fiwta(WinkPwovidewAdapta._vawidateWink).map(typeConvewt.DocumentWink.fwom) };
 
-		} else {
-			// cache links for future resolving
-			const pid = this._cache.add(links);
-			const result: extHostProtocol.ILinksListDto = { links: [], id: pid };
-			for (let i = 0; i < links.length; i++) {
+		} ewse {
+			// cache winks fow futuwe wesowving
+			const pid = this._cache.add(winks);
+			const wesuwt: extHostPwotocow.IWinksWistDto = { winks: [], id: pid };
+			fow (wet i = 0; i < winks.wength; i++) {
 
-				if (!LinkProviderAdapter._validateLink(links[i])) {
+				if (!WinkPwovidewAdapta._vawidateWink(winks[i])) {
 					continue;
 				}
 
-				const dto: extHostProtocol.ILinkDto = typeConvert.DocumentLink.from(links[i]);
+				const dto: extHostPwotocow.IWinkDto = typeConvewt.DocumentWink.fwom(winks[i]);
 				dto.cacheId = [pid, i];
-				result.links.push(dto);
+				wesuwt.winks.push(dto);
 			}
-			return result;
+			wetuwn wesuwt;
 		}
 	}
 
-	private static _validateLink(link: vscode.DocumentLink): boolean {
-		if (link.target && link.target.path.length > 50_000) {
-			console.warn('DROPPING link because it is too long');
-			return false;
+	pwivate static _vawidateWink(wink: vscode.DocumentWink): boowean {
+		if (wink.tawget && wink.tawget.path.wength > 50_000) {
+			consowe.wawn('DWOPPING wink because it is too wong');
+			wetuwn fawse;
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	async resolveLink(id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<extHostProtocol.ILinkDto | undefined> {
-		if (typeof this._provider.resolveDocumentLink !== 'function') {
-			return undefined;
+	async wesowveWink(id: extHostPwotocow.ChainedCacheId, token: CancewwationToken): Pwomise<extHostPwotocow.IWinkDto | undefined> {
+		if (typeof this._pwovida.wesowveDocumentWink !== 'function') {
+			wetuwn undefined;
 		}
 		const item = this._cache.get(...id);
 		if (!item) {
-			return undefined;
+			wetuwn undefined;
 		}
-		const link = await this._provider.resolveDocumentLink!(item, token);
-		if (!link || !LinkProviderAdapter._validateLink(link)) {
-			return undefined;
+		const wink = await this._pwovida.wesowveDocumentWink!(item, token);
+		if (!wink || !WinkPwovidewAdapta._vawidateWink(wink)) {
+			wetuwn undefined;
 		}
-		return typeConvert.DocumentLink.from(link);
+		wetuwn typeConvewt.DocumentWink.fwom(wink);
 	}
 
-	releaseLinks(id: number): any {
-		this._cache.delete(id);
+	weweaseWinks(id: numba): any {
+		this._cache.dewete(id);
 	}
 }
 
-class ColorProviderAdapter {
+cwass CowowPwovidewAdapta {
 
-	constructor(
-		private _documents: ExtHostDocuments,
-		private _provider: vscode.DocumentColorProvider
+	constwuctow(
+		pwivate _documents: ExtHostDocuments,
+		pwivate _pwovida: vscode.DocumentCowowPwovida
 	) { }
 
-	async provideColors(resource: URI, token: CancellationToken): Promise<extHostProtocol.IRawColorInfo[]> {
-		const doc = this._documents.getDocument(resource);
-		const colors = await this._provider.provideDocumentColors(doc, token);
-		if (!Array.isArray(colors)) {
-			return [];
+	async pwovideCowows(wesouwce: UWI, token: CancewwationToken): Pwomise<extHostPwotocow.IWawCowowInfo[]> {
+		const doc = this._documents.getDocument(wesouwce);
+		const cowows = await this._pwovida.pwovideDocumentCowows(doc, token);
+		if (!Awway.isAwway(cowows)) {
+			wetuwn [];
 		}
-		const colorInfos: extHostProtocol.IRawColorInfo[] = colors.map(ci => {
-			return {
-				color: typeConvert.Color.from(ci.color),
-				range: typeConvert.Range.from(ci.range)
+		const cowowInfos: extHostPwotocow.IWawCowowInfo[] = cowows.map(ci => {
+			wetuwn {
+				cowow: typeConvewt.Cowow.fwom(ci.cowow),
+				wange: typeConvewt.Wange.fwom(ci.wange)
 			};
 		});
-		return colorInfos;
+		wetuwn cowowInfos;
 	}
 
-	async provideColorPresentations(resource: URI, raw: extHostProtocol.IRawColorInfo, token: CancellationToken): Promise<modes.IColorPresentation[] | undefined> {
-		const document = this._documents.getDocument(resource);
-		const range = typeConvert.Range.to(raw.range);
-		const color = typeConvert.Color.to(raw.color);
-		const value = await this._provider.provideColorPresentations(color, { document, range }, token);
-		if (!Array.isArray(value)) {
-			return undefined;
+	async pwovideCowowPwesentations(wesouwce: UWI, waw: extHostPwotocow.IWawCowowInfo, token: CancewwationToken): Pwomise<modes.ICowowPwesentation[] | undefined> {
+		const document = this._documents.getDocument(wesouwce);
+		const wange = typeConvewt.Wange.to(waw.wange);
+		const cowow = typeConvewt.Cowow.to(waw.cowow);
+		const vawue = await this._pwovida.pwovideCowowPwesentations(cowow, { document, wange }, token);
+		if (!Awway.isAwway(vawue)) {
+			wetuwn undefined;
 		}
-		return value.map(typeConvert.ColorPresentation.from);
-	}
-}
-
-class FoldingProviderAdapter {
-
-	constructor(
-		private _documents: ExtHostDocuments,
-		private _provider: vscode.FoldingRangeProvider
-	) { }
-
-	async provideFoldingRanges(resource: URI, context: modes.FoldingContext, token: CancellationToken): Promise<modes.FoldingRange[] | undefined> {
-		const doc = this._documents.getDocument(resource);
-		const ranges = await this._provider.provideFoldingRanges(doc, context, token);
-		if (!Array.isArray(ranges)) {
-			return undefined;
-		}
-		return ranges.map(typeConvert.FoldingRange.from);
+		wetuwn vawue.map(typeConvewt.CowowPwesentation.fwom);
 	}
 }
 
-class SelectionRangeAdapter {
+cwass FowdingPwovidewAdapta {
 
-	constructor(
-		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.SelectionRangeProvider,
-		private readonly _logService: ILogService
+	constwuctow(
+		pwivate _documents: ExtHostDocuments,
+		pwivate _pwovida: vscode.FowdingWangePwovida
 	) { }
 
-	async provideSelectionRanges(resource: URI, pos: IPosition[], token: CancellationToken): Promise<modes.SelectionRange[][]> {
-		const document = this._documents.getDocument(resource);
-		const positions = pos.map(typeConvert.Position.to);
-
-		const allProviderRanges = await this._provider.provideSelectionRanges(document, positions, token);
-		if (!isNonEmptyArray(allProviderRanges)) {
-			return [];
+	async pwovideFowdingWanges(wesouwce: UWI, context: modes.FowdingContext, token: CancewwationToken): Pwomise<modes.FowdingWange[] | undefined> {
+		const doc = this._documents.getDocument(wesouwce);
+		const wanges = await this._pwovida.pwovideFowdingWanges(doc, context, token);
+		if (!Awway.isAwway(wanges)) {
+			wetuwn undefined;
 		}
-		if (allProviderRanges.length !== positions.length) {
-			this._logService.warn('BAD selection ranges, provider must return ranges for each position');
-			return [];
+		wetuwn wanges.map(typeConvewt.FowdingWange.fwom);
+	}
+}
+
+cwass SewectionWangeAdapta {
+
+	constwuctow(
+		pwivate weadonwy _documents: ExtHostDocuments,
+		pwivate weadonwy _pwovida: vscode.SewectionWangePwovida,
+		pwivate weadonwy _wogSewvice: IWogSewvice
+	) { }
+
+	async pwovideSewectionWanges(wesouwce: UWI, pos: IPosition[], token: CancewwationToken): Pwomise<modes.SewectionWange[][]> {
+		const document = this._documents.getDocument(wesouwce);
+		const positions = pos.map(typeConvewt.Position.to);
+
+		const awwPwovidewWanges = await this._pwovida.pwovideSewectionWanges(document, positions, token);
+		if (!isNonEmptyAwway(awwPwovidewWanges)) {
+			wetuwn [];
 		}
-		const allResults: modes.SelectionRange[][] = [];
-		for (let i = 0; i < positions.length; i++) {
-			const oneResult: modes.SelectionRange[] = [];
-			allResults.push(oneResult);
+		if (awwPwovidewWanges.wength !== positions.wength) {
+			this._wogSewvice.wawn('BAD sewection wanges, pwovida must wetuwn wanges fow each position');
+			wetuwn [];
+		}
+		const awwWesuwts: modes.SewectionWange[][] = [];
+		fow (wet i = 0; i < positions.wength; i++) {
+			const oneWesuwt: modes.SewectionWange[] = [];
+			awwWesuwts.push(oneWesuwt);
 
-			let last: vscode.Position | vscode.Range = positions[i];
-			let selectionRange = allProviderRanges[i];
+			wet wast: vscode.Position | vscode.Wange = positions[i];
+			wet sewectionWange = awwPwovidewWanges[i];
 
-			while (true) {
-				if (!selectionRange.range.contains(last)) {
-					throw new Error('INVALID selection range, must contain the previous range');
+			whiwe (twue) {
+				if (!sewectionWange.wange.contains(wast)) {
+					thwow new Ewwow('INVAWID sewection wange, must contain the pwevious wange');
 				}
-				oneResult.push(typeConvert.SelectionRange.from(selectionRange));
-				if (!selectionRange.parent) {
-					break;
+				oneWesuwt.push(typeConvewt.SewectionWange.fwom(sewectionWange));
+				if (!sewectionWange.pawent) {
+					bweak;
 				}
-				last = selectionRange.range;
-				selectionRange = selectionRange.parent;
+				wast = sewectionWange.wange;
+				sewectionWange = sewectionWange.pawent;
 			}
 		}
-		return allResults;
+		wetuwn awwWesuwts;
 	}
 }
 
-class CallHierarchyAdapter {
+cwass CawwHiewawchyAdapta {
 
-	private readonly _idPool = new IdGenerator('');
-	private readonly _cache = new Map<string, Map<string, vscode.CallHierarchyItem>>();
+	pwivate weadonwy _idPoow = new IdGenewatow('');
+	pwivate weadonwy _cache = new Map<stwing, Map<stwing, vscode.CawwHiewawchyItem>>();
 
-	constructor(
-		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.CallHierarchyProvider
+	constwuctow(
+		pwivate weadonwy _documents: ExtHostDocuments,
+		pwivate weadonwy _pwovida: vscode.CawwHiewawchyPwovida
 	) { }
 
-	async prepareSession(uri: URI, position: IPosition, token: CancellationToken): Promise<extHostProtocol.ICallHierarchyItemDto[] | undefined> {
-		const doc = this._documents.getDocument(uri);
-		const pos = typeConvert.Position.to(position);
+	async pwepaweSession(uwi: UWI, position: IPosition, token: CancewwationToken): Pwomise<extHostPwotocow.ICawwHiewawchyItemDto[] | undefined> {
+		const doc = this._documents.getDocument(uwi);
+		const pos = typeConvewt.Position.to(position);
 
-		const items = await this._provider.prepareCallHierarchy(doc, pos, token);
+		const items = await this._pwovida.pwepaweCawwHiewawchy(doc, pos, token);
 		if (!items) {
-			return undefined;
+			wetuwn undefined;
 		}
 
-		const sessionId = this._idPool.nextId();
+		const sessionId = this._idPoow.nextId();
 		this._cache.set(sessionId, new Map());
 
-		if (Array.isArray(items)) {
-			return items.map(item => this._cacheAndConvertItem(sessionId, item));
-		} else {
-			return [this._cacheAndConvertItem(sessionId, items)];
+		if (Awway.isAwway(items)) {
+			wetuwn items.map(item => this._cacheAndConvewtItem(sessionId, item));
+		} ewse {
+			wetuwn [this._cacheAndConvewtItem(sessionId, items)];
 		}
 	}
 
-	async provideCallsTo(sessionId: string, itemId: string, token: CancellationToken): Promise<extHostProtocol.IIncomingCallDto[] | undefined> {
-		const item = this._itemFromCache(sessionId, itemId);
+	async pwovideCawwsTo(sessionId: stwing, itemId: stwing, token: CancewwationToken): Pwomise<extHostPwotocow.IIncomingCawwDto[] | undefined> {
+		const item = this._itemFwomCache(sessionId, itemId);
 		if (!item) {
-			throw new Error('missing call hierarchy item');
+			thwow new Ewwow('missing caww hiewawchy item');
 		}
-		const calls = await this._provider.provideCallHierarchyIncomingCalls(item, token);
-		if (!calls) {
-			return undefined;
+		const cawws = await this._pwovida.pwovideCawwHiewawchyIncomingCawws(item, token);
+		if (!cawws) {
+			wetuwn undefined;
 		}
-		return calls.map(call => {
-			return {
-				from: this._cacheAndConvertItem(sessionId, call.from),
-				fromRanges: call.fromRanges.map(r => typeConvert.Range.from(r))
+		wetuwn cawws.map(caww => {
+			wetuwn {
+				fwom: this._cacheAndConvewtItem(sessionId, caww.fwom),
+				fwomWanges: caww.fwomWanges.map(w => typeConvewt.Wange.fwom(w))
 			};
 		});
 	}
 
-	async provideCallsFrom(sessionId: string, itemId: string, token: CancellationToken): Promise<extHostProtocol.IOutgoingCallDto[] | undefined> {
-		const item = this._itemFromCache(sessionId, itemId);
+	async pwovideCawwsFwom(sessionId: stwing, itemId: stwing, token: CancewwationToken): Pwomise<extHostPwotocow.IOutgoingCawwDto[] | undefined> {
+		const item = this._itemFwomCache(sessionId, itemId);
 		if (!item) {
-			throw new Error('missing call hierarchy item');
+			thwow new Ewwow('missing caww hiewawchy item');
 		}
-		const calls = await this._provider.provideCallHierarchyOutgoingCalls(item, token);
-		if (!calls) {
-			return undefined;
+		const cawws = await this._pwovida.pwovideCawwHiewawchyOutgoingCawws(item, token);
+		if (!cawws) {
+			wetuwn undefined;
 		}
-		return calls.map(call => {
-			return {
-				to: this._cacheAndConvertItem(sessionId, call.to),
-				fromRanges: call.fromRanges.map(r => typeConvert.Range.from(r))
+		wetuwn cawws.map(caww => {
+			wetuwn {
+				to: this._cacheAndConvewtItem(sessionId, caww.to),
+				fwomWanges: caww.fwomWanges.map(w => typeConvewt.Wange.fwom(w))
 			};
 		});
 	}
 
-	releaseSession(sessionId: string): void {
-		this._cache.delete(sessionId);
+	weweaseSession(sessionId: stwing): void {
+		this._cache.dewete(sessionId);
 	}
 
-	private _cacheAndConvertItem(sessionId: string, item: vscode.CallHierarchyItem): extHostProtocol.ICallHierarchyItemDto {
+	pwivate _cacheAndConvewtItem(sessionId: stwing, item: vscode.CawwHiewawchyItem): extHostPwotocow.ICawwHiewawchyItemDto {
 		const map = this._cache.get(sessionId)!;
-		const dto = typeConvert.CallHierarchyItem.from(item, sessionId, map.size.toString(36));
+		const dto = typeConvewt.CawwHiewawchyItem.fwom(item, sessionId, map.size.toStwing(36));
 		map.set(dto._itemId, item);
-		return dto;
+		wetuwn dto;
 	}
 
-	private _itemFromCache(sessionId: string, itemId: string): vscode.CallHierarchyItem | undefined {
+	pwivate _itemFwomCache(sessionId: stwing, itemId: stwing): vscode.CawwHiewawchyItem | undefined {
 		const map = this._cache.get(sessionId);
-		return map?.get(itemId);
+		wetuwn map?.get(itemId);
 	}
 }
 
-class TypeHierarchyAdapter {
+cwass TypeHiewawchyAdapta {
 
-	private readonly _idPool = new IdGenerator('');
-	private readonly _cache = new Map<string, Map<string, vscode.TypeHierarchyItem>>();
+	pwivate weadonwy _idPoow = new IdGenewatow('');
+	pwivate weadonwy _cache = new Map<stwing, Map<stwing, vscode.TypeHiewawchyItem>>();
 
-	constructor(
-		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.TypeHierarchyProvider
+	constwuctow(
+		pwivate weadonwy _documents: ExtHostDocuments,
+		pwivate weadonwy _pwovida: vscode.TypeHiewawchyPwovida
 	) { }
 
-	async prepareSession(uri: URI, position: IPosition, token: CancellationToken): Promise<extHostProtocol.ITypeHierarchyItemDto[] | undefined> {
-		const doc = this._documents.getDocument(uri);
-		const pos = typeConvert.Position.to(position);
+	async pwepaweSession(uwi: UWI, position: IPosition, token: CancewwationToken): Pwomise<extHostPwotocow.ITypeHiewawchyItemDto[] | undefined> {
+		const doc = this._documents.getDocument(uwi);
+		const pos = typeConvewt.Position.to(position);
 
-		const items = await this._provider.prepareTypeHierarchy(doc, pos, token);
+		const items = await this._pwovida.pwepaweTypeHiewawchy(doc, pos, token);
 		if (!items) {
-			return undefined;
+			wetuwn undefined;
 		}
 
-		const sessionId = this._idPool.nextId();
+		const sessionId = this._idPoow.nextId();
 		this._cache.set(sessionId, new Map());
 
-		if (Array.isArray(items)) {
-			return items.map(item => this._cacheAndConvertItem(sessionId, item));
-		} else {
-			return [this._cacheAndConvertItem(sessionId, items)];
+		if (Awway.isAwway(items)) {
+			wetuwn items.map(item => this._cacheAndConvewtItem(sessionId, item));
+		} ewse {
+			wetuwn [this._cacheAndConvewtItem(sessionId, items)];
 		}
 	}
 
-	async provideSupertypes(sessionId: string, itemId: string, token: CancellationToken): Promise<extHostProtocol.ITypeHierarchyItemDto[] | undefined> {
-		const item = this._itemFromCache(sessionId, itemId);
+	async pwovideSupewtypes(sessionId: stwing, itemId: stwing, token: CancewwationToken): Pwomise<extHostPwotocow.ITypeHiewawchyItemDto[] | undefined> {
+		const item = this._itemFwomCache(sessionId, itemId);
 		if (!item) {
-			throw new Error('missing type hierarchy item');
+			thwow new Ewwow('missing type hiewawchy item');
 		}
-		const supertypes = await this._provider.provideTypeHierarchySupertypes(item, token);
-		if (!supertypes) {
-			return undefined;
+		const supewtypes = await this._pwovida.pwovideTypeHiewawchySupewtypes(item, token);
+		if (!supewtypes) {
+			wetuwn undefined;
 		}
-		return supertypes.map(supertype => {
-			return this._cacheAndConvertItem(sessionId, supertype);
+		wetuwn supewtypes.map(supewtype => {
+			wetuwn this._cacheAndConvewtItem(sessionId, supewtype);
 		});
 	}
 
-	async provideSubtypes(sessionId: string, itemId: string, token: CancellationToken): Promise<extHostProtocol.ITypeHierarchyItemDto[] | undefined> {
-		const item = this._itemFromCache(sessionId, itemId);
+	async pwovideSubtypes(sessionId: stwing, itemId: stwing, token: CancewwationToken): Pwomise<extHostPwotocow.ITypeHiewawchyItemDto[] | undefined> {
+		const item = this._itemFwomCache(sessionId, itemId);
 		if (!item) {
-			throw new Error('missing type hierarchy item');
+			thwow new Ewwow('missing type hiewawchy item');
 		}
-		const subtypes = await this._provider.provideTypeHierarchySubtypes(item, token);
+		const subtypes = await this._pwovida.pwovideTypeHiewawchySubtypes(item, token);
 		if (!subtypes) {
-			return undefined;
+			wetuwn undefined;
 		}
-		return subtypes.map(subtype => {
-			return this._cacheAndConvertItem(sessionId, subtype);
+		wetuwn subtypes.map(subtype => {
+			wetuwn this._cacheAndConvewtItem(sessionId, subtype);
 		});
 	}
 
-	releaseSession(sessionId: string): void {
-		this._cache.delete(sessionId);
+	weweaseSession(sessionId: stwing): void {
+		this._cache.dewete(sessionId);
 	}
 
-	private _cacheAndConvertItem(sessionId: string, item: vscode.TypeHierarchyItem): extHostProtocol.ITypeHierarchyItemDto {
+	pwivate _cacheAndConvewtItem(sessionId: stwing, item: vscode.TypeHiewawchyItem): extHostPwotocow.ITypeHiewawchyItemDto {
 		const map = this._cache.get(sessionId)!;
-		const dto = typeConvert.TypeHierarchyItem.from(item, sessionId, map.size.toString(36));
+		const dto = typeConvewt.TypeHiewawchyItem.fwom(item, sessionId, map.size.toStwing(36));
 		map.set(dto._itemId, item);
-		return dto;
+		wetuwn dto;
 	}
 
-	private _itemFromCache(sessionId: string, itemId: string): vscode.TypeHierarchyItem | undefined {
+	pwivate _itemFwomCache(sessionId: stwing, itemId: stwing): vscode.TypeHiewawchyItem | undefined {
 		const map = this._cache.get(sessionId);
-		return map?.get(itemId);
+		wetuwn map?.get(itemId);
 	}
 }
-type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
-	| DocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter | DocumentFormattingAdapter
-	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
-	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter
-	| TypeDefinitionAdapter | ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter
-	| SelectionRangeAdapter | CallHierarchyAdapter | TypeHierarchyAdapter
-	| DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter
-	| EvaluatableExpressionAdapter | InlineValuesAdapter
-	| LinkedEditingRangeAdapter | InlayHintsAdapter | InlineCompletionAdapter;
+type Adapta = DocumentSymbowAdapta | CodeWensAdapta | DefinitionAdapta | HovewAdapta
+	| DocumentHighwightAdapta | WefewenceAdapta | CodeActionAdapta | DocumentFowmattingAdapta
+	| WangeFowmattingAdapta | OnTypeFowmattingAdapta | NavigateTypeAdapta | WenameAdapta
+	| SuggestAdapta | SignatuweHewpAdapta | WinkPwovidewAdapta | ImpwementationAdapta
+	| TypeDefinitionAdapta | CowowPwovidewAdapta | FowdingPwovidewAdapta | DecwawationAdapta
+	| SewectionWangeAdapta | CawwHiewawchyAdapta | TypeHiewawchyAdapta
+	| DocumentSemanticTokensAdapta | DocumentWangeSemanticTokensAdapta
+	| EvawuatabweExpwessionAdapta | InwineVawuesAdapta
+	| WinkedEditingWangeAdapta | InwayHintsAdapta | InwineCompwetionAdapta;
 
-class AdapterData {
-	constructor(
-		readonly adapter: Adapter,
-		readonly extension: IExtensionDescription | undefined
+cwass AdaptewData {
+	constwuctow(
+		weadonwy adapta: Adapta,
+		weadonwy extension: IExtensionDescwiption | undefined
 	) { }
 }
 
-export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageFeaturesShape {
+expowt cwass ExtHostWanguageFeatuwes impwements extHostPwotocow.ExtHostWanguageFeatuwesShape {
 
-	private static _handlePool: number = 0;
+	pwivate static _handwePoow: numba = 0;
 
-	private readonly _uriTransformer: IURITransformer;
-	private readonly _proxy: extHostProtocol.MainThreadLanguageFeaturesShape;
-	private _documents: ExtHostDocuments;
-	private _commands: ExtHostCommands;
-	private _diagnostics: ExtHostDiagnostics;
-	private _adapter = new Map<number, AdapterData>();
-	private readonly _logService: ILogService;
-	private readonly _apiDeprecation: IExtHostApiDeprecationService;
+	pwivate weadonwy _uwiTwansfowma: IUWITwansfowma;
+	pwivate weadonwy _pwoxy: extHostPwotocow.MainThweadWanguageFeatuwesShape;
+	pwivate _documents: ExtHostDocuments;
+	pwivate _commands: ExtHostCommands;
+	pwivate _diagnostics: ExtHostDiagnostics;
+	pwivate _adapta = new Map<numba, AdaptewData>();
+	pwivate weadonwy _wogSewvice: IWogSewvice;
+	pwivate weadonwy _apiDepwecation: IExtHostApiDepwecationSewvice;
 
-	constructor(
-		mainContext: extHostProtocol.IMainContext,
-		uriTransformer: IURITransformer,
+	constwuctow(
+		mainContext: extHostPwotocow.IMainContext,
+		uwiTwansfowma: IUWITwansfowma,
 		documents: ExtHostDocuments,
 		commands: ExtHostCommands,
 		diagnostics: ExtHostDiagnostics,
-		logService: ILogService,
-		apiDeprecationService: IExtHostApiDeprecationService,
+		wogSewvice: IWogSewvice,
+		apiDepwecationSewvice: IExtHostApiDepwecationSewvice,
 	) {
-		this._uriTransformer = uriTransformer;
-		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadLanguageFeatures);
+		this._uwiTwansfowma = uwiTwansfowma;
+		this._pwoxy = mainContext.getPwoxy(extHostPwotocow.MainContext.MainThweadWanguageFeatuwes);
 		this._documents = documents;
 		this._commands = commands;
 		this._diagnostics = diagnostics;
-		this._logService = logService;
-		this._apiDeprecation = apiDeprecationService;
+		this._wogSewvice = wogSewvice;
+		this._apiDepwecation = apiDepwecationSewvice;
 	}
 
-	private _transformDocumentSelector(selector: vscode.DocumentSelector): Array<extHostProtocol.IDocumentFilterDto> {
-		return typeConvert.DocumentSelector.from(selector, this._uriTransformer);
+	pwivate _twansfowmDocumentSewectow(sewectow: vscode.DocumentSewectow): Awway<extHostPwotocow.IDocumentFiwtewDto> {
+		wetuwn typeConvewt.DocumentSewectow.fwom(sewectow, this._uwiTwansfowma);
 	}
 
-	private _createDisposable(handle: number): Disposable {
-		return new Disposable(() => {
-			this._adapter.delete(handle);
-			this._proxy.$unregister(handle);
+	pwivate _cweateDisposabwe(handwe: numba): Disposabwe {
+		wetuwn new Disposabwe(() => {
+			this._adapta.dewete(handwe);
+			this._pwoxy.$unwegista(handwe);
 		});
 	}
 
-	private _nextHandle(): number {
-		return ExtHostLanguageFeatures._handlePool++;
+	pwivate _nextHandwe(): numba {
+		wetuwn ExtHostWanguageFeatuwes._handwePoow++;
 	}
 
-	private _withAdapter<A, R>(handle: number, ctor: { new(...args: any[]): A; }, callback: (adapter: A, extension: IExtensionDescription | undefined) => Promise<R>, fallbackValue: R, allowCancellationError: boolean = false): Promise<R> {
-		const data = this._adapter.get(handle);
+	pwivate _withAdapta<A, W>(handwe: numba, ctow: { new(...awgs: any[]): A; }, cawwback: (adapta: A, extension: IExtensionDescwiption | undefined) => Pwomise<W>, fawwbackVawue: W, awwowCancewwationEwwow: boowean = fawse): Pwomise<W> {
+		const data = this._adapta.get(handwe);
 		if (!data) {
-			return Promise.resolve(fallbackValue);
+			wetuwn Pwomise.wesowve(fawwbackVawue);
 		}
 
-		if (data.adapter instanceof ctor) {
-			let t1: number;
+		if (data.adapta instanceof ctow) {
+			wet t1: numba;
 			if (data.extension) {
 				t1 = Date.now();
-				this._logService.trace(`[${data.extension.identifier.value}] INVOKE provider '${(ctor as any).name}'`);
+				this._wogSewvice.twace(`[${data.extension.identifia.vawue}] INVOKE pwovida '${(ctow as any).name}'`);
 			}
-			const p = callback(data.adapter, data.extension);
+			const p = cawwback(data.adapta, data.extension);
 			const extension = data.extension;
 			if (extension) {
-				Promise.resolve(p).then(
-					() => this._logService.trace(`[${extension.identifier.value}] provider DONE after ${Date.now() - t1}ms`),
-					err => {
-						const isExpectedError = allowCancellationError && (err instanceof CancellationError);
-						if (!isExpectedError) {
-							this._logService.error(`[${extension.identifier.value}] provider FAILED`);
-							this._logService.error(err);
+				Pwomise.wesowve(p).then(
+					() => this._wogSewvice.twace(`[${extension.identifia.vawue}] pwovida DONE afta ${Date.now() - t1}ms`),
+					eww => {
+						const isExpectedEwwow = awwowCancewwationEwwow && (eww instanceof CancewwationEwwow);
+						if (!isExpectedEwwow) {
+							this._wogSewvice.ewwow(`[${extension.identifia.vawue}] pwovida FAIWED`);
+							this._wogSewvice.ewwow(eww);
 						}
 					}
 				);
 			}
-			return p;
+			wetuwn p;
 		}
-		return Promise.reject(new Error('no adapter found'));
+		wetuwn Pwomise.weject(new Ewwow('no adapta found'));
 	}
 
-	private _addNewAdapter(adapter: Adapter, extension: IExtensionDescription | undefined): number {
-		const handle = this._nextHandle();
-		this._adapter.set(handle, new AdapterData(adapter, extension));
-		return handle;
+	pwivate _addNewAdapta(adapta: Adapta, extension: IExtensionDescwiption | undefined): numba {
+		const handwe = this._nextHandwe();
+		this._adapta.set(handwe, new AdaptewData(adapta, extension));
+		wetuwn handwe;
 	}
 
-	private static _extLabel(ext: IExtensionDescription): string {
-		return ext.displayName || ext.name;
+	pwivate static _extWabew(ext: IExtensionDescwiption): stwing {
+		wetuwn ext.dispwayName || ext.name;
 	}
 
-	// --- outline
+	// --- outwine
 
-	registerDocumentSymbolProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider, metadata?: vscode.DocumentSymbolProviderMetadata): vscode.Disposable {
-		const handle = this._addNewAdapter(new DocumentSymbolAdapter(this._documents, provider), extension);
-		const displayName = (metadata && metadata.label) || ExtHostLanguageFeatures._extLabel(extension);
-		this._proxy.$registerDocumentSymbolProvider(handle, this._transformDocumentSelector(selector), displayName);
-		return this._createDisposable(handle);
+	wegistewDocumentSymbowPwovida(extension: IExtensionDescwiption, sewectow: vscode.DocumentSewectow, pwovida: vscode.DocumentSymbowPwovida, metadata?: vscode.DocumentSymbowPwovidewMetadata): vscode.Disposabwe {
+		const handwe = this._addNewAdapta(new DocumentSymbowAdapta(this._documents, pwovida), extension);
+		const dispwayName = (metadata && metadata.wabew) || ExtHostWanguageFeatuwes._extWabew(extension);
+		this._pwoxy.$wegistewDocumentSymbowPwovida(handwe, this._twansfowmDocumentSewectow(sewectow), dispwayName);
+		wetuwn this._cweateDisposabwe(handwe);
 	}
 
-	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.DocumentSymbol[] | undefined> {
-		return this._withAdapter(handle, DocumentSymbolAdapter, adapter => adapter.provideDocumentSymbols(URI.revive(resource), token), undefined);
+	$pwovideDocumentSymbows(handwe: numba, wesouwce: UwiComponents, token: CancewwationToken): Pwomise<modes.DocumentSymbow[] | undefined> {
+		wetuwn this._withAdapta(handwe, DocumentSymbowAdapta, adapta => adapta.pwovideDocumentSymbows(UWI.wevive(wesouwce), token), undefined);
 	}
 
-	// --- code lens
+	// --- code wens
 
-	registerCodeLensProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CodeLensProvider): vscode.Disposable {
-		const handle = this._nextHandle();
-		const eventHandle = typeof provider.onDidChangeCodeLenses === 'function' ? this._nextHandle() : undefined;
+	wegistewCodeWensPwovida(extension: IExtensionDescwiption, sewectow: vscode.DocumentSewectow, pwovida: vscode.CodeWensPwovida): vscode.Disposabwe {
+		const handwe = this._nextHandwe();
+		const eventHandwe = typeof pwovida.onDidChangeCodeWenses === 'function' ? this._nextHandwe() : undefined;
 
-		this._adapter.set(handle, new AdapterData(new CodeLensAdapter(this._documents, this._commands.converter, provider), extension));
-		this._proxy.$registerCodeLensSupport(handle, this._transformDocumentSelector(selector), eventHandle);
-		let result = this._createDisposable(handle);
+		this._adapta.set(handwe, new AdaptewData(new CodeWensAdapta(this._documents, this._commands.convewta, pwovida), extension));
+		this._pwoxy.$wegistewCodeWensSuppowt(handwe, this._twansfowmDocumentSewectow(sewectow), eventHandwe);
+		wet wesuwt = this._cweateDisposabwe(handwe);
 
-		if (eventHandle !== undefined) {
-			const subscription = provider.onDidChangeCodeLenses!(_ => this._proxy.$emitCodeLensEvent(eventHandle));
-			result = Disposable.from(result, subscription);
+		if (eventHandwe !== undefined) {
+			const subscwiption = pwovida.onDidChangeCodeWenses!(_ => this._pwoxy.$emitCodeWensEvent(eventHandwe));
+			wesuwt = Disposabwe.fwom(wesuwt, subscwiption);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Promise<extHostProtocol.ICodeLensListDto | undefined> {
-		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.provideCodeLenses(URI.revive(resource), token), undefined);
+	$pwovideCodeWenses(handwe: numba, wesouwce: UwiComponents, token: CancewwationToken): Pwomise<extHostPwotocow.ICodeWensWistDto | undefined> {
+		wetuwn this._withAdapta(handwe, CodeWensAdapta, adapta => adapta.pwovideCodeWenses(UWI.wevive(wesouwce), token), undefined);
 	}
 
-	$resolveCodeLens(handle: number, symbol: extHostProtocol.ICodeLensDto, token: CancellationToken): Promise<extHostProtocol.ICodeLensDto | undefined> {
-		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.resolveCodeLens(symbol, token), undefined);
+	$wesowveCodeWens(handwe: numba, symbow: extHostPwotocow.ICodeWensDto, token: CancewwationToken): Pwomise<extHostPwotocow.ICodeWensDto | undefined> {
+		wetuwn this._withAdapta(handwe, CodeWensAdapta, adapta => adapta.wesowveCodeWens(symbow, token), undefined);
 	}
 
-	$releaseCodeLenses(handle: number, cacheId: number): void {
-		this._withAdapter(handle, CodeLensAdapter, adapter => Promise.resolve(adapter.releaseCodeLenses(cacheId)), undefined);
+	$weweaseCodeWenses(handwe: numba, cacheId: numba): void {
+		this._withAdapta(handwe, CodeWensAdapta, adapta => Pwomise.wesowve(adapta.weweaseCodeWenses(cacheId)), undefined);
 	}
 
-	// --- declaration
+	// --- decwawation
 
-	registerDefinitionProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DefinitionProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new DefinitionAdapter(this._documents, provider), extension);
-		this._proxy.$registerDefinitionSupport(handle, this._transformDocumentSelector(selector));
-		return this._createDisposable(handle);
+	wegistewDefinitionPwovida(extension: IExtensionDescwiption, sewectow: vscode.DocumentSewectow, pwovida: vscode.DefinitionPwovida): vscode.Disposabwe {
+		const handwe = this._addNewAdapta(new DefinitionAdapta(this._documents, pwovida), extension);
+		this._pwoxy.$wegistewDefinitionSuppowt(handwe, this._twansfowmDocumentSewectow(sewectow));
+		wetuwn this._cweateDisposabwe(handwe);
 	}
 
-	$provideDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
-		return this._withAdapter(handle, DefinitionAdapter, adapter => adapter.provideDefinition(URI.revive(resource), position, token), []);
+	$pwovideDefinition(handwe: numba, wesouwce: UwiComponents, position: IPosition, token: CancewwationToken): Pwomise<modes.WocationWink[]> {
+		wetuwn this._withAdapta(handwe, DefinitionAdapta, adapta => adapta.pwovideDefinition(UWI.wevive(wesouwce), position, token), []);
 	}
 
-	registerDeclarationProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DeclarationProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new DeclarationAdapter(this._documents, provider), extension);
-		this._proxy.$registerDeclarationSupport(handle, this._transformDocumentSelector(selector));
-		return this._createDisposable(handle);
+	wegistewDecwawationPwovida(extension: IExtensionDescwiption, sewectow: vscode.DocumentSewectow, pwovida: vscode.DecwawationPwovida): vscode.Disposabwe {
+		const handwe = this._addNewAdapta(new DecwawationAdapta(this._documents, pwovida), extension);
+		this._pwoxy.$wegistewDecwawationSuppowt(handwe, this._twansfowmDocumentSewectow(sewectow));
+		wetuwn this._cweateDisposabwe(handwe);
 	}
 
-	$provideDeclaration(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
-		return this._withAdapter(handle, DeclarationAdapter, adapter => adapter.provideDeclaration(URI.revive(resource), position, token), []);
+	$pwovideDecwawation(handwe: numba, wesouwce: UwiComponents, position: IPosition, token: CancewwationToken): Pwomise<modes.WocationWink[]> {
+		wetuwn this._withAdapta(handwe, DecwawationAdapta, adapta => adapta.pwovideDecwawation(UWI.wevive(wesouwce), position, token), []);
 	}
 
-	registerImplementationProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.ImplementationProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new ImplementationAdapter(this._documents, provider), extension);
-		this._proxy.$registerImplementationSupport(handle, this._transformDocumentSelector(selector));
-		return this._createDisposable(handle);
+	wegistewImpwementationPwovida(extension: IExtensionDescwiption, sewectow: vscode.DocumentSewectow, pwovida: vscode.ImpwementationPwovida): vscode.Disposabwe {
+		const handwe = this._addNewAdapta(new ImpwementationAdapta(this._documents, pwovida), extension);
+		this._pwoxy.$wegistewImpwementationSuppowt(handwe, this._twansfowmDocumentSewectow(sewectow));
+		wetuwn this._cweateDisposabwe(handwe);
 	}
 
-	$provideImplementation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
-		return this._withAdapter(handle, ImplementationAdapter, adapter => adapter.provideImplementation(URI.revive(resource), position, token), []);
+	$pwovideImpwementation(handwe: numba, wesouwce: UwiComponents, position: IPosition, token: CancewwationToken): Pwomise<modes.WocationWink[]> {
+		wetuwn this._withAdapta(handwe, ImpwementationAdapta, adapta => adapta.pwovideImpwementation(UWI.wevive(wesouwce), position, token), []);
 	}
 
-	registerTypeDefinitionProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.TypeDefinitionProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new TypeDefinitionAdapter(this._documents, provider), extension);
-		this._proxy.$registerTypeDefinitionSupport(handle, this._transformDocumentSelector(selector));
-		return this._createDisposable(handle);
+	wegistewTypeDefinitionPwovida(extension: IExtensionDescwiption, sewectow: vscode.DocumentSewectow, pwovida: vscode.TypeDefinitionPwovida): vscode.Disposabwe {
+		const handwe = this._addNewAdapta(new TypeDefinitionAdapta(this._documents, pwovida), extension);
+		this._pwoxy.$wegistewTypeDefinitionSuppowt(handwe, this._twansfowmDocumentSewectow(sewectow));
+		wetuwn this._cweateDisposabwe(handwe);
 	}
 
-	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
-		return this._withAdapter(handle, TypeDefinitionAdapter, adapter => adapter.provideTypeDefinition(URI.revive(resource), position, token), []);
+	$pwovideTypeDefinition(handwe: numba, wesouwce: UwiComponents, position: IPosition, token: CancewwationToken): Pwomise<modes.WocationWink[]> {
+		wetuwn this._withAdapta(handwe, TypeDefinitionAdapta, adapta => adapta.pwovideTypeDefinition(UWI.wevive(wesouwce), position, token), []);
 	}
 
-	// --- extra info
+	// --- extwa info
 
-	registerHoverProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.HoverProvider, extensionId?: ExtensionIdentifier): vscode.Disposable {
-		const handle = this._addNewAdapter(new HoverAdapter(this._documents, provider), extension);
-		this._proxy.$registerHoverProvider(handle, this._transformDocumentSelector(selector));
-		return this._createDisposable(handle);
+	wegistewHovewPwovida(extension: IExtensionDescwiption, sewectow: vscode.DocumentSewectow, pwovida: vscode.HovewPwovida, extensionId?: ExtensionIdentifia): vscode.Disposabwe {
+		const handwe = this._addNewAdapta(new HovewAdapta(this._documents, pwovida), extension);
+		this._pwoxy.$wegistewHovewPwovida(handwe, this._twansfowmDocumentSewectow(sewectow));
+		wetuwn this._cweateDisposabwe(handwe);
 	}
 
-	$provideHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.Hover | undefined> {
-		return this._withAdapter(handle, HoverAdapter, adapter => adapter.provideHover(URI.revive(resource), position, token), undefined);
+	$pwovideHova(handwe: numba, wesouwce: UwiComponents, position: IPosition, token: CancewwationToken): Pwomise<modes.Hova | undefined> {
+		wetuwn this._withAdapta(handwe, HovewAdapta, adapta => adapta.pwovideHova(UWI.wevive(wesouwce), position, token), undefined);
 	}
 
-	// --- debug hover
+	// --- debug hova
 
-	registerEvaluatableExpressionProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.EvaluatableExpressionProvider, extensionId?: ExtensionIdentifier): vscode.Disposable {
-		const handle = this._addNewAdapter(new EvaluatableExpressionAdapter(this._documents, provider), extension);
-		this._proxy.$registerEvaluatableExpressionProvider(handle, this._transformDocumentSelector(selector));
-		return this._createDisposable(handle);
+	wegistewEvawuatabweExpwessionPwovida(extension: IExtensionDescwiption, sewectow: vscode.DocumentSewectow, pwovida: vscode.EvawuatabweExpwessionPwovida, extensionId?: ExtensionIdentifia): vscode.Disposabwe {
+		const handwe = this._addNewAdapta(new EvawuatabweExpwessionAdapta(this._documents, pwovida), extension);
+		this._pwoxy.$wegistewEvawuatabweExpwessionPwovida(handwe, this._twansfowmDocumentSewectow(sewectow));
+		wetuwn this._cweateDisposabwe(handwe);
 	}
 
-	$provideEvaluatableExpression(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.EvaluatableExpression | undefined> {
-		return this._withAdapter(handle, EvaluatableExpressionAdapter, adapter => adapter.provideEvaluatableExpression(URI.revive(resource), position, token), undefined);
+	$pwovideEvawuatabweExpwession(handwe: numba, wesouwce: UwiComponents, position: IPosition, token: CancewwationToken): Pwomise<modes.EvawuatabweExpwession | undefined> {
+		wetuwn this._withAdapta(handwe, EvawuatabweExpwessionAdapta, adapta => adapta.pwovideEvawuatabweExpwession(UWI.wevive(wesouwce), position, token), undefined);
 	}
 
-	// --- debug inline values
+	// --- debug inwine vawues
 
-	registerInlineValuesProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineValuesProvider, extensionId?: ExtensionIdentifier): vscode.Disposable {
+	wegistewInwineVawuesPwovida(extension: IExtensionDescwiption, sewectow: vscode.DocumentSewectow, pwovida: vscode.InwineVawuesPwovida, extensionId?: ExtensionIdentifia): vscode.Disposabwe {
 
-		const eventHandle = typeof provider.onDidChangeInlineValues === 'function' ? this._nextHandle() : undefined;
-		const handle = this._addNewAdapter(new InlineValuesAdapter(this._documents, provider), extension);
+		const eventHandwe = typeof pwovida.onDidChangeInwineVawues === 'function' ? this._nextHandwe() : undefined;
+		const handwe = this._addNewAdapta(new InwineVawuesAdapta(this._documents, pwovida), extension);
 
-		this._proxy.$registerInlineValuesProvider(handle, this._transformDocumentSelector(selector), eventHandle);
-		let result = this._createDisposable(handle);
+		this._pwoxy.$wegistewInwineVawuesPwovida(handwe, this._twansfowmDocumentSewectow(sewectow), eventHandwe);
+		wet wesuwt = this._cweateDisposabwe(handwe);
 
-		if (eventHandle !== undefined) {
-			const subscription = provider.onDidChangeInlineValues!(_ => this._proxy.$emitInlineValuesEvent(eventHandle));
-			result = Disposable.from(result, subscription);
+		if (eventHandwe !== undefined) {
+			const subscwiption = pwovida.onDidChangeInwineVawues!(_ => this._pwoxy.$emitInwineVawuesEvent(eventHandwe));
+			wesuwt = Disposabwe.fwom(wesuwt, subscwiption);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	$provideInlineValues(handle: number, resource: UriComponents, range: IRange, context: extHostProtocol.IInlineValueContextDto, token: CancellationToken): Promise<modes.InlineValue[] | undefined> {
-		return this._withAdapter(handle, InlineValuesAdapter, adapter => adapter.provideInlineValues(URI.revive(resource), range, context, token), undefined);
+	$pwovideInwineVawues(handwe: numba, wesouwce: UwiComponents, wange: IWange, context: extHostPwotocow.IInwineVawueContextDto, token: CancewwationToken): Pwomise<modes.InwineVawue[] | undefined> {
+		wetuwn this._withAdapta(handwe, InwineVawuesAdapta, adapta => adapta.pwovideInwineVawues(UWI.wevive(wesouwce), wange, context, token), undefined);
 	}
 
-	// --- occurrences
+	// --- occuwwences
 
-	registerDocumentHighlightProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentHighlightProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new DocumentHighlightAdapter(this._documents, provider), extension);
-		this._proxy.$registerDocumentHighlightProvider(handle, this._transformDocumentSelector(selector));
-		return this._createDisposable(handle);
+	wegistewDocumentHighwightPwovida(extension: IExtensionDescwiption, sewectow: vscode.DocumentSewectow, pwovida: vscode.DocumentHighwightPwovida): vscode.Disposabwe {
+		const handwe = this._addNewAdapta(new DocumentHighwightAdapta(this._documents, pwovida), extension);
+		this._pwoxy.$wegistewDocumentHighwightPwovida(handwe, this._twansfowmDocumentSewectow(sewectow));
+		wetuwn this._cweateDisposabwe(handwe);
 	}
 
-	$provideDocumentHighlights(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.DocumentHighlight[] | undefined> {
-		return this._withAdapter(handle, DocumentHighlightAdapter, adapter => adapter.provideDocumentHighlights(URI.revive(resource), position, token), undefined);
+	$pwovideDocumentHighwights(handwe: numba, wesouwce: UwiComponents, position: IPosition, token: CancewwationToken): Pwomise<modes.DocumentHighwight[] | undefined> {
+		wetuwn this._withAdapta(handwe, DocumentHighwightAdapta, adapta => adapta.pwovideDocumentHighwights(UWI.wevive(wesouwce), position, token), undefined);
 	}
 
-	// --- linked editing
+	// --- winked editing
 
-	registerLinkedEditingRangeProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.LinkedEditingRangeProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new LinkedEditingRangeAdapter(this._documents, provider), extension);
-		this._proxy.$registerLinkedEditingRangeProvider(handle, this._transformDocumentSelector(selector));
-		return this._createDisposable(handle);
+	wegistewWinkedEditingWangePwovida(extension: IExtensionDescwiption, sewectow: vscode.DocumentSewectow, pwovida: vscode.WinkedEditingWangePwovida): vscode.Disposabwe {
+		const handwe = this._addNewAdapta(new WinkedEditingWangeAdapta(this._documents, pwovida), extension);
+		this._pwoxy.$wegistewWinkedEditingWangePwovida(handwe, this._twansfowmDocumentSewectow(sewectow));
+		wetuwn this._cweateDisposabwe(handwe);
 	}
 
-	$provideLinkedEditingRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<extHostProtocol.ILinkedEditingRangesDto | undefined> {
-		return this._withAdapter(handle, LinkedEditingRangeAdapter, async adapter => {
-			const res = await adapter.provideLinkedEditingRanges(URI.revive(resource), position, token);
-			if (res) {
-				return {
-					ranges: res.ranges,
-					wordPattern: res.wordPattern ? ExtHostLanguageFeatures._serializeRegExp(res.wordPattern) : undefined
+	$pwovideWinkedEditingWanges(handwe: numba, wesouwce: UwiComponents, position: IPosition, token: CancewwationToken): Pwomise<extHostPwotocow.IWinkedEditingWangesDto | undefined> {
+		wetuwn this._withAdapta(handwe, WinkedEditingWangeAdapta, async adapta => {
+			const wes = await adapta.pwovideWinkedEditingWanges(UWI.wevive(wesouwce), position, token);
+			if (wes) {
+				wetuwn {
+					wanges: wes.wanges,
+					wowdPattewn: wes.wowdPattewn ? ExtHostWanguageFeatuwes._sewiawizeWegExp(wes.wowdPattewn) : undefined
 				};
 			}
-			return undefined;
+			wetuwn undefined;
 		}, undefined);
 	}
 
-	// --- references
+	// --- wefewences
 
-	registerReferenceProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.ReferenceProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new ReferenceAdapter(this._documents, provider), extension);
-		this._proxy.$registerReferenceSupport(handle, this._transformDocumentSelector(selector));
-		return this._createDisposable(handle);
+	wegistewWefewencePwovida(extension: IExtensionDescwiption, sewectow: vscode.DocumentSewectow, pwovida: vscode.WefewencePwovida): vscode.Disposabwe {
+		const handwe = this._addNewAdapta(new WefewenceAdapta(this._documents, pwovida), extension);
+		this._pwoxy.$wegistewWefewenceSuppowt(handwe, this._twansfowmDocumentSewectow(sewectow));
+		wetuwn this._cweateDisposabwe(handwe);
 	}
 
-	$provideReferences(handle: number, resource: UriComponents, position: IPosition, context: modes.ReferenceContext, token: CancellationToken): Promise<modes.Location[] | undefined> {
-		return this._withAdapter(handle, ReferenceAdapter, adapter => adapter.provideReferences(URI.revive(resource), position, context, token), undefined);
+	$pwovideWefewences(handwe: numba, wesouwce: UwiComponents, position: IPosition, context: modes.WefewenceContext, token: CancewwationToken): Pwomise<modes.Wocation[] | undefined> {
+		wetuwn this._withAdapta(handwe, WefewenceAdapta, adapta => adapta.pwovideWefewences(UWI.wevive(wesouwce), position, context, token), undefined);
 	}
 
 	// --- quick fix
 
-	registerCodeActionProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider, metadata?: vscode.CodeActionProviderMetadata): vscode.Disposable {
-		const store = new DisposableStore();
-		const handle = this._addNewAdapter(new CodeActionAdapter(this._documents, this._commands.converter, this._diagnostics, provider, this._logService, extension, this._apiDeprecation), extension);
-		this._proxy.$registerQuickFixSupport(handle, this._transformDocumentSelector(selector), {
-			providedKinds: metadata?.providedCodeActionKinds?.map(kind => kind.value),
+	wegistewCodeActionPwovida(extension: IExtensionDescwiption, sewectow: vscode.DocumentSewectow, pwovida: vscode.CodeActionPwovida, metadata?: vscode.CodeActionPwovidewMetadata): vscode.Disposabwe {
+		const stowe = new DisposabweStowe();
+		const handwe = this._addNewAdapta(new CodeActionAdapta(this._documents, this._commands.convewta, this._diagnostics, pwovida, this._wogSewvice, extension, this._apiDepwecation), extension);
+		this._pwoxy.$wegistewQuickFixSuppowt(handwe, this._twansfowmDocumentSewectow(sewectow), {
+			pwovidedKinds: metadata?.pwovidedCodeActionKinds?.map(kind => kind.vawue),
 			documentation: metadata?.documentation?.map(x => ({
-				kind: x.kind.value,
-				command: this._commands.converter.toInternal(x.command, store),
+				kind: x.kind.vawue,
+				command: this._commands.convewta.toIntewnaw(x.command, stowe),
 			}))
-		}, ExtHostLanguageFeatures._extLabel(extension), Boolean(provider.resolveCodeAction));
-		store.add(this._createDisposable(handle));
-		return store;
+		}, ExtHostWanguageFeatuwes._extWabew(extension), Boowean(pwovida.wesowveCodeAction));
+		stowe.add(this._cweateDisposabwe(handwe));
+		wetuwn stowe;
 	}
 
 
-	$provideCodeActions(handle: number, resource: UriComponents, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Promise<extHostProtocol.ICodeActionListDto | undefined> {
-		return this._withAdapter(handle, CodeActionAdapter, adapter => adapter.provideCodeActions(URI.revive(resource), rangeOrSelection, context, token), undefined);
+	$pwovideCodeActions(handwe: numba, wesouwce: UwiComponents, wangeOwSewection: IWange | ISewection, context: modes.CodeActionContext, token: CancewwationToken): Pwomise<extHostPwotocow.ICodeActionWistDto | undefined> {
+		wetuwn this._withAdapta(handwe, CodeActionAdapta, adapta => adapta.pwovideCodeActions(UWI.wevive(wesouwce), wangeOwSewection, context, token), undefined);
 	}
 
-	$resolveCodeAction(handle: number, id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<extHostProtocol.IWorkspaceEditDto | undefined> {
-		return this._withAdapter(handle, CodeActionAdapter, adapter => adapter.resolveCodeAction(id, token), undefined);
+	$wesowveCodeAction(handwe: numba, id: extHostPwotocow.ChainedCacheId, token: CancewwationToken): Pwomise<extHostPwotocow.IWowkspaceEditDto | undefined> {
+		wetuwn this._withAdapta(handwe, CodeActionAdapta, adapta => adapta.wesowveCodeAction(id, token), undefined);
 	}
 
-	$releaseCodeActions(handle: number, cacheId: number): void {
-		this._withAdapter(handle, CodeActionAdapter, adapter => Promise.resolve(adapter.releaseCodeActions(cacheId)), undefined);
+	$weweaseCodeActions(handwe: numba, cacheId: numba): void {
+		this._withAdapta(handwe, CodeActionAdapta, adapta => Pwomise.wesowve(adapta.weweaseCodeActions(cacheId)), undefined);
 	}
 
-	// --- formatting
+	// --- fowmatting
 
-	registerDocumentFormattingEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentFormattingEditProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new DocumentFormattingAdapter(this._documents, provider), extension);
-		this._proxy.$registerDocumentFormattingSupport(handle, this._transformDocumentSelector(selector), extension.identifier, extension.displayName || extension.name);
-		return this._createDisposable(handle);
+	wegistewDocumentFowmattingEditPwovida(extension: IExtensionDescwiption, sewectow: vscode.DocumentSewectow, pwovida: vscode.DocumentFowmattingEditPwovida): vscode.Disposabwe {
+		const handwe = this._addNewAdapta(new DocumentFowmattingAdapta(this._documents, pwovida), extension);
+		this._pwoxy.$wegistewDocumentFowmattingSuppowt(handwe, this._twansfowmDocumentSewectow(sewectow), extension.identifia, extension.dispwayName || extension.name);
+		wetuwn this._cweateDisposabwe(handwe);
 	}
 
-	$provideDocumentFormattingEdits(handle: number, resource: UriComponents, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> {
-		return this._withAdapter(handle, DocumentFormattingAdapter, adapter => adapter.provideDocumentFormattingEdits(URI.revive(resource), options, token), undefined);
+	$pwovideDocumentFowmattingEdits(handwe: numba, wesouwce: UwiComponents, options: modes.FowmattingOptions, token: CancewwationToken): Pwomise<ISingweEditOpewation[] | undefined> {
+		wetuwn this._withAdapta(handwe, DocumentFowmattingAdapta, adapta => adapta.pwovideDocumentFowmattingEdits(UWI.wevive(wesouwce), options, token), undefined);
 	}
 
-	registerDocumentRangeFormattingEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new RangeFormattingAdapter(this._documents, provider), extension);
-		this._proxy.$registerRangeFormattingSupport(handle, this._transformDocumentSelector(selector), extension.identifier, extension.displayName || extension.name);
-		return this._createDisposable(handle);
+	wegistewDocumentWangeFowmattingEditPwovida(extension: IExtensionDescwiption, sewectow: vscode.DocumentSewectow, pwovida: vscode.DocumentWangeFowmattingEditPwovida): vscode.Disposabwe {
+		const handwe = this._addNewAdapta(new WangeFowmattingAdapta(this._documents, pwovida), extension);
+		this._pwoxy.$wegistewWangeFowmattingSuppowt(handwe, this._twansfowmDocumentSewectow(sewectow), extension.identifia, extension.dispwayName || extension.name);
+		wetuwn this._cweateDisposabwe(handwe);
 	}
 
-	$provideDocumentRangeFormattingEdits(handle: number, resource: UriComponents, range: IRange, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> {
-		return this._withAdapter(handle, RangeFormattingAdapter, adapter => adapter.provideDocumentRangeFormattingEdits(URI.revive(resource), range, options, token), undefined);
+	$pwovideDocumentWangeFowmattingEdits(handwe: numba, wesouwce: UwiComponents, wange: IWange, options: modes.FowmattingOptions, token: CancewwationToken): Pwomise<ISingweEditOpewation[] | undefined> {
+		wetuwn this._withAdapta(handwe, WangeFowmattingAdapta, adapta => adapta.pwovideDocumentWangeFowmattingEdits(UWI.wevive(wesouwce), wange, options, token), undefined);
 	}
 
-	registerOnTypeFormattingEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.OnTypeFormattingEditProvider, triggerCharacters: string[]): vscode.Disposable {
-		const handle = this._addNewAdapter(new OnTypeFormattingAdapter(this._documents, provider), extension);
-		this._proxy.$registerOnTypeFormattingSupport(handle, this._transformDocumentSelector(selector), triggerCharacters, extension.identifier);
-		return this._createDisposable(handle);
+	wegistewOnTypeFowmattingEditPwovida(extension: IExtensionDescwiption, sewectow: vscode.DocumentSewectow, pwovida: vscode.OnTypeFowmattingEditPwovida, twiggewChawactews: stwing[]): vscode.Disposabwe {
+		const handwe = this._addNewAdapta(new OnTypeFowmattingAdapta(this._documents, pwovida), extension);
+		this._pwoxy.$wegistewOnTypeFowmattingSuppowt(handwe, this._twansfowmDocumentSewectow(sewectow), twiggewChawactews, extension.identifia);
+		wetuwn this._cweateDisposabwe(handwe);
 	}
 
-	$provideOnTypeFormattingEdits(handle: number, resource: UriComponents, position: IPosition, ch: string, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> {
-		return this._withAdapter(handle, OnTypeFormattingAdapter, adapter => adapter.provideOnTypeFormattingEdits(URI.revive(resource), position, ch, options, token), undefined);
+	$pwovideOnTypeFowmattingEdits(handwe: numba, wesouwce: UwiComponents, position: IPosition, ch: stwing, options: modes.FowmattingOptions, token: CancewwationToken): Pwomise<ISingweEditOpewation[] | undefined> {
+		wetuwn this._withAdapta(handwe, OnTypeFowmattingAdapta, adapta => adapta.pwovideOnTypeFowmattingEdits(UWI.wevive(wesouwce), position, ch, options, token), undefined);
 	}
 
 	// --- navigate types
 
-	registerWorkspaceSymbolProvider(extension: IExtensionDescription, provider: vscode.WorkspaceSymbolProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new NavigateTypeAdapter(provider, this._logService), extension);
-		this._proxy.$registerNavigateTypeSupport(handle);
-		return this._createDisposable(handle);
+	wegistewWowkspaceSymbowPwovida(extension: IExtensionDescwiption, pwovida: vscode.WowkspaceSymbowPwovida): vscode.Disposabwe {
+		const handwe = this._addNewAdapta(new NavigateTypeAdapta(pwovida, this._wogSewvice), extension);
+		this._pwoxy.$wegistewNavigateTypeSuppowt(handwe);
+		wetuwn this._cweateDisposabwe(handwe);
 	}
 
-	$provideWorkspaceSymbols(handle: number, search: string, token: CancellationToken): Promise<extHostProtocol.IWorkspaceSymbolsDto> {
-		return this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.provideWorkspaceSymbols(search, token), { symbols: [] });
+	$pwovideWowkspaceSymbows(handwe: numba, seawch: stwing, token: CancewwationToken): Pwomise<extHostPwotocow.IWowkspaceSymbowsDto> {
+		wetuwn this._withAdapta(handwe, NavigateTypeAdapta, adapta => adapta.pwovideWowkspaceSymbows(seawch, token), { symbows: [] });
 	}
 
-	$resolveWorkspaceSymbol(handle: number, symbol: extHostProtocol.IWorkspaceSymbolDto, token: CancellationToken): Promise<extHostProtocol.IWorkspaceSymbolDto | undefined> {
-		return this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.resolveWorkspaceSymbol(symbol, token), undefined);
+	$wesowveWowkspaceSymbow(handwe: numba, symbow: extHostPwotocow.IWowkspaceSymbowDto, token: CancewwationToken): Pwomise<extHostPwotocow.IWowkspaceSymbowDto | undefined> {
+		wetuwn this._withAdapta(handwe, NavigateTypeAdapta, adapta => adapta.wesowveWowkspaceSymbow(symbow, token), undefined);
 	}
 
-	$releaseWorkspaceSymbols(handle: number, id: number): void {
-		this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.releaseWorkspaceSymbols(id), undefined);
+	$weweaseWowkspaceSymbows(handwe: numba, id: numba): void {
+		this._withAdapta(handwe, NavigateTypeAdapta, adapta => adapta.weweaseWowkspaceSymbows(id), undefined);
 	}
 
-	// --- rename
+	// --- wename
 
-	registerRenameProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.RenameProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new RenameAdapter(this._documents, provider, this._logService), extension);
-		this._proxy.$registerRenameSupport(handle, this._transformDocumentSelector(selector), RenameAdapter.supportsResolving(provider));
-		return this._createDisposable(handle);
+	wegistewWenamePwovida(extension: IExtensionDescwiption, sewectow: vscode.DocumentSewectow, pwovida: vscode.WenamePwovida): vscode.Disposabwe {
+		const handwe = this._addNewAdapta(new WenameAdapta(this._documents, pwovida, this._wogSewvice), extension);
+		this._pwoxy.$wegistewWenameSuppowt(handwe, this._twansfowmDocumentSewectow(sewectow), WenameAdapta.suppowtsWesowving(pwovida));
+		wetuwn this._cweateDisposabwe(handwe);
 	}
 
-	$provideRenameEdits(handle: number, resource: UriComponents, position: IPosition, newName: string, token: CancellationToken): Promise<extHostProtocol.IWorkspaceEditDto | undefined> {
-		return this._withAdapter(handle, RenameAdapter, adapter => adapter.provideRenameEdits(URI.revive(resource), position, newName, token), undefined);
+	$pwovideWenameEdits(handwe: numba, wesouwce: UwiComponents, position: IPosition, newName: stwing, token: CancewwationToken): Pwomise<extHostPwotocow.IWowkspaceEditDto | undefined> {
+		wetuwn this._withAdapta(handwe, WenameAdapta, adapta => adapta.pwovideWenameEdits(UWI.wevive(wesouwce), position, newName, token), undefined);
 	}
 
-	$resolveRenameLocation(handle: number, resource: URI, position: IPosition, token: CancellationToken): Promise<modes.RenameLocation | undefined> {
-		return this._withAdapter(handle, RenameAdapter, adapter => adapter.resolveRenameLocation(URI.revive(resource), position, token), undefined);
+	$wesowveWenameWocation(handwe: numba, wesouwce: UWI, position: IPosition, token: CancewwationToken): Pwomise<modes.WenameWocation | undefined> {
+		wetuwn this._withAdapta(handwe, WenameAdapta, adapta => adapta.wesowveWenameWocation(UWI.wevive(wesouwce), position, token), undefined);
 	}
 
-	//#region semantic coloring
+	//#wegion semantic cowowing
 
-	registerDocumentSemanticTokensProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentSemanticTokensProvider, legend: vscode.SemanticTokensLegend): vscode.Disposable {
-		const handle = this._nextHandle();
-		const eventHandle = (typeof provider.onDidChangeSemanticTokens === 'function' ? this._nextHandle() : undefined);
+	wegistewDocumentSemanticTokensPwovida(extension: IExtensionDescwiption, sewectow: vscode.DocumentSewectow, pwovida: vscode.DocumentSemanticTokensPwovida, wegend: vscode.SemanticTokensWegend): vscode.Disposabwe {
+		const handwe = this._nextHandwe();
+		const eventHandwe = (typeof pwovida.onDidChangeSemanticTokens === 'function' ? this._nextHandwe() : undefined);
 
-		this._adapter.set(handle, new AdapterData(new DocumentSemanticTokensAdapter(this._documents, provider), extension));
-		this._proxy.$registerDocumentSemanticTokensProvider(handle, this._transformDocumentSelector(selector), legend, eventHandle);
-		let result = this._createDisposable(handle);
+		this._adapta.set(handwe, new AdaptewData(new DocumentSemanticTokensAdapta(this._documents, pwovida), extension));
+		this._pwoxy.$wegistewDocumentSemanticTokensPwovida(handwe, this._twansfowmDocumentSewectow(sewectow), wegend, eventHandwe);
+		wet wesuwt = this._cweateDisposabwe(handwe);
 
-		if (eventHandle) {
-			const subscription = provider.onDidChangeSemanticTokens!(_ => this._proxy.$emitDocumentSemanticTokensEvent(eventHandle));
-			result = Disposable.from(result, subscription);
+		if (eventHandwe) {
+			const subscwiption = pwovida.onDidChangeSemanticTokens!(_ => this._pwoxy.$emitDocumentSemanticTokensEvent(eventHandwe));
+			wesuwt = Disposabwe.fwom(wesuwt, subscwiption);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	$provideDocumentSemanticTokens(handle: number, resource: UriComponents, previousResultId: number, token: CancellationToken): Promise<VSBuffer | null> {
-		return this._withAdapter(handle, DocumentSemanticTokensAdapter, adapter => adapter.provideDocumentSemanticTokens(URI.revive(resource), previousResultId, token), null, true);
+	$pwovideDocumentSemanticTokens(handwe: numba, wesouwce: UwiComponents, pweviousWesuwtId: numba, token: CancewwationToken): Pwomise<VSBuffa | nuww> {
+		wetuwn this._withAdapta(handwe, DocumentSemanticTokensAdapta, adapta => adapta.pwovideDocumentSemanticTokens(UWI.wevive(wesouwce), pweviousWesuwtId, token), nuww, twue);
 	}
 
-	$releaseDocumentSemanticTokens(handle: number, semanticColoringResultId: number): void {
-		this._withAdapter(handle, DocumentSemanticTokensAdapter, adapter => adapter.releaseDocumentSemanticColoring(semanticColoringResultId), undefined);
+	$weweaseDocumentSemanticTokens(handwe: numba, semanticCowowingWesuwtId: numba): void {
+		this._withAdapta(handwe, DocumentSemanticTokensAdapta, adapta => adapta.weweaseDocumentSemanticCowowing(semanticCowowingWesuwtId), undefined);
 	}
 
-	registerDocumentRangeSemanticTokensProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentRangeSemanticTokensProvider, legend: vscode.SemanticTokensLegend): vscode.Disposable {
-		const handle = this._addNewAdapter(new DocumentRangeSemanticTokensAdapter(this._documents, provider), extension);
-		this._proxy.$registerDocumentRangeSemanticTokensProvider(handle, this._transformDocumentSelector(selector), legend);
-		return this._createDisposable(handle);
+	wegistewDocumentWangeSemanticTokensPwovida(extension: IExtensionDescwiption, sewectow: vscode.DocumentSewectow, pwovida: vscode.DocumentWangeSemanticTokensPwovida, wegend: vscode.SemanticTokensWegend): vscode.Disposabwe {
+		const handwe = this._addNewAdapta(new DocumentWangeSemanticTokensAdapta(this._documents, pwovida), extension);
+		this._pwoxy.$wegistewDocumentWangeSemanticTokensPwovida(handwe, this._twansfowmDocumentSewectow(sewectow), wegend);
+		wetuwn this._cweateDisposabwe(handwe);
 	}
 
-	$provideDocumentRangeSemanticTokens(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<VSBuffer | null> {
-		return this._withAdapter(handle, DocumentRangeSemanticTokensAdapter, adapter => adapter.provideDocumentRangeSemanticTokens(URI.revive(resource), range, token), null, true);
+	$pwovideDocumentWangeSemanticTokens(handwe: numba, wesouwce: UwiComponents, wange: IWange, token: CancewwationToken): Pwomise<VSBuffa | nuww> {
+		wetuwn this._withAdapta(handwe, DocumentWangeSemanticTokensAdapta, adapta => adapta.pwovideDocumentWangeSemanticTokens(UWI.wevive(wesouwce), wange, token), nuww, twue);
 	}
 
-	//#endregion
+	//#endwegion
 
 	// --- suggestion
 
-	registerCompletionItemProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[]): vscode.Disposable {
-		const handle = this._addNewAdapter(new SuggestAdapter(this._documents, this._commands.converter, provider, this._apiDeprecation, extension), extension);
-		this._proxy.$registerSuggestSupport(handle, this._transformDocumentSelector(selector), triggerCharacters, SuggestAdapter.supportsResolving(provider), `${extension.identifier.value}(${triggerCharacters.join('')})`);
-		return this._createDisposable(handle);
+	wegistewCompwetionItemPwovida(extension: IExtensionDescwiption, sewectow: vscode.DocumentSewectow, pwovida: vscode.CompwetionItemPwovida, twiggewChawactews: stwing[]): vscode.Disposabwe {
+		const handwe = this._addNewAdapta(new SuggestAdapta(this._documents, this._commands.convewta, pwovida, this._apiDepwecation, extension), extension);
+		this._pwoxy.$wegistewSuggestSuppowt(handwe, this._twansfowmDocumentSewectow(sewectow), twiggewChawactews, SuggestAdapta.suppowtsWesowving(pwovida), `${extension.identifia.vawue}(${twiggewChawactews.join('')})`);
+		wetuwn this._cweateDisposabwe(handwe);
 	}
 
-	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<extHostProtocol.ISuggestResultDto | undefined> {
-		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.provideCompletionItems(URI.revive(resource), position, context, token), undefined);
+	$pwovideCompwetionItems(handwe: numba, wesouwce: UwiComponents, position: IPosition, context: modes.CompwetionContext, token: CancewwationToken): Pwomise<extHostPwotocow.ISuggestWesuwtDto | undefined> {
+		wetuwn this._withAdapta(handwe, SuggestAdapta, adapta => adapta.pwovideCompwetionItems(UWI.wevive(wesouwce), position, context, token), undefined);
 	}
 
-	$resolveCompletionItem(handle: number, id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<extHostProtocol.ISuggestDataDto | undefined> {
-		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.resolveCompletionItem(id, token), undefined);
+	$wesowveCompwetionItem(handwe: numba, id: extHostPwotocow.ChainedCacheId, token: CancewwationToken): Pwomise<extHostPwotocow.ISuggestDataDto | undefined> {
+		wetuwn this._withAdapta(handwe, SuggestAdapta, adapta => adapta.wesowveCompwetionItem(id, token), undefined);
 	}
 
-	$releaseCompletionItems(handle: number, id: number): void {
-		this._withAdapter(handle, SuggestAdapter, adapter => adapter.releaseCompletionItems(id), undefined);
+	$weweaseCompwetionItems(handwe: numba, id: numba): void {
+		this._withAdapta(handwe, SuggestAdapta, adapta => adapta.weweaseCompwetionItems(id), undefined);
 	}
 
 	// --- ghost test
 
-	registerInlineCompletionsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineCompletionItemProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new InlineCompletionAdapter(this._documents, provider, this._commands.converter), extension);
-		this._proxy.$registerInlineCompletionsSupport(handle, this._transformDocumentSelector(selector));
-		return this._createDisposable(handle);
+	wegistewInwineCompwetionsPwovida(extension: IExtensionDescwiption, sewectow: vscode.DocumentSewectow, pwovida: vscode.InwineCompwetionItemPwovida): vscode.Disposabwe {
+		const handwe = this._addNewAdapta(new InwineCompwetionAdapta(this._documents, pwovida, this._commands.convewta), extension);
+		this._pwoxy.$wegistewInwineCompwetionsSuppowt(handwe, this._twansfowmDocumentSewectow(sewectow));
+		wetuwn this._cweateDisposabwe(handwe);
 	}
 
-	$provideInlineCompletions(handle: number, resource: UriComponents, position: IPosition, context: modes.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
-		return this._withAdapter(handle, InlineCompletionAdapter, adapter => adapter.provideInlineCompletions(URI.revive(resource), position, context, token), undefined);
+	$pwovideInwineCompwetions(handwe: numba, wesouwce: UwiComponents, position: IPosition, context: modes.InwineCompwetionContext, token: CancewwationToken): Pwomise<extHostPwotocow.IdentifiabweInwineCompwetions | undefined> {
+		wetuwn this._withAdapta(handwe, InwineCompwetionAdapta, adapta => adapta.pwovideInwineCompwetions(UWI.wevive(wesouwce), position, context, token), undefined);
 	}
 
-	$handleInlineCompletionDidShow(handle: number, pid: number, idx: number): void {
-		this._withAdapter(handle, InlineCompletionAdapter, async adapter => {
-			adapter.handleDidShowCompletionItem(pid, idx);
+	$handweInwineCompwetionDidShow(handwe: numba, pid: numba, idx: numba): void {
+		this._withAdapta(handwe, InwineCompwetionAdapta, async adapta => {
+			adapta.handweDidShowCompwetionItem(pid, idx);
 		}, undefined);
 	}
 
-	$freeInlineCompletionsList(handle: number, pid: number): void {
-		this._withAdapter(handle, InlineCompletionAdapter, async adapter => { adapter.disposeCompletions(pid); }, undefined);
+	$fweeInwineCompwetionsWist(handwe: numba, pid: numba): void {
+		this._withAdapta(handwe, InwineCompwetionAdapta, async adapta => { adapta.disposeCompwetions(pid); }, undefined);
 	}
 
-	// --- parameter hints
+	// --- pawameta hints
 
-	registerSignatureHelpProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.SignatureHelpProvider, metadataOrTriggerChars: string[] | vscode.SignatureHelpProviderMetadata): vscode.Disposable {
-		const metadata: extHostProtocol.ISignatureHelpProviderMetadataDto | undefined = Array.isArray(metadataOrTriggerChars)
-			? { triggerCharacters: metadataOrTriggerChars, retriggerCharacters: [] }
-			: metadataOrTriggerChars;
+	wegistewSignatuweHewpPwovida(extension: IExtensionDescwiption, sewectow: vscode.DocumentSewectow, pwovida: vscode.SignatuweHewpPwovida, metadataOwTwiggewChaws: stwing[] | vscode.SignatuweHewpPwovidewMetadata): vscode.Disposabwe {
+		const metadata: extHostPwotocow.ISignatuweHewpPwovidewMetadataDto | undefined = Awway.isAwway(metadataOwTwiggewChaws)
+			? { twiggewChawactews: metadataOwTwiggewChaws, wetwiggewChawactews: [] }
+			: metadataOwTwiggewChaws;
 
-		const handle = this._addNewAdapter(new SignatureHelpAdapter(this._documents, provider), extension);
-		this._proxy.$registerSignatureHelpProvider(handle, this._transformDocumentSelector(selector), metadata);
-		return this._createDisposable(handle);
+		const handwe = this._addNewAdapta(new SignatuweHewpAdapta(this._documents, pwovida), extension);
+		this._pwoxy.$wegistewSignatuweHewpPwovida(handwe, this._twansfowmDocumentSewectow(sewectow), metadata);
+		wetuwn this._cweateDisposabwe(handwe);
 	}
 
-	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: extHostProtocol.ISignatureHelpContextDto, token: CancellationToken): Promise<extHostProtocol.ISignatureHelpDto | undefined> {
-		return this._withAdapter(handle, SignatureHelpAdapter, adapter => adapter.provideSignatureHelp(URI.revive(resource), position, context, token), undefined);
+	$pwovideSignatuweHewp(handwe: numba, wesouwce: UwiComponents, position: IPosition, context: extHostPwotocow.ISignatuweHewpContextDto, token: CancewwationToken): Pwomise<extHostPwotocow.ISignatuweHewpDto | undefined> {
+		wetuwn this._withAdapta(handwe, SignatuweHewpAdapta, adapta => adapta.pwovideSignatuweHewp(UWI.wevive(wesouwce), position, context, token), undefined);
 	}
 
-	$releaseSignatureHelp(handle: number, id: number): void {
-		this._withAdapter(handle, SignatureHelpAdapter, adapter => adapter.releaseSignatureHelp(id), undefined);
+	$weweaseSignatuweHewp(handwe: numba, id: numba): void {
+		this._withAdapta(handwe, SignatuweHewpAdapta, adapta => adapta.weweaseSignatuweHewp(id), undefined);
 	}
 
-	// --- inline hints
+	// --- inwine hints
 
-	registerInlayHintsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlayHintsProvider): vscode.Disposable {
+	wegistewInwayHintsPwovida(extension: IExtensionDescwiption, sewectow: vscode.DocumentSewectow, pwovida: vscode.InwayHintsPwovida): vscode.Disposabwe {
 
-		const eventHandle = typeof provider.onDidChangeInlayHints === 'function' ? this._nextHandle() : undefined;
-		const handle = this._addNewAdapter(new InlayHintsAdapter(this._documents, provider), extension);
+		const eventHandwe = typeof pwovida.onDidChangeInwayHints === 'function' ? this._nextHandwe() : undefined;
+		const handwe = this._addNewAdapta(new InwayHintsAdapta(this._documents, pwovida), extension);
 
-		this._proxy.$registerInlayHintsProvider(handle, this._transformDocumentSelector(selector), eventHandle);
-		let result = this._createDisposable(handle);
+		this._pwoxy.$wegistewInwayHintsPwovida(handwe, this._twansfowmDocumentSewectow(sewectow), eventHandwe);
+		wet wesuwt = this._cweateDisposabwe(handwe);
 
-		if (eventHandle !== undefined) {
-			const subscription = provider.onDidChangeInlayHints!(_ => this._proxy.$emitInlayHintsEvent(eventHandle));
-			result = Disposable.from(result, subscription);
+		if (eventHandwe !== undefined) {
+			const subscwiption = pwovida.onDidChangeInwayHints!(_ => this._pwoxy.$emitInwayHintsEvent(eventHandwe));
+			wesuwt = Disposabwe.fwom(wesuwt, subscwiption);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	$provideInlayHints(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<extHostProtocol.IInlayHintsDto | undefined> {
-		return this._withAdapter(handle, InlayHintsAdapter, adapter => adapter.provideInlayHints(URI.revive(resource), range, token), undefined);
+	$pwovideInwayHints(handwe: numba, wesouwce: UwiComponents, wange: IWange, token: CancewwationToken): Pwomise<extHostPwotocow.IInwayHintsDto | undefined> {
+		wetuwn this._withAdapta(handwe, InwayHintsAdapta, adapta => adapta.pwovideInwayHints(UWI.wevive(wesouwce), wange, token), undefined);
 	}
 
-	// --- links
+	// --- winks
 
-	registerDocumentLinkProvider(extension: IExtensionDescription | undefined, selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new LinkProviderAdapter(this._documents, provider), extension);
-		this._proxy.$registerDocumentLinkProvider(handle, this._transformDocumentSelector(selector), typeof provider.resolveDocumentLink === 'function');
-		return this._createDisposable(handle);
+	wegistewDocumentWinkPwovida(extension: IExtensionDescwiption | undefined, sewectow: vscode.DocumentSewectow, pwovida: vscode.DocumentWinkPwovida): vscode.Disposabwe {
+		const handwe = this._addNewAdapta(new WinkPwovidewAdapta(this._documents, pwovida), extension);
+		this._pwoxy.$wegistewDocumentWinkPwovida(handwe, this._twansfowmDocumentSewectow(sewectow), typeof pwovida.wesowveDocumentWink === 'function');
+		wetuwn this._cweateDisposabwe(handwe);
 	}
 
-	$provideDocumentLinks(handle: number, resource: UriComponents, token: CancellationToken): Promise<extHostProtocol.ILinksListDto | undefined> {
-		return this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.provideLinks(URI.revive(resource), token), undefined);
+	$pwovideDocumentWinks(handwe: numba, wesouwce: UwiComponents, token: CancewwationToken): Pwomise<extHostPwotocow.IWinksWistDto | undefined> {
+		wetuwn this._withAdapta(handwe, WinkPwovidewAdapta, adapta => adapta.pwovideWinks(UWI.wevive(wesouwce), token), undefined);
 	}
 
-	$resolveDocumentLink(handle: number, id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<extHostProtocol.ILinkDto | undefined> {
-		return this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.resolveLink(id, token), undefined);
+	$wesowveDocumentWink(handwe: numba, id: extHostPwotocow.ChainedCacheId, token: CancewwationToken): Pwomise<extHostPwotocow.IWinkDto | undefined> {
+		wetuwn this._withAdapta(handwe, WinkPwovidewAdapta, adapta => adapta.wesowveWink(id, token), undefined);
 	}
 
-	$releaseDocumentLinks(handle: number, id: number): void {
-		this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.releaseLinks(id), undefined);
+	$weweaseDocumentWinks(handwe: numba, id: numba): void {
+		this._withAdapta(handwe, WinkPwovidewAdapta, adapta => adapta.weweaseWinks(id), undefined);
 	}
 
-	registerColorProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentColorProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new ColorProviderAdapter(this._documents, provider), extension);
-		this._proxy.$registerDocumentColorProvider(handle, this._transformDocumentSelector(selector));
-		return this._createDisposable(handle);
+	wegistewCowowPwovida(extension: IExtensionDescwiption, sewectow: vscode.DocumentSewectow, pwovida: vscode.DocumentCowowPwovida): vscode.Disposabwe {
+		const handwe = this._addNewAdapta(new CowowPwovidewAdapta(this._documents, pwovida), extension);
+		this._pwoxy.$wegistewDocumentCowowPwovida(handwe, this._twansfowmDocumentSewectow(sewectow));
+		wetuwn this._cweateDisposabwe(handwe);
 	}
 
-	$provideDocumentColors(handle: number, resource: UriComponents, token: CancellationToken): Promise<extHostProtocol.IRawColorInfo[]> {
-		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.provideColors(URI.revive(resource), token), []);
+	$pwovideDocumentCowows(handwe: numba, wesouwce: UwiComponents, token: CancewwationToken): Pwomise<extHostPwotocow.IWawCowowInfo[]> {
+		wetuwn this._withAdapta(handwe, CowowPwovidewAdapta, adapta => adapta.pwovideCowows(UWI.wevive(wesouwce), token), []);
 	}
 
-	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: extHostProtocol.IRawColorInfo, token: CancellationToken): Promise<modes.IColorPresentation[] | undefined> {
-		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.provideColorPresentations(URI.revive(resource), colorInfo, token), undefined);
+	$pwovideCowowPwesentations(handwe: numba, wesouwce: UwiComponents, cowowInfo: extHostPwotocow.IWawCowowInfo, token: CancewwationToken): Pwomise<modes.ICowowPwesentation[] | undefined> {
+		wetuwn this._withAdapta(handwe, CowowPwovidewAdapta, adapta => adapta.pwovideCowowPwesentations(UWI.wevive(wesouwce), cowowInfo, token), undefined);
 	}
 
-	registerFoldingRangeProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.FoldingRangeProvider): vscode.Disposable {
-		const handle = this._nextHandle();
-		const eventHandle = typeof provider.onDidChangeFoldingRanges === 'function' ? this._nextHandle() : undefined;
+	wegistewFowdingWangePwovida(extension: IExtensionDescwiption, sewectow: vscode.DocumentSewectow, pwovida: vscode.FowdingWangePwovida): vscode.Disposabwe {
+		const handwe = this._nextHandwe();
+		const eventHandwe = typeof pwovida.onDidChangeFowdingWanges === 'function' ? this._nextHandwe() : undefined;
 
-		this._adapter.set(handle, new AdapterData(new FoldingProviderAdapter(this._documents, provider), extension));
-		this._proxy.$registerFoldingRangeProvider(handle, this._transformDocumentSelector(selector), eventHandle);
-		let result = this._createDisposable(handle);
+		this._adapta.set(handwe, new AdaptewData(new FowdingPwovidewAdapta(this._documents, pwovida), extension));
+		this._pwoxy.$wegistewFowdingWangePwovida(handwe, this._twansfowmDocumentSewectow(sewectow), eventHandwe);
+		wet wesuwt = this._cweateDisposabwe(handwe);
 
-		if (eventHandle !== undefined) {
-			const subscription = provider.onDidChangeFoldingRanges!(() => this._proxy.$emitFoldingRangeEvent(eventHandle));
-			result = Disposable.from(result, subscription);
+		if (eventHandwe !== undefined) {
+			const subscwiption = pwovida.onDidChangeFowdingWanges!(() => this._pwoxy.$emitFowdingWangeEvent(eventHandwe));
+			wesuwt = Disposabwe.fwom(wesuwt, subscwiption);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	$provideFoldingRanges(handle: number, resource: UriComponents, context: vscode.FoldingContext, token: CancellationToken): Promise<modes.FoldingRange[] | undefined> {
-		return this._withAdapter(handle, FoldingProviderAdapter, adapter => adapter.provideFoldingRanges(URI.revive(resource), context, token), undefined);
+	$pwovideFowdingWanges(handwe: numba, wesouwce: UwiComponents, context: vscode.FowdingContext, token: CancewwationToken): Pwomise<modes.FowdingWange[] | undefined> {
+		wetuwn this._withAdapta(handwe, FowdingPwovidewAdapta, adapta => adapta.pwovideFowdingWanges(UWI.wevive(wesouwce), context, token), undefined);
 	}
 
-	// --- smart select
+	// --- smawt sewect
 
-	registerSelectionRangeProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.SelectionRangeProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new SelectionRangeAdapter(this._documents, provider, this._logService), extension);
-		this._proxy.$registerSelectionRangeProvider(handle, this._transformDocumentSelector(selector));
-		return this._createDisposable(handle);
+	wegistewSewectionWangePwovida(extension: IExtensionDescwiption, sewectow: vscode.DocumentSewectow, pwovida: vscode.SewectionWangePwovida): vscode.Disposabwe {
+		const handwe = this._addNewAdapta(new SewectionWangeAdapta(this._documents, pwovida, this._wogSewvice), extension);
+		this._pwoxy.$wegistewSewectionWangePwovida(handwe, this._twansfowmDocumentSewectow(sewectow));
+		wetuwn this._cweateDisposabwe(handwe);
 	}
 
-	$provideSelectionRanges(handle: number, resource: UriComponents, positions: IPosition[], token: CancellationToken): Promise<modes.SelectionRange[][]> {
-		return this._withAdapter(handle, SelectionRangeAdapter, adapter => adapter.provideSelectionRanges(URI.revive(resource), positions, token), []);
+	$pwovideSewectionWanges(handwe: numba, wesouwce: UwiComponents, positions: IPosition[], token: CancewwationToken): Pwomise<modes.SewectionWange[][]> {
+		wetuwn this._withAdapta(handwe, SewectionWangeAdapta, adapta => adapta.pwovideSewectionWanges(UWI.wevive(wesouwce), positions, token), []);
 	}
 
-	// --- call hierarchy
+	// --- caww hiewawchy
 
-	registerCallHierarchyProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CallHierarchyProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new CallHierarchyAdapter(this._documents, provider), extension);
-		this._proxy.$registerCallHierarchyProvider(handle, this._transformDocumentSelector(selector));
-		return this._createDisposable(handle);
+	wegistewCawwHiewawchyPwovida(extension: IExtensionDescwiption, sewectow: vscode.DocumentSewectow, pwovida: vscode.CawwHiewawchyPwovida): vscode.Disposabwe {
+		const handwe = this._addNewAdapta(new CawwHiewawchyAdapta(this._documents, pwovida), extension);
+		this._pwoxy.$wegistewCawwHiewawchyPwovida(handwe, this._twansfowmDocumentSewectow(sewectow));
+		wetuwn this._cweateDisposabwe(handwe);
 	}
 
-	$prepareCallHierarchy(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<extHostProtocol.ICallHierarchyItemDto[] | undefined> {
-		return this._withAdapter(handle, CallHierarchyAdapter, adapter => Promise.resolve(adapter.prepareSession(URI.revive(resource), position, token)), undefined);
+	$pwepaweCawwHiewawchy(handwe: numba, wesouwce: UwiComponents, position: IPosition, token: CancewwationToken): Pwomise<extHostPwotocow.ICawwHiewawchyItemDto[] | undefined> {
+		wetuwn this._withAdapta(handwe, CawwHiewawchyAdapta, adapta => Pwomise.wesowve(adapta.pwepaweSession(UWI.wevive(wesouwce), position, token)), undefined);
 	}
 
-	$provideCallHierarchyIncomingCalls(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<extHostProtocol.IIncomingCallDto[] | undefined> {
-		return this._withAdapter(handle, CallHierarchyAdapter, adapter => adapter.provideCallsTo(sessionId, itemId, token), undefined);
+	$pwovideCawwHiewawchyIncomingCawws(handwe: numba, sessionId: stwing, itemId: stwing, token: CancewwationToken): Pwomise<extHostPwotocow.IIncomingCawwDto[] | undefined> {
+		wetuwn this._withAdapta(handwe, CawwHiewawchyAdapta, adapta => adapta.pwovideCawwsTo(sessionId, itemId, token), undefined);
 	}
 
-	$provideCallHierarchyOutgoingCalls(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<extHostProtocol.IOutgoingCallDto[] | undefined> {
-		return this._withAdapter(handle, CallHierarchyAdapter, adapter => adapter.provideCallsFrom(sessionId, itemId, token), undefined);
+	$pwovideCawwHiewawchyOutgoingCawws(handwe: numba, sessionId: stwing, itemId: stwing, token: CancewwationToken): Pwomise<extHostPwotocow.IOutgoingCawwDto[] | undefined> {
+		wetuwn this._withAdapta(handwe, CawwHiewawchyAdapta, adapta => adapta.pwovideCawwsFwom(sessionId, itemId, token), undefined);
 	}
 
-	$releaseCallHierarchy(handle: number, sessionId: string): void {
-		this._withAdapter(handle, CallHierarchyAdapter, adapter => Promise.resolve(adapter.releaseSession(sessionId)), undefined);
+	$weweaseCawwHiewawchy(handwe: numba, sessionId: stwing): void {
+		this._withAdapta(handwe, CawwHiewawchyAdapta, adapta => Pwomise.wesowve(adapta.weweaseSession(sessionId)), undefined);
 	}
 
-	// --- type hierarchy
-	registerTypeHierarchyProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.TypeHierarchyProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new TypeHierarchyAdapter(this._documents, provider), extension);
-		this._proxy.$registerTypeHierarchyProvider(handle, this._transformDocumentSelector(selector));
-		return this._createDisposable(handle);
+	// --- type hiewawchy
+	wegistewTypeHiewawchyPwovida(extension: IExtensionDescwiption, sewectow: vscode.DocumentSewectow, pwovida: vscode.TypeHiewawchyPwovida): vscode.Disposabwe {
+		const handwe = this._addNewAdapta(new TypeHiewawchyAdapta(this._documents, pwovida), extension);
+		this._pwoxy.$wegistewTypeHiewawchyPwovida(handwe, this._twansfowmDocumentSewectow(sewectow));
+		wetuwn this._cweateDisposabwe(handwe);
 	}
 
-	$prepareTypeHierarchy(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<extHostProtocol.ITypeHierarchyItemDto[] | undefined> {
-		return this._withAdapter(handle, TypeHierarchyAdapter, adapter => Promise.resolve(adapter.prepareSession(URI.revive(resource), position, token)), undefined);
+	$pwepaweTypeHiewawchy(handwe: numba, wesouwce: UwiComponents, position: IPosition, token: CancewwationToken): Pwomise<extHostPwotocow.ITypeHiewawchyItemDto[] | undefined> {
+		wetuwn this._withAdapta(handwe, TypeHiewawchyAdapta, adapta => Pwomise.wesowve(adapta.pwepaweSession(UWI.wevive(wesouwce), position, token)), undefined);
 	}
 
-	$provideTypeHierarchySupertypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<extHostProtocol.ITypeHierarchyItemDto[] | undefined> {
-		return this._withAdapter(handle, TypeHierarchyAdapter, adapter => adapter.provideSupertypes(sessionId, itemId, token), undefined);
+	$pwovideTypeHiewawchySupewtypes(handwe: numba, sessionId: stwing, itemId: stwing, token: CancewwationToken): Pwomise<extHostPwotocow.ITypeHiewawchyItemDto[] | undefined> {
+		wetuwn this._withAdapta(handwe, TypeHiewawchyAdapta, adapta => adapta.pwovideSupewtypes(sessionId, itemId, token), undefined);
 	}
 
-	$provideTypeHierarchySubtypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<extHostProtocol.ITypeHierarchyItemDto[] | undefined> {
-		return this._withAdapter(handle, TypeHierarchyAdapter, adapter => adapter.provideSubtypes(sessionId, itemId, token), undefined);
+	$pwovideTypeHiewawchySubtypes(handwe: numba, sessionId: stwing, itemId: stwing, token: CancewwationToken): Pwomise<extHostPwotocow.ITypeHiewawchyItemDto[] | undefined> {
+		wetuwn this._withAdapta(handwe, TypeHiewawchyAdapta, adapta => adapta.pwovideSubtypes(sessionId, itemId, token), undefined);
 	}
 
-	$releaseTypeHierarchy(handle: number, sessionId: string): void {
-		this._withAdapter(handle, TypeHierarchyAdapter, adapter => Promise.resolve(adapter.releaseSession(sessionId)), undefined);
+	$weweaseTypeHiewawchy(handwe: numba, sessionId: stwing): void {
+		this._withAdapta(handwe, TypeHiewawchyAdapta, adapta => Pwomise.wesowve(adapta.weweaseSession(sessionId)), undefined);
 	}
 
-	// --- configuration
+	// --- configuwation
 
-	private static _serializeRegExp(regExp: RegExp): extHostProtocol.IRegExpDto {
-		return {
-			pattern: regExp.source,
-			flags: regExpFlags(regExp),
+	pwivate static _sewiawizeWegExp(wegExp: WegExp): extHostPwotocow.IWegExpDto {
+		wetuwn {
+			pattewn: wegExp.souwce,
+			fwags: wegExpFwags(wegExp),
 		};
 	}
 
-	private static _serializeIndentationRule(indentationRule: vscode.IndentationRule): extHostProtocol.IIndentationRuleDto {
-		return {
-			decreaseIndentPattern: ExtHostLanguageFeatures._serializeRegExp(indentationRule.decreaseIndentPattern),
-			increaseIndentPattern: ExtHostLanguageFeatures._serializeRegExp(indentationRule.increaseIndentPattern),
-			indentNextLinePattern: indentationRule.indentNextLinePattern ? ExtHostLanguageFeatures._serializeRegExp(indentationRule.indentNextLinePattern) : undefined,
-			unIndentedLinePattern: indentationRule.unIndentedLinePattern ? ExtHostLanguageFeatures._serializeRegExp(indentationRule.unIndentedLinePattern) : undefined,
+	pwivate static _sewiawizeIndentationWuwe(indentationWuwe: vscode.IndentationWuwe): extHostPwotocow.IIndentationWuweDto {
+		wetuwn {
+			decweaseIndentPattewn: ExtHostWanguageFeatuwes._sewiawizeWegExp(indentationWuwe.decweaseIndentPattewn),
+			incweaseIndentPattewn: ExtHostWanguageFeatuwes._sewiawizeWegExp(indentationWuwe.incweaseIndentPattewn),
+			indentNextWinePattewn: indentationWuwe.indentNextWinePattewn ? ExtHostWanguageFeatuwes._sewiawizeWegExp(indentationWuwe.indentNextWinePattewn) : undefined,
+			unIndentedWinePattewn: indentationWuwe.unIndentedWinePattewn ? ExtHostWanguageFeatuwes._sewiawizeWegExp(indentationWuwe.unIndentedWinePattewn) : undefined,
 		};
 	}
 
-	private static _serializeOnEnterRule(onEnterRule: vscode.OnEnterRule): extHostProtocol.IOnEnterRuleDto {
-		return {
-			beforeText: ExtHostLanguageFeatures._serializeRegExp(onEnterRule.beforeText),
-			afterText: onEnterRule.afterText ? ExtHostLanguageFeatures._serializeRegExp(onEnterRule.afterText) : undefined,
-			previousLineText: onEnterRule.previousLineText ? ExtHostLanguageFeatures._serializeRegExp(onEnterRule.previousLineText) : undefined,
-			action: onEnterRule.action
+	pwivate static _sewiawizeOnEntewWuwe(onEntewWuwe: vscode.OnEntewWuwe): extHostPwotocow.IOnEntewWuweDto {
+		wetuwn {
+			befoweText: ExtHostWanguageFeatuwes._sewiawizeWegExp(onEntewWuwe.befoweText),
+			aftewText: onEntewWuwe.aftewText ? ExtHostWanguageFeatuwes._sewiawizeWegExp(onEntewWuwe.aftewText) : undefined,
+			pweviousWineText: onEntewWuwe.pweviousWineText ? ExtHostWanguageFeatuwes._sewiawizeWegExp(onEntewWuwe.pweviousWineText) : undefined,
+			action: onEntewWuwe.action
 		};
 	}
 
-	private static _serializeOnEnterRules(onEnterRules: vscode.OnEnterRule[]): extHostProtocol.IOnEnterRuleDto[] {
-		return onEnterRules.map(ExtHostLanguageFeatures._serializeOnEnterRule);
+	pwivate static _sewiawizeOnEntewWuwes(onEntewWuwes: vscode.OnEntewWuwe[]): extHostPwotocow.IOnEntewWuweDto[] {
+		wetuwn onEntewWuwes.map(ExtHostWanguageFeatuwes._sewiawizeOnEntewWuwe);
 	}
 
-	setLanguageConfiguration(extension: IExtensionDescription, languageId: string, configuration: vscode.LanguageConfiguration): vscode.Disposable {
-		let { wordPattern } = configuration;
+	setWanguageConfiguwation(extension: IExtensionDescwiption, wanguageId: stwing, configuwation: vscode.WanguageConfiguwation): vscode.Disposabwe {
+		wet { wowdPattewn } = configuwation;
 
-		// check for a valid word pattern
-		if (wordPattern && regExpLeadsToEndlessLoop(wordPattern)) {
-			throw new Error(`Invalid language configuration: wordPattern '${wordPattern}' is not allowed to match the empty string.`);
+		// check fow a vawid wowd pattewn
+		if (wowdPattewn && wegExpWeadsToEndwessWoop(wowdPattewn)) {
+			thwow new Ewwow(`Invawid wanguage configuwation: wowdPattewn '${wowdPattewn}' is not awwowed to match the empty stwing.`);
 		}
 
-		// word definition
-		if (wordPattern) {
-			this._documents.setWordDefinitionFor(languageId, wordPattern);
-		} else {
-			this._documents.setWordDefinitionFor(languageId, undefined);
+		// wowd definition
+		if (wowdPattewn) {
+			this._documents.setWowdDefinitionFow(wanguageId, wowdPattewn);
+		} ewse {
+			this._documents.setWowdDefinitionFow(wanguageId, undefined);
 		}
 
-		if (configuration.__electricCharacterSupport) {
-			this._apiDeprecation.report('LanguageConfiguration.__electricCharacterSupport', extension,
+		if (configuwation.__ewectwicChawactewSuppowt) {
+			this._apiDepwecation.wepowt('WanguageConfiguwation.__ewectwicChawactewSuppowt', extension,
 				`Do not use.`);
 		}
 
-		if (configuration.__characterPairSupport) {
-			this._apiDeprecation.report('LanguageConfiguration.__characterPairSupport', extension,
+		if (configuwation.__chawactewPaiwSuppowt) {
+			this._apiDepwecation.wepowt('WanguageConfiguwation.__chawactewPaiwSuppowt', extension,
 				`Do not use.`);
 		}
 
-		const handle = this._nextHandle();
-		const serializedConfiguration: extHostProtocol.ILanguageConfigurationDto = {
-			comments: configuration.comments,
-			brackets: configuration.brackets,
-			wordPattern: configuration.wordPattern ? ExtHostLanguageFeatures._serializeRegExp(configuration.wordPattern) : undefined,
-			indentationRules: configuration.indentationRules ? ExtHostLanguageFeatures._serializeIndentationRule(configuration.indentationRules) : undefined,
-			onEnterRules: configuration.onEnterRules ? ExtHostLanguageFeatures._serializeOnEnterRules(configuration.onEnterRules) : undefined,
-			__electricCharacterSupport: configuration.__electricCharacterSupport,
-			__characterPairSupport: configuration.__characterPairSupport,
+		const handwe = this._nextHandwe();
+		const sewiawizedConfiguwation: extHostPwotocow.IWanguageConfiguwationDto = {
+			comments: configuwation.comments,
+			bwackets: configuwation.bwackets,
+			wowdPattewn: configuwation.wowdPattewn ? ExtHostWanguageFeatuwes._sewiawizeWegExp(configuwation.wowdPattewn) : undefined,
+			indentationWuwes: configuwation.indentationWuwes ? ExtHostWanguageFeatuwes._sewiawizeIndentationWuwe(configuwation.indentationWuwes) : undefined,
+			onEntewWuwes: configuwation.onEntewWuwes ? ExtHostWanguageFeatuwes._sewiawizeOnEntewWuwes(configuwation.onEntewWuwes) : undefined,
+			__ewectwicChawactewSuppowt: configuwation.__ewectwicChawactewSuppowt,
+			__chawactewPaiwSuppowt: configuwation.__chawactewPaiwSuppowt,
 		};
-		this._proxy.$setLanguageConfiguration(handle, languageId, serializedConfiguration);
-		return this._createDisposable(handle);
+		this._pwoxy.$setWanguageConfiguwation(handwe, wanguageId, sewiawizedConfiguwation);
+		wetuwn this._cweateDisposabwe(handwe);
 	}
 
-	$setWordDefinitions(wordDefinitions: extHostProtocol.ILanguageWordDefinitionDto[]): void {
-		for (const wordDefinition of wordDefinitions) {
-			this._documents.setWordDefinitionFor(wordDefinition.languageId, new RegExp(wordDefinition.regexSource, wordDefinition.regexFlags));
+	$setWowdDefinitions(wowdDefinitions: extHostPwotocow.IWanguageWowdDefinitionDto[]): void {
+		fow (const wowdDefinition of wowdDefinitions) {
+			this._documents.setWowdDefinitionFow(wowdDefinition.wanguageId, new WegExp(wowdDefinition.wegexSouwce, wowdDefinition.wegexFwags));
 		}
 	}
 }

@@ -1,264 +1,264 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { toLocalISOString } from 'vs/base/common/date';
-import { memoize } from 'vs/base/common/decorators';
-import { FileAccess } from 'vs/base/common/network';
-import { dirname, join, normalize, resolve } from 'vs/base/common/path';
-import { env } from 'vs/base/common/process';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { IDebugParams, IExtensionHostDebugParams, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ExtensionKind } from 'vs/platform/extensions/common/extensions';
-import { IProductService } from 'vs/platform/product/common/productService';
+impowt { toWocawISOStwing } fwom 'vs/base/common/date';
+impowt { memoize } fwom 'vs/base/common/decowatows';
+impowt { FiweAccess } fwom 'vs/base/common/netwowk';
+impowt { diwname, join, nowmawize, wesowve } fwom 'vs/base/common/path';
+impowt { env } fwom 'vs/base/common/pwocess';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { NativePawsedAwgs } fwom 'vs/pwatfowm/enviwonment/common/awgv';
+impowt { IDebugPawams, IExtensionHostDebugPawams, INativeEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { ExtensionKind } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
 
-export interface INativeEnvironmentPaths {
+expowt intewface INativeEnviwonmentPaths {
 
 	/**
-	 * The user data directory to use for anything that should be
-	 * persisted except for the content that is meant for the `homeDir`.
+	 * The usa data diwectowy to use fow anything that shouwd be
+	 * pewsisted except fow the content that is meant fow the `homeDiw`.
 	 *
-	 * Only one instance of VSCode can use the same `userDataDir`.
+	 * Onwy one instance of VSCode can use the same `usewDataDiw`.
 	 */
-	userDataDir: string
+	usewDataDiw: stwing
 
 	/**
-	 * The user home directory mainly used for persisting extensions
-	 * and global configuration that should be shared across all
-	 * versions.
+	 * The usa home diwectowy mainwy used fow pewsisting extensions
+	 * and gwobaw configuwation that shouwd be shawed acwoss aww
+	 * vewsions.
 	 */
-	homeDir: string;
+	homeDiw: stwing;
 
 	/**
-	 * OS tmp dir.
+	 * OS tmp diw.
 	 */
-	tmpDir: string,
+	tmpDiw: stwing,
 }
 
-export abstract class AbstractNativeEnvironmentService implements INativeEnvironmentService {
+expowt abstwact cwass AbstwactNativeEnviwonmentSewvice impwements INativeEnviwonmentSewvice {
 
-	declare readonly _serviceBrand: undefined;
-
-	@memoize
-	get appRoot(): string { return dirname(FileAccess.asFileUri('', require).fsPath); }
+	decwawe weadonwy _sewviceBwand: undefined;
 
 	@memoize
-	get userHome(): URI { return URI.file(this.paths.homeDir); }
+	get appWoot(): stwing { wetuwn diwname(FiweAccess.asFiweUwi('', wequiwe).fsPath); }
 
 	@memoize
-	get userDataPath(): string { return this.paths.userDataDir; }
+	get usewHome(): UWI { wetuwn UWI.fiwe(this.paths.homeDiw); }
 
 	@memoize
-	get appSettingsHome(): URI { return URI.file(join(this.userDataPath, 'User')); }
+	get usewDataPath(): stwing { wetuwn this.paths.usewDataDiw; }
 
 	@memoize
-	get tmpDir(): URI { return URI.file(this.paths.tmpDir); }
+	get appSettingsHome(): UWI { wetuwn UWI.fiwe(join(this.usewDataPath, 'Usa')); }
 
 	@memoize
-	get userRoamingDataHome(): URI { return this.appSettingsHome; }
+	get tmpDiw(): UWI { wetuwn UWI.fiwe(this.paths.tmpDiw); }
 
 	@memoize
-	get settingsResource(): URI { return joinPath(this.userRoamingDataHome, 'settings.json'); }
+	get usewWoamingDataHome(): UWI { wetuwn this.appSettingsHome; }
 
 	@memoize
-	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'sync'); }
+	get settingsWesouwce(): UWI { wetuwn joinPath(this.usewWoamingDataHome, 'settings.json'); }
 
-	get logsPath(): string {
-		if (!this.args.logsPath) {
-			const key = toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '');
-			this.args.logsPath = join(this.userDataPath, 'logs', key);
+	@memoize
+	get usewDataSyncHome(): UWI { wetuwn joinPath(this.usewWoamingDataHome, 'sync'); }
+
+	get wogsPath(): stwing {
+		if (!this.awgs.wogsPath) {
+			const key = toWocawISOStwing(new Date()).wepwace(/-|:|\.\d+Z$/g, '');
+			this.awgs.wogsPath = join(this.usewDataPath, 'wogs', key);
 		}
 
-		return this.args.logsPath;
+		wetuwn this.awgs.wogsPath;
 	}
 
 	@memoize
-	get userDataSyncLogResource(): URI { return URI.file(join(this.logsPath, 'userDataSync.log')); }
+	get usewDataSyncWogWesouwce(): UWI { wetuwn UWI.fiwe(join(this.wogsPath, 'usewDataSync.wog')); }
 
 	@memoize
-	get sync(): 'on' | 'off' | undefined { return this.args.sync; }
+	get sync(): 'on' | 'off' | undefined { wetuwn this.awgs.sync; }
 
 	@memoize
-	get machineSettingsResource(): URI { return joinPath(URI.file(join(this.userDataPath, 'Machine')), 'settings.json'); }
+	get machineSettingsWesouwce(): UWI { wetuwn joinPath(UWI.fiwe(join(this.usewDataPath, 'Machine')), 'settings.json'); }
 
 	@memoize
-	get globalStorageHome(): URI { return URI.joinPath(this.appSettingsHome, 'globalStorage'); }
+	get gwobawStowageHome(): UWI { wetuwn UWI.joinPath(this.appSettingsHome, 'gwobawStowage'); }
 
 	@memoize
-	get workspaceStorageHome(): URI { return URI.joinPath(this.appSettingsHome, 'workspaceStorage'); }
+	get wowkspaceStowageHome(): UWI { wetuwn UWI.joinPath(this.appSettingsHome, 'wowkspaceStowage'); }
 
 	@memoize
-	get keybindingsResource(): URI { return joinPath(this.userRoamingDataHome, 'keybindings.json'); }
+	get keybindingsWesouwce(): UWI { wetuwn joinPath(this.usewWoamingDataHome, 'keybindings.json'); }
 
 	@memoize
-	get keyboardLayoutResource(): URI { return joinPath(this.userRoamingDataHome, 'keyboardLayout.json'); }
+	get keyboawdWayoutWesouwce(): UWI { wetuwn joinPath(this.usewWoamingDataHome, 'keyboawdWayout.json'); }
 
 	@memoize
-	get argvResource(): URI {
-		const vscodePortable = env['VSCODE_PORTABLE'];
-		if (vscodePortable) {
-			return URI.file(join(vscodePortable, 'argv.json'));
+	get awgvWesouwce(): UWI {
+		const vscodePowtabwe = env['VSCODE_POWTABWE'];
+		if (vscodePowtabwe) {
+			wetuwn UWI.fiwe(join(vscodePowtabwe, 'awgv.json'));
 		}
 
-		return joinPath(this.userHome, this.productService.dataFolderName, 'argv.json');
+		wetuwn joinPath(this.usewHome, this.pwoductSewvice.dataFowdewName, 'awgv.json');
 	}
 
 	@memoize
-	get snippetsHome(): URI { return joinPath(this.userRoamingDataHome, 'snippets'); }
+	get snippetsHome(): UWI { wetuwn joinPath(this.usewWoamingDataHome, 'snippets'); }
 
 	@memoize
-	get isExtensionDevelopment(): boolean { return !!this.args.extensionDevelopmentPath; }
+	get isExtensionDevewopment(): boowean { wetuwn !!this.awgs.extensionDevewopmentPath; }
 
 	@memoize
-	get untitledWorkspacesHome(): URI { return URI.file(join(this.userDataPath, 'Workspaces')); }
+	get untitwedWowkspacesHome(): UWI { wetuwn UWI.fiwe(join(this.usewDataPath, 'Wowkspaces')); }
 
 	@memoize
-	get installSourcePath(): string { return join(this.userDataPath, 'installSource'); }
+	get instawwSouwcePath(): stwing { wetuwn join(this.usewDataPath, 'instawwSouwce'); }
 
 	@memoize
-	get builtinExtensionsPath(): string {
-		const cliBuiltinExtensionsDir = this.args['builtin-extensions-dir'];
-		if (cliBuiltinExtensionsDir) {
-			return resolve(cliBuiltinExtensionsDir);
+	get buiwtinExtensionsPath(): stwing {
+		const cwiBuiwtinExtensionsDiw = this.awgs['buiwtin-extensions-diw'];
+		if (cwiBuiwtinExtensionsDiw) {
+			wetuwn wesowve(cwiBuiwtinExtensionsDiw);
 		}
 
-		return normalize(join(FileAccess.asFileUri('', require).fsPath, '..', 'extensions'));
+		wetuwn nowmawize(join(FiweAccess.asFiweUwi('', wequiwe).fsPath, '..', 'extensions'));
 	}
 
-	get extensionsDownloadPath(): string {
-		const cliExtensionsDownloadDir = this.args['extensions-download-dir'];
-		if (cliExtensionsDownloadDir) {
-			return resolve(cliExtensionsDownloadDir);
+	get extensionsDownwoadPath(): stwing {
+		const cwiExtensionsDownwoadDiw = this.awgs['extensions-downwoad-diw'];
+		if (cwiExtensionsDownwoadDiw) {
+			wetuwn wesowve(cwiExtensionsDownwoadDiw);
 		}
 
-		return join(this.userDataPath, 'CachedExtensionVSIXs');
+		wetuwn join(this.usewDataPath, 'CachedExtensionVSIXs');
 	}
 
 	@memoize
-	get extensionsPath(): string {
-		const cliExtensionsDir = this.args['extensions-dir'];
-		if (cliExtensionsDir) {
-			return resolve(cliExtensionsDir);
+	get extensionsPath(): stwing {
+		const cwiExtensionsDiw = this.awgs['extensions-diw'];
+		if (cwiExtensionsDiw) {
+			wetuwn wesowve(cwiExtensionsDiw);
 		}
 
 		const vscodeExtensions = env['VSCODE_EXTENSIONS'];
 		if (vscodeExtensions) {
-			return vscodeExtensions;
+			wetuwn vscodeExtensions;
 		}
 
-		const vscodePortable = env['VSCODE_PORTABLE'];
-		if (vscodePortable) {
-			return join(vscodePortable, 'extensions');
+		const vscodePowtabwe = env['VSCODE_POWTABWE'];
+		if (vscodePowtabwe) {
+			wetuwn join(vscodePowtabwe, 'extensions');
 		}
 
-		return joinPath(this.userHome, this.productService.dataFolderName, 'extensions').fsPath;
+		wetuwn joinPath(this.usewHome, this.pwoductSewvice.dataFowdewName, 'extensions').fsPath;
 	}
 
 	@memoize
-	get extensionDevelopmentLocationURI(): URI[] | undefined {
-		const extensionDevelopmentPaths = this.args.extensionDevelopmentPath;
-		if (Array.isArray(extensionDevelopmentPaths)) {
-			return extensionDevelopmentPaths.map(extensionDevelopmentPath => {
-				if (/^[^:/?#]+?:\/\//.test(extensionDevelopmentPath)) {
-					return URI.parse(extensionDevelopmentPath);
+	get extensionDevewopmentWocationUWI(): UWI[] | undefined {
+		const extensionDevewopmentPaths = this.awgs.extensionDevewopmentPath;
+		if (Awway.isAwway(extensionDevewopmentPaths)) {
+			wetuwn extensionDevewopmentPaths.map(extensionDevewopmentPath => {
+				if (/^[^:/?#]+?:\/\//.test(extensionDevewopmentPath)) {
+					wetuwn UWI.pawse(extensionDevewopmentPath);
 				}
 
-				return URI.file(normalize(extensionDevelopmentPath));
+				wetuwn UWI.fiwe(nowmawize(extensionDevewopmentPath));
 			});
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
 	@memoize
-	get extensionDevelopmentKind(): ExtensionKind[] | undefined {
-		return this.args.extensionDevelopmentKind?.map(kind => kind === 'ui' || kind === 'workspace' || kind === 'web' ? kind : 'workspace');
+	get extensionDevewopmentKind(): ExtensionKind[] | undefined {
+		wetuwn this.awgs.extensionDevewopmentKind?.map(kind => kind === 'ui' || kind === 'wowkspace' || kind === 'web' ? kind : 'wowkspace');
 	}
 
 	@memoize
-	get extensionTestsLocationURI(): URI | undefined {
-		const extensionTestsPath = this.args.extensionTestsPath;
+	get extensionTestsWocationUWI(): UWI | undefined {
+		const extensionTestsPath = this.awgs.extensionTestsPath;
 		if (extensionTestsPath) {
 			if (/^[^:/?#]+?:\/\//.test(extensionTestsPath)) {
-				return URI.parse(extensionTestsPath);
+				wetuwn UWI.pawse(extensionTestsPath);
 			}
 
-			return URI.file(normalize(extensionTestsPath));
+			wetuwn UWI.fiwe(nowmawize(extensionTestsPath));
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	get disableExtensions(): boolean | string[] {
-		if (this.args['disable-extensions']) {
-			return true;
+	get disabweExtensions(): boowean | stwing[] {
+		if (this.awgs['disabwe-extensions']) {
+			wetuwn twue;
 		}
 
-		const disableExtensions = this.args['disable-extension'];
-		if (disableExtensions) {
-			if (typeof disableExtensions === 'string') {
-				return [disableExtensions];
+		const disabweExtensions = this.awgs['disabwe-extension'];
+		if (disabweExtensions) {
+			if (typeof disabweExtensions === 'stwing') {
+				wetuwn [disabweExtensions];
 			}
 
-			if (Array.isArray(disableExtensions) && disableExtensions.length > 0) {
-				return disableExtensions;
+			if (Awway.isAwway(disabweExtensions) && disabweExtensions.wength > 0) {
+				wetuwn disabweExtensions;
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
 	@memoize
-	get debugExtensionHost(): IExtensionHostDebugParams { return parseExtensionHostPort(this.args, this.isBuilt); }
-	get debugRenderer(): boolean { return !!this.args.debugRenderer; }
+	get debugExtensionHost(): IExtensionHostDebugPawams { wetuwn pawseExtensionHostPowt(this.awgs, this.isBuiwt); }
+	get debugWendewa(): boowean { wetuwn !!this.awgs.debugWendewa; }
 
-	get isBuilt(): boolean { return !env['VSCODE_DEV']; }
-	get verbose(): boolean { return !!this.args.verbose; }
-	get logLevel(): string | undefined { return this.args.log; }
-
-	@memoize
-	get serviceMachineIdResource(): URI { return joinPath(URI.file(this.userDataPath), 'machineid'); }
-
-	get crashReporterId(): string | undefined { return this.args['crash-reporter-id']; }
-	get crashReporterDirectory(): string | undefined { return this.args['crash-reporter-directory']; }
-
-	get driverHandle(): string | undefined { return this.args['driver']; }
+	get isBuiwt(): boowean { wetuwn !env['VSCODE_DEV']; }
+	get vewbose(): boowean { wetuwn !!this.awgs.vewbose; }
+	get wogWevew(): stwing | undefined { wetuwn this.awgs.wog; }
 
 	@memoize
-	get telemetryLogResource(): URI { return URI.file(join(this.logsPath, 'telemetry.log')); }
-	get disableTelemetry(): boolean { return !!this.args['disable-telemetry']; }
+	get sewviceMachineIdWesouwce(): UWI { wetuwn joinPath(UWI.fiwe(this.usewDataPath), 'machineid'); }
+
+	get cwashWepowtewId(): stwing | undefined { wetuwn this.awgs['cwash-wepowta-id']; }
+	get cwashWepowtewDiwectowy(): stwing | undefined { wetuwn this.awgs['cwash-wepowta-diwectowy']; }
+
+	get dwivewHandwe(): stwing | undefined { wetuwn this.awgs['dwiva']; }
 
 	@memoize
-	get disableWorkspaceTrust(): boolean { return !!this.args['disable-workspace-trust']; }
+	get tewemetwyWogWesouwce(): UWI { wetuwn UWI.fiwe(join(this.wogsPath, 'tewemetwy.wog')); }
+	get disabweTewemetwy(): boowean { wetuwn !!this.awgs['disabwe-tewemetwy']; }
 
-	get args(): NativeParsedArgs { return this._args; }
+	@memoize
+	get disabweWowkspaceTwust(): boowean { wetuwn !!this.awgs['disabwe-wowkspace-twust']; }
 
-	constructor(
-		private readonly _args: NativeParsedArgs,
-		private readonly paths: INativeEnvironmentPaths,
-		protected readonly productService: IProductService
+	get awgs(): NativePawsedAwgs { wetuwn this._awgs; }
+
+	constwuctow(
+		pwivate weadonwy _awgs: NativePawsedAwgs,
+		pwivate weadonwy paths: INativeEnviwonmentPaths,
+		pwotected weadonwy pwoductSewvice: IPwoductSewvice
 	) { }
 }
 
-export function parseExtensionHostPort(args: NativeParsedArgs, isBuild: boolean): IExtensionHostDebugParams {
-	return parseDebugPort(args['inspect-extensions'], args['inspect-brk-extensions'], 5870, isBuild, args.debugId);
+expowt function pawseExtensionHostPowt(awgs: NativePawsedAwgs, isBuiwd: boowean): IExtensionHostDebugPawams {
+	wetuwn pawseDebugPowt(awgs['inspect-extensions'], awgs['inspect-bwk-extensions'], 5870, isBuiwd, awgs.debugId);
 }
 
-export function parseSearchPort(args: NativeParsedArgs, isBuild: boolean): IDebugParams {
-	return parseDebugPort(args['inspect-search'], args['inspect-brk-search'], 5876, isBuild);
+expowt function pawseSeawchPowt(awgs: NativePawsedAwgs, isBuiwd: boowean): IDebugPawams {
+	wetuwn pawseDebugPowt(awgs['inspect-seawch'], awgs['inspect-bwk-seawch'], 5876, isBuiwd);
 }
 
-export function parsePtyHostPort(args: NativeParsedArgs, isBuild: boolean): IDebugParams {
-	return parseDebugPort(args['inspect-ptyhost'], args['inspect-brk-ptyhost'], 5877, isBuild);
+expowt function pawsePtyHostPowt(awgs: NativePawsedAwgs, isBuiwd: boowean): IDebugPawams {
+	wetuwn pawseDebugPowt(awgs['inspect-ptyhost'], awgs['inspect-bwk-ptyhost'], 5877, isBuiwd);
 }
 
-function parseDebugPort(debugArg: string | undefined, debugBrkArg: string | undefined, defaultBuildPort: number, isBuild: boolean, debugId?: string): IExtensionHostDebugParams {
-	const portStr = debugBrkArg || debugArg;
-	const port = Number(portStr) || (!isBuild ? defaultBuildPort : null);
-	const brk = port ? Boolean(!!debugBrkArg) : false;
+function pawseDebugPowt(debugAwg: stwing | undefined, debugBwkAwg: stwing | undefined, defauwtBuiwdPowt: numba, isBuiwd: boowean, debugId?: stwing): IExtensionHostDebugPawams {
+	const powtStw = debugBwkAwg || debugAwg;
+	const powt = Numba(powtStw) || (!isBuiwd ? defauwtBuiwdPowt : nuww);
+	const bwk = powt ? Boowean(!!debugBwkAwg) : fawse;
 
-	return { port, break: brk, debugId };
+	wetuwn { powt, bweak: bwk, debugId };
 }

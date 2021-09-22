@@ -1,20 +1,20 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { net } from 'electron';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
-import { IRawRequestFunction, RequestService as NodeRequestService } from 'vs/platform/request/node/requestService';
+impowt { net } fwom 'ewectwon';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IWequestContext, IWequestOptions } fwom 'vs/base/pawts/wequest/common/wequest';
+impowt { IWawWequestFunction, WequestSewvice as NodeWequestSewvice } fwom 'vs/pwatfowm/wequest/node/wequestSewvice';
 
-function getRawRequest(options: IRequestOptions): IRawRequestFunction {
-	return net.request as any as IRawRequestFunction;
+function getWawWequest(options: IWequestOptions): IWawWequestFunction {
+	wetuwn net.wequest as any as IWawWequestFunction;
 }
 
-export class RequestMainService extends NodeRequestService {
+expowt cwass WequestMainSewvice extends NodeWequestSewvice {
 
-	override request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		return super.request({ ...(options || {}), getRawRequest }, token);
+	ovewwide wequest(options: IWequestOptions, token: CancewwationToken): Pwomise<IWequestContext> {
+		wetuwn supa.wequest({ ...(options || {}), getWawWequest }, token);
 	}
 }

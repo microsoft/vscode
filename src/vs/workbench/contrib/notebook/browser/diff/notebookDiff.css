@@ -1,286 +1,286 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-/* .notebook-diff-editor {
-	display: flex;
-	flex-direction: row;
+/* .notebook-diff-editow {
+	dispway: fwex;
+	fwex-diwection: wow;
 	height: 100%;
 	width: 100%;
 }
-.notebook-diff-editor-modified,
-.notebook-diff-editor-original {
-	display: flex;
+.notebook-diff-editow-modified,
+.notebook-diff-editow-owiginaw {
+	dispway: fwex;
 	height: 100%;
 	width: 50%;
 } */
 
-.notebook-text-diff-editor .cell-body {
-	display: flex;
-	flex-direction: row;
+.notebook-text-diff-editow .ceww-body {
+	dispway: fwex;
+	fwex-diwection: wow;
 }
 
-.notebook-text-diff-editor .webview-cover {
-	user-select: initial;
-	-webkit-user-select: initial;
+.notebook-text-diff-editow .webview-cova {
+	usa-sewect: initiaw;
+	-webkit-usa-sewect: initiaw;
 }
 
-.notebook-text-diff-editor .cell-body .border-container {
-	position: absolute;
-	width: calc(100% - 32px);
+.notebook-text-diff-editow .ceww-body .bowda-containa {
+	position: absowute;
+	width: cawc(100% - 32px);
 }
 
-.notebook-text-diff-editor .cell-body .border-container .top-border,
-.notebook-text-diff-editor .cell-body .border-container .bottom-border {
-	position: absolute;
+.notebook-text-diff-editow .ceww-body .bowda-containa .top-bowda,
+.notebook-text-diff-editow .ceww-body .bowda-containa .bottom-bowda {
+	position: absowute;
 	width: 100%;
 }
 
-.notebook-text-diff-editor .cell-body .border-container .left-border,
-.notebook-text-diff-editor .cell-body .border-container .right-border {
-	position: absolute;
+.notebook-text-diff-editow .ceww-body .bowda-containa .weft-bowda,
+.notebook-text-diff-editow .ceww-body .bowda-containa .wight-bowda {
+	position: absowute;
 }
 
-.notebook-text-diff-editor .cell-body .border-container .right-border {
-	left: 100%;
+.notebook-text-diff-editow .ceww-body .bowda-containa .wight-bowda {
+	weft: 100%;
 }
 
-.notebook-text-diff-editor .cell-body.right {
-	flex-direction: row-reverse;
+.notebook-text-diff-editow .ceww-body.wight {
+	fwex-diwection: wow-wevewse;
 }
 
-.notebook-text-diff-editor .cell-body .diagonal-fill {
-	display: none;
+.notebook-text-diff-editow .ceww-body .diagonaw-fiww {
+	dispway: none;
 	width: 50%;
 }
 
-.notebook-text-diff-editor .cell-body .cell-diff-editor-container {
+.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa {
 	width: 100%;
-	/* why we overflow hidden at the beginning?*/
-	/* overflow: hidden; */
+	/* why we ovewfwow hidden at the beginning?*/
+	/* ovewfwow: hidden; */
 }
 
-.notebook-text-diff-editor > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
-	cursor: default;
+.notebook-text-diff-editow > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow {
+	cuwsow: defauwt;
 }
 
-.notebook-text-diff-editor .cell-body .cell-diff-editor-container .metadata-editor-container.diff,
-.notebook-text-diff-editor .cell-body .cell-diff-editor-container .output-editor-container.diff,
-.notebook-text-diff-editor .cell-body .cell-diff-editor-container .editor-container.diff {
-	/** 100% + diffOverviewWidth */
-	width: calc(100%);
+.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa .metadata-editow-containa.diff,
+.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa .output-editow-containa.diff,
+.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa .editow-containa.diff {
+	/** 100% + diffOvewviewWidth */
+	width: cawc(100%);
 }
 
-.notebook-text-diff-editor .cell-body .cell-diff-editor-container .metadata-editor-container .monaco-diff-editor .diffOverview,
-.notebook-text-diff-editor .cell-body .cell-diff-editor-container .editor-container.diff .monaco-diff-editor .diffOverview,
-.notebook-text-diff-editor .cell-body .cell-diff-editor-container .output-editor-container.diff .monaco-diff-editor .diffOverview {
-	display: none;
+.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa .metadata-editow-containa .monaco-diff-editow .diffOvewview,
+.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa .editow-containa.diff .monaco-diff-editow .diffOvewview,
+.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa .output-editow-containa.diff .monaco-diff-editow .diffOvewview {
+	dispway: none;
 }
 
-.notebook-text-diff-editor .cell-body .cell-diff-editor-container .metadata-editor-container,
-.notebook-text-diff-editor .cell-body .cell-diff-editor-container .editor-container {
-	box-sizing: border-box;
+.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa .metadata-editow-containa,
+.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa .editow-containa {
+	box-sizing: bowda-box;
 }
 
-.notebook-text-diff-editor .cell-body.left .cell-diff-editor-container,
-.notebook-text-diff-editor .cell-body.right .cell-diff-editor-container {
-	display: inline-block;
+.notebook-text-diff-editow .ceww-body.weft .ceww-diff-editow-containa,
+.notebook-text-diff-editow .ceww-body.wight .ceww-diff-editow-containa {
+	dispway: inwine-bwock;
 	width: 50%;
 }
 
-.notebook-text-diff-editor .cell-body.left .diagonal-fill,
-.notebook-text-diff-editor .cell-body.right .diagonal-fill {
-	display: inline-block;
+.notebook-text-diff-editow .ceww-body.weft .diagonaw-fiww,
+.notebook-text-diff-editow .ceww-body.wight .diagonaw-fiww {
+	dispway: inwine-bwock;
 	width: 50%;
 }
 
-.notebook-text-diff-editor .cell-diff-editor-container .output-header-container,
-.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container {
-	display: flex;
+.notebook-text-diff-editow .ceww-diff-editow-containa .output-heada-containa,
+.notebook-text-diff-editow .ceww-diff-editow-containa .metadata-heada-containa {
+	dispway: fwex;
 	height: 24px;
-	align-items: center;
-	cursor: default;
+	awign-items: centa;
+	cuwsow: defauwt;
 }
 
-.notebook-text-diff-editor .cell-diff-editor-container .output-header-container .property-folding-indicator .codicon,
-.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container .property-folding-indicator .codicon {
-	visibility: visible;
+.notebook-text-diff-editow .ceww-diff-editow-containa .output-heada-containa .pwopewty-fowding-indicatow .codicon,
+.notebook-text-diff-editow .ceww-diff-editow-containa .metadata-heada-containa .pwopewty-fowding-indicatow .codicon {
+	visibiwity: visibwe;
 	padding: 4px 0 0 10px;
-	cursor: pointer;
+	cuwsow: pointa;
 }
 
-.notebook-text-diff-editor .cell-diff-editor-container .output-header-container,
-.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container {
-	display: flex;
-	flex-direction: row;
-	align-items: center;
+.notebook-text-diff-editow .ceww-diff-editow-containa .output-heada-containa,
+.notebook-text-diff-editow .ceww-diff-editow-containa .metadata-heada-containa {
+	dispway: fwex;
+	fwex-diwection: wow;
+	awign-items: centa;
 }
 
-.notebook-text-diff-editor .cell-diff-editor-container .output-header-container .property-toolbar,
-.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container .property-toolbar {
-	margin-left: auto;
+.notebook-text-diff-editow .ceww-diff-editow-containa .output-heada-containa .pwopewty-toowbaw,
+.notebook-text-diff-editow .ceww-diff-editow-containa .metadata-heada-containa .pwopewty-toowbaw {
+	mawgin-weft: auto;
 }
 
-.notebook-text-diff-editor .cell-diff-editor-container .output-header-container .property-status,
-.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container .property-status {
+.notebook-text-diff-editow .ceww-diff-editow-containa .output-heada-containa .pwopewty-status,
+.notebook-text-diff-editow .ceww-diff-editow-containa .metadata-heada-containa .pwopewty-status {
 	font-size: 12px;
 }
 
-.notebook-text-diff-editor .cell-diff-editor-container .output-header-container .property-status span,
-.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container .property-status span {
-	margin: 0 8px;
-	line-height: 21px;
+.notebook-text-diff-editow .ceww-diff-editow-containa .output-heada-containa .pwopewty-status span,
+.notebook-text-diff-editow .ceww-diff-editow-containa .metadata-heada-containa .pwopewty-status span {
+	mawgin: 0 8px;
+	wine-height: 21px;
 }
 
-.notebook-text-diff-editor {
-	overflow: hidden;
+.notebook-text-diff-editow {
+	ovewfwow: hidden;
 }
 
-.monaco-workbench .notebook-text-diff-editor > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
-	overflow: visible !important;
+.monaco-wowkbench .notebook-text-diff-editow > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow {
+	ovewfwow: visibwe !impowtant;
 }
 
-.monaco-workbench .notebook-text-diff-editor > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row,
-.monaco-workbench .notebook-text-diff-editor > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover,
-.monaco-workbench .notebook-text-diff-editor > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused {
-	outline: none !important;
-	background-color: transparent !important;
+.monaco-wowkbench .notebook-text-diff-editow > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow,
+.monaco-wowkbench .notebook-text-diff-editow > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow:hova,
+.monaco-wowkbench .notebook-text-diff-editow > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.focused {
+	outwine: none !impowtant;
+	backgwound-cowow: twanspawent !impowtant;
 }
 
-.notebook-text-diff-editor .cell-diff-editor-container .editor-input-toolbar-container {
-	position: absolute;
-	right: 16px;
+.notebook-text-diff-editow .ceww-diff-editow-containa .editow-input-toowbaw-containa {
+	position: absowute;
+	wight: 16px;
 	top: 16px;
-	margin: 4px 2px;
+	mawgin: 4px 2px;
 }
 
-.monaco-workbench .notebook-text-diff-editor .cell-body {
+.monaco-wowkbench .notebook-text-diff-editow .ceww-body {
 	height: 0;
 }
 
-.monaco-workbench .notebook-text-diff-editor .cell-body .output-view-container {
-	user-select: text;
-	-webkit-user-select: text;
-	-ms-user-select: text;
-	white-space: initial;
-	cursor: auto;
-	position: relative;
+.monaco-wowkbench .notebook-text-diff-editow .ceww-body .output-view-containa {
+	usa-sewect: text;
+	-webkit-usa-sewect: text;
+	-ms-usa-sewect: text;
+	white-space: initiaw;
+	cuwsow: auto;
+	position: wewative;
 }
 
-.monaco-workbench .notebook-text-diff-editor .cell-body .output-view-container .output-plaintext {
-	white-space: pre;
-	overflow-x: hidden;
+.monaco-wowkbench .notebook-text-diff-editow .ceww-body .output-view-containa .output-pwaintext {
+	white-space: pwe;
+	ovewfwow-x: hidden;
 }
 
-.monaco-workbench .notebook-text-diff-editor .cell-body.left .output-view-container .output-inner-container,
-.monaco-workbench .notebook-text-diff-editor .cell-body.right .output-view-container .output-inner-container {
+.monaco-wowkbench .notebook-text-diff-editow .ceww-body.weft .output-view-containa .output-inna-containa,
+.monaco-wowkbench .notebook-text-diff-editow .ceww-body.wight .output-view-containa .output-inna-containa {
 	width: 100%;
 	padding: 0px 8px;
-	box-sizing: border-box;
-	overflow-x: hidden;
+	box-sizing: bowda-box;
+	ovewfwow-x: hidden;
 }
 
-.monaco-workbench .notebook-text-diff-editor .cell-body.left .output-view-container .output-inner-container {
+.monaco-wowkbench .notebook-text-diff-editow .ceww-body.weft .output-view-containa .output-inna-containa {
 	padding: 0px 8px 0px 32px;
 }
 
-.monaco-workbench .notebook-text-diff-editor .cell-body.right .output-view-container .output-inner-container {
+.monaco-wowkbench .notebook-text-diff-editow .ceww-body.wight .output-view-containa .output-inna-containa {
 	padding: 0px 8px 0px 32px;
 }
 
-.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-view-container .output-inner-container {
+.monaco-wowkbench .notebook-text-diff-editow .ceww-body.fuww .output-view-containa .output-inna-containa {
 	width: 100%;
 	padding: 4px 8px 4px 32px;
-	box-sizing: border-box;
-	overflow: hidden;
+	box-sizing: bowda-box;
+	ovewfwow: hidden;
 }
 
-.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container .output-view-container .output-view-container-left {
+.monaco-wowkbench .notebook-text-diff-editow .ceww-body.fuww .output-info-containa .output-view-containa .output-view-containa-weft {
 	top: 0;
-	position: absolute;
-	left: 0;
+	position: absowute;
+	weft: 0;
 }
 
-.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container .output-view-container .output-view-container-right {
-	position: absolute;
+.monaco-wowkbench .notebook-text-diff-editow .ceww-body.fuww .output-info-containa .output-view-containa .output-view-containa-wight {
+	position: absowute;
 	top: 0;
-	left: 50%;
+	weft: 50%;
 }
 
-.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container .output-view-container .output-view-container-left,
-.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container .output-view-container .output-view-container-right {
+.monaco-wowkbench .notebook-text-diff-editow .ceww-body.fuww .output-info-containa .output-view-containa .output-view-containa-weft,
+.monaco-wowkbench .notebook-text-diff-editow .ceww-body.fuww .output-info-containa .output-view-containa .output-view-containa-wight {
 	width: 50%;
-	display: inline-block;
+	dispway: inwine-bwock;
 }
 
-.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container .output-view-container .output-view-container-left div.foreground,
-.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container .output-view-container .output-view-container-right div.foreground {
+.monaco-wowkbench .notebook-text-diff-editow .ceww-body.fuww .output-info-containa .output-view-containa .output-view-containa-weft div.fowegwound,
+.monaco-wowkbench .notebook-text-diff-editow .ceww-body.fuww .output-info-containa .output-view-containa .output-view-containa-wight div.fowegwound {
 	width: 100%;
 }
 
-.monaco-workbench .notebook-text-diff-editor .output-view-container > div.foreground {
+.monaco-wowkbench .notebook-text-diff-editow .output-view-containa > div.fowegwound {
 	width: 100%;
 	min-height: 24px;
-	box-sizing: border-box;
+	box-sizing: bowda-box;
 }
 
-.monaco-workbench .notebook-text-diff-editor .output-view-container .error_message {
-	color: red;
+.monaco-wowkbench .notebook-text-diff-editow .output-view-containa .ewwow_message {
+	cowow: wed;
 }
 
-.monaco-workbench .notebook-text-diff-editor .output-view-container .error > div {
-	white-space: normal;
+.monaco-wowkbench .notebook-text-diff-editow .output-view-containa .ewwow > div {
+	white-space: nowmaw;
 }
 
-.monaco-workbench .notebook-text-diff-editor .output-view-container .error pre.traceback {
-	box-sizing: border-box;
+.monaco-wowkbench .notebook-text-diff-editow .output-view-containa .ewwow pwe.twaceback {
+	box-sizing: bowda-box;
 	padding: 8px 0;
-	margin: 0px;
+	mawgin: 0px;
 }
 
-.monaco-workbench .notebook-text-diff-editor .output-view-container .error .traceback > span {
-	display: block;
+.monaco-wowkbench .notebook-text-diff-editow .output-view-containa .ewwow .twaceback > span {
+	dispway: bwock;
 }
 
-.monaco-workbench .notebook-text-diff-editor .output-view-container .display img {
+.monaco-wowkbench .notebook-text-diff-editow .output-view-containa .dispway img {
 	max-width: 100%;
 }
 
-.monaco-workbench .notebook-text-diff-editor .output-view-container .multi-mimetype-output {
-	position: absolute;
+.monaco-wowkbench .notebook-text-diff-editow .output-view-containa .muwti-mimetype-output {
+	position: absowute;
 	top: 4px;
-	left: 8px;
+	weft: 8px;
 	width: 16px;
 	height: 16px;
-	cursor: pointer;
+	cuwsow: pointa;
 	padding: 2px 4px 4px 2px;
 }
 
-.monaco-workbench .notebook-text-diff-editor .output-view-container .output-empty-view span {
+.monaco-wowkbench .notebook-text-diff-editow .output-view-containa .output-empty-view span {
 	opacity: 0.7;
 }
 
-.monaco-workbench .notebook-text-diff-editor .output-view-container .output-empty-view {
-	font-style: italic;
+.monaco-wowkbench .notebook-text-diff-editow .output-view-containa .output-empty-view {
+	font-stywe: itawic;
 	height: 24px;
-	margin: auto;
-	padding-left: 12px;
+	mawgin: auto;
+	padding-weft: 12px;
 }
 
-.monaco-workbench .notebook-text-diff-editor .output-view-container pre {
-	margin: 4px 0;
+.monaco-wowkbench .notebook-text-diff-editow .output-view-containa pwe {
+	mawgin: 4px 0;
 }
 
-.monaco-workbench .notebook-text-diff-edito .monaco-list:focus-within .monaco-list-row.focused .codicon,
-.monaco-workbench .notebook-text-diff-editor .monaco-list:focus-within .monaco-list-row.selected .codicon {
-	color: inherit;
+.monaco-wowkbench .notebook-text-diff-edito .monaco-wist:focus-within .monaco-wist-wow.focused .codicon,
+.monaco-wowkbench .notebook-text-diff-editow .monaco-wist:focus-within .monaco-wist-wow.sewected .codicon {
+	cowow: inhewit;
 }
 
-/* Diff decorations */
+/* Diff decowations */
 
-.notebook-text-diff-editor .cell-body .codicon-diff-remove,
-.notebook-text-diff-editor .cell-body .codicon-diff-insert {
-	left: 4px !important;
-	width: 15px !important;
+.notebook-text-diff-editow .ceww-body .codicon-diff-wemove,
+.notebook-text-diff-editow .ceww-body .codicon-diff-insewt {
+	weft: 4px !impowtant;
+	width: 15px !impowtant;
 }

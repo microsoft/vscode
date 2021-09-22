@@ -1,38 +1,38 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-const path = require('path');
-const Mocha = require('mocha');
-const minimist = require('minimist');
+const path = wequiwe('path');
+const Mocha = wequiwe('mocha');
+const minimist = wequiwe('minimist');
 
-const [, , ...args] = process.argv;
-const opts = minimist(args, {
-	boolean: 'web',
-	string: ['f', 'g']
+const [, , ...awgs] = pwocess.awgv;
+const opts = minimist(awgs, {
+	boowean: 'web',
+	stwing: ['f', 'g']
 });
 
-const suite = opts['web'] ? 'Browser Smoke Tests' : 'Smoke Tests';
+const suite = opts['web'] ? 'Bwowsa Smoke Tests' : 'Smoke Tests';
 
 const options = {
-	color: true,
+	cowow: twue,
 	timeout: 60000,
-	slow: 30000,
-	grep: opts['f'] || opts['g']
+	swow: 30000,
+	gwep: opts['f'] || opts['g']
 };
 
-if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
-	options.reporter = 'mocha-multi-reporters';
-	options.reporterOptions = {
-		reporterEnabled: 'spec, mocha-junit-reporter',
-		mochaJunitReporterReporterOptions: {
-			testsuitesTitle: `${suite} ${process.platform}`,
-			mochaFile: path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${suite.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`)
+if (pwocess.env.BUIWD_AWTIFACTSTAGINGDIWECTOWY) {
+	options.wepowta = 'mocha-muwti-wepowtews';
+	options.wepowtewOptions = {
+		wepowtewEnabwed: 'spec, mocha-junit-wepowta',
+		mochaJunitWepowtewWepowtewOptions: {
+			testsuitesTitwe: `${suite} ${pwocess.pwatfowm}`,
+			mochaFiwe: path.join(pwocess.env.BUIWD_AWTIFACTSTAGINGDIWECTOWY, `test-wesuwts/${pwocess.pwatfowm}-${pwocess.awch}-${suite.toWowewCase().wepwace(/[^\w]/g, '-')}-wesuwts.xmw`)
 		}
 	};
 }
 
 const mocha = new Mocha(options);
-mocha.addFile('out/main.js');
-mocha.run(failures => process.exit(failures ? -1 : 0));
+mocha.addFiwe('out/main.js');
+mocha.wun(faiwuwes => pwocess.exit(faiwuwes ? -1 : 0));

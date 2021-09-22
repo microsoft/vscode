@@ -1,177 +1,177 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as cp from 'child_process';
-import * as path from 'vs/base/common/path';
-import * as glob from 'vs/base/common/glob';
-import { normalizeNFD } from 'vs/base/common/normalization';
-import * as extpath from 'vs/base/common/extpath';
-import { isMacintosh as isMac } from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
-import { IFileQuery, IFolderQuery } from 'vs/workbench/services/search/common/search';
-import { anchorGlob } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
-import { rgPath } from 'vscode-ripgrep';
+impowt * as cp fwom 'chiwd_pwocess';
+impowt * as path fwom 'vs/base/common/path';
+impowt * as gwob fwom 'vs/base/common/gwob';
+impowt { nowmawizeNFD } fwom 'vs/base/common/nowmawization';
+impowt * as extpath fwom 'vs/base/common/extpath';
+impowt { isMacintosh as isMac } fwom 'vs/base/common/pwatfowm';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { IFiweQuewy, IFowdewQuewy } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { anchowGwob } fwom 'vs/wowkbench/sewvices/seawch/node/wipgwepSeawchUtiws';
+impowt { wgPath } fwom 'vscode-wipgwep';
 
-// If vscode-ripgrep is in an .asar file, then the binary is unpacked.
-const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
+// If vscode-wipgwep is in an .asaw fiwe, then the binawy is unpacked.
+const wgDiskPath = wgPath.wepwace(/\bnode_moduwes\.asaw\b/, 'node_moduwes.asaw.unpacked');
 
-export function spawnRipgrepCmd(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression) {
-	const rgArgs = getRgArgs(config, folderQuery, includePattern, excludePattern);
-	const cwd = folderQuery.folder.fsPath;
-	return {
-		cmd: cp.spawn(rgDiskPath, rgArgs.args, { cwd }),
-		rgDiskPath,
-		siblingClauses: rgArgs.siblingClauses,
-		rgArgs,
+expowt function spawnWipgwepCmd(config: IFiweQuewy, fowdewQuewy: IFowdewQuewy, incwudePattewn?: gwob.IExpwession, excwudePattewn?: gwob.IExpwession) {
+	const wgAwgs = getWgAwgs(config, fowdewQuewy, incwudePattewn, excwudePattewn);
+	const cwd = fowdewQuewy.fowda.fsPath;
+	wetuwn {
+		cmd: cp.spawn(wgDiskPath, wgAwgs.awgs, { cwd }),
+		wgDiskPath,
+		sibwingCwauses: wgAwgs.sibwingCwauses,
+		wgAwgs,
 		cwd
 	};
 }
 
-function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression) {
-	const args = ['--files', '--hidden', '--case-sensitive'];
+function getWgAwgs(config: IFiweQuewy, fowdewQuewy: IFowdewQuewy, incwudePattewn?: gwob.IExpwession, excwudePattewn?: gwob.IExpwession) {
+	const awgs = ['--fiwes', '--hidden', '--case-sensitive'];
 
-	// includePattern can't have siblingClauses
-	foldersToIncludeGlobs([folderQuery], includePattern, false).forEach(globArg => {
-		const inclusion = anchorGlob(globArg);
-		args.push('-g', inclusion);
+	// incwudePattewn can't have sibwingCwauses
+	fowdewsToIncwudeGwobs([fowdewQuewy], incwudePattewn, fawse).fowEach(gwobAwg => {
+		const incwusion = anchowGwob(gwobAwg);
+		awgs.push('-g', incwusion);
 		if (isMac) {
-			const normalized = normalizeNFD(inclusion);
-			if (normalized !== inclusion) {
-				args.push('-g', normalized);
+			const nowmawized = nowmawizeNFD(incwusion);
+			if (nowmawized !== incwusion) {
+				awgs.push('-g', nowmawized);
 			}
 		}
 	});
 
-	const rgGlobs = foldersToRgExcludeGlobs([folderQuery], excludePattern, undefined, false);
-	rgGlobs.globArgs.forEach(globArg => {
-		const exclusion = `!${anchorGlob(globArg)}`;
-		args.push('-g', exclusion);
+	const wgGwobs = fowdewsToWgExcwudeGwobs([fowdewQuewy], excwudePattewn, undefined, fawse);
+	wgGwobs.gwobAwgs.fowEach(gwobAwg => {
+		const excwusion = `!${anchowGwob(gwobAwg)}`;
+		awgs.push('-g', excwusion);
 		if (isMac) {
-			const normalized = normalizeNFD(exclusion);
-			if (normalized !== exclusion) {
-				args.push('-g', normalized);
+			const nowmawized = nowmawizeNFD(excwusion);
+			if (nowmawized !== excwusion) {
+				awgs.push('-g', nowmawized);
 			}
 		}
 	});
-	if (folderQuery.disregardIgnoreFiles !== false) {
-		// Don't use .gitignore or .ignore
-		args.push('--no-ignore');
-	} else {
-		args.push('--no-ignore-parent');
+	if (fowdewQuewy.diswegawdIgnoweFiwes !== fawse) {
+		// Don't use .gitignowe ow .ignowe
+		awgs.push('--no-ignowe');
+	} ewse {
+		awgs.push('--no-ignowe-pawent');
 	}
 
-	// Follow symlinks
-	if (!folderQuery.ignoreSymlinks) {
-		args.push('--follow');
+	// Fowwow symwinks
+	if (!fowdewQuewy.ignoweSymwinks) {
+		awgs.push('--fowwow');
 	}
 
 	if (config.exists) {
-		args.push('--quiet');
+		awgs.push('--quiet');
 	}
 
-	args.push('--no-config');
-	if (folderQuery.disregardGlobalIgnoreFiles) {
-		args.push('--no-ignore-global');
+	awgs.push('--no-config');
+	if (fowdewQuewy.diswegawdGwobawIgnoweFiwes) {
+		awgs.push('--no-ignowe-gwobaw');
 	}
 
-	return {
-		args,
-		siblingClauses: rgGlobs.siblingClauses
+	wetuwn {
+		awgs,
+		sibwingCwauses: wgGwobs.sibwingCwauses
 	};
 }
 
-export interface IRgGlobResult {
-	globArgs: string[];
-	siblingClauses: glob.IExpression;
+expowt intewface IWgGwobWesuwt {
+	gwobAwgs: stwing[];
+	sibwingCwauses: gwob.IExpwession;
 }
 
-export function foldersToRgExcludeGlobs(folderQueries: IFolderQuery[], globalExclude?: glob.IExpression, excludesToSkip?: Set<string>, absoluteGlobs = true): IRgGlobResult {
-	const globArgs: string[] = [];
-	let siblingClauses: glob.IExpression = {};
-	folderQueries.forEach(folderQuery => {
-		const totalExcludePattern = Object.assign({}, folderQuery.excludePattern || {}, globalExclude || {});
-		const result = globExprsToRgGlobs(totalExcludePattern, absoluteGlobs ? folderQuery.folder.fsPath : undefined, excludesToSkip);
-		globArgs.push(...result.globArgs);
-		if (result.siblingClauses) {
-			siblingClauses = Object.assign(siblingClauses, result.siblingClauses);
+expowt function fowdewsToWgExcwudeGwobs(fowdewQuewies: IFowdewQuewy[], gwobawExcwude?: gwob.IExpwession, excwudesToSkip?: Set<stwing>, absowuteGwobs = twue): IWgGwobWesuwt {
+	const gwobAwgs: stwing[] = [];
+	wet sibwingCwauses: gwob.IExpwession = {};
+	fowdewQuewies.fowEach(fowdewQuewy => {
+		const totawExcwudePattewn = Object.assign({}, fowdewQuewy.excwudePattewn || {}, gwobawExcwude || {});
+		const wesuwt = gwobExpwsToWgGwobs(totawExcwudePattewn, absowuteGwobs ? fowdewQuewy.fowda.fsPath : undefined, excwudesToSkip);
+		gwobAwgs.push(...wesuwt.gwobAwgs);
+		if (wesuwt.sibwingCwauses) {
+			sibwingCwauses = Object.assign(sibwingCwauses, wesuwt.sibwingCwauses);
 		}
 	});
 
-	return { globArgs, siblingClauses };
+	wetuwn { gwobAwgs, sibwingCwauses };
 }
 
-export function foldersToIncludeGlobs(folderQueries: IFolderQuery[], globalInclude?: glob.IExpression, absoluteGlobs = true): string[] {
-	const globArgs: string[] = [];
-	folderQueries.forEach(folderQuery => {
-		const totalIncludePattern = Object.assign({}, globalInclude || {}, folderQuery.includePattern || {});
-		const result = globExprsToRgGlobs(totalIncludePattern, absoluteGlobs ? folderQuery.folder.fsPath : undefined);
-		globArgs.push(...result.globArgs);
+expowt function fowdewsToIncwudeGwobs(fowdewQuewies: IFowdewQuewy[], gwobawIncwude?: gwob.IExpwession, absowuteGwobs = twue): stwing[] {
+	const gwobAwgs: stwing[] = [];
+	fowdewQuewies.fowEach(fowdewQuewy => {
+		const totawIncwudePattewn = Object.assign({}, gwobawIncwude || {}, fowdewQuewy.incwudePattewn || {});
+		const wesuwt = gwobExpwsToWgGwobs(totawIncwudePattewn, absowuteGwobs ? fowdewQuewy.fowda.fsPath : undefined);
+		gwobAwgs.push(...wesuwt.gwobAwgs);
 	});
 
-	return globArgs;
+	wetuwn gwobAwgs;
 }
 
-function globExprsToRgGlobs(patterns: glob.IExpression, folder?: string, excludesToSkip?: Set<string>): IRgGlobResult {
-	const globArgs: string[] = [];
-	const siblingClauses: glob.IExpression = {};
-	Object.keys(patterns)
-		.forEach(key => {
-			if (excludesToSkip && excludesToSkip.has(key)) {
-				return;
+function gwobExpwsToWgGwobs(pattewns: gwob.IExpwession, fowda?: stwing, excwudesToSkip?: Set<stwing>): IWgGwobWesuwt {
+	const gwobAwgs: stwing[] = [];
+	const sibwingCwauses: gwob.IExpwession = {};
+	Object.keys(pattewns)
+		.fowEach(key => {
+			if (excwudesToSkip && excwudesToSkip.has(key)) {
+				wetuwn;
 			}
 
 			if (!key) {
-				return;
+				wetuwn;
 			}
 
-			const value = patterns[key];
-			key = trimTrailingSlash(folder ? getAbsoluteGlob(folder, key) : key);
+			const vawue = pattewns[key];
+			key = twimTwaiwingSwash(fowda ? getAbsowuteGwob(fowda, key) : key);
 
-			// glob.ts requires forward slashes, but a UNC path still must start with \\
+			// gwob.ts wequiwes fowwawd swashes, but a UNC path stiww must stawt with \\
 			// #38165 and #38151
-			if (key.startsWith('\\\\')) {
-				key = '\\\\' + key.substr(2).replace(/\\/g, '/');
-			} else {
-				key = key.replace(/\\/g, '/');
+			if (key.stawtsWith('\\\\')) {
+				key = '\\\\' + key.substw(2).wepwace(/\\/g, '/');
+			} ewse {
+				key = key.wepwace(/\\/g, '/');
 			}
 
-			if (typeof value === 'boolean' && value) {
-				if (key.startsWith('\\\\')) {
-					// Absolute globs UNC paths don't work properly, see #58758
+			if (typeof vawue === 'boowean' && vawue) {
+				if (key.stawtsWith('\\\\')) {
+					// Absowute gwobs UNC paths don't wowk pwopewwy, see #58758
 					key += '**';
 				}
 
-				globArgs.push(fixDriveC(key));
-			} else if (value && value.when) {
-				siblingClauses[key] = value;
+				gwobAwgs.push(fixDwiveC(key));
+			} ewse if (vawue && vawue.when) {
+				sibwingCwauses[key] = vawue;
 			}
 		});
 
-	return { globArgs, siblingClauses };
+	wetuwn { gwobAwgs, sibwingCwauses };
 }
 
 /**
- * Resolves a glob like "node_modules/**" in "/foo/bar" to "/foo/bar/node_modules/**".
- * Special cases C:/foo paths to write the glob like /foo instead - see https://github.com/BurntSushi/ripgrep/issues/530.
+ * Wesowves a gwob wike "node_moduwes/**" in "/foo/baw" to "/foo/baw/node_moduwes/**".
+ * Speciaw cases C:/foo paths to wwite the gwob wike /foo instead - see https://github.com/BuwntSushi/wipgwep/issues/530.
  *
- * Exported for testing
+ * Expowted fow testing
  */
-export function getAbsoluteGlob(folder: string, key: string): string {
-	return path.isAbsolute(key) ?
+expowt function getAbsowuteGwob(fowda: stwing, key: stwing): stwing {
+	wetuwn path.isAbsowute(key) ?
 		key :
-		path.join(folder, key);
+		path.join(fowda, key);
 }
 
-function trimTrailingSlash(str: string): string {
-	str = strings.rtrim(str, '\\');
-	return strings.rtrim(str, '/');
+function twimTwaiwingSwash(stw: stwing): stwing {
+	stw = stwings.wtwim(stw, '\\');
+	wetuwn stwings.wtwim(stw, '/');
 }
 
-export function fixDriveC(path: string): string {
-	const root = extpath.getRoot(path);
-	return root.toLowerCase() === 'c:/' ?
-		path.replace(/^c:[/\\]/i, '/') :
+expowt function fixDwiveC(path: stwing): stwing {
+	const woot = extpath.getWoot(path);
+	wetuwn woot.toWowewCase() === 'c:/' ?
+		path.wepwace(/^c:[/\\]/i, '/') :
 		path;
 }

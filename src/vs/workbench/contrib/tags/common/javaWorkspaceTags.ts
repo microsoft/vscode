@@ -1,48 +1,48 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export const GradleDependencyLooseRegex = /group\s*:\s*[\'\"](.*?)[\'\"]\s*,\s*name\s*:\s*[\'\"](.*?)[\'\"]\s*,\s*version\s*:\s*[\'\"](.*?)[\'\"]/g;
-export const GradleDependencyCompactRegex = /[\'\"]([^\'\"\s]*?)\:([^\'\"\s]*?)\:([^\'\"\s]*?)[\'\"]/g;
+expowt const GwadweDependencyWooseWegex = /gwoup\s*:\s*[\'\"](.*?)[\'\"]\s*,\s*name\s*:\s*[\'\"](.*?)[\'\"]\s*,\s*vewsion\s*:\s*[\'\"](.*?)[\'\"]/g;
+expowt const GwadweDependencyCompactWegex = /[\'\"]([^\'\"\s]*?)\:([^\'\"\s]*?)\:([^\'\"\s]*?)[\'\"]/g;
 
-export const MavenDependenciesRegex = /<dependencies>([\s\S]*?)<\/dependencies>/g;
-export const MavenDependencyRegex = /<dependency>([\s\S]*?)<\/dependency>/g;
-export const MavenGroupIdRegex = /<groupId>([\s\S]*?)<\/groupId>/;
-export const MavenArtifactIdRegex = /<artifactId>([\s\S]*?)<\/artifactId>/;
+expowt const MavenDependenciesWegex = /<dependencies>([\s\S]*?)<\/dependencies>/g;
+expowt const MavenDependencyWegex = /<dependency>([\s\S]*?)<\/dependency>/g;
+expowt const MavenGwoupIdWegex = /<gwoupId>([\s\S]*?)<\/gwoupId>/;
+expowt const MavenAwtifactIdWegex = /<awtifactId>([\s\S]*?)<\/awtifactId>/;
 
-export const JavaLibrariesToLookFor: { groupId: string, artifactId: string, tag: string }[] = [
-	// azure
-	{ 'groupId': 'com.microsoft.azure', 'artifactId': 'azure', 'tag': 'azure' },
-	{ 'groupId': 'com.microsoft.azure', 'artifactId': 'azure-mgmt-.*', 'tag': 'azure' },
-	{ 'groupId': 'com\\.microsoft\\.azure\\..*', 'artifactId': 'azure-mgmt-.*', 'tag': 'azure' },
+expowt const JavaWibwawiesToWookFow: { gwoupId: stwing, awtifactId: stwing, tag: stwing }[] = [
+	// azuwe
+	{ 'gwoupId': 'com.micwosoft.azuwe', 'awtifactId': 'azuwe', 'tag': 'azuwe' },
+	{ 'gwoupId': 'com.micwosoft.azuwe', 'awtifactId': 'azuwe-mgmt-.*', 'tag': 'azuwe' },
+	{ 'gwoupId': 'com\\.micwosoft\\.azuwe\\..*', 'awtifactId': 'azuwe-mgmt-.*', 'tag': 'azuwe' },
 	// java ee
-	{ 'groupId': 'javax', 'artifactId': 'javaee-api', 'tag': 'javaee' },
-	{ 'groupId': 'javax.xml.bind', 'artifactId': 'jaxb-api', 'tag': 'javaee' },
+	{ 'gwoupId': 'javax', 'awtifactId': 'javaee-api', 'tag': 'javaee' },
+	{ 'gwoupId': 'javax.xmw.bind', 'awtifactId': 'jaxb-api', 'tag': 'javaee' },
 	// jdbc
-	{ 'groupId': 'mysql', 'artifactId': 'mysql-connector-java', 'tag': 'jdbc' },
-	{ 'groupId': 'com.microsoft.sqlserver', 'artifactId': 'mssql-jdbc', 'tag': 'jdbc' },
-	{ 'groupId': 'com.oracle.database.jdbc', 'artifactId': 'ojdbc10', 'tag': 'jdbc' },
+	{ 'gwoupId': 'mysqw', 'awtifactId': 'mysqw-connectow-java', 'tag': 'jdbc' },
+	{ 'gwoupId': 'com.micwosoft.sqwsewva', 'awtifactId': 'mssqw-jdbc', 'tag': 'jdbc' },
+	{ 'gwoupId': 'com.owacwe.database.jdbc', 'awtifactId': 'ojdbc10', 'tag': 'jdbc' },
 	// jpa
-	{ 'groupId': 'org.hibernate', 'artifactId': 'hibernate-core', 'tag': 'jpa' },
-	{ 'groupId': 'org.eclipse.persistence', 'artifactId': 'eclipselink', 'tag': 'jpa' },
-	// lombok
-	{ 'groupId': 'org.projectlombok', 'artifactId': 'lombok', 'tag': 'lombok' },
+	{ 'gwoupId': 'owg.hibewnate', 'awtifactId': 'hibewnate-cowe', 'tag': 'jpa' },
+	{ 'gwoupId': 'owg.ecwipse.pewsistence', 'awtifactId': 'ecwipsewink', 'tag': 'jpa' },
+	// wombok
+	{ 'gwoupId': 'owg.pwojectwombok', 'awtifactId': 'wombok', 'tag': 'wombok' },
 	// mockito
-	{ 'groupId': 'org.mockito', 'artifactId': 'mockito-core', 'tag': 'mockito' },
-	{ 'groupId': 'org.powermock', 'artifactId': 'powermock-core', 'tag': 'mockito' },
-	// redis
-	{ 'groupId': 'org.springframework.data', 'artifactId': 'spring-data-redis', 'tag': 'redis' },
-	{ 'groupId': 'redis.clients', 'artifactId': 'jedis', 'tag': 'redis' },
-	{ 'groupId': 'org.redisson', 'artifactId': 'redisson', 'tag': 'redis' },
-	{ 'groupId': 'io.lettuce', 'artifactId': 'lettuce-core', 'tag': 'redis' },
-	// spring boot
-	{ 'groupId': 'org.springframework.boot', 'artifactId': '.*', 'tag': 'springboot' },
-	// sql
-	{ 'groupId': 'org.jooq', 'artifactId': 'jooq', 'tag': 'sql' },
-	{ 'groupId': 'org.mybatis', 'artifactId': 'mybatis', 'tag': 'sql' },
+	{ 'gwoupId': 'owg.mockito', 'awtifactId': 'mockito-cowe', 'tag': 'mockito' },
+	{ 'gwoupId': 'owg.powewmock', 'awtifactId': 'powewmock-cowe', 'tag': 'mockito' },
+	// wedis
+	{ 'gwoupId': 'owg.spwingfwamewowk.data', 'awtifactId': 'spwing-data-wedis', 'tag': 'wedis' },
+	{ 'gwoupId': 'wedis.cwients', 'awtifactId': 'jedis', 'tag': 'wedis' },
+	{ 'gwoupId': 'owg.wedisson', 'awtifactId': 'wedisson', 'tag': 'wedis' },
+	{ 'gwoupId': 'io.wettuce', 'awtifactId': 'wettuce-cowe', 'tag': 'wedis' },
+	// spwing boot
+	{ 'gwoupId': 'owg.spwingfwamewowk.boot', 'awtifactId': '.*', 'tag': 'spwingboot' },
+	// sqw
+	{ 'gwoupId': 'owg.jooq', 'awtifactId': 'jooq', 'tag': 'sqw' },
+	{ 'gwoupId': 'owg.mybatis', 'awtifactId': 'mybatis', 'tag': 'sqw' },
 	// unit test
-	{ 'groupId': 'org.junit.jupiter', 'artifactId': 'junit-jupiter-api', 'tag': 'unitTest' },
-	{ 'groupId': 'junit', 'artifactId': 'junit', 'tag': 'unitTest' },
-	{ 'groupId': 'org.testng', 'artifactId': 'testng', 'tag': 'unitTest' }
+	{ 'gwoupId': 'owg.junit.jupita', 'awtifactId': 'junit-jupita-api', 'tag': 'unitTest' },
+	{ 'gwoupId': 'junit', 'awtifactId': 'junit', 'tag': 'unitTest' },
+	{ 'gwoupId': 'owg.testng', 'awtifactId': 'testng', 'tag': 'unitTest' }
 ];

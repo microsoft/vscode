@@ -1,257 +1,257 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
-import { Gesture } from 'vs/base/browser/touch';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./lightBulbWidget';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IPosition } from 'vs/editor/common/core/position';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
-import type { CodeActionTrigger } from 'vs/editor/contrib/codeAction/types';
-import * as nls from 'vs/nls';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { editorBackground, editorLightBulbAutoFixForeground, editorLightBulbForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { GwobawMouseMoveMonitow, IStandawdMouseMoveEventData, standawdMouseMoveMewga } fwom 'vs/base/bwowsa/gwobawMouseMoveMonitow';
+impowt { Gestuwe } fwom 'vs/base/bwowsa/touch';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt 'vs/css!./wightBuwbWidget';
+impowt { ContentWidgetPositionPwefewence, ICodeEditow, IContentWidget, IContentWidgetPosition } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt { CodeActionSet } fwom 'vs/editow/contwib/codeAction/codeAction';
+impowt type { CodeActionTwigga } fwom 'vs/editow/contwib/codeAction/types';
+impowt * as nws fwom 'vs/nws';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { editowBackgwound, editowWightBuwbAutoFixFowegwound, editowWightBuwbFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { ICowowTheme, ICssStyweCowwectow, wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-namespace LightBulbState {
+namespace WightBuwbState {
 
-	export const enum Type {
+	expowt const enum Type {
 		Hidden,
 		Showing,
 	}
 
-	export const Hidden = { type: Type.Hidden } as const;
+	expowt const Hidden = { type: Type.Hidden } as const;
 
-	export class Showing {
-		readonly type = Type.Showing;
+	expowt cwass Showing {
+		weadonwy type = Type.Showing;
 
-		constructor(
-			public readonly actions: CodeActionSet,
-			public readonly trigger: CodeActionTrigger,
-			public readonly editorPosition: IPosition,
-			public readonly widgetPosition: IContentWidgetPosition,
+		constwuctow(
+			pubwic weadonwy actions: CodeActionSet,
+			pubwic weadonwy twigga: CodeActionTwigga,
+			pubwic weadonwy editowPosition: IPosition,
+			pubwic weadonwy widgetPosition: IContentWidgetPosition,
 		) { }
 	}
 
-	export type State = typeof Hidden | Showing;
+	expowt type State = typeof Hidden | Showing;
 }
 
 
-export class LightBulbWidget extends Disposable implements IContentWidget {
+expowt cwass WightBuwbWidget extends Disposabwe impwements IContentWidget {
 
-	private static readonly _posPref = [ContentWidgetPositionPreference.EXACT];
+	pwivate static weadonwy _posPwef = [ContentWidgetPositionPwefewence.EXACT];
 
-	private readonly _domNode: HTMLDivElement;
+	pwivate weadonwy _domNode: HTMWDivEwement;
 
-	private readonly _onClick = this._register(new Emitter<{ x: number; y: number; actions: CodeActionSet; trigger: CodeActionTrigger }>());
-	public readonly onClick = this._onClick.event;
+	pwivate weadonwy _onCwick = this._wegista(new Emitta<{ x: numba; y: numba; actions: CodeActionSet; twigga: CodeActionTwigga }>());
+	pubwic weadonwy onCwick = this._onCwick.event;
 
-	private _state: LightBulbState.State = LightBulbState.Hidden;
+	pwivate _state: WightBuwbState.State = WightBuwbState.Hidden;
 
-	constructor(
-		private readonly _editor: ICodeEditor,
-		private readonly _quickFixActionId: string,
-		private readonly _preferredFixActionId: string,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService
+	constwuctow(
+		pwivate weadonwy _editow: ICodeEditow,
+		pwivate weadonwy _quickFixActionId: stwing,
+		pwivate weadonwy _pwefewwedFixActionId: stwing,
+		@IKeybindingSewvice pwivate weadonwy _keybindingSewvice: IKeybindingSewvice
 	) {
-		super();
-		this._domNode = document.createElement('div');
-		this._domNode.className = Codicon.lightBulb.classNames;
+		supa();
+		this._domNode = document.cweateEwement('div');
+		this._domNode.cwassName = Codicon.wightBuwb.cwassNames;
 
-		this._editor.addContentWidget(this);
+		this._editow.addContentWidget(this);
 
-		this._register(this._editor.onDidChangeModelContent(_ => {
-			// cancel when the line in question has been removed
-			const editorModel = this._editor.getModel();
-			if (this.state.type !== LightBulbState.Type.Showing || !editorModel || this.state.editorPosition.lineNumber >= editorModel.getLineCount()) {
+		this._wegista(this._editow.onDidChangeModewContent(_ => {
+			// cancew when the wine in question has been wemoved
+			const editowModew = this._editow.getModew();
+			if (this.state.type !== WightBuwbState.Type.Showing || !editowModew || this.state.editowPosition.wineNumba >= editowModew.getWineCount()) {
 				this.hide();
 			}
 		}));
 
-		Gesture.ignoreTarget(this._domNode);
-		this._register(dom.addStandardDisposableGenericMouseDownListner(this._domNode, e => {
-			if (this.state.type !== LightBulbState.Type.Showing) {
-				return;
+		Gestuwe.ignoweTawget(this._domNode);
+		this._wegista(dom.addStandawdDisposabweGenewicMouseDownWistna(this._domNode, e => {
+			if (this.state.type !== WightBuwbState.Type.Showing) {
+				wetuwn;
 			}
 
-			// Make sure that focus / cursor location is not lost when clicking widget icon
-			this._editor.focus();
-			e.preventDefault();
-			// a bit of extra work to make sure the menu
-			// doesn't cover the line-text
+			// Make suwe that focus / cuwsow wocation is not wost when cwicking widget icon
+			this._editow.focus();
+			e.pweventDefauwt();
+			// a bit of extwa wowk to make suwe the menu
+			// doesn't cova the wine-text
 			const { top, height } = dom.getDomNodePagePosition(this._domNode);
-			const lineHeight = this._editor.getOption(EditorOption.lineHeight);
+			const wineHeight = this._editow.getOption(EditowOption.wineHeight);
 
-			let pad = Math.floor(lineHeight / 3);
-			if (this.state.widgetPosition.position !== null && this.state.widgetPosition.position.lineNumber < this.state.editorPosition.lineNumber) {
-				pad += lineHeight;
+			wet pad = Math.fwoow(wineHeight / 3);
+			if (this.state.widgetPosition.position !== nuww && this.state.widgetPosition.position.wineNumba < this.state.editowPosition.wineNumba) {
+				pad += wineHeight;
 			}
 
-			this._onClick.fire({
+			this._onCwick.fiwe({
 				x: e.posx,
 				y: top + height + pad,
 				actions: this.state.actions,
-				trigger: this.state.trigger,
+				twigga: this.state.twigga,
 			});
 		}));
-		this._register(dom.addDisposableListener(this._domNode, 'mouseenter', (e: MouseEvent) => {
+		this._wegista(dom.addDisposabweWistena(this._domNode, 'mouseenta', (e: MouseEvent) => {
 			if ((e.buttons & 1) !== 1) {
-				return;
+				wetuwn;
 			}
-			// mouse enters lightbulb while the primary/left button
-			// is being pressed -> hide the lightbulb and block future
-			// showings until mouse is released
+			// mouse entews wightbuwb whiwe the pwimawy/weft button
+			// is being pwessed -> hide the wightbuwb and bwock futuwe
+			// showings untiw mouse is weweased
 			this.hide();
-			const monitor = new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>();
-			monitor.startMonitoring(<HTMLElement>e.target, e.buttons, standardMouseMoveMerger, () => { }, () => {
-				monitor.dispose();
+			const monitow = new GwobawMouseMoveMonitow<IStandawdMouseMoveEventData>();
+			monitow.stawtMonitowing(<HTMWEwement>e.tawget, e.buttons, standawdMouseMoveMewga, () => { }, () => {
+				monitow.dispose();
 			});
 		}));
-		this._register(this._editor.onDidChangeConfiguration(e => {
-			// hide when told to do so
-			if (e.hasChanged(EditorOption.lightbulb) && !this._editor.getOption(EditorOption.lightbulb).enabled) {
+		this._wegista(this._editow.onDidChangeConfiguwation(e => {
+			// hide when towd to do so
+			if (e.hasChanged(EditowOption.wightbuwb) && !this._editow.getOption(EditowOption.wightbuwb).enabwed) {
 				this.hide();
 			}
 		}));
 
-		this._updateLightBulbTitleAndIcon();
-		this._register(this._keybindingService.onDidUpdateKeybindings(this._updateLightBulbTitleAndIcon, this));
+		this._updateWightBuwbTitweAndIcon();
+		this._wegista(this._keybindingSewvice.onDidUpdateKeybindings(this._updateWightBuwbTitweAndIcon, this));
 	}
 
-	override dispose(): void {
-		super.dispose();
-		this._editor.removeContentWidget(this);
+	ovewwide dispose(): void {
+		supa.dispose();
+		this._editow.wemoveContentWidget(this);
 	}
 
-	getId(): string {
-		return 'LightBulbWidget';
+	getId(): stwing {
+		wetuwn 'WightBuwbWidget';
 	}
 
-	getDomNode(): HTMLElement {
-		return this._domNode;
+	getDomNode(): HTMWEwement {
+		wetuwn this._domNode;
 	}
 
-	getPosition(): IContentWidgetPosition | null {
-		return this._state.type === LightBulbState.Type.Showing ? this._state.widgetPosition : null;
+	getPosition(): IContentWidgetPosition | nuww {
+		wetuwn this._state.type === WightBuwbState.Type.Showing ? this._state.widgetPosition : nuww;
 	}
 
-	public update(actions: CodeActionSet, trigger: CodeActionTrigger, atPosition: IPosition) {
-		if (actions.validActions.length <= 0) {
-			return this.hide();
+	pubwic update(actions: CodeActionSet, twigga: CodeActionTwigga, atPosition: IPosition) {
+		if (actions.vawidActions.wength <= 0) {
+			wetuwn this.hide();
 		}
 
-		const options = this._editor.getOptions();
-		if (!options.get(EditorOption.lightbulb).enabled) {
-			return this.hide();
+		const options = this._editow.getOptions();
+		if (!options.get(EditowOption.wightbuwb).enabwed) {
+			wetuwn this.hide();
 		}
 
-		const model = this._editor.getModel();
-		if (!model) {
-			return this.hide();
+		const modew = this._editow.getModew();
+		if (!modew) {
+			wetuwn this.hide();
 		}
 
-		const { lineNumber, column } = model.validatePosition(atPosition);
+		const { wineNumba, cowumn } = modew.vawidatePosition(atPosition);
 
-		const tabSize = model.getOptions().tabSize;
-		const fontInfo = options.get(EditorOption.fontInfo);
-		const lineContent = model.getLineContent(lineNumber);
-		const indent = TextModel.computeIndentLevel(lineContent, tabSize);
-		const lineHasSpace = fontInfo.spaceWidth * indent > 22;
-		const isFolded = (lineNumber: number) => {
-			return lineNumber > 2 && this._editor.getTopForLineNumber(lineNumber) === this._editor.getTopForLineNumber(lineNumber - 1);
+		const tabSize = modew.getOptions().tabSize;
+		const fontInfo = options.get(EditowOption.fontInfo);
+		const wineContent = modew.getWineContent(wineNumba);
+		const indent = TextModew.computeIndentWevew(wineContent, tabSize);
+		const wineHasSpace = fontInfo.spaceWidth * indent > 22;
+		const isFowded = (wineNumba: numba) => {
+			wetuwn wineNumba > 2 && this._editow.getTopFowWineNumba(wineNumba) === this._editow.getTopFowWineNumba(wineNumba - 1);
 		};
 
-		let effectiveLineNumber = lineNumber;
-		if (!lineHasSpace) {
-			if (lineNumber > 1 && !isFolded(lineNumber - 1)) {
-				effectiveLineNumber -= 1;
-			} else if (!isFolded(lineNumber + 1)) {
-				effectiveLineNumber += 1;
-			} else if (column * fontInfo.spaceWidth < 22) {
-				// cannot show lightbulb above/below and showing
-				// it inline would overlay the cursor...
-				return this.hide();
+		wet effectiveWineNumba = wineNumba;
+		if (!wineHasSpace) {
+			if (wineNumba > 1 && !isFowded(wineNumba - 1)) {
+				effectiveWineNumba -= 1;
+			} ewse if (!isFowded(wineNumba + 1)) {
+				effectiveWineNumba += 1;
+			} ewse if (cowumn * fontInfo.spaceWidth < 22) {
+				// cannot show wightbuwb above/bewow and showing
+				// it inwine wouwd ovewway the cuwsow...
+				wetuwn this.hide();
 			}
 		}
 
-		this.state = new LightBulbState.Showing(actions, trigger, atPosition, {
-			position: { lineNumber: effectiveLineNumber, column: 1 },
-			preference: LightBulbWidget._posPref
+		this.state = new WightBuwbState.Showing(actions, twigga, atPosition, {
+			position: { wineNumba: effectiveWineNumba, cowumn: 1 },
+			pwefewence: WightBuwbWidget._posPwef
 		});
-		this._editor.layoutContentWidget(this);
+		this._editow.wayoutContentWidget(this);
 	}
 
-	public hide(): void {
-		this.state = LightBulbState.Hidden;
-		this._editor.layoutContentWidget(this);
+	pubwic hide(): void {
+		this.state = WightBuwbState.Hidden;
+		this._editow.wayoutContentWidget(this);
 	}
 
-	private get state(): LightBulbState.State { return this._state; }
+	pwivate get state(): WightBuwbState.State { wetuwn this._state; }
 
-	private set state(value) {
-		this._state = value;
-		this._updateLightBulbTitleAndIcon();
+	pwivate set state(vawue) {
+		this._state = vawue;
+		this._updateWightBuwbTitweAndIcon();
 	}
 
-	private _updateLightBulbTitleAndIcon(): void {
-		if (this.state.type === LightBulbState.Type.Showing && this.state.actions.hasAutoFix) {
+	pwivate _updateWightBuwbTitweAndIcon(): void {
+		if (this.state.type === WightBuwbState.Type.Showing && this.state.actions.hasAutoFix) {
 			// update icon
-			this._domNode.classList.remove(...Codicon.lightBulb.classNamesArray);
-			this._domNode.classList.add(...Codicon.lightbulbAutofix.classNamesArray);
+			this._domNode.cwassWist.wemove(...Codicon.wightBuwb.cwassNamesAwway);
+			this._domNode.cwassWist.add(...Codicon.wightbuwbAutofix.cwassNamesAwway);
 
-			const preferredKb = this._keybindingService.lookupKeybinding(this._preferredFixActionId);
-			if (preferredKb) {
-				this.title = nls.localize('preferredcodeActionWithKb', "Show Code Actions. Preferred Quick Fix Available ({0})", preferredKb.getLabel());
-				return;
+			const pwefewwedKb = this._keybindingSewvice.wookupKeybinding(this._pwefewwedFixActionId);
+			if (pwefewwedKb) {
+				this.titwe = nws.wocawize('pwefewwedcodeActionWithKb', "Show Code Actions. Pwefewwed Quick Fix Avaiwabwe ({0})", pwefewwedKb.getWabew());
+				wetuwn;
 			}
 		}
 
 		// update icon
-		this._domNode.classList.remove(...Codicon.lightbulbAutofix.classNamesArray);
-		this._domNode.classList.add(...Codicon.lightBulb.classNamesArray);
+		this._domNode.cwassWist.wemove(...Codicon.wightbuwbAutofix.cwassNamesAwway);
+		this._domNode.cwassWist.add(...Codicon.wightBuwb.cwassNamesAwway);
 
-		const kb = this._keybindingService.lookupKeybinding(this._quickFixActionId);
+		const kb = this._keybindingSewvice.wookupKeybinding(this._quickFixActionId);
 		if (kb) {
-			this.title = nls.localize('codeActionWithKb', "Show Code Actions ({0})", kb.getLabel());
-		} else {
-			this.title = nls.localize('codeAction', "Show Code Actions");
+			this.titwe = nws.wocawize('codeActionWithKb', "Show Code Actions ({0})", kb.getWabew());
+		} ewse {
+			this.titwe = nws.wocawize('codeAction', "Show Code Actions");
 		}
 	}
 
-	private set title(value: string) {
-		this._domNode.title = value;
+	pwivate set titwe(vawue: stwing) {
+		this._domNode.titwe = vawue;
 	}
 }
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+wegistewThemingPawticipant((theme: ICowowTheme, cowwectow: ICssStyweCowwectow) => {
 
-	const editorBackgroundColor = theme.getColor(editorBackground)?.transparent(0.7);
+	const editowBackgwoundCowow = theme.getCowow(editowBackgwound)?.twanspawent(0.7);
 
-	// Lightbulb Icon
-	const editorLightBulbForegroundColor = theme.getColor(editorLightBulbForeground);
-	if (editorLightBulbForegroundColor) {
-		collector.addRule(`
-		.monaco-editor .contentWidgets ${Codicon.lightBulb.cssSelector} {
-			color: ${editorLightBulbForegroundColor};
-			background-color: ${editorBackgroundColor};
+	// Wightbuwb Icon
+	const editowWightBuwbFowegwoundCowow = theme.getCowow(editowWightBuwbFowegwound);
+	if (editowWightBuwbFowegwoundCowow) {
+		cowwectow.addWuwe(`
+		.monaco-editow .contentWidgets ${Codicon.wightBuwb.cssSewectow} {
+			cowow: ${editowWightBuwbFowegwoundCowow};
+			backgwound-cowow: ${editowBackgwoundCowow};
 		}`);
 	}
 
-	// Lightbulb Auto Fix Icon
-	const editorLightBulbAutoFixForegroundColor = theme.getColor(editorLightBulbAutoFixForeground);
-	if (editorLightBulbAutoFixForegroundColor) {
-		collector.addRule(`
-		.monaco-editor .contentWidgets ${Codicon.lightbulbAutofix.cssSelector} {
-			color: ${editorLightBulbAutoFixForegroundColor};
-			background-color: ${editorBackgroundColor};
+	// Wightbuwb Auto Fix Icon
+	const editowWightBuwbAutoFixFowegwoundCowow = theme.getCowow(editowWightBuwbAutoFixFowegwound);
+	if (editowWightBuwbAutoFixFowegwoundCowow) {
+		cowwectow.addWuwe(`
+		.monaco-editow .contentWidgets ${Codicon.wightbuwbAutofix.cssSewectow} {
+			cowow: ${editowWightBuwbAutoFixFowegwoundCowow};
+			backgwound-cowow: ${editowBackgwoundCowow};
 		}`);
 	}
 

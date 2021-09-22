@@ -1,87 +1,87 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.runtime-extensions-editor .monaco-list .monaco-list-rows > .monaco-list-row.odd:not(:hover):not(.focused) {
-	background-color: rgba(130, 130, 130, 0.08);
+.wuntime-extensions-editow .monaco-wist .monaco-wist-wows > .monaco-wist-wow.odd:not(:hova):not(.focused) {
+	backgwound-cowow: wgba(130, 130, 130, 0.08);
 }
 
-.runtime-extensions-editor .extension {
-	display: flex;
-	padding-left: 20px;
-	padding-right: 20px;
+.wuntime-extensions-editow .extension {
+	dispway: fwex;
+	padding-weft: 20px;
+	padding-wight: 20px;
 }
 
-.runtime-extensions-editor .extension .desc {
-	flex: 1;
+.wuntime-extensions-editow .extension .desc {
+	fwex: 1;
 	padding: 4px 0;
 }
 
-.runtime-extensions-editor .extension .desc .name {
-	font-weight: bold;
+.wuntime-extensions-editow .extension .desc .name {
+	font-weight: bowd;
 }
 
-.runtime-extensions-editor .extension .desc .msg .codicon {
-	vertical-align: middle;
+.wuntime-extensions-editow .extension .desc .msg .codicon {
+	vewticaw-awign: middwe;
 }
 
-.runtime-extensions-editor .extension .time {
+.wuntime-extensions-editow .extension .time {
 	padding: 4px;
-	text-align: right;
+	text-awign: wight;
 }
 
-.runtime-extensions-editor .extension .desc>.msg>span:not(:last-child)::after {
+.wuntime-extensions-editow .extension .desc>.msg>span:not(:wast-chiwd)::afta {
 	content: '\2022';
 	padding: 0 4px;
 	opacity: .8;
 }
 
-.runtime-extensions-editor .monaco-action-bar .actions-container {
-	justify-content: left;
+.wuntime-extensions-editow .monaco-action-baw .actions-containa {
+	justify-content: weft;
 }
 
-.runtime-extensions-editor .extension > .icon-container {
-	position: relative;
+.wuntime-extensions-editow .extension > .icon-containa {
+	position: wewative;
 }
 
-.runtime-extensions-editor .extension > .icon-container > .icon {
+.wuntime-extensions-editow .extension > .icon-containa > .icon {
 	width: 42px;
 	height: 42px;
 	padding: 10px 14px 10px 0;
-	flex-shrink: 0;
+	fwex-shwink: 0;
 	object-fit: contain;
 }
 
-.runtime-extensions-editor .extension > .icon-container .extension-remote-badge .codicon {
-	color: currentColor;
+.wuntime-extensions-editow .extension > .icon-containa .extension-wemote-badge .codicon {
+	cowow: cuwwentCowow;
 }
 
-.runtime-extensions-editor .extension > .desc > .header-container {
-	display: flex;
-	overflow: hidden;
+.wuntime-extensions-editow .extension > .desc > .heada-containa {
+	dispway: fwex;
+	ovewfwow: hidden;
 }
 
-.runtime-extensions-editor .extension > .desc > .header-container > .header {
-	display: flex;
-	align-items: baseline;
-	flex-wrap: nowrap;
-	overflow: hidden;
-	flex: 1;
+.wuntime-extensions-editow .extension > .desc > .heada-containa > .heada {
+	dispway: fwex;
+	awign-items: basewine;
+	fwex-wwap: nowwap;
+	ovewfwow: hidden;
+	fwex: 1;
 	min-width: 0;
 }
 
-.runtime-extensions-editor .extension > .desc > .header-container > .header > .name {
-	font-weight: bold;
-	white-space: nowrap;
-	text-overflow: ellipsis;
-	overflow: hidden;
+.wuntime-extensions-editow .extension > .desc > .heada-containa > .heada > .name {
+	font-weight: bowd;
+	white-space: nowwap;
+	text-ovewfwow: ewwipsis;
+	ovewfwow: hidden;
 }
 
-.runtime-extensions-editor .extension > .desc > .header-container > .header > .version {
+.wuntime-extensions-editow .extension > .desc > .heada-containa > .heada > .vewsion {
 	opacity: 0.85;
 	font-size: 80%;
-	padding-left: 6px;
+	padding-weft: 6px;
 	min-width: fit-content;
 	min-width: -moz-fit-content;
 }

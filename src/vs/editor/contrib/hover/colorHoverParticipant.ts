@@ -1,153 +1,153 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Color, RGBA } from 'vs/base/common/color';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { IIdentifiedSingleEditOperation, IModelDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { DocumentColorProvider, IColorInformation } from 'vs/editor/common/modes';
-import { getColorPresentations } from 'vs/editor/contrib/colorPicker/color';
-import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
-import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
-import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidget';
-import { HoverAnchor, HoverAnchorType, IEditorHover, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Cowow, WGBA } fwom 'vs/base/common/cowow';
+impowt { Disposabwe, DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IIdentifiedSingweEditOpewation, IModewDecowation, ITextModew, TwackedWangeStickiness } fwom 'vs/editow/common/modew';
+impowt { DocumentCowowPwovida, ICowowInfowmation } fwom 'vs/editow/common/modes';
+impowt { getCowowPwesentations } fwom 'vs/editow/contwib/cowowPicka/cowow';
+impowt { CowowDetectow } fwom 'vs/editow/contwib/cowowPicka/cowowDetectow';
+impowt { CowowPickewModew } fwom 'vs/editow/contwib/cowowPicka/cowowPickewModew';
+impowt { CowowPickewWidget } fwom 'vs/editow/contwib/cowowPicka/cowowPickewWidget';
+impowt { HovewAnchow, HovewAnchowType, IEditowHova, IEditowHovewPawticipant, IEditowHovewStatusBaw, IHovewPawt } fwom 'vs/editow/contwib/hova/hovewTypes';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export class ColorHover implements IHoverPart {
+expowt cwass CowowHova impwements IHovewPawt {
 
 	/**
-	 * Force the hover to always be rendered at this specific range,
-	 * even in the case of multiple hover parts.
+	 * Fowce the hova to awways be wendewed at this specific wange,
+	 * even in the case of muwtipwe hova pawts.
 	 */
-	public readonly forceShowAtRange: boolean = true;
+	pubwic weadonwy fowceShowAtWange: boowean = twue;
 
-	constructor(
-		public readonly owner: IEditorHoverParticipant<ColorHover>,
-		public readonly range: Range,
-		public readonly model: ColorPickerModel,
-		public readonly provider: DocumentColorProvider
+	constwuctow(
+		pubwic weadonwy owna: IEditowHovewPawticipant<CowowHova>,
+		pubwic weadonwy wange: Wange,
+		pubwic weadonwy modew: CowowPickewModew,
+		pubwic weadonwy pwovida: DocumentCowowPwovida
 	) { }
 
-	public isValidForHoverAnchor(anchor: HoverAnchor): boolean {
-		return (
-			anchor.type === HoverAnchorType.Range
-			&& this.range.startColumn <= anchor.range.startColumn
-			&& this.range.endColumn >= anchor.range.endColumn
+	pubwic isVawidFowHovewAnchow(anchow: HovewAnchow): boowean {
+		wetuwn (
+			anchow.type === HovewAnchowType.Wange
+			&& this.wange.stawtCowumn <= anchow.wange.stawtCowumn
+			&& this.wange.endCowumn >= anchow.wange.endCowumn
 		);
 	}
 }
 
-export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover> {
+expowt cwass CowowHovewPawticipant impwements IEditowHovewPawticipant<CowowHova> {
 
-	constructor(
-		private readonly _editor: ICodeEditor,
-		private readonly _hover: IEditorHover,
-		@IThemeService private readonly _themeService: IThemeService,
+	constwuctow(
+		pwivate weadonwy _editow: ICodeEditow,
+		pwivate weadonwy _hova: IEditowHova,
+		@IThemeSewvice pwivate weadonwy _themeSewvice: IThemeSewvice,
 	) { }
 
-	public computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): ColorHover[] {
-		return [];
+	pubwic computeSync(anchow: HovewAnchow, wineDecowations: IModewDecowation[]): CowowHova[] {
+		wetuwn [];
 	}
 
-	public async computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): Promise<ColorHover[]> {
-		if (!this._editor.hasModel()) {
-			return [];
+	pubwic async computeAsync(anchow: HovewAnchow, wineDecowations: IModewDecowation[], token: CancewwationToken): Pwomise<CowowHova[]> {
+		if (!this._editow.hasModew()) {
+			wetuwn [];
 		}
-		const colorDetector = ColorDetector.get(this._editor);
-		for (const d of lineDecorations) {
-			const colorData = colorDetector.getColorData(d.range.getStartPosition());
-			if (colorData) {
-				const colorHover = await this._createColorHover(this._editor.getModel(), colorData.colorInfo, colorData.provider);
-				return [colorHover];
+		const cowowDetectow = CowowDetectow.get(this._editow);
+		fow (const d of wineDecowations) {
+			const cowowData = cowowDetectow.getCowowData(d.wange.getStawtPosition());
+			if (cowowData) {
+				const cowowHova = await this._cweateCowowHova(this._editow.getModew(), cowowData.cowowInfo, cowowData.pwovida);
+				wetuwn [cowowHova];
 			}
 		}
-		return [];
+		wetuwn [];
 	}
 
-	private async _createColorHover(editorModel: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<ColorHover> {
-		const originalText = editorModel.getValueInRange(colorInfo.range);
-		const { red, green, blue, alpha } = colorInfo.color;
-		const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
-		const color = new Color(rgba);
+	pwivate async _cweateCowowHova(editowModew: ITextModew, cowowInfo: ICowowInfowmation, pwovida: DocumentCowowPwovida): Pwomise<CowowHova> {
+		const owiginawText = editowModew.getVawueInWange(cowowInfo.wange);
+		const { wed, gween, bwue, awpha } = cowowInfo.cowow;
+		const wgba = new WGBA(Math.wound(wed * 255), Math.wound(gween * 255), Math.wound(bwue * 255), awpha);
+		const cowow = new Cowow(wgba);
 
-		const colorPresentations = await getColorPresentations(editorModel, colorInfo, provider, CancellationToken.None);
-		const model = new ColorPickerModel(color, [], 0);
-		model.colorPresentations = colorPresentations || [];
-		model.guessColorPresentation(color, originalText);
+		const cowowPwesentations = await getCowowPwesentations(editowModew, cowowInfo, pwovida, CancewwationToken.None);
+		const modew = new CowowPickewModew(cowow, [], 0);
+		modew.cowowPwesentations = cowowPwesentations || [];
+		modew.guessCowowPwesentation(cowow, owiginawText);
 
-		return new ColorHover(this, Range.lift(colorInfo.range), model, provider);
+		wetuwn new CowowHova(this, Wange.wift(cowowInfo.wange), modew, pwovida);
 	}
 
-	public renderHoverParts(hoverParts: ColorHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable {
-		if (hoverParts.length === 0 || !this._editor.hasModel()) {
-			return Disposable.None;
+	pubwic wendewHovewPawts(hovewPawts: CowowHova[], fwagment: DocumentFwagment, statusBaw: IEditowHovewStatusBaw): IDisposabwe {
+		if (hovewPawts.wength === 0 || !this._editow.hasModew()) {
+			wetuwn Disposabwe.None;
 		}
 
-		const disposables = new DisposableStore();
-		const colorHover = hoverParts[0];
-		const editorModel = this._editor.getModel();
-		const model = colorHover.model;
-		const widget = disposables.add(new ColorPickerWidget(fragment, model, this._editor.getOption(EditorOption.pixelRatio), this._themeService));
+		const disposabwes = new DisposabweStowe();
+		const cowowHova = hovewPawts[0];
+		const editowModew = this._editow.getModew();
+		const modew = cowowHova.modew;
+		const widget = disposabwes.add(new CowowPickewWidget(fwagment, modew, this._editow.getOption(EditowOption.pixewWatio), this._themeSewvice));
 
-		let range = new Range(colorHover.range.startLineNumber, colorHover.range.startColumn, colorHover.range.endLineNumber, colorHover.range.endColumn);
+		wet wange = new Wange(cowowHova.wange.stawtWineNumba, cowowHova.wange.stawtCowumn, cowowHova.wange.endWineNumba, cowowHova.wange.endCowumn);
 
-		const updateEditorModel = () => {
-			let textEdits: IIdentifiedSingleEditOperation[];
-			let newRange: Range;
-			if (model.presentation.textEdit) {
-				textEdits = [model.presentation.textEdit as IIdentifiedSingleEditOperation];
-				newRange = new Range(
-					model.presentation.textEdit.range.startLineNumber,
-					model.presentation.textEdit.range.startColumn,
-					model.presentation.textEdit.range.endLineNumber,
-					model.presentation.textEdit.range.endColumn
+		const updateEditowModew = () => {
+			wet textEdits: IIdentifiedSingweEditOpewation[];
+			wet newWange: Wange;
+			if (modew.pwesentation.textEdit) {
+				textEdits = [modew.pwesentation.textEdit as IIdentifiedSingweEditOpewation];
+				newWange = new Wange(
+					modew.pwesentation.textEdit.wange.stawtWineNumba,
+					modew.pwesentation.textEdit.wange.stawtCowumn,
+					modew.pwesentation.textEdit.wange.endWineNumba,
+					modew.pwesentation.textEdit.wange.endCowumn
 				);
-				const trackedRange = this._editor.getModel()!._setTrackedRange(null, newRange, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
-				this._editor.pushUndoStop();
-				this._editor.executeEdits('colorpicker', textEdits);
-				newRange = this._editor.getModel()!._getTrackedRange(trackedRange) || newRange;
-			} else {
-				textEdits = [{ identifier: null, range, text: model.presentation.label, forceMoveMarkers: false }];
-				newRange = range.setEndPosition(range.endLineNumber, range.startColumn + model.presentation.label.length);
-				this._editor.pushUndoStop();
-				this._editor.executeEdits('colorpicker', textEdits);
+				const twackedWange = this._editow.getModew()!._setTwackedWange(nuww, newWange, TwackedWangeStickiness.GwowsOnwyWhenTypingAfta);
+				this._editow.pushUndoStop();
+				this._editow.executeEdits('cowowpicka', textEdits);
+				newWange = this._editow.getModew()!._getTwackedWange(twackedWange) || newWange;
+			} ewse {
+				textEdits = [{ identifia: nuww, wange, text: modew.pwesentation.wabew, fowceMoveMawkews: fawse }];
+				newWange = wange.setEndPosition(wange.endWineNumba, wange.stawtCowumn + modew.pwesentation.wabew.wength);
+				this._editow.pushUndoStop();
+				this._editow.executeEdits('cowowpicka', textEdits);
 			}
 
-			if (model.presentation.additionalTextEdits) {
-				textEdits = [...model.presentation.additionalTextEdits as IIdentifiedSingleEditOperation[]];
-				this._editor.executeEdits('colorpicker', textEdits);
-				this._hover.hide();
+			if (modew.pwesentation.additionawTextEdits) {
+				textEdits = [...modew.pwesentation.additionawTextEdits as IIdentifiedSingweEditOpewation[]];
+				this._editow.executeEdits('cowowpicka', textEdits);
+				this._hova.hide();
 			}
-			this._editor.pushUndoStop();
-			range = newRange;
+			this._editow.pushUndoStop();
+			wange = newWange;
 		};
 
-		const updateColorPresentations = (color: Color) => {
-			return getColorPresentations(editorModel, {
-				range: range,
-				color: {
-					red: color.rgba.r / 255,
-					green: color.rgba.g / 255,
-					blue: color.rgba.b / 255,
-					alpha: color.rgba.a
+		const updateCowowPwesentations = (cowow: Cowow) => {
+			wetuwn getCowowPwesentations(editowModew, {
+				wange: wange,
+				cowow: {
+					wed: cowow.wgba.w / 255,
+					gween: cowow.wgba.g / 255,
+					bwue: cowow.wgba.b / 255,
+					awpha: cowow.wgba.a
 				}
-			}, colorHover.provider, CancellationToken.None).then((colorPresentations) => {
-				model.colorPresentations = colorPresentations || [];
+			}, cowowHova.pwovida, CancewwationToken.None).then((cowowPwesentations) => {
+				modew.cowowPwesentations = cowowPwesentations || [];
 			});
 		};
 
-		disposables.add(model.onColorFlushed((color: Color) => {
-			updateColorPresentations(color).then(updateEditorModel);
+		disposabwes.add(modew.onCowowFwushed((cowow: Cowow) => {
+			updateCowowPwesentations(cowow).then(updateEditowModew);
 		}));
-		disposables.add(model.onDidChangeColor(updateColorPresentations));
+		disposabwes.add(modew.onDidChangeCowow(updateCowowPwesentations));
 
-		this._hover.setColorPicker(widget);
+		this._hova.setCowowPicka(widget);
 
-		return disposables;
+		wetuwn disposabwes;
 	}
 }

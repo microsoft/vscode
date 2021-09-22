@@ -1,52 +1,52 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { IOutline, IOutlineCreator, IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
-import { Event, Emitter } from 'vs/base/common/event';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { WinkedWist } fwom 'vs/base/common/winkedWist';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IEditowPane } fwom 'vs/wowkbench/common/editow';
+impowt { IOutwine, IOutwineCweatow, IOutwineSewvice, OutwineTawget } fwom 'vs/wowkbench/sewvices/outwine/bwowsa/outwine';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
 
-class OutlineService implements IOutlineService {
+cwass OutwineSewvice impwements IOutwineSewvice {
 
-	declare _serviceBrand: undefined;
+	decwawe _sewviceBwand: undefined;
 
-	private readonly _factories = new LinkedList<IOutlineCreator<any, any>>();
+	pwivate weadonwy _factowies = new WinkedWist<IOutwineCweatow<any, any>>();
 
-	private readonly _onDidChange = new Emitter<void>();
-	readonly onDidChange: Event<void> = this._onDidChange.event;
+	pwivate weadonwy _onDidChange = new Emitta<void>();
+	weadonwy onDidChange: Event<void> = this._onDidChange.event;
 
-	canCreateOutline(pane: IEditorPane): boolean {
-		for (let factory of this._factories) {
-			if (factory.matches(pane)) {
-				return true;
+	canCweateOutwine(pane: IEditowPane): boowean {
+		fow (wet factowy of this._factowies) {
+			if (factowy.matches(pane)) {
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	async createOutline(pane: IEditorPane, target: OutlineTarget, token: CancellationToken): Promise<IOutline<any> | undefined> {
-		for (let factory of this._factories) {
-			if (factory.matches(pane)) {
-				return await factory.createOutline(pane, target, token);
+	async cweateOutwine(pane: IEditowPane, tawget: OutwineTawget, token: CancewwationToken): Pwomise<IOutwine<any> | undefined> {
+		fow (wet factowy of this._factowies) {
+			if (factowy.matches(pane)) {
+				wetuwn await factowy.cweateOutwine(pane, tawget, token);
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	registerOutlineCreator(creator: IOutlineCreator<any, any>): IDisposable {
-		const rm = this._factories.push(creator);
-		this._onDidChange.fire();
-		return toDisposable(() => {
-			rm();
-			this._onDidChange.fire();
+	wegistewOutwineCweatow(cweatow: IOutwineCweatow<any, any>): IDisposabwe {
+		const wm = this._factowies.push(cweatow);
+		this._onDidChange.fiwe();
+		wetuwn toDisposabwe(() => {
+			wm();
+			this._onDidChange.fiwe();
 		});
 	}
 }
 
 
-registerSingleton(IOutlineService, OutlineService, true);
+wegistewSingweton(IOutwineSewvice, OutwineSewvice, twue);

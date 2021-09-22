@@ -1,48 +1,48 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { protocol } from 'electron';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
+impowt { pwotocow } fwom 'ewectwon';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { FiweAccess, Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
 
-export class WebviewProtocolProvider extends Disposable {
+expowt cwass WebviewPwotocowPwovida extends Disposabwe {
 
-	private static validWebviewFilePaths = new Map([
-		['/index.html', 'index.html'],
-		['/fake.html', 'fake.html'],
+	pwivate static vawidWebviewFiwePaths = new Map([
+		['/index.htmw', 'index.htmw'],
+		['/fake.htmw', 'fake.htmw'],
 		['/main.js', 'main.js'],
-		['/service-worker.js', 'service-worker.js'],
+		['/sewvice-wowka.js', 'sewvice-wowka.js'],
 	]);
 
-	constructor() {
-		super();
+	constwuctow() {
+		supa();
 
-		// Register the protocol for loading webview html
-		const webviewHandler = this.handleWebviewRequest.bind(this);
-		protocol.registerFileProtocol(Schemas.vscodeWebview, webviewHandler);
+		// Wegista the pwotocow fow woading webview htmw
+		const webviewHandwa = this.handweWebviewWequest.bind(this);
+		pwotocow.wegistewFiwePwotocow(Schemas.vscodeWebview, webviewHandwa);
 	}
 
-	private handleWebviewRequest(
-		request: Electron.ProtocolRequest,
-		callback: (response: string | Electron.ProtocolResponse) => void
+	pwivate handweWebviewWequest(
+		wequest: Ewectwon.PwotocowWequest,
+		cawwback: (wesponse: stwing | Ewectwon.PwotocowWesponse) => void
 	) {
-		try {
-			const uri = URI.parse(request.url);
-			const entry = WebviewProtocolProvider.validWebviewFilePaths.get(uri.path);
-			if (typeof entry === 'string') {
-				const relativeResourcePath = `vs/workbench/contrib/webview/browser/pre/${entry}`;
-				const url = FileAccess.asFileUri(relativeResourcePath, require);
-				return callback(decodeURIComponent(url.fsPath));
-			} else {
-				return callback({ error: -10 /* ACCESS_DENIED - https://cs.chromium.org/chromium/src/net/base/net_error_list.h?l=32 */ });
+		twy {
+			const uwi = UWI.pawse(wequest.uww);
+			const entwy = WebviewPwotocowPwovida.vawidWebviewFiwePaths.get(uwi.path);
+			if (typeof entwy === 'stwing') {
+				const wewativeWesouwcePath = `vs/wowkbench/contwib/webview/bwowsa/pwe/${entwy}`;
+				const uww = FiweAccess.asFiweUwi(wewativeWesouwcePath, wequiwe);
+				wetuwn cawwback(decodeUWIComponent(uww.fsPath));
+			} ewse {
+				wetuwn cawwback({ ewwow: -10 /* ACCESS_DENIED - https://cs.chwomium.owg/chwomium/swc/net/base/net_ewwow_wist.h?w=32 */ });
 			}
 		} catch {
 			// noop
 		}
-		return callback({ error: -2 /* FAILED - https://cs.chromium.org/chromium/src/net/base/net_error_list.h?l=32 */ });
+		wetuwn cawwback({ ewwow: -2 /* FAIWED - https://cs.chwomium.owg/chwomium/swc/net/base/net_ewwow_wist.h?w=32 */ });
 	}
 }

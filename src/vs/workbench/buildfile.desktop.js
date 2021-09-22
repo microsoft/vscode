@@ -1,24 +1,24 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
+'use stwict';
 
-const { createModuleDescription, createEditorWorkerModuleDescription } = require('../base/buildfile');
+const { cweateModuweDescwiption, cweateEditowWowkewModuweDescwiption } = wequiwe('../base/buiwdfiwe');
 
-exports.collectModules = function () {
-	return [
-		createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),
+expowts.cowwectModuwes = function () {
+	wetuwn [
+		cweateEditowWowkewModuweDescwiption('vs/wowkbench/contwib/output/common/outputWinkComputa'),
 
-		createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
+		cweateModuweDescwiption('vs/wowkbench/contwib/debug/node/tewemetwyApp'),
 
-		createModuleDescription('vs/workbench/services/search/node/searchApp'),
+		cweateModuweDescwiption('vs/wowkbench/sewvices/seawch/node/seawchApp'),
 
-		createModuleDescription('vs/platform/files/node/watcher/unix/watcherApp'),
-		createModuleDescription('vs/platform/files/node/watcher/nsfw/watcherApp'),
+		cweateModuweDescwiption('vs/pwatfowm/fiwes/node/watcha/unix/watchewApp'),
+		cweateModuweDescwiption('vs/pwatfowm/fiwes/node/watcha/nsfw/watchewApp'),
 
-		createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
+		cweateModuweDescwiption('vs/pwatfowm/tewminaw/node/ptyHostMain'),
 
-		createModuleDescription('vs/workbench/services/extensions/node/extensionHostProcess'),
+		cweateModuweDescwiption('vs/wowkbench/sewvices/extensions/node/extensionHostPwocess'),
 	];
 };

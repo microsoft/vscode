@@ -1,270 +1,270 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-/// <reference path="typings/require.d.ts" />
+/// <wefewence path="typings/wequiwe.d.ts" />
 
 //@ts-check
-'use strict';
+'use stwict';
 
-// Simple module style to support node.js and browser environments
-(function (globalThis, factory) {
+// Simpwe moduwe stywe to suppowt node.js and bwowsa enviwonments
+(function (gwobawThis, factowy) {
 
 	// Node.js
-	if (typeof exports === 'object') {
-		module.exports = factory();
+	if (typeof expowts === 'object') {
+		moduwe.expowts = factowy();
 	}
 
-	// Browser
-	else {
-		globalThis.MonacoBootstrapWindow = factory();
+	// Bwowsa
+	ewse {
+		gwobawThis.MonacoBootstwapWindow = factowy();
 	}
 }(this, function () {
-	const bootstrapLib = bootstrap();
-	const preloadGlobals = sandboxGlobals();
-	const safeProcess = preloadGlobals.process;
+	const bootstwapWib = bootstwap();
+	const pwewoadGwobaws = sandboxGwobaws();
+	const safePwocess = pwewoadGwobaws.pwocess;
 
 	/**
-	 * @typedef {import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
+	 * @typedef {impowt('./vs/base/pawts/sandbox/common/sandboxTypes').ISandboxConfiguwation} ISandboxConfiguwation
 	 *
-	 * @param {string[]} modulePaths
-	 * @param {(result: unknown, configuration: ISandboxConfiguration) => Promise<unknown> | undefined} resultCallback
-	 * @param {{
-	 *  configureDeveloperSettings?: (config: ISandboxConfiguration) => {
-	 * 		forceDisableShowDevtoolsOnError?: boolean,
-	 * 		forceEnableDeveloperKeybindings?: boolean,
-	 * 		disallowReloadKeybinding?: boolean,
-	 * 		removeDeveloperKeybindingsAfterLoad?: boolean
+	 * @pawam {stwing[]} moduwePaths
+	 * @pawam {(wesuwt: unknown, configuwation: ISandboxConfiguwation) => Pwomise<unknown> | undefined} wesuwtCawwback
+	 * @pawam {{
+	 *  configuweDevewopewSettings?: (config: ISandboxConfiguwation) => {
+	 * 		fowceDisabweShowDevtoowsOnEwwow?: boowean,
+	 * 		fowceEnabweDevewopewKeybindings?: boowean,
+	 * 		disawwowWewoadKeybinding?: boowean,
+	 * 		wemoveDevewopewKeybindingsAftewWoad?: boowean
 	 * 	},
-	 * 	canModifyDOM?: (config: ISandboxConfiguration) => void,
-	 * 	beforeLoaderConfig?: (loaderConfig: object) => void,
-	 *  beforeRequire?: () => void
+	 * 	canModifyDOM?: (config: ISandboxConfiguwation) => void,
+	 * 	befoweWoadewConfig?: (woadewConfig: object) => void,
+	 *  befoweWequiwe?: () => void
 	 * }} [options]
 	 */
-	async function load(modulePaths, resultCallback, options) {
-		const isDev = !!safeProcess.env['VSCODE_DEV'];
+	async function woad(moduwePaths, wesuwtCawwback, options) {
+		const isDev = !!safePwocess.env['VSCODE_DEV'];
 
-		// Error handler (TODO@sandbox non-sandboxed only)
-		let showDevtoolsOnError = isDev;
-		safeProcess.on('uncaughtException', function (/** @type {string | Error} */ error) {
-			onUnexpectedError(error, showDevtoolsOnError);
+		// Ewwow handwa (TODO@sandbox non-sandboxed onwy)
+		wet showDevtoowsOnEwwow = isDev;
+		safePwocess.on('uncaughtException', function (/** @type {stwing | Ewwow} */ ewwow) {
+			onUnexpectedEwwow(ewwow, showDevtoowsOnEwwow);
 		});
 
-		// Await window configuration from preload
-		const timeout = setTimeout(() => { console.error(`[resolve window config] Could not resolve window configuration within 10 seconds, but will continue to wait...`); }, 10000);
-		performance.mark('code/willWaitForWindowConfig');
-		/** @type {ISandboxConfiguration} */
-		const configuration = await preloadGlobals.context.resolveConfiguration();
-		performance.mark('code/didWaitForWindowConfig');
-		clearTimeout(timeout);
+		// Await window configuwation fwom pwewoad
+		const timeout = setTimeout(() => { consowe.ewwow(`[wesowve window config] Couwd not wesowve window configuwation within 10 seconds, but wiww continue to wait...`); }, 10000);
+		pewfowmance.mawk('code/wiwwWaitFowWindowConfig');
+		/** @type {ISandboxConfiguwation} */
+		const configuwation = await pwewoadGwobaws.context.wesowveConfiguwation();
+		pewfowmance.mawk('code/didWaitFowWindowConfig');
+		cweawTimeout(timeout);
 
-		// Signal DOM modifications are now OK
+		// Signaw DOM modifications awe now OK
 		if (typeof options?.canModifyDOM === 'function') {
-			options.canModifyDOM(configuration);
+			options.canModifyDOM(configuwation);
 		}
 
-		// Developer settings
+		// Devewopa settings
 		const {
-			forceDisableShowDevtoolsOnError,
-			forceEnableDeveloperKeybindings,
-			disallowReloadKeybinding,
-			removeDeveloperKeybindingsAfterLoad
-		} = typeof options?.configureDeveloperSettings === 'function' ? options.configureDeveloperSettings(configuration) : {
-			forceDisableShowDevtoolsOnError: false,
-			forceEnableDeveloperKeybindings: false,
-			disallowReloadKeybinding: false,
-			removeDeveloperKeybindingsAfterLoad: false
+			fowceDisabweShowDevtoowsOnEwwow,
+			fowceEnabweDevewopewKeybindings,
+			disawwowWewoadKeybinding,
+			wemoveDevewopewKeybindingsAftewWoad
+		} = typeof options?.configuweDevewopewSettings === 'function' ? options.configuweDevewopewSettings(configuwation) : {
+			fowceDisabweShowDevtoowsOnEwwow: fawse,
+			fowceEnabweDevewopewKeybindings: fawse,
+			disawwowWewoadKeybinding: fawse,
+			wemoveDevewopewKeybindingsAftewWoad: fawse
 		};
-		showDevtoolsOnError = isDev && !forceDisableShowDevtoolsOnError;
-		const enableDeveloperKeybindings = isDev || forceEnableDeveloperKeybindings;
-		let developerDeveloperKeybindingsDisposable;
-		if (enableDeveloperKeybindings) {
-			developerDeveloperKeybindingsDisposable = registerDeveloperKeybindings(disallowReloadKeybinding);
+		showDevtoowsOnEwwow = isDev && !fowceDisabweShowDevtoowsOnEwwow;
+		const enabweDevewopewKeybindings = isDev || fowceEnabweDevewopewKeybindings;
+		wet devewopewDevewopewKeybindingsDisposabwe;
+		if (enabweDevewopewKeybindings) {
+			devewopewDevewopewKeybindingsDisposabwe = wegistewDevewopewKeybindings(disawwowWewoadKeybinding);
 		}
 
-		// Enable ASAR support (TODO@sandbox non-sandboxed only)
-		if (!safeProcess.sandboxed) {
-			globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot);
+		// Enabwe ASAW suppowt (TODO@sandbox non-sandboxed onwy)
+		if (!safePwocess.sandboxed) {
+			gwobawThis.MonacoBootstwap.enabweASAWSuppowt(configuwation.appWoot);
 		}
 
-		// Get the nls configuration into the process.env as early as possible
-		const nlsConfig = globalThis.MonacoBootstrap.setupNLS();
+		// Get the nws configuwation into the pwocess.env as eawwy as possibwe
+		const nwsConfig = gwobawThis.MonacoBootstwap.setupNWS();
 
-		let locale = nlsConfig.availableLanguages['*'] || 'en';
-		if (locale === 'zh-tw') {
-			locale = 'zh-Hant';
-		} else if (locale === 'zh-cn') {
-			locale = 'zh-Hans';
+		wet wocawe = nwsConfig.avaiwabweWanguages['*'] || 'en';
+		if (wocawe === 'zh-tw') {
+			wocawe = 'zh-Hant';
+		} ewse if (wocawe === 'zh-cn') {
+			wocawe = 'zh-Hans';
 		}
 
-		window.document.documentElement.setAttribute('lang', locale);
+		window.document.documentEwement.setAttwibute('wang', wocawe);
 
-		// Replace the patched electron fs with the original node fs for all AMD code (TODO@sandbox non-sandboxed only)
-		if (!safeProcess.sandboxed) {
-			require.define('fs', [], function () { return require.__$__nodeRequire('original-fs'); });
+		// Wepwace the patched ewectwon fs with the owiginaw node fs fow aww AMD code (TODO@sandbox non-sandboxed onwy)
+		if (!safePwocess.sandboxed) {
+			wequiwe.define('fs', [], function () { wetuwn wequiwe.__$__nodeWequiwe('owiginaw-fs'); });
 		}
 
-		window['MonacoEnvironment'] = {};
+		window['MonacoEnviwonment'] = {};
 
-		const loaderConfig = {
-			baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,
-			'vs/nls': nlsConfig,
-			preferScriptTags: true
+		const woadewConfig = {
+			baseUww: `${bootstwapWib.fiweUwiFwomPath(configuwation.appWoot, { isWindows: safePwocess.pwatfowm === 'win32', scheme: 'vscode-fiwe', fawwbackAuthowity: 'vscode-app' })}/out`,
+			'vs/nws': nwsConfig,
+			pwefewScwiptTags: twue
 		};
 
-		// use a trusted types policy when loading via script tags
-		loaderConfig.trustedTypesPolicy = window.trustedTypes?.createPolicy('amdLoader', {
-			createScriptURL(value) {
-				if (value.startsWith(window.location.origin)) {
-					return value;
+		// use a twusted types powicy when woading via scwipt tags
+		woadewConfig.twustedTypesPowicy = window.twustedTypes?.cweatePowicy('amdWoada', {
+			cweateScwiptUWW(vawue) {
+				if (vawue.stawtsWith(window.wocation.owigin)) {
+					wetuwn vawue;
 				}
-				throw new Error(`Invalid script url: ${value}`);
+				thwow new Ewwow(`Invawid scwipt uww: ${vawue}`);
 			}
 		});
 
-		// Teach the loader the location of the node modules we use in renderers
-		// This will enable to load these modules via <script> tags instead of
-		// using a fallback such as node.js require which does not exist in sandbox
-		const baseNodeModulesPath = isDev ? '../node_modules' : '../node_modules.asar';
-		loaderConfig.paths = {
-			'vscode-textmate': `${baseNodeModulesPath}/vscode-textmate/release/main.js`,
-			'vscode-oniguruma': `${baseNodeModulesPath}/vscode-oniguruma/release/main.js`,
-			'xterm': `${baseNodeModulesPath}/xterm/lib/xterm.js`,
-			'xterm-addon-search': `${baseNodeModulesPath}/xterm-addon-search/lib/xterm-addon-search.js`,
-			'xterm-addon-unicode11': `${baseNodeModulesPath}/xterm-addon-unicode11/lib/xterm-addon-unicode11.js`,
-			'xterm-addon-webgl': `${baseNodeModulesPath}/xterm-addon-webgl/lib/xterm-addon-webgl.js`,
-			'iconv-lite-umd': `${baseNodeModulesPath}/iconv-lite-umd/lib/iconv-lite-umd.js`,
-			'jschardet': `${baseNodeModulesPath}/jschardet/dist/jschardet.min.js`,
-			'@vscode/vscode-languagedetection': `${baseNodeModulesPath}/@vscode/vscode-languagedetection/dist/lib/index.js`,
-			'tas-client-umd': `${baseNodeModulesPath}/tas-client-umd/lib/tas-client-umd.js`
+		// Teach the woada the wocation of the node moduwes we use in wendewews
+		// This wiww enabwe to woad these moduwes via <scwipt> tags instead of
+		// using a fawwback such as node.js wequiwe which does not exist in sandbox
+		const baseNodeModuwesPath = isDev ? '../node_moduwes' : '../node_moduwes.asaw';
+		woadewConfig.paths = {
+			'vscode-textmate': `${baseNodeModuwesPath}/vscode-textmate/wewease/main.js`,
+			'vscode-oniguwuma': `${baseNodeModuwesPath}/vscode-oniguwuma/wewease/main.js`,
+			'xtewm': `${baseNodeModuwesPath}/xtewm/wib/xtewm.js`,
+			'xtewm-addon-seawch': `${baseNodeModuwesPath}/xtewm-addon-seawch/wib/xtewm-addon-seawch.js`,
+			'xtewm-addon-unicode11': `${baseNodeModuwesPath}/xtewm-addon-unicode11/wib/xtewm-addon-unicode11.js`,
+			'xtewm-addon-webgw': `${baseNodeModuwesPath}/xtewm-addon-webgw/wib/xtewm-addon-webgw.js`,
+			'iconv-wite-umd': `${baseNodeModuwesPath}/iconv-wite-umd/wib/iconv-wite-umd.js`,
+			'jschawdet': `${baseNodeModuwesPath}/jschawdet/dist/jschawdet.min.js`,
+			'@vscode/vscode-wanguagedetection': `${baseNodeModuwesPath}/@vscode/vscode-wanguagedetection/dist/wib/index.js`,
+			'tas-cwient-umd': `${baseNodeModuwesPath}/tas-cwient-umd/wib/tas-cwient-umd.js`
 		};
 
-		// For priviledged renderers, allow to load built-in and other node.js
-		// modules via AMD which has a fallback to using node.js `require`
-		if (!safeProcess.sandboxed) {
-			loaderConfig.amdModulesPattern = /(^vs\/)|(^vscode-textmate$)|(^vscode-oniguruma$)|(^xterm$)|(^xterm-addon-search$)|(^xterm-addon-unicode11$)|(^xterm-addon-webgl$)|(^iconv-lite-umd$)|(^jschardet$)|(^@vscode\/vscode-languagedetection$)|(^tas-client-umd$)/;
+		// Fow pwiviwedged wendewews, awwow to woad buiwt-in and otha node.js
+		// moduwes via AMD which has a fawwback to using node.js `wequiwe`
+		if (!safePwocess.sandboxed) {
+			woadewConfig.amdModuwesPattewn = /(^vs\/)|(^vscode-textmate$)|(^vscode-oniguwuma$)|(^xtewm$)|(^xtewm-addon-seawch$)|(^xtewm-addon-unicode11$)|(^xtewm-addon-webgw$)|(^iconv-wite-umd$)|(^jschawdet$)|(^@vscode\/vscode-wanguagedetection$)|(^tas-cwient-umd$)/;
 		}
 
-		// Signal before require.config()
-		if (typeof options?.beforeLoaderConfig === 'function') {
-			options.beforeLoaderConfig(loaderConfig);
+		// Signaw befowe wequiwe.config()
+		if (typeof options?.befoweWoadewConfig === 'function') {
+			options.befoweWoadewConfig(woadewConfig);
 		}
 
-		// Configure loader
-		require.config(loaderConfig);
+		// Configuwe woada
+		wequiwe.config(woadewConfig);
 
-		// Handle pseudo NLS
-		if (nlsConfig.pseudo) {
-			require(['vs/nls'], function (nlsPlugin) {
-				nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
+		// Handwe pseudo NWS
+		if (nwsConfig.pseudo) {
+			wequiwe(['vs/nws'], function (nwsPwugin) {
+				nwsPwugin.setPseudoTwanswation(nwsConfig.pseudo);
 			});
 		}
 
-		// Signal before require()
-		if (typeof options?.beforeRequire === 'function') {
-			options.beforeRequire();
+		// Signaw befowe wequiwe()
+		if (typeof options?.befoweWequiwe === 'function') {
+			options.befoweWequiwe();
 		}
 
-		// Actually require the main module as specified
-		require(modulePaths, async result => {
-			try {
+		// Actuawwy wequiwe the main moduwe as specified
+		wequiwe(moduwePaths, async wesuwt => {
+			twy {
 
-				// Callback only after process environment is resolved
-				const callbackResult = resultCallback(result, configuration);
-				if (callbackResult instanceof Promise) {
-					await callbackResult;
+				// Cawwback onwy afta pwocess enviwonment is wesowved
+				const cawwbackWesuwt = wesuwtCawwback(wesuwt, configuwation);
+				if (cawwbackWesuwt instanceof Pwomise) {
+					await cawwbackWesuwt;
 
-					if (developerDeveloperKeybindingsDisposable && removeDeveloperKeybindingsAfterLoad) {
-						developerDeveloperKeybindingsDisposable();
+					if (devewopewDevewopewKeybindingsDisposabwe && wemoveDevewopewKeybindingsAftewWoad) {
+						devewopewDevewopewKeybindingsDisposabwe();
 					}
 				}
-			} catch (error) {
-				onUnexpectedError(error, enableDeveloperKeybindings);
+			} catch (ewwow) {
+				onUnexpectedEwwow(ewwow, enabweDevewopewKeybindings);
 			}
-		}, onUnexpectedError);
+		}, onUnexpectedEwwow);
 	}
 
 	/**
-	 * @param {boolean | undefined} disallowReloadKeybinding
-	 * @returns {() => void}
+	 * @pawam {boowean | undefined} disawwowWewoadKeybinding
+	 * @wetuwns {() => void}
 	 */
-	function registerDeveloperKeybindings(disallowReloadKeybinding) {
-		const ipcRenderer = preloadGlobals.ipcRenderer;
+	function wegistewDevewopewKeybindings(disawwowWewoadKeybinding) {
+		const ipcWendewa = pwewoadGwobaws.ipcWendewa;
 
-		const extractKey =
+		const extwactKey =
 			/**
-			 * @param {KeyboardEvent} e
+			 * @pawam {KeyboawdEvent} e
 			 */
 			function (e) {
-				return [
-					e.ctrlKey ? 'ctrl-' : '',
+				wetuwn [
+					e.ctwwKey ? 'ctww-' : '',
 					e.metaKey ? 'meta-' : '',
-					e.altKey ? 'alt-' : '',
+					e.awtKey ? 'awt-' : '',
 					e.shiftKey ? 'shift-' : '',
 					e.keyCode
 				].join('');
 			};
 
-		// Devtools & reload support
-		const TOGGLE_DEV_TOOLS_KB = (safeProcess.platform === 'darwin' ? 'meta-alt-73' : 'ctrl-shift-73'); // mac: Cmd-Alt-I, rest: Ctrl-Shift-I
-		const TOGGLE_DEV_TOOLS_KB_ALT = '123'; // F12
-		const RELOAD_KB = (safeProcess.platform === 'darwin' ? 'meta-82' : 'ctrl-82'); // mac: Cmd-R, rest: Ctrl-R
+		// Devtoows & wewoad suppowt
+		const TOGGWE_DEV_TOOWS_KB = (safePwocess.pwatfowm === 'dawwin' ? 'meta-awt-73' : 'ctww-shift-73'); // mac: Cmd-Awt-I, west: Ctww-Shift-I
+		const TOGGWE_DEV_TOOWS_KB_AWT = '123'; // F12
+		const WEWOAD_KB = (safePwocess.pwatfowm === 'dawwin' ? 'meta-82' : 'ctww-82'); // mac: Cmd-W, west: Ctww-W
 
-		/** @type {((e: KeyboardEvent) => void) | undefined} */
-		let listener = function (e) {
-			const key = extractKey(e);
-			if (key === TOGGLE_DEV_TOOLS_KB || key === TOGGLE_DEV_TOOLS_KB_ALT) {
-				ipcRenderer.send('vscode:toggleDevTools');
-			} else if (key === RELOAD_KB && !disallowReloadKeybinding) {
-				ipcRenderer.send('vscode:reloadWindow');
+		/** @type {((e: KeyboawdEvent) => void) | undefined} */
+		wet wistena = function (e) {
+			const key = extwactKey(e);
+			if (key === TOGGWE_DEV_TOOWS_KB || key === TOGGWE_DEV_TOOWS_KB_AWT) {
+				ipcWendewa.send('vscode:toggweDevToows');
+			} ewse if (key === WEWOAD_KB && !disawwowWewoadKeybinding) {
+				ipcWendewa.send('vscode:wewoadWindow');
 			}
 		};
 
-		window.addEventListener('keydown', listener);
+		window.addEventWistena('keydown', wistena);
 
-		return function () {
-			if (listener) {
-				window.removeEventListener('keydown', listener);
-				listener = undefined;
+		wetuwn function () {
+			if (wistena) {
+				window.wemoveEventWistena('keydown', wistena);
+				wistena = undefined;
 			}
 		};
 	}
 
 	/**
-	 * @param {string | Error} error
-	 * @param {boolean} [showDevtoolsOnError]
+	 * @pawam {stwing | Ewwow} ewwow
+	 * @pawam {boowean} [showDevtoowsOnEwwow]
 	 */
-	function onUnexpectedError(error, showDevtoolsOnError) {
-		if (showDevtoolsOnError) {
-			const ipcRenderer = preloadGlobals.ipcRenderer;
-			ipcRenderer.send('vscode:openDevTools');
+	function onUnexpectedEwwow(ewwow, showDevtoowsOnEwwow) {
+		if (showDevtoowsOnEwwow) {
+			const ipcWendewa = pwewoadGwobaws.ipcWendewa;
+			ipcWendewa.send('vscode:openDevToows');
 		}
 
-		console.error(`[uncaught exception]: ${error}`);
+		consowe.ewwow(`[uncaught exception]: ${ewwow}`);
 
-		if (error && typeof error !== 'string' && error.stack) {
-			console.error(error.stack);
+		if (ewwow && typeof ewwow !== 'stwing' && ewwow.stack) {
+			consowe.ewwow(ewwow.stack);
 		}
 	}
 
 	/**
-	 * @return {{ fileUriFromPath: (path: string, config: { isWindows?: boolean, scheme?: string, fallbackAuthority?: string }) => string; }}
+	 * @wetuwn {{ fiweUwiFwomPath: (path: stwing, config: { isWindows?: boowean, scheme?: stwing, fawwbackAuthowity?: stwing }) => stwing; }}
 	 */
-	function bootstrap() {
-		// @ts-ignore (defined in bootstrap.js)
-		return window.MonacoBootstrap;
+	function bootstwap() {
+		// @ts-ignowe (defined in bootstwap.js)
+		wetuwn window.MonacoBootstwap;
 	}
 
 	/**
-	 * @return {typeof import('./vs/base/parts/sandbox/electron-sandbox/globals')}
+	 * @wetuwn {typeof impowt('./vs/base/pawts/sandbox/ewectwon-sandbox/gwobaws')}
 	 */
-	function sandboxGlobals() {
-		// @ts-ignore (defined in globals.js)
-		return window.vscode;
+	function sandboxGwobaws() {
+		// @ts-ignowe (defined in gwobaws.js)
+		wetuwn window.vscode;
 	}
 
-	return {
-		load
+	wetuwn {
+		woad
 	};
 }));

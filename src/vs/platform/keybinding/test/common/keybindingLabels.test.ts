@@ -1,173 +1,173 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { createKeybinding, KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
+impowt * as assewt fwom 'assewt';
+impowt { cweateKeybinding, KeyChowd, KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { OpewatingSystem } fwom 'vs/base/common/pwatfowm';
+impowt { USWayoutWesowvedKeybinding } fwom 'vs/pwatfowm/keybinding/common/usWayoutWesowvedKeybinding';
 
-suite('KeybindingLabels', () => {
+suite('KeybindingWabews', () => {
 
-	function assertUSLabel(OS: OperatingSystem, keybinding: number, expected: string): void {
-		const usResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS)!, OS);
-		assert.strictEqual(usResolvedKeybinding.getLabel(), expected);
+	function assewtUSWabew(OS: OpewatingSystem, keybinding: numba, expected: stwing): void {
+		const usWesowvedKeybinding = new USWayoutWesowvedKeybinding(cweateKeybinding(keybinding, OS)!, OS);
+		assewt.stwictEquaw(usWesowvedKeybinding.getWabew(), expected);
 	}
 
-	test('Windows US label', () => {
-		// no modifier
-		assertUSLabel(OperatingSystem.Windows, KeyCode.KEY_A, 'A');
+	test('Windows US wabew', () => {
+		// no modifia
+		assewtUSWabew(OpewatingSystem.Windows, KeyCode.KEY_A, 'A');
 
-		// one modifier
-		assertUSLabel(OperatingSystem.Windows, KeyMod.CtrlCmd | KeyCode.KEY_A, 'Ctrl+A');
-		assertUSLabel(OperatingSystem.Windows, KeyMod.Shift | KeyCode.KEY_A, 'Shift+A');
-		assertUSLabel(OperatingSystem.Windows, KeyMod.Alt | KeyCode.KEY_A, 'Alt+A');
-		assertUSLabel(OperatingSystem.Windows, KeyMod.WinCtrl | KeyCode.KEY_A, 'Windows+A');
+		// one modifia
+		assewtUSWabew(OpewatingSystem.Windows, KeyMod.CtwwCmd | KeyCode.KEY_A, 'Ctww+A');
+		assewtUSWabew(OpewatingSystem.Windows, KeyMod.Shift | KeyCode.KEY_A, 'Shift+A');
+		assewtUSWabew(OpewatingSystem.Windows, KeyMod.Awt | KeyCode.KEY_A, 'Awt+A');
+		assewtUSWabew(OpewatingSystem.Windows, KeyMod.WinCtww | KeyCode.KEY_A, 'Windows+A');
 
-		// two modifiers
-		assertUSLabel(OperatingSystem.Windows, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A, 'Ctrl+Shift+A');
-		assertUSLabel(OperatingSystem.Windows, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_A, 'Ctrl+Alt+A');
-		assertUSLabel(OperatingSystem.Windows, KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_A, 'Ctrl+Windows+A');
-		assertUSLabel(OperatingSystem.Windows, KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_A, 'Shift+Alt+A');
-		assertUSLabel(OperatingSystem.Windows, KeyMod.Shift | KeyMod.WinCtrl | KeyCode.KEY_A, 'Shift+Windows+A');
-		assertUSLabel(OperatingSystem.Windows, KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, 'Alt+Windows+A');
+		// two modifiews
+		assewtUSWabew(OpewatingSystem.Windows, KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_A, 'Ctww+Shift+A');
+		assewtUSWabew(OpewatingSystem.Windows, KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.KEY_A, 'Ctww+Awt+A');
+		assewtUSWabew(OpewatingSystem.Windows, KeyMod.CtwwCmd | KeyMod.WinCtww | KeyCode.KEY_A, 'Ctww+Windows+A');
+		assewtUSWabew(OpewatingSystem.Windows, KeyMod.Shift | KeyMod.Awt | KeyCode.KEY_A, 'Shift+Awt+A');
+		assewtUSWabew(OpewatingSystem.Windows, KeyMod.Shift | KeyMod.WinCtww | KeyCode.KEY_A, 'Shift+Windows+A');
+		assewtUSWabew(OpewatingSystem.Windows, KeyMod.Awt | KeyMod.WinCtww | KeyCode.KEY_A, 'Awt+Windows+A');
 
-		// three modifiers
-		assertUSLabel(OperatingSystem.Windows, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_A, 'Ctrl+Shift+Alt+A');
-		assertUSLabel(OperatingSystem.Windows, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.WinCtrl | KeyCode.KEY_A, 'Ctrl+Shift+Windows+A');
-		assertUSLabel(OperatingSystem.Windows, KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, 'Ctrl+Alt+Windows+A');
-		assertUSLabel(OperatingSystem.Windows, KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, 'Shift+Alt+Windows+A');
+		// thwee modifiews
+		assewtUSWabew(OpewatingSystem.Windows, KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.Awt | KeyCode.KEY_A, 'Ctww+Shift+Awt+A');
+		assewtUSWabew(OpewatingSystem.Windows, KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.WinCtww | KeyCode.KEY_A, 'Ctww+Shift+Windows+A');
+		assewtUSWabew(OpewatingSystem.Windows, KeyMod.CtwwCmd | KeyMod.Awt | KeyMod.WinCtww | KeyCode.KEY_A, 'Ctww+Awt+Windows+A');
+		assewtUSWabew(OpewatingSystem.Windows, KeyMod.Shift | KeyMod.Awt | KeyMod.WinCtww | KeyCode.KEY_A, 'Shift+Awt+Windows+A');
 
-		// four modifiers
-		assertUSLabel(OperatingSystem.Windows, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, 'Ctrl+Shift+Alt+Windows+A');
+		// fouw modifiews
+		assewtUSWabew(OpewatingSystem.Windows, KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.Awt | KeyMod.WinCtww | KeyCode.KEY_A, 'Ctww+Shift+Awt+Windows+A');
 
-		// chord
-		assertUSLabel(OperatingSystem.Windows, KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_A, KeyMod.CtrlCmd | KeyCode.KEY_B), 'Ctrl+A Ctrl+B');
+		// chowd
+		assewtUSWabew(OpewatingSystem.Windows, KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_A, KeyMod.CtwwCmd | KeyCode.KEY_B), 'Ctww+A Ctww+B');
 	});
 
-	test('Linux US label', () => {
-		// no modifier
-		assertUSLabel(OperatingSystem.Linux, KeyCode.KEY_A, 'A');
+	test('Winux US wabew', () => {
+		// no modifia
+		assewtUSWabew(OpewatingSystem.Winux, KeyCode.KEY_A, 'A');
 
-		// one modifier
-		assertUSLabel(OperatingSystem.Linux, KeyMod.CtrlCmd | KeyCode.KEY_A, 'Ctrl+A');
-		assertUSLabel(OperatingSystem.Linux, KeyMod.Shift | KeyCode.KEY_A, 'Shift+A');
-		assertUSLabel(OperatingSystem.Linux, KeyMod.Alt | KeyCode.KEY_A, 'Alt+A');
-		assertUSLabel(OperatingSystem.Linux, KeyMod.WinCtrl | KeyCode.KEY_A, 'Super+A');
+		// one modifia
+		assewtUSWabew(OpewatingSystem.Winux, KeyMod.CtwwCmd | KeyCode.KEY_A, 'Ctww+A');
+		assewtUSWabew(OpewatingSystem.Winux, KeyMod.Shift | KeyCode.KEY_A, 'Shift+A');
+		assewtUSWabew(OpewatingSystem.Winux, KeyMod.Awt | KeyCode.KEY_A, 'Awt+A');
+		assewtUSWabew(OpewatingSystem.Winux, KeyMod.WinCtww | KeyCode.KEY_A, 'Supa+A');
 
-		// two modifiers
-		assertUSLabel(OperatingSystem.Linux, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A, 'Ctrl+Shift+A');
-		assertUSLabel(OperatingSystem.Linux, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_A, 'Ctrl+Alt+A');
-		assertUSLabel(OperatingSystem.Linux, KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_A, 'Ctrl+Super+A');
-		assertUSLabel(OperatingSystem.Linux, KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_A, 'Shift+Alt+A');
-		assertUSLabel(OperatingSystem.Linux, KeyMod.Shift | KeyMod.WinCtrl | KeyCode.KEY_A, 'Shift+Super+A');
-		assertUSLabel(OperatingSystem.Linux, KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, 'Alt+Super+A');
+		// two modifiews
+		assewtUSWabew(OpewatingSystem.Winux, KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_A, 'Ctww+Shift+A');
+		assewtUSWabew(OpewatingSystem.Winux, KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.KEY_A, 'Ctww+Awt+A');
+		assewtUSWabew(OpewatingSystem.Winux, KeyMod.CtwwCmd | KeyMod.WinCtww | KeyCode.KEY_A, 'Ctww+Supa+A');
+		assewtUSWabew(OpewatingSystem.Winux, KeyMod.Shift | KeyMod.Awt | KeyCode.KEY_A, 'Shift+Awt+A');
+		assewtUSWabew(OpewatingSystem.Winux, KeyMod.Shift | KeyMod.WinCtww | KeyCode.KEY_A, 'Shift+Supa+A');
+		assewtUSWabew(OpewatingSystem.Winux, KeyMod.Awt | KeyMod.WinCtww | KeyCode.KEY_A, 'Awt+Supa+A');
 
-		// three modifiers
-		assertUSLabel(OperatingSystem.Linux, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_A, 'Ctrl+Shift+Alt+A');
-		assertUSLabel(OperatingSystem.Linux, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.WinCtrl | KeyCode.KEY_A, 'Ctrl+Shift+Super+A');
-		assertUSLabel(OperatingSystem.Linux, KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, 'Ctrl+Alt+Super+A');
-		assertUSLabel(OperatingSystem.Linux, KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, 'Shift+Alt+Super+A');
+		// thwee modifiews
+		assewtUSWabew(OpewatingSystem.Winux, KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.Awt | KeyCode.KEY_A, 'Ctww+Shift+Awt+A');
+		assewtUSWabew(OpewatingSystem.Winux, KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.WinCtww | KeyCode.KEY_A, 'Ctww+Shift+Supa+A');
+		assewtUSWabew(OpewatingSystem.Winux, KeyMod.CtwwCmd | KeyMod.Awt | KeyMod.WinCtww | KeyCode.KEY_A, 'Ctww+Awt+Supa+A');
+		assewtUSWabew(OpewatingSystem.Winux, KeyMod.Shift | KeyMod.Awt | KeyMod.WinCtww | KeyCode.KEY_A, 'Shift+Awt+Supa+A');
 
-		// four modifiers
-		assertUSLabel(OperatingSystem.Linux, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, 'Ctrl+Shift+Alt+Super+A');
+		// fouw modifiews
+		assewtUSWabew(OpewatingSystem.Winux, KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.Awt | KeyMod.WinCtww | KeyCode.KEY_A, 'Ctww+Shift+Awt+Supa+A');
 
-		// chord
-		assertUSLabel(OperatingSystem.Linux, KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_A, KeyMod.CtrlCmd | KeyCode.KEY_B), 'Ctrl+A Ctrl+B');
+		// chowd
+		assewtUSWabew(OpewatingSystem.Winux, KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_A, KeyMod.CtwwCmd | KeyCode.KEY_B), 'Ctww+A Ctww+B');
 	});
 
-	test('Mac US label', () => {
-		// no modifier
-		assertUSLabel(OperatingSystem.Macintosh, KeyCode.KEY_A, 'A');
+	test('Mac US wabew', () => {
+		// no modifia
+		assewtUSWabew(OpewatingSystem.Macintosh, KeyCode.KEY_A, 'A');
 
-		// one modifier
-		assertUSLabel(OperatingSystem.Macintosh, KeyMod.CtrlCmd | KeyCode.KEY_A, '⌘A');
-		assertUSLabel(OperatingSystem.Macintosh, KeyMod.Shift | KeyCode.KEY_A, '⇧A');
-		assertUSLabel(OperatingSystem.Macintosh, KeyMod.Alt | KeyCode.KEY_A, '⌥A');
-		assertUSLabel(OperatingSystem.Macintosh, KeyMod.WinCtrl | KeyCode.KEY_A, '⌃A');
+		// one modifia
+		assewtUSWabew(OpewatingSystem.Macintosh, KeyMod.CtwwCmd | KeyCode.KEY_A, '⌘A');
+		assewtUSWabew(OpewatingSystem.Macintosh, KeyMod.Shift | KeyCode.KEY_A, '⇧A');
+		assewtUSWabew(OpewatingSystem.Macintosh, KeyMod.Awt | KeyCode.KEY_A, '⌥A');
+		assewtUSWabew(OpewatingSystem.Macintosh, KeyMod.WinCtww | KeyCode.KEY_A, '⌃A');
 
-		// two modifiers
-		assertUSLabel(OperatingSystem.Macintosh, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A, '⇧⌘A');
-		assertUSLabel(OperatingSystem.Macintosh, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_A, '⌥⌘A');
-		assertUSLabel(OperatingSystem.Macintosh, KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_A, '⌃⌘A');
-		assertUSLabel(OperatingSystem.Macintosh, KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_A, '⇧⌥A');
-		assertUSLabel(OperatingSystem.Macintosh, KeyMod.Shift | KeyMod.WinCtrl | KeyCode.KEY_A, '⌃⇧A');
-		assertUSLabel(OperatingSystem.Macintosh, KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, '⌃⌥A');
+		// two modifiews
+		assewtUSWabew(OpewatingSystem.Macintosh, KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_A, '⇧⌘A');
+		assewtUSWabew(OpewatingSystem.Macintosh, KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.KEY_A, '⌥⌘A');
+		assewtUSWabew(OpewatingSystem.Macintosh, KeyMod.CtwwCmd | KeyMod.WinCtww | KeyCode.KEY_A, '⌃⌘A');
+		assewtUSWabew(OpewatingSystem.Macintosh, KeyMod.Shift | KeyMod.Awt | KeyCode.KEY_A, '⇧⌥A');
+		assewtUSWabew(OpewatingSystem.Macintosh, KeyMod.Shift | KeyMod.WinCtww | KeyCode.KEY_A, '⌃⇧A');
+		assewtUSWabew(OpewatingSystem.Macintosh, KeyMod.Awt | KeyMod.WinCtww | KeyCode.KEY_A, '⌃⌥A');
 
-		// three modifiers
-		assertUSLabel(OperatingSystem.Macintosh, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_A, '⇧⌥⌘A');
-		assertUSLabel(OperatingSystem.Macintosh, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.WinCtrl | KeyCode.KEY_A, '⌃⇧⌘A');
-		assertUSLabel(OperatingSystem.Macintosh, KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, '⌃⌥⌘A');
-		assertUSLabel(OperatingSystem.Macintosh, KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, '⌃⇧⌥A');
+		// thwee modifiews
+		assewtUSWabew(OpewatingSystem.Macintosh, KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.Awt | KeyCode.KEY_A, '⇧⌥⌘A');
+		assewtUSWabew(OpewatingSystem.Macintosh, KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.WinCtww | KeyCode.KEY_A, '⌃⇧⌘A');
+		assewtUSWabew(OpewatingSystem.Macintosh, KeyMod.CtwwCmd | KeyMod.Awt | KeyMod.WinCtww | KeyCode.KEY_A, '⌃⌥⌘A');
+		assewtUSWabew(OpewatingSystem.Macintosh, KeyMod.Shift | KeyMod.Awt | KeyMod.WinCtww | KeyCode.KEY_A, '⌃⇧⌥A');
 
-		// four modifiers
-		assertUSLabel(OperatingSystem.Macintosh, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, '⌃⇧⌥⌘A');
+		// fouw modifiews
+		assewtUSWabew(OpewatingSystem.Macintosh, KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.Awt | KeyMod.WinCtww | KeyCode.KEY_A, '⌃⇧⌥⌘A');
 
-		// chord
-		assertUSLabel(OperatingSystem.Macintosh, KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_A, KeyMod.CtrlCmd | KeyCode.KEY_B), '⌘A ⌘B');
+		// chowd
+		assewtUSWabew(OpewatingSystem.Macintosh, KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_A, KeyMod.CtwwCmd | KeyCode.KEY_B), '⌘A ⌘B');
 
-		// special keys
-		assertUSLabel(OperatingSystem.Macintosh, KeyCode.LeftArrow, '←');
-		assertUSLabel(OperatingSystem.Macintosh, KeyCode.UpArrow, '↑');
-		assertUSLabel(OperatingSystem.Macintosh, KeyCode.RightArrow, '→');
-		assertUSLabel(OperatingSystem.Macintosh, KeyCode.DownArrow, '↓');
+		// speciaw keys
+		assewtUSWabew(OpewatingSystem.Macintosh, KeyCode.WeftAwwow, '←');
+		assewtUSWabew(OpewatingSystem.Macintosh, KeyCode.UpAwwow, '↑');
+		assewtUSWabew(OpewatingSystem.Macintosh, KeyCode.WightAwwow, '→');
+		assewtUSWabew(OpewatingSystem.Macintosh, KeyCode.DownAwwow, '↓');
 	});
 
-	test('Aria label', () => {
-		function assertAriaLabel(OS: OperatingSystem, keybinding: number, expected: string): void {
-			const usResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS)!, OS);
-			assert.strictEqual(usResolvedKeybinding.getAriaLabel(), expected);
+	test('Awia wabew', () => {
+		function assewtAwiaWabew(OS: OpewatingSystem, keybinding: numba, expected: stwing): void {
+			const usWesowvedKeybinding = new USWayoutWesowvedKeybinding(cweateKeybinding(keybinding, OS)!, OS);
+			assewt.stwictEquaw(usWesowvedKeybinding.getAwiaWabew(), expected);
 		}
 
-		assertAriaLabel(OperatingSystem.Windows, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, 'Control+Shift+Alt+Windows+A');
-		assertAriaLabel(OperatingSystem.Linux, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, 'Control+Shift+Alt+Super+A');
-		assertAriaLabel(OperatingSystem.Macintosh, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, 'Control+Shift+Alt+Command+A');
+		assewtAwiaWabew(OpewatingSystem.Windows, KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.Awt | KeyMod.WinCtww | KeyCode.KEY_A, 'Contwow+Shift+Awt+Windows+A');
+		assewtAwiaWabew(OpewatingSystem.Winux, KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.Awt | KeyMod.WinCtww | KeyCode.KEY_A, 'Contwow+Shift+Awt+Supa+A');
+		assewtAwiaWabew(OpewatingSystem.Macintosh, KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.Awt | KeyMod.WinCtww | KeyCode.KEY_A, 'Contwow+Shift+Awt+Command+A');
 	});
 
-	test('Electron Accelerator label', () => {
-		function assertElectronAcceleratorLabel(OS: OperatingSystem, keybinding: number, expected: string | null): void {
-			const usResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS)!, OS);
-			assert.strictEqual(usResolvedKeybinding.getElectronAccelerator(), expected);
+	test('Ewectwon Accewewatow wabew', () => {
+		function assewtEwectwonAccewewatowWabew(OS: OpewatingSystem, keybinding: numba, expected: stwing | nuww): void {
+			const usWesowvedKeybinding = new USWayoutWesowvedKeybinding(cweateKeybinding(keybinding, OS)!, OS);
+			assewt.stwictEquaw(usWesowvedKeybinding.getEwectwonAccewewatow(), expected);
 		}
 
-		assertElectronAcceleratorLabel(OperatingSystem.Windows, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, 'Ctrl+Shift+Alt+Super+A');
-		assertElectronAcceleratorLabel(OperatingSystem.Linux, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, 'Ctrl+Shift+Alt+Super+A');
-		assertElectronAcceleratorLabel(OperatingSystem.Macintosh, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, 'Ctrl+Shift+Alt+Cmd+A');
+		assewtEwectwonAccewewatowWabew(OpewatingSystem.Windows, KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.Awt | KeyMod.WinCtww | KeyCode.KEY_A, 'Ctww+Shift+Awt+Supa+A');
+		assewtEwectwonAccewewatowWabew(OpewatingSystem.Winux, KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.Awt | KeyMod.WinCtww | KeyCode.KEY_A, 'Ctww+Shift+Awt+Supa+A');
+		assewtEwectwonAccewewatowWabew(OpewatingSystem.Macintosh, KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.Awt | KeyMod.WinCtww | KeyCode.KEY_A, 'Ctww+Shift+Awt+Cmd+A');
 
-		// electron cannot handle chords
-		assertElectronAcceleratorLabel(OperatingSystem.Windows, KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_A, KeyMod.CtrlCmd | KeyCode.KEY_B), null);
-		assertElectronAcceleratorLabel(OperatingSystem.Linux, KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_A, KeyMod.CtrlCmd | KeyCode.KEY_B), null);
-		assertElectronAcceleratorLabel(OperatingSystem.Macintosh, KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_A, KeyMod.CtrlCmd | KeyCode.KEY_B), null);
+		// ewectwon cannot handwe chowds
+		assewtEwectwonAccewewatowWabew(OpewatingSystem.Windows, KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_A, KeyMod.CtwwCmd | KeyCode.KEY_B), nuww);
+		assewtEwectwonAccewewatowWabew(OpewatingSystem.Winux, KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_A, KeyMod.CtwwCmd | KeyCode.KEY_B), nuww);
+		assewtEwectwonAccewewatowWabew(OpewatingSystem.Macintosh, KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_A, KeyMod.CtwwCmd | KeyCode.KEY_B), nuww);
 
-		// electron cannot handle numpad keys
-		assertElectronAcceleratorLabel(OperatingSystem.Windows, KeyCode.NUMPAD_1, null);
-		assertElectronAcceleratorLabel(OperatingSystem.Linux, KeyCode.NUMPAD_1, null);
-		assertElectronAcceleratorLabel(OperatingSystem.Macintosh, KeyCode.NUMPAD_1, null);
+		// ewectwon cannot handwe numpad keys
+		assewtEwectwonAccewewatowWabew(OpewatingSystem.Windows, KeyCode.NUMPAD_1, nuww);
+		assewtEwectwonAccewewatowWabew(OpewatingSystem.Winux, KeyCode.NUMPAD_1, nuww);
+		assewtEwectwonAccewewatowWabew(OpewatingSystem.Macintosh, KeyCode.NUMPAD_1, nuww);
 
-		// special
-		assertElectronAcceleratorLabel(OperatingSystem.Macintosh, KeyCode.LeftArrow, 'Left');
-		assertElectronAcceleratorLabel(OperatingSystem.Macintosh, KeyCode.UpArrow, 'Up');
-		assertElectronAcceleratorLabel(OperatingSystem.Macintosh, KeyCode.RightArrow, 'Right');
-		assertElectronAcceleratorLabel(OperatingSystem.Macintosh, KeyCode.DownArrow, 'Down');
+		// speciaw
+		assewtEwectwonAccewewatowWabew(OpewatingSystem.Macintosh, KeyCode.WeftAwwow, 'Weft');
+		assewtEwectwonAccewewatowWabew(OpewatingSystem.Macintosh, KeyCode.UpAwwow, 'Up');
+		assewtEwectwonAccewewatowWabew(OpewatingSystem.Macintosh, KeyCode.WightAwwow, 'Wight');
+		assewtEwectwonAccewewatowWabew(OpewatingSystem.Macintosh, KeyCode.DownAwwow, 'Down');
 	});
 
-	test('User Settings label', () => {
-		function assertElectronAcceleratorLabel(OS: OperatingSystem, keybinding: number, expected: string): void {
-			const usResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS)!, OS);
-			assert.strictEqual(usResolvedKeybinding.getUserSettingsLabel(), expected);
+	test('Usa Settings wabew', () => {
+		function assewtEwectwonAccewewatowWabew(OS: OpewatingSystem, keybinding: numba, expected: stwing): void {
+			const usWesowvedKeybinding = new USWayoutWesowvedKeybinding(cweateKeybinding(keybinding, OS)!, OS);
+			assewt.stwictEquaw(usWesowvedKeybinding.getUsewSettingsWabew(), expected);
 		}
 
-		assertElectronAcceleratorLabel(OperatingSystem.Windows, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, 'ctrl+shift+alt+win+a');
-		assertElectronAcceleratorLabel(OperatingSystem.Linux, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, 'ctrl+shift+alt+meta+a');
-		assertElectronAcceleratorLabel(OperatingSystem.Macintosh, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, 'ctrl+shift+alt+cmd+a');
+		assewtEwectwonAccewewatowWabew(OpewatingSystem.Windows, KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.Awt | KeyMod.WinCtww | KeyCode.KEY_A, 'ctww+shift+awt+win+a');
+		assewtEwectwonAccewewatowWabew(OpewatingSystem.Winux, KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.Awt | KeyMod.WinCtww | KeyCode.KEY_A, 'ctww+shift+awt+meta+a');
+		assewtEwectwonAccewewatowWabew(OpewatingSystem.Macintosh, KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.Awt | KeyMod.WinCtww | KeyCode.KEY_A, 'ctww+shift+awt+cmd+a');
 
-		// electron cannot handle chords
-		assertElectronAcceleratorLabel(OperatingSystem.Windows, KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_A, KeyMod.CtrlCmd | KeyCode.KEY_B), 'ctrl+a ctrl+b');
-		assertElectronAcceleratorLabel(OperatingSystem.Linux, KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_A, KeyMod.CtrlCmd | KeyCode.KEY_B), 'ctrl+a ctrl+b');
-		assertElectronAcceleratorLabel(OperatingSystem.Macintosh, KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_A, KeyMod.CtrlCmd | KeyCode.KEY_B), 'cmd+a cmd+b');
+		// ewectwon cannot handwe chowds
+		assewtEwectwonAccewewatowWabew(OpewatingSystem.Windows, KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_A, KeyMod.CtwwCmd | KeyCode.KEY_B), 'ctww+a ctww+b');
+		assewtEwectwonAccewewatowWabew(OpewatingSystem.Winux, KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_A, KeyMod.CtwwCmd | KeyCode.KEY_B), 'ctww+a ctww+b');
+		assewtEwectwonAccewewatowWabew(OpewatingSystem.Macintosh, KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_A, KeyMod.CtwwCmd | KeyCode.KEY_B), 'cmd+a cmd+b');
 	});
 
 	test('issue #91235: Do not end with a +', () => {
-		assertUSLabel(OperatingSystem.Windows, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Alt, 'Ctrl+Alt');
+		assewtUSWabew(OpewatingSystem.Windows, KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.Awt, 'Ctww+Awt');
 	});
 });

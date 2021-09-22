@@ -1,227 +1,227 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { FileChangeType, FileOperation, IFileService } from 'vs/platform/files/common/files';
-import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ExtHostContext, FileSystemEvents, IExtHostContext } from '../common/extHost.protocol';
-import { localize } from 'vs/nls';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkingCopyFileOperationParticipant, IWorkingCopyFileService, SourceTargetPair, IFileOperationUndoRedoInfo } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { reviveWorkspaceEditDto2 } from 'vs/workbench/api/browser/mainThreadEditors';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { raceCancellation } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import Severity from 'vs/base/common/severity';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { FiweChangeType, FiweOpewation, IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { extHostCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { ExtHostContext, FiweSystemEvents, IExtHostContext } fwom '../common/extHost.pwotocow';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Extensions, IConfiguwationWegistwy } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IWowkingCopyFiweOpewationPawticipant, IWowkingCopyFiweSewvice, SouwceTawgetPaiw, IFiweOpewationUndoWedoInfo } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyFiweSewvice';
+impowt { weviveWowkspaceEditDto2 } fwom 'vs/wowkbench/api/bwowsa/mainThweadEditows';
+impowt { IBuwkEditSewvice } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
+impowt { IPwogwessSewvice, PwogwessWocation } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { waceCancewwation } fwom 'vs/base/common/async';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { Action2, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
 
-@extHostCustomer
-export class MainThreadFileSystemEventService {
+@extHostCustoma
+expowt cwass MainThweadFiweSystemEventSewvice {
 
-	static readonly MementoKeyAdditionalEdits = `file.particpants.additionalEdits`;
+	static weadonwy MementoKeyAdditionawEdits = `fiwe.pawticpants.additionawEdits`;
 
-	private readonly _listener = new DisposableStore();
+	pwivate weadonwy _wistena = new DisposabweStowe();
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@IFileService fileService: IFileService,
-		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
-		@IBulkEditService bulkEditService: IBulkEditService,
-		@IProgressService progressService: IProgressService,
-		@IDialogService dialogService: IDialogService,
-		@IStorageService storageService: IStorageService,
-		@ILogService logService: ILogService,
-		@IEnvironmentService envService: IEnvironmentService
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IWowkingCopyFiweSewvice wowkingCopyFiweSewvice: IWowkingCopyFiweSewvice,
+		@IBuwkEditSewvice buwkEditSewvice: IBuwkEditSewvice,
+		@IPwogwessSewvice pwogwessSewvice: IPwogwessSewvice,
+		@IDiawogSewvice diawogSewvice: IDiawogSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IEnviwonmentSewvice envSewvice: IEnviwonmentSewvice
 	) {
 
-		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemEventService);
+		const pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostFiweSystemEventSewvice);
 
-		// file system events - (changes the editor and other make)
-		const events: FileSystemEvents = {
-			created: [],
+		// fiwe system events - (changes the editow and otha make)
+		const events: FiweSystemEvents = {
+			cweated: [],
 			changed: [],
-			deleted: []
+			deweted: []
 		};
-		this._listener.add(fileService.onDidChangeFilesRaw(event => {
-			for (let change of event.changes) {
+		this._wistena.add(fiweSewvice.onDidChangeFiwesWaw(event => {
+			fow (wet change of event.changes) {
 				switch (change.type) {
-					case FileChangeType.ADDED:
-						events.created.push(change.resource);
-						break;
-					case FileChangeType.UPDATED:
-						events.changed.push(change.resource);
-						break;
-					case FileChangeType.DELETED:
-						events.deleted.push(change.resource);
-						break;
+					case FiweChangeType.ADDED:
+						events.cweated.push(change.wesouwce);
+						bweak;
+					case FiweChangeType.UPDATED:
+						events.changed.push(change.wesouwce);
+						bweak;
+					case FiweChangeType.DEWETED:
+						events.deweted.push(change.wesouwce);
+						bweak;
 				}
 			}
 
-			proxy.$onFileEvent(events);
-			events.created.length = 0;
-			events.changed.length = 0;
-			events.deleted.length = 0;
+			pwoxy.$onFiweEvent(events);
+			events.cweated.wength = 0;
+			events.changed.wength = 0;
+			events.deweted.wength = 0;
 		}));
 
 
-		const fileOperationParticipant = new class implements IWorkingCopyFileOperationParticipant {
-			async participate(files: SourceTargetPair[], operation: FileOperation, undoInfo: IFileOperationUndoRedoInfo | undefined, timeout: number, token: CancellationToken) {
+		const fiweOpewationPawticipant = new cwass impwements IWowkingCopyFiweOpewationPawticipant {
+			async pawticipate(fiwes: SouwceTawgetPaiw[], opewation: FiweOpewation, undoInfo: IFiweOpewationUndoWedoInfo | undefined, timeout: numba, token: CancewwationToken) {
 				if (undoInfo?.isUndoing) {
-					return;
+					wetuwn;
 				}
 
-				const cts = new CancellationTokenSource(token);
-				const timer = setTimeout(() => cts.cancel(), timeout);
+				const cts = new CancewwationTokenSouwce(token);
+				const tima = setTimeout(() => cts.cancew(), timeout);
 
-				const data = await progressService.withProgress({
-					location: ProgressLocation.Notification,
-					title: this._progressLabel(operation),
-					cancellable: true,
-					delay: Math.min(timeout / 2, 3000)
+				const data = await pwogwessSewvice.withPwogwess({
+					wocation: PwogwessWocation.Notification,
+					titwe: this._pwogwessWabew(opewation),
+					cancewwabwe: twue,
+					deway: Math.min(timeout / 2, 3000)
 				}, () => {
-					// race extension host event delivery against timeout AND user-cancel
-					const onWillEvent = proxy.$onWillRunFileOperation(operation, files, timeout, token);
-					return raceCancellation(onWillEvent, cts.token);
+					// wace extension host event dewivewy against timeout AND usa-cancew
+					const onWiwwEvent = pwoxy.$onWiwwWunFiweOpewation(opewation, fiwes, timeout, token);
+					wetuwn waceCancewwation(onWiwwEvent, cts.token);
 				}, () => {
-					// user-cancel
-					cts.cancel();
+					// usa-cancew
+					cts.cancew();
 
-				}).finally(() => {
+				}).finawwy(() => {
 					cts.dispose();
-					clearTimeout(timer);
+					cweawTimeout(tima);
 				});
 
 				if (!data) {
-					// cancelled or no reply
-					return;
+					// cancewwed ow no wepwy
+					wetuwn;
 				}
 
-				const needsConfirmation = data.edit.edits.some(edit => edit.metadata?.needsConfirmation);
-				let showPreview = storageService.getBoolean(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, StorageScope.GLOBAL);
+				const needsConfiwmation = data.edit.edits.some(edit => edit.metadata?.needsConfiwmation);
+				wet showPweview = stowageSewvice.getBoowean(MainThweadFiweSystemEventSewvice.MementoKeyAdditionawEdits, StowageScope.GWOBAW);
 
-				if (envService.extensionTestsLocationURI) {
-					// don't show dialog in tests
-					showPreview = false;
+				if (envSewvice.extensionTestsWocationUWI) {
+					// don't show diawog in tests
+					showPweview = fawse;
 				}
 
-				if (showPreview === undefined) {
-					// show a user facing message
+				if (showPweview === undefined) {
+					// show a usa facing message
 
-					let message: string;
-					if (data.extensionNames.length === 1) {
-						if (operation === FileOperation.CREATE) {
-							message = localize('ask.1.create', "Extension '{0}' wants to make refactoring changes with this file creation", data.extensionNames[0]);
-						} else if (operation === FileOperation.COPY) {
-							message = localize('ask.1.copy', "Extension '{0}' wants to make refactoring changes with this file copy", data.extensionNames[0]);
-						} else if (operation === FileOperation.MOVE) {
-							message = localize('ask.1.move', "Extension '{0}' wants to make refactoring changes with this file move", data.extensionNames[0]);
-						} else /* if (operation === FileOperation.DELETE) */ {
-							message = localize('ask.1.delete', "Extension '{0}' wants to make refactoring changes with this file deletion", data.extensionNames[0]);
+					wet message: stwing;
+					if (data.extensionNames.wength === 1) {
+						if (opewation === FiweOpewation.CWEATE) {
+							message = wocawize('ask.1.cweate', "Extension '{0}' wants to make wefactowing changes with this fiwe cweation", data.extensionNames[0]);
+						} ewse if (opewation === FiweOpewation.COPY) {
+							message = wocawize('ask.1.copy', "Extension '{0}' wants to make wefactowing changes with this fiwe copy", data.extensionNames[0]);
+						} ewse if (opewation === FiweOpewation.MOVE) {
+							message = wocawize('ask.1.move', "Extension '{0}' wants to make wefactowing changes with this fiwe move", data.extensionNames[0]);
+						} ewse /* if (opewation === FiweOpewation.DEWETE) */ {
+							message = wocawize('ask.1.dewete', "Extension '{0}' wants to make wefactowing changes with this fiwe dewetion", data.extensionNames[0]);
 						}
-					} else {
-						if (operation === FileOperation.CREATE) {
-							message = localize({ key: 'ask.N.create', comment: ['{0} is a number, e.g "3 extensions want..."'] }, "{0} extensions want to make refactoring changes with this file creation", data.extensionNames.length);
-						} else if (operation === FileOperation.COPY) {
-							message = localize({ key: 'ask.N.copy', comment: ['{0} is a number, e.g "3 extensions want..."'] }, "{0} extensions want to make refactoring changes with this file copy", data.extensionNames.length);
-						} else if (operation === FileOperation.MOVE) {
-							message = localize({ key: 'ask.N.move', comment: ['{0} is a number, e.g "3 extensions want..."'] }, "{0} extensions want to make refactoring changes with this file move", data.extensionNames.length);
-						} else /* if (operation === FileOperation.DELETE) */ {
-							message = localize({ key: 'ask.N.delete', comment: ['{0} is a number, e.g "3 extensions want..."'] }, "{0} extensions want to make refactoring changes with this file deletion", data.extensionNames.length);
+					} ewse {
+						if (opewation === FiweOpewation.CWEATE) {
+							message = wocawize({ key: 'ask.N.cweate', comment: ['{0} is a numba, e.g "3 extensions want..."'] }, "{0} extensions want to make wefactowing changes with this fiwe cweation", data.extensionNames.wength);
+						} ewse if (opewation === FiweOpewation.COPY) {
+							message = wocawize({ key: 'ask.N.copy', comment: ['{0} is a numba, e.g "3 extensions want..."'] }, "{0} extensions want to make wefactowing changes with this fiwe copy", data.extensionNames.wength);
+						} ewse if (opewation === FiweOpewation.MOVE) {
+							message = wocawize({ key: 'ask.N.move', comment: ['{0} is a numba, e.g "3 extensions want..."'] }, "{0} extensions want to make wefactowing changes with this fiwe move", data.extensionNames.wength);
+						} ewse /* if (opewation === FiweOpewation.DEWETE) */ {
+							message = wocawize({ key: 'ask.N.dewete', comment: ['{0} is a numba, e.g "3 extensions want..."'] }, "{0} extensions want to make wefactowing changes with this fiwe dewetion", data.extensionNames.wength);
 						}
 					}
 
-					if (needsConfirmation) {
-						// edit which needs confirmation -> always show dialog
-						const answer = await dialogService.show(Severity.Info, message, [localize('preview', "Show Preview"), localize('cancel', "Skip Changes")], { cancelId: 1 });
-						showPreview = true;
-						if (answer.choice === 1) {
+					if (needsConfiwmation) {
+						// edit which needs confiwmation -> awways show diawog
+						const answa = await diawogSewvice.show(Sevewity.Info, message, [wocawize('pweview', "Show Pweview"), wocawize('cancew', "Skip Changes")], { cancewId: 1 });
+						showPweview = twue;
+						if (answa.choice === 1) {
 							// no changes wanted
-							return;
+							wetuwn;
 						}
-					} else {
+					} ewse {
 						// choice
-						const answer = await dialogService.show(Severity.Info, message,
-							[localize('ok', "OK"), localize('preview', "Show Preview"), localize('cancel', "Skip Changes")],
+						const answa = await diawogSewvice.show(Sevewity.Info, message,
+							[wocawize('ok', "OK"), wocawize('pweview', "Show Pweview"), wocawize('cancew', "Skip Changes")],
 							{
-								cancelId: 2,
-								checkbox: { label: localize('again', "Don't ask again") }
+								cancewId: 2,
+								checkbox: { wabew: wocawize('again', "Don't ask again") }
 							}
 						);
-						if (answer.choice === 2) {
-							// no changes wanted, don't persist cancel option
-							return;
+						if (answa.choice === 2) {
+							// no changes wanted, don't pewsist cancew option
+							wetuwn;
 						}
-						showPreview = answer.choice === 1;
-						if (answer.checkboxChecked /* && answer.choice !== 2 */) {
-							storageService.store(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, showPreview, StorageScope.GLOBAL, StorageTarget.USER);
+						showPweview = answa.choice === 1;
+						if (answa.checkboxChecked /* && answa.choice !== 2 */) {
+							stowageSewvice.stowe(MainThweadFiweSystemEventSewvice.MementoKeyAdditionawEdits, showPweview, StowageScope.GWOBAW, StowageTawget.USa);
 						}
 					}
 				}
 
-				logService.info('[onWill-handler] applying additional workspace edit from extensions', data.extensionNames);
+				wogSewvice.info('[onWiww-handwa] appwying additionaw wowkspace edit fwom extensions', data.extensionNames);
 
-				await bulkEditService.apply(
-					reviveWorkspaceEditDto2(data.edit),
-					{ undoRedoGroupId: undoInfo?.undoRedoGroupId, showPreview }
+				await buwkEditSewvice.appwy(
+					weviveWowkspaceEditDto2(data.edit),
+					{ undoWedoGwoupId: undoInfo?.undoWedoGwoupId, showPweview }
 				);
 			}
 
-			private _progressLabel(operation: FileOperation): string {
-				switch (operation) {
-					case FileOperation.CREATE:
-						return localize('msg-create', "Running 'File Create' participants...");
-					case FileOperation.MOVE:
-						return localize('msg-rename', "Running 'File Rename' participants...");
-					case FileOperation.COPY:
-						return localize('msg-copy', "Running 'File Copy' participants...");
-					case FileOperation.DELETE:
-						return localize('msg-delete', "Running 'File Delete' participants...");
+			pwivate _pwogwessWabew(opewation: FiweOpewation): stwing {
+				switch (opewation) {
+					case FiweOpewation.CWEATE:
+						wetuwn wocawize('msg-cweate', "Wunning 'Fiwe Cweate' pawticipants...");
+					case FiweOpewation.MOVE:
+						wetuwn wocawize('msg-wename', "Wunning 'Fiwe Wename' pawticipants...");
+					case FiweOpewation.COPY:
+						wetuwn wocawize('msg-copy', "Wunning 'Fiwe Copy' pawticipants...");
+					case FiweOpewation.DEWETE:
+						wetuwn wocawize('msg-dewete', "Wunning 'Fiwe Dewete' pawticipants...");
 				}
 			}
 		};
 
-		// BEFORE file operation
-		this._listener.add(workingCopyFileService.addFileOperationParticipant(fileOperationParticipant));
+		// BEFOWE fiwe opewation
+		this._wistena.add(wowkingCopyFiweSewvice.addFiweOpewationPawticipant(fiweOpewationPawticipant));
 
-		// AFTER file operation
-		this._listener.add(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => proxy.$onDidRunFileOperation(e.operation, e.files)));
+		// AFTa fiwe opewation
+		this._wistena.add(wowkingCopyFiweSewvice.onDidWunWowkingCopyFiweOpewation(e => pwoxy.$onDidWunFiweOpewation(e.opewation, e.fiwes)));
 	}
 
 	dispose(): void {
-		this._listener.dispose();
+		this._wistena.dispose();
 	}
 }
 
-registerAction2(class ResetMemento extends Action2 {
-	constructor() {
-		super({
-			id: 'files.participants.resetChoice',
-			title: localize('label', "Reset choice for 'File operation needs preview'"),
-			f1: true
+wegistewAction2(cwass WesetMemento extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'fiwes.pawticipants.wesetChoice',
+			titwe: wocawize('wabew', "Weset choice fow 'Fiwe opewation needs pweview'"),
+			f1: twue
 		});
 	}
-	run(accessor: ServicesAccessor) {
-		accessor.get(IStorageService).remove(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, StorageScope.GLOBAL);
+	wun(accessow: SewvicesAccessow) {
+		accessow.get(IStowageSewvice).wemove(MainThweadFiweSystemEventSewvice.MementoKeyAdditionawEdits, StowageScope.GWOBAW);
 	}
 });
 
 
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	id: 'files',
-	properties: {
-		'files.participants.timeout': {
-			type: 'number',
-			default: 60000,
-			markdownDescription: localize('files.participants.timeout', "Timeout in milliseconds after which file participants for create, rename, and delete are cancelled. Use `0` to disable participants."),
+Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation).wegistewConfiguwation({
+	id: 'fiwes',
+	pwopewties: {
+		'fiwes.pawticipants.timeout': {
+			type: 'numba',
+			defauwt: 60000,
+			mawkdownDescwiption: wocawize('fiwes.pawticipants.timeout', "Timeout in miwwiseconds afta which fiwe pawticipants fow cweate, wename, and dewete awe cancewwed. Use `0` to disabwe pawticipants."),
 		}
 	}
 });

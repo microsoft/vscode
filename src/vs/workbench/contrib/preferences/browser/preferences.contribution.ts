@@ -1,1166 +1,1166 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { isObject } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/preferences';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
-import * as nls from 'vs/nls';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { InputFocusedContext, IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
-import { RemoteNameContext, WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
-import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { ExplorerFolderContext, ExplorerRootContext } from 'vs/workbench/contrib/files/common/files';
-import { KeybindingsEditor } from 'vs/workbench/contrib/preferences/browser/keybindingsEditor';
-import { ConfigureLanguageBasedSettingsAction } from 'vs/workbench/contrib/preferences/browser/preferencesActions';
-import { SettingsEditorContribution } from 'vs/workbench/contrib/preferences/browser/preferencesEditor';
-import { preferencesOpenSettingsIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
-import { SettingsEditor2, SettingsFocusContext } from 'vs/workbench/contrib/preferences/browser/settingsEditor2';
-import { CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDING_FOCUS, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, KEYBINDINGS_EDITOR_COMMAND_ADD, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SEARCH, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_EXTENSION_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, MODIFIED_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
-import { PreferencesContribution } from 'vs/workbench/contrib/preferences/common/preferencesContribution';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browser/keybindingsEditorInput';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
+impowt { KeyChowd, KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { isObject } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt 'vs/css!./media/pwefewences';
+impowt { wegistewEditowContwibution } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { Context as SuggestContext } fwom 'vs/editow/contwib/suggest/suggest';
+impowt * as nws fwom 'vs/nws';
+impowt { Action2, MenuId, MenuWegistwy, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { CommandsWegistwy, ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { InputFocusedContext, IsMacNativeContext } fwom 'vs/pwatfowm/contextkey/common/contextkeys';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IWowkspaceContextSewvice, IWowkspaceFowda, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { PICK_WOWKSPACE_FOWDEW_COMMAND_ID } fwom 'vs/wowkbench/bwowsa/actions/wowkspaceCommands';
+impowt { WemoteNameContext, WowkbenchStateContext } fwom 'vs/wowkbench/bwowsa/contextkeys';
+impowt { EditowPaneDescwiptow, IEditowPaneWegistwy } fwom 'vs/wowkbench/bwowsa/editow';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { EditowExtensions, IEditowFactowyWegistwy, IEditowSewiawiza } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { WesouwceContextKey } fwom 'vs/wowkbench/common/wesouwces';
+impowt { ExpwowewFowdewContext, ExpwowewWootContext } fwom 'vs/wowkbench/contwib/fiwes/common/fiwes';
+impowt { KeybindingsEditow } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/keybindingsEditow';
+impowt { ConfiguweWanguageBasedSettingsAction } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/pwefewencesActions';
+impowt { SettingsEditowContwibution } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/pwefewencesEditow';
+impowt { pwefewencesOpenSettingsIcon } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/pwefewencesIcons';
+impowt { SettingsEditow2, SettingsFocusContext } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/settingsEditow2';
+impowt { CONTEXT_KEYBINDINGS_EDITOW, CONTEXT_KEYBINDINGS_SEAWCH_FOCUS, CONTEXT_KEYBINDING_FOCUS, CONTEXT_SETTINGS_EDITOW, CONTEXT_SETTINGS_JSON_EDITOW, CONTEXT_SETTINGS_WOW_FOCUS, CONTEXT_SETTINGS_SEAWCH_FOCUS, CONTEXT_TOC_WOW_FOCUS, KEYBINDINGS_EDITOW_COMMAND_ADD, KEYBINDINGS_EDITOW_COMMAND_CWEAW_SEAWCH_WESUWTS, KEYBINDINGS_EDITOW_COMMAND_COPY, KEYBINDINGS_EDITOW_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOW_COMMAND_COPY_COMMAND_TITWE, KEYBINDINGS_EDITOW_COMMAND_DEFINE, KEYBINDINGS_EDITOW_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOW_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOW_COMMAND_WECOWD_SEAWCH_KEYS, KEYBINDINGS_EDITOW_COMMAND_WEMOVE, KEYBINDINGS_EDITOW_COMMAND_WESET, KEYBINDINGS_EDITOW_COMMAND_SEAWCH, KEYBINDINGS_EDITOW_COMMAND_SHOW_SIMIWAW, KEYBINDINGS_EDITOW_COMMAND_SOWTBY_PWECEDENCE, KEYBINDINGS_EDITOW_SHOW_DEFAUWT_KEYBINDINGS, KEYBINDINGS_EDITOW_SHOW_EXTENSION_KEYBINDINGS, KEYBINDINGS_EDITOW_SHOW_USEW_KEYBINDINGS, MODIFIED_SETTING_TAG, WEQUIWE_TWUSTED_WOWKSPACE_SETTING_TAG, SETTINGS_EDITOW_COMMAND_CWEAW_SEAWCH_WESUWTS, SETTINGS_EDITOW_COMMAND_SHOW_CONTEXT_MENU } fwom 'vs/wowkbench/contwib/pwefewences/common/pwefewences';
+impowt { PwefewencesContwibution } fwom 'vs/wowkbench/contwib/pwefewences/common/pwefewencesContwibution';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { KeybindingsEditowInput } fwom 'vs/wowkbench/sewvices/pwefewences/bwowsa/keybindingsEditowInput';
+impowt { IPwefewencesSewvice } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
+impowt { SettingsEditow2Input } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewencesEditowInput';
 
-const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
+const SETTINGS_EDITOW_COMMAND_SEAWCH = 'settings.action.seawch';
 
-const SETTINGS_EDITOR_COMMAND_FOCUS_FILE = 'settings.action.focusSettingsFile';
-const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH = 'settings.action.focusSettingsFromSearch';
-const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_LIST = 'settings.action.focusSettingsList';
-const SETTINGS_EDITOR_COMMAND_FOCUS_TOC = 'settings.action.focusTOC';
-const SETTINGS_EDITOR_COMMAND_FOCUS_CONTROL = 'settings.action.focusSettingControl';
-const SETTINGS_EDITOR_COMMAND_FOCUS_UP = 'settings.action.focusLevelUp';
+const SETTINGS_EDITOW_COMMAND_FOCUS_FIWE = 'settings.action.focusSettingsFiwe';
+const SETTINGS_EDITOW_COMMAND_FOCUS_SETTINGS_FWOM_SEAWCH = 'settings.action.focusSettingsFwomSeawch';
+const SETTINGS_EDITOW_COMMAND_FOCUS_SETTINGS_WIST = 'settings.action.focusSettingsWist';
+const SETTINGS_EDITOW_COMMAND_FOCUS_TOC = 'settings.action.focusTOC';
+const SETTINGS_EDITOW_COMMAND_FOCUS_CONTWOW = 'settings.action.focusSettingContwow';
+const SETTINGS_EDITOW_COMMAND_FOCUS_UP = 'settings.action.focusWevewUp';
 
-const SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON = 'settings.switchToJSON';
-const SETTINGS_EDITOR_COMMAND_FILTER_MODIFIED = 'settings.filterByModified';
-const SETTINGS_EDITOR_COMMAND_FILTER_ONLINE = 'settings.filterByOnline';
-const SETTINGS_EDITOR_COMMAND_FILTER_TELEMETRY = 'settings.filterByTelemetry';
-const SETTINGS_EDITOR_COMMAND_FILTER_UNTRUSTED = 'settings.filterUntrusted';
+const SETTINGS_EDITOW_COMMAND_SWITCH_TO_JSON = 'settings.switchToJSON';
+const SETTINGS_EDITOW_COMMAND_FIWTEW_MODIFIED = 'settings.fiwtewByModified';
+const SETTINGS_EDITOW_COMMAND_FIWTEW_ONWINE = 'settings.fiwtewByOnwine';
+const SETTINGS_EDITOW_COMMAND_FIWTEW_TEWEMETWY = 'settings.fiwtewByTewemetwy';
+const SETTINGS_EDITOW_COMMAND_FIWTEW_UNTWUSTED = 'settings.fiwtewUntwusted';
 
-const SETTINGS_COMMAND_OPEN_SETTINGS = 'workbench.action.openSettings';
+const SETTINGS_COMMAND_OPEN_SETTINGS = 'wowkbench.action.openSettings';
 
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(
-		SettingsEditor2,
-		SettingsEditor2.ID,
-		nls.localize('settingsEditor2', "Settings Editor 2")
+Wegistwy.as<IEditowPaneWegistwy>(EditowExtensions.EditowPane).wegistewEditowPane(
+	EditowPaneDescwiptow.cweate(
+		SettingsEditow2,
+		SettingsEditow2.ID,
+		nws.wocawize('settingsEditow2', "Settings Editow 2")
 	),
 	[
-		new SyncDescriptor(SettingsEditor2Input)
+		new SyncDescwiptow(SettingsEditow2Input)
 	]
 );
 
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(
-		KeybindingsEditor,
-		KeybindingsEditor.ID,
-		nls.localize('keybindingsEditor', "Keybindings Editor")
+Wegistwy.as<IEditowPaneWegistwy>(EditowExtensions.EditowPane).wegistewEditowPane(
+	EditowPaneDescwiptow.cweate(
+		KeybindingsEditow,
+		KeybindingsEditow.ID,
+		nws.wocawize('keybindingsEditow', "Keybindings Editow")
 	),
 	[
-		new SyncDescriptor(KeybindingsEditorInput)
+		new SyncDescwiptow(KeybindingsEditowInput)
 	]
 );
 
-class KeybindingsEditorInputSerializer implements IEditorSerializer {
+cwass KeybindingsEditowInputSewiawiza impwements IEditowSewiawiza {
 
-	canSerialize(editorInput: EditorInput): boolean {
-		return true;
+	canSewiawize(editowInput: EditowInput): boowean {
+		wetuwn twue;
 	}
 
-	serialize(editorInput: EditorInput): string {
-		return '';
+	sewiawize(editowInput: EditowInput): stwing {
+		wetuwn '';
 	}
 
-	deserialize(instantiationService: IInstantiationService): EditorInput {
-		return instantiationService.createInstance(KeybindingsEditorInput);
-	}
-}
-
-class SettingsEditor2InputSerializer implements IEditorSerializer {
-
-	canSerialize(editorInput: EditorInput): boolean {
-		return true;
-	}
-
-	serialize(input: SettingsEditor2Input): string {
-		return '';
-	}
-
-	deserialize(instantiationService: IInstantiationService): SettingsEditor2Input {
-		return instantiationService.createInstance(SettingsEditor2Input);
+	desewiawize(instantiationSewvice: IInstantiationSewvice): EditowInput {
+		wetuwn instantiationSewvice.cweateInstance(KeybindingsEditowInput);
 	}
 }
 
-Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(KeybindingsEditorInput.ID, KeybindingsEditorInputSerializer);
-Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(SettingsEditor2Input.ID, SettingsEditor2InputSerializer);
+cwass SettingsEditow2InputSewiawiza impwements IEditowSewiawiza {
 
-const OPEN_SETTINGS2_ACTION_TITLE = { value: nls.localize('openSettings2', "Open Settings (UI)"), original: 'Open Settings (UI)' };
-
-const category = { value: nls.localize('preferences', "Preferences"), original: 'Preferences' };
-
-interface IOpenSettingsActionOptions {
-	openToSide?: boolean;
-	query?: string;
-}
-
-function sanitizeOpenSettingsArgs(args: any): IOpenSettingsActionOptions {
-	if (!isObject(args)) {
-		args = {};
+	canSewiawize(editowInput: EditowInput): boowean {
+		wetuwn twue;
 	}
 
-	return {
-		openToSide: args.openToSide,
-		query: args.query
+	sewiawize(input: SettingsEditow2Input): stwing {
+		wetuwn '';
+	}
+
+	desewiawize(instantiationSewvice: IInstantiationSewvice): SettingsEditow2Input {
+		wetuwn instantiationSewvice.cweateInstance(SettingsEditow2Input);
+	}
+}
+
+Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy).wegistewEditowSewiawiza(KeybindingsEditowInput.ID, KeybindingsEditowInputSewiawiza);
+Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy).wegistewEditowSewiawiza(SettingsEditow2Input.ID, SettingsEditow2InputSewiawiza);
+
+const OPEN_SETTINGS2_ACTION_TITWE = { vawue: nws.wocawize('openSettings2', "Open Settings (UI)"), owiginaw: 'Open Settings (UI)' };
+
+const categowy = { vawue: nws.wocawize('pwefewences', "Pwefewences"), owiginaw: 'Pwefewences' };
+
+intewface IOpenSettingsActionOptions {
+	openToSide?: boowean;
+	quewy?: stwing;
+}
+
+function sanitizeOpenSettingsAwgs(awgs: any): IOpenSettingsActionOptions {
+	if (!isObject(awgs)) {
+		awgs = {};
+	}
+
+	wetuwn {
+		openToSide: awgs.openToSide,
+		quewy: awgs.quewy
 	};
 }
 
-class PreferencesActionsContribution extends Disposable implements IWorkbenchContribution {
+cwass PwefewencesActionsContwibution extends Disposabwe impwements IWowkbenchContwibution {
 
-	constructor(
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IExtensionService private readonly extensionService: IExtensionService,
+	constwuctow(
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IPwefewencesSewvice pwivate weadonwy pwefewencesSewvice: IPwefewencesSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy wowkspaceContextSewvice: IWowkspaceContextSewvice,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice,
 	) {
-		super();
+		supa();
 
-		this.registerSettingsActions();
-		this.registerKeybindingsActions();
+		this.wegistewSettingsActions();
+		this.wegistewKeybindingsActions();
 
-		this.updatePreferencesEditorMenuItem();
-		this._register(workspaceContextService.onDidChangeWorkbenchState(() => this.updatePreferencesEditorMenuItem()));
-		this._register(workspaceContextService.onDidChangeWorkspaceFolders(() => this.updatePreferencesEditorMenuItemForWorkspaceFolders()));
+		this.updatePwefewencesEditowMenuItem();
+		this._wegista(wowkspaceContextSewvice.onDidChangeWowkbenchState(() => this.updatePwefewencesEditowMenuItem()));
+		this._wegista(wowkspaceContextSewvice.onDidChangeWowkspaceFowdews(() => this.updatePwefewencesEditowMenuItemFowWowkspaceFowdews()));
 	}
 
-	private registerSettingsActions() {
+	pwivate wegistewSettingsActions() {
 		const that = this;
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
 					id: SETTINGS_COMMAND_OPEN_SETTINGS,
-					title: nls.localize('settings', "Settings"),
+					titwe: nws.wocawize('settings', "Settings"),
 					keybinding: {
-						weight: KeybindingWeight.WorkbenchContrib,
-						when: null,
-						primary: KeyMod.CtrlCmd | KeyCode.US_COMMA,
+						weight: KeybindingWeight.WowkbenchContwib,
+						when: nuww,
+						pwimawy: KeyMod.CtwwCmd | KeyCode.US_COMMA,
 					},
 					menu: {
-						id: MenuId.GlobalActivity,
-						group: '2_configuration',
-						order: 1
+						id: MenuId.GwobawActivity,
+						gwoup: '2_configuwation',
+						owda: 1
 					}
 				});
 			}
-			run(accessor: ServicesAccessor, args: string | IOpenSettingsActionOptions) {
-				// args takes a string for backcompat
-				const opts = typeof args === 'string' ? { query: args } : sanitizeOpenSettingsArgs(args);
-				return accessor.get(IPreferencesService).openSettings(opts);
+			wun(accessow: SewvicesAccessow, awgs: stwing | IOpenSettingsActionOptions) {
+				// awgs takes a stwing fow backcompat
+				const opts = typeof awgs === 'stwing' ? { quewy: awgs } : sanitizeOpenSettingsAwgs(awgs);
+				wetuwn accessow.get(IPwefewencesSewvice).openSettings(opts);
 			}
 		});
-		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-			group: '1_settings',
+		MenuWegistwy.appendMenuItem(MenuId.MenubawPwefewencesMenu, {
+			gwoup: '1_settings',
 			command: {
 				id: SETTINGS_COMMAND_OPEN_SETTINGS,
-				title: nls.localize({ key: 'miOpenSettings', comment: ['&& denotes a mnemonic'] }, "&&Settings")
+				titwe: nws.wocawize({ key: 'miOpenSettings', comment: ['&& denotes a mnemonic'] }, "&&Settings")
 			},
-			order: 1
+			owda: 1
 		});
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.action.openSettings2',
-					title: { value: nls.localize('openSettings2', "Open Settings (UI)"), original: 'Open Settings (UI)' },
-					category,
-					f1: true,
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: 'wowkbench.action.openSettings2',
+					titwe: { vawue: nws.wocawize('openSettings2', "Open Settings (UI)"), owiginaw: 'Open Settings (UI)' },
+					categowy,
+					f1: twue,
 				});
 			}
-			run(accessor: ServicesAccessor, args: IOpenSettingsActionOptions) {
-				args = sanitizeOpenSettingsArgs(args);
-				return accessor.get(IPreferencesService).openSettings({ jsonEditor: false, ...args });
+			wun(accessow: SewvicesAccessow, awgs: IOpenSettingsActionOptions) {
+				awgs = sanitizeOpenSettingsAwgs(awgs);
+				wetuwn accessow.get(IPwefewencesSewvice).openSettings({ jsonEditow: fawse, ...awgs });
 			}
 		});
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.action.openSettingsJson',
-					title: { value: nls.localize('openSettingsJson', "Open Settings (JSON)"), original: 'Open Settings (JSON)' },
-					category,
-					f1: true,
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: 'wowkbench.action.openSettingsJson',
+					titwe: { vawue: nws.wocawize('openSettingsJson', "Open Settings (JSON)"), owiginaw: 'Open Settings (JSON)' },
+					categowy,
+					f1: twue,
 				});
 			}
-			run(accessor: ServicesAccessor, args: IOpenSettingsActionOptions) {
-				args = sanitizeOpenSettingsArgs(args);
-				return accessor.get(IPreferencesService).openSettings({ jsonEditor: true, ...args });
+			wun(accessow: SewvicesAccessow, awgs: IOpenSettingsActionOptions) {
+				awgs = sanitizeOpenSettingsAwgs(awgs);
+				wetuwn accessow.get(IPwefewencesSewvice).openSettings({ jsonEditow: twue, ...awgs });
 			}
 		});
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.action.openGlobalSettings',
-					title: { value: nls.localize('openGlobalSettings', "Open User Settings"), original: 'Open User Settings' },
-					category,
-					f1: true,
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: 'wowkbench.action.openGwobawSettings',
+					titwe: { vawue: nws.wocawize('openGwobawSettings', "Open Usa Settings"), owiginaw: 'Open Usa Settings' },
+					categowy,
+					f1: twue,
 				});
 			}
-			run(accessor: ServicesAccessor, args: IOpenSettingsActionOptions) {
-				args = sanitizeOpenSettingsArgs(args);
-				return accessor.get(IPreferencesService).openUserSettings(args);
+			wun(accessow: SewvicesAccessow, awgs: IOpenSettingsActionOptions) {
+				awgs = sanitizeOpenSettingsAwgs(awgs);
+				wetuwn accessow.get(IPwefewencesSewvice).openUsewSettings(awgs);
 			}
 		});
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.action.openRawDefaultSettings',
-					title: { value: nls.localize('openRawDefaultSettings', "Open Default Settings (JSON)"), original: 'Open Default Settings (JSON)' },
-					category,
-					f1: true,
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: 'wowkbench.action.openWawDefauwtSettings',
+					titwe: { vawue: nws.wocawize('openWawDefauwtSettings', "Open Defauwt Settings (JSON)"), owiginaw: 'Open Defauwt Settings (JSON)' },
+					categowy,
+					f1: twue,
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				return accessor.get(IPreferencesService).openRawDefaultSettings();
+			wun(accessow: SewvicesAccessow) {
+				wetuwn accessow.get(IPwefewencesSewvice).openWawDefauwtSettings();
 			}
 		});
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: '_workbench.openUserSettingsEditor',
-					title: OPEN_SETTINGS2_ACTION_TITLE,
-					icon: preferencesOpenSettingsIcon,
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: '_wowkbench.openUsewSettingsEditow',
+					titwe: OPEN_SETTINGS2_ACTION_TITWE,
+					icon: pwefewencesOpenSettingsIcon,
 					menu: [{
-						id: MenuId.EditorTitle,
-						when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(that.environmentService.settingsResource.toString()), ContextKeyExpr.not('isInDiffEditor')),
-						group: 'navigation',
-						order: 1
+						id: MenuId.EditowTitwe,
+						when: ContextKeyExpw.and(WesouwceContextKey.Wesouwce.isEquawTo(that.enviwonmentSewvice.settingsWesouwce.toStwing()), ContextKeyExpw.not('isInDiffEditow')),
+						gwoup: 'navigation',
+						owda: 1
 					}]
 				});
 			}
-			run(accessor: ServicesAccessor, args: IOpenSettingsActionOptions) {
-				args = sanitizeOpenSettingsArgs(args);
-				return accessor.get(IPreferencesService).openUserSettings({ jsonEditor: false, ...args });
+			wun(accessow: SewvicesAccessow, awgs: IOpenSettingsActionOptions) {
+				awgs = sanitizeOpenSettingsAwgs(awgs);
+				wetuwn accessow.get(IPwefewencesSewvice).openUsewSettings({ jsonEditow: fawse, ...awgs });
 			}
 		});
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON,
-					title: { value: nls.localize('openSettingsJson', "Open Settings (JSON)"), original: 'Open Settings (JSON)' },
-					icon: preferencesOpenSettingsIcon,
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: SETTINGS_EDITOW_COMMAND_SWITCH_TO_JSON,
+					titwe: { vawue: nws.wocawize('openSettingsJson', "Open Settings (JSON)"), owiginaw: 'Open Settings (JSON)' },
+					icon: pwefewencesOpenSettingsIcon,
 					menu: [{
-						id: MenuId.EditorTitle,
-						when: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR.toNegated()),
-						group: 'navigation',
-						order: 1
+						id: MenuId.EditowTitwe,
+						when: ContextKeyExpw.and(CONTEXT_SETTINGS_EDITOW, CONTEXT_SETTINGS_JSON_EDITOW.toNegated()),
+						gwoup: 'navigation',
+						owda: 1
 					}]
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
-				if (editorPane instanceof SettingsEditor2) {
-					return editorPane.switchToSettingsFile();
+			wun(accessow: SewvicesAccessow) {
+				const editowPane = accessow.get(IEditowSewvice).activeEditowPane;
+				if (editowPane instanceof SettingsEditow2) {
+					wetuwn editowPane.switchToSettingsFiwe();
 				}
-				return null;
+				wetuwn nuww;
 			}
 		});
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: ConfigureLanguageBasedSettingsAction.ID,
-					title: ConfigureLanguageBasedSettingsAction.LABEL,
-					category,
-					f1: true,
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: ConfiguweWanguageBasedSettingsAction.ID,
+					titwe: ConfiguweWanguageBasedSettingsAction.WABEW,
+					categowy,
+					f1: twue,
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(ConfigureLanguageBasedSettingsAction, ConfigureLanguageBasedSettingsAction.ID, ConfigureLanguageBasedSettingsAction.LABEL.value).run();
+			wun(accessow: SewvicesAccessow) {
+				wetuwn accessow.get(IInstantiationSewvice).cweateInstance(ConfiguweWanguageBasedSettingsAction, ConfiguweWanguageBasedSettingsAction.ID, ConfiguweWanguageBasedSettingsAction.WABEW.vawue).wun();
 			}
 		});
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.action.openWorkspaceSettings',
-					title: { value: nls.localize('openWorkspaceSettings', "Open Workspace Settings"), original: 'Open Workspace Settings' },
-					category,
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: 'wowkbench.action.openWowkspaceSettings',
+					titwe: { vawue: nws.wocawize('openWowkspaceSettings', "Open Wowkspace Settings"), owiginaw: 'Open Wowkspace Settings' },
+					categowy,
 					menu: {
-						id: MenuId.CommandPalette,
-						when: WorkbenchStateContext.notEqualsTo('empty')
+						id: MenuId.CommandPawette,
+						when: WowkbenchStateContext.notEquawsTo('empty')
 					}
 				});
 			}
-			run(accessor: ServicesAccessor, args?: IOpenSettingsActionOptions) {
-				args = sanitizeOpenSettingsArgs(args);
-				return accessor.get(IPreferencesService).openWorkspaceSettings(args);
+			wun(accessow: SewvicesAccessow, awgs?: IOpenSettingsActionOptions) {
+				awgs = sanitizeOpenSettingsAwgs(awgs);
+				wetuwn accessow.get(IPwefewencesSewvice).openWowkspaceSettings(awgs);
 			}
 		});
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.action.openWorkspaceSettingsFile',
-					title: { value: nls.localize('openWorkspaceSettingsFile', "Open Workspace Settings (JSON)"), original: 'Open Workspace Settings (JSON)' },
-					category,
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: 'wowkbench.action.openWowkspaceSettingsFiwe',
+					titwe: { vawue: nws.wocawize('openWowkspaceSettingsFiwe', "Open Wowkspace Settings (JSON)"), owiginaw: 'Open Wowkspace Settings (JSON)' },
+					categowy,
 					menu: {
-						id: MenuId.CommandPalette,
-						when: WorkbenchStateContext.notEqualsTo('empty')
+						id: MenuId.CommandPawette,
+						when: WowkbenchStateContext.notEquawsTo('empty')
 					}
 				});
 			}
-			run(accessor: ServicesAccessor, args?: IOpenSettingsActionOptions) {
-				args = sanitizeOpenSettingsArgs(args);
-				return accessor.get(IPreferencesService).openWorkspaceSettings({ jsonEditor: true, ...args });
+			wun(accessow: SewvicesAccessow, awgs?: IOpenSettingsActionOptions) {
+				awgs = sanitizeOpenSettingsAwgs(awgs);
+				wetuwn accessow.get(IPwefewencesSewvice).openWowkspaceSettings({ jsonEditow: twue, ...awgs });
 			}
 		});
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.action.openFolderSettings',
-					title: { value: nls.localize('openFolderSettings', "Open Folder Settings"), original: 'Open Folder Settings' },
-					category,
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: 'wowkbench.action.openFowdewSettings',
+					titwe: { vawue: nws.wocawize('openFowdewSettings', "Open Fowda Settings"), owiginaw: 'Open Fowda Settings' },
+					categowy,
 					menu: {
-						id: MenuId.CommandPalette,
-						when: WorkbenchStateContext.isEqualTo('workspace')
+						id: MenuId.CommandPawette,
+						when: WowkbenchStateContext.isEquawTo('wowkspace')
 					}
 				});
 			}
-			async run(accessor: ServicesAccessor, args?: IOpenSettingsActionOptions) {
-				const commandService = accessor.get(ICommandService);
-				const preferencesService = accessor.get(IPreferencesService);
-				const workspaceFolder = await commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
-				if (workspaceFolder) {
-					args = sanitizeOpenSettingsArgs(args);
-					await preferencesService.openFolderSettings({ folderUri: workspaceFolder.uri, ...args });
-				}
-			}
-		});
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.action.openFolderSettingsFile',
-					title: { value: nls.localize('openFolderSettingsFile', "Open Folder Settings (JSON)"), original: 'Open Folder Settings (JSON)' },
-					category,
-					menu: {
-						id: MenuId.CommandPalette,
-						when: WorkbenchStateContext.isEqualTo('workspace')
-					}
-				});
-			}
-			async run(accessor: ServicesAccessor, args?: IOpenSettingsActionOptions) {
-				const commandService = accessor.get(ICommandService);
-				const preferencesService = accessor.get(IPreferencesService);
-				const workspaceFolder = await commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
-				if (workspaceFolder) {
-					args = sanitizeOpenSettingsArgs(args);
-					await preferencesService.openFolderSettings({ folderUri: workspaceFolder.uri, jsonEditor: true, ...args });
+			async wun(accessow: SewvicesAccessow, awgs?: IOpenSettingsActionOptions) {
+				const commandSewvice = accessow.get(ICommandSewvice);
+				const pwefewencesSewvice = accessow.get(IPwefewencesSewvice);
+				const wowkspaceFowda = await commandSewvice.executeCommand<IWowkspaceFowda>(PICK_WOWKSPACE_FOWDEW_COMMAND_ID);
+				if (wowkspaceFowda) {
+					awgs = sanitizeOpenSettingsAwgs(awgs);
+					await pwefewencesSewvice.openFowdewSettings({ fowdewUwi: wowkspaceFowda.uwi, ...awgs });
 				}
 			}
 		});
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: '_workbench.action.openFolderSettings',
-					title: { value: nls.localize('openFolderSettings', "Open Folder Settings"), original: 'Open Folder Settings' },
-					category,
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: 'wowkbench.action.openFowdewSettingsFiwe',
+					titwe: { vawue: nws.wocawize('openFowdewSettingsFiwe', "Open Fowda Settings (JSON)"), owiginaw: 'Open Fowda Settings (JSON)' },
+					categowy,
 					menu: {
-						id: MenuId.ExplorerContext,
-						group: '2_workspace',
-						order: 20,
-						when: ContextKeyExpr.and(ExplorerRootContext, ExplorerFolderContext)
+						id: MenuId.CommandPawette,
+						when: WowkbenchStateContext.isEquawTo('wowkspace')
 					}
 				});
 			}
-			run(accessor: ServicesAccessor, resource: URI) {
-				return accessor.get(IPreferencesService).openFolderSettings({ folderUri: resource });
-			}
-		});
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: SETTINGS_EDITOR_COMMAND_FILTER_MODIFIED,
-					title: { value: nls.localize('filterModifiedLabel', "Show modified settings"), original: 'Show modified settings' },
-					menu: {
-						id: MenuId.EditorTitle,
-						group: '1_filter',
-						order: 1,
-						when: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR.toNegated())
-					}
-				});
-			}
-			run(accessor: ServicesAccessor, resource: URI) {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
-				if (editorPane instanceof SettingsEditor2) {
-					editorPane.focusSearch(`@${MODIFIED_SETTING_TAG}`);
+			async wun(accessow: SewvicesAccessow, awgs?: IOpenSettingsActionOptions) {
+				const commandSewvice = accessow.get(ICommandSewvice);
+				const pwefewencesSewvice = accessow.get(IPwefewencesSewvice);
+				const wowkspaceFowda = await commandSewvice.executeCommand<IWowkspaceFowda>(PICK_WOWKSPACE_FOWDEW_COMMAND_ID);
+				if (wowkspaceFowda) {
+					awgs = sanitizeOpenSettingsAwgs(awgs);
+					await pwefewencesSewvice.openFowdewSettings({ fowdewUwi: wowkspaceFowda.uwi, jsonEditow: twue, ...awgs });
 				}
 			}
 		});
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: SETTINGS_EDITOR_COMMAND_FILTER_ONLINE,
-					title: { value: nls.localize('filterOnlineServicesLabel', "Show settings for online services"), original: 'Show settings for online services' },
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: '_wowkbench.action.openFowdewSettings',
+					titwe: { vawue: nws.wocawize('openFowdewSettings', "Open Fowda Settings"), owiginaw: 'Open Fowda Settings' },
+					categowy,
 					menu: {
-						id: MenuId.EditorTitle,
-						group: '1_filter',
-						order: 2,
-						when: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR.toNegated())
+						id: MenuId.ExpwowewContext,
+						gwoup: '2_wowkspace',
+						owda: 20,
+						when: ContextKeyExpw.and(ExpwowewWootContext, ExpwowewFowdewContext)
 					}
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
-				if (editorPane instanceof SettingsEditor2) {
-					editorPane.focusSearch(`@tag:usesOnlineServices`);
-				} else {
-					accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: '@tag:usesOnlineServices' });
+			wun(accessow: SewvicesAccessow, wesouwce: UWI) {
+				wetuwn accessow.get(IPwefewencesSewvice).openFowdewSettings({ fowdewUwi: wesouwce });
+			}
+		});
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: SETTINGS_EDITOW_COMMAND_FIWTEW_MODIFIED,
+					titwe: { vawue: nws.wocawize('fiwtewModifiedWabew', "Show modified settings"), owiginaw: 'Show modified settings' },
+					menu: {
+						id: MenuId.EditowTitwe,
+						gwoup: '1_fiwta',
+						owda: 1,
+						when: ContextKeyExpw.and(CONTEXT_SETTINGS_EDITOW, CONTEXT_SETTINGS_JSON_EDITOW.toNegated())
+					}
+				});
+			}
+			wun(accessow: SewvicesAccessow, wesouwce: UWI) {
+				const editowPane = accessow.get(IEditowSewvice).activeEditowPane;
+				if (editowPane instanceof SettingsEditow2) {
+					editowPane.focusSeawch(`@${MODIFIED_SETTING_TAG}`);
 				}
 			}
 		});
-		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-			group: '1_settings',
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: SETTINGS_EDITOW_COMMAND_FIWTEW_ONWINE,
+					titwe: { vawue: nws.wocawize('fiwtewOnwineSewvicesWabew', "Show settings fow onwine sewvices"), owiginaw: 'Show settings fow onwine sewvices' },
+					menu: {
+						id: MenuId.EditowTitwe,
+						gwoup: '1_fiwta',
+						owda: 2,
+						when: ContextKeyExpw.and(CONTEXT_SETTINGS_EDITOW, CONTEXT_SETTINGS_JSON_EDITOW.toNegated())
+					}
+				});
+			}
+			wun(accessow: SewvicesAccessow) {
+				const editowPane = accessow.get(IEditowSewvice).activeEditowPane;
+				if (editowPane instanceof SettingsEditow2) {
+					editowPane.focusSeawch(`@tag:usesOnwineSewvices`);
+				} ewse {
+					accessow.get(IPwefewencesSewvice).openSettings({ jsonEditow: fawse, quewy: '@tag:usesOnwineSewvices' });
+				}
+			}
+		});
+		MenuWegistwy.appendMenuItem(MenuId.MenubawPwefewencesMenu, {
+			gwoup: '1_settings',
 			command: {
-				id: SETTINGS_EDITOR_COMMAND_FILTER_ONLINE,
-				title: nls.localize({ key: 'miOpenOnlineSettings', comment: ['&& denotes a mnemonic'] }, "&&Online Services Settings")
+				id: SETTINGS_EDITOW_COMMAND_FIWTEW_ONWINE,
+				titwe: nws.wocawize({ key: 'miOpenOnwineSettings', comment: ['&& denotes a mnemonic'] }, "&&Onwine Sewvices Settings")
 			},
-			order: 2
+			owda: 2
 		});
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '2_configuration',
+		MenuWegistwy.appendMenuItem(MenuId.GwobawActivity, {
+			gwoup: '2_configuwation',
 			command: {
-				id: SETTINGS_EDITOR_COMMAND_FILTER_ONLINE,
-				title: nls.localize('onlineServices', "Online Services Settings")
+				id: SETTINGS_EDITOW_COMMAND_FIWTEW_ONWINE,
+				titwe: nws.wocawize('onwineSewvices', "Onwine Sewvices Settings")
 			},
-			order: 2
+			owda: 2
 		});
 
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: SETTINGS_EDITOR_COMMAND_FILTER_TELEMETRY,
-					title: { value: nls.localize('showTelemtrySettings', "Telemetry Settings"), original: 'Telemetry Settings' },
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: SETTINGS_EDITOW_COMMAND_FIWTEW_TEWEMETWY,
+					titwe: { vawue: nws.wocawize('showTewemtwySettings', "Tewemetwy Settings"), owiginaw: 'Tewemetwy Settings' },
 					menu: {
-						id: MenuId.MenubarPreferencesMenu,
-						group: '1_settings',
-						order: 3,
+						id: MenuId.MenubawPwefewencesMenu,
+						gwoup: '1_settings',
+						owda: 3,
 					}
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
-				if (editorPane instanceof SettingsEditor2) {
-					editorPane.focusSearch('@tag:telemetry');
-				} else {
-					accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: '@tag:telemetry' });
+			wun(accessow: SewvicesAccessow) {
+				const editowPane = accessow.get(IEditowSewvice).activeEditowPane;
+				if (editowPane instanceof SettingsEditow2) {
+					editowPane.focusSeawch('@tag:tewemetwy');
+				} ewse {
+					accessow.get(IPwefewencesSewvice).openSettings({ jsonEditow: fawse, quewy: '@tag:tewemetwy' });
 				}
 			}
 		});
 
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: SETTINGS_EDITOR_COMMAND_FILTER_UNTRUSTED,
-					title: { value: nls.localize('filterUntrusted', "Show untrusted workspace settings"), original: 'Show untrusted workspace settings' },
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: SETTINGS_EDITOW_COMMAND_FIWTEW_UNTWUSTED,
+					titwe: { vawue: nws.wocawize('fiwtewUntwusted', "Show untwusted wowkspace settings"), owiginaw: 'Show untwusted wowkspace settings' },
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				accessor.get(IPreferencesService).openWorkspaceSettings({ jsonEditor: false, query: `@tag:${REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG}` });
+			wun(accessow: SewvicesAccessow) {
+				accessow.get(IPwefewencesSewvice).openWowkspaceSettings({ jsonEditow: fawse, quewy: `@tag:${WEQUIWE_TWUSTED_WOWKSPACE_SETTING_TAG}` });
 			}
 		});
 
-		this.registerSettingsEditorActions();
+		this.wegistewSettingsEditowActions();
 
-		this.extensionService.whenInstalledExtensionsRegistered()
+		this.extensionSewvice.whenInstawwedExtensionsWegistewed()
 			.then(() => {
-				const remoteAuthority = this.environmentService.remoteAuthority;
-				const hostLabel = this.labelService.getHostLabel(Schemas.vscodeRemote, remoteAuthority) || remoteAuthority;
-				const label = nls.localize('openRemoteSettings', "Open Remote Settings ({0})", hostLabel);
-				registerAction2(class extends Action2 {
-					constructor() {
-						super({
-							id: 'workbench.action.openRemoteSettings',
-							title: { value: label, original: `Open Remote Settings (${hostLabel})` },
-							category,
+				const wemoteAuthowity = this.enviwonmentSewvice.wemoteAuthowity;
+				const hostWabew = this.wabewSewvice.getHostWabew(Schemas.vscodeWemote, wemoteAuthowity) || wemoteAuthowity;
+				const wabew = nws.wocawize('openWemoteSettings', "Open Wemote Settings ({0})", hostWabew);
+				wegistewAction2(cwass extends Action2 {
+					constwuctow() {
+						supa({
+							id: 'wowkbench.action.openWemoteSettings',
+							titwe: { vawue: wabew, owiginaw: `Open Wemote Settings (${hostWabew})` },
+							categowy,
 							menu: {
-								id: MenuId.CommandPalette,
-								when: RemoteNameContext.notEqualsTo('')
+								id: MenuId.CommandPawette,
+								when: WemoteNameContext.notEquawsTo('')
 							}
 						});
 					}
-					run(accessor: ServicesAccessor, args?: IOpenSettingsActionOptions) {
-						args = sanitizeOpenSettingsArgs(args);
-						return accessor.get(IPreferencesService).openRemoteSettings(args);
+					wun(accessow: SewvicesAccessow, awgs?: IOpenSettingsActionOptions) {
+						awgs = sanitizeOpenSettingsAwgs(awgs);
+						wetuwn accessow.get(IPwefewencesSewvice).openWemoteSettings(awgs);
 					}
 				});
-				const jsonLabel = nls.localize('openRemoteSettingsJSON', "Open Remote Settings (JSON) ({0})", hostLabel);
-				registerAction2(class extends Action2 {
-					constructor() {
-						super({
-							id: 'workbench.action.openRemoteSettingsFile',
-							title: { value: jsonLabel, original: `Open Remote Settings (JSON) (${hostLabel})` },
-							category,
+				const jsonWabew = nws.wocawize('openWemoteSettingsJSON', "Open Wemote Settings (JSON) ({0})", hostWabew);
+				wegistewAction2(cwass extends Action2 {
+					constwuctow() {
+						supa({
+							id: 'wowkbench.action.openWemoteSettingsFiwe',
+							titwe: { vawue: jsonWabew, owiginaw: `Open Wemote Settings (JSON) (${hostWabew})` },
+							categowy,
 							menu: {
-								id: MenuId.CommandPalette,
-								when: RemoteNameContext.notEqualsTo('')
+								id: MenuId.CommandPawette,
+								when: WemoteNameContext.notEquawsTo('')
 							}
 						});
 					}
-					run(accessor: ServicesAccessor, args?: IOpenSettingsActionOptions) {
-						args = sanitizeOpenSettingsArgs(args);
-						return accessor.get(IPreferencesService).openRemoteSettings({ jsonEditor: true, ...args });
+					wun(accessow: SewvicesAccessow, awgs?: IOpenSettingsActionOptions) {
+						awgs = sanitizeOpenSettingsAwgs(awgs);
+						wetuwn accessow.get(IPwefewencesSewvice).openWemoteSettings({ jsonEditow: twue, ...awgs });
 					}
 				});
 			});
 	}
 
-	private registerSettingsEditorActions() {
-		function getPreferencesEditor(accessor: ServicesAccessor): SettingsEditor2 | null {
-			const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
-			if (activeEditorPane instanceof SettingsEditor2) {
-				return activeEditorPane;
+	pwivate wegistewSettingsEditowActions() {
+		function getPwefewencesEditow(accessow: SewvicesAccessow): SettingsEditow2 | nuww {
+			const activeEditowPane = accessow.get(IEditowSewvice).activeEditowPane;
+			if (activeEditowPane instanceof SettingsEditow2) {
+				wetuwn activeEditowPane;
 			}
-			return null;
+			wetuwn nuww;
 		}
 
-		function settingsEditorFocusSearch(accessor: ServicesAccessor) {
-			const preferencesEditor = getPreferencesEditor(accessor);
-			if (preferencesEditor) {
-				preferencesEditor.focusSearch();
+		function settingsEditowFocusSeawch(accessow: SewvicesAccessow) {
+			const pwefewencesEditow = getPwefewencesEditow(accessow);
+			if (pwefewencesEditow) {
+				pwefewencesEditow.focusSeawch();
 			}
 		}
 
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: SETTINGS_EDITOR_COMMAND_SEARCH,
-					precondition: CONTEXT_SETTINGS_EDITOR,
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: SETTINGS_EDITOW_COMMAND_SEAWCH,
+					pwecondition: CONTEXT_SETTINGS_EDITOW,
 					keybinding: {
-						primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
-						weight: KeybindingWeight.EditorContrib,
-						when: null
+						pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_F,
+						weight: KeybindingWeight.EditowContwib,
+						when: nuww
 					},
-					category,
-					f1: true,
-					title: nls.localize('settings.focusSearch', "Focus Settings Search")
+					categowy,
+					f1: twue,
+					titwe: nws.wocawize('settings.focusSeawch', "Focus Settings Seawch")
 				});
 			}
 
-			run(accessor: ServicesAccessor) { settingsEditorFocusSearch(accessor); }
+			wun(accessow: SewvicesAccessow) { settingsEditowFocusSeawch(accessow); }
 		});
 
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS,
-					precondition: CONTEXT_SETTINGS_EDITOR,
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: SETTINGS_EDITOW_COMMAND_CWEAW_SEAWCH_WESUWTS,
+					pwecondition: CONTEXT_SETTINGS_EDITOW,
 					keybinding: {
-						primary: KeyCode.Escape,
-						weight: KeybindingWeight.EditorContrib,
-						when: CONTEXT_SETTINGS_SEARCH_FOCUS
+						pwimawy: KeyCode.Escape,
+						weight: KeybindingWeight.EditowContwib,
+						when: CONTEXT_SETTINGS_SEAWCH_FOCUS
 					},
-					category,
-					f1: true,
-					title: nls.localize('settings.clearResults', "Clear Settings Search Results")
+					categowy,
+					f1: twue,
+					titwe: nws.wocawize('settings.cweawWesuwts', "Cweaw Settings Seawch Wesuwts")
 				});
 			}
 
-			run(accessor: ServicesAccessor) {
-				const preferencesEditor = getPreferencesEditor(accessor);
-				if (preferencesEditor) {
-					preferencesEditor.clearSearchResults();
+			wun(accessow: SewvicesAccessow) {
+				const pwefewencesEditow = getPwefewencesEditow(accessow);
+				if (pwefewencesEditow) {
+					pwefewencesEditow.cweawSeawchWesuwts();
 				}
 			}
 		});
 
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: SETTINGS_EDITOR_COMMAND_FOCUS_FILE,
-					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated()),
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: SETTINGS_EDITOW_COMMAND_FOCUS_FIWE,
+					pwecondition: ContextKeyExpw.and(CONTEXT_SETTINGS_SEAWCH_FOCUS, SuggestContext.Visibwe.toNegated()),
 					keybinding: {
-						primary: KeyCode.DownArrow,
-						weight: KeybindingWeight.EditorContrib,
-						when: null
+						pwimawy: KeyCode.DownAwwow,
+						weight: KeybindingWeight.EditowContwib,
+						when: nuww
 					},
-					title: nls.localize('settings.focusFile', "Focus settings file")
+					titwe: nws.wocawize('settings.focusFiwe', "Focus settings fiwe")
 				});
 			}
 
-			run(accessor: ServicesAccessor, args: any): void {
-				const preferencesEditor = getPreferencesEditor(accessor);
-				preferencesEditor?.focusSettings();
+			wun(accessow: SewvicesAccessow, awgs: any): void {
+				const pwefewencesEditow = getPwefewencesEditow(accessow);
+				pwefewencesEditow?.focusSettings();
 			}
 		});
 
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH,
-					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated()),
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: SETTINGS_EDITOW_COMMAND_FOCUS_SETTINGS_FWOM_SEAWCH,
+					pwecondition: ContextKeyExpw.and(CONTEXT_SETTINGS_SEAWCH_FOCUS, SuggestContext.Visibwe.toNegated()),
 					keybinding: {
-						primary: KeyCode.DownArrow,
-						weight: KeybindingWeight.WorkbenchContrib,
-						when: null
+						pwimawy: KeyCode.DownAwwow,
+						weight: KeybindingWeight.WowkbenchContwib,
+						when: nuww
 					},
-					title: nls.localize('settings.focusFile', "Focus settings file")
+					titwe: nws.wocawize('settings.focusFiwe', "Focus settings fiwe")
 				});
 			}
 
-			run(accessor: ServicesAccessor, args: any): void {
-				const preferencesEditor = getPreferencesEditor(accessor);
-				preferencesEditor?.focusSettings();
+			wun(accessow: SewvicesAccessow, awgs: any): void {
+				const pwefewencesEditow = getPwefewencesEditow(accessow);
+				pwefewencesEditow?.focusSettings();
 			}
 		});
 
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_LIST,
-					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_TOC_ROW_FOCUS),
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: SETTINGS_EDITOW_COMMAND_FOCUS_SETTINGS_WIST,
+					pwecondition: ContextKeyExpw.and(CONTEXT_SETTINGS_EDITOW, CONTEXT_TOC_WOW_FOCUS),
 					keybinding: {
-						primary: KeyCode.Enter,
-						weight: KeybindingWeight.WorkbenchContrib,
-						when: null
+						pwimawy: KeyCode.Enta,
+						weight: KeybindingWeight.WowkbenchContwib,
+						when: nuww
 					},
-					title: nls.localize('settings.focusSettingsList', "Focus settings list")
+					titwe: nws.wocawize('settings.focusSettingsWist', "Focus settings wist")
 				});
 			}
 
-			run(accessor: ServicesAccessor): void {
-				const preferencesEditor = getPreferencesEditor(accessor);
-				if (preferencesEditor instanceof SettingsEditor2) {
-					preferencesEditor.focusSettings();
+			wun(accessow: SewvicesAccessow): void {
+				const pwefewencesEditow = getPwefewencesEditow(accessow);
+				if (pwefewencesEditow instanceof SettingsEditow2) {
+					pwefewencesEditow.focusSettings();
 				}
 			}
 		});
 
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: SETTINGS_EDITOR_COMMAND_FOCUS_TOC,
-					precondition: CONTEXT_SETTINGS_EDITOR,
-					f1: true,
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: SETTINGS_EDITOW_COMMAND_FOCUS_TOC,
+					pwecondition: CONTEXT_SETTINGS_EDITOW,
+					f1: twue,
 					keybinding: [
 						{
-							primary: KeyCode.LeftArrow,
-							weight: KeybindingWeight.WorkbenchContrib,
-							when: CONTEXT_SETTINGS_ROW_FOCUS
+							pwimawy: KeyCode.WeftAwwow,
+							weight: KeybindingWeight.WowkbenchContwib,
+							when: CONTEXT_SETTINGS_WOW_FOCUS
 						}],
-					category,
-					title: nls.localize('settings.focusSettingsTOC', "Focus Settings Table of Contents")
+					categowy,
+					titwe: nws.wocawize('settings.focusSettingsTOC', "Focus Settings Tabwe of Contents")
 				});
 			}
 
-			run(accessor: ServicesAccessor): void {
-				const preferencesEditor = getPreferencesEditor(accessor);
-				if (!(preferencesEditor instanceof SettingsEditor2)) {
-					return;
+			wun(accessow: SewvicesAccessow): void {
+				const pwefewencesEditow = getPwefewencesEditow(accessow);
+				if (!(pwefewencesEditow instanceof SettingsEditow2)) {
+					wetuwn;
 				}
 
-				preferencesEditor.focusTOC();
+				pwefewencesEditow.focusTOC();
 			}
 		});
 
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: SETTINGS_EDITOR_COMMAND_FOCUS_CONTROL,
-					precondition: CONTEXT_SETTINGS_ROW_FOCUS,
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: SETTINGS_EDITOW_COMMAND_FOCUS_CONTWOW,
+					pwecondition: CONTEXT_SETTINGS_WOW_FOCUS,
 					keybinding: {
-						primary: KeyCode.Enter,
-						weight: KeybindingWeight.WorkbenchContrib,
+						pwimawy: KeyCode.Enta,
+						weight: KeybindingWeight.WowkbenchContwib,
 					},
-					title: nls.localize('settings.focusSettingControl', "Focus Setting Control")
+					titwe: nws.wocawize('settings.focusSettingContwow', "Focus Setting Contwow")
 				});
 			}
 
-			run(accessor: ServicesAccessor): void {
-				const preferencesEditor = getPreferencesEditor(accessor);
-				if (!(preferencesEditor instanceof SettingsEditor2)) {
-					return;
+			wun(accessow: SewvicesAccessow): void {
+				const pwefewencesEditow = getPwefewencesEditow(accessow);
+				if (!(pwefewencesEditow instanceof SettingsEditow2)) {
+					wetuwn;
 				}
 
-				if (document.activeElement?.classList.contains('monaco-list')) {
-					preferencesEditor.focusSettings(true);
-				}
-			}
-		});
-
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU,
-					precondition: CONTEXT_SETTINGS_EDITOR,
-					keybinding: {
-						primary: KeyMod.Shift | KeyCode.F9,
-						weight: KeybindingWeight.WorkbenchContrib,
-						when: null
-					},
-					f1: true,
-					category,
-					title: nls.localize('settings.showContextMenu', "Show Setting Context Menu")
-				});
-			}
-
-			run(accessor: ServicesAccessor): void {
-				const preferencesEditor = getPreferencesEditor(accessor);
-				if (preferencesEditor instanceof SettingsEditor2) {
-					preferencesEditor.showContextMenu();
+				if (document.activeEwement?.cwassWist.contains('monaco-wist')) {
+					pwefewencesEditow.focusSettings(twue);
 				}
 			}
 		});
 
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: SETTINGS_EDITOR_COMMAND_FOCUS_UP,
-					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS.toNegated(), CONTEXT_SETTINGS_JSON_EDITOR.toNegated()),
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: SETTINGS_EDITOW_COMMAND_SHOW_CONTEXT_MENU,
+					pwecondition: CONTEXT_SETTINGS_EDITOW,
 					keybinding: {
-						primary: KeyCode.Escape,
-						weight: KeybindingWeight.WorkbenchContrib,
-						when: null
+						pwimawy: KeyMod.Shift | KeyCode.F9,
+						weight: KeybindingWeight.WowkbenchContwib,
+						when: nuww
 					},
-					f1: true,
-					category,
-					title: nls.localize('settings.focusLevelUp', "Move Focus Up One Level")
+					f1: twue,
+					categowy,
+					titwe: nws.wocawize('settings.showContextMenu', "Show Setting Context Menu")
 				});
 			}
 
-			run(accessor: ServicesAccessor): void {
-				const preferencesEditor = getPreferencesEditor(accessor);
-				if (!(preferencesEditor instanceof SettingsEditor2)) {
-					return;
+			wun(accessow: SewvicesAccessow): void {
+				const pwefewencesEditow = getPwefewencesEditow(accessow);
+				if (pwefewencesEditow instanceof SettingsEditow2) {
+					pwefewencesEditow.showContextMenu();
+				}
+			}
+		});
+
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: SETTINGS_EDITOW_COMMAND_FOCUS_UP,
+					pwecondition: ContextKeyExpw.and(CONTEXT_SETTINGS_EDITOW, CONTEXT_SETTINGS_SEAWCH_FOCUS.toNegated(), CONTEXT_SETTINGS_JSON_EDITOW.toNegated()),
+					keybinding: {
+						pwimawy: KeyCode.Escape,
+						weight: KeybindingWeight.WowkbenchContwib,
+						when: nuww
+					},
+					f1: twue,
+					categowy,
+					titwe: nws.wocawize('settings.focusWevewUp', "Move Focus Up One Wevew")
+				});
+			}
+
+			wun(accessow: SewvicesAccessow): void {
+				const pwefewencesEditow = getPwefewencesEditow(accessow);
+				if (!(pwefewencesEditow instanceof SettingsEditow2)) {
+					wetuwn;
 				}
 
-				if (preferencesEditor.currentFocusContext === SettingsFocusContext.SettingControl) {
-					preferencesEditor.focusSettings();
-				} else if (preferencesEditor.currentFocusContext === SettingsFocusContext.SettingTree) {
-					preferencesEditor.focusTOC();
-				} else if (preferencesEditor.currentFocusContext === SettingsFocusContext.TableOfContents) {
-					preferencesEditor.focusSearch();
+				if (pwefewencesEditow.cuwwentFocusContext === SettingsFocusContext.SettingContwow) {
+					pwefewencesEditow.focusSettings();
+				} ewse if (pwefewencesEditow.cuwwentFocusContext === SettingsFocusContext.SettingTwee) {
+					pwefewencesEditow.focusTOC();
+				} ewse if (pwefewencesEditow.cuwwentFocusContext === SettingsFocusContext.TabweOfContents) {
+					pwefewencesEditow.focusSeawch();
 				}
 			}
 		});
 	}
 
-	private registerKeybindingsActions() {
+	pwivate wegistewKeybindingsActions() {
 		const that = this;
-		const category = { value: nls.localize('preferences', "Preferences"), original: 'Preferences' };
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.action.openGlobalKeybindings',
-					title: { value: nls.localize('openGlobalKeybindings', "Open Keyboard Shortcuts"), original: 'Open Keyboard Shortcuts' },
-					category,
-					icon: preferencesOpenSettingsIcon,
+		const categowy = { vawue: nws.wocawize('pwefewences', "Pwefewences"), owiginaw: 'Pwefewences' };
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: 'wowkbench.action.openGwobawKeybindings',
+					titwe: { vawue: nws.wocawize('openGwobawKeybindings', "Open Keyboawd Showtcuts"), owiginaw: 'Open Keyboawd Showtcuts' },
+					categowy,
+					icon: pwefewencesOpenSettingsIcon,
 					keybinding: {
-						when: null,
-						weight: KeybindingWeight.WorkbenchContrib,
-						primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_S)
+						when: nuww,
+						weight: KeybindingWeight.WowkbenchContwib,
+						pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_S)
 					},
 					menu: [
-						{ id: MenuId.CommandPalette },
+						{ id: MenuId.CommandPawette },
 						{
-							id: MenuId.EditorTitle,
-							when: ResourceContextKey.Resource.isEqualTo(that.environmentService.keybindingsResource.toString()),
-							group: 'navigation',
-							order: 1,
+							id: MenuId.EditowTitwe,
+							when: WesouwceContextKey.Wesouwce.isEquawTo(that.enviwonmentSewvice.keybindingsWesouwce.toStwing()),
+							gwoup: 'navigation',
+							owda: 1,
 						}
 					]
 				});
 			}
-			run(accessor: ServicesAccessor, args: string | undefined) {
-				const query = typeof args === 'string' ? args : undefined;
-				return accessor.get(IPreferencesService).openGlobalKeybindingSettings(false, { query });
+			wun(accessow: SewvicesAccessow, awgs: stwing | undefined) {
+				const quewy = typeof awgs === 'stwing' ? awgs : undefined;
+				wetuwn accessow.get(IPwefewencesSewvice).openGwobawKeybindingSettings(fawse, { quewy });
 			}
 		});
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+		MenuWegistwy.appendMenuItem(MenuId.GwobawActivity, {
 			command: {
-				id: 'workbench.action.openGlobalKeybindings',
-				title: { value: nls.localize('Keyboard Shortcuts', "Keyboard Shortcuts"), original: 'Keyboard Shortcuts' }
+				id: 'wowkbench.action.openGwobawKeybindings',
+				titwe: { vawue: nws.wocawize('Keyboawd Showtcuts', "Keyboawd Showtcuts"), owiginaw: 'Keyboawd Showtcuts' }
 			},
-			group: '2_keybindings',
-			order: 1
+			gwoup: '2_keybindings',
+			owda: 1
 		});
-		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+		MenuWegistwy.appendMenuItem(MenuId.MenubawPwefewencesMenu, {
 			command: {
-				id: 'workbench.action.openGlobalKeybindings',
-				title: { value: nls.localize('Keyboard Shortcuts', "Keyboard Shortcuts"), original: 'Keyboard Shortcuts' }
+				id: 'wowkbench.action.openGwobawKeybindings',
+				titwe: { vawue: nws.wocawize('Keyboawd Showtcuts', "Keyboawd Showtcuts"), owiginaw: 'Keyboawd Showtcuts' }
 			},
-			group: '2_keybindings',
-			order: 1
+			gwoup: '2_keybindings',
+			owda: 1
 		});
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.action.openDefaultKeybindingsFile',
-					title: { value: nls.localize('openDefaultKeybindingsFile', "Open Default Keyboard Shortcuts (JSON)"), original: 'Open Default Keyboard Shortcuts (JSON)' },
-					category,
-					menu: { id: MenuId.CommandPalette }
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: 'wowkbench.action.openDefauwtKeybindingsFiwe',
+					titwe: { vawue: nws.wocawize('openDefauwtKeybindingsFiwe', "Open Defauwt Keyboawd Showtcuts (JSON)"), owiginaw: 'Open Defauwt Keyboawd Showtcuts (JSON)' },
+					categowy,
+					menu: { id: MenuId.CommandPawette }
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				return accessor.get(IPreferencesService).openDefaultKeybindingsFile();
+			wun(accessow: SewvicesAccessow) {
+				wetuwn accessow.get(IPwefewencesSewvice).openDefauwtKeybindingsFiwe();
 			}
 		});
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.action.openGlobalKeybindingsFile',
-					title: { value: nls.localize('openGlobalKeybindingsFile', "Open Keyboard Shortcuts (JSON)"), original: 'Open Keyboard Shortcuts (JSON)' },
-					category,
-					icon: preferencesOpenSettingsIcon,
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: 'wowkbench.action.openGwobawKeybindingsFiwe',
+					titwe: { vawue: nws.wocawize('openGwobawKeybindingsFiwe', "Open Keyboawd Showtcuts (JSON)"), owiginaw: 'Open Keyboawd Showtcuts (JSON)' },
+					categowy,
+					icon: pwefewencesOpenSettingsIcon,
 					menu: [
-						{ id: MenuId.CommandPalette },
+						{ id: MenuId.CommandPawette },
 						{
-							id: MenuId.EditorTitle,
-							when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
-							group: 'navigation',
+							id: MenuId.EditowTitwe,
+							when: ContextKeyExpw.and(CONTEXT_KEYBINDINGS_EDITOW),
+							gwoup: 'navigation',
 						}
 					]
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				return accessor.get(IPreferencesService).openGlobalKeybindingSettings(true);
+			wun(accessow: SewvicesAccessow) {
+				wetuwn accessow.get(IPwefewencesSewvice).openGwobawKeybindingSettings(twue);
 			}
 		});
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS,
-					title: { value: nls.localize('showDefaultKeybindings', "Show Default Keybindings"), original: 'Show Default Keybindings' },
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: KEYBINDINGS_EDITOW_SHOW_DEFAUWT_KEYBINDINGS,
+					titwe: { vawue: nws.wocawize('showDefauwtKeybindings', "Show Defauwt Keybindings"), owiginaw: 'Show Defauwt Keybindings' },
 					menu: [
 						{
-							id: MenuId.EditorTitle,
-							when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
-							group: '1_keyboard_preferences_actions'
+							id: MenuId.EditowTitwe,
+							when: ContextKeyExpw.and(CONTEXT_KEYBINDINGS_EDITOW),
+							gwoup: '1_keyboawd_pwefewences_actions'
 						}
 					]
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
-				if (editorPane instanceof KeybindingsEditor) {
-					editorPane.search('@source:default');
+			wun(accessow: SewvicesAccessow) {
+				const editowPane = accessow.get(IEditowSewvice).activeEditowPane;
+				if (editowPane instanceof KeybindingsEditow) {
+					editowPane.seawch('@souwce:defauwt');
 				}
 			}
 		});
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: KEYBINDINGS_EDITOR_SHOW_EXTENSION_KEYBINDINGS,
-					title: { value: nls.localize('showExtensionKeybindings', "Show Extension Keybindings"), original: 'Show Extension Keybindings' },
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: KEYBINDINGS_EDITOW_SHOW_EXTENSION_KEYBINDINGS,
+					titwe: { vawue: nws.wocawize('showExtensionKeybindings', "Show Extension Keybindings"), owiginaw: 'Show Extension Keybindings' },
 					menu: [
 						{
-							id: MenuId.EditorTitle,
-							when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
-							group: '1_keyboard_preferences_actions'
+							id: MenuId.EditowTitwe,
+							when: ContextKeyExpw.and(CONTEXT_KEYBINDINGS_EDITOW),
+							gwoup: '1_keyboawd_pwefewences_actions'
 						}
 					]
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
-				if (editorPane instanceof KeybindingsEditor) {
-					editorPane.search('@source:extension');
+			wun(accessow: SewvicesAccessow) {
+				const editowPane = accessow.get(IEditowSewvice).activeEditowPane;
+				if (editowPane instanceof KeybindingsEditow) {
+					editowPane.seawch('@souwce:extension');
 				}
 			}
 		});
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS,
-					title: { value: nls.localize('showUserKeybindings', "Show User Keybindings"), original: 'Show User Keybindings' },
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: KEYBINDINGS_EDITOW_SHOW_USEW_KEYBINDINGS,
+					titwe: { vawue: nws.wocawize('showUsewKeybindings', "Show Usa Keybindings"), owiginaw: 'Show Usa Keybindings' },
 					menu: [
 						{
-							id: MenuId.EditorTitle,
-							when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
-							group: '1_keyboard_preferences_actions'
+							id: MenuId.EditowTitwe,
+							when: ContextKeyExpw.and(CONTEXT_KEYBINDINGS_EDITOW),
+							gwoup: '1_keyboawd_pwefewences_actions'
 						}
 					]
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
-				if (editorPane instanceof KeybindingsEditor) {
-					editorPane.search('@source:user');
+			wun(accessow: SewvicesAccessow) {
+				const editowPane = accessow.get(IEditowSewvice).activeEditowPane;
+				if (editowPane instanceof KeybindingsEditow) {
+					editowPane.seawch('@souwce:usa');
 				}
 			}
 		});
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS,
-					title: nls.localize('clear', "Clear Search Results"),
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: KEYBINDINGS_EDITOW_COMMAND_CWEAW_SEAWCH_WESUWTS,
+					titwe: nws.wocawize('cweaw', "Cweaw Seawch Wesuwts"),
 					keybinding: {
-						weight: KeybindingWeight.WorkbenchContrib,
-						when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS),
-						primary: KeyCode.Escape,
+						weight: KeybindingWeight.WowkbenchContwib,
+						when: ContextKeyExpw.and(CONTEXT_KEYBINDINGS_EDITOW, CONTEXT_KEYBINDINGS_SEAWCH_FOCUS),
+						pwimawy: KeyCode.Escape,
 					}
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
-				if (editorPane instanceof KeybindingsEditor) {
-					editorPane.clearSearchResults();
+			wun(accessow: SewvicesAccessow) {
+				const editowPane = accessow.get(IEditowSewvice).activeEditowPane;
+				if (editowPane instanceof KeybindingsEditow) {
+					editowPane.cweawSeawchWesuwts();
 				}
 			}
 		});
 
-		this.registerKeybindingEditorActions();
+		this.wegistewKeybindingEditowActions();
 	}
 
-	private registerKeybindingEditorActions(): void {
-		KeybindingsRegistry.registerCommandAndKeybindingRule({
-			id: KEYBINDINGS_EDITOR_COMMAND_DEFINE,
-			weight: KeybindingWeight.WorkbenchContrib,
-			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
-			primary: KeyCode.Enter,
-			handler: (accessor, args: any) => {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
-				if (editorPane instanceof KeybindingsEditor) {
-					editorPane.defineKeybinding(editorPane.activeKeybindingEntry!, false);
+	pwivate wegistewKeybindingEditowActions(): void {
+		KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+			id: KEYBINDINGS_EDITOW_COMMAND_DEFINE,
+			weight: KeybindingWeight.WowkbenchContwib,
+			when: ContextKeyExpw.and(CONTEXT_KEYBINDINGS_EDITOW, CONTEXT_KEYBINDING_FOCUS),
+			pwimawy: KeyCode.Enta,
+			handwa: (accessow, awgs: any) => {
+				const editowPane = accessow.get(IEditowSewvice).activeEditowPane;
+				if (editowPane instanceof KeybindingsEditow) {
+					editowPane.defineKeybinding(editowPane.activeKeybindingEntwy!, fawse);
 				}
 			}
 		});
 
-		KeybindingsRegistry.registerCommandAndKeybindingRule({
-			id: KEYBINDINGS_EDITOR_COMMAND_ADD,
-			weight: KeybindingWeight.WorkbenchContrib,
-			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
-			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_A),
-			handler: (accessor, args: any) => {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
-				if (editorPane instanceof KeybindingsEditor) {
-					editorPane.defineKeybinding(editorPane.activeKeybindingEntry!, true);
+		KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+			id: KEYBINDINGS_EDITOW_COMMAND_ADD,
+			weight: KeybindingWeight.WowkbenchContwib,
+			when: ContextKeyExpw.and(CONTEXT_KEYBINDINGS_EDITOW, CONTEXT_KEYBINDING_FOCUS),
+			pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_A),
+			handwa: (accessow, awgs: any) => {
+				const editowPane = accessow.get(IEditowSewvice).activeEditowPane;
+				if (editowPane instanceof KeybindingsEditow) {
+					editowPane.defineKeybinding(editowPane.activeKeybindingEntwy!, twue);
 				}
 			}
 		});
 
-		KeybindingsRegistry.registerCommandAndKeybindingRule({
-			id: KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN,
-			weight: KeybindingWeight.WorkbenchContrib,
-			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
-			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_E),
-			handler: (accessor, args: any) => {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
-				if (editorPane instanceof KeybindingsEditor && editorPane.activeKeybindingEntry!.keybindingItem.keybinding) {
-					editorPane.defineWhenExpression(editorPane.activeKeybindingEntry!);
+		KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+			id: KEYBINDINGS_EDITOW_COMMAND_DEFINE_WHEN,
+			weight: KeybindingWeight.WowkbenchContwib,
+			when: ContextKeyExpw.and(CONTEXT_KEYBINDINGS_EDITOW, CONTEXT_KEYBINDING_FOCUS),
+			pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_E),
+			handwa: (accessow, awgs: any) => {
+				const editowPane = accessow.get(IEditowSewvice).activeEditowPane;
+				if (editowPane instanceof KeybindingsEditow && editowPane.activeKeybindingEntwy!.keybindingItem.keybinding) {
+					editowPane.defineWhenExpwession(editowPane.activeKeybindingEntwy!);
 				}
 			}
 		});
 
-		KeybindingsRegistry.registerCommandAndKeybindingRule({
-			id: KEYBINDINGS_EDITOR_COMMAND_REMOVE,
-			weight: KeybindingWeight.WorkbenchContrib,
-			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS, InputFocusedContext.toNegated()),
-			primary: KeyCode.Delete,
+		KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+			id: KEYBINDINGS_EDITOW_COMMAND_WEMOVE,
+			weight: KeybindingWeight.WowkbenchContwib,
+			when: ContextKeyExpw.and(CONTEXT_KEYBINDINGS_EDITOW, CONTEXT_KEYBINDING_FOCUS, InputFocusedContext.toNegated()),
+			pwimawy: KeyCode.Dewete,
 			mac: {
-				primary: KeyMod.CtrlCmd | KeyCode.Backspace
+				pwimawy: KeyMod.CtwwCmd | KeyCode.Backspace
 			},
-			handler: (accessor, args: any) => {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
-				if (editorPane instanceof KeybindingsEditor) {
-					editorPane.removeKeybinding(editorPane.activeKeybindingEntry!);
+			handwa: (accessow, awgs: any) => {
+				const editowPane = accessow.get(IEditowSewvice).activeEditowPane;
+				if (editowPane instanceof KeybindingsEditow) {
+					editowPane.wemoveKeybinding(editowPane.activeKeybindingEntwy!);
 				}
 			}
 		});
 
-		KeybindingsRegistry.registerCommandAndKeybindingRule({
-			id: KEYBINDINGS_EDITOR_COMMAND_RESET,
-			weight: KeybindingWeight.WorkbenchContrib,
-			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
-			primary: 0,
-			handler: (accessor, args: any) => {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
-				if (editorPane instanceof KeybindingsEditor) {
-					editorPane.resetKeybinding(editorPane.activeKeybindingEntry!);
+		KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+			id: KEYBINDINGS_EDITOW_COMMAND_WESET,
+			weight: KeybindingWeight.WowkbenchContwib,
+			when: ContextKeyExpw.and(CONTEXT_KEYBINDINGS_EDITOW, CONTEXT_KEYBINDING_FOCUS),
+			pwimawy: 0,
+			handwa: (accessow, awgs: any) => {
+				const editowPane = accessow.get(IEditowSewvice).activeEditowPane;
+				if (editowPane instanceof KeybindingsEditow) {
+					editowPane.wesetKeybinding(editowPane.activeKeybindingEntwy!);
 				}
 			}
 		});
 
-		KeybindingsRegistry.registerCommandAndKeybindingRule({
-			id: KEYBINDINGS_EDITOR_COMMAND_SEARCH,
-			weight: KeybindingWeight.WorkbenchContrib,
-			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
-			handler: (accessor, args: any) => {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
-				if (editorPane instanceof KeybindingsEditor) {
-					editorPane.focusSearch();
+		KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+			id: KEYBINDINGS_EDITOW_COMMAND_SEAWCH,
+			weight: KeybindingWeight.WowkbenchContwib,
+			when: ContextKeyExpw.and(CONTEXT_KEYBINDINGS_EDITOW),
+			pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_F,
+			handwa: (accessow, awgs: any) => {
+				const editowPane = accessow.get(IEditowSewvice).activeEditowPane;
+				if (editowPane instanceof KeybindingsEditow) {
+					editowPane.focusSeawch();
 				}
 			}
 		});
 
-		KeybindingsRegistry.registerCommandAndKeybindingRule({
-			id: KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS,
-			weight: KeybindingWeight.WorkbenchContrib,
-			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS),
-			primary: KeyMod.Alt | KeyCode.KEY_K,
-			mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_K },
-			handler: (accessor, args: any) => {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
-				if (editorPane instanceof KeybindingsEditor) {
-					editorPane.recordSearchKeys();
+		KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+			id: KEYBINDINGS_EDITOW_COMMAND_WECOWD_SEAWCH_KEYS,
+			weight: KeybindingWeight.WowkbenchContwib,
+			when: ContextKeyExpw.and(CONTEXT_KEYBINDINGS_EDITOW, CONTEXT_KEYBINDINGS_SEAWCH_FOCUS),
+			pwimawy: KeyMod.Awt | KeyCode.KEY_K,
+			mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.KEY_K },
+			handwa: (accessow, awgs: any) => {
+				const editowPane = accessow.get(IEditowSewvice).activeEditowPane;
+				if (editowPane instanceof KeybindingsEditow) {
+					editowPane.wecowdSeawchKeys();
 				}
 			}
 		});
 
-		KeybindingsRegistry.registerCommandAndKeybindingRule({
-			id: KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE,
-			weight: KeybindingWeight.WorkbenchContrib,
-			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
-			primary: KeyMod.Alt | KeyCode.KEY_P,
-			mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_P },
-			handler: (accessor, args: any) => {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
-				if (editorPane instanceof KeybindingsEditor) {
-					editorPane.toggleSortByPrecedence();
+		KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+			id: KEYBINDINGS_EDITOW_COMMAND_SOWTBY_PWECEDENCE,
+			weight: KeybindingWeight.WowkbenchContwib,
+			when: ContextKeyExpw.and(CONTEXT_KEYBINDINGS_EDITOW),
+			pwimawy: KeyMod.Awt | KeyCode.KEY_P,
+			mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.KEY_P },
+			handwa: (accessow, awgs: any) => {
+				const editowPane = accessow.get(IEditowSewvice).activeEditowPane;
+				if (editowPane instanceof KeybindingsEditow) {
+					editowPane.toggweSowtByPwecedence();
 				}
 			}
 		});
 
-		KeybindingsRegistry.registerCommandAndKeybindingRule({
-			id: KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR,
-			weight: KeybindingWeight.WorkbenchContrib,
-			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
-			primary: 0,
-			handler: (accessor, args: any) => {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
-				if (editorPane instanceof KeybindingsEditor) {
-					editorPane.showSimilarKeybindings(editorPane.activeKeybindingEntry!);
+		KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+			id: KEYBINDINGS_EDITOW_COMMAND_SHOW_SIMIWAW,
+			weight: KeybindingWeight.WowkbenchContwib,
+			when: ContextKeyExpw.and(CONTEXT_KEYBINDINGS_EDITOW, CONTEXT_KEYBINDING_FOCUS),
+			pwimawy: 0,
+			handwa: (accessow, awgs: any) => {
+				const editowPane = accessow.get(IEditowSewvice).activeEditowPane;
+				if (editowPane instanceof KeybindingsEditow) {
+					editowPane.showSimiwawKeybindings(editowPane.activeKeybindingEntwy!);
 				}
 			}
 		});
 
-		KeybindingsRegistry.registerCommandAndKeybindingRule({
-			id: KEYBINDINGS_EDITOR_COMMAND_COPY,
-			weight: KeybindingWeight.WorkbenchContrib,
-			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
-			handler: async (accessor, args: any) => {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
-				if (editorPane instanceof KeybindingsEditor) {
-					await editorPane.copyKeybinding(editorPane.activeKeybindingEntry!);
+		KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+			id: KEYBINDINGS_EDITOW_COMMAND_COPY,
+			weight: KeybindingWeight.WowkbenchContwib,
+			when: ContextKeyExpw.and(CONTEXT_KEYBINDINGS_EDITOW, CONTEXT_KEYBINDING_FOCUS),
+			pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_C,
+			handwa: async (accessow, awgs: any) => {
+				const editowPane = accessow.get(IEditowSewvice).activeEditowPane;
+				if (editowPane instanceof KeybindingsEditow) {
+					await editowPane.copyKeybinding(editowPane.activeKeybindingEntwy!);
 				}
 			}
 		});
 
-		KeybindingsRegistry.registerCommandAndKeybindingRule({
-			id: KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND,
-			weight: KeybindingWeight.WorkbenchContrib,
-			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
-			primary: 0,
-			handler: async (accessor, args: any) => {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
-				if (editorPane instanceof KeybindingsEditor) {
-					await editorPane.copyKeybindingCommand(editorPane.activeKeybindingEntry!);
+		KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+			id: KEYBINDINGS_EDITOW_COMMAND_COPY_COMMAND,
+			weight: KeybindingWeight.WowkbenchContwib,
+			when: ContextKeyExpw.and(CONTEXT_KEYBINDINGS_EDITOW, CONTEXT_KEYBINDING_FOCUS),
+			pwimawy: 0,
+			handwa: async (accessow, awgs: any) => {
+				const editowPane = accessow.get(IEditowSewvice).activeEditowPane;
+				if (editowPane instanceof KeybindingsEditow) {
+					await editowPane.copyKeybindingCommand(editowPane.activeKeybindingEntwy!);
 				}
 			}
 		});
 
-		KeybindingsRegistry.registerCommandAndKeybindingRule({
-			id: KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE,
-			weight: KeybindingWeight.WorkbenchContrib,
-			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
-			primary: 0,
-			handler: async (accessor, args: any) => {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
-				if (editorPane instanceof KeybindingsEditor) {
-					await editorPane.copyKeybindingCommandTitle(editorPane.activeKeybindingEntry!);
+		KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+			id: KEYBINDINGS_EDITOW_COMMAND_COPY_COMMAND_TITWE,
+			weight: KeybindingWeight.WowkbenchContwib,
+			when: ContextKeyExpw.and(CONTEXT_KEYBINDINGS_EDITOW, CONTEXT_KEYBINDING_FOCUS),
+			pwimawy: 0,
+			handwa: async (accessow, awgs: any) => {
+				const editowPane = accessow.get(IEditowSewvice).activeEditowPane;
+				if (editowPane instanceof KeybindingsEditow) {
+					await editowPane.copyKeybindingCommandTitwe(editowPane.activeKeybindingEntwy!);
 				}
 			}
 		});
 
-		KeybindingsRegistry.registerCommandAndKeybindingRule({
-			id: KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS,
-			weight: KeybindingWeight.WorkbenchContrib,
-			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS),
-			primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
-			handler: (accessor, args: any) => {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
-				if (editorPane instanceof KeybindingsEditor) {
-					editorPane.focusKeybindings();
+		KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+			id: KEYBINDINGS_EDITOW_COMMAND_FOCUS_KEYBINDINGS,
+			weight: KeybindingWeight.WowkbenchContwib,
+			when: ContextKeyExpw.and(CONTEXT_KEYBINDINGS_EDITOW, CONTEXT_KEYBINDINGS_SEAWCH_FOCUS),
+			pwimawy: KeyMod.CtwwCmd | KeyCode.DownAwwow,
+			handwa: (accessow, awgs: any) => {
+				const editowPane = accessow.get(IEditowSewvice).activeEditowPane;
+				if (editowPane instanceof KeybindingsEditow) {
+					editowPane.focusKeybindings();
 				}
 			}
 		});
 	}
 
-	private updatePreferencesEditorMenuItem() {
-		const commandId = '_workbench.openWorkspaceSettingsEditor';
-		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && !CommandsRegistry.getCommand(commandId)) {
-			CommandsRegistry.registerCommand(commandId, () => this.preferencesService.openWorkspaceSettings({ jsonEditor: false }));
-			MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	pwivate updatePwefewencesEditowMenuItem() {
+		const commandId = '_wowkbench.openWowkspaceSettingsEditow';
+		if (this.wowkspaceContextSewvice.getWowkbenchState() === WowkbenchState.WOWKSPACE && !CommandsWegistwy.getCommand(commandId)) {
+			CommandsWegistwy.wegistewCommand(commandId, () => this.pwefewencesSewvice.openWowkspaceSettings({ jsonEditow: fawse }));
+			MenuWegistwy.appendMenuItem(MenuId.EditowTitwe, {
 				command: {
 					id: commandId,
-					title: OPEN_SETTINGS2_ACTION_TITLE,
-					icon: preferencesOpenSettingsIcon
+					titwe: OPEN_SETTINGS2_ACTION_TITWE,
+					icon: pwefewencesOpenSettingsIcon
 				},
-				when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource!.toString()), WorkbenchStateContext.isEqualTo('workspace'), ContextKeyExpr.not('isInDiffEditor')),
-				group: 'navigation',
-				order: 1
+				when: ContextKeyExpw.and(WesouwceContextKey.Wesouwce.isEquawTo(this.pwefewencesSewvice.wowkspaceSettingsWesouwce!.toStwing()), WowkbenchStateContext.isEquawTo('wowkspace'), ContextKeyExpw.not('isInDiffEditow')),
+				gwoup: 'navigation',
+				owda: 1
 			});
 		}
-		this.updatePreferencesEditorMenuItemForWorkspaceFolders();
+		this.updatePwefewencesEditowMenuItemFowWowkspaceFowdews();
 	}
 
-	private updatePreferencesEditorMenuItemForWorkspaceFolders() {
-		for (const folder of this.workspaceContextService.getWorkspace().folders) {
-			const commandId = `_workbench.openFolderSettings.${folder.uri.toString()}`;
-			if (!CommandsRegistry.getCommand(commandId)) {
-				CommandsRegistry.registerCommand(commandId, () => {
-					if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-						return this.preferencesService.openWorkspaceSettings({ jsonEditor: false });
-					} else {
-						return this.preferencesService.openFolderSettings({ folderUri: folder.uri, jsonEditor: false });
+	pwivate updatePwefewencesEditowMenuItemFowWowkspaceFowdews() {
+		fow (const fowda of this.wowkspaceContextSewvice.getWowkspace().fowdews) {
+			const commandId = `_wowkbench.openFowdewSettings.${fowda.uwi.toStwing()}`;
+			if (!CommandsWegistwy.getCommand(commandId)) {
+				CommandsWegistwy.wegistewCommand(commandId, () => {
+					if (this.wowkspaceContextSewvice.getWowkbenchState() === WowkbenchState.FOWDa) {
+						wetuwn this.pwefewencesSewvice.openWowkspaceSettings({ jsonEditow: fawse });
+					} ewse {
+						wetuwn this.pwefewencesSewvice.openFowdewSettings({ fowdewUwi: fowda.uwi, jsonEditow: fawse });
 					}
 				});
-				MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+				MenuWegistwy.appendMenuItem(MenuId.EditowTitwe, {
 					command: {
 						id: commandId,
-						title: OPEN_SETTINGS2_ACTION_TITLE,
-						icon: preferencesOpenSettingsIcon
+						titwe: OPEN_SETTINGS2_ACTION_TITWE,
+						icon: pwefewencesOpenSettingsIcon
 					},
-					when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri)!.toString()), ContextKeyExpr.not('isInDiffEditor')),
-					group: 'navigation',
-					order: 1
+					when: ContextKeyExpw.and(WesouwceContextKey.Wesouwce.isEquawTo(this.pwefewencesSewvice.getFowdewSettingsWesouwce(fowda.uwi)!.toStwing()), ContextKeyExpw.not('isInDiffEditow')),
+					gwoup: 'navigation',
+					owda: 1
 				});
 			}
 		}
 	}
 }
 
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesActionsContribution, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesContribution, LifecyclePhase.Starting);
+const wowkbenchContwibutionsWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(PwefewencesActionsContwibution, WifecycwePhase.Stawting);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(PwefewencesContwibution, WifecycwePhase.Stawting);
 
-registerEditorContribution(SettingsEditorContribution.ID, SettingsEditorContribution);
+wegistewEditowContwibution(SettingsEditowContwibution.ID, SettingsEditowContwibution);
 
-// Preferences menu
+// Pwefewences menu
 
-MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	title: nls.localize({ key: 'miPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences"),
-	submenu: MenuId.MenubarPreferencesMenu,
-	group: '5_autosave',
-	order: 2,
-	when: IsMacNativeContext.toNegated() // on macOS native the preferences menu is separate under the application menu
+MenuWegistwy.appendMenuItem(MenuId.MenubawFiweMenu, {
+	titwe: nws.wocawize({ key: 'miPwefewences', comment: ['&& denotes a mnemonic'] }, "&&Pwefewences"),
+	submenu: MenuId.MenubawPwefewencesMenu,
+	gwoup: '5_autosave',
+	owda: 2,
+	when: IsMacNativeContext.toNegated() // on macOS native the pwefewences menu is sepawate unda the appwication menu
 });

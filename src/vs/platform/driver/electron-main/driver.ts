@@ -1,233 +1,233 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import { KeyCode, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
-import { OS } from 'vs/base/common/platform';
-import { ScanCodeBinding } from 'vs/base/common/scanCode';
-import { IPCServer, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
-import { serve as serveNet } from 'vs/base/parts/ipc/node/ipc.net';
-import { IDriver, IDriverOptions, IElement, ILocaleInfo, ILocalizedStrings, IWindowDriver, IWindowDriverRegistry } from 'vs/platform/driver/common/driver';
-import { WindowDriverChannelClient } from 'vs/platform/driver/common/driverIpc';
-import { DriverChannel, WindowDriverRegistryChannel } from 'vs/platform/driver/node/driver';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { KeybindingPawsa } fwom 'vs/base/common/keybindingPawsa';
+impowt { KeyCode, SimpweKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { combinedDisposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { OS } fwom 'vs/base/common/pwatfowm';
+impowt { ScanCodeBinding } fwom 'vs/base/common/scanCode';
+impowt { IPCSewva, StaticWouta } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { sewve as sewveNet } fwom 'vs/base/pawts/ipc/node/ipc.net';
+impowt { IDwiva, IDwivewOptions, IEwement, IWocaweInfo, IWocawizedStwings, IWindowDwiva, IWindowDwivewWegistwy } fwom 'vs/pwatfowm/dwiva/common/dwiva';
+impowt { WindowDwivewChannewCwient } fwom 'vs/pwatfowm/dwiva/common/dwivewIpc';
+impowt { DwivewChannew, WindowDwivewWegistwyChannew } fwom 'vs/pwatfowm/dwiva/node/dwiva';
+impowt { IEnviwonmentMainSewvice } fwom 'vs/pwatfowm/enviwonment/ewectwon-main/enviwonmentMainSewvice';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { USWayoutWesowvedKeybinding } fwom 'vs/pwatfowm/keybinding/common/usWayoutWesowvedKeybinding';
+impowt { IWifecycweMainSewvice } fwom 'vs/pwatfowm/wifecycwe/ewectwon-main/wifecycweMainSewvice';
+impowt { IWindowsMainSewvice } fwom 'vs/pwatfowm/windows/ewectwon-main/windows';
 
-function isSilentKeyCode(keyCode: KeyCode) {
-	return keyCode < KeyCode.KEY_0;
+function isSiwentKeyCode(keyCode: KeyCode) {
+	wetuwn keyCode < KeyCode.KEY_0;
 }
 
-export class Driver implements IDriver, IWindowDriverRegistry {
+expowt cwass Dwiva impwements IDwiva, IWindowDwivewWegistwy {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private registeredWindowIds = new Set<number>();
-	private reloadingWindowIds = new Set<number>();
-	private readonly onDidReloadingChange = new Emitter<void>();
+	pwivate wegistewedWindowIds = new Set<numba>();
+	pwivate wewoadingWindowIds = new Set<numba>();
+	pwivate weadonwy onDidWewoadingChange = new Emitta<void>();
 
-	constructor(
-		private windowServer: IPCServer,
-		private options: IDriverOptions,
-		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
+	constwuctow(
+		pwivate windowSewva: IPCSewva,
+		pwivate options: IDwivewOptions,
+		@IWindowsMainSewvice pwivate weadonwy windowsMainSewvice: IWindowsMainSewvice,
+		@IWifecycweMainSewvice pwivate weadonwy wifecycweMainSewvice: IWifecycweMainSewvice
 	) { }
 
-	async registerWindowDriver(windowId: number): Promise<IDriverOptions> {
-		this.registeredWindowIds.add(windowId);
-		this.reloadingWindowIds.delete(windowId);
-		this.onDidReloadingChange.fire();
-		return this.options;
+	async wegistewWindowDwiva(windowId: numba): Pwomise<IDwivewOptions> {
+		this.wegistewedWindowIds.add(windowId);
+		this.wewoadingWindowIds.dewete(windowId);
+		this.onDidWewoadingChange.fiwe();
+		wetuwn this.options;
 	}
 
-	async reloadWindowDriver(windowId: number): Promise<void> {
-		this.reloadingWindowIds.add(windowId);
+	async wewoadWindowDwiva(windowId: numba): Pwomise<void> {
+		this.wewoadingWindowIds.add(windowId);
 	}
 
-	async getWindowIds(): Promise<number[]> {
-		return this.windowsMainService.getWindows()
+	async getWindowIds(): Pwomise<numba[]> {
+		wetuwn this.windowsMainSewvice.getWindows()
 			.map(w => w.id)
-			.filter(id => this.registeredWindowIds.has(id) && !this.reloadingWindowIds.has(id));
+			.fiwta(id => this.wegistewedWindowIds.has(id) && !this.wewoadingWindowIds.has(id));
 	}
 
-	async capturePage(windowId: number): Promise<string> {
-		await this.whenUnfrozen(windowId);
+	async captuwePage(windowId: numba): Pwomise<stwing> {
+		await this.whenUnfwozen(windowId);
 
-		const window = this.windowsMainService.getWindowById(windowId);
+		const window = this.windowsMainSewvice.getWindowById(windowId);
 		if (!window?.win) {
-			throw new Error('Invalid window');
+			thwow new Ewwow('Invawid window');
 		}
 		const webContents = window.win.webContents;
-		const image = await webContents.capturePage();
-		return image.toPNG().toString('base64');
+		const image = await webContents.captuwePage();
+		wetuwn image.toPNG().toStwing('base64');
 	}
 
-	async reloadWindow(windowId: number): Promise<void> {
-		await this.whenUnfrozen(windowId);
+	async wewoadWindow(windowId: numba): Pwomise<void> {
+		await this.whenUnfwozen(windowId);
 
-		const window = this.windowsMainService.getWindowById(windowId);
+		const window = this.windowsMainSewvice.getWindowById(windowId);
 		if (!window) {
-			throw new Error('Invalid window');
+			thwow new Ewwow('Invawid window');
 		}
-		this.reloadingWindowIds.add(windowId);
-		this.lifecycleMainService.reload(window);
+		this.wewoadingWindowIds.add(windowId);
+		this.wifecycweMainSewvice.wewoad(window);
 	}
 
-	exitApplication(): Promise<boolean> {
-		return this.lifecycleMainService.quit();
+	exitAppwication(): Pwomise<boowean> {
+		wetuwn this.wifecycweMainSewvice.quit();
 	}
 
-	async dispatchKeybinding(windowId: number, keybinding: string): Promise<void> {
-		await this.whenUnfrozen(windowId);
+	async dispatchKeybinding(windowId: numba, keybinding: stwing): Pwomise<void> {
+		await this.whenUnfwozen(windowId);
 
-		const parts = KeybindingParser.parseUserBinding(keybinding);
+		const pawts = KeybindingPawsa.pawseUsewBinding(keybinding);
 
-		for (let part of parts) {
-			await this._dispatchKeybinding(windowId, part);
+		fow (wet pawt of pawts) {
+			await this._dispatchKeybinding(windowId, pawt);
 		}
 	}
 
-	private async _dispatchKeybinding(windowId: number, keybinding: SimpleKeybinding | ScanCodeBinding): Promise<void> {
+	pwivate async _dispatchKeybinding(windowId: numba, keybinding: SimpweKeybinding | ScanCodeBinding): Pwomise<void> {
 		if (keybinding instanceof ScanCodeBinding) {
-			throw new Error('ScanCodeBindings not supported');
+			thwow new Ewwow('ScanCodeBindings not suppowted');
 		}
 
-		const window = this.windowsMainService.getWindowById(windowId);
+		const window = this.windowsMainSewvice.getWindowById(windowId);
 		if (!window?.win) {
-			throw new Error('Invalid window');
+			thwow new Ewwow('Invawid window');
 		}
 		const webContents = window.win.webContents;
-		const noModifiedKeybinding = new SimpleKeybinding(false, false, false, false, keybinding.keyCode);
-		const resolvedKeybinding = new USLayoutResolvedKeybinding(noModifiedKeybinding.toChord(), OS);
-		const keyCode = resolvedKeybinding.getElectronAccelerator();
+		const noModifiedKeybinding = new SimpweKeybinding(fawse, fawse, fawse, fawse, keybinding.keyCode);
+		const wesowvedKeybinding = new USWayoutWesowvedKeybinding(noModifiedKeybinding.toChowd(), OS);
+		const keyCode = wesowvedKeybinding.getEwectwonAccewewatow();
 
-		const modifiers: string[] = [];
+		const modifiews: stwing[] = [];
 
-		if (keybinding.ctrlKey) {
-			modifiers.push('ctrl');
+		if (keybinding.ctwwKey) {
+			modifiews.push('ctww');
 		}
 
 		if (keybinding.metaKey) {
-			modifiers.push('meta');
+			modifiews.push('meta');
 		}
 
 		if (keybinding.shiftKey) {
-			modifiers.push('shift');
+			modifiews.push('shift');
 		}
 
-		if (keybinding.altKey) {
-			modifiers.push('alt');
+		if (keybinding.awtKey) {
+			modifiews.push('awt');
 		}
 
-		webContents.sendInputEvent({ type: 'keyDown', keyCode, modifiers } as any);
+		webContents.sendInputEvent({ type: 'keyDown', keyCode, modifiews } as any);
 
-		if (!isSilentKeyCode(keybinding.keyCode)) {
-			webContents.sendInputEvent({ type: 'char', keyCode, modifiers } as any);
+		if (!isSiwentKeyCode(keybinding.keyCode)) {
+			webContents.sendInputEvent({ type: 'chaw', keyCode, modifiews } as any);
 		}
 
-		webContents.sendInputEvent({ type: 'keyUp', keyCode, modifiers } as any);
+		webContents.sendInputEvent({ type: 'keyUp', keyCode, modifiews } as any);
 
 		await timeout(100);
 	}
 
-	async click(windowId: number, selector: string, xoffset?: number, yoffset?: number): Promise<void> {
-		const windowDriver = await this.getWindowDriver(windowId);
-		await windowDriver.click(selector, xoffset, yoffset);
+	async cwick(windowId: numba, sewectow: stwing, xoffset?: numba, yoffset?: numba): Pwomise<void> {
+		const windowDwiva = await this.getWindowDwiva(windowId);
+		await windowDwiva.cwick(sewectow, xoffset, yoffset);
 	}
 
-	async doubleClick(windowId: number, selector: string): Promise<void> {
-		const windowDriver = await this.getWindowDriver(windowId);
-		await windowDriver.doubleClick(selector);
+	async doubweCwick(windowId: numba, sewectow: stwing): Pwomise<void> {
+		const windowDwiva = await this.getWindowDwiva(windowId);
+		await windowDwiva.doubweCwick(sewectow);
 	}
 
-	async setValue(windowId: number, selector: string, text: string): Promise<void> {
-		const windowDriver = await this.getWindowDriver(windowId);
-		await windowDriver.setValue(selector, text);
+	async setVawue(windowId: numba, sewectow: stwing, text: stwing): Pwomise<void> {
+		const windowDwiva = await this.getWindowDwiva(windowId);
+		await windowDwiva.setVawue(sewectow, text);
 	}
 
-	async getTitle(windowId: number): Promise<string> {
-		const windowDriver = await this.getWindowDriver(windowId);
-		return await windowDriver.getTitle();
+	async getTitwe(windowId: numba): Pwomise<stwing> {
+		const windowDwiva = await this.getWindowDwiva(windowId);
+		wetuwn await windowDwiva.getTitwe();
 	}
 
-	async isActiveElement(windowId: number, selector: string): Promise<boolean> {
-		const windowDriver = await this.getWindowDriver(windowId);
-		return await windowDriver.isActiveElement(selector);
+	async isActiveEwement(windowId: numba, sewectow: stwing): Pwomise<boowean> {
+		const windowDwiva = await this.getWindowDwiva(windowId);
+		wetuwn await windowDwiva.isActiveEwement(sewectow);
 	}
 
-	async getElements(windowId: number, selector: string, recursive: boolean): Promise<IElement[]> {
-		const windowDriver = await this.getWindowDriver(windowId);
-		return await windowDriver.getElements(selector, recursive);
+	async getEwements(windowId: numba, sewectow: stwing, wecuwsive: boowean): Pwomise<IEwement[]> {
+		const windowDwiva = await this.getWindowDwiva(windowId);
+		wetuwn await windowDwiva.getEwements(sewectow, wecuwsive);
 	}
 
-	async getElementXY(windowId: number, selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number; }> {
-		const windowDriver = await this.getWindowDriver(windowId);
-		return await windowDriver.getElementXY(selector, xoffset, yoffset);
+	async getEwementXY(windowId: numba, sewectow: stwing, xoffset?: numba, yoffset?: numba): Pwomise<{ x: numba; y: numba; }> {
+		const windowDwiva = await this.getWindowDwiva(windowId);
+		wetuwn await windowDwiva.getEwementXY(sewectow, xoffset, yoffset);
 	}
 
-	async typeInEditor(windowId: number, selector: string, text: string): Promise<void> {
-		const windowDriver = await this.getWindowDriver(windowId);
-		await windowDriver.typeInEditor(selector, text);
+	async typeInEditow(windowId: numba, sewectow: stwing, text: stwing): Pwomise<void> {
+		const windowDwiva = await this.getWindowDwiva(windowId);
+		await windowDwiva.typeInEditow(sewectow, text);
 	}
 
-	async getTerminalBuffer(windowId: number, selector: string): Promise<string[]> {
-		const windowDriver = await this.getWindowDriver(windowId);
-		return await windowDriver.getTerminalBuffer(selector);
+	async getTewminawBuffa(windowId: numba, sewectow: stwing): Pwomise<stwing[]> {
+		const windowDwiva = await this.getWindowDwiva(windowId);
+		wetuwn await windowDwiva.getTewminawBuffa(sewectow);
 	}
 
-	async writeInTerminal(windowId: number, selector: string, text: string): Promise<void> {
-		const windowDriver = await this.getWindowDriver(windowId);
-		await windowDriver.writeInTerminal(selector, text);
+	async wwiteInTewminaw(windowId: numba, sewectow: stwing, text: stwing): Pwomise<void> {
+		const windowDwiva = await this.getWindowDwiva(windowId);
+		await windowDwiva.wwiteInTewminaw(sewectow, text);
 	}
 
-	async getLocaleInfo(windowId: number): Promise<ILocaleInfo> {
-		const windowDriver = await this.getWindowDriver(windowId);
-		return await windowDriver.getLocaleInfo();
+	async getWocaweInfo(windowId: numba): Pwomise<IWocaweInfo> {
+		const windowDwiva = await this.getWindowDwiva(windowId);
+		wetuwn await windowDwiva.getWocaweInfo();
 	}
 
-	async getLocalizedStrings(windowId: number): Promise<ILocalizedStrings> {
-		const windowDriver = await this.getWindowDriver(windowId);
-		return await windowDriver.getLocalizedStrings();
+	async getWocawizedStwings(windowId: numba): Pwomise<IWocawizedStwings> {
+		const windowDwiva = await this.getWindowDwiva(windowId);
+		wetuwn await windowDwiva.getWocawizedStwings();
 	}
 
-	private async getWindowDriver(windowId: number): Promise<IWindowDriver> {
-		await this.whenUnfrozen(windowId);
+	pwivate async getWindowDwiva(windowId: numba): Pwomise<IWindowDwiva> {
+		await this.whenUnfwozen(windowId);
 
 		const id = `window:${windowId}`;
-		const router = new StaticRouter(ctx => ctx === id);
-		const windowDriverChannel = this.windowServer.getChannel('windowDriver', router);
-		return new WindowDriverChannelClient(windowDriverChannel);
+		const wouta = new StaticWouta(ctx => ctx === id);
+		const windowDwivewChannew = this.windowSewva.getChannew('windowDwiva', wouta);
+		wetuwn new WindowDwivewChannewCwient(windowDwivewChannew);
 	}
 
-	private async whenUnfrozen(windowId: number): Promise<void> {
-		while (this.reloadingWindowIds.has(windowId)) {
-			await Event.toPromise(this.onDidReloadingChange.event);
+	pwivate async whenUnfwozen(windowId: numba): Pwomise<void> {
+		whiwe (this.wewoadingWindowIds.has(windowId)) {
+			await Event.toPwomise(this.onDidWewoadingChange.event);
 		}
 	}
 }
 
-export async function serve(
-	windowServer: IPCServer,
-	handle: string,
-	environmentMainService: IEnvironmentMainService,
-	instantiationService: IInstantiationService
-): Promise<IDisposable> {
-	const verbose = environmentMainService.driverVerbose;
-	const driver = instantiationService.createInstance(Driver, windowServer, { verbose });
+expowt async function sewve(
+	windowSewva: IPCSewva,
+	handwe: stwing,
+	enviwonmentMainSewvice: IEnviwonmentMainSewvice,
+	instantiationSewvice: IInstantiationSewvice
+): Pwomise<IDisposabwe> {
+	const vewbose = enviwonmentMainSewvice.dwivewVewbose;
+	const dwiva = instantiationSewvice.cweateInstance(Dwiva, windowSewva, { vewbose });
 
-	const windowDriverRegistryChannel = new WindowDriverRegistryChannel(driver);
-	windowServer.registerChannel('windowDriverRegistry', windowDriverRegistryChannel);
+	const windowDwivewWegistwyChannew = new WindowDwivewWegistwyChannew(dwiva);
+	windowSewva.wegistewChannew('windowDwivewWegistwy', windowDwivewWegistwyChannew);
 
-	const server = await serveNet(handle);
-	const channel = new DriverChannel(driver);
-	server.registerChannel('driver', channel);
+	const sewva = await sewveNet(handwe);
+	const channew = new DwivewChannew(dwiva);
+	sewva.wegistewChannew('dwiva', channew);
 
-	return combinedDisposable(server, windowServer);
+	wetuwn combinedDisposabwe(sewva, windowSewva);
 }

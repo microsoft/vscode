@@ -1,380 +1,380 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { Position } from 'vs/editor/common/core/position';
-import { Handler } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
-import { ParameterHintsModel } from 'vs/editor/contrib/parameterHints/parameterHintsModel';
-import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+impowt * as assewt fwom 'assewt';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Handwa } fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { PawametewHintsModew } fwom 'vs/editow/contwib/pawametewHints/pawametewHintsModew';
+impowt { cweateTestCodeEditow } fwom 'vs/editow/test/bwowsa/testCodeEditow';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { InMemowyStowageSewvice, IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { NuwwTewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
 
-const mockFile = URI.parse('test:somefile.ttt');
-const mockFileSelector = { scheme: 'test' };
+const mockFiwe = UWI.pawse('test:somefiwe.ttt');
+const mockFiweSewectow = { scheme: 'test' };
 
 
-const emptySigHelp: modes.SignatureHelp = {
-	signatures: [{
-		label: 'none',
-		parameters: []
+const emptySigHewp: modes.SignatuweHewp = {
+	signatuwes: [{
+		wabew: 'none',
+		pawametews: []
 	}],
-	activeParameter: 0,
-	activeSignature: 0
+	activePawameta: 0,
+	activeSignatuwe: 0
 };
 
-const emptySigHelpResult: modes.SignatureHelpResult = {
-	value: emptySigHelp,
+const emptySigHewpWesuwt: modes.SignatuweHewpWesuwt = {
+	vawue: emptySigHewp,
 	dispose: () => { }
 };
 
-suite('ParameterHintsModel', () => {
-	const disposables = new DisposableStore();
+suite('PawametewHintsModew', () => {
+	const disposabwes = new DisposabweStowe();
 
 	setup(() => {
-		disposables.clear();
+		disposabwes.cweaw();
 	});
 
-	teardown(() => {
-		disposables.clear();
+	teawdown(() => {
+		disposabwes.cweaw();
 	});
 
-	function createMockEditor(fileContents: string) {
-		const textModel = createTextModel(fileContents, undefined, undefined, mockFile);
-		const editor = createTestCodeEditor({
-			model: textModel,
-			serviceCollection: new ServiceCollection(
-				[ITelemetryService, NullTelemetryService],
-				[IStorageService, new InMemoryStorageService()]
+	function cweateMockEditow(fiweContents: stwing) {
+		const textModew = cweateTextModew(fiweContents, undefined, undefined, mockFiwe);
+		const editow = cweateTestCodeEditow({
+			modew: textModew,
+			sewviceCowwection: new SewviceCowwection(
+				[ITewemetwySewvice, NuwwTewemetwySewvice],
+				[IStowageSewvice, new InMemowyStowageSewvice()]
 			)
 		});
-		disposables.add(textModel);
-		disposables.add(editor);
-		return editor;
+		disposabwes.add(textModew);
+		disposabwes.add(editow);
+		wetuwn editow;
 	}
 
-	test('Provider should get trigger character on type', (done) => {
-		const triggerChar = '(';
+	test('Pwovida shouwd get twigga chawacta on type', (done) => {
+		const twiggewChaw = '(';
 
-		const editor = createMockEditor('');
-		disposables.add(new ParameterHintsModel(editor));
+		const editow = cweateMockEditow('');
+		disposabwes.add(new PawametewHintsModew(editow));
 
-		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
-			signatureHelpTriggerCharacters = [triggerChar];
-			signatureHelpRetriggerCharacters = [];
+		disposabwes.add(modes.SignatuweHewpPwovidewWegistwy.wegista(mockFiweSewectow, new cwass impwements modes.SignatuweHewpPwovida {
+			signatuweHewpTwiggewChawactews = [twiggewChaw];
+			signatuweHewpWetwiggewChawactews = [];
 
-			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext) {
-				assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
-				assert.strictEqual(context.triggerCharacter, triggerChar);
+			pwovideSignatuweHewp(_modew: ITextModew, _position: Position, _token: CancewwationToken, context: modes.SignatuweHewpContext) {
+				assewt.stwictEquaw(context.twiggewKind, modes.SignatuweHewpTwiggewKind.TwiggewChawacta);
+				assewt.stwictEquaw(context.twiggewChawacta, twiggewChaw);
 				done();
-				return undefined;
+				wetuwn undefined;
 			}
 		}));
 
-		editor.trigger('keyboard', Handler.Type, { text: triggerChar });
+		editow.twigga('keyboawd', Handwa.Type, { text: twiggewChaw });
 	});
 
-	test('Provider should be retriggered if already active', (done) => {
-		const triggerChar = '(';
+	test('Pwovida shouwd be wetwiggewed if awweady active', (done) => {
+		const twiggewChaw = '(';
 
-		const editor = createMockEditor('');
-		disposables.add(new ParameterHintsModel(editor));
+		const editow = cweateMockEditow('');
+		disposabwes.add(new PawametewHintsModew(editow));
 
-		let invokeCount = 0;
-		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
-			signatureHelpTriggerCharacters = [triggerChar];
-			signatureHelpRetriggerCharacters = [];
+		wet invokeCount = 0;
+		disposabwes.add(modes.SignatuweHewpPwovidewWegistwy.wegista(mockFiweSewectow, new cwass impwements modes.SignatuweHewpPwovida {
+			signatuweHewpTwiggewChawactews = [twiggewChaw];
+			signatuweHewpWetwiggewChawactews = [];
 
-			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelpResult | Promise<modes.SignatureHelpResult> {
+			pwovideSignatuweHewp(_modew: ITextModew, _position: Position, _token: CancewwationToken, context: modes.SignatuweHewpContext): modes.SignatuweHewpWesuwt | Pwomise<modes.SignatuweHewpWesuwt> {
 				++invokeCount;
-				try {
+				twy {
 					if (invokeCount === 1) {
-						assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
-						assert.strictEqual(context.triggerCharacter, triggerChar);
-						assert.strictEqual(context.isRetrigger, false);
-						assert.strictEqual(context.activeSignatureHelp, undefined);
+						assewt.stwictEquaw(context.twiggewKind, modes.SignatuweHewpTwiggewKind.TwiggewChawacta);
+						assewt.stwictEquaw(context.twiggewChawacta, twiggewChaw);
+						assewt.stwictEquaw(context.isWetwigga, fawse);
+						assewt.stwictEquaw(context.activeSignatuweHewp, undefined);
 
-						// Retrigger
-						setTimeout(() => editor.trigger('keyboard', Handler.Type, { text: triggerChar }), 50);
-					} else {
-						assert.strictEqual(invokeCount, 2);
-						assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
-						assert.strictEqual(context.isRetrigger, true);
-						assert.strictEqual(context.triggerCharacter, triggerChar);
-						assert.strictEqual(context.activeSignatureHelp, emptySigHelp);
+						// Wetwigga
+						setTimeout(() => editow.twigga('keyboawd', Handwa.Type, { text: twiggewChaw }), 50);
+					} ewse {
+						assewt.stwictEquaw(invokeCount, 2);
+						assewt.stwictEquaw(context.twiggewKind, modes.SignatuweHewpTwiggewKind.TwiggewChawacta);
+						assewt.stwictEquaw(context.isWetwigga, twue);
+						assewt.stwictEquaw(context.twiggewChawacta, twiggewChaw);
+						assewt.stwictEquaw(context.activeSignatuweHewp, emptySigHewp);
 
 						done();
 					}
-					return emptySigHelpResult;
-				} catch (err) {
-					console.error(err);
-					throw err;
+					wetuwn emptySigHewpWesuwt;
+				} catch (eww) {
+					consowe.ewwow(eww);
+					thwow eww;
 				}
 			}
 		}));
 
-		editor.trigger('keyboard', Handler.Type, { text: triggerChar });
+		editow.twigga('keyboawd', Handwa.Type, { text: twiggewChaw });
 	});
 
-	test('Provider should not be retriggered if previous help is canceled first', (done) => {
-		const triggerChar = '(';
+	test('Pwovida shouwd not be wetwiggewed if pwevious hewp is cancewed fiwst', (done) => {
+		const twiggewChaw = '(';
 
-		const editor = createMockEditor('');
-		const hintModel = new ParameterHintsModel(editor);
-		disposables.add(hintModel);
+		const editow = cweateMockEditow('');
+		const hintModew = new PawametewHintsModew(editow);
+		disposabwes.add(hintModew);
 
-		let invokeCount = 0;
-		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
-			signatureHelpTriggerCharacters = [triggerChar];
-			signatureHelpRetriggerCharacters = [];
+		wet invokeCount = 0;
+		disposabwes.add(modes.SignatuweHewpPwovidewWegistwy.wegista(mockFiweSewectow, new cwass impwements modes.SignatuweHewpPwovida {
+			signatuweHewpTwiggewChawactews = [twiggewChaw];
+			signatuweHewpWetwiggewChawactews = [];
 
-			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelpResult | Promise<modes.SignatureHelpResult> {
-				try {
+			pwovideSignatuweHewp(_modew: ITextModew, _position: Position, _token: CancewwationToken, context: modes.SignatuweHewpContext): modes.SignatuweHewpWesuwt | Pwomise<modes.SignatuweHewpWesuwt> {
+				twy {
 					++invokeCount;
 					if (invokeCount === 1) {
-						assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
-						assert.strictEqual(context.triggerCharacter, triggerChar);
-						assert.strictEqual(context.isRetrigger, false);
-						assert.strictEqual(context.activeSignatureHelp, undefined);
+						assewt.stwictEquaw(context.twiggewKind, modes.SignatuweHewpTwiggewKind.TwiggewChawacta);
+						assewt.stwictEquaw(context.twiggewChawacta, twiggewChaw);
+						assewt.stwictEquaw(context.isWetwigga, fawse);
+						assewt.stwictEquaw(context.activeSignatuweHewp, undefined);
 
-						// Cancel and retrigger
-						hintModel.cancel();
-						editor.trigger('keyboard', Handler.Type, { text: triggerChar });
-					} else {
-						assert.strictEqual(invokeCount, 2);
-						assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
-						assert.strictEqual(context.triggerCharacter, triggerChar);
-						assert.strictEqual(context.isRetrigger, true);
-						assert.strictEqual(context.activeSignatureHelp, undefined);
+						// Cancew and wetwigga
+						hintModew.cancew();
+						editow.twigga('keyboawd', Handwa.Type, { text: twiggewChaw });
+					} ewse {
+						assewt.stwictEquaw(invokeCount, 2);
+						assewt.stwictEquaw(context.twiggewKind, modes.SignatuweHewpTwiggewKind.TwiggewChawacta);
+						assewt.stwictEquaw(context.twiggewChawacta, twiggewChaw);
+						assewt.stwictEquaw(context.isWetwigga, twue);
+						assewt.stwictEquaw(context.activeSignatuweHewp, undefined);
 						done();
 					}
-					return emptySigHelpResult;
-				} catch (err) {
-					console.error(err);
-					throw err;
+					wetuwn emptySigHewpWesuwt;
+				} catch (eww) {
+					consowe.ewwow(eww);
+					thwow eww;
 				}
 			}
 		}));
 
-		editor.trigger('keyboard', Handler.Type, { text: triggerChar });
+		editow.twigga('keyboawd', Handwa.Type, { text: twiggewChaw });
 	});
 
-	test('Provider should get last trigger character when triggered multiple times and only be invoked once', (done) => {
-		const editor = createMockEditor('');
-		disposables.add(new ParameterHintsModel(editor, 5));
+	test('Pwovida shouwd get wast twigga chawacta when twiggewed muwtipwe times and onwy be invoked once', (done) => {
+		const editow = cweateMockEditow('');
+		disposabwes.add(new PawametewHintsModew(editow, 5));
 
-		let invokeCount = 0;
-		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
-			signatureHelpTriggerCharacters = ['a', 'b', 'c'];
-			signatureHelpRetriggerCharacters = [];
+		wet invokeCount = 0;
+		disposabwes.add(modes.SignatuweHewpPwovidewWegistwy.wegista(mockFiweSewectow, new cwass impwements modes.SignatuweHewpPwovida {
+			signatuweHewpTwiggewChawactews = ['a', 'b', 'c'];
+			signatuweHewpWetwiggewChawactews = [];
 
-			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext) {
-				try {
+			pwovideSignatuweHewp(_modew: ITextModew, _position: Position, _token: CancewwationToken, context: modes.SignatuweHewpContext) {
+				twy {
 					++invokeCount;
 
-					assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
-					assert.strictEqual(context.isRetrigger, false);
-					assert.strictEqual(context.triggerCharacter, 'c');
+					assewt.stwictEquaw(context.twiggewKind, modes.SignatuweHewpTwiggewKind.TwiggewChawacta);
+					assewt.stwictEquaw(context.isWetwigga, fawse);
+					assewt.stwictEquaw(context.twiggewChawacta, 'c');
 
-					// Give some time to allow for later triggers
+					// Give some time to awwow fow wata twiggews
 					setTimeout(() => {
-						assert.strictEqual(invokeCount, 1);
+						assewt.stwictEquaw(invokeCount, 1);
 
 						done();
 					}, 50);
-					return undefined;
-				} catch (err) {
-					console.error(err);
-					throw err;
+					wetuwn undefined;
+				} catch (eww) {
+					consowe.ewwow(eww);
+					thwow eww;
 				}
 			}
 		}));
 
-		editor.trigger('keyboard', Handler.Type, { text: 'a' });
-		editor.trigger('keyboard', Handler.Type, { text: 'b' });
-		editor.trigger('keyboard', Handler.Type, { text: 'c' });
+		editow.twigga('keyboawd', Handwa.Type, { text: 'a' });
+		editow.twigga('keyboawd', Handwa.Type, { text: 'b' });
+		editow.twigga('keyboawd', Handwa.Type, { text: 'c' });
 	});
 
-	test('Provider should be retriggered if already active', (done) => {
-		const editor = createMockEditor('');
-		disposables.add(new ParameterHintsModel(editor, 5));
+	test('Pwovida shouwd be wetwiggewed if awweady active', (done) => {
+		const editow = cweateMockEditow('');
+		disposabwes.add(new PawametewHintsModew(editow, 5));
 
-		let invokeCount = 0;
-		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
-			signatureHelpTriggerCharacters = ['a', 'b'];
-			signatureHelpRetriggerCharacters = [];
+		wet invokeCount = 0;
+		disposabwes.add(modes.SignatuweHewpPwovidewWegistwy.wegista(mockFiweSewectow, new cwass impwements modes.SignatuweHewpPwovida {
+			signatuweHewpTwiggewChawactews = ['a', 'b'];
+			signatuweHewpWetwiggewChawactews = [];
 
-			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelpResult | Promise<modes.SignatureHelpResult> {
-				try {
+			pwovideSignatuweHewp(_modew: ITextModew, _position: Position, _token: CancewwationToken, context: modes.SignatuweHewpContext): modes.SignatuweHewpWesuwt | Pwomise<modes.SignatuweHewpWesuwt> {
+				twy {
 					++invokeCount;
 					if (invokeCount === 1) {
-						assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
-						assert.strictEqual(context.triggerCharacter, 'a');
+						assewt.stwictEquaw(context.twiggewKind, modes.SignatuweHewpTwiggewKind.TwiggewChawacta);
+						assewt.stwictEquaw(context.twiggewChawacta, 'a');
 
-						// retrigger after delay for widget to show up
-						setTimeout(() => editor.trigger('keyboard', Handler.Type, { text: 'b' }), 50);
-					} else if (invokeCount === 2) {
-						assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
-						assert.ok(context.isRetrigger);
-						assert.strictEqual(context.triggerCharacter, 'b');
+						// wetwigga afta deway fow widget to show up
+						setTimeout(() => editow.twigga('keyboawd', Handwa.Type, { text: 'b' }), 50);
+					} ewse if (invokeCount === 2) {
+						assewt.stwictEquaw(context.twiggewKind, modes.SignatuweHewpTwiggewKind.TwiggewChawacta);
+						assewt.ok(context.isWetwigga);
+						assewt.stwictEquaw(context.twiggewChawacta, 'b');
 						done();
-					} else {
-						assert.fail('Unexpected invoke');
+					} ewse {
+						assewt.faiw('Unexpected invoke');
 					}
 
-					return emptySigHelpResult;
-				} catch (err) {
-					console.error(err);
-					throw err;
+					wetuwn emptySigHewpWesuwt;
+				} catch (eww) {
+					consowe.ewwow(eww);
+					thwow eww;
 				}
 			}
 		}));
 
-		editor.trigger('keyboard', Handler.Type, { text: 'a' });
+		editow.twigga('keyboawd', Handwa.Type, { text: 'a' });
 	});
 
-	test('Should cancel existing request when new request comes in', () => {
-		const editor = createMockEditor('abc def');
-		const hintsModel = new ParameterHintsModel(editor);
+	test('Shouwd cancew existing wequest when new wequest comes in', () => {
+		const editow = cweateMockEditow('abc def');
+		const hintsModew = new PawametewHintsModew(editow);
 
-		let didRequestCancellationOf = -1;
-		let invokeCount = 0;
-		const longRunningProvider = new class implements modes.SignatureHelpProvider {
-			signatureHelpTriggerCharacters = [];
-			signatureHelpRetriggerCharacters = [];
+		wet didWequestCancewwationOf = -1;
+		wet invokeCount = 0;
+		const wongWunningPwovida = new cwass impwements modes.SignatuweHewpPwovida {
+			signatuweHewpTwiggewChawactews = [];
+			signatuweHewpWetwiggewChawactews = [];
 
 
-			provideSignatureHelp(_model: ITextModel, _position: Position, token: CancellationToken): modes.SignatureHelpResult | Promise<modes.SignatureHelpResult> {
-				try {
+			pwovideSignatuweHewp(_modew: ITextModew, _position: Position, token: CancewwationToken): modes.SignatuweHewpWesuwt | Pwomise<modes.SignatuweHewpWesuwt> {
+				twy {
 					const count = invokeCount++;
-					token.onCancellationRequested(() => { didRequestCancellationOf = count; });
+					token.onCancewwationWequested(() => { didWequestCancewwationOf = count; });
 
-					// retrigger on first request
+					// wetwigga on fiwst wequest
 					if (count === 0) {
-						hintsModel.trigger({ triggerKind: modes.SignatureHelpTriggerKind.Invoke }, 0);
+						hintsModew.twigga({ twiggewKind: modes.SignatuweHewpTwiggewKind.Invoke }, 0);
 					}
 
-					return new Promise<modes.SignatureHelpResult>(resolve => {
+					wetuwn new Pwomise<modes.SignatuweHewpWesuwt>(wesowve => {
 						setTimeout(() => {
-							resolve({
-								value: {
-									signatures: [{
-										label: '' + count,
-										parameters: []
+							wesowve({
+								vawue: {
+									signatuwes: [{
+										wabew: '' + count,
+										pawametews: []
 									}],
-									activeParameter: 0,
-									activeSignature: 0
+									activePawameta: 0,
+									activeSignatuwe: 0
 								},
 								dispose: () => { }
 							});
 						}, 100);
 					});
-				} catch (err) {
-					console.error(err);
-					throw err;
+				} catch (eww) {
+					consowe.ewwow(eww);
+					thwow eww;
 				}
 			}
 		};
 
-		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, longRunningProvider));
+		disposabwes.add(modes.SignatuweHewpPwovidewWegistwy.wegista(mockFiweSewectow, wongWunningPwovida));
 
-		hintsModel.trigger({ triggerKind: modes.SignatureHelpTriggerKind.Invoke }, 0);
-		assert.strictEqual(-1, didRequestCancellationOf);
+		hintsModew.twigga({ twiggewKind: modes.SignatuweHewpTwiggewKind.Invoke }, 0);
+		assewt.stwictEquaw(-1, didWequestCancewwationOf);
 
-		return new Promise<void>((resolve, reject) =>
-			hintsModel.onChangedHints(newParamterHints => {
-				try {
-					assert.strictEqual(0, didRequestCancellationOf);
-					assert.strictEqual('1', newParamterHints!.signatures[0].label);
-					resolve();
+		wetuwn new Pwomise<void>((wesowve, weject) =>
+			hintsModew.onChangedHints(newPawamtewHints => {
+				twy {
+					assewt.stwictEquaw(0, didWequestCancewwationOf);
+					assewt.stwictEquaw('1', newPawamtewHints!.signatuwes[0].wabew);
+					wesowve();
 				} catch (e) {
-					reject(e);
+					weject(e);
 				}
 			}));
 	});
 
-	test('Provider should be retriggered by retrigger character', (done) => {
-		const triggerChar = 'a';
-		const retriggerChar = 'b';
+	test('Pwovida shouwd be wetwiggewed by wetwigga chawacta', (done) => {
+		const twiggewChaw = 'a';
+		const wetwiggewChaw = 'b';
 
-		const editor = createMockEditor('');
-		disposables.add(new ParameterHintsModel(editor, 5));
+		const editow = cweateMockEditow('');
+		disposabwes.add(new PawametewHintsModew(editow, 5));
 
-		let invokeCount = 0;
-		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
-			signatureHelpTriggerCharacters = [triggerChar];
-			signatureHelpRetriggerCharacters = [retriggerChar];
+		wet invokeCount = 0;
+		disposabwes.add(modes.SignatuweHewpPwovidewWegistwy.wegista(mockFiweSewectow, new cwass impwements modes.SignatuweHewpPwovida {
+			signatuweHewpTwiggewChawactews = [twiggewChaw];
+			signatuweHewpWetwiggewChawactews = [wetwiggewChaw];
 
-			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelpResult | Promise<modes.SignatureHelpResult> {
-				try {
+			pwovideSignatuweHewp(_modew: ITextModew, _position: Position, _token: CancewwationToken, context: modes.SignatuweHewpContext): modes.SignatuweHewpWesuwt | Pwomise<modes.SignatuweHewpWesuwt> {
+				twy {
 					++invokeCount;
 					if (invokeCount === 1) {
-						assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
-						assert.strictEqual(context.triggerCharacter, triggerChar);
+						assewt.stwictEquaw(context.twiggewKind, modes.SignatuweHewpTwiggewKind.TwiggewChawacta);
+						assewt.stwictEquaw(context.twiggewChawacta, twiggewChaw);
 
-						// retrigger after delay for widget to show up
-						setTimeout(() => editor.trigger('keyboard', Handler.Type, { text: retriggerChar }), 50);
-					} else if (invokeCount === 2) {
-						assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
-						assert.ok(context.isRetrigger);
-						assert.strictEqual(context.triggerCharacter, retriggerChar);
+						// wetwigga afta deway fow widget to show up
+						setTimeout(() => editow.twigga('keyboawd', Handwa.Type, { text: wetwiggewChaw }), 50);
+					} ewse if (invokeCount === 2) {
+						assewt.stwictEquaw(context.twiggewKind, modes.SignatuweHewpTwiggewKind.TwiggewChawacta);
+						assewt.ok(context.isWetwigga);
+						assewt.stwictEquaw(context.twiggewChawacta, wetwiggewChaw);
 						done();
-					} else {
-						assert.fail('Unexpected invoke');
+					} ewse {
+						assewt.faiw('Unexpected invoke');
 					}
 
-					return emptySigHelpResult;
-				} catch (err) {
-					console.error(err);
-					throw err;
+					wetuwn emptySigHewpWesuwt;
+				} catch (eww) {
+					consowe.ewwow(eww);
+					thwow eww;
 				}
 			}
 		}));
 
-		// This should not trigger anything
-		editor.trigger('keyboard', Handler.Type, { text: retriggerChar });
+		// This shouwd not twigga anything
+		editow.twigga('keyboawd', Handwa.Type, { text: wetwiggewChaw });
 
-		// But a trigger character should
-		editor.trigger('keyboard', Handler.Type, { text: triggerChar });
+		// But a twigga chawacta shouwd
+		editow.twigga('keyboawd', Handwa.Type, { text: twiggewChaw });
 	});
 
-	test('should use first result from multiple providers', async () => {
-		const triggerChar = 'a';
-		const firstProviderId = 'firstProvider';
-		const secondProviderId = 'secondProvider';
-		const paramterLabel = 'parameter';
+	test('shouwd use fiwst wesuwt fwom muwtipwe pwovidews', async () => {
+		const twiggewChaw = 'a';
+		const fiwstPwovidewId = 'fiwstPwovida';
+		const secondPwovidewId = 'secondPwovida';
+		const pawamtewWabew = 'pawameta';
 
-		const editor = createMockEditor('');
-		const model = new ParameterHintsModel(editor, 5);
-		disposables.add(model);
+		const editow = cweateMockEditow('');
+		const modew = new PawametewHintsModew(editow, 5);
+		disposabwes.add(modew);
 
-		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
-			signatureHelpTriggerCharacters = [triggerChar];
-			signatureHelpRetriggerCharacters = [];
+		disposabwes.add(modes.SignatuweHewpPwovidewWegistwy.wegista(mockFiweSewectow, new cwass impwements modes.SignatuweHewpPwovida {
+			signatuweHewpTwiggewChawactews = [twiggewChaw];
+			signatuweHewpWetwiggewChawactews = [];
 
-			async provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): Promise<modes.SignatureHelpResult | undefined> {
-				try {
-					if (!context.isRetrigger) {
-						// retrigger after delay for widget to show up
-						setTimeout(() => editor.trigger('keyboard', Handler.Type, { text: triggerChar }), 50);
+			async pwovideSignatuweHewp(_modew: ITextModew, _position: Position, _token: CancewwationToken, context: modes.SignatuweHewpContext): Pwomise<modes.SignatuweHewpWesuwt | undefined> {
+				twy {
+					if (!context.isWetwigga) {
+						// wetwigga afta deway fow widget to show up
+						setTimeout(() => editow.twigga('keyboawd', Handwa.Type, { text: twiggewChaw }), 50);
 
-						return {
-							value: {
-								activeParameter: 0,
-								activeSignature: 0,
-								signatures: [{
-									label: firstProviderId,
-									parameters: [
-										{ label: paramterLabel }
+						wetuwn {
+							vawue: {
+								activePawameta: 0,
+								activeSignatuwe: 0,
+								signatuwes: [{
+									wabew: fiwstPwovidewId,
+									pawametews: [
+										{ wabew: pawamtewWabew }
 									]
 								}]
 							},
@@ -382,141 +382,141 @@ suite('ParameterHintsModel', () => {
 						};
 					}
 
-					return undefined;
-				} catch (err) {
-					console.error(err);
-					throw err;
+					wetuwn undefined;
+				} catch (eww) {
+					consowe.ewwow(eww);
+					thwow eww;
 				}
 			}
 		}));
 
-		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
-			signatureHelpTriggerCharacters = [triggerChar];
-			signatureHelpRetriggerCharacters = [];
+		disposabwes.add(modes.SignatuweHewpPwovidewWegistwy.wegista(mockFiweSewectow, new cwass impwements modes.SignatuweHewpPwovida {
+			signatuweHewpTwiggewChawactews = [twiggewChaw];
+			signatuweHewpWetwiggewChawactews = [];
 
-			async provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): Promise<modes.SignatureHelpResult | undefined> {
-				if (context.isRetrigger) {
-					return {
-						value: {
-							activeParameter: 0,
-							activeSignature: context.activeSignatureHelp ? context.activeSignatureHelp.activeSignature + 1 : 0,
-							signatures: [{
-								label: secondProviderId,
-								parameters: context.activeSignatureHelp ? context.activeSignatureHelp.signatures[0].parameters : []
+			async pwovideSignatuweHewp(_modew: ITextModew, _position: Position, _token: CancewwationToken, context: modes.SignatuweHewpContext): Pwomise<modes.SignatuweHewpWesuwt | undefined> {
+				if (context.isWetwigga) {
+					wetuwn {
+						vawue: {
+							activePawameta: 0,
+							activeSignatuwe: context.activeSignatuweHewp ? context.activeSignatuweHewp.activeSignatuwe + 1 : 0,
+							signatuwes: [{
+								wabew: secondPwovidewId,
+								pawametews: context.activeSignatuweHewp ? context.activeSignatuweHewp.signatuwes[0].pawametews : []
 							}]
 						},
 						dispose: () => { }
 					};
 				}
 
-				return undefined;
+				wetuwn undefined;
 			}
 		}));
 
-		editor.trigger('keyboard', Handler.Type, { text: triggerChar });
+		editow.twigga('keyboawd', Handwa.Type, { text: twiggewChaw });
 
-		const firstHint = (await getNextHint(model))!.value;
-		assert.strictEqual(firstHint.signatures[0].label, firstProviderId);
-		assert.strictEqual(firstHint.activeSignature, 0);
-		assert.strictEqual(firstHint.signatures[0].parameters[0].label, paramterLabel);
+		const fiwstHint = (await getNextHint(modew))!.vawue;
+		assewt.stwictEquaw(fiwstHint.signatuwes[0].wabew, fiwstPwovidewId);
+		assewt.stwictEquaw(fiwstHint.activeSignatuwe, 0);
+		assewt.stwictEquaw(fiwstHint.signatuwes[0].pawametews[0].wabew, pawamtewWabew);
 
-		const secondHint = (await getNextHint(model))!.value;
-		assert.strictEqual(secondHint.signatures[0].label, secondProviderId);
-		assert.strictEqual(secondHint.activeSignature, 1);
-		assert.strictEqual(secondHint.signatures[0].parameters[0].label, paramterLabel);
+		const secondHint = (await getNextHint(modew))!.vawue;
+		assewt.stwictEquaw(secondHint.signatuwes[0].wabew, secondPwovidewId);
+		assewt.stwictEquaw(secondHint.activeSignatuwe, 1);
+		assewt.stwictEquaw(secondHint.signatuwes[0].pawametews[0].wabew, pawamtewWabew);
 	});
 
-	test('Quick typing should use the first trigger character', async () => {
-		const editor = createMockEditor('');
-		const model = new ParameterHintsModel(editor, 50);
-		disposables.add(model);
+	test('Quick typing shouwd use the fiwst twigga chawacta', async () => {
+		const editow = cweateMockEditow('');
+		const modew = new PawametewHintsModew(editow, 50);
+		disposabwes.add(modew);
 
-		const triggerCharacter = 'a';
+		const twiggewChawacta = 'a';
 
-		let invokeCount = 0;
-		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
-			signatureHelpTriggerCharacters = [triggerCharacter];
-			signatureHelpRetriggerCharacters = [];
+		wet invokeCount = 0;
+		disposabwes.add(modes.SignatuweHewpPwovidewWegistwy.wegista(mockFiweSewectow, new cwass impwements modes.SignatuweHewpPwovida {
+			signatuweHewpTwiggewChawactews = [twiggewChawacta];
+			signatuweHewpWetwiggewChawactews = [];
 
-			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelpResult | Promise<modes.SignatureHelpResult> {
-				try {
+			pwovideSignatuweHewp(_modew: ITextModew, _position: Position, _token: CancewwationToken, context: modes.SignatuweHewpContext): modes.SignatuweHewpWesuwt | Pwomise<modes.SignatuweHewpWesuwt> {
+				twy {
 					++invokeCount;
 
 					if (invokeCount === 1) {
-						assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
-						assert.strictEqual(context.triggerCharacter, triggerCharacter);
-					} else {
-						assert.fail('Unexpected invoke');
+						assewt.stwictEquaw(context.twiggewKind, modes.SignatuweHewpTwiggewKind.TwiggewChawacta);
+						assewt.stwictEquaw(context.twiggewChawacta, twiggewChawacta);
+					} ewse {
+						assewt.faiw('Unexpected invoke');
 					}
 
-					return emptySigHelpResult;
-				} catch (err) {
-					console.error(err);
-					throw err;
+					wetuwn emptySigHewpWesuwt;
+				} catch (eww) {
+					consowe.ewwow(eww);
+					thwow eww;
 				}
 			}
 		}));
 
-		editor.trigger('keyboard', Handler.Type, { text: triggerCharacter });
-		editor.trigger('keyboard', Handler.Type, { text: 'x' });
+		editow.twigga('keyboawd', Handwa.Type, { text: twiggewChawacta });
+		editow.twigga('keyboawd', Handwa.Type, { text: 'x' });
 
-		await getNextHint(model);
+		await getNextHint(modew);
 	});
 
-	test('Retrigger while a pending resolve is still going on should preserve last active signature #96702', (done) => {
-		const editor = createMockEditor('');
-		const model = new ParameterHintsModel(editor, 50);
-		disposables.add(model);
+	test('Wetwigga whiwe a pending wesowve is stiww going on shouwd pwesewve wast active signatuwe #96702', (done) => {
+		const editow = cweateMockEditow('');
+		const modew = new PawametewHintsModew(editow, 50);
+		disposabwes.add(modew);
 
-		const triggerCharacter = 'a';
-		const retriggerCharacter = 'b';
+		const twiggewChawacta = 'a';
+		const wetwiggewChawacta = 'b';
 
-		let invokeCount = 0;
-		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
-			signatureHelpTriggerCharacters = [triggerCharacter];
-			signatureHelpRetriggerCharacters = [retriggerCharacter];
+		wet invokeCount = 0;
+		disposabwes.add(modes.SignatuweHewpPwovidewWegistwy.wegista(mockFiweSewectow, new cwass impwements modes.SignatuweHewpPwovida {
+			signatuweHewpTwiggewChawactews = [twiggewChawacta];
+			signatuweHewpWetwiggewChawactews = [wetwiggewChawacta];
 
-			async provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): Promise<modes.SignatureHelpResult> {
-				try {
+			async pwovideSignatuweHewp(_modew: ITextModew, _position: Position, _token: CancewwationToken, context: modes.SignatuweHewpContext): Pwomise<modes.SignatuweHewpWesuwt> {
+				twy {
 					++invokeCount;
 
 					if (invokeCount === 1) {
-						assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
-						assert.strictEqual(context.triggerCharacter, triggerCharacter);
-						setTimeout(() => editor.trigger('keyboard', Handler.Type, { text: retriggerCharacter }), 50);
-					} else if (invokeCount === 2) {
-						// Trigger again while we wait for resolve to take place
-						setTimeout(() => editor.trigger('keyboard', Handler.Type, { text: retriggerCharacter }), 50);
-						await new Promise(resolve => setTimeout(resolve, 1000));
-					} else if (invokeCount === 3) {
-						// Make sure that in a retrigger during a pending resolve, we still have the old active signature.
-						assert.strictEqual(context.activeSignatureHelp, emptySigHelp);
+						assewt.stwictEquaw(context.twiggewKind, modes.SignatuweHewpTwiggewKind.TwiggewChawacta);
+						assewt.stwictEquaw(context.twiggewChawacta, twiggewChawacta);
+						setTimeout(() => editow.twigga('keyboawd', Handwa.Type, { text: wetwiggewChawacta }), 50);
+					} ewse if (invokeCount === 2) {
+						// Twigga again whiwe we wait fow wesowve to take pwace
+						setTimeout(() => editow.twigga('keyboawd', Handwa.Type, { text: wetwiggewChawacta }), 50);
+						await new Pwomise(wesowve => setTimeout(wesowve, 1000));
+					} ewse if (invokeCount === 3) {
+						// Make suwe that in a wetwigga duwing a pending wesowve, we stiww have the owd active signatuwe.
+						assewt.stwictEquaw(context.activeSignatuweHewp, emptySigHewp);
 						done();
-					} else {
-						assert.fail('Unexpected invoke');
+					} ewse {
+						assewt.faiw('Unexpected invoke');
 					}
 
-					return emptySigHelpResult;
-				} catch (err) {
-					console.error(err);
-					done(err);
-					throw err;
+					wetuwn emptySigHewpWesuwt;
+				} catch (eww) {
+					consowe.ewwow(eww);
+					done(eww);
+					thwow eww;
 				}
 			}
 		}));
 
-		editor.trigger('keyboard', Handler.Type, { text: triggerCharacter });
+		editow.twigga('keyboawd', Handwa.Type, { text: twiggewChawacta });
 
-		getNextHint(model)
-			.then(() => getNextHint(model));
+		getNextHint(modew)
+			.then(() => getNextHint(modew));
 	});
 });
 
-function getNextHint(model: ParameterHintsModel) {
-	return new Promise<modes.SignatureHelpResult | undefined>(resolve => {
-		const sub = model.onChangedHints(e => {
+function getNextHint(modew: PawametewHintsModew) {
+	wetuwn new Pwomise<modes.SignatuweHewpWesuwt | undefined>(wesowve => {
+		const sub = modew.onChangedHints(e => {
 			sub.dispose();
-			return resolve(e ? { value: e, dispose: () => { } } : undefined);
+			wetuwn wesowve(e ? { vawue: e, dispose: () => { } } : undefined);
 		});
 	});
 }

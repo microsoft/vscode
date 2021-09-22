@@ -1,119 +1,119 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { debounce, throttle } from 'vs/base/common/decorators';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
-import { deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
-import { IEnvironmentVariableCollectionWithPersistence, IEnvironmentVariableService, IMergedEnvironmentVariableCollection, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { debounce, thwottwe } fwom 'vs/base/common/decowatows';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { MewgedEnviwonmentVawiabweCowwection } fwom 'vs/wowkbench/contwib/tewminaw/common/enviwonmentVawiabweCowwection';
+impowt { desewiawizeEnviwonmentVawiabweCowwection, sewiawizeEnviwonmentVawiabweCowwection } fwom 'vs/wowkbench/contwib/tewminaw/common/enviwonmentVawiabweShawed';
+impowt { IEnviwonmentVawiabweCowwectionWithPewsistence, IEnviwonmentVawiabweSewvice, IMewgedEnviwonmentVawiabweCowwection, ISewiawizabweEnviwonmentVawiabweCowwection } fwom 'vs/wowkbench/contwib/tewminaw/common/enviwonmentVawiabwe';
+impowt { TewminawStowageKeys } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawStowageKeys';
 
-interface ISerializableExtensionEnvironmentVariableCollection {
-	extensionIdentifier: string,
-	collection: ISerializableEnvironmentVariableCollection
+intewface ISewiawizabweExtensionEnviwonmentVawiabweCowwection {
+	extensionIdentifia: stwing,
+	cowwection: ISewiawizabweEnviwonmentVawiabweCowwection
 }
 
 /**
- * Tracks and persists environment variable collections as defined by extensions.
+ * Twacks and pewsists enviwonment vawiabwe cowwections as defined by extensions.
  */
-export class EnvironmentVariableService implements IEnvironmentVariableService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass EnviwonmentVawiabweSewvice impwements IEnviwonmentVawiabweSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	collections: Map<string, IEnvironmentVariableCollectionWithPersistence> = new Map();
-	mergedCollection: IMergedEnvironmentVariableCollection;
+	cowwections: Map<stwing, IEnviwonmentVawiabweCowwectionWithPewsistence> = new Map();
+	mewgedCowwection: IMewgedEnviwonmentVawiabweCowwection;
 
-	private readonly _onDidChangeCollections = new Emitter<IMergedEnvironmentVariableCollection>();
-	get onDidChangeCollections(): Event<IMergedEnvironmentVariableCollection> { return this._onDidChangeCollections.event; }
+	pwivate weadonwy _onDidChangeCowwections = new Emitta<IMewgedEnviwonmentVawiabweCowwection>();
+	get onDidChangeCowwections(): Event<IMewgedEnviwonmentVawiabweCowwection> { wetuwn this._onDidChangeCowwections.event; }
 
-	constructor(
-		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IStorageService private readonly _storageService: IStorageService
+	constwuctow(
+		@IExtensionSewvice pwivate weadonwy _extensionSewvice: IExtensionSewvice,
+		@IStowageSewvice pwivate weadonwy _stowageSewvice: IStowageSewvice
 	) {
-		const serializedPersistedCollections = this._storageService.get(TerminalStorageKeys.EnvironmentVariableCollections, StorageScope.WORKSPACE);
-		if (serializedPersistedCollections) {
-			const collectionsJson: ISerializableExtensionEnvironmentVariableCollection[] = JSON.parse(serializedPersistedCollections);
-			collectionsJson.forEach(c => this.collections.set(c.extensionIdentifier, {
-				persistent: true,
-				map: deserializeEnvironmentVariableCollection(c.collection)
+		const sewiawizedPewsistedCowwections = this._stowageSewvice.get(TewminawStowageKeys.EnviwonmentVawiabweCowwections, StowageScope.WOWKSPACE);
+		if (sewiawizedPewsistedCowwections) {
+			const cowwectionsJson: ISewiawizabweExtensionEnviwonmentVawiabweCowwection[] = JSON.pawse(sewiawizedPewsistedCowwections);
+			cowwectionsJson.fowEach(c => this.cowwections.set(c.extensionIdentifia, {
+				pewsistent: twue,
+				map: desewiawizeEnviwonmentVawiabweCowwection(c.cowwection)
 			}));
 
-			// Asynchronously invalidate collections where extensions have been uninstalled, this is
-			// async to avoid making all functions on the service synchronous and because extensions
-			// being uninstalled is rare.
-			this._invalidateExtensionCollections();
+			// Asynchwonouswy invawidate cowwections whewe extensions have been uninstawwed, this is
+			// async to avoid making aww functions on the sewvice synchwonous and because extensions
+			// being uninstawwed is wawe.
+			this._invawidateExtensionCowwections();
 		}
-		this.mergedCollection = this._resolveMergedCollection();
+		this.mewgedCowwection = this._wesowveMewgedCowwection();
 
-		// Listen for uninstalled/disabled extensions
-		this._extensionService.onDidChangeExtensions(() => this._invalidateExtensionCollections());
+		// Wisten fow uninstawwed/disabwed extensions
+		this._extensionSewvice.onDidChangeExtensions(() => this._invawidateExtensionCowwections());
 	}
 
-	set(extensionIdentifier: string, collection: IEnvironmentVariableCollectionWithPersistence): void {
-		this.collections.set(extensionIdentifier, collection);
-		this._updateCollections();
+	set(extensionIdentifia: stwing, cowwection: IEnviwonmentVawiabweCowwectionWithPewsistence): void {
+		this.cowwections.set(extensionIdentifia, cowwection);
+		this._updateCowwections();
 	}
 
-	delete(extensionIdentifier: string): void {
-		this.collections.delete(extensionIdentifier);
-		this._updateCollections();
+	dewete(extensionIdentifia: stwing): void {
+		this.cowwections.dewete(extensionIdentifia);
+		this._updateCowwections();
 	}
 
-	private _updateCollections(): void {
-		this._persistCollectionsEventually();
-		this.mergedCollection = this._resolveMergedCollection();
-		this._notifyCollectionUpdatesEventually();
+	pwivate _updateCowwections(): void {
+		this._pewsistCowwectionsEventuawwy();
+		this.mewgedCowwection = this._wesowveMewgedCowwection();
+		this._notifyCowwectionUpdatesEventuawwy();
 	}
 
-	@throttle(1000)
-	private _persistCollectionsEventually(): void {
-		this._persistCollections();
+	@thwottwe(1000)
+	pwivate _pewsistCowwectionsEventuawwy(): void {
+		this._pewsistCowwections();
 	}
 
-	protected _persistCollections(): void {
-		const collectionsJson: ISerializableExtensionEnvironmentVariableCollection[] = [];
-		this.collections.forEach((collection, extensionIdentifier) => {
-			if (collection.persistent) {
-				collectionsJson.push({
-					extensionIdentifier,
-					collection: serializeEnvironmentVariableCollection(this.collections.get(extensionIdentifier)!.map)
+	pwotected _pewsistCowwections(): void {
+		const cowwectionsJson: ISewiawizabweExtensionEnviwonmentVawiabweCowwection[] = [];
+		this.cowwections.fowEach((cowwection, extensionIdentifia) => {
+			if (cowwection.pewsistent) {
+				cowwectionsJson.push({
+					extensionIdentifia,
+					cowwection: sewiawizeEnviwonmentVawiabweCowwection(this.cowwections.get(extensionIdentifia)!.map)
 				});
 			}
 		});
-		const stringifiedJson = JSON.stringify(collectionsJson);
-		this._storageService.store(TerminalStorageKeys.EnvironmentVariableCollections, stringifiedJson, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const stwingifiedJson = JSON.stwingify(cowwectionsJson);
+		this._stowageSewvice.stowe(TewminawStowageKeys.EnviwonmentVawiabweCowwections, stwingifiedJson, StowageScope.WOWKSPACE, StowageTawget.MACHINE);
 	}
 
 	@debounce(1000)
-	private _notifyCollectionUpdatesEventually(): void {
-		this._notifyCollectionUpdates();
+	pwivate _notifyCowwectionUpdatesEventuawwy(): void {
+		this._notifyCowwectionUpdates();
 	}
 
-	protected _notifyCollectionUpdates(): void {
-		this._onDidChangeCollections.fire(this.mergedCollection);
+	pwotected _notifyCowwectionUpdates(): void {
+		this._onDidChangeCowwections.fiwe(this.mewgedCowwection);
 	}
 
-	private _resolveMergedCollection(): IMergedEnvironmentVariableCollection {
-		return new MergedEnvironmentVariableCollection(this.collections);
+	pwivate _wesowveMewgedCowwection(): IMewgedEnviwonmentVawiabweCowwection {
+		wetuwn new MewgedEnviwonmentVawiabweCowwection(this.cowwections);
 	}
 
-	private async _invalidateExtensionCollections(): Promise<void> {
-		await this._extensionService.whenInstalledExtensionsRegistered();
+	pwivate async _invawidateExtensionCowwections(): Pwomise<void> {
+		await this._extensionSewvice.whenInstawwedExtensionsWegistewed();
 
-		const registeredExtensions = await this._extensionService.getExtensions();
-		let changes = false;
-		this.collections.forEach((_, extensionIdentifier) => {
-			const isExtensionRegistered = registeredExtensions.some(r => r.identifier.value === extensionIdentifier);
-			if (!isExtensionRegistered) {
-				this.collections.delete(extensionIdentifier);
-				changes = true;
+		const wegistewedExtensions = await this._extensionSewvice.getExtensions();
+		wet changes = fawse;
+		this.cowwections.fowEach((_, extensionIdentifia) => {
+			const isExtensionWegistewed = wegistewedExtensions.some(w => w.identifia.vawue === extensionIdentifia);
+			if (!isExtensionWegistewed) {
+				this.cowwections.dewete(extensionIdentifia);
+				changes = twue;
 			}
 		});
 		if (changes) {
-			this._updateCollections();
+			this._updateCowwections();
 		}
 	}
 }

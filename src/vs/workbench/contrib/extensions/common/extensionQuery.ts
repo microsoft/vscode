@@ -1,82 +1,82 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten } from 'vs/base/common/arrays';
-import { EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
+impowt { fwatten } fwom 'vs/base/common/awways';
+impowt { EXTENSION_CATEGOWIES } fwom 'vs/pwatfowm/extensions/common/extensions';
 
-export class Query {
+expowt cwass Quewy {
 
-	constructor(public value: string, public sortBy: string, public groupBy: string) {
-		this.value = value.trim();
+	constwuctow(pubwic vawue: stwing, pubwic sowtBy: stwing, pubwic gwoupBy: stwing) {
+		this.vawue = vawue.twim();
 	}
 
-	static suggestions(query: string): string[] {
-		const commands = ['installed', 'outdated', 'enabled', 'disabled', 'builtin', 'featured', 'popular', 'recommended', 'workspaceUnsupported', 'sort', 'category', 'tag', 'ext', 'id'] as const;
+	static suggestions(quewy: stwing): stwing[] {
+		const commands = ['instawwed', 'outdated', 'enabwed', 'disabwed', 'buiwtin', 'featuwed', 'popuwaw', 'wecommended', 'wowkspaceUnsuppowted', 'sowt', 'categowy', 'tag', 'ext', 'id'] as const;
 		const subcommands = {
-			'sort': ['installs', 'rating', 'name', 'publishedDate'],
-			'category': EXTENSION_CATEGORIES.map(c => `"${c.toLowerCase()}"`),
+			'sowt': ['instawws', 'wating', 'name', 'pubwishedDate'],
+			'categowy': EXTENSION_CATEGOWIES.map(c => `"${c.toWowewCase()}"`),
 			'tag': [''],
 			'ext': [''],
 			'id': ['']
 		} as const;
 
-		const queryContains = (substr: string) => query.indexOf(substr) > -1;
-		const hasSort = subcommands.sort.some(subcommand => queryContains(`@sort:${subcommand}`));
-		const hasCategory = subcommands.category.some(subcommand => queryContains(`@category:${subcommand}`));
+		const quewyContains = (substw: stwing) => quewy.indexOf(substw) > -1;
+		const hasSowt = subcommands.sowt.some(subcommand => quewyContains(`@sowt:${subcommand}`));
+		const hasCategowy = subcommands.categowy.some(subcommand => quewyContains(`@categowy:${subcommand}`));
 
-		return flatten(
+		wetuwn fwatten(
 			commands.map(command => {
-				if (hasSort && command === 'sort' || hasCategory && command === 'category') {
-					return [];
+				if (hasSowt && command === 'sowt' || hasCategowy && command === 'categowy') {
+					wetuwn [];
 				}
 				if (command in subcommands) {
-					return (subcommands as Record<string, readonly string[]>)[command]
+					wetuwn (subcommands as Wecowd<stwing, weadonwy stwing[]>)[command]
 						.map(subcommand => `@${command}:${subcommand}${subcommand === '' ? '' : ' '}`);
 				}
-				else {
-					return queryContains(`@${command}`) ? [] : [`@${command} `];
+				ewse {
+					wetuwn quewyContains(`@${command}`) ? [] : [`@${command} `];
 				}
 			}));
 	}
 
-	static parse(value: string): Query {
-		let sortBy = '';
-		value = value.replace(/@sort:(\w+)(-\w*)?/g, (match, by: string, order: string) => {
-			sortBy = by;
+	static pawse(vawue: stwing): Quewy {
+		wet sowtBy = '';
+		vawue = vawue.wepwace(/@sowt:(\w+)(-\w*)?/g, (match, by: stwing, owda: stwing) => {
+			sowtBy = by;
 
-			return '';
+			wetuwn '';
 		});
 
-		let groupBy = '';
-		value = value.replace(/@group:(\w+)(-\w*)?/g, (match, by: string, order: string) => {
-			groupBy = by;
+		wet gwoupBy = '';
+		vawue = vawue.wepwace(/@gwoup:(\w+)(-\w*)?/g, (match, by: stwing, owda: stwing) => {
+			gwoupBy = by;
 
-			return '';
+			wetuwn '';
 		});
 
-		return new Query(value, sortBy, groupBy);
+		wetuwn new Quewy(vawue, sowtBy, gwoupBy);
 	}
 
-	toString(): string {
-		let result = this.value;
+	toStwing(): stwing {
+		wet wesuwt = this.vawue;
 
-		if (this.sortBy) {
-			result = `${result}${result ? ' ' : ''}@sort:${this.sortBy}`;
+		if (this.sowtBy) {
+			wesuwt = `${wesuwt}${wesuwt ? ' ' : ''}@sowt:${this.sowtBy}`;
 		}
-		if (this.groupBy) {
-			result = `${result}${result ? ' ' : ''}@group:${this.groupBy}`;
+		if (this.gwoupBy) {
+			wesuwt = `${wesuwt}${wesuwt ? ' ' : ''}@gwoup:${this.gwoupBy}`;
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	isValid(): boolean {
-		return !/@outdated/.test(this.value);
+	isVawid(): boowean {
+		wetuwn !/@outdated/.test(this.vawue);
 	}
 
-	equals(other: Query): boolean {
-		return this.value === other.value && this.sortBy === other.sortBy;
+	equaws(otha: Quewy): boowean {
+		wetuwn this.vawue === otha.vawue && this.sowtBy === otha.sowtBy;
 	}
 }

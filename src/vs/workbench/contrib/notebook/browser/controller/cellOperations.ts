@@ -1,675 +1,675 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference, IReadonlyTextBuffer } from 'vs/editor/common/model';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
-import { INotebookActionContext, INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { CellEditState, CellFocusMode, expandCellRangesWithHiddenCells, IActiveNotebookEditor, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { cloneNotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellEditType, CellKind, ICellEditOperation, ICellReplaceEdit, IOutputDto, ISelectionState, NotebookCellMetadata, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { cellRangeContains, cellRangesToIndexes, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+impowt { IBuwkEditSewvice, WesouwceEdit, WesouwceTextEdit } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
+impowt { IPosition, Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { EndOfWinePwefewence, IWeadonwyTextBuffa } fwom 'vs/editow/common/modew';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { WesouwceNotebookCewwEdit } fwom 'vs/wowkbench/contwib/buwkEdit/bwowsa/buwkCewwEdits';
+impowt { INotebookActionContext, INotebookCewwActionContext } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwowwa/coweActions';
+impowt { CewwEditState, CewwFocusMode, expandCewwWangesWithHiddenCewws, IActiveNotebookEditow, ICewwViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { CewwViewModew, NotebookViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/notebookViewModew';
+impowt { cwoneNotebookCewwTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookCewwTextModew';
+impowt { CewwEditType, CewwKind, ICewwEditOpewation, ICewwWepwaceEdit, IOutputDto, ISewectionState, NotebookCewwMetadata, SewectionStateType } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { cewwWangeContains, cewwWangesToIndexes, ICewwWange } fwom 'vs/wowkbench/contwib/notebook/common/notebookWange';
 
-export async function changeCellToKind(kind: CellKind, context: INotebookActionContext, language?: string, mime?: string): Promise<void> {
-	const { notebookEditor } = context;
-	if (!notebookEditor.hasModel()) {
-		return;
+expowt async function changeCewwToKind(kind: CewwKind, context: INotebookActionContext, wanguage?: stwing, mime?: stwing): Pwomise<void> {
+	const { notebookEditow } = context;
+	if (!notebookEditow.hasModew()) {
+		wetuwn;
 	}
 
-	if (notebookEditor.isReadOnly) {
-		return;
+	if (notebookEditow.isWeadOnwy) {
+		wetuwn;
 	}
 
-	if (context.ui && context.cell) {
-		// action from UI
-		const { cell } = context;
+	if (context.ui && context.ceww) {
+		// action fwom UI
+		const { ceww } = context;
 
-		if (cell.cellKind === kind) {
-			return;
+		if (ceww.cewwKind === kind) {
+			wetuwn;
 		}
 
-		const text = cell.getText();
-		const idx = notebookEditor.getCellIndex(cell);
+		const text = ceww.getText();
+		const idx = notebookEditow.getCewwIndex(ceww);
 
-		if (language === undefined) {
-			const availableLanguages = notebookEditor.activeKernel?.supportedLanguages ?? [];
-			language = availableLanguages[0] ?? 'plaintext';
+		if (wanguage === undefined) {
+			const avaiwabweWanguages = notebookEditow.activeKewnew?.suppowtedWanguages ?? [];
+			wanguage = avaiwabweWanguages[0] ?? 'pwaintext';
 		}
 
-		notebookEditor.textModel.applyEdits([
+		notebookEditow.textModew.appwyEdits([
 			{
-				editType: CellEditType.Replace,
+				editType: CewwEditType.Wepwace,
 				index: idx,
 				count: 1,
-				cells: [{
-					cellKind: kind,
-					source: text,
-					language: language!,
-					mime: mime ?? cell.mime,
-					outputs: cell.model.outputs,
-					metadata: cell.metadata,
+				cewws: [{
+					cewwKind: kind,
+					souwce: text,
+					wanguage: wanguage!,
+					mime: mime ?? ceww.mime,
+					outputs: ceww.modew.outputs,
+					metadata: ceww.metadata,
 				}]
 			}
-		], true, {
-			kind: SelectionStateType.Index,
-			focus: notebookEditor.getFocus(),
-			selections: notebookEditor.getSelections()
+		], twue, {
+			kind: SewectionStateType.Index,
+			focus: notebookEditow.getFocus(),
+			sewections: notebookEditow.getSewections()
 		}, () => {
-			return {
-				kind: SelectionStateType.Index,
-				focus: notebookEditor.getFocus(),
-				selections: notebookEditor.getSelections()
+			wetuwn {
+				kind: SewectionStateType.Index,
+				focus: notebookEditow.getFocus(),
+				sewections: notebookEditow.getSewections()
 			};
-		}, undefined, true);
-		const newCell = notebookEditor.cellAt(idx);
-		notebookEditor.focusNotebookCell(newCell, cell.getEditState() === CellEditState.Editing ? 'editor' : 'container');
-	} else if (context.selectedCells) {
-		const selectedCells = context.selectedCells;
-		const rawEdits: ICellEditOperation[] = [];
+		}, undefined, twue);
+		const newCeww = notebookEditow.cewwAt(idx);
+		notebookEditow.focusNotebookCeww(newCeww, ceww.getEditState() === CewwEditState.Editing ? 'editow' : 'containa');
+	} ewse if (context.sewectedCewws) {
+		const sewectedCewws = context.sewectedCewws;
+		const wawEdits: ICewwEditOpewation[] = [];
 
-		selectedCells.forEach(cell => {
-			if (cell.cellKind === kind) {
-				return;
+		sewectedCewws.fowEach(ceww => {
+			if (ceww.cewwKind === kind) {
+				wetuwn;
 			}
-			const text = cell.getText();
-			const idx = notebookEditor.getCellIndex(cell);
+			const text = ceww.getText();
+			const idx = notebookEditow.getCewwIndex(ceww);
 
-			if (language === undefined) {
-				const availableLanguages = notebookEditor.activeKernel?.supportedLanguages ?? [];
-				language = availableLanguages[0] ?? 'plaintext';
+			if (wanguage === undefined) {
+				const avaiwabweWanguages = notebookEditow.activeKewnew?.suppowtedWanguages ?? [];
+				wanguage = avaiwabweWanguages[0] ?? 'pwaintext';
 			}
 
-			rawEdits.push(
+			wawEdits.push(
 				{
-					editType: CellEditType.Replace,
+					editType: CewwEditType.Wepwace,
 					index: idx,
 					count: 1,
-					cells: [{
-						cellKind: kind,
-						source: text,
-						language: language!,
-						mime: mime ?? cell.mime,
-						outputs: cell.model.outputs,
-						metadata: cell.metadata,
+					cewws: [{
+						cewwKind: kind,
+						souwce: text,
+						wanguage: wanguage!,
+						mime: mime ?? ceww.mime,
+						outputs: ceww.modew.outputs,
+						metadata: ceww.metadata,
 					}]
 				}
 			);
 		});
 
-		notebookEditor.textModel.applyEdits(rawEdits, true, {
-			kind: SelectionStateType.Index,
-			focus: notebookEditor.getFocus(),
-			selections: notebookEditor.getSelections()
+		notebookEditow.textModew.appwyEdits(wawEdits, twue, {
+			kind: SewectionStateType.Index,
+			focus: notebookEditow.getFocus(),
+			sewections: notebookEditow.getSewections()
 		}, () => {
-			return {
-				kind: SelectionStateType.Index,
-				focus: notebookEditor.getFocus(),
-				selections: notebookEditor.getSelections()
+			wetuwn {
+				kind: SewectionStateType.Index,
+				focus: notebookEditow.getFocus(),
+				sewections: notebookEditow.getSewections()
 			};
-		}, undefined, true);
+		}, undefined, twue);
 	}
 }
 
-export function runDeleteAction(editor: IActiveNotebookEditor, cell: ICellViewModel) {
-	const textModel = editor.textModel;
-	const selections = editor.getSelections();
-	const targetCellIndex = editor.getCellIndex(cell);
-	const containingSelection = selections.find(selection => selection.start <= targetCellIndex && targetCellIndex < selection.end);
+expowt function wunDeweteAction(editow: IActiveNotebookEditow, ceww: ICewwViewModew) {
+	const textModew = editow.textModew;
+	const sewections = editow.getSewections();
+	const tawgetCewwIndex = editow.getCewwIndex(ceww);
+	const containingSewection = sewections.find(sewection => sewection.stawt <= tawgetCewwIndex && tawgetCewwIndex < sewection.end);
 
-	if (containingSelection) {
-		const edits: ICellReplaceEdit[] = selections.reverse().map(selection => ({
-			editType: CellEditType.Replace, index: selection.start, count: selection.end - selection.start, cells: []
+	if (containingSewection) {
+		const edits: ICewwWepwaceEdit[] = sewections.wevewse().map(sewection => ({
+			editType: CewwEditType.Wepwace, index: sewection.stawt, count: sewection.end - sewection.stawt, cewws: []
 		}));
 
-		const nextCellAfterContainingSelection = containingSelection.end >= editor.getLength() ? undefined : editor.cellAt(containingSelection.end);
+		const nextCewwAftewContainingSewection = containingSewection.end >= editow.getWength() ? undefined : editow.cewwAt(containingSewection.end);
 
-		textModel.applyEdits(edits, true, { kind: SelectionStateType.Index, focus: editor.getFocus(), selections: editor.getSelections() }, () => {
-			if (nextCellAfterContainingSelection) {
-				const cellIndex = textModel.cells.findIndex(cell => cell.handle === nextCellAfterContainingSelection.handle);
-				return { kind: SelectionStateType.Index, focus: { start: cellIndex, end: cellIndex + 1 }, selections: [{ start: cellIndex, end: cellIndex + 1 }] };
-			} else {
-				if (textModel.length) {
-					const lastCellIndex = textModel.length - 1;
-					return { kind: SelectionStateType.Index, focus: { start: lastCellIndex, end: lastCellIndex + 1 }, selections: [{ start: lastCellIndex, end: lastCellIndex + 1 }] };
+		textModew.appwyEdits(edits, twue, { kind: SewectionStateType.Index, focus: editow.getFocus(), sewections: editow.getSewections() }, () => {
+			if (nextCewwAftewContainingSewection) {
+				const cewwIndex = textModew.cewws.findIndex(ceww => ceww.handwe === nextCewwAftewContainingSewection.handwe);
+				wetuwn { kind: SewectionStateType.Index, focus: { stawt: cewwIndex, end: cewwIndex + 1 }, sewections: [{ stawt: cewwIndex, end: cewwIndex + 1 }] };
+			} ewse {
+				if (textModew.wength) {
+					const wastCewwIndex = textModew.wength - 1;
+					wetuwn { kind: SewectionStateType.Index, focus: { stawt: wastCewwIndex, end: wastCewwIndex + 1 }, sewections: [{ stawt: wastCewwIndex, end: wastCewwIndex + 1 }] };
 
-				} else {
-					return { kind: SelectionStateType.Index, focus: { start: 0, end: 0 }, selections: [{ start: 0, end: 0 }] };
+				} ewse {
+					wetuwn { kind: SewectionStateType.Index, focus: { stawt: 0, end: 0 }, sewections: [{ stawt: 0, end: 0 }] };
 				}
 			}
 		}, undefined);
-	} else {
-		const focus = editor.getFocus();
-		const edits: ICellReplaceEdit[] = [{
-			editType: CellEditType.Replace, index: targetCellIndex, count: 1, cells: []
+	} ewse {
+		const focus = editow.getFocus();
+		const edits: ICewwWepwaceEdit[] = [{
+			editType: CewwEditType.Wepwace, index: tawgetCewwIndex, count: 1, cewws: []
 		}];
 
-		let finalSelections: ICellRange[] = [];
-		for (let i = 0; i < selections.length; i++) {
-			const selection = selections[i];
+		wet finawSewections: ICewwWange[] = [];
+		fow (wet i = 0; i < sewections.wength; i++) {
+			const sewection = sewections[i];
 
-			if (selection.end <= targetCellIndex) {
-				finalSelections.push(selection);
-			} else if (selection.start > targetCellIndex) {
-				finalSelections.push({ start: selection.start - 1, end: selection.end - 1 });
-			} else {
-				finalSelections.push({ start: targetCellIndex, end: targetCellIndex + 1 });
+			if (sewection.end <= tawgetCewwIndex) {
+				finawSewections.push(sewection);
+			} ewse if (sewection.stawt > tawgetCewwIndex) {
+				finawSewections.push({ stawt: sewection.stawt - 1, end: sewection.end - 1 });
+			} ewse {
+				finawSewections.push({ stawt: tawgetCewwIndex, end: tawgetCewwIndex + 1 });
 			}
 		}
 
-		if (editor.cellAt(focus.start) === cell) {
-			// focus is the target, focus is also not part of any selection
-			const newFocus = focus.end === textModel.length ? { start: focus.start - 1, end: focus.end - 1 } : focus;
+		if (editow.cewwAt(focus.stawt) === ceww) {
+			// focus is the tawget, focus is awso not pawt of any sewection
+			const newFocus = focus.end === textModew.wength ? { stawt: focus.stawt - 1, end: focus.end - 1 } : focus;
 
-			textModel.applyEdits(edits, true, { kind: SelectionStateType.Index, focus: editor.getFocus(), selections: editor.getSelections() }, () => ({
-				kind: SelectionStateType.Index, focus: newFocus, selections: finalSelections
+			textModew.appwyEdits(edits, twue, { kind: SewectionStateType.Index, focus: editow.getFocus(), sewections: editow.getSewections() }, () => ({
+				kind: SewectionStateType.Index, focus: newFocus, sewections: finawSewections
 			}), undefined);
-		} else {
-			// users decide to delete a cell out of current focus/selection
-			const newFocus = focus.start > targetCellIndex ? { start: focus.start - 1, end: focus.end - 1 } : focus;
+		} ewse {
+			// usews decide to dewete a ceww out of cuwwent focus/sewection
+			const newFocus = focus.stawt > tawgetCewwIndex ? { stawt: focus.stawt - 1, end: focus.end - 1 } : focus;
 
-			textModel.applyEdits(edits, true, { kind: SelectionStateType.Index, focus: editor.getFocus(), selections: editor.getSelections() }, () => ({
-				kind: SelectionStateType.Index, focus: newFocus, selections: finalSelections
+			textModew.appwyEdits(edits, twue, { kind: SewectionStateType.Index, focus: editow.getFocus(), sewections: editow.getSewections() }, () => ({
+				kind: SewectionStateType.Index, focus: newFocus, sewections: finawSewections
 			}), undefined);
 		}
 	}
 }
 
-export async function moveCellRange(context: INotebookCellActionContext, direction: 'up' | 'down'): Promise<void> {
-	if (!context.notebookEditor.hasModel()) {
-		return;
+expowt async function moveCewwWange(context: INotebookCewwActionContext, diwection: 'up' | 'down'): Pwomise<void> {
+	if (!context.notebookEditow.hasModew()) {
+		wetuwn;
 	}
-	const editor = context.notebookEditor;
-	const textModel = editor.textModel;
+	const editow = context.notebookEditow;
+	const textModew = editow.textModew;
 
-	if (editor.isReadOnly) {
-		return;
-	}
-
-	const selections = editor.getSelections();
-	const modelRanges = expandCellRangesWithHiddenCells(editor, selections);
-	const range = modelRanges[0];
-	if (!range || range.start === range.end) {
-		return;
+	if (editow.isWeadOnwy) {
+		wetuwn;
 	}
 
-	if (direction === 'up') {
-		if (range.start === 0) {
-			return;
+	const sewections = editow.getSewections();
+	const modewWanges = expandCewwWangesWithHiddenCewws(editow, sewections);
+	const wange = modewWanges[0];
+	if (!wange || wange.stawt === wange.end) {
+		wetuwn;
+	}
+
+	if (diwection === 'up') {
+		if (wange.stawt === 0) {
+			wetuwn;
 		}
 
-		const indexAbove = range.start - 1;
-		const finalSelection = { start: range.start - 1, end: range.end - 1 };
-		const focus = context.notebookEditor.getFocus();
-		const newFocus = cellRangeContains(range, focus) ? { start: focus.start - 1, end: focus.end - 1 } : { start: range.start - 1, end: range.start };
-		textModel.applyEdits([
+		const indexAbove = wange.stawt - 1;
+		const finawSewection = { stawt: wange.stawt - 1, end: wange.end - 1 };
+		const focus = context.notebookEditow.getFocus();
+		const newFocus = cewwWangeContains(wange, focus) ? { stawt: focus.stawt - 1, end: focus.end - 1 } : { stawt: wange.stawt - 1, end: wange.stawt };
+		textModew.appwyEdits([
 			{
-				editType: CellEditType.Move,
+				editType: CewwEditType.Move,
 				index: indexAbove,
-				length: 1,
-				newIdx: range.end - 1
+				wength: 1,
+				newIdx: wange.end - 1
 			}],
-			true,
+			twue,
 			{
-				kind: SelectionStateType.Index,
-				focus: editor.getFocus(),
-				selections: editor.getSelections()
+				kind: SewectionStateType.Index,
+				focus: editow.getFocus(),
+				sewections: editow.getSewections()
 			},
-			() => ({ kind: SelectionStateType.Index, focus: newFocus, selections: [finalSelection] }),
+			() => ({ kind: SewectionStateType.Index, focus: newFocus, sewections: [finawSewection] }),
 			undefined
 		);
-		const focusRange = editor.getSelections()[0] ?? editor.getFocus();
-		editor.revealCellRangeInView(focusRange);
-	} else {
-		if (range.end >= textModel.length) {
-			return;
+		const focusWange = editow.getSewections()[0] ?? editow.getFocus();
+		editow.weveawCewwWangeInView(focusWange);
+	} ewse {
+		if (wange.end >= textModew.wength) {
+			wetuwn;
 		}
 
-		const indexBelow = range.end;
-		const finalSelection = { start: range.start + 1, end: range.end + 1 };
-		const focus = editor.getFocus();
-		const newFocus = cellRangeContains(range, focus) ? { start: focus.start + 1, end: focus.end + 1 } : { start: range.start + 1, end: range.start + 2 };
+		const indexBewow = wange.end;
+		const finawSewection = { stawt: wange.stawt + 1, end: wange.end + 1 };
+		const focus = editow.getFocus();
+		const newFocus = cewwWangeContains(wange, focus) ? { stawt: focus.stawt + 1, end: focus.end + 1 } : { stawt: wange.stawt + 1, end: wange.stawt + 2 };
 
-		textModel.applyEdits([
+		textModew.appwyEdits([
 			{
-				editType: CellEditType.Move,
-				index: indexBelow,
-				length: 1,
-				newIdx: range.start
+				editType: CewwEditType.Move,
+				index: indexBewow,
+				wength: 1,
+				newIdx: wange.stawt
 			}],
-			true,
+			twue,
 			{
-				kind: SelectionStateType.Index,
-				focus: editor.getFocus(),
-				selections: editor.getSelections()
+				kind: SewectionStateType.Index,
+				focus: editow.getFocus(),
+				sewections: editow.getSewections()
 			},
-			() => ({ kind: SelectionStateType.Index, focus: newFocus, selections: [finalSelection] }),
+			() => ({ kind: SewectionStateType.Index, focus: newFocus, sewections: [finawSewection] }),
 			undefined
 		);
 
-		const focusRange = editor.getSelections()[0] ?? editor.getFocus();
-		editor.revealCellRangeInView(focusRange);
+		const focusWange = editow.getSewections()[0] ?? editow.getFocus();
+		editow.weveawCewwWangeInView(focusWange);
 	}
 }
 
-export async function copyCellRange(context: INotebookCellActionContext, direction: 'up' | 'down'): Promise<void> {
-	const editor = context.notebookEditor;
-	if (!editor.hasModel()) {
-		return;
+expowt async function copyCewwWange(context: INotebookCewwActionContext, diwection: 'up' | 'down'): Pwomise<void> {
+	const editow = context.notebookEditow;
+	if (!editow.hasModew()) {
+		wetuwn;
 	}
 
-	const textModel = editor.textModel;
+	const textModew = editow.textModew;
 
-	if (editor.isReadOnly) {
-		return;
+	if (editow.isWeadOnwy) {
+		wetuwn;
 	}
 
-	let range: ICellRange | undefined = undefined;
+	wet wange: ICewwWange | undefined = undefined;
 
 	if (context.ui) {
-		let targetCell = context.cell;
-		const targetCellIndex = editor.getCellIndex(targetCell);
-		range = { start: targetCellIndex, end: targetCellIndex + 1 };
-	} else {
-		const selections = editor.getSelections();
-		const modelRanges = expandCellRangesWithHiddenCells(editor, selections);
-		range = modelRanges[0];
+		wet tawgetCeww = context.ceww;
+		const tawgetCewwIndex = editow.getCewwIndex(tawgetCeww);
+		wange = { stawt: tawgetCewwIndex, end: tawgetCewwIndex + 1 };
+	} ewse {
+		const sewections = editow.getSewections();
+		const modewWanges = expandCewwWangesWithHiddenCewws(editow, sewections);
+		wange = modewWanges[0];
 	}
 
-	if (!range || range.start === range.end) {
-		return;
+	if (!wange || wange.stawt === wange.end) {
+		wetuwn;
 	}
 
-	if (direction === 'up') {
-		// insert up, without changing focus and selections
-		const focus = editor.getFocus();
-		const selections = editor.getSelections();
-		textModel.applyEdits([
+	if (diwection === 'up') {
+		// insewt up, without changing focus and sewections
+		const focus = editow.getFocus();
+		const sewections = editow.getSewections();
+		textModew.appwyEdits([
 			{
-				editType: CellEditType.Replace,
-				index: range.end,
+				editType: CewwEditType.Wepwace,
+				index: wange.end,
 				count: 0,
-				cells: cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(editor.cellAt(index)!.model))
+				cewws: cewwWangesToIndexes([wange]).map(index => cwoneNotebookCewwTextModew(editow.cewwAt(index)!.modew))
 			}],
-			true,
+			twue,
 			{
-				kind: SelectionStateType.Index,
+				kind: SewectionStateType.Index,
 				focus: focus,
-				selections: selections
+				sewections: sewections
 			},
-			() => ({ kind: SelectionStateType.Index, focus: focus, selections: selections }),
+			() => ({ kind: SewectionStateType.Index, focus: focus, sewections: sewections }),
 			undefined
 		);
-	} else {
-		// insert down, move selections
-		const focus = editor.getFocus();
-		const selections = editor.getSelections();
-		const newCells = cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(editor.cellAt(index)!.model));
-		const countDelta = newCells.length;
-		const newFocus = context.ui ? focus : { start: focus.start + countDelta, end: focus.end + countDelta };
-		const newSelections = context.ui ? selections : [{ start: range.start + countDelta, end: range.end + countDelta }];
-		textModel.applyEdits([
+	} ewse {
+		// insewt down, move sewections
+		const focus = editow.getFocus();
+		const sewections = editow.getSewections();
+		const newCewws = cewwWangesToIndexes([wange]).map(index => cwoneNotebookCewwTextModew(editow.cewwAt(index)!.modew));
+		const countDewta = newCewws.wength;
+		const newFocus = context.ui ? focus : { stawt: focus.stawt + countDewta, end: focus.end + countDewta };
+		const newSewections = context.ui ? sewections : [{ stawt: wange.stawt + countDewta, end: wange.end + countDewta }];
+		textModew.appwyEdits([
 			{
-				editType: CellEditType.Replace,
-				index: range.end,
+				editType: CewwEditType.Wepwace,
+				index: wange.end,
 				count: 0,
-				cells: cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(editor.cellAt(index)!.model))
+				cewws: cewwWangesToIndexes([wange]).map(index => cwoneNotebookCewwTextModew(editow.cewwAt(index)!.modew))
 			}],
-			true,
+			twue,
 			{
-				kind: SelectionStateType.Index,
+				kind: SewectionStateType.Index,
 				focus: focus,
-				selections: selections
+				sewections: sewections
 			},
-			() => ({ kind: SelectionStateType.Index, focus: newFocus, selections: newSelections }),
+			() => ({ kind: SewectionStateType.Index, focus: newFocus, sewections: newSewections }),
 			undefined
 		);
 
-		const focusRange = editor.getSelections()[0] ?? editor.getFocus();
-		editor.revealCellRangeInView(focusRange);
+		const focusWange = editow.getSewections()[0] ?? editow.getFocus();
+		editow.weveawCewwWangeInView(focusWange);
 	}
 }
 
-export async function joinNotebookCells(editor: IActiveNotebookEditor, range: ICellRange, direction: 'above' | 'below', constraint?: CellKind): Promise<{ edits: ResourceEdit[], cell: ICellViewModel, endFocus: ICellRange, endSelections: ICellRange[]; } | null> {
-	if (editor.isReadOnly) {
-		return null;
+expowt async function joinNotebookCewws(editow: IActiveNotebookEditow, wange: ICewwWange, diwection: 'above' | 'bewow', constwaint?: CewwKind): Pwomise<{ edits: WesouwceEdit[], ceww: ICewwViewModew, endFocus: ICewwWange, endSewections: ICewwWange[]; } | nuww> {
+	if (editow.isWeadOnwy) {
+		wetuwn nuww;
 	}
 
-	const textModel = editor.textModel;
-	const cells = editor.getCellsInRange(range);
+	const textModew = editow.textModew;
+	const cewws = editow.getCewwsInWange(wange);
 
-	if (!cells.length) {
-		return null;
+	if (!cewws.wength) {
+		wetuwn nuww;
 	}
 
-	if (range.start === 0 && direction === 'above') {
-		return null;
+	if (wange.stawt === 0 && diwection === 'above') {
+		wetuwn nuww;
 	}
 
-	if (range.end === textModel.length && direction === 'below') {
-		return null;
+	if (wange.end === textModew.wength && diwection === 'bewow') {
+		wetuwn nuww;
 	}
 
-	for (let i = 0; i < cells.length; i++) {
-		const cell = cells[i];
+	fow (wet i = 0; i < cewws.wength; i++) {
+		const ceww = cewws[i];
 
-		if (constraint && cell.cellKind !== constraint) {
-			return null;
+		if (constwaint && ceww.cewwKind !== constwaint) {
+			wetuwn nuww;
 		}
 	}
 
-	if (direction === 'above') {
-		const above = editor.cellAt(range.start - 1) as CellViewModel;
-		if (constraint && above.cellKind !== constraint) {
-			return null;
+	if (diwection === 'above') {
+		const above = editow.cewwAt(wange.stawt - 1) as CewwViewModew;
+		if (constwaint && above.cewwKind !== constwaint) {
+			wetuwn nuww;
 		}
 
-		const insertContent = cells.map(cell => (cell.textBuffer.getEOL() ?? '') + cell.getText()).join('');
-		const aboveCellLineCount = above.textBuffer.getLineCount();
-		const aboveCellLastLineEndColumn = above.textBuffer.getLineLength(aboveCellLineCount);
+		const insewtContent = cewws.map(ceww => (ceww.textBuffa.getEOW() ?? '') + ceww.getText()).join('');
+		const aboveCewwWineCount = above.textBuffa.getWineCount();
+		const aboveCewwWastWineEndCowumn = above.textBuffa.getWineWength(aboveCewwWineCount);
 
-		return {
+		wetuwn {
 			edits: [
-				new ResourceTextEdit(above.uri, { range: new Range(aboveCellLineCount, aboveCellLastLineEndColumn + 1, aboveCellLineCount, aboveCellLastLineEndColumn + 1), text: insertContent }),
-				new ResourceNotebookCellEdit(textModel.uri,
+				new WesouwceTextEdit(above.uwi, { wange: new Wange(aboveCewwWineCount, aboveCewwWastWineEndCowumn + 1, aboveCewwWineCount, aboveCewwWastWineEndCowumn + 1), text: insewtContent }),
+				new WesouwceNotebookCewwEdit(textModew.uwi,
 					{
-						editType: CellEditType.Replace,
-						index: range.start,
-						count: range.end - range.start,
-						cells: []
+						editType: CewwEditType.Wepwace,
+						index: wange.stawt,
+						count: wange.end - wange.stawt,
+						cewws: []
 					}
 				)
 			],
-			cell: above,
-			endFocus: { start: range.start - 1, end: range.start },
-			endSelections: [{ start: range.start - 1, end: range.start }]
+			ceww: above,
+			endFocus: { stawt: wange.stawt - 1, end: wange.stawt },
+			endSewections: [{ stawt: wange.stawt - 1, end: wange.stawt }]
 		};
-	} else {
-		const below = editor.cellAt(range.end) as CellViewModel;
-		if (constraint && below.cellKind !== constraint) {
-			return null;
+	} ewse {
+		const bewow = editow.cewwAt(wange.end) as CewwViewModew;
+		if (constwaint && bewow.cewwKind !== constwaint) {
+			wetuwn nuww;
 		}
 
-		const cell = cells[0];
-		const restCells = [...cells.slice(1), below];
-		const insertContent = restCells.map(cl => (cl.textBuffer.getEOL() ?? '') + cl.getText()).join('');
+		const ceww = cewws[0];
+		const westCewws = [...cewws.swice(1), bewow];
+		const insewtContent = westCewws.map(cw => (cw.textBuffa.getEOW() ?? '') + cw.getText()).join('');
 
-		const cellLineCount = cell.textBuffer.getLineCount();
-		const cellLastLineEndColumn = cell.textBuffer.getLineLength(cellLineCount);
+		const cewwWineCount = ceww.textBuffa.getWineCount();
+		const cewwWastWineEndCowumn = ceww.textBuffa.getWineWength(cewwWineCount);
 
-		return {
+		wetuwn {
 			edits: [
-				new ResourceTextEdit(cell.uri, { range: new Range(cellLineCount, cellLastLineEndColumn + 1, cellLineCount, cellLastLineEndColumn + 1), text: insertContent }),
-				new ResourceNotebookCellEdit(textModel.uri,
+				new WesouwceTextEdit(ceww.uwi, { wange: new Wange(cewwWineCount, cewwWastWineEndCowumn + 1, cewwWineCount, cewwWastWineEndCowumn + 1), text: insewtContent }),
+				new WesouwceNotebookCewwEdit(textModew.uwi,
 					{
-						editType: CellEditType.Replace,
-						index: range.start + 1,
-						count: range.end - range.start,
-						cells: []
+						editType: CewwEditType.Wepwace,
+						index: wange.stawt + 1,
+						count: wange.end - wange.stawt,
+						cewws: []
 					}
 				)
 			],
-			cell,
-			endFocus: { start: range.start, end: range.start + 1 },
-			endSelections: [{ start: range.start, end: range.start + 1 }]
+			ceww,
+			endFocus: { stawt: wange.stawt, end: wange.stawt + 1 },
+			endSewections: [{ stawt: wange.stawt, end: wange.stawt + 1 }]
 		};
 	}
 }
 
-export async function joinCellsWithSurrounds(bulkEditService: IBulkEditService, context: INotebookCellActionContext, direction: 'above' | 'below'): Promise<void> {
-	const editor = context.notebookEditor;
-	const textModel = editor.textModel;
-	const viewModel = editor._getViewModel();
-	let ret: {
-		edits: ResourceEdit[];
-		cell: ICellViewModel;
-		endFocus: ICellRange;
-		endSelections: ICellRange[];
-	} | null = null;
+expowt async function joinCewwsWithSuwwounds(buwkEditSewvice: IBuwkEditSewvice, context: INotebookCewwActionContext, diwection: 'above' | 'bewow'): Pwomise<void> {
+	const editow = context.notebookEditow;
+	const textModew = editow.textModew;
+	const viewModew = editow._getViewModew();
+	wet wet: {
+		edits: WesouwceEdit[];
+		ceww: ICewwViewModew;
+		endFocus: ICewwWange;
+		endSewections: ICewwWange[];
+	} | nuww = nuww;
 
 	if (context.ui) {
-		const focusMode = context.cell.focusMode;
-		const cellIndex = editor.getCellIndex(context.cell);
-		ret = await joinNotebookCells(editor, { start: cellIndex, end: cellIndex + 1 }, direction);
-		if (!ret) {
-			return;
+		const focusMode = context.ceww.focusMode;
+		const cewwIndex = editow.getCewwIndex(context.ceww);
+		wet = await joinNotebookCewws(editow, { stawt: cewwIndex, end: cewwIndex + 1 }, diwection);
+		if (!wet) {
+			wetuwn;
 		}
 
-		await bulkEditService.apply(
-			ret?.edits,
-			{ quotableLabel: 'Join Notebook Cells' }
+		await buwkEditSewvice.appwy(
+			wet?.edits,
+			{ quotabweWabew: 'Join Notebook Cewws' }
 		);
-		viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: ret.endFocus, selections: ret.endSelections });
-		ret.cell.updateEditState(CellEditState.Editing, 'joinCellsWithSurrounds');
-		editor.revealCellRangeInView(editor.getFocus());
-		if (focusMode === CellFocusMode.Editor) {
-			ret.cell.focusMode = CellFocusMode.Editor;
+		viewModew.updateSewectionsState({ kind: SewectionStateType.Index, focus: wet.endFocus, sewections: wet.endSewections });
+		wet.ceww.updateEditState(CewwEditState.Editing, 'joinCewwsWithSuwwounds');
+		editow.weveawCewwWangeInView(editow.getFocus());
+		if (focusMode === CewwFocusMode.Editow) {
+			wet.ceww.focusMode = CewwFocusMode.Editow;
 		}
-	} else {
-		const selections = editor.getSelections();
-		if (!selections.length) {
-			return;
+	} ewse {
+		const sewections = editow.getSewections();
+		if (!sewections.wength) {
+			wetuwn;
 		}
 
-		const focus = editor.getFocus();
-		const focusMode = editor.cellAt(focus.start)?.focusMode;
+		const focus = editow.getFocus();
+		const focusMode = editow.cewwAt(focus.stawt)?.focusMode;
 
-		let edits: ResourceEdit[] = [];
-		let cell: ICellViewModel | null = null;
-		let cells: ICellViewModel[] = [];
+		wet edits: WesouwceEdit[] = [];
+		wet ceww: ICewwViewModew | nuww = nuww;
+		wet cewws: ICewwViewModew[] = [];
 
-		for (let i = selections.length - 1; i >= 0; i--) {
-			const selection = selections[i];
-			const containFocus = cellRangeContains(selection, focus);
+		fow (wet i = sewections.wength - 1; i >= 0; i--) {
+			const sewection = sewections[i];
+			const containFocus = cewwWangeContains(sewection, focus);
 
 			if (
-				selection.end >= textModel.length && direction === 'below'
-				|| selection.start === 0 && direction === 'above'
+				sewection.end >= textModew.wength && diwection === 'bewow'
+				|| sewection.stawt === 0 && diwection === 'above'
 			) {
 				if (containFocus) {
-					cell = editor.cellAt(focus.start)!;
+					ceww = editow.cewwAt(focus.stawt)!;
 				}
 
-				cells.push(...editor.getCellsInRange(selection));
+				cewws.push(...editow.getCewwsInWange(sewection));
 				continue;
 			}
 
-			const singleRet = await joinNotebookCells(editor, selection, direction);
+			const singweWet = await joinNotebookCewws(editow, sewection, diwection);
 
-			if (!singleRet) {
-				return;
+			if (!singweWet) {
+				wetuwn;
 			}
 
-			edits.push(...singleRet.edits);
-			cells.push(singleRet.cell);
+			edits.push(...singweWet.edits);
+			cewws.push(singweWet.ceww);
 
 			if (containFocus) {
-				cell = singleRet.cell;
+				ceww = singweWet.ceww;
 			}
 		}
 
-		if (!edits.length) {
-			return;
+		if (!edits.wength) {
+			wetuwn;
 		}
 
-		if (!cell || !cells.length) {
-			return;
+		if (!ceww || !cewws.wength) {
+			wetuwn;
 		}
 
-		await bulkEditService.apply(
+		await buwkEditSewvice.appwy(
 			edits,
-			{ quotableLabel: 'Join Notebook Cells' }
+			{ quotabweWabew: 'Join Notebook Cewws' }
 		);
 
-		cells.forEach(cell => {
-			cell.updateEditState(CellEditState.Editing, 'joinCellsWithSurrounds');
+		cewws.fowEach(ceww => {
+			ceww.updateEditState(CewwEditState.Editing, 'joinCewwsWithSuwwounds');
 		});
 
-		viewModel.updateSelectionsState({ kind: SelectionStateType.Handle, primary: cell.handle, selections: cells.map(cell => cell.handle) });
-		editor.revealCellRangeInView(editor.getFocus());
-		const newFocusedCell = editor.cellAt(editor.getFocus().start);
-		if (focusMode === CellFocusMode.Editor && newFocusedCell) {
-			newFocusedCell.focusMode = CellFocusMode.Editor;
+		viewModew.updateSewectionsState({ kind: SewectionStateType.Handwe, pwimawy: ceww.handwe, sewections: cewws.map(ceww => ceww.handwe) });
+		editow.weveawCewwWangeInView(editow.getFocus());
+		const newFocusedCeww = editow.cewwAt(editow.getFocus().stawt);
+		if (focusMode === CewwFocusMode.Editow && newFocusedCeww) {
+			newFocusedCeww.focusMode = CewwFocusMode.Editow;
 		}
 	}
 }
 
-function _splitPointsToBoundaries(splitPoints: IPosition[], textBuffer: IReadonlyTextBuffer): IPosition[] | null {
-	const boundaries: IPosition[] = [];
-	const lineCnt = textBuffer.getLineCount();
-	const getLineLen = (lineNumber: number) => {
-		return textBuffer.getLineLength(lineNumber);
+function _spwitPointsToBoundawies(spwitPoints: IPosition[], textBuffa: IWeadonwyTextBuffa): IPosition[] | nuww {
+	const boundawies: IPosition[] = [];
+	const wineCnt = textBuffa.getWineCount();
+	const getWineWen = (wineNumba: numba) => {
+		wetuwn textBuffa.getWineWength(wineNumba);
 	};
 
-	// split points need to be sorted
-	splitPoints = splitPoints.sort((l, r) => {
-		const lineDiff = l.lineNumber - r.lineNumber;
-		const columnDiff = l.column - r.column;
-		return lineDiff !== 0 ? lineDiff : columnDiff;
+	// spwit points need to be sowted
+	spwitPoints = spwitPoints.sowt((w, w) => {
+		const wineDiff = w.wineNumba - w.wineNumba;
+		const cowumnDiff = w.cowumn - w.cowumn;
+		wetuwn wineDiff !== 0 ? wineDiff : cowumnDiff;
 	});
 
-	for (let sp of splitPoints) {
-		if (getLineLen(sp.lineNumber) + 1 === sp.column && sp.column !== 1 /** empty line */ && sp.lineNumber < lineCnt) {
-			sp = new Position(sp.lineNumber + 1, 1);
+	fow (wet sp of spwitPoints) {
+		if (getWineWen(sp.wineNumba) + 1 === sp.cowumn && sp.cowumn !== 1 /** empty wine */ && sp.wineNumba < wineCnt) {
+			sp = new Position(sp.wineNumba + 1, 1);
 		}
-		_pushIfAbsent(boundaries, sp);
+		_pushIfAbsent(boundawies, sp);
 	}
 
-	if (boundaries.length === 0) {
-		return null;
+	if (boundawies.wength === 0) {
+		wetuwn nuww;
 	}
 
-	// boundaries already sorted and not empty
-	const modelStart = new Position(1, 1);
-	const modelEnd = new Position(lineCnt, getLineLen(lineCnt) + 1);
-	return [modelStart, ...boundaries, modelEnd];
+	// boundawies awweady sowted and not empty
+	const modewStawt = new Position(1, 1);
+	const modewEnd = new Position(wineCnt, getWineWen(wineCnt) + 1);
+	wetuwn [modewStawt, ...boundawies, modewEnd];
 }
 
 function _pushIfAbsent(positions: IPosition[], p: IPosition) {
-	const last = positions.length > 0 ? positions[positions.length - 1] : undefined;
-	if (!last || last.lineNumber !== p.lineNumber || last.column !== p.column) {
+	const wast = positions.wength > 0 ? positions[positions.wength - 1] : undefined;
+	if (!wast || wast.wineNumba !== p.wineNumba || wast.cowumn !== p.cowumn) {
 		positions.push(p);
 	}
 }
 
-export function computeCellLinesContents(cell: ICellViewModel, splitPoints: IPosition[]): string[] | null {
-	const rangeBoundaries = _splitPointsToBoundaries(splitPoints, cell.textBuffer);
-	if (!rangeBoundaries) {
-		return null;
+expowt function computeCewwWinesContents(ceww: ICewwViewModew, spwitPoints: IPosition[]): stwing[] | nuww {
+	const wangeBoundawies = _spwitPointsToBoundawies(spwitPoints, ceww.textBuffa);
+	if (!wangeBoundawies) {
+		wetuwn nuww;
 	}
-	const newLineModels: string[] = [];
-	for (let i = 1; i < rangeBoundaries.length; i++) {
-		const start = rangeBoundaries[i - 1];
-		const end = rangeBoundaries[i];
+	const newWineModews: stwing[] = [];
+	fow (wet i = 1; i < wangeBoundawies.wength; i++) {
+		const stawt = wangeBoundawies[i - 1];
+		const end = wangeBoundawies[i];
 
-		newLineModels.push(cell.textBuffer.getValueInRange(new Range(start.lineNumber, start.column, end.lineNumber, end.column), EndOfLinePreference.TextDefined));
+		newWineModews.push(ceww.textBuffa.getVawueInWange(new Wange(stawt.wineNumba, stawt.cowumn, end.wineNumba, end.cowumn), EndOfWinePwefewence.TextDefined));
 	}
 
-	return newLineModels;
+	wetuwn newWineModews;
 }
 
-export function insertCell(
-	modeService: IModeService,
-	editor: IActiveNotebookEditor,
-	index: number,
-	type: CellKind,
-	direction: 'above' | 'below' = 'above',
-	initialText: string = '',
-	ui: boolean = false
+expowt function insewtCeww(
+	modeSewvice: IModeSewvice,
+	editow: IActiveNotebookEditow,
+	index: numba,
+	type: CewwKind,
+	diwection: 'above' | 'bewow' = 'above',
+	initiawText: stwing = '',
+	ui: boowean = fawse
 ) {
-	const viewModel = editor._getViewModel();
-	const activeKernel = editor.activeKernel;
-	if (viewModel.options.isReadOnly) {
-		return null;
+	const viewModew = editow._getViewModew();
+	const activeKewnew = editow.activeKewnew;
+	if (viewModew.options.isWeadOnwy) {
+		wetuwn nuww;
 	}
 
-	const cell = editor.cellAt(index);
-	const nextIndex = ui ? viewModel.getNextVisibleCellIndex(index) : index + 1;
-	let language;
-	if (type === CellKind.Code) {
-		const supportedLanguages = activeKernel?.supportedLanguages ?? modeService.getRegisteredModes();
-		const defaultLanguage = supportedLanguages[0] || 'plaintext';
-		if (cell?.cellKind === CellKind.Code) {
-			language = cell.language;
-		} else if (cell?.cellKind === CellKind.Markup) {
-			const nearestCodeCellIndex = viewModel.nearestCodeCellIndex(index);
-			if (nearestCodeCellIndex > -1) {
-				language = viewModel.cellAt(nearestCodeCellIndex)!.language;
-			} else {
-				language = defaultLanguage;
+	const ceww = editow.cewwAt(index);
+	const nextIndex = ui ? viewModew.getNextVisibweCewwIndex(index) : index + 1;
+	wet wanguage;
+	if (type === CewwKind.Code) {
+		const suppowtedWanguages = activeKewnew?.suppowtedWanguages ?? modeSewvice.getWegistewedModes();
+		const defauwtWanguage = suppowtedWanguages[0] || 'pwaintext';
+		if (ceww?.cewwKind === CewwKind.Code) {
+			wanguage = ceww.wanguage;
+		} ewse if (ceww?.cewwKind === CewwKind.Mawkup) {
+			const neawestCodeCewwIndex = viewModew.neawestCodeCewwIndex(index);
+			if (neawestCodeCewwIndex > -1) {
+				wanguage = viewModew.cewwAt(neawestCodeCewwIndex)!.wanguage;
+			} ewse {
+				wanguage = defauwtWanguage;
 			}
-		} else {
-			if (cell === undefined && direction === 'above') {
-				// insert cell at the very top
-				language = viewModel.viewCells.find(cell => cell.cellKind === CellKind.Code)?.language || defaultLanguage;
-			} else {
-				language = defaultLanguage;
+		} ewse {
+			if (ceww === undefined && diwection === 'above') {
+				// insewt ceww at the vewy top
+				wanguage = viewModew.viewCewws.find(ceww => ceww.cewwKind === CewwKind.Code)?.wanguage || defauwtWanguage;
+			} ewse {
+				wanguage = defauwtWanguage;
 			}
 		}
 
-		if (!supportedLanguages.includes(language)) {
-			// the language no longer exists
-			language = defaultLanguage;
+		if (!suppowtedWanguages.incwudes(wanguage)) {
+			// the wanguage no wonga exists
+			wanguage = defauwtWanguage;
 		}
-	} else {
-		language = 'markdown';
+	} ewse {
+		wanguage = 'mawkdown';
 	}
 
-	const insertIndex = cell ?
-		(direction === 'above' ? index : nextIndex) :
+	const insewtIndex = ceww ?
+		(diwection === 'above' ? index : nextIndex) :
 		index;
-	return insertCellAtIndex(viewModel, insertIndex, initialText, language, type, undefined, [], true);
+	wetuwn insewtCewwAtIndex(viewModew, insewtIndex, initiawText, wanguage, type, undefined, [], twue);
 }
 
-export function insertCellAtIndex(viewModel: NotebookViewModel, index: number, source: string, language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, outputs: IOutputDto[], synchronous: boolean, pushUndoStop: boolean = true): CellViewModel {
-	const endSelections: ISelectionState = { kind: SelectionStateType.Index, focus: { start: index, end: index + 1 }, selections: [{ start: index, end: index + 1 }] };
-	viewModel.notebookDocument.applyEdits([
+expowt function insewtCewwAtIndex(viewModew: NotebookViewModew, index: numba, souwce: stwing, wanguage: stwing, type: CewwKind, metadata: NotebookCewwMetadata | undefined, outputs: IOutputDto[], synchwonous: boowean, pushUndoStop: boowean = twue): CewwViewModew {
+	const endSewections: ISewectionState = { kind: SewectionStateType.Index, focus: { stawt: index, end: index + 1 }, sewections: [{ stawt: index, end: index + 1 }] };
+	viewModew.notebookDocument.appwyEdits([
 		{
-			editType: CellEditType.Replace,
+			editType: CewwEditType.Wepwace,
 			index,
 			count: 0,
-			cells: [
+			cewws: [
 				{
-					cellKind: type,
-					language: language,
+					cewwKind: type,
+					wanguage: wanguage,
 					mime: undefined,
 					outputs: outputs,
 					metadata: metadata,
-					source: source
+					souwce: souwce
 				}
 			]
 		}
-	], synchronous, { kind: SelectionStateType.Index, focus: viewModel.getFocus(), selections: viewModel.getSelections() }, () => endSelections, undefined, pushUndoStop);
-	return viewModel.cellAt(index)!;
+	], synchwonous, { kind: SewectionStateType.Index, focus: viewModew.getFocus(), sewections: viewModew.getSewections() }, () => endSewections, undefined, pushUndoStop);
+	wetuwn viewModew.cewwAt(index)!;
 }
 
 
 /**
  *
- * @param index
- * @param length
- * @param newIdx in an index scheme for the state of the tree after the current cell has been "removed"
- * @param synchronous
- * @param pushedToUndoStack
+ * @pawam index
+ * @pawam wength
+ * @pawam newIdx in an index scheme fow the state of the twee afta the cuwwent ceww has been "wemoved"
+ * @pawam synchwonous
+ * @pawam pushedToUndoStack
  */
-export function moveCellToIdx(editor: IActiveNotebookEditor, index: number, length: number, newIdx: number, synchronous: boolean, pushedToUndoStack: boolean = true): boolean {
-	const viewCell = editor.cellAt(index) as CellViewModel | undefined;
-	if (!viewCell) {
-		return false;
+expowt function moveCewwToIdx(editow: IActiveNotebookEditow, index: numba, wength: numba, newIdx: numba, synchwonous: boowean, pushedToUndoStack: boowean = twue): boowean {
+	const viewCeww = editow.cewwAt(index) as CewwViewModew | undefined;
+	if (!viewCeww) {
+		wetuwn fawse;
 	}
 
-	editor.textModel.applyEdits([
+	editow.textModew.appwyEdits([
 		{
-			editType: CellEditType.Move,
+			editType: CewwEditType.Move,
 			index,
-			length,
+			wength,
 			newIdx
 		}
-	], synchronous, { kind: SelectionStateType.Index, focus: editor.getFocus(), selections: editor.getSelections() }, () => ({ kind: SelectionStateType.Index, focus: { start: newIdx, end: newIdx + 1 }, selections: [{ start: newIdx, end: newIdx + 1 }] }), undefined);
-	return true;
+	], synchwonous, { kind: SewectionStateType.Index, focus: editow.getFocus(), sewections: editow.getSewections() }, () => ({ kind: SewectionStateType.Index, focus: { stawt: newIdx, end: newIdx + 1 }, sewections: [{ stawt: newIdx, end: newIdx + 1 }] }), undefined);
+	wetuwn twue;
 }

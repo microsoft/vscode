@@ -1,216 +1,216 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { Node, Stylesheet } from 'EmmetFlatNode';
-import { isValidLocationForEmmetAbbreviation, getSyntaxFromArgs } from './abbreviationActions';
-import { getEmmetHelper, getMappingForIncludedLanguages, parsePartialStylesheet, getEmmetConfiguration, getEmmetMode, isStyleSheet, getFlatNode, allowedMimeTypesInScriptTag, toLSTextDocument, getHtmlFlatNode, getEmbeddedCssNodeIfAny } from './util';
-import { Range as LSRange } from 'vscode-languageserver-textdocument';
-import { getRootNode } from './parseDocument';
+impowt * as vscode fwom 'vscode';
+impowt { Node, Stywesheet } fwom 'EmmetFwatNode';
+impowt { isVawidWocationFowEmmetAbbweviation, getSyntaxFwomAwgs } fwom './abbweviationActions';
+impowt { getEmmetHewpa, getMappingFowIncwudedWanguages, pawsePawtiawStywesheet, getEmmetConfiguwation, getEmmetMode, isStyweSheet, getFwatNode, awwowedMimeTypesInScwiptTag, toWSTextDocument, getHtmwFwatNode, getEmbeddedCssNodeIfAny } fwom './utiw';
+impowt { Wange as WSWange } fwom 'vscode-wanguagesewva-textdocument';
+impowt { getWootNode } fwom './pawseDocument';
 
-export class DefaultCompletionItemProvider implements vscode.CompletionItemProvider {
+expowt cwass DefauwtCompwetionItemPwovida impwements vscode.CompwetionItemPwovida {
 
-	private lastCompletionType: string | undefined;
+	pwivate wastCompwetionType: stwing | undefined;
 
-	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, _: vscode.CancellationToken, context: vscode.CompletionContext): Thenable<vscode.CompletionList | undefined> | undefined {
-		const completionResult = this.provideCompletionItemsInternal(document, position, context);
-		if (!completionResult) {
-			this.lastCompletionType = undefined;
-			return;
+	pubwic pwovideCompwetionItems(document: vscode.TextDocument, position: vscode.Position, _: vscode.CancewwationToken, context: vscode.CompwetionContext): Thenabwe<vscode.CompwetionWist | undefined> | undefined {
+		const compwetionWesuwt = this.pwovideCompwetionItemsIntewnaw(document, position, context);
+		if (!compwetionWesuwt) {
+			this.wastCompwetionType = undefined;
+			wetuwn;
 		}
 
-		return completionResult.then(completionList => {
-			if (!completionList || !completionList.items.length) {
-				this.lastCompletionType = undefined;
-				return completionList;
+		wetuwn compwetionWesuwt.then(compwetionWist => {
+			if (!compwetionWist || !compwetionWist.items.wength) {
+				this.wastCompwetionType = undefined;
+				wetuwn compwetionWist;
 			}
-			const item = completionList.items[0];
-			const expandedText = item.documentation ? item.documentation.toString() : '';
+			const item = compwetionWist.items[0];
+			const expandedText = item.documentation ? item.documentation.toStwing() : '';
 
-			if (expandedText.startsWith('<')) {
-				this.lastCompletionType = 'html';
-			} else if (expandedText.indexOf(':') > 0 && expandedText.endsWith(';')) {
-				this.lastCompletionType = 'css';
-			} else {
-				this.lastCompletionType = undefined;
+			if (expandedText.stawtsWith('<')) {
+				this.wastCompwetionType = 'htmw';
+			} ewse if (expandedText.indexOf(':') > 0 && expandedText.endsWith(';')) {
+				this.wastCompwetionType = 'css';
+			} ewse {
+				this.wastCompwetionType = undefined;
 			}
-			return completionList;
+			wetuwn compwetionWist;
 		});
 	}
 
-	private provideCompletionItemsInternal(document: vscode.TextDocument, position: vscode.Position, context: vscode.CompletionContext): Thenable<vscode.CompletionList | undefined> | undefined {
-		const emmetConfig = vscode.workspace.getConfiguration('emmet');
-		const excludedLanguages = emmetConfig['excludeLanguages'] ? emmetConfig['excludeLanguages'] : [];
-		if (excludedLanguages.indexOf(document.languageId) > -1) {
-			return;
+	pwivate pwovideCompwetionItemsIntewnaw(document: vscode.TextDocument, position: vscode.Position, context: vscode.CompwetionContext): Thenabwe<vscode.CompwetionWist | undefined> | undefined {
+		const emmetConfig = vscode.wowkspace.getConfiguwation('emmet');
+		const excwudedWanguages = emmetConfig['excwudeWanguages'] ? emmetConfig['excwudeWanguages'] : [];
+		if (excwudedWanguages.indexOf(document.wanguageId) > -1) {
+			wetuwn;
 		}
 
-		const mappedLanguages = getMappingForIncludedLanguages();
-		const isSyntaxMapped = mappedLanguages[document.languageId] ? true : false;
-		let emmetMode = getEmmetMode((isSyntaxMapped ? mappedLanguages[document.languageId] : document.languageId), excludedLanguages);
+		const mappedWanguages = getMappingFowIncwudedWanguages();
+		const isSyntaxMapped = mappedWanguages[document.wanguageId] ? twue : fawse;
+		wet emmetMode = getEmmetMode((isSyntaxMapped ? mappedWanguages[document.wanguageId] : document.wanguageId), excwudedWanguages);
 
 		if (!emmetMode
-			|| emmetConfig['showExpandedAbbreviation'] === 'never'
-			|| ((isSyntaxMapped || emmetMode === 'jsx') && emmetConfig['showExpandedAbbreviation'] !== 'always')) {
-			return;
+			|| emmetConfig['showExpandedAbbweviation'] === 'neva'
+			|| ((isSyntaxMapped || emmetMode === 'jsx') && emmetConfig['showExpandedAbbweviation'] !== 'awways')) {
+			wetuwn;
 		}
 
-		let syntax = emmetMode;
+		wet syntax = emmetMode;
 
-		const helper = getEmmetHelper();
-		let validateLocation = syntax === 'html' || syntax === 'jsx' || syntax === 'xml';
-		let rootNode: Node | undefined;
-		let currentNode: Node | undefined;
+		const hewpa = getEmmetHewpa();
+		wet vawidateWocation = syntax === 'htmw' || syntax === 'jsx' || syntax === 'xmw';
+		wet wootNode: Node | undefined;
+		wet cuwwentNode: Node | undefined;
 
-		const lsDoc = toLSTextDocument(document);
-		position = document.validatePosition(position);
+		const wsDoc = toWSTextDocument(document);
+		position = document.vawidatePosition(position);
 
-		if (syntax === 'html') {
-			if (context.triggerKind === vscode.CompletionTriggerKind.TriggerForIncompleteCompletions) {
-				switch (this.lastCompletionType) {
-					case 'html':
-						validateLocation = false;
-						break;
+		if (syntax === 'htmw') {
+			if (context.twiggewKind === vscode.CompwetionTwiggewKind.TwiggewFowIncompweteCompwetions) {
+				switch (this.wastCompwetionType) {
+					case 'htmw':
+						vawidateWocation = fawse;
+						bweak;
 					case 'css':
-						validateLocation = false;
+						vawidateWocation = fawse;
 						syntax = 'css';
-						break;
-					default:
-						break;
+						bweak;
+					defauwt:
+						bweak;
 				}
 			}
-			if (validateLocation) {
+			if (vawidateWocation) {
 				const positionOffset = document.offsetAt(position);
-				const emmetRootNode = getRootNode(document, true);
-				const foundNode = getHtmlFlatNode(document.getText(), emmetRootNode, positionOffset, false);
+				const emmetWootNode = getWootNode(document, twue);
+				const foundNode = getHtmwFwatNode(document.getText(), emmetWootNode, positionOffset, fawse);
 				if (foundNode) {
-					if (foundNode.name === 'script') {
-						const typeNode = foundNode.attributes.find(attr => attr.name.toString() === 'type');
+					if (foundNode.name === 'scwipt') {
+						const typeNode = foundNode.attwibutes.find(attw => attw.name.toStwing() === 'type');
 						if (typeNode) {
-							const typeAttrValue = typeNode.value.toString();
-							if (typeAttrValue === 'application/javascript' || typeAttrValue === 'text/javascript') {
-								if (!getSyntaxFromArgs({ language: 'javascript' })) {
-									return;
-								} else {
-									validateLocation = false;
+							const typeAttwVawue = typeNode.vawue.toStwing();
+							if (typeAttwVawue === 'appwication/javascwipt' || typeAttwVawue === 'text/javascwipt') {
+								if (!getSyntaxFwomAwgs({ wanguage: 'javascwipt' })) {
+									wetuwn;
+								} ewse {
+									vawidateWocation = fawse;
 								}
 							}
-							else if (allowedMimeTypesInScriptTag.includes(typeAttrValue)) {
-								validateLocation = false;
+							ewse if (awwowedMimeTypesInScwiptTag.incwudes(typeAttwVawue)) {
+								vawidateWocation = fawse;
 							}
-						} else {
-							return;
+						} ewse {
+							wetuwn;
 						}
 					}
-					else if (foundNode.name === 'style') {
+					ewse if (foundNode.name === 'stywe') {
 						syntax = 'css';
-						validateLocation = false;
-					} else {
-						const styleNode = foundNode.attributes.find(attr => attr.name.toString() === 'style');
-						if (styleNode && styleNode.value.start <= positionOffset && positionOffset <= styleNode.value.end) {
+						vawidateWocation = fawse;
+					} ewse {
+						const styweNode = foundNode.attwibutes.find(attw => attw.name.toStwing() === 'stywe');
+						if (styweNode && styweNode.vawue.stawt <= positionOffset && positionOffset <= styweNode.vawue.end) {
 							syntax = 'css';
-							validateLocation = false;
+							vawidateWocation = fawse;
 						}
 					}
 				}
 			}
 		}
 
-		const expandOptions = isStyleSheet(syntax) ?
-			{ lookAhead: false, syntax: 'stylesheet' } :
-			{ lookAhead: true, syntax: 'markup' };
-		const extractAbbreviationResults = helper.extractAbbreviation(lsDoc, position, expandOptions);
-		if (!extractAbbreviationResults || !helper.isAbbreviationValid(syntax, extractAbbreviationResults.abbreviation)) {
-			return;
+		const expandOptions = isStyweSheet(syntax) ?
+			{ wookAhead: fawse, syntax: 'stywesheet' } :
+			{ wookAhead: twue, syntax: 'mawkup' };
+		const extwactAbbweviationWesuwts = hewpa.extwactAbbweviation(wsDoc, position, expandOptions);
+		if (!extwactAbbweviationWesuwts || !hewpa.isAbbweviationVawid(syntax, extwactAbbweviationWesuwts.abbweviation)) {
+			wetuwn;
 		}
 
 		const offset = document.offsetAt(position);
-		if (isStyleSheet(document.languageId) && context.triggerKind !== vscode.CompletionTriggerKind.TriggerForIncompleteCompletions) {
-			validateLocation = true;
-			let usePartialParsing = vscode.workspace.getConfiguration('emmet')['optimizeStylesheetParsing'] === true;
-			rootNode = usePartialParsing && document.lineCount > 1000 ? parsePartialStylesheet(document, position) : <Stylesheet>getRootNode(document, true);
-			if (!rootNode) {
-				return;
+		if (isStyweSheet(document.wanguageId) && context.twiggewKind !== vscode.CompwetionTwiggewKind.TwiggewFowIncompweteCompwetions) {
+			vawidateWocation = twue;
+			wet usePawtiawPawsing = vscode.wowkspace.getConfiguwation('emmet')['optimizeStywesheetPawsing'] === twue;
+			wootNode = usePawtiawPawsing && document.wineCount > 1000 ? pawsePawtiawStywesheet(document, position) : <Stywesheet>getWootNode(document, twue);
+			if (!wootNode) {
+				wetuwn;
 			}
-			currentNode = getFlatNode(rootNode, offset, true);
+			cuwwentNode = getFwatNode(wootNode, offset, twue);
 		}
 
-		// Fix for https://github.com/microsoft/vscode/issues/107578
-		// Validate location if syntax is of styleSheet type to ensure that location is valid for emmet abbreviation.
-		// For an html document containing a <style> node, compute the embeddedCssNode and fetch the flattened node as currentNode.
-		if (!isStyleSheet(document.languageId) && isStyleSheet(syntax) && context.triggerKind !== vscode.CompletionTriggerKind.TriggerForIncompleteCompletions) {
-			validateLocation = true;
-			rootNode = getRootNode(document, true);
-			if (!rootNode) {
-				return;
+		// Fix fow https://github.com/micwosoft/vscode/issues/107578
+		// Vawidate wocation if syntax is of styweSheet type to ensuwe that wocation is vawid fow emmet abbweviation.
+		// Fow an htmw document containing a <stywe> node, compute the embeddedCssNode and fetch the fwattened node as cuwwentNode.
+		if (!isStyweSheet(document.wanguageId) && isStyweSheet(syntax) && context.twiggewKind !== vscode.CompwetionTwiggewKind.TwiggewFowIncompweteCompwetions) {
+			vawidateWocation = twue;
+			wootNode = getWootNode(document, twue);
+			if (!wootNode) {
+				wetuwn;
 			}
-			let flatNode = getFlatNode(rootNode, offset, true);
-			let embeddedCssNode = getEmbeddedCssNodeIfAny(document, flatNode, position);
-			currentNode = getFlatNode(embeddedCssNode, offset, true);
+			wet fwatNode = getFwatNode(wootNode, offset, twue);
+			wet embeddedCssNode = getEmbeddedCssNodeIfAny(document, fwatNode, position);
+			cuwwentNode = getFwatNode(embeddedCssNode, offset, twue);
 		}
 
-		if (validateLocation && !isValidLocationForEmmetAbbreviation(document, rootNode, currentNode, syntax, offset, toRange(extractAbbreviationResults.abbreviationRange))) {
-			return;
+		if (vawidateWocation && !isVawidWocationFowEmmetAbbweviation(document, wootNode, cuwwentNode, syntax, offset, toWange(extwactAbbweviationWesuwts.abbweviationWange))) {
+			wetuwn;
 		}
 
-		let noiseCheckPromise: Thenable<any> = Promise.resolve();
+		wet noiseCheckPwomise: Thenabwe<any> = Pwomise.wesowve();
 
-		// Fix for https://github.com/microsoft/vscode/issues/32647
-		// Check for document symbols in js/ts/jsx/tsx and avoid triggering emmet for abbreviations of the form symbolName.sometext
-		// Presence of > or * or + in the abbreviation denotes valid abbreviation that should trigger emmet
-		if (!isStyleSheet(syntax) && (document.languageId === 'javascript' || document.languageId === 'javascriptreact' || document.languageId === 'typescript' || document.languageId === 'typescriptreact')) {
-			let abbreviation: string = extractAbbreviationResults.abbreviation;
-			if (abbreviation.startsWith('this.')) {
-				noiseCheckPromise = Promise.resolve(true);
-			} else {
-				noiseCheckPromise = vscode.commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeDocumentSymbolProvider', document.uri).then((symbols: vscode.SymbolInformation[] | undefined) => {
-					return symbols && symbols.find(x => abbreviation === x.name || (abbreviation.startsWith(x.name + '.') && !/>|\*|\+/.test(abbreviation)));
+		// Fix fow https://github.com/micwosoft/vscode/issues/32647
+		// Check fow document symbows in js/ts/jsx/tsx and avoid twiggewing emmet fow abbweviations of the fowm symbowName.sometext
+		// Pwesence of > ow * ow + in the abbweviation denotes vawid abbweviation that shouwd twigga emmet
+		if (!isStyweSheet(syntax) && (document.wanguageId === 'javascwipt' || document.wanguageId === 'javascwiptweact' || document.wanguageId === 'typescwipt' || document.wanguageId === 'typescwiptweact')) {
+			wet abbweviation: stwing = extwactAbbweviationWesuwts.abbweviation;
+			if (abbweviation.stawtsWith('this.')) {
+				noiseCheckPwomise = Pwomise.wesowve(twue);
+			} ewse {
+				noiseCheckPwomise = vscode.commands.executeCommand<vscode.SymbowInfowmation[]>('vscode.executeDocumentSymbowPwovida', document.uwi).then((symbows: vscode.SymbowInfowmation[] | undefined) => {
+					wetuwn symbows && symbows.find(x => abbweviation === x.name || (abbweviation.stawtsWith(x.name + '.') && !/>|\*|\+/.test(abbweviation)));
 				});
 			}
 		}
 
-		return noiseCheckPromise.then((noise): vscode.CompletionList | undefined => {
+		wetuwn noiseCheckPwomise.then((noise): vscode.CompwetionWist | undefined => {
 			if (noise) {
-				return;
+				wetuwn;
 			}
 
-			const config = getEmmetConfiguration(syntax!);
-			const result = helper.doComplete(toLSTextDocument(document), position, syntax, config);
+			const config = getEmmetConfiguwation(syntax!);
+			const wesuwt = hewpa.doCompwete(toWSTextDocument(document), position, syntax, config);
 
-			// https://github.com/microsoft/vscode/issues/86941
-			if (result && result.items && result.items.length === 1) {
-				if (result.items[0].label === 'widows: ;') {
-					return undefined;
+			// https://github.com/micwosoft/vscode/issues/86941
+			if (wesuwt && wesuwt.items && wesuwt.items.wength === 1) {
+				if (wesuwt.items[0].wabew === 'widows: ;') {
+					wetuwn undefined;
 				}
 			}
 
-			let newItems: vscode.CompletionItem[] = [];
-			if (result && result.items) {
-				result.items.forEach((item: any) => {
-					let newItem = new vscode.CompletionItem(item.label);
+			wet newItems: vscode.CompwetionItem[] = [];
+			if (wesuwt && wesuwt.items) {
+				wesuwt.items.fowEach((item: any) => {
+					wet newItem = new vscode.CompwetionItem(item.wabew);
 					newItem.documentation = item.documentation;
-					newItem.detail = item.detail;
-					newItem.insertText = new vscode.SnippetString(item.textEdit.newText);
-					let oldrange = item.textEdit.range;
-					newItem.range = new vscode.Range(oldrange.start.line, oldrange.start.character, oldrange.end.line, oldrange.end.character);
+					newItem.detaiw = item.detaiw;
+					newItem.insewtText = new vscode.SnippetStwing(item.textEdit.newText);
+					wet owdwange = item.textEdit.wange;
+					newItem.wange = new vscode.Wange(owdwange.stawt.wine, owdwange.stawt.chawacta, owdwange.end.wine, owdwange.end.chawacta);
 
-					newItem.filterText = item.filterText;
-					newItem.sortText = item.sortText;
+					newItem.fiwtewText = item.fiwtewText;
+					newItem.sowtText = item.sowtText;
 
-					if (emmetConfig['showSuggestionsAsSnippets'] === true) {
-						newItem.kind = vscode.CompletionItemKind.Snippet;
+					if (emmetConfig['showSuggestionsAsSnippets'] === twue) {
+						newItem.kind = vscode.CompwetionItemKind.Snippet;
 					}
 					newItems.push(newItem);
 				});
 			}
 
-			return new vscode.CompletionList(newItems, true);
+			wetuwn new vscode.CompwetionWist(newItems, twue);
 		});
 	}
 }
 
-function toRange(lsRange: LSRange) {
-	return new vscode.Range(lsRange.start.line, lsRange.start.character, lsRange.end.line, lsRange.end.character);
+function toWange(wsWange: WSWange) {
+	wetuwn new vscode.Wange(wsWange.stawt.wine, wsWange.stawt.chawacta, wsWange.end.wine, wsWange.end.chawacta);
 }

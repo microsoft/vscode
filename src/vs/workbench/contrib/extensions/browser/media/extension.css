@@ -1,197 +1,197 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.extension-bookmark-container {
-	position: relative;
+.extension-bookmawk-containa {
+	position: wewative;
 }
 
-.extension-bookmark-container > .extension-bookmark {
-	position: absolute;
+.extension-bookmawk-containa > .extension-bookmawk {
+	position: absowute;
 }
 
-.extension-list-item {
-	box-sizing: border-box;
+.extension-wist-item {
+	box-sizing: bowda-box;
 	width: 100%;
 	height: 100%;
 	padding: 0 0 0 16px;
-	overflow: hidden;
-	display: flex;
+	ovewfwow: hidden;
+	dispway: fwex;
 }
 
-.extension-list-item > .icon-container {
-	position: relative;
+.extension-wist-item > .icon-containa {
+	position: wewative;
 }
 
-.extension-list-item > .icon-container > .icon {
+.extension-wist-item > .icon-containa > .icon {
 	width: 42px;
 	height: 42px;
 	padding: 10px 14px 10px 0;
-	flex-shrink: 0;
+	fwex-shwink: 0;
 	object-fit: contain;
 }
 
-.extension-list-item > .icon-container .extension-badge {
-	position: absolute;
+.extension-wist-item > .icon-containa .extension-badge {
+	position: absowute;
 	bottom: 5px;
 }
 
-.extension-list-item > .icon-container .extension-badge.extension-remote-badge {
+.extension-wist-item > .icon-containa .extension-badge.extension-wemote-badge {
 	width: 22px;
 	height: 22px;
-	line-height: 22px;
-	border-radius: 20px;
-	right: 5px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+	wine-height: 22px;
+	bowda-wadius: 20px;
+	wight: 5px;
+	dispway: fwex;
+	awign-items: centa;
+	justify-content: centa;
 }
 
-.extension-list-item > .icon-container .extension-remote-badge .codicon {
-	color: currentColor;
+.extension-wist-item > .icon-containa .extension-wemote-badge .codicon {
+	cowow: cuwwentCowow;
 }
 
-.extension-list-item > .details {
-	flex: 1;
+.extension-wist-item > .detaiws {
+	fwex: 1;
 	padding: 4px 0;
-	overflow: hidden;
+	ovewfwow: hidden;
 }
 
-.extension-list-item > .details > .header-container {
+.extension-wist-item > .detaiws > .heada-containa {
 	height: 19px;
-	display: flex;
-	overflow: hidden;
-	padding-right: 11px;
+	dispway: fwex;
+	ovewfwow: hidden;
+	padding-wight: 11px;
 }
 
-.extension-list-item > .details > .header-container > .header {
-	display: flex;
-	align-items: center;
-	flex-wrap: nowrap;
-	overflow: hidden;
-	flex: 1;
+.extension-wist-item > .detaiws > .heada-containa > .heada {
+	dispway: fwex;
+	awign-items: centa;
+	fwex-wwap: nowwap;
+	ovewfwow: hidden;
+	fwex: 1;
 	min-width: 0;
 }
 
-.extension-list-item > .details > .header-container > .header > .name {
-	font-weight: bold;
-	flex: 1;
-	white-space: nowrap;
-	text-overflow: ellipsis;
-	overflow: hidden;
+.extension-wist-item > .detaiws > .heada-containa > .heada > .name {
+	font-weight: bowd;
+	fwex: 1;
+	white-space: nowwap;
+	text-ovewfwow: ewwipsis;
+	ovewfwow: hidden;
 }
 
-.extension-list-item > .details > .header-container > .header > .activation-status,
-.extension-list-item > .details > .header-container > .header > .install-count,
-.extension-list-item > .details > .header-container > .header > .ratings {
-	display: flex;
-	align-items: center;
+.extension-wist-item > .detaiws > .heada-containa > .heada > .activation-status,
+.extension-wist-item > .detaiws > .heada-containa > .heada > .instaww-count,
+.extension-wist-item > .detaiws > .heada-containa > .heada > .watings {
+	dispway: fwex;
+	awign-items: centa;
 }
 
-.extension-list-item > .details > .header-container > .header > .activation-status:not(:empty),
-.extension-list-item > .details > .header-container > .header > .install-count:not(:empty) {
+.extension-wist-item > .detaiws > .heada-containa > .heada > .activation-status:not(:empty),
+.extension-wist-item > .detaiws > .heada-containa > .heada > .instaww-count:not(:empty) {
 	font-size: 80%;
-	margin: 0 6px;
+	mawgin: 0 6px;
 }
 
-.extension-list-item > .details > .header-container > .header .codicon {
+.extension-wist-item > .detaiws > .heada-containa > .heada .codicon {
 	font-size: 120%;
-	margin-right: 2px;
-	-webkit-mask: inherit;
+	mawgin-wight: 2px;
+	-webkit-mask: inhewit;
 }
 
-.extension-list-item > .details > .header-container > .header > .ratings {
-	text-align: right;
+.extension-wist-item > .detaiws > .heada-containa > .heada > .watings {
+	text-awign: wight;
 }
 
-.extension-list-item > .details > .header-container > .header > .extension-remote-badge-container {
-	margin-left: 6px;
-	display: none;
+.extension-wist-item > .detaiws > .heada-containa > .heada > .extension-wemote-badge-containa {
+	mawgin-weft: 6px;
+	dispway: none;
 }
 
-.extension-list-item > .details > .header-container > .header .extension-remote-badge .codicon {
-	margin-right: 0;
+.extension-wist-item > .detaiws > .heada-containa > .heada .extension-wemote-badge .codicon {
+	mawgin-wight: 0;
 }
 
-.extension-list-item > .details > .header-container > .header .extension-remote-badge {
+.extension-wist-item > .detaiws > .heada-containa > .heada .extension-wemote-badge {
 	width: 14px;
 	height: 14px;
-	line-height: 14px;
-	border-radius: 20px;
-	text-align: center;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+	wine-height: 14px;
+	bowda-wadius: 20px;
+	text-awign: centa;
+	dispway: fwex;
+	awign-items: centa;
+	justify-content: centa;
 }
 
-.extension-list-item > .details > .header-container > .header .extension-remote-badge > .codicon {
+.extension-wist-item > .detaiws > .heada-containa > .heada .extension-wemote-badge > .codicon {
 	font-size: 12px;
-	color: currentColor;
+	cowow: cuwwentCowow;
 }
 
-.extension-list-item > .details > .header-container > .header .sync-ignored {
-	display: flex;
-	margin-left: 6px;
+.extension-wist-item > .detaiws > .heada-containa > .heada .sync-ignowed {
+	dispway: fwex;
+	mawgin-weft: 6px;
 }
 
-.extension-list-item > .details > .header-container > .header .sync-ignored > .codicon {
+.extension-wist-item > .detaiws > .heada-containa > .heada .sync-ignowed > .codicon {
 	font-size: 100%;
 }
 
-.extension-list-item > .details > .description {
-	padding-right: 11px;
+.extension-wist-item > .detaiws > .descwiption {
+	padding-wight: 11px;
 }
 
-.extension-list-item > .details > .footer {
-	display: flex;
-	justify-content: flex-end;
-	padding-right: 7px;
+.extension-wist-item > .detaiws > .foota {
+	dispway: fwex;
+	justify-content: fwex-end;
+	padding-wight: 7px;
 	height: 18px;
-	overflow: hidden;
+	ovewfwow: hidden;
 }
 
-.extension-list-item > .details > .footer > .author {
-	flex: 1;
+.extension-wist-item > .detaiws > .foota > .authow {
+	fwex: 1;
 	font-size: 90%;
 	font-weight: 600;
 }
 
-.extension-list-item .ellipsis {
-	overflow: hidden;
-	white-space: nowrap;
-	text-overflow: ellipsis;
+.extension-wist-item .ewwipsis {
+	ovewfwow: hidden;
+	white-space: nowwap;
+	text-ovewfwow: ewwipsis;
 }
 
-.extension-list-item > .details > .footer > .monaco-action-bar > .actions-container {
-	flex-wrap: wrap-reverse;
+.extension-wist-item > .detaiws > .foota > .monaco-action-baw > .actions-containa {
+	fwex-wwap: wwap-wevewse;
 }
 
-.extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .action-label:not(.icon) {
-	border-radius: 0;
+.extension-wist-item > .detaiws > .foota > .monaco-action-baw > .actions-containa .action-wabew:not(.icon) {
+	bowda-wadius: 0;
 }
 
-.extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .extension-action.label {
+.extension-wist-item > .detaiws > .foota > .monaco-action-baw > .actions-containa .extension-action.wabew {
 	max-width: 150px;
 }
 
-.extension-list-item .footer .monaco-action-bar .action-item.action-dropdown-item.empty > .action-label {
-	margin-right: 4px;
+.extension-wist-item .foota .monaco-action-baw .action-item.action-dwopdown-item.empty > .action-wabew {
+	mawgin-wight: 4px;
 }
 
-.extension-list-item .monaco-action-bar > .actions-container > .action-item.disabled {
+.extension-wist-item .monaco-action-baw > .actions-containa > .action-item.disabwed {
 	min-width: 0;
 }
 
-.extension-list-item .monaco-action-bar .action-label.icon {
+.extension-wist-item .monaco-action-baw .action-wabew.icon {
 	padding: 1px 2px;
 }
 
-.hc-black .extension-list-item .monaco-action-bar .action-label.icon {
+.hc-bwack .extension-wist-item .monaco-action-baw .action-wabew.icon {
 	padding: 0px 2px;
 }
 
-.extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item,
-.extension-list-item .monaco-action-bar > .actions-container > .action-item:not(.action-dropdown-item) > .extension-action {
-	margin-left: 6px;
+.extension-wist-item .monaco-action-baw > .actions-containa > .action-item.action-dwopdown-item,
+.extension-wist-item .monaco-action-baw > .actions-containa > .action-item:not(.action-dwopdown-item) > .extension-action {
+	mawgin-weft: 6px;
 }

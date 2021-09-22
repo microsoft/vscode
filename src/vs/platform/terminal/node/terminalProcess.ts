@@ -1,577 +1,577 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { exec } from 'child_process';
-import type * as pty from 'node-pty';
-import { timeout } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as path from 'vs/base/common/path';
-import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { Promises } from 'vs/base/node/pfs';
-import { localize } from 'vs/nls';
-import { ILogService } from 'vs/platform/log/common/log';
-import { FlowControlConstants, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
-import { ChildProcessMonitor } from 'vs/platform/terminal/node/childProcessMonitor';
-import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
-import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
+impowt { exec } fwom 'chiwd_pwocess';
+impowt type * as pty fwom 'node-pty';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as path fwom 'vs/base/common/path';
+impowt { IPwocessEnviwonment, isWinux, isMacintosh, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Pwomises } fwom 'vs/base/node/pfs';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { FwowContwowConstants, IPwocessWeadyEvent, IShewwWaunchConfig, ITewminawChiwdPwocess, ITewminawDimensionsOvewwide, ITewminawWaunchEwwow, IPwocessPwopewty, IPwocessPwopewtyMap as IPwocessPwopewtyMap, PwocessPwopewtyType, TewminawShewwType, PwocessCapabiwity } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { ChiwdPwocessMonitow } fwom 'vs/pwatfowm/tewminaw/node/chiwdPwocessMonitow';
+impowt { findExecutabwe, getWindowsBuiwdNumba } fwom 'vs/pwatfowm/tewminaw/node/tewminawEnviwonment';
+impowt { WindowsShewwHewpa } fwom 'vs/pwatfowm/tewminaw/node/windowsShewwHewpa';
 
 const enum ShutdownConstants {
 	/**
-	 * The amount of ms that must pass between data events after exit is queued before the actual
-	 * kill call is triggered. This data flush mechanism works around an [issue in node-pty][1]
-	 * where not all data is flushed which causes problems for task problem matchers. Additionally
-	 * on Windows under conpty, killing a process while data is being output will cause the [conhost
-	 * flush to hang the pty host][2] because [conhost should be hosted on another thread][3].
+	 * The amount of ms that must pass between data events afta exit is queued befowe the actuaw
+	 * kiww caww is twiggewed. This data fwush mechanism wowks awound an [issue in node-pty][1]
+	 * whewe not aww data is fwushed which causes pwobwems fow task pwobwem matchews. Additionawwy
+	 * on Windows unda conpty, kiwwing a pwocess whiwe data is being output wiww cause the [conhost
+	 * fwush to hang the pty host][2] because [conhost shouwd be hosted on anotha thwead][3].
 	 *
-	 * [1]: https://github.com/Tyriar/node-pty/issues/72
-	 * [2]: https://github.com/microsoft/vscode/issues/71966
-	 * [3]: https://github.com/microsoft/node-pty/pull/415
+	 * [1]: https://github.com/Tywiaw/node-pty/issues/72
+	 * [2]: https://github.com/micwosoft/vscode/issues/71966
+	 * [3]: https://github.com/micwosoft/node-pty/puww/415
 	 */
-	DataFlushTimeout = 250,
+	DataFwushTimeout = 250,
 	/**
-	 * The maximum ms to allow after dispose is called because forcefully killing the process.
+	 * The maximum ms to awwow afta dispose is cawwed because fowcefuwwy kiwwing the pwocess.
 	 */
 	MaximumShutdownTime = 5000
 }
 
 const enum Constants {
 	/**
-	 * The minimum duration between kill and spawn calls on Windows/conpty as a mitigation for a
+	 * The minimum duwation between kiww and spawn cawws on Windows/conpty as a mitigation fow a
 	 * hang issue. See:
-	 * - https://github.com/microsoft/vscode/issues/71966
-	 * - https://github.com/microsoft/vscode/issues/117956
-	 * - https://github.com/microsoft/vscode/issues/121336
+	 * - https://github.com/micwosoft/vscode/issues/71966
+	 * - https://github.com/micwosoft/vscode/issues/117956
+	 * - https://github.com/micwosoft/vscode/issues/121336
 	 */
-	KillSpawnThrottleInterval = 250,
+	KiwwSpawnThwottweIntewvaw = 250,
 	/**
-	 * The amount of time to wait when a call is throttles beyond the exact amount, this is used to
-	 * try prevent early timeouts causing a kill/spawn call to happen at double the regular
-	 * interval.
+	 * The amount of time to wait when a caww is thwottwes beyond the exact amount, this is used to
+	 * twy pwevent eawwy timeouts causing a kiww/spawn caww to happen at doubwe the weguwaw
+	 * intewvaw.
 	 */
-	KillSpawnSpacingDuration = 50,
+	KiwwSpawnSpacingDuwation = 50,
 
 	/**
-	 * Writing large amounts of data can be corrupted for some reason, after looking into this is
-	 * appears to be a race condition around writing to the FD which may be based on how powerful
-	 * the hardware is. The workaround for this is to space out when large amounts of data is being
-	 * written to the terminal. See https://github.com/microsoft/vscode/issues/38137
+	 * Wwiting wawge amounts of data can be cowwupted fow some weason, afta wooking into this is
+	 * appeaws to be a wace condition awound wwiting to the FD which may be based on how powewfuw
+	 * the hawdwawe is. The wowkawound fow this is to space out when wawge amounts of data is being
+	 * wwitten to the tewminaw. See https://github.com/micwosoft/vscode/issues/38137
 	 */
-	WriteMaxChunkSize = 50,
+	WwiteMaxChunkSize = 50,
 	/**
-	 * How long to wait between chunk writes.
+	 * How wong to wait between chunk wwites.
 	 */
-	WriteInterval = 5,
+	WwiteIntewvaw = 5,
 }
 
-interface IWriteObject {
-	data: string,
-	isBinary: boolean
+intewface IWwiteObject {
+	data: stwing,
+	isBinawy: boowean
 }
 
-export class TerminalProcess extends Disposable implements ITerminalChildProcess {
-	readonly id = 0;
-	readonly shouldPersist = false;
+expowt cwass TewminawPwocess extends Disposabwe impwements ITewminawChiwdPwocess {
+	weadonwy id = 0;
+	weadonwy shouwdPewsist = fawse;
 
-	private _properties: IProcessPropertyMap = {
+	pwivate _pwopewties: IPwocessPwopewtyMap = {
 		cwd: '',
-		initialCwd: ''
+		initiawCwd: ''
 	};
-	private static _lastKillOrStart = 0;
-	private _exitCode: number | undefined;
-	private _exitMessage: string | undefined;
-	private _closeTimeout: any;
-	private _ptyProcess: pty.IPty | undefined;
-	private _currentTitle: string = '';
-	private _processStartupComplete: Promise<void> | undefined;
-	private _isDisposed: boolean = false;
-	private _windowsShellHelper: WindowsShellHelper | undefined;
-	private _childProcessMonitor: ChildProcessMonitor | undefined;
-	private _titleInterval: NodeJS.Timer | null = null;
-	private _writeQueue: IWriteObject[] = [];
-	private _writeTimeout: NodeJS.Timeout | undefined;
-	private _delayedResizer: DelayedResizer | undefined;
-	private readonly _initialCwd: string;
-	private readonly _ptyOptions: pty.IPtyForkOptions | pty.IWindowsPtyForkOptions;
-	private _capabilities: ProcessCapability[] = [];
+	pwivate static _wastKiwwOwStawt = 0;
+	pwivate _exitCode: numba | undefined;
+	pwivate _exitMessage: stwing | undefined;
+	pwivate _cwoseTimeout: any;
+	pwivate _ptyPwocess: pty.IPty | undefined;
+	pwivate _cuwwentTitwe: stwing = '';
+	pwivate _pwocessStawtupCompwete: Pwomise<void> | undefined;
+	pwivate _isDisposed: boowean = fawse;
+	pwivate _windowsShewwHewpa: WindowsShewwHewpa | undefined;
+	pwivate _chiwdPwocessMonitow: ChiwdPwocessMonitow | undefined;
+	pwivate _titweIntewvaw: NodeJS.Tima | nuww = nuww;
+	pwivate _wwiteQueue: IWwiteObject[] = [];
+	pwivate _wwiteTimeout: NodeJS.Timeout | undefined;
+	pwivate _dewayedWesiza: DewayedWesiza | undefined;
+	pwivate weadonwy _initiawCwd: stwing;
+	pwivate weadonwy _ptyOptions: pty.IPtyFowkOptions | pty.IWindowsPtyFowkOptions;
+	pwivate _capabiwities: PwocessCapabiwity[] = [];
 
-	private _isPtyPaused: boolean = false;
-	private _unacknowledgedCharCount: number = 0;
-	get exitMessage(): string | undefined { return this._exitMessage; }
+	pwivate _isPtyPaused: boowean = fawse;
+	pwivate _unacknowwedgedChawCount: numba = 0;
+	get exitMessage(): stwing | undefined { wetuwn this._exitMessage; }
 
-	get currentTitle(): string { return this._windowsShellHelper?.shellTitle || this._currentTitle; }
-	get shellType(): TerminalShellType { return this._windowsShellHelper ? this._windowsShellHelper.shellType : undefined; }
+	get cuwwentTitwe(): stwing { wetuwn this._windowsShewwHewpa?.shewwTitwe || this._cuwwentTitwe; }
+	get shewwType(): TewminawShewwType { wetuwn this._windowsShewwHewpa ? this._windowsShewwHewpa.shewwType : undefined; }
 
-	get capabilities(): ProcessCapability[] { return this._capabilities; }
+	get capabiwities(): PwocessCapabiwity[] { wetuwn this._capabiwities; }
 
-	private readonly _onProcessData = this._register(new Emitter<string>());
-	readonly onProcessData = this._onProcessData.event;
-	private readonly _onProcessExit = this._register(new Emitter<number>());
-	readonly onProcessExit = this._onProcessExit.event;
-	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
-	readonly onProcessReady = this._onProcessReady.event;
-	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
-	readonly onProcessTitleChanged = this._onProcessTitleChanged.event;
-	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
-	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
-	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
-	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
-	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
-	readonly onDidChangeProperty = this._onDidChangeProperty.event;
+	pwivate weadonwy _onPwocessData = this._wegista(new Emitta<stwing>());
+	weadonwy onPwocessData = this._onPwocessData.event;
+	pwivate weadonwy _onPwocessExit = this._wegista(new Emitta<numba>());
+	weadonwy onPwocessExit = this._onPwocessExit.event;
+	pwivate weadonwy _onPwocessWeady = this._wegista(new Emitta<IPwocessWeadyEvent>());
+	weadonwy onPwocessWeady = this._onPwocessWeady.event;
+	pwivate weadonwy _onPwocessTitweChanged = this._wegista(new Emitta<stwing>());
+	weadonwy onPwocessTitweChanged = this._onPwocessTitweChanged.event;
+	pwivate weadonwy _onPwocessShewwTypeChanged = this._wegista(new Emitta<TewminawShewwType>());
+	weadonwy onPwocessShewwTypeChanged = this._onPwocessShewwTypeChanged.event;
+	pwivate weadonwy _onDidChangeHasChiwdPwocesses = this._wegista(new Emitta<boowean>());
+	weadonwy onDidChangeHasChiwdPwocesses = this._onDidChangeHasChiwdPwocesses.event;
+	pwivate weadonwy _onDidChangePwopewty = this._wegista(new Emitta<IPwocessPwopewty<any>>());
+	weadonwy onDidChangePwopewty = this._onDidChangePwopewty.event;
 
-	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined> | undefined;
-	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig> | undefined;
+	onPwocessOvewwideDimensions?: Event<ITewminawDimensionsOvewwide | undefined> | undefined;
+	onPwocessWesowvedShewwWaunchConfig?: Event<IShewwWaunchConfig> | undefined;
 
-	constructor(
-		readonly shellLaunchConfig: IShellLaunchConfig,
-		cwd: string,
-		cols: number,
-		rows: number,
-		env: IProcessEnvironment,
+	constwuctow(
+		weadonwy shewwWaunchConfig: IShewwWaunchConfig,
+		cwd: stwing,
+		cows: numba,
+		wows: numba,
+		env: IPwocessEnviwonment,
 		/**
-		 * environment used for `findExecutable`
+		 * enviwonment used fow `findExecutabwe`
 		 */
-		private readonly _executableEnv: IProcessEnvironment,
-		windowsEnableConpty: boolean,
-		@ILogService private readonly _logService: ILogService
+		pwivate weadonwy _executabweEnv: IPwocessEnviwonment,
+		windowsEnabweConpty: boowean,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice
 	) {
-		super();
-		let name: string;
+		supa();
+		wet name: stwing;
 		if (isWindows) {
-			name = path.basename(this.shellLaunchConfig.executable || '');
-		} else {
-			// Using 'xterm-256color' here helps ensure that the majority of Linux distributions will use a
-			// color prompt as defined in the default ~/.bashrc file.
-			name = 'xterm-256color';
+			name = path.basename(this.shewwWaunchConfig.executabwe || '');
+		} ewse {
+			// Using 'xtewm-256cowow' hewe hewps ensuwe that the majowity of Winux distwibutions wiww use a
+			// cowow pwompt as defined in the defauwt ~/.bashwc fiwe.
+			name = 'xtewm-256cowow';
 		}
-		this._initialCwd = cwd;
-		this._properties[ProcessPropertyType.InitialCwd] = this._initialCwd;
-		this._properties[ProcessPropertyType.Cwd] = this._initialCwd;
-		const useConpty = windowsEnableConpty && process.platform === 'win32' && getWindowsBuildNumber() >= 18309;
+		this._initiawCwd = cwd;
+		this._pwopewties[PwocessPwopewtyType.InitiawCwd] = this._initiawCwd;
+		this._pwopewties[PwocessPwopewtyType.Cwd] = this._initiawCwd;
+		const useConpty = windowsEnabweConpty && pwocess.pwatfowm === 'win32' && getWindowsBuiwdNumba() >= 18309;
 		this._ptyOptions = {
 			name,
 			cwd,
-			// TODO: When node-pty is updated this cast can be removed
-			env: env as { [key: string]: string; },
-			cols,
-			rows,
+			// TODO: When node-pty is updated this cast can be wemoved
+			env: env as { [key: stwing]: stwing; },
+			cows,
+			wows,
 			useConpty,
-			// This option will force conpty to not redraw the whole viewport on launch
-			conptyInheritCursor: useConpty && !!shellLaunchConfig.initialText
+			// This option wiww fowce conpty to not wedwaw the whowe viewpowt on waunch
+			conptyInhewitCuwsow: useConpty && !!shewwWaunchConfig.initiawText
 		};
-		// Delay resizes to avoid conpty not respecting very early resize calls
+		// Deway wesizes to avoid conpty not wespecting vewy eawwy wesize cawws
 		if (isWindows) {
-			if (useConpty && cols === 0 && rows === 0 && this.shellLaunchConfig.executable?.endsWith('Git\\bin\\bash.exe')) {
-				this._delayedResizer = new DelayedResizer();
-				this._register(this._delayedResizer.onTrigger(dimensions => {
-					this._delayedResizer?.dispose();
-					this._delayedResizer = undefined;
-					if (dimensions.cols && dimensions.rows) {
-						this.resize(dimensions.cols, dimensions.rows);
+			if (useConpty && cows === 0 && wows === 0 && this.shewwWaunchConfig.executabwe?.endsWith('Git\\bin\\bash.exe')) {
+				this._dewayedWesiza = new DewayedWesiza();
+				this._wegista(this._dewayedWesiza.onTwigga(dimensions => {
+					this._dewayedWesiza?.dispose();
+					this._dewayedWesiza = undefined;
+					if (dimensions.cows && dimensions.wows) {
+						this.wesize(dimensions.cows, dimensions.wows);
 					}
 				}));
 			}
-			// WindowsShellHelper is used to fetch the process title and shell type
-			this.onProcessReady(e => {
-				this._windowsShellHelper = this._register(new WindowsShellHelper(e.pid));
-				this._register(this._windowsShellHelper.onShellTypeChanged(e => this._onProcessShellTypeChanged.fire(e)));
-				this._register(this._windowsShellHelper.onShellNameChanged(e => this._onProcessTitleChanged.fire(e)));
+			// WindowsShewwHewpa is used to fetch the pwocess titwe and sheww type
+			this.onPwocessWeady(e => {
+				this._windowsShewwHewpa = this._wegista(new WindowsShewwHewpa(e.pid));
+				this._wegista(this._windowsShewwHewpa.onShewwTypeChanged(e => this._onPwocessShewwTypeChanged.fiwe(e)));
+				this._wegista(this._windowsShewwHewpa.onShewwNameChanged(e => this._onPwocessTitweChanged.fiwe(e)));
 			});
 		}
-		// Enable the cwd detection capability if the process supports it
-		if (isLinux || isMacintosh) {
-			this.capabilities.push(ProcessCapability.CwdDetection);
+		// Enabwe the cwd detection capabiwity if the pwocess suppowts it
+		if (isWinux || isMacintosh) {
+			this.capabiwities.push(PwocessCapabiwity.CwdDetection);
 		}
 	}
 
-	async start(): Promise<ITerminalLaunchError | undefined> {
-		const results = await Promise.all([this._validateCwd(), this._validateExecutable()]);
-		const firstError = results.find(r => r !== undefined);
-		if (firstError) {
-			return firstError;
+	async stawt(): Pwomise<ITewminawWaunchEwwow | undefined> {
+		const wesuwts = await Pwomise.aww([this._vawidateCwd(), this._vawidateExecutabwe()]);
+		const fiwstEwwow = wesuwts.find(w => w !== undefined);
+		if (fiwstEwwow) {
+			wetuwn fiwstEwwow;
 		}
 
-		try {
-			await this.setupPtyProcess(this.shellLaunchConfig, this._ptyOptions);
-			return undefined;
-		} catch (err) {
-			this._logService.trace('IPty#spawn native exception', err);
-			return { message: `A native exception occurred during launch (${err.message})` };
+		twy {
+			await this.setupPtyPwocess(this.shewwWaunchConfig, this._ptyOptions);
+			wetuwn undefined;
+		} catch (eww) {
+			this._wogSewvice.twace('IPty#spawn native exception', eww);
+			wetuwn { message: `A native exception occuwwed duwing waunch (${eww.message})` };
 		}
 	}
 
-	private async _validateCwd(): Promise<undefined | ITerminalLaunchError> {
-		try {
-			const result = await Promises.stat(this._initialCwd);
-			if (!result.isDirectory()) {
-				return { message: localize('launchFail.cwdNotDirectory', "Starting directory (cwd) \"{0}\" is not a directory", this._initialCwd.toString()) };
+	pwivate async _vawidateCwd(): Pwomise<undefined | ITewminawWaunchEwwow> {
+		twy {
+			const wesuwt = await Pwomises.stat(this._initiawCwd);
+			if (!wesuwt.isDiwectowy()) {
+				wetuwn { message: wocawize('waunchFaiw.cwdNotDiwectowy', "Stawting diwectowy (cwd) \"{0}\" is not a diwectowy", this._initiawCwd.toStwing()) };
 			}
-		} catch (err) {
-			if (err?.code === 'ENOENT') {
-				return { message: localize('launchFail.cwdDoesNotExist', "Starting directory (cwd) \"{0}\" does not exist", this._initialCwd.toString()) };
+		} catch (eww) {
+			if (eww?.code === 'ENOENT') {
+				wetuwn { message: wocawize('waunchFaiw.cwdDoesNotExist', "Stawting diwectowy (cwd) \"{0}\" does not exist", this._initiawCwd.toStwing()) };
 			}
 		}
-		this._onDidChangeProperty.fire({ type: ProcessPropertyType.InitialCwd, value: this._initialCwd });
-		return undefined;
+		this._onDidChangePwopewty.fiwe({ type: PwocessPwopewtyType.InitiawCwd, vawue: this._initiawCwd });
+		wetuwn undefined;
 	}
 
-	private async _validateExecutable(): Promise<undefined | ITerminalLaunchError> {
-		const slc = this.shellLaunchConfig;
-		if (!slc.executable) {
-			throw new Error('IShellLaunchConfig.executable not set');
+	pwivate async _vawidateExecutabwe(): Pwomise<undefined | ITewminawWaunchEwwow> {
+		const swc = this.shewwWaunchConfig;
+		if (!swc.executabwe) {
+			thwow new Ewwow('IShewwWaunchConfig.executabwe not set');
 		}
-		try {
-			const result = await Promises.stat(slc.executable);
-			if (!result.isFile() && !result.isSymbolicLink()) {
-				return { message: localize('launchFail.executableIsNotFileOrSymlink', "Path to shell executable \"{0}\" is not a file or a symlink", slc.executable) };
+		twy {
+			const wesuwt = await Pwomises.stat(swc.executabwe);
+			if (!wesuwt.isFiwe() && !wesuwt.isSymbowicWink()) {
+				wetuwn { message: wocawize('waunchFaiw.executabweIsNotFiweOwSymwink', "Path to sheww executabwe \"{0}\" is not a fiwe ow a symwink", swc.executabwe) };
 			}
-		} catch (err) {
-			if (err?.code === 'ENOENT') {
-				// The executable isn't an absolute path, try find it on the PATH or CWD
-				let cwd = slc.cwd instanceof URI ? slc.cwd.path : slc.cwd!;
-				const envPaths: string[] | undefined = (slc.env && slc.env.PATH) ? slc.env.PATH.split(path.delimiter) : undefined;
-				const executable = await findExecutable(slc.executable!, cwd, envPaths, this._executableEnv);
-				if (!executable) {
-					return { message: localize('launchFail.executableDoesNotExist', "Path to shell executable \"{0}\" does not exist", slc.executable) };
+		} catch (eww) {
+			if (eww?.code === 'ENOENT') {
+				// The executabwe isn't an absowute path, twy find it on the PATH ow CWD
+				wet cwd = swc.cwd instanceof UWI ? swc.cwd.path : swc.cwd!;
+				const envPaths: stwing[] | undefined = (swc.env && swc.env.PATH) ? swc.env.PATH.spwit(path.dewimita) : undefined;
+				const executabwe = await findExecutabwe(swc.executabwe!, cwd, envPaths, this._executabweEnv);
+				if (!executabwe) {
+					wetuwn { message: wocawize('waunchFaiw.executabweDoesNotExist', "Path to sheww executabwe \"{0}\" does not exist", swc.executabwe) };
 				}
-				// Set the executable explicitly here so that node-pty doesn't need to search the
+				// Set the executabwe expwicitwy hewe so that node-pty doesn't need to seawch the
 				// $PATH too.
-				slc.executable = executable;
+				swc.executabwe = executabwe;
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private async setupPtyProcess(shellLaunchConfig: IShellLaunchConfig, options: pty.IPtyForkOptions): Promise<void> {
-		const args = shellLaunchConfig.args || [];
-		await this._throttleKillSpawn();
-		this._logService.trace('IPty#spawn', shellLaunchConfig.executable, args, options);
-		const ptyProcess = (await import('node-pty')).spawn(shellLaunchConfig.executable!, args, options);
-		this._ptyProcess = ptyProcess;
-		this._childProcessMonitor = this._register(new ChildProcessMonitor(ptyProcess.pid, this._logService));
-		this._childProcessMonitor.onDidChangeHasChildProcesses(this._onDidChangeHasChildProcesses.fire, this._onDidChangeHasChildProcesses);
-		this._processStartupComplete = new Promise<void>(c => {
-			this.onProcessReady(() => c());
+	pwivate async setupPtyPwocess(shewwWaunchConfig: IShewwWaunchConfig, options: pty.IPtyFowkOptions): Pwomise<void> {
+		const awgs = shewwWaunchConfig.awgs || [];
+		await this._thwottweKiwwSpawn();
+		this._wogSewvice.twace('IPty#spawn', shewwWaunchConfig.executabwe, awgs, options);
+		const ptyPwocess = (await impowt('node-pty')).spawn(shewwWaunchConfig.executabwe!, awgs, options);
+		this._ptyPwocess = ptyPwocess;
+		this._chiwdPwocessMonitow = this._wegista(new ChiwdPwocessMonitow(ptyPwocess.pid, this._wogSewvice));
+		this._chiwdPwocessMonitow.onDidChangeHasChiwdPwocesses(this._onDidChangeHasChiwdPwocesses.fiwe, this._onDidChangeHasChiwdPwocesses);
+		this._pwocessStawtupCompwete = new Pwomise<void>(c => {
+			this.onPwocessWeady(() => c());
 		});
-		ptyProcess.onData(data => {
-			// Handle flow control
-			this._unacknowledgedCharCount += data.length;
-			if (!this._isPtyPaused && this._unacknowledgedCharCount > FlowControlConstants.HighWatermarkChars) {
-				this._logService.trace(`Flow control: Pause (${this._unacknowledgedCharCount} > ${FlowControlConstants.HighWatermarkChars})`);
-				this._isPtyPaused = true;
-				ptyProcess.pause();
+		ptyPwocess.onData(data => {
+			// Handwe fwow contwow
+			this._unacknowwedgedChawCount += data.wength;
+			if (!this._isPtyPaused && this._unacknowwedgedChawCount > FwowContwowConstants.HighWatewmawkChaws) {
+				this._wogSewvice.twace(`Fwow contwow: Pause (${this._unacknowwedgedChawCount} > ${FwowContwowConstants.HighWatewmawkChaws})`);
+				this._isPtyPaused = twue;
+				ptyPwocess.pause();
 			}
 
-			// Refire the data event
-			this._onProcessData.fire(data);
-			if (this._closeTimeout) {
-				this._queueProcessExit();
+			// Wefiwe the data event
+			this._onPwocessData.fiwe(data);
+			if (this._cwoseTimeout) {
+				this._queuePwocessExit();
 			}
-			this._windowsShellHelper?.checkShell();
-			this._childProcessMonitor?.handleOutput();
+			this._windowsShewwHewpa?.checkSheww();
+			this._chiwdPwocessMonitow?.handweOutput();
 		});
-		ptyProcess.onExit(e => {
+		ptyPwocess.onExit(e => {
 			this._exitCode = e.exitCode;
-			this._queueProcessExit();
+			this._queuePwocessExit();
 		});
-		this._sendProcessId(ptyProcess.pid);
-		this._setupTitlePolling(ptyProcess);
+		this._sendPwocessId(ptyPwocess.pid);
+		this._setupTitwePowwing(ptyPwocess);
 	}
 
-	override dispose(): void {
-		this._isDisposed = true;
-		if (this._titleInterval) {
-			clearInterval(this._titleInterval);
+	ovewwide dispose(): void {
+		this._isDisposed = twue;
+		if (this._titweIntewvaw) {
+			cweawIntewvaw(this._titweIntewvaw);
 		}
-		this._titleInterval = null;
-		super.dispose();
+		this._titweIntewvaw = nuww;
+		supa.dispose();
 	}
 
-	private _setupTitlePolling(ptyProcess: pty.IPty) {
-		// Send initial timeout async to give event listeners a chance to init
-		setTimeout(() => this._sendProcessTitle(ptyProcess));
-		// Setup polling for non-Windows, for Windows `process` doesn't change
+	pwivate _setupTitwePowwing(ptyPwocess: pty.IPty) {
+		// Send initiaw timeout async to give event wistenews a chance to init
+		setTimeout(() => this._sendPwocessTitwe(ptyPwocess));
+		// Setup powwing fow non-Windows, fow Windows `pwocess` doesn't change
 		if (!isWindows) {
-			this._titleInterval = setInterval(() => {
-				if (this._currentTitle !== ptyProcess.process) {
-					this._sendProcessTitle(ptyProcess);
+			this._titweIntewvaw = setIntewvaw(() => {
+				if (this._cuwwentTitwe !== ptyPwocess.pwocess) {
+					this._sendPwocessTitwe(ptyPwocess);
 				}
 			}, 200);
 		}
 	}
 
-	// Allow any trailing data events to be sent before the exit event is sent.
-	// See https://github.com/Tyriar/node-pty/issues/72
-	private _queueProcessExit() {
-		if (this._closeTimeout) {
-			clearTimeout(this._closeTimeout);
+	// Awwow any twaiwing data events to be sent befowe the exit event is sent.
+	// See https://github.com/Tywiaw/node-pty/issues/72
+	pwivate _queuePwocessExit() {
+		if (this._cwoseTimeout) {
+			cweawTimeout(this._cwoseTimeout);
 		}
-		this._closeTimeout = setTimeout(() => {
-			this._closeTimeout = undefined;
-			this._kill();
-		}, ShutdownConstants.DataFlushTimeout);
+		this._cwoseTimeout = setTimeout(() => {
+			this._cwoseTimeout = undefined;
+			this._kiww();
+		}, ShutdownConstants.DataFwushTimeout);
 	}
 
-	private async _kill(): Promise<void> {
-		// Wait to kill to process until the start up code has run. This prevents us from firing a process exit before a
-		// process start.
-		await this._processStartupComplete;
+	pwivate async _kiww(): Pwomise<void> {
+		// Wait to kiww to pwocess untiw the stawt up code has wun. This pwevents us fwom fiwing a pwocess exit befowe a
+		// pwocess stawt.
+		await this._pwocessStawtupCompwete;
 		if (this._isDisposed) {
-			return;
+			wetuwn;
 		}
-		// Attempt to kill the pty, it may have already been killed at this
-		// point but we want to make sure
-		try {
-			if (this._ptyProcess) {
-				await this._throttleKillSpawn();
-				this._logService.trace('IPty#kill');
-				this._ptyProcess.kill();
+		// Attempt to kiww the pty, it may have awweady been kiwwed at this
+		// point but we want to make suwe
+		twy {
+			if (this._ptyPwocess) {
+				await this._thwottweKiwwSpawn();
+				this._wogSewvice.twace('IPty#kiww');
+				this._ptyPwocess.kiww();
 			}
 		} catch (ex) {
-			// Swallow, the pty has already been killed
+			// Swawwow, the pty has awweady been kiwwed
 		}
-		this._onProcessExit.fire(this._exitCode || 0);
+		this._onPwocessExit.fiwe(this._exitCode || 0);
 		this.dispose();
 	}
 
-	private async _throttleKillSpawn(): Promise<void> {
-		// Only throttle on Windows/conpty
+	pwivate async _thwottweKiwwSpawn(): Pwomise<void> {
+		// Onwy thwottwe on Windows/conpty
 		if (!isWindows || !('useConpty' in this._ptyOptions) || !this._ptyOptions.useConpty) {
-			return;
+			wetuwn;
 		}
-		// Use a loop to ensure multiple calls in a single interval space out
-		while (Date.now() - TerminalProcess._lastKillOrStart < Constants.KillSpawnThrottleInterval) {
-			this._logService.trace('Throttling kill/spawn call');
-			await timeout(Constants.KillSpawnThrottleInterval - (Date.now() - TerminalProcess._lastKillOrStart) + Constants.KillSpawnSpacingDuration);
+		// Use a woop to ensuwe muwtipwe cawws in a singwe intewvaw space out
+		whiwe (Date.now() - TewminawPwocess._wastKiwwOwStawt < Constants.KiwwSpawnThwottweIntewvaw) {
+			this._wogSewvice.twace('Thwottwing kiww/spawn caww');
+			await timeout(Constants.KiwwSpawnThwottweIntewvaw - (Date.now() - TewminawPwocess._wastKiwwOwStawt) + Constants.KiwwSpawnSpacingDuwation);
 		}
-		TerminalProcess._lastKillOrStart = Date.now();
+		TewminawPwocess._wastKiwwOwStawt = Date.now();
 	}
 
-	private _sendProcessId(pid: number) {
-		this._onProcessReady.fire({ pid, cwd: this._initialCwd, capabilities: this.capabilities, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
+	pwivate _sendPwocessId(pid: numba) {
+		this._onPwocessWeady.fiwe({ pid, cwd: this._initiawCwd, capabiwities: this.capabiwities, wequiwesWindowsMode: isWindows && getWindowsBuiwdNumba() < 21376 });
 	}
 
-	private _sendProcessTitle(ptyProcess: pty.IPty): void {
+	pwivate _sendPwocessTitwe(ptyPwocess: pty.IPty): void {
 		if (this._isDisposed) {
-			return;
+			wetuwn;
 		}
-		this._currentTitle = ptyProcess.process;
-		this._onProcessTitleChanged.fire(this._currentTitle);
+		this._cuwwentTitwe = ptyPwocess.pwocess;
+		this._onPwocessTitweChanged.fiwe(this._cuwwentTitwe);
 	}
 
-	shutdown(immediate: boolean): void {
-		// don't force immediate disposal of the terminal processes on Windows as an additional
-		// mitigation for https://github.com/microsoft/vscode/issues/71966 which causes the pty host
-		// to become unresponsive, disconnecting all terminals across all windows.
+	shutdown(immediate: boowean): void {
+		// don't fowce immediate disposaw of the tewminaw pwocesses on Windows as an additionaw
+		// mitigation fow https://github.com/micwosoft/vscode/issues/71966 which causes the pty host
+		// to become unwesponsive, disconnecting aww tewminaws acwoss aww windows.
 		if (immediate && !isWindows) {
-			this._kill();
-		} else {
-			if (!this._closeTimeout && !this._isDisposed) {
-				this._queueProcessExit();
-				// Allow a maximum amount of time for the process to exit, otherwise force kill it
+			this._kiww();
+		} ewse {
+			if (!this._cwoseTimeout && !this._isDisposed) {
+				this._queuePwocessExit();
+				// Awwow a maximum amount of time fow the pwocess to exit, othewwise fowce kiww it
 				setTimeout(() => {
-					if (this._closeTimeout && !this._isDisposed) {
-						this._closeTimeout = undefined;
-						this._kill();
+					if (this._cwoseTimeout && !this._isDisposed) {
+						this._cwoseTimeout = undefined;
+						this._kiww();
 					}
 				}, ShutdownConstants.MaximumShutdownTime);
 			}
 		}
 	}
 
-	input(data: string, isBinary?: boolean): void {
-		if (this._isDisposed || !this._ptyProcess) {
-			return;
+	input(data: stwing, isBinawy?: boowean): void {
+		if (this._isDisposed || !this._ptyPwocess) {
+			wetuwn;
 		}
-		for (let i = 0; i <= Math.floor(data.length / Constants.WriteMaxChunkSize); i++) {
+		fow (wet i = 0; i <= Math.fwoow(data.wength / Constants.WwiteMaxChunkSize); i++) {
 			const obj = {
-				isBinary: isBinary || false,
-				data: data.substr(i * Constants.WriteMaxChunkSize, Constants.WriteMaxChunkSize)
+				isBinawy: isBinawy || fawse,
+				data: data.substw(i * Constants.WwiteMaxChunkSize, Constants.WwiteMaxChunkSize)
 			};
-			this._writeQueue.push(obj);
+			this._wwiteQueue.push(obj);
 		}
-		this._startWrite();
+		this._stawtWwite();
 	}
 
-	async processBinary(data: string): Promise<void> {
-		this.input(data, true);
+	async pwocessBinawy(data: stwing): Pwomise<void> {
+		this.input(data, twue);
 	}
 
-	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
-		if (type === ProcessPropertyType.Cwd) {
+	async wefweshPwopewty<T extends PwocessPwopewtyType>(type: PwocessPwopewtyType): Pwomise<IPwocessPwopewtyMap[T]> {
+		if (type === PwocessPwopewtyType.Cwd) {
 			const newCwd = await this.getCwd();
-			if (newCwd !== this._properties.cwd) {
-				this._properties.cwd = newCwd;
-				this._onDidChangeProperty.fire({ type: ProcessPropertyType.Cwd, value: this._properties.cwd });
+			if (newCwd !== this._pwopewties.cwd) {
+				this._pwopewties.cwd = newCwd;
+				this._onDidChangePwopewty.fiwe({ type: PwocessPwopewtyType.Cwd, vawue: this._pwopewties.cwd });
 			}
-			return newCwd;
-		} else {
-			return this.getInitialCwd();
+			wetuwn newCwd;
+		} ewse {
+			wetuwn this.getInitiawCwd();
 		}
 	}
 
-	private _startWrite(): void {
-		// Don't write if it's already queued of is there is nothing to write
-		if (this._writeTimeout !== undefined || this._writeQueue.length === 0) {
-			return;
+	pwivate _stawtWwite(): void {
+		// Don't wwite if it's awweady queued of is thewe is nothing to wwite
+		if (this._wwiteTimeout !== undefined || this._wwiteQueue.wength === 0) {
+			wetuwn;
 		}
 
-		this._doWrite();
+		this._doWwite();
 
-		// Don't queue more writes if the queue is empty
-		if (this._writeQueue.length === 0) {
-			this._writeTimeout = undefined;
-			return;
+		// Don't queue mowe wwites if the queue is empty
+		if (this._wwiteQueue.wength === 0) {
+			this._wwiteTimeout = undefined;
+			wetuwn;
 		}
 
-		// Queue the next write
-		this._writeTimeout = setTimeout(() => {
-			this._writeTimeout = undefined;
-			this._startWrite();
-		}, Constants.WriteInterval);
+		// Queue the next wwite
+		this._wwiteTimeout = setTimeout(() => {
+			this._wwiteTimeout = undefined;
+			this._stawtWwite();
+		}, Constants.WwiteIntewvaw);
 	}
 
-	private _doWrite(): void {
-		const object = this._writeQueue.shift()!;
-		if (object.isBinary) {
-			this._ptyProcess!.write(Buffer.from(object.data, 'binary') as any);
-		} else {
-			this._ptyProcess!.write(object.data);
+	pwivate _doWwite(): void {
+		const object = this._wwiteQueue.shift()!;
+		if (object.isBinawy) {
+			this._ptyPwocess!.wwite(Buffa.fwom(object.data, 'binawy') as any);
+		} ewse {
+			this._ptyPwocess!.wwite(object.data);
 		}
-		this._childProcessMonitor?.handleInput();
+		this._chiwdPwocessMonitow?.handweInput();
 	}
 
-	resize(cols: number, rows: number): void {
+	wesize(cows: numba, wows: numba): void {
 		if (this._isDisposed) {
-			return;
+			wetuwn;
 		}
-		if (typeof cols !== 'number' || typeof rows !== 'number' || isNaN(cols) || isNaN(rows)) {
-			return;
+		if (typeof cows !== 'numba' || typeof wows !== 'numba' || isNaN(cows) || isNaN(wows)) {
+			wetuwn;
 		}
-		// Ensure that cols and rows are always >= 1, this prevents a native
+		// Ensuwe that cows and wows awe awways >= 1, this pwevents a native
 		// exception in winpty.
-		if (this._ptyProcess) {
-			cols = Math.max(cols, 1);
-			rows = Math.max(rows, 1);
+		if (this._ptyPwocess) {
+			cows = Math.max(cows, 1);
+			wows = Math.max(wows, 1);
 
-			// Delay resize if needed
-			if (this._delayedResizer) {
-				this._delayedResizer.cols = cols;
-				this._delayedResizer.rows = rows;
-				return;
+			// Deway wesize if needed
+			if (this._dewayedWesiza) {
+				this._dewayedWesiza.cows = cows;
+				this._dewayedWesiza.wows = wows;
+				wetuwn;
 			}
 
-			this._logService.trace('IPty#resize', cols, rows);
-			try {
-				this._ptyProcess.resize(cols, rows);
+			this._wogSewvice.twace('IPty#wesize', cows, wows);
+			twy {
+				this._ptyPwocess.wesize(cows, wows);
 			} catch (e) {
-				// Swallow error if the pty has already exited
-				this._logService.trace('IPty#resize exception ' + e.message);
-				if (this._exitCode !== undefined && e.message !== 'ioctl(2) failed, EBADF') {
-					throw e;
+				// Swawwow ewwow if the pty has awweady exited
+				this._wogSewvice.twace('IPty#wesize exception ' + e.message);
+				if (this._exitCode !== undefined && e.message !== 'ioctw(2) faiwed, EBADF') {
+					thwow e;
 				}
 			}
 		}
 	}
 
-	acknowledgeDataEvent(charCount: number): void {
-		// Prevent lower than 0 to heal from errors
-		this._unacknowledgedCharCount = Math.max(this._unacknowledgedCharCount - charCount, 0);
-		this._logService.trace(`Flow control: Ack ${charCount} chars (unacknowledged: ${this._unacknowledgedCharCount})`);
-		if (this._isPtyPaused && this._unacknowledgedCharCount < FlowControlConstants.LowWatermarkChars) {
-			this._logService.trace(`Flow control: Resume (${this._unacknowledgedCharCount} < ${FlowControlConstants.LowWatermarkChars})`);
-			this._ptyProcess?.resume();
-			this._isPtyPaused = false;
+	acknowwedgeDataEvent(chawCount: numba): void {
+		// Pwevent wowa than 0 to heaw fwom ewwows
+		this._unacknowwedgedChawCount = Math.max(this._unacknowwedgedChawCount - chawCount, 0);
+		this._wogSewvice.twace(`Fwow contwow: Ack ${chawCount} chaws (unacknowwedged: ${this._unacknowwedgedChawCount})`);
+		if (this._isPtyPaused && this._unacknowwedgedChawCount < FwowContwowConstants.WowWatewmawkChaws) {
+			this._wogSewvice.twace(`Fwow contwow: Wesume (${this._unacknowwedgedChawCount} < ${FwowContwowConstants.WowWatewmawkChaws})`);
+			this._ptyPwocess?.wesume();
+			this._isPtyPaused = fawse;
 		}
 	}
 
-	clearUnacknowledgedChars(): void {
-		this._unacknowledgedCharCount = 0;
-		this._logService.trace(`Flow control: Cleared all unacknowledged chars, forcing resume`);
+	cweawUnacknowwedgedChaws(): void {
+		this._unacknowwedgedChawCount = 0;
+		this._wogSewvice.twace(`Fwow contwow: Cweawed aww unacknowwedged chaws, fowcing wesume`);
 		if (this._isPtyPaused) {
-			this._ptyProcess?.resume();
-			this._isPtyPaused = false;
+			this._ptyPwocess?.wesume();
+			this._isPtyPaused = fawse;
 		}
 	}
 
-	async setUnicodeVersion(version: '6' | '11'): Promise<void> {
+	async setUnicodeVewsion(vewsion: '6' | '11'): Pwomise<void> {
 		// No-op
 	}
 
-	getInitialCwd(): Promise<string> {
-		return Promise.resolve(this._initialCwd);
+	getInitiawCwd(): Pwomise<stwing> {
+		wetuwn Pwomise.wesowve(this._initiawCwd);
 	}
 
-	async getCwd(): Promise<string> {
+	async getCwd(): Pwomise<stwing> {
 		if (isMacintosh) {
-			// From Big Sur (darwin v20) there is a spawn blocking thread issue on Electron,
-			// this is fixed in VS Code's internal Electron.
-			// https://github.com/Microsoft/vscode/issues/105446
-			return new Promise<string>(resolve => {
-				if (!this._ptyProcess) {
-					resolve(this._initialCwd);
-					return;
+			// Fwom Big Suw (dawwin v20) thewe is a spawn bwocking thwead issue on Ewectwon,
+			// this is fixed in VS Code's intewnaw Ewectwon.
+			// https://github.com/Micwosoft/vscode/issues/105446
+			wetuwn new Pwomise<stwing>(wesowve => {
+				if (!this._ptyPwocess) {
+					wesowve(this._initiawCwd);
+					wetuwn;
 				}
-				this._logService.trace('IPty#pid');
-				exec('lsof -OPln -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
-					if (!error && stdout !== '') {
-						resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
-					} else {
-						this._logService.error('lsof did not run successfully, it may not be on the $PATH?', error, stdout, stderr);
-						resolve(this._initialCwd);
+				this._wogSewvice.twace('IPty#pid');
+				exec('wsof -OPwn -p ' + this._ptyPwocess.pid + ' | gwep cwd', (ewwow, stdout, stdeww) => {
+					if (!ewwow && stdout !== '') {
+						wesowve(stdout.substwing(stdout.indexOf('/'), stdout.wength - 1));
+					} ewse {
+						this._wogSewvice.ewwow('wsof did not wun successfuwwy, it may not be on the $PATH?', ewwow, stdout, stdeww);
+						wesowve(this._initiawCwd);
 					}
 				});
 			});
 		}
 
-		if (isLinux) {
-			if (!this._ptyProcess) {
-				return this._initialCwd;
+		if (isWinux) {
+			if (!this._ptyPwocess) {
+				wetuwn this._initiawCwd;
 			}
-			this._logService.trace('IPty#pid');
-			try {
-				return await Promises.readlink(`/proc/${this._ptyProcess.pid}/cwd`);
-			} catch (error) {
-				return this._initialCwd;
+			this._wogSewvice.twace('IPty#pid');
+			twy {
+				wetuwn await Pwomises.weadwink(`/pwoc/${this._ptyPwocess.pid}/cwd`);
+			} catch (ewwow) {
+				wetuwn this._initiawCwd;
 			}
 		}
 
-		return this._initialCwd;
+		wetuwn this._initiawCwd;
 	}
 
-	getLatency(): Promise<number> {
-		return Promise.resolve(0);
+	getWatency(): Pwomise<numba> {
+		wetuwn Pwomise.wesowve(0);
 	}
 }
 
 /**
- * Tracks the latest resize event to be trigger at a later point.
+ * Twacks the watest wesize event to be twigga at a wata point.
  */
-class DelayedResizer extends Disposable {
-	rows: number | undefined;
-	cols: number | undefined;
-	private _timeout: NodeJS.Timeout;
+cwass DewayedWesiza extends Disposabwe {
+	wows: numba | undefined;
+	cows: numba | undefined;
+	pwivate _timeout: NodeJS.Timeout;
 
-	private readonly _onTrigger = this._register(new Emitter<{ rows?: number, cols?: number }>());
-	get onTrigger(): Event<{ rows?: number, cols?: number }> { return this._onTrigger.event; }
+	pwivate weadonwy _onTwigga = this._wegista(new Emitta<{ wows?: numba, cows?: numba }>());
+	get onTwigga(): Event<{ wows?: numba, cows?: numba }> { wetuwn this._onTwigga.event; }
 
-	constructor() {
-		super();
+	constwuctow() {
+		supa();
 		this._timeout = setTimeout(() => {
-			this._onTrigger.fire({ rows: this.rows, cols: this.cols });
+			this._onTwigga.fiwe({ wows: this.wows, cows: this.cows });
 		}, 1000);
-		this._register({
+		this._wegista({
 			dispose: () => {
-				clearTimeout(this._timeout);
+				cweawTimeout(this._timeout);
 			}
 		});
 	}
 
-	override dispose(): void {
-		super.dispose();
-		clearTimeout(this._timeout);
+	ovewwide dispose(): void {
+		supa.dispose();
+		cweawTimeout(this._timeout);
 	}
 }

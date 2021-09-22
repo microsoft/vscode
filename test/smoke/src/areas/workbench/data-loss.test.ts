@@ -1,39 +1,39 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import minimist = require('minimist');
-import { Application } from '../../../../automation';
-import { afterSuite, beforeSuite } from '../../utils';
+impowt minimist = wequiwe('minimist');
+impowt { Appwication } fwom '../../../../automation';
+impowt { aftewSuite, befoweSuite } fwom '../../utiws';
 
-export function setup(opts: minimist.ParsedArgs) {
+expowt function setup(opts: minimist.PawsedAwgs) {
 
-	describe('Dataloss', () => {
-		beforeSuite(opts);
-		afterSuite(opts);
+	descwibe('Datawoss', () => {
+		befoweSuite(opts);
+		aftewSuite(opts);
 
-		it(`verifies that 'hot exit' works for dirty files`, async function () {
-			const app = this.app as Application;
-			await app.workbench.editors.newUntitledFile();
+		it(`vewifies that 'hot exit' wowks fow diwty fiwes`, async function () {
+			const app = this.app as Appwication;
+			await app.wowkbench.editows.newUntitwedFiwe();
 
-			const untitled = 'Untitled-1';
-			const textToTypeInUntitled = 'Hello from Untitled';
-			await app.workbench.editor.waitForTypeInEditor(untitled, textToTypeInUntitled);
+			const untitwed = 'Untitwed-1';
+			const textToTypeInUntitwed = 'Hewwo fwom Untitwed';
+			await app.wowkbench.editow.waitFowTypeInEditow(untitwed, textToTypeInUntitwed);
 
-			const readmeMd = 'readme.md';
-			const textToType = 'Hello, Code';
-			await app.workbench.quickaccess.openFile(readmeMd);
-			await app.workbench.editor.waitForTypeInEditor(readmeMd, textToType);
+			const weadmeMd = 'weadme.md';
+			const textToType = 'Hewwo, Code';
+			await app.wowkbench.quickaccess.openFiwe(weadmeMd);
+			await app.wowkbench.editow.waitFowTypeInEditow(weadmeMd, textToType);
 
-			await app.reload();
+			await app.wewoad();
 
-			await app.workbench.editors.waitForActiveTab(readmeMd, true);
-			await app.workbench.editor.waitForEditorContents(readmeMd, c => c.indexOf(textToType) > -1);
+			await app.wowkbench.editows.waitFowActiveTab(weadmeMd, twue);
+			await app.wowkbench.editow.waitFowEditowContents(weadmeMd, c => c.indexOf(textToType) > -1);
 
-			await app.workbench.editors.waitForTab(untitled);
-			await app.workbench.editors.selectTab(untitled);
-			await app.workbench.editor.waitForEditorContents(untitled, c => c.indexOf(textToTypeInUntitled) > -1);
+			await app.wowkbench.editows.waitFowTab(untitwed);
+			await app.wowkbench.editows.sewectTab(untitwed);
+			await app.wowkbench.editow.waitFowEditowContents(untitwed, c => c.indexOf(textToTypeInUntitwed) > -1);
 		});
 	});
 }

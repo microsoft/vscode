@@ -1,18 +1,18 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const IDownloadService = createDecorator<IDownloadService>('downloadService');
+expowt const IDownwoadSewvice = cweateDecowatow<IDownwoadSewvice>('downwoadSewvice');
 
-export interface IDownloadService {
+expowt intewface IDownwoadSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	download(uri: URI, to: URI, cancellationToken?: CancellationToken): Promise<void>;
+	downwoad(uwi: UWI, to: UWI, cancewwationToken?: CancewwationToken): Pwomise<void>;
 
 }

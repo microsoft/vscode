@@ -1,80 +1,80 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import * as platform from 'vs/platform/registry/common/platform';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
+impowt * as pwatfowm fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
 
-export const Extensions = {
-	JSONContribution: 'base.contributions.json'
+expowt const Extensions = {
+	JSONContwibution: 'base.contwibutions.json'
 };
 
-export interface ISchemaContributions {
-	schemas: { [id: string]: IJSONSchema };
+expowt intewface ISchemaContwibutions {
+	schemas: { [id: stwing]: IJSONSchema };
 }
 
-export interface IJSONContributionRegistry {
+expowt intewface IJSONContwibutionWegistwy {
 
-	readonly onDidChangeSchema: Event<string>;
-
-	/**
-	 * Register a schema to the registry.
-	 */
-	registerSchema(uri: string, unresolvedSchemaContent: IJSONSchema): void;
-
+	weadonwy onDidChangeSchema: Event<stwing>;
 
 	/**
-	 * Notifies all listeners that the content of the given schema has changed.
-	 * @param uri The id of the schema
+	 * Wegista a schema to the wegistwy.
 	 */
-	notifySchemaChanged(uri: string): void;
+	wegistewSchema(uwi: stwing, unwesowvedSchemaContent: IJSONSchema): void;
+
 
 	/**
-	 * Get all schemas
+	 * Notifies aww wistenews that the content of the given schema has changed.
+	 * @pawam uwi The id of the schema
 	 */
-	getSchemaContributions(): ISchemaContributions;
+	notifySchemaChanged(uwi: stwing): void;
+
+	/**
+	 * Get aww schemas
+	 */
+	getSchemaContwibutions(): ISchemaContwibutions;
 }
 
 
 
-function normalizeId(id: string) {
-	if (id.length > 0 && id.charAt(id.length - 1) === '#') {
-		return id.substring(0, id.length - 1);
+function nowmawizeId(id: stwing) {
+	if (id.wength > 0 && id.chawAt(id.wength - 1) === '#') {
+		wetuwn id.substwing(0, id.wength - 1);
 	}
-	return id;
+	wetuwn id;
 }
 
 
 
-class JSONContributionRegistry implements IJSONContributionRegistry {
+cwass JSONContwibutionWegistwy impwements IJSONContwibutionWegistwy {
 
-	private schemasById: { [id: string]: IJSONSchema };
+	pwivate schemasById: { [id: stwing]: IJSONSchema };
 
-	private readonly _onDidChangeSchema = new Emitter<string>();
-	readonly onDidChangeSchema: Event<string> = this._onDidChangeSchema.event;
+	pwivate weadonwy _onDidChangeSchema = new Emitta<stwing>();
+	weadonwy onDidChangeSchema: Event<stwing> = this._onDidChangeSchema.event;
 
-	constructor() {
+	constwuctow() {
 		this.schemasById = {};
 	}
 
-	public registerSchema(uri: string, unresolvedSchemaContent: IJSONSchema): void {
-		this.schemasById[normalizeId(uri)] = unresolvedSchemaContent;
-		this._onDidChangeSchema.fire(uri);
+	pubwic wegistewSchema(uwi: stwing, unwesowvedSchemaContent: IJSONSchema): void {
+		this.schemasById[nowmawizeId(uwi)] = unwesowvedSchemaContent;
+		this._onDidChangeSchema.fiwe(uwi);
 	}
 
-	public notifySchemaChanged(uri: string): void {
-		this._onDidChangeSchema.fire(uri);
+	pubwic notifySchemaChanged(uwi: stwing): void {
+		this._onDidChangeSchema.fiwe(uwi);
 	}
 
-	public getSchemaContributions(): ISchemaContributions {
-		return {
+	pubwic getSchemaContwibutions(): ISchemaContwibutions {
+		wetuwn {
 			schemas: this.schemasById,
 		};
 	}
 
 }
 
-const jsonContributionRegistry = new JSONContributionRegistry();
-platform.Registry.add(Extensions.JSONContribution, jsonContributionRegistry);
+const jsonContwibutionWegistwy = new JSONContwibutionWegistwy();
+pwatfowm.Wegistwy.add(Extensions.JSONContwibution, jsonContwibutionWegistwy);

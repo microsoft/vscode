@@ -1,126 +1,126 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CursorColumns, CursorConfiguration, ICursorSimpleModel, SingleCursorState, IColumnSelectData } from 'vs/editor/common/controller/cursorCommon';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+impowt { CuwsowCowumns, CuwsowConfiguwation, ICuwsowSimpweModew, SingweCuwsowState, ICowumnSewectData } fwom 'vs/editow/common/contwowwa/cuwsowCommon';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
 
-export interface IColumnSelectResult {
-	viewStates: SingleCursorState[];
-	reversed: boolean;
-	fromLineNumber: number;
-	fromVisualColumn: number;
-	toLineNumber: number;
-	toVisualColumn: number;
+expowt intewface ICowumnSewectWesuwt {
+	viewStates: SingweCuwsowState[];
+	wevewsed: boowean;
+	fwomWineNumba: numba;
+	fwomVisuawCowumn: numba;
+	toWineNumba: numba;
+	toVisuawCowumn: numba;
 }
 
-export class ColumnSelection {
+expowt cwass CowumnSewection {
 
-	public static columnSelect(config: CursorConfiguration, model: ICursorSimpleModel, fromLineNumber: number, fromVisibleColumn: number, toLineNumber: number, toVisibleColumn: number): IColumnSelectResult {
-		let lineCount = Math.abs(toLineNumber - fromLineNumber) + 1;
-		let reversed = (fromLineNumber > toLineNumber);
-		let isRTL = (fromVisibleColumn > toVisibleColumn);
-		let isLTR = (fromVisibleColumn < toVisibleColumn);
+	pubwic static cowumnSewect(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, fwomWineNumba: numba, fwomVisibweCowumn: numba, toWineNumba: numba, toVisibweCowumn: numba): ICowumnSewectWesuwt {
+		wet wineCount = Math.abs(toWineNumba - fwomWineNumba) + 1;
+		wet wevewsed = (fwomWineNumba > toWineNumba);
+		wet isWTW = (fwomVisibweCowumn > toVisibweCowumn);
+		wet isWTW = (fwomVisibweCowumn < toVisibweCowumn);
 
-		let result: SingleCursorState[] = [];
+		wet wesuwt: SingweCuwsowState[] = [];
 
-		// console.log(`fromVisibleColumn: ${fromVisibleColumn}, toVisibleColumn: ${toVisibleColumn}`);
+		// consowe.wog(`fwomVisibweCowumn: ${fwomVisibweCowumn}, toVisibweCowumn: ${toVisibweCowumn}`);
 
-		for (let i = 0; i < lineCount; i++) {
-			let lineNumber = fromLineNumber + (reversed ? -i : i);
+		fow (wet i = 0; i < wineCount; i++) {
+			wet wineNumba = fwomWineNumba + (wevewsed ? -i : i);
 
-			let startColumn = CursorColumns.columnFromVisibleColumn2(config, model, lineNumber, fromVisibleColumn);
-			let endColumn = CursorColumns.columnFromVisibleColumn2(config, model, lineNumber, toVisibleColumn);
-			let visibleStartColumn = CursorColumns.visibleColumnFromColumn2(config, model, new Position(lineNumber, startColumn));
-			let visibleEndColumn = CursorColumns.visibleColumnFromColumn2(config, model, new Position(lineNumber, endColumn));
+			wet stawtCowumn = CuwsowCowumns.cowumnFwomVisibweCowumn2(config, modew, wineNumba, fwomVisibweCowumn);
+			wet endCowumn = CuwsowCowumns.cowumnFwomVisibweCowumn2(config, modew, wineNumba, toVisibweCowumn);
+			wet visibweStawtCowumn = CuwsowCowumns.visibweCowumnFwomCowumn2(config, modew, new Position(wineNumba, stawtCowumn));
+			wet visibweEndCowumn = CuwsowCowumns.visibweCowumnFwomCowumn2(config, modew, new Position(wineNumba, endCowumn));
 
-			// console.log(`lineNumber: ${lineNumber}: visibleStartColumn: ${visibleStartColumn}, visibleEndColumn: ${visibleEndColumn}`);
+			// consowe.wog(`wineNumba: ${wineNumba}: visibweStawtCowumn: ${visibweStawtCowumn}, visibweEndCowumn: ${visibweEndCowumn}`);
 
-			if (isLTR) {
-				if (visibleStartColumn > toVisibleColumn) {
+			if (isWTW) {
+				if (visibweStawtCowumn > toVisibweCowumn) {
 					continue;
 				}
-				if (visibleEndColumn < fromVisibleColumn) {
-					continue;
-				}
-			}
-
-			if (isRTL) {
-				if (visibleEndColumn > fromVisibleColumn) {
-					continue;
-				}
-				if (visibleStartColumn < toVisibleColumn) {
+				if (visibweEndCowumn < fwomVisibweCowumn) {
 					continue;
 				}
 			}
 
-			result.push(new SingleCursorState(
-				new Range(lineNumber, startColumn, lineNumber, startColumn), 0,
-				new Position(lineNumber, endColumn), 0
+			if (isWTW) {
+				if (visibweEndCowumn > fwomVisibweCowumn) {
+					continue;
+				}
+				if (visibweStawtCowumn < toVisibweCowumn) {
+					continue;
+				}
+			}
+
+			wesuwt.push(new SingweCuwsowState(
+				new Wange(wineNumba, stawtCowumn, wineNumba, stawtCowumn), 0,
+				new Position(wineNumba, endCowumn), 0
 			));
 		}
 
-		if (result.length === 0) {
-			// We are after all the lines, so add cursor at the end of each line
-			for (let i = 0; i < lineCount; i++) {
-				const lineNumber = fromLineNumber + (reversed ? -i : i);
-				const maxColumn = model.getLineMaxColumn(lineNumber);
+		if (wesuwt.wength === 0) {
+			// We awe afta aww the wines, so add cuwsow at the end of each wine
+			fow (wet i = 0; i < wineCount; i++) {
+				const wineNumba = fwomWineNumba + (wevewsed ? -i : i);
+				const maxCowumn = modew.getWineMaxCowumn(wineNumba);
 
-				result.push(new SingleCursorState(
-					new Range(lineNumber, maxColumn, lineNumber, maxColumn), 0,
-					new Position(lineNumber, maxColumn), 0
+				wesuwt.push(new SingweCuwsowState(
+					new Wange(wineNumba, maxCowumn, wineNumba, maxCowumn), 0,
+					new Position(wineNumba, maxCowumn), 0
 				));
 			}
 		}
 
-		return {
-			viewStates: result,
-			reversed: reversed,
-			fromLineNumber: fromLineNumber,
-			fromVisualColumn: fromVisibleColumn,
-			toLineNumber: toLineNumber,
-			toVisualColumn: toVisibleColumn
+		wetuwn {
+			viewStates: wesuwt,
+			wevewsed: wevewsed,
+			fwomWineNumba: fwomWineNumba,
+			fwomVisuawCowumn: fwomVisibweCowumn,
+			toWineNumba: toWineNumba,
+			toVisuawCowumn: toVisibweCowumn
 		};
 	}
 
-	public static columnSelectLeft(config: CursorConfiguration, model: ICursorSimpleModel, prevColumnSelectData: IColumnSelectData): IColumnSelectResult {
-		let toViewVisualColumn = prevColumnSelectData.toViewVisualColumn;
-		if (toViewVisualColumn > 0) {
-			toViewVisualColumn--;
+	pubwic static cowumnSewectWeft(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, pwevCowumnSewectData: ICowumnSewectData): ICowumnSewectWesuwt {
+		wet toViewVisuawCowumn = pwevCowumnSewectData.toViewVisuawCowumn;
+		if (toViewVisuawCowumn > 0) {
+			toViewVisuawCowumn--;
 		}
 
-		return ColumnSelection.columnSelect(config, model, prevColumnSelectData.fromViewLineNumber, prevColumnSelectData.fromViewVisualColumn, prevColumnSelectData.toViewLineNumber, toViewVisualColumn);
+		wetuwn CowumnSewection.cowumnSewect(config, modew, pwevCowumnSewectData.fwomViewWineNumba, pwevCowumnSewectData.fwomViewVisuawCowumn, pwevCowumnSewectData.toViewWineNumba, toViewVisuawCowumn);
 	}
 
-	public static columnSelectRight(config: CursorConfiguration, model: ICursorSimpleModel, prevColumnSelectData: IColumnSelectData): IColumnSelectResult {
-		let maxVisualViewColumn = 0;
-		const minViewLineNumber = Math.min(prevColumnSelectData.fromViewLineNumber, prevColumnSelectData.toViewLineNumber);
-		const maxViewLineNumber = Math.max(prevColumnSelectData.fromViewLineNumber, prevColumnSelectData.toViewLineNumber);
-		for (let lineNumber = minViewLineNumber; lineNumber <= maxViewLineNumber; lineNumber++) {
-			const lineMaxViewColumn = model.getLineMaxColumn(lineNumber);
-			const lineMaxVisualViewColumn = CursorColumns.visibleColumnFromColumn2(config, model, new Position(lineNumber, lineMaxViewColumn));
-			maxVisualViewColumn = Math.max(maxVisualViewColumn, lineMaxVisualViewColumn);
+	pubwic static cowumnSewectWight(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, pwevCowumnSewectData: ICowumnSewectData): ICowumnSewectWesuwt {
+		wet maxVisuawViewCowumn = 0;
+		const minViewWineNumba = Math.min(pwevCowumnSewectData.fwomViewWineNumba, pwevCowumnSewectData.toViewWineNumba);
+		const maxViewWineNumba = Math.max(pwevCowumnSewectData.fwomViewWineNumba, pwevCowumnSewectData.toViewWineNumba);
+		fow (wet wineNumba = minViewWineNumba; wineNumba <= maxViewWineNumba; wineNumba++) {
+			const wineMaxViewCowumn = modew.getWineMaxCowumn(wineNumba);
+			const wineMaxVisuawViewCowumn = CuwsowCowumns.visibweCowumnFwomCowumn2(config, modew, new Position(wineNumba, wineMaxViewCowumn));
+			maxVisuawViewCowumn = Math.max(maxVisuawViewCowumn, wineMaxVisuawViewCowumn);
 		}
 
-		let toViewVisualColumn = prevColumnSelectData.toViewVisualColumn;
-		if (toViewVisualColumn < maxVisualViewColumn) {
-			toViewVisualColumn++;
+		wet toViewVisuawCowumn = pwevCowumnSewectData.toViewVisuawCowumn;
+		if (toViewVisuawCowumn < maxVisuawViewCowumn) {
+			toViewVisuawCowumn++;
 		}
 
-		return this.columnSelect(config, model, prevColumnSelectData.fromViewLineNumber, prevColumnSelectData.fromViewVisualColumn, prevColumnSelectData.toViewLineNumber, toViewVisualColumn);
+		wetuwn this.cowumnSewect(config, modew, pwevCowumnSewectData.fwomViewWineNumba, pwevCowumnSewectData.fwomViewVisuawCowumn, pwevCowumnSewectData.toViewWineNumba, toViewVisuawCowumn);
 	}
 
-	public static columnSelectUp(config: CursorConfiguration, model: ICursorSimpleModel, prevColumnSelectData: IColumnSelectData, isPaged: boolean): IColumnSelectResult {
-		const linesCount = isPaged ? config.pageSize : 1;
-		const toViewLineNumber = Math.max(1, prevColumnSelectData.toViewLineNumber - linesCount);
-		return this.columnSelect(config, model, prevColumnSelectData.fromViewLineNumber, prevColumnSelectData.fromViewVisualColumn, toViewLineNumber, prevColumnSelectData.toViewVisualColumn);
+	pubwic static cowumnSewectUp(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, pwevCowumnSewectData: ICowumnSewectData, isPaged: boowean): ICowumnSewectWesuwt {
+		const winesCount = isPaged ? config.pageSize : 1;
+		const toViewWineNumba = Math.max(1, pwevCowumnSewectData.toViewWineNumba - winesCount);
+		wetuwn this.cowumnSewect(config, modew, pwevCowumnSewectData.fwomViewWineNumba, pwevCowumnSewectData.fwomViewVisuawCowumn, toViewWineNumba, pwevCowumnSewectData.toViewVisuawCowumn);
 	}
 
-	public static columnSelectDown(config: CursorConfiguration, model: ICursorSimpleModel, prevColumnSelectData: IColumnSelectData, isPaged: boolean): IColumnSelectResult {
-		const linesCount = isPaged ? config.pageSize : 1;
-		const toViewLineNumber = Math.min(model.getLineCount(), prevColumnSelectData.toViewLineNumber + linesCount);
-		return this.columnSelect(config, model, prevColumnSelectData.fromViewLineNumber, prevColumnSelectData.fromViewVisualColumn, toViewLineNumber, prevColumnSelectData.toViewVisualColumn);
+	pubwic static cowumnSewectDown(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, pwevCowumnSewectData: ICowumnSewectData, isPaged: boowean): ICowumnSewectWesuwt {
+		const winesCount = isPaged ? config.pageSize : 1;
+		const toViewWineNumba = Math.min(modew.getWineCount(), pwevCowumnSewectData.toViewWineNumba + winesCount);
+		wetuwn this.cowumnSewect(config, modew, pwevCowumnSewectData.fwomViewWineNumba, pwevCowumnSewectData.fwomViewVisuawCowumn, toViewWineNumba, pwevCowumnSewectData.toViewVisuawCowumn);
 	}
 }

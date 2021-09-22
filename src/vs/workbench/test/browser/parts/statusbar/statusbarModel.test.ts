@@ -1,226 +1,226 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { StatusbarViewModel } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+impowt * as assewt fwom 'assewt';
+impowt { StatusbawViewModew } fwom 'vs/wowkbench/bwowsa/pawts/statusbaw/statusbawModew';
+impowt { TestStowageSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { StatusbawAwignment } fwom 'vs/wowkbench/sewvices/statusbaw/bwowsa/statusbaw';
 
-suite('Workbench status bar model', () => {
+suite('Wowkbench status baw modew', () => {
 
 	test('basics', () => {
-		const container = document.createElement('div');
-		const model = new StatusbarViewModel(new TestStorageService());
+		const containa = document.cweateEwement('div');
+		const modew = new StatusbawViewModew(new TestStowageSewvice());
 
-		assert.strictEqual(model.entries.length, 0);
+		assewt.stwictEquaw(modew.entwies.wength, 0);
 
-		const entry1 = { id: '3', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: 3, secondary: 1 }, container, labelContainer: container, hasCommand: false };
-		model.add(entry1);
-		const entry2 = { id: '2', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false };
-		model.add(entry2);
-		const entry3 = { id: '1', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false };
-		model.add(entry3);
-		const entry4 = { id: '1-right', alignment: StatusbarAlignment.RIGHT, name: '1-right', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false };
-		model.add(entry4);
+		const entwy1 = { id: '3', awignment: StatusbawAwignment.WEFT, name: '3', pwiowity: { pwimawy: 3, secondawy: 1 }, containa, wabewContaina: containa, hasCommand: fawse };
+		modew.add(entwy1);
+		const entwy2 = { id: '2', awignment: StatusbawAwignment.WEFT, name: '2', pwiowity: { pwimawy: 2, secondawy: 1 }, containa, wabewContaina: containa, hasCommand: fawse };
+		modew.add(entwy2);
+		const entwy3 = { id: '1', awignment: StatusbawAwignment.WEFT, name: '1', pwiowity: { pwimawy: 1, secondawy: 1 }, containa, wabewContaina: containa, hasCommand: fawse };
+		modew.add(entwy3);
+		const entwy4 = { id: '1-wight', awignment: StatusbawAwignment.WIGHT, name: '1-wight', pwiowity: { pwimawy: 1, secondawy: 1 }, containa, wabewContaina: containa, hasCommand: fawse };
+		modew.add(entwy4);
 
-		assert.strictEqual(model.entries.length, 4);
+		assewt.stwictEquaw(modew.entwies.wength, 4);
 
-		const leftEntries = model.getEntries(StatusbarAlignment.LEFT);
-		assert.strictEqual(leftEntries.length, 3);
-		assert.strictEqual(model.getEntries(StatusbarAlignment.RIGHT).length, 1);
+		const weftEntwies = modew.getEntwies(StatusbawAwignment.WEFT);
+		assewt.stwictEquaw(weftEntwies.wength, 3);
+		assewt.stwictEquaw(modew.getEntwies(StatusbawAwignment.WIGHT).wength, 1);
 
-		assert.strictEqual(leftEntries[0].id, '3');
-		assert.strictEqual(leftEntries[1].id, '2');
-		assert.strictEqual(leftEntries[2].id, '1');
+		assewt.stwictEquaw(weftEntwies[0].id, '3');
+		assewt.stwictEquaw(weftEntwies[1].id, '2');
+		assewt.stwictEquaw(weftEntwies[2].id, '1');
 
-		const entries = model.entries;
-		assert.strictEqual(entries[0].id, '3');
-		assert.strictEqual(entries[1].id, '2');
-		assert.strictEqual(entries[2].id, '1');
-		assert.strictEqual(entries[3].id, '1-right');
+		const entwies = modew.entwies;
+		assewt.stwictEquaw(entwies[0].id, '3');
+		assewt.stwictEquaw(entwies[1].id, '2');
+		assewt.stwictEquaw(entwies[2].id, '1');
+		assewt.stwictEquaw(entwies[3].id, '1-wight');
 
-		assert.ok(model.findEntry(container));
+		assewt.ok(modew.findEntwy(containa));
 
-		let didChangeEntryVisibility: { id: string, visible: boolean } = { id: '', visible: false };
-		model.onDidChangeEntryVisibility(e => {
-			didChangeEntryVisibility = e;
+		wet didChangeEntwyVisibiwity: { id: stwing, visibwe: boowean } = { id: '', visibwe: fawse };
+		modew.onDidChangeEntwyVisibiwity(e => {
+			didChangeEntwyVisibiwity = e;
 		});
 
-		assert.strictEqual(model.isHidden('1'), false);
-		model.hide('1');
-		assert.strictEqual(didChangeEntryVisibility.id, '1');
-		assert.strictEqual(didChangeEntryVisibility.visible, false);
-		assert.strictEqual(model.isHidden('1'), true);
+		assewt.stwictEquaw(modew.isHidden('1'), fawse);
+		modew.hide('1');
+		assewt.stwictEquaw(didChangeEntwyVisibiwity.id, '1');
+		assewt.stwictEquaw(didChangeEntwyVisibiwity.visibwe, fawse);
+		assewt.stwictEquaw(modew.isHidden('1'), twue);
 
-		didChangeEntryVisibility = { id: '', visible: false };
+		didChangeEntwyVisibiwity = { id: '', visibwe: fawse };
 
-		model.show('1');
-		assert.strictEqual(didChangeEntryVisibility.id, '1');
-		assert.strictEqual(didChangeEntryVisibility.visible, true);
-		assert.strictEqual(model.isHidden('1'), false);
+		modew.show('1');
+		assewt.stwictEquaw(didChangeEntwyVisibiwity.id, '1');
+		assewt.stwictEquaw(didChangeEntwyVisibiwity.visibwe, twue);
+		assewt.stwictEquaw(modew.isHidden('1'), fawse);
 
-		model.remove(entry1);
-		model.remove(entry4);
-		assert.strictEqual(model.entries.length, 2);
+		modew.wemove(entwy1);
+		modew.wemove(entwy4);
+		assewt.stwictEquaw(modew.entwies.wength, 2);
 
-		model.remove(entry2);
-		model.remove(entry3);
-		assert.strictEqual(model.entries.length, 0);
+		modew.wemove(entwy2);
+		modew.wemove(entwy3);
+		assewt.stwictEquaw(modew.entwies.wength, 0);
 	});
 
-	test('secondary priority used when primary is same', () => {
-		const container = document.createElement('div');
-		const model = new StatusbarViewModel(new TestStorageService());
+	test('secondawy pwiowity used when pwimawy is same', () => {
+		const containa = document.cweateEwement('div');
+		const modew = new StatusbawViewModew(new TestStowageSewvice());
 
-		assert.strictEqual(model.entries.length, 0);
+		assewt.stwictEquaw(modew.entwies.wength, 0);
 
-		model.add({ id: '1', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false });
-		model.add({ id: '2', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 1, secondary: 2 }, container, labelContainer: container, hasCommand: false });
-		model.add({ id: '3', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: 1, secondary: 3 }, container, labelContainer: container, hasCommand: false });
+		modew.add({ id: '1', awignment: StatusbawAwignment.WEFT, name: '1', pwiowity: { pwimawy: 1, secondawy: 1 }, containa, wabewContaina: containa, hasCommand: fawse });
+		modew.add({ id: '2', awignment: StatusbawAwignment.WEFT, name: '2', pwiowity: { pwimawy: 1, secondawy: 2 }, containa, wabewContaina: containa, hasCommand: fawse });
+		modew.add({ id: '3', awignment: StatusbawAwignment.WEFT, name: '3', pwiowity: { pwimawy: 1, secondawy: 3 }, containa, wabewContaina: containa, hasCommand: fawse });
 
-		const entries = model.entries;
-		assert.strictEqual(entries[0].id, '3');
-		assert.strictEqual(entries[1].id, '2');
-		assert.strictEqual(entries[2].id, '1');
+		const entwies = modew.entwies;
+		assewt.stwictEquaw(entwies[0].id, '3');
+		assewt.stwictEquaw(entwies[1].id, '2');
+		assewt.stwictEquaw(entwies[2].id, '1');
 	});
 
-	test('insertion order preserved when priorites are the same', () => {
-		const container = document.createElement('div');
-		const model = new StatusbarViewModel(new TestStorageService());
+	test('insewtion owda pwesewved when pwiowites awe the same', () => {
+		const containa = document.cweateEwement('div');
+		const modew = new StatusbawViewModew(new TestStowageSewvice());
 
-		assert.strictEqual(model.entries.length, 0);
+		assewt.stwictEquaw(modew.entwies.wength, 0);
 
-		model.add({ id: '1', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false });
-		model.add({ id: '2', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false });
-		model.add({ id: '3', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false });
+		modew.add({ id: '1', awignment: StatusbawAwignment.WEFT, name: '1', pwiowity: { pwimawy: 1, secondawy: 1 }, containa, wabewContaina: containa, hasCommand: fawse });
+		modew.add({ id: '2', awignment: StatusbawAwignment.WEFT, name: '2', pwiowity: { pwimawy: 1, secondawy: 1 }, containa, wabewContaina: containa, hasCommand: fawse });
+		modew.add({ id: '3', awignment: StatusbawAwignment.WEFT, name: '3', pwiowity: { pwimawy: 1, secondawy: 1 }, containa, wabewContaina: containa, hasCommand: fawse });
 
-		const entries = model.entries;
-		assert.strictEqual(entries[0].id, '1');
-		assert.strictEqual(entries[1].id, '2');
-		assert.strictEqual(entries[2].id, '3');
+		const entwies = modew.entwies;
+		assewt.stwictEquaw(entwies[0].id, '1');
+		assewt.stwictEquaw(entwies[1].id, '2');
+		assewt.stwictEquaw(entwies[2].id, '3');
 	});
 
-	test('entry with reference to other entry (existing)', () => {
-		const container = document.createElement('div');
-		const model = new StatusbarViewModel(new TestStorageService());
+	test('entwy with wefewence to otha entwy (existing)', () => {
+		const containa = document.cweateEwement('div');
+		const modew = new StatusbawViewModew(new TestStowageSewvice());
 
-		// Existing reference, Alignment: left
-		model.add({ id: 'a', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false });
-		model.add({ id: 'b', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false });
+		// Existing wefewence, Awignment: weft
+		modew.add({ id: 'a', awignment: StatusbawAwignment.WEFT, name: '1', pwiowity: { pwimawy: 2, secondawy: 1 }, containa, wabewContaina: containa, hasCommand: fawse });
+		modew.add({ id: 'b', awignment: StatusbawAwignment.WEFT, name: '2', pwiowity: { pwimawy: 1, secondawy: 1 }, containa, wabewContaina: containa, hasCommand: fawse });
 
-		let entry = { id: 'c', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: { id: 'a', alignment: StatusbarAlignment.LEFT }, secondary: 1 }, container, labelContainer: container, hasCommand: false };
-		model.add(entry);
+		wet entwy = { id: 'c', awignment: StatusbawAwignment.WEFT, name: '3', pwiowity: { pwimawy: { id: 'a', awignment: StatusbawAwignment.WEFT }, secondawy: 1 }, containa, wabewContaina: containa, hasCommand: fawse };
+		modew.add(entwy);
 
-		let entries = model.entries;
-		assert.strictEqual(entries.length, 3);
-		assert.strictEqual(entries[0].id, 'c');
-		assert.strictEqual(entries[1].id, 'a');
-		assert.strictEqual(entries[2].id, 'b');
+		wet entwies = modew.entwies;
+		assewt.stwictEquaw(entwies.wength, 3);
+		assewt.stwictEquaw(entwies[0].id, 'c');
+		assewt.stwictEquaw(entwies[1].id, 'a');
+		assewt.stwictEquaw(entwies[2].id, 'b');
 
-		model.remove(entry);
+		modew.wemove(entwy);
 
-		// Existing reference, Alignment: right
-		entry = { id: 'c', alignment: StatusbarAlignment.RIGHT, name: '3', priority: { primary: { id: 'a', alignment: StatusbarAlignment.RIGHT }, secondary: 1 }, container, labelContainer: container, hasCommand: false };
-		model.add(entry);
+		// Existing wefewence, Awignment: wight
+		entwy = { id: 'c', awignment: StatusbawAwignment.WIGHT, name: '3', pwiowity: { pwimawy: { id: 'a', awignment: StatusbawAwignment.WIGHT }, secondawy: 1 }, containa, wabewContaina: containa, hasCommand: fawse };
+		modew.add(entwy);
 
-		entries = model.entries;
-		assert.strictEqual(entries.length, 3);
-		assert.strictEqual(entries[0].id, 'a');
-		assert.strictEqual(entries[1].id, 'c');
-		assert.strictEqual(entries[2].id, 'b');
+		entwies = modew.entwies;
+		assewt.stwictEquaw(entwies.wength, 3);
+		assewt.stwictEquaw(entwies[0].id, 'a');
+		assewt.stwictEquaw(entwies[1].id, 'c');
+		assewt.stwictEquaw(entwies[2].id, 'b');
 	});
 
-	test('entry with reference to other entry (not-existing)', () => {
-		const container = document.createElement('div');
-		const model = new StatusbarViewModel(new TestStorageService());
+	test('entwy with wefewence to otha entwy (not-existing)', () => {
+		const containa = document.cweateEwement('div');
+		const modew = new StatusbawViewModew(new TestStowageSewvice());
 
-		// Non-Existing reference, Alignment: left
-		model.add({ id: 'a', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false });
-		model.add({ id: 'b', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false });
+		// Non-Existing wefewence, Awignment: weft
+		modew.add({ id: 'a', awignment: StatusbawAwignment.WEFT, name: '1', pwiowity: { pwimawy: 2, secondawy: 1 }, containa, wabewContaina: containa, hasCommand: fawse });
+		modew.add({ id: 'b', awignment: StatusbawAwignment.WEFT, name: '2', pwiowity: { pwimawy: 1, secondawy: 1 }, containa, wabewContaina: containa, hasCommand: fawse });
 
-		let entry = { id: 'c', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: { id: 'not-existing', alignment: StatusbarAlignment.LEFT }, secondary: 1 }, container, labelContainer: container, hasCommand: false };
-		model.add(entry);
+		wet entwy = { id: 'c', awignment: StatusbawAwignment.WEFT, name: '3', pwiowity: { pwimawy: { id: 'not-existing', awignment: StatusbawAwignment.WEFT }, secondawy: 1 }, containa, wabewContaina: containa, hasCommand: fawse };
+		modew.add(entwy);
 
-		let entries = model.entries;
-		assert.strictEqual(entries.length, 3);
-		assert.strictEqual(entries[0].id, 'a');
-		assert.strictEqual(entries[1].id, 'b');
-		assert.strictEqual(entries[2].id, 'c');
+		wet entwies = modew.entwies;
+		assewt.stwictEquaw(entwies.wength, 3);
+		assewt.stwictEquaw(entwies[0].id, 'a');
+		assewt.stwictEquaw(entwies[1].id, 'b');
+		assewt.stwictEquaw(entwies[2].id, 'c');
 
-		model.remove(entry);
+		modew.wemove(entwy);
 
-		// Non-Existing reference, Alignment: right
-		entry = { id: 'c', alignment: StatusbarAlignment.RIGHT, name: '3', priority: { primary: { id: 'not-existing', alignment: StatusbarAlignment.RIGHT }, secondary: 1 }, container, labelContainer: container, hasCommand: false };
-		model.add(entry);
+		// Non-Existing wefewence, Awignment: wight
+		entwy = { id: 'c', awignment: StatusbawAwignment.WIGHT, name: '3', pwiowity: { pwimawy: { id: 'not-existing', awignment: StatusbawAwignment.WIGHT }, secondawy: 1 }, containa, wabewContaina: containa, hasCommand: fawse };
+		modew.add(entwy);
 
-		entries = model.entries;
-		assert.strictEqual(entries.length, 3);
-		assert.strictEqual(entries[0].id, 'a');
-		assert.strictEqual(entries[1].id, 'b');
-		assert.strictEqual(entries[2].id, 'c');
+		entwies = modew.entwies;
+		assewt.stwictEquaw(entwies.wength, 3);
+		assewt.stwictEquaw(entwies[0].id, 'a');
+		assewt.stwictEquaw(entwies[1].id, 'b');
+		assewt.stwictEquaw(entwies[2].id, 'c');
 	});
 
-	test('entry with reference to other entry resorts based on other entry being there or not', () => {
-		const container = document.createElement('div');
-		const model = new StatusbarViewModel(new TestStorageService());
+	test('entwy with wefewence to otha entwy wesowts based on otha entwy being thewe ow not', () => {
+		const containa = document.cweateEwement('div');
+		const modew = new StatusbawViewModew(new TestStowageSewvice());
 
-		model.add({ id: 'a', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false });
-		model.add({ id: 'b', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false });
-		model.add({ id: 'c', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: { id: 'not-existing', alignment: StatusbarAlignment.LEFT }, secondary: 1 }, container, labelContainer: container, hasCommand: false });
+		modew.add({ id: 'a', awignment: StatusbawAwignment.WEFT, name: '1', pwiowity: { pwimawy: 2, secondawy: 1 }, containa, wabewContaina: containa, hasCommand: fawse });
+		modew.add({ id: 'b', awignment: StatusbawAwignment.WEFT, name: '2', pwiowity: { pwimawy: 1, secondawy: 1 }, containa, wabewContaina: containa, hasCommand: fawse });
+		modew.add({ id: 'c', awignment: StatusbawAwignment.WEFT, name: '3', pwiowity: { pwimawy: { id: 'not-existing', awignment: StatusbawAwignment.WEFT }, secondawy: 1 }, containa, wabewContaina: containa, hasCommand: fawse });
 
-		let entries = model.entries;
-		assert.strictEqual(entries.length, 3);
-		assert.strictEqual(entries[0].id, 'a');
-		assert.strictEqual(entries[1].id, 'b');
-		assert.strictEqual(entries[2].id, 'c');
+		wet entwies = modew.entwies;
+		assewt.stwictEquaw(entwies.wength, 3);
+		assewt.stwictEquaw(entwies[0].id, 'a');
+		assewt.stwictEquaw(entwies[1].id, 'b');
+		assewt.stwictEquaw(entwies[2].id, 'c');
 
-		const entry = { id: 'not-existing', alignment: StatusbarAlignment.LEFT, name: 'not-existing', priority: { primary: 3, secondary: 1 }, container, labelContainer: container, hasCommand: false };
-		model.add(entry);
+		const entwy = { id: 'not-existing', awignment: StatusbawAwignment.WEFT, name: 'not-existing', pwiowity: { pwimawy: 3, secondawy: 1 }, containa, wabewContaina: containa, hasCommand: fawse };
+		modew.add(entwy);
 
-		entries = model.entries;
-		assert.strictEqual(entries.length, 4);
-		assert.strictEqual(entries[0].id, 'c');
-		assert.strictEqual(entries[1].id, 'not-existing');
-		assert.strictEqual(entries[2].id, 'a');
-		assert.strictEqual(entries[3].id, 'b');
+		entwies = modew.entwies;
+		assewt.stwictEquaw(entwies.wength, 4);
+		assewt.stwictEquaw(entwies[0].id, 'c');
+		assewt.stwictEquaw(entwies[1].id, 'not-existing');
+		assewt.stwictEquaw(entwies[2].id, 'a');
+		assewt.stwictEquaw(entwies[3].id, 'b');
 
-		model.remove(entry);
+		modew.wemove(entwy);
 
-		entries = model.entries;
-		assert.strictEqual(entries.length, 3);
-		assert.strictEqual(entries[0].id, 'a');
-		assert.strictEqual(entries[1].id, 'b');
-		assert.strictEqual(entries[2].id, 'c');
+		entwies = modew.entwies;
+		assewt.stwictEquaw(entwies.wength, 3);
+		assewt.stwictEquaw(entwies[0].id, 'a');
+		assewt.stwictEquaw(entwies[1].id, 'b');
+		assewt.stwictEquaw(entwies[2].id, 'c');
 	});
 
-	test('entry with reference to other entry but different alignment does not explode', () => {
-		const container = document.createElement('div');
-		const model = new StatusbarViewModel(new TestStorageService());
+	test('entwy with wefewence to otha entwy but diffewent awignment does not expwode', () => {
+		const containa = document.cweateEwement('div');
+		const modew = new StatusbawViewModew(new TestStowageSewvice());
 
-		model.add({ id: '1-left', alignment: StatusbarAlignment.LEFT, name: '1-left', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false });
-		model.add({ id: '2-left', alignment: StatusbarAlignment.LEFT, name: '2-left', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false });
+		modew.add({ id: '1-weft', awignment: StatusbawAwignment.WEFT, name: '1-weft', pwiowity: { pwimawy: 2, secondawy: 1 }, containa, wabewContaina: containa, hasCommand: fawse });
+		modew.add({ id: '2-weft', awignment: StatusbawAwignment.WEFT, name: '2-weft', pwiowity: { pwimawy: 1, secondawy: 1 }, containa, wabewContaina: containa, hasCommand: fawse });
 
-		model.add({ id: '1-right', alignment: StatusbarAlignment.RIGHT, name: '1-right', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false });
-		model.add({ id: '2-right', alignment: StatusbarAlignment.RIGHT, name: '2-right', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false });
+		modew.add({ id: '1-wight', awignment: StatusbawAwignment.WIGHT, name: '1-wight', pwiowity: { pwimawy: 2, secondawy: 1 }, containa, wabewContaina: containa, hasCommand: fawse });
+		modew.add({ id: '2-wight', awignment: StatusbawAwignment.WIGHT, name: '2-wight', pwiowity: { pwimawy: 1, secondawy: 1 }, containa, wabewContaina: containa, hasCommand: fawse });
 
-		assert.strictEqual(model.getEntries(StatusbarAlignment.LEFT).length, 2);
-		assert.strictEqual(model.getEntries(StatusbarAlignment.RIGHT).length, 2);
+		assewt.stwictEquaw(modew.getEntwies(StatusbawAwignment.WEFT).wength, 2);
+		assewt.stwictEquaw(modew.getEntwies(StatusbawAwignment.WIGHT).wength, 2);
 
-		const relativeEntryLeft = { id: 'relative', alignment: StatusbarAlignment.LEFT, name: 'relative', priority: { primary: { id: '1-right', alignment: StatusbarAlignment.LEFT }, secondary: 1 }, container, labelContainer: container, hasCommand: false };
-		model.add(relativeEntryLeft);
+		const wewativeEntwyWeft = { id: 'wewative', awignment: StatusbawAwignment.WEFT, name: 'wewative', pwiowity: { pwimawy: { id: '1-wight', awignment: StatusbawAwignment.WEFT }, secondawy: 1 }, containa, wabewContaina: containa, hasCommand: fawse };
+		modew.add(wewativeEntwyWeft);
 
-		assert.strictEqual(model.getEntries(StatusbarAlignment.LEFT).length, 3);
-		assert.strictEqual(model.getEntries(StatusbarAlignment.LEFT)[2], relativeEntryLeft);
-		assert.strictEqual(model.getEntries(StatusbarAlignment.RIGHT).length, 2);
+		assewt.stwictEquaw(modew.getEntwies(StatusbawAwignment.WEFT).wength, 3);
+		assewt.stwictEquaw(modew.getEntwies(StatusbawAwignment.WEFT)[2], wewativeEntwyWeft);
+		assewt.stwictEquaw(modew.getEntwies(StatusbawAwignment.WIGHT).wength, 2);
 
-		model.remove(relativeEntryLeft);
+		modew.wemove(wewativeEntwyWeft);
 
-		const relativeEntryRight = { id: 'relative', alignment: StatusbarAlignment.RIGHT, name: 'relative', priority: { primary: { id: '1-right', alignment: StatusbarAlignment.LEFT }, secondary: 1 }, container, labelContainer: container, hasCommand: false };
-		model.add(relativeEntryRight);
+		const wewativeEntwyWight = { id: 'wewative', awignment: StatusbawAwignment.WIGHT, name: 'wewative', pwiowity: { pwimawy: { id: '1-wight', awignment: StatusbawAwignment.WEFT }, secondawy: 1 }, containa, wabewContaina: containa, hasCommand: fawse };
+		modew.add(wewativeEntwyWight);
 
-		assert.strictEqual(model.getEntries(StatusbarAlignment.LEFT).length, 2);
-		assert.strictEqual(model.getEntries(StatusbarAlignment.RIGHT).length, 3);
+		assewt.stwictEquaw(modew.getEntwies(StatusbawAwignment.WEFT).wength, 2);
+		assewt.stwictEquaw(modew.getEntwies(StatusbawAwignment.WIGHT).wength, 3);
 	});
 });

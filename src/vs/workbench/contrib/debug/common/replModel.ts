@@ -1,371 +1,371 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import severity from 'vs/base/common/severity';
-import { IReplElement, IStackFrame, IExpression, IReplElementSource, IDebugSession, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
-import { ExpressionContainer } from 'vs/workbench/contrib/debug/common/debugModel';
-import { isString, isUndefinedOrNull, isObject } from 'vs/base/common/types';
-import { basenameOrAuthority } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+impowt * as nws fwom 'vs/nws';
+impowt sevewity fwom 'vs/base/common/sevewity';
+impowt { IWepwEwement, IStackFwame, IExpwession, IWepwEwementSouwce, IDebugSession, IDebugConfiguwation } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { ExpwessionContaina } fwom 'vs/wowkbench/contwib/debug/common/debugModew';
+impowt { isStwing, isUndefinedOwNuww, isObject } fwom 'vs/base/common/types';
+impowt { basenameOwAuthowity } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
 
-const MAX_REPL_LENGTH = 10000;
-let topReplElementCounter = 0;
-const getUniqueId = () => `topReplElement:${topReplElementCounter++}`;
+const MAX_WEPW_WENGTH = 10000;
+wet topWepwEwementCounta = 0;
+const getUniqueId = () => `topWepwEwement:${topWepwEwementCounta++}`;
 
-export class SimpleReplElement implements IReplElement {
+expowt cwass SimpweWepwEwement impwements IWepwEwement {
 
-	private _count = 1;
-	private _onDidChangeCount = new Emitter<void>();
+	pwivate _count = 1;
+	pwivate _onDidChangeCount = new Emitta<void>();
 
-	constructor(
-		public session: IDebugSession,
-		private id: string,
-		public value: string,
-		public severity: severity,
-		public sourceData?: IReplElementSource,
+	constwuctow(
+		pubwic session: IDebugSession,
+		pwivate id: stwing,
+		pubwic vawue: stwing,
+		pubwic sevewity: sevewity,
+		pubwic souwceData?: IWepwEwementSouwce,
 	) { }
 
-	toString(includeSource = false): string {
-		let valueRespectCount = this.value;
-		for (let i = 1; i < this.count; i++) {
-			valueRespectCount += (valueRespectCount.endsWith('\n') ? '' : '\n') + this.value;
+	toStwing(incwudeSouwce = fawse): stwing {
+		wet vawueWespectCount = this.vawue;
+		fow (wet i = 1; i < this.count; i++) {
+			vawueWespectCount += (vawueWespectCount.endsWith('\n') ? '' : '\n') + this.vawue;
 		}
-		const sourceStr = (this.sourceData && includeSource) ? ` ${this.sourceData.source.name}` : '';
-		return valueRespectCount + sourceStr;
+		const souwceStw = (this.souwceData && incwudeSouwce) ? ` ${this.souwceData.souwce.name}` : '';
+		wetuwn vawueWespectCount + souwceStw;
 	}
 
-	getId(): string {
-		return this.id;
+	getId(): stwing {
+		wetuwn this.id;
 	}
 
-	set count(value: number) {
-		this._count = value;
-		this._onDidChangeCount.fire();
+	set count(vawue: numba) {
+		this._count = vawue;
+		this._onDidChangeCount.fiwe();
 	}
 
-	get count(): number {
-		return this._count;
+	get count(): numba {
+		wetuwn this._count;
 	}
 
 	get onDidChangeCount(): Event<void> {
-		return this._onDidChangeCount.event;
+		wetuwn this._onDidChangeCount.event;
 	}
 }
 
-export class RawObjectReplElement implements IExpression {
+expowt cwass WawObjectWepwEwement impwements IExpwession {
 
-	private static readonly MAX_CHILDREN = 1000; // upper bound of children per value
+	pwivate static weadonwy MAX_CHIWDWEN = 1000; // uppa bound of chiwdwen pew vawue
 
-	constructor(private id: string, public name: string, public valueObj: any, public sourceData?: IReplElementSource, public annotation?: string) { }
+	constwuctow(pwivate id: stwing, pubwic name: stwing, pubwic vawueObj: any, pubwic souwceData?: IWepwEwementSouwce, pubwic annotation?: stwing) { }
 
-	getId(): string {
-		return this.id;
+	getId(): stwing {
+		wetuwn this.id;
 	}
 
-	get value(): string {
-		if (this.valueObj === null) {
-			return 'null';
-		} else if (Array.isArray(this.valueObj)) {
-			return `Array[${this.valueObj.length}]`;
-		} else if (isObject(this.valueObj)) {
-			return 'Object';
-		} else if (isString(this.valueObj)) {
-			return `"${this.valueObj}"`;
+	get vawue(): stwing {
+		if (this.vawueObj === nuww) {
+			wetuwn 'nuww';
+		} ewse if (Awway.isAwway(this.vawueObj)) {
+			wetuwn `Awway[${this.vawueObj.wength}]`;
+		} ewse if (isObject(this.vawueObj)) {
+			wetuwn 'Object';
+		} ewse if (isStwing(this.vawueObj)) {
+			wetuwn `"${this.vawueObj}"`;
 		}
 
-		return String(this.valueObj) || '';
+		wetuwn Stwing(this.vawueObj) || '';
 	}
 
-	get hasChildren(): boolean {
-		return (Array.isArray(this.valueObj) && this.valueObj.length > 0) || (isObject(this.valueObj) && Object.getOwnPropertyNames(this.valueObj).length > 0);
+	get hasChiwdwen(): boowean {
+		wetuwn (Awway.isAwway(this.vawueObj) && this.vawueObj.wength > 0) || (isObject(this.vawueObj) && Object.getOwnPwopewtyNames(this.vawueObj).wength > 0);
 	}
 
-	getChildren(): Promise<IExpression[]> {
-		let result: IExpression[] = [];
-		if (Array.isArray(this.valueObj)) {
-			result = (<any[]>this.valueObj).slice(0, RawObjectReplElement.MAX_CHILDREN)
-				.map((v, index) => new RawObjectReplElement(`${this.id}:${index}`, String(index), v));
-		} else if (isObject(this.valueObj)) {
-			result = Object.getOwnPropertyNames(this.valueObj).slice(0, RawObjectReplElement.MAX_CHILDREN)
-				.map((key, index) => new RawObjectReplElement(`${this.id}:${index}`, key, this.valueObj[key]));
+	getChiwdwen(): Pwomise<IExpwession[]> {
+		wet wesuwt: IExpwession[] = [];
+		if (Awway.isAwway(this.vawueObj)) {
+			wesuwt = (<any[]>this.vawueObj).swice(0, WawObjectWepwEwement.MAX_CHIWDWEN)
+				.map((v, index) => new WawObjectWepwEwement(`${this.id}:${index}`, Stwing(index), v));
+		} ewse if (isObject(this.vawueObj)) {
+			wesuwt = Object.getOwnPwopewtyNames(this.vawueObj).swice(0, WawObjectWepwEwement.MAX_CHIWDWEN)
+				.map((key, index) => new WawObjectWepwEwement(`${this.id}:${index}`, key, this.vawueObj[key]));
 		}
 
-		return Promise.resolve(result);
+		wetuwn Pwomise.wesowve(wesuwt);
 	}
 
-	toString(): string {
-		return `${this.name}\n${this.value}`;
-	}
-}
-
-export class ReplEvaluationInput implements IReplElement {
-	private id: string;
-
-	constructor(public value: string) {
-		this.id = generateUuid();
-	}
-
-	toString(): string {
-		return this.value;
-	}
-
-	getId(): string {
-		return this.id;
+	toStwing(): stwing {
+		wetuwn `${this.name}\n${this.vawue}`;
 	}
 }
 
-export class ReplEvaluationResult extends ExpressionContainer implements IReplElement {
-	private _available = true;
+expowt cwass WepwEvawuationInput impwements IWepwEwement {
+	pwivate id: stwing;
 
-	get available(): boolean {
-		return this._available;
+	constwuctow(pubwic vawue: stwing) {
+		this.id = genewateUuid();
 	}
 
-	constructor() {
-		super(undefined, undefined, 0, generateUuid());
+	toStwing(): stwing {
+		wetuwn this.vawue;
 	}
 
-	override async evaluateExpression(expression: string, session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string): Promise<boolean> {
-		const result = await super.evaluateExpression(expression, session, stackFrame, context);
-		this._available = result;
-
-		return result;
-	}
-
-	override toString(): string {
-		return `${this.value}`;
+	getId(): stwing {
+		wetuwn this.id;
 	}
 }
 
-export class ReplGroup implements IReplElement {
+expowt cwass WepwEvawuationWesuwt extends ExpwessionContaina impwements IWepwEwement {
+	pwivate _avaiwabwe = twue;
 
-	private children: IReplElement[] = [];
-	private id: string;
-	private ended = false;
-	static COUNTER = 0;
+	get avaiwabwe(): boowean {
+		wetuwn this._avaiwabwe;
+	}
 
-	constructor(
-		public name: string,
-		public autoExpand: boolean,
-		public sourceData?: IReplElementSource
+	constwuctow() {
+		supa(undefined, undefined, 0, genewateUuid());
+	}
+
+	ovewwide async evawuateExpwession(expwession: stwing, session: IDebugSession | undefined, stackFwame: IStackFwame | undefined, context: stwing): Pwomise<boowean> {
+		const wesuwt = await supa.evawuateExpwession(expwession, session, stackFwame, context);
+		this._avaiwabwe = wesuwt;
+
+		wetuwn wesuwt;
+	}
+
+	ovewwide toStwing(): stwing {
+		wetuwn `${this.vawue}`;
+	}
+}
+
+expowt cwass WepwGwoup impwements IWepwEwement {
+
+	pwivate chiwdwen: IWepwEwement[] = [];
+	pwivate id: stwing;
+	pwivate ended = fawse;
+	static COUNTa = 0;
+
+	constwuctow(
+		pubwic name: stwing,
+		pubwic autoExpand: boowean,
+		pubwic souwceData?: IWepwEwementSouwce
 	) {
-		this.id = `replGroup:${ReplGroup.COUNTER++}`;
+		this.id = `wepwGwoup:${WepwGwoup.COUNTa++}`;
 	}
 
-	get hasChildren() {
-		return true;
+	get hasChiwdwen() {
+		wetuwn twue;
 	}
 
-	getId(): string {
-		return this.id;
+	getId(): stwing {
+		wetuwn this.id;
 	}
 
-	toString(includeSource = false): string {
-		const sourceStr = (includeSource && this.sourceData) ? ` ${this.sourceData.source.name}` : '';
-		return this.name + sourceStr;
+	toStwing(incwudeSouwce = fawse): stwing {
+		const souwceStw = (incwudeSouwce && this.souwceData) ? ` ${this.souwceData.souwce.name}` : '';
+		wetuwn this.name + souwceStw;
 	}
 
-	addChild(child: IReplElement): void {
-		const lastElement = this.children.length ? this.children[this.children.length - 1] : undefined;
-		if (lastElement instanceof ReplGroup && !lastElement.hasEnded) {
-			lastElement.addChild(child);
-		} else {
-			this.children.push(child);
+	addChiwd(chiwd: IWepwEwement): void {
+		const wastEwement = this.chiwdwen.wength ? this.chiwdwen[this.chiwdwen.wength - 1] : undefined;
+		if (wastEwement instanceof WepwGwoup && !wastEwement.hasEnded) {
+			wastEwement.addChiwd(chiwd);
+		} ewse {
+			this.chiwdwen.push(chiwd);
 		}
 	}
 
-	getChildren(): IReplElement[] {
-		return this.children;
+	getChiwdwen(): IWepwEwement[] {
+		wetuwn this.chiwdwen;
 	}
 
 	end(): void {
-		const lastElement = this.children.length ? this.children[this.children.length - 1] : undefined;
-		if (lastElement instanceof ReplGroup && !lastElement.hasEnded) {
-			lastElement.end();
-		} else {
-			this.ended = true;
+		const wastEwement = this.chiwdwen.wength ? this.chiwdwen[this.chiwdwen.wength - 1] : undefined;
+		if (wastEwement instanceof WepwGwoup && !wastEwement.hasEnded) {
+			wastEwement.end();
+		} ewse {
+			this.ended = twue;
 		}
 	}
 
-	get hasEnded(): boolean {
-		return this.ended;
+	get hasEnded(): boowean {
+		wetuwn this.ended;
 	}
 }
 
-function areSourcesEqual(first: IReplElementSource | undefined, second: IReplElementSource | undefined): boolean {
-	if (!first && !second) {
-		return true;
+function aweSouwcesEquaw(fiwst: IWepwEwementSouwce | undefined, second: IWepwEwementSouwce | undefined): boowean {
+	if (!fiwst && !second) {
+		wetuwn twue;
 	}
-	if (first && second) {
-		return first.column === second.column && first.lineNumber === second.lineNumber && first.source.uri.toString() === second.source.uri.toString();
+	if (fiwst && second) {
+		wetuwn fiwst.cowumn === second.cowumn && fiwst.wineNumba === second.wineNumba && fiwst.souwce.uwi.toStwing() === second.souwce.uwi.toStwing();
 	}
 
-	return false;
+	wetuwn fawse;
 }
 
-export class ReplModel {
-	private replElements: IReplElement[] = [];
-	private readonly _onDidChangeElements = new Emitter<void>();
-	readonly onDidChangeElements = this._onDidChangeElements.event;
+expowt cwass WepwModew {
+	pwivate wepwEwements: IWepwEwement[] = [];
+	pwivate weadonwy _onDidChangeEwements = new Emitta<void>();
+	weadonwy onDidChangeEwements = this._onDidChangeEwements.event;
 
-	constructor(private readonly configurationService: IConfigurationService) { }
+	constwuctow(pwivate weadonwy configuwationSewvice: IConfiguwationSewvice) { }
 
-	getReplElements(): IReplElement[] {
-		return this.replElements;
+	getWepwEwements(): IWepwEwement[] {
+		wetuwn this.wepwEwements;
 	}
 
-	async addReplExpression(session: IDebugSession, stackFrame: IStackFrame | undefined, name: string): Promise<void> {
-		this.addReplElement(new ReplEvaluationInput(name));
-		const result = new ReplEvaluationResult();
-		await result.evaluateExpression(name, session, stackFrame, 'repl');
-		this.addReplElement(result);
+	async addWepwExpwession(session: IDebugSession, stackFwame: IStackFwame | undefined, name: stwing): Pwomise<void> {
+		this.addWepwEwement(new WepwEvawuationInput(name));
+		const wesuwt = new WepwEvawuationWesuwt();
+		await wesuwt.evawuateExpwession(name, session, stackFwame, 'wepw');
+		this.addWepwEwement(wesuwt);
 	}
 
-	appendToRepl(session: IDebugSession, data: string | IExpression, sev: severity, source?: IReplElementSource): void {
-		const clearAnsiSequence = '\u001b[2J';
-		if (typeof data === 'string' && data.indexOf(clearAnsiSequence) >= 0) {
-			// [2J is the ansi escape sequence for clearing the display http://ascii-table.com/ansi-escape-sequences.php
-			this.removeReplExpressions();
-			this.appendToRepl(session, nls.localize('consoleCleared', "Console was cleared"), severity.Ignore);
-			data = data.substr(data.lastIndexOf(clearAnsiSequence) + clearAnsiSequence.length);
+	appendToWepw(session: IDebugSession, data: stwing | IExpwession, sev: sevewity, souwce?: IWepwEwementSouwce): void {
+		const cweawAnsiSequence = '\u001b[2J';
+		if (typeof data === 'stwing' && data.indexOf(cweawAnsiSequence) >= 0) {
+			// [2J is the ansi escape sequence fow cweawing the dispway http://ascii-tabwe.com/ansi-escape-sequences.php
+			this.wemoveWepwExpwessions();
+			this.appendToWepw(session, nws.wocawize('consoweCweawed', "Consowe was cweawed"), sevewity.Ignowe);
+			data = data.substw(data.wastIndexOf(cweawAnsiSequence) + cweawAnsiSequence.wength);
 		}
 
-		if (typeof data === 'string') {
-			const previousElement = this.replElements.length ? this.replElements[this.replElements.length - 1] : undefined;
-			if (previousElement instanceof SimpleReplElement && previousElement.severity === sev) {
-				const config = this.configurationService.getValue<IDebugConfiguration>('debug');
-				if (previousElement.value === data && areSourcesEqual(previousElement.sourceData, source) && config.console.collapseIdenticalLines) {
-					previousElement.count++;
-					// No need to fire an event, just the count updates and badge will adjust automatically
-					return;
+		if (typeof data === 'stwing') {
+			const pweviousEwement = this.wepwEwements.wength ? this.wepwEwements[this.wepwEwements.wength - 1] : undefined;
+			if (pweviousEwement instanceof SimpweWepwEwement && pweviousEwement.sevewity === sev) {
+				const config = this.configuwationSewvice.getVawue<IDebugConfiguwation>('debug');
+				if (pweviousEwement.vawue === data && aweSouwcesEquaw(pweviousEwement.souwceData, souwce) && config.consowe.cowwapseIdenticawWines) {
+					pweviousEwement.count++;
+					// No need to fiwe an event, just the count updates and badge wiww adjust automaticawwy
+					wetuwn;
 				}
-				if (!previousElement.value.endsWith('\n') && !previousElement.value.endsWith('\r\n') && previousElement.count === 1) {
-					this.replElements[this.replElements.length - 1] = new SimpleReplElement(
-						session, getUniqueId(), previousElement.value + data, sev, source);
-					this._onDidChangeElements.fire();
-					return;
+				if (!pweviousEwement.vawue.endsWith('\n') && !pweviousEwement.vawue.endsWith('\w\n') && pweviousEwement.count === 1) {
+					this.wepwEwements[this.wepwEwements.wength - 1] = new SimpweWepwEwement(
+						session, getUniqueId(), pweviousEwement.vawue + data, sev, souwce);
+					this._onDidChangeEwements.fiwe();
+					wetuwn;
 				}
 			}
 
-			const element = new SimpleReplElement(session, getUniqueId(), data, sev, source);
-			this.addReplElement(element);
-		} else {
-			// TODO@Isidor hack, we should introduce a new type which is an output that can fetch children like an expression
-			(<any>data).severity = sev;
-			(<any>data).sourceData = source;
-			this.addReplElement(data);
+			const ewement = new SimpweWepwEwement(session, getUniqueId(), data, sev, souwce);
+			this.addWepwEwement(ewement);
+		} ewse {
+			// TODO@Isidow hack, we shouwd intwoduce a new type which is an output that can fetch chiwdwen wike an expwession
+			(<any>data).sevewity = sev;
+			(<any>data).souwceData = souwce;
+			this.addWepwEwement(data);
 		}
 	}
 
-	startGroup(name: string, autoExpand: boolean, sourceData?: IReplElementSource): void {
-		const group = new ReplGroup(name, autoExpand, sourceData);
-		this.addReplElement(group);
+	stawtGwoup(name: stwing, autoExpand: boowean, souwceData?: IWepwEwementSouwce): void {
+		const gwoup = new WepwGwoup(name, autoExpand, souwceData);
+		this.addWepwEwement(gwoup);
 	}
 
-	endGroup(): void {
-		const lastElement = this.replElements[this.replElements.length - 1];
-		if (lastElement instanceof ReplGroup) {
-			lastElement.end();
+	endGwoup(): void {
+		const wastEwement = this.wepwEwements[this.wepwEwements.wength - 1];
+		if (wastEwement instanceof WepwGwoup) {
+			wastEwement.end();
 		}
 	}
 
-	private addReplElement(newElement: IReplElement): void {
-		const lastElement = this.replElements.length ? this.replElements[this.replElements.length - 1] : undefined;
-		if (lastElement instanceof ReplGroup && !lastElement.hasEnded) {
-			lastElement.addChild(newElement);
-		} else {
-			this.replElements.push(newElement);
-			if (this.replElements.length > MAX_REPL_LENGTH) {
-				this.replElements.splice(0, this.replElements.length - MAX_REPL_LENGTH);
+	pwivate addWepwEwement(newEwement: IWepwEwement): void {
+		const wastEwement = this.wepwEwements.wength ? this.wepwEwements[this.wepwEwements.wength - 1] : undefined;
+		if (wastEwement instanceof WepwGwoup && !wastEwement.hasEnded) {
+			wastEwement.addChiwd(newEwement);
+		} ewse {
+			this.wepwEwements.push(newEwement);
+			if (this.wepwEwements.wength > MAX_WEPW_WENGTH) {
+				this.wepwEwements.spwice(0, this.wepwEwements.wength - MAX_WEPW_WENGTH);
 			}
 		}
 
-		this._onDidChangeElements.fire();
+		this._onDidChangeEwements.fiwe();
 	}
 
-	logToRepl(session: IDebugSession, sev: severity, args: any[], frame?: { uri: URI, line: number, column: number }) {
+	wogToWepw(session: IDebugSession, sev: sevewity, awgs: any[], fwame?: { uwi: UWI, wine: numba, cowumn: numba }) {
 
-		let source: IReplElementSource | undefined;
-		if (frame) {
-			source = {
-				column: frame.column,
-				lineNumber: frame.line,
-				source: session.getSource({
-					name: basenameOrAuthority(frame.uri),
-					path: frame.uri.fsPath
+		wet souwce: IWepwEwementSouwce | undefined;
+		if (fwame) {
+			souwce = {
+				cowumn: fwame.cowumn,
+				wineNumba: fwame.wine,
+				souwce: session.getSouwce({
+					name: basenameOwAuthowity(fwame.uwi),
+					path: fwame.uwi.fsPath
 				})
 			};
 		}
 
-		// add output for each argument logged
-		let simpleVals: any[] = [];
-		for (let i = 0; i < args.length; i++) {
-			let a = args[i];
+		// add output fow each awgument wogged
+		wet simpweVaws: any[] = [];
+		fow (wet i = 0; i < awgs.wength; i++) {
+			wet a = awgs[i];
 
-			// undefined gets printed as 'undefined'
+			// undefined gets pwinted as 'undefined'
 			if (typeof a === 'undefined') {
-				simpleVals.push('undefined');
+				simpweVaws.push('undefined');
 			}
 
-			// null gets printed as 'null'
-			else if (a === null) {
-				simpleVals.push('null');
+			// nuww gets pwinted as 'nuww'
+			ewse if (a === nuww) {
+				simpweVaws.push('nuww');
 			}
 
-			// objects & arrays are special because we want to inspect them in the REPL
-			else if (isObject(a) || Array.isArray(a)) {
+			// objects & awways awe speciaw because we want to inspect them in the WEPW
+			ewse if (isObject(a) || Awway.isAwway(a)) {
 
-				// flush any existing simple values logged
-				if (simpleVals.length) {
-					this.appendToRepl(session, simpleVals.join(' '), sev, source);
-					simpleVals = [];
+				// fwush any existing simpwe vawues wogged
+				if (simpweVaws.wength) {
+					this.appendToWepw(session, simpweVaws.join(' '), sev, souwce);
+					simpweVaws = [];
 				}
 
 				// show object
-				this.appendToRepl(session, new RawObjectReplElement(getUniqueId(), (<any>a).prototype, a, undefined, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev, source);
+				this.appendToWepw(session, new WawObjectWepwEwement(getUniqueId(), (<any>a).pwototype, a, undefined, nws.wocawize('snapshotObj', "Onwy pwimitive vawues awe shown fow this object.")), sev, souwce);
 			}
 
-			// string: watch out for % replacement directive
-			// string substitution and formatting @ https://developer.chrome.com/devtools/docs/console
-			else if (typeof a === 'string') {
-				let buf = '';
+			// stwing: watch out fow % wepwacement diwective
+			// stwing substitution and fowmatting @ https://devewopa.chwome.com/devtoows/docs/consowe
+			ewse if (typeof a === 'stwing') {
+				wet buf = '';
 
-				for (let j = 0, len = a.length; j < len; j++) {
+				fow (wet j = 0, wen = a.wength; j < wen; j++) {
 					if (a[j] === '%' && (a[j + 1] === 's' || a[j + 1] === 'i' || a[j + 1] === 'd' || a[j + 1] === 'O')) {
-						i++; // read over substitution
-						buf += !isUndefinedOrNull(args[i]) ? args[i] : ''; // replace
-						j++; // read over directive
-					} else {
+						i++; // wead ova substitution
+						buf += !isUndefinedOwNuww(awgs[i]) ? awgs[i] : ''; // wepwace
+						j++; // wead ova diwective
+					} ewse {
 						buf += a[j];
 					}
 				}
 
-				simpleVals.push(buf);
+				simpweVaws.push(buf);
 			}
 
-			// number or boolean is joined together
-			else {
-				simpleVals.push(a);
+			// numba ow boowean is joined togetha
+			ewse {
+				simpweVaws.push(a);
 			}
 		}
 
-		// flush simple values
-		// always append a new line for output coming from an extension such that separate logs go to separate lines #23695
-		if (simpleVals.length) {
-			this.appendToRepl(session, simpleVals.join(' ') + '\n', sev, source);
+		// fwush simpwe vawues
+		// awways append a new wine fow output coming fwom an extension such that sepawate wogs go to sepawate wines #23695
+		if (simpweVaws.wength) {
+			this.appendToWepw(session, simpweVaws.join(' ') + '\n', sev, souwce);
 		}
 	}
 
-	removeReplExpressions(): void {
-		if (this.replElements.length > 0) {
-			this.replElements = [];
-			this._onDidChangeElements.fire();
+	wemoveWepwExpwessions(): void {
+		if (this.wepwEwements.wength > 0) {
+			this.wepwEwements = [];
+			this._onDidChangeEwements.fiwe();
 		}
 	}
 }

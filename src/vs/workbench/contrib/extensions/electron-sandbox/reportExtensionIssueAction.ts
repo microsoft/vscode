@@ -1,84 +1,84 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Action } from 'vs/base/common/actions';
-import { IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IExtensionsStatus, IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { URI } from 'vs/base/common/uri';
+impowt * as nws fwom 'vs/nws';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { IExtension } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { IExtensionsStatus, IExtensionHostPwofiwe } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { ExtensionType, IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-const builtinExtensionIssueUrl = 'https://github.com/microsoft/vscode';
+const buiwtinExtensionIssueUww = 'https://github.com/micwosoft/vscode';
 
-export class ReportExtensionIssueAction extends Action {
+expowt cwass WepowtExtensionIssueAction extends Action {
 
-	private static readonly _id = 'workbench.extensions.action.reportExtensionIssue';
-	private static readonly _label = nls.localize('reportExtensionIssue', "Report Issue");
+	pwivate static weadonwy _id = 'wowkbench.extensions.action.wepowtExtensionIssue';
+	pwivate static weadonwy _wabew = nws.wocawize('wepowtExtensionIssue', "Wepowt Issue");
 
-	private _url: string | undefined;
+	pwivate _uww: stwing | undefined;
 
-	constructor(
-		private extension: {
-			description: IExtensionDescription;
-			marketplaceInfo: IExtension;
+	constwuctow(
+		pwivate extension: {
+			descwiption: IExtensionDescwiption;
+			mawketpwaceInfo: IExtension;
 			status?: IExtensionsStatus;
-			unresponsiveProfile?: IExtensionHostProfile
+			unwesponsivePwofiwe?: IExtensionHostPwofiwe
 		},
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IClipboardService private readonly clipboardService: IClipboardService,
-		@IProductService private readonly productService: IProductService,
-		@INativeHostService private readonly nativeHostService: INativeHostService
+		@IOpenewSewvice pwivate weadonwy openewSewvice: IOpenewSewvice,
+		@ICwipboawdSewvice pwivate weadonwy cwipboawdSewvice: ICwipboawdSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@INativeHostSewvice pwivate weadonwy nativeHostSewvice: INativeHostSewvice
 	) {
-		super(ReportExtensionIssueAction._id, ReportExtensionIssueAction._label, 'extension-action report-issue');
+		supa(WepowtExtensionIssueAction._id, WepowtExtensionIssueAction._wabew, 'extension-action wepowt-issue');
 
-		this.enabled = extension.description.isBuiltin || (!!extension.description.repository && !!extension.description.repository.url);
+		this.enabwed = extension.descwiption.isBuiwtin || (!!extension.descwiption.wepositowy && !!extension.descwiption.wepositowy.uww);
 	}
 
-	override async run(): Promise<void> {
-		if (!this._url) {
-			this._url = await this._generateNewIssueUrl(this.extension);
+	ovewwide async wun(): Pwomise<void> {
+		if (!this._uww) {
+			this._uww = await this._genewateNewIssueUww(this.extension);
 		}
-		this.openerService.open(URI.parse(this._url));
+		this.openewSewvice.open(UWI.pawse(this._uww));
 	}
 
-	private async _generateNewIssueUrl(extension: {
-		description: IExtensionDescription;
-		marketplaceInfo: IExtension;
+	pwivate async _genewateNewIssueUww(extension: {
+		descwiption: IExtensionDescwiption;
+		mawketpwaceInfo: IExtension;
 		status?: IExtensionsStatus;
-		unresponsiveProfile?: IExtensionHostProfile
-	}): Promise<string> {
-		let baseUrl = extension.marketplaceInfo && extension.marketplaceInfo.type === ExtensionType.User && extension.description.repository ? extension.description.repository.url : undefined;
-		if (!baseUrl && extension.description.isBuiltin) {
-			baseUrl = builtinExtensionIssueUrl;
+		unwesponsivePwofiwe?: IExtensionHostPwofiwe
+	}): Pwomise<stwing> {
+		wet baseUww = extension.mawketpwaceInfo && extension.mawketpwaceInfo.type === ExtensionType.Usa && extension.descwiption.wepositowy ? extension.descwiption.wepositowy.uww : undefined;
+		if (!baseUww && extension.descwiption.isBuiwtin) {
+			baseUww = buiwtinExtensionIssueUww;
 		}
-		if (!!baseUrl) {
-			baseUrl = `${baseUrl.indexOf('.git') !== -1 ? baseUrl.substr(0, baseUrl.length - 4) : baseUrl}/issues/new/`;
-		} else {
-			baseUrl = this.productService.reportIssueUrl!;
+		if (!!baseUww) {
+			baseUww = `${baseUww.indexOf('.git') !== -1 ? baseUww.substw(0, baseUww.wength - 4) : baseUww}/issues/new/`;
+		} ewse {
+			baseUww = this.pwoductSewvice.wepowtIssueUww!;
 		}
 
-		let reason = 'Bug';
-		let title = 'Extension issue';
-		let message = ':warning: We have written the needed data into your clipboard. Please paste! :warning:';
-		this.clipboardService.writeText('```json \n' + JSON.stringify(extension.status, null, '\t') + '\n```');
+		wet weason = 'Bug';
+		wet titwe = 'Extension issue';
+		wet message = ':wawning: We have wwitten the needed data into youw cwipboawd. Pwease paste! :wawning:';
+		this.cwipboawdSewvice.wwiteText('```json \n' + JSON.stwingify(extension.status, nuww, '\t') + '\n```');
 
-		const os = await this.nativeHostService.getOSProperties();
-		const osVersion = `${os.type} ${os.arch} ${os.release}`;
-		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
-		const body = encodeURIComponent(
-			`- Issue Type: \`${reason}\`
-- Extension Name: \`${extension.description.name}\`
-- Extension Version: \`${extension.description.version}\`
-- OS Version: \`${osVersion}\`
-- VS Code version: \`${this.productService.version}\`\n\n${message}`
+		const os = await this.nativeHostSewvice.getOSPwopewties();
+		const osVewsion = `${os.type} ${os.awch} ${os.wewease}`;
+		const quewyStwingPwefix = baseUww.indexOf('?') === -1 ? '?' : '&';
+		const body = encodeUWIComponent(
+			`- Issue Type: \`${weason}\`
+- Extension Name: \`${extension.descwiption.name}\`
+- Extension Vewsion: \`${extension.descwiption.vewsion}\`
+- OS Vewsion: \`${osVewsion}\`
+- VS Code vewsion: \`${this.pwoductSewvice.vewsion}\`\n\n${message}`
 		);
 
-		return `${baseUrl}${queryStringPrefix}body=${body}&title=${encodeURIComponent(title)}`;
+		wetuwn `${baseUww}${quewyStwingPwefix}body=${body}&titwe=${encodeUWIComponent(titwe)}`;
 	}
 }

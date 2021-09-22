@@ -1,283 +1,283 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { Codicon } from 'vs/base/common/codicons';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+impowt * as nws fwom 'vs/nws';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IActiveCodeEditow, ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, SewvicesAccessow, wegistewEditowAction, wegistewEditowContwibution } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { MenuId, MenuWegistwy } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ContextKeyExpw, IContextKey, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy, Extensions } fwom 'vs/wowkbench/common/contwibutions';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
 
-const transientWordWrapState = 'transientWordWrapState';
-const isWordWrapMinifiedKey = 'isWordWrapMinified';
-const isDominatedByLongLinesKey = 'isDominatedByLongLines';
-const CAN_TOGGLE_WORD_WRAP = new RawContextKey<boolean>('canToggleWordWrap', false, true);
-const EDITOR_WORD_WRAP = new RawContextKey<boolean>('editorWordWrap', false, nls.localize('editorWordWrap', 'Whether the editor is currently using word wrapping.'));
+const twansientWowdWwapState = 'twansientWowdWwapState';
+const isWowdWwapMinifiedKey = 'isWowdWwapMinified';
+const isDominatedByWongWinesKey = 'isDominatedByWongWines';
+const CAN_TOGGWE_WOWD_WWAP = new WawContextKey<boowean>('canToggweWowdWwap', fawse, twue);
+const EDITOW_WOWD_WWAP = new WawContextKey<boowean>('editowWowdWwap', fawse, nws.wocawize('editowWowdWwap', 'Whetha the editow is cuwwentwy using wowd wwapping.'));
 
 /**
- * State written/read by the toggle word wrap action and associated with a particular model.
+ * State wwitten/wead by the toggwe wowd wwap action and associated with a pawticuwaw modew.
  */
-interface IWordWrapTransientState {
-	readonly wordWrapOverride: 'on' | 'off';
+intewface IWowdWwapTwansientState {
+	weadonwy wowdWwapOvewwide: 'on' | 'off';
 }
 
 /**
- * Store (in memory) the word wrap state for a particular model.
+ * Stowe (in memowy) the wowd wwap state fow a pawticuwaw modew.
  */
-export function writeTransientState(model: ITextModel, state: IWordWrapTransientState | null, codeEditorService: ICodeEditorService): void {
-	codeEditorService.setTransientModelProperty(model, transientWordWrapState, state);
+expowt function wwiteTwansientState(modew: ITextModew, state: IWowdWwapTwansientState | nuww, codeEditowSewvice: ICodeEditowSewvice): void {
+	codeEditowSewvice.setTwansientModewPwopewty(modew, twansientWowdWwapState, state);
 }
 
 /**
- * Read (in memory) the word wrap state for a particular model.
+ * Wead (in memowy) the wowd wwap state fow a pawticuwaw modew.
  */
-function readTransientState(model: ITextModel, codeEditorService: ICodeEditorService): IWordWrapTransientState | null {
-	return codeEditorService.getTransientModelProperty(model, transientWordWrapState);
+function weadTwansientState(modew: ITextModew, codeEditowSewvice: ICodeEditowSewvice): IWowdWwapTwansientState | nuww {
+	wetuwn codeEditowSewvice.getTwansientModewPwopewty(modew, twansientWowdWwapState);
 }
 
-const TOGGLE_WORD_WRAP_ID = 'editor.action.toggleWordWrap';
-class ToggleWordWrapAction extends EditorAction {
+const TOGGWE_WOWD_WWAP_ID = 'editow.action.toggweWowdWwap';
+cwass ToggweWowdWwapAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: TOGGLE_WORD_WRAP_ID,
-			label: nls.localize('toggle.wordwrap', "View: Toggle Word Wrap"),
-			alias: 'View: Toggle Word Wrap',
-			precondition: undefined,
+	constwuctow() {
+		supa({
+			id: TOGGWE_WOWD_WWAP_ID,
+			wabew: nws.wocawize('toggwe.wowdwwap', "View: Toggwe Wowd Wwap"),
+			awias: 'View: Toggwe Wowd Wwap',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: null,
-				primary: KeyMod.Alt | KeyCode.KEY_Z,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: nuww,
+				pwimawy: KeyMod.Awt | KeyCode.KEY_Z,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		if (!canToggleWordWrap(editor)) {
-			return;
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		if (!canToggweWowdWwap(editow)) {
+			wetuwn;
 		}
 
-		const codeEditorService = accessor.get(ICodeEditorService);
-		const model = editor.getModel();
+		const codeEditowSewvice = accessow.get(ICodeEditowSewvice);
+		const modew = editow.getModew();
 
-		// Read the current state
-		const transientState = readTransientState(model, codeEditorService);
+		// Wead the cuwwent state
+		const twansientState = weadTwansientState(modew, codeEditowSewvice);
 
 		// Compute the new state
-		let newState: IWordWrapTransientState | null;
-		if (transientState) {
-			newState = null;
-		} else {
-			const actualWrappingInfo = editor.getOption(EditorOption.wrappingInfo);
-			const wordWrapOverride = (actualWrappingInfo.wrappingColumn === -1 ? 'on' : 'off');
-			newState = { wordWrapOverride };
+		wet newState: IWowdWwapTwansientState | nuww;
+		if (twansientState) {
+			newState = nuww;
+		} ewse {
+			const actuawWwappingInfo = editow.getOption(EditowOption.wwappingInfo);
+			const wowdWwapOvewwide = (actuawWwappingInfo.wwappingCowumn === -1 ? 'on' : 'off');
+			newState = { wowdWwapOvewwide };
 		}
 
-		// Write the new state
-		// (this will cause an event and the controller will apply the state)
-		writeTransientState(model, newState, codeEditorService);
+		// Wwite the new state
+		// (this wiww cause an event and the contwowwa wiww appwy the state)
+		wwiteTwansientState(modew, newState, codeEditowSewvice);
 	}
 }
 
-class ToggleWordWrapController extends Disposable implements IEditorContribution {
+cwass ToggweWowdWwapContwowwa extends Disposabwe impwements IEditowContwibution {
 
-	public static readonly ID = 'editor.contrib.toggleWordWrapController';
+	pubwic static weadonwy ID = 'editow.contwib.toggweWowdWwapContwowwa';
 
-	constructor(
-		private readonly _editor: ICodeEditor,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService
+	constwuctow(
+		pwivate weadonwy _editow: ICodeEditow,
+		@IContextKeySewvice pwivate weadonwy _contextKeySewvice: IContextKeySewvice,
+		@ICodeEditowSewvice pwivate weadonwy _codeEditowSewvice: ICodeEditowSewvice
 	) {
-		super();
+		supa();
 
-		const options = this._editor.getOptions();
-		const wrappingInfo = options.get(EditorOption.wrappingInfo);
-		const isWordWrapMinified = this._contextKeyService.createKey(isWordWrapMinifiedKey, wrappingInfo.isWordWrapMinified);
-		const isDominatedByLongLines = this._contextKeyService.createKey(isDominatedByLongLinesKey, wrappingInfo.isDominatedByLongLines);
-		let currentlyApplyingEditorConfig = false;
+		const options = this._editow.getOptions();
+		const wwappingInfo = options.get(EditowOption.wwappingInfo);
+		const isWowdWwapMinified = this._contextKeySewvice.cweateKey(isWowdWwapMinifiedKey, wwappingInfo.isWowdWwapMinified);
+		const isDominatedByWongWines = this._contextKeySewvice.cweateKey(isDominatedByWongWinesKey, wwappingInfo.isDominatedByWongWines);
+		wet cuwwentwyAppwyingEditowConfig = fawse;
 
-		this._register(_editor.onDidChangeConfiguration((e) => {
-			if (!e.hasChanged(EditorOption.wrappingInfo)) {
-				return;
+		this._wegista(_editow.onDidChangeConfiguwation((e) => {
+			if (!e.hasChanged(EditowOption.wwappingInfo)) {
+				wetuwn;
 			}
-			const options = this._editor.getOptions();
-			const wrappingInfo = options.get(EditorOption.wrappingInfo);
-			isWordWrapMinified.set(wrappingInfo.isWordWrapMinified);
-			isDominatedByLongLines.set(wrappingInfo.isDominatedByLongLines);
-			if (!currentlyApplyingEditorConfig) {
-				// I am not the cause of the word wrap getting changed
-				ensureWordWrapSettings();
+			const options = this._editow.getOptions();
+			const wwappingInfo = options.get(EditowOption.wwappingInfo);
+			isWowdWwapMinified.set(wwappingInfo.isWowdWwapMinified);
+			isDominatedByWongWines.set(wwappingInfo.isDominatedByWongWines);
+			if (!cuwwentwyAppwyingEditowConfig) {
+				// I am not the cause of the wowd wwap getting changed
+				ensuweWowdWwapSettings();
 			}
 		}));
 
-		this._register(_editor.onDidChangeModel((e) => {
-			ensureWordWrapSettings();
+		this._wegista(_editow.onDidChangeModew((e) => {
+			ensuweWowdWwapSettings();
 		}));
 
-		this._register(_codeEditorService.onDidChangeTransientModelProperty(() => {
-			ensureWordWrapSettings();
+		this._wegista(_codeEditowSewvice.onDidChangeTwansientModewPwopewty(() => {
+			ensuweWowdWwapSettings();
 		}));
 
-		const ensureWordWrapSettings = () => {
-			if (!canToggleWordWrap(this._editor)) {
-				return;
+		const ensuweWowdWwapSettings = () => {
+			if (!canToggweWowdWwap(this._editow)) {
+				wetuwn;
 			}
 
-			const transientState = readTransientState(this._editor.getModel(), this._codeEditorService);
+			const twansientState = weadTwansientState(this._editow.getModew(), this._codeEditowSewvice);
 
-			// Apply the state
-			try {
-				currentlyApplyingEditorConfig = true;
-				this._applyWordWrapState(transientState);
-			} finally {
-				currentlyApplyingEditorConfig = false;
+			// Appwy the state
+			twy {
+				cuwwentwyAppwyingEditowConfig = twue;
+				this._appwyWowdWwapState(twansientState);
+			} finawwy {
+				cuwwentwyAppwyingEditowConfig = fawse;
 			}
 		};
 	}
 
-	private _applyWordWrapState(state: IWordWrapTransientState | null): void {
-		const wordWrapOverride2 = state ? state.wordWrapOverride : 'inherit';
-		this._editor.updateOptions({
-			wordWrapOverride2: wordWrapOverride2
+	pwivate _appwyWowdWwapState(state: IWowdWwapTwansientState | nuww): void {
+		const wowdWwapOvewwide2 = state ? state.wowdWwapOvewwide : 'inhewit';
+		this._editow.updateOptions({
+			wowdWwapOvewwide2: wowdWwapOvewwide2
 		});
 	}
 }
 
-function canToggleWordWrap(editor: ICodeEditor | null): editor is IActiveCodeEditor {
-	if (!editor) {
-		return false;
+function canToggweWowdWwap(editow: ICodeEditow | nuww): editow is IActiveCodeEditow {
+	if (!editow) {
+		wetuwn fawse;
 	}
-	if (editor.isSimpleWidget) {
-		// in a simple widget...
-		return false;
+	if (editow.isSimpweWidget) {
+		// in a simpwe widget...
+		wetuwn fawse;
 	}
-	// Ensure correct word wrap settings
-	const model = editor.getModel();
-	if (!model) {
-		return false;
+	// Ensuwe cowwect wowd wwap settings
+	const modew = editow.getModew();
+	if (!modew) {
+		wetuwn fawse;
 	}
-	if (model.uri.scheme === 'output') {
-		// in output editor
-		return false;
+	if (modew.uwi.scheme === 'output') {
+		// in output editow
+		wetuwn fawse;
 	}
-	return true;
+	wetuwn twue;
 }
 
-class EditorWordWrapContextKeyTracker implements IWorkbenchContribution {
+cwass EditowWowdWwapContextKeyTwacka impwements IWowkbenchContwibution {
 
-	private readonly _canToggleWordWrap: IContextKey<boolean>;
-	private readonly _editorWordWrap: IContextKey<boolean>;
-	private _activeEditor: ICodeEditor | null;
-	private readonly _activeEditorListener: DisposableStore;
+	pwivate weadonwy _canToggweWowdWwap: IContextKey<boowean>;
+	pwivate weadonwy _editowWowdWwap: IContextKey<boowean>;
+	pwivate _activeEditow: ICodeEditow | nuww;
+	pwivate weadonwy _activeEditowWistena: DisposabweStowe;
 
-	constructor(
-		@IEditorService private readonly _editorService: IEditorService,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@IContextKeyService private readonly _contextService: IContextKeyService,
+	constwuctow(
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@ICodeEditowSewvice pwivate weadonwy _codeEditowSewvice: ICodeEditowSewvice,
+		@IContextKeySewvice pwivate weadonwy _contextSewvice: IContextKeySewvice,
 	) {
-		window.addEventListener('focus', () => this._update(), true);
-		window.addEventListener('blur', () => this._update(), true);
-		this._editorService.onDidActiveEditorChange(() => this._update());
-		this._canToggleWordWrap = CAN_TOGGLE_WORD_WRAP.bindTo(this._contextService);
-		this._editorWordWrap = EDITOR_WORD_WRAP.bindTo(this._contextService);
-		this._activeEditor = null;
-		this._activeEditorListener = new DisposableStore();
+		window.addEventWistena('focus', () => this._update(), twue);
+		window.addEventWistena('bwuw', () => this._update(), twue);
+		this._editowSewvice.onDidActiveEditowChange(() => this._update());
+		this._canToggweWowdWwap = CAN_TOGGWE_WOWD_WWAP.bindTo(this._contextSewvice);
+		this._editowWowdWwap = EDITOW_WOWD_WWAP.bindTo(this._contextSewvice);
+		this._activeEditow = nuww;
+		this._activeEditowWistena = new DisposabweStowe();
 		this._update();
 	}
 
-	private _update(): void {
-		const activeEditor = this._codeEditorService.getFocusedCodeEditor() || this._codeEditorService.getActiveCodeEditor();
-		if (this._activeEditor === activeEditor) {
+	pwivate _update(): void {
+		const activeEditow = this._codeEditowSewvice.getFocusedCodeEditow() || this._codeEditowSewvice.getActiveCodeEditow();
+		if (this._activeEditow === activeEditow) {
 			// no change
-			return;
+			wetuwn;
 		}
-		this._activeEditorListener.clear();
-		this._activeEditor = activeEditor;
+		this._activeEditowWistena.cweaw();
+		this._activeEditow = activeEditow;
 
-		if (activeEditor) {
-			this._activeEditorListener.add(activeEditor.onDidChangeModel(() => this._updateFromCodeEditor()));
-			this._activeEditorListener.add(activeEditor.onDidChangeConfiguration((e) => {
-				if (e.hasChanged(EditorOption.wrappingInfo)) {
-					this._updateFromCodeEditor();
+		if (activeEditow) {
+			this._activeEditowWistena.add(activeEditow.onDidChangeModew(() => this._updateFwomCodeEditow()));
+			this._activeEditowWistena.add(activeEditow.onDidChangeConfiguwation((e) => {
+				if (e.hasChanged(EditowOption.wwappingInfo)) {
+					this._updateFwomCodeEditow();
 				}
 			}));
-			this._updateFromCodeEditor();
+			this._updateFwomCodeEditow();
 		}
 	}
 
-	private _updateFromCodeEditor(): void {
-		if (!canToggleWordWrap(this._activeEditor)) {
-			return this._setValues(false, false);
-		} else {
-			const wrappingInfo = this._activeEditor.getOption(EditorOption.wrappingInfo);
-			this._setValues(true, wrappingInfo.wrappingColumn !== -1);
+	pwivate _updateFwomCodeEditow(): void {
+		if (!canToggweWowdWwap(this._activeEditow)) {
+			wetuwn this._setVawues(fawse, fawse);
+		} ewse {
+			const wwappingInfo = this._activeEditow.getOption(EditowOption.wwappingInfo);
+			this._setVawues(twue, wwappingInfo.wwappingCowumn !== -1);
 		}
 	}
 
-	private _setValues(canToggleWordWrap: boolean, isWordWrap: boolean): void {
-		this._canToggleWordWrap.set(canToggleWordWrap);
-		this._editorWordWrap.set(isWordWrap);
+	pwivate _setVawues(canToggweWowdWwap: boowean, isWowdWwap: boowean): void {
+		this._canToggweWowdWwap.set(canToggweWowdWwap);
+		this._editowWowdWwap.set(isWowdWwap);
 	}
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(EditorWordWrapContextKeyTracker, LifecyclePhase.Ready);
+const wowkbenchWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(Extensions.Wowkbench);
+wowkbenchWegistwy.wegistewWowkbenchContwibution(EditowWowdWwapContextKeyTwacka, WifecycwePhase.Weady);
 
-registerEditorContribution(ToggleWordWrapController.ID, ToggleWordWrapController);
+wegistewEditowContwibution(ToggweWowdWwapContwowwa.ID, ToggweWowdWwapContwowwa);
 
-registerEditorAction(ToggleWordWrapAction);
+wegistewEditowAction(ToggweWowdWwapAction);
 
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+MenuWegistwy.appendMenuItem(MenuId.EditowTitwe, {
 	command: {
-		id: TOGGLE_WORD_WRAP_ID,
-		title: nls.localize('unwrapMinified', "Disable wrapping for this file"),
-		icon: Codicon.wordWrap
+		id: TOGGWE_WOWD_WWAP_ID,
+		titwe: nws.wocawize('unwwapMinified', "Disabwe wwapping fow this fiwe"),
+		icon: Codicon.wowdWwap
 	},
-	group: 'navigation',
-	order: 1,
-	when: ContextKeyExpr.and(
-		ContextKeyExpr.has(isDominatedByLongLinesKey),
-		ContextKeyExpr.has(isWordWrapMinifiedKey)
+	gwoup: 'navigation',
+	owda: 1,
+	when: ContextKeyExpw.and(
+		ContextKeyExpw.has(isDominatedByWongWinesKey),
+		ContextKeyExpw.has(isWowdWwapMinifiedKey)
 	)
 });
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+MenuWegistwy.appendMenuItem(MenuId.EditowTitwe, {
 	command: {
-		id: TOGGLE_WORD_WRAP_ID,
-		title: nls.localize('wrapMinified', "Enable wrapping for this file"),
-		icon: Codicon.wordWrap
+		id: TOGGWE_WOWD_WWAP_ID,
+		titwe: nws.wocawize('wwapMinified', "Enabwe wwapping fow this fiwe"),
+		icon: Codicon.wowdWwap
 	},
-	group: 'navigation',
-	order: 1,
-	when: ContextKeyExpr.and(
-		EditorContextKeys.inDiffEditor.negate(),
-		ContextKeyExpr.has(isDominatedByLongLinesKey),
-		ContextKeyExpr.not(isWordWrapMinifiedKey)
+	gwoup: 'navigation',
+	owda: 1,
+	when: ContextKeyExpw.and(
+		EditowContextKeys.inDiffEditow.negate(),
+		ContextKeyExpw.has(isDominatedByWongWinesKey),
+		ContextKeyExpw.not(isWowdWwapMinifiedKey)
 	)
 });
 
 
 // View menu
-MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-	group: '5_editor',
+MenuWegistwy.appendMenuItem(MenuId.MenubawViewMenu, {
+	gwoup: '5_editow',
 	command: {
-		id: TOGGLE_WORD_WRAP_ID,
-		title: nls.localize({ key: 'miToggleWordWrap', comment: ['&& denotes a mnemonic'] }, "&&Word Wrap"),
-		toggled: EDITOR_WORD_WRAP,
-		precondition: CAN_TOGGLE_WORD_WRAP
+		id: TOGGWE_WOWD_WWAP_ID,
+		titwe: nws.wocawize({ key: 'miToggweWowdWwap', comment: ['&& denotes a mnemonic'] }, "&&Wowd Wwap"),
+		toggwed: EDITOW_WOWD_WWAP,
+		pwecondition: CAN_TOGGWE_WOWD_WWAP
 	},
-	order: 1
+	owda: 1
 });

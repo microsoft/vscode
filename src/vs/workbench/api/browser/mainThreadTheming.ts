@@ -1,34 +1,34 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainContext, IExtHostContext, ExtHostThemingShape, ExtHostContext, MainThreadThemingShape } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+impowt { MainContext, IExtHostContext, ExtHostThemingShape, ExtHostContext, MainThweadThemingShape } fwom '../common/extHost.pwotocow';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-@extHostNamedCustomer(MainContext.MainThreadTheming)
-export class MainThreadTheming implements MainThreadThemingShape {
+@extHostNamedCustoma(MainContext.MainThweadTheming)
+expowt cwass MainThweadTheming impwements MainThweadThemingShape {
 
-	private readonly _themeService: IThemeService;
-	private readonly _proxy: ExtHostThemingShape;
-	private readonly _themeChangeListener: IDisposable;
+	pwivate weadonwy _themeSewvice: IThemeSewvice;
+	pwivate weadonwy _pwoxy: ExtHostThemingShape;
+	pwivate weadonwy _themeChangeWistena: IDisposabwe;
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@IThemeService themeService: IThemeService
+		@IThemeSewvice themeSewvice: IThemeSewvice
 	) {
-		this._themeService = themeService;
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTheming);
+		this._themeSewvice = themeSewvice;
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostTheming);
 
-		this._themeChangeListener = this._themeService.onDidColorThemeChange(e => {
-			this._proxy.$onColorThemeChange(this._themeService.getColorTheme().type);
+		this._themeChangeWistena = this._themeSewvice.onDidCowowThemeChange(e => {
+			this._pwoxy.$onCowowThemeChange(this._themeSewvice.getCowowTheme().type);
 		});
-		this._proxy.$onColorThemeChange(this._themeService.getColorTheme().type);
+		this._pwoxy.$onCowowThemeChange(this._themeSewvice.getCowowTheme().type);
 	}
 
 	dispose(): void {
-		this._themeChangeListener.dispose();
+		this._themeChangeWistena.dispose();
 	}
 }

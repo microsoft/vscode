@@ -1,17 +1,17 @@
 {
-	"registrations": [
+	"wegistwations": [
 		{
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "PowerShell/EditorSyntax",
-					"repositoryUrl": "https://github.com/PowerShell/EditorSyntax",
+					"name": "PowewSheww/EditowSyntax",
+					"wepositowyUww": "https://github.com/PowewSheww/EditowSyntax",
 					"commitHash": "c150c15cca30cafd2159e3f53514f93ccf4c5649"
 				}
 			},
-			"license": "MIT",
-			"version": "1.0.0"
+			"wicense": "MIT",
+			"vewsion": "1.0.0"
 		}
 	],
-	"version": 1
+	"vewsion": 1
 }

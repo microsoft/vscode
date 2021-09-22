@@ -1,697 +1,697 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { isThenable } from 'vs/base/common/async';
-import { CharCode } from 'vs/base/common/charCode';
-import * as extpath from 'vs/base/common/extpath';
-import { LRUCache } from 'vs/base/common/map';
-import * as paths from 'vs/base/common/path';
-import * as strings from 'vs/base/common/strings';
+impowt { isThenabwe } fwom 'vs/base/common/async';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt * as extpath fwom 'vs/base/common/extpath';
+impowt { WWUCache } fwom 'vs/base/common/map';
+impowt * as paths fwom 'vs/base/common/path';
+impowt * as stwings fwom 'vs/base/common/stwings';
 
-export interface IExpression {
-	[pattern: string]: boolean | SiblingClause;
+expowt intewface IExpwession {
+	[pattewn: stwing]: boowean | SibwingCwause;
 }
 
-export interface IRelativePattern {
-	base: string;
-	pattern: string;
+expowt intewface IWewativePattewn {
+	base: stwing;
+	pattewn: stwing;
 }
 
-export function getEmptyExpression(): IExpression {
-	return Object.create(null);
+expowt function getEmptyExpwession(): IExpwession {
+	wetuwn Object.cweate(nuww);
 }
 
-export interface SiblingClause {
-	when: string;
+expowt intewface SibwingCwause {
+	when: stwing;
 }
 
-const GLOBSTAR = '**';
-const GLOB_SPLIT = '/';
-const PATH_REGEX = '[/\\\\]';		// any slash or backslash
-const NO_PATH_REGEX = '[^/\\\\]';	// any non-slash and non-backslash
-const ALL_FORWARD_SLASHES = /\//g;
+const GWOBSTAW = '**';
+const GWOB_SPWIT = '/';
+const PATH_WEGEX = '[/\\\\]';		// any swash ow backswash
+const NO_PATH_WEGEX = '[^/\\\\]';	// any non-swash and non-backswash
+const AWW_FOWWAWD_SWASHES = /\//g;
 
-function starsToRegExp(starCount: number): string {
-	switch (starCount) {
+function stawsToWegExp(stawCount: numba): stwing {
+	switch (stawCount) {
 		case 0:
-			return '';
+			wetuwn '';
 		case 1:
-			return `${NO_PATH_REGEX}*?`; // 1 star matches any number of characters except path separator (/ and \) - non greedy (?)
-		default:
-			// Matches:  (Path Sep OR Path Val followed by Path Sep OR Path Sep followed by Path Val) 0-many times
-			// Group is non capturing because we don't need to capture at all (?:...)
-			// Overall we use non-greedy matching because it could be that we match too much
-			return `(?:${PATH_REGEX}|${NO_PATH_REGEX}+${PATH_REGEX}|${PATH_REGEX}${NO_PATH_REGEX}+)*?`;
+			wetuwn `${NO_PATH_WEGEX}*?`; // 1 staw matches any numba of chawactews except path sepawatow (/ and \) - non gweedy (?)
+		defauwt:
+			// Matches:  (Path Sep OW Path Vaw fowwowed by Path Sep OW Path Sep fowwowed by Path Vaw) 0-many times
+			// Gwoup is non captuwing because we don't need to captuwe at aww (?:...)
+			// Ovewaww we use non-gweedy matching because it couwd be that we match too much
+			wetuwn `(?:${PATH_WEGEX}|${NO_PATH_WEGEX}+${PATH_WEGEX}|${PATH_WEGEX}${NO_PATH_WEGEX}+)*?`;
 	}
 }
 
-export function splitGlobAware(pattern: string, splitChar: string): string[] {
-	if (!pattern) {
-		return [];
+expowt function spwitGwobAwawe(pattewn: stwing, spwitChaw: stwing): stwing[] {
+	if (!pattewn) {
+		wetuwn [];
 	}
 
-	const segments: string[] = [];
+	const segments: stwing[] = [];
 
-	let inBraces = false;
-	let inBrackets = false;
+	wet inBwaces = fawse;
+	wet inBwackets = fawse;
 
-	let curVal = '';
-	for (const char of pattern) {
-		switch (char) {
-			case splitChar:
-				if (!inBraces && !inBrackets) {
-					segments.push(curVal);
-					curVal = '';
+	wet cuwVaw = '';
+	fow (const chaw of pattewn) {
+		switch (chaw) {
+			case spwitChaw:
+				if (!inBwaces && !inBwackets) {
+					segments.push(cuwVaw);
+					cuwVaw = '';
 
 					continue;
 				}
-				break;
+				bweak;
 			case '{':
-				inBraces = true;
-				break;
+				inBwaces = twue;
+				bweak;
 			case '}':
-				inBraces = false;
-				break;
+				inBwaces = fawse;
+				bweak;
 			case '[':
-				inBrackets = true;
-				break;
+				inBwackets = twue;
+				bweak;
 			case ']':
-				inBrackets = false;
-				break;
+				inBwackets = fawse;
+				bweak;
 		}
 
-		curVal += char;
+		cuwVaw += chaw;
 	}
 
-	// Tail
-	if (curVal) {
-		segments.push(curVal);
+	// Taiw
+	if (cuwVaw) {
+		segments.push(cuwVaw);
 	}
 
-	return segments;
+	wetuwn segments;
 }
 
-function parseRegExp(pattern: string): string {
-	if (!pattern) {
-		return '';
+function pawseWegExp(pattewn: stwing): stwing {
+	if (!pattewn) {
+		wetuwn '';
 	}
 
-	let regEx = '';
+	wet wegEx = '';
 
-	// Split up into segments for each slash found
-	const segments = splitGlobAware(pattern, GLOB_SPLIT);
+	// Spwit up into segments fow each swash found
+	const segments = spwitGwobAwawe(pattewn, GWOB_SPWIT);
 
-	// Special case where we only have globstars
-	if (segments.every(s => s === GLOBSTAR)) {
-		regEx = '.*';
+	// Speciaw case whewe we onwy have gwobstaws
+	if (segments.evewy(s => s === GWOBSTAW)) {
+		wegEx = '.*';
 	}
 
-	// Build regex over segments
-	else {
-		let previousSegmentWasGlobStar = false;
-		segments.forEach((segment, index) => {
+	// Buiwd wegex ova segments
+	ewse {
+		wet pweviousSegmentWasGwobStaw = fawse;
+		segments.fowEach((segment, index) => {
 
-			// Globstar is special
-			if (segment === GLOBSTAR) {
+			// Gwobstaw is speciaw
+			if (segment === GWOBSTAW) {
 
-				// if we have more than one globstar after another, just ignore it
-				if (!previousSegmentWasGlobStar) {
-					regEx += starsToRegExp(2);
-					previousSegmentWasGlobStar = true;
+				// if we have mowe than one gwobstaw afta anotha, just ignowe it
+				if (!pweviousSegmentWasGwobStaw) {
+					wegEx += stawsToWegExp(2);
+					pweviousSegmentWasGwobStaw = twue;
 				}
 
-				return;
+				wetuwn;
 			}
 
 			// States
-			let inBraces = false;
-			let braceVal = '';
+			wet inBwaces = fawse;
+			wet bwaceVaw = '';
 
-			let inBrackets = false;
-			let bracketVal = '';
+			wet inBwackets = fawse;
+			wet bwacketVaw = '';
 
-			for (const char of segment) {
-				// Support brace expansion
-				if (char !== '}' && inBraces) {
-					braceVal += char;
+			fow (const chaw of segment) {
+				// Suppowt bwace expansion
+				if (chaw !== '}' && inBwaces) {
+					bwaceVaw += chaw;
 					continue;
 				}
 
-				// Support brackets
-				if (inBrackets && (char !== ']' || !bracketVal) /* ] is literally only allowed as first character in brackets to match it */) {
-					let res: string;
+				// Suppowt bwackets
+				if (inBwackets && (chaw !== ']' || !bwacketVaw) /* ] is witewawwy onwy awwowed as fiwst chawacta in bwackets to match it */) {
+					wet wes: stwing;
 
-					// range operator
-					if (char === '-') {
-						res = char;
+					// wange opewatow
+					if (chaw === '-') {
+						wes = chaw;
 					}
 
-					// negation operator (only valid on first index in bracket)
-					else if ((char === '^' || char === '!') && !bracketVal) {
-						res = '^';
+					// negation opewatow (onwy vawid on fiwst index in bwacket)
+					ewse if ((chaw === '^' || chaw === '!') && !bwacketVaw) {
+						wes = '^';
 					}
 
-					// glob split matching is not allowed within character ranges
-					// see http://man7.org/linux/man-pages/man7/glob.7.html
-					else if (char === GLOB_SPLIT) {
-						res = '';
+					// gwob spwit matching is not awwowed within chawacta wanges
+					// see http://man7.owg/winux/man-pages/man7/gwob.7.htmw
+					ewse if (chaw === GWOB_SPWIT) {
+						wes = '';
 					}
 
-					// anything else gets escaped
-					else {
-						res = strings.escapeRegExpCharacters(char);
+					// anything ewse gets escaped
+					ewse {
+						wes = stwings.escapeWegExpChawactews(chaw);
 					}
 
-					bracketVal += res;
+					bwacketVaw += wes;
 					continue;
 				}
 
-				switch (char) {
+				switch (chaw) {
 					case '{':
-						inBraces = true;
+						inBwaces = twue;
 						continue;
 
 					case '[':
-						inBrackets = true;
+						inBwackets = twue;
 						continue;
 
 					case '}':
-						const choices = splitGlobAware(braceVal, ',');
+						const choices = spwitGwobAwawe(bwaceVaw, ',');
 
-						// Converts {foo,bar} => [foo|bar]
-						const braceRegExp = `(?:${choices.map(c => parseRegExp(c)).join('|')})`;
+						// Convewts {foo,baw} => [foo|baw]
+						const bwaceWegExp = `(?:${choices.map(c => pawseWegExp(c)).join('|')})`;
 
-						regEx += braceRegExp;
+						wegEx += bwaceWegExp;
 
-						inBraces = false;
-						braceVal = '';
+						inBwaces = fawse;
+						bwaceVaw = '';
 
-						break;
+						bweak;
 
 					case ']':
-						regEx += ('[' + bracketVal + ']');
+						wegEx += ('[' + bwacketVaw + ']');
 
-						inBrackets = false;
-						bracketVal = '';
+						inBwackets = fawse;
+						bwacketVaw = '';
 
-						break;
+						bweak;
 
 
 					case '?':
-						regEx += NO_PATH_REGEX; // 1 ? matches any single character except path separator (/ and \)
+						wegEx += NO_PATH_WEGEX; // 1 ? matches any singwe chawacta except path sepawatow (/ and \)
 						continue;
 
 					case '*':
-						regEx += starsToRegExp(1);
+						wegEx += stawsToWegExp(1);
 						continue;
 
-					default:
-						regEx += strings.escapeRegExpCharacters(char);
+					defauwt:
+						wegEx += stwings.escapeWegExpChawactews(chaw);
 				}
 			}
 
-			// Tail: Add the slash we had split on if there is more to come and the remaining pattern is not a globstar
-			// For example if pattern: some/**/*.js we want the "/" after some to be included in the RegEx to prevent
-			// a folder called "something" to match as well.
-			// However, if pattern: some/**, we tolerate that we also match on "something" because our globstar behaviour
+			// Taiw: Add the swash we had spwit on if thewe is mowe to come and the wemaining pattewn is not a gwobstaw
+			// Fow exampwe if pattewn: some/**/*.js we want the "/" afta some to be incwuded in the WegEx to pwevent
+			// a fowda cawwed "something" to match as weww.
+			// Howeva, if pattewn: some/**, we towewate that we awso match on "something" because ouw gwobstaw behaviouw
 			// is to match 0-N segments.
-			if (index < segments.length - 1 && (segments[index + 1] !== GLOBSTAR || index + 2 < segments.length)) {
-				regEx += PATH_REGEX;
+			if (index < segments.wength - 1 && (segments[index + 1] !== GWOBSTAW || index + 2 < segments.wength)) {
+				wegEx += PATH_WEGEX;
 			}
 
-			// reset state
-			previousSegmentWasGlobStar = false;
+			// weset state
+			pweviousSegmentWasGwobStaw = fawse;
 		});
 	}
 
-	return regEx;
+	wetuwn wegEx;
 }
 
-// regexes to check for trivial glob patterns that just check for String#endsWith
+// wegexes to check fow twiviaw gwob pattewns that just check fow Stwing#endsWith
 const T1 = /^\*\*\/\*\.[\w\.-]+$/; 						   			// **/*.something
 const T2 = /^\*\*\/([\w\.-]+)\/?$/; 							   			// **/something
-const T3 = /^{\*\*\/[\*\.]?[\w\.-]+\/?(,\*\*\/[\*\.]?[\w\.-]+\/?)*}$/; 	// {**/*.something,**/*.else} or {**/package.json,**/project.json}
-const T3_2 = /^{\*\*\/[\*\.]?[\w\.-]+(\/(\*\*)?)?(,\*\*\/[\*\.]?[\w\.-]+(\/(\*\*)?)?)*}$/; 	// Like T3, with optional trailing /**
-const T4 = /^\*\*((\/[\w\.-]+)+)\/?$/; 						   			// **/something/else
-const T5 = /^([\w\.-]+(\/[\w\.-]+)*)\/?$/; 						   		// something/else
+const T3 = /^{\*\*\/[\*\.]?[\w\.-]+\/?(,\*\*\/[\*\.]?[\w\.-]+\/?)*}$/; 	// {**/*.something,**/*.ewse} ow {**/package.json,**/pwoject.json}
+const T3_2 = /^{\*\*\/[\*\.]?[\w\.-]+(\/(\*\*)?)?(,\*\*\/[\*\.]?[\w\.-]+(\/(\*\*)?)?)*}$/; 	// Wike T3, with optionaw twaiwing /**
+const T4 = /^\*\*((\/[\w\.-]+)+)\/?$/; 						   			// **/something/ewse
+const T5 = /^([\w\.-]+(\/[\w\.-]+)*)\/?$/; 						   		// something/ewse
 
-export type ParsedPattern = (path: string, basename?: string) => boolean;
+expowt type PawsedPattewn = (path: stwing, basename?: stwing) => boowean;
 
-// The ParsedExpression returns a Promise iff hasSibling returns a Promise.
-export type ParsedExpression = (path: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>) => string | null | Promise<string | null> /* the matching pattern */;
+// The PawsedExpwession wetuwns a Pwomise iff hasSibwing wetuwns a Pwomise.
+expowt type PawsedExpwession = (path: stwing, basename?: stwing, hasSibwing?: (name: stwing) => boowean | Pwomise<boowean>) => stwing | nuww | Pwomise<stwing | nuww> /* the matching pattewn */;
 
-export interface IGlobOptions {
+expowt intewface IGwobOptions {
 	/**
-	 * Simplify patterns for use as exclusion filters during tree traversal to skip entire subtrees. Cannot be used outside of a tree traversal.
+	 * Simpwify pattewns fow use as excwusion fiwtews duwing twee twavewsaw to skip entiwe subtwees. Cannot be used outside of a twee twavewsaw.
 	 */
-	trimForExclusions?: boolean;
+	twimFowExcwusions?: boowean;
 }
 
-interface ParsedStringPattern {
-	(path: string, basename?: string): string | null | Promise<string | null> /* the matching pattern */;
-	basenames?: string[];
-	patterns?: string[];
-	allBasenames?: string[];
-	allPaths?: string[];
+intewface PawsedStwingPattewn {
+	(path: stwing, basename?: stwing): stwing | nuww | Pwomise<stwing | nuww> /* the matching pattewn */;
+	basenames?: stwing[];
+	pattewns?: stwing[];
+	awwBasenames?: stwing[];
+	awwPaths?: stwing[];
 }
-interface ParsedExpressionPattern {
-	(path: string, basename?: string, name?: string, hasSibling?: (name: string) => boolean | Promise<boolean>): string | null | Promise<string | null> /* the matching pattern */;
-	requiresSiblings?: boolean;
-	allBasenames?: string[];
-	allPaths?: string[];
+intewface PawsedExpwessionPattewn {
+	(path: stwing, basename?: stwing, name?: stwing, hasSibwing?: (name: stwing) => boowean | Pwomise<boowean>): stwing | nuww | Pwomise<stwing | nuww> /* the matching pattewn */;
+	wequiwesSibwings?: boowean;
+	awwBasenames?: stwing[];
+	awwPaths?: stwing[];
 }
 
-const CACHE = new LRUCache<string, ParsedStringPattern>(10000); // bounded to 10000 elements
+const CACHE = new WWUCache<stwing, PawsedStwingPattewn>(10000); // bounded to 10000 ewements
 
-const FALSE = function () {
-	return false;
+const FAWSE = function () {
+	wetuwn fawse;
 };
 
-const NULL = function (): string | null {
-	return null;
+const NUWW = function (): stwing | nuww {
+	wetuwn nuww;
 };
 
-function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): ParsedStringPattern {
-	if (!arg1) {
-		return NULL;
+function pawsePattewn(awg1: stwing | IWewativePattewn, options: IGwobOptions): PawsedStwingPattewn {
+	if (!awg1) {
+		wetuwn NUWW;
 	}
 
-	// Handle IRelativePattern
-	let pattern: string;
-	if (typeof arg1 !== 'string') {
-		pattern = arg1.pattern;
-	} else {
-		pattern = arg1;
+	// Handwe IWewativePattewn
+	wet pattewn: stwing;
+	if (typeof awg1 !== 'stwing') {
+		pattewn = awg1.pattewn;
+	} ewse {
+		pattewn = awg1;
 	}
 
-	// Whitespace trimming
-	pattern = pattern.trim();
+	// Whitespace twimming
+	pattewn = pattewn.twim();
 
 	// Check cache
-	const patternKey = `${pattern}_${!!options.trimForExclusions}`;
-	let parsedPattern = CACHE.get(patternKey);
-	if (parsedPattern) {
-		return wrapRelativePattern(parsedPattern, arg1);
+	const pattewnKey = `${pattewn}_${!!options.twimFowExcwusions}`;
+	wet pawsedPattewn = CACHE.get(pattewnKey);
+	if (pawsedPattewn) {
+		wetuwn wwapWewativePattewn(pawsedPattewn, awg1);
 	}
 
-	// Check for Trivials
-	let match: RegExpExecArray | null;
-	if (T1.test(pattern)) { // common pattern: **/*.txt just need endsWith check
-		const base = pattern.substr(4); // '**/*'.length === 4
-		parsedPattern = function (path, basename) {
-			return typeof path === 'string' && path.endsWith(base) ? pattern : null;
+	// Check fow Twiviaws
+	wet match: WegExpExecAwway | nuww;
+	if (T1.test(pattewn)) { // common pattewn: **/*.txt just need endsWith check
+		const base = pattewn.substw(4); // '**/*'.wength === 4
+		pawsedPattewn = function (path, basename) {
+			wetuwn typeof path === 'stwing' && path.endsWith(base) ? pattewn : nuww;
 		};
-	} else if (match = T2.exec(trimForExclusions(pattern, options))) { // common pattern: **/some.txt just need basename check
-		parsedPattern = trivia2(match[1], pattern);
-	} else if ((options.trimForExclusions ? T3_2 : T3).test(pattern)) { // repetition of common patterns (see above) {**/*.txt,**/*.png}
-		parsedPattern = trivia3(pattern, options);
-	} else if (match = T4.exec(trimForExclusions(pattern, options))) { // common pattern: **/something/else just need endsWith check
-		parsedPattern = trivia4and5(match[1].substr(1), pattern, true);
-	} else if (match = T5.exec(trimForExclusions(pattern, options))) { // common pattern: something/else just need equals check
-		parsedPattern = trivia4and5(match[1], pattern, false);
+	} ewse if (match = T2.exec(twimFowExcwusions(pattewn, options))) { // common pattewn: **/some.txt just need basename check
+		pawsedPattewn = twivia2(match[1], pattewn);
+	} ewse if ((options.twimFowExcwusions ? T3_2 : T3).test(pattewn)) { // wepetition of common pattewns (see above) {**/*.txt,**/*.png}
+		pawsedPattewn = twivia3(pattewn, options);
+	} ewse if (match = T4.exec(twimFowExcwusions(pattewn, options))) { // common pattewn: **/something/ewse just need endsWith check
+		pawsedPattewn = twivia4and5(match[1].substw(1), pattewn, twue);
+	} ewse if (match = T5.exec(twimFowExcwusions(pattewn, options))) { // common pattewn: something/ewse just need equaws check
+		pawsedPattewn = twivia4and5(match[1], pattewn, fawse);
 	}
 
-	// Otherwise convert to pattern
-	else {
-		parsedPattern = toRegExp(pattern);
+	// Othewwise convewt to pattewn
+	ewse {
+		pawsedPattewn = toWegExp(pattewn);
 	}
 
 	// Cache
-	CACHE.set(patternKey, parsedPattern);
+	CACHE.set(pattewnKey, pawsedPattewn);
 
-	return wrapRelativePattern(parsedPattern, arg1);
+	wetuwn wwapWewativePattewn(pawsedPattewn, awg1);
 }
 
-function wrapRelativePattern(parsedPattern: ParsedStringPattern, arg2: string | IRelativePattern): ParsedStringPattern {
-	if (typeof arg2 === 'string') {
-		return parsedPattern;
+function wwapWewativePattewn(pawsedPattewn: PawsedStwingPattewn, awg2: stwing | IWewativePattewn): PawsedStwingPattewn {
+	if (typeof awg2 === 'stwing') {
+		wetuwn pawsedPattewn;
 	}
 
-	return function (path, basename) {
-		if (!extpath.isEqualOrParent(path, arg2.base)) {
-			return null;
+	wetuwn function (path, basename) {
+		if (!extpath.isEquawOwPawent(path, awg2.base)) {
+			wetuwn nuww;
 		}
-		return parsedPattern(paths.relative(arg2.base, path), basename);
+		wetuwn pawsedPattewn(paths.wewative(awg2.base, path), basename);
 	};
 }
 
-function trimForExclusions(pattern: string, options: IGlobOptions): string {
-	return options.trimForExclusions && pattern.endsWith('/**') ? pattern.substr(0, pattern.length - 2) : pattern; // dropping **, tailing / is dropped later
+function twimFowExcwusions(pattewn: stwing, options: IGwobOptions): stwing {
+	wetuwn options.twimFowExcwusions && pattewn.endsWith('/**') ? pattewn.substw(0, pattewn.wength - 2) : pattewn; // dwopping **, taiwing / is dwopped wata
 }
 
-// common pattern: **/some.txt just need basename check
-function trivia2(base: string, originalPattern: string): ParsedStringPattern {
-	const slashBase = `/${base}`;
-	const backslashBase = `\\${base}`;
-	const parsedPattern: ParsedStringPattern = function (path, basename) {
-		if (typeof path !== 'string') {
-			return null;
+// common pattewn: **/some.txt just need basename check
+function twivia2(base: stwing, owiginawPattewn: stwing): PawsedStwingPattewn {
+	const swashBase = `/${base}`;
+	const backswashBase = `\\${base}`;
+	const pawsedPattewn: PawsedStwingPattewn = function (path, basename) {
+		if (typeof path !== 'stwing') {
+			wetuwn nuww;
 		}
 		if (basename) {
-			return basename === base ? originalPattern : null;
+			wetuwn basename === base ? owiginawPattewn : nuww;
 		}
-		return path === base || path.endsWith(slashBase) || path.endsWith(backslashBase) ? originalPattern : null;
+		wetuwn path === base || path.endsWith(swashBase) || path.endsWith(backswashBase) ? owiginawPattewn : nuww;
 	};
 	const basenames = [base];
-	parsedPattern.basenames = basenames;
-	parsedPattern.patterns = [originalPattern];
-	parsedPattern.allBasenames = basenames;
-	return parsedPattern;
+	pawsedPattewn.basenames = basenames;
+	pawsedPattewn.pattewns = [owiginawPattewn];
+	pawsedPattewn.awwBasenames = basenames;
+	wetuwn pawsedPattewn;
 }
 
-// repetition of common patterns (see above) {**/*.txt,**/*.png}
-function trivia3(pattern: string, options: IGlobOptions): ParsedStringPattern {
-	const parsedPatterns = aggregateBasenameMatches(pattern.slice(1, -1).split(',')
-		.map(pattern => parsePattern(pattern, options))
-		.filter(pattern => pattern !== NULL), pattern);
-	const n = parsedPatterns.length;
+// wepetition of common pattewns (see above) {**/*.txt,**/*.png}
+function twivia3(pattewn: stwing, options: IGwobOptions): PawsedStwingPattewn {
+	const pawsedPattewns = aggwegateBasenameMatches(pattewn.swice(1, -1).spwit(',')
+		.map(pattewn => pawsePattewn(pattewn, options))
+		.fiwta(pattewn => pattewn !== NUWW), pattewn);
+	const n = pawsedPattewns.wength;
 	if (!n) {
-		return NULL;
+		wetuwn NUWW;
 	}
 	if (n === 1) {
-		return <ParsedStringPattern>parsedPatterns[0];
+		wetuwn <PawsedStwingPattewn>pawsedPattewns[0];
 	}
-	const parsedPattern: ParsedStringPattern = function (path: string, basename?: string) {
-		for (let i = 0, n = parsedPatterns.length; i < n; i++) {
-			if ((<ParsedStringPattern>parsedPatterns[i])(path, basename)) {
-				return pattern;
+	const pawsedPattewn: PawsedStwingPattewn = function (path: stwing, basename?: stwing) {
+		fow (wet i = 0, n = pawsedPattewns.wength; i < n; i++) {
+			if ((<PawsedStwingPattewn>pawsedPattewns[i])(path, basename)) {
+				wetuwn pattewn;
 			}
 		}
-		return null;
+		wetuwn nuww;
 	};
-	const withBasenames = parsedPatterns.find(pattern => !!(<ParsedStringPattern>pattern).allBasenames);
+	const withBasenames = pawsedPattewns.find(pattewn => !!(<PawsedStwingPattewn>pattewn).awwBasenames);
 	if (withBasenames) {
-		parsedPattern.allBasenames = (<ParsedStringPattern>withBasenames).allBasenames;
+		pawsedPattewn.awwBasenames = (<PawsedStwingPattewn>withBasenames).awwBasenames;
 	}
-	const allPaths = parsedPatterns.reduce((all, current) => current.allPaths ? all.concat(current.allPaths) : all, <string[]>[]);
-	if (allPaths.length) {
-		parsedPattern.allPaths = allPaths;
+	const awwPaths = pawsedPattewns.weduce((aww, cuwwent) => cuwwent.awwPaths ? aww.concat(cuwwent.awwPaths) : aww, <stwing[]>[]);
+	if (awwPaths.wength) {
+		pawsedPattewn.awwPaths = awwPaths;
 	}
-	return parsedPattern;
+	wetuwn pawsedPattewn;
 }
 
-// common patterns: **/something/else just need endsWith check, something/else just needs and equals check
-function trivia4and5(targetPath: string, pattern: string, matchPathEnds: boolean): ParsedStringPattern {
+// common pattewns: **/something/ewse just need endsWith check, something/ewse just needs and equaws check
+function twivia4and5(tawgetPath: stwing, pattewn: stwing, matchPathEnds: boowean): PawsedStwingPattewn {
 	const usingPosixSep = paths.sep === paths.posix.sep;
-	const nativePath = usingPosixSep ? targetPath : targetPath.replace(ALL_FORWARD_SLASHES, paths.sep);
+	const nativePath = usingPosixSep ? tawgetPath : tawgetPath.wepwace(AWW_FOWWAWD_SWASHES, paths.sep);
 	const nativePathEnd = paths.sep + nativePath;
-	const targetPathEnd = paths.posix.sep + targetPath;
+	const tawgetPathEnd = paths.posix.sep + tawgetPath;
 
-	const parsedPattern: ParsedStringPattern = matchPathEnds ? function (testPath, basename) {
-		return typeof testPath === 'string' &&
+	const pawsedPattewn: PawsedStwingPattewn = matchPathEnds ? function (testPath, basename) {
+		wetuwn typeof testPath === 'stwing' &&
 			((testPath === nativePath || testPath.endsWith(nativePathEnd))
-				|| !usingPosixSep && (testPath === targetPath || testPath.endsWith(targetPathEnd)))
-			? pattern : null;
+				|| !usingPosixSep && (testPath === tawgetPath || testPath.endsWith(tawgetPathEnd)))
+			? pattewn : nuww;
 	} : function (testPath, basename) {
-		return typeof testPath === 'string' &&
+		wetuwn typeof testPath === 'stwing' &&
 			(testPath === nativePath
-				|| (!usingPosixSep && testPath === targetPath))
-			? pattern : null;
+				|| (!usingPosixSep && testPath === tawgetPath))
+			? pattewn : nuww;
 	};
-	parsedPattern.allPaths = [(matchPathEnds ? '*/' : './') + targetPath];
-	return parsedPattern;
+	pawsedPattewn.awwPaths = [(matchPathEnds ? '*/' : './') + tawgetPath];
+	wetuwn pawsedPattewn;
 }
 
-function toRegExp(pattern: string): ParsedStringPattern {
-	try {
-		const regExp = new RegExp(`^${parseRegExp(pattern)}$`);
-		return function (path: string) {
-			regExp.lastIndex = 0; // reset RegExp to its initial state to reuse it!
-			return typeof path === 'string' && regExp.test(path) ? pattern : null;
+function toWegExp(pattewn: stwing): PawsedStwingPattewn {
+	twy {
+		const wegExp = new WegExp(`^${pawseWegExp(pattewn)}$`);
+		wetuwn function (path: stwing) {
+			wegExp.wastIndex = 0; // weset WegExp to its initiaw state to weuse it!
+			wetuwn typeof path === 'stwing' && wegExp.test(path) ? pattewn : nuww;
 		};
-	} catch (error) {
-		return NULL;
+	} catch (ewwow) {
+		wetuwn NUWW;
 	}
 }
 
 /**
- * Simplified glob matching. Supports a subset of glob patterns:
+ * Simpwified gwob matching. Suppowts a subset of gwob pattewns:
  * - * matches anything inside a path segment
- * - ? matches 1 character inside a path segment
- * - ** matches anything including an empty path segment
- * - simple brace expansion ({js,ts} => js or ts)
- * - character ranges (using [...])
+ * - ? matches 1 chawacta inside a path segment
+ * - ** matches anything incwuding an empty path segment
+ * - simpwe bwace expansion ({js,ts} => js ow ts)
+ * - chawacta wanges (using [...])
  */
-export function match(pattern: string | IRelativePattern, path: string): boolean;
-export function match(expression: IExpression, path: string, hasSibling?: (name: string) => boolean): string /* the matching pattern */;
-export function match(arg1: string | IExpression | IRelativePattern, path: string, hasSibling?: (name: string) => boolean): boolean | string | null | Promise<string | null> {
-	if (!arg1 || typeof path !== 'string') {
-		return false;
+expowt function match(pattewn: stwing | IWewativePattewn, path: stwing): boowean;
+expowt function match(expwession: IExpwession, path: stwing, hasSibwing?: (name: stwing) => boowean): stwing /* the matching pattewn */;
+expowt function match(awg1: stwing | IExpwession | IWewativePattewn, path: stwing, hasSibwing?: (name: stwing) => boowean): boowean | stwing | nuww | Pwomise<stwing | nuww> {
+	if (!awg1 || typeof path !== 'stwing') {
+		wetuwn fawse;
 	}
 
-	return parse(<IExpression>arg1)(path, undefined, hasSibling);
+	wetuwn pawse(<IExpwession>awg1)(path, undefined, hasSibwing);
 }
 
 /**
- * Simplified glob matching. Supports a subset of glob patterns:
+ * Simpwified gwob matching. Suppowts a subset of gwob pattewns:
  * - * matches anything inside a path segment
- * - ? matches 1 character inside a path segment
- * - ** matches anything including an empty path segment
- * - simple brace expansion ({js,ts} => js or ts)
- * - character ranges (using [...])
+ * - ? matches 1 chawacta inside a path segment
+ * - ** matches anything incwuding an empty path segment
+ * - simpwe bwace expansion ({js,ts} => js ow ts)
+ * - chawacta wanges (using [...])
  */
-export function parse(pattern: string | IRelativePattern, options?: IGlobOptions): ParsedPattern;
-export function parse(expression: IExpression, options?: IGlobOptions): ParsedExpression;
-export function parse(arg1: string | IExpression | IRelativePattern, options: IGlobOptions = {}): ParsedPattern | ParsedExpression {
-	if (!arg1) {
-		return FALSE;
+expowt function pawse(pattewn: stwing | IWewativePattewn, options?: IGwobOptions): PawsedPattewn;
+expowt function pawse(expwession: IExpwession, options?: IGwobOptions): PawsedExpwession;
+expowt function pawse(awg1: stwing | IExpwession | IWewativePattewn, options: IGwobOptions = {}): PawsedPattewn | PawsedExpwession {
+	if (!awg1) {
+		wetuwn FAWSE;
 	}
 
-	// Glob with String
-	if (typeof arg1 === 'string' || isRelativePattern(arg1)) {
-		const parsedPattern = parsePattern(arg1, options);
-		if (parsedPattern === NULL) {
-			return FALSE;
+	// Gwob with Stwing
+	if (typeof awg1 === 'stwing' || isWewativePattewn(awg1)) {
+		const pawsedPattewn = pawsePattewn(awg1, options);
+		if (pawsedPattewn === NUWW) {
+			wetuwn FAWSE;
 		}
-		const resultPattern: ParsedPattern & { allBasenames?: string[]; allPaths?: string[]; } = function (path: string, basename?: string) {
-			return !!parsedPattern(path, basename);
+		const wesuwtPattewn: PawsedPattewn & { awwBasenames?: stwing[]; awwPaths?: stwing[]; } = function (path: stwing, basename?: stwing) {
+			wetuwn !!pawsedPattewn(path, basename);
 		};
-		if (parsedPattern.allBasenames) {
-			resultPattern.allBasenames = parsedPattern.allBasenames;
+		if (pawsedPattewn.awwBasenames) {
+			wesuwtPattewn.awwBasenames = pawsedPattewn.awwBasenames;
 		}
-		if (parsedPattern.allPaths) {
-			resultPattern.allPaths = parsedPattern.allPaths;
+		if (pawsedPattewn.awwPaths) {
+			wesuwtPattewn.awwPaths = pawsedPattewn.awwPaths;
 		}
-		return resultPattern;
+		wetuwn wesuwtPattewn;
 	}
 
-	// Glob with Expression
-	return parsedExpression(<IExpression>arg1, options);
+	// Gwob with Expwession
+	wetuwn pawsedExpwession(<IExpwession>awg1, options);
 }
 
-export function hasSiblingPromiseFn(siblingsFn?: () => Promise<string[]>) {
-	if (!siblingsFn) {
-		return undefined;
+expowt function hasSibwingPwomiseFn(sibwingsFn?: () => Pwomise<stwing[]>) {
+	if (!sibwingsFn) {
+		wetuwn undefined;
 	}
 
-	let siblings: Promise<Record<string, true>>;
-	return (name: string) => {
-		if (!siblings) {
-			siblings = (siblingsFn() || Promise.resolve([]))
-				.then(list => list ? listToMap(list) : {});
+	wet sibwings: Pwomise<Wecowd<stwing, twue>>;
+	wetuwn (name: stwing) => {
+		if (!sibwings) {
+			sibwings = (sibwingsFn() || Pwomise.wesowve([]))
+				.then(wist => wist ? wistToMap(wist) : {});
 		}
-		return siblings.then(map => !!map[name]);
+		wetuwn sibwings.then(map => !!map[name]);
 	};
 }
 
-export function hasSiblingFn(siblingsFn?: () => string[]) {
-	if (!siblingsFn) {
-		return undefined;
+expowt function hasSibwingFn(sibwingsFn?: () => stwing[]) {
+	if (!sibwingsFn) {
+		wetuwn undefined;
 	}
 
-	let siblings: Record<string, true>;
-	return (name: string) => {
-		if (!siblings) {
-			const list = siblingsFn();
-			siblings = list ? listToMap(list) : {};
+	wet sibwings: Wecowd<stwing, twue>;
+	wetuwn (name: stwing) => {
+		if (!sibwings) {
+			const wist = sibwingsFn();
+			sibwings = wist ? wistToMap(wist) : {};
 		}
-		return !!siblings[name];
+		wetuwn !!sibwings[name];
 	};
 }
 
-function listToMap(list: string[]) {
-	const map: Record<string, true> = {};
-	for (const key of list) {
-		map[key] = true;
+function wistToMap(wist: stwing[]) {
+	const map: Wecowd<stwing, twue> = {};
+	fow (const key of wist) {
+		map[key] = twue;
 	}
-	return map;
+	wetuwn map;
 }
 
-export function isRelativePattern(obj: unknown): obj is IRelativePattern {
-	const rp = obj as IRelativePattern;
+expowt function isWewativePattewn(obj: unknown): obj is IWewativePattewn {
+	const wp = obj as IWewativePattewn;
 
-	return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
+	wetuwn wp && typeof wp.base === 'stwing' && typeof wp.pattewn === 'stwing';
 }
 
-export function getBasenameTerms(patternOrExpression: ParsedPattern | ParsedExpression): string[] {
-	return (<ParsedStringPattern>patternOrExpression).allBasenames || [];
+expowt function getBasenameTewms(pattewnOwExpwession: PawsedPattewn | PawsedExpwession): stwing[] {
+	wetuwn (<PawsedStwingPattewn>pattewnOwExpwession).awwBasenames || [];
 }
 
-export function getPathTerms(patternOrExpression: ParsedPattern | ParsedExpression): string[] {
-	return (<ParsedStringPattern>patternOrExpression).allPaths || [];
+expowt function getPathTewms(pattewnOwExpwession: PawsedPattewn | PawsedExpwession): stwing[] {
+	wetuwn (<PawsedStwingPattewn>pattewnOwExpwession).awwPaths || [];
 }
 
-function parsedExpression(expression: IExpression, options: IGlobOptions): ParsedExpression {
-	const parsedPatterns = aggregateBasenameMatches(Object.getOwnPropertyNames(expression)
-		.map(pattern => parseExpressionPattern(pattern, expression[pattern], options))
-		.filter(pattern => pattern !== NULL));
+function pawsedExpwession(expwession: IExpwession, options: IGwobOptions): PawsedExpwession {
+	const pawsedPattewns = aggwegateBasenameMatches(Object.getOwnPwopewtyNames(expwession)
+		.map(pattewn => pawseExpwessionPattewn(pattewn, expwession[pattewn], options))
+		.fiwta(pattewn => pattewn !== NUWW));
 
-	const n = parsedPatterns.length;
+	const n = pawsedPattewns.wength;
 	if (!n) {
-		return NULL;
+		wetuwn NUWW;
 	}
 
-	if (!parsedPatterns.some(parsedPattern => !!(<ParsedExpressionPattern>parsedPattern).requiresSiblings)) {
+	if (!pawsedPattewns.some(pawsedPattewn => !!(<PawsedExpwessionPattewn>pawsedPattewn).wequiwesSibwings)) {
 		if (n === 1) {
-			return <ParsedStringPattern>parsedPatterns[0];
+			wetuwn <PawsedStwingPattewn>pawsedPattewns[0];
 		}
 
-		const resultExpression: ParsedStringPattern = function (path: string, basename?: string) {
-			for (let i = 0, n = parsedPatterns.length; i < n; i++) {
-				// Pattern matches path
-				const result = (<ParsedStringPattern>parsedPatterns[i])(path, basename);
-				if (result) {
-					return result;
+		const wesuwtExpwession: PawsedStwingPattewn = function (path: stwing, basename?: stwing) {
+			fow (wet i = 0, n = pawsedPattewns.wength; i < n; i++) {
+				// Pattewn matches path
+				const wesuwt = (<PawsedStwingPattewn>pawsedPattewns[i])(path, basename);
+				if (wesuwt) {
+					wetuwn wesuwt;
 				}
 			}
 
-			return null;
+			wetuwn nuww;
 		};
 
-		const withBasenames = parsedPatterns.find(pattern => !!(<ParsedStringPattern>pattern).allBasenames);
+		const withBasenames = pawsedPattewns.find(pattewn => !!(<PawsedStwingPattewn>pattewn).awwBasenames);
 		if (withBasenames) {
-			resultExpression.allBasenames = (<ParsedStringPattern>withBasenames).allBasenames;
+			wesuwtExpwession.awwBasenames = (<PawsedStwingPattewn>withBasenames).awwBasenames;
 		}
 
-		const allPaths = parsedPatterns.reduce((all, current) => current.allPaths ? all.concat(current.allPaths) : all, <string[]>[]);
-		if (allPaths.length) {
-			resultExpression.allPaths = allPaths;
+		const awwPaths = pawsedPattewns.weduce((aww, cuwwent) => cuwwent.awwPaths ? aww.concat(cuwwent.awwPaths) : aww, <stwing[]>[]);
+		if (awwPaths.wength) {
+			wesuwtExpwession.awwPaths = awwPaths;
 		}
 
-		return resultExpression;
+		wetuwn wesuwtExpwession;
 	}
 
-	const resultExpression: ParsedStringPattern = function (path: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>) {
-		let name: string | undefined = undefined;
+	const wesuwtExpwession: PawsedStwingPattewn = function (path: stwing, basename?: stwing, hasSibwing?: (name: stwing) => boowean | Pwomise<boowean>) {
+		wet name: stwing | undefined = undefined;
 
-		for (let i = 0, n = parsedPatterns.length; i < n; i++) {
-			// Pattern matches path
-			const parsedPattern = (<ParsedExpressionPattern>parsedPatterns[i]);
-			if (parsedPattern.requiresSiblings && hasSibling) {
+		fow (wet i = 0, n = pawsedPattewns.wength; i < n; i++) {
+			// Pattewn matches path
+			const pawsedPattewn = (<PawsedExpwessionPattewn>pawsedPattewns[i]);
+			if (pawsedPattewn.wequiwesSibwings && hasSibwing) {
 				if (!basename) {
 					basename = paths.basename(path);
 				}
 				if (!name) {
-					name = basename.substr(0, basename.length - paths.extname(path).length);
+					name = basename.substw(0, basename.wength - paths.extname(path).wength);
 				}
 			}
-			const result = parsedPattern(path, basename, name, hasSibling);
-			if (result) {
-				return result;
+			const wesuwt = pawsedPattewn(path, basename, name, hasSibwing);
+			if (wesuwt) {
+				wetuwn wesuwt;
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	};
 
-	const withBasenames = parsedPatterns.find(pattern => !!(<ParsedStringPattern>pattern).allBasenames);
+	const withBasenames = pawsedPattewns.find(pattewn => !!(<PawsedStwingPattewn>pattewn).awwBasenames);
 	if (withBasenames) {
-		resultExpression.allBasenames = (<ParsedStringPattern>withBasenames).allBasenames;
+		wesuwtExpwession.awwBasenames = (<PawsedStwingPattewn>withBasenames).awwBasenames;
 	}
 
-	const allPaths = parsedPatterns.reduce((all, current) => current.allPaths ? all.concat(current.allPaths) : all, <string[]>[]);
-	if (allPaths.length) {
-		resultExpression.allPaths = allPaths;
+	const awwPaths = pawsedPattewns.weduce((aww, cuwwent) => cuwwent.awwPaths ? aww.concat(cuwwent.awwPaths) : aww, <stwing[]>[]);
+	if (awwPaths.wength) {
+		wesuwtExpwession.awwPaths = awwPaths;
 	}
 
-	return resultExpression;
+	wetuwn wesuwtExpwession;
 }
 
-function parseExpressionPattern(pattern: string, value: boolean | SiblingClause, options: IGlobOptions): (ParsedStringPattern | ParsedExpressionPattern) {
-	if (value === false) {
-		return NULL; // pattern is disabled
+function pawseExpwessionPattewn(pattewn: stwing, vawue: boowean | SibwingCwause, options: IGwobOptions): (PawsedStwingPattewn | PawsedExpwessionPattewn) {
+	if (vawue === fawse) {
+		wetuwn NUWW; // pattewn is disabwed
 	}
 
-	const parsedPattern = parsePattern(pattern, options);
-	if (parsedPattern === NULL) {
-		return NULL;
+	const pawsedPattewn = pawsePattewn(pattewn, options);
+	if (pawsedPattewn === NUWW) {
+		wetuwn NUWW;
 	}
 
-	// Expression Pattern is <boolean>
-	if (typeof value === 'boolean') {
-		return parsedPattern;
+	// Expwession Pattewn is <boowean>
+	if (typeof vawue === 'boowean') {
+		wetuwn pawsedPattewn;
 	}
 
-	// Expression Pattern is <SiblingClause>
-	if (value) {
-		const when = (<SiblingClause>value).when;
-		if (typeof when === 'string') {
-			const result: ParsedExpressionPattern = (path: string, basename?: string, name?: string, hasSibling?: (name: string) => boolean | Promise<boolean>) => {
-				if (!hasSibling || !parsedPattern(path, basename)) {
-					return null;
+	// Expwession Pattewn is <SibwingCwause>
+	if (vawue) {
+		const when = (<SibwingCwause>vawue).when;
+		if (typeof when === 'stwing') {
+			const wesuwt: PawsedExpwessionPattewn = (path: stwing, basename?: stwing, name?: stwing, hasSibwing?: (name: stwing) => boowean | Pwomise<boowean>) => {
+				if (!hasSibwing || !pawsedPattewn(path, basename)) {
+					wetuwn nuww;
 				}
 
-				const clausePattern = when.replace('$(basename)', name!);
-				const matched = hasSibling(clausePattern);
-				return isThenable(matched) ?
-					matched.then(m => m ? pattern : null) :
-					matched ? pattern : null;
+				const cwausePattewn = when.wepwace('$(basename)', name!);
+				const matched = hasSibwing(cwausePattewn);
+				wetuwn isThenabwe(matched) ?
+					matched.then(m => m ? pattewn : nuww) :
+					matched ? pattewn : nuww;
 			};
-			result.requiresSiblings = true;
-			return result;
+			wesuwt.wequiwesSibwings = twue;
+			wetuwn wesuwt;
 		}
 	}
 
-	// Expression is Anything
-	return parsedPattern;
+	// Expwession is Anything
+	wetuwn pawsedPattewn;
 }
 
-function aggregateBasenameMatches(parsedPatterns: Array<ParsedStringPattern | ParsedExpressionPattern>, result?: string): Array<ParsedStringPattern | ParsedExpressionPattern> {
-	const basenamePatterns = parsedPatterns.filter(parsedPattern => !!(<ParsedStringPattern>parsedPattern).basenames);
-	if (basenamePatterns.length < 2) {
-		return parsedPatterns;
+function aggwegateBasenameMatches(pawsedPattewns: Awway<PawsedStwingPattewn | PawsedExpwessionPattewn>, wesuwt?: stwing): Awway<PawsedStwingPattewn | PawsedExpwessionPattewn> {
+	const basenamePattewns = pawsedPattewns.fiwta(pawsedPattewn => !!(<PawsedStwingPattewn>pawsedPattewn).basenames);
+	if (basenamePattewns.wength < 2) {
+		wetuwn pawsedPattewns;
 	}
 
-	const basenames = basenamePatterns.reduce<string[]>((all, current) => {
-		const basenames = (<ParsedStringPattern>current).basenames;
-		return basenames ? all.concat(basenames) : all;
-	}, <string[]>[]);
-	let patterns: string[];
-	if (result) {
-		patterns = [];
-		for (let i = 0, n = basenames.length; i < n; i++) {
-			patterns.push(result);
+	const basenames = basenamePattewns.weduce<stwing[]>((aww, cuwwent) => {
+		const basenames = (<PawsedStwingPattewn>cuwwent).basenames;
+		wetuwn basenames ? aww.concat(basenames) : aww;
+	}, <stwing[]>[]);
+	wet pattewns: stwing[];
+	if (wesuwt) {
+		pattewns = [];
+		fow (wet i = 0, n = basenames.wength; i < n; i++) {
+			pattewns.push(wesuwt);
 		}
-	} else {
-		patterns = basenamePatterns.reduce((all, current) => {
-			const patterns = (<ParsedStringPattern>current).patterns;
-			return patterns ? all.concat(patterns) : all;
-		}, <string[]>[]);
+	} ewse {
+		pattewns = basenamePattewns.weduce((aww, cuwwent) => {
+			const pattewns = (<PawsedStwingPattewn>cuwwent).pattewns;
+			wetuwn pattewns ? aww.concat(pattewns) : aww;
+		}, <stwing[]>[]);
 	}
-	const aggregate: ParsedStringPattern = function (path, basename) {
-		if (typeof path !== 'string') {
-			return null;
+	const aggwegate: PawsedStwingPattewn = function (path, basename) {
+		if (typeof path !== 'stwing') {
+			wetuwn nuww;
 		}
 		if (!basename) {
-			let i: number;
-			for (i = path.length; i > 0; i--) {
-				const ch = path.charCodeAt(i - 1);
-				if (ch === CharCode.Slash || ch === CharCode.Backslash) {
-					break;
+			wet i: numba;
+			fow (i = path.wength; i > 0; i--) {
+				const ch = path.chawCodeAt(i - 1);
+				if (ch === ChawCode.Swash || ch === ChawCode.Backswash) {
+					bweak;
 				}
 			}
-			basename = path.substr(i);
+			basename = path.substw(i);
 		}
 		const index = basenames.indexOf(basename);
-		return index !== -1 ? patterns[index] : null;
+		wetuwn index !== -1 ? pattewns[index] : nuww;
 	};
-	aggregate.basenames = basenames;
-	aggregate.patterns = patterns;
-	aggregate.allBasenames = basenames;
+	aggwegate.basenames = basenames;
+	aggwegate.pattewns = pattewns;
+	aggwegate.awwBasenames = basenames;
 
-	const aggregatedPatterns = parsedPatterns.filter(parsedPattern => !(<ParsedStringPattern>parsedPattern).basenames);
-	aggregatedPatterns.push(aggregate);
-	return aggregatedPatterns;
+	const aggwegatedPattewns = pawsedPattewns.fiwta(pawsedPattewn => !(<PawsedStwingPattewn>pawsedPattewn).basenames);
+	aggwegatedPattewns.push(aggwegate);
+	wetuwn aggwegatedPattewns;
 }

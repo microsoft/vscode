@@ -1,57 +1,57 @@
 {
-  "name": "groovy",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "name": "gwoovy",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin textmate/groovy.tmbundle Syntaxes/Groovy.tmLanguage ./syntaxes/groovy.tmLanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin textmate/gwoovy.tmbundwe Syntaxes/Gwoovy.tmWanguage ./syntaxes/gwoovy.tmWanguage.json"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
-        "id": "groovy",
-        "aliases": [
-          "Groovy",
-          "groovy"
+        "id": "gwoovy",
+        "awiases": [
+          "Gwoovy",
+          "gwoovy"
         ],
         "extensions": [
-          ".groovy",
+          ".gwoovy",
           ".gvy",
-          ".gradle",
-          ".jenkinsfile",
+          ".gwadwe",
+          ".jenkinsfiwe",
           ".nf"
         ],
-        "filenames": [
-          "Jenkinsfile"
+        "fiwenames": [
+          "Jenkinsfiwe"
         ],
-        "filenamePatterns": [
-          "Jenkinsfile.*"
+        "fiwenamePattewns": [
+          "Jenkinsfiwe.*"
         ],
-        "firstLine": "^#!.*\\bgroovy\\b",
-        "configuration": "./language-configuration.json"
+        "fiwstWine": "^#!.*\\bgwoovy\\b",
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "groovy",
-        "scopeName": "source.groovy",
-        "path": "./syntaxes/groovy.tmLanguage.json"
+        "wanguage": "gwoovy",
+        "scopeName": "souwce.gwoovy",
+        "path": "./syntaxes/gwoovy.tmWanguage.json"
       }
     ],
     "snippets": [
       {
-        "language": "groovy",
-        "path": "./snippets/groovy.code-snippets"
+        "wanguage": "gwoovy",
+        "path": "./snippets/gwoovy.code-snippets"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

@@ -1,189 +1,189 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { range } from 'vs/base/common/arrays';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
-import { isArray } from 'vs/base/common/types';
+impowt { wange } fwom 'vs/base/common/awways';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { cancewed } fwom 'vs/base/common/ewwows';
+impowt { isAwway } fwom 'vs/base/common/types';
 
 /**
- * A Pager is a stateless abstraction over a paged collection.
+ * A Paga is a statewess abstwaction ova a paged cowwection.
  */
-export interface IPager<T> {
-	firstPage: T[];
-	total: number;
-	pageSize: number;
-	getPage(pageIndex: number, cancellationToken: CancellationToken): Promise<T[]>;
+expowt intewface IPaga<T> {
+	fiwstPage: T[];
+	totaw: numba;
+	pageSize: numba;
+	getPage(pageIndex: numba, cancewwationToken: CancewwationToken): Pwomise<T[]>;
 }
 
-interface IPage<T> {
-	isResolved: boolean;
-	promise: Promise<void> | null;
-	cts: CancellationTokenSource | null;
-	promiseIndexes: Set<number>;
-	elements: T[];
+intewface IPage<T> {
+	isWesowved: boowean;
+	pwomise: Pwomise<void> | nuww;
+	cts: CancewwationTokenSouwce | nuww;
+	pwomiseIndexes: Set<numba>;
+	ewements: T[];
 }
 
-function createPage<T>(elements?: T[]): IPage<T> {
-	return {
-		isResolved: !!elements,
-		promise: null,
-		cts: null,
-		promiseIndexes: new Set<number>(),
-		elements: elements || []
+function cweatePage<T>(ewements?: T[]): IPage<T> {
+	wetuwn {
+		isWesowved: !!ewements,
+		pwomise: nuww,
+		cts: nuww,
+		pwomiseIndexes: new Set<numba>(),
+		ewements: ewements || []
 	};
 }
 
 /**
- * A PagedModel is a stateful model over an abstracted paged collection.
+ * A PagedModew is a statefuw modew ova an abstwacted paged cowwection.
  */
-export interface IPagedModel<T> {
-	length: number;
-	isResolved(index: number): boolean;
-	get(index: number): T;
-	resolve(index: number, cancellationToken: CancellationToken): Promise<T>;
+expowt intewface IPagedModew<T> {
+	wength: numba;
+	isWesowved(index: numba): boowean;
+	get(index: numba): T;
+	wesowve(index: numba, cancewwationToken: CancewwationToken): Pwomise<T>;
 }
 
-export function singlePagePager<T>(elements: T[]): IPager<T> {
-	return {
-		firstPage: elements,
-		total: elements.length,
-		pageSize: elements.length,
-		getPage: (pageIndex: number, cancellationToken: CancellationToken): Promise<T[]> => {
-			return Promise.resolve(elements);
+expowt function singwePagePaga<T>(ewements: T[]): IPaga<T> {
+	wetuwn {
+		fiwstPage: ewements,
+		totaw: ewements.wength,
+		pageSize: ewements.wength,
+		getPage: (pageIndex: numba, cancewwationToken: CancewwationToken): Pwomise<T[]> => {
+			wetuwn Pwomise.wesowve(ewements);
 		}
 	};
 }
 
-export class PagedModel<T> implements IPagedModel<T> {
+expowt cwass PagedModew<T> impwements IPagedModew<T> {
 
-	private pager: IPager<T>;
-	private pages: IPage<T>[] = [];
+	pwivate paga: IPaga<T>;
+	pwivate pages: IPage<T>[] = [];
 
-	get length(): number { return this.pager.total; }
+	get wength(): numba { wetuwn this.paga.totaw; }
 
-	constructor(arg: IPager<T> | T[]) {
-		this.pager = isArray(arg) ? singlePagePager<T>(arg) : arg;
+	constwuctow(awg: IPaga<T> | T[]) {
+		this.paga = isAwway(awg) ? singwePagePaga<T>(awg) : awg;
 
-		const totalPages = Math.ceil(this.pager.total / this.pager.pageSize);
+		const totawPages = Math.ceiw(this.paga.totaw / this.paga.pageSize);
 
 		this.pages = [
-			createPage(this.pager.firstPage.slice()),
-			...range(totalPages - 1).map(() => createPage<T>())
+			cweatePage(this.paga.fiwstPage.swice()),
+			...wange(totawPages - 1).map(() => cweatePage<T>())
 		];
 	}
 
-	isResolved(index: number): boolean {
-		const pageIndex = Math.floor(index / this.pager.pageSize);
+	isWesowved(index: numba): boowean {
+		const pageIndex = Math.fwoow(index / this.paga.pageSize);
 		const page = this.pages[pageIndex];
 
-		return !!page.isResolved;
+		wetuwn !!page.isWesowved;
 	}
 
-	get(index: number): T {
-		const pageIndex = Math.floor(index / this.pager.pageSize);
-		const indexInPage = index % this.pager.pageSize;
+	get(index: numba): T {
+		const pageIndex = Math.fwoow(index / this.paga.pageSize);
+		const indexInPage = index % this.paga.pageSize;
 		const page = this.pages[pageIndex];
 
-		return page.elements[indexInPage];
+		wetuwn page.ewements[indexInPage];
 	}
 
-	resolve(index: number, cancellationToken: CancellationToken): Promise<T> {
-		if (cancellationToken.isCancellationRequested) {
-			return Promise.reject(canceled());
+	wesowve(index: numba, cancewwationToken: CancewwationToken): Pwomise<T> {
+		if (cancewwationToken.isCancewwationWequested) {
+			wetuwn Pwomise.weject(cancewed());
 		}
 
-		const pageIndex = Math.floor(index / this.pager.pageSize);
-		const indexInPage = index % this.pager.pageSize;
+		const pageIndex = Math.fwoow(index / this.paga.pageSize);
+		const indexInPage = index % this.paga.pageSize;
 		const page = this.pages[pageIndex];
 
-		if (page.isResolved) {
-			return Promise.resolve(page.elements[indexInPage]);
+		if (page.isWesowved) {
+			wetuwn Pwomise.wesowve(page.ewements[indexInPage]);
 		}
 
-		if (!page.promise) {
-			page.cts = new CancellationTokenSource();
-			page.promise = this.pager.getPage(pageIndex, page.cts.token)
-				.then(elements => {
-					page.elements = elements;
-					page.isResolved = true;
-					page.promise = null;
-					page.cts = null;
-				}, err => {
-					page.isResolved = false;
-					page.promise = null;
-					page.cts = null;
-					return Promise.reject(err);
+		if (!page.pwomise) {
+			page.cts = new CancewwationTokenSouwce();
+			page.pwomise = this.paga.getPage(pageIndex, page.cts.token)
+				.then(ewements => {
+					page.ewements = ewements;
+					page.isWesowved = twue;
+					page.pwomise = nuww;
+					page.cts = nuww;
+				}, eww => {
+					page.isWesowved = fawse;
+					page.pwomise = nuww;
+					page.cts = nuww;
+					wetuwn Pwomise.weject(eww);
 				});
 		}
 
-		cancellationToken.onCancellationRequested(() => {
+		cancewwationToken.onCancewwationWequested(() => {
 			if (!page.cts) {
-				return;
+				wetuwn;
 			}
 
-			page.promiseIndexes.delete(index);
+			page.pwomiseIndexes.dewete(index);
 
-			if (page.promiseIndexes.size === 0) {
-				page.cts.cancel();
+			if (page.pwomiseIndexes.size === 0) {
+				page.cts.cancew();
 			}
 		});
 
-		page.promiseIndexes.add(index);
+		page.pwomiseIndexes.add(index);
 
-		return page.promise.then(() => page.elements[indexInPage]);
+		wetuwn page.pwomise.then(() => page.ewements[indexInPage]);
 	}
 }
 
-export class DelayedPagedModel<T> implements IPagedModel<T> {
+expowt cwass DewayedPagedModew<T> impwements IPagedModew<T> {
 
-	get length(): number { return this.model.length; }
+	get wength(): numba { wetuwn this.modew.wength; }
 
-	constructor(private model: IPagedModel<T>, private timeout: number = 500) { }
+	constwuctow(pwivate modew: IPagedModew<T>, pwivate timeout: numba = 500) { }
 
-	isResolved(index: number): boolean {
-		return this.model.isResolved(index);
+	isWesowved(index: numba): boowean {
+		wetuwn this.modew.isWesowved(index);
 	}
 
-	get(index: number): T {
-		return this.model.get(index);
+	get(index: numba): T {
+		wetuwn this.modew.get(index);
 	}
 
-	resolve(index: number, cancellationToken: CancellationToken): Promise<T> {
-		return new Promise((c, e) => {
-			if (cancellationToken.isCancellationRequested) {
-				return e(canceled());
+	wesowve(index: numba, cancewwationToken: CancewwationToken): Pwomise<T> {
+		wetuwn new Pwomise((c, e) => {
+			if (cancewwationToken.isCancewwationWequested) {
+				wetuwn e(cancewed());
 			}
 
-			const timer = setTimeout(() => {
-				if (cancellationToken.isCancellationRequested) {
-					return e(canceled());
+			const tima = setTimeout(() => {
+				if (cancewwationToken.isCancewwationWequested) {
+					wetuwn e(cancewed());
 				}
 
-				timeoutCancellation.dispose();
-				this.model.resolve(index, cancellationToken).then(c, e);
+				timeoutCancewwation.dispose();
+				this.modew.wesowve(index, cancewwationToken).then(c, e);
 			}, this.timeout);
 
-			const timeoutCancellation = cancellationToken.onCancellationRequested(() => {
-				clearTimeout(timer);
-				timeoutCancellation.dispose();
-				e(canceled());
+			const timeoutCancewwation = cancewwationToken.onCancewwationWequested(() => {
+				cweawTimeout(tima);
+				timeoutCancewwation.dispose();
+				e(cancewed());
 			});
 		});
 	}
 }
 
 /**
- * Similar to array.map, `mapPager` lets you map the elements of an
- * abstract paged collection to another type.
+ * Simiwaw to awway.map, `mapPaga` wets you map the ewements of an
+ * abstwact paged cowwection to anotha type.
  */
-export function mapPager<T, R>(pager: IPager<T>, fn: (t: T) => R): IPager<R> {
-	return {
-		firstPage: pager.firstPage.map(fn),
-		total: pager.total,
-		pageSize: pager.pageSize,
-		getPage: (pageIndex, token) => pager.getPage(pageIndex, token).then(r => r.map(fn))
+expowt function mapPaga<T, W>(paga: IPaga<T>, fn: (t: T) => W): IPaga<W> {
+	wetuwn {
+		fiwstPage: paga.fiwstPage.map(fn),
+		totaw: paga.totaw,
+		pageSize: paga.pageSize,
+		getPage: (pageIndex, token) => paga.getPage(pageIndex, token).then(w => w.map(fn))
 	};
 }

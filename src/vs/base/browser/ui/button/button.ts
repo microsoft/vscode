@@ -1,564 +1,564 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
-import { addDisposableListener, EventHelper, EventType, IFocusTracker, reset, trackFocus } from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event as BaseEvent } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { mixin } from 'vs/base/common/objects';
-import 'vs/css!./button';
+impowt { IContextMenuPwovida } fwom 'vs/base/bwowsa/contextmenu';
+impowt { addDisposabweWistena, EventHewpa, EventType, IFocusTwacka, weset, twackFocus } fwom 'vs/base/bwowsa/dom';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { EventType as TouchEventType, Gestuwe } fwom 'vs/base/bwowsa/touch';
+impowt { wendewWabewWithIcons } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabews';
+impowt { Action, IAction, IActionWunna } fwom 'vs/base/common/actions';
+impowt { Codicon, CSSIcon } fwom 'vs/base/common/codicons';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Emitta, Event as BaseEvent } fwom 'vs/base/common/event';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { mixin } fwom 'vs/base/common/objects';
+impowt 'vs/css!./button';
 
-export interface IButtonOptions extends IButtonStyles {
-	readonly title?: boolean | string;
-	readonly supportIcons?: boolean;
-	readonly secondary?: boolean;
+expowt intewface IButtonOptions extends IButtonStywes {
+	weadonwy titwe?: boowean | stwing;
+	weadonwy suppowtIcons?: boowean;
+	weadonwy secondawy?: boowean;
 }
 
-export interface IButtonStyles {
-	buttonBackground?: Color;
-	buttonHoverBackground?: Color;
-	buttonForeground?: Color;
-	buttonSecondaryBackground?: Color;
-	buttonSecondaryHoverBackground?: Color;
-	buttonSecondaryForeground?: Color;
-	buttonBorder?: Color;
+expowt intewface IButtonStywes {
+	buttonBackgwound?: Cowow;
+	buttonHovewBackgwound?: Cowow;
+	buttonFowegwound?: Cowow;
+	buttonSecondawyBackgwound?: Cowow;
+	buttonSecondawyHovewBackgwound?: Cowow;
+	buttonSecondawyFowegwound?: Cowow;
+	buttonBowda?: Cowow;
 }
 
-const defaultOptions: IButtonStyles = {
-	buttonBackground: Color.fromHex('#0E639C'),
-	buttonHoverBackground: Color.fromHex('#006BB3'),
-	buttonForeground: Color.white
+const defauwtOptions: IButtonStywes = {
+	buttonBackgwound: Cowow.fwomHex('#0E639C'),
+	buttonHovewBackgwound: Cowow.fwomHex('#006BB3'),
+	buttonFowegwound: Cowow.white
 };
 
-export interface IButton extends IDisposable {
-	readonly element: HTMLElement;
-	readonly onDidClick: BaseEvent<Event | undefined>;
-	label: string;
+expowt intewface IButton extends IDisposabwe {
+	weadonwy ewement: HTMWEwement;
+	weadonwy onDidCwick: BaseEvent<Event | undefined>;
+	wabew: stwing;
 	icon: CSSIcon;
-	enabled: boolean;
-	style(styles: IButtonStyles): void;
+	enabwed: boowean;
+	stywe(stywes: IButtonStywes): void;
 	focus(): void;
-	hasFocus(): boolean;
+	hasFocus(): boowean;
 }
 
-export interface IButtonWithDescription extends IButton {
-	description: string;
+expowt intewface IButtonWithDescwiption extends IButton {
+	descwiption: stwing;
 }
 
-export class Button extends Disposable implements IButton {
+expowt cwass Button extends Disposabwe impwements IButton {
 
-	private _element: HTMLElement;
-	private options: IButtonOptions;
+	pwivate _ewement: HTMWEwement;
+	pwivate options: IButtonOptions;
 
-	private buttonBackground: Color | undefined;
-	private buttonHoverBackground: Color | undefined;
-	private buttonForeground: Color | undefined;
-	private buttonSecondaryBackground: Color | undefined;
-	private buttonSecondaryHoverBackground: Color | undefined;
-	private buttonSecondaryForeground: Color | undefined;
-	private buttonBorder: Color | undefined;
+	pwivate buttonBackgwound: Cowow | undefined;
+	pwivate buttonHovewBackgwound: Cowow | undefined;
+	pwivate buttonFowegwound: Cowow | undefined;
+	pwivate buttonSecondawyBackgwound: Cowow | undefined;
+	pwivate buttonSecondawyHovewBackgwound: Cowow | undefined;
+	pwivate buttonSecondawyFowegwound: Cowow | undefined;
+	pwivate buttonBowda: Cowow | undefined;
 
-	private _onDidClick = this._register(new Emitter<Event>());
-	get onDidClick(): BaseEvent<Event> { return this._onDidClick.event; }
+	pwivate _onDidCwick = this._wegista(new Emitta<Event>());
+	get onDidCwick(): BaseEvent<Event> { wetuwn this._onDidCwick.event; }
 
-	private focusTracker: IFocusTracker;
+	pwivate focusTwacka: IFocusTwacka;
 
-	constructor(container: HTMLElement, options?: IButtonOptions) {
-		super();
+	constwuctow(containa: HTMWEwement, options?: IButtonOptions) {
+		supa();
 
-		this.options = options || Object.create(null);
-		mixin(this.options, defaultOptions, false);
+		this.options = options || Object.cweate(nuww);
+		mixin(this.options, defauwtOptions, fawse);
 
-		this.buttonForeground = this.options.buttonForeground;
-		this.buttonBackground = this.options.buttonBackground;
-		this.buttonHoverBackground = this.options.buttonHoverBackground;
+		this.buttonFowegwound = this.options.buttonFowegwound;
+		this.buttonBackgwound = this.options.buttonBackgwound;
+		this.buttonHovewBackgwound = this.options.buttonHovewBackgwound;
 
-		this.buttonSecondaryForeground = this.options.buttonSecondaryForeground;
-		this.buttonSecondaryBackground = this.options.buttonSecondaryBackground;
-		this.buttonSecondaryHoverBackground = this.options.buttonSecondaryHoverBackground;
+		this.buttonSecondawyFowegwound = this.options.buttonSecondawyFowegwound;
+		this.buttonSecondawyBackgwound = this.options.buttonSecondawyBackgwound;
+		this.buttonSecondawyHovewBackgwound = this.options.buttonSecondawyHovewBackgwound;
 
-		this.buttonBorder = this.options.buttonBorder;
+		this.buttonBowda = this.options.buttonBowda;
 
-		this._element = document.createElement('a');
-		this._element.classList.add('monaco-button');
-		this._element.tabIndex = 0;
-		this._element.setAttribute('role', 'button');
+		this._ewement = document.cweateEwement('a');
+		this._ewement.cwassWist.add('monaco-button');
+		this._ewement.tabIndex = 0;
+		this._ewement.setAttwibute('wowe', 'button');
 
-		container.appendChild(this._element);
+		containa.appendChiwd(this._ewement);
 
-		this._register(Gesture.addTarget(this._element));
+		this._wegista(Gestuwe.addTawget(this._ewement));
 
-		[EventType.CLICK, TouchEventType.Tap].forEach(eventType => {
-			this._register(addDisposableListener(this._element, eventType, e => {
-				if (!this.enabled) {
-					EventHelper.stop(e);
-					return;
+		[EventType.CWICK, TouchEventType.Tap].fowEach(eventType => {
+			this._wegista(addDisposabweWistena(this._ewement, eventType, e => {
+				if (!this.enabwed) {
+					EventHewpa.stop(e);
+					wetuwn;
 				}
 
-				this._onDidClick.fire(e);
+				this._onDidCwick.fiwe(e);
 			}));
 		});
 
-		this._register(addDisposableListener(this._element, EventType.KEY_DOWN, e => {
-			const event = new StandardKeyboardEvent(e);
-			let eventHandled = false;
-			if (this.enabled && (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space))) {
-				this._onDidClick.fire(e);
-				eventHandled = true;
-			} else if (event.equals(KeyCode.Escape)) {
-				this._element.blur();
-				eventHandled = true;
+		this._wegista(addDisposabweWistena(this._ewement, EventType.KEY_DOWN, e => {
+			const event = new StandawdKeyboawdEvent(e);
+			wet eventHandwed = fawse;
+			if (this.enabwed && (event.equaws(KeyCode.Enta) || event.equaws(KeyCode.Space))) {
+				this._onDidCwick.fiwe(e);
+				eventHandwed = twue;
+			} ewse if (event.equaws(KeyCode.Escape)) {
+				this._ewement.bwuw();
+				eventHandwed = twue;
 			}
 
-			if (eventHandled) {
-				EventHelper.stop(event, true);
-			}
-		}));
-
-		this._register(addDisposableListener(this._element, EventType.MOUSE_OVER, e => {
-			if (!this._element.classList.contains('disabled')) {
-				this.setHoverBackground();
+			if (eventHandwed) {
+				EventHewpa.stop(event, twue);
 			}
 		}));
 
-		this._register(addDisposableListener(this._element, EventType.MOUSE_OUT, e => {
-			this.applyStyles(); // restore standard styles
+		this._wegista(addDisposabweWistena(this._ewement, EventType.MOUSE_OVa, e => {
+			if (!this._ewement.cwassWist.contains('disabwed')) {
+				this.setHovewBackgwound();
+			}
 		}));
 
-		// Also set hover background when button is focused for feedback
-		this.focusTracker = this._register(trackFocus(this._element));
-		this._register(this.focusTracker.onDidFocus(() => this.setHoverBackground()));
-		this._register(this.focusTracker.onDidBlur(() => this.applyStyles())); // restore standard styles
+		this._wegista(addDisposabweWistena(this._ewement, EventType.MOUSE_OUT, e => {
+			this.appwyStywes(); // westowe standawd stywes
+		}));
 
-		this.applyStyles();
+		// Awso set hova backgwound when button is focused fow feedback
+		this.focusTwacka = this._wegista(twackFocus(this._ewement));
+		this._wegista(this.focusTwacka.onDidFocus(() => this.setHovewBackgwound()));
+		this._wegista(this.focusTwacka.onDidBwuw(() => this.appwyStywes())); // westowe standawd stywes
+
+		this.appwyStywes();
 	}
 
-	private setHoverBackground(): void {
-		let hoverBackground;
-		if (this.options.secondary) {
-			hoverBackground = this.buttonSecondaryHoverBackground ? this.buttonSecondaryHoverBackground.toString() : null;
-		} else {
-			hoverBackground = this.buttonHoverBackground ? this.buttonHoverBackground.toString() : null;
+	pwivate setHovewBackgwound(): void {
+		wet hovewBackgwound;
+		if (this.options.secondawy) {
+			hovewBackgwound = this.buttonSecondawyHovewBackgwound ? this.buttonSecondawyHovewBackgwound.toStwing() : nuww;
+		} ewse {
+			hovewBackgwound = this.buttonHovewBackgwound ? this.buttonHovewBackgwound.toStwing() : nuww;
 		}
-		if (hoverBackground) {
-			this._element.style.backgroundColor = hoverBackground;
+		if (hovewBackgwound) {
+			this._ewement.stywe.backgwoundCowow = hovewBackgwound;
 		}
 	}
 
-	style(styles: IButtonStyles): void {
-		this.buttonForeground = styles.buttonForeground;
-		this.buttonBackground = styles.buttonBackground;
-		this.buttonHoverBackground = styles.buttonHoverBackground;
-		this.buttonSecondaryForeground = styles.buttonSecondaryForeground;
-		this.buttonSecondaryBackground = styles.buttonSecondaryBackground;
-		this.buttonSecondaryHoverBackground = styles.buttonSecondaryHoverBackground;
-		this.buttonBorder = styles.buttonBorder;
+	stywe(stywes: IButtonStywes): void {
+		this.buttonFowegwound = stywes.buttonFowegwound;
+		this.buttonBackgwound = stywes.buttonBackgwound;
+		this.buttonHovewBackgwound = stywes.buttonHovewBackgwound;
+		this.buttonSecondawyFowegwound = stywes.buttonSecondawyFowegwound;
+		this.buttonSecondawyBackgwound = stywes.buttonSecondawyBackgwound;
+		this.buttonSecondawyHovewBackgwound = stywes.buttonSecondawyHovewBackgwound;
+		this.buttonBowda = stywes.buttonBowda;
 
-		this.applyStyles();
+		this.appwyStywes();
 	}
 
-	private applyStyles(): void {
-		if (this._element) {
-			let background, foreground;
-			if (this.options.secondary) {
-				foreground = this.buttonSecondaryForeground ? this.buttonSecondaryForeground.toString() : '';
-				background = this.buttonSecondaryBackground ? this.buttonSecondaryBackground.toString() : '';
-			} else {
-				foreground = this.buttonForeground ? this.buttonForeground.toString() : '';
-				background = this.buttonBackground ? this.buttonBackground.toString() : '';
+	pwivate appwyStywes(): void {
+		if (this._ewement) {
+			wet backgwound, fowegwound;
+			if (this.options.secondawy) {
+				fowegwound = this.buttonSecondawyFowegwound ? this.buttonSecondawyFowegwound.toStwing() : '';
+				backgwound = this.buttonSecondawyBackgwound ? this.buttonSecondawyBackgwound.toStwing() : '';
+			} ewse {
+				fowegwound = this.buttonFowegwound ? this.buttonFowegwound.toStwing() : '';
+				backgwound = this.buttonBackgwound ? this.buttonBackgwound.toStwing() : '';
 			}
 
-			const border = this.buttonBorder ? this.buttonBorder.toString() : '';
+			const bowda = this.buttonBowda ? this.buttonBowda.toStwing() : '';
 
-			this._element.style.color = foreground;
-			this._element.style.backgroundColor = background;
+			this._ewement.stywe.cowow = fowegwound;
+			this._ewement.stywe.backgwoundCowow = backgwound;
 
-			this._element.style.borderWidth = border ? '1px' : '';
-			this._element.style.borderStyle = border ? 'solid' : '';
-			this._element.style.borderColor = border;
+			this._ewement.stywe.bowdewWidth = bowda ? '1px' : '';
+			this._ewement.stywe.bowdewStywe = bowda ? 'sowid' : '';
+			this._ewement.stywe.bowdewCowow = bowda;
 		}
 	}
 
-	get element(): HTMLElement {
-		return this._element;
+	get ewement(): HTMWEwement {
+		wetuwn this._ewement;
 	}
 
-	set label(value: string) {
-		this._element.classList.add('monaco-text-button');
-		if (this.options.supportIcons) {
-			reset(this._element, ...renderLabelWithIcons(value));
-		} else {
-			this._element.textContent = value;
+	set wabew(vawue: stwing) {
+		this._ewement.cwassWist.add('monaco-text-button');
+		if (this.options.suppowtIcons) {
+			weset(this._ewement, ...wendewWabewWithIcons(vawue));
+		} ewse {
+			this._ewement.textContent = vawue;
 		}
-		if (typeof this.options.title === 'string') {
-			this._element.title = this.options.title;
-		} else if (this.options.title) {
-			this._element.title = value;
+		if (typeof this.options.titwe === 'stwing') {
+			this._ewement.titwe = this.options.titwe;
+		} ewse if (this.options.titwe) {
+			this._ewement.titwe = vawue;
 		}
 	}
 
 	set icon(icon: CSSIcon) {
-		this._element.classList.add(...CSSIcon.asClassNameArray(icon));
+		this._ewement.cwassWist.add(...CSSIcon.asCwassNameAwway(icon));
 	}
 
-	set enabled(value: boolean) {
-		if (value) {
-			this._element.classList.remove('disabled');
-			this._element.setAttribute('aria-disabled', String(false));
-			this._element.tabIndex = 0;
-		} else {
-			this._element.classList.add('disabled');
-			this._element.setAttribute('aria-disabled', String(true));
+	set enabwed(vawue: boowean) {
+		if (vawue) {
+			this._ewement.cwassWist.wemove('disabwed');
+			this._ewement.setAttwibute('awia-disabwed', Stwing(fawse));
+			this._ewement.tabIndex = 0;
+		} ewse {
+			this._ewement.cwassWist.add('disabwed');
+			this._ewement.setAttwibute('awia-disabwed', Stwing(twue));
 		}
 	}
 
-	get enabled() {
-		return !this._element.classList.contains('disabled');
+	get enabwed() {
+		wetuwn !this._ewement.cwassWist.contains('disabwed');
 	}
 
 	focus(): void {
-		this._element.focus();
+		this._ewement.focus();
 	}
 
-	hasFocus(): boolean {
-		return this._element === document.activeElement;
+	hasFocus(): boowean {
+		wetuwn this._ewement === document.activeEwement;
 	}
 }
 
-export interface IButtonWithDropdownOptions extends IButtonOptions {
-	readonly contextMenuProvider: IContextMenuProvider;
-	readonly actions: IAction[];
-	readonly actionRunner?: IActionRunner;
+expowt intewface IButtonWithDwopdownOptions extends IButtonOptions {
+	weadonwy contextMenuPwovida: IContextMenuPwovida;
+	weadonwy actions: IAction[];
+	weadonwy actionWunna?: IActionWunna;
 }
 
-export class ButtonWithDropdown extends Disposable implements IButton {
+expowt cwass ButtonWithDwopdown extends Disposabwe impwements IButton {
 
-	private readonly button: Button;
-	private readonly action: Action;
-	private readonly dropdownButton: Button;
+	pwivate weadonwy button: Button;
+	pwivate weadonwy action: Action;
+	pwivate weadonwy dwopdownButton: Button;
 
-	readonly element: HTMLElement;
-	private readonly _onDidClick = this._register(new Emitter<Event | undefined>());
-	readonly onDidClick = this._onDidClick.event;
+	weadonwy ewement: HTMWEwement;
+	pwivate weadonwy _onDidCwick = this._wegista(new Emitta<Event | undefined>());
+	weadonwy onDidCwick = this._onDidCwick.event;
 
-	constructor(container: HTMLElement, options: IButtonWithDropdownOptions) {
-		super();
+	constwuctow(containa: HTMWEwement, options: IButtonWithDwopdownOptions) {
+		supa();
 
-		this.element = document.createElement('div');
-		this.element.classList.add('monaco-button-dropdown');
-		container.appendChild(this.element);
+		this.ewement = document.cweateEwement('div');
+		this.ewement.cwassWist.add('monaco-button-dwopdown');
+		containa.appendChiwd(this.ewement);
 
-		this.button = this._register(new Button(this.element, options));
-		this._register(this.button.onDidClick(e => this._onDidClick.fire(e)));
-		this.action = this._register(new Action('primaryAction', this.button.label, undefined, true, async () => this._onDidClick.fire(undefined)));
+		this.button = this._wegista(new Button(this.ewement, options));
+		this._wegista(this.button.onDidCwick(e => this._onDidCwick.fiwe(e)));
+		this.action = this._wegista(new Action('pwimawyAction', this.button.wabew, undefined, twue, async () => this._onDidCwick.fiwe(undefined)));
 
-		this.dropdownButton = this._register(new Button(this.element, { ...options, title: false, supportIcons: true }));
-		this.dropdownButton.element.classList.add('monaco-dropdown-button');
-		this.dropdownButton.icon = Codicon.dropDownButton;
-		this._register(this.dropdownButton.onDidClick(e => {
-			options.contextMenuProvider.showContextMenu({
-				getAnchor: () => this.dropdownButton.element,
+		this.dwopdownButton = this._wegista(new Button(this.ewement, { ...options, titwe: fawse, suppowtIcons: twue }));
+		this.dwopdownButton.ewement.cwassWist.add('monaco-dwopdown-button');
+		this.dwopdownButton.icon = Codicon.dwopDownButton;
+		this._wegista(this.dwopdownButton.onDidCwick(e => {
+			options.contextMenuPwovida.showContextMenu({
+				getAnchow: () => this.dwopdownButton.ewement,
 				getActions: () => [this.action, ...options.actions],
-				actionRunner: options.actionRunner,
-				onHide: () => this.dropdownButton.element.setAttribute('aria-expanded', 'false')
+				actionWunna: options.actionWunna,
+				onHide: () => this.dwopdownButton.ewement.setAttwibute('awia-expanded', 'fawse')
 			});
-			this.dropdownButton.element.setAttribute('aria-expanded', 'true');
+			this.dwopdownButton.ewement.setAttwibute('awia-expanded', 'twue');
 		}));
 	}
 
-	set label(value: string) {
-		this.button.label = value;
-		this.action.label = value;
+	set wabew(vawue: stwing) {
+		this.button.wabew = vawue;
+		this.action.wabew = vawue;
 	}
 
 	set icon(icon: CSSIcon) {
 		this.button.icon = icon;
 	}
 
-	set enabled(enabled: boolean) {
-		this.button.enabled = enabled;
-		this.dropdownButton.enabled = enabled;
+	set enabwed(enabwed: boowean) {
+		this.button.enabwed = enabwed;
+		this.dwopdownButton.enabwed = enabwed;
 	}
 
-	get enabled(): boolean {
-		return this.button.enabled;
+	get enabwed(): boowean {
+		wetuwn this.button.enabwed;
 	}
 
-	style(styles: IButtonStyles): void {
-		this.button.style(styles);
-		this.dropdownButton.style(styles);
+	stywe(stywes: IButtonStywes): void {
+		this.button.stywe(stywes);
+		this.dwopdownButton.stywe(stywes);
 	}
 
 	focus(): void {
 		this.button.focus();
 	}
 
-	hasFocus(): boolean {
-		return this.button.hasFocus() || this.dropdownButton.hasFocus();
+	hasFocus(): boowean {
+		wetuwn this.button.hasFocus() || this.dwopdownButton.hasFocus();
 	}
 }
 
-export class ButtonWithDescription extends Disposable implements IButtonWithDescription {
+expowt cwass ButtonWithDescwiption extends Disposabwe impwements IButtonWithDescwiption {
 
-	private _element: HTMLElement;
-	private _labelElement: HTMLElement;
-	private _descriptionElement: HTMLElement;
-	private options: IButtonOptions;
+	pwivate _ewement: HTMWEwement;
+	pwivate _wabewEwement: HTMWEwement;
+	pwivate _descwiptionEwement: HTMWEwement;
+	pwivate options: IButtonOptions;
 
-	private buttonBackground: Color | undefined;
-	private buttonHoverBackground: Color | undefined;
-	private buttonForeground: Color | undefined;
-	private buttonSecondaryBackground: Color | undefined;
-	private buttonSecondaryHoverBackground: Color | undefined;
-	private buttonSecondaryForeground: Color | undefined;
-	private buttonBorder: Color | undefined;
+	pwivate buttonBackgwound: Cowow | undefined;
+	pwivate buttonHovewBackgwound: Cowow | undefined;
+	pwivate buttonFowegwound: Cowow | undefined;
+	pwivate buttonSecondawyBackgwound: Cowow | undefined;
+	pwivate buttonSecondawyHovewBackgwound: Cowow | undefined;
+	pwivate buttonSecondawyFowegwound: Cowow | undefined;
+	pwivate buttonBowda: Cowow | undefined;
 
-	private _onDidClick = this._register(new Emitter<Event>());
-	get onDidClick(): BaseEvent<Event> { return this._onDidClick.event; }
+	pwivate _onDidCwick = this._wegista(new Emitta<Event>());
+	get onDidCwick(): BaseEvent<Event> { wetuwn this._onDidCwick.event; }
 
-	private focusTracker: IFocusTracker;
+	pwivate focusTwacka: IFocusTwacka;
 
-	constructor(container: HTMLElement, options?: IButtonOptions) {
-		super();
+	constwuctow(containa: HTMWEwement, options?: IButtonOptions) {
+		supa();
 
-		this.options = options || Object.create(null);
-		mixin(this.options, defaultOptions, false);
+		this.options = options || Object.cweate(nuww);
+		mixin(this.options, defauwtOptions, fawse);
 
-		this.buttonForeground = this.options.buttonForeground;
-		this.buttonBackground = this.options.buttonBackground;
-		this.buttonHoverBackground = this.options.buttonHoverBackground;
+		this.buttonFowegwound = this.options.buttonFowegwound;
+		this.buttonBackgwound = this.options.buttonBackgwound;
+		this.buttonHovewBackgwound = this.options.buttonHovewBackgwound;
 
-		this.buttonSecondaryForeground = this.options.buttonSecondaryForeground;
-		this.buttonSecondaryBackground = this.options.buttonSecondaryBackground;
-		this.buttonSecondaryHoverBackground = this.options.buttonSecondaryHoverBackground;
+		this.buttonSecondawyFowegwound = this.options.buttonSecondawyFowegwound;
+		this.buttonSecondawyBackgwound = this.options.buttonSecondawyBackgwound;
+		this.buttonSecondawyHovewBackgwound = this.options.buttonSecondawyHovewBackgwound;
 
-		this.buttonBorder = this.options.buttonBorder;
+		this.buttonBowda = this.options.buttonBowda;
 
-		this._element = document.createElement('a');
-		this._element.classList.add('monaco-button');
-		this._element.classList.add('monaco-description-button');
-		this._element.tabIndex = 0;
-		this._element.setAttribute('role', 'button');
+		this._ewement = document.cweateEwement('a');
+		this._ewement.cwassWist.add('monaco-button');
+		this._ewement.cwassWist.add('monaco-descwiption-button');
+		this._ewement.tabIndex = 0;
+		this._ewement.setAttwibute('wowe', 'button');
 
-		this._labelElement = document.createElement('div');
-		this._labelElement.classList.add('monaco-button-label');
-		this._labelElement.tabIndex = -1;
-		this._element.appendChild(this._labelElement);
+		this._wabewEwement = document.cweateEwement('div');
+		this._wabewEwement.cwassWist.add('monaco-button-wabew');
+		this._wabewEwement.tabIndex = -1;
+		this._ewement.appendChiwd(this._wabewEwement);
 
-		this._descriptionElement = document.createElement('div');
-		this._descriptionElement.classList.add('monaco-button-description');
-		this._descriptionElement.tabIndex = -1;
-		this._element.appendChild(this._descriptionElement);
+		this._descwiptionEwement = document.cweateEwement('div');
+		this._descwiptionEwement.cwassWist.add('monaco-button-descwiption');
+		this._descwiptionEwement.tabIndex = -1;
+		this._ewement.appendChiwd(this._descwiptionEwement);
 
-		container.appendChild(this._element);
+		containa.appendChiwd(this._ewement);
 
-		this._register(Gesture.addTarget(this._element));
+		this._wegista(Gestuwe.addTawget(this._ewement));
 
-		[EventType.CLICK, TouchEventType.Tap].forEach(eventType => {
-			this._register(addDisposableListener(this._element, eventType, e => {
-				if (!this.enabled) {
-					EventHelper.stop(e);
-					return;
+		[EventType.CWICK, TouchEventType.Tap].fowEach(eventType => {
+			this._wegista(addDisposabweWistena(this._ewement, eventType, e => {
+				if (!this.enabwed) {
+					EventHewpa.stop(e);
+					wetuwn;
 				}
 
-				this._onDidClick.fire(e);
+				this._onDidCwick.fiwe(e);
 			}));
 		});
 
-		this._register(addDisposableListener(this._element, EventType.KEY_DOWN, e => {
-			const event = new StandardKeyboardEvent(e);
-			let eventHandled = false;
-			if (this.enabled && (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space))) {
-				this._onDidClick.fire(e);
-				eventHandled = true;
-			} else if (event.equals(KeyCode.Escape)) {
-				this._element.blur();
-				eventHandled = true;
+		this._wegista(addDisposabweWistena(this._ewement, EventType.KEY_DOWN, e => {
+			const event = new StandawdKeyboawdEvent(e);
+			wet eventHandwed = fawse;
+			if (this.enabwed && (event.equaws(KeyCode.Enta) || event.equaws(KeyCode.Space))) {
+				this._onDidCwick.fiwe(e);
+				eventHandwed = twue;
+			} ewse if (event.equaws(KeyCode.Escape)) {
+				this._ewement.bwuw();
+				eventHandwed = twue;
 			}
 
-			if (eventHandled) {
-				EventHelper.stop(event, true);
-			}
-		}));
-
-		this._register(addDisposableListener(this._element, EventType.MOUSE_OVER, e => {
-			if (!this._element.classList.contains('disabled')) {
-				this.setHoverBackground();
+			if (eventHandwed) {
+				EventHewpa.stop(event, twue);
 			}
 		}));
 
-		this._register(addDisposableListener(this._element, EventType.MOUSE_OUT, e => {
-			this.applyStyles(); // restore standard styles
+		this._wegista(addDisposabweWistena(this._ewement, EventType.MOUSE_OVa, e => {
+			if (!this._ewement.cwassWist.contains('disabwed')) {
+				this.setHovewBackgwound();
+			}
 		}));
 
-		// Also set hover background when button is focused for feedback
-		this.focusTracker = this._register(trackFocus(this._element));
-		this._register(this.focusTracker.onDidFocus(() => this.setHoverBackground()));
-		this._register(this.focusTracker.onDidBlur(() => this.applyStyles())); // restore standard styles
+		this._wegista(addDisposabweWistena(this._ewement, EventType.MOUSE_OUT, e => {
+			this.appwyStywes(); // westowe standawd stywes
+		}));
 
-		this.applyStyles();
+		// Awso set hova backgwound when button is focused fow feedback
+		this.focusTwacka = this._wegista(twackFocus(this._ewement));
+		this._wegista(this.focusTwacka.onDidFocus(() => this.setHovewBackgwound()));
+		this._wegista(this.focusTwacka.onDidBwuw(() => this.appwyStywes())); // westowe standawd stywes
+
+		this.appwyStywes();
 	}
 
-	private setHoverBackground(): void {
-		let hoverBackground;
-		if (this.options.secondary) {
-			hoverBackground = this.buttonSecondaryHoverBackground ? this.buttonSecondaryHoverBackground.toString() : null;
-		} else {
-			hoverBackground = this.buttonHoverBackground ? this.buttonHoverBackground.toString() : null;
+	pwivate setHovewBackgwound(): void {
+		wet hovewBackgwound;
+		if (this.options.secondawy) {
+			hovewBackgwound = this.buttonSecondawyHovewBackgwound ? this.buttonSecondawyHovewBackgwound.toStwing() : nuww;
+		} ewse {
+			hovewBackgwound = this.buttonHovewBackgwound ? this.buttonHovewBackgwound.toStwing() : nuww;
 		}
-		if (hoverBackground) {
-			this._element.style.backgroundColor = hoverBackground;
+		if (hovewBackgwound) {
+			this._ewement.stywe.backgwoundCowow = hovewBackgwound;
 		}
 	}
 
-	style(styles: IButtonStyles): void {
-		this.buttonForeground = styles.buttonForeground;
-		this.buttonBackground = styles.buttonBackground;
-		this.buttonHoverBackground = styles.buttonHoverBackground;
-		this.buttonSecondaryForeground = styles.buttonSecondaryForeground;
-		this.buttonSecondaryBackground = styles.buttonSecondaryBackground;
-		this.buttonSecondaryHoverBackground = styles.buttonSecondaryHoverBackground;
-		this.buttonBorder = styles.buttonBorder;
+	stywe(stywes: IButtonStywes): void {
+		this.buttonFowegwound = stywes.buttonFowegwound;
+		this.buttonBackgwound = stywes.buttonBackgwound;
+		this.buttonHovewBackgwound = stywes.buttonHovewBackgwound;
+		this.buttonSecondawyFowegwound = stywes.buttonSecondawyFowegwound;
+		this.buttonSecondawyBackgwound = stywes.buttonSecondawyBackgwound;
+		this.buttonSecondawyHovewBackgwound = stywes.buttonSecondawyHovewBackgwound;
+		this.buttonBowda = stywes.buttonBowda;
 
-		this.applyStyles();
+		this.appwyStywes();
 	}
 
-	private applyStyles(): void {
-		if (this._element) {
-			let background, foreground;
-			if (this.options.secondary) {
-				foreground = this.buttonSecondaryForeground ? this.buttonSecondaryForeground.toString() : '';
-				background = this.buttonSecondaryBackground ? this.buttonSecondaryBackground.toString() : '';
-			} else {
-				foreground = this.buttonForeground ? this.buttonForeground.toString() : '';
-				background = this.buttonBackground ? this.buttonBackground.toString() : '';
+	pwivate appwyStywes(): void {
+		if (this._ewement) {
+			wet backgwound, fowegwound;
+			if (this.options.secondawy) {
+				fowegwound = this.buttonSecondawyFowegwound ? this.buttonSecondawyFowegwound.toStwing() : '';
+				backgwound = this.buttonSecondawyBackgwound ? this.buttonSecondawyBackgwound.toStwing() : '';
+			} ewse {
+				fowegwound = this.buttonFowegwound ? this.buttonFowegwound.toStwing() : '';
+				backgwound = this.buttonBackgwound ? this.buttonBackgwound.toStwing() : '';
 			}
 
-			const border = this.buttonBorder ? this.buttonBorder.toString() : '';
+			const bowda = this.buttonBowda ? this.buttonBowda.toStwing() : '';
 
-			this._element.style.color = foreground;
-			this._element.style.backgroundColor = background;
+			this._ewement.stywe.cowow = fowegwound;
+			this._ewement.stywe.backgwoundCowow = backgwound;
 
-			this._element.style.borderWidth = border ? '1px' : '';
-			this._element.style.borderStyle = border ? 'solid' : '';
-			this._element.style.borderColor = border;
+			this._ewement.stywe.bowdewWidth = bowda ? '1px' : '';
+			this._ewement.stywe.bowdewStywe = bowda ? 'sowid' : '';
+			this._ewement.stywe.bowdewCowow = bowda;
 		}
 	}
 
-	get element(): HTMLElement {
-		return this._element;
+	get ewement(): HTMWEwement {
+		wetuwn this._ewement;
 	}
 
-	set label(value: string) {
-		this._element.classList.add('monaco-text-button');
-		if (this.options.supportIcons) {
-			reset(this._labelElement, ...renderLabelWithIcons(value));
-		} else {
-			this._labelElement.textContent = value;
+	set wabew(vawue: stwing) {
+		this._ewement.cwassWist.add('monaco-text-button');
+		if (this.options.suppowtIcons) {
+			weset(this._wabewEwement, ...wendewWabewWithIcons(vawue));
+		} ewse {
+			this._wabewEwement.textContent = vawue;
 		}
-		if (typeof this.options.title === 'string') {
-			this._element.title = this.options.title;
-		} else if (this.options.title) {
-			this._element.title = value;
+		if (typeof this.options.titwe === 'stwing') {
+			this._ewement.titwe = this.options.titwe;
+		} ewse if (this.options.titwe) {
+			this._ewement.titwe = vawue;
 		}
 	}
 
-	set description(value: string) {
-		if (this.options.supportIcons) {
-			reset(this._descriptionElement, ...renderLabelWithIcons(value));
-		} else {
-			this._descriptionElement.textContent = value;
+	set descwiption(vawue: stwing) {
+		if (this.options.suppowtIcons) {
+			weset(this._descwiptionEwement, ...wendewWabewWithIcons(vawue));
+		} ewse {
+			this._descwiptionEwement.textContent = vawue;
 		}
 	}
 
 	set icon(icon: CSSIcon) {
-		this._element.classList.add(...CSSIcon.asClassNameArray(icon));
+		this._ewement.cwassWist.add(...CSSIcon.asCwassNameAwway(icon));
 	}
 
-	set enabled(value: boolean) {
-		if (value) {
-			this._element.classList.remove('disabled');
-			this._element.setAttribute('aria-disabled', String(false));
-			this._element.tabIndex = 0;
-		} else {
-			this._element.classList.add('disabled');
-			this._element.setAttribute('aria-disabled', String(true));
+	set enabwed(vawue: boowean) {
+		if (vawue) {
+			this._ewement.cwassWist.wemove('disabwed');
+			this._ewement.setAttwibute('awia-disabwed', Stwing(fawse));
+			this._ewement.tabIndex = 0;
+		} ewse {
+			this._ewement.cwassWist.add('disabwed');
+			this._ewement.setAttwibute('awia-disabwed', Stwing(twue));
 		}
 	}
 
-	get enabled() {
-		return !this._element.classList.contains('disabled');
+	get enabwed() {
+		wetuwn !this._ewement.cwassWist.contains('disabwed');
 	}
 
 	focus(): void {
-		this._element.focus();
+		this._ewement.focus();
 	}
 
-	hasFocus(): boolean {
-		return this._element === document.activeElement;
+	hasFocus(): boowean {
+		wetuwn this._ewement === document.activeEwement;
 	}
 }
 
-export class ButtonBar extends Disposable {
+expowt cwass ButtonBaw extends Disposabwe {
 
-	private _buttons: IButton[] = [];
+	pwivate _buttons: IButton[] = [];
 
-	constructor(private readonly container: HTMLElement) {
-		super();
+	constwuctow(pwivate weadonwy containa: HTMWEwement) {
+		supa();
 	}
 
 	get buttons(): IButton[] {
-		return this._buttons;
+		wetuwn this._buttons;
 	}
 
 	addButton(options?: IButtonOptions): IButton {
-		const button = this._register(new Button(this.container, options));
+		const button = this._wegista(new Button(this.containa, options));
 		this.pushButton(button);
-		return button;
+		wetuwn button;
 	}
 
-	addButtonWithDescription(options?: IButtonOptions): IButtonWithDescription {
-		const button = this._register(new ButtonWithDescription(this.container, options));
+	addButtonWithDescwiption(options?: IButtonOptions): IButtonWithDescwiption {
+		const button = this._wegista(new ButtonWithDescwiption(this.containa, options));
 		this.pushButton(button);
-		return button;
+		wetuwn button;
 	}
 
-	addButtonWithDropdown(options: IButtonWithDropdownOptions): IButton {
-		const button = this._register(new ButtonWithDropdown(this.container, options));
+	addButtonWithDwopdown(options: IButtonWithDwopdownOptions): IButton {
+		const button = this._wegista(new ButtonWithDwopdown(this.containa, options));
 		this.pushButton(button);
-		return button;
+		wetuwn button;
 	}
 
-	private pushButton(button: IButton): void {
+	pwivate pushButton(button: IButton): void {
 		this._buttons.push(button);
 
-		const index = this._buttons.length - 1;
-		this._register(addDisposableListener(button.element, EventType.KEY_DOWN, e => {
-			const event = new StandardKeyboardEvent(e);
-			let eventHandled = true;
+		const index = this._buttons.wength - 1;
+		this._wegista(addDisposabweWistena(button.ewement, EventType.KEY_DOWN, e => {
+			const event = new StandawdKeyboawdEvent(e);
+			wet eventHandwed = twue;
 
-			// Next / Previous Button
-			let buttonIndexToFocus: number | undefined;
-			if (event.equals(KeyCode.LeftArrow)) {
-				buttonIndexToFocus = index > 0 ? index - 1 : this._buttons.length - 1;
-			} else if (event.equals(KeyCode.RightArrow)) {
-				buttonIndexToFocus = index === this._buttons.length - 1 ? 0 : index + 1;
-			} else {
-				eventHandled = false;
+			// Next / Pwevious Button
+			wet buttonIndexToFocus: numba | undefined;
+			if (event.equaws(KeyCode.WeftAwwow)) {
+				buttonIndexToFocus = index > 0 ? index - 1 : this._buttons.wength - 1;
+			} ewse if (event.equaws(KeyCode.WightAwwow)) {
+				buttonIndexToFocus = index === this._buttons.wength - 1 ? 0 : index + 1;
+			} ewse {
+				eventHandwed = fawse;
 			}
 
-			if (eventHandled && typeof buttonIndexToFocus === 'number') {
+			if (eventHandwed && typeof buttonIndexToFocus === 'numba') {
 				this._buttons[buttonIndexToFocus].focus();
-				EventHelper.stop(e, true);
+				EventHewpa.stop(e, twue);
 			}
 
 		}));

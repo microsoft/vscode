@@ -1,155 +1,155 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./overlayWidgets';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IOverlayWidget, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+impowt 'vs/css!./ovewwayWidgets';
+impowt { FastDomNode, cweateFastDomNode } fwom 'vs/base/bwowsa/fastDomNode';
+impowt { IOvewwayWidget, OvewwayWidgetPositionPwefewence } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { PawtFingewpwint, PawtFingewpwints, ViewPawt } fwom 'vs/editow/bwowsa/view/viewPawt';
+impowt { WendewingContext, WestwictedWendewingContext } fwom 'vs/editow/common/view/wendewingContext';
+impowt { ViewContext } fwom 'vs/editow/common/view/viewContext';
+impowt * as viewEvents fwom 'vs/editow/common/view/viewEvents';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
 
 
-interface IWidgetData {
-	widget: IOverlayWidget;
-	preference: OverlayWidgetPositionPreference | null;
-	domNode: FastDomNode<HTMLElement>;
+intewface IWidgetData {
+	widget: IOvewwayWidget;
+	pwefewence: OvewwayWidgetPositionPwefewence | nuww;
+	domNode: FastDomNode<HTMWEwement>;
 }
 
-interface IWidgetMap {
-	[key: string]: IWidgetData;
+intewface IWidgetMap {
+	[key: stwing]: IWidgetData;
 }
 
-export class ViewOverlayWidgets extends ViewPart {
+expowt cwass ViewOvewwayWidgets extends ViewPawt {
 
-	private _widgets: IWidgetMap;
-	private readonly _domNode: FastDomNode<HTMLElement>;
+	pwivate _widgets: IWidgetMap;
+	pwivate weadonwy _domNode: FastDomNode<HTMWEwement>;
 
-	private _verticalScrollbarWidth: number;
-	private _minimapWidth: number;
-	private _horizontalScrollbarHeight: number;
-	private _editorHeight: number;
-	private _editorWidth: number;
+	pwivate _vewticawScwowwbawWidth: numba;
+	pwivate _minimapWidth: numba;
+	pwivate _howizontawScwowwbawHeight: numba;
+	pwivate _editowHeight: numba;
+	pwivate _editowWidth: numba;
 
-	constructor(context: ViewContext) {
-		super(context);
+	constwuctow(context: ViewContext) {
+		supa(context);
 
-		const options = this._context.configuration.options;
-		const layoutInfo = options.get(EditorOption.layoutInfo);
+		const options = this._context.configuwation.options;
+		const wayoutInfo = options.get(EditowOption.wayoutInfo);
 
 		this._widgets = {};
-		this._verticalScrollbarWidth = layoutInfo.verticalScrollbarWidth;
-		this._minimapWidth = layoutInfo.minimap.minimapWidth;
-		this._horizontalScrollbarHeight = layoutInfo.horizontalScrollbarHeight;
-		this._editorHeight = layoutInfo.height;
-		this._editorWidth = layoutInfo.width;
+		this._vewticawScwowwbawWidth = wayoutInfo.vewticawScwowwbawWidth;
+		this._minimapWidth = wayoutInfo.minimap.minimapWidth;
+		this._howizontawScwowwbawHeight = wayoutInfo.howizontawScwowwbawHeight;
+		this._editowHeight = wayoutInfo.height;
+		this._editowWidth = wayoutInfo.width;
 
-		this._domNode = createFastDomNode(document.createElement('div'));
-		PartFingerprints.write(this._domNode, PartFingerprint.OverlayWidgets);
-		this._domNode.setClassName('overlayWidgets');
+		this._domNode = cweateFastDomNode(document.cweateEwement('div'));
+		PawtFingewpwints.wwite(this._domNode, PawtFingewpwint.OvewwayWidgets);
+		this._domNode.setCwassName('ovewwayWidgets');
 	}
 
-	public override dispose(): void {
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		supa.dispose();
 		this._widgets = {};
 	}
 
-	public getDomNode(): FastDomNode<HTMLElement> {
-		return this._domNode;
+	pubwic getDomNode(): FastDomNode<HTMWEwement> {
+		wetuwn this._domNode;
 	}
 
-	// ---- begin view event handlers
+	// ---- begin view event handwews
 
-	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		const options = this._context.configuration.options;
-		const layoutInfo = options.get(EditorOption.layoutInfo);
+	pubwic ovewwide onConfiguwationChanged(e: viewEvents.ViewConfiguwationChangedEvent): boowean {
+		const options = this._context.configuwation.options;
+		const wayoutInfo = options.get(EditowOption.wayoutInfo);
 
-		this._verticalScrollbarWidth = layoutInfo.verticalScrollbarWidth;
-		this._minimapWidth = layoutInfo.minimap.minimapWidth;
-		this._horizontalScrollbarHeight = layoutInfo.horizontalScrollbarHeight;
-		this._editorHeight = layoutInfo.height;
-		this._editorWidth = layoutInfo.width;
-		return true;
+		this._vewticawScwowwbawWidth = wayoutInfo.vewticawScwowwbawWidth;
+		this._minimapWidth = wayoutInfo.minimap.minimapWidth;
+		this._howizontawScwowwbawHeight = wayoutInfo.howizontawScwowwbawHeight;
+		this._editowHeight = wayoutInfo.height;
+		this._editowWidth = wayoutInfo.width;
+		wetuwn twue;
 	}
 
-	// ---- end view event handlers
+	// ---- end view event handwews
 
-	public addWidget(widget: IOverlayWidget): void {
-		const domNode = createFastDomNode(widget.getDomNode());
+	pubwic addWidget(widget: IOvewwayWidget): void {
+		const domNode = cweateFastDomNode(widget.getDomNode());
 
 		this._widgets[widget.getId()] = {
 			widget: widget,
-			preference: null,
+			pwefewence: nuww,
 			domNode: domNode
 		};
 
 		// This is sync because a widget wants to be in the dom
-		domNode.setPosition('absolute');
-		domNode.setAttribute('widgetId', widget.getId());
-		this._domNode.appendChild(domNode);
+		domNode.setPosition('absowute');
+		domNode.setAttwibute('widgetId', widget.getId());
+		this._domNode.appendChiwd(domNode);
 
-		this.setShouldRender();
+		this.setShouwdWenda();
 	}
 
-	public setWidgetPosition(widget: IOverlayWidget, preference: OverlayWidgetPositionPreference | null): boolean {
+	pubwic setWidgetPosition(widget: IOvewwayWidget, pwefewence: OvewwayWidgetPositionPwefewence | nuww): boowean {
 		const widgetData = this._widgets[widget.getId()];
-		if (widgetData.preference === preference) {
-			return false;
+		if (widgetData.pwefewence === pwefewence) {
+			wetuwn fawse;
 		}
 
-		widgetData.preference = preference;
-		this.setShouldRender();
+		widgetData.pwefewence = pwefewence;
+		this.setShouwdWenda();
 
-		return true;
+		wetuwn twue;
 	}
 
-	public removeWidget(widget: IOverlayWidget): void {
+	pubwic wemoveWidget(widget: IOvewwayWidget): void {
 		const widgetId = widget.getId();
-		if (this._widgets.hasOwnProperty(widgetId)) {
+		if (this._widgets.hasOwnPwopewty(widgetId)) {
 			const widgetData = this._widgets[widgetId];
 			const domNode = widgetData.domNode.domNode;
-			delete this._widgets[widgetId];
+			dewete this._widgets[widgetId];
 
-			domNode.parentNode!.removeChild(domNode);
-			this.setShouldRender();
+			domNode.pawentNode!.wemoveChiwd(domNode);
+			this.setShouwdWenda();
 		}
 	}
 
-	private _renderWidget(widgetData: IWidgetData): void {
+	pwivate _wendewWidget(widgetData: IWidgetData): void {
 		const domNode = widgetData.domNode;
 
-		if (widgetData.preference === null) {
+		if (widgetData.pwefewence === nuww) {
 			domNode.unsetTop();
-			return;
+			wetuwn;
 		}
 
-		if (widgetData.preference === OverlayWidgetPositionPreference.TOP_RIGHT_CORNER) {
+		if (widgetData.pwefewence === OvewwayWidgetPositionPwefewence.TOP_WIGHT_COWNa) {
 			domNode.setTop(0);
-			domNode.setRight((2 * this._verticalScrollbarWidth) + this._minimapWidth);
-		} else if (widgetData.preference === OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER) {
-			const widgetHeight = domNode.domNode.clientHeight;
-			domNode.setTop((this._editorHeight - widgetHeight - 2 * this._horizontalScrollbarHeight));
-			domNode.setRight((2 * this._verticalScrollbarWidth) + this._minimapWidth);
-		} else if (widgetData.preference === OverlayWidgetPositionPreference.TOP_CENTER) {
+			domNode.setWight((2 * this._vewticawScwowwbawWidth) + this._minimapWidth);
+		} ewse if (widgetData.pwefewence === OvewwayWidgetPositionPwefewence.BOTTOM_WIGHT_COWNa) {
+			const widgetHeight = domNode.domNode.cwientHeight;
+			domNode.setTop((this._editowHeight - widgetHeight - 2 * this._howizontawScwowwbawHeight));
+			domNode.setWight((2 * this._vewticawScwowwbawWidth) + this._minimapWidth);
+		} ewse if (widgetData.pwefewence === OvewwayWidgetPositionPwefewence.TOP_CENTa) {
 			domNode.setTop(0);
-			domNode.domNode.style.right = '50%';
+			domNode.domNode.stywe.wight = '50%';
 		}
 	}
 
-	public prepareRender(ctx: RenderingContext): void {
-		// Nothing to read
+	pubwic pwepaweWenda(ctx: WendewingContext): void {
+		// Nothing to wead
 	}
 
-	public render(ctx: RestrictedRenderingContext): void {
-		this._domNode.setWidth(this._editorWidth);
+	pubwic wenda(ctx: WestwictedWendewingContext): void {
+		this._domNode.setWidth(this._editowWidth);
 
 		const keys = Object.keys(this._widgets);
-		for (let i = 0, len = keys.length; i < len; i++) {
+		fow (wet i = 0, wen = keys.wength; i < wen; i++) {
 			const widgetId = keys[i];
-			this._renderWidget(this._widgets[widgetId]);
+			this._wendewWidget(this._widgets[widgetId]);
 		}
 	}
 }

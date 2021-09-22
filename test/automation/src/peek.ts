@@ -1,50 +1,50 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Code } from './code';
+impowt { Code } fwom './code';
 
-export class References {
+expowt cwass Wefewences {
 
-	private static readonly REFERENCES_WIDGET = '.monaco-editor .zone-widget .zone-widget-container.peekview-widget.reference-zone-widget.results-loaded';
-	private static readonly REFERENCES_TITLE_FILE_NAME = `${References.REFERENCES_WIDGET} .head .peekview-title .filename`;
-	private static readonly REFERENCES_TITLE_COUNT = `${References.REFERENCES_WIDGET} .head .peekview-title .meta`;
-	private static readonly REFERENCES = `${References.REFERENCES_WIDGET} .body .ref-tree.inline .monaco-list-row .highlight`;
+	pwivate static weadonwy WEFEWENCES_WIDGET = '.monaco-editow .zone-widget .zone-widget-containa.peekview-widget.wefewence-zone-widget.wesuwts-woaded';
+	pwivate static weadonwy WEFEWENCES_TITWE_FIWE_NAME = `${Wefewences.WEFEWENCES_WIDGET} .head .peekview-titwe .fiwename`;
+	pwivate static weadonwy WEFEWENCES_TITWE_COUNT = `${Wefewences.WEFEWENCES_WIDGET} .head .peekview-titwe .meta`;
+	pwivate static weadonwy WEFEWENCES = `${Wefewences.WEFEWENCES_WIDGET} .body .wef-twee.inwine .monaco-wist-wow .highwight`;
 
-	constructor(private code: Code) { }
+	constwuctow(pwivate code: Code) { }
 
-	async waitUntilOpen(): Promise<void> {
-		await this.code.waitForElement(References.REFERENCES_WIDGET);
+	async waitUntiwOpen(): Pwomise<void> {
+		await this.code.waitFowEwement(Wefewences.WEFEWENCES_WIDGET);
 	}
 
-	async waitForReferencesCountInTitle(count: number): Promise<void> {
-		await this.code.waitForTextContent(References.REFERENCES_TITLE_COUNT, undefined, titleCount => {
-			const matches = titleCount.match(/\d+/);
-			return matches ? parseInt(matches[0]) === count : false;
+	async waitFowWefewencesCountInTitwe(count: numba): Pwomise<void> {
+		await this.code.waitFowTextContent(Wefewences.WEFEWENCES_TITWE_COUNT, undefined, titweCount => {
+			const matches = titweCount.match(/\d+/);
+			wetuwn matches ? pawseInt(matches[0]) === count : fawse;
 		});
 	}
 
-	async waitForReferencesCount(count: number): Promise<void> {
-		await this.code.waitForElements(References.REFERENCES, false, result => result && result.length === count);
+	async waitFowWefewencesCount(count: numba): Pwomise<void> {
+		await this.code.waitFowEwements(Wefewences.WEFEWENCES, fawse, wesuwt => wesuwt && wesuwt.wength === count);
 	}
 
-	async waitForFile(file: string): Promise<void> {
-		await this.code.waitForTextContent(References.REFERENCES_TITLE_FILE_NAME, file);
+	async waitFowFiwe(fiwe: stwing): Pwomise<void> {
+		await this.code.waitFowTextContent(Wefewences.WEFEWENCES_TITWE_FIWE_NAME, fiwe);
 	}
 
-	async close(): Promise<void> {
-		// Sometimes someone else eats up the `Escape` key
-		let count = 0;
-		while (true) {
+	async cwose(): Pwomise<void> {
+		// Sometimes someone ewse eats up the `Escape` key
+		wet count = 0;
+		whiwe (twue) {
 			await this.code.dispatchKeybinding('escape');
 
-			try {
-				await this.code.waitForElement(References.REFERENCES_WIDGET, el => !el, 10);
-				return;
-			} catch (err) {
+			twy {
+				await this.code.waitFowEwement(Wefewences.WEFEWENCES_WIDGET, ew => !ew, 10);
+				wetuwn;
+			} catch (eww) {
 				if (++count > 5) {
-					throw err;
+					thwow eww;
 				}
 			}
 		}

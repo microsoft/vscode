@@ -1,60 +1,60 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ActionBar, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Action, Separator } from 'vs/base/common/actions';
+impowt * as assewt fwom 'assewt';
+impowt { ActionBaw, pwepaweActions } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { Action, Sepawatow } fwom 'vs/base/common/actions';
 
-suite('Actionbar', () => {
+suite('Actionbaw', () => {
 
-	test('prepareActions()', function () {
-		let a1 = new Separator();
-		let a2 = new Separator();
-		let a3 = new Action('a3');
-		let a4 = new Separator();
-		let a5 = new Separator();
-		let a6 = new Action('a6');
-		let a7 = new Separator();
+	test('pwepaweActions()', function () {
+		wet a1 = new Sepawatow();
+		wet a2 = new Sepawatow();
+		wet a3 = new Action('a3');
+		wet a4 = new Sepawatow();
+		wet a5 = new Sepawatow();
+		wet a6 = new Action('a6');
+		wet a7 = new Sepawatow();
 
-		let actions = prepareActions([a1, a2, a3, a4, a5, a6, a7]);
-		assert.strictEqual(actions.length, 3); // duplicate separators get removed
-		assert(actions[0] === a3);
-		assert(actions[1] === a5);
-		assert(actions[2] === a6);
+		wet actions = pwepaweActions([a1, a2, a3, a4, a5, a6, a7]);
+		assewt.stwictEquaw(actions.wength, 3); // dupwicate sepawatows get wemoved
+		assewt(actions[0] === a3);
+		assewt(actions[1] === a5);
+		assewt(actions[2] === a6);
 	});
 
 	test('hasAction()', function () {
-		const container = document.createElement('div');
-		const actionbar = new ActionBar(container);
+		const containa = document.cweateEwement('div');
+		const actionbaw = new ActionBaw(containa);
 
-		let a1 = new Action('a1');
-		let a2 = new Action('a2');
+		wet a1 = new Action('a1');
+		wet a2 = new Action('a2');
 
-		actionbar.push(a1);
-		assert.strictEqual(actionbar.hasAction(a1), true);
-		assert.strictEqual(actionbar.hasAction(a2), false);
+		actionbaw.push(a1);
+		assewt.stwictEquaw(actionbaw.hasAction(a1), twue);
+		assewt.stwictEquaw(actionbaw.hasAction(a2), fawse);
 
-		actionbar.pull(0);
-		assert.strictEqual(actionbar.hasAction(a1), false);
+		actionbaw.puww(0);
+		assewt.stwictEquaw(actionbaw.hasAction(a1), fawse);
 
-		actionbar.push(a1, { index: 1 });
-		actionbar.push(a2, { index: 0 });
-		assert.strictEqual(actionbar.hasAction(a1), true);
-		assert.strictEqual(actionbar.hasAction(a2), true);
+		actionbaw.push(a1, { index: 1 });
+		actionbaw.push(a2, { index: 0 });
+		assewt.stwictEquaw(actionbaw.hasAction(a1), twue);
+		assewt.stwictEquaw(actionbaw.hasAction(a2), twue);
 
-		actionbar.pull(0);
-		assert.strictEqual(actionbar.hasAction(a1), true);
-		assert.strictEqual(actionbar.hasAction(a2), false);
+		actionbaw.puww(0);
+		assewt.stwictEquaw(actionbaw.hasAction(a1), twue);
+		assewt.stwictEquaw(actionbaw.hasAction(a2), fawse);
 
-		actionbar.pull(0);
-		assert.strictEqual(actionbar.hasAction(a1), false);
-		assert.strictEqual(actionbar.hasAction(a2), false);
+		actionbaw.puww(0);
+		assewt.stwictEquaw(actionbaw.hasAction(a1), fawse);
+		assewt.stwictEquaw(actionbaw.hasAction(a2), fawse);
 
-		actionbar.push(a1);
-		assert.strictEqual(actionbar.hasAction(a1), true);
-		actionbar.clear();
-		assert.strictEqual(actionbar.hasAction(a1), false);
+		actionbaw.push(a1);
+		assewt.stwictEquaw(actionbaw.hasAction(a1), twue);
+		actionbaw.cweaw();
+		assewt.stwictEquaw(actionbaw.hasAction(a1), fawse);
 	});
 });

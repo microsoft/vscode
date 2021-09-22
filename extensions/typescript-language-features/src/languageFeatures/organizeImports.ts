@@ -1,153 +1,153 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import { Command, CommandManager } from '../commands/commandManager';
-import type * as Proto from '../protocol';
-import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
-import { nulToken } from '../utils/cancellation';
-import { conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import { TelemetryReporter } from '../utils/telemetry';
-import * as typeConverters from '../utils/typeConverters';
-import FileConfigurationManager from './fileConfigurationManager';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { Command, CommandManaga } fwom '../commands/commandManaga';
+impowt type * as Pwoto fwom '../pwotocow';
+impowt { CwientCapabiwity, ITypeScwiptSewviceCwient } fwom '../typescwiptSewvice';
+impowt API fwom '../utiws/api';
+impowt { nuwToken } fwom '../utiws/cancewwation';
+impowt { conditionawWegistwation, wequiweMinVewsion, wequiweSomeCapabiwity } fwom '../utiws/dependentWegistwation';
+impowt { DocumentSewectow } fwom '../utiws/documentSewectow';
+impowt { TewemetwyWepowta } fwom '../utiws/tewemetwy';
+impowt * as typeConvewtews fwom '../utiws/typeConvewtews';
+impowt FiweConfiguwationManaga fwom './fiweConfiguwationManaga';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
 
-class OrganizeImportsCommand implements Command {
-	public static readonly Id = '_typescript.organizeImports';
+cwass OwganizeImpowtsCommand impwements Command {
+	pubwic static weadonwy Id = '_typescwipt.owganizeImpowts';
 
-	public readonly id = OrganizeImportsCommand.Id;
+	pubwic weadonwy id = OwganizeImpowtsCommand.Id;
 
-	constructor(
-		private readonly client: ITypeScriptServiceClient,
-		private readonly telemetryReporter: TelemetryReporter,
+	constwuctow(
+		pwivate weadonwy cwient: ITypeScwiptSewviceCwient,
+		pwivate weadonwy tewemetwyWepowta: TewemetwyWepowta,
 	) { }
 
-	public async execute(file: string, sortOnly = false): Promise<any> {
-		/* __GDPR__
-			"organizeImports.execute" : {
-				"${include}": [
-					"${TypeScriptCommonProperties}"
+	pubwic async execute(fiwe: stwing, sowtOnwy = fawse): Pwomise<any> {
+		/* __GDPW__
+			"owganizeImpowts.execute" : {
+				"${incwude}": [
+					"${TypeScwiptCommonPwopewties}"
 				]
 			}
 		*/
-		this.telemetryReporter.logTelemetry('organizeImports.execute', {});
+		this.tewemetwyWepowta.wogTewemetwy('owganizeImpowts.execute', {});
 
-		const args: Proto.OrganizeImportsRequestArgs = {
+		const awgs: Pwoto.OwganizeImpowtsWequestAwgs = {
 			scope: {
-				type: 'file',
-				args: {
-					file
+				type: 'fiwe',
+				awgs: {
+					fiwe
 				}
 			},
-			skipDestructiveCodeActions: sortOnly,
+			skipDestwuctiveCodeActions: sowtOnwy,
 		};
-		const response = await this.client.interruptGetErr(() => this.client.execute('organizeImports', args, nulToken));
-		if (response.type !== 'response' || !response.body) {
-			return;
+		const wesponse = await this.cwient.intewwuptGetEww(() => this.cwient.execute('owganizeImpowts', awgs, nuwToken));
+		if (wesponse.type !== 'wesponse' || !wesponse.body) {
+			wetuwn;
 		}
 
-		if (response.body.length) {
-			const edits = typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, response.body);
-			return vscode.workspace.applyEdit(edits);
+		if (wesponse.body.wength) {
+			const edits = typeConvewtews.WowkspaceEdit.fwomFiweCodeEdits(this.cwient, wesponse.body);
+			wetuwn vscode.wowkspace.appwyEdit(edits);
 		}
 	}
 }
 
-class ImportsCodeActionProvider implements vscode.CodeActionProvider {
+cwass ImpowtsCodeActionPwovida impwements vscode.CodeActionPwovida {
 
-	static register(
-		client: ITypeScriptServiceClient,
-		minVersion: API,
+	static wegista(
+		cwient: ITypeScwiptSewviceCwient,
+		minVewsion: API,
 		kind: vscode.CodeActionKind,
-		title: string,
-		sortOnly: boolean,
-		commandManager: CommandManager,
-		fileConfigurationManager: FileConfigurationManager,
-		telemetryReporter: TelemetryReporter,
-		selector: DocumentSelector
-	): vscode.Disposable {
-		return conditionalRegistration([
-			requireMinVersion(client, minVersion),
-			requireSomeCapability(client, ClientCapability.Semantic),
+		titwe: stwing,
+		sowtOnwy: boowean,
+		commandManaga: CommandManaga,
+		fiweConfiguwationManaga: FiweConfiguwationManaga,
+		tewemetwyWepowta: TewemetwyWepowta,
+		sewectow: DocumentSewectow
+	): vscode.Disposabwe {
+		wetuwn conditionawWegistwation([
+			wequiweMinVewsion(cwient, minVewsion),
+			wequiweSomeCapabiwity(cwient, CwientCapabiwity.Semantic),
 		], () => {
-			const provider = new ImportsCodeActionProvider(client, kind, title, sortOnly, commandManager, fileConfigurationManager, telemetryReporter);
-			return vscode.languages.registerCodeActionsProvider(selector.semantic, provider, {
-				providedCodeActionKinds: [kind]
+			const pwovida = new ImpowtsCodeActionPwovida(cwient, kind, titwe, sowtOnwy, commandManaga, fiweConfiguwationManaga, tewemetwyWepowta);
+			wetuwn vscode.wanguages.wegistewCodeActionsPwovida(sewectow.semantic, pwovida, {
+				pwovidedCodeActionKinds: [kind]
 			});
 		});
 	}
 
-	public constructor(
-		private readonly client: ITypeScriptServiceClient,
-		private readonly kind: vscode.CodeActionKind,
-		private readonly title: string,
-		private readonly sortOnly: boolean,
-		commandManager: CommandManager,
-		private readonly fileConfigManager: FileConfigurationManager,
-		telemetryReporter: TelemetryReporter,
+	pubwic constwuctow(
+		pwivate weadonwy cwient: ITypeScwiptSewviceCwient,
+		pwivate weadonwy kind: vscode.CodeActionKind,
+		pwivate weadonwy titwe: stwing,
+		pwivate weadonwy sowtOnwy: boowean,
+		commandManaga: CommandManaga,
+		pwivate weadonwy fiweConfigManaga: FiweConfiguwationManaga,
+		tewemetwyWepowta: TewemetwyWepowta,
 	) {
-		commandManager.register(new OrganizeImportsCommand(client, telemetryReporter));
+		commandManaga.wegista(new OwganizeImpowtsCommand(cwient, tewemetwyWepowta));
 	}
 
-	public provideCodeActions(
+	pubwic pwovideCodeActions(
 		document: vscode.TextDocument,
-		_range: vscode.Range,
+		_wange: vscode.Wange,
 		context: vscode.CodeActionContext,
-		token: vscode.CancellationToken
+		token: vscode.CancewwationToken
 	): vscode.CodeAction[] {
-		const file = this.client.toOpenedFilePath(document);
-		if (!file) {
-			return [];
+		const fiwe = this.cwient.toOpenedFiwePath(document);
+		if (!fiwe) {
+			wetuwn [];
 		}
 
-		if (!context.only || !context.only.contains(this.kind)) {
-			return [];
+		if (!context.onwy || !context.onwy.contains(this.kind)) {
+			wetuwn [];
 		}
 
-		this.fileConfigManager.ensureConfigurationForDocument(document, token);
+		this.fiweConfigManaga.ensuweConfiguwationFowDocument(document, token);
 
-		const action = new vscode.CodeAction(this.title, this.kind);
-		action.command = { title: '', command: OrganizeImportsCommand.Id, arguments: [file, this.sortOnly] };
-		return [action];
+		const action = new vscode.CodeAction(this.titwe, this.kind);
+		action.command = { titwe: '', command: OwganizeImpowtsCommand.Id, awguments: [fiwe, this.sowtOnwy] };
+		wetuwn [action];
 	}
 }
 
-export function register(
-	selector: DocumentSelector,
-	client: ITypeScriptServiceClient,
-	commandManager: CommandManager,
-	fileConfigurationManager: FileConfigurationManager,
-	telemetryReporter: TelemetryReporter,
+expowt function wegista(
+	sewectow: DocumentSewectow,
+	cwient: ITypeScwiptSewviceCwient,
+	commandManaga: CommandManaga,
+	fiweConfiguwationManaga: FiweConfiguwationManaga,
+	tewemetwyWepowta: TewemetwyWepowta,
 ) {
-	return vscode.Disposable.from(
-		ImportsCodeActionProvider.register(
-			client,
+	wetuwn vscode.Disposabwe.fwom(
+		ImpowtsCodeActionPwovida.wegista(
+			cwient,
 			API.v280,
-			vscode.CodeActionKind.SourceOrganizeImports,
-			localize('organizeImportsAction.title', "Organize Imports"),
-			false,
-			commandManager,
-			fileConfigurationManager,
-			telemetryReporter,
-			selector
+			vscode.CodeActionKind.SouwceOwganizeImpowts,
+			wocawize('owganizeImpowtsAction.titwe', "Owganize Impowts"),
+			fawse,
+			commandManaga,
+			fiweConfiguwationManaga,
+			tewemetwyWepowta,
+			sewectow
 		),
-		ImportsCodeActionProvider.register(
-			client,
+		ImpowtsCodeActionPwovida.wegista(
+			cwient,
 			API.v430,
-			vscode.CodeActionKind.Source.append('sortImports'),
-			localize('sortImportsAction.title', "Sort Imports"),
-			true,
-			commandManager,
-			fileConfigurationManager,
-			telemetryReporter,
-			selector
+			vscode.CodeActionKind.Souwce.append('sowtImpowts'),
+			wocawize('sowtImpowtsAction.titwe', "Sowt Impowts"),
+			twue,
+			commandManaga,
+			fiweConfiguwationManaga,
+			tewemetwyWepowta,
+			sewectow
 		),
 	);
 }

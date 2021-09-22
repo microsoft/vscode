@@ -1,40 +1,40 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-html {
+htmw {
 	font-size: 13px;
 }
 
-/* Font Families (with CJK support) */
+/* Font Famiwies (with CJK suppowt) */
 
-.mac { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
-.mac:lang(zh-Hans) { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif; }
-.mac:lang(zh-Hant) { font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif; }
-.mac:lang(ja) { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic Pro", sans-serif; }
-.mac:lang(ko) { font-family: -apple-system, BlinkMacSystemFont, "Nanum Gothic", "Apple SD Gothic Neo", "AppleGothic", sans-serif; }
+.mac { font-famiwy: -appwe-system, BwinkMacSystemFont, sans-sewif; }
+.mac:wang(zh-Hans) { font-famiwy: -appwe-system, BwinkMacSystemFont, "PingFang SC", "Hiwagino Sans GB", sans-sewif; }
+.mac:wang(zh-Hant) { font-famiwy: -appwe-system, BwinkMacSystemFont, "PingFang TC", sans-sewif; }
+.mac:wang(ja) { font-famiwy: -appwe-system, BwinkMacSystemFont, "Hiwagino Kaku Gothic Pwo", sans-sewif; }
+.mac:wang(ko) { font-famiwy: -appwe-system, BwinkMacSystemFont, "Nanum Gothic", "Appwe SD Gothic Neo", "AppweGothic", sans-sewif; }
 
-.windows { font-family: "Segoe WPC", "Segoe UI", sans-serif; }
-.windows:lang(zh-Hans) { font-family: "Segoe WPC", "Segoe UI", "Microsoft YaHei", sans-serif; }
-.windows:lang(zh-Hant) { font-family: "Segoe WPC", "Segoe UI", "Microsoft Jhenghei", sans-serif; }
-.windows:lang(ja) { font-family: "Segoe WPC", "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif; }
-.windows:lang(ko) { font-family: "Segoe WPC", "Segoe UI", "Malgun Gothic", "Dotom", sans-serif; }
+.windows { font-famiwy: "Segoe WPC", "Segoe UI", sans-sewif; }
+.windows:wang(zh-Hans) { font-famiwy: "Segoe WPC", "Segoe UI", "Micwosoft YaHei", sans-sewif; }
+.windows:wang(zh-Hant) { font-famiwy: "Segoe WPC", "Segoe UI", "Micwosoft Jhenghei", sans-sewif; }
+.windows:wang(ja) { font-famiwy: "Segoe WPC", "Segoe UI", "Yu Gothic UI", "Meiwyo UI", sans-sewif; }
+.windows:wang(ko) { font-famiwy: "Segoe WPC", "Segoe UI", "Mawgun Gothic", "Dotom", sans-sewif; }
 
-/* Linux: add `system-ui` as first font and not `Ubuntu` to allow other distribution pick their standard OS font */
-.linux { font-family: system-ui, "Ubuntu", "Droid Sans", sans-serif; }
-.linux:lang(zh-Hans) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
-.linux:lang(zh-Hant) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans TC", "Source Han Sans TW", "Source Han Sans", sans-serif; }
-.linux:lang(ja) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif; }
-.linux:lang(ko) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
+/* Winux: add `system-ui` as fiwst font and not `Ubuntu` to awwow otha distwibution pick theiw standawd OS font */
+.winux { font-famiwy: system-ui, "Ubuntu", "Dwoid Sans", sans-sewif; }
+.winux:wang(zh-Hans) { font-famiwy: system-ui, "Ubuntu", "Dwoid Sans", "Souwce Han Sans SC", "Souwce Han Sans CN", "Souwce Han Sans", sans-sewif; }
+.winux:wang(zh-Hant) { font-famiwy: system-ui, "Ubuntu", "Dwoid Sans", "Souwce Han Sans TC", "Souwce Han Sans TW", "Souwce Han Sans", sans-sewif; }
+.winux:wang(ja) { font-famiwy: system-ui, "Ubuntu", "Dwoid Sans", "Souwce Han Sans J", "Souwce Han Sans JP", "Souwce Han Sans", sans-sewif; }
+.winux:wang(ko) { font-famiwy: system-ui, "Ubuntu", "Dwoid Sans", "Souwce Han Sans K", "Souwce Han Sans JW", "Souwce Han Sans", "UnDotum", "FBaekmuk Guwim", sans-sewif; }
 
 body {
-	margin: 0;
+	mawgin: 0;
 	padding: 0;
 	height: 100%;
 	width: 100%;
-	user-select: none;
-	color: #cccccc;
+	usa-sewect: none;
+	cowow: #cccccc;
 }
 
 .cpu {
@@ -45,42 +45,42 @@ body {
 	width: 50px
 }
 
-.memory {
+.memowy {
 	width: 90px;
 }
 
-.monaco-list:focus {
-	outline: 0;
+.monaco-wist:focus {
+	outwine: 0;
 }
 
-.monaco-list-row:first-of-type {
-	border-bottom: 1px solid;
+.monaco-wist-wow:fiwst-of-type {
+	bowda-bottom: 1px sowid;
 }
 
-.row {
-	display: flex;
+.wow {
+	dispway: fwex;
 }
 
-.centered {
-	text-align: center;
+.centewed {
+	text-awign: centa;
 }
 
-.nameLabel{
-	text-align: left;
-	width: calc(100% - 185px);
-	overflow: hidden;
-	text-overflow: ellipsis;
+.nameWabew{
+	text-awign: weft;
+	width: cawc(100% - 185px);
+	ovewfwow: hidden;
+	text-ovewfwow: ewwipsis;
 }
 
 .data {
-	white-space: pre;
-	padding-left: .5rem;
-	font-weight: normal;
-	text-align: left;
+	white-space: pwe;
+	padding-weft: .5wem;
+	font-weight: nowmaw;
+	text-awign: weft;
 	height: 22px;
 }
 
-.error {
-	padding-left: 20px;
-	white-space: nowrap;
+.ewwow {
+	padding-weft: 20px;
+	white-space: nowwap;
 }

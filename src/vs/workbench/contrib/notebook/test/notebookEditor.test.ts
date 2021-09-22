@@ -1,69 +1,69 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { mock } from 'vs/base/test/common/mock';
-import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
-import { expandCellRangesWithHiddenCells, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { ListViewInfoAccessor } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { createNotebookCellList, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
+impowt * as assewt fwom 'assewt';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { FowdingModew, updateFowdingStateAtIndex } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwib/fowd/fowdingModew';
+impowt { expandCewwWangesWithHiddenCewws, INotebookEditow } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { WistViewInfoAccessow } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowWidget';
+impowt { CewwKind } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { cweateNotebookCewwWist, setupInstantiationSewvice, withTestNotebook } fwom 'vs/wowkbench/contwib/notebook/test/testNotebookEditow';
 
-suite('ListViewInfoAccessor', () => {
-	const instantiationService = setupInstantiationService();
+suite('WistViewInfoAccessow', () => {
+	const instantiationSewvice = setupInstantiationSewvice();
 
 	test('basics', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markup, [], {}],
-				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markup, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}]
+				['# heada a', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada b', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}]
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
-				foldingModel.attachViewModel(viewModel);
+			(editow, viewModew) => {
+				const fowdingModew = new FowdingModew();
+				fowdingModew.attachViewModew(viewModew);
 
-				const cellList = createNotebookCellList(instantiationService);
-				cellList.attachViewModel(viewModel);
-				const listViewInfoAccessor = new ListViewInfoAccessor(cellList);
+				const cewwWist = cweateNotebookCewwWist(instantiationSewvice);
+				cewwWist.attachViewModew(viewModew);
+				const wistViewInfoAccessow = new WistViewInfoAccessow(cewwWist);
 
-				assert.strictEqual(listViewInfoAccessor.getViewIndex(viewModel.cellAt(0)!), 0);
-				assert.strictEqual(listViewInfoAccessor.getViewIndex(viewModel.cellAt(1)!), 1);
-				assert.strictEqual(listViewInfoAccessor.getViewIndex(viewModel.cellAt(2)!), 2);
-				assert.strictEqual(listViewInfoAccessor.getViewIndex(viewModel.cellAt(3)!), 3);
-				assert.strictEqual(listViewInfoAccessor.getViewIndex(viewModel.cellAt(4)!), 4);
-				assert.deepStrictEqual(listViewInfoAccessor.getCellRangeFromViewRange(0, 1), { start: 0, end: 1 });
-				assert.deepStrictEqual(listViewInfoAccessor.getCellRangeFromViewRange(1, 2), { start: 1, end: 2 });
+				assewt.stwictEquaw(wistViewInfoAccessow.getViewIndex(viewModew.cewwAt(0)!), 0);
+				assewt.stwictEquaw(wistViewInfoAccessow.getViewIndex(viewModew.cewwAt(1)!), 1);
+				assewt.stwictEquaw(wistViewInfoAccessow.getViewIndex(viewModew.cewwAt(2)!), 2);
+				assewt.stwictEquaw(wistViewInfoAccessow.getViewIndex(viewModew.cewwAt(3)!), 3);
+				assewt.stwictEquaw(wistViewInfoAccessow.getViewIndex(viewModew.cewwAt(4)!), 4);
+				assewt.deepStwictEquaw(wistViewInfoAccessow.getCewwWangeFwomViewWange(0, 1), { stawt: 0, end: 1 });
+				assewt.deepStwictEquaw(wistViewInfoAccessow.getCewwWangeFwomViewWange(1, 2), { stawt: 1, end: 2 });
 
-				updateFoldingStateAtIndex(foldingModel, 0, true);
-				updateFoldingStateAtIndex(foldingModel, 2, true);
-				viewModel.updateFoldingRanges(foldingModel.regions);
-				cellList.setHiddenAreas(viewModel.getHiddenRanges(), true);
+				updateFowdingStateAtIndex(fowdingModew, 0, twue);
+				updateFowdingStateAtIndex(fowdingModew, 2, twue);
+				viewModew.updateFowdingWanges(fowdingModew.wegions);
+				cewwWist.setHiddenAweas(viewModew.getHiddenWanges(), twue);
 
-				assert.strictEqual(listViewInfoAccessor.getViewIndex(viewModel.cellAt(0)!), 0);
-				assert.strictEqual(listViewInfoAccessor.getViewIndex(viewModel.cellAt(1)!), -1);
-				assert.strictEqual(listViewInfoAccessor.getViewIndex(viewModel.cellAt(2)!), 1);
-				assert.strictEqual(listViewInfoAccessor.getViewIndex(viewModel.cellAt(3)!), -1);
-				assert.strictEqual(listViewInfoAccessor.getViewIndex(viewModel.cellAt(4)!), -1);
+				assewt.stwictEquaw(wistViewInfoAccessow.getViewIndex(viewModew.cewwAt(0)!), 0);
+				assewt.stwictEquaw(wistViewInfoAccessow.getViewIndex(viewModew.cewwAt(1)!), -1);
+				assewt.stwictEquaw(wistViewInfoAccessow.getViewIndex(viewModew.cewwAt(2)!), 1);
+				assewt.stwictEquaw(wistViewInfoAccessow.getViewIndex(viewModew.cewwAt(3)!), -1);
+				assewt.stwictEquaw(wistViewInfoAccessow.getViewIndex(viewModew.cewwAt(4)!), -1);
 
-				assert.deepStrictEqual(listViewInfoAccessor.getCellRangeFromViewRange(0, 1), { start: 0, end: 2 });
-				assert.deepStrictEqual(listViewInfoAccessor.getCellRangeFromViewRange(1, 2), { start: 2, end: 5 });
-				assert.deepStrictEqual(listViewInfoAccessor.getCellsFromViewRange(0, 1), viewModel.getCellsInRange({ start: 0, end: 2 }));
-				assert.deepStrictEqual(listViewInfoAccessor.getCellsFromViewRange(1, 2), viewModel.getCellsInRange({ start: 2, end: 5 }));
+				assewt.deepStwictEquaw(wistViewInfoAccessow.getCewwWangeFwomViewWange(0, 1), { stawt: 0, end: 2 });
+				assewt.deepStwictEquaw(wistViewInfoAccessow.getCewwWangeFwomViewWange(1, 2), { stawt: 2, end: 5 });
+				assewt.deepStwictEquaw(wistViewInfoAccessow.getCewwsFwomViewWange(0, 1), viewModew.getCewwsInWange({ stawt: 0, end: 2 }));
+				assewt.deepStwictEquaw(wistViewInfoAccessow.getCewwsFwomViewWange(1, 2), viewModew.getCewwsInWange({ stawt: 2, end: 5 }));
 
-				const notebookEditor = new class extends mock<INotebookEditor>() {
-					override getViewIndexByModelIndex(index: number) { return listViewInfoAccessor.getViewIndex(viewModel.viewCells[index]!); }
-					override getCellRangeFromViewRange(startIndex: number, endIndex: number) { return listViewInfoAccessor.getCellRangeFromViewRange(startIndex, endIndex); }
-					override cellAt(index: number) { return viewModel.cellAt(index); }
+				const notebookEditow = new cwass extends mock<INotebookEditow>() {
+					ovewwide getViewIndexByModewIndex(index: numba) { wetuwn wistViewInfoAccessow.getViewIndex(viewModew.viewCewws[index]!); }
+					ovewwide getCewwWangeFwomViewWange(stawtIndex: numba, endIndex: numba) { wetuwn wistViewInfoAccessow.getCewwWangeFwomViewWange(stawtIndex, endIndex); }
+					ovewwide cewwAt(index: numba) { wetuwn viewModew.cewwAt(index); }
 				};
 
-				assert.deepStrictEqual(expandCellRangesWithHiddenCells(notebookEditor, [{ start: 0, end: 1 }]), [{ start: 0, end: 2 }]);
-				assert.deepStrictEqual(expandCellRangesWithHiddenCells(notebookEditor, [{ start: 2, end: 3 }]), [{ start: 2, end: 5 }]);
-				assert.deepStrictEqual(expandCellRangesWithHiddenCells(notebookEditor, [{ start: 0, end: 1 }, { start: 2, end: 3 }]), [{ start: 0, end: 5 }]);
+				assewt.deepStwictEquaw(expandCewwWangesWithHiddenCewws(notebookEditow, [{ stawt: 0, end: 1 }]), [{ stawt: 0, end: 2 }]);
+				assewt.deepStwictEquaw(expandCewwWangesWithHiddenCewws(notebookEditow, [{ stawt: 2, end: 3 }]), [{ stawt: 2, end: 5 }]);
+				assewt.deepStwictEquaw(expandCewwWangesWithHiddenCewws(notebookEditow, [{ stawt: 0, end: 1 }, { stawt: 2, end: 3 }]), [{ stawt: 0, end: 5 }]);
 			});
 	});
 });

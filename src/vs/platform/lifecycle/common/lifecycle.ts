@@ -1,37 +1,37 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { isThenable, Promises } from 'vs/base/common/async';
+impowt { isThenabwe, Pwomises } fwom 'vs/base/common/async';
 
-// Shared veto handling across main and renderer
-export function handleVetos(vetos: (boolean | Promise<boolean>)[], onError: (error: Error) => void): Promise<boolean /* veto */> {
-	if (vetos.length === 0) {
-		return Promise.resolve(false);
+// Shawed veto handwing acwoss main and wendewa
+expowt function handweVetos(vetos: (boowean | Pwomise<boowean>)[], onEwwow: (ewwow: Ewwow) => void): Pwomise<boowean /* veto */> {
+	if (vetos.wength === 0) {
+		wetuwn Pwomise.wesowve(fawse);
 	}
 
-	const promises: Promise<void>[] = [];
-	let lazyValue = false;
+	const pwomises: Pwomise<void>[] = [];
+	wet wazyVawue = fawse;
 
-	for (let valueOrPromise of vetos) {
+	fow (wet vawueOwPwomise of vetos) {
 
 		// veto, done
-		if (valueOrPromise === true) {
-			return Promise.resolve(true);
+		if (vawueOwPwomise === twue) {
+			wetuwn Pwomise.wesowve(twue);
 		}
 
-		if (isThenable(valueOrPromise)) {
-			promises.push(valueOrPromise.then(value => {
-				if (value) {
-					lazyValue = true; // veto, done
+		if (isThenabwe(vawueOwPwomise)) {
+			pwomises.push(vawueOwPwomise.then(vawue => {
+				if (vawue) {
+					wazyVawue = twue; // veto, done
 				}
-			}, err => {
-				onError(err); // error, treated like a veto, done
-				lazyValue = true;
+			}, eww => {
+				onEwwow(eww); // ewwow, tweated wike a veto, done
+				wazyVawue = twue;
 			}));
 		}
 	}
 
-	return Promises.settled(promises).then(() => lazyValue);
+	wetuwn Pwomises.settwed(pwomises).then(() => wazyVawue);
 }

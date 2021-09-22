@@ -1,138 +1,138 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
-import { Position } from 'vs/editor/common/core/position';
-import { ITextModel } from 'vs/editor/common/model';
-import { InlineCompletion, InlineCompletionContext, InlineCompletionsProvider } from 'vs/editor/common/modes';
-import { GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/ghostText';
-import { ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { CoweEditingCommands, CoweNavigationCommands } fwom 'vs/editow/bwowsa/contwowwa/coweCommands';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { InwineCompwetion, InwineCompwetionContext, InwineCompwetionsPwovida } fwom 'vs/editow/common/modes';
+impowt { GhostTextWidgetModew } fwom 'vs/editow/contwib/inwineCompwetions/ghostText';
+impowt { ITestCodeEditow } fwom 'vs/editow/test/bwowsa/testCodeEditow';
 
-export class MockInlineCompletionsProvider implements InlineCompletionsProvider {
-	private returnValue: InlineCompletion[] = [];
-	private delayMs: number = 0;
+expowt cwass MockInwineCompwetionsPwovida impwements InwineCompwetionsPwovida {
+	pwivate wetuwnVawue: InwineCompwetion[] = [];
+	pwivate dewayMs: numba = 0;
 
-	private callHistory = new Array<unknown>();
-	private calledTwiceIn50Ms = false;
+	pwivate cawwHistowy = new Awway<unknown>();
+	pwivate cawwedTwiceIn50Ms = fawse;
 
-	public setReturnValue(value: InlineCompletion | undefined, delayMs: number = 0): void {
-		this.returnValue = value ? [value] : [];
-		this.delayMs = delayMs;
+	pubwic setWetuwnVawue(vawue: InwineCompwetion | undefined, dewayMs: numba = 0): void {
+		this.wetuwnVawue = vawue ? [vawue] : [];
+		this.dewayMs = dewayMs;
 	}
 
-	public setReturnValues(values: InlineCompletion[], delayMs: number = 0): void {
-		this.returnValue = values;
-		this.delayMs = delayMs;
+	pubwic setWetuwnVawues(vawues: InwineCompwetion[], dewayMs: numba = 0): void {
+		this.wetuwnVawue = vawues;
+		this.dewayMs = dewayMs;
 	}
 
-	public getAndClearCallHistory() {
-		const history = [...this.callHistory];
-		this.callHistory = [];
-		return history;
+	pubwic getAndCweawCawwHistowy() {
+		const histowy = [...this.cawwHistowy];
+		this.cawwHistowy = [];
+		wetuwn histowy;
 	}
 
-	public assertNotCalledTwiceWithin50ms() {
-		if (this.calledTwiceIn50Ms) {
-			throw new Error('provideInlineCompletions has been called at least twice within 50ms. This should not happen.');
+	pubwic assewtNotCawwedTwiceWithin50ms() {
+		if (this.cawwedTwiceIn50Ms) {
+			thwow new Ewwow('pwovideInwineCompwetions has been cawwed at weast twice within 50ms. This shouwd not happen.');
 		}
 	}
 
-	private lastTimeMs: number | undefined = undefined;
+	pwivate wastTimeMs: numba | undefined = undefined;
 
-	async provideInlineCompletions(model: ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken) {
-		const currentTimeMs = new Date().getTime();
-		if (this.lastTimeMs && currentTimeMs - this.lastTimeMs < 50) {
-			this.calledTwiceIn50Ms = true;
+	async pwovideInwineCompwetions(modew: ITextModew, position: Position, context: InwineCompwetionContext, token: CancewwationToken) {
+		const cuwwentTimeMs = new Date().getTime();
+		if (this.wastTimeMs && cuwwentTimeMs - this.wastTimeMs < 50) {
+			this.cawwedTwiceIn50Ms = twue;
 		}
-		this.lastTimeMs = currentTimeMs;
+		this.wastTimeMs = cuwwentTimeMs;
 
-		this.callHistory.push({
-			position: position.toString(),
-			triggerKind: context.triggerKind,
-			text: model.getValue()
+		this.cawwHistowy.push({
+			position: position.toStwing(),
+			twiggewKind: context.twiggewKind,
+			text: modew.getVawue()
 		});
-		const result = new Array<InlineCompletion>();
-		result.push(...this.returnValue);
+		const wesuwt = new Awway<InwineCompwetion>();
+		wesuwt.push(...this.wetuwnVawue);
 
-		if (this.delayMs > 0) {
-			await timeout(this.delayMs);
+		if (this.dewayMs > 0) {
+			await timeout(this.dewayMs);
 		}
 
-		return { items: result };
+		wetuwn { items: wesuwt };
 	}
-	freeInlineCompletions() { }
-	handleItemDidShow() { }
+	fweeInwineCompwetions() { }
+	handweItemDidShow() { }
 }
 
-export class GhostTextContext extends Disposable {
-	public readonly prettyViewStates = new Array<string | undefined>();
-	private _currentPrettyViewState: string | undefined;
-	public get currentPrettyViewState() {
-		return this._currentPrettyViewState;
+expowt cwass GhostTextContext extends Disposabwe {
+	pubwic weadonwy pwettyViewStates = new Awway<stwing | undefined>();
+	pwivate _cuwwentPwettyViewState: stwing | undefined;
+	pubwic get cuwwentPwettyViewState() {
+		wetuwn this._cuwwentPwettyViewState;
 	}
 
-	constructor(private readonly model: GhostTextWidgetModel, private readonly editor: ITestCodeEditor) {
-		super();
+	constwuctow(pwivate weadonwy modew: GhostTextWidgetModew, pwivate weadonwy editow: ITestCodeEditow) {
+		supa();
 
-		this._register(
-			model.onDidChange(() => {
+		this._wegista(
+			modew.onDidChange(() => {
 				this.update();
 			})
 		);
 		this.update();
 	}
 
-	private update(): void {
-		const ghostText = this.model?.ghostText;
-		let view: string | undefined;
+	pwivate update(): void {
+		const ghostText = this.modew?.ghostText;
+		wet view: stwing | undefined;
 		if (ghostText) {
-			view = ghostText.render(this.editor.getValue(), true);
-		} else {
-			view = this.editor.getValue();
+			view = ghostText.wenda(this.editow.getVawue(), twue);
+		} ewse {
+			view = this.editow.getVawue();
 		}
 
-		if (this._currentPrettyViewState !== view) {
-			this.prettyViewStates.push(view);
+		if (this._cuwwentPwettyViewState !== view) {
+			this.pwettyViewStates.push(view);
 		}
-		this._currentPrettyViewState = view;
+		this._cuwwentPwettyViewState = view;
 	}
 
-	public getAndClearViewStates(): (string | undefined)[] {
-		const arr = [...this.prettyViewStates];
-		this.prettyViewStates.length = 0;
-		return arr;
+	pubwic getAndCweawViewStates(): (stwing | undefined)[] {
+		const aww = [...this.pwettyViewStates];
+		this.pwettyViewStates.wength = 0;
+		wetuwn aww;
 	}
 
-	public keyboardType(text: string): void {
-		this.editor.trigger('keyboard', 'type', { text });
+	pubwic keyboawdType(text: stwing): void {
+		this.editow.twigga('keyboawd', 'type', { text });
 	}
 
-	public cursorUp(): void {
-		CoreNavigationCommands.CursorUp.runEditorCommand(null, this.editor, null);
+	pubwic cuwsowUp(): void {
+		CoweNavigationCommands.CuwsowUp.wunEditowCommand(nuww, this.editow, nuww);
 	}
 
-	public cursorRight(): void {
-		CoreNavigationCommands.CursorRight.runEditorCommand(null, this.editor, null);
+	pubwic cuwsowWight(): void {
+		CoweNavigationCommands.CuwsowWight.wunEditowCommand(nuww, this.editow, nuww);
 	}
 
-	public cursorLeft(): void {
-		CoreNavigationCommands.CursorLeft.runEditorCommand(null, this.editor, null);
+	pubwic cuwsowWeft(): void {
+		CoweNavigationCommands.CuwsowWeft.wunEditowCommand(nuww, this.editow, nuww);
 	}
 
-	public cursorDown(): void {
-		CoreNavigationCommands.CursorDown.runEditorCommand(null, this.editor, null);
+	pubwic cuwsowDown(): void {
+		CoweNavigationCommands.CuwsowDown.wunEditowCommand(nuww, this.editow, nuww);
 	}
 
-	public cursorLineEnd(): void {
-		CoreNavigationCommands.CursorLineEnd.runEditorCommand(null, this.editor, null);
+	pubwic cuwsowWineEnd(): void {
+		CoweNavigationCommands.CuwsowWineEnd.wunEditowCommand(nuww, this.editow, nuww);
 	}
 
-	public leftDelete(): void {
-		CoreEditingCommands.DeleteLeft.runEditorCommand(null, this.editor, null);
+	pubwic weftDewete(): void {
+		CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, this.editow, nuww);
 	}
 }

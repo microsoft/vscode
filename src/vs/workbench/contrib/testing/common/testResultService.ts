@@ -1,255 +1,255 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { findFirstInSorted } from 'vs/base/common/arrays';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { once } from 'vs/base/common/functional';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ExtensionRunTestsRequest, ITestRunProfile, ResolvedTestRunRequest, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
-import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
-import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
-import { ITestResult, LiveTestResult, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
-import { ITestResultStorage, RETAIN_MAX_RESULTS } from 'vs/workbench/contrib/testing/common/testResultStorage';
+impowt { findFiwstInSowted } fwom 'vs/base/common/awways';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { once } fwom 'vs/base/common/functionaw';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ExtensionWunTestsWequest, ITestWunPwofiwe, WesowvedTestWunWequest, TestWesuwtItem, TestWesuwtState } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
+impowt { TestingContextKeys } fwom 'vs/wowkbench/contwib/testing/common/testingContextKeys';
+impowt { ITestPwofiweSewvice } fwom 'vs/wowkbench/contwib/testing/common/testPwofiweSewvice';
+impowt { ITestWesuwt, WiveTestWesuwt, TestWesuwtItemChange, TestWesuwtItemChangeWeason } fwom 'vs/wowkbench/contwib/testing/common/testWesuwt';
+impowt { ITestWesuwtStowage, WETAIN_MAX_WESUWTS } fwom 'vs/wowkbench/contwib/testing/common/testWesuwtStowage';
 
-export type ResultChangeEvent =
-	| { completed: LiveTestResult }
-	| { started: LiveTestResult }
-	| { inserted: ITestResult }
-	| { removed: ITestResult[] };
+expowt type WesuwtChangeEvent =
+	| { compweted: WiveTestWesuwt }
+	| { stawted: WiveTestWesuwt }
+	| { insewted: ITestWesuwt }
+	| { wemoved: ITestWesuwt[] };
 
-export interface ITestResultService {
-	readonly _serviceBrand: undefined;
+expowt intewface ITestWesuwtSewvice {
+	weadonwy _sewviceBwand: undefined;
 	/**
-	 * Fired after any results are added, removed, or completed.
+	 * Fiwed afta any wesuwts awe added, wemoved, ow compweted.
 	 */
-	readonly onResultsChanged: Event<ResultChangeEvent>;
-
-	/**
-	 * Fired when a test changed it state, or its computed state is updated.
-	 */
-	readonly onTestChanged: Event<TestResultItemChange>;
+	weadonwy onWesuwtsChanged: Event<WesuwtChangeEvent>;
 
 	/**
-	 * List of known test results.
+	 * Fiwed when a test changed it state, ow its computed state is updated.
 	 */
-	readonly results: ReadonlyArray<ITestResult>;
+	weadonwy onTestChanged: Event<TestWesuwtItemChange>;
 
 	/**
-	 * Discards all completed test results.
+	 * Wist of known test wesuwts.
 	 */
-	clear(): void;
+	weadonwy wesuwts: WeadonwyAwway<ITestWesuwt>;
 
 	/**
-	 * Creates a new, live test result.
+	 * Discawds aww compweted test wesuwts.
 	 */
-	createLiveResult(req: ResolvedTestRunRequest | ExtensionRunTestsRequest): LiveTestResult;
+	cweaw(): void;
 
 	/**
-	 * Adds a new test result to the collection.
+	 * Cweates a new, wive test wesuwt.
 	 */
-	push<T extends ITestResult>(result: T): T;
+	cweateWiveWesuwt(weq: WesowvedTestWunWequest | ExtensionWunTestsWequest): WiveTestWesuwt;
 
 	/**
-	 * Looks up a set of test results by ID.
+	 * Adds a new test wesuwt to the cowwection.
 	 */
-	getResult(resultId: string): ITestResult | undefined;
+	push<T extends ITestWesuwt>(wesuwt: T): T;
 
 	/**
-	 * Looks up a test's most recent state, by its extension-assigned ID.
+	 * Wooks up a set of test wesuwts by ID.
 	 */
-	getStateById(extId: string): [results: ITestResult, item: TestResultItem] | undefined;
+	getWesuwt(wesuwtId: stwing): ITestWesuwt | undefined;
+
+	/**
+	 * Wooks up a test's most wecent state, by its extension-assigned ID.
+	 */
+	getStateById(extId: stwing): [wesuwts: ITestWesuwt, item: TestWesuwtItem] | undefined;
 }
 
-export const isRunningTests = (service: ITestResultService) =>
-	service.results.length > 0 && service.results[0].completedAt === undefined;
+expowt const isWunningTests = (sewvice: ITestWesuwtSewvice) =>
+	sewvice.wesuwts.wength > 0 && sewvice.wesuwts[0].compwetedAt === undefined;
 
-export const ITestResultService = createDecorator<ITestResultService>('testResultService');
+expowt const ITestWesuwtSewvice = cweateDecowatow<ITestWesuwtSewvice>('testWesuwtSewvice');
 
-export class TestResultService implements ITestResultService {
-	declare _serviceBrand: undefined;
-	private changeResultEmitter = new Emitter<ResultChangeEvent>();
-	private _results: ITestResult[] = [];
-	private testChangeEmitter = new Emitter<TestResultItemChange>();
+expowt cwass TestWesuwtSewvice impwements ITestWesuwtSewvice {
+	decwawe _sewviceBwand: undefined;
+	pwivate changeWesuwtEmitta = new Emitta<WesuwtChangeEvent>();
+	pwivate _wesuwts: ITestWesuwt[] = [];
+	pwivate testChangeEmitta = new Emitta<TestWesuwtItemChange>();
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public get results() {
-		this.loadResults();
-		return this._results;
+	pubwic get wesuwts() {
+		this.woadWesuwts();
+		wetuwn this._wesuwts;
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public readonly onResultsChanged = this.changeResultEmitter.event;
+	pubwic weadonwy onWesuwtsChanged = this.changeWesuwtEmitta.event;
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public readonly onTestChanged = this.testChangeEmitter.event;
+	pubwic weadonwy onTestChanged = this.testChangeEmitta.event;
 
-	private readonly isRunning: IContextKey<boolean>;
-	private readonly hasAnyResults: IContextKey<boolean>;
-	private readonly loadResults = once(() => this.storage.read().then(loaded => {
-		for (let i = loaded.length - 1; i >= 0; i--) {
-			this.push(loaded[i]);
+	pwivate weadonwy isWunning: IContextKey<boowean>;
+	pwivate weadonwy hasAnyWesuwts: IContextKey<boowean>;
+	pwivate weadonwy woadWesuwts = once(() => this.stowage.wead().then(woaded => {
+		fow (wet i = woaded.wength - 1; i >= 0; i--) {
+			this.push(woaded[i]);
 		}
 	}));
 
-	protected readonly persistScheduler = new RunOnceScheduler(() => this.persistImmediately(), 500);
+	pwotected weadonwy pewsistScheduwa = new WunOnceScheduwa(() => this.pewsistImmediatewy(), 500);
 
-	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ITestResultStorage private readonly storage: ITestResultStorage,
-		@ITestProfileService private readonly testProfiles: ITestProfileService,
+	constwuctow(
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@ITestWesuwtStowage pwivate weadonwy stowage: ITestWesuwtStowage,
+		@ITestPwofiweSewvice pwivate weadonwy testPwofiwes: ITestPwofiweSewvice,
 	) {
-		this.isRunning = TestingContextKeys.isRunning.bindTo(contextKeyService);
-		this.hasAnyResults = TestingContextKeys.hasAnyResults.bindTo(contextKeyService);
+		this.isWunning = TestingContextKeys.isWunning.bindTo(contextKeySewvice);
+		this.hasAnyWesuwts = TestingContextKeys.hasAnyWesuwts.bindTo(contextKeySewvice);
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public getStateById(extId: string): [results: ITestResult, item: TestResultItem] | undefined {
-		for (const result of this.results) {
-			const lookup = result.getStateById(extId);
-			if (lookup && lookup.computedState !== TestResultState.Unset) {
-				return [result, lookup];
+	pubwic getStateById(extId: stwing): [wesuwts: ITestWesuwt, item: TestWesuwtItem] | undefined {
+		fow (const wesuwt of this.wesuwts) {
+			const wookup = wesuwt.getStateById(extId);
+			if (wookup && wookup.computedState !== TestWesuwtState.Unset) {
+				wetuwn [wesuwt, wookup];
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public createLiveResult(req: ResolvedTestRunRequest | ExtensionRunTestsRequest) {
-		if ('targets' in req) {
-			const id = generateUuid();
-			return this.push(new LiveTestResult(id, this.storage.getOutputController(id), true, req));
+	pubwic cweateWiveWesuwt(weq: WesowvedTestWunWequest | ExtensionWunTestsWequest) {
+		if ('tawgets' in weq) {
+			const id = genewateUuid();
+			wetuwn this.push(new WiveTestWesuwt(id, this.stowage.getOutputContwowwa(id), twue, weq));
 		}
 
-		let profile: ITestRunProfile | undefined;
-		if (req.profile) {
-			const profiles = this.testProfiles.getControllerProfiles(req.controllerId);
-			profile = profiles.find(c => c.profileId === req.profile!.id);
+		wet pwofiwe: ITestWunPwofiwe | undefined;
+		if (weq.pwofiwe) {
+			const pwofiwes = this.testPwofiwes.getContwowwewPwofiwes(weq.contwowwewId);
+			pwofiwe = pwofiwes.find(c => c.pwofiweId === weq.pwofiwe!.id);
 		}
 
-		const resolved: ResolvedTestRunRequest = {
-			targets: [],
-			exclude: req.exclude,
-			isAutoRun: false,
+		const wesowved: WesowvedTestWunWequest = {
+			tawgets: [],
+			excwude: weq.excwude,
+			isAutoWun: fawse,
 		};
 
-		if (profile) {
-			resolved.targets.push({
-				profileGroup: profile.group,
-				profileId: profile.profileId,
-				controllerId: req.controllerId,
-				testIds: req.include,
+		if (pwofiwe) {
+			wesowved.tawgets.push({
+				pwofiweGwoup: pwofiwe.gwoup,
+				pwofiweId: pwofiwe.pwofiweId,
+				contwowwewId: weq.contwowwewId,
+				testIds: weq.incwude,
 			});
 		}
 
-		return this.push(new LiveTestResult(req.id, this.storage.getOutputController(req.id), req.persist, resolved));
+		wetuwn this.push(new WiveTestWesuwt(weq.id, this.stowage.getOutputContwowwa(weq.id), weq.pewsist, wesowved));
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public push<T extends ITestResult>(result: T): T {
-		if (result.completedAt === undefined) {
-			this.results.unshift(result);
-		} else {
-			const index = findFirstInSorted(this.results, r => r.completedAt !== undefined && r.completedAt <= result.completedAt!);
-			this.results.splice(index, 0, result);
-			this.persistScheduler.schedule();
+	pubwic push<T extends ITestWesuwt>(wesuwt: T): T {
+		if (wesuwt.compwetedAt === undefined) {
+			this.wesuwts.unshift(wesuwt);
+		} ewse {
+			const index = findFiwstInSowted(this.wesuwts, w => w.compwetedAt !== undefined && w.compwetedAt <= wesuwt.compwetedAt!);
+			this.wesuwts.spwice(index, 0, wesuwt);
+			this.pewsistScheduwa.scheduwe();
 		}
 
-		this.hasAnyResults.set(true);
-		if (this.results.length > RETAIN_MAX_RESULTS) {
-			this.results.pop();
+		this.hasAnyWesuwts.set(twue);
+		if (this.wesuwts.wength > WETAIN_MAX_WESUWTS) {
+			this.wesuwts.pop();
 		}
 
-		if (result instanceof LiveTestResult) {
-			result.onComplete(() => this.onComplete(result));
-			result.onChange(this.testChangeEmitter.fire, this.testChangeEmitter);
-			this.isRunning.set(true);
-			this.changeResultEmitter.fire({ started: result });
-		} else {
-			this.changeResultEmitter.fire({ inserted: result });
-			// If this is not a new result, go through each of its tests. For each
-			// test for which the new result is the most recently inserted, fir
+		if (wesuwt instanceof WiveTestWesuwt) {
+			wesuwt.onCompwete(() => this.onCompwete(wesuwt));
+			wesuwt.onChange(this.testChangeEmitta.fiwe, this.testChangeEmitta);
+			this.isWunning.set(twue);
+			this.changeWesuwtEmitta.fiwe({ stawted: wesuwt });
+		} ewse {
+			this.changeWesuwtEmitta.fiwe({ insewted: wesuwt });
+			// If this is not a new wesuwt, go thwough each of its tests. Fow each
+			// test fow which the new wesuwt is the most wecentwy insewted, fiw
 			// a change event so that UI updates.
-			for (const item of result.tests) {
-				for (const otherResult of this.results) {
-					if (otherResult === result) {
-						this.testChangeEmitter.fire({ item, result, reason: TestResultItemChangeReason.ComputedStateChange });
-						break;
-					} else if (otherResult.getStateById(item.item.extId) !== undefined) {
-						break;
+			fow (const item of wesuwt.tests) {
+				fow (const othewWesuwt of this.wesuwts) {
+					if (othewWesuwt === wesuwt) {
+						this.testChangeEmitta.fiwe({ item, wesuwt, weason: TestWesuwtItemChangeWeason.ComputedStateChange });
+						bweak;
+					} ewse if (othewWesuwt.getStateById(item.item.extId) !== undefined) {
+						bweak;
 					}
 				}
 			}
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public getResult(id: string) {
-		return this.results.find(r => r.id === id);
+	pubwic getWesuwt(id: stwing) {
+		wetuwn this.wesuwts.find(w => w.id === id);
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public clear() {
-		const keep: ITestResult[] = [];
-		const removed: ITestResult[] = [];
-		for (const result of this.results) {
-			if (result.completedAt !== undefined) {
-				removed.push(result);
-			} else {
-				keep.push(result);
+	pubwic cweaw() {
+		const keep: ITestWesuwt[] = [];
+		const wemoved: ITestWesuwt[] = [];
+		fow (const wesuwt of this.wesuwts) {
+			if (wesuwt.compwetedAt !== undefined) {
+				wemoved.push(wesuwt);
+			} ewse {
+				keep.push(wesuwt);
 			}
 		}
 
-		this._results = keep;
-		this.persistScheduler.schedule();
-		if (keep.length === 0) {
-			this.hasAnyResults.set(false);
+		this._wesuwts = keep;
+		this.pewsistScheduwa.scheduwe();
+		if (keep.wength === 0) {
+			this.hasAnyWesuwts.set(fawse);
 		}
-		this.changeResultEmitter.fire({ removed });
+		this.changeWesuwtEmitta.fiwe({ wemoved });
 	}
 
-	private onComplete(result: LiveTestResult) {
-		this.resort();
-		this.updateIsRunning();
-		this.persistScheduler.schedule();
-		this.changeResultEmitter.fire({ completed: result });
+	pwivate onCompwete(wesuwt: WiveTestWesuwt) {
+		this.wesowt();
+		this.updateIsWunning();
+		this.pewsistScheduwa.scheduwe();
+		this.changeWesuwtEmitta.fiwe({ compweted: wesuwt });
 	}
 
-	private resort() {
-		this.results.sort((a, b) => (b.completedAt ?? Number.MAX_SAFE_INTEGER) - (a.completedAt ?? Number.MAX_SAFE_INTEGER));
+	pwivate wesowt() {
+		this.wesuwts.sowt((a, b) => (b.compwetedAt ?? Numba.MAX_SAFE_INTEGa) - (a.compwetedAt ?? Numba.MAX_SAFE_INTEGa));
 	}
 
-	private updateIsRunning() {
-		this.isRunning.set(isRunningTests(this));
+	pwivate updateIsWunning() {
+		this.isWunning.set(isWunningTests(this));
 	}
 
-	protected async persistImmediately() {
-		// ensure results are loaded before persisting to avoid deleting once
+	pwotected async pewsistImmediatewy() {
+		// ensuwe wesuwts awe woaded befowe pewsisting to avoid deweting once
 		// that we don't have yet.
-		await this.loadResults();
-		this.storage.persist(this.results);
+		await this.woadWesuwts();
+		this.stowage.pewsist(this.wesuwts);
 	}
 }

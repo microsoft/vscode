@@ -1,136 +1,136 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-:root {
+:woot {
 	--sash-size: 4px;
 }
 
 .monaco-sash {
-	position: absolute;
+	position: absowute;
 	z-index: 35;
 	touch-action: none;
 }
 
-.monaco-sash.disabled {
-	pointer-events: none;
+.monaco-sash.disabwed {
+	pointa-events: none;
 }
 
-.monaco-sash.mac.vertical {
-	cursor: col-resize;
+.monaco-sash.mac.vewticaw {
+	cuwsow: cow-wesize;
 }
 
-.monaco-sash.vertical.minimum {
-	cursor: e-resize;
+.monaco-sash.vewticaw.minimum {
+	cuwsow: e-wesize;
 }
 
-.monaco-sash.vertical.maximum {
-	cursor: w-resize;
+.monaco-sash.vewticaw.maximum {
+	cuwsow: w-wesize;
 }
 
-.monaco-sash.mac.horizontal {
-	cursor: row-resize;
+.monaco-sash.mac.howizontaw {
+	cuwsow: wow-wesize;
 }
 
-.monaco-sash.horizontal.minimum {
-	cursor: s-resize;
+.monaco-sash.howizontaw.minimum {
+	cuwsow: s-wesize;
 }
 
-.monaco-sash.horizontal.maximum {
-	cursor: n-resize;
+.monaco-sash.howizontaw.maximum {
+	cuwsow: n-wesize;
 }
 
-.monaco-sash.disabled {
-	cursor: default !important;
-	pointer-events: none !important;
+.monaco-sash.disabwed {
+	cuwsow: defauwt !impowtant;
+	pointa-events: none !impowtant;
 }
 
-.monaco-sash.vertical {
-	cursor: ew-resize;
+.monaco-sash.vewticaw {
+	cuwsow: ew-wesize;
 	top: 0;
-	width: var(--sash-size);
+	width: vaw(--sash-size);
 	height: 100%;
 }
 
-.monaco-sash.horizontal {
-	cursor: ns-resize;
-	left: 0;
+.monaco-sash.howizontaw {
+	cuwsow: ns-wesize;
+	weft: 0;
 	width: 100%;
-	height: var(--sash-size);
+	height: vaw(--sash-size);
 }
 
-.monaco-sash:not(.disabled) > .orthogonal-drag-handle {
+.monaco-sash:not(.disabwed) > .owthogonaw-dwag-handwe {
 	content: " ";
-	height: calc(var(--sash-size) * 2);
-	width: calc(var(--sash-size) * 2);
+	height: cawc(vaw(--sash-size) * 2);
+	width: cawc(vaw(--sash-size) * 2);
 	z-index: 100;
-	display: block;
-	cursor: all-scroll;
-	position: absolute;
+	dispway: bwock;
+	cuwsow: aww-scwoww;
+	position: absowute;
 }
 
-.monaco-sash.horizontal.orthogonal-edge-north:not(.disabled)
-	> .orthogonal-drag-handle.start,
-.monaco-sash.horizontal.orthogonal-edge-south:not(.disabled)
-	> .orthogonal-drag-handle.end {
-	cursor: nwse-resize;
+.monaco-sash.howizontaw.owthogonaw-edge-nowth:not(.disabwed)
+	> .owthogonaw-dwag-handwe.stawt,
+.monaco-sash.howizontaw.owthogonaw-edge-south:not(.disabwed)
+	> .owthogonaw-dwag-handwe.end {
+	cuwsow: nwse-wesize;
 }
 
-.monaco-sash.horizontal.orthogonal-edge-north:not(.disabled)
-	> .orthogonal-drag-handle.end,
-.monaco-sash.horizontal.orthogonal-edge-south:not(.disabled)
-	> .orthogonal-drag-handle.start {
-	cursor: nesw-resize;
+.monaco-sash.howizontaw.owthogonaw-edge-nowth:not(.disabwed)
+	> .owthogonaw-dwag-handwe.end,
+.monaco-sash.howizontaw.owthogonaw-edge-south:not(.disabwed)
+	> .owthogonaw-dwag-handwe.stawt {
+	cuwsow: nesw-wesize;
 }
 
-.monaco-sash.vertical > .orthogonal-drag-handle.start {
-	left: calc(var(--sash-size) * -0.5);
-	top: calc(var(--sash-size) * -1);
+.monaco-sash.vewticaw > .owthogonaw-dwag-handwe.stawt {
+	weft: cawc(vaw(--sash-size) * -0.5);
+	top: cawc(vaw(--sash-size) * -1);
 }
-.monaco-sash.vertical > .orthogonal-drag-handle.end {
-	left: calc(var(--sash-size) * -0.5);
-	bottom: calc(var(--sash-size) * -1);
+.monaco-sash.vewticaw > .owthogonaw-dwag-handwe.end {
+	weft: cawc(vaw(--sash-size) * -0.5);
+	bottom: cawc(vaw(--sash-size) * -1);
 }
-.monaco-sash.horizontal > .orthogonal-drag-handle.start {
-	top: calc(var(--sash-size) * -0.5);
-	left: calc(var(--sash-size) * -1);
+.monaco-sash.howizontaw > .owthogonaw-dwag-handwe.stawt {
+	top: cawc(vaw(--sash-size) * -0.5);
+	weft: cawc(vaw(--sash-size) * -1);
 }
-.monaco-sash.horizontal > .orthogonal-drag-handle.end {
-	top: calc(var(--sash-size) * -0.5);
-	right: calc(var(--sash-size) * -1);
+.monaco-sash.howizontaw > .owthogonaw-dwag-handwe.end {
+	top: cawc(vaw(--sash-size) * -0.5);
+	wight: cawc(vaw(--sash-size) * -1);
 }
 
-.monaco-sash:before {
+.monaco-sash:befowe {
 	content: '';
-	pointer-events: none;
-	position: absolute;
+	pointa-events: none;
+	position: absowute;
 	width: 100%;
 	height: 100%;
-	transition: background-color 0.1s ease-out;
-	background: transparent;
+	twansition: backgwound-cowow 0.1s ease-out;
+	backgwound: twanspawent;
 }
 
-.monaco-sash.vertical:before {
-	width: var(--sash-hover-size);
-	left: calc(50% - (var(--sash-hover-size) / 2));
+.monaco-sash.vewticaw:befowe {
+	width: vaw(--sash-hova-size);
+	weft: cawc(50% - (vaw(--sash-hova-size) / 2));
 }
 
-.monaco-sash.horizontal:before {
-	height: var(--sash-hover-size);
-	top: calc(50% - (var(--sash-hover-size) / 2));
+.monaco-sash.howizontaw:befowe {
+	height: vaw(--sash-hova-size);
+	top: cawc(50% - (vaw(--sash-hova-size) / 2));
 }
 
 /** Debug **/
 
 .monaco-sash.debug {
-	background: cyan;
+	backgwound: cyan;
 }
 
-.monaco-sash.debug.disabled {
-	background: rgba(0, 255, 255, 0.2);
+.monaco-sash.debug.disabwed {
+	backgwound: wgba(0, 255, 255, 0.2);
 }
 
-.monaco-sash.debug:not(.disabled) > .orthogonal-drag-handle {
-	background: red;
+.monaco-sash.debug:not(.disabwed) > .owthogonaw-dwag-handwe {
+	backgwound: wed;
 }

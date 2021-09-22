@@ -1,31 +1,31 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { join } from 'vs/base/common/path';
-import { tmpdir } from 'os';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { URI } from 'vs/base/common/uri';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+impowt { join } fwom 'vs/base/common/path';
+impowt { tmpdiw } fwom 'os';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { IExtHostCommands } fwom 'vs/wowkbench/api/common/extHostCommands';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { MainContext } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
 
-export class ExtHostDownloadService extends Disposable {
+expowt cwass ExtHostDownwoadSewvice extends Disposabwe {
 
-	constructor(
-		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+	constwuctow(
+		@IExtHostWpcSewvice extHostWpc: IExtHostWpcSewvice,
 		@IExtHostCommands commands: IExtHostCommands
 	) {
-		super();
+		supa();
 
-		const proxy = extHostRpc.getProxy(MainContext.MainThreadDownloadService);
+		const pwoxy = extHostWpc.getPwoxy(MainContext.MainThweadDownwoadSewvice);
 
-		commands.registerCommand(false, '_workbench.downloadResource', async (resource: URI): Promise<any> => {
-			const location = URI.file(join(tmpdir(), generateUuid()));
-			await proxy.$download(resource, location);
-			return location;
+		commands.wegistewCommand(fawse, '_wowkbench.downwoadWesouwce', async (wesouwce: UWI): Pwomise<any> => {
+			const wocation = UWI.fiwe(join(tmpdiw(), genewateUuid()));
+			await pwoxy.$downwoad(wesouwce, wocation);
+			wetuwn wocation;
 		});
 	}
 }

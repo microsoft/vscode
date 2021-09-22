@@ -1,123 +1,123 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { Emitter } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ExtHostContext, MainContext, IExtHostContext, MainThreadDecorationsShape, ExtHostDecorationsShape, DecorationData, DecorationRequest } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { IDecorationsService, IDecorationData } from 'vs/workbench/services/decorations/common/decorations';
-import { CancellationToken } from 'vs/base/common/cancellation';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { IDisposabwe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { ExtHostContext, MainContext, IExtHostContext, MainThweadDecowationsShape, ExtHostDecowationsShape, DecowationData, DecowationWequest } fwom '../common/extHost.pwotocow';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { IDecowationsSewvice, IDecowationData } fwom 'vs/wowkbench/sewvices/decowations/common/decowations';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
 
-class DecorationRequestsQueue {
+cwass DecowationWequestsQueue {
 
-	private _idPool = 0;
-	private _requests = new Map<number, DecorationRequest>();
-	private _resolver = new Map<number, (data: DecorationData) => any>();
+	pwivate _idPoow = 0;
+	pwivate _wequests = new Map<numba, DecowationWequest>();
+	pwivate _wesowva = new Map<numba, (data: DecowationData) => any>();
 
-	private _timer: any;
+	pwivate _tima: any;
 
-	constructor(
-		private readonly _proxy: ExtHostDecorationsShape,
-		private readonly _handle: number
+	constwuctow(
+		pwivate weadonwy _pwoxy: ExtHostDecowationsShape,
+		pwivate weadonwy _handwe: numba
 	) {
 		//
 	}
 
-	enqueue(uri: URI, token: CancellationToken): Promise<DecorationData> {
-		const id = ++this._idPool;
-		const result = new Promise<DecorationData>(resolve => {
-			this._requests.set(id, { id, uri });
-			this._resolver.set(id, resolve);
-			this._processQueue();
+	enqueue(uwi: UWI, token: CancewwationToken): Pwomise<DecowationData> {
+		const id = ++this._idPoow;
+		const wesuwt = new Pwomise<DecowationData>(wesowve => {
+			this._wequests.set(id, { id, uwi });
+			this._wesowva.set(id, wesowve);
+			this._pwocessQueue();
 		});
-		token.onCancellationRequested(() => {
-			this._requests.delete(id);
-			this._resolver.delete(id);
+		token.onCancewwationWequested(() => {
+			this._wequests.dewete(id);
+			this._wesowva.dewete(id);
 		});
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _processQueue(): void {
-		if (typeof this._timer === 'number') {
-			// already queued
-			return;
+	pwivate _pwocessQueue(): void {
+		if (typeof this._tima === 'numba') {
+			// awweady queued
+			wetuwn;
 		}
-		this._timer = setTimeout(() => {
-			// make request
-			const requests = this._requests;
-			const resolver = this._resolver;
-			this._proxy.$provideDecorations(this._handle, [...requests.values()], CancellationToken.None).then(data => {
-				for (let [id, resolve] of resolver) {
-					resolve(data[id]);
+		this._tima = setTimeout(() => {
+			// make wequest
+			const wequests = this._wequests;
+			const wesowva = this._wesowva;
+			this._pwoxy.$pwovideDecowations(this._handwe, [...wequests.vawues()], CancewwationToken.None).then(data => {
+				fow (wet [id, wesowve] of wesowva) {
+					wesowve(data[id]);
 				}
 			});
 
-			// reset
-			this._requests = new Map();
-			this._resolver = new Map();
-			this._timer = undefined;
+			// weset
+			this._wequests = new Map();
+			this._wesowva = new Map();
+			this._tima = undefined;
 		}, 0);
 	}
 }
 
-@extHostNamedCustomer(MainContext.MainThreadDecorations)
-export class MainThreadDecorations implements MainThreadDecorationsShape {
+@extHostNamedCustoma(MainContext.MainThweadDecowations)
+expowt cwass MainThweadDecowations impwements MainThweadDecowationsShape {
 
-	private readonly _provider = new Map<number, [Emitter<URI[]>, IDisposable]>();
-	private readonly _proxy: ExtHostDecorationsShape;
+	pwivate weadonwy _pwovida = new Map<numba, [Emitta<UWI[]>, IDisposabwe]>();
+	pwivate weadonwy _pwoxy: ExtHostDecowationsShape;
 
-	constructor(
+	constwuctow(
 		context: IExtHostContext,
-		@IDecorationsService private readonly _decorationsService: IDecorationsService
+		@IDecowationsSewvice pwivate weadonwy _decowationsSewvice: IDecowationsSewvice
 	) {
-		this._proxy = context.getProxy(ExtHostContext.ExtHostDecorations);
+		this._pwoxy = context.getPwoxy(ExtHostContext.ExtHostDecowations);
 	}
 
 	dispose() {
-		this._provider.forEach(value => dispose(value));
-		this._provider.clear();
+		this._pwovida.fowEach(vawue => dispose(vawue));
+		this._pwovida.cweaw();
 	}
 
-	$registerDecorationProvider(handle: number, label: string): void {
-		const emitter = new Emitter<URI[]>();
-		const queue = new DecorationRequestsQueue(this._proxy, handle);
-		const registration = this._decorationsService.registerDecorationsProvider({
-			label,
-			onDidChange: emitter.event,
-			provideDecorations: async (uri, token) => {
-				const data = await queue.enqueue(uri, token);
+	$wegistewDecowationPwovida(handwe: numba, wabew: stwing): void {
+		const emitta = new Emitta<UWI[]>();
+		const queue = new DecowationWequestsQueue(this._pwoxy, handwe);
+		const wegistwation = this._decowationsSewvice.wegistewDecowationsPwovida({
+			wabew,
+			onDidChange: emitta.event,
+			pwovideDecowations: async (uwi, token) => {
+				const data = await queue.enqueue(uwi, token);
 				if (!data) {
-					return undefined;
+					wetuwn undefined;
 				}
-				const [bubble, tooltip, letter, themeColor] = data;
-				return <IDecorationData>{
+				const [bubbwe, toowtip, wetta, themeCowow] = data;
+				wetuwn <IDecowationData>{
 					weight: 10,
-					bubble: bubble ?? false,
-					color: themeColor?.id,
-					tooltip,
-					letter
+					bubbwe: bubbwe ?? fawse,
+					cowow: themeCowow?.id,
+					toowtip,
+					wetta
 				};
 			}
 		});
-		this._provider.set(handle, [emitter, registration]);
+		this._pwovida.set(handwe, [emitta, wegistwation]);
 	}
 
-	$onDidChange(handle: number, resources: UriComponents[]): void {
-		const provider = this._provider.get(handle);
-		if (provider) {
-			const [emitter] = provider;
-			emitter.fire(resources && resources.map(r => URI.revive(r)));
+	$onDidChange(handwe: numba, wesouwces: UwiComponents[]): void {
+		const pwovida = this._pwovida.get(handwe);
+		if (pwovida) {
+			const [emitta] = pwovida;
+			emitta.fiwe(wesouwces && wesouwces.map(w => UWI.wevive(w)));
 		}
 	}
 
-	$unregisterDecorationProvider(handle: number): void {
-		const provider = this._provider.get(handle);
-		if (provider) {
-			dispose(provider);
-			this._provider.delete(handle);
+	$unwegistewDecowationPwovida(handwe: numba): void {
+		const pwovida = this._pwovida.get(handwe);
+		if (pwovida) {
+			dispose(pwovida);
+			this._pwovida.dewete(handwe);
 		}
 	}
 }

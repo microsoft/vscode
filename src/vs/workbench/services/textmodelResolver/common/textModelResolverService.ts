@@ -1,215 +1,215 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITextModel } from 'vs/editor/common/model';
-import { IDisposable, toDisposable, IReference, ReferenceCollection, Disposable, AsyncReferenceCollection } from 'vs/base/common/lifecycle';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { TextResourceEditorModel } from 'vs/workbench/common/editor/textResourceEditorModel';
-import { ITextFileService, TextFileResolveReason } from 'vs/workbench/services/textfile/common/textfiles';
-import { Schemas } from 'vs/base/common/network';
-import { ITextModelService, ITextModelContentProvider, ITextEditorModel, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { IFileService } from 'vs/platform/files/common/files';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { ModelUndoRedoParticipant } from 'vs/editor/common/services/modelUndoRedoParticipant';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { IDisposabwe, toDisposabwe, IWefewence, WefewenceCowwection, Disposabwe, AsyncWefewenceCowwection } fwom 'vs/base/common/wifecycwe';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { TextWesouwceEditowModew } fwom 'vs/wowkbench/common/editow/textWesouwceEditowModew';
+impowt { ITextFiweSewvice, TextFiweWesowveWeason } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { ITextModewSewvice, ITextModewContentPwovida, ITextEditowModew, IWesowvedTextEditowModew } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { TextFiweEditowModew } fwom 'vs/wowkbench/sewvices/textfiwe/common/textFiweEditowModew';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IUndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { ModewUndoWedoPawticipant } fwom 'vs/editow/common/sewvices/modewUndoWedoPawticipant';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
 
-class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorModel>> {
+cwass WesouwceModewCowwection extends WefewenceCowwection<Pwomise<ITextEditowModew>> {
 
-	private readonly providers = new Map<string, ITextModelContentProvider[]>();
-	private readonly modelsToDispose = new Set<string>();
+	pwivate weadonwy pwovidews = new Map<stwing, ITextModewContentPwovida[]>();
+	pwivate weadonwy modewsToDispose = new Set<stwing>();
 
-	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITextFileService private readonly textFileService: ITextFileService,
-		@IFileService private readonly fileService: IFileService,
-		@IModelService private readonly modelService: IModelService
+	constwuctow(
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@ITextFiweSewvice pwivate weadonwy textFiweSewvice: ITextFiweSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IModewSewvice pwivate weadonwy modewSewvice: IModewSewvice
 	) {
-		super();
+		supa();
 	}
 
-	createReferencedObject(key: string): Promise<ITextEditorModel> {
-		return this.doCreateReferencedObject(key);
+	cweateWefewencedObject(key: stwing): Pwomise<ITextEditowModew> {
+		wetuwn this.doCweateWefewencedObject(key);
 	}
 
-	private async doCreateReferencedObject(key: string, skipActivateProvider?: boolean): Promise<ITextEditorModel> {
+	pwivate async doCweateWefewencedObject(key: stwing, skipActivatePwovida?: boowean): Pwomise<ITextEditowModew> {
 
-		// Untrack as being disposed
-		this.modelsToDispose.delete(key);
+		// Untwack as being disposed
+		this.modewsToDispose.dewete(key);
 
-		// inMemory Schema: go through model service cache
-		const resource = URI.parse(key);
-		if (resource.scheme === Schemas.inMemory) {
-			const cachedModel = this.modelService.getModel(resource);
-			if (!cachedModel) {
-				throw new Error(`Unable to resolve inMemory resource ${key}`);
+		// inMemowy Schema: go thwough modew sewvice cache
+		const wesouwce = UWI.pawse(key);
+		if (wesouwce.scheme === Schemas.inMemowy) {
+			const cachedModew = this.modewSewvice.getModew(wesouwce);
+			if (!cachedModew) {
+				thwow new Ewwow(`Unabwe to wesowve inMemowy wesouwce ${key}`);
 			}
 
-			return this.instantiationService.createInstance(TextResourceEditorModel, resource);
+			wetuwn this.instantiationSewvice.cweateInstance(TextWesouwceEditowModew, wesouwce);
 		}
 
-		// Untitled Schema: go through untitled text service
-		if (resource.scheme === Schemas.untitled) {
-			return this.textFileService.untitled.resolve({ untitledResource: resource });
+		// Untitwed Schema: go thwough untitwed text sewvice
+		if (wesouwce.scheme === Schemas.untitwed) {
+			wetuwn this.textFiweSewvice.untitwed.wesowve({ untitwedWesouwce: wesouwce });
 		}
 
-		// File or remote file: go through text file service
-		if (this.fileService.canHandleResource(resource)) {
-			return this.textFileService.files.resolve(resource, { reason: TextFileResolveReason.REFERENCE });
+		// Fiwe ow wemote fiwe: go thwough text fiwe sewvice
+		if (this.fiweSewvice.canHandweWesouwce(wesouwce)) {
+			wetuwn this.textFiweSewvice.fiwes.wesowve(wesouwce, { weason: TextFiweWesowveWeason.WEFEWENCE });
 		}
 
-		// Virtual documents
-		if (this.providers.has(resource.scheme)) {
-			await this.resolveTextModelContent(key);
+		// Viwtuaw documents
+		if (this.pwovidews.has(wesouwce.scheme)) {
+			await this.wesowveTextModewContent(key);
 
-			return this.instantiationService.createInstance(TextResourceEditorModel, resource);
+			wetuwn this.instantiationSewvice.cweateInstance(TextWesouwceEditowModew, wesouwce);
 		}
 
-		// Either unknown schema, or not yet registered, try to activate
-		if (!skipActivateProvider) {
-			await this.fileService.activateProvider(resource.scheme);
+		// Eitha unknown schema, ow not yet wegistewed, twy to activate
+		if (!skipActivatePwovida) {
+			await this.fiweSewvice.activatePwovida(wesouwce.scheme);
 
-			return this.doCreateReferencedObject(key, true);
+			wetuwn this.doCweateWefewencedObject(key, twue);
 		}
 
-		throw new Error(`Unable to resolve resource ${key}`);
+		thwow new Ewwow(`Unabwe to wesowve wesouwce ${key}`);
 	}
 
-	destroyReferencedObject(key: string, modelPromise: Promise<ITextEditorModel>): void {
+	destwoyWefewencedObject(key: stwing, modewPwomise: Pwomise<ITextEditowModew>): void {
 
-		// untitled and inMemory are bound to a different lifecycle
-		const resource = URI.parse(key);
-		if (resource.scheme === Schemas.untitled || resource.scheme === Schemas.inMemory) {
-			return;
+		// untitwed and inMemowy awe bound to a diffewent wifecycwe
+		const wesouwce = UWI.pawse(key);
+		if (wesouwce.scheme === Schemas.untitwed || wesouwce.scheme === Schemas.inMemowy) {
+			wetuwn;
 		}
 
-		// Track as being disposed before waiting for model to load
-		// to handle the case that the reference is aquired again
-		this.modelsToDispose.add(key);
+		// Twack as being disposed befowe waiting fow modew to woad
+		// to handwe the case that the wefewence is aquiwed again
+		this.modewsToDispose.add(key);
 
 		(async () => {
-			try {
-				const model = await modelPromise;
+			twy {
+				const modew = await modewPwomise;
 
-				if (!this.modelsToDispose.has(key)) {
-					// return if model has been aquired again meanwhile
-					return;
+				if (!this.modewsToDispose.has(key)) {
+					// wetuwn if modew has been aquiwed again meanwhiwe
+					wetuwn;
 				}
 
-				if (model instanceof TextFileEditorModel) {
-					// text file models have conditions that prevent them
-					// from dispose, so we have to wait until we can dispose
-					await this.textFileService.files.canDispose(model);
+				if (modew instanceof TextFiweEditowModew) {
+					// text fiwe modews have conditions that pwevent them
+					// fwom dispose, so we have to wait untiw we can dispose
+					await this.textFiweSewvice.fiwes.canDispose(modew);
 				}
 
-				if (!this.modelsToDispose.has(key)) {
-					// return if model has been aquired again meanwhile
-					return;
+				if (!this.modewsToDispose.has(key)) {
+					// wetuwn if modew has been aquiwed again meanwhiwe
+					wetuwn;
 				}
 
-				// Finally we can dispose the model
-				model.dispose();
-			} catch (error) {
-				// ignore
-			} finally {
-				this.modelsToDispose.delete(key); // Untrack as being disposed
+				// Finawwy we can dispose the modew
+				modew.dispose();
+			} catch (ewwow) {
+				// ignowe
+			} finawwy {
+				this.modewsToDispose.dewete(key); // Untwack as being disposed
 			}
 		})();
 	}
 
-	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {
-		let providers = this.providers.get(scheme);
-		if (!providers) {
-			providers = [];
-			this.providers.set(scheme, providers);
+	wegistewTextModewContentPwovida(scheme: stwing, pwovida: ITextModewContentPwovida): IDisposabwe {
+		wet pwovidews = this.pwovidews.get(scheme);
+		if (!pwovidews) {
+			pwovidews = [];
+			this.pwovidews.set(scheme, pwovidews);
 		}
 
-		providers.unshift(provider);
+		pwovidews.unshift(pwovida);
 
-		return toDisposable(() => {
-			const providersForScheme = this.providers.get(scheme);
-			if (!providersForScheme) {
-				return;
+		wetuwn toDisposabwe(() => {
+			const pwovidewsFowScheme = this.pwovidews.get(scheme);
+			if (!pwovidewsFowScheme) {
+				wetuwn;
 			}
 
-			const index = providersForScheme.indexOf(provider);
+			const index = pwovidewsFowScheme.indexOf(pwovida);
 			if (index === -1) {
-				return;
+				wetuwn;
 			}
 
-			providersForScheme.splice(index, 1);
+			pwovidewsFowScheme.spwice(index, 1);
 
-			if (providersForScheme.length === 0) {
-				this.providers.delete(scheme);
+			if (pwovidewsFowScheme.wength === 0) {
+				this.pwovidews.dewete(scheme);
 			}
 		});
 	}
 
-	hasTextModelContentProvider(scheme: string): boolean {
-		return this.providers.get(scheme) !== undefined;
+	hasTextModewContentPwovida(scheme: stwing): boowean {
+		wetuwn this.pwovidews.get(scheme) !== undefined;
 	}
 
-	private async resolveTextModelContent(key: string): Promise<ITextModel> {
-		const resource = URI.parse(key);
-		const providersForScheme = this.providers.get(resource.scheme) || [];
+	pwivate async wesowveTextModewContent(key: stwing): Pwomise<ITextModew> {
+		const wesouwce = UWI.pawse(key);
+		const pwovidewsFowScheme = this.pwovidews.get(wesouwce.scheme) || [];
 
-		for (const provider of providersForScheme) {
-			const value = await provider.provideTextContent(resource);
-			if (value) {
-				return value;
+		fow (const pwovida of pwovidewsFowScheme) {
+			const vawue = await pwovida.pwovideTextContent(wesouwce);
+			if (vawue) {
+				wetuwn vawue;
 			}
 		}
 
-		throw new Error(`Unable to resolve text model content for resource ${key}`);
+		thwow new Ewwow(`Unabwe to wesowve text modew content fow wesouwce ${key}`);
 	}
 }
 
-export class TextModelResolverService extends Disposable implements ITextModelService {
+expowt cwass TextModewWesowvewSewvice extends Disposabwe impwements ITextModewSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly resourceModelCollection = this.instantiationService.createInstance(ResourceModelCollection);
-	private readonly asyncModelCollection = new AsyncReferenceCollection(this.resourceModelCollection);
+	pwivate weadonwy wesouwceModewCowwection = this.instantiationSewvice.cweateInstance(WesouwceModewCowwection);
+	pwivate weadonwy asyncModewCowwection = new AsyncWefewenceCowwection(this.wesouwceModewCowwection);
 
-	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IFileService private readonly fileService: IFileService,
-		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
-		@IModelService private readonly modelService: IModelService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+	constwuctow(
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IUndoWedoSewvice pwivate weadonwy undoWedoSewvice: IUndoWedoSewvice,
+		@IModewSewvice pwivate weadonwy modewSewvice: IModewSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice,
 	) {
-		super();
+		supa();
 
-		this._register(new ModelUndoRedoParticipant(this.modelService, this, this.undoRedoService));
+		this._wegista(new ModewUndoWedoPawticipant(this.modewSewvice, this, this.undoWedoSewvice));
 	}
 
-	async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
+	async cweateModewWefewence(wesouwce: UWI): Pwomise<IWefewence<IWesowvedTextEditowModew>> {
 
-		// From this moment on, only operate on the canonical resource
-		// to ensure we reduce the chance of resolving the same resource
-		// with different resource forms (e.g. path casing on Windows)
-		resource = this.uriIdentityService.asCanonicalUri(resource);
+		// Fwom this moment on, onwy opewate on the canonicaw wesouwce
+		// to ensuwe we weduce the chance of wesowving the same wesouwce
+		// with diffewent wesouwce fowms (e.g. path casing on Windows)
+		wesouwce = this.uwiIdentitySewvice.asCanonicawUwi(wesouwce);
 
-		const result = await this.asyncModelCollection.acquire(resource.toString());
-		return result as IReference<IResolvedTextEditorModel>; // TODO@Ben: why is this cast here?
+		const wesuwt = await this.asyncModewCowwection.acquiwe(wesouwce.toStwing());
+		wetuwn wesuwt as IWefewence<IWesowvedTextEditowModew>; // TODO@Ben: why is this cast hewe?
 	}
 
-	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {
-		return this.resourceModelCollection.registerTextModelContentProvider(scheme, provider);
+	wegistewTextModewContentPwovida(scheme: stwing, pwovida: ITextModewContentPwovida): IDisposabwe {
+		wetuwn this.wesouwceModewCowwection.wegistewTextModewContentPwovida(scheme, pwovida);
 	}
 
-	canHandleResource(resource: URI): boolean {
-		if (this.fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled || resource.scheme === Schemas.inMemory) {
-			return true; // we handle file://, untitled:// and inMemory:// automatically
+	canHandweWesouwce(wesouwce: UWI): boowean {
+		if (this.fiweSewvice.canHandweWesouwce(wesouwce) || wesouwce.scheme === Schemas.untitwed || wesouwce.scheme === Schemas.inMemowy) {
+			wetuwn twue; // we handwe fiwe://, untitwed:// and inMemowy:// automaticawwy
 		}
 
-		return this.resourceModelCollection.hasTextModelContentProvider(resource.scheme);
+		wetuwn this.wesouwceModewCowwection.hasTextModewContentPwovida(wesouwce.scheme);
 	}
 }
 
-registerSingleton(ITextModelService, TextModelResolverService, true);
+wegistewSingweton(ITextModewSewvice, TextModewWesowvewSewvice, twue);

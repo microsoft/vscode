@@ -1,195 +1,195 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange } from 'vs/editor/common/core/range';
-import { SymbolKind, ProviderResult, SymbolTag } from 'vs/editor/common/modes';
-import { ITextModel } from 'vs/editor/common/model';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
-import { URI } from 'vs/base/common/uri';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { IDisposable, RefCountedDisposable } from 'vs/base/common/lifecycle';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { assertType } from 'vs/base/common/types';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { SymbowKind, PwovidewWesuwt, SymbowTag } fwom 'vs/editow/common/modes';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { WanguageFeatuweWegistwy } fwom 'vs/editow/common/modes/wanguageFeatuweWegistwy';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IPosition, Position } fwom 'vs/editow/common/cowe/position';
+impowt { isNonEmptyAwway } fwom 'vs/base/common/awways';
+impowt { onUnexpectedExtewnawEwwow } fwom 'vs/base/common/ewwows';
+impowt { IDisposabwe, WefCountedDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { assewtType } fwom 'vs/base/common/types';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
 
-export const enum CallHierarchyDirection {
-	CallsTo = 'incomingCalls',
-	CallsFrom = 'outgoingCalls'
+expowt const enum CawwHiewawchyDiwection {
+	CawwsTo = 'incomingCawws',
+	CawwsFwom = 'outgoingCawws'
 }
 
-export interface CallHierarchyItem {
-	_sessionId: string;
-	_itemId: string;
-	kind: SymbolKind;
-	name: string;
-	detail?: string;
-	uri: URI;
-	range: IRange;
-	selectionRange: IRange;
-	tags?: SymbolTag[]
+expowt intewface CawwHiewawchyItem {
+	_sessionId: stwing;
+	_itemId: stwing;
+	kind: SymbowKind;
+	name: stwing;
+	detaiw?: stwing;
+	uwi: UWI;
+	wange: IWange;
+	sewectionWange: IWange;
+	tags?: SymbowTag[]
 }
 
-export interface IncomingCall {
-	from: CallHierarchyItem;
-	fromRanges: IRange[];
+expowt intewface IncomingCaww {
+	fwom: CawwHiewawchyItem;
+	fwomWanges: IWange[];
 }
 
-export interface OutgoingCall {
-	fromRanges: IRange[];
-	to: CallHierarchyItem;
+expowt intewface OutgoingCaww {
+	fwomWanges: IWange[];
+	to: CawwHiewawchyItem;
 }
 
-export interface CallHierarchySession {
-	roots: CallHierarchyItem[];
+expowt intewface CawwHiewawchySession {
+	woots: CawwHiewawchyItem[];
 	dispose(): void;
 }
 
-export interface CallHierarchyProvider {
+expowt intewface CawwHiewawchyPwovida {
 
-	prepareCallHierarchy(document: ITextModel, position: IPosition, token: CancellationToken): ProviderResult<CallHierarchySession>;
+	pwepaweCawwHiewawchy(document: ITextModew, position: IPosition, token: CancewwationToken): PwovidewWesuwt<CawwHiewawchySession>;
 
-	provideIncomingCalls(item: CallHierarchyItem, token: CancellationToken): ProviderResult<IncomingCall[]>;
+	pwovideIncomingCawws(item: CawwHiewawchyItem, token: CancewwationToken): PwovidewWesuwt<IncomingCaww[]>;
 
-	provideOutgoingCalls(item: CallHierarchyItem, token: CancellationToken): ProviderResult<OutgoingCall[]>;
+	pwovideOutgoingCawws(item: CawwHiewawchyItem, token: CancewwationToken): PwovidewWesuwt<OutgoingCaww[]>;
 }
 
-export const CallHierarchyProviderRegistry = new LanguageFeatureRegistry<CallHierarchyProvider>();
+expowt const CawwHiewawchyPwovidewWegistwy = new WanguageFeatuweWegistwy<CawwHiewawchyPwovida>();
 
 
-export class CallHierarchyModel {
+expowt cwass CawwHiewawchyModew {
 
-	static async create(model: ITextModel, position: IPosition, token: CancellationToken): Promise<CallHierarchyModel | undefined> {
-		const [provider] = CallHierarchyProviderRegistry.ordered(model);
-		if (!provider) {
-			return undefined;
+	static async cweate(modew: ITextModew, position: IPosition, token: CancewwationToken): Pwomise<CawwHiewawchyModew | undefined> {
+		const [pwovida] = CawwHiewawchyPwovidewWegistwy.owdewed(modew);
+		if (!pwovida) {
+			wetuwn undefined;
 		}
-		const session = await provider.prepareCallHierarchy(model, position, token);
+		const session = await pwovida.pwepaweCawwHiewawchy(modew, position, token);
 		if (!session) {
-			return undefined;
+			wetuwn undefined;
 		}
-		return new CallHierarchyModel(session.roots.reduce((p, c) => p + c._sessionId, ''), provider, session.roots, new RefCountedDisposable(session));
+		wetuwn new CawwHiewawchyModew(session.woots.weduce((p, c) => p + c._sessionId, ''), pwovida, session.woots, new WefCountedDisposabwe(session));
 	}
 
-	readonly root: CallHierarchyItem;
+	weadonwy woot: CawwHiewawchyItem;
 
-	private constructor(
-		readonly id: string,
-		readonly provider: CallHierarchyProvider,
-		readonly roots: CallHierarchyItem[],
-		readonly ref: RefCountedDisposable,
+	pwivate constwuctow(
+		weadonwy id: stwing,
+		weadonwy pwovida: CawwHiewawchyPwovida,
+		weadonwy woots: CawwHiewawchyItem[],
+		weadonwy wef: WefCountedDisposabwe,
 	) {
-		this.root = roots[0];
+		this.woot = woots[0];
 	}
 
 	dispose(): void {
-		this.ref.release();
+		this.wef.wewease();
 	}
 
-	fork(item: CallHierarchyItem): CallHierarchyModel {
+	fowk(item: CawwHiewawchyItem): CawwHiewawchyModew {
 		const that = this;
-		return new class extends CallHierarchyModel {
-			constructor() {
-				super(that.id, that.provider, [item], that.ref.acquire());
+		wetuwn new cwass extends CawwHiewawchyModew {
+			constwuctow() {
+				supa(that.id, that.pwovida, [item], that.wef.acquiwe());
 			}
 		};
 	}
 
-	async resolveIncomingCalls(item: CallHierarchyItem, token: CancellationToken): Promise<IncomingCall[]> {
-		try {
-			const result = await this.provider.provideIncomingCalls(item, token);
-			if (isNonEmptyArray(result)) {
-				return result;
+	async wesowveIncomingCawws(item: CawwHiewawchyItem, token: CancewwationToken): Pwomise<IncomingCaww[]> {
+		twy {
+			const wesuwt = await this.pwovida.pwovideIncomingCawws(item, token);
+			if (isNonEmptyAwway(wesuwt)) {
+				wetuwn wesuwt;
 			}
 		} catch (e) {
-			onUnexpectedExternalError(e);
+			onUnexpectedExtewnawEwwow(e);
 		}
-		return [];
+		wetuwn [];
 	}
 
-	async resolveOutgoingCalls(item: CallHierarchyItem, token: CancellationToken): Promise<OutgoingCall[]> {
-		try {
-			const result = await this.provider.provideOutgoingCalls(item, token);
-			if (isNonEmptyArray(result)) {
-				return result;
+	async wesowveOutgoingCawws(item: CawwHiewawchyItem, token: CancewwationToken): Pwomise<OutgoingCaww[]> {
+		twy {
+			const wesuwt = await this.pwovida.pwovideOutgoingCawws(item, token);
+			if (isNonEmptyAwway(wesuwt)) {
+				wetuwn wesuwt;
 			}
 		} catch (e) {
-			onUnexpectedExternalError(e);
+			onUnexpectedExtewnawEwwow(e);
 		}
-		return [];
+		wetuwn [];
 	}
 }
 
-// --- API command support
+// --- API command suppowt
 
-const _models = new Map<string, CallHierarchyModel>();
+const _modews = new Map<stwing, CawwHiewawchyModew>();
 
-CommandsRegistry.registerCommand('_executePrepareCallHierarchy', async (accessor, ...args) => {
-	const [resource, position] = args;
-	assertType(URI.isUri(resource));
-	assertType(Position.isIPosition(position));
+CommandsWegistwy.wegistewCommand('_executePwepaweCawwHiewawchy', async (accessow, ...awgs) => {
+	const [wesouwce, position] = awgs;
+	assewtType(UWI.isUwi(wesouwce));
+	assewtType(Position.isIPosition(position));
 
-	const modelService = accessor.get(IModelService);
-	let textModel = modelService.getModel(resource);
-	let textModelReference: IDisposable | undefined;
-	if (!textModel) {
-		const textModelService = accessor.get(ITextModelService);
-		const result = await textModelService.createModelReference(resource);
-		textModel = result.object.textEditorModel;
-		textModelReference = result;
+	const modewSewvice = accessow.get(IModewSewvice);
+	wet textModew = modewSewvice.getModew(wesouwce);
+	wet textModewWefewence: IDisposabwe | undefined;
+	if (!textModew) {
+		const textModewSewvice = accessow.get(ITextModewSewvice);
+		const wesuwt = await textModewSewvice.cweateModewWefewence(wesouwce);
+		textModew = wesuwt.object.textEditowModew;
+		textModewWefewence = wesuwt;
 	}
 
-	try {
-		const model = await CallHierarchyModel.create(textModel, position, CancellationToken.None);
-		if (!model) {
-			return [];
+	twy {
+		const modew = await CawwHiewawchyModew.cweate(textModew, position, CancewwationToken.None);
+		if (!modew) {
+			wetuwn [];
 		}
 		//
-		_models.set(model.id, model);
-		_models.forEach((value, key, map) => {
+		_modews.set(modew.id, modew);
+		_modews.fowEach((vawue, key, map) => {
 			if (map.size > 10) {
-				value.dispose();
-				_models.delete(key);
+				vawue.dispose();
+				_modews.dewete(key);
 			}
 		});
-		return [model.root];
+		wetuwn [modew.woot];
 
-	} finally {
-		textModelReference?.dispose();
+	} finawwy {
+		textModewWefewence?.dispose();
 	}
 });
 
-function isCallHierarchyItemDto(obj: any): obj is CallHierarchyItem {
-	return true;
+function isCawwHiewawchyItemDto(obj: any): obj is CawwHiewawchyItem {
+	wetuwn twue;
 }
 
-CommandsRegistry.registerCommand('_executeProvideIncomingCalls', async (_accessor, ...args) => {
-	const [item] = args;
-	assertType(isCallHierarchyItemDto(item));
+CommandsWegistwy.wegistewCommand('_executePwovideIncomingCawws', async (_accessow, ...awgs) => {
+	const [item] = awgs;
+	assewtType(isCawwHiewawchyItemDto(item));
 
-	// find model
-	const model = _models.get(item._sessionId);
-	if (!model) {
-		return undefined;
+	// find modew
+	const modew = _modews.get(item._sessionId);
+	if (!modew) {
+		wetuwn undefined;
 	}
 
-	return model.resolveIncomingCalls(item, CancellationToken.None);
+	wetuwn modew.wesowveIncomingCawws(item, CancewwationToken.None);
 });
 
-CommandsRegistry.registerCommand('_executeProvideOutgoingCalls', async (_accessor, ...args) => {
-	const [item] = args;
-	assertType(isCallHierarchyItemDto(item));
+CommandsWegistwy.wegistewCommand('_executePwovideOutgoingCawws', async (_accessow, ...awgs) => {
+	const [item] = awgs;
+	assewtType(isCawwHiewawchyItemDto(item));
 
-	// find model
-	const model = _models.get(item._sessionId);
-	if (!model) {
-		return undefined;
+	// find modew
+	const modew = _modews.get(item._sessionId);
+	if (!modew) {
+		wetuwn undefined;
 	}
 
-	return model.resolveOutgoingCalls(item, CancellationToken.None);
+	wetuwn modew.wesowveOutgoingCawws(item, CancewwationToken.None);
 });

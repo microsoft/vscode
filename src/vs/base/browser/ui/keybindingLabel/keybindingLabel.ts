@@ -1,192 +1,192 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Color } from 'vs/base/common/color';
-import { UILabelProvider } from 'vs/base/common/keybindingLabels';
-import { ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
-import { equals } from 'vs/base/common/objects';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { IThemable } from 'vs/base/common/styler';
-import 'vs/css!./keybindingLabel';
-import { localize } from 'vs/nls';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { UIWabewPwovida } fwom 'vs/base/common/keybindingWabews';
+impowt { WesowvedKeybinding, WesowvedKeybindingPawt } fwom 'vs/base/common/keyCodes';
+impowt { equaws } fwom 'vs/base/common/objects';
+impowt { OpewatingSystem } fwom 'vs/base/common/pwatfowm';
+impowt { IThemabwe } fwom 'vs/base/common/stywa';
+impowt 'vs/css!./keybindingWabew';
+impowt { wocawize } fwom 'vs/nws';
 
 const $ = dom.$;
 
-export interface PartMatches {
-	ctrlKey?: boolean;
-	shiftKey?: boolean;
-	altKey?: boolean;
-	metaKey?: boolean;
-	keyCode?: boolean;
+expowt intewface PawtMatches {
+	ctwwKey?: boowean;
+	shiftKey?: boowean;
+	awtKey?: boowean;
+	metaKey?: boowean;
+	keyCode?: boowean;
 }
 
-export interface Matches {
-	firstPart: PartMatches;
-	chordPart: PartMatches;
+expowt intewface Matches {
+	fiwstPawt: PawtMatches;
+	chowdPawt: PawtMatches;
 }
 
-export interface KeybindingLabelOptions extends IKeybindingLabelStyles {
-	renderUnboundKeybindings?: boolean;
+expowt intewface KeybindingWabewOptions extends IKeybindingWabewStywes {
+	wendewUnboundKeybindings?: boowean;
 }
 
-export interface IKeybindingLabelStyles {
-	keybindingLabelBackground?: Color;
-	keybindingLabelForeground?: Color;
-	keybindingLabelBorder?: Color;
-	keybindingLabelBottomBorder?: Color;
-	keybindingLabelShadow?: Color;
+expowt intewface IKeybindingWabewStywes {
+	keybindingWabewBackgwound?: Cowow;
+	keybindingWabewFowegwound?: Cowow;
+	keybindingWabewBowda?: Cowow;
+	keybindingWabewBottomBowda?: Cowow;
+	keybindingWabewShadow?: Cowow;
 }
 
-export class KeybindingLabel implements IThemable {
+expowt cwass KeybindingWabew impwements IThemabwe {
 
-	private domNode: HTMLElement;
-	private options: KeybindingLabelOptions;
+	pwivate domNode: HTMWEwement;
+	pwivate options: KeybindingWabewOptions;
 
-	private readonly keyElements = new Set<HTMLSpanElement>();
+	pwivate weadonwy keyEwements = new Set<HTMWSpanEwement>();
 
-	private keybinding: ResolvedKeybinding | undefined;
-	private matches: Matches | undefined;
-	private didEverRender: boolean;
+	pwivate keybinding: WesowvedKeybinding | undefined;
+	pwivate matches: Matches | undefined;
+	pwivate didEvewWenda: boowean;
 
-	private labelBackground: Color | undefined;
-	private labelForeground: Color | undefined;
-	private labelBorder: Color | undefined;
-	private labelBottomBorder: Color | undefined;
-	private labelShadow: Color | undefined;
+	pwivate wabewBackgwound: Cowow | undefined;
+	pwivate wabewFowegwound: Cowow | undefined;
+	pwivate wabewBowda: Cowow | undefined;
+	pwivate wabewBottomBowda: Cowow | undefined;
+	pwivate wabewShadow: Cowow | undefined;
 
-	constructor(container: HTMLElement, private os: OperatingSystem, options?: KeybindingLabelOptions) {
-		this.options = options || Object.create(null);
+	constwuctow(containa: HTMWEwement, pwivate os: OpewatingSystem, options?: KeybindingWabewOptions) {
+		this.options = options || Object.cweate(nuww);
 
-		this.labelBackground = this.options.keybindingLabelBackground;
-		this.labelForeground = this.options.keybindingLabelForeground;
-		this.labelBorder = this.options.keybindingLabelBorder;
-		this.labelBottomBorder = this.options.keybindingLabelBottomBorder;
-		this.labelShadow = this.options.keybindingLabelShadow;
+		this.wabewBackgwound = this.options.keybindingWabewBackgwound;
+		this.wabewFowegwound = this.options.keybindingWabewFowegwound;
+		this.wabewBowda = this.options.keybindingWabewBowda;
+		this.wabewBottomBowda = this.options.keybindingWabewBottomBowda;
+		this.wabewShadow = this.options.keybindingWabewShadow;
 
-		this.domNode = dom.append(container, $('.monaco-keybinding'));
-		this.didEverRender = false;
-		container.appendChild(this.domNode);
+		this.domNode = dom.append(containa, $('.monaco-keybinding'));
+		this.didEvewWenda = fawse;
+		containa.appendChiwd(this.domNode);
 	}
 
-	get element(): HTMLElement {
-		return this.domNode;
+	get ewement(): HTMWEwement {
+		wetuwn this.domNode;
 	}
 
-	set(keybinding: ResolvedKeybinding | undefined, matches?: Matches) {
-		if (this.didEverRender && this.keybinding === keybinding && KeybindingLabel.areSame(this.matches, matches)) {
-			return;
+	set(keybinding: WesowvedKeybinding | undefined, matches?: Matches) {
+		if (this.didEvewWenda && this.keybinding === keybinding && KeybindingWabew.aweSame(this.matches, matches)) {
+			wetuwn;
 		}
 
 		this.keybinding = keybinding;
 		this.matches = matches;
-		this.render();
+		this.wenda();
 	}
 
-	private render() {
-		this.clear();
+	pwivate wenda() {
+		this.cweaw();
 
 		if (this.keybinding) {
-			let [firstPart, chordPart] = this.keybinding.getParts();
-			if (firstPart) {
-				this.renderPart(this.domNode, firstPart, this.matches ? this.matches.firstPart : null);
+			wet [fiwstPawt, chowdPawt] = this.keybinding.getPawts();
+			if (fiwstPawt) {
+				this.wendewPawt(this.domNode, fiwstPawt, this.matches ? this.matches.fiwstPawt : nuww);
 			}
-			if (chordPart) {
-				dom.append(this.domNode, $('span.monaco-keybinding-key-chord-separator', undefined, ' '));
-				this.renderPart(this.domNode, chordPart, this.matches ? this.matches.chordPart : null);
+			if (chowdPawt) {
+				dom.append(this.domNode, $('span.monaco-keybinding-key-chowd-sepawatow', undefined, ' '));
+				this.wendewPawt(this.domNode, chowdPawt, this.matches ? this.matches.chowdPawt : nuww);
 			}
-			this.domNode.title = this.keybinding.getAriaLabel() || '';
-		} else if (this.options && this.options.renderUnboundKeybindings) {
-			this.renderUnbound(this.domNode);
+			this.domNode.titwe = this.keybinding.getAwiaWabew() || '';
+		} ewse if (this.options && this.options.wendewUnboundKeybindings) {
+			this.wendewUnbound(this.domNode);
 		}
 
-		this.applyStyles();
+		this.appwyStywes();
 
-		this.didEverRender = true;
+		this.didEvewWenda = twue;
 	}
 
-	private clear(): void {
-		dom.clearNode(this.domNode);
-		this.keyElements.clear();
+	pwivate cweaw(): void {
+		dom.cweawNode(this.domNode);
+		this.keyEwements.cweaw();
 	}
 
-	private renderPart(parent: HTMLElement, part: ResolvedKeybindingPart, match: PartMatches | null) {
-		const modifierLabels = UILabelProvider.modifierLabels[this.os];
-		if (part.ctrlKey) {
-			this.renderKey(parent, modifierLabels.ctrlKey, Boolean(match?.ctrlKey), modifierLabels.separator);
+	pwivate wendewPawt(pawent: HTMWEwement, pawt: WesowvedKeybindingPawt, match: PawtMatches | nuww) {
+		const modifiewWabews = UIWabewPwovida.modifiewWabews[this.os];
+		if (pawt.ctwwKey) {
+			this.wendewKey(pawent, modifiewWabews.ctwwKey, Boowean(match?.ctwwKey), modifiewWabews.sepawatow);
 		}
-		if (part.shiftKey) {
-			this.renderKey(parent, modifierLabels.shiftKey, Boolean(match?.shiftKey), modifierLabels.separator);
+		if (pawt.shiftKey) {
+			this.wendewKey(pawent, modifiewWabews.shiftKey, Boowean(match?.shiftKey), modifiewWabews.sepawatow);
 		}
-		if (part.altKey) {
-			this.renderKey(parent, modifierLabels.altKey, Boolean(match?.altKey), modifierLabels.separator);
+		if (pawt.awtKey) {
+			this.wendewKey(pawent, modifiewWabews.awtKey, Boowean(match?.awtKey), modifiewWabews.sepawatow);
 		}
-		if (part.metaKey) {
-			this.renderKey(parent, modifierLabels.metaKey, Boolean(match?.metaKey), modifierLabels.separator);
+		if (pawt.metaKey) {
+			this.wendewKey(pawent, modifiewWabews.metaKey, Boowean(match?.metaKey), modifiewWabews.sepawatow);
 		}
-		const keyLabel = part.keyLabel;
-		if (keyLabel) {
-			this.renderKey(parent, keyLabel, Boolean(match?.keyCode), '');
-		}
-	}
-
-	private renderKey(parent: HTMLElement, label: string, highlight: boolean, separator: string): void {
-		dom.append(parent, this.createKeyElement(label, highlight ? '.highlight' : ''));
-		if (separator) {
-			dom.append(parent, $('span.monaco-keybinding-key-separator', undefined, separator));
+		const keyWabew = pawt.keyWabew;
+		if (keyWabew) {
+			this.wendewKey(pawent, keyWabew, Boowean(match?.keyCode), '');
 		}
 	}
 
-	private renderUnbound(parent: HTMLElement): void {
-		dom.append(parent, this.createKeyElement(localize('unbound', "Unbound")));
+	pwivate wendewKey(pawent: HTMWEwement, wabew: stwing, highwight: boowean, sepawatow: stwing): void {
+		dom.append(pawent, this.cweateKeyEwement(wabew, highwight ? '.highwight' : ''));
+		if (sepawatow) {
+			dom.append(pawent, $('span.monaco-keybinding-key-sepawatow', undefined, sepawatow));
+		}
 	}
 
-	private createKeyElement(label: string, extraClass = ''): HTMLElement {
-		const keyElement = $('span.monaco-keybinding-key' + extraClass, undefined, label);
-		this.keyElements.add(keyElement);
-
-		return keyElement;
+	pwivate wendewUnbound(pawent: HTMWEwement): void {
+		dom.append(pawent, this.cweateKeyEwement(wocawize('unbound', "Unbound")));
 	}
 
-	style(styles: IKeybindingLabelStyles): void {
-		this.labelBackground = styles.keybindingLabelBackground;
-		this.labelForeground = styles.keybindingLabelForeground;
-		this.labelBorder = styles.keybindingLabelBorder;
-		this.labelBottomBorder = styles.keybindingLabelBottomBorder;
-		this.labelShadow = styles.keybindingLabelShadow;
+	pwivate cweateKeyEwement(wabew: stwing, extwaCwass = ''): HTMWEwement {
+		const keyEwement = $('span.monaco-keybinding-key' + extwaCwass, undefined, wabew);
+		this.keyEwements.add(keyEwement);
 
-		this.applyStyles();
+		wetuwn keyEwement;
 	}
 
-	private applyStyles() {
-		if (this.element) {
-			for (const keyElement of this.keyElements) {
-				if (this.labelBackground) {
-					keyElement.style.backgroundColor = this.labelBackground?.toString();
+	stywe(stywes: IKeybindingWabewStywes): void {
+		this.wabewBackgwound = stywes.keybindingWabewBackgwound;
+		this.wabewFowegwound = stywes.keybindingWabewFowegwound;
+		this.wabewBowda = stywes.keybindingWabewBowda;
+		this.wabewBottomBowda = stywes.keybindingWabewBottomBowda;
+		this.wabewShadow = stywes.keybindingWabewShadow;
+
+		this.appwyStywes();
+	}
+
+	pwivate appwyStywes() {
+		if (this.ewement) {
+			fow (const keyEwement of this.keyEwements) {
+				if (this.wabewBackgwound) {
+					keyEwement.stywe.backgwoundCowow = this.wabewBackgwound?.toStwing();
 				}
-				if (this.labelBorder) {
-					keyElement.style.borderColor = this.labelBorder.toString();
+				if (this.wabewBowda) {
+					keyEwement.stywe.bowdewCowow = this.wabewBowda.toStwing();
 				}
-				if (this.labelBottomBorder) {
-					keyElement.style.borderBottomColor = this.labelBottomBorder.toString();
+				if (this.wabewBottomBowda) {
+					keyEwement.stywe.bowdewBottomCowow = this.wabewBottomBowda.toStwing();
 				}
-				if (this.labelShadow) {
-					keyElement.style.boxShadow = `inset 0 -1px 0 ${this.labelShadow}`;
+				if (this.wabewShadow) {
+					keyEwement.stywe.boxShadow = `inset 0 -1px 0 ${this.wabewShadow}`;
 				}
 			}
 
-			if (this.labelForeground) {
-				this.element.style.color = this.labelForeground.toString();
+			if (this.wabewFowegwound) {
+				this.ewement.stywe.cowow = this.wabewFowegwound.toStwing();
 			}
 		}
 	}
 
-	private static areSame(a: Matches | undefined, b: Matches | undefined): boolean {
+	pwivate static aweSame(a: Matches | undefined, b: Matches | undefined): boowean {
 		if (a === b || (!a && !b)) {
-			return true;
+			wetuwn twue;
 		}
-		return !!a && !!b && equals(a.firstPart, b.firstPart) && equals(a.chordPart, b.chordPart);
+		wetuwn !!a && !!b && equaws(a.fiwstPawt, b.fiwstPawt) && equaws(a.chowdPawt, b.chowdPawt);
 	}
 }

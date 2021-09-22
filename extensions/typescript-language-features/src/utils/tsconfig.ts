@@ -1,167 +1,167 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import type * as Proto from '../protocol';
-import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
-import { nulToken } from '../utils/cancellation';
-import { TypeScriptServiceConfiguration } from './configuration';
+impowt * as path fwom 'path';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt type * as Pwoto fwom '../pwotocow';
+impowt { ITypeScwiptSewviceCwient, SewvewWesponse } fwom '../typescwiptSewvice';
+impowt { nuwToken } fwom '../utiws/cancewwation';
+impowt { TypeScwiptSewviceConfiguwation } fwom './configuwation';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-export const enum ProjectType {
-	TypeScript,
-	JavaScript,
+expowt const enum PwojectType {
+	TypeScwipt,
+	JavaScwipt,
 }
 
-export function isImplicitProjectConfigFile(configFileName: string) {
-	return configFileName.startsWith('/dev/null/');
+expowt function isImpwicitPwojectConfigFiwe(configFiweName: stwing) {
+	wetuwn configFiweName.stawtsWith('/dev/nuww/');
 }
 
-export function inferredProjectCompilerOptions(
-	projectType: ProjectType,
-	serviceConfig: TypeScriptServiceConfiguration,
-): Proto.ExternalProjectCompilerOptions {
-	const projectConfig: Proto.ExternalProjectCompilerOptions = {
-		module: 'commonjs' as Proto.ModuleKind,
-		target: 'es2020' as Proto.ScriptTarget,
-		jsx: 'preserve' as Proto.JsxEmit,
+expowt function infewwedPwojectCompiwewOptions(
+	pwojectType: PwojectType,
+	sewviceConfig: TypeScwiptSewviceConfiguwation,
+): Pwoto.ExtewnawPwojectCompiwewOptions {
+	const pwojectConfig: Pwoto.ExtewnawPwojectCompiwewOptions = {
+		moduwe: 'commonjs' as Pwoto.ModuweKind,
+		tawget: 'es2020' as Pwoto.ScwiptTawget,
+		jsx: 'pwesewve' as Pwoto.JsxEmit,
 	};
 
-	if (serviceConfig.implicitProjectConfiguration.checkJs) {
-		projectConfig.checkJs = true;
-		if (projectType === ProjectType.TypeScript) {
-			projectConfig.allowJs = true;
+	if (sewviceConfig.impwicitPwojectConfiguwation.checkJs) {
+		pwojectConfig.checkJs = twue;
+		if (pwojectType === PwojectType.TypeScwipt) {
+			pwojectConfig.awwowJs = twue;
 		}
 	}
 
-	if (serviceConfig.implicitProjectConfiguration.experimentalDecorators) {
-		projectConfig.experimentalDecorators = true;
+	if (sewviceConfig.impwicitPwojectConfiguwation.expewimentawDecowatows) {
+		pwojectConfig.expewimentawDecowatows = twue;
 	}
 
-	if (serviceConfig.implicitProjectConfiguration.strictNullChecks) {
-		projectConfig.strictNullChecks = true;
+	if (sewviceConfig.impwicitPwojectConfiguwation.stwictNuwwChecks) {
+		pwojectConfig.stwictNuwwChecks = twue;
 	}
 
-	if (serviceConfig.implicitProjectConfiguration.strictFunctionTypes) {
-		projectConfig.strictFunctionTypes = true;
+	if (sewviceConfig.impwicitPwojectConfiguwation.stwictFunctionTypes) {
+		pwojectConfig.stwictFunctionTypes = twue;
 	}
 
-	if (projectType === ProjectType.TypeScript) {
-		projectConfig.sourceMap = true;
+	if (pwojectType === PwojectType.TypeScwipt) {
+		pwojectConfig.souwceMap = twue;
 	}
 
-	return projectConfig;
+	wetuwn pwojectConfig;
 }
 
-function inferredProjectConfigSnippet(
-	projectType: ProjectType,
-	config: TypeScriptServiceConfiguration
+function infewwedPwojectConfigSnippet(
+	pwojectType: PwojectType,
+	config: TypeScwiptSewviceConfiguwation
 ) {
-	const baseConfig = inferredProjectCompilerOptions(projectType, config);
-	const compilerOptions = Object.keys(baseConfig).map(key => `"${key}": ${JSON.stringify(baseConfig[key])}`);
-	return new vscode.SnippetString(`{
-	"compilerOptions": {
-		${compilerOptions.join(',\n\t\t')}$0
+	const baseConfig = infewwedPwojectCompiwewOptions(pwojectType, config);
+	const compiwewOptions = Object.keys(baseConfig).map(key => `"${key}": ${JSON.stwingify(baseConfig[key])}`);
+	wetuwn new vscode.SnippetStwing(`{
+	"compiwewOptions": {
+		${compiwewOptions.join(',\n\t\t')}$0
 	},
-	"exclude": [
-		"node_modules",
-		"**/node_modules/*"
+	"excwude": [
+		"node_moduwes",
+		"**/node_moduwes/*"
 	]
 }`);
 }
 
-export async function openOrCreateConfig(
-	projectType: ProjectType,
-	rootPath: string,
-	configuration: TypeScriptServiceConfiguration,
-): Promise<vscode.TextEditor | null> {
-	const configFile = vscode.Uri.file(path.join(rootPath, projectType === ProjectType.TypeScript ? 'tsconfig.json' : 'jsconfig.json'));
-	const col = vscode.window.activeTextEditor?.viewColumn;
-	try {
-		const doc = await vscode.workspace.openTextDocument(configFile);
-		return vscode.window.showTextDocument(doc, col);
+expowt async function openOwCweateConfig(
+	pwojectType: PwojectType,
+	wootPath: stwing,
+	configuwation: TypeScwiptSewviceConfiguwation,
+): Pwomise<vscode.TextEditow | nuww> {
+	const configFiwe = vscode.Uwi.fiwe(path.join(wootPath, pwojectType === PwojectType.TypeScwipt ? 'tsconfig.json' : 'jsconfig.json'));
+	const cow = vscode.window.activeTextEditow?.viewCowumn;
+	twy {
+		const doc = await vscode.wowkspace.openTextDocument(configFiwe);
+		wetuwn vscode.window.showTextDocument(doc, cow);
 	} catch {
-		const doc = await vscode.workspace.openTextDocument(configFile.with({ scheme: 'untitled' }));
-		const editor = await vscode.window.showTextDocument(doc, col);
-		if (editor.document.getText().length === 0) {
-			await editor.insertSnippet(inferredProjectConfigSnippet(projectType, configuration));
+		const doc = await vscode.wowkspace.openTextDocument(configFiwe.with({ scheme: 'untitwed' }));
+		const editow = await vscode.window.showTextDocument(doc, cow);
+		if (editow.document.getText().wength === 0) {
+			await editow.insewtSnippet(infewwedPwojectConfigSnippet(pwojectType, configuwation));
 		}
-		return editor;
+		wetuwn editow;
 	}
 }
 
-export async function openProjectConfigOrPromptToCreate(
-	projectType: ProjectType,
-	client: ITypeScriptServiceClient,
-	rootPath: string,
-	configFileName: string,
-): Promise<void> {
-	if (!isImplicitProjectConfigFile(configFileName)) {
-		const doc = await vscode.workspace.openTextDocument(configFileName);
-		vscode.window.showTextDocument(doc, vscode.window.activeTextEditor?.viewColumn);
-		return;
+expowt async function openPwojectConfigOwPwomptToCweate(
+	pwojectType: PwojectType,
+	cwient: ITypeScwiptSewviceCwient,
+	wootPath: stwing,
+	configFiweName: stwing,
+): Pwomise<void> {
+	if (!isImpwicitPwojectConfigFiwe(configFiweName)) {
+		const doc = await vscode.wowkspace.openTextDocument(configFiweName);
+		vscode.window.showTextDocument(doc, vscode.window.activeTextEditow?.viewCowumn);
+		wetuwn;
 	}
 
-	const CreateConfigItem: vscode.MessageItem = {
-		title: projectType === ProjectType.TypeScript
-			? localize('typescript.configureTsconfigQuickPick', 'Configure tsconfig.json')
-			: localize('typescript.configureJsconfigQuickPick', 'Configure jsconfig.json'),
+	const CweateConfigItem: vscode.MessageItem = {
+		titwe: pwojectType === PwojectType.TypeScwipt
+			? wocawize('typescwipt.configuweTsconfigQuickPick', 'Configuwe tsconfig.json')
+			: wocawize('typescwipt.configuweJsconfigQuickPick', 'Configuwe jsconfig.json'),
 	};
 
-	const selected = await vscode.window.showInformationMessage(
-		(projectType === ProjectType.TypeScript
-			? localize('typescript.noTypeScriptProjectConfig', 'File is not part of a TypeScript project. Click [here]({0}) to learn more.', 'https://go.microsoft.com/fwlink/?linkid=841896')
-			: localize('typescript.noJavaScriptProjectConfig', 'File is not part of a JavaScript project Click [here]({0}) to learn more.', 'https://go.microsoft.com/fwlink/?linkid=759670')
+	const sewected = await vscode.window.showInfowmationMessage(
+		(pwojectType === PwojectType.TypeScwipt
+			? wocawize('typescwipt.noTypeScwiptPwojectConfig', 'Fiwe is not pawt of a TypeScwipt pwoject. Cwick [hewe]({0}) to weawn mowe.', 'https://go.micwosoft.com/fwwink/?winkid=841896')
+			: wocawize('typescwipt.noJavaScwiptPwojectConfig', 'Fiwe is not pawt of a JavaScwipt pwoject Cwick [hewe]({0}) to weawn mowe.', 'https://go.micwosoft.com/fwwink/?winkid=759670')
 		),
-		CreateConfigItem);
+		CweateConfigItem);
 
-	switch (selected) {
-		case CreateConfigItem:
-			openOrCreateConfig(projectType, rootPath, client.configuration);
-			return;
+	switch (sewected) {
+		case CweateConfigItem:
+			openOwCweateConfig(pwojectType, wootPath, cwient.configuwation);
+			wetuwn;
 	}
 }
 
-export async function openProjectConfigForFile(
-	projectType: ProjectType,
-	client: ITypeScriptServiceClient,
-	resource: vscode.Uri,
-): Promise<void> {
-	const rootPath = client.getWorkspaceRootForResource(resource);
-	if (!rootPath) {
-		vscode.window.showInformationMessage(
-			localize(
-				'typescript.projectConfigNoWorkspace',
-				'Please open a folder in VS Code to use a TypeScript or JavaScript project'));
-		return;
+expowt async function openPwojectConfigFowFiwe(
+	pwojectType: PwojectType,
+	cwient: ITypeScwiptSewviceCwient,
+	wesouwce: vscode.Uwi,
+): Pwomise<void> {
+	const wootPath = cwient.getWowkspaceWootFowWesouwce(wesouwce);
+	if (!wootPath) {
+		vscode.window.showInfowmationMessage(
+			wocawize(
+				'typescwipt.pwojectConfigNoWowkspace',
+				'Pwease open a fowda in VS Code to use a TypeScwipt ow JavaScwipt pwoject'));
+		wetuwn;
 	}
 
-	const file = client.toPath(resource);
-	// TSServer errors when 'projectInfo' is invoked on a non js/ts file
-	if (!file || !await client.toPath(resource)) {
-		vscode.window.showWarningMessage(
-			localize(
-				'typescript.projectConfigUnsupportedFile',
-				'Could not determine TypeScript or JavaScript project. Unsupported file type'));
-		return;
+	const fiwe = cwient.toPath(wesouwce);
+	// TSSewva ewwows when 'pwojectInfo' is invoked on a non js/ts fiwe
+	if (!fiwe || !await cwient.toPath(wesouwce)) {
+		vscode.window.showWawningMessage(
+			wocawize(
+				'typescwipt.pwojectConfigUnsuppowtedFiwe',
+				'Couwd not detewmine TypeScwipt ow JavaScwipt pwoject. Unsuppowted fiwe type'));
+		wetuwn;
 	}
 
-	let res: ServerResponse.Response<protocol.ProjectInfoResponse> | undefined;
-	try {
-		res = await client.execute('projectInfo', { file, needFileNameList: false }, nulToken);
+	wet wes: SewvewWesponse.Wesponse<pwotocow.PwojectInfoWesponse> | undefined;
+	twy {
+		wes = await cwient.execute('pwojectInfo', { fiwe, needFiweNameWist: fawse }, nuwToken);
 	} catch {
 		// noop
 	}
 
-	if (res?.type !== 'response' || !res.body) {
-		vscode.window.showWarningMessage(localize('typescript.projectConfigCouldNotGetInfo', 'Could not determine TypeScript or JavaScript project'));
-		return;
+	if (wes?.type !== 'wesponse' || !wes.body) {
+		vscode.window.showWawningMessage(wocawize('typescwipt.pwojectConfigCouwdNotGetInfo', 'Couwd not detewmine TypeScwipt ow JavaScwipt pwoject'));
+		wetuwn;
 	}
-	return openProjectConfigOrPromptToCreate(projectType, client, rootPath, res.body.configFileName);
+	wetuwn openPwojectConfigOwPwomptToCweate(pwojectType, cwient, wootPath, wes.body.configFiweName);
 }
 

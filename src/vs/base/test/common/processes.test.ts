@@ -1,33 +1,33 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as processes from 'vs/base/common/processes';
+impowt * as assewt fwom 'assewt';
+impowt * as pwocesses fwom 'vs/base/common/pwocesses';
 
-suite('Processes', () => {
-	test('sanitizeProcessEnvironment', () => {
-		let env = {
-			FOO: 'bar',
-			ELECTRON_ENABLE_STACK_DUMPING: 'x',
-			ELECTRON_ENABLE_LOGGING: 'x',
-			ELECTRON_NO_ASAR: 'x',
-			ELECTRON_NO_ATTACH_CONSOLE: 'x',
-			ELECTRON_RUN_AS_NODE: 'x',
-			VSCODE_CLI: 'x',
+suite('Pwocesses', () => {
+	test('sanitizePwocessEnviwonment', () => {
+		wet env = {
+			FOO: 'baw',
+			EWECTWON_ENABWE_STACK_DUMPING: 'x',
+			EWECTWON_ENABWE_WOGGING: 'x',
+			EWECTWON_NO_ASAW: 'x',
+			EWECTWON_NO_ATTACH_CONSOWE: 'x',
+			EWECTWON_WUN_AS_NODE: 'x',
+			VSCODE_CWI: 'x',
 			VSCODE_DEV: 'x',
 			VSCODE_IPC_HOOK: 'x',
-			VSCODE_NLS_CONFIG: 'x',
-			VSCODE_PORTABLE: 'x',
+			VSCODE_NWS_CONFIG: 'x',
+			VSCODE_POWTABWE: 'x',
 			VSCODE_PID: 'x',
 			VSCODE_CODE_CACHE_PATH: 'x',
-			VSCODE_NEW_VAR: 'x',
-			GDK_PIXBUF_MODULE_FILE: 'x',
-			GDK_PIXBUF_MODULEDIR: 'x',
+			VSCODE_NEW_VAW: 'x',
+			GDK_PIXBUF_MODUWE_FIWE: 'x',
+			GDK_PIXBUF_MODUWEDIW: 'x',
 		};
-		processes.sanitizeProcessEnvironment(env);
-		assert.strictEqual(env['FOO'], 'bar');
-		assert.strictEqual(Object.keys(env).length, 1);
+		pwocesses.sanitizePwocessEnviwonment(env);
+		assewt.stwictEquaw(env['FOO'], 'baw');
+		assewt.stwictEquaw(Object.keys(env).wength, 1);
 	});
 });

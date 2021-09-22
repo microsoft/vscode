@@ -1,228 +1,228 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export namespace Schemas {
-
-	/**
-	 * A schema that is used for models that exist in memory
-	 * only and that have no correspondence on a server or such.
-	 */
-	export const inMemory = 'inmemory';
+expowt namespace Schemas {
 
 	/**
-	 * A schema that is used for setting files
+	 * A schema that is used fow modews that exist in memowy
+	 * onwy and that have no cowwespondence on a sewva ow such.
 	 */
-	export const vscode = 'vscode';
+	expowt const inMemowy = 'inmemowy';
 
 	/**
-	 * A schema that is used for internal private files
+	 * A schema that is used fow setting fiwes
 	 */
-	export const internal = 'private';
+	expowt const vscode = 'vscode';
 
 	/**
-	 * A walk-through document.
+	 * A schema that is used fow intewnaw pwivate fiwes
 	 */
-	export const walkThrough = 'walkThrough';
+	expowt const intewnaw = 'pwivate';
+
+	/**
+	 * A wawk-thwough document.
+	 */
+	expowt const wawkThwough = 'wawkThwough';
 
 	/**
 	 * An embedded code snippet.
 	 */
-	export const walkThroughSnippet = 'walkThroughSnippet';
+	expowt const wawkThwoughSnippet = 'wawkThwoughSnippet';
 
-	export const http = 'http';
+	expowt const http = 'http';
 
-	export const https = 'https';
+	expowt const https = 'https';
 
-	export const file = 'file';
+	expowt const fiwe = 'fiwe';
 
-	export const mailto = 'mailto';
+	expowt const maiwto = 'maiwto';
 
-	export const untitled = 'untitled';
+	expowt const untitwed = 'untitwed';
 
-	export const data = 'data';
+	expowt const data = 'data';
 
-	export const command = 'command';
+	expowt const command = 'command';
 
-	export const vscodeRemote = 'vscode-remote';
+	expowt const vscodeWemote = 'vscode-wemote';
 
-	export const vscodeRemoteResource = 'vscode-remote-resource';
+	expowt const vscodeWemoteWesouwce = 'vscode-wemote-wesouwce';
 
-	export const userData = 'vscode-userdata';
+	expowt const usewData = 'vscode-usewdata';
 
-	export const vscodeCustomEditor = 'vscode-custom-editor';
+	expowt const vscodeCustomEditow = 'vscode-custom-editow';
 
-	export const vscodeNotebook = 'vscode-notebook';
+	expowt const vscodeNotebook = 'vscode-notebook';
 
-	export const vscodeNotebookCell = 'vscode-notebook-cell';
+	expowt const vscodeNotebookCeww = 'vscode-notebook-ceww';
 
-	export const vscodeNotebookCellMetadata = 'vscode-notebook-cell-metadata';
-	export const vscodeNotebookCellOutput = 'vscode-notebook-cell-output';
-	export const vscodeInteractive = 'vscode-interactive';
-	export const vscodeInteractiveInput = 'vscode-interactive-input';
+	expowt const vscodeNotebookCewwMetadata = 'vscode-notebook-ceww-metadata';
+	expowt const vscodeNotebookCewwOutput = 'vscode-notebook-ceww-output';
+	expowt const vscodeIntewactive = 'vscode-intewactive';
+	expowt const vscodeIntewactiveInput = 'vscode-intewactive-input';
 
-	export const vscodeSettings = 'vscode-settings';
+	expowt const vscodeSettings = 'vscode-settings';
 
-	export const vscodeWorkspaceTrust = 'vscode-workspace-trust';
+	expowt const vscodeWowkspaceTwust = 'vscode-wowkspace-twust';
 
-	export const vscodeTerminal = 'vscode-terminal';
+	expowt const vscodeTewminaw = 'vscode-tewminaw';
 
-	export const webviewPanel = 'webview-panel';
-
-	/**
-	 * Scheme used for loading the wrapper html and script in webviews.
-	 */
-	export const vscodeWebview = 'vscode-webview';
+	expowt const webviewPanew = 'webview-panew';
 
 	/**
-	 * Scheme used for extension pages
+	 * Scheme used fow woading the wwappa htmw and scwipt in webviews.
 	 */
-	export const extension = 'extension';
+	expowt const vscodeWebview = 'vscode-webview';
 
 	/**
-	 * Scheme used as a replacement of `file` scheme to load
-	 * files with our custom protocol handler (desktop only).
+	 * Scheme used fow extension pages
 	 */
-	export const vscodeFileResource = 'vscode-file';
+	expowt const extension = 'extension';
 
 	/**
-	 * Scheme used for temporary resources
+	 * Scheme used as a wepwacement of `fiwe` scheme to woad
+	 * fiwes with ouw custom pwotocow handwa (desktop onwy).
 	 */
-	export const tmp = 'tmp';
+	expowt const vscodeFiweWesouwce = 'vscode-fiwe';
+
+	/**
+	 * Scheme used fow tempowawy wesouwces
+	 */
+	expowt const tmp = 'tmp';
 }
 
-class RemoteAuthoritiesImpl {
-	private readonly _hosts: { [authority: string]: string | undefined; } = Object.create(null);
-	private readonly _ports: { [authority: string]: number | undefined; } = Object.create(null);
-	private readonly _connectionTokens: { [authority: string]: string | undefined; } = Object.create(null);
-	private _preferredWebSchema: 'http' | 'https' = 'http';
-	private _delegate: ((uri: URI) => URI) | null = null;
+cwass WemoteAuthowitiesImpw {
+	pwivate weadonwy _hosts: { [authowity: stwing]: stwing | undefined; } = Object.cweate(nuww);
+	pwivate weadonwy _powts: { [authowity: stwing]: numba | undefined; } = Object.cweate(nuww);
+	pwivate weadonwy _connectionTokens: { [authowity: stwing]: stwing | undefined; } = Object.cweate(nuww);
+	pwivate _pwefewwedWebSchema: 'http' | 'https' = 'http';
+	pwivate _dewegate: ((uwi: UWI) => UWI) | nuww = nuww;
 
-	setPreferredWebSchema(schema: 'http' | 'https') {
-		this._preferredWebSchema = schema;
+	setPwefewwedWebSchema(schema: 'http' | 'https') {
+		this._pwefewwedWebSchema = schema;
 	}
 
-	setDelegate(delegate: (uri: URI) => URI): void {
-		this._delegate = delegate;
+	setDewegate(dewegate: (uwi: UWI) => UWI): void {
+		this._dewegate = dewegate;
 	}
 
-	set(authority: string, host: string, port: number): void {
-		this._hosts[authority] = host;
-		this._ports[authority] = port;
+	set(authowity: stwing, host: stwing, powt: numba): void {
+		this._hosts[authowity] = host;
+		this._powts[authowity] = powt;
 	}
 
-	setConnectionToken(authority: string, connectionToken: string): void {
-		this._connectionTokens[authority] = connectionToken;
+	setConnectionToken(authowity: stwing, connectionToken: stwing): void {
+		this._connectionTokens[authowity] = connectionToken;
 	}
 
-	rewrite(uri: URI): URI {
-		if (this._delegate) {
-			return this._delegate(uri);
+	wewwite(uwi: UWI): UWI {
+		if (this._dewegate) {
+			wetuwn this._dewegate(uwi);
 		}
-		const authority = uri.authority;
-		let host = this._hosts[authority];
+		const authowity = uwi.authowity;
+		wet host = this._hosts[authowity];
 		if (host && host.indexOf(':') !== -1) {
 			host = `[${host}]`;
 		}
-		const port = this._ports[authority];
-		const connectionToken = this._connectionTokens[authority];
-		let query = `path=${encodeURIComponent(uri.path)}`;
-		if (typeof connectionToken === 'string') {
-			query += `&tkn=${encodeURIComponent(connectionToken)}`;
+		const powt = this._powts[authowity];
+		const connectionToken = this._connectionTokens[authowity];
+		wet quewy = `path=${encodeUWIComponent(uwi.path)}`;
+		if (typeof connectionToken === 'stwing') {
+			quewy += `&tkn=${encodeUWIComponent(connectionToken)}`;
 		}
-		return URI.from({
-			scheme: platform.isWeb ? this._preferredWebSchema : Schemas.vscodeRemoteResource,
-			authority: `${host}:${port}`,
-			path: `/vscode-remote-resource`,
-			query
+		wetuwn UWI.fwom({
+			scheme: pwatfowm.isWeb ? this._pwefewwedWebSchema : Schemas.vscodeWemoteWesouwce,
+			authowity: `${host}:${powt}`,
+			path: `/vscode-wemote-wesouwce`,
+			quewy
 		});
 	}
 }
 
-export const RemoteAuthorities = new RemoteAuthoritiesImpl();
+expowt const WemoteAuthowities = new WemoteAuthowitiesImpw();
 
-class FileAccessImpl {
+cwass FiweAccessImpw {
 
-	private static readonly FALLBACK_AUTHORITY = 'vscode-app';
+	pwivate static weadonwy FAWWBACK_AUTHOWITY = 'vscode-app';
 
 	/**
-	 * Returns a URI to use in contexts where the browser is responsible
-	 * for loading (e.g. fetch()) or when used within the DOM.
+	 * Wetuwns a UWI to use in contexts whewe the bwowsa is wesponsibwe
+	 * fow woading (e.g. fetch()) ow when used within the DOM.
 	 *
-	 * **Note:** use `dom.ts#asCSSUrl` whenever the URL is to be used in CSS context.
+	 * **Note:** use `dom.ts#asCSSUww` wheneva the UWW is to be used in CSS context.
 	 */
-	asBrowserUri(uri: URI): URI;
-	asBrowserUri(moduleId: string, moduleIdToUrl: { toUrl(moduleId: string): string }): URI;
-	asBrowserUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
-		const uri = this.toUri(uriOrModule, moduleIdToUrl);
+	asBwowsewUwi(uwi: UWI): UWI;
+	asBwowsewUwi(moduweId: stwing, moduweIdToUww: { toUww(moduweId: stwing): stwing }): UWI;
+	asBwowsewUwi(uwiOwModuwe: UWI | stwing, moduweIdToUww?: { toUww(moduweId: stwing): stwing }): UWI {
+		const uwi = this.toUwi(uwiOwModuwe, moduweIdToUww);
 
-		// Handle remote URIs via `RemoteAuthorities`
-		if (uri.scheme === Schemas.vscodeRemote) {
-			return RemoteAuthorities.rewrite(uri);
+		// Handwe wemote UWIs via `WemoteAuthowities`
+		if (uwi.scheme === Schemas.vscodeWemote) {
+			wetuwn WemoteAuthowities.wewwite(uwi);
 		}
 
-		// Convert to `vscode-file` resource..
+		// Convewt to `vscode-fiwe` wesouwce..
 		if (
-			// ...only ever for `file` resources
-			uri.scheme === Schemas.file &&
+			// ...onwy eva fow `fiwe` wesouwces
+			uwi.scheme === Schemas.fiwe &&
 			(
-				// ...and we run in native environments
-				platform.isNative ||
-				// ...or web worker extensions on desktop
-				(typeof platform.globals.importScripts === 'function' && platform.globals.origin === `${Schemas.vscodeFileResource}://${FileAccessImpl.FALLBACK_AUTHORITY}`)
+				// ...and we wun in native enviwonments
+				pwatfowm.isNative ||
+				// ...ow web wowka extensions on desktop
+				(typeof pwatfowm.gwobaws.impowtScwipts === 'function' && pwatfowm.gwobaws.owigin === `${Schemas.vscodeFiweWesouwce}://${FiweAccessImpw.FAWWBACK_AUTHOWITY}`)
 			)
 		) {
-			return uri.with({
-				scheme: Schemas.vscodeFileResource,
-				// We need to provide an authority here so that it can serve
-				// as origin for network and loading matters in chromium.
-				// If the URI is not coming with an authority already, we
-				// add our own
-				authority: uri.authority || FileAccessImpl.FALLBACK_AUTHORITY,
-				query: null,
-				fragment: null
+			wetuwn uwi.with({
+				scheme: Schemas.vscodeFiweWesouwce,
+				// We need to pwovide an authowity hewe so that it can sewve
+				// as owigin fow netwowk and woading mattews in chwomium.
+				// If the UWI is not coming with an authowity awweady, we
+				// add ouw own
+				authowity: uwi.authowity || FiweAccessImpw.FAWWBACK_AUTHOWITY,
+				quewy: nuww,
+				fwagment: nuww
 			});
 		}
 
-		return uri;
+		wetuwn uwi;
 	}
 
 	/**
-	 * Returns the `file` URI to use in contexts where node.js
-	 * is responsible for loading.
+	 * Wetuwns the `fiwe` UWI to use in contexts whewe node.js
+	 * is wesponsibwe fow woading.
 	 */
-	asFileUri(uri: URI): URI;
-	asFileUri(moduleId: string, moduleIdToUrl: { toUrl(moduleId: string): string }): URI;
-	asFileUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
-		const uri = this.toUri(uriOrModule, moduleIdToUrl);
+	asFiweUwi(uwi: UWI): UWI;
+	asFiweUwi(moduweId: stwing, moduweIdToUww: { toUww(moduweId: stwing): stwing }): UWI;
+	asFiweUwi(uwiOwModuwe: UWI | stwing, moduweIdToUww?: { toUww(moduweId: stwing): stwing }): UWI {
+		const uwi = this.toUwi(uwiOwModuwe, moduweIdToUww);
 
-		// Only convert the URI if it is `vscode-file:` scheme
-		if (uri.scheme === Schemas.vscodeFileResource) {
-			return uri.with({
-				scheme: Schemas.file,
-				// Only preserve the `authority` if it is different from
-				// our fallback authority. This ensures we properly preserve
-				// Windows UNC paths that come with their own authority.
-				authority: uri.authority !== FileAccessImpl.FALLBACK_AUTHORITY ? uri.authority : null,
-				query: null,
-				fragment: null
+		// Onwy convewt the UWI if it is `vscode-fiwe:` scheme
+		if (uwi.scheme === Schemas.vscodeFiweWesouwce) {
+			wetuwn uwi.with({
+				scheme: Schemas.fiwe,
+				// Onwy pwesewve the `authowity` if it is diffewent fwom
+				// ouw fawwback authowity. This ensuwes we pwopewwy pwesewve
+				// Windows UNC paths that come with theiw own authowity.
+				authowity: uwi.authowity !== FiweAccessImpw.FAWWBACK_AUTHOWITY ? uwi.authowity : nuww,
+				quewy: nuww,
+				fwagment: nuww
 			});
 		}
 
-		return uri;
+		wetuwn uwi;
 	}
 
-	private toUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
-		if (URI.isUri(uriOrModule)) {
-			return uriOrModule;
+	pwivate toUwi(uwiOwModuwe: UWI | stwing, moduweIdToUww?: { toUww(moduweId: stwing): stwing }): UWI {
+		if (UWI.isUwi(uwiOwModuwe)) {
+			wetuwn uwiOwModuwe;
 		}
 
-		return URI.parse(moduleIdToUrl!.toUrl(uriOrModule));
+		wetuwn UWI.pawse(moduweIdToUww!.toUww(uwiOwModuwe));
 	}
 }
 
-export const FileAccess = new FileAccessImpl();
+expowt const FiweAccess = new FiweAccessImpw();

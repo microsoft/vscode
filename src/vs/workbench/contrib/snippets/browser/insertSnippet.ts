@@ -1,76 +1,76 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { LanguageId } from 'vs/editor/common/modes';
-import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
-import { IQuickPickItem, IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { Codicon } from 'vs/base/common/codicons';
-import { Event } from 'vs/base/common/event';
+impowt * as nws fwom 'vs/nws';
+impowt { wegistewEditowAction, SewvicesAccessow, EditowAction } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { WanguageId } fwom 'vs/editow/common/modes';
+impowt { ICommandSewvice, CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ISnippetsSewvice } fwom 'vs/wowkbench/contwib/snippets/bwowsa/snippets.contwibution';
+impowt { SnippetContwowwew2 } fwom 'vs/editow/contwib/snippet/snippetContwowwew2';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { Snippet, SnippetSouwce } fwom 'vs/wowkbench/contwib/snippets/bwowsa/snippetsFiwe';
+impowt { IQuickPickItem, IQuickInputSewvice, QuickPickInput } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { Event } fwom 'vs/base/common/event';
 
 
-class Args {
+cwass Awgs {
 
-	static fromUser(arg: any): Args {
-		if (!arg || typeof arg !== 'object') {
-			return Args._empty;
+	static fwomUsa(awg: any): Awgs {
+		if (!awg || typeof awg !== 'object') {
+			wetuwn Awgs._empty;
 		}
-		let { snippet, name, langId } = arg;
-		if (typeof snippet !== 'string') {
+		wet { snippet, name, wangId } = awg;
+		if (typeof snippet !== 'stwing') {
 			snippet = undefined;
 		}
-		if (typeof name !== 'string') {
+		if (typeof name !== 'stwing') {
 			name = undefined;
 		}
-		if (typeof langId !== 'string') {
-			langId = undefined;
+		if (typeof wangId !== 'stwing') {
+			wangId = undefined;
 		}
-		return new Args(snippet, name, langId);
+		wetuwn new Awgs(snippet, name, wangId);
 	}
 
-	private static readonly _empty = new Args(undefined, undefined, undefined);
+	pwivate static weadonwy _empty = new Awgs(undefined, undefined, undefined);
 
-	private constructor(
-		public readonly snippet: string | undefined,
-		public readonly name: string | undefined,
-		public readonly langId: string | undefined
+	pwivate constwuctow(
+		pubwic weadonwy snippet: stwing | undefined,
+		pubwic weadonwy name: stwing | undefined,
+		pubwic weadonwy wangId: stwing | undefined
 	) { }
 }
 
-class InsertSnippetAction extends EditorAction {
+cwass InsewtSnippetAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.insertSnippet',
-			label: nls.localize('snippet.suggestions.label', "Insert Snippet"),
-			alias: 'Insert Snippet',
-			precondition: EditorContextKeys.writable,
-			description: {
-				description: `Insert Snippet`,
-				args: [{
-					name: 'args',
+	constwuctow() {
+		supa({
+			id: 'editow.action.insewtSnippet',
+			wabew: nws.wocawize('snippet.suggestions.wabew', "Insewt Snippet"),
+			awias: 'Insewt Snippet',
+			pwecondition: EditowContextKeys.wwitabwe,
+			descwiption: {
+				descwiption: `Insewt Snippet`,
+				awgs: [{
+					name: 'awgs',
 					schema: {
 						'type': 'object',
-						'properties': {
+						'pwopewties': {
 							'snippet': {
-								'type': 'string'
+								'type': 'stwing'
 							},
-							'langId': {
-								'type': 'string',
+							'wangId': {
+								'type': 'stwing',
 
 							},
 							'name': {
-								'type': 'string'
+								'type': 'stwing'
 							}
 						},
 					}
@@ -79,154 +79,154 @@ class InsertSnippetAction extends EditorAction {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, editor: ICodeEditor, arg: any): Promise<void> {
-		const modeService = accessor.get(IModeService);
-		const snippetService = accessor.get(ISnippetsService);
+	async wun(accessow: SewvicesAccessow, editow: ICodeEditow, awg: any): Pwomise<void> {
+		const modeSewvice = accessow.get(IModeSewvice);
+		const snippetSewvice = accessow.get(ISnippetsSewvice);
 
-		if (!editor.hasModel()) {
-			return;
+		if (!editow.hasModew()) {
+			wetuwn;
 		}
 
-		const clipboardService = accessor.get(IClipboardService);
-		const quickInputService = accessor.get(IQuickInputService);
+		const cwipboawdSewvice = accessow.get(ICwipboawdSewvice);
+		const quickInputSewvice = accessow.get(IQuickInputSewvice);
 
-		const snippet = await new Promise<Snippet | undefined>(async (resolve) => {
+		const snippet = await new Pwomise<Snippet | undefined>(async (wesowve) => {
 
-			const { lineNumber, column } = editor.getPosition();
-			let { snippet, name, langId } = Args.fromUser(arg);
+			const { wineNumba, cowumn } = editow.getPosition();
+			wet { snippet, name, wangId } = Awgs.fwomUsa(awg);
 
 			if (snippet) {
-				return resolve(new Snippet(
+				wetuwn wesowve(new Snippet(
 					[],
 					'',
 					'',
 					'',
 					snippet,
 					'',
-					SnippetSource.User,
+					SnippetSouwce.Usa,
 				));
 			}
 
-			let languageId = LanguageId.Null;
-			if (langId) {
-				const otherLangId = modeService.getLanguageIdentifier(langId);
-				if (otherLangId) {
-					languageId = otherLangId.id;
+			wet wanguageId = WanguageId.Nuww;
+			if (wangId) {
+				const othewWangId = modeSewvice.getWanguageIdentifia(wangId);
+				if (othewWangId) {
+					wanguageId = othewWangId.id;
 				}
-			} else {
-				editor.getModel().tokenizeIfCheap(lineNumber);
-				languageId = editor.getModel().getLanguageIdAtPosition(lineNumber, column);
+			} ewse {
+				editow.getModew().tokenizeIfCheap(wineNumba);
+				wanguageId = editow.getModew().getWanguageIdAtPosition(wineNumba, cowumn);
 
-				// validate the `languageId` to ensure this is a user
-				// facing language with a name and the chance to have
-				// snippets, else fall back to the outer language
-				const otherLangId = modeService.getLanguageIdentifier(languageId);
-				if (otherLangId && !modeService.getLanguageName(otherLangId.language)) {
-					languageId = editor.getModel().getLanguageIdentifier().id;
+				// vawidate the `wanguageId` to ensuwe this is a usa
+				// facing wanguage with a name and the chance to have
+				// snippets, ewse faww back to the outa wanguage
+				const othewWangId = modeSewvice.getWanguageIdentifia(wanguageId);
+				if (othewWangId && !modeSewvice.getWanguageName(othewWangId.wanguage)) {
+					wanguageId = editow.getModew().getWanguageIdentifia().id;
 				}
 			}
 
 			if (name) {
-				// take selected snippet
-				const snippet = (await snippetService.getSnippets(languageId, { includeNoPrefixSnippets: true })).find(snippet => snippet.name === name);
-				resolve(snippet);
+				// take sewected snippet
+				const snippet = (await snippetSewvice.getSnippets(wanguageId, { incwudeNoPwefixSnippets: twue })).find(snippet => snippet.name === name);
+				wesowve(snippet);
 
-			} else {
-				// let user pick a snippet
-				const snippet = await this._pickSnippet(snippetService, quickInputService, languageId);
-				resolve(snippet);
+			} ewse {
+				// wet usa pick a snippet
+				const snippet = await this._pickSnippet(snippetSewvice, quickInputSewvice, wanguageId);
+				wesowve(snippet);
 			}
 		});
 
 		if (!snippet) {
-			return;
+			wetuwn;
 		}
-		let clipboardText: string | undefined;
-		if (snippet.needsClipboard) {
-			clipboardText = await clipboardService.readText();
+		wet cwipboawdText: stwing | undefined;
+		if (snippet.needsCwipboawd) {
+			cwipboawdText = await cwipboawdSewvice.weadText();
 		}
-		SnippetController2.get(editor).insert(snippet.codeSnippet, { clipboardText });
+		SnippetContwowwew2.get(editow).insewt(snippet.codeSnippet, { cwipboawdText });
 	}
 
-	private async _pickSnippet(snippetService: ISnippetsService, quickInputService: IQuickInputService, languageId: LanguageId): Promise<Snippet | undefined> {
+	pwivate async _pickSnippet(snippetSewvice: ISnippetsSewvice, quickInputSewvice: IQuickInputSewvice, wanguageId: WanguageId): Pwomise<Snippet | undefined> {
 
-		interface ISnippetPick extends IQuickPickItem {
+		intewface ISnippetPick extends IQuickPickItem {
 			snippet: Snippet;
 		}
 
-		const snippets = (await snippetService.getSnippets(languageId, { includeDisabledSnippets: true, includeNoPrefixSnippets: true })).sort(Snippet.compare);
+		const snippets = (await snippetSewvice.getSnippets(wanguageId, { incwudeDisabwedSnippets: twue, incwudeNoPwefixSnippets: twue })).sowt(Snippet.compawe);
 
 		const makeSnippetPicks = () => {
-			const result: QuickPickInput<ISnippetPick>[] = [];
-			let prevSnippet: Snippet | undefined;
-			for (const snippet of snippets) {
+			const wesuwt: QuickPickInput<ISnippetPick>[] = [];
+			wet pwevSnippet: Snippet | undefined;
+			fow (const snippet of snippets) {
 				const pick: ISnippetPick = {
-					label: snippet.prefix || snippet.name,
-					detail: snippet.description,
+					wabew: snippet.pwefix || snippet.name,
+					detaiw: snippet.descwiption,
 					snippet
 				};
-				if (!prevSnippet || prevSnippet.snippetSource !== snippet.snippetSource) {
-					let label = '';
-					switch (snippet.snippetSource) {
-						case SnippetSource.User:
-							label = nls.localize('sep.userSnippet', "User Snippets");
-							break;
-						case SnippetSource.Extension:
-							label = nls.localize('sep.extSnippet', "Extension Snippets");
-							break;
-						case SnippetSource.Workspace:
-							label = nls.localize('sep.workspaceSnippet', "Workspace Snippets");
-							break;
+				if (!pwevSnippet || pwevSnippet.snippetSouwce !== snippet.snippetSouwce) {
+					wet wabew = '';
+					switch (snippet.snippetSouwce) {
+						case SnippetSouwce.Usa:
+							wabew = nws.wocawize('sep.usewSnippet', "Usa Snippets");
+							bweak;
+						case SnippetSouwce.Extension:
+							wabew = nws.wocawize('sep.extSnippet', "Extension Snippets");
+							bweak;
+						case SnippetSouwce.Wowkspace:
+							wabew = nws.wocawize('sep.wowkspaceSnippet', "Wowkspace Snippets");
+							bweak;
 					}
-					result.push({ type: 'separator', label });
+					wesuwt.push({ type: 'sepawatow', wabew });
 				}
 
-				if (snippet.snippetSource === SnippetSource.Extension) {
-					const isEnabled = snippetService.isEnabled(snippet);
-					if (isEnabled) {
+				if (snippet.snippetSouwce === SnippetSouwce.Extension) {
+					const isEnabwed = snippetSewvice.isEnabwed(snippet);
+					if (isEnabwed) {
 						pick.buttons = [{
-							iconClass: Codicon.eyeClosed.classNames,
-							tooltip: nls.localize('disableSnippet', 'Hide from IntelliSense')
+							iconCwass: Codicon.eyeCwosed.cwassNames,
+							toowtip: nws.wocawize('disabweSnippet', 'Hide fwom IntewwiSense')
 						}];
-					} else {
-						pick.description = nls.localize('isDisabled', "(hidden from IntelliSense)");
+					} ewse {
+						pick.descwiption = nws.wocawize('isDisabwed', "(hidden fwom IntewwiSense)");
 						pick.buttons = [{
-							iconClass: Codicon.eye.classNames,
-							tooltip: nls.localize('enable.snippet', 'Show in IntelliSense')
+							iconCwass: Codicon.eye.cwassNames,
+							toowtip: nws.wocawize('enabwe.snippet', 'Show in IntewwiSense')
 						}];
 					}
 				}
 
-				result.push(pick);
-				prevSnippet = snippet;
+				wesuwt.push(pick);
+				pwevSnippet = snippet;
 			}
-			return result;
+			wetuwn wesuwt;
 		};
 
-		const picker = quickInputService.createQuickPick<ISnippetPick>();
-		picker.placeholder = nls.localize('pick.placeholder', "Select a snippet");
-		picker.matchOnDetail = true;
-		picker.ignoreFocusOut = false;
-		picker.keepScrollPosition = true;
-		picker.onDidTriggerItemButton(ctx => {
-			const isEnabled = snippetService.isEnabled(ctx.item.snippet);
-			snippetService.updateEnablement(ctx.item.snippet, !isEnabled);
-			picker.items = makeSnippetPicks();
+		const picka = quickInputSewvice.cweateQuickPick<ISnippetPick>();
+		picka.pwacehowda = nws.wocawize('pick.pwacehowda', "Sewect a snippet");
+		picka.matchOnDetaiw = twue;
+		picka.ignoweFocusOut = fawse;
+		picka.keepScwowwPosition = twue;
+		picka.onDidTwiggewItemButton(ctx => {
+			const isEnabwed = snippetSewvice.isEnabwed(ctx.item.snippet);
+			snippetSewvice.updateEnabwement(ctx.item.snippet, !isEnabwed);
+			picka.items = makeSnippetPicks();
 		});
-		picker.items = makeSnippetPicks();
-		picker.show();
+		picka.items = makeSnippetPicks();
+		picka.show();
 
-		// wait for an item to be picked or the picker to become hidden
-		await Promise.race([Event.toPromise(picker.onDidAccept), Event.toPromise(picker.onDidHide)]);
-		const result = picker.selectedItems[0]?.snippet;
-		picker.dispose();
-		return result;
+		// wait fow an item to be picked ow the picka to become hidden
+		await Pwomise.wace([Event.toPwomise(picka.onDidAccept), Event.toPwomise(picka.onDidHide)]);
+		const wesuwt = picka.sewectedItems[0]?.snippet;
+		picka.dispose();
+		wetuwn wesuwt;
 	}
 }
 
-registerEditorAction(InsertSnippetAction);
+wegistewEditowAction(InsewtSnippetAction);
 
-// compatibility command to make sure old keybinding are still working
-CommandsRegistry.registerCommand('editor.action.showSnippets', accessor => {
-	return accessor.get(ICommandService).executeCommand('editor.action.insertSnippet');
+// compatibiwity command to make suwe owd keybinding awe stiww wowking
+CommandsWegistwy.wegistewCommand('editow.action.showSnippets', accessow => {
+	wetuwn accessow.get(ICommandSewvice).executeCommand('editow.action.insewtSnippet');
 });

@@ -1,127 +1,127 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CellExecutionUpdateType, ICellExecuteUpdate } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
+impowt * as extHostPwotocow fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { NotebookCewwTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookCewwTextModew';
+impowt * as notebookCommon fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { CewwExecutionUpdateType, ICewwExecuteUpdate } fwom 'vs/wowkbench/contwib/notebook/common/notebookExecutionSewvice';
 
-export namespace NotebookDto {
+expowt namespace NotebookDto {
 
-	export function toNotebookOutputItemDto(item: notebookCommon.IOutputItemDto): extHostProtocol.NotebookOutputItemDto {
-		return {
+	expowt function toNotebookOutputItemDto(item: notebookCommon.IOutputItemDto): extHostPwotocow.NotebookOutputItemDto {
+		wetuwn {
 			mime: item.mime,
-			valueBytes: item.data
+			vawueBytes: item.data
 		};
 	}
 
-	export function toNotebookOutputDto(output: notebookCommon.IOutputDto): extHostProtocol.NotebookOutputDto {
-		return {
+	expowt function toNotebookOutputDto(output: notebookCommon.IOutputDto): extHostPwotocow.NotebookOutputDto {
+		wetuwn {
 			outputId: output.outputId,
 			metadata: output.metadata,
 			items: output.outputs.map(toNotebookOutputItemDto)
 		};
 	}
 
-	export function toNotebookCellDataDto(cell: notebookCommon.ICellDto2): extHostProtocol.NotebookCellDataDto {
-		return {
-			cellKind: cell.cellKind,
-			language: cell.language,
-			mime: cell.mime,
-			source: cell.source,
-			internalMetadata: cell.internalMetadata,
-			metadata: cell.metadata,
-			outputs: cell.outputs.map(toNotebookOutputDto)
+	expowt function toNotebookCewwDataDto(ceww: notebookCommon.ICewwDto2): extHostPwotocow.NotebookCewwDataDto {
+		wetuwn {
+			cewwKind: ceww.cewwKind,
+			wanguage: ceww.wanguage,
+			mime: ceww.mime,
+			souwce: ceww.souwce,
+			intewnawMetadata: ceww.intewnawMetadata,
+			metadata: ceww.metadata,
+			outputs: ceww.outputs.map(toNotebookOutputDto)
 		};
 	}
 
-	export function toNotebookDataDto(data: notebookCommon.NotebookData): extHostProtocol.NotebookDataDto {
-		return {
+	expowt function toNotebookDataDto(data: notebookCommon.NotebookData): extHostPwotocow.NotebookDataDto {
+		wetuwn {
 			metadata: data.metadata,
-			cells: data.cells.map(toNotebookCellDataDto)
+			cewws: data.cewws.map(toNotebookCewwDataDto)
 		};
 	}
 
-	export function fromNotebookOutputItemDto(item: extHostProtocol.NotebookOutputItemDto): notebookCommon.IOutputItemDto {
-		return {
+	expowt function fwomNotebookOutputItemDto(item: extHostPwotocow.NotebookOutputItemDto): notebookCommon.IOutputItemDto {
+		wetuwn {
 			mime: item.mime,
-			data: item.valueBytes
+			data: item.vawueBytes
 		};
 	}
 
-	export function fromNotebookOutputDto(output: extHostProtocol.NotebookOutputDto): notebookCommon.IOutputDto {
-		return {
+	expowt function fwomNotebookOutputDto(output: extHostPwotocow.NotebookOutputDto): notebookCommon.IOutputDto {
+		wetuwn {
 			outputId: output.outputId,
 			metadata: output.metadata,
-			outputs: output.items.map(fromNotebookOutputItemDto)
+			outputs: output.items.map(fwomNotebookOutputItemDto)
 		};
 	}
 
-	export function fromNotebookCellDataDto(cell: extHostProtocol.NotebookCellDataDto): notebookCommon.ICellDto2 {
-		return {
-			cellKind: cell.cellKind,
-			language: cell.language,
-			mime: cell.mime,
-			source: cell.source,
-			outputs: cell.outputs.map(fromNotebookOutputDto),
-			metadata: cell.metadata,
-			internalMetadata: cell.internalMetadata
+	expowt function fwomNotebookCewwDataDto(ceww: extHostPwotocow.NotebookCewwDataDto): notebookCommon.ICewwDto2 {
+		wetuwn {
+			cewwKind: ceww.cewwKind,
+			wanguage: ceww.wanguage,
+			mime: ceww.mime,
+			souwce: ceww.souwce,
+			outputs: ceww.outputs.map(fwomNotebookOutputDto),
+			metadata: ceww.metadata,
+			intewnawMetadata: ceww.intewnawMetadata
 		};
 	}
 
-	export function fromNotebookDataDto(data: extHostProtocol.NotebookDataDto): notebookCommon.NotebookData {
-		return {
+	expowt function fwomNotebookDataDto(data: extHostPwotocow.NotebookDataDto): notebookCommon.NotebookData {
+		wetuwn {
 			metadata: data.metadata,
-			cells: data.cells.map(fromNotebookCellDataDto)
+			cewws: data.cewws.map(fwomNotebookCewwDataDto)
 		};
 	}
 
-	export function toNotebookCellDto(cell: NotebookCellTextModel): extHostProtocol.NotebookCellDto {
-		return {
-			handle: cell.handle,
-			uri: cell.uri,
-			source: cell.textBuffer.getLinesContent(),
-			eol: cell.textBuffer.getEOL(),
-			language: cell.language,
-			cellKind: cell.cellKind,
-			outputs: cell.outputs.map(toNotebookOutputDto),
-			metadata: cell.metadata,
-			internalMetadata: cell.internalMetadata,
+	expowt function toNotebookCewwDto(ceww: NotebookCewwTextModew): extHostPwotocow.NotebookCewwDto {
+		wetuwn {
+			handwe: ceww.handwe,
+			uwi: ceww.uwi,
+			souwce: ceww.textBuffa.getWinesContent(),
+			eow: ceww.textBuffa.getEOW(),
+			wanguage: ceww.wanguage,
+			cewwKind: ceww.cewwKind,
+			outputs: ceww.outputs.map(toNotebookOutputDto),
+			metadata: ceww.metadata,
+			intewnawMetadata: ceww.intewnawMetadata,
 		};
 	}
 
-	export function fromCellExecuteUpdateDto(data: extHostProtocol.ICellExecuteUpdateDto): ICellExecuteUpdate {
-		if (data.editType === CellExecutionUpdateType.Output) {
-			return {
+	expowt function fwomCewwExecuteUpdateDto(data: extHostPwotocow.ICewwExecuteUpdateDto): ICewwExecuteUpdate {
+		if (data.editType === CewwExecutionUpdateType.Output) {
+			wetuwn {
 				editType: data.editType,
-				cellHandle: data.cellHandle,
+				cewwHandwe: data.cewwHandwe,
 				append: data.append,
-				outputs: data.outputs.map(fromNotebookOutputDto)
+				outputs: data.outputs.map(fwomNotebookOutputDto)
 			};
-		} else if (data.editType === CellExecutionUpdateType.OutputItems) {
-			return {
+		} ewse if (data.editType === CewwExecutionUpdateType.OutputItems) {
+			wetuwn {
 				editType: data.editType,
 				append: data.append,
 				outputId: data.outputId,
-				items: data.items.map(fromNotebookOutputItemDto)
+				items: data.items.map(fwomNotebookOutputItemDto)
 			};
-		} else {
-			return data;
+		} ewse {
+			wetuwn data;
 		}
 	}
 
-	export function fromCellEditOperationDto(edit: extHostProtocol.ICellEditOperationDto): notebookCommon.ICellEditOperation {
-		if (edit.editType === notebookCommon.CellEditType.Replace) {
-			return {
+	expowt function fwomCewwEditOpewationDto(edit: extHostPwotocow.ICewwEditOpewationDto): notebookCommon.ICewwEditOpewation {
+		if (edit.editType === notebookCommon.CewwEditType.Wepwace) {
+			wetuwn {
 				editType: edit.editType,
 				index: edit.index,
 				count: edit.count,
-				cells: edit.cells.map(fromNotebookCellDataDto)
+				cewws: edit.cewws.map(fwomNotebookCewwDataDto)
 			};
-		} else {
-			return edit;
+		} ewse {
+			wetuwn edit;
 		}
 	}
 }

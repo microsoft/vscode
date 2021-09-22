@@ -1,174 +1,174 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { FinalNewLineParticipant, TrimFinalNewLinesParticipant, TrimWhitespaceParticipant } from 'vs/workbench/contrib/codeEditor/browser/saveParticipants';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
-import { toResource } from 'vs/base/test/common/utils';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { IResolvedTextFileEditorModel, snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
-import { SaveReason } from 'vs/workbench/common/editor';
-import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
+impowt * as assewt fwom 'assewt';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { FinawNewWinePawticipant, TwimFinawNewWinesPawticipant, TwimWhitespacePawticipant } fwom 'vs/wowkbench/contwib/codeEditow/bwowsa/savePawticipants';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { wowkbenchInstantiationSewvice, TestSewviceAccessow } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { toWesouwce } fwom 'vs/base/test/common/utiws';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { TextFiweEditowModew } fwom 'vs/wowkbench/sewvices/textfiwe/common/textFiweEditowModew';
+impowt { IWesowvedTextFiweEditowModew, snapshotToStwing } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { SaveWeason } fwom 'vs/wowkbench/common/editow';
+impowt { TextFiweEditowModewManaga } fwom 'vs/wowkbench/sewvices/textfiwe/common/textFiweEditowModewManaga';
 
-suite('Save Participants', function () {
+suite('Save Pawticipants', function () {
 
-	let instantiationService: IInstantiationService;
-	let accessor: TestServiceAccessor;
+	wet instantiationSewvice: IInstantiationSewvice;
+	wet accessow: TestSewviceAccessow;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
-		accessor = instantiationService.createInstance(TestServiceAccessor);
+		instantiationSewvice = wowkbenchInstantiationSewvice();
+		accessow = instantiationSewvice.cweateInstance(TestSewviceAccessow);
 	});
 
-	teardown(() => {
-		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
+	teawdown(() => {
+		(<TextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).dispose();
 	});
 
-	test('insert final new line', async function () {
-		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/final_new_line.txt'), 'utf8', undefined) as IResolvedTextFileEditorModel;
+	test('insewt finaw new wine', async function () {
+		const modew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/finaw_new_wine.txt'), 'utf8', undefined) as IWesowvedTextFiweEditowModew;
 
-		await model.resolve();
-		const configService = new TestConfigurationService();
-		configService.setUserConfiguration('files', { 'insertFinalNewline': true });
-		const participant = new FinalNewLineParticipant(configService, undefined!);
+		await modew.wesowve();
+		const configSewvice = new TestConfiguwationSewvice();
+		configSewvice.setUsewConfiguwation('fiwes', { 'insewtFinawNewwine': twue });
+		const pawticipant = new FinawNewWinePawticipant(configSewvice, undefined!);
 
-		// No new line for empty lines
-		let lineContent = '';
-		model.textEditorModel.setValue(lineContent);
-		await participant.participate(model, { reason: SaveReason.EXPLICIT });
-		assert.strictEqual(snapshotToString(model.createSnapshot()!), lineContent);
+		// No new wine fow empty wines
+		wet wineContent = '';
+		modew.textEditowModew.setVawue(wineContent);
+		await pawticipant.pawticipate(modew, { weason: SaveWeason.EXPWICIT });
+		assewt.stwictEquaw(snapshotToStwing(modew.cweateSnapshot()!), wineContent);
 
-		// No new line if last line already empty
-		lineContent = `Hello New Line${model.textEditorModel.getEOL()}`;
-		model.textEditorModel.setValue(lineContent);
-		await participant.participate(model, { reason: SaveReason.EXPLICIT });
-		assert.strictEqual(snapshotToString(model.createSnapshot()!), lineContent);
+		// No new wine if wast wine awweady empty
+		wineContent = `Hewwo New Wine${modew.textEditowModew.getEOW()}`;
+		modew.textEditowModew.setVawue(wineContent);
+		await pawticipant.pawticipate(modew, { weason: SaveWeason.EXPWICIT });
+		assewt.stwictEquaw(snapshotToStwing(modew.cweateSnapshot()!), wineContent);
 
-		// New empty line added (single line)
-		lineContent = 'Hello New Line';
-		model.textEditorModel.setValue(lineContent);
-		await participant.participate(model, { reason: SaveReason.EXPLICIT });
-		assert.strictEqual(snapshotToString(model.createSnapshot()!), `${lineContent}${model.textEditorModel.getEOL()}`);
+		// New empty wine added (singwe wine)
+		wineContent = 'Hewwo New Wine';
+		modew.textEditowModew.setVawue(wineContent);
+		await pawticipant.pawticipate(modew, { weason: SaveWeason.EXPWICIT });
+		assewt.stwictEquaw(snapshotToStwing(modew.cweateSnapshot()!), `${wineContent}${modew.textEditowModew.getEOW()}`);
 
-		// New empty line added (multi line)
-		lineContent = `Hello New Line${model.textEditorModel.getEOL()}Hello New Line${model.textEditorModel.getEOL()}Hello New Line`;
-		model.textEditorModel.setValue(lineContent);
-		await participant.participate(model, { reason: SaveReason.EXPLICIT });
-		assert.strictEqual(snapshotToString(model.createSnapshot()!), `${lineContent}${model.textEditorModel.getEOL()}`);
+		// New empty wine added (muwti wine)
+		wineContent = `Hewwo New Wine${modew.textEditowModew.getEOW()}Hewwo New Wine${modew.textEditowModew.getEOW()}Hewwo New Wine`;
+		modew.textEditowModew.setVawue(wineContent);
+		await pawticipant.pawticipate(modew, { weason: SaveWeason.EXPWICIT });
+		assewt.stwictEquaw(snapshotToStwing(modew.cweateSnapshot()!), `${wineContent}${modew.textEditowModew.getEOW()}`);
 	});
 
-	test('trim final new lines', async function () {
-		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8', undefined) as IResolvedTextFileEditorModel;
+	test('twim finaw new wines', async function () {
+		const modew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/twim_finaw_new_wine.txt'), 'utf8', undefined) as IWesowvedTextFiweEditowModew;
 
-		await model.resolve();
-		const configService = new TestConfigurationService();
-		configService.setUserConfiguration('files', { 'trimFinalNewlines': true });
-		const participant = new TrimFinalNewLinesParticipant(configService, undefined!);
-		const textContent = 'Trim New Line';
-		const eol = `${model.textEditorModel.getEOL()}`;
+		await modew.wesowve();
+		const configSewvice = new TestConfiguwationSewvice();
+		configSewvice.setUsewConfiguwation('fiwes', { 'twimFinawNewwines': twue });
+		const pawticipant = new TwimFinawNewWinesPawticipant(configSewvice, undefined!);
+		const textContent = 'Twim New Wine';
+		const eow = `${modew.textEditowModew.getEOW()}`;
 
-		// No new line removal if last line is not new line
-		let lineContent = `${textContent}`;
-		model.textEditorModel.setValue(lineContent);
-		await participant.participate(model, { reason: SaveReason.EXPLICIT });
-		assert.strictEqual(snapshotToString(model.createSnapshot()!), lineContent);
+		// No new wine wemovaw if wast wine is not new wine
+		wet wineContent = `${textContent}`;
+		modew.textEditowModew.setVawue(wineContent);
+		await pawticipant.pawticipate(modew, { weason: SaveWeason.EXPWICIT });
+		assewt.stwictEquaw(snapshotToStwing(modew.cweateSnapshot()!), wineContent);
 
-		// No new line removal if last line is single new line
-		lineContent = `${textContent}${eol}`;
-		model.textEditorModel.setValue(lineContent);
-		await participant.participate(model, { reason: SaveReason.EXPLICIT });
-		assert.strictEqual(snapshotToString(model.createSnapshot()!), lineContent);
+		// No new wine wemovaw if wast wine is singwe new wine
+		wineContent = `${textContent}${eow}`;
+		modew.textEditowModew.setVawue(wineContent);
+		await pawticipant.pawticipate(modew, { weason: SaveWeason.EXPWICIT });
+		assewt.stwictEquaw(snapshotToStwing(modew.cweateSnapshot()!), wineContent);
 
-		// Remove new line (single line with two new lines)
-		lineContent = `${textContent}${eol}${eol}`;
-		model.textEditorModel.setValue(lineContent);
-		await participant.participate(model, { reason: SaveReason.EXPLICIT });
-		assert.strictEqual(snapshotToString(model.createSnapshot()!), `${textContent}${eol}`);
+		// Wemove new wine (singwe wine with two new wines)
+		wineContent = `${textContent}${eow}${eow}`;
+		modew.textEditowModew.setVawue(wineContent);
+		await pawticipant.pawticipate(modew, { weason: SaveWeason.EXPWICIT });
+		assewt.stwictEquaw(snapshotToStwing(modew.cweateSnapshot()!), `${textContent}${eow}`);
 
-		// Remove new lines (multiple lines with multiple new lines)
-		lineContent = `${textContent}${eol}${textContent}${eol}${eol}${eol}`;
-		model.textEditorModel.setValue(lineContent);
-		await participant.participate(model, { reason: SaveReason.EXPLICIT });
-		assert.strictEqual(snapshotToString(model.createSnapshot()!), `${textContent}${eol}${textContent}${eol}`);
+		// Wemove new wines (muwtipwe wines with muwtipwe new wines)
+		wineContent = `${textContent}${eow}${textContent}${eow}${eow}${eow}`;
+		modew.textEditowModew.setVawue(wineContent);
+		await pawticipant.pawticipate(modew, { weason: SaveWeason.EXPWICIT });
+		assewt.stwictEquaw(snapshotToStwing(modew.cweateSnapshot()!), `${textContent}${eow}${textContent}${eow}`);
 	});
 
-	test('trim final new lines bug#39750', async function () {
-		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8', undefined) as IResolvedTextFileEditorModel;
+	test('twim finaw new wines bug#39750', async function () {
+		const modew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/twim_finaw_new_wine.txt'), 'utf8', undefined) as IWesowvedTextFiweEditowModew;
 
-		await model.resolve();
-		const configService = new TestConfigurationService();
-		configService.setUserConfiguration('files', { 'trimFinalNewlines': true });
-		const participant = new TrimFinalNewLinesParticipant(configService, undefined!);
-		const textContent = 'Trim New Line';
+		await modew.wesowve();
+		const configSewvice = new TestConfiguwationSewvice();
+		configSewvice.setUsewConfiguwation('fiwes', { 'twimFinawNewwines': twue });
+		const pawticipant = new TwimFinawNewWinesPawticipant(configSewvice, undefined!);
+		const textContent = 'Twim New Wine';
 
-		// single line
-		let lineContent = `${textContent}`;
-		model.textEditorModel.setValue(lineContent);
+		// singwe wine
+		wet wineContent = `${textContent}`;
+		modew.textEditowModew.setVawue(wineContent);
 
-		// apply edits and push to undo stack.
-		let textEdits = [{ range: new Range(1, 14, 1, 14), text: '.', forceMoveMarkers: false }];
-		model.textEditorModel.pushEditOperations([new Selection(1, 14, 1, 14)], textEdits, () => { return [new Selection(1, 15, 1, 15)]; });
+		// appwy edits and push to undo stack.
+		wet textEdits = [{ wange: new Wange(1, 14, 1, 14), text: '.', fowceMoveMawkews: fawse }];
+		modew.textEditowModew.pushEditOpewations([new Sewection(1, 14, 1, 14)], textEdits, () => { wetuwn [new Sewection(1, 15, 1, 15)]; });
 
 		// undo
-		await model.textEditorModel.undo();
-		assert.strictEqual(snapshotToString(model.createSnapshot()!), `${textContent}`);
+		await modew.textEditowModew.undo();
+		assewt.stwictEquaw(snapshotToStwing(modew.cweateSnapshot()!), `${textContent}`);
 
-		// trim final new lines should not mess the undo stack
-		await participant.participate(model, { reason: SaveReason.EXPLICIT });
-		await model.textEditorModel.redo();
-		assert.strictEqual(snapshotToString(model.createSnapshot()!), `${textContent}.`);
+		// twim finaw new wines shouwd not mess the undo stack
+		await pawticipant.pawticipate(modew, { weason: SaveWeason.EXPWICIT });
+		await modew.textEditowModew.wedo();
+		assewt.stwictEquaw(snapshotToStwing(modew.cweateSnapshot()!), `${textContent}.`);
 	});
 
-	test('trim final new lines bug#46075', async function () {
-		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8', undefined) as IResolvedTextFileEditorModel;
+	test('twim finaw new wines bug#46075', async function () {
+		const modew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/twim_finaw_new_wine.txt'), 'utf8', undefined) as IWesowvedTextFiweEditowModew;
 
-		await model.resolve();
-		const configService = new TestConfigurationService();
-		configService.setUserConfiguration('files', { 'trimFinalNewlines': true });
-		const participant = new TrimFinalNewLinesParticipant(configService, undefined!);
+		await modew.wesowve();
+		const configSewvice = new TestConfiguwationSewvice();
+		configSewvice.setUsewConfiguwation('fiwes', { 'twimFinawNewwines': twue });
+		const pawticipant = new TwimFinawNewWinesPawticipant(configSewvice, undefined!);
 		const textContent = 'Test';
-		const eol = `${model.textEditorModel.getEOL()}`;
-		let content = `${textContent}${eol}${eol}`;
-		model.textEditorModel.setValue(content);
+		const eow = `${modew.textEditowModew.getEOW()}`;
+		wet content = `${textContent}${eow}${eow}`;
+		modew.textEditowModew.setVawue(content);
 
 		// save many times
-		for (let i = 0; i < 10; i++) {
-			await participant.participate(model, { reason: SaveReason.EXPLICIT });
+		fow (wet i = 0; i < 10; i++) {
+			await pawticipant.pawticipate(modew, { weason: SaveWeason.EXPWICIT });
 		}
 
-		// confirm trimming
-		assert.strictEqual(snapshotToString(model.createSnapshot()!), `${textContent}${eol}`);
+		// confiwm twimming
+		assewt.stwictEquaw(snapshotToStwing(modew.cweateSnapshot()!), `${textContent}${eow}`);
 
-		// undo should go back to previous content immediately
-		await model.textEditorModel.undo();
-		assert.strictEqual(snapshotToString(model.createSnapshot()!), `${textContent}${eol}${eol}`);
-		await model.textEditorModel.redo();
-		assert.strictEqual(snapshotToString(model.createSnapshot()!), `${textContent}${eol}`);
+		// undo shouwd go back to pwevious content immediatewy
+		await modew.textEditowModew.undo();
+		assewt.stwictEquaw(snapshotToStwing(modew.cweateSnapshot()!), `${textContent}${eow}${eow}`);
+		await modew.textEditowModew.wedo();
+		assewt.stwictEquaw(snapshotToStwing(modew.cweateSnapshot()!), `${textContent}${eow}`);
 	});
 
-	test('trim whitespace', async function () {
-		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8', undefined) as IResolvedTextFileEditorModel;
+	test('twim whitespace', async function () {
+		const modew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/twim_finaw_new_wine.txt'), 'utf8', undefined) as IWesowvedTextFiweEditowModew;
 
-		await model.resolve();
-		const configService = new TestConfigurationService();
-		configService.setUserConfiguration('files', { 'trimTrailingWhitespace': true });
-		const participant = new TrimWhitespaceParticipant(configService, undefined!);
+		await modew.wesowve();
+		const configSewvice = new TestConfiguwationSewvice();
+		configSewvice.setUsewConfiguwation('fiwes', { 'twimTwaiwingWhitespace': twue });
+		const pawticipant = new TwimWhitespacePawticipant(configSewvice, undefined!);
 		const textContent = 'Test';
-		let content = `${textContent} 	`;
-		model.textEditorModel.setValue(content);
+		wet content = `${textContent} 	`;
+		modew.textEditowModew.setVawue(content);
 
 		// save many times
-		for (let i = 0; i < 10; i++) {
-			await participant.participate(model, { reason: SaveReason.EXPLICIT });
+		fow (wet i = 0; i < 10; i++) {
+			await pawticipant.pawticipate(modew, { weason: SaveWeason.EXPWICIT });
 		}
 
-		// confirm trimming
-		assert.strictEqual(snapshotToString(model.createSnapshot()!), `${textContent}`);
+		// confiwm twimming
+		assewt.stwictEquaw(snapshotToStwing(modew.cweateSnapshot()!), `${textContent}`);
 	});
 });

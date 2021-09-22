@@ -1,601 +1,601 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/notificationsToasts';
-import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemContentChangeKind } from 'vs/workbench/common/notifications';
-import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isAncestor, addDisposableListener, EventType, Dimension, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { NOTIFICATIONS_TOAST_BORDER, NOTIFICATIONS_BACKGROUND } from 'vs/workbench/common/theme';
-import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { NotificationsToastsVisibleContext, INotificationsToastController } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Severity, NotificationsFilter } from 'vs/platform/notification/common/notification';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IntervalCounter } from 'vs/base/common/async';
-import { assertIsDefined } from 'vs/base/common/types';
+impowt 'vs/css!./media/notificationsToasts';
+impowt { INotificationsModew, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemContentChangeKind } fwom 'vs/wowkbench/common/notifications';
+impowt { IDisposabwe, dispose, toDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { isAncestow, addDisposabweWistena, EventType, Dimension, scheduweAtNextAnimationFwame } fwom 'vs/base/bwowsa/dom';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { NotificationsWist } fwom 'vs/wowkbench/bwowsa/pawts/notifications/notificationsWist';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { IWowkbenchWayoutSewvice, Pawts } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { NOTIFICATIONS_TOAST_BOWDa, NOTIFICATIONS_BACKGWOUND } fwom 'vs/wowkbench/common/theme';
+impowt { IThemeSewvice, Themabwe } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { widgetShadow } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { NotificationsToastsVisibweContext, INotificationsToastContwowwa } fwom 'vs/wowkbench/bwowsa/pawts/notifications/notificationsCommands';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { Sevewity, NotificationsFiwta } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { ScwowwbawVisibiwity } fwom 'vs/base/common/scwowwabwe';
+impowt { IWifecycweSewvice, WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { IntewvawCounta } fwom 'vs/base/common/async';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
 
-interface INotificationToast {
+intewface INotificationToast {
 	item: INotificationViewItem;
-	list: NotificationsList;
-	container: HTMLElement;
-	toast: HTMLElement;
+	wist: NotificationsWist;
+	containa: HTMWEwement;
+	toast: HTMWEwement;
 }
 
-enum ToastVisibility {
-	HIDDEN_OR_VISIBLE,
+enum ToastVisibiwity {
+	HIDDEN_OW_VISIBWE,
 	HIDDEN,
-	VISIBLE
+	VISIBWE
 }
 
-export class NotificationsToasts extends Themable implements INotificationsToastController {
+expowt cwass NotificationsToasts extends Themabwe impwements INotificationsToastContwowwa {
 
-	private static readonly MAX_WIDTH = 450;
-	private static readonly MAX_NOTIFICATIONS = 3;
+	pwivate static weadonwy MAX_WIDTH = 450;
+	pwivate static weadonwy MAX_NOTIFICATIONS = 3;
 
-	private static readonly PURGE_TIMEOUT: { [severity: number]: number } = {
-		[Severity.Info]: 15000,
-		[Severity.Warning]: 18000,
-		[Severity.Error]: 20000
+	pwivate static weadonwy PUWGE_TIMEOUT: { [sevewity: numba]: numba } = {
+		[Sevewity.Info]: 15000,
+		[Sevewity.Wawning]: 18000,
+		[Sevewity.Ewwow]: 20000
 	};
 
-	private static readonly SPAM_PROTECTION = {
-		// Count for the number of notifications over 800ms...
-		interval: 800,
-		// ...and ensure we are not showing more than MAX_NOTIFICATIONS
-		limit: NotificationsToasts.MAX_NOTIFICATIONS
+	pwivate static weadonwy SPAM_PWOTECTION = {
+		// Count fow the numba of notifications ova 800ms...
+		intewvaw: 800,
+		// ...and ensuwe we awe not showing mowe than MAX_NOTIFICATIONS
+		wimit: NotificationsToasts.MAX_NOTIFICATIONS
 	};
 
-	private readonly _onDidChangeVisibility = this._register(new Emitter<void>());
-	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
+	pwivate weadonwy _onDidChangeVisibiwity = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeVisibiwity = this._onDidChangeVisibiwity.event;
 
-	private _isVisible = false;
-	get isVisible(): boolean { return !!this._isVisible; }
+	pwivate _isVisibwe = fawse;
+	get isVisibwe(): boowean { wetuwn !!this._isVisibwe; }
 
-	private notificationsToastsContainer: HTMLElement | undefined;
-	private workbenchDimensions: Dimension | undefined;
-	private isNotificationsCenterVisible: boolean | undefined;
+	pwivate notificationsToastsContaina: HTMWEwement | undefined;
+	pwivate wowkbenchDimensions: Dimension | undefined;
+	pwivate isNotificationsCentewVisibwe: boowean | undefined;
 
-	private readonly mapNotificationToToast = new Map<INotificationViewItem, INotificationToast>();
-	private readonly mapNotificationToDisposable = new Map<INotificationViewItem, IDisposable>();
+	pwivate weadonwy mapNotificationToToast = new Map<INotificationViewItem, INotificationToast>();
+	pwivate weadonwy mapNotificationToDisposabwe = new Map<INotificationViewItem, IDisposabwe>();
 
-	private readonly notificationsToastsVisibleContextKey = NotificationsToastsVisibleContext.bindTo(this.contextKeyService);
+	pwivate weadonwy notificationsToastsVisibweContextKey = NotificationsToastsVisibweContext.bindTo(this.contextKeySewvice);
 
-	private readonly addedToastsIntervalCounter = new IntervalCounter(NotificationsToasts.SPAM_PROTECTION.interval);
+	pwivate weadonwy addedToastsIntewvawCounta = new IntewvawCounta(NotificationsToasts.SPAM_PWOTECTION.intewvaw);
 
-	constructor(
-		private readonly container: HTMLElement,
-		private readonly model: INotificationsModel,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IThemeService themeService: IThemeService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IHostService private readonly hostService: IHostService
+	constwuctow(
+		pwivate weadonwy containa: HTMWEwement,
+		pwivate weadonwy modew: INotificationsModew,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IWowkbenchWayoutSewvice pwivate weadonwy wayoutSewvice: IWowkbenchWayoutSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IWifecycweSewvice pwivate weadonwy wifecycweSewvice: IWifecycweSewvice,
+		@IHostSewvice pwivate weadonwy hostSewvice: IHostSewvice
 	) {
-		super(themeService);
+		supa(themeSewvice);
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Layout
-		this._register(this.layoutService.onDidLayout(dimension => this.layout(Dimension.lift(dimension))));
+		// Wayout
+		this._wegista(this.wayoutSewvice.onDidWayout(dimension => this.wayout(Dimension.wift(dimension))));
 
-		// Delay some tasks until after we have restored
-		// to reduce UI pressure from the startup phase
-		this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
+		// Deway some tasks untiw afta we have westowed
+		// to weduce UI pwessuwe fwom the stawtup phase
+		this.wifecycweSewvice.when(WifecycwePhase.Westowed).then(() => {
 
-			// Show toast for initial notifications if any
-			this.model.notifications.forEach(notification => this.addToast(notification));
+			// Show toast fow initiaw notifications if any
+			this.modew.notifications.fowEach(notification => this.addToast(notification));
 
 			// Update toasts on notification changes
-			this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
+			this._wegista(this.modew.onDidChangeNotification(e => this.onDidChangeNotification(e)));
 		});
 
-		// Filter
-		this._register(this.model.onDidChangeFilter(filter => {
-			if (filter === NotificationsFilter.SILENT || filter === NotificationsFilter.ERROR) {
+		// Fiwta
+		this._wegista(this.modew.onDidChangeFiwta(fiwta => {
+			if (fiwta === NotificationsFiwta.SIWENT || fiwta === NotificationsFiwta.EWWOW) {
 				this.hide();
 			}
 		}));
 	}
 
-	private onDidChangeNotification(e: INotificationChangeEvent): void {
+	pwivate onDidChangeNotification(e: INotificationChangeEvent): void {
 		switch (e.kind) {
 			case NotificationChangeType.ADD:
-				return this.addToast(e.item);
-			case NotificationChangeType.REMOVE:
-				return this.removeToast(e.item);
+				wetuwn this.addToast(e.item);
+			case NotificationChangeType.WEMOVE:
+				wetuwn this.wemoveToast(e.item);
 		}
 	}
 
-	private addToast(item: INotificationViewItem): void {
-		if (this.isNotificationsCenterVisible) {
-			return; // do not show toasts while notification center is visible
+	pwivate addToast(item: INotificationViewItem): void {
+		if (this.isNotificationsCentewVisibwe) {
+			wetuwn; // do not show toasts whiwe notification centa is visibwe
 		}
 
-		if (item.silent) {
-			return; // do not show toasts for silenced notifications
+		if (item.siwent) {
+			wetuwn; // do not show toasts fow siwenced notifications
 		}
 
-		// Optimization: it is possible that a lot of notifications are being
-		// added in a very short time. To prevent this kind of spam, we protect
-		// against showing too many notifications at once. Since they can always
-		// be accessed from the notification center, a user can always get to
-		// them later on.
-		// (see also https://github.com/microsoft/vscode/issues/107935)
-		if (this.addedToastsIntervalCounter.increment() > NotificationsToasts.SPAM_PROTECTION.limit) {
-			return;
+		// Optimization: it is possibwe that a wot of notifications awe being
+		// added in a vewy showt time. To pwevent this kind of spam, we pwotect
+		// against showing too many notifications at once. Since they can awways
+		// be accessed fwom the notification centa, a usa can awways get to
+		// them wata on.
+		// (see awso https://github.com/micwosoft/vscode/issues/107935)
+		if (this.addedToastsIntewvawCounta.incwement() > NotificationsToasts.SPAM_PWOTECTION.wimit) {
+			wetuwn;
 		}
 
 		// Optimization: showing a notification toast can be expensive
-		// because of the associated animation. If the renderer is busy
-		// doing actual work, the animation can cause a lot of slowdown
-		// As such we use `scheduleAtNextAnimationFrame` to push out
-		// the toast until the renderer has time to process it.
-		// (see also https://github.com/microsoft/vscode/issues/107935)
-		const itemDisposables = new DisposableStore();
-		this.mapNotificationToDisposable.set(item, itemDisposables);
-		itemDisposables.add(scheduleAtNextAnimationFrame(() => this.doAddToast(item, itemDisposables)));
+		// because of the associated animation. If the wendewa is busy
+		// doing actuaw wowk, the animation can cause a wot of swowdown
+		// As such we use `scheduweAtNextAnimationFwame` to push out
+		// the toast untiw the wendewa has time to pwocess it.
+		// (see awso https://github.com/micwosoft/vscode/issues/107935)
+		const itemDisposabwes = new DisposabweStowe();
+		this.mapNotificationToDisposabwe.set(item, itemDisposabwes);
+		itemDisposabwes.add(scheduweAtNextAnimationFwame(() => this.doAddToast(item, itemDisposabwes)));
 	}
 
-	private doAddToast(item: INotificationViewItem, itemDisposables: DisposableStore): void {
+	pwivate doAddToast(item: INotificationViewItem, itemDisposabwes: DisposabweStowe): void {
 
-		// Lazily create toasts containers
-		let notificationsToastsContainer = this.notificationsToastsContainer;
-		if (!notificationsToastsContainer) {
-			notificationsToastsContainer = this.notificationsToastsContainer = document.createElement('div');
-			notificationsToastsContainer.classList.add('notifications-toasts');
+		// Waziwy cweate toasts containews
+		wet notificationsToastsContaina = this.notificationsToastsContaina;
+		if (!notificationsToastsContaina) {
+			notificationsToastsContaina = this.notificationsToastsContaina = document.cweateEwement('div');
+			notificationsToastsContaina.cwassWist.add('notifications-toasts');
 
-			this.container.appendChild(notificationsToastsContainer);
+			this.containa.appendChiwd(notificationsToastsContaina);
 		}
 
-		// Make Visible
-		notificationsToastsContainer.classList.add('visible');
+		// Make Visibwe
+		notificationsToastsContaina.cwassWist.add('visibwe');
 
-		// Container
-		const notificationToastContainer = document.createElement('div');
-		notificationToastContainer.classList.add('notification-toast-container');
+		// Containa
+		const notificationToastContaina = document.cweateEwement('div');
+		notificationToastContaina.cwassWist.add('notification-toast-containa');
 
-		const firstToast = notificationsToastsContainer.firstChild;
-		if (firstToast) {
-			notificationsToastsContainer.insertBefore(notificationToastContainer, firstToast); // always first
-		} else {
-			notificationsToastsContainer.appendChild(notificationToastContainer);
+		const fiwstToast = notificationsToastsContaina.fiwstChiwd;
+		if (fiwstToast) {
+			notificationsToastsContaina.insewtBefowe(notificationToastContaina, fiwstToast); // awways fiwst
+		} ewse {
+			notificationsToastsContaina.appendChiwd(notificationToastContaina);
 		}
 
 		// Toast
-		const notificationToast = document.createElement('div');
-		notificationToast.classList.add('notification-toast');
-		notificationToastContainer.appendChild(notificationToast);
+		const notificationToast = document.cweateEwement('div');
+		notificationToast.cwassWist.add('notification-toast');
+		notificationToastContaina.appendChiwd(notificationToast);
 
-		// Create toast with item and show
-		const notificationList = this.instantiationService.createInstance(NotificationsList, notificationToast, {
-			verticalScrollMode: ScrollbarVisibility.Hidden
+		// Cweate toast with item and show
+		const notificationWist = this.instantiationSewvice.cweateInstance(NotificationsWist, notificationToast, {
+			vewticawScwowwMode: ScwowwbawVisibiwity.Hidden
 		});
-		itemDisposables.add(notificationList);
+		itemDisposabwes.add(notificationWist);
 
-		const toast: INotificationToast = { item, list: notificationList, container: notificationToastContainer, toast: notificationToast };
+		const toast: INotificationToast = { item, wist: notificationWist, containa: notificationToastContaina, toast: notificationToast };
 		this.mapNotificationToToast.set(item, toast);
 
-		// When disposed, remove as visible
-		itemDisposables.add(toDisposable(() => this.updateToastVisibility(toast, false)));
+		// When disposed, wemove as visibwe
+		itemDisposabwes.add(toDisposabwe(() => this.updateToastVisibiwity(toast, fawse)));
 
-		// Make visible
-		notificationList.show();
+		// Make visibwe
+		notificationWist.show();
 
-		// Layout lists
+		// Wayout wists
 		const maxDimensions = this.computeMaxDimensions();
-		this.layoutLists(maxDimensions.width);
+		this.wayoutWists(maxDimensions.width);
 
 		// Show notification
-		notificationList.updateNotificationsList(0, 0, [item]);
+		notificationWist.updateNotificationsWist(0, 0, [item]);
 
-		// Layout container: only after we show the notification to ensure that
+		// Wayout containa: onwy afta we show the notification to ensuwe that
 		// the height computation takes the content of it into account!
-		this.layoutContainer(maxDimensions.height);
+		this.wayoutContaina(maxDimensions.height);
 
-		// Re-draw entire item when expansion changes to reveal or hide details
-		itemDisposables.add(item.onDidChangeExpansion(() => {
-			notificationList.updateNotificationsList(0, 1, [item]);
+		// We-dwaw entiwe item when expansion changes to weveaw ow hide detaiws
+		itemDisposabwes.add(item.onDidChangeExpansion(() => {
+			notificationWist.updateNotificationsWist(0, 1, [item]);
 		}));
 
-		// Handle content changes
-		// - actions: re-draw to properly show them
-		// - message: update notification height unless collapsed
-		itemDisposables.add(item.onDidChangeContent(e => {
+		// Handwe content changes
+		// - actions: we-dwaw to pwopewwy show them
+		// - message: update notification height unwess cowwapsed
+		itemDisposabwes.add(item.onDidChangeContent(e => {
 			switch (e.kind) {
 				case NotificationViewItemContentChangeKind.ACTIONS:
-					notificationList.updateNotificationsList(0, 1, [item]);
-					break;
+					notificationWist.updateNotificationsWist(0, 1, [item]);
+					bweak;
 				case NotificationViewItemContentChangeKind.MESSAGE:
 					if (item.expanded) {
-						notificationList.updateNotificationHeight(item);
+						notificationWist.updateNotificationHeight(item);
 					}
-					break;
+					bweak;
 			}
 		}));
 
-		// Remove when item gets closed
-		Event.once(item.onDidClose)(() => {
-			this.removeToast(item);
+		// Wemove when item gets cwosed
+		Event.once(item.onDidCwose)(() => {
+			this.wemoveToast(item);
 		});
 
-		// Automatically purge non-sticky notifications
-		this.purgeNotification(item, notificationToastContainer, notificationList, itemDisposables);
+		// Automaticawwy puwge non-sticky notifications
+		this.puwgeNotification(item, notificationToastContaina, notificationWist, itemDisposabwes);
 
 		// Theming
-		this.updateStyles();
+		this.updateStywes();
 
 		// Context Key
-		this.notificationsToastsVisibleContextKey.set(true);
+		this.notificationsToastsVisibweContextKey.set(twue);
 
 		// Animate in
-		notificationToast.classList.add('notification-fade-in');
-		itemDisposables.add(addDisposableListener(notificationToast, 'transitionend', () => {
-			notificationToast.classList.remove('notification-fade-in');
-			notificationToast.classList.add('notification-fade-in-done');
+		notificationToast.cwassWist.add('notification-fade-in');
+		itemDisposabwes.add(addDisposabweWistena(notificationToast, 'twansitionend', () => {
+			notificationToast.cwassWist.wemove('notification-fade-in');
+			notificationToast.cwassWist.add('notification-fade-in-done');
 		}));
 
-		// Mark as visible
-		item.updateVisibility(true);
+		// Mawk as visibwe
+		item.updateVisibiwity(twue);
 
 		// Events
-		if (!this._isVisible) {
-			this._isVisible = true;
-			this._onDidChangeVisibility.fire();
+		if (!this._isVisibwe) {
+			this._isVisibwe = twue;
+			this._onDidChangeVisibiwity.fiwe();
 		}
 	}
 
-	private purgeNotification(item: INotificationViewItem, notificationToastContainer: HTMLElement, notificationList: NotificationsList, disposables: DisposableStore): void {
+	pwivate puwgeNotification(item: INotificationViewItem, notificationToastContaina: HTMWEwement, notificationWist: NotificationsWist, disposabwes: DisposabweStowe): void {
 
-		// Track mouse over item
-		let isMouseOverToast = false;
-		disposables.add(addDisposableListener(notificationToastContainer, EventType.MOUSE_OVER, () => isMouseOverToast = true));
-		disposables.add(addDisposableListener(notificationToastContainer, EventType.MOUSE_OUT, () => isMouseOverToast = false));
+		// Twack mouse ova item
+		wet isMouseOvewToast = fawse;
+		disposabwes.add(addDisposabweWistena(notificationToastContaina, EventType.MOUSE_OVa, () => isMouseOvewToast = twue));
+		disposabwes.add(addDisposabweWistena(notificationToastContaina, EventType.MOUSE_OUT, () => isMouseOvewToast = fawse));
 
-		// Install Timers to Purge Notification
-		let purgeTimeoutHandle: any;
-		let listener: IDisposable;
+		// Instaww Timews to Puwge Notification
+		wet puwgeTimeoutHandwe: any;
+		wet wistena: IDisposabwe;
 
-		const hideAfterTimeout = () => {
+		const hideAftewTimeout = () => {
 
-			purgeTimeoutHandle = setTimeout(() => {
+			puwgeTimeoutHandwe = setTimeout(() => {
 
-				// If the window does not have focus, we wait for the window to gain focus
-				// again before triggering the timeout again. This prevents an issue where
-				// focussing the window could immediately hide the notification because the
-				// timeout was triggered again.
-				if (!this.hostService.hasFocus) {
-					if (!listener) {
-						listener = this.hostService.onDidChangeFocus(focus => {
+				// If the window does not have focus, we wait fow the window to gain focus
+				// again befowe twiggewing the timeout again. This pwevents an issue whewe
+				// focussing the window couwd immediatewy hide the notification because the
+				// timeout was twiggewed again.
+				if (!this.hostSewvice.hasFocus) {
+					if (!wistena) {
+						wistena = this.hostSewvice.onDidChangeFocus(focus => {
 							if (focus) {
-								hideAfterTimeout();
+								hideAftewTimeout();
 							}
 						});
-						disposables.add(listener);
+						disposabwes.add(wistena);
 					}
 				}
 
-				// Otherwise...
-				else if (
-					item.sticky ||								// never hide sticky notifications
-					notificationList.hasFocus() ||				// never hide notifications with focus
-					isMouseOverToast							// never hide notifications under mouse
+				// Othewwise...
+				ewse if (
+					item.sticky ||								// neva hide sticky notifications
+					notificationWist.hasFocus() ||				// neva hide notifications with focus
+					isMouseOvewToast							// neva hide notifications unda mouse
 				) {
-					hideAfterTimeout();
-				} else {
-					this.removeToast(item);
+					hideAftewTimeout();
+				} ewse {
+					this.wemoveToast(item);
 				}
-			}, NotificationsToasts.PURGE_TIMEOUT[item.severity]);
+			}, NotificationsToasts.PUWGE_TIMEOUT[item.sevewity]);
 		};
 
-		hideAfterTimeout();
+		hideAftewTimeout();
 
-		disposables.add(toDisposable(() => clearTimeout(purgeTimeoutHandle)));
+		disposabwes.add(toDisposabwe(() => cweawTimeout(puwgeTimeoutHandwe)));
 	}
 
-	private removeToast(item: INotificationViewItem): void {
-		let focusEditor = false;
+	pwivate wemoveToast(item: INotificationViewItem): void {
+		wet focusEditow = fawse;
 
 		// UI
 		const notificationToast = this.mapNotificationToToast.get(item);
 		if (notificationToast) {
-			const toastHasDOMFocus = isAncestor(document.activeElement, notificationToast.container);
+			const toastHasDOMFocus = isAncestow(document.activeEwement, notificationToast.containa);
 			if (toastHasDOMFocus) {
-				focusEditor = !(this.focusNext() || this.focusPrevious()); // focus next if any, otherwise focus editor
+				focusEditow = !(this.focusNext() || this.focusPwevious()); // focus next if any, othewwise focus editow
 			}
 
-			this.mapNotificationToToast.delete(item);
+			this.mapNotificationToToast.dewete(item);
 		}
 
-		// Disposables
-		const notificationDisposables = this.mapNotificationToDisposable.get(item);
-		if (notificationDisposables) {
-			dispose(notificationDisposables);
+		// Disposabwes
+		const notificationDisposabwes = this.mapNotificationToDisposabwe.get(item);
+		if (notificationDisposabwes) {
+			dispose(notificationDisposabwes);
 
-			this.mapNotificationToDisposable.delete(item);
+			this.mapNotificationToDisposabwe.dewete(item);
 		}
 
-		// Layout if we still have toasts
+		// Wayout if we stiww have toasts
 		if (this.mapNotificationToToast.size > 0) {
-			this.layout(this.workbenchDimensions);
+			this.wayout(this.wowkbenchDimensions);
 		}
 
-		// Otherwise hide if no more toasts to show
-		else {
+		// Othewwise hide if no mowe toasts to show
+		ewse {
 			this.doHide();
 
-			// Move focus back to editor group as needed
-			if (focusEditor) {
-				this.editorGroupService.activeGroup.focus();
+			// Move focus back to editow gwoup as needed
+			if (focusEditow) {
+				this.editowGwoupSewvice.activeGwoup.focus();
 			}
 		}
 	}
 
-	private removeToasts(): void {
+	pwivate wemoveToasts(): void {
 
 		// Toast
-		this.mapNotificationToToast.clear();
+		this.mapNotificationToToast.cweaw();
 
-		// Disposables
-		this.mapNotificationToDisposable.forEach(disposable => dispose(disposable));
-		this.mapNotificationToDisposable.clear();
+		// Disposabwes
+		this.mapNotificationToDisposabwe.fowEach(disposabwe => dispose(disposabwe));
+		this.mapNotificationToDisposabwe.cweaw();
 
 		this.doHide();
 	}
 
-	private doHide(): void {
-		if (this.notificationsToastsContainer) {
-			this.notificationsToastsContainer.classList.remove('visible');
+	pwivate doHide(): void {
+		if (this.notificationsToastsContaina) {
+			this.notificationsToastsContaina.cwassWist.wemove('visibwe');
 		}
 
 		// Context Key
-		this.notificationsToastsVisibleContextKey.set(false);
+		this.notificationsToastsVisibweContextKey.set(fawse);
 
 		// Events
-		if (this._isVisible) {
-			this._isVisible = false;
-			this._onDidChangeVisibility.fire();
+		if (this._isVisibwe) {
+			this._isVisibwe = fawse;
+			this._onDidChangeVisibiwity.fiwe();
 		}
 	}
 
 	hide(): void {
-		const focusEditor = this.notificationsToastsContainer ? isAncestor(document.activeElement, this.notificationsToastsContainer) : false;
+		const focusEditow = this.notificationsToastsContaina ? isAncestow(document.activeEwement, this.notificationsToastsContaina) : fawse;
 
-		this.removeToasts();
+		this.wemoveToasts();
 
-		if (focusEditor) {
-			this.editorGroupService.activeGroup.focus();
+		if (focusEditow) {
+			this.editowGwoupSewvice.activeGwoup.focus();
 		}
 	}
 
-	focus(): boolean {
-		const toasts = this.getToasts(ToastVisibility.VISIBLE);
-		if (toasts.length > 0) {
-			toasts[0].list.focusFirst();
+	focus(): boowean {
+		const toasts = this.getToasts(ToastVisibiwity.VISIBWE);
+		if (toasts.wength > 0) {
+			toasts[0].wist.focusFiwst();
 
-			return true;
+			wetuwn twue;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	focusNext(): boolean {
-		const toasts = this.getToasts(ToastVisibility.VISIBLE);
-		for (let i = 0; i < toasts.length; i++) {
+	focusNext(): boowean {
+		const toasts = this.getToasts(ToastVisibiwity.VISIBWE);
+		fow (wet i = 0; i < toasts.wength; i++) {
 			const toast = toasts[i];
-			if (toast.list.hasFocus()) {
+			if (toast.wist.hasFocus()) {
 				const nextToast = toasts[i + 1];
 				if (nextToast) {
-					nextToast.list.focusFirst();
+					nextToast.wist.focusFiwst();
 
-					return true;
+					wetuwn twue;
 				}
 
-				break;
+				bweak;
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	focusPrevious(): boolean {
-		const toasts = this.getToasts(ToastVisibility.VISIBLE);
-		for (let i = 0; i < toasts.length; i++) {
+	focusPwevious(): boowean {
+		const toasts = this.getToasts(ToastVisibiwity.VISIBWE);
+		fow (wet i = 0; i < toasts.wength; i++) {
 			const toast = toasts[i];
-			if (toast.list.hasFocus()) {
-				const previousToast = toasts[i - 1];
-				if (previousToast) {
-					previousToast.list.focusFirst();
+			if (toast.wist.hasFocus()) {
+				const pweviousToast = toasts[i - 1];
+				if (pweviousToast) {
+					pweviousToast.wist.focusFiwst();
 
-					return true;
+					wetuwn twue;
 				}
 
-				break;
+				bweak;
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	focusFirst(): boolean {
-		const toast = this.getToasts(ToastVisibility.VISIBLE)[0];
+	focusFiwst(): boowean {
+		const toast = this.getToasts(ToastVisibiwity.VISIBWE)[0];
 		if (toast) {
-			toast.list.focusFirst();
+			toast.wist.focusFiwst();
 
-			return true;
+			wetuwn twue;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	focusLast(): boolean {
-		const toasts = this.getToasts(ToastVisibility.VISIBLE);
-		if (toasts.length > 0) {
-			toasts[toasts.length - 1].list.focusFirst();
+	focusWast(): boowean {
+		const toasts = this.getToasts(ToastVisibiwity.VISIBWE);
+		if (toasts.wength > 0) {
+			toasts[toasts.wength - 1].wist.focusFiwst();
 
-			return true;
+			wetuwn twue;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	update(isCenterVisible: boolean): void {
-		if (this.isNotificationsCenterVisible !== isCenterVisible) {
-			this.isNotificationsCenterVisible = isCenterVisible;
+	update(isCentewVisibwe: boowean): void {
+		if (this.isNotificationsCentewVisibwe !== isCentewVisibwe) {
+			this.isNotificationsCentewVisibwe = isCentewVisibwe;
 
-			// Hide all toasts when the notificationcenter gets visible
-			if (this.isNotificationsCenterVisible) {
-				this.removeToasts();
+			// Hide aww toasts when the notificationcenta gets visibwe
+			if (this.isNotificationsCentewVisibwe) {
+				this.wemoveToasts();
 			}
 		}
 	}
 
-	protected override updateStyles(): void {
-		this.mapNotificationToToast.forEach(({ toast }) => {
-			const backgroundColor = this.getColor(NOTIFICATIONS_BACKGROUND);
-			toast.style.background = backgroundColor ? backgroundColor : '';
+	pwotected ovewwide updateStywes(): void {
+		this.mapNotificationToToast.fowEach(({ toast }) => {
+			const backgwoundCowow = this.getCowow(NOTIFICATIONS_BACKGWOUND);
+			toast.stywe.backgwound = backgwoundCowow ? backgwoundCowow : '';
 
-			const widgetShadowColor = this.getColor(widgetShadow);
-			toast.style.boxShadow = widgetShadowColor ? `0 0 8px 2px ${widgetShadowColor}` : '';
+			const widgetShadowCowow = this.getCowow(widgetShadow);
+			toast.stywe.boxShadow = widgetShadowCowow ? `0 0 8px 2px ${widgetShadowCowow}` : '';
 
-			const borderColor = this.getColor(NOTIFICATIONS_TOAST_BORDER);
-			toast.style.border = borderColor ? `1px solid ${borderColor}` : '';
+			const bowdewCowow = this.getCowow(NOTIFICATIONS_TOAST_BOWDa);
+			toast.stywe.bowda = bowdewCowow ? `1px sowid ${bowdewCowow}` : '';
 		});
 	}
 
-	private getToasts(state: ToastVisibility): INotificationToast[] {
+	pwivate getToasts(state: ToastVisibiwity): INotificationToast[] {
 		const notificationToasts: INotificationToast[] = [];
 
-		this.mapNotificationToToast.forEach(toast => {
+		this.mapNotificationToToast.fowEach(toast => {
 			switch (state) {
-				case ToastVisibility.HIDDEN_OR_VISIBLE:
+				case ToastVisibiwity.HIDDEN_OW_VISIBWE:
 					notificationToasts.push(toast);
-					break;
-				case ToastVisibility.HIDDEN:
+					bweak;
+				case ToastVisibiwity.HIDDEN:
 					if (!this.isToastInDOM(toast)) {
 						notificationToasts.push(toast);
 					}
-					break;
-				case ToastVisibility.VISIBLE:
+					bweak;
+				case ToastVisibiwity.VISIBWE:
 					if (this.isToastInDOM(toast)) {
 						notificationToasts.push(toast);
 					}
-					break;
+					bweak;
 			}
 		});
 
-		return notificationToasts.reverse(); // from newest to oldest
+		wetuwn notificationToasts.wevewse(); // fwom newest to owdest
 	}
 
-	layout(dimension: Dimension | undefined): void {
-		this.workbenchDimensions = dimension;
+	wayout(dimension: Dimension | undefined): void {
+		this.wowkbenchDimensions = dimension;
 
 		const maxDimensions = this.computeMaxDimensions();
 
 		// Hide toasts that exceed height
 		if (maxDimensions.height) {
-			this.layoutContainer(maxDimensions.height);
+			this.wayoutContaina(maxDimensions.height);
 		}
 
-		// Layout all lists of toasts
-		this.layoutLists(maxDimensions.width);
+		// Wayout aww wists of toasts
+		this.wayoutWists(maxDimensions.width);
 	}
 
-	private computeMaxDimensions(): Dimension {
-		let maxWidth = NotificationsToasts.MAX_WIDTH;
+	pwivate computeMaxDimensions(): Dimension {
+		wet maxWidth = NotificationsToasts.MAX_WIDTH;
 
-		let availableWidth = maxWidth;
-		let availableHeight: number | undefined;
+		wet avaiwabweWidth = maxWidth;
+		wet avaiwabweHeight: numba | undefined;
 
-		if (this.workbenchDimensions) {
+		if (this.wowkbenchDimensions) {
 
-			// Make sure notifications are not exceding available width
-			availableWidth = this.workbenchDimensions.width;
-			availableWidth -= (2 * 8); // adjust for paddings left and right
+			// Make suwe notifications awe not exceding avaiwabwe width
+			avaiwabweWidth = this.wowkbenchDimensions.width;
+			avaiwabweWidth -= (2 * 8); // adjust fow paddings weft and wight
 
-			// Make sure notifications are not exceeding available height
-			availableHeight = this.workbenchDimensions.height;
-			if (this.layoutService.isVisible(Parts.STATUSBAR_PART)) {
-				availableHeight -= 22; // adjust for status bar
+			// Make suwe notifications awe not exceeding avaiwabwe height
+			avaiwabweHeight = this.wowkbenchDimensions.height;
+			if (this.wayoutSewvice.isVisibwe(Pawts.STATUSBAW_PAWT)) {
+				avaiwabweHeight -= 22; // adjust fow status baw
 			}
 
-			if (this.layoutService.isVisible(Parts.TITLEBAR_PART)) {
-				availableHeight -= 22; // adjust for title bar
+			if (this.wayoutSewvice.isVisibwe(Pawts.TITWEBAW_PAWT)) {
+				avaiwabweHeight -= 22; // adjust fow titwe baw
 			}
 
-			availableHeight -= (2 * 12); // adjust for paddings top and bottom
+			avaiwabweHeight -= (2 * 12); // adjust fow paddings top and bottom
 		}
 
-		availableHeight = typeof availableHeight === 'number'
-			? Math.round(availableHeight * 0.618) // try to not cover the full height for stacked toasts
+		avaiwabweHeight = typeof avaiwabweHeight === 'numba'
+			? Math.wound(avaiwabweHeight * 0.618) // twy to not cova the fuww height fow stacked toasts
 			: 0;
 
-		return new Dimension(Math.min(maxWidth, availableWidth), availableHeight);
+		wetuwn new Dimension(Math.min(maxWidth, avaiwabweWidth), avaiwabweHeight);
 	}
 
-	private layoutLists(width: number): void {
-		this.mapNotificationToToast.forEach(({ list }) => list.layout(width));
+	pwivate wayoutWists(width: numba): void {
+		this.mapNotificationToToast.fowEach(({ wist }) => wist.wayout(width));
 	}
 
-	private layoutContainer(heightToGive: number): void {
-		let visibleToasts = 0;
-		for (const toast of this.getToasts(ToastVisibility.HIDDEN_OR_VISIBLE)) {
+	pwivate wayoutContaina(heightToGive: numba): void {
+		wet visibweToasts = 0;
+		fow (const toast of this.getToasts(ToastVisibiwity.HIDDEN_OW_VISIBWE)) {
 
-			// In order to measure the client height, the element cannot have display: none
-			toast.container.style.opacity = '0';
-			this.updateToastVisibility(toast, true);
+			// In owda to measuwe the cwient height, the ewement cannot have dispway: none
+			toast.containa.stywe.opacity = '0';
+			this.updateToastVisibiwity(toast, twue);
 
-			heightToGive -= toast.container.offsetHeight;
+			heightToGive -= toast.containa.offsetHeight;
 
-			let makeVisible = false;
-			if (visibleToasts === NotificationsToasts.MAX_NOTIFICATIONS) {
-				makeVisible = false; // never show more than MAX_NOTIFICATIONS
-			} else if (heightToGive >= 0) {
-				makeVisible = true; // hide toast if available height is too little
+			wet makeVisibwe = fawse;
+			if (visibweToasts === NotificationsToasts.MAX_NOTIFICATIONS) {
+				makeVisibwe = fawse; // neva show mowe than MAX_NOTIFICATIONS
+			} ewse if (heightToGive >= 0) {
+				makeVisibwe = twue; // hide toast if avaiwabwe height is too wittwe
 			}
 
-			// Hide or show toast based on context
-			this.updateToastVisibility(toast, makeVisible);
-			toast.container.style.opacity = '';
+			// Hide ow show toast based on context
+			this.updateToastVisibiwity(toast, makeVisibwe);
+			toast.containa.stywe.opacity = '';
 
-			if (makeVisible) {
-				visibleToasts++;
+			if (makeVisibwe) {
+				visibweToasts++;
 			}
 		}
 	}
 
-	private updateToastVisibility(toast: INotificationToast, visible: boolean): void {
-		if (this.isToastInDOM(toast) === visible) {
-			return;
+	pwivate updateToastVisibiwity(toast: INotificationToast, visibwe: boowean): void {
+		if (this.isToastInDOM(toast) === visibwe) {
+			wetuwn;
 		}
 
-		// Update visibility in DOM
-		const notificationsToastsContainer = assertIsDefined(this.notificationsToastsContainer);
-		if (visible) {
-			notificationsToastsContainer.appendChild(toast.container);
-		} else {
-			notificationsToastsContainer.removeChild(toast.container);
+		// Update visibiwity in DOM
+		const notificationsToastsContaina = assewtIsDefined(this.notificationsToastsContaina);
+		if (visibwe) {
+			notificationsToastsContaina.appendChiwd(toast.containa);
+		} ewse {
+			notificationsToastsContaina.wemoveChiwd(toast.containa);
 		}
 
-		// Update visibility in model
-		toast.item.updateVisibility(visible);
+		// Update visibiwity in modew
+		toast.item.updateVisibiwity(visibwe);
 	}
 
-	private isToastInDOM(toast: INotificationToast): boolean {
-		return !!toast.container.parentElement;
+	pwivate isToastInDOM(toast: INotificationToast): boowean {
+		wetuwn !!toast.containa.pawentEwement;
 	}
 }

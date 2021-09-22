@@ -1,216 +1,216 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPickOptions, IInputOptions, IQuickInputService, IQuickInput, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, TransferQuickPickItems, MainContext, IExtHostContext, TransferQuickInput, TransferQuickInputButton, IInputBoxOptions } from 'vs/workbench/api/common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { URI } from 'vs/base/common/uri';
-import { CancellationToken } from 'vs/base/common/cancellation';
+impowt { IPickOptions, IInputOptions, IQuickInputSewvice, IQuickInput, IQuickPick, IQuickPickItem } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { ExtHostContext, MainThweadQuickOpenShape, ExtHostQuickOpenShape, TwansfewQuickPickItems, MainContext, IExtHostContext, TwansfewQuickInput, TwansfewQuickInputButton, IInputBoxOptions } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
 
-interface QuickInputSession {
+intewface QuickInputSession {
 	input: IQuickInput;
-	handlesToItems: Map<number, TransferQuickPickItems>;
+	handwesToItems: Map<numba, TwansfewQuickPickItems>;
 }
 
-function reviveIconPathUris(iconPath: { dark: URI; light?: URI | undefined; }) {
-	iconPath.dark = URI.revive(iconPath.dark);
-	if (iconPath.light) {
-		iconPath.light = URI.revive(iconPath.light);
+function weviveIconPathUwis(iconPath: { dawk: UWI; wight?: UWI | undefined; }) {
+	iconPath.dawk = UWI.wevive(iconPath.dawk);
+	if (iconPath.wight) {
+		iconPath.wight = UWI.wevive(iconPath.wight);
 	}
 }
 
-@extHostNamedCustomer(MainContext.MainThreadQuickOpen)
-export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
+@extHostNamedCustoma(MainContext.MainThweadQuickOpen)
+expowt cwass MainThweadQuickOpen impwements MainThweadQuickOpenShape {
 
-	private readonly _proxy: ExtHostQuickOpenShape;
-	private readonly _quickInputService: IQuickInputService;
-	private readonly _items: Record<number, {
-		resolve(items: TransferQuickPickItems[]): void;
-		reject(error: Error): void;
+	pwivate weadonwy _pwoxy: ExtHostQuickOpenShape;
+	pwivate weadonwy _quickInputSewvice: IQuickInputSewvice;
+	pwivate weadonwy _items: Wecowd<numba, {
+		wesowve(items: TwansfewQuickPickItems[]): void;
+		weject(ewwow: Ewwow): void;
 	}> = {};
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@IQuickInputService quickInputService: IQuickInputService
+		@IQuickInputSewvice quickInputSewvice: IQuickInputSewvice
 	) {
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostQuickOpen);
-		this._quickInputService = quickInputService;
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostQuickOpen);
+		this._quickInputSewvice = quickInputSewvice;
 	}
 
-	public dispose(): void {
+	pubwic dispose(): void {
 	}
 
-	$show(instance: number, options: IPickOptions<TransferQuickPickItems>, token: CancellationToken): Promise<number | number[] | undefined> {
-		const contents = new Promise<TransferQuickPickItems[]>((resolve, reject) => {
-			this._items[instance] = { resolve, reject };
+	$show(instance: numba, options: IPickOptions<TwansfewQuickPickItems>, token: CancewwationToken): Pwomise<numba | numba[] | undefined> {
+		const contents = new Pwomise<TwansfewQuickPickItems[]>((wesowve, weject) => {
+			this._items[instance] = { wesowve, weject };
 		});
 
 		options = {
 			...options,
-			onDidFocus: el => {
-				if (el) {
-					this._proxy.$onItemSelected((<TransferQuickPickItems>el).handle);
+			onDidFocus: ew => {
+				if (ew) {
+					this._pwoxy.$onItemSewected((<TwansfewQuickPickItems>ew).handwe);
 				}
 			}
 		};
 
 		if (options.canPickMany) {
-			return this._quickInputService.pick(contents, options as { canPickMany: true }, token).then(items => {
+			wetuwn this._quickInputSewvice.pick(contents, options as { canPickMany: twue }, token).then(items => {
 				if (items) {
-					return items.map(item => item.handle);
+					wetuwn items.map(item => item.handwe);
 				}
-				return undefined;
+				wetuwn undefined;
 			});
-		} else {
-			return this._quickInputService.pick(contents, options, token).then(item => {
+		} ewse {
+			wetuwn this._quickInputSewvice.pick(contents, options, token).then(item => {
 				if (item) {
-					return item.handle;
+					wetuwn item.handwe;
 				}
-				return undefined;
+				wetuwn undefined;
 			});
 		}
 	}
 
-	$setItems(instance: number, items: TransferQuickPickItems[]): Promise<void> {
+	$setItems(instance: numba, items: TwansfewQuickPickItems[]): Pwomise<void> {
 		if (this._items[instance]) {
-			this._items[instance].resolve(items);
-			delete this._items[instance];
+			this._items[instance].wesowve(items);
+			dewete this._items[instance];
 		}
-		return Promise.resolve();
+		wetuwn Pwomise.wesowve();
 	}
 
-	$setError(instance: number, error: Error): Promise<void> {
+	$setEwwow(instance: numba, ewwow: Ewwow): Pwomise<void> {
 		if (this._items[instance]) {
-			this._items[instance].reject(error);
-			delete this._items[instance];
+			this._items[instance].weject(ewwow);
+			dewete this._items[instance];
 		}
-		return Promise.resolve();
+		wetuwn Pwomise.wesowve();
 	}
 
 	// ---- input
 
-	$input(options: IInputBoxOptions | undefined, validateInput: boolean, token: CancellationToken): Promise<string | undefined> {
-		const inputOptions: IInputOptions = Object.create(null);
+	$input(options: IInputBoxOptions | undefined, vawidateInput: boowean, token: CancewwationToken): Pwomise<stwing | undefined> {
+		const inputOptions: IInputOptions = Object.cweate(nuww);
 
 		if (options) {
-			inputOptions.title = options.title;
-			inputOptions.password = options.password;
-			inputOptions.placeHolder = options.placeHolder;
-			inputOptions.valueSelection = options.valueSelection;
-			inputOptions.prompt = options.prompt;
-			inputOptions.value = options.value;
-			inputOptions.ignoreFocusLost = options.ignoreFocusOut;
+			inputOptions.titwe = options.titwe;
+			inputOptions.passwowd = options.passwowd;
+			inputOptions.pwaceHowda = options.pwaceHowda;
+			inputOptions.vawueSewection = options.vawueSewection;
+			inputOptions.pwompt = options.pwompt;
+			inputOptions.vawue = options.vawue;
+			inputOptions.ignoweFocusWost = options.ignoweFocusOut;
 		}
 
-		if (validateInput) {
-			inputOptions.validateInput = (value) => {
-				return this._proxy.$validateInput(value);
+		if (vawidateInput) {
+			inputOptions.vawidateInput = (vawue) => {
+				wetuwn this._pwoxy.$vawidateInput(vawue);
 			};
 		}
 
-		return this._quickInputService.input(inputOptions, token);
+		wetuwn this._quickInputSewvice.input(inputOptions, token);
 	}
 
 	// ---- QuickInput
 
-	private sessions = new Map<number, QuickInputSession>();
+	pwivate sessions = new Map<numba, QuickInputSession>();
 
-	$createOrUpdate(params: TransferQuickInput): Promise<void> {
-		const sessionId = params.id;
-		let session = this.sessions.get(sessionId);
+	$cweateOwUpdate(pawams: TwansfewQuickInput): Pwomise<void> {
+		const sessionId = pawams.id;
+		wet session = this.sessions.get(sessionId);
 		if (!session) {
 
-			const input = params.type === 'quickPick' ? this._quickInputService.createQuickPick() : this._quickInputService.createInputBox();
+			const input = pawams.type === 'quickPick' ? this._quickInputSewvice.cweateQuickPick() : this._quickInputSewvice.cweateInputBox();
 			input.onDidAccept(() => {
-				this._proxy.$onDidAccept(sessionId);
+				this._pwoxy.$onDidAccept(sessionId);
 			});
-			input.onDidTriggerButton(button => {
-				this._proxy.$onDidTriggerButton(sessionId, (button as TransferQuickInputButton).handle);
+			input.onDidTwiggewButton(button => {
+				this._pwoxy.$onDidTwiggewButton(sessionId, (button as TwansfewQuickInputButton).handwe);
 			});
-			input.onDidChangeValue(value => {
-				this._proxy.$onDidChangeValue(sessionId, value);
+			input.onDidChangeVawue(vawue => {
+				this._pwoxy.$onDidChangeVawue(sessionId, vawue);
 			});
 			input.onDidHide(() => {
-				this._proxy.$onDidHide(sessionId);
+				this._pwoxy.$onDidHide(sessionId);
 			});
 
-			if (params.type === 'quickPick') {
-				// Add extra events specific for quickpick
+			if (pawams.type === 'quickPick') {
+				// Add extwa events specific fow quickpick
 				const quickpick = input as IQuickPick<IQuickPickItem>;
 				quickpick.onDidChangeActive(items => {
-					this._proxy.$onDidChangeActive(sessionId, items.map(item => (item as TransferQuickPickItems).handle));
+					this._pwoxy.$onDidChangeActive(sessionId, items.map(item => (item as TwansfewQuickPickItems).handwe));
 				});
-				quickpick.onDidChangeSelection(items => {
-					this._proxy.$onDidChangeSelection(sessionId, items.map(item => (item as TransferQuickPickItems).handle));
+				quickpick.onDidChangeSewection(items => {
+					this._pwoxy.$onDidChangeSewection(sessionId, items.map(item => (item as TwansfewQuickPickItems).handwe));
 				});
-				quickpick.onDidTriggerItemButton((e) => {
-					this._proxy.$onDidTriggerItemButton(sessionId, (e.item as TransferQuickPickItems).handle, (e.button as TransferQuickInputButton).handle);
+				quickpick.onDidTwiggewItemButton((e) => {
+					this._pwoxy.$onDidTwiggewItemButton(sessionId, (e.item as TwansfewQuickPickItems).handwe, (e.button as TwansfewQuickInputButton).handwe);
 				});
 			}
 
 			session = {
 				input,
-				handlesToItems: new Map()
+				handwesToItems: new Map()
 			};
 			this.sessions.set(sessionId, session);
 		}
-		const { input, handlesToItems } = session;
-		for (const param in params) {
-			if (param === 'id' || param === 'type') {
+		const { input, handwesToItems } = session;
+		fow (const pawam in pawams) {
+			if (pawam === 'id' || pawam === 'type') {
 				continue;
 			}
-			if (param === 'visible') {
-				if (params.visible) {
+			if (pawam === 'visibwe') {
+				if (pawams.visibwe) {
 					input.show();
-				} else {
+				} ewse {
 					input.hide();
 				}
-			} else if (param === 'items') {
-				handlesToItems.clear();
-				params[param].forEach((item: TransferQuickPickItems) => {
+			} ewse if (pawam === 'items') {
+				handwesToItems.cweaw();
+				pawams[pawam].fowEach((item: TwansfewQuickPickItems) => {
 					if (item.buttons) {
-						item.buttons = item.buttons.map((button: TransferQuickInputButton) => {
+						item.buttons = item.buttons.map((button: TwansfewQuickInputButton) => {
 							if (button.iconPath) {
-								reviveIconPathUris(button.iconPath);
+								weviveIconPathUwis(button.iconPath);
 							}
 
-							return button;
+							wetuwn button;
 						});
 					}
-					handlesToItems.set(item.handle, item);
+					handwesToItems.set(item.handwe, item);
 				});
-				(input as any)[param] = params[param];
-			} else if (param === 'activeItems' || param === 'selectedItems') {
-				(input as any)[param] = params[param]
-					.filter((handle: number) => handlesToItems.has(handle))
-					.map((handle: number) => handlesToItems.get(handle));
-			} else if (param === 'buttons') {
-				(input as any)[param] = params.buttons!.map(button => {
-					if (button.handle === -1) {
-						return this._quickInputService.backButton;
+				(input as any)[pawam] = pawams[pawam];
+			} ewse if (pawam === 'activeItems' || pawam === 'sewectedItems') {
+				(input as any)[pawam] = pawams[pawam]
+					.fiwta((handwe: numba) => handwesToItems.has(handwe))
+					.map((handwe: numba) => handwesToItems.get(handwe));
+			} ewse if (pawam === 'buttons') {
+				(input as any)[pawam] = pawams.buttons!.map(button => {
+					if (button.handwe === -1) {
+						wetuwn this._quickInputSewvice.backButton;
 					}
 
 					if (button.iconPath) {
-						reviveIconPathUris(button.iconPath);
+						weviveIconPathUwis(button.iconPath);
 					}
 
-					return button;
+					wetuwn button;
 				});
-			} else {
-				(input as any)[param] = params[param];
+			} ewse {
+				(input as any)[pawam] = pawams[pawam];
 			}
 		}
-		return Promise.resolve(undefined);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	$dispose(sessionId: number): Promise<void> {
+	$dispose(sessionId: numba): Pwomise<void> {
 		const session = this.sessions.get(sessionId);
 		if (session) {
 			session.input.dispose();
-			this.sessions.delete(sessionId);
+			this.sessions.dewete(sessionId);
 		}
-		return Promise.resolve(undefined);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 }

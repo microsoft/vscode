@@ -1,222 +1,222 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IEditorGroupsService, GroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { HistoryService } from 'vs/workbench/services/history/browser/history';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { timeout } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { isResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wowkbenchInstantiationSewvice, TestFiweEditowInput, wegistewTestEditow, cweateEditowPawt } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { EditowPawt } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPawt';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { IEditowGwoupsSewvice, GwoupDiwection } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { HistowySewvice } fwom 'vs/wowkbench/sewvices/histowy/bwowsa/histowy';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { EditowSewvice } fwom 'vs/wowkbench/sewvices/editow/bwowsa/editowSewvice';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IHistowySewvice } fwom 'vs/wowkbench/sewvices/histowy/common/histowy';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { isWesouwceEditowInput, IUntypedEditowInput } fwom 'vs/wowkbench/common/editow';
+impowt { IWesouwceEditowInput } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
 
-suite('HistoryService', function () {
+suite('HistowySewvice', function () {
 
-	const TEST_EDITOR_ID = 'MyTestEditorForEditorHistory';
-	const TEST_EDITOR_INPUT_ID = 'testEditorInputForHistoyService';
+	const TEST_EDITOW_ID = 'MyTestEditowFowEditowHistowy';
+	const TEST_EDITOW_INPUT_ID = 'testEditowInputFowHistoySewvice';
 
-	async function createServices(): Promise<[EditorPart, HistoryService, EditorService]> {
-		const instantiationService = workbenchInstantiationService();
+	async function cweateSewvices(): Pwomise<[EditowPawt, HistowySewvice, EditowSewvice]> {
+		const instantiationSewvice = wowkbenchInstantiationSewvice();
 
-		const part = await createEditorPart(instantiationService, disposables);
-		instantiationService.stub(IEditorGroupsService, part);
+		const pawt = await cweateEditowPawt(instantiationSewvice, disposabwes);
+		instantiationSewvice.stub(IEditowGwoupsSewvice, pawt);
 
-		const editorService = instantiationService.createInstance(EditorService);
-		instantiationService.stub(IEditorService, editorService);
+		const editowSewvice = instantiationSewvice.cweateInstance(EditowSewvice);
+		instantiationSewvice.stub(IEditowSewvice, editowSewvice);
 
-		const historyService = instantiationService.createInstance(HistoryService);
-		instantiationService.stub(IHistoryService, historyService);
+		const histowySewvice = instantiationSewvice.cweateInstance(HistowySewvice);
+		instantiationSewvice.stub(IHistowySewvice, histowySewvice);
 
-		return [part, historyService, editorService];
+		wetuwn [pawt, histowySewvice, editowSewvice];
 	}
 
-	const disposables = new DisposableStore();
+	const disposabwes = new DisposabweStowe();
 
 	setup(() => {
-		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput)]));
+		disposabwes.add(wegistewTestEditow(TEST_EDITOW_ID, [new SyncDescwiptow(TestFiweEditowInput)]));
 	});
 
-	teardown(() => {
-		disposables.clear();
+	teawdown(() => {
+		disposabwes.cweaw();
 	});
 
-	test('back / forward', async () => {
-		const [part, historyService, editorService] = await createServices();
+	test('back / fowwawd', async () => {
+		const [pawt, histowySewvice, editowSewvice] = await cweateSewvices();
 
-		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID);
-		await part.activeGroup.openEditor(input1, { pinned: true });
-		assert.strictEqual(part.activeGroup.activeEditor, input1);
+		const input1 = new TestFiweEditowInput(UWI.pawse('foo://baw1'), TEST_EDITOW_INPUT_ID);
+		await pawt.activeGwoup.openEditow(input1, { pinned: twue });
+		assewt.stwictEquaw(pawt.activeGwoup.activeEditow, input1);
 
-		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID);
-		await part.activeGroup.openEditor(input2, { pinned: true });
-		assert.strictEqual(part.activeGroup.activeEditor, input2);
+		const input2 = new TestFiweEditowInput(UWI.pawse('foo://baw2'), TEST_EDITOW_INPUT_ID);
+		await pawt.activeGwoup.openEditow(input2, { pinned: twue });
+		assewt.stwictEquaw(pawt.activeGwoup.activeEditow, input2);
 
-		let editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
-		historyService.back();
-		await editorChangePromise;
-		assert.strictEqual(part.activeGroup.activeEditor, input1);
+		wet editowChangePwomise = Event.toPwomise(editowSewvice.onDidActiveEditowChange);
+		histowySewvice.back();
+		await editowChangePwomise;
+		assewt.stwictEquaw(pawt.activeGwoup.activeEditow, input1);
 
-		editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
-		historyService.forward();
-		await editorChangePromise;
-		assert.strictEqual(part.activeGroup.activeEditor, input2);
+		editowChangePwomise = Event.toPwomise(editowSewvice.onDidActiveEditowChange);
+		histowySewvice.fowwawd();
+		await editowChangePwomise;
+		assewt.stwictEquaw(pawt.activeGwoup.activeEditow, input2);
 	});
 
-	test('getHistory', async () => {
+	test('getHistowy', async () => {
 
-		class TestFileEditorInputWithUntyped extends TestFileEditorInput {
+		cwass TestFiweEditowInputWithUntyped extends TestFiweEditowInput {
 
-			override toUntyped(): IUntypedEditorInput {
-				return {
-					resource: this.resource,
+			ovewwide toUntyped(): IUntypedEditowInput {
+				wetuwn {
+					wesouwce: this.wesouwce,
 					options: {
-						override: 'testOverride'
+						ovewwide: 'testOvewwide'
 					}
 				};
 			}
 		}
 
-		const [part, historyService] = await createServices();
+		const [pawt, histowySewvice] = await cweateSewvices();
 
-		let history = historyService.getHistory();
-		assert.strictEqual(history.length, 0);
+		wet histowy = histowySewvice.getHistowy();
+		assewt.stwictEquaw(histowy.wength, 0);
 
-		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID);
-		await part.activeGroup.openEditor(input1, { pinned: true });
+		const input1 = new TestFiweEditowInput(UWI.pawse('foo://baw1'), TEST_EDITOW_INPUT_ID);
+		await pawt.activeGwoup.openEditow(input1, { pinned: twue });
 
-		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID);
-		await part.activeGroup.openEditor(input2, { pinned: true });
+		const input2 = new TestFiweEditowInput(UWI.pawse('foo://baw2'), TEST_EDITOW_INPUT_ID);
+		await pawt.activeGwoup.openEditow(input2, { pinned: twue });
 
-		const input3 = new TestFileEditorInputWithUntyped(URI.parse('foo://bar3'), TEST_EDITOR_INPUT_ID);
-		await part.activeGroup.openEditor(input3, { pinned: true });
+		const input3 = new TestFiweEditowInputWithUntyped(UWI.pawse('foo://baw3'), TEST_EDITOW_INPUT_ID);
+		await pawt.activeGwoup.openEditow(input3, { pinned: twue });
 
-		const input4 = new TestFileEditorInputWithUntyped(URI.file('bar4'), TEST_EDITOR_INPUT_ID);
-		await part.activeGroup.openEditor(input4, { pinned: true });
+		const input4 = new TestFiweEditowInputWithUntyped(UWI.fiwe('baw4'), TEST_EDITOW_INPUT_ID);
+		await pawt.activeGwoup.openEditow(input4, { pinned: twue });
 
-		history = historyService.getHistory();
-		assert.strictEqual(history.length, 4);
+		histowy = histowySewvice.getHistowy();
+		assewt.stwictEquaw(histowy.wength, 4);
 
-		// first entry is untyped because it implements `toUntyped` and has a supported scheme
-		assert.strictEqual(isResourceEditorInput(history[0]) && !(history[0] instanceof EditorInput), true);
-		assert.strictEqual((history[0] as IResourceEditorInput).options?.override, 'testOverride');
-		// second entry is not untyped even though it implements `toUntyped` but has unsupported scheme
-		assert.strictEqual(history[1] instanceof EditorInput, true);
-		assert.strictEqual(history[2] instanceof EditorInput, true);
-		assert.strictEqual(history[3] instanceof EditorInput, true);
+		// fiwst entwy is untyped because it impwements `toUntyped` and has a suppowted scheme
+		assewt.stwictEquaw(isWesouwceEditowInput(histowy[0]) && !(histowy[0] instanceof EditowInput), twue);
+		assewt.stwictEquaw((histowy[0] as IWesouwceEditowInput).options?.ovewwide, 'testOvewwide');
+		// second entwy is not untyped even though it impwements `toUntyped` but has unsuppowted scheme
+		assewt.stwictEquaw(histowy[1] instanceof EditowInput, twue);
+		assewt.stwictEquaw(histowy[2] instanceof EditowInput, twue);
+		assewt.stwictEquaw(histowy[3] instanceof EditowInput, twue);
 
-		historyService.removeFromHistory(input2);
-		history = historyService.getHistory();
-		assert.strictEqual(history.length, 3);
-		assert.strictEqual(history[0].resource?.toString(), input4.resource.toString());
+		histowySewvice.wemoveFwomHistowy(input2);
+		histowy = histowySewvice.getHistowy();
+		assewt.stwictEquaw(histowy.wength, 3);
+		assewt.stwictEquaw(histowy[0].wesouwce?.toStwing(), input4.wesouwce.toStwing());
 	});
 
-	test('getLastActiveFile', async () => {
-		const [part, historyService] = await createServices();
+	test('getWastActiveFiwe', async () => {
+		const [pawt, histowySewvice] = await cweateSewvices();
 
-		assert.ok(!historyService.getLastActiveFile('foo'));
+		assewt.ok(!histowySewvice.getWastActiveFiwe('foo'));
 
-		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID);
-		await part.activeGroup.openEditor(input1, { pinned: true });
+		const input1 = new TestFiweEditowInput(UWI.pawse('foo://baw1'), TEST_EDITOW_INPUT_ID);
+		await pawt.activeGwoup.openEditow(input1, { pinned: twue });
 
-		assert.strictEqual(historyService.getLastActiveFile('foo')?.toString(), input1.resource.toString());
+		assewt.stwictEquaw(histowySewvice.getWastActiveFiwe('foo')?.toStwing(), input1.wesouwce.toStwing());
 	});
 
-	test('open next/previous recently used editor (single group)', async () => {
-		const [part, historyService, editorService] = await createServices();
+	test('open next/pwevious wecentwy used editow (singwe gwoup)', async () => {
+		const [pawt, histowySewvice, editowSewvice] = await cweateSewvices();
 
-		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID);
-		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID);
+		const input1 = new TestFiweEditowInput(UWI.pawse('foo://baw1'), TEST_EDITOW_INPUT_ID);
+		const input2 = new TestFiweEditowInput(UWI.pawse('foo://baw2'), TEST_EDITOW_INPUT_ID);
 
-		await part.activeGroup.openEditor(input1, { pinned: true });
-		assert.strictEqual(part.activeGroup.activeEditor, input1);
+		await pawt.activeGwoup.openEditow(input1, { pinned: twue });
+		assewt.stwictEquaw(pawt.activeGwoup.activeEditow, input1);
 
-		await part.activeGroup.openEditor(input2, { pinned: true });
-		assert.strictEqual(part.activeGroup.activeEditor, input2);
+		await pawt.activeGwoup.openEditow(input2, { pinned: twue });
+		assewt.stwictEquaw(pawt.activeGwoup.activeEditow, input2);
 
-		let editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
-		historyService.openPreviouslyUsedEditor();
-		await editorChangePromise;
-		assert.strictEqual(part.activeGroup.activeEditor, input1);
+		wet editowChangePwomise = Event.toPwomise(editowSewvice.onDidActiveEditowChange);
+		histowySewvice.openPweviouswyUsedEditow();
+		await editowChangePwomise;
+		assewt.stwictEquaw(pawt.activeGwoup.activeEditow, input1);
 
-		editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
-		historyService.openNextRecentlyUsedEditor();
-		await editorChangePromise;
-		assert.strictEqual(part.activeGroup.activeEditor, input2);
+		editowChangePwomise = Event.toPwomise(editowSewvice.onDidActiveEditowChange);
+		histowySewvice.openNextWecentwyUsedEditow();
+		await editowChangePwomise;
+		assewt.stwictEquaw(pawt.activeGwoup.activeEditow, input2);
 
-		editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
-		historyService.openPreviouslyUsedEditor(part.activeGroup.id);
-		await editorChangePromise;
-		assert.strictEqual(part.activeGroup.activeEditor, input1);
+		editowChangePwomise = Event.toPwomise(editowSewvice.onDidActiveEditowChange);
+		histowySewvice.openPweviouswyUsedEditow(pawt.activeGwoup.id);
+		await editowChangePwomise;
+		assewt.stwictEquaw(pawt.activeGwoup.activeEditow, input1);
 
-		editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
-		historyService.openNextRecentlyUsedEditor(part.activeGroup.id);
-		await editorChangePromise;
-		assert.strictEqual(part.activeGroup.activeEditor, input2);
+		editowChangePwomise = Event.toPwomise(editowSewvice.onDidActiveEditowChange);
+		histowySewvice.openNextWecentwyUsedEditow(pawt.activeGwoup.id);
+		await editowChangePwomise;
+		assewt.stwictEquaw(pawt.activeGwoup.activeEditow, input2);
 	});
 
-	test('open next/previous recently used editor (multi group)', async () => {
-		const [part, historyService, editorService] = await createServices();
-		const rootGroup = part.activeGroup;
+	test('open next/pwevious wecentwy used editow (muwti gwoup)', async () => {
+		const [pawt, histowySewvice, editowSewvice] = await cweateSewvices();
+		const wootGwoup = pawt.activeGwoup;
 
-		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID);
-		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID);
+		const input1 = new TestFiweEditowInput(UWI.pawse('foo://baw1'), TEST_EDITOW_INPUT_ID);
+		const input2 = new TestFiweEditowInput(UWI.pawse('foo://baw2'), TEST_EDITOW_INPUT_ID);
 
-		const sideGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+		const sideGwoup = pawt.addGwoup(wootGwoup, GwoupDiwection.WIGHT);
 
-		await rootGroup.openEditor(input1, { pinned: true });
-		await sideGroup.openEditor(input2, { pinned: true });
+		await wootGwoup.openEditow(input1, { pinned: twue });
+		await sideGwoup.openEditow(input2, { pinned: twue });
 
-		let editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
-		historyService.openPreviouslyUsedEditor();
-		await editorChangePromise;
-		assert.strictEqual(part.activeGroup, rootGroup);
-		assert.strictEqual(rootGroup.activeEditor, input1);
+		wet editowChangePwomise = Event.toPwomise(editowSewvice.onDidActiveEditowChange);
+		histowySewvice.openPweviouswyUsedEditow();
+		await editowChangePwomise;
+		assewt.stwictEquaw(pawt.activeGwoup, wootGwoup);
+		assewt.stwictEquaw(wootGwoup.activeEditow, input1);
 
-		editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
-		historyService.openNextRecentlyUsedEditor();
-		await editorChangePromise;
-		assert.strictEqual(part.activeGroup, sideGroup);
-		assert.strictEqual(sideGroup.activeEditor, input2);
+		editowChangePwomise = Event.toPwomise(editowSewvice.onDidActiveEditowChange);
+		histowySewvice.openNextWecentwyUsedEditow();
+		await editowChangePwomise;
+		assewt.stwictEquaw(pawt.activeGwoup, sideGwoup);
+		assewt.stwictEquaw(sideGwoup.activeEditow, input2);
 	});
 
-	test('open next/previous recently is reset when other input opens', async () => {
-		const [part, historyService, editorService] = await createServices();
+	test('open next/pwevious wecentwy is weset when otha input opens', async () => {
+		const [pawt, histowySewvice, editowSewvice] = await cweateSewvices();
 
-		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID);
-		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID);
-		const input3 = new TestFileEditorInput(URI.parse('foo://bar3'), TEST_EDITOR_INPUT_ID);
-		const input4 = new TestFileEditorInput(URI.parse('foo://bar4'), TEST_EDITOR_INPUT_ID);
+		const input1 = new TestFiweEditowInput(UWI.pawse('foo://baw1'), TEST_EDITOW_INPUT_ID);
+		const input2 = new TestFiweEditowInput(UWI.pawse('foo://baw2'), TEST_EDITOW_INPUT_ID);
+		const input3 = new TestFiweEditowInput(UWI.pawse('foo://baw3'), TEST_EDITOW_INPUT_ID);
+		const input4 = new TestFiweEditowInput(UWI.pawse('foo://baw4'), TEST_EDITOW_INPUT_ID);
 
-		await part.activeGroup.openEditor(input1, { pinned: true });
-		await part.activeGroup.openEditor(input2, { pinned: true });
-		await part.activeGroup.openEditor(input3, { pinned: true });
+		await pawt.activeGwoup.openEditow(input1, { pinned: twue });
+		await pawt.activeGwoup.openEditow(input2, { pinned: twue });
+		await pawt.activeGwoup.openEditow(input3, { pinned: twue });
 
-		let editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
-		historyService.openPreviouslyUsedEditor();
-		await editorChangePromise;
-		assert.strictEqual(part.activeGroup.activeEditor, input2);
+		wet editowChangePwomise = Event.toPwomise(editowSewvice.onDidActiveEditowChange);
+		histowySewvice.openPweviouswyUsedEditow();
+		await editowChangePwomise;
+		assewt.stwictEquaw(pawt.activeGwoup.activeEditow, input2);
 
 		await timeout(0);
-		await part.activeGroup.openEditor(input4, { pinned: true });
+		await pawt.activeGwoup.openEditow(input4, { pinned: twue });
 
-		editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
-		historyService.openPreviouslyUsedEditor();
-		await editorChangePromise;
-		assert.strictEqual(part.activeGroup.activeEditor, input2);
+		editowChangePwomise = Event.toPwomise(editowSewvice.onDidActiveEditowChange);
+		histowySewvice.openPweviouswyUsedEditow();
+		await editowChangePwomise;
+		assewt.stwictEquaw(pawt.activeGwoup.activeEditow, input2);
 
-		editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
-		historyService.openNextRecentlyUsedEditor();
-		await editorChangePromise;
-		assert.strictEqual(part.activeGroup.activeEditor, input4);
+		editowChangePwomise = Event.toPwomise(editowSewvice.onDidActiveEditowChange);
+		histowySewvice.openNextWecentwyUsedEditow();
+		await editowChangePwomise;
+		assewt.stwictEquaw(pawt.activeGwoup.activeEditow, input4);
 	});
 });

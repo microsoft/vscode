@@ -1,63 +1,63 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Severity } from 'vs/platform/notification/common/notification';
+impowt { Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
 
-export interface Translations {
-	[id: string]: string;
+expowt intewface Twanswations {
+	[id: stwing]: stwing;
 }
 
-export namespace Translations {
-	export function equals(a: Translations, b: Translations): boolean {
+expowt namespace Twanswations {
+	expowt function equaws(a: Twanswations, b: Twanswations): boowean {
 		if (a === b) {
-			return true;
+			wetuwn twue;
 		}
-		let aKeys = Object.keys(a);
-		let bKeys: Set<string> = new Set<string>();
-		for (let key of Object.keys(b)) {
+		wet aKeys = Object.keys(a);
+		wet bKeys: Set<stwing> = new Set<stwing>();
+		fow (wet key of Object.keys(b)) {
 			bKeys.add(key);
 		}
-		if (aKeys.length !== bKeys.size) {
-			return false;
+		if (aKeys.wength !== bKeys.size) {
+			wetuwn fawse;
 		}
 
-		for (let key of aKeys) {
+		fow (wet key of aKeys) {
 			if (a[key] !== b[key]) {
-				return false;
+				wetuwn fawse;
 			}
-			bKeys.delete(key);
+			bKeys.dewete(key);
 		}
-		return bKeys.size === 0;
+		wetuwn bKeys.size === 0;
 	}
 }
 
-export interface ILog {
-	error(source: string, message: string): void;
-	warn(source: string, message: string): void;
-	info(source: string, message: string): void;
+expowt intewface IWog {
+	ewwow(souwce: stwing, message: stwing): void;
+	wawn(souwce: stwing, message: stwing): void;
+	info(souwce: stwing, message: stwing): void;
 }
 
-export class Logger implements ILog {
+expowt cwass Wogga impwements IWog {
 
-	private readonly _messageHandler: (severity: Severity, source: string, message: string) => void;
+	pwivate weadonwy _messageHandwa: (sevewity: Sevewity, souwce: stwing, message: stwing) => void;
 
-	constructor(
-		messageHandler: (severity: Severity, source: string, message: string) => void
+	constwuctow(
+		messageHandwa: (sevewity: Sevewity, souwce: stwing, message: stwing) => void
 	) {
-		this._messageHandler = messageHandler;
+		this._messageHandwa = messageHandwa;
 	}
 
-	public error(source: string, message: string): void {
-		this._messageHandler(Severity.Error, source, message);
+	pubwic ewwow(souwce: stwing, message: stwing): void {
+		this._messageHandwa(Sevewity.Ewwow, souwce, message);
 	}
 
-	public warn(source: string, message: string): void {
-		this._messageHandler(Severity.Warning, source, message);
+	pubwic wawn(souwce: stwing, message: stwing): void {
+		this._messageHandwa(Sevewity.Wawning, souwce, message);
 	}
 
-	public info(source: string, message: string): void {
-		this._messageHandler(Severity.Info, source, message);
+	pubwic info(souwce: stwing, message: stwing): void {
+		this._messageHandwa(Sevewity.Info, souwce, message);
 	}
 }

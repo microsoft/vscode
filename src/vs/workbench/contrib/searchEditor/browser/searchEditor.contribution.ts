@@ -1,554 +1,554 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { extname, isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { Range } from 'vs/editor/common/core/range';
-import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/findModel';
-import { localize } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { ActiveEditorContext, IEditorSerializer, IEditorFactoryRegistry, EditorExtensions, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
-import { IViewsService } from 'vs/workbench/common/views';
-import { getSearchView } from 'vs/workbench/contrib/search/browser/searchActions';
-import { searchNewEditorIcon, searchRefreshIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
-import * as SearchConstants from 'vs/workbench/contrib/search/common/constants';
-import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browser/constants';
-import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
-import { createEditorFromSearchResult, modifySearchEditorContextLinesCommand, openNewSearchEditor, openSearchEditor, selectAllSearchEditorMatchesCommand, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorContextLinesCommand, toggleSearchEditorRegexCommand, toggleSearchEditorWholeWordCommand } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
-import { getOrMakeSearchEditorInput, SearchConfiguration, SearchEditorInput, SEARCH_EDITOR_EXT } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { VIEW_ID } from 'vs/workbench/services/search/common/search';
-import { RegisteredEditorPriority, IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { Disposable } from 'vs/base/common/lifecycle';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { extname, isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ToggweCaseSensitiveKeybinding, ToggweWegexKeybinding, ToggweWhoweWowdKeybinding } fwom 'vs/editow/contwib/find/findModew';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Action2, MenuId, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ContextKeyExpw, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { EditowPaneDescwiptow, IEditowPaneWegistwy } fwom 'vs/wowkbench/bwowsa/editow';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { ActiveEditowContext, IEditowSewiawiza, IEditowFactowyWegistwy, EditowExtensions, DEFAUWT_EDITOW_ASSOCIATION } fwom 'vs/wowkbench/common/editow';
+impowt { IViewsSewvice } fwom 'vs/wowkbench/common/views';
+impowt { getSeawchView } fwom 'vs/wowkbench/contwib/seawch/bwowsa/seawchActions';
+impowt { seawchNewEditowIcon, seawchWefweshIcon } fwom 'vs/wowkbench/contwib/seawch/bwowsa/seawchIcons';
+impowt * as SeawchConstants fwom 'vs/wowkbench/contwib/seawch/common/constants';
+impowt * as SeawchEditowConstants fwom 'vs/wowkbench/contwib/seawchEditow/bwowsa/constants';
+impowt { SeawchEditow } fwom 'vs/wowkbench/contwib/seawchEditow/bwowsa/seawchEditow';
+impowt { cweateEditowFwomSeawchWesuwt, modifySeawchEditowContextWinesCommand, openNewSeawchEditow, openSeawchEditow, sewectAwwSeawchEditowMatchesCommand, toggweSeawchEditowCaseSensitiveCommand, toggweSeawchEditowContextWinesCommand, toggweSeawchEditowWegexCommand, toggweSeawchEditowWhoweWowdCommand } fwom 'vs/wowkbench/contwib/seawchEditow/bwowsa/seawchEditowActions';
+impowt { getOwMakeSeawchEditowInput, SeawchConfiguwation, SeawchEditowInput, SEAWCH_EDITOW_EXT } fwom 'vs/wowkbench/contwib/seawchEditow/bwowsa/seawchEditowInput';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { VIEW_ID } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { WegistewedEditowPwiowity, IEditowWesowvewSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowWesowvewSewvice';
+impowt { IWowkingCopyEditowSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyEditowSewvice';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
 
 
-const OpenInEditorCommandId = 'search.action.openInEditor';
-const OpenNewEditorToSideCommandId = 'search.action.openNewEditorToSide';
-const FocusQueryEditorWidgetCommandId = 'search.action.focusQueryEditorWidget';
+const OpenInEditowCommandId = 'seawch.action.openInEditow';
+const OpenNewEditowToSideCommandId = 'seawch.action.openNewEditowToSide';
+const FocusQuewyEditowWidgetCommandId = 'seawch.action.focusQuewyEditowWidget';
 
-const ToggleSearchEditorCaseSensitiveCommandId = 'toggleSearchEditorCaseSensitive';
-const ToggleSearchEditorWholeWordCommandId = 'toggleSearchEditorWholeWord';
-const ToggleSearchEditorRegexCommandId = 'toggleSearchEditorRegex';
-const IncreaseSearchEditorContextLinesCommandId = 'increaseSearchEditorContextLines';
-const DecreaseSearchEditorContextLinesCommandId = 'decreaseSearchEditorContextLines';
+const ToggweSeawchEditowCaseSensitiveCommandId = 'toggweSeawchEditowCaseSensitive';
+const ToggweSeawchEditowWhoweWowdCommandId = 'toggweSeawchEditowWhoweWowd';
+const ToggweSeawchEditowWegexCommandId = 'toggweSeawchEditowWegex';
+const IncweaseSeawchEditowContextWinesCommandId = 'incweaseSeawchEditowContextWines';
+const DecweaseSeawchEditowContextWinesCommandId = 'decweaseSeawchEditowContextWines';
 
-const RerunSearchEditorSearchCommandId = 'rerunSearchEditorSearch';
-const CleanSearchEditorStateCommandId = 'cleanSearchEditorState';
-const SelectAllSearchEditorMatchesCommandId = 'selectAllSearchEditorMatches';
+const WewunSeawchEditowSeawchCommandId = 'wewunSeawchEditowSeawch';
+const CweanSeawchEditowStateCommandId = 'cweanSeawchEditowState';
+const SewectAwwSeawchEditowMatchesCommandId = 'sewectAwwSeawchEditowMatches';
 
 
 
-//#region Editor Descriptior
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(
-		SearchEditor,
-		SearchEditor.ID,
-		localize('searchEditor', "Search Editor")
+//#wegion Editow Descwiptiow
+Wegistwy.as<IEditowPaneWegistwy>(EditowExtensions.EditowPane).wegistewEditowPane(
+	EditowPaneDescwiptow.cweate(
+		SeawchEditow,
+		SeawchEditow.ID,
+		wocawize('seawchEditow', "Seawch Editow")
 	),
 	[
-		new SyncDescriptor(SearchEditorInput)
+		new SyncDescwiptow(SeawchEditowInput)
 	]
 );
-//#endregion
+//#endwegion
 
-//#region Startup Contribution
-class SearchEditorContribution implements IWorkbenchContribution {
-	constructor(
-		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@ITelemetryService protected readonly telemetryService: ITelemetryService,
-		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
+//#wegion Stawtup Contwibution
+cwass SeawchEditowContwibution impwements IWowkbenchContwibution {
+	constwuctow(
+		@IEditowWesowvewSewvice pwivate weadonwy editowWesowvewSewvice: IEditowWesowvewSewvice,
+		@IInstantiationSewvice pwotected weadonwy instantiationSewvice: IInstantiationSewvice,
+		@ITewemetwySewvice pwotected weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IContextKeySewvice pwotected weadonwy contextKeySewvice: IContextKeySewvice,
 	) {
 
-		this.editorResolverService.registerEditor(
-			'*' + SEARCH_EDITOR_EXT,
+		this.editowWesowvewSewvice.wegistewEditow(
+			'*' + SEAWCH_EDITOW_EXT,
 			{
-				id: SearchEditorInput.ID,
-				label: localize('promptOpenWith.searchEditor.displayName', "Search Editor"),
-				detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
-				priority: RegisteredEditorPriority.default,
+				id: SeawchEditowInput.ID,
+				wabew: wocawize('pwomptOpenWith.seawchEditow.dispwayName', "Seawch Editow"),
+				detaiw: DEFAUWT_EDITOW_ASSOCIATION.pwovidewDispwayName,
+				pwiowity: WegistewedEditowPwiowity.defauwt,
 			},
 			{
-				singlePerResource: true,
-				canHandleDiff: false,
-				canSupportResource: resource => (extname(resource) === SEARCH_EDITOR_EXT)
+				singwePewWesouwce: twue,
+				canHandweDiff: fawse,
+				canSuppowtWesouwce: wesouwce => (extname(wesouwce) === SEAWCH_EDITOW_EXT)
 			},
-			({ resource }) => {
-				return { editor: instantiationService.invokeFunction(getOrMakeSearchEditorInput, { from: 'existingFile', fileUri: resource }) };
+			({ wesouwce }) => {
+				wetuwn { editow: instantiationSewvice.invokeFunction(getOwMakeSeawchEditowInput, { fwom: 'existingFiwe', fiweUwi: wesouwce }) };
 			}
 		);
 	}
 }
 
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(SearchEditorContribution, LifecyclePhase.Starting);
-//#endregion
+const wowkbenchContwibutionsWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(SeawchEditowContwibution, WifecycwePhase.Stawting);
+//#endwegion
 
-//#region Input Serializer
-type SerializedSearchEditor = { modelUri: string | undefined, dirty: boolean, config: SearchConfiguration, name: string, matchRanges: Range[], backingUri: string };
+//#wegion Input Sewiawiza
+type SewiawizedSeawchEditow = { modewUwi: stwing | undefined, diwty: boowean, config: SeawchConfiguwation, name: stwing, matchWanges: Wange[], backingUwi: stwing };
 
-class SearchEditorInputSerializer implements IEditorSerializer {
+cwass SeawchEditowInputSewiawiza impwements IEditowSewiawiza {
 
-	canSerialize(input: SearchEditorInput) {
-		return !!input.tryReadConfigSync();
+	canSewiawize(input: SeawchEditowInput) {
+		wetuwn !!input.twyWeadConfigSync();
 	}
 
-	serialize(input: SearchEditorInput) {
+	sewiawize(input: SeawchEditowInput) {
 		if (input.isDisposed()) {
-			return JSON.stringify({ modelUri: undefined, dirty: false, config: input.tryReadConfigSync(), name: input.getName(), matchRanges: [], backingUri: input.backingUri?.toString() } as SerializedSearchEditor);
+			wetuwn JSON.stwingify({ modewUwi: undefined, diwty: fawse, config: input.twyWeadConfigSync(), name: input.getName(), matchWanges: [], backingUwi: input.backingUwi?.toStwing() } as SewiawizedSeawchEditow);
 		}
 
-		let modelUri = undefined;
-		if (input.modelUri.path || input.modelUri.fragment && input.isDirty()) {
-			modelUri = input.modelUri.toString();
+		wet modewUwi = undefined;
+		if (input.modewUwi.path || input.modewUwi.fwagment && input.isDiwty()) {
+			modewUwi = input.modewUwi.toStwing();
 		}
 
-		const config = input.tryReadConfigSync();
-		const dirty = input.isDirty();
-		const matchRanges = input.getMatchRanges();
-		const backingUri = input.backingUri;
+		const config = input.twyWeadConfigSync();
+		const diwty = input.isDiwty();
+		const matchWanges = input.getMatchWanges();
+		const backingUwi = input.backingUwi;
 
-		return JSON.stringify({ modelUri, dirty, config, name: input.getName(), matchRanges, backingUri: backingUri?.toString() } as SerializedSearchEditor);
+		wetuwn JSON.stwingify({ modewUwi, diwty, config, name: input.getName(), matchWanges, backingUwi: backingUwi?.toStwing() } as SewiawizedSeawchEditow);
 	}
 
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SearchEditorInput | undefined {
-		const { modelUri, dirty, config, matchRanges, backingUri } = JSON.parse(serializedEditorInput) as SerializedSearchEditor;
-		if (config && (config.query !== undefined)) {
-			if (modelUri) {
-				const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput,
-					{ from: 'model', modelUri: URI.parse(modelUri), config, backupOf: backingUri ? URI.parse(backingUri) : undefined });
-				input.setDirty(dirty);
-				input.setMatchRanges(matchRanges);
-				return input;
-			} else {
-				if (backingUri) {
-					return instantiationService.invokeFunction(getOrMakeSearchEditorInput,
-						{ from: 'existingFile', fileUri: URI.parse(backingUri) });
-				} else {
-					return instantiationService.invokeFunction(getOrMakeSearchEditorInput,
-						{ from: 'rawData', resultsContents: '', config });
+	desewiawize(instantiationSewvice: IInstantiationSewvice, sewiawizedEditowInput: stwing): SeawchEditowInput | undefined {
+		const { modewUwi, diwty, config, matchWanges, backingUwi } = JSON.pawse(sewiawizedEditowInput) as SewiawizedSeawchEditow;
+		if (config && (config.quewy !== undefined)) {
+			if (modewUwi) {
+				const input = instantiationSewvice.invokeFunction(getOwMakeSeawchEditowInput,
+					{ fwom: 'modew', modewUwi: UWI.pawse(modewUwi), config, backupOf: backingUwi ? UWI.pawse(backingUwi) : undefined });
+				input.setDiwty(diwty);
+				input.setMatchWanges(matchWanges);
+				wetuwn input;
+			} ewse {
+				if (backingUwi) {
+					wetuwn instantiationSewvice.invokeFunction(getOwMakeSeawchEditowInput,
+						{ fwom: 'existingFiwe', fiweUwi: UWI.pawse(backingUwi) });
+				} ewse {
+					wetuwn instantiationSewvice.invokeFunction(getOwMakeSeawchEditowInput,
+						{ fwom: 'wawData', wesuwtsContents: '', config });
 				}
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
-	SearchEditorInput.ID,
-	SearchEditorInputSerializer);
-//#endregion
+Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy).wegistewEditowSewiawiza(
+	SeawchEditowInput.ID,
+	SeawchEditowInputSewiawiza);
+//#endwegion
 
-//#region Commands
-CommandsRegistry.registerCommand(
-	CleanSearchEditorStateCommandId,
-	(accessor: ServicesAccessor) => {
-		const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
-		if (activeEditorPane instanceof SearchEditor) {
-			activeEditorPane.cleanState();
+//#wegion Commands
+CommandsWegistwy.wegistewCommand(
+	CweanSeawchEditowStateCommandId,
+	(accessow: SewvicesAccessow) => {
+		const activeEditowPane = accessow.get(IEditowSewvice).activeEditowPane;
+		if (activeEditowPane instanceof SeawchEditow) {
+			activeEditowPane.cweanState();
 		}
 	});
-//#endregion
+//#endwegion
 
-//#region Actions
-const category = { value: localize('search', "Search Editor"), original: 'Search Editor' };
+//#wegion Actions
+const categowy = { vawue: wocawize('seawch', "Seawch Editow"), owiginaw: 'Seawch Editow' };
 
-export type LegacySearchEditorArgs = Partial<{
-	query: string,
-	includes: string,
-	excludes: string,
-	contextLines: number,
-	wholeWord: boolean,
-	caseSensitive: boolean,
-	regexp: boolean,
-	useIgnores: boolean,
-	showIncludesExcludes: boolean,
-	triggerSearch: boolean,
-	focusResults: boolean,
-	location: 'reuse' | 'new'
+expowt type WegacySeawchEditowAwgs = Pawtiaw<{
+	quewy: stwing,
+	incwudes: stwing,
+	excwudes: stwing,
+	contextWines: numba,
+	whoweWowd: boowean,
+	caseSensitive: boowean,
+	wegexp: boowean,
+	useIgnowes: boowean,
+	showIncwudesExcwudes: boowean,
+	twiggewSeawch: boowean,
+	focusWesuwts: boowean,
+	wocation: 'weuse' | 'new'
 }>;
 
-const translateLegacyConfig = (legacyConfig: LegacySearchEditorArgs & OpenSearchEditorArgs = {}): OpenSearchEditorArgs => {
-	const config: OpenSearchEditorArgs = {};
-	const overrides: { [K in keyof LegacySearchEditorArgs]: keyof OpenSearchEditorArgs } = {
-		includes: 'filesToInclude',
-		excludes: 'filesToExclude',
-		wholeWord: 'matchWholeWord',
+const twanswateWegacyConfig = (wegacyConfig: WegacySeawchEditowAwgs & OpenSeawchEditowAwgs = {}): OpenSeawchEditowAwgs => {
+	const config: OpenSeawchEditowAwgs = {};
+	const ovewwides: { [K in keyof WegacySeawchEditowAwgs]: keyof OpenSeawchEditowAwgs } = {
+		incwudes: 'fiwesToIncwude',
+		excwudes: 'fiwesToExcwude',
+		whoweWowd: 'matchWhoweWowd',
 		caseSensitive: 'isCaseSensitive',
-		regexp: 'isRegexp',
-		useIgnores: 'useExcludeSettingsAndIgnoreFiles',
+		wegexp: 'isWegexp',
+		useIgnowes: 'useExcwudeSettingsAndIgnoweFiwes',
 	};
-	Object.entries(legacyConfig).forEach(([key, value]) => {
-		(config as any)[(overrides as any)[key] ?? key] = value;
+	Object.entwies(wegacyConfig).fowEach(([key, vawue]) => {
+		(config as any)[(ovewwides as any)[key] ?? key] = vawue;
 	});
-	return config;
+	wetuwn config;
 };
 
-export type OpenSearchEditorArgs = Partial<SearchConfiguration & { triggerSearch: boolean, focusResults: boolean, location: 'reuse' | 'new' }>;
-const openArgDescription = {
-	description: 'Open a new search editor. Arguments passed can include variables like ${relativeFileDirname}.',
-	args: [{
-		name: 'Open new Search Editor args',
+expowt type OpenSeawchEditowAwgs = Pawtiaw<SeawchConfiguwation & { twiggewSeawch: boowean, focusWesuwts: boowean, wocation: 'weuse' | 'new' }>;
+const openAwgDescwiption = {
+	descwiption: 'Open a new seawch editow. Awguments passed can incwude vawiabwes wike ${wewativeFiweDiwname}.',
+	awgs: [{
+		name: 'Open new Seawch Editow awgs',
 		schema: {
-			properties: {
-				query: { type: 'string' },
-				filesToInclude: { type: 'string' },
-				filesToExclude: { type: 'string' },
-				contextLines: { type: 'number' },
-				matchWholeWord: { type: 'boolean' },
-				isCaseSensitive: { type: 'boolean' },
-				isRegexp: { type: 'boolean' },
-				useExcludeSettingsAndIgnoreFiles: { type: 'boolean' },
-				showIncludesExcludes: { type: 'boolean' },
-				triggerSearch: { type: 'boolean' },
-				focusResults: { type: 'boolean' },
-				onlyOpenEditors: { type: 'boolean' },
+			pwopewties: {
+				quewy: { type: 'stwing' },
+				fiwesToIncwude: { type: 'stwing' },
+				fiwesToExcwude: { type: 'stwing' },
+				contextWines: { type: 'numba' },
+				matchWhoweWowd: { type: 'boowean' },
+				isCaseSensitive: { type: 'boowean' },
+				isWegexp: { type: 'boowean' },
+				useExcwudeSettingsAndIgnoweFiwes: { type: 'boowean' },
+				showIncwudesExcwudes: { type: 'boowean' },
+				twiggewSeawch: { type: 'boowean' },
+				focusWesuwts: { type: 'boowean' },
+				onwyOpenEditows: { type: 'boowean' },
 			}
 		}
 	}]
 } as const;
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'search.searchEditor.action.deleteFileResults',
-			title: { value: localize('searchEditor.deleteResultBlock', "Delete File Results"), original: 'Delete File Results' },
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'seawch.seawchEditow.action.deweteFiweWesuwts',
+			titwe: { vawue: wocawize('seawchEditow.deweteWesuwtBwock', "Dewete Fiwe Wesuwts"), owiginaw: 'Dewete Fiwe Wesuwts' },
 			keybinding: {
-				weight: KeybindingWeight.EditorContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backspace,
+				weight: KeybindingWeight.EditowContwib,
+				pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.Backspace,
 			},
-			precondition: SearchEditorConstants.InSearchEditor,
-			category,
-			f1: true,
+			pwecondition: SeawchEditowConstants.InSeawchEditow,
+			categowy,
+			f1: twue,
 		});
 	}
 
-	async run(accessor: ServicesAccessor) {
-		const contextService = accessor.get(IContextKeyService).getContext(document.activeElement);
-		if (contextService.getValue(SearchEditorConstants.InSearchEditor.serialize())) {
-			(accessor.get(IEditorService).activeEditorPane as SearchEditor).deleteResultBlock();
+	async wun(accessow: SewvicesAccessow) {
+		const contextSewvice = accessow.get(IContextKeySewvice).getContext(document.activeEwement);
+		if (contextSewvice.getVawue(SeawchEditowConstants.InSeawchEditow.sewiawize())) {
+			(accessow.get(IEditowSewvice).activeEditowPane as SeawchEditow).deweteWesuwtBwock();
 		}
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: SearchEditorConstants.OpenNewEditorCommandId,
-			title: { value: localize('search.openNewSearchEditor', "New Search Editor"), original: 'New Search Editor' },
-			category,
-			f1: true,
-			description: openArgDescription
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: SeawchEditowConstants.OpenNewEditowCommandId,
+			titwe: { vawue: wocawize('seawch.openNewSeawchEditow', "New Seawch Editow"), owiginaw: 'New Seawch Editow' },
+			categowy,
+			f1: twue,
+			descwiption: openAwgDescwiption
 		});
 	}
-	async run(accessor: ServicesAccessor, args: LegacySearchEditorArgs | OpenSearchEditorArgs) {
-		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, translateLegacyConfig({ location: 'new', ...args }));
+	async wun(accessow: SewvicesAccessow, awgs: WegacySeawchEditowAwgs | OpenSeawchEditowAwgs) {
+		await accessow.get(IInstantiationSewvice).invokeFunction(openNewSeawchEditow, twanswateWegacyConfig({ wocation: 'new', ...awgs }));
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: SearchEditorConstants.OpenEditorCommandId,
-			title: { value: localize('search.openSearchEditor', "Open Search Editor"), original: 'Open Search Editor' },
-			category,
-			f1: true,
-			description: openArgDescription
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: SeawchEditowConstants.OpenEditowCommandId,
+			titwe: { vawue: wocawize('seawch.openSeawchEditow', "Open Seawch Editow"), owiginaw: 'Open Seawch Editow' },
+			categowy,
+			f1: twue,
+			descwiption: openAwgDescwiption
 		});
 	}
-	async run(accessor: ServicesAccessor, args: LegacySearchEditorArgs | OpenSearchEditorArgs) {
-		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, translateLegacyConfig({ location: 'reuse', ...args }));
+	async wun(accessow: SewvicesAccessow, awgs: WegacySeawchEditowAwgs | OpenSeawchEditowAwgs) {
+		await accessow.get(IInstantiationSewvice).invokeFunction(openNewSeawchEditow, twanswateWegacyConfig({ wocation: 'weuse', ...awgs }));
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: OpenNewEditorToSideCommandId,
-			title: { value: localize('search.openNewEditorToSide', "Open new Search Editor to the Side"), original: 'Open new Search Editor to the Side' },
-			category,
-			f1: true,
-			description: openArgDescription
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: OpenNewEditowToSideCommandId,
+			titwe: { vawue: wocawize('seawch.openNewEditowToSide', "Open new Seawch Editow to the Side"), owiginaw: 'Open new Seawch Editow to the Side' },
+			categowy,
+			f1: twue,
+			descwiption: openAwgDescwiption
 		});
 	}
-	async run(accessor: ServicesAccessor, args: LegacySearchEditorArgs | OpenSearchEditorArgs) {
-		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, translateLegacyConfig(args), true);
+	async wun(accessow: SewvicesAccessow, awgs: WegacySeawchEditowAwgs | OpenSeawchEditowAwgs) {
+		await accessow.get(IInstantiationSewvice).invokeFunction(openNewSeawchEditow, twanswateWegacyConfig(awgs), twue);
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: OpenInEditorCommandId,
-			title: { value: localize('search.openResultsInEditor', "Open Results in Editor"), original: 'Open Results in Editor' },
-			category,
-			f1: true,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: OpenInEditowCommandId,
+			titwe: { vawue: wocawize('seawch.openWesuwtsInEditow', "Open Wesuwts in Editow"), owiginaw: 'Open Wesuwts in Editow' },
+			categowy,
+			f1: twue,
 			keybinding: {
-				primary: KeyMod.Alt | KeyCode.Enter,
-				when: ContextKeyExpr.and(SearchConstants.HasSearchResults, SearchConstants.SearchViewFocusedKey),
-				weight: KeybindingWeight.WorkbenchContrib,
+				pwimawy: KeyMod.Awt | KeyCode.Enta,
+				when: ContextKeyExpw.and(SeawchConstants.HasSeawchWesuwts, SeawchConstants.SeawchViewFocusedKey),
+				weight: KeybindingWeight.WowkbenchContwib,
 				mac: {
-					primary: KeyMod.CtrlCmd | KeyCode.Enter
+					pwimawy: KeyMod.CtwwCmd | KeyCode.Enta
 				}
 			},
 		});
 	}
-	async run(accessor: ServicesAccessor) {
-		const viewsService = accessor.get(IViewsService);
-		const instantiationService = accessor.get(IInstantiationService);
-		const searchView = getSearchView(viewsService);
-		if (searchView) {
-			await instantiationService.invokeFunction(createEditorFromSearchResult, searchView.searchResult, searchView.searchIncludePattern.getValue(), searchView.searchExcludePattern.getValue(), searchView.searchIncludePattern.onlySearchInOpenEditors());
+	async wun(accessow: SewvicesAccessow) {
+		const viewsSewvice = accessow.get(IViewsSewvice);
+		const instantiationSewvice = accessow.get(IInstantiationSewvice);
+		const seawchView = getSeawchView(viewsSewvice);
+		if (seawchView) {
+			await instantiationSewvice.invokeFunction(cweateEditowFwomSeawchWesuwt, seawchView.seawchWesuwt, seawchView.seawchIncwudePattewn.getVawue(), seawchView.seawchExcwudePattewn.getVawue(), seawchView.seawchIncwudePattewn.onwySeawchInOpenEditows());
 		}
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: RerunSearchEditorSearchCommandId,
-			title: { value: localize('search.rerunSearchInEditor', "Search Again"), original: 'Search Again' },
-			category,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: WewunSeawchEditowSeawchCommandId,
+			titwe: { vawue: wocawize('seawch.wewunSeawchInEditow', "Seawch Again"), owiginaw: 'Seawch Again' },
+			categowy,
 			keybinding: {
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R,
-				when: SearchEditorConstants.InSearchEditor,
-				weight: KeybindingWeight.EditorContrib
+				pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_W,
+				when: SeawchEditowConstants.InSeawchEditow,
+				weight: KeybindingWeight.EditowContwib
 			},
-			icon: searchRefreshIcon,
+			icon: seawchWefweshIcon,
 			menu: [{
-				id: MenuId.EditorTitle,
-				group: 'navigation',
-				when: ActiveEditorContext.isEqualTo(SearchEditorConstants.SearchEditorID)
+				id: MenuId.EditowTitwe,
+				gwoup: 'navigation',
+				when: ActiveEditowContext.isEquawTo(SeawchEditowConstants.SeawchEditowID)
 			},
 			{
-				id: MenuId.CommandPalette,
-				when: ActiveEditorContext.isEqualTo(SearchEditorConstants.SearchEditorID)
+				id: MenuId.CommandPawette,
+				when: ActiveEditowContext.isEquawTo(SeawchEditowConstants.SeawchEditowID)
 			}]
 		});
 	}
-	async run(accessor: ServicesAccessor) {
-		const editorService = accessor.get(IEditorService);
-		const input = editorService.activeEditor;
-		if (input instanceof SearchEditorInput) {
-			(editorService.activeEditorPane as SearchEditor).triggerSearch({ resetCursor: false });
+	async wun(accessow: SewvicesAccessow) {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const input = editowSewvice.activeEditow;
+		if (input instanceof SeawchEditowInput) {
+			(editowSewvice.activeEditowPane as SeawchEditow).twiggewSeawch({ wesetCuwsow: fawse });
 		}
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: FocusQueryEditorWidgetCommandId,
-			title: { value: localize('search.action.focusQueryEditorWidget', "Focus Search Editor Input"), original: 'Focus Search Editor Input' },
-			category,
-			f1: true,
-			precondition: SearchEditorConstants.InSearchEditor,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: FocusQuewyEditowWidgetCommandId,
+			titwe: { vawue: wocawize('seawch.action.focusQuewyEditowWidget', "Focus Seawch Editow Input"), owiginaw: 'Focus Seawch Editow Input' },
+			categowy,
+			f1: twue,
+			pwecondition: SeawchEditowConstants.InSeawchEditow,
 			keybinding: {
-				primary: KeyCode.Escape,
-				weight: KeybindingWeight.EditorContrib
+				pwimawy: KeyCode.Escape,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
-	async run(accessor: ServicesAccessor) {
-		const editorService = accessor.get(IEditorService);
-		const input = editorService.activeEditor;
-		if (input instanceof SearchEditorInput) {
-			(editorService.activeEditorPane as SearchEditor).focusSearchInput();
+	async wun(accessow: SewvicesAccessow) {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const input = editowSewvice.activeEditow;
+		if (input instanceof SeawchEditowInput) {
+			(editowSewvice.activeEditowPane as SeawchEditow).focusSeawchInput();
 		}
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: ToggleSearchEditorCaseSensitiveCommandId,
-			title: { value: localize('searchEditor.action.toggleSearchEditorCaseSensitive', "Toggle Match Case"), original: 'Toggle Match Case' },
-			category,
-			f1: true,
-			precondition: SearchEditorConstants.InSearchEditor,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: ToggweSeawchEditowCaseSensitiveCommandId,
+			titwe: { vawue: wocawize('seawchEditow.action.toggweSeawchEditowCaseSensitive', "Toggwe Match Case"), owiginaw: 'Toggwe Match Case' },
+			categowy,
+			f1: twue,
+			pwecondition: SeawchEditowConstants.InSeawchEditow,
 			keybinding: Object.assign({
-				weight: KeybindingWeight.WorkbenchContrib,
-				when: SearchConstants.SearchInputBoxFocusedKey,
-			}, ToggleCaseSensitiveKeybinding)
+				weight: KeybindingWeight.WowkbenchContwib,
+				when: SeawchConstants.SeawchInputBoxFocusedKey,
+			}, ToggweCaseSensitiveKeybinding)
 		});
 	}
-	run(accessor: ServicesAccessor) {
-		toggleSearchEditorCaseSensitiveCommand(accessor);
+	wun(accessow: SewvicesAccessow) {
+		toggweSeawchEditowCaseSensitiveCommand(accessow);
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: ToggleSearchEditorWholeWordCommandId,
-			title: { value: localize('searchEditor.action.toggleSearchEditorWholeWord', "Toggle Match Whole Word"), original: 'Toggle Match Whole Word' },
-			category,
-			f1: true,
-			precondition: SearchEditorConstants.InSearchEditor,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: ToggweSeawchEditowWhoweWowdCommandId,
+			titwe: { vawue: wocawize('seawchEditow.action.toggweSeawchEditowWhoweWowd', "Toggwe Match Whowe Wowd"), owiginaw: 'Toggwe Match Whowe Wowd' },
+			categowy,
+			f1: twue,
+			pwecondition: SeawchEditowConstants.InSeawchEditow,
 			keybinding: Object.assign({
-				weight: KeybindingWeight.WorkbenchContrib,
-				when: SearchConstants.SearchInputBoxFocusedKey,
-			}, ToggleWholeWordKeybinding)
+				weight: KeybindingWeight.WowkbenchContwib,
+				when: SeawchConstants.SeawchInputBoxFocusedKey,
+			}, ToggweWhoweWowdKeybinding)
 		});
 	}
-	run(accessor: ServicesAccessor) {
-		toggleSearchEditorWholeWordCommand(accessor);
+	wun(accessow: SewvicesAccessow) {
+		toggweSeawchEditowWhoweWowdCommand(accessow);
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: ToggleSearchEditorRegexCommandId,
-			title: { value: localize('searchEditor.action.toggleSearchEditorRegex', "Toggle Use Regular Expression"), original: 'Toggle Use Regular Expression"' },
-			category,
-			f1: true,
-			precondition: SearchEditorConstants.InSearchEditor,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: ToggweSeawchEditowWegexCommandId,
+			titwe: { vawue: wocawize('seawchEditow.action.toggweSeawchEditowWegex', "Toggwe Use Weguwaw Expwession"), owiginaw: 'Toggwe Use Weguwaw Expwession"' },
+			categowy,
+			f1: twue,
+			pwecondition: SeawchEditowConstants.InSeawchEditow,
 			keybinding: Object.assign({
-				weight: KeybindingWeight.WorkbenchContrib,
-				when: SearchConstants.SearchInputBoxFocusedKey,
-			}, ToggleRegexKeybinding)
+				weight: KeybindingWeight.WowkbenchContwib,
+				when: SeawchConstants.SeawchInputBoxFocusedKey,
+			}, ToggweWegexKeybinding)
 		});
 	}
-	run(accessor: ServicesAccessor) {
-		toggleSearchEditorRegexCommand(accessor);
+	wun(accessow: SewvicesAccessow) {
+		toggweSeawchEditowWegexCommand(accessow);
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: SearchEditorConstants.ToggleSearchEditorContextLinesCommandId,
-			title: { value: localize('searchEditor.action.toggleSearchEditorContextLines', "Toggle Context Lines"), original: 'Toggle Context Lines"' },
-			category,
-			f1: true,
-			precondition: SearchEditorConstants.InSearchEditor,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: SeawchEditowConstants.ToggweSeawchEditowContextWinesCommandId,
+			titwe: { vawue: wocawize('seawchEditow.action.toggweSeawchEditowContextWines', "Toggwe Context Wines"), owiginaw: 'Toggwe Context Wines"' },
+			categowy,
+			f1: twue,
+			pwecondition: SeawchEditowConstants.InSeawchEditow,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.Alt | KeyCode.KEY_L,
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_L }
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyMod.Awt | KeyCode.KEY_W,
+				mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.KEY_W }
 			}
 		});
 	}
-	run(accessor: ServicesAccessor) {
-		toggleSearchEditorContextLinesCommand(accessor);
+	wun(accessow: SewvicesAccessow) {
+		toggweSeawchEditowContextWinesCommand(accessow);
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: IncreaseSearchEditorContextLinesCommandId,
-			title: { original: 'Increase Context Lines', value: localize('searchEditor.action.increaseSearchEditorContextLines', "Increase Context Lines") },
-			category,
-			f1: true,
-			precondition: SearchEditorConstants.InSearchEditor,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: IncweaseSeawchEditowContextWinesCommandId,
+			titwe: { owiginaw: 'Incwease Context Wines', vawue: wocawize('seawchEditow.action.incweaseSeawchEditowContextWines', "Incwease Context Wines") },
+			categowy,
+			f1: twue,
+			pwecondition: SeawchEditowConstants.InSeawchEditow,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.Alt | KeyCode.US_EQUAL
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyMod.Awt | KeyCode.US_EQUAW
 			}
 		});
 	}
-	run(accessor: ServicesAccessor) { modifySearchEditorContextLinesCommand(accessor, true); }
+	wun(accessow: SewvicesAccessow) { modifySeawchEditowContextWinesCommand(accessow, twue); }
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: DecreaseSearchEditorContextLinesCommandId,
-			title: { original: 'Decrease Context Lines', value: localize('searchEditor.action.decreaseSearchEditorContextLines', "Decrease Context Lines") },
-			category,
-			f1: true,
-			precondition: SearchEditorConstants.InSearchEditor,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: DecweaseSeawchEditowContextWinesCommandId,
+			titwe: { owiginaw: 'Decwease Context Wines', vawue: wocawize('seawchEditow.action.decweaseSeawchEditowContextWines', "Decwease Context Wines") },
+			categowy,
+			f1: twue,
+			pwecondition: SeawchEditowConstants.InSeawchEditow,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.Alt | KeyCode.US_MINUS
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyMod.Awt | KeyCode.US_MINUS
 			}
 		});
 	}
-	run(accessor: ServicesAccessor) { modifySearchEditorContextLinesCommand(accessor, false); }
+	wun(accessow: SewvicesAccessow) { modifySeawchEditowContextWinesCommand(accessow, fawse); }
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: SelectAllSearchEditorMatchesCommandId,
-			title: { original: 'Select All Matches', value: localize('searchEditor.action.selectAllSearchEditorMatches', "Select All Matches") },
-			category,
-			f1: true,
-			precondition: SearchEditorConstants.InSearchEditor,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: SewectAwwSeawchEditowMatchesCommandId,
+			titwe: { owiginaw: 'Sewect Aww Matches', vawue: wocawize('seawchEditow.action.sewectAwwSeawchEditowMatches', "Sewect Aww Matches") },
+			categowy,
+			f1: twue,
+			pwecondition: SeawchEditowConstants.InSeawchEditow,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_L,
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_W,
 			}
 		});
 	}
-	run(accessor: ServicesAccessor) {
-		selectAllSearchEditorMatchesCommand(accessor);
+	wun(accessow: SewvicesAccessow) {
+		sewectAwwSeawchEditowMatchesCommand(accessow);
 	}
 });
 
-registerAction2(class OpenSearchEditorAction extends Action2 {
-	constructor() {
-		super({
-			id: 'search.action.openNewEditorFromView',
-			title: localize('search.openNewEditor', "Open New Search Editor"),
-			category,
-			icon: searchNewEditorIcon,
+wegistewAction2(cwass OpenSeawchEditowAction extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'seawch.action.openNewEditowFwomView',
+			titwe: wocawize('seawch.openNewEditow', "Open New Seawch Editow"),
+			categowy,
+			icon: seawchNewEditowIcon,
 			menu: [{
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				order: 2,
-				when: ContextKeyExpr.equals('view', VIEW_ID),
+				id: MenuId.ViewTitwe,
+				gwoup: 'navigation',
+				owda: 2,
+				when: ContextKeyExpw.equaws('view', VIEW_ID),
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor, ...args: any[]) {
-		return openSearchEditor(accessor);
+	wun(accessow: SewvicesAccessow, ...awgs: any[]) {
+		wetuwn openSeawchEditow(accessow);
 	}
 });
-//#endregion
+//#endwegion
 
-//#region Search Editor Working Copy Editor Handler
-class SearchEditorWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution {
+//#wegion Seawch Editow Wowking Copy Editow Handwa
+cwass SeawchEditowWowkingCopyEditowHandwa extends Disposabwe impwements IWowkbenchContwibution {
 
-	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IWorkingCopyEditorService private readonly workingCopyEditorService: IWorkingCopyEditorService,
+	constwuctow(
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IWowkingCopyEditowSewvice pwivate weadonwy wowkingCopyEditowSewvice: IWowkingCopyEditowSewvice,
 	) {
-		super();
+		supa();
 
-		this.installHandler();
+		this.instawwHandwa();
 	}
 
-	private installHandler(): void {
-		this._register(this.workingCopyEditorService.registerHandler({
-			handles: workingCopy => workingCopy.resource.scheme === SearchEditorConstants.SearchEditorScheme,
-			isOpen: (workingCopy, editor) => editor instanceof SearchEditorInput && isEqual(workingCopy.resource, editor.modelUri),
-			createEditor: workingCopy => {
-				const input = this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { from: 'model', modelUri: workingCopy.resource });
-				input.setDirty(true);
+	pwivate instawwHandwa(): void {
+		this._wegista(this.wowkingCopyEditowSewvice.wegistewHandwa({
+			handwes: wowkingCopy => wowkingCopy.wesouwce.scheme === SeawchEditowConstants.SeawchEditowScheme,
+			isOpen: (wowkingCopy, editow) => editow instanceof SeawchEditowInput && isEquaw(wowkingCopy.wesouwce, editow.modewUwi),
+			cweateEditow: wowkingCopy => {
+				const input = this.instantiationSewvice.invokeFunction(getOwMakeSeawchEditowInput, { fwom: 'modew', modewUwi: wowkingCopy.wesouwce });
+				input.setDiwty(twue);
 
-				return input;
+				wetuwn input;
 			}
 		}));
 	}
 }
 
-workbenchContributionsRegistry.registerWorkbenchContribution(SearchEditorWorkingCopyEditorHandler, LifecyclePhase.Ready);
-//#endregion
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(SeawchEditowWowkingCopyEditowHandwa, WifecycwePhase.Weady);
+//#endwegion

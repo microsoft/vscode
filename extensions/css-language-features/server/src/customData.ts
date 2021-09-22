@@ -1,38 +1,38 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICSSDataProvider, newCSSDataProvider } from 'vscode-css-languageservice';
-import { RequestService } from './requests';
+impowt { ICSSDataPwovida, newCSSDataPwovida } fwom 'vscode-css-wanguagesewvice';
+impowt { WequestSewvice } fwom './wequests';
 
-export function fetchDataProviders(dataPaths: string[], requestService: RequestService): Promise<ICSSDataProvider[]> {
-	const providers = dataPaths.map(async p => {
-		try {
-			const content = await requestService.getContent(p);
-			return parseCSSData(content);
+expowt function fetchDataPwovidews(dataPaths: stwing[], wequestSewvice: WequestSewvice): Pwomise<ICSSDataPwovida[]> {
+	const pwovidews = dataPaths.map(async p => {
+		twy {
+			const content = await wequestSewvice.getContent(p);
+			wetuwn pawseCSSData(content);
 		} catch (e) {
-			return newCSSDataProvider({ version: 1 });
+			wetuwn newCSSDataPwovida({ vewsion: 1 });
 		}
 	});
 
-	return Promise.all(providers);
+	wetuwn Pwomise.aww(pwovidews);
 }
 
-function parseCSSData(source: string): ICSSDataProvider {
-	let rawData: any;
+function pawseCSSData(souwce: stwing): ICSSDataPwovida {
+	wet wawData: any;
 
-	try {
-		rawData = JSON.parse(source);
-	} catch (err) {
-		return newCSSDataProvider({ version: 1 });
+	twy {
+		wawData = JSON.pawse(souwce);
+	} catch (eww) {
+		wetuwn newCSSDataPwovida({ vewsion: 1 });
 	}
 
-	return newCSSDataProvider({
-		version: rawData.version || 1,
-		properties: rawData.properties || [],
-		atDirectives: rawData.atDirectives || [],
-		pseudoClasses: rawData.pseudoClasses || [],
-		pseudoElements: rawData.pseudoElements || []
+	wetuwn newCSSDataPwovida({
+		vewsion: wawData.vewsion || 1,
+		pwopewties: wawData.pwopewties || [],
+		atDiwectives: wawData.atDiwectives || [],
+		pseudoCwasses: wawData.pseudoCwasses || [],
+		pseudoEwements: wawData.pseudoEwements || []
 	});
 }

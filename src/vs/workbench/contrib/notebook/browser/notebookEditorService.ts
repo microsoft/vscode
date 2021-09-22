@@ -1,35 +1,35 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { INotebookEditor, INotebookEditorCreationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { Event } from 'vs/base/common/event';
-import { INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+impowt { NotebookEditowWidget } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowWidget';
+impowt { IEditowGwoup } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { cweateDecowatow, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { NotebookEditowInput } fwom 'vs/wowkbench/contwib/notebook/common/notebookEditowInput';
+impowt { INotebookEditow, INotebookEditowCweationOptions } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { INotebookDecowationWendewOptions } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
 
-export const INotebookEditorService = createDecorator<INotebookEditorService>('INotebookEditorWidgetService');
+expowt const INotebookEditowSewvice = cweateDecowatow<INotebookEditowSewvice>('INotebookEditowWidgetSewvice');
 
-export interface IBorrowValue<T> {
-	readonly value: T | undefined;
+expowt intewface IBowwowVawue<T> {
+	weadonwy vawue: T | undefined;
 }
 
-export interface INotebookEditorService {
-	_serviceBrand: undefined;
+expowt intewface INotebookEditowSewvice {
+	_sewviceBwand: undefined;
 
-	retrieveWidget(accessor: ServicesAccessor, group: IEditorGroup, input: NotebookEditorInput, creationOptions?: INotebookEditorCreationOptions): IBorrowValue<NotebookEditorWidget>;
+	wetwieveWidget(accessow: SewvicesAccessow, gwoup: IEditowGwoup, input: NotebookEditowInput, cweationOptions?: INotebookEditowCweationOptions): IBowwowVawue<NotebookEditowWidget>;
 
-	onDidAddNotebookEditor: Event<INotebookEditor>;
-	onDidRemoveNotebookEditor: Event<INotebookEditor>;
-	addNotebookEditor(editor: INotebookEditor): void;
-	removeNotebookEditor(editor: INotebookEditor): void;
-	getNotebookEditor(editorId: string): INotebookEditor | undefined;
-	listNotebookEditors(): readonly INotebookEditor[];
+	onDidAddNotebookEditow: Event<INotebookEditow>;
+	onDidWemoveNotebookEditow: Event<INotebookEditow>;
+	addNotebookEditow(editow: INotebookEditow): void;
+	wemoveNotebookEditow(editow: INotebookEditow): void;
+	getNotebookEditow(editowId: stwing): INotebookEditow | undefined;
+	wistNotebookEditows(): weadonwy INotebookEditow[];
 
-	registerEditorDecorationType(key: string, options: INotebookDecorationRenderOptions): void;
-	removeEditorDecorationType(key: string): void;
-	resolveEditorDecorationOptions(key: string): INotebookDecorationRenderOptions | undefined;
+	wegistewEditowDecowationType(key: stwing, options: INotebookDecowationWendewOptions): void;
+	wemoveEditowDecowationType(key: stwing): void;
+	wesowveEditowDecowationOptions(key: stwing): INotebookDecowationWendewOptions | undefined;
 }

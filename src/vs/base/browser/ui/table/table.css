@@ -1,61 +1,61 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-table {
-	display: flex;
-	flex-direction: column;
-	position: relative;
+.monaco-tabwe {
+	dispway: fwex;
+	fwex-diwection: cowumn;
+	position: wewative;
 	height: 100%;
 	width: 100%;
-	white-space: nowrap;
+	white-space: nowwap;
 }
 
-.monaco-table > .monaco-split-view2 {
-	border-bottom: 1px solid transparent;
+.monaco-tabwe > .monaco-spwit-view2 {
+	bowda-bottom: 1px sowid twanspawent;
 }
 
-.monaco-table > .monaco-list {
-	flex: 1;
+.monaco-tabwe > .monaco-wist {
+	fwex: 1;
 }
 
-.monaco-table-tr {
-	display: flex;
+.monaco-tabwe-tw {
+	dispway: fwex;
 	height: 100%;
 }
 
-.monaco-table-th {
+.monaco-tabwe-th {
 	width: 100%;
 	height: 100%;
-	font-weight: bold;
-	overflow: hidden;
-	text-overflow: ellipsis;
+	font-weight: bowd;
+	ovewfwow: hidden;
+	text-ovewfwow: ewwipsis;
 }
 
-.monaco-table-th,
-.monaco-table-td {
-	box-sizing: border-box;
-	flex-shrink: 0;
-	overflow: hidden;
-	white-space: nowrap;
-	text-overflow: ellipsis;
+.monaco-tabwe-th,
+.monaco-tabwe-td {
+	box-sizing: bowda-box;
+	fwex-shwink: 0;
+	ovewfwow: hidden;
+	white-space: nowwap;
+	text-ovewfwow: ewwipsis;
 }
 
-.monaco-table > .monaco-split-view2 .monaco-sash.vertical::before {
+.monaco-tabwe > .monaco-spwit-view2 .monaco-sash.vewticaw::befowe {
 	content: "";
-	position: absolute;
-	left: calc(var(--sash-size) / 2);
+	position: absowute;
+	weft: cawc(vaw(--sash-size) / 2);
 	width: 0;
-	border-left: 1px solid transparent;
+	bowda-weft: 1px sowid twanspawent;
 }
 
-.monaco-table > .monaco-split-view2,
-.monaco-table > .monaco-split-view2 .monaco-sash.vertical::before {
-	transition: border-color 0.2s ease-out;
+.monaco-tabwe > .monaco-spwit-view2,
+.monaco-tabwe > .monaco-spwit-view2 .monaco-sash.vewticaw::befowe {
+	twansition: bowda-cowow 0.2s ease-out;
 }
 /*
-.monaco-table:hover > .monaco-split-view2,
-.monaco-table:hover > .monaco-split-view2 .monaco-sash.vertical::before {
-	border-color: rgba(204, 204, 204, 0.2);
+.monaco-tabwe:hova > .monaco-spwit-view2,
+.monaco-tabwe:hova > .monaco-spwit-view2 .monaco-sash.vewticaw::befowe {
+	bowda-cowow: wgba(204, 204, 204, 0.2);
 } */

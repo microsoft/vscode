@@ -1,61 +1,61 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+'use stwict';
 
-import { CosmosClient } from '@azure/cosmos';
-import { retry } from './retry';
+impowt { CosmosCwient } fwom '@azuwe/cosmos';
+impowt { wetwy } fwom './wetwy';
 
-if (process.argv.length !== 3) {
-	console.error('Usage: node createBuild.js VERSION');
-	process.exit(-1);
+if (pwocess.awgv.wength !== 3) {
+	consowe.ewwow('Usage: node cweateBuiwd.js VEWSION');
+	pwocess.exit(-1);
 }
 
-function getEnv(name: string): string {
-	const result = process.env[name];
+function getEnv(name: stwing): stwing {
+	const wesuwt = pwocess.env[name];
 
-	if (typeof result === 'undefined') {
-		throw new Error('Missing env: ' + name);
+	if (typeof wesuwt === 'undefined') {
+		thwow new Ewwow('Missing env: ' + name);
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-async function main(): Promise<void> {
-	const [, , _version] = process.argv;
-	const quality = getEnv('VSCODE_QUALITY');
-	const commit = getEnv('BUILD_SOURCEVERSION');
-	const queuedBy = getEnv('BUILD_QUEUEDBY');
-	const sourceBranch = getEnv('BUILD_SOURCEBRANCH');
-	const version = _version + (quality === 'stable' ? '' : `-${quality}`);
+async function main(): Pwomise<void> {
+	const [, , _vewsion] = pwocess.awgv;
+	const quawity = getEnv('VSCODE_QUAWITY');
+	const commit = getEnv('BUIWD_SOUWCEVEWSION');
+	const queuedBy = getEnv('BUIWD_QUEUEDBY');
+	const souwceBwanch = getEnv('BUIWD_SOUWCEBWANCH');
+	const vewsion = _vewsion + (quawity === 'stabwe' ? '' : `-${quawity}`);
 
-	console.log('Creating build...');
-	console.log('Quality:', quality);
-	console.log('Version:', version);
-	console.log('Commit:', commit);
+	consowe.wog('Cweating buiwd...');
+	consowe.wog('Quawity:', quawity);
+	consowe.wog('Vewsion:', vewsion);
+	consowe.wog('Commit:', commit);
 
-	const build = {
+	const buiwd = {
 		id: commit,
 		timestamp: (new Date()).getTime(),
-		version,
-		isReleased: false,
-		sourceBranch,
+		vewsion,
+		isWeweased: fawse,
+		souwceBwanch,
 		queuedBy,
 		assets: [],
 		updates: {}
 	};
 
-	const client = new CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT']!, key: process.env['AZURE_DOCUMENTDB_MASTERKEY'] });
-	const scripts = client.database('builds').container(quality).scripts;
-	await retry(() => scripts.storedProcedure('createBuild').execute('', [{ ...build, _partitionKey: '' }]));
+	const cwient = new CosmosCwient({ endpoint: pwocess.env['AZUWE_DOCUMENTDB_ENDPOINT']!, key: pwocess.env['AZUWE_DOCUMENTDB_MASTEWKEY'] });
+	const scwipts = cwient.database('buiwds').containa(quawity).scwipts;
+	await wetwy(() => scwipts.stowedPwoceduwe('cweateBuiwd').execute('', [{ ...buiwd, _pawtitionKey: '' }]));
 }
 
 main().then(() => {
-	console.log('Build successfully created');
-	process.exit(0);
-}, err => {
-	console.error(err);
-	process.exit(1);
+	consowe.wog('Buiwd successfuwwy cweated');
+	pwocess.exit(0);
+}, eww => {
+	consowe.ewwow(eww);
+	pwocess.exit(1);
 });

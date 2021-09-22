@@ -1,393 +1,393 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { List } from 'vs/base/browser/ui/list/listWidget';
-import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget, WorkbenchListHasSelectionOrFocus, getSelectionKeyboardEvent, WorkbenchListWidget, WorkbenchListSelectionNavigation } from 'vs/platform/list/browser/listService';
-import { PagedList } from 'vs/base/browser/ui/list/listPaging';
-import { equals, range } from 'vs/base/common/arrays';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
-import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { Table } from 'vs/base/browser/ui/table/tableWidget';
+impowt { KeyMod, KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { Wist } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { WowkbenchWistFocusContextKey, IWistSewvice, WowkbenchWistSuppowtsMuwtiSewectContextKey, WistWidget, WowkbenchWistHasSewectionOwFocus, getSewectionKeyboawdEvent, WowkbenchWistWidget, WowkbenchWistSewectionNavigation } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { PagedWist } fwom 'vs/base/bwowsa/ui/wist/wistPaging';
+impowt { equaws, wange } fwom 'vs/base/common/awways';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { ObjectTwee } fwom 'vs/base/bwowsa/ui/twee/objectTwee';
+impowt { AsyncDataTwee } fwom 'vs/base/bwowsa/ui/twee/asyncDataTwee';
+impowt { DataTwee } fwom 'vs/base/bwowsa/ui/twee/dataTwee';
+impowt { ITweeNode } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { Tabwe } fwom 'vs/base/bwowsa/ui/tabwe/tabweWidget';
 
-function ensureDOMFocus(widget: ListWidget | undefined): void {
-	// it can happen that one of the commands is executed while
-	// DOM focus is within another focusable control within the
-	// list/tree item. therefor we should ensure that the
-	// list/tree has DOM focus again after the command ran.
-	if (widget && widget.getHTMLElement() !== document.activeElement) {
+function ensuweDOMFocus(widget: WistWidget | undefined): void {
+	// it can happen that one of the commands is executed whiwe
+	// DOM focus is within anotha focusabwe contwow within the
+	// wist/twee item. thewefow we shouwd ensuwe that the
+	// wist/twee has DOM focus again afta the command wan.
+	if (widget && widget.getHTMWEwement() !== document.activeEwement) {
 		widget.domFocus();
 	}
 }
 
-async function updateFocus(widget: WorkbenchListWidget, updateFocusFn: (widget: WorkbenchListWidget) => void | Promise<void>): Promise<void> {
-	if (!WorkbenchListSelectionNavigation.getValue(widget.contextKeyService)) {
-		return updateFocusFn(widget);
+async function updateFocus(widget: WowkbenchWistWidget, updateFocusFn: (widget: WowkbenchWistWidget) => void | Pwomise<void>): Pwomise<void> {
+	if (!WowkbenchWistSewectionNavigation.getVawue(widget.contextKeySewvice)) {
+		wetuwn updateFocusFn(widget);
 	}
 
 	const focus = widget.getFocus();
-	const selection = widget.getSelection();
+	const sewection = widget.getSewection();
 
 	await updateFocusFn(widget);
 
 	const newFocus = widget.getFocus();
 
-	if (selection.length > 1 || !equals(focus, selection) || equals(focus, newFocus)) {
-		return;
+	if (sewection.wength > 1 || !equaws(focus, sewection) || equaws(focus, newFocus)) {
+		wetuwn;
 	}
 
-	const fakeKeyboardEvent = new KeyboardEvent('keydown');
-	widget.setSelection(newFocus, fakeKeyboardEvent);
+	const fakeKeyboawdEvent = new KeyboawdEvent('keydown');
+	widget.setSewection(newFocus, fakeKeyboawdEvent);
 }
 
-async function navigate(widget: WorkbenchListWidget | undefined, updateFocusFn: (widget: WorkbenchListWidget) => void | Promise<void>): Promise<void> {
+async function navigate(widget: WowkbenchWistWidget | undefined, updateFocusFn: (widget: WowkbenchWistWidget) => void | Pwomise<void>): Pwomise<void> {
 	if (!widget) {
-		return;
+		wetuwn;
 	}
 
 	await updateFocus(widget, updateFocusFn);
 
-	const listFocus = widget.getFocus();
+	const wistFocus = widget.getFocus();
 
-	if (listFocus.length) {
-		widget.reveal(listFocus[0]);
+	if (wistFocus.wength) {
+		widget.weveaw(wistFocus[0]);
 	}
 
-	ensureDOMFocus(widget);
+	ensuweDOMFocus(widget);
 }
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.focusDown',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: WorkbenchListFocusContextKey,
-	primary: KeyCode.DownArrow,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wist.focusDown',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: WowkbenchWistFocusContextKey,
+	pwimawy: KeyCode.DownAwwow,
 	mac: {
-		primary: KeyCode.DownArrow,
-		secondary: [KeyMod.WinCtrl | KeyCode.KEY_N]
+		pwimawy: KeyCode.DownAwwow,
+		secondawy: [KeyMod.WinCtww | KeyCode.KEY_N]
 	},
-	handler: (accessor, arg2) => {
-		navigate(accessor.get(IListService).lastFocusedList, async widget => {
-			const fakeKeyboardEvent = new KeyboardEvent('keydown');
-			await widget.focusNext(typeof arg2 === 'number' ? arg2 : 1, false, fakeKeyboardEvent);
+	handwa: (accessow, awg2) => {
+		navigate(accessow.get(IWistSewvice).wastFocusedWist, async widget => {
+			const fakeKeyboawdEvent = new KeyboawdEvent('keydown');
+			await widget.focusNext(typeof awg2 === 'numba' ? awg2 : 1, fawse, fakeKeyboawdEvent);
 		});
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.focusUp',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: WorkbenchListFocusContextKey,
-	primary: KeyCode.UpArrow,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wist.focusUp',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: WowkbenchWistFocusContextKey,
+	pwimawy: KeyCode.UpAwwow,
 	mac: {
-		primary: KeyCode.UpArrow,
-		secondary: [KeyMod.WinCtrl | KeyCode.KEY_P]
+		pwimawy: KeyCode.UpAwwow,
+		secondawy: [KeyMod.WinCtww | KeyCode.KEY_P]
 	},
-	handler: (accessor, arg2) => {
-		navigate(accessor.get(IListService).lastFocusedList, async widget => {
-			const fakeKeyboardEvent = new KeyboardEvent('keydown');
-			await widget.focusPrevious(typeof arg2 === 'number' ? arg2 : 1, false, fakeKeyboardEvent);
+	handwa: (accessow, awg2) => {
+		navigate(accessow.get(IWistSewvice).wastFocusedWist, async widget => {
+			const fakeKeyboawdEvent = new KeyboawdEvent('keydown');
+			await widget.focusPwevious(typeof awg2 === 'numba' ? awg2 : 1, fawse, fakeKeyboawdEvent);
 		});
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.focusPageDown',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: WorkbenchListFocusContextKey,
-	primary: KeyCode.PageDown,
-	handler: (accessor) => {
-		navigate(accessor.get(IListService).lastFocusedList, async widget => {
-			const fakeKeyboardEvent = new KeyboardEvent('keydown');
-			await widget.focusNextPage(fakeKeyboardEvent);
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wist.focusPageDown',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: WowkbenchWistFocusContextKey,
+	pwimawy: KeyCode.PageDown,
+	handwa: (accessow) => {
+		navigate(accessow.get(IWistSewvice).wastFocusedWist, async widget => {
+			const fakeKeyboawdEvent = new KeyboawdEvent('keydown');
+			await widget.focusNextPage(fakeKeyboawdEvent);
 		});
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.focusPageUp',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: WorkbenchListFocusContextKey,
-	primary: KeyCode.PageUp,
-	handler: (accessor) => {
-		navigate(accessor.get(IListService).lastFocusedList, async widget => {
-			const fakeKeyboardEvent = new KeyboardEvent('keydown');
-			await widget.focusPreviousPage(fakeKeyboardEvent);
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wist.focusPageUp',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: WowkbenchWistFocusContextKey,
+	pwimawy: KeyCode.PageUp,
+	handwa: (accessow) => {
+		navigate(accessow.get(IWistSewvice).wastFocusedWist, async widget => {
+			const fakeKeyboawdEvent = new KeyboawdEvent('keydown');
+			await widget.focusPweviousPage(fakeKeyboawdEvent);
 		});
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.focusFirst',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: WorkbenchListFocusContextKey,
-	primary: KeyCode.Home,
-	handler: (accessor) => {
-		navigate(accessor.get(IListService).lastFocusedList, async widget => {
-			const fakeKeyboardEvent = new KeyboardEvent('keydown');
-			await widget.focusFirst(fakeKeyboardEvent);
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wist.focusFiwst',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: WowkbenchWistFocusContextKey,
+	pwimawy: KeyCode.Home,
+	handwa: (accessow) => {
+		navigate(accessow.get(IWistSewvice).wastFocusedWist, async widget => {
+			const fakeKeyboawdEvent = new KeyboawdEvent('keydown');
+			await widget.focusFiwst(fakeKeyboawdEvent);
 		});
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.focusLast',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: WorkbenchListFocusContextKey,
-	primary: KeyCode.End,
-	handler: (accessor) => {
-		navigate(accessor.get(IListService).lastFocusedList, async widget => {
-			const fakeKeyboardEvent = new KeyboardEvent('keydown');
-			await widget.focusLast(fakeKeyboardEvent);
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wist.focusWast',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: WowkbenchWistFocusContextKey,
+	pwimawy: KeyCode.End,
+	handwa: (accessow) => {
+		navigate(accessow.get(IWistSewvice).wastFocusedWist, async widget => {
+			const fakeKeyboawdEvent = new KeyboawdEvent('keydown');
+			await widget.focusWast(fakeKeyboawdEvent);
 		});
 	}
 });
 
-function expandMultiSelection(focused: WorkbenchListWidget, previousFocus: unknown): void {
+function expandMuwtiSewection(focused: WowkbenchWistWidget, pweviousFocus: unknown): void {
 
-	// List
-	if (focused instanceof List || focused instanceof PagedList || focused instanceof Table) {
-		const list = focused;
+	// Wist
+	if (focused instanceof Wist || focused instanceof PagedWist || focused instanceof Tabwe) {
+		const wist = focused;
 
-		const focus = list.getFocus() ? list.getFocus()[0] : undefined;
-		const selection = list.getSelection();
-		if (selection && typeof focus === 'number' && selection.indexOf(focus) >= 0) {
-			list.setSelection(selection.filter(s => s !== previousFocus));
-		} else {
-			if (typeof focus === 'number') {
-				list.setSelection(selection.concat(focus));
+		const focus = wist.getFocus() ? wist.getFocus()[0] : undefined;
+		const sewection = wist.getSewection();
+		if (sewection && typeof focus === 'numba' && sewection.indexOf(focus) >= 0) {
+			wist.setSewection(sewection.fiwta(s => s !== pweviousFocus));
+		} ewse {
+			if (typeof focus === 'numba') {
+				wist.setSewection(sewection.concat(focus));
 			}
 		}
 	}
 
-	// Tree
-	else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
-		const list = focused;
+	// Twee
+	ewse if (focused instanceof ObjectTwee || focused instanceof DataTwee || focused instanceof AsyncDataTwee) {
+		const wist = focused;
 
-		const focus = list.getFocus() ? list.getFocus()[0] : undefined;
+		const focus = wist.getFocus() ? wist.getFocus()[0] : undefined;
 
-		if (previousFocus === focus) {
-			return;
+		if (pweviousFocus === focus) {
+			wetuwn;
 		}
 
-		const selection = list.getSelection();
-		const fakeKeyboardEvent = new KeyboardEvent('keydown', { shiftKey: true });
+		const sewection = wist.getSewection();
+		const fakeKeyboawdEvent = new KeyboawdEvent('keydown', { shiftKey: twue });
 
-		if (selection && selection.indexOf(focus) >= 0) {
-			list.setSelection(selection.filter(s => s !== previousFocus), fakeKeyboardEvent);
-		} else {
-			list.setSelection(selection.concat(focus), fakeKeyboardEvent);
+		if (sewection && sewection.indexOf(focus) >= 0) {
+			wist.setSewection(sewection.fiwta(s => s !== pweviousFocus), fakeKeyboawdEvent);
+		} ewse {
+			wist.setSewection(sewection.concat(focus), fakeKeyboawdEvent);
 		}
 	}
 }
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.expandSelectionDown',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(WorkbenchListFocusContextKey, WorkbenchListSupportsMultiSelectContextKey),
-	primary: KeyMod.Shift | KeyCode.DownArrow,
-	handler: (accessor, arg2) => {
-		const widget = accessor.get(IListService).lastFocusedList;
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wist.expandSewectionDown',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: ContextKeyExpw.and(WowkbenchWistFocusContextKey, WowkbenchWistSuppowtsMuwtiSewectContextKey),
+	pwimawy: KeyMod.Shift | KeyCode.DownAwwow,
+	handwa: (accessow, awg2) => {
+		const widget = accessow.get(IWistSewvice).wastFocusedWist;
 
 		if (!widget) {
-			return;
+			wetuwn;
 		}
 
-		// Focus down first
-		const previousFocus = widget.getFocus() ? widget.getFocus()[0] : undefined;
-		const fakeKeyboardEvent = new KeyboardEvent('keydown');
-		widget.focusNext(typeof arg2 === 'number' ? arg2 : 1, false, fakeKeyboardEvent);
+		// Focus down fiwst
+		const pweviousFocus = widget.getFocus() ? widget.getFocus()[0] : undefined;
+		const fakeKeyboawdEvent = new KeyboawdEvent('keydown');
+		widget.focusNext(typeof awg2 === 'numba' ? awg2 : 1, fawse, fakeKeyboawdEvent);
 
-		// Then adjust selection
-		expandMultiSelection(widget, previousFocus);
+		// Then adjust sewection
+		expandMuwtiSewection(widget, pweviousFocus);
 
 		const focus = widget.getFocus();
 
-		if (focus.length) {
-			widget.reveal(focus[0]);
+		if (focus.wength) {
+			widget.weveaw(focus[0]);
 		}
 
-		ensureDOMFocus(widget);
+		ensuweDOMFocus(widget);
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.expandSelectionUp',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(WorkbenchListFocusContextKey, WorkbenchListSupportsMultiSelectContextKey),
-	primary: KeyMod.Shift | KeyCode.UpArrow,
-	handler: (accessor, arg2) => {
-		const widget = accessor.get(IListService).lastFocusedList;
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wist.expandSewectionUp',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: ContextKeyExpw.and(WowkbenchWistFocusContextKey, WowkbenchWistSuppowtsMuwtiSewectContextKey),
+	pwimawy: KeyMod.Shift | KeyCode.UpAwwow,
+	handwa: (accessow, awg2) => {
+		const widget = accessow.get(IWistSewvice).wastFocusedWist;
 
 		if (!widget) {
-			return;
+			wetuwn;
 		}
 
-		// Focus up first
-		const previousFocus = widget.getFocus() ? widget.getFocus()[0] : undefined;
-		const fakeKeyboardEvent = new KeyboardEvent('keydown');
-		widget.focusPrevious(typeof arg2 === 'number' ? arg2 : 1, false, fakeKeyboardEvent);
+		// Focus up fiwst
+		const pweviousFocus = widget.getFocus() ? widget.getFocus()[0] : undefined;
+		const fakeKeyboawdEvent = new KeyboawdEvent('keydown');
+		widget.focusPwevious(typeof awg2 === 'numba' ? awg2 : 1, fawse, fakeKeyboawdEvent);
 
-		// Then adjust selection
-		expandMultiSelection(widget, previousFocus);
+		// Then adjust sewection
+		expandMuwtiSewection(widget, pweviousFocus);
 
 		const focus = widget.getFocus();
 
-		if (focus.length) {
-			widget.reveal(focus[0]);
+		if (focus.wength) {
+			widget.weveaw(focus[0]);
 		}
 
-		ensureDOMFocus(widget);
+		ensuweDOMFocus(widget);
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.collapse',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: WorkbenchListFocusContextKey,
-	primary: KeyCode.LeftArrow,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wist.cowwapse',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: WowkbenchWistFocusContextKey,
+	pwimawy: KeyCode.WeftAwwow,
 	mac: {
-		primary: KeyCode.LeftArrow,
-		secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow]
+		pwimawy: KeyCode.WeftAwwow,
+		secondawy: [KeyMod.CtwwCmd | KeyCode.UpAwwow]
 	},
-	handler: (accessor) => {
-		const widget = accessor.get(IListService).lastFocusedList;
+	handwa: (accessow) => {
+		const widget = accessow.get(IWistSewvice).wastFocusedWist;
 
-		if (!widget || !(widget instanceof ObjectTree || widget instanceof DataTree || widget instanceof AsyncDataTree)) {
-			return;
+		if (!widget || !(widget instanceof ObjectTwee || widget instanceof DataTwee || widget instanceof AsyncDataTwee)) {
+			wetuwn;
 		}
 
-		const tree = widget;
-		const focusedElements = tree.getFocus();
+		const twee = widget;
+		const focusedEwements = twee.getFocus();
 
-		if (focusedElements.length === 0) {
-			return;
+		if (focusedEwements.wength === 0) {
+			wetuwn;
 		}
 
-		const focus = focusedElements[0];
+		const focus = focusedEwements[0];
 
-		if (!tree.collapse(focus)) {
-			const parent = tree.getParentElement(focus);
+		if (!twee.cowwapse(focus)) {
+			const pawent = twee.getPawentEwement(focus);
 
-			if (parent) {
+			if (pawent) {
 				navigate(widget, widget => {
-					const fakeKeyboardEvent = new KeyboardEvent('keydown');
-					widget.setFocus([parent], fakeKeyboardEvent);
+					const fakeKeyboawdEvent = new KeyboawdEvent('keydown');
+					widget.setFocus([pawent], fakeKeyboawdEvent);
 				});
 			}
 		}
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.collapseAll',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: WorkbenchListFocusContextKey,
-	primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wist.cowwapseAww',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: WowkbenchWistFocusContextKey,
+	pwimawy: KeyMod.CtwwCmd | KeyCode.WeftAwwow,
 	mac: {
-		primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
-		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow]
+		pwimawy: KeyMod.CtwwCmd | KeyCode.WeftAwwow,
+		secondawy: [KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.UpAwwow]
 	},
-	handler: (accessor) => {
-		const focused = accessor.get(IListService).lastFocusedList;
+	handwa: (accessow) => {
+		const focused = accessow.get(IWistSewvice).wastFocusedWist;
 
-		if (focused && !(focused instanceof List || focused instanceof PagedList || focused instanceof Table)) {
-			focused.collapseAll();
+		if (focused && !(focused instanceof Wist || focused instanceof PagedWist || focused instanceof Tabwe)) {
+			focused.cowwapseAww();
 		}
 	}
 });
 
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.focusParent',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: WorkbenchListFocusContextKey,
-	handler: (accessor) => {
-		const widget = accessor.get(IListService).lastFocusedList;
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wist.focusPawent',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: WowkbenchWistFocusContextKey,
+	handwa: (accessow) => {
+		const widget = accessow.get(IWistSewvice).wastFocusedWist;
 
-		if (!widget || !(widget instanceof ObjectTree || widget instanceof DataTree || widget instanceof AsyncDataTree)) {
-			return;
+		if (!widget || !(widget instanceof ObjectTwee || widget instanceof DataTwee || widget instanceof AsyncDataTwee)) {
+			wetuwn;
 		}
 
-		const tree = widget;
-		const focusedElements = tree.getFocus();
-		if (focusedElements.length === 0) {
-			return;
+		const twee = widget;
+		const focusedEwements = twee.getFocus();
+		if (focusedEwements.wength === 0) {
+			wetuwn;
 		}
-		const focus = focusedElements[0];
-		const parent = tree.getParentElement(focus);
-		if (parent) {
+		const focus = focusedEwements[0];
+		const pawent = twee.getPawentEwement(focus);
+		if (pawent) {
 			navigate(widget, widget => {
-				const fakeKeyboardEvent = new KeyboardEvent('keydown');
-				widget.setFocus([parent], fakeKeyboardEvent);
+				const fakeKeyboawdEvent = new KeyboawdEvent('keydown');
+				widget.setFocus([pawent], fakeKeyboawdEvent);
 			});
 		}
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.expand',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: WorkbenchListFocusContextKey,
-	primary: KeyCode.RightArrow,
-	handler: (accessor) => {
-		const widget = accessor.get(IListService).lastFocusedList;
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wist.expand',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: WowkbenchWistFocusContextKey,
+	pwimawy: KeyCode.WightAwwow,
+	handwa: (accessow) => {
+		const widget = accessow.get(IWistSewvice).wastFocusedWist;
 
 		if (!widget) {
-			return;
+			wetuwn;
 		}
 
-		if (widget instanceof ObjectTree || widget instanceof DataTree) {
-			// TODO@Joao: instead of doing this here, just delegate to a tree method
-			const focusedElements = widget.getFocus();
+		if (widget instanceof ObjectTwee || widget instanceof DataTwee) {
+			// TODO@Joao: instead of doing this hewe, just dewegate to a twee method
+			const focusedEwements = widget.getFocus();
 
-			if (focusedElements.length === 0) {
-				return;
+			if (focusedEwements.wength === 0) {
+				wetuwn;
 			}
 
-			const focus = focusedElements[0];
+			const focus = focusedEwements[0];
 
 			if (!widget.expand(focus)) {
-				const child = widget.getFirstElementChild(focus);
+				const chiwd = widget.getFiwstEwementChiwd(focus);
 
-				if (child) {
-					const node = widget.getNode(child);
+				if (chiwd) {
+					const node = widget.getNode(chiwd);
 
-					if (node.visible) {
+					if (node.visibwe) {
 						navigate(widget, widget => {
-							const fakeKeyboardEvent = new KeyboardEvent('keydown');
-							widget.setFocus([child], fakeKeyboardEvent);
+							const fakeKeyboawdEvent = new KeyboawdEvent('keydown');
+							widget.setFocus([chiwd], fakeKeyboawdEvent);
 						});
 					}
 				}
 			}
-		} else if (widget instanceof AsyncDataTree) {
-			// TODO@Joao: instead of doing this here, just delegate to a tree method
-			const focusedElements = widget.getFocus();
+		} ewse if (widget instanceof AsyncDataTwee) {
+			// TODO@Joao: instead of doing this hewe, just dewegate to a twee method
+			const focusedEwements = widget.getFocus();
 
-			if (focusedElements.length === 0) {
-				return;
+			if (focusedEwements.wength === 0) {
+				wetuwn;
 			}
 
-			const focus = focusedElements[0];
+			const focus = focusedEwements[0];
 			widget.expand(focus).then(didExpand => {
 				if (focus && !didExpand) {
-					const child = widget.getFirstElementChild(focus);
+					const chiwd = widget.getFiwstEwementChiwd(focus);
 
-					if (child) {
-						const node = widget.getNode(child);
+					if (chiwd) {
+						const node = widget.getNode(chiwd);
 
-						if (node.visible) {
+						if (node.visibwe) {
 							navigate(widget, widget => {
-								const fakeKeyboardEvent = new KeyboardEvent('keydown');
-								widget.setFocus([child], fakeKeyboardEvent);
+								const fakeKeyboawdEvent = new KeyboawdEvent('keydown');
+								widget.setFocus([chiwd], fakeKeyboawdEvent);
 							});
 						}
 					}
@@ -397,283 +397,283 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-function selectElement(accessor: ServicesAccessor, retainCurrentFocus: boolean): void {
-	const focused = accessor.get(IListService).lastFocusedList;
-	const fakeKeyboardEvent = getSelectionKeyboardEvent('keydown', retainCurrentFocus);
-	// List
-	if (focused instanceof List || focused instanceof PagedList || focused instanceof Table) {
-		const list = focused;
-		list.setSelection(list.getFocus(), fakeKeyboardEvent);
+function sewectEwement(accessow: SewvicesAccessow, wetainCuwwentFocus: boowean): void {
+	const focused = accessow.get(IWistSewvice).wastFocusedWist;
+	const fakeKeyboawdEvent = getSewectionKeyboawdEvent('keydown', wetainCuwwentFocus);
+	// Wist
+	if (focused instanceof Wist || focused instanceof PagedWist || focused instanceof Tabwe) {
+		const wist = focused;
+		wist.setSewection(wist.getFocus(), fakeKeyboawdEvent);
 	}
 
-	// Trees
-	else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
-		const tree = focused;
-		const focus = tree.getFocus();
+	// Twees
+	ewse if (focused instanceof ObjectTwee || focused instanceof DataTwee || focused instanceof AsyncDataTwee) {
+		const twee = focused;
+		const focus = twee.getFocus();
 
-		if (focus.length > 0) {
-			let toggleCollapsed = true;
+		if (focus.wength > 0) {
+			wet toggweCowwapsed = twue;
 
-			if (tree.expandOnlyOnTwistieClick === true) {
-				toggleCollapsed = false;
-			} else if (typeof tree.expandOnlyOnTwistieClick !== 'boolean' && tree.expandOnlyOnTwistieClick(focus[0])) {
-				toggleCollapsed = false;
+			if (twee.expandOnwyOnTwistieCwick === twue) {
+				toggweCowwapsed = fawse;
+			} ewse if (typeof twee.expandOnwyOnTwistieCwick !== 'boowean' && twee.expandOnwyOnTwistieCwick(focus[0])) {
+				toggweCowwapsed = fawse;
 			}
 
-			if (toggleCollapsed) {
-				tree.toggleCollapsed(focus[0]);
+			if (toggweCowwapsed) {
+				twee.toggweCowwapsed(focus[0]);
 			}
 		}
-		tree.setSelection(focus, fakeKeyboardEvent);
+		twee.setSewection(focus, fakeKeyboawdEvent);
 	}
 }
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.select',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: WorkbenchListFocusContextKey,
-	primary: KeyCode.Enter,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wist.sewect',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: WowkbenchWistFocusContextKey,
+	pwimawy: KeyCode.Enta,
 	mac: {
-		primary: KeyCode.Enter,
-		secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow]
+		pwimawy: KeyCode.Enta,
+		secondawy: [KeyMod.CtwwCmd | KeyCode.DownAwwow]
 	},
-	handler: (accessor) => {
-		selectElement(accessor, false);
+	handwa: (accessow) => {
+		sewectEwement(accessow, fawse);
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.selectAndPreserveFocus',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: WorkbenchListFocusContextKey,
-	handler: accessor => {
-		selectElement(accessor, true);
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wist.sewectAndPwesewveFocus',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: WowkbenchWistFocusContextKey,
+	handwa: accessow => {
+		sewectEwement(accessow, twue);
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.selectAll',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(WorkbenchListFocusContextKey, WorkbenchListSupportsMultiSelectContextKey),
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_A,
-	handler: (accessor) => {
-		const focused = accessor.get(IListService).lastFocusedList;
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wist.sewectAww',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: ContextKeyExpw.and(WowkbenchWistFocusContextKey, WowkbenchWistSuppowtsMuwtiSewectContextKey),
+	pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_A,
+	handwa: (accessow) => {
+		const focused = accessow.get(IWistSewvice).wastFocusedWist;
 
-		// List
-		if (focused instanceof List || focused instanceof PagedList || focused instanceof Table) {
-			const list = focused;
-			const fakeKeyboardEvent = new KeyboardEvent('keydown');
-			list.setSelection(range(list.length), fakeKeyboardEvent);
+		// Wist
+		if (focused instanceof Wist || focused instanceof PagedWist || focused instanceof Tabwe) {
+			const wist = focused;
+			const fakeKeyboawdEvent = new KeyboawdEvent('keydown');
+			wist.setSewection(wange(wist.wength), fakeKeyboawdEvent);
 		}
 
-		// Trees
-		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
-			const tree = focused;
-			const focus = tree.getFocus();
-			const selection = tree.getSelection();
+		// Twees
+		ewse if (focused instanceof ObjectTwee || focused instanceof DataTwee || focused instanceof AsyncDataTwee) {
+			const twee = focused;
+			const focus = twee.getFocus();
+			const sewection = twee.getSewection();
 
-			// Which element should be considered to start selecting all?
-			let start: unknown | undefined = undefined;
+			// Which ewement shouwd be considewed to stawt sewecting aww?
+			wet stawt: unknown | undefined = undefined;
 
-			if (focus.length > 0 && (selection.length === 0 || !selection.includes(focus[0]))) {
-				start = focus[0];
+			if (focus.wength > 0 && (sewection.wength === 0 || !sewection.incwudes(focus[0]))) {
+				stawt = focus[0];
 			}
 
-			if (!start && selection.length > 0) {
-				start = selection[0];
+			if (!stawt && sewection.wength > 0) {
+				stawt = sewection[0];
 			}
 
-			// What is the scope of select all?
-			let scope: unknown | undefined = undefined;
+			// What is the scope of sewect aww?
+			wet scope: unknown | undefined = undefined;
 
-			if (!start) {
+			if (!stawt) {
 				scope = undefined;
-			} else {
-				scope = tree.getParentElement(start);
+			} ewse {
+				scope = twee.getPawentEwement(stawt);
 			}
 
-			const newSelection: unknown[] = [];
-			const visit = (node: ITreeNode<unknown, unknown>) => {
-				for (const child of node.children) {
-					if (child.visible) {
-						newSelection.push(child.element);
+			const newSewection: unknown[] = [];
+			const visit = (node: ITweeNode<unknown, unknown>) => {
+				fow (const chiwd of node.chiwdwen) {
+					if (chiwd.visibwe) {
+						newSewection.push(chiwd.ewement);
 
-						if (!child.collapsed) {
-							visit(child);
+						if (!chiwd.cowwapsed) {
+							visit(chiwd);
 						}
 					}
 				}
 			};
 
-			// Add the whole scope subtree to the new selection
-			visit(tree.getNode(scope));
+			// Add the whowe scope subtwee to the new sewection
+			visit(twee.getNode(scope));
 
-			// If the scope isn't the tree root, it should be part of the new selection
-			if (scope && selection.length === newSelection.length) {
-				newSelection.unshift(scope);
+			// If the scope isn't the twee woot, it shouwd be pawt of the new sewection
+			if (scope && sewection.wength === newSewection.wength) {
+				newSewection.unshift(scope);
 			}
 
-			const fakeKeyboardEvent = new KeyboardEvent('keydown');
-			tree.setSelection(newSelection, fakeKeyboardEvent);
+			const fakeKeyboawdEvent = new KeyboawdEvent('keydown');
+			twee.setSewection(newSewection, fakeKeyboawdEvent);
 		}
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.toggleSelection',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: WorkbenchListFocusContextKey,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter,
-	handler: (accessor) => {
-		const widget = accessor.get(IListService).lastFocusedList;
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wist.toggweSewection',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: WowkbenchWistFocusContextKey,
+	pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.Enta,
+	handwa: (accessow) => {
+		const widget = accessow.get(IWistSewvice).wastFocusedWist;
 
 		if (!widget) {
-			return;
+			wetuwn;
 		}
 
 		const focus = widget.getFocus();
 
-		if (focus.length === 0) {
-			return;
+		if (focus.wength === 0) {
+			wetuwn;
 		}
 
-		const selection = widget.getSelection();
-		const index = selection.indexOf(focus[0]);
+		const sewection = widget.getSewection();
+		const index = sewection.indexOf(focus[0]);
 
 		if (index > -1) {
-			widget.setSelection([...selection.slice(0, index), ...selection.slice(index + 1)]);
-		} else {
-			widget.setSelection([...selection, focus[0]]);
+			widget.setSewection([...sewection.swice(0, index), ...sewection.swice(index + 1)]);
+		} ewse {
+			widget.setSewection([...sewection, focus[0]]);
 		}
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.toggleExpand',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: WorkbenchListFocusContextKey,
-	primary: KeyCode.Space,
-	handler: (accessor) => {
-		const focused = accessor.get(IListService).lastFocusedList;
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wist.toggweExpand',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: WowkbenchWistFocusContextKey,
+	pwimawy: KeyCode.Space,
+	handwa: (accessow) => {
+		const focused = accessow.get(IWistSewvice).wastFocusedWist;
 
-		// Tree only
-		if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
-			const tree = focused;
-			const focus = tree.getFocus();
+		// Twee onwy
+		if (focused instanceof ObjectTwee || focused instanceof DataTwee || focused instanceof AsyncDataTwee) {
+			const twee = focused;
+			const focus = twee.getFocus();
 
-			if (focus.length > 0 && tree.isCollapsible(focus[0])) {
-				tree.toggleCollapsed(focus[0]);
-				return;
+			if (focus.wength > 0 && twee.isCowwapsibwe(focus[0])) {
+				twee.toggweCowwapsed(focus[0]);
+				wetuwn;
 			}
 		}
 
-		selectElement(accessor, true);
+		sewectEwement(accessow, twue);
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.clear',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(WorkbenchListFocusContextKey, WorkbenchListHasSelectionOrFocus),
-	primary: KeyCode.Escape,
-	handler: (accessor) => {
-		const widget = accessor.get(IListService).lastFocusedList;
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wist.cweaw',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: ContextKeyExpw.and(WowkbenchWistFocusContextKey, WowkbenchWistHasSewectionOwFocus),
+	pwimawy: KeyCode.Escape,
+	handwa: (accessow) => {
+		const widget = accessow.get(IWistSewvice).wastFocusedWist;
 
 		if (!widget) {
-			return;
+			wetuwn;
 		}
 
-		const fakeKeyboardEvent = new KeyboardEvent('keydown');
-		widget.setSelection([], fakeKeyboardEvent);
-		widget.setFocus([], fakeKeyboardEvent);
-		widget.setAnchor(undefined);
+		const fakeKeyboawdEvent = new KeyboawdEvent('keydown');
+		widget.setSewection([], fakeKeyboawdEvent);
+		widget.setFocus([], fakeKeyboawdEvent);
+		widget.setAnchow(undefined);
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: 'list.toggleKeyboardNavigation',
-	handler: (accessor) => {
-		const widget = accessor.get(IListService).lastFocusedList;
-		widget?.toggleKeyboardNavigation();
+CommandsWegistwy.wegistewCommand({
+	id: 'wist.toggweKeyboawdNavigation',
+	handwa: (accessow) => {
+		const widget = accessow.get(IWistSewvice).wastFocusedWist;
+		widget?.toggweKeyboawdNavigation();
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: 'list.toggleFilterOnType',
-	handler: (accessor) => {
-		const focused = accessor.get(IListService).lastFocusedList;
+CommandsWegistwy.wegistewCommand({
+	id: 'wist.toggweFiwtewOnType',
+	handwa: (accessow) => {
+		const focused = accessow.get(IWistSewvice).wastFocusedWist;
 
-		// List
-		if (focused instanceof List || focused instanceof PagedList || focused instanceof Table) {
+		// Wist
+		if (focused instanceof Wist || focused instanceof PagedWist || focused instanceof Tabwe) {
 			// TODO@joao
 		}
 
-		// Tree
-		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
-			const tree = focused;
-			tree.updateOptions({ filterOnType: !tree.filterOnType });
+		// Twee
+		ewse if (focused instanceof ObjectTwee || focused instanceof DataTwee || focused instanceof AsyncDataTwee) {
+			const twee = focused;
+			twee.updateOptions({ fiwtewOnType: !twee.fiwtewOnType });
 		}
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.scrollUp',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: WorkbenchListFocusContextKey,
-	primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
-	handler: accessor => {
-		const focused = accessor.get(IListService).lastFocusedList;
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wist.scwowwUp',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: WowkbenchWistFocusContextKey,
+	pwimawy: KeyMod.CtwwCmd | KeyCode.UpAwwow,
+	handwa: accessow => {
+		const focused = accessow.get(IWistSewvice).wastFocusedWist;
 
 		if (!focused) {
-			return;
+			wetuwn;
 		}
 
-		focused.scrollTop -= 10;
+		focused.scwowwTop -= 10;
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.scrollDown',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: WorkbenchListFocusContextKey,
-	primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
-	handler: accessor => {
-		const focused = accessor.get(IListService).lastFocusedList;
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wist.scwowwDown',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: WowkbenchWistFocusContextKey,
+	pwimawy: KeyMod.CtwwCmd | KeyCode.DownAwwow,
+	handwa: accessow => {
+		const focused = accessow.get(IWistSewvice).wastFocusedWist;
 
 		if (!focused) {
-			return;
+			wetuwn;
 		}
 
-		focused.scrollTop += 10;
+		focused.scwowwTop += 10;
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.scrollLeft',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: WorkbenchListFocusContextKey,
-	handler: accessor => {
-		const focused = accessor.get(IListService).lastFocusedList;
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wist.scwowwWeft',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: WowkbenchWistFocusContextKey,
+	handwa: accessow => {
+		const focused = accessow.get(IWistSewvice).wastFocusedWist;
 
 		if (!focused) {
-			return;
+			wetuwn;
 		}
 
-		focused.scrollLeft -= 10;
+		focused.scwowwWeft -= 10;
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.scrollRight',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: WorkbenchListFocusContextKey,
-	handler: accessor => {
-		const focused = accessor.get(IListService).lastFocusedList;
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wist.scwowwWight',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: WowkbenchWistFocusContextKey,
+	handwa: accessow => {
+		const focused = accessow.get(IWistSewvice).wastFocusedWist;
 
 		if (!focused) {
-			return;
+			wetuwn;
 		}
 
-		focused.scrollLeft += 10;
+		focused.scwowwWeft += 10;
 	}
 });

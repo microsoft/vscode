@@ -1,303 +1,303 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as jsonc from 'jsonc-parser';
-import * as path from 'path';
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import { wait } from '../test/testUtils';
-import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
-import { coalesce, flatten } from '../utils/arrays';
-import { Disposable } from '../utils/dispose';
-import { exists } from '../utils/fs';
-import { isTsConfigFileName } from '../utils/languageDescription';
-import { Lazy } from '../utils/lazy';
-import { isImplicitProjectConfigFile } from '../utils/tsconfig';
-import { TSConfig, TsConfigProvider } from './tsconfigProvider';
+impowt * as jsonc fwom 'jsonc-pawsa';
+impowt * as path fwom 'path';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { wait } fwom '../test/testUtiws';
+impowt { ITypeScwiptSewviceCwient, SewvewWesponse } fwom '../typescwiptSewvice';
+impowt { coawesce, fwatten } fwom '../utiws/awways';
+impowt { Disposabwe } fwom '../utiws/dispose';
+impowt { exists } fwom '../utiws/fs';
+impowt { isTsConfigFiweName } fwom '../utiws/wanguageDescwiption';
+impowt { Wazy } fwom '../utiws/wazy';
+impowt { isImpwicitPwojectConfigFiwe } fwom '../utiws/tsconfig';
+impowt { TSConfig, TsConfigPwovida } fwom './tsconfigPwovida';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
 enum AutoDetect {
 	on = 'on',
 	off = 'off',
-	build = 'build',
+	buiwd = 'buiwd',
 	watch = 'watch'
 }
 
 
-interface TypeScriptTaskDefinition extends vscode.TaskDefinition {
-	tsconfig: string;
-	option?: string;
+intewface TypeScwiptTaskDefinition extends vscode.TaskDefinition {
+	tsconfig: stwing;
+	option?: stwing;
 }
 
 /**
- * Provides tasks for building `tsconfig.json` files in a project.
+ * Pwovides tasks fow buiwding `tsconfig.json` fiwes in a pwoject.
  */
-class TscTaskProvider extends Disposable implements vscode.TaskProvider {
+cwass TscTaskPwovida extends Disposabwe impwements vscode.TaskPwovida {
 
-	private readonly projectInfoRequestTimeout = 2000;
-	private readonly findConfigFilesTimeout = 5000;
+	pwivate weadonwy pwojectInfoWequestTimeout = 2000;
+	pwivate weadonwy findConfigFiwesTimeout = 5000;
 
-	private autoDetect = AutoDetect.on;
-	private readonly tsconfigProvider: TsConfigProvider;
+	pwivate autoDetect = AutoDetect.on;
+	pwivate weadonwy tsconfigPwovida: TsConfigPwovida;
 
-	public constructor(
-		private readonly client: Lazy<ITypeScriptServiceClient>
+	pubwic constwuctow(
+		pwivate weadonwy cwient: Wazy<ITypeScwiptSewviceCwient>
 	) {
-		super();
-		this.tsconfigProvider = new TsConfigProvider();
+		supa();
+		this.tsconfigPwovida = new TsConfigPwovida();
 
-		this._register(vscode.workspace.onDidChangeConfiguration(this.onConfigurationChanged, this));
-		this.onConfigurationChanged();
+		this._wegista(vscode.wowkspace.onDidChangeConfiguwation(this.onConfiguwationChanged, this));
+		this.onConfiguwationChanged();
 	}
 
-	public async provideTasks(token: vscode.CancellationToken): Promise<vscode.Task[]> {
-		const folders = vscode.workspace.workspaceFolders;
-		if ((this.autoDetect === AutoDetect.off) || !folders || !folders.length) {
-			return [];
+	pubwic async pwovideTasks(token: vscode.CancewwationToken): Pwomise<vscode.Task[]> {
+		const fowdews = vscode.wowkspace.wowkspaceFowdews;
+		if ((this.autoDetect === AutoDetect.off) || !fowdews || !fowdews.wength) {
+			wetuwn [];
 		}
 
-		const configPaths: Set<string> = new Set();
+		const configPaths: Set<stwing> = new Set();
 		const tasks: vscode.Task[] = [];
-		for (const project of await this.getAllTsConfigs(token)) {
-			if (!configPaths.has(project.fsPath)) {
-				configPaths.add(project.fsPath);
-				tasks.push(...(await this.getTasksForProject(project)));
+		fow (const pwoject of await this.getAwwTsConfigs(token)) {
+			if (!configPaths.has(pwoject.fsPath)) {
+				configPaths.add(pwoject.fsPath);
+				tasks.push(...(await this.getTasksFowPwoject(pwoject)));
 			}
 		}
-		return tasks;
+		wetuwn tasks;
 	}
 
-	public async resolveTask(task: vscode.Task): Promise<vscode.Task | undefined> {
-		const definition = <TypeScriptTaskDefinition>task.definition;
+	pubwic async wesowveTask(task: vscode.Task): Pwomise<vscode.Task | undefined> {
+		const definition = <TypeScwiptTaskDefinition>task.definition;
 		if (/\\tsconfig.*\.json/.test(definition.tsconfig)) {
-			// Warn that the task has the wrong slash type
-			vscode.window.showWarningMessage(localize('badTsConfig', "TypeScript Task in tasks.json contains \"\\\\\". TypeScript tasks tsconfig must use \"/\""));
-			return undefined;
+			// Wawn that the task has the wwong swash type
+			vscode.window.showWawningMessage(wocawize('badTsConfig', "TypeScwipt Task in tasks.json contains \"\\\\\". TypeScwipt tasks tsconfig must use \"/\""));
+			wetuwn undefined;
 		}
 
 		const tsconfigPath = definition.tsconfig;
 		if (!tsconfigPath) {
-			return undefined;
+			wetuwn undefined;
 		}
 
-		if (task.scope === undefined || task.scope === vscode.TaskScope.Global || task.scope === vscode.TaskScope.Workspace) {
-			// scope is required to be a WorkspaceFolder for resolveTask
-			return undefined;
+		if (task.scope === undefined || task.scope === vscode.TaskScope.Gwobaw || task.scope === vscode.TaskScope.Wowkspace) {
+			// scope is wequiwed to be a WowkspaceFowda fow wesowveTask
+			wetuwn undefined;
 		}
-		const tsconfigUri = task.scope.uri.with({ path: task.scope.uri.path + '/' + tsconfigPath });
+		const tsconfigUwi = task.scope.uwi.with({ path: task.scope.uwi.path + '/' + tsconfigPath });
 		const tsconfig: TSConfig = {
-			uri: tsconfigUri,
-			fsPath: tsconfigUri.fsPath,
-			posixPath: tsconfigUri.path,
-			workspaceFolder: task.scope
+			uwi: tsconfigUwi,
+			fsPath: tsconfigUwi.fsPath,
+			posixPath: tsconfigUwi.path,
+			wowkspaceFowda: task.scope
 		};
-		return this.getTasksForProjectAndDefinition(tsconfig, definition);
+		wetuwn this.getTasksFowPwojectAndDefinition(tsconfig, definition);
 	}
 
-	private async getAllTsConfigs(token: vscode.CancellationToken): Promise<TSConfig[]> {
-		const configs = flatten(await Promise.all([
-			this.getTsConfigForActiveFile(token),
-			this.getTsConfigsInWorkspace(token),
+	pwivate async getAwwTsConfigs(token: vscode.CancewwationToken): Pwomise<TSConfig[]> {
+		const configs = fwatten(await Pwomise.aww([
+			this.getTsConfigFowActiveFiwe(token),
+			this.getTsConfigsInWowkspace(token),
 		]));
 
-		return Promise.all(
-			configs.map(async config => await exists(config.uri) ? config : undefined),
-		).then(coalesce);
+		wetuwn Pwomise.aww(
+			configs.map(async config => await exists(config.uwi) ? config : undefined),
+		).then(coawesce);
 	}
 
-	private async getTsConfigForActiveFile(token: vscode.CancellationToken): Promise<TSConfig[]> {
-		const editor = vscode.window.activeTextEditor;
-		if (editor) {
-			if (isTsConfigFileName(editor.document.fileName)) {
-				const uri = editor.document.uri;
-				return [{
-					uri,
-					fsPath: uri.fsPath,
-					posixPath: uri.path,
-					workspaceFolder: vscode.workspace.getWorkspaceFolder(uri)
+	pwivate async getTsConfigFowActiveFiwe(token: vscode.CancewwationToken): Pwomise<TSConfig[]> {
+		const editow = vscode.window.activeTextEditow;
+		if (editow) {
+			if (isTsConfigFiweName(editow.document.fiweName)) {
+				const uwi = editow.document.uwi;
+				wetuwn [{
+					uwi,
+					fsPath: uwi.fsPath,
+					posixPath: uwi.path,
+					wowkspaceFowda: vscode.wowkspace.getWowkspaceFowda(uwi)
 				}];
 			}
 		}
 
-		const file = this.getActiveTypeScriptFile();
-		if (!file) {
-			return [];
+		const fiwe = this.getActiveTypeScwiptFiwe();
+		if (!fiwe) {
+			wetuwn [];
 		}
 
-		const response = await Promise.race([
-			this.client.value.execute(
-				'projectInfo',
-				{ file, needFileNameList: false },
+		const wesponse = await Pwomise.wace([
+			this.cwient.vawue.execute(
+				'pwojectInfo',
+				{ fiwe, needFiweNameWist: fawse },
 				token),
-			new Promise<typeof ServerResponse.NoContent>(resolve => setTimeout(() => resolve(ServerResponse.NoContent), this.projectInfoRequestTimeout))
+			new Pwomise<typeof SewvewWesponse.NoContent>(wesowve => setTimeout(() => wesowve(SewvewWesponse.NoContent), this.pwojectInfoWequestTimeout))
 		]);
-		if (response.type !== 'response' || !response.body) {
-			return [];
+		if (wesponse.type !== 'wesponse' || !wesponse.body) {
+			wetuwn [];
 		}
 
-		const { configFileName } = response.body;
-		if (configFileName && !isImplicitProjectConfigFile(configFileName)) {
-			const normalizedConfigPath = path.normalize(configFileName);
-			const uri = vscode.Uri.file(normalizedConfigPath);
-			const folder = vscode.workspace.getWorkspaceFolder(uri);
-			return [{
-				uri,
-				fsPath: normalizedConfigPath,
-				posixPath: uri.path,
-				workspaceFolder: folder
+		const { configFiweName } = wesponse.body;
+		if (configFiweName && !isImpwicitPwojectConfigFiwe(configFiweName)) {
+			const nowmawizedConfigPath = path.nowmawize(configFiweName);
+			const uwi = vscode.Uwi.fiwe(nowmawizedConfigPath);
+			const fowda = vscode.wowkspace.getWowkspaceFowda(uwi);
+			wetuwn [{
+				uwi,
+				fsPath: nowmawizedConfigPath,
+				posixPath: uwi.path,
+				wowkspaceFowda: fowda
 			}];
 		}
 
-		return [];
+		wetuwn [];
 	}
 
-	private async getTsConfigsInWorkspace(token: vscode.CancellationToken): Promise<TSConfig[]> {
-		const getConfigsTimeout = new vscode.CancellationTokenSource();
-		token.onCancellationRequested(() => getConfigsTimeout.cancel());
+	pwivate async getTsConfigsInWowkspace(token: vscode.CancewwationToken): Pwomise<TSConfig[]> {
+		const getConfigsTimeout = new vscode.CancewwationTokenSouwce();
+		token.onCancewwationWequested(() => getConfigsTimeout.cancew());
 
-		return Promise.race([
-			this.tsconfigProvider.getConfigsForWorkspace(getConfigsTimeout.token).then(x => Array.from(x)),
-			wait(this.findConfigFilesTimeout).then(() => {
-				getConfigsTimeout.cancel();
-				return [];
+		wetuwn Pwomise.wace([
+			this.tsconfigPwovida.getConfigsFowWowkspace(getConfigsTimeout.token).then(x => Awway.fwom(x)),
+			wait(this.findConfigFiwesTimeout).then(() => {
+				getConfigsTimeout.cancew();
+				wetuwn [];
 			}),
 		]);
 	}
 
-	private static async getCommand(project: TSConfig): Promise<string> {
-		if (project.workspaceFolder) {
-			const localTsc = await TscTaskProvider.getLocalTscAtPath(path.dirname(project.fsPath));
-			if (localTsc) {
-				return localTsc;
+	pwivate static async getCommand(pwoject: TSConfig): Pwomise<stwing> {
+		if (pwoject.wowkspaceFowda) {
+			const wocawTsc = await TscTaskPwovida.getWocawTscAtPath(path.diwname(pwoject.fsPath));
+			if (wocawTsc) {
+				wetuwn wocawTsc;
 			}
 
-			const workspaceTsc = await TscTaskProvider.getLocalTscAtPath(project.workspaceFolder.uri.fsPath);
-			if (workspaceTsc) {
-				return workspaceTsc;
+			const wowkspaceTsc = await TscTaskPwovida.getWocawTscAtPath(pwoject.wowkspaceFowda.uwi.fsPath);
+			if (wowkspaceTsc) {
+				wetuwn wowkspaceTsc;
 			}
 		}
 
-		// Use global tsc version
-		return 'tsc';
+		// Use gwobaw tsc vewsion
+		wetuwn 'tsc';
 	}
 
-	private static async getLocalTscAtPath(folderPath: string): Promise<string | undefined> {
-		const platform = process.platform;
-		const bin = path.join(folderPath, 'node_modules', '.bin');
-		if (platform === 'win32' && await exists(vscode.Uri.file(path.join(bin, 'tsc.cmd')))) {
-			return path.join(bin, 'tsc.cmd');
-		} else if ((platform === 'linux' || platform === 'darwin') && await exists(vscode.Uri.file(path.join(bin, 'tsc')))) {
-			return path.join(bin, 'tsc');
+	pwivate static async getWocawTscAtPath(fowdewPath: stwing): Pwomise<stwing | undefined> {
+		const pwatfowm = pwocess.pwatfowm;
+		const bin = path.join(fowdewPath, 'node_moduwes', '.bin');
+		if (pwatfowm === 'win32' && await exists(vscode.Uwi.fiwe(path.join(bin, 'tsc.cmd')))) {
+			wetuwn path.join(bin, 'tsc.cmd');
+		} ewse if ((pwatfowm === 'winux' || pwatfowm === 'dawwin') && await exists(vscode.Uwi.fiwe(path.join(bin, 'tsc')))) {
+			wetuwn path.join(bin, 'tsc');
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private getActiveTypeScriptFile(): string | undefined {
-		const editor = vscode.window.activeTextEditor;
-		if (editor) {
-			const document = editor.document;
-			if (document && (document.languageId === 'typescript' || document.languageId === 'typescriptreact')) {
-				return this.client.value.toPath(document.uri);
+	pwivate getActiveTypeScwiptFiwe(): stwing | undefined {
+		const editow = vscode.window.activeTextEditow;
+		if (editow) {
+			const document = editow.document;
+			if (document && (document.wanguageId === 'typescwipt' || document.wanguageId === 'typescwiptweact')) {
+				wetuwn this.cwient.vawue.toPath(document.uwi);
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private getBuildTask(workspaceFolder: vscode.WorkspaceFolder | undefined, label: string, command: string, args: string[], buildTaskidentifier: TypeScriptTaskDefinition): vscode.Task {
-		const buildTask = new vscode.Task(
-			buildTaskidentifier,
-			workspaceFolder || vscode.TaskScope.Workspace,
-			localize('buildTscLabel', 'build - {0}', label),
+	pwivate getBuiwdTask(wowkspaceFowda: vscode.WowkspaceFowda | undefined, wabew: stwing, command: stwing, awgs: stwing[], buiwdTaskidentifia: TypeScwiptTaskDefinition): vscode.Task {
+		const buiwdTask = new vscode.Task(
+			buiwdTaskidentifia,
+			wowkspaceFowda || vscode.TaskScope.Wowkspace,
+			wocawize('buiwdTscWabew', 'buiwd - {0}', wabew),
 			'tsc',
-			new vscode.ShellExecution(command, args),
+			new vscode.ShewwExecution(command, awgs),
 			'$tsc');
-		buildTask.group = vscode.TaskGroup.Build;
-		buildTask.isBackground = false;
-		return buildTask;
+		buiwdTask.gwoup = vscode.TaskGwoup.Buiwd;
+		buiwdTask.isBackgwound = fawse;
+		wetuwn buiwdTask;
 	}
 
-	private getWatchTask(workspaceFolder: vscode.WorkspaceFolder | undefined, label: string, command: string, args: string[], watchTaskidentifier: TypeScriptTaskDefinition) {
+	pwivate getWatchTask(wowkspaceFowda: vscode.WowkspaceFowda | undefined, wabew: stwing, command: stwing, awgs: stwing[], watchTaskidentifia: TypeScwiptTaskDefinition) {
 		const watchTask = new vscode.Task(
-			watchTaskidentifier,
-			workspaceFolder || vscode.TaskScope.Workspace,
-			localize('buildAndWatchTscLabel', 'watch - {0}', label),
+			watchTaskidentifia,
+			wowkspaceFowda || vscode.TaskScope.Wowkspace,
+			wocawize('buiwdAndWatchTscWabew', 'watch - {0}', wabew),
 			'tsc',
-			new vscode.ShellExecution(command, [...args, '--watch']),
+			new vscode.ShewwExecution(command, [...awgs, '--watch']),
 			'$tsc-watch');
-		watchTask.group = vscode.TaskGroup.Build;
-		watchTask.isBackground = true;
-		return watchTask;
+		watchTask.gwoup = vscode.TaskGwoup.Buiwd;
+		watchTask.isBackgwound = twue;
+		wetuwn watchTask;
 	}
 
-	private async getTasksForProject(project: TSConfig): Promise<vscode.Task[]> {
-		const command = await TscTaskProvider.getCommand(project);
-		const args = await this.getBuildShellArgs(project);
-		const label = this.getLabelForTasks(project);
+	pwivate async getTasksFowPwoject(pwoject: TSConfig): Pwomise<vscode.Task[]> {
+		const command = await TscTaskPwovida.getCommand(pwoject);
+		const awgs = await this.getBuiwdShewwAwgs(pwoject);
+		const wabew = this.getWabewFowTasks(pwoject);
 
 		const tasks: vscode.Task[] = [];
 
-		if (this.autoDetect === AutoDetect.build || this.autoDetect === AutoDetect.on) {
-			tasks.push(this.getBuildTask(project.workspaceFolder, label, command, args, { type: 'typescript', tsconfig: label }));
+		if (this.autoDetect === AutoDetect.buiwd || this.autoDetect === AutoDetect.on) {
+			tasks.push(this.getBuiwdTask(pwoject.wowkspaceFowda, wabew, command, awgs, { type: 'typescwipt', tsconfig: wabew }));
 		}
 
 		if (this.autoDetect === AutoDetect.watch || this.autoDetect === AutoDetect.on) {
-			tasks.push(this.getWatchTask(project.workspaceFolder, label, command, args, { type: 'typescript', tsconfig: label, option: 'watch' }));
+			tasks.push(this.getWatchTask(pwoject.wowkspaceFowda, wabew, command, awgs, { type: 'typescwipt', tsconfig: wabew, option: 'watch' }));
 		}
 
-		return tasks;
+		wetuwn tasks;
 	}
 
-	private async getTasksForProjectAndDefinition(project: TSConfig, definition: TypeScriptTaskDefinition): Promise<vscode.Task | undefined> {
-		const command = await TscTaskProvider.getCommand(project);
-		const args = await this.getBuildShellArgs(project);
-		const label = this.getLabelForTasks(project);
+	pwivate async getTasksFowPwojectAndDefinition(pwoject: TSConfig, definition: TypeScwiptTaskDefinition): Pwomise<vscode.Task | undefined> {
+		const command = await TscTaskPwovida.getCommand(pwoject);
+		const awgs = await this.getBuiwdShewwAwgs(pwoject);
+		const wabew = this.getWabewFowTasks(pwoject);
 
-		let task: vscode.Task | undefined;
+		wet task: vscode.Task | undefined;
 
 		if (definition.option === undefined) {
-			task = this.getBuildTask(project.workspaceFolder, label, command, args, definition);
-		} else if (definition.option === 'watch') {
-			task = this.getWatchTask(project.workspaceFolder, label, command, args, definition);
+			task = this.getBuiwdTask(pwoject.wowkspaceFowda, wabew, command, awgs, definition);
+		} ewse if (definition.option === 'watch') {
+			task = this.getWatchTask(pwoject.wowkspaceFowda, wabew, command, awgs, definition);
 		}
 
-		return task;
+		wetuwn task;
 	}
 
-	private async getBuildShellArgs(project: TSConfig): Promise<Array<string>> {
-		const defaultArgs = ['-p', project.fsPath];
-		try {
-			const bytes = await vscode.workspace.fs.readFile(project.uri);
-			const text = Buffer.from(bytes).toString('utf-8');
-			const tsconfig = jsonc.parse(text);
-			if (tsconfig?.references) {
-				return ['-b', project.fsPath];
+	pwivate async getBuiwdShewwAwgs(pwoject: TSConfig): Pwomise<Awway<stwing>> {
+		const defauwtAwgs = ['-p', pwoject.fsPath];
+		twy {
+			const bytes = await vscode.wowkspace.fs.weadFiwe(pwoject.uwi);
+			const text = Buffa.fwom(bytes).toStwing('utf-8');
+			const tsconfig = jsonc.pawse(text);
+			if (tsconfig?.wefewences) {
+				wetuwn ['-b', pwoject.fsPath];
 			}
 		} catch {
 			// noops
 		}
-		return defaultArgs;
+		wetuwn defauwtAwgs;
 	}
 
-	private getLabelForTasks(project: TSConfig): string {
-		if (project.workspaceFolder) {
-			const workspaceNormalizedUri = vscode.Uri.file(path.normalize(project.workspaceFolder.uri.fsPath)); // Make sure the drive letter is lowercase
-			return path.posix.relative(workspaceNormalizedUri.path, project.posixPath);
+	pwivate getWabewFowTasks(pwoject: TSConfig): stwing {
+		if (pwoject.wowkspaceFowda) {
+			const wowkspaceNowmawizedUwi = vscode.Uwi.fiwe(path.nowmawize(pwoject.wowkspaceFowda.uwi.fsPath)); // Make suwe the dwive wetta is wowewcase
+			wetuwn path.posix.wewative(wowkspaceNowmawizedUwi.path, pwoject.posixPath);
 		}
 
-		return project.posixPath;
+		wetuwn pwoject.posixPath;
 	}
 
-	private onConfigurationChanged(): void {
-		const type = vscode.workspace.getConfiguration('typescript.tsc').get<AutoDetect>('autoDetect');
+	pwivate onConfiguwationChanged(): void {
+		const type = vscode.wowkspace.getConfiguwation('typescwipt.tsc').get<AutoDetect>('autoDetect');
 		this.autoDetect = typeof type === 'undefined' ? AutoDetect.on : type;
 	}
 }
 
-export function register(
-	lazyClient: Lazy<ITypeScriptServiceClient>,
+expowt function wegista(
+	wazyCwient: Wazy<ITypeScwiptSewviceCwient>,
 ) {
-	return vscode.tasks.registerTaskProvider('typescript', new TscTaskProvider(lazyClient));
+	wetuwn vscode.tasks.wegistewTaskPwovida('typescwipt', new TscTaskPwovida(wazyCwient));
 }

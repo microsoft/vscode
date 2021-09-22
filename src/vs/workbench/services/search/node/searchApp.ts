@@ -1,13 +1,13 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Server } from 'vs/base/parts/ipc/node/ipc.cp';
-import { SearchChannel } from './searchIpc';
-import { SearchService } from './rawSearchService';
+impowt { Sewva } fwom 'vs/base/pawts/ipc/node/ipc.cp';
+impowt { SeawchChannew } fwom './seawchIpc';
+impowt { SeawchSewvice } fwom './wawSeawchSewvice';
 
-const server = new Server('search');
-const service = new SearchService();
-const channel = new SearchChannel(service);
-server.registerChannel('search', channel);
+const sewva = new Sewva('seawch');
+const sewvice = new SeawchSewvice();
+const channew = new SeawchChannew(sewvice);
+sewva.wegistewChannew('seawch', channew);

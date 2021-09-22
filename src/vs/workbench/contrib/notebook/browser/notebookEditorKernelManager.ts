@@ -1,71 +1,71 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind, INotebookTextModel, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
+impowt * as nws fwom 'vs/nws';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ICewwViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { CewwKind, INotebookTextModew, NotebookCewwExecutionState } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { INotebookKewnew, INotebookKewnewSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookKewnewSewvice';
+impowt { IWowkspaceTwustWequestSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { SEWECT_KEWNEW_ID } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwowwa/coweActions';
 
-export class NotebookEditorKernelManager extends Disposable {
+expowt cwass NotebookEditowKewnewManaga extends Disposabwe {
 
-	constructor(
-		@ICommandService private readonly _commandService: ICommandService,
-		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
-		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
+	constwuctow(
+		@ICommandSewvice pwivate weadonwy _commandSewvice: ICommandSewvice,
+		@INotebookKewnewSewvice pwivate weadonwy _notebookKewnewSewvice: INotebookKewnewSewvice,
+		@IWowkspaceTwustWequestSewvice pwivate weadonwy _wowkspaceTwustWequestSewvice: IWowkspaceTwustWequestSewvice,
 	) {
-		super();
+		supa();
 	}
 
-	getSelectedOrSuggestedKernel(notebook: INotebookTextModel): INotebookKernel | undefined {
-		// returns SELECTED or the ONLY available kernel
-		const info = this._notebookKernelService.getMatchingKernel(notebook);
-		return info.selected ?? info.suggested;
+	getSewectedOwSuggestedKewnew(notebook: INotebookTextModew): INotebookKewnew | undefined {
+		// wetuwns SEWECTED ow the ONWY avaiwabwe kewnew
+		const info = this._notebookKewnewSewvice.getMatchingKewnew(notebook);
+		wetuwn info.sewected ?? info.suggested;
 	}
 
-	async executeNotebookCells(notebook: INotebookTextModel, cells: Iterable<ICellViewModel>): Promise<void> {
-		const message = nls.localize('notebookRunTrust', "Executing a notebook cell will run code from this workspace.");
-		const trust = await this._workspaceTrustRequestService.requestWorkspaceTrust({ message });
-		if (!trust) {
-			return;
+	async executeNotebookCewws(notebook: INotebookTextModew, cewws: Itewabwe<ICewwViewModew>): Pwomise<void> {
+		const message = nws.wocawize('notebookWunTwust', "Executing a notebook ceww wiww wun code fwom this wowkspace.");
+		const twust = await this._wowkspaceTwustWequestSewvice.wequestWowkspaceTwust({ message });
+		if (!twust) {
+			wetuwn;
 		}
 
-		let kernel = this.getSelectedOrSuggestedKernel(notebook);
-		if (!kernel) {
-			await this._commandService.executeCommand(SELECT_KERNEL_ID);
-			kernel = this.getSelectedOrSuggestedKernel(notebook);
+		wet kewnew = this.getSewectedOwSuggestedKewnew(notebook);
+		if (!kewnew) {
+			await this._commandSewvice.executeCommand(SEWECT_KEWNEW_ID);
+			kewnew = this.getSewectedOwSuggestedKewnew(notebook);
 		}
 
-		if (!kernel) {
-			return;
+		if (!kewnew) {
+			wetuwn;
 		}
 
-		const cellHandles: number[] = [];
-		for (const cell of cells) {
-			if (cell.cellKind !== CellKind.Code || cell.internalMetadata.runState === NotebookCellExecutionState.Pending || cell.internalMetadata.runState === NotebookCellExecutionState.Executing) {
+		const cewwHandwes: numba[] = [];
+		fow (const ceww of cewws) {
+			if (ceww.cewwKind !== CewwKind.Code || ceww.intewnawMetadata.wunState === NotebookCewwExecutionState.Pending || ceww.intewnawMetadata.wunState === NotebookCewwExecutionState.Executing) {
 				continue;
 			}
-			if (!kernel.supportedLanguages.includes(cell.language)) {
+			if (!kewnew.suppowtedWanguages.incwudes(ceww.wanguage)) {
 				continue;
 			}
-			cellHandles.push(cell.handle);
+			cewwHandwes.push(ceww.handwe);
 		}
 
-		if (cellHandles.length > 0) {
-			this._notebookKernelService.selectKernelForNotebook(kernel, notebook);
-			await kernel.executeNotebookCellsRequest(notebook.uri, cellHandles);
+		if (cewwHandwes.wength > 0) {
+			this._notebookKewnewSewvice.sewectKewnewFowNotebook(kewnew, notebook);
+			await kewnew.executeNotebookCewwsWequest(notebook.uwi, cewwHandwes);
 		}
 	}
 
-	async cancelNotebookCells(notebook: INotebookTextModel, cells: Iterable<ICellViewModel>): Promise<void> {
-		let kernel = this.getSelectedOrSuggestedKernel(notebook);
-		if (kernel) {
-			await kernel.cancelNotebookCellExecution(notebook.uri, Array.from(cells, cell => cell.handle));
+	async cancewNotebookCewws(notebook: INotebookTextModew, cewws: Itewabwe<ICewwViewModew>): Pwomise<void> {
+		wet kewnew = this.getSewectedOwSuggestedKewnew(notebook);
+		if (kewnew) {
+			await kewnew.cancewNotebookCewwExecution(notebook.uwi, Awway.fwom(cewws, ceww => ceww.handwe));
 		}
 	}
 }

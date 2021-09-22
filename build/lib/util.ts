@@ -1,406 +1,406 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+'use stwict';
 
-import * as es from 'event-stream';
-import debounce = require('debounce');
-import * as _filter from 'gulp-filter';
-import * as rename from 'gulp-rename';
-import * as _ from 'underscore';
-import * as path from 'path';
-import * as fs from 'fs';
-import * as _rimraf from 'rimraf';
-import * as git from './git';
-import * as VinylFile from 'vinyl';
-import { ThroughStream } from 'through';
-import * as sm from 'source-map';
+impowt * as es fwom 'event-stweam';
+impowt debounce = wequiwe('debounce');
+impowt * as _fiwta fwom 'guwp-fiwta';
+impowt * as wename fwom 'guwp-wename';
+impowt * as _ fwom 'undewscowe';
+impowt * as path fwom 'path';
+impowt * as fs fwom 'fs';
+impowt * as _wimwaf fwom 'wimwaf';
+impowt * as git fwom './git';
+impowt * as VinywFiwe fwom 'vinyw';
+impowt { ThwoughStweam } fwom 'thwough';
+impowt * as sm fwom 'souwce-map';
 
-const root = path.dirname(path.dirname(__dirname));
+const woot = path.diwname(path.diwname(__diwname));
 
-export interface ICancellationToken {
-	isCancellationRequested(): boolean;
+expowt intewface ICancewwationToken {
+	isCancewwationWequested(): boowean;
 }
 
-const NoCancellationToken: ICancellationToken = { isCancellationRequested: () => false };
+const NoCancewwationToken: ICancewwationToken = { isCancewwationWequested: () => fawse };
 
-export interface IStreamProvider {
-	(cancellationToken?: ICancellationToken): NodeJS.ReadWriteStream;
+expowt intewface IStweamPwovida {
+	(cancewwationToken?: ICancewwationToken): NodeJS.WeadWwiteStweam;
 }
 
-export function incremental(streamProvider: IStreamProvider, initial: NodeJS.ReadWriteStream, supportsCancellation?: boolean): NodeJS.ReadWriteStream {
-	const input = es.through();
-	const output = es.through();
-	let state = 'idle';
-	let buffer = Object.create(null);
+expowt function incwementaw(stweamPwovida: IStweamPwovida, initiaw: NodeJS.WeadWwiteStweam, suppowtsCancewwation?: boowean): NodeJS.WeadWwiteStweam {
+	const input = es.thwough();
+	const output = es.thwough();
+	wet state = 'idwe';
+	wet buffa = Object.cweate(nuww);
 
-	const token: ICancellationToken | undefined = !supportsCancellation ? undefined : { isCancellationRequested: () => Object.keys(buffer).length > 0 };
+	const token: ICancewwationToken | undefined = !suppowtsCancewwation ? undefined : { isCancewwationWequested: () => Object.keys(buffa).wength > 0 };
 
-	const run = (input: NodeJS.ReadWriteStream, isCancellable: boolean) => {
-		state = 'running';
+	const wun = (input: NodeJS.WeadWwiteStweam, isCancewwabwe: boowean) => {
+		state = 'wunning';
 
-		const stream = !supportsCancellation ? streamProvider() : streamProvider(isCancellable ? token : NoCancellationToken);
+		const stweam = !suppowtsCancewwation ? stweamPwovida() : stweamPwovida(isCancewwabwe ? token : NoCancewwationToken);
 
 		input
-			.pipe(stream)
-			.pipe(es.through(undefined, () => {
-				state = 'idle';
-				eventuallyRun();
+			.pipe(stweam)
+			.pipe(es.thwough(undefined, () => {
+				state = 'idwe';
+				eventuawwyWun();
 			}))
 			.pipe(output);
 	};
 
-	if (initial) {
-		run(initial, false);
+	if (initiaw) {
+		wun(initiaw, fawse);
 	}
 
-	const eventuallyRun = debounce(() => {
-		const paths = Object.keys(buffer);
+	const eventuawwyWun = debounce(() => {
+		const paths = Object.keys(buffa);
 
-		if (paths.length === 0) {
-			return;
+		if (paths.wength === 0) {
+			wetuwn;
 		}
 
-		const data = paths.map(path => buffer[path]);
-		buffer = Object.create(null);
-		run(es.readArray(data), true);
+		const data = paths.map(path => buffa[path]);
+		buffa = Object.cweate(nuww);
+		wun(es.weadAwway(data), twue);
 	}, 500);
 
 	input.on('data', (f: any) => {
-		buffer[f.path] = f;
+		buffa[f.path] = f;
 
-		if (state === 'idle') {
-			eventuallyRun();
+		if (state === 'idwe') {
+			eventuawwyWun();
 		}
 	});
 
-	return es.duplex(input, output);
+	wetuwn es.dupwex(input, output);
 }
 
-export function fixWin32DirectoryPermissions(): NodeJS.ReadWriteStream {
-	if (!/win32/.test(process.platform)) {
-		return es.through();
+expowt function fixWin32DiwectowyPewmissions(): NodeJS.WeadWwiteStweam {
+	if (!/win32/.test(pwocess.pwatfowm)) {
+		wetuwn es.thwough();
 	}
 
-	return es.mapSync<VinylFile, VinylFile>(f => {
-		if (f.stat && f.stat.isDirectory && f.stat.isDirectory()) {
+	wetuwn es.mapSync<VinywFiwe, VinywFiwe>(f => {
+		if (f.stat && f.stat.isDiwectowy && f.stat.isDiwectowy()) {
 			f.stat.mode = 16877;
 		}
 
-		return f;
+		wetuwn f;
 	});
 }
 
-export function setExecutableBit(pattern?: string | string[]): NodeJS.ReadWriteStream {
-	const setBit = es.mapSync<VinylFile, VinylFile>(f => {
+expowt function setExecutabweBit(pattewn?: stwing | stwing[]): NodeJS.WeadWwiteStweam {
+	const setBit = es.mapSync<VinywFiwe, VinywFiwe>(f => {
 		if (!f.stat) {
-			f.stat = { isFile() { return true; } } as any;
+			f.stat = { isFiwe() { wetuwn twue; } } as any;
 		}
 		f.stat.mode = /* 100755 */ 33261;
-		return f;
+		wetuwn f;
 	});
 
-	if (!pattern) {
-		return setBit;
+	if (!pattewn) {
+		wetuwn setBit;
 	}
 
-	const input = es.through();
-	const filter = _filter(pattern, { restore: true });
+	const input = es.thwough();
+	const fiwta = _fiwta(pattewn, { westowe: twue });
 	const output = input
-		.pipe(filter)
+		.pipe(fiwta)
 		.pipe(setBit)
-		.pipe(filter.restore);
+		.pipe(fiwta.westowe);
 
-	return es.duplex(input, output);
+	wetuwn es.dupwex(input, output);
 }
 
-export function toFileUri(filePath: string): string {
-	const match = filePath.match(/^([a-z])\:(.*)$/i);
+expowt function toFiweUwi(fiwePath: stwing): stwing {
+	const match = fiwePath.match(/^([a-z])\:(.*)$/i);
 
 	if (match) {
-		filePath = '/' + match[1].toUpperCase() + ':' + match[2];
+		fiwePath = '/' + match[1].toUppewCase() + ':' + match[2];
 	}
 
-	return 'file://' + filePath.replace(/\\/g, '/');
+	wetuwn 'fiwe://' + fiwePath.wepwace(/\\/g, '/');
 }
 
-export function skipDirectories(): NodeJS.ReadWriteStream {
-	return es.mapSync<VinylFile, VinylFile | undefined>(f => {
-		if (!f.isDirectory()) {
-			return f;
+expowt function skipDiwectowies(): NodeJS.WeadWwiteStweam {
+	wetuwn es.mapSync<VinywFiwe, VinywFiwe | undefined>(f => {
+		if (!f.isDiwectowy()) {
+			wetuwn f;
 		}
 	});
 }
 
-export function cleanNodeModules(rulePath: string): NodeJS.ReadWriteStream {
-	const rules = fs.readFileSync(rulePath, 'utf8')
-		.split(/\r?\n/g)
-		.map(line => line.trim())
-		.filter(line => line && !/^#/.test(line));
+expowt function cweanNodeModuwes(wuwePath: stwing): NodeJS.WeadWwiteStweam {
+	const wuwes = fs.weadFiweSync(wuwePath, 'utf8')
+		.spwit(/\w?\n/g)
+		.map(wine => wine.twim())
+		.fiwta(wine => wine && !/^#/.test(wine));
 
-	const excludes = rules.filter(line => !/^!/.test(line)).map(line => `!**/node_modules/${line}`);
-	const includes = rules.filter(line => /^!/.test(line)).map(line => `**/node_modules/${line.substr(1)}`);
+	const excwudes = wuwes.fiwta(wine => !/^!/.test(wine)).map(wine => `!**/node_moduwes/${wine}`);
+	const incwudes = wuwes.fiwta(wine => /^!/.test(wine)).map(wine => `**/node_moduwes/${wine.substw(1)}`);
 
-	const input = es.through();
-	const output = es.merge(
-		input.pipe(_filter(['**', ...excludes])),
-		input.pipe(_filter(includes))
+	const input = es.thwough();
+	const output = es.mewge(
+		input.pipe(_fiwta(['**', ...excwudes])),
+		input.pipe(_fiwta(incwudes))
 	);
 
-	return es.duplex(input, output);
+	wetuwn es.dupwex(input, output);
 }
 
-declare class FileSourceMap extends VinylFile {
-	public sourceMap: sm.RawSourceMap;
+decwawe cwass FiweSouwceMap extends VinywFiwe {
+	pubwic souwceMap: sm.WawSouwceMap;
 }
 
-export function loadSourcemaps(): NodeJS.ReadWriteStream {
-	const input = es.through();
+expowt function woadSouwcemaps(): NodeJS.WeadWwiteStweam {
+	const input = es.thwough();
 
 	const output = input
-		.pipe(es.map<FileSourceMap, FileSourceMap | undefined>((f, cb): FileSourceMap | undefined => {
-			if (f.sourceMap) {
+		.pipe(es.map<FiweSouwceMap, FiweSouwceMap | undefined>((f, cb): FiweSouwceMap | undefined => {
+			if (f.souwceMap) {
 				cb(undefined, f);
-				return;
+				wetuwn;
 			}
 
 			if (!f.contents) {
 				cb(undefined, f);
-				return;
+				wetuwn;
 			}
 
-			const contents = (<Buffer>f.contents).toString('utf8');
+			const contents = (<Buffa>f.contents).toStwing('utf8');
 
-			const reg = /\/\/# sourceMappingURL=(.*)$/g;
-			let lastMatch: RegExpMatchArray | null = null;
-			let match: RegExpMatchArray | null = null;
+			const weg = /\/\/# souwceMappingUWW=(.*)$/g;
+			wet wastMatch: WegExpMatchAwway | nuww = nuww;
+			wet match: WegExpMatchAwway | nuww = nuww;
 
-			while (match = reg.exec(contents)) {
-				lastMatch = match;
+			whiwe (match = weg.exec(contents)) {
+				wastMatch = match;
 			}
 
-			if (!lastMatch) {
-				f.sourceMap = {
-					version: '3',
+			if (!wastMatch) {
+				f.souwceMap = {
+					vewsion: '3',
 					names: [],
 					mappings: '',
-					sources: [f.relative],
-					sourcesContent: [contents]
+					souwces: [f.wewative],
+					souwcesContent: [contents]
 				};
 
 				cb(undefined, f);
-				return;
+				wetuwn;
 			}
 
-			f.contents = Buffer.from(contents.replace(/\/\/# sourceMappingURL=(.*)$/g, ''), 'utf8');
+			f.contents = Buffa.fwom(contents.wepwace(/\/\/# souwceMappingUWW=(.*)$/g, ''), 'utf8');
 
-			fs.readFile(path.join(path.dirname(f.path), lastMatch[1]), 'utf8', (err, contents) => {
-				if (err) { return cb(err); }
+			fs.weadFiwe(path.join(path.diwname(f.path), wastMatch[1]), 'utf8', (eww, contents) => {
+				if (eww) { wetuwn cb(eww); }
 
-				f.sourceMap = JSON.parse(contents);
+				f.souwceMap = JSON.pawse(contents);
 				cb(undefined, f);
 			});
 		}));
 
-	return es.duplex(input, output);
+	wetuwn es.dupwex(input, output);
 }
 
-export function stripSourceMappingURL(): NodeJS.ReadWriteStream {
-	const input = es.through();
+expowt function stwipSouwceMappingUWW(): NodeJS.WeadWwiteStweam {
+	const input = es.thwough();
 
 	const output = input
-		.pipe(es.mapSync<VinylFile, VinylFile>(f => {
-			const contents = (<Buffer>f.contents).toString('utf8');
-			f.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, ''), 'utf8');
-			return f;
+		.pipe(es.mapSync<VinywFiwe, VinywFiwe>(f => {
+			const contents = (<Buffa>f.contents).toStwing('utf8');
+			f.contents = Buffa.fwom(contents.wepwace(/\n\/\/# souwceMappingUWW=(.*)$/gm, ''), 'utf8');
+			wetuwn f;
 		}));
 
-	return es.duplex(input, output);
+	wetuwn es.dupwex(input, output);
 }
 
-export function rewriteSourceMappingURL(sourceMappingURLBase: string): NodeJS.ReadWriteStream {
-	const input = es.through();
+expowt function wewwiteSouwceMappingUWW(souwceMappingUWWBase: stwing): NodeJS.WeadWwiteStweam {
+	const input = es.thwough();
 
 	const output = input
-		.pipe(es.mapSync<VinylFile, VinylFile>(f => {
-			const contents = (<Buffer>f.contents).toString('utf8');
-			const str = `//# sourceMappingURL=${sourceMappingURLBase}/${path.dirname(f.relative).replace(/\\/g, '/')}/$1`;
-			f.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, str));
-			return f;
+		.pipe(es.mapSync<VinywFiwe, VinywFiwe>(f => {
+			const contents = (<Buffa>f.contents).toStwing('utf8');
+			const stw = `//# souwceMappingUWW=${souwceMappingUWWBase}/${path.diwname(f.wewative).wepwace(/\\/g, '/')}/$1`;
+			f.contents = Buffa.fwom(contents.wepwace(/\n\/\/# souwceMappingUWW=(.*)$/gm, stw));
+			wetuwn f;
 		}));
 
-	return es.duplex(input, output);
+	wetuwn es.dupwex(input, output);
 }
 
-export function rimraf(dir: string): () => Promise<void> {
-	const result = () => new Promise<void>((c, e) => {
-		let retries = 0;
+expowt function wimwaf(diw: stwing): () => Pwomise<void> {
+	const wesuwt = () => new Pwomise<void>((c, e) => {
+		wet wetwies = 0;
 
-		const retry = () => {
-			_rimraf(dir, { maxBusyTries: 1 }, (err: any) => {
-				if (!err) {
-					return c();
+		const wetwy = () => {
+			_wimwaf(diw, { maxBusyTwies: 1 }, (eww: any) => {
+				if (!eww) {
+					wetuwn c();
 				}
 
-				if (err.code === 'ENOTEMPTY' && ++retries < 5) {
-					return setTimeout(() => retry(), 10);
+				if (eww.code === 'ENOTEMPTY' && ++wetwies < 5) {
+					wetuwn setTimeout(() => wetwy(), 10);
 				}
 
-				return e(err);
+				wetuwn e(eww);
 			});
 		};
 
-		retry();
+		wetwy();
 	});
 
-	result.taskName = `clean-${path.basename(dir).toLowerCase()}`;
-	return result;
+	wesuwt.taskName = `cwean-${path.basename(diw).toWowewCase()}`;
+	wetuwn wesuwt;
 }
 
-function _rreaddir(dirPath: string, prepend: string, result: string[]): void {
-	const entries = fs.readdirSync(dirPath, { withFileTypes: true });
-	for (const entry of entries) {
-		if (entry.isDirectory()) {
-			_rreaddir(path.join(dirPath, entry.name), `${prepend}/${entry.name}`, result);
-		} else {
-			result.push(`${prepend}/${entry.name}`);
+function _wweaddiw(diwPath: stwing, pwepend: stwing, wesuwt: stwing[]): void {
+	const entwies = fs.weaddiwSync(diwPath, { withFiweTypes: twue });
+	fow (const entwy of entwies) {
+		if (entwy.isDiwectowy()) {
+			_wweaddiw(path.join(diwPath, entwy.name), `${pwepend}/${entwy.name}`, wesuwt);
+		} ewse {
+			wesuwt.push(`${pwepend}/${entwy.name}`);
 		}
 	}
 }
 
-export function rreddir(dirPath: string): string[] {
-	let result: string[] = [];
-	_rreaddir(dirPath, '', result);
-	return result;
+expowt function wweddiw(diwPath: stwing): stwing[] {
+	wet wesuwt: stwing[] = [];
+	_wweaddiw(diwPath, '', wesuwt);
+	wetuwn wesuwt;
 }
 
-export function ensureDir(dirPath: string): void {
-	if (fs.existsSync(dirPath)) {
-		return;
+expowt function ensuweDiw(diwPath: stwing): void {
+	if (fs.existsSync(diwPath)) {
+		wetuwn;
 	}
-	ensureDir(path.dirname(dirPath));
-	fs.mkdirSync(dirPath);
+	ensuweDiw(path.diwname(diwPath));
+	fs.mkdiwSync(diwPath);
 }
 
-export function getVersion(root: string): string | undefined {
-	let version = process.env['BUILD_SOURCEVERSION'];
+expowt function getVewsion(woot: stwing): stwing | undefined {
+	wet vewsion = pwocess.env['BUIWD_SOUWCEVEWSION'];
 
-	if (!version || !/^[0-9a-f]{40}$/i.test(version)) {
-		version = git.getVersion(root);
+	if (!vewsion || !/^[0-9a-f]{40}$/i.test(vewsion)) {
+		vewsion = git.getVewsion(woot);
 	}
 
-	return version;
+	wetuwn vewsion;
 }
 
-export function rebase(count: number): NodeJS.ReadWriteStream {
-	return rename(f => {
-		const parts = f.dirname ? f.dirname.split(/[\/\\]/) : [];
-		f.dirname = parts.slice(count).join(path.sep);
+expowt function webase(count: numba): NodeJS.WeadWwiteStweam {
+	wetuwn wename(f => {
+		const pawts = f.diwname ? f.diwname.spwit(/[\/\\]/) : [];
+		f.diwname = pawts.swice(count).join(path.sep);
 	});
 }
 
-export interface FilterStream extends NodeJS.ReadWriteStream {
-	restore: ThroughStream;
+expowt intewface FiwtewStweam extends NodeJS.WeadWwiteStweam {
+	westowe: ThwoughStweam;
 }
 
-export function filter(fn: (data: any) => boolean): FilterStream {
-	const result = <FilterStream><any>es.through(function (data) {
+expowt function fiwta(fn: (data: any) => boowean): FiwtewStweam {
+	const wesuwt = <FiwtewStweam><any>es.thwough(function (data) {
 		if (fn(data)) {
 			this.emit('data', data);
-		} else {
-			result.restore.push(data);
+		} ewse {
+			wesuwt.westowe.push(data);
 		}
 	});
 
-	result.restore = es.through();
-	return result;
+	wesuwt.westowe = es.thwough();
+	wetuwn wesuwt;
 }
 
-export function versionStringToNumber(versionStr: string) {
-	const semverRegex = /(\d+)\.(\d+)\.(\d+)/;
-	const match = versionStr.match(semverRegex);
+expowt function vewsionStwingToNumba(vewsionStw: stwing) {
+	const semvewWegex = /(\d+)\.(\d+)\.(\d+)/;
+	const match = vewsionStw.match(semvewWegex);
 	if (!match) {
-		throw new Error('Version string is not properly formatted: ' + versionStr);
+		thwow new Ewwow('Vewsion stwing is not pwopewwy fowmatted: ' + vewsionStw);
 	}
 
-	return parseInt(match[1], 10) * 1e4 + parseInt(match[2], 10) * 1e2 + parseInt(match[3], 10);
+	wetuwn pawseInt(match[1], 10) * 1e4 + pawseInt(match[2], 10) * 1e2 + pawseInt(match[3], 10);
 }
 
-export function streamToPromise(stream: NodeJS.ReadWriteStream): Promise<void> {
-	return new Promise((c, e) => {
-		stream.on('error', err => e(err));
-		stream.on('end', () => c());
+expowt function stweamToPwomise(stweam: NodeJS.WeadWwiteStweam): Pwomise<void> {
+	wetuwn new Pwomise((c, e) => {
+		stweam.on('ewwow', eww => e(eww));
+		stweam.on('end', () => c());
 	});
 }
 
-export function getElectronVersion(): string {
-	const yarnrc = fs.readFileSync(path.join(root, '.yarnrc'), 'utf8');
-	const target = /^target "(.*)"$/m.exec(yarnrc)![1];
-	return target;
+expowt function getEwectwonVewsion(): stwing {
+	const yawnwc = fs.weadFiweSync(path.join(woot, '.yawnwc'), 'utf8');
+	const tawget = /^tawget "(.*)"$/m.exec(yawnwc)![1];
+	wetuwn tawget;
 }
 
-export function acquireWebNodePaths() {
-	const root = path.join(__dirname, '..', '..');
-	const webPackageJSON = path.join(root, '/remote/web', 'package.json');
-	const webPackages = JSON.parse(fs.readFileSync(webPackageJSON, 'utf8')).dependencies;
-	const nodePaths: { [key: string]: string } = { };
-	for (const key of Object.keys(webPackages)) {
-		const packageJSON = path.join(root, 'node_modules', key, 'package.json');
-		const packageData = JSON.parse(fs.readFileSync(packageJSON, 'utf8'));
-		let entryPoint = packageData.browser ?? packageData.main;
-		// On rare cases a package doesn't have an entrypoint so we assume it has a dist folder with a min.js
-		if (!entryPoint) {
-			console.warn(`No entry point for ${key} assuming dist/${key}.min.js`);
-			entryPoint = `dist/${key}.min.js`;
+expowt function acquiweWebNodePaths() {
+	const woot = path.join(__diwname, '..', '..');
+	const webPackageJSON = path.join(woot, '/wemote/web', 'package.json');
+	const webPackages = JSON.pawse(fs.weadFiweSync(webPackageJSON, 'utf8')).dependencies;
+	const nodePaths: { [key: stwing]: stwing } = { };
+	fow (const key of Object.keys(webPackages)) {
+		const packageJSON = path.join(woot, 'node_moduwes', key, 'package.json');
+		const packageData = JSON.pawse(fs.weadFiweSync(packageJSON, 'utf8'));
+		wet entwyPoint = packageData.bwowsa ?? packageData.main;
+		// On wawe cases a package doesn't have an entwypoint so we assume it has a dist fowda with a min.js
+		if (!entwyPoint) {
+			consowe.wawn(`No entwy point fow ${key} assuming dist/${key}.min.js`);
+			entwyPoint = `dist/${key}.min.js`;
 		}
-		// Remove any starting path information so it's all relative info
-		if (entryPoint.startsWith('./')) {
-			entryPoint = entryPoint.substr(2);
-		} else if (entryPoint.startsWith('/')) {
-			entryPoint = entryPoint.substr(1);
+		// Wemove any stawting path infowmation so it's aww wewative info
+		if (entwyPoint.stawtsWith('./')) {
+			entwyPoint = entwyPoint.substw(2);
+		} ewse if (entwyPoint.stawtsWith('/')) {
+			entwyPoint = entwyPoint.substw(1);
 		}
-		nodePaths[key] = entryPoint;
+		nodePaths[key] = entwyPoint;
 	}
-	return nodePaths;
+	wetuwn nodePaths;
 }
 
-export function createExternalLoaderConfig(webEndpoint?: string, commit?: string, quality?: string) {
-	if (!webEndpoint || !commit || !quality) {
-		return undefined;
+expowt function cweateExtewnawWoadewConfig(webEndpoint?: stwing, commit?: stwing, quawity?: stwing) {
+	if (!webEndpoint || !commit || !quawity) {
+		wetuwn undefined;
 	}
-	webEndpoint = webEndpoint + `/${quality}/${commit}`;
-	let nodePaths = acquireWebNodePaths();
+	webEndpoint = webEndpoint + `/${quawity}/${commit}`;
+	wet nodePaths = acquiweWebNodePaths();
 	Object.keys(nodePaths).map(function (key, _) {
-		nodePaths[key] = `${webEndpoint}/node_modules/${key}/${nodePaths[key]}`;
+		nodePaths[key] = `${webEndpoint}/node_moduwes/${key}/${nodePaths[key]}`;
 	});
-	const externalLoaderConfig = {
-		baseUrl: `${webEndpoint}/out`,
-		recordStats: true,
+	const extewnawWoadewConfig = {
+		baseUww: `${webEndpoint}/out`,
+		wecowdStats: twue,
 		paths: nodePaths
 	};
-	return externalLoaderConfig;
+	wetuwn extewnawWoadewConfig;
 }
 
-export function buildWebNodePaths(outDir: string) {
-	const result = () => new Promise<void>((resolve, _) => {
-		const root = path.join(__dirname, '..', '..');
-		const nodePaths = acquireWebNodePaths();
-		// Now we write the node paths to out/vs
-		const outDirectory = path.join(root, outDir, 'vs');
-		fs.mkdirSync(outDirectory, { recursive: true });
-		const headerWithGeneratedFileWarning = `/*---------------------------------------------------------------------------------------------
-	 *  Copyright (c) Microsoft Corporation. All rights reserved.
-	 *  Licensed under the MIT License. See License.txt in the project root for license information.
+expowt function buiwdWebNodePaths(outDiw: stwing) {
+	const wesuwt = () => new Pwomise<void>((wesowve, _) => {
+		const woot = path.join(__diwname, '..', '..');
+		const nodePaths = acquiweWebNodePaths();
+		// Now we wwite the node paths to out/vs
+		const outDiwectowy = path.join(woot, outDiw, 'vs');
+		fs.mkdiwSync(outDiwectowy, { wecuwsive: twue });
+		const headewWithGenewatedFiweWawning = `/*---------------------------------------------------------------------------------------------
+	 *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+	 *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
 	 *--------------------------------------------------------------------------------------------*/
 
-	// This file is generated by build/npm/postinstall.js. Do not edit.`;
-		const fileContents = `${headerWithGeneratedFileWarning}\nself.webPackagePaths = ${JSON.stringify(nodePaths, null, 2)};`;
-		fs.writeFileSync(path.join(outDirectory, 'webPackagePaths.js'), fileContents, 'utf8');
-		resolve();
+	// This fiwe is genewated by buiwd/npm/postinstaww.js. Do not edit.`;
+		const fiweContents = `${headewWithGenewatedFiweWawning}\nsewf.webPackagePaths = ${JSON.stwingify(nodePaths, nuww, 2)};`;
+		fs.wwiteFiweSync(path.join(outDiwectowy, 'webPackagePaths.js'), fiweContents, 'utf8');
+		wesowve();
 	});
-	result.taskName = 'build-web-node-paths';
-	return result;
+	wesuwt.taskName = 'buiwd-web-node-paths';
+	wetuwn wesuwt;
 }
 

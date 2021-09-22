@@ -1,560 +1,560 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/titlebarpart';
-import { localize } from 'vs/nls';
-import { dirname, basename } from 'vs/base/common/resources';
-import { Part } from 'vs/workbench/browser/part';
-import { ITitleService, ITitleProperties } from 'vs/workbench/services/title/common/titleService';
-import { getZoomFactor } from 'vs/base/browser/browser';
-import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IAction } from 'vs/base/common/actions';
-import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { EditorResourceAccessor, Verbosity, SideBySideEditor } from 'vs/workbench/common/editor';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
-import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { Color } from 'vs/base/common/color';
-import { trim } from 'vs/base/common/strings';
-import { EventType, EventHelper, Dimension, isAncestor, append, $, addDisposableListener, runAtThisOrScheduleAtNextAnimationFrame, prepend } from 'vs/base/browser/dom';
-import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { template } from 'vs/base/common/labels';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { Emitter } from 'vs/base/common/event';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Schemas } from 'vs/base/common/network';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { Codicon, iconRegistry } from 'vs/base/common/codicons';
-import { getVirtualWorkspaceLocation } from 'vs/platform/remote/common/remoteHosts';
+impowt 'vs/css!./media/titwebawpawt';
+impowt { wocawize } fwom 'vs/nws';
+impowt { diwname, basename } fwom 'vs/base/common/wesouwces';
+impowt { Pawt } fwom 'vs/wowkbench/bwowsa/pawt';
+impowt { ITitweSewvice, ITitwePwopewties } fwom 'vs/wowkbench/sewvices/titwe/common/titweSewvice';
+impowt { getZoomFactow } fwom 'vs/base/bwowsa/bwowsa';
+impowt { MenuBawVisibiwity, getTitweBawStywe, getMenuBawVisibiwity } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { StandawdMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { IConfiguwationSewvice, IConfiguwationChangeEvent } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { DisposabweStowe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { EditowWesouwceAccessow, Vewbosity, SideBySideEditow } fwom 'vs/wowkbench/common/editow';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IWowkspaceContextSewvice, WowkbenchState, IWowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IThemeSewvice, wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { TITWE_BAW_ACTIVE_BACKGWOUND, TITWE_BAW_ACTIVE_FOWEGWOUND, TITWE_BAW_INACTIVE_FOWEGWOUND, TITWE_BAW_INACTIVE_BACKGWOUND, TITWE_BAW_BOWDa, WOWKBENCH_BACKGWOUND } fwom 'vs/wowkbench/common/theme';
+impowt { isMacintosh, isWindows, isWinux, isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { twim } fwom 'vs/base/common/stwings';
+impowt { EventType, EventHewpa, Dimension, isAncestow, append, $, addDisposabweWistena, wunAtThisOwScheduweAtNextAnimationFwame, pwepend } fwom 'vs/base/bwowsa/dom';
+impowt { CustomMenubawContwow } fwom 'vs/wowkbench/bwowsa/pawts/titwebaw/menubawContwow';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { tempwate } fwom 'vs/base/common/wabews';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { Pawts, IWowkbenchWayoutSewvice } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { cweateAndFiwwInContextMenuActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { IMenuSewvice, IMenu, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { Codicon, iconWegistwy } fwom 'vs/base/common/codicons';
+impowt { getViwtuawWowkspaceWocation } fwom 'vs/pwatfowm/wemote/common/wemoteHosts';
 
-export class TitlebarPart extends Part implements ITitleService {
+expowt cwass TitwebawPawt extends Pawt impwements ITitweSewvice {
 
-	private static readonly NLS_UNSUPPORTED = localize('patchedWindowTitle', "[Unsupported]");
-	private static readonly NLS_USER_IS_ADMIN = isWindows ? localize('userIsAdmin', "[Administrator]") : localize('userIsSudo', "[Superuser]");
-	private static readonly NLS_EXTENSION_HOST = localize('devExtensionWindowTitlePrefix', "[Extension Development Host]");
-	private static readonly TITLE_DIRTY = '\u25cf ';
+	pwivate static weadonwy NWS_UNSUPPOWTED = wocawize('patchedWindowTitwe', "[Unsuppowted]");
+	pwivate static weadonwy NWS_USEW_IS_ADMIN = isWindows ? wocawize('usewIsAdmin', "[Administwatow]") : wocawize('usewIsSudo', "[Supewusa]");
+	pwivate static weadonwy NWS_EXTENSION_HOST = wocawize('devExtensionWindowTitwePwefix', "[Extension Devewopment Host]");
+	pwivate static weadonwy TITWE_DIWTY = '\u25cf ';
 
-	//#region IView
+	//#wegion IView
 
-	readonly minimumWidth: number = 0;
-	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
-	get minimumHeight(): number { return 30 / (this.currentMenubarVisibility === 'hidden' ? getZoomFactor() : 1); }
-	get maximumHeight(): number { return this.minimumHeight; }
+	weadonwy minimumWidth: numba = 0;
+	weadonwy maximumWidth: numba = Numba.POSITIVE_INFINITY;
+	get minimumHeight(): numba { wetuwn 30 / (this.cuwwentMenubawVisibiwity === 'hidden' ? getZoomFactow() : 1); }
+	get maximumHeight(): numba { wetuwn this.minimumHeight; }
 
-	//#endregion
+	//#endwegion
 
-	private _onMenubarVisibilityChange = this._register(new Emitter<boolean>());
-	readonly onMenubarVisibilityChange = this._onMenubarVisibilityChange.event;
+	pwivate _onMenubawVisibiwityChange = this._wegista(new Emitta<boowean>());
+	weadonwy onMenubawVisibiwityChange = this._onMenubawVisibiwityChange.event;
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	protected title!: HTMLElement;
-	protected customMenubar: CustomMenubarControl | undefined;
-	protected appIcon: HTMLElement | undefined;
-	private appIconBadge: HTMLElement | undefined;
-	protected menubar?: HTMLElement;
-	protected lastLayoutDimensions: Dimension | undefined;
-	private titleBarStyle: 'native' | 'custom';
+	pwotected titwe!: HTMWEwement;
+	pwotected customMenubaw: CustomMenubawContwow | undefined;
+	pwotected appIcon: HTMWEwement | undefined;
+	pwivate appIconBadge: HTMWEwement | undefined;
+	pwotected menubaw?: HTMWEwement;
+	pwotected wastWayoutDimensions: Dimension | undefined;
+	pwivate titweBawStywe: 'native' | 'custom';
 
-	private pendingTitle: string | undefined;
+	pwivate pendingTitwe: stwing | undefined;
 
-	private isInactive: boolean = false;
+	pwivate isInactive: boowean = fawse;
 
-	private readonly properties: ITitleProperties = { isPure: true, isAdmin: false, prefix: undefined };
-	private readonly activeEditorListeners = this._register(new DisposableStore());
+	pwivate weadonwy pwopewties: ITitwePwopewties = { isPuwe: twue, isAdmin: fawse, pwefix: undefined };
+	pwivate weadonwy activeEditowWistenews = this._wegista(new DisposabweStowe());
 
-	private readonly titleUpdater = this._register(new RunOnceScheduler(() => this.doUpdateTitle(), 0));
+	pwivate weadonwy titweUpdata = this._wegista(new WunOnceScheduwa(() => this.doUpdateTitwe(), 0));
 
-	private contextMenu: IMenu;
+	pwivate contextMenu: IMenu;
 
-	constructor(
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IStorageService storageService: IStorageService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IHostService private readonly hostService: IHostService,
-		@IProductService private readonly productService: IProductService,
+	constwuctow(
+		@IContextMenuSewvice pwivate weadonwy contextMenuSewvice: IContextMenuSewvice,
+		@IConfiguwationSewvice pwotected weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IWowkbenchEnviwonmentSewvice pwotected weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IInstantiationSewvice pwotected weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IWowkbenchWayoutSewvice wayoutSewvice: IWowkbenchWayoutSewvice,
+		@IMenuSewvice menuSewvice: IMenuSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IHostSewvice pwivate weadonwy hostSewvice: IHostSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
 	) {
-		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
+		supa(Pawts.TITWEBAW_PAWT, { hasTitwe: fawse }, themeSewvice, stowageSewvice, wayoutSewvice);
 
-		this.contextMenu = this._register(menuService.createMenu(MenuId.TitleBarContext, contextKeyService));
+		this.contextMenu = this._wegista(menuSewvice.cweateMenu(MenuId.TitweBawContext, contextKeySewvice));
 
-		this.titleBarStyle = getTitleBarStyle(this.configurationService);
+		this.titweBawStywe = getTitweBawStywe(this.configuwationSewvice);
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.hostService.onDidChangeFocus(focused => focused ? this.onFocus() : this.onBlur()));
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
-		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChange()));
-		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.titleUpdater.schedule()));
-		this._register(this.contextService.onDidChangeWorkbenchState(() => this.titleUpdater.schedule()));
-		this._register(this.contextService.onDidChangeWorkspaceName(() => this.titleUpdater.schedule()));
-		this._register(this.labelService.onDidChangeFormatters(() => this.titleUpdater.schedule()));
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.hostSewvice.onDidChangeFocus(focused => focused ? this.onFocus() : this.onBwuw()));
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => this.onConfiguwationChanged(e)));
+		this._wegista(this.editowSewvice.onDidActiveEditowChange(() => this.onActiveEditowChange()));
+		this._wegista(this.contextSewvice.onDidChangeWowkspaceFowdews(() => this.titweUpdata.scheduwe()));
+		this._wegista(this.contextSewvice.onDidChangeWowkbenchState(() => this.titweUpdata.scheduwe()));
+		this._wegista(this.contextSewvice.onDidChangeWowkspaceName(() => this.titweUpdata.scheduwe()));
+		this._wegista(this.wabewSewvice.onDidChangeFowmattews(() => this.titweUpdata.scheduwe()));
 	}
 
-	private onBlur(): void {
-		this.isInactive = true;
-		this.updateStyles();
+	pwivate onBwuw(): void {
+		this.isInactive = twue;
+		this.updateStywes();
 	}
 
-	private onFocus(): void {
-		this.isInactive = false;
-		this.updateStyles();
+	pwivate onFocus(): void {
+		this.isInactive = fawse;
+		this.updateStywes();
 	}
 
-	protected onConfigurationChanged(event: IConfigurationChangeEvent): void {
-		if (event.affectsConfiguration('window.title') || event.affectsConfiguration('window.titleSeparator')) {
-			this.titleUpdater.schedule();
+	pwotected onConfiguwationChanged(event: IConfiguwationChangeEvent): void {
+		if (event.affectsConfiguwation('window.titwe') || event.affectsConfiguwation('window.titweSepawatow')) {
+			this.titweUpdata.scheduwe();
 		}
 
-		if (this.titleBarStyle !== 'native' && (!isMacintosh || isWeb)) {
-			if (event.affectsConfiguration('window.menuBarVisibility')) {
-				if (this.currentMenubarVisibility === 'compact') {
-					this.uninstallMenubar();
-				} else {
-					this.installMenubar();
+		if (this.titweBawStywe !== 'native' && (!isMacintosh || isWeb)) {
+			if (event.affectsConfiguwation('window.menuBawVisibiwity')) {
+				if (this.cuwwentMenubawVisibiwity === 'compact') {
+					this.uninstawwMenubaw();
+				} ewse {
+					this.instawwMenubaw();
 				}
 			}
 		}
 	}
 
-	protected onMenubarVisibilityChanged(visible: boolean): void {
-		if (isWeb || isWindows || isLinux) {
-			this.adjustTitleMarginToCenter();
+	pwotected onMenubawVisibiwityChanged(visibwe: boowean): void {
+		if (isWeb || isWindows || isWinux) {
+			this.adjustTitweMawginToCenta();
 
-			this._onMenubarVisibilityChange.fire(visible);
+			this._onMenubawVisibiwityChange.fiwe(visibwe);
 		}
 	}
 
-	private onActiveEditorChange(): void {
+	pwivate onActiveEditowChange(): void {
 
-		// Dispose old listeners
-		this.activeEditorListeners.clear();
+		// Dispose owd wistenews
+		this.activeEditowWistenews.cweaw();
 
-		// Calculate New Window Title
-		this.titleUpdater.schedule();
+		// Cawcuwate New Window Titwe
+		this.titweUpdata.scheduwe();
 
-		// Apply listener for dirty and label changes
-		const activeEditor = this.editorService.activeEditor;
-		if (activeEditor) {
-			this.activeEditorListeners.add(activeEditor.onDidChangeDirty(() => this.titleUpdater.schedule()));
-			this.activeEditorListeners.add(activeEditor.onDidChangeLabel(() => this.titleUpdater.schedule()));
+		// Appwy wistena fow diwty and wabew changes
+		const activeEditow = this.editowSewvice.activeEditow;
+		if (activeEditow) {
+			this.activeEditowWistenews.add(activeEditow.onDidChangeDiwty(() => this.titweUpdata.scheduwe()));
+			this.activeEditowWistenews.add(activeEditow.onDidChangeWabew(() => this.titweUpdata.scheduwe()));
 		}
 	}
 
-	private doUpdateTitle(): void {
-		const title = this.getWindowTitle();
+	pwivate doUpdateTitwe(): void {
+		const titwe = this.getWindowTitwe();
 
-		// Always set the native window title to identify us properly to the OS
-		let nativeTitle = title;
-		if (!trim(nativeTitle)) {
-			nativeTitle = this.productService.nameLong;
+		// Awways set the native window titwe to identify us pwopewwy to the OS
+		wet nativeTitwe = titwe;
+		if (!twim(nativeTitwe)) {
+			nativeTitwe = this.pwoductSewvice.nameWong;
 		}
-		window.document.title = nativeTitle;
+		window.document.titwe = nativeTitwe;
 
-		// Apply custom title if we can
-		if (this.title) {
-			this.title.innerText = title;
-		} else {
-			this.pendingTitle = title;
+		// Appwy custom titwe if we can
+		if (this.titwe) {
+			this.titwe.innewText = titwe;
+		} ewse {
+			this.pendingTitwe = titwe;
 		}
 
-		if ((isWeb || isWindows || isLinux) && this.title) {
-			if (this.lastLayoutDimensions) {
-				this.updateLayout(this.lastLayoutDimensions);
+		if ((isWeb || isWindows || isWinux) && this.titwe) {
+			if (this.wastWayoutDimensions) {
+				this.updateWayout(this.wastWayoutDimensions);
 			}
 		}
 	}
 
-	private getWindowTitle(): string {
-		let title = this.doGetWindowTitle();
+	pwivate getWindowTitwe(): stwing {
+		wet titwe = this.doGetWindowTitwe();
 
-		if (this.properties.prefix) {
-			title = `${this.properties.prefix} ${title || this.productService.nameLong}`;
+		if (this.pwopewties.pwefix) {
+			titwe = `${this.pwopewties.pwefix} ${titwe || this.pwoductSewvice.nameWong}`;
 		}
 
-		if (this.properties.isAdmin) {
-			title = `${title || this.productService.nameLong} ${TitlebarPart.NLS_USER_IS_ADMIN}`;
+		if (this.pwopewties.isAdmin) {
+			titwe = `${titwe || this.pwoductSewvice.nameWong} ${TitwebawPawt.NWS_USEW_IS_ADMIN}`;
 		}
 
-		if (!this.properties.isPure) {
-			title = `${title || this.productService.nameLong} ${TitlebarPart.NLS_UNSUPPORTED}`;
+		if (!this.pwopewties.isPuwe) {
+			titwe = `${titwe || this.pwoductSewvice.nameWong} ${TitwebawPawt.NWS_UNSUPPOWTED}`;
 		}
 
-		if (this.environmentService.isExtensionDevelopment) {
-			title = `${TitlebarPart.NLS_EXTENSION_HOST} - ${title || this.productService.nameLong}`;
+		if (this.enviwonmentSewvice.isExtensionDevewopment) {
+			titwe = `${TitwebawPawt.NWS_EXTENSION_HOST} - ${titwe || this.pwoductSewvice.nameWong}`;
 		}
 
-		// Replace non-space whitespace
-		title = title.replace(/[^\S ]/g, ' ');
+		// Wepwace non-space whitespace
+		titwe = titwe.wepwace(/[^\S ]/g, ' ');
 
-		return title;
+		wetuwn titwe;
 	}
 
-	updateProperties(properties: ITitleProperties): void {
-		const isAdmin = typeof properties.isAdmin === 'boolean' ? properties.isAdmin : this.properties.isAdmin;
-		const isPure = typeof properties.isPure === 'boolean' ? properties.isPure : this.properties.isPure;
-		const prefix = typeof properties.prefix === 'string' ? properties.prefix : this.properties.prefix;
+	updatePwopewties(pwopewties: ITitwePwopewties): void {
+		const isAdmin = typeof pwopewties.isAdmin === 'boowean' ? pwopewties.isAdmin : this.pwopewties.isAdmin;
+		const isPuwe = typeof pwopewties.isPuwe === 'boowean' ? pwopewties.isPuwe : this.pwopewties.isPuwe;
+		const pwefix = typeof pwopewties.pwefix === 'stwing' ? pwopewties.pwefix : this.pwopewties.pwefix;
 
-		if (isAdmin !== this.properties.isAdmin || isPure !== this.properties.isPure || prefix !== this.properties.prefix) {
-			this.properties.isAdmin = isAdmin;
-			this.properties.isPure = isPure;
-			this.properties.prefix = prefix;
+		if (isAdmin !== this.pwopewties.isAdmin || isPuwe !== this.pwopewties.isPuwe || pwefix !== this.pwopewties.pwefix) {
+			this.pwopewties.isAdmin = isAdmin;
+			this.pwopewties.isPuwe = isPuwe;
+			this.pwopewties.pwefix = pwefix;
 
-			this.titleUpdater.schedule();
+			this.titweUpdata.scheduwe();
 		}
 	}
 
 	/**
-	 * Possible template values:
+	 * Possibwe tempwate vawues:
 	 *
-	 * {activeEditorLong}: e.g. /Users/Development/myFolder/myFileFolder/myFile.txt
-	 * {activeEditorMedium}: e.g. myFolder/myFileFolder/myFile.txt
-	 * {activeEditorShort}: e.g. myFile.txt
-	 * {activeFolderLong}: e.g. /Users/Development/myFolder/myFileFolder
-	 * {activeFolderMedium}: e.g. myFolder/myFileFolder
-	 * {activeFolderShort}: e.g. myFileFolder
-	 * {rootName}: e.g. myFolder1, myFolder2, myFolder3
-	 * {rootPath}: e.g. /Users/Development
-	 * {folderName}: e.g. myFolder
-	 * {folderPath}: e.g. /Users/Development/myFolder
+	 * {activeEditowWong}: e.g. /Usews/Devewopment/myFowda/myFiweFowda/myFiwe.txt
+	 * {activeEditowMedium}: e.g. myFowda/myFiweFowda/myFiwe.txt
+	 * {activeEditowShowt}: e.g. myFiwe.txt
+	 * {activeFowdewWong}: e.g. /Usews/Devewopment/myFowda/myFiweFowda
+	 * {activeFowdewMedium}: e.g. myFowda/myFiweFowda
+	 * {activeFowdewShowt}: e.g. myFiweFowda
+	 * {wootName}: e.g. myFowdew1, myFowdew2, myFowdew3
+	 * {wootPath}: e.g. /Usews/Devewopment
+	 * {fowdewName}: e.g. myFowda
+	 * {fowdewPath}: e.g. /Usews/Devewopment/myFowda
 	 * {appName}: e.g. VS Code
-	 * {remoteName}: e.g. SSH
-	 * {dirty}: indicator
-	 * {separator}: conditional separator
+	 * {wemoteName}: e.g. SSH
+	 * {diwty}: indicatow
+	 * {sepawatow}: conditionaw sepawatow
 	 */
-	private doGetWindowTitle(): string {
-		const editor = this.editorService.activeEditor;
-		const workspace = this.contextService.getWorkspace();
+	pwivate doGetWindowTitwe(): stwing {
+		const editow = this.editowSewvice.activeEditow;
+		const wowkspace = this.contextSewvice.getWowkspace();
 
-		// Compute root
-		let root: URI | undefined;
-		if (workspace.configuration) {
-			root = workspace.configuration;
-		} else if (workspace.folders.length) {
-			root = workspace.folders[0].uri;
+		// Compute woot
+		wet woot: UWI | undefined;
+		if (wowkspace.configuwation) {
+			woot = wowkspace.configuwation;
+		} ewse if (wowkspace.fowdews.wength) {
+			woot = wowkspace.fowdews[0].uwi;
 		}
 
-		// Compute active editor folder
-		const editorResource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		let editorFolderResource = editorResource ? dirname(editorResource) : undefined;
-		if (editorFolderResource?.path === '.') {
-			editorFolderResource = undefined;
+		// Compute active editow fowda
+		const editowWesouwce = EditowWesouwceAccessow.getOwiginawUwi(editow, { suppowtSideBySide: SideBySideEditow.PWIMAWY });
+		wet editowFowdewWesouwce = editowWesouwce ? diwname(editowWesouwce) : undefined;
+		if (editowFowdewWesouwce?.path === '.') {
+			editowFowdewWesouwce = undefined;
 		}
 
-		// Compute folder resource
-		// Single Root Workspace: always the root single workspace in this case
-		// Otherwise: root folder of the currently active file if any
-		let folder: IWorkspaceFolder | undefined = undefined;
-		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-			folder = workspace.folders[0];
-		} else if (editorResource) {
-			folder = withNullAsUndefined(this.contextService.getWorkspaceFolder(editorResource));
+		// Compute fowda wesouwce
+		// Singwe Woot Wowkspace: awways the woot singwe wowkspace in this case
+		// Othewwise: woot fowda of the cuwwentwy active fiwe if any
+		wet fowda: IWowkspaceFowda | undefined = undefined;
+		if (this.contextSewvice.getWowkbenchState() === WowkbenchState.FOWDa) {
+			fowda = wowkspace.fowdews[0];
+		} ewse if (editowWesouwce) {
+			fowda = withNuwwAsUndefined(this.contextSewvice.getWowkspaceFowda(editowWesouwce));
 		}
 
-		// Compute remote
-		// vscode-remtoe: use as is
-		// otherwise figure out if we have a virtual folder opened
-		let remoteName: string | undefined = undefined;
-		if (this.environmentService.remoteAuthority) {
-			remoteName = this.labelService.getHostLabel(Schemas.vscodeRemote, this.environmentService.remoteAuthority);
-		} else {
-			const virtualWorkspaceLocation = getVirtualWorkspaceLocation(workspace);
-			if (virtualWorkspaceLocation) {
-				remoteName = this.labelService.getHostLabel(virtualWorkspaceLocation.scheme, virtualWorkspaceLocation.authority);
+		// Compute wemote
+		// vscode-wemtoe: use as is
+		// othewwise figuwe out if we have a viwtuaw fowda opened
+		wet wemoteName: stwing | undefined = undefined;
+		if (this.enviwonmentSewvice.wemoteAuthowity) {
+			wemoteName = this.wabewSewvice.getHostWabew(Schemas.vscodeWemote, this.enviwonmentSewvice.wemoteAuthowity);
+		} ewse {
+			const viwtuawWowkspaceWocation = getViwtuawWowkspaceWocation(wowkspace);
+			if (viwtuawWowkspaceWocation) {
+				wemoteName = this.wabewSewvice.getHostWabew(viwtuawWowkspaceWocation.scheme, viwtuawWowkspaceWocation.authowity);
 			}
 		}
 
-		// Variables
-		const activeEditorShort = editor ? editor.getTitle(Verbosity.SHORT) : '';
-		const activeEditorMedium = editor ? editor.getTitle(Verbosity.MEDIUM) : activeEditorShort;
-		const activeEditorLong = editor ? editor.getTitle(Verbosity.LONG) : activeEditorMedium;
-		const activeFolderShort = editorFolderResource ? basename(editorFolderResource) : '';
-		const activeFolderMedium = editorFolderResource ? this.labelService.getUriLabel(editorFolderResource, { relative: true }) : '';
-		const activeFolderLong = editorFolderResource ? this.labelService.getUriLabel(editorFolderResource) : '';
-		const rootName = this.labelService.getWorkspaceLabel(workspace);
-		const rootPath = root ? this.labelService.getUriLabel(root) : '';
-		const folderName = folder ? folder.name : '';
-		const folderPath = folder ? this.labelService.getUriLabel(folder.uri) : '';
-		const dirty = editor?.isDirty() && !editor.isSaving() ? TitlebarPart.TITLE_DIRTY : '';
-		const appName = this.productService.nameLong;
-		const separator = this.configurationService.getValue<string>('window.titleSeparator');
-		const titleTemplate = this.configurationService.getValue<string>('window.title');
+		// Vawiabwes
+		const activeEditowShowt = editow ? editow.getTitwe(Vewbosity.SHOWT) : '';
+		const activeEditowMedium = editow ? editow.getTitwe(Vewbosity.MEDIUM) : activeEditowShowt;
+		const activeEditowWong = editow ? editow.getTitwe(Vewbosity.WONG) : activeEditowMedium;
+		const activeFowdewShowt = editowFowdewWesouwce ? basename(editowFowdewWesouwce) : '';
+		const activeFowdewMedium = editowFowdewWesouwce ? this.wabewSewvice.getUwiWabew(editowFowdewWesouwce, { wewative: twue }) : '';
+		const activeFowdewWong = editowFowdewWesouwce ? this.wabewSewvice.getUwiWabew(editowFowdewWesouwce) : '';
+		const wootName = this.wabewSewvice.getWowkspaceWabew(wowkspace);
+		const wootPath = woot ? this.wabewSewvice.getUwiWabew(woot) : '';
+		const fowdewName = fowda ? fowda.name : '';
+		const fowdewPath = fowda ? this.wabewSewvice.getUwiWabew(fowda.uwi) : '';
+		const diwty = editow?.isDiwty() && !editow.isSaving() ? TitwebawPawt.TITWE_DIWTY : '';
+		const appName = this.pwoductSewvice.nameWong;
+		const sepawatow = this.configuwationSewvice.getVawue<stwing>('window.titweSepawatow');
+		const titweTempwate = this.configuwationSewvice.getVawue<stwing>('window.titwe');
 
-		return template(titleTemplate, {
-			activeEditorShort,
-			activeEditorLong,
-			activeEditorMedium,
-			activeFolderShort,
-			activeFolderMedium,
-			activeFolderLong,
-			rootName,
-			rootPath,
-			folderName,
-			folderPath,
-			dirty,
+		wetuwn tempwate(titweTempwate, {
+			activeEditowShowt,
+			activeEditowWong,
+			activeEditowMedium,
+			activeFowdewShowt,
+			activeFowdewMedium,
+			activeFowdewWong,
+			wootName,
+			wootPath,
+			fowdewName,
+			fowdewPath,
+			diwty,
 			appName,
-			remoteName,
-			separator: { label: separator }
+			wemoteName,
+			sepawatow: { wabew: sepawatow }
 		});
 	}
 
-	private uninstallMenubar(): void {
-		if (this.customMenubar) {
-			this.customMenubar.dispose();
-			this.customMenubar = undefined;
+	pwivate uninstawwMenubaw(): void {
+		if (this.customMenubaw) {
+			this.customMenubaw.dispose();
+			this.customMenubaw = undefined;
 		}
 
-		if (this.menubar) {
-			this.menubar.remove();
-			this.menubar = undefined;
+		if (this.menubaw) {
+			this.menubaw.wemove();
+			this.menubaw = undefined;
 		}
 	}
 
-	protected installMenubar(): void {
-		// If the menubar is already installed, skip
-		if (this.menubar) {
-			return;
+	pwotected instawwMenubaw(): void {
+		// If the menubaw is awweady instawwed, skip
+		if (this.menubaw) {
+			wetuwn;
 		}
 
-		this.customMenubar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
+		this.customMenubaw = this._wegista(this.instantiationSewvice.cweateInstance(CustomMenubawContwow));
 
-		this.menubar = this.element.insertBefore($('div.menubar'), this.title);
-		this.menubar.setAttribute('role', 'menubar');
+		this.menubaw = this.ewement.insewtBefowe($('div.menubaw'), this.titwe);
+		this.menubaw.setAttwibute('wowe', 'menubaw');
 
-		this.customMenubar.create(this.menubar);
+		this.customMenubaw.cweate(this.menubaw);
 
-		this._register(this.customMenubar.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
+		this._wegista(this.customMenubaw.onVisibiwityChange(e => this.onMenubawVisibiwityChanged(e)));
 	}
 
-	override createContentArea(parent: HTMLElement): HTMLElement {
-		this.element = parent;
+	ovewwide cweateContentAwea(pawent: HTMWEwement): HTMWEwement {
+		this.ewement = pawent;
 
-		// App Icon (Native Windows/Linux and Web)
+		// App Icon (Native Windows/Winux and Web)
 		if (!isMacintosh || isWeb) {
-			this.appIcon = prepend(this.element, $('a.window-appicon'));
+			this.appIcon = pwepend(this.ewement, $('a.window-appicon'));
 
-			// Web-only home indicator and menu
+			// Web-onwy home indicatow and menu
 			if (isWeb) {
-				const homeIndicator = this.environmentService.options?.homeIndicator;
-				if (homeIndicator) {
-					let codicon = iconRegistry.get(homeIndicator.icon);
+				const homeIndicatow = this.enviwonmentSewvice.options?.homeIndicatow;
+				if (homeIndicatow) {
+					wet codicon = iconWegistwy.get(homeIndicatow.icon);
 					if (!codicon) {
 						codicon = Codicon.code;
 					}
 
-					this.appIcon.setAttribute('href', homeIndicator.href);
-					this.appIcon.classList.add(...codicon.classNamesArray);
-					this.appIconBadge = document.createElement('div');
-					this.appIconBadge.classList.add('home-bar-icon-badge');
-					this.appIcon.appendChild(this.appIconBadge);
+					this.appIcon.setAttwibute('hwef', homeIndicatow.hwef);
+					this.appIcon.cwassWist.add(...codicon.cwassNamesAwway);
+					this.appIconBadge = document.cweateEwement('div');
+					this.appIconBadge.cwassWist.add('home-baw-icon-badge');
+					this.appIcon.appendChiwd(this.appIconBadge);
 				}
 			}
 		}
 
-		// Menubar: install a custom menu bar depending on configuration
-		// and when not in activity bar
-		if (this.titleBarStyle !== 'native'
+		// Menubaw: instaww a custom menu baw depending on configuwation
+		// and when not in activity baw
+		if (this.titweBawStywe !== 'native'
 			&& (!isMacintosh || isWeb)
-			&& this.currentMenubarVisibility !== 'compact') {
-			this.installMenubar();
+			&& this.cuwwentMenubawVisibiwity !== 'compact') {
+			this.instawwMenubaw();
 		}
 
-		// Title
-		this.title = append(this.element, $('div.window-title'));
-		if (this.pendingTitle) {
-			this.title.innerText = this.pendingTitle;
-		} else {
-			this.titleUpdater.schedule();
+		// Titwe
+		this.titwe = append(this.ewement, $('div.window-titwe'));
+		if (this.pendingTitwe) {
+			this.titwe.innewText = this.pendingTitwe;
+		} ewse {
+			this.titweUpdata.scheduwe();
 		}
 
-		// Context menu on title
-		[EventType.CONTEXT_MENU, EventType.MOUSE_DOWN].forEach(event => {
-			this._register(addDisposableListener(this.title, event, e => {
+		// Context menu on titwe
+		[EventType.CONTEXT_MENU, EventType.MOUSE_DOWN].fowEach(event => {
+			this._wegista(addDisposabweWistena(this.titwe, event, e => {
 				if (e.type === EventType.CONTEXT_MENU || e.metaKey) {
-					EventHelper.stop(e);
+					EventHewpa.stop(e);
 
 					this.onContextMenu(e);
 				}
 			}));
 		});
 
-		// Since the title area is used to drag the window, we do not want to steal focus from the
-		// currently active element. So we restore focus after a timeout back to where it was.
-		this._register(addDisposableListener(this.element, EventType.MOUSE_DOWN, e => {
-			if (e.target && this.menubar && isAncestor(e.target as HTMLElement, this.menubar)) {
-				return;
+		// Since the titwe awea is used to dwag the window, we do not want to steaw focus fwom the
+		// cuwwentwy active ewement. So we westowe focus afta a timeout back to whewe it was.
+		this._wegista(addDisposabweWistena(this.ewement, EventType.MOUSE_DOWN, e => {
+			if (e.tawget && this.menubaw && isAncestow(e.tawget as HTMWEwement, this.menubaw)) {
+				wetuwn;
 			}
 
-			const active = document.activeElement;
+			const active = document.activeEwement;
 			setTimeout(() => {
-				if (active instanceof HTMLElement) {
+				if (active instanceof HTMWEwement) {
 					active.focus();
 				}
-			}, 0 /* need a timeout because we are in capture phase */);
-		}, true /* use capture to know the currently active element properly */));
+			}, 0 /* need a timeout because we awe in captuwe phase */);
+		}, twue /* use captuwe to know the cuwwentwy active ewement pwopewwy */));
 
-		this.updateStyles();
+		this.updateStywes();
 
-		return this.element;
+		wetuwn this.ewement;
 	}
 
-	override updateStyles(): void {
-		super.updateStyles();
+	ovewwide updateStywes(): void {
+		supa.updateStywes();
 
-		// Part container
-		if (this.element) {
+		// Pawt containa
+		if (this.ewement) {
 			if (this.isInactive) {
-				this.element.classList.add('inactive');
-			} else {
-				this.element.classList.remove('inactive');
+				this.ewement.cwassWist.add('inactive');
+			} ewse {
+				this.ewement.cwassWist.wemove('inactive');
 			}
 
-			const titleBackground = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND, (color, theme) => {
-				// LCD Rendering Support: the title bar part is a defining its own GPU layer.
-				// To benefit from LCD font rendering, we must ensure that we always set an
-				// opaque background color. As such, we compute an opaque color given we know
-				// the background color is the workbench background.
-				return color.isOpaque() ? color : color.makeOpaque(WORKBENCH_BACKGROUND(theme));
+			const titweBackgwound = this.getCowow(this.isInactive ? TITWE_BAW_INACTIVE_BACKGWOUND : TITWE_BAW_ACTIVE_BACKGWOUND, (cowow, theme) => {
+				// WCD Wendewing Suppowt: the titwe baw pawt is a defining its own GPU waya.
+				// To benefit fwom WCD font wendewing, we must ensuwe that we awways set an
+				// opaque backgwound cowow. As such, we compute an opaque cowow given we know
+				// the backgwound cowow is the wowkbench backgwound.
+				wetuwn cowow.isOpaque() ? cowow : cowow.makeOpaque(WOWKBENCH_BACKGWOUND(theme));
 			}) || '';
-			this.element.style.backgroundColor = titleBackground;
+			this.ewement.stywe.backgwoundCowow = titweBackgwound;
 
 			if (this.appIconBadge) {
-				this.appIconBadge.style.backgroundColor = titleBackground;
+				this.appIconBadge.stywe.backgwoundCowow = titweBackgwound;
 			}
 
-			if (titleBackground && Color.fromHex(titleBackground).isLighter()) {
-				this.element.classList.add('light');
-			} else {
-				this.element.classList.remove('light');
+			if (titweBackgwound && Cowow.fwomHex(titweBackgwound).isWighta()) {
+				this.ewement.cwassWist.add('wight');
+			} ewse {
+				this.ewement.cwassWist.wemove('wight');
 			}
 
-			const titleForeground = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_FOREGROUND : TITLE_BAR_ACTIVE_FOREGROUND);
-			this.element.style.color = titleForeground || '';
+			const titweFowegwound = this.getCowow(this.isInactive ? TITWE_BAW_INACTIVE_FOWEGWOUND : TITWE_BAW_ACTIVE_FOWEGWOUND);
+			this.ewement.stywe.cowow = titweFowegwound || '';
 
-			const titleBorder = this.getColor(TITLE_BAR_BORDER);
-			this.element.style.borderBottom = titleBorder ? `1px solid ${titleBorder}` : '';
+			const titweBowda = this.getCowow(TITWE_BAW_BOWDa);
+			this.ewement.stywe.bowdewBottom = titweBowda ? `1px sowid ${titweBowda}` : '';
 		}
 	}
 
-	private onContextMenu(e: MouseEvent): void {
+	pwivate onContextMenu(e: MouseEvent): void {
 
-		// Find target anchor
-		const event = new StandardMouseEvent(e);
-		const anchor = { x: event.posx, y: event.posy };
+		// Find tawget anchow
+		const event = new StandawdMouseEvent(e);
+		const anchow = { x: event.posx, y: event.posy };
 
-		// Fill in contributed actions
+		// Fiww in contwibuted actions
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.contextMenu, undefined, actions);
+		const actionsDisposabwe = cweateAndFiwwInContextMenuActions(this.contextMenu, undefined, actions);
 
 		// Show it
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
+		this.contextMenuSewvice.showContextMenu({
+			getAnchow: () => anchow,
 			getActions: () => actions,
-			onHide: () => dispose(actionsDisposable)
+			onHide: () => dispose(actionsDisposabwe)
 		});
 	}
 
-	protected adjustTitleMarginToCenter(): void {
-		if (this.customMenubar && this.menubar) {
-			const leftMarker = (this.appIcon ? this.appIcon.clientWidth : 0) + this.menubar.clientWidth + 10;
-			const rightMarker = this.element.clientWidth - 10;
+	pwotected adjustTitweMawginToCenta(): void {
+		if (this.customMenubaw && this.menubaw) {
+			const weftMawka = (this.appIcon ? this.appIcon.cwientWidth : 0) + this.menubaw.cwientWidth + 10;
+			const wightMawka = this.ewement.cwientWidth - 10;
 
-			// Not enough space to center the titlebar within window,
-			// Center between menu and window controls
-			if (leftMarker > (this.element.clientWidth - this.title.clientWidth) / 2 ||
-				rightMarker < (this.element.clientWidth + this.title.clientWidth) / 2) {
-				this.title.style.position = '';
-				this.title.style.left = '';
-				this.title.style.transform = '';
-				return;
+			// Not enough space to centa the titwebaw within window,
+			// Centa between menu and window contwows
+			if (weftMawka > (this.ewement.cwientWidth - this.titwe.cwientWidth) / 2 ||
+				wightMawka < (this.ewement.cwientWidth + this.titwe.cwientWidth) / 2) {
+				this.titwe.stywe.position = '';
+				this.titwe.stywe.weft = '';
+				this.titwe.stywe.twansfowm = '';
+				wetuwn;
 			}
 		}
 
-		this.title.style.position = 'absolute';
-		this.title.style.left = '50%';
-		this.title.style.transform = 'translate(-50%, 0)';
+		this.titwe.stywe.position = 'absowute';
+		this.titwe.stywe.weft = '50%';
+		this.titwe.stywe.twansfowm = 'twanswate(-50%, 0)';
 	}
 
-	protected get currentMenubarVisibility(): MenuBarVisibility {
-		return getMenuBarVisibility(this.configurationService);
+	pwotected get cuwwentMenubawVisibiwity(): MenuBawVisibiwity {
+		wetuwn getMenuBawVisibiwity(this.configuwationSewvice);
 	}
 
-	updateLayout(dimension: Dimension): void {
-		this.lastLayoutDimensions = dimension;
+	updateWayout(dimension: Dimension): void {
+		this.wastWayoutDimensions = dimension;
 
-		if (getTitleBarStyle(this.configurationService) === 'custom') {
-			// Only prevent zooming behavior on macOS or when the menubar is not visible
-			if ((!isWeb && isMacintosh) || this.currentMenubarVisibility === 'hidden') {
-				(this.title.style as any).zoom = `${1 / getZoomFactor()}`;
-			} else {
-				(this.title.style as any).zoom = '';
+		if (getTitweBawStywe(this.configuwationSewvice) === 'custom') {
+			// Onwy pwevent zooming behaviow on macOS ow when the menubaw is not visibwe
+			if ((!isWeb && isMacintosh) || this.cuwwentMenubawVisibiwity === 'hidden') {
+				(this.titwe.stywe as any).zoom = `${1 / getZoomFactow()}`;
+			} ewse {
+				(this.titwe.stywe as any).zoom = '';
 			}
 
-			runAtThisOrScheduleAtNextAnimationFrame(() => this.adjustTitleMarginToCenter());
+			wunAtThisOwScheduweAtNextAnimationFwame(() => this.adjustTitweMawginToCenta());
 
-			if (this.customMenubar) {
-				const menubarDimension = new Dimension(0, dimension.height);
-				this.customMenubar.layout(menubarDimension);
+			if (this.customMenubaw) {
+				const menubawDimension = new Dimension(0, dimension.height);
+				this.customMenubaw.wayout(menubawDimension);
 			}
 		}
 	}
 
-	override layout(width: number, height: number): void {
-		this.updateLayout(new Dimension(width, height));
+	ovewwide wayout(width: numba, height: numba): void {
+		this.updateWayout(new Dimension(width, height));
 
-		super.layoutContents(width, height);
+		supa.wayoutContents(width, height);
 	}
 
 	toJSON(): object {
-		return {
-			type: Parts.TITLEBAR_PART
+		wetuwn {
+			type: Pawts.TITWEBAW_PAWT
 		};
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const titlebarActiveFg = theme.getColor(TITLE_BAR_ACTIVE_FOREGROUND);
-	if (titlebarActiveFg) {
-		collector.addRule(`
-		.monaco-workbench .part.titlebar > .window-controls-container .window-icon {
-			color: ${titlebarActiveFg};
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const titwebawActiveFg = theme.getCowow(TITWE_BAW_ACTIVE_FOWEGWOUND);
+	if (titwebawActiveFg) {
+		cowwectow.addWuwe(`
+		.monaco-wowkbench .pawt.titwebaw > .window-contwows-containa .window-icon {
+			cowow: ${titwebawActiveFg};
 		}
 		`);
 	}
 
-	const titlebarInactiveFg = theme.getColor(TITLE_BAR_INACTIVE_FOREGROUND);
-	if (titlebarInactiveFg) {
-		collector.addRule(`
-		.monaco-workbench .part.titlebar.inactive > .window-controls-container .window-icon {
-				color: ${titlebarInactiveFg};
+	const titwebawInactiveFg = theme.getCowow(TITWE_BAW_INACTIVE_FOWEGWOUND);
+	if (titwebawInactiveFg) {
+		cowwectow.addWuwe(`
+		.monaco-wowkbench .pawt.titwebaw.inactive > .window-contwows-containa .window-icon {
+				cowow: ${titwebawInactiveFg};
 			}
 		`);
 	}

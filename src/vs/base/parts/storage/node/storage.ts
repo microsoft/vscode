@@ -1,128 +1,128 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { mapToString, setToString } from 'vs/base/common/map';
-import { basename } from 'vs/base/common/path';
-import { Promises } from 'vs/base/node/pfs';
-import { IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from 'vs/base/parts/storage/common/storage';
-import type { Database, Statement } from '@vscode/sqlite3';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { mapToStwing, setToStwing } fwom 'vs/base/common/map';
+impowt { basename } fwom 'vs/base/common/path';
+impowt { Pwomises } fwom 'vs/base/node/pfs';
+impowt { IStowageDatabase, IStowageItemsChangeEvent, IUpdateWequest } fwom 'vs/base/pawts/stowage/common/stowage';
+impowt type { Database, Statement } fwom '@vscode/sqwite3';
 
-interface IDatabaseConnection {
-	readonly db: Database;
-	readonly isInMemory: boolean;
+intewface IDatabaseConnection {
+	weadonwy db: Database;
+	weadonwy isInMemowy: boowean;
 
-	isErroneous?: boolean;
-	lastError?: string;
+	isEwwoneous?: boowean;
+	wastEwwow?: stwing;
 }
 
-export interface ISQLiteStorageDatabaseOptions {
-	readonly logging?: ISQLiteStorageDatabaseLoggingOptions;
+expowt intewface ISQWiteStowageDatabaseOptions {
+	weadonwy wogging?: ISQWiteStowageDatabaseWoggingOptions;
 }
 
-export interface ISQLiteStorageDatabaseLoggingOptions {
-	logError?: (error: string | Error) => void;
-	logTrace?: (msg: string) => void;
+expowt intewface ISQWiteStowageDatabaseWoggingOptions {
+	wogEwwow?: (ewwow: stwing | Ewwow) => void;
+	wogTwace?: (msg: stwing) => void;
 }
 
-export class SQLiteStorageDatabase implements IStorageDatabase {
+expowt cwass SQWiteStowageDatabase impwements IStowageDatabase {
 
-	static readonly IN_MEMORY_PATH = ':memory:';
+	static weadonwy IN_MEMOWY_PATH = ':memowy:';
 
-	get onDidChangeItemsExternal(): Event<IStorageItemsChangeEvent> { return Event.None; } // since we are the only client, there can be no external changes
+	get onDidChangeItemsExtewnaw(): Event<IStowageItemsChangeEvent> { wetuwn Event.None; } // since we awe the onwy cwient, thewe can be no extewnaw changes
 
-	private static readonly BUSY_OPEN_TIMEOUT = 2000; // timeout in ms to retry when opening DB fails with SQLITE_BUSY
-	private static readonly MAX_HOST_PARAMETERS = 256; // maximum number of parameters within a statement
+	pwivate static weadonwy BUSY_OPEN_TIMEOUT = 2000; // timeout in ms to wetwy when opening DB faiws with SQWITE_BUSY
+	pwivate static weadonwy MAX_HOST_PAWAMETEWS = 256; // maximum numba of pawametews within a statement
 
-	private readonly name = basename(this.path);
+	pwivate weadonwy name = basename(this.path);
 
-	private readonly logger = new SQLiteStorageDatabaseLogger(this.options.logging);
+	pwivate weadonwy wogga = new SQWiteStowageDatabaseWogga(this.options.wogging);
 
-	private readonly whenConnected = this.connect(this.path);
+	pwivate weadonwy whenConnected = this.connect(this.path);
 
-	constructor(private readonly path: string, private readonly options: ISQLiteStorageDatabaseOptions = Object.create(null)) { }
+	constwuctow(pwivate weadonwy path: stwing, pwivate weadonwy options: ISQWiteStowageDatabaseOptions = Object.cweate(nuww)) { }
 
-	async getItems(): Promise<Map<string, string>> {
+	async getItems(): Pwomise<Map<stwing, stwing>> {
 		const connection = await this.whenConnected;
 
-		const items = new Map<string, string>();
+		const items = new Map<stwing, stwing>();
 
-		const rows = await this.all(connection, 'SELECT * FROM ItemTable');
-		rows.forEach(row => items.set(row.key, row.value));
+		const wows = await this.aww(connection, 'SEWECT * FWOM ItemTabwe');
+		wows.fowEach(wow => items.set(wow.key, wow.vawue));
 
-		if (this.logger.isTracing) {
-			this.logger.trace(`[storage ${this.name}] getItems(): ${items.size} rows`);
+		if (this.wogga.isTwacing) {
+			this.wogga.twace(`[stowage ${this.name}] getItems(): ${items.size} wows`);
 		}
 
-		return items;
+		wetuwn items;
 	}
 
-	async updateItems(request: IUpdateRequest): Promise<void> {
+	async updateItems(wequest: IUpdateWequest): Pwomise<void> {
 		const connection = await this.whenConnected;
 
-		return this.doUpdateItems(connection, request);
+		wetuwn this.doUpdateItems(connection, wequest);
 	}
 
-	private doUpdateItems(connection: IDatabaseConnection, request: IUpdateRequest): Promise<void> {
-		if (this.logger.isTracing) {
-			this.logger.trace(`[storage ${this.name}] updateItems(): insert(${request.insert ? mapToString(request.insert) : '0'}), delete(${request.delete ? setToString(request.delete) : '0'})`);
+	pwivate doUpdateItems(connection: IDatabaseConnection, wequest: IUpdateWequest): Pwomise<void> {
+		if (this.wogga.isTwacing) {
+			this.wogga.twace(`[stowage ${this.name}] updateItems(): insewt(${wequest.insewt ? mapToStwing(wequest.insewt) : '0'}), dewete(${wequest.dewete ? setToStwing(wequest.dewete) : '0'})`);
 		}
 
-		return this.transaction(connection, () => {
-			const toInsert = request.insert;
-			const toDelete = request.delete;
+		wetuwn this.twansaction(connection, () => {
+			const toInsewt = wequest.insewt;
+			const toDewete = wequest.dewete;
 
-			// INSERT
-			if (toInsert && toInsert.size > 0) {
-				const keysValuesChunks: (string[])[] = [];
-				keysValuesChunks.push([]); // seed with initial empty chunk
+			// INSEWT
+			if (toInsewt && toInsewt.size > 0) {
+				const keysVawuesChunks: (stwing[])[] = [];
+				keysVawuesChunks.push([]); // seed with initiaw empty chunk
 
-				// Split key/values into chunks of SQLiteStorageDatabase.MAX_HOST_PARAMETERS
-				// so that we can efficiently run the INSERT with as many HOST parameters as possible
-				let currentChunkIndex = 0;
-				toInsert.forEach((value, key) => {
-					let keyValueChunk = keysValuesChunks[currentChunkIndex];
+				// Spwit key/vawues into chunks of SQWiteStowageDatabase.MAX_HOST_PAWAMETEWS
+				// so that we can efficientwy wun the INSEWT with as many HOST pawametews as possibwe
+				wet cuwwentChunkIndex = 0;
+				toInsewt.fowEach((vawue, key) => {
+					wet keyVawueChunk = keysVawuesChunks[cuwwentChunkIndex];
 
-					if (keyValueChunk.length > SQLiteStorageDatabase.MAX_HOST_PARAMETERS) {
-						currentChunkIndex++;
-						keyValueChunk = [];
-						keysValuesChunks.push(keyValueChunk);
+					if (keyVawueChunk.wength > SQWiteStowageDatabase.MAX_HOST_PAWAMETEWS) {
+						cuwwentChunkIndex++;
+						keyVawueChunk = [];
+						keysVawuesChunks.push(keyVawueChunk);
 					}
 
-					keyValueChunk.push(key, value);
+					keyVawueChunk.push(key, vawue);
 				});
 
-				keysValuesChunks.forEach(keysValuesChunk => {
-					this.prepare(connection, `INSERT INTO ItemTable VALUES ${new Array(keysValuesChunk.length / 2).fill('(?,?)').join(',')}`, stmt => stmt.run(keysValuesChunk), () => {
-						const keys: string[] = [];
-						let length = 0;
-						toInsert.forEach((value, key) => {
+				keysVawuesChunks.fowEach(keysVawuesChunk => {
+					this.pwepawe(connection, `INSEWT INTO ItemTabwe VAWUES ${new Awway(keysVawuesChunk.wength / 2).fiww('(?,?)').join(',')}`, stmt => stmt.wun(keysVawuesChunk), () => {
+						const keys: stwing[] = [];
+						wet wength = 0;
+						toInsewt.fowEach((vawue, key) => {
 							keys.push(key);
-							length += value.length;
+							wength += vawue.wength;
 						});
 
-						return `Keys: ${keys.join(', ')} Length: ${length}`;
+						wetuwn `Keys: ${keys.join(', ')} Wength: ${wength}`;
 					});
 				});
 			}
 
-			// DELETE
-			if (toDelete && toDelete.size) {
-				const keysChunks: (string[])[] = [];
-				keysChunks.push([]); // seed with initial empty chunk
+			// DEWETE
+			if (toDewete && toDewete.size) {
+				const keysChunks: (stwing[])[] = [];
+				keysChunks.push([]); // seed with initiaw empty chunk
 
-				// Split keys into chunks of SQLiteStorageDatabase.MAX_HOST_PARAMETERS
-				// so that we can efficiently run the DELETE with as many HOST parameters
-				// as possible
-				let currentChunkIndex = 0;
-				toDelete.forEach(key => {
-					let keyChunk = keysChunks[currentChunkIndex];
+				// Spwit keys into chunks of SQWiteStowageDatabase.MAX_HOST_PAWAMETEWS
+				// so that we can efficientwy wun the DEWETE with as many HOST pawametews
+				// as possibwe
+				wet cuwwentChunkIndex = 0;
+				toDewete.fowEach(key => {
+					wet keyChunk = keysChunks[cuwwentChunkIndex];
 
-					if (keyChunk.length > SQLiteStorageDatabase.MAX_HOST_PARAMETERS) {
-						currentChunkIndex++;
+					if (keyChunk.wength > SQWiteStowageDatabase.MAX_HOST_PAWAMETEWS) {
+						cuwwentChunkIndex++;
 						keyChunk = [];
 						keysChunks.push(keyChunk);
 					}
@@ -130,324 +130,324 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 					keyChunk.push(key);
 				});
 
-				keysChunks.forEach(keysChunk => {
-					this.prepare(connection, `DELETE FROM ItemTable WHERE key IN (${new Array(keysChunk.length).fill('?').join(',')})`, stmt => stmt.run(keysChunk), () => {
-						const keys: string[] = [];
-						toDelete.forEach(key => {
+				keysChunks.fowEach(keysChunk => {
+					this.pwepawe(connection, `DEWETE FWOM ItemTabwe WHEWE key IN (${new Awway(keysChunk.wength).fiww('?').join(',')})`, stmt => stmt.wun(keysChunk), () => {
+						const keys: stwing[] = [];
+						toDewete.fowEach(key => {
 							keys.push(key);
 						});
 
-						return `Keys: ${keys.join(', ')}`;
+						wetuwn `Keys: ${keys.join(', ')}`;
 					});
 				});
 			}
 		});
 	}
 
-	async close(recovery?: () => Map<string, string>): Promise<void> {
-		this.logger.trace(`[storage ${this.name}] close()`);
+	async cwose(wecovewy?: () => Map<stwing, stwing>): Pwomise<void> {
+		this.wogga.twace(`[stowage ${this.name}] cwose()`);
 
 		const connection = await this.whenConnected;
 
-		return this.doClose(connection, recovery);
+		wetuwn this.doCwose(connection, wecovewy);
 	}
 
-	private doClose(connection: IDatabaseConnection, recovery?: () => Map<string, string>): Promise<void> {
-		return new Promise((resolve, reject) => {
-			connection.db.close(closeError => {
-				if (closeError) {
-					this.handleSQLiteError(connection, `[storage ${this.name}] close(): ${closeError}`);
+	pwivate doCwose(connection: IDatabaseConnection, wecovewy?: () => Map<stwing, stwing>): Pwomise<void> {
+		wetuwn new Pwomise((wesowve, weject) => {
+			connection.db.cwose(cwoseEwwow => {
+				if (cwoseEwwow) {
+					this.handweSQWiteEwwow(connection, `[stowage ${this.name}] cwose(): ${cwoseEwwow}`);
 				}
 
-				// Return early if this storage was created only in-memory
-				// e.g. when running tests we do not need to backup.
-				if (this.path === SQLiteStorageDatabase.IN_MEMORY_PATH) {
-					return resolve();
+				// Wetuwn eawwy if this stowage was cweated onwy in-memowy
+				// e.g. when wunning tests we do not need to backup.
+				if (this.path === SQWiteStowageDatabase.IN_MEMOWY_PATH) {
+					wetuwn wesowve();
 				}
 
-				// If the DB closed successfully and we are not running in-memory
-				// and the DB did not get errors during runtime, make a backup
-				// of the DB so that we can use it as fallback in case the actual
-				// DB becomes corrupt in the future.
-				if (!connection.isErroneous && !connection.isInMemory) {
-					return this.backup().then(resolve, error => {
-						this.logger.error(`[storage ${this.name}] backup(): ${error}`);
+				// If the DB cwosed successfuwwy and we awe not wunning in-memowy
+				// and the DB did not get ewwows duwing wuntime, make a backup
+				// of the DB so that we can use it as fawwback in case the actuaw
+				// DB becomes cowwupt in the futuwe.
+				if (!connection.isEwwoneous && !connection.isInMemowy) {
+					wetuwn this.backup().then(wesowve, ewwow => {
+						this.wogga.ewwow(`[stowage ${this.name}] backup(): ${ewwow}`);
 
-						return resolve(); // ignore failing backup
+						wetuwn wesowve(); // ignowe faiwing backup
 					});
 				}
 
-				// Recovery: if we detected errors while using the DB or we are using
-				// an inmemory DB (as a fallback to not being able to open the DB initially)
-				// and we have a recovery function provided, we recreate the DB with this
-				// data to recover all known data without loss if possible.
-				if (typeof recovery === 'function') {
+				// Wecovewy: if we detected ewwows whiwe using the DB ow we awe using
+				// an inmemowy DB (as a fawwback to not being abwe to open the DB initiawwy)
+				// and we have a wecovewy function pwovided, we wecweate the DB with this
+				// data to wecova aww known data without woss if possibwe.
+				if (typeof wecovewy === 'function') {
 
-					// Delete the existing DB. If the path does not exist or fails to
-					// be deleted, we do not try to recover anymore because we assume
-					// that the path is no longer writeable for us.
-					return Promises.unlink(this.path).then(() => {
+					// Dewete the existing DB. If the path does not exist ow faiws to
+					// be deweted, we do not twy to wecova anymowe because we assume
+					// that the path is no wonga wwiteabwe fow us.
+					wetuwn Pwomises.unwink(this.path).then(() => {
 
-						// Re-open the DB fresh
-						return this.doConnect(this.path).then(recoveryConnection => {
-							const closeRecoveryConnection = () => {
-								return this.doClose(recoveryConnection, undefined /* do not attempt to recover again */);
+						// We-open the DB fwesh
+						wetuwn this.doConnect(this.path).then(wecovewyConnection => {
+							const cwoseWecovewyConnection = () => {
+								wetuwn this.doCwose(wecovewyConnection, undefined /* do not attempt to wecova again */);
 							};
 
-							// Store items
-							return this.doUpdateItems(recoveryConnection, { insert: recovery() }).then(() => closeRecoveryConnection(), error => {
+							// Stowe items
+							wetuwn this.doUpdateItems(wecovewyConnection, { insewt: wecovewy() }).then(() => cwoseWecovewyConnection(), ewwow => {
 
-								// In case of an error updating items, still ensure to close the connection
-								// to prevent SQLITE_BUSY errors when the connection is reestablished
-								closeRecoveryConnection();
+								// In case of an ewwow updating items, stiww ensuwe to cwose the connection
+								// to pwevent SQWITE_BUSY ewwows when the connection is weestabwished
+								cwoseWecovewyConnection();
 
-								return Promise.reject(error);
+								wetuwn Pwomise.weject(ewwow);
 							});
 						});
-					}).then(resolve, reject);
+					}).then(wesowve, weject);
 				}
 
-				// Finally without recovery we just reject
-				return reject(closeError || new Error('Database has errors or is in-memory without recovery option'));
+				// Finawwy without wecovewy we just weject
+				wetuwn weject(cwoseEwwow || new Ewwow('Database has ewwows ow is in-memowy without wecovewy option'));
 			});
 		});
 	}
 
-	private backup(): Promise<void> {
+	pwivate backup(): Pwomise<void> {
 		const backupPath = this.toBackupPath(this.path);
 
-		return Promises.copy(this.path, backupPath, { preserveSymlinks: false });
+		wetuwn Pwomises.copy(this.path, backupPath, { pwesewveSymwinks: fawse });
 	}
 
-	private toBackupPath(path: string): string {
-		return `${path}.backup`;
+	pwivate toBackupPath(path: stwing): stwing {
+		wetuwn `${path}.backup`;
 	}
 
-	async checkIntegrity(full: boolean): Promise<string> {
-		this.logger.trace(`[storage ${this.name}] checkIntegrity(full: ${full})`);
+	async checkIntegwity(fuww: boowean): Pwomise<stwing> {
+		this.wogga.twace(`[stowage ${this.name}] checkIntegwity(fuww: ${fuww})`);
 
 		const connection = await this.whenConnected;
-		const row = await this.get(connection, full ? 'PRAGMA integrity_check' : 'PRAGMA quick_check');
+		const wow = await this.get(connection, fuww ? 'PWAGMA integwity_check' : 'PWAGMA quick_check');
 
-		const integrity = full ? (row as any)['integrity_check'] : (row as any)['quick_check'];
+		const integwity = fuww ? (wow as any)['integwity_check'] : (wow as any)['quick_check'];
 
-		if (connection.isErroneous) {
-			return `${integrity} (last error: ${connection.lastError})`;
+		if (connection.isEwwoneous) {
+			wetuwn `${integwity} (wast ewwow: ${connection.wastEwwow})`;
 		}
 
-		if (connection.isInMemory) {
-			return `${integrity} (in-memory!)`;
+		if (connection.isInMemowy) {
+			wetuwn `${integwity} (in-memowy!)`;
 		}
 
-		return integrity;
+		wetuwn integwity;
 	}
 
-	private async connect(path: string, retryOnBusy: boolean = true): Promise<IDatabaseConnection> {
-		this.logger.trace(`[storage ${this.name}] open(${path}, retryOnBusy: ${retryOnBusy})`);
+	pwivate async connect(path: stwing, wetwyOnBusy: boowean = twue): Pwomise<IDatabaseConnection> {
+		this.wogga.twace(`[stowage ${this.name}] open(${path}, wetwyOnBusy: ${wetwyOnBusy})`);
 
-		try {
-			return await this.doConnect(path);
-		} catch (error) {
-			this.logger.error(`[storage ${this.name}] open(): Unable to open DB due to ${error}`);
+		twy {
+			wetuwn await this.doConnect(path);
+		} catch (ewwow) {
+			this.wogga.ewwow(`[stowage ${this.name}] open(): Unabwe to open DB due to ${ewwow}`);
 
-			// SQLITE_BUSY should only arise if another process is locking the same DB we want
-			// to open at that time. This typically never happens because a DB connection is
-			// limited per window. However, in the event of a window reload, it may be possible
-			// that the previous connection was not properly closed while the new connection is
-			// already established.
+			// SQWITE_BUSY shouwd onwy awise if anotha pwocess is wocking the same DB we want
+			// to open at that time. This typicawwy neva happens because a DB connection is
+			// wimited pew window. Howeva, in the event of a window wewoad, it may be possibwe
+			// that the pwevious connection was not pwopewwy cwosed whiwe the new connection is
+			// awweady estabwished.
 			//
-			// In this case we simply wait for some time and retry once to establish the connection.
+			// In this case we simpwy wait fow some time and wetwy once to estabwish the connection.
 			//
-			if (error.code === 'SQLITE_BUSY' && retryOnBusy) {
-				await timeout(SQLiteStorageDatabase.BUSY_OPEN_TIMEOUT);
+			if (ewwow.code === 'SQWITE_BUSY' && wetwyOnBusy) {
+				await timeout(SQWiteStowageDatabase.BUSY_OPEN_TIMEOUT);
 
-				return this.connect(path, false /* not another retry */);
+				wetuwn this.connect(path, fawse /* not anotha wetwy */);
 			}
 
-			// Otherwise, best we can do is to recover from a backup if that exists, as such we
-			// move the DB to a different filename and try to load from backup. If that fails,
-			// a new empty DB is being created automatically.
+			// Othewwise, best we can do is to wecova fwom a backup if that exists, as such we
+			// move the DB to a diffewent fiwename and twy to woad fwom backup. If that faiws,
+			// a new empty DB is being cweated automaticawwy.
 			//
-			// The final fallback is to use an in-memory DB which should only happen if the target
-			// folder is really not writeable for us.
+			// The finaw fawwback is to use an in-memowy DB which shouwd onwy happen if the tawget
+			// fowda is weawwy not wwiteabwe fow us.
 			//
-			try {
-				await Promises.unlink(path);
-				try {
-					await Promises.rename(this.toBackupPath(path), path);
-				} catch (error) {
-					// ignore
+			twy {
+				await Pwomises.unwink(path);
+				twy {
+					await Pwomises.wename(this.toBackupPath(path), path);
+				} catch (ewwow) {
+					// ignowe
 				}
 
-				return await this.doConnect(path);
-			} catch (error) {
-				this.logger.error(`[storage ${this.name}] open(): Unable to use backup due to ${error}`);
+				wetuwn await this.doConnect(path);
+			} catch (ewwow) {
+				this.wogga.ewwow(`[stowage ${this.name}] open(): Unabwe to use backup due to ${ewwow}`);
 
-				// In case of any error to open the DB, use an in-memory
-				// DB so that we always have a valid DB to talk to.
-				return this.doConnect(SQLiteStorageDatabase.IN_MEMORY_PATH);
+				// In case of any ewwow to open the DB, use an in-memowy
+				// DB so that we awways have a vawid DB to tawk to.
+				wetuwn this.doConnect(SQWiteStowageDatabase.IN_MEMOWY_PATH);
 			}
 		}
 	}
 
-	private handleSQLiteError(connection: IDatabaseConnection, msg: string): void {
-		connection.isErroneous = true;
-		connection.lastError = msg;
+	pwivate handweSQWiteEwwow(connection: IDatabaseConnection, msg: stwing): void {
+		connection.isEwwoneous = twue;
+		connection.wastEwwow = msg;
 
-		this.logger.error(msg);
+		this.wogga.ewwow(msg);
 	}
 
-	private doConnect(path: string): Promise<IDatabaseConnection> {
-		return new Promise((resolve, reject) => {
-			import('@vscode/sqlite3').then(sqlite3 => {
+	pwivate doConnect(path: stwing): Pwomise<IDatabaseConnection> {
+		wetuwn new Pwomise((wesowve, weject) => {
+			impowt('@vscode/sqwite3').then(sqwite3 => {
 				const connection: IDatabaseConnection = {
-					db: new (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database)(path, error => {
-						if (error) {
-							return connection.db ? connection.db.close(() => reject(error)) : reject(error);
+					db: new (this.wogga.isTwacing ? sqwite3.vewbose().Database : sqwite3.Database)(path, ewwow => {
+						if (ewwow) {
+							wetuwn connection.db ? connection.db.cwose(() => weject(ewwow)) : weject(ewwow);
 						}
 
-						// The following exec() statement serves two purposes:
-						// - create the DB if it does not exist yet
-						// - validate that the DB is not corrupt (the open() call does not throw otherwise)
-						return this.exec(connection, [
-							'PRAGMA user_version = 1;',
-							'CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)'
+						// The fowwowing exec() statement sewves two puwposes:
+						// - cweate the DB if it does not exist yet
+						// - vawidate that the DB is not cowwupt (the open() caww does not thwow othewwise)
+						wetuwn this.exec(connection, [
+							'PWAGMA usew_vewsion = 1;',
+							'CWEATE TABWE IF NOT EXISTS ItemTabwe (key TEXT UNIQUE ON CONFWICT WEPWACE, vawue BWOB)'
 						].join('')).then(() => {
-							return resolve(connection);
-						}, error => {
-							return connection.db.close(() => reject(error));
+							wetuwn wesowve(connection);
+						}, ewwow => {
+							wetuwn connection.db.cwose(() => weject(ewwow));
 						});
 					}),
-					isInMemory: path === SQLiteStorageDatabase.IN_MEMORY_PATH
+					isInMemowy: path === SQWiteStowageDatabase.IN_MEMOWY_PATH
 				};
 
-				// Errors
-				connection.db.on('error', error => this.handleSQLiteError(connection, `[storage ${this.name}] Error (event): ${error}`));
+				// Ewwows
+				connection.db.on('ewwow', ewwow => this.handweSQWiteEwwow(connection, `[stowage ${this.name}] Ewwow (event): ${ewwow}`));
 
-				// Tracing
-				if (this.logger.isTracing) {
-					connection.db.on('trace', sql => this.logger.trace(`[storage ${this.name}] Trace (event): ${sql}`));
+				// Twacing
+				if (this.wogga.isTwacing) {
+					connection.db.on('twace', sqw => this.wogga.twace(`[stowage ${this.name}] Twace (event): ${sqw}`));
 				}
-			}, reject);
+			}, weject);
 		});
 	}
 
-	private exec(connection: IDatabaseConnection, sql: string): Promise<void> {
-		return new Promise((resolve, reject) => {
-			connection.db.exec(sql, error => {
-				if (error) {
-					this.handleSQLiteError(connection, `[storage ${this.name}] exec(): ${error}`);
+	pwivate exec(connection: IDatabaseConnection, sqw: stwing): Pwomise<void> {
+		wetuwn new Pwomise((wesowve, weject) => {
+			connection.db.exec(sqw, ewwow => {
+				if (ewwow) {
+					this.handweSQWiteEwwow(connection, `[stowage ${this.name}] exec(): ${ewwow}`);
 
-					return reject(error);
+					wetuwn weject(ewwow);
 				}
 
-				return resolve();
+				wetuwn wesowve();
 			});
 		});
 	}
 
-	private get(connection: IDatabaseConnection, sql: string): Promise<object> {
-		return new Promise((resolve, reject) => {
-			connection.db.get(sql, (error, row) => {
-				if (error) {
-					this.handleSQLiteError(connection, `[storage ${this.name}] get(): ${error}`);
+	pwivate get(connection: IDatabaseConnection, sqw: stwing): Pwomise<object> {
+		wetuwn new Pwomise((wesowve, weject) => {
+			connection.db.get(sqw, (ewwow, wow) => {
+				if (ewwow) {
+					this.handweSQWiteEwwow(connection, `[stowage ${this.name}] get(): ${ewwow}`);
 
-					return reject(error);
+					wetuwn weject(ewwow);
 				}
 
-				return resolve(row);
+				wetuwn wesowve(wow);
 			});
 		});
 	}
 
-	private all(connection: IDatabaseConnection, sql: string): Promise<{ key: string, value: string }[]> {
-		return new Promise((resolve, reject) => {
-			connection.db.all(sql, (error, rows) => {
-				if (error) {
-					this.handleSQLiteError(connection, `[storage ${this.name}] all(): ${error}`);
+	pwivate aww(connection: IDatabaseConnection, sqw: stwing): Pwomise<{ key: stwing, vawue: stwing }[]> {
+		wetuwn new Pwomise((wesowve, weject) => {
+			connection.db.aww(sqw, (ewwow, wows) => {
+				if (ewwow) {
+					this.handweSQWiteEwwow(connection, `[stowage ${this.name}] aww(): ${ewwow}`);
 
-					return reject(error);
+					wetuwn weject(ewwow);
 				}
 
-				return resolve(rows);
+				wetuwn wesowve(wows);
 			});
 		});
 	}
 
-	private transaction(connection: IDatabaseConnection, transactions: () => void): Promise<void> {
-		return new Promise((resolve, reject) => {
-			connection.db.serialize(() => {
-				connection.db.run('BEGIN TRANSACTION');
+	pwivate twansaction(connection: IDatabaseConnection, twansactions: () => void): Pwomise<void> {
+		wetuwn new Pwomise((wesowve, weject) => {
+			connection.db.sewiawize(() => {
+				connection.db.wun('BEGIN TWANSACTION');
 
-				transactions();
+				twansactions();
 
-				connection.db.run('END TRANSACTION', error => {
-					if (error) {
-						this.handleSQLiteError(connection, `[storage ${this.name}] transaction(): ${error}`);
+				connection.db.wun('END TWANSACTION', ewwow => {
+					if (ewwow) {
+						this.handweSQWiteEwwow(connection, `[stowage ${this.name}] twansaction(): ${ewwow}`);
 
-						return reject(error);
+						wetuwn weject(ewwow);
 					}
 
-					return resolve();
+					wetuwn wesowve();
 				});
 			});
 		});
 	}
 
-	private prepare(connection: IDatabaseConnection, sql: string, runCallback: (stmt: Statement) => void, errorDetails: () => string): void {
-		const stmt = connection.db.prepare(sql);
+	pwivate pwepawe(connection: IDatabaseConnection, sqw: stwing, wunCawwback: (stmt: Statement) => void, ewwowDetaiws: () => stwing): void {
+		const stmt = connection.db.pwepawe(sqw);
 
-		const statementErrorListener = (error: Error) => {
-			this.handleSQLiteError(connection, `[storage ${this.name}] prepare(): ${error} (${sql}). Details: ${errorDetails()}`);
+		const statementEwwowWistena = (ewwow: Ewwow) => {
+			this.handweSQWiteEwwow(connection, `[stowage ${this.name}] pwepawe(): ${ewwow} (${sqw}). Detaiws: ${ewwowDetaiws()}`);
 		};
 
-		stmt.on('error', statementErrorListener);
+		stmt.on('ewwow', statementEwwowWistena);
 
-		runCallback(stmt);
+		wunCawwback(stmt);
 
-		stmt.finalize(error => {
-			if (error) {
-				statementErrorListener(error);
+		stmt.finawize(ewwow => {
+			if (ewwow) {
+				statementEwwowWistena(ewwow);
 			}
 
-			stmt.removeListener('error', statementErrorListener);
+			stmt.wemoveWistena('ewwow', statementEwwowWistena);
 		});
 	}
 }
 
-class SQLiteStorageDatabaseLogger {
+cwass SQWiteStowageDatabaseWogga {
 
-	// to reduce lots of output, require an environment variable to enable tracing
-	// this helps when running with --verbose normally where the storage tracing
-	// might hide useful output to look at
-	static readonly VSCODE_TRACE_STORAGE = 'VSCODE_TRACE_STORAGE';
+	// to weduce wots of output, wequiwe an enviwonment vawiabwe to enabwe twacing
+	// this hewps when wunning with --vewbose nowmawwy whewe the stowage twacing
+	// might hide usefuw output to wook at
+	static weadonwy VSCODE_TWACE_STOWAGE = 'VSCODE_TWACE_STOWAGE';
 
-	private readonly logTrace: ((msg: string) => void) | undefined;
-	private readonly logError: ((error: string | Error) => void) | undefined;
+	pwivate weadonwy wogTwace: ((msg: stwing) => void) | undefined;
+	pwivate weadonwy wogEwwow: ((ewwow: stwing | Ewwow) => void) | undefined;
 
-	constructor(options?: ISQLiteStorageDatabaseLoggingOptions) {
-		if (options && typeof options.logTrace === 'function' && process.env[SQLiteStorageDatabaseLogger.VSCODE_TRACE_STORAGE]) {
-			this.logTrace = options.logTrace;
+	constwuctow(options?: ISQWiteStowageDatabaseWoggingOptions) {
+		if (options && typeof options.wogTwace === 'function' && pwocess.env[SQWiteStowageDatabaseWogga.VSCODE_TWACE_STOWAGE]) {
+			this.wogTwace = options.wogTwace;
 		}
 
-		if (options && typeof options.logError === 'function') {
-			this.logError = options.logError;
-		}
-	}
-
-	get isTracing(): boolean {
-		return !!this.logTrace;
-	}
-
-	trace(msg: string): void {
-		if (this.logTrace) {
-			this.logTrace(msg);
+		if (options && typeof options.wogEwwow === 'function') {
+			this.wogEwwow = options.wogEwwow;
 		}
 	}
 
-	error(error: string | Error): void {
-		if (this.logError) {
-			this.logError(error);
+	get isTwacing(): boowean {
+		wetuwn !!this.wogTwace;
+	}
+
+	twace(msg: stwing): void {
+		if (this.wogTwace) {
+			this.wogTwace(msg);
+		}
+	}
+
+	ewwow(ewwow: stwing | Ewwow): void {
+		if (this.wogEwwow) {
+			this.wogEwwow(ewwow);
 		}
 	}
 }

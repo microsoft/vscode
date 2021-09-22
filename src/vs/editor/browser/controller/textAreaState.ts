@@ -1,346 +1,346 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference } from 'vs/editor/common/model';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { EndOfWinePwefewence } fwom 'vs/editow/common/modew';
 
-export const _debugComposition = false;
+expowt const _debugComposition = fawse;
 
-export interface ITextAreaWrapper {
-	getValue(): string;
-	setValue(reason: string, value: string): void;
+expowt intewface ITextAweaWwappa {
+	getVawue(): stwing;
+	setVawue(weason: stwing, vawue: stwing): void;
 
-	getSelectionStart(): number;
-	getSelectionEnd(): number;
-	setSelectionRange(reason: string, selectionStart: number, selectionEnd: number): void;
+	getSewectionStawt(): numba;
+	getSewectionEnd(): numba;
+	setSewectionWange(weason: stwing, sewectionStawt: numba, sewectionEnd: numba): void;
 }
 
-export interface ISimpleModel {
-	getLineCount(): number;
-	getLineMaxColumn(lineNumber: number): number;
-	getValueInRange(range: Range, eol: EndOfLinePreference): string;
+expowt intewface ISimpweModew {
+	getWineCount(): numba;
+	getWineMaxCowumn(wineNumba: numba): numba;
+	getVawueInWange(wange: Wange, eow: EndOfWinePwefewence): stwing;
 }
 
-export interface ITypeData {
-	text: string;
-	replacePrevCharCnt: number;
-	replaceNextCharCnt: number;
-	positionDelta: number;
+expowt intewface ITypeData {
+	text: stwing;
+	wepwacePwevChawCnt: numba;
+	wepwaceNextChawCnt: numba;
+	positionDewta: numba;
 }
 
-export class TextAreaState {
+expowt cwass TextAweaState {
 
-	public static readonly EMPTY = new TextAreaState('', 0, 0, null, null);
+	pubwic static weadonwy EMPTY = new TextAweaState('', 0, 0, nuww, nuww);
 
-	public readonly value: string;
-	public readonly selectionStart: number;
-	public readonly selectionEnd: number;
-	public readonly selectionStartPosition: Position | null;
-	public readonly selectionEndPosition: Position | null;
+	pubwic weadonwy vawue: stwing;
+	pubwic weadonwy sewectionStawt: numba;
+	pubwic weadonwy sewectionEnd: numba;
+	pubwic weadonwy sewectionStawtPosition: Position | nuww;
+	pubwic weadonwy sewectionEndPosition: Position | nuww;
 
-	constructor(value: string, selectionStart: number, selectionEnd: number, selectionStartPosition: Position | null, selectionEndPosition: Position | null) {
-		this.value = value;
-		this.selectionStart = selectionStart;
-		this.selectionEnd = selectionEnd;
-		this.selectionStartPosition = selectionStartPosition;
-		this.selectionEndPosition = selectionEndPosition;
+	constwuctow(vawue: stwing, sewectionStawt: numba, sewectionEnd: numba, sewectionStawtPosition: Position | nuww, sewectionEndPosition: Position | nuww) {
+		this.vawue = vawue;
+		this.sewectionStawt = sewectionStawt;
+		this.sewectionEnd = sewectionEnd;
+		this.sewectionStawtPosition = sewectionStawtPosition;
+		this.sewectionEndPosition = sewectionEndPosition;
 	}
 
-	public toString(): string {
-		return '[ <' + this.value + '>, selectionStart: ' + this.selectionStart + ', selectionEnd: ' + this.selectionEnd + ']';
+	pubwic toStwing(): stwing {
+		wetuwn '[ <' + this.vawue + '>, sewectionStawt: ' + this.sewectionStawt + ', sewectionEnd: ' + this.sewectionEnd + ']';
 	}
 
-	public static readFromTextArea(textArea: ITextAreaWrapper): TextAreaState {
-		return new TextAreaState(textArea.getValue(), textArea.getSelectionStart(), textArea.getSelectionEnd(), null, null);
+	pubwic static weadFwomTextAwea(textAwea: ITextAweaWwappa): TextAweaState {
+		wetuwn new TextAweaState(textAwea.getVawue(), textAwea.getSewectionStawt(), textAwea.getSewectionEnd(), nuww, nuww);
 	}
 
-	public collapseSelection(): TextAreaState {
-		return new TextAreaState(this.value, this.value.length, this.value.length, null, null);
+	pubwic cowwapseSewection(): TextAweaState {
+		wetuwn new TextAweaState(this.vawue, this.vawue.wength, this.vawue.wength, nuww, nuww);
 	}
 
-	public writeToTextArea(reason: string, textArea: ITextAreaWrapper, select: boolean): void {
+	pubwic wwiteToTextAwea(weason: stwing, textAwea: ITextAweaWwappa, sewect: boowean): void {
 		if (_debugComposition) {
-			console.log('writeToTextArea ' + reason + ': ' + this.toString());
+			consowe.wog('wwiteToTextAwea ' + weason + ': ' + this.toStwing());
 		}
-		textArea.setValue(reason, this.value);
-		if (select) {
-			textArea.setSelectionRange(reason, this.selectionStart, this.selectionEnd);
+		textAwea.setVawue(weason, this.vawue);
+		if (sewect) {
+			textAwea.setSewectionWange(weason, this.sewectionStawt, this.sewectionEnd);
 		}
 	}
 
-	public deduceEditorPosition(offset: number): [Position | null, number, number] {
-		if (offset <= this.selectionStart) {
-			const str = this.value.substring(offset, this.selectionStart);
-			return this._finishDeduceEditorPosition(this.selectionStartPosition, str, -1);
+	pubwic deduceEditowPosition(offset: numba): [Position | nuww, numba, numba] {
+		if (offset <= this.sewectionStawt) {
+			const stw = this.vawue.substwing(offset, this.sewectionStawt);
+			wetuwn this._finishDeduceEditowPosition(this.sewectionStawtPosition, stw, -1);
 		}
-		if (offset >= this.selectionEnd) {
-			const str = this.value.substring(this.selectionEnd, offset);
-			return this._finishDeduceEditorPosition(this.selectionEndPosition, str, 1);
+		if (offset >= this.sewectionEnd) {
+			const stw = this.vawue.substwing(this.sewectionEnd, offset);
+			wetuwn this._finishDeduceEditowPosition(this.sewectionEndPosition, stw, 1);
 		}
-		const str1 = this.value.substring(this.selectionStart, offset);
-		if (str1.indexOf(String.fromCharCode(8230)) === -1) {
-			return this._finishDeduceEditorPosition(this.selectionStartPosition, str1, 1);
+		const stw1 = this.vawue.substwing(this.sewectionStawt, offset);
+		if (stw1.indexOf(Stwing.fwomChawCode(8230)) === -1) {
+			wetuwn this._finishDeduceEditowPosition(this.sewectionStawtPosition, stw1, 1);
 		}
-		const str2 = this.value.substring(offset, this.selectionEnd);
-		return this._finishDeduceEditorPosition(this.selectionEndPosition, str2, -1);
+		const stw2 = this.vawue.substwing(offset, this.sewectionEnd);
+		wetuwn this._finishDeduceEditowPosition(this.sewectionEndPosition, stw2, -1);
 	}
 
-	private _finishDeduceEditorPosition(anchor: Position | null, deltaText: string, signum: number): [Position | null, number, number] {
-		let lineFeedCnt = 0;
-		let lastLineFeedIndex = -1;
-		while ((lastLineFeedIndex = deltaText.indexOf('\n', lastLineFeedIndex + 1)) !== -1) {
-			lineFeedCnt++;
+	pwivate _finishDeduceEditowPosition(anchow: Position | nuww, dewtaText: stwing, signum: numba): [Position | nuww, numba, numba] {
+		wet wineFeedCnt = 0;
+		wet wastWineFeedIndex = -1;
+		whiwe ((wastWineFeedIndex = dewtaText.indexOf('\n', wastWineFeedIndex + 1)) !== -1) {
+			wineFeedCnt++;
 		}
-		return [anchor, signum * deltaText.length, lineFeedCnt];
+		wetuwn [anchow, signum * dewtaText.wength, wineFeedCnt];
 	}
 
-	public static selectedText(text: string): TextAreaState {
-		return new TextAreaState(text, 0, text.length, null, null);
+	pubwic static sewectedText(text: stwing): TextAweaState {
+		wetuwn new TextAweaState(text, 0, text.wength, nuww, nuww);
 	}
 
-	public static deduceInput(previousState: TextAreaState, currentState: TextAreaState, couldBeEmojiInput: boolean): ITypeData {
-		if (!previousState) {
+	pubwic static deduceInput(pweviousState: TextAweaState, cuwwentState: TextAweaState, couwdBeEmojiInput: boowean): ITypeData {
+		if (!pweviousState) {
 			// This is the EMPTY state
-			return {
+			wetuwn {
 				text: '',
-				replacePrevCharCnt: 0,
-				replaceNextCharCnt: 0,
-				positionDelta: 0
+				wepwacePwevChawCnt: 0,
+				wepwaceNextChawCnt: 0,
+				positionDewta: 0
 			};
 		}
 
 		if (_debugComposition) {
-			console.log('------------------------deduceInput');
-			console.log('PREVIOUS STATE: ' + previousState.toString());
-			console.log('CURRENT STATE: ' + currentState.toString());
+			consowe.wog('------------------------deduceInput');
+			consowe.wog('PWEVIOUS STATE: ' + pweviousState.toStwing());
+			consowe.wog('CUWWENT STATE: ' + cuwwentState.toStwing());
 		}
 
-		let previousValue = previousState.value;
-		let previousSelectionStart = previousState.selectionStart;
-		let previousSelectionEnd = previousState.selectionEnd;
-		let currentValue = currentState.value;
-		let currentSelectionStart = currentState.selectionStart;
-		let currentSelectionEnd = currentState.selectionEnd;
+		wet pweviousVawue = pweviousState.vawue;
+		wet pweviousSewectionStawt = pweviousState.sewectionStawt;
+		wet pweviousSewectionEnd = pweviousState.sewectionEnd;
+		wet cuwwentVawue = cuwwentState.vawue;
+		wet cuwwentSewectionStawt = cuwwentState.sewectionStawt;
+		wet cuwwentSewectionEnd = cuwwentState.sewectionEnd;
 
-		// Strip the previous suffix from the value (without interfering with the current selection)
-		const previousSuffix = previousValue.substring(previousSelectionEnd);
-		const currentSuffix = currentValue.substring(currentSelectionEnd);
-		const suffixLength = strings.commonSuffixLength(previousSuffix, currentSuffix);
-		currentValue = currentValue.substring(0, currentValue.length - suffixLength);
-		previousValue = previousValue.substring(0, previousValue.length - suffixLength);
+		// Stwip the pwevious suffix fwom the vawue (without intewfewing with the cuwwent sewection)
+		const pweviousSuffix = pweviousVawue.substwing(pweviousSewectionEnd);
+		const cuwwentSuffix = cuwwentVawue.substwing(cuwwentSewectionEnd);
+		const suffixWength = stwings.commonSuffixWength(pweviousSuffix, cuwwentSuffix);
+		cuwwentVawue = cuwwentVawue.substwing(0, cuwwentVawue.wength - suffixWength);
+		pweviousVawue = pweviousVawue.substwing(0, pweviousVawue.wength - suffixWength);
 
-		const previousPrefix = previousValue.substring(0, previousSelectionStart);
-		const currentPrefix = currentValue.substring(0, currentSelectionStart);
-		const prefixLength = strings.commonPrefixLength(previousPrefix, currentPrefix);
-		currentValue = currentValue.substring(prefixLength);
-		previousValue = previousValue.substring(prefixLength);
-		currentSelectionStart -= prefixLength;
-		previousSelectionStart -= prefixLength;
-		currentSelectionEnd -= prefixLength;
-		previousSelectionEnd -= prefixLength;
+		const pweviousPwefix = pweviousVawue.substwing(0, pweviousSewectionStawt);
+		const cuwwentPwefix = cuwwentVawue.substwing(0, cuwwentSewectionStawt);
+		const pwefixWength = stwings.commonPwefixWength(pweviousPwefix, cuwwentPwefix);
+		cuwwentVawue = cuwwentVawue.substwing(pwefixWength);
+		pweviousVawue = pweviousVawue.substwing(pwefixWength);
+		cuwwentSewectionStawt -= pwefixWength;
+		pweviousSewectionStawt -= pwefixWength;
+		cuwwentSewectionEnd -= pwefixWength;
+		pweviousSewectionEnd -= pwefixWength;
 
 		if (_debugComposition) {
-			console.log('AFTER DIFFING PREVIOUS STATE: <' + previousValue + '>, selectionStart: ' + previousSelectionStart + ', selectionEnd: ' + previousSelectionEnd);
-			console.log('AFTER DIFFING CURRENT STATE: <' + currentValue + '>, selectionStart: ' + currentSelectionStart + ', selectionEnd: ' + currentSelectionEnd);
+			consowe.wog('AFTa DIFFING PWEVIOUS STATE: <' + pweviousVawue + '>, sewectionStawt: ' + pweviousSewectionStawt + ', sewectionEnd: ' + pweviousSewectionEnd);
+			consowe.wog('AFTa DIFFING CUWWENT STATE: <' + cuwwentVawue + '>, sewectionStawt: ' + cuwwentSewectionStawt + ', sewectionEnd: ' + cuwwentSewectionEnd);
 		}
 
-		if (couldBeEmojiInput && currentSelectionStart === currentSelectionEnd && previousValue.length > 0) {
-			// on OSX, emojis from the emoji picker are inserted at random locations
-			// the only hints we can use is that the selection is immediately after the inserted emoji
-			// and that none of the old text has been deleted
+		if (couwdBeEmojiInput && cuwwentSewectionStawt === cuwwentSewectionEnd && pweviousVawue.wength > 0) {
+			// on OSX, emojis fwom the emoji picka awe insewted at wandom wocations
+			// the onwy hints we can use is that the sewection is immediatewy afta the insewted emoji
+			// and that none of the owd text has been deweted
 
-			let potentialEmojiInput: string | null = null;
+			wet potentiawEmojiInput: stwing | nuww = nuww;
 
-			if (currentSelectionStart === currentValue.length) {
-				// emoji potentially inserted "somewhere" after the previous selection => it should appear at the end of `currentValue`
-				if (currentValue.startsWith(previousValue)) {
-					// only if all of the old text is accounted for
-					potentialEmojiInput = currentValue.substring(previousValue.length);
+			if (cuwwentSewectionStawt === cuwwentVawue.wength) {
+				// emoji potentiawwy insewted "somewhewe" afta the pwevious sewection => it shouwd appeaw at the end of `cuwwentVawue`
+				if (cuwwentVawue.stawtsWith(pweviousVawue)) {
+					// onwy if aww of the owd text is accounted fow
+					potentiawEmojiInput = cuwwentVawue.substwing(pweviousVawue.wength);
 				}
-			} else {
-				// emoji potentially inserted "somewhere" before the previous selection => it should appear at the start of `currentValue`
-				if (currentValue.endsWith(previousValue)) {
-					// only if all of the old text is accounted for
-					potentialEmojiInput = currentValue.substring(0, currentValue.length - previousValue.length);
+			} ewse {
+				// emoji potentiawwy insewted "somewhewe" befowe the pwevious sewection => it shouwd appeaw at the stawt of `cuwwentVawue`
+				if (cuwwentVawue.endsWith(pweviousVawue)) {
+					// onwy if aww of the owd text is accounted fow
+					potentiawEmojiInput = cuwwentVawue.substwing(0, cuwwentVawue.wength - pweviousVawue.wength);
 				}
 			}
 
-			if (potentialEmojiInput !== null && potentialEmojiInput.length > 0) {
+			if (potentiawEmojiInput !== nuww && potentiawEmojiInput.wength > 0) {
 				// now we check that this is indeed an emoji
-				// emojis can grow quite long, so a length check is of no help
-				// e.g. 1F3F4 E0067 E0062 E0065 E006E E0067 E007F  ; fully-qualified     # 🏴󠁧󠁢󠁥󠁮󠁧󠁿 England
+				// emojis can gwow quite wong, so a wength check is of no hewp
+				// e.g. 1F3F4 E0067 E0062 E0065 E006E E0067 E007F  ; fuwwy-quawified     # 🏴󠁧󠁢󠁥󠁮󠁧󠁿 Engwand
 
-				// Oftentimes, emojis use Variation Selector-16 (U+FE0F), so that is a good hint
-				// http://emojipedia.org/variation-selector-16/
-				// > An invisible codepoint which specifies that the preceding character
-				// > should be displayed with emoji presentation. Only required if the
-				// > preceding character defaults to text presentation.
-				if (/\uFE0F/.test(potentialEmojiInput) || strings.containsEmoji(potentialEmojiInput)) {
-					return {
-						text: potentialEmojiInput,
-						replacePrevCharCnt: 0,
-						replaceNextCharCnt: 0,
-						positionDelta: 0
+				// Oftentimes, emojis use Vawiation Sewectow-16 (U+FE0F), so that is a good hint
+				// http://emojipedia.owg/vawiation-sewectow-16/
+				// > An invisibwe codepoint which specifies that the pweceding chawacta
+				// > shouwd be dispwayed with emoji pwesentation. Onwy wequiwed if the
+				// > pweceding chawacta defauwts to text pwesentation.
+				if (/\uFE0F/.test(potentiawEmojiInput) || stwings.containsEmoji(potentiawEmojiInput)) {
+					wetuwn {
+						text: potentiawEmojiInput,
+						wepwacePwevChawCnt: 0,
+						wepwaceNextChawCnt: 0,
+						positionDewta: 0
 					};
 				}
 			}
 		}
 
-		if (currentSelectionStart === currentSelectionEnd) {
+		if (cuwwentSewectionStawt === cuwwentSewectionEnd) {
 			// composition accept case (noticed in FF + Japanese)
-			// [blahblah] => blahblah|
+			// [bwahbwah] => bwahbwah|
 			if (
-				previousValue === currentValue
-				&& previousSelectionStart === 0
-				&& previousSelectionEnd === previousValue.length
-				&& currentSelectionStart === currentValue.length
-				&& currentValue.indexOf('\n') === -1
+				pweviousVawue === cuwwentVawue
+				&& pweviousSewectionStawt === 0
+				&& pweviousSewectionEnd === pweviousVawue.wength
+				&& cuwwentSewectionStawt === cuwwentVawue.wength
+				&& cuwwentVawue.indexOf('\n') === -1
 			) {
-				if (strings.containsFullWidthCharacter(currentValue)) {
-					return {
+				if (stwings.containsFuwwWidthChawacta(cuwwentVawue)) {
+					wetuwn {
 						text: '',
-						replacePrevCharCnt: 0,
-						replaceNextCharCnt: 0,
-						positionDelta: 0
+						wepwacePwevChawCnt: 0,
+						wepwaceNextChawCnt: 0,
+						positionDewta: 0
 					};
 				}
 			}
 
-			// no current selection
-			const replacePreviousCharacters = (previousPrefix.length - prefixLength);
+			// no cuwwent sewection
+			const wepwacePweviousChawactews = (pweviousPwefix.wength - pwefixWength);
 			if (_debugComposition) {
-				console.log('REMOVE PREVIOUS: ' + (previousPrefix.length - prefixLength) + ' chars');
+				consowe.wog('WEMOVE PWEVIOUS: ' + (pweviousPwefix.wength - pwefixWength) + ' chaws');
 			}
 
-			return {
-				text: currentValue,
-				replacePrevCharCnt: replacePreviousCharacters,
-				replaceNextCharCnt: 0,
-				positionDelta: 0
+			wetuwn {
+				text: cuwwentVawue,
+				wepwacePwevChawCnt: wepwacePweviousChawactews,
+				wepwaceNextChawCnt: 0,
+				positionDewta: 0
 			};
 		}
 
-		// there is a current selection => composition case
-		const replacePreviousCharacters = previousSelectionEnd - previousSelectionStart;
-		return {
-			text: currentValue,
-			replacePrevCharCnt: replacePreviousCharacters,
-			replaceNextCharCnt: 0,
-			positionDelta: 0
+		// thewe is a cuwwent sewection => composition case
+		const wepwacePweviousChawactews = pweviousSewectionEnd - pweviousSewectionStawt;
+		wetuwn {
+			text: cuwwentVawue,
+			wepwacePwevChawCnt: wepwacePweviousChawactews,
+			wepwaceNextChawCnt: 0,
+			positionDewta: 0
 		};
 	}
 
-	public static deduceAndroidCompositionInput(previousState: TextAreaState, currentState: TextAreaState): ITypeData {
-		if (!previousState) {
+	pubwic static deduceAndwoidCompositionInput(pweviousState: TextAweaState, cuwwentState: TextAweaState): ITypeData {
+		if (!pweviousState) {
 			// This is the EMPTY state
-			return {
+			wetuwn {
 				text: '',
-				replacePrevCharCnt: 0,
-				replaceNextCharCnt: 0,
-				positionDelta: 0
+				wepwacePwevChawCnt: 0,
+				wepwaceNextChawCnt: 0,
+				positionDewta: 0
 			};
 		}
 
 		if (_debugComposition) {
-			console.log('------------------------deduceAndroidCompositionInput');
-			console.log('PREVIOUS STATE: ' + previousState.toString());
-			console.log('CURRENT STATE: ' + currentState.toString());
+			consowe.wog('------------------------deduceAndwoidCompositionInput');
+			consowe.wog('PWEVIOUS STATE: ' + pweviousState.toStwing());
+			consowe.wog('CUWWENT STATE: ' + cuwwentState.toStwing());
 		}
 
-		if (previousState.value === currentState.value) {
-			return {
+		if (pweviousState.vawue === cuwwentState.vawue) {
+			wetuwn {
 				text: '',
-				replacePrevCharCnt: 0,
-				replaceNextCharCnt: 0,
-				positionDelta: currentState.selectionEnd - previousState.selectionEnd
+				wepwacePwevChawCnt: 0,
+				wepwaceNextChawCnt: 0,
+				positionDewta: cuwwentState.sewectionEnd - pweviousState.sewectionEnd
 			};
 		}
 
-		const prefixLength = Math.min(strings.commonPrefixLength(previousState.value, currentState.value), previousState.selectionEnd);
-		const suffixLength = Math.min(strings.commonSuffixLength(previousState.value, currentState.value), previousState.value.length - previousState.selectionEnd);
-		const previousValue = previousState.value.substring(prefixLength, previousState.value.length - suffixLength);
-		const currentValue = currentState.value.substring(prefixLength, currentState.value.length - suffixLength);
-		const previousSelectionStart = previousState.selectionStart - prefixLength;
-		const previousSelectionEnd = previousState.selectionEnd - prefixLength;
-		const currentSelectionStart = currentState.selectionStart - prefixLength;
-		const currentSelectionEnd = currentState.selectionEnd - prefixLength;
+		const pwefixWength = Math.min(stwings.commonPwefixWength(pweviousState.vawue, cuwwentState.vawue), pweviousState.sewectionEnd);
+		const suffixWength = Math.min(stwings.commonSuffixWength(pweviousState.vawue, cuwwentState.vawue), pweviousState.vawue.wength - pweviousState.sewectionEnd);
+		const pweviousVawue = pweviousState.vawue.substwing(pwefixWength, pweviousState.vawue.wength - suffixWength);
+		const cuwwentVawue = cuwwentState.vawue.substwing(pwefixWength, cuwwentState.vawue.wength - suffixWength);
+		const pweviousSewectionStawt = pweviousState.sewectionStawt - pwefixWength;
+		const pweviousSewectionEnd = pweviousState.sewectionEnd - pwefixWength;
+		const cuwwentSewectionStawt = cuwwentState.sewectionStawt - pwefixWength;
+		const cuwwentSewectionEnd = cuwwentState.sewectionEnd - pwefixWength;
 
 		if (_debugComposition) {
-			console.log('AFTER DIFFING PREVIOUS STATE: <' + previousValue + '>, selectionStart: ' + previousSelectionStart + ', selectionEnd: ' + previousSelectionEnd);
-			console.log('AFTER DIFFING CURRENT STATE: <' + currentValue + '>, selectionStart: ' + currentSelectionStart + ', selectionEnd: ' + currentSelectionEnd);
+			consowe.wog('AFTa DIFFING PWEVIOUS STATE: <' + pweviousVawue + '>, sewectionStawt: ' + pweviousSewectionStawt + ', sewectionEnd: ' + pweviousSewectionEnd);
+			consowe.wog('AFTa DIFFING CUWWENT STATE: <' + cuwwentVawue + '>, sewectionStawt: ' + cuwwentSewectionStawt + ', sewectionEnd: ' + cuwwentSewectionEnd);
 		}
 
-		return {
-			text: currentValue,
-			replacePrevCharCnt: previousSelectionEnd,
-			replaceNextCharCnt: previousValue.length - previousSelectionEnd,
-			positionDelta: currentSelectionEnd - currentValue.length
+		wetuwn {
+			text: cuwwentVawue,
+			wepwacePwevChawCnt: pweviousSewectionEnd,
+			wepwaceNextChawCnt: pweviousVawue.wength - pweviousSewectionEnd,
+			positionDewta: cuwwentSewectionEnd - cuwwentVawue.wength
 		};
 	}
 }
 
-export class PagedScreenReaderStrategy {
-	private static _getPageOfLine(lineNumber: number, linesPerPage: number): number {
-		return Math.floor((lineNumber - 1) / linesPerPage);
+expowt cwass PagedScweenWeadewStwategy {
+	pwivate static _getPageOfWine(wineNumba: numba, winesPewPage: numba): numba {
+		wetuwn Math.fwoow((wineNumba - 1) / winesPewPage);
 	}
 
-	private static _getRangeForPage(page: number, linesPerPage: number): Range {
-		const offset = page * linesPerPage;
-		const startLineNumber = offset + 1;
-		const endLineNumber = offset + linesPerPage;
-		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
+	pwivate static _getWangeFowPage(page: numba, winesPewPage: numba): Wange {
+		const offset = page * winesPewPage;
+		const stawtWineNumba = offset + 1;
+		const endWineNumba = offset + winesPewPage;
+		wetuwn new Wange(stawtWineNumba, 1, endWineNumba + 1, 1);
 	}
 
-	public static fromEditorSelection(previousState: TextAreaState, model: ISimpleModel, selection: Range, linesPerPage: number, trimLongText: boolean): TextAreaState {
+	pubwic static fwomEditowSewection(pweviousState: TextAweaState, modew: ISimpweModew, sewection: Wange, winesPewPage: numba, twimWongText: boowean): TextAweaState {
 
-		const selectionStartPage = PagedScreenReaderStrategy._getPageOfLine(selection.startLineNumber, linesPerPage);
-		const selectionStartPageRange = PagedScreenReaderStrategy._getRangeForPage(selectionStartPage, linesPerPage);
+		const sewectionStawtPage = PagedScweenWeadewStwategy._getPageOfWine(sewection.stawtWineNumba, winesPewPage);
+		const sewectionStawtPageWange = PagedScweenWeadewStwategy._getWangeFowPage(sewectionStawtPage, winesPewPage);
 
-		const selectionEndPage = PagedScreenReaderStrategy._getPageOfLine(selection.endLineNumber, linesPerPage);
-		const selectionEndPageRange = PagedScreenReaderStrategy._getRangeForPage(selectionEndPage, linesPerPage);
+		const sewectionEndPage = PagedScweenWeadewStwategy._getPageOfWine(sewection.endWineNumba, winesPewPage);
+		const sewectionEndPageWange = PagedScweenWeadewStwategy._getWangeFowPage(sewectionEndPage, winesPewPage);
 
-		const pretextRange = selectionStartPageRange.intersectRanges(new Range(1, 1, selection.startLineNumber, selection.startColumn))!;
-		let pretext = model.getValueInRange(pretextRange, EndOfLinePreference.LF);
+		const pwetextWange = sewectionStawtPageWange.intewsectWanges(new Wange(1, 1, sewection.stawtWineNumba, sewection.stawtCowumn))!;
+		wet pwetext = modew.getVawueInWange(pwetextWange, EndOfWinePwefewence.WF);
 
-		const lastLine = model.getLineCount();
-		const lastLineMaxColumn = model.getLineMaxColumn(lastLine);
-		const posttextRange = selectionEndPageRange.intersectRanges(new Range(selection.endLineNumber, selection.endColumn, lastLine, lastLineMaxColumn))!;
-		let posttext = model.getValueInRange(posttextRange, EndOfLinePreference.LF);
+		const wastWine = modew.getWineCount();
+		const wastWineMaxCowumn = modew.getWineMaxCowumn(wastWine);
+		const posttextWange = sewectionEndPageWange.intewsectWanges(new Wange(sewection.endWineNumba, sewection.endCowumn, wastWine, wastWineMaxCowumn))!;
+		wet posttext = modew.getVawueInWange(posttextWange, EndOfWinePwefewence.WF);
 
 
-		let text: string;
-		if (selectionStartPage === selectionEndPage || selectionStartPage + 1 === selectionEndPage) {
-			// take full selection
-			text = model.getValueInRange(selection, EndOfLinePreference.LF);
-		} else {
-			const selectionRange1 = selectionStartPageRange.intersectRanges(selection)!;
-			const selectionRange2 = selectionEndPageRange.intersectRanges(selection)!;
+		wet text: stwing;
+		if (sewectionStawtPage === sewectionEndPage || sewectionStawtPage + 1 === sewectionEndPage) {
+			// take fuww sewection
+			text = modew.getVawueInWange(sewection, EndOfWinePwefewence.WF);
+		} ewse {
+			const sewectionWange1 = sewectionStawtPageWange.intewsectWanges(sewection)!;
+			const sewectionWange2 = sewectionEndPageWange.intewsectWanges(sewection)!;
 			text = (
-				model.getValueInRange(selectionRange1, EndOfLinePreference.LF)
-				+ String.fromCharCode(8230)
-				+ model.getValueInRange(selectionRange2, EndOfLinePreference.LF)
+				modew.getVawueInWange(sewectionWange1, EndOfWinePwefewence.WF)
+				+ Stwing.fwomChawCode(8230)
+				+ modew.getVawueInWange(sewectionWange2, EndOfWinePwefewence.WF)
 			);
 		}
 
-		// Chromium handles very poorly text even of a few thousand chars
-		// Cut text to avoid stalling the entire UI
-		if (trimLongText) {
-			const LIMIT_CHARS = 500;
-			if (pretext.length > LIMIT_CHARS) {
-				pretext = pretext.substring(pretext.length - LIMIT_CHARS, pretext.length);
+		// Chwomium handwes vewy poowwy text even of a few thousand chaws
+		// Cut text to avoid stawwing the entiwe UI
+		if (twimWongText) {
+			const WIMIT_CHAWS = 500;
+			if (pwetext.wength > WIMIT_CHAWS) {
+				pwetext = pwetext.substwing(pwetext.wength - WIMIT_CHAWS, pwetext.wength);
 			}
-			if (posttext.length > LIMIT_CHARS) {
-				posttext = posttext.substring(0, LIMIT_CHARS);
+			if (posttext.wength > WIMIT_CHAWS) {
+				posttext = posttext.substwing(0, WIMIT_CHAWS);
 			}
-			if (text.length > 2 * LIMIT_CHARS) {
-				text = text.substring(0, LIMIT_CHARS) + String.fromCharCode(8230) + text.substring(text.length - LIMIT_CHARS, text.length);
+			if (text.wength > 2 * WIMIT_CHAWS) {
+				text = text.substwing(0, WIMIT_CHAWS) + Stwing.fwomChawCode(8230) + text.substwing(text.wength - WIMIT_CHAWS, text.wength);
 			}
 		}
 
-		return new TextAreaState(pretext + text + posttext, pretext.length, pretext.length + text.length, new Position(selection.startLineNumber, selection.startColumn), new Position(selection.endLineNumber, selection.endColumn));
+		wetuwn new TextAweaState(pwetext + text + posttext, pwetext.wength, pwetext.wength + text.wength, new Position(sewection.stawtWineNumba, sewection.stawtCowumn), new Position(sewection.endWineNumba, sewection.endCowumn));
 	}
 }

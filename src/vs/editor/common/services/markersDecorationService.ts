@@ -1,23 +1,23 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextModel, IModelDecoration } from 'vs/editor/common/model';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IMarker } from 'vs/platform/markers/common/markers';
-import { Event } from 'vs/base/common/event';
-import { Range } from 'vs/editor/common/core/range';
-import { URI } from 'vs/base/common/uri';
+impowt { ITextModew, IModewDecowation } fwom 'vs/editow/common/modew';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IMawka } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export const IMarkerDecorationsService = createDecorator<IMarkerDecorationsService>('markerDecorationsService');
+expowt const IMawkewDecowationsSewvice = cweateDecowatow<IMawkewDecowationsSewvice>('mawkewDecowationsSewvice');
 
-export interface IMarkerDecorationsService {
-	readonly _serviceBrand: undefined;
+expowt intewface IMawkewDecowationsSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	onDidChangeMarker: Event<ITextModel>;
+	onDidChangeMawka: Event<ITextModew>;
 
-	getMarker(uri: URI, decoration: IModelDecoration): IMarker | null;
+	getMawka(uwi: UWI, decowation: IModewDecowation): IMawka | nuww;
 
-	getLiveMarkers(uri: URI): [Range, IMarker][];
+	getWiveMawkews(uwi: UWI): [Wange, IMawka][];
 }

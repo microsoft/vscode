@@ -1,224 +1,224 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { MenuRegistry, MenuId, registerAction2, Action2, ISubmenuItem, IMenuItem, IAction2Options } from 'vs/platform/actions/common/actions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ExtensionsLabel, ExtensionsLocalizedLabel, ExtensionsChannelId, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { EnablementState, IExtensionManagementServerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/services/output/common/output';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, DefaultViewsContext, ExtensionsSortByContext, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ReinstallAction, InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, PromptExtensionInstallFailureAction, SearchExtensionsAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
-import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
-import { StatusUpdater, MaliciousExtensionChecker, ExtensionsViewletViewsContribution, ExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeymapExtensions } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ExtensionActivationProgress } from 'vs/workbench/contrib/extensions/browser/extensionsActivationProgress';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { ExtensionDependencyChecker } from 'vs/workbench/contrib/extensions/browser/extensionsDependencyChecker';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsService } from 'vs/workbench/common/views';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
-import { InstallExtensionQuickAccessProvider, ManageExtensionsQuickAccessProvider } from 'vs/workbench/contrib/extensions/browser/extensionsQuickAccess';
-import { ExtensionRecommendationsService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationsService';
-import { CONTEXT_SYNC_ENABLEMENT } from 'vs/workbench/services/userDataSync/common/userDataSync';
-import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/clipboard';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { MultiCommand } from 'vs/editor/browser/editorExtensions';
-import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
-import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
-import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
-import { ExtensionRecommendationNotificationService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationNotificationService';
-import { IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { IAction } from 'vs/base/common/actions';
-import { IWorkpsaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
-import { Schemas } from 'vs/base/common/network';
-import { ShowRuntimeExtensionsAction } from 'vs/workbench/contrib/extensions/browser/abstractRuntimeExtensionsEditor';
-import { ExtensionEnablementWorkspaceTrustTransitionParticipant } from 'vs/workbench/contrib/extensions/browser/extensionEnablementWorkspaceTrustTransitionParticipant';
-import { clearSearchResultsIcon, configureRecommendedIcon, extensionsViewIcon, filterIcon, installWorkspaceRecommendedIcon, refreshIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
-import { EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { isArray } from 'vs/base/common/types';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
-import { Promises } from 'vs/base/common/async';
-import { EditorExtensions } from 'vs/workbench/common/editor';
-import { WORKSPACE_TRUST_EXTENSION_SUPPORT } from 'vs/workbench/services/workspaces/common/workspaceTrust';
-import { ExtensionsCompletionItemsProvider } from 'vs/workbench/contrib/extensions/browser/extensionsCompletionItemsProvider';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { Event } from 'vs/base/common/event';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+impowt { wocawize } fwom 'vs/nws';
+impowt { KeyMod, KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { MenuWegistwy, MenuId, wegistewAction2, Action2, ISubmenuItem, IMenuItem, IAction2Options } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { ExtensionsWabew, ExtensionsWocawizedWabew, ExtensionsChannewId, IExtensionManagementSewvice, IExtensionGawwewySewvice, PwefewencesWocawizedWabew, InstawwOpewation } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { EnabwementState, IExtensionManagementSewvewSewvice, IWowkbenchExtensionEnabwementSewvice, IWowkbenchExtensionManagementSewvice } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
+impowt { IExtensionIgnowedWecommendationsSewvice, IExtensionWecommendationsSewvice } fwom 'vs/wowkbench/sewvices/extensionWecommendations/common/extensionWecommendations';
+impowt { IWowkbenchContwibutionsWegistwy, Extensions as WowkbenchExtensions, IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IOutputChannewWegistwy, Extensions as OutputExtensions } fwom 'vs/wowkbench/sewvices/output/common/output';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { VIEWWET_ID, IExtensionsWowkbenchSewvice, IExtensionsViewPaneContaina, TOGGWE_IGNOWE_EXTENSION_ACTION_ID, INSTAWW_EXTENSION_FWOM_VSIX_COMMAND_ID, DefauwtViewsContext, ExtensionsSowtByContext, WOWKSPACE_WECOMMENDATIONS_VIEW_ID, IWowkspaceWecommendedExtensionsView, AutoUpdateConfiguwationKey, HasOutdatedExtensionsContext, SEWECT_INSTAWW_VSIX_EXTENSION_COMMAND_ID, WIST_WOWKSPACE_UNSUPPOWTED_EXTENSIONS_COMMAND_ID, ExtensionEditowTab } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { WeinstawwAction, InstawwSpecificVewsionOfExtensionAction, ConfiguweWowkspaceWecommendedExtensionsAction, ConfiguweWowkspaceFowdewWecommendedExtensionsAction, PwomptExtensionInstawwFaiwuweAction, SeawchExtensionsAction } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionsActions';
+impowt { ExtensionsInput } fwom 'vs/wowkbench/contwib/extensions/common/extensionsInput';
+impowt { ExtensionEditow } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionEditow';
+impowt { StatusUpdata, MawiciousExtensionChecka, ExtensionsViewwetViewsContwibution, ExtensionsViewPaneContaina } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionsViewwet';
+impowt { IConfiguwationWegistwy, Extensions as ConfiguwationExtensions, ConfiguwationScope } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt * as jsonContwibutionWegistwy fwom 'vs/pwatfowm/jsonschemas/common/jsonContwibutionWegistwy';
+impowt { ExtensionsConfiguwationSchema, ExtensionsConfiguwationSchemaId } fwom 'vs/wowkbench/contwib/extensions/common/extensionsFiweTempwate';
+impowt { CommandsWegistwy, ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeymapExtensions } fwom 'vs/wowkbench/contwib/extensions/common/extensionsUtiws';
+impowt { aweSameExtensions } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { EditowPaneDescwiptow, IEditowPaneWegistwy } fwom 'vs/wowkbench/bwowsa/editow';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { ExtensionActivationPwogwess } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionsActivationPwogwess';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { ExtensionDependencyChecka } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionsDependencyChecka';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IViewContainewsWegistwy, ViewContainewWocation, Extensions as ViewContainewExtensions, IViewsSewvice } fwom 'vs/wowkbench/common/views';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { IPwefewencesSewvice } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
+impowt { ContextKeyExpw, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IQuickAccessWegistwy, Extensions } fwom 'vs/pwatfowm/quickinput/common/quickAccess';
+impowt { InstawwExtensionQuickAccessPwovida, ManageExtensionsQuickAccessPwovida } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionsQuickAccess';
+impowt { ExtensionWecommendationsSewvice } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionWecommendationsSewvice';
+impowt { CONTEXT_SYNC_ENABWEMENT } fwom 'vs/wowkbench/sewvices/usewDataSync/common/usewDataSync';
+impowt { CopyAction, CutAction, PasteAction } fwom 'vs/editow/contwib/cwipboawd/cwipboawd';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { MuwtiCommand } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { Webview } fwom 'vs/wowkbench/contwib/webview/bwowsa/webview';
+impowt { ExtensionsWowkbenchSewvice } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionsWowkbenchSewvice';
+impowt { WowkbenchStateContext } fwom 'vs/wowkbench/bwowsa/contextkeys';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { IExtensionWecommendationNotificationSewvice } fwom 'vs/pwatfowm/extensionWecommendations/common/extensionWecommendations';
+impowt { ExtensionWecommendationNotificationSewvice } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionWecommendationNotificationSewvice';
+impowt { IExtensionSewvice, toExtensionDescwiption } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { WesouwceContextKey } fwom 'vs/wowkbench/common/wesouwces';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { IWowkpsaceExtensionsConfigSewvice } fwom 'vs/wowkbench/sewvices/extensionWecommendations/common/wowkspaceExtensionsConfig';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { ShowWuntimeExtensionsAction } fwom 'vs/wowkbench/contwib/extensions/bwowsa/abstwactWuntimeExtensionsEditow';
+impowt { ExtensionEnabwementWowkspaceTwustTwansitionPawticipant } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionEnabwementWowkspaceTwustTwansitionPawticipant';
+impowt { cweawSeawchWesuwtsIcon, configuweWecommendedIcon, extensionsViewIcon, fiwtewIcon, instawwWowkspaceWecommendedIcon, wefweshIcon } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionsIcons';
+impowt { EXTENSION_CATEGOWIES } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { Disposabwe, DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isAwway } fwom 'vs/base/common/types';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IDiawogSewvice, IFiweDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { mnemonicButtonWabew } fwom 'vs/base/common/wabews';
+impowt { Quewy } fwom 'vs/wowkbench/contwib/extensions/common/extensionQuewy';
+impowt { Pwomises } fwom 'vs/base/common/async';
+impowt { EditowExtensions } fwom 'vs/wowkbench/common/editow';
+impowt { WOWKSPACE_TWUST_EXTENSION_SUPPOWT } fwom 'vs/wowkbench/sewvices/wowkspaces/common/wowkspaceTwust';
+impowt { ExtensionsCompwetionItemsPwovida } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionsCompwetionItemsPwovida';
+impowt { IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
 
-// Singletons
-registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
-registerSingleton(IExtensionRecommendationNotificationService, ExtensionRecommendationNotificationService);
-registerSingleton(IExtensionRecommendationsService, ExtensionRecommendationsService);
+// Singwetons
+wegistewSingweton(IExtensionsWowkbenchSewvice, ExtensionsWowkbenchSewvice);
+wegistewSingweton(IExtensionWecommendationNotificationSewvice, ExtensionWecommendationNotificationSewvice);
+wegistewSingweton(IExtensionWecommendationsSewvice, ExtensionWecommendationsSewvice);
 
-Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)
-	.registerChannel({ id: ExtensionsChannelId, label: ExtensionsLabel, log: false });
+Wegistwy.as<IOutputChannewWegistwy>(OutputExtensions.OutputChannews)
+	.wegistewChannew({ id: ExtensionsChannewId, wabew: ExtensionsWabew, wog: fawse });
 
 // Quick Access
-Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
-	ctor: ManageExtensionsQuickAccessProvider,
-	prefix: ManageExtensionsQuickAccessProvider.PREFIX,
-	placeholder: localize('manageExtensionsQuickAccessPlaceholder', "Press Enter to manage extensions."),
-	helpEntries: [{ description: localize('manageExtensionsHelp', "Manage Extensions"), needsEditor: false }]
+Wegistwy.as<IQuickAccessWegistwy>(Extensions.Quickaccess).wegistewQuickAccessPwovida({
+	ctow: ManageExtensionsQuickAccessPwovida,
+	pwefix: ManageExtensionsQuickAccessPwovida.PWEFIX,
+	pwacehowda: wocawize('manageExtensionsQuickAccessPwacehowda', "Pwess Enta to manage extensions."),
+	hewpEntwies: [{ descwiption: wocawize('manageExtensionsHewp', "Manage Extensions"), needsEditow: fawse }]
 });
 
-// Editor
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(
-		ExtensionEditor,
-		ExtensionEditor.ID,
-		localize('extension', "Extension")
+// Editow
+Wegistwy.as<IEditowPaneWegistwy>(EditowExtensions.EditowPane).wegistewEditowPane(
+	EditowPaneDescwiptow.cweate(
+		ExtensionEditow,
+		ExtensionEditow.ID,
+		wocawize('extension', "Extension")
 	),
 	[
-		new SyncDescriptor(ExtensionsInput)
+		new SyncDescwiptow(ExtensionsInput)
 	]);
 
 
-Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(
+Wegistwy.as<IViewContainewsWegistwy>(ViewContainewExtensions.ViewContainewsWegistwy).wegistewViewContaina(
 	{
-		id: VIEWLET_ID,
-		title: localize('extensions', "Extensions"),
-		openCommandActionDescriptor: {
-			id: VIEWLET_ID,
-			mnemonicTitle: localize({ key: 'miViewExtensions', comment: ['&& denotes a mnemonic'] }, "E&&xtensions"),
-			keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_X },
-			order: 4,
+		id: VIEWWET_ID,
+		titwe: wocawize('extensions', "Extensions"),
+		openCommandActionDescwiptow: {
+			id: VIEWWET_ID,
+			mnemonicTitwe: wocawize({ key: 'miViewExtensions', comment: ['&& denotes a mnemonic'] }, "E&&xtensions"),
+			keybindings: { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_X },
+			owda: 4,
 		},
-		ctorDescriptor: new SyncDescriptor(ExtensionsViewPaneContainer),
+		ctowDescwiptow: new SyncDescwiptow(ExtensionsViewPaneContaina),
 		icon: extensionsViewIcon,
-		order: 4,
-		rejectAddedViews: true,
-		alwaysUseContainerInfo: true,
-	}, ViewContainerLocation.Sidebar);
+		owda: 4,
+		wejectAddedViews: twue,
+		awwaysUseContainewInfo: twue,
+	}, ViewContainewWocation.Sidebaw);
 
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-	.registerConfiguration({
+Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation)
+	.wegistewConfiguwation({
 		id: 'extensions',
-		order: 30,
-		title: localize('extensionsConfigurationTitle', "Extensions"),
+		owda: 30,
+		titwe: wocawize('extensionsConfiguwationTitwe', "Extensions"),
 		type: 'object',
-		properties: {
+		pwopewties: {
 			'extensions.autoUpdate': {
-				enum: [true, 'onlyEnabledExtensions', false,],
-				enumItemLabels: [
-					localize('all', "All Extensions"),
-					localize('enabled', "Only Enabled Extensions"),
-					localize('none', "None"),
+				enum: [twue, 'onwyEnabwedExtensions', fawse,],
+				enumItemWabews: [
+					wocawize('aww', "Aww Extensions"),
+					wocawize('enabwed', "Onwy Enabwed Extensions"),
+					wocawize('none', "None"),
 				],
-				enumDescriptions: [
-					localize('extensions.autoUpdate.true', 'Download and install updates automatically for all extensions.'),
-					localize('extensions.autoUpdate.enabled', 'Download and install updates automatically only for enabled extensions. Disabled extensions will not be updated automatically.'),
-					localize('extensions.autoUpdate.false', 'Extensions are not automatically updated.'),
+				enumDescwiptions: [
+					wocawize('extensions.autoUpdate.twue', 'Downwoad and instaww updates automaticawwy fow aww extensions.'),
+					wocawize('extensions.autoUpdate.enabwed', 'Downwoad and instaww updates automaticawwy onwy fow enabwed extensions. Disabwed extensions wiww not be updated automaticawwy.'),
+					wocawize('extensions.autoUpdate.fawse', 'Extensions awe not automaticawwy updated.'),
 				],
-				description: localize('extensions.autoUpdate', "Controls the automatic update behavior of extensions. The updates are fetched from a Microsoft online service."),
-				default: true,
-				scope: ConfigurationScope.APPLICATION,
-				tags: ['usesOnlineServices']
+				descwiption: wocawize('extensions.autoUpdate', "Contwows the automatic update behaviow of extensions. The updates awe fetched fwom a Micwosoft onwine sewvice."),
+				defauwt: twue,
+				scope: ConfiguwationScope.APPWICATION,
+				tags: ['usesOnwineSewvices']
 			},
 			'extensions.autoCheckUpdates': {
-				type: 'boolean',
-				description: localize('extensionsCheckUpdates', "When enabled, automatically checks extensions for updates. If an extension has an update, it is marked as outdated in the Extensions view. The updates are fetched from a Microsoft online service."),
-				default: true,
-				scope: ConfigurationScope.APPLICATION,
-				tags: ['usesOnlineServices']
+				type: 'boowean',
+				descwiption: wocawize('extensionsCheckUpdates', "When enabwed, automaticawwy checks extensions fow updates. If an extension has an update, it is mawked as outdated in the Extensions view. The updates awe fetched fwom a Micwosoft onwine sewvice."),
+				defauwt: twue,
+				scope: ConfiguwationScope.APPWICATION,
+				tags: ['usesOnwineSewvices']
 			},
-			'extensions.ignoreRecommendations': {
-				type: 'boolean',
-				description: localize('extensionsIgnoreRecommendations', "When enabled, the notifications for extension recommendations will not be shown."),
-				default: false
+			'extensions.ignoweWecommendations': {
+				type: 'boowean',
+				descwiption: wocawize('extensionsIgnoweWecommendations', "When enabwed, the notifications fow extension wecommendations wiww not be shown."),
+				defauwt: fawse
 			},
-			'extensions.showRecommendationsOnlyOnDemand': {
-				type: 'boolean',
-				deprecationMessage: localize('extensionsShowRecommendationsOnlyOnDemand_Deprecated', "This setting is deprecated. Use extensions.ignoreRecommendations setting to control recommendation notifications. Use Extensions view's visibility actions to hide Recommended view by default."),
-				default: false,
-				tags: ['usesOnlineServices']
+			'extensions.showWecommendationsOnwyOnDemand': {
+				type: 'boowean',
+				depwecationMessage: wocawize('extensionsShowWecommendationsOnwyOnDemand_Depwecated', "This setting is depwecated. Use extensions.ignoweWecommendations setting to contwow wecommendation notifications. Use Extensions view's visibiwity actions to hide Wecommended view by defauwt."),
+				defauwt: fawse,
+				tags: ['usesOnwineSewvices']
 			},
-			'extensions.closeExtensionDetailsOnViewChange': {
-				type: 'boolean',
-				description: localize('extensionsCloseExtensionDetailsOnViewChange', "When enabled, editors with extension details will be automatically closed upon navigating away from the Extensions View."),
-				default: false
+			'extensions.cwoseExtensionDetaiwsOnViewChange': {
+				type: 'boowean',
+				descwiption: wocawize('extensionsCwoseExtensionDetaiwsOnViewChange', "When enabwed, editows with extension detaiws wiww be automaticawwy cwosed upon navigating away fwom the Extensions View."),
+				defauwt: fawse
 			},
-			'extensions.confirmedUriHandlerExtensionIds': {
-				type: 'array',
-				description: localize('handleUriConfirmedExtensions', "When an extension is listed here, a confirmation prompt will not be shown when that extension handles a URI."),
-				default: [],
-				scope: ConfigurationScope.APPLICATION
+			'extensions.confiwmedUwiHandwewExtensionIds': {
+				type: 'awway',
+				descwiption: wocawize('handweUwiConfiwmedExtensions', "When an extension is wisted hewe, a confiwmation pwompt wiww not be shown when that extension handwes a UWI."),
+				defauwt: [],
+				scope: ConfiguwationScope.APPWICATION
 			},
-			'extensions.webWorker': {
-				type: ['boolean', 'string'],
-				enum: [true, false, 'auto'],
-				enumDescriptions: [
-					localize('extensionsWebWorker.true', "The Web Worker Extension Host will always be launched."),
-					localize('extensionsWebWorker.false', "The Web Worker Extension Host will never be launched."),
-					localize('extensionsWebWorker.auto', "The Web Worker Extension Host will be launched when a web extension needs it."),
+			'extensions.webWowka': {
+				type: ['boowean', 'stwing'],
+				enum: [twue, fawse, 'auto'],
+				enumDescwiptions: [
+					wocawize('extensionsWebWowka.twue', "The Web Wowka Extension Host wiww awways be waunched."),
+					wocawize('extensionsWebWowka.fawse', "The Web Wowka Extension Host wiww neva be waunched."),
+					wocawize('extensionsWebWowka.auto', "The Web Wowka Extension Host wiww be waunched when a web extension needs it."),
 				],
-				description: localize('extensionsWebWorker', "Enable web worker extension host."),
-				default: 'auto'
+				descwiption: wocawize('extensionsWebWowka', "Enabwe web wowka extension host."),
+				defauwt: 'auto'
 			},
-			'extensions.supportVirtualWorkspaces': {
+			'extensions.suppowtViwtuawWowkspaces': {
 				type: 'object',
-				markdownDescription: localize('extensions.supportVirtualWorkspaces', "Override the virtual workspaces support of an extension."),
-				patternProperties: {
+				mawkdownDescwiption: wocawize('extensions.suppowtViwtuawWowkspaces', "Ovewwide the viwtuaw wowkspaces suppowt of an extension."),
+				pattewnPwopewties: {
 					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
-						type: 'boolean',
-						default: false
+						type: 'boowean',
+						defauwt: fawse
 					}
 				},
-				default: {
-					'pub.name': false
+				defauwt: {
+					'pub.name': fawse
 				}
 			},
-			[WORKSPACE_TRUST_EXTENSION_SUPPORT]: {
+			[WOWKSPACE_TWUST_EXTENSION_SUPPOWT]: {
 				type: 'object',
-				scope: ConfigurationScope.APPLICATION,
-				markdownDescription: localize('extensions.supportUntrustedWorkspaces', "Override the untrusted workspace support of an extension. Extensions using `true` will always be enabled. Extensions using `limited` will always be enabled, and the extension will hide functionality that requires trust. Extensions using `false` will only be enabled only when the workspace is trusted."),
-				patternProperties: {
+				scope: ConfiguwationScope.APPWICATION,
+				mawkdownDescwiption: wocawize('extensions.suppowtUntwustedWowkspaces', "Ovewwide the untwusted wowkspace suppowt of an extension. Extensions using `twue` wiww awways be enabwed. Extensions using `wimited` wiww awways be enabwed, and the extension wiww hide functionawity that wequiwes twust. Extensions using `fawse` wiww onwy be enabwed onwy when the wowkspace is twusted."),
+				pattewnPwopewties: {
 					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
 						type: 'object',
-						properties: {
-							'supported': {
-								type: ['boolean', 'string'],
-								enum: [true, false, 'limited'],
-								enumDescriptions: [
-									localize('extensions.supportUntrustedWorkspaces.true', "Extension will always be enabled."),
-									localize('extensions.supportUntrustedWorkspaces.false', "Extension will only be enabled only when the workspace is trusted."),
-									localize('extensions.supportUntrustedWorkspaces.limited', "Extension will always be enabled, and the extension will hide functionality requiring trust."),
+						pwopewties: {
+							'suppowted': {
+								type: ['boowean', 'stwing'],
+								enum: [twue, fawse, 'wimited'],
+								enumDescwiptions: [
+									wocawize('extensions.suppowtUntwustedWowkspaces.twue', "Extension wiww awways be enabwed."),
+									wocawize('extensions.suppowtUntwustedWowkspaces.fawse', "Extension wiww onwy be enabwed onwy when the wowkspace is twusted."),
+									wocawize('extensions.suppowtUntwustedWowkspaces.wimited', "Extension wiww awways be enabwed, and the extension wiww hide functionawity wequiwing twust."),
 								],
-								description: localize('extensions.supportUntrustedWorkspaces.supported', "Defines the untrusted workspace support setting for the extension."),
+								descwiption: wocawize('extensions.suppowtUntwustedWowkspaces.suppowted', "Defines the untwusted wowkspace suppowt setting fow the extension."),
 							},
-							'version': {
-								type: 'string',
-								description: localize('extensions.supportUntrustedWorkspaces.version', "Defines the version of the extension for which the override should be applied. If not specified, the override will be applied independent of the extension version."),
+							'vewsion': {
+								type: 'stwing',
+								descwiption: wocawize('extensions.suppowtUntwustedWowkspaces.vewsion', "Defines the vewsion of the extension fow which the ovewwide shouwd be appwied. If not specified, the ovewwide wiww be appwied independent of the extension vewsion."),
 							}
 						}
 					}
@@ -227,538 +227,538 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		}
 	});
 
-const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
-jsonRegistry.registerSchema(ExtensionsConfigurationSchemaId, ExtensionsConfigurationSchema);
+const jsonWegistwy = <jsonContwibutionWegistwy.IJSONContwibutionWegistwy>Wegistwy.as(jsonContwibutionWegistwy.Extensions.JSONContwibution);
+jsonWegistwy.wegistewSchema(ExtensionsConfiguwationSchemaId, ExtensionsConfiguwationSchema);
 
-// Register Commands
-CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccessor, extensionId: string, tab?: ExtensionEditorTab) => {
-	const extensionService = accessor.get(IExtensionsWorkbenchService);
-	const extension = extensionService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }));
-	if (extension.length === 1) {
-		extensionService.open(extension[0], { tab });
+// Wegista Commands
+CommandsWegistwy.wegistewCommand('_extensions.manage', (accessow: SewvicesAccessow, extensionId: stwing, tab?: ExtensionEditowTab) => {
+	const extensionSewvice = accessow.get(IExtensionsWowkbenchSewvice);
+	const extension = extensionSewvice.wocaw.fiwta(e => aweSameExtensions(e.identifia, { id: extensionId }));
+	if (extension.wength === 1) {
+		extensionSewvice.open(extension[0], { tab });
 	}
 });
 
-CommandsRegistry.registerCommand('extension.open', async (accessor: ServicesAccessor, extensionId: string, tab?: ExtensionEditorTab) => {
-	const extensionService = accessor.get(IExtensionsWorkbenchService);
-	const commandService = accessor.get(ICommandService);
+CommandsWegistwy.wegistewCommand('extension.open', async (accessow: SewvicesAccessow, extensionId: stwing, tab?: ExtensionEditowTab) => {
+	const extensionSewvice = accessow.get(IExtensionsWowkbenchSewvice);
+	const commandSewvice = accessow.get(ICommandSewvice);
 
-	const pager = await extensionService.queryGallery({ names: [extensionId], pageSize: 1 }, CancellationToken.None);
-	if (pager.total === 1) {
-		return extensionService.open(pager.firstPage[0], { tab });
+	const paga = await extensionSewvice.quewyGawwewy({ names: [extensionId], pageSize: 1 }, CancewwationToken.None);
+	if (paga.totaw === 1) {
+		wetuwn extensionSewvice.open(paga.fiwstPage[0], { tab });
 	}
 
-	return commandService.executeCommand('_extensions.manage', extensionId, tab);
+	wetuwn commandSewvice.executeCommand('_extensions.manage', extensionId, tab);
 });
 
-CommandsRegistry.registerCommand({
-	id: 'workbench.extensions.installExtension',
-	description: {
-		description: localize('workbench.extensions.installExtension.description', "Install the given extension"),
-		args: [
+CommandsWegistwy.wegistewCommand({
+	id: 'wowkbench.extensions.instawwExtension',
+	descwiption: {
+		descwiption: wocawize('wowkbench.extensions.instawwExtension.descwiption', "Instaww the given extension"),
+		awgs: [
 			{
-				name: 'extensionIdOrVSIXUri',
-				description: localize('workbench.extensions.installExtension.arg.decription', "Extension id or VSIX resource uri"),
-				constraint: (value: any) => typeof value === 'string' || value instanceof URI,
+				name: 'extensionIdOwVSIXUwi',
+				descwiption: wocawize('wowkbench.extensions.instawwExtension.awg.decwiption', "Extension id ow VSIX wesouwce uwi"),
+				constwaint: (vawue: any) => typeof vawue === 'stwing' || vawue instanceof UWI,
 			},
 			{
 				name: 'options',
-				description: '(optional) Options for installing the extension. Object with the following properties: ' +
-					'`installOnlyNewlyAddedFromExtensionPackVSIX`: When enabled, VS Code installs only newly added extensions from the extension pack VSIX. This option is considered only when installing VSIX. ',
-				isOptional: true,
+				descwiption: '(optionaw) Options fow instawwing the extension. Object with the fowwowing pwopewties: ' +
+					'`instawwOnwyNewwyAddedFwomExtensionPackVSIX`: When enabwed, VS Code instawws onwy newwy added extensions fwom the extension pack VSIX. This option is considewed onwy when instawwing VSIX. ',
+				isOptionaw: twue,
 				schema: {
 					'type': 'object',
-					'properties': {
-						'installOnlyNewlyAddedFromExtensionPackVSIX': {
-							'type': 'boolean',
-							'description': localize('workbench.extensions.installExtension.option.installOnlyNewlyAddedFromExtensionPackVSIX', "When enabled, VS Code installs only newly added extensions from the extension pack VSIX. This option is considered only while installing a VSIX."),
-							default: false
+					'pwopewties': {
+						'instawwOnwyNewwyAddedFwomExtensionPackVSIX': {
+							'type': 'boowean',
+							'descwiption': wocawize('wowkbench.extensions.instawwExtension.option.instawwOnwyNewwyAddedFwomExtensionPackVSIX', "When enabwed, VS Code instawws onwy newwy added extensions fwom the extension pack VSIX. This option is considewed onwy whiwe instawwing a VSIX."),
+							defauwt: fawse
 						}
 					}
 				}
 			}
 		]
 	},
-	handler: async (accessor, arg: string | UriComponents, options?: { installOnlyNewlyAddedFromExtensionPackVSIX?: boolean }) => {
-		const extensionManagementService = accessor.get(IExtensionManagementService);
-		const extensionGalleryService = accessor.get(IExtensionGalleryService);
-		try {
-			if (typeof arg === 'string') {
-				const [extension] = await extensionGalleryService.getExtensions([{ id: arg }], CancellationToken.None);
+	handwa: async (accessow, awg: stwing | UwiComponents, options?: { instawwOnwyNewwyAddedFwomExtensionPackVSIX?: boowean }) => {
+		const extensionManagementSewvice = accessow.get(IExtensionManagementSewvice);
+		const extensionGawwewySewvice = accessow.get(IExtensionGawwewySewvice);
+		twy {
+			if (typeof awg === 'stwing') {
+				const [extension] = await extensionGawwewySewvice.getExtensions([{ id: awg }], CancewwationToken.None);
 				if (extension) {
-					await extensionManagementService.installFromGallery(extension);
-				} else {
-					throw new Error(localize('notFound', "Extension '{0}' not found.", arg));
+					await extensionManagementSewvice.instawwFwomGawwewy(extension);
+				} ewse {
+					thwow new Ewwow(wocawize('notFound', "Extension '{0}' not found.", awg));
 				}
-			} else {
-				const vsix = URI.revive(arg);
-				await extensionManagementService.install(vsix, { installOnlyNewlyAddedFromExtensionPack: options?.installOnlyNewlyAddedFromExtensionPackVSIX });
+			} ewse {
+				const vsix = UWI.wevive(awg);
+				await extensionManagementSewvice.instaww(vsix, { instawwOnwyNewwyAddedFwomExtensionPack: options?.instawwOnwyNewwyAddedFwomExtensionPackVSIX });
 			}
 		} catch (e) {
-			onUnexpectedError(e);
-			throw e;
+			onUnexpectedEwwow(e);
+			thwow e;
 		}
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: 'workbench.extensions.uninstallExtension',
-	description: {
-		description: localize('workbench.extensions.uninstallExtension.description', "Uninstall the given extension"),
-		args: [
+CommandsWegistwy.wegistewCommand({
+	id: 'wowkbench.extensions.uninstawwExtension',
+	descwiption: {
+		descwiption: wocawize('wowkbench.extensions.uninstawwExtension.descwiption', "Uninstaww the given extension"),
+		awgs: [
 			{
-				name: localize('workbench.extensions.uninstallExtension.arg.name', "Id of the extension to uninstall"),
+				name: wocawize('wowkbench.extensions.uninstawwExtension.awg.name', "Id of the extension to uninstaww"),
 				schema: {
-					'type': 'string'
+					'type': 'stwing'
 				}
 			}
 		]
 	},
-	handler: async (accessor, id: string) => {
+	handwa: async (accessow, id: stwing) => {
 		if (!id) {
-			throw new Error(localize('id required', "Extension id required."));
+			thwow new Ewwow(wocawize('id wequiwed', "Extension id wequiwed."));
 		}
-		const extensionManagementService = accessor.get(IExtensionManagementService);
-		const installed = await extensionManagementService.getInstalled();
-		const [extensionToUninstall] = installed.filter(e => areSameExtensions(e.identifier, { id }));
-		if (!extensionToUninstall) {
-			throw new Error(localize('notInstalled', "Extension '{0}' is not installed. Make sure you use the full extension ID, including the publisher, e.g.: ms-dotnettools.csharp.", id));
+		const extensionManagementSewvice = accessow.get(IExtensionManagementSewvice);
+		const instawwed = await extensionManagementSewvice.getInstawwed();
+		const [extensionToUninstaww] = instawwed.fiwta(e => aweSameExtensions(e.identifia, { id }));
+		if (!extensionToUninstaww) {
+			thwow new Ewwow(wocawize('notInstawwed', "Extension '{0}' is not instawwed. Make suwe you use the fuww extension ID, incwuding the pubwisha, e.g.: ms-dotnettoows.cshawp.", id));
 		}
-		if (extensionToUninstall.isBuiltin) {
-			throw new Error(localize('builtin', "Extension '{0}' is a Built-in extension and cannot be installed", id));
+		if (extensionToUninstaww.isBuiwtin) {
+			thwow new Ewwow(wocawize('buiwtin', "Extension '{0}' is a Buiwt-in extension and cannot be instawwed", id));
 		}
 
-		try {
-			await extensionManagementService.uninstall(extensionToUninstall);
+		twy {
+			await extensionManagementSewvice.uninstaww(extensionToUninstaww);
 		} catch (e) {
-			onUnexpectedError(e);
-			throw e;
+			onUnexpectedEwwow(e);
+			thwow e;
 		}
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: 'workbench.extensions.search',
-	description: {
-		description: localize('workbench.extensions.search.description', "Search for a specific extension"),
-		args: [
+CommandsWegistwy.wegistewCommand({
+	id: 'wowkbench.extensions.seawch',
+	descwiption: {
+		descwiption: wocawize('wowkbench.extensions.seawch.descwiption', "Seawch fow a specific extension"),
+		awgs: [
 			{
-				name: localize('workbench.extensions.search.arg.name', "Query to use in search"),
-				schema: { 'type': 'string' }
+				name: wocawize('wowkbench.extensions.seawch.awg.name', "Quewy to use in seawch"),
+				schema: { 'type': 'stwing' }
 			}
 		]
 	},
-	handler: async (accessor, query: string = '') => {
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
-		const viewlet = await paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
+	handwa: async (accessow, quewy: stwing = '') => {
+		const paneCompositeSewvice = accessow.get(IPaneCompositePawtSewvice);
+		const viewwet = await paneCompositeSewvice.openPaneComposite(VIEWWET_ID, ViewContainewWocation.Sidebaw, twue);
 
-		if (!viewlet) {
-			return;
+		if (!viewwet) {
+			wetuwn;
 		}
 
-		(viewlet.getViewPaneContainer() as IExtensionsViewPaneContainer).search(query);
-		viewlet.focus();
+		(viewwet.getViewPaneContaina() as IExtensionsViewPaneContaina).seawch(quewy);
+		viewwet.focus();
 	}
 });
 
-function overrideActionForActiveExtensionEditorWebview(command: MultiCommand | undefined, f: (webview: Webview) => void) {
-	command?.addImplementation(105, 'extensions-editor', (accessor) => {
-		const editorService = accessor.get(IEditorService);
-		const editor = editorService.activeEditorPane;
-		if (editor instanceof ExtensionEditor) {
-			if (editor.activeWebview?.isFocused) {
-				f(editor.activeWebview);
-				return true;
+function ovewwideActionFowActiveExtensionEditowWebview(command: MuwtiCommand | undefined, f: (webview: Webview) => void) {
+	command?.addImpwementation(105, 'extensions-editow', (accessow) => {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const editow = editowSewvice.activeEditowPane;
+		if (editow instanceof ExtensionEditow) {
+			if (editow.activeWebview?.isFocused) {
+				f(editow.activeWebview);
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	});
 }
 
-overrideActionForActiveExtensionEditorWebview(CopyAction, webview => webview.copy());
-overrideActionForActiveExtensionEditorWebview(CutAction, webview => webview.cut());
-overrideActionForActiveExtensionEditorWebview(PasteAction, webview => webview.paste());
+ovewwideActionFowActiveExtensionEditowWebview(CopyAction, webview => webview.copy());
+ovewwideActionFowActiveExtensionEditowWebview(CutAction, webview => webview.cut());
+ovewwideActionFowActiveExtensionEditowWebview(PasteAction, webview => webview.paste());
 
 // Contexts
-export const CONTEXT_HAS_GALLERY = new RawContextKey<boolean>('hasGallery', false);
-export const CONTEXT_HAS_LOCAL_SERVER = new RawContextKey<boolean>('hasLocalServer', false);
-export const CONTEXT_HAS_REMOTE_SERVER = new RawContextKey<boolean>('hasRemoteServer', false);
-export const CONTEXT_HAS_WEB_SERVER = new RawContextKey<boolean>('hasWebServer', false);
+expowt const CONTEXT_HAS_GAWWEWY = new WawContextKey<boowean>('hasGawwewy', fawse);
+expowt const CONTEXT_HAS_WOCAW_SEWVa = new WawContextKey<boowean>('hasWocawSewva', fawse);
+expowt const CONTEXT_HAS_WEMOTE_SEWVa = new WawContextKey<boowean>('hasWemoteSewva', fawse);
+expowt const CONTEXT_HAS_WEB_SEWVa = new WawContextKey<boowean>('hasWebSewva', fawse);
 
-async function runAction(action: IAction): Promise<void> {
-	try {
-		await action.run();
-	} finally {
+async function wunAction(action: IAction): Pwomise<void> {
+	twy {
+		await action.wun();
+	} finawwy {
 		action.dispose();
 	}
 }
 
-interface IExtensionActionOptions extends IAction2Options {
-	menuTitles?: { [id: number]: string };
-	run(accessor: ServicesAccessor, ...args: any[]): Promise<any>;
+intewface IExtensionActionOptions extends IAction2Options {
+	menuTitwes?: { [id: numba]: stwing };
+	wun(accessow: SewvicesAccessow, ...awgs: any[]): Pwomise<any>;
 }
 
-class ExtensionsContributions extends Disposable implements IWorkbenchContribution {
+cwass ExtensionsContwibutions extends Disposabwe impwements IWowkbenchContwibution {
 
-	constructor(
-		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
-		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
-		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@ICommandService private readonly commandService: ICommandService,
+	constwuctow(
+		@IExtensionManagementSewvewSewvice pwivate weadonwy extensionManagementSewvewSewvice: IExtensionManagementSewvewSewvice,
+		@IExtensionGawwewySewvice extensionGawwewySewvice: IExtensionGawwewySewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IPaneCompositePawtSewvice pwivate weadonwy paneCompositeSewvice: IPaneCompositePawtSewvice,
+		@IExtensionsWowkbenchSewvice pwivate weadonwy extensionsWowkbenchSewvice: IExtensionsWowkbenchSewvice,
+		@IWowkbenchExtensionEnabwementSewvice pwivate weadonwy extensionEnabwementSewvice: IWowkbenchExtensionEnabwementSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
 	) {
-		super();
-		const hasGalleryContext = CONTEXT_HAS_GALLERY.bindTo(contextKeyService);
-		if (extensionGalleryService.isEnabled()) {
-			hasGalleryContext.set(true);
+		supa();
+		const hasGawwewyContext = CONTEXT_HAS_GAWWEWY.bindTo(contextKeySewvice);
+		if (extensionGawwewySewvice.isEnabwed()) {
+			hasGawwewyContext.set(twue);
 		}
 
-		const hasLocalServerContext = CONTEXT_HAS_LOCAL_SERVER.bindTo(contextKeyService);
-		if (this.extensionManagementServerService.localExtensionManagementServer) {
-			hasLocalServerContext.set(true);
+		const hasWocawSewvewContext = CONTEXT_HAS_WOCAW_SEWVa.bindTo(contextKeySewvice);
+		if (this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva) {
+			hasWocawSewvewContext.set(twue);
 		}
 
-		const hasRemoteServerContext = CONTEXT_HAS_REMOTE_SERVER.bindTo(contextKeyService);
-		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
-			hasRemoteServerContext.set(true);
+		const hasWemoteSewvewContext = CONTEXT_HAS_WEMOTE_SEWVa.bindTo(contextKeySewvice);
+		if (this.extensionManagementSewvewSewvice.wemoteExtensionManagementSewva) {
+			hasWemoteSewvewContext.set(twue);
 		}
 
-		const hasWebServerContext = CONTEXT_HAS_WEB_SERVER.bindTo(contextKeyService);
-		if (this.extensionManagementServerService.webExtensionManagementServer) {
-			hasWebServerContext.set(true);
+		const hasWebSewvewContext = CONTEXT_HAS_WEB_SEWVa.bindTo(contextKeySewvice);
+		if (this.extensionManagementSewvewSewvice.webExtensionManagementSewva) {
+			hasWebSewvewContext.set(twue);
 		}
 
-		this.registerGlobalActions();
-		this.registerContextMenuActions();
-		this.registerQuickAccessProvider();
+		this.wegistewGwobawActions();
+		this.wegistewContextMenuActions();
+		this.wegistewQuickAccessPwovida();
 	}
 
-	private registerQuickAccessProvider(): void {
-		if (this.extensionManagementServerService.localExtensionManagementServer
-			|| this.extensionManagementServerService.remoteExtensionManagementServer
-			|| this.extensionManagementServerService.webExtensionManagementServer
+	pwivate wegistewQuickAccessPwovida(): void {
+		if (this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva
+			|| this.extensionManagementSewvewSewvice.wemoteExtensionManagementSewva
+			|| this.extensionManagementSewvewSewvice.webExtensionManagementSewva
 		) {
-			Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
-				ctor: InstallExtensionQuickAccessProvider,
-				prefix: InstallExtensionQuickAccessProvider.PREFIX,
-				placeholder: localize('installExtensionQuickAccessPlaceholder', "Type the name of an extension to install or search."),
-				helpEntries: [{ description: localize('installExtensionQuickAccessHelp', "Install or Search Extensions"), needsEditor: false }]
+			Wegistwy.as<IQuickAccessWegistwy>(Extensions.Quickaccess).wegistewQuickAccessPwovida({
+				ctow: InstawwExtensionQuickAccessPwovida,
+				pwefix: InstawwExtensionQuickAccessPwovida.PWEFIX,
+				pwacehowda: wocawize('instawwExtensionQuickAccessPwacehowda', "Type the name of an extension to instaww ow seawch."),
+				hewpEntwies: [{ descwiption: wocawize('instawwExtensionQuickAccessHewp', "Instaww ow Seawch Extensions"), needsEditow: fawse }]
 			});
 		}
 	}
 
-	// Global actions
-	private registerGlobalActions(): void {
-		this._register(MenuRegistry.appendMenuItems([{
-			id: MenuId.MenubarPreferencesMenu,
+	// Gwobaw actions
+	pwivate wegistewGwobawActions(): void {
+		this._wegista(MenuWegistwy.appendMenuItems([{
+			id: MenuId.MenubawPwefewencesMenu,
 			item: {
 				command: {
-					id: VIEWLET_ID,
-					title: localize({ key: 'miPreferencesExtensions', comment: ['&& denotes a mnemonic'] }, "&&Extensions")
+					id: VIEWWET_ID,
+					titwe: wocawize({ key: 'miPwefewencesExtensions', comment: ['&& denotes a mnemonic'] }, "&&Extensions")
 				},
-				group: '1_settings',
-				order: 4
+				gwoup: '1_settings',
+				owda: 4
 			}
 		}, {
-			id: MenuId.GlobalActivity,
+			id: MenuId.GwobawActivity,
 			item: {
 				command: {
-					id: VIEWLET_ID,
-					title: localize('showExtensions', "Extensions")
+					id: VIEWWET_ID,
+					titwe: wocawize('showExtensions', "Extensions")
 				},
-				group: '2_configuration',
-				order: 3
+				gwoup: '2_configuwation',
+				owda: 3
 			}
 		}]));
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.installExtensions',
-			title: { value: localize('installExtensions', "Install Extensions"), original: 'Install Extensions' },
-			category: ExtensionsLocalizedLabel,
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.instawwExtensions',
+			titwe: { vawue: wocawize('instawwExtensions', "Instaww Extensions"), owiginaw: 'Instaww Extensions' },
+			categowy: ExtensionsWocawizedWabew,
 			menu: {
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER))
+				id: MenuId.CommandPawette,
+				when: ContextKeyExpw.and(CONTEXT_HAS_GAWWEWY, ContextKeyExpw.ow(CONTEXT_HAS_WOCAW_SEWVa, CONTEXT_HAS_WEMOTE_SEWVa, CONTEXT_HAS_WEB_SEWVa))
 			},
-			run: async (accessor: ServicesAccessor) => {
-				accessor.get(IViewsService).openViewContainer(VIEWLET_ID);
+			wun: async (accessow: SewvicesAccessow) => {
+				accessow.get(IViewsSewvice).openViewContaina(VIEWWET_ID);
 			}
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.showRecommendedKeymapExtensions',
-			title: { value: localize('showRecommendedKeymapExtensionsShort', "Keymaps"), original: 'Keymaps' },
-			category: PreferencesLocalizedLabel,
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.showWecommendedKeymapExtensions',
+			titwe: { vawue: wocawize('showWecommendedKeymapExtensionsShowt', "Keymaps"), owiginaw: 'Keymaps' },
+			categowy: PwefewencesWocawizedWabew,
 			menu: [{
-				id: MenuId.CommandPalette,
-				when: CONTEXT_HAS_GALLERY
+				id: MenuId.CommandPawette,
+				when: CONTEXT_HAS_GAWWEWY
 			}, {
-				id: MenuId.MenubarPreferencesMenu,
-				group: '2_keybindings',
-				order: 2
+				id: MenuId.MenubawPwefewencesMenu,
+				gwoup: '2_keybindings',
+				owda: 2
 			}, {
-				id: MenuId.GlobalActivity,
-				group: '2_keybindings',
-				order: 2
+				id: MenuId.GwobawActivity,
+				gwoup: '2_keybindings',
+				owda: 2
 			}],
-			menuTitles: {
-				[MenuId.MenubarPreferencesMenu.id]: localize({ key: 'miimportKeyboardShortcutsFrom', comment: ['&& denotes a mnemonic'] }, "&&Migrate Keyboard Shortcuts from..."),
-				[MenuId.GlobalActivity.id]: localize('importKeyboardShortcutsFroms', "Migrate Keyboard Shortcuts from...")
+			menuTitwes: {
+				[MenuId.MenubawPwefewencesMenu.id]: wocawize({ key: 'miimpowtKeyboawdShowtcutsFwom', comment: ['&& denotes a mnemonic'] }, "&&Migwate Keyboawd Showtcuts fwom..."),
+				[MenuId.GwobawActivity.id]: wocawize('impowtKeyboawdShowtcutsFwoms', "Migwate Keyboawd Showtcuts fwom...")
 			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@recommended:keymaps '))
+			wun: () => wunAction(this.instantiationSewvice.cweateInstance(SeawchExtensionsAction, '@wecommended:keymaps '))
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.showLanguageExtensions',
-			title: { value: localize('showLanguageExtensionsShort', "Language Extensions"), original: 'Language Extensions' },
-			category: PreferencesLocalizedLabel,
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.showWanguageExtensions',
+			titwe: { vawue: wocawize('showWanguageExtensionsShowt', "Wanguage Extensions"), owiginaw: 'Wanguage Extensions' },
+			categowy: PwefewencesWocawizedWabew,
 			menu: {
-				id: MenuId.CommandPalette,
-				when: CONTEXT_HAS_GALLERY
+				id: MenuId.CommandPawette,
+				when: CONTEXT_HAS_GAWWEWY
 			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@recommended:languages '))
+			wun: () => wunAction(this.instantiationSewvice.cweateInstance(SeawchExtensionsAction, '@wecommended:wanguages '))
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.checkForUpdates',
-			title: { value: localize('checkForUpdates', "Check for Extension Updates"), original: 'Check for Extension Updates' },
-			category: ExtensionsLocalizedLabel,
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.checkFowUpdates',
+			titwe: { vawue: wocawize('checkFowUpdates', "Check fow Extension Updates"), owiginaw: 'Check fow Extension Updates' },
+			categowy: ExtensionsWocawizedWabew,
 			menu: [{
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER))
+				id: MenuId.CommandPawette,
+				when: ContextKeyExpw.and(CONTEXT_HAS_GAWWEWY, ContextKeyExpw.ow(CONTEXT_HAS_WOCAW_SEWVa, CONTEXT_HAS_WEMOTE_SEWVa, CONTEXT_HAS_WEB_SEWVa))
 			}, {
-				id: MenuId.ViewContainerTitle,
-				when: ContextKeyExpr.equals('viewContainer', VIEWLET_ID),
-				group: '1_updates',
-				order: 1
+				id: MenuId.ViewContainewTitwe,
+				when: ContextKeyExpw.equaws('viewContaina', VIEWWET_ID),
+				gwoup: '1_updates',
+				owda: 1
 			}],
-			run: async () => {
-				await this.extensionsWorkbenchService.checkForUpdates();
-				const outdated = this.extensionsWorkbenchService.outdated;
-				if (outdated.length) {
-					return runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@outdated '));
-				} else {
-					return this.dialogService.show(Severity.Info, localize('noUpdatesAvailable', "All extensions are up to date."));
+			wun: async () => {
+				await this.extensionsWowkbenchSewvice.checkFowUpdates();
+				const outdated = this.extensionsWowkbenchSewvice.outdated;
+				if (outdated.wength) {
+					wetuwn wunAction(this.instantiationSewvice.cweateInstance(SeawchExtensionsAction, '@outdated '));
+				} ewse {
+					wetuwn this.diawogSewvice.show(Sevewity.Info, wocawize('noUpdatesAvaiwabwe', "Aww extensions awe up to date."));
 				}
 			}
 		});
 
 		const autoUpdateExtensionsSubMenu = new MenuId('autoUpdateExtensionsSubMenu');
-		MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, <ISubmenuItem>{
+		MenuWegistwy.appendMenuItem(MenuId.ViewContainewTitwe, <ISubmenuItem>{
 			submenu: autoUpdateExtensionsSubMenu,
-			title: localize('configure auto updating extensions', "Auto Update Extensions"),
-			when: ContextKeyExpr.equals('viewContainer', VIEWLET_ID),
-			group: '1_updates',
-			order: 5,
+			titwe: wocawize('configuwe auto updating extensions', "Auto Update Extensions"),
+			when: ContextKeyExpw.equaws('viewContaina', VIEWWET_ID),
+			gwoup: '1_updates',
+			owda: 5,
 		});
 
-		this.registerExtensionAction({
-			id: 'configureExtensionsAutoUpdate.all',
-			title: localize('configureExtensionsAutoUpdate.all', "All Extensions"),
-			toggled: ContextKeyExpr.and(ContextKeyExpr.has(`config.${AutoUpdateConfigurationKey}`), ContextKeyExpr.notEquals(`config.${AutoUpdateConfigurationKey}`, 'onlyEnabledExtensions')),
+		this.wegistewExtensionAction({
+			id: 'configuweExtensionsAutoUpdate.aww',
+			titwe: wocawize('configuweExtensionsAutoUpdate.aww', "Aww Extensions"),
+			toggwed: ContextKeyExpw.and(ContextKeyExpw.has(`config.${AutoUpdateConfiguwationKey}`), ContextKeyExpw.notEquaws(`config.${AutoUpdateConfiguwationKey}`, 'onwyEnabwedExtensions')),
 			menu: [{
 				id: autoUpdateExtensionsSubMenu,
-				order: 1,
+				owda: 1,
 			}],
-			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, true)
+			wun: (accessow: SewvicesAccessow) => accessow.get(IConfiguwationSewvice).updateVawue(AutoUpdateConfiguwationKey, twue)
 		});
 
-		this.registerExtensionAction({
-			id: 'configureExtensionsAutoUpdate.enabled',
-			title: localize('configureExtensionsAutoUpdate.enabled', "Only Enabled Extensions"),
-			toggled: ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, 'onlyEnabledExtensions'),
+		this.wegistewExtensionAction({
+			id: 'configuweExtensionsAutoUpdate.enabwed',
+			titwe: wocawize('configuweExtensionsAutoUpdate.enabwed', "Onwy Enabwed Extensions"),
+			toggwed: ContextKeyExpw.equaws(`config.${AutoUpdateConfiguwationKey}`, 'onwyEnabwedExtensions'),
 			menu: [{
 				id: autoUpdateExtensionsSubMenu,
-				order: 2,
+				owda: 2,
 			}],
-			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, 'onlyEnabledExtensions')
+			wun: (accessow: SewvicesAccessow) => accessow.get(IConfiguwationSewvice).updateVawue(AutoUpdateConfiguwationKey, 'onwyEnabwedExtensions')
 		});
 
-		this.registerExtensionAction({
-			id: 'configureExtensionsAutoUpdate.none',
-			title: localize('configureExtensionsAutoUpdate.none', "None"),
-			toggled: ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, false),
+		this.wegistewExtensionAction({
+			id: 'configuweExtensionsAutoUpdate.none',
+			titwe: wocawize('configuweExtensionsAutoUpdate.none', "None"),
+			toggwed: ContextKeyExpw.equaws(`config.${AutoUpdateConfiguwationKey}`, fawse),
 			menu: [{
 				id: autoUpdateExtensionsSubMenu,
-				order: 3,
+				owda: 3,
 			}],
-			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, false)
+			wun: (accessow: SewvicesAccessow) => accessow.get(IConfiguwationSewvice).updateVawue(AutoUpdateConfiguwationKey, fawse)
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.updateAllExtensions',
-			title: { value: localize('updateAll', "Update All Extensions"), original: 'Update All Extensions' },
-			category: ExtensionsLocalizedLabel,
-			precondition: HasOutdatedExtensionsContext,
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.updateAwwExtensions',
+			titwe: { vawue: wocawize('updateAww', "Update Aww Extensions"), owiginaw: 'Update Aww Extensions' },
+			categowy: ExtensionsWocawizedWabew,
+			pwecondition: HasOutdatedExtensionsContext,
 			menu: [{
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER))
+				id: MenuId.CommandPawette,
+				when: ContextKeyExpw.and(CONTEXT_HAS_GAWWEWY, ContextKeyExpw.ow(CONTEXT_HAS_WOCAW_SEWVa, CONTEXT_HAS_WEMOTE_SEWVa, CONTEXT_HAS_WEB_SEWVa))
 			}, {
-				id: MenuId.ViewContainerTitle,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('viewContainer', VIEWLET_ID), ContextKeyExpr.or(ContextKeyExpr.has(`config.${AutoUpdateConfigurationKey}`).negate(), ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, 'onlyEnabledExtensions'))),
-				group: '1_updates',
-				order: 2
+				id: MenuId.ViewContainewTitwe,
+				when: ContextKeyExpw.and(ContextKeyExpw.equaws('viewContaina', VIEWWET_ID), ContextKeyExpw.ow(ContextKeyExpw.has(`config.${AutoUpdateConfiguwationKey}`).negate(), ContextKeyExpw.equaws(`config.${AutoUpdateConfiguwationKey}`, 'onwyEnabwedExtensions'))),
+				gwoup: '1_updates',
+				owda: 2
 			}],
-			run: () => {
-				return Promise.all(this.extensionsWorkbenchService.outdated.map(async extension => {
-					try {
-						await this.extensionsWorkbenchService.install(extension);
-					} catch (err) {
-						runAction(this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Update, err));
+			wun: () => {
+				wetuwn Pwomise.aww(this.extensionsWowkbenchSewvice.outdated.map(async extension => {
+					twy {
+						await this.extensionsWowkbenchSewvice.instaww(extension);
+					} catch (eww) {
+						wunAction(this.instantiationSewvice.cweateInstance(PwomptExtensionInstawwFaiwuweAction, extension, extension.watestVewsion, InstawwOpewation.Update, eww));
 					}
 				}));
 			}
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.disableAutoUpdate',
-			title: { value: localize('disableAutoUpdate', "Disable Auto Update for all extensions"), original: 'Disable Auto Update for all extensions' },
-			category: ExtensionsLocalizedLabel,
-			f1: true,
-			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, false)
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.disabweAutoUpdate',
+			titwe: { vawue: wocawize('disabweAutoUpdate', "Disabwe Auto Update fow aww extensions"), owiginaw: 'Disabwe Auto Update fow aww extensions' },
+			categowy: ExtensionsWocawizedWabew,
+			f1: twue,
+			wun: (accessow: SewvicesAccessow) => accessow.get(IConfiguwationSewvice).updateVawue(AutoUpdateConfiguwationKey, fawse)
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.enableAutoUpdate',
-			title: { value: localize('enableAutoUpdate', "Enable Auto Update for all extensions"), original: 'Enable Auto Update for all extensions' },
-			category: ExtensionsLocalizedLabel,
-			f1: true,
-			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, true)
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.enabweAutoUpdate',
+			titwe: { vawue: wocawize('enabweAutoUpdate', "Enabwe Auto Update fow aww extensions"), owiginaw: 'Enabwe Auto Update fow aww extensions' },
+			categowy: ExtensionsWocawizedWabew,
+			f1: twue,
+			wun: (accessow: SewvicesAccessow) => accessow.get(IConfiguwationSewvice).updateVawue(AutoUpdateConfiguwationKey, twue)
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.enableAll',
-			title: { value: localize('enableAll', "Enable All Extensions"), original: 'Enable All Extensions' },
-			category: ExtensionsLocalizedLabel,
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.enabweAww',
+			titwe: { vawue: wocawize('enabweAww', "Enabwe Aww Extensions"), owiginaw: 'Enabwe Aww Extensions' },
+			categowy: ExtensionsWocawizedWabew,
 			menu: [{
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER)
+				id: MenuId.CommandPawette,
+				when: ContextKeyExpw.ow(CONTEXT_HAS_WOCAW_SEWVa, CONTEXT_HAS_WEMOTE_SEWVa, CONTEXT_HAS_WEB_SEWVa)
 			}, {
-				id: MenuId.ViewContainerTitle,
-				when: ContextKeyExpr.equals('viewContainer', VIEWLET_ID),
-				group: '2_enablement',
-				order: 1
+				id: MenuId.ViewContainewTitwe,
+				when: ContextKeyExpw.equaws('viewContaina', VIEWWET_ID),
+				gwoup: '2_enabwement',
+				owda: 1
 			}],
-			run: async () => {
-				const extensionsToEnable = this.extensionsWorkbenchService.local.filter(e => !!e.local && this.extensionEnablementService.canChangeEnablement(e.local) && !this.extensionEnablementService.isEnabled(e.local));
-				if (extensionsToEnable.length) {
-					await this.extensionsWorkbenchService.setEnablement(extensionsToEnable, EnablementState.EnabledGlobally);
+			wun: async () => {
+				const extensionsToEnabwe = this.extensionsWowkbenchSewvice.wocaw.fiwta(e => !!e.wocaw && this.extensionEnabwementSewvice.canChangeEnabwement(e.wocaw) && !this.extensionEnabwementSewvice.isEnabwed(e.wocaw));
+				if (extensionsToEnabwe.wength) {
+					await this.extensionsWowkbenchSewvice.setEnabwement(extensionsToEnabwe, EnabwementState.EnabwedGwobawwy);
 				}
 			}
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.enableAllWorkspace',
-			title: { value: localize('enableAllWorkspace', "Enable All Extensions for this Workspace"), original: 'Enable All Extensions for this Workspace' },
-			category: ExtensionsLocalizedLabel,
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.enabweAwwWowkspace',
+			titwe: { vawue: wocawize('enabweAwwWowkspace', "Enabwe Aww Extensions fow this Wowkspace"), owiginaw: 'Enabwe Aww Extensions fow this Wowkspace' },
+			categowy: ExtensionsWocawizedWabew,
 			menu: {
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('empty'), ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER))
+				id: MenuId.CommandPawette,
+				when: ContextKeyExpw.and(WowkbenchStateContext.notEquawsTo('empty'), ContextKeyExpw.ow(CONTEXT_HAS_WOCAW_SEWVa, CONTEXT_HAS_WEMOTE_SEWVa, CONTEXT_HAS_WEB_SEWVa))
 			},
-			run: async () => {
-				const extensionsToEnable = this.extensionsWorkbenchService.local.filter(e => !!e.local && this.extensionEnablementService.canChangeEnablement(e.local) && !this.extensionEnablementService.isEnabled(e.local));
-				if (extensionsToEnable.length) {
-					await this.extensionsWorkbenchService.setEnablement(extensionsToEnable, EnablementState.EnabledWorkspace);
+			wun: async () => {
+				const extensionsToEnabwe = this.extensionsWowkbenchSewvice.wocaw.fiwta(e => !!e.wocaw && this.extensionEnabwementSewvice.canChangeEnabwement(e.wocaw) && !this.extensionEnabwementSewvice.isEnabwed(e.wocaw));
+				if (extensionsToEnabwe.wength) {
+					await this.extensionsWowkbenchSewvice.setEnabwement(extensionsToEnabwe, EnabwementState.EnabwedWowkspace);
 				}
 			}
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.disableAll',
-			title: { value: localize('disableAll', "Disable All Installed Extensions"), original: 'Disable All Installed Extensions' },
-			category: ExtensionsLocalizedLabel,
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.disabweAww',
+			titwe: { vawue: wocawize('disabweAww', "Disabwe Aww Instawwed Extensions"), owiginaw: 'Disabwe Aww Instawwed Extensions' },
+			categowy: ExtensionsWocawizedWabew,
 			menu: [{
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER)
+				id: MenuId.CommandPawette,
+				when: ContextKeyExpw.ow(CONTEXT_HAS_WOCAW_SEWVa, CONTEXT_HAS_WEMOTE_SEWVa, CONTEXT_HAS_WEB_SEWVa)
 			}, {
-				id: MenuId.ViewContainerTitle,
-				when: ContextKeyExpr.equals('viewContainer', VIEWLET_ID),
-				group: '2_enablement',
-				order: 2
+				id: MenuId.ViewContainewTitwe,
+				when: ContextKeyExpw.equaws('viewContaina', VIEWWET_ID),
+				gwoup: '2_enabwement',
+				owda: 2
 			}],
-			run: async () => {
-				const extensionsToDisable = this.extensionsWorkbenchService.local.filter(e => !e.isBuiltin && !!e.local && this.extensionEnablementService.isEnabled(e.local) && this.extensionEnablementService.canChangeEnablement(e.local));
-				if (extensionsToDisable.length) {
-					await this.extensionsWorkbenchService.setEnablement(extensionsToDisable, EnablementState.DisabledGlobally);
+			wun: async () => {
+				const extensionsToDisabwe = this.extensionsWowkbenchSewvice.wocaw.fiwta(e => !e.isBuiwtin && !!e.wocaw && this.extensionEnabwementSewvice.isEnabwed(e.wocaw) && this.extensionEnabwementSewvice.canChangeEnabwement(e.wocaw));
+				if (extensionsToDisabwe.wength) {
+					await this.extensionsWowkbenchSewvice.setEnabwement(extensionsToDisabwe, EnabwementState.DisabwedGwobawwy);
 				}
 			}
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.disableAllWorkspace',
-			title: { value: localize('disableAllWorkspace', "Disable All Installed Extensions for this Workspace"), original: 'Disable All Installed Extensions for this Workspace' },
-			category: ExtensionsLocalizedLabel,
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.disabweAwwWowkspace',
+			titwe: { vawue: wocawize('disabweAwwWowkspace', "Disabwe Aww Instawwed Extensions fow this Wowkspace"), owiginaw: 'Disabwe Aww Instawwed Extensions fow this Wowkspace' },
+			categowy: ExtensionsWocawizedWabew,
 			menu: {
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('empty'), ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER))
+				id: MenuId.CommandPawette,
+				when: ContextKeyExpw.and(WowkbenchStateContext.notEquawsTo('empty'), ContextKeyExpw.ow(CONTEXT_HAS_WOCAW_SEWVa, CONTEXT_HAS_WEMOTE_SEWVa, CONTEXT_HAS_WEB_SEWVa))
 			},
-			run: async () => {
-				const extensionsToDisable = this.extensionsWorkbenchService.local.filter(e => !e.isBuiltin && !!e.local && this.extensionEnablementService.isEnabled(e.local) && this.extensionEnablementService.canChangeEnablement(e.local));
-				if (extensionsToDisable.length) {
-					await this.extensionsWorkbenchService.setEnablement(extensionsToDisable, EnablementState.DisabledWorkspace);
+			wun: async () => {
+				const extensionsToDisabwe = this.extensionsWowkbenchSewvice.wocaw.fiwta(e => !e.isBuiwtin && !!e.wocaw && this.extensionEnabwementSewvice.isEnabwed(e.wocaw) && this.extensionEnabwementSewvice.canChangeEnabwement(e.wocaw));
+				if (extensionsToDisabwe.wength) {
+					await this.extensionsWowkbenchSewvice.setEnabwement(extensionsToDisabwe, EnabwementState.DisabwedWowkspace);
 				}
 			}
 		});
 
-		this.registerExtensionAction({
-			id: SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID,
-			title: { value: localize('InstallFromVSIX', "Install from VSIX..."), original: 'Install from VSIX...' },
-			category: ExtensionsLocalizedLabel,
+		this.wegistewExtensionAction({
+			id: SEWECT_INSTAWW_VSIX_EXTENSION_COMMAND_ID,
+			titwe: { vawue: wocawize('InstawwFwomVSIX', "Instaww fwom VSIX..."), owiginaw: 'Instaww fwom VSIX...' },
+			categowy: ExtensionsWocawizedWabew,
 			menu: [{
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER)
+				id: MenuId.CommandPawette,
+				when: ContextKeyExpw.ow(CONTEXT_HAS_WOCAW_SEWVa, CONTEXT_HAS_WEMOTE_SEWVa)
 			}, {
-				id: MenuId.ViewContainerTitle,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('viewContainer', VIEWLET_ID), ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER)),
-				group: '3_install',
-				order: 1
+				id: MenuId.ViewContainewTitwe,
+				when: ContextKeyExpw.and(ContextKeyExpw.equaws('viewContaina', VIEWWET_ID), ContextKeyExpw.ow(CONTEXT_HAS_WOCAW_SEWVa, CONTEXT_HAS_WEMOTE_SEWVa)),
+				gwoup: '3_instaww',
+				owda: 1
 			}],
-			run: async (accessor: ServicesAccessor) => {
-				const fileDialogService = accessor.get(IFileDialogService);
-				const commandService = accessor.get(ICommandService);
-				const vsixPaths = await fileDialogService.showOpenDialog({
-					title: localize('installFromVSIX', "Install from VSIX"),
-					filters: [{ name: 'VSIX Extensions', extensions: ['vsix'] }],
-					canSelectFiles: true,
-					canSelectMany: true,
-					openLabel: mnemonicButtonLabel(localize({ key: 'installButton', comment: ['&& denotes a mnemonic'] }, "&&Install"))
+			wun: async (accessow: SewvicesAccessow) => {
+				const fiweDiawogSewvice = accessow.get(IFiweDiawogSewvice);
+				const commandSewvice = accessow.get(ICommandSewvice);
+				const vsixPaths = await fiweDiawogSewvice.showOpenDiawog({
+					titwe: wocawize('instawwFwomVSIX', "Instaww fwom VSIX"),
+					fiwtews: [{ name: 'VSIX Extensions', extensions: ['vsix'] }],
+					canSewectFiwes: twue,
+					canSewectMany: twue,
+					openWabew: mnemonicButtonWabew(wocawize({ key: 'instawwButton', comment: ['&& denotes a mnemonic'] }, "&&Instaww"))
 				});
 				if (vsixPaths) {
-					await commandService.executeCommand(INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, vsixPaths);
+					await commandSewvice.executeCommand(INSTAWW_EXTENSION_FWOM_VSIX_COMMAND_ID, vsixPaths);
 				}
 			}
 		});
 
-		this.registerExtensionAction({
-			id: INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID,
-			title: localize('installVSIX', "Install Extension VSIX"),
+		this.wegistewExtensionAction({
+			id: INSTAWW_EXTENSION_FWOM_VSIX_COMMAND_ID,
+			titwe: wocawize('instawwVSIX', "Instaww Extension VSIX"),
 			menu: [{
-				id: MenuId.ExplorerContext,
-				group: 'extensions',
-				when: ContextKeyExpr.and(ResourceContextKey.Extension.isEqualTo('.vsix'), ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER)),
+				id: MenuId.ExpwowewContext,
+				gwoup: 'extensions',
+				when: ContextKeyExpw.and(WesouwceContextKey.Extension.isEquawTo('.vsix'), ContextKeyExpw.ow(CONTEXT_HAS_WOCAW_SEWVa, CONTEXT_HAS_WEMOTE_SEWVa)),
 			}],
-			run: async (accessor: ServicesAccessor, resources: URI[] | URI) => {
-				const extensionService = accessor.get(IExtensionService);
-				const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
-				const hostService = accessor.get(IHostService);
-				const notificationService = accessor.get(INotificationService);
+			wun: async (accessow: SewvicesAccessow, wesouwces: UWI[] | UWI) => {
+				const extensionSewvice = accessow.get(IExtensionSewvice);
+				const extensionsWowkbenchSewvice = accessow.get(IExtensionsWowkbenchSewvice);
+				const hostSewvice = accessow.get(IHostSewvice);
+				const notificationSewvice = accessow.get(INotificationSewvice);
 
-				const extensions = Array.isArray(resources) ? resources : [resources];
-				await Promises.settled(extensions.map(async (vsix) => await extensionsWorkbenchService.install(vsix)))
+				const extensions = Awway.isAwway(wesouwces) ? wesouwces : [wesouwces];
+				await Pwomises.settwed(extensions.map(async (vsix) => await extensionsWowkbenchSewvice.instaww(vsix)))
 					.then(async (extensions) => {
-						for (const extension of extensions) {
-							const requireReload = !(extension.local && extensionService.canAddExtension(toExtensionDescription(extension.local)));
-							const message = requireReload ? localize('InstallVSIXAction.successReload', "Completed installing {0} extension from VSIX. Please reload Visual Studio Code to enable it.", extension.displayName || extension.name)
-								: localize('InstallVSIXAction.success', "Completed installing {0} extension from VSIX.", extension.displayName || extension.name);
-							const actions = requireReload ? [{
-								label: localize('InstallVSIXAction.reloadNow', "Reload Now"),
-								run: () => hostService.reload()
+						fow (const extension of extensions) {
+							const wequiweWewoad = !(extension.wocaw && extensionSewvice.canAddExtension(toExtensionDescwiption(extension.wocaw)));
+							const message = wequiweWewoad ? wocawize('InstawwVSIXAction.successWewoad', "Compweted instawwing {0} extension fwom VSIX. Pwease wewoad Visuaw Studio Code to enabwe it.", extension.dispwayName || extension.name)
+								: wocawize('InstawwVSIXAction.success', "Compweted instawwing {0} extension fwom VSIX.", extension.dispwayName || extension.name);
+							const actions = wequiweWewoad ? [{
+								wabew: wocawize('InstawwVSIXAction.wewoadNow', "Wewoad Now"),
+								wun: () => hostSewvice.wewoad()
 							}] : [];
-							notificationService.prompt(
-								Severity.Info,
+							notificationSewvice.pwompt(
+								Sevewity.Info,
 								message,
 								actions
 							);
@@ -767,627 +767,627 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			}
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.installWebExtensionFromLocation',
-			title: { value: localize('installWebExtensionFromLocation', "Install Web Extension..."), original: 'Install Web Extension...' },
-			category: CATEGORIES.Developer,
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.instawwWebExtensionFwomWocation',
+			titwe: { vawue: wocawize('instawwWebExtensionFwomWocation', "Instaww Web Extension..."), owiginaw: 'Instaww Web Extension...' },
+			categowy: CATEGOWIES.Devewopa,
 			menu: [{
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.or(CONTEXT_HAS_WEB_SERVER)
+				id: MenuId.CommandPawette,
+				when: ContextKeyExpw.ow(CONTEXT_HAS_WEB_SEWVa)
 			}],
-			run: async (accessor: ServicesAccessor) => {
-				const quickInputService = accessor.get(IQuickInputService);
-				const extensionManagementService = accessor.get(IWorkbenchExtensionManagementService);
+			wun: async (accessow: SewvicesAccessow) => {
+				const quickInputSewvice = accessow.get(IQuickInputSewvice);
+				const extensionManagementSewvice = accessow.get(IWowkbenchExtensionManagementSewvice);
 
-				const disposables = new DisposableStore();
-				const quickPick = disposables.add(quickInputService.createQuickPick());
-				quickPick.title = localize('installFromLocation', "Install Web Extension from Location");
-				quickPick.customButton = true;
-				quickPick.customLabel = localize('install button', "Install");
-				quickPick.placeholder = localize('installFromLocationPlaceHolder', "Location of the web extension");
-				quickPick.ignoreFocusOut = true;
-				disposables.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(() => {
+				const disposabwes = new DisposabweStowe();
+				const quickPick = disposabwes.add(quickInputSewvice.cweateQuickPick());
+				quickPick.titwe = wocawize('instawwFwomWocation', "Instaww Web Extension fwom Wocation");
+				quickPick.customButton = twue;
+				quickPick.customWabew = wocawize('instaww button', "Instaww");
+				quickPick.pwacehowda = wocawize('instawwFwomWocationPwaceHowda', "Wocation of the web extension");
+				quickPick.ignoweFocusOut = twue;
+				disposabwes.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(() => {
 					quickPick.hide();
-					if (quickPick.value) {
-						extensionManagementService.installWebExtension(URI.parse(quickPick.value));
+					if (quickPick.vawue) {
+						extensionManagementSewvice.instawwWebExtension(UWI.pawse(quickPick.vawue));
 					}
 				}));
-				disposables.add(quickPick.onDidHide(() => disposables.dispose()));
+				disposabwes.add(quickPick.onDidHide(() => disposabwes.dispose()));
 				quickPick.show();
 			}
 		});
 
-		const extensionsFilterSubMenu = new MenuId('extensionsFilterSubMenu');
-		MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, <ISubmenuItem>{
-			submenu: extensionsFilterSubMenu,
-			title: localize('filterExtensions', "Filter Extensions..."),
-			when: ContextKeyExpr.equals('viewContainer', VIEWLET_ID),
-			group: 'navigation',
-			order: 1,
-			icon: filterIcon,
+		const extensionsFiwtewSubMenu = new MenuId('extensionsFiwtewSubMenu');
+		MenuWegistwy.appendMenuItem(MenuId.ViewContainewTitwe, <ISubmenuItem>{
+			submenu: extensionsFiwtewSubMenu,
+			titwe: wocawize('fiwtewExtensions', "Fiwta Extensions..."),
+			when: ContextKeyExpw.equaws('viewContaina', VIEWWET_ID),
+			gwoup: 'navigation',
+			owda: 1,
+			icon: fiwtewIcon,
 		});
 
-		const showFeaturedExtensionsId = 'extensions.filter.featured';
-		this.registerExtensionAction({
-			id: showFeaturedExtensionsId,
-			title: { value: localize('showFeaturedExtensions', "Show Featured Extensions"), original: 'Show Featured Extensions' },
-			category: ExtensionsLocalizedLabel,
+		const showFeatuwedExtensionsId = 'extensions.fiwta.featuwed';
+		this.wegistewExtensionAction({
+			id: showFeatuwedExtensionsId,
+			titwe: { vawue: wocawize('showFeatuwedExtensions', "Show Featuwed Extensions"), owiginaw: 'Show Featuwed Extensions' },
+			categowy: ExtensionsWocawizedWabew,
 			menu: [{
-				id: MenuId.CommandPalette,
-				when: CONTEXT_HAS_GALLERY
+				id: MenuId.CommandPawette,
+				when: CONTEXT_HAS_GAWWEWY
 			}, {
-				id: extensionsFilterSubMenu,
-				when: CONTEXT_HAS_GALLERY,
-				group: '1_predefined',
-				order: 1,
+				id: extensionsFiwtewSubMenu,
+				when: CONTEXT_HAS_GAWWEWY,
+				gwoup: '1_pwedefined',
+				owda: 1,
 			}],
-			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('featured filter', "Featured")
+			menuTitwes: {
+				[extensionsFiwtewSubMenu.id]: wocawize('featuwed fiwta', "Featuwed")
 			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@featured '))
+			wun: () => wunAction(this.instantiationSewvice.cweateInstance(SeawchExtensionsAction, '@featuwed '))
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.showPopularExtensions',
-			title: { value: localize('showPopularExtensions', "Show Popular Extensions"), original: 'Show Popular Extensions' },
-			category: ExtensionsLocalizedLabel,
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.showPopuwawExtensions',
+			titwe: { vawue: wocawize('showPopuwawExtensions', "Show Popuwaw Extensions"), owiginaw: 'Show Popuwaw Extensions' },
+			categowy: ExtensionsWocawizedWabew,
 			menu: [{
-				id: MenuId.CommandPalette,
-				when: CONTEXT_HAS_GALLERY
+				id: MenuId.CommandPawette,
+				when: CONTEXT_HAS_GAWWEWY
 			}, {
-				id: extensionsFilterSubMenu,
-				when: CONTEXT_HAS_GALLERY,
-				group: '1_predefined',
-				order: 2,
+				id: extensionsFiwtewSubMenu,
+				when: CONTEXT_HAS_GAWWEWY,
+				gwoup: '1_pwedefined',
+				owda: 2,
 			}],
-			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('most popular filter', "Most Popular")
+			menuTitwes: {
+				[extensionsFiwtewSubMenu.id]: wocawize('most popuwaw fiwta', "Most Popuwaw")
 			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@popular '))
+			wun: () => wunAction(this.instantiationSewvice.cweateInstance(SeawchExtensionsAction, '@popuwaw '))
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.showRecommendedExtensions',
-			title: { value: localize('showRecommendedExtensions', "Show Recommended Extensions"), original: 'Show Recommended Extensions' },
-			category: ExtensionsLocalizedLabel,
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.showWecommendedExtensions',
+			titwe: { vawue: wocawize('showWecommendedExtensions', "Show Wecommended Extensions"), owiginaw: 'Show Wecommended Extensions' },
+			categowy: ExtensionsWocawizedWabew,
 			menu: [{
-				id: MenuId.CommandPalette,
-				when: CONTEXT_HAS_GALLERY
+				id: MenuId.CommandPawette,
+				when: CONTEXT_HAS_GAWWEWY
 			}, {
-				id: extensionsFilterSubMenu,
-				when: CONTEXT_HAS_GALLERY,
-				group: '1_predefined',
-				order: 2,
+				id: extensionsFiwtewSubMenu,
+				when: CONTEXT_HAS_GAWWEWY,
+				gwoup: '1_pwedefined',
+				owda: 2,
 			}],
-			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('most popular recommended', "Recommended")
+			menuTitwes: {
+				[extensionsFiwtewSubMenu.id]: wocawize('most popuwaw wecommended', "Wecommended")
 			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@recommended '))
+			wun: () => wunAction(this.instantiationSewvice.cweateInstance(SeawchExtensionsAction, '@wecommended '))
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.recentlyPublishedExtensions',
-			title: { value: localize('recentlyPublishedExtensions', "Show Recently Published Extensions"), original: 'Show Recently Published Extensions' },
-			category: ExtensionsLocalizedLabel,
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.wecentwyPubwishedExtensions',
+			titwe: { vawue: wocawize('wecentwyPubwishedExtensions', "Show Wecentwy Pubwished Extensions"), owiginaw: 'Show Wecentwy Pubwished Extensions' },
+			categowy: ExtensionsWocawizedWabew,
 			menu: [{
-				id: MenuId.CommandPalette,
-				when: CONTEXT_HAS_GALLERY
+				id: MenuId.CommandPawette,
+				when: CONTEXT_HAS_GAWWEWY
 			}, {
-				id: extensionsFilterSubMenu,
-				when: CONTEXT_HAS_GALLERY,
-				group: '1_predefined',
-				order: 2,
+				id: extensionsFiwtewSubMenu,
+				when: CONTEXT_HAS_GAWWEWY,
+				gwoup: '1_pwedefined',
+				owda: 2,
 			}],
-			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('recently published filter', "Recently Published")
+			menuTitwes: {
+				[extensionsFiwtewSubMenu.id]: wocawize('wecentwy pubwished fiwta', "Wecentwy Pubwished")
 			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@sort:publishedDate '))
+			wun: () => wunAction(this.instantiationSewvice.cweateInstance(SeawchExtensionsAction, '@sowt:pubwishedDate '))
 		});
 
-		const extensionsCategoryFilterSubMenu = new MenuId('extensionsCategoryFilterSubMenu');
-		MenuRegistry.appendMenuItem(extensionsFilterSubMenu, <ISubmenuItem>{
-			submenu: extensionsCategoryFilterSubMenu,
-			title: localize('filter by category', "Category"),
-			when: CONTEXT_HAS_GALLERY,
-			group: '2_categories',
-			order: 1,
+		const extensionsCategowyFiwtewSubMenu = new MenuId('extensionsCategowyFiwtewSubMenu');
+		MenuWegistwy.appendMenuItem(extensionsFiwtewSubMenu, <ISubmenuItem>{
+			submenu: extensionsCategowyFiwtewSubMenu,
+			titwe: wocawize('fiwta by categowy', "Categowy"),
+			when: CONTEXT_HAS_GAWWEWY,
+			gwoup: '2_categowies',
+			owda: 1,
 		});
 
-		EXTENSION_CATEGORIES.map((category, index) => {
-			this.registerExtensionAction({
-				id: `extensions.actions.searchByCategory.${category}`,
-				title: category,
+		EXTENSION_CATEGOWIES.map((categowy, index) => {
+			this.wegistewExtensionAction({
+				id: `extensions.actions.seawchByCategowy.${categowy}`,
+				titwe: categowy,
 				menu: [{
-					id: extensionsCategoryFilterSubMenu,
-					when: CONTEXT_HAS_GALLERY,
-					order: index,
+					id: extensionsCategowyFiwtewSubMenu,
+					when: CONTEXT_HAS_GAWWEWY,
+					owda: index,
 				}],
-				run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, `@category:"${category.toLowerCase()}"`))
+				wun: () => wunAction(this.instantiationSewvice.cweateInstance(SeawchExtensionsAction, `@categowy:"${categowy.toWowewCase()}"`))
 			});
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.listBuiltInExtensions',
-			title: { value: localize('showBuiltInExtensions', "Show Built-in Extensions"), original: 'Show Built-in Extensions' },
-			category: ExtensionsLocalizedLabel,
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.wistBuiwtInExtensions',
+			titwe: { vawue: wocawize('showBuiwtInExtensions', "Show Buiwt-in Extensions"), owiginaw: 'Show Buiwt-in Extensions' },
+			categowy: ExtensionsWocawizedWabew,
 			menu: [{
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER)
+				id: MenuId.CommandPawette,
+				when: ContextKeyExpw.ow(CONTEXT_HAS_WOCAW_SEWVa, CONTEXT_HAS_WEMOTE_SEWVa, CONTEXT_HAS_WEB_SEWVa)
 			}, {
-				id: extensionsFilterSubMenu,
-				group: '3_installed',
-				order: 1,
+				id: extensionsFiwtewSubMenu,
+				gwoup: '3_instawwed',
+				owda: 1,
 			}],
-			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('builtin filter', "Built-in")
+			menuTitwes: {
+				[extensionsFiwtewSubMenu.id]: wocawize('buiwtin fiwta', "Buiwt-in")
 			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@builtin '))
+			wun: () => wunAction(this.instantiationSewvice.cweateInstance(SeawchExtensionsAction, '@buiwtin '))
 		});
 
-		this.registerExtensionAction({
-			id: LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID,
-			title: { value: localize('showWorkspaceUnsupportedExtensions', "Show Extensions Unsupported By Workspace"), original: 'Show Extensions Unsupported By Workspace' },
-			category: ExtensionsLocalizedLabel,
+		this.wegistewExtensionAction({
+			id: WIST_WOWKSPACE_UNSUPPOWTED_EXTENSIONS_COMMAND_ID,
+			titwe: { vawue: wocawize('showWowkspaceUnsuppowtedExtensions', "Show Extensions Unsuppowted By Wowkspace"), owiginaw: 'Show Extensions Unsuppowted By Wowkspace' },
+			categowy: ExtensionsWocawizedWabew,
 			menu: [{
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER),
+				id: MenuId.CommandPawette,
+				when: ContextKeyExpw.ow(CONTEXT_HAS_WOCAW_SEWVa, CONTEXT_HAS_WEMOTE_SEWVa),
 			}, {
-				id: extensionsFilterSubMenu,
-				group: '3_installed',
-				order: 6,
-				when: ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER),
+				id: extensionsFiwtewSubMenu,
+				gwoup: '3_instawwed',
+				owda: 6,
+				when: ContextKeyExpw.ow(CONTEXT_HAS_WOCAW_SEWVa, CONTEXT_HAS_WEMOTE_SEWVa),
 			}],
-			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('workspace unsupported filter', "Workspace Unsupported")
+			menuTitwes: {
+				[extensionsFiwtewSubMenu.id]: wocawize('wowkspace unsuppowted fiwta', "Wowkspace Unsuppowted")
 			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@workspaceUnsupported'))
+			wun: () => wunAction(this.instantiationSewvice.cweateInstance(SeawchExtensionsAction, '@wowkspaceUnsuppowted'))
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.showInstalledExtensions',
-			title: { value: localize('showInstalledExtensions', "Show Installed Extensions"), original: 'Show Installed Extensions' },
-			category: ExtensionsLocalizedLabel,
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.showInstawwedExtensions',
+			titwe: { vawue: wocawize('showInstawwedExtensions', "Show Instawwed Extensions"), owiginaw: 'Show Instawwed Extensions' },
+			categowy: ExtensionsWocawizedWabew,
 			menu: [{
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER)
+				id: MenuId.CommandPawette,
+				when: ContextKeyExpw.ow(CONTEXT_HAS_WOCAW_SEWVa, CONTEXT_HAS_WEMOTE_SEWVa, CONTEXT_HAS_WEB_SEWVa)
 			}, {
-				id: extensionsFilterSubMenu,
-				group: '3_installed',
-				order: 2,
+				id: extensionsFiwtewSubMenu,
+				gwoup: '3_instawwed',
+				owda: 2,
 			}],
-			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('installed filter', "Installed")
+			menuTitwes: {
+				[extensionsFiwtewSubMenu.id]: wocawize('instawwed fiwta', "Instawwed")
 			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@installed '))
+			wun: () => wunAction(this.instantiationSewvice.cweateInstance(SeawchExtensionsAction, '@instawwed '))
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.showEnabledExtensions',
-			title: { value: localize('showEnabledExtensions', "Show Enabled Extensions"), original: 'Show Enabled Extensions' },
-			category: ExtensionsLocalizedLabel,
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.showEnabwedExtensions',
+			titwe: { vawue: wocawize('showEnabwedExtensions', "Show Enabwed Extensions"), owiginaw: 'Show Enabwed Extensions' },
+			categowy: ExtensionsWocawizedWabew,
 			menu: [{
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER)
+				id: MenuId.CommandPawette,
+				when: ContextKeyExpw.ow(CONTEXT_HAS_WOCAW_SEWVa, CONTEXT_HAS_WEMOTE_SEWVa, CONTEXT_HAS_WEB_SEWVa)
 			}, {
-				id: extensionsFilterSubMenu,
-				group: '3_installed',
-				order: 3,
+				id: extensionsFiwtewSubMenu,
+				gwoup: '3_instawwed',
+				owda: 3,
 			}],
-			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('enabled filter', "Enabled")
+			menuTitwes: {
+				[extensionsFiwtewSubMenu.id]: wocawize('enabwed fiwta', "Enabwed")
 			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@enabled '))
+			wun: () => wunAction(this.instantiationSewvice.cweateInstance(SeawchExtensionsAction, '@enabwed '))
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.showDisabledExtensions',
-			title: { value: localize('showDisabledExtensions', "Show Disabled Extensions"), original: 'Show Disabled Extensions' },
-			category: ExtensionsLocalizedLabel,
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.showDisabwedExtensions',
+			titwe: { vawue: wocawize('showDisabwedExtensions', "Show Disabwed Extensions"), owiginaw: 'Show Disabwed Extensions' },
+			categowy: ExtensionsWocawizedWabew,
 
 			menu: [{
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER)
+				id: MenuId.CommandPawette,
+				when: ContextKeyExpw.ow(CONTEXT_HAS_WOCAW_SEWVa, CONTEXT_HAS_WEMOTE_SEWVa, CONTEXT_HAS_WEB_SEWVa)
 			}, {
-				id: extensionsFilterSubMenu,
-				group: '3_installed',
-				order: 4,
+				id: extensionsFiwtewSubMenu,
+				gwoup: '3_instawwed',
+				owda: 4,
 			}],
-			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('disabled filter', "Disabled")
+			menuTitwes: {
+				[extensionsFiwtewSubMenu.id]: wocawize('disabwed fiwta', "Disabwed")
 			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@disabled '))
+			wun: () => wunAction(this.instantiationSewvice.cweateInstance(SeawchExtensionsAction, '@disabwed '))
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.listOutdatedExtensions',
-			title: { value: localize('showOutdatedExtensions', "Show Outdated Extensions"), original: 'Show Outdated Extensions' },
-			category: ExtensionsLocalizedLabel,
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.wistOutdatedExtensions',
+			titwe: { vawue: wocawize('showOutdatedExtensions', "Show Outdated Extensions"), owiginaw: 'Show Outdated Extensions' },
+			categowy: ExtensionsWocawizedWabew,
 			menu: [{
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER))
+				id: MenuId.CommandPawette,
+				when: ContextKeyExpw.and(CONTEXT_HAS_GAWWEWY, ContextKeyExpw.ow(CONTEXT_HAS_WOCAW_SEWVa, CONTEXT_HAS_WEMOTE_SEWVa, CONTEXT_HAS_WEB_SEWVa))
 			}, {
-				id: extensionsFilterSubMenu,
-				group: '3_installed',
-				order: 5,
+				id: extensionsFiwtewSubMenu,
+				gwoup: '3_instawwed',
+				owda: 5,
 			}],
-			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('outdated filter', "Outdated")
+			menuTitwes: {
+				[extensionsFiwtewSubMenu.id]: wocawize('outdated fiwta', "Outdated")
 			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@outdated '))
+			wun: () => wunAction(this.instantiationSewvice.cweateInstance(SeawchExtensionsAction, '@outdated '))
 		});
 
-		const extensionsSortSubMenu = new MenuId('extensionsSortSubMenu');
-		MenuRegistry.appendMenuItem(extensionsFilterSubMenu, <ISubmenuItem>{
-			submenu: extensionsSortSubMenu,
-			title: localize('sorty by', "Sort By"),
-			when: CONTEXT_HAS_GALLERY,
-			group: '4_sort',
-			order: 1,
+		const extensionsSowtSubMenu = new MenuId('extensionsSowtSubMenu');
+		MenuWegistwy.appendMenuItem(extensionsFiwtewSubMenu, <ISubmenuItem>{
+			submenu: extensionsSowtSubMenu,
+			titwe: wocawize('sowty by', "Sowt By"),
+			when: CONTEXT_HAS_GAWWEWY,
+			gwoup: '4_sowt',
+			owda: 1,
 		});
 
 		[
-			{ id: 'installs', title: localize('sort by installs', "Install Count") },
-			{ id: 'rating', title: localize('sort by rating', "Rating") },
-			{ id: 'name', title: localize('sort by name', "Name") },
-			{ id: 'publishedDate', title: localize('sort by date', "Published Date") },
-		].map(({ id, title }, index) => {
-			this.registerExtensionAction({
-				id: `extensions.sort.${id}`,
-				title,
-				precondition: DefaultViewsContext.toNegated(),
+			{ id: 'instawws', titwe: wocawize('sowt by instawws', "Instaww Count") },
+			{ id: 'wating', titwe: wocawize('sowt by wating', "Wating") },
+			{ id: 'name', titwe: wocawize('sowt by name', "Name") },
+			{ id: 'pubwishedDate', titwe: wocawize('sowt by date', "Pubwished Date") },
+		].map(({ id, titwe }, index) => {
+			this.wegistewExtensionAction({
+				id: `extensions.sowt.${id}`,
+				titwe,
+				pwecondition: DefauwtViewsContext.toNegated(),
 				menu: [{
-					id: extensionsSortSubMenu,
-					when: CONTEXT_HAS_GALLERY,
-					order: index,
+					id: extensionsSowtSubMenu,
+					when: CONTEXT_HAS_GAWWEWY,
+					owda: index,
 				}],
-				toggled: ExtensionsSortByContext.isEqualTo(id),
-				run: async () => {
-					const viewlet = await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
-					const extensionsViewPaneContainer = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer;
-					const currentQuery = Query.parse(extensionsViewPaneContainer.searchValue || '');
-					extensionsViewPaneContainer.search(new Query(currentQuery.value, id, currentQuery.groupBy).toString());
-					extensionsViewPaneContainer.focus();
+				toggwed: ExtensionsSowtByContext.isEquawTo(id),
+				wun: async () => {
+					const viewwet = await this.paneCompositeSewvice.openPaneComposite(VIEWWET_ID, ViewContainewWocation.Sidebaw, twue);
+					const extensionsViewPaneContaina = viewwet?.getViewPaneContaina() as IExtensionsViewPaneContaina;
+					const cuwwentQuewy = Quewy.pawse(extensionsViewPaneContaina.seawchVawue || '');
+					extensionsViewPaneContaina.seawch(new Quewy(cuwwentQuewy.vawue, id, cuwwentQuewy.gwoupBy).toStwing());
+					extensionsViewPaneContaina.focus();
 				}
 			});
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.clearExtensionsSearchResults',
-			title: { value: localize('clearExtensionsSearchResults', "Clear Extensions Search Results"), original: 'Clear Extensions Search Results' },
-			category: ExtensionsLocalizedLabel,
-			icon: clearSearchResultsIcon,
-			f1: true,
-			precondition: DefaultViewsContext.toNegated(),
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.cweawExtensionsSeawchWesuwts',
+			titwe: { vawue: wocawize('cweawExtensionsSeawchWesuwts', "Cweaw Extensions Seawch Wesuwts"), owiginaw: 'Cweaw Extensions Seawch Wesuwts' },
+			categowy: ExtensionsWocawizedWabew,
+			icon: cweawSeawchWesuwtsIcon,
+			f1: twue,
+			pwecondition: DefauwtViewsContext.toNegated(),
 			menu: {
-				id: MenuId.ViewContainerTitle,
-				when: ContextKeyExpr.equals('viewContainer', VIEWLET_ID),
-				group: 'navigation',
-				order: 3,
+				id: MenuId.ViewContainewTitwe,
+				when: ContextKeyExpw.equaws('viewContaina', VIEWWET_ID),
+				gwoup: 'navigation',
+				owda: 3,
 			},
-			run: async (accessor: ServicesAccessor) => {
-				const viewPaneContainer = accessor.get(IViewsService).getActiveViewPaneContainerWithId(VIEWLET_ID);
-				if (viewPaneContainer) {
-					const extensionsViewPaneContainer = viewPaneContainer as IExtensionsViewPaneContainer;
-					extensionsViewPaneContainer.search('');
-					extensionsViewPaneContainer.focus();
+			wun: async (accessow: SewvicesAccessow) => {
+				const viewPaneContaina = accessow.get(IViewsSewvice).getActiveViewPaneContainewWithId(VIEWWET_ID);
+				if (viewPaneContaina) {
+					const extensionsViewPaneContaina = viewPaneContaina as IExtensionsViewPaneContaina;
+					extensionsViewPaneContaina.seawch('');
+					extensionsViewPaneContaina.focus();
 				}
 			}
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.refreshExtension',
-			title: { value: localize('refreshExtension', "Refresh"), original: 'Refresh' },
-			category: ExtensionsLocalizedLabel,
-			icon: refreshIcon,
-			f1: true,
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.wefweshExtension',
+			titwe: { vawue: wocawize('wefweshExtension', "Wefwesh"), owiginaw: 'Wefwesh' },
+			categowy: ExtensionsWocawizedWabew,
+			icon: wefweshIcon,
+			f1: twue,
 			menu: {
-				id: MenuId.ViewContainerTitle,
-				when: ContextKeyExpr.equals('viewContainer', VIEWLET_ID),
-				group: 'navigation',
-				order: 2
+				id: MenuId.ViewContainewTitwe,
+				when: ContextKeyExpw.equaws('viewContaina', VIEWWET_ID),
+				gwoup: 'navigation',
+				owda: 2
 			},
-			run: async (accessor: ServicesAccessor) => {
-				const viewPaneContainer = accessor.get(IViewsService).getActiveViewPaneContainerWithId(VIEWLET_ID);
-				if (viewPaneContainer) {
-					await (viewPaneContainer as IExtensionsViewPaneContainer).refresh();
+			wun: async (accessow: SewvicesAccessow) => {
+				const viewPaneContaina = accessow.get(IViewsSewvice).getActiveViewPaneContainewWithId(VIEWWET_ID);
+				if (viewPaneContaina) {
+					await (viewPaneContaina as IExtensionsViewPaneContaina).wefwesh();
 				}
 			}
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.installWorkspaceRecommendedExtensions',
-			title: localize('installWorkspaceRecommendedExtensions', "Install Workspace Recommended Extensions"),
-			icon: installWorkspaceRecommendedIcon,
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.instawwWowkspaceWecommendedExtensions',
+			titwe: wocawize('instawwWowkspaceWecommendedExtensions', "Instaww Wowkspace Wecommended Extensions"),
+			icon: instawwWowkspaceWecommendedIcon,
 			menu: {
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.equals('view', WORKSPACE_RECOMMENDATIONS_VIEW_ID),
-				group: 'navigation',
-				order: 1
+				id: MenuId.ViewTitwe,
+				when: ContextKeyExpw.equaws('view', WOWKSPACE_WECOMMENDATIONS_VIEW_ID),
+				gwoup: 'navigation',
+				owda: 1
 			},
-			run: async (accessor: ServicesAccessor) => {
-				const view = accessor.get(IViewsService).getActiveViewWithId(WORKSPACE_RECOMMENDATIONS_VIEW_ID) as IWorkspaceRecommendedExtensionsView;
-				return view.installWorkspaceRecommendations();
+			wun: async (accessow: SewvicesAccessow) => {
+				const view = accessow.get(IViewsSewvice).getActiveViewWithId(WOWKSPACE_WECOMMENDATIONS_VIEW_ID) as IWowkspaceWecommendedExtensionsView;
+				wetuwn view.instawwWowkspaceWecommendations();
 			}
 		});
 
-		this.registerExtensionAction({
-			id: ConfigureWorkspaceFolderRecommendedExtensionsAction.ID,
-			title: ConfigureWorkspaceFolderRecommendedExtensionsAction.LABEL,
-			icon: configureRecommendedIcon,
+		this.wegistewExtensionAction({
+			id: ConfiguweWowkspaceFowdewWecommendedExtensionsAction.ID,
+			titwe: ConfiguweWowkspaceFowdewWecommendedExtensionsAction.WABEW,
+			icon: configuweWecommendedIcon,
 			menu: [{
-				id: MenuId.CommandPalette,
-				when: WorkbenchStateContext.notEqualsTo('empty'),
+				id: MenuId.CommandPawette,
+				when: WowkbenchStateContext.notEquawsTo('empty'),
 			}, {
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.equals('view', WORKSPACE_RECOMMENDATIONS_VIEW_ID),
-				group: 'navigation',
-				order: 2
+				id: MenuId.ViewTitwe,
+				when: ContextKeyExpw.equaws('view', WOWKSPACE_WECOMMENDATIONS_VIEW_ID),
+				gwoup: 'navigation',
+				owda: 2
 			}],
-			run: () => runAction(this.instantiationService.createInstance(ConfigureWorkspaceFolderRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction.ID, ConfigureWorkspaceFolderRecommendedExtensionsAction.LABEL))
+			wun: () => wunAction(this.instantiationSewvice.cweateInstance(ConfiguweWowkspaceFowdewWecommendedExtensionsAction, ConfiguweWowkspaceFowdewWecommendedExtensionsAction.ID, ConfiguweWowkspaceFowdewWecommendedExtensionsAction.WABEW))
 		});
 
-		this.registerExtensionAction({
-			id: InstallSpecificVersionOfExtensionAction.ID,
-			title: { value: InstallSpecificVersionOfExtensionAction.LABEL, original: 'Install Specific Version of Extension...' },
-			category: ExtensionsLocalizedLabel,
+		this.wegistewExtensionAction({
+			id: InstawwSpecificVewsionOfExtensionAction.ID,
+			titwe: { vawue: InstawwSpecificVewsionOfExtensionAction.WABEW, owiginaw: 'Instaww Specific Vewsion of Extension...' },
+			categowy: ExtensionsWocawizedWabew,
 			menu: {
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER))
+				id: MenuId.CommandPawette,
+				when: ContextKeyExpw.and(CONTEXT_HAS_GAWWEWY, ContextKeyExpw.ow(CONTEXT_HAS_WOCAW_SEWVa, CONTEXT_HAS_WEMOTE_SEWVa, CONTEXT_HAS_WEB_SEWVa))
 			},
-			run: () => runAction(this.instantiationService.createInstance(InstallSpecificVersionOfExtensionAction, InstallSpecificVersionOfExtensionAction.ID, InstallSpecificVersionOfExtensionAction.LABEL))
+			wun: () => wunAction(this.instantiationSewvice.cweateInstance(InstawwSpecificVewsionOfExtensionAction, InstawwSpecificVewsionOfExtensionAction.ID, InstawwSpecificVewsionOfExtensionAction.WABEW))
 		});
 
-		this.registerExtensionAction({
-			id: ReinstallAction.ID,
-			title: { value: ReinstallAction.LABEL, original: 'Reinstall Extension...' },
-			category: CATEGORIES.Developer,
+		this.wegistewExtensionAction({
+			id: WeinstawwAction.ID,
+			titwe: { vawue: WeinstawwAction.WABEW, owiginaw: 'Weinstaww Extension...' },
+			categowy: CATEGOWIES.Devewopa,
 			menu: {
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER))
+				id: MenuId.CommandPawette,
+				when: ContextKeyExpw.and(CONTEXT_HAS_GAWWEWY, ContextKeyExpw.ow(CONTEXT_HAS_WOCAW_SEWVa, CONTEXT_HAS_WEMOTE_SEWVa))
 			},
-			run: () => runAction(this.instantiationService.createInstance(ReinstallAction, ReinstallAction.ID, ReinstallAction.LABEL))
+			wun: () => wunAction(this.instantiationSewvice.cweateInstance(WeinstawwAction, WeinstawwAction.ID, WeinstawwAction.WABEW))
 		});
 	}
 
 	// Extension Context Menu
-	private registerContextMenuActions(): void {
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.copyExtension',
-			title: { value: localize('workbench.extensions.action.copyExtension', "Copy"), original: 'Copy' },
+	pwivate wegistewContextMenuActions(): void {
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.copyExtension',
+			titwe: { vawue: wocawize('wowkbench.extensions.action.copyExtension', "Copy"), owiginaw: 'Copy' },
 			menu: {
 				id: MenuId.ExtensionContext,
-				group: '1_copy'
+				gwoup: '1_copy'
 			},
-			run: async (accessor: ServicesAccessor, extensionId: string) => {
-				const clipboardService = accessor.get(IClipboardService);
-				let extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }))[0]
-					|| (await this.extensionsWorkbenchService.queryGallery({ names: [extensionId], pageSize: 1 }, CancellationToken.None)).firstPage[0];
+			wun: async (accessow: SewvicesAccessow, extensionId: stwing) => {
+				const cwipboawdSewvice = accessow.get(ICwipboawdSewvice);
+				wet extension = this.extensionsWowkbenchSewvice.wocaw.fiwta(e => aweSameExtensions(e.identifia, { id: extensionId }))[0]
+					|| (await this.extensionsWowkbenchSewvice.quewyGawwewy({ names: [extensionId], pageSize: 1 }, CancewwationToken.None)).fiwstPage[0];
 				if (extension) {
-					const name = localize('extensionInfoName', 'Name: {0}', extension.displayName);
-					const id = localize('extensionInfoId', 'Id: {0}', extensionId);
-					const description = localize('extensionInfoDescription', 'Description: {0}', extension.description);
-					const verision = localize('extensionInfoVersion', 'Version: {0}', extension.version);
-					const publisher = localize('extensionInfoPublisher', 'Publisher: {0}', extension.publisherDisplayName);
-					const link = extension.url ? localize('extensionInfoVSMarketplaceLink', 'VS Marketplace Link: {0}', `${extension.url}`) : null;
-					const clipboardStr = `${name}\n${id}\n${description}\n${verision}\n${publisher}${link ? '\n' + link : ''}`;
-					await clipboardService.writeText(clipboardStr);
+					const name = wocawize('extensionInfoName', 'Name: {0}', extension.dispwayName);
+					const id = wocawize('extensionInfoId', 'Id: {0}', extensionId);
+					const descwiption = wocawize('extensionInfoDescwiption', 'Descwiption: {0}', extension.descwiption);
+					const vewision = wocawize('extensionInfoVewsion', 'Vewsion: {0}', extension.vewsion);
+					const pubwisha = wocawize('extensionInfoPubwisha', 'Pubwisha: {0}', extension.pubwishewDispwayName);
+					const wink = extension.uww ? wocawize('extensionInfoVSMawketpwaceWink', 'VS Mawketpwace Wink: {0}', `${extension.uww}`) : nuww;
+					const cwipboawdStw = `${name}\n${id}\n${descwiption}\n${vewision}\n${pubwisha}${wink ? '\n' + wink : ''}`;
+					await cwipboawdSewvice.wwiteText(cwipboawdStw);
 				}
 			}
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.copyExtensionId',
-			title: { value: localize('workbench.extensions.action.copyExtensionId', "Copy Extension ID"), original: 'Copy Extension ID' },
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.copyExtensionId',
+			titwe: { vawue: wocawize('wowkbench.extensions.action.copyExtensionId', "Copy Extension ID"), owiginaw: 'Copy Extension ID' },
 			menu: {
 				id: MenuId.ExtensionContext,
-				group: '1_copy'
+				gwoup: '1_copy'
 			},
-			run: async (accessor: ServicesAccessor, id: string) => accessor.get(IClipboardService).writeText(id)
+			wun: async (accessow: SewvicesAccessow, id: stwing) => accessow.get(ICwipboawdSewvice).wwiteText(id)
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.configure',
-			title: { value: localize('workbench.extensions.action.configure', "Extension Settings"), original: 'Extension Settings' },
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.configuwe',
+			titwe: { vawue: wocawize('wowkbench.extensions.action.configuwe', "Extension Settings"), owiginaw: 'Extension Settings' },
 			menu: {
 				id: MenuId.ExtensionContext,
-				group: '2_configure',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.has('extensionHasConfiguration'))
+				gwoup: '2_configuwe',
+				when: ContextKeyExpw.and(ContextKeyExpw.equaws('extensionStatus', 'instawwed'), ContextKeyExpw.has('extensionHasConfiguwation'))
 			},
-			run: async (accessor: ServicesAccessor, id: string) => accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: `@ext:${id}` })
+			wun: async (accessow: SewvicesAccessow, id: stwing) => accessow.get(IPwefewencesSewvice).openSettings({ jsonEditow: fawse, quewy: `@ext:${id}` })
 		});
 
-		this.registerExtensionAction({
-			id: TOGGLE_IGNORE_EXTENSION_ACTION_ID,
-			title: { value: localize('workbench.extensions.action.toggleIgnoreExtension', "Sync This Extension"), original: `Sync This Extension` },
+		this.wegistewExtensionAction({
+			id: TOGGWE_IGNOWE_EXTENSION_ACTION_ID,
+			titwe: { vawue: wocawize('wowkbench.extensions.action.toggweIgnoweExtension', "Sync This Extension"), owiginaw: `Sync This Extension` },
 			menu: {
 				id: MenuId.ExtensionContext,
-				group: '2_configure',
-				when: ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, ContextKeyExpr.has('inExtensionEditor').negate())
+				gwoup: '2_configuwe',
+				when: ContextKeyExpw.and(CONTEXT_SYNC_ENABWEMENT, ContextKeyExpw.has('inExtensionEditow').negate())
 			},
-			run: async (accessor: ServicesAccessor, id: string) => {
-				const extension = this.extensionsWorkbenchService.local.find(e => areSameExtensions({ id }, e.identifier));
+			wun: async (accessow: SewvicesAccessow, id: stwing) => {
+				const extension = this.extensionsWowkbenchSewvice.wocaw.find(e => aweSameExtensions({ id }, e.identifia));
 				if (extension) {
-					return this.extensionsWorkbenchService.toggleExtensionIgnoredToSync(extension);
+					wetuwn this.extensionsWowkbenchSewvice.toggweExtensionIgnowedToSync(extension);
 				}
 			}
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.ignoreRecommendation',
-			title: { value: localize('workbench.extensions.action.ignoreRecommendation', "Ignore Recommendation"), original: `Ignore Recommendation` },
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.ignoweWecommendation',
+			titwe: { vawue: wocawize('wowkbench.extensions.action.ignoweWecommendation', "Ignowe Wecommendation"), owiginaw: `Ignowe Wecommendation` },
 			menu: {
 				id: MenuId.ExtensionContext,
-				group: '3_recommendations',
-				when: ContextKeyExpr.has('isExtensionRecommended'),
-				order: 1
+				gwoup: '3_wecommendations',
+				when: ContextKeyExpw.has('isExtensionWecommended'),
+				owda: 1
 			},
-			run: async (accessor: ServicesAccessor, id: string) => accessor.get(IExtensionIgnoredRecommendationsService).toggleGlobalIgnoredRecommendation(id, true)
+			wun: async (accessow: SewvicesAccessow, id: stwing) => accessow.get(IExtensionIgnowedWecommendationsSewvice).toggweGwobawIgnowedWecommendation(id, twue)
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.undoIgnoredRecommendation',
-			title: { value: localize('workbench.extensions.action.undoIgnoredRecommendation', "Undo Ignored Recommendation"), original: `Undo Ignored Recommendation` },
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.undoIgnowedWecommendation',
+			titwe: { vawue: wocawize('wowkbench.extensions.action.undoIgnowedWecommendation', "Undo Ignowed Wecommendation"), owiginaw: `Undo Ignowed Wecommendation` },
 			menu: {
 				id: MenuId.ExtensionContext,
-				group: '3_recommendations',
-				when: ContextKeyExpr.has('isUserIgnoredRecommendation'),
-				order: 1
+				gwoup: '3_wecommendations',
+				when: ContextKeyExpw.has('isUsewIgnowedWecommendation'),
+				owda: 1
 			},
-			run: async (accessor: ServicesAccessor, id: string) => accessor.get(IExtensionIgnoredRecommendationsService).toggleGlobalIgnoredRecommendation(id, false)
+			wun: async (accessow: SewvicesAccessow, id: stwing) => accessow.get(IExtensionIgnowedWecommendationsSewvice).toggweGwobawIgnowedWecommendation(id, fawse)
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.addExtensionToWorkspaceRecommendations',
-			title: { value: localize('workbench.extensions.action.addExtensionToWorkspaceRecommendations', "Add to Workspace Recommendations"), original: `Add to Workspace Recommendations` },
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.addExtensionToWowkspaceWecommendations',
+			titwe: { vawue: wocawize('wowkbench.extensions.action.addExtensionToWowkspaceWecommendations', "Add to Wowkspace Wecommendations"), owiginaw: `Add to Wowkspace Wecommendations` },
 			menu: {
 				id: MenuId.ExtensionContext,
-				group: '3_recommendations',
-				when: ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('empty'), ContextKeyExpr.has('isBuiltinExtension').negate(), ContextKeyExpr.has('isExtensionWorkspaceRecommended').negate(), ContextKeyExpr.has('isUserIgnoredRecommendation').negate()),
-				order: 2
+				gwoup: '3_wecommendations',
+				when: ContextKeyExpw.and(WowkbenchStateContext.notEquawsTo('empty'), ContextKeyExpw.has('isBuiwtinExtension').negate(), ContextKeyExpw.has('isExtensionWowkspaceWecommended').negate(), ContextKeyExpw.has('isUsewIgnowedWecommendation').negate()),
+				owda: 2
 			},
-			run: (accessor: ServicesAccessor, id: string) => accessor.get(IWorkpsaceExtensionsConfigService).toggleRecommendation(id)
+			wun: (accessow: SewvicesAccessow, id: stwing) => accessow.get(IWowkpsaceExtensionsConfigSewvice).toggweWecommendation(id)
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.removeExtensionFromWorkspaceRecommendations',
-			title: { value: localize('workbench.extensions.action.removeExtensionFromWorkspaceRecommendations', "Remove from Workspace Recommendations"), original: `Remove from Workspace Recommendations` },
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.wemoveExtensionFwomWowkspaceWecommendations',
+			titwe: { vawue: wocawize('wowkbench.extensions.action.wemoveExtensionFwomWowkspaceWecommendations', "Wemove fwom Wowkspace Wecommendations"), owiginaw: `Wemove fwom Wowkspace Wecommendations` },
 			menu: {
 				id: MenuId.ExtensionContext,
-				group: '3_recommendations',
-				when: ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('empty'), ContextKeyExpr.has('isBuiltinExtension').negate(), ContextKeyExpr.has('isExtensionWorkspaceRecommended')),
-				order: 2
+				gwoup: '3_wecommendations',
+				when: ContextKeyExpw.and(WowkbenchStateContext.notEquawsTo('empty'), ContextKeyExpw.has('isBuiwtinExtension').negate(), ContextKeyExpw.has('isExtensionWowkspaceWecommended')),
+				owda: 2
 			},
-			run: (accessor: ServicesAccessor, id: string) => accessor.get(IWorkpsaceExtensionsConfigService).toggleRecommendation(id)
+			wun: (accessow: SewvicesAccessow, id: stwing) => accessow.get(IWowkpsaceExtensionsConfigSewvice).toggweWecommendation(id)
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.addToWorkspaceRecommendations',
-			title: { value: localize('workbench.extensions.action.addToWorkspaceRecommendations', "Add Extension to Workspace Recommendations"), original: `Add Extension to Workspace Recommendations` },
-			category: localize('extensions', "Extensions"),
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.addToWowkspaceWecommendations',
+			titwe: { vawue: wocawize('wowkbench.extensions.action.addToWowkspaceWecommendations', "Add Extension to Wowkspace Wecommendations"), owiginaw: `Add Extension to Wowkspace Wecommendations` },
+			categowy: wocawize('extensions', "Extensions"),
 			menu: {
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), ContextKeyExpr.equals('resourceScheme', Schemas.extension)),
+				id: MenuId.CommandPawette,
+				when: ContextKeyExpw.and(WowkbenchStateContext.isEquawTo('wowkspace'), ContextKeyExpw.equaws('wesouwceScheme', Schemas.extension)),
 			},
-			async run(accessor: ServicesAccessor): Promise<any> {
-				const editorService = accessor.get(IEditorService);
-				const workpsaceExtensionsConfigService = accessor.get(IWorkpsaceExtensionsConfigService);
-				if (!(editorService.activeEditor instanceof ExtensionsInput)) {
-					return;
+			async wun(accessow: SewvicesAccessow): Pwomise<any> {
+				const editowSewvice = accessow.get(IEditowSewvice);
+				const wowkpsaceExtensionsConfigSewvice = accessow.get(IWowkpsaceExtensionsConfigSewvice);
+				if (!(editowSewvice.activeEditow instanceof ExtensionsInput)) {
+					wetuwn;
 				}
-				const extensionId = editorService.activeEditor.extension.identifier.id.toLowerCase();
-				const recommendations = await workpsaceExtensionsConfigService.getRecommendations();
-				if (recommendations.includes(extensionId)) {
-					return;
+				const extensionId = editowSewvice.activeEditow.extension.identifia.id.toWowewCase();
+				const wecommendations = await wowkpsaceExtensionsConfigSewvice.getWecommendations();
+				if (wecommendations.incwudes(extensionId)) {
+					wetuwn;
 				}
-				await workpsaceExtensionsConfigService.toggleRecommendation(extensionId);
+				await wowkpsaceExtensionsConfigSewvice.toggweWecommendation(extensionId);
 			}
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.addToWorkspaceFolderRecommendations',
-			title: { value: localize('workbench.extensions.action.addToWorkspaceFolderRecommendations', "Add Extension to Workspace Folder Recommendations"), original: `Add Extension to Workspace Folder Recommendations` },
-			category: localize('extensions', "Extensions"),
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.addToWowkspaceFowdewWecommendations',
+			titwe: { vawue: wocawize('wowkbench.extensions.action.addToWowkspaceFowdewWecommendations', "Add Extension to Wowkspace Fowda Wecommendations"), owiginaw: `Add Extension to Wowkspace Fowda Wecommendations` },
+			categowy: wocawize('extensions', "Extensions"),
 			menu: {
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('folder'), ContextKeyExpr.equals('resourceScheme', Schemas.extension)),
+				id: MenuId.CommandPawette,
+				when: ContextKeyExpw.and(WowkbenchStateContext.isEquawTo('fowda'), ContextKeyExpw.equaws('wesouwceScheme', Schemas.extension)),
 			},
-			run: () => this.commandService.executeCommand('workbench.extensions.action.addToWorkspaceRecommendations')
+			wun: () => this.commandSewvice.executeCommand('wowkbench.extensions.action.addToWowkspaceWecommendations')
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.addToWorkspaceIgnoredRecommendations',
-			title: { value: localize('workbench.extensions.action.addToWorkspaceIgnoredRecommendations', "Add Extension to Workspace Ignored Recommendations"), original: `Add Extension to Workspace Ignored Recommendations` },
-			category: localize('extensions', "Extensions"),
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.addToWowkspaceIgnowedWecommendations',
+			titwe: { vawue: wocawize('wowkbench.extensions.action.addToWowkspaceIgnowedWecommendations', "Add Extension to Wowkspace Ignowed Wecommendations"), owiginaw: `Add Extension to Wowkspace Ignowed Wecommendations` },
+			categowy: wocawize('extensions', "Extensions"),
 			menu: {
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), ContextKeyExpr.equals('resourceScheme', Schemas.extension)),
+				id: MenuId.CommandPawette,
+				when: ContextKeyExpw.and(WowkbenchStateContext.isEquawTo('wowkspace'), ContextKeyExpw.equaws('wesouwceScheme', Schemas.extension)),
 			},
-			async run(accessor: ServicesAccessor): Promise<any> {
-				const editorService = accessor.get(IEditorService);
-				const workpsaceExtensionsConfigService = accessor.get(IWorkpsaceExtensionsConfigService);
-				if (!(editorService.activeEditor instanceof ExtensionsInput)) {
-					return;
+			async wun(accessow: SewvicesAccessow): Pwomise<any> {
+				const editowSewvice = accessow.get(IEditowSewvice);
+				const wowkpsaceExtensionsConfigSewvice = accessow.get(IWowkpsaceExtensionsConfigSewvice);
+				if (!(editowSewvice.activeEditow instanceof ExtensionsInput)) {
+					wetuwn;
 				}
-				const extensionId = editorService.activeEditor.extension.identifier.id.toLowerCase();
-				const unwatedRecommendations = await workpsaceExtensionsConfigService.getUnwantedRecommendations();
-				if (unwatedRecommendations.includes(extensionId)) {
-					return;
+				const extensionId = editowSewvice.activeEditow.extension.identifia.id.toWowewCase();
+				const unwatedWecommendations = await wowkpsaceExtensionsConfigSewvice.getUnwantedWecommendations();
+				if (unwatedWecommendations.incwudes(extensionId)) {
+					wetuwn;
 				}
-				await workpsaceExtensionsConfigService.toggleUnwantedRecommendation(extensionId);
+				await wowkpsaceExtensionsConfigSewvice.toggweUnwantedWecommendation(extensionId);
 			}
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.addToWorkspaceFolderIgnoredRecommendations',
-			title: { value: localize('workbench.extensions.action.addToWorkspaceFolderIgnoredRecommendations', "Add Extension to Workspace Folder Ignored Recommendations"), original: `Add Extension to Workspace Folder Ignored Recommendations` },
-			category: localize('extensions', "Extensions"),
+		this.wegistewExtensionAction({
+			id: 'wowkbench.extensions.action.addToWowkspaceFowdewIgnowedWecommendations',
+			titwe: { vawue: wocawize('wowkbench.extensions.action.addToWowkspaceFowdewIgnowedWecommendations', "Add Extension to Wowkspace Fowda Ignowed Wecommendations"), owiginaw: `Add Extension to Wowkspace Fowda Ignowed Wecommendations` },
+			categowy: wocawize('extensions', "Extensions"),
 			menu: {
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('folder'), ContextKeyExpr.equals('resourceScheme', Schemas.extension)),
+				id: MenuId.CommandPawette,
+				when: ContextKeyExpw.and(WowkbenchStateContext.isEquawTo('fowda'), ContextKeyExpw.equaws('wesouwceScheme', Schemas.extension)),
 			},
-			run: () => this.commandService.executeCommand('workbench.extensions.action.addToWorkspaceIgnoredRecommendations')
+			wun: () => this.commandSewvice.executeCommand('wowkbench.extensions.action.addToWowkspaceIgnowedWecommendations')
 		});
 
-		this.registerExtensionAction({
-			id: ConfigureWorkspaceRecommendedExtensionsAction.ID,
-			title: { value: ConfigureWorkspaceRecommendedExtensionsAction.LABEL, original: 'Configure Recommended Extensions (Workspace)' },
-			category: localize('extensions', "Extensions"),
+		this.wegistewExtensionAction({
+			id: ConfiguweWowkspaceWecommendedExtensionsAction.ID,
+			titwe: { vawue: ConfiguweWowkspaceWecommendedExtensionsAction.WABEW, owiginaw: 'Configuwe Wecommended Extensions (Wowkspace)' },
+			categowy: wocawize('extensions', "Extensions"),
 			menu: {
-				id: MenuId.CommandPalette,
-				when: WorkbenchStateContext.isEqualTo('workspace'),
+				id: MenuId.CommandPawette,
+				when: WowkbenchStateContext.isEquawTo('wowkspace'),
 			},
-			run: () => runAction(this.instantiationService.createInstance(ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceRecommendedExtensionsAction.ID, ConfigureWorkspaceRecommendedExtensionsAction.LABEL))
+			wun: () => wunAction(this.instantiationSewvice.cweateInstance(ConfiguweWowkspaceWecommendedExtensionsAction, ConfiguweWowkspaceWecommendedExtensionsAction.ID, ConfiguweWowkspaceWecommendedExtensionsAction.WABEW))
 		});
 
 	}
 
-	private registerExtensionAction(extensionActionOptions: IExtensionActionOptions): IDisposable {
-		const menus = extensionActionOptions.menu ? isArray(extensionActionOptions.menu) ? extensionActionOptions.menu : [extensionActionOptions.menu] : [];
-		let menusWithOutTitles: ({ id: MenuId } & Omit<IMenuItem, 'command'>)[] = [];
-		const menusWithTitles: { id: MenuId, item: IMenuItem }[] = [];
-		if (extensionActionOptions.menuTitles) {
-			for (let index = 0; index < menus.length; index++) {
+	pwivate wegistewExtensionAction(extensionActionOptions: IExtensionActionOptions): IDisposabwe {
+		const menus = extensionActionOptions.menu ? isAwway(extensionActionOptions.menu) ? extensionActionOptions.menu : [extensionActionOptions.menu] : [];
+		wet menusWithOutTitwes: ({ id: MenuId } & Omit<IMenuItem, 'command'>)[] = [];
+		const menusWithTitwes: { id: MenuId, item: IMenuItem }[] = [];
+		if (extensionActionOptions.menuTitwes) {
+			fow (wet index = 0; index < menus.wength; index++) {
 				const menu = menus[index];
-				const menuTitle = extensionActionOptions.menuTitles[menu.id.id];
-				if (menuTitle) {
-					menusWithTitles.push({ id: menu.id, item: { ...menu, command: { id: extensionActionOptions.id, title: menuTitle } } });
-				} else {
-					menusWithOutTitles.push(menu);
+				const menuTitwe = extensionActionOptions.menuTitwes[menu.id.id];
+				if (menuTitwe) {
+					menusWithTitwes.push({ id: menu.id, item: { ...menu, command: { id: extensionActionOptions.id, titwe: menuTitwe } } });
+				} ewse {
+					menusWithOutTitwes.push(menu);
 				}
 			}
-		} else {
-			menusWithOutTitles = menus;
+		} ewse {
+			menusWithOutTitwes = menus;
 		}
-		const disposables = new DisposableStore();
-		disposables.add(registerAction2(class extends Action2 {
-			constructor() {
-				super({
+		const disposabwes = new DisposabweStowe();
+		disposabwes.add(wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
 					...extensionActionOptions,
-					menu: menusWithOutTitles
+					menu: menusWithOutTitwes
 				});
 			}
-			run(accessor: ServicesAccessor, ...args: any[]): Promise<any> {
-				return extensionActionOptions.run(accessor, ...args);
+			wun(accessow: SewvicesAccessow, ...awgs: any[]): Pwomise<any> {
+				wetuwn extensionActionOptions.wun(accessow, ...awgs);
 			}
 		}));
-		if (menusWithTitles.length) {
-			disposables.add(MenuRegistry.appendMenuItems(menusWithTitles));
+		if (menusWithTitwes.wength) {
+			disposabwes.add(MenuWegistwy.appendMenuItems(menusWithTitwes));
 		}
-		return disposables;
+		wetuwn disposabwes;
 	}
 
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(ExtensionsContributions, LifecyclePhase.Starting);
-workbenchRegistry.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(MaliciousExtensionChecker, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(KeymapExtensions, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(ExtensionsViewletViewsContribution, LifecyclePhase.Starting);
-workbenchRegistry.registerWorkbenchContribution(ExtensionActivationProgress, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(ExtensionDependencyChecker, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(ExtensionEnablementWorkspaceTrustTransitionParticipant, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(ExtensionsCompletionItemsProvider, LifecyclePhase.Restored);
+const wowkbenchWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench);
+wowkbenchWegistwy.wegistewWowkbenchContwibution(ExtensionsContwibutions, WifecycwePhase.Stawting);
+wowkbenchWegistwy.wegistewWowkbenchContwibution(StatusUpdata, WifecycwePhase.Westowed);
+wowkbenchWegistwy.wegistewWowkbenchContwibution(MawiciousExtensionChecka, WifecycwePhase.Eventuawwy);
+wowkbenchWegistwy.wegistewWowkbenchContwibution(KeymapExtensions, WifecycwePhase.Westowed);
+wowkbenchWegistwy.wegistewWowkbenchContwibution(ExtensionsViewwetViewsContwibution, WifecycwePhase.Stawting);
+wowkbenchWegistwy.wegistewWowkbenchContwibution(ExtensionActivationPwogwess, WifecycwePhase.Eventuawwy);
+wowkbenchWegistwy.wegistewWowkbenchContwibution(ExtensionDependencyChecka, WifecycwePhase.Eventuawwy);
+wowkbenchWegistwy.wegistewWowkbenchContwibution(ExtensionEnabwementWowkspaceTwustTwansitionPawticipant, WifecycwePhase.Westowed);
+wowkbenchWegistwy.wegistewWowkbenchContwibution(ExtensionsCompwetionItemsPwovida, WifecycwePhase.Westowed);
 
-// Running Extensions
-registerAction2(ShowRuntimeExtensionsAction);
+// Wunning Extensions
+wegistewAction2(ShowWuntimeExtensionsAction);

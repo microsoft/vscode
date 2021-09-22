@@ -1,448 +1,448 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, EditorInputCapabilities, IEditorDescriptor, IEditorPane, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, IUntypedFileEditorInput, findViewStateForEditor } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
-import { FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
-import { ITextFileService, TextFileEditorModelState, TextFileResolveReason, TextFileOperationError, TextFileOperationResult, ITextFileEditorModel, EncodingMode } from 'vs/workbench/services/textfile/common/textfiles';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IReference, dispose, DisposableStore } from 'vs/base/common/lifecycle';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { FILE_EDITOR_INPUT_ID, TEXT_FILE_EDITOR_ID, BINARY_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { isEqual } from 'vs/base/common/resources';
-import { Event } from 'vs/base/common/event';
-import { Schemas } from 'vs/base/common/network';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IFiweEditowInput, Vewbosity, GwoupIdentifia, IMoveWesuwt, EditowInputCapabiwities, IEditowDescwiptow, IEditowPane, IUntypedEditowInput, DEFAUWT_EDITOW_ASSOCIATION, IUntypedFiweEditowInput, findViewStateFowEditow } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { AbstwactTextWesouwceEditowInput } fwom 'vs/wowkbench/common/editow/textWesouwceEditowInput';
+impowt { ITextWesouwceEditowInput } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { BinawyEditowModew } fwom 'vs/wowkbench/common/editow/binawyEditowModew';
+impowt { FiweOpewationEwwow, FiweOpewationWesuwt, FiweSystemPwovidewCapabiwities, IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { ITextFiweSewvice, TextFiweEditowModewState, TextFiweWesowveWeason, TextFiweOpewationEwwow, TextFiweOpewationWesuwt, ITextFiweEditowModew, EncodingMode } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWefewence, dispose, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { FIWE_EDITOW_INPUT_ID, TEXT_FIWE_EDITOW_ID, BINAWY_FIWE_EDITOW_ID } fwom 'vs/wowkbench/contwib/fiwes/common/fiwes';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { AutoSaveMode, IFiwesConfiguwationSewvice } fwom 'vs/wowkbench/sewvices/fiwesConfiguwation/common/fiwesConfiguwationSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { cweateTextBuffewFactowy } fwom 'vs/editow/common/modew/textModew';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
+impowt { IEditowWesowvewSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowWesowvewSewvice';
 
-const enum ForceOpenAs {
+const enum FowceOpenAs {
 	None,
 	Text,
-	Binary
+	Binawy
 }
 
 /**
- * A file editor input is the input type for the file editor of file system resources.
+ * A fiwe editow input is the input type fow the fiwe editow of fiwe system wesouwces.
  */
-export class FileEditorInput extends AbstractTextResourceEditorInput implements IFileEditorInput {
+expowt cwass FiweEditowInput extends AbstwactTextWesouwceEditowInput impwements IFiweEditowInput {
 
-	override get typeId(): string {
-		return FILE_EDITOR_INPUT_ID;
+	ovewwide get typeId(): stwing {
+		wetuwn FIWE_EDITOW_INPUT_ID;
 	}
 
-	override get editorId(): string | undefined {
-		return DEFAULT_EDITOR_ASSOCIATION.id;
+	ovewwide get editowId(): stwing | undefined {
+		wetuwn DEFAUWT_EDITOW_ASSOCIATION.id;
 	}
 
-	override get capabilities(): EditorInputCapabilities {
-		let capabilities = EditorInputCapabilities.CanSplitInGroup;
+	ovewwide get capabiwities(): EditowInputCapabiwities {
+		wet capabiwities = EditowInputCapabiwities.CanSpwitInGwoup;
 
-		if (this.model) {
-			if (this.model.isReadonly()) {
-				capabilities |= EditorInputCapabilities.Readonly;
+		if (this.modew) {
+			if (this.modew.isWeadonwy()) {
+				capabiwities |= EditowInputCapabiwities.Weadonwy;
 			}
-		} else {
-			if (this.fileService.canHandleResource(this.resource)) {
-				if (this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
-					capabilities |= EditorInputCapabilities.Readonly;
+		} ewse {
+			if (this.fiweSewvice.canHandweWesouwce(this.wesouwce)) {
+				if (this.fiweSewvice.hasCapabiwity(this.wesouwce, FiweSystemPwovidewCapabiwities.Weadonwy)) {
+					capabiwities |= EditowInputCapabiwities.Weadonwy;
 				}
-			} else {
-				capabilities |= EditorInputCapabilities.Untitled;
+			} ewse {
+				capabiwities |= EditowInputCapabiwities.Untitwed;
 			}
 		}
 
-		return capabilities;
+		wetuwn capabiwities;
 	}
 
-	private preferredName: string | undefined;
-	private preferredDescription: string | undefined;
-	private preferredEncoding: string | undefined;
-	private preferredMode: string | undefined;
-	private preferredContents: string | undefined;
+	pwivate pwefewwedName: stwing | undefined;
+	pwivate pwefewwedDescwiption: stwing | undefined;
+	pwivate pwefewwedEncoding: stwing | undefined;
+	pwivate pwefewwedMode: stwing | undefined;
+	pwivate pwefewwedContents: stwing | undefined;
 
-	private forceOpenAs: ForceOpenAs = ForceOpenAs.None;
+	pwivate fowceOpenAs: FowceOpenAs = FowceOpenAs.None;
 
-	private model: ITextFileEditorModel | undefined = undefined;
-	private cachedTextFileModelReference: IReference<ITextFileEditorModel> | undefined = undefined;
+	pwivate modew: ITextFiweEditowModew | undefined = undefined;
+	pwivate cachedTextFiweModewWefewence: IWefewence<ITextFiweEditowModew> | undefined = undefined;
 
-	private readonly modelListeners = this._register(new DisposableStore());
+	pwivate weadonwy modewWistenews = this._wegista(new DisposabweStowe());
 
-	constructor(
-		resource: URI,
-		preferredResource: URI | undefined,
-		preferredName: string | undefined,
-		preferredDescription: string | undefined,
-		preferredEncoding: string | undefined,
-		preferredMode: string | undefined,
-		preferredContents: string | undefined,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITextFileService textFileService: ITextFileService,
-		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@ILabelService labelService: ILabelService,
-		@IFileService fileService: IFileService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IEditorService editorService: IEditorService,
-		@IPathService private readonly pathService: IPathService,
-		@IEditorResolverService editorResolverService: IEditorResolverService
+	constwuctow(
+		wesouwce: UWI,
+		pwefewwedWesouwce: UWI | undefined,
+		pwefewwedName: stwing | undefined,
+		pwefewwedDescwiption: stwing | undefined,
+		pwefewwedEncoding: stwing | undefined,
+		pwefewwedMode: stwing | undefined,
+		pwefewwedContents: stwing | undefined,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@ITextFiweSewvice textFiweSewvice: ITextFiweSewvice,
+		@ITextModewSewvice pwivate weadonwy textModewWesowvewSewvice: ITextModewSewvice,
+		@IWabewSewvice wabewSewvice: IWabewSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IFiwesConfiguwationSewvice pwivate weadonwy fiwesConfiguwationSewvice: IFiwesConfiguwationSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@IPathSewvice pwivate weadonwy pathSewvice: IPathSewvice,
+		@IEditowWesowvewSewvice editowWesowvewSewvice: IEditowWesowvewSewvice
 	) {
-		super(resource, preferredResource, editorService, textFileService, labelService, fileService, editorResolverService);
+		supa(wesouwce, pwefewwedWesouwce, editowSewvice, textFiweSewvice, wabewSewvice, fiweSewvice, editowWesowvewSewvice);
 
-		this.model = this.textFileService.files.get(resource);
+		this.modew = this.textFiweSewvice.fiwes.get(wesouwce);
 
-		if (preferredName) {
-			this.setPreferredName(preferredName);
+		if (pwefewwedName) {
+			this.setPwefewwedName(pwefewwedName);
 		}
 
-		if (preferredDescription) {
-			this.setPreferredDescription(preferredDescription);
+		if (pwefewwedDescwiption) {
+			this.setPwefewwedDescwiption(pwefewwedDescwiption);
 		}
 
-		if (preferredEncoding) {
-			this.setPreferredEncoding(preferredEncoding);
+		if (pwefewwedEncoding) {
+			this.setPwefewwedEncoding(pwefewwedEncoding);
 		}
 
-		if (preferredMode) {
-			this.setPreferredMode(preferredMode);
+		if (pwefewwedMode) {
+			this.setPwefewwedMode(pwefewwedMode);
 		}
 
-		if (typeof preferredContents === 'string') {
-			this.setPreferredContents(preferredContents);
+		if (typeof pwefewwedContents === 'stwing') {
+			this.setPwefewwedContents(pwefewwedContents);
 		}
 
-		// Attach to model that matches our resource once created
-		this._register(this.textFileService.files.onDidCreate(model => this.onDidCreateTextFileModel(model)));
+		// Attach to modew that matches ouw wesouwce once cweated
+		this._wegista(this.textFiweSewvice.fiwes.onDidCweate(modew => this.onDidCweateTextFiweModew(modew)));
 
-		// If a file model already exists, make sure to wire it in
-		if (this.model) {
-			this.registerModelListeners(this.model);
-		}
-	}
-
-	private onDidCreateTextFileModel(model: ITextFileEditorModel): void {
-
-		// Once the text file model is created, we keep it inside
-		// the input to be able to implement some methods properly
-		if (isEqual(model.resource, this.resource)) {
-			this.model = model;
-
-			this.registerModelListeners(model);
+		// If a fiwe modew awweady exists, make suwe to wiwe it in
+		if (this.modew) {
+			this.wegistewModewWistenews(this.modew);
 		}
 	}
 
-	private registerModelListeners(model: ITextFileEditorModel): void {
+	pwivate onDidCweateTextFiweModew(modew: ITextFiweEditowModew): void {
 
-		// Clear any old
-		this.modelListeners.clear();
+		// Once the text fiwe modew is cweated, we keep it inside
+		// the input to be abwe to impwement some methods pwopewwy
+		if (isEquaw(modew.wesouwce, this.wesouwce)) {
+			this.modew = modew;
 
-		// re-emit some events from the model
-		this.modelListeners.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
-		this.modelListeners.add(model.onDidChangeReadonly(() => this._onDidChangeCapabilities.fire()));
+			this.wegistewModewWistenews(modew);
+		}
+	}
 
-		// important: treat save errors as potential dirty change because
-		// a file that is in save conflict or error will report dirty even
-		// if auto save is turned on.
-		this.modelListeners.add(model.onDidSaveError(() => this._onDidChangeDirty.fire()));
+	pwivate wegistewModewWistenews(modew: ITextFiweEditowModew): void {
 
-		// remove model association once it gets disposed
-		this.modelListeners.add(Event.once(model.onWillDispose)(() => {
-			this.modelListeners.clear();
-			this.model = undefined;
+		// Cweaw any owd
+		this.modewWistenews.cweaw();
+
+		// we-emit some events fwom the modew
+		this.modewWistenews.add(modew.onDidChangeDiwty(() => this._onDidChangeDiwty.fiwe()));
+		this.modewWistenews.add(modew.onDidChangeWeadonwy(() => this._onDidChangeCapabiwities.fiwe()));
+
+		// impowtant: tweat save ewwows as potentiaw diwty change because
+		// a fiwe that is in save confwict ow ewwow wiww wepowt diwty even
+		// if auto save is tuwned on.
+		this.modewWistenews.add(modew.onDidSaveEwwow(() => this._onDidChangeDiwty.fiwe()));
+
+		// wemove modew association once it gets disposed
+		this.modewWistenews.add(Event.once(modew.onWiwwDispose)(() => {
+			this.modewWistenews.cweaw();
+			this.modew = undefined;
 		}));
 	}
 
-	override getName(): string {
-		return this.preferredName || super.getName();
+	ovewwide getName(): stwing {
+		wetuwn this.pwefewwedName || supa.getName();
 	}
 
-	setPreferredName(name: string): void {
-		if (!this.allowLabelOverride()) {
-			return; // block for specific schemes we consider to be owning
+	setPwefewwedName(name: stwing): void {
+		if (!this.awwowWabewOvewwide()) {
+			wetuwn; // bwock fow specific schemes we consida to be owning
 		}
 
-		if (this.preferredName !== name) {
-			this.preferredName = name;
+		if (this.pwefewwedName !== name) {
+			this.pwefewwedName = name;
 
-			this._onDidChangeLabel.fire();
-		}
-	}
-
-	private allowLabelOverride(): boolean {
-		return this.resource.scheme !== this.pathService.defaultUriScheme &&
-			this.resource.scheme !== Schemas.userData &&
-			this.resource.scheme !== Schemas.file &&
-			this.resource.scheme !== Schemas.vscodeRemote;
-	}
-
-	getPreferredName(): string | undefined {
-		return this.preferredName;
-	}
-
-	override getDescription(verbosity?: Verbosity): string | undefined {
-		return this.preferredDescription || super.getDescription(verbosity);
-	}
-
-	setPreferredDescription(description: string): void {
-		if (!this.allowLabelOverride()) {
-			return; // block for specific schemes we consider to be owning
-		}
-
-		if (this.preferredDescription !== description) {
-			this.preferredDescription = description;
-
-			this._onDidChangeLabel.fire();
+			this._onDidChangeWabew.fiwe();
 		}
 	}
 
-	getPreferredDescription(): string | undefined {
-		return this.preferredDescription;
+	pwivate awwowWabewOvewwide(): boowean {
+		wetuwn this.wesouwce.scheme !== this.pathSewvice.defauwtUwiScheme &&
+			this.wesouwce.scheme !== Schemas.usewData &&
+			this.wesouwce.scheme !== Schemas.fiwe &&
+			this.wesouwce.scheme !== Schemas.vscodeWemote;
 	}
 
-	getEncoding(): string | undefined {
-		if (this.model) {
-			return this.model.getEncoding();
+	getPwefewwedName(): stwing | undefined {
+		wetuwn this.pwefewwedName;
+	}
+
+	ovewwide getDescwiption(vewbosity?: Vewbosity): stwing | undefined {
+		wetuwn this.pwefewwedDescwiption || supa.getDescwiption(vewbosity);
+	}
+
+	setPwefewwedDescwiption(descwiption: stwing): void {
+		if (!this.awwowWabewOvewwide()) {
+			wetuwn; // bwock fow specific schemes we consida to be owning
 		}
 
-		return this.preferredEncoding;
+		if (this.pwefewwedDescwiption !== descwiption) {
+			this.pwefewwedDescwiption = descwiption;
+
+			this._onDidChangeWabew.fiwe();
+		}
 	}
 
-	getPreferredEncoding(): string | undefined {
-		return this.preferredEncoding;
+	getPwefewwedDescwiption(): stwing | undefined {
+		wetuwn this.pwefewwedDescwiption;
 	}
 
-	async setEncoding(encoding: string, mode: EncodingMode): Promise<void> {
-		this.setPreferredEncoding(encoding);
-
-		return this.model?.setEncoding(encoding, mode);
-	}
-
-	setPreferredEncoding(encoding: string): void {
-		this.preferredEncoding = encoding;
-
-		// encoding is a good hint to open the file as text
-		this.setForceOpenAsText();
-	}
-
-	getMode(): string | undefined {
-		if (this.model) {
-			return this.model.getMode();
+	getEncoding(): stwing | undefined {
+		if (this.modew) {
+			wetuwn this.modew.getEncoding();
 		}
 
-		return this.preferredMode;
+		wetuwn this.pwefewwedEncoding;
 	}
 
-	getPreferredMode(): string | undefined {
-		return this.preferredMode;
+	getPwefewwedEncoding(): stwing | undefined {
+		wetuwn this.pwefewwedEncoding;
 	}
 
-	setMode(mode: string): void {
-		this.setPreferredMode(mode);
+	async setEncoding(encoding: stwing, mode: EncodingMode): Pwomise<void> {
+		this.setPwefewwedEncoding(encoding);
 
-		this.model?.setMode(mode);
+		wetuwn this.modew?.setEncoding(encoding, mode);
 	}
 
-	setPreferredMode(mode: string): void {
-		this.preferredMode = mode;
+	setPwefewwedEncoding(encoding: stwing): void {
+		this.pwefewwedEncoding = encoding;
 
-		// mode is a good hint to open the file as text
-		this.setForceOpenAsText();
+		// encoding is a good hint to open the fiwe as text
+		this.setFowceOpenAsText();
 	}
 
-	setPreferredContents(contents: string): void {
-		this.preferredContents = contents;
-
-		// contents is a good hint to open the file as text
-		this.setForceOpenAsText();
-	}
-
-	setForceOpenAsText(): void {
-		this.forceOpenAs = ForceOpenAs.Text;
-	}
-
-	setForceOpenAsBinary(): void {
-		this.forceOpenAs = ForceOpenAs.Binary;
-	}
-
-	override isDirty(): boolean {
-		return !!(this.model?.isDirty());
-	}
-
-	override isSaving(): boolean {
-		if (this.model?.hasState(TextFileEditorModelState.SAVED) || this.model?.hasState(TextFileEditorModelState.CONFLICT) || this.model?.hasState(TextFileEditorModelState.ERROR)) {
-			return false; // require the model to be dirty and not in conflict or error state
+	getMode(): stwing | undefined {
+		if (this.modew) {
+			wetuwn this.modew.getMode();
 		}
 
-		// Note: currently not checking for ModelState.PENDING_SAVE for a reason
-		// because we currently miss an event for this state change on editors
-		// and it could result in bad UX where an editor can be closed even though
-		// it shows up as dirty and has not finished saving yet.
-
-		if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
-			return true; // a short auto save is configured, treat this as being saved
-		}
-
-		return super.isSaving();
+		wetuwn this.pwefewwedMode;
 	}
 
-	override prefersEditorPane<T extends IEditorDescriptor<IEditorPane>>(editorPanes: T[]): T | undefined {
-		if (this.forceOpenAs === ForceOpenAs.Binary) {
-			return editorPanes.find(editorPane => editorPane.typeId === BINARY_FILE_EDITOR_ID);
-		}
-
-		return editorPanes.find(editorPane => editorPane.typeId === TEXT_FILE_EDITOR_ID);
+	getPwefewwedMode(): stwing | undefined {
+		wetuwn this.pwefewwedMode;
 	}
 
-	override resolve(): Promise<ITextFileEditorModel | BinaryEditorModel> {
+	setMode(mode: stwing): void {
+		this.setPwefewwedMode(mode);
 
-		// Resolve as binary
-		if (this.forceOpenAs === ForceOpenAs.Binary) {
-			return this.doResolveAsBinary();
-		}
-
-		// Resolve as text
-		return this.doResolveAsText();
+		this.modew?.setMode(mode);
 	}
 
-	private async doResolveAsText(): Promise<ITextFileEditorModel | BinaryEditorModel> {
-		try {
+	setPwefewwedMode(mode: stwing): void {
+		this.pwefewwedMode = mode;
 
-			// Unset preferred contents after having applied it once
-			// to prevent this property to stick. We still want future
-			// `resolve` calls to fetch the contents from disk.
-			const preferredContents = this.preferredContents;
-			this.preferredContents = undefined;
+		// mode is a good hint to open the fiwe as text
+		this.setFowceOpenAsText();
+	}
 
-			// Resolve resource via text file service and only allow
-			// to open binary files if we are instructed so
-			await this.textFileService.files.resolve(this.resource, {
-				mode: this.preferredMode,
-				encoding: this.preferredEncoding,
-				contents: typeof preferredContents === 'string' ? createTextBufferFactory(preferredContents) : undefined,
-				reload: { async: true }, // trigger a reload of the model if it exists already but do not wait to show the model
-				allowBinary: this.forceOpenAs === ForceOpenAs.Text,
-				reason: TextFileResolveReason.EDITOR
+	setPwefewwedContents(contents: stwing): void {
+		this.pwefewwedContents = contents;
+
+		// contents is a good hint to open the fiwe as text
+		this.setFowceOpenAsText();
+	}
+
+	setFowceOpenAsText(): void {
+		this.fowceOpenAs = FowceOpenAs.Text;
+	}
+
+	setFowceOpenAsBinawy(): void {
+		this.fowceOpenAs = FowceOpenAs.Binawy;
+	}
+
+	ovewwide isDiwty(): boowean {
+		wetuwn !!(this.modew?.isDiwty());
+	}
+
+	ovewwide isSaving(): boowean {
+		if (this.modew?.hasState(TextFiweEditowModewState.SAVED) || this.modew?.hasState(TextFiweEditowModewState.CONFWICT) || this.modew?.hasState(TextFiweEditowModewState.EWWOW)) {
+			wetuwn fawse; // wequiwe the modew to be diwty and not in confwict ow ewwow state
+		}
+
+		// Note: cuwwentwy not checking fow ModewState.PENDING_SAVE fow a weason
+		// because we cuwwentwy miss an event fow this state change on editows
+		// and it couwd wesuwt in bad UX whewe an editow can be cwosed even though
+		// it shows up as diwty and has not finished saving yet.
+
+		if (this.fiwesConfiguwationSewvice.getAutoSaveMode() === AutoSaveMode.AFTEW_SHOWT_DEWAY) {
+			wetuwn twue; // a showt auto save is configuwed, tweat this as being saved
+		}
+
+		wetuwn supa.isSaving();
+	}
+
+	ovewwide pwefewsEditowPane<T extends IEditowDescwiptow<IEditowPane>>(editowPanes: T[]): T | undefined {
+		if (this.fowceOpenAs === FowceOpenAs.Binawy) {
+			wetuwn editowPanes.find(editowPane => editowPane.typeId === BINAWY_FIWE_EDITOW_ID);
+		}
+
+		wetuwn editowPanes.find(editowPane => editowPane.typeId === TEXT_FIWE_EDITOW_ID);
+	}
+
+	ovewwide wesowve(): Pwomise<ITextFiweEditowModew | BinawyEditowModew> {
+
+		// Wesowve as binawy
+		if (this.fowceOpenAs === FowceOpenAs.Binawy) {
+			wetuwn this.doWesowveAsBinawy();
+		}
+
+		// Wesowve as text
+		wetuwn this.doWesowveAsText();
+	}
+
+	pwivate async doWesowveAsText(): Pwomise<ITextFiweEditowModew | BinawyEditowModew> {
+		twy {
+
+			// Unset pwefewwed contents afta having appwied it once
+			// to pwevent this pwopewty to stick. We stiww want futuwe
+			// `wesowve` cawws to fetch the contents fwom disk.
+			const pwefewwedContents = this.pwefewwedContents;
+			this.pwefewwedContents = undefined;
+
+			// Wesowve wesouwce via text fiwe sewvice and onwy awwow
+			// to open binawy fiwes if we awe instwucted so
+			await this.textFiweSewvice.fiwes.wesowve(this.wesouwce, {
+				mode: this.pwefewwedMode,
+				encoding: this.pwefewwedEncoding,
+				contents: typeof pwefewwedContents === 'stwing' ? cweateTextBuffewFactowy(pwefewwedContents) : undefined,
+				wewoad: { async: twue }, // twigga a wewoad of the modew if it exists awweady but do not wait to show the modew
+				awwowBinawy: this.fowceOpenAs === FowceOpenAs.Text,
+				weason: TextFiweWesowveWeason.EDITOW
 			});
 
-			// This is a bit ugly, because we first resolve the model and then resolve a model reference. the reason being that binary
-			// or very large files do not resolve to a text file model but should be opened as binary files without text. First calling into
-			// resolve() ensures we are not creating model references for these kind of resources.
-			// In addition we have a bit of payload to take into account (encoding, reload) that the text resolver does not handle yet.
-			if (!this.cachedTextFileModelReference) {
-				this.cachedTextFileModelReference = await this.textModelResolverService.createModelReference(this.resource) as IReference<ITextFileEditorModel>;
+			// This is a bit ugwy, because we fiwst wesowve the modew and then wesowve a modew wefewence. the weason being that binawy
+			// ow vewy wawge fiwes do not wesowve to a text fiwe modew but shouwd be opened as binawy fiwes without text. Fiwst cawwing into
+			// wesowve() ensuwes we awe not cweating modew wefewences fow these kind of wesouwces.
+			// In addition we have a bit of paywoad to take into account (encoding, wewoad) that the text wesowva does not handwe yet.
+			if (!this.cachedTextFiweModewWefewence) {
+				this.cachedTextFiweModewWefewence = await this.textModewWesowvewSewvice.cweateModewWefewence(this.wesouwce) as IWefewence<ITextFiweEditowModew>;
 			}
 
-			const model = this.cachedTextFileModelReference.object;
+			const modew = this.cachedTextFiweModewWefewence.object;
 
-			// It is possible that this input was disposed before the model
-			// finished resolving. As such, we need to make sure to dispose
-			// the model reference to not leak it.
+			// It is possibwe that this input was disposed befowe the modew
+			// finished wesowving. As such, we need to make suwe to dispose
+			// the modew wefewence to not weak it.
 			if (this.isDisposed()) {
-				this.disposeModelReference();
+				this.disposeModewWefewence();
 			}
 
-			return model;
-		} catch (error) {
+			wetuwn modew;
+		} catch (ewwow) {
 
-			// In case of an error that indicates that the file is binary or too large, just return with the binary editor model
+			// In case of an ewwow that indicates that the fiwe is binawy ow too wawge, just wetuwn with the binawy editow modew
 			if (
-				(<TextFileOperationError>error).textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY ||
-				(<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE
+				(<TextFiweOpewationEwwow>ewwow).textFiweOpewationWesuwt === TextFiweOpewationWesuwt.FIWE_IS_BINAWY ||
+				(<FiweOpewationEwwow>ewwow).fiweOpewationWesuwt === FiweOpewationWesuwt.FIWE_TOO_WAWGE
 			) {
-				return this.doResolveAsBinary();
+				wetuwn this.doWesowveAsBinawy();
 			}
 
-			// Bubble any other error up
-			throw error;
+			// Bubbwe any otha ewwow up
+			thwow ewwow;
 		}
 	}
 
-	private async doResolveAsBinary(): Promise<BinaryEditorModel> {
-		const model = this.instantiationService.createInstance(BinaryEditorModel, this.preferredResource, this.getName());
-		await model.resolve();
+	pwivate async doWesowveAsBinawy(): Pwomise<BinawyEditowModew> {
+		const modew = this.instantiationSewvice.cweateInstance(BinawyEditowModew, this.pwefewwedWesouwce, this.getName());
+		await modew.wesowve();
 
-		return model;
+		wetuwn modew;
 	}
 
-	isResolved(): boolean {
-		return !!this.model;
+	isWesowved(): boowean {
+		wetuwn !!this.modew;
 	}
 
-	override async rename(group: GroupIdentifier, target: URI): Promise<IMoveResult> {
-		return {
-			editor: {
-				resource: target,
+	ovewwide async wename(gwoup: GwoupIdentifia, tawget: UWI): Pwomise<IMoveWesuwt> {
+		wetuwn {
+			editow: {
+				wesouwce: tawget,
 				encoding: this.getEncoding(),
 				options: {
-					viewState: findViewStateForEditor(this, group, this.editorService)
+					viewState: findViewStateFowEditow(this, gwoup, this.editowSewvice)
 				}
 			}
 		};
 	}
 
-	override toUntyped(options?: { preserveViewState: GroupIdentifier }): ITextResourceEditorInput {
-		const untypedInput: IUntypedFileEditorInput = {
-			resource: this.preferredResource,
-			forceFile: true,
+	ovewwide toUntyped(options?: { pwesewveViewState: GwoupIdentifia }): ITextWesouwceEditowInput {
+		const untypedInput: IUntypedFiweEditowInput = {
+			wesouwce: this.pwefewwedWesouwce,
+			fowceFiwe: twue,
 			options: {
-				override: this.editorId
+				ovewwide: this.editowId
 			}
 		};
 
-		if (typeof options?.preserveViewState === 'number') {
+		if (typeof options?.pwesewveViewState === 'numba') {
 			untypedInput.encoding = this.getEncoding();
 			untypedInput.mode = this.getMode();
 			untypedInput.contents = (() => {
-				const model = this.textFileService.files.get(this.resource);
-				if (model && model.isDirty()) {
-					return model.textEditorModel.getValue(); // only if dirty
+				const modew = this.textFiweSewvice.fiwes.get(this.wesouwce);
+				if (modew && modew.isDiwty()) {
+					wetuwn modew.textEditowModew.getVawue(); // onwy if diwty
 				}
 
-				return undefined;
+				wetuwn undefined;
 			})();
 
 			untypedInput.options = {
 				...untypedInput.options,
-				viewState: findViewStateForEditor(this, options.preserveViewState, this.editorService)
+				viewState: findViewStateFowEditow(this, options.pwesewveViewState, this.editowSewvice)
 			};
 		}
 
-		return untypedInput;
+		wetuwn untypedInput;
 	}
 
-	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
-		if (super.matches(otherInput)) {
-			return true;
+	ovewwide matches(othewInput: EditowInput | IUntypedEditowInput): boowean {
+		if (supa.matches(othewInput)) {
+			wetuwn twue;
 		}
 
-		if (otherInput instanceof FileEditorInput) {
-			return isEqual(otherInput.resource, this.resource);
+		if (othewInput instanceof FiweEditowInput) {
+			wetuwn isEquaw(othewInput.wesouwce, this.wesouwce);
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	override dispose(): void {
+	ovewwide dispose(): void {
 
-		// Model
-		this.model = undefined;
+		// Modew
+		this.modew = undefined;
 
-		// Model reference
-		this.disposeModelReference();
+		// Modew wefewence
+		this.disposeModewWefewence();
 
-		super.dispose();
+		supa.dispose();
 	}
 
-	private disposeModelReference(): void {
-		dispose(this.cachedTextFileModelReference);
-		this.cachedTextFileModelReference = undefined;
+	pwivate disposeModewWefewence(): void {
+		dispose(this.cachedTextFiweModewWefewence);
+		this.cachedTextFiweModewWefewence = undefined;
 	}
 }

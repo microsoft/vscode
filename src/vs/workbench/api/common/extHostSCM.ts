@@ -1,816 +1,816 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import { debounce } from 'vs/base/common/decorators';
-import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { asPromise } from 'vs/base/common/async';
-import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto, MainThreadTelemetryShape, SCMGroupFeatures } from './extHost.protocol';
-import { sortedDiff, equals } from 'vs/base/common/arrays';
-import { comparePaths } from 'vs/base/common/comparers';
-import type * as vscode from 'vscode';
-import { ISplice } from 'vs/base/common/sequence';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { MarshalledId } from 'vs/base/common/marshalling';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { debounce } fwom 'vs/base/common/decowatows';
+impowt { DisposabweStowe, IDisposabwe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { asPwomise } fwom 'vs/base/common/async';
+impowt { ExtHostCommands } fwom 'vs/wowkbench/api/common/extHostCommands';
+impowt { MainContext, MainThweadSCMShape, SCMWawWesouwce, SCMWawWesouwceSpwice, SCMWawWesouwceSpwices, IMainContext, ExtHostSCMShape, ICommandDto, MainThweadTewemetwyShape, SCMGwoupFeatuwes } fwom './extHost.pwotocow';
+impowt { sowtedDiff, equaws } fwom 'vs/base/common/awways';
+impowt { compawePaths } fwom 'vs/base/common/compawews';
+impowt type * as vscode fwom 'vscode';
+impowt { ISpwice } fwom 'vs/base/common/sequence';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { ExtensionIdentifia, IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { checkPwoposedApiEnabwed } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { MawshawwedId } fwom 'vs/base/common/mawshawwing';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IMawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { MawkdownStwing } fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
 
-type ProviderHandle = number;
-type GroupHandle = number;
-type ResourceStateHandle = number;
+type PwovidewHandwe = numba;
+type GwoupHandwe = numba;
+type WesouwceStateHandwe = numba;
 
-function getIconResource(decorations?: vscode.SourceControlResourceThemableDecorations): UriComponents | ThemeIcon | undefined {
-	if (!decorations) {
-		return undefined;
-	} else if (typeof decorations.iconPath === 'string') {
-		return URI.file(decorations.iconPath);
-	} else if (URI.isUri(decorations.iconPath)) {
-		return decorations.iconPath;
-	} else if (ThemeIcon.isThemeIcon(decorations.iconPath)) {
-		return decorations.iconPath;
-	} else {
-		return undefined;
+function getIconWesouwce(decowations?: vscode.SouwceContwowWesouwceThemabweDecowations): UwiComponents | ThemeIcon | undefined {
+	if (!decowations) {
+		wetuwn undefined;
+	} ewse if (typeof decowations.iconPath === 'stwing') {
+		wetuwn UWI.fiwe(decowations.iconPath);
+	} ewse if (UWI.isUwi(decowations.iconPath)) {
+		wetuwn decowations.iconPath;
+	} ewse if (ThemeIcon.isThemeIcon(decowations.iconPath)) {
+		wetuwn decowations.iconPath;
+	} ewse {
+		wetuwn undefined;
 	}
 }
 
-function compareResourceThemableDecorations(a: vscode.SourceControlResourceThemableDecorations, b: vscode.SourceControlResourceThemableDecorations): number {
+function compaweWesouwceThemabweDecowations(a: vscode.SouwceContwowWesouwceThemabweDecowations, b: vscode.SouwceContwowWesouwceThemabweDecowations): numba {
 	if (!a.iconPath && !b.iconPath) {
-		return 0;
-	} else if (!a.iconPath) {
-		return -1;
-	} else if (!b.iconPath) {
-		return 1;
+		wetuwn 0;
+	} ewse if (!a.iconPath) {
+		wetuwn -1;
+	} ewse if (!b.iconPath) {
+		wetuwn 1;
 	}
 
-	const aPath = typeof a.iconPath === 'string' ? a.iconPath : URI.isUri(a.iconPath) ? a.iconPath.fsPath : (a.iconPath as vscode.ThemeIcon).id;
-	const bPath = typeof b.iconPath === 'string' ? b.iconPath : URI.isUri(b.iconPath) ? b.iconPath.fsPath : (b.iconPath as vscode.ThemeIcon).id;
-	return comparePaths(aPath, bPath);
+	const aPath = typeof a.iconPath === 'stwing' ? a.iconPath : UWI.isUwi(a.iconPath) ? a.iconPath.fsPath : (a.iconPath as vscode.ThemeIcon).id;
+	const bPath = typeof b.iconPath === 'stwing' ? b.iconPath : UWI.isUwi(b.iconPath) ? b.iconPath.fsPath : (b.iconPath as vscode.ThemeIcon).id;
+	wetuwn compawePaths(aPath, bPath);
 }
 
-function compareResourceStatesDecorations(a: vscode.SourceControlResourceDecorations, b: vscode.SourceControlResourceDecorations): number {
-	let result = 0;
+function compaweWesouwceStatesDecowations(a: vscode.SouwceContwowWesouwceDecowations, b: vscode.SouwceContwowWesouwceDecowations): numba {
+	wet wesuwt = 0;
 
-	if (a.strikeThrough !== b.strikeThrough) {
-		return a.strikeThrough ? 1 : -1;
+	if (a.stwikeThwough !== b.stwikeThwough) {
+		wetuwn a.stwikeThwough ? 1 : -1;
 	}
 
 	if (a.faded !== b.faded) {
-		return a.faded ? 1 : -1;
+		wetuwn a.faded ? 1 : -1;
 	}
 
-	if (a.tooltip !== b.tooltip) {
-		return (a.tooltip || '').localeCompare(b.tooltip || '');
+	if (a.toowtip !== b.toowtip) {
+		wetuwn (a.toowtip || '').wocaweCompawe(b.toowtip || '');
 	}
 
-	result = compareResourceThemableDecorations(a, b);
+	wesuwt = compaweWesouwceThemabweDecowations(a, b);
 
-	if (result !== 0) {
-		return result;
+	if (wesuwt !== 0) {
+		wetuwn wesuwt;
 	}
 
-	if (a.light && b.light) {
-		result = compareResourceThemableDecorations(a.light, b.light);
-	} else if (a.light) {
-		return 1;
-	} else if (b.light) {
-		return -1;
+	if (a.wight && b.wight) {
+		wesuwt = compaweWesouwceThemabweDecowations(a.wight, b.wight);
+	} ewse if (a.wight) {
+		wetuwn 1;
+	} ewse if (b.wight) {
+		wetuwn -1;
 	}
 
-	if (result !== 0) {
-		return result;
+	if (wesuwt !== 0) {
+		wetuwn wesuwt;
 	}
 
-	if (a.dark && b.dark) {
-		result = compareResourceThemableDecorations(a.dark, b.dark);
-	} else if (a.dark) {
-		return 1;
-	} else if (b.dark) {
-		return -1;
+	if (a.dawk && b.dawk) {
+		wesuwt = compaweWesouwceThemabweDecowations(a.dawk, b.dawk);
+	} ewse if (a.dawk) {
+		wetuwn 1;
+	} ewse if (b.dawk) {
+		wetuwn -1;
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-function compareCommands(a: vscode.Command, b: vscode.Command): number {
+function compaweCommands(a: vscode.Command, b: vscode.Command): numba {
 	if (a.command !== b.command) {
-		return a.command < b.command ? -1 : 1;
+		wetuwn a.command < b.command ? -1 : 1;
 	}
 
-	if (a.title !== b.title) {
-		return a.title < b.title ? -1 : 1;
+	if (a.titwe !== b.titwe) {
+		wetuwn a.titwe < b.titwe ? -1 : 1;
 	}
 
-	if (a.tooltip !== b.tooltip) {
-		if (a.tooltip !== undefined && b.tooltip !== undefined) {
-			return a.tooltip < b.tooltip ? -1 : 1;
-		} else if (a.tooltip !== undefined) {
-			return 1;
-		} else if (b.tooltip !== undefined) {
-			return -1;
+	if (a.toowtip !== b.toowtip) {
+		if (a.toowtip !== undefined && b.toowtip !== undefined) {
+			wetuwn a.toowtip < b.toowtip ? -1 : 1;
+		} ewse if (a.toowtip !== undefined) {
+			wetuwn 1;
+		} ewse if (b.toowtip !== undefined) {
+			wetuwn -1;
 		}
 	}
 
-	if (a.arguments === b.arguments) {
-		return 0;
-	} else if (!a.arguments) {
-		return -1;
-	} else if (!b.arguments) {
-		return 1;
-	} else if (a.arguments.length !== b.arguments.length) {
-		return a.arguments.length - b.arguments.length;
+	if (a.awguments === b.awguments) {
+		wetuwn 0;
+	} ewse if (!a.awguments) {
+		wetuwn -1;
+	} ewse if (!b.awguments) {
+		wetuwn 1;
+	} ewse if (a.awguments.wength !== b.awguments.wength) {
+		wetuwn a.awguments.wength - b.awguments.wength;
 	}
 
-	for (let i = 0; i < a.arguments.length; i++) {
-		const aArg = a.arguments[i];
-		const bArg = b.arguments[i];
+	fow (wet i = 0; i < a.awguments.wength; i++) {
+		const aAwg = a.awguments[i];
+		const bAwg = b.awguments[i];
 
-		if (aArg === bArg) {
+		if (aAwg === bAwg) {
 			continue;
 		}
 
-		return aArg < bArg ? -1 : 1;
+		wetuwn aAwg < bAwg ? -1 : 1;
 	}
 
-	return 0;
+	wetuwn 0;
 }
 
-function compareResourceStates(a: vscode.SourceControlResourceState, b: vscode.SourceControlResourceState): number {
-	let result = comparePaths(a.resourceUri.fsPath, b.resourceUri.fsPath, true);
+function compaweWesouwceStates(a: vscode.SouwceContwowWesouwceState, b: vscode.SouwceContwowWesouwceState): numba {
+	wet wesuwt = compawePaths(a.wesouwceUwi.fsPath, b.wesouwceUwi.fsPath, twue);
 
-	if (result !== 0) {
-		return result;
+	if (wesuwt !== 0) {
+		wetuwn wesuwt;
 	}
 
 	if (a.command && b.command) {
-		result = compareCommands(a.command, b.command);
-	} else if (a.command) {
-		return 1;
-	} else if (b.command) {
-		return -1;
+		wesuwt = compaweCommands(a.command, b.command);
+	} ewse if (a.command) {
+		wetuwn 1;
+	} ewse if (b.command) {
+		wetuwn -1;
 	}
 
-	if (result !== 0) {
-		return result;
+	if (wesuwt !== 0) {
+		wetuwn wesuwt;
 	}
 
-	if (a.decorations && b.decorations) {
-		result = compareResourceStatesDecorations(a.decorations, b.decorations);
-	} else if (a.decorations) {
-		return 1;
-	} else if (b.decorations) {
-		return -1;
+	if (a.decowations && b.decowations) {
+		wesuwt = compaweWesouwceStatesDecowations(a.decowations, b.decowations);
+	} ewse if (a.decowations) {
+		wetuwn 1;
+	} ewse if (b.decowations) {
+		wetuwn -1;
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-function compareArgs(a: any[], b: any[]): boolean {
-	for (let i = 0; i < a.length; i++) {
+function compaweAwgs(a: any[], b: any[]): boowean {
+	fow (wet i = 0; i < a.wength; i++) {
 		if (a[i] !== b[i]) {
-			return false;
+			wetuwn fawse;
 		}
 	}
 
-	return true;
+	wetuwn twue;
 }
 
-function commandEquals(a: vscode.Command, b: vscode.Command): boolean {
-	return a.command === b.command
-		&& a.title === b.title
-		&& a.tooltip === b.tooltip
-		&& (a.arguments && b.arguments ? compareArgs(a.arguments, b.arguments) : a.arguments === b.arguments);
+function commandEquaws(a: vscode.Command, b: vscode.Command): boowean {
+	wetuwn a.command === b.command
+		&& a.titwe === b.titwe
+		&& a.toowtip === b.toowtip
+		&& (a.awguments && b.awguments ? compaweAwgs(a.awguments, b.awguments) : a.awguments === b.awguments);
 }
 
-function commandListEquals(a: readonly vscode.Command[], b: readonly vscode.Command[]): boolean {
-	return equals(a, b, commandEquals);
+function commandWistEquaws(a: weadonwy vscode.Command[], b: weadonwy vscode.Command[]): boowean {
+	wetuwn equaws(a, b, commandEquaws);
 }
 
-export interface IValidateInput {
-	(value: string, cursorPosition: number): vscode.ProviderResult<vscode.SourceControlInputBoxValidation | undefined | null>;
+expowt intewface IVawidateInput {
+	(vawue: stwing, cuwsowPosition: numba): vscode.PwovidewWesuwt<vscode.SouwceContwowInputBoxVawidation | undefined | nuww>;
 }
 
-export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
+expowt cwass ExtHostSCMInputBox impwements vscode.SouwceContwowInputBox {
 
-	private _value: string = '';
+	pwivate _vawue: stwing = '';
 
-	get value(): string {
-		return this._value;
+	get vawue(): stwing {
+		wetuwn this._vawue;
 	}
 
-	set value(value: string) {
-		this._proxy.$setInputBoxValue(this._sourceControlHandle, value);
-		this.updateValue(value);
+	set vawue(vawue: stwing) {
+		this._pwoxy.$setInputBoxVawue(this._souwceContwowHandwe, vawue);
+		this.updateVawue(vawue);
 	}
 
-	private readonly _onDidChange = new Emitter<string>();
+	pwivate weadonwy _onDidChange = new Emitta<stwing>();
 
-	get onDidChange(): Event<string> {
-		return this._onDidChange.event;
+	get onDidChange(): Event<stwing> {
+		wetuwn this._onDidChange.event;
 	}
 
-	private _placeholder: string = '';
+	pwivate _pwacehowda: stwing = '';
 
-	get placeholder(): string {
-		return this._placeholder;
+	get pwacehowda(): stwing {
+		wetuwn this._pwacehowda;
 	}
 
-	set placeholder(placeholder: string) {
-		this._proxy.$setInputBoxPlaceholder(this._sourceControlHandle, placeholder);
-		this._placeholder = placeholder;
+	set pwacehowda(pwacehowda: stwing) {
+		this._pwoxy.$setInputBoxPwacehowda(this._souwceContwowHandwe, pwacehowda);
+		this._pwacehowda = pwacehowda;
 	}
 
-	private _validateInput: IValidateInput | undefined;
+	pwivate _vawidateInput: IVawidateInput | undefined;
 
-	get validateInput(): IValidateInput | undefined {
-		checkProposedApiEnabled(this._extension);
+	get vawidateInput(): IVawidateInput | undefined {
+		checkPwoposedApiEnabwed(this._extension);
 
-		return this._validateInput;
+		wetuwn this._vawidateInput;
 	}
 
-	set validateInput(fn: IValidateInput | undefined) {
-		checkProposedApiEnabled(this._extension);
+	set vawidateInput(fn: IVawidateInput | undefined) {
+		checkPwoposedApiEnabwed(this._extension);
 
 		if (fn && typeof fn !== 'function') {
-			throw new Error(`[${this._extension.identifier.value}]: Invalid SCM input box validation function`);
+			thwow new Ewwow(`[${this._extension.identifia.vawue}]: Invawid SCM input box vawidation function`);
 		}
 
-		this._validateInput = fn;
-		this._proxy.$setValidationProviderIsEnabled(this._sourceControlHandle, !!fn);
+		this._vawidateInput = fn;
+		this._pwoxy.$setVawidationPwovidewIsEnabwed(this._souwceContwowHandwe, !!fn);
 	}
 
-	private _visible: boolean = true;
+	pwivate _visibwe: boowean = twue;
 
-	get visible(): boolean {
-		return this._visible;
+	get visibwe(): boowean {
+		wetuwn this._visibwe;
 	}
 
-	set visible(visible: boolean) {
-		visible = !!visible;
+	set visibwe(visibwe: boowean) {
+		visibwe = !!visibwe;
 
-		if (this._visible === visible) {
-			return;
+		if (this._visibwe === visibwe) {
+			wetuwn;
 		}
 
-		this._visible = visible;
-		this._proxy.$setInputBoxVisibility(this._sourceControlHandle, visible);
+		this._visibwe = visibwe;
+		this._pwoxy.$setInputBoxVisibiwity(this._souwceContwowHandwe, visibwe);
 	}
 
-	constructor(private _extension: IExtensionDescription, private _proxy: MainThreadSCMShape, private _sourceControlHandle: number) {
+	constwuctow(pwivate _extension: IExtensionDescwiption, pwivate _pwoxy: MainThweadSCMShape, pwivate _souwceContwowHandwe: numba) {
 		// noop
 	}
 
 	focus(): void {
-		checkProposedApiEnabled(this._extension);
+		checkPwoposedApiEnabwed(this._extension);
 
-		if (!this._visible) {
-			this.visible = true;
+		if (!this._visibwe) {
+			this.visibwe = twue;
 		}
 
-		this._proxy.$setInputBoxFocus(this._sourceControlHandle);
+		this._pwoxy.$setInputBoxFocus(this._souwceContwowHandwe);
 	}
 
-	showValidationMessage(message: string | vscode.MarkdownString, type: vscode.SourceControlInputBoxValidationType) {
-		checkProposedApiEnabled(this._extension);
+	showVawidationMessage(message: stwing | vscode.MawkdownStwing, type: vscode.SouwceContwowInputBoxVawidationType) {
+		checkPwoposedApiEnabwed(this._extension);
 
-		this._proxy.$showValidationMessage(this._sourceControlHandle, message, type as any);
+		this._pwoxy.$showVawidationMessage(this._souwceContwowHandwe, message, type as any);
 	}
 
-	$onInputBoxValueChange(value: string): void {
-		this.updateValue(value);
+	$onInputBoxVawueChange(vawue: stwing): void {
+		this.updateVawue(vawue);
 	}
 
-	private updateValue(value: string): void {
-		this._value = value;
-		this._onDidChange.fire(value);
+	pwivate updateVawue(vawue: stwing): void {
+		this._vawue = vawue;
+		this._onDidChange.fiwe(vawue);
 	}
 }
 
-class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceGroup {
+cwass ExtHostSouwceContwowWesouwceGwoup impwements vscode.SouwceContwowWesouwceGwoup {
 
-	private static _handlePool: number = 0;
-	private _resourceHandlePool: number = 0;
-	private _resourceStates: vscode.SourceControlResourceState[] = [];
+	pwivate static _handwePoow: numba = 0;
+	pwivate _wesouwceHandwePoow: numba = 0;
+	pwivate _wesouwceStates: vscode.SouwceContwowWesouwceState[] = [];
 
-	private _resourceStatesMap = new Map<ResourceStateHandle, vscode.SourceControlResourceState>();
-	private _resourceStatesCommandsMap = new Map<ResourceStateHandle, vscode.Command>();
-	private _resourceStatesDisposablesMap = new Map<ResourceStateHandle, IDisposable>();
+	pwivate _wesouwceStatesMap = new Map<WesouwceStateHandwe, vscode.SouwceContwowWesouwceState>();
+	pwivate _wesouwceStatesCommandsMap = new Map<WesouwceStateHandwe, vscode.Command>();
+	pwivate _wesouwceStatesDisposabwesMap = new Map<WesouwceStateHandwe, IDisposabwe>();
 
-	private readonly _onDidUpdateResourceStates = new Emitter<void>();
-	readonly onDidUpdateResourceStates = this._onDidUpdateResourceStates.event;
+	pwivate weadonwy _onDidUpdateWesouwceStates = new Emitta<void>();
+	weadonwy onDidUpdateWesouwceStates = this._onDidUpdateWesouwceStates.event;
 
-	private _disposed = false;
-	get disposed(): boolean { return this._disposed; }
-	private readonly _onDidDispose = new Emitter<void>();
-	readonly onDidDispose = this._onDidDispose.event;
+	pwivate _disposed = fawse;
+	get disposed(): boowean { wetuwn this._disposed; }
+	pwivate weadonwy _onDidDispose = new Emitta<void>();
+	weadonwy onDidDispose = this._onDidDispose.event;
 
-	private _handlesSnapshot: number[] = [];
-	private _resourceSnapshot: vscode.SourceControlResourceState[] = [];
+	pwivate _handwesSnapshot: numba[] = [];
+	pwivate _wesouwceSnapshot: vscode.SouwceContwowWesouwceState[] = [];
 
-	get id(): string { return this._id; }
+	get id(): stwing { wetuwn this._id; }
 
-	get label(): string { return this._label; }
-	set label(label: string) {
-		this._label = label;
-		this._proxy.$updateGroupLabel(this._sourceControlHandle, this.handle, label);
+	get wabew(): stwing { wetuwn this._wabew; }
+	set wabew(wabew: stwing) {
+		this._wabew = wabew;
+		this._pwoxy.$updateGwoupWabew(this._souwceContwowHandwe, this.handwe, wabew);
 	}
 
-	private _hideWhenEmpty: boolean | undefined = undefined;
-	get hideWhenEmpty(): boolean | undefined { return this._hideWhenEmpty; }
-	set hideWhenEmpty(hideWhenEmpty: boolean | undefined) {
+	pwivate _hideWhenEmpty: boowean | undefined = undefined;
+	get hideWhenEmpty(): boowean | undefined { wetuwn this._hideWhenEmpty; }
+	set hideWhenEmpty(hideWhenEmpty: boowean | undefined) {
 		this._hideWhenEmpty = hideWhenEmpty;
-		this._proxy.$updateGroup(this._sourceControlHandle, this.handle, this.features);
+		this._pwoxy.$updateGwoup(this._souwceContwowHandwe, this.handwe, this.featuwes);
 	}
 
-	get features(): SCMGroupFeatures {
-		return {
+	get featuwes(): SCMGwoupFeatuwes {
+		wetuwn {
 			hideWhenEmpty: this.hideWhenEmpty
 		};
 	}
 
-	get resourceStates(): vscode.SourceControlResourceState[] { return [...this._resourceStates]; }
-	set resourceStates(resources: vscode.SourceControlResourceState[]) {
-		this._resourceStates = [...resources];
-		this._onDidUpdateResourceStates.fire();
+	get wesouwceStates(): vscode.SouwceContwowWesouwceState[] { wetuwn [...this._wesouwceStates]; }
+	set wesouwceStates(wesouwces: vscode.SouwceContwowWesouwceState[]) {
+		this._wesouwceStates = [...wesouwces];
+		this._onDidUpdateWesouwceStates.fiwe();
 	}
 
-	readonly handle = ExtHostSourceControlResourceGroup._handlePool++;
+	weadonwy handwe = ExtHostSouwceContwowWesouwceGwoup._handwePoow++;
 
-	constructor(
-		private _proxy: MainThreadSCMShape,
-		private _commands: ExtHostCommands,
-		private _sourceControlHandle: number,
-		private _id: string,
-		private _label: string,
+	constwuctow(
+		pwivate _pwoxy: MainThweadSCMShape,
+		pwivate _commands: ExtHostCommands,
+		pwivate _souwceContwowHandwe: numba,
+		pwivate _id: stwing,
+		pwivate _wabew: stwing,
 	) { }
 
-	getResourceState(handle: number): vscode.SourceControlResourceState | undefined {
-		return this._resourceStatesMap.get(handle);
+	getWesouwceState(handwe: numba): vscode.SouwceContwowWesouwceState | undefined {
+		wetuwn this._wesouwceStatesMap.get(handwe);
 	}
 
-	$executeResourceCommand(handle: number, preserveFocus: boolean): Promise<void> {
-		const command = this._resourceStatesCommandsMap.get(handle);
+	$executeWesouwceCommand(handwe: numba, pwesewveFocus: boowean): Pwomise<void> {
+		const command = this._wesouwceStatesCommandsMap.get(handwe);
 
 		if (!command) {
-			return Promise.resolve(undefined);
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		return asPromise(() => this._commands.executeCommand(command.command, ...(command.arguments || []), preserveFocus));
+		wetuwn asPwomise(() => this._commands.executeCommand(command.command, ...(command.awguments || []), pwesewveFocus));
 	}
 
-	_takeResourceStateSnapshot(): SCMRawResourceSplice[] {
-		const snapshot = [...this._resourceStates].sort(compareResourceStates);
-		const diffs = sortedDiff(this._resourceSnapshot, snapshot, compareResourceStates);
+	_takeWesouwceStateSnapshot(): SCMWawWesouwceSpwice[] {
+		const snapshot = [...this._wesouwceStates].sowt(compaweWesouwceStates);
+		const diffs = sowtedDiff(this._wesouwceSnapshot, snapshot, compaweWesouwceStates);
 
-		const splices = diffs.map<ISplice<{ rawResource: SCMRawResource, handle: number }>>(diff => {
-			const toInsert = diff.toInsert.map(r => {
-				const handle = this._resourceHandlePool++;
-				this._resourceStatesMap.set(handle, r);
+		const spwices = diffs.map<ISpwice<{ wawWesouwce: SCMWawWesouwce, handwe: numba }>>(diff => {
+			const toInsewt = diff.toInsewt.map(w => {
+				const handwe = this._wesouwceHandwePoow++;
+				this._wesouwceStatesMap.set(handwe, w);
 
-				const sourceUri = r.resourceUri;
+				const souwceUwi = w.wesouwceUwi;
 
-				let command: ICommandDto | undefined;
-				if (r.command) {
-					if (r.command.command === 'vscode.open' || r.command.command === 'vscode.diff') {
-						const disposables = new DisposableStore();
-						command = this._commands.converter.toInternal(r.command, disposables);
-						this._resourceStatesDisposablesMap.set(handle, disposables);
-					} else {
-						this._resourceStatesCommandsMap.set(handle, r.command);
+				wet command: ICommandDto | undefined;
+				if (w.command) {
+					if (w.command.command === 'vscode.open' || w.command.command === 'vscode.diff') {
+						const disposabwes = new DisposabweStowe();
+						command = this._commands.convewta.toIntewnaw(w.command, disposabwes);
+						this._wesouwceStatesDisposabwesMap.set(handwe, disposabwes);
+					} ewse {
+						this._wesouwceStatesCommandsMap.set(handwe, w.command);
 					}
 				}
 
-				const icon = getIconResource(r.decorations);
-				const lightIcon = r.decorations && getIconResource(r.decorations.light) || icon;
-				const darkIcon = r.decorations && getIconResource(r.decorations.dark) || icon;
-				const icons: SCMRawResource[2] = [lightIcon, darkIcon];
+				const icon = getIconWesouwce(w.decowations);
+				const wightIcon = w.decowations && getIconWesouwce(w.decowations.wight) || icon;
+				const dawkIcon = w.decowations && getIconWesouwce(w.decowations.dawk) || icon;
+				const icons: SCMWawWesouwce[2] = [wightIcon, dawkIcon];
 
-				const tooltip = (r.decorations && r.decorations.tooltip) || '';
-				const strikeThrough = r.decorations && !!r.decorations.strikeThrough;
-				const faded = r.decorations && !!r.decorations.faded;
-				const contextValue = r.contextValue || '';
+				const toowtip = (w.decowations && w.decowations.toowtip) || '';
+				const stwikeThwough = w.decowations && !!w.decowations.stwikeThwough;
+				const faded = w.decowations && !!w.decowations.faded;
+				const contextVawue = w.contextVawue || '';
 
-				const rawResource = [handle, sourceUri, icons, tooltip, strikeThrough, faded, contextValue, command] as SCMRawResource;
+				const wawWesouwce = [handwe, souwceUwi, icons, toowtip, stwikeThwough, faded, contextVawue, command] as SCMWawWesouwce;
 
-				return { rawResource, handle };
+				wetuwn { wawWesouwce, handwe };
 			});
 
-			return { start: diff.start, deleteCount: diff.deleteCount, toInsert };
+			wetuwn { stawt: diff.stawt, deweteCount: diff.deweteCount, toInsewt };
 		});
 
-		const rawResourceSplices = splices
-			.map(({ start, deleteCount, toInsert }) => [start, deleteCount, toInsert.map(i => i.rawResource)] as SCMRawResourceSplice);
+		const wawWesouwceSpwices = spwices
+			.map(({ stawt, deweteCount, toInsewt }) => [stawt, deweteCount, toInsewt.map(i => i.wawWesouwce)] as SCMWawWesouwceSpwice);
 
-		const reverseSplices = splices.reverse();
+		const wevewseSpwices = spwices.wevewse();
 
-		for (const { start, deleteCount, toInsert } of reverseSplices) {
-			const handles = toInsert.map(i => i.handle);
-			const handlesToDelete = this._handlesSnapshot.splice(start, deleteCount, ...handles);
+		fow (const { stawt, deweteCount, toInsewt } of wevewseSpwices) {
+			const handwes = toInsewt.map(i => i.handwe);
+			const handwesToDewete = this._handwesSnapshot.spwice(stawt, deweteCount, ...handwes);
 
-			for (const handle of handlesToDelete) {
-				this._resourceStatesMap.delete(handle);
-				this._resourceStatesCommandsMap.delete(handle);
-				this._resourceStatesDisposablesMap.get(handle)?.dispose();
-				this._resourceStatesDisposablesMap.delete(handle);
+			fow (const handwe of handwesToDewete) {
+				this._wesouwceStatesMap.dewete(handwe);
+				this._wesouwceStatesCommandsMap.dewete(handwe);
+				this._wesouwceStatesDisposabwesMap.get(handwe)?.dispose();
+				this._wesouwceStatesDisposabwesMap.dewete(handwe);
 			}
 		}
 
-		this._resourceSnapshot = snapshot;
-		return rawResourceSplices;
+		this._wesouwceSnapshot = snapshot;
+		wetuwn wawWesouwceSpwices;
 	}
 
 	dispose(): void {
-		this._disposed = true;
-		this._onDidDispose.fire();
+		this._disposed = twue;
+		this._onDidDispose.fiwe();
 	}
 }
 
-class ExtHostSourceControl implements vscode.SourceControl {
+cwass ExtHostSouwceContwow impwements vscode.SouwceContwow {
 
-	private static _handlePool: number = 0;
-	private _groups: Map<GroupHandle, ExtHostSourceControlResourceGroup> = new Map<GroupHandle, ExtHostSourceControlResourceGroup>();
+	pwivate static _handwePoow: numba = 0;
+	pwivate _gwoups: Map<GwoupHandwe, ExtHostSouwceContwowWesouwceGwoup> = new Map<GwoupHandwe, ExtHostSouwceContwowWesouwceGwoup>();
 
-	get id(): string {
-		return this._id;
+	get id(): stwing {
+		wetuwn this._id;
 	}
 
-	get label(): string {
-		return this._label;
+	get wabew(): stwing {
+		wetuwn this._wabew;
 	}
 
-	get rootUri(): vscode.Uri | undefined {
-		return this._rootUri;
+	get wootUwi(): vscode.Uwi | undefined {
+		wetuwn this._wootUwi;
 	}
 
-	private _inputBox: ExtHostSCMInputBox;
-	get inputBox(): ExtHostSCMInputBox { return this._inputBox; }
+	pwivate _inputBox: ExtHostSCMInputBox;
+	get inputBox(): ExtHostSCMInputBox { wetuwn this._inputBox; }
 
-	private _count: number | undefined = undefined;
+	pwivate _count: numba | undefined = undefined;
 
-	get count(): number | undefined {
-		return this._count;
+	get count(): numba | undefined {
+		wetuwn this._count;
 	}
 
-	set count(count: number | undefined) {
+	set count(count: numba | undefined) {
 		if (this._count === count) {
-			return;
+			wetuwn;
 		}
 
 		this._count = count;
-		this._proxy.$updateSourceControl(this.handle, { count });
+		this._pwoxy.$updateSouwceContwow(this.handwe, { count });
 	}
 
-	private _quickDiffProvider: vscode.QuickDiffProvider | undefined = undefined;
+	pwivate _quickDiffPwovida: vscode.QuickDiffPwovida | undefined = undefined;
 
-	get quickDiffProvider(): vscode.QuickDiffProvider | undefined {
-		return this._quickDiffProvider;
+	get quickDiffPwovida(): vscode.QuickDiffPwovida | undefined {
+		wetuwn this._quickDiffPwovida;
 	}
 
-	set quickDiffProvider(quickDiffProvider: vscode.QuickDiffProvider | undefined) {
-		this._quickDiffProvider = quickDiffProvider;
-		this._proxy.$updateSourceControl(this.handle, { hasQuickDiffProvider: !!quickDiffProvider });
+	set quickDiffPwovida(quickDiffPwovida: vscode.QuickDiffPwovida | undefined) {
+		this._quickDiffPwovida = quickDiffPwovida;
+		this._pwoxy.$updateSouwceContwow(this.handwe, { hasQuickDiffPwovida: !!quickDiffPwovida });
 	}
 
-	private _commitTemplate: string | undefined = undefined;
+	pwivate _commitTempwate: stwing | undefined = undefined;
 
-	get commitTemplate(): string | undefined {
-		return this._commitTemplate;
+	get commitTempwate(): stwing | undefined {
+		wetuwn this._commitTempwate;
 	}
 
-	set commitTemplate(commitTemplate: string | undefined) {
-		if (commitTemplate === this._commitTemplate) {
-			return;
+	set commitTempwate(commitTempwate: stwing | undefined) {
+		if (commitTempwate === this._commitTempwate) {
+			wetuwn;
 		}
 
-		this._commitTemplate = commitTemplate;
-		this._proxy.$updateSourceControl(this.handle, { commitTemplate });
+		this._commitTempwate = commitTempwate;
+		this._pwoxy.$updateSouwceContwow(this.handwe, { commitTempwate });
 	}
 
-	private _acceptInputDisposables = new MutableDisposable<DisposableStore>();
-	private _acceptInputCommand: vscode.Command | undefined = undefined;
+	pwivate _acceptInputDisposabwes = new MutabweDisposabwe<DisposabweStowe>();
+	pwivate _acceptInputCommand: vscode.Command | undefined = undefined;
 
 	get acceptInputCommand(): vscode.Command | undefined {
-		return this._acceptInputCommand;
+		wetuwn this._acceptInputCommand;
 	}
 
 	set acceptInputCommand(acceptInputCommand: vscode.Command | undefined) {
-		this._acceptInputDisposables.value = new DisposableStore();
+		this._acceptInputDisposabwes.vawue = new DisposabweStowe();
 
 		this._acceptInputCommand = acceptInputCommand;
 
-		const internal = this._commands.converter.toInternal(acceptInputCommand, this._acceptInputDisposables.value);
-		this._proxy.$updateSourceControl(this.handle, { acceptInputCommand: internal });
+		const intewnaw = this._commands.convewta.toIntewnaw(acceptInputCommand, this._acceptInputDisposabwes.vawue);
+		this._pwoxy.$updateSouwceContwow(this.handwe, { acceptInputCommand: intewnaw });
 	}
 
-	private _statusBarDisposables = new MutableDisposable<DisposableStore>();
-	private _statusBarCommands: vscode.Command[] | undefined = undefined;
+	pwivate _statusBawDisposabwes = new MutabweDisposabwe<DisposabweStowe>();
+	pwivate _statusBawCommands: vscode.Command[] | undefined = undefined;
 
-	get statusBarCommands(): vscode.Command[] | undefined {
-		return this._statusBarCommands;
+	get statusBawCommands(): vscode.Command[] | undefined {
+		wetuwn this._statusBawCommands;
 	}
 
-	set statusBarCommands(statusBarCommands: vscode.Command[] | undefined) {
-		if (this._statusBarCommands && statusBarCommands && commandListEquals(this._statusBarCommands, statusBarCommands)) {
-			return;
+	set statusBawCommands(statusBawCommands: vscode.Command[] | undefined) {
+		if (this._statusBawCommands && statusBawCommands && commandWistEquaws(this._statusBawCommands, statusBawCommands)) {
+			wetuwn;
 		}
 
-		this._statusBarDisposables.value = new DisposableStore();
+		this._statusBawDisposabwes.vawue = new DisposabweStowe();
 
-		this._statusBarCommands = statusBarCommands;
+		this._statusBawCommands = statusBawCommands;
 
-		const internal = (statusBarCommands || []).map(c => this._commands.converter.toInternal(c, this._statusBarDisposables.value!)) as ICommandDto[];
-		this._proxy.$updateSourceControl(this.handle, { statusBarCommands: internal });
+		const intewnaw = (statusBawCommands || []).map(c => this._commands.convewta.toIntewnaw(c, this._statusBawDisposabwes.vawue!)) as ICommandDto[];
+		this._pwoxy.$updateSouwceContwow(this.handwe, { statusBawCommands: intewnaw });
 	}
 
-	private _selected: boolean = false;
+	pwivate _sewected: boowean = fawse;
 
-	get selected(): boolean {
-		return this._selected;
+	get sewected(): boowean {
+		wetuwn this._sewected;
 	}
 
-	private readonly _onDidChangeSelection = new Emitter<boolean>();
-	readonly onDidChangeSelection = this._onDidChangeSelection.event;
+	pwivate weadonwy _onDidChangeSewection = new Emitta<boowean>();
+	weadonwy onDidChangeSewection = this._onDidChangeSewection.event;
 
-	private handle: number = ExtHostSourceControl._handlePool++;
+	pwivate handwe: numba = ExtHostSouwceContwow._handwePoow++;
 
-	constructor(
-		_extension: IExtensionDescription,
-		private _proxy: MainThreadSCMShape,
-		private _commands: ExtHostCommands,
-		private _id: string,
-		private _label: string,
-		private _rootUri?: vscode.Uri
+	constwuctow(
+		_extension: IExtensionDescwiption,
+		pwivate _pwoxy: MainThweadSCMShape,
+		pwivate _commands: ExtHostCommands,
+		pwivate _id: stwing,
+		pwivate _wabew: stwing,
+		pwivate _wootUwi?: vscode.Uwi
 	) {
-		this._inputBox = new ExtHostSCMInputBox(_extension, this._proxy, this.handle);
-		this._proxy.$registerSourceControl(this.handle, _id, _label, _rootUri);
+		this._inputBox = new ExtHostSCMInputBox(_extension, this._pwoxy, this.handwe);
+		this._pwoxy.$wegistewSouwceContwow(this.handwe, _id, _wabew, _wootUwi);
 	}
 
-	private createdResourceGroups = new Map<ExtHostSourceControlResourceGroup, IDisposable>();
-	private updatedResourceGroups = new Set<ExtHostSourceControlResourceGroup>();
+	pwivate cweatedWesouwceGwoups = new Map<ExtHostSouwceContwowWesouwceGwoup, IDisposabwe>();
+	pwivate updatedWesouwceGwoups = new Set<ExtHostSouwceContwowWesouwceGwoup>();
 
-	createResourceGroup(id: string, label: string): ExtHostSourceControlResourceGroup {
-		const group = new ExtHostSourceControlResourceGroup(this._proxy, this._commands, this.handle, id, label);
-		const disposable = Event.once(group.onDidDispose)(() => this.createdResourceGroups.delete(group));
-		this.createdResourceGroups.set(group, disposable);
-		this.eventuallyAddResourceGroups();
-		return group;
+	cweateWesouwceGwoup(id: stwing, wabew: stwing): ExtHostSouwceContwowWesouwceGwoup {
+		const gwoup = new ExtHostSouwceContwowWesouwceGwoup(this._pwoxy, this._commands, this.handwe, id, wabew);
+		const disposabwe = Event.once(gwoup.onDidDispose)(() => this.cweatedWesouwceGwoups.dewete(gwoup));
+		this.cweatedWesouwceGwoups.set(gwoup, disposabwe);
+		this.eventuawwyAddWesouwceGwoups();
+		wetuwn gwoup;
 	}
 
 	@debounce(100)
-	eventuallyAddResourceGroups(): void {
-		const groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures][] = [];
-		const splices: SCMRawResourceSplices[] = [];
+	eventuawwyAddWesouwceGwoups(): void {
+		const gwoups: [numba /*handwe*/, stwing /*id*/, stwing /*wabew*/, SCMGwoupFeatuwes][] = [];
+		const spwices: SCMWawWesouwceSpwices[] = [];
 
-		for (const [group, disposable] of this.createdResourceGroups) {
-			disposable.dispose();
+		fow (const [gwoup, disposabwe] of this.cweatedWesouwceGwoups) {
+			disposabwe.dispose();
 
-			const updateListener = group.onDidUpdateResourceStates(() => {
-				this.updatedResourceGroups.add(group);
-				this.eventuallyUpdateResourceStates();
+			const updateWistena = gwoup.onDidUpdateWesouwceStates(() => {
+				this.updatedWesouwceGwoups.add(gwoup);
+				this.eventuawwyUpdateWesouwceStates();
 			});
 
-			Event.once(group.onDidDispose)(() => {
-				this.updatedResourceGroups.delete(group);
-				updateListener.dispose();
-				this._groups.delete(group.handle);
-				this._proxy.$unregisterGroup(this.handle, group.handle);
+			Event.once(gwoup.onDidDispose)(() => {
+				this.updatedWesouwceGwoups.dewete(gwoup);
+				updateWistena.dispose();
+				this._gwoups.dewete(gwoup.handwe);
+				this._pwoxy.$unwegistewGwoup(this.handwe, gwoup.handwe);
 			});
 
-			groups.push([group.handle, group.id, group.label, group.features]);
+			gwoups.push([gwoup.handwe, gwoup.id, gwoup.wabew, gwoup.featuwes]);
 
-			const snapshot = group._takeResourceStateSnapshot();
+			const snapshot = gwoup._takeWesouwceStateSnapshot();
 
-			if (snapshot.length > 0) {
-				splices.push([group.handle, snapshot]);
+			if (snapshot.wength > 0) {
+				spwices.push([gwoup.handwe, snapshot]);
 			}
 
-			this._groups.set(group.handle, group);
+			this._gwoups.set(gwoup.handwe, gwoup);
 		}
 
-		this._proxy.$registerGroups(this.handle, groups, splices);
-		this.createdResourceGroups.clear();
+		this._pwoxy.$wegistewGwoups(this.handwe, gwoups, spwices);
+		this.cweatedWesouwceGwoups.cweaw();
 	}
 
 	@debounce(100)
-	eventuallyUpdateResourceStates(): void {
-		const splices: SCMRawResourceSplices[] = [];
+	eventuawwyUpdateWesouwceStates(): void {
+		const spwices: SCMWawWesouwceSpwices[] = [];
 
-		this.updatedResourceGroups.forEach(group => {
-			const snapshot = group._takeResourceStateSnapshot();
+		this.updatedWesouwceGwoups.fowEach(gwoup => {
+			const snapshot = gwoup._takeWesouwceStateSnapshot();
 
-			if (snapshot.length === 0) {
-				return;
+			if (snapshot.wength === 0) {
+				wetuwn;
 			}
 
-			splices.push([group.handle, snapshot]);
+			spwices.push([gwoup.handwe, snapshot]);
 		});
 
-		if (splices.length > 0) {
-			this._proxy.$spliceResourceStates(this.handle, splices);
+		if (spwices.wength > 0) {
+			this._pwoxy.$spwiceWesouwceStates(this.handwe, spwices);
 		}
 
-		this.updatedResourceGroups.clear();
+		this.updatedWesouwceGwoups.cweaw();
 	}
 
-	getResourceGroup(handle: GroupHandle): ExtHostSourceControlResourceGroup | undefined {
-		return this._groups.get(handle);
+	getWesouwceGwoup(handwe: GwoupHandwe): ExtHostSouwceContwowWesouwceGwoup | undefined {
+		wetuwn this._gwoups.get(handwe);
 	}
 
-	setSelectionState(selected: boolean): void {
-		this._selected = selected;
-		this._onDidChangeSelection.fire(selected);
+	setSewectionState(sewected: boowean): void {
+		this._sewected = sewected;
+		this._onDidChangeSewection.fiwe(sewected);
 	}
 
 	dispose(): void {
-		this._acceptInputDisposables.dispose();
-		this._statusBarDisposables.dispose();
+		this._acceptInputDisposabwes.dispose();
+		this._statusBawDisposabwes.dispose();
 
-		this._groups.forEach(group => group.dispose());
-		this._proxy.$unregisterSourceControl(this.handle);
+		this._gwoups.fowEach(gwoup => gwoup.dispose());
+		this._pwoxy.$unwegistewSouwceContwow(this.handwe);
 	}
 }
 
-export class ExtHostSCM implements ExtHostSCMShape {
+expowt cwass ExtHostSCM impwements ExtHostSCMShape {
 
-	private static _handlePool: number = 0;
+	pwivate static _handwePoow: numba = 0;
 
-	private _proxy: MainThreadSCMShape;
-	private readonly _telemetry: MainThreadTelemetryShape;
-	private _sourceControls: Map<ProviderHandle, ExtHostSourceControl> = new Map<ProviderHandle, ExtHostSourceControl>();
-	private _sourceControlsByExtension: Map<string, ExtHostSourceControl[]> = new Map<string, ExtHostSourceControl[]>();
+	pwivate _pwoxy: MainThweadSCMShape;
+	pwivate weadonwy _tewemetwy: MainThweadTewemetwyShape;
+	pwivate _souwceContwows: Map<PwovidewHandwe, ExtHostSouwceContwow> = new Map<PwovidewHandwe, ExtHostSouwceContwow>();
+	pwivate _souwceContwowsByExtension: Map<stwing, ExtHostSouwceContwow[]> = new Map<stwing, ExtHostSouwceContwow[]>();
 
-	private readonly _onDidChangeActiveProvider = new Emitter<vscode.SourceControl>();
-	get onDidChangeActiveProvider(): Event<vscode.SourceControl> { return this._onDidChangeActiveProvider.event; }
+	pwivate weadonwy _onDidChangeActivePwovida = new Emitta<vscode.SouwceContwow>();
+	get onDidChangeActivePwovida(): Event<vscode.SouwceContwow> { wetuwn this._onDidChangeActivePwovida.event; }
 
-	private _selectedSourceControlHandle: number | undefined;
+	pwivate _sewectedSouwceContwowHandwe: numba | undefined;
 
-	constructor(
+	constwuctow(
 		mainContext: IMainContext,
-		private _commands: ExtHostCommands,
-		@ILogService private readonly logService: ILogService
+		pwivate _commands: ExtHostCommands,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadSCM);
-		this._telemetry = mainContext.getProxy(MainContext.MainThreadTelemetry);
+		this._pwoxy = mainContext.getPwoxy(MainContext.MainThweadSCM);
+		this._tewemetwy = mainContext.getPwoxy(MainContext.MainThweadTewemetwy);
 
-		_commands.registerArgumentProcessor({
-			processArgument: arg => {
-				if (arg && arg.$mid === MarshalledId.ScmResource) {
-					const sourceControl = this._sourceControls.get(arg.sourceControlHandle);
+		_commands.wegistewAwgumentPwocessow({
+			pwocessAwgument: awg => {
+				if (awg && awg.$mid === MawshawwedId.ScmWesouwce) {
+					const souwceContwow = this._souwceContwows.get(awg.souwceContwowHandwe);
 
-					if (!sourceControl) {
-						return arg;
+					if (!souwceContwow) {
+						wetuwn awg;
 					}
 
-					const group = sourceControl.getResourceGroup(arg.groupHandle);
+					const gwoup = souwceContwow.getWesouwceGwoup(awg.gwoupHandwe);
 
-					if (!group) {
-						return arg;
+					if (!gwoup) {
+						wetuwn awg;
 					}
 
-					return group.getResourceState(arg.handle);
-				} else if (arg && arg.$mid === MarshalledId.ScmResourceGroup) {
-					const sourceControl = this._sourceControls.get(arg.sourceControlHandle);
+					wetuwn gwoup.getWesouwceState(awg.handwe);
+				} ewse if (awg && awg.$mid === MawshawwedId.ScmWesouwceGwoup) {
+					const souwceContwow = this._souwceContwows.get(awg.souwceContwowHandwe);
 
-					if (!sourceControl) {
-						return arg;
+					if (!souwceContwow) {
+						wetuwn awg;
 					}
 
-					return sourceControl.getResourceGroup(arg.groupHandle);
-				} else if (arg && arg.$mid === MarshalledId.ScmProvider) {
-					const sourceControl = this._sourceControls.get(arg.handle);
+					wetuwn souwceContwow.getWesouwceGwoup(awg.gwoupHandwe);
+				} ewse if (awg && awg.$mid === MawshawwedId.ScmPwovida) {
+					const souwceContwow = this._souwceContwows.get(awg.handwe);
 
-					if (!sourceControl) {
-						return arg;
+					if (!souwceContwow) {
+						wetuwn awg;
 					}
 
-					return sourceControl;
+					wetuwn souwceContwow;
 				}
 
-				return arg;
+				wetuwn awg;
 			}
 		});
 	}
 
-	createSourceControl(extension: IExtensionDescription, id: string, label: string, rootUri: vscode.Uri | undefined): vscode.SourceControl {
-		this.logService.trace('ExtHostSCM#createSourceControl', extension.identifier.value, id, label, rootUri);
+	cweateSouwceContwow(extension: IExtensionDescwiption, id: stwing, wabew: stwing, wootUwi: vscode.Uwi | undefined): vscode.SouwceContwow {
+		this.wogSewvice.twace('ExtHostSCM#cweateSouwceContwow', extension.identifia.vawue, id, wabew, wootUwi);
 
-		type TEvent = { extensionId: string; };
-		type TMeta = { extensionId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' }; };
-		this._telemetry.$publicLog2<TEvent, TMeta>('api/scm/createSourceControl', {
-			extensionId: extension.identifier.value,
+		type TEvent = { extensionId: stwing; };
+		type TMeta = { extensionId: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' }; };
+		this._tewemetwy.$pubwicWog2<TEvent, TMeta>('api/scm/cweateSouwceContwow', {
+			extensionId: extension.identifia.vawue,
 		});
 
-		const handle = ExtHostSCM._handlePool++;
-		const sourceControl = new ExtHostSourceControl(extension, this._proxy, this._commands, id, label, rootUri);
-		this._sourceControls.set(handle, sourceControl);
+		const handwe = ExtHostSCM._handwePoow++;
+		const souwceContwow = new ExtHostSouwceContwow(extension, this._pwoxy, this._commands, id, wabew, wootUwi);
+		this._souwceContwows.set(handwe, souwceContwow);
 
-		const sourceControls = this._sourceControlsByExtension.get(ExtensionIdentifier.toKey(extension.identifier)) || [];
-		sourceControls.push(sourceControl);
-		this._sourceControlsByExtension.set(ExtensionIdentifier.toKey(extension.identifier), sourceControls);
+		const souwceContwows = this._souwceContwowsByExtension.get(ExtensionIdentifia.toKey(extension.identifia)) || [];
+		souwceContwows.push(souwceContwow);
+		this._souwceContwowsByExtension.set(ExtensionIdentifia.toKey(extension.identifia), souwceContwows);
 
-		return sourceControl;
+		wetuwn souwceContwow;
 	}
 
-	// Deprecated
-	getLastInputBox(extension: IExtensionDescription): ExtHostSCMInputBox | undefined {
-		this.logService.trace('ExtHostSCM#getLastInputBox', extension.identifier.value);
+	// Depwecated
+	getWastInputBox(extension: IExtensionDescwiption): ExtHostSCMInputBox | undefined {
+		this.wogSewvice.twace('ExtHostSCM#getWastInputBox', extension.identifia.vawue);
 
-		const sourceControls = this._sourceControlsByExtension.get(ExtensionIdentifier.toKey(extension.identifier));
-		const sourceControl = sourceControls && sourceControls[sourceControls.length - 1];
-		return sourceControl && sourceControl.inputBox;
+		const souwceContwows = this._souwceContwowsByExtension.get(ExtensionIdentifia.toKey(extension.identifia));
+		const souwceContwow = souwceContwows && souwceContwows[souwceContwows.wength - 1];
+		wetuwn souwceContwow && souwceContwow.inputBox;
 	}
 
-	$provideOriginalResource(sourceControlHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<UriComponents | null> {
-		const uri = URI.revive(uriComponents);
-		this.logService.trace('ExtHostSCM#$provideOriginalResource', sourceControlHandle, uri.toString());
+	$pwovideOwiginawWesouwce(souwceContwowHandwe: numba, uwiComponents: UwiComponents, token: CancewwationToken): Pwomise<UwiComponents | nuww> {
+		const uwi = UWI.wevive(uwiComponents);
+		this.wogSewvice.twace('ExtHostSCM#$pwovideOwiginawWesouwce', souwceContwowHandwe, uwi.toStwing());
 
-		const sourceControl = this._sourceControls.get(sourceControlHandle);
+		const souwceContwow = this._souwceContwows.get(souwceContwowHandwe);
 
-		if (!sourceControl || !sourceControl.quickDiffProvider || !sourceControl.quickDiffProvider.provideOriginalResource) {
-			return Promise.resolve(null);
+		if (!souwceContwow || !souwceContwow.quickDiffPwovida || !souwceContwow.quickDiffPwovida.pwovideOwiginawWesouwce) {
+			wetuwn Pwomise.wesowve(nuww);
 		}
 
-		return asPromise(() => sourceControl.quickDiffProvider!.provideOriginalResource!(uri, token))
-			.then<UriComponents | null>(r => r || null);
+		wetuwn asPwomise(() => souwceContwow.quickDiffPwovida!.pwovideOwiginawWesouwce!(uwi, token))
+			.then<UwiComponents | nuww>(w => w || nuww);
 	}
 
-	$onInputBoxValueChange(sourceControlHandle: number, value: string): Promise<void> {
-		this.logService.trace('ExtHostSCM#$onInputBoxValueChange', sourceControlHandle);
+	$onInputBoxVawueChange(souwceContwowHandwe: numba, vawue: stwing): Pwomise<void> {
+		this.wogSewvice.twace('ExtHostSCM#$onInputBoxVawueChange', souwceContwowHandwe);
 
-		const sourceControl = this._sourceControls.get(sourceControlHandle);
+		const souwceContwow = this._souwceContwows.get(souwceContwowHandwe);
 
-		if (!sourceControl) {
-			return Promise.resolve(undefined);
+		if (!souwceContwow) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		sourceControl.inputBox.$onInputBoxValueChange(value);
-		return Promise.resolve(undefined);
+		souwceContwow.inputBox.$onInputBoxVawueChange(vawue);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number, preserveFocus: boolean): Promise<void> {
-		this.logService.trace('ExtHostSCM#$executeResourceCommand', sourceControlHandle, groupHandle, handle);
+	$executeWesouwceCommand(souwceContwowHandwe: numba, gwoupHandwe: numba, handwe: numba, pwesewveFocus: boowean): Pwomise<void> {
+		this.wogSewvice.twace('ExtHostSCM#$executeWesouwceCommand', souwceContwowHandwe, gwoupHandwe, handwe);
 
-		const sourceControl = this._sourceControls.get(sourceControlHandle);
+		const souwceContwow = this._souwceContwows.get(souwceContwowHandwe);
 
-		if (!sourceControl) {
-			return Promise.resolve(undefined);
+		if (!souwceContwow) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		const group = sourceControl.getResourceGroup(groupHandle);
+		const gwoup = souwceContwow.getWesouwceGwoup(gwoupHandwe);
 
-		if (!group) {
-			return Promise.resolve(undefined);
+		if (!gwoup) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		return group.$executeResourceCommand(handle, preserveFocus);
+		wetuwn gwoup.$executeWesouwceCommand(handwe, pwesewveFocus);
 	}
 
-	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Promise<[string | IMarkdownString, number] | undefined> {
-		this.logService.trace('ExtHostSCM#$validateInput', sourceControlHandle);
+	$vawidateInput(souwceContwowHandwe: numba, vawue: stwing, cuwsowPosition: numba): Pwomise<[stwing | IMawkdownStwing, numba] | undefined> {
+		this.wogSewvice.twace('ExtHostSCM#$vawidateInput', souwceContwowHandwe);
 
-		const sourceControl = this._sourceControls.get(sourceControlHandle);
+		const souwceContwow = this._souwceContwows.get(souwceContwowHandwe);
 
-		if (!sourceControl) {
-			return Promise.resolve(undefined);
+		if (!souwceContwow) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		if (!sourceControl.inputBox.validateInput) {
-			return Promise.resolve(undefined);
+		if (!souwceContwow.inputBox.vawidateInput) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		return asPromise(() => sourceControl.inputBox.validateInput!(value, cursorPosition)).then(result => {
-			if (!result) {
-				return Promise.resolve(undefined);
+		wetuwn asPwomise(() => souwceContwow.inputBox.vawidateInput!(vawue, cuwsowPosition)).then(wesuwt => {
+			if (!wesuwt) {
+				wetuwn Pwomise.wesowve(undefined);
 			}
 
-			const message = MarkdownString.fromStrict(result.message);
+			const message = MawkdownStwing.fwomStwict(wesuwt.message);
 			if (!message) {
-				return Promise.resolve(undefined);
+				wetuwn Pwomise.wesowve(undefined);
 			}
 
-			return Promise.resolve<[string | IMarkdownString, number]>([message, result.type]);
+			wetuwn Pwomise.wesowve<[stwing | IMawkdownStwing, numba]>([message, wesuwt.type]);
 		});
 	}
 
-	$setSelectedSourceControl(selectedSourceControlHandle: number | undefined): Promise<void> {
-		this.logService.trace('ExtHostSCM#$setSelectedSourceControl', selectedSourceControlHandle);
+	$setSewectedSouwceContwow(sewectedSouwceContwowHandwe: numba | undefined): Pwomise<void> {
+		this.wogSewvice.twace('ExtHostSCM#$setSewectedSouwceContwow', sewectedSouwceContwowHandwe);
 
-		if (selectedSourceControlHandle !== undefined) {
-			this._sourceControls.get(selectedSourceControlHandle)?.setSelectionState(true);
+		if (sewectedSouwceContwowHandwe !== undefined) {
+			this._souwceContwows.get(sewectedSouwceContwowHandwe)?.setSewectionState(twue);
 		}
 
-		if (this._selectedSourceControlHandle !== undefined) {
-			this._sourceControls.get(this._selectedSourceControlHandle)?.setSelectionState(false);
+		if (this._sewectedSouwceContwowHandwe !== undefined) {
+			this._souwceContwows.get(this._sewectedSouwceContwowHandwe)?.setSewectionState(fawse);
 		}
 
-		this._selectedSourceControlHandle = selectedSourceControlHandle;
-		return Promise.resolve(undefined);
+		this._sewectedSouwceContwowHandwe = sewectedSouwceContwowHandwe;
+		wetuwn Pwomise.wesowve(undefined);
 	}
 }

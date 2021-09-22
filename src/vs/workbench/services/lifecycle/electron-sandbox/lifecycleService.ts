@@ -1,171 +1,171 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
-import { ShutdownReason, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { AbstractLifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycleService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import Severity from 'vs/base/common/severity';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { Promises, disposableTimeout } from 'vs/base/common/async';
+impowt { wocawize } fwom 'vs/nws';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { handweVetos } fwom 'vs/pwatfowm/wifecycwe/common/wifecycwe';
+impowt { ShutdownWeason, IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ipcWendewa } fwom 'vs/base/pawts/sandbox/ewectwon-sandbox/gwobaws';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { AbstwactWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycweSewvice';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { Pwomises, disposabweTimeout } fwom 'vs/base/common/async';
 
-export class NativeLifecycleService extends AbstractLifecycleService {
+expowt cwass NativeWifecycweSewvice extends AbstwactWifecycweSewvice {
 
-	private static readonly BEFORE_SHUTDOWN_WARNING_DELAY = 5000;
-	private static readonly WILL_SHUTDOWN_WARNING_DELAY = 5000;
+	pwivate static weadonwy BEFOWE_SHUTDOWN_WAWNING_DEWAY = 5000;
+	pwivate static weadonwy WIWW_SHUTDOWN_WAWNING_DEWAY = 5000;
 
-	constructor(
-		@INotificationService private readonly notificationService: INotificationService,
-		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IStorageService storageService: IStorageService,
-		@ILogService logService: ILogService
+	constwuctow(
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@INativeHostSewvice pwivate weadonwy nativeHostSewvice: INativeHostSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice
 	) {
-		super(logService, storageService);
+		supa(wogSewvice, stowageSewvice);
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		const windowId = this.nativeHostService.windowId;
+	pwivate wegistewWistenews(): void {
+		const windowId = this.nativeHostSewvice.windowId;
 
-		// Main side indicates that window is about to unload, check for vetos
-		ipcRenderer.on('vscode:onBeforeUnload', (event: unknown, reply: { okChannel: string, cancelChannel: string, reason: ShutdownReason }) => {
-			this.logService.trace(`[lifecycle] onBeforeUnload (reason: ${reply.reason})`);
+		// Main side indicates that window is about to unwoad, check fow vetos
+		ipcWendewa.on('vscode:onBefoweUnwoad', (event: unknown, wepwy: { okChannew: stwing, cancewChannew: stwing, weason: ShutdownWeason }) => {
+			this.wogSewvice.twace(`[wifecycwe] onBefoweUnwoad (weason: ${wepwy.weason})`);
 
-			// trigger onBeforeShutdown events and veto collecting
-			this.handleBeforeShutdown(reply.reason).then(veto => {
+			// twigga onBefoweShutdown events and veto cowwecting
+			this.handweBefoweShutdown(wepwy.weason).then(veto => {
 				if (veto) {
-					this.logService.trace('[lifecycle] onBeforeUnload prevented via veto');
+					this.wogSewvice.twace('[wifecycwe] onBefoweUnwoad pwevented via veto');
 
-					ipcRenderer.send(reply.cancelChannel, windowId);
-				} else {
-					this.logService.trace('[lifecycle] onBeforeUnload continues without veto');
+					ipcWendewa.send(wepwy.cancewChannew, windowId);
+				} ewse {
+					this.wogSewvice.twace('[wifecycwe] onBefoweUnwoad continues without veto');
 
-					this.shutdownReason = reply.reason;
-					ipcRenderer.send(reply.okChannel, windowId);
+					this.shutdownWeason = wepwy.weason;
+					ipcWendewa.send(wepwy.okChannew, windowId);
 				}
 			});
 		});
 
-		// Main side indicates that we will indeed shutdown
-		ipcRenderer.on('vscode:onWillUnload', async (event: unknown, reply: { replyChannel: string, reason: ShutdownReason }) => {
-			this.logService.trace(`[lifecycle] onWillUnload (reason: ${reply.reason})`);
+		// Main side indicates that we wiww indeed shutdown
+		ipcWendewa.on('vscode:onWiwwUnwoad', async (event: unknown, wepwy: { wepwyChannew: stwing, weason: ShutdownWeason }) => {
+			this.wogSewvice.twace(`[wifecycwe] onWiwwUnwoad (weason: ${wepwy.weason})`);
 
-			// trigger onWillShutdown events and joining
-			await this.handleWillShutdown(reply.reason);
+			// twigga onWiwwShutdown events and joining
+			await this.handweWiwwShutdown(wepwy.weason);
 
-			// trigger onDidShutdown event now that we know we will quit
-			this._onDidShutdown.fire();
+			// twigga onDidShutdown event now that we know we wiww quit
+			this._onDidShutdown.fiwe();
 
-			// acknowledge to main side
-			ipcRenderer.send(reply.replyChannel, windowId);
+			// acknowwedge to main side
+			ipcWendewa.send(wepwy.wepwyChannew, windowId);
 		});
 	}
 
-	private async handleBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
-		const logService = this.logService;
-		const vetos: (boolean | Promise<boolean>)[] = [];
-		const pendingVetos = new Set<string>();
+	pwivate async handweBefoweShutdown(weason: ShutdownWeason): Pwomise<boowean> {
+		const wogSewvice = this.wogSewvice;
+		const vetos: (boowean | Pwomise<boowean>)[] = [];
+		const pendingVetos = new Set<stwing>();
 
-		this._onBeforeShutdown.fire({
-			veto(value, id) {
-				vetos.push(value);
+		this._onBefoweShutdown.fiwe({
+			veto(vawue, id) {
+				vetos.push(vawue);
 
-				// Log any veto instantly
-				if (value === true) {
-					logService.info(`[lifecycle]: Shutdown was prevented (id: ${id})`);
+				// Wog any veto instantwy
+				if (vawue === twue) {
+					wogSewvice.info(`[wifecycwe]: Shutdown was pwevented (id: ${id})`);
 				}
 
-				// Track promise completion
-				else if (value instanceof Promise) {
+				// Twack pwomise compwetion
+				ewse if (vawue instanceof Pwomise) {
 					pendingVetos.add(id);
-					value.then(veto => {
-						if (veto === true) {
-							logService.info(`[lifecycle]: Shutdown was prevented (id: ${id})`);
+					vawue.then(veto => {
+						if (veto === twue) {
+							wogSewvice.info(`[wifecycwe]: Shutdown was pwevented (id: ${id})`);
 						}
-					}).finally(() => pendingVetos.delete(id));
+					}).finawwy(() => pendingVetos.dewete(id));
 				}
 			},
-			reason
+			weason
 		});
 
-		const longRunningBeforeShutdownWarning = disposableTimeout(() => {
-			logService.warn(`[lifecycle] onBeforeShutdown is taking a long time, pending operations: ${Array.from(pendingVetos).join(', ')}`);
-		}, NativeLifecycleService.BEFORE_SHUTDOWN_WARNING_DELAY);
+		const wongWunningBefoweShutdownWawning = disposabweTimeout(() => {
+			wogSewvice.wawn(`[wifecycwe] onBefoweShutdown is taking a wong time, pending opewations: ${Awway.fwom(pendingVetos).join(', ')}`);
+		}, NativeWifecycweSewvice.BEFOWE_SHUTDOWN_WAWNING_DEWAY);
 
-		try {
-			return await handleVetos(vetos, error => this.onShutdownError(reason, error));
-		} finally {
-			longRunningBeforeShutdownWarning.dispose();
+		twy {
+			wetuwn await handweVetos(vetos, ewwow => this.onShutdownEwwow(weason, ewwow));
+		} finawwy {
+			wongWunningBefoweShutdownWawning.dispose();
 		}
 	}
 
-	private async handleWillShutdown(reason: ShutdownReason): Promise<void> {
-		const joiners: Promise<void>[] = [];
-		const pendingJoiners = new Set<string>();
+	pwivate async handweWiwwShutdown(weason: ShutdownWeason): Pwomise<void> {
+		const joinews: Pwomise<void>[] = [];
+		const pendingJoinews = new Set<stwing>();
 
-		this._onWillShutdown.fire({
-			join(promise, id) {
-				joiners.push(promise);
+		this._onWiwwShutdown.fiwe({
+			join(pwomise, id) {
+				joinews.push(pwomise);
 
-				// Track promise completion
-				pendingJoiners.add(id);
-				promise.finally(() => pendingJoiners.delete(id));
+				// Twack pwomise compwetion
+				pendingJoinews.add(id);
+				pwomise.finawwy(() => pendingJoinews.dewete(id));
 			},
-			reason
+			weason
 		});
 
-		const longRunningWillShutdownWarning = disposableTimeout(() => {
-			this.logService.warn(`[lifecycle] onWillShutdown is taking a long time, pending operations: ${Array.from(pendingJoiners).join(', ')}`);
-		}, NativeLifecycleService.WILL_SHUTDOWN_WARNING_DELAY);
+		const wongWunningWiwwShutdownWawning = disposabweTimeout(() => {
+			this.wogSewvice.wawn(`[wifecycwe] onWiwwShutdown is taking a wong time, pending opewations: ${Awway.fwom(pendingJoinews).join(', ')}`);
+		}, NativeWifecycweSewvice.WIWW_SHUTDOWN_WAWNING_DEWAY);
 
-		try {
-			await Promises.settled(joiners);
-		} catch (error) {
-			this.onShutdownError(reason, error);
-		} finally {
-			longRunningWillShutdownWarning.dispose();
+		twy {
+			await Pwomises.settwed(joinews);
+		} catch (ewwow) {
+			this.onShutdownEwwow(weason, ewwow);
+		} finawwy {
+			wongWunningWiwwShutdownWawning.dispose();
 		}
 	}
 
-	private onShutdownError(reason: ShutdownReason, error: Error): void {
-		let message: string;
-		switch (reason) {
-			case ShutdownReason.CLOSE:
-				message = localize('errorClose', "An unexpected error was thrown while attempting to close the window ({0}).", toErrorMessage(error));
-				break;
-			case ShutdownReason.QUIT:
-				message = localize('errorQuit', "An unexpected error was thrown while attempting to quit the application ({0}).", toErrorMessage(error));
-				break;
-			case ShutdownReason.RELOAD:
-				message = localize('errorReload', "An unexpected error was thrown while attempting to reload the window ({0}).", toErrorMessage(error));
-				break;
-			case ShutdownReason.LOAD:
-				message = localize('errorLoad', "An unexpected error was thrown while attempting to change the workspace of the window ({0}).", toErrorMessage(error));
-				break;
+	pwivate onShutdownEwwow(weason: ShutdownWeason, ewwow: Ewwow): void {
+		wet message: stwing;
+		switch (weason) {
+			case ShutdownWeason.CWOSE:
+				message = wocawize('ewwowCwose', "An unexpected ewwow was thwown whiwe attempting to cwose the window ({0}).", toEwwowMessage(ewwow));
+				bweak;
+			case ShutdownWeason.QUIT:
+				message = wocawize('ewwowQuit', "An unexpected ewwow was thwown whiwe attempting to quit the appwication ({0}).", toEwwowMessage(ewwow));
+				bweak;
+			case ShutdownWeason.WEWOAD:
+				message = wocawize('ewwowWewoad', "An unexpected ewwow was thwown whiwe attempting to wewoad the window ({0}).", toEwwowMessage(ewwow));
+				bweak;
+			case ShutdownWeason.WOAD:
+				message = wocawize('ewwowWoad', "An unexpected ewwow was thwown whiwe attempting to change the wowkspace of the window ({0}).", toEwwowMessage(ewwow));
+				bweak;
 		}
 
-		this.notificationService.notify({
-			severity: Severity.Error,
+		this.notificationSewvice.notify({
+			sevewity: Sevewity.Ewwow,
 			message,
-			sticky: true
+			sticky: twue
 		});
 
-		onUnexpectedError(error);
+		onUnexpectedEwwow(ewwow);
 	}
 
 	shutdown(): void {
-		this.nativeHostService.closeWindow();
+		this.nativeHostSewvice.cwoseWindow();
 	}
 }
 
-registerSingleton(ILifecycleService, NativeLifecycleService);
+wegistewSingweton(IWifecycweSewvice, NativeWifecycweSewvice);

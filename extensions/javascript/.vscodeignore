@@ -1,4 +1,4 @@
 test/**
-src/**/*.ts
+swc/**/*.ts
 tsconfig.json
 cgmanifest.json

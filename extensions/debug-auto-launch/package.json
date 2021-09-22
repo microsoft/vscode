@@ -1,51 +1,51 @@
 {
-  "name": "debug-auto-launch",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "name": "debug-auto-waunch",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "^1.5.0"
   },
   "icon": "media/icon.png",
-  "capabilities": {
-    "virtualWorkspaces": false,
-    "untrustedWorkspaces": {
-      "supported": true
+  "capabiwities": {
+    "viwtuawWowkspaces": fawse,
+    "untwustedWowkspaces": {
+      "suppowted": twue
     }
   },
   "activationEvents": [
     "*"
   ],
   "main": "./out/extension",
-  "scripts": {
-    "compile": "gulp compile-extension:debug-auto-launch",
-    "watch": "gulp watch-extension:debug-auto-launch"
+  "scwipts": {
+    "compiwe": "guwp compiwe-extension:debug-auto-waunch",
+    "watch": "guwp watch-extension:debug-auto-waunch"
   },
-  "contributes": {
+  "contwibutes": {
     "commands": [
       {
-        "command": "extension.node-debug.toggleAutoAttach",
-        "title": "%toggle.auto.attach%",
-        "category": "Debug"
+        "command": "extension.node-debug.toggweAutoAttach",
+        "titwe": "%toggwe.auto.attach%",
+        "categowy": "Debug"
       }
     ]
   },
   "dependencies": {
-    "vscode-nls": "^4.0.0"
+    "vscode-nws": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "14.x"
   },
-  "prettier": {
-    "printWidth": 100,
-    "trailingComma": "all",
-    "singleQuote": true,
-    "arrowParens": "avoid"
+  "pwettia": {
+    "pwintWidth": 100,
+    "twaiwingComma": "aww",
+    "singweQuote": twue,
+    "awwowPawens": "avoid"
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

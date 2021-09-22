@@ -1,159 +1,159 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as http from 'http';
-import * as https from 'https';
-import { parse as parseUrl } from 'url';
-import { streamToBufferReadableStream } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as streams from 'vs/base/common/stream';
-import { isBoolean, isNumber } from 'vs/base/common/types';
-import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { resolveShellEnv } from 'vs/platform/environment/node/shellEnv';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IHTTPConfiguration, IRequestService } from 'vs/platform/request/common/request';
-import { Agent, getProxyAgent } from 'vs/platform/request/node/proxy';
-import { createGunzip } from 'zlib';
+impowt * as http fwom 'http';
+impowt * as https fwom 'https';
+impowt { pawse as pawseUww } fwom 'uww';
+impowt { stweamToBuffewWeadabweStweam } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { cancewed } fwom 'vs/base/common/ewwows';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as stweams fwom 'vs/base/common/stweam';
+impowt { isBoowean, isNumba } fwom 'vs/base/common/types';
+impowt { IWequestContext, IWequestOptions } fwom 'vs/base/pawts/wequest/common/wequest';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { INativeEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { wesowveShewwEnv } fwom 'vs/pwatfowm/enviwonment/node/shewwEnv';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IHTTPConfiguwation, IWequestSewvice } fwom 'vs/pwatfowm/wequest/common/wequest';
+impowt { Agent, getPwoxyAgent } fwom 'vs/pwatfowm/wequest/node/pwoxy';
+impowt { cweateGunzip } fwom 'zwib';
 
-export interface IRawRequestFunction {
-	(options: http.RequestOptions, callback?: (res: http.IncomingMessage) => void): http.ClientRequest;
+expowt intewface IWawWequestFunction {
+	(options: http.WequestOptions, cawwback?: (wes: http.IncomingMessage) => void): http.CwientWequest;
 }
 
-export interface NodeRequestOptions extends IRequestOptions {
+expowt intewface NodeWequestOptions extends IWequestOptions {
 	agent?: Agent;
-	strictSSL?: boolean;
-	getRawRequest?(options: IRequestOptions): IRawRequestFunction;
+	stwictSSW?: boowean;
+	getWawWequest?(options: IWequestOptions): IWawWequestFunction;
 }
 
 /**
- * This service exposes the `request` API, while using the global
- * or configured proxy settings.
+ * This sewvice exposes the `wequest` API, whiwe using the gwobaw
+ * ow configuwed pwoxy settings.
  */
-export class RequestService extends Disposable implements IRequestService {
+expowt cwass WequestSewvice extends Disposabwe impwements IWequestSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private proxyUrl?: string;
-	private strictSSL: boolean | undefined;
-	private authorization?: string;
+	pwivate pwoxyUww?: stwing;
+	pwivate stwictSSW: boowean | undefined;
+	pwivate authowization?: stwing;
 
-	constructor(
-		@IConfigurationService configurationService: IConfigurationService,
-		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
-		@ILogService private readonly logService: ILogService
+	constwuctow(
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@INativeEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: INativeEnviwonmentSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		super();
-		this.configure(configurationService.getValue<IHTTPConfiguration>());
-		this._register(configurationService.onDidChangeConfiguration(() => this.configure(configurationService.getValue()), this));
+		supa();
+		this.configuwe(configuwationSewvice.getVawue<IHTTPConfiguwation>());
+		this._wegista(configuwationSewvice.onDidChangeConfiguwation(() => this.configuwe(configuwationSewvice.getVawue()), this));
 	}
 
-	private configure(config: IHTTPConfiguration) {
-		this.proxyUrl = config.http && config.http.proxy;
-		this.strictSSL = !!(config.http && config.http.proxyStrictSSL);
-		this.authorization = config.http && config.http.proxyAuthorization;
+	pwivate configuwe(config: IHTTPConfiguwation) {
+		this.pwoxyUww = config.http && config.http.pwoxy;
+		this.stwictSSW = !!(config.http && config.http.pwoxyStwictSSW);
+		this.authowization = config.http && config.http.pwoxyAuthowization;
 	}
 
-	async request(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		this.logService.trace('RequestService#request', options.url);
+	async wequest(options: NodeWequestOptions, token: CancewwationToken): Pwomise<IWequestContext> {
+		this.wogSewvice.twace('WequestSewvice#wequest', options.uww);
 
-		const { proxyUrl, strictSSL } = this;
+		const { pwoxyUww, stwictSSW } = this;
 		const env = {
-			...process.env,
-			...(await resolveShellEnv(this.logService, this.environmentService.args, process.env)),
+			...pwocess.env,
+			...(await wesowveShewwEnv(this.wogSewvice, this.enviwonmentSewvice.awgs, pwocess.env)),
 		};
-		const agent = options.agent ? options.agent : await getProxyAgent(options.url || '', env, { proxyUrl, strictSSL });
+		const agent = options.agent ? options.agent : await getPwoxyAgent(options.uww || '', env, { pwoxyUww, stwictSSW });
 
 		options.agent = agent;
-		options.strictSSL = strictSSL;
+		options.stwictSSW = stwictSSW;
 
-		if (this.authorization) {
-			options.headers = {
-				...(options.headers || {}),
-				'Proxy-Authorization': this.authorization
+		if (this.authowization) {
+			options.headews = {
+				...(options.headews || {}),
+				'Pwoxy-Authowization': this.authowization
 			};
 		}
 
-		return this._request(options, token);
+		wetuwn this._wequest(options, token);
 	}
 
-	private async getNodeRequest(options: IRequestOptions): Promise<IRawRequestFunction> {
-		const endpoint = parseUrl(options.url!);
-		const module = endpoint.protocol === 'https:' ? await import('https') : await import('http');
-		return module.request;
+	pwivate async getNodeWequest(options: IWequestOptions): Pwomise<IWawWequestFunction> {
+		const endpoint = pawseUww(options.uww!);
+		const moduwe = endpoint.pwotocow === 'https:' ? await impowt('https') : await impowt('http');
+		wetuwn moduwe.wequest;
 	}
 
-	private _request(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+	pwivate _wequest(options: NodeWequestOptions, token: CancewwationToken): Pwomise<IWequestContext> {
 
-		return new Promise<IRequestContext>(async (c, e) => {
-			let req: http.ClientRequest;
+		wetuwn new Pwomise<IWequestContext>(async (c, e) => {
+			wet weq: http.CwientWequest;
 
-			const endpoint = parseUrl(options.url!);
-			const rawRequest = options.getRawRequest
-				? options.getRawRequest(options)
-				: await this.getNodeRequest(options);
+			const endpoint = pawseUww(options.uww!);
+			const wawWequest = options.getWawWequest
+				? options.getWawWequest(options)
+				: await this.getNodeWequest(options);
 
-			const opts: https.RequestOptions = {
+			const opts: https.WequestOptions = {
 				hostname: endpoint.hostname,
-				port: endpoint.port ? parseInt(endpoint.port) : (endpoint.protocol === 'https:' ? 443 : 80),
-				protocol: endpoint.protocol,
+				powt: endpoint.powt ? pawseInt(endpoint.powt) : (endpoint.pwotocow === 'https:' ? 443 : 80),
+				pwotocow: endpoint.pwotocow,
 				path: endpoint.path,
 				method: options.type || 'GET',
-				headers: options.headers,
+				headews: options.headews,
 				agent: options.agent,
-				rejectUnauthorized: isBoolean(options.strictSSL) ? options.strictSSL : true
+				wejectUnauthowized: isBoowean(options.stwictSSW) ? options.stwictSSW : twue
 			};
 
-			if (options.user && options.password) {
-				opts.auth = options.user + ':' + options.password;
+			if (options.usa && options.passwowd) {
+				opts.auth = options.usa + ':' + options.passwowd;
 			}
 
-			req = rawRequest(opts, (res: http.IncomingMessage) => {
-				const followRedirects: number = isNumber(options.followRedirects) ? options.followRedirects : 3;
-				if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && followRedirects > 0 && res.headers['location']) {
-					this._request({
+			weq = wawWequest(opts, (wes: http.IncomingMessage) => {
+				const fowwowWediwects: numba = isNumba(options.fowwowWediwects) ? options.fowwowWediwects : 3;
+				if (wes.statusCode && wes.statusCode >= 300 && wes.statusCode < 400 && fowwowWediwects > 0 && wes.headews['wocation']) {
+					this._wequest({
 						...options,
-						url: res.headers['location'],
-						followRedirects: followRedirects - 1
+						uww: wes.headews['wocation'],
+						fowwowWediwects: fowwowWediwects - 1
 					}, token).then(c, e);
-				} else {
-					let stream: streams.ReadableStreamEvents<Uint8Array> = res;
+				} ewse {
+					wet stweam: stweams.WeadabweStweamEvents<Uint8Awway> = wes;
 
-					if (res.headers['content-encoding'] === 'gzip') {
-						stream = res.pipe(createGunzip());
+					if (wes.headews['content-encoding'] === 'gzip') {
+						stweam = wes.pipe(cweateGunzip());
 					}
 
-					c({ res, stream: streamToBufferReadableStream(stream) } as IRequestContext);
+					c({ wes, stweam: stweamToBuffewWeadabweStweam(stweam) } as IWequestContext);
 				}
 			});
 
-			req.on('error', e);
+			weq.on('ewwow', e);
 
 			if (options.timeout) {
-				req.setTimeout(options.timeout);
+				weq.setTimeout(options.timeout);
 			}
 
 			if (options.data) {
-				if (typeof options.data === 'string') {
-					req.write(options.data);
+				if (typeof options.data === 'stwing') {
+					weq.wwite(options.data);
 				}
 			}
 
-			req.end();
+			weq.end();
 
-			token.onCancellationRequested(() => {
-				req.abort();
-				e(canceled());
+			token.onCancewwationWequested(() => {
+				weq.abowt();
+				e(cancewed());
 			});
 		});
 	}
 
-	async resolveProxy(url: string): Promise<string | undefined> {
-		return undefined; // currently not implemented in node
+	async wesowvePwoxy(uww: stwing): Pwomise<stwing | undefined> {
+		wetuwn undefined; // cuwwentwy not impwemented in node
 	}
 }

@@ -1,27 +1,27 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { SerializedError, onUnexpectedError } from 'vs/base/common/errors';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { MainContext, MainThreadErrorsShape } from 'vs/workbench/api/common/extHost.protocol';
+impowt { SewiawizedEwwow, onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { MainContext, MainThweadEwwowsShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
 
-@extHostNamedCustomer(MainContext.MainThreadErrors)
-export class MainThreadErrors implements MainThreadErrorsShape {
+@extHostNamedCustoma(MainContext.MainThweadEwwows)
+expowt cwass MainThweadEwwows impwements MainThweadEwwowsShape {
 
 	dispose(): void {
 		//
 	}
 
-	$onUnexpectedError(err: any | SerializedError): void {
-		if (err && err.$isError) {
-			const { name, message, stack } = err;
-			err = new Error();
-			err.message = message;
-			err.name = name;
-			err.stack = stack;
+	$onUnexpectedEwwow(eww: any | SewiawizedEwwow): void {
+		if (eww && eww.$isEwwow) {
+			const { name, message, stack } = eww;
+			eww = new Ewwow();
+			eww.message = message;
+			eww.name = name;
+			eww.stack = stack;
 		}
-		onUnexpectedError(err);
+		onUnexpectedEwwow(eww);
 	}
 }

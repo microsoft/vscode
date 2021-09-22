@@ -1,52 +1,52 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { CowowIdentifia } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export const IDecorationsService = createDecorator<IDecorationsService>('IFileDecorationsService');
+expowt const IDecowationsSewvice = cweateDecowatow<IDecowationsSewvice>('IFiweDecowationsSewvice');
 
-export interface IDecorationData {
-	readonly weight?: number;
-	readonly color?: ColorIdentifier;
-	readonly letter?: string | ThemeIcon;
-	readonly tooltip?: string;
-	readonly strikethrough?: boolean;
-	readonly bubble?: boolean;
+expowt intewface IDecowationData {
+	weadonwy weight?: numba;
+	weadonwy cowow?: CowowIdentifia;
+	weadonwy wetta?: stwing | ThemeIcon;
+	weadonwy toowtip?: stwing;
+	weadonwy stwikethwough?: boowean;
+	weadonwy bubbwe?: boowean;
 }
 
-export interface IDecoration extends IDisposable {
-	readonly tooltip: string;
-	readonly strikethrough: boolean;
-	readonly labelClassName: string;
-	readonly badgeClassName: string;
-	readonly iconClassName: string;
+expowt intewface IDecowation extends IDisposabwe {
+	weadonwy toowtip: stwing;
+	weadonwy stwikethwough: boowean;
+	weadonwy wabewCwassName: stwing;
+	weadonwy badgeCwassName: stwing;
+	weadonwy iconCwassName: stwing;
 }
 
-export interface IDecorationsProvider {
-	readonly label: string;
-	readonly onDidChange: Event<readonly URI[]>;
-	provideDecorations(uri: URI, token: CancellationToken): IDecorationData | Promise<IDecorationData | undefined> | undefined;
+expowt intewface IDecowationsPwovida {
+	weadonwy wabew: stwing;
+	weadonwy onDidChange: Event<weadonwy UWI[]>;
+	pwovideDecowations(uwi: UWI, token: CancewwationToken): IDecowationData | Pwomise<IDecowationData | undefined> | undefined;
 }
 
-export interface IResourceDecorationChangeEvent {
-	affectsResource(uri: URI): boolean;
+expowt intewface IWesouwceDecowationChangeEvent {
+	affectsWesouwce(uwi: UWI): boowean;
 }
 
-export interface IDecorationsService {
+expowt intewface IDecowationsSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	readonly onDidChangeDecorations: Event<IResourceDecorationChangeEvent>;
+	weadonwy onDidChangeDecowations: Event<IWesouwceDecowationChangeEvent>;
 
-	registerDecorationsProvider(provider: IDecorationsProvider): IDisposable;
+	wegistewDecowationsPwovida(pwovida: IDecowationsPwovida): IDisposabwe;
 
-	getDecoration(uri: URI, includeChildren: boolean): IDecoration | undefined;
+	getDecowation(uwi: UWI, incwudeChiwdwen: boowean): IDecowation | undefined;
 }

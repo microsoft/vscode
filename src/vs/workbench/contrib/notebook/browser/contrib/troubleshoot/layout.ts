@@ -1,131 +1,131 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+impowt { Disposabwe, DisposabweStowe, dispose, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Action2, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { getNotebookEditowFwomEditowPane, ICewwViewModew, INotebookEditow, INotebookEditowContwibution } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { wegistewNotebookContwibution } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowExtensions';
+impowt { NotebookEditowWidget } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowWidget';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
 
-export class TroubleshootController extends Disposable implements INotebookEditorContribution {
-	static id: string = 'workbench.notebook.troubleshoot';
+expowt cwass TwoubweshootContwowwa extends Disposabwe impwements INotebookEditowContwibution {
+	static id: stwing = 'wowkbench.notebook.twoubweshoot';
 
-	private readonly _localStore = this._register(new DisposableStore());
-	private _cellStateListeners: IDisposable[] = [];
-	private _logging: boolean = false;
+	pwivate weadonwy _wocawStowe = this._wegista(new DisposabweStowe());
+	pwivate _cewwStateWistenews: IDisposabwe[] = [];
+	pwivate _wogging: boowean = fawse;
 
-	constructor(private readonly _notebookEditor: INotebookEditor) {
-		super();
+	constwuctow(pwivate weadonwy _notebookEditow: INotebookEditow) {
+		supa();
 
-		this._register(this._notebookEditor.onDidChangeModel(() => {
-			this._localStore.clear();
-			this._cellStateListeners.forEach(listener => listener.dispose());
+		this._wegista(this._notebookEditow.onDidChangeModew(() => {
+			this._wocawStowe.cweaw();
+			this._cewwStateWistenews.fowEach(wistena => wistena.dispose());
 
-			if (!this._notebookEditor.hasModel()) {
-				return;
+			if (!this._notebookEditow.hasModew()) {
+				wetuwn;
 			}
 
-			this._updateListener();
+			this._updateWistena();
 		}));
 
-		this._updateListener();
+		this._updateWistena();
 	}
 
-	toggleLogging(): void {
-		this._logging = !this._logging;
+	toggweWogging(): void {
+		this._wogging = !this._wogging;
 	}
 
-	private _log(cell: ICellViewModel, e: any) {
-		if (this._logging) {
-			const oldHeight = (this._notebookEditor as NotebookEditorWidget).getViewHeight(cell);
-			console.log(`cell#${cell.handle}`, e, `${oldHeight} -> ${cell.layoutInfo.totalHeight}`);
+	pwivate _wog(ceww: ICewwViewModew, e: any) {
+		if (this._wogging) {
+			const owdHeight = (this._notebookEditow as NotebookEditowWidget).getViewHeight(ceww);
+			consowe.wog(`ceww#${ceww.handwe}`, e, `${owdHeight} -> ${ceww.wayoutInfo.totawHeight}`);
 		}
 	}
 
-	private _updateListener() {
-		if (!this._notebookEditor.hasModel()) {
-			return;
+	pwivate _updateWistena() {
+		if (!this._notebookEditow.hasModew()) {
+			wetuwn;
 		}
 
-		for (let i = 0; i < this._notebookEditor.getLength(); i++) {
-			const cell = this._notebookEditor.cellAt(i);
+		fow (wet i = 0; i < this._notebookEditow.getWength(); i++) {
+			const ceww = this._notebookEditow.cewwAt(i);
 
-			this._cellStateListeners.push(cell.onDidChangeLayout(e => {
-				this._log(cell, e);
+			this._cewwStateWistenews.push(ceww.onDidChangeWayout(e => {
+				this._wog(ceww, e);
 			}));
 		}
 
-		this._localStore.add(this._notebookEditor.onDidChangeViewCells(e => {
-			e.splices.reverse().forEach(splice => {
-				const [start, deleted, newCells] = splice;
-				const deletedCells = this._cellStateListeners.splice(start, deleted, ...newCells.map(cell => {
-					return cell.onDidChangeLayout(e => {
-						this._log(cell, e);
+		this._wocawStowe.add(this._notebookEditow.onDidChangeViewCewws(e => {
+			e.spwices.wevewse().fowEach(spwice => {
+				const [stawt, deweted, newCewws] = spwice;
+				const dewetedCewws = this._cewwStateWistenews.spwice(stawt, deweted, ...newCewws.map(ceww => {
+					wetuwn ceww.onDidChangeWayout(e => {
+						this._wog(ceww, e);
 					});
 				}));
 
-				dispose(deletedCells);
+				dispose(dewetedCewws);
 			});
 		}));
 	}
 
-	override dispose() {
-		dispose(this._cellStateListeners);
-		super.dispose();
+	ovewwide dispose() {
+		dispose(this._cewwStateWistenews);
+		supa.dispose();
 	}
 }
 
-registerNotebookContribution(TroubleshootController.id, TroubleshootController);
+wegistewNotebookContwibution(TwoubweshootContwowwa.id, TwoubweshootContwowwa);
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'notebook.toggleLayoutTroubleshoot',
-			title: 'Toggle Notebook Layout Troubleshoot',
-			category: CATEGORIES.Developer,
-			f1: true
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'notebook.toggweWayoutTwoubweshoot',
+			titwe: 'Toggwe Notebook Wayout Twoubweshoot',
+			categowy: CATEGOWIES.Devewopa,
+			f1: twue
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const editow = getNotebookEditowFwomEditowPane(editowSewvice.activeEditowPane);
 
-		if (!editor) {
-			return;
+		if (!editow) {
+			wetuwn;
 		}
 
-		const controller = editor.getContribution<TroubleshootController>(TroubleshootController.id);
-		controller?.toggleLogging();
+		const contwowwa = editow.getContwibution<TwoubweshootContwowwa>(TwoubweshootContwowwa.id);
+		contwowwa?.toggweWogging();
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'notebook.inspectLayout',
-			title: 'Inspect Notebook Layout',
-			category: CATEGORIES.Developer,
-			f1: true
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'notebook.inspectWayout',
+			titwe: 'Inspect Notebook Wayout',
+			categowy: CATEGOWIES.Devewopa,
+			f1: twue
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const editow = getNotebookEditowFwomEditowPane(editowSewvice.activeEditowPane);
 
-		if (!editor || !editor.hasModel()) {
-			return;
+		if (!editow || !editow.hasModew()) {
+			wetuwn;
 		}
 
-		for (let i = 0; i < editor.getLength(); i++) {
-			const cell = editor.cellAt(i);
-			console.log(`cell#${cell.handle}`, cell.layoutInfo);
+		fow (wet i = 0; i < editow.getWength(); i++) {
+			const ceww = editow.cewwAt(i);
+			consowe.wog(`ceww#${ceww.handwe}`, ceww.wayoutInfo);
 		}
 	}
 });

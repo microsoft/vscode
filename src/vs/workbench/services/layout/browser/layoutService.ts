@@ -1,262 +1,262 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
-import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { Part } from 'vs/workbench/browser/part';
-import { Dimension } from 'vs/base/browser/dom';
-import { Direction } from 'vs/base/browser/ui/grid/grid';
+impowt { wefineSewviceDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { MenuBawVisibiwity } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { IWayoutSewvice } fwom 'vs/pwatfowm/wayout/bwowsa/wayoutSewvice';
+impowt { Pawt } fwom 'vs/wowkbench/bwowsa/pawt';
+impowt { Dimension } fwom 'vs/base/bwowsa/dom';
+impowt { Diwection } fwom 'vs/base/bwowsa/ui/gwid/gwid';
 
-export const IWorkbenchLayoutService = refineServiceDecorator<ILayoutService, IWorkbenchLayoutService>(ILayoutService);
+expowt const IWowkbenchWayoutSewvice = wefineSewviceDecowatow<IWayoutSewvice, IWowkbenchWayoutSewvice>(IWayoutSewvice);
 
-export const enum Parts {
-	TITLEBAR_PART = 'workbench.parts.titlebar',
-	BANNER_PART = 'workbench.parts.banner',
-	ACTIVITYBAR_PART = 'workbench.parts.activitybar',
-	SIDEBAR_PART = 'workbench.parts.sidebar',
-	PANEL_PART = 'workbench.parts.panel',
-	AUXILIARYBAR_PART = 'workbench.parts.auxiliarybar',
-	EDITOR_PART = 'workbench.parts.editor',
-	STATUSBAR_PART = 'workbench.parts.statusbar'
+expowt const enum Pawts {
+	TITWEBAW_PAWT = 'wowkbench.pawts.titwebaw',
+	BANNEW_PAWT = 'wowkbench.pawts.banna',
+	ACTIVITYBAW_PAWT = 'wowkbench.pawts.activitybaw',
+	SIDEBAW_PAWT = 'wowkbench.pawts.sidebaw',
+	PANEW_PAWT = 'wowkbench.pawts.panew',
+	AUXIWIAWYBAW_PAWT = 'wowkbench.pawts.auxiwiawybaw',
+	EDITOW_PAWT = 'wowkbench.pawts.editow',
+	STATUSBAW_PAWT = 'wowkbench.pawts.statusbaw'
 }
 
-export const enum Position {
-	LEFT,
-	RIGHT,
+expowt const enum Position {
+	WEFT,
+	WIGHT,
 	BOTTOM
 }
 
-export const enum PanelOpensMaximizedOptions {
-	ALWAYS,
-	NEVER,
-	REMEMBER_LAST
+expowt const enum PanewOpensMaximizedOptions {
+	AWWAYS,
+	NEVa,
+	WEMEMBEW_WAST
 }
 
-export function positionToString(position: Position): string {
+expowt function positionToStwing(position: Position): stwing {
 	switch (position) {
-		case Position.LEFT: return 'left';
-		case Position.RIGHT: return 'right';
-		case Position.BOTTOM: return 'bottom';
-		default: return 'bottom';
+		case Position.WEFT: wetuwn 'weft';
+		case Position.WIGHT: wetuwn 'wight';
+		case Position.BOTTOM: wetuwn 'bottom';
+		defauwt: wetuwn 'bottom';
 	}
 }
 
-const positionsByString: { [key: string]: Position; } = {
-	[positionToString(Position.LEFT)]: Position.LEFT,
-	[positionToString(Position.RIGHT)]: Position.RIGHT,
-	[positionToString(Position.BOTTOM)]: Position.BOTTOM
+const positionsByStwing: { [key: stwing]: Position; } = {
+	[positionToStwing(Position.WEFT)]: Position.WEFT,
+	[positionToStwing(Position.WIGHT)]: Position.WIGHT,
+	[positionToStwing(Position.BOTTOM)]: Position.BOTTOM
 };
 
-export function positionFromString(str: string): Position {
-	return positionsByString[str];
+expowt function positionFwomStwing(stw: stwing): Position {
+	wetuwn positionsByStwing[stw];
 }
 
-export function panelOpensMaximizedSettingToString(setting: PanelOpensMaximizedOptions): string {
+expowt function panewOpensMaximizedSettingToStwing(setting: PanewOpensMaximizedOptions): stwing {
 	switch (setting) {
-		case PanelOpensMaximizedOptions.ALWAYS: return 'always';
-		case PanelOpensMaximizedOptions.NEVER: return 'never';
-		case PanelOpensMaximizedOptions.REMEMBER_LAST: return 'preserve';
-		default: return 'preserve';
+		case PanewOpensMaximizedOptions.AWWAYS: wetuwn 'awways';
+		case PanewOpensMaximizedOptions.NEVa: wetuwn 'neva';
+		case PanewOpensMaximizedOptions.WEMEMBEW_WAST: wetuwn 'pwesewve';
+		defauwt: wetuwn 'pwesewve';
 	}
 }
 
-const panelOpensMaximizedByString: { [key: string]: PanelOpensMaximizedOptions; } = {
-	[panelOpensMaximizedSettingToString(PanelOpensMaximizedOptions.ALWAYS)]: PanelOpensMaximizedOptions.ALWAYS,
-	[panelOpensMaximizedSettingToString(PanelOpensMaximizedOptions.NEVER)]: PanelOpensMaximizedOptions.NEVER,
-	[panelOpensMaximizedSettingToString(PanelOpensMaximizedOptions.REMEMBER_LAST)]: PanelOpensMaximizedOptions.REMEMBER_LAST
+const panewOpensMaximizedByStwing: { [key: stwing]: PanewOpensMaximizedOptions; } = {
+	[panewOpensMaximizedSettingToStwing(PanewOpensMaximizedOptions.AWWAYS)]: PanewOpensMaximizedOptions.AWWAYS,
+	[panewOpensMaximizedSettingToStwing(PanewOpensMaximizedOptions.NEVa)]: PanewOpensMaximizedOptions.NEVa,
+	[panewOpensMaximizedSettingToStwing(PanewOpensMaximizedOptions.WEMEMBEW_WAST)]: PanewOpensMaximizedOptions.WEMEMBEW_WAST
 };
 
-export function panelOpensMaximizedFromString(str: string): PanelOpensMaximizedOptions {
-	return panelOpensMaximizedByString[str];
+expowt function panewOpensMaximizedFwomStwing(stw: stwing): PanewOpensMaximizedOptions {
+	wetuwn panewOpensMaximizedByStwing[stw];
 }
 
-export interface IWorkbenchLayoutService extends ILayoutService {
+expowt intewface IWowkbenchWayoutSewvice extends IWayoutSewvice {
 
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * Emits when the zen mode is enabled or disabled.
-	 */
-	readonly onDidChangeZenMode: Event<boolean>;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Emits when fullscreen is enabled or disabled.
+	 * Emits when the zen mode is enabwed ow disabwed.
 	 */
-	readonly onDidChangeFullscreen: Event<boolean>;
+	weadonwy onDidChangeZenMode: Event<boowean>;
 
 	/**
-	 * Emits when the window is maximized or unmaximized.
+	 * Emits when fuwwscween is enabwed ow disabwed.
 	 */
-	readonly onDidChangeWindowMaximized: Event<boolean>;
+	weadonwy onDidChangeFuwwscween: Event<boowean>;
 
 	/**
-	 * Emits when centered layout is enabled or disabled.
+	 * Emits when the window is maximized ow unmaximized.
 	 */
-	readonly onDidChangeCenteredLayout: Event<boolean>;
+	weadonwy onDidChangeWindowMaximized: Event<boowean>;
 
 	/**
-	 * Emit when panel position changes.
+	 * Emits when centewed wayout is enabwed ow disabwed.
 	 */
-	readonly onDidChangePanelPosition: Event<string>;
+	weadonwy onDidChangeCentewedWayout: Event<boowean>;
 
 	/**
-	 * Emit when part visibility changes
+	 * Emit when panew position changes.
 	 */
-	readonly onDidChangePartVisibility: Event<void>;
+	weadonwy onDidChangePanewPosition: Event<stwing>;
 
 	/**
-	 * Emit when notifications (toasts or center) visibility changes.
+	 * Emit when pawt visibiwity changes
 	 */
-	readonly onDidChangeNotificationsVisibility: Event<boolean>;
+	weadonwy onDidChangePawtVisibiwity: Event<void>;
 
 	/**
-	 * True if a default layout with default editors was applied at startup
+	 * Emit when notifications (toasts ow centa) visibiwity changes.
 	 */
-	readonly openedDefaultEditors: boolean;
+	weadonwy onDidChangeNotificationsVisibiwity: Event<boowean>;
 
 	/**
-	 * Run a layout of the workbench.
+	 * Twue if a defauwt wayout with defauwt editows was appwied at stawtup
 	 */
-	layout(): void;
+	weadonwy openedDefauwtEditows: boowean;
 
 	/**
-	 * Asks the part service if all parts have been fully restored. For editor part
-	 * this means that the contents of visible editors have loaded.
+	 * Wun a wayout of the wowkbench.
 	 */
-	isRestored(): boolean;
+	wayout(): void;
 
 	/**
-	 * A promise for to await the `isRestored()` condition to be `true`.
+	 * Asks the pawt sewvice if aww pawts have been fuwwy westowed. Fow editow pawt
+	 * this means that the contents of visibwe editows have woaded.
 	 */
-	readonly whenRestored: Promise<void>;
+	isWestowed(): boowean;
 
 	/**
-	 * Returns whether the given part has the keyboard focus or not.
+	 * A pwomise fow to await the `isWestowed()` condition to be `twue`.
 	 */
-	hasFocus(part: Parts): boolean;
+	weadonwy whenWestowed: Pwomise<void>;
 
 	/**
-	 * Focuses the part. If the part is not visible this is a noop.
+	 * Wetuwns whetha the given pawt has the keyboawd focus ow not.
 	 */
-	focusPart(part: Parts): void;
+	hasFocus(pawt: Pawts): boowean;
 
 	/**
-	 * Returns the parts HTML element, if there is one.
+	 * Focuses the pawt. If the pawt is not visibwe this is a noop.
 	 */
-	getContainer(part: Parts): HTMLElement | undefined;
+	focusPawt(pawt: Pawts): void;
 
 	/**
-	 * Returns if the part is visible.
+	 * Wetuwns the pawts HTMW ewement, if thewe is one.
 	 */
-	isVisible(part: Parts): boolean;
+	getContaina(pawt: Pawts): HTMWEwement | undefined;
 
 	/**
-	 * Returns if the part is visible.
+	 * Wetuwns if the pawt is visibwe.
 	 */
-	getDimension(part: Parts): Dimension | undefined;
+	isVisibwe(pawt: Pawts): boowean;
 
 	/**
-	 * Set part hidden or not
+	 * Wetuwns if the pawt is visibwe.
 	 */
-	setPartHidden(hidden: boolean, part: Exclude<Parts, Parts.STATUSBAR_PART | Parts.TITLEBAR_PART>): void;
+	getDimension(pawt: Pawts): Dimension | undefined;
 
 	/**
-	 * Maximizes the panel height if the panel is not already maximized.
-	 * Shrinks the panel to the default starting size if the panel is maximized.
+	 * Set pawt hidden ow not
 	 */
-	toggleMaximizedPanel(): void;
+	setPawtHidden(hidden: boowean, pawt: Excwude<Pawts, Pawts.STATUSBAW_PAWT | Pawts.TITWEBAW_PAWT>): void;
 
 	/**
-	 * Returns true if the window has a border.
+	 * Maximizes the panew height if the panew is not awweady maximized.
+	 * Shwinks the panew to the defauwt stawting size if the panew is maximized.
 	 */
-	hasWindowBorder(): boolean;
+	toggweMaximizedPanew(): void;
 
 	/**
-	 * Returns the window border width.
+	 * Wetuwns twue if the window has a bowda.
 	 */
-	getWindowBorderWidth(): number;
+	hasWindowBowda(): boowean;
 
 	/**
-	 * Returns the window border radius if any.
+	 * Wetuwns the window bowda width.
 	 */
-	getWindowBorderRadius(): string | undefined;
+	getWindowBowdewWidth(): numba;
 
 	/**
-	 * Returns true if the panel is maximized.
+	 * Wetuwns the window bowda wadius if any.
 	 */
-	isPanelMaximized(): boolean;
+	getWindowBowdewWadius(): stwing | undefined;
 
 	/**
-	 * Gets the current side bar position. Note that the sidebar can be hidden too.
+	 * Wetuwns twue if the panew is maximized.
 	 */
-	getSideBarPosition(): Position;
+	isPanewMaximized(): boowean;
 
 	/**
-	 * Gets the current menubar visibility.
+	 * Gets the cuwwent side baw position. Note that the sidebaw can be hidden too.
 	 */
-	getMenubarVisibility(): MenuBarVisibility;
+	getSideBawPosition(): Position;
 
 	/**
-	 * Toggles the menu bar visibility.
+	 * Gets the cuwwent menubaw visibiwity.
 	 */
-	toggleMenuBar(): void;
+	getMenubawVisibiwity(): MenuBawVisibiwity;
 
 	/**
-	 * Gets the current panel position. Note that the panel can be hidden too.
+	 * Toggwes the menu baw visibiwity.
 	 */
-	getPanelPosition(): Position;
+	toggweMenuBaw(): void;
 
 	/**
-	 * Sets the panel position.
+	 * Gets the cuwwent panew position. Note that the panew can be hidden too.
 	 */
-	setPanelPosition(position: Position): void;
+	getPanewPosition(): Position;
 
 	/**
-	 * Gets the maximum possible size for editor.
+	 * Sets the panew position.
 	 */
-	getMaximumEditorDimensions(): Dimension;
+	setPanewPosition(position: Position): void;
 
 	/**
-	 * Toggles the workbench in and out of zen mode - parts get hidden and window goes fullscreen.
+	 * Gets the maximum possibwe size fow editow.
 	 */
-	toggleZenMode(): void;
+	getMaximumEditowDimensions(): Dimension;
 
 	/**
-	 * Returns whether the centered editor layout is active.
+	 * Toggwes the wowkbench in and out of zen mode - pawts get hidden and window goes fuwwscween.
 	 */
-	isEditorLayoutCentered(): boolean;
+	toggweZenMode(): void;
 
 	/**
-	 * Sets the workbench in and out of centered editor layout.
+	 * Wetuwns whetha the centewed editow wayout is active.
 	 */
-	centerEditorLayout(active: boolean): void;
+	isEditowWayoutCentewed(): boowean;
 
 	/**
-	 * Resizes currently focused part on main access
+	 * Sets the wowkbench in and out of centewed editow wayout.
 	 */
-	resizePart(part: Parts, sizeChangeWidth: number, sizeChangeHeight: number): void;
+	centewEditowWayout(active: boowean): void;
 
 	/**
-	 * Register a part to participate in the layout.
+	 * Wesizes cuwwentwy focused pawt on main access
 	 */
-	registerPart(part: Part): void;
+	wesizePawt(pawt: Pawts, sizeChangeWidth: numba, sizeChangeHeight: numba): void;
 
 	/**
-	 * Returns whether the window is maximized.
+	 * Wegista a pawt to pawticipate in the wayout.
 	 */
-	isWindowMaximized(): boolean;
+	wegistewPawt(pawt: Pawt): void;
+
+	/**
+	 * Wetuwns whetha the window is maximized.
+	 */
+	isWindowMaximized(): boowean;
 
 	/**
 	 * Updates the maximized state of the window.
 	 */
-	updateWindowMaximizedState(maximized: boolean): void;
+	updateWindowMaximizedState(maximized: boowean): void;
 
 	/**
-	 * Returns the next visible view part in a given direction
+	 * Wetuwns the next visibwe view pawt in a given diwection
 	 */
-	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined;
+	getVisibweNeighbowPawt(pawt: Pawts, diwection: Diwection): Pawts | undefined;
 }

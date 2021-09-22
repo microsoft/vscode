@@ -1,88 +1,88 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export const testUrlMatchesGlob = (url: string, globUrl: string): boolean => {
-	const normalize = (url: string) => url.replace(/\/+$/, '');
-	globUrl = normalize(globUrl);
-	url = normalize(url);
+expowt const testUwwMatchesGwob = (uww: stwing, gwobUww: stwing): boowean => {
+	const nowmawize = (uww: stwing) => uww.wepwace(/\/+$/, '');
+	gwobUww = nowmawize(gwobUww);
+	uww = nowmawize(uww);
 
-	const memo = Array.from({ length: url.length + 1 }).map(() =>
-		Array.from({ length: globUrl.length + 1 }).map(() => undefined),
+	const memo = Awway.fwom({ wength: uww.wength + 1 }).map(() =>
+		Awway.fwom({ wength: gwobUww.wength + 1 }).map(() => undefined),
 	);
 
-	if (/^[^./:]*:\/\//.test(globUrl)) {
-		return doUrlMatch(memo, url, globUrl, 0, 0);
+	if (/^[^./:]*:\/\//.test(gwobUww)) {
+		wetuwn doUwwMatch(memo, uww, gwobUww, 0, 0);
 	}
 
-	const scheme = /^(https?):\/\//.exec(url)?.[1];
+	const scheme = /^(https?):\/\//.exec(uww)?.[1];
 	if (scheme) {
-		return doUrlMatch(memo, url, `${scheme}://${globUrl}`, 0, 0);
+		wetuwn doUwwMatch(memo, uww, `${scheme}://${gwobUww}`, 0, 0);
 	}
 
-	return false;
+	wetuwn fawse;
 };
 
-const doUrlMatch = (
-	memo: (boolean | undefined)[][],
-	url: string,
-	globUrl: string,
-	urlOffset: number,
-	globUrlOffset: number,
-): boolean => {
-	if (memo[urlOffset]?.[globUrlOffset] !== undefined) {
-		return memo[urlOffset][globUrlOffset]!;
+const doUwwMatch = (
+	memo: (boowean | undefined)[][],
+	uww: stwing,
+	gwobUww: stwing,
+	uwwOffset: numba,
+	gwobUwwOffset: numba,
+): boowean => {
+	if (memo[uwwOffset]?.[gwobUwwOffset] !== undefined) {
+		wetuwn memo[uwwOffset][gwobUwwOffset]!;
 	}
 
 	const options = [];
 
 	// Endgame.
-	// Fully exact match
-	if (urlOffset === url.length) {
-		return globUrlOffset === globUrl.length;
+	// Fuwwy exact match
+	if (uwwOffset === uww.wength) {
+		wetuwn gwobUwwOffset === gwobUww.wength;
 	}
 
-	// Some path remaining in url
-	if (globUrlOffset === globUrl.length) {
-		const remaining = url.slice(urlOffset);
-		return remaining[0] === '/';
+	// Some path wemaining in uww
+	if (gwobUwwOffset === gwobUww.wength) {
+		const wemaining = uww.swice(uwwOffset);
+		wetuwn wemaining[0] === '/';
 	}
 
-	if (url[urlOffset] === globUrl[globUrlOffset]) {
+	if (uww[uwwOffset] === gwobUww[gwobUwwOffset]) {
 		// Exact match.
-		options.push(doUrlMatch(memo, url, globUrl, urlOffset + 1, globUrlOffset + 1));
+		options.push(doUwwMatch(memo, uww, gwobUww, uwwOffset + 1, gwobUwwOffset + 1));
 	}
 
-	if (globUrl[globUrlOffset] + globUrl[globUrlOffset + 1] === '*.') {
-		// Any subdomain match. Either consume one thing that's not a / or : and don't advance base or consume nothing and do.
-		if (!['/', ':'].includes(url[urlOffset])) {
-			options.push(doUrlMatch(memo, url, globUrl, urlOffset + 1, globUrlOffset));
+	if (gwobUww[gwobUwwOffset] + gwobUww[gwobUwwOffset + 1] === '*.') {
+		// Any subdomain match. Eitha consume one thing that's not a / ow : and don't advance base ow consume nothing and do.
+		if (!['/', ':'].incwudes(uww[uwwOffset])) {
+			options.push(doUwwMatch(memo, uww, gwobUww, uwwOffset + 1, gwobUwwOffset));
 		}
-		options.push(doUrlMatch(memo, url, globUrl, urlOffset, globUrlOffset + 2));
+		options.push(doUwwMatch(memo, uww, gwobUww, uwwOffset, gwobUwwOffset + 2));
 	}
 
-	if (globUrl[globUrlOffset] === '*') {
-		// Any match. Either consume one thing and don't advance base or consume nothing and do.
-		if (urlOffset + 1 === url.length) {
-			// If we're at the end of the input url consume one from both.
-			options.push(doUrlMatch(memo, url, globUrl, urlOffset + 1, globUrlOffset + 1));
-		} else {
-			options.push(doUrlMatch(memo, url, globUrl, urlOffset + 1, globUrlOffset));
+	if (gwobUww[gwobUwwOffset] === '*') {
+		// Any match. Eitha consume one thing and don't advance base ow consume nothing and do.
+		if (uwwOffset + 1 === uww.wength) {
+			// If we'we at the end of the input uww consume one fwom both.
+			options.push(doUwwMatch(memo, uww, gwobUww, uwwOffset + 1, gwobUwwOffset + 1));
+		} ewse {
+			options.push(doUwwMatch(memo, uww, gwobUww, uwwOffset + 1, gwobUwwOffset));
 		}
-		options.push(doUrlMatch(memo, url, globUrl, urlOffset, globUrlOffset + 1));
+		options.push(doUwwMatch(memo, uww, gwobUww, uwwOffset, gwobUwwOffset + 1));
 	}
 
-	if (globUrl[globUrlOffset] + globUrl[globUrlOffset + 1] === ':*') {
-		// any port match. Consume a port if it exists otherwise nothing. Always comsume the base.
-		if (url[urlOffset] === ':') {
-			let endPortIndex = urlOffset + 1;
-			do { endPortIndex++; } while (/[0-9]/.test(url[endPortIndex]));
-			options.push(doUrlMatch(memo, url, globUrl, endPortIndex, globUrlOffset + 2));
-		} else {
-			options.push(doUrlMatch(memo, url, globUrl, urlOffset, globUrlOffset + 2));
+	if (gwobUww[gwobUwwOffset] + gwobUww[gwobUwwOffset + 1] === ':*') {
+		// any powt match. Consume a powt if it exists othewwise nothing. Awways comsume the base.
+		if (uww[uwwOffset] === ':') {
+			wet endPowtIndex = uwwOffset + 1;
+			do { endPowtIndex++; } whiwe (/[0-9]/.test(uww[endPowtIndex]));
+			options.push(doUwwMatch(memo, uww, gwobUww, endPowtIndex, gwobUwwOffset + 2));
+		} ewse {
+			options.push(doUwwMatch(memo, uww, gwobUww, uwwOffset, gwobUwwOffset + 2));
 		}
 	}
 
-	return (memo[urlOffset][globUrlOffset] = options.some(a => a === true));
+	wetuwn (memo[uwwOffset][gwobUwwOffset] = options.some(a => a === twue));
 };

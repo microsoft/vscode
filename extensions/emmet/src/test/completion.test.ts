@@ -1,132 +1,132 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import 'mocha';
-import { CancellationTokenSource, CompletionTriggerKind, Selection } from 'vscode';
-import { DefaultCompletionItemProvider } from '../defaultCompletionProvider';
-import { closeAllEditors, withRandomFileEditor } from './testUtils';
+impowt * as assewt fwom 'assewt';
+impowt 'mocha';
+impowt { CancewwationTokenSouwce, CompwetionTwiggewKind, Sewection } fwom 'vscode';
+impowt { DefauwtCompwetionItemPwovida } fwom '../defauwtCompwetionPwovida';
+impowt { cwoseAwwEditows, withWandomFiweEditow } fwom './testUtiws';
 
-const completionProvider = new DefaultCompletionItemProvider();
+const compwetionPwovida = new DefauwtCompwetionItemPwovida();
 
-suite('Tests for completion in CSS embedded in HTML', () => {
-	teardown(closeAllEditors);
+suite('Tests fow compwetion in CSS embedded in HTMW', () => {
+	teawdown(cwoseAwwEditows);
 
-	test('style attribute & attribute value in html', async () => {
-		await testHtmlCompletionProvider('<div style="|"', [{ label: 'padding: ;' }]);
-		await testHtmlCompletionProvider(`<div style='|'`, [{ label: 'padding: ;' }]);
-		await testHtmlCompletionProvider(`<div style='p|'`, [{ label: 'padding: ;' }]);
-		await testHtmlCompletionProvider(`<div style='color: #0|'`, [{ label: '#000000' }]);
+	test('stywe attwibute & attwibute vawue in htmw', async () => {
+		await testHtmwCompwetionPwovida('<div stywe="|"', [{ wabew: 'padding: ;' }]);
+		await testHtmwCompwetionPwovida(`<div stywe='|'`, [{ wabew: 'padding: ;' }]);
+		await testHtmwCompwetionPwovida(`<div stywe='p|'`, [{ wabew: 'padding: ;' }]);
+		await testHtmwCompwetionPwovida(`<div stywe='cowow: #0|'`, [{ wabew: '#000000' }]);
 	});
 
-	// https://github.com/microsoft/vscode/issues/79766
-	test('#79766, correct region determination', async () => {
-		await testHtmlCompletionProvider(`<div style="color: #000">di|</div>`, [
-			{ label: 'div', documentation: `<div>|</div>` }
+	// https://github.com/micwosoft/vscode/issues/79766
+	test('#79766, cowwect wegion detewmination', async () => {
+		await testHtmwCompwetionPwovida(`<div stywe="cowow: #000">di|</div>`, [
+			{ wabew: 'div', documentation: `<div>|</div>` }
 		]);
 	});
 
-	// https://github.com/microsoft/vscode/issues/86941
-	test('#86941, widows should not be completed', async () => {
-		await testCssCompletionProvider(`.foo { wi| }`, [
-			{ label: 'widows: ;', documentation: `widows: ;` }
+	// https://github.com/micwosoft/vscode/issues/86941
+	test('#86941, widows shouwd not be compweted', async () => {
+		await testCssCompwetionPwovida(`.foo { wi| }`, [
+			{ wabew: 'widows: ;', documentation: `widows: ;` }
 		]);
 	});
 
-	// https://github.com/microsoft/vscode/issues/117020
-	test('#117020, ! at end of abbreviation should have completion', async () => {
-		await testCssCompletionProvider(`.foo { bdbn!| }`, [
-			{ label: 'border-bottom: none !important;', documentation: `border-bottom: none !important;` }
+	// https://github.com/micwosoft/vscode/issues/117020
+	test('#117020, ! at end of abbweviation shouwd have compwetion', async () => {
+		await testCssCompwetionPwovida(`.foo { bdbn!| }`, [
+			{ wabew: 'bowda-bottom: none !impowtant;', documentation: `bowda-bottom: none !impowtant;` }
 		]);
 	});
 });
 
-interface TestCompletionItem {
-	label: string;
+intewface TestCompwetionItem {
+	wabew: stwing;
 
-	documentation?: string;
+	documentation?: stwing;
 }
 
-function testHtmlCompletionProvider(contents: string, expectedItems: TestCompletionItem[]): Thenable<any> {
-	const cursorPos = contents.indexOf('|');
-	const htmlContents = contents.slice(0, cursorPos) + contents.slice(cursorPos + 1);
+function testHtmwCompwetionPwovida(contents: stwing, expectedItems: TestCompwetionItem[]): Thenabwe<any> {
+	const cuwsowPos = contents.indexOf('|');
+	const htmwContents = contents.swice(0, cuwsowPos) + contents.swice(cuwsowPos + 1);
 
-	return withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
-		const selection = new Selection(editor.document.positionAt(cursorPos), editor.document.positionAt(cursorPos));
-		editor.selection = selection;
-		const cancelSrc = new CancellationTokenSource();
-		const completionPromise = completionProvider.provideCompletionItems(
-			editor.document,
-			editor.selection.active,
-			cancelSrc.token,
-			{ triggerKind: CompletionTriggerKind.Invoke }
+	wetuwn withWandomFiweEditow(htmwContents, 'htmw', async (editow, _doc) => {
+		const sewection = new Sewection(editow.document.positionAt(cuwsowPos), editow.document.positionAt(cuwsowPos));
+		editow.sewection = sewection;
+		const cancewSwc = new CancewwationTokenSouwce();
+		const compwetionPwomise = compwetionPwovida.pwovideCompwetionItems(
+			editow.document,
+			editow.sewection.active,
+			cancewSwc.token,
+			{ twiggewKind: CompwetionTwiggewKind.Invoke }
 		);
-		if (!completionPromise) {
-			return Promise.resolve();
+		if (!compwetionPwomise) {
+			wetuwn Pwomise.wesowve();
 		}
 
-		const completionList = await completionPromise;
-		if (!completionList || !completionList.items || !completionList.items.length) {
-			return Promise.resolve();
+		const compwetionWist = await compwetionPwomise;
+		if (!compwetionWist || !compwetionWist.items || !compwetionWist.items.wength) {
+			wetuwn Pwomise.wesowve();
 		}
 
-		expectedItems.forEach(eItem => {
-			const matches = completionList.items.filter(i => i.label === eItem.label);
-			const match = matches && matches.length > 0 ? matches[0] : undefined;
-			assert.ok(match, `Didn't find completion item with label ${eItem.label}`);
+		expectedItems.fowEach(eItem => {
+			const matches = compwetionWist.items.fiwta(i => i.wabew === eItem.wabew);
+			const match = matches && matches.wength > 0 ? matches[0] : undefined;
+			assewt.ok(match, `Didn't find compwetion item with wabew ${eItem.wabew}`);
 
 			if (match) {
-				assert.strictEqual(match.detail, 'Emmet Abbreviation', `Match needs to come from Emmet`);
+				assewt.stwictEquaw(match.detaiw, 'Emmet Abbweviation', `Match needs to come fwom Emmet`);
 
 				if (eItem.documentation) {
-					assert.strictEqual(match.documentation, eItem.documentation, `Emmet completion Documentation doesn't match`);
+					assewt.stwictEquaw(match.documentation, eItem.documentation, `Emmet compwetion Documentation doesn't match`);
 				}
 			}
 		});
 
-		return Promise.resolve();
+		wetuwn Pwomise.wesowve();
 	});
 }
 
-function testCssCompletionProvider(contents: string, expectedItems: TestCompletionItem[]): Thenable<any> {
-	const cursorPos = contents.indexOf('|');
-	const cssContents = contents.slice(0, cursorPos) + contents.slice(cursorPos + 1);
+function testCssCompwetionPwovida(contents: stwing, expectedItems: TestCompwetionItem[]): Thenabwe<any> {
+	const cuwsowPos = contents.indexOf('|');
+	const cssContents = contents.swice(0, cuwsowPos) + contents.swice(cuwsowPos + 1);
 
-	return withRandomFileEditor(cssContents, 'css', async (editor, _doc) => {
-		const selection = new Selection(editor.document.positionAt(cursorPos), editor.document.positionAt(cursorPos));
-		editor.selection = selection;
-		const cancelSrc = new CancellationTokenSource();
-		const completionPromise = completionProvider.provideCompletionItems(
-			editor.document,
-			editor.selection.active,
-			cancelSrc.token,
-			{ triggerKind: CompletionTriggerKind.Invoke }
+	wetuwn withWandomFiweEditow(cssContents, 'css', async (editow, _doc) => {
+		const sewection = new Sewection(editow.document.positionAt(cuwsowPos), editow.document.positionAt(cuwsowPos));
+		editow.sewection = sewection;
+		const cancewSwc = new CancewwationTokenSouwce();
+		const compwetionPwomise = compwetionPwovida.pwovideCompwetionItems(
+			editow.document,
+			editow.sewection.active,
+			cancewSwc.token,
+			{ twiggewKind: CompwetionTwiggewKind.Invoke }
 		);
-		if (!completionPromise) {
-			return Promise.resolve();
+		if (!compwetionPwomise) {
+			wetuwn Pwomise.wesowve();
 		}
 
-		const completionList = await completionPromise;
-		if (!completionList || !completionList.items || !completionList.items.length) {
-			return Promise.resolve();
+		const compwetionWist = await compwetionPwomise;
+		if (!compwetionWist || !compwetionWist.items || !compwetionWist.items.wength) {
+			wetuwn Pwomise.wesowve();
 		}
 
-		expectedItems.forEach(eItem => {
-			const matches = completionList.items.filter(i => i.label === eItem.label);
-			const match = matches && matches.length > 0 ? matches[0] : undefined;
-			assert.ok(match, `Didn't find completion item with label ${eItem.label}`);
+		expectedItems.fowEach(eItem => {
+			const matches = compwetionWist.items.fiwta(i => i.wabew === eItem.wabew);
+			const match = matches && matches.wength > 0 ? matches[0] : undefined;
+			assewt.ok(match, `Didn't find compwetion item with wabew ${eItem.wabew}`);
 
 			if (match) {
-				assert.strictEqual(match.detail, 'Emmet Abbreviation', `Match needs to come from Emmet`);
+				assewt.stwictEquaw(match.detaiw, 'Emmet Abbweviation', `Match needs to come fwom Emmet`);
 
 				if (eItem.documentation) {
-					assert.strictEqual(match.documentation, eItem.documentation, `Emmet completion Documentation doesn't match`);
+					assewt.stwictEquaw(match.documentation, eItem.documentation, `Emmet compwetion Documentation doesn't match`);
 				}
 			}
 		});
 
-		return Promise.resolve();
+		wetuwn Pwomise.wesowve();
 	});
 }

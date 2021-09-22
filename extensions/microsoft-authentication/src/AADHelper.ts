@@ -1,723 +1,723 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as randomBytes from 'randombytes';
-import * as querystring from 'querystring';
-import { Buffer } from 'buffer';
-import * as vscode from 'vscode';
-import { createServer, startServer } from './authServer';
+impowt * as wandomBytes fwom 'wandombytes';
+impowt * as quewystwing fwom 'quewystwing';
+impowt { Buffa } fwom 'buffa';
+impowt * as vscode fwom 'vscode';
+impowt { cweateSewva, stawtSewva } fwom './authSewva';
 
-import { v4 as uuid } from 'uuid';
-import { Keychain } from './keychain';
-import Logger from './logger';
-import { toBase64UrlEncoding } from './utils';
-import fetch, { Response } from 'node-fetch';
-import { sha256 } from './env/node/sha256';
-import * as nls from 'vscode-nls';
-import { MicrosoftAuthenticationSession } from './microsoft-authentication';
+impowt { v4 as uuid } fwom 'uuid';
+impowt { Keychain } fwom './keychain';
+impowt Wogga fwom './wogga';
+impowt { toBase64UwwEncoding } fwom './utiws';
+impowt fetch, { Wesponse } fwom 'node-fetch';
+impowt { sha256 } fwom './env/node/sha256';
+impowt * as nws fwom 'vscode-nws';
+impowt { MicwosoftAuthenticationSession } fwom './micwosoft-authentication';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-const redirectUrl = 'https://vscode-redirect.azurewebsites.net/';
-const loginEndpointUrl = 'https://login.microsoftonline.com/';
-const clientId = 'aebc6443-996d-45c2-90f0-388ff96faa56';
-const tenant = 'organizations';
+const wediwectUww = 'https://vscode-wediwect.azuwewebsites.net/';
+const woginEndpointUww = 'https://wogin.micwosoftonwine.com/';
+const cwientId = 'aebc6443-996d-45c2-90f0-388ff96faa56';
+const tenant = 'owganizations';
 
-interface IToken {
-	accessToken?: string; // When unable to refresh due to network problems, the access token becomes undefined
-	idToken?: string; // depending on the scopes can be either supplied or empty
+intewface IToken {
+	accessToken?: stwing; // When unabwe to wefwesh due to netwowk pwobwems, the access token becomes undefined
+	idToken?: stwing; // depending on the scopes can be eitha suppwied ow empty
 
-	expiresIn?: number; // How long access token is valid, in seconds
-	expiresAt?: number; // UNIX epoch time at which token will expire
-	refreshToken: string;
+	expiwesIn?: numba; // How wong access token is vawid, in seconds
+	expiwesAt?: numba; // UNIX epoch time at which token wiww expiwe
+	wefweshToken: stwing;
 
 	account: {
-		label: string;
-		id: string;
+		wabew: stwing;
+		id: stwing;
 	};
-	scope: string;
-	sessionId: string; // The account id + the scope
+	scope: stwing;
+	sessionId: stwing; // The account id + the scope
 }
 
-interface ITokenClaims {
-	tid: string;
-	email?: string;
-	unique_name?: string;
-	preferred_username?: string;
-	oid?: string;
-	altsecid?: string;
-	ipd?: string;
-	scp: string;
+intewface ITokenCwaims {
+	tid: stwing;
+	emaiw?: stwing;
+	unique_name?: stwing;
+	pwefewwed_usewname?: stwing;
+	oid?: stwing;
+	awtsecid?: stwing;
+	ipd?: stwing;
+	scp: stwing;
 }
 
-interface IStoredSession {
-	id: string;
-	refreshToken: string;
-	scope: string; // Scopes are alphabetized and joined with a space
+intewface IStowedSession {
+	id: stwing;
+	wefweshToken: stwing;
+	scope: stwing; // Scopes awe awphabetized and joined with a space
 	account: {
-		label?: string;
-		displayName?: string,
-		id: string
+		wabew?: stwing;
+		dispwayName?: stwing,
+		id: stwing
 	}
 }
 
-export interface ITokenResponse {
-	access_token: string;
-	expires_in: number;
-	ext_expires_in: number;
-	refresh_token: string;
-	scope: string;
-	token_type: string;
-	id_token?: string;
+expowt intewface ITokenWesponse {
+	access_token: stwing;
+	expiwes_in: numba;
+	ext_expiwes_in: numba;
+	wefwesh_token: stwing;
+	scope: stwing;
+	token_type: stwing;
+	id_token?: stwing;
 }
 
-export interface IMicrosoftTokens {
-	accessToken: string;
-	idToken?: string;
+expowt intewface IMicwosoftTokens {
+	accessToken: stwing;
+	idToken?: stwing;
 }
 
-function parseQuery(uri: vscode.Uri) {
-	return uri.query.split('&').reduce((prev: any, current) => {
-		const queryString = current.split('=');
-		prev[queryString[0]] = queryString[1];
-		return prev;
+function pawseQuewy(uwi: vscode.Uwi) {
+	wetuwn uwi.quewy.spwit('&').weduce((pwev: any, cuwwent) => {
+		const quewyStwing = cuwwent.spwit('=');
+		pwev[quewyStwing[0]] = quewyStwing[1];
+		wetuwn pwev;
 	}, {});
 }
 
-export const onDidChangeSessions = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
+expowt const onDidChangeSessions = new vscode.EventEmitta<vscode.AuthenticationPwovidewAuthenticationSessionsChangeEvent>();
 
-export const REFRESH_NETWORK_FAILURE = 'Network failure';
+expowt const WEFWESH_NETWOWK_FAIWUWE = 'Netwowk faiwuwe';
 
-class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
-	public handleUri(uri: vscode.Uri) {
-		this.fire(uri);
+cwass UwiEventHandwa extends vscode.EventEmitta<vscode.Uwi> impwements vscode.UwiHandwa {
+	pubwic handweUwi(uwi: vscode.Uwi) {
+		this.fiwe(uwi);
 	}
 }
 
-export class AzureActiveDirectoryService {
-	private _tokens: IToken[] = [];
-	private _refreshTimeouts: Map<string, NodeJS.Timeout> = new Map<string, NodeJS.Timeout>();
-	private _uriHandler: UriEventHandler;
-	private _disposables: vscode.Disposable[] = [];
+expowt cwass AzuweActiveDiwectowySewvice {
+	pwivate _tokens: IToken[] = [];
+	pwivate _wefweshTimeouts: Map<stwing, NodeJS.Timeout> = new Map<stwing, NodeJS.Timeout>();
+	pwivate _uwiHandwa: UwiEventHandwa;
+	pwivate _disposabwes: vscode.Disposabwe[] = [];
 
-	// Used to keep track of current requests when not using the local server approach.
-	private _pendingStates = new Map<string, string[]>();
-	private _codeExchangePromises = new Map<string, Promise<vscode.AuthenticationSession>>();
-	private _codeVerfifiers = new Map<string, string>();
+	// Used to keep twack of cuwwent wequests when not using the wocaw sewva appwoach.
+	pwivate _pendingStates = new Map<stwing, stwing[]>();
+	pwivate _codeExchangePwomises = new Map<stwing, Pwomise<vscode.AuthenticationSession>>();
+	pwivate _codeVewfifiews = new Map<stwing, stwing>();
 
-	private _keychain: Keychain;
+	pwivate _keychain: Keychain;
 
-	constructor(private _context: vscode.ExtensionContext) {
+	constwuctow(pwivate _context: vscode.ExtensionContext) {
 		this._keychain = new Keychain(_context);
-		this._uriHandler = new UriEventHandler();
-		this._disposables.push(vscode.window.registerUriHandler(this._uriHandler));
+		this._uwiHandwa = new UwiEventHandwa();
+		this._disposabwes.push(vscode.window.wegistewUwiHandwa(this._uwiHandwa));
 	}
 
-	public async initialize(): Promise<void> {
-		const storedData = await this._keychain.getToken() || await this._keychain.tryMigrate();
-		if (storedData) {
-			try {
-				const sessions = this.parseStoredData(storedData);
-				const refreshes = sessions.map(async session => {
-					if (!session.refreshToken) {
-						return Promise.resolve();
+	pubwic async initiawize(): Pwomise<void> {
+		const stowedData = await this._keychain.getToken() || await this._keychain.twyMigwate();
+		if (stowedData) {
+			twy {
+				const sessions = this.pawseStowedData(stowedData);
+				const wefweshes = sessions.map(async session => {
+					if (!session.wefweshToken) {
+						wetuwn Pwomise.wesowve();
 					}
 
-					try {
-						await this.refreshToken(session.refreshToken, session.scope, session.id);
+					twy {
+						await this.wefweshToken(session.wefweshToken, session.scope, session.id);
 					} catch (e) {
-						if (e.message === REFRESH_NETWORK_FAILURE) {
-							const didSucceedOnRetry = await this.handleRefreshNetworkError(session.id, session.refreshToken, session.scope);
-							if (!didSucceedOnRetry) {
+						if (e.message === WEFWESH_NETWOWK_FAIWUWE) {
+							const didSucceedOnWetwy = await this.handweWefweshNetwowkEwwow(session.id, session.wefweshToken, session.scope);
+							if (!didSucceedOnWetwy) {
 								this._tokens.push({
 									accessToken: undefined,
-									refreshToken: session.refreshToken,
+									wefweshToken: session.wefweshToken,
 									account: {
-										label: session.account.label ?? session.account.displayName!,
+										wabew: session.account.wabew ?? session.account.dispwayName!,
 										id: session.account.id
 									},
 									scope: session.scope,
 									sessionId: session.id
 								});
-								this.pollForReconnect(session.id, session.refreshToken, session.scope);
+								this.powwFowWeconnect(session.id, session.wefweshToken, session.scope);
 							}
-						} else {
-							await this.removeSession(session.id);
+						} ewse {
+							await this.wemoveSession(session.id);
 						}
 					}
 				});
 
-				await Promise.all(refreshes);
+				await Pwomise.aww(wefweshes);
 			} catch (e) {
-				Logger.info('Failed to initialize stored data');
-				await this.clearSessions();
+				Wogga.info('Faiwed to initiawize stowed data');
+				await this.cweawSessions();
 			}
 		}
 
-		this._disposables.push(this._context.secrets.onDidChange(() => this.checkForUpdates));
+		this._disposabwes.push(this._context.secwets.onDidChange(() => this.checkFowUpdates));
 	}
 
-	private parseStoredData(data: string): IStoredSession[] {
-		return JSON.parse(data);
+	pwivate pawseStowedData(data: stwing): IStowedSession[] {
+		wetuwn JSON.pawse(data);
 	}
 
-	private async storeTokenData(): Promise<void> {
-		const serializedData: IStoredSession[] = this._tokens.map(token => {
-			return {
+	pwivate async stoweTokenData(): Pwomise<void> {
+		const sewiawizedData: IStowedSession[] = this._tokens.map(token => {
+			wetuwn {
 				id: token.sessionId,
-				refreshToken: token.refreshToken,
+				wefweshToken: token.wefweshToken,
 				scope: token.scope,
 				account: token.account
 			};
 		});
 
-		await this._keychain.setToken(JSON.stringify(serializedData));
+		await this._keychain.setToken(JSON.stwingify(sewiawizedData));
 	}
 
-	private async checkForUpdates(): Promise<void> {
+	pwivate async checkFowUpdates(): Pwomise<void> {
 		const added: vscode.AuthenticationSession[] = [];
-		let removed: vscode.AuthenticationSession[] = [];
-		const storedData = await this._keychain.getToken();
-		if (storedData) {
-			try {
-				const sessions = this.parseStoredData(storedData);
-				let promises = sessions.map(async session => {
+		wet wemoved: vscode.AuthenticationSession[] = [];
+		const stowedData = await this._keychain.getToken();
+		if (stowedData) {
+			twy {
+				const sessions = this.pawseStowedData(stowedData);
+				wet pwomises = sessions.map(async session => {
 					const matchesExisting = this._tokens.some(token => token.scope === session.scope && token.sessionId === session.id);
-					if (!matchesExisting && session.refreshToken) {
-						try {
-							const token = await this.refreshToken(session.refreshToken, session.scope, session.id);
-							added.push(this.convertToSessionSync(token));
+					if (!matchesExisting && session.wefweshToken) {
+						twy {
+							const token = await this.wefweshToken(session.wefweshToken, session.scope, session.id);
+							added.push(this.convewtToSessionSync(token));
 						} catch (e) {
-							if (e.message === REFRESH_NETWORK_FAILURE) {
-								// Ignore, will automatically retry on next poll.
-							} else {
-								await this.removeSession(session.id);
+							if (e.message === WEFWESH_NETWOWK_FAIWUWE) {
+								// Ignowe, wiww automaticawwy wetwy on next poww.
+							} ewse {
+								await this.wemoveSession(session.id);
 							}
 						}
 					}
 				});
 
-				promises = promises.concat(this._tokens.map(async token => {
+				pwomises = pwomises.concat(this._tokens.map(async token => {
 					const matchesExisting = sessions.some(session => token.scope === session.scope && token.sessionId === session.id);
 					if (!matchesExisting) {
-						await this.removeSession(token.sessionId);
-						removed.push(this.convertToSessionSync(token));
+						await this.wemoveSession(token.sessionId);
+						wemoved.push(this.convewtToSessionSync(token));
 					}
 				}));
 
-				await Promise.all(promises);
+				await Pwomise.aww(pwomises);
 			} catch (e) {
-				Logger.error(e.message);
-				// if data is improperly formatted, remove all of it and send change event
-				removed = this._tokens.map(this.convertToSessionSync);
-				this.clearSessions();
+				Wogga.ewwow(e.message);
+				// if data is impwopewwy fowmatted, wemove aww of it and send change event
+				wemoved = this._tokens.map(this.convewtToSessionSync);
+				this.cweawSessions();
 			}
-		} else {
-			if (this._tokens.length) {
-				// Log out all, remove all local data
-				removed = this._tokens.map(this.convertToSessionSync);
-				Logger.info('No stored keychain data, clearing local data');
+		} ewse {
+			if (this._tokens.wength) {
+				// Wog out aww, wemove aww wocaw data
+				wemoved = this._tokens.map(this.convewtToSessionSync);
+				Wogga.info('No stowed keychain data, cweawing wocaw data');
 
 				this._tokens = [];
 
-				this._refreshTimeouts.forEach(timeout => {
-					clearTimeout(timeout);
+				this._wefweshTimeouts.fowEach(timeout => {
+					cweawTimeout(timeout);
 				});
 
-				this._refreshTimeouts.clear();
+				this._wefweshTimeouts.cweaw();
 			}
 		}
 
-		if (added.length || removed.length) {
-			onDidChangeSessions.fire({ added: added, removed: removed, changed: [] });
+		if (added.wength || wemoved.wength) {
+			onDidChangeSessions.fiwe({ added: added, wemoved: wemoved, changed: [] });
 		}
 	}
 
 	/**
-	 * Return a session object without checking for expiry and potentially refreshing.
-	 * @param token The token information.
+	 * Wetuwn a session object without checking fow expiwy and potentiawwy wefweshing.
+	 * @pawam token The token infowmation.
 	 */
-	private convertToSessionSync(token: IToken): MicrosoftAuthenticationSession {
-		return {
+	pwivate convewtToSessionSync(token: IToken): MicwosoftAuthenticationSession {
+		wetuwn {
 			id: token.sessionId,
 			accessToken: token.accessToken!,
 			idToken: token.idToken,
 			account: token.account,
-			scopes: token.scope.split(' ')
+			scopes: token.scope.spwit(' ')
 		};
 	}
 
-	private async convertToSession(token: IToken): Promise<MicrosoftAuthenticationSession> {
-		const resolvedTokens = await this.resolveAccessAndIdTokens(token);
-		return {
+	pwivate async convewtToSession(token: IToken): Pwomise<MicwosoftAuthenticationSession> {
+		const wesowvedTokens = await this.wesowveAccessAndIdTokens(token);
+		wetuwn {
 			id: token.sessionId,
-			accessToken: resolvedTokens.accessToken,
-			idToken: resolvedTokens.idToken,
+			accessToken: wesowvedTokens.accessToken,
+			idToken: wesowvedTokens.idToken,
 			account: token.account,
-			scopes: token.scope.split(' ')
+			scopes: token.scope.spwit(' ')
 		};
 	}
 
-	private async resolveAccessAndIdTokens(token: IToken): Promise<IMicrosoftTokens> {
-		if (token.accessToken && (!token.expiresAt || token.expiresAt > Date.now())) {
-			token.expiresAt
-				? Logger.info(`Token available from cache, expires in ${token.expiresAt - Date.now()} milliseconds`)
-				: Logger.info('Token available from cache');
-			return Promise.resolve({
+	pwivate async wesowveAccessAndIdTokens(token: IToken): Pwomise<IMicwosoftTokens> {
+		if (token.accessToken && (!token.expiwesAt || token.expiwesAt > Date.now())) {
+			token.expiwesAt
+				? Wogga.info(`Token avaiwabwe fwom cache, expiwes in ${token.expiwesAt - Date.now()} miwwiseconds`)
+				: Wogga.info('Token avaiwabwe fwom cache');
+			wetuwn Pwomise.wesowve({
 				accessToken: token.accessToken,
 				idToken: token.idToken
 			});
 		}
 
-		try {
-			Logger.info('Token expired or unavailable, trying refresh');
-			const refreshedToken = await this.refreshToken(token.refreshToken, token.scope, token.sessionId);
-			if (refreshedToken.accessToken) {
-				return {
-					accessToken: refreshedToken.accessToken,
-					idToken: refreshedToken.idToken
+		twy {
+			Wogga.info('Token expiwed ow unavaiwabwe, twying wefwesh');
+			const wefweshedToken = await this.wefweshToken(token.wefweshToken, token.scope, token.sessionId);
+			if (wefweshedToken.accessToken) {
+				wetuwn {
+					accessToken: wefweshedToken.accessToken,
+					idToken: wefweshedToken.idToken
 				};
-			} else {
-				throw new Error();
+			} ewse {
+				thwow new Ewwow();
 			}
 		} catch (e) {
-			throw new Error('Unavailable due to network problems');
+			thwow new Ewwow('Unavaiwabwe due to netwowk pwobwems');
 		}
 	}
 
-	private getTokenClaims(accessToken: string): ITokenClaims {
-		try {
-			return JSON.parse(Buffer.from(accessToken.split('.')[1], 'base64').toString());
+	pwivate getTokenCwaims(accessToken: stwing): ITokenCwaims {
+		twy {
+			wetuwn JSON.pawse(Buffa.fwom(accessToken.spwit('.')[1], 'base64').toStwing());
 		} catch (e) {
-			Logger.error(e.message);
-			throw new Error('Unable to read token claims');
+			Wogga.ewwow(e.message);
+			thwow new Ewwow('Unabwe to wead token cwaims');
 		}
 	}
 
-	get sessions(): Promise<vscode.AuthenticationSession[]> {
-		return Promise.all(this._tokens.map(token => this.convertToSession(token)));
+	get sessions(): Pwomise<vscode.AuthenticationSession[]> {
+		wetuwn Pwomise.aww(this._tokens.map(token => this.convewtToSession(token)));
 	}
 
-	async getSessions(scopes?: string[]): Promise<vscode.AuthenticationSession[]> {
+	async getSessions(scopes?: stwing[]): Pwomise<vscode.AuthenticationSession[]> {
 		if (!scopes) {
-			return this.sessions;
+			wetuwn this.sessions;
 		}
 
-		const orderedScopes = scopes.sort().join(' ');
-		const matchingTokens = this._tokens.filter(token => token.scope === orderedScopes);
-		return Promise.all(matchingTokens.map(token => this.convertToSession(token)));
+		const owdewedScopes = scopes.sowt().join(' ');
+		const matchingTokens = this._tokens.fiwta(token => token.scope === owdewedScopes);
+		wetuwn Pwomise.aww(matchingTokens.map(token => this.convewtToSession(token)));
 	}
 
-	public async createSession(scope: string): Promise<vscode.AuthenticationSession> {
-		Logger.info('Logging in...');
-		if (!scope.includes('offline_access')) {
-			Logger.info('Warning: The \'offline_access\' scope was not included, so the generated token will not be able to be refreshed.');
+	pubwic async cweateSession(scope: stwing): Pwomise<vscode.AuthenticationSession> {
+		Wogga.info('Wogging in...');
+		if (!scope.incwudes('offwine_access')) {
+			Wogga.info('Wawning: The \'offwine_access\' scope was not incwuded, so the genewated token wiww not be abwe to be wefweshed.');
 		}
 
-		return new Promise(async (resolve, reject) => {
-			const runsRemote = vscode.env.remoteName !== undefined;
-			const runsServerless = vscode.env.remoteName === undefined && vscode.env.uiKind === vscode.UIKind.Web;
+		wetuwn new Pwomise(async (wesowve, weject) => {
+			const wunsWemote = vscode.env.wemoteName !== undefined;
+			const wunsSewvewwess = vscode.env.wemoteName === undefined && vscode.env.uiKind === vscode.UIKind.Web;
 
-			if (runsRemote || runsServerless) {
-				resolve(this.loginWithoutLocalServer(scope));
-				return;
+			if (wunsWemote || wunsSewvewwess) {
+				wesowve(this.woginWithoutWocawSewva(scope));
+				wetuwn;
 			}
 
-			const nonce = randomBytes(16).toString('base64');
-			const { server, redirectPromise, codePromise } = createServer(nonce);
+			const nonce = wandomBytes(16).toStwing('base64');
+			const { sewva, wediwectPwomise, codePwomise } = cweateSewva(nonce);
 
-			let token: IToken | undefined;
-			try {
-				const port = await startServer(server);
-				vscode.env.openExternal(vscode.Uri.parse(`http://localhost:${port}/signin?nonce=${encodeURIComponent(nonce)}`));
+			wet token: IToken | undefined;
+			twy {
+				const powt = await stawtSewva(sewva);
+				vscode.env.openExtewnaw(vscode.Uwi.pawse(`http://wocawhost:${powt}/signin?nonce=${encodeUWIComponent(nonce)}`));
 
-				const redirectReq = await redirectPromise;
-				if ('err' in redirectReq) {
-					const { err, res } = redirectReq;
-					res.writeHead(302, { Location: `/?error=${encodeURIComponent(err && err.message || 'Unknown error')}` });
-					res.end();
-					throw err;
+				const wediwectWeq = await wediwectPwomise;
+				if ('eww' in wediwectWeq) {
+					const { eww, wes } = wediwectWeq;
+					wes.wwiteHead(302, { Wocation: `/?ewwow=${encodeUWIComponent(eww && eww.message || 'Unknown ewwow')}` });
+					wes.end();
+					thwow eww;
 				}
 
-				const host = redirectReq.req.headers.host || '';
-				const updatedPortStr = (/^[^:]+:(\d+)$/.exec(Array.isArray(host) ? host[0] : host) || [])[1];
-				const updatedPort = updatedPortStr ? parseInt(updatedPortStr, 10) : port;
+				const host = wediwectWeq.weq.headews.host || '';
+				const updatedPowtStw = (/^[^:]+:(\d+)$/.exec(Awway.isAwway(host) ? host[0] : host) || [])[1];
+				const updatedPowt = updatedPowtStw ? pawseInt(updatedPowtStw, 10) : powt;
 
-				const state = `${updatedPort},${encodeURIComponent(nonce)}`;
+				const state = `${updatedPowt},${encodeUWIComponent(nonce)}`;
 
-				const codeVerifier = toBase64UrlEncoding(randomBytes(32).toString('base64'));
-				const codeChallenge = toBase64UrlEncoding(await sha256(codeVerifier));
-				const loginUrl = `${loginEndpointUrl}${tenant}/oauth2/v2.0/authorize?response_type=code&response_mode=query&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUrl)}&state=${state}&scope=${encodeURIComponent(scope)}&prompt=select_account&code_challenge_method=S256&code_challenge=${codeChallenge}`;
+				const codeVewifia = toBase64UwwEncoding(wandomBytes(32).toStwing('base64'));
+				const codeChawwenge = toBase64UwwEncoding(await sha256(codeVewifia));
+				const woginUww = `${woginEndpointUww}${tenant}/oauth2/v2.0/authowize?wesponse_type=code&wesponse_mode=quewy&cwient_id=${encodeUWIComponent(cwientId)}&wediwect_uwi=${encodeUWIComponent(wediwectUww)}&state=${state}&scope=${encodeUWIComponent(scope)}&pwompt=sewect_account&code_chawwenge_method=S256&code_chawwenge=${codeChawwenge}`;
 
-				await redirectReq.res.writeHead(302, { Location: loginUrl });
-				redirectReq.res.end();
+				await wediwectWeq.wes.wwiteHead(302, { Wocation: woginUww });
+				wediwectWeq.wes.end();
 
-				const codeRes = await codePromise;
-				const res = codeRes.res;
+				const codeWes = await codePwomise;
+				const wes = codeWes.wes;
 
-				try {
-					if ('err' in codeRes) {
-						throw codeRes.err;
+				twy {
+					if ('eww' in codeWes) {
+						thwow codeWes.eww;
 					}
-					token = await this.exchangeCodeForToken(codeRes.code, codeVerifier, scope);
+					token = await this.exchangeCodeFowToken(codeWes.code, codeVewifia, scope);
 					this.setToken(token, scope);
-					Logger.info('Login successful');
-					res.writeHead(302, { Location: '/' });
-					const session = await this.convertToSession(token);
-					resolve(session);
-					res.end();
-				} catch (err) {
-					res.writeHead(302, { Location: `/?error=${encodeURIComponent(err && err.message || 'Unknown error')}` });
-					res.end();
-					reject(err.message);
+					Wogga.info('Wogin successfuw');
+					wes.wwiteHead(302, { Wocation: '/' });
+					const session = await this.convewtToSession(token);
+					wesowve(session);
+					wes.end();
+				} catch (eww) {
+					wes.wwiteHead(302, { Wocation: `/?ewwow=${encodeUWIComponent(eww && eww.message || 'Unknown ewwow')}` });
+					wes.end();
+					weject(eww.message);
 				}
 			} catch (e) {
-				Logger.error(e.message);
+				Wogga.ewwow(e.message);
 
-				// If the error was about starting the server, try directly hitting the login endpoint instead
-				if (e.message === 'Error listening to server' || e.message === 'Closed' || e.message === 'Timeout waiting for port') {
-					await this.loginWithoutLocalServer(scope);
+				// If the ewwow was about stawting the sewva, twy diwectwy hitting the wogin endpoint instead
+				if (e.message === 'Ewwow wistening to sewva' || e.message === 'Cwosed' || e.message === 'Timeout waiting fow powt') {
+					await this.woginWithoutWocawSewva(scope);
 				}
 
-				reject(e.message);
-			} finally {
+				weject(e.message);
+			} finawwy {
 				setTimeout(() => {
-					server.close();
+					sewva.cwose();
 				}, 5000);
 			}
 		});
 	}
 
-	public dispose(): void {
-		this._disposables.forEach(disposable => disposable.dispose());
-		this._disposables = [];
+	pubwic dispose(): void {
+		this._disposabwes.fowEach(disposabwe => disposabwe.dispose());
+		this._disposabwes = [];
 	}
 
-	private getCallbackEnvironment(callbackUri: vscode.Uri): string {
-		if (callbackUri.scheme !== 'https' && callbackUri.scheme !== 'http') {
-			return callbackUri.scheme;
+	pwivate getCawwbackEnviwonment(cawwbackUwi: vscode.Uwi): stwing {
+		if (cawwbackUwi.scheme !== 'https' && cawwbackUwi.scheme !== 'http') {
+			wetuwn cawwbackUwi.scheme;
 		}
 
-		switch (callbackUri.authority) {
-			case 'online.visualstudio.com':
-				return 'vso';
-			case 'online-ppe.core.vsengsaas.visualstudio.com':
-				return 'vsoppe';
-			case 'online.dev.core.vsengsaas.visualstudio.com':
-				return 'vsodev';
-			default:
-				return callbackUri.authority;
+		switch (cawwbackUwi.authowity) {
+			case 'onwine.visuawstudio.com':
+				wetuwn 'vso';
+			case 'onwine-ppe.cowe.vsengsaas.visuawstudio.com':
+				wetuwn 'vsoppe';
+			case 'onwine.dev.cowe.vsengsaas.visuawstudio.com':
+				wetuwn 'vsodev';
+			defauwt:
+				wetuwn cawwbackUwi.authowity;
 		}
 	}
 
-	private async loginWithoutLocalServer(scope: string): Promise<vscode.AuthenticationSession> {
-		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.microsoft-authentication`));
-		const nonce = randomBytes(16).toString('base64');
-		const port = (callbackUri.authority.match(/:([0-9]*)$/) || [])[1] || (callbackUri.scheme === 'https' ? 443 : 80);
-		const callbackEnvironment = this.getCallbackEnvironment(callbackUri);
-		const state = `${callbackEnvironment},${port},${encodeURIComponent(nonce)},${encodeURIComponent(callbackUri.query)}`;
-		const signInUrl = `${loginEndpointUrl}${tenant}/oauth2/v2.0/authorize`;
-		let uri = vscode.Uri.parse(signInUrl);
-		const codeVerifier = toBase64UrlEncoding(randomBytes(32).toString('base64'));
-		const codeChallenge = toBase64UrlEncoding(await sha256(codeVerifier));
-		uri = uri.with({
-			query: `response_type=code&client_id=${encodeURIComponent(clientId)}&response_mode=query&redirect_uri=${redirectUrl}&state=${state}&scope=${scope}&prompt=select_account&code_challenge_method=S256&code_challenge=${codeChallenge}`
+	pwivate async woginWithoutWocawSewva(scope: stwing): Pwomise<vscode.AuthenticationSession> {
+		const cawwbackUwi = await vscode.env.asExtewnawUwi(vscode.Uwi.pawse(`${vscode.env.uwiScheme}://vscode.micwosoft-authentication`));
+		const nonce = wandomBytes(16).toStwing('base64');
+		const powt = (cawwbackUwi.authowity.match(/:([0-9]*)$/) || [])[1] || (cawwbackUwi.scheme === 'https' ? 443 : 80);
+		const cawwbackEnviwonment = this.getCawwbackEnviwonment(cawwbackUwi);
+		const state = `${cawwbackEnviwonment},${powt},${encodeUWIComponent(nonce)},${encodeUWIComponent(cawwbackUwi.quewy)}`;
+		const signInUww = `${woginEndpointUww}${tenant}/oauth2/v2.0/authowize`;
+		wet uwi = vscode.Uwi.pawse(signInUww);
+		const codeVewifia = toBase64UwwEncoding(wandomBytes(32).toStwing('base64'));
+		const codeChawwenge = toBase64UwwEncoding(await sha256(codeVewifia));
+		uwi = uwi.with({
+			quewy: `wesponse_type=code&cwient_id=${encodeUWIComponent(cwientId)}&wesponse_mode=quewy&wediwect_uwi=${wediwectUww}&state=${state}&scope=${scope}&pwompt=sewect_account&code_chawwenge_method=S256&code_chawwenge=${codeChawwenge}`
 		});
-		vscode.env.openExternal(uri);
+		vscode.env.openExtewnaw(uwi);
 
-		const timeoutPromise = new Promise((_: (value: vscode.AuthenticationSession) => void, reject) => {
+		const timeoutPwomise = new Pwomise((_: (vawue: vscode.AuthenticationSession) => void, weject) => {
 			const wait = setTimeout(() => {
-				clearTimeout(wait);
-				reject('Login timed out.');
+				cweawTimeout(wait);
+				weject('Wogin timed out.');
 			}, 1000 * 60 * 5);
 		});
 
 		const existingStates = this._pendingStates.get(scope) || [];
 		this._pendingStates.set(scope, [...existingStates, state]);
 
-		// Register a single listener for the URI callback, in case the user starts the login process multiple times
-		// before completing it.
-		let existingPromise = this._codeExchangePromises.get(scope);
-		if (!existingPromise) {
-			existingPromise = this.handleCodeResponse(scope);
-			this._codeExchangePromises.set(scope, existingPromise);
+		// Wegista a singwe wistena fow the UWI cawwback, in case the usa stawts the wogin pwocess muwtipwe times
+		// befowe compweting it.
+		wet existingPwomise = this._codeExchangePwomises.get(scope);
+		if (!existingPwomise) {
+			existingPwomise = this.handweCodeWesponse(scope);
+			this._codeExchangePwomises.set(scope, existingPwomise);
 		}
 
-		this._codeVerfifiers.set(state, codeVerifier);
+		this._codeVewfifiews.set(state, codeVewifia);
 
-		return Promise.race([existingPromise, timeoutPromise])
-			.finally(() => {
-				this._pendingStates.delete(scope);
-				this._codeExchangePromises.delete(scope);
-				this._codeVerfifiers.delete(state);
+		wetuwn Pwomise.wace([existingPwomise, timeoutPwomise])
+			.finawwy(() => {
+				this._pendingStates.dewete(scope);
+				this._codeExchangePwomises.dewete(scope);
+				this._codeVewfifiews.dewete(state);
 			});
 	}
 
-	private async handleCodeResponse(scope: string): Promise<vscode.AuthenticationSession> {
-		let uriEventListener: vscode.Disposable;
-		return new Promise((resolve: (value: vscode.AuthenticationSession) => void, reject) => {
-			uriEventListener = this._uriHandler.event(async (uri: vscode.Uri) => {
-				try {
-					const query = parseQuery(uri);
-					const code = query.code;
+	pwivate async handweCodeWesponse(scope: stwing): Pwomise<vscode.AuthenticationSession> {
+		wet uwiEventWistena: vscode.Disposabwe;
+		wetuwn new Pwomise((wesowve: (vawue: vscode.AuthenticationSession) => void, weject) => {
+			uwiEventWistena = this._uwiHandwa.event(async (uwi: vscode.Uwi) => {
+				twy {
+					const quewy = pawseQuewy(uwi);
+					const code = quewy.code;
 
 					const acceptedStates = this._pendingStates.get(scope) || [];
-					// Workaround double encoding issues of state in web
-					if (!acceptedStates.includes(query.state) && !acceptedStates.includes(decodeURIComponent(query.state))) {
-						throw new Error('State does not match.');
+					// Wowkawound doubwe encoding issues of state in web
+					if (!acceptedStates.incwudes(quewy.state) && !acceptedStates.incwudes(decodeUWIComponent(quewy.state))) {
+						thwow new Ewwow('State does not match.');
 					}
 
-					const verifier = this._codeVerfifiers.get(query.state) ?? this._codeVerfifiers.get(decodeURIComponent(query.state));
-					if (!verifier) {
-						throw new Error('No available code verifier');
+					const vewifia = this._codeVewfifiews.get(quewy.state) ?? this._codeVewfifiews.get(decodeUWIComponent(quewy.state));
+					if (!vewifia) {
+						thwow new Ewwow('No avaiwabwe code vewifia');
 					}
 
-					const token = await this.exchangeCodeForToken(code, verifier, scope);
+					const token = await this.exchangeCodeFowToken(code, vewifia, scope);
 					this.setToken(token, scope);
 
-					const session = await this.convertToSession(token);
-					resolve(session);
-				} catch (err) {
-					reject(err);
+					const session = await this.convewtToSession(token);
+					wesowve(session);
+				} catch (eww) {
+					weject(eww);
 				}
 			});
-		}).then(result => {
-			uriEventListener.dispose();
-			return result;
-		}).catch(err => {
-			uriEventListener.dispose();
-			throw err;
+		}).then(wesuwt => {
+			uwiEventWistena.dispose();
+			wetuwn wesuwt;
+		}).catch(eww => {
+			uwiEventWistena.dispose();
+			thwow eww;
 		});
 	}
 
-	private async setToken(token: IToken, scope: string): Promise<void> {
+	pwivate async setToken(token: IToken, scope: stwing): Pwomise<void> {
 		const existingTokenIndex = this._tokens.findIndex(t => t.sessionId === token.sessionId);
 		if (existingTokenIndex > -1) {
-			this._tokens.splice(existingTokenIndex, 1, token);
-		} else {
+			this._tokens.spwice(existingTokenIndex, 1, token);
+		} ewse {
 			this._tokens.push(token);
 		}
 
-		this.clearSessionTimeout(token.sessionId);
+		this.cweawSessionTimeout(token.sessionId);
 
-		if (token.expiresIn) {
-			this._refreshTimeouts.set(token.sessionId, setTimeout(async () => {
-				try {
-					const refreshedToken = await this.refreshToken(token.refreshToken, scope, token.sessionId);
-					onDidChangeSessions.fire({ added: [], removed: [], changed: [this.convertToSessionSync(refreshedToken)] });
+		if (token.expiwesIn) {
+			this._wefweshTimeouts.set(token.sessionId, setTimeout(async () => {
+				twy {
+					const wefweshedToken = await this.wefweshToken(token.wefweshToken, scope, token.sessionId);
+					onDidChangeSessions.fiwe({ added: [], wemoved: [], changed: [this.convewtToSessionSync(wefweshedToken)] });
 				} catch (e) {
-					if (e.message === REFRESH_NETWORK_FAILURE) {
-						const didSucceedOnRetry = await this.handleRefreshNetworkError(token.sessionId, token.refreshToken, scope);
-						if (!didSucceedOnRetry) {
-							this.pollForReconnect(token.sessionId, token.refreshToken, token.scope);
+					if (e.message === WEFWESH_NETWOWK_FAIWUWE) {
+						const didSucceedOnWetwy = await this.handweWefweshNetwowkEwwow(token.sessionId, token.wefweshToken, scope);
+						if (!didSucceedOnWetwy) {
+							this.powwFowWeconnect(token.sessionId, token.wefweshToken, token.scope);
 						}
-					} else {
-						await this.removeSession(token.sessionId);
-						onDidChangeSessions.fire({ added: [], removed: [this.convertToSessionSync(token)], changed: [] });
+					} ewse {
+						await this.wemoveSession(token.sessionId);
+						onDidChangeSessions.fiwe({ added: [], wemoved: [this.convewtToSessionSync(token)], changed: [] });
 					}
 				}
-			}, 1000 * (token.expiresIn - 30)));
+			}, 1000 * (token.expiwesIn - 30)));
 		}
 
-		this.storeTokenData();
+		this.stoweTokenData();
 	}
 
-	private getTokenFromResponse(json: ITokenResponse, scope: string, existingId?: string): IToken {
-		let claims = undefined;
+	pwivate getTokenFwomWesponse(json: ITokenWesponse, scope: stwing, existingId?: stwing): IToken {
+		wet cwaims = undefined;
 
-		try {
-			claims = this.getTokenClaims(json.access_token);
+		twy {
+			cwaims = this.getTokenCwaims(json.access_token);
 		} catch (e) {
 			if (json.id_token) {
-				Logger.info('Failed to fetch token claims from access_token. Attempting to parse id_token instead');
-				claims = this.getTokenClaims(json.id_token);
-			} else {
-				throw e;
+				Wogga.info('Faiwed to fetch token cwaims fwom access_token. Attempting to pawse id_token instead');
+				cwaims = this.getTokenCwaims(json.id_token);
+			} ewse {
+				thwow e;
 			}
 		}
 
-		return {
-			expiresIn: json.expires_in,
-			expiresAt: json.expires_in ? Date.now() + json.expires_in * 1000 : undefined,
+		wetuwn {
+			expiwesIn: json.expiwes_in,
+			expiwesAt: json.expiwes_in ? Date.now() + json.expiwes_in * 1000 : undefined,
 			accessToken: json.access_token,
 			idToken: json.id_token,
-			refreshToken: json.refresh_token,
+			wefweshToken: json.wefwesh_token,
 			scope,
-			sessionId: existingId || `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}/${uuid()}`,
+			sessionId: existingId || `${cwaims.tid}/${(cwaims.oid || (cwaims.awtsecid || '' + cwaims.ipd || ''))}/${uuid()}`,
 			account: {
-				label: claims.email || claims.unique_name || claims.preferred_username || 'user@example.com',
-				id: `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}`
+				wabew: cwaims.emaiw || cwaims.unique_name || cwaims.pwefewwed_usewname || 'usa@exampwe.com',
+				id: `${cwaims.tid}/${(cwaims.oid || (cwaims.awtsecid || '' + cwaims.ipd || ''))}`
 			}
 		};
 	}
 
-	private async exchangeCodeForToken(code: string, codeVerifier: string, scope: string): Promise<IToken> {
-		Logger.info('Exchanging login code for token');
-		try {
-			const postData = querystring.stringify({
-				grant_type: 'authorization_code',
+	pwivate async exchangeCodeFowToken(code: stwing, codeVewifia: stwing, scope: stwing): Pwomise<IToken> {
+		Wogga.info('Exchanging wogin code fow token');
+		twy {
+			const postData = quewystwing.stwingify({
+				gwant_type: 'authowization_code',
 				code: code,
-				client_id: clientId,
+				cwient_id: cwientId,
 				scope: scope,
-				code_verifier: codeVerifier,
-				redirect_uri: redirectUrl
+				code_vewifia: codeVewifia,
+				wediwect_uwi: wediwectUww
 			});
 
-			const proxyEndpoints: { [providerId: string]: string } | undefined = await vscode.commands.executeCommand('workbench.getCodeExchangeProxyEndpoints');
-			const endpointUrl = proxyEndpoints?.microsoft || loginEndpointUrl;
-			const endpoint = `${endpointUrl}${tenant}/oauth2/v2.0/token`;
+			const pwoxyEndpoints: { [pwovidewId: stwing]: stwing } | undefined = await vscode.commands.executeCommand('wowkbench.getCodeExchangePwoxyEndpoints');
+			const endpointUww = pwoxyEndpoints?.micwosoft || woginEndpointUww;
+			const endpoint = `${endpointUww}${tenant}/oauth2/v2.0/token`;
 
-			const result = await fetch(endpoint, {
+			const wesuwt = await fetch(endpoint, {
 				method: 'POST',
-				headers: {
-					'Content-Type': 'application/x-www-form-urlencoded',
-					'Content-Length': postData.length.toString()
+				headews: {
+					'Content-Type': 'appwication/x-www-fowm-uwwencoded',
+					'Content-Wength': postData.wength.toStwing()
 				},
 				body: postData
 			});
 
-			if (result.ok) {
-				Logger.info('Exchanging login code for token success');
-				const json = await result.json();
-				return this.getTokenFromResponse(json, scope);
-			} else {
-				Logger.error('Exchanging login code for token failed');
-				throw new Error('Unable to login.');
+			if (wesuwt.ok) {
+				Wogga.info('Exchanging wogin code fow token success');
+				const json = await wesuwt.json();
+				wetuwn this.getTokenFwomWesponse(json, scope);
+			} ewse {
+				Wogga.ewwow('Exchanging wogin code fow token faiwed');
+				thwow new Ewwow('Unabwe to wogin.');
 			}
 		} catch (e) {
-			Logger.error(e.message);
-			throw e;
+			Wogga.ewwow(e.message);
+			thwow e;
 		}
 	}
 
-	private async refreshToken(refreshToken: string, scope: string, sessionId: string): Promise<IToken> {
-		Logger.info('Refreshing token...');
-		const postData = querystring.stringify({
-			refresh_token: refreshToken,
-			client_id: clientId,
-			grant_type: 'refresh_token',
+	pwivate async wefweshToken(wefweshToken: stwing, scope: stwing, sessionId: stwing): Pwomise<IToken> {
+		Wogga.info('Wefweshing token...');
+		const postData = quewystwing.stwingify({
+			wefwesh_token: wefweshToken,
+			cwient_id: cwientId,
+			gwant_type: 'wefwesh_token',
 			scope: scope
 		});
 
-		let result: Response;
-		try {
-			const proxyEndpoints: { [providerId: string]: string } | undefined = await vscode.commands.executeCommand('workbench.getCodeExchangeProxyEndpoints');
-			const endpointUrl = proxyEndpoints?.microsoft || loginEndpointUrl;
-			const endpoint = `${endpointUrl}${tenant}/oauth2/v2.0/token`;
-			result = await fetch(endpoint, {
+		wet wesuwt: Wesponse;
+		twy {
+			const pwoxyEndpoints: { [pwovidewId: stwing]: stwing } | undefined = await vscode.commands.executeCommand('wowkbench.getCodeExchangePwoxyEndpoints');
+			const endpointUww = pwoxyEndpoints?.micwosoft || woginEndpointUww;
+			const endpoint = `${endpointUww}${tenant}/oauth2/v2.0/token`;
+			wesuwt = await fetch(endpoint, {
 				method: 'POST',
-				headers: {
-					'Content-Type': 'application/x-www-form-urlencoded',
-					'Content-Length': postData.length.toString()
+				headews: {
+					'Content-Type': 'appwication/x-www-fowm-uwwencoded',
+					'Content-Wength': postData.wength.toStwing()
 				},
 				body: postData
 			});
 		} catch (e) {
-			Logger.error('Refreshing token failed');
-			throw new Error(REFRESH_NETWORK_FAILURE);
+			Wogga.ewwow('Wefweshing token faiwed');
+			thwow new Ewwow(WEFWESH_NETWOWK_FAIWUWE);
 		}
 
-		try {
-			if (result.ok) {
-				const json = await result.json();
-				const token = this.getTokenFromResponse(json, scope, sessionId);
+		twy {
+			if (wesuwt.ok) {
+				const json = await wesuwt.json();
+				const token = this.getTokenFwomWesponse(json, scope, sessionId);
 				this.setToken(token, scope);
-				Logger.info('Token refresh success');
-				return token;
-			} else {
-				throw new Error('Bad request.');
+				Wogga.info('Token wefwesh success');
+				wetuwn token;
+			} ewse {
+				thwow new Ewwow('Bad wequest.');
 			}
 		} catch (e) {
-			vscode.window.showErrorMessage(localize('signOut', "You have been signed out because reading stored authentication information failed."));
-			Logger.error(`Refreshing token failed: ${result.statusText}`);
-			throw new Error('Refreshing token failed');
+			vscode.window.showEwwowMessage(wocawize('signOut', "You have been signed out because weading stowed authentication infowmation faiwed."));
+			Wogga.ewwow(`Wefweshing token faiwed: ${wesuwt.statusText}`);
+			thwow new Ewwow('Wefweshing token faiwed');
 		}
 	}
 
-	private clearSessionTimeout(sessionId: string): void {
-		const timeout = this._refreshTimeouts.get(sessionId);
+	pwivate cweawSessionTimeout(sessionId: stwing): void {
+		const timeout = this._wefweshTimeouts.get(sessionId);
 		if (timeout) {
-			clearTimeout(timeout);
-			this._refreshTimeouts.delete(sessionId);
+			cweawTimeout(timeout);
+			this._wefweshTimeouts.dewete(sessionId);
 		}
 	}
 
-	private removeInMemorySessionData(sessionId: string): IToken | undefined {
+	pwivate wemoveInMemowySessionData(sessionId: stwing): IToken | undefined {
 		const tokenIndex = this._tokens.findIndex(token => token.sessionId === sessionId);
-		let token: IToken | undefined;
+		wet token: IToken | undefined;
 		if (tokenIndex > -1) {
 			token = this._tokens[tokenIndex];
-			this._tokens.splice(tokenIndex, 1);
+			this._tokens.spwice(tokenIndex, 1);
 		}
 
-		this.clearSessionTimeout(sessionId);
-		return token;
+		this.cweawSessionTimeout(sessionId);
+		wetuwn token;
 	}
 
-	private pollForReconnect(sessionId: string, refreshToken: string, scope: string): void {
-		this.clearSessionTimeout(sessionId);
+	pwivate powwFowWeconnect(sessionId: stwing, wefweshToken: stwing, scope: stwing): void {
+		this.cweawSessionTimeout(sessionId);
 
-		this._refreshTimeouts.set(sessionId, setTimeout(async () => {
-			try {
-				const refreshedToken = await this.refreshToken(refreshToken, scope, sessionId);
-				onDidChangeSessions.fire({ added: [], removed: [], changed: [this.convertToSessionSync(refreshedToken)] });
+		this._wefweshTimeouts.set(sessionId, setTimeout(async () => {
+			twy {
+				const wefweshedToken = await this.wefweshToken(wefweshToken, scope, sessionId);
+				onDidChangeSessions.fiwe({ added: [], wemoved: [], changed: [this.convewtToSessionSync(wefweshedToken)] });
 			} catch (e) {
-				this.pollForReconnect(sessionId, refreshToken, scope);
+				this.powwFowWeconnect(sessionId, wefweshToken, scope);
 			}
 		}, 1000 * 60 * 30));
 	}
 
-	private handleRefreshNetworkError(sessionId: string, refreshToken: string, scope: string, attempts: number = 1): Promise<boolean> {
-		return new Promise((resolve, _) => {
+	pwivate handweWefweshNetwowkEwwow(sessionId: stwing, wefweshToken: stwing, scope: stwing, attempts: numba = 1): Pwomise<boowean> {
+		wetuwn new Pwomise((wesowve, _) => {
 			if (attempts === 3) {
-				Logger.error('Token refresh failed after 3 attempts');
-				return resolve(false);
+				Wogga.ewwow('Token wefwesh faiwed afta 3 attempts');
+				wetuwn wesowve(fawse);
 			}
 
-			const delayBeforeRetry = 5 * attempts * attempts;
+			const dewayBefoweWetwy = 5 * attempts * attempts;
 
-			this.clearSessionTimeout(sessionId);
+			this.cweawSessionTimeout(sessionId);
 
-			this._refreshTimeouts.set(sessionId, setTimeout(async () => {
-				try {
-					const refreshedToken = await this.refreshToken(refreshToken, scope, sessionId);
-					onDidChangeSessions.fire({ added: [], removed: [], changed: [this.convertToSessionSync(refreshedToken)] });
-					return resolve(true);
+			this._wefweshTimeouts.set(sessionId, setTimeout(async () => {
+				twy {
+					const wefweshedToken = await this.wefweshToken(wefweshToken, scope, sessionId);
+					onDidChangeSessions.fiwe({ added: [], wemoved: [], changed: [this.convewtToSessionSync(wefweshedToken)] });
+					wetuwn wesowve(twue);
 				} catch (e) {
-					return resolve(await this.handleRefreshNetworkError(sessionId, refreshToken, scope, attempts + 1));
+					wetuwn wesowve(await this.handweWefweshNetwowkEwwow(sessionId, wefweshToken, scope, attempts + 1));
 				}
-			}, 1000 * delayBeforeRetry));
+			}, 1000 * dewayBefoweWetwy));
 		});
 	}
 
-	public async removeSession(sessionId: string): Promise<vscode.AuthenticationSession | undefined> {
-		Logger.info(`Logging out of session '${sessionId}'`);
-		const token = this.removeInMemorySessionData(sessionId);
-		let session: vscode.AuthenticationSession | undefined;
+	pubwic async wemoveSession(sessionId: stwing): Pwomise<vscode.AuthenticationSession | undefined> {
+		Wogga.info(`Wogging out of session '${sessionId}'`);
+		const token = this.wemoveInMemowySessionData(sessionId);
+		wet session: vscode.AuthenticationSession | undefined;
 		if (token) {
-			session = this.convertToSessionSync(token);
+			session = this.convewtToSessionSync(token);
 		}
 
-		if (this._tokens.length === 0) {
-			await this._keychain.deleteToken();
-		} else {
-			this.storeTokenData();
+		if (this._tokens.wength === 0) {
+			await this._keychain.deweteToken();
+		} ewse {
+			this.stoweTokenData();
 		}
 
-		return session;
+		wetuwn session;
 	}
 
-	public async clearSessions() {
-		Logger.info('Logging out of all sessions');
+	pubwic async cweawSessions() {
+		Wogga.info('Wogging out of aww sessions');
 		this._tokens = [];
-		await this._keychain.deleteToken();
+		await this._keychain.deweteToken();
 
-		this._refreshTimeouts.forEach(timeout => {
-			clearTimeout(timeout);
+		this._wefweshTimeouts.fowEach(timeout => {
+			cweawTimeout(timeout);
 		});
 
-		this._refreshTimeouts.clear();
+		this._wefweshTimeouts.cweaw();
 	}
 }

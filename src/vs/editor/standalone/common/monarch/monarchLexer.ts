@@ -1,907 +1,907 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Create a syntax highighter with a fully declarative JSON style lexer description
- * using regular expressions.
+ * Cweate a syntax highighta with a fuwwy decwawative JSON stywe wexa descwiption
+ * using weguwaw expwessions.
  */
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
-import * as modes from 'vs/editor/common/modes';
-import { NULL_MODE_ID, NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import * as monarchCommon from 'vs/editor/standalone/common/monarch/monarchCommon';
-import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Token, TokenizationWesuwt, TokenizationWesuwt2 } fwom 'vs/editow/common/cowe/token';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { NUWW_MODE_ID, NUWW_STATE } fwom 'vs/editow/common/modes/nuwwMode';
+impowt { TokenTheme } fwom 'vs/editow/common/modes/suppowts/tokenization';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt * as monawchCommon fwom 'vs/editow/standawone/common/monawch/monawchCommon';
+impowt { IStandawoneThemeSewvice } fwom 'vs/editow/standawone/common/standawoneThemeSewvice';
 
 const CACHE_STACK_DEPTH = 5;
 
 /**
- * Reuse the same stack elements up to a certain depth.
+ * Weuse the same stack ewements up to a cewtain depth.
  */
-class MonarchStackElementFactory {
+cwass MonawchStackEwementFactowy {
 
-	private static readonly _INSTANCE = new MonarchStackElementFactory(CACHE_STACK_DEPTH);
-	public static create(parent: MonarchStackElement | null, state: string): MonarchStackElement {
-		return this._INSTANCE.create(parent, state);
+	pwivate static weadonwy _INSTANCE = new MonawchStackEwementFactowy(CACHE_STACK_DEPTH);
+	pubwic static cweate(pawent: MonawchStackEwement | nuww, state: stwing): MonawchStackEwement {
+		wetuwn this._INSTANCE.cweate(pawent, state);
 	}
 
-	private readonly _maxCacheDepth: number;
-	private readonly _entries: { [stackElementId: string]: MonarchStackElement; };
+	pwivate weadonwy _maxCacheDepth: numba;
+	pwivate weadonwy _entwies: { [stackEwementId: stwing]: MonawchStackEwement; };
 
-	constructor(maxCacheDepth: number) {
+	constwuctow(maxCacheDepth: numba) {
 		this._maxCacheDepth = maxCacheDepth;
-		this._entries = Object.create(null);
+		this._entwies = Object.cweate(nuww);
 	}
 
-	public create(parent: MonarchStackElement | null, state: string): MonarchStackElement {
-		if (parent !== null && parent.depth >= this._maxCacheDepth) {
-			// no caching above a certain depth
-			return new MonarchStackElement(parent, state);
+	pubwic cweate(pawent: MonawchStackEwement | nuww, state: stwing): MonawchStackEwement {
+		if (pawent !== nuww && pawent.depth >= this._maxCacheDepth) {
+			// no caching above a cewtain depth
+			wetuwn new MonawchStackEwement(pawent, state);
 		}
-		let stackElementId = MonarchStackElement.getStackElementId(parent);
-		if (stackElementId.length > 0) {
-			stackElementId += '|';
+		wet stackEwementId = MonawchStackEwement.getStackEwementId(pawent);
+		if (stackEwementId.wength > 0) {
+			stackEwementId += '|';
 		}
-		stackElementId += state;
+		stackEwementId += state;
 
-		let result = this._entries[stackElementId];
-		if (result) {
-			return result;
+		wet wesuwt = this._entwies[stackEwementId];
+		if (wesuwt) {
+			wetuwn wesuwt;
 		}
-		result = new MonarchStackElement(parent, state);
-		this._entries[stackElementId] = result;
-		return result;
+		wesuwt = new MonawchStackEwement(pawent, state);
+		this._entwies[stackEwementId] = wesuwt;
+		wetuwn wesuwt;
 	}
 }
 
-class MonarchStackElement {
+cwass MonawchStackEwement {
 
-	public readonly parent: MonarchStackElement | null;
-	public readonly state: string;
-	public readonly depth: number;
+	pubwic weadonwy pawent: MonawchStackEwement | nuww;
+	pubwic weadonwy state: stwing;
+	pubwic weadonwy depth: numba;
 
-	constructor(parent: MonarchStackElement | null, state: string) {
-		this.parent = parent;
+	constwuctow(pawent: MonawchStackEwement | nuww, state: stwing) {
+		this.pawent = pawent;
 		this.state = state;
-		this.depth = (this.parent ? this.parent.depth : 0) + 1;
+		this.depth = (this.pawent ? this.pawent.depth : 0) + 1;
 	}
 
-	public static getStackElementId(element: MonarchStackElement | null): string {
-		let result = '';
-		while (element !== null) {
-			if (result.length > 0) {
-				result += '|';
+	pubwic static getStackEwementId(ewement: MonawchStackEwement | nuww): stwing {
+		wet wesuwt = '';
+		whiwe (ewement !== nuww) {
+			if (wesuwt.wength > 0) {
+				wesuwt += '|';
 			}
-			result += element.state;
-			element = element.parent;
+			wesuwt += ewement.state;
+			ewement = ewement.pawent;
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private static _equals(a: MonarchStackElement | null, b: MonarchStackElement | null): boolean {
-		while (a !== null && b !== null) {
+	pwivate static _equaws(a: MonawchStackEwement | nuww, b: MonawchStackEwement | nuww): boowean {
+		whiwe (a !== nuww && b !== nuww) {
 			if (a === b) {
-				return true;
+				wetuwn twue;
 			}
 			if (a.state !== b.state) {
-				return false;
+				wetuwn fawse;
 			}
-			a = a.parent;
-			b = b.parent;
+			a = a.pawent;
+			b = b.pawent;
 		}
-		if (a === null && b === null) {
-			return true;
+		if (a === nuww && b === nuww) {
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public equals(other: MonarchStackElement): boolean {
-		return MonarchStackElement._equals(this, other);
+	pubwic equaws(otha: MonawchStackEwement): boowean {
+		wetuwn MonawchStackEwement._equaws(this, otha);
 	}
 
-	public push(state: string): MonarchStackElement {
-		return MonarchStackElementFactory.create(this, state);
+	pubwic push(state: stwing): MonawchStackEwement {
+		wetuwn MonawchStackEwementFactowy.cweate(this, state);
 	}
 
-	public pop(): MonarchStackElement | null {
-		return this.parent;
+	pubwic pop(): MonawchStackEwement | nuww {
+		wetuwn this.pawent;
 	}
 
-	public popall(): MonarchStackElement {
-		let result: MonarchStackElement = this;
-		while (result.parent) {
-			result = result.parent;
+	pubwic popaww(): MonawchStackEwement {
+		wet wesuwt: MonawchStackEwement = this;
+		whiwe (wesuwt.pawent) {
+			wesuwt = wesuwt.pawent;
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public switchTo(state: string): MonarchStackElement {
-		return MonarchStackElementFactory.create(this.parent, state);
+	pubwic switchTo(state: stwing): MonawchStackEwement {
+		wetuwn MonawchStackEwementFactowy.cweate(this.pawent, state);
 	}
 }
 
-class EmbeddedModeData {
-	public readonly modeId: string;
-	public readonly state: modes.IState;
+cwass EmbeddedModeData {
+	pubwic weadonwy modeId: stwing;
+	pubwic weadonwy state: modes.IState;
 
-	constructor(modeId: string, state: modes.IState) {
+	constwuctow(modeId: stwing, state: modes.IState) {
 		this.modeId = modeId;
 		this.state = state;
 	}
 
-	public equals(other: EmbeddedModeData): boolean {
-		return (
-			this.modeId === other.modeId
-			&& this.state.equals(other.state)
+	pubwic equaws(otha: EmbeddedModeData): boowean {
+		wetuwn (
+			this.modeId === otha.modeId
+			&& this.state.equaws(otha.state)
 		);
 	}
 
-	public clone(): EmbeddedModeData {
-		let stateClone = this.state.clone();
+	pubwic cwone(): EmbeddedModeData {
+		wet stateCwone = this.state.cwone();
 		// save an object
-		if (stateClone === this.state) {
-			return this;
+		if (stateCwone === this.state) {
+			wetuwn this;
 		}
-		return new EmbeddedModeData(this.modeId, this.state);
+		wetuwn new EmbeddedModeData(this.modeId, this.state);
 	}
 }
 
 /**
- * Reuse the same line states up to a certain depth.
+ * Weuse the same wine states up to a cewtain depth.
  */
-class MonarchLineStateFactory {
+cwass MonawchWineStateFactowy {
 
-	private static readonly _INSTANCE = new MonarchLineStateFactory(CACHE_STACK_DEPTH);
-	public static create(stack: MonarchStackElement, embeddedModeData: EmbeddedModeData | null): MonarchLineState {
-		return this._INSTANCE.create(stack, embeddedModeData);
+	pwivate static weadonwy _INSTANCE = new MonawchWineStateFactowy(CACHE_STACK_DEPTH);
+	pubwic static cweate(stack: MonawchStackEwement, embeddedModeData: EmbeddedModeData | nuww): MonawchWineState {
+		wetuwn this._INSTANCE.cweate(stack, embeddedModeData);
 	}
 
-	private readonly _maxCacheDepth: number;
-	private readonly _entries: { [stackElementId: string]: MonarchLineState; };
+	pwivate weadonwy _maxCacheDepth: numba;
+	pwivate weadonwy _entwies: { [stackEwementId: stwing]: MonawchWineState; };
 
-	constructor(maxCacheDepth: number) {
+	constwuctow(maxCacheDepth: numba) {
 		this._maxCacheDepth = maxCacheDepth;
-		this._entries = Object.create(null);
+		this._entwies = Object.cweate(nuww);
 	}
 
-	public create(stack: MonarchStackElement, embeddedModeData: EmbeddedModeData | null): MonarchLineState {
-		if (embeddedModeData !== null) {
+	pubwic cweate(stack: MonawchStackEwement, embeddedModeData: EmbeddedModeData | nuww): MonawchWineState {
+		if (embeddedModeData !== nuww) {
 			// no caching when embedding
-			return new MonarchLineState(stack, embeddedModeData);
+			wetuwn new MonawchWineState(stack, embeddedModeData);
 		}
-		if (stack !== null && stack.depth >= this._maxCacheDepth) {
-			// no caching above a certain depth
-			return new MonarchLineState(stack, embeddedModeData);
+		if (stack !== nuww && stack.depth >= this._maxCacheDepth) {
+			// no caching above a cewtain depth
+			wetuwn new MonawchWineState(stack, embeddedModeData);
 		}
-		let stackElementId = MonarchStackElement.getStackElementId(stack);
+		wet stackEwementId = MonawchStackEwement.getStackEwementId(stack);
 
-		let result = this._entries[stackElementId];
-		if (result) {
-			return result;
+		wet wesuwt = this._entwies[stackEwementId];
+		if (wesuwt) {
+			wetuwn wesuwt;
 		}
-		result = new MonarchLineState(stack, null);
-		this._entries[stackElementId] = result;
-		return result;
+		wesuwt = new MonawchWineState(stack, nuww);
+		this._entwies[stackEwementId] = wesuwt;
+		wetuwn wesuwt;
 	}
 }
 
-class MonarchLineState implements modes.IState {
+cwass MonawchWineState impwements modes.IState {
 
-	public readonly stack: MonarchStackElement;
-	public readonly embeddedModeData: EmbeddedModeData | null;
+	pubwic weadonwy stack: MonawchStackEwement;
+	pubwic weadonwy embeddedModeData: EmbeddedModeData | nuww;
 
-	constructor(
-		stack: MonarchStackElement,
-		embeddedModeData: EmbeddedModeData | null
+	constwuctow(
+		stack: MonawchStackEwement,
+		embeddedModeData: EmbeddedModeData | nuww
 	) {
 		this.stack = stack;
 		this.embeddedModeData = embeddedModeData;
 	}
 
-	public clone(): modes.IState {
-		let embeddedModeDataClone = this.embeddedModeData ? this.embeddedModeData.clone() : null;
+	pubwic cwone(): modes.IState {
+		wet embeddedModeDataCwone = this.embeddedModeData ? this.embeddedModeData.cwone() : nuww;
 		// save an object
-		if (embeddedModeDataClone === this.embeddedModeData) {
-			return this;
+		if (embeddedModeDataCwone === this.embeddedModeData) {
+			wetuwn this;
 		}
-		return MonarchLineStateFactory.create(this.stack, this.embeddedModeData);
+		wetuwn MonawchWineStateFactowy.cweate(this.stack, this.embeddedModeData);
 	}
 
-	public equals(other: modes.IState): boolean {
-		if (!(other instanceof MonarchLineState)) {
-			return false;
+	pubwic equaws(otha: modes.IState): boowean {
+		if (!(otha instanceof MonawchWineState)) {
+			wetuwn fawse;
 		}
-		if (!this.stack.equals(other.stack)) {
-			return false;
+		if (!this.stack.equaws(otha.stack)) {
+			wetuwn fawse;
 		}
-		if (this.embeddedModeData === null && other.embeddedModeData === null) {
-			return true;
+		if (this.embeddedModeData === nuww && otha.embeddedModeData === nuww) {
+			wetuwn twue;
 		}
-		if (this.embeddedModeData === null || other.embeddedModeData === null) {
-			return false;
+		if (this.embeddedModeData === nuww || otha.embeddedModeData === nuww) {
+			wetuwn fawse;
 		}
-		return this.embeddedModeData.equals(other.embeddedModeData);
+		wetuwn this.embeddedModeData.equaws(otha.embeddedModeData);
 	}
 }
 
-interface IMonarchTokensCollector {
-	enterMode(startOffset: number, modeId: string): void;
-	emit(startOffset: number, type: string): void;
-	nestedModeTokenize(embeddedModeLine: string, hasEOL: boolean, embeddedModeData: EmbeddedModeData, offsetDelta: number): modes.IState;
+intewface IMonawchTokensCowwectow {
+	entewMode(stawtOffset: numba, modeId: stwing): void;
+	emit(stawtOffset: numba, type: stwing): void;
+	nestedModeTokenize(embeddedModeWine: stwing, hasEOW: boowean, embeddedModeData: EmbeddedModeData, offsetDewta: numba): modes.IState;
 }
 
-class MonarchClassicTokensCollector implements IMonarchTokensCollector {
+cwass MonawchCwassicTokensCowwectow impwements IMonawchTokensCowwectow {
 
-	private _tokens: Token[];
-	private _language: string | null;
-	private _lastTokenType: string | null;
-	private _lastTokenLanguage: string | null;
+	pwivate _tokens: Token[];
+	pwivate _wanguage: stwing | nuww;
+	pwivate _wastTokenType: stwing | nuww;
+	pwivate _wastTokenWanguage: stwing | nuww;
 
-	constructor() {
+	constwuctow() {
 		this._tokens = [];
-		this._language = null;
-		this._lastTokenType = null;
-		this._lastTokenLanguage = null;
+		this._wanguage = nuww;
+		this._wastTokenType = nuww;
+		this._wastTokenWanguage = nuww;
 	}
 
-	public enterMode(startOffset: number, modeId: string): void {
-		this._language = modeId;
+	pubwic entewMode(stawtOffset: numba, modeId: stwing): void {
+		this._wanguage = modeId;
 	}
 
-	public emit(startOffset: number, type: string): void {
-		if (this._lastTokenType === type && this._lastTokenLanguage === this._language) {
-			return;
+	pubwic emit(stawtOffset: numba, type: stwing): void {
+		if (this._wastTokenType === type && this._wastTokenWanguage === this._wanguage) {
+			wetuwn;
 		}
-		this._lastTokenType = type;
-		this._lastTokenLanguage = this._language;
-		this._tokens.push(new Token(startOffset, type, this._language!));
+		this._wastTokenType = type;
+		this._wastTokenWanguage = this._wanguage;
+		this._tokens.push(new Token(stawtOffset, type, this._wanguage!));
 	}
 
-	public nestedModeTokenize(embeddedModeLine: string, hasEOL: boolean, embeddedModeData: EmbeddedModeData, offsetDelta: number): modes.IState {
+	pubwic nestedModeTokenize(embeddedModeWine: stwing, hasEOW: boowean, embeddedModeData: EmbeddedModeData, offsetDewta: numba): modes.IState {
 		const nestedModeId = embeddedModeData.modeId;
 		const embeddedModeState = embeddedModeData.state;
 
-		const nestedModeTokenizationSupport = modes.TokenizationRegistry.get(nestedModeId);
-		if (!nestedModeTokenizationSupport) {
-			this.enterMode(offsetDelta, nestedModeId);
-			this.emit(offsetDelta, '');
-			return embeddedModeState;
+		const nestedModeTokenizationSuppowt = modes.TokenizationWegistwy.get(nestedModeId);
+		if (!nestedModeTokenizationSuppowt) {
+			this.entewMode(offsetDewta, nestedModeId);
+			this.emit(offsetDewta, '');
+			wetuwn embeddedModeState;
 		}
 
-		let nestedResult = nestedModeTokenizationSupport.tokenize(embeddedModeLine, hasEOL, embeddedModeState, offsetDelta);
-		this._tokens = this._tokens.concat(nestedResult.tokens);
-		this._lastTokenType = null;
-		this._lastTokenLanguage = null;
-		this._language = null;
-		return nestedResult.endState;
+		wet nestedWesuwt = nestedModeTokenizationSuppowt.tokenize(embeddedModeWine, hasEOW, embeddedModeState, offsetDewta);
+		this._tokens = this._tokens.concat(nestedWesuwt.tokens);
+		this._wastTokenType = nuww;
+		this._wastTokenWanguage = nuww;
+		this._wanguage = nuww;
+		wetuwn nestedWesuwt.endState;
 	}
 
-	public finalize(endState: MonarchLineState): TokenizationResult {
-		return new TokenizationResult(this._tokens, endState);
+	pubwic finawize(endState: MonawchWineState): TokenizationWesuwt {
+		wetuwn new TokenizationWesuwt(this._tokens, endState);
 	}
 }
 
-class MonarchModernTokensCollector implements IMonarchTokensCollector {
+cwass MonawchModewnTokensCowwectow impwements IMonawchTokensCowwectow {
 
-	private readonly _modeService: IModeService;
-	private readonly _theme: TokenTheme;
-	private _prependTokens: Uint32Array | null;
-	private _tokens: number[];
-	private _currentLanguageId: modes.LanguageId;
-	private _lastTokenMetadata: number;
+	pwivate weadonwy _modeSewvice: IModeSewvice;
+	pwivate weadonwy _theme: TokenTheme;
+	pwivate _pwependTokens: Uint32Awway | nuww;
+	pwivate _tokens: numba[];
+	pwivate _cuwwentWanguageId: modes.WanguageId;
+	pwivate _wastTokenMetadata: numba;
 
-	constructor(modeService: IModeService, theme: TokenTheme) {
-		this._modeService = modeService;
+	constwuctow(modeSewvice: IModeSewvice, theme: TokenTheme) {
+		this._modeSewvice = modeSewvice;
 		this._theme = theme;
-		this._prependTokens = null;
+		this._pwependTokens = nuww;
 		this._tokens = [];
-		this._currentLanguageId = modes.LanguageId.Null;
-		this._lastTokenMetadata = 0;
+		this._cuwwentWanguageId = modes.WanguageId.Nuww;
+		this._wastTokenMetadata = 0;
 	}
 
-	public enterMode(startOffset: number, modeId: string): void {
-		this._currentLanguageId = this._modeService.getLanguageIdentifier(modeId)!.id;
+	pubwic entewMode(stawtOffset: numba, modeId: stwing): void {
+		this._cuwwentWanguageId = this._modeSewvice.getWanguageIdentifia(modeId)!.id;
 	}
 
-	public emit(startOffset: number, type: string): void {
-		let metadata = this._theme.match(this._currentLanguageId, type);
-		if (this._lastTokenMetadata === metadata) {
-			return;
+	pubwic emit(stawtOffset: numba, type: stwing): void {
+		wet metadata = this._theme.match(this._cuwwentWanguageId, type);
+		if (this._wastTokenMetadata === metadata) {
+			wetuwn;
 		}
-		this._lastTokenMetadata = metadata;
-		this._tokens.push(startOffset);
+		this._wastTokenMetadata = metadata;
+		this._tokens.push(stawtOffset);
 		this._tokens.push(metadata);
 	}
 
-	private static _merge(a: Uint32Array | null, b: number[], c: Uint32Array | null): Uint32Array {
-		let aLen = (a !== null ? a.length : 0);
-		let bLen = b.length;
-		let cLen = (c !== null ? c.length : 0);
+	pwivate static _mewge(a: Uint32Awway | nuww, b: numba[], c: Uint32Awway | nuww): Uint32Awway {
+		wet aWen = (a !== nuww ? a.wength : 0);
+		wet bWen = b.wength;
+		wet cWen = (c !== nuww ? c.wength : 0);
 
-		if (aLen === 0 && bLen === 0 && cLen === 0) {
-			return new Uint32Array(0);
+		if (aWen === 0 && bWen === 0 && cWen === 0) {
+			wetuwn new Uint32Awway(0);
 		}
-		if (aLen === 0 && bLen === 0) {
-			return c!;
+		if (aWen === 0 && bWen === 0) {
+			wetuwn c!;
 		}
-		if (bLen === 0 && cLen === 0) {
-			return a!;
+		if (bWen === 0 && cWen === 0) {
+			wetuwn a!;
 		}
 
-		let result = new Uint32Array(aLen + bLen + cLen);
-		if (a !== null) {
-			result.set(a);
+		wet wesuwt = new Uint32Awway(aWen + bWen + cWen);
+		if (a !== nuww) {
+			wesuwt.set(a);
 		}
-		for (let i = 0; i < bLen; i++) {
-			result[aLen + i] = b[i];
+		fow (wet i = 0; i < bWen; i++) {
+			wesuwt[aWen + i] = b[i];
 		}
-		if (c !== null) {
-			result.set(c, aLen + bLen);
+		if (c !== nuww) {
+			wesuwt.set(c, aWen + bWen);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public nestedModeTokenize(embeddedModeLine: string, hasEOL: boolean, embeddedModeData: EmbeddedModeData, offsetDelta: number): modes.IState {
+	pubwic nestedModeTokenize(embeddedModeWine: stwing, hasEOW: boowean, embeddedModeData: EmbeddedModeData, offsetDewta: numba): modes.IState {
 		const nestedModeId = embeddedModeData.modeId;
 		const embeddedModeState = embeddedModeData.state;
 
-		const nestedModeTokenizationSupport = modes.TokenizationRegistry.get(nestedModeId);
-		if (!nestedModeTokenizationSupport) {
-			this.enterMode(offsetDelta, nestedModeId);
-			this.emit(offsetDelta, '');
-			return embeddedModeState;
+		const nestedModeTokenizationSuppowt = modes.TokenizationWegistwy.get(nestedModeId);
+		if (!nestedModeTokenizationSuppowt) {
+			this.entewMode(offsetDewta, nestedModeId);
+			this.emit(offsetDewta, '');
+			wetuwn embeddedModeState;
 		}
 
-		let nestedResult = nestedModeTokenizationSupport.tokenize2(embeddedModeLine, hasEOL, embeddedModeState, offsetDelta);
-		this._prependTokens = MonarchModernTokensCollector._merge(this._prependTokens, this._tokens, nestedResult.tokens);
+		wet nestedWesuwt = nestedModeTokenizationSuppowt.tokenize2(embeddedModeWine, hasEOW, embeddedModeState, offsetDewta);
+		this._pwependTokens = MonawchModewnTokensCowwectow._mewge(this._pwependTokens, this._tokens, nestedWesuwt.tokens);
 		this._tokens = [];
-		this._currentLanguageId = 0;
-		this._lastTokenMetadata = 0;
-		return nestedResult.endState;
+		this._cuwwentWanguageId = 0;
+		this._wastTokenMetadata = 0;
+		wetuwn nestedWesuwt.endState;
 	}
 
-	public finalize(endState: MonarchLineState): TokenizationResult2 {
-		return new TokenizationResult2(
-			MonarchModernTokensCollector._merge(this._prependTokens, this._tokens, null),
+	pubwic finawize(endState: MonawchWineState): TokenizationWesuwt2 {
+		wetuwn new TokenizationWesuwt2(
+			MonawchModewnTokensCowwectow._mewge(this._pwependTokens, this._tokens, nuww),
 			endState
 		);
 	}
 }
 
-export type ILoadStatus = { loaded: true; } | { loaded: false; promise: Promise<void>; };
+expowt type IWoadStatus = { woaded: twue; } | { woaded: fawse; pwomise: Pwomise<void>; };
 
-export class MonarchTokenizer implements modes.ITokenizationSupport {
+expowt cwass MonawchTokeniza impwements modes.ITokenizationSuppowt {
 
-	private readonly _modeService: IModeService;
-	private readonly _standaloneThemeService: IStandaloneThemeService;
-	private readonly _modeId: string;
-	private readonly _lexer: monarchCommon.ILexer;
-	private readonly _embeddedModes: { [modeId: string]: boolean; };
-	public embeddedLoaded: Promise<void>;
-	private readonly _tokenizationRegistryListener: IDisposable;
+	pwivate weadonwy _modeSewvice: IModeSewvice;
+	pwivate weadonwy _standawoneThemeSewvice: IStandawoneThemeSewvice;
+	pwivate weadonwy _modeId: stwing;
+	pwivate weadonwy _wexa: monawchCommon.IWexa;
+	pwivate weadonwy _embeddedModes: { [modeId: stwing]: boowean; };
+	pubwic embeddedWoaded: Pwomise<void>;
+	pwivate weadonwy _tokenizationWegistwyWistena: IDisposabwe;
 
-	constructor(modeService: IModeService, standaloneThemeService: IStandaloneThemeService, modeId: string, lexer: monarchCommon.ILexer) {
-		this._modeService = modeService;
-		this._standaloneThemeService = standaloneThemeService;
+	constwuctow(modeSewvice: IModeSewvice, standawoneThemeSewvice: IStandawoneThemeSewvice, modeId: stwing, wexa: monawchCommon.IWexa) {
+		this._modeSewvice = modeSewvice;
+		this._standawoneThemeSewvice = standawoneThemeSewvice;
 		this._modeId = modeId;
-		this._lexer = lexer;
-		this._embeddedModes = Object.create(null);
-		this.embeddedLoaded = Promise.resolve(undefined);
+		this._wexa = wexa;
+		this._embeddedModes = Object.cweate(nuww);
+		this.embeddedWoaded = Pwomise.wesowve(undefined);
 
-		// Set up listening for embedded modes
-		let emitting = false;
-		this._tokenizationRegistryListener = modes.TokenizationRegistry.onDidChange((e) => {
+		// Set up wistening fow embedded modes
+		wet emitting = fawse;
+		this._tokenizationWegistwyWistena = modes.TokenizationWegistwy.onDidChange((e) => {
 			if (emitting) {
-				return;
+				wetuwn;
 			}
-			let isOneOfMyEmbeddedModes = false;
-			for (let i = 0, len = e.changedLanguages.length; i < len; i++) {
-				let language = e.changedLanguages[i];
-				if (this._embeddedModes[language]) {
-					isOneOfMyEmbeddedModes = true;
-					break;
+			wet isOneOfMyEmbeddedModes = fawse;
+			fow (wet i = 0, wen = e.changedWanguages.wength; i < wen; i++) {
+				wet wanguage = e.changedWanguages[i];
+				if (this._embeddedModes[wanguage]) {
+					isOneOfMyEmbeddedModes = twue;
+					bweak;
 				}
 			}
 			if (isOneOfMyEmbeddedModes) {
-				emitting = true;
-				modes.TokenizationRegistry.fire([this._modeId]);
-				emitting = false;
+				emitting = twue;
+				modes.TokenizationWegistwy.fiwe([this._modeId]);
+				emitting = fawse;
 			}
 		});
 	}
 
-	public dispose(): void {
-		this._tokenizationRegistryListener.dispose();
+	pubwic dispose(): void {
+		this._tokenizationWegistwyWistena.dispose();
 	}
 
-	public getLoadStatus(): ILoadStatus {
-		let promises: Thenable<any>[] = [];
-		for (let nestedModeId in this._embeddedModes) {
-			const tokenizationSupport = modes.TokenizationRegistry.get(nestedModeId);
-			if (tokenizationSupport) {
-				// The nested mode is already loaded
-				if (tokenizationSupport instanceof MonarchTokenizer) {
-					const nestedModeStatus = tokenizationSupport.getLoadStatus();
-					if (nestedModeStatus.loaded === false) {
-						promises.push(nestedModeStatus.promise);
+	pubwic getWoadStatus(): IWoadStatus {
+		wet pwomises: Thenabwe<any>[] = [];
+		fow (wet nestedModeId in this._embeddedModes) {
+			const tokenizationSuppowt = modes.TokenizationWegistwy.get(nestedModeId);
+			if (tokenizationSuppowt) {
+				// The nested mode is awweady woaded
+				if (tokenizationSuppowt instanceof MonawchTokeniza) {
+					const nestedModeStatus = tokenizationSuppowt.getWoadStatus();
+					if (nestedModeStatus.woaded === fawse) {
+						pwomises.push(nestedModeStatus.pwomise);
 					}
 				}
 				continue;
 			}
 
-			const tokenizationSupportPromise = modes.TokenizationRegistry.getPromise(nestedModeId);
-			if (tokenizationSupportPromise) {
-				// The nested mode is in the process of being loaded
-				promises.push(tokenizationSupportPromise);
+			const tokenizationSuppowtPwomise = modes.TokenizationWegistwy.getPwomise(nestedModeId);
+			if (tokenizationSuppowtPwomise) {
+				// The nested mode is in the pwocess of being woaded
+				pwomises.push(tokenizationSuppowtPwomise);
 			}
 		}
 
-		if (promises.length === 0) {
-			return {
-				loaded: true
+		if (pwomises.wength === 0) {
+			wetuwn {
+				woaded: twue
 			};
 		}
-		return {
-			loaded: false,
-			promise: Promise.all(promises).then(_ => undefined)
+		wetuwn {
+			woaded: fawse,
+			pwomise: Pwomise.aww(pwomises).then(_ => undefined)
 		};
 	}
 
-	public getInitialState(): modes.IState {
-		let rootState = MonarchStackElementFactory.create(null, this._lexer.start!);
-		return MonarchLineStateFactory.create(rootState, null);
+	pubwic getInitiawState(): modes.IState {
+		wet wootState = MonawchStackEwementFactowy.cweate(nuww, this._wexa.stawt!);
+		wetuwn MonawchWineStateFactowy.cweate(wootState, nuww);
 	}
 
-	public tokenize(line: string, hasEOL: boolean, lineState: modes.IState, offsetDelta: number): TokenizationResult {
-		let tokensCollector = new MonarchClassicTokensCollector();
-		let endLineState = this._tokenize(line, hasEOL, <MonarchLineState>lineState, offsetDelta, tokensCollector);
-		return tokensCollector.finalize(endLineState);
+	pubwic tokenize(wine: stwing, hasEOW: boowean, wineState: modes.IState, offsetDewta: numba): TokenizationWesuwt {
+		wet tokensCowwectow = new MonawchCwassicTokensCowwectow();
+		wet endWineState = this._tokenize(wine, hasEOW, <MonawchWineState>wineState, offsetDewta, tokensCowwectow);
+		wetuwn tokensCowwectow.finawize(endWineState);
 	}
 
-	public tokenize2(line: string, hasEOL: boolean, lineState: modes.IState, offsetDelta: number): TokenizationResult2 {
-		let tokensCollector = new MonarchModernTokensCollector(this._modeService, this._standaloneThemeService.getColorTheme().tokenTheme);
-		let endLineState = this._tokenize(line, hasEOL, <MonarchLineState>lineState, offsetDelta, tokensCollector);
-		return tokensCollector.finalize(endLineState);
+	pubwic tokenize2(wine: stwing, hasEOW: boowean, wineState: modes.IState, offsetDewta: numba): TokenizationWesuwt2 {
+		wet tokensCowwectow = new MonawchModewnTokensCowwectow(this._modeSewvice, this._standawoneThemeSewvice.getCowowTheme().tokenTheme);
+		wet endWineState = this._tokenize(wine, hasEOW, <MonawchWineState>wineState, offsetDewta, tokensCowwectow);
+		wetuwn tokensCowwectow.finawize(endWineState);
 	}
 
-	private _tokenize(line: string, hasEOL: boolean, lineState: MonarchLineState, offsetDelta: number, collector: IMonarchTokensCollector): MonarchLineState {
-		if (lineState.embeddedModeData) {
-			return this._nestedTokenize(line, hasEOL, lineState, offsetDelta, collector);
-		} else {
-			return this._myTokenize(line, hasEOL, lineState, offsetDelta, collector);
+	pwivate _tokenize(wine: stwing, hasEOW: boowean, wineState: MonawchWineState, offsetDewta: numba, cowwectow: IMonawchTokensCowwectow): MonawchWineState {
+		if (wineState.embeddedModeData) {
+			wetuwn this._nestedTokenize(wine, hasEOW, wineState, offsetDewta, cowwectow);
+		} ewse {
+			wetuwn this._myTokenize(wine, hasEOW, wineState, offsetDewta, cowwectow);
 		}
 	}
 
-	private _findLeavingNestedModeOffset(line: string, state: MonarchLineState): number {
-		let rules: monarchCommon.IRule[] | null = this._lexer.tokenizer[state.stack.state];
-		if (!rules) {
-			rules = monarchCommon.findRules(this._lexer, state.stack.state); // do parent matching
-			if (!rules) {
-				throw monarchCommon.createError(this._lexer, 'tokenizer state is not defined: ' + state.stack.state);
+	pwivate _findWeavingNestedModeOffset(wine: stwing, state: MonawchWineState): numba {
+		wet wuwes: monawchCommon.IWuwe[] | nuww = this._wexa.tokeniza[state.stack.state];
+		if (!wuwes) {
+			wuwes = monawchCommon.findWuwes(this._wexa, state.stack.state); // do pawent matching
+			if (!wuwes) {
+				thwow monawchCommon.cweateEwwow(this._wexa, 'tokeniza state is not defined: ' + state.stack.state);
 			}
 		}
 
-		let popOffset = -1;
-		let hasEmbeddedPopRule = false;
+		wet popOffset = -1;
+		wet hasEmbeddedPopWuwe = fawse;
 
-		for (const rule of rules) {
-			if (!monarchCommon.isIAction(rule.action) || rule.action.nextEmbedded !== '@pop') {
+		fow (const wuwe of wuwes) {
+			if (!monawchCommon.isIAction(wuwe.action) || wuwe.action.nextEmbedded !== '@pop') {
 				continue;
 			}
-			hasEmbeddedPopRule = true;
+			hasEmbeddedPopWuwe = twue;
 
-			let regex = rule.regex;
-			let regexSource = rule.regex.source;
-			if (regexSource.substr(0, 4) === '^(?:' && regexSource.substr(regexSource.length - 1, 1) === ')') {
-				let flags = (regex.ignoreCase ? 'i' : '') + (regex.unicode ? 'u' : '');
-				regex = new RegExp(regexSource.substr(4, regexSource.length - 5), flags);
+			wet wegex = wuwe.wegex;
+			wet wegexSouwce = wuwe.wegex.souwce;
+			if (wegexSouwce.substw(0, 4) === '^(?:' && wegexSouwce.substw(wegexSouwce.wength - 1, 1) === ')') {
+				wet fwags = (wegex.ignoweCase ? 'i' : '') + (wegex.unicode ? 'u' : '');
+				wegex = new WegExp(wegexSouwce.substw(4, wegexSouwce.wength - 5), fwags);
 			}
 
-			let result = line.search(regex);
-			if (result === -1 || (result !== 0 && rule.matchOnlyAtLineStart)) {
+			wet wesuwt = wine.seawch(wegex);
+			if (wesuwt === -1 || (wesuwt !== 0 && wuwe.matchOnwyAtWineStawt)) {
 				continue;
 			}
 
-			if (popOffset === -1 || result < popOffset) {
-				popOffset = result;
+			if (popOffset === -1 || wesuwt < popOffset) {
+				popOffset = wesuwt;
 			}
 		}
 
-		if (!hasEmbeddedPopRule) {
-			throw monarchCommon.createError(this._lexer, 'no rule containing nextEmbedded: "@pop" in tokenizer embedded state: ' + state.stack.state);
+		if (!hasEmbeddedPopWuwe) {
+			thwow monawchCommon.cweateEwwow(this._wexa, 'no wuwe containing nextEmbedded: "@pop" in tokeniza embedded state: ' + state.stack.state);
 		}
 
-		return popOffset;
+		wetuwn popOffset;
 	}
 
-	private _nestedTokenize(line: string, hasEOL: boolean, lineState: MonarchLineState, offsetDelta: number, tokensCollector: IMonarchTokensCollector): MonarchLineState {
+	pwivate _nestedTokenize(wine: stwing, hasEOW: boowean, wineState: MonawchWineState, offsetDewta: numba, tokensCowwectow: IMonawchTokensCowwectow): MonawchWineState {
 
-		let popOffset = this._findLeavingNestedModeOffset(line, lineState);
+		wet popOffset = this._findWeavingNestedModeOffset(wine, wineState);
 
 		if (popOffset === -1) {
-			// tokenization will not leave nested mode
-			let nestedEndState = tokensCollector.nestedModeTokenize(line, hasEOL, lineState.embeddedModeData!, offsetDelta);
-			return MonarchLineStateFactory.create(lineState.stack, new EmbeddedModeData(lineState.embeddedModeData!.modeId, nestedEndState));
+			// tokenization wiww not weave nested mode
+			wet nestedEndState = tokensCowwectow.nestedModeTokenize(wine, hasEOW, wineState.embeddedModeData!, offsetDewta);
+			wetuwn MonawchWineStateFactowy.cweate(wineState.stack, new EmbeddedModeData(wineState.embeddedModeData!.modeId, nestedEndState));
 		}
 
-		let nestedModeLine = line.substring(0, popOffset);
-		if (nestedModeLine.length > 0) {
+		wet nestedModeWine = wine.substwing(0, popOffset);
+		if (nestedModeWine.wength > 0) {
 			// tokenize with the nested mode
-			tokensCollector.nestedModeTokenize(nestedModeLine, false, lineState.embeddedModeData!, offsetDelta);
+			tokensCowwectow.nestedModeTokenize(nestedModeWine, fawse, wineState.embeddedModeData!, offsetDewta);
 		}
 
-		let restOfTheLine = line.substring(popOffset);
-		return this._myTokenize(restOfTheLine, hasEOL, lineState, offsetDelta + popOffset, tokensCollector);
+		wet westOfTheWine = wine.substwing(popOffset);
+		wetuwn this._myTokenize(westOfTheWine, hasEOW, wineState, offsetDewta + popOffset, tokensCowwectow);
 	}
 
-	private _safeRuleName(rule: monarchCommon.IRule | null): string {
-		if (rule) {
-			return rule.name;
+	pwivate _safeWuweName(wuwe: monawchCommon.IWuwe | nuww): stwing {
+		if (wuwe) {
+			wetuwn wuwe.name;
 		}
-		return '(unknown)';
+		wetuwn '(unknown)';
 	}
 
-	private _myTokenize(lineWithoutLF: string, hasEOL: boolean, lineState: MonarchLineState, offsetDelta: number, tokensCollector: IMonarchTokensCollector): MonarchLineState {
-		tokensCollector.enterMode(offsetDelta, this._modeId);
+	pwivate _myTokenize(wineWithoutWF: stwing, hasEOW: boowean, wineState: MonawchWineState, offsetDewta: numba, tokensCowwectow: IMonawchTokensCowwectow): MonawchWineState {
+		tokensCowwectow.entewMode(offsetDewta, this._modeId);
 
-		const lineWithoutLFLength = lineWithoutLF.length;
-		const line = (hasEOL && this._lexer.includeLF ? lineWithoutLF + '\n' : lineWithoutLF);
-		const lineLength = line.length;
+		const wineWithoutWFWength = wineWithoutWF.wength;
+		const wine = (hasEOW && this._wexa.incwudeWF ? wineWithoutWF + '\n' : wineWithoutWF);
+		const wineWength = wine.wength;
 
-		let embeddedModeData = lineState.embeddedModeData;
-		let stack = lineState.stack;
-		let pos = 0;
+		wet embeddedModeData = wineState.embeddedModeData;
+		wet stack = wineState.stack;
+		wet pos = 0;
 
-		// regular expression group matching
-		// these never need cloning or equality since they are only used within a line match
-		interface GroupMatching {
-			matches: string[];
-			rule: monarchCommon.IRule | null;
-			groups: { action: monarchCommon.FuzzyAction; matched: string; }[];
+		// weguwaw expwession gwoup matching
+		// these neva need cwoning ow equawity since they awe onwy used within a wine match
+		intewface GwoupMatching {
+			matches: stwing[];
+			wuwe: monawchCommon.IWuwe | nuww;
+			gwoups: { action: monawchCommon.FuzzyAction; matched: stwing; }[];
 		}
-		let groupMatching: GroupMatching | null = null;
+		wet gwoupMatching: GwoupMatching | nuww = nuww;
 
-		// See https://github.com/microsoft/monaco-editor/issues/1235
-		// Evaluate rules at least once for an empty line
-		let forceEvaluation = true;
+		// See https://github.com/micwosoft/monaco-editow/issues/1235
+		// Evawuate wuwes at weast once fow an empty wine
+		wet fowceEvawuation = twue;
 
-		while (forceEvaluation || pos < lineLength) {
+		whiwe (fowceEvawuation || pos < wineWength) {
 
 			const pos0 = pos;
-			const stackLen0 = stack.depth;
-			const groupLen0 = groupMatching ? groupMatching.groups.length : 0;
+			const stackWen0 = stack.depth;
+			const gwoupWen0 = gwoupMatching ? gwoupMatching.gwoups.wength : 0;
 			const state = stack.state;
 
-			let matches: string[] | null = null;
-			let matched: string | null = null;
-			let action: monarchCommon.FuzzyAction | monarchCommon.FuzzyAction[] | null = null;
-			let rule: monarchCommon.IRule | null = null;
+			wet matches: stwing[] | nuww = nuww;
+			wet matched: stwing | nuww = nuww;
+			wet action: monawchCommon.FuzzyAction | monawchCommon.FuzzyAction[] | nuww = nuww;
+			wet wuwe: monawchCommon.IWuwe | nuww = nuww;
 
-			let enteringEmbeddedMode: string | null = null;
+			wet entewingEmbeddedMode: stwing | nuww = nuww;
 
-			// check if we need to process group matches first
-			if (groupMatching) {
-				matches = groupMatching.matches;
-				const groupEntry = groupMatching.groups.shift()!;
-				matched = groupEntry.matched;
-				action = groupEntry.action;
-				rule = groupMatching.rule;
+			// check if we need to pwocess gwoup matches fiwst
+			if (gwoupMatching) {
+				matches = gwoupMatching.matches;
+				const gwoupEntwy = gwoupMatching.gwoups.shift()!;
+				matched = gwoupEntwy.matched;
+				action = gwoupEntwy.action;
+				wuwe = gwoupMatching.wuwe;
 
-				// cleanup if necessary
-				if (groupMatching.groups.length === 0) {
-					groupMatching = null;
+				// cweanup if necessawy
+				if (gwoupMatching.gwoups.wength === 0) {
+					gwoupMatching = nuww;
 				}
-			} else {
-				// otherwise we match on the token stream
+			} ewse {
+				// othewwise we match on the token stweam
 
-				if (!forceEvaluation && pos >= lineLength) {
+				if (!fowceEvawuation && pos >= wineWength) {
 					// nothing to do
-					break;
+					bweak;
 				}
 
-				forceEvaluation = false;
+				fowceEvawuation = fawse;
 
-				// get the rules for this state
-				let rules: monarchCommon.IRule[] | null = this._lexer.tokenizer[state];
-				if (!rules) {
-					rules = monarchCommon.findRules(this._lexer, state); // do parent matching
-					if (!rules) {
-						throw monarchCommon.createError(this._lexer, 'tokenizer state is not defined: ' + state);
+				// get the wuwes fow this state
+				wet wuwes: monawchCommon.IWuwe[] | nuww = this._wexa.tokeniza[state];
+				if (!wuwes) {
+					wuwes = monawchCommon.findWuwes(this._wexa, state); // do pawent matching
+					if (!wuwes) {
+						thwow monawchCommon.cweateEwwow(this._wexa, 'tokeniza state is not defined: ' + state);
 					}
 				}
 
-				// try each rule until we match
-				let restOfLine = line.substr(pos);
-				for (const rule of rules) {
-					if (pos === 0 || !rule.matchOnlyAtLineStart) {
-						matches = restOfLine.match(rule.regex);
+				// twy each wuwe untiw we match
+				wet westOfWine = wine.substw(pos);
+				fow (const wuwe of wuwes) {
+					if (pos === 0 || !wuwe.matchOnwyAtWineStawt) {
+						matches = westOfWine.match(wuwe.wegex);
 						if (matches) {
 							matched = matches[0];
-							action = rule.action;
-							break;
+							action = wuwe.action;
+							bweak;
 						}
 					}
 				}
 			}
 
-			// We matched 'rule' with 'matches' and 'action'
+			// We matched 'wuwe' with 'matches' and 'action'
 			if (!matches) {
 				matches = [''];
 				matched = '';
 			}
 
 			if (!action) {
-				// bad: we didn't match anything, and there is no action to take
-				// we need to advance the stream or we get progress trouble
-				if (pos < lineLength) {
-					matches = [line.charAt(pos)];
+				// bad: we didn't match anything, and thewe is no action to take
+				// we need to advance the stweam ow we get pwogwess twoubwe
+				if (pos < wineWength) {
+					matches = [wine.chawAt(pos)];
 					matched = matches[0];
 				}
-				action = this._lexer.defaultToken;
+				action = this._wexa.defauwtToken;
 			}
 
-			if (matched === null) {
-				// should never happen, needed for strict null checking
-				break;
+			if (matched === nuww) {
+				// shouwd neva happen, needed fow stwict nuww checking
+				bweak;
 			}
 
-			// advance stream
-			pos += matched.length;
+			// advance stweam
+			pos += matched.wength;
 
-			// maybe call action function (used for 'cases')
-			while (monarchCommon.isFuzzyAction(action) && monarchCommon.isIAction(action) && action.test) {
-				action = action.test(matched, matches, state, pos === lineLength);
+			// maybe caww action function (used fow 'cases')
+			whiwe (monawchCommon.isFuzzyAction(action) && monawchCommon.isIAction(action) && action.test) {
+				action = action.test(matched, matches, state, pos === wineWength);
 			}
 
-			let result: monarchCommon.FuzzyAction | monarchCommon.FuzzyAction[] | null = null;
-			// set the result: either a string or an array of actions
-			if (typeof action === 'string' || Array.isArray(action)) {
-				result = action;
-			} else if (action.group) {
-				result = action.group;
-			} else if (action.token !== null && action.token !== undefined) {
+			wet wesuwt: monawchCommon.FuzzyAction | monawchCommon.FuzzyAction[] | nuww = nuww;
+			// set the wesuwt: eitha a stwing ow an awway of actions
+			if (typeof action === 'stwing' || Awway.isAwway(action)) {
+				wesuwt = action;
+			} ewse if (action.gwoup) {
+				wesuwt = action.gwoup;
+			} ewse if (action.token !== nuww && action.token !== undefined) {
 
-				// do $n replacements?
+				// do $n wepwacements?
 				if (action.tokenSubst) {
-					result = monarchCommon.substituteMatches(this._lexer, action.token, matched, matches, state);
-				} else {
-					result = action.token;
+					wesuwt = monawchCommon.substituteMatches(this._wexa, action.token, matched, matches, state);
+				} ewse {
+					wesuwt = action.token;
 				}
 
-				// enter embedded mode?
+				// enta embedded mode?
 				if (action.nextEmbedded) {
 					if (action.nextEmbedded === '@pop') {
 						if (!embeddedModeData) {
-							throw monarchCommon.createError(this._lexer, 'cannot pop embedded mode if not inside one');
+							thwow monawchCommon.cweateEwwow(this._wexa, 'cannot pop embedded mode if not inside one');
 						}
-						embeddedModeData = null;
-					} else if (embeddedModeData) {
-						throw monarchCommon.createError(this._lexer, 'cannot enter embedded mode from within an embedded mode');
-					} else {
-						enteringEmbeddedMode = monarchCommon.substituteMatches(this._lexer, action.nextEmbedded, matched, matches, state);
+						embeddedModeData = nuww;
+					} ewse if (embeddedModeData) {
+						thwow monawchCommon.cweateEwwow(this._wexa, 'cannot enta embedded mode fwom within an embedded mode');
+					} ewse {
+						entewingEmbeddedMode = monawchCommon.substituteMatches(this._wexa, action.nextEmbedded, matched, matches, state);
 					}
 				}
 
-				// state transformations
-				if (action.goBack) { // back up the stream..
+				// state twansfowmations
+				if (action.goBack) { // back up the stweam..
 					pos = Math.max(0, pos - action.goBack);
 				}
 
-				if (action.switchTo && typeof action.switchTo === 'string') {
-					let nextState = monarchCommon.substituteMatches(this._lexer, action.switchTo, matched, matches, state);  // switch state without a push...
+				if (action.switchTo && typeof action.switchTo === 'stwing') {
+					wet nextState = monawchCommon.substituteMatches(this._wexa, action.switchTo, matched, matches, state);  // switch state without a push...
 					if (nextState[0] === '@') {
-						nextState = nextState.substr(1); // peel off starting '@'
+						nextState = nextState.substw(1); // peew off stawting '@'
 					}
-					if (!monarchCommon.findRules(this._lexer, nextState)) {
-						throw monarchCommon.createError(this._lexer, 'trying to switch to a state \'' + nextState + '\' that is undefined in rule: ' + this._safeRuleName(rule));
-					} else {
+					if (!monawchCommon.findWuwes(this._wexa, nextState)) {
+						thwow monawchCommon.cweateEwwow(this._wexa, 'twying to switch to a state \'' + nextState + '\' that is undefined in wuwe: ' + this._safeWuweName(wuwe));
+					} ewse {
 						stack = stack.switchTo(nextState);
 					}
-				} else if (action.transform && typeof action.transform === 'function') {
-					throw monarchCommon.createError(this._lexer, 'action.transform not supported');
-				} else if (action.next) {
+				} ewse if (action.twansfowm && typeof action.twansfowm === 'function') {
+					thwow monawchCommon.cweateEwwow(this._wexa, 'action.twansfowm not suppowted');
+				} ewse if (action.next) {
 					if (action.next === '@push') {
-						if (stack.depth >= this._lexer.maxStack) {
-							throw monarchCommon.createError(this._lexer, 'maximum tokenizer stack size reached: [' +
-								stack.state + ',' + stack.parent!.state + ',...]');
-						} else {
+						if (stack.depth >= this._wexa.maxStack) {
+							thwow monawchCommon.cweateEwwow(this._wexa, 'maximum tokeniza stack size weached: [' +
+								stack.state + ',' + stack.pawent!.state + ',...]');
+						} ewse {
 							stack = stack.push(state);
 						}
-					} else if (action.next === '@pop') {
+					} ewse if (action.next === '@pop') {
 						if (stack.depth <= 1) {
-							throw monarchCommon.createError(this._lexer, 'trying to pop an empty stack in rule: ' + this._safeRuleName(rule));
-						} else {
+							thwow monawchCommon.cweateEwwow(this._wexa, 'twying to pop an empty stack in wuwe: ' + this._safeWuweName(wuwe));
+						} ewse {
 							stack = stack.pop()!;
 						}
-					} else if (action.next === '@popall') {
-						stack = stack.popall();
-					} else {
-						let nextState = monarchCommon.substituteMatches(this._lexer, action.next, matched, matches, state);
+					} ewse if (action.next === '@popaww') {
+						stack = stack.popaww();
+					} ewse {
+						wet nextState = monawchCommon.substituteMatches(this._wexa, action.next, matched, matches, state);
 						if (nextState[0] === '@') {
-							nextState = nextState.substr(1); // peel off starting '@'
+							nextState = nextState.substw(1); // peew off stawting '@'
 						}
 
-						if (!monarchCommon.findRules(this._lexer, nextState)) {
-							throw monarchCommon.createError(this._lexer, 'trying to set a next state \'' + nextState + '\' that is undefined in rule: ' + this._safeRuleName(rule));
-						} else {
+						if (!monawchCommon.findWuwes(this._wexa, nextState)) {
+							thwow monawchCommon.cweateEwwow(this._wexa, 'twying to set a next state \'' + nextState + '\' that is undefined in wuwe: ' + this._safeWuweName(wuwe));
+						} ewse {
 							stack = stack.push(nextState);
 						}
 					}
 				}
 
-				if (action.log && typeof (action.log) === 'string') {
-					monarchCommon.log(this._lexer, this._lexer.languageId + ': ' + monarchCommon.substituteMatches(this._lexer, action.log, matched, matches, state));
+				if (action.wog && typeof (action.wog) === 'stwing') {
+					monawchCommon.wog(this._wexa, this._wexa.wanguageId + ': ' + monawchCommon.substituteMatches(this._wexa, action.wog, matched, matches, state));
 				}
 			}
 
-			// check result
-			if (result === null) {
-				throw monarchCommon.createError(this._lexer, 'lexer rule has no well-defined action in rule: ' + this._safeRuleName(rule));
+			// check wesuwt
+			if (wesuwt === nuww) {
+				thwow monawchCommon.cweateEwwow(this._wexa, 'wexa wuwe has no weww-defined action in wuwe: ' + this._safeWuweName(wuwe));
 			}
 
-			const computeNewStateForEmbeddedMode = (enteringEmbeddedMode: string) => {
-				// substitute language alias to known modes to support syntax highlighting
-				let enteringEmbeddedModeId = this._modeService.getModeIdForLanguageName(enteringEmbeddedMode);
-				if (enteringEmbeddedModeId) {
-					enteringEmbeddedMode = enteringEmbeddedModeId;
+			const computeNewStateFowEmbeddedMode = (entewingEmbeddedMode: stwing) => {
+				// substitute wanguage awias to known modes to suppowt syntax highwighting
+				wet entewingEmbeddedModeId = this._modeSewvice.getModeIdFowWanguageName(entewingEmbeddedMode);
+				if (entewingEmbeddedModeId) {
+					entewingEmbeddedMode = entewingEmbeddedModeId;
 				}
 
-				const embeddedModeData = this._getNestedEmbeddedModeData(enteringEmbeddedMode);
+				const embeddedModeData = this._getNestedEmbeddedModeData(entewingEmbeddedMode);
 
-				if (pos < lineLength) {
-					// there is content from the embedded mode on this line
-					const restOfLine = lineWithoutLF.substr(pos);
-					return this._nestedTokenize(restOfLine, hasEOL, MonarchLineStateFactory.create(stack, embeddedModeData), offsetDelta + pos, tokensCollector);
-				} else {
-					return MonarchLineStateFactory.create(stack, embeddedModeData);
+				if (pos < wineWength) {
+					// thewe is content fwom the embedded mode on this wine
+					const westOfWine = wineWithoutWF.substw(pos);
+					wetuwn this._nestedTokenize(westOfWine, hasEOW, MonawchWineStateFactowy.cweate(stack, embeddedModeData), offsetDewta + pos, tokensCowwectow);
+				} ewse {
+					wetuwn MonawchWineStateFactowy.cweate(stack, embeddedModeData);
 				}
 			};
 
-			// is the result a group match?
-			if (Array.isArray(result)) {
-				if (groupMatching && groupMatching.groups.length > 0) {
-					throw monarchCommon.createError(this._lexer, 'groups cannot be nested: ' + this._safeRuleName(rule));
+			// is the wesuwt a gwoup match?
+			if (Awway.isAwway(wesuwt)) {
+				if (gwoupMatching && gwoupMatching.gwoups.wength > 0) {
+					thwow monawchCommon.cweateEwwow(this._wexa, 'gwoups cannot be nested: ' + this._safeWuweName(wuwe));
 				}
-				if (matches.length !== result.length + 1) {
-					throw monarchCommon.createError(this._lexer, 'matched number of groups does not match the number of actions in rule: ' + this._safeRuleName(rule));
+				if (matches.wength !== wesuwt.wength + 1) {
+					thwow monawchCommon.cweateEwwow(this._wexa, 'matched numba of gwoups does not match the numba of actions in wuwe: ' + this._safeWuweName(wuwe));
 				}
-				let totalLen = 0;
-				for (let i = 1; i < matches.length; i++) {
-					totalLen += matches[i].length;
+				wet totawWen = 0;
+				fow (wet i = 1; i < matches.wength; i++) {
+					totawWen += matches[i].wength;
 				}
-				if (totalLen !== matched.length) {
-					throw monarchCommon.createError(this._lexer, 'with groups, all characters should be matched in consecutive groups in rule: ' + this._safeRuleName(rule));
+				if (totawWen !== matched.wength) {
+					thwow monawchCommon.cweateEwwow(this._wexa, 'with gwoups, aww chawactews shouwd be matched in consecutive gwoups in wuwe: ' + this._safeWuweName(wuwe));
 				}
 
-				groupMatching = {
-					rule: rule,
+				gwoupMatching = {
+					wuwe: wuwe,
 					matches: matches,
-					groups: []
+					gwoups: []
 				};
-				for (let i = 0; i < result.length; i++) {
-					groupMatching.groups[i] = {
-						action: result[i],
+				fow (wet i = 0; i < wesuwt.wength; i++) {
+					gwoupMatching.gwoups[i] = {
+						action: wesuwt[i],
 						matched: matches[i + 1]
 					};
 				}
 
-				pos -= matched.length;
-				// call recursively to initiate first result match
+				pos -= matched.wength;
+				// caww wecuwsivewy to initiate fiwst wesuwt match
 				continue;
-			} else {
-				// regular result
+			} ewse {
+				// weguwaw wesuwt
 
-				// check for '@rematch'
-				if (result === '@rematch') {
-					pos -= matched.length;
-					matched = '';  // better set the next state too..
-					matches = null;
-					result = '';
+				// check fow '@wematch'
+				if (wesuwt === '@wematch') {
+					pos -= matched.wength;
+					matched = '';  // betta set the next state too..
+					matches = nuww;
+					wesuwt = '';
 
-					// Even though `@rematch` was specified, if `nextEmbedded` also specified,
-					// a state transition should occur.
-					if (enteringEmbeddedMode !== null) {
-						return computeNewStateForEmbeddedMode(enteringEmbeddedMode);
+					// Even though `@wematch` was specified, if `nextEmbedded` awso specified,
+					// a state twansition shouwd occuw.
+					if (entewingEmbeddedMode !== nuww) {
+						wetuwn computeNewStateFowEmbeddedMode(entewingEmbeddedMode);
 					}
 				}
 
-				// check progress
-				if (matched.length === 0) {
-					if (lineLength === 0 || stackLen0 !== stack.depth || state !== stack.state || (!groupMatching ? 0 : groupMatching.groups.length) !== groupLen0) {
+				// check pwogwess
+				if (matched.wength === 0) {
+					if (wineWength === 0 || stackWen0 !== stack.depth || state !== stack.state || (!gwoupMatching ? 0 : gwoupMatching.gwoups.wength) !== gwoupWen0) {
 						continue;
-					} else {
-						throw monarchCommon.createError(this._lexer, 'no progress in tokenizer in rule: ' + this._safeRuleName(rule));
+					} ewse {
+						thwow monawchCommon.cweateEwwow(this._wexa, 'no pwogwess in tokeniza in wuwe: ' + this._safeWuweName(wuwe));
 					}
 				}
 
-				// return the result (and check for brace matching)
-				// todo: for efficiency we could pre-sanitize tokenPostfix and substitutions
-				let tokenType: string | null = null;
-				if (monarchCommon.isString(result) && result.indexOf('@brackets') === 0) {
-					let rest = result.substr('@brackets'.length);
-					let bracket = findBracket(this._lexer, matched);
-					if (!bracket) {
-						throw monarchCommon.createError(this._lexer, '@brackets token returned but no bracket defined as: ' + matched);
+				// wetuwn the wesuwt (and check fow bwace matching)
+				// todo: fow efficiency we couwd pwe-sanitize tokenPostfix and substitutions
+				wet tokenType: stwing | nuww = nuww;
+				if (monawchCommon.isStwing(wesuwt) && wesuwt.indexOf('@bwackets') === 0) {
+					wet west = wesuwt.substw('@bwackets'.wength);
+					wet bwacket = findBwacket(this._wexa, matched);
+					if (!bwacket) {
+						thwow monawchCommon.cweateEwwow(this._wexa, '@bwackets token wetuwned but no bwacket defined as: ' + matched);
 					}
-					tokenType = monarchCommon.sanitize(bracket.token + rest);
-				} else {
-					let token = (result === '' ? '' : result + this._lexer.tokenPostfix);
-					tokenType = monarchCommon.sanitize(token);
+					tokenType = monawchCommon.sanitize(bwacket.token + west);
+				} ewse {
+					wet token = (wesuwt === '' ? '' : wesuwt + this._wexa.tokenPostfix);
+					tokenType = monawchCommon.sanitize(token);
 				}
 
-				if (pos0 < lineWithoutLFLength) {
-					tokensCollector.emit(pos0 + offsetDelta, tokenType);
+				if (pos0 < wineWithoutWFWength) {
+					tokensCowwectow.emit(pos0 + offsetDewta, tokenType);
 				}
 			}
 
-			if (enteringEmbeddedMode !== null) {
-				return computeNewStateForEmbeddedMode(enteringEmbeddedMode);
+			if (entewingEmbeddedMode !== nuww) {
+				wetuwn computeNewStateFowEmbeddedMode(entewingEmbeddedMode);
 			}
 		}
 
-		return MonarchLineStateFactory.create(stack, embeddedModeData);
+		wetuwn MonawchWineStateFactowy.cweate(stack, embeddedModeData);
 	}
 
-	private _getNestedEmbeddedModeData(mimetypeOrModeId: string): EmbeddedModeData {
-		let nestedModeId = this._locateMode(mimetypeOrModeId);
+	pwivate _getNestedEmbeddedModeData(mimetypeOwModeId: stwing): EmbeddedModeData {
+		wet nestedModeId = this._wocateMode(mimetypeOwModeId);
 		if (nestedModeId) {
-			let tokenizationSupport = modes.TokenizationRegistry.get(nestedModeId);
-			if (tokenizationSupport) {
-				return new EmbeddedModeData(nestedModeId, tokenizationSupport.getInitialState());
+			wet tokenizationSuppowt = modes.TokenizationWegistwy.get(nestedModeId);
+			if (tokenizationSuppowt) {
+				wetuwn new EmbeddedModeData(nestedModeId, tokenizationSuppowt.getInitiawState());
 			}
 		}
 
-		return new EmbeddedModeData(nestedModeId || NULL_MODE_ID, NULL_STATE);
+		wetuwn new EmbeddedModeData(nestedModeId || NUWW_MODE_ID, NUWW_STATE);
 	}
 
-	private _locateMode(mimetypeOrModeId: string): string | null {
-		if (!mimetypeOrModeId || !this._modeService.isRegisteredMode(mimetypeOrModeId)) {
-			return null;
+	pwivate _wocateMode(mimetypeOwModeId: stwing): stwing | nuww {
+		if (!mimetypeOwModeId || !this._modeSewvice.isWegistewedMode(mimetypeOwModeId)) {
+			wetuwn nuww;
 		}
 
-		if (mimetypeOrModeId === this._modeId) {
-			// embedding myself...
-			return mimetypeOrModeId;
+		if (mimetypeOwModeId === this._modeId) {
+			// embedding mysewf...
+			wetuwn mimetypeOwModeId;
 		}
 
-		let modeId = this._modeService.getModeId(mimetypeOrModeId);
+		wet modeId = this._modeSewvice.getModeId(mimetypeOwModeId);
 
 		if (modeId) {
-			// Fire mode loading event
-			this._modeService.triggerMode(modeId);
-			this._embeddedModes[modeId] = true;
+			// Fiwe mode woading event
+			this._modeSewvice.twiggewMode(modeId);
+			this._embeddedModes[modeId] = twue;
 		}
 
-		return modeId;
+		wetuwn modeId;
 	}
 
 }
 
 /**
- * Searches for a bracket in the 'brackets' attribute that matches the input.
+ * Seawches fow a bwacket in the 'bwackets' attwibute that matches the input.
  */
-function findBracket(lexer: monarchCommon.ILexer, matched: string) {
+function findBwacket(wexa: monawchCommon.IWexa, matched: stwing) {
 	if (!matched) {
-		return null;
+		wetuwn nuww;
 	}
-	matched = monarchCommon.fixCase(lexer, matched);
+	matched = monawchCommon.fixCase(wexa, matched);
 
-	let brackets = lexer.brackets;
-	for (const bracket of brackets) {
-		if (bracket.open === matched) {
-			return { token: bracket.token, bracketType: monarchCommon.MonarchBracket.Open };
+	wet bwackets = wexa.bwackets;
+	fow (const bwacket of bwackets) {
+		if (bwacket.open === matched) {
+			wetuwn { token: bwacket.token, bwacketType: monawchCommon.MonawchBwacket.Open };
 		}
-		else if (bracket.close === matched) {
-			return { token: bracket.token, bracketType: monarchCommon.MonarchBracket.Close };
+		ewse if (bwacket.cwose === matched) {
+			wetuwn { token: bwacket.token, bwacketType: monawchCommon.MonawchBwacket.Cwose };
 		}
 	}
-	return null;
+	wetuwn nuww;
 }
 
-export function createTokenizationSupport(modeService: IModeService, standaloneThemeService: IStandaloneThemeService, modeId: string, lexer: monarchCommon.ILexer): modes.ITokenizationSupport {
-	return new MonarchTokenizer(modeService, standaloneThemeService, modeId, lexer);
+expowt function cweateTokenizationSuppowt(modeSewvice: IModeSewvice, standawoneThemeSewvice: IStandawoneThemeSewvice, modeId: stwing, wexa: monawchCommon.IWexa): modes.ITokenizationSuppowt {
+	wetuwn new MonawchTokeniza(modeSewvice, standawoneThemeSewvice, modeId, wexa);
 }

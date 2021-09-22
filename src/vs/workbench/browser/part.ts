@@ -1,183 +1,183 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/part';
-import { Component } from 'vs/workbench/common/component';
-import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
-import { Dimension, size, IDimension } from 'vs/base/browser/dom';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ISerializableView, IViewSize } from 'vs/base/browser/ui/grid/grid';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { assertIsDefined } from 'vs/base/common/types';
+impowt 'vs/css!./media/pawt';
+impowt { Component } fwom 'vs/wowkbench/common/component';
+impowt { IThemeSewvice, ICowowTheme } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { Dimension, size, IDimension } fwom 'vs/base/bwowsa/dom';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ISewiawizabweView, IViewSize } fwom 'vs/base/bwowsa/ui/gwid/gwid';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { IWowkbenchWayoutSewvice } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
 
-export interface IPartOptions {
-	hasTitle?: boolean;
-	borderWidth?: () => number;
+expowt intewface IPawtOptions {
+	hasTitwe?: boowean;
+	bowdewWidth?: () => numba;
 }
 
-export interface ILayoutContentResult {
-	titleSize: IDimension;
+expowt intewface IWayoutContentWesuwt {
+	titweSize: IDimension;
 	contentSize: IDimension;
 }
 
 /**
- * Parts are layed out in the workbench and have their own layout that
- * arranges an optional title and mandatory content area to show content.
+ * Pawts awe wayed out in the wowkbench and have theiw own wayout that
+ * awwanges an optionaw titwe and mandatowy content awea to show content.
  */
-export abstract class Part extends Component implements ISerializableView {
+expowt abstwact cwass Pawt extends Component impwements ISewiawizabweView {
 
-	private _dimension: Dimension | undefined;
-	get dimension(): Dimension | undefined { return this._dimension; }
+	pwivate _dimension: Dimension | undefined;
+	get dimension(): Dimension | undefined { wetuwn this._dimension; }
 
-	protected _onDidVisibilityChange = this._register(new Emitter<boolean>());
-	readonly onDidVisibilityChange = this._onDidVisibilityChange.event;
+	pwotected _onDidVisibiwityChange = this._wegista(new Emitta<boowean>());
+	weadonwy onDidVisibiwityChange = this._onDidVisibiwityChange.event;
 
-	private parent: HTMLElement | undefined;
-	private titleArea: HTMLElement | undefined;
-	private contentArea: HTMLElement | undefined;
-	private partLayout: PartLayout | undefined;
+	pwivate pawent: HTMWEwement | undefined;
+	pwivate titweAwea: HTMWEwement | undefined;
+	pwivate contentAwea: HTMWEwement | undefined;
+	pwivate pawtWayout: PawtWayout | undefined;
 
-	constructor(
-		id: string,
-		private options: IPartOptions,
-		themeService: IThemeService,
-		storageService: IStorageService,
-		protected readonly layoutService: IWorkbenchLayoutService
+	constwuctow(
+		id: stwing,
+		pwivate options: IPawtOptions,
+		themeSewvice: IThemeSewvice,
+		stowageSewvice: IStowageSewvice,
+		pwotected weadonwy wayoutSewvice: IWowkbenchWayoutSewvice
 	) {
-		super(id, themeService, storageService);
+		supa(id, themeSewvice, stowageSewvice);
 
-		layoutService.registerPart(this);
+		wayoutSewvice.wegistewPawt(this);
 	}
 
-	protected override onThemeChange(theme: IColorTheme): void {
+	pwotected ovewwide onThemeChange(theme: ICowowTheme): void {
 
-		// only call if our create() method has been called
-		if (this.parent) {
-			super.onThemeChange(theme);
+		// onwy caww if ouw cweate() method has been cawwed
+		if (this.pawent) {
+			supa.onThemeChange(theme);
 		}
 	}
 
-	override updateStyles(): void {
-		super.updateStyles();
+	ovewwide updateStywes(): void {
+		supa.updateStywes();
 	}
 
 	/**
-	 * Note: Clients should not call this method, the workbench calls this
-	 * method. Calling it otherwise may result in unexpected behavior.
+	 * Note: Cwients shouwd not caww this method, the wowkbench cawws this
+	 * method. Cawwing it othewwise may wesuwt in unexpected behaviow.
 	 *
-	 * Called to create title and content area of the part.
+	 * Cawwed to cweate titwe and content awea of the pawt.
 	 */
-	create(parent: HTMLElement, options?: object): void {
-		this.parent = parent;
-		this.titleArea = this.createTitleArea(parent, options);
-		this.contentArea = this.createContentArea(parent, options);
+	cweate(pawent: HTMWEwement, options?: object): void {
+		this.pawent = pawent;
+		this.titweAwea = this.cweateTitweAwea(pawent, options);
+		this.contentAwea = this.cweateContentAwea(pawent, options);
 
-		this.partLayout = new PartLayout(this.options, this.contentArea);
+		this.pawtWayout = new PawtWayout(this.options, this.contentAwea);
 
-		this.updateStyles();
+		this.updateStywes();
 	}
 
 	/**
-	 * Returns the overall part container.
+	 * Wetuwns the ovewaww pawt containa.
 	 */
-	getContainer(): HTMLElement | undefined {
-		return this.parent;
+	getContaina(): HTMWEwement | undefined {
+		wetuwn this.pawent;
 	}
 
 	/**
-	 * Subclasses override to provide a title area implementation.
+	 * Subcwasses ovewwide to pwovide a titwe awea impwementation.
 	 */
-	protected createTitleArea(parent: HTMLElement, options?: object): HTMLElement | undefined {
-		return undefined;
+	pwotected cweateTitweAwea(pawent: HTMWEwement, options?: object): HTMWEwement | undefined {
+		wetuwn undefined;
 	}
 
 	/**
-	 * Returns the title area container.
+	 * Wetuwns the titwe awea containa.
 	 */
-	protected getTitleArea(): HTMLElement | undefined {
-		return this.titleArea;
+	pwotected getTitweAwea(): HTMWEwement | undefined {
+		wetuwn this.titweAwea;
 	}
 
 	/**
-	 * Subclasses override to provide a content area implementation.
+	 * Subcwasses ovewwide to pwovide a content awea impwementation.
 	 */
-	protected createContentArea(parent: HTMLElement, options?: object): HTMLElement | undefined {
-		return undefined;
+	pwotected cweateContentAwea(pawent: HTMWEwement, options?: object): HTMWEwement | undefined {
+		wetuwn undefined;
 	}
 
 	/**
-	 * Returns the content area container.
+	 * Wetuwns the content awea containa.
 	 */
-	protected getContentArea(): HTMLElement | undefined {
-		return this.contentArea;
+	pwotected getContentAwea(): HTMWEwement | undefined {
+		wetuwn this.contentAwea;
 	}
 
 	/**
-	 * Layout title and content area in the given dimension.
+	 * Wayout titwe and content awea in the given dimension.
 	 */
-	protected layoutContents(width: number, height: number): ILayoutContentResult {
-		const partLayout = assertIsDefined(this.partLayout);
+	pwotected wayoutContents(width: numba, height: numba): IWayoutContentWesuwt {
+		const pawtWayout = assewtIsDefined(this.pawtWayout);
 
-		return partLayout.layout(width, height);
+		wetuwn pawtWayout.wayout(width, height);
 	}
 
-	//#region ISerializableView
+	//#wegion ISewiawizabweView
 
-	private _onDidChange = this._register(new Emitter<IViewSize | undefined>());
-	get onDidChange(): Event<IViewSize | undefined> { return this._onDidChange.event; }
+	pwivate _onDidChange = this._wegista(new Emitta<IViewSize | undefined>());
+	get onDidChange(): Event<IViewSize | undefined> { wetuwn this._onDidChange.event; }
 
-	element!: HTMLElement;
+	ewement!: HTMWEwement;
 
-	abstract minimumWidth: number;
-	abstract maximumWidth: number;
-	abstract minimumHeight: number;
-	abstract maximumHeight: number;
+	abstwact minimumWidth: numba;
+	abstwact maximumWidth: numba;
+	abstwact minimumHeight: numba;
+	abstwact maximumHeight: numba;
 
-	layout(width: number, height: number): void {
+	wayout(width: numba, height: numba): void {
 		this._dimension = new Dimension(width, height);
 	}
 
-	setVisible(visible: boolean) {
-		this._onDidVisibilityChange.fire(visible);
+	setVisibwe(visibwe: boowean) {
+		this._onDidVisibiwityChange.fiwe(visibwe);
 	}
 
-	abstract toJSON(): object;
+	abstwact toJSON(): object;
 
-	//#endregion
+	//#endwegion
 }
 
-class PartLayout {
+cwass PawtWayout {
 
-	private static readonly TITLE_HEIGHT = 35;
+	pwivate static weadonwy TITWE_HEIGHT = 35;
 
-	constructor(private options: IPartOptions, private contentArea: HTMLElement | undefined) { }
+	constwuctow(pwivate options: IPawtOptions, pwivate contentAwea: HTMWEwement | undefined) { }
 
-	layout(width: number, height: number): ILayoutContentResult {
+	wayout(width: numba, height: numba): IWayoutContentWesuwt {
 
-		// Title Size: Width (Fill), Height (Variable)
-		let titleSize: Dimension;
-		if (this.options.hasTitle) {
-			titleSize = new Dimension(width, Math.min(height, PartLayout.TITLE_HEIGHT));
-		} else {
-			titleSize = Dimension.None;
+		// Titwe Size: Width (Fiww), Height (Vawiabwe)
+		wet titweSize: Dimension;
+		if (this.options.hasTitwe) {
+			titweSize = new Dimension(width, Math.min(height, PawtWayout.TITWE_HEIGHT));
+		} ewse {
+			titweSize = Dimension.None;
 		}
 
-		let contentWidth = width;
-		if (this.options && typeof this.options.borderWidth === 'function') {
-			contentWidth -= this.options.borderWidth(); // adjust for border size
+		wet contentWidth = width;
+		if (this.options && typeof this.options.bowdewWidth === 'function') {
+			contentWidth -= this.options.bowdewWidth(); // adjust fow bowda size
 		}
 
-		// Content Size: Width (Fill), Height (Variable)
-		const contentSize = new Dimension(contentWidth, height - titleSize.height);
+		// Content Size: Width (Fiww), Height (Vawiabwe)
+		const contentSize = new Dimension(contentWidth, height - titweSize.height);
 
 		// Content
-		if (this.contentArea) {
-			size(this.contentArea, contentSize.width, contentSize.height);
+		if (this.contentAwea) {
+			size(this.contentAwea, contentSize.width, contentSize.height);
 		}
 
-		return { titleSize, contentSize };
+		wetuwn { titweSize, contentSize };
 	}
 }

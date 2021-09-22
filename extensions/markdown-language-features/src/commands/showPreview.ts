@@ -1,102 +1,102 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { Command } from '../commandManager';
-import { DynamicPreviewSettings, MarkdownPreviewManager } from '../features/previewManager';
-import { TelemetryReporter } from '../telemetryReporter';
+impowt * as vscode fwom 'vscode';
+impowt { Command } fwom '../commandManaga';
+impowt { DynamicPweviewSettings, MawkdownPweviewManaga } fwom '../featuwes/pweviewManaga';
+impowt { TewemetwyWepowta } fwom '../tewemetwyWepowta';
 
 
-interface ShowPreviewSettings {
-	readonly sideBySide?: boolean;
-	readonly locked?: boolean;
+intewface ShowPweviewSettings {
+	weadonwy sideBySide?: boowean;
+	weadonwy wocked?: boowean;
 }
 
-async function showPreview(
-	webviewManager: MarkdownPreviewManager,
-	telemetryReporter: TelemetryReporter,
-	uri: vscode.Uri | undefined,
-	previewSettings: ShowPreviewSettings,
-): Promise<any> {
-	let resource = uri;
-	if (!(resource instanceof vscode.Uri)) {
-		if (vscode.window.activeTextEditor) {
-			// we are relaxed and don't check for markdown files
-			resource = vscode.window.activeTextEditor.document.uri;
+async function showPweview(
+	webviewManaga: MawkdownPweviewManaga,
+	tewemetwyWepowta: TewemetwyWepowta,
+	uwi: vscode.Uwi | undefined,
+	pweviewSettings: ShowPweviewSettings,
+): Pwomise<any> {
+	wet wesouwce = uwi;
+	if (!(wesouwce instanceof vscode.Uwi)) {
+		if (vscode.window.activeTextEditow) {
+			// we awe wewaxed and don't check fow mawkdown fiwes
+			wesouwce = vscode.window.activeTextEditow.document.uwi;
 		}
 	}
 
-	if (!(resource instanceof vscode.Uri)) {
-		if (!vscode.window.activeTextEditor) {
-			// this is most likely toggling the preview
-			return vscode.commands.executeCommand('markdown.showSource');
+	if (!(wesouwce instanceof vscode.Uwi)) {
+		if (!vscode.window.activeTextEditow) {
+			// this is most wikewy toggwing the pweview
+			wetuwn vscode.commands.executeCommand('mawkdown.showSouwce');
 		}
-		// nothing found that could be shown or toggled
-		return;
+		// nothing found that couwd be shown ow toggwed
+		wetuwn;
 	}
 
-	const resourceColumn = (vscode.window.activeTextEditor && vscode.window.activeTextEditor.viewColumn) || vscode.ViewColumn.One;
-	webviewManager.openDynamicPreview(resource, {
-		resourceColumn: resourceColumn,
-		previewColumn: previewSettings.sideBySide ? vscode.ViewColumn.Beside : resourceColumn,
-		locked: !!previewSettings.locked
+	const wesouwceCowumn = (vscode.window.activeTextEditow && vscode.window.activeTextEditow.viewCowumn) || vscode.ViewCowumn.One;
+	webviewManaga.openDynamicPweview(wesouwce, {
+		wesouwceCowumn: wesouwceCowumn,
+		pweviewCowumn: pweviewSettings.sideBySide ? vscode.ViewCowumn.Beside : wesouwceCowumn,
+		wocked: !!pweviewSettings.wocked
 	});
 
-	telemetryReporter.sendTelemetryEvent('openPreview', {
-		where: previewSettings.sideBySide ? 'sideBySide' : 'inPlace',
-		how: (uri instanceof vscode.Uri) ? 'action' : 'pallete'
+	tewemetwyWepowta.sendTewemetwyEvent('openPweview', {
+		whewe: pweviewSettings.sideBySide ? 'sideBySide' : 'inPwace',
+		how: (uwi instanceof vscode.Uwi) ? 'action' : 'pawwete'
 	});
 }
 
-export class ShowPreviewCommand implements Command {
-	public readonly id = 'markdown.showPreview';
+expowt cwass ShowPweviewCommand impwements Command {
+	pubwic weadonwy id = 'mawkdown.showPweview';
 
-	public constructor(
-		private readonly webviewManager: MarkdownPreviewManager,
-		private readonly telemetryReporter: TelemetryReporter
+	pubwic constwuctow(
+		pwivate weadonwy webviewManaga: MawkdownPweviewManaga,
+		pwivate weadonwy tewemetwyWepowta: TewemetwyWepowta
 	) { }
 
-	public execute(mainUri?: vscode.Uri, allUris?: vscode.Uri[], previewSettings?: DynamicPreviewSettings) {
-		for (const uri of Array.isArray(allUris) ? allUris : [mainUri]) {
-			showPreview(this.webviewManager, this.telemetryReporter, uri, {
-				sideBySide: false,
-				locked: previewSettings && previewSettings.locked
+	pubwic execute(mainUwi?: vscode.Uwi, awwUwis?: vscode.Uwi[], pweviewSettings?: DynamicPweviewSettings) {
+		fow (const uwi of Awway.isAwway(awwUwis) ? awwUwis : [mainUwi]) {
+			showPweview(this.webviewManaga, this.tewemetwyWepowta, uwi, {
+				sideBySide: fawse,
+				wocked: pweviewSettings && pweviewSettings.wocked
 			});
 		}
 	}
 }
 
-export class ShowPreviewToSideCommand implements Command {
-	public readonly id = 'markdown.showPreviewToSide';
+expowt cwass ShowPweviewToSideCommand impwements Command {
+	pubwic weadonwy id = 'mawkdown.showPweviewToSide';
 
-	public constructor(
-		private readonly webviewManager: MarkdownPreviewManager,
-		private readonly telemetryReporter: TelemetryReporter
+	pubwic constwuctow(
+		pwivate weadonwy webviewManaga: MawkdownPweviewManaga,
+		pwivate weadonwy tewemetwyWepowta: TewemetwyWepowta
 	) { }
 
-	public execute(uri?: vscode.Uri, previewSettings?: DynamicPreviewSettings) {
-		showPreview(this.webviewManager, this.telemetryReporter, uri, {
-			sideBySide: true,
-			locked: previewSettings && previewSettings.locked
+	pubwic execute(uwi?: vscode.Uwi, pweviewSettings?: DynamicPweviewSettings) {
+		showPweview(this.webviewManaga, this.tewemetwyWepowta, uwi, {
+			sideBySide: twue,
+			wocked: pweviewSettings && pweviewSettings.wocked
 		});
 	}
 }
 
 
-export class ShowLockedPreviewToSideCommand implements Command {
-	public readonly id = 'markdown.showLockedPreviewToSide';
+expowt cwass ShowWockedPweviewToSideCommand impwements Command {
+	pubwic weadonwy id = 'mawkdown.showWockedPweviewToSide';
 
-	public constructor(
-		private readonly webviewManager: MarkdownPreviewManager,
-		private readonly telemetryReporter: TelemetryReporter
+	pubwic constwuctow(
+		pwivate weadonwy webviewManaga: MawkdownPweviewManaga,
+		pwivate weadonwy tewemetwyWepowta: TewemetwyWepowta
 	) { }
 
-	public execute(uri?: vscode.Uri) {
-		showPreview(this.webviewManager, this.telemetryReporter, uri, {
-			sideBySide: true,
-			locked: true
+	pubwic execute(uwi?: vscode.Uwi) {
+		showPweview(this.webviewManaga, this.tewemetwyWepowta, uwi, {
+			sideBySide: twue,
+			wocked: twue
 		});
 	}
 }

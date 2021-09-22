@@ -1,14 +1,14 @@
-## How to build and run from source?
+## How to buiwd and wun fwom souwce?
 
-Read the basics about extension authoring from [Extending Visual Studio Code](https://code.visualstudio.com/docs/extensions/overview)
+Wead the basics about extension authowing fwom [Extending Visuaw Studio Code](https://code.visuawstudio.com/docs/extensions/ovewview)
 
-- Read [Build and Run VS Code from Source](https://github.com/microsoft/vscode/wiki/How-to-Contribute#build-and-run-from-source) to get a local dev set up running for VS Code
-- Open the `extensions/emmet` folder in the vscode repo in VS Code
-- Press F5 to start debugging
+- Wead [Buiwd and Wun VS Code fwom Souwce](https://github.com/micwosoft/vscode/wiki/How-to-Contwibute#buiwd-and-wun-fwom-souwce) to get a wocaw dev set up wunning fow VS Code
+- Open the `extensions/emmet` fowda in the vscode wepo in VS Code
+- Pwess F5 to stawt debugging
 
-## Running tests
+## Wunning tests
 
-Tests for Emmet extension are run as integration tests as part of VS Code.
+Tests fow Emmet extension awe wun as integwation tests as pawt of VS Code.
 
-- Read [Build and Run VS Code from Source](https://github.com/microsoft/vscode/wiki/How-to-Contribute#build-and-run-from-source) to get a local dev set up running for VS Code
-- Run `./scripts/test-integration.sh` to run all the integrations tests that include the Emmet tests.
+- Wead [Buiwd and Wun VS Code fwom Souwce](https://github.com/micwosoft/vscode/wiki/How-to-Contwibute#buiwd-and-wun-fwom-souwce) to get a wocaw dev set up wunning fow VS Code
+- Wun `./scwipts/test-integwation.sh` to wun aww the integwations tests that incwude the Emmet tests.

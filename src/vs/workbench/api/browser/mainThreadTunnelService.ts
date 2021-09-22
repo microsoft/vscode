@@ -1,218 +1,218 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { MainThreadTunnelServiceShape, IExtHostContext, MainContext, ExtHostContext, ExtHostTunnelServiceShape, CandidatePortSource, PortAttributesProviderSelector } from 'vs/workbench/api/common/extHost.protocol';
-import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { CandidatePort, IRemoteExplorerService, makeAddress, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_OUTPUT, PORT_AUTO_SOURCE_SETTING_PROCESS, TunnelSource } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { ITunnelProvider, ITunnelService, TunnelCreationOptions, TunnelProviderFeatures, TunnelOptions, RemoteTunnel, isPortPrivileged, ProvidedPortAttributes, PortAttributesProvider, TunnelProtocol } from 'vs/platform/remote/common/tunnel';
-import { Disposable } from 'vs/base/common/lifecycle';
-import type { TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+impowt * as nws fwom 'vs/nws';
+impowt { MainThweadTunnewSewviceShape, IExtHostContext, MainContext, ExtHostContext, ExtHostTunnewSewviceShape, CandidatePowtSouwce, PowtAttwibutesPwovidewSewectow } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { TunnewDto } fwom 'vs/wowkbench/api/common/extHostTunnewSewvice';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { CandidatePowt, IWemoteExpwowewSewvice, makeAddwess, POWT_AUTO_FOWWAWD_SETTING, POWT_AUTO_SOUWCE_SETTING, POWT_AUTO_SOUWCE_SETTING_OUTPUT, POWT_AUTO_SOUWCE_SETTING_PWOCESS, TunnewSouwce } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteExpwowewSewvice';
+impowt { ITunnewPwovida, ITunnewSewvice, TunnewCweationOptions, TunnewPwovidewFeatuwes, TunnewOptions, WemoteTunnew, isPowtPwiviweged, PwovidedPowtAttwibutes, PowtAttwibutesPwovida, TunnewPwotocow } fwom 'vs/pwatfowm/wemote/common/tunnew';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt type { TunnewDescwiption } fwom 'vs/pwatfowm/wemote/common/wemoteAuthowityWesowva';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IConfiguwationWegistwy, Extensions as ConfiguwationExtensions } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
 
-@extHostNamedCustomer(MainContext.MainThreadTunnelService)
-export class MainThreadTunnelService extends Disposable implements MainThreadTunnelServiceShape, PortAttributesProvider {
-	private readonly _proxy: ExtHostTunnelServiceShape;
-	private elevateionRetry: boolean = false;
-	private portsAttributesProviders: Map<number, PortAttributesProviderSelector> = new Map();
+@extHostNamedCustoma(MainContext.MainThweadTunnewSewvice)
+expowt cwass MainThweadTunnewSewvice extends Disposabwe impwements MainThweadTunnewSewviceShape, PowtAttwibutesPwovida {
+	pwivate weadonwy _pwoxy: ExtHostTunnewSewviceShape;
+	pwivate ewevateionWetwy: boowean = fawse;
+	pwivate powtsAttwibutesPwovidews: Map<numba, PowtAttwibutesPwovidewSewectow> = new Map();
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
-		@ITunnelService private readonly tunnelService: ITunnelService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ILogService private readonly logService: ILogService,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService
+		@IWemoteExpwowewSewvice pwivate weadonwy wemoteExpwowewSewvice: IWemoteExpwowewSewvice,
+		@ITunnewSewvice pwivate weadonwy tunnewSewvice: ITunnewSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IWemoteAgentSewvice pwivate weadonwy wemoteAgentSewvice: IWemoteAgentSewvice
 	) {
-		super();
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTunnelService);
-		this._register(tunnelService.onTunnelOpened(() => this._proxy.$onDidTunnelsChange()));
-		this._register(tunnelService.onTunnelClosed(() => this._proxy.$onDidTunnelsChange()));
+		supa();
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostTunnewSewvice);
+		this._wegista(tunnewSewvice.onTunnewOpened(() => this._pwoxy.$onDidTunnewsChange()));
+		this._wegista(tunnewSewvice.onTunnewCwosed(() => this._pwoxy.$onDidTunnewsChange()));
 	}
 
-	private processFindingEnabled(): boolean {
-		return (!!this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING) || this.tunnelService.hasTunnelProvider)
-			&& (this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_PROCESS);
+	pwivate pwocessFindingEnabwed(): boowean {
+		wetuwn (!!this.configuwationSewvice.getVawue(POWT_AUTO_FOWWAWD_SETTING) || this.tunnewSewvice.hasTunnewPwovida)
+			&& (this.configuwationSewvice.getVawue(POWT_AUTO_SOUWCE_SETTING) === POWT_AUTO_SOUWCE_SETTING_PWOCESS);
 	}
 
-	async $setRemoteTunnelService(processId: number): Promise<void> {
-		this.remoteExplorerService.namedProcesses.set(processId, 'Code Extension Host');
-		if (this.remoteExplorerService.portsFeaturesEnabled) {
-			this._proxy.$registerCandidateFinder(this.processFindingEnabled());
-		} else {
-			this._register(this.remoteExplorerService.onEnabledPortsFeatures(() => this._proxy.$registerCandidateFinder(this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING))));
+	async $setWemoteTunnewSewvice(pwocessId: numba): Pwomise<void> {
+		this.wemoteExpwowewSewvice.namedPwocesses.set(pwocessId, 'Code Extension Host');
+		if (this.wemoteExpwowewSewvice.powtsFeatuwesEnabwed) {
+			this._pwoxy.$wegistewCandidateFinda(this.pwocessFindingEnabwed());
+		} ewse {
+			this._wegista(this.wemoteExpwowewSewvice.onEnabwedPowtsFeatuwes(() => this._pwoxy.$wegistewCandidateFinda(this.configuwationSewvice.getVawue(POWT_AUTO_FOWWAWD_SETTING))));
 		}
-		this._register(this.configurationService.onDidChangeConfiguration(async (e) => {
-			if (e.affectsConfiguration(PORT_AUTO_FORWARD_SETTING) || e.affectsConfiguration(PORT_AUTO_SOURCE_SETTING)) {
-				return this._proxy.$registerCandidateFinder(this.processFindingEnabled());
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(async (e) => {
+			if (e.affectsConfiguwation(POWT_AUTO_FOWWAWD_SETTING) || e.affectsConfiguwation(POWT_AUTO_SOUWCE_SETTING)) {
+				wetuwn this._pwoxy.$wegistewCandidateFinda(this.pwocessFindingEnabwed());
 			}
 		}));
-		this._register(this.tunnelService.onAddedTunnelProvider(() => {
-			return this._proxy.$registerCandidateFinder(this.processFindingEnabled());
+		this._wegista(this.tunnewSewvice.onAddedTunnewPwovida(() => {
+			wetuwn this._pwoxy.$wegistewCandidateFinda(this.pwocessFindingEnabwed());
 		}));
 	}
 
-	private _alreadyRegistered: boolean = false;
-	async $registerPortsAttributesProvider(selector: PortAttributesProviderSelector, providerHandle: number): Promise<void> {
-		this.portsAttributesProviders.set(providerHandle, selector);
-		if (!this._alreadyRegistered) {
-			this.remoteExplorerService.tunnelModel.addAttributesProvider(this);
-			this._alreadyRegistered = true;
+	pwivate _awweadyWegistewed: boowean = fawse;
+	async $wegistewPowtsAttwibutesPwovida(sewectow: PowtAttwibutesPwovidewSewectow, pwovidewHandwe: numba): Pwomise<void> {
+		this.powtsAttwibutesPwovidews.set(pwovidewHandwe, sewectow);
+		if (!this._awweadyWegistewed) {
+			this.wemoteExpwowewSewvice.tunnewModew.addAttwibutesPwovida(this);
+			this._awweadyWegistewed = twue;
 		}
 	}
 
-	async $unregisterPortsAttributesProvider(providerHandle: number): Promise<void> {
-		this.portsAttributesProviders.delete(providerHandle);
+	async $unwegistewPowtsAttwibutesPwovida(pwovidewHandwe: numba): Pwomise<void> {
+		this.powtsAttwibutesPwovidews.dewete(pwovidewHandwe);
 	}
 
-	async providePortAttributes(ports: number[], pid: number | undefined, commandLine: string | undefined, token: CancellationToken): Promise<ProvidedPortAttributes[]> {
-		if (this.portsAttributesProviders.size === 0) {
-			return [];
+	async pwovidePowtAttwibutes(powts: numba[], pid: numba | undefined, commandWine: stwing | undefined, token: CancewwationToken): Pwomise<PwovidedPowtAttwibutes[]> {
+		if (this.powtsAttwibutesPwovidews.size === 0) {
+			wetuwn [];
 		}
 
-		// Check all the selectors to make sure it's worth going to the extension host.
-		const appropriateHandles = Array.from(this.portsAttributesProviders.entries()).filter(entry => {
-			const selector = entry[1];
-			const portRange = selector.portRange;
-			const portInRange = portRange ? ports.some(port => portRange[0] <= port && port < portRange[1]) : true;
-			const pidMatches = !selector.pid || (selector.pid === pid);
-			const commandMatches = !selector.commandMatcher || (commandLine && (commandLine.match(selector.commandMatcher)));
-			return portInRange && pidMatches && commandMatches;
-		}).map(entry => entry[0]);
+		// Check aww the sewectows to make suwe it's wowth going to the extension host.
+		const appwopwiateHandwes = Awway.fwom(this.powtsAttwibutesPwovidews.entwies()).fiwta(entwy => {
+			const sewectow = entwy[1];
+			const powtWange = sewectow.powtWange;
+			const powtInWange = powtWange ? powts.some(powt => powtWange[0] <= powt && powt < powtWange[1]) : twue;
+			const pidMatches = !sewectow.pid || (sewectow.pid === pid);
+			const commandMatches = !sewectow.commandMatcha || (commandWine && (commandWine.match(sewectow.commandMatcha)));
+			wetuwn powtInWange && pidMatches && commandMatches;
+		}).map(entwy => entwy[0]);
 
-		if (appropriateHandles.length === 0) {
-			return [];
+		if (appwopwiateHandwes.wength === 0) {
+			wetuwn [];
 		}
-		return this._proxy.$providePortAttributes(appropriateHandles, ports, pid, commandLine, token);
+		wetuwn this._pwoxy.$pwovidePowtAttwibutes(appwopwiateHandwes, powts, pid, commandWine, token);
 	}
 
-	async $openTunnel(tunnelOptions: TunnelOptions, source: string): Promise<TunnelDto | undefined> {
-		const tunnel = await this.remoteExplorerService.forward({
-			remote: tunnelOptions.remoteAddress,
-			local: tunnelOptions.localAddressPort,
-			name: tunnelOptions.label,
-			source: {
-				source: TunnelSource.Extension,
-				description: source
+	async $openTunnew(tunnewOptions: TunnewOptions, souwce: stwing): Pwomise<TunnewDto | undefined> {
+		const tunnew = await this.wemoteExpwowewSewvice.fowwawd({
+			wemote: tunnewOptions.wemoteAddwess,
+			wocaw: tunnewOptions.wocawAddwessPowt,
+			name: tunnewOptions.wabew,
+			souwce: {
+				souwce: TunnewSouwce.Extension,
+				descwiption: souwce
 			},
-			elevateIfNeeded: false
+			ewevateIfNeeded: fawse
 		});
-		if (tunnel) {
-			if (!this.elevateionRetry
-				&& (tunnelOptions.localAddressPort !== undefined)
-				&& (tunnel.tunnelLocalPort !== undefined)
-				&& isPortPrivileged(tunnelOptions.localAddressPort)
-				&& (tunnel.tunnelLocalPort !== tunnelOptions.localAddressPort)
-				&& this.tunnelService.canElevate) {
+		if (tunnew) {
+			if (!this.ewevateionWetwy
+				&& (tunnewOptions.wocawAddwessPowt !== undefined)
+				&& (tunnew.tunnewWocawPowt !== undefined)
+				&& isPowtPwiviweged(tunnewOptions.wocawAddwessPowt)
+				&& (tunnew.tunnewWocawPowt !== tunnewOptions.wocawAddwessPowt)
+				&& this.tunnewSewvice.canEwevate) {
 
-				this.elevationPrompt(tunnelOptions, tunnel, source);
+				this.ewevationPwompt(tunnewOptions, tunnew, souwce);
 			}
-			return TunnelDto.fromServiceTunnel(tunnel);
+			wetuwn TunnewDto.fwomSewviceTunnew(tunnew);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private async elevationPrompt(tunnelOptions: TunnelOptions, tunnel: RemoteTunnel, source: string) {
-		return this.notificationService.prompt(Severity.Info,
-			nls.localize('remote.tunnel.openTunnel', "The extension {0} has forwarded port {1}. You'll need to run as superuser to use port {2} locally.", source, tunnelOptions.remoteAddress.port, tunnelOptions.localAddressPort),
+	pwivate async ewevationPwompt(tunnewOptions: TunnewOptions, tunnew: WemoteTunnew, souwce: stwing) {
+		wetuwn this.notificationSewvice.pwompt(Sevewity.Info,
+			nws.wocawize('wemote.tunnew.openTunnew', "The extension {0} has fowwawded powt {1}. You'ww need to wun as supewusa to use powt {2} wocawwy.", souwce, tunnewOptions.wemoteAddwess.powt, tunnewOptions.wocawAddwessPowt),
 			[{
-				label: nls.localize('remote.tunnelsView.elevationButton', "Use Port {0} as Sudo...", tunnel.tunnelRemotePort),
-				run: async () => {
-					this.elevateionRetry = true;
-					await this.remoteExplorerService.close({ host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort });
-					await this.remoteExplorerService.forward({
-						remote: tunnelOptions.remoteAddress,
-						local: tunnelOptions.localAddressPort,
-						name: tunnelOptions.label,
-						source: {
-							source: TunnelSource.Extension,
-							description: source
+				wabew: nws.wocawize('wemote.tunnewsView.ewevationButton', "Use Powt {0} as Sudo...", tunnew.tunnewWemotePowt),
+				wun: async () => {
+					this.ewevateionWetwy = twue;
+					await this.wemoteExpwowewSewvice.cwose({ host: tunnew.tunnewWemoteHost, powt: tunnew.tunnewWemotePowt });
+					await this.wemoteExpwowewSewvice.fowwawd({
+						wemote: tunnewOptions.wemoteAddwess,
+						wocaw: tunnewOptions.wocawAddwessPowt,
+						name: tunnewOptions.wabew,
+						souwce: {
+							souwce: TunnewSouwce.Extension,
+							descwiption: souwce
 						},
-						elevateIfNeeded: true
+						ewevateIfNeeded: twue
 					});
-					this.elevateionRetry = false;
+					this.ewevateionWetwy = fawse;
 				}
 			}]);
 	}
 
-	async $closeTunnel(remote: { host: string, port: number }): Promise<void> {
-		return this.remoteExplorerService.close(remote);
+	async $cwoseTunnew(wemote: { host: stwing, powt: numba }): Pwomise<void> {
+		wetuwn this.wemoteExpwowewSewvice.cwose(wemote);
 	}
 
-	async $getTunnels(): Promise<TunnelDescription[]> {
-		return (await this.tunnelService.tunnels).map(tunnel => {
-			return {
-				remoteAddress: { port: tunnel.tunnelRemotePort, host: tunnel.tunnelRemoteHost },
-				localAddress: tunnel.localAddress
+	async $getTunnews(): Pwomise<TunnewDescwiption[]> {
+		wetuwn (await this.tunnewSewvice.tunnews).map(tunnew => {
+			wetuwn {
+				wemoteAddwess: { powt: tunnew.tunnewWemotePowt, host: tunnew.tunnewWemoteHost },
+				wocawAddwess: tunnew.wocawAddwess
 			};
 		});
 	}
 
-	async $onFoundNewCandidates(candidates: CandidatePort[]): Promise<void> {
-		this.remoteExplorerService.onFoundNewCandidates(candidates);
+	async $onFoundNewCandidates(candidates: CandidatePowt[]): Pwomise<void> {
+		this.wemoteExpwowewSewvice.onFoundNewCandidates(candidates);
 	}
 
-	async $setTunnelProvider(features: TunnelProviderFeatures): Promise<void> {
-		const tunnelProvider: ITunnelProvider = {
-			forwardPort: (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => {
-				const forward = this._proxy.$forwardPort(tunnelOptions, tunnelCreationOptions);
-				return forward.then(tunnel => {
-					this.logService.trace(`ForwardedPorts: (MainThreadTunnelService) New tunnel established by tunnel provider: ${tunnel?.remoteAddress.host}:${tunnel?.remoteAddress.port}`);
-					if (!tunnel) {
-						return undefined;
+	async $setTunnewPwovida(featuwes: TunnewPwovidewFeatuwes): Pwomise<void> {
+		const tunnewPwovida: ITunnewPwovida = {
+			fowwawdPowt: (tunnewOptions: TunnewOptions, tunnewCweationOptions: TunnewCweationOptions) => {
+				const fowwawd = this._pwoxy.$fowwawdPowt(tunnewOptions, tunnewCweationOptions);
+				wetuwn fowwawd.then(tunnew => {
+					this.wogSewvice.twace(`FowwawdedPowts: (MainThweadTunnewSewvice) New tunnew estabwished by tunnew pwovida: ${tunnew?.wemoteAddwess.host}:${tunnew?.wemoteAddwess.powt}`);
+					if (!tunnew) {
+						wetuwn undefined;
 					}
-					return {
-						tunnelRemotePort: tunnel.remoteAddress.port,
-						tunnelRemoteHost: tunnel.remoteAddress.host,
-						localAddress: typeof tunnel.localAddress === 'string' ? tunnel.localAddress : makeAddress(tunnel.localAddress.host, tunnel.localAddress.port),
-						tunnelLocalPort: typeof tunnel.localAddress !== 'string' ? tunnel.localAddress.port : undefined,
-						public: tunnel.public,
-						protocol: tunnel.protocol ?? TunnelProtocol.Http,
-						dispose: async (silent?: boolean) => {
-							this.logService.trace(`ForwardedPorts: (MainThreadTunnelService) Closing tunnel from tunnel provider: ${tunnel?.remoteAddress.host}:${tunnel?.remoteAddress.port}`);
-							return this._proxy.$closeTunnel({ host: tunnel.remoteAddress.host, port: tunnel.remoteAddress.port }, silent);
+					wetuwn {
+						tunnewWemotePowt: tunnew.wemoteAddwess.powt,
+						tunnewWemoteHost: tunnew.wemoteAddwess.host,
+						wocawAddwess: typeof tunnew.wocawAddwess === 'stwing' ? tunnew.wocawAddwess : makeAddwess(tunnew.wocawAddwess.host, tunnew.wocawAddwess.powt),
+						tunnewWocawPowt: typeof tunnew.wocawAddwess !== 'stwing' ? tunnew.wocawAddwess.powt : undefined,
+						pubwic: tunnew.pubwic,
+						pwotocow: tunnew.pwotocow ?? TunnewPwotocow.Http,
+						dispose: async (siwent?: boowean) => {
+							this.wogSewvice.twace(`FowwawdedPowts: (MainThweadTunnewSewvice) Cwosing tunnew fwom tunnew pwovida: ${tunnew?.wemoteAddwess.host}:${tunnew?.wemoteAddwess.powt}`);
+							wetuwn this._pwoxy.$cwoseTunnew({ host: tunnew.wemoteAddwess.host, powt: tunnew.wemoteAddwess.powt }, siwent);
 						}
 					};
 				});
 			}
 		};
-		this.tunnelService.setTunnelProvider(tunnelProvider, features);
+		this.tunnewSewvice.setTunnewPwovida(tunnewPwovida, featuwes);
 	}
 
-	async $setCandidateFilter(): Promise<void> {
-		this.remoteExplorerService.setCandidateFilter((candidates: CandidatePort[]): Promise<CandidatePort[]> => {
-			return this._proxy.$applyCandidateFilter(candidates);
+	async $setCandidateFiwta(): Pwomise<void> {
+		this.wemoteExpwowewSewvice.setCandidateFiwta((candidates: CandidatePowt[]): Pwomise<CandidatePowt[]> => {
+			wetuwn this._pwoxy.$appwyCandidateFiwta(candidates);
 		});
 	}
 
-	async $setCandidatePortSource(source: CandidatePortSource): Promise<void> {
-		// Must wait for the remote environment before trying to set settings there.
-		this.remoteAgentService.getEnvironment().then(() => {
-			switch (source) {
-				case CandidatePortSource.None: {
-					Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-						.registerDefaultConfigurations([{ 'remote.autoForwardPorts': false }]);
-					break;
+	async $setCandidatePowtSouwce(souwce: CandidatePowtSouwce): Pwomise<void> {
+		// Must wait fow the wemote enviwonment befowe twying to set settings thewe.
+		this.wemoteAgentSewvice.getEnviwonment().then(() => {
+			switch (souwce) {
+				case CandidatePowtSouwce.None: {
+					Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation)
+						.wegistewDefauwtConfiguwations([{ 'wemote.autoFowwawdPowts': fawse }]);
+					bweak;
 				}
-				case CandidatePortSource.Output: {
-					Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-						.registerDefaultConfigurations([{ 'remote.autoForwardPortsSource': PORT_AUTO_SOURCE_SETTING_OUTPUT }]);
-					break;
+				case CandidatePowtSouwce.Output: {
+					Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation)
+						.wegistewDefauwtConfiguwations([{ 'wemote.autoFowwawdPowtsSouwce': POWT_AUTO_SOUWCE_SETTING_OUTPUT }]);
+					bweak;
 				}
-				default: // Do nothing, the defaults for these settings should be used.
+				defauwt: // Do nothing, the defauwts fow these settings shouwd be used.
 			}
 		}).catch(() => {
-			// The remote failed to get setup. Errors from that area will already be surfaced to the user.
+			// The wemote faiwed to get setup. Ewwows fwom that awea wiww awweady be suwfaced to the usa.
 		});
 	}
 }

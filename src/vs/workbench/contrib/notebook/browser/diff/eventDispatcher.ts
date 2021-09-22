@@ -1,56 +1,56 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IDiffElementLayoutInfo } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
-import { NotebookLayoutChangeEvent, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IDiffEwementWayoutInfo } fwom 'vs/wowkbench/contwib/notebook/bwowsa/diff/notebookDiffEditowBwowsa';
+impowt { NotebookWayoutChangeEvent, NotebookWayoutInfo } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
 
-export enum NotebookDiffViewEventType {
-	LayoutChanged = 1,
-	CellLayoutChanged = 2
+expowt enum NotebookDiffViewEventType {
+	WayoutChanged = 1,
+	CewwWayoutChanged = 2
 	// MetadataChanged = 2,
-	// CellStateChanged = 3
+	// CewwStateChanged = 3
 }
 
-export class NotebookDiffLayoutChangedEvent {
-	public readonly type = NotebookDiffViewEventType.LayoutChanged;
+expowt cwass NotebookDiffWayoutChangedEvent {
+	pubwic weadonwy type = NotebookDiffViewEventType.WayoutChanged;
 
-	constructor(readonly source: NotebookLayoutChangeEvent, readonly value: NotebookLayoutInfo) {
+	constwuctow(weadonwy souwce: NotebookWayoutChangeEvent, weadonwy vawue: NotebookWayoutInfo) {
 
 	}
 }
 
-export class NotebookCellLayoutChangedEvent {
-	public readonly type = NotebookDiffViewEventType.CellLayoutChanged;
+expowt cwass NotebookCewwWayoutChangedEvent {
+	pubwic weadonwy type = NotebookDiffViewEventType.CewwWayoutChanged;
 
-	constructor(readonly source: IDiffElementLayoutInfo) {
+	constwuctow(weadonwy souwce: IDiffEwementWayoutInfo) {
 
 	}
 }
 
-export type NotebookDiffViewEvent = NotebookDiffLayoutChangedEvent | NotebookCellLayoutChangedEvent;
+expowt type NotebookDiffViewEvent = NotebookDiffWayoutChangedEvent | NotebookCewwWayoutChangedEvent;
 
-export class NotebookDiffEditorEventDispatcher extends Disposable {
-	protected readonly _onDidChangeLayout = this._register(new Emitter<NotebookDiffLayoutChangedEvent>());
-	readonly onDidChangeLayout = this._onDidChangeLayout.event;
+expowt cwass NotebookDiffEditowEventDispatcha extends Disposabwe {
+	pwotected weadonwy _onDidChangeWayout = this._wegista(new Emitta<NotebookDiffWayoutChangedEvent>());
+	weadonwy onDidChangeWayout = this._onDidChangeWayout.event;
 
-	protected readonly _onDidChangeCellLayout = this._register(new Emitter<NotebookCellLayoutChangedEvent>());
-	readonly onDidChangeCellLayout = this._onDidChangeCellLayout.event;
+	pwotected weadonwy _onDidChangeCewwWayout = this._wegista(new Emitta<NotebookCewwWayoutChangedEvent>());
+	weadonwy onDidChangeCewwWayout = this._onDidChangeCewwWayout.event;
 
 	emit(events: NotebookDiffViewEvent[]) {
-		for (let i = 0, len = events.length; i < len; i++) {
+		fow (wet i = 0, wen = events.wength; i < wen; i++) {
 			const e = events[i];
 
 			switch (e.type) {
-				case NotebookDiffViewEventType.LayoutChanged:
-					this._onDidChangeLayout.fire(e);
-					break;
-				case NotebookDiffViewEventType.CellLayoutChanged:
-					this._onDidChangeCellLayout.fire(e);
-					break;
+				case NotebookDiffViewEventType.WayoutChanged:
+					this._onDidChangeWayout.fiwe(e);
+					bweak;
+				case NotebookDiffViewEventType.CewwWayoutChanged:
+					this._onDidChangeCewwWayout.fiwe(e);
+					bweak;
 			}
 		}
 	}

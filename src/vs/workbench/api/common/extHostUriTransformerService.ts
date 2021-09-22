@@ -1,37 +1,37 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IURITransformer } from 'vs/base/common/uriIpc';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI, UriComponents } from 'vs/base/common/uri';
+impowt { IUWITwansfowma } fwom 'vs/base/common/uwiIpc';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
 
-export interface IURITransformerService extends IURITransformer {
-	readonly _serviceBrand: undefined;
+expowt intewface IUWITwansfowmewSewvice extends IUWITwansfowma {
+	weadonwy _sewviceBwand: undefined;
 }
 
-export const IURITransformerService = createDecorator<IURITransformerService>('IURITransformerService');
+expowt const IUWITwansfowmewSewvice = cweateDecowatow<IUWITwansfowmewSewvice>('IUWITwansfowmewSewvice');
 
-export class URITransformerService implements IURITransformerService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass UWITwansfowmewSewvice impwements IUWITwansfowmewSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	transformIncoming: (uri: UriComponents) => UriComponents;
-	transformOutgoing: (uri: UriComponents) => UriComponents;
-	transformOutgoingURI: (uri: URI) => URI;
-	transformOutgoingScheme: (scheme: string) => string;
+	twansfowmIncoming: (uwi: UwiComponents) => UwiComponents;
+	twansfowmOutgoing: (uwi: UwiComponents) => UwiComponents;
+	twansfowmOutgoingUWI: (uwi: UWI) => UWI;
+	twansfowmOutgoingScheme: (scheme: stwing) => stwing;
 
-	constructor(delegate: IURITransformer | null) {
-		if (!delegate) {
-			this.transformIncoming = arg => arg;
-			this.transformOutgoing = arg => arg;
-			this.transformOutgoingURI = arg => arg;
-			this.transformOutgoingScheme = arg => arg;
-		} else {
-			this.transformIncoming = delegate.transformIncoming.bind(delegate);
-			this.transformOutgoing = delegate.transformOutgoing.bind(delegate);
-			this.transformOutgoingURI = delegate.transformOutgoingURI.bind(delegate);
-			this.transformOutgoingScheme = delegate.transformOutgoingScheme.bind(delegate);
+	constwuctow(dewegate: IUWITwansfowma | nuww) {
+		if (!dewegate) {
+			this.twansfowmIncoming = awg => awg;
+			this.twansfowmOutgoing = awg => awg;
+			this.twansfowmOutgoingUWI = awg => awg;
+			this.twansfowmOutgoingScheme = awg => awg;
+		} ewse {
+			this.twansfowmIncoming = dewegate.twansfowmIncoming.bind(dewegate);
+			this.twansfowmOutgoing = dewegate.twansfowmOutgoing.bind(dewegate);
+			this.twansfowmOutgoingUWI = dewegate.twansfowmOutgoingUWI.bind(dewegate);
+			this.twansfowmOutgoingScheme = dewegate.twansfowmOutgoingScheme.bind(dewegate);
 		}
 	}
 }

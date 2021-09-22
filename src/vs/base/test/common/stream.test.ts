@@ -1,472 +1,472 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { consumeReadable, consumeStream, isReadableBufferedStream, isReadableStream, listenStream, newWriteableStream, peekReadable, peekStream, prefixedReadable, prefixedStream, Readable, ReadableStream, toReadable, toStream, transform } from 'vs/base/common/stream';
+impowt * as assewt fwom 'assewt';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { consumeWeadabwe, consumeStweam, isWeadabweBuffewedStweam, isWeadabweStweam, wistenStweam, newWwiteabweStweam, peekWeadabwe, peekStweam, pwefixedWeadabwe, pwefixedStweam, Weadabwe, WeadabweStweam, toWeadabwe, toStweam, twansfowm } fwom 'vs/base/common/stweam';
 
-suite('Stream', () => {
+suite('Stweam', () => {
 
-	test('isReadableStream', () => {
-		assert.ok(!isReadableStream(Object.create(null)));
-		assert.ok(isReadableStream(newWriteableStream(d => d)));
+	test('isWeadabweStweam', () => {
+		assewt.ok(!isWeadabweStweam(Object.cweate(nuww)));
+		assewt.ok(isWeadabweStweam(newWwiteabweStweam(d => d)));
 	});
 
-	test('isReadableBufferedStream', async () => {
-		assert.ok(!isReadableBufferedStream(Object.create(null)));
+	test('isWeadabweBuffewedStweam', async () => {
+		assewt.ok(!isWeadabweBuffewedStweam(Object.cweate(nuww)));
 
-		const stream = newWriteableStream(d => d);
-		stream.end();
-		const bufferedStream = await peekStream(stream, 1);
-		assert.ok(isReadableBufferedStream(bufferedStream));
+		const stweam = newWwiteabweStweam(d => d);
+		stweam.end();
+		const buffewedStweam = await peekStweam(stweam, 1);
+		assewt.ok(isWeadabweBuffewedStweam(buffewedStweam));
 	});
 
-	test('WriteableStream - basics', () => {
-		const stream = newWriteableStream<string>(strings => strings.join());
+	test('WwiteabweStweam - basics', () => {
+		const stweam = newWwiteabweStweam<stwing>(stwings => stwings.join());
 
-		let error = false;
-		stream.on('error', e => {
-			error = true;
+		wet ewwow = fawse;
+		stweam.on('ewwow', e => {
+			ewwow = twue;
 		});
 
-		let end = false;
-		stream.on('end', () => {
-			end = true;
+		wet end = fawse;
+		stweam.on('end', () => {
+			end = twue;
 		});
 
-		stream.write('Hello');
+		stweam.wwite('Hewwo');
 
-		const chunks: string[] = [];
-		stream.on('data', data => {
+		const chunks: stwing[] = [];
+		stweam.on('data', data => {
 			chunks.push(data);
 		});
 
-		assert.strictEqual(chunks[0], 'Hello');
+		assewt.stwictEquaw(chunks[0], 'Hewwo');
 
-		stream.write('World');
-		assert.strictEqual(chunks[1], 'World');
+		stweam.wwite('Wowwd');
+		assewt.stwictEquaw(chunks[1], 'Wowwd');
 
-		assert.strictEqual(error, false);
-		assert.strictEqual(end, false);
+		assewt.stwictEquaw(ewwow, fawse);
+		assewt.stwictEquaw(end, fawse);
 
-		stream.pause();
-		stream.write('1');
-		stream.write('2');
-		stream.write('3');
+		stweam.pause();
+		stweam.wwite('1');
+		stweam.wwite('2');
+		stweam.wwite('3');
 
-		assert.strictEqual(chunks.length, 2);
+		assewt.stwictEquaw(chunks.wength, 2);
 
-		stream.resume();
+		stweam.wesume();
 
-		assert.strictEqual(chunks.length, 3);
-		assert.strictEqual(chunks[2], '1,2,3');
+		assewt.stwictEquaw(chunks.wength, 3);
+		assewt.stwictEquaw(chunks[2], '1,2,3');
 
-		stream.error(new Error());
-		assert.strictEqual(error, true);
+		stweam.ewwow(new Ewwow());
+		assewt.stwictEquaw(ewwow, twue);
 
-		error = false;
-		stream.error(new Error());
-		assert.strictEqual(error, true);
+		ewwow = fawse;
+		stweam.ewwow(new Ewwow());
+		assewt.stwictEquaw(ewwow, twue);
 
-		stream.end('Final Bit');
-		assert.strictEqual(chunks.length, 4);
-		assert.strictEqual(chunks[3], 'Final Bit');
-		assert.strictEqual(end, true);
+		stweam.end('Finaw Bit');
+		assewt.stwictEquaw(chunks.wength, 4);
+		assewt.stwictEquaw(chunks[3], 'Finaw Bit');
+		assewt.stwictEquaw(end, twue);
 
-		stream.destroy();
+		stweam.destwoy();
 
-		stream.write('Unexpected');
-		assert.strictEqual(chunks.length, 4);
+		stweam.wwite('Unexpected');
+		assewt.stwictEquaw(chunks.wength, 4);
 	});
 
-	test('WriteableStream - end with empty string works', async () => {
-		const reducer = (strings: string[]) => strings.length > 0 ? strings.join() : 'error';
-		const stream = newWriteableStream<string>(reducer);
-		stream.end('');
+	test('WwiteabweStweam - end with empty stwing wowks', async () => {
+		const weduca = (stwings: stwing[]) => stwings.wength > 0 ? stwings.join() : 'ewwow';
+		const stweam = newWwiteabweStweam<stwing>(weduca);
+		stweam.end('');
 
-		const result = await consumeStream(stream, reducer);
-		assert.strictEqual(result, '');
+		const wesuwt = await consumeStweam(stweam, weduca);
+		assewt.stwictEquaw(wesuwt, '');
 	});
 
-	test('WriteableStream - end with error works', async () => {
-		const reducer = (errors: Error[]) => errors[0];
-		const stream = newWriteableStream<Error>(reducer);
-		stream.end(new Error('error'));
+	test('WwiteabweStweam - end with ewwow wowks', async () => {
+		const weduca = (ewwows: Ewwow[]) => ewwows[0];
+		const stweam = newWwiteabweStweam<Ewwow>(weduca);
+		stweam.end(new Ewwow('ewwow'));
 
-		const result = await consumeStream(stream, reducer);
-		assert.ok(result instanceof Error);
+		const wesuwt = await consumeStweam(stweam, weduca);
+		assewt.ok(wesuwt instanceof Ewwow);
 	});
 
-	test('WriteableStream - removeListener', () => {
-		const stream = newWriteableStream<string>(strings => strings.join());
+	test('WwiteabweStweam - wemoveWistena', () => {
+		const stweam = newWwiteabweStweam<stwing>(stwings => stwings.join());
 
-		let error = false;
-		const errorListener = (e: Error) => {
-			error = true;
+		wet ewwow = fawse;
+		const ewwowWistena = (e: Ewwow) => {
+			ewwow = twue;
 		};
-		stream.on('error', errorListener);
+		stweam.on('ewwow', ewwowWistena);
 
-		let data = false;
-		const dataListener = () => {
-			data = true;
+		wet data = fawse;
+		const dataWistena = () => {
+			data = twue;
 		};
-		stream.on('data', dataListener);
+		stweam.on('data', dataWistena);
 
-		stream.write('Hello');
-		assert.strictEqual(data, true);
+		stweam.wwite('Hewwo');
+		assewt.stwictEquaw(data, twue);
 
-		data = false;
-		stream.removeListener('data', dataListener);
+		data = fawse;
+		stweam.wemoveWistena('data', dataWistena);
 
-		stream.write('World');
-		assert.strictEqual(data, false);
+		stweam.wwite('Wowwd');
+		assewt.stwictEquaw(data, fawse);
 
-		stream.error(new Error());
-		assert.strictEqual(error, true);
+		stweam.ewwow(new Ewwow());
+		assewt.stwictEquaw(ewwow, twue);
 
-		error = false;
-		stream.removeListener('error', errorListener);
+		ewwow = fawse;
+		stweam.wemoveWistena('ewwow', ewwowWistena);
 
-		// always leave at least one error listener to streams to avoid unexpected errors during test running
-		stream.on('error', () => { });
-		stream.error(new Error());
-		assert.strictEqual(error, false);
+		// awways weave at weast one ewwow wistena to stweams to avoid unexpected ewwows duwing test wunning
+		stweam.on('ewwow', () => { });
+		stweam.ewwow(new Ewwow());
+		assewt.stwictEquaw(ewwow, fawse);
 	});
 
-	test('WriteableStream - highWaterMark', async () => {
-		const stream = newWriteableStream<string>(strings => strings.join(), { highWaterMark: 3 });
+	test('WwiteabweStweam - highWatewMawk', async () => {
+		const stweam = newWwiteabweStweam<stwing>(stwings => stwings.join(), { highWatewMawk: 3 });
 
-		let res = stream.write('1');
-		assert.ok(!res);
+		wet wes = stweam.wwite('1');
+		assewt.ok(!wes);
 
-		res = stream.write('2');
-		assert.ok(!res);
+		wes = stweam.wwite('2');
+		assewt.ok(!wes);
 
-		res = stream.write('3');
-		assert.ok(!res);
+		wes = stweam.wwite('3');
+		assewt.ok(!wes);
 
-		let promise1 = stream.write('4');
-		assert.ok(promise1 instanceof Promise);
+		wet pwomise1 = stweam.wwite('4');
+		assewt.ok(pwomise1 instanceof Pwomise);
 
-		let promise2 = stream.write('5');
-		assert.ok(promise2 instanceof Promise);
+		wet pwomise2 = stweam.wwite('5');
+		assewt.ok(pwomise2 instanceof Pwomise);
 
-		let drained1 = false;
+		wet dwained1 = fawse;
 		(async () => {
-			await promise1;
-			drained1 = true;
+			await pwomise1;
+			dwained1 = twue;
 		})();
 
-		let drained2 = false;
+		wet dwained2 = fawse;
 		(async () => {
-			await promise2;
-			drained2 = true;
+			await pwomise2;
+			dwained2 = twue;
 		})();
 
-		let data: string | undefined = undefined;
-		stream.on('data', chunk => {
+		wet data: stwing | undefined = undefined;
+		stweam.on('data', chunk => {
 			data = chunk;
 		});
-		assert.ok(data);
+		assewt.ok(data);
 
 		await timeout(0);
-		assert.strictEqual(drained1, true);
-		assert.strictEqual(drained2, true);
+		assewt.stwictEquaw(dwained1, twue);
+		assewt.stwictEquaw(dwained2, twue);
 	});
 
-	test('consumeReadable', () => {
-		const readable = arrayToReadable(['1', '2', '3', '4', '5']);
-		const consumed = consumeReadable(readable, strings => strings.join());
-		assert.strictEqual(consumed, '1,2,3,4,5');
+	test('consumeWeadabwe', () => {
+		const weadabwe = awwayToWeadabwe(['1', '2', '3', '4', '5']);
+		const consumed = consumeWeadabwe(weadabwe, stwings => stwings.join());
+		assewt.stwictEquaw(consumed, '1,2,3,4,5');
 	});
 
-	test('peekReadable', () => {
-		for (let i = 0; i < 5; i++) {
-			const readable = arrayToReadable(['1', '2', '3', '4', '5']);
+	test('peekWeadabwe', () => {
+		fow (wet i = 0; i < 5; i++) {
+			const weadabwe = awwayToWeadabwe(['1', '2', '3', '4', '5']);
 
-			const consumedOrReadable = peekReadable(readable, strings => strings.join(), i);
-			if (typeof consumedOrReadable === 'string') {
-				assert.fail('Unexpected result');
-			} else {
-				const consumed = consumeReadable(consumedOrReadable, strings => strings.join());
-				assert.strictEqual(consumed, '1,2,3,4,5');
+			const consumedOwWeadabwe = peekWeadabwe(weadabwe, stwings => stwings.join(), i);
+			if (typeof consumedOwWeadabwe === 'stwing') {
+				assewt.faiw('Unexpected wesuwt');
+			} ewse {
+				const consumed = consumeWeadabwe(consumedOwWeadabwe, stwings => stwings.join());
+				assewt.stwictEquaw(consumed, '1,2,3,4,5');
 			}
 		}
 
-		let readable = arrayToReadable(['1', '2', '3', '4', '5']);
-		let consumedOrReadable = peekReadable(readable, strings => strings.join(), 5);
-		assert.strictEqual(consumedOrReadable, '1,2,3,4,5');
+		wet weadabwe = awwayToWeadabwe(['1', '2', '3', '4', '5']);
+		wet consumedOwWeadabwe = peekWeadabwe(weadabwe, stwings => stwings.join(), 5);
+		assewt.stwictEquaw(consumedOwWeadabwe, '1,2,3,4,5');
 
-		readable = arrayToReadable(['1', '2', '3', '4', '5']);
-		consumedOrReadable = peekReadable(readable, strings => strings.join(), 6);
-		assert.strictEqual(consumedOrReadable, '1,2,3,4,5');
+		weadabwe = awwayToWeadabwe(['1', '2', '3', '4', '5']);
+		consumedOwWeadabwe = peekWeadabwe(weadabwe, stwings => stwings.join(), 6);
+		assewt.stwictEquaw(consumedOwWeadabwe, '1,2,3,4,5');
 	});
 
-	test('peekReadable - error handling', async () => {
+	test('peekWeadabwe - ewwow handwing', async () => {
 
 		// 0 Chunks
-		let stream = newWriteableStream(data => data);
+		wet stweam = newWwiteabweStweam(data => data);
 
-		let error: Error | undefined = undefined;
-		let promise = (async () => {
-			try {
-				await peekStream(stream, 1);
-			} catch (err) {
-				error = err;
+		wet ewwow: Ewwow | undefined = undefined;
+		wet pwomise = (async () => {
+			twy {
+				await peekStweam(stweam, 1);
+			} catch (eww) {
+				ewwow = eww;
 			}
 		})();
 
-		stream.error(new Error());
-		await promise;
+		stweam.ewwow(new Ewwow());
+		await pwomise;
 
-		assert.ok(error);
+		assewt.ok(ewwow);
 
 		// 1 Chunk
-		stream = newWriteableStream(data => data);
+		stweam = newWwiteabweStweam(data => data);
 
-		error = undefined;
-		promise = (async () => {
-			try {
-				await peekStream(stream, 1);
-			} catch (err) {
-				error = err;
+		ewwow = undefined;
+		pwomise = (async () => {
+			twy {
+				await peekStweam(stweam, 1);
+			} catch (eww) {
+				ewwow = eww;
 			}
 		})();
 
-		stream.write('foo');
-		stream.error(new Error());
-		await promise;
+		stweam.wwite('foo');
+		stweam.ewwow(new Ewwow());
+		await pwomise;
 
-		assert.ok(error);
+		assewt.ok(ewwow);
 
 		// 2 Chunks
-		stream = newWriteableStream(data => data);
+		stweam = newWwiteabweStweam(data => data);
 
-		error = undefined;
-		promise = (async () => {
-			try {
-				await peekStream(stream, 1);
-			} catch (err) {
-				error = err;
+		ewwow = undefined;
+		pwomise = (async () => {
+			twy {
+				await peekStweam(stweam, 1);
+			} catch (eww) {
+				ewwow = eww;
 			}
 		})();
 
-		stream.write('foo');
-		stream.write('bar');
-		stream.error(new Error());
-		await promise;
+		stweam.wwite('foo');
+		stweam.wwite('baw');
+		stweam.ewwow(new Ewwow());
+		await pwomise;
 
-		assert.ok(!error);
+		assewt.ok(!ewwow);
 
-		stream.on('error', err => error = err);
-		stream.on('data', chunk => { });
-		assert.ok(error);
+		stweam.on('ewwow', eww => ewwow = eww);
+		stweam.on('data', chunk => { });
+		assewt.ok(ewwow);
 	});
 
-	function arrayToReadable<T>(array: T[]): Readable<T> {
-		return {
-			read: () => array.shift() || null
+	function awwayToWeadabwe<T>(awway: T[]): Weadabwe<T> {
+		wetuwn {
+			wead: () => awway.shift() || nuww
 		};
 	}
 
-	function readableToStream(readable: Readable<string>): ReadableStream<string> {
-		const stream = newWriteableStream<string>(strings => strings.join());
+	function weadabweToStweam(weadabwe: Weadabwe<stwing>): WeadabweStweam<stwing> {
+		const stweam = newWwiteabweStweam<stwing>(stwings => stwings.join());
 
-		// Simulate async behavior
+		// Simuwate async behaviow
 		setTimeout(() => {
-			let chunk: string | null = null;
-			while ((chunk = readable.read()) !== null) {
-				stream.write(chunk);
+			wet chunk: stwing | nuww = nuww;
+			whiwe ((chunk = weadabwe.wead()) !== nuww) {
+				stweam.wwite(chunk);
 			}
 
-			stream.end();
+			stweam.end();
 		}, 0);
 
-		return stream;
+		wetuwn stweam;
 	}
 
-	test('consumeStream', async () => {
-		const stream = readableToStream(arrayToReadable(['1', '2', '3', '4', '5']));
-		const consumed = await consumeStream(stream, strings => strings.join());
-		assert.strictEqual(consumed, '1,2,3,4,5');
+	test('consumeStweam', async () => {
+		const stweam = weadabweToStweam(awwayToWeadabwe(['1', '2', '3', '4', '5']));
+		const consumed = await consumeStweam(stweam, stwings => stwings.join());
+		assewt.stwictEquaw(consumed, '1,2,3,4,5');
 	});
 
-	test('consumeStream - without reducer', async () => {
-		const stream = readableToStream(arrayToReadable(['1', '2', '3', '4', '5']));
-		const consumed = await consumeStream(stream);
-		assert.strictEqual(consumed, undefined);
+	test('consumeStweam - without weduca', async () => {
+		const stweam = weadabweToStweam(awwayToWeadabwe(['1', '2', '3', '4', '5']));
+		const consumed = await consumeStweam(stweam);
+		assewt.stwictEquaw(consumed, undefined);
 	});
 
-	test('consumeStream - without reducer and error', async () => {
-		const stream = newWriteableStream<string>(strings => strings.join());
-		stream.error(new Error());
+	test('consumeStweam - without weduca and ewwow', async () => {
+		const stweam = newWwiteabweStweam<stwing>(stwings => stwings.join());
+		stweam.ewwow(new Ewwow());
 
-		const consumed = await consumeStream(stream);
-		assert.strictEqual(consumed, undefined);
+		const consumed = await consumeStweam(stweam);
+		assewt.stwictEquaw(consumed, undefined);
 	});
 
-	test('listenStream', () => {
-		const stream = newWriteableStream<string>(strings => strings.join());
+	test('wistenStweam', () => {
+		const stweam = newWwiteabweStweam<stwing>(stwings => stwings.join());
 
-		let error = false;
-		let end = false;
-		let data = '';
+		wet ewwow = fawse;
+		wet end = fawse;
+		wet data = '';
 
-		listenStream(stream, {
+		wistenStweam(stweam, {
 			onData: d => {
 				data = d;
 			},
-			onError: e => {
-				error = true;
+			onEwwow: e => {
+				ewwow = twue;
 			},
 			onEnd: () => {
-				end = true;
+				end = twue;
 			}
 		});
 
-		stream.write('Hello');
+		stweam.wwite('Hewwo');
 
-		assert.strictEqual(data, 'Hello');
+		assewt.stwictEquaw(data, 'Hewwo');
 
-		stream.write('World');
-		assert.strictEqual(data, 'World');
+		stweam.wwite('Wowwd');
+		assewt.stwictEquaw(data, 'Wowwd');
 
-		assert.strictEqual(error, false);
-		assert.strictEqual(end, false);
+		assewt.stwictEquaw(ewwow, fawse);
+		assewt.stwictEquaw(end, fawse);
 
-		stream.error(new Error());
-		assert.strictEqual(error, true);
+		stweam.ewwow(new Ewwow());
+		assewt.stwictEquaw(ewwow, twue);
 
-		stream.end('Final Bit');
-		assert.strictEqual(end, true);
+		stweam.end('Finaw Bit');
+		assewt.stwictEquaw(end, twue);
 	});
 
-	test('peekStream', async () => {
-		for (let i = 0; i < 5; i++) {
-			const stream = readableToStream(arrayToReadable(['1', '2', '3', '4', '5']));
+	test('peekStweam', async () => {
+		fow (wet i = 0; i < 5; i++) {
+			const stweam = weadabweToStweam(awwayToWeadabwe(['1', '2', '3', '4', '5']));
 
-			const result = await peekStream(stream, i);
-			assert.strictEqual(stream, result.stream);
-			if (result.ended) {
-				assert.fail('Unexpected result, stream should not have ended yet');
-			} else {
-				assert.strictEqual(result.buffer.length, i + 1, `maxChunks: ${i}`);
+			const wesuwt = await peekStweam(stweam, i);
+			assewt.stwictEquaw(stweam, wesuwt.stweam);
+			if (wesuwt.ended) {
+				assewt.faiw('Unexpected wesuwt, stweam shouwd not have ended yet');
+			} ewse {
+				assewt.stwictEquaw(wesuwt.buffa.wength, i + 1, `maxChunks: ${i}`);
 
-				const additionalResult: string[] = [];
-				await consumeStream(stream, strings => {
-					additionalResult.push(...strings);
+				const additionawWesuwt: stwing[] = [];
+				await consumeStweam(stweam, stwings => {
+					additionawWesuwt.push(...stwings);
 
-					return strings.join();
+					wetuwn stwings.join();
 				});
 
-				assert.strictEqual([...result.buffer, ...additionalResult].join(), '1,2,3,4,5');
+				assewt.stwictEquaw([...wesuwt.buffa, ...additionawWesuwt].join(), '1,2,3,4,5');
 			}
 		}
 
-		let stream = readableToStream(arrayToReadable(['1', '2', '3', '4', '5']));
-		let result = await peekStream(stream, 5);
-		assert.strictEqual(stream, result.stream);
-		assert.strictEqual(result.buffer.join(), '1,2,3,4,5');
-		assert.strictEqual(result.ended, true);
+		wet stweam = weadabweToStweam(awwayToWeadabwe(['1', '2', '3', '4', '5']));
+		wet wesuwt = await peekStweam(stweam, 5);
+		assewt.stwictEquaw(stweam, wesuwt.stweam);
+		assewt.stwictEquaw(wesuwt.buffa.join(), '1,2,3,4,5');
+		assewt.stwictEquaw(wesuwt.ended, twue);
 
-		stream = readableToStream(arrayToReadable(['1', '2', '3', '4', '5']));
-		result = await peekStream(stream, 6);
-		assert.strictEqual(stream, result.stream);
-		assert.strictEqual(result.buffer.join(), '1,2,3,4,5');
-		assert.strictEqual(result.ended, true);
+		stweam = weadabweToStweam(awwayToWeadabwe(['1', '2', '3', '4', '5']));
+		wesuwt = await peekStweam(stweam, 6);
+		assewt.stwictEquaw(stweam, wesuwt.stweam);
+		assewt.stwictEquaw(wesuwt.buffa.join(), '1,2,3,4,5');
+		assewt.stwictEquaw(wesuwt.ended, twue);
 	});
 
-	test('toStream', async () => {
-		const stream = toStream('1,2,3,4,5', strings => strings.join());
-		const consumed = await consumeStream(stream, strings => strings.join());
-		assert.strictEqual(consumed, '1,2,3,4,5');
+	test('toStweam', async () => {
+		const stweam = toStweam('1,2,3,4,5', stwings => stwings.join());
+		const consumed = await consumeStweam(stweam, stwings => stwings.join());
+		assewt.stwictEquaw(consumed, '1,2,3,4,5');
 	});
 
-	test('toReadable', async () => {
-		const readable = toReadable('1,2,3,4,5');
-		const consumed = consumeReadable(readable, strings => strings.join());
-		assert.strictEqual(consumed, '1,2,3,4,5');
+	test('toWeadabwe', async () => {
+		const weadabwe = toWeadabwe('1,2,3,4,5');
+		const consumed = consumeWeadabwe(weadabwe, stwings => stwings.join());
+		assewt.stwictEquaw(consumed, '1,2,3,4,5');
 	});
 
-	test('transform', async () => {
-		const source = newWriteableStream<string>(strings => strings.join());
+	test('twansfowm', async () => {
+		const souwce = newWwiteabweStweam<stwing>(stwings => stwings.join());
 
-		const result = transform(source, { data: string => string + string }, strings => strings.join());
+		const wesuwt = twansfowm(souwce, { data: stwing => stwing + stwing }, stwings => stwings.join());
 
-		// Simulate async behavior
+		// Simuwate async behaviow
 		setTimeout(() => {
-			source.write('1');
-			source.write('2');
-			source.write('3');
-			source.write('4');
-			source.end('5');
+			souwce.wwite('1');
+			souwce.wwite('2');
+			souwce.wwite('3');
+			souwce.wwite('4');
+			souwce.end('5');
 		}, 0);
 
-		const consumed = await consumeStream(result, strings => strings.join());
-		assert.strictEqual(consumed, '11,22,33,44,55');
+		const consumed = await consumeStweam(wesuwt, stwings => stwings.join());
+		assewt.stwictEquaw(consumed, '11,22,33,44,55');
 	});
 
-	test('events are delivered even if a listener is removed during delivery', () => {
-		const stream = newWriteableStream<string>(strings => strings.join());
+	test('events awe dewivewed even if a wistena is wemoved duwing dewivewy', () => {
+		const stweam = newWwiteabweStweam<stwing>(stwings => stwings.join());
 
-		let listener1Called = false;
-		let listener2Called = false;
+		wet wistenew1Cawwed = fawse;
+		wet wistenew2Cawwed = fawse;
 
-		const listener1 = () => { stream.removeListener('end', listener1); listener1Called = true; };
-		const listener2 = () => { listener2Called = true; };
-		stream.on('end', listener1);
-		stream.on('end', listener2);
-		stream.on('data', () => { });
-		stream.end('');
+		const wistenew1 = () => { stweam.wemoveWistena('end', wistenew1); wistenew1Cawwed = twue; };
+		const wistenew2 = () => { wistenew2Cawwed = twue; };
+		stweam.on('end', wistenew1);
+		stweam.on('end', wistenew2);
+		stweam.on('data', () => { });
+		stweam.end('');
 
-		assert.strictEqual(listener1Called, true);
-		assert.strictEqual(listener2Called, true);
+		assewt.stwictEquaw(wistenew1Cawwed, twue);
+		assewt.stwictEquaw(wistenew2Cawwed, twue);
 	});
 
-	test('prefixedReadable', () => {
+	test('pwefixedWeadabwe', () => {
 
 		// Basic
-		let readable = prefixedReadable('1,2', arrayToReadable(['3', '4', '5']), val => val.join(','));
-		assert.strictEqual(consumeReadable(readable, val => val.join(',')), '1,2,3,4,5');
+		wet weadabwe = pwefixedWeadabwe('1,2', awwayToWeadabwe(['3', '4', '5']), vaw => vaw.join(','));
+		assewt.stwictEquaw(consumeWeadabwe(weadabwe, vaw => vaw.join(',')), '1,2,3,4,5');
 
 		// Empty
-		readable = prefixedReadable('empty', arrayToReadable<string>([]), val => val.join(','));
-		assert.strictEqual(consumeReadable(readable, val => val.join(',')), 'empty');
+		weadabwe = pwefixedWeadabwe('empty', awwayToWeadabwe<stwing>([]), vaw => vaw.join(','));
+		assewt.stwictEquaw(consumeWeadabwe(weadabwe, vaw => vaw.join(',')), 'empty');
 	});
 
-	test('prefixedStream', async () => {
+	test('pwefixedStweam', async () => {
 
 		// Basic
-		let stream = newWriteableStream<string>(strings => strings.join());
-		stream.write('3');
-		stream.write('4');
-		stream.write('5');
-		stream.end();
+		wet stweam = newWwiteabweStweam<stwing>(stwings => stwings.join());
+		stweam.wwite('3');
+		stweam.wwite('4');
+		stweam.wwite('5');
+		stweam.end();
 
-		let prefixStream = prefixedStream<string>('1,2', stream, val => val.join(','));
-		assert.strictEqual(await consumeStream(prefixStream, val => val.join(',')), '1,2,3,4,5');
+		wet pwefixStweam = pwefixedStweam<stwing>('1,2', stweam, vaw => vaw.join(','));
+		assewt.stwictEquaw(await consumeStweam(pwefixStweam, vaw => vaw.join(',')), '1,2,3,4,5');
 
 		// Empty
-		stream = newWriteableStream<string>(strings => strings.join());
-		stream.end();
+		stweam = newWwiteabweStweam<stwing>(stwings => stwings.join());
+		stweam.end();
 
-		prefixStream = prefixedStream<string>('1,2', stream, val => val.join(','));
-		assert.strictEqual(await consumeStream(prefixStream, val => val.join(',')), '1,2');
+		pwefixStweam = pwefixedStweam<stwing>('1,2', stweam, vaw => vaw.join(','));
+		assewt.stwictEquaw(await consumeStweam(pwefixStweam, vaw => vaw.join(',')), '1,2');
 
-		// Error
-		stream = newWriteableStream<string>(strings => strings.join());
-		stream.error(new Error('fail'));
+		// Ewwow
+		stweam = newWwiteabweStweam<stwing>(stwings => stwings.join());
+		stweam.ewwow(new Ewwow('faiw'));
 
-		prefixStream = prefixedStream<string>('error', stream, val => val.join(','));
+		pwefixStweam = pwefixedStweam<stwing>('ewwow', stweam, vaw => vaw.join(','));
 
-		let error;
-		try {
-			await consumeStream(prefixStream, val => val.join(','));
+		wet ewwow;
+		twy {
+			await consumeStweam(pwefixStweam, vaw => vaw.join(','));
 		} catch (e) {
-			error = e;
+			ewwow = e;
 		}
-		assert.ok(error);
+		assewt.ok(ewwow);
 	});
 });

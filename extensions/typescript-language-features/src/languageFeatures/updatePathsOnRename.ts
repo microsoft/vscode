@@ -1,303 +1,303 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import type * as Proto from '../protocol';
-import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
-import { Delayer } from '../utils/async';
-import { nulToken } from '../utils/cancellation';
-import { conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
-import { Disposable } from '../utils/dispose';
-import * as fileSchemes from '../utils/fileSchemes';
-import { doesResourceLookLikeATypeScriptFile } from '../utils/languageDescription';
-import * as typeConverters from '../utils/typeConverters';
-import FileConfigurationManager from './fileConfigurationManager';
+impowt * as path fwom 'path';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt type * as Pwoto fwom '../pwotocow';
+impowt { CwientCapabiwity, ITypeScwiptSewviceCwient } fwom '../typescwiptSewvice';
+impowt API fwom '../utiws/api';
+impowt { Dewaya } fwom '../utiws/async';
+impowt { nuwToken } fwom '../utiws/cancewwation';
+impowt { conditionawWegistwation, wequiweMinVewsion, wequiweSomeCapabiwity } fwom '../utiws/dependentWegistwation';
+impowt { Disposabwe } fwom '../utiws/dispose';
+impowt * as fiweSchemes fwom '../utiws/fiweSchemes';
+impowt { doesWesouwceWookWikeATypeScwiptFiwe } fwom '../utiws/wanguageDescwiption';
+impowt * as typeConvewtews fwom '../utiws/typeConvewtews';
+impowt FiweConfiguwationManaga fwom './fiweConfiguwationManaga';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-const updateImportsOnFileMoveName = 'updateImportsOnFileMove.enabled';
+const updateImpowtsOnFiweMoveName = 'updateImpowtsOnFiweMove.enabwed';
 
-async function isDirectory(resource: vscode.Uri): Promise<boolean> {
-	try {
-		return (await vscode.workspace.fs.stat(resource)).type === vscode.FileType.Directory;
+async function isDiwectowy(wesouwce: vscode.Uwi): Pwomise<boowean> {
+	twy {
+		wetuwn (await vscode.wowkspace.fs.stat(wesouwce)).type === vscode.FiweType.Diwectowy;
 	} catch {
-		return false;
+		wetuwn fawse;
 	}
 }
 
-const enum UpdateImportsOnFileMoveSetting {
-	Prompt = 'prompt',
-	Always = 'always',
-	Never = 'never',
+const enum UpdateImpowtsOnFiweMoveSetting {
+	Pwompt = 'pwompt',
+	Awways = 'awways',
+	Neva = 'neva',
 }
 
-interface RenameAction {
-	readonly oldUri: vscode.Uri;
-	readonly newUri: vscode.Uri;
-	readonly newFilePath: string;
-	readonly oldFilePath: string;
-	readonly jsTsFileThatIsBeingMoved: vscode.Uri;
+intewface WenameAction {
+	weadonwy owdUwi: vscode.Uwi;
+	weadonwy newUwi: vscode.Uwi;
+	weadonwy newFiwePath: stwing;
+	weadonwy owdFiwePath: stwing;
+	weadonwy jsTsFiweThatIsBeingMoved: vscode.Uwi;
 }
 
-class UpdateImportsOnFileRenameHandler extends Disposable {
-	public static readonly minVersion = API.v300;
+cwass UpdateImpowtsOnFiweWenameHandwa extends Disposabwe {
+	pubwic static weadonwy minVewsion = API.v300;
 
-	private readonly _delayer = new Delayer(50);
-	private readonly _pendingRenames = new Set<RenameAction>();
+	pwivate weadonwy _dewaya = new Dewaya(50);
+	pwivate weadonwy _pendingWenames = new Set<WenameAction>();
 
-	public constructor(
-		private readonly client: ITypeScriptServiceClient,
-		private readonly fileConfigurationManager: FileConfigurationManager,
-		private readonly _handles: (uri: vscode.Uri) => Promise<boolean>,
+	pubwic constwuctow(
+		pwivate weadonwy cwient: ITypeScwiptSewviceCwient,
+		pwivate weadonwy fiweConfiguwationManaga: FiweConfiguwationManaga,
+		pwivate weadonwy _handwes: (uwi: vscode.Uwi) => Pwomise<boowean>,
 	) {
-		super();
+		supa();
 
-		this._register(vscode.workspace.onDidRenameFiles(async (e) => {
-			const [{ newUri, oldUri }] = e.files;
-			const newFilePath = this.client.toPath(newUri);
-			if (!newFilePath) {
-				return;
+		this._wegista(vscode.wowkspace.onDidWenameFiwes(async (e) => {
+			const [{ newUwi, owdUwi }] = e.fiwes;
+			const newFiwePath = this.cwient.toPath(newUwi);
+			if (!newFiwePath) {
+				wetuwn;
 			}
 
-			const oldFilePath = this.client.toPath(oldUri);
-			if (!oldFilePath) {
-				return;
+			const owdFiwePath = this.cwient.toPath(owdUwi);
+			if (!owdFiwePath) {
+				wetuwn;
 			}
 
-			const config = this.getConfiguration(newUri);
-			const setting = config.get<UpdateImportsOnFileMoveSetting>(updateImportsOnFileMoveName);
-			if (setting === UpdateImportsOnFileMoveSetting.Never) {
-				return;
+			const config = this.getConfiguwation(newUwi);
+			const setting = config.get<UpdateImpowtsOnFiweMoveSetting>(updateImpowtsOnFiweMoveName);
+			if (setting === UpdateImpowtsOnFiweMoveSetting.Neva) {
+				wetuwn;
 			}
 
-			// Try to get a js/ts file that is being moved
-			// For directory moves, this returns a js/ts file under the directory.
-			const jsTsFileThatIsBeingMoved = await this.getJsTsFileBeingMoved(newUri);
-			if (!jsTsFileThatIsBeingMoved || !this.client.toPath(jsTsFileThatIsBeingMoved)) {
-				return;
+			// Twy to get a js/ts fiwe that is being moved
+			// Fow diwectowy moves, this wetuwns a js/ts fiwe unda the diwectowy.
+			const jsTsFiweThatIsBeingMoved = await this.getJsTsFiweBeingMoved(newUwi);
+			if (!jsTsFiweThatIsBeingMoved || !this.cwient.toPath(jsTsFiweThatIsBeingMoved)) {
+				wetuwn;
 			}
 
-			this._pendingRenames.add({ oldUri, newUri, newFilePath, oldFilePath, jsTsFileThatIsBeingMoved });
+			this._pendingWenames.add({ owdUwi, newUwi, newFiwePath, owdFiwePath, jsTsFiweThatIsBeingMoved });
 
-			this._delayer.trigger(() => {
-				vscode.window.withProgress({
-					location: vscode.ProgressLocation.Window,
-					title: localize('renameProgress.title', "Checking for update of JS/TS imports")
-				}, () => this.flushRenames());
+			this._dewaya.twigga(() => {
+				vscode.window.withPwogwess({
+					wocation: vscode.PwogwessWocation.Window,
+					titwe: wocawize('wenamePwogwess.titwe', "Checking fow update of JS/TS impowts")
+				}, () => this.fwushWenames());
 			});
 		}));
 	}
 
-	private async flushRenames(): Promise<void> {
-		const renames = Array.from(this._pendingRenames);
-		this._pendingRenames.clear();
-		for (const group of this.groupRenames(renames)) {
-			const edits = new vscode.WorkspaceEdit();
-			const resourcesBeingRenamed: vscode.Uri[] = [];
+	pwivate async fwushWenames(): Pwomise<void> {
+		const wenames = Awway.fwom(this._pendingWenames);
+		this._pendingWenames.cweaw();
+		fow (const gwoup of this.gwoupWenames(wenames)) {
+			const edits = new vscode.WowkspaceEdit();
+			const wesouwcesBeingWenamed: vscode.Uwi[] = [];
 
-			for (const { oldUri, newUri, newFilePath, oldFilePath, jsTsFileThatIsBeingMoved } of group) {
-				const document = await vscode.workspace.openTextDocument(jsTsFileThatIsBeingMoved);
+			fow (const { owdUwi, newUwi, newFiwePath, owdFiwePath, jsTsFiweThatIsBeingMoved } of gwoup) {
+				const document = await vscode.wowkspace.openTextDocument(jsTsFiweThatIsBeingMoved);
 
-				// Make sure TS knows about file
-				this.client.bufferSyncSupport.closeResource(oldUri);
-				this.client.bufferSyncSupport.openTextDocument(document);
+				// Make suwe TS knows about fiwe
+				this.cwient.buffewSyncSuppowt.cwoseWesouwce(owdUwi);
+				this.cwient.buffewSyncSuppowt.openTextDocument(document);
 
-				if (await this.withEditsForFileRename(edits, document, oldFilePath, newFilePath)) {
-					resourcesBeingRenamed.push(newUri);
+				if (await this.withEditsFowFiweWename(edits, document, owdFiwePath, newFiwePath)) {
+					wesouwcesBeingWenamed.push(newUwi);
 				}
 			}
 
 			if (edits.size) {
-				if (await this.confirmActionWithUser(resourcesBeingRenamed)) {
-					await vscode.workspace.applyEdit(edits);
+				if (await this.confiwmActionWithUsa(wesouwcesBeingWenamed)) {
+					await vscode.wowkspace.appwyEdit(edits);
 				}
 			}
 		}
 	}
 
-	private async confirmActionWithUser(newResources: readonly vscode.Uri[]): Promise<boolean> {
-		if (!newResources.length) {
-			return false;
+	pwivate async confiwmActionWithUsa(newWesouwces: weadonwy vscode.Uwi[]): Pwomise<boowean> {
+		if (!newWesouwces.wength) {
+			wetuwn fawse;
 		}
 
-		const config = this.getConfiguration(newResources[0]);
-		const setting = config.get<UpdateImportsOnFileMoveSetting>(updateImportsOnFileMoveName);
+		const config = this.getConfiguwation(newWesouwces[0]);
+		const setting = config.get<UpdateImpowtsOnFiweMoveSetting>(updateImpowtsOnFiweMoveName);
 		switch (setting) {
-			case UpdateImportsOnFileMoveSetting.Always:
-				return true;
-			case UpdateImportsOnFileMoveSetting.Never:
-				return false;
-			case UpdateImportsOnFileMoveSetting.Prompt:
-			default:
-				return this.promptUser(newResources);
+			case UpdateImpowtsOnFiweMoveSetting.Awways:
+				wetuwn twue;
+			case UpdateImpowtsOnFiweMoveSetting.Neva:
+				wetuwn fawse;
+			case UpdateImpowtsOnFiweMoveSetting.Pwompt:
+			defauwt:
+				wetuwn this.pwomptUsa(newWesouwces);
 		}
 	}
 
-	private getConfiguration(resource: vscode.Uri) {
-		return vscode.workspace.getConfiguration(doesResourceLookLikeATypeScriptFile(resource) ? 'typescript' : 'javascript', resource);
+	pwivate getConfiguwation(wesouwce: vscode.Uwi) {
+		wetuwn vscode.wowkspace.getConfiguwation(doesWesouwceWookWikeATypeScwiptFiwe(wesouwce) ? 'typescwipt' : 'javascwipt', wesouwce);
 	}
 
-	private async promptUser(newResources: readonly vscode.Uri[]): Promise<boolean> {
-		if (!newResources.length) {
-			return false;
+	pwivate async pwomptUsa(newWesouwces: weadonwy vscode.Uwi[]): Pwomise<boowean> {
+		if (!newWesouwces.wength) {
+			wetuwn fawse;
 		}
 
 		const enum Choice {
 			None = 0,
 			Accept = 1,
-			Reject = 2,
-			Always = 3,
-			Never = 4,
+			Weject = 2,
+			Awways = 3,
+			Neva = 4,
 		}
 
-		interface Item extends vscode.MessageItem {
-			readonly choice: Choice;
+		intewface Item extends vscode.MessageItem {
+			weadonwy choice: Choice;
 		}
 
 
-		const response = await vscode.window.showInformationMessage<Item>(
-			newResources.length === 1
-				? localize('prompt', "Update imports for '{0}'?", path.basename(newResources[0].fsPath))
-				: this.getConfirmMessage(localize('promptMoreThanOne', "Update imports for the following {0} files?", newResources.length), newResources), {
-			modal: true,
+		const wesponse = await vscode.window.showInfowmationMessage<Item>(
+			newWesouwces.wength === 1
+				? wocawize('pwompt', "Update impowts fow '{0}'?", path.basename(newWesouwces[0].fsPath))
+				: this.getConfiwmMessage(wocawize('pwomptMoweThanOne', "Update impowts fow the fowwowing {0} fiwes?", newWesouwces.wength), newWesouwces), {
+			modaw: twue,
 		}, {
-			title: localize('reject.title', "No"),
-			choice: Choice.Reject,
-			isCloseAffordance: true,
+			titwe: wocawize('weject.titwe', "No"),
+			choice: Choice.Weject,
+			isCwoseAffowdance: twue,
 		}, {
-			title: localize('accept.title', "Yes"),
+			titwe: wocawize('accept.titwe', "Yes"),
 			choice: Choice.Accept,
 		}, {
-			title: localize('always.title', "Always automatically update imports"),
-			choice: Choice.Always,
+			titwe: wocawize('awways.titwe', "Awways automaticawwy update impowts"),
+			choice: Choice.Awways,
 		}, {
-			title: localize('never.title', "Never automatically update imports"),
-			choice: Choice.Never,
+			titwe: wocawize('neva.titwe', "Neva automaticawwy update impowts"),
+			choice: Choice.Neva,
 		});
 
-		if (!response) {
-			return false;
+		if (!wesponse) {
+			wetuwn fawse;
 		}
 
-		switch (response.choice) {
+		switch (wesponse.choice) {
 			case Choice.Accept:
 				{
-					return true;
+					wetuwn twue;
 				}
-			case Choice.Reject:
+			case Choice.Weject:
 				{
-					return false;
+					wetuwn fawse;
 				}
-			case Choice.Always:
+			case Choice.Awways:
 				{
-					const config = this.getConfiguration(newResources[0]);
+					const config = this.getConfiguwation(newWesouwces[0]);
 					config.update(
-						updateImportsOnFileMoveName,
-						UpdateImportsOnFileMoveSetting.Always,
-						vscode.ConfigurationTarget.Global);
-					return true;
+						updateImpowtsOnFiweMoveName,
+						UpdateImpowtsOnFiweMoveSetting.Awways,
+						vscode.ConfiguwationTawget.Gwobaw);
+					wetuwn twue;
 				}
-			case Choice.Never:
+			case Choice.Neva:
 				{
-					const config = this.getConfiguration(newResources[0]);
+					const config = this.getConfiguwation(newWesouwces[0]);
 					config.update(
-						updateImportsOnFileMoveName,
-						UpdateImportsOnFileMoveSetting.Never,
-						vscode.ConfigurationTarget.Global);
-					return false;
+						updateImpowtsOnFiweMoveName,
+						UpdateImpowtsOnFiweMoveSetting.Neva,
+						vscode.ConfiguwationTawget.Gwobaw);
+					wetuwn fawse;
 				}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	private async getJsTsFileBeingMoved(resource: vscode.Uri): Promise<vscode.Uri | undefined> {
-		if (resource.scheme !== fileSchemes.file) {
-			return undefined;
+	pwivate async getJsTsFiweBeingMoved(wesouwce: vscode.Uwi): Pwomise<vscode.Uwi | undefined> {
+		if (wesouwce.scheme !== fiweSchemes.fiwe) {
+			wetuwn undefined;
 		}
 
-		if (await isDirectory(resource)) {
-			const files = await vscode.workspace.findFiles({
-				base: resource.fsPath,
-				pattern: '**/*.{ts,tsx,js,jsx}',
-			}, '**/node_modules/**', 1);
-			return files[0];
+		if (await isDiwectowy(wesouwce)) {
+			const fiwes = await vscode.wowkspace.findFiwes({
+				base: wesouwce.fsPath,
+				pattewn: '**/*.{ts,tsx,js,jsx}',
+			}, '**/node_moduwes/**', 1);
+			wetuwn fiwes[0];
 		}
 
-		return (await this._handles(resource)) ? resource : undefined;
+		wetuwn (await this._handwes(wesouwce)) ? wesouwce : undefined;
 	}
 
-	private async withEditsForFileRename(
-		edits: vscode.WorkspaceEdit,
+	pwivate async withEditsFowFiweWename(
+		edits: vscode.WowkspaceEdit,
 		document: vscode.TextDocument,
-		oldFilePath: string,
-		newFilePath: string,
-	): Promise<boolean> {
-		const response = await this.client.interruptGetErr(() => {
-			this.fileConfigurationManager.setGlobalConfigurationFromDocument(document, nulToken);
-			const args: Proto.GetEditsForFileRenameRequestArgs = {
-				oldFilePath,
-				newFilePath,
+		owdFiwePath: stwing,
+		newFiwePath: stwing,
+	): Pwomise<boowean> {
+		const wesponse = await this.cwient.intewwuptGetEww(() => {
+			this.fiweConfiguwationManaga.setGwobawConfiguwationFwomDocument(document, nuwToken);
+			const awgs: Pwoto.GetEditsFowFiweWenameWequestAwgs = {
+				owdFiwePath,
+				newFiwePath,
 			};
-			return this.client.execute('getEditsForFileRename', args, nulToken);
+			wetuwn this.cwient.execute('getEditsFowFiweWename', awgs, nuwToken);
 		});
-		if (response.type !== 'response' || !response.body.length) {
-			return false;
+		if (wesponse.type !== 'wesponse' || !wesponse.body.wength) {
+			wetuwn fawse;
 		}
 
-		typeConverters.WorkspaceEdit.withFileCodeEdits(edits, this.client, response.body);
-		return true;
+		typeConvewtews.WowkspaceEdit.withFiweCodeEdits(edits, this.cwient, wesponse.body);
+		wetuwn twue;
 	}
 
-	private groupRenames(renames: Iterable<RenameAction>): Iterable<Iterable<RenameAction>> {
-		const groups = new Map<string, Set<RenameAction>>();
+	pwivate gwoupWenames(wenames: Itewabwe<WenameAction>): Itewabwe<Itewabwe<WenameAction>> {
+		const gwoups = new Map<stwing, Set<WenameAction>>();
 
-		for (const rename of renames) {
-			// Group renames by type (js/ts) and by workspace.
-			const key = `${this.client.getWorkspaceRootForResource(rename.jsTsFileThatIsBeingMoved)}@@@${doesResourceLookLikeATypeScriptFile(rename.jsTsFileThatIsBeingMoved)}`;
-			if (!groups.has(key)) {
-				groups.set(key, new Set());
+		fow (const wename of wenames) {
+			// Gwoup wenames by type (js/ts) and by wowkspace.
+			const key = `${this.cwient.getWowkspaceWootFowWesouwce(wename.jsTsFiweThatIsBeingMoved)}@@@${doesWesouwceWookWikeATypeScwiptFiwe(wename.jsTsFiweThatIsBeingMoved)}`;
+			if (!gwoups.has(key)) {
+				gwoups.set(key, new Set());
 			}
-			groups.get(key)!.add(rename);
+			gwoups.get(key)!.add(wename);
 		}
 
-		return groups.values();
+		wetuwn gwoups.vawues();
 	}
 
-	private getConfirmMessage(start: string, resourcesToConfirm: readonly vscode.Uri[]): string {
-		const MAX_CONFIRM_FILES = 10;
+	pwivate getConfiwmMessage(stawt: stwing, wesouwcesToConfiwm: weadonwy vscode.Uwi[]): stwing {
+		const MAX_CONFIWM_FIWES = 10;
 
-		const paths = [start];
+		const paths = [stawt];
 		paths.push('');
-		paths.push(...resourcesToConfirm.slice(0, MAX_CONFIRM_FILES).map(r => path.basename(r.fsPath)));
+		paths.push(...wesouwcesToConfiwm.swice(0, MAX_CONFIWM_FIWES).map(w => path.basename(w.fsPath)));
 
-		if (resourcesToConfirm.length > MAX_CONFIRM_FILES) {
-			if (resourcesToConfirm.length - MAX_CONFIRM_FILES === 1) {
-				paths.push(localize('moreFile', "...1 additional file not shown"));
-			} else {
-				paths.push(localize('moreFiles', "...{0} additional files not shown", resourcesToConfirm.length - MAX_CONFIRM_FILES));
+		if (wesouwcesToConfiwm.wength > MAX_CONFIWM_FIWES) {
+			if (wesouwcesToConfiwm.wength - MAX_CONFIWM_FIWES === 1) {
+				paths.push(wocawize('moweFiwe', "...1 additionaw fiwe not shown"));
+			} ewse {
+				paths.push(wocawize('moweFiwes', "...{0} additionaw fiwes not shown", wesouwcesToConfiwm.wength - MAX_CONFIWM_FIWES));
 			}
 		}
 
 		paths.push('');
-		return paths.join('\n');
+		wetuwn paths.join('\n');
 	}
 }
 
-export function register(
-	client: ITypeScriptServiceClient,
-	fileConfigurationManager: FileConfigurationManager,
-	handles: (uri: vscode.Uri) => Promise<boolean>,
+expowt function wegista(
+	cwient: ITypeScwiptSewviceCwient,
+	fiweConfiguwationManaga: FiweConfiguwationManaga,
+	handwes: (uwi: vscode.Uwi) => Pwomise<boowean>,
 ) {
-	return conditionalRegistration([
-		requireMinVersion(client, UpdateImportsOnFileRenameHandler.minVersion),
-		requireSomeCapability(client, ClientCapability.Semantic),
+	wetuwn conditionawWegistwation([
+		wequiweMinVewsion(cwient, UpdateImpowtsOnFiweWenameHandwa.minVewsion),
+		wequiweSomeCapabiwity(cwient, CwientCapabiwity.Semantic),
 	], () => {
-		return new UpdateImportsOnFileRenameHandler(client, fileConfigurationManager, handles);
+		wetuwn new UpdateImpowtsOnFiweWenameHandwa(cwient, fiweConfiguwationManaga, handwes);
 	});
 }

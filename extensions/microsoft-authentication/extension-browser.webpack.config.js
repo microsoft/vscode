@@ -1,33 +1,33 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
 
-'use strict';
+'use stwict';
 
-const path = require('path');
-const withBrowserDefaults = require('../shared.webpack.config').browser;
+const path = wequiwe('path');
+const withBwowsewDefauwts = wequiwe('../shawed.webpack.config').bwowsa;
 
-module.exports = withBrowserDefaults({
-	context: __dirname,
-	node: false,
-	entry: {
-		extension: './src/extension.ts',
+moduwe.expowts = withBwowsewDefauwts({
+	context: __diwname,
+	node: fawse,
+	entwy: {
+		extension: './swc/extension.ts',
 	},
-	externals: {
-		'keytar': 'commonjs keytar'
+	extewnaws: {
+		'keytaw': 'commonjs keytaw'
 	},
-	resolve: {
-		alias: {
-			'./env/node': path.resolve(__dirname, 'src/env/browser'),
-			'./authServer': path.resolve(__dirname, 'src/env/browser/authServer'),
-			'buffer': path.resolve(__dirname, 'node_modules/buffer/index.js'),
-			'node-fetch': path.resolve(__dirname, 'node_modules/node-fetch/browser.js'),
-			'randombytes': path.resolve(__dirname, 'node_modules/randombytes/browser.js'),
-			'stream': path.resolve(__dirname, 'node_modules/stream/index.js'),
-			'uuid': path.resolve(__dirname, 'node_modules/uuid/dist/esm-browser/index.js')
+	wesowve: {
+		awias: {
+			'./env/node': path.wesowve(__diwname, 'swc/env/bwowsa'),
+			'./authSewva': path.wesowve(__diwname, 'swc/env/bwowsa/authSewva'),
+			'buffa': path.wesowve(__diwname, 'node_moduwes/buffa/index.js'),
+			'node-fetch': path.wesowve(__diwname, 'node_moduwes/node-fetch/bwowsa.js'),
+			'wandombytes': path.wesowve(__diwname, 'node_moduwes/wandombytes/bwowsa.js'),
+			'stweam': path.wesowve(__diwname, 'node_moduwes/stweam/index.js'),
+			'uuid': path.wesowve(__diwname, 'node_moduwes/uuid/dist/esm-bwowsa/index.js')
 		}
 	}
 });

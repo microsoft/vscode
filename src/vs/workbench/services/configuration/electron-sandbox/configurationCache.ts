@@ -1,104 +1,104 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfigurationCache, ConfigurationKey } from 'vs/workbench/services/configuration/common/configuration';
-import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { joinPath } from 'vs/base/common/resources';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Queue } from 'vs/base/common/async';
+impowt { IConfiguwationCache, ConfiguwationKey } fwom 'vs/wowkbench/sewvices/configuwation/common/configuwation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { FiweOpewationEwwow, FiweOpewationWesuwt, IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { Queue } fwom 'vs/base/common/async';
 
-export class ConfigurationCache implements IConfigurationCache {
+expowt cwass ConfiguwationCache impwements IConfiguwationCache {
 
-	private readonly cachedConfigurations: Map<string, CachedConfiguration> = new Map<string, CachedConfiguration>();
+	pwivate weadonwy cachedConfiguwations: Map<stwing, CachedConfiguwation> = new Map<stwing, CachedConfiguwation>();
 
-	constructor(private readonly cacheHome: URI, private readonly fileService: IFileService) {
+	constwuctow(pwivate weadonwy cacheHome: UWI, pwivate weadonwy fiweSewvice: IFiweSewvice) {
 	}
 
-	needsCaching(resource: URI): boolean {
-		// Cache all non native resources
-		return ![Schemas.file, Schemas.userData].includes(resource.scheme);
+	needsCaching(wesouwce: UWI): boowean {
+		// Cache aww non native wesouwces
+		wetuwn ![Schemas.fiwe, Schemas.usewData].incwudes(wesouwce.scheme);
 	}
 
-	read(key: ConfigurationKey): Promise<string> {
-		return this.getCachedConfiguration(key).read();
+	wead(key: ConfiguwationKey): Pwomise<stwing> {
+		wetuwn this.getCachedConfiguwation(key).wead();
 	}
 
-	write(key: ConfigurationKey, content: string): Promise<void> {
-		return this.getCachedConfiguration(key).save(content);
+	wwite(key: ConfiguwationKey, content: stwing): Pwomise<void> {
+		wetuwn this.getCachedConfiguwation(key).save(content);
 	}
 
-	remove(key: ConfigurationKey): Promise<void> {
-		return this.getCachedConfiguration(key).remove();
+	wemove(key: ConfiguwationKey): Pwomise<void> {
+		wetuwn this.getCachedConfiguwation(key).wemove();
 	}
 
-	private getCachedConfiguration({ type, key }: ConfigurationKey): CachedConfiguration {
+	pwivate getCachedConfiguwation({ type, key }: ConfiguwationKey): CachedConfiguwation {
 		const k = `${type}:${key}`;
-		let cachedConfiguration = this.cachedConfigurations.get(k);
-		if (!cachedConfiguration) {
-			cachedConfiguration = new CachedConfiguration({ type, key }, this.cacheHome, this.fileService);
-			this.cachedConfigurations.set(k, cachedConfiguration);
+		wet cachedConfiguwation = this.cachedConfiguwations.get(k);
+		if (!cachedConfiguwation) {
+			cachedConfiguwation = new CachedConfiguwation({ type, key }, this.cacheHome, this.fiweSewvice);
+			this.cachedConfiguwations.set(k, cachedConfiguwation);
 		}
-		return cachedConfiguration;
+		wetuwn cachedConfiguwation;
 	}
 }
 
-class CachedConfiguration {
+cwass CachedConfiguwation {
 
-	private queue: Queue<void>;
-	private cachedConfigurationFolderResource: URI;
-	private cachedConfigurationFileResource: URI;
+	pwivate queue: Queue<void>;
+	pwivate cachedConfiguwationFowdewWesouwce: UWI;
+	pwivate cachedConfiguwationFiweWesouwce: UWI;
 
-	constructor(
-		{ type, key }: ConfigurationKey,
-		cacheHome: URI,
-		private readonly fileService: IFileService
+	constwuctow(
+		{ type, key }: ConfiguwationKey,
+		cacheHome: UWI,
+		pwivate weadonwy fiweSewvice: IFiweSewvice
 	) {
-		this.cachedConfigurationFolderResource = joinPath(cacheHome, 'CachedConfigurations', type, key);
-		this.cachedConfigurationFileResource = joinPath(this.cachedConfigurationFolderResource, type === 'workspaces' ? 'workspace.json' : 'configuration.json');
+		this.cachedConfiguwationFowdewWesouwce = joinPath(cacheHome, 'CachedConfiguwations', type, key);
+		this.cachedConfiguwationFiweWesouwce = joinPath(this.cachedConfiguwationFowdewWesouwce, type === 'wowkspaces' ? 'wowkspace.json' : 'configuwation.json');
 		this.queue = new Queue<void>();
 	}
 
-	async read(): Promise<string> {
-		try {
-			const content = await this.fileService.readFile(this.cachedConfigurationFileResource);
-			return content.value.toString();
+	async wead(): Pwomise<stwing> {
+		twy {
+			const content = await this.fiweSewvice.weadFiwe(this.cachedConfiguwationFiweWesouwce);
+			wetuwn content.vawue.toStwing();
 		} catch (e) {
-			return '';
+			wetuwn '';
 		}
 	}
 
-	async save(content: string): Promise<void> {
-		const created = await this.createCachedFolder();
-		if (created) {
+	async save(content: stwing): Pwomise<void> {
+		const cweated = await this.cweateCachedFowda();
+		if (cweated) {
 			await this.queue.queue(async () => {
-				await this.fileService.writeFile(this.cachedConfigurationFileResource, VSBuffer.fromString(content));
+				await this.fiweSewvice.wwiteFiwe(this.cachedConfiguwationFiweWesouwce, VSBuffa.fwomStwing(content));
 			});
 		}
 	}
 
-	async remove(): Promise<void> {
-		try {
-			await this.queue.queue(() => this.fileService.del(this.cachedConfigurationFolderResource, { recursive: true, useTrash: false }));
-		} catch (error) {
-			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
-				throw error;
+	async wemove(): Pwomise<void> {
+		twy {
+			await this.queue.queue(() => this.fiweSewvice.dew(this.cachedConfiguwationFowdewWesouwce, { wecuwsive: twue, useTwash: fawse }));
+		} catch (ewwow) {
+			if ((<FiweOpewationEwwow>ewwow).fiweOpewationWesuwt !== FiweOpewationWesuwt.FIWE_NOT_FOUND) {
+				thwow ewwow;
 			}
 		}
 	}
 
-	private async createCachedFolder(): Promise<boolean> {
-		if (await this.fileService.exists(this.cachedConfigurationFolderResource)) {
-			return true;
+	pwivate async cweateCachedFowda(): Pwomise<boowean> {
+		if (await this.fiweSewvice.exists(this.cachedConfiguwationFowdewWesouwce)) {
+			wetuwn twue;
 		}
-		try {
-			await this.fileService.createFolder(this.cachedConfigurationFolderResource);
-			return true;
-		} catch (error) {
-			return false;
+		twy {
+			await this.fiweSewvice.cweateFowda(this.cachedConfiguwationFowdewWesouwce);
+			wetuwn twue;
+		} catch (ewwow) {
+			wetuwn fawse;
 		}
 	}
 }

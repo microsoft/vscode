@@ -1,394 +1,394 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { MenuRegistry, MenuId, Action2, registerAction2, ILocalizedString } from 'vs/platform/actions/common/actions';
-import { EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, OpenFolderWorkspaceSupportContext, WorkbenchStateContext, WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkspacesService, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ITewemetwyData } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IWowkspaceContextSewvice, WowkbenchState, IWowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IWowkspaceEditingSewvice } fwom 'vs/wowkbench/sewvices/wowkspaces/common/wowkspaceEditing';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ADD_WOOT_FOWDEW_COMMAND_ID, ADD_WOOT_FOWDEW_WABEW, PICK_WOWKSPACE_FOWDEW_COMMAND_ID } fwom 'vs/wowkbench/bwowsa/actions/wowkspaceCommands';
+impowt { IFiweDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { MenuWegistwy, MenuId, Action2, wegistewAction2, IWocawizedStwing } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { EmptyWowkspaceSuppowtContext, EntewMuwtiWootWowkspaceSuppowtContext, OpenFowdewWowkspaceSuppowtContext, WowkbenchStateContext, WowkspaceFowdewCountContext } fwom 'vs/wowkbench/bwowsa/contextkeys';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { KeyChowd, KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IWowkspacesSewvice, hasWowkspaceFiweExtension } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { IsMacNativeContext } fwom 'vs/pwatfowm/contextkey/common/contextkeys';
 
-const workspacesCategory: ILocalizedString = { value: localize('workspaces', "Workspaces"), original: 'Workspaces' };
-const fileCategory = { value: localize('filesCategory', "File"), original: 'File' };
+const wowkspacesCategowy: IWocawizedStwing = { vawue: wocawize('wowkspaces', "Wowkspaces"), owiginaw: 'Wowkspaces' };
+const fiweCategowy = { vawue: wocawize('fiwesCategowy', "Fiwe"), owiginaw: 'Fiwe' };
 
-export class OpenFileAction extends Action2 {
+expowt cwass OpenFiweAction extends Action2 {
 
-	static readonly ID = 'workbench.action.files.openFile';
+	static weadonwy ID = 'wowkbench.action.fiwes.openFiwe';
 
-	constructor() {
-		super({
-			id: OpenFileAction.ID,
-			title: { value: localize('openFile', "Open File..."), original: 'Open File...' },
-			category: fileCategory,
-			f1: true,
-			precondition: IsMacNativeContext.toNegated(),
+	constwuctow() {
+		supa({
+			id: OpenFiweAction.ID,
+			titwe: { vawue: wocawize('openFiwe', "Open Fiwe..."), owiginaw: 'Open Fiwe...' },
+			categowy: fiweCategowy,
+			f1: twue,
+			pwecondition: IsMacNativeContext.toNegated(),
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_O
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_O
 			}
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, data?: ITelemetryData): Promise<void> {
-		const fileDialogService = accessor.get(IFileDialogService);
+	ovewwide async wun(accessow: SewvicesAccessow, data?: ITewemetwyData): Pwomise<void> {
+		const fiweDiawogSewvice = accessow.get(IFiweDiawogSewvice);
 
-		return fileDialogService.pickFileAndOpen({ forceNewWindow: false, telemetryExtraData: data });
+		wetuwn fiweDiawogSewvice.pickFiweAndOpen({ fowceNewWindow: fawse, tewemetwyExtwaData: data });
 	}
 }
 
-export class OpenFolderAction extends Action2 {
+expowt cwass OpenFowdewAction extends Action2 {
 
-	static readonly ID = 'workbench.action.files.openFolder';
+	static weadonwy ID = 'wowkbench.action.fiwes.openFowda';
 
-	constructor() {
-		super({
-			id: OpenFolderAction.ID,
-			title: { value: localize('openFolder', "Open Folder..."), original: 'Open Folder...' },
-			category: fileCategory,
-			f1: true,
-			precondition: OpenFolderWorkspaceSupportContext,
+	constwuctow() {
+		supa({
+			id: OpenFowdewAction.ID,
+			titwe: { vawue: wocawize('openFowda', "Open Fowda..."), owiginaw: 'Open Fowda...' },
+			categowy: fiweCategowy,
+			f1: twue,
+			pwecondition: OpenFowdewWowkspaceSuppowtContext,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: undefined,
-				linux: {
-					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O)
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: undefined,
+				winux: {
+					pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_O)
 				},
 				win: {
-					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O)
+					pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_O)
 				}
 			}
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, data?: ITelemetryData): Promise<void> {
-		const fileDialogService = accessor.get(IFileDialogService);
+	ovewwide async wun(accessow: SewvicesAccessow, data?: ITewemetwyData): Pwomise<void> {
+		const fiweDiawogSewvice = accessow.get(IFiweDiawogSewvice);
 
-		return fileDialogService.pickFolderAndOpen({ forceNewWindow: false, telemetryExtraData: data });
+		wetuwn fiweDiawogSewvice.pickFowdewAndOpen({ fowceNewWindow: fawse, tewemetwyExtwaData: data });
 	}
 }
 
-export class OpenFileFolderAction extends Action2 {
+expowt cwass OpenFiweFowdewAction extends Action2 {
 
-	static readonly ID = 'workbench.action.files.openFileFolder';
-	static readonly LABEL: ILocalizedString = { value: localize('openFileFolder', "Open..."), original: 'Open...' };
+	static weadonwy ID = 'wowkbench.action.fiwes.openFiweFowda';
+	static weadonwy WABEW: IWocawizedStwing = { vawue: wocawize('openFiweFowda', "Open..."), owiginaw: 'Open...' };
 
-	constructor() {
-		super({
-			id: OpenFileFolderAction.ID,
-			title: OpenFileFolderAction.LABEL,
-			category: fileCategory,
-			f1: true,
-			precondition: ContextKeyExpr.and(IsMacNativeContext, OpenFolderWorkspaceSupportContext),
+	constwuctow() {
+		supa({
+			id: OpenFiweFowdewAction.ID,
+			titwe: OpenFiweFowdewAction.WABEW,
+			categowy: fiweCategowy,
+			f1: twue,
+			pwecondition: ContextKeyExpw.and(IsMacNativeContext, OpenFowdewWowkspaceSuppowtContext),
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_O
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_O
 			}
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, data?: ITelemetryData): Promise<void> {
-		const fileDialogService = accessor.get(IFileDialogService);
+	ovewwide async wun(accessow: SewvicesAccessow, data?: ITewemetwyData): Pwomise<void> {
+		const fiweDiawogSewvice = accessow.get(IFiweDiawogSewvice);
 
-		return fileDialogService.pickFileFolderAndOpen({ forceNewWindow: false, telemetryExtraData: data });
+		wetuwn fiweDiawogSewvice.pickFiweFowdewAndOpen({ fowceNewWindow: fawse, tewemetwyExtwaData: data });
 	}
 }
 
-class OpenWorkspaceAction extends Action2 {
+cwass OpenWowkspaceAction extends Action2 {
 
-	static readonly ID = 'workbench.action.openWorkspace';
+	static weadonwy ID = 'wowkbench.action.openWowkspace';
 
-	constructor() {
-		super({
-			id: OpenWorkspaceAction.ID,
-			title: { value: localize('openWorkspaceAction', "Open Workspace from File..."), original: 'Open Workspace from File...' },
-			category: fileCategory,
-			f1: true,
-			precondition: EnterMultiRootWorkspaceSupportContext
+	constwuctow() {
+		supa({
+			id: OpenWowkspaceAction.ID,
+			titwe: { vawue: wocawize('openWowkspaceAction', "Open Wowkspace fwom Fiwe..."), owiginaw: 'Open Wowkspace fwom Fiwe...' },
+			categowy: fiweCategowy,
+			f1: twue,
+			pwecondition: EntewMuwtiWootWowkspaceSuppowtContext
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, data?: ITelemetryData): Promise<void> {
-		const fileDialogService = accessor.get(IFileDialogService);
+	ovewwide async wun(accessow: SewvicesAccessow, data?: ITewemetwyData): Pwomise<void> {
+		const fiweDiawogSewvice = accessow.get(IFiweDiawogSewvice);
 
-		return fileDialogService.pickWorkspaceAndOpen({ telemetryExtraData: data });
+		wetuwn fiweDiawogSewvice.pickWowkspaceAndOpen({ tewemetwyExtwaData: data });
 	}
 }
 
-class CloseWorkspaceAction extends Action2 {
+cwass CwoseWowkspaceAction extends Action2 {
 
-	static readonly ID = 'workbench.action.closeFolder';
+	static weadonwy ID = 'wowkbench.action.cwoseFowda';
 
-	constructor() {
-		super({
-			id: CloseWorkspaceAction.ID,
-			title: { value: localize('closeWorkspace', "Close Workspace"), original: 'Close Workspace' },
-			category: workspacesCategory,
-			f1: true,
-			precondition: ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('empty'), EmptyWorkspaceSupportContext),
+	constwuctow() {
+		supa({
+			id: CwoseWowkspaceAction.ID,
+			titwe: { vawue: wocawize('cwoseWowkspace', "Cwose Wowkspace"), owiginaw: 'Cwose Wowkspace' },
+			categowy: wowkspacesCategowy,
+			f1: twue,
+			pwecondition: ContextKeyExpw.and(WowkbenchStateContext.notEquawsTo('empty'), EmptyWowkspaceSuppowtContext),
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_F)
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyCode.KEY_F)
 			}
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const hostService = accessor.get(IHostService);
-		const environmentService = accessor.get(IWorkbenchEnvironmentService);
+	ovewwide async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const hostSewvice = accessow.get(IHostSewvice);
+		const enviwonmentSewvice = accessow.get(IWowkbenchEnviwonmentSewvice);
 
-		return hostService.openWindow({ forceReuseWindow: true, remoteAuthority: environmentService.remoteAuthority });
+		wetuwn hostSewvice.openWindow({ fowceWeuseWindow: twue, wemoteAuthowity: enviwonmentSewvice.wemoteAuthowity });
 	}
 }
 
-class OpenWorkspaceConfigFileAction extends Action2 {
+cwass OpenWowkspaceConfigFiweAction extends Action2 {
 
-	static readonly ID = 'workbench.action.openWorkspaceConfigFile';
+	static weadonwy ID = 'wowkbench.action.openWowkspaceConfigFiwe';
 
-	constructor() {
-		super({
-			id: OpenWorkspaceConfigFileAction.ID,
-			title: { value: localize('openWorkspaceConfigFile', "Open Workspace Configuration File"), original: 'Open Workspace Configuration File' },
-			category: workspacesCategory,
-			f1: true,
-			precondition: WorkbenchStateContext.isEqualTo('workspace')
+	constwuctow() {
+		supa({
+			id: OpenWowkspaceConfigFiweAction.ID,
+			titwe: { vawue: wocawize('openWowkspaceConfigFiwe', "Open Wowkspace Configuwation Fiwe"), owiginaw: 'Open Wowkspace Configuwation Fiwe' },
+			categowy: wowkspacesCategowy,
+			f1: twue,
+			pwecondition: WowkbenchStateContext.isEquawTo('wowkspace')
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const contextService = accessor.get(IWorkspaceContextService);
-		const editorService = accessor.get(IEditorService);
+	ovewwide async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const contextSewvice = accessow.get(IWowkspaceContextSewvice);
+		const editowSewvice = accessow.get(IEditowSewvice);
 
-		const configuration = contextService.getWorkspace().configuration;
-		if (configuration) {
-			await editorService.openEditor({ resource: configuration, options: { pinned: true } });
+		const configuwation = contextSewvice.getWowkspace().configuwation;
+		if (configuwation) {
+			await editowSewvice.openEditow({ wesouwce: configuwation, options: { pinned: twue } });
 		}
 	}
 }
 
-export class AddRootFolderAction extends Action2 {
+expowt cwass AddWootFowdewAction extends Action2 {
 
-	static readonly ID = 'workbench.action.addRootFolder';
+	static weadonwy ID = 'wowkbench.action.addWootFowda';
 
-	constructor() {
-		super({
-			id: AddRootFolderAction.ID,
-			title: ADD_ROOT_FOLDER_LABEL,
-			category: workspacesCategory,
-			f1: true,
-			precondition: ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace'))
+	constwuctow() {
+		supa({
+			id: AddWootFowdewAction.ID,
+			titwe: ADD_WOOT_FOWDEW_WABEW,
+			categowy: wowkspacesCategowy,
+			f1: twue,
+			pwecondition: ContextKeyExpw.ow(EntewMuwtiWootWowkspaceSuppowtContext, WowkbenchStateContext.isEquawTo('wowkspace'))
 		});
 	}
 
-	override run(accessor: ServicesAccessor): Promise<void> {
-		const commandService = accessor.get(ICommandService);
+	ovewwide wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const commandSewvice = accessow.get(ICommandSewvice);
 
-		return commandService.executeCommand(ADD_ROOT_FOLDER_COMMAND_ID);
+		wetuwn commandSewvice.executeCommand(ADD_WOOT_FOWDEW_COMMAND_ID);
 	}
 }
 
-class RemoveRootFolderAction extends Action2 {
+cwass WemoveWootFowdewAction extends Action2 {
 
-	static readonly ID = 'workbench.action.removeRootFolder';
+	static weadonwy ID = 'wowkbench.action.wemoveWootFowda';
 
-	constructor() {
-		super({
-			id: RemoveRootFolderAction.ID,
-			title: { value: localize('globalRemoveFolderFromWorkspace', "Remove Folder from Workspace..."), original: 'Remove Folder from Workspace...' },
-			category: workspacesCategory,
-			f1: true,
-			precondition: ContextKeyExpr.and(WorkspaceFolderCountContext.notEqualsTo('0'), ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace')))
+	constwuctow() {
+		supa({
+			id: WemoveWootFowdewAction.ID,
+			titwe: { vawue: wocawize('gwobawWemoveFowdewFwomWowkspace', "Wemove Fowda fwom Wowkspace..."), owiginaw: 'Wemove Fowda fwom Wowkspace...' },
+			categowy: wowkspacesCategowy,
+			f1: twue,
+			pwecondition: ContextKeyExpw.and(WowkspaceFowdewCountContext.notEquawsTo('0'), ContextKeyExpw.ow(EntewMuwtiWootWowkspaceSuppowtContext, WowkbenchStateContext.isEquawTo('wowkspace')))
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const commandService = accessor.get(ICommandService);
-		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
+	ovewwide async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const commandSewvice = accessow.get(ICommandSewvice);
+		const wowkspaceEditingSewvice = accessow.get(IWowkspaceEditingSewvice);
 
-		const folder = await commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
-		if (folder) {
-			await workspaceEditingService.removeFolders([folder.uri]);
+		const fowda = await commandSewvice.executeCommand<IWowkspaceFowda>(PICK_WOWKSPACE_FOWDEW_COMMAND_ID);
+		if (fowda) {
+			await wowkspaceEditingSewvice.wemoveFowdews([fowda.uwi]);
 		}
 	}
 }
 
-class SaveWorkspaceAsAction extends Action2 {
+cwass SaveWowkspaceAsAction extends Action2 {
 
-	static readonly ID = 'workbench.action.saveWorkspaceAs';
+	static weadonwy ID = 'wowkbench.action.saveWowkspaceAs';
 
-	constructor() {
-		super({
-			id: SaveWorkspaceAsAction.ID,
-			title: { value: localize('saveWorkspaceAsAction', "Save Workspace As..."), original: 'Save Workspace As...' },
-			category: workspacesCategory,
-			f1: true,
-			precondition: EnterMultiRootWorkspaceSupportContext
+	constwuctow() {
+		supa({
+			id: SaveWowkspaceAsAction.ID,
+			titwe: { vawue: wocawize('saveWowkspaceAsAction', "Save Wowkspace As..."), owiginaw: 'Save Wowkspace As...' },
+			categowy: wowkspacesCategowy,
+			f1: twue,
+			pwecondition: EntewMuwtiWootWowkspaceSuppowtContext
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
-		const contextService = accessor.get(IWorkspaceContextService);
+	ovewwide async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const wowkspaceEditingSewvice = accessow.get(IWowkspaceEditingSewvice);
+		const contextSewvice = accessow.get(IWowkspaceContextSewvice);
 
-		const configPathUri = await workspaceEditingService.pickNewWorkspacePath();
-		if (configPathUri && hasWorkspaceFileExtension(configPathUri)) {
-			switch (contextService.getWorkbenchState()) {
-				case WorkbenchState.EMPTY:
-				case WorkbenchState.FOLDER:
-					const folders = contextService.getWorkspace().folders.map(folder => ({ uri: folder.uri }));
-					return workspaceEditingService.createAndEnterWorkspace(folders, configPathUri);
-				case WorkbenchState.WORKSPACE:
-					return workspaceEditingService.saveAndEnterWorkspace(configPathUri);
+		const configPathUwi = await wowkspaceEditingSewvice.pickNewWowkspacePath();
+		if (configPathUwi && hasWowkspaceFiweExtension(configPathUwi)) {
+			switch (contextSewvice.getWowkbenchState()) {
+				case WowkbenchState.EMPTY:
+				case WowkbenchState.FOWDa:
+					const fowdews = contextSewvice.getWowkspace().fowdews.map(fowda => ({ uwi: fowda.uwi }));
+					wetuwn wowkspaceEditingSewvice.cweateAndEntewWowkspace(fowdews, configPathUwi);
+				case WowkbenchState.WOWKSPACE:
+					wetuwn wowkspaceEditingSewvice.saveAndEntewWowkspace(configPathUwi);
 			}
 		}
 	}
 }
 
-class DuplicateWorkspaceInNewWindowAction extends Action2 {
+cwass DupwicateWowkspaceInNewWindowAction extends Action2 {
 
-	static readonly ID = 'workbench.action.duplicateWorkspaceInNewWindow';
+	static weadonwy ID = 'wowkbench.action.dupwicateWowkspaceInNewWindow';
 
-	constructor() {
-		super({
-			id: DuplicateWorkspaceInNewWindowAction.ID,
-			title: { value: localize('duplicateWorkspaceInNewWindow', "Duplicate As Workspace in New Window"), original: 'Duplicate As Workspace in New Window' },
-			category: workspacesCategory,
-			f1: true,
-			precondition: EnterMultiRootWorkspaceSupportContext
+	constwuctow() {
+		supa({
+			id: DupwicateWowkspaceInNewWindowAction.ID,
+			titwe: { vawue: wocawize('dupwicateWowkspaceInNewWindow', "Dupwicate As Wowkspace in New Window"), owiginaw: 'Dupwicate As Wowkspace in New Window' },
+			categowy: wowkspacesCategowy,
+			f1: twue,
+			pwecondition: EntewMuwtiWootWowkspaceSuppowtContext
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const workspaceContextService = accessor.get(IWorkspaceContextService);
-		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
-		const hostService = accessor.get(IHostService);
-		const workspacesService = accessor.get(IWorkspacesService);
-		const environmentService = accessor.get(IWorkbenchEnvironmentService);
+	ovewwide async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const wowkspaceContextSewvice = accessow.get(IWowkspaceContextSewvice);
+		const wowkspaceEditingSewvice = accessow.get(IWowkspaceEditingSewvice);
+		const hostSewvice = accessow.get(IHostSewvice);
+		const wowkspacesSewvice = accessow.get(IWowkspacesSewvice);
+		const enviwonmentSewvice = accessow.get(IWowkbenchEnviwonmentSewvice);
 
-		const folders = workspaceContextService.getWorkspace().folders;
-		const remoteAuthority = environmentService.remoteAuthority;
+		const fowdews = wowkspaceContextSewvice.getWowkspace().fowdews;
+		const wemoteAuthowity = enviwonmentSewvice.wemoteAuthowity;
 
-		const newWorkspace = await workspacesService.createUntitledWorkspace(folders, remoteAuthority);
-		await workspaceEditingService.copyWorkspaceSettings(newWorkspace);
+		const newWowkspace = await wowkspacesSewvice.cweateUntitwedWowkspace(fowdews, wemoteAuthowity);
+		await wowkspaceEditingSewvice.copyWowkspaceSettings(newWowkspace);
 
-		return hostService.openWindow([{ workspaceUri: newWorkspace.configPath }], { forceNewWindow: true });
+		wetuwn hostSewvice.openWindow([{ wowkspaceUwi: newWowkspace.configPath }], { fowceNewWindow: twue });
 	}
 }
 
-// --- Actions Registration
+// --- Actions Wegistwation
 
-registerAction2(AddRootFolderAction);
-registerAction2(RemoveRootFolderAction);
-registerAction2(OpenFileAction);
-registerAction2(OpenFolderAction);
-registerAction2(OpenFileFolderAction);
-registerAction2(OpenWorkspaceAction);
-registerAction2(OpenWorkspaceConfigFileAction);
-registerAction2(CloseWorkspaceAction);
-registerAction2(SaveWorkspaceAsAction);
-registerAction2(DuplicateWorkspaceInNewWindowAction);
+wegistewAction2(AddWootFowdewAction);
+wegistewAction2(WemoveWootFowdewAction);
+wegistewAction2(OpenFiweAction);
+wegistewAction2(OpenFowdewAction);
+wegistewAction2(OpenFiweFowdewAction);
+wegistewAction2(OpenWowkspaceAction);
+wegistewAction2(OpenWowkspaceConfigFiweAction);
+wegistewAction2(CwoseWowkspaceAction);
+wegistewAction2(SaveWowkspaceAsAction);
+wegistewAction2(DupwicateWowkspaceInNewWindowAction);
 
-// --- Menu Registration
+// --- Menu Wegistwation
 
-MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	group: '2_open',
+MenuWegistwy.appendMenuItem(MenuId.MenubawFiweMenu, {
+	gwoup: '2_open',
 	command: {
-		id: OpenFileAction.ID,
-		title: localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File...")
+		id: OpenFiweAction.ID,
+		titwe: wocawize({ key: 'miOpenFiwe', comment: ['&& denotes a mnemonic'] }, "&&Open Fiwe...")
 	},
-	order: 1,
+	owda: 1,
 	when: IsMacNativeContext.toNegated()
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	group: '2_open',
+MenuWegistwy.appendMenuItem(MenuId.MenubawFiweMenu, {
+	gwoup: '2_open',
 	command: {
-		id: OpenFolderAction.ID,
-		title: localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")
+		id: OpenFowdewAction.ID,
+		titwe: wocawize({ key: 'miOpenFowda', comment: ['&& denotes a mnemonic'] }, "Open &&Fowda...")
 	},
-	order: 2,
-	when: OpenFolderWorkspaceSupportContext
+	owda: 2,
+	when: OpenFowdewWowkspaceSuppowtContext
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	group: '2_open',
+MenuWegistwy.appendMenuItem(MenuId.MenubawFiweMenu, {
+	gwoup: '2_open',
 	command: {
-		id: OpenFileFolderAction.ID,
-		title: localize({ key: 'miOpen', comment: ['&& denotes a mnemonic'] }, "&&Open...")
+		id: OpenFiweFowdewAction.ID,
+		titwe: wocawize({ key: 'miOpen', comment: ['&& denotes a mnemonic'] }, "&&Open...")
 	},
-	order: 1,
-	when: ContextKeyExpr.and(IsMacNativeContext, OpenFolderWorkspaceSupportContext)
+	owda: 1,
+	when: ContextKeyExpw.and(IsMacNativeContext, OpenFowdewWowkspaceSuppowtContext)
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	group: '2_open',
+MenuWegistwy.appendMenuItem(MenuId.MenubawFiweMenu, {
+	gwoup: '2_open',
 	command: {
-		id: OpenWorkspaceAction.ID,
-		title: localize({ key: 'miOpenWorkspace', comment: ['&& denotes a mnemonic'] }, "Open Wor&&kspace from File...")
+		id: OpenWowkspaceAction.ID,
+		titwe: wocawize({ key: 'miOpenWowkspace', comment: ['&& denotes a mnemonic'] }, "Open Wow&&kspace fwom Fiwe...")
 	},
-	order: 3,
-	when: EnterMultiRootWorkspaceSupportContext
+	owda: 3,
+	when: EntewMuwtiWootWowkspaceSuppowtContext
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	group: '3_workspace',
+MenuWegistwy.appendMenuItem(MenuId.MenubawFiweMenu, {
+	gwoup: '3_wowkspace',
 	command: {
-		id: ADD_ROOT_FOLDER_COMMAND_ID,
-		title: localize({ key: 'miAddFolderToWorkspace', comment: ['&& denotes a mnemonic'] }, "A&&dd Folder to Workspace...")
+		id: ADD_WOOT_FOWDEW_COMMAND_ID,
+		titwe: wocawize({ key: 'miAddFowdewToWowkspace', comment: ['&& denotes a mnemonic'] }, "A&&dd Fowda to Wowkspace...")
 	},
-	when: ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace')),
-	order: 1
+	when: ContextKeyExpw.ow(EntewMuwtiWootWowkspaceSuppowtContext, WowkbenchStateContext.isEquawTo('wowkspace')),
+	owda: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	group: '3_workspace',
+MenuWegistwy.appendMenuItem(MenuId.MenubawFiweMenu, {
+	gwoup: '3_wowkspace',
 	command: {
-		id: SaveWorkspaceAsAction.ID,
-		title: localize('miSaveWorkspaceAs', "Save Workspace As...")
+		id: SaveWowkspaceAsAction.ID,
+		titwe: wocawize('miSaveWowkspaceAs', "Save Wowkspace As...")
 	},
-	order: 2,
-	when: EnterMultiRootWorkspaceSupportContext
+	owda: 2,
+	when: EntewMuwtiWootWowkspaceSuppowtContext
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	group: '3_workspace',
+MenuWegistwy.appendMenuItem(MenuId.MenubawFiweMenu, {
+	gwoup: '3_wowkspace',
 	command: {
-		id: DuplicateWorkspaceInNewWindowAction.ID,
-		title: localize('duplicateWorkspace', "Duplicate Workspace")
+		id: DupwicateWowkspaceInNewWindowAction.ID,
+		titwe: wocawize('dupwicateWowkspace', "Dupwicate Wowkspace")
 	},
-	order: 3,
-	when: EnterMultiRootWorkspaceSupportContext
+	owda: 3,
+	when: EntewMuwtiWootWowkspaceSuppowtContext
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	group: '6_close',
+MenuWegistwy.appendMenuItem(MenuId.MenubawFiweMenu, {
+	gwoup: '6_cwose',
 	command: {
-		id: CloseWorkspaceAction.ID,
-		title: localize({ key: 'miCloseFolder', comment: ['&& denotes a mnemonic'] }, "Close &&Folder")
+		id: CwoseWowkspaceAction.ID,
+		titwe: wocawize({ key: 'miCwoseFowda', comment: ['&& denotes a mnemonic'] }, "Cwose &&Fowda")
 	},
-	order: 3,
-	when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('folder'), EmptyWorkspaceSupportContext)
+	owda: 3,
+	when: ContextKeyExpw.and(WowkbenchStateContext.isEquawTo('fowda'), EmptyWowkspaceSuppowtContext)
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	group: '6_close',
+MenuWegistwy.appendMenuItem(MenuId.MenubawFiweMenu, {
+	gwoup: '6_cwose',
 	command: {
-		id: CloseWorkspaceAction.ID,
-		title: localize({ key: 'miCloseWorkspace', comment: ['&& denotes a mnemonic'] }, "Close &&Workspace")
+		id: CwoseWowkspaceAction.ID,
+		titwe: wocawize({ key: 'miCwoseWowkspace', comment: ['&& denotes a mnemonic'] }, "Cwose &&Wowkspace")
 	},
-	order: 3,
-	when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), EmptyWorkspaceSupportContext)
+	owda: 3,
+	when: ContextKeyExpw.and(WowkbenchStateContext.isEquawTo('wowkspace'), EmptyWowkspaceSuppowtContext)
 });

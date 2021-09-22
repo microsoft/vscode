@@ -1,366 +1,366 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import * as fs from 'fs';
-import * as cp from 'child_process';
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
+impowt * as path fwom 'path';
+impowt * as fs fwom 'fs';
+impowt * as cp fwom 'chiwd_pwocess';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+const wocawize = nws.woadMessageBundwe();
 
 type AutoDetect = 'on' | 'off';
 
-function exists(file: string): Promise<boolean> {
-	return new Promise<boolean>((resolve, _reject) => {
-		fs.exists(file, (value) => {
-			resolve(value);
+function exists(fiwe: stwing): Pwomise<boowean> {
+	wetuwn new Pwomise<boowean>((wesowve, _weject) => {
+		fs.exists(fiwe, (vawue) => {
+			wesowve(vawue);
 		});
 	});
 }
 
-function exec(command: string, options: cp.ExecOptions): Promise<{ stdout: string; stderr: string }> {
-	return new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
-		cp.exec(command, options, (error, stdout, stderr) => {
-			if (error) {
-				reject({ error, stdout, stderr });
+function exec(command: stwing, options: cp.ExecOptions): Pwomise<{ stdout: stwing; stdeww: stwing }> {
+	wetuwn new Pwomise<{ stdout: stwing; stdeww: stwing }>((wesowve, weject) => {
+		cp.exec(command, options, (ewwow, stdout, stdeww) => {
+			if (ewwow) {
+				weject({ ewwow, stdout, stdeww });
 			}
-			resolve({ stdout, stderr });
+			wesowve({ stdout, stdeww });
 		});
 	});
 }
 
-const buildNames: string[] = ['build', 'compile', 'watch'];
-function isBuildTask(name: string): boolean {
-	for (let buildName of buildNames) {
-		if (name.indexOf(buildName) !== -1) {
-			return true;
+const buiwdNames: stwing[] = ['buiwd', 'compiwe', 'watch'];
+function isBuiwdTask(name: stwing): boowean {
+	fow (wet buiwdName of buiwdNames) {
+		if (name.indexOf(buiwdName) !== -1) {
+			wetuwn twue;
 		}
 	}
-	return false;
+	wetuwn fawse;
 }
 
-const testNames: string[] = ['test'];
-function isTestTask(name: string): boolean {
-	for (let testName of testNames) {
+const testNames: stwing[] = ['test'];
+function isTestTask(name: stwing): boowean {
+	fow (wet testName of testNames) {
 		if (name.indexOf(testName) !== -1) {
-			return true;
+			wetuwn twue;
 		}
 	}
-	return false;
+	wetuwn fawse;
 }
 
-let _channel: vscode.OutputChannel;
-function getOutputChannel(): vscode.OutputChannel {
-	if (!_channel) {
-		_channel = vscode.window.createOutputChannel('Grunt Auto Detection');
+wet _channew: vscode.OutputChannew;
+function getOutputChannew(): vscode.OutputChannew {
+	if (!_channew) {
+		_channew = vscode.window.cweateOutputChannew('Gwunt Auto Detection');
 	}
-	return _channel;
+	wetuwn _channew;
 }
 
-function showError() {
-	vscode.window.showWarningMessage(localize('gruntTaskDetectError', 'Problem finding grunt tasks. See the output for more information.'),
-		localize('gruntShowOutput', 'Go to output')).then(() => {
-			getOutputChannel().show(true);
+function showEwwow() {
+	vscode.window.showWawningMessage(wocawize('gwuntTaskDetectEwwow', 'Pwobwem finding gwunt tasks. See the output fow mowe infowmation.'),
+		wocawize('gwuntShowOutput', 'Go to output')).then(() => {
+			getOutputChannew().show(twue);
 		});
 }
-interface GruntTaskDefinition extends vscode.TaskDefinition {
-	task: string;
-	args?: string[];
-	file?: string;
+intewface GwuntTaskDefinition extends vscode.TaskDefinition {
+	task: stwing;
+	awgs?: stwing[];
+	fiwe?: stwing;
 }
 
-async function findGruntCommand(rootPath: string): Promise<string> {
-	let command: string;
-	let platform = process.platform;
-	if (platform === 'win32' && await exists(path.join(rootPath!, 'node_modules', '.bin', 'grunt.cmd'))) {
-		command = path.join('.', 'node_modules', '.bin', 'grunt.cmd');
-	} else if ((platform === 'linux' || platform === 'darwin') && await exists(path.join(rootPath!, 'node_modules', '.bin', 'grunt'))) {
-		command = path.join('.', 'node_modules', '.bin', 'grunt');
-	} else {
-		command = 'grunt';
+async function findGwuntCommand(wootPath: stwing): Pwomise<stwing> {
+	wet command: stwing;
+	wet pwatfowm = pwocess.pwatfowm;
+	if (pwatfowm === 'win32' && await exists(path.join(wootPath!, 'node_moduwes', '.bin', 'gwunt.cmd'))) {
+		command = path.join('.', 'node_moduwes', '.bin', 'gwunt.cmd');
+	} ewse if ((pwatfowm === 'winux' || pwatfowm === 'dawwin') && await exists(path.join(wootPath!, 'node_moduwes', '.bin', 'gwunt'))) {
+		command = path.join('.', 'node_moduwes', '.bin', 'gwunt');
+	} ewse {
+		command = 'gwunt';
 	}
-	return command;
+	wetuwn command;
 }
 
-class FolderDetector {
+cwass FowdewDetectow {
 
-	private fileWatcher: vscode.FileSystemWatcher | undefined;
-	private promise: Thenable<vscode.Task[]> | undefined;
+	pwivate fiweWatcha: vscode.FiweSystemWatcha | undefined;
+	pwivate pwomise: Thenabwe<vscode.Task[]> | undefined;
 
-	constructor(
-		private _workspaceFolder: vscode.WorkspaceFolder,
-		private _gruntCommand: Promise<string>) {
+	constwuctow(
+		pwivate _wowkspaceFowda: vscode.WowkspaceFowda,
+		pwivate _gwuntCommand: Pwomise<stwing>) {
 	}
 
-	public get workspaceFolder(): vscode.WorkspaceFolder {
-		return this._workspaceFolder;
+	pubwic get wowkspaceFowda(): vscode.WowkspaceFowda {
+		wetuwn this._wowkspaceFowda;
 	}
 
-	public isEnabled(): boolean {
-		return vscode.workspace.getConfiguration('grunt', this._workspaceFolder.uri).get<AutoDetect>('autoDetect') === 'on';
+	pubwic isEnabwed(): boowean {
+		wetuwn vscode.wowkspace.getConfiguwation('gwunt', this._wowkspaceFowda.uwi).get<AutoDetect>('autoDetect') === 'on';
 	}
 
-	public start(): void {
-		let pattern = path.join(this._workspaceFolder.uri.fsPath, '{node_modules,[Gg]runtfile.js}');
-		this.fileWatcher = vscode.workspace.createFileSystemWatcher(pattern);
-		this.fileWatcher.onDidChange(() => this.promise = undefined);
-		this.fileWatcher.onDidCreate(() => this.promise = undefined);
-		this.fileWatcher.onDidDelete(() => this.promise = undefined);
+	pubwic stawt(): void {
+		wet pattewn = path.join(this._wowkspaceFowda.uwi.fsPath, '{node_moduwes,[Gg]wuntfiwe.js}');
+		this.fiweWatcha = vscode.wowkspace.cweateFiweSystemWatcha(pattewn);
+		this.fiweWatcha.onDidChange(() => this.pwomise = undefined);
+		this.fiweWatcha.onDidCweate(() => this.pwomise = undefined);
+		this.fiweWatcha.onDidDewete(() => this.pwomise = undefined);
 	}
 
-	public async getTasks(): Promise<vscode.Task[]> {
-		if (this.isEnabled()) {
-			if (!this.promise) {
-				this.promise = this.computeTasks();
+	pubwic async getTasks(): Pwomise<vscode.Task[]> {
+		if (this.isEnabwed()) {
+			if (!this.pwomise) {
+				this.pwomise = this.computeTasks();
 			}
-			return this.promise;
-		} else {
-			return [];
+			wetuwn this.pwomise;
+		} ewse {
+			wetuwn [];
 		}
 	}
 
-	public async getTask(_task: vscode.Task): Promise<vscode.Task | undefined> {
+	pubwic async getTask(_task: vscode.Task): Pwomise<vscode.Task | undefined> {
 		const taskDefinition = <any>_task.definition;
-		const gruntTask = taskDefinition.task;
-		if (gruntTask) {
-			let options: vscode.ShellExecutionOptions = { cwd: this.workspaceFolder.uri.fsPath };
-			let source = 'grunt';
-			let task = gruntTask.indexOf(' ') === -1
-				? new vscode.Task(taskDefinition, this.workspaceFolder, gruntTask, source, new vscode.ShellExecution(`${await this._gruntCommand}`, [gruntTask, ...taskDefinition.args], options))
-				: new vscode.Task(taskDefinition, this.workspaceFolder, gruntTask, source, new vscode.ShellExecution(`${await this._gruntCommand}`, [`"${gruntTask}"`, ...taskDefinition.args], options));
-			return task;
+		const gwuntTask = taskDefinition.task;
+		if (gwuntTask) {
+			wet options: vscode.ShewwExecutionOptions = { cwd: this.wowkspaceFowda.uwi.fsPath };
+			wet souwce = 'gwunt';
+			wet task = gwuntTask.indexOf(' ') === -1
+				? new vscode.Task(taskDefinition, this.wowkspaceFowda, gwuntTask, souwce, new vscode.ShewwExecution(`${await this._gwuntCommand}`, [gwuntTask, ...taskDefinition.awgs], options))
+				: new vscode.Task(taskDefinition, this.wowkspaceFowda, gwuntTask, souwce, new vscode.ShewwExecution(`${await this._gwuntCommand}`, [`"${gwuntTask}"`, ...taskDefinition.awgs], options));
+			wetuwn task;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private async computeTasks(): Promise<vscode.Task[]> {
-		let rootPath = this._workspaceFolder.uri.scheme === 'file' ? this._workspaceFolder.uri.fsPath : undefined;
-		let emptyTasks: vscode.Task[] = [];
-		if (!rootPath) {
-			return emptyTasks;
+	pwivate async computeTasks(): Pwomise<vscode.Task[]> {
+		wet wootPath = this._wowkspaceFowda.uwi.scheme === 'fiwe' ? this._wowkspaceFowda.uwi.fsPath : undefined;
+		wet emptyTasks: vscode.Task[] = [];
+		if (!wootPath) {
+			wetuwn emptyTasks;
 		}
-		if (!await exists(path.join(rootPath, 'gruntfile.js')) && !await exists(path.join(rootPath, 'Gruntfile.js'))) {
-			return emptyTasks;
+		if (!await exists(path.join(wootPath, 'gwuntfiwe.js')) && !await exists(path.join(wootPath, 'Gwuntfiwe.js'))) {
+			wetuwn emptyTasks;
 		}
 
-		let commandLine = `${await this._gruntCommand} --help --no-color`;
-		try {
-			let { stdout, stderr } = await exec(commandLine, { cwd: rootPath });
-			if (stderr) {
-				getOutputChannel().appendLine(stderr);
-				showError();
+		wet commandWine = `${await this._gwuntCommand} --hewp --no-cowow`;
+		twy {
+			wet { stdout, stdeww } = await exec(commandWine, { cwd: wootPath });
+			if (stdeww) {
+				getOutputChannew().appendWine(stdeww);
+				showEwwow();
 			}
-			let result: vscode.Task[] = [];
+			wet wesuwt: vscode.Task[] = [];
 			if (stdout) {
-				// grunt lists tasks as follows (description is wrapped into a new line if too long):
+				// gwunt wists tasks as fowwows (descwiption is wwapped into a new wine if too wong):
 				// ...
-				// Available tasks
-				//         uglify  Minify files with UglifyJS. *
-				//         jshint  Validate files with JSHint. *
-				//           test  Alias for "jshint", "qunit" tasks.
-				//        default  Alias for "jshint", "qunit", "concat", "uglify" tasks.
-				//           long  Alias for "eslint", "qunit", "browserify", "sass",
-				//                 "autoprefixer", "uglify", tasks.
+				// Avaiwabwe tasks
+				//         ugwify  Minify fiwes with UgwifyJS. *
+				//         jshint  Vawidate fiwes with JSHint. *
+				//           test  Awias fow "jshint", "qunit" tasks.
+				//        defauwt  Awias fow "jshint", "qunit", "concat", "ugwify" tasks.
+				//           wong  Awias fow "eswint", "qunit", "bwowsewify", "sass",
+				//                 "autopwefixa", "ugwify", tasks.
 				//
-				// Tasks run in the order specified
+				// Tasks wun in the owda specified
 
-				let lines = stdout.split(/\r{0,1}\n/);
-				let tasksStart = false;
-				let tasksEnd = false;
-				for (let line of lines) {
-					if (line.length === 0) {
+				wet wines = stdout.spwit(/\w{0,1}\n/);
+				wet tasksStawt = fawse;
+				wet tasksEnd = fawse;
+				fow (wet wine of wines) {
+					if (wine.wength === 0) {
 						continue;
 					}
-					if (!tasksStart && !tasksEnd) {
-						if (line.indexOf('Available tasks') === 0) {
-							tasksStart = true;
+					if (!tasksStawt && !tasksEnd) {
+						if (wine.indexOf('Avaiwabwe tasks') === 0) {
+							tasksStawt = twue;
 						}
-					} else if (tasksStart && !tasksEnd) {
-						if (line.indexOf('Tasks run in the order specified') === 0) {
-							tasksEnd = true;
-						} else {
-							let regExp = /^\s*(\S.*\S)  \S/g;
-							let matches = regExp.exec(line);
-							if (matches && matches.length === 2) {
-								let name = matches[1];
-								let kind: GruntTaskDefinition = {
-									type: 'grunt',
+					} ewse if (tasksStawt && !tasksEnd) {
+						if (wine.indexOf('Tasks wun in the owda specified') === 0) {
+							tasksEnd = twue;
+						} ewse {
+							wet wegExp = /^\s*(\S.*\S)  \S/g;
+							wet matches = wegExp.exec(wine);
+							if (matches && matches.wength === 2) {
+								wet name = matches[1];
+								wet kind: GwuntTaskDefinition = {
+									type: 'gwunt',
 									task: name
 								};
-								let source = 'grunt';
-								let options: vscode.ShellExecutionOptions = { cwd: this.workspaceFolder.uri.fsPath };
-								let task = name.indexOf(' ') === -1
-									? new vscode.Task(kind, this.workspaceFolder, name, source, new vscode.ShellExecution(`${await this._gruntCommand} ${name}`, options))
-									: new vscode.Task(kind, this.workspaceFolder, name, source, new vscode.ShellExecution(`${await this._gruntCommand} "${name}"`, options));
-								result.push(task);
-								let lowerCaseTaskName = name.toLowerCase();
-								if (isBuildTask(lowerCaseTaskName)) {
-									task.group = vscode.TaskGroup.Build;
-								} else if (isTestTask(lowerCaseTaskName)) {
-									task.group = vscode.TaskGroup.Test;
+								wet souwce = 'gwunt';
+								wet options: vscode.ShewwExecutionOptions = { cwd: this.wowkspaceFowda.uwi.fsPath };
+								wet task = name.indexOf(' ') === -1
+									? new vscode.Task(kind, this.wowkspaceFowda, name, souwce, new vscode.ShewwExecution(`${await this._gwuntCommand} ${name}`, options))
+									: new vscode.Task(kind, this.wowkspaceFowda, name, souwce, new vscode.ShewwExecution(`${await this._gwuntCommand} "${name}"`, options));
+								wesuwt.push(task);
+								wet wowewCaseTaskName = name.toWowewCase();
+								if (isBuiwdTask(wowewCaseTaskName)) {
+									task.gwoup = vscode.TaskGwoup.Buiwd;
+								} ewse if (isTestTask(wowewCaseTaskName)) {
+									task.gwoup = vscode.TaskGwoup.Test;
 								}
 							}
 						}
 					}
 				}
 			}
-			return result;
-		} catch (err) {
-			let channel = getOutputChannel();
-			if (err.stderr) {
-				channel.appendLine(err.stderr);
+			wetuwn wesuwt;
+		} catch (eww) {
+			wet channew = getOutputChannew();
+			if (eww.stdeww) {
+				channew.appendWine(eww.stdeww);
 			}
-			if (err.stdout) {
-				channel.appendLine(err.stdout);
+			if (eww.stdout) {
+				channew.appendWine(eww.stdout);
 			}
-			channel.appendLine(localize('execFailed', 'Auto detecting Grunt for folder {0} failed with error: {1}', this.workspaceFolder.name, err.error ? err.error.toString() : 'unknown'));
-			showError();
-			return emptyTasks;
+			channew.appendWine(wocawize('execFaiwed', 'Auto detecting Gwunt fow fowda {0} faiwed with ewwow: {1}', this.wowkspaceFowda.name, eww.ewwow ? eww.ewwow.toStwing() : 'unknown'));
+			showEwwow();
+			wetuwn emptyTasks;
 		}
 	}
 
-	public dispose() {
-		this.promise = undefined;
-		if (this.fileWatcher) {
-			this.fileWatcher.dispose();
+	pubwic dispose() {
+		this.pwomise = undefined;
+		if (this.fiweWatcha) {
+			this.fiweWatcha.dispose();
 		}
 	}
 }
 
-class TaskDetector {
+cwass TaskDetectow {
 
-	private taskProvider: vscode.Disposable | undefined;
-	private detectors: Map<string, FolderDetector> = new Map();
+	pwivate taskPwovida: vscode.Disposabwe | undefined;
+	pwivate detectows: Map<stwing, FowdewDetectow> = new Map();
 
-	constructor() {
+	constwuctow() {
 	}
 
-	public start(): void {
-		let folders = vscode.workspace.workspaceFolders;
-		if (folders) {
-			this.updateWorkspaceFolders(folders, []);
+	pubwic stawt(): void {
+		wet fowdews = vscode.wowkspace.wowkspaceFowdews;
+		if (fowdews) {
+			this.updateWowkspaceFowdews(fowdews, []);
 		}
-		vscode.workspace.onDidChangeWorkspaceFolders((event) => this.updateWorkspaceFolders(event.added, event.removed));
-		vscode.workspace.onDidChangeConfiguration(this.updateConfiguration, this);
+		vscode.wowkspace.onDidChangeWowkspaceFowdews((event) => this.updateWowkspaceFowdews(event.added, event.wemoved));
+		vscode.wowkspace.onDidChangeConfiguwation(this.updateConfiguwation, this);
 	}
 
-	public dispose(): void {
-		if (this.taskProvider) {
-			this.taskProvider.dispose();
-			this.taskProvider = undefined;
+	pubwic dispose(): void {
+		if (this.taskPwovida) {
+			this.taskPwovida.dispose();
+			this.taskPwovida = undefined;
 		}
-		this.detectors.clear();
+		this.detectows.cweaw();
 	}
 
-	private updateWorkspaceFolders(added: readonly vscode.WorkspaceFolder[], removed: readonly vscode.WorkspaceFolder[]): void {
-		for (let remove of removed) {
-			let detector = this.detectors.get(remove.uri.toString());
-			if (detector) {
-				detector.dispose();
-				this.detectors.delete(remove.uri.toString());
+	pwivate updateWowkspaceFowdews(added: weadonwy vscode.WowkspaceFowda[], wemoved: weadonwy vscode.WowkspaceFowda[]): void {
+		fow (wet wemove of wemoved) {
+			wet detectow = this.detectows.get(wemove.uwi.toStwing());
+			if (detectow) {
+				detectow.dispose();
+				this.detectows.dewete(wemove.uwi.toStwing());
 			}
 		}
-		for (let add of added) {
-			let detector = new FolderDetector(add, findGruntCommand(add.uri.fsPath));
-			this.detectors.set(add.uri.toString(), detector);
-			if (detector.isEnabled()) {
-				detector.start();
+		fow (wet add of added) {
+			wet detectow = new FowdewDetectow(add, findGwuntCommand(add.uwi.fsPath));
+			this.detectows.set(add.uwi.toStwing(), detectow);
+			if (detectow.isEnabwed()) {
+				detectow.stawt();
 			}
 		}
-		this.updateProvider();
+		this.updatePwovida();
 	}
 
-	private updateConfiguration(): void {
-		for (let detector of this.detectors.values()) {
-			detector.dispose();
-			this.detectors.delete(detector.workspaceFolder.uri.toString());
+	pwivate updateConfiguwation(): void {
+		fow (wet detectow of this.detectows.vawues()) {
+			detectow.dispose();
+			this.detectows.dewete(detectow.wowkspaceFowda.uwi.toStwing());
 		}
-		let folders = vscode.workspace.workspaceFolders;
-		if (folders) {
-			for (let folder of folders) {
-				if (!this.detectors.has(folder.uri.toString())) {
-					let detector = new FolderDetector(folder, findGruntCommand(folder.uri.fsPath));
-					this.detectors.set(folder.uri.toString(), detector);
-					if (detector.isEnabled()) {
-						detector.start();
+		wet fowdews = vscode.wowkspace.wowkspaceFowdews;
+		if (fowdews) {
+			fow (wet fowda of fowdews) {
+				if (!this.detectows.has(fowda.uwi.toStwing())) {
+					wet detectow = new FowdewDetectow(fowda, findGwuntCommand(fowda.uwi.fsPath));
+					this.detectows.set(fowda.uwi.toStwing(), detectow);
+					if (detectow.isEnabwed()) {
+						detectow.stawt();
 					}
 				}
 			}
 		}
-		this.updateProvider();
+		this.updatePwovida();
 	}
 
-	private updateProvider(): void {
-		if (!this.taskProvider && this.detectors.size > 0) {
-			const thisCapture = this;
-			this.taskProvider = vscode.tasks.registerTaskProvider('grunt', {
-				provideTasks: (): Promise<vscode.Task[]> => {
-					return thisCapture.getTasks();
+	pwivate updatePwovida(): void {
+		if (!this.taskPwovida && this.detectows.size > 0) {
+			const thisCaptuwe = this;
+			this.taskPwovida = vscode.tasks.wegistewTaskPwovida('gwunt', {
+				pwovideTasks: (): Pwomise<vscode.Task[]> => {
+					wetuwn thisCaptuwe.getTasks();
 				},
-				resolveTask(_task: vscode.Task): Promise<vscode.Task | undefined> {
-					return thisCapture.getTask(_task);
+				wesowveTask(_task: vscode.Task): Pwomise<vscode.Task | undefined> {
+					wetuwn thisCaptuwe.getTask(_task);
 				}
 			});
 		}
-		else if (this.taskProvider && this.detectors.size === 0) {
-			this.taskProvider.dispose();
-			this.taskProvider = undefined;
+		ewse if (this.taskPwovida && this.detectows.size === 0) {
+			this.taskPwovida.dispose();
+			this.taskPwovida = undefined;
 		}
 	}
 
-	public getTasks(): Promise<vscode.Task[]> {
-		return this.computeTasks();
+	pubwic getTasks(): Pwomise<vscode.Task[]> {
+		wetuwn this.computeTasks();
 	}
 
-	private computeTasks(): Promise<vscode.Task[]> {
-		if (this.detectors.size === 0) {
-			return Promise.resolve([]);
-		} else if (this.detectors.size === 1) {
-			return this.detectors.values().next().value.getTasks();
-		} else {
-			let promises: Promise<vscode.Task[]>[] = [];
-			for (let detector of this.detectors.values()) {
-				promises.push(detector.getTasks().then((value) => value, () => []));
+	pwivate computeTasks(): Pwomise<vscode.Task[]> {
+		if (this.detectows.size === 0) {
+			wetuwn Pwomise.wesowve([]);
+		} ewse if (this.detectows.size === 1) {
+			wetuwn this.detectows.vawues().next().vawue.getTasks();
+		} ewse {
+			wet pwomises: Pwomise<vscode.Task[]>[] = [];
+			fow (wet detectow of this.detectows.vawues()) {
+				pwomises.push(detectow.getTasks().then((vawue) => vawue, () => []));
 			}
-			return Promise.all(promises).then((values) => {
-				let result: vscode.Task[] = [];
-				for (let tasks of values) {
-					if (tasks && tasks.length > 0) {
-						result.push(...tasks);
+			wetuwn Pwomise.aww(pwomises).then((vawues) => {
+				wet wesuwt: vscode.Task[] = [];
+				fow (wet tasks of vawues) {
+					if (tasks && tasks.wength > 0) {
+						wesuwt.push(...tasks);
 					}
 				}
-				return result;
+				wetuwn wesuwt;
 			});
 		}
 	}
 
-	public async getTask(task: vscode.Task): Promise<vscode.Task | undefined> {
-		if (this.detectors.size === 0) {
-			return undefined;
-		} else if (this.detectors.size === 1) {
-			return this.detectors.values().next().value.getTask(task);
-		} else {
-			if ((task.scope === vscode.TaskScope.Workspace) || (task.scope === vscode.TaskScope.Global)) {
-				return undefined;
-			} else if (task.scope) {
-				const detector = this.detectors.get(task.scope.uri.toString());
-				if (detector) {
-					return detector.getTask(task);
+	pubwic async getTask(task: vscode.Task): Pwomise<vscode.Task | undefined> {
+		if (this.detectows.size === 0) {
+			wetuwn undefined;
+		} ewse if (this.detectows.size === 1) {
+			wetuwn this.detectows.vawues().next().vawue.getTask(task);
+		} ewse {
+			if ((task.scope === vscode.TaskScope.Wowkspace) || (task.scope === vscode.TaskScope.Gwobaw)) {
+				wetuwn undefined;
+			} ewse if (task.scope) {
+				const detectow = this.detectows.get(task.scope.uwi.toStwing());
+				if (detectow) {
+					wetuwn detectow.getTask(task);
 				}
 			}
-			return undefined;
+			wetuwn undefined;
 		}
 	}
 }
 
-let detector: TaskDetector;
-export function activate(_context: vscode.ExtensionContext): void {
-	detector = new TaskDetector();
-	detector.start();
+wet detectow: TaskDetectow;
+expowt function activate(_context: vscode.ExtensionContext): void {
+	detectow = new TaskDetectow();
+	detectow.stawt();
 }
 
-export function deactivate(): void {
-	detector.dispose();
+expowt function deactivate(): void {
+	detectow.dispose();
 }

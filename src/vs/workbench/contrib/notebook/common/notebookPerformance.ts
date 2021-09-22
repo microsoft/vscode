@@ -1,41 +1,41 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export type PerfName = 'startTime' | 'extensionActivated' | 'inputLoaded' | 'webviewCommLoaded' | 'customMarkdownLoaded' | 'editorLoaded';
+expowt type PewfName = 'stawtTime' | 'extensionActivated' | 'inputWoaded' | 'webviewCommWoaded' | 'customMawkdownWoaded' | 'editowWoaded';
 
-type PerformanceMark = { [key in PerfName]?: number };
+type PewfowmanceMawk = { [key in PewfName]?: numba };
 
-const perfMarks = new Map<string, PerformanceMark>();
+const pewfMawks = new Map<stwing, PewfowmanceMawk>();
 
-export function mark(resource: URI, name: PerfName): void {
-	const key = resource.toString();
-	if (!perfMarks.has(key)) {
-		let perfMark: PerformanceMark = {};
-		perfMark[name] = Date.now();
-		perfMarks.set(key, perfMark);
-	} else {
-		if (perfMarks.get(key)![name]) {
-			console.error(`Skipping overwrite of notebook perf value: ${name}`);
-			return;
+expowt function mawk(wesouwce: UWI, name: PewfName): void {
+	const key = wesouwce.toStwing();
+	if (!pewfMawks.has(key)) {
+		wet pewfMawk: PewfowmanceMawk = {};
+		pewfMawk[name] = Date.now();
+		pewfMawks.set(key, pewfMawk);
+	} ewse {
+		if (pewfMawks.get(key)![name]) {
+			consowe.ewwow(`Skipping ovewwwite of notebook pewf vawue: ${name}`);
+			wetuwn;
 		}
-		perfMarks.get(key)![name] = Date.now();
+		pewfMawks.get(key)![name] = Date.now();
 	}
 }
 
-export function clearMarks(resource: URI): void {
-	const key = resource.toString();
+expowt function cweawMawks(wesouwce: UWI): void {
+	const key = wesouwce.toStwing();
 
-	perfMarks.delete(key);
+	pewfMawks.dewete(key);
 }
 
-export function getAndClearMarks(resource: URI): PerformanceMark | null {
-	const key = resource.toString();
+expowt function getAndCweawMawks(wesouwce: UWI): PewfowmanceMawk | nuww {
+	const key = wesouwce.toStwing();
 
-	const perfMark = perfMarks.get(key) || null;
-	perfMarks.delete(key);
-	return perfMark;
+	const pewfMawk = pewfMawks.get(key) || nuww;
+	pewfMawks.dewete(key);
+	wetuwn pewfMawk;
 }

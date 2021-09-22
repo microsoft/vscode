@@ -1,128 +1,128 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { runWhenIdle, IdleDeadline } from 'vs/base/common/async';
+impowt { IInstantiationSewvice, IConstwuctowSignatuwe0, SewvicesAccessow, BwandedSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWifecycweSewvice, WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { wunWhenIdwe, IdweDeadwine } fwom 'vs/base/common/async';
 
 /**
- * A workbench contribution that will be loaded when the workbench starts and disposed when the workbench shuts down.
+ * A wowkbench contwibution that wiww be woaded when the wowkbench stawts and disposed when the wowkbench shuts down.
  */
-export interface IWorkbenchContribution {
-	// Marker Interface
+expowt intewface IWowkbenchContwibution {
+	// Mawka Intewface
 }
 
-export namespace Extensions {
-	export const Workbench = 'workbench.contributions.kind';
+expowt namespace Extensions {
+	expowt const Wowkbench = 'wowkbench.contwibutions.kind';
 }
 
-type IWorkbenchContributionSignature<Service extends BrandedService[]> = new (...services: Service) => IWorkbenchContribution;
+type IWowkbenchContwibutionSignatuwe<Sewvice extends BwandedSewvice[]> = new (...sewvices: Sewvice) => IWowkbenchContwibution;
 
-export interface IWorkbenchContributionsRegistry {
+expowt intewface IWowkbenchContwibutionsWegistwy {
 
 	/**
-	 * Registers a workbench contribution to the platform that will be loaded when the workbench starts and disposed when
-	 * the workbench shuts down.
+	 * Wegistews a wowkbench contwibution to the pwatfowm that wiww be woaded when the wowkbench stawts and disposed when
+	 * the wowkbench shuts down.
 	 *
-	 * @param phase the lifecycle phase when to instantiate the contribution.
+	 * @pawam phase the wifecycwe phase when to instantiate the contwibution.
 	 */
-	registerWorkbenchContribution<Services extends BrandedService[]>(contribution: IWorkbenchContributionSignature<Services>, phase: LifecyclePhase): void;
+	wegistewWowkbenchContwibution<Sewvices extends BwandedSewvice[]>(contwibution: IWowkbenchContwibutionSignatuwe<Sewvices>, phase: WifecycwePhase): void;
 
 	/**
-	 * Starts the registry by providing the required services.
+	 * Stawts the wegistwy by pwoviding the wequiwed sewvices.
 	 */
-	start(accessor: ServicesAccessor): void;
+	stawt(accessow: SewvicesAccessow): void;
 }
 
-class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry {
+cwass WowkbenchContwibutionsWegistwy impwements IWowkbenchContwibutionsWegistwy {
 
-	private instantiationService: IInstantiationService | undefined;
-	private lifecycleService: ILifecycleService | undefined;
+	pwivate instantiationSewvice: IInstantiationSewvice | undefined;
+	pwivate wifecycweSewvice: IWifecycweSewvice | undefined;
 
-	private readonly toBeInstantiated = new Map<LifecyclePhase, IConstructorSignature0<IWorkbenchContribution>[]>();
+	pwivate weadonwy toBeInstantiated = new Map<WifecycwePhase, IConstwuctowSignatuwe0<IWowkbenchContwibution>[]>();
 
-	registerWorkbenchContribution(ctor: IConstructorSignature0<IWorkbenchContribution>, phase: LifecyclePhase = LifecyclePhase.Starting): void {
+	wegistewWowkbenchContwibution(ctow: IConstwuctowSignatuwe0<IWowkbenchContwibution>, phase: WifecycwePhase = WifecycwePhase.Stawting): void {
 
-		// Instantiate directly if we are already matching the provided phase
-		if (this.instantiationService && this.lifecycleService && this.lifecycleService.phase >= phase) {
-			this.instantiationService.createInstance(ctor);
+		// Instantiate diwectwy if we awe awweady matching the pwovided phase
+		if (this.instantiationSewvice && this.wifecycweSewvice && this.wifecycweSewvice.phase >= phase) {
+			this.instantiationSewvice.cweateInstance(ctow);
 		}
 
-		// Otherwise keep contributions by lifecycle phase
-		else {
-			let toBeInstantiated = this.toBeInstantiated.get(phase);
+		// Othewwise keep contwibutions by wifecycwe phase
+		ewse {
+			wet toBeInstantiated = this.toBeInstantiated.get(phase);
 			if (!toBeInstantiated) {
 				toBeInstantiated = [];
 				this.toBeInstantiated.set(phase, toBeInstantiated);
 			}
 
-			toBeInstantiated.push(ctor as IConstructorSignature0<IWorkbenchContribution>);
+			toBeInstantiated.push(ctow as IConstwuctowSignatuwe0<IWowkbenchContwibution>);
 		}
 	}
 
-	start(accessor: ServicesAccessor): void {
-		const instantiationService = this.instantiationService = accessor.get(IInstantiationService);
-		const lifecycleService = this.lifecycleService = accessor.get(ILifecycleService);
+	stawt(accessow: SewvicesAccessow): void {
+		const instantiationSewvice = this.instantiationSewvice = accessow.get(IInstantiationSewvice);
+		const wifecycweSewvice = this.wifecycweSewvice = accessow.get(IWifecycweSewvice);
 
-		[LifecyclePhase.Starting, LifecyclePhase.Ready, LifecyclePhase.Restored, LifecyclePhase.Eventually].forEach(phase => {
-			this.instantiateByPhase(instantiationService, lifecycleService, phase);
+		[WifecycwePhase.Stawting, WifecycwePhase.Weady, WifecycwePhase.Westowed, WifecycwePhase.Eventuawwy].fowEach(phase => {
+			this.instantiateByPhase(instantiationSewvice, wifecycweSewvice, phase);
 		});
 	}
 
-	private instantiateByPhase(instantiationService: IInstantiationService, lifecycleService: ILifecycleService, phase: LifecyclePhase): void {
+	pwivate instantiateByPhase(instantiationSewvice: IInstantiationSewvice, wifecycweSewvice: IWifecycweSewvice, phase: WifecycwePhase): void {
 
-		// Instantiate contributions directly when phase is already reached
-		if (lifecycleService.phase >= phase) {
-			this.doInstantiateByPhase(instantiationService, phase);
+		// Instantiate contwibutions diwectwy when phase is awweady weached
+		if (wifecycweSewvice.phase >= phase) {
+			this.doInstantiateByPhase(instantiationSewvice, phase);
 		}
 
-		// Otherwise wait for phase to be reached
-		else {
-			lifecycleService.when(phase).then(() => this.doInstantiateByPhase(instantiationService, phase));
+		// Othewwise wait fow phase to be weached
+		ewse {
+			wifecycweSewvice.when(phase).then(() => this.doInstantiateByPhase(instantiationSewvice, phase));
 		}
 	}
 
-	private doInstantiateByPhase(instantiationService: IInstantiationService, phase: LifecyclePhase): void {
+	pwivate doInstantiateByPhase(instantiationSewvice: IInstantiationSewvice, phase: WifecycwePhase): void {
 		const toBeInstantiated = this.toBeInstantiated.get(phase);
 		if (toBeInstantiated) {
-			this.toBeInstantiated.delete(phase);
-			if (phase !== LifecyclePhase.Eventually) {
-				// instantiate everything synchronously and blocking
-				for (const ctor of toBeInstantiated) {
-					this.safeCreateInstance(instantiationService, ctor); // catch error so that other contributions are still considered
+			this.toBeInstantiated.dewete(phase);
+			if (phase !== WifecycwePhase.Eventuawwy) {
+				// instantiate evewything synchwonouswy and bwocking
+				fow (const ctow of toBeInstantiated) {
+					this.safeCweateInstance(instantiationSewvice, ctow); // catch ewwow so that otha contwibutions awe stiww considewed
 				}
-			} else {
-				// for the Eventually-phase we instantiate contributions
-				// only when idle. this might take a few idle-busy-cycles
-				// but will finish within the timeouts
-				let forcedTimeout = 3000;
-				let i = 0;
-				let instantiateSome = (idle: IdleDeadline) => {
-					while (i < toBeInstantiated.length) {
-						const ctor = toBeInstantiated[i++];
-						this.safeCreateInstance(instantiationService, ctor); // catch error so that other contributions are still considered
-						if (idle.timeRemaining() < 1) {
-							// time is up -> reschedule
-							runWhenIdle(instantiateSome, forcedTimeout);
-							break;
+			} ewse {
+				// fow the Eventuawwy-phase we instantiate contwibutions
+				// onwy when idwe. this might take a few idwe-busy-cycwes
+				// but wiww finish within the timeouts
+				wet fowcedTimeout = 3000;
+				wet i = 0;
+				wet instantiateSome = (idwe: IdweDeadwine) => {
+					whiwe (i < toBeInstantiated.wength) {
+						const ctow = toBeInstantiated[i++];
+						this.safeCweateInstance(instantiationSewvice, ctow); // catch ewwow so that otha contwibutions awe stiww considewed
+						if (idwe.timeWemaining() < 1) {
+							// time is up -> wescheduwe
+							wunWhenIdwe(instantiateSome, fowcedTimeout);
+							bweak;
 						}
 					}
 				};
-				runWhenIdle(instantiateSome, forcedTimeout);
+				wunWhenIdwe(instantiateSome, fowcedTimeout);
 			}
 		}
 	}
 
-	private safeCreateInstance(instantiationService: IInstantiationService, ctor: IConstructorSignature0<IWorkbenchContribution>): void {
-		try {
-			instantiationService.createInstance(ctor);
-		} catch (error) {
-			console.error(`Unable to instantiate workbench contribution ${ctor.name}.`, error);
+	pwivate safeCweateInstance(instantiationSewvice: IInstantiationSewvice, ctow: IConstwuctowSignatuwe0<IWowkbenchContwibution>): void {
+		twy {
+			instantiationSewvice.cweateInstance(ctow);
+		} catch (ewwow) {
+			consowe.ewwow(`Unabwe to instantiate wowkbench contwibution ${ctow.name}.`, ewwow);
 		}
 	}
 }
 
-Registry.add(Extensions.Workbench, new WorkbenchContributionsRegistry());
+Wegistwy.add(Extensions.Wowkbench, new WowkbenchContwibutionsWegistwy());

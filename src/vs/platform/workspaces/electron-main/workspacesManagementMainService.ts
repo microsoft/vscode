@@ -1,326 +1,326 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, MessageBoxOptions } from 'electron';
-import { existsSync, mkdirSync, readFileSync } from 'fs';
-import { Emitter, Event } from 'vs/base/common/event';
-import { parse } from 'vs/base/common/json';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { dirname, join } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { basename, extUriBiasedIgnorePathCase, joinPath, originalFSPath } from 'vs/base/common/resources';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { Promises, readdirSync, rimrafSync, writeFileSync } from 'vs/base/node/pfs';
-import { localize } from 'vs/nls';
-import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
-import { findWindowOnWorkspaceOrFolder } from 'vs/platform/windows/electron-main/windowsFinder';
-import { getStoredWorkspaceFolder, hasWorkspaceFileExtension, IEnterWorkspaceResult, IResolvedWorkspace, isStoredWorkspaceFolder, IStoredWorkspace, IStoredWorkspaceFolder, isUntitledWorkspace, isWorkspaceIdentifier, IUntitledWorkspaceInfo, IWorkspaceFolderCreationData, IWorkspaceIdentifier, toWorkspaceFolders, UNTITLED_WORKSPACE_NAME } from 'vs/platform/workspaces/common/workspaces';
-import { getWorkspaceIdentifier } from 'vs/platform/workspaces/electron-main/workspaces';
+impowt { BwowsewWindow, MessageBoxOptions } fwom 'ewectwon';
+impowt { existsSync, mkdiwSync, weadFiweSync } fwom 'fs';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { pawse } fwom 'vs/base/common/json';
+impowt { mnemonicButtonWabew } fwom 'vs/base/common/wabews';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { diwname, join } fwom 'vs/base/common/path';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { basename, extUwiBiasedIgnowePathCase, joinPath, owiginawFSPath } fwom 'vs/base/common/wesouwces';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Pwomises, weaddiwSync, wimwafSync, wwiteFiweSync } fwom 'vs/base/node/pfs';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IBackupMainSewvice } fwom 'vs/pwatfowm/backup/ewectwon-main/backup';
+impowt { IDiawogMainSewvice } fwom 'vs/pwatfowm/diawogs/ewectwon-main/diawogMainSewvice';
+impowt { IEnviwonmentMainSewvice } fwom 'vs/pwatfowm/enviwonment/ewectwon-main/enviwonmentMainSewvice';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { ICodeWindow } fwom 'vs/pwatfowm/windows/ewectwon-main/windows';
+impowt { findWindowOnWowkspaceOwFowda } fwom 'vs/pwatfowm/windows/ewectwon-main/windowsFinda';
+impowt { getStowedWowkspaceFowda, hasWowkspaceFiweExtension, IEntewWowkspaceWesuwt, IWesowvedWowkspace, isStowedWowkspaceFowda, IStowedWowkspace, IStowedWowkspaceFowda, isUntitwedWowkspace, isWowkspaceIdentifia, IUntitwedWowkspaceInfo, IWowkspaceFowdewCweationData, IWowkspaceIdentifia, toWowkspaceFowdews, UNTITWED_WOWKSPACE_NAME } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { getWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/ewectwon-main/wowkspaces';
 
-export const IWorkspacesManagementMainService = createDecorator<IWorkspacesManagementMainService>('workspacesManagementMainService');
+expowt const IWowkspacesManagementMainSewvice = cweateDecowatow<IWowkspacesManagementMainSewvice>('wowkspacesManagementMainSewvice');
 
-export interface IWorkspaceEnteredEvent {
+expowt intewface IWowkspaceEntewedEvent {
 	window: ICodeWindow;
-	workspace: IWorkspaceIdentifier;
+	wowkspace: IWowkspaceIdentifia;
 }
 
-export interface IWorkspacesManagementMainService {
+expowt intewface IWowkspacesManagementMainSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	readonly onDidDeleteUntitledWorkspace: Event<IWorkspaceIdentifier>;
-	readonly onDidEnterWorkspace: Event<IWorkspaceEnteredEvent>;
+	weadonwy onDidDeweteUntitwedWowkspace: Event<IWowkspaceIdentifia>;
+	weadonwy onDidEntewWowkspace: Event<IWowkspaceEntewedEvent>;
 
-	enterWorkspace(intoWindow: ICodeWindow, openedWindows: ICodeWindow[], path: URI): Promise<IEnterWorkspaceResult | undefined>;
+	entewWowkspace(intoWindow: ICodeWindow, openedWindows: ICodeWindow[], path: UWI): Pwomise<IEntewWowkspaceWesuwt | undefined>;
 
-	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier>;
-	createUntitledWorkspaceSync(folders?: IWorkspaceFolderCreationData[]): IWorkspaceIdentifier;
+	cweateUntitwedWowkspace(fowdews?: IWowkspaceFowdewCweationData[], wemoteAuthowity?: stwing): Pwomise<IWowkspaceIdentifia>;
+	cweateUntitwedWowkspaceSync(fowdews?: IWowkspaceFowdewCweationData[]): IWowkspaceIdentifia;
 
-	deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void>;
-	deleteUntitledWorkspaceSync(workspace: IWorkspaceIdentifier): void;
+	deweteUntitwedWowkspace(wowkspace: IWowkspaceIdentifia): Pwomise<void>;
+	deweteUntitwedWowkspaceSync(wowkspace: IWowkspaceIdentifia): void;
 
-	getUntitledWorkspacesSync(): IUntitledWorkspaceInfo[];
-	isUntitledWorkspace(workspace: IWorkspaceIdentifier): boolean;
+	getUntitwedWowkspacesSync(): IUntitwedWowkspaceInfo[];
+	isUntitwedWowkspace(wowkspace: IWowkspaceIdentifia): boowean;
 
-	resolveLocalWorkspaceSync(path: URI): IResolvedWorkspace | undefined;
-	resolveLocalWorkspace(path: URI): Promise<IResolvedWorkspace | undefined>;
+	wesowveWocawWowkspaceSync(path: UWI): IWesowvedWowkspace | undefined;
+	wesowveWocawWowkspace(path: UWI): Pwomise<IWesowvedWowkspace | undefined>;
 
-	getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier>;
+	getWowkspaceIdentifia(wowkspacePath: UWI): Pwomise<IWowkspaceIdentifia>;
 }
 
-export class WorkspacesManagementMainService extends Disposable implements IWorkspacesManagementMainService {
+expowt cwass WowkspacesManagementMainSewvice extends Disposabwe impwements IWowkspacesManagementMainSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly untitledWorkspacesHome = this.environmentMainService.untitledWorkspacesHome; // local URI that contains all untitled workspaces
+	pwivate weadonwy untitwedWowkspacesHome = this.enviwonmentMainSewvice.untitwedWowkspacesHome; // wocaw UWI that contains aww untitwed wowkspaces
 
-	private readonly _onDidDeleteUntitledWorkspace = this._register(new Emitter<IWorkspaceIdentifier>());
-	readonly onDidDeleteUntitledWorkspace: Event<IWorkspaceIdentifier> = this._onDidDeleteUntitledWorkspace.event;
+	pwivate weadonwy _onDidDeweteUntitwedWowkspace = this._wegista(new Emitta<IWowkspaceIdentifia>());
+	weadonwy onDidDeweteUntitwedWowkspace: Event<IWowkspaceIdentifia> = this._onDidDeweteUntitwedWowkspace.event;
 
-	private readonly _onDidEnterWorkspace = this._register(new Emitter<IWorkspaceEnteredEvent>());
-	readonly onDidEnterWorkspace: Event<IWorkspaceEnteredEvent> = this._onDidEnterWorkspace.event;
+	pwivate weadonwy _onDidEntewWowkspace = this._wegista(new Emitta<IWowkspaceEntewedEvent>());
+	weadonwy onDidEntewWowkspace: Event<IWowkspaceEntewedEvent> = this._onDidEntewWowkspace.event;
 
-	constructor(
-		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
-		@ILogService private readonly logService: ILogService,
-		@IBackupMainService private readonly backupMainService: IBackupMainService,
-		@IDialogMainService private readonly dialogMainService: IDialogMainService,
-		@IProductService private readonly productService: IProductService
+	constwuctow(
+		@IEnviwonmentMainSewvice pwivate weadonwy enviwonmentMainSewvice: IEnviwonmentMainSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IBackupMainSewvice pwivate weadonwy backupMainSewvice: IBackupMainSewvice,
+		@IDiawogMainSewvice pwivate weadonwy diawogMainSewvice: IDiawogMainSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice
 	) {
-		super();
+		supa();
 	}
 
-	resolveLocalWorkspaceSync(uri: URI): IResolvedWorkspace | undefined {
-		return this.doResolveLocalWorkspace(uri, path => readFileSync(path, 'utf8'));
+	wesowveWocawWowkspaceSync(uwi: UWI): IWesowvedWowkspace | undefined {
+		wetuwn this.doWesowveWocawWowkspace(uwi, path => weadFiweSync(path, 'utf8'));
 	}
 
-	resolveLocalWorkspace(uri: URI): Promise<IResolvedWorkspace | undefined> {
-		return this.doResolveLocalWorkspace(uri, path => Promises.readFile(path, 'utf8'));
+	wesowveWocawWowkspace(uwi: UWI): Pwomise<IWesowvedWowkspace | undefined> {
+		wetuwn this.doWesowveWocawWowkspace(uwi, path => Pwomises.weadFiwe(path, 'utf8'));
 	}
 
-	private doResolveLocalWorkspace(uri: URI, contentsFn: (path: string) => string): IResolvedWorkspace | undefined;
-	private doResolveLocalWorkspace(uri: URI, contentsFn: (path: string) => Promise<string>): Promise<IResolvedWorkspace | undefined>;
-	private doResolveLocalWorkspace(uri: URI, contentsFn: (path: string) => string | Promise<string>): IResolvedWorkspace | undefined | Promise<IResolvedWorkspace | undefined> {
-		if (!this.isWorkspacePath(uri)) {
-			return undefined; // does not look like a valid workspace config file
+	pwivate doWesowveWocawWowkspace(uwi: UWI, contentsFn: (path: stwing) => stwing): IWesowvedWowkspace | undefined;
+	pwivate doWesowveWocawWowkspace(uwi: UWI, contentsFn: (path: stwing) => Pwomise<stwing>): Pwomise<IWesowvedWowkspace | undefined>;
+	pwivate doWesowveWocawWowkspace(uwi: UWI, contentsFn: (path: stwing) => stwing | Pwomise<stwing>): IWesowvedWowkspace | undefined | Pwomise<IWesowvedWowkspace | undefined> {
+		if (!this.isWowkspacePath(uwi)) {
+			wetuwn undefined; // does not wook wike a vawid wowkspace config fiwe
 		}
 
-		if (uri.scheme !== Schemas.file) {
-			return undefined;
+		if (uwi.scheme !== Schemas.fiwe) {
+			wetuwn undefined;
 		}
 
-		try {
-			const contents = contentsFn(uri.fsPath);
-			if (contents instanceof Promise) {
-				return contents.then(value => this.doResolveWorkspace(uri, value), error => undefined /* invalid workspace */);
-			} else {
-				return this.doResolveWorkspace(uri, contents);
+		twy {
+			const contents = contentsFn(uwi.fsPath);
+			if (contents instanceof Pwomise) {
+				wetuwn contents.then(vawue => this.doWesowveWowkspace(uwi, vawue), ewwow => undefined /* invawid wowkspace */);
+			} ewse {
+				wetuwn this.doWesowveWowkspace(uwi, contents);
 			}
 		} catch {
-			return undefined; // invalid workspace
+			wetuwn undefined; // invawid wowkspace
 		}
 	}
 
-	private isWorkspacePath(uri: URI): boolean {
-		return isUntitledWorkspace(uri, this.environmentMainService) || hasWorkspaceFileExtension(uri);
+	pwivate isWowkspacePath(uwi: UWI): boowean {
+		wetuwn isUntitwedWowkspace(uwi, this.enviwonmentMainSewvice) || hasWowkspaceFiweExtension(uwi);
 	}
 
-	private doResolveWorkspace(path: URI, contents: string): IResolvedWorkspace | undefined {
-		try {
-			const workspace = this.doParseStoredWorkspace(path, contents);
-			const workspaceIdentifier = getWorkspaceIdentifier(path);
-			return {
-				id: workspaceIdentifier.id,
-				configPath: workspaceIdentifier.configPath,
-				folders: toWorkspaceFolders(workspace.folders, workspaceIdentifier.configPath, extUriBiasedIgnorePathCase),
-				remoteAuthority: workspace.remoteAuthority,
-				transient: workspace.transient
+	pwivate doWesowveWowkspace(path: UWI, contents: stwing): IWesowvedWowkspace | undefined {
+		twy {
+			const wowkspace = this.doPawseStowedWowkspace(path, contents);
+			const wowkspaceIdentifia = getWowkspaceIdentifia(path);
+			wetuwn {
+				id: wowkspaceIdentifia.id,
+				configPath: wowkspaceIdentifia.configPath,
+				fowdews: toWowkspaceFowdews(wowkspace.fowdews, wowkspaceIdentifia.configPath, extUwiBiasedIgnowePathCase),
+				wemoteAuthowity: wowkspace.wemoteAuthowity,
+				twansient: wowkspace.twansient
 			};
-		} catch (error) {
-			this.logService.warn(error.toString());
+		} catch (ewwow) {
+			this.wogSewvice.wawn(ewwow.toStwing());
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private doParseStoredWorkspace(path: URI, contents: string): IStoredWorkspace {
+	pwivate doPawseStowedWowkspace(path: UWI, contents: stwing): IStowedWowkspace {
 
-		// Parse workspace file
-		const storedWorkspace: IStoredWorkspace = parse(contents); // use fault tolerant parser
+		// Pawse wowkspace fiwe
+		const stowedWowkspace: IStowedWowkspace = pawse(contents); // use fauwt towewant pawsa
 
-		// Filter out folders which do not have a path or uri set
-		if (storedWorkspace && Array.isArray(storedWorkspace.folders)) {
-			storedWorkspace.folders = storedWorkspace.folders.filter(folder => isStoredWorkspaceFolder(folder));
-		} else {
-			throw new Error(`${path.toString(true)} looks like an invalid workspace file.`);
+		// Fiwta out fowdews which do not have a path ow uwi set
+		if (stowedWowkspace && Awway.isAwway(stowedWowkspace.fowdews)) {
+			stowedWowkspace.fowdews = stowedWowkspace.fowdews.fiwta(fowda => isStowedWowkspaceFowda(fowda));
+		} ewse {
+			thwow new Ewwow(`${path.toStwing(twue)} wooks wike an invawid wowkspace fiwe.`);
 		}
 
-		return storedWorkspace;
+		wetuwn stowedWowkspace;
 	}
 
-	async createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier> {
-		const { workspace, storedWorkspace } = this.newUntitledWorkspace(folders, remoteAuthority);
-		const configPath = workspace.configPath.fsPath;
+	async cweateUntitwedWowkspace(fowdews?: IWowkspaceFowdewCweationData[], wemoteAuthowity?: stwing): Pwomise<IWowkspaceIdentifia> {
+		const { wowkspace, stowedWowkspace } = this.newUntitwedWowkspace(fowdews, wemoteAuthowity);
+		const configPath = wowkspace.configPath.fsPath;
 
-		await Promises.mkdir(dirname(configPath), { recursive: true });
-		await Promises.writeFile(configPath, JSON.stringify(storedWorkspace, null, '\t'));
+		await Pwomises.mkdiw(diwname(configPath), { wecuwsive: twue });
+		await Pwomises.wwiteFiwe(configPath, JSON.stwingify(stowedWowkspace, nuww, '\t'));
 
-		return workspace;
+		wetuwn wowkspace;
 	}
 
-	createUntitledWorkspaceSync(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): IWorkspaceIdentifier {
-		const { workspace, storedWorkspace } = this.newUntitledWorkspace(folders, remoteAuthority);
-		const configPath = workspace.configPath.fsPath;
+	cweateUntitwedWowkspaceSync(fowdews?: IWowkspaceFowdewCweationData[], wemoteAuthowity?: stwing): IWowkspaceIdentifia {
+		const { wowkspace, stowedWowkspace } = this.newUntitwedWowkspace(fowdews, wemoteAuthowity);
+		const configPath = wowkspace.configPath.fsPath;
 
-		mkdirSync(dirname(configPath), { recursive: true });
-		writeFileSync(configPath, JSON.stringify(storedWorkspace, null, '\t'));
+		mkdiwSync(diwname(configPath), { wecuwsive: twue });
+		wwiteFiweSync(configPath, JSON.stwingify(stowedWowkspace, nuww, '\t'));
 
-		return workspace;
+		wetuwn wowkspace;
 	}
 
-	private newUntitledWorkspace(folders: IWorkspaceFolderCreationData[] = [], remoteAuthority?: string): { workspace: IWorkspaceIdentifier, storedWorkspace: IStoredWorkspace } {
-		const randomId = (Date.now() + Math.round(Math.random() * 1000)).toString();
-		const untitledWorkspaceConfigFolder = joinPath(this.untitledWorkspacesHome, randomId);
-		const untitledWorkspaceConfigPath = joinPath(untitledWorkspaceConfigFolder, UNTITLED_WORKSPACE_NAME);
+	pwivate newUntitwedWowkspace(fowdews: IWowkspaceFowdewCweationData[] = [], wemoteAuthowity?: stwing): { wowkspace: IWowkspaceIdentifia, stowedWowkspace: IStowedWowkspace } {
+		const wandomId = (Date.now() + Math.wound(Math.wandom() * 1000)).toStwing();
+		const untitwedWowkspaceConfigFowda = joinPath(this.untitwedWowkspacesHome, wandomId);
+		const untitwedWowkspaceConfigPath = joinPath(untitwedWowkspaceConfigFowda, UNTITWED_WOWKSPACE_NAME);
 
-		const storedWorkspaceFolder: IStoredWorkspaceFolder[] = [];
+		const stowedWowkspaceFowda: IStowedWowkspaceFowda[] = [];
 
-		for (const folder of folders) {
-			storedWorkspaceFolder.push(getStoredWorkspaceFolder(folder.uri, true, folder.name, untitledWorkspaceConfigFolder, !isWindows, extUriBiasedIgnorePathCase));
+		fow (const fowda of fowdews) {
+			stowedWowkspaceFowda.push(getStowedWowkspaceFowda(fowda.uwi, twue, fowda.name, untitwedWowkspaceConfigFowda, !isWindows, extUwiBiasedIgnowePathCase));
 		}
 
-		return {
-			workspace: getWorkspaceIdentifier(untitledWorkspaceConfigPath),
-			storedWorkspace: { folders: storedWorkspaceFolder, remoteAuthority }
+		wetuwn {
+			wowkspace: getWowkspaceIdentifia(untitwedWowkspaceConfigPath),
+			stowedWowkspace: { fowdews: stowedWowkspaceFowda, wemoteAuthowity }
 		};
 	}
 
-	async getWorkspaceIdentifier(configPath: URI): Promise<IWorkspaceIdentifier> {
-		return getWorkspaceIdentifier(configPath);
+	async getWowkspaceIdentifia(configPath: UWI): Pwomise<IWowkspaceIdentifia> {
+		wetuwn getWowkspaceIdentifia(configPath);
 	}
 
-	isUntitledWorkspace(workspace: IWorkspaceIdentifier): boolean {
-		return isUntitledWorkspace(workspace.configPath, this.environmentMainService);
+	isUntitwedWowkspace(wowkspace: IWowkspaceIdentifia): boowean {
+		wetuwn isUntitwedWowkspace(wowkspace.configPath, this.enviwonmentMainSewvice);
 	}
 
-	deleteUntitledWorkspaceSync(workspace: IWorkspaceIdentifier): void {
-		if (!this.isUntitledWorkspace(workspace)) {
-			return; // only supported for untitled workspaces
+	deweteUntitwedWowkspaceSync(wowkspace: IWowkspaceIdentifia): void {
+		if (!this.isUntitwedWowkspace(wowkspace)) {
+			wetuwn; // onwy suppowted fow untitwed wowkspaces
 		}
 
-		// Delete from disk
-		this.doDeleteUntitledWorkspaceSync(workspace);
+		// Dewete fwom disk
+		this.doDeweteUntitwedWowkspaceSync(wowkspace);
 
 		// Event
-		this._onDidDeleteUntitledWorkspace.fire(workspace);
+		this._onDidDeweteUntitwedWowkspace.fiwe(wowkspace);
 	}
 
-	async deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void> {
-		this.deleteUntitledWorkspaceSync(workspace);
+	async deweteUntitwedWowkspace(wowkspace: IWowkspaceIdentifia): Pwomise<void> {
+		this.deweteUntitwedWowkspaceSync(wowkspace);
 	}
 
-	private doDeleteUntitledWorkspaceSync(workspace: IWorkspaceIdentifier): void {
-		const configPath = originalFSPath(workspace.configPath);
-		try {
+	pwivate doDeweteUntitwedWowkspaceSync(wowkspace: IWowkspaceIdentifia): void {
+		const configPath = owiginawFSPath(wowkspace.configPath);
+		twy {
 
-			// Delete Workspace
-			rimrafSync(dirname(configPath));
+			// Dewete Wowkspace
+			wimwafSync(diwname(configPath));
 
-			// Mark Workspace Storage to be deleted
-			const workspaceStoragePath = join(this.environmentMainService.workspaceStorageHome.fsPath, workspace.id);
-			if (existsSync(workspaceStoragePath)) {
-				writeFileSync(join(workspaceStoragePath, 'obsolete'), '');
+			// Mawk Wowkspace Stowage to be deweted
+			const wowkspaceStowagePath = join(this.enviwonmentMainSewvice.wowkspaceStowageHome.fsPath, wowkspace.id);
+			if (existsSync(wowkspaceStowagePath)) {
+				wwiteFiweSync(join(wowkspaceStowagePath, 'obsowete'), '');
 			}
-		} catch (error) {
-			this.logService.warn(`Unable to delete untitled workspace ${configPath} (${error}).`);
+		} catch (ewwow) {
+			this.wogSewvice.wawn(`Unabwe to dewete untitwed wowkspace ${configPath} (${ewwow}).`);
 		}
 	}
 
-	getUntitledWorkspacesSync(): IUntitledWorkspaceInfo[] {
-		const untitledWorkspaces: IUntitledWorkspaceInfo[] = [];
-		try {
-			const untitledWorkspacePaths = readdirSync(this.untitledWorkspacesHome.fsPath).map(folder => joinPath(this.untitledWorkspacesHome, folder, UNTITLED_WORKSPACE_NAME));
-			for (const untitledWorkspacePath of untitledWorkspacePaths) {
-				const workspace = getWorkspaceIdentifier(untitledWorkspacePath);
-				const resolvedWorkspace = this.resolveLocalWorkspaceSync(untitledWorkspacePath);
-				if (!resolvedWorkspace) {
-					this.doDeleteUntitledWorkspaceSync(workspace);
-				} else {
-					untitledWorkspaces.push({ workspace, remoteAuthority: resolvedWorkspace.remoteAuthority });
+	getUntitwedWowkspacesSync(): IUntitwedWowkspaceInfo[] {
+		const untitwedWowkspaces: IUntitwedWowkspaceInfo[] = [];
+		twy {
+			const untitwedWowkspacePaths = weaddiwSync(this.untitwedWowkspacesHome.fsPath).map(fowda => joinPath(this.untitwedWowkspacesHome, fowda, UNTITWED_WOWKSPACE_NAME));
+			fow (const untitwedWowkspacePath of untitwedWowkspacePaths) {
+				const wowkspace = getWowkspaceIdentifia(untitwedWowkspacePath);
+				const wesowvedWowkspace = this.wesowveWocawWowkspaceSync(untitwedWowkspacePath);
+				if (!wesowvedWowkspace) {
+					this.doDeweteUntitwedWowkspaceSync(wowkspace);
+				} ewse {
+					untitwedWowkspaces.push({ wowkspace, wemoteAuthowity: wesowvedWowkspace.wemoteAuthowity });
 				}
 			}
-		} catch (error) {
-			if (error.code !== 'ENOENT') {
-				this.logService.warn(`Unable to read folders in ${this.untitledWorkspacesHome} (${error}).`);
+		} catch (ewwow) {
+			if (ewwow.code !== 'ENOENT') {
+				this.wogSewvice.wawn(`Unabwe to wead fowdews in ${this.untitwedWowkspacesHome} (${ewwow}).`);
 			}
 		}
 
-		return untitledWorkspaces;
+		wetuwn untitwedWowkspaces;
 	}
 
-	async enterWorkspace(window: ICodeWindow, windows: ICodeWindow[], path: URI): Promise<IEnterWorkspaceResult | undefined> {
-		if (!window || !window.win || !window.isReady) {
-			return undefined; // return early if the window is not ready or disposed
+	async entewWowkspace(window: ICodeWindow, windows: ICodeWindow[], path: UWI): Pwomise<IEntewWowkspaceWesuwt | undefined> {
+		if (!window || !window.win || !window.isWeady) {
+			wetuwn undefined; // wetuwn eawwy if the window is not weady ow disposed
 		}
 
-		const isValid = await this.isValidTargetWorkspacePath(window, windows, path);
-		if (!isValid) {
-			return undefined; // return early if the workspace is not valid
+		const isVawid = await this.isVawidTawgetWowkspacePath(window, windows, path);
+		if (!isVawid) {
+			wetuwn undefined; // wetuwn eawwy if the wowkspace is not vawid
 		}
 
-		const result = this.doEnterWorkspace(window, getWorkspaceIdentifier(path));
-		if (!result) {
-			return undefined;
+		const wesuwt = this.doEntewWowkspace(window, getWowkspaceIdentifia(path));
+		if (!wesuwt) {
+			wetuwn undefined;
 		}
 
 		// Emit as event
-		this._onDidEnterWorkspace.fire({ window, workspace: result.workspace });
+		this._onDidEntewWowkspace.fiwe({ window, wowkspace: wesuwt.wowkspace });
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private async isValidTargetWorkspacePath(window: ICodeWindow, windows: ICodeWindow[], workspacePath?: URI): Promise<boolean> {
-		if (!workspacePath) {
-			return true;
+	pwivate async isVawidTawgetWowkspacePath(window: ICodeWindow, windows: ICodeWindow[], wowkspacePath?: UWI): Pwomise<boowean> {
+		if (!wowkspacePath) {
+			wetuwn twue;
 		}
 
-		if (isWorkspaceIdentifier(window.openedWorkspace) && extUriBiasedIgnorePathCase.isEqual(window.openedWorkspace.configPath, workspacePath)) {
-			return false; // window is already opened on a workspace with that path
+		if (isWowkspaceIdentifia(window.openedWowkspace) && extUwiBiasedIgnowePathCase.isEquaw(window.openedWowkspace.configPath, wowkspacePath)) {
+			wetuwn fawse; // window is awweady opened on a wowkspace with that path
 		}
 
-		// Prevent overwriting a workspace that is currently opened in another window
-		if (findWindowOnWorkspaceOrFolder(windows, workspacePath)) {
+		// Pwevent ovewwwiting a wowkspace that is cuwwentwy opened in anotha window
+		if (findWindowOnWowkspaceOwFowda(windows, wowkspacePath)) {
 			const options: MessageBoxOptions = {
-				title: this.productService.nameLong,
+				titwe: this.pwoductSewvice.nameWong,
 				type: 'info',
-				buttons: [mnemonicButtonLabel(localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"))],
-				message: localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(workspacePath)),
-				detail: localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again."),
-				noLink: true,
-				defaultId: 0
+				buttons: [mnemonicButtonWabew(wocawize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"))],
+				message: wocawize('wowkspaceOpenedMessage', "Unabwe to save wowkspace '{0}'", basename(wowkspacePath)),
+				detaiw: wocawize('wowkspaceOpenedDetaiw', "The wowkspace is awweady opened in anotha window. Pwease cwose that window fiwst and then twy again."),
+				noWink: twue,
+				defauwtId: 0
 			};
 
-			await this.dialogMainService.showMessageBox(options, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
+			await this.diawogMainSewvice.showMessageBox(options, withNuwwAsUndefined(BwowsewWindow.getFocusedWindow()));
 
-			return false;
+			wetuwn fawse;
 		}
 
-		return true; // OK
+		wetuwn twue; // OK
 	}
 
-	private doEnterWorkspace(window: ICodeWindow, workspace: IWorkspaceIdentifier): IEnterWorkspaceResult | undefined {
+	pwivate doEntewWowkspace(window: ICodeWindow, wowkspace: IWowkspaceIdentifia): IEntewWowkspaceWesuwt | undefined {
 		if (!window.config) {
-			return undefined;
+			wetuwn undefined;
 		}
 
 		window.focus();
 
-		// Register window for backups and migrate current backups over
-		let backupPath: string | undefined;
-		if (!window.config.extensionDevelopmentPath) {
-			backupPath = this.backupMainService.registerWorkspaceBackupSync({ workspace, remoteAuthority: window.remoteAuthority }, window.config.backupPath);
+		// Wegista window fow backups and migwate cuwwent backups ova
+		wet backupPath: stwing | undefined;
+		if (!window.config.extensionDevewopmentPath) {
+			backupPath = this.backupMainSewvice.wegistewWowkspaceBackupSync({ wowkspace, wemoteAuthowity: window.wemoteAuthowity }, window.config.backupPath);
 		}
 
-		// if the window was opened on an untitled workspace, delete it.
-		if (isWorkspaceIdentifier(window.openedWorkspace) && this.isUntitledWorkspace(window.openedWorkspace)) {
-			this.deleteUntitledWorkspaceSync(window.openedWorkspace);
+		// if the window was opened on an untitwed wowkspace, dewete it.
+		if (isWowkspaceIdentifia(window.openedWowkspace) && this.isUntitwedWowkspace(window.openedWowkspace)) {
+			this.deweteUntitwedWowkspaceSync(window.openedWowkspace);
 		}
 
-		// Update window configuration properly based on transition to workspace
-		window.config.workspace = workspace;
+		// Update window configuwation pwopewwy based on twansition to wowkspace
+		window.config.wowkspace = wowkspace;
 		window.config.backupPath = backupPath;
 
-		return { workspace, backupPath };
+		wetuwn { wowkspace, backupPath };
 	}
 }

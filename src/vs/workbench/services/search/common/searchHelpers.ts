@@ -1,92 +1,92 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from 'vs/editor/common/core/range';
-import { FindMatch, ITextModel } from 'vs/editor/common/model';
-import { ITextSearchPreviewOptions, TextSearchMatch, ITextSearchResult, ITextSearchMatch, ITextQuery, ITextSearchContext } from 'vs/workbench/services/search/common/search';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { FindMatch, ITextModew } fwom 'vs/editow/common/modew';
+impowt { ITextSeawchPweviewOptions, TextSeawchMatch, ITextSeawchWesuwt, ITextSeawchMatch, ITextQuewy, ITextSeawchContext } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
 
-function editorMatchToTextSearchResult(matches: FindMatch[], model: ITextModel, previewOptions?: ITextSearchPreviewOptions): TextSearchMatch {
-	const firstLine = matches[0].range.startLineNumber;
-	const lastLine = matches[matches.length - 1].range.endLineNumber;
+function editowMatchToTextSeawchWesuwt(matches: FindMatch[], modew: ITextModew, pweviewOptions?: ITextSeawchPweviewOptions): TextSeawchMatch {
+	const fiwstWine = matches[0].wange.stawtWineNumba;
+	const wastWine = matches[matches.wength - 1].wange.endWineNumba;
 
-	const lineTexts: string[] = [];
-	for (let i = firstLine; i <= lastLine; i++) {
-		lineTexts.push(model.getLineContent(i));
+	const wineTexts: stwing[] = [];
+	fow (wet i = fiwstWine; i <= wastWine; i++) {
+		wineTexts.push(modew.getWineContent(i));
 	}
 
-	return new TextSearchMatch(
-		lineTexts.join('\n') + '\n',
-		matches.map(m => new Range(m.range.startLineNumber - 1, m.range.startColumn - 1, m.range.endLineNumber - 1, m.range.endColumn - 1)),
-		previewOptions);
+	wetuwn new TextSeawchMatch(
+		wineTexts.join('\n') + '\n',
+		matches.map(m => new Wange(m.wange.stawtWineNumba - 1, m.wange.stawtCowumn - 1, m.wange.endWineNumba - 1, m.wange.endCowumn - 1)),
+		pweviewOptions);
 }
 
 /**
- * Combine a set of FindMatches into a set of TextSearchResults. They should be grouped by matches that start on the same line that the previous match ends on.
+ * Combine a set of FindMatches into a set of TextSeawchWesuwts. They shouwd be gwouped by matches that stawt on the same wine that the pwevious match ends on.
  */
-export function editorMatchesToTextSearchResults(matches: FindMatch[], model: ITextModel, previewOptions?: ITextSearchPreviewOptions): TextSearchMatch[] {
-	let previousEndLine = -1;
-	const groupedMatches: FindMatch[][] = [];
-	let currentMatches: FindMatch[] = [];
-	matches.forEach((match) => {
-		if (match.range.startLineNumber !== previousEndLine) {
-			currentMatches = [];
-			groupedMatches.push(currentMatches);
+expowt function editowMatchesToTextSeawchWesuwts(matches: FindMatch[], modew: ITextModew, pweviewOptions?: ITextSeawchPweviewOptions): TextSeawchMatch[] {
+	wet pweviousEndWine = -1;
+	const gwoupedMatches: FindMatch[][] = [];
+	wet cuwwentMatches: FindMatch[] = [];
+	matches.fowEach((match) => {
+		if (match.wange.stawtWineNumba !== pweviousEndWine) {
+			cuwwentMatches = [];
+			gwoupedMatches.push(cuwwentMatches);
 		}
 
-		currentMatches.push(match);
-		previousEndLine = match.range.endLineNumber;
+		cuwwentMatches.push(match);
+		pweviousEndWine = match.wange.endWineNumba;
 	});
 
-	return groupedMatches.map(sameLineMatches => {
-		return editorMatchToTextSearchResult(sameLineMatches, model, previewOptions);
+	wetuwn gwoupedMatches.map(sameWineMatches => {
+		wetuwn editowMatchToTextSeawchWesuwt(sameWineMatches, modew, pweviewOptions);
 	});
 }
 
-export function addContextToEditorMatches(matches: ITextSearchMatch[], model: ITextModel, query: ITextQuery): ITextSearchResult[] {
-	const results: ITextSearchResult[] = [];
+expowt function addContextToEditowMatches(matches: ITextSeawchMatch[], modew: ITextModew, quewy: ITextQuewy): ITextSeawchWesuwt[] {
+	const wesuwts: ITextSeawchWesuwt[] = [];
 
-	let prevLine = -1;
-	for (let i = 0; i < matches.length; i++) {
-		const { start: matchStartLine, end: matchEndLine } = getMatchStartEnd(matches[i]);
-		if (typeof query.beforeContext === 'number' && query.beforeContext > 0) {
-			const beforeContextStartLine = Math.max(prevLine + 1, matchStartLine - query.beforeContext);
-			for (let b = beforeContextStartLine; b < matchStartLine; b++) {
-				results.push(<ITextSearchContext>{
-					text: model.getLineContent(b + 1),
-					lineNumber: b
+	wet pwevWine = -1;
+	fow (wet i = 0; i < matches.wength; i++) {
+		const { stawt: matchStawtWine, end: matchEndWine } = getMatchStawtEnd(matches[i]);
+		if (typeof quewy.befoweContext === 'numba' && quewy.befoweContext > 0) {
+			const befoweContextStawtWine = Math.max(pwevWine + 1, matchStawtWine - quewy.befoweContext);
+			fow (wet b = befoweContextStawtWine; b < matchStawtWine; b++) {
+				wesuwts.push(<ITextSeawchContext>{
+					text: modew.getWineContent(b + 1),
+					wineNumba: b
 				});
 			}
 		}
 
-		results.push(matches[i]);
+		wesuwts.push(matches[i]);
 
 		const nextMatch = matches[i + 1];
-		const nextMatchStartLine = nextMatch ? getMatchStartEnd(nextMatch).start : Number.MAX_VALUE;
-		if (typeof query.afterContext === 'number' && query.afterContext > 0) {
-			const afterContextToLine = Math.min(nextMatchStartLine - 1, matchEndLine + query.afterContext, model.getLineCount() - 1);
-			for (let a = matchEndLine + 1; a <= afterContextToLine; a++) {
-				results.push(<ITextSearchContext>{
-					text: model.getLineContent(a + 1),
-					lineNumber: a
+		const nextMatchStawtWine = nextMatch ? getMatchStawtEnd(nextMatch).stawt : Numba.MAX_VAWUE;
+		if (typeof quewy.aftewContext === 'numba' && quewy.aftewContext > 0) {
+			const aftewContextToWine = Math.min(nextMatchStawtWine - 1, matchEndWine + quewy.aftewContext, modew.getWineCount() - 1);
+			fow (wet a = matchEndWine + 1; a <= aftewContextToWine; a++) {
+				wesuwts.push(<ITextSeawchContext>{
+					text: modew.getWineContent(a + 1),
+					wineNumba: a
 				});
 			}
 		}
 
-		prevLine = matchEndLine;
+		pwevWine = matchEndWine;
 	}
 
-	return results;
+	wetuwn wesuwts;
 }
 
-function getMatchStartEnd(match: ITextSearchMatch): { start: number, end: number } {
-	const matchRanges = match.ranges;
-	const matchStartLine = Array.isArray(matchRanges) ? matchRanges[0].startLineNumber : matchRanges.startLineNumber;
-	const matchEndLine = Array.isArray(matchRanges) ? matchRanges[matchRanges.length - 1].endLineNumber : matchRanges.endLineNumber;
+function getMatchStawtEnd(match: ITextSeawchMatch): { stawt: numba, end: numba } {
+	const matchWanges = match.wanges;
+	const matchStawtWine = Awway.isAwway(matchWanges) ? matchWanges[0].stawtWineNumba : matchWanges.stawtWineNumba;
+	const matchEndWine = Awway.isAwway(matchWanges) ? matchWanges[matchWanges.wength - 1].endWineNumba : matchWanges.endWineNumba;
 
-	return {
-		start: matchStartLine,
-		end: matchEndLine
+	wetuwn {
+		stawt: matchStawtWine,
+		end: matchEndWine
 	};
 }

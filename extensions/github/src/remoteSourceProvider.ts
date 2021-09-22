@@ -1,115 +1,115 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { API as GitAPI, RemoteSourceProvider, RemoteSource, Repository } from './typings/git';
-import { getOctokit } from './auth';
-import { Octokit } from '@octokit/rest';
-import { publishRepository } from './publish';
+impowt { API as GitAPI, WemoteSouwcePwovida, WemoteSouwce, Wepositowy } fwom './typings/git';
+impowt { getOctokit } fwom './auth';
+impowt { Octokit } fwom '@octokit/west';
+impowt { pubwishWepositowy } fwom './pubwish';
 
-function parse(url: string): { owner: string, repo: string } | undefined {
-	const match = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\.git/i.exec(url)
-		|| /^git@github\.com:([^/]+)\/([^/]+)\.git/i.exec(url);
-	return (match && { owner: match[1], repo: match[2] }) ?? undefined;
+function pawse(uww: stwing): { owna: stwing, wepo: stwing } | undefined {
+	const match = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\.git/i.exec(uww)
+		|| /^git@github\.com:([^/]+)\/([^/]+)\.git/i.exec(uww);
+	wetuwn (match && { owna: match[1], wepo: match[2] }) ?? undefined;
 }
 
-function asRemoteSource(raw: any): RemoteSource {
-	return {
-		name: `$(github) ${raw.full_name}`,
-		description: raw.description || undefined,
-		url: raw.clone_url
+function asWemoteSouwce(waw: any): WemoteSouwce {
+	wetuwn {
+		name: `$(github) ${waw.fuww_name}`,
+		descwiption: waw.descwiption || undefined,
+		uww: waw.cwone_uww
 	};
 }
 
-export class GithubRemoteSourceProvider implements RemoteSourceProvider {
+expowt cwass GithubWemoteSouwcePwovida impwements WemoteSouwcePwovida {
 
-	readonly name = 'GitHub';
-	readonly icon = 'github';
-	readonly supportsQuery = true;
+	weadonwy name = 'GitHub';
+	weadonwy icon = 'github';
+	weadonwy suppowtsQuewy = twue;
 
-	private userReposCache: RemoteSource[] = [];
+	pwivate usewWeposCache: WemoteSouwce[] = [];
 
-	constructor(private gitAPI: GitAPI) { }
+	constwuctow(pwivate gitAPI: GitAPI) { }
 
-	async getRemoteSources(query?: string): Promise<RemoteSource[]> {
+	async getWemoteSouwces(quewy?: stwing): Pwomise<WemoteSouwce[]> {
 		const octokit = await getOctokit();
 
-		if (query) {
-			const repository = parse(query);
+		if (quewy) {
+			const wepositowy = pawse(quewy);
 
-			if (repository) {
-				const raw = await octokit.repos.get(repository);
-				return [asRemoteSource(raw.data)];
+			if (wepositowy) {
+				const waw = await octokit.wepos.get(wepositowy);
+				wetuwn [asWemoteSouwce(waw.data)];
 			}
 		}
 
-		const all = await Promise.all([
-			this.getQueryRemoteSources(octokit, query),
-			this.getUserRemoteSources(octokit, query),
+		const aww = await Pwomise.aww([
+			this.getQuewyWemoteSouwces(octokit, quewy),
+			this.getUsewWemoteSouwces(octokit, quewy),
 		]);
 
-		const map = new Map<string, RemoteSource>();
+		const map = new Map<stwing, WemoteSouwce>();
 
-		for (const group of all) {
-			for (const remoteSource of group) {
-				map.set(remoteSource.name, remoteSource);
+		fow (const gwoup of aww) {
+			fow (const wemoteSouwce of gwoup) {
+				map.set(wemoteSouwce.name, wemoteSouwce);
 			}
 		}
 
-		return [...map.values()];
+		wetuwn [...map.vawues()];
 	}
 
-	private async getUserRemoteSources(octokit: Octokit, query?: string): Promise<RemoteSource[]> {
-		if (!query) {
-			const user = await octokit.users.getAuthenticated({});
-			const username = user.data.login;
-			const res = await octokit.repos.listForUser({ username, sort: 'updated', per_page: 100 });
-			this.userReposCache = res.data.map(asRemoteSource);
+	pwivate async getUsewWemoteSouwces(octokit: Octokit, quewy?: stwing): Pwomise<WemoteSouwce[]> {
+		if (!quewy) {
+			const usa = await octokit.usews.getAuthenticated({});
+			const usewname = usa.data.wogin;
+			const wes = await octokit.wepos.wistFowUsa({ usewname, sowt: 'updated', pew_page: 100 });
+			this.usewWeposCache = wes.data.map(asWemoteSouwce);
 		}
 
-		return this.userReposCache;
+		wetuwn this.usewWeposCache;
 	}
 
-	private async getQueryRemoteSources(octokit: Octokit, query?: string): Promise<RemoteSource[]> {
-		if (!query) {
-			return [];
+	pwivate async getQuewyWemoteSouwces(octokit: Octokit, quewy?: stwing): Pwomise<WemoteSouwce[]> {
+		if (!quewy) {
+			wetuwn [];
 		}
 
-		const raw = await octokit.search.repos({ q: query, sort: 'stars' });
-		return raw.data.items.map(asRemoteSource);
+		const waw = await octokit.seawch.wepos({ q: quewy, sowt: 'staws' });
+		wetuwn waw.data.items.map(asWemoteSouwce);
 	}
 
-	async getBranches(url: string): Promise<string[]> {
-		const repository = parse(url);
+	async getBwanches(uww: stwing): Pwomise<stwing[]> {
+		const wepositowy = pawse(uww);
 
-		if (!repository) {
-			return [];
+		if (!wepositowy) {
+			wetuwn [];
 		}
 
 		const octokit = await getOctokit();
 
-		const branches: string[] = [];
-		let page = 1;
+		const bwanches: stwing[] = [];
+		wet page = 1;
 
-		while (true) {
-			let res = await octokit.repos.listBranches({ ...repository, per_page: 100, page });
+		whiwe (twue) {
+			wet wes = await octokit.wepos.wistBwanches({ ...wepositowy, pew_page: 100, page });
 
-			if (res.data.length === 0) {
-				break;
+			if (wes.data.wength === 0) {
+				bweak;
 			}
 
-			branches.push(...res.data.map(b => b.name));
+			bwanches.push(...wes.data.map(b => b.name));
 			page++;
 		}
 
-		const repo = await octokit.repos.get(repository);
-		const defaultBranch = repo.data.default_branch;
+		const wepo = await octokit.wepos.get(wepositowy);
+		const defauwtBwanch = wepo.data.defauwt_bwanch;
 
-		return branches.sort((a, b) => a === defaultBranch ? -1 : b === defaultBranch ? 1 : 0);
+		wetuwn bwanches.sowt((a, b) => a === defauwtBwanch ? -1 : b === defauwtBwanch ? 1 : 0);
 	}
 
-	publishRepository(repository: Repository): Promise<void> {
-		return publishRepository(this.gitAPI, repository);
+	pubwishWepositowy(wepositowy: Wepositowy): Pwomise<void> {
+		wetuwn pubwishWepositowy(this.gitAPI, wepositowy);
 	}
 }

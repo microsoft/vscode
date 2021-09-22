@@ -1,54 +1,54 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcRenderer } from 'electron';
-import { Event } from 'vs/base/common/event';
-import { ClientConnectionEvent, IPCServer } from 'vs/base/parts/ipc/common/ipc';
-import { Protocol as MessagePortProtocol } from 'vs/base/parts/ipc/common/ipc.mp';
+impowt { ipcWendewa } fwom 'ewectwon';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { CwientConnectionEvent, IPCSewva } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { Pwotocow as MessagePowtPwotocow } fwom 'vs/base/pawts/ipc/common/ipc.mp';
 
 /**
- * An implementation of a `IPCServer` on top of MessagePort style IPC communication.
- * The clients register themselves via Electron IPC transfer.
+ * An impwementation of a `IPCSewva` on top of MessagePowt stywe IPC communication.
+ * The cwients wegista themsewves via Ewectwon IPC twansfa.
  */
-export class Server extends IPCServer {
+expowt cwass Sewva extends IPCSewva {
 
-	private static getOnDidClientConnect(): Event<ClientConnectionEvent> {
+	pwivate static getOnDidCwientConnect(): Event<CwientConnectionEvent> {
 
-		// Clients connect via `vscode:createMessageChannel` to get a
-		// `MessagePort` that is ready to be used. For every connection
-		// we create a pair of message ports and send it back.
+		// Cwients connect via `vscode:cweateMessageChannew` to get a
+		// `MessagePowt` that is weady to be used. Fow evewy connection
+		// we cweate a paiw of message powts and send it back.
 		//
-		// The `nonce` is included so that the main side has a chance to
-		// correlate the response back to the sender.
-		const onCreateMessageChannel = Event.fromNodeEventEmitter<string>(ipcRenderer, 'vscode:createMessageChannel', (_, nonce: string) => nonce);
+		// The `nonce` is incwuded so that the main side has a chance to
+		// cowwewate the wesponse back to the senda.
+		const onCweateMessageChannew = Event.fwomNodeEventEmitta<stwing>(ipcWendewa, 'vscode:cweateMessageChannew', (_, nonce: stwing) => nonce);
 
-		return Event.map(onCreateMessageChannel, nonce => {
+		wetuwn Event.map(onCweateMessageChannew, nonce => {
 
-			// Create a new pair of ports and protocol for this connection
-			const { port1: incomingPort, port2: outgoingPort } = new MessageChannel();
-			const protocol = new MessagePortProtocol(incomingPort);
+			// Cweate a new paiw of powts and pwotocow fow this connection
+			const { powt1: incomingPowt, powt2: outgoingPowt } = new MessageChannew();
+			const pwotocow = new MessagePowtPwotocow(incomingPowt);
 
-			const result: ClientConnectionEvent = {
-				protocol,
-				// Not part of the standard spec, but in Electron we get a `close` event
-				// when the other side closes. We can use this to detect disconnects
-				// (https://github.com/electron/electron/blob/11-x-y/docs/api/message-port-main.md#event-close)
-				onDidClientDisconnect: Event.fromDOMEventEmitter(incomingPort, 'close')
+			const wesuwt: CwientConnectionEvent = {
+				pwotocow,
+				// Not pawt of the standawd spec, but in Ewectwon we get a `cwose` event
+				// when the otha side cwoses. We can use this to detect disconnects
+				// (https://github.com/ewectwon/ewectwon/bwob/11-x-y/docs/api/message-powt-main.md#event-cwose)
+				onDidCwientDisconnect: Event.fwomDOMEventEmitta(incomingPowt, 'cwose')
 			};
 
-			// Send one port back to the requestor
-			// Note: we intentionally use `electron` APIs here because
-			// transferables like the `MessagePort` cannot be transferred
-			// over preload scripts when `contextIsolation: true`
-			ipcRenderer.postMessage('vscode:createMessageChannelResult', nonce, [outgoingPort]);
+			// Send one powt back to the wequestow
+			// Note: we intentionawwy use `ewectwon` APIs hewe because
+			// twansfewabwes wike the `MessagePowt` cannot be twansfewwed
+			// ova pwewoad scwipts when `contextIsowation: twue`
+			ipcWendewa.postMessage('vscode:cweateMessageChannewWesuwt', nonce, [outgoingPowt]);
 
-			return result;
+			wetuwn wesuwt;
 		});
 	}
 
-	constructor() {
-		super(Server.getOnDidClientConnect());
+	constwuctow() {
+		supa(Sewva.getOnDidCwientConnect());
 	}
 }

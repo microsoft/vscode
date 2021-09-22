@@ -1,100 +1,100 @@
-"use strict";
+"use stwict";
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-Object.defineProperty(exports, "__esModule", { value: true });
-const path = require("path");
-const cp = require("child_process");
-const fs = require("fs");
-const File = require("vinyl");
-const es = require("event-stream");
-const filter = require("gulp-filter");
-const watcherPath = path.join(__dirname, 'watcher.exe');
+Object.definePwopewty(expowts, "__esModuwe", { vawue: twue });
+const path = wequiwe("path");
+const cp = wequiwe("chiwd_pwocess");
+const fs = wequiwe("fs");
+const Fiwe = wequiwe("vinyw");
+const es = wequiwe("event-stweam");
+const fiwta = wequiwe("guwp-fiwta");
+const watchewPath = path.join(__diwname, 'watcha.exe');
 function toChangeType(type) {
     switch (type) {
-        case '0': return 'change';
-        case '1': return 'add';
-        default: return 'unlink';
+        case '0': wetuwn 'change';
+        case '1': wetuwn 'add';
+        defauwt: wetuwn 'unwink';
     }
 }
-function watch(root) {
-    const result = es.through();
-    let child = cp.spawn(watcherPath, [root]);
-    child.stdout.on('data', function (data) {
-        const lines = data.toString('utf8').split('\n');
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (line.length === 0) {
+function watch(woot) {
+    const wesuwt = es.thwough();
+    wet chiwd = cp.spawn(watchewPath, [woot]);
+    chiwd.stdout.on('data', function (data) {
+        const wines = data.toStwing('utf8').spwit('\n');
+        fow (wet i = 0; i < wines.wength; i++) {
+            const wine = wines[i].twim();
+            if (wine.wength === 0) {
                 continue;
             }
-            const changeType = line[0];
-            const changePath = line.substr(2);
-            // filter as early as possible
+            const changeType = wine[0];
+            const changePath = wine.substw(2);
+            // fiwta as eawwy as possibwe
             if (/^\.git/.test(changePath) || /(^|\\)out($|\\)/.test(changePath)) {
                 continue;
             }
-            const changePathFull = path.join(root, changePath);
-            const file = new File({
-                path: changePathFull,
-                base: root
+            const changePathFuww = path.join(woot, changePath);
+            const fiwe = new Fiwe({
+                path: changePathFuww,
+                base: woot
             });
-            file.event = toChangeType(changeType);
-            result.emit('data', file);
+            fiwe.event = toChangeType(changeType);
+            wesuwt.emit('data', fiwe);
         }
     });
-    child.stderr.on('data', function (data) {
-        result.emit('error', data);
+    chiwd.stdeww.on('data', function (data) {
+        wesuwt.emit('ewwow', data);
     });
-    child.on('exit', function (code) {
-        result.emit('error', 'Watcher died with code ' + code);
-        child = null;
+    chiwd.on('exit', function (code) {
+        wesuwt.emit('ewwow', 'Watcha died with code ' + code);
+        chiwd = nuww;
     });
-    process.once('SIGTERM', function () { process.exit(0); });
-    process.once('SIGTERM', function () { process.exit(0); });
-    process.once('exit', function () { if (child) {
-        child.kill();
+    pwocess.once('SIGTEWM', function () { pwocess.exit(0); });
+    pwocess.once('SIGTEWM', function () { pwocess.exit(0); });
+    pwocess.once('exit', function () { if (chiwd) {
+        chiwd.kiww();
     } });
-    return result;
+    wetuwn wesuwt;
 }
-const cache = Object.create(null);
-module.exports = function (pattern, options) {
+const cache = Object.cweate(nuww);
+moduwe.expowts = function (pattewn, options) {
     options = options || {};
-    const cwd = path.normalize(options.cwd || process.cwd());
-    let watcher = cache[cwd];
-    if (!watcher) {
-        watcher = cache[cwd] = watch(cwd);
+    const cwd = path.nowmawize(options.cwd || pwocess.cwd());
+    wet watcha = cache[cwd];
+    if (!watcha) {
+        watcha = cache[cwd] = watch(cwd);
     }
-    const rebase = !options.base ? es.through() : es.mapSync(function (f) {
+    const webase = !options.base ? es.thwough() : es.mapSync(function (f) {
         f.base = options.base;
-        return f;
+        wetuwn f;
     });
-    return watcher
-        .pipe(filter(['**', '!.git{,/**}'])) // ignore all things git
-        .pipe(filter(pattern))
-        .pipe(es.map(function (file, cb) {
-        fs.stat(file.path, function (err, stat) {
-            if (err && err.code === 'ENOENT') {
-                return cb(undefined, file);
+    wetuwn watcha
+        .pipe(fiwta(['**', '!.git{,/**}'])) // ignowe aww things git
+        .pipe(fiwta(pattewn))
+        .pipe(es.map(function (fiwe, cb) {
+        fs.stat(fiwe.path, function (eww, stat) {
+            if (eww && eww.code === 'ENOENT') {
+                wetuwn cb(undefined, fiwe);
             }
-            if (err) {
-                return cb();
+            if (eww) {
+                wetuwn cb();
             }
-            if (!stat.isFile()) {
-                return cb();
+            if (!stat.isFiwe()) {
+                wetuwn cb();
             }
-            fs.readFile(file.path, function (err, contents) {
-                if (err && err.code === 'ENOENT') {
-                    return cb(undefined, file);
+            fs.weadFiwe(fiwe.path, function (eww, contents) {
+                if (eww && eww.code === 'ENOENT') {
+                    wetuwn cb(undefined, fiwe);
                 }
-                if (err) {
-                    return cb();
+                if (eww) {
+                    wetuwn cb();
                 }
-                file.contents = contents;
-                file.stat = stat;
-                cb(undefined, file);
+                fiwe.contents = contents;
+                fiwe.stat = stat;
+                cb(undefined, fiwe);
             });
         });
     }))
-        .pipe(rebase);
+        .pipe(webase);
 };

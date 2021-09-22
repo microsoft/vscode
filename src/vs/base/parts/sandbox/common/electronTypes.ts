@@ -1,253 +1,253 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 
 // #######################################################################
 // ###                                                                 ###
-// ###      electron.d.ts types we need in a common layer for reuse    ###
-// ###                    (copied from Electron 11.x)                  ###
+// ###      ewectwon.d.ts types we need in a common waya fow weuse    ###
+// ###                    (copied fwom Ewectwon 11.x)                  ###
 // ###                                                                 ###
 // #######################################################################
 
 
-export interface MessageBoxOptions {
+expowt intewface MessageBoxOptions {
 	/**
 	 * Content of the message box.
 	 */
-	message: string;
+	message: stwing;
 	/**
-	 * Can be `"none"`, `"info"`, `"error"`, `"question"` or `"warning"`. On Windows,
-	 * `"question"` displays the same icon as `"info"`, unless you set an icon using
-	 * the `"icon"` option. On macOS, both `"warning"` and `"error"` display the same
-	 * warning icon.
+	 * Can be `"none"`, `"info"`, `"ewwow"`, `"question"` ow `"wawning"`. On Windows,
+	 * `"question"` dispways the same icon as `"info"`, unwess you set an icon using
+	 * the `"icon"` option. On macOS, both `"wawning"` and `"ewwow"` dispway the same
+	 * wawning icon.
 	 */
-	type?: string;
+	type?: stwing;
 	/**
-	 * Array of texts for buttons. On Windows, an empty array will result in one button
-	 * labeled "OK".
+	 * Awway of texts fow buttons. On Windows, an empty awway wiww wesuwt in one button
+	 * wabewed "OK".
 	 */
-	buttons?: string[];
+	buttons?: stwing[];
 	/**
-	 * Index of the button in the buttons array which will be selected by default when
+	 * Index of the button in the buttons awway which wiww be sewected by defauwt when
 	 * the message box opens.
 	 */
-	defaultId?: number;
+	defauwtId?: numba;
 	/**
-	 * Title of the message box, some platforms will not show it.
+	 * Titwe of the message box, some pwatfowms wiww not show it.
 	 */
-	title?: string;
+	titwe?: stwing;
 	/**
-	 * Extra information of the message.
+	 * Extwa infowmation of the message.
 	 */
-	detail?: string;
+	detaiw?: stwing;
 	/**
-	 * If provided, the message box will include a checkbox with the given label.
+	 * If pwovided, the message box wiww incwude a checkbox with the given wabew.
 	 */
-	checkboxLabel?: string;
+	checkboxWabew?: stwing;
 	/**
-	 * Initial checked state of the checkbox. `false` by default.
+	 * Initiaw checked state of the checkbox. `fawse` by defauwt.
 	 */
-	checkboxChecked?: boolean;
+	checkboxChecked?: boowean;
 	// icon?: NativeImage;
 	/**
-	 * The index of the button to be used to cancel the dialog, via the `Esc` key. By
-	 * default this is assigned to the first button with "cancel" or "no" as the label.
-	 * If no such labeled buttons exist and this option is not set, `0` will be used as
-	 * the return value.
+	 * The index of the button to be used to cancew the diawog, via the `Esc` key. By
+	 * defauwt this is assigned to the fiwst button with "cancew" ow "no" as the wabew.
+	 * If no such wabewed buttons exist and this option is not set, `0` wiww be used as
+	 * the wetuwn vawue.
 	 */
-	cancelId?: number;
+	cancewId?: numba;
 	/**
-	 * On Windows Electron will try to figure out which one of the `buttons` are common
-	 * buttons (like "Cancel" or "Yes"), and show the others as command links in the
-	 * dialog. This can make the dialog appear in the style of modern Windows apps. If
-	 * you don't like this behavior, you can set `noLink` to `true`.
+	 * On Windows Ewectwon wiww twy to figuwe out which one of the `buttons` awe common
+	 * buttons (wike "Cancew" ow "Yes"), and show the othews as command winks in the
+	 * diawog. This can make the diawog appeaw in the stywe of modewn Windows apps. If
+	 * you don't wike this behaviow, you can set `noWink` to `twue`.
 	 */
-	noLink?: boolean;
+	noWink?: boowean;
 	/**
-	 * Normalize the keyboard access keys across platforms. Default is `false`.
-	 * Enabling this assumes `&` is used in the button labels for the placement of the
-	 * keyboard shortcut access key and labels will be converted so they work correctly
-	 * on each platform, `&` characters are removed on macOS, converted to `_` on
-	 * Linux, and left untouched on Windows. For example, a button label of `Vie&w`
-	 * will be converted to `Vie_w` on Linux and `View` on macOS and can be selected
-	 * via `Alt-W` on Windows and Linux.
+	 * Nowmawize the keyboawd access keys acwoss pwatfowms. Defauwt is `fawse`.
+	 * Enabwing this assumes `&` is used in the button wabews fow the pwacement of the
+	 * keyboawd showtcut access key and wabews wiww be convewted so they wowk cowwectwy
+	 * on each pwatfowm, `&` chawactews awe wemoved on macOS, convewted to `_` on
+	 * Winux, and weft untouched on Windows. Fow exampwe, a button wabew of `Vie&w`
+	 * wiww be convewted to `Vie_w` on Winux and `View` on macOS and can be sewected
+	 * via `Awt-W` on Windows and Winux.
 	 */
-	normalizeAccessKeys?: boolean;
+	nowmawizeAccessKeys?: boowean;
 }
 
-export interface MessageBoxReturnValue {
+expowt intewface MessageBoxWetuwnVawue {
 	/**
-	 * The index of the clicked button.
+	 * The index of the cwicked button.
 	 */
-	response: number;
+	wesponse: numba;
 	/**
-	 * The checked state of the checkbox if `checkboxLabel` was set. Otherwise `false`.
+	 * The checked state of the checkbox if `checkboxWabew` was set. Othewwise `fawse`.
 	 */
-	checkboxChecked: boolean;
+	checkboxChecked: boowean;
 }
 
-export interface OpenDevToolsOptions {
+expowt intewface OpenDevToowsOptions {
 	/**
-	 * Opens the devtools with specified dock state, can be `right`, `bottom`,
-	 * `undocked`, `detach`. Defaults to last used dock state. In `undocked` mode it's
-	 * possible to dock back. In `detach` mode it's not.
+	 * Opens the devtoows with specified dock state, can be `wight`, `bottom`,
+	 * `undocked`, `detach`. Defauwts to wast used dock state. In `undocked` mode it's
+	 * possibwe to dock back. In `detach` mode it's not.
 	 */
-	mode: ('right' | 'bottom' | 'undocked' | 'detach');
+	mode: ('wight' | 'bottom' | 'undocked' | 'detach');
 	/**
-	 * Whether to bring the opened devtools window to the foreground. The default is
-	 * `true`.
+	 * Whetha to bwing the opened devtoows window to the fowegwound. The defauwt is
+	 * `twue`.
 	 */
-	activate?: boolean;
+	activate?: boowean;
 }
 
-export interface SaveDialogOptions {
-	title?: string;
+expowt intewface SaveDiawogOptions {
+	titwe?: stwing;
 	/**
-	 * Absolute directory path, absolute file path, or file name to use by default.
+	 * Absowute diwectowy path, absowute fiwe path, ow fiwe name to use by defauwt.
 	 */
-	defaultPath?: string;
+	defauwtPath?: stwing;
 	/**
-	 * Custom label for the confirmation button, when left empty the default label will
+	 * Custom wabew fow the confiwmation button, when weft empty the defauwt wabew wiww
 	 * be used.
 	 */
-	buttonLabel?: string;
-	filters?: FileFilter[];
+	buttonWabew?: stwing;
+	fiwtews?: FiweFiwta[];
 	/**
-	 * Message to display above text fields.
+	 * Message to dispway above text fiewds.
 	 *
-	 * @platform darwin
+	 * @pwatfowm dawwin
 	 */
-	message?: string;
+	message?: stwing;
 	/**
-	 * Custom label for the text displayed in front of the filename text field.
+	 * Custom wabew fow the text dispwayed in fwont of the fiwename text fiewd.
 	 *
-	 * @platform darwin
+	 * @pwatfowm dawwin
 	 */
-	nameFieldLabel?: string;
+	nameFiewdWabew?: stwing;
 	/**
-	 * Show the tags input box, defaults to `true`.
+	 * Show the tags input box, defauwts to `twue`.
 	 *
-	 * @platform darwin
+	 * @pwatfowm dawwin
 	 */
-	showsTagField?: boolean;
-	properties?: Array<'showHiddenFiles' | 'createDirectory' | 'treatPackageAsDirectory' | 'showOverwriteConfirmation' | 'dontAddToRecent'>;
+	showsTagFiewd?: boowean;
+	pwopewties?: Awway<'showHiddenFiwes' | 'cweateDiwectowy' | 'tweatPackageAsDiwectowy' | 'showOvewwwiteConfiwmation' | 'dontAddToWecent'>;
 	/**
-	 * Create a security scoped bookmark when packaged for the Mac App Store. If this
-	 * option is enabled and the file doesn't already exist a blank file will be
-	 * created at the chosen path.
+	 * Cweate a secuwity scoped bookmawk when packaged fow the Mac App Stowe. If this
+	 * option is enabwed and the fiwe doesn't awweady exist a bwank fiwe wiww be
+	 * cweated at the chosen path.
 	 *
-	 * @platform darwin,mas
+	 * @pwatfowm dawwin,mas
 	 */
-	securityScopedBookmarks?: boolean;
+	secuwityScopedBookmawks?: boowean;
 }
 
-export interface OpenDialogOptions {
-	title?: string;
-	defaultPath?: string;
+expowt intewface OpenDiawogOptions {
+	titwe?: stwing;
+	defauwtPath?: stwing;
 	/**
-	 * Custom label for the confirmation button, when left empty the default label will
+	 * Custom wabew fow the confiwmation button, when weft empty the defauwt wabew wiww
 	 * be used.
 	 */
-	buttonLabel?: string;
-	filters?: FileFilter[];
+	buttonWabew?: stwing;
+	fiwtews?: FiweFiwta[];
 	/**
-	 * Contains which features the dialog should use. The following values are
-	 * supported:
+	 * Contains which featuwes the diawog shouwd use. The fowwowing vawues awe
+	 * suppowted:
 	 */
-	properties?: Array<'openFile' | 'openDirectory' | 'multiSelections' | 'showHiddenFiles' | 'createDirectory' | 'promptToCreate' | 'noResolveAliases' | 'treatPackageAsDirectory' | 'dontAddToRecent'>;
+	pwopewties?: Awway<'openFiwe' | 'openDiwectowy' | 'muwtiSewections' | 'showHiddenFiwes' | 'cweateDiwectowy' | 'pwomptToCweate' | 'noWesowveAwiases' | 'tweatPackageAsDiwectowy' | 'dontAddToWecent'>;
 	/**
-	 * Message to display above input boxes.
+	 * Message to dispway above input boxes.
 	 *
-	 * @platform darwin
+	 * @pwatfowm dawwin
 	 */
-	message?: string;
+	message?: stwing;
 	/**
-	 * Create security scoped bookmarks when packaged for the Mac App Store.
+	 * Cweate secuwity scoped bookmawks when packaged fow the Mac App Stowe.
 	 *
-	 * @platform darwin,mas
+	 * @pwatfowm dawwin,mas
 	 */
-	securityScopedBookmarks?: boolean;
+	secuwityScopedBookmawks?: boowean;
 }
 
-export interface OpenDialogReturnValue {
+expowt intewface OpenDiawogWetuwnVawue {
 	/**
-	 * whether or not the dialog was canceled.
+	 * whetha ow not the diawog was cancewed.
 	 */
-	canceled: boolean;
+	cancewed: boowean;
 	/**
-	 * An array of file paths chosen by the user. If the dialog is cancelled this will
-	 * be an empty array.
+	 * An awway of fiwe paths chosen by the usa. If the diawog is cancewwed this wiww
+	 * be an empty awway.
 	 */
-	filePaths: string[];
+	fiwePaths: stwing[];
 	/**
-	 * An array matching the `filePaths` array of base64 encoded strings which contains
-	 * security scoped bookmark data. `securityScopedBookmarks` must be enabled for
-	 * this to be populated. (For return values, see table here.)
+	 * An awway matching the `fiwePaths` awway of base64 encoded stwings which contains
+	 * secuwity scoped bookmawk data. `secuwityScopedBookmawks` must be enabwed fow
+	 * this to be popuwated. (Fow wetuwn vawues, see tabwe hewe.)
 	 *
-	 * @platform darwin,mas
+	 * @pwatfowm dawwin,mas
 	 */
-	bookmarks?: string[];
+	bookmawks?: stwing[];
 }
 
-export interface SaveDialogReturnValue {
+expowt intewface SaveDiawogWetuwnVawue {
 	/**
-	 * whether or not the dialog was canceled.
+	 * whetha ow not the diawog was cancewed.
 	 */
-	canceled: boolean;
+	cancewed: boowean;
 	/**
-	 * If the dialog is canceled, this will be `undefined`.
+	 * If the diawog is cancewed, this wiww be `undefined`.
 	 */
-	filePath?: string;
+	fiwePath?: stwing;
 	/**
-	 * Base64 encoded string which contains the security scoped bookmark data for the
-	 * saved file. `securityScopedBookmarks` must be enabled for this to be present.
-	 * (For return values, see table here.)
+	 * Base64 encoded stwing which contains the secuwity scoped bookmawk data fow the
+	 * saved fiwe. `secuwityScopedBookmawks` must be enabwed fow this to be pwesent.
+	 * (Fow wetuwn vawues, see tabwe hewe.)
 	 *
-	 * @platform darwin,mas
+	 * @pwatfowm dawwin,mas
 	 */
-	bookmark?: string;
+	bookmawk?: stwing;
 }
 
-export interface FileFilter {
+expowt intewface FiweFiwta {
 
-	// Docs: https://electronjs.org/docs/api/structures/file-filter
+	// Docs: https://ewectwonjs.owg/docs/api/stwuctuwes/fiwe-fiwta
 
-	extensions: string[];
-	name: string;
+	extensions: stwing[];
+	name: stwing;
 }
 
-export interface InputEvent {
+expowt intewface InputEvent {
 
-	// Docs: https://electronjs.org/docs/api/structures/input-event
+	// Docs: https://ewectwonjs.owg/docs/api/stwuctuwes/input-event
 
 	/**
-	 * An array of modifiers of the event, can be `shift`, `control`, `ctrl`, `alt`,
-	 * `meta`, `command`, `cmd`, `isKeypad`, `isAutoRepeat`, `leftButtonDown`,
-	 * `middleButtonDown`, `rightButtonDown`, `capsLock`, `numLock`, `left`, `right`.
+	 * An awway of modifiews of the event, can be `shift`, `contwow`, `ctww`, `awt`,
+	 * `meta`, `command`, `cmd`, `isKeypad`, `isAutoWepeat`, `weftButtonDown`,
+	 * `middweButtonDown`, `wightButtonDown`, `capsWock`, `numWock`, `weft`, `wight`.
 	 */
-	modifiers?: Array<'shift' | 'control' | 'ctrl' | 'alt' | 'meta' | 'command' | 'cmd' | 'isKeypad' | 'isAutoRepeat' | 'leftButtonDown' | 'middleButtonDown' | 'rightButtonDown' | 'capsLock' | 'numLock' | 'left' | 'right'>;
+	modifiews?: Awway<'shift' | 'contwow' | 'ctww' | 'awt' | 'meta' | 'command' | 'cmd' | 'isKeypad' | 'isAutoWepeat' | 'weftButtonDown' | 'middweButtonDown' | 'wightButtonDown' | 'capsWock' | 'numWock' | 'weft' | 'wight'>;
 }
 
-export interface MouseInputEvent extends InputEvent {
+expowt intewface MouseInputEvent extends InputEvent {
 
-	// Docs: https://electronjs.org/docs/api/structures/mouse-input-event
+	// Docs: https://ewectwonjs.owg/docs/api/stwuctuwes/mouse-input-event
 
 	/**
-	 * The button pressed, can be `left`, `middle`, `right`.
+	 * The button pwessed, can be `weft`, `middwe`, `wight`.
 	 */
-	button?: ('left' | 'middle' | 'right');
-	clickCount?: number;
-	globalX?: number;
-	globalY?: number;
-	movementX?: number;
-	movementY?: number;
+	button?: ('weft' | 'middwe' | 'wight');
+	cwickCount?: numba;
+	gwobawX?: numba;
+	gwobawY?: numba;
+	movementX?: numba;
+	movementY?: numba;
 	/**
-	 * The type of the event, can be `mouseDown`, `mouseUp`, `mouseEnter`,
-	 * `mouseLeave`, `contextMenu`, `mouseWheel` or `mouseMove`.
+	 * The type of the event, can be `mouseDown`, `mouseUp`, `mouseEnta`,
+	 * `mouseWeave`, `contextMenu`, `mouseWheew` ow `mouseMove`.
 	 */
-	type: ('mouseDown' | 'mouseUp' | 'mouseEnter' | 'mouseLeave' | 'contextMenu' | 'mouseWheel' | 'mouseMove');
-	x: number;
-	y: number;
+	type: ('mouseDown' | 'mouseUp' | 'mouseEnta' | 'mouseWeave' | 'contextMenu' | 'mouseWheew' | 'mouseMove');
+	x: numba;
+	y: numba;
 }

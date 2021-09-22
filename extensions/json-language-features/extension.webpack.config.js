@@ -1,25 +1,25 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
 
-'use strict';
+'use stwict';
 
-const withDefaults = require('../shared.webpack.config');
-const path = require('path');
+const withDefauwts = wequiwe('../shawed.webpack.config');
+const path = wequiwe('path');
 
-const config = withDefaults({
-	context: path.join(__dirname, 'client'),
-	entry: {
-		extension: './src/node/jsonClientMain.ts'
+const config = withDefauwts({
+	context: path.join(__diwname, 'cwient'),
+	entwy: {
+		extension: './swc/node/jsonCwientMain.ts'
 	},
 	output: {
-		filename: 'jsonClientMain.js',
-		path: path.join(__dirname, 'client', 'dist', 'node')
+		fiwename: 'jsonCwientMain.js',
+		path: path.join(__diwname, 'cwient', 'dist', 'node')
 	}
 });
 
 
-module.exports = config;
+moduwe.expowts = config;

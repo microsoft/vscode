@@ -1,15 +1,15 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const SIGN_SERVICE_ID = 'signService';
-export const ISignService = createDecorator<ISignService>(SIGN_SERVICE_ID);
+expowt const SIGN_SEWVICE_ID = 'signSewvice';
+expowt const ISignSewvice = cweateDecowatow<ISignSewvice>(SIGN_SEWVICE_ID);
 
-export interface ISignService {
-	readonly _serviceBrand: undefined;
+expowt intewface ISignSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	sign(value: string): Promise<string>;
+	sign(vawue: stwing): Pwomise<stwing>;
 }

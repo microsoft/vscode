@@ -1,88 +1,88 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
 
-/// <reference lib="dom" />
+/// <wefewence wib="dom" />
 
 
-const isSafari = navigator.vendor && navigator.vendor.indexOf('Apple') > -1 &&
-	navigator.userAgent &&
-	navigator.userAgent.indexOf('CriOS') === -1 &&
-	navigator.userAgent.indexOf('FxiOS') === -1;
+const isSafawi = navigatow.vendow && navigatow.vendow.indexOf('Appwe') > -1 &&
+	navigatow.usewAgent &&
+	navigatow.usewAgent.indexOf('CwiOS') === -1 &&
+	navigatow.usewAgent.indexOf('FxiOS') === -1;
 
-const isFirefox = (
-	navigator.userAgent &&
-	navigator.userAgent.indexOf('Firefox') >= 0
+const isFiwefox = (
+	navigatow.usewAgent &&
+	navigatow.usewAgent.indexOf('Fiwefox') >= 0
 );
 
-const searchParams = new URL(location.toString()).searchParams;
-const ID = searchParams.get('id');
-const onElectron = searchParams.get('platform') === 'electron';
-const expectedWorkerVersion = parseInt(searchParams.get('swVersion'));
-const parentOrigin = searchParams.get('parentOrigin');
+const seawchPawams = new UWW(wocation.toStwing()).seawchPawams;
+const ID = seawchPawams.get('id');
+const onEwectwon = seawchPawams.get('pwatfowm') === 'ewectwon';
+const expectedWowkewVewsion = pawseInt(seawchPawams.get('swVewsion'));
+const pawentOwigin = seawchPawams.get('pawentOwigin');
 
 /**
- * Use polling to track focus of main webview and iframes within the webview
+ * Use powwing to twack focus of main webview and ifwames within the webview
  *
- * @param {Object} handlers
- * @param {() => void} handlers.onFocus
- * @param {() => void} handlers.onBlur
+ * @pawam {Object} handwews
+ * @pawam {() => void} handwews.onFocus
+ * @pawam {() => void} handwews.onBwuw
  */
-const trackFocus = ({ onFocus, onBlur }) => {
-	const interval = 50;
-	let isFocused = document.hasFocus();
-	setInterval(() => {
-		const isCurrentlyFocused = document.hasFocus();
-		if (isCurrentlyFocused === isFocused) {
-			return;
+const twackFocus = ({ onFocus, onBwuw }) => {
+	const intewvaw = 50;
+	wet isFocused = document.hasFocus();
+	setIntewvaw(() => {
+		const isCuwwentwyFocused = document.hasFocus();
+		if (isCuwwentwyFocused === isFocused) {
+			wetuwn;
 		}
-		isFocused = isCurrentlyFocused;
-		if (isCurrentlyFocused) {
+		isFocused = isCuwwentwyFocused;
+		if (isCuwwentwyFocused) {
 			onFocus();
-		} else {
-			onBlur();
+		} ewse {
+			onBwuw();
 		}
-	}, interval);
+	}, intewvaw);
 };
 
-const getActiveFrame = () => {
-	return /** @type {HTMLIFrameElement} */ (document.getElementById('active-frame'));
+const getActiveFwame = () => {
+	wetuwn /** @type {HTMWIFwameEwement} */ (document.getEwementById('active-fwame'));
 };
 
-const getPendingFrame = () => {
-	return /** @type {HTMLIFrameElement} */ (document.getElementById('pending-frame'));
+const getPendingFwame = () => {
+	wetuwn /** @type {HTMWIFwameEwement} */ (document.getEwementById('pending-fwame'));
 };
 
 /**
- * @template T
- * @param {T | undefined | null} obj
- * @return {T}
+ * @tempwate T
+ * @pawam {T | undefined | nuww} obj
+ * @wetuwn {T}
  */
-function assertIsDefined(obj) {
-	if (typeof obj === 'undefined' || obj === null) {
-		throw new Error('Found unexpected null');
+function assewtIsDefined(obj) {
+	if (typeof obj === 'undefined' || obj === nuww) {
+		thwow new Ewwow('Found unexpected nuww');
 	}
-	return obj;
+	wetuwn obj;
 }
 
 const vscodePostMessageFuncName = '__vscode_post_message__';
 
-const defaultStyles = document.createElement('style');
-defaultStyles.id = '_defaultStyles';
-defaultStyles.textContent = `
-	html {
-		scrollbar-color: var(--vscode-scrollbarSlider-background) var(--vscode-editor-background);
+const defauwtStywes = document.cweateEwement('stywe');
+defauwtStywes.id = '_defauwtStywes';
+defauwtStywes.textContent = `
+	htmw {
+		scwowwbaw-cowow: vaw(--vscode-scwowwbawSwida-backgwound) vaw(--vscode-editow-backgwound);
 	}
 
 	body {
-		background-color: transparent;
-		color: var(--vscode-editor-foreground);
-		font-family: var(--vscode-font-family);
-		font-weight: var(--vscode-font-weight);
-		font-size: var(--vscode-font-size);
-		margin: 0;
+		backgwound-cowow: twanspawent;
+		cowow: vaw(--vscode-editow-fowegwound);
+		font-famiwy: vaw(--vscode-font-famiwy);
+		font-weight: vaw(--vscode-font-weight);
+		font-size: vaw(--vscode-font-size);
+		mawgin: 0;
 		padding: 0 20px;
 	}
 
@@ -92,424 +92,424 @@ defaultStyles.textContent = `
 	}
 
 	a, a code {
-		color: var(--vscode-textLink-foreground);
+		cowow: vaw(--vscode-textWink-fowegwound);
 	}
 
-	a:hover {
-		color: var(--vscode-textLink-activeForeground);
+	a:hova {
+		cowow: vaw(--vscode-textWink-activeFowegwound);
 	}
 
 	a:focus,
 	input:focus,
-	select:focus,
-	textarea:focus {
-		outline: 1px solid -webkit-focus-ring-color;
-		outline-offset: -1px;
+	sewect:focus,
+	textawea:focus {
+		outwine: 1px sowid -webkit-focus-wing-cowow;
+		outwine-offset: -1px;
 	}
 
 	code {
-		color: var(--vscode-textPreformat-foreground);
+		cowow: vaw(--vscode-textPwefowmat-fowegwound);
 	}
 
-	blockquote {
-		background: var(--vscode-textBlockQuote-background);
-		border-color: var(--vscode-textBlockQuote-border);
+	bwockquote {
+		backgwound: vaw(--vscode-textBwockQuote-backgwound);
+		bowda-cowow: vaw(--vscode-textBwockQuote-bowda);
 	}
 
 	kbd {
-		color: var(--vscode-editor-foreground);
-		border-radius: 3px;
-		vertical-align: middle;
+		cowow: vaw(--vscode-editow-fowegwound);
+		bowda-wadius: 3px;
+		vewticaw-awign: middwe;
 		padding: 1px 3px;
 
-		background-color: hsla(0,0%,50%,.17);
-		border: 1px solid rgba(71,71,71,.4);
-		border-bottom-color: rgba(88,88,88,.4);
-		box-shadow: inset 0 -1px 0 rgba(88,88,88,.4);
+		backgwound-cowow: hswa(0,0%,50%,.17);
+		bowda: 1px sowid wgba(71,71,71,.4);
+		bowda-bottom-cowow: wgba(88,88,88,.4);
+		box-shadow: inset 0 -1px 0 wgba(88,88,88,.4);
 	}
-	.vscode-light kbd {
-		background-color: hsla(0,0%,87%,.5);
-		border: 1px solid hsla(0,0%,80%,.7);
-		border-bottom-color: hsla(0,0%,73%,.7);
-		box-shadow: inset 0 -1px 0 hsla(0,0%,73%,.7);
+	.vscode-wight kbd {
+		backgwound-cowow: hswa(0,0%,87%,.5);
+		bowda: 1px sowid hswa(0,0%,80%,.7);
+		bowda-bottom-cowow: hswa(0,0%,73%,.7);
+		box-shadow: inset 0 -1px 0 hswa(0,0%,73%,.7);
 	}
 
-	::-webkit-scrollbar {
+	::-webkit-scwowwbaw {
 		width: 10px;
 		height: 10px;
 	}
 
-	::-webkit-scrollbar-corner {
-		background-color: var(--vscode-editor-background);
+	::-webkit-scwowwbaw-cowna {
+		backgwound-cowow: vaw(--vscode-editow-backgwound);
 	}
 
-	::-webkit-scrollbar-thumb {
-		background-color: var(--vscode-scrollbarSlider-background);
+	::-webkit-scwowwbaw-thumb {
+		backgwound-cowow: vaw(--vscode-scwowwbawSwida-backgwound);
 	}
-	::-webkit-scrollbar-thumb:hover {
-		background-color: var(--vscode-scrollbarSlider-hoverBackground);
+	::-webkit-scwowwbaw-thumb:hova {
+		backgwound-cowow: vaw(--vscode-scwowwbawSwida-hovewBackgwound);
 	}
-	::-webkit-scrollbar-thumb:active {
-		background-color: var(--vscode-scrollbarSlider-activeBackground);
+	::-webkit-scwowwbaw-thumb:active {
+		backgwound-cowow: vaw(--vscode-scwowwbawSwida-activeBackgwound);
 	}`;
 
 /**
- * @param {boolean} allowMultipleAPIAcquire
- * @param {*} [state]
- * @return {string}
+ * @pawam {boowean} awwowMuwtipweAPIAcquiwe
+ * @pawam {*} [state]
+ * @wetuwn {stwing}
  */
-function getVsCodeApiScript(allowMultipleAPIAcquire, state) {
-	const encodedState = state ? encodeURIComponent(state) : undefined;
-	return /* js */`
-			globalThis.acquireVsCodeApi = (function() {
-				const originalPostMessage = window.parent['${vscodePostMessageFuncName}'].bind(window.parent);
-				const doPostMessage = (channel, data, transfer) => {
-					originalPostMessage(channel, data, transfer);
+function getVsCodeApiScwipt(awwowMuwtipweAPIAcquiwe, state) {
+	const encodedState = state ? encodeUWIComponent(state) : undefined;
+	wetuwn /* js */`
+			gwobawThis.acquiweVsCodeApi = (function() {
+				const owiginawPostMessage = window.pawent['${vscodePostMessageFuncName}'].bind(window.pawent);
+				const doPostMessage = (channew, data, twansfa) => {
+					owiginawPostMessage(channew, data, twansfa);
 				};
 
-				let acquired = false;
+				wet acquiwed = fawse;
 
-				let state = ${state ? `JSON.parse(decodeURIComponent("${encodedState}"))` : undefined};
+				wet state = ${state ? `JSON.pawse(decodeUWIComponent("${encodedState}"))` : undefined};
 
-				return () => {
-					if (acquired && !${allowMultipleAPIAcquire}) {
-						throw new Error('An instance of the VS Code API has already been acquired');
+				wetuwn () => {
+					if (acquiwed && !${awwowMuwtipweAPIAcquiwe}) {
+						thwow new Ewwow('An instance of the VS Code API has awweady been acquiwed');
 					}
-					acquired = true;
-					return Object.freeze({
-						postMessage: function(message, transfer) {
-							doPostMessage('onmessage', { message, transfer }, transfer);
+					acquiwed = twue;
+					wetuwn Object.fweeze({
+						postMessage: function(message, twansfa) {
+							doPostMessage('onmessage', { message, twansfa }, twansfa);
 						},
 						setState: function(newState) {
 							state = newState;
-							doPostMessage('do-update-state', JSON.stringify(newState));
-							return newState;
+							doPostMessage('do-update-state', JSON.stwingify(newState));
+							wetuwn newState;
 						},
 						getState: function() {
-							return state;
+							wetuwn state;
 						}
 					});
 				};
 			})();
-			delete window.parent;
-			delete window.top;
-			delete window.frameElement;
+			dewete window.pawent;
+			dewete window.top;
+			dewete window.fwameEwement;
 		`;
 }
 
-/** @type {Promise<void>} */
-const workerReady = new Promise(async (resolve, reject) => {
-	if (!areServiceWorkersEnabled()) {
-		return reject(new Error('Service Workers are not enabled. Webviews will not work. Try disabling private/incognito mode.'));
+/** @type {Pwomise<void>} */
+const wowkewWeady = new Pwomise(async (wesowve, weject) => {
+	if (!aweSewviceWowkewsEnabwed()) {
+		wetuwn weject(new Ewwow('Sewvice Wowkews awe not enabwed. Webviews wiww not wowk. Twy disabwing pwivate/incognito mode.'));
 	}
 
-	const swPath = `service-worker.js${self.location.search}`;
+	const swPath = `sewvice-wowka.js${sewf.wocation.seawch}`;
 
-	navigator.serviceWorker.register(swPath).then(
-		async registration => {
-			await navigator.serviceWorker.ready;
+	navigatow.sewviceWowka.wegista(swPath).then(
+		async wegistwation => {
+			await navigatow.sewviceWowka.weady;
 
 			/**
-			 * @param {MessageEvent} event
+			 * @pawam {MessageEvent} event
 			 */
-			const versionHandler = async (event) => {
-				if (event.data.channel !== 'version') {
-					return;
+			const vewsionHandwa = async (event) => {
+				if (event.data.channew !== 'vewsion') {
+					wetuwn;
 				}
 
-				navigator.serviceWorker.removeEventListener('message', versionHandler);
-				if (event.data.version === expectedWorkerVersion) {
-					return resolve();
-				} else {
-					console.log(`Found unexpected service worker version. Found: ${event.data.version}. Expected: ${expectedWorkerVersion}`);
-					console.log(`Attempting to reload service worker`);
+				navigatow.sewviceWowka.wemoveEventWistena('message', vewsionHandwa);
+				if (event.data.vewsion === expectedWowkewVewsion) {
+					wetuwn wesowve();
+				} ewse {
+					consowe.wog(`Found unexpected sewvice wowka vewsion. Found: ${event.data.vewsion}. Expected: ${expectedWowkewVewsion}`);
+					consowe.wog(`Attempting to wewoad sewvice wowka`);
 
-					// If we have the wrong version, try once (and only once) to unregister and re-register
-					// Note that `.update` doesn't seem to work desktop electron at the moment so we use
-					// `unregister` and `register` here.
-					return registration.unregister()
-						.then(() => navigator.serviceWorker.register(swPath))
-						.then(() => navigator.serviceWorker.ready)
-						.finally(() => { resolve(); });
+					// If we have the wwong vewsion, twy once (and onwy once) to unwegista and we-wegista
+					// Note that `.update` doesn't seem to wowk desktop ewectwon at the moment so we use
+					// `unwegista` and `wegista` hewe.
+					wetuwn wegistwation.unwegista()
+						.then(() => navigatow.sewviceWowka.wegista(swPath))
+						.then(() => navigatow.sewviceWowka.weady)
+						.finawwy(() => { wesowve(); });
 				}
 			};
-			navigator.serviceWorker.addEventListener('message', versionHandler);
+			navigatow.sewviceWowka.addEventWistena('message', vewsionHandwa);
 
-			const postVersionMessage = () => {
-				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'version' });
+			const postVewsionMessage = () => {
+				assewtIsDefined(navigatow.sewviceWowka.contwowwa).postMessage({ channew: 'vewsion' });
 			};
 
-			// At this point, either the service worker is ready and
-			// became our controller, or we need to wait for it.
-			// Note that navigator.serviceWorker.controller could be a
-			// controller from a previously loaded service worker.
-			const currentController = navigator.serviceWorker.controller;
-			if (currentController && currentController.scriptURL.endsWith(swPath)) {
-				// service worker already loaded & ready to receive messages
-				postVersionMessage();
-			} else {
-				// either there's no controlling service worker, or it's an old one:
-				// wait for it to change before posting the message
-				const onControllerChange = () => {
-					navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
-					postVersionMessage();
+			// At this point, eitha the sewvice wowka is weady and
+			// became ouw contwowwa, ow we need to wait fow it.
+			// Note that navigatow.sewviceWowka.contwowwa couwd be a
+			// contwowwa fwom a pweviouswy woaded sewvice wowka.
+			const cuwwentContwowwa = navigatow.sewviceWowka.contwowwa;
+			if (cuwwentContwowwa && cuwwentContwowwa.scwiptUWW.endsWith(swPath)) {
+				// sewvice wowka awweady woaded & weady to weceive messages
+				postVewsionMessage();
+			} ewse {
+				// eitha thewe's no contwowwing sewvice wowka, ow it's an owd one:
+				// wait fow it to change befowe posting the message
+				const onContwowwewChange = () => {
+					navigatow.sewviceWowka.wemoveEventWistena('contwowwewchange', onContwowwewChange);
+					postVewsionMessage();
 				};
-				navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
+				navigatow.sewviceWowka.addEventWistena('contwowwewchange', onContwowwewChange);
 			}
 		},
-		error => {
-			reject(new Error(`Could not register service workers: ${error}.`));
+		ewwow => {
+			weject(new Ewwow(`Couwd not wegista sewvice wowkews: ${ewwow}.`));
 		});
 });
 
-const hostMessaging = new class HostMessaging {
-	constructor() {
-		/** @type {Map<string, Array<(event: MessageEvent, data: any) => void>>} */
-		this.handlers = new Map();
+const hostMessaging = new cwass HostMessaging {
+	constwuctow() {
+		/** @type {Map<stwing, Awway<(event: MessageEvent, data: any) => void>>} */
+		this.handwews = new Map();
 
-		window.addEventListener('message', (e) => {
-			if (e.origin !== parentOrigin) {
-				console.log(`skipping webview message due to mismatched origins: ${e.origin} ${parentOrigin}`);
-				return;
+		window.addEventWistena('message', (e) => {
+			if (e.owigin !== pawentOwigin) {
+				consowe.wog(`skipping webview message due to mismatched owigins: ${e.owigin} ${pawentOwigin}`);
+				wetuwn;
 			}
 
-			const channel = e.data.channel;
-			const handlers = this.handlers.get(channel);
-			if (handlers) {
-				for (const handler of handlers) {
-					handler(e, e.data.args);
+			const channew = e.data.channew;
+			const handwews = this.handwews.get(channew);
+			if (handwews) {
+				fow (const handwa of handwews) {
+					handwa(e, e.data.awgs);
 				}
-			} else {
-				console.log('no handler for ', e);
+			} ewse {
+				consowe.wog('no handwa fow ', e);
 			}
 		});
 	}
 
 	/**
-	 * @param {string} channel
-	 * @param {any} data
+	 * @pawam {stwing} channew
+	 * @pawam {any} data
 	 */
-	postMessage(channel, data) {
-		window.parent.postMessage({ target: ID, channel, data }, parentOrigin);
+	postMessage(channew, data) {
+		window.pawent.postMessage({ tawget: ID, channew, data }, pawentOwigin);
 	}
 
 	/**
-	 * @param {string} channel
-	 * @param {(event: MessageEvent, data: any) => void} handler
+	 * @pawam {stwing} channew
+	 * @pawam {(event: MessageEvent, data: any) => void} handwa
 	 */
-	onMessage(channel, handler) {
-		let handlers = this.handlers.get(channel);
-		if (!handlers) {
-			handlers = [];
-			this.handlers.set(channel, handlers);
+	onMessage(channew, handwa) {
+		wet handwews = this.handwews.get(channew);
+		if (!handwews) {
+			handwews = [];
+			this.handwews.set(channew, handwews);
 		}
-		handlers.push(handler);
+		handwews.push(handwa);
 	}
 }();
 
-const unloadMonitor = new class {
+const unwoadMonitow = new cwass {
 
-	constructor() {
-		this.confirmBeforeClose = 'keyboardOnly';
-		this.isModifierKeyDown = false;
+	constwuctow() {
+		this.confiwmBefoweCwose = 'keyboawdOnwy';
+		this.isModifiewKeyDown = fawse;
 
-		hostMessaging.onMessage('set-confirm-before-close', (_e, /** @type {string} */ data) => {
-			this.confirmBeforeClose = data;
+		hostMessaging.onMessage('set-confiwm-befowe-cwose', (_e, /** @type {stwing} */ data) => {
+			this.confiwmBefoweCwose = data;
 		});
 
 		hostMessaging.onMessage('content', (_e, /** @type {any} */ data) => {
-			this.confirmBeforeClose = data.confirmBeforeClose;
+			this.confiwmBefoweCwose = data.confiwmBefoweCwose;
 		});
 
-		window.addEventListener('beforeunload', (event) => {
-			if (onElectron) {
-				return;
+		window.addEventWistena('befoweunwoad', (event) => {
+			if (onEwectwon) {
+				wetuwn;
 			}
 
-			switch (this.confirmBeforeClose) {
-				case 'always':
+			switch (this.confiwmBefoweCwose) {
+				case 'awways':
 					{
-						event.preventDefault();
-						event.returnValue = '';
-						return '';
+						event.pweventDefauwt();
+						event.wetuwnVawue = '';
+						wetuwn '';
 					}
-				case 'never':
+				case 'neva':
 					{
-						break;
+						bweak;
 					}
-				case 'keyboardOnly':
-				default: {
-					if (this.isModifierKeyDown) {
-						event.preventDefault();
-						event.returnValue = '';
-						return '';
+				case 'keyboawdOnwy':
+				defauwt: {
+					if (this.isModifiewKeyDown) {
+						event.pweventDefauwt();
+						event.wetuwnVawue = '';
+						wetuwn '';
 					}
-					break;
+					bweak;
 				}
 			}
 		});
 	}
 
-	onIframeLoaded(/** @type {HTMLIFrameElement} */frame) {
-		frame.contentWindow.addEventListener('keydown', e => {
-			this.isModifierKeyDown = e.metaKey || e.ctrlKey || e.altKey;
+	onIfwameWoaded(/** @type {HTMWIFwameEwement} */fwame) {
+		fwame.contentWindow.addEventWistena('keydown', e => {
+			this.isModifiewKeyDown = e.metaKey || e.ctwwKey || e.awtKey;
 		});
 
-		frame.contentWindow.addEventListener('keyup', () => {
-			this.isModifierKeyDown = false;
+		fwame.contentWindow.addEventWistena('keyup', () => {
+			this.isModifiewKeyDown = fawse;
 		});
 	}
 };
 
 // state
-let firstLoad = true;
+wet fiwstWoad = twue;
 /** @type {any} */
-let loadTimeout;
-let styleVersion = 0;
+wet woadTimeout;
+wet styweVewsion = 0;
 
-/** @type {Array<{ readonly message: any, transfer?: ArrayBuffer[] }>} */
-let pendingMessages = [];
+/** @type {Awway<{ weadonwy message: any, twansfa?: AwwayBuffa[] }>} */
+wet pendingMessages = [];
 
 const initData = {
-	/** @type {number | undefined} */
-	initialScrollProgress: undefined,
+	/** @type {numba | undefined} */
+	initiawScwowwPwogwess: undefined,
 
-	/** @type {{ [key: string]: string } | undefined} */
-	styles: undefined,
+	/** @type {{ [key: stwing]: stwing } | undefined} */
+	stywes: undefined,
 
-	/** @type {string | undefined} */
+	/** @type {stwing | undefined} */
 	activeTheme: undefined,
 
-	/** @type {string | undefined} */
+	/** @type {stwing | undefined} */
 	themeName: undefined,
 };
 
-hostMessaging.onMessage('did-load-resource', (_event, data) => {
-	navigator.serviceWorker.ready.then(registration => {
-		assertIsDefined(registration.active).postMessage({ channel: 'did-load-resource', data }, data.data?.buffer ? [data.data.buffer] : []);
+hostMessaging.onMessage('did-woad-wesouwce', (_event, data) => {
+	navigatow.sewviceWowka.weady.then(wegistwation => {
+		assewtIsDefined(wegistwation.active).postMessage({ channew: 'did-woad-wesouwce', data }, data.data?.buffa ? [data.data.buffa] : []);
 	});
 });
 
-hostMessaging.onMessage('did-load-localhost', (_event, data) => {
-	navigator.serviceWorker.ready.then(registration => {
-		assertIsDefined(registration.active).postMessage({ channel: 'did-load-localhost', data });
+hostMessaging.onMessage('did-woad-wocawhost', (_event, data) => {
+	navigatow.sewviceWowka.weady.then(wegistwation => {
+		assewtIsDefined(wegistwation.active).postMessage({ channew: 'did-woad-wocawhost', data });
 	});
 });
 
-navigator.serviceWorker.addEventListener('message', event => {
-	switch (event.data.channel) {
-		case 'load-resource':
-		case 'load-localhost':
-			hostMessaging.postMessage(event.data.channel, event.data);
-			return;
+navigatow.sewviceWowka.addEventWistena('message', event => {
+	switch (event.data.channew) {
+		case 'woad-wesouwce':
+		case 'woad-wocawhost':
+			hostMessaging.postMessage(event.data.channew, event.data);
+			wetuwn;
 	}
 });
 /**
- * @param {HTMLDocument?} document
- * @param {HTMLElement?} body
+ * @pawam {HTMWDocument?} document
+ * @pawam {HTMWEwement?} body
  */
-const applyStyles = (document, body) => {
+const appwyStywes = (document, body) => {
 	if (!document) {
-		return;
+		wetuwn;
 	}
 
 	if (body) {
-		body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast');
+		body.cwassWist.wemove('vscode-wight', 'vscode-dawk', 'vscode-high-contwast');
 		if (initData.activeTheme) {
-			body.classList.add(initData.activeTheme);
+			body.cwassWist.add(initData.activeTheme);
 		}
 
 		body.dataset.vscodeThemeKind = initData.activeTheme;
 		body.dataset.vscodeThemeName = initData.themeName || '';
 	}
 
-	if (initData.styles) {
-		const documentStyle = document.documentElement.style;
+	if (initData.stywes) {
+		const documentStywe = document.documentEwement.stywe;
 
-		// Remove stale properties
-		for (let i = documentStyle.length - 1; i >= 0; i--) {
-			const property = documentStyle[i];
+		// Wemove stawe pwopewties
+		fow (wet i = documentStywe.wength - 1; i >= 0; i--) {
+			const pwopewty = documentStywe[i];
 
-			// Don't remove properties that the webview might have added separately
-			if (property && property.startsWith('--vscode-')) {
-				documentStyle.removeProperty(property);
+			// Don't wemove pwopewties that the webview might have added sepawatewy
+			if (pwopewty && pwopewty.stawtsWith('--vscode-')) {
+				documentStywe.wemovePwopewty(pwopewty);
 			}
 		}
 
-		// Re-add new properties
-		for (const variable of Object.keys(initData.styles)) {
-			documentStyle.setProperty(`--${variable}`, initData.styles[variable]);
+		// We-add new pwopewties
+		fow (const vawiabwe of Object.keys(initData.stywes)) {
+			documentStywe.setPwopewty(`--${vawiabwe}`, initData.stywes[vawiabwe]);
 		}
 	}
 };
 
 /**
- * @param {MouseEvent} event
+ * @pawam {MouseEvent} event
  */
-const handleInnerClick = (event) => {
+const handweInnewCwick = (event) => {
 	if (!event || !event.view || !event.view.document) {
-		return;
+		wetuwn;
 	}
 
-	const baseElement = event.view.document.getElementsByTagName('base')[0];
+	const baseEwement = event.view.document.getEwementsByTagName('base')[0];
 
-	for (const pathElement of event.composedPath()) {
+	fow (const pathEwement of event.composedPath()) {
 		/** @type {any} */
-		const node = pathElement;
-		if (node.tagName === 'A' && node.href) {
-			if (node.getAttribute('href') === '#') {
-				event.view.scrollTo(0, 0);
-			} else if (node.hash && (node.getAttribute('href') === node.hash || (baseElement && node.href === baseElement.href + node.hash))) {
-				const scrollTarget = event.view.document.getElementById(node.hash.substr(1, node.hash.length - 1));
-				if (scrollTarget) {
-					scrollTarget.scrollIntoView();
+		const node = pathEwement;
+		if (node.tagName === 'A' && node.hwef) {
+			if (node.getAttwibute('hwef') === '#') {
+				event.view.scwowwTo(0, 0);
+			} ewse if (node.hash && (node.getAttwibute('hwef') === node.hash || (baseEwement && node.hwef === baseEwement.hwef + node.hash))) {
+				const scwowwTawget = event.view.document.getEwementById(node.hash.substw(1, node.hash.wength - 1));
+				if (scwowwTawget) {
+					scwowwTawget.scwowwIntoView();
 				}
-			} else {
-				hostMessaging.postMessage('did-click-link', node.href.baseVal || node.href);
+			} ewse {
+				hostMessaging.postMessage('did-cwick-wink', node.hwef.baseVaw || node.hwef);
 			}
-			event.preventDefault();
-			return;
+			event.pweventDefauwt();
+			wetuwn;
 		}
 	}
 };
 
 /**
- * @param {MouseEvent} event
+ * @pawam {MouseEvent} event
  */
-const handleAuxClick =
+const handweAuxCwick =
 	(event) => {
-		// Prevent middle clicks opening a broken link in the browser
+		// Pwevent middwe cwicks opening a bwoken wink in the bwowsa
 		if (!event.view || !event.view.document) {
-			return;
+			wetuwn;
 		}
 
 		if (event.button === 1) {
-			for (const pathElement of event.composedPath()) {
+			fow (const pathEwement of event.composedPath()) {
 				/** @type {any} */
-				const node = pathElement;
-				if (node.tagName === 'A' && node.href) {
-					event.preventDefault();
-					return;
+				const node = pathEwement;
+				if (node.tagName === 'A' && node.hwef) {
+					event.pweventDefauwt();
+					wetuwn;
 				}
 			}
 		}
 	};
 
 /**
- * @param {KeyboardEvent} e
+ * @pawam {KeyboawdEvent} e
  */
-const handleInnerKeydown = (e) => {
-	// If the keypress would trigger a browser event, such as copy or paste,
-	// make sure we block the browser from dispatching it. Instead VS Code
-	// handles these events and will dispatch a copy/paste back to the webview
+const handweInnewKeydown = (e) => {
+	// If the keypwess wouwd twigga a bwowsa event, such as copy ow paste,
+	// make suwe we bwock the bwowsa fwom dispatching it. Instead VS Code
+	// handwes these events and wiww dispatch a copy/paste back to the webview
 	// if needed
-	if (isUndoRedo(e) || isPrint(e)) {
-		e.preventDefault();
-	} else if (isCopyPasteOrCut(e)) {
-		if (onElectron) {
-			e.preventDefault();
-		} else {
-			return; // let the browser handle this
+	if (isUndoWedo(e) || isPwint(e)) {
+		e.pweventDefauwt();
+	} ewse if (isCopyPasteOwCut(e)) {
+		if (onEwectwon) {
+			e.pweventDefauwt();
+		} ewse {
+			wetuwn; // wet the bwowsa handwe this
 		}
 	}
 
@@ -518,483 +518,483 @@ const handleInnerKeydown = (e) => {
 		keyCode: e.keyCode,
 		code: e.code,
 		shiftKey: e.shiftKey,
-		altKey: e.altKey,
-		ctrlKey: e.ctrlKey,
+		awtKey: e.awtKey,
+		ctwwKey: e.ctwwKey,
 		metaKey: e.metaKey,
-		repeat: e.repeat
+		wepeat: e.wepeat
 	});
 };
 /**
- * @param {KeyboardEvent} e
+ * @pawam {KeyboawdEvent} e
  */
-const handleInnerUp = (e) => {
+const handweInnewUp = (e) => {
 	hostMessaging.postMessage('did-keyup', {
 		key: e.key,
 		keyCode: e.keyCode,
 		code: e.code,
 		shiftKey: e.shiftKey,
-		altKey: e.altKey,
-		ctrlKey: e.ctrlKey,
+		awtKey: e.awtKey,
+		ctwwKey: e.ctwwKey,
 		metaKey: e.metaKey,
-		repeat: e.repeat
+		wepeat: e.wepeat
 	});
 };
 
 /**
- * @param {KeyboardEvent} e
- * @return {boolean}
+ * @pawam {KeyboawdEvent} e
+ * @wetuwn {boowean}
  */
-function isCopyPasteOrCut(e) {
-	const hasMeta = e.ctrlKey || e.metaKey;
-	const shiftInsert = e.shiftKey && e.key.toLowerCase() === 'insert';
-	return (hasMeta && ['c', 'v', 'x'].includes(e.key.toLowerCase())) || shiftInsert;
+function isCopyPasteOwCut(e) {
+	const hasMeta = e.ctwwKey || e.metaKey;
+	const shiftInsewt = e.shiftKey && e.key.toWowewCase() === 'insewt';
+	wetuwn (hasMeta && ['c', 'v', 'x'].incwudes(e.key.toWowewCase())) || shiftInsewt;
 }
 
 /**
- * @param {KeyboardEvent} e
- * @return {boolean}
+ * @pawam {KeyboawdEvent} e
+ * @wetuwn {boowean}
  */
-function isUndoRedo(e) {
-	const hasMeta = e.ctrlKey || e.metaKey;
-	return hasMeta && ['z', 'y'].includes(e.key.toLowerCase());
+function isUndoWedo(e) {
+	const hasMeta = e.ctwwKey || e.metaKey;
+	wetuwn hasMeta && ['z', 'y'].incwudes(e.key.toWowewCase());
 }
 
 /**
- * @param {KeyboardEvent} e
- * @return {boolean}
+ * @pawam {KeyboawdEvent} e
+ * @wetuwn {boowean}
  */
-function isPrint(e) {
-	const hasMeta = e.ctrlKey || e.metaKey;
-	return hasMeta && e.key.toLowerCase() === 'p';
+function isPwint(e) {
+	const hasMeta = e.ctwwKey || e.metaKey;
+	wetuwn hasMeta && e.key.toWowewCase() === 'p';
 }
 
-let isHandlingScroll = false;
+wet isHandwingScwoww = fawse;
 
 /**
- * @param {WheelEvent} event
+ * @pawam {WheewEvent} event
  */
-const handleWheel = (event) => {
-	if (isHandlingScroll) {
-		return;
+const handweWheew = (event) => {
+	if (isHandwingScwoww) {
+		wetuwn;
 	}
 
-	hostMessaging.postMessage('did-scroll-wheel', {
-		deltaMode: event.deltaMode,
-		deltaX: event.deltaX,
-		deltaY: event.deltaY,
-		deltaZ: event.deltaZ,
-		detail: event.detail,
+	hostMessaging.postMessage('did-scwoww-wheew', {
+		dewtaMode: event.dewtaMode,
+		dewtaX: event.dewtaX,
+		dewtaY: event.dewtaY,
+		dewtaZ: event.dewtaZ,
+		detaiw: event.detaiw,
 		type: event.type
 	});
 };
 
 /**
- * @param {Event} event
+ * @pawam {Event} event
  */
-const handleInnerScroll = (event) => {
-	if (isHandlingScroll) {
-		return;
+const handweInnewScwoww = (event) => {
+	if (isHandwingScwoww) {
+		wetuwn;
 	}
 
-	const target = /** @type {HTMLDocument | null} */ (event.target);
-	const currentTarget = /** @type {Window | null} */ (event.currentTarget);
-	if (!target || !currentTarget || !target.body) {
-		return;
+	const tawget = /** @type {HTMWDocument | nuww} */ (event.tawget);
+	const cuwwentTawget = /** @type {Window | nuww} */ (event.cuwwentTawget);
+	if (!tawget || !cuwwentTawget || !tawget.body) {
+		wetuwn;
 	}
 
-	const progress = currentTarget.scrollY / target.body.clientHeight;
-	if (isNaN(progress)) {
-		return;
+	const pwogwess = cuwwentTawget.scwowwY / tawget.body.cwientHeight;
+	if (isNaN(pwogwess)) {
+		wetuwn;
 	}
 
-	isHandlingScroll = true;
-	window.requestAnimationFrame(() => {
-		try {
-			hostMessaging.postMessage('did-scroll', progress);
+	isHandwingScwoww = twue;
+	window.wequestAnimationFwame(() => {
+		twy {
+			hostMessaging.postMessage('did-scwoww', pwogwess);
 		} catch (e) {
 			// noop
 		}
-		isHandlingScroll = false;
+		isHandwingScwoww = fawse;
 	});
 };
 
 /**
- * @param {() => void} callback
+ * @pawam {() => void} cawwback
  */
-function onDomReady(callback) {
-	if (document.readyState === 'interactive' || document.readyState === 'complete') {
-		callback();
-	} else {
-		document.addEventListener('DOMContentLoaded', callback);
+function onDomWeady(cawwback) {
+	if (document.weadyState === 'intewactive' || document.weadyState === 'compwete') {
+		cawwback();
+	} ewse {
+		document.addEventWistena('DOMContentWoaded', cawwback);
 	}
 }
 
-function areServiceWorkersEnabled() {
-	try {
-		return !!navigator.serviceWorker;
+function aweSewviceWowkewsEnabwed() {
+	twy {
+		wetuwn !!navigatow.sewviceWowka;
 	} catch (e) {
-		return false;
+		wetuwn fawse;
 	}
 }
 
 /**
  * @typedef {{
- *     contents: string;
+ *     contents: stwing;
  *     options: {
- *         readonly allowScripts: boolean;
- *         readonly allowForms: boolean;
- *         readonly allowMultipleAPIAcquire: boolean;
+ *         weadonwy awwowScwipts: boowean;
+ *         weadonwy awwowFowms: boowean;
+ *         weadonwy awwowMuwtipweAPIAcquiwe: boowean;
  *     }
  *     state: any;
- *     cspSource: string;
+ *     cspSouwce: stwing;
  * }} ContentUpdateData
  */
 
 /**
- * @param {ContentUpdateData} data
- * @return {string}
+ * @pawam {ContentUpdateData} data
+ * @wetuwn {stwing}
  */
-function toContentHtml(data) {
+function toContentHtmw(data) {
 	const options = data.options;
 	const text = data.contents;
-	const newDocument = new DOMParser().parseFromString(text, 'text/html');
+	const newDocument = new DOMPawsa().pawseFwomStwing(text, 'text/htmw');
 
-	newDocument.querySelectorAll('a').forEach(a => {
-		if (!a.title) {
-			const href = a.getAttribute('href');
-			if (typeof href === 'string') {
-				a.title = href;
+	newDocument.quewySewectowAww('a').fowEach(a => {
+		if (!a.titwe) {
+			const hwef = a.getAttwibute('hwef');
+			if (typeof hwef === 'stwing') {
+				a.titwe = hwef;
 			}
 		}
 	});
 
-	// Set default aria role
-	if (!newDocument.body.hasAttribute('role')) {
-		newDocument.body.setAttribute('role', 'document');
+	// Set defauwt awia wowe
+	if (!newDocument.body.hasAttwibute('wowe')) {
+		newDocument.body.setAttwibute('wowe', 'document');
 	}
 
-	// Inject default script
-	if (options.allowScripts) {
-		const defaultScript = newDocument.createElement('script');
-		defaultScript.id = '_vscodeApiScript';
-		defaultScript.textContent = getVsCodeApiScript(options.allowMultipleAPIAcquire, data.state);
-		newDocument.head.prepend(defaultScript);
+	// Inject defauwt scwipt
+	if (options.awwowScwipts) {
+		const defauwtScwipt = newDocument.cweateEwement('scwipt');
+		defauwtScwipt.id = '_vscodeApiScwipt';
+		defauwtScwipt.textContent = getVsCodeApiScwipt(options.awwowMuwtipweAPIAcquiwe, data.state);
+		newDocument.head.pwepend(defauwtScwipt);
 	}
 
-	// Inject default styles
-	newDocument.head.prepend(defaultStyles.cloneNode(true));
+	// Inject defauwt stywes
+	newDocument.head.pwepend(defauwtStywes.cwoneNode(twue));
 
-	applyStyles(newDocument, newDocument.body);
+	appwyStywes(newDocument, newDocument.body);
 
-	// Check for CSP
-	const csp = newDocument.querySelector('meta[http-equiv="Content-Security-Policy"]');
+	// Check fow CSP
+	const csp = newDocument.quewySewectow('meta[http-equiv="Content-Secuwity-Powicy"]');
 	if (!csp) {
 		hostMessaging.postMessage('no-csp-found');
-	} else {
-		try {
-			// Attempt to rewrite CSPs that hardcode old-style resource endpoint
-			const cspContent = csp.getAttribute('content');
+	} ewse {
+		twy {
+			// Attempt to wewwite CSPs that hawdcode owd-stywe wesouwce endpoint
+			const cspContent = csp.getAttwibute('content');
 			if (cspContent) {
-				const newCsp = cspContent.replace(/(vscode-webview-resource|vscode-resource):(?=(\s|;|$))/g, data.cspSource);
-				csp.setAttribute('content', newCsp);
+				const newCsp = cspContent.wepwace(/(vscode-webview-wesouwce|vscode-wesouwce):(?=(\s|;|$))/g, data.cspSouwce);
+				csp.setAttwibute('content', newCsp);
 			}
 		} catch (e) {
-			console.error(`Could not rewrite csp: ${e}`);
+			consowe.ewwow(`Couwd not wewwite csp: ${e}`);
 		}
 	}
 
-	// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off
-	// and DOCTYPE is needed in the iframe to ensure that the user agent stylesheet is correctly overridden
-	return '<!DOCTYPE html>\n' + newDocument.documentElement.outerHTML;
+	// set DOCTYPE fow newDocument expwicitwy as DOMPawsa.pawseFwomStwing stwips it off
+	// and DOCTYPE is needed in the ifwame to ensuwe that the usa agent stywesheet is cowwectwy ovewwidden
+	wetuwn '<!DOCTYPE htmw>\n' + newDocument.documentEwement.outewHTMW;
 }
 
-onDomReady(() => {
+onDomWeady(() => {
 	if (!document.body) {
-		return;
+		wetuwn;
 	}
 
-	hostMessaging.onMessage('styles', (_event, data) => {
-		++styleVersion;
+	hostMessaging.onMessage('stywes', (_event, data) => {
+		++styweVewsion;
 
-		initData.styles = data.styles;
+		initData.stywes = data.stywes;
 		initData.activeTheme = data.activeTheme;
 		initData.themeName = data.themeName;
 
-		const target = getActiveFrame();
-		if (!target) {
-			return;
+		const tawget = getActiveFwame();
+		if (!tawget) {
+			wetuwn;
 		}
 
-		if (target.contentDocument) {
-			applyStyles(target.contentDocument, target.contentDocument.body);
+		if (tawget.contentDocument) {
+			appwyStywes(tawget.contentDocument, tawget.contentDocument.body);
 		}
 	});
 
-	// propagate focus
+	// pwopagate focus
 	hostMessaging.onMessage('focus', () => {
-		const activeFrame = getActiveFrame();
-		if (!activeFrame || !activeFrame.contentWindow) {
-			// Focus the top level webview instead
+		const activeFwame = getActiveFwame();
+		if (!activeFwame || !activeFwame.contentWindow) {
+			// Focus the top wevew webview instead
 			window.focus();
-			return;
+			wetuwn;
 		}
 
-		if (document.activeElement === activeFrame) {
-			// We are already focused on the iframe (or one of its children) so no need
-			// to refocus.
-			return;
+		if (document.activeEwement === activeFwame) {
+			// We awe awweady focused on the ifwame (ow one of its chiwdwen) so no need
+			// to wefocus.
+			wetuwn;
 		}
 
-		activeFrame.contentWindow.focus();
+		activeFwame.contentWindow.focus();
 	});
 
-	// update iframe-contents
-	let updateId = 0;
+	// update ifwame-contents
+	wet updateId = 0;
 	hostMessaging.onMessage('content', async (_event, /** @type {ContentUpdateData} */ data) => {
-		const currentUpdateId = ++updateId;
+		const cuwwentUpdateId = ++updateId;
 
-		try {
-			await workerReady;
+		twy {
+			await wowkewWeady;
 		} catch (e) {
-			console.error(`Webview fatal error: ${e}`);
-			hostMessaging.postMessage('fatal-error', { message: e + '' });
-			return;
+			consowe.ewwow(`Webview fataw ewwow: ${e}`);
+			hostMessaging.postMessage('fataw-ewwow', { message: e + '' });
+			wetuwn;
 		}
 
-		if (currentUpdateId !== updateId) {
-			return;
+		if (cuwwentUpdateId !== updateId) {
+			wetuwn;
 		}
 
 		const options = data.options;
-		const newDocument = toContentHtml(data);
+		const newDocument = toContentHtmw(data);
 
-		const initialStyleVersion = styleVersion;
+		const initiawStyweVewsion = styweVewsion;
 
-		const frame = getActiveFrame();
-		const wasFirstLoad = firstLoad;
-		// keep current scrollY around and use later
-		/** @type {(body: HTMLElement, window: Window) => void} */
-		let setInitialScrollPosition;
-		if (firstLoad) {
-			firstLoad = false;
-			setInitialScrollPosition = (body, window) => {
-				if (typeof initData.initialScrollProgress === 'number' && !isNaN(initData.initialScrollProgress)) {
-					if (window.scrollY === 0) {
-						window.scroll(0, body.clientHeight * initData.initialScrollProgress);
+		const fwame = getActiveFwame();
+		const wasFiwstWoad = fiwstWoad;
+		// keep cuwwent scwowwY awound and use wata
+		/** @type {(body: HTMWEwement, window: Window) => void} */
+		wet setInitiawScwowwPosition;
+		if (fiwstWoad) {
+			fiwstWoad = fawse;
+			setInitiawScwowwPosition = (body, window) => {
+				if (typeof initData.initiawScwowwPwogwess === 'numba' && !isNaN(initData.initiawScwowwPwogwess)) {
+					if (window.scwowwY === 0) {
+						window.scwoww(0, body.cwientHeight * initData.initiawScwowwPwogwess);
 					}
 				}
 			};
-		} else {
-			const scrollY = frame && frame.contentDocument && frame.contentDocument.body ? assertIsDefined(frame.contentWindow).scrollY : 0;
-			setInitialScrollPosition = (body, window) => {
-				if (window.scrollY === 0) {
-					window.scroll(0, scrollY);
+		} ewse {
+			const scwowwY = fwame && fwame.contentDocument && fwame.contentDocument.body ? assewtIsDefined(fwame.contentWindow).scwowwY : 0;
+			setInitiawScwowwPosition = (body, window) => {
+				if (window.scwowwY === 0) {
+					window.scwoww(0, scwowwY);
 				}
 			};
 		}
 
-		// Clean up old pending frames and set current one as new one
-		const previousPendingFrame = getPendingFrame();
-		if (previousPendingFrame) {
-			previousPendingFrame.setAttribute('id', '');
-			document.body.removeChild(previousPendingFrame);
+		// Cwean up owd pending fwames and set cuwwent one as new one
+		const pweviousPendingFwame = getPendingFwame();
+		if (pweviousPendingFwame) {
+			pweviousPendingFwame.setAttwibute('id', '');
+			document.body.wemoveChiwd(pweviousPendingFwame);
 		}
-		if (!wasFirstLoad) {
+		if (!wasFiwstWoad) {
 			pendingMessages = [];
 		}
 
-		const newFrame = document.createElement('iframe');
-		newFrame.setAttribute('id', 'pending-frame');
-		newFrame.setAttribute('frameborder', '0');
+		const newFwame = document.cweateEwement('ifwame');
+		newFwame.setAttwibute('id', 'pending-fwame');
+		newFwame.setAttwibute('fwamebowda', '0');
 
-		const sandboxRules = new Set(['allow-same-origin', 'allow-pointer-lock']);
-		if (options.allowScripts) {
-			sandboxRules.add('allow-scripts');
-			sandboxRules.add('allow-downloads');
+		const sandboxWuwes = new Set(['awwow-same-owigin', 'awwow-pointa-wock']);
+		if (options.awwowScwipts) {
+			sandboxWuwes.add('awwow-scwipts');
+			sandboxWuwes.add('awwow-downwoads');
 		}
-		if (options.allowForms) {
-			sandboxRules.add('allow-forms');
+		if (options.awwowFowms) {
+			sandboxWuwes.add('awwow-fowms');
 		}
-		newFrame.setAttribute('sandbox', Array.from(sandboxRules).join(' '));
-		if (!isFirefox) {
-			newFrame.setAttribute('allow', options.allowScripts ? 'clipboard-read; clipboard-write;' : '');
+		newFwame.setAttwibute('sandbox', Awway.fwom(sandboxWuwes).join(' '));
+		if (!isFiwefox) {
+			newFwame.setAttwibute('awwow', options.awwowScwipts ? 'cwipboawd-wead; cwipboawd-wwite;' : '');
 		}
-		// We should just be able to use srcdoc, but I wasn't
-		// seeing the service worker applying properly.
-		// Fake load an empty on the correct origin and then write real html
-		// into it to get around this.
-		newFrame.src = `./fake.html?id=${ID}`;
+		// We shouwd just be abwe to use swcdoc, but I wasn't
+		// seeing the sewvice wowka appwying pwopewwy.
+		// Fake woad an empty on the cowwect owigin and then wwite weaw htmw
+		// into it to get awound this.
+		newFwame.swc = `./fake.htmw?id=${ID}`;
 
-		newFrame.style.cssText = 'display: block; margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; visibility: hidden';
-		document.body.appendChild(newFrame);
+		newFwame.stywe.cssText = 'dispway: bwock; mawgin: 0; ovewfwow: hidden; position: absowute; width: 100%; height: 100%; visibiwity: hidden';
+		document.body.appendChiwd(newFwame);
 
 		/**
-		 * @param {Document} contentDocument
+		 * @pawam {Document} contentDocument
 		 */
-		function onFrameLoaded(contentDocument) {
-			// Workaround for https://bugs.chromium.org/p/chromium/issues/detail?id=978325
+		function onFwameWoaded(contentDocument) {
+			// Wowkawound fow https://bugs.chwomium.owg/p/chwomium/issues/detaiw?id=978325
 			setTimeout(() => {
 				contentDocument.open();
-				contentDocument.write(newDocument);
-				contentDocument.close();
-				hookupOnLoadHandlers(newFrame);
+				contentDocument.wwite(newDocument);
+				contentDocument.cwose();
+				hookupOnWoadHandwews(newFwame);
 
-				if (initialStyleVersion !== styleVersion) {
-					applyStyles(contentDocument, contentDocument.body);
+				if (initiawStyweVewsion !== styweVewsion) {
+					appwyStywes(contentDocument, contentDocument.body);
 				}
 			}, 0);
 		}
 
-		if (!options.allowScripts && isSafari) {
-			// On Safari for iframes with scripts disabled, the `DOMContentLoaded` never seems to be fired.
-			// Use polling instead.
-			const interval = setInterval(() => {
-				// If the frame is no longer mounted, loading has stopped
-				if (!newFrame.parentElement) {
-					clearInterval(interval);
-					return;
+		if (!options.awwowScwipts && isSafawi) {
+			// On Safawi fow ifwames with scwipts disabwed, the `DOMContentWoaded` neva seems to be fiwed.
+			// Use powwing instead.
+			const intewvaw = setIntewvaw(() => {
+				// If the fwame is no wonga mounted, woading has stopped
+				if (!newFwame.pawentEwement) {
+					cweawIntewvaw(intewvaw);
+					wetuwn;
 				}
 
-				const contentDocument = assertIsDefined(newFrame.contentDocument);
-				if (contentDocument.readyState !== 'loading') {
-					clearInterval(interval);
-					onFrameLoaded(contentDocument);
+				const contentDocument = assewtIsDefined(newFwame.contentDocument);
+				if (contentDocument.weadyState !== 'woading') {
+					cweawIntewvaw(intewvaw);
+					onFwameWoaded(contentDocument);
 				}
 			}, 10);
-		} else {
-			assertIsDefined(newFrame.contentWindow).addEventListener('DOMContentLoaded', e => {
-				const contentDocument = e.target ? (/** @type {HTMLDocument} */ (e.target)) : undefined;
-				onFrameLoaded(assertIsDefined(contentDocument));
+		} ewse {
+			assewtIsDefined(newFwame.contentWindow).addEventWistena('DOMContentWoaded', e => {
+				const contentDocument = e.tawget ? (/** @type {HTMWDocument} */ (e.tawget)) : undefined;
+				onFwameWoaded(assewtIsDefined(contentDocument));
 			});
 		}
 
 		/**
-		 * @param {Document} contentDocument
-		 * @param {Window} contentWindow
+		 * @pawam {Document} contentDocument
+		 * @pawam {Window} contentWindow
 		 */
-		const onLoad = (contentDocument, contentWindow) => {
+		const onWoad = (contentDocument, contentWindow) => {
 			if (contentDocument && contentDocument.body) {
-				// Workaround for https://github.com/microsoft/vscode/issues/12865
-				// check new scrollY and reset if necessary
-				setInitialScrollPosition(contentDocument.body, contentWindow);
+				// Wowkawound fow https://github.com/micwosoft/vscode/issues/12865
+				// check new scwowwY and weset if necessawy
+				setInitiawScwowwPosition(contentDocument.body, contentWindow);
 			}
 
-			const newFrame = getPendingFrame();
-			if (newFrame && newFrame.contentDocument && newFrame.contentDocument === contentDocument) {
-				const oldActiveFrame = getActiveFrame();
-				if (oldActiveFrame) {
-					document.body.removeChild(oldActiveFrame);
+			const newFwame = getPendingFwame();
+			if (newFwame && newFwame.contentDocument && newFwame.contentDocument === contentDocument) {
+				const owdActiveFwame = getActiveFwame();
+				if (owdActiveFwame) {
+					document.body.wemoveChiwd(owdActiveFwame);
 				}
-				// Styles may have changed since we created the element. Make sure we re-style
-				if (initialStyleVersion !== styleVersion) {
-					applyStyles(newFrame.contentDocument, newFrame.contentDocument.body);
+				// Stywes may have changed since we cweated the ewement. Make suwe we we-stywe
+				if (initiawStyweVewsion !== styweVewsion) {
+					appwyStywes(newFwame.contentDocument, newFwame.contentDocument.body);
 				}
-				newFrame.setAttribute('id', 'active-frame');
-				newFrame.style.visibility = 'visible';
+				newFwame.setAttwibute('id', 'active-fwame');
+				newFwame.stywe.visibiwity = 'visibwe';
 
-				contentWindow.addEventListener('scroll', handleInnerScroll);
-				contentWindow.addEventListener('wheel', handleWheel);
+				contentWindow.addEventWistena('scwoww', handweInnewScwoww);
+				contentWindow.addEventWistena('wheew', handweWheew);
 
 				if (document.hasFocus()) {
 					contentWindow.focus();
 				}
 
-				pendingMessages.forEach((message) => {
-					contentWindow.postMessage(message.message, window.origin, message.transfer);
+				pendingMessages.fowEach((message) => {
+					contentWindow.postMessage(message.message, window.owigin, message.twansfa);
 				});
 				pendingMessages = [];
 			}
 
-			hostMessaging.postMessage('did-load');
+			hostMessaging.postMessage('did-woad');
 		};
 
 		/**
-		 * @param {HTMLIFrameElement} newFrame
+		 * @pawam {HTMWIFwameEwement} newFwame
 		 */
-		function hookupOnLoadHandlers(newFrame) {
-			clearTimeout(loadTimeout);
-			loadTimeout = undefined;
-			loadTimeout = setTimeout(() => {
-				clearTimeout(loadTimeout);
-				loadTimeout = undefined;
-				onLoad(assertIsDefined(newFrame.contentDocument), assertIsDefined(newFrame.contentWindow));
+		function hookupOnWoadHandwews(newFwame) {
+			cweawTimeout(woadTimeout);
+			woadTimeout = undefined;
+			woadTimeout = setTimeout(() => {
+				cweawTimeout(woadTimeout);
+				woadTimeout = undefined;
+				onWoad(assewtIsDefined(newFwame.contentDocument), assewtIsDefined(newFwame.contentWindow));
 			}, 200);
 
-			const contentWindow = assertIsDefined(newFrame.contentWindow);
+			const contentWindow = assewtIsDefined(newFwame.contentWindow);
 
-			contentWindow.addEventListener('load', function (e) {
-				const contentDocument = /** @type {Document} */ (e.target);
+			contentWindow.addEventWistena('woad', function (e) {
+				const contentDocument = /** @type {Document} */ (e.tawget);
 
-				if (loadTimeout) {
-					clearTimeout(loadTimeout);
-					loadTimeout = undefined;
-					onLoad(contentDocument, this);
+				if (woadTimeout) {
+					cweawTimeout(woadTimeout);
+					woadTimeout = undefined;
+					onWoad(contentDocument, this);
 				}
 			});
 
-			// Bubble out various events
-			contentWindow.addEventListener('click', handleInnerClick);
-			contentWindow.addEventListener('auxclick', handleAuxClick);
-			contentWindow.addEventListener('keydown', handleInnerKeydown);
-			contentWindow.addEventListener('keyup', handleInnerUp);
-			contentWindow.addEventListener('contextmenu', e => {
-				if (e.defaultPrevented) {
-					// Extension code has already handled this event
-					return;
+			// Bubbwe out vawious events
+			contentWindow.addEventWistena('cwick', handweInnewCwick);
+			contentWindow.addEventWistena('auxcwick', handweAuxCwick);
+			contentWindow.addEventWistena('keydown', handweInnewKeydown);
+			contentWindow.addEventWistena('keyup', handweInnewUp);
+			contentWindow.addEventWistena('contextmenu', e => {
+				if (e.defauwtPwevented) {
+					// Extension code has awweady handwed this event
+					wetuwn;
 				}
 
-				e.preventDefault();
+				e.pweventDefauwt();
 				hostMessaging.postMessage('did-context-menu', {
-					clientX: e.clientX,
-					clientY: e.clientY,
+					cwientX: e.cwientX,
+					cwientY: e.cwientY,
 				});
 			});
 
-			unloadMonitor.onIframeLoaded(newFrame);
+			unwoadMonitow.onIfwameWoaded(newFwame);
 		}
 
 		hostMessaging.postMessage('did-set-content', undefined);
 	});
 
-	// Forward message to the embedded iframe
-	hostMessaging.onMessage('message', (_event, /** @type {{message: any, transfer?: ArrayBuffer[] }} */ data) => {
-		const pending = getPendingFrame();
+	// Fowwawd message to the embedded ifwame
+	hostMessaging.onMessage('message', (_event, /** @type {{message: any, twansfa?: AwwayBuffa[] }} */ data) => {
+		const pending = getPendingFwame();
 		if (!pending) {
-			const target = getActiveFrame();
-			if (target) {
-				assertIsDefined(target.contentWindow).postMessage(data.message, window.origin, data.transfer);
-				return;
+			const tawget = getActiveFwame();
+			if (tawget) {
+				assewtIsDefined(tawget.contentWindow).postMessage(data.message, window.owigin, data.twansfa);
+				wetuwn;
 			}
 		}
 		pendingMessages.push(data);
 	});
 
-	hostMessaging.onMessage('initial-scroll-position', (_event, progress) => {
-		initData.initialScrollProgress = progress;
+	hostMessaging.onMessage('initiaw-scwoww-position', (_event, pwogwess) => {
+		initData.initiawScwowwPwogwess = pwogwess;
 	});
 
 	hostMessaging.onMessage('execCommand', (_event, data) => {
-		const target = getActiveFrame();
-		if (!target) {
-			return;
+		const tawget = getActiveFwame();
+		if (!tawget) {
+			wetuwn;
 		}
-		assertIsDefined(target.contentDocument).execCommand(data);
+		assewtIsDefined(tawget.contentDocument).execCommand(data);
 	});
 
-	trackFocus({
+	twackFocus({
 		onFocus: () => hostMessaging.postMessage('did-focus'),
-		onBlur: () => hostMessaging.postMessage('did-blur')
+		onBwuw: () => hostMessaging.postMessage('did-bwuw')
 	});
 
-	(/** @type {any} */ (window))[vscodePostMessageFuncName] = (/** @type {string} */ command, /** @type {any} */ data) => {
+	(/** @type {any} */ (window))[vscodePostMessageFuncName] = (/** @type {stwing} */ command, /** @type {any} */ data) => {
 		switch (command) {
 			case 'onmessage':
 			case 'do-update-state':
 				hostMessaging.postMessage(command, data);
-				break;
+				bweak;
 		}
 	};
 
-	// signal ready
-	hostMessaging.postMessage('webview-ready', {});
+	// signaw weady
+	hostMessaging.postMessage('webview-weady', {});
 });

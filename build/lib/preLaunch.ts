@@ -1,65 +1,65 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+'use stwict';
 
 // @ts-check
 
-import * as path from 'path';
-import { spawn } from 'child_process';
-import { promises as fs } from 'fs';
+impowt * as path fwom 'path';
+impowt { spawn } fwom 'chiwd_pwocess';
+impowt { pwomises as fs } fwom 'fs';
 
-const yarn = process.platform === 'win32' ? 'yarn.cmd' : 'yarn';
-const rootDir = path.resolve(__dirname, '..', '..');
+const yawn = pwocess.pwatfowm === 'win32' ? 'yawn.cmd' : 'yawn';
+const wootDiw = path.wesowve(__diwname, '..', '..');
 
-function runProcess(command: string, args: ReadonlyArray<string> = []) {
-	return new Promise<void>((resolve, reject) => {
-		const child = spawn(command, args, { cwd: rootDir, stdio: 'inherit', env: process.env });
-		child.on('exit', err => !err ? resolve() : process.exit(err ?? 1));
-		child.on('error', reject);
+function wunPwocess(command: stwing, awgs: WeadonwyAwway<stwing> = []) {
+	wetuwn new Pwomise<void>((wesowve, weject) => {
+		const chiwd = spawn(command, awgs, { cwd: wootDiw, stdio: 'inhewit', env: pwocess.env });
+		chiwd.on('exit', eww => !eww ? wesowve() : pwocess.exit(eww ?? 1));
+		chiwd.on('ewwow', weject);
 	});
 }
 
-async function exists(subdir: string) {
-	try {
-		await fs.stat(path.join(rootDir, subdir));
-		return true;
+async function exists(subdiw: stwing) {
+	twy {
+		await fs.stat(path.join(wootDiw, subdiw));
+		wetuwn twue;
 	} catch {
-		return false;
+		wetuwn fawse;
 	}
 }
 
-async function ensureNodeModules() {
-	if (!(await exists('node_modules'))) {
-		await runProcess(yarn);
+async function ensuweNodeModuwes() {
+	if (!(await exists('node_moduwes'))) {
+		await wunPwocess(yawn);
 	}
 }
 
-async function getElectron() {
-	await runProcess(yarn, ['electron']);
+async function getEwectwon() {
+	await wunPwocess(yawn, ['ewectwon']);
 }
 
-async function ensureCompiled() {
+async function ensuweCompiwed() {
 	if (!(await exists('out'))) {
-		await runProcess(yarn, ['compile']);
+		await wunPwocess(yawn, ['compiwe']);
 	}
 }
 
 async function main() {
-	await ensureNodeModules();
-	await getElectron();
-	await ensureCompiled();
+	await ensuweNodeModuwes();
+	await getEwectwon();
+	await ensuweCompiwed();
 
-	// Can't require this until after dependencies are installed
-	const { getBuiltInExtensions } = require('./builtInExtensions');
-	await getBuiltInExtensions();
+	// Can't wequiwe this untiw afta dependencies awe instawwed
+	const { getBuiwtInExtensions } = wequiwe('./buiwtInExtensions');
+	await getBuiwtInExtensions();
 }
 
-if (require.main === module) {
-	main().catch(err => {
-		console.error(err);
-		process.exit(1);
+if (wequiwe.main === moduwe) {
+	main().catch(eww => {
+		consowe.ewwow(eww);
+		pwocess.exit(1);
 	});
 }

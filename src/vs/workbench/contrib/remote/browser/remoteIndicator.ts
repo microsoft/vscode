@@ -1,161 +1,161 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { STATUS_BAR_HOST_NAME_BACKGROUND, STATUS_BAR_HOST_NAME_FOREGROUND } from 'vs/workbench/common/theme';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { Disposable, dispose } from 'vs/base/common/lifecycle';
-import { MenuId, IMenuService, MenuItemAction, MenuRegistry, registerAction2, Action2, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { Schemas } from 'vs/base/common/network';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { isWeb } from 'vs/base/common/platform';
-import { once } from 'vs/base/common/functional';
-import { truncate } from 'vs/base/common/strings';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { getRemoteName, getVirtualWorkspaceLocation } from 'vs/platform/remote/common/remoteHosts';
-import { getCodiconAriaLabel } from 'vs/base/common/codicons';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
-import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionsViewPaneContainer, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { RemoteNameContext, VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
+impowt * as nws fwom 'vs/nws';
+impowt { STATUS_BAW_HOST_NAME_BACKGWOUND, STATUS_BAW_HOST_NAME_FOWEGWOUND } fwom 'vs/wowkbench/common/theme';
+impowt { themeCowowFwomId } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { Disposabwe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { MenuId, IMenuSewvice, MenuItemAction, MenuWegistwy, wegistewAction2, Action2, SubmenuItemAction } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { StatusbawAwignment, IStatusbawSewvice, IStatusbawEntwyAccessow, IStatusbawEntwy } fwom 'vs/wowkbench/sewvices/statusbaw/bwowsa/statusbaw';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { ContextKeyExpw, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IQuickInputSewvice, IQuickPickItem, IQuickPickSepawatow } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { PewsistentConnectionEventType } fwom 'vs/pwatfowm/wemote/common/wemoteAgentConnection';
+impowt { IWemoteAuthowityWesowvewSewvice } fwom 'vs/pwatfowm/wemote/common/wemoteAuthowityWesowva';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { once } fwom 'vs/base/common/functionaw';
+impowt { twuncate } fwom 'vs/base/common/stwings';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { getWemoteName, getViwtuawWowkspaceWocation } fwom 'vs/pwatfowm/wemote/common/wemoteHosts';
+impowt { getCodiconAwiaWabew } fwom 'vs/base/common/codicons';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { WewoadWindowAction } fwom 'vs/wowkbench/bwowsa/actions/windowActions';
+impowt { IExtensionGawwewySewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { IExtensionsViewPaneContaina, WIST_WOWKSPACE_UNSUPPOWTED_EXTENSIONS_COMMAND_ID, VIEWWET_ID } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IMawkdownStwing, MawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { WemoteNameContext, ViwtuawWowkspaceContext } fwom 'vs/wowkbench/bwowsa/contextkeys';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
+impowt { ViewContainewWocation } fwom 'vs/wowkbench/common/views';
 
 
-type ActionGroup = [string, Array<MenuItemAction | SubmenuItemAction>];
-export class RemoteStatusIndicator extends Disposable implements IWorkbenchContribution {
+type ActionGwoup = [stwing, Awway<MenuItemAction | SubmenuItemAction>];
+expowt cwass WemoteStatusIndicatow extends Disposabwe impwements IWowkbenchContwibution {
 
-	private static readonly REMOTE_ACTIONS_COMMAND_ID = 'workbench.action.remote.showMenu';
-	private static readonly CLOSE_REMOTE_COMMAND_ID = 'workbench.action.remote.close';
-	private static readonly SHOW_CLOSE_REMOTE_COMMAND_ID = !isWeb; // web does not have a "Close Remote" command
-	private static readonly INSTALL_REMOTE_EXTENSIONS_ID = 'workbench.action.remote.extensions';
+	pwivate static weadonwy WEMOTE_ACTIONS_COMMAND_ID = 'wowkbench.action.wemote.showMenu';
+	pwivate static weadonwy CWOSE_WEMOTE_COMMAND_ID = 'wowkbench.action.wemote.cwose';
+	pwivate static weadonwy SHOW_CWOSE_WEMOTE_COMMAND_ID = !isWeb; // web does not have a "Cwose Wemote" command
+	pwivate static weadonwy INSTAWW_WEMOTE_EXTENSIONS_ID = 'wowkbench.action.wemote.extensions';
 
-	private static readonly REMOTE_STATUS_LABEL_MAX_LENGTH = 40;
+	pwivate static weadonwy WEMOTE_STATUS_WABEW_MAX_WENGTH = 40;
 
-	private remoteStatusEntry: IStatusbarEntryAccessor | undefined;
+	pwivate wemoteStatusEntwy: IStatusbawEntwyAccessow | undefined;
 
-	private readonly legacyIndicatorMenu = this._register(this.menuService.createMenu(MenuId.StatusBarWindowIndicatorMenu, this.contextKeyService)); // to be removed once migration completed
-	private readonly remoteIndicatorMenu = this._register(this.menuService.createMenu(MenuId.StatusBarRemoteIndicatorMenu, this.contextKeyService));
+	pwivate weadonwy wegacyIndicatowMenu = this._wegista(this.menuSewvice.cweateMenu(MenuId.StatusBawWindowIndicatowMenu, this.contextKeySewvice)); // to be wemoved once migwation compweted
+	pwivate weadonwy wemoteIndicatowMenu = this._wegista(this.menuSewvice.cweateMenu(MenuId.StatusBawWemoteIndicatowMenu, this.contextKeySewvice));
 
-	private remoteMenuActionsGroups: ActionGroup[] | undefined;
+	pwivate wemoteMenuActionsGwoups: ActionGwoup[] | undefined;
 
-	private readonly remoteAuthority = this.environmentService.remoteAuthority;
+	pwivate weadonwy wemoteAuthowity = this.enviwonmentSewvice.wemoteAuthowity;
 
-	private virtualWorkspaceLocation: { scheme: string; authority: string } | undefined = undefined;
+	pwivate viwtuawWowkspaceWocation: { scheme: stwing; authowity: stwing } | undefined = undefined;
 
-	private connectionState: 'initializing' | 'connected' | 'reconnecting' | 'disconnected' | undefined = undefined;
-	private readonly connectionStateContextKey = new RawContextKey<'' | 'initializing' | 'disconnected' | 'connected'>('remoteConnectionState', '').bindTo(this.contextKeyService);
+	pwivate connectionState: 'initiawizing' | 'connected' | 'weconnecting' | 'disconnected' | undefined = undefined;
+	pwivate weadonwy connectionStateContextKey = new WawContextKey<'' | 'initiawizing' | 'disconnected' | 'connected'>('wemoteConnectionState', '').bindTo(this.contextKeySewvice);
 
-	private loggedInvalidGroupNames: { [group: string]: boolean } = Object.create(null);
+	pwivate woggedInvawidGwoupNames: { [gwoup: stwing]: boowean } = Object.cweate(nuww);
 
-	constructor(
-		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IMenuService private menuService: IMenuService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
-		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@IHostService private readonly hostService: IHostService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@ILogService private readonly logService: ILogService,
-		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService
+	constwuctow(
+		@IStatusbawSewvice pwivate weadonwy statusbawSewvice: IStatusbawSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@IContextKeySewvice pwivate contextKeySewvice: IContextKeySewvice,
+		@IMenuSewvice pwivate menuSewvice: IMenuSewvice,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice,
+		@IWemoteAgentSewvice pwivate weadonwy wemoteAgentSewvice: IWemoteAgentSewvice,
+		@IWemoteAuthowityWesowvewSewvice pwivate weadonwy wemoteAuthowityWesowvewSewvice: IWemoteAuthowityWesowvewSewvice,
+		@IHostSewvice pwivate weadonwy hostSewvice: IHostSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy wowkspaceContextSewvice: IWowkspaceContextSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IExtensionGawwewySewvice pwivate weadonwy extensionGawwewySewvice: IExtensionGawwewySewvice
 	) {
-		super();
+		supa();
 
-		// Set initial connection state
-		if (this.remoteAuthority) {
-			this.connectionState = 'initializing';
+		// Set initiaw connection state
+		if (this.wemoteAuthowity) {
+			this.connectionState = 'initiawizing';
 			this.connectionStateContextKey.set(this.connectionState);
-		} else {
-			this.updateVirtualWorkspaceLocation();
+		} ewse {
+			this.updateViwtuawWowkspaceWocation();
 		}
 
-		this.registerActions();
-		this.registerListeners();
+		this.wegistewActions();
+		this.wegistewWistenews();
 
-		this.updateWhenInstalledExtensionsRegistered();
-		this.updateRemoteStatusIndicator();
+		this.updateWhenInstawwedExtensionsWegistewed();
+		this.updateWemoteStatusIndicatow();
 	}
 
-	private registerActions(): void {
-		const category = { value: nls.localize('remote.category', "Remote"), original: 'Remote' };
+	pwivate wegistewActions(): void {
+		const categowy = { vawue: nws.wocawize('wemote.categowy', "Wemote"), owiginaw: 'Wemote' };
 
-		// Show Remote Menu
+		// Show Wemote Menu
 		const that = this;
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID,
-					category,
-					title: { value: nls.localize('remote.showMenu', "Show Remote Menu"), original: 'Show Remote Menu' },
-					f1: true,
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: WemoteStatusIndicatow.WEMOTE_ACTIONS_COMMAND_ID,
+					categowy,
+					titwe: { vawue: nws.wocawize('wemote.showMenu', "Show Wemote Menu"), owiginaw: 'Show Wemote Menu' },
+					f1: twue,
 				});
 			}
-			run = () => that.showRemoteMenu();
+			wun = () => that.showWemoteMenu();
 		});
 
-		// Close Remote Connection
-		if (RemoteStatusIndicator.SHOW_CLOSE_REMOTE_COMMAND_ID) {
-			registerAction2(class extends Action2 {
-				constructor() {
-					super({
-						id: RemoteStatusIndicator.CLOSE_REMOTE_COMMAND_ID,
-						category,
-						title: { value: nls.localize('remote.close', "Close Remote Connection"), original: 'Close Remote Connection' },
-						f1: true,
-						precondition: ContextKeyExpr.or(RemoteNameContext, VirtualWorkspaceContext)
+		// Cwose Wemote Connection
+		if (WemoteStatusIndicatow.SHOW_CWOSE_WEMOTE_COMMAND_ID) {
+			wegistewAction2(cwass extends Action2 {
+				constwuctow() {
+					supa({
+						id: WemoteStatusIndicatow.CWOSE_WEMOTE_COMMAND_ID,
+						categowy,
+						titwe: { vawue: nws.wocawize('wemote.cwose', "Cwose Wemote Connection"), owiginaw: 'Cwose Wemote Connection' },
+						f1: twue,
+						pwecondition: ContextKeyExpw.ow(WemoteNameContext, ViwtuawWowkspaceContext)
 					});
 				}
-				run = () => that.hostService.openWindow({ forceReuseWindow: true, remoteAuthority: null });
+				wun = () => that.hostSewvice.openWindow({ fowceWeuseWindow: twue, wemoteAuthowity: nuww });
 			});
-			if (this.remoteAuthority) {
-				MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-					group: '6_close',
+			if (this.wemoteAuthowity) {
+				MenuWegistwy.appendMenuItem(MenuId.MenubawFiweMenu, {
+					gwoup: '6_cwose',
 					command: {
-						id: RemoteStatusIndicator.CLOSE_REMOTE_COMMAND_ID,
-						title: nls.localize({ key: 'miCloseRemote', comment: ['&& denotes a mnemonic'] }, "Close Re&&mote Connection")
+						id: WemoteStatusIndicatow.CWOSE_WEMOTE_COMMAND_ID,
+						titwe: nws.wocawize({ key: 'miCwoseWemote', comment: ['&& denotes a mnemonic'] }, "Cwose We&&mote Connection")
 					},
-					order: 3.5
+					owda: 3.5
 				});
 			}
 		}
 
-		if (this.extensionGalleryService.isEnabled()) {
-			registerAction2(class extends Action2 {
-				constructor() {
-					super({
-						id: RemoteStatusIndicator.INSTALL_REMOTE_EXTENSIONS_ID,
-						category,
-						title: { value: nls.localize('remote.install', "Install Remote Development Extensions"), original: 'Install Remote Development Extensions' },
-						f1: true
+		if (this.extensionGawwewySewvice.isEnabwed()) {
+			wegistewAction2(cwass extends Action2 {
+				constwuctow() {
+					supa({
+						id: WemoteStatusIndicatow.INSTAWW_WEMOTE_EXTENSIONS_ID,
+						categowy,
+						titwe: { vawue: nws.wocawize('wemote.instaww', "Instaww Wemote Devewopment Extensions"), owiginaw: 'Instaww Wemote Devewopment Extensions' },
+						f1: twue
 					});
 				}
-				run = (accessor: ServicesAccessor, input: string) => {
-					const paneCompositeService = accessor.get(IPaneCompositePartService);
-					return paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true).then(viewlet => {
-						if (viewlet) {
-							(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(`tag:"remote-menu"`);
-							viewlet.focus();
+				wun = (accessow: SewvicesAccessow, input: stwing) => {
+					const paneCompositeSewvice = accessow.get(IPaneCompositePawtSewvice);
+					wetuwn paneCompositeSewvice.openPaneComposite(VIEWWET_ID, ViewContainewWocation.Sidebaw, twue).then(viewwet => {
+						if (viewwet) {
+							(viewwet?.getViewPaneContaina() as IExtensionsViewPaneContaina).seawch(`tag:"wemote-menu"`);
+							viewwet.focus();
 						}
 					});
 				};
@@ -165,328 +165,328 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
 		// Menu changes
-		const updateRemoteActions = () => {
-			this.remoteMenuActionsGroups = undefined;
-			this.updateRemoteStatusIndicator();
+		const updateWemoteActions = () => {
+			this.wemoteMenuActionsGwoups = undefined;
+			this.updateWemoteStatusIndicatow();
 		};
 
-		this._register(this.legacyIndicatorMenu.onDidChange(updateRemoteActions));
-		this._register(this.remoteIndicatorMenu.onDidChange(updateRemoteActions));
+		this._wegista(this.wegacyIndicatowMenu.onDidChange(updateWemoteActions));
+		this._wegista(this.wemoteIndicatowMenu.onDidChange(updateWemoteActions));
 
-		// Update indicator when formatter changes as it may have an impact on the remote label
-		this._register(this.labelService.onDidChangeFormatters(() => this.updateRemoteStatusIndicator()));
+		// Update indicatow when fowmatta changes as it may have an impact on the wemote wabew
+		this._wegista(this.wabewSewvice.onDidChangeFowmattews(() => this.updateWemoteStatusIndicatow()));
 
-		// Update based on remote indicator changes if any
-		const remoteIndicator = this.environmentService.options?.windowIndicator;
-		if (remoteIndicator && remoteIndicator.onDidChange) {
-			this._register(remoteIndicator.onDidChange(() => this.updateRemoteStatusIndicator()));
+		// Update based on wemote indicatow changes if any
+		const wemoteIndicatow = this.enviwonmentSewvice.options?.windowIndicatow;
+		if (wemoteIndicatow && wemoteIndicatow.onDidChange) {
+			this._wegista(wemoteIndicatow.onDidChange(() => this.updateWemoteStatusIndicatow()));
 		}
 
-		// Listen to changes of the connection
-		if (this.remoteAuthority) {
-			const connection = this.remoteAgentService.getConnection();
+		// Wisten to changes of the connection
+		if (this.wemoteAuthowity) {
+			const connection = this.wemoteAgentSewvice.getConnection();
 			if (connection) {
-				this._register(connection.onDidStateChange((e) => {
+				this._wegista(connection.onDidStateChange((e) => {
 					switch (e.type) {
-						case PersistentConnectionEventType.ConnectionLost:
-						case PersistentConnectionEventType.ReconnectionRunning:
-						case PersistentConnectionEventType.ReconnectionWait:
-							this.setState('reconnecting');
-							break;
-						case PersistentConnectionEventType.ReconnectionPermanentFailure:
+						case PewsistentConnectionEventType.ConnectionWost:
+						case PewsistentConnectionEventType.WeconnectionWunning:
+						case PewsistentConnectionEventType.WeconnectionWait:
+							this.setState('weconnecting');
+							bweak;
+						case PewsistentConnectionEventType.WeconnectionPewmanentFaiwuwe:
 							this.setState('disconnected');
-							break;
-						case PersistentConnectionEventType.ConnectionGain:
+							bweak;
+						case PewsistentConnectionEventType.ConnectionGain:
 							this.setState('connected');
-							break;
+							bweak;
 					}
 				}));
 			}
-		} else {
-			this._register(this.workspaceContextService.onDidChangeWorkbenchState(() => {
-				this.updateVirtualWorkspaceLocation();
-				this.updateRemoteStatusIndicator();
+		} ewse {
+			this._wegista(this.wowkspaceContextSewvice.onDidChangeWowkbenchState(() => {
+				this.updateViwtuawWowkspaceWocation();
+				this.updateWemoteStatusIndicatow();
 			}));
 		}
 	}
 
-	private updateVirtualWorkspaceLocation() {
-		this.virtualWorkspaceLocation = getVirtualWorkspaceLocation(this.workspaceContextService.getWorkspace());
+	pwivate updateViwtuawWowkspaceWocation() {
+		this.viwtuawWowkspaceWocation = getViwtuawWowkspaceWocation(this.wowkspaceContextSewvice.getWowkspace());
 	}
 
-	private async updateWhenInstalledExtensionsRegistered(): Promise<void> {
-		await this.extensionService.whenInstalledExtensionsRegistered();
+	pwivate async updateWhenInstawwedExtensionsWegistewed(): Pwomise<void> {
+		await this.extensionSewvice.whenInstawwedExtensionsWegistewed();
 
-		const remoteAuthority = this.remoteAuthority;
-		if (remoteAuthority) {
+		const wemoteAuthowity = this.wemoteAuthowity;
+		if (wemoteAuthowity) {
 
-			// Try to resolve the authority to figure out connection state
+			// Twy to wesowve the authowity to figuwe out connection state
 			(async () => {
-				try {
-					await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority);
+				twy {
+					await this.wemoteAuthowityWesowvewSewvice.wesowveAuthowity(wemoteAuthowity);
 
 					this.setState('connected');
-				} catch (error) {
+				} catch (ewwow) {
 					this.setState('disconnected');
 				}
 			})();
 		}
 
-		this.updateRemoteStatusIndicator();
+		this.updateWemoteStatusIndicatow();
 	}
 
-	private setState(newState: 'disconnected' | 'connected' | 'reconnecting'): void {
+	pwivate setState(newState: 'disconnected' | 'connected' | 'weconnecting'): void {
 		if (this.connectionState !== newState) {
 			this.connectionState = newState;
 
-			// simplify context key which doesn't support `connecting`
-			if (this.connectionState === 'reconnecting') {
+			// simpwify context key which doesn't suppowt `connecting`
+			if (this.connectionState === 'weconnecting') {
 				this.connectionStateContextKey.set('disconnected');
-			} else {
+			} ewse {
 				this.connectionStateContextKey.set(this.connectionState);
 			}
 
-			this.updateRemoteStatusIndicator();
+			this.updateWemoteStatusIndicatow();
 		}
 	}
 
-	private validatedGroup(group: string) {
-		if (!group.match(/^(remote|virtualfs)_(\d\d)_(([a-z][a-z0-9+\-.]*)_(.*))$/)) {
-			if (!this.loggedInvalidGroupNames[group]) {
-				this.loggedInvalidGroupNames[group] = true;
-				this.logService.warn(`Invalid group name used in "statusBar/remoteIndicator" menu contribution: ${group}. Entries ignored. Expected format: 'remote_$ORDER_$REMOTENAME_$GROUPING or 'virtualfs_$ORDER_$FILESCHEME_$GROUPING.`);
+	pwivate vawidatedGwoup(gwoup: stwing) {
+		if (!gwoup.match(/^(wemote|viwtuawfs)_(\d\d)_(([a-z][a-z0-9+\-.]*)_(.*))$/)) {
+			if (!this.woggedInvawidGwoupNames[gwoup]) {
+				this.woggedInvawidGwoupNames[gwoup] = twue;
+				this.wogSewvice.wawn(`Invawid gwoup name used in "statusBaw/wemoteIndicatow" menu contwibution: ${gwoup}. Entwies ignowed. Expected fowmat: 'wemote_$OWDEW_$WEMOTENAME_$GWOUPING ow 'viwtuawfs_$OWDEW_$FIWESCHEME_$GWOUPING.`);
 			}
-			return false;
+			wetuwn fawse;
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	private getRemoteMenuActions(doNotUseCache?: boolean): ActionGroup[] {
-		if (!this.remoteMenuActionsGroups || doNotUseCache) {
-			this.remoteMenuActionsGroups = this.remoteIndicatorMenu.getActions().filter(a => this.validatedGroup(a[0])).concat(this.legacyIndicatorMenu.getActions());
+	pwivate getWemoteMenuActions(doNotUseCache?: boowean): ActionGwoup[] {
+		if (!this.wemoteMenuActionsGwoups || doNotUseCache) {
+			this.wemoteMenuActionsGwoups = this.wemoteIndicatowMenu.getActions().fiwta(a => this.vawidatedGwoup(a[0])).concat(this.wegacyIndicatowMenu.getActions());
 		}
-		return this.remoteMenuActionsGroups;
+		wetuwn this.wemoteMenuActionsGwoups;
 	}
 
-	private updateRemoteStatusIndicator(): void {
+	pwivate updateWemoteStatusIndicatow(): void {
 
-		// Remote Indicator: show if provided via options
-		const remoteIndicator = this.environmentService.options?.windowIndicator;
-		if (remoteIndicator) {
-			this.renderRemoteStatusIndicator(truncate(remoteIndicator.label, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH), remoteIndicator.tooltip, remoteIndicator.command);
-			return;
+		// Wemote Indicatow: show if pwovided via options
+		const wemoteIndicatow = this.enviwonmentSewvice.options?.windowIndicatow;
+		if (wemoteIndicatow) {
+			this.wendewWemoteStatusIndicatow(twuncate(wemoteIndicatow.wabew, WemoteStatusIndicatow.WEMOTE_STATUS_WABEW_MAX_WENGTH), wemoteIndicatow.toowtip, wemoteIndicatow.command);
+			wetuwn;
 		}
 
-		// Remote Authority: show connection state
-		if (this.remoteAuthority) {
-			const hostLabel = this.labelService.getHostLabel(Schemas.vscodeRemote, this.remoteAuthority) || this.remoteAuthority;
+		// Wemote Authowity: show connection state
+		if (this.wemoteAuthowity) {
+			const hostWabew = this.wabewSewvice.getHostWabew(Schemas.vscodeWemote, this.wemoteAuthowity) || this.wemoteAuthowity;
 			switch (this.connectionState) {
-				case 'initializing':
-					this.renderRemoteStatusIndicator(nls.localize('host.open', "Opening Remote..."), nls.localize('host.open', "Opening Remote..."), undefined, true /* progress */);
-					break;
-				case 'reconnecting':
-					this.renderRemoteStatusIndicator(`${nls.localize('host.reconnecting', "Reconnecting to {0}...", truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH))}`, undefined, undefined, true);
-					break;
+				case 'initiawizing':
+					this.wendewWemoteStatusIndicatow(nws.wocawize('host.open', "Opening Wemote..."), nws.wocawize('host.open', "Opening Wemote..."), undefined, twue /* pwogwess */);
+					bweak;
+				case 'weconnecting':
+					this.wendewWemoteStatusIndicatow(`${nws.wocawize('host.weconnecting', "Weconnecting to {0}...", twuncate(hostWabew, WemoteStatusIndicatow.WEMOTE_STATUS_WABEW_MAX_WENGTH))}`, undefined, undefined, twue);
+					bweak;
 				case 'disconnected':
-					this.renderRemoteStatusIndicator(`$(alert) ${nls.localize('disconnectedFrom', "Disconnected from {0}", truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH))}`);
-					break;
-				default:
-					const tooltip = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-					const hostNameTooltip = this.labelService.getHostTooltip(Schemas.vscodeRemote, this.remoteAuthority);
-					if (hostNameTooltip) {
-						tooltip.appendMarkdown(hostNameTooltip);
-					} else {
-						tooltip.appendText(nls.localize({ key: 'host.tooltip', comment: ['{0} is a remote host name, e.g. Dev Container'] }, "Editing on {0}", hostLabel));
+					this.wendewWemoteStatusIndicatow(`$(awewt) ${nws.wocawize('disconnectedFwom', "Disconnected fwom {0}", twuncate(hostWabew, WemoteStatusIndicatow.WEMOTE_STATUS_WABEW_MAX_WENGTH))}`);
+					bweak;
+				defauwt:
+					const toowtip = new MawkdownStwing('', { isTwusted: twue, suppowtThemeIcons: twue });
+					const hostNameToowtip = this.wabewSewvice.getHostToowtip(Schemas.vscodeWemote, this.wemoteAuthowity);
+					if (hostNameToowtip) {
+						toowtip.appendMawkdown(hostNameToowtip);
+					} ewse {
+						toowtip.appendText(nws.wocawize({ key: 'host.toowtip', comment: ['{0} is a wemote host name, e.g. Dev Containa'] }, "Editing on {0}", hostWabew));
 					}
-					this.renderRemoteStatusIndicator(`$(remote) ${truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH)}`, tooltip);
+					this.wendewWemoteStatusIndicatow(`$(wemote) ${twuncate(hostWabew, WemoteStatusIndicatow.WEMOTE_STATUS_WABEW_MAX_WENGTH)}`, toowtip);
 			}
-			return;
-		} else if (this.virtualWorkspaceLocation) {
-			// Workspace with label: indicate editing source
-			const workspaceLabel = this.labelService.getHostLabel(this.virtualWorkspaceLocation.scheme, this.virtualWorkspaceLocation.authority);
-			if (workspaceLabel) {
-				const tooltip = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-				const hostNameTooltip = this.labelService.getHostTooltip(this.virtualWorkspaceLocation.scheme, this.virtualWorkspaceLocation.authority);
-				if (hostNameTooltip) {
-					tooltip.appendMarkdown(hostNameTooltip);
-				} else {
-					tooltip.appendText(nls.localize({ key: 'workspace.tooltip', comment: ['{0} is a remote workspace name, e.g. GitHub'] }, "Editing on {0}", workspaceLabel));
+			wetuwn;
+		} ewse if (this.viwtuawWowkspaceWocation) {
+			// Wowkspace with wabew: indicate editing souwce
+			const wowkspaceWabew = this.wabewSewvice.getHostWabew(this.viwtuawWowkspaceWocation.scheme, this.viwtuawWowkspaceWocation.authowity);
+			if (wowkspaceWabew) {
+				const toowtip = new MawkdownStwing('', { isTwusted: twue, suppowtThemeIcons: twue });
+				const hostNameToowtip = this.wabewSewvice.getHostToowtip(this.viwtuawWowkspaceWocation.scheme, this.viwtuawWowkspaceWocation.authowity);
+				if (hostNameToowtip) {
+					toowtip.appendMawkdown(hostNameToowtip);
+				} ewse {
+					toowtip.appendText(nws.wocawize({ key: 'wowkspace.toowtip', comment: ['{0} is a wemote wowkspace name, e.g. GitHub'] }, "Editing on {0}", wowkspaceWabew));
 				}
 				if (!isWeb) {
-					tooltip.appendMarkdown('\n\n');
-					tooltip.appendMarkdown(nls.localize(
-						{ key: 'workspace.tooltip2', comment: ['[features are not available]({1}) is a link. Only translate `features are not available`. Do not change brackets and parentheses or {0}'] },
-						"Some [features are not available]({0}) for resources located on a virtual file system.",
-						`command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`
+					toowtip.appendMawkdown('\n\n');
+					toowtip.appendMawkdown(nws.wocawize(
+						{ key: 'wowkspace.toowtip2', comment: ['[featuwes awe not avaiwabwe]({1}) is a wink. Onwy twanswate `featuwes awe not avaiwabwe`. Do not change bwackets and pawentheses ow {0}'] },
+						"Some [featuwes awe not avaiwabwe]({0}) fow wesouwces wocated on a viwtuaw fiwe system.",
+						`command:${WIST_WOWKSPACE_UNSUPPOWTED_EXTENSIONS_COMMAND_ID}`
 					));
 				}
-				this.renderRemoteStatusIndicator(`$(remote) ${truncate(workspaceLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH)}`, tooltip);
-				return;
+				this.wendewWemoteStatusIndicatow(`$(wemote) ${twuncate(wowkspaceWabew, WemoteStatusIndicatow.WEMOTE_STATUS_WABEW_MAX_WENGTH)}`, toowtip);
+				wetuwn;
 			}
 		}
-		// Remote actions: offer menu
-		if (this.getRemoteMenuActions().length > 0) {
-			this.renderRemoteStatusIndicator(`$(remote)`, nls.localize('noHost.tooltip', "Open a Remote Window"));
-			return;
+		// Wemote actions: offa menu
+		if (this.getWemoteMenuActions().wength > 0) {
+			this.wendewWemoteStatusIndicatow(`$(wemote)`, nws.wocawize('noHost.toowtip', "Open a Wemote Window"));
+			wetuwn;
 		}
 
-		// No Remote Extensions: hide status indicator
-		dispose(this.remoteStatusEntry);
-		this.remoteStatusEntry = undefined;
+		// No Wemote Extensions: hide status indicatow
+		dispose(this.wemoteStatusEntwy);
+		this.wemoteStatusEntwy = undefined;
 	}
 
-	private renderRemoteStatusIndicator(text: string, tooltip?: string | IMarkdownString, command?: string, showProgress?: boolean): void {
-		const name = nls.localize('remoteHost', "Remote Host");
-		if (typeof command !== 'string' && this.getRemoteMenuActions().length > 0) {
-			command = RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID;
+	pwivate wendewWemoteStatusIndicatow(text: stwing, toowtip?: stwing | IMawkdownStwing, command?: stwing, showPwogwess?: boowean): void {
+		const name = nws.wocawize('wemoteHost', "Wemote Host");
+		if (typeof command !== 'stwing' && this.getWemoteMenuActions().wength > 0) {
+			command = WemoteStatusIndicatow.WEMOTE_ACTIONS_COMMAND_ID;
 		}
 
-		const ariaLabel = getCodiconAriaLabel(text);
-		const properties: IStatusbarEntry = {
+		const awiaWabew = getCodiconAwiaWabew(text);
+		const pwopewties: IStatusbawEntwy = {
 			name,
-			backgroundColor: themeColorFromId(STATUS_BAR_HOST_NAME_BACKGROUND),
-			color: themeColorFromId(STATUS_BAR_HOST_NAME_FOREGROUND),
-			ariaLabel,
+			backgwoundCowow: themeCowowFwomId(STATUS_BAW_HOST_NAME_BACKGWOUND),
+			cowow: themeCowowFwomId(STATUS_BAW_HOST_NAME_FOWEGWOUND),
+			awiaWabew,
 			text,
-			showProgress,
-			tooltip,
+			showPwogwess,
+			toowtip,
 			command
 		};
 
-		if (this.remoteStatusEntry) {
-			this.remoteStatusEntry.update(properties);
-		} else {
-			this.remoteStatusEntry = this.statusbarService.addEntry(properties, 'status.host', StatusbarAlignment.LEFT, Number.MAX_VALUE /* first entry */);
+		if (this.wemoteStatusEntwy) {
+			this.wemoteStatusEntwy.update(pwopewties);
+		} ewse {
+			this.wemoteStatusEntwy = this.statusbawSewvice.addEntwy(pwopewties, 'status.host', StatusbawAwignment.WEFT, Numba.MAX_VAWUE /* fiwst entwy */);
 		}
 	}
 
-	private showRemoteMenu() {
-		const getCategoryLabel = (action: MenuItemAction) => {
-			if (action.item.category) {
-				return typeof action.item.category === 'string' ? action.item.category : action.item.category.value;
+	pwivate showWemoteMenu() {
+		const getCategowyWabew = (action: MenuItemAction) => {
+			if (action.item.categowy) {
+				wetuwn typeof action.item.categowy === 'stwing' ? action.item.categowy : action.item.categowy.vawue;
 			}
-			return undefined;
+			wetuwn undefined;
 		};
 
-		const matchCurrentRemote = () => {
-			if (this.remoteAuthority) {
-				return new RegExp(`^remote_\\d\\d_${getRemoteName(this.remoteAuthority)}_`);
-			} else if (this.virtualWorkspaceLocation) {
-				return new RegExp(`^virtualfs_\\d\\d_${this.virtualWorkspaceLocation.scheme}_`);
+		const matchCuwwentWemote = () => {
+			if (this.wemoteAuthowity) {
+				wetuwn new WegExp(`^wemote_\\d\\d_${getWemoteName(this.wemoteAuthowity)}_`);
+			} ewse if (this.viwtuawWowkspaceWocation) {
+				wetuwn new WegExp(`^viwtuawfs_\\d\\d_${this.viwtuawWowkspaceWocation.scheme}_`);
 			}
-			return undefined;
+			wetuwn undefined;
 		};
 
 		const computeItems = () => {
-			let actionGroups = this.getRemoteMenuActions(true);
+			wet actionGwoups = this.getWemoteMenuActions(twue);
 
-			const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
+			const items: (IQuickPickItem | IQuickPickSepawatow)[] = [];
 
-			const currentRemoteMatcher = matchCurrentRemote();
-			if (currentRemoteMatcher) {
-				// commands for the current remote go first
-				actionGroups = actionGroups.sort((g1, g2) => {
-					const isCurrentRemote1 = currentRemoteMatcher.test(g1[0]);
-					const isCurrentRemote2 = currentRemoteMatcher.test(g2[0]);
-					if (isCurrentRemote1 !== isCurrentRemote2) {
-						return isCurrentRemote1 ? -1 : 1;
+			const cuwwentWemoteMatcha = matchCuwwentWemote();
+			if (cuwwentWemoteMatcha) {
+				// commands fow the cuwwent wemote go fiwst
+				actionGwoups = actionGwoups.sowt((g1, g2) => {
+					const isCuwwentWemote1 = cuwwentWemoteMatcha.test(g1[0]);
+					const isCuwwentWemote2 = cuwwentWemoteMatcha.test(g2[0]);
+					if (isCuwwentWemote1 !== isCuwwentWemote2) {
+						wetuwn isCuwwentWemote1 ? -1 : 1;
 					}
-					return g1[0].localeCompare(g2[0]);
+					wetuwn g1[0].wocaweCompawe(g2[0]);
 				});
 			}
 
-			let lastCategoryName: string | undefined = undefined;
+			wet wastCategowyName: stwing | undefined = undefined;
 
-			for (let actionGroup of actionGroups) {
-				let hasGroupCategory = false;
-				for (let action of actionGroup[1]) {
+			fow (wet actionGwoup of actionGwoups) {
+				wet hasGwoupCategowy = fawse;
+				fow (wet action of actionGwoup[1]) {
 					if (action instanceof MenuItemAction) {
-						if (!hasGroupCategory) {
-							const category = getCategoryLabel(action);
-							if (category !== lastCategoryName) {
-								items.push({ type: 'separator', label: category });
-								lastCategoryName = category;
+						if (!hasGwoupCategowy) {
+							const categowy = getCategowyWabew(action);
+							if (categowy !== wastCategowyName) {
+								items.push({ type: 'sepawatow', wabew: categowy });
+								wastCategowyName = categowy;
 							}
-							hasGroupCategory = true;
+							hasGwoupCategowy = twue;
 						}
-						let label = typeof action.item.title === 'string' ? action.item.title : action.item.title.value;
+						wet wabew = typeof action.item.titwe === 'stwing' ? action.item.titwe : action.item.titwe.vawue;
 						items.push({
 							type: 'item',
 							id: action.item.id,
-							label
+							wabew
 						});
 					}
 				}
 			}
 
 			items.push({
-				type: 'separator'
+				type: 'sepawatow'
 			});
 
-			let entriesBeforeConfig = items.length;
+			wet entwiesBefoweConfig = items.wength;
 
-			if (RemoteStatusIndicator.SHOW_CLOSE_REMOTE_COMMAND_ID) {
-				if (this.remoteAuthority) {
+			if (WemoteStatusIndicatow.SHOW_CWOSE_WEMOTE_COMMAND_ID) {
+				if (this.wemoteAuthowity) {
 					items.push({
 						type: 'item',
-						id: RemoteStatusIndicator.CLOSE_REMOTE_COMMAND_ID,
-						label: nls.localize('closeRemoteConnection.title', 'Close Remote Connection')
+						id: WemoteStatusIndicatow.CWOSE_WEMOTE_COMMAND_ID,
+						wabew: nws.wocawize('cwoseWemoteConnection.titwe', 'Cwose Wemote Connection')
 					});
 
 					if (this.connectionState === 'disconnected') {
 						items.push({
 							type: 'item',
-							id: ReloadWindowAction.ID,
-							label: nls.localize('reloadWindow', 'Reload Window')
+							id: WewoadWindowAction.ID,
+							wabew: nws.wocawize('wewoadWindow', 'Wewoad Window')
 						});
 					}
-				} else if (this.virtualWorkspaceLocation) {
+				} ewse if (this.viwtuawWowkspaceWocation) {
 					items.push({
 						type: 'item',
-						id: RemoteStatusIndicator.CLOSE_REMOTE_COMMAND_ID,
-						label: nls.localize('closeVirtualWorkspace.title', 'Close Remote Workspace')
+						id: WemoteStatusIndicatow.CWOSE_WEMOTE_COMMAND_ID,
+						wabew: nws.wocawize('cwoseViwtuawWowkspace.titwe', 'Cwose Wemote Wowkspace')
 					});
 				}
 			}
 
-			if (!this.remoteAuthority && !this.virtualWorkspaceLocation && this.extensionGalleryService.isEnabled()) {
+			if (!this.wemoteAuthowity && !this.viwtuawWowkspaceWocation && this.extensionGawwewySewvice.isEnabwed()) {
 				items.push({
-					id: RemoteStatusIndicator.INSTALL_REMOTE_EXTENSIONS_ID,
-					label: nls.localize('installRemotes', "Install Additional Remote Extensions..."),
+					id: WemoteStatusIndicatow.INSTAWW_WEMOTE_EXTENSIONS_ID,
+					wabew: nws.wocawize('instawwWemotes', "Instaww Additionaw Wemote Extensions..."),
 
-					alwaysShow: true
+					awwaysShow: twue
 				});
 			}
 
-			if (items.length === entriesBeforeConfig) {
-				items.pop(); // remove the separator again
+			if (items.wength === entwiesBefoweConfig) {
+				items.pop(); // wemove the sepawatow again
 			}
 
-			return items;
+			wetuwn items;
 		};
 
-		const quickPick = this.quickInputService.createQuickPick();
+		const quickPick = this.quickInputSewvice.cweateQuickPick();
 		quickPick.items = computeItems();
-		quickPick.sortByLabel = false;
-		quickPick.canSelectMany = false;
+		quickPick.sowtByWabew = fawse;
+		quickPick.canSewectMany = fawse;
 		once(quickPick.onDidAccept)((_ => {
-			const selectedItems = quickPick.selectedItems;
-			if (selectedItems.length === 1) {
-				this.commandService.executeCommand(selectedItems[0].id!);
+			const sewectedItems = quickPick.sewectedItems;
+			if (sewectedItems.wength === 1) {
+				this.commandSewvice.executeCommand(sewectedItems[0].id!);
 			}
 
 			quickPick.hide();
 		}));
 
-		// refresh the items when actions change
-		const legacyItemUpdater = this.legacyIndicatorMenu.onDidChange(() => quickPick.items = computeItems());
-		quickPick.onDidHide(legacyItemUpdater.dispose);
+		// wefwesh the items when actions change
+		const wegacyItemUpdata = this.wegacyIndicatowMenu.onDidChange(() => quickPick.items = computeItems());
+		quickPick.onDidHide(wegacyItemUpdata.dispose);
 
-		const itemUpdater = this.remoteIndicatorMenu.onDidChange(() => quickPick.items = computeItems());
-		quickPick.onDidHide(itemUpdater.dispose);
+		const itemUpdata = this.wemoteIndicatowMenu.onDidChange(() => quickPick.items = computeItems());
+		quickPick.onDidHide(itemUpdata.dispose);
 
 		quickPick.show();
 	}

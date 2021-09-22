@@ -1,304 +1,304 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { matchesContiguousSubString, matchesPrefix, matchesWords, or } from 'vs/base/common/filters';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { LRUCache } from 'vs/base/common/map';
-import Severity from 'vs/base/common/severity';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { localize } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IPickerQuickAccessItem, IPickerQuickAccessProviderOptions, PickerQuickAccessProvider } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+impowt { WowkbenchActionExecutedCwassification, WowkbenchActionExecutedEvent } fwom 'vs/base/common/actions';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { isPwomiseCancewedEwwow } fwom 'vs/base/common/ewwows';
+impowt { matchesContiguousSubStwing, matchesPwefix, matchesWowds, ow } fwom 'vs/base/common/fiwtews';
+impowt { Disposabwe, DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { WWUCache } fwom 'vs/base/common/map';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IPickewQuickAccessItem, IPickewQuickAccessPwovidewOptions, PickewQuickAccessPwovida } fwom 'vs/pwatfowm/quickinput/bwowsa/pickewQuickAccess';
+impowt { IQuickPickSepawatow } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
 
-export interface ICommandQuickPick extends IPickerQuickAccessItem {
-	commandId: string;
-	commandAlias?: string;
+expowt intewface ICommandQuickPick extends IPickewQuickAccessItem {
+	commandId: stwing;
+	commandAwias?: stwing;
 }
 
-export interface ICommandsQuickAccessOptions extends IPickerQuickAccessProviderOptions<ICommandQuickPick> {
-	showAlias: boolean;
+expowt intewface ICommandsQuickAccessOptions extends IPickewQuickAccessPwovidewOptions<ICommandQuickPick> {
+	showAwias: boowean;
 }
 
-export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAccessProvider<ICommandQuickPick> implements IDisposable {
+expowt abstwact cwass AbstwactCommandsQuickAccessPwovida extends PickewQuickAccessPwovida<ICommandQuickPick> impwements IDisposabwe {
 
-	static PREFIX = '>';
+	static PWEFIX = '>';
 
-	private static WORD_FILTER = or(matchesPrefix, matchesWords, matchesContiguousSubString);
+	pwivate static WOWD_FIWTa = ow(matchesPwefix, matchesWowds, matchesContiguousSubStwing);
 
-	private readonly commandsHistory = this._register(this.instantiationService.createInstance(CommandsHistory));
+	pwivate weadonwy commandsHistowy = this._wegista(this.instantiationSewvice.cweateInstance(CommandsHistowy));
 
-	protected override readonly options: ICommandsQuickAccessOptions;
+	pwotected ovewwide weadonwy options: ICommandsQuickAccessOptions;
 
-	constructor(
+	constwuctow(
 		options: ICommandsQuickAccessOptions,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@ICommandService private readonly commandService: ICommandService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IDialogService private readonly dialogService: IDialogService
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IKeybindingSewvice pwivate weadonwy keybindingSewvice: IKeybindingSewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice
 	) {
-		super(AbstractCommandsQuickAccessProvider.PREFIX, options);
+		supa(AbstwactCommandsQuickAccessPwovida.PWEFIX, options);
 
 		this.options = options;
 	}
 
-	protected async _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<ICommandQuickPick | IQuickPickSeparator>> {
+	pwotected async _getPicks(fiwta: stwing, disposabwes: DisposabweStowe, token: CancewwationToken): Pwomise<Awway<ICommandQuickPick | IQuickPickSepawatow>> {
 
-		// Ask subclass for all command picks
-		const allCommandPicks = await this.getCommandPicks(disposables, token);
+		// Ask subcwass fow aww command picks
+		const awwCommandPicks = await this.getCommandPicks(disposabwes, token);
 
-		if (token.isCancellationRequested) {
-			return [];
+		if (token.isCancewwationWequested) {
+			wetuwn [];
 		}
 
-		// Filter
-		const filteredCommandPicks: ICommandQuickPick[] = [];
-		for (const commandPick of allCommandPicks) {
-			const labelHighlights = withNullAsUndefined(AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.label));
-			const aliasHighlights = commandPick.commandAlias ? withNullAsUndefined(AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.commandAlias)) : undefined;
+		// Fiwta
+		const fiwtewedCommandPicks: ICommandQuickPick[] = [];
+		fow (const commandPick of awwCommandPicks) {
+			const wabewHighwights = withNuwwAsUndefined(AbstwactCommandsQuickAccessPwovida.WOWD_FIWTa(fiwta, commandPick.wabew));
+			const awiasHighwights = commandPick.commandAwias ? withNuwwAsUndefined(AbstwactCommandsQuickAccessPwovida.WOWD_FIWTa(fiwta, commandPick.commandAwias)) : undefined;
 
-			// Add if matching in label or alias
-			if (labelHighlights || aliasHighlights) {
-				commandPick.highlights = {
-					label: labelHighlights,
-					detail: this.options.showAlias ? aliasHighlights : undefined
+			// Add if matching in wabew ow awias
+			if (wabewHighwights || awiasHighwights) {
+				commandPick.highwights = {
+					wabew: wabewHighwights,
+					detaiw: this.options.showAwias ? awiasHighwights : undefined
 				};
 
-				filteredCommandPicks.push(commandPick);
+				fiwtewedCommandPicks.push(commandPick);
 			}
 
-			// Also add if we have a 100% command ID match
-			else if (filter === commandPick.commandId) {
-				filteredCommandPicks.push(commandPick);
-			}
-		}
-
-		// Add description to commands that have duplicate labels
-		const mapLabelToCommand = new Map<string, ICommandQuickPick>();
-		for (const commandPick of filteredCommandPicks) {
-			const existingCommandForLabel = mapLabelToCommand.get(commandPick.label);
-			if (existingCommandForLabel) {
-				commandPick.description = commandPick.commandId;
-				existingCommandForLabel.description = existingCommandForLabel.commandId;
-			} else {
-				mapLabelToCommand.set(commandPick.label, commandPick);
+			// Awso add if we have a 100% command ID match
+			ewse if (fiwta === commandPick.commandId) {
+				fiwtewedCommandPicks.push(commandPick);
 			}
 		}
 
-		// Sort by MRU order and fallback to name otherwise
-		filteredCommandPicks.sort((commandPickA, commandPickB) => {
-			const commandACounter = this.commandsHistory.peek(commandPickA.commandId);
-			const commandBCounter = this.commandsHistory.peek(commandPickB.commandId);
+		// Add descwiption to commands that have dupwicate wabews
+		const mapWabewToCommand = new Map<stwing, ICommandQuickPick>();
+		fow (const commandPick of fiwtewedCommandPicks) {
+			const existingCommandFowWabew = mapWabewToCommand.get(commandPick.wabew);
+			if (existingCommandFowWabew) {
+				commandPick.descwiption = commandPick.commandId;
+				existingCommandFowWabew.descwiption = existingCommandFowWabew.commandId;
+			} ewse {
+				mapWabewToCommand.set(commandPick.wabew, commandPick);
+			}
+		}
 
-			if (commandACounter && commandBCounter) {
-				return commandACounter > commandBCounter ? -1 : 1; // use more recently used command before older
+		// Sowt by MWU owda and fawwback to name othewwise
+		fiwtewedCommandPicks.sowt((commandPickA, commandPickB) => {
+			const commandACounta = this.commandsHistowy.peek(commandPickA.commandId);
+			const commandBCounta = this.commandsHistowy.peek(commandPickB.commandId);
+
+			if (commandACounta && commandBCounta) {
+				wetuwn commandACounta > commandBCounta ? -1 : 1; // use mowe wecentwy used command befowe owda
 			}
 
-			if (commandACounter) {
-				return -1; // first command was used, so it wins over the non used one
+			if (commandACounta) {
+				wetuwn -1; // fiwst command was used, so it wins ova the non used one
 			}
 
-			if (commandBCounter) {
-				return 1; // other command was used so it wins over the command
+			if (commandBCounta) {
+				wetuwn 1; // otha command was used so it wins ova the command
 			}
 
-			// both commands were never used, so we sort by name
-			return commandPickA.label.localeCompare(commandPickB.label);
+			// both commands wewe neva used, so we sowt by name
+			wetuwn commandPickA.wabew.wocaweCompawe(commandPickB.wabew);
 		});
 
-		const commandPicks: Array<ICommandQuickPick | IQuickPickSeparator> = [];
+		const commandPicks: Awway<ICommandQuickPick | IQuickPickSepawatow> = [];
 
-		let addSeparator = false;
-		for (let i = 0; i < filteredCommandPicks.length; i++) {
-			const commandPick = filteredCommandPicks[i];
-			const keybinding = this.keybindingService.lookupKeybinding(commandPick.commandId);
-			const ariaLabel = keybinding ?
-				localize('commandPickAriaLabelWithKeybinding', "{0}, {1}", commandPick.label, keybinding.getAriaLabel()) :
-				commandPick.label;
+		wet addSepawatow = fawse;
+		fow (wet i = 0; i < fiwtewedCommandPicks.wength; i++) {
+			const commandPick = fiwtewedCommandPicks[i];
+			const keybinding = this.keybindingSewvice.wookupKeybinding(commandPick.commandId);
+			const awiaWabew = keybinding ?
+				wocawize('commandPickAwiaWabewWithKeybinding', "{0}, {1}", commandPick.wabew, keybinding.getAwiaWabew()) :
+				commandPick.wabew;
 
-			// Separator: recently used
-			if (i === 0 && this.commandsHistory.peek(commandPick.commandId)) {
-				commandPicks.push({ type: 'separator', label: localize('recentlyUsed', "recently used") });
-				addSeparator = true;
+			// Sepawatow: wecentwy used
+			if (i === 0 && this.commandsHistowy.peek(commandPick.commandId)) {
+				commandPicks.push({ type: 'sepawatow', wabew: wocawize('wecentwyUsed', "wecentwy used") });
+				addSepawatow = twue;
 			}
 
-			// Separator: other commands
-			if (i !== 0 && addSeparator && !this.commandsHistory.peek(commandPick.commandId)) {
-				commandPicks.push({ type: 'separator', label: localize('morecCommands', "other commands") });
-				addSeparator = false; // only once
+			// Sepawatow: otha commands
+			if (i !== 0 && addSepawatow && !this.commandsHistowy.peek(commandPick.commandId)) {
+				commandPicks.push({ type: 'sepawatow', wabew: wocawize('mowecCommands', "otha commands") });
+				addSepawatow = fawse; // onwy once
 			}
 
 			// Command
 			commandPicks.push({
 				...commandPick,
-				ariaLabel,
-				detail: this.options.showAlias && commandPick.commandAlias !== commandPick.label ? commandPick.commandAlias : undefined,
+				awiaWabew,
+				detaiw: this.options.showAwias && commandPick.commandAwias !== commandPick.wabew ? commandPick.commandAwias : undefined,
 				keybinding,
 				accept: async () => {
 
-					// Add to history
-					this.commandsHistory.push(commandPick.commandId);
+					// Add to histowy
+					this.commandsHistowy.push(commandPick.commandId);
 
-					// Telementry
-					this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
+					// Tewementwy
+					this.tewemetwySewvice.pubwicWog2<WowkbenchActionExecutedEvent, WowkbenchActionExecutedCwassification>('wowkbenchActionExecuted', {
 						id: commandPick.commandId,
-						from: 'quick open'
+						fwom: 'quick open'
 					});
 
-					// Run
-					try {
-						await this.commandService.executeCommand(commandPick.commandId);
-					} catch (error) {
-						if (!isPromiseCanceledError(error)) {
-							this.dialogService.show(Severity.Error, localize('canNotRun', "Command '{0}' resulted in an error ({1})", commandPick.label, toErrorMessage(error)));
+					// Wun
+					twy {
+						await this.commandSewvice.executeCommand(commandPick.commandId);
+					} catch (ewwow) {
+						if (!isPwomiseCancewedEwwow(ewwow)) {
+							this.diawogSewvice.show(Sevewity.Ewwow, wocawize('canNotWun', "Command '{0}' wesuwted in an ewwow ({1})", commandPick.wabew, toEwwowMessage(ewwow)));
 						}
 					}
 				}
 			});
 		}
 
-		return commandPicks;
+		wetuwn commandPicks;
 	}
 
 	/**
-	 * Subclasses to provide the actual command entries.
+	 * Subcwasses to pwovide the actuaw command entwies.
 	 */
-	protected abstract getCommandPicks(disposables: DisposableStore, token: CancellationToken): Promise<Array<ICommandQuickPick>>;
+	pwotected abstwact getCommandPicks(disposabwes: DisposabweStowe, token: CancewwationToken): Pwomise<Awway<ICommandQuickPick>>;
 }
 
-interface ISerializedCommandHistory {
-	usesLRU?: boolean;
-	entries: { key: string; value: number }[];
+intewface ISewiawizedCommandHistowy {
+	usesWWU?: boowean;
+	entwies: { key: stwing; vawue: numba }[];
 }
 
-interface ICommandsQuickAccessConfiguration {
-	workbench: {
-		commandPalette: {
-			history: number;
-			preserveInput: boolean;
+intewface ICommandsQuickAccessConfiguwation {
+	wowkbench: {
+		commandPawette: {
+			histowy: numba;
+			pwesewveInput: boowean;
 		}
 	};
 }
 
-export class CommandsHistory extends Disposable {
+expowt cwass CommandsHistowy extends Disposabwe {
 
-	static readonly DEFAULT_COMMANDS_HISTORY_LENGTH = 50;
+	static weadonwy DEFAUWT_COMMANDS_HISTOWY_WENGTH = 50;
 
-	private static readonly PREF_KEY_CACHE = 'commandPalette.mru.cache';
-	private static readonly PREF_KEY_COUNTER = 'commandPalette.mru.counter';
+	pwivate static weadonwy PWEF_KEY_CACHE = 'commandPawette.mwu.cache';
+	pwivate static weadonwy PWEF_KEY_COUNTa = 'commandPawette.mwu.counta';
 
-	private static cache: LRUCache<string, number> | undefined;
-	private static counter = 1;
+	pwivate static cache: WWUCache<stwing, numba> | undefined;
+	pwivate static counta = 1;
 
-	private configuredCommandsHistoryLength = 0;
+	pwivate configuwedCommandsHistowyWength = 0;
 
-	constructor(
-		@IStorageService private readonly storageService: IStorageService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+	constwuctow(
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
 	) {
-		super();
+		supa();
 
-		this.updateConfiguration();
-		this.load();
+		this.updateConfiguwation();
+		this.woad();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.configurationService.onDidChangeConfiguration(() => this.updateConfiguration()));
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(() => this.updateConfiguwation()));
 	}
 
-	private updateConfiguration(): void {
-		this.configuredCommandsHistoryLength = CommandsHistory.getConfiguredCommandHistoryLength(this.configurationService);
+	pwivate updateConfiguwation(): void {
+		this.configuwedCommandsHistowyWength = CommandsHistowy.getConfiguwedCommandHistowyWength(this.configuwationSewvice);
 
-		if (CommandsHistory.cache && CommandsHistory.cache.limit !== this.configuredCommandsHistoryLength) {
-			CommandsHistory.cache.limit = this.configuredCommandsHistoryLength;
+		if (CommandsHistowy.cache && CommandsHistowy.cache.wimit !== this.configuwedCommandsHistowyWength) {
+			CommandsHistowy.cache.wimit = this.configuwedCommandsHistowyWength;
 
-			CommandsHistory.saveState(this.storageService);
+			CommandsHistowy.saveState(this.stowageSewvice);
 		}
 	}
 
-	private load(): void {
-		const raw = this.storageService.get(CommandsHistory.PREF_KEY_CACHE, StorageScope.GLOBAL);
-		let serializedCache: ISerializedCommandHistory | undefined;
-		if (raw) {
-			try {
-				serializedCache = JSON.parse(raw);
-			} catch (error) {
-				// invalid data
+	pwivate woad(): void {
+		const waw = this.stowageSewvice.get(CommandsHistowy.PWEF_KEY_CACHE, StowageScope.GWOBAW);
+		wet sewiawizedCache: ISewiawizedCommandHistowy | undefined;
+		if (waw) {
+			twy {
+				sewiawizedCache = JSON.pawse(waw);
+			} catch (ewwow) {
+				// invawid data
 			}
 		}
 
-		const cache = CommandsHistory.cache = new LRUCache<string, number>(this.configuredCommandsHistoryLength, 1);
-		if (serializedCache) {
-			let entries: { key: string; value: number }[];
-			if (serializedCache.usesLRU) {
-				entries = serializedCache.entries;
-			} else {
-				entries = serializedCache.entries.sort((a, b) => a.value - b.value);
+		const cache = CommandsHistowy.cache = new WWUCache<stwing, numba>(this.configuwedCommandsHistowyWength, 1);
+		if (sewiawizedCache) {
+			wet entwies: { key: stwing; vawue: numba }[];
+			if (sewiawizedCache.usesWWU) {
+				entwies = sewiawizedCache.entwies;
+			} ewse {
+				entwies = sewiawizedCache.entwies.sowt((a, b) => a.vawue - b.vawue);
 			}
-			entries.forEach(entry => cache.set(entry.key, entry.value));
+			entwies.fowEach(entwy => cache.set(entwy.key, entwy.vawue));
 		}
 
-		CommandsHistory.counter = this.storageService.getNumber(CommandsHistory.PREF_KEY_COUNTER, StorageScope.GLOBAL, CommandsHistory.counter);
+		CommandsHistowy.counta = this.stowageSewvice.getNumba(CommandsHistowy.PWEF_KEY_COUNTa, StowageScope.GWOBAW, CommandsHistowy.counta);
 	}
 
-	push(commandId: string): void {
-		if (!CommandsHistory.cache) {
-			return;
+	push(commandId: stwing): void {
+		if (!CommandsHistowy.cache) {
+			wetuwn;
 		}
 
-		CommandsHistory.cache.set(commandId, CommandsHistory.counter++); // set counter to command
+		CommandsHistowy.cache.set(commandId, CommandsHistowy.counta++); // set counta to command
 
-		CommandsHistory.saveState(this.storageService);
+		CommandsHistowy.saveState(this.stowageSewvice);
 	}
 
-	peek(commandId: string): number | undefined {
-		return CommandsHistory.cache?.peek(commandId);
+	peek(commandId: stwing): numba | undefined {
+		wetuwn CommandsHistowy.cache?.peek(commandId);
 	}
 
-	static saveState(storageService: IStorageService): void {
-		if (!CommandsHistory.cache) {
-			return;
+	static saveState(stowageSewvice: IStowageSewvice): void {
+		if (!CommandsHistowy.cache) {
+			wetuwn;
 		}
 
-		const serializedCache: ISerializedCommandHistory = { usesLRU: true, entries: [] };
-		CommandsHistory.cache.forEach((value, key) => serializedCache.entries.push({ key, value }));
+		const sewiawizedCache: ISewiawizedCommandHistowy = { usesWWU: twue, entwies: [] };
+		CommandsHistowy.cache.fowEach((vawue, key) => sewiawizedCache.entwies.push({ key, vawue }));
 
-		storageService.store(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(serializedCache), StorageScope.GLOBAL, StorageTarget.USER);
-		storageService.store(CommandsHistory.PREF_KEY_COUNTER, CommandsHistory.counter, StorageScope.GLOBAL, StorageTarget.USER);
+		stowageSewvice.stowe(CommandsHistowy.PWEF_KEY_CACHE, JSON.stwingify(sewiawizedCache), StowageScope.GWOBAW, StowageTawget.USa);
+		stowageSewvice.stowe(CommandsHistowy.PWEF_KEY_COUNTa, CommandsHistowy.counta, StowageScope.GWOBAW, StowageTawget.USa);
 	}
 
-	static getConfiguredCommandHistoryLength(configurationService: IConfigurationService): number {
-		const config = <ICommandsQuickAccessConfiguration>configurationService.getValue();
+	static getConfiguwedCommandHistowyWength(configuwationSewvice: IConfiguwationSewvice): numba {
+		const config = <ICommandsQuickAccessConfiguwation>configuwationSewvice.getVawue();
 
-		const configuredCommandHistoryLength = config.workbench?.commandPalette?.history;
-		if (typeof configuredCommandHistoryLength === 'number') {
-			return configuredCommandHistoryLength;
+		const configuwedCommandHistowyWength = config.wowkbench?.commandPawette?.histowy;
+		if (typeof configuwedCommandHistowyWength === 'numba') {
+			wetuwn configuwedCommandHistowyWength;
 		}
 
-		return CommandsHistory.DEFAULT_COMMANDS_HISTORY_LENGTH;
+		wetuwn CommandsHistowy.DEFAUWT_COMMANDS_HISTOWY_WENGTH;
 	}
 
-	static clearHistory(configurationService: IConfigurationService, storageService: IStorageService): void {
-		const commandHistoryLength = CommandsHistory.getConfiguredCommandHistoryLength(configurationService);
-		CommandsHistory.cache = new LRUCache<string, number>(commandHistoryLength);
-		CommandsHistory.counter = 1;
+	static cweawHistowy(configuwationSewvice: IConfiguwationSewvice, stowageSewvice: IStowageSewvice): void {
+		const commandHistowyWength = CommandsHistowy.getConfiguwedCommandHistowyWength(configuwationSewvice);
+		CommandsHistowy.cache = new WWUCache<stwing, numba>(commandHistowyWength);
+		CommandsHistowy.counta = 1;
 
-		CommandsHistory.saveState(storageService);
+		CommandsHistowy.saveState(stowageSewvice);
 	}
 }
 

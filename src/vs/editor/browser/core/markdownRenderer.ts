@@ -1,108 +1,108 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { renderMarkdown, MarkdownRenderOptions, MarkedOptions } from 'vs/base/browser/markdownRenderer';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Emitter } from 'vs/base/common/event';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { URI } from 'vs/base/common/uri';
+impowt { IMawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { wendewMawkdown, MawkdownWendewOptions, MawkedOptions } fwom 'vs/base/bwowsa/mawkdownWendewa';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { tokenizeToStwing } fwom 'vs/editow/common/modes/textToHtmwTokeniza';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { IDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { ITokenizationSuppowt, TokenizationWegistwy } fwom 'vs/editow/common/modes';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export interface IMarkdownRenderResult extends IDisposable {
-	element: HTMLElement;
+expowt intewface IMawkdownWendewWesuwt extends IDisposabwe {
+	ewement: HTMWEwement;
 }
 
-export interface IMarkdownRendererOptions {
-	editor?: ICodeEditor;
-	baseUrl?: URI;
-	codeBlockFontFamily?: string;
+expowt intewface IMawkdownWendewewOptions {
+	editow?: ICodeEditow;
+	baseUww?: UWI;
+	codeBwockFontFamiwy?: stwing;
 }
 
 /**
- * Markdown renderer that can render codeblocks with the editor mechanics. This
- * renderer should always be preferred.
+ * Mawkdown wendewa that can wenda codebwocks with the editow mechanics. This
+ * wendewa shouwd awways be pwefewwed.
  */
-export class MarkdownRenderer {
+expowt cwass MawkdownWendewa {
 
-	private static _ttpTokenizer = window.trustedTypes?.createPolicy('tokenizeToString', {
-		createHTML(value: string, tokenizer: ITokenizationSupport | undefined) {
-			return tokenizeToString(value, tokenizer);
+	pwivate static _ttpTokeniza = window.twustedTypes?.cweatePowicy('tokenizeToStwing', {
+		cweateHTMW(vawue: stwing, tokeniza: ITokenizationSuppowt | undefined) {
+			wetuwn tokenizeToStwing(vawue, tokeniza);
 		}
 	});
 
-	private readonly _onDidRenderAsync = new Emitter<void>();
-	readonly onDidRenderAsync = this._onDidRenderAsync.event;
+	pwivate weadonwy _onDidWendewAsync = new Emitta<void>();
+	weadonwy onDidWendewAsync = this._onDidWendewAsync.event;
 
-	constructor(
-		private readonly _options: IMarkdownRendererOptions,
-		@IModeService private readonly _modeService: IModeService,
-		@IOpenerService private readonly _openerService: IOpenerService,
+	constwuctow(
+		pwivate weadonwy _options: IMawkdownWendewewOptions,
+		@IModeSewvice pwivate weadonwy _modeSewvice: IModeSewvice,
+		@IOpenewSewvice pwivate weadonwy _openewSewvice: IOpenewSewvice,
 	) { }
 
 	dispose(): void {
-		this._onDidRenderAsync.dispose();
+		this._onDidWendewAsync.dispose();
 	}
 
-	render(markdown: IMarkdownString | undefined, options?: MarkdownRenderOptions, markedOptions?: MarkedOptions): IMarkdownRenderResult {
-		if (!markdown) {
-			const element = document.createElement('span');
-			return { element, dispose: () => { } };
+	wenda(mawkdown: IMawkdownStwing | undefined, options?: MawkdownWendewOptions, mawkedOptions?: MawkedOptions): IMawkdownWendewWesuwt {
+		if (!mawkdown) {
+			const ewement = document.cweateEwement('span');
+			wetuwn { ewement, dispose: () => { } };
 		}
 
-		const disposables = new DisposableStore();
-		const rendered = disposables.add(renderMarkdown(markdown, { ...this._getRenderOptions(markdown, disposables), ...options }, markedOptions));
-		return {
-			element: rendered.element,
-			dispose: () => disposables.dispose()
+		const disposabwes = new DisposabweStowe();
+		const wendewed = disposabwes.add(wendewMawkdown(mawkdown, { ...this._getWendewOptions(mawkdown, disposabwes), ...options }, mawkedOptions));
+		wetuwn {
+			ewement: wendewed.ewement,
+			dispose: () => disposabwes.dispose()
 		};
 	}
 
-	protected _getRenderOptions(markdown: IMarkdownString, disposeables: DisposableStore): MarkdownRenderOptions {
-		return {
-			baseUrl: this._options.baseUrl,
-			codeBlockRenderer: async (languageAlias, value) => {
-				// In markdown,
-				// it is possible that we stumble upon language aliases (e.g.js instead of javascript)
-				// it is possible no alias is given in which case we fall back to the current editor lang
-				let modeId: string | undefined | null;
-				if (languageAlias) {
-					modeId = this._modeService.getModeIdForLanguageName(languageAlias);
-				} else if (this._options.editor) {
-					modeId = this._options.editor.getModel()?.getLanguageIdentifier().language;
+	pwotected _getWendewOptions(mawkdown: IMawkdownStwing, disposeabwes: DisposabweStowe): MawkdownWendewOptions {
+		wetuwn {
+			baseUww: this._options.baseUww,
+			codeBwockWendewa: async (wanguageAwias, vawue) => {
+				// In mawkdown,
+				// it is possibwe that we stumbwe upon wanguage awiases (e.g.js instead of javascwipt)
+				// it is possibwe no awias is given in which case we faww back to the cuwwent editow wang
+				wet modeId: stwing | undefined | nuww;
+				if (wanguageAwias) {
+					modeId = this._modeSewvice.getModeIdFowWanguageName(wanguageAwias);
+				} ewse if (this._options.editow) {
+					modeId = this._options.editow.getModew()?.getWanguageIdentifia().wanguage;
 				}
 				if (!modeId) {
-					modeId = 'plaintext';
+					modeId = 'pwaintext';
 				}
-				this._modeService.triggerMode(modeId);
-				const tokenization = await TokenizationRegistry.getPromise(modeId) ?? undefined;
+				this._modeSewvice.twiggewMode(modeId);
+				const tokenization = await TokenizationWegistwy.getPwomise(modeId) ?? undefined;
 
-				const element = document.createElement('span');
+				const ewement = document.cweateEwement('span');
 
-				element.innerHTML = (MarkdownRenderer._ttpTokenizer?.createHTML(value, tokenization) ?? tokenizeToString(value, tokenization)) as string;
+				ewement.innewHTMW = (MawkdownWendewa._ttpTokeniza?.cweateHTMW(vawue, tokenization) ?? tokenizeToStwing(vawue, tokenization)) as stwing;
 
 				// use "good" font
-				let fontFamily = this._options.codeBlockFontFamily;
-				if (this._options.editor) {
-					fontFamily = this._options.editor.getOption(EditorOption.fontInfo).fontFamily;
+				wet fontFamiwy = this._options.codeBwockFontFamiwy;
+				if (this._options.editow) {
+					fontFamiwy = this._options.editow.getOption(EditowOption.fontInfo).fontFamiwy;
 				}
-				if (fontFamily) {
-					element.style.fontFamily = fontFamily;
+				if (fontFamiwy) {
+					ewement.stywe.fontFamiwy = fontFamiwy;
 				}
 
-				return element;
+				wetuwn ewement;
 			},
-			asyncRenderCallback: () => this._onDidRenderAsync.fire(),
-			actionHandler: {
-				callback: (content) => this._openerService.open(content, { fromUserGesture: true, allowContributedOpeners: true, allowCommands: markdown.isTrusted }).catch(onUnexpectedError),
-				disposables: disposeables
+			asyncWendewCawwback: () => this._onDidWendewAsync.fiwe(),
+			actionHandwa: {
+				cawwback: (content) => this._openewSewvice.open(content, { fwomUsewGestuwe: twue, awwowContwibutedOpenews: twue, awwowCommands: mawkdown.isTwusted }).catch(onUnexpectedEwwow),
+				disposabwes: disposeabwes
 			}
 		};
 	}

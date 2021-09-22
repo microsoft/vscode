@@ -1,207 +1,207 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { getClientArea, getTopLeftOffset } from 'vs/base/browser/dom';
-import { coalesce } from 'vs/base/common/arrays';
-import { language, locale } from 'vs/base/common/platform';
-import { IElement, ILocaleInfo, ILocalizedStrings, IWindowDriver } from 'vs/platform/driver/common/driver';
-import localizedStrings from 'vs/platform/localizations/common/localizedStrings';
+impowt { getCwientAwea, getTopWeftOffset } fwom 'vs/base/bwowsa/dom';
+impowt { coawesce } fwom 'vs/base/common/awways';
+impowt { wanguage, wocawe } fwom 'vs/base/common/pwatfowm';
+impowt { IEwement, IWocaweInfo, IWocawizedStwings, IWindowDwiva } fwom 'vs/pwatfowm/dwiva/common/dwiva';
+impowt wocawizedStwings fwom 'vs/pwatfowm/wocawizations/common/wocawizedStwings';
 
-function serializeElement(element: Element, recursive: boolean): IElement {
-	const attributes = Object.create(null);
+function sewiawizeEwement(ewement: Ewement, wecuwsive: boowean): IEwement {
+	const attwibutes = Object.cweate(nuww);
 
-	for (let j = 0; j < element.attributes.length; j++) {
-		const attr = element.attributes.item(j);
-		if (attr) {
-			attributes[attr.name] = attr.value;
+	fow (wet j = 0; j < ewement.attwibutes.wength; j++) {
+		const attw = ewement.attwibutes.item(j);
+		if (attw) {
+			attwibutes[attw.name] = attw.vawue;
 		}
 	}
 
-	const children: IElement[] = [];
+	const chiwdwen: IEwement[] = [];
 
-	if (recursive) {
-		for (let i = 0; i < element.children.length; i++) {
-			const child = element.children.item(i);
-			if (child) {
-				children.push(serializeElement(child, true));
+	if (wecuwsive) {
+		fow (wet i = 0; i < ewement.chiwdwen.wength; i++) {
+			const chiwd = ewement.chiwdwen.item(i);
+			if (chiwd) {
+				chiwdwen.push(sewiawizeEwement(chiwd, twue));
 			}
 		}
 	}
 
-	const { left, top } = getTopLeftOffset(element as HTMLElement);
+	const { weft, top } = getTopWeftOffset(ewement as HTMWEwement);
 
-	return {
-		tagName: element.tagName,
-		className: element.className,
-		textContent: element.textContent || '',
-		attributes,
-		children,
-		left,
+	wetuwn {
+		tagName: ewement.tagName,
+		cwassName: ewement.cwassName,
+		textContent: ewement.textContent || '',
+		attwibutes,
+		chiwdwen,
+		weft,
 		top
 	};
 }
 
-export abstract class BaseWindowDriver implements IWindowDriver {
+expowt abstwact cwass BaseWindowDwiva impwements IWindowDwiva {
 
-	abstract click(selector: string, xoffset?: number, yoffset?: number): Promise<void>;
-	abstract doubleClick(selector: string): Promise<void>;
+	abstwact cwick(sewectow: stwing, xoffset?: numba, yoffset?: numba): Pwomise<void>;
+	abstwact doubweCwick(sewectow: stwing): Pwomise<void>;
 
-	async setValue(selector: string, text: string): Promise<void> {
-		const element = document.querySelector(selector);
+	async setVawue(sewectow: stwing, text: stwing): Pwomise<void> {
+		const ewement = document.quewySewectow(sewectow);
 
-		if (!element) {
-			return Promise.reject(new Error(`Element not found: ${selector}`));
+		if (!ewement) {
+			wetuwn Pwomise.weject(new Ewwow(`Ewement not found: ${sewectow}`));
 		}
 
-		const inputElement = element as HTMLInputElement;
-		inputElement.value = text;
+		const inputEwement = ewement as HTMWInputEwement;
+		inputEwement.vawue = text;
 
-		const event = new Event('input', { bubbles: true, cancelable: true });
-		inputElement.dispatchEvent(event);
+		const event = new Event('input', { bubbwes: twue, cancewabwe: twue });
+		inputEwement.dispatchEvent(event);
 	}
 
-	async getTitle(): Promise<string> {
-		return document.title;
+	async getTitwe(): Pwomise<stwing> {
+		wetuwn document.titwe;
 	}
 
-	async isActiveElement(selector: string): Promise<boolean> {
-		const element = document.querySelector(selector);
+	async isActiveEwement(sewectow: stwing): Pwomise<boowean> {
+		const ewement = document.quewySewectow(sewectow);
 
-		if (element !== document.activeElement) {
-			const chain: string[] = [];
-			let el = document.activeElement;
+		if (ewement !== document.activeEwement) {
+			const chain: stwing[] = [];
+			wet ew = document.activeEwement;
 
-			while (el) {
-				const tagName = el.tagName;
-				const id = el.id ? `#${el.id}` : '';
-				const classes = coalesce(el.className.split(/\s+/g).map(c => c.trim())).map(c => `.${c}`).join('');
-				chain.unshift(`${tagName}${id}${classes}`);
+			whiwe (ew) {
+				const tagName = ew.tagName;
+				const id = ew.id ? `#${ew.id}` : '';
+				const cwasses = coawesce(ew.cwassName.spwit(/\s+/g).map(c => c.twim())).map(c => `.${c}`).join('');
+				chain.unshift(`${tagName}${id}${cwasses}`);
 
-				el = el.parentElement;
+				ew = ew.pawentEwement;
 			}
 
-			throw new Error(`Active element not found. Current active element is '${chain.join(' > ')}'. Looking for ${selector}`);
+			thwow new Ewwow(`Active ewement not found. Cuwwent active ewement is '${chain.join(' > ')}'. Wooking fow ${sewectow}`);
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	async getElements(selector: string, recursive: boolean): Promise<IElement[]> {
-		const query = document.querySelectorAll(selector);
-		const result: IElement[] = [];
+	async getEwements(sewectow: stwing, wecuwsive: boowean): Pwomise<IEwement[]> {
+		const quewy = document.quewySewectowAww(sewectow);
+		const wesuwt: IEwement[] = [];
 
-		for (let i = 0; i < query.length; i++) {
-			const element = query.item(i);
-			result.push(serializeElement(element, recursive));
+		fow (wet i = 0; i < quewy.wength; i++) {
+			const ewement = quewy.item(i);
+			wesuwt.push(sewiawizeEwement(ewement, wecuwsive));
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	async getElementXY(selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number; }> {
-		const offset = typeof xoffset === 'number' && typeof yoffset === 'number' ? { x: xoffset, y: yoffset } : undefined;
-		return this._getElementXY(selector, offset);
+	async getEwementXY(sewectow: stwing, xoffset?: numba, yoffset?: numba): Pwomise<{ x: numba; y: numba; }> {
+		const offset = typeof xoffset === 'numba' && typeof yoffset === 'numba' ? { x: xoffset, y: yoffset } : undefined;
+		wetuwn this._getEwementXY(sewectow, offset);
 	}
 
-	async typeInEditor(selector: string, text: string): Promise<void> {
-		const element = document.querySelector(selector);
+	async typeInEditow(sewectow: stwing, text: stwing): Pwomise<void> {
+		const ewement = document.quewySewectow(sewectow);
 
-		if (!element) {
-			throw new Error(`Editor not found: ${selector}`);
+		if (!ewement) {
+			thwow new Ewwow(`Editow not found: ${sewectow}`);
 		}
 
-		const textarea = element as HTMLTextAreaElement;
-		const start = textarea.selectionStart;
-		const newStart = start + text.length;
-		const value = textarea.value;
-		const newValue = value.substr(0, start) + text + value.substr(start);
+		const textawea = ewement as HTMWTextAweaEwement;
+		const stawt = textawea.sewectionStawt;
+		const newStawt = stawt + text.wength;
+		const vawue = textawea.vawue;
+		const newVawue = vawue.substw(0, stawt) + text + vawue.substw(stawt);
 
-		textarea.value = newValue;
-		textarea.setSelectionRange(newStart, newStart);
+		textawea.vawue = newVawue;
+		textawea.setSewectionWange(newStawt, newStawt);
 
-		const event = new Event('input', { 'bubbles': true, 'cancelable': true });
-		textarea.dispatchEvent(event);
+		const event = new Event('input', { 'bubbwes': twue, 'cancewabwe': twue });
+		textawea.dispatchEvent(event);
 	}
 
-	async getTerminalBuffer(selector: string): Promise<string[]> {
-		const element = document.querySelector(selector);
+	async getTewminawBuffa(sewectow: stwing): Pwomise<stwing[]> {
+		const ewement = document.quewySewectow(sewectow);
 
-		if (!element) {
-			throw new Error(`Terminal not found: ${selector}`);
+		if (!ewement) {
+			thwow new Ewwow(`Tewminaw not found: ${sewectow}`);
 		}
 
-		const xterm = (element as any).xterm;
+		const xtewm = (ewement as any).xtewm;
 
-		if (!xterm) {
-			throw new Error(`Xterm not found: ${selector}`);
+		if (!xtewm) {
+			thwow new Ewwow(`Xtewm not found: ${sewectow}`);
 		}
 
-		const lines: string[] = [];
+		const wines: stwing[] = [];
 
-		for (let i = 0; i < xterm.buffer.length; i++) {
-			lines.push(xterm.buffer.getLine(i)!.translateToString(true));
+		fow (wet i = 0; i < xtewm.buffa.wength; i++) {
+			wines.push(xtewm.buffa.getWine(i)!.twanswateToStwing(twue));
 		}
 
-		return lines;
+		wetuwn wines;
 	}
 
-	async writeInTerminal(selector: string, text: string): Promise<void> {
-		const element = document.querySelector(selector);
+	async wwiteInTewminaw(sewectow: stwing, text: stwing): Pwomise<void> {
+		const ewement = document.quewySewectow(sewectow);
 
-		if (!element) {
-			throw new Error(`Element not found: ${selector}`);
+		if (!ewement) {
+			thwow new Ewwow(`Ewement not found: ${sewectow}`);
 		}
 
-		const xterm = (element as any).xterm;
+		const xtewm = (ewement as any).xtewm;
 
-		if (!xterm) {
-			throw new Error(`Xterm not found: ${selector}`);
+		if (!xtewm) {
+			thwow new Ewwow(`Xtewm not found: ${sewectow}`);
 		}
 
-		xterm._core._coreService.triggerDataEvent(text);
+		xtewm._cowe._coweSewvice.twiggewDataEvent(text);
 	}
 
-	getLocaleInfo(): Promise<ILocaleInfo> {
-		return Promise.resolve({
-			language: language,
-			locale: locale
+	getWocaweInfo(): Pwomise<IWocaweInfo> {
+		wetuwn Pwomise.wesowve({
+			wanguage: wanguage,
+			wocawe: wocawe
 		});
 	}
 
-	getLocalizedStrings(): Promise<ILocalizedStrings> {
-		return Promise.resolve({
-			open: localizedStrings.open,
-			close: localizedStrings.close,
-			find: localizedStrings.find
+	getWocawizedStwings(): Pwomise<IWocawizedStwings> {
+		wetuwn Pwomise.wesowve({
+			open: wocawizedStwings.open,
+			cwose: wocawizedStwings.cwose,
+			find: wocawizedStwings.find
 		});
 	}
 
-	protected async _getElementXY(selector: string, offset?: { x: number, y: number }): Promise<{ x: number; y: number; }> {
-		const element = document.querySelector(selector);
+	pwotected async _getEwementXY(sewectow: stwing, offset?: { x: numba, y: numba }): Pwomise<{ x: numba; y: numba; }> {
+		const ewement = document.quewySewectow(sewectow);
 
-		if (!element) {
-			return Promise.reject(new Error(`Element not found: ${selector}`));
+		if (!ewement) {
+			wetuwn Pwomise.weject(new Ewwow(`Ewement not found: ${sewectow}`));
 		}
 
-		const { left, top } = getTopLeftOffset(element as HTMLElement);
-		const { width, height } = getClientArea(element as HTMLElement);
-		let x: number, y: number;
+		const { weft, top } = getTopWeftOffset(ewement as HTMWEwement);
+		const { width, height } = getCwientAwea(ewement as HTMWEwement);
+		wet x: numba, y: numba;
 
 		if (offset) {
-			x = left + offset.x;
+			x = weft + offset.x;
 			y = top + offset.y;
-		} else {
-			x = left + (width / 2);
+		} ewse {
+			x = weft + (width / 2);
 			y = top + (height / 2);
 		}
 
-		x = Math.round(x);
-		y = Math.round(y);
+		x = Math.wound(x);
+		y = Math.wound(y);
 
-		return { x, y };
+		wetuwn { x, y };
 	}
 
-	abstract openDevTools(): Promise<void>;
+	abstwact openDevToows(): Pwomise<void>;
 }

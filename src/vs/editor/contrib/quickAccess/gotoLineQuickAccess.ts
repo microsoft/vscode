@@ -1,170 +1,170 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
-import { IEditor, ScrollType } from 'vs/editor/common/editorCommon';
-import { AbstractEditorNavigationQuickAccessProvider, IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/editorNavigationQuickAccess';
-import { localize } from 'vs/nls';
-import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Disposabwe, DisposabweStowe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { getCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowOption, WendewWineNumbewsType } fwom 'vs/editow/common/config/editowOptions';
+impowt { IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { IEditow, ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { AbstwactEditowNavigationQuickAccessPwovida, IQuickAccessTextEditowContext } fwom 'vs/editow/contwib/quickAccess/editowNavigationQuickAccess';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IQuickPick, IQuickPickItem } fwom 'vs/pwatfowm/quickinput/common/quickInput';
 
-interface IGotoLineQuickPickItem extends IQuickPickItem, Partial<IPosition> { }
+intewface IGotoWineQuickPickItem extends IQuickPickItem, Pawtiaw<IPosition> { }
 
-export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditorNavigationQuickAccessProvider {
+expowt abstwact cwass AbstwactGotoWineQuickAccessPwovida extends AbstwactEditowNavigationQuickAccessPwovida {
 
-	static PREFIX = ':';
+	static PWEFIX = ':';
 
-	constructor() {
-		super({ canAcceptInBackground: true });
+	constwuctow() {
+		supa({ canAcceptInBackgwound: twue });
 	}
 
-	protected provideWithoutTextEditor(picker: IQuickPick<IGotoLineQuickPickItem>): IDisposable {
-		const label = localize('cannotRunGotoLine', "Open a text editor first to go to a line.");
+	pwotected pwovideWithoutTextEditow(picka: IQuickPick<IGotoWineQuickPickItem>): IDisposabwe {
+		const wabew = wocawize('cannotWunGotoWine', "Open a text editow fiwst to go to a wine.");
 
-		picker.items = [{ label }];
-		picker.ariaLabel = label;
+		picka.items = [{ wabew }];
+		picka.awiaWabew = wabew;
 
-		return Disposable.None;
+		wetuwn Disposabwe.None;
 	}
 
-	protected provideWithTextEditor(context: IQuickAccessTextEditorContext, picker: IQuickPick<IGotoLineQuickPickItem>, token: CancellationToken): IDisposable {
-		const editor = context.editor;
-		const disposables = new DisposableStore();
+	pwotected pwovideWithTextEditow(context: IQuickAccessTextEditowContext, picka: IQuickPick<IGotoWineQuickPickItem>, token: CancewwationToken): IDisposabwe {
+		const editow = context.editow;
+		const disposabwes = new DisposabweStowe();
 
-		// Goto line once picked
-		disposables.add(picker.onDidAccept(event => {
-			const [item] = picker.selectedItems;
+		// Goto wine once picked
+		disposabwes.add(picka.onDidAccept(event => {
+			const [item] = picka.sewectedItems;
 			if (item) {
-				if (!this.isValidLineNumber(editor, item.lineNumber)) {
-					return;
+				if (!this.isVawidWineNumba(editow, item.wineNumba)) {
+					wetuwn;
 				}
 
-				this.gotoLocation(context, { range: this.toRange(item.lineNumber, item.column), keyMods: picker.keyMods, preserveFocus: event.inBackground });
+				this.gotoWocation(context, { wange: this.toWange(item.wineNumba, item.cowumn), keyMods: picka.keyMods, pwesewveFocus: event.inBackgwound });
 
-				if (!event.inBackground) {
-					picker.hide();
+				if (!event.inBackgwound) {
+					picka.hide();
 				}
 			}
 		}));
 
-		// React to picker changes
-		const updatePickerAndEditor = () => {
-			const position = this.parsePosition(editor, picker.value.trim().substr(AbstractGotoLineQuickAccessProvider.PREFIX.length));
-			const label = this.getPickLabel(editor, position.lineNumber, position.column);
+		// Weact to picka changes
+		const updatePickewAndEditow = () => {
+			const position = this.pawsePosition(editow, picka.vawue.twim().substw(AbstwactGotoWineQuickAccessPwovida.PWEFIX.wength));
+			const wabew = this.getPickWabew(editow, position.wineNumba, position.cowumn);
 
-			// Picker
-			picker.items = [{
-				lineNumber: position.lineNumber,
-				column: position.column,
-				label
+			// Picka
+			picka.items = [{
+				wineNumba: position.wineNumba,
+				cowumn: position.cowumn,
+				wabew
 			}];
 
-			// ARIA Label
-			picker.ariaLabel = label;
+			// AWIA Wabew
+			picka.awiaWabew = wabew;
 
-			// Clear decorations for invalid range
-			if (!this.isValidLineNumber(editor, position.lineNumber)) {
-				this.clearDecorations(editor);
-				return;
+			// Cweaw decowations fow invawid wange
+			if (!this.isVawidWineNumba(editow, position.wineNumba)) {
+				this.cweawDecowations(editow);
+				wetuwn;
 			}
 
-			// Reveal
-			const range = this.toRange(position.lineNumber, position.column);
-			editor.revealRangeInCenter(range, ScrollType.Smooth);
+			// Weveaw
+			const wange = this.toWange(position.wineNumba, position.cowumn);
+			editow.weveawWangeInCenta(wange, ScwowwType.Smooth);
 
-			// Decorate
-			this.addDecorations(editor, range);
+			// Decowate
+			this.addDecowations(editow, wange);
 		};
-		updatePickerAndEditor();
-		disposables.add(picker.onDidChangeValue(() => updatePickerAndEditor()));
+		updatePickewAndEditow();
+		disposabwes.add(picka.onDidChangeVawue(() => updatePickewAndEditow()));
 
-		// Adjust line number visibility as needed
-		const codeEditor = getCodeEditor(editor);
-		if (codeEditor) {
-			const options = codeEditor.getOptions();
-			const lineNumbers = options.get(EditorOption.lineNumbers);
-			if (lineNumbers.renderType === RenderLineNumbersType.Relative) {
-				codeEditor.updateOptions({ lineNumbers: 'on' });
+		// Adjust wine numba visibiwity as needed
+		const codeEditow = getCodeEditow(editow);
+		if (codeEditow) {
+			const options = codeEditow.getOptions();
+			const wineNumbews = options.get(EditowOption.wineNumbews);
+			if (wineNumbews.wendewType === WendewWineNumbewsType.Wewative) {
+				codeEditow.updateOptions({ wineNumbews: 'on' });
 
-				disposables.add(toDisposable(() => codeEditor.updateOptions({ lineNumbers: 'relative' })));
+				disposabwes.add(toDisposabwe(() => codeEditow.updateOptions({ wineNumbews: 'wewative' })));
 			}
 		}
 
-		return disposables;
+		wetuwn disposabwes;
 	}
 
-	private toRange(lineNumber = 1, column = 1): IRange {
-		return {
-			startLineNumber: lineNumber,
-			startColumn: column,
-			endLineNumber: lineNumber,
-			endColumn: column
-		};
-	}
-
-	private parsePosition(editor: IEditor, value: string): IPosition {
-
-		// Support line-col formats of `line,col`, `line:col`, `line#col`
-		const numbers = value.split(/,|:|#/).map(part => parseInt(part, 10)).filter(part => !isNaN(part));
-		const endLine = this.lineCount(editor) + 1;
-
-		return {
-			lineNumber: numbers[0] > 0 ? numbers[0] : endLine + numbers[0],
-			column: numbers[1]
+	pwivate toWange(wineNumba = 1, cowumn = 1): IWange {
+		wetuwn {
+			stawtWineNumba: wineNumba,
+			stawtCowumn: cowumn,
+			endWineNumba: wineNumba,
+			endCowumn: cowumn
 		};
 	}
 
-	private getPickLabel(editor: IEditor, lineNumber: number, column: number | undefined): string {
+	pwivate pawsePosition(editow: IEditow, vawue: stwing): IPosition {
 
-		// Location valid: indicate this as picker label
-		if (this.isValidLineNumber(editor, lineNumber)) {
-			if (this.isValidColumn(editor, lineNumber, column)) {
-				return localize('gotoLineColumnLabel', "Go to line {0} and character {1}.", lineNumber, column);
+		// Suppowt wine-cow fowmats of `wine,cow`, `wine:cow`, `wine#cow`
+		const numbews = vawue.spwit(/,|:|#/).map(pawt => pawseInt(pawt, 10)).fiwta(pawt => !isNaN(pawt));
+		const endWine = this.wineCount(editow) + 1;
+
+		wetuwn {
+			wineNumba: numbews[0] > 0 ? numbews[0] : endWine + numbews[0],
+			cowumn: numbews[1]
+		};
+	}
+
+	pwivate getPickWabew(editow: IEditow, wineNumba: numba, cowumn: numba | undefined): stwing {
+
+		// Wocation vawid: indicate this as picka wabew
+		if (this.isVawidWineNumba(editow, wineNumba)) {
+			if (this.isVawidCowumn(editow, wineNumba, cowumn)) {
+				wetuwn wocawize('gotoWineCowumnWabew', "Go to wine {0} and chawacta {1}.", wineNumba, cowumn);
 			}
 
-			return localize('gotoLineLabel', "Go to line {0}.", lineNumber);
+			wetuwn wocawize('gotoWineWabew', "Go to wine {0}.", wineNumba);
 		}
 
-		// Location invalid: show generic label
-		const position = editor.getPosition() || { lineNumber: 1, column: 1 };
-		const lineCount = this.lineCount(editor);
-		if (lineCount > 1) {
-			return localize('gotoLineLabelEmptyWithLimit', "Current Line: {0}, Character: {1}. Type a line number between 1 and {2} to navigate to.", position.lineNumber, position.column, lineCount);
+		// Wocation invawid: show genewic wabew
+		const position = editow.getPosition() || { wineNumba: 1, cowumn: 1 };
+		const wineCount = this.wineCount(editow);
+		if (wineCount > 1) {
+			wetuwn wocawize('gotoWineWabewEmptyWithWimit', "Cuwwent Wine: {0}, Chawacta: {1}. Type a wine numba between 1 and {2} to navigate to.", position.wineNumba, position.cowumn, wineCount);
 		}
 
-		return localize('gotoLineLabelEmpty', "Current Line: {0}, Character: {1}. Type a line number to navigate to.", position.lineNumber, position.column);
+		wetuwn wocawize('gotoWineWabewEmpty', "Cuwwent Wine: {0}, Chawacta: {1}. Type a wine numba to navigate to.", position.wineNumba, position.cowumn);
 	}
 
-	private isValidLineNumber(editor: IEditor, lineNumber: number | undefined): boolean {
-		if (!lineNumber || typeof lineNumber !== 'number') {
-			return false;
+	pwivate isVawidWineNumba(editow: IEditow, wineNumba: numba | undefined): boowean {
+		if (!wineNumba || typeof wineNumba !== 'numba') {
+			wetuwn fawse;
 		}
 
-		return lineNumber > 0 && lineNumber <= this.lineCount(editor);
+		wetuwn wineNumba > 0 && wineNumba <= this.wineCount(editow);
 	}
 
-	private isValidColumn(editor: IEditor, lineNumber: number, column: number | undefined): boolean {
-		if (!column || typeof column !== 'number') {
-			return false;
+	pwivate isVawidCowumn(editow: IEditow, wineNumba: numba, cowumn: numba | undefined): boowean {
+		if (!cowumn || typeof cowumn !== 'numba') {
+			wetuwn fawse;
 		}
 
-		const model = this.getModel(editor);
-		if (!model) {
-			return false;
+		const modew = this.getModew(editow);
+		if (!modew) {
+			wetuwn fawse;
 		}
 
-		const positionCandidate = { lineNumber, column };
+		const positionCandidate = { wineNumba, cowumn };
 
-		return model.validatePosition(positionCandidate).equals(positionCandidate);
+		wetuwn modew.vawidatePosition(positionCandidate).equaws(positionCandidate);
 	}
 
-	private lineCount(editor: IEditor): number {
-		return this.getModel(editor)?.getLineCount() ?? 0;
+	pwivate wineCount(editow: IEditow): numba {
+		wetuwn this.getModew(editow)?.getWineCount() ?? 0;
 	}
 }

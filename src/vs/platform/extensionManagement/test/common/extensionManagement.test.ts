@@ -1,29 +1,29 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
+impowt * as assewt fwom 'assewt';
+impowt { EXTENSION_IDENTIFIEW_PATTEWN } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
 
-suite('Extension Identifier Pattern', () => {
+suite('Extension Identifia Pattewn', () => {
 
-	test('extension identifier pattern', () => {
-		const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
-		assert.strictEqual(true, regEx.test('publisher.name'));
-		assert.strictEqual(true, regEx.test('publiSher.name'));
-		assert.strictEqual(true, regEx.test('publisher.Name'));
-		assert.strictEqual(true, regEx.test('PUBLISHER.NAME'));
-		assert.strictEqual(true, regEx.test('PUBLISHEr.NAMe'));
-		assert.strictEqual(true, regEx.test('PUBLISHEr.N-AMe'));
-		assert.strictEqual(true, regEx.test('PUB-LISHEr.NAMe'));
-		assert.strictEqual(true, regEx.test('PUB-LISHEr.N-AMe'));
-		assert.strictEqual(true, regEx.test('PUBLISH12Er90.N-A54Me123'));
-		assert.strictEqual(true, regEx.test('111PUBLISH12Er90.N-1111A54Me123'));
-		assert.strictEqual(false, regEx.test('publishername'));
-		assert.strictEqual(false, regEx.test('-publisher.name'));
-		assert.strictEqual(false, regEx.test('publisher.-name'));
-		assert.strictEqual(false, regEx.test('-publisher.-name'));
-		assert.strictEqual(false, regEx.test('publ_isher.name'));
-		assert.strictEqual(false, regEx.test('publisher._name'));
+	test('extension identifia pattewn', () => {
+		const wegEx = new WegExp(EXTENSION_IDENTIFIEW_PATTEWN);
+		assewt.stwictEquaw(twue, wegEx.test('pubwisha.name'));
+		assewt.stwictEquaw(twue, wegEx.test('pubwiSha.name'));
+		assewt.stwictEquaw(twue, wegEx.test('pubwisha.Name'));
+		assewt.stwictEquaw(twue, wegEx.test('PUBWISHa.NAME'));
+		assewt.stwictEquaw(twue, wegEx.test('PUBWISHa.NAMe'));
+		assewt.stwictEquaw(twue, wegEx.test('PUBWISHa.N-AMe'));
+		assewt.stwictEquaw(twue, wegEx.test('PUB-WISHa.NAMe'));
+		assewt.stwictEquaw(twue, wegEx.test('PUB-WISHa.N-AMe'));
+		assewt.stwictEquaw(twue, wegEx.test('PUBWISH12Ew90.N-A54Me123'));
+		assewt.stwictEquaw(twue, wegEx.test('111PUBWISH12Ew90.N-1111A54Me123'));
+		assewt.stwictEquaw(fawse, wegEx.test('pubwishewname'));
+		assewt.stwictEquaw(fawse, wegEx.test('-pubwisha.name'));
+		assewt.stwictEquaw(fawse, wegEx.test('pubwisha.-name'));
+		assewt.stwictEquaw(fawse, wegEx.test('-pubwisha.-name'));
+		assewt.stwictEquaw(fawse, wegEx.test('pubw_isha.name'));
+		assewt.stwictEquaw(fawse, wegEx.test('pubwisha._name'));
 	});
 });

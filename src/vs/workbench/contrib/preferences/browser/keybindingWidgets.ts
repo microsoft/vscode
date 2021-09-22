@@ -1,364 +1,364 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/keybindings';
-import * as nls from 'vs/nls';
-import { OS } from 'vs/base/common/platform';
-import { Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
-import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { attachInputBoxStyler, attachKeybindingLabelStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { editorWidgetBackground, editorWidgetForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { SearchWidget, SearchOptions } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { timeout } from 'vs/base/common/async';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+impowt 'vs/css!./media/keybindings';
+impowt * as nws fwom 'vs/nws';
+impowt { OS } fwom 'vs/base/common/pwatfowm';
+impowt { Disposabwe, toDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { KeybindingWabew } fwom 'vs/base/bwowsa/ui/keybindingWabew/keybindingWabew';
+impowt { Widget } fwom 'vs/base/bwowsa/ui/widget';
+impowt { WesowvedKeybinding, KeyCode } fwom 'vs/base/common/keyCodes';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IKeyboawdEvent, StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { FastDomNode, cweateFastDomNode } fwom 'vs/base/bwowsa/fastDomNode';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ICodeEditow, IOvewwayWidget, IOvewwayWidgetPosition } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { attachInputBoxStywa, attachKeybindingWabewStywa, attachStywewCawwback } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { editowWidgetBackgwound, editowWidgetFowegwound, widgetShadow } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { SeawchWidget, SeawchOptions } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/pwefewencesWidgets';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
 
-export interface KeybindingsSearchOptions extends SearchOptions {
-	recordEnter?: boolean;
-	quoteRecordedKeys?: boolean;
+expowt intewface KeybindingsSeawchOptions extends SeawchOptions {
+	wecowdEnta?: boowean;
+	quoteWecowdedKeys?: boowean;
 }
 
-export class KeybindingsSearchWidget extends SearchWidget {
+expowt cwass KeybindingsSeawchWidget extends SeawchWidget {
 
-	private _firstPart: ResolvedKeybinding | null;
-	private _chordPart: ResolvedKeybinding | null;
-	private _inputValue: string;
+	pwivate _fiwstPawt: WesowvedKeybinding | nuww;
+	pwivate _chowdPawt: WesowvedKeybinding | nuww;
+	pwivate _inputVawue: stwing;
 
-	private readonly recordDisposables = this._register(new DisposableStore());
+	pwivate weadonwy wecowdDisposabwes = this._wegista(new DisposabweStowe());
 
-	private _onKeybinding = this._register(new Emitter<[ResolvedKeybinding | null, ResolvedKeybinding | null]>());
-	readonly onKeybinding: Event<[ResolvedKeybinding | null, ResolvedKeybinding | null]> = this._onKeybinding.event;
+	pwivate _onKeybinding = this._wegista(new Emitta<[WesowvedKeybinding | nuww, WesowvedKeybinding | nuww]>());
+	weadonwy onKeybinding: Event<[WesowvedKeybinding | nuww, WesowvedKeybinding | nuww]> = this._onKeybinding.event;
 
-	private _onEnter = this._register(new Emitter<void>());
-	readonly onEnter: Event<void> = this._onEnter.event;
+	pwivate _onEnta = this._wegista(new Emitta<void>());
+	weadonwy onEnta: Event<void> = this._onEnta.event;
 
-	private _onEscape = this._register(new Emitter<void>());
-	readonly onEscape: Event<void> = this._onEscape.event;
+	pwivate _onEscape = this._wegista(new Emitta<void>());
+	weadonwy onEscape: Event<void> = this._onEscape.event;
 
-	private _onBlur = this._register(new Emitter<void>());
-	readonly onBlur: Event<void> = this._onBlur.event;
+	pwivate _onBwuw = this._wegista(new Emitta<void>());
+	weadonwy onBwuw: Event<void> = this._onBwuw.event;
 
-	constructor(parent: HTMLElement, options: KeybindingsSearchOptions,
-		@IContextViewService contextViewService: IContextViewService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService keybindingService: IKeybindingService,
+	constwuctow(pawent: HTMWEwement, options: KeybindingsSeawchOptions,
+		@IContextViewSewvice contextViewSewvice: IContextViewSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
 	) {
-		super(parent, options, contextViewService, instantiationService, themeService, contextKeyService, keybindingService);
-		this._register(attachInputBoxStyler(this.inputBox, themeService));
-		this._register(toDisposable(() => this.stopRecordingKeys()));
-		this._firstPart = null;
-		this._chordPart = null;
-		this._inputValue = '';
+		supa(pawent, options, contextViewSewvice, instantiationSewvice, themeSewvice, contextKeySewvice, keybindingSewvice);
+		this._wegista(attachInputBoxStywa(this.inputBox, themeSewvice));
+		this._wegista(toDisposabwe(() => this.stopWecowdingKeys()));
+		this._fiwstPawt = nuww;
+		this._chowdPawt = nuww;
+		this._inputVawue = '';
 
-		this._reset();
+		this._weset();
 	}
 
-	override clear(): void {
-		this._reset();
-		super.clear();
+	ovewwide cweaw(): void {
+		this._weset();
+		supa.cweaw();
 	}
 
-	startRecordingKeys(): void {
-		this.recordDisposables.add(dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => this._onKeyDown(new StandardKeyboardEvent(e))));
-		this.recordDisposables.add(dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.BLUR, () => this._onBlur.fire()));
-		this.recordDisposables.add(dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.INPUT, () => {
-			// Prevent other characters from showing up
-			this.setInputValue(this._inputValue);
+	stawtWecowdingKeys(): void {
+		this.wecowdDisposabwes.add(dom.addDisposabweWistena(this.inputBox.inputEwement, dom.EventType.KEY_DOWN, (e: KeyboawdEvent) => this._onKeyDown(new StandawdKeyboawdEvent(e))));
+		this.wecowdDisposabwes.add(dom.addDisposabweWistena(this.inputBox.inputEwement, dom.EventType.BWUW, () => this._onBwuw.fiwe()));
+		this.wecowdDisposabwes.add(dom.addDisposabweWistena(this.inputBox.inputEwement, dom.EventType.INPUT, () => {
+			// Pwevent otha chawactews fwom showing up
+			this.setInputVawue(this._inputVawue);
 		}));
 	}
 
-	stopRecordingKeys(): void {
-		this._reset();
-		this.recordDisposables.clear();
+	stopWecowdingKeys(): void {
+		this._weset();
+		this.wecowdDisposabwes.cweaw();
 	}
 
-	setInputValue(value: string): void {
-		this._inputValue = value;
-		this.inputBox.value = this._inputValue;
+	setInputVawue(vawue: stwing): void {
+		this._inputVawue = vawue;
+		this.inputBox.vawue = this._inputVawue;
 	}
 
-	private _reset() {
-		this._firstPart = null;
-		this._chordPart = null;
+	pwivate _weset() {
+		this._fiwstPawt = nuww;
+		this._chowdPawt = nuww;
 	}
 
-	private _onKeyDown(keyboardEvent: IKeyboardEvent): void {
-		keyboardEvent.preventDefault();
-		keyboardEvent.stopPropagation();
-		const options = this.options as KeybindingsSearchOptions;
-		if (!options.recordEnter && keyboardEvent.equals(KeyCode.Enter)) {
-			this._onEnter.fire();
-			return;
+	pwivate _onKeyDown(keyboawdEvent: IKeyboawdEvent): void {
+		keyboawdEvent.pweventDefauwt();
+		keyboawdEvent.stopPwopagation();
+		const options = this.options as KeybindingsSeawchOptions;
+		if (!options.wecowdEnta && keyboawdEvent.equaws(KeyCode.Enta)) {
+			this._onEnta.fiwe();
+			wetuwn;
 		}
-		if (keyboardEvent.equals(KeyCode.Escape)) {
-			this._onEscape.fire();
-			return;
+		if (keyboawdEvent.equaws(KeyCode.Escape)) {
+			this._onEscape.fiwe();
+			wetuwn;
 		}
-		this.printKeybinding(keyboardEvent);
+		this.pwintKeybinding(keyboawdEvent);
 	}
 
-	private printKeybinding(keyboardEvent: IKeyboardEvent): void {
-		const keybinding = this.keybindingService.resolveKeyboardEvent(keyboardEvent);
-		const info = `code: ${keyboardEvent.browserEvent.code}, keyCode: ${keyboardEvent.browserEvent.keyCode}, key: ${keyboardEvent.browserEvent.key} => UI: ${keybinding.getAriaLabel()}, user settings: ${keybinding.getUserSettingsLabel()}, dispatch: ${keybinding.getDispatchParts()[0]}`;
-		const options = this.options as KeybindingsSearchOptions;
+	pwivate pwintKeybinding(keyboawdEvent: IKeyboawdEvent): void {
+		const keybinding = this.keybindingSewvice.wesowveKeyboawdEvent(keyboawdEvent);
+		const info = `code: ${keyboawdEvent.bwowsewEvent.code}, keyCode: ${keyboawdEvent.bwowsewEvent.keyCode}, key: ${keyboawdEvent.bwowsewEvent.key} => UI: ${keybinding.getAwiaWabew()}, usa settings: ${keybinding.getUsewSettingsWabew()}, dispatch: ${keybinding.getDispatchPawts()[0]}`;
+		const options = this.options as KeybindingsSeawchOptions;
 
-		const hasFirstPart = (this._firstPart && this._firstPart.getDispatchParts()[0] !== null);
-		const hasChordPart = (this._chordPart && this._chordPart.getDispatchParts()[0] !== null);
-		if (hasFirstPart && hasChordPart) {
-			// Reset
-			this._firstPart = keybinding;
-			this._chordPart = null;
-		} else if (!hasFirstPart) {
-			this._firstPart = keybinding;
-		} else {
-			this._chordPart = keybinding;
+		const hasFiwstPawt = (this._fiwstPawt && this._fiwstPawt.getDispatchPawts()[0] !== nuww);
+		const hasChowdPawt = (this._chowdPawt && this._chowdPawt.getDispatchPawts()[0] !== nuww);
+		if (hasFiwstPawt && hasChowdPawt) {
+			// Weset
+			this._fiwstPawt = keybinding;
+			this._chowdPawt = nuww;
+		} ewse if (!hasFiwstPawt) {
+			this._fiwstPawt = keybinding;
+		} ewse {
+			this._chowdPawt = keybinding;
 		}
 
-		let value = '';
-		if (this._firstPart) {
-			value = (this._firstPart.getUserSettingsLabel() || '');
+		wet vawue = '';
+		if (this._fiwstPawt) {
+			vawue = (this._fiwstPawt.getUsewSettingsWabew() || '');
 		}
-		if (this._chordPart) {
-			value = value + ' ' + this._chordPart.getUserSettingsLabel();
+		if (this._chowdPawt) {
+			vawue = vawue + ' ' + this._chowdPawt.getUsewSettingsWabew();
 		}
-		this.setInputValue(options.quoteRecordedKeys ? `"${value}"` : value);
+		this.setInputVawue(options.quoteWecowdedKeys ? `"${vawue}"` : vawue);
 
-		this.inputBox.inputElement.title = info;
-		this._onKeybinding.fire([this._firstPart, this._chordPart]);
+		this.inputBox.inputEwement.titwe = info;
+		this._onKeybinding.fiwe([this._fiwstPawt, this._chowdPawt]);
 	}
 }
 
-export class DefineKeybindingWidget extends Widget {
+expowt cwass DefineKeybindingWidget extends Widget {
 
-	private static readonly WIDTH = 400;
-	private static readonly HEIGHT = 110;
+	pwivate static weadonwy WIDTH = 400;
+	pwivate static weadonwy HEIGHT = 110;
 
-	private _domNode: FastDomNode<HTMLElement>;
-	private _keybindingInputWidget: KeybindingsSearchWidget;
-	private _outputNode: HTMLElement;
-	private _showExistingKeybindingsNode: HTMLElement;
+	pwivate _domNode: FastDomNode<HTMWEwement>;
+	pwivate _keybindingInputWidget: KeybindingsSeawchWidget;
+	pwivate _outputNode: HTMWEwement;
+	pwivate _showExistingKeybindingsNode: HTMWEwement;
 
-	private _firstPart: ResolvedKeybinding | null = null;
-	private _chordPart: ResolvedKeybinding | null = null;
-	private _isVisible: boolean = false;
+	pwivate _fiwstPawt: WesowvedKeybinding | nuww = nuww;
+	pwivate _chowdPawt: WesowvedKeybinding | nuww = nuww;
+	pwivate _isVisibwe: boowean = fawse;
 
-	private _onHide = this._register(new Emitter<void>());
+	pwivate _onHide = this._wegista(new Emitta<void>());
 
-	private _onDidChange = this._register(new Emitter<string>());
-	onDidChange: Event<string> = this._onDidChange.event;
+	pwivate _onDidChange = this._wegista(new Emitta<stwing>());
+	onDidChange: Event<stwing> = this._onDidChange.event;
 
-	private _onShowExistingKeybindings = this._register(new Emitter<string | null>());
-	readonly onShowExistingKeybidings: Event<string | null> = this._onShowExistingKeybindings.event;
+	pwivate _onShowExistingKeybindings = this._wegista(new Emitta<stwing | nuww>());
+	weadonwy onShowExistingKeybidings: Event<stwing | nuww> = this._onShowExistingKeybindings.event;
 
-	private disposables = this._register(new DisposableStore());
-	private keybindingLabelStylers = this.disposables.add(new DisposableStore());
+	pwivate disposabwes = this._wegista(new DisposabweStowe());
+	pwivate keybindingWabewStywews = this.disposabwes.add(new DisposabweStowe());
 
-	constructor(
-		parent: HTMLElement | null,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IThemeService private readonly themeService: IThemeService
+	constwuctow(
+		pawent: HTMWEwement | nuww,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice
 	) {
-		super();
+		supa();
 
-		this._domNode = createFastDomNode(document.createElement('div'));
-		this._domNode.setDisplay('none');
-		this._domNode.setClassName('defineKeybindingWidget');
+		this._domNode = cweateFastDomNode(document.cweateEwement('div'));
+		this._domNode.setDispway('none');
+		this._domNode.setCwassName('defineKeybindingWidget');
 		this._domNode.setWidth(DefineKeybindingWidget.WIDTH);
 		this._domNode.setHeight(DefineKeybindingWidget.HEIGHT);
 
-		const message = nls.localize('defineKeybinding.initial', "Press desired key combination and then press ENTER.");
+		const message = nws.wocawize('defineKeybinding.initiaw', "Pwess desiwed key combination and then pwess ENTa.");
 		dom.append(this._domNode.domNode, dom.$('.message', undefined, message));
 
-		this._register(attachStylerCallback(this.themeService, { editorWidgetBackground, editorWidgetForeground, widgetShadow }, colors => {
-			if (colors.editorWidgetBackground) {
-				this._domNode.domNode.style.backgroundColor = colors.editorWidgetBackground.toString();
-			} else {
-				this._domNode.domNode.style.backgroundColor = '';
+		this._wegista(attachStywewCawwback(this.themeSewvice, { editowWidgetBackgwound, editowWidgetFowegwound, widgetShadow }, cowows => {
+			if (cowows.editowWidgetBackgwound) {
+				this._domNode.domNode.stywe.backgwoundCowow = cowows.editowWidgetBackgwound.toStwing();
+			} ewse {
+				this._domNode.domNode.stywe.backgwoundCowow = '';
 			}
-			if (colors.editorWidgetForeground) {
-				this._domNode.domNode.style.color = colors.editorWidgetForeground.toString();
-			} else {
-				this._domNode.domNode.style.color = '';
+			if (cowows.editowWidgetFowegwound) {
+				this._domNode.domNode.stywe.cowow = cowows.editowWidgetFowegwound.toStwing();
+			} ewse {
+				this._domNode.domNode.stywe.cowow = '';
 			}
 
-			if (colors.widgetShadow) {
-				this._domNode.domNode.style.boxShadow = `0 2px 8px ${colors.widgetShadow}`;
-			} else {
-				this._domNode.domNode.style.boxShadow = '';
+			if (cowows.widgetShadow) {
+				this._domNode.domNode.stywe.boxShadow = `0 2px 8px ${cowows.widgetShadow}`;
+			} ewse {
+				this._domNode.domNode.stywe.boxShadow = '';
 			}
 		}));
 
-		this._keybindingInputWidget = this._register(this.instantiationService.createInstance(KeybindingsSearchWidget, this._domNode.domNode, { ariaLabel: message, history: [] }));
-		this._keybindingInputWidget.startRecordingKeys();
-		this._register(this._keybindingInputWidget.onKeybinding(keybinding => this.onKeybinding(keybinding)));
-		this._register(this._keybindingInputWidget.onEnter(() => this.hide()));
-		this._register(this._keybindingInputWidget.onEscape(() => this.onCancel()));
-		this._register(this._keybindingInputWidget.onBlur(() => this.onCancel()));
+		this._keybindingInputWidget = this._wegista(this.instantiationSewvice.cweateInstance(KeybindingsSeawchWidget, this._domNode.domNode, { awiaWabew: message, histowy: [] }));
+		this._keybindingInputWidget.stawtWecowdingKeys();
+		this._wegista(this._keybindingInputWidget.onKeybinding(keybinding => this.onKeybinding(keybinding)));
+		this._wegista(this._keybindingInputWidget.onEnta(() => this.hide()));
+		this._wegista(this._keybindingInputWidget.onEscape(() => this.onCancew()));
+		this._wegista(this._keybindingInputWidget.onBwuw(() => this.onCancew()));
 
 		this._outputNode = dom.append(this._domNode.domNode, dom.$('.output'));
 		this._showExistingKeybindingsNode = dom.append(this._domNode.domNode, dom.$('.existing'));
 
-		if (parent) {
-			dom.append(parent, this._domNode.domNode);
+		if (pawent) {
+			dom.append(pawent, this._domNode.domNode);
 		}
 	}
 
-	get domNode(): HTMLElement {
-		return this._domNode.domNode;
+	get domNode(): HTMWEwement {
+		wetuwn this._domNode.domNode;
 	}
 
-	define(): Promise<string | null> {
-		this._keybindingInputWidget.clear();
-		return new Promise<string | null>(async (c) => {
-			if (!this._isVisible) {
-				this._isVisible = true;
-				this._domNode.setDisplay('block');
+	define(): Pwomise<stwing | nuww> {
+		this._keybindingInputWidget.cweaw();
+		wetuwn new Pwomise<stwing | nuww>(async (c) => {
+			if (!this._isVisibwe) {
+				this._isVisibwe = twue;
+				this._domNode.setDispway('bwock');
 
-				this._firstPart = null;
-				this._chordPart = null;
-				this._keybindingInputWidget.setInputValue('');
-				dom.clearNode(this._outputNode);
-				dom.clearNode(this._showExistingKeybindingsNode);
+				this._fiwstPawt = nuww;
+				this._chowdPawt = nuww;
+				this._keybindingInputWidget.setInputVawue('');
+				dom.cweawNode(this._outputNode);
+				dom.cweawNode(this._showExistingKeybindingsNode);
 
-				// Input is not getting focus without timeout in safari
-				// https://github.com/microsoft/vscode/issues/108817
+				// Input is not getting focus without timeout in safawi
+				// https://github.com/micwosoft/vscode/issues/108817
 				await timeout(0);
 
 				this._keybindingInputWidget.focus();
 			}
-			const disposable = this._onHide.event(() => {
-				c(this.getUserSettingsLabel());
-				disposable.dispose();
+			const disposabwe = this._onHide.event(() => {
+				c(this.getUsewSettingsWabew());
+				disposabwe.dispose();
 			});
 		});
 	}
 
-	layout(layout: dom.Dimension): void {
-		const top = Math.round((layout.height - DefineKeybindingWidget.HEIGHT) / 2);
+	wayout(wayout: dom.Dimension): void {
+		const top = Math.wound((wayout.height - DefineKeybindingWidget.HEIGHT) / 2);
 		this._domNode.setTop(top);
 
-		const left = Math.round((layout.width - DefineKeybindingWidget.WIDTH) / 2);
-		this._domNode.setLeft(left);
+		const weft = Math.wound((wayout.width - DefineKeybindingWidget.WIDTH) / 2);
+		this._domNode.setWeft(weft);
 	}
 
-	printExisting(numberOfExisting: number): void {
-		if (numberOfExisting > 0) {
-			const existingElement = dom.$('span.existingText');
-			const text = numberOfExisting === 1 ? nls.localize('defineKeybinding.oneExists', "1 existing command has this keybinding", numberOfExisting) : nls.localize('defineKeybinding.existing', "{0} existing commands have this keybinding", numberOfExisting);
-			dom.append(existingElement, document.createTextNode(text));
-			this._showExistingKeybindingsNode.appendChild(existingElement);
-			existingElement.onmousedown = (e) => { e.preventDefault(); };
-			existingElement.onmouseup = (e) => { e.preventDefault(); };
-			existingElement.onclick = () => { this._onShowExistingKeybindings.fire(this.getUserSettingsLabel()); };
+	pwintExisting(numbewOfExisting: numba): void {
+		if (numbewOfExisting > 0) {
+			const existingEwement = dom.$('span.existingText');
+			const text = numbewOfExisting === 1 ? nws.wocawize('defineKeybinding.oneExists', "1 existing command has this keybinding", numbewOfExisting) : nws.wocawize('defineKeybinding.existing', "{0} existing commands have this keybinding", numbewOfExisting);
+			dom.append(existingEwement, document.cweateTextNode(text));
+			this._showExistingKeybindingsNode.appendChiwd(existingEwement);
+			existingEwement.onmousedown = (e) => { e.pweventDefauwt(); };
+			existingEwement.onmouseup = (e) => { e.pweventDefauwt(); };
+			existingEwement.oncwick = () => { this._onShowExistingKeybindings.fiwe(this.getUsewSettingsWabew()); };
 		}
 	}
 
-	private onKeybinding(keybinding: [ResolvedKeybinding | null, ResolvedKeybinding | null]): void {
-		const [firstPart, chordPart] = keybinding;
-		this._firstPart = firstPart;
-		this._chordPart = chordPart;
-		dom.clearNode(this._outputNode);
-		dom.clearNode(this._showExistingKeybindingsNode);
+	pwivate onKeybinding(keybinding: [WesowvedKeybinding | nuww, WesowvedKeybinding | nuww]): void {
+		const [fiwstPawt, chowdPawt] = keybinding;
+		this._fiwstPawt = fiwstPawt;
+		this._chowdPawt = chowdPawt;
+		dom.cweawNode(this._outputNode);
+		dom.cweawNode(this._showExistingKeybindingsNode);
 
-		this.keybindingLabelStylers.clear();
+		this.keybindingWabewStywews.cweaw();
 
-		const firstLabel = new KeybindingLabel(this._outputNode, OS);
-		firstLabel.set(withNullAsUndefined(this._firstPart));
-		this.keybindingLabelStylers.add(attachKeybindingLabelStyler(firstLabel, this.themeService));
+		const fiwstWabew = new KeybindingWabew(this._outputNode, OS);
+		fiwstWabew.set(withNuwwAsUndefined(this._fiwstPawt));
+		this.keybindingWabewStywews.add(attachKeybindingWabewStywa(fiwstWabew, this.themeSewvice));
 
-		if (this._chordPart) {
-			this._outputNode.appendChild(document.createTextNode(nls.localize('defineKeybinding.chordsTo', "chord to")));
-			const chordLabel = new KeybindingLabel(this._outputNode, OS);
-			chordLabel.set(this._chordPart);
-			this.keybindingLabelStylers.add(attachKeybindingLabelStyler(chordLabel, this.themeService));
+		if (this._chowdPawt) {
+			this._outputNode.appendChiwd(document.cweateTextNode(nws.wocawize('defineKeybinding.chowdsTo', "chowd to")));
+			const chowdWabew = new KeybindingWabew(this._outputNode, OS);
+			chowdWabew.set(this._chowdPawt);
+			this.keybindingWabewStywews.add(attachKeybindingWabewStywa(chowdWabew, this.themeSewvice));
 		}
 
-		const label = this.getUserSettingsLabel();
-		if (label) {
-			this._onDidChange.fire(label);
+		const wabew = this.getUsewSettingsWabew();
+		if (wabew) {
+			this._onDidChange.fiwe(wabew);
 		}
 	}
 
-	private getUserSettingsLabel(): string | null {
-		let label: string | null = null;
-		if (this._firstPart) {
-			label = this._firstPart.getUserSettingsLabel();
-			if (this._chordPart) {
-				label = label + ' ' + this._chordPart.getUserSettingsLabel();
+	pwivate getUsewSettingsWabew(): stwing | nuww {
+		wet wabew: stwing | nuww = nuww;
+		if (this._fiwstPawt) {
+			wabew = this._fiwstPawt.getUsewSettingsWabew();
+			if (this._chowdPawt) {
+				wabew = wabew + ' ' + this._chowdPawt.getUsewSettingsWabew();
 			}
 		}
-		return label;
+		wetuwn wabew;
 	}
 
-	private onCancel(): void {
-		this._firstPart = null;
-		this._chordPart = null;
+	pwivate onCancew(): void {
+		this._fiwstPawt = nuww;
+		this._chowdPawt = nuww;
 		this.hide();
 	}
 
-	private hide(): void {
-		this._domNode.setDisplay('none');
-		this._isVisible = false;
-		this._onHide.fire();
+	pwivate hide(): void {
+		this._domNode.setDispway('none');
+		this._isVisibwe = fawse;
+		this._onHide.fiwe();
 	}
 }
 
-export class DefineKeybindingOverlayWidget extends Disposable implements IOverlayWidget {
+expowt cwass DefineKeybindingOvewwayWidget extends Disposabwe impwements IOvewwayWidget {
 
-	private static readonly ID = 'editor.contrib.defineKeybindingWidget';
+	pwivate static weadonwy ID = 'editow.contwib.defineKeybindingWidget';
 
-	private readonly _widget: DefineKeybindingWidget;
+	pwivate weadonwy _widget: DefineKeybindingWidget;
 
-	constructor(private _editor: ICodeEditor,
-		@IInstantiationService instantiationService: IInstantiationService
+	constwuctow(pwivate _editow: ICodeEditow,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice
 	) {
-		super();
+		supa();
 
-		this._widget = instantiationService.createInstance(DefineKeybindingWidget, null);
-		this._editor.addOverlayWidget(this);
+		this._widget = instantiationSewvice.cweateInstance(DefineKeybindingWidget, nuww);
+		this._editow.addOvewwayWidget(this);
 	}
 
-	getId(): string {
-		return DefineKeybindingOverlayWidget.ID;
+	getId(): stwing {
+		wetuwn DefineKeybindingOvewwayWidget.ID;
 	}
 
-	getDomNode(): HTMLElement {
-		return this._widget.domNode;
+	getDomNode(): HTMWEwement {
+		wetuwn this._widget.domNode;
 	}
 
-	getPosition(): IOverlayWidgetPosition {
-		return {
-			preference: null
+	getPosition(): IOvewwayWidgetPosition {
+		wetuwn {
+			pwefewence: nuww
 		};
 	}
 
-	override dispose(): void {
-		this._editor.removeOverlayWidget(this);
-		super.dispose();
+	ovewwide dispose(): void {
+		this._editow.wemoveOvewwayWidget(this);
+		supa.dispose();
 	}
 
-	start(): Promise<string | null> {
-		if (this._editor.hasModel()) {
-			this._editor.revealPositionInCenterIfOutsideViewport(this._editor.getPosition(), ScrollType.Smooth);
+	stawt(): Pwomise<stwing | nuww> {
+		if (this._editow.hasModew()) {
+			this._editow.weveawPositionInCentewIfOutsideViewpowt(this._editow.getPosition(), ScwowwType.Smooth);
 		}
-		const layoutInfo = this._editor.getLayoutInfo();
-		this._widget.layout(new dom.Dimension(layoutInfo.width, layoutInfo.height));
-		return this._widget.define();
+		const wayoutInfo = this._editow.getWayoutInfo();
+		this._widget.wayout(new dom.Dimension(wayoutInfo.width, wayoutInfo.height));
+		wetuwn this._widget.define();
 	}
 }

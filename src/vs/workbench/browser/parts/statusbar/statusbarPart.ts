@@ -1,451 +1,451 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/statusbarpart';
-import { localize } from 'vs/nls';
-import { DisposableStore, dispose, MutableDisposable } from 'vs/base/common/lifecycle';
-import { Part } from 'vs/workbench/browser/part';
-import { EventType as TouchEventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IAction, Separator, toAction } from 'vs/base/common/actions';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND, STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER } from 'vs/workbench/common/theme';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { EventHelper, createStyleSheet, addDisposableListener, EventType, clearNode } from 'vs/base/browser/dom';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { coalesce, equals } from 'vs/base/common/arrays';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { ToggleStatusbarVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { hash } from 'vs/base/common/hash';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IHoverDelegate, IHoverDelegateOptions, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { CONTEXT_STATUS_BAR_FOCUSED, HideStatusbarEntryAction, ToggleStatusbarEntryVisibilityAction } from 'vs/workbench/browser/parts/statusbar/statusbarActions';
-import { IStatusbarEntryPriority, IStatusbarEntryLocation, IStatusbarViewModelEntry, StatusbarViewModel, isStatusbarEntryLocation } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
-import { StatusbarEntryItem } from 'vs/workbench/browser/parts/statusbar/statusbarItem';
+impowt 'vs/css!./media/statusbawpawt';
+impowt { wocawize } fwom 'vs/nws';
+impowt { DisposabweStowe, dispose, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Pawt } fwom 'vs/wowkbench/bwowsa/pawt';
+impowt { EventType as TouchEventType, Gestuwe, GestuweEvent } fwom 'vs/base/bwowsa/touch';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { StatusbawAwignment, IStatusbawSewvice, IStatusbawEntwy, IStatusbawEntwyAccessow } fwom 'vs/wowkbench/sewvices/statusbaw/bwowsa/statusbaw';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IAction, Sepawatow, toAction } fwom 'vs/base/common/actions';
+impowt { IThemeSewvice, wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { STATUS_BAW_BACKGWOUND, STATUS_BAW_FOWEGWOUND, STATUS_BAW_NO_FOWDEW_BACKGWOUND, STATUS_BAW_ITEM_HOVEW_BACKGWOUND, STATUS_BAW_ITEM_ACTIVE_BACKGWOUND, STATUS_BAW_PWOMINENT_ITEM_FOWEGWOUND, STATUS_BAW_PWOMINENT_ITEM_BACKGWOUND, STATUS_BAW_PWOMINENT_ITEM_HOVEW_BACKGWOUND, STATUS_BAW_BOWDa, STATUS_BAW_NO_FOWDEW_FOWEGWOUND, STATUS_BAW_NO_FOWDEW_BOWDa } fwom 'vs/wowkbench/common/theme';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { contwastBowda, activeContwastBowda } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { EventHewpa, cweateStyweSheet, addDisposabweWistena, EventType, cweawNode } fwom 'vs/base/bwowsa/dom';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { Pawts, IWowkbenchWayoutSewvice } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { coawesce, equaws } fwom 'vs/base/common/awways';
+impowt { StandawdMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { ToggweStatusbawVisibiwityAction } fwom 'vs/wowkbench/bwowsa/actions/wayoutActions';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { CowowScheme } fwom 'vs/pwatfowm/theme/common/theme';
+impowt { hash } fwom 'vs/base/common/hash';
+impowt { IHovewSewvice } fwom 'vs/wowkbench/sewvices/hova/bwowsa/hova';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IHovewDewegate, IHovewDewegateOptions, IHovewWidget } fwom 'vs/base/bwowsa/ui/iconWabew/iconHovewDewegate';
+impowt { CONTEXT_STATUS_BAW_FOCUSED, HideStatusbawEntwyAction, ToggweStatusbawEntwyVisibiwityAction } fwom 'vs/wowkbench/bwowsa/pawts/statusbaw/statusbawActions';
+impowt { IStatusbawEntwyPwiowity, IStatusbawEntwyWocation, IStatusbawViewModewEntwy, StatusbawViewModew, isStatusbawEntwyWocation } fwom 'vs/wowkbench/bwowsa/pawts/statusbaw/statusbawModew';
+impowt { StatusbawEntwyItem } fwom 'vs/wowkbench/bwowsa/pawts/statusbaw/statusbawItem';
 
-interface IPendingStatusbarEntry {
-	readonly id: string;
-	readonly alignment: StatusbarAlignment;
-	readonly priority: IStatusbarEntryPriority;
+intewface IPendingStatusbawEntwy {
+	weadonwy id: stwing;
+	weadonwy awignment: StatusbawAwignment;
+	weadonwy pwiowity: IStatusbawEntwyPwiowity;
 
-	entry: IStatusbarEntry;
-	accessor?: IStatusbarEntryAccessor;
+	entwy: IStatusbawEntwy;
+	accessow?: IStatusbawEntwyAccessow;
 }
 
-export class StatusbarPart extends Part implements IStatusbarService {
+expowt cwass StatusbawPawt extends Pawt impwements IStatusbawSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	//#region IView
+	//#wegion IView
 
-	readonly minimumWidth: number = 0;
-	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
-	readonly minimumHeight: number = 22;
-	readonly maximumHeight: number = 22;
+	weadonwy minimumWidth: numba = 0;
+	weadonwy maximumWidth: numba = Numba.POSITIVE_INFINITY;
+	weadonwy minimumHeight: numba = 22;
+	weadonwy maximumHeight: numba = 22;
 
-	//#endregion
+	//#endwegion
 
-	private styleElement: HTMLStyleElement | undefined;
+	pwivate styweEwement: HTMWStyweEwement | undefined;
 
-	private pendingEntries: IPendingStatusbarEntry[] = [];
+	pwivate pendingEntwies: IPendingStatusbawEntwy[] = [];
 
-	private readonly viewModel = this._register(new StatusbarViewModel(this.storageService));
+	pwivate weadonwy viewModew = this._wegista(new StatusbawViewModew(this.stowageSewvice));
 
-	readonly onDidChangeEntryVisibility = this.viewModel.onDidChangeEntryVisibility;
+	weadonwy onDidChangeEntwyVisibiwity = this.viewModew.onDidChangeEntwyVisibiwity;
 
-	private leftItemsContainer: HTMLElement | undefined;
-	private rightItemsContainer: HTMLElement | undefined;
+	pwivate weftItemsContaina: HTMWEwement | undefined;
+	pwivate wightItemsContaina: HTMWEwement | undefined;
 
-	private readonly hoverDelegate = new class implements IHoverDelegate {
+	pwivate weadonwy hovewDewegate = new cwass impwements IHovewDewegate {
 
-		private lastHoverHideTime = 0;
+		pwivate wastHovewHideTime = 0;
 
-		readonly placement = 'element';
+		weadonwy pwacement = 'ewement';
 
-		get delay() {
-			if (Date.now() - this.lastHoverHideTime < 200) {
-				return 0; // show instantly when a hover was recently shown
+		get deway() {
+			if (Date.now() - this.wastHovewHideTime < 200) {
+				wetuwn 0; // show instantwy when a hova was wecentwy shown
 			}
 
-			return this.configurationService.getValue<number>('workbench.hover.delay');
+			wetuwn this.configuwationSewvice.getVawue<numba>('wowkbench.hova.deway');
 		}
 
-		constructor(
-			private readonly configurationService: IConfigurationService,
-			private readonly hoverService: IHoverService
+		constwuctow(
+			pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+			pwivate weadonwy hovewSewvice: IHovewSewvice
 		) { }
 
-		showHover(options: IHoverDelegateOptions, focus?: boolean): IHoverWidget | undefined {
-			return this.hoverService.showHover(options, focus);
+		showHova(options: IHovewDewegateOptions, focus?: boowean): IHovewWidget | undefined {
+			wetuwn this.hovewSewvice.showHova(options, focus);
 		}
 
-		onDidHideHover(): void {
-			this.lastHoverHideTime = Date.now();
+		onDidHideHova(): void {
+			this.wastHovewHideTime = Date.now();
 		}
-	}(this.configurationService, this.hoverService);
+	}(this.configuwationSewvice, this.hovewSewvice);
 
-	private readonly compactEntriesDisposable = this._register(new MutableDisposable<DisposableStore>());
+	pwivate weadonwy compactEntwiesDisposabwe = this._wegista(new MutabweDisposabwe<DisposabweStowe>());
 
-	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IHoverService private readonly hoverService: IHoverService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+	constwuctow(
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IWowkbenchWayoutSewvice wayoutSewvice: IWowkbenchWayoutSewvice,
+		@IContextMenuSewvice pwivate contextMenuSewvice: IContextMenuSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IHovewSewvice pwivate weadonwy hovewSewvice: IHovewSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice
 	) {
-		super(Parts.STATUSBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
+		supa(Pawts.STATUSBAW_PAWT, { hasTitwe: fawse }, themeSewvice, stowageSewvice, wayoutSewvice);
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Entry visibility changes
-		this._register(this.onDidChangeEntryVisibility(() => this.updateCompactEntries()));
+		// Entwy visibiwity changes
+		this._wegista(this.onDidChangeEntwyVisibiwity(() => this.updateCompactEntwies()));
 
-		// Workbench state changes
-		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
+		// Wowkbench state changes
+		this._wegista(this.contextSewvice.onDidChangeWowkbenchState(() => this.updateStywes()));
 	}
 
-	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priorityOrLocation: number | IStatusbarEntryLocation = 0): IStatusbarEntryAccessor {
-		const priority: IStatusbarEntryPriority = {
-			primary: priorityOrLocation,
-			secondary: hash(id) // derive from identifier to accomplish uniqueness
+	addEntwy(entwy: IStatusbawEntwy, id: stwing, awignment: StatusbawAwignment, pwiowityOwWocation: numba | IStatusbawEntwyWocation = 0): IStatusbawEntwyAccessow {
+		const pwiowity: IStatusbawEntwyPwiowity = {
+			pwimawy: pwiowityOwWocation,
+			secondawy: hash(id) // dewive fwom identifia to accompwish uniqueness
 		};
 
-		// As long as we have not been created into a container yet, record all entries
-		// that are pending so that they can get created at a later point
-		if (!this.element) {
-			return this.doAddPendingEntry(entry, id, alignment, priority);
+		// As wong as we have not been cweated into a containa yet, wecowd aww entwies
+		// that awe pending so that they can get cweated at a wata point
+		if (!this.ewement) {
+			wetuwn this.doAddPendingEntwy(entwy, id, awignment, pwiowity);
 		}
 
-		// Otherwise add to view
-		return this.doAddEntry(entry, id, alignment, priority);
+		// Othewwise add to view
+		wetuwn this.doAddEntwy(entwy, id, awignment, pwiowity);
 	}
 
-	private doAddPendingEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priority: IStatusbarEntryPriority): IStatusbarEntryAccessor {
-		const pendingEntry: IPendingStatusbarEntry = { entry, id, alignment, priority };
-		this.pendingEntries.push(pendingEntry);
+	pwivate doAddPendingEntwy(entwy: IStatusbawEntwy, id: stwing, awignment: StatusbawAwignment, pwiowity: IStatusbawEntwyPwiowity): IStatusbawEntwyAccessow {
+		const pendingEntwy: IPendingStatusbawEntwy = { entwy, id, awignment, pwiowity };
+		this.pendingEntwies.push(pendingEntwy);
 
-		const accessor: IStatusbarEntryAccessor = {
-			update: (entry: IStatusbarEntry) => {
-				if (pendingEntry.accessor) {
-					pendingEntry.accessor.update(entry);
-				} else {
-					pendingEntry.entry = entry;
+		const accessow: IStatusbawEntwyAccessow = {
+			update: (entwy: IStatusbawEntwy) => {
+				if (pendingEntwy.accessow) {
+					pendingEntwy.accessow.update(entwy);
+				} ewse {
+					pendingEntwy.entwy = entwy;
 				}
 			},
 
 			dispose: () => {
-				if (pendingEntry.accessor) {
-					pendingEntry.accessor.dispose();
-				} else {
-					this.pendingEntries = this.pendingEntries.filter(entry => entry !== pendingEntry);
+				if (pendingEntwy.accessow) {
+					pendingEntwy.accessow.dispose();
+				} ewse {
+					this.pendingEntwies = this.pendingEntwies.fiwta(entwy => entwy !== pendingEntwy);
 				}
 			}
 		};
 
-		return accessor;
+		wetuwn accessow;
 	}
 
-	private doAddEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priority: IStatusbarEntryPriority): IStatusbarEntryAccessor {
+	pwivate doAddEntwy(entwy: IStatusbawEntwy, id: stwing, awignment: StatusbawAwignment, pwiowity: IStatusbawEntwyPwiowity): IStatusbawEntwyAccessow {
 
-		// View model item
-		const itemContainer = this.doCreateStatusItem(id, alignment, ...coalesce([entry.showBeak ? 'has-beak' : undefined]));
-		const item = this.instantiationService.createInstance(StatusbarEntryItem, itemContainer, entry, this.hoverDelegate);
+		// View modew item
+		const itemContaina = this.doCweateStatusItem(id, awignment, ...coawesce([entwy.showBeak ? 'has-beak' : undefined]));
+		const item = this.instantiationSewvice.cweateInstance(StatusbawEntwyItem, itemContaina, entwy, this.hovewDewegate);
 
-		// View model entry
-		const viewModelEntry: IStatusbarViewModelEntry = new class implements IStatusbarViewModelEntry {
-			readonly id = id;
-			readonly alignment = alignment;
-			readonly priority = priority;
-			readonly container = itemContainer;
-			readonly labelContainer = item.labelContainer;
+		// View modew entwy
+		const viewModewEntwy: IStatusbawViewModewEntwy = new cwass impwements IStatusbawViewModewEntwy {
+			weadonwy id = id;
+			weadonwy awignment = awignment;
+			weadonwy pwiowity = pwiowity;
+			weadonwy containa = itemContaina;
+			weadonwy wabewContaina = item.wabewContaina;
 
-			get name() { return item.name; }
-			get hasCommand() { return item.hasCommand; }
+			get name() { wetuwn item.name; }
+			get hasCommand() { wetuwn item.hasCommand; }
 		};
 
-		// Add to view model
-		const { needsFullRefresh } = this.doAddOrRemoveModelEntry(viewModelEntry, true);
-		if (needsFullRefresh) {
-			this.appendStatusbarEntries();
-		} else {
-			this.appendStatusbarEntry(viewModelEntry);
+		// Add to view modew
+		const { needsFuwwWefwesh } = this.doAddOwWemoveModewEntwy(viewModewEntwy, twue);
+		if (needsFuwwWefwesh) {
+			this.appendStatusbawEntwies();
+		} ewse {
+			this.appendStatusbawEntwy(viewModewEntwy);
 		}
 
-		return {
-			update: entry => {
-				item.update(entry);
+		wetuwn {
+			update: entwy => {
+				item.update(entwy);
 			},
 			dispose: () => {
-				const { needsFullRefresh } = this.doAddOrRemoveModelEntry(viewModelEntry, false);
-				if (needsFullRefresh) {
-					this.appendStatusbarEntries();
-				} else {
-					itemContainer.remove();
+				const { needsFuwwWefwesh } = this.doAddOwWemoveModewEntwy(viewModewEntwy, fawse);
+				if (needsFuwwWefwesh) {
+					this.appendStatusbawEntwies();
+				} ewse {
+					itemContaina.wemove();
 				}
 				dispose(item);
 			}
 		};
 	}
 
-	private doCreateStatusItem(id: string, alignment: StatusbarAlignment, ...extraClasses: string[]): HTMLElement {
-		const itemContainer = document.createElement('div');
-		itemContainer.id = id;
+	pwivate doCweateStatusItem(id: stwing, awignment: StatusbawAwignment, ...extwaCwasses: stwing[]): HTMWEwement {
+		const itemContaina = document.cweateEwement('div');
+		itemContaina.id = id;
 
-		itemContainer.classList.add('statusbar-item');
-		if (extraClasses) {
-			itemContainer.classList.add(...extraClasses);
+		itemContaina.cwassWist.add('statusbaw-item');
+		if (extwaCwasses) {
+			itemContaina.cwassWist.add(...extwaCwasses);
 		}
 
-		if (alignment === StatusbarAlignment.RIGHT) {
-			itemContainer.classList.add('right');
-		} else {
-			itemContainer.classList.add('left');
+		if (awignment === StatusbawAwignment.WIGHT) {
+			itemContaina.cwassWist.add('wight');
+		} ewse {
+			itemContaina.cwassWist.add('weft');
 		}
 
-		return itemContainer;
+		wetuwn itemContaina;
 	}
 
-	private doAddOrRemoveModelEntry(entry: IStatusbarViewModelEntry, add: boolean) {
+	pwivate doAddOwWemoveModewEntwy(entwy: IStatusbawViewModewEntwy, add: boowean) {
 
-		// Update model but remember previous entries
-		const entriesBefore = this.viewModel.entries;
+		// Update modew but wememba pwevious entwies
+		const entwiesBefowe = this.viewModew.entwies;
 		if (add) {
-			this.viewModel.add(entry);
-		} else {
-			this.viewModel.remove(entry);
+			this.viewModew.add(entwy);
+		} ewse {
+			this.viewModew.wemove(entwy);
 		}
-		const entriesAfter = this.viewModel.entries;
+		const entwiesAfta = this.viewModew.entwies;
 
-		// Apply operation onto the entries from before
+		// Appwy opewation onto the entwies fwom befowe
 		if (add) {
-			entriesBefore.splice(entriesAfter.indexOf(entry), 0, entry);
-		} else {
-			entriesBefore.splice(entriesBefore.indexOf(entry), 1);
+			entwiesBefowe.spwice(entwiesAfta.indexOf(entwy), 0, entwy);
+		} ewse {
+			entwiesBefowe.spwice(entwiesBefowe.indexOf(entwy), 1);
 		}
 
-		// Figure out if a full refresh is needed by comparing arrays
-		const needsFullRefresh = !equals(entriesBefore, entriesAfter);
+		// Figuwe out if a fuww wefwesh is needed by compawing awways
+		const needsFuwwWefwesh = !equaws(entwiesBefowe, entwiesAfta);
 
-		return { needsFullRefresh };
+		wetuwn { needsFuwwWefwesh };
 	}
 
-	isEntryVisible(id: string): boolean {
-		return !this.viewModel.isHidden(id);
+	isEntwyVisibwe(id: stwing): boowean {
+		wetuwn !this.viewModew.isHidden(id);
 	}
 
-	updateEntryVisibility(id: string, visible: boolean): void {
-		if (visible) {
-			this.viewModel.show(id);
-		} else {
-			this.viewModel.hide(id);
-		}
-	}
-
-	focusNextEntry(): void {
-		this.viewModel.focusNextEntry();
-	}
-
-	focusPreviousEntry(): void {
-		this.viewModel.focusPreviousEntry();
-	}
-
-	isEntryFocused(): boolean {
-		return this.viewModel.isEntryFocused();
-	}
-
-	focus(preserveEntryFocus = true): void {
-		this.getContainer()?.focus();
-		const lastFocusedEntry = this.viewModel.lastFocusedEntry;
-		if (preserveEntryFocus && lastFocusedEntry) {
-			setTimeout(() => lastFocusedEntry.labelContainer.focus(), 0); // Need a timeout, for some reason without it the inner label container will not get focused
+	updateEntwyVisibiwity(id: stwing, visibwe: boowean): void {
+		if (visibwe) {
+			this.viewModew.show(id);
+		} ewse {
+			this.viewModew.hide(id);
 		}
 	}
 
-	override createContentArea(parent: HTMLElement): HTMLElement {
-		this.element = parent;
-
-		// Track focus within container
-		const scopedContextKeyService = this.contextKeyService.createScoped(this.element);
-		CONTEXT_STATUS_BAR_FOCUSED.bindTo(scopedContextKeyService).set(true);
-
-		// Left items container
-		this.leftItemsContainer = document.createElement('div');
-		this.leftItemsContainer.classList.add('left-items', 'items-container');
-		this.element.appendChild(this.leftItemsContainer);
-		this.element.tabIndex = 0;
-
-		// Right items container
-		this.rightItemsContainer = document.createElement('div');
-		this.rightItemsContainer.classList.add('right-items', 'items-container');
-		this.element.appendChild(this.rightItemsContainer);
-
-		// Context menu support
-		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, e => this.showContextMenu(e)));
-		this._register(Gesture.addTarget(parent));
-		this._register(addDisposableListener(parent, TouchEventType.Contextmenu, e => this.showContextMenu(e)));
-
-		// Initial status bar entries
-		this.createInitialStatusbarEntries();
-
-		return this.element;
+	focusNextEntwy(): void {
+		this.viewModew.focusNextEntwy();
 	}
 
-	private createInitialStatusbarEntries(): void {
+	focusPweviousEntwy(): void {
+		this.viewModew.focusPweviousEntwy();
+	}
 
-		// Add items in order according to alignment
-		this.appendStatusbarEntries();
+	isEntwyFocused(): boowean {
+		wetuwn this.viewModew.isEntwyFocused();
+	}
 
-		// Fill in pending entries if any
-		while (this.pendingEntries.length) {
-			const pending = this.pendingEntries.shift();
+	focus(pwesewveEntwyFocus = twue): void {
+		this.getContaina()?.focus();
+		const wastFocusedEntwy = this.viewModew.wastFocusedEntwy;
+		if (pwesewveEntwyFocus && wastFocusedEntwy) {
+			setTimeout(() => wastFocusedEntwy.wabewContaina.focus(), 0); // Need a timeout, fow some weason without it the inna wabew containa wiww not get focused
+		}
+	}
+
+	ovewwide cweateContentAwea(pawent: HTMWEwement): HTMWEwement {
+		this.ewement = pawent;
+
+		// Twack focus within containa
+		const scopedContextKeySewvice = this.contextKeySewvice.cweateScoped(this.ewement);
+		CONTEXT_STATUS_BAW_FOCUSED.bindTo(scopedContextKeySewvice).set(twue);
+
+		// Weft items containa
+		this.weftItemsContaina = document.cweateEwement('div');
+		this.weftItemsContaina.cwassWist.add('weft-items', 'items-containa');
+		this.ewement.appendChiwd(this.weftItemsContaina);
+		this.ewement.tabIndex = 0;
+
+		// Wight items containa
+		this.wightItemsContaina = document.cweateEwement('div');
+		this.wightItemsContaina.cwassWist.add('wight-items', 'items-containa');
+		this.ewement.appendChiwd(this.wightItemsContaina);
+
+		// Context menu suppowt
+		this._wegista(addDisposabweWistena(pawent, EventType.CONTEXT_MENU, e => this.showContextMenu(e)));
+		this._wegista(Gestuwe.addTawget(pawent));
+		this._wegista(addDisposabweWistena(pawent, TouchEventType.Contextmenu, e => this.showContextMenu(e)));
+
+		// Initiaw status baw entwies
+		this.cweateInitiawStatusbawEntwies();
+
+		wetuwn this.ewement;
+	}
+
+	pwivate cweateInitiawStatusbawEntwies(): void {
+
+		// Add items in owda accowding to awignment
+		this.appendStatusbawEntwies();
+
+		// Fiww in pending entwies if any
+		whiwe (this.pendingEntwies.wength) {
+			const pending = this.pendingEntwies.shift();
 			if (pending) {
-				pending.accessor = this.addEntry(pending.entry, pending.id, pending.alignment, pending.priority.primary);
+				pending.accessow = this.addEntwy(pending.entwy, pending.id, pending.awignment, pending.pwiowity.pwimawy);
 			}
 		}
 	}
 
-	private appendStatusbarEntries(): void {
-		const leftItemsContainer = assertIsDefined(this.leftItemsContainer);
-		const rightItemsContainer = assertIsDefined(this.rightItemsContainer);
+	pwivate appendStatusbawEntwies(): void {
+		const weftItemsContaina = assewtIsDefined(this.weftItemsContaina);
+		const wightItemsContaina = assewtIsDefined(this.wightItemsContaina);
 
-		// Clear containers
-		clearNode(leftItemsContainer);
-		clearNode(rightItemsContainer);
+		// Cweaw containews
+		cweawNode(weftItemsContaina);
+		cweawNode(wightItemsContaina);
 
-		// Append all
-		for (const entry of [
-			...this.viewModel.getEntries(StatusbarAlignment.LEFT),
-			...this.viewModel.getEntries(StatusbarAlignment.RIGHT).reverse() // reversing due to flex: row-reverse
+		// Append aww
+		fow (const entwy of [
+			...this.viewModew.getEntwies(StatusbawAwignment.WEFT),
+			...this.viewModew.getEntwies(StatusbawAwignment.WIGHT).wevewse() // wevewsing due to fwex: wow-wevewse
 		]) {
-			const target = entry.alignment === StatusbarAlignment.LEFT ? leftItemsContainer : rightItemsContainer;
+			const tawget = entwy.awignment === StatusbawAwignment.WEFT ? weftItemsContaina : wightItemsContaina;
 
-			target.appendChild(entry.container);
+			tawget.appendChiwd(entwy.containa);
 		}
 
-		// Update compact entries
-		this.updateCompactEntries();
+		// Update compact entwies
+		this.updateCompactEntwies();
 	}
 
-	private appendStatusbarEntry(entry: IStatusbarViewModelEntry): void {
-		const entries = this.viewModel.getEntries(entry.alignment);
+	pwivate appendStatusbawEntwy(entwy: IStatusbawViewModewEntwy): void {
+		const entwies = this.viewModew.getEntwies(entwy.awignment);
 
-		if (entry.alignment === StatusbarAlignment.RIGHT) {
-			entries.reverse(); // reversing due to flex: row-reverse
+		if (entwy.awignment === StatusbawAwignment.WIGHT) {
+			entwies.wevewse(); // wevewsing due to fwex: wow-wevewse
 		}
 
-		const target = assertIsDefined(entry.alignment === StatusbarAlignment.LEFT ? this.leftItemsContainer : this.rightItemsContainer);
+		const tawget = assewtIsDefined(entwy.awignment === StatusbawAwignment.WEFT ? this.weftItemsContaina : this.wightItemsContaina);
 
-		const index = entries.indexOf(entry);
-		if (index + 1 === entries.length) {
-			target.appendChild(entry.container); // append at the end if last
-		} else {
-			target.insertBefore(entry.container, entries[index + 1].container); // insert before next element otherwise
+		const index = entwies.indexOf(entwy);
+		if (index + 1 === entwies.wength) {
+			tawget.appendChiwd(entwy.containa); // append at the end if wast
+		} ewse {
+			tawget.insewtBefowe(entwy.containa, entwies[index + 1].containa); // insewt befowe next ewement othewwise
 		}
 
-		// Update compact entries
-		this.updateCompactEntries();
+		// Update compact entwies
+		this.updateCompactEntwies();
 	}
 
-	private updateCompactEntries(): void {
-		const entries = this.viewModel.entries;
+	pwivate updateCompactEntwies(): void {
+		const entwies = this.viewModew.entwies;
 
-		// Find visible entries and clear compact related CSS classes if any
-		const mapIdToVisibleEntry = new Map<string, IStatusbarViewModelEntry>();
-		for (const entry of entries) {
-			if (!this.viewModel.isHidden(entry.id)) {
-				mapIdToVisibleEntry.set(entry.id, entry);
+		// Find visibwe entwies and cweaw compact wewated CSS cwasses if any
+		const mapIdToVisibweEntwy = new Map<stwing, IStatusbawViewModewEntwy>();
+		fow (const entwy of entwies) {
+			if (!this.viewModew.isHidden(entwy.id)) {
+				mapIdToVisibweEntwy.set(entwy.id, entwy);
 			}
 
-			entry.container.classList.remove('compact-left', 'compact-right');
+			entwy.containa.cwassWist.wemove('compact-weft', 'compact-wight');
 		}
 
-		// Figure out groups of entries with `compact` alignment
-		const compactEntryGroups = new Map<string, Set<IStatusbarViewModelEntry>>();
-		for (const entry of mapIdToVisibleEntry.values()) {
+		// Figuwe out gwoups of entwies with `compact` awignment
+		const compactEntwyGwoups = new Map<stwing, Set<IStatusbawViewModewEntwy>>();
+		fow (const entwy of mapIdToVisibweEntwy.vawues()) {
 			if (
-				isStatusbarEntryLocation(entry.priority.primary) && // entry references another entry as location
-				entry.priority.primary.compact						// entry wants to be compact
+				isStatusbawEntwyWocation(entwy.pwiowity.pwimawy) && // entwy wefewences anotha entwy as wocation
+				entwy.pwiowity.pwimawy.compact						// entwy wants to be compact
 			) {
-				const locationId = entry.priority.primary.id;
-				const location = mapIdToVisibleEntry.get(locationId);
-				if (!location) {
-					continue; // skip if location does not exist
+				const wocationId = entwy.pwiowity.pwimawy.id;
+				const wocation = mapIdToVisibweEntwy.get(wocationId);
+				if (!wocation) {
+					continue; // skip if wocation does not exist
 				}
 
-				// Build a map of entries that are compact among each other
-				let compactEntryGroup = compactEntryGroups.get(locationId);
-				if (!compactEntryGroup) {
-					compactEntryGroup = new Set<IStatusbarViewModelEntry>([entry, location]);
-					compactEntryGroups.set(locationId, compactEntryGroup);
-				} else {
-					compactEntryGroup.add(entry);
+				// Buiwd a map of entwies that awe compact among each otha
+				wet compactEntwyGwoup = compactEntwyGwoups.get(wocationId);
+				if (!compactEntwyGwoup) {
+					compactEntwyGwoup = new Set<IStatusbawViewModewEntwy>([entwy, wocation]);
+					compactEntwyGwoups.set(wocationId, compactEntwyGwoup);
+				} ewse {
+					compactEntwyGwoup.add(entwy);
 				}
 
-				// Adjust CSS classes to move compact items closer together
-				if (entry.priority.primary.alignment === StatusbarAlignment.LEFT) {
-					location.container.classList.add('compact-left');
-					entry.container.classList.add('compact-right');
-				} else {
-					location.container.classList.add('compact-right');
-					entry.container.classList.add('compact-left');
+				// Adjust CSS cwasses to move compact items cwosa togetha
+				if (entwy.pwiowity.pwimawy.awignment === StatusbawAwignment.WEFT) {
+					wocation.containa.cwassWist.add('compact-weft');
+					entwy.containa.cwassWist.add('compact-wight');
+				} ewse {
+					wocation.containa.cwassWist.add('compact-wight');
+					entwy.containa.cwassWist.add('compact-weft');
 				}
 			}
 		}
 
 
-		// Install mouse listeners to update hover feedback for
-		// all compact entries that belong to each other
-		const statusBarItemHoverBackground = this.getColor(STATUS_BAR_ITEM_HOVER_BACKGROUND)?.toString();
-		this.compactEntriesDisposable.value = new DisposableStore();
-		if (statusBarItemHoverBackground && this.theme.type !== ColorScheme.HIGH_CONTRAST) {
-			for (const [, compactEntryGroup] of compactEntryGroups) {
-				for (const compactEntry of compactEntryGroup) {
-					if (!compactEntry.hasCommand) {
-						continue; // only show hover feedback when we have a command
+		// Instaww mouse wistenews to update hova feedback fow
+		// aww compact entwies that bewong to each otha
+		const statusBawItemHovewBackgwound = this.getCowow(STATUS_BAW_ITEM_HOVEW_BACKGWOUND)?.toStwing();
+		this.compactEntwiesDisposabwe.vawue = new DisposabweStowe();
+		if (statusBawItemHovewBackgwound && this.theme.type !== CowowScheme.HIGH_CONTWAST) {
+			fow (const [, compactEntwyGwoup] of compactEntwyGwoups) {
+				fow (const compactEntwy of compactEntwyGwoup) {
+					if (!compactEntwy.hasCommand) {
+						continue; // onwy show hova feedback when we have a command
 					}
 
-					this.compactEntriesDisposable.value.add(addDisposableListener(compactEntry.labelContainer, EventType.MOUSE_OVER, () => {
-						compactEntryGroup.forEach(compactEntry => compactEntry.labelContainer.style.backgroundColor = statusBarItemHoverBackground);
+					this.compactEntwiesDisposabwe.vawue.add(addDisposabweWistena(compactEntwy.wabewContaina, EventType.MOUSE_OVa, () => {
+						compactEntwyGwoup.fowEach(compactEntwy => compactEntwy.wabewContaina.stywe.backgwoundCowow = statusBawItemHovewBackgwound);
 					}));
 
-					this.compactEntriesDisposable.value.add(addDisposableListener(compactEntry.labelContainer, EventType.MOUSE_OUT, () => {
-						compactEntryGroup.forEach(compactEntry => compactEntry.labelContainer.style.backgroundColor = '');
+					this.compactEntwiesDisposabwe.vawue.add(addDisposabweWistena(compactEntwy.wabewContaina, EventType.MOUSE_OUT, () => {
+						compactEntwyGwoup.fowEach(compactEntwy => compactEntwy.wabewContaina.stywe.backgwoundCowow = '');
 					}));
 				}
 			}
 		}
 	}
 
-	private showContextMenu(e: MouseEvent | GestureEvent): void {
-		EventHelper.stop(e, true);
+	pwivate showContextMenu(e: MouseEvent | GestuweEvent): void {
+		EventHewpa.stop(e, twue);
 
-		const event = new StandardMouseEvent(e);
+		const event = new StandawdMouseEvent(e);
 
-		let actions: IAction[] | undefined = undefined;
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => ({ x: event.posx, y: event.posy }),
+		wet actions: IAction[] | undefined = undefined;
+		this.contextMenuSewvice.showContextMenu({
+			getAnchow: () => ({ x: event.posx, y: event.posy }),
 			getActions: () => {
 				actions = this.getContextMenuActions(event);
 
-				return actions;
+				wetuwn actions;
 			},
 			onHide: () => {
 				if (actions) {
@@ -455,129 +455,129 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		});
 	}
 
-	private getContextMenuActions(event: StandardMouseEvent): IAction[] {
+	pwivate getContextMenuActions(event: StandawdMouseEvent): IAction[] {
 		const actions: IAction[] = [];
 
-		// Provide an action to hide the status bar at last
-		actions.push(toAction({ id: ToggleStatusbarVisibilityAction.ID, label: localize('hideStatusBar', "Hide Status Bar"), run: () => this.instantiationService.invokeFunction(accessor => new ToggleStatusbarVisibilityAction().run(accessor)) }));
-		actions.push(new Separator());
+		// Pwovide an action to hide the status baw at wast
+		actions.push(toAction({ id: ToggweStatusbawVisibiwityAction.ID, wabew: wocawize('hideStatusBaw', "Hide Status Baw"), wun: () => this.instantiationSewvice.invokeFunction(accessow => new ToggweStatusbawVisibiwityAction().wun(accessow)) }));
+		actions.push(new Sepawatow());
 
-		// Show an entry per known status entry
-		// Note: even though entries have an identifier, there can be multiple entries
-		// having the same identifier (e.g. from extensions). So we make sure to only
-		// show a single entry per identifier we handled.
-		const handledEntries = new Set<string>();
-		for (const entry of this.viewModel.entries) {
-			if (!handledEntries.has(entry.id)) {
-				actions.push(new ToggleStatusbarEntryVisibilityAction(entry.id, entry.name, this.viewModel));
-				handledEntries.add(entry.id);
+		// Show an entwy pew known status entwy
+		// Note: even though entwies have an identifia, thewe can be muwtipwe entwies
+		// having the same identifia (e.g. fwom extensions). So we make suwe to onwy
+		// show a singwe entwy pew identifia we handwed.
+		const handwedEntwies = new Set<stwing>();
+		fow (const entwy of this.viewModew.entwies) {
+			if (!handwedEntwies.has(entwy.id)) {
+				actions.push(new ToggweStatusbawEntwyVisibiwityAction(entwy.id, entwy.name, this.viewModew));
+				handwedEntwies.add(entwy.id);
 			}
 		}
 
-		// Figure out if mouse is over an entry
-		let statusEntryUnderMouse: IStatusbarViewModelEntry | undefined = undefined;
-		for (let element: HTMLElement | null = event.target; element; element = element.parentElement) {
-			const entry = this.viewModel.findEntry(element);
-			if (entry) {
-				statusEntryUnderMouse = entry;
-				break;
+		// Figuwe out if mouse is ova an entwy
+		wet statusEntwyUndewMouse: IStatusbawViewModewEntwy | undefined = undefined;
+		fow (wet ewement: HTMWEwement | nuww = event.tawget; ewement; ewement = ewement.pawentEwement) {
+			const entwy = this.viewModew.findEntwy(ewement);
+			if (entwy) {
+				statusEntwyUndewMouse = entwy;
+				bweak;
 			}
 		}
 
-		if (statusEntryUnderMouse) {
-			actions.push(new Separator());
-			actions.push(new HideStatusbarEntryAction(statusEntryUnderMouse.id, statusEntryUnderMouse.name, this.viewModel));
+		if (statusEntwyUndewMouse) {
+			actions.push(new Sepawatow());
+			actions.push(new HideStatusbawEntwyAction(statusEntwyUndewMouse.id, statusEntwyUndewMouse.name, this.viewModew));
 		}
 
-		return actions;
+		wetuwn actions;
 	}
 
-	override updateStyles(): void {
-		super.updateStyles();
+	ovewwide updateStywes(): void {
+		supa.updateStywes();
 
-		const container = assertIsDefined(this.getContainer());
+		const containa = assewtIsDefined(this.getContaina());
 
-		// Background colors
-		const backgroundColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND) || '';
-		container.style.backgroundColor = backgroundColor;
-		container.style.color = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND) || '';
+		// Backgwound cowows
+		const backgwoundCowow = this.getCowow(this.contextSewvice.getWowkbenchState() !== WowkbenchState.EMPTY ? STATUS_BAW_BACKGWOUND : STATUS_BAW_NO_FOWDEW_BACKGWOUND) || '';
+		containa.stywe.backgwoundCowow = backgwoundCowow;
+		containa.stywe.cowow = this.getCowow(this.contextSewvice.getWowkbenchState() !== WowkbenchState.EMPTY ? STATUS_BAW_FOWEGWOUND : STATUS_BAW_NO_FOWDEW_FOWEGWOUND) || '';
 
-		// Border color
-		const borderColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BORDER : STATUS_BAR_NO_FOLDER_BORDER) || this.getColor(contrastBorder);
-		if (borderColor) {
-			container.classList.add('status-border-top');
-			container.style.setProperty('--status-border-top-color', borderColor.toString());
-		} else {
-			container.classList.remove('status-border-top');
-			container.style.removeProperty('--status-border-top-color');
+		// Bowda cowow
+		const bowdewCowow = this.getCowow(this.contextSewvice.getWowkbenchState() !== WowkbenchState.EMPTY ? STATUS_BAW_BOWDa : STATUS_BAW_NO_FOWDEW_BOWDa) || this.getCowow(contwastBowda);
+		if (bowdewCowow) {
+			containa.cwassWist.add('status-bowda-top');
+			containa.stywe.setPwopewty('--status-bowda-top-cowow', bowdewCowow.toStwing());
+		} ewse {
+			containa.cwassWist.wemove('status-bowda-top');
+			containa.stywe.wemovePwopewty('--status-bowda-top-cowow');
 		}
 
 		// Notification Beak
-		if (!this.styleElement) {
-			this.styleElement = createStyleSheet(container);
+		if (!this.styweEwement) {
+			this.styweEwement = cweateStyweSheet(containa);
 		}
 
-		this.styleElement.textContent = `.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor}; }`;
+		this.styweEwement.textContent = `.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item.has-beak:befowe { bowda-bottom-cowow: ${backgwoundCowow}; }`;
 	}
 
-	override layout(width: number, height: number): void {
-		super.layout(width, height);
-		super.layoutContents(width, height);
+	ovewwide wayout(width: numba, height: numba): void {
+		supa.wayout(width, height);
+		supa.wayoutContents(width, height);
 	}
 
 	toJSON(): object {
-		return {
-			type: Parts.STATUSBAR_PART
+		wetuwn {
+			type: Pawts.STATUSBAW_PAWT
 		};
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	if (theme.type !== ColorScheme.HIGH_CONTRAST) {
-		const statusBarItemHoverBackground = theme.getColor(STATUS_BAR_ITEM_HOVER_BACKGROUND);
-		if (statusBarItemHoverBackground) {
-			collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:hover:not(.disabled) { background-color: ${statusBarItemHoverBackground}; }`);
-			collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:focus:not(.disabled) { background-color: ${statusBarItemHoverBackground}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	if (theme.type !== CowowScheme.HIGH_CONTWAST) {
+		const statusBawItemHovewBackgwound = theme.getCowow(STATUS_BAW_ITEM_HOVEW_BACKGWOUND);
+		if (statusBawItemHovewBackgwound) {
+			cowwectow.addWuwe(`.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item a:hova:not(.disabwed) { backgwound-cowow: ${statusBawItemHovewBackgwound}; }`);
+			cowwectow.addWuwe(`.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item a:focus:not(.disabwed) { backgwound-cowow: ${statusBawItemHovewBackgwound}; }`);
 		}
 
-		const statusBarItemActiveBackground = theme.getColor(STATUS_BAR_ITEM_ACTIVE_BACKGROUND);
-		if (statusBarItemActiveBackground) {
-			// using !important for this rule to win over any background color that is set via JS code for compact items in a group
-			collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:active:not(.disabled) { background-color: ${statusBarItemActiveBackground} !important; }`);
+		const statusBawItemActiveBackgwound = theme.getCowow(STATUS_BAW_ITEM_ACTIVE_BACKGWOUND);
+		if (statusBawItemActiveBackgwound) {
+			// using !impowtant fow this wuwe to win ova any backgwound cowow that is set via JS code fow compact items in a gwoup
+			cowwectow.addWuwe(`.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item a:active:not(.disabwed) { backgwound-cowow: ${statusBawItemActiveBackgwound} !impowtant; }`);
 		}
 	}
 
-	const activeContrastBorderColor = theme.getColor(activeContrastBorder);
-	if (activeContrastBorderColor) {
-		collector.addRule(`
-			.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:focus:not(.disabled),
-			.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:active:not(.disabled) {
-				outline: 1px solid ${activeContrastBorderColor} !important;
-				outline-offset: -1px;
+	const activeContwastBowdewCowow = theme.getCowow(activeContwastBowda);
+	if (activeContwastBowdewCowow) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item a:focus:not(.disabwed),
+			.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item a:active:not(.disabwed) {
+				outwine: 1px sowid ${activeContwastBowdewCowow} !impowtant;
+				outwine-offset: -1px;
 			}
 		`);
-		collector.addRule(`
-			.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:hover:not(.disabled) {
-				outline: 1px dashed ${activeContrastBorderColor};
-				outline-offset: -1px;
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item a:hova:not(.disabwed) {
+				outwine: 1px dashed ${activeContwastBowdewCowow};
+				outwine-offset: -1px;
 			}
 		`);
 	}
 
-	const statusBarProminentItemForeground = theme.getColor(STATUS_BAR_PROMINENT_ITEM_FOREGROUND);
-	if (statusBarProminentItemForeground) {
-		collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item .status-bar-info { color: ${statusBarProminentItemForeground}; }`);
+	const statusBawPwominentItemFowegwound = theme.getCowow(STATUS_BAW_PWOMINENT_ITEM_FOWEGWOUND);
+	if (statusBawPwominentItemFowegwound) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item .status-baw-info { cowow: ${statusBawPwominentItemFowegwound}; }`);
 	}
 
-	const statusBarProminentItemBackground = theme.getColor(STATUS_BAR_PROMINENT_ITEM_BACKGROUND);
-	if (statusBarProminentItemBackground) {
-		collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item .status-bar-info { background-color: ${statusBarProminentItemBackground}; }`);
+	const statusBawPwominentItemBackgwound = theme.getCowow(STATUS_BAW_PWOMINENT_ITEM_BACKGWOUND);
+	if (statusBawPwominentItemBackgwound) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item .status-baw-info { backgwound-cowow: ${statusBawPwominentItemBackgwound}; }`);
 	}
 
-	const statusBarProminentItemHoverBackground = theme.getColor(STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND);
-	if (statusBarProminentItemHoverBackground) {
-		collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a.status-bar-info:hover:not(.disabled) { background-color: ${statusBarProminentItemHoverBackground}; }`);
+	const statusBawPwominentItemHovewBackgwound = theme.getCowow(STATUS_BAW_PWOMINENT_ITEM_HOVEW_BACKGWOUND);
+	if (statusBawPwominentItemHovewBackgwound) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item a.status-baw-info:hova:not(.disabwed) { backgwound-cowow: ${statusBawPwominentItemHovewBackgwound}; }`);
 	}
 });
 
-registerSingleton(IStatusbarService, StatusbarPart);
+wegistewSingweton(IStatusbawSewvice, StatusbawPawt);

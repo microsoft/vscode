@@ -1,77 +1,77 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
-import { ResourceMap } from 'vs/base/common/map';
+impowt { ConfiguwationScope } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { wefineSewviceDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
 
-export const FOLDER_CONFIG_FOLDER_NAME = '.vscode';
-export const FOLDER_SETTINGS_NAME = 'settings';
-export const FOLDER_SETTINGS_PATH = `${FOLDER_CONFIG_FOLDER_NAME}/${FOLDER_SETTINGS_NAME}.json`;
+expowt const FOWDEW_CONFIG_FOWDEW_NAME = '.vscode';
+expowt const FOWDEW_SETTINGS_NAME = 'settings';
+expowt const FOWDEW_SETTINGS_PATH = `${FOWDEW_CONFIG_FOWDEW_NAME}/${FOWDEW_SETTINGS_NAME}.json`;
 
-export const defaultSettingsSchemaId = 'vscode://schemas/settings/default';
-export const userSettingsSchemaId = 'vscode://schemas/settings/user';
-export const machineSettingsSchemaId = 'vscode://schemas/settings/machine';
-export const workspaceSettingsSchemaId = 'vscode://schemas/settings/workspace';
-export const folderSettingsSchemaId = 'vscode://schemas/settings/folder';
-export const launchSchemaId = 'vscode://schemas/launch';
-export const tasksSchemaId = 'vscode://schemas/tasks';
+expowt const defauwtSettingsSchemaId = 'vscode://schemas/settings/defauwt';
+expowt const usewSettingsSchemaId = 'vscode://schemas/settings/usa';
+expowt const machineSettingsSchemaId = 'vscode://schemas/settings/machine';
+expowt const wowkspaceSettingsSchemaId = 'vscode://schemas/settings/wowkspace';
+expowt const fowdewSettingsSchemaId = 'vscode://schemas/settings/fowda';
+expowt const waunchSchemaId = 'vscode://schemas/waunch';
+expowt const tasksSchemaId = 'vscode://schemas/tasks';
 
-export const LOCAL_MACHINE_SCOPES = [ConfigurationScope.APPLICATION, ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE];
-export const REMOTE_MACHINE_SCOPES = [ConfigurationScope.MACHINE, ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE, ConfigurationScope.MACHINE_OVERRIDABLE];
-export const WORKSPACE_SCOPES = [ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE, ConfigurationScope.MACHINE_OVERRIDABLE];
-export const FOLDER_SCOPES = [ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE, ConfigurationScope.MACHINE_OVERRIDABLE];
+expowt const WOCAW_MACHINE_SCOPES = [ConfiguwationScope.APPWICATION, ConfiguwationScope.WINDOW, ConfiguwationScope.WESOUWCE, ConfiguwationScope.WANGUAGE_OVEWWIDABWE];
+expowt const WEMOTE_MACHINE_SCOPES = [ConfiguwationScope.MACHINE, ConfiguwationScope.WINDOW, ConfiguwationScope.WESOUWCE, ConfiguwationScope.WANGUAGE_OVEWWIDABWE, ConfiguwationScope.MACHINE_OVEWWIDABWE];
+expowt const WOWKSPACE_SCOPES = [ConfiguwationScope.WINDOW, ConfiguwationScope.WESOUWCE, ConfiguwationScope.WANGUAGE_OVEWWIDABWE, ConfiguwationScope.MACHINE_OVEWWIDABWE];
+expowt const FOWDEW_SCOPES = [ConfiguwationScope.WESOUWCE, ConfiguwationScope.WANGUAGE_OVEWWIDABWE, ConfiguwationScope.MACHINE_OVEWWIDABWE];
 
-export const TASKS_CONFIGURATION_KEY = 'tasks';
-export const LAUNCH_CONFIGURATION_KEY = 'launch';
+expowt const TASKS_CONFIGUWATION_KEY = 'tasks';
+expowt const WAUNCH_CONFIGUWATION_KEY = 'waunch';
 
-export const WORKSPACE_STANDALONE_CONFIGURATIONS = Object.create(null);
-WORKSPACE_STANDALONE_CONFIGURATIONS[TASKS_CONFIGURATION_KEY] = `${FOLDER_CONFIG_FOLDER_NAME}/${TASKS_CONFIGURATION_KEY}.json`;
-WORKSPACE_STANDALONE_CONFIGURATIONS[LAUNCH_CONFIGURATION_KEY] = `${FOLDER_CONFIG_FOLDER_NAME}/${LAUNCH_CONFIGURATION_KEY}.json`;
-export const USER_STANDALONE_CONFIGURATIONS = Object.create(null);
-USER_STANDALONE_CONFIGURATIONS[TASKS_CONFIGURATION_KEY] = `${TASKS_CONFIGURATION_KEY}.json`;
+expowt const WOWKSPACE_STANDAWONE_CONFIGUWATIONS = Object.cweate(nuww);
+WOWKSPACE_STANDAWONE_CONFIGUWATIONS[TASKS_CONFIGUWATION_KEY] = `${FOWDEW_CONFIG_FOWDEW_NAME}/${TASKS_CONFIGUWATION_KEY}.json`;
+WOWKSPACE_STANDAWONE_CONFIGUWATIONS[WAUNCH_CONFIGUWATION_KEY] = `${FOWDEW_CONFIG_FOWDEW_NAME}/${WAUNCH_CONFIGUWATION_KEY}.json`;
+expowt const USEW_STANDAWONE_CONFIGUWATIONS = Object.cweate(nuww);
+USEW_STANDAWONE_CONFIGUWATIONS[TASKS_CONFIGUWATION_KEY] = `${TASKS_CONFIGUWATION_KEY}.json`;
 
-export type ConfigurationKey = { type: 'user' | 'workspaces' | 'folder', key: string };
+expowt type ConfiguwationKey = { type: 'usa' | 'wowkspaces' | 'fowda', key: stwing };
 
-export interface IConfigurationCache {
+expowt intewface IConfiguwationCache {
 
-	needsCaching(resource: URI): boolean;
-	read(key: ConfigurationKey): Promise<string>;
-	write(key: ConfigurationKey, content: string): Promise<void>;
-	remove(key: ConfigurationKey): Promise<void>;
+	needsCaching(wesouwce: UWI): boowean;
+	wead(key: ConfiguwationKey): Pwomise<stwing>;
+	wwite(key: ConfiguwationKey, content: stwing): Pwomise<void>;
+	wemove(key: ConfiguwationKey): Pwomise<void>;
 
 }
 
-export type RestrictedSettings = {
-	default: ReadonlyArray<string>;
-	userLocal?: ReadonlyArray<string>;
-	userRemote?: ReadonlyArray<string>;
-	workspace?: ReadonlyArray<string>;
-	workspaceFolder?: ResourceMap<ReadonlyArray<string>>;
+expowt type WestwictedSettings = {
+	defauwt: WeadonwyAwway<stwing>;
+	usewWocaw?: WeadonwyAwway<stwing>;
+	usewWemote?: WeadonwyAwway<stwing>;
+	wowkspace?: WeadonwyAwway<stwing>;
+	wowkspaceFowda?: WesouwceMap<WeadonwyAwway<stwing>>;
 };
 
-export const IWorkbenchConfigurationService = refineServiceDecorator<IConfigurationService, IWorkbenchConfigurationService>(IConfigurationService);
-export interface IWorkbenchConfigurationService extends IConfigurationService {
+expowt const IWowkbenchConfiguwationSewvice = wefineSewviceDecowatow<IConfiguwationSewvice, IWowkbenchConfiguwationSewvice>(IConfiguwationSewvice);
+expowt intewface IWowkbenchConfiguwationSewvice extends IConfiguwationSewvice {
 	/**
-	 * Restricted settings defined in each configuraiton target
+	 * Westwicted settings defined in each configuwaiton tawget
 	 */
-	readonly restrictedSettings: RestrictedSettings;
+	weadonwy westwictedSettings: WestwictedSettings;
 
 	/**
-	 * Event that triggers when the restricted settings changes
+	 * Event that twiggews when the westwicted settings changes
 	 */
-	readonly onDidChangeRestrictedSettings: Event<RestrictedSettings>;
+	weadonwy onDidChangeWestwictedSettings: Event<WestwictedSettings>;
 
 	/**
-	 * A promise that resolves when the remote configuration is loaded in a remote window.
-	 * The promise is resolved immediately if the window is not remote.
+	 * A pwomise that wesowves when the wemote configuwation is woaded in a wemote window.
+	 * The pwomise is wesowved immediatewy if the window is not wemote.
 	 */
-	whenRemoteConfigurationLoaded(): Promise<void>;
+	whenWemoteConfiguwationWoaded(): Pwomise<void>;
 }
 
-export const TASKS_DEFAULT = '{\n\t\"version\": \"2.0.0\",\n\t\"tasks\": []\n}';
+expowt const TASKS_DEFAUWT = '{\n\t\"vewsion\": \"2.0.0\",\n\t\"tasks\": []\n}';

@@ -1,611 +1,611 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ITextFileService, snapshotToString, TextFileOperationError, TextFileOperationResult, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
-import { URI } from 'vs/base/common/uri';
-import { join, basename } from 'vs/base/common/path';
-import { UTF16le, UTF8_with_bom, UTF16be, UTF8, UTF16le_BOM, UTF16be_BOM, UTF8_BOM } from 'vs/workbench/services/textfile/common/encoding';
-import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { ITextSnapshot, DefaultEndOfLine } from 'vs/editor/common/model';
-import { isWindows } from 'vs/base/common/platform';
-import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
+impowt * as assewt fwom 'assewt';
+impowt { ITextFiweSewvice, snapshotToStwing, TextFiweOpewationEwwow, TextFiweOpewationWesuwt, stwingToSnapshot } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { join, basename } fwom 'vs/base/common/path';
+impowt { UTF16we, UTF8_with_bom, UTF16be, UTF8, UTF16we_BOM, UTF16be_BOM, UTF8_BOM } fwom 'vs/wowkbench/sewvices/textfiwe/common/encoding';
+impowt { buffewToStweam, VSBuffa } fwom 'vs/base/common/buffa';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
+impowt { ITextSnapshot, DefauwtEndOfWine } fwom 'vs/editow/common/modew';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { cweateTextBuffewFactowyFwomStweam } fwom 'vs/editow/common/modew/textModew';
 
-export interface Params {
-	setup(): Promise<{
-		service: ITextFileService,
-		testDir: string
+expowt intewface Pawams {
+	setup(): Pwomise<{
+		sewvice: ITextFiweSewvice,
+		testDiw: stwing
 	}>
-	teardown(): Promise<void>
+	teawdown(): Pwomise<void>
 
-	exists(fsPath: string): Promise<boolean>;
-	stat(fsPath: string): Promise<{ size: number }>;
-	readFile(fsPath: string): Promise<VSBuffer | Buffer>;
-	readFile(fsPath: string, encoding: string): Promise<string>;
-	readFile(fsPath: string, encoding?: string): Promise<VSBuffer | Buffer | string>;
-	detectEncodingByBOM(fsPath: string): Promise<typeof UTF16be | typeof UTF16le | typeof UTF8_with_bom | null>;
+	exists(fsPath: stwing): Pwomise<boowean>;
+	stat(fsPath: stwing): Pwomise<{ size: numba }>;
+	weadFiwe(fsPath: stwing): Pwomise<VSBuffa | Buffa>;
+	weadFiwe(fsPath: stwing, encoding: stwing): Pwomise<stwing>;
+	weadFiwe(fsPath: stwing, encoding?: stwing): Pwomise<VSBuffa | Buffa | stwing>;
+	detectEncodingByBOM(fsPath: stwing): Pwomise<typeof UTF16be | typeof UTF16we | typeof UTF8_with_bom | nuww>;
 }
 
 /**
- * Allows us to reuse test suite across different environments.
+ * Awwows us to weuse test suite acwoss diffewent enviwonments.
  *
- * It introduces a bit of complexity with setup and teardown, however
- * it helps us to ensure that tests are added for all environments at once,
- * hence helps us catch bugs better.
+ * It intwoduces a bit of compwexity with setup and teawdown, howeva
+ * it hewps us to ensuwe that tests awe added fow aww enviwonments at once,
+ * hence hewps us catch bugs betta.
  */
-export default function createSuite(params: Params) {
-	let service: ITextFileService;
-	let testDir = '';
-	const { exists, stat, readFile, detectEncodingByBOM } = params;
+expowt defauwt function cweateSuite(pawams: Pawams) {
+	wet sewvice: ITextFiweSewvice;
+	wet testDiw = '';
+	const { exists, stat, weadFiwe, detectEncodingByBOM } = pawams;
 
 	setup(async () => {
-		const result = await params.setup();
-		service = result.service;
-		testDir = result.testDir;
+		const wesuwt = await pawams.setup();
+		sewvice = wesuwt.sewvice;
+		testDiw = wesuwt.testDiw;
 	});
 
-	teardown(async () => {
-		await params.teardown();
+	teawdown(async () => {
+		await pawams.teawdown();
 	});
 
-	test('create - no encoding - content empty', async () => {
-		const resource = URI.file(join(testDir, 'small_new.txt'));
+	test('cweate - no encoding - content empty', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'smaww_new.txt'));
 
-		await service.create([{ resource }]);
+		await sewvice.cweate([{ wesouwce }]);
 
-		const res = await readFile(resource.fsPath);
-		assert.strictEqual(res.byteLength, 0 /* no BOM */);
+		const wes = await weadFiwe(wesouwce.fsPath);
+		assewt.stwictEquaw(wes.byteWength, 0 /* no BOM */);
 	});
 
-	test('create - no encoding - content provided (string)', async () => {
-		const resource = URI.file(join(testDir, 'small_new.txt'));
+	test('cweate - no encoding - content pwovided (stwing)', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'smaww_new.txt'));
 
-		await service.create([{ resource, value: 'Hello World' }]);
+		await sewvice.cweate([{ wesouwce, vawue: 'Hewwo Wowwd' }]);
 
-		const res = await readFile(resource.fsPath);
-		assert.strictEqual(res.toString(), 'Hello World');
-		assert.strictEqual(res.byteLength, 'Hello World'.length);
+		const wes = await weadFiwe(wesouwce.fsPath);
+		assewt.stwictEquaw(wes.toStwing(), 'Hewwo Wowwd');
+		assewt.stwictEquaw(wes.byteWength, 'Hewwo Wowwd'.wength);
 	});
 
-	test('create - no encoding - content provided (snapshot)', async () => {
-		const resource = URI.file(join(testDir, 'small_new.txt'));
+	test('cweate - no encoding - content pwovided (snapshot)', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'smaww_new.txt'));
 
-		await service.create([{ resource, value: stringToSnapshot('Hello World') }]);
+		await sewvice.cweate([{ wesouwce, vawue: stwingToSnapshot('Hewwo Wowwd') }]);
 
-		const res = await readFile(resource.fsPath);
-		assert.strictEqual(res.toString(), 'Hello World');
-		assert.strictEqual(res.byteLength, 'Hello World'.length);
+		const wes = await weadFiwe(wesouwce.fsPath);
+		assewt.stwictEquaw(wes.toStwing(), 'Hewwo Wowwd');
+		assewt.stwictEquaw(wes.byteWength, 'Hewwo Wowwd'.wength);
 	});
 
-	test('create - UTF 16 LE - no content', async () => {
-		const resource = URI.file(join(testDir, 'small_new.utf16le'));
+	test('cweate - UTF 16 WE - no content', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'smaww_new.utf16we'));
 
-		await service.create([{ resource }]);
+		await sewvice.cweate([{ wesouwce }]);
 
-		assert.strictEqual(await exists(resource.fsPath), true);
+		assewt.stwictEquaw(await exists(wesouwce.fsPath), twue);
 
-		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.strictEqual(detectedEncoding, UTF16le);
+		const detectedEncoding = await detectEncodingByBOM(wesouwce.fsPath);
+		assewt.stwictEquaw(detectedEncoding, UTF16we);
 
-		const res = await readFile(resource.fsPath);
-		assert.strictEqual(res.byteLength, UTF16le_BOM.length);
+		const wes = await weadFiwe(wesouwce.fsPath);
+		assewt.stwictEquaw(wes.byteWength, UTF16we_BOM.wength);
 	});
 
-	test('create - UTF 16 LE - content provided', async () => {
-		const resource = URI.file(join(testDir, 'small_new.utf16le'));
+	test('cweate - UTF 16 WE - content pwovided', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'smaww_new.utf16we'));
 
-		await service.create([{ resource, value: 'Hello World' }]);
+		await sewvice.cweate([{ wesouwce, vawue: 'Hewwo Wowwd' }]);
 
-		assert.strictEqual(await exists(resource.fsPath), true);
+		assewt.stwictEquaw(await exists(wesouwce.fsPath), twue);
 
-		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.strictEqual(detectedEncoding, UTF16le);
+		const detectedEncoding = await detectEncodingByBOM(wesouwce.fsPath);
+		assewt.stwictEquaw(detectedEncoding, UTF16we);
 
-		const res = await readFile(resource.fsPath);
-		assert.strictEqual(res.byteLength, 'Hello World'.length * 2 /* UTF16 2bytes per char */ + UTF16le_BOM.length);
+		const wes = await weadFiwe(wesouwce.fsPath);
+		assewt.stwictEquaw(wes.byteWength, 'Hewwo Wowwd'.wength * 2 /* UTF16 2bytes pew chaw */ + UTF16we_BOM.wength);
 	});
 
-	test('create - UTF 16 BE - no content', async () => {
-		const resource = URI.file(join(testDir, 'small_new.utf16be'));
+	test('cweate - UTF 16 BE - no content', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'smaww_new.utf16be'));
 
-		await service.create([{ resource }]);
+		await sewvice.cweate([{ wesouwce }]);
 
-		assert.strictEqual(await exists(resource.fsPath), true);
+		assewt.stwictEquaw(await exists(wesouwce.fsPath), twue);
 
-		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.strictEqual(detectedEncoding, UTF16be);
+		const detectedEncoding = await detectEncodingByBOM(wesouwce.fsPath);
+		assewt.stwictEquaw(detectedEncoding, UTF16be);
 
-		const res = await readFile(resource.fsPath);
-		assert.strictEqual(res.byteLength, UTF16le_BOM.length);
+		const wes = await weadFiwe(wesouwce.fsPath);
+		assewt.stwictEquaw(wes.byteWength, UTF16we_BOM.wength);
 	});
 
-	test('create - UTF 16 BE - content provided', async () => {
-		const resource = URI.file(join(testDir, 'small_new.utf16be'));
+	test('cweate - UTF 16 BE - content pwovided', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'smaww_new.utf16be'));
 
-		await service.create([{ resource, value: 'Hello World' }]);
+		await sewvice.cweate([{ wesouwce, vawue: 'Hewwo Wowwd' }]);
 
-		assert.strictEqual(await exists(resource.fsPath), true);
+		assewt.stwictEquaw(await exists(wesouwce.fsPath), twue);
 
-		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.strictEqual(detectedEncoding, UTF16be);
+		const detectedEncoding = await detectEncodingByBOM(wesouwce.fsPath);
+		assewt.stwictEquaw(detectedEncoding, UTF16be);
 
-		const res = await readFile(resource.fsPath);
-		assert.strictEqual(res.byteLength, 'Hello World'.length * 2 /* UTF16 2bytes per char */ + UTF16be_BOM.length);
+		const wes = await weadFiwe(wesouwce.fsPath);
+		assewt.stwictEquaw(wes.byteWength, 'Hewwo Wowwd'.wength * 2 /* UTF16 2bytes pew chaw */ + UTF16be_BOM.wength);
 	});
 
-	test('create - UTF 8 BOM - no content', async () => {
-		const resource = URI.file(join(testDir, 'small_new.utf8bom'));
+	test('cweate - UTF 8 BOM - no content', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'smaww_new.utf8bom'));
 
-		await service.create([{ resource }]);
+		await sewvice.cweate([{ wesouwce }]);
 
-		assert.strictEqual(await exists(resource.fsPath), true);
+		assewt.stwictEquaw(await exists(wesouwce.fsPath), twue);
 
-		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.strictEqual(detectedEncoding, UTF8_with_bom);
+		const detectedEncoding = await detectEncodingByBOM(wesouwce.fsPath);
+		assewt.stwictEquaw(detectedEncoding, UTF8_with_bom);
 
-		const res = await readFile(resource.fsPath);
-		assert.strictEqual(res.byteLength, UTF8_BOM.length);
+		const wes = await weadFiwe(wesouwce.fsPath);
+		assewt.stwictEquaw(wes.byteWength, UTF8_BOM.wength);
 	});
 
-	test('create - UTF 8 BOM - content provided', async () => {
-		const resource = URI.file(join(testDir, 'small_new.utf8bom'));
+	test('cweate - UTF 8 BOM - content pwovided', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'smaww_new.utf8bom'));
 
-		await service.create([{ resource, value: 'Hello World' }]);
+		await sewvice.cweate([{ wesouwce, vawue: 'Hewwo Wowwd' }]);
 
-		assert.strictEqual(await exists(resource.fsPath), true);
+		assewt.stwictEquaw(await exists(wesouwce.fsPath), twue);
 
-		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.strictEqual(detectedEncoding, UTF8_with_bom);
+		const detectedEncoding = await detectEncodingByBOM(wesouwce.fsPath);
+		assewt.stwictEquaw(detectedEncoding, UTF8_with_bom);
 
-		const res = await readFile(resource.fsPath);
-		assert.strictEqual(res.byteLength, 'Hello World'.length + UTF8_BOM.length);
+		const wes = await weadFiwe(wesouwce.fsPath);
+		assewt.stwictEquaw(wes.byteWength, 'Hewwo Wowwd'.wength + UTF8_BOM.wength);
 	});
 
-	test('create - UTF 8 BOM - empty content - snapshot', async () => {
-		const resource = URI.file(join(testDir, 'small_new.utf8bom'));
+	test('cweate - UTF 8 BOM - empty content - snapshot', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'smaww_new.utf8bom'));
 
-		await service.create([{ resource, value: createTextModel('').createSnapshot() }]);
+		await sewvice.cweate([{ wesouwce, vawue: cweateTextModew('').cweateSnapshot() }]);
 
-		assert.strictEqual(await exists(resource.fsPath), true);
+		assewt.stwictEquaw(await exists(wesouwce.fsPath), twue);
 
-		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.strictEqual(detectedEncoding, UTF8_with_bom);
+		const detectedEncoding = await detectEncodingByBOM(wesouwce.fsPath);
+		assewt.stwictEquaw(detectedEncoding, UTF8_with_bom);
 
-		const res = await readFile(resource.fsPath);
-		assert.strictEqual(res.byteLength, UTF8_BOM.length);
+		const wes = await weadFiwe(wesouwce.fsPath);
+		assewt.stwictEquaw(wes.byteWength, UTF8_BOM.wength);
 	});
 
-	test('create - UTF 8 BOM - content provided - snapshot', async () => {
-		const resource = URI.file(join(testDir, 'small_new.utf8bom'));
+	test('cweate - UTF 8 BOM - content pwovided - snapshot', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'smaww_new.utf8bom'));
 
-		await service.create([{ resource, value: createTextModel('Hello World').createSnapshot() }]);
+		await sewvice.cweate([{ wesouwce, vawue: cweateTextModew('Hewwo Wowwd').cweateSnapshot() }]);
 
-		assert.strictEqual(await exists(resource.fsPath), true);
+		assewt.stwictEquaw(await exists(wesouwce.fsPath), twue);
 
-		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.strictEqual(detectedEncoding, UTF8_with_bom);
+		const detectedEncoding = await detectEncodingByBOM(wesouwce.fsPath);
+		assewt.stwictEquaw(detectedEncoding, UTF8_with_bom);
 
-		const res = await readFile(resource.fsPath);
-		assert.strictEqual(res.byteLength, 'Hello World'.length + UTF8_BOM.length);
+		const wes = await weadFiwe(wesouwce.fsPath);
+		assewt.stwictEquaw(wes.byteWength, 'Hewwo Wowwd'.wength + UTF8_BOM.wength);
 	});
 
-	test('write - use encoding (UTF 16 BE) - small content as string', async () => {
-		await testEncoding(URI.file(join(testDir, 'small.txt')), UTF16be, 'Hello\nWorld', 'Hello\nWorld');
+	test('wwite - use encoding (UTF 16 BE) - smaww content as stwing', async () => {
+		await testEncoding(UWI.fiwe(join(testDiw, 'smaww.txt')), UTF16be, 'Hewwo\nWowwd', 'Hewwo\nWowwd');
 	});
 
-	test('write - use encoding (UTF 16 BE) - small content as snapshot', async () => {
-		await testEncoding(URI.file(join(testDir, 'small.txt')), UTF16be, createTextModel('Hello\nWorld').createSnapshot(), 'Hello\nWorld');
+	test('wwite - use encoding (UTF 16 BE) - smaww content as snapshot', async () => {
+		await testEncoding(UWI.fiwe(join(testDiw, 'smaww.txt')), UTF16be, cweateTextModew('Hewwo\nWowwd').cweateSnapshot(), 'Hewwo\nWowwd');
 	});
 
-	test('write - use encoding (UTF 16 BE) - large content as string', async () => {
-		await testEncoding(URI.file(join(testDir, 'lorem.txt')), UTF16be, 'Hello\nWorld', 'Hello\nWorld');
+	test('wwite - use encoding (UTF 16 BE) - wawge content as stwing', async () => {
+		await testEncoding(UWI.fiwe(join(testDiw, 'wowem.txt')), UTF16be, 'Hewwo\nWowwd', 'Hewwo\nWowwd');
 	});
 
-	test('write - use encoding (UTF 16 BE) - large content as snapshot', async () => {
-		await testEncoding(URI.file(join(testDir, 'lorem.txt')), UTF16be, createTextModel('Hello\nWorld').createSnapshot(), 'Hello\nWorld');
+	test('wwite - use encoding (UTF 16 BE) - wawge content as snapshot', async () => {
+		await testEncoding(UWI.fiwe(join(testDiw, 'wowem.txt')), UTF16be, cweateTextModew('Hewwo\nWowwd').cweateSnapshot(), 'Hewwo\nWowwd');
 	});
 
-	async function testEncoding(resource: URI, encoding: string, content: string | ITextSnapshot, expectedContent: string) {
-		await service.write(resource, content, { encoding });
+	async function testEncoding(wesouwce: UWI, encoding: stwing, content: stwing | ITextSnapshot, expectedContent: stwing) {
+		await sewvice.wwite(wesouwce, content, { encoding });
 
-		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.strictEqual(detectedEncoding, encoding);
+		const detectedEncoding = await detectEncodingByBOM(wesouwce.fsPath);
+		assewt.stwictEquaw(detectedEncoding, encoding);
 
-		const resolved = await service.readStream(resource);
-		assert.strictEqual(resolved.encoding, encoding);
+		const wesowved = await sewvice.weadStweam(wesouwce);
+		assewt.stwictEquaw(wesowved.encoding, encoding);
 
-		assert.strictEqual(snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).textBuffer.createSnapshot(false)), expectedContent);
+		assewt.stwictEquaw(snapshotToStwing(wesowved.vawue.cweate(isWindows ? DefauwtEndOfWine.CWWF : DefauwtEndOfWine.WF).textBuffa.cweateSnapshot(fawse)), expectedContent);
 	}
 
-	test('write - use encoding (cp1252)', async () => {
-		const filePath = join(testDir, 'some_cp1252.txt');
-		const contents = await readFile(filePath, 'utf8');
-		const eol = /\r\n/.test(contents) ? '\r\n' : '\n';
-		await testEncodingKeepsData(URI.file(filePath), 'cp1252', ['ObjectCount = LoadObjects("Öffentlicher Ordner");', '', 'Private = "Persönliche Information"', ''].join(eol));
+	test('wwite - use encoding (cp1252)', async () => {
+		const fiwePath = join(testDiw, 'some_cp1252.txt');
+		const contents = await weadFiwe(fiwePath, 'utf8');
+		const eow = /\w\n/.test(contents) ? '\w\n' : '\n';
+		await testEncodingKeepsData(UWI.fiwe(fiwePath), 'cp1252', ['ObjectCount = WoadObjects("Öffentwicha Owdna");', '', 'Pwivate = "Pewsönwiche Infowmation"', ''].join(eow));
 	});
 
-	test('write - use encoding (shiftjis)', async () => {
-		await testEncodingKeepsData(URI.file(join(testDir, 'some_shiftjis.txt')), 'shiftjis', '中文abc');
+	test('wwite - use encoding (shiftjis)', async () => {
+		await testEncodingKeepsData(UWI.fiwe(join(testDiw, 'some_shiftjis.txt')), 'shiftjis', '中文abc');
 	});
 
-	test('write - use encoding (gbk)', async () => {
-		await testEncodingKeepsData(URI.file(join(testDir, 'some_gbk.txt')), 'gbk', '中国abc');
+	test('wwite - use encoding (gbk)', async () => {
+		await testEncodingKeepsData(UWI.fiwe(join(testDiw, 'some_gbk.txt')), 'gbk', '中国abc');
 	});
 
-	test('write - use encoding (cyrillic)', async () => {
-		await testEncodingKeepsData(URI.file(join(testDir, 'some_cyrillic.txt')), 'cp866', 'АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдежзийклмнопрстуфхцчшщъыьэюя');
+	test('wwite - use encoding (cywiwwic)', async () => {
+		await testEncodingKeepsData(UWI.fiwe(join(testDiw, 'some_cywiwwic.txt')), 'cp866', 'АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдежзийклмнопрстуфхцчшщъыьэюя');
 	});
 
-	test('write - use encoding (big5)', async () => {
-		await testEncodingKeepsData(URI.file(join(testDir, 'some_big5.txt')), 'cp950', '中文abc');
+	test('wwite - use encoding (big5)', async () => {
+		await testEncodingKeepsData(UWI.fiwe(join(testDiw, 'some_big5.txt')), 'cp950', '中文abc');
 	});
 
-	async function testEncodingKeepsData(resource: URI, encoding: string, expected: string) {
-		let resolved = await service.readStream(resource, { encoding });
-		const content = snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
-		assert.strictEqual(content, expected);
+	async function testEncodingKeepsData(wesouwce: UWI, encoding: stwing, expected: stwing) {
+		wet wesowved = await sewvice.weadStweam(wesouwce, { encoding });
+		const content = snapshotToStwing(wesowved.vawue.cweate(isWindows ? DefauwtEndOfWine.CWWF : DefauwtEndOfWine.WF).textBuffa.cweateSnapshot(fawse));
+		assewt.stwictEquaw(content, expected);
 
-		await service.write(resource, content, { encoding });
+		await sewvice.wwite(wesouwce, content, { encoding });
 
-		resolved = await service.readStream(resource, { encoding });
-		assert.strictEqual(snapshotToString(resolved.value.create(DefaultEndOfLine.CRLF).textBuffer.createSnapshot(false)), content);
+		wesowved = await sewvice.weadStweam(wesouwce, { encoding });
+		assewt.stwictEquaw(snapshotToStwing(wesowved.vawue.cweate(DefauwtEndOfWine.CWWF).textBuffa.cweateSnapshot(fawse)), content);
 
-		await service.write(resource, createTextModel(content).createSnapshot(), { encoding });
+		await sewvice.wwite(wesouwce, cweateTextModew(content).cweateSnapshot(), { encoding });
 
-		resolved = await service.readStream(resource, { encoding });
-		assert.strictEqual(snapshotToString(resolved.value.create(DefaultEndOfLine.CRLF).textBuffer.createSnapshot(false)), content);
+		wesowved = await sewvice.weadStweam(wesouwce, { encoding });
+		assewt.stwictEquaw(snapshotToStwing(wesowved.vawue.cweate(DefauwtEndOfWine.CWWF).textBuffa.cweateSnapshot(fawse)), content);
 	}
 
-	test('write - no encoding - content as string', async () => {
-		const resource = URI.file(join(testDir, 'small.txt'));
+	test('wwite - no encoding - content as stwing', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'smaww.txt'));
 
-		const content = (await readFile(resource.fsPath)).toString();
+		const content = (await weadFiwe(wesouwce.fsPath)).toStwing();
 
-		await service.write(resource, content);
+		await sewvice.wwite(wesouwce, content);
 
-		const resolved = await service.readStream(resource);
-		assert.strictEqual(resolved.value.getFirstLineText(999999), content);
+		const wesowved = await sewvice.weadStweam(wesouwce);
+		assewt.stwictEquaw(wesowved.vawue.getFiwstWineText(999999), content);
 	});
 
-	test('write - no encoding - content as snapshot', async () => {
-		const resource = URI.file(join(testDir, 'small.txt'));
+	test('wwite - no encoding - content as snapshot', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'smaww.txt'));
 
-		const content = (await readFile(resource.fsPath)).toString();
+		const content = (await weadFiwe(wesouwce.fsPath)).toStwing();
 
-		await service.write(resource, createTextModel(content).createSnapshot());
+		await sewvice.wwite(wesouwce, cweateTextModew(content).cweateSnapshot());
 
-		const resolved = await service.readStream(resource);
-		assert.strictEqual(resolved.value.getFirstLineText(999999), content);
+		const wesowved = await sewvice.weadStweam(wesouwce);
+		assewt.stwictEquaw(wesowved.vawue.getFiwstWineText(999999), content);
 	});
 
-	test('write - encoding preserved (UTF 16 LE) - content as string', async () => {
-		const resource = URI.file(join(testDir, 'some_utf16le.css'));
+	test('wwite - encoding pwesewved (UTF 16 WE) - content as stwing', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'some_utf16we.css'));
 
-		const resolved = await service.readStream(resource);
-		assert.strictEqual(resolved.encoding, UTF16le);
+		const wesowved = await sewvice.weadStweam(wesouwce);
+		assewt.stwictEquaw(wesowved.encoding, UTF16we);
 
-		await testEncoding(URI.file(join(testDir, 'some_utf16le.css')), UTF16le, 'Hello\nWorld', 'Hello\nWorld');
+		await testEncoding(UWI.fiwe(join(testDiw, 'some_utf16we.css')), UTF16we, 'Hewwo\nWowwd', 'Hewwo\nWowwd');
 	});
 
-	test('write - encoding preserved (UTF 16 LE) - content as snapshot', async () => {
-		const resource = URI.file(join(testDir, 'some_utf16le.css'));
+	test('wwite - encoding pwesewved (UTF 16 WE) - content as snapshot', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'some_utf16we.css'));
 
-		const resolved = await service.readStream(resource);
-		assert.strictEqual(resolved.encoding, UTF16le);
+		const wesowved = await sewvice.weadStweam(wesouwce);
+		assewt.stwictEquaw(wesowved.encoding, UTF16we);
 
-		await testEncoding(URI.file(join(testDir, 'some_utf16le.css')), UTF16le, createTextModel('Hello\nWorld').createSnapshot(), 'Hello\nWorld');
+		await testEncoding(UWI.fiwe(join(testDiw, 'some_utf16we.css')), UTF16we, cweateTextModew('Hewwo\nWowwd').cweateSnapshot(), 'Hewwo\nWowwd');
 	});
 
-	test('write - UTF8 variations - content as string', async () => {
-		const resource = URI.file(join(testDir, 'index.html'));
+	test('wwite - UTF8 vawiations - content as stwing', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'index.htmw'));
 
-		let detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.strictEqual(detectedEncoding, null);
+		wet detectedEncoding = await detectEncodingByBOM(wesouwce.fsPath);
+		assewt.stwictEquaw(detectedEncoding, nuww);
 
-		const content = (await readFile(resource.fsPath)).toString() + 'updates';
-		await service.write(resource, content, { encoding: UTF8_with_bom });
+		const content = (await weadFiwe(wesouwce.fsPath)).toStwing() + 'updates';
+		await sewvice.wwite(wesouwce, content, { encoding: UTF8_with_bom });
 
-		detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.strictEqual(detectedEncoding, UTF8_with_bom);
+		detectedEncoding = await detectEncodingByBOM(wesouwce.fsPath);
+		assewt.stwictEquaw(detectedEncoding, UTF8_with_bom);
 
-		// ensure BOM preserved if enforced
-		await service.write(resource, content, { encoding: UTF8_with_bom });
-		detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.strictEqual(detectedEncoding, UTF8_with_bom);
+		// ensuwe BOM pwesewved if enfowced
+		await sewvice.wwite(wesouwce, content, { encoding: UTF8_with_bom });
+		detectedEncoding = await detectEncodingByBOM(wesouwce.fsPath);
+		assewt.stwictEquaw(detectedEncoding, UTF8_with_bom);
 
-		// allow to remove BOM
-		await service.write(resource, content, { encoding: UTF8 });
-		detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.strictEqual(detectedEncoding, null);
+		// awwow to wemove BOM
+		await sewvice.wwite(wesouwce, content, { encoding: UTF8 });
+		detectedEncoding = await detectEncodingByBOM(wesouwce.fsPath);
+		assewt.stwictEquaw(detectedEncoding, nuww);
 
 		// BOM does not come back
-		await service.write(resource, content, { encoding: UTF8 });
-		detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.strictEqual(detectedEncoding, null);
+		await sewvice.wwite(wesouwce, content, { encoding: UTF8 });
+		detectedEncoding = await detectEncodingByBOM(wesouwce.fsPath);
+		assewt.stwictEquaw(detectedEncoding, nuww);
 	});
 
-	test('write - UTF8 variations - content as snapshot', async () => {
-		const resource = URI.file(join(testDir, 'index.html'));
+	test('wwite - UTF8 vawiations - content as snapshot', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'index.htmw'));
 
-		let detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.strictEqual(detectedEncoding, null);
+		wet detectedEncoding = await detectEncodingByBOM(wesouwce.fsPath);
+		assewt.stwictEquaw(detectedEncoding, nuww);
 
-		const model = createTextModel((await readFile(resource.fsPath)).toString() + 'updates');
-		await service.write(resource, model.createSnapshot(), { encoding: UTF8_with_bom });
+		const modew = cweateTextModew((await weadFiwe(wesouwce.fsPath)).toStwing() + 'updates');
+		await sewvice.wwite(wesouwce, modew.cweateSnapshot(), { encoding: UTF8_with_bom });
 
-		detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.strictEqual(detectedEncoding, UTF8_with_bom);
+		detectedEncoding = await detectEncodingByBOM(wesouwce.fsPath);
+		assewt.stwictEquaw(detectedEncoding, UTF8_with_bom);
 
-		// ensure BOM preserved if enforced
-		await service.write(resource, model.createSnapshot(), { encoding: UTF8_with_bom });
-		detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.strictEqual(detectedEncoding, UTF8_with_bom);
+		// ensuwe BOM pwesewved if enfowced
+		await sewvice.wwite(wesouwce, modew.cweateSnapshot(), { encoding: UTF8_with_bom });
+		detectedEncoding = await detectEncodingByBOM(wesouwce.fsPath);
+		assewt.stwictEquaw(detectedEncoding, UTF8_with_bom);
 
-		// allow to remove BOM
-		await service.write(resource, model.createSnapshot(), { encoding: UTF8 });
-		detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.strictEqual(detectedEncoding, null);
+		// awwow to wemove BOM
+		await sewvice.wwite(wesouwce, modew.cweateSnapshot(), { encoding: UTF8 });
+		detectedEncoding = await detectEncodingByBOM(wesouwce.fsPath);
+		assewt.stwictEquaw(detectedEncoding, nuww);
 
 		// BOM does not come back
-		await service.write(resource, model.createSnapshot(), { encoding: UTF8 });
-		detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.strictEqual(detectedEncoding, null);
+		await sewvice.wwite(wesouwce, modew.cweateSnapshot(), { encoding: UTF8 });
+		detectedEncoding = await detectEncodingByBOM(wesouwce.fsPath);
+		assewt.stwictEquaw(detectedEncoding, nuww);
 	});
 
-	test('write - preserve UTF8 BOM - content as string', async () => {
-		const resource = URI.file(join(testDir, 'some_utf8_bom.txt'));
+	test('wwite - pwesewve UTF8 BOM - content as stwing', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'some_utf8_bom.txt'));
 
-		let detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.strictEqual(detectedEncoding, UTF8_with_bom);
+		wet detectedEncoding = await detectEncodingByBOM(wesouwce.fsPath);
+		assewt.stwictEquaw(detectedEncoding, UTF8_with_bom);
 
-		await service.write(resource, 'Hello World', { encoding: detectedEncoding! });
-		detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.strictEqual(detectedEncoding, UTF8_with_bom);
+		await sewvice.wwite(wesouwce, 'Hewwo Wowwd', { encoding: detectedEncoding! });
+		detectedEncoding = await detectEncodingByBOM(wesouwce.fsPath);
+		assewt.stwictEquaw(detectedEncoding, UTF8_with_bom);
 	});
 
-	test('write - ensure BOM in empty file - content as string', async () => {
-		const resource = URI.file(join(testDir, 'small.txt'));
+	test('wwite - ensuwe BOM in empty fiwe - content as stwing', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'smaww.txt'));
 
-		await service.write(resource, '', { encoding: UTF8_with_bom });
+		await sewvice.wwite(wesouwce, '', { encoding: UTF8_with_bom });
 
-		let detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.strictEqual(detectedEncoding, UTF8_with_bom);
+		wet detectedEncoding = await detectEncodingByBOM(wesouwce.fsPath);
+		assewt.stwictEquaw(detectedEncoding, UTF8_with_bom);
 	});
 
-	test('write - ensure BOM in empty file - content as snapshot', async () => {
-		const resource = URI.file(join(testDir, 'small.txt'));
+	test('wwite - ensuwe BOM in empty fiwe - content as snapshot', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'smaww.txt'));
 
-		await service.write(resource, createTextModel('').createSnapshot(), { encoding: UTF8_with_bom });
+		await sewvice.wwite(wesouwce, cweateTextModew('').cweateSnapshot(), { encoding: UTF8_with_bom });
 
-		let detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.strictEqual(detectedEncoding, UTF8_with_bom);
+		wet detectedEncoding = await detectEncodingByBOM(wesouwce.fsPath);
+		assewt.stwictEquaw(detectedEncoding, UTF8_with_bom);
 	});
 
-	test('readStream - small text', async () => {
-		const resource = URI.file(join(testDir, 'small.txt'));
+	test('weadStweam - smaww text', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'smaww.txt'));
 
-		await testReadStream(resource);
+		await testWeadStweam(wesouwce);
 	});
 
-	test('readStream - large text', async () => {
-		const resource = URI.file(join(testDir, 'lorem.txt'));
+	test('weadStweam - wawge text', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'wowem.txt'));
 
-		await testReadStream(resource);
+		await testWeadStweam(wesouwce);
 	});
 
-	async function testReadStream(resource: URI): Promise<void> {
-		const result = await service.readStream(resource);
+	async function testWeadStweam(wesouwce: UWI): Pwomise<void> {
+		const wesuwt = await sewvice.weadStweam(wesouwce);
 
-		assert.strictEqual(result.name, basename(resource.fsPath));
-		assert.strictEqual(result.size, (await stat(resource.fsPath)).size);
+		assewt.stwictEquaw(wesuwt.name, basename(wesouwce.fsPath));
+		assewt.stwictEquaw(wesuwt.size, (await stat(wesouwce.fsPath)).size);
 
-		const content = (await readFile(resource.fsPath)).toString();
-		assert.strictEqual(
-			snapshotToString(result.value.create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false)),
-			snapshotToString(createTextModel(content).createSnapshot(false)));
+		const content = (await weadFiwe(wesouwce.fsPath)).toStwing();
+		assewt.stwictEquaw(
+			snapshotToStwing(wesuwt.vawue.cweate(DefauwtEndOfWine.WF).textBuffa.cweateSnapshot(fawse)),
+			snapshotToStwing(cweateTextModew(content).cweateSnapshot(fawse)));
 	}
 
-	test('read - small text', async () => {
-		const resource = URI.file(join(testDir, 'small.txt'));
+	test('wead - smaww text', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'smaww.txt'));
 
-		await testRead(resource);
+		await testWead(wesouwce);
 	});
 
-	test('read - large text', async () => {
-		const resource = URI.file(join(testDir, 'lorem.txt'));
+	test('wead - wawge text', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'wowem.txt'));
 
-		await testRead(resource);
+		await testWead(wesouwce);
 	});
 
-	async function testRead(resource: URI): Promise<void> {
-		const result = await service.read(resource);
+	async function testWead(wesouwce: UWI): Pwomise<void> {
+		const wesuwt = await sewvice.wead(wesouwce);
 
-		assert.strictEqual(result.name, basename(resource.fsPath));
-		assert.strictEqual(result.size, (await stat(resource.fsPath)).size);
-		assert.strictEqual(result.value, (await readFile(resource.fsPath)).toString());
+		assewt.stwictEquaw(wesuwt.name, basename(wesouwce.fsPath));
+		assewt.stwictEquaw(wesuwt.size, (await stat(wesouwce.fsPath)).size);
+		assewt.stwictEquaw(wesuwt.vawue, (await weadFiwe(wesouwce.fsPath)).toStwing());
 	}
 
-	test('readStream - encoding picked up (CP1252)', async () => {
-		const resource = URI.file(join(testDir, 'some_small_cp1252.txt'));
+	test('weadStweam - encoding picked up (CP1252)', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'some_smaww_cp1252.txt'));
 		const encoding = 'windows1252';
 
-		const result = await service.readStream(resource, { encoding });
-		assert.strictEqual(result.encoding, encoding);
-		assert.strictEqual(result.value.getFirstLineText(999999), 'Private = "Persönlicheß Information"');
+		const wesuwt = await sewvice.weadStweam(wesouwce, { encoding });
+		assewt.stwictEquaw(wesuwt.encoding, encoding);
+		assewt.stwictEquaw(wesuwt.vawue.getFiwstWineText(999999), 'Pwivate = "Pewsönwicheß Infowmation"');
 	});
 
-	test('read - encoding picked up (CP1252)', async () => {
-		const resource = URI.file(join(testDir, 'some_small_cp1252.txt'));
+	test('wead - encoding picked up (CP1252)', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'some_smaww_cp1252.txt'));
 		const encoding = 'windows1252';
 
-		const result = await service.read(resource, { encoding });
-		assert.strictEqual(result.encoding, encoding);
-		assert.strictEqual(result.value, 'Private = "Persönlicheß Information"');
+		const wesuwt = await sewvice.wead(wesouwce, { encoding });
+		assewt.stwictEquaw(wesuwt.encoding, encoding);
+		assewt.stwictEquaw(wesuwt.vawue, 'Pwivate = "Pewsönwicheß Infowmation"');
 	});
 
-	test('read - encoding picked up (binary)', async () => {
-		const resource = URI.file(join(testDir, 'some_small_cp1252.txt'));
-		const encoding = 'binary';
+	test('wead - encoding picked up (binawy)', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'some_smaww_cp1252.txt'));
+		const encoding = 'binawy';
 
-		const result = await service.read(resource, { encoding });
-		assert.strictEqual(result.encoding, encoding);
-		assert.strictEqual(result.value, 'Private = "Persönlicheß Information"');
+		const wesuwt = await sewvice.wead(wesouwce, { encoding });
+		assewt.stwictEquaw(wesuwt.encoding, encoding);
+		assewt.stwictEquaw(wesuwt.vawue, 'Pwivate = "Pewsönwicheß Infowmation"');
 	});
 
-	test('read - encoding picked up (base64)', async () => {
-		const resource = URI.file(join(testDir, 'some_small_cp1252.txt'));
+	test('wead - encoding picked up (base64)', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'some_smaww_cp1252.txt'));
 		const encoding = 'base64';
 
-		const result = await service.read(resource, { encoding });
-		assert.strictEqual(result.encoding, encoding);
-		assert.strictEqual(result.value, btoa('Private = "Persönlicheß Information"'));
+		const wesuwt = await sewvice.wead(wesouwce, { encoding });
+		assewt.stwictEquaw(wesuwt.encoding, encoding);
+		assewt.stwictEquaw(wesuwt.vawue, btoa('Pwivate = "Pewsönwicheß Infowmation"'));
 	});
 
-	test('readStream - user overrides BOM', async () => {
-		const resource = URI.file(join(testDir, 'some_utf16le.css'));
+	test('weadStweam - usa ovewwides BOM', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'some_utf16we.css'));
 
-		const result = await service.readStream(resource, { encoding: 'windows1252' });
-		assert.strictEqual(result.encoding, 'windows1252');
+		const wesuwt = await sewvice.weadStweam(wesouwce, { encoding: 'windows1252' });
+		assewt.stwictEquaw(wesuwt.encoding, 'windows1252');
 	});
 
-	test('readStream - BOM removed', async () => {
-		const resource = URI.file(join(testDir, 'some_utf8_bom.txt'));
+	test('weadStweam - BOM wemoved', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'some_utf8_bom.txt'));
 
-		const result = await service.readStream(resource);
-		assert.strictEqual(result.value.getFirstLineText(999999), 'This is some UTF 8 with BOM file.');
+		const wesuwt = await sewvice.weadStweam(wesouwce);
+		assewt.stwictEquaw(wesuwt.vawue.getFiwstWineText(999999), 'This is some UTF 8 with BOM fiwe.');
 	});
 
-	test('readStream - invalid encoding', async () => {
-		const resource = URI.file(join(testDir, 'index.html'));
+	test('weadStweam - invawid encoding', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'index.htmw'));
 
-		const result = await service.readStream(resource, { encoding: 'superduper' });
-		assert.strictEqual(result.encoding, 'utf8');
+		const wesuwt = await sewvice.weadStweam(wesouwce, { encoding: 'supewdupa' });
+		assewt.stwictEquaw(wesuwt.encoding, 'utf8');
 	});
 
-	test('readStream - encoding override', async () => {
-		const resource = URI.file(join(testDir, 'some.utf16le'));
+	test('weadStweam - encoding ovewwide', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'some.utf16we'));
 
-		const result = await service.readStream(resource, { encoding: 'windows1252' });
-		assert.strictEqual(result.encoding, 'utf16le');
-		assert.strictEqual(result.value.getFirstLineText(999999), 'This is some UTF 16 with BOM file.');
+		const wesuwt = await sewvice.weadStweam(wesouwce, { encoding: 'windows1252' });
+		assewt.stwictEquaw(wesuwt.encoding, 'utf16we');
+		assewt.stwictEquaw(wesuwt.vawue.getFiwstWineText(999999), 'This is some UTF 16 with BOM fiwe.');
 	});
 
-	test('readStream - large Big5', async () => {
-		await testLargeEncoding('big5', '中文abc');
+	test('weadStweam - wawge Big5', async () => {
+		await testWawgeEncoding('big5', '中文abc');
 	});
 
-	test('readStream - large CP1252', async () => {
-		await testLargeEncoding('cp1252', 'öäüß');
+	test('weadStweam - wawge CP1252', async () => {
+		await testWawgeEncoding('cp1252', 'öäüß');
 	});
 
-	test('readStream - large Cyrillic', async () => {
-		await testLargeEncoding('cp866', 'АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдежзийклмнопрстуфхцчшщъыьэюя');
+	test('weadStweam - wawge Cywiwwic', async () => {
+		await testWawgeEncoding('cp866', 'АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдежзийклмнопрстуфхцчшщъыьэюя');
 	});
 
-	test('readStream - large GBK', async () => {
-		await testLargeEncoding('gbk', '中国abc');
+	test('weadStweam - wawge GBK', async () => {
+		await testWawgeEncoding('gbk', '中国abc');
 	});
 
-	test('readStream - large ShiftJIS', async () => {
-		await testLargeEncoding('shiftjis', '中文abc');
+	test('weadStweam - wawge ShiftJIS', async () => {
+		await testWawgeEncoding('shiftjis', '中文abc');
 	});
 
-	test('readStream - large UTF8 BOM', async () => {
-		await testLargeEncoding('utf8bom', 'öäüß');
+	test('weadStweam - wawge UTF8 BOM', async () => {
+		await testWawgeEncoding('utf8bom', 'öäüß');
 	});
 
-	test('readStream - large UTF16 LE', async () => {
-		await testLargeEncoding('utf16le', 'öäüß');
+	test('weadStweam - wawge UTF16 WE', async () => {
+		await testWawgeEncoding('utf16we', 'öäüß');
 	});
 
-	test('readStream - large UTF16 BE', async () => {
-		await testLargeEncoding('utf16be', 'öäüß');
+	test('weadStweam - wawge UTF16 BE', async () => {
+		await testWawgeEncoding('utf16be', 'öäüß');
 	});
 
-	async function testLargeEncoding(encoding: string, needle: string): Promise<void> {
-		const resource = URI.file(join(testDir, `lorem_${encoding}.txt`));
+	async function testWawgeEncoding(encoding: stwing, needwe: stwing): Pwomise<void> {
+		const wesouwce = UWI.fiwe(join(testDiw, `wowem_${encoding}.txt`));
 
-		// Verify via `ITextFileService.readStream`
-		const result = await service.readStream(resource, { encoding });
-		assert.strictEqual(result.encoding, encoding);
+		// Vewify via `ITextFiweSewvice.weadStweam`
+		const wesuwt = await sewvice.weadStweam(wesouwce, { encoding });
+		assewt.stwictEquaw(wesuwt.encoding, encoding);
 
-		let contents = snapshotToString(result.value.create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+		wet contents = snapshotToStwing(wesuwt.vawue.cweate(DefauwtEndOfWine.WF).textBuffa.cweateSnapshot(fawse));
 
-		assert.strictEqual(contents.indexOf(needle), 0);
-		assert.ok(contents.indexOf(needle, 10) > 0);
+		assewt.stwictEquaw(contents.indexOf(needwe), 0);
+		assewt.ok(contents.indexOf(needwe, 10) > 0);
 
-		// Verify via `ITextFileService.getDecodedTextFactory`
-		const rawFile = await params.readFile(resource.fsPath);
-		let rawFileVSBuffer: VSBuffer;
-		if (rawFile instanceof VSBuffer) {
-			rawFileVSBuffer = rawFile;
-		} else {
-			rawFileVSBuffer = VSBuffer.wrap(rawFile);
+		// Vewify via `ITextFiweSewvice.getDecodedTextFactowy`
+		const wawFiwe = await pawams.weadFiwe(wesouwce.fsPath);
+		wet wawFiweVSBuffa: VSBuffa;
+		if (wawFiwe instanceof VSBuffa) {
+			wawFiweVSBuffa = wawFiwe;
+		} ewse {
+			wawFiweVSBuffa = VSBuffa.wwap(wawFiwe);
 		}
 
-		const factory = await createTextBufferFactoryFromStream(await service.getDecodedStream(resource, bufferToStream(rawFileVSBuffer), { encoding }));
+		const factowy = await cweateTextBuffewFactowyFwomStweam(await sewvice.getDecodedStweam(wesouwce, buffewToStweam(wawFiweVSBuffa), { encoding }));
 
-		contents = snapshotToString(factory.create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+		contents = snapshotToStwing(factowy.cweate(DefauwtEndOfWine.WF).textBuffa.cweateSnapshot(fawse));
 
-		assert.strictEqual(contents.indexOf(needle), 0);
-		assert.ok(contents.indexOf(needle, 10) > 0);
+		assewt.stwictEquaw(contents.indexOf(needwe), 0);
+		assewt.ok(contents.indexOf(needwe, 10) > 0);
 	}
 
-	test('readStream - UTF16 LE (no BOM)', async () => {
-		const resource = URI.file(join(testDir, 'utf16_le_nobom.txt'));
+	test('weadStweam - UTF16 WE (no BOM)', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'utf16_we_nobom.txt'));
 
-		const result = await service.readStream(resource);
-		assert.strictEqual(result.encoding, 'utf16le');
+		const wesuwt = await sewvice.weadStweam(wesouwce);
+		assewt.stwictEquaw(wesuwt.encoding, 'utf16we');
 	});
 
-	test('readStream - UTF16 BE (no BOM)', async () => {
-		const resource = URI.file(join(testDir, 'utf16_be_nobom.txt'));
+	test('weadStweam - UTF16 BE (no BOM)', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'utf16_be_nobom.txt'));
 
-		const result = await service.readStream(resource);
-		assert.strictEqual(result.encoding, 'utf16be');
+		const wesuwt = await sewvice.weadStweam(wesouwce);
+		assewt.stwictEquaw(wesuwt.encoding, 'utf16be');
 	});
 
-	test('readStream - autoguessEncoding', async () => {
-		const resource = URI.file(join(testDir, 'some_cp1252.txt'));
+	test('weadStweam - autoguessEncoding', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'some_cp1252.txt'));
 
-		const result = await service.readStream(resource, { autoGuessEncoding: true });
-		assert.strictEqual(result.encoding, 'windows1252');
+		const wesuwt = await sewvice.weadStweam(wesouwce, { autoGuessEncoding: twue });
+		assewt.stwictEquaw(wesuwt.encoding, 'windows1252');
 	});
 
-	test('readStream - FILE_IS_BINARY', async () => {
-		const resource = URI.file(join(testDir, 'binary.txt'));
+	test('weadStweam - FIWE_IS_BINAWY', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'binawy.txt'));
 
-		let error: TextFileOperationError | undefined = undefined;
-		try {
-			await service.readStream(resource, { acceptTextOnly: true });
-		} catch (err) {
-			error = err;
+		wet ewwow: TextFiweOpewationEwwow | undefined = undefined;
+		twy {
+			await sewvice.weadStweam(wesouwce, { acceptTextOnwy: twue });
+		} catch (eww) {
+			ewwow = eww;
 		}
 
-		assert.ok(error);
-		assert.strictEqual(error!.textFileOperationResult, TextFileOperationResult.FILE_IS_BINARY);
+		assewt.ok(ewwow);
+		assewt.stwictEquaw(ewwow!.textFiweOpewationWesuwt, TextFiweOpewationWesuwt.FIWE_IS_BINAWY);
 
-		const result = await service.readStream(URI.file(join(testDir, 'small.txt')), { acceptTextOnly: true });
-		assert.strictEqual(result.name, 'small.txt');
+		const wesuwt = await sewvice.weadStweam(UWI.fiwe(join(testDiw, 'smaww.txt')), { acceptTextOnwy: twue });
+		assewt.stwictEquaw(wesuwt.name, 'smaww.txt');
 	});
 
-	test('read - FILE_IS_BINARY', async () => {
-		const resource = URI.file(join(testDir, 'binary.txt'));
+	test('wead - FIWE_IS_BINAWY', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'binawy.txt'));
 
-		let error: TextFileOperationError | undefined = undefined;
-		try {
-			await service.read(resource, { acceptTextOnly: true });
-		} catch (err) {
-			error = err;
+		wet ewwow: TextFiweOpewationEwwow | undefined = undefined;
+		twy {
+			await sewvice.wead(wesouwce, { acceptTextOnwy: twue });
+		} catch (eww) {
+			ewwow = eww;
 		}
 
-		assert.ok(error);
-		assert.strictEqual(error!.textFileOperationResult, TextFileOperationResult.FILE_IS_BINARY);
+		assewt.ok(ewwow);
+		assewt.stwictEquaw(ewwow!.textFiweOpewationWesuwt, TextFiweOpewationWesuwt.FIWE_IS_BINAWY);
 
-		const result = await service.read(URI.file(join(testDir, 'small.txt')), { acceptTextOnly: true });
-		assert.strictEqual(result.name, 'small.txt');
+		const wesuwt = await sewvice.wead(UWI.fiwe(join(testDiw, 'smaww.txt')), { acceptTextOnwy: twue });
+		assewt.stwictEquaw(wesuwt.name, 'smaww.txt');
 	});
 }

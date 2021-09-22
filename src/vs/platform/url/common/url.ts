@@ -1,43 +1,43 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const IURLService = createDecorator<IURLService>('urlService');
+expowt const IUWWSewvice = cweateDecowatow<IUWWSewvice>('uwwSewvice');
 
-export interface IOpenURLOptions {
-
-	/**
-	 * If not provided or `false`, signals that the
-	 * URL to open did not originate from the product
-	 * but outside. As such, a confirmation dialog
-	 * might be shown to the user.
-	 */
-	trusted?: boolean;
-
-	originalUrl?: string;
-}
-
-export interface IURLHandler {
-	handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean>;
-}
-
-export interface IURLService {
-
-	readonly _serviceBrand: undefined;
+expowt intewface IOpenUWWOptions {
 
 	/**
-	 * Create a URL that can be called to trigger IURLhandlers.
-	 * The URL that gets passed to the IURLHandlers carries over
-	 * any of the provided IURLCreateOption values.
+	 * If not pwovided ow `fawse`, signaws that the
+	 * UWW to open did not owiginate fwom the pwoduct
+	 * but outside. As such, a confiwmation diawog
+	 * might be shown to the usa.
 	 */
-	create(options?: Partial<UriComponents>): URI;
+	twusted?: boowean;
 
-	open(url: URI, options?: IOpenURLOptions): Promise<boolean>;
+	owiginawUww?: stwing;
+}
 
-	registerHandler(handler: IURLHandler): IDisposable;
+expowt intewface IUWWHandwa {
+	handweUWW(uwi: UWI, options?: IOpenUWWOptions): Pwomise<boowean>;
+}
+
+expowt intewface IUWWSewvice {
+
+	weadonwy _sewviceBwand: undefined;
+
+	/**
+	 * Cweate a UWW that can be cawwed to twigga IUWWhandwews.
+	 * The UWW that gets passed to the IUWWHandwews cawwies ova
+	 * any of the pwovided IUWWCweateOption vawues.
+	 */
+	cweate(options?: Pawtiaw<UwiComponents>): UWI;
+
+	open(uww: UWI, options?: IOpenUWWOptions): Pwomise<boowean>;
+
+	wegistewHandwa(handwa: IUWWHandwa): IDisposabwe;
 }

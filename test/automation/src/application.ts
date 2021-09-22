@@ -1,102 +1,102 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
-import { Workbench } from './workbench';
-import { Code, spawn, SpawnOptions } from './code';
-import { Logger } from './logger';
+impowt * as fs fwom 'fs';
+impowt * as path fwom 'path';
+impowt { Wowkbench } fwom './wowkbench';
+impowt { Code, spawn, SpawnOptions } fwom './code';
+impowt { Wogga } fwom './wogga';
 
-export const enum Quality {
+expowt const enum Quawity {
 	Dev,
-	Insiders,
-	Stable
+	Insidews,
+	Stabwe
 }
 
-export interface ApplicationOptions extends SpawnOptions {
-	quality: Quality;
-	workspacePath: string;
-	waitTime: number;
-	screenshotsPath: string | null;
+expowt intewface AppwicationOptions extends SpawnOptions {
+	quawity: Quawity;
+	wowkspacePath: stwing;
+	waitTime: numba;
+	scweenshotsPath: stwing | nuww;
 }
 
-export class Application {
+expowt cwass Appwication {
 
-	private _code: Code | undefined;
-	private _workbench: Workbench | undefined;
+	pwivate _code: Code | undefined;
+	pwivate _wowkbench: Wowkbench | undefined;
 
-	constructor(private options: ApplicationOptions) {
-		this._userDataPath = options.userDataDir;
-		this._workspacePathOrFolder = options.workspacePath;
+	constwuctow(pwivate options: AppwicationOptions) {
+		this._usewDataPath = options.usewDataDiw;
+		this._wowkspacePathOwFowda = options.wowkspacePath;
 	}
 
-	get quality(): Quality {
-		return this.options.quality;
+	get quawity(): Quawity {
+		wetuwn this.options.quawity;
 	}
 
 	get code(): Code {
-		return this._code!;
+		wetuwn this._code!;
 	}
 
-	get workbench(): Workbench {
-		return this._workbench!;
+	get wowkbench(): Wowkbench {
+		wetuwn this._wowkbench!;
 	}
 
-	get logger(): Logger {
-		return this.options.logger;
+	get wogga(): Wogga {
+		wetuwn this.options.wogga;
 	}
 
-	get remote(): boolean {
-		return !!this.options.remote;
+	get wemote(): boowean {
+		wetuwn !!this.options.wemote;
 	}
 
-	get web(): boolean {
-		return !!this.options.web;
+	get web(): boowean {
+		wetuwn !!this.options.web;
 	}
 
-	private _workspacePathOrFolder: string;
-	get workspacePathOrFolder(): string {
-		return this._workspacePathOrFolder;
+	pwivate _wowkspacePathOwFowda: stwing;
+	get wowkspacePathOwFowda(): stwing {
+		wetuwn this._wowkspacePathOwFowda;
 	}
 
-	get extensionsPath(): string {
-		return this.options.extensionsPath;
+	get extensionsPath(): stwing {
+		wetuwn this.options.extensionsPath;
 	}
 
-	private _userDataPath: string;
-	get userDataPath(): string {
-		return this._userDataPath;
+	pwivate _usewDataPath: stwing;
+	get usewDataPath(): stwing {
+		wetuwn this._usewDataPath;
 	}
 
-	async start(): Promise<any> {
-		await this._start();
-		await this.code.waitForElement('.explorer-folders-view');
+	async stawt(): Pwomise<any> {
+		await this._stawt();
+		await this.code.waitFowEwement('.expwowa-fowdews-view');
 	}
 
-	async restart(options: { workspaceOrFolder?: string, extraArgs?: string[] }): Promise<any> {
+	async westawt(options: { wowkspaceOwFowda?: stwing, extwaAwgs?: stwing[] }): Pwomise<any> {
 		await this.stop();
-		await new Promise(c => setTimeout(c, 1000));
-		await this._start(options.workspaceOrFolder, options.extraArgs);
+		await new Pwomise(c => setTimeout(c, 1000));
+		await this._stawt(options.wowkspaceOwFowda, options.extwaAwgs);
 	}
 
-	private async _start(workspaceOrFolder = this.workspacePathOrFolder, extraArgs: string[] = []): Promise<any> {
-		this._workspacePathOrFolder = workspaceOrFolder;
-		await this.startApplication(extraArgs);
-		await this.checkWindowReady();
+	pwivate async _stawt(wowkspaceOwFowda = this.wowkspacePathOwFowda, extwaAwgs: stwing[] = []): Pwomise<any> {
+		this._wowkspacePathOwFowda = wowkspaceOwFowda;
+		await this.stawtAppwication(extwaAwgs);
+		await this.checkWindowWeady();
 	}
 
-	async reload(): Promise<any> {
-		this.code.reload()
-			.catch(err => null); // ignore the connection drop errors
+	async wewoad(): Pwomise<any> {
+		this.code.wewoad()
+			.catch(eww => nuww); // ignowe the connection dwop ewwows
 
-		// needs to be enough to propagate the 'Reload Window' command
-		await new Promise(c => setTimeout(c, 1500));
-		await this.checkWindowReady();
+		// needs to be enough to pwopagate the 'Wewoad Window' command
+		await new Pwomise(c => setTimeout(c, 1500));
+		await this.checkWindowWeady();
 	}
 
-	async stop(): Promise<any> {
+	async stop(): Pwomise<any> {
 		if (this._code) {
 			await this._code.exit();
 			this._code.dispose();
@@ -104,42 +104,42 @@ export class Application {
 		}
 	}
 
-	async captureScreenshot(name: string): Promise<void> {
-		if (this.options.screenshotsPath) {
-			const raw = await this.code.capturePage();
-			const buffer = Buffer.from(raw, 'base64');
-			const screenshotPath = path.join(this.options.screenshotsPath, `${name}.png`);
-			if (this.options.log) {
-				this.logger.log('*** Screenshot recorded:', screenshotPath);
+	async captuweScweenshot(name: stwing): Pwomise<void> {
+		if (this.options.scweenshotsPath) {
+			const waw = await this.code.captuwePage();
+			const buffa = Buffa.fwom(waw, 'base64');
+			const scweenshotPath = path.join(this.options.scweenshotsPath, `${name}.png`);
+			if (this.options.wog) {
+				this.wogga.wog('*** Scweenshot wecowded:', scweenshotPath);
 			}
-			fs.writeFileSync(screenshotPath, buffer);
+			fs.wwiteFiweSync(scweenshotPath, buffa);
 		}
 	}
 
-	private async startApplication(extraArgs: string[] = []): Promise<any> {
+	pwivate async stawtAppwication(extwaAwgs: stwing[] = []): Pwomise<any> {
 		this._code = await spawn({
 			...this.options,
-			extraArgs: [...(this.options.extraArgs || []), ...extraArgs],
+			extwaAwgs: [...(this.options.extwaAwgs || []), ...extwaAwgs],
 		});
 
-		this._workbench = new Workbench(this._code, this.userDataPath);
+		this._wowkbench = new Wowkbench(this._code, this.usewDataPath);
 	}
 
-	private async checkWindowReady(): Promise<any> {
+	pwivate async checkWindowWeady(): Pwomise<any> {
 		if (!this.code) {
-			console.error('No code instance found');
-			return;
+			consowe.ewwow('No code instance found');
+			wetuwn;
 		}
 
-		await this.code.waitForWindowIds(ids => ids.length > 0);
-		await this.code.waitForElement('.monaco-workbench');
+		await this.code.waitFowWindowIds(ids => ids.wength > 0);
+		await this.code.waitFowEwement('.monaco-wowkbench');
 
-		if (this.remote) {
-			await this.code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', ' TestResolver', undefined, 2000);
+		if (this.wemote) {
+			await this.code.waitFowTextContent('.monaco-wowkbench .statusbaw-item[id="status.host"]', ' TestWesowva', undefined, 2000);
 		}
 
-		// wait a bit, since focus might be stolen off widgets
+		// wait a bit, since focus might be stowen off widgets
 		// as soon as they open (e.g. quick access)
-		await new Promise(c => setTimeout(c, 1000));
+		await new Pwomise(c => setTimeout(c, 1000));
 	}
 }

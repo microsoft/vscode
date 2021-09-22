@@ -1,539 +1,539 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/Ikuyadeu/vscode-R/blob/master/syntax/r.json",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/Ikuyadeu/vscode-W/bwob/masta/syntax/w.json",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/Ikuyadeu/vscode-R/commit/c6a9803fbda262ea68c427a2339bddafed41a9d5",
-	"name": "R",
-	"scopeName": "source.r",
-	"patterns": [
+	"vewsion": "https://github.com/Ikuyadeu/vscode-W/commit/c6a9803fbda262ea68c427a2339bddafed41a9d5",
+	"name": "W",
+	"scopeName": "souwce.w",
+	"pattewns": [
 		{
-			"include": "#roxygen"
+			"incwude": "#woxygen"
 		},
 		{
-			"include": "#comments"
+			"incwude": "#comments"
 		},
 		{
-			"include": "#constants"
+			"incwude": "#constants"
 		},
 		{
-			"include": "#keywords"
+			"incwude": "#keywowds"
 		},
 		{
-			"include": "#storage-type"
+			"incwude": "#stowage-type"
 		},
 		{
-			"include": "#strings"
+			"incwude": "#stwings"
 		},
 		{
-			"include": "#brackets"
+			"incwude": "#bwackets"
 		},
 		{
-			"include": "#function-declarations"
+			"incwude": "#function-decwawations"
 		},
 		{
-			"include": "#lambda-functions"
+			"incwude": "#wambda-functions"
 		},
 		{
-			"include": "#builtin-functions"
+			"incwude": "#buiwtin-functions"
 		},
 		{
-			"include": "#function-calls"
+			"incwude": "#function-cawws"
 		},
 		{
-			"include": "#general-variables"
+			"incwude": "#genewaw-vawiabwes"
 		}
 	],
-	"repository": {
+	"wepositowy": {
 		"comments": {
-			"patterns": [
+			"pattewns": [
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "comment.line.pragma.r"
+							"name": "comment.wine.pwagma.w"
 						},
 						"2": {
-							"name": "entity.name.pragma.name.r"
+							"name": "entity.name.pwagma.name.w"
 						}
 					},
-					"match": "^(#pragma[ \\t]+mark)[ \\t](.*)",
-					"name": "comment.line.pragma-mark.r"
+					"match": "^(#pwagma[ \\t]+mawk)[ \\t](.*)",
+					"name": "comment.wine.pwagma-mawk.w"
 				},
 				{
 					"begin": "(^[ \\t]+)?(?=#)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "punctuation.whitespace.comment.leading.r"
+							"name": "punctuation.whitespace.comment.weading.w"
 						}
 					},
 					"end": "(?!\\G)",
-					"patterns": [
+					"pattewns": [
 						{
 							"begin": "#",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.comment.r"
+									"name": "punctuation.definition.comment.w"
 								}
 							},
 							"end": "\\n",
-							"name": "comment.line.number-sign.r"
+							"name": "comment.wine.numba-sign.w"
 						}
 					]
 				}
 			]
 		},
 		"constants": {
-			"patterns": [
+			"pattewns": [
 				{
-					"match": "\\b(pi|letters|LETTERS|month\\.abb|month\\.name)\\b",
-					"name": "support.constant.misc.r"
+					"match": "\\b(pi|wettews|WETTEWS|month\\.abb|month\\.name)\\b",
+					"name": "suppowt.constant.misc.w"
 				},
 				{
-					"match": "\\b(TRUE|FALSE|NULL|NA|NA_integer_|NA_real_|NA_complex_|NA_character_|Inf|NaN)\\b",
-					"name": "constant.language.r"
+					"match": "\\b(TWUE|FAWSE|NUWW|NA|NA_integew_|NA_weaw_|NA_compwex_|NA_chawactew_|Inf|NaN)\\b",
+					"name": "constant.wanguage.w"
 				},
 				{
 					"match": "\\b0(x|X)[0-9a-fA-F]+i\\b",
-					"name": "constant.numeric.imaginary.hexadecimal.r"
+					"name": "constant.numewic.imaginawy.hexadecimaw.w"
 				},
 				{
 					"match": "\\b[0-9]+\\.?[0-9]*(?:(e|E)(\\+|-)?[0-9]+)?i\\b",
-					"name": "constant.numeric.imaginary.decimal.r"
+					"name": "constant.numewic.imaginawy.decimaw.w"
 				},
 				{
 					"match": "\\.[0-9]+(?:(e|E)(\\+|-)?[0-9]+)?i\\b",
-					"name": "constant.numeric.imaginary.decimal.r"
+					"name": "constant.numewic.imaginawy.decimaw.w"
 				},
 				{
-					"match": "\\b0(x|X)[0-9a-fA-F]+L\\b",
-					"name": "constant.numeric.integer.hexadecimal.r"
+					"match": "\\b0(x|X)[0-9a-fA-F]+W\\b",
+					"name": "constant.numewic.intega.hexadecimaw.w"
 				},
 				{
-					"match": "\\b(?:[0-9]+\\.?[0-9]*)(?:(e|E)(\\+|-)?[0-9]+)?L\\b",
-					"name": "constant.numeric.integer.decimal.r"
+					"match": "\\b(?:[0-9]+\\.?[0-9]*)(?:(e|E)(\\+|-)?[0-9]+)?W\\b",
+					"name": "constant.numewic.intega.decimaw.w"
 				},
 				{
 					"match": "\\b0(x|X)[0-9a-fA-F]+\\b",
-					"name": "constant.numeric.float.hexadecimal.r"
+					"name": "constant.numewic.fwoat.hexadecimaw.w"
 				},
 				{
 					"match": "\\b[0-9]+\\.?[0-9]*(?:(e|E)(\\+|-)?[0-9]+)?\\b",
-					"name": "constant.numeric.float.decimal.r"
+					"name": "constant.numewic.fwoat.decimaw.w"
 				},
 				{
 					"match": "\\.[0-9]+(?:(e|E)(\\+|-)?[0-9]+)?\\b",
-					"name": "constant.numeric.float.decimal.r"
+					"name": "constant.numewic.fwoat.decimaw.w"
 				}
 			]
 		},
-		"general-variables": {
-			"patterns": [
+		"genewaw-vawiabwes": {
+			"pattewns": [
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "variable.parameter.r"
+							"name": "vawiabwe.pawameta.w"
 						},
 						"2": {
-							"name": "keyword.operator.assignment.r"
+							"name": "keywowd.opewatow.assignment.w"
 						}
 					},
-					"match": "([[:alpha:].][[:alnum:]._]*)\\s*(=)(?=[^=])"
+					"match": "([[:awpha:].][[:awnum:]._]*)\\s*(=)(?=[^=])"
 				},
 				{
-					"match": "\\b([\\d_][[:alnum:]._]+)\\b",
-					"name": "invalid.illegal.variable.other.r"
+					"match": "\\b([\\d_][[:awnum:]._]+)\\b",
+					"name": "invawid.iwwegaw.vawiabwe.otha.w"
 				},
 				{
-					"match": "\\b([[:alnum:]_]+)(?=::)",
-					"name": "entity.namespace.r"
+					"match": "\\b([[:awnum:]_]+)(?=::)",
+					"name": "entity.namespace.w"
 				},
 				{
-					"match": "\\b([[:alnum:]._]+)\\b",
-					"name": "variable.other.r"
+					"match": "\\b([[:awnum:]._]+)\\b",
+					"name": "vawiabwe.otha.w"
 				}
 			]
 		},
-		"keywords": {
-			"patterns": [
+		"keywowds": {
+			"pattewns": [
 				{
-					"match": "\\b(break|next|repeat|else|in)\\b",
-					"name": "keyword.control.r"
+					"match": "\\b(bweak|next|wepeat|ewse|in)\\b",
+					"name": "keywowd.contwow.w"
 				},
 				{
-					"match": "\\b(ifelse|if|for|return|switch|while|invisible)\\b(?=\\s*\\()",
-					"name": "keyword.control.r"
+					"match": "\\b(ifewse|if|fow|wetuwn|switch|whiwe|invisibwe)\\b(?=\\s*\\()",
+					"name": "keywowd.contwow.w"
 				},
 				{
 					"match": "(\\-|\\+|\\*|\\/|%\\/%|%%|%\\*%|%o%|%x%|\\^)",
-					"name": "keyword.operator.arithmetic.r"
+					"name": "keywowd.opewatow.awithmetic.w"
 				},
 				{
 					"match": "(:=|<-|<<-|->|->>)",
-					"name": "keyword.operator.assignment.r"
+					"name": "keywowd.opewatow.assignment.w"
 				},
 				{
 					"match": "(==|<=|>=|!=|<>|<|>|%in%)",
-					"name": "keyword.operator.comparison.r"
+					"name": "keywowd.opewatow.compawison.w"
 				},
 				{
 					"match": "(!|&{1,2}|[|]{1,2})",
-					"name": "keyword.operator.logical.r"
+					"name": "keywowd.opewatow.wogicaw.w"
 				},
 				{
 					"match": "(\\|>)",
-					"name": "keyword.operator.pipe.r"
+					"name": "keywowd.opewatow.pipe.w"
 				},
 				{
-					"match": "(%between%|%chin%|%like%|%\\+%|%\\+replace%|%:%|%do%|%dopar%|%>%|%<>%|%T>%|%\\$%)",
-					"name": "keyword.operator.other.r"
+					"match": "(%between%|%chin%|%wike%|%\\+%|%\\+wepwace%|%:%|%do%|%dopaw%|%>%|%<>%|%T>%|%\\$%)",
+					"name": "keywowd.opewatow.otha.w"
 				},
 				{
 					"match": "(\\.\\.\\.|\\$|:|\\~|@)",
-					"name": "keyword.other.r"
+					"name": "keywowd.otha.w"
 				}
 			]
 		},
-		"storage-type": {
-			"patterns": [
+		"stowage-type": {
+			"pattewns": [
 				{
-					"match": "\\b(character|complex|double|expression|integer|list|logical|numeric|single|raw)\\b(?=\\s*\\()",
-					"name": "storage.type.r"
+					"match": "\\b(chawacta|compwex|doubwe|expwession|intega|wist|wogicaw|numewic|singwe|waw)\\b(?=\\s*\\()",
+					"name": "stowage.type.w"
 				}
 			]
 		},
-		"strings": {
-			"patterns": [
+		"stwings": {
+			"pattewns": [
 				{
 					"begin": "\"",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.begin.r"
+							"name": "punctuation.definition.stwing.begin.w"
 						}
 					},
 					"end": "\"",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.end.r"
+							"name": "punctuation.definition.stwing.end.w"
 						}
 					},
-					"name": "string.quoted.double.r",
-					"patterns": [
+					"name": "stwing.quoted.doubwe.w",
+					"pattewns": [
 						{
 							"match": "\\\\.",
-							"name": "constant.character.escape.r"
+							"name": "constant.chawacta.escape.w"
 						}
 					]
 				},
 				{
 					"begin": "'",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.begin.r"
+							"name": "punctuation.definition.stwing.begin.w"
 						}
 					},
 					"end": "'",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.end.r"
+							"name": "punctuation.definition.stwing.end.w"
 						}
 					},
-					"name": "string.quoted.single.r",
-					"patterns": [
+					"name": "stwing.quoted.singwe.w",
+					"pattewns": [
 						{
 							"match": "\\\\.",
-							"name": "constant.character.escape.r"
+							"name": "constant.chawacta.escape.w"
 						}
 					]
 				}
 			]
 		},
-		"brackets": {
-			"patterns": [
+		"bwackets": {
+			"pattewns": [
 				{
 					"begin": "\\(",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.section.parens.begin.r"
+							"name": "punctuation.section.pawens.begin.w"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.parens.end.r"
+							"name": "punctuation.section.pawens.end.w"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "source.r"
+							"incwude": "souwce.w"
 						}
 					]
 				},
 				{
 					"begin": "\\[(?!\\[)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.section.brackets.single.begin.r"
+							"name": "punctuation.section.bwackets.singwe.begin.w"
 						}
 					},
 					"end": "\\]",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.brackets.single.end.r"
+							"name": "punctuation.section.bwackets.singwe.end.w"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "source.r"
+							"incwude": "souwce.w"
 						}
 					]
 				},
 				{
 					"begin": "\\[\\[",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.section.brackets.double.begin.r"
+							"name": "punctuation.section.bwackets.doubwe.begin.w"
 						}
 					},
 					"end": "\\]\\]",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.brackets.double.end.r"
+							"name": "punctuation.section.bwackets.doubwe.end.w"
 						}
 					},
-					"contentName": "meta.item-access.arguments.r",
-					"patterns": [
+					"contentName": "meta.item-access.awguments.w",
+					"pattewns": [
 						{
-							"include": "source.r"
+							"incwude": "souwce.w"
 						}
 					]
 				},
 				{
 					"begin": "\\{",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.section.braces.begin.r"
+							"name": "punctuation.section.bwaces.begin.w"
 						}
 					},
 					"end": "\\}",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.braces.end.r"
+							"name": "punctuation.section.bwaces.end.w"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "source.r"
+							"incwude": "souwce.w"
 						}
 					]
 				}
 			]
 		},
-		"function-declarations": {
-			"patterns": [
+		"function-decwawations": {
+			"pattewns": [
 				{
-					"match": "((?:`[^`\\\\]*(?:\\\\.[^`\\\\]*)*`)|(?:[[:alpha:].][[:alnum:]._]*))\\s*(<?<-|=(?!=))\\s*(function)",
-					"captures": {
+					"match": "((?:`[^`\\\\]*(?:\\\\.[^`\\\\]*)*`)|(?:[[:awpha:].][[:awnum:]._]*))\\s*(<?<-|=(?!=))\\s*(function)",
+					"captuwes": {
 						"1": {
-							"name": "entity.name.function.r"
+							"name": "entity.name.function.w"
 						},
 						"2": {
-							"name": "keyword.operator.assignment.r"
+							"name": "keywowd.opewatow.assignment.w"
 						},
 						"3": {
-							"name": "keyword.control.r"
+							"name": "keywowd.contwow.w"
 						}
 					},
-					"name": "meta.function.r",
-					"patterns": [
+					"name": "meta.function.w",
+					"pattewns": [
 						{
-							"include": "#lambda-functions"
+							"incwude": "#wambda-functions"
 						}
 					]
 				}
 			]
 		},
-		"lambda-functions": {
-			"patterns": [
+		"wambda-functions": {
+			"pattewns": [
 				{
 					"begin": "\\b(function)\\s*(\\()",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.control.r"
+							"name": "keywowd.contwow.w"
 						},
 						"2": {
-							"name": "punctuation.section.parens.begin.r"
+							"name": "punctuation.section.pawens.begin.w"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.parens.end.r"
+							"name": "punctuation.section.pawens.end.w"
 						}
 					},
-					"name": "meta.function.r",
-					"contentName": "meta.function.parameters.r",
-					"patterns": [
+					"name": "meta.function.w",
+					"contentName": "meta.function.pawametews.w",
+					"pattewns": [
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						},
 						{
 							"match": "(?:[a-zA-Z._][\\w.]*|`[^`]+`)",
-							"name": "variable.parameter.r"
+							"name": "vawiabwe.pawameta.w"
 						},
 						{
 							"begin": "(?==)",
 							"end": "(?=[,)])",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "source.r"
+									"incwude": "souwce.w"
 								}
 							]
 						},
 						{
 							"match": ",",
-							"name": "punctuation.separator.parameters.r"
+							"name": "punctuation.sepawatow.pawametews.w"
 						}
 					]
 				}
 			]
 		},
-		"function-calls": {
+		"function-cawws": {
 			"begin": "(?:\\b|(?=\\.))((?:[a-zA-Z._][\\w.]*|`[^`]+`))\\s*(\\()",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "variable.function.r"
+					"name": "vawiabwe.function.w"
 				},
 				"2": {
-					"name": "punctuation.section.parens.begin.r"
+					"name": "punctuation.section.pawens.begin.w"
 				}
 			},
-			"contentName": "meta.function-call.arguments.r",
+			"contentName": "meta.function-caww.awguments.w",
 			"end": "(\\))",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.section.parens.end.r"
+					"name": "punctuation.section.pawens.end.w"
 				}
 			},
-			"name": "meta.function-call.r",
-			"patterns": [
+			"name": "meta.function-caww.w",
+			"pattewns": [
 				{
-					"include": "#function-parameters"
+					"incwude": "#function-pawametews"
 				}
 			]
 		},
-		"function-parameters": {
-			"patterns": [
+		"function-pawametews": {
+			"pattewns": [
 				{
-					"name": "meta.function-call.r",
-					"contentName": "meta.function-call.parameters.r"
+					"name": "meta.function-caww.w",
+					"contentName": "meta.function-caww.pawametews.w"
 				},
 				{
 					"match": "(?:[a-zA-Z._][\\w.]*|`[^`]+`)(?=\\s[^=])",
-					"name": "variable.parameter.r"
+					"name": "vawiabwe.pawameta.w"
 				},
 				{
 					"begin": "(?==)",
 					"end": "(?=[,)])",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "source.r"
+							"incwude": "souwce.w"
 						}
 					]
 				},
 				{
 					"match": ",",
-					"name": "punctuation.separator.parameters.r"
+					"name": "punctuation.sepawatow.pawametews.w"
 				},
 				{
 					"end": "\\)",
-					"endCaptures": {
-						"0": "punctuation.section.parens.end.r"
+					"endCaptuwes": {
+						"0": "punctuation.section.pawens.end.w"
 					}
 				},
 				{
-					"include": "source.r"
+					"incwude": "souwce.w"
 				}
 			]
 		},
-		"roxygen": {
-			"patterns": [
+		"woxygen": {
+			"pattewns": [
 				{
 					"begin": "^(#')\\s*",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "punctuation.definition.comment.r"
+							"name": "punctuation.definition.comment.w"
 						}
 					},
 					"end": "$\\n?",
-					"name": "comment.line.roxygen.r",
-					"patterns": [
+					"name": "comment.wine.woxygen.w",
+					"pattewns": [
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "keyword.other.r"
+									"name": "keywowd.otha.w"
 								},
 								"2": {
-									"name": "variable.parameter.r"
+									"name": "vawiabwe.pawameta.w"
 								}
 							},
-							"match": "(@param)\\s*((?:[a-zA-Z._][\\w.]*|`[^`]+`))"
+							"match": "(@pawam)\\s*((?:[a-zA-Z._][\\w.]*|`[^`]+`))"
 						},
 						{
 							"match": "@[a-zA-Z0-9]+",
-							"name": "keyword.other.r"
+							"name": "keywowd.otha.w"
 						}
 					]
 				}
 			]
 		},
-		"builtin-functions": {
-			"patterns": [
+		"buiwtin-functions": {
+			"pattewns": [
 				{
-					"match": "\\b(abbreviate|abs|acos|acosh|addNA|addTaskCallback|agrep|agrepl|alist|all|all\\.equal|all\\.equal.character|all\\.equal.default|all\\.equal.environment|all\\.equal.envRefClass|all\\.equal.factor|all\\.equal.formula|all\\.equal.language|all\\.equal.list|all\\.equal.numeric|all\\.equal.POSIXt|all\\.equal.raw|all\\.names|all\\.vars|any|anyDuplicated|anyDuplicated\\.array|anyDuplicated\\.data.frame|anyDuplicated\\.default|anyDuplicated\\.matrix|anyNA|anyNA\\.numeric_version|anyNA\\.POSIXlt|aperm|aperm\\.default|aperm\\.table|append|apply|Arg|args|array|arrayInd|as\\.array|as\\.array.default|as\\.call|as\\.character|as\\.character.condition|as\\.character.Date|as\\.character.default|as\\.character.error|as\\.character.factor|as\\.character.hexmode|as\\.character.numeric_version|as\\.character.octmode|as\\.character.POSIXt|as\\.character.srcref|as\\.complex|as\\.data.frame|as\\.data.frame.array|as\\.data.frame.AsIs|as\\.data.frame.character|as\\.data.frame.complex|as\\.data.frame.data.frame|as\\.data.frame.Date|as\\.data.frame.default|as\\.data.frame.difftime|as\\.data.frame.factor|as\\.data.frame.integer|as\\.data.frame.list|as\\.data.frame.logical|as\\.data.frame.matrix|as\\.data.frame.model.matrix|as\\.data.frame.noquote|as\\.data.frame.numeric|as\\.data.frame.numeric_version|as\\.data.frame.ordered|as\\.data.frame.POSIXct|as\\.data.frame.POSIXlt|as\\.data.frame.raw|as\\.data.frame.table|as\\.data.frame.ts|as\\.data.frame.vector|as\\.Date|as\\.Date.character|as\\.Date.date|as\\.Date.dates|as\\.Date.default|as\\.Date.factor|as\\.Date.numeric|as\\.Date.POSIXct|as\\.Date.POSIXlt|as\\.difftime|as\\.double|as\\.double.difftime|as\\.double.POSIXlt|as\\.environment|as\\.expression|as\\.expression.default|as\\.factor|as\\.function|as\\.function.default|as\\.hexmode|as\\.integer|as\\.list|as\\.list.data.frame|as\\.list.Date|as\\.list.default|as\\.list.environment|as\\.list.factor|as\\.list.function|as\\.list.numeric_version|as\\.list.POSIXct|as\\.logical|as\\.logical.factor|as\\.matrix|as\\.matrix.data.frame|as\\.matrix.default|as\\.matrix.noquote|as\\.matrix.POSIXlt|as\\.name|as\\.null|as\\.null.default|as\\.numeric|as\\.numeric_version|as\\.octmode|as\\.ordered|as\\.package_version|as\\.pairlist|as\\.POSIXct|as\\.POSIXct.date|as\\.POSIXct.Date|as\\.POSIXct.dates|as\\.POSIXct.default|as\\.POSIXct.numeric|as\\.POSIXct.POSIXlt|as\\.POSIXlt|as\\.POSIXlt.character|as\\.POSIXlt.date|as\\.POSIXlt.Date|as\\.POSIXlt.dates|as\\.POSIXlt.default|as\\.POSIXlt.factor|as\\.POSIXlt.numeric|as\\.POSIXlt.POSIXct|as\\.qr|as\\.raw|as\\.single|as\\.single.default|as\\.symbol|as\\.table|as\\.table.default|as\\.vector|as\\.vector.factor|asin|asinh|asNamespace|asS3|asS4|assign|atan|atan2|atanh|attach|attachNamespace|attr|attr\\.all.equal|attributes|autoload|autoloader|backsolve|baseenv|basename|besselI|besselJ|besselK|besselY|beta|bindingIsActive|bindingIsLocked|bindtextdomain|bitwAnd|bitwNot|bitwOr|bitwShiftL|bitwShiftR|bitwXor|body|bquote|break|browser|browserCondition|browserSetDebug|browserText|builtins|by|by\\.data.frame|by\\.default|bzfile|c|c\\.Date|c\\.difftime|c\\.noquote|c\\.numeric_version|c\\.POSIXct|c\\.POSIXlt|c\\.warnings|call|callCC|capabilities|casefold|cat|cbind|cbind\\.data.frame|ceiling|char\\.expand|character|charmatch|charToRaw|chartr|check_tzones|chkDots|chol|chol\\.default|chol2inv|choose|class|clearPushBack|close|close\\.connection|close\\.srcfile|close\\.srcfilealias|closeAllConnections|col|colMeans|colnames|colSums|commandArgs|comment|complex|computeRestarts|conditionCall|conditionCall\\.condition|conditionMessage|conditionMessage\\.condition|conflicts|Conj|contributors|cos|cosh|cospi|crossprod|Cstack_info|cummax|cummin|cumprod|cumsum|curlGetHeaders|cut|cut\\.Date|cut\\.default|cut\\.POSIXt|data\\.class|data\\.frame|data\\.matrix|date|debug|debuggingState|debugonce|default\\.stringsAsFactors|delayedAssign|deparse|det|detach|determinant|determinant\\.matrix|dget|diag|diff|diff\\.Date|diff\\.default|diff\\.difftime|diff\\.POSIXt|difftime|digamma|dim|dim\\.data.frame|dimnames|dimnames\\.data.frame|dir|dir\\.create|dir\\.exists|dirname|do\\.call|dontCheck|double|dput|dQuote|drop|droplevels|droplevels\\.data.frame|droplevels\\.factor|dump|duplicated|duplicated\\.array|duplicated\\.data.frame|duplicated\\.default|duplicated\\.matrix|duplicated\\.numeric_version|duplicated\\.POSIXlt|duplicated\\.warnings|dyn\\.load|dyn\\.unload|dynGet|eapply|eigen|emptyenv|enc2native|enc2utf8|encodeString|Encoding|endsWith|enquote|env\\.profile|environment|environmentIsLocked|environmentName|eval|eval\\.parent|evalq|exists|exp|expand\\.grid|expm1|expression|extSoftVersion|factor|factorial|fifo|file|file\\.access|file\\.append|file\\.choose|file\\.copy|file\\.create|file\\.exists|file\\.info|file\\.link|file\\.mode|file\\.mtime|file\\.path|file\\.remove|file\\.rename|file\\.show|file\\.size|file\\.symlink|Filter|Find|find\\.package|findInterval|findPackageEnv|findRestart|floor|flush|flush\\.connection|for|force|forceAndCall|formals|format|format\\.AsIs|format\\.data.frame|format\\.Date|format\\.default|format\\.difftime|format\\.factor|format\\.hexmode|format\\.info|format\\.libraryIQR|format\\.numeric_version|format\\.octmode|format\\.packageInfo|format\\.POSIXct|format\\.POSIXlt|format\\.pval|format\\.summaryDefault|formatC|formatDL|forwardsolve|function|gamma|gc|gc\\.time|gcinfo|gctorture|gctorture2|get|get0|getAllConnections|getCallingDLL|getCallingDLLe|getConnection|getDLLRegisteredRoutines|getDLLRegisteredRoutines\\.character|getDLLRegisteredRoutines\\.DLLInfo|getElement|geterrmessage|getExportedValue|getHook|getLoadedDLLs|getNamespace|getNamespaceExports|getNamespaceImports|getNamespaceInfo|getNamespaceName|getNamespaceUsers|getNamespaceVersion|getNativeSymbolInfo|getOption|getRversion|getSrcLines|getTaskCallbackNames|gettext|gettextf|getwd|gl|globalenv|gregexpr|grep|grepl|grepRaw|grouping|gsub|gzcon|gzfile|I|iconv|iconvlist|icuGetCollate|icuSetCollate|identical|identity|if|ifelse|Im|importIntoEnv|inherits|integer|interaction|interactive|intersect|intToBits|intToUtf8|inverse\\.rle|invisible|invokeRestart|invokeRestartInteractively|is\\.array|is\\.atomic|is\\.call|is\\.character|is\\.complex|is\\.data.frame|is\\.double|is\\.element|is\\.environment|is\\.expression|is\\.factor|is\\.finite|is\\.function|is\\.infinite|is\\.integer|is\\.language|is\\.list|is\\.loaded|is\\.logical|is\\.matrix|is\\.na|is\\.na.data.frame|is\\.na.numeric_version|is\\.na.POSIXlt|is\\.name|is\\.nan|is\\.null|is\\.numeric|is\\.numeric_version|is\\.numeric.Date|is\\.numeric.difftime|is\\.numeric.POSIXt|is\\.object|is\\.ordered|is\\.package_version|is\\.pairlist|is\\.primitive|is\\.qr|is\\.R|is\\.raw|is\\.recursive|is\\.single|is\\.symbol|is\\.table|is\\.unsorted|is\\.vector|isatty|isBaseNamespace|isdebugged|isIncomplete|isNamespace|isNamespaceLoaded|ISOdate|ISOdatetime|isOpen|isRestart|isS4|isSeekable|isSymmetric|isSymmetric\\.matrix|isTRUE|jitter|julian|julian\\.Date|julian\\.POSIXt|kappa|kappa\\.default|kappa\\.lm|kappa\\.qr|kronecker|l10n_info|La_library|La_version|La\\.svd|labels|labels\\.default|lapply|lazyLoad|lazyLoadDBexec|lazyLoadDBfetch|lbeta|lchoose|length|length\\.POSIXlt|lengths|levels|levels\\.default|lfactorial|lgamma|libcurlVersion|library|library\\.dynam|library\\.dynam.unload|licence|license|list|list\\.dirs|list\\.files|list2env|load|loadedNamespaces|loadingNamespaceInfo|loadNamespace|local|lockBinding|lockEnvironment|log|log10|log1p|log2|logb|logical|lower\\.tri|ls|make\\.names|make\\.unique|makeActiveBinding|Map|mapply|margin\\.table|mat\\.or.vec|match|match\\.arg|match\\.call|match\\.fun|Math\\.data.frame|Math\\.Date|Math\\.difftime|Math\\.factor|Math\\.POSIXt|matrix|max|max\\.col|mean|mean\\.Date|mean\\.default|mean\\.difftime|mean\\.POSIXct|mean\\.POSIXlt|mem\\.limits|memCompress|memDecompress|memory\\.profile|merge|merge\\.data.frame|merge\\.default|message|mget|min|missing|Mod|mode|months|months\\.Date|months\\.POSIXt|names|names\\.POSIXlt|namespaceExport|namespaceImport|namespaceImportClasses|namespaceImportFrom|namespaceImportMethods|nargs|nchar|ncol|NCOL|Negate|new\\.env|next|NextMethod|ngettext|nlevels|noquote|norm|normalizePath|nrow|NROW|numeric|numeric_version|nzchar|objects|oldClass|OlsonNames|on\\.exit|open|open\\.connection|open\\.srcfile|open\\.srcfilealias|open\\.srcfilecopy|Ops\\.data.frame|Ops\\.Date|Ops\\.difftime|Ops\\.factor|Ops\\.numeric_version|Ops\\.ordered|Ops\\.POSIXt|options|order|ordered|outer|package_version|packageEvent|packageHasNamespace|packageStartupMessage|packBits|pairlist|parent\\.env|parent\\.frame|parse|parseNamespaceFile|paste|paste0|path\\.expand|path\\.package|pcre_config|pipe|pmatch|pmax|pmax\\.int|pmin|pmin\\.int|polyroot|pos\\.to.env|Position|pretty|pretty\\.default|prettyNum|print|print\\.AsIs|print\\.by|print\\.condition|print\\.connection|print\\.data.frame|print\\.Date|print\\.default|print\\.difftime|print\\.Dlist|print\\.DLLInfo|print\\.DLLInfoList|print\\.DLLRegisteredRoutines|print\\.eigen|print\\.factor|print\\.function|print\\.hexmode|print\\.libraryIQR|print\\.listof|print\\.NativeRoutineList|print\\.noquote|print\\.numeric_version|print\\.octmode|print\\.packageInfo|print\\.POSIXct|print\\.POSIXlt|print\\.proc_time|print\\.restart|print\\.rle|print\\.simple.list|print\\.srcfile|print\\.srcref|print\\.summary.table|print\\.summaryDefault|print\\.table|print\\.warnings|prmatrix|proc\\.time|prod|prop\\.table|provideDimnames|psigamma|pushBack|pushBackLength|q|qr|qr\\.coef|qr\\.default|qr\\.fitted|qr\\.Q|qr\\.qty|qr\\.qy|qr\\.R|qr\\.resid|qr\\.solve|qr\\.X|quarters|quarters\\.Date|quarters\\.POSIXt|quit|quote|R_system_version|R\\.home|R\\.Version|range|range\\.default|rank|rapply|raw|rawConnection|rawConnectionValue|rawShift|rawToBits|rawToChar|rbind|rbind\\.data.frame|rcond|Re|read\\.dcf|readBin|readChar|readline|readLines|readRDS|readRenviron|Recall|Reduce|reg\\.finalizer|regexec|regexpr|registerS3method|registerS3methods|regmatches|remove|removeTaskCallback|rep|rep_len|rep\\.Date|rep\\.factor|rep\\.int|rep\\.numeric_version|rep\\.POSIXct|rep\\.POSIXlt|repeat|replace|replicate|require|requireNamespace|restartDescription|restartFormals|retracemem|return|returnValue|rev|rev\\.default|rle|rm|RNGkind|RNGversion|round|round\\.Date|round\\.POSIXt|row|row\\.names|row\\.names.data.frame|row\\.names.default|rowMeans|rownames|rowsum|rowsum\\.data.frame|rowsum\\.default|rowSums|sample|sample\\.int|sapply|save|save\\.image|saveRDS|scale|scale\\.default|scan|search|searchpaths|seek|seek\\.connection|seq|seq_along|seq_len|seq\\.Date|seq\\.default|seq\\.int|seq\\.POSIXt|sequence|serialize|set\\.seed|setdiff|setequal|setHook|setNamespaceInfo|setSessionTimeLimit|setTimeLimit|setwd|showConnections|shQuote|sign|signalCondition|signif|simpleCondition|simpleError|simpleMessage|simpleWarning|simplify2array|sin|single|sinh|sink|sink\\.number|sinpi|slice\\.index|socketConnection|socketSelect|solve|solve\\.default|solve\\.qr|sort|sort\\.default|sort\\.int|sort\\.list|sort\\.POSIXlt|source|split|split\\.data.frame|split\\.Date|split\\.default|split\\.POSIXct|sprintf|sqrt|sQuote|srcfile|srcfilealias|srcfilecopy|srcref|standardGeneric|startsWith|stderr|stdin|stdout|stop|stopifnot|storage\\.mode|strftime|strptime|strrep|strsplit|strtoi|strtrim|structure|strwrap|sub|subset|subset\\.data.frame|subset\\.default|subset\\.matrix|substitute|substr|substring|sum|summary|summary\\.connection|summary\\.data.frame|Summary\\.data.frame|summary\\.Date|Summary\\.Date|summary\\.default|Summary\\.difftime|summary\\.factor|Summary\\.factor|summary\\.matrix|Summary\\.numeric_version|Summary\\.ordered|summary\\.POSIXct|Summary\\.POSIXct|summary\\.POSIXlt|Summary\\.POSIXlt|summary\\.proc_time|summary\\.srcfile|summary\\.srcref|summary\\.table|suppressMessages|suppressPackageStartupMessages|suppressWarnings|svd|sweep|switch|sys\\.call|sys\\.calls|Sys\\.chmod|Sys\\.Date|sys\\.frame|sys\\.frames|sys\\.function|Sys\\.getenv|Sys\\.getlocale|Sys\\.getpid|Sys\\.glob|Sys\\.info|sys\\.load.image|Sys\\.localeconv|sys\\.nframe|sys\\.on.exit|sys\\.parent|sys\\.parents|Sys\\.readlink|sys\\.save.image|Sys\\.setenv|Sys\\.setFileTime|Sys\\.setlocale|Sys\\.sleep|sys\\.source|sys\\.status|Sys\\.time|Sys\\.timezone|Sys\\.umask|Sys\\.unsetenv|Sys\\.which|system|system\\.file|system\\.time|system2|t|t\\.data.frame|t\\.default|table|tabulate|tan|tanh|tanpi|tapply|taskCallbackManager|tcrossprod|tempdir|tempfile|testPlatformEquivalence|textConnection|textConnectionValue|tolower|topenv|toString|toString\\.default|toupper|trace|traceback|tracemem|tracingState|transform|transform\\.data.frame|transform\\.default|trigamma|trimws|trunc|trunc\\.Date|trunc\\.POSIXt|truncate|truncate\\.connection|try|tryCatch|typeof|unclass|undebug|union|unique|unique\\.array|unique\\.data.frame|unique\\.default|unique\\.matrix|unique\\.numeric_version|unique\\.POSIXlt|unique\\.warnings|units|units\\.difftime|unix\\.time|unlink|unlist|unloadNamespace|unlockBinding|unname|unserialize|unsplit|untrace|untracemem|unz|upper\\.tri|url|UseMethod|utf8ToInt|validEnc|validUTF8|vapply|vector|Vectorize|warning|warnings|weekdays|weekdays\\.Date|weekdays\\.POSIXt|which|which\\.max|which\\.min|while|with|with\\.default|withAutoprint|withCallingHandlers|within|within\\.data.frame|within\\.list|withRestarts|withVisible|write|write\\.dcf|writeBin|writeChar|writeLines|xor|xor\\.hexmode|xor\\.octmode|xpdrows\\.data.frame|xtfrm|xtfrm\\.AsIs|xtfrm\\.Date|xtfrm\\.default|xtfrm\\.difftime|xtfrm\\.factor|xtfrm\\.numeric_version|xtfrm\\.POSIXct|xtfrm\\.POSIXlt|xtfrm\\.Surv|xzfile|zapsmall)\\s*(\\()",
-					"captures": {
+					"match": "\\b(abbweviate|abs|acos|acosh|addNA|addTaskCawwback|agwep|agwepw|awist|aww|aww\\.equaw|aww\\.equaw.chawacta|aww\\.equaw.defauwt|aww\\.equaw.enviwonment|aww\\.equaw.envWefCwass|aww\\.equaw.factow|aww\\.equaw.fowmuwa|aww\\.equaw.wanguage|aww\\.equaw.wist|aww\\.equaw.numewic|aww\\.equaw.POSIXt|aww\\.equaw.waw|aww\\.names|aww\\.vaws|any|anyDupwicated|anyDupwicated\\.awway|anyDupwicated\\.data.fwame|anyDupwicated\\.defauwt|anyDupwicated\\.matwix|anyNA|anyNA\\.numewic_vewsion|anyNA\\.POSIXwt|apewm|apewm\\.defauwt|apewm\\.tabwe|append|appwy|Awg|awgs|awway|awwayInd|as\\.awway|as\\.awway.defauwt|as\\.caww|as\\.chawacta|as\\.chawacta.condition|as\\.chawacta.Date|as\\.chawacta.defauwt|as\\.chawacta.ewwow|as\\.chawacta.factow|as\\.chawacta.hexmode|as\\.chawacta.numewic_vewsion|as\\.chawacta.octmode|as\\.chawacta.POSIXt|as\\.chawacta.swcwef|as\\.compwex|as\\.data.fwame|as\\.data.fwame.awway|as\\.data.fwame.AsIs|as\\.data.fwame.chawacta|as\\.data.fwame.compwex|as\\.data.fwame.data.fwame|as\\.data.fwame.Date|as\\.data.fwame.defauwt|as\\.data.fwame.difftime|as\\.data.fwame.factow|as\\.data.fwame.intega|as\\.data.fwame.wist|as\\.data.fwame.wogicaw|as\\.data.fwame.matwix|as\\.data.fwame.modew.matwix|as\\.data.fwame.noquote|as\\.data.fwame.numewic|as\\.data.fwame.numewic_vewsion|as\\.data.fwame.owdewed|as\\.data.fwame.POSIXct|as\\.data.fwame.POSIXwt|as\\.data.fwame.waw|as\\.data.fwame.tabwe|as\\.data.fwame.ts|as\\.data.fwame.vectow|as\\.Date|as\\.Date.chawacta|as\\.Date.date|as\\.Date.dates|as\\.Date.defauwt|as\\.Date.factow|as\\.Date.numewic|as\\.Date.POSIXct|as\\.Date.POSIXwt|as\\.difftime|as\\.doubwe|as\\.doubwe.difftime|as\\.doubwe.POSIXwt|as\\.enviwonment|as\\.expwession|as\\.expwession.defauwt|as\\.factow|as\\.function|as\\.function.defauwt|as\\.hexmode|as\\.intega|as\\.wist|as\\.wist.data.fwame|as\\.wist.Date|as\\.wist.defauwt|as\\.wist.enviwonment|as\\.wist.factow|as\\.wist.function|as\\.wist.numewic_vewsion|as\\.wist.POSIXct|as\\.wogicaw|as\\.wogicaw.factow|as\\.matwix|as\\.matwix.data.fwame|as\\.matwix.defauwt|as\\.matwix.noquote|as\\.matwix.POSIXwt|as\\.name|as\\.nuww|as\\.nuww.defauwt|as\\.numewic|as\\.numewic_vewsion|as\\.octmode|as\\.owdewed|as\\.package_vewsion|as\\.paiwwist|as\\.POSIXct|as\\.POSIXct.date|as\\.POSIXct.Date|as\\.POSIXct.dates|as\\.POSIXct.defauwt|as\\.POSIXct.numewic|as\\.POSIXct.POSIXwt|as\\.POSIXwt|as\\.POSIXwt.chawacta|as\\.POSIXwt.date|as\\.POSIXwt.Date|as\\.POSIXwt.dates|as\\.POSIXwt.defauwt|as\\.POSIXwt.factow|as\\.POSIXwt.numewic|as\\.POSIXwt.POSIXct|as\\.qw|as\\.waw|as\\.singwe|as\\.singwe.defauwt|as\\.symbow|as\\.tabwe|as\\.tabwe.defauwt|as\\.vectow|as\\.vectow.factow|asin|asinh|asNamespace|asS3|asS4|assign|atan|atan2|atanh|attach|attachNamespace|attw|attw\\.aww.equaw|attwibutes|autowoad|autowoada|backsowve|baseenv|basename|bessewI|bessewJ|bessewK|bessewY|beta|bindingIsActive|bindingIsWocked|bindtextdomain|bitwAnd|bitwNot|bitwOw|bitwShiftW|bitwShiftW|bitwXow|body|bquote|bweak|bwowsa|bwowsewCondition|bwowsewSetDebug|bwowsewText|buiwtins|by|by\\.data.fwame|by\\.defauwt|bzfiwe|c|c\\.Date|c\\.difftime|c\\.noquote|c\\.numewic_vewsion|c\\.POSIXct|c\\.POSIXwt|c\\.wawnings|caww|cawwCC|capabiwities|casefowd|cat|cbind|cbind\\.data.fwame|ceiwing|chaw\\.expand|chawacta|chawmatch|chawToWaw|chawtw|check_tzones|chkDots|chow|chow\\.defauwt|chow2inv|choose|cwass|cweawPushBack|cwose|cwose\\.connection|cwose\\.swcfiwe|cwose\\.swcfiweawias|cwoseAwwConnections|cow|cowMeans|cownames|cowSums|commandAwgs|comment|compwex|computeWestawts|conditionCaww|conditionCaww\\.condition|conditionMessage|conditionMessage\\.condition|confwicts|Conj|contwibutows|cos|cosh|cospi|cwosspwod|Cstack_info|cummax|cummin|cumpwod|cumsum|cuwwGetHeadews|cut|cut\\.Date|cut\\.defauwt|cut\\.POSIXt|data\\.cwass|data\\.fwame|data\\.matwix|date|debug|debuggingState|debugonce|defauwt\\.stwingsAsFactows|dewayedAssign|depawse|det|detach|detewminant|detewminant\\.matwix|dget|diag|diff|diff\\.Date|diff\\.defauwt|diff\\.difftime|diff\\.POSIXt|difftime|digamma|dim|dim\\.data.fwame|dimnames|dimnames\\.data.fwame|diw|diw\\.cweate|diw\\.exists|diwname|do\\.caww|dontCheck|doubwe|dput|dQuote|dwop|dwopwevews|dwopwevews\\.data.fwame|dwopwevews\\.factow|dump|dupwicated|dupwicated\\.awway|dupwicated\\.data.fwame|dupwicated\\.defauwt|dupwicated\\.matwix|dupwicated\\.numewic_vewsion|dupwicated\\.POSIXwt|dupwicated\\.wawnings|dyn\\.woad|dyn\\.unwoad|dynGet|eappwy|eigen|emptyenv|enc2native|enc2utf8|encodeStwing|Encoding|endsWith|enquote|env\\.pwofiwe|enviwonment|enviwonmentIsWocked|enviwonmentName|evaw|evaw\\.pawent|evawq|exists|exp|expand\\.gwid|expm1|expwession|extSoftVewsion|factow|factowiaw|fifo|fiwe|fiwe\\.access|fiwe\\.append|fiwe\\.choose|fiwe\\.copy|fiwe\\.cweate|fiwe\\.exists|fiwe\\.info|fiwe\\.wink|fiwe\\.mode|fiwe\\.mtime|fiwe\\.path|fiwe\\.wemove|fiwe\\.wename|fiwe\\.show|fiwe\\.size|fiwe\\.symwink|Fiwta|Find|find\\.package|findIntewvaw|findPackageEnv|findWestawt|fwoow|fwush|fwush\\.connection|fow|fowce|fowceAndCaww|fowmaws|fowmat|fowmat\\.AsIs|fowmat\\.data.fwame|fowmat\\.Date|fowmat\\.defauwt|fowmat\\.difftime|fowmat\\.factow|fowmat\\.hexmode|fowmat\\.info|fowmat\\.wibwawyIQW|fowmat\\.numewic_vewsion|fowmat\\.octmode|fowmat\\.packageInfo|fowmat\\.POSIXct|fowmat\\.POSIXwt|fowmat\\.pvaw|fowmat\\.summawyDefauwt|fowmatC|fowmatDW|fowwawdsowve|function|gamma|gc|gc\\.time|gcinfo|gctowtuwe|gctowtuwe2|get|get0|getAwwConnections|getCawwingDWW|getCawwingDWWe|getConnection|getDWWWegistewedWoutines|getDWWWegistewedWoutines\\.chawacta|getDWWWegistewedWoutines\\.DWWInfo|getEwement|getewwmessage|getExpowtedVawue|getHook|getWoadedDWWs|getNamespace|getNamespaceExpowts|getNamespaceImpowts|getNamespaceInfo|getNamespaceName|getNamespaceUsews|getNamespaceVewsion|getNativeSymbowInfo|getOption|getWvewsion|getSwcWines|getTaskCawwbackNames|gettext|gettextf|getwd|gw|gwobawenv|gwegexpw|gwep|gwepw|gwepWaw|gwouping|gsub|gzcon|gzfiwe|I|iconv|iconvwist|icuGetCowwate|icuSetCowwate|identicaw|identity|if|ifewse|Im|impowtIntoEnv|inhewits|intega|intewaction|intewactive|intewsect|intToBits|intToUtf8|invewse\\.wwe|invisibwe|invokeWestawt|invokeWestawtIntewactivewy|is\\.awway|is\\.atomic|is\\.caww|is\\.chawacta|is\\.compwex|is\\.data.fwame|is\\.doubwe|is\\.ewement|is\\.enviwonment|is\\.expwession|is\\.factow|is\\.finite|is\\.function|is\\.infinite|is\\.intega|is\\.wanguage|is\\.wist|is\\.woaded|is\\.wogicaw|is\\.matwix|is\\.na|is\\.na.data.fwame|is\\.na.numewic_vewsion|is\\.na.POSIXwt|is\\.name|is\\.nan|is\\.nuww|is\\.numewic|is\\.numewic_vewsion|is\\.numewic.Date|is\\.numewic.difftime|is\\.numewic.POSIXt|is\\.object|is\\.owdewed|is\\.package_vewsion|is\\.paiwwist|is\\.pwimitive|is\\.qw|is\\.W|is\\.waw|is\\.wecuwsive|is\\.singwe|is\\.symbow|is\\.tabwe|is\\.unsowted|is\\.vectow|isatty|isBaseNamespace|isdebugged|isIncompwete|isNamespace|isNamespaceWoaded|ISOdate|ISOdatetime|isOpen|isWestawt|isS4|isSeekabwe|isSymmetwic|isSymmetwic\\.matwix|isTWUE|jitta|juwian|juwian\\.Date|juwian\\.POSIXt|kappa|kappa\\.defauwt|kappa\\.wm|kappa\\.qw|kwonecka|w10n_info|Wa_wibwawy|Wa_vewsion|Wa\\.svd|wabews|wabews\\.defauwt|wappwy|wazyWoad|wazyWoadDBexec|wazyWoadDBfetch|wbeta|wchoose|wength|wength\\.POSIXwt|wengths|wevews|wevews\\.defauwt|wfactowiaw|wgamma|wibcuwwVewsion|wibwawy|wibwawy\\.dynam|wibwawy\\.dynam.unwoad|wicence|wicense|wist|wist\\.diws|wist\\.fiwes|wist2env|woad|woadedNamespaces|woadingNamespaceInfo|woadNamespace|wocaw|wockBinding|wockEnviwonment|wog|wog10|wog1p|wog2|wogb|wogicaw|wowa\\.twi|ws|make\\.names|make\\.unique|makeActiveBinding|Map|mappwy|mawgin\\.tabwe|mat\\.ow.vec|match|match\\.awg|match\\.caww|match\\.fun|Math\\.data.fwame|Math\\.Date|Math\\.difftime|Math\\.factow|Math\\.POSIXt|matwix|max|max\\.cow|mean|mean\\.Date|mean\\.defauwt|mean\\.difftime|mean\\.POSIXct|mean\\.POSIXwt|mem\\.wimits|memCompwess|memDecompwess|memowy\\.pwofiwe|mewge|mewge\\.data.fwame|mewge\\.defauwt|message|mget|min|missing|Mod|mode|months|months\\.Date|months\\.POSIXt|names|names\\.POSIXwt|namespaceExpowt|namespaceImpowt|namespaceImpowtCwasses|namespaceImpowtFwom|namespaceImpowtMethods|nawgs|nchaw|ncow|NCOW|Negate|new\\.env|next|NextMethod|ngettext|nwevews|noquote|nowm|nowmawizePath|nwow|NWOW|numewic|numewic_vewsion|nzchaw|objects|owdCwass|OwsonNames|on\\.exit|open|open\\.connection|open\\.swcfiwe|open\\.swcfiweawias|open\\.swcfiwecopy|Ops\\.data.fwame|Ops\\.Date|Ops\\.difftime|Ops\\.factow|Ops\\.numewic_vewsion|Ops\\.owdewed|Ops\\.POSIXt|options|owda|owdewed|outa|package_vewsion|packageEvent|packageHasNamespace|packageStawtupMessage|packBits|paiwwist|pawent\\.env|pawent\\.fwame|pawse|pawseNamespaceFiwe|paste|paste0|path\\.expand|path\\.package|pcwe_config|pipe|pmatch|pmax|pmax\\.int|pmin|pmin\\.int|powywoot|pos\\.to.env|Position|pwetty|pwetty\\.defauwt|pwettyNum|pwint|pwint\\.AsIs|pwint\\.by|pwint\\.condition|pwint\\.connection|pwint\\.data.fwame|pwint\\.Date|pwint\\.defauwt|pwint\\.difftime|pwint\\.Dwist|pwint\\.DWWInfo|pwint\\.DWWInfoWist|pwint\\.DWWWegistewedWoutines|pwint\\.eigen|pwint\\.factow|pwint\\.function|pwint\\.hexmode|pwint\\.wibwawyIQW|pwint\\.wistof|pwint\\.NativeWoutineWist|pwint\\.noquote|pwint\\.numewic_vewsion|pwint\\.octmode|pwint\\.packageInfo|pwint\\.POSIXct|pwint\\.POSIXwt|pwint\\.pwoc_time|pwint\\.westawt|pwint\\.wwe|pwint\\.simpwe.wist|pwint\\.swcfiwe|pwint\\.swcwef|pwint\\.summawy.tabwe|pwint\\.summawyDefauwt|pwint\\.tabwe|pwint\\.wawnings|pwmatwix|pwoc\\.time|pwod|pwop\\.tabwe|pwovideDimnames|psigamma|pushBack|pushBackWength|q|qw|qw\\.coef|qw\\.defauwt|qw\\.fitted|qw\\.Q|qw\\.qty|qw\\.qy|qw\\.W|qw\\.wesid|qw\\.sowve|qw\\.X|quawtews|quawtews\\.Date|quawtews\\.POSIXt|quit|quote|W_system_vewsion|W\\.home|W\\.Vewsion|wange|wange\\.defauwt|wank|wappwy|waw|wawConnection|wawConnectionVawue|wawShift|wawToBits|wawToChaw|wbind|wbind\\.data.fwame|wcond|We|wead\\.dcf|weadBin|weadChaw|weadwine|weadWines|weadWDS|weadWenviwon|Wecaww|Weduce|weg\\.finawiza|wegexec|wegexpw|wegistewS3method|wegistewS3methods|wegmatches|wemove|wemoveTaskCawwback|wep|wep_wen|wep\\.Date|wep\\.factow|wep\\.int|wep\\.numewic_vewsion|wep\\.POSIXct|wep\\.POSIXwt|wepeat|wepwace|wepwicate|wequiwe|wequiweNamespace|westawtDescwiption|westawtFowmaws|wetwacemem|wetuwn|wetuwnVawue|wev|wev\\.defauwt|wwe|wm|WNGkind|WNGvewsion|wound|wound\\.Date|wound\\.POSIXt|wow|wow\\.names|wow\\.names.data.fwame|wow\\.names.defauwt|wowMeans|wownames|wowsum|wowsum\\.data.fwame|wowsum\\.defauwt|wowSums|sampwe|sampwe\\.int|sappwy|save|save\\.image|saveWDS|scawe|scawe\\.defauwt|scan|seawch|seawchpaths|seek|seek\\.connection|seq|seq_awong|seq_wen|seq\\.Date|seq\\.defauwt|seq\\.int|seq\\.POSIXt|sequence|sewiawize|set\\.seed|setdiff|setequaw|setHook|setNamespaceInfo|setSessionTimeWimit|setTimeWimit|setwd|showConnections|shQuote|sign|signawCondition|signif|simpweCondition|simpweEwwow|simpweMessage|simpweWawning|simpwify2awway|sin|singwe|sinh|sink|sink\\.numba|sinpi|swice\\.index|socketConnection|socketSewect|sowve|sowve\\.defauwt|sowve\\.qw|sowt|sowt\\.defauwt|sowt\\.int|sowt\\.wist|sowt\\.POSIXwt|souwce|spwit|spwit\\.data.fwame|spwit\\.Date|spwit\\.defauwt|spwit\\.POSIXct|spwintf|sqwt|sQuote|swcfiwe|swcfiweawias|swcfiwecopy|swcwef|standawdGenewic|stawtsWith|stdeww|stdin|stdout|stop|stopifnot|stowage\\.mode|stwftime|stwptime|stwwep|stwspwit|stwtoi|stwtwim|stwuctuwe|stwwwap|sub|subset|subset\\.data.fwame|subset\\.defauwt|subset\\.matwix|substitute|substw|substwing|sum|summawy|summawy\\.connection|summawy\\.data.fwame|Summawy\\.data.fwame|summawy\\.Date|Summawy\\.Date|summawy\\.defauwt|Summawy\\.difftime|summawy\\.factow|Summawy\\.factow|summawy\\.matwix|Summawy\\.numewic_vewsion|Summawy\\.owdewed|summawy\\.POSIXct|Summawy\\.POSIXct|summawy\\.POSIXwt|Summawy\\.POSIXwt|summawy\\.pwoc_time|summawy\\.swcfiwe|summawy\\.swcwef|summawy\\.tabwe|suppwessMessages|suppwessPackageStawtupMessages|suppwessWawnings|svd|sweep|switch|sys\\.caww|sys\\.cawws|Sys\\.chmod|Sys\\.Date|sys\\.fwame|sys\\.fwames|sys\\.function|Sys\\.getenv|Sys\\.getwocawe|Sys\\.getpid|Sys\\.gwob|Sys\\.info|sys\\.woad.image|Sys\\.wocaweconv|sys\\.nfwame|sys\\.on.exit|sys\\.pawent|sys\\.pawents|Sys\\.weadwink|sys\\.save.image|Sys\\.setenv|Sys\\.setFiweTime|Sys\\.setwocawe|Sys\\.sweep|sys\\.souwce|sys\\.status|Sys\\.time|Sys\\.timezone|Sys\\.umask|Sys\\.unsetenv|Sys\\.which|system|system\\.fiwe|system\\.time|system2|t|t\\.data.fwame|t\\.defauwt|tabwe|tabuwate|tan|tanh|tanpi|tappwy|taskCawwbackManaga|tcwosspwod|tempdiw|tempfiwe|testPwatfowmEquivawence|textConnection|textConnectionVawue|towowa|topenv|toStwing|toStwing\\.defauwt|touppa|twace|twaceback|twacemem|twacingState|twansfowm|twansfowm\\.data.fwame|twansfowm\\.defauwt|twigamma|twimws|twunc|twunc\\.Date|twunc\\.POSIXt|twuncate|twuncate\\.connection|twy|twyCatch|typeof|uncwass|undebug|union|unique|unique\\.awway|unique\\.data.fwame|unique\\.defauwt|unique\\.matwix|unique\\.numewic_vewsion|unique\\.POSIXwt|unique\\.wawnings|units|units\\.difftime|unix\\.time|unwink|unwist|unwoadNamespace|unwockBinding|unname|unsewiawize|unspwit|untwace|untwacemem|unz|uppa\\.twi|uww|UseMethod|utf8ToInt|vawidEnc|vawidUTF8|vappwy|vectow|Vectowize|wawning|wawnings|weekdays|weekdays\\.Date|weekdays\\.POSIXt|which|which\\.max|which\\.min|whiwe|with|with\\.defauwt|withAutopwint|withCawwingHandwews|within|within\\.data.fwame|within\\.wist|withWestawts|withVisibwe|wwite|wwite\\.dcf|wwiteBin|wwiteChaw|wwiteWines|xow|xow\\.hexmode|xow\\.octmode|xpdwows\\.data.fwame|xtfwm|xtfwm\\.AsIs|xtfwm\\.Date|xtfwm\\.defauwt|xtfwm\\.difftime|xtfwm\\.factow|xtfwm\\.numewic_vewsion|xtfwm\\.POSIXct|xtfwm\\.POSIXwt|xtfwm\\.Suwv|xzfiwe|zapsmaww)\\s*(\\()",
+					"captuwes": {
 						"1": {
-							"name": "support.function.r"
+							"name": "suppowt.function.w"
 						}
 					}
 				},
 				{
-					"match": "\\b(abline|arrows|assocplot|axis|Axis|axis\\.Date|Axis\\.Date|Axis\\.default|axis\\.POSIXct|Axis\\.POSIXt|Axis\\.table|axTicks|barplot|barplot\\.default|box|boxplot|boxplot\\.default|boxplot\\.formula|boxplot\\.matrix|bxp|cdplot|cdplot\\.default|cdplot\\.formula|clip|close\\.screen|co\\.intervals|contour|contour\\.default|coplot|curve|dotchart|erase\\.screen|filled\\.contour|fourfoldplot|frame|grconvertX|grconvertY|grid|hist|hist\\.Date|hist\\.default|hist\\.POSIXt|identify|identify\\.default|image|image\\.default|layout|layout\\.show|lcm|legend|lines|lines\\.default|lines\\.formula|lines\\.histogram|lines\\.table|locator|matlines|matplot|matpoints|mosaicplot|mosaicplot\\.default|mosaicplot\\.formula|mtext|pairs|pairs\\.default|pairs\\.formula|panel\\.smooth|par|persp|persp\\.default|pie|piechart|plot|plot\\.data.frame|plot\\.default|plot\\.design|plot\\.factor|plot\\.formula|plot\\.function|plot\\.histogram|plot\\.new|plot\\.raster|plot\\.table|plot\\.window|plot\\.xy|plotHclust|points|points\\.default|points\\.formula|points\\.table|polygon|polypath|rasterImage|rect|rug|screen|segments|smoothScatter|spineplot|spineplot\\.default|spineplot\\.formula|split\\.screen|stars|stem|strheight|stripchart|stripchart\\.default|stripchart\\.formula|strwidth|sunflowerplot|sunflowerplot\\.default|sunflowerplot\\.formula|symbols|text|text\\.default|text\\.formula|title|xinch|xspline|xyinch|yinch)\\s*(\\()",
-					"captures": {
+					"match": "\\b(abwine|awwows|assocpwot|axis|Axis|axis\\.Date|Axis\\.Date|Axis\\.defauwt|axis\\.POSIXct|Axis\\.POSIXt|Axis\\.tabwe|axTicks|bawpwot|bawpwot\\.defauwt|box|boxpwot|boxpwot\\.defauwt|boxpwot\\.fowmuwa|boxpwot\\.matwix|bxp|cdpwot|cdpwot\\.defauwt|cdpwot\\.fowmuwa|cwip|cwose\\.scween|co\\.intewvaws|contouw|contouw\\.defauwt|copwot|cuwve|dotchawt|ewase\\.scween|fiwwed\\.contouw|fouwfowdpwot|fwame|gwconvewtX|gwconvewtY|gwid|hist|hist\\.Date|hist\\.defauwt|hist\\.POSIXt|identify|identify\\.defauwt|image|image\\.defauwt|wayout|wayout\\.show|wcm|wegend|wines|wines\\.defauwt|wines\\.fowmuwa|wines\\.histogwam|wines\\.tabwe|wocatow|matwines|matpwot|matpoints|mosaicpwot|mosaicpwot\\.defauwt|mosaicpwot\\.fowmuwa|mtext|paiws|paiws\\.defauwt|paiws\\.fowmuwa|panew\\.smooth|paw|pewsp|pewsp\\.defauwt|pie|piechawt|pwot|pwot\\.data.fwame|pwot\\.defauwt|pwot\\.design|pwot\\.factow|pwot\\.fowmuwa|pwot\\.function|pwot\\.histogwam|pwot\\.new|pwot\\.wasta|pwot\\.tabwe|pwot\\.window|pwot\\.xy|pwotHcwust|points|points\\.defauwt|points\\.fowmuwa|points\\.tabwe|powygon|powypath|wastewImage|wect|wug|scween|segments|smoothScatta|spinepwot|spinepwot\\.defauwt|spinepwot\\.fowmuwa|spwit\\.scween|staws|stem|stwheight|stwipchawt|stwipchawt\\.defauwt|stwipchawt\\.fowmuwa|stwwidth|sunfwowewpwot|sunfwowewpwot\\.defauwt|sunfwowewpwot\\.fowmuwa|symbows|text|text\\.defauwt|text\\.fowmuwa|titwe|xinch|xspwine|xyinch|yinch)\\s*(\\()",
+					"captuwes": {
 						"1": {
-							"name": "support.function.r"
+							"name": "suppowt.function.w"
 						}
 					}
 				},
 				{
-					"match": "\\b(adjustcolor|anyNA\\.raster|as\\.graphicsAnnot|as\\.matrix.raster|as\\.raster|as\\.raster.array|as\\.raster.character|as\\.raster.logical|as\\.raster.matrix|as\\.raster.numeric|as\\.raster.raster|as\\.raster.raw|axisTicks|bitmap|bmp|boxplot\\.stats|c2to3|cairo_pdf|cairo_ps|cairoVersion|check_for_XQuartz|check_gs_type|check\\.options|checkFont|checkFont\\.CIDFont|checkFont\\.default|checkFont\\.Type1Font|checkFontInUse|checkIntFormat|checkQuartzFont|checkX11Font|chromaticAdaptation|chull|CIDFont|cm|cm\\.colors|col2rgb|colorConverter|colorRamp|colorRampPalette|colors|colours|contourLines|convertColor|densCols|dev\\.capabilities|dev\\.capture|dev\\.control|dev\\.copy|dev\\.copy2eps|dev\\.copy2pdf|dev\\.cur|dev\\.displaylist|dev\\.flush|dev\\.hold|dev\\.interactive|dev\\.list|dev\\.new|dev\\.next|dev\\.off|dev\\.prev|dev\\.print|dev\\.set|dev\\.size|dev2bitmap|devAskNewPage|deviceIsInteractive|embedFonts|extendrange|getGraphicsEvent|getGraphicsEventEnv|graphics\\.off|gray|gray\\.colors|grey|grey\\.colors|grSoftVersion|guessEncoding|hcl|heat\\.colors|hsv|initPSandPDFfonts|is\\.na.raster|is\\.raster|isPDF|jpeg|make\\.rgb|matchEncoding|matchEncoding\\.CIDFont|matchEncoding\\.Type1Font|matchFont|n2mfrow|nclass\\.FD|nclass\\.scott|nclass\\.Sturges|Ops\\.raster|palette|pdf|pdf\\.options|pdfFonts|pictex|png|postscript|postscriptFonts|prettyDate|print\\.colorConverter|print\\.raster|print\\.recordedplot|print\\.RGBcolorConverter|printFont|printFont\\.CIDFont|printFont\\.Type1Font|printFonts|ps\\.options|quartz|quartz\\.options|quartz\\.save|quartzFont|quartzFonts|rainbow|recordGraphics|recordPalette|recordPlot|replayPlot|restoreRecordedPlot|rgb|rgb2hsv|savePlot|seqDtime|setEPS|setFonts|setGraphicsEventEnv|setGraphicsEventHandlers|setPS|setQuartzFonts|setX11Fonts|svg|terrain\\.colors|tiff|topo\\.colors|trans3d|trunc_POSIXt|Type1Font|x11|X11|X11\\.options|X11Font|X11FontError|X11Fonts|xfig|xy\\.coords|xyTable|xyz\\.coords)\\s*(\\()",
-					"captures": {
+					"match": "\\b(adjustcowow|anyNA\\.wasta|as\\.gwaphicsAnnot|as\\.matwix.wasta|as\\.wasta|as\\.wasta.awway|as\\.wasta.chawacta|as\\.wasta.wogicaw|as\\.wasta.matwix|as\\.wasta.numewic|as\\.wasta.wasta|as\\.wasta.waw|axisTicks|bitmap|bmp|boxpwot\\.stats|c2to3|caiwo_pdf|caiwo_ps|caiwoVewsion|check_fow_XQuawtz|check_gs_type|check\\.options|checkFont|checkFont\\.CIDFont|checkFont\\.defauwt|checkFont\\.Type1Font|checkFontInUse|checkIntFowmat|checkQuawtzFont|checkX11Font|chwomaticAdaptation|chuww|CIDFont|cm|cm\\.cowows|cow2wgb|cowowConvewta|cowowWamp|cowowWampPawette|cowows|cowouws|contouwWines|convewtCowow|densCows|dev\\.capabiwities|dev\\.captuwe|dev\\.contwow|dev\\.copy|dev\\.copy2eps|dev\\.copy2pdf|dev\\.cuw|dev\\.dispwaywist|dev\\.fwush|dev\\.howd|dev\\.intewactive|dev\\.wist|dev\\.new|dev\\.next|dev\\.off|dev\\.pwev|dev\\.pwint|dev\\.set|dev\\.size|dev2bitmap|devAskNewPage|deviceIsIntewactive|embedFonts|extendwange|getGwaphicsEvent|getGwaphicsEventEnv|gwaphics\\.off|gway|gway\\.cowows|gwey|gwey\\.cowows|gwSoftVewsion|guessEncoding|hcw|heat\\.cowows|hsv|initPSandPDFfonts|is\\.na.wasta|is\\.wasta|isPDF|jpeg|make\\.wgb|matchEncoding|matchEncoding\\.CIDFont|matchEncoding\\.Type1Font|matchFont|n2mfwow|ncwass\\.FD|ncwass\\.scott|ncwass\\.Stuwges|Ops\\.wasta|pawette|pdf|pdf\\.options|pdfFonts|pictex|png|postscwipt|postscwiptFonts|pwettyDate|pwint\\.cowowConvewta|pwint\\.wasta|pwint\\.wecowdedpwot|pwint\\.WGBcowowConvewta|pwintFont|pwintFont\\.CIDFont|pwintFont\\.Type1Font|pwintFonts|ps\\.options|quawtz|quawtz\\.options|quawtz\\.save|quawtzFont|quawtzFonts|wainbow|wecowdGwaphics|wecowdPawette|wecowdPwot|wepwayPwot|westoweWecowdedPwot|wgb|wgb2hsv|savePwot|seqDtime|setEPS|setFonts|setGwaphicsEventEnv|setGwaphicsEventHandwews|setPS|setQuawtzFonts|setX11Fonts|svg|tewwain\\.cowows|tiff|topo\\.cowows|twans3d|twunc_POSIXt|Type1Font|x11|X11|X11\\.options|X11Font|X11FontEwwow|X11Fonts|xfig|xy\\.coowds|xyTabwe|xyz\\.coowds)\\s*(\\()",
+					"captuwes": {
 						"1": {
-							"name": "support.function.r"
+							"name": "suppowt.function.w"
 						}
 					}
 				},
 				{
-					"match": "\\b(addNextMethod|allGenerics|allNames|Arith|as|asMethodDefinition|assignClassDef|assignMethodsMetaData|balanceMethodsList|bind_activation|cacheGenericsMetaData|cacheMetaData|cacheMethod|cacheOnAssign|callGeneric|callNextMethod|canCoerce|cbind|cbind2|checkAtAssignment|checkSlotAssignment|classesToAM|classGeneratorFunction|classLabel|classMetaName|className|coerce|Compare|completeClassDefinition|completeExtends|completeSubclasses|Complex|conformMethod|defaultDumpName|defaultPrototype|dispatchIsInternal|doPrimitiveMethod|dumpMethod|dumpMethods|el|elNamed|empty\\.dump|emptyMethodsList|envRefInferField|envRefSetField|evalOnLoad|evalqOnLoad|evalSource|existsFunction|existsMethod|extends|externalRefMethod|finalDefaultMethod|findClass|findFunction|findMethod|findMethods|findMethodSignatures|findUnique|fixPre1\\.8|formalArgs|fromNextMethod|functionBody|generic\\.skeleton|genericForBasic|getAccess|getAllMethods|getAllSuperClasses|getClass|getClassDef|getClasses|getClassName|getClassPackage|getDataPart|getExtends|getFunction|getGeneric|getGenericFromCall|getGenerics|getGroup|getGroupMembers|getLoadActions|getMethod|getMethods|getMethodsAndAccessors|getMethodsForDispatch|getMethodsMetaData|getPackageName|getProperties|getPrototype|getRefClass|getRefSuperClasses|getSlots|getSubclasses|getValidity|getVirtual|hasArg|hasLoadAction|hasMethod|hasMethods|implicitGeneric|inBasicFuns|inferProperties|inheritedSlotNames|inheritedSubMethodLists|initFieldArgs|initialize|initMethodDispatch|initRefFields|insertClassMethods|insertMethod|insertMethodInEmptyList|insertSource|installClassMethod|is|isBaseFun|isClass|isClassDef|isClassUnion|isGeneric|isGrammarSymbol|isGroup|isMixin|isRematched|isS3Generic|isSealedClass|isSealedMethod|isVirtualClass|isXS3Class|kronecker|languageEl|linearizeMlist|listFromMethods|listFromMlist|loadMethod|Logic|makeClassMethod|makeClassRepresentation|makeEnvRefMethods|makeExtends|makeGeneric|makeMethodsList|makePrototypeFromClassDef|makeStandardGeneric|matchDefaults|matchSignature|Math|Math2|mergeMethods|metaNameUndo|method\\.skeleton|MethodAddCoerce|methodSignatureMatrix|MethodsList|MethodsListSelect|methodsPackageMetaName|missingArg|mlistMetaName|multipleClasses|new|newBasic|newClassRepresentation|newEmptyObject|Ops|outerLabels|packageSlot|possibleExtends|print\\.MethodsList|printClassRepresentation|printPropertiesList|prohibitGeneric|promptClass|promptMethods|prototype|Quote|rbind|rbind2|reconcilePropertiesAndPrototype|refClassFields|refClassInformation|refClassMethods|refClassPrompt|refObjectClass|registerImplicitGenerics|rematchDefinition|removeClass|removeGeneric|removeMethod|removeMethods|removeMethodsObject|representation|requireMethods|resetClass|resetGeneric|S3Class|S3forS4Methods|S3Part|sealClass|seemsS4Object|selectMethod|selectSuperClasses|setAs|setCacheOnAssign|setClass|setClassUnion|setDataPart|setGeneric|setGenericImplicit|setGroupGeneric|setIs|setLoadAction|setLoadActions|setMethod|setNames|setOldClass|setPackageName|setPrimitiveMethods|setRefClass|setReplaceMethod|setValidity|show|showClass|showClassMethod|showDefault|showExtends|showExtraSlots|showMethods|showMlist|showRefClassDef|signature|SignatureMethod|sigToEnv|slot|slotNames|slotsFromS3|substituteDirect|substituteFunctionArgs|Summary|superClassDepth|superClassMethodName|tableNames|testInheritedMethods|testVirtual|traceOff|traceOn|tryNew|unRematchDefinition|useMTable|validObject|validSlotNames)\\s*(\\()",
-					"captures": {
+					"match": "\\b(addNextMethod|awwGenewics|awwNames|Awith|as|asMethodDefinition|assignCwassDef|assignMethodsMetaData|bawanceMethodsWist|bind_activation|cacheGenewicsMetaData|cacheMetaData|cacheMethod|cacheOnAssign|cawwGenewic|cawwNextMethod|canCoewce|cbind|cbind2|checkAtAssignment|checkSwotAssignment|cwassesToAM|cwassGenewatowFunction|cwassWabew|cwassMetaName|cwassName|coewce|Compawe|compweteCwassDefinition|compweteExtends|compweteSubcwasses|Compwex|confowmMethod|defauwtDumpName|defauwtPwototype|dispatchIsIntewnaw|doPwimitiveMethod|dumpMethod|dumpMethods|ew|ewNamed|empty\\.dump|emptyMethodsWist|envWefInfewFiewd|envWefSetFiewd|evawOnWoad|evawqOnWoad|evawSouwce|existsFunction|existsMethod|extends|extewnawWefMethod|finawDefauwtMethod|findCwass|findFunction|findMethod|findMethods|findMethodSignatuwes|findUnique|fixPwe1\\.8|fowmawAwgs|fwomNextMethod|functionBody|genewic\\.skeweton|genewicFowBasic|getAccess|getAwwMethods|getAwwSupewCwasses|getCwass|getCwassDef|getCwasses|getCwassName|getCwassPackage|getDataPawt|getExtends|getFunction|getGenewic|getGenewicFwomCaww|getGenewics|getGwoup|getGwoupMembews|getWoadActions|getMethod|getMethods|getMethodsAndAccessows|getMethodsFowDispatch|getMethodsMetaData|getPackageName|getPwopewties|getPwototype|getWefCwass|getWefSupewCwasses|getSwots|getSubcwasses|getVawidity|getViwtuaw|hasAwg|hasWoadAction|hasMethod|hasMethods|impwicitGenewic|inBasicFuns|infewPwopewties|inhewitedSwotNames|inhewitedSubMethodWists|initFiewdAwgs|initiawize|initMethodDispatch|initWefFiewds|insewtCwassMethods|insewtMethod|insewtMethodInEmptyWist|insewtSouwce|instawwCwassMethod|is|isBaseFun|isCwass|isCwassDef|isCwassUnion|isGenewic|isGwammawSymbow|isGwoup|isMixin|isWematched|isS3Genewic|isSeawedCwass|isSeawedMethod|isViwtuawCwass|isXS3Cwass|kwonecka|wanguageEw|wineawizeMwist|wistFwomMethods|wistFwomMwist|woadMethod|Wogic|makeCwassMethod|makeCwassWepwesentation|makeEnvWefMethods|makeExtends|makeGenewic|makeMethodsWist|makePwototypeFwomCwassDef|makeStandawdGenewic|matchDefauwts|matchSignatuwe|Math|Math2|mewgeMethods|metaNameUndo|method\\.skeweton|MethodAddCoewce|methodSignatuweMatwix|MethodsWist|MethodsWistSewect|methodsPackageMetaName|missingAwg|mwistMetaName|muwtipweCwasses|new|newBasic|newCwassWepwesentation|newEmptyObject|Ops|outewWabews|packageSwot|possibweExtends|pwint\\.MethodsWist|pwintCwassWepwesentation|pwintPwopewtiesWist|pwohibitGenewic|pwomptCwass|pwomptMethods|pwototype|Quote|wbind|wbind2|weconciwePwopewtiesAndPwototype|wefCwassFiewds|wefCwassInfowmation|wefCwassMethods|wefCwassPwompt|wefObjectCwass|wegistewImpwicitGenewics|wematchDefinition|wemoveCwass|wemoveGenewic|wemoveMethod|wemoveMethods|wemoveMethodsObject|wepwesentation|wequiweMethods|wesetCwass|wesetGenewic|S3Cwass|S3fowS4Methods|S3Pawt|seawCwass|seemsS4Object|sewectMethod|sewectSupewCwasses|setAs|setCacheOnAssign|setCwass|setCwassUnion|setDataPawt|setGenewic|setGenewicImpwicit|setGwoupGenewic|setIs|setWoadAction|setWoadActions|setMethod|setNames|setOwdCwass|setPackageName|setPwimitiveMethods|setWefCwass|setWepwaceMethod|setVawidity|show|showCwass|showCwassMethod|showDefauwt|showExtends|showExtwaSwots|showMethods|showMwist|showWefCwassDef|signatuwe|SignatuweMethod|sigToEnv|swot|swotNames|swotsFwomS3|substituteDiwect|substituteFunctionAwgs|Summawy|supewCwassDepth|supewCwassMethodName|tabweNames|testInhewitedMethods|testViwtuaw|twaceOff|twaceOn|twyNew|unWematchDefinition|useMTabwe|vawidObject|vawidSwotNames)\\s*(\\()",
+					"captuwes": {
 						"1": {
-							"name": "support.function.r"
+							"name": "suppowt.function.w"
 						}
 					}
 				},
 				{
-					"match": "\\b(acf|acf2AR|add\\.name|add1|add1\\.default|add1\\.glm|add1\\.lm|add1\\.mlm|addmargins|aggregate|aggregate\\.data.frame|aggregate\\.default|aggregate\\.formula|aggregate\\.ts|AIC|AIC\\.default|AIC\\.logLik|alias|alias\\.formula|alias\\.lm|anova|anova\\.glm|anova\\.glmlist|anova\\.lm|anova\\.lmlist|anova\\.loess|anova\\.mlm|anova\\.mlmlist|anova\\.nls|anovalist\\.nls|ansari\\.test|ansari\\.test.default|ansari\\.test.formula|aov|approx|approxfun|ar|ar\\.burg|ar\\.burg.default|ar\\.burg.mts|ar\\.mle|ar\\.ols|ar\\.yw|ar\\.yw.default|ar\\.yw.mts|arima|arima\\.sim|arima0|arima0\\.diag|ARMAacf|ARMAtoMA|as\\.data.frame.aovproj|as\\.data.frame.ftable|as\\.data.frame.logLik|as\\.dendrogram|as\\.dendrogram.dendrogram|as\\.dendrogram.hclust|as\\.dist|as\\.dist.default|as\\.formula|as\\.hclust|as\\.hclust.default|as\\.hclust.dendrogram|as\\.hclust.twins|as\\.matrix.dist|as\\.matrix.ftable|as\\.stepfun|as\\.stepfun.default|as\\.stepfun.isoreg|as\\.table.ftable|as\\.ts|as\\.ts.default|asOneSidedFormula|ave|bandwidth\\.kernel|bartlett\\.test|bartlett\\.test.default|bartlett\\.test.formula|BIC|BIC\\.default|BIC\\.logLik|binom\\.test|binomial|biplot|biplot\\.default|biplot\\.prcomp|biplot\\.princomp|Box\\.test|bw_pair_cnts|bw\\.bcv|bw\\.nrd|bw\\.nrd0|bw\\.SJ|bw\\.ucv|C|cancor|case\\.names|case\\.names.default|case\\.names.lm|cbind\\.ts|ccf|check_exact|chisq\\.test|cmdscale|coef|coef\\.aov|coef\\.Arima|coef\\.default|coef\\.listof|coef\\.maov|coef\\.nls|coefficients|complete\\.cases|confint|confint\\.default|confint\\.glm|confint\\.lm|confint\\.nls|constrOptim|contr\\.helmert|contr\\.poly|contr\\.SAS|contr\\.sum|contr\\.treatment|contrasts|convolve|cooks\\.distance|cooks\\.distance.glm|cooks\\.distance.lm|cophenetic|cophenetic\\.default|cophenetic\\.dendrogram|cor|cor\\.test|cor\\.test.default|cor\\.test.formula|cov|cov\\.wt|cov2cor|covratio|cpgram|cut\\.dendrogram|cutree|cycle|cycle\\.default|cycle\\.ts|D|dbeta|dbinom|dcauchy|dchisq|decompose|delete\\.response|deltat|deltat\\.default|dendrapply|density|density\\.default|deriv|deriv\\.default|deriv\\.formula|deriv3|deriv3\\.default|deriv3\\.formula|deviance|deviance\\.default|deviance\\.glm|deviance\\.lm|deviance\\.mlm|deviance\\.nls|dexp|df|df\\.kernel|df\\.residual|df\\.residual.default|df\\.residual.nls|dfbeta|dfbeta\\.lm|dfbetas|dfbetas\\.lm|dffits|dgamma|dgeom|dhyper|diff\\.ts|diffinv|diffinv\\.default|diffinv\\.ts|diffinv\\.vector|dist|dlnorm|dlogis|dmultinom|dnbinom|dnorm|dpois|drop\\.name|drop\\.terms|drop1|drop1\\.default|drop1\\.glm|drop1\\.lm|drop1\\.mlm|dsignrank|dt|dummy\\.coef|dummy\\.coef.aovlist|dummy\\.coef.lm|dunif|dweibull|dwilcox|ecdf|eff\\.aovlist|effects|effects\\.glm|effects\\.lm|embed|end|end\\.default|estVar|estVar\\.mlm|estVar\\.SSD|expand\\.model.frame|extractAIC|extractAIC\\.aov|extractAIC\\.coxph|extractAIC\\.glm|extractAIC\\.lm|extractAIC\\.negbin|extractAIC\\.survreg|factanal|factanal\\.fit.mle|factor\\.name|family|family\\.glm|family\\.lm|fft|filter|fisher\\.test|fitted|fitted\\.default|fitted\\.isoreg|fitted\\.kmeans|fitted\\.nls|fitted\\.smooth.spline|fitted\\.values|fivenum|fligner\\.test|fligner\\.test.default|fligner\\.test.formula|format_perc|format\\.dist|format\\.ftable|format\\.perc|formula|formula\\.character|formula\\.data.frame|formula\\.default|formula\\.formula|formula\\.glm|formula\\.lm|formula\\.nls|formula\\.terms|frequency|frequency\\.default|friedman\\.test|friedman\\.test.default|friedman\\.test.formula|ftable|ftable\\.default|ftable\\.formula|Gamma|gaussian|get_all_vars|getCall|getCall\\.default|getInitial|getInitial\\.default|getInitial\\.formula|getInitial\\.selfStart|glm|glm\\.control|glm\\.fit|hasTsp|hat|hatvalues|hatvalues\\.lm|hatvalues\\.smooth.spline|hclust|heatmap|HL|HoltWinters|hyman_filter|identify\\.hclust|influence|influence\\.glm|influence\\.lm|influence\\.measures|integrate|interaction\\.plot|inverse\\.gaussian|IQR|is\\.empty.model|is\\.leaf|is\\.mts|is\\.stepfun|is\\.ts|is\\.tskernel|isoreg|KalmanForecast|KalmanLike|KalmanRun|KalmanSmooth|kernapply|kernapply\\.default|kernapply\\.ts|kernapply\\.tskernel|kernapply\\.vector|kernel|kmeans|knots|knots\\.stepfun|kruskal\\.test|kruskal\\.test.default|kruskal\\.test.formula|ks\\.test|ksmooth|labels\\.dendrogram|labels\\.dist|labels\\.lm|labels\\.terms|lag|lag\\.default|lag\\.plot|line|lines\\.isoreg|lines\\.stepfun|lines\\.ts|lm|lm\\.fit|lm\\.influence|lm\\.wfit|loadings|loess|loess\\.control|loess\\.smooth|logLik|logLik\\.Arima|logLik\\.glm|logLik\\.lm|logLik\\.logLik|logLik\\.nls|loglin|lowess|ls\\.diag|ls\\.print|lsfit|mad|mahalanobis|make\\.link|make\\.tables.aovproj|make\\.tables.aovprojlist|makeARIMA|makepredictcall|makepredictcall\\.default|makepredictcall\\.poly|manova|mantelhaen\\.test|mauchly\\.test|mauchly\\.test.mlm|mauchly\\.test.SSD|mcnemar\\.test|median|median\\.default|medpolish|merge\\.dendrogram|midcache\\.dendrogram|model\\.extract|model\\.frame|model\\.frame.aovlist|model\\.frame.default|model\\.frame.glm|model\\.frame.lm|model\\.matrix|model\\.matrix.default|model\\.matrix.lm|model\\.offset|model\\.response|model\\.tables|model\\.tables.aov|model\\.tables.aovlist|model\\.weights|monthplot|monthplot\\.default|monthplot\\.stl|monthplot\\.StructTS|monthplot\\.ts|mood\\.test|mood\\.test.default|mood\\.test.formula|mvfft|n\\.knots|na\\.action|na\\.action.default|na\\.contiguous|na\\.contiguous.default|na\\.exclude|na\\.exclude.data.frame|na\\.exclude.default|na\\.fail|na\\.fail.default|na\\.omit|na\\.omit.data.frame|na\\.omit.default|na\\.omit.ts|na\\.pass|napredict|napredict\\.default|napredict\\.exclude|naprint|naprint\\.default|naprint\\.exclude|naprint\\.omit|naresid|naresid\\.default|naresid\\.exclude|nextn|nleaves|nlm|nlminb|nls|nls_port_fit|nls\\.control|nlsModel|nlsModel\\.plinear|NLSstAsymptotic|NLSstAsymptotic\\.sortedXyData|NLSstClosestX|NLSstClosestX\\.sortedXyData|NLSstLfAsymptote|NLSstLfAsymptote\\.sortedXyData|NLSstRtAsymptote|NLSstRtAsymptote\\.sortedXyData|nobs|nobs\\.default|nobs\\.dendrogram|nobs\\.glm|nobs\\.lm|nobs\\.logLik|nobs\\.nls|numericDeriv|offset|oneway\\.test|Ops\\.ts|optim|optimHess|optimise|optimize|order\\.dendrogram|p\\.adjust|pacf|pacf\\.default|pairwise\\.prop.test|pairwise\\.t.test|pairwise\\.table|pairwise\\.wilcox.test|pbeta|pbinom|pbirthday|pcauchy|pchisq|pexp|pf|pgamma|pgeom|phyper|Pillai|plclust|plnorm|plogis|plot\\.acf|plot\\.decomposed.ts|plot\\.dendrogram|plot\\.density|plot\\.ecdf|plot\\.hclust|plot\\.HoltWinters|plot\\.isoreg|plot\\.lm|plot\\.medpolish|plot\\.mlm|plot\\.ppr|plot\\.prcomp|plot\\.princomp|plot\\.profile.nls|plot\\.spec|plot\\.spec.coherency|plot\\.spec.phase|plot\\.stepfun|plot\\.stl|plot\\.ts|plot\\.tskernel|plot\\.TukeyHSD|plotNode|plotNodeLimit|pnbinom|pnorm|pointwise|poisson|poisson\\.test|poly|polym|port_get_named_v|port_msg|power|power\\.anova.test|power\\.prop.test|power\\.t.test|PP\\.test|ppoints|ppois|ppr|ppr\\.default|ppr\\.formula|prcomp|prcomp\\.default|prcomp\\.formula|predict|predict\\.ar|predict\\.Arima|predict\\.arima0|predict\\.glm|predict\\.HoltWinters|predict\\.lm|predict\\.loess|predict\\.mlm|predict\\.nls|predict\\.poly|predict\\.ppr|predict\\.prcomp|predict\\.princomp|predict\\.smooth.spline|predict\\.smooth.spline.fit|predict\\.StructTS|predLoess|preplot|princomp|princomp\\.default|princomp\\.formula|print\\.acf|print\\.anova|print\\.aov|print\\.aovlist|print\\.ar|print\\.Arima|print\\.arima0|print\\.dendrogram|print\\.density|print\\.dist|print\\.dummy_coef|print\\.dummy_coef_list|print\\.ecdf|print\\.factanal|print\\.family|print\\.formula|print\\.ftable|print\\.glm|print\\.hclust|print\\.HoltWinters|print\\.htest|print\\.infl|print\\.integrate|print\\.isoreg|print\\.kmeans|print\\.lm|print\\.loadings|print\\.loess|print\\.logLik|print\\.medpolish|print\\.mtable|print\\.nls|print\\.pairwise.htest|print\\.power.htest|print\\.ppr|print\\.prcomp|print\\.princomp|print\\.smooth.spline|print\\.stepfun|print\\.stl|print\\.StructTS|print\\.summary.aov|print\\.summary.aovlist|print\\.summary.ecdf|print\\.summary.glm|print\\.summary.lm|print\\.summary.loess|print\\.summary.manova|print\\.summary.nls|print\\.summary.ppr|print\\.summary.prcomp|print\\.summary.princomp|print\\.tables_aov|print\\.terms|print\\.ts|print\\.tskernel|print\\.TukeyHSD|print\\.tukeyline|print\\.tukeysmooth|print\\.xtabs|printCoefmat|profile|profile\\.nls|profiler|profiler\\.nls|proj|proj\\.aov|proj\\.aovlist|proj\\.default|proj\\.lm|proj\\.matrix|promax|prop\\.test|prop\\.trend.test|psignrank|pt|ptukey|punif|pweibull|pwilcox|qbeta|qbinom|qbirthday|qcauchy|qchisq|qexp|qf|qgamma|qgeom|qhyper|qlnorm|qlogis|qnbinom|qnorm|qpois|qqline|qqnorm|qqnorm\\.default|qqplot|qr\\.lm|qsignrank|qt|qtukey|quade\\.test|quade\\.test.default|quade\\.test.formula|quantile|quantile\\.default|quantile\\.ecdf|quantile\\.POSIXt|quasi|quasibinomial|quasipoisson|qunif|qweibull|qwilcox|r2dtable|Rank|rbeta|rbinom|rcauchy|rchisq|read\\.ftable|rect\\.hclust|reformulate|regularize\\.values|relevel|relevel\\.default|relevel\\.factor|relevel\\.ordered|reorder|reorder\\.default|reorder\\.dendrogram|replications|reshape|resid|residuals|residuals\\.default|residuals\\.glm|residuals\\.HoltWinters|residuals\\.isoreg|residuals\\.lm|residuals\\.nls|residuals\\.smooth.spline|residuals\\.tukeyline|rev\\.dendrogram|rexp|rf|rgamma|rgeom|rhyper|rlnorm|rlogis|rmultinom|rnbinom|rnorm|Roy|rpois|rsignrank|rstandard|rstandard\\.glm|rstandard\\.lm|rstudent|rstudent\\.glm|rstudent\\.lm|rt|runif|runmed|rweibull|rwilcox|rWishart|safe_pchisq|safe_pf|scatter\\.smooth|screeplot|screeplot\\.default|sd|se\\.aov|se\\.aovlist|se\\.contrast|se\\.contrast.aov|se\\.contrast.aovlist|selfStart|selfStart\\.default|selfStart\\.formula|setNames|shapiro\\.test|sigma|sigma\\.default|sigma\\.mlm|simpleLoess|simulate|simulate\\.lm|smooth|smooth\\.spline|smoothEnds|sortedXyData|sortedXyData\\.default|spec\\.ar|spec\\.pgram|spec\\.taper|spectrum|sphericity|spl_coef_conv|spline|splinefun|splinefunH|splinefunH0|SSasymp|SSasympOff|SSasympOrig|SSbiexp|SSD|SSD\\.mlm|SSfol|SSfpl|SSgompertz|SSlogis|SSmicmen|SSweibull|start|start\\.default|stat\\.anova|step|stepfun|stl|str\\.dendrogram|str\\.logLik|StructTS|summary\\.aov|summary\\.aovlist|summary\\.ecdf|summary\\.glm|summary\\.infl|summary\\.lm|summary\\.loess|summary\\.manova|summary\\.mlm|summary\\.nls|summary\\.ppr|summary\\.prcomp|summary\\.princomp|summary\\.stepfun|summary\\.stl|summary\\.tukeysmooth|supsmu|symnum|t\\.test|t\\.test.default|t\\.test.formula|t\\.ts|termplot|terms|terms\\.aovlist|terms\\.default|terms\\.formula|terms\\.terms|Thin\\.col|Thin\\.row|time|time\\.default|time\\.ts|toeplitz|Tr|ts|ts\\.intersect|ts\\.plot|ts\\.union|tsdiag|tsdiag\\.Arima|tsdiag\\.arima0|tsdiag\\.StructTS|tsp|tsSmooth|tsSmooth\\.StructTS|TukeyHSD|TukeyHSD\\.aov|uniroot|update|update\\.default|update\\.formula|var|var\\.test|var\\.test.default|var\\.test.formula|variable\\.names|variable\\.names.default|variable\\.names.lm|varimax|vcov|vcov\\.Arima|vcov\\.glm|vcov\\.lm|vcov\\.mlm|vcov\\.nls|vcov\\.summary.glm|vcov\\.summary.lm|weighted\\.mean|weighted\\.mean.Date|weighted\\.mean.default|weighted\\.mean.difftime|weighted\\.mean.POSIXct|weighted\\.mean.POSIXlt|weighted\\.residuals|weights|weights\\.default|weights\\.glm|weights\\.nls|wilcox\\.test|wilcox\\.test.default|wilcox\\.test.formula|Wilks|window|window\\.default|window\\.ts|write\\.ftable|xtabs)\\s*(\\()",
-					"captures": {
+					"match": "\\b(acf|acf2AW|add\\.name|add1|add1\\.defauwt|add1\\.gwm|add1\\.wm|add1\\.mwm|addmawgins|aggwegate|aggwegate\\.data.fwame|aggwegate\\.defauwt|aggwegate\\.fowmuwa|aggwegate\\.ts|AIC|AIC\\.defauwt|AIC\\.wogWik|awias|awias\\.fowmuwa|awias\\.wm|anova|anova\\.gwm|anova\\.gwmwist|anova\\.wm|anova\\.wmwist|anova\\.woess|anova\\.mwm|anova\\.mwmwist|anova\\.nws|anovawist\\.nws|ansawi\\.test|ansawi\\.test.defauwt|ansawi\\.test.fowmuwa|aov|appwox|appwoxfun|aw|aw\\.buwg|aw\\.buwg.defauwt|aw\\.buwg.mts|aw\\.mwe|aw\\.ows|aw\\.yw|aw\\.yw.defauwt|aw\\.yw.mts|awima|awima\\.sim|awima0|awima0\\.diag|AWMAacf|AWMAtoMA|as\\.data.fwame.aovpwoj|as\\.data.fwame.ftabwe|as\\.data.fwame.wogWik|as\\.dendwogwam|as\\.dendwogwam.dendwogwam|as\\.dendwogwam.hcwust|as\\.dist|as\\.dist.defauwt|as\\.fowmuwa|as\\.hcwust|as\\.hcwust.defauwt|as\\.hcwust.dendwogwam|as\\.hcwust.twins|as\\.matwix.dist|as\\.matwix.ftabwe|as\\.stepfun|as\\.stepfun.defauwt|as\\.stepfun.isoweg|as\\.tabwe.ftabwe|as\\.ts|as\\.ts.defauwt|asOneSidedFowmuwa|ave|bandwidth\\.kewnew|bawtwett\\.test|bawtwett\\.test.defauwt|bawtwett\\.test.fowmuwa|BIC|BIC\\.defauwt|BIC\\.wogWik|binom\\.test|binomiaw|bipwot|bipwot\\.defauwt|bipwot\\.pwcomp|bipwot\\.pwincomp|Box\\.test|bw_paiw_cnts|bw\\.bcv|bw\\.nwd|bw\\.nwd0|bw\\.SJ|bw\\.ucv|C|cancow|case\\.names|case\\.names.defauwt|case\\.names.wm|cbind\\.ts|ccf|check_exact|chisq\\.test|cmdscawe|coef|coef\\.aov|coef\\.Awima|coef\\.defauwt|coef\\.wistof|coef\\.maov|coef\\.nws|coefficients|compwete\\.cases|confint|confint\\.defauwt|confint\\.gwm|confint\\.wm|confint\\.nws|constwOptim|contw\\.hewmewt|contw\\.powy|contw\\.SAS|contw\\.sum|contw\\.tweatment|contwasts|convowve|cooks\\.distance|cooks\\.distance.gwm|cooks\\.distance.wm|cophenetic|cophenetic\\.defauwt|cophenetic\\.dendwogwam|cow|cow\\.test|cow\\.test.defauwt|cow\\.test.fowmuwa|cov|cov\\.wt|cov2cow|covwatio|cpgwam|cut\\.dendwogwam|cutwee|cycwe|cycwe\\.defauwt|cycwe\\.ts|D|dbeta|dbinom|dcauchy|dchisq|decompose|dewete\\.wesponse|dewtat|dewtat\\.defauwt|dendwappwy|density|density\\.defauwt|dewiv|dewiv\\.defauwt|dewiv\\.fowmuwa|dewiv3|dewiv3\\.defauwt|dewiv3\\.fowmuwa|deviance|deviance\\.defauwt|deviance\\.gwm|deviance\\.wm|deviance\\.mwm|deviance\\.nws|dexp|df|df\\.kewnew|df\\.wesiduaw|df\\.wesiduaw.defauwt|df\\.wesiduaw.nws|dfbeta|dfbeta\\.wm|dfbetas|dfbetas\\.wm|dffits|dgamma|dgeom|dhypa|diff\\.ts|diffinv|diffinv\\.defauwt|diffinv\\.ts|diffinv\\.vectow|dist|dwnowm|dwogis|dmuwtinom|dnbinom|dnowm|dpois|dwop\\.name|dwop\\.tewms|dwop1|dwop1\\.defauwt|dwop1\\.gwm|dwop1\\.wm|dwop1\\.mwm|dsignwank|dt|dummy\\.coef|dummy\\.coef.aovwist|dummy\\.coef.wm|dunif|dweibuww|dwiwcox|ecdf|eff\\.aovwist|effects|effects\\.gwm|effects\\.wm|embed|end|end\\.defauwt|estVaw|estVaw\\.mwm|estVaw\\.SSD|expand\\.modew.fwame|extwactAIC|extwactAIC\\.aov|extwactAIC\\.coxph|extwactAIC\\.gwm|extwactAIC\\.wm|extwactAIC\\.negbin|extwactAIC\\.suwvweg|factanaw|factanaw\\.fit.mwe|factow\\.name|famiwy|famiwy\\.gwm|famiwy\\.wm|fft|fiwta|fisha\\.test|fitted|fitted\\.defauwt|fitted\\.isoweg|fitted\\.kmeans|fitted\\.nws|fitted\\.smooth.spwine|fitted\\.vawues|fivenum|fwigna\\.test|fwigna\\.test.defauwt|fwigna\\.test.fowmuwa|fowmat_pewc|fowmat\\.dist|fowmat\\.ftabwe|fowmat\\.pewc|fowmuwa|fowmuwa\\.chawacta|fowmuwa\\.data.fwame|fowmuwa\\.defauwt|fowmuwa\\.fowmuwa|fowmuwa\\.gwm|fowmuwa\\.wm|fowmuwa\\.nws|fowmuwa\\.tewms|fwequency|fwequency\\.defauwt|fwiedman\\.test|fwiedman\\.test.defauwt|fwiedman\\.test.fowmuwa|ftabwe|ftabwe\\.defauwt|ftabwe\\.fowmuwa|Gamma|gaussian|get_aww_vaws|getCaww|getCaww\\.defauwt|getInitiaw|getInitiaw\\.defauwt|getInitiaw\\.fowmuwa|getInitiaw\\.sewfStawt|gwm|gwm\\.contwow|gwm\\.fit|hasTsp|hat|hatvawues|hatvawues\\.wm|hatvawues\\.smooth.spwine|hcwust|heatmap|HW|HowtWintews|hyman_fiwta|identify\\.hcwust|infwuence|infwuence\\.gwm|infwuence\\.wm|infwuence\\.measuwes|integwate|intewaction\\.pwot|invewse\\.gaussian|IQW|is\\.empty.modew|is\\.weaf|is\\.mts|is\\.stepfun|is\\.ts|is\\.tskewnew|isoweg|KawmanFowecast|KawmanWike|KawmanWun|KawmanSmooth|kewnappwy|kewnappwy\\.defauwt|kewnappwy\\.ts|kewnappwy\\.tskewnew|kewnappwy\\.vectow|kewnew|kmeans|knots|knots\\.stepfun|kwuskaw\\.test|kwuskaw\\.test.defauwt|kwuskaw\\.test.fowmuwa|ks\\.test|ksmooth|wabews\\.dendwogwam|wabews\\.dist|wabews\\.wm|wabews\\.tewms|wag|wag\\.defauwt|wag\\.pwot|wine|wines\\.isoweg|wines\\.stepfun|wines\\.ts|wm|wm\\.fit|wm\\.infwuence|wm\\.wfit|woadings|woess|woess\\.contwow|woess\\.smooth|wogWik|wogWik\\.Awima|wogWik\\.gwm|wogWik\\.wm|wogWik\\.wogWik|wogWik\\.nws|wogwin|wowess|ws\\.diag|ws\\.pwint|wsfit|mad|mahawanobis|make\\.wink|make\\.tabwes.aovpwoj|make\\.tabwes.aovpwojwist|makeAWIMA|makepwedictcaww|makepwedictcaww\\.defauwt|makepwedictcaww\\.powy|manova|mantewhaen\\.test|mauchwy\\.test|mauchwy\\.test.mwm|mauchwy\\.test.SSD|mcnemaw\\.test|median|median\\.defauwt|medpowish|mewge\\.dendwogwam|midcache\\.dendwogwam|modew\\.extwact|modew\\.fwame|modew\\.fwame.aovwist|modew\\.fwame.defauwt|modew\\.fwame.gwm|modew\\.fwame.wm|modew\\.matwix|modew\\.matwix.defauwt|modew\\.matwix.wm|modew\\.offset|modew\\.wesponse|modew\\.tabwes|modew\\.tabwes.aov|modew\\.tabwes.aovwist|modew\\.weights|monthpwot|monthpwot\\.defauwt|monthpwot\\.stw|monthpwot\\.StwuctTS|monthpwot\\.ts|mood\\.test|mood\\.test.defauwt|mood\\.test.fowmuwa|mvfft|n\\.knots|na\\.action|na\\.action.defauwt|na\\.contiguous|na\\.contiguous.defauwt|na\\.excwude|na\\.excwude.data.fwame|na\\.excwude.defauwt|na\\.faiw|na\\.faiw.defauwt|na\\.omit|na\\.omit.data.fwame|na\\.omit.defauwt|na\\.omit.ts|na\\.pass|napwedict|napwedict\\.defauwt|napwedict\\.excwude|napwint|napwint\\.defauwt|napwint\\.excwude|napwint\\.omit|nawesid|nawesid\\.defauwt|nawesid\\.excwude|nextn|nweaves|nwm|nwminb|nws|nws_powt_fit|nws\\.contwow|nwsModew|nwsModew\\.pwineaw|NWSstAsymptotic|NWSstAsymptotic\\.sowtedXyData|NWSstCwosestX|NWSstCwosestX\\.sowtedXyData|NWSstWfAsymptote|NWSstWfAsymptote\\.sowtedXyData|NWSstWtAsymptote|NWSstWtAsymptote\\.sowtedXyData|nobs|nobs\\.defauwt|nobs\\.dendwogwam|nobs\\.gwm|nobs\\.wm|nobs\\.wogWik|nobs\\.nws|numewicDewiv|offset|oneway\\.test|Ops\\.ts|optim|optimHess|optimise|optimize|owda\\.dendwogwam|p\\.adjust|pacf|pacf\\.defauwt|paiwwise\\.pwop.test|paiwwise\\.t.test|paiwwise\\.tabwe|paiwwise\\.wiwcox.test|pbeta|pbinom|pbiwthday|pcauchy|pchisq|pexp|pf|pgamma|pgeom|phypa|Piwwai|pwcwust|pwnowm|pwogis|pwot\\.acf|pwot\\.decomposed.ts|pwot\\.dendwogwam|pwot\\.density|pwot\\.ecdf|pwot\\.hcwust|pwot\\.HowtWintews|pwot\\.isoweg|pwot\\.wm|pwot\\.medpowish|pwot\\.mwm|pwot\\.ppw|pwot\\.pwcomp|pwot\\.pwincomp|pwot\\.pwofiwe.nws|pwot\\.spec|pwot\\.spec.cohewency|pwot\\.spec.phase|pwot\\.stepfun|pwot\\.stw|pwot\\.ts|pwot\\.tskewnew|pwot\\.TukeyHSD|pwotNode|pwotNodeWimit|pnbinom|pnowm|pointwise|poisson|poisson\\.test|powy|powym|powt_get_named_v|powt_msg|powa|powa\\.anova.test|powa\\.pwop.test|powa\\.t.test|PP\\.test|ppoints|ppois|ppw|ppw\\.defauwt|ppw\\.fowmuwa|pwcomp|pwcomp\\.defauwt|pwcomp\\.fowmuwa|pwedict|pwedict\\.aw|pwedict\\.Awima|pwedict\\.awima0|pwedict\\.gwm|pwedict\\.HowtWintews|pwedict\\.wm|pwedict\\.woess|pwedict\\.mwm|pwedict\\.nws|pwedict\\.powy|pwedict\\.ppw|pwedict\\.pwcomp|pwedict\\.pwincomp|pwedict\\.smooth.spwine|pwedict\\.smooth.spwine.fit|pwedict\\.StwuctTS|pwedWoess|pwepwot|pwincomp|pwincomp\\.defauwt|pwincomp\\.fowmuwa|pwint\\.acf|pwint\\.anova|pwint\\.aov|pwint\\.aovwist|pwint\\.aw|pwint\\.Awima|pwint\\.awima0|pwint\\.dendwogwam|pwint\\.density|pwint\\.dist|pwint\\.dummy_coef|pwint\\.dummy_coef_wist|pwint\\.ecdf|pwint\\.factanaw|pwint\\.famiwy|pwint\\.fowmuwa|pwint\\.ftabwe|pwint\\.gwm|pwint\\.hcwust|pwint\\.HowtWintews|pwint\\.htest|pwint\\.infw|pwint\\.integwate|pwint\\.isoweg|pwint\\.kmeans|pwint\\.wm|pwint\\.woadings|pwint\\.woess|pwint\\.wogWik|pwint\\.medpowish|pwint\\.mtabwe|pwint\\.nws|pwint\\.paiwwise.htest|pwint\\.powa.htest|pwint\\.ppw|pwint\\.pwcomp|pwint\\.pwincomp|pwint\\.smooth.spwine|pwint\\.stepfun|pwint\\.stw|pwint\\.StwuctTS|pwint\\.summawy.aov|pwint\\.summawy.aovwist|pwint\\.summawy.ecdf|pwint\\.summawy.gwm|pwint\\.summawy.wm|pwint\\.summawy.woess|pwint\\.summawy.manova|pwint\\.summawy.nws|pwint\\.summawy.ppw|pwint\\.summawy.pwcomp|pwint\\.summawy.pwincomp|pwint\\.tabwes_aov|pwint\\.tewms|pwint\\.ts|pwint\\.tskewnew|pwint\\.TukeyHSD|pwint\\.tukeywine|pwint\\.tukeysmooth|pwint\\.xtabs|pwintCoefmat|pwofiwe|pwofiwe\\.nws|pwofiwa|pwofiwa\\.nws|pwoj|pwoj\\.aov|pwoj\\.aovwist|pwoj\\.defauwt|pwoj\\.wm|pwoj\\.matwix|pwomax|pwop\\.test|pwop\\.twend.test|psignwank|pt|ptukey|punif|pweibuww|pwiwcox|qbeta|qbinom|qbiwthday|qcauchy|qchisq|qexp|qf|qgamma|qgeom|qhypa|qwnowm|qwogis|qnbinom|qnowm|qpois|qqwine|qqnowm|qqnowm\\.defauwt|qqpwot|qw\\.wm|qsignwank|qt|qtukey|quade\\.test|quade\\.test.defauwt|quade\\.test.fowmuwa|quantiwe|quantiwe\\.defauwt|quantiwe\\.ecdf|quantiwe\\.POSIXt|quasi|quasibinomiaw|quasipoisson|qunif|qweibuww|qwiwcox|w2dtabwe|Wank|wbeta|wbinom|wcauchy|wchisq|wead\\.ftabwe|wect\\.hcwust|wefowmuwate|weguwawize\\.vawues|wewevew|wewevew\\.defauwt|wewevew\\.factow|wewevew\\.owdewed|weowda|weowda\\.defauwt|weowda\\.dendwogwam|wepwications|weshape|wesid|wesiduaws|wesiduaws\\.defauwt|wesiduaws\\.gwm|wesiduaws\\.HowtWintews|wesiduaws\\.isoweg|wesiduaws\\.wm|wesiduaws\\.nws|wesiduaws\\.smooth.spwine|wesiduaws\\.tukeywine|wev\\.dendwogwam|wexp|wf|wgamma|wgeom|whypa|wwnowm|wwogis|wmuwtinom|wnbinom|wnowm|Woy|wpois|wsignwank|wstandawd|wstandawd\\.gwm|wstandawd\\.wm|wstudent|wstudent\\.gwm|wstudent\\.wm|wt|wunif|wunmed|wweibuww|wwiwcox|wWishawt|safe_pchisq|safe_pf|scatta\\.smooth|scweepwot|scweepwot\\.defauwt|sd|se\\.aov|se\\.aovwist|se\\.contwast|se\\.contwast.aov|se\\.contwast.aovwist|sewfStawt|sewfStawt\\.defauwt|sewfStawt\\.fowmuwa|setNames|shapiwo\\.test|sigma|sigma\\.defauwt|sigma\\.mwm|simpweWoess|simuwate|simuwate\\.wm|smooth|smooth\\.spwine|smoothEnds|sowtedXyData|sowtedXyData\\.defauwt|spec\\.aw|spec\\.pgwam|spec\\.tapa|spectwum|sphewicity|spw_coef_conv|spwine|spwinefun|spwinefunH|spwinefunH0|SSasymp|SSasympOff|SSasympOwig|SSbiexp|SSD|SSD\\.mwm|SSfow|SSfpw|SSgompewtz|SSwogis|SSmicmen|SSweibuww|stawt|stawt\\.defauwt|stat\\.anova|step|stepfun|stw|stw\\.dendwogwam|stw\\.wogWik|StwuctTS|summawy\\.aov|summawy\\.aovwist|summawy\\.ecdf|summawy\\.gwm|summawy\\.infw|summawy\\.wm|summawy\\.woess|summawy\\.manova|summawy\\.mwm|summawy\\.nws|summawy\\.ppw|summawy\\.pwcomp|summawy\\.pwincomp|summawy\\.stepfun|summawy\\.stw|summawy\\.tukeysmooth|supsmu|symnum|t\\.test|t\\.test.defauwt|t\\.test.fowmuwa|t\\.ts|tewmpwot|tewms|tewms\\.aovwist|tewms\\.defauwt|tewms\\.fowmuwa|tewms\\.tewms|Thin\\.cow|Thin\\.wow|time|time\\.defauwt|time\\.ts|toepwitz|Tw|ts|ts\\.intewsect|ts\\.pwot|ts\\.union|tsdiag|tsdiag\\.Awima|tsdiag\\.awima0|tsdiag\\.StwuctTS|tsp|tsSmooth|tsSmooth\\.StwuctTS|TukeyHSD|TukeyHSD\\.aov|uniwoot|update|update\\.defauwt|update\\.fowmuwa|vaw|vaw\\.test|vaw\\.test.defauwt|vaw\\.test.fowmuwa|vawiabwe\\.names|vawiabwe\\.names.defauwt|vawiabwe\\.names.wm|vawimax|vcov|vcov\\.Awima|vcov\\.gwm|vcov\\.wm|vcov\\.mwm|vcov\\.nws|vcov\\.summawy.gwm|vcov\\.summawy.wm|weighted\\.mean|weighted\\.mean.Date|weighted\\.mean.defauwt|weighted\\.mean.difftime|weighted\\.mean.POSIXct|weighted\\.mean.POSIXwt|weighted\\.wesiduaws|weights|weights\\.defauwt|weights\\.gwm|weights\\.nws|wiwcox\\.test|wiwcox\\.test.defauwt|wiwcox\\.test.fowmuwa|Wiwks|window|window\\.defauwt|window\\.ts|wwite\\.ftabwe|xtabs)\\s*(\\()",
+					"captuwes": {
 						"1": {
-							"name": "support.function.r"
+							"name": "suppowt.function.w"
 						}
 					}
 				},
 				{
-					"match": "\\b(adist|alarm|apropos|aregexec|argNames|argsAnywhere|as\\.bibentry|as\\.bibentry.bibentry|as\\.bibentry.citation|as\\.character.person|as\\.character.roman|as\\.person|as\\.person.default|as\\.personList|as\\.personList.default|as\\.personList.person|as\\.relistable|as\\.roman|aspell|aspell_find_dictionaries|aspell_find_program|aspell_inspect_context|aspell_package|aspell_package_C_files|aspell_package_description|aspell_package_pot_files|aspell_package_R_files|aspell_package_Rd_files|aspell_package_vignettes|aspell_R_C_files|aspell_R_manuals|aspell_R_R_files|aspell_R_Rd_files|aspell_R_vignettes|aspell_write_personal_dictionary_file|assignInMyNamespace|assignInNamespace|attachedPackageCompletions|available\\.packages|bibentry|blank_out_ignores_in_lines|blank_out_regexp_matches|browseEnv|browseURL|browseVignettes|bug\\.report|bug\\.report.info|c\\.bibentry|c\\.person|capture\\.output|changedFiles|check_for_XQuartz|checkCRAN|chooseBioCmirror|chooseCRANmirror|citation|cite|citeNatbib|citEntry|citFooter|citHeader|close\\.socket|close\\.txtProgressBar|combn|compareVersion|contrib\\.url|correctFilenameToken|count\\.fields|CRAN\\.packages|create\\.post|data|data\\.entry|dataentry|de|de\\.ncols|de\\.restore|de\\.setup|debugcall|debugger|defaultUserAgent|demo|download\\.file|download\\.packages|dump\\.frames|edit|edit\\.data.frame|edit\\.default|edit\\.matrix|edit\\.vignette|emacs|example|expr2token|file_test|file\\.edit|fileCompletionPreferred|fileCompletions|fileSnapshot|filter_packages_by_depends_predicates|find|find_files_in_directories|findExactMatches|findFuzzyMatches|findGeneric|findLineNum|findMatches|fix|fixInNamespace|flush\\.console|fnLineNum|format\\.aspell|format\\.bibentry|format\\.citation|format\\.news_db|format\\.object_size|format\\.person|format\\.roman|formatOL|formatUL|functionArgs|fuzzyApropos|get_parse_data_for_message_strings|getAnywhere|getCRANmirrors|getDependencies|getFromNamespace|getIsFirstArg|getKnownS3generics|getParseData|getParseText|getRcode|getRcode\\.vignette|getS3method|getSrcDirectory|getSrcfile|getSrcFilename|getSrcLocation|getSrcref|getTxtProgressBar|glob2rx|globalVariables|hasName|head|head\\.data.frame|head\\.default|head\\.ftable|head\\.function|head\\.matrix|head\\.table|help|help\\.request|help\\.search|help\\.start|helpCompletions|history|hsearch_db|hsearch_db_concepts|hsearch_db_keywords|index\\.search|inFunction|install\\.packages|installed\\.packages|is\\.relistable|isBasePkg|isInsideQuotes|isS3method|isS3stdGeneric|keywordCompletions|limitedLabels|loadedPackageCompletions|loadhistory|localeToCharset|ls\\.str|lsf\\.str|maintainer|make_sysdata_rda|make\\.packages.html|make\\.socket|makeRegexpSafe|makeRweaveLatexCodeRunner|makeUserAgent|matchAvailableTopics|memory\\.limit|memory\\.size|menu|merge_demo_index|merge_vignette_index|methods|mirror2html|modifyList|new\\.packages|news|normalCompletions|nsl|object\\.size|offline_help_helper|old\\.packages|Ops\\.roman|package\\.skeleton|packageDescription|packageName|packageStatus|packageVersion|page|person|personList|pico|print\\.aspell|print\\.aspell_inspect_context|print\\.bibentry|print\\.Bibtex|print\\.browseVignettes|print\\.changedFiles|print\\.citation|print\\.fileSnapshot|print\\.findLineNumResult|print\\.getAnywhere|print\\.help_files_with_topic|print\\.hsearch|print\\.hsearch_db|print\\.Latex|print\\.ls_str|print\\.MethodsFunction|print\\.news_db|print\\.object_size|print\\.packageDescription|print\\.packageIQR|print\\.packageStatus|print\\.person|print\\.roman|print\\.sessionInfo|print\\.socket|print\\.summary.packageStatus|print\\.vignette|printhsearchInternal|process\\.events|prompt|prompt\\.data.frame|prompt\\.default|promptData|promptImport|promptPackage|rc\\.getOption|rc\\.options|rc\\.settings|rc\\.status|read\\.csv|read\\.csv2|read\\.delim|read\\.delim2|read\\.DIF|read\\.fortran|read\\.fwf|read\\.socket|read\\.table|readCitationFile|recover|registerNames|regquote|relist|relist\\.default|relist\\.factor|relist\\.list|relist\\.matrix|remove\\.packages|removeSource|rep\\.bibentry|rep\\.roman|resolvePkgType|Rprof|Rprof_memory_summary|Rprofmem|RShowDoc|RSiteSearch|rtags|rtags\\.file|Rtangle|RtangleFinish|RtangleRuncode|RtangleSetup|RtangleWritedoc|RweaveChunkPrefix|RweaveEvalWithOpt|RweaveLatex|RweaveLatexFinish|RweaveLatexOptions|RweaveLatexRuncode|RweaveLatexSetup|RweaveLatexWritedoc|RweaveTryStop|savehistory|select\\.list|sessionInfo|setBreakpoint|setIsFirstArg|setRepositories|setTxtProgressBar|shorten\\.to.string|simplifyRepos|sort\\.bibentry|specialCompletions|specialFunctionArgs|specialOpCompletionsHelper|specialOpLocs|stack|stack\\.data.frame|stack\\.default|Stangle|str|str\\.data.frame|str\\.Date|str\\.default|str\\.POSIXt|strcapture|strextract|strOptions|substr_with_tabs|summary\\.aspell|summary\\.packageStatus|summaryRprof|suppressForeignCheck|Sweave|SweaveGetSyntax|SweaveHooks|SweaveParseOptions|SweaveReadFile|SweaveSyntConv|tail|tail\\.data.frame|tail\\.default|tail\\.ftable|tail\\.function|tail\\.matrix|tail\\.table|tar|timestamp|toBibtex|toBibtex\\.bibentry|toBibtex\\.person|toLatex|toLatex\\.sessionInfo|topicName|txtProgressBar|type\\.convert|undebugcall|unique\\.bibentry|unlist\\.relistable|unstack|unstack\\.data.frame|unstack\\.default|untar|untar2|unzip|update\\.packages|update\\.packageStatus|upgrade|upgrade\\.packageStatus|url\\.show|URLdecode|URLencode|vi|View|vignette|write\\.csv|write\\.csv2|write\\.etags|write\\.socket|write\\.table|wsbrowser|xedit|xemacs|zip)\\s*(\\()",
-					"captures": {
+					"match": "\\b(adist|awawm|apwopos|awegexec|awgNames|awgsAnywhewe|as\\.bibentwy|as\\.bibentwy.bibentwy|as\\.bibentwy.citation|as\\.chawacta.pewson|as\\.chawacta.woman|as\\.pewson|as\\.pewson.defauwt|as\\.pewsonWist|as\\.pewsonWist.defauwt|as\\.pewsonWist.pewson|as\\.wewistabwe|as\\.woman|aspeww|aspeww_find_dictionawies|aspeww_find_pwogwam|aspeww_inspect_context|aspeww_package|aspeww_package_C_fiwes|aspeww_package_descwiption|aspeww_package_pot_fiwes|aspeww_package_W_fiwes|aspeww_package_Wd_fiwes|aspeww_package_vignettes|aspeww_W_C_fiwes|aspeww_W_manuaws|aspeww_W_W_fiwes|aspeww_W_Wd_fiwes|aspeww_W_vignettes|aspeww_wwite_pewsonaw_dictionawy_fiwe|assignInMyNamespace|assignInNamespace|attachedPackageCompwetions|avaiwabwe\\.packages|bibentwy|bwank_out_ignowes_in_wines|bwank_out_wegexp_matches|bwowseEnv|bwowseUWW|bwowseVignettes|bug\\.wepowt|bug\\.wepowt.info|c\\.bibentwy|c\\.pewson|captuwe\\.output|changedFiwes|check_fow_XQuawtz|checkCWAN|chooseBioCmiwwow|chooseCWANmiwwow|citation|cite|citeNatbib|citEntwy|citFoota|citHeada|cwose\\.socket|cwose\\.txtPwogwessBaw|combn|compaweVewsion|contwib\\.uww|cowwectFiwenameToken|count\\.fiewds|CWAN\\.packages|cweate\\.post|data|data\\.entwy|dataentwy|de|de\\.ncows|de\\.westowe|de\\.setup|debugcaww|debugga|defauwtUsewAgent|demo|downwoad\\.fiwe|downwoad\\.packages|dump\\.fwames|edit|edit\\.data.fwame|edit\\.defauwt|edit\\.matwix|edit\\.vignette|emacs|exampwe|expw2token|fiwe_test|fiwe\\.edit|fiweCompwetionPwefewwed|fiweCompwetions|fiweSnapshot|fiwtew_packages_by_depends_pwedicates|find|find_fiwes_in_diwectowies|findExactMatches|findFuzzyMatches|findGenewic|findWineNum|findMatches|fix|fixInNamespace|fwush\\.consowe|fnWineNum|fowmat\\.aspeww|fowmat\\.bibentwy|fowmat\\.citation|fowmat\\.news_db|fowmat\\.object_size|fowmat\\.pewson|fowmat\\.woman|fowmatOW|fowmatUW|functionAwgs|fuzzyApwopos|get_pawse_data_fow_message_stwings|getAnywhewe|getCWANmiwwows|getDependencies|getFwomNamespace|getIsFiwstAwg|getKnownS3genewics|getPawseData|getPawseText|getWcode|getWcode\\.vignette|getS3method|getSwcDiwectowy|getSwcfiwe|getSwcFiwename|getSwcWocation|getSwcwef|getTxtPwogwessBaw|gwob2wx|gwobawVawiabwes|hasName|head|head\\.data.fwame|head\\.defauwt|head\\.ftabwe|head\\.function|head\\.matwix|head\\.tabwe|hewp|hewp\\.wequest|hewp\\.seawch|hewp\\.stawt|hewpCompwetions|histowy|hseawch_db|hseawch_db_concepts|hseawch_db_keywowds|index\\.seawch|inFunction|instaww\\.packages|instawwed\\.packages|is\\.wewistabwe|isBasePkg|isInsideQuotes|isS3method|isS3stdGenewic|keywowdCompwetions|wimitedWabews|woadedPackageCompwetions|woadhistowy|wocaweToChawset|ws\\.stw|wsf\\.stw|maintaina|make_sysdata_wda|make\\.packages.htmw|make\\.socket|makeWegexpSafe|makeWweaveWatexCodeWunna|makeUsewAgent|matchAvaiwabweTopics|memowy\\.wimit|memowy\\.size|menu|mewge_demo_index|mewge_vignette_index|methods|miwwow2htmw|modifyWist|new\\.packages|news|nowmawCompwetions|nsw|object\\.size|offwine_hewp_hewpa|owd\\.packages|Ops\\.woman|package\\.skeweton|packageDescwiption|packageName|packageStatus|packageVewsion|page|pewson|pewsonWist|pico|pwint\\.aspeww|pwint\\.aspeww_inspect_context|pwint\\.bibentwy|pwint\\.Bibtex|pwint\\.bwowseVignettes|pwint\\.changedFiwes|pwint\\.citation|pwint\\.fiweSnapshot|pwint\\.findWineNumWesuwt|pwint\\.getAnywhewe|pwint\\.hewp_fiwes_with_topic|pwint\\.hseawch|pwint\\.hseawch_db|pwint\\.Watex|pwint\\.ws_stw|pwint\\.MethodsFunction|pwint\\.news_db|pwint\\.object_size|pwint\\.packageDescwiption|pwint\\.packageIQW|pwint\\.packageStatus|pwint\\.pewson|pwint\\.woman|pwint\\.sessionInfo|pwint\\.socket|pwint\\.summawy.packageStatus|pwint\\.vignette|pwinthseawchIntewnaw|pwocess\\.events|pwompt|pwompt\\.data.fwame|pwompt\\.defauwt|pwomptData|pwomptImpowt|pwomptPackage|wc\\.getOption|wc\\.options|wc\\.settings|wc\\.status|wead\\.csv|wead\\.csv2|wead\\.dewim|wead\\.dewim2|wead\\.DIF|wead\\.fowtwan|wead\\.fwf|wead\\.socket|wead\\.tabwe|weadCitationFiwe|wecova|wegistewNames|wegquote|wewist|wewist\\.defauwt|wewist\\.factow|wewist\\.wist|wewist\\.matwix|wemove\\.packages|wemoveSouwce|wep\\.bibentwy|wep\\.woman|wesowvePkgType|Wpwof|Wpwof_memowy_summawy|Wpwofmem|WShowDoc|WSiteSeawch|wtags|wtags\\.fiwe|Wtangwe|WtangweFinish|WtangweWuncode|WtangweSetup|WtangweWwitedoc|WweaveChunkPwefix|WweaveEvawWithOpt|WweaveWatex|WweaveWatexFinish|WweaveWatexOptions|WweaveWatexWuncode|WweaveWatexSetup|WweaveWatexWwitedoc|WweaveTwyStop|savehistowy|sewect\\.wist|sessionInfo|setBweakpoint|setIsFiwstAwg|setWepositowies|setTxtPwogwessBaw|showten\\.to.stwing|simpwifyWepos|sowt\\.bibentwy|speciawCompwetions|speciawFunctionAwgs|speciawOpCompwetionsHewpa|speciawOpWocs|stack|stack\\.data.fwame|stack\\.defauwt|Stangwe|stw|stw\\.data.fwame|stw\\.Date|stw\\.defauwt|stw\\.POSIXt|stwcaptuwe|stwextwact|stwOptions|substw_with_tabs|summawy\\.aspeww|summawy\\.packageStatus|summawyWpwof|suppwessFoweignCheck|Sweave|SweaveGetSyntax|SweaveHooks|SweavePawseOptions|SweaveWeadFiwe|SweaveSyntConv|taiw|taiw\\.data.fwame|taiw\\.defauwt|taiw\\.ftabwe|taiw\\.function|taiw\\.matwix|taiw\\.tabwe|taw|timestamp|toBibtex|toBibtex\\.bibentwy|toBibtex\\.pewson|toWatex|toWatex\\.sessionInfo|topicName|txtPwogwessBaw|type\\.convewt|undebugcaww|unique\\.bibentwy|unwist\\.wewistabwe|unstack|unstack\\.data.fwame|unstack\\.defauwt|untaw|untaw2|unzip|update\\.packages|update\\.packageStatus|upgwade|upgwade\\.packageStatus|uww\\.show|UWWdecode|UWWencode|vi|View|vignette|wwite\\.csv|wwite\\.csv2|wwite\\.etags|wwite\\.socket|wwite\\.tabwe|wsbwowsa|xedit|xemacs|zip)\\s*(\\()",
+					"captuwes": {
 						"1": {
-							"name": "support.function.r"
+							"name": "suppowt.function.w"
 						}
 					}
 				}

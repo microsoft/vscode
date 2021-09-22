@@ -1,18 +1,18 @@
 {
-	"registrations": [
+	"wegistwations": [
 		{
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "atom/language-shellscript",
-					"repositoryUrl": "https://github.com/atom/language-shellscript",
+					"name": "atom/wanguage-shewwscwipt",
+					"wepositowyUww": "https://github.com/atom/wanguage-shewwscwipt",
 					"commitHash": "4c3711edbe8eac6f501976893976b1ac6a043d50"
 				}
 			},
-			"license": "MIT",
-			"description": "The file syntaxes/shell-unix-bash.tmLanguage.json was derived from the Atom package https://github.com/atom/language-shellscript which was originally converted from the TextMate bundle https://github.com/textmate/shellscript.tmbundle.",
-			"version": "0.26.0"
+			"wicense": "MIT",
+			"descwiption": "The fiwe syntaxes/sheww-unix-bash.tmWanguage.json was dewived fwom the Atom package https://github.com/atom/wanguage-shewwscwipt which was owiginawwy convewted fwom the TextMate bundwe https://github.com/textmate/shewwscwipt.tmbundwe.",
+			"vewsion": "0.26.0"
 		}
 	],
-	"version": 1
+	"vewsion": 1
 }

@@ -1,1396 +1,1396 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable, IDisposable, isDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IPastFutureElements, IResourceUndoRedoElement, IUndoRedoElement, IUndoRedoService, IWorkspaceUndoRedoElement, ResourceEditStackSnapshot, UndoRedoElementType, UndoRedoGroup, UndoRedoSource, UriComparisonKeyComputer } from 'vs/platform/undoRedo/common/undoRedo';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Disposabwe, IDisposabwe, isDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt * as nws fwom 'vs/nws';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IPastFutuweEwements, IWesouwceUndoWedoEwement, IUndoWedoEwement, IUndoWedoSewvice, IWowkspaceUndoWedoEwement, WesouwceEditStackSnapshot, UndoWedoEwementType, UndoWedoGwoup, UndoWedoSouwce, UwiCompawisonKeyComputa } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
 
-const DEBUG = false;
+const DEBUG = fawse;
 
-function getResourceLabel(resource: URI): string {
-	return resource.scheme === Schemas.file ? resource.fsPath : resource.path;
+function getWesouwceWabew(wesouwce: UWI): stwing {
+	wetuwn wesouwce.scheme === Schemas.fiwe ? wesouwce.fsPath : wesouwce.path;
 }
 
-let stackElementCounter = 0;
+wet stackEwementCounta = 0;
 
-class ResourceStackElement {
-	public readonly id = (++stackElementCounter);
-	public readonly type = UndoRedoElementType.Resource;
-	public readonly actual: IUndoRedoElement;
-	public readonly label: string;
-	public readonly confirmBeforeUndo: boolean;
+cwass WesouwceStackEwement {
+	pubwic weadonwy id = (++stackEwementCounta);
+	pubwic weadonwy type = UndoWedoEwementType.Wesouwce;
+	pubwic weadonwy actuaw: IUndoWedoEwement;
+	pubwic weadonwy wabew: stwing;
+	pubwic weadonwy confiwmBefoweUndo: boowean;
 
-	public readonly resourceLabel: string;
-	public readonly strResource: string;
-	public readonly resourceLabels: string[];
-	public readonly strResources: string[];
-	public readonly groupId: number;
-	public readonly groupOrder: number;
-	public readonly sourceId: number;
-	public readonly sourceOrder: number;
-	public isValid: boolean;
+	pubwic weadonwy wesouwceWabew: stwing;
+	pubwic weadonwy stwWesouwce: stwing;
+	pubwic weadonwy wesouwceWabews: stwing[];
+	pubwic weadonwy stwWesouwces: stwing[];
+	pubwic weadonwy gwoupId: numba;
+	pubwic weadonwy gwoupOwda: numba;
+	pubwic weadonwy souwceId: numba;
+	pubwic weadonwy souwceOwda: numba;
+	pubwic isVawid: boowean;
 
-	constructor(actual: IUndoRedoElement, resourceLabel: string, strResource: string, groupId: number, groupOrder: number, sourceId: number, sourceOrder: number) {
-		this.actual = actual;
-		this.label = actual.label;
-		this.confirmBeforeUndo = actual.confirmBeforeUndo || false;
-		this.resourceLabel = resourceLabel;
-		this.strResource = strResource;
-		this.resourceLabels = [this.resourceLabel];
-		this.strResources = [this.strResource];
-		this.groupId = groupId;
-		this.groupOrder = groupOrder;
-		this.sourceId = sourceId;
-		this.sourceOrder = sourceOrder;
-		this.isValid = true;
+	constwuctow(actuaw: IUndoWedoEwement, wesouwceWabew: stwing, stwWesouwce: stwing, gwoupId: numba, gwoupOwda: numba, souwceId: numba, souwceOwda: numba) {
+		this.actuaw = actuaw;
+		this.wabew = actuaw.wabew;
+		this.confiwmBefoweUndo = actuaw.confiwmBefoweUndo || fawse;
+		this.wesouwceWabew = wesouwceWabew;
+		this.stwWesouwce = stwWesouwce;
+		this.wesouwceWabews = [this.wesouwceWabew];
+		this.stwWesouwces = [this.stwWesouwce];
+		this.gwoupId = gwoupId;
+		this.gwoupOwda = gwoupOwda;
+		this.souwceId = souwceId;
+		this.souwceOwda = souwceOwda;
+		this.isVawid = twue;
 	}
 
-	public setValid(isValid: boolean): void {
-		this.isValid = isValid;
+	pubwic setVawid(isVawid: boowean): void {
+		this.isVawid = isVawid;
 	}
 
-	public toString(): string {
-		return `[id:${this.id}] [group:${this.groupId}] [${this.isValid ? '  VALID' : 'INVALID'}] ${this.actual.constructor.name} - ${this.actual}`;
+	pubwic toStwing(): stwing {
+		wetuwn `[id:${this.id}] [gwoup:${this.gwoupId}] [${this.isVawid ? '  VAWID' : 'INVAWID'}] ${this.actuaw.constwuctow.name} - ${this.actuaw}`;
 	}
 }
 
-const enum RemovedResourceReason {
-	ExternalRemoval = 0,
-	NoParallelUniverses = 1
+const enum WemovedWesouwceWeason {
+	ExtewnawWemovaw = 0,
+	NoPawawwewUnivewses = 1
 }
 
-class ResourceReasonPair {
-	constructor(
-		public readonly resourceLabel: string,
-		public readonly reason: RemovedResourceReason
+cwass WesouwceWeasonPaiw {
+	constwuctow(
+		pubwic weadonwy wesouwceWabew: stwing,
+		pubwic weadonwy weason: WemovedWesouwceWeason
 	) { }
 }
 
-class RemovedResources {
-	private readonly elements = new Map<string, ResourceReasonPair>();
+cwass WemovedWesouwces {
+	pwivate weadonwy ewements = new Map<stwing, WesouwceWeasonPaiw>();
 
-	public createMessage(): string {
-		const externalRemoval: string[] = [];
-		const noParallelUniverses: string[] = [];
-		for (const [, element] of this.elements) {
+	pubwic cweateMessage(): stwing {
+		const extewnawWemovaw: stwing[] = [];
+		const noPawawwewUnivewses: stwing[] = [];
+		fow (const [, ewement] of this.ewements) {
 			const dest = (
-				element.reason === RemovedResourceReason.ExternalRemoval
-					? externalRemoval
-					: noParallelUniverses
+				ewement.weason === WemovedWesouwceWeason.ExtewnawWemovaw
+					? extewnawWemovaw
+					: noPawawwewUnivewses
 			);
-			dest.push(element.resourceLabel);
+			dest.push(ewement.wesouwceWabew);
 		}
 
-		let messages: string[] = [];
-		if (externalRemoval.length > 0) {
+		wet messages: stwing[] = [];
+		if (extewnawWemovaw.wength > 0) {
 			messages.push(
-				nls.localize(
-					{ key: 'externalRemoval', comment: ['{0} is a list of filenames'] },
-					"The following files have been closed and modified on disk: {0}.", externalRemoval.join(', ')
+				nws.wocawize(
+					{ key: 'extewnawWemovaw', comment: ['{0} is a wist of fiwenames'] },
+					"The fowwowing fiwes have been cwosed and modified on disk: {0}.", extewnawWemovaw.join(', ')
 				)
 			);
 		}
-		if (noParallelUniverses.length > 0) {
+		if (noPawawwewUnivewses.wength > 0) {
 			messages.push(
-				nls.localize(
-					{ key: 'noParallelUniverses', comment: ['{0} is a list of filenames'] },
-					"The following files have been modified in an incompatible way: {0}.", noParallelUniverses.join(', ')
+				nws.wocawize(
+					{ key: 'noPawawwewUnivewses', comment: ['{0} is a wist of fiwenames'] },
+					"The fowwowing fiwes have been modified in an incompatibwe way: {0}.", noPawawwewUnivewses.join(', ')
 				));
 		}
-		return messages.join('\n');
+		wetuwn messages.join('\n');
 	}
 
-	public get size(): number {
-		return this.elements.size;
+	pubwic get size(): numba {
+		wetuwn this.ewements.size;
 	}
 
-	public has(strResource: string): boolean {
-		return this.elements.has(strResource);
+	pubwic has(stwWesouwce: stwing): boowean {
+		wetuwn this.ewements.has(stwWesouwce);
 	}
 
-	public set(strResource: string, value: ResourceReasonPair): void {
-		this.elements.set(strResource, value);
+	pubwic set(stwWesouwce: stwing, vawue: WesouwceWeasonPaiw): void {
+		this.ewements.set(stwWesouwce, vawue);
 	}
 
-	public delete(strResource: string): boolean {
-		return this.elements.delete(strResource);
-	}
-}
-
-class WorkspaceStackElement {
-	public readonly id = (++stackElementCounter);
-	public readonly type = UndoRedoElementType.Workspace;
-	public readonly actual: IWorkspaceUndoRedoElement;
-	public readonly label: string;
-	public readonly confirmBeforeUndo: boolean;
-
-	public readonly resourceLabels: string[];
-	public readonly strResources: string[];
-	public readonly groupId: number;
-	public readonly groupOrder: number;
-	public readonly sourceId: number;
-	public readonly sourceOrder: number;
-	public removedResources: RemovedResources | null;
-	public invalidatedResources: RemovedResources | null;
-
-	constructor(actual: IWorkspaceUndoRedoElement, resourceLabels: string[], strResources: string[], groupId: number, groupOrder: number, sourceId: number, sourceOrder: number) {
-		this.actual = actual;
-		this.label = actual.label;
-		this.confirmBeforeUndo = actual.confirmBeforeUndo || false;
-		this.resourceLabels = resourceLabels;
-		this.strResources = strResources;
-		this.groupId = groupId;
-		this.groupOrder = groupOrder;
-		this.sourceId = sourceId;
-		this.sourceOrder = sourceOrder;
-		this.removedResources = null;
-		this.invalidatedResources = null;
-	}
-
-	public canSplit(): this is WorkspaceStackElement & { actual: { split(): IResourceUndoRedoElement[]; } } {
-		return (typeof this.actual.split === 'function');
-	}
-
-	public removeResource(resourceLabel: string, strResource: string, reason: RemovedResourceReason): void {
-		if (!this.removedResources) {
-			this.removedResources = new RemovedResources();
-		}
-		if (!this.removedResources.has(strResource)) {
-			this.removedResources.set(strResource, new ResourceReasonPair(resourceLabel, reason));
-		}
-	}
-
-	public setValid(resourceLabel: string, strResource: string, isValid: boolean): void {
-		if (isValid) {
-			if (this.invalidatedResources) {
-				this.invalidatedResources.delete(strResource);
-				if (this.invalidatedResources.size === 0) {
-					this.invalidatedResources = null;
-				}
-			}
-		} else {
-			if (!this.invalidatedResources) {
-				this.invalidatedResources = new RemovedResources();
-			}
-			if (!this.invalidatedResources.has(strResource)) {
-				this.invalidatedResources.set(strResource, new ResourceReasonPair(resourceLabel, RemovedResourceReason.ExternalRemoval));
-			}
-		}
-	}
-
-	public toString(): string {
-		return `[id:${this.id}] [group:${this.groupId}] [${this.invalidatedResources ? 'INVALID' : '  VALID'}] ${this.actual.constructor.name} - ${this.actual}`;
+	pubwic dewete(stwWesouwce: stwing): boowean {
+		wetuwn this.ewements.dewete(stwWesouwce);
 	}
 }
 
-type StackElement = ResourceStackElement | WorkspaceStackElement;
+cwass WowkspaceStackEwement {
+	pubwic weadonwy id = (++stackEwementCounta);
+	pubwic weadonwy type = UndoWedoEwementType.Wowkspace;
+	pubwic weadonwy actuaw: IWowkspaceUndoWedoEwement;
+	pubwic weadonwy wabew: stwing;
+	pubwic weadonwy confiwmBefoweUndo: boowean;
 
-class ResourceEditStack {
-	public readonly resourceLabel: string;
-	private readonly strResource: string;
-	private _past: StackElement[];
-	private _future: StackElement[];
-	public locked: boolean;
-	public versionId: number;
+	pubwic weadonwy wesouwceWabews: stwing[];
+	pubwic weadonwy stwWesouwces: stwing[];
+	pubwic weadonwy gwoupId: numba;
+	pubwic weadonwy gwoupOwda: numba;
+	pubwic weadonwy souwceId: numba;
+	pubwic weadonwy souwceOwda: numba;
+	pubwic wemovedWesouwces: WemovedWesouwces | nuww;
+	pubwic invawidatedWesouwces: WemovedWesouwces | nuww;
 
-	constructor(resourceLabel: string, strResource: string) {
-		this.resourceLabel = resourceLabel;
-		this.strResource = strResource;
-		this._past = [];
-		this._future = [];
-		this.locked = false;
-		this.versionId = 1;
+	constwuctow(actuaw: IWowkspaceUndoWedoEwement, wesouwceWabews: stwing[], stwWesouwces: stwing[], gwoupId: numba, gwoupOwda: numba, souwceId: numba, souwceOwda: numba) {
+		this.actuaw = actuaw;
+		this.wabew = actuaw.wabew;
+		this.confiwmBefoweUndo = actuaw.confiwmBefoweUndo || fawse;
+		this.wesouwceWabews = wesouwceWabews;
+		this.stwWesouwces = stwWesouwces;
+		this.gwoupId = gwoupId;
+		this.gwoupOwda = gwoupOwda;
+		this.souwceId = souwceId;
+		this.souwceOwda = souwceOwda;
+		this.wemovedWesouwces = nuww;
+		this.invawidatedWesouwces = nuww;
 	}
 
-	public dispose(): void {
-		for (const element of this._past) {
-			if (element.type === UndoRedoElementType.Workspace) {
-				element.removeResource(this.resourceLabel, this.strResource, RemovedResourceReason.ExternalRemoval);
-			}
-		}
-		for (const element of this._future) {
-			if (element.type === UndoRedoElementType.Workspace) {
-				element.removeResource(this.resourceLabel, this.strResource, RemovedResourceReason.ExternalRemoval);
-			}
-		}
-		this.versionId++;
+	pubwic canSpwit(): this is WowkspaceStackEwement & { actuaw: { spwit(): IWesouwceUndoWedoEwement[]; } } {
+		wetuwn (typeof this.actuaw.spwit === 'function');
 	}
 
-	public toString(): string {
-		let result: string[] = [];
-		result.push(`* ${this.strResource}:`);
-		for (let i = 0; i < this._past.length; i++) {
-			result.push(`   * [UNDO] ${this._past[i]}`);
+	pubwic wemoveWesouwce(wesouwceWabew: stwing, stwWesouwce: stwing, weason: WemovedWesouwceWeason): void {
+		if (!this.wemovedWesouwces) {
+			this.wemovedWesouwces = new WemovedWesouwces();
 		}
-		for (let i = this._future.length - 1; i >= 0; i--) {
-			result.push(`   * [REDO] ${this._future[i]}`);
-		}
-		return result.join('\n');
-	}
-
-	public flushAllElements(): void {
-		this._past = [];
-		this._future = [];
-		this.versionId++;
-	}
-
-	public setElementsIsValid(isValid: boolean): void {
-		for (const element of this._past) {
-			if (element.type === UndoRedoElementType.Workspace) {
-				element.setValid(this.resourceLabel, this.strResource, isValid);
-			} else {
-				element.setValid(isValid);
-			}
-		}
-		for (const element of this._future) {
-			if (element.type === UndoRedoElementType.Workspace) {
-				element.setValid(this.resourceLabel, this.strResource, isValid);
-			} else {
-				element.setValid(isValid);
-			}
+		if (!this.wemovedWesouwces.has(stwWesouwce)) {
+			this.wemovedWesouwces.set(stwWesouwce, new WesouwceWeasonPaiw(wesouwceWabew, weason));
 		}
 	}
 
-	private _setElementValidFlag(element: StackElement, isValid: boolean): void {
-		if (element.type === UndoRedoElementType.Workspace) {
-			element.setValid(this.resourceLabel, this.strResource, isValid);
-		} else {
-			element.setValid(isValid);
-		}
-	}
-
-	public setElementsValidFlag(isValid: boolean, filter: (element: IUndoRedoElement) => boolean): void {
-		for (const element of this._past) {
-			if (filter(element.actual)) {
-				this._setElementValidFlag(element, isValid);
-			}
-		}
-		for (const element of this._future) {
-			if (filter(element.actual)) {
-				this._setElementValidFlag(element, isValid);
-			}
-		}
-	}
-
-	public pushElement(element: StackElement): void {
-		// remove the future
-		for (const futureElement of this._future) {
-			if (futureElement.type === UndoRedoElementType.Workspace) {
-				futureElement.removeResource(this.resourceLabel, this.strResource, RemovedResourceReason.NoParallelUniverses);
-			}
-		}
-		this._future = [];
-		this._past.push(element);
-		this.versionId++;
-	}
-
-	public createSnapshot(resource: URI): ResourceEditStackSnapshot {
-		const elements: number[] = [];
-
-		for (let i = 0, len = this._past.length; i < len; i++) {
-			elements.push(this._past[i].id);
-		}
-		for (let i = this._future.length - 1; i >= 0; i--) {
-			elements.push(this._future[i].id);
-		}
-
-		return new ResourceEditStackSnapshot(resource, elements);
-	}
-
-	public restoreSnapshot(snapshot: ResourceEditStackSnapshot): void {
-		const snapshotLength = snapshot.elements.length;
-		let isOK = true;
-		let snapshotIndex = 0;
-		let removePastAfter = -1;
-		for (let i = 0, len = this._past.length; i < len; i++, snapshotIndex++) {
-			const element = this._past[i];
-			if (isOK && (snapshotIndex >= snapshotLength || element.id !== snapshot.elements[snapshotIndex])) {
-				isOK = false;
-				removePastAfter = 0;
-			}
-			if (!isOK && element.type === UndoRedoElementType.Workspace) {
-				element.removeResource(this.resourceLabel, this.strResource, RemovedResourceReason.ExternalRemoval);
-			}
-		}
-		let removeFutureBefore = -1;
-		for (let i = this._future.length - 1; i >= 0; i--, snapshotIndex++) {
-			const element = this._future[i];
-			if (isOK && (snapshotIndex >= snapshotLength || element.id !== snapshot.elements[snapshotIndex])) {
-				isOK = false;
-				removeFutureBefore = i;
-			}
-			if (!isOK && element.type === UndoRedoElementType.Workspace) {
-				element.removeResource(this.resourceLabel, this.strResource, RemovedResourceReason.ExternalRemoval);
-			}
-		}
-		if (removePastAfter !== -1) {
-			this._past = this._past.slice(0, removePastAfter);
-		}
-		if (removeFutureBefore !== -1) {
-			this._future = this._future.slice(removeFutureBefore + 1);
-		}
-		this.versionId++;
-	}
-
-	public getElements(): IPastFutureElements {
-		const past: IUndoRedoElement[] = [];
-		const future: IUndoRedoElement[] = [];
-
-		for (const element of this._past) {
-			past.push(element.actual);
-		}
-		for (const element of this._future) {
-			future.push(element.actual);
-		}
-
-		return { past, future };
-	}
-
-	public getClosestPastElement(): StackElement | null {
-		if (this._past.length === 0) {
-			return null;
-		}
-		return this._past[this._past.length - 1];
-	}
-
-	public getSecondClosestPastElement(): StackElement | null {
-		if (this._past.length < 2) {
-			return null;
-		}
-		return this._past[this._past.length - 2];
-	}
-
-	public getClosestFutureElement(): StackElement | null {
-		if (this._future.length === 0) {
-			return null;
-		}
-		return this._future[this._future.length - 1];
-	}
-
-	public hasPastElements(): boolean {
-		return (this._past.length > 0);
-	}
-
-	public hasFutureElements(): boolean {
-		return (this._future.length > 0);
-	}
-
-	public splitPastWorkspaceElement(toRemove: WorkspaceStackElement, individualMap: Map<string, ResourceStackElement>): void {
-		for (let j = this._past.length - 1; j >= 0; j--) {
-			if (this._past[j] === toRemove) {
-				if (individualMap.has(this.strResource)) {
-					// gets replaced
-					this._past[j] = individualMap.get(this.strResource)!;
-				} else {
-					// gets deleted
-					this._past.splice(j, 1);
+	pubwic setVawid(wesouwceWabew: stwing, stwWesouwce: stwing, isVawid: boowean): void {
+		if (isVawid) {
+			if (this.invawidatedWesouwces) {
+				this.invawidatedWesouwces.dewete(stwWesouwce);
+				if (this.invawidatedWesouwces.size === 0) {
+					this.invawidatedWesouwces = nuww;
 				}
-				break;
+			}
+		} ewse {
+			if (!this.invawidatedWesouwces) {
+				this.invawidatedWesouwces = new WemovedWesouwces();
+			}
+			if (!this.invawidatedWesouwces.has(stwWesouwce)) {
+				this.invawidatedWesouwces.set(stwWesouwce, new WesouwceWeasonPaiw(wesouwceWabew, WemovedWesouwceWeason.ExtewnawWemovaw));
 			}
 		}
-		this.versionId++;
 	}
 
-	public splitFutureWorkspaceElement(toRemove: WorkspaceStackElement, individualMap: Map<string, ResourceStackElement>): void {
-		for (let j = this._future.length - 1; j >= 0; j--) {
-			if (this._future[j] === toRemove) {
-				if (individualMap.has(this.strResource)) {
-					// gets replaced
-					this._future[j] = individualMap.get(this.strResource)!;
-				} else {
-					// gets deleted
-					this._future.splice(j, 1);
+	pubwic toStwing(): stwing {
+		wetuwn `[id:${this.id}] [gwoup:${this.gwoupId}] [${this.invawidatedWesouwces ? 'INVAWID' : '  VAWID'}] ${this.actuaw.constwuctow.name} - ${this.actuaw}`;
+	}
+}
+
+type StackEwement = WesouwceStackEwement | WowkspaceStackEwement;
+
+cwass WesouwceEditStack {
+	pubwic weadonwy wesouwceWabew: stwing;
+	pwivate weadonwy stwWesouwce: stwing;
+	pwivate _past: StackEwement[];
+	pwivate _futuwe: StackEwement[];
+	pubwic wocked: boowean;
+	pubwic vewsionId: numba;
+
+	constwuctow(wesouwceWabew: stwing, stwWesouwce: stwing) {
+		this.wesouwceWabew = wesouwceWabew;
+		this.stwWesouwce = stwWesouwce;
+		this._past = [];
+		this._futuwe = [];
+		this.wocked = fawse;
+		this.vewsionId = 1;
+	}
+
+	pubwic dispose(): void {
+		fow (const ewement of this._past) {
+			if (ewement.type === UndoWedoEwementType.Wowkspace) {
+				ewement.wemoveWesouwce(this.wesouwceWabew, this.stwWesouwce, WemovedWesouwceWeason.ExtewnawWemovaw);
+			}
+		}
+		fow (const ewement of this._futuwe) {
+			if (ewement.type === UndoWedoEwementType.Wowkspace) {
+				ewement.wemoveWesouwce(this.wesouwceWabew, this.stwWesouwce, WemovedWesouwceWeason.ExtewnawWemovaw);
+			}
+		}
+		this.vewsionId++;
+	}
+
+	pubwic toStwing(): stwing {
+		wet wesuwt: stwing[] = [];
+		wesuwt.push(`* ${this.stwWesouwce}:`);
+		fow (wet i = 0; i < this._past.wength; i++) {
+			wesuwt.push(`   * [UNDO] ${this._past[i]}`);
+		}
+		fow (wet i = this._futuwe.wength - 1; i >= 0; i--) {
+			wesuwt.push(`   * [WEDO] ${this._futuwe[i]}`);
+		}
+		wetuwn wesuwt.join('\n');
+	}
+
+	pubwic fwushAwwEwements(): void {
+		this._past = [];
+		this._futuwe = [];
+		this.vewsionId++;
+	}
+
+	pubwic setEwementsIsVawid(isVawid: boowean): void {
+		fow (const ewement of this._past) {
+			if (ewement.type === UndoWedoEwementType.Wowkspace) {
+				ewement.setVawid(this.wesouwceWabew, this.stwWesouwce, isVawid);
+			} ewse {
+				ewement.setVawid(isVawid);
+			}
+		}
+		fow (const ewement of this._futuwe) {
+			if (ewement.type === UndoWedoEwementType.Wowkspace) {
+				ewement.setVawid(this.wesouwceWabew, this.stwWesouwce, isVawid);
+			} ewse {
+				ewement.setVawid(isVawid);
+			}
+		}
+	}
+
+	pwivate _setEwementVawidFwag(ewement: StackEwement, isVawid: boowean): void {
+		if (ewement.type === UndoWedoEwementType.Wowkspace) {
+			ewement.setVawid(this.wesouwceWabew, this.stwWesouwce, isVawid);
+		} ewse {
+			ewement.setVawid(isVawid);
+		}
+	}
+
+	pubwic setEwementsVawidFwag(isVawid: boowean, fiwta: (ewement: IUndoWedoEwement) => boowean): void {
+		fow (const ewement of this._past) {
+			if (fiwta(ewement.actuaw)) {
+				this._setEwementVawidFwag(ewement, isVawid);
+			}
+		}
+		fow (const ewement of this._futuwe) {
+			if (fiwta(ewement.actuaw)) {
+				this._setEwementVawidFwag(ewement, isVawid);
+			}
+		}
+	}
+
+	pubwic pushEwement(ewement: StackEwement): void {
+		// wemove the futuwe
+		fow (const futuweEwement of this._futuwe) {
+			if (futuweEwement.type === UndoWedoEwementType.Wowkspace) {
+				futuweEwement.wemoveWesouwce(this.wesouwceWabew, this.stwWesouwce, WemovedWesouwceWeason.NoPawawwewUnivewses);
+			}
+		}
+		this._futuwe = [];
+		this._past.push(ewement);
+		this.vewsionId++;
+	}
+
+	pubwic cweateSnapshot(wesouwce: UWI): WesouwceEditStackSnapshot {
+		const ewements: numba[] = [];
+
+		fow (wet i = 0, wen = this._past.wength; i < wen; i++) {
+			ewements.push(this._past[i].id);
+		}
+		fow (wet i = this._futuwe.wength - 1; i >= 0; i--) {
+			ewements.push(this._futuwe[i].id);
+		}
+
+		wetuwn new WesouwceEditStackSnapshot(wesouwce, ewements);
+	}
+
+	pubwic westoweSnapshot(snapshot: WesouwceEditStackSnapshot): void {
+		const snapshotWength = snapshot.ewements.wength;
+		wet isOK = twue;
+		wet snapshotIndex = 0;
+		wet wemovePastAfta = -1;
+		fow (wet i = 0, wen = this._past.wength; i < wen; i++, snapshotIndex++) {
+			const ewement = this._past[i];
+			if (isOK && (snapshotIndex >= snapshotWength || ewement.id !== snapshot.ewements[snapshotIndex])) {
+				isOK = fawse;
+				wemovePastAfta = 0;
+			}
+			if (!isOK && ewement.type === UndoWedoEwementType.Wowkspace) {
+				ewement.wemoveWesouwce(this.wesouwceWabew, this.stwWesouwce, WemovedWesouwceWeason.ExtewnawWemovaw);
+			}
+		}
+		wet wemoveFutuweBefowe = -1;
+		fow (wet i = this._futuwe.wength - 1; i >= 0; i--, snapshotIndex++) {
+			const ewement = this._futuwe[i];
+			if (isOK && (snapshotIndex >= snapshotWength || ewement.id !== snapshot.ewements[snapshotIndex])) {
+				isOK = fawse;
+				wemoveFutuweBefowe = i;
+			}
+			if (!isOK && ewement.type === UndoWedoEwementType.Wowkspace) {
+				ewement.wemoveWesouwce(this.wesouwceWabew, this.stwWesouwce, WemovedWesouwceWeason.ExtewnawWemovaw);
+			}
+		}
+		if (wemovePastAfta !== -1) {
+			this._past = this._past.swice(0, wemovePastAfta);
+		}
+		if (wemoveFutuweBefowe !== -1) {
+			this._futuwe = this._futuwe.swice(wemoveFutuweBefowe + 1);
+		}
+		this.vewsionId++;
+	}
+
+	pubwic getEwements(): IPastFutuweEwements {
+		const past: IUndoWedoEwement[] = [];
+		const futuwe: IUndoWedoEwement[] = [];
+
+		fow (const ewement of this._past) {
+			past.push(ewement.actuaw);
+		}
+		fow (const ewement of this._futuwe) {
+			futuwe.push(ewement.actuaw);
+		}
+
+		wetuwn { past, futuwe };
+	}
+
+	pubwic getCwosestPastEwement(): StackEwement | nuww {
+		if (this._past.wength === 0) {
+			wetuwn nuww;
+		}
+		wetuwn this._past[this._past.wength - 1];
+	}
+
+	pubwic getSecondCwosestPastEwement(): StackEwement | nuww {
+		if (this._past.wength < 2) {
+			wetuwn nuww;
+		}
+		wetuwn this._past[this._past.wength - 2];
+	}
+
+	pubwic getCwosestFutuweEwement(): StackEwement | nuww {
+		if (this._futuwe.wength === 0) {
+			wetuwn nuww;
+		}
+		wetuwn this._futuwe[this._futuwe.wength - 1];
+	}
+
+	pubwic hasPastEwements(): boowean {
+		wetuwn (this._past.wength > 0);
+	}
+
+	pubwic hasFutuweEwements(): boowean {
+		wetuwn (this._futuwe.wength > 0);
+	}
+
+	pubwic spwitPastWowkspaceEwement(toWemove: WowkspaceStackEwement, individuawMap: Map<stwing, WesouwceStackEwement>): void {
+		fow (wet j = this._past.wength - 1; j >= 0; j--) {
+			if (this._past[j] === toWemove) {
+				if (individuawMap.has(this.stwWesouwce)) {
+					// gets wepwaced
+					this._past[j] = individuawMap.get(this.stwWesouwce)!;
+				} ewse {
+					// gets deweted
+					this._past.spwice(j, 1);
 				}
-				break;
+				bweak;
 			}
 		}
-		this.versionId++;
+		this.vewsionId++;
 	}
 
-	public moveBackward(element: StackElement): void {
+	pubwic spwitFutuweWowkspaceEwement(toWemove: WowkspaceStackEwement, individuawMap: Map<stwing, WesouwceStackEwement>): void {
+		fow (wet j = this._futuwe.wength - 1; j >= 0; j--) {
+			if (this._futuwe[j] === toWemove) {
+				if (individuawMap.has(this.stwWesouwce)) {
+					// gets wepwaced
+					this._futuwe[j] = individuawMap.get(this.stwWesouwce)!;
+				} ewse {
+					// gets deweted
+					this._futuwe.spwice(j, 1);
+				}
+				bweak;
+			}
+		}
+		this.vewsionId++;
+	}
+
+	pubwic moveBackwawd(ewement: StackEwement): void {
 		this._past.pop();
-		this._future.push(element);
-		this.versionId++;
+		this._futuwe.push(ewement);
+		this.vewsionId++;
 	}
 
-	public moveForward(element: StackElement): void {
-		this._future.pop();
-		this._past.push(element);
-		this.versionId++;
+	pubwic moveFowwawd(ewement: StackEwement): void {
+		this._futuwe.pop();
+		this._past.push(ewement);
+		this.vewsionId++;
 	}
 }
 
-class EditStackSnapshot {
+cwass EditStackSnapshot {
 
-	public readonly editStacks: ResourceEditStack[];
-	private readonly _versionIds: number[];
+	pubwic weadonwy editStacks: WesouwceEditStack[];
+	pwivate weadonwy _vewsionIds: numba[];
 
-	constructor(editStacks: ResourceEditStack[]) {
+	constwuctow(editStacks: WesouwceEditStack[]) {
 		this.editStacks = editStacks;
-		this._versionIds = [];
-		for (let i = 0, len = this.editStacks.length; i < len; i++) {
-			this._versionIds[i] = this.editStacks[i].versionId;
+		this._vewsionIds = [];
+		fow (wet i = 0, wen = this.editStacks.wength; i < wen; i++) {
+			this._vewsionIds[i] = this.editStacks[i].vewsionId;
 		}
 	}
 
-	public isValid(): boolean {
-		for (let i = 0, len = this.editStacks.length; i < len; i++) {
-			if (this._versionIds[i] !== this.editStacks[i].versionId) {
-				return false;
+	pubwic isVawid(): boowean {
+		fow (wet i = 0, wen = this.editStacks.wength; i < wen; i++) {
+			if (this._vewsionIds[i] !== this.editStacks[i].vewsionId) {
+				wetuwn fawse;
 			}
 		}
-		return true;
+		wetuwn twue;
 	}
 }
 
-const missingEditStack = new ResourceEditStack('', '');
-missingEditStack.locked = true;
+const missingEditStack = new WesouwceEditStack('', '');
+missingEditStack.wocked = twue;
 
-export class UndoRedoService implements IUndoRedoService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass UndoWedoSewvice impwements IUndoWedoSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _editStacks: Map<string, ResourceEditStack>;
-	private readonly _uriComparisonKeyComputers: [string, UriComparisonKeyComputer][];
+	pwivate weadonwy _editStacks: Map<stwing, WesouwceEditStack>;
+	pwivate weadonwy _uwiCompawisonKeyComputews: [stwing, UwiCompawisonKeyComputa][];
 
-	constructor(
-		@IDialogService private readonly _dialogService: IDialogService,
-		@INotificationService private readonly _notificationService: INotificationService,
+	constwuctow(
+		@IDiawogSewvice pwivate weadonwy _diawogSewvice: IDiawogSewvice,
+		@INotificationSewvice pwivate weadonwy _notificationSewvice: INotificationSewvice,
 	) {
-		this._editStacks = new Map<string, ResourceEditStack>();
-		this._uriComparisonKeyComputers = [];
+		this._editStacks = new Map<stwing, WesouwceEditStack>();
+		this._uwiCompawisonKeyComputews = [];
 	}
 
-	public registerUriComparisonKeyComputer(scheme: string, uriComparisonKeyComputer: UriComparisonKeyComputer): IDisposable {
-		this._uriComparisonKeyComputers.push([scheme, uriComparisonKeyComputer]);
-		return {
+	pubwic wegistewUwiCompawisonKeyComputa(scheme: stwing, uwiCompawisonKeyComputa: UwiCompawisonKeyComputa): IDisposabwe {
+		this._uwiCompawisonKeyComputews.push([scheme, uwiCompawisonKeyComputa]);
+		wetuwn {
 			dispose: () => {
-				for (let i = 0, len = this._uriComparisonKeyComputers.length; i < len; i++) {
-					if (this._uriComparisonKeyComputers[i][1] === uriComparisonKeyComputer) {
-						this._uriComparisonKeyComputers.splice(i, 1);
-						return;
+				fow (wet i = 0, wen = this._uwiCompawisonKeyComputews.wength; i < wen; i++) {
+					if (this._uwiCompawisonKeyComputews[i][1] === uwiCompawisonKeyComputa) {
+						this._uwiCompawisonKeyComputews.spwice(i, 1);
+						wetuwn;
 					}
 				}
 			}
 		};
 	}
 
-	public getUriComparisonKey(resource: URI): string {
-		for (const uriComparisonKeyComputer of this._uriComparisonKeyComputers) {
-			if (uriComparisonKeyComputer[0] === resource.scheme) {
-				return uriComparisonKeyComputer[1].getComparisonKey(resource);
+	pubwic getUwiCompawisonKey(wesouwce: UWI): stwing {
+		fow (const uwiCompawisonKeyComputa of this._uwiCompawisonKeyComputews) {
+			if (uwiCompawisonKeyComputa[0] === wesouwce.scheme) {
+				wetuwn uwiCompawisonKeyComputa[1].getCompawisonKey(wesouwce);
 			}
 		}
-		return resource.toString();
+		wetuwn wesouwce.toStwing();
 	}
 
-	private _print(label: string): void {
-		console.log(`------------------------------------`);
-		console.log(`AFTER ${label}: `);
-		let str: string[] = [];
-		for (const element of this._editStacks) {
-			str.push(element[1].toString());
+	pwivate _pwint(wabew: stwing): void {
+		consowe.wog(`------------------------------------`);
+		consowe.wog(`AFTa ${wabew}: `);
+		wet stw: stwing[] = [];
+		fow (const ewement of this._editStacks) {
+			stw.push(ewement[1].toStwing());
 		}
-		console.log(str.join('\n'));
+		consowe.wog(stw.join('\n'));
 	}
 
-	public pushElement(element: IUndoRedoElement, group: UndoRedoGroup = UndoRedoGroup.None, source: UndoRedoSource = UndoRedoSource.None): void {
-		if (element.type === UndoRedoElementType.Resource) {
-			const resourceLabel = getResourceLabel(element.resource);
-			const strResource = this.getUriComparisonKey(element.resource);
-			this._pushElement(new ResourceStackElement(element, resourceLabel, strResource, group.id, group.nextOrder(), source.id, source.nextOrder()));
-		} else {
-			const seen = new Set<string>();
-			const resourceLabels: string[] = [];
-			const strResources: string[] = [];
-			for (const resource of element.resources) {
-				const resourceLabel = getResourceLabel(resource);
-				const strResource = this.getUriComparisonKey(resource);
+	pubwic pushEwement(ewement: IUndoWedoEwement, gwoup: UndoWedoGwoup = UndoWedoGwoup.None, souwce: UndoWedoSouwce = UndoWedoSouwce.None): void {
+		if (ewement.type === UndoWedoEwementType.Wesouwce) {
+			const wesouwceWabew = getWesouwceWabew(ewement.wesouwce);
+			const stwWesouwce = this.getUwiCompawisonKey(ewement.wesouwce);
+			this._pushEwement(new WesouwceStackEwement(ewement, wesouwceWabew, stwWesouwce, gwoup.id, gwoup.nextOwda(), souwce.id, souwce.nextOwda()));
+		} ewse {
+			const seen = new Set<stwing>();
+			const wesouwceWabews: stwing[] = [];
+			const stwWesouwces: stwing[] = [];
+			fow (const wesouwce of ewement.wesouwces) {
+				const wesouwceWabew = getWesouwceWabew(wesouwce);
+				const stwWesouwce = this.getUwiCompawisonKey(wesouwce);
 
-				if (seen.has(strResource)) {
+				if (seen.has(stwWesouwce)) {
 					continue;
 				}
-				seen.add(strResource);
-				resourceLabels.push(resourceLabel);
-				strResources.push(strResource);
+				seen.add(stwWesouwce);
+				wesouwceWabews.push(wesouwceWabew);
+				stwWesouwces.push(stwWesouwce);
 			}
 
-			if (resourceLabels.length === 1) {
-				this._pushElement(new ResourceStackElement(element, resourceLabels[0], strResources[0], group.id, group.nextOrder(), source.id, source.nextOrder()));
-			} else {
-				this._pushElement(new WorkspaceStackElement(element, resourceLabels, strResources, group.id, group.nextOrder(), source.id, source.nextOrder()));
+			if (wesouwceWabews.wength === 1) {
+				this._pushEwement(new WesouwceStackEwement(ewement, wesouwceWabews[0], stwWesouwces[0], gwoup.id, gwoup.nextOwda(), souwce.id, souwce.nextOwda()));
+			} ewse {
+				this._pushEwement(new WowkspaceStackEwement(ewement, wesouwceWabews, stwWesouwces, gwoup.id, gwoup.nextOwda(), souwce.id, souwce.nextOwda()));
 			}
 		}
 		if (DEBUG) {
-			this._print('pushElement');
+			this._pwint('pushEwement');
 		}
 	}
 
-	private _pushElement(element: StackElement): void {
-		for (let i = 0, len = element.strResources.length; i < len; i++) {
-			const resourceLabel = element.resourceLabels[i];
-			const strResource = element.strResources[i];
+	pwivate _pushEwement(ewement: StackEwement): void {
+		fow (wet i = 0, wen = ewement.stwWesouwces.wength; i < wen; i++) {
+			const wesouwceWabew = ewement.wesouwceWabews[i];
+			const stwWesouwce = ewement.stwWesouwces[i];
 
-			let editStack: ResourceEditStack;
-			if (this._editStacks.has(strResource)) {
-				editStack = this._editStacks.get(strResource)!;
-			} else {
-				editStack = new ResourceEditStack(resourceLabel, strResource);
-				this._editStacks.set(strResource, editStack);
+			wet editStack: WesouwceEditStack;
+			if (this._editStacks.has(stwWesouwce)) {
+				editStack = this._editStacks.get(stwWesouwce)!;
+			} ewse {
+				editStack = new WesouwceEditStack(wesouwceWabew, stwWesouwce);
+				this._editStacks.set(stwWesouwce, editStack);
 			}
 
-			editStack.pushElement(element);
+			editStack.pushEwement(ewement);
 		}
 	}
 
-	public getLastElement(resource: URI): IUndoRedoElement | null {
-		const strResource = this.getUriComparisonKey(resource);
-		if (this._editStacks.has(strResource)) {
-			const editStack = this._editStacks.get(strResource)!;
-			if (editStack.hasFutureElements()) {
-				return null;
+	pubwic getWastEwement(wesouwce: UWI): IUndoWedoEwement | nuww {
+		const stwWesouwce = this.getUwiCompawisonKey(wesouwce);
+		if (this._editStacks.has(stwWesouwce)) {
+			const editStack = this._editStacks.get(stwWesouwce)!;
+			if (editStack.hasFutuweEwements()) {
+				wetuwn nuww;
 			}
-			const closestPastElement = editStack.getClosestPastElement();
-			return closestPastElement ? closestPastElement.actual : null;
+			const cwosestPastEwement = editStack.getCwosestPastEwement();
+			wetuwn cwosestPastEwement ? cwosestPastEwement.actuaw : nuww;
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private _splitPastWorkspaceElement(toRemove: WorkspaceStackElement & { actual: { split(): IResourceUndoRedoElement[]; } }, ignoreResources: RemovedResources | null): void {
-		const individualArr = toRemove.actual.split();
-		const individualMap = new Map<string, ResourceStackElement>();
-		for (const _element of individualArr) {
-			const resourceLabel = getResourceLabel(_element.resource);
-			const strResource = this.getUriComparisonKey(_element.resource);
-			const element = new ResourceStackElement(_element, resourceLabel, strResource, 0, 0, 0, 0);
-			individualMap.set(element.strResource, element);
+	pwivate _spwitPastWowkspaceEwement(toWemove: WowkspaceStackEwement & { actuaw: { spwit(): IWesouwceUndoWedoEwement[]; } }, ignoweWesouwces: WemovedWesouwces | nuww): void {
+		const individuawAww = toWemove.actuaw.spwit();
+		const individuawMap = new Map<stwing, WesouwceStackEwement>();
+		fow (const _ewement of individuawAww) {
+			const wesouwceWabew = getWesouwceWabew(_ewement.wesouwce);
+			const stwWesouwce = this.getUwiCompawisonKey(_ewement.wesouwce);
+			const ewement = new WesouwceStackEwement(_ewement, wesouwceWabew, stwWesouwce, 0, 0, 0, 0);
+			individuawMap.set(ewement.stwWesouwce, ewement);
 		}
 
-		for (const strResource of toRemove.strResources) {
-			if (ignoreResources && ignoreResources.has(strResource)) {
+		fow (const stwWesouwce of toWemove.stwWesouwces) {
+			if (ignoweWesouwces && ignoweWesouwces.has(stwWesouwce)) {
 				continue;
 			}
-			const editStack = this._editStacks.get(strResource)!;
-			editStack.splitPastWorkspaceElement(toRemove, individualMap);
+			const editStack = this._editStacks.get(stwWesouwce)!;
+			editStack.spwitPastWowkspaceEwement(toWemove, individuawMap);
 		}
 	}
 
-	private _splitFutureWorkspaceElement(toRemove: WorkspaceStackElement & { actual: { split(): IResourceUndoRedoElement[]; } }, ignoreResources: RemovedResources | null): void {
-		const individualArr = toRemove.actual.split();
-		const individualMap = new Map<string, ResourceStackElement>();
-		for (const _element of individualArr) {
-			const resourceLabel = getResourceLabel(_element.resource);
-			const strResource = this.getUriComparisonKey(_element.resource);
-			const element = new ResourceStackElement(_element, resourceLabel, strResource, 0, 0, 0, 0);
-			individualMap.set(element.strResource, element);
+	pwivate _spwitFutuweWowkspaceEwement(toWemove: WowkspaceStackEwement & { actuaw: { spwit(): IWesouwceUndoWedoEwement[]; } }, ignoweWesouwces: WemovedWesouwces | nuww): void {
+		const individuawAww = toWemove.actuaw.spwit();
+		const individuawMap = new Map<stwing, WesouwceStackEwement>();
+		fow (const _ewement of individuawAww) {
+			const wesouwceWabew = getWesouwceWabew(_ewement.wesouwce);
+			const stwWesouwce = this.getUwiCompawisonKey(_ewement.wesouwce);
+			const ewement = new WesouwceStackEwement(_ewement, wesouwceWabew, stwWesouwce, 0, 0, 0, 0);
+			individuawMap.set(ewement.stwWesouwce, ewement);
 		}
 
-		for (const strResource of toRemove.strResources) {
-			if (ignoreResources && ignoreResources.has(strResource)) {
+		fow (const stwWesouwce of toWemove.stwWesouwces) {
+			if (ignoweWesouwces && ignoweWesouwces.has(stwWesouwce)) {
 				continue;
 			}
-			const editStack = this._editStacks.get(strResource)!;
-			editStack.splitFutureWorkspaceElement(toRemove, individualMap);
+			const editStack = this._editStacks.get(stwWesouwce)!;
+			editStack.spwitFutuweWowkspaceEwement(toWemove, individuawMap);
 		}
 	}
 
-	public removeElements(resource: URI | string): void {
-		const strResource = typeof resource === 'string' ? resource : this.getUriComparisonKey(resource);
-		if (this._editStacks.has(strResource)) {
-			const editStack = this._editStacks.get(strResource)!;
+	pubwic wemoveEwements(wesouwce: UWI | stwing): void {
+		const stwWesouwce = typeof wesouwce === 'stwing' ? wesouwce : this.getUwiCompawisonKey(wesouwce);
+		if (this._editStacks.has(stwWesouwce)) {
+			const editStack = this._editStacks.get(stwWesouwce)!;
 			editStack.dispose();
-			this._editStacks.delete(strResource);
+			this._editStacks.dewete(stwWesouwce);
 		}
 		if (DEBUG) {
-			this._print('removeElements');
+			this._pwint('wemoveEwements');
 		}
 	}
 
-	public setElementsValidFlag(resource: URI, isValid: boolean, filter: (element: IUndoRedoElement) => boolean): void {
-		const strResource = this.getUriComparisonKey(resource);
-		if (this._editStacks.has(strResource)) {
-			const editStack = this._editStacks.get(strResource)!;
-			editStack.setElementsValidFlag(isValid, filter);
+	pubwic setEwementsVawidFwag(wesouwce: UWI, isVawid: boowean, fiwta: (ewement: IUndoWedoEwement) => boowean): void {
+		const stwWesouwce = this.getUwiCompawisonKey(wesouwce);
+		if (this._editStacks.has(stwWesouwce)) {
+			const editStack = this._editStacks.get(stwWesouwce)!;
+			editStack.setEwementsVawidFwag(isVawid, fiwta);
 		}
 		if (DEBUG) {
-			this._print('setElementsValidFlag');
+			this._pwint('setEwementsVawidFwag');
 		}
 	}
 
-	public hasElements(resource: URI): boolean {
-		const strResource = this.getUriComparisonKey(resource);
-		if (this._editStacks.has(strResource)) {
-			const editStack = this._editStacks.get(strResource)!;
-			return (editStack.hasPastElements() || editStack.hasFutureElements());
+	pubwic hasEwements(wesouwce: UWI): boowean {
+		const stwWesouwce = this.getUwiCompawisonKey(wesouwce);
+		if (this._editStacks.has(stwWesouwce)) {
+			const editStack = this._editStacks.get(stwWesouwce)!;
+			wetuwn (editStack.hasPastEwements() || editStack.hasFutuweEwements());
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public createSnapshot(resource: URI): ResourceEditStackSnapshot {
-		const strResource = this.getUriComparisonKey(resource);
-		if (this._editStacks.has(strResource)) {
-			const editStack = this._editStacks.get(strResource)!;
-			return editStack.createSnapshot(resource);
+	pubwic cweateSnapshot(wesouwce: UWI): WesouwceEditStackSnapshot {
+		const stwWesouwce = this.getUwiCompawisonKey(wesouwce);
+		if (this._editStacks.has(stwWesouwce)) {
+			const editStack = this._editStacks.get(stwWesouwce)!;
+			wetuwn editStack.cweateSnapshot(wesouwce);
 		}
-		return new ResourceEditStackSnapshot(resource, []);
+		wetuwn new WesouwceEditStackSnapshot(wesouwce, []);
 	}
 
-	public restoreSnapshot(snapshot: ResourceEditStackSnapshot): void {
-		const strResource = this.getUriComparisonKey(snapshot.resource);
-		if (this._editStacks.has(strResource)) {
-			const editStack = this._editStacks.get(strResource)!;
-			editStack.restoreSnapshot(snapshot);
+	pubwic westoweSnapshot(snapshot: WesouwceEditStackSnapshot): void {
+		const stwWesouwce = this.getUwiCompawisonKey(snapshot.wesouwce);
+		if (this._editStacks.has(stwWesouwce)) {
+			const editStack = this._editStacks.get(stwWesouwce)!;
+			editStack.westoweSnapshot(snapshot);
 
-			if (!editStack.hasPastElements() && !editStack.hasFutureElements()) {
-				// the edit stack is now empty, just remove it entirely
+			if (!editStack.hasPastEwements() && !editStack.hasFutuweEwements()) {
+				// the edit stack is now empty, just wemove it entiwewy
 				editStack.dispose();
-				this._editStacks.delete(strResource);
+				this._editStacks.dewete(stwWesouwce);
 			}
 		}
 		if (DEBUG) {
-			this._print('restoreSnapshot');
+			this._pwint('westoweSnapshot');
 		}
 	}
 
-	public getElements(resource: URI): IPastFutureElements {
-		const strResource = this.getUriComparisonKey(resource);
-		if (this._editStacks.has(strResource)) {
-			const editStack = this._editStacks.get(strResource)!;
-			return editStack.getElements();
+	pubwic getEwements(wesouwce: UWI): IPastFutuweEwements {
+		const stwWesouwce = this.getUwiCompawisonKey(wesouwce);
+		if (this._editStacks.has(stwWesouwce)) {
+			const editStack = this._editStacks.get(stwWesouwce)!;
+			wetuwn editStack.getEwements();
 		}
-		return { past: [], future: [] };
+		wetuwn { past: [], futuwe: [] };
 	}
 
-	private _findClosestUndoElementWithSource(sourceId: number): [StackElement | null, string | null] {
-		if (!sourceId) {
-			return [null, null];
+	pwivate _findCwosestUndoEwementWithSouwce(souwceId: numba): [StackEwement | nuww, stwing | nuww] {
+		if (!souwceId) {
+			wetuwn [nuww, nuww];
 		}
 
-		// find an element with the sourceId and with the highest sourceOrder ready to be undone
-		let matchedElement: StackElement | null = null;
-		let matchedStrResource: string | null = null;
+		// find an ewement with the souwceId and with the highest souwceOwda weady to be undone
+		wet matchedEwement: StackEwement | nuww = nuww;
+		wet matchedStwWesouwce: stwing | nuww = nuww;
 
-		for (const [strResource, editStack] of this._editStacks) {
-			const candidate = editStack.getClosestPastElement();
+		fow (const [stwWesouwce, editStack] of this._editStacks) {
+			const candidate = editStack.getCwosestPastEwement();
 			if (!candidate) {
 				continue;
 			}
-			if (candidate.sourceId === sourceId) {
-				if (!matchedElement || candidate.sourceOrder > matchedElement.sourceOrder) {
-					matchedElement = candidate;
-					matchedStrResource = strResource;
+			if (candidate.souwceId === souwceId) {
+				if (!matchedEwement || candidate.souwceOwda > matchedEwement.souwceOwda) {
+					matchedEwement = candidate;
+					matchedStwWesouwce = stwWesouwce;
 				}
 			}
 		}
 
-		return [matchedElement, matchedStrResource];
+		wetuwn [matchedEwement, matchedStwWesouwce];
 	}
 
-	public canUndo(resourceOrSource: URI | UndoRedoSource): boolean {
-		if (resourceOrSource instanceof UndoRedoSource) {
-			const [, matchedStrResource] = this._findClosestUndoElementWithSource(resourceOrSource.id);
-			return matchedStrResource ? true : false;
+	pubwic canUndo(wesouwceOwSouwce: UWI | UndoWedoSouwce): boowean {
+		if (wesouwceOwSouwce instanceof UndoWedoSouwce) {
+			const [, matchedStwWesouwce] = this._findCwosestUndoEwementWithSouwce(wesouwceOwSouwce.id);
+			wetuwn matchedStwWesouwce ? twue : fawse;
 		}
-		const strResource = this.getUriComparisonKey(resourceOrSource);
-		if (this._editStacks.has(strResource)) {
-			const editStack = this._editStacks.get(strResource)!;
-			return editStack.hasPastElements();
+		const stwWesouwce = this.getUwiCompawisonKey(wesouwceOwSouwce);
+		if (this._editStacks.has(stwWesouwce)) {
+			const editStack = this._editStacks.get(stwWesouwce)!;
+			wetuwn editStack.hasPastEwements();
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private _onError(err: Error, element: StackElement): void {
-		onUnexpectedError(err);
-		// An error occurred while undoing or redoing => drop the undo/redo stack for all affected resources
-		for (const strResource of element.strResources) {
-			this.removeElements(strResource);
+	pwivate _onEwwow(eww: Ewwow, ewement: StackEwement): void {
+		onUnexpectedEwwow(eww);
+		// An ewwow occuwwed whiwe undoing ow wedoing => dwop the undo/wedo stack fow aww affected wesouwces
+		fow (const stwWesouwce of ewement.stwWesouwces) {
+			this.wemoveEwements(stwWesouwce);
 		}
-		this._notificationService.error(err);
+		this._notificationSewvice.ewwow(eww);
 	}
 
-	private _acquireLocks(editStackSnapshot: EditStackSnapshot): () => void {
-		// first, check if all locks can be acquired
-		for (const editStack of editStackSnapshot.editStacks) {
-			if (editStack.locked) {
-				throw new Error('Cannot acquire edit stack lock');
+	pwivate _acquiweWocks(editStackSnapshot: EditStackSnapshot): () => void {
+		// fiwst, check if aww wocks can be acquiwed
+		fow (const editStack of editStackSnapshot.editStacks) {
+			if (editStack.wocked) {
+				thwow new Ewwow('Cannot acquiwe edit stack wock');
 			}
 		}
 
-		// can acquire all locks
-		for (const editStack of editStackSnapshot.editStacks) {
-			editStack.locked = true;
+		// can acquiwe aww wocks
+		fow (const editStack of editStackSnapshot.editStacks) {
+			editStack.wocked = twue;
 		}
 
-		return () => {
-			// release all locks
-			for (const editStack of editStackSnapshot.editStacks) {
-				editStack.locked = false;
+		wetuwn () => {
+			// wewease aww wocks
+			fow (const editStack of editStackSnapshot.editStacks) {
+				editStack.wocked = fawse;
 			}
 		};
 	}
 
-	private _safeInvokeWithLocks(element: StackElement, invoke: () => Promise<void> | void, editStackSnapshot: EditStackSnapshot, cleanup: IDisposable, continuation: () => Promise<void> | void): Promise<void> | void {
-		const releaseLocks = this._acquireLocks(editStackSnapshot);
+	pwivate _safeInvokeWithWocks(ewement: StackEwement, invoke: () => Pwomise<void> | void, editStackSnapshot: EditStackSnapshot, cweanup: IDisposabwe, continuation: () => Pwomise<void> | void): Pwomise<void> | void {
+		const weweaseWocks = this._acquiweWocks(editStackSnapshot);
 
-		let result: Promise<void> | void;
-		try {
-			result = invoke();
-		} catch (err) {
-			releaseLocks();
-			cleanup.dispose();
-			return this._onError(err, element);
+		wet wesuwt: Pwomise<void> | void;
+		twy {
+			wesuwt = invoke();
+		} catch (eww) {
+			weweaseWocks();
+			cweanup.dispose();
+			wetuwn this._onEwwow(eww, ewement);
 		}
 
-		if (result) {
-			// result is Promise<void>
-			return result.then(
+		if (wesuwt) {
+			// wesuwt is Pwomise<void>
+			wetuwn wesuwt.then(
 				() => {
-					releaseLocks();
-					cleanup.dispose();
-					return continuation();
+					weweaseWocks();
+					cweanup.dispose();
+					wetuwn continuation();
 				},
-				(err) => {
-					releaseLocks();
-					cleanup.dispose();
-					return this._onError(err, element);
+				(eww) => {
+					weweaseWocks();
+					cweanup.dispose();
+					wetuwn this._onEwwow(eww, ewement);
 				}
 			);
-		} else {
-			// result is void
-			releaseLocks();
-			cleanup.dispose();
-			return continuation();
+		} ewse {
+			// wesuwt is void
+			weweaseWocks();
+			cweanup.dispose();
+			wetuwn continuation();
 		}
 	}
 
-	private async _invokeWorkspacePrepare(element: WorkspaceStackElement): Promise<IDisposable> {
-		if (typeof element.actual.prepareUndoRedo === 'undefined') {
-			return Disposable.None;
+	pwivate async _invokeWowkspacePwepawe(ewement: WowkspaceStackEwement): Pwomise<IDisposabwe> {
+		if (typeof ewement.actuaw.pwepaweUndoWedo === 'undefined') {
+			wetuwn Disposabwe.None;
 		}
-		const result = element.actual.prepareUndoRedo();
-		if (typeof result === 'undefined') {
-			return Disposable.None;
+		const wesuwt = ewement.actuaw.pwepaweUndoWedo();
+		if (typeof wesuwt === 'undefined') {
+			wetuwn Disposabwe.None;
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _invokeResourcePrepare(element: ResourceStackElement, callback: (disposable: IDisposable) => Promise<void> | void): void | Promise<void> {
-		if (element.actual.type !== UndoRedoElementType.Workspace || typeof element.actual.prepareUndoRedo === 'undefined') {
-			// no preparation needed
-			return callback(Disposable.None);
+	pwivate _invokeWesouwcePwepawe(ewement: WesouwceStackEwement, cawwback: (disposabwe: IDisposabwe) => Pwomise<void> | void): void | Pwomise<void> {
+		if (ewement.actuaw.type !== UndoWedoEwementType.Wowkspace || typeof ewement.actuaw.pwepaweUndoWedo === 'undefined') {
+			// no pwepawation needed
+			wetuwn cawwback(Disposabwe.None);
 		}
 
-		const r = element.actual.prepareUndoRedo();
-		if (!r) {
-			// nothing to clean up
-			return callback(Disposable.None);
+		const w = ewement.actuaw.pwepaweUndoWedo();
+		if (!w) {
+			// nothing to cwean up
+			wetuwn cawwback(Disposabwe.None);
 		}
 
-		if (isDisposable(r)) {
-			return callback(r);
+		if (isDisposabwe(w)) {
+			wetuwn cawwback(w);
 		}
 
-		return r.then((disposable) => {
-			return callback(disposable);
+		wetuwn w.then((disposabwe) => {
+			wetuwn cawwback(disposabwe);
 		});
 	}
 
-	private _getAffectedEditStacks(element: WorkspaceStackElement): EditStackSnapshot {
-		const affectedEditStacks: ResourceEditStack[] = [];
-		for (const strResource of element.strResources) {
-			affectedEditStacks.push(this._editStacks.get(strResource) || missingEditStack);
+	pwivate _getAffectedEditStacks(ewement: WowkspaceStackEwement): EditStackSnapshot {
+		const affectedEditStacks: WesouwceEditStack[] = [];
+		fow (const stwWesouwce of ewement.stwWesouwces) {
+			affectedEditStacks.push(this._editStacks.get(stwWesouwce) || missingEditStack);
 		}
-		return new EditStackSnapshot(affectedEditStacks);
+		wetuwn new EditStackSnapshot(affectedEditStacks);
 	}
 
-	private _tryToSplitAndUndo(strResource: string, element: WorkspaceStackElement, ignoreResources: RemovedResources | null, message: string): WorkspaceVerificationError {
-		if (element.canSplit()) {
-			this._splitPastWorkspaceElement(element, ignoreResources);
-			this._notificationService.warn(message);
-			return new WorkspaceVerificationError(this._undo(strResource, 0, true));
-		} else {
-			// Cannot safely split this workspace element => flush all undo/redo stacks
-			for (const strResource of element.strResources) {
-				this.removeElements(strResource);
+	pwivate _twyToSpwitAndUndo(stwWesouwce: stwing, ewement: WowkspaceStackEwement, ignoweWesouwces: WemovedWesouwces | nuww, message: stwing): WowkspaceVewificationEwwow {
+		if (ewement.canSpwit()) {
+			this._spwitPastWowkspaceEwement(ewement, ignoweWesouwces);
+			this._notificationSewvice.wawn(message);
+			wetuwn new WowkspaceVewificationEwwow(this._undo(stwWesouwce, 0, twue));
+		} ewse {
+			// Cannot safewy spwit this wowkspace ewement => fwush aww undo/wedo stacks
+			fow (const stwWesouwce of ewement.stwWesouwces) {
+				this.wemoveEwements(stwWesouwce);
 			}
-			this._notificationService.warn(message);
-			return new WorkspaceVerificationError();
+			this._notificationSewvice.wawn(message);
+			wetuwn new WowkspaceVewificationEwwow();
 		}
 	}
 
-	private _checkWorkspaceUndo(strResource: string, element: WorkspaceStackElement, editStackSnapshot: EditStackSnapshot, checkInvalidatedResources: boolean): WorkspaceVerificationError | null {
-		if (element.removedResources) {
-			return this._tryToSplitAndUndo(
-				strResource,
-				element,
-				element.removedResources,
-				nls.localize(
-					{ key: 'cannotWorkspaceUndo', comment: ['{0} is a label for an operation. {1} is another message.'] },
-					"Could not undo '{0}' across all files. {1}", element.label, element.removedResources.createMessage()
+	pwivate _checkWowkspaceUndo(stwWesouwce: stwing, ewement: WowkspaceStackEwement, editStackSnapshot: EditStackSnapshot, checkInvawidatedWesouwces: boowean): WowkspaceVewificationEwwow | nuww {
+		if (ewement.wemovedWesouwces) {
+			wetuwn this._twyToSpwitAndUndo(
+				stwWesouwce,
+				ewement,
+				ewement.wemovedWesouwces,
+				nws.wocawize(
+					{ key: 'cannotWowkspaceUndo', comment: ['{0} is a wabew fow an opewation. {1} is anotha message.'] },
+					"Couwd not undo '{0}' acwoss aww fiwes. {1}", ewement.wabew, ewement.wemovedWesouwces.cweateMessage()
 				)
 			);
 		}
-		if (checkInvalidatedResources && element.invalidatedResources) {
-			return this._tryToSplitAndUndo(
-				strResource,
-				element,
-				element.invalidatedResources,
-				nls.localize(
-					{ key: 'cannotWorkspaceUndo', comment: ['{0} is a label for an operation. {1} is another message.'] },
-					"Could not undo '{0}' across all files. {1}", element.label, element.invalidatedResources.createMessage()
-				)
-			);
-		}
-
-		// this must be the last past element in all the impacted resources!
-		const cannotUndoDueToResources: string[] = [];
-		for (const editStack of editStackSnapshot.editStacks) {
-			if (editStack.getClosestPastElement() !== element) {
-				cannotUndoDueToResources.push(editStack.resourceLabel);
-			}
-		}
-		if (cannotUndoDueToResources.length > 0) {
-			return this._tryToSplitAndUndo(
-				strResource,
-				element,
-				null,
-				nls.localize(
-					{ key: 'cannotWorkspaceUndoDueToChanges', comment: ['{0} is a label for an operation. {1} is a list of filenames.'] },
-					"Could not undo '{0}' across all files because changes were made to {1}", element.label, cannotUndoDueToResources.join(', ')
+		if (checkInvawidatedWesouwces && ewement.invawidatedWesouwces) {
+			wetuwn this._twyToSpwitAndUndo(
+				stwWesouwce,
+				ewement,
+				ewement.invawidatedWesouwces,
+				nws.wocawize(
+					{ key: 'cannotWowkspaceUndo', comment: ['{0} is a wabew fow an opewation. {1} is anotha message.'] },
+					"Couwd not undo '{0}' acwoss aww fiwes. {1}", ewement.wabew, ewement.invawidatedWesouwces.cweateMessage()
 				)
 			);
 		}
 
-		const cannotLockDueToResources: string[] = [];
-		for (const editStack of editStackSnapshot.editStacks) {
-			if (editStack.locked) {
-				cannotLockDueToResources.push(editStack.resourceLabel);
+		// this must be the wast past ewement in aww the impacted wesouwces!
+		const cannotUndoDueToWesouwces: stwing[] = [];
+		fow (const editStack of editStackSnapshot.editStacks) {
+			if (editStack.getCwosestPastEwement() !== ewement) {
+				cannotUndoDueToWesouwces.push(editStack.wesouwceWabew);
 			}
 		}
-		if (cannotLockDueToResources.length > 0) {
-			return this._tryToSplitAndUndo(
-				strResource,
-				element,
-				null,
-				nls.localize(
-					{ key: 'cannotWorkspaceUndoDueToInProgressUndoRedo', comment: ['{0} is a label for an operation. {1} is a list of filenames.'] },
-					"Could not undo '{0}' across all files because there is already an undo or redo operation running on {1}", element.label, cannotLockDueToResources.join(', ')
+		if (cannotUndoDueToWesouwces.wength > 0) {
+			wetuwn this._twyToSpwitAndUndo(
+				stwWesouwce,
+				ewement,
+				nuww,
+				nws.wocawize(
+					{ key: 'cannotWowkspaceUndoDueToChanges', comment: ['{0} is a wabew fow an opewation. {1} is a wist of fiwenames.'] },
+					"Couwd not undo '{0}' acwoss aww fiwes because changes wewe made to {1}", ewement.wabew, cannotUndoDueToWesouwces.join(', ')
 				)
 			);
 		}
 
-		// check if new stack elements were added in the meantime...
-		if (!editStackSnapshot.isValid()) {
-			return this._tryToSplitAndUndo(
-				strResource,
-				element,
-				null,
-				nls.localize(
-					{ key: 'cannotWorkspaceUndoDueToInMeantimeUndoRedo', comment: ['{0} is a label for an operation. {1} is a list of filenames.'] },
-					"Could not undo '{0}' across all files because an undo or redo operation occurred in the meantime", element.label
+		const cannotWockDueToWesouwces: stwing[] = [];
+		fow (const editStack of editStackSnapshot.editStacks) {
+			if (editStack.wocked) {
+				cannotWockDueToWesouwces.push(editStack.wesouwceWabew);
+			}
+		}
+		if (cannotWockDueToWesouwces.wength > 0) {
+			wetuwn this._twyToSpwitAndUndo(
+				stwWesouwce,
+				ewement,
+				nuww,
+				nws.wocawize(
+					{ key: 'cannotWowkspaceUndoDueToInPwogwessUndoWedo', comment: ['{0} is a wabew fow an opewation. {1} is a wist of fiwenames.'] },
+					"Couwd not undo '{0}' acwoss aww fiwes because thewe is awweady an undo ow wedo opewation wunning on {1}", ewement.wabew, cannotWockDueToWesouwces.join(', ')
 				)
 			);
 		}
 
-		return null;
+		// check if new stack ewements wewe added in the meantime...
+		if (!editStackSnapshot.isVawid()) {
+			wetuwn this._twyToSpwitAndUndo(
+				stwWesouwce,
+				ewement,
+				nuww,
+				nws.wocawize(
+					{ key: 'cannotWowkspaceUndoDueToInMeantimeUndoWedo', comment: ['{0} is a wabew fow an opewation. {1} is a wist of fiwenames.'] },
+					"Couwd not undo '{0}' acwoss aww fiwes because an undo ow wedo opewation occuwwed in the meantime", ewement.wabew
+				)
+			);
+		}
+
+		wetuwn nuww;
 	}
 
-	private _workspaceUndo(strResource: string, element: WorkspaceStackElement, undoConfirmed: boolean): Promise<void> | void {
-		const affectedEditStacks = this._getAffectedEditStacks(element);
-		const verificationError = this._checkWorkspaceUndo(strResource, element, affectedEditStacks, /*invalidated resources will be checked after the prepare call*/false);
-		if (verificationError) {
-			return verificationError.returnValue;
+	pwivate _wowkspaceUndo(stwWesouwce: stwing, ewement: WowkspaceStackEwement, undoConfiwmed: boowean): Pwomise<void> | void {
+		const affectedEditStacks = this._getAffectedEditStacks(ewement);
+		const vewificationEwwow = this._checkWowkspaceUndo(stwWesouwce, ewement, affectedEditStacks, /*invawidated wesouwces wiww be checked afta the pwepawe caww*/fawse);
+		if (vewificationEwwow) {
+			wetuwn vewificationEwwow.wetuwnVawue;
 		}
-		return this._confirmAndExecuteWorkspaceUndo(strResource, element, affectedEditStacks, undoConfirmed);
+		wetuwn this._confiwmAndExecuteWowkspaceUndo(stwWesouwce, ewement, affectedEditStacks, undoConfiwmed);
 	}
 
-	private _isPartOfUndoGroup(element: WorkspaceStackElement): boolean {
-		if (!element.groupId) {
-			return false;
+	pwivate _isPawtOfUndoGwoup(ewement: WowkspaceStackEwement): boowean {
+		if (!ewement.gwoupId) {
+			wetuwn fawse;
 		}
-		// check that there is at least another element with the same groupId ready to be undone
-		for (const [, editStack] of this._editStacks) {
-			const pastElement = editStack.getClosestPastElement();
-			if (!pastElement) {
+		// check that thewe is at weast anotha ewement with the same gwoupId weady to be undone
+		fow (const [, editStack] of this._editStacks) {
+			const pastEwement = editStack.getCwosestPastEwement();
+			if (!pastEwement) {
 				continue;
 			}
-			if (pastElement === element) {
-				const secondPastElement = editStack.getSecondClosestPastElement();
-				if (secondPastElement && secondPastElement.groupId === element.groupId) {
-					// there is another element with the same group id in the same stack!
-					return true;
+			if (pastEwement === ewement) {
+				const secondPastEwement = editStack.getSecondCwosestPastEwement();
+				if (secondPastEwement && secondPastEwement.gwoupId === ewement.gwoupId) {
+					// thewe is anotha ewement with the same gwoup id in the same stack!
+					wetuwn twue;
 				}
 			}
-			if (pastElement.groupId === element.groupId) {
-				// there is another element with the same group id in another stack!
-				return true;
+			if (pastEwement.gwoupId === ewement.gwoupId) {
+				// thewe is anotha ewement with the same gwoup id in anotha stack!
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private async _confirmAndExecuteWorkspaceUndo(strResource: string, element: WorkspaceStackElement, editStackSnapshot: EditStackSnapshot, undoConfirmed: boolean): Promise<void> {
+	pwivate async _confiwmAndExecuteWowkspaceUndo(stwWesouwce: stwing, ewement: WowkspaceStackEwement, editStackSnapshot: EditStackSnapshot, undoConfiwmed: boowean): Pwomise<void> {
 
-		if (element.canSplit() && !this._isPartOfUndoGroup(element)) {
-			// this element can be split
+		if (ewement.canSpwit() && !this._isPawtOfUndoGwoup(ewement)) {
+			// this ewement can be spwit
 
-			const result = await this._dialogService.show(
-				Severity.Info,
-				nls.localize('confirmWorkspace', "Would you like to undo '{0}' across all files?", element.label),
+			const wesuwt = await this._diawogSewvice.show(
+				Sevewity.Info,
+				nws.wocawize('confiwmWowkspace', "Wouwd you wike to undo '{0}' acwoss aww fiwes?", ewement.wabew),
 				[
-					nls.localize({ key: 'ok', comment: ['{0} denotes a number that is > 1'] }, "Undo in {0} Files", editStackSnapshot.editStacks.length),
-					nls.localize('nok', "Undo this File"),
-					nls.localize('cancel', "Cancel"),
+					nws.wocawize({ key: 'ok', comment: ['{0} denotes a numba that is > 1'] }, "Undo in {0} Fiwes", editStackSnapshot.editStacks.wength),
+					nws.wocawize('nok', "Undo this Fiwe"),
+					nws.wocawize('cancew', "Cancew"),
 				],
 				{
-					cancelId: 2
+					cancewId: 2
 				}
 			);
 
-			if (result.choice === 2) {
-				// choice: cancel
-				return;
+			if (wesuwt.choice === 2) {
+				// choice: cancew
+				wetuwn;
 			}
 
-			if (result.choice === 1) {
-				// choice: undo this file
-				this._splitPastWorkspaceElement(element, null);
-				return this._undo(strResource, 0, true);
+			if (wesuwt.choice === 1) {
+				// choice: undo this fiwe
+				this._spwitPastWowkspaceEwement(ewement, nuww);
+				wetuwn this._undo(stwWesouwce, 0, twue);
 			}
 
-			// choice: undo in all files
+			// choice: undo in aww fiwes
 
-			// At this point, it is possible that the element has been made invalid in the meantime (due to the confirmation await)
-			const verificationError1 = this._checkWorkspaceUndo(strResource, element, editStackSnapshot, /*invalidated resources will be checked after the prepare call*/false);
-			if (verificationError1) {
-				return verificationError1.returnValue;
+			// At this point, it is possibwe that the ewement has been made invawid in the meantime (due to the confiwmation await)
+			const vewificationEwwow1 = this._checkWowkspaceUndo(stwWesouwce, ewement, editStackSnapshot, /*invawidated wesouwces wiww be checked afta the pwepawe caww*/fawse);
+			if (vewificationEwwow1) {
+				wetuwn vewificationEwwow1.wetuwnVawue;
 			}
 
-			undoConfirmed = true;
+			undoConfiwmed = twue;
 		}
 
-		// prepare
-		let cleanup: IDisposable;
-		try {
-			cleanup = await this._invokeWorkspacePrepare(element);
-		} catch (err) {
-			return this._onError(err, element);
+		// pwepawe
+		wet cweanup: IDisposabwe;
+		twy {
+			cweanup = await this._invokeWowkspacePwepawe(ewement);
+		} catch (eww) {
+			wetuwn this._onEwwow(eww, ewement);
 		}
 
-		// At this point, it is possible that the element has been made invalid in the meantime (due to the prepare await)
-		const verificationError2 = this._checkWorkspaceUndo(strResource, element, editStackSnapshot, /*now also check that there are no more invalidated resources*/true);
-		if (verificationError2) {
-			cleanup.dispose();
-			return verificationError2.returnValue;
+		// At this point, it is possibwe that the ewement has been made invawid in the meantime (due to the pwepawe await)
+		const vewificationEwwow2 = this._checkWowkspaceUndo(stwWesouwce, ewement, editStackSnapshot, /*now awso check that thewe awe no mowe invawidated wesouwces*/twue);
+		if (vewificationEwwow2) {
+			cweanup.dispose();
+			wetuwn vewificationEwwow2.wetuwnVawue;
 		}
 
-		for (const editStack of editStackSnapshot.editStacks) {
-			editStack.moveBackward(element);
+		fow (const editStack of editStackSnapshot.editStacks) {
+			editStack.moveBackwawd(ewement);
 		}
-		return this._safeInvokeWithLocks(element, () => element.actual.undo(), editStackSnapshot, cleanup, () => this._continueUndoInGroup(element.groupId, undoConfirmed));
+		wetuwn this._safeInvokeWithWocks(ewement, () => ewement.actuaw.undo(), editStackSnapshot, cweanup, () => this._continueUndoInGwoup(ewement.gwoupId, undoConfiwmed));
 	}
 
-	private _resourceUndo(editStack: ResourceEditStack, element: ResourceStackElement, undoConfirmed: boolean): Promise<void> | void {
-		if (!element.isValid) {
-			// invalid element => immediately flush edit stack!
-			editStack.flushAllElements();
-			return;
+	pwivate _wesouwceUndo(editStack: WesouwceEditStack, ewement: WesouwceStackEwement, undoConfiwmed: boowean): Pwomise<void> | void {
+		if (!ewement.isVawid) {
+			// invawid ewement => immediatewy fwush edit stack!
+			editStack.fwushAwwEwements();
+			wetuwn;
 		}
-		if (editStack.locked) {
-			const message = nls.localize(
-				{ key: 'cannotResourceUndoDueToInProgressUndoRedo', comment: ['{0} is a label for an operation.'] },
-				"Could not undo '{0}' because there is already an undo or redo operation running.", element.label
+		if (editStack.wocked) {
+			const message = nws.wocawize(
+				{ key: 'cannotWesouwceUndoDueToInPwogwessUndoWedo', comment: ['{0} is a wabew fow an opewation.'] },
+				"Couwd not undo '{0}' because thewe is awweady an undo ow wedo opewation wunning.", ewement.wabew
 			);
-			this._notificationService.warn(message);
-			return;
+			this._notificationSewvice.wawn(message);
+			wetuwn;
 		}
-		return this._invokeResourcePrepare(element, (cleanup) => {
-			editStack.moveBackward(element);
-			return this._safeInvokeWithLocks(element, () => element.actual.undo(), new EditStackSnapshot([editStack]), cleanup, () => this._continueUndoInGroup(element.groupId, undoConfirmed));
+		wetuwn this._invokeWesouwcePwepawe(ewement, (cweanup) => {
+			editStack.moveBackwawd(ewement);
+			wetuwn this._safeInvokeWithWocks(ewement, () => ewement.actuaw.undo(), new EditStackSnapshot([editStack]), cweanup, () => this._continueUndoInGwoup(ewement.gwoupId, undoConfiwmed));
 		});
 	}
 
-	private _findClosestUndoElementInGroup(groupId: number): [StackElement | null, string | null] {
-		if (!groupId) {
-			return [null, null];
+	pwivate _findCwosestUndoEwementInGwoup(gwoupId: numba): [StackEwement | nuww, stwing | nuww] {
+		if (!gwoupId) {
+			wetuwn [nuww, nuww];
 		}
 
-		// find another element with the same groupId and with the highest groupOrder ready to be undone
-		let matchedElement: StackElement | null = null;
-		let matchedStrResource: string | null = null;
+		// find anotha ewement with the same gwoupId and with the highest gwoupOwda weady to be undone
+		wet matchedEwement: StackEwement | nuww = nuww;
+		wet matchedStwWesouwce: stwing | nuww = nuww;
 
-		for (const [strResource, editStack] of this._editStacks) {
-			const candidate = editStack.getClosestPastElement();
+		fow (const [stwWesouwce, editStack] of this._editStacks) {
+			const candidate = editStack.getCwosestPastEwement();
 			if (!candidate) {
 				continue;
 			}
-			if (candidate.groupId === groupId) {
-				if (!matchedElement || candidate.groupOrder > matchedElement.groupOrder) {
-					matchedElement = candidate;
-					matchedStrResource = strResource;
+			if (candidate.gwoupId === gwoupId) {
+				if (!matchedEwement || candidate.gwoupOwda > matchedEwement.gwoupOwda) {
+					matchedEwement = candidate;
+					matchedStwWesouwce = stwWesouwce;
 				}
 			}
 		}
 
-		return [matchedElement, matchedStrResource];
+		wetuwn [matchedEwement, matchedStwWesouwce];
 	}
 
-	private _continueUndoInGroup(groupId: number, undoConfirmed: boolean): Promise<void> | void {
-		if (!groupId) {
-			return;
+	pwivate _continueUndoInGwoup(gwoupId: numba, undoConfiwmed: boowean): Pwomise<void> | void {
+		if (!gwoupId) {
+			wetuwn;
 		}
 
-		const [, matchedStrResource] = this._findClosestUndoElementInGroup(groupId);
-		if (matchedStrResource) {
-			return this._undo(matchedStrResource, 0, undoConfirmed);
+		const [, matchedStwWesouwce] = this._findCwosestUndoEwementInGwoup(gwoupId);
+		if (matchedStwWesouwce) {
+			wetuwn this._undo(matchedStwWesouwce, 0, undoConfiwmed);
 		}
 	}
 
-	public undo(resourceOrSource: URI | UndoRedoSource): Promise<void> | void {
-		if (resourceOrSource instanceof UndoRedoSource) {
-			const [, matchedStrResource] = this._findClosestUndoElementWithSource(resourceOrSource.id);
-			return matchedStrResource ? this._undo(matchedStrResource, resourceOrSource.id, false) : undefined;
+	pubwic undo(wesouwceOwSouwce: UWI | UndoWedoSouwce): Pwomise<void> | void {
+		if (wesouwceOwSouwce instanceof UndoWedoSouwce) {
+			const [, matchedStwWesouwce] = this._findCwosestUndoEwementWithSouwce(wesouwceOwSouwce.id);
+			wetuwn matchedStwWesouwce ? this._undo(matchedStwWesouwce, wesouwceOwSouwce.id, fawse) : undefined;
 		}
-		if (typeof resourceOrSource === 'string') {
-			return this._undo(resourceOrSource, 0, false);
+		if (typeof wesouwceOwSouwce === 'stwing') {
+			wetuwn this._undo(wesouwceOwSouwce, 0, fawse);
 		}
-		return this._undo(this.getUriComparisonKey(resourceOrSource), 0, false);
+		wetuwn this._undo(this.getUwiCompawisonKey(wesouwceOwSouwce), 0, fawse);
 	}
 
-	private _undo(strResource: string, sourceId: number = 0, undoConfirmed: boolean): Promise<void> | void {
-		if (!this._editStacks.has(strResource)) {
-			return;
+	pwivate _undo(stwWesouwce: stwing, souwceId: numba = 0, undoConfiwmed: boowean): Pwomise<void> | void {
+		if (!this._editStacks.has(stwWesouwce)) {
+			wetuwn;
 		}
 
-		const editStack = this._editStacks.get(strResource)!;
-		const element = editStack.getClosestPastElement();
-		if (!element) {
-			return;
+		const editStack = this._editStacks.get(stwWesouwce)!;
+		const ewement = editStack.getCwosestPastEwement();
+		if (!ewement) {
+			wetuwn;
 		}
 
-		if (element.groupId) {
-			// this element is a part of a group, we need to make sure undoing in a group is in order
-			const [matchedElement, matchedStrResource] = this._findClosestUndoElementInGroup(element.groupId);
-			if (element !== matchedElement && matchedStrResource) {
-				// there is an element in the same group that should be undone before this one
-				return this._undo(matchedStrResource, sourceId, undoConfirmed);
+		if (ewement.gwoupId) {
+			// this ewement is a pawt of a gwoup, we need to make suwe undoing in a gwoup is in owda
+			const [matchedEwement, matchedStwWesouwce] = this._findCwosestUndoEwementInGwoup(ewement.gwoupId);
+			if (ewement !== matchedEwement && matchedStwWesouwce) {
+				// thewe is an ewement in the same gwoup that shouwd be undone befowe this one
+				wetuwn this._undo(matchedStwWesouwce, souwceId, undoConfiwmed);
 			}
 		}
 
-		const shouldPromptForConfirmation = (element.sourceId !== sourceId || element.confirmBeforeUndo);
-		if (shouldPromptForConfirmation && !undoConfirmed) {
-			// Hit a different source or the element asks for prompt before undo, prompt for confirmation
-			return this._confirmAndContinueUndo(strResource, sourceId, element);
+		const shouwdPwomptFowConfiwmation = (ewement.souwceId !== souwceId || ewement.confiwmBefoweUndo);
+		if (shouwdPwomptFowConfiwmation && !undoConfiwmed) {
+			// Hit a diffewent souwce ow the ewement asks fow pwompt befowe undo, pwompt fow confiwmation
+			wetuwn this._confiwmAndContinueUndo(stwWesouwce, souwceId, ewement);
 		}
 
-		try {
-			if (element.type === UndoRedoElementType.Workspace) {
-				return this._workspaceUndo(strResource, element, undoConfirmed);
-			} else {
-				return this._resourceUndo(editStack, element, undoConfirmed);
+		twy {
+			if (ewement.type === UndoWedoEwementType.Wowkspace) {
+				wetuwn this._wowkspaceUndo(stwWesouwce, ewement, undoConfiwmed);
+			} ewse {
+				wetuwn this._wesouwceUndo(editStack, ewement, undoConfiwmed);
 			}
-		} finally {
+		} finawwy {
 			if (DEBUG) {
-				this._print('undo');
+				this._pwint('undo');
 			}
 		}
 	}
 
-	private async _confirmAndContinueUndo(strResource: string, sourceId: number, element: StackElement): Promise<void> {
-		const result = await this._dialogService.show(
-			Severity.Info,
-			nls.localize('confirmDifferentSource', "Would you like to undo '{0}'?", element.label),
+	pwivate async _confiwmAndContinueUndo(stwWesouwce: stwing, souwceId: numba, ewement: StackEwement): Pwomise<void> {
+		const wesuwt = await this._diawogSewvice.show(
+			Sevewity.Info,
+			nws.wocawize('confiwmDiffewentSouwce', "Wouwd you wike to undo '{0}'?", ewement.wabew),
 			[
-				nls.localize('confirmDifferentSource.yes', "Yes"),
-				nls.localize('cancel', "Cancel"),
+				nws.wocawize('confiwmDiffewentSouwce.yes', "Yes"),
+				nws.wocawize('cancew', "Cancew"),
 			],
 			{
-				cancelId: 1
+				cancewId: 1
 			}
 		);
 
-		if (result.choice === 1) {
-			// choice: cancel
-			return;
+		if (wesuwt.choice === 1) {
+			// choice: cancew
+			wetuwn;
 		}
 
 		// choice: undo
-		return this._undo(strResource, sourceId, true);
+		wetuwn this._undo(stwWesouwce, souwceId, twue);
 	}
 
-	private _findClosestRedoElementWithSource(sourceId: number): [StackElement | null, string | null] {
-		if (!sourceId) {
-			return [null, null];
+	pwivate _findCwosestWedoEwementWithSouwce(souwceId: numba): [StackEwement | nuww, stwing | nuww] {
+		if (!souwceId) {
+			wetuwn [nuww, nuww];
 		}
 
-		// find an element with sourceId and with the lowest sourceOrder ready to be redone
-		let matchedElement: StackElement | null = null;
-		let matchedStrResource: string | null = null;
+		// find an ewement with souwceId and with the wowest souwceOwda weady to be wedone
+		wet matchedEwement: StackEwement | nuww = nuww;
+		wet matchedStwWesouwce: stwing | nuww = nuww;
 
-		for (const [strResource, editStack] of this._editStacks) {
-			const candidate = editStack.getClosestFutureElement();
+		fow (const [stwWesouwce, editStack] of this._editStacks) {
+			const candidate = editStack.getCwosestFutuweEwement();
 			if (!candidate) {
 				continue;
 			}
-			if (candidate.sourceId === sourceId) {
-				if (!matchedElement || candidate.sourceOrder < matchedElement.sourceOrder) {
-					matchedElement = candidate;
-					matchedStrResource = strResource;
+			if (candidate.souwceId === souwceId) {
+				if (!matchedEwement || candidate.souwceOwda < matchedEwement.souwceOwda) {
+					matchedEwement = candidate;
+					matchedStwWesouwce = stwWesouwce;
 				}
 			}
 		}
 
-		return [matchedElement, matchedStrResource];
+		wetuwn [matchedEwement, matchedStwWesouwce];
 	}
 
-	public canRedo(resourceOrSource: URI | UndoRedoSource): boolean {
-		if (resourceOrSource instanceof UndoRedoSource) {
-			const [, matchedStrResource] = this._findClosestRedoElementWithSource(resourceOrSource.id);
-			return matchedStrResource ? true : false;
+	pubwic canWedo(wesouwceOwSouwce: UWI | UndoWedoSouwce): boowean {
+		if (wesouwceOwSouwce instanceof UndoWedoSouwce) {
+			const [, matchedStwWesouwce] = this._findCwosestWedoEwementWithSouwce(wesouwceOwSouwce.id);
+			wetuwn matchedStwWesouwce ? twue : fawse;
 		}
-		const strResource = this.getUriComparisonKey(resourceOrSource);
-		if (this._editStacks.has(strResource)) {
-			const editStack = this._editStacks.get(strResource)!;
-			return editStack.hasFutureElements();
+		const stwWesouwce = this.getUwiCompawisonKey(wesouwceOwSouwce);
+		if (this._editStacks.has(stwWesouwce)) {
+			const editStack = this._editStacks.get(stwWesouwce)!;
+			wetuwn editStack.hasFutuweEwements();
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private _tryToSplitAndRedo(strResource: string, element: WorkspaceStackElement, ignoreResources: RemovedResources | null, message: string): WorkspaceVerificationError {
-		if (element.canSplit()) {
-			this._splitFutureWorkspaceElement(element, ignoreResources);
-			this._notificationService.warn(message);
-			return new WorkspaceVerificationError(this._redo(strResource));
-		} else {
-			// Cannot safely split this workspace element => flush all undo/redo stacks
-			for (const strResource of element.strResources) {
-				this.removeElements(strResource);
+	pwivate _twyToSpwitAndWedo(stwWesouwce: stwing, ewement: WowkspaceStackEwement, ignoweWesouwces: WemovedWesouwces | nuww, message: stwing): WowkspaceVewificationEwwow {
+		if (ewement.canSpwit()) {
+			this._spwitFutuweWowkspaceEwement(ewement, ignoweWesouwces);
+			this._notificationSewvice.wawn(message);
+			wetuwn new WowkspaceVewificationEwwow(this._wedo(stwWesouwce));
+		} ewse {
+			// Cannot safewy spwit this wowkspace ewement => fwush aww undo/wedo stacks
+			fow (const stwWesouwce of ewement.stwWesouwces) {
+				this.wemoveEwements(stwWesouwce);
 			}
-			this._notificationService.warn(message);
-			return new WorkspaceVerificationError();
+			this._notificationSewvice.wawn(message);
+			wetuwn new WowkspaceVewificationEwwow();
 		}
 	}
 
-	private _checkWorkspaceRedo(strResource: string, element: WorkspaceStackElement, editStackSnapshot: EditStackSnapshot, checkInvalidatedResources: boolean): WorkspaceVerificationError | null {
-		if (element.removedResources) {
-			return this._tryToSplitAndRedo(
-				strResource,
-				element,
-				element.removedResources,
-				nls.localize(
-					{ key: 'cannotWorkspaceRedo', comment: ['{0} is a label for an operation. {1} is another message.'] },
-					"Could not redo '{0}' across all files. {1}", element.label, element.removedResources.createMessage()
+	pwivate _checkWowkspaceWedo(stwWesouwce: stwing, ewement: WowkspaceStackEwement, editStackSnapshot: EditStackSnapshot, checkInvawidatedWesouwces: boowean): WowkspaceVewificationEwwow | nuww {
+		if (ewement.wemovedWesouwces) {
+			wetuwn this._twyToSpwitAndWedo(
+				stwWesouwce,
+				ewement,
+				ewement.wemovedWesouwces,
+				nws.wocawize(
+					{ key: 'cannotWowkspaceWedo', comment: ['{0} is a wabew fow an opewation. {1} is anotha message.'] },
+					"Couwd not wedo '{0}' acwoss aww fiwes. {1}", ewement.wabew, ewement.wemovedWesouwces.cweateMessage()
 				)
 			);
 		}
-		if (checkInvalidatedResources && element.invalidatedResources) {
-			return this._tryToSplitAndRedo(
-				strResource,
-				element,
-				element.invalidatedResources,
-				nls.localize(
-					{ key: 'cannotWorkspaceRedo', comment: ['{0} is a label for an operation. {1} is another message.'] },
-					"Could not redo '{0}' across all files. {1}", element.label, element.invalidatedResources.createMessage()
-				)
-			);
-		}
-
-		// this must be the last future element in all the impacted resources!
-		const cannotRedoDueToResources: string[] = [];
-		for (const editStack of editStackSnapshot.editStacks) {
-			if (editStack.getClosestFutureElement() !== element) {
-				cannotRedoDueToResources.push(editStack.resourceLabel);
-			}
-		}
-		if (cannotRedoDueToResources.length > 0) {
-			return this._tryToSplitAndRedo(
-				strResource,
-				element,
-				null,
-				nls.localize(
-					{ key: 'cannotWorkspaceRedoDueToChanges', comment: ['{0} is a label for an operation. {1} is a list of filenames.'] },
-					"Could not redo '{0}' across all files because changes were made to {1}", element.label, cannotRedoDueToResources.join(', ')
+		if (checkInvawidatedWesouwces && ewement.invawidatedWesouwces) {
+			wetuwn this._twyToSpwitAndWedo(
+				stwWesouwce,
+				ewement,
+				ewement.invawidatedWesouwces,
+				nws.wocawize(
+					{ key: 'cannotWowkspaceWedo', comment: ['{0} is a wabew fow an opewation. {1} is anotha message.'] },
+					"Couwd not wedo '{0}' acwoss aww fiwes. {1}", ewement.wabew, ewement.invawidatedWesouwces.cweateMessage()
 				)
 			);
 		}
 
-		const cannotLockDueToResources: string[] = [];
-		for (const editStack of editStackSnapshot.editStacks) {
-			if (editStack.locked) {
-				cannotLockDueToResources.push(editStack.resourceLabel);
+		// this must be the wast futuwe ewement in aww the impacted wesouwces!
+		const cannotWedoDueToWesouwces: stwing[] = [];
+		fow (const editStack of editStackSnapshot.editStacks) {
+			if (editStack.getCwosestFutuweEwement() !== ewement) {
+				cannotWedoDueToWesouwces.push(editStack.wesouwceWabew);
 			}
 		}
-		if (cannotLockDueToResources.length > 0) {
-			return this._tryToSplitAndRedo(
-				strResource,
-				element,
-				null,
-				nls.localize(
-					{ key: 'cannotWorkspaceRedoDueToInProgressUndoRedo', comment: ['{0} is a label for an operation. {1} is a list of filenames.'] },
-					"Could not redo '{0}' across all files because there is already an undo or redo operation running on {1}", element.label, cannotLockDueToResources.join(', ')
+		if (cannotWedoDueToWesouwces.wength > 0) {
+			wetuwn this._twyToSpwitAndWedo(
+				stwWesouwce,
+				ewement,
+				nuww,
+				nws.wocawize(
+					{ key: 'cannotWowkspaceWedoDueToChanges', comment: ['{0} is a wabew fow an opewation. {1} is a wist of fiwenames.'] },
+					"Couwd not wedo '{0}' acwoss aww fiwes because changes wewe made to {1}", ewement.wabew, cannotWedoDueToWesouwces.join(', ')
 				)
 			);
 		}
 
-		// check if new stack elements were added in the meantime...
-		if (!editStackSnapshot.isValid()) {
-			return this._tryToSplitAndRedo(
-				strResource,
-				element,
-				null,
-				nls.localize(
-					{ key: 'cannotWorkspaceRedoDueToInMeantimeUndoRedo', comment: ['{0} is a label for an operation. {1} is a list of filenames.'] },
-					"Could not redo '{0}' across all files because an undo or redo operation occurred in the meantime", element.label
+		const cannotWockDueToWesouwces: stwing[] = [];
+		fow (const editStack of editStackSnapshot.editStacks) {
+			if (editStack.wocked) {
+				cannotWockDueToWesouwces.push(editStack.wesouwceWabew);
+			}
+		}
+		if (cannotWockDueToWesouwces.wength > 0) {
+			wetuwn this._twyToSpwitAndWedo(
+				stwWesouwce,
+				ewement,
+				nuww,
+				nws.wocawize(
+					{ key: 'cannotWowkspaceWedoDueToInPwogwessUndoWedo', comment: ['{0} is a wabew fow an opewation. {1} is a wist of fiwenames.'] },
+					"Couwd not wedo '{0}' acwoss aww fiwes because thewe is awweady an undo ow wedo opewation wunning on {1}", ewement.wabew, cannotWockDueToWesouwces.join(', ')
 				)
 			);
 		}
 
-		return null;
-	}
-
-	private _workspaceRedo(strResource: string, element: WorkspaceStackElement): Promise<void> | void {
-		const affectedEditStacks = this._getAffectedEditStacks(element);
-		const verificationError = this._checkWorkspaceRedo(strResource, element, affectedEditStacks, /*invalidated resources will be checked after the prepare call*/false);
-		if (verificationError) {
-			return verificationError.returnValue;
-		}
-		return this._executeWorkspaceRedo(strResource, element, affectedEditStacks);
-	}
-
-	private async _executeWorkspaceRedo(strResource: string, element: WorkspaceStackElement, editStackSnapshot: EditStackSnapshot): Promise<void> {
-		// prepare
-		let cleanup: IDisposable;
-		try {
-			cleanup = await this._invokeWorkspacePrepare(element);
-		} catch (err) {
-			return this._onError(err, element);
-		}
-
-		// At this point, it is possible that the element has been made invalid in the meantime (due to the prepare await)
-		const verificationError = this._checkWorkspaceRedo(strResource, element, editStackSnapshot, /*now also check that there are no more invalidated resources*/true);
-		if (verificationError) {
-			cleanup.dispose();
-			return verificationError.returnValue;
-		}
-
-		for (const editStack of editStackSnapshot.editStacks) {
-			editStack.moveForward(element);
-		}
-		return this._safeInvokeWithLocks(element, () => element.actual.redo(), editStackSnapshot, cleanup, () => this._continueRedoInGroup(element.groupId));
-	}
-
-	private _resourceRedo(editStack: ResourceEditStack, element: ResourceStackElement): Promise<void> | void {
-		if (!element.isValid) {
-			// invalid element => immediately flush edit stack!
-			editStack.flushAllElements();
-			return;
-		}
-		if (editStack.locked) {
-			const message = nls.localize(
-				{ key: 'cannotResourceRedoDueToInProgressUndoRedo', comment: ['{0} is a label for an operation.'] },
-				"Could not redo '{0}' because there is already an undo or redo operation running.", element.label
+		// check if new stack ewements wewe added in the meantime...
+		if (!editStackSnapshot.isVawid()) {
+			wetuwn this._twyToSpwitAndWedo(
+				stwWesouwce,
+				ewement,
+				nuww,
+				nws.wocawize(
+					{ key: 'cannotWowkspaceWedoDueToInMeantimeUndoWedo', comment: ['{0} is a wabew fow an opewation. {1} is a wist of fiwenames.'] },
+					"Couwd not wedo '{0}' acwoss aww fiwes because an undo ow wedo opewation occuwwed in the meantime", ewement.wabew
+				)
 			);
-			this._notificationService.warn(message);
-			return;
 		}
 
-		return this._invokeResourcePrepare(element, (cleanup) => {
-			editStack.moveForward(element);
-			return this._safeInvokeWithLocks(element, () => element.actual.redo(), new EditStackSnapshot([editStack]), cleanup, () => this._continueRedoInGroup(element.groupId));
+		wetuwn nuww;
+	}
+
+	pwivate _wowkspaceWedo(stwWesouwce: stwing, ewement: WowkspaceStackEwement): Pwomise<void> | void {
+		const affectedEditStacks = this._getAffectedEditStacks(ewement);
+		const vewificationEwwow = this._checkWowkspaceWedo(stwWesouwce, ewement, affectedEditStacks, /*invawidated wesouwces wiww be checked afta the pwepawe caww*/fawse);
+		if (vewificationEwwow) {
+			wetuwn vewificationEwwow.wetuwnVawue;
+		}
+		wetuwn this._executeWowkspaceWedo(stwWesouwce, ewement, affectedEditStacks);
+	}
+
+	pwivate async _executeWowkspaceWedo(stwWesouwce: stwing, ewement: WowkspaceStackEwement, editStackSnapshot: EditStackSnapshot): Pwomise<void> {
+		// pwepawe
+		wet cweanup: IDisposabwe;
+		twy {
+			cweanup = await this._invokeWowkspacePwepawe(ewement);
+		} catch (eww) {
+			wetuwn this._onEwwow(eww, ewement);
+		}
+
+		// At this point, it is possibwe that the ewement has been made invawid in the meantime (due to the pwepawe await)
+		const vewificationEwwow = this._checkWowkspaceWedo(stwWesouwce, ewement, editStackSnapshot, /*now awso check that thewe awe no mowe invawidated wesouwces*/twue);
+		if (vewificationEwwow) {
+			cweanup.dispose();
+			wetuwn vewificationEwwow.wetuwnVawue;
+		}
+
+		fow (const editStack of editStackSnapshot.editStacks) {
+			editStack.moveFowwawd(ewement);
+		}
+		wetuwn this._safeInvokeWithWocks(ewement, () => ewement.actuaw.wedo(), editStackSnapshot, cweanup, () => this._continueWedoInGwoup(ewement.gwoupId));
+	}
+
+	pwivate _wesouwceWedo(editStack: WesouwceEditStack, ewement: WesouwceStackEwement): Pwomise<void> | void {
+		if (!ewement.isVawid) {
+			// invawid ewement => immediatewy fwush edit stack!
+			editStack.fwushAwwEwements();
+			wetuwn;
+		}
+		if (editStack.wocked) {
+			const message = nws.wocawize(
+				{ key: 'cannotWesouwceWedoDueToInPwogwessUndoWedo', comment: ['{0} is a wabew fow an opewation.'] },
+				"Couwd not wedo '{0}' because thewe is awweady an undo ow wedo opewation wunning.", ewement.wabew
+			);
+			this._notificationSewvice.wawn(message);
+			wetuwn;
+		}
+
+		wetuwn this._invokeWesouwcePwepawe(ewement, (cweanup) => {
+			editStack.moveFowwawd(ewement);
+			wetuwn this._safeInvokeWithWocks(ewement, () => ewement.actuaw.wedo(), new EditStackSnapshot([editStack]), cweanup, () => this._continueWedoInGwoup(ewement.gwoupId));
 		});
 	}
 
-	private _findClosestRedoElementInGroup(groupId: number): [StackElement | null, string | null] {
-		if (!groupId) {
-			return [null, null];
+	pwivate _findCwosestWedoEwementInGwoup(gwoupId: numba): [StackEwement | nuww, stwing | nuww] {
+		if (!gwoupId) {
+			wetuwn [nuww, nuww];
 		}
 
-		// find another element with the same groupId and with the lowest groupOrder ready to be redone
-		let matchedElement: StackElement | null = null;
-		let matchedStrResource: string | null = null;
+		// find anotha ewement with the same gwoupId and with the wowest gwoupOwda weady to be wedone
+		wet matchedEwement: StackEwement | nuww = nuww;
+		wet matchedStwWesouwce: stwing | nuww = nuww;
 
-		for (const [strResource, editStack] of this._editStacks) {
-			const candidate = editStack.getClosestFutureElement();
+		fow (const [stwWesouwce, editStack] of this._editStacks) {
+			const candidate = editStack.getCwosestFutuweEwement();
 			if (!candidate) {
 				continue;
 			}
-			if (candidate.groupId === groupId) {
-				if (!matchedElement || candidate.groupOrder < matchedElement.groupOrder) {
-					matchedElement = candidate;
-					matchedStrResource = strResource;
+			if (candidate.gwoupId === gwoupId) {
+				if (!matchedEwement || candidate.gwoupOwda < matchedEwement.gwoupOwda) {
+					matchedEwement = candidate;
+					matchedStwWesouwce = stwWesouwce;
 				}
 			}
 		}
 
-		return [matchedElement, matchedStrResource];
+		wetuwn [matchedEwement, matchedStwWesouwce];
 	}
 
-	private _continueRedoInGroup(groupId: number): Promise<void> | void {
-		if (!groupId) {
-			return;
+	pwivate _continueWedoInGwoup(gwoupId: numba): Pwomise<void> | void {
+		if (!gwoupId) {
+			wetuwn;
 		}
 
-		const [, matchedStrResource] = this._findClosestRedoElementInGroup(groupId);
-		if (matchedStrResource) {
-			return this._redo(matchedStrResource);
+		const [, matchedStwWesouwce] = this._findCwosestWedoEwementInGwoup(gwoupId);
+		if (matchedStwWesouwce) {
+			wetuwn this._wedo(matchedStwWesouwce);
 		}
 	}
 
-	public redo(resourceOrSource: URI | UndoRedoSource | string): Promise<void> | void {
-		if (resourceOrSource instanceof UndoRedoSource) {
-			const [, matchedStrResource] = this._findClosestRedoElementWithSource(resourceOrSource.id);
-			return matchedStrResource ? this._redo(matchedStrResource) : undefined;
+	pubwic wedo(wesouwceOwSouwce: UWI | UndoWedoSouwce | stwing): Pwomise<void> | void {
+		if (wesouwceOwSouwce instanceof UndoWedoSouwce) {
+			const [, matchedStwWesouwce] = this._findCwosestWedoEwementWithSouwce(wesouwceOwSouwce.id);
+			wetuwn matchedStwWesouwce ? this._wedo(matchedStwWesouwce) : undefined;
 		}
-		if (typeof resourceOrSource === 'string') {
-			return this._redo(resourceOrSource);
+		if (typeof wesouwceOwSouwce === 'stwing') {
+			wetuwn this._wedo(wesouwceOwSouwce);
 		}
-		return this._redo(this.getUriComparisonKey(resourceOrSource));
+		wetuwn this._wedo(this.getUwiCompawisonKey(wesouwceOwSouwce));
 	}
 
-	private _redo(strResource: string): Promise<void> | void {
-		if (!this._editStacks.has(strResource)) {
-			return;
+	pwivate _wedo(stwWesouwce: stwing): Pwomise<void> | void {
+		if (!this._editStacks.has(stwWesouwce)) {
+			wetuwn;
 		}
 
-		const editStack = this._editStacks.get(strResource)!;
-		const element = editStack.getClosestFutureElement();
-		if (!element) {
-			return;
+		const editStack = this._editStacks.get(stwWesouwce)!;
+		const ewement = editStack.getCwosestFutuweEwement();
+		if (!ewement) {
+			wetuwn;
 		}
 
-		if (element.groupId) {
-			// this element is a part of a group, we need to make sure redoing in a group is in order
-			const [matchedElement, matchedStrResource] = this._findClosestRedoElementInGroup(element.groupId);
-			if (element !== matchedElement && matchedStrResource) {
-				// there is an element in the same group that should be redone before this one
-				return this._redo(matchedStrResource);
+		if (ewement.gwoupId) {
+			// this ewement is a pawt of a gwoup, we need to make suwe wedoing in a gwoup is in owda
+			const [matchedEwement, matchedStwWesouwce] = this._findCwosestWedoEwementInGwoup(ewement.gwoupId);
+			if (ewement !== matchedEwement && matchedStwWesouwce) {
+				// thewe is an ewement in the same gwoup that shouwd be wedone befowe this one
+				wetuwn this._wedo(matchedStwWesouwce);
 			}
 		}
 
-		try {
-			if (element.type === UndoRedoElementType.Workspace) {
-				return this._workspaceRedo(strResource, element);
-			} else {
-				return this._resourceRedo(editStack, element);
+		twy {
+			if (ewement.type === UndoWedoEwementType.Wowkspace) {
+				wetuwn this._wowkspaceWedo(stwWesouwce, ewement);
+			} ewse {
+				wetuwn this._wesouwceWedo(editStack, ewement);
 			}
-		} finally {
+		} finawwy {
 			if (DEBUG) {
-				this._print('redo');
+				this._pwint('wedo');
 			}
 		}
 	}
 }
 
-class WorkspaceVerificationError {
-	constructor(public readonly returnValue: Promise<void> | void) { }
+cwass WowkspaceVewificationEwwow {
+	constwuctow(pubwic weadonwy wetuwnVawue: Pwomise<void> | void) { }
 }
 
-registerSingleton(IUndoRedoService, UndoRedoService);
+wegistewSingweton(IUndoWedoSewvice, UndoWedoSewvice);

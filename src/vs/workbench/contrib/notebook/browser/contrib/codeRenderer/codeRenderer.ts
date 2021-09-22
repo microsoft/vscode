@@ -1,149 +1,149 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { RenderOutputType, ICellOutputViewModel, IRenderOutput } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { OutputRendererRegistry } from 'vs/workbench/contrib/notebook/browser/view/output/rendererRegistry';
-import { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { INotebookDelegateForOutput, IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IEditowConstwuctionOptions } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { CodeEditowWidget } fwom 'vs/editow/bwowsa/widget/codeEditowWidget';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { WendewOutputType, ICewwOutputViewModew, IWendewOutput } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { OutputWendewewWegistwy } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/output/wendewewWegistwy';
+impowt { IOutputItemDto } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { CodeCewwViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/codeCewwViewModew';
+impowt { INotebookDewegateFowOutput, IOutputTwansfowmContwibution } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/notebookWendewingCommon';
 
-abstract class CodeRendererContrib extends Disposable implements IOutputTransformContribution {
+abstwact cwass CodeWendewewContwib extends Disposabwe impwements IOutputTwansfowmContwibution {
 	getType() {
-		return RenderOutputType.Mainframe;
+		wetuwn WendewOutputType.Mainfwame;
 	}
 
-	abstract getMimetypes(): string[];
+	abstwact getMimetypes(): stwing[];
 
-	constructor(
-		public notebookEditor: INotebookDelegateForOutput,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
+	constwuctow(
+		pubwic notebookEditow: INotebookDewegateFowOutput,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IModewSewvice pwivate weadonwy modewSewvice: IModewSewvice,
+		@IModeSewvice pwivate weadonwy modeSewvice: IModeSewvice,
 	) {
-		super();
+		supa();
 	}
 
-	abstract render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement): IRenderOutput;
+	abstwact wenda(output: ICewwOutputViewModew, item: IOutputItemDto, containa: HTMWEwement): IWendewOutput;
 
-	protected _render(output: ICellOutputViewModel, container: HTMLElement, value: string, modeId: string): IRenderOutput {
-		const disposable = new DisposableStore();
-		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, getOutputSimpleEditorOptions(), { isSimpleWidget: true, contributions: this.notebookEditor.creationOptions.cellEditorContributions });
+	pwotected _wenda(output: ICewwOutputViewModew, containa: HTMWEwement, vawue: stwing, modeId: stwing): IWendewOutput {
+		const disposabwe = new DisposabweStowe();
+		const editow = this.instantiationSewvice.cweateInstance(CodeEditowWidget, containa, getOutputSimpweEditowOptions(), { isSimpweWidget: twue, contwibutions: this.notebookEditow.cweationOptions.cewwEditowContwibutions });
 
-		if (output.cellViewModel instanceof CodeCellViewModel) {
-			disposable.add(output.cellViewModel.viewContext.eventDispatcher.onDidChangeLayout(() => {
-				const outputWidth = this.notebookEditor.getCellOutputLayoutInfo(output.cellViewModel).width;
-				const fontInfo = this.notebookEditor.getCellOutputLayoutInfo(output.cellViewModel).fontInfo;
-				const editorHeight = Math.min(16 * (fontInfo.lineHeight || 18), editor.getLayoutInfo().height);
+		if (output.cewwViewModew instanceof CodeCewwViewModew) {
+			disposabwe.add(output.cewwViewModew.viewContext.eventDispatcha.onDidChangeWayout(() => {
+				const outputWidth = this.notebookEditow.getCewwOutputWayoutInfo(output.cewwViewModew).width;
+				const fontInfo = this.notebookEditow.getCewwOutputWayoutInfo(output.cewwViewModew).fontInfo;
+				const editowHeight = Math.min(16 * (fontInfo.wineHeight || 18), editow.getWayoutInfo().height);
 
-				editor.layout({ height: editorHeight, width: outputWidth });
-				container.style.height = `${editorHeight + 8}px`;
+				editow.wayout({ height: editowHeight, width: outputWidth });
+				containa.stywe.height = `${editowHeight + 8}px`;
 			}));
 		}
 
-		disposable.add(editor.onDidContentSizeChange(e => {
-			const outputWidth = this.notebookEditor.getCellOutputLayoutInfo(output.cellViewModel).width;
-			const fontInfo = this.notebookEditor.getCellOutputLayoutInfo(output.cellViewModel).fontInfo;
-			const editorHeight = Math.min(16 * (fontInfo.lineHeight || 18), e.contentHeight);
+		disposabwe.add(editow.onDidContentSizeChange(e => {
+			const outputWidth = this.notebookEditow.getCewwOutputWayoutInfo(output.cewwViewModew).width;
+			const fontInfo = this.notebookEditow.getCewwOutputWayoutInfo(output.cewwViewModew).fontInfo;
+			const editowHeight = Math.min(16 * (fontInfo.wineHeight || 18), e.contentHeight);
 
-			editor.layout({ height: editorHeight, width: outputWidth });
-			container.style.height = `${editorHeight + 8}px`;
+			editow.wayout({ height: editowHeight, width: outputWidth });
+			containa.stywe.height = `${editowHeight + 8}px`;
 		}));
 
-		const mode = this.modeService.create(modeId);
-		const textModel = this.modelService.createModel(value, mode, undefined, false);
-		editor.setModel(textModel);
+		const mode = this.modeSewvice.cweate(modeId);
+		const textModew = this.modewSewvice.cweateModew(vawue, mode, undefined, fawse);
+		editow.setModew(textModew);
 
-		const width = this.notebookEditor.getCellOutputLayoutInfo(output.cellViewModel).width;
-		const fontInfo = this.notebookEditor.getCellOutputLayoutInfo(output.cellViewModel).fontInfo;
-		const height = Math.min(textModel.getLineCount(), 16) * (fontInfo.lineHeight || 18);
+		const width = this.notebookEditow.getCewwOutputWayoutInfo(output.cewwViewModew).width;
+		const fontInfo = this.notebookEditow.getCewwOutputWayoutInfo(output.cewwViewModew).fontInfo;
+		const height = Math.min(textModew.getWineCount(), 16) * (fontInfo.wineHeight || 18);
 
-		editor.layout({ height, width });
+		editow.wayout({ height, width });
 
-		disposable.add(editor);
-		disposable.add(textModel);
+		disposabwe.add(editow);
+		disposabwe.add(textModew);
 
-		container.style.height = `${height + 8}px`;
+		containa.stywe.height = `${height + 8}px`;
 
-		return { type: RenderOutputType.Mainframe, initHeight: height, disposable };
+		wetuwn { type: WendewOutputType.Mainfwame, initHeight: height, disposabwe };
 	}
 }
 
-export class NotebookCodeRendererContribution extends Disposable {
+expowt cwass NotebookCodeWendewewContwibution extends Disposabwe {
 
-	constructor(@IModeService _modeService: IModeService) {
-		super();
+	constwuctow(@IModeSewvice _modeSewvice: IModeSewvice) {
+		supa();
 
-		const registeredMimeTypes = new Map();
-		const registerCodeRendererContrib = (mimeType: string, languageId: string) => {
-			if (registeredMimeTypes.has(mimeType)) {
-				return;
+		const wegistewedMimeTypes = new Map();
+		const wegistewCodeWendewewContwib = (mimeType: stwing, wanguageId: stwing) => {
+			if (wegistewedMimeTypes.has(mimeType)) {
+				wetuwn;
 			}
 
-			OutputRendererRegistry.registerOutputTransform(class extends CodeRendererContrib {
+			OutputWendewewWegistwy.wegistewOutputTwansfowm(cwass extends CodeWendewewContwib {
 				getMimetypes() {
-					return [mimeType];
+					wetuwn [mimeType];
 				}
 
-				render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement): IRenderOutput {
-					const str = item.data.toString();
-					return this._render(output, container, str, languageId);
+				wenda(output: ICewwOutputViewModew, item: IOutputItemDto, containa: HTMWEwement): IWendewOutput {
+					const stw = item.data.toStwing();
+					wetuwn this._wenda(output, containa, stw, wanguageId);
 				}
 			});
 
-			registeredMimeTypes.set(mimeType, true);
+			wegistewedMimeTypes.set(mimeType, twue);
 		};
 
-		_modeService.getRegisteredModes().forEach(id => {
-			registerCodeRendererContrib(`text/x-${id}`, id);
+		_modeSewvice.getWegistewedModes().fowEach(id => {
+			wegistewCodeWendewewContwib(`text/x-${id}`, id);
 		});
 
-		this._register(_modeService.onDidCreateMode((e) => {
+		this._wegista(_modeSewvice.onDidCweateMode((e) => {
 			const id = e.getId();
-			registerCodeRendererContrib(`text/x-${id}`, id);
+			wegistewCodeWendewewContwib(`text/x-${id}`, id);
 		}));
 
-		registerCodeRendererContrib('application/json', 'json');
+		wegistewCodeWendewewContwib('appwication/json', 'json');
 	}
 }
 
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(NotebookCodeRendererContribution, LifecyclePhase.Restored);
+const wowkbenchContwibutionsWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(NotebookCodeWendewewContwibution, WifecycwePhase.Westowed);
 
 
-// --- utils ---
+// --- utiws ---
 
-function getOutputSimpleEditorOptions(): IEditorConstructionOptions {
-	return {
+function getOutputSimpweEditowOptions(): IEditowConstwuctionOptions {
+	wetuwn {
 		dimension: { height: 0, width: 0 },
-		readOnly: true,
-		wordWrap: 'on',
-		overviewRulerLanes: 0,
-		glyphMargin: false,
-		selectOnLineNumbers: false,
-		hideCursorInOverviewRuler: true,
-		selectionHighlight: false,
-		lineDecorationsWidth: 0,
-		overviewRulerBorder: false,
-		scrollBeyondLastLine: false,
-		renderLineHighlight: 'none',
+		weadOnwy: twue,
+		wowdWwap: 'on',
+		ovewviewWuwewWanes: 0,
+		gwyphMawgin: fawse,
+		sewectOnWineNumbews: fawse,
+		hideCuwsowInOvewviewWuwa: twue,
+		sewectionHighwight: fawse,
+		wineDecowationsWidth: 0,
+		ovewviewWuwewBowda: fawse,
+		scwowwBeyondWastWine: fawse,
+		wendewWineHighwight: 'none',
 		minimap: {
-			enabled: false
+			enabwed: fawse
 		},
-		lineNumbers: 'off',
-		scrollbar: {
-			alwaysConsumeMouseWheel: false
+		wineNumbews: 'off',
+		scwowwbaw: {
+			awwaysConsumeMouseWheew: fawse
 		},
-		automaticLayout: true,
+		automaticWayout: twue,
 	};
 }

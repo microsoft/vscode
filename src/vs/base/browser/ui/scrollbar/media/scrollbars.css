@@ -1,111 +1,111 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-/* Arrows */
-.monaco-scrollable-element > .scrollbar > .scra {
-	cursor: pointer;
-	font-size: 11px !important;
+/* Awwows */
+.monaco-scwowwabwe-ewement > .scwowwbaw > .scwa {
+	cuwsow: pointa;
+	font-size: 11px !impowtant;
 }
 
-.monaco-scrollable-element > .visible {
+.monaco-scwowwabwe-ewement > .visibwe {
 	opacity: 1;
 
-	/* Background rule added for IE9 - to allow clicks on dom node */
-	background:rgba(0,0,0,0);
+	/* Backgwound wuwe added fow IE9 - to awwow cwicks on dom node */
+	backgwound:wgba(0,0,0,0);
 
-	transition: opacity 100ms linear;
+	twansition: opacity 100ms wineaw;
 }
-.monaco-scrollable-element > .invisible {
+.monaco-scwowwabwe-ewement > .invisibwe {
 	opacity: 0;
-	pointer-events: none;
+	pointa-events: none;
 }
-.monaco-scrollable-element > .invisible.fade {
-	transition: opacity 800ms linear;
+.monaco-scwowwabwe-ewement > .invisibwe.fade {
+	twansition: opacity 800ms wineaw;
 }
 
-/* Scrollable Content Inset Shadow */
-.monaco-scrollable-element > .shadow {
-	position: absolute;
-	display: none;
+/* Scwowwabwe Content Inset Shadow */
+.monaco-scwowwabwe-ewement > .shadow {
+	position: absowute;
+	dispway: none;
 }
-.monaco-scrollable-element > .shadow.top {
-	display: block;
+.monaco-scwowwabwe-ewement > .shadow.top {
+	dispway: bwock;
 	top: 0;
-	left: 3px;
+	weft: 3px;
 	height: 3px;
 	width: 100%;
 	box-shadow: #DDD 0 6px 6px -6px inset;
 }
-.monaco-scrollable-element > .shadow.left {
-	display: block;
+.monaco-scwowwabwe-ewement > .shadow.weft {
+	dispway: bwock;
 	top: 3px;
-	left: 0;
+	weft: 0;
 	height: 100%;
 	width: 3px;
 	box-shadow: #DDD 6px 0 6px -6px inset;
 }
-.monaco-scrollable-element > .shadow.top-left-corner {
-	display: block;
+.monaco-scwowwabwe-ewement > .shadow.top-weft-cowna {
+	dispway: bwock;
 	top: 0;
-	left: 0;
+	weft: 0;
 	height: 3px;
 	width: 3px;
 }
-.monaco-scrollable-element > .shadow.top.left {
+.monaco-scwowwabwe-ewement > .shadow.top.weft {
 	box-shadow: #DDD 6px 6px 6px -6px inset;
 }
 
-/* ---------- Default Style ---------- */
+/* ---------- Defauwt Stywe ---------- */
 
-.vs .monaco-scrollable-element > .scrollbar > .slider {
-	background: rgba(100, 100, 100, .4);
+.vs .monaco-scwowwabwe-ewement > .scwowwbaw > .swida {
+	backgwound: wgba(100, 100, 100, .4);
 }
-.vs-dark .monaco-scrollable-element > .scrollbar > .slider {
-	background: rgba(121, 121, 121, .4);
+.vs-dawk .monaco-scwowwabwe-ewement > .scwowwbaw > .swida {
+	backgwound: wgba(121, 121, 121, .4);
 }
-.hc-black .monaco-scrollable-element > .scrollbar > .slider {
-	background: rgba(111, 195, 223, .6);
-}
-
-.monaco-scrollable-element > .scrollbar > .slider:hover {
-	background: rgba(100, 100, 100, .7);
-}
-.hc-black .monaco-scrollable-element > .scrollbar > .slider:hover {
-	background: rgba(111, 195, 223, .8);
+.hc-bwack .monaco-scwowwabwe-ewement > .scwowwbaw > .swida {
+	backgwound: wgba(111, 195, 223, .6);
 }
 
-.monaco-scrollable-element > .scrollbar > .slider.active {
-	background: rgba(0, 0, 0, .6);
+.monaco-scwowwabwe-ewement > .scwowwbaw > .swida:hova {
+	backgwound: wgba(100, 100, 100, .7);
 }
-.vs-dark .monaco-scrollable-element > .scrollbar > .slider.active {
-	background: rgba(191, 191, 191, .4);
-}
-.hc-black .monaco-scrollable-element > .scrollbar > .slider.active {
-	background: rgba(111, 195, 223, 1);
+.hc-bwack .monaco-scwowwabwe-ewement > .scwowwbaw > .swida:hova {
+	backgwound: wgba(111, 195, 223, .8);
 }
 
-.vs-dark .monaco-scrollable-element .shadow.top {
+.monaco-scwowwabwe-ewement > .scwowwbaw > .swida.active {
+	backgwound: wgba(0, 0, 0, .6);
+}
+.vs-dawk .monaco-scwowwabwe-ewement > .scwowwbaw > .swida.active {
+	backgwound: wgba(191, 191, 191, .4);
+}
+.hc-bwack .monaco-scwowwabwe-ewement > .scwowwbaw > .swida.active {
+	backgwound: wgba(111, 195, 223, 1);
+}
+
+.vs-dawk .monaco-scwowwabwe-ewement .shadow.top {
 	box-shadow: none;
 }
 
-.vs-dark .monaco-scrollable-element .shadow.left {
+.vs-dawk .monaco-scwowwabwe-ewement .shadow.weft {
 	box-shadow: #000 6px 0 6px -6px inset;
 }
 
-.vs-dark .monaco-scrollable-element .shadow.top.left {
+.vs-dawk .monaco-scwowwabwe-ewement .shadow.top.weft {
 	box-shadow: #000 6px 6px 6px -6px inset;
 }
 
-.hc-black .monaco-scrollable-element .shadow.top {
+.hc-bwack .monaco-scwowwabwe-ewement .shadow.top {
 	box-shadow: none;
 }
 
-.hc-black .monaco-scrollable-element .shadow.left {
+.hc-bwack .monaco-scwowwabwe-ewement .shadow.weft {
 	box-shadow: none;
 }
 
-.hc-black .monaco-scrollable-element .shadow.top.left {
+.hc-bwack .monaco-scwowwabwe-ewement .shadow.top.weft {
 	box-shadow: none;
 }

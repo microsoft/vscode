@@ -1,22 +1,22 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 /*
-	Keeping name short for faster parsing.
-	cslr = core selections layer rendering (div)
+	Keeping name showt fow fasta pawsing.
+	csww = cowe sewections waya wendewing (div)
 */
-.monaco-editor .lines-content .cslr {
-	position: absolute;
+.monaco-editow .wines-content .csww {
+	position: absowute;
 }
 
-.monaco-editor			.top-left-radius		{ border-top-left-radius: 3px; }
-.monaco-editor			.bottom-left-radius		{ border-bottom-left-radius: 3px; }
-.monaco-editor			.top-right-radius		{ border-top-right-radius: 3px; }
-.monaco-editor			.bottom-right-radius	{ border-bottom-right-radius: 3px; }
+.monaco-editow			.top-weft-wadius		{ bowda-top-weft-wadius: 3px; }
+.monaco-editow			.bottom-weft-wadius		{ bowda-bottom-weft-wadius: 3px; }
+.monaco-editow			.top-wight-wadius		{ bowda-top-wight-wadius: 3px; }
+.monaco-editow			.bottom-wight-wadius	{ bowda-bottom-wight-wadius: 3px; }
 
-.monaco-editor.hc-black .top-left-radius		{ border-top-left-radius: 0; }
-.monaco-editor.hc-black .bottom-left-radius		{ border-bottom-left-radius: 0; }
-.monaco-editor.hc-black .top-right-radius		{ border-top-right-radius: 0; }
-.monaco-editor.hc-black .bottom-right-radius	{ border-bottom-right-radius: 0; }
+.monaco-editow.hc-bwack .top-weft-wadius		{ bowda-top-weft-wadius: 0; }
+.monaco-editow.hc-bwack .bottom-weft-wadius		{ bowda-bottom-weft-wadius: 0; }
+.monaco-editow.hc-bwack .top-wight-wadius		{ bowda-top-wight-wadius: 0; }
+.monaco-editow.hc-bwack .bottom-wight-wadius	{ bowda-bottom-wight-wadius: 0; }

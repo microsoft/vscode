@@ -1,308 +1,308 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { VSBufferReadableStream, newWriteableBufferStream, VSBuffer, streamToBuffer, bufferToStream } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { basename } from 'vs/base/common/resources';
-import { consumeReadable, consumeStream, isReadableStream } from 'vs/base/common/stream';
-import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelContentChangedEvent, IUntitledFileWorkingCopyModelFactory, UntitledFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
-import { TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+impowt * as assewt fwom 'assewt';
+impowt { VSBuffewWeadabweStweam, newWwiteabweBuffewStweam, VSBuffa, stweamToBuffa, buffewToStweam } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { basename } fwom 'vs/base/common/wesouwces';
+impowt { consumeWeadabwe, consumeStweam, isWeadabweStweam } fwom 'vs/base/common/stweam';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IUntitwedFiweWowkingCopyModew, IUntitwedFiweWowkingCopyModewContentChangedEvent, IUntitwedFiweWowkingCopyModewFactowy, UntitwedFiweWowkingCopy } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/untitwedFiweWowkingCopy';
+impowt { TestSewviceAccessow, wowkbenchInstantiationSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
 
-export class TestUntitledFileWorkingCopyModel extends Disposable implements IUntitledFileWorkingCopyModel {
+expowt cwass TestUntitwedFiweWowkingCopyModew extends Disposabwe impwements IUntitwedFiweWowkingCopyModew {
 
-	private readonly _onDidChangeContent = this._register(new Emitter<IUntitledFileWorkingCopyModelContentChangedEvent>());
-	readonly onDidChangeContent = this._onDidChangeContent.event;
+	pwivate weadonwy _onDidChangeContent = this._wegista(new Emitta<IUntitwedFiweWowkingCopyModewContentChangedEvent>());
+	weadonwy onDidChangeContent = this._onDidChangeContent.event;
 
-	private readonly _onWillDispose = this._register(new Emitter<void>());
-	readonly onWillDispose = this._onWillDispose.event;
+	pwivate weadonwy _onWiwwDispose = this._wegista(new Emitta<void>());
+	weadonwy onWiwwDispose = this._onWiwwDispose.event;
 
-	constructor(readonly resource: URI, public contents: string) {
-		super();
+	constwuctow(weadonwy wesouwce: UWI, pubwic contents: stwing) {
+		supa();
 	}
 
-	fireContentChangeEvent(event: IUntitledFileWorkingCopyModelContentChangedEvent): void {
-		this._onDidChangeContent.fire(event);
+	fiweContentChangeEvent(event: IUntitwedFiweWowkingCopyModewContentChangedEvent): void {
+		this._onDidChangeContent.fiwe(event);
 	}
 
-	updateContents(newContents: string): void {
+	updateContents(newContents: stwing): void {
 		this.doUpdate(newContents);
 	}
 
-	private throwOnSnapshot = false;
-	setThrowOnSnapshot(): void {
-		this.throwOnSnapshot = true;
+	pwivate thwowOnSnapshot = fawse;
+	setThwowOnSnapshot(): void {
+		this.thwowOnSnapshot = twue;
 	}
 
-	async snapshot(token: CancellationToken): Promise<VSBufferReadableStream> {
-		if (this.throwOnSnapshot) {
-			throw new Error('Fail');
+	async snapshot(token: CancewwationToken): Pwomise<VSBuffewWeadabweStweam> {
+		if (this.thwowOnSnapshot) {
+			thwow new Ewwow('Faiw');
 		}
 
-		const stream = newWriteableBufferStream();
-		stream.end(VSBuffer.fromString(this.contents));
+		const stweam = newWwiteabweBuffewStweam();
+		stweam.end(VSBuffa.fwomStwing(this.contents));
 
-		return stream;
+		wetuwn stweam;
 	}
 
-	async update(contents: VSBufferReadableStream, token: CancellationToken): Promise<void> {
-		this.doUpdate((await streamToBuffer(contents)).toString());
+	async update(contents: VSBuffewWeadabweStweam, token: CancewwationToken): Pwomise<void> {
+		this.doUpdate((await stweamToBuffa(contents)).toStwing());
 	}
 
-	private doUpdate(newContents: string): void {
+	pwivate doUpdate(newContents: stwing): void {
 		this.contents = newContents;
 
-		this.versionId++;
+		this.vewsionId++;
 
-		this._onDidChangeContent.fire({ isInitial: newContents.length === 0 });
+		this._onDidChangeContent.fiwe({ isInitiaw: newContents.wength === 0 });
 	}
 
-	versionId = 0;
+	vewsionId = 0;
 
-	pushedStackElement = false;
+	pushedStackEwement = fawse;
 
-	pushStackElement(): void {
-		this.pushedStackElement = true;
+	pushStackEwement(): void {
+		this.pushedStackEwement = twue;
 	}
 
-	override dispose(): void {
-		this._onWillDispose.fire();
+	ovewwide dispose(): void {
+		this._onWiwwDispose.fiwe();
 
-		super.dispose();
-	}
-}
-
-export class TestUntitledFileWorkingCopyModelFactory implements IUntitledFileWorkingCopyModelFactory<TestUntitledFileWorkingCopyModel> {
-
-	async createModel(resource: URI, contents: VSBufferReadableStream, token: CancellationToken): Promise<TestUntitledFileWorkingCopyModel> {
-		return new TestUntitledFileWorkingCopyModel(resource, (await streamToBuffer(contents)).toString());
+		supa.dispose();
 	}
 }
 
-suite('UntitledFileWorkingCopy', () => {
+expowt cwass TestUntitwedFiweWowkingCopyModewFactowy impwements IUntitwedFiweWowkingCopyModewFactowy<TestUntitwedFiweWowkingCopyModew> {
 
-	const factory = new TestUntitledFileWorkingCopyModelFactory();
+	async cweateModew(wesouwce: UWI, contents: VSBuffewWeadabweStweam, token: CancewwationToken): Pwomise<TestUntitwedFiweWowkingCopyModew> {
+		wetuwn new TestUntitwedFiweWowkingCopyModew(wesouwce, (await stweamToBuffa(contents)).toStwing());
+	}
+}
 
-	let resource = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
-	let instantiationService: IInstantiationService;
-	let accessor: TestServiceAccessor;
-	let workingCopy: UntitledFileWorkingCopy<TestUntitledFileWorkingCopyModel>;
+suite('UntitwedFiweWowkingCopy', () => {
 
-	function createWorkingCopy(uri: URI = resource, hasAssociatedFilePath = false, initialValue = '') {
-		return new UntitledFileWorkingCopy<TestUntitledFileWorkingCopyModel>(
-			'testUntitledWorkingCopyType',
-			uri,
-			basename(uri),
-			hasAssociatedFilePath,
-			initialValue.length > 0 ? { value: bufferToStream(VSBuffer.fromString(initialValue)) } : undefined,
-			factory,
-			async workingCopy => { await workingCopy.revert(); return true; },
-			accessor.workingCopyService,
-			accessor.workingCopyBackupService,
-			accessor.logService
+	const factowy = new TestUntitwedFiweWowkingCopyModewFactowy();
+
+	wet wesouwce = UWI.fwom({ scheme: Schemas.untitwed, path: 'Untitwed-1' });
+	wet instantiationSewvice: IInstantiationSewvice;
+	wet accessow: TestSewviceAccessow;
+	wet wowkingCopy: UntitwedFiweWowkingCopy<TestUntitwedFiweWowkingCopyModew>;
+
+	function cweateWowkingCopy(uwi: UWI = wesouwce, hasAssociatedFiwePath = fawse, initiawVawue = '') {
+		wetuwn new UntitwedFiweWowkingCopy<TestUntitwedFiweWowkingCopyModew>(
+			'testUntitwedWowkingCopyType',
+			uwi,
+			basename(uwi),
+			hasAssociatedFiwePath,
+			initiawVawue.wength > 0 ? { vawue: buffewToStweam(VSBuffa.fwomStwing(initiawVawue)) } : undefined,
+			factowy,
+			async wowkingCopy => { await wowkingCopy.wevewt(); wetuwn twue; },
+			accessow.wowkingCopySewvice,
+			accessow.wowkingCopyBackupSewvice,
+			accessow.wogSewvice
 		);
 	}
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
-		accessor = instantiationService.createInstance(TestServiceAccessor);
+		instantiationSewvice = wowkbenchInstantiationSewvice();
+		accessow = instantiationSewvice.cweateInstance(TestSewviceAccessow);
 
-		workingCopy = createWorkingCopy();
+		wowkingCopy = cweateWowkingCopy();
 	});
 
-	teardown(() => {
-		workingCopy.dispose();
+	teawdown(() => {
+		wowkingCopy.dispose();
 	});
 
-	test('registers with working copy service', async () => {
-		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 1);
+	test('wegistews with wowking copy sewvice', async () => {
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.wowkingCopies.wength, 1);
 
-		workingCopy.dispose();
+		wowkingCopy.dispose();
 
-		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.wowkingCopies.wength, 0);
 	});
 
-	test('dirty', async () => {
-		assert.strictEqual(workingCopy.isDirty(), false);
+	test('diwty', async () => {
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), fawse);
 
-		let changeDirtyCounter = 0;
-		workingCopy.onDidChangeDirty(() => {
-			changeDirtyCounter++;
+		wet changeDiwtyCounta = 0;
+		wowkingCopy.onDidChangeDiwty(() => {
+			changeDiwtyCounta++;
 		});
 
-		let contentChangeCounter = 0;
-		workingCopy.onDidChangeContent(() => {
-			contentChangeCounter++;
+		wet contentChangeCounta = 0;
+		wowkingCopy.onDidChangeContent(() => {
+			contentChangeCounta++;
 		});
 
-		await workingCopy.resolve();
-		assert.strictEqual(workingCopy.isResolved(), true);
+		await wowkingCopy.wesowve();
+		assewt.stwictEquaw(wowkingCopy.isWesowved(), twue);
 
-		// Dirty from: Model content change
-		workingCopy.model?.updateContents('hello dirty');
-		assert.strictEqual(contentChangeCounter, 1);
+		// Diwty fwom: Modew content change
+		wowkingCopy.modew?.updateContents('hewwo diwty');
+		assewt.stwictEquaw(contentChangeCounta, 1);
 
-		assert.strictEqual(workingCopy.isDirty(), true);
-		assert.strictEqual(changeDirtyCounter, 1);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), twue);
+		assewt.stwictEquaw(changeDiwtyCounta, 1);
 
-		await workingCopy.save();
+		await wowkingCopy.save();
 
-		assert.strictEqual(workingCopy.isDirty(), false);
-		assert.strictEqual(changeDirtyCounter, 2);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), fawse);
+		assewt.stwictEquaw(changeDiwtyCounta, 2);
 	});
 
-	test('dirty - cleared when content event signals isEmpty', async () => {
-		assert.strictEqual(workingCopy.isDirty(), false);
+	test('diwty - cweawed when content event signaws isEmpty', async () => {
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), fawse);
 
-		await workingCopy.resolve();
+		await wowkingCopy.wesowve();
 
-		workingCopy.model?.updateContents('hello dirty');
-		assert.strictEqual(workingCopy.isDirty(), true);
+		wowkingCopy.modew?.updateContents('hewwo diwty');
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), twue);
 
-		workingCopy.model?.fireContentChangeEvent({ isInitial: true });
+		wowkingCopy.modew?.fiweContentChangeEvent({ isInitiaw: twue });
 
-		assert.strictEqual(workingCopy.isDirty(), false);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), fawse);
 	});
 
-	test('dirty - not cleared when content event signals isEmpty when associated resource', async () => {
-		workingCopy.dispose();
-		workingCopy = createWorkingCopy(resource, true);
+	test('diwty - not cweawed when content event signaws isEmpty when associated wesouwce', async () => {
+		wowkingCopy.dispose();
+		wowkingCopy = cweateWowkingCopy(wesouwce, twue);
 
-		await workingCopy.resolve();
+		await wowkingCopy.wesowve();
 
-		workingCopy.model?.updateContents('hello dirty');
-		assert.strictEqual(workingCopy.isDirty(), true);
+		wowkingCopy.modew?.updateContents('hewwo diwty');
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), twue);
 
-		workingCopy.model?.fireContentChangeEvent({ isInitial: true });
+		wowkingCopy.modew?.fiweContentChangeEvent({ isInitiaw: twue });
 
-		assert.strictEqual(workingCopy.isDirty(), true);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), twue);
 	});
 
-	test('revert', async () => {
-		let revertCounter = 0;
-		workingCopy.onDidRevert(() => {
-			revertCounter++;
+	test('wevewt', async () => {
+		wet wevewtCounta = 0;
+		wowkingCopy.onDidWevewt(() => {
+			wevewtCounta++;
 		});
 
-		let disposeCounter = 0;
-		workingCopy.onWillDispose(() => {
-			disposeCounter++;
+		wet disposeCounta = 0;
+		wowkingCopy.onWiwwDispose(() => {
+			disposeCounta++;
 		});
 
-		await workingCopy.resolve();
+		await wowkingCopy.wesowve();
 
-		workingCopy.model?.updateContents('hello dirty');
-		assert.strictEqual(workingCopy.isDirty(), true);
+		wowkingCopy.modew?.updateContents('hewwo diwty');
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), twue);
 
-		await workingCopy.revert();
+		await wowkingCopy.wevewt();
 
-		assert.strictEqual(revertCounter, 1);
-		assert.strictEqual(disposeCounter, 1);
-		assert.strictEqual(workingCopy.isDirty(), false);
+		assewt.stwictEquaw(wevewtCounta, 1);
+		assewt.stwictEquaw(disposeCounta, 1);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), fawse);
 	});
 
 	test('dispose', async () => {
-		let disposeCounter = 0;
-		workingCopy.onWillDispose(() => {
-			disposeCounter++;
+		wet disposeCounta = 0;
+		wowkingCopy.onWiwwDispose(() => {
+			disposeCounta++;
 		});
 
-		await workingCopy.resolve();
-		workingCopy.dispose();
+		await wowkingCopy.wesowve();
+		wowkingCopy.dispose();
 
-		assert.strictEqual(disposeCounter, 1);
+		assewt.stwictEquaw(disposeCounta, 1);
 	});
 
 	test('backup', async () => {
-		assert.strictEqual((await workingCopy.backup(CancellationToken.None)).content, undefined);
+		assewt.stwictEquaw((await wowkingCopy.backup(CancewwationToken.None)).content, undefined);
 
-		await workingCopy.resolve();
+		await wowkingCopy.wesowve();
 
-		workingCopy.model?.updateContents('Hello Backup');
-		const backup = await workingCopy.backup(CancellationToken.None);
+		wowkingCopy.modew?.updateContents('Hewwo Backup');
+		const backup = await wowkingCopy.backup(CancewwationToken.None);
 
-		let backupContents: string | undefined = undefined;
-		if (isReadableStream(backup.content)) {
-			backupContents = (await consumeStream(backup.content, chunks => VSBuffer.concat(chunks))).toString();
-		} else if (backup.content) {
-			backupContents = consumeReadable(backup.content, chunks => VSBuffer.concat(chunks)).toString();
+		wet backupContents: stwing | undefined = undefined;
+		if (isWeadabweStweam(backup.content)) {
+			backupContents = (await consumeStweam(backup.content, chunks => VSBuffa.concat(chunks))).toStwing();
+		} ewse if (backup.content) {
+			backupContents = consumeWeadabwe(backup.content, chunks => VSBuffa.concat(chunks)).toStwing();
 		}
 
-		assert.strictEqual(backupContents, 'Hello Backup');
+		assewt.stwictEquaw(backupContents, 'Hewwo Backup');
 	});
 
-	test('resolve - without contents', async () => {
-		assert.strictEqual(workingCopy.isResolved(), false);
-		assert.strictEqual(workingCopy.hasAssociatedFilePath, false);
-		assert.strictEqual(workingCopy.model, undefined);
+	test('wesowve - without contents', async () => {
+		assewt.stwictEquaw(wowkingCopy.isWesowved(), fawse);
+		assewt.stwictEquaw(wowkingCopy.hasAssociatedFiwePath, fawse);
+		assewt.stwictEquaw(wowkingCopy.modew, undefined);
 
-		await workingCopy.resolve();
+		await wowkingCopy.wesowve();
 
-		assert.strictEqual(workingCopy.isResolved(), true);
-		assert.ok(workingCopy.model);
+		assewt.stwictEquaw(wowkingCopy.isWesowved(), twue);
+		assewt.ok(wowkingCopy.modew);
 	});
 
-	test('resolve - with initial contents', async () => {
-		workingCopy.dispose();
+	test('wesowve - with initiaw contents', async () => {
+		wowkingCopy.dispose();
 
-		workingCopy = createWorkingCopy(resource, false, 'Hello Initial');
+		wowkingCopy = cweateWowkingCopy(wesouwce, fawse, 'Hewwo Initiaw');
 
-		let contentChangeCounter = 0;
-		workingCopy.onDidChangeContent(() => {
-			contentChangeCounter++;
+		wet contentChangeCounta = 0;
+		wowkingCopy.onDidChangeContent(() => {
+			contentChangeCounta++;
 		});
 
-		await workingCopy.resolve();
+		await wowkingCopy.wesowve();
 
-		assert.strictEqual(workingCopy.isDirty(), true);
-		assert.strictEqual(workingCopy.model?.contents, 'Hello Initial');
-		assert.strictEqual(contentChangeCounter, 1);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), twue);
+		assewt.stwictEquaw(wowkingCopy.modew?.contents, 'Hewwo Initiaw');
+		assewt.stwictEquaw(contentChangeCounta, 1);
 
-		workingCopy.model.updateContents('Changed contents');
+		wowkingCopy.modew.updateContents('Changed contents');
 
-		await workingCopy.resolve(); // second resolve should be ignored
-		assert.strictEqual(workingCopy.model?.contents, 'Changed contents');
+		await wowkingCopy.wesowve(); // second wesowve shouwd be ignowed
+		assewt.stwictEquaw(wowkingCopy.modew?.contents, 'Changed contents');
 	});
 
-	test('resolve - with associated resource', async () => {
-		workingCopy.dispose();
-		workingCopy = createWorkingCopy(resource, true);
+	test('wesowve - with associated wesouwce', async () => {
+		wowkingCopy.dispose();
+		wowkingCopy = cweateWowkingCopy(wesouwce, twue);
 
-		await workingCopy.resolve();
+		await wowkingCopy.wesowve();
 
-		assert.strictEqual(workingCopy.isDirty(), true);
-		assert.strictEqual(workingCopy.hasAssociatedFilePath, true);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), twue);
+		assewt.stwictEquaw(wowkingCopy.hasAssociatedFiwePath, twue);
 	});
 
-	test('resolve - with backup', async () => {
-		await workingCopy.resolve();
-		workingCopy.model?.updateContents('Hello Backup');
+	test('wesowve - with backup', async () => {
+		await wowkingCopy.wesowve();
+		wowkingCopy.modew?.updateContents('Hewwo Backup');
 
-		const backup = await workingCopy.backup(CancellationToken.None);
-		await accessor.workingCopyBackupService.backup(workingCopy, backup.content, undefined, backup.meta);
+		const backup = await wowkingCopy.backup(CancewwationToken.None);
+		await accessow.wowkingCopyBackupSewvice.backup(wowkingCopy, backup.content, undefined, backup.meta);
 
-		assert.strictEqual(accessor.workingCopyBackupService.hasBackupSync(workingCopy), true);
+		assewt.stwictEquaw(accessow.wowkingCopyBackupSewvice.hasBackupSync(wowkingCopy), twue);
 
-		workingCopy.dispose();
+		wowkingCopy.dispose();
 
-		workingCopy = createWorkingCopy();
+		wowkingCopy = cweateWowkingCopy();
 
-		let contentChangeCounter = 0;
-		workingCopy.onDidChangeContent(() => {
-			contentChangeCounter++;
+		wet contentChangeCounta = 0;
+		wowkingCopy.onDidChangeContent(() => {
+			contentChangeCounta++;
 		});
 
-		await workingCopy.resolve();
+		await wowkingCopy.wesowve();
 
-		assert.strictEqual(workingCopy.isDirty(), true);
-		assert.strictEqual(workingCopy.model?.contents, 'Hello Backup');
-		assert.strictEqual(contentChangeCounter, 1);
+		assewt.stwictEquaw(wowkingCopy.isDiwty(), twue);
+		assewt.stwictEquaw(wowkingCopy.modew?.contents, 'Hewwo Backup');
+		assewt.stwictEquaw(contentChangeCounta, 1);
 	});
 });

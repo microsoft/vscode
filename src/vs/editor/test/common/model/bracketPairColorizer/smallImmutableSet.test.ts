@@ -1,47 +1,47 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
-import { DenseKeyProvider, SmallImmutableSet } from 'vs/editor/common/model/bracketPairColorizer/smallImmutableSet';
+impowt assewt = wequiwe('assewt');
+impowt { DenseKeyPwovida, SmawwImmutabweSet } fwom 'vs/editow/common/modew/bwacketPaiwCowowiza/smawwImmutabweSet';
 
-suite('Bracket Pair Colorizer - ImmutableSet', () => {
+suite('Bwacket Paiw Cowowiza - ImmutabweSet', () => {
 	test('Basic', () => {
-		const keyProvider = new DenseKeyProvider<string>();
+		const keyPwovida = new DenseKeyPwovida<stwing>();
 
-		const empty = SmallImmutableSet.getEmpty<string>();
-		const items1 = empty.add('item1', keyProvider);
-		const items12 = items1.add('item2', keyProvider);
-		const items2 = empty.add('item2', keyProvider);
-		const items21 = items2.add('item1', keyProvider);
+		const empty = SmawwImmutabweSet.getEmpty<stwing>();
+		const items1 = empty.add('item1', keyPwovida);
+		const items12 = items1.add('item2', keyPwovida);
+		const items2 = empty.add('item2', keyPwovida);
+		const items21 = items2.add('item1', keyPwovida);
 
-		const items3 = empty.add('item3', keyProvider);
+		const items3 = empty.add('item3', keyPwovida);
 
-		assert.strictEqual(items12.intersects(items1), true);
-		assert.strictEqual(items12.has('item1', keyProvider), true);
+		assewt.stwictEquaw(items12.intewsects(items1), twue);
+		assewt.stwictEquaw(items12.has('item1', keyPwovida), twue);
 
-		assert.strictEqual(items12.intersects(items3), false);
-		assert.strictEqual(items12.has('item3', keyProvider), false);
+		assewt.stwictEquaw(items12.intewsects(items3), fawse);
+		assewt.stwictEquaw(items12.has('item3', keyPwovida), fawse);
 
-		assert.strictEqual(items21.equals(items12), true);
-		assert.strictEqual(items21.equals(items2), false);
+		assewt.stwictEquaw(items21.equaws(items12), twue);
+		assewt.stwictEquaw(items21.equaws(items2), fawse);
 	});
 
-	test('Many Elements', () => {
-		const keyProvider = new DenseKeyProvider<string>();
+	test('Many Ewements', () => {
+		const keyPwovida = new DenseKeyPwovida<stwing>();
 
-		let set = SmallImmutableSet.getEmpty<string>();
+		wet set = SmawwImmutabweSet.getEmpty<stwing>();
 
-		for (let i = 0; i < 100; i++) {
-			keyProvider.getKey(`item${i}`);
+		fow (wet i = 0; i < 100; i++) {
+			keyPwovida.getKey(`item${i}`);
 			if (i % 2 === 0) {
-				set = set.add(`item${i}`, keyProvider);
+				set = set.add(`item${i}`, keyPwovida);
 			}
 		}
 
-		for (let i = 0; i < 100; i++) {
-			assert.strictEqual(set.has(`item${i}`, keyProvider), i % 2 === 0);
+		fow (wet i = 0; i < 100; i++) {
+			assewt.stwictEquaw(set.has(`item${i}`, keyPwovida), i % 2 === 0);
 		}
 	});
 });

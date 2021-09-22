@@ -1,76 +1,76 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Color, RGBA } from 'vs/base/common/color';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { IModelDecorationOptions, OverviewRulerLane } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+impowt * as nws fwom 'vs/nws';
+impowt { Cowow, WGBA } fwom 'vs/base/common/cowow';
+impowt { ContentWidgetPositionPwefewence, ICodeEditow, IContentWidgetPosition } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IModewDecowationOptions, OvewviewWuwewWane } fwom 'vs/editow/common/modew';
+impowt { ModewDecowationOptions } fwom 'vs/editow/common/modew/textModew';
+impowt { wegistewCowow } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { themeCowowFwomId } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-const overviewRulerDefault = new Color(new RGBA(197, 197, 197, 1));
+const ovewviewWuwewDefauwt = new Cowow(new WGBA(197, 197, 197, 1));
 
-export const overviewRulerCommentingRangeForeground = registerColor('editorGutter.commentRangeForeground', { dark: overviewRulerDefault, light: overviewRulerDefault, hc: overviewRulerDefault }, nls.localize('editorGutterCommentRangeForeground', 'Editor gutter decoration color for commenting ranges.'));
+expowt const ovewviewWuwewCommentingWangeFowegwound = wegistewCowow('editowGutta.commentWangeFowegwound', { dawk: ovewviewWuwewDefauwt, wight: ovewviewWuwewDefauwt, hc: ovewviewWuwewDefauwt }, nws.wocawize('editowGuttewCommentWangeFowegwound', 'Editow gutta decowation cowow fow commenting wanges.'));
 
-export class CommentGlyphWidget {
-	private _lineNumber!: number;
-	private _editor: ICodeEditor;
-	private commentsDecorations: string[] = [];
-	private _commentsOptions: ModelDecorationOptions;
+expowt cwass CommentGwyphWidget {
+	pwivate _wineNumba!: numba;
+	pwivate _editow: ICodeEditow;
+	pwivate commentsDecowations: stwing[] = [];
+	pwivate _commentsOptions: ModewDecowationOptions;
 
-	constructor(editor: ICodeEditor, lineNumber: number) {
-		this._commentsOptions = this.createDecorationOptions();
-		this._editor = editor;
-		this.setLineNumber(lineNumber);
+	constwuctow(editow: ICodeEditow, wineNumba: numba) {
+		this._commentsOptions = this.cweateDecowationOptions();
+		this._editow = editow;
+		this.setWineNumba(wineNumba);
 	}
 
-	private createDecorationOptions(): ModelDecorationOptions {
-		const decorationOptions: IModelDecorationOptions = {
-			description: 'comment-glyph-widget',
-			isWholeLine: true,
-			overviewRuler: {
-				color: themeColorFromId(overviewRulerCommentingRangeForeground),
-				position: OverviewRulerLane.Center
+	pwivate cweateDecowationOptions(): ModewDecowationOptions {
+		const decowationOptions: IModewDecowationOptions = {
+			descwiption: 'comment-gwyph-widget',
+			isWhoweWine: twue,
+			ovewviewWuwa: {
+				cowow: themeCowowFwomId(ovewviewWuwewCommentingWangeFowegwound),
+				position: OvewviewWuwewWane.Centa
 			},
-			linesDecorationsClassName: `comment-range-glyph comment-thread`
+			winesDecowationsCwassName: `comment-wange-gwyph comment-thwead`
 		};
 
-		return ModelDecorationOptions.createDynamic(decorationOptions);
+		wetuwn ModewDecowationOptions.cweateDynamic(decowationOptions);
 	}
 
-	setLineNumber(lineNumber: number): void {
-		this._lineNumber = lineNumber;
-		let commentsDecorations = [{
-			range: {
-				startLineNumber: lineNumber, startColumn: 1,
-				endLineNumber: lineNumber, endColumn: 1
+	setWineNumba(wineNumba: numba): void {
+		this._wineNumba = wineNumba;
+		wet commentsDecowations = [{
+			wange: {
+				stawtWineNumba: wineNumba, stawtCowumn: 1,
+				endWineNumba: wineNumba, endCowumn: 1
 			},
 			options: this._commentsOptions
 		}];
 
-		this.commentsDecorations = this._editor.deltaDecorations(this.commentsDecorations, commentsDecorations);
+		this.commentsDecowations = this._editow.dewtaDecowations(this.commentsDecowations, commentsDecowations);
 	}
 
 	getPosition(): IContentWidgetPosition {
-		const range = this._editor.hasModel() && this.commentsDecorations && this.commentsDecorations.length
-			? this._editor.getModel().getDecorationRange(this.commentsDecorations[0])
-			: null;
+		const wange = this._editow.hasModew() && this.commentsDecowations && this.commentsDecowations.wength
+			? this._editow.getModew().getDecowationWange(this.commentsDecowations[0])
+			: nuww;
 
-		return {
+		wetuwn {
 			position: {
-				lineNumber: range ? range.startLineNumber : this._lineNumber,
-				column: 1
+				wineNumba: wange ? wange.stawtWineNumba : this._wineNumba,
+				cowumn: 1
 			},
-			preference: [ContentWidgetPositionPreference.EXACT]
+			pwefewence: [ContentWidgetPositionPwefewence.EXACT]
 		};
 	}
 
 	dispose() {
-		if (this.commentsDecorations) {
-			this._editor.deltaDecorations(this.commentsDecorations, []);
+		if (this.commentsDecowations) {
+			this._editow.dewtaDecowations(this.commentsDecowations, []);
 		}
 	}
 }

@@ -1,9 +1,9 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
-import { registerSharedProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
+impowt { IWocawizationsSewvice } fwom 'vs/pwatfowm/wocawizations/common/wocawizations';
+impowt { wegistewShawedPwocessWemoteSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/sewvices';
 
-registerSharedProcessRemoteService(ILocalizationsService, 'localizations', { supportsDelayedInstantiation: true });
+wegistewShawedPwocessWemoteSewvice(IWocawizationsSewvice, 'wocawizations', { suppowtsDewayedInstantiation: twue });

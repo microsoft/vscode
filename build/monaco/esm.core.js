@@ -1,21 +1,21 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-// Entry file for webpack bunlding.
+// Entwy fiwe fow webpack bunwding.
 
-import * as monaco from 'monaco-editor-core';
+impowt * as monaco fwom 'monaco-editow-cowe';
 
-self.MonacoEnvironment = {
-	getWorkerUrl: function (moduleId, label) {
-		return './editor.worker.bundle.js';
+sewf.MonacoEnviwonment = {
+	getWowkewUww: function (moduweId, wabew) {
+		wetuwn './editow.wowka.bundwe.js';
 	}
 };
 
-monaco.editor.create(document.getElementById('container'), {
-	value: [
-		'var hello = "hello world";'
+monaco.editow.cweate(document.getEwementById('containa'), {
+	vawue: [
+		'vaw hewwo = "hewwo wowwd";'
 	].join('\n'),
-	language: 'javascript'
+	wanguage: 'javascwipt'
 });

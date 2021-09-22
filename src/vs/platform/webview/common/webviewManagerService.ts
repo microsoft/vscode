@@ -1,43 +1,43 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const IWebviewManagerService = createDecorator<IWebviewManagerService>('webviewManagerService');
+expowt const IWebviewManagewSewvice = cweateDecowatow<IWebviewManagewSewvice>('webviewManagewSewvice');
 
-export interface WebviewWebContentsId {
-	readonly webContentsId: number;
+expowt intewface WebviewWebContentsId {
+	weadonwy webContentsId: numba;
 }
 
-export interface WebviewWindowId {
-	readonly windowId: number;
+expowt intewface WebviewWindowId {
+	weadonwy windowId: numba;
 }
 
-export interface FindInFrameOptions {
-	forward?: boolean;
-	findNext?: boolean;
-	matchCase?: boolean;
+expowt intewface FindInFwameOptions {
+	fowwawd?: boowean;
+	findNext?: boowean;
+	matchCase?: boowean;
 }
 
-export interface FoundInFrameResult {
-	requestId: number;
-	activeMatchOrdinal: number;
-	matches: number;
-	selectionArea: any;
-	finalUpdate: boolean;
+expowt intewface FoundInFwameWesuwt {
+	wequestId: numba;
+	activeMatchOwdinaw: numba;
+	matches: numba;
+	sewectionAwea: any;
+	finawUpdate: boowean;
 }
 
-export interface IWebviewManagerService {
-	_serviceBrand: unknown;
+expowt intewface IWebviewManagewSewvice {
+	_sewviceBwand: unknown;
 
-	onFoundInFrame: Event<FoundInFrameResult>;
+	onFoundInFwame: Event<FoundInFwameWesuwt>;
 
-	setIgnoreMenuShortcuts(id: WebviewWebContentsId | WebviewWindowId, enabled: boolean): Promise<void>;
+	setIgnoweMenuShowtcuts(id: WebviewWebContentsId | WebviewWindowId, enabwed: boowean): Pwomise<void>;
 
-	findInFrame(windowId: WebviewWindowId, frameName: string, text: string, options: FindInFrameOptions): Promise<void>;
+	findInFwame(windowId: WebviewWindowId, fwameName: stwing, text: stwing, options: FindInFwameOptions): Pwomise<void>;
 
-	stopFindInFrame(windowId: WebviewWindowId, frameName: string, options: { keepSelection?: boolean }): Promise<void>;
+	stopFindInFwame(windowId: WebviewWindowId, fwameName: stwing, options: { keepSewection?: boowean }): Pwomise<void>;
 }

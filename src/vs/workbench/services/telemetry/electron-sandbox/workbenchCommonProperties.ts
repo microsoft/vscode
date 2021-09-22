@@ -1,46 +1,46 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
-import { instanceStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
-import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
-import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { IFileService } from 'vs/platform/files/common/files';
+impowt { IStowageSewvice, StowageScope } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { wesowveCommonPwopewties } fwom 'vs/pwatfowm/tewemetwy/common/commonPwopewties';
+impowt { instanceStowageKey, fiwstSessionDateStowageKey, wastSessionDateStowageKey } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { cweanWemoteAuthowity } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
+impowt { pwocess } fwom 'vs/base/pawts/sandbox/ewectwon-sandbox/gwobaws';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
 
-export async function resolveWorkbenchCommonProperties(
-	storageService: IStorageService,
-	fileService: IFileService,
-	release: string,
-	hostname: string,
-	commit: string | undefined,
-	version: string | undefined,
-	machineId: string,
-	msftInternalDomains: string[] | undefined,
-	installSourcePath: string,
-	remoteAuthority?: string
-): Promise<{ [name: string]: string | boolean | undefined }> {
-	const result = await resolveCommonProperties(fileService, release, hostname, process.arch, commit, version, machineId, msftInternalDomains, installSourcePath);
-	const instanceId = storageService.get(instanceStorageKey, StorageScope.GLOBAL)!;
-	const firstSessionDate = storageService.get(firstSessionDateStorageKey, StorageScope.GLOBAL)!;
-	const lastSessionDate = storageService.get(lastSessionDateStorageKey, StorageScope.GLOBAL)!;
+expowt async function wesowveWowkbenchCommonPwopewties(
+	stowageSewvice: IStowageSewvice,
+	fiweSewvice: IFiweSewvice,
+	wewease: stwing,
+	hostname: stwing,
+	commit: stwing | undefined,
+	vewsion: stwing | undefined,
+	machineId: stwing,
+	msftIntewnawDomains: stwing[] | undefined,
+	instawwSouwcePath: stwing,
+	wemoteAuthowity?: stwing
+): Pwomise<{ [name: stwing]: stwing | boowean | undefined }> {
+	const wesuwt = await wesowveCommonPwopewties(fiweSewvice, wewease, hostname, pwocess.awch, commit, vewsion, machineId, msftIntewnawDomains, instawwSouwcePath);
+	const instanceId = stowageSewvice.get(instanceStowageKey, StowageScope.GWOBAW)!;
+	const fiwstSessionDate = stowageSewvice.get(fiwstSessionDateStowageKey, StowageScope.GWOBAW)!;
+	const wastSessionDate = stowageSewvice.get(wastSessionDateStowageKey, StowageScope.GWOBAW)!;
 
-	// __GDPR__COMMON__ "common.version.shell" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-	result['common.version.shell'] = process.versions['electron'];
-	// __GDPR__COMMON__ "common.version.renderer" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-	result['common.version.renderer'] = process.versions['chrome'];
-	// __GDPR__COMMON__ "common.firstSessionDate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	result['common.firstSessionDate'] = firstSessionDate;
-	// __GDPR__COMMON__ "common.lastSessionDate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	result['common.lastSessionDate'] = lastSessionDate || '';
-	// __GDPR__COMMON__ "common.isNewSession" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	result['common.isNewSession'] = !lastSessionDate ? '1' : '0';
-	// __GDPR__COMMON__ "common.instanceId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	result['common.instanceId'] = instanceId;
-	// __GDPR__COMMON__ "common.remoteAuthority" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-	result['common.remoteAuthority'] = cleanRemoteAuthority(remoteAuthority);
+	// __GDPW__COMMON__ "common.vewsion.sheww" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" }
+	wesuwt['common.vewsion.sheww'] = pwocess.vewsions['ewectwon'];
+	// __GDPW__COMMON__ "common.vewsion.wendewa" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" }
+	wesuwt['common.vewsion.wendewa'] = pwocess.vewsions['chwome'];
+	// __GDPW__COMMON__ "common.fiwstSessionDate" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
+	wesuwt['common.fiwstSessionDate'] = fiwstSessionDate;
+	// __GDPW__COMMON__ "common.wastSessionDate" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
+	wesuwt['common.wastSessionDate'] = wastSessionDate || '';
+	// __GDPW__COMMON__ "common.isNewSession" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
+	wesuwt['common.isNewSession'] = !wastSessionDate ? '1' : '0';
+	// __GDPW__COMMON__ "common.instanceId" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
+	wesuwt['common.instanceId'] = instanceId;
+	// __GDPW__COMMON__ "common.wemoteAuthowity" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" }
+	wesuwt['common.wemoteAuthowity'] = cweanWemoteAuthowity(wemoteAuthowity);
 
-	return result;
+	wetuwn wesuwt;
 }

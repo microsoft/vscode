@@ -1,34 +1,34 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export function memoize(_target: any, key: string, descriptor: any) {
-	let fnKey: string | undefined;
-	let fn: Function | undefined;
+expowt function memoize(_tawget: any, key: stwing, descwiptow: any) {
+	wet fnKey: stwing | undefined;
+	wet fn: Function | undefined;
 
-	if (typeof descriptor.value === 'function') {
-		fnKey = 'value';
-		fn = descriptor.value;
-	} else if (typeof descriptor.get === 'function') {
+	if (typeof descwiptow.vawue === 'function') {
+		fnKey = 'vawue';
+		fn = descwiptow.vawue;
+	} ewse if (typeof descwiptow.get === 'function') {
 		fnKey = 'get';
-		fn = descriptor.get;
-	} else {
-		throw new Error('not supported');
+		fn = descwiptow.get;
+	} ewse {
+		thwow new Ewwow('not suppowted');
 	}
 
 	const memoizeKey = `$memoize$${key}`;
 
-	descriptor[fnKey] = function (...args: any[]) {
-		if (!this.hasOwnProperty(memoizeKey)) {
-			Object.defineProperty(this, memoizeKey, {
-				configurable: false,
-				enumerable: false,
-				writable: false,
-				value: fn!.apply(this, args)
+	descwiptow[fnKey] = function (...awgs: any[]) {
+		if (!this.hasOwnPwopewty(memoizeKey)) {
+			Object.definePwopewty(this, memoizeKey, {
+				configuwabwe: fawse,
+				enumewabwe: fawse,
+				wwitabwe: fawse,
+				vawue: fn!.appwy(this, awgs)
 			});
 		}
 
-		return this[memoizeKey];
+		wetuwn this[memoizeKey];
 	};
 }

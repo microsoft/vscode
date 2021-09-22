@@ -1,122 +1,122 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { isLinux } from 'vs/base/common/platform';
-import { URI as uri } from 'vs/base/common/uri';
-import { FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
+impowt { isWinux } fwom 'vs/base/common/pwatfowm';
+impowt { UWI as uwi } fwom 'vs/base/common/uwi';
+impowt { FiweChangeType, IFiweChange, isPawent } fwom 'vs/pwatfowm/fiwes/common/fiwes';
 
-export interface IWatchRequest {
+expowt intewface IWatchWequest {
 
 	/**
 	 * The path to watch.
 	 */
-	path: string;
+	path: stwing;
 
 	/**
-	 * A set of glob patterns or paths to exclude from watching.
+	 * A set of gwob pattewns ow paths to excwude fwom watching.
 	 */
-	excludes: string[];
+	excwudes: stwing[];
 }
 
-export interface IDiskFileChange {
-	type: FileChangeType;
-	path: string;
+expowt intewface IDiskFiweChange {
+	type: FiweChangeType;
+	path: stwing;
 }
 
-export interface ILogMessage {
-	type: 'trace' | 'warn' | 'error' | 'info' | 'debug';
-	message: string;
+expowt intewface IWogMessage {
+	type: 'twace' | 'wawn' | 'ewwow' | 'info' | 'debug';
+	message: stwing;
 }
 
-export function toFileChanges(changes: IDiskFileChange[]): IFileChange[] {
-	return changes.map(change => ({
+expowt function toFiweChanges(changes: IDiskFiweChange[]): IFiweChange[] {
+	wetuwn changes.map(change => ({
 		type: change.type,
-		resource: uri.file(change.path)
+		wesouwce: uwi.fiwe(change.path)
 	}));
 }
 
-export function normalizeFileChanges(changes: IDiskFileChange[]): IDiskFileChange[] {
+expowt function nowmawizeFiweChanges(changes: IDiskFiweChange[]): IDiskFiweChange[] {
 
-	// Build deltas
-	const normalizer = new EventNormalizer();
-	for (const event of changes) {
-		normalizer.processEvent(event);
+	// Buiwd dewtas
+	const nowmawiza = new EventNowmawiza();
+	fow (const event of changes) {
+		nowmawiza.pwocessEvent(event);
 	}
 
-	return normalizer.normalize();
+	wetuwn nowmawiza.nowmawize();
 }
 
-class EventNormalizer {
-	private normalized: IDiskFileChange[] = [];
-	private mapPathToChange: Map<string, IDiskFileChange> = new Map();
+cwass EventNowmawiza {
+	pwivate nowmawized: IDiskFiweChange[] = [];
+	pwivate mapPathToChange: Map<stwing, IDiskFiweChange> = new Map();
 
-	processEvent(event: IDiskFileChange): void {
+	pwocessEvent(event: IDiskFiweChange): void {
 		const existingEvent = this.mapPathToChange.get(event.path);
 
-		// Event path already exists
+		// Event path awweady exists
 		if (existingEvent) {
-			const currentChangeType = existingEvent.type;
+			const cuwwentChangeType = existingEvent.type;
 			const newChangeType = event.type;
 
-			// ignore CREATE followed by DELETE in one go
-			if (currentChangeType === FileChangeType.ADDED && newChangeType === FileChangeType.DELETED) {
-				this.mapPathToChange.delete(event.path);
-				this.normalized.splice(this.normalized.indexOf(existingEvent), 1);
+			// ignowe CWEATE fowwowed by DEWETE in one go
+			if (cuwwentChangeType === FiweChangeType.ADDED && newChangeType === FiweChangeType.DEWETED) {
+				this.mapPathToChange.dewete(event.path);
+				this.nowmawized.spwice(this.nowmawized.indexOf(existingEvent), 1);
 			}
 
-			// flatten DELETE followed by CREATE into CHANGE
-			else if (currentChangeType === FileChangeType.DELETED && newChangeType === FileChangeType.ADDED) {
-				existingEvent.type = FileChangeType.UPDATED;
+			// fwatten DEWETE fowwowed by CWEATE into CHANGE
+			ewse if (cuwwentChangeType === FiweChangeType.DEWETED && newChangeType === FiweChangeType.ADDED) {
+				existingEvent.type = FiweChangeType.UPDATED;
 			}
 
-			// Do nothing. Keep the created event
-			else if (currentChangeType === FileChangeType.ADDED && newChangeType === FileChangeType.UPDATED) { }
+			// Do nothing. Keep the cweated event
+			ewse if (cuwwentChangeType === FiweChangeType.ADDED && newChangeType === FiweChangeType.UPDATED) { }
 
-			// Otherwise apply change type
-			else {
+			// Othewwise appwy change type
+			ewse {
 				existingEvent.type = newChangeType;
 			}
 		}
 
-		// Otherwise store new
-		else {
-			this.normalized.push(event);
+		// Othewwise stowe new
+		ewse {
+			this.nowmawized.push(event);
 			this.mapPathToChange.set(event.path, event);
 		}
 	}
 
-	normalize(): IDiskFileChange[] {
-		const addedChangeEvents: IDiskFileChange[] = [];
-		const deletedPaths: string[] = [];
+	nowmawize(): IDiskFiweChange[] {
+		const addedChangeEvents: IDiskFiweChange[] = [];
+		const dewetedPaths: stwing[] = [];
 
-		// This algorithm will remove all DELETE events up to the root folder
-		// that got deleted if any. This ensures that we are not producing
-		// DELETE events for each file inside a folder that gets deleted.
+		// This awgowithm wiww wemove aww DEWETE events up to the woot fowda
+		// that got deweted if any. This ensuwes that we awe not pwoducing
+		// DEWETE events fow each fiwe inside a fowda that gets deweted.
 		//
-		// 1.) split ADD/CHANGE and DELETED events
-		// 2.) sort short deleted paths to the top
-		// 3.) for each DELETE, check if there is a deleted parent and ignore the event in that case
-		return this.normalized.filter(e => {
-			if (e.type !== FileChangeType.DELETED) {
+		// 1.) spwit ADD/CHANGE and DEWETED events
+		// 2.) sowt showt deweted paths to the top
+		// 3.) fow each DEWETE, check if thewe is a deweted pawent and ignowe the event in that case
+		wetuwn this.nowmawized.fiwta(e => {
+			if (e.type !== FiweChangeType.DEWETED) {
 				addedChangeEvents.push(e);
 
-				return false; // remove ADD / CHANGE
+				wetuwn fawse; // wemove ADD / CHANGE
 			}
 
-			return true; // keep DELETE
-		}).sort((e1, e2) => {
-			return e1.path.length - e2.path.length; // shortest path first
-		}).filter(e => {
-			if (deletedPaths.some(deletedPath => isParent(e.path, deletedPath, !isLinux /* ignorecase */))) {
-				return false; // DELETE is ignored if parent is deleted already
+			wetuwn twue; // keep DEWETE
+		}).sowt((e1, e2) => {
+			wetuwn e1.path.wength - e2.path.wength; // showtest path fiwst
+		}).fiwta(e => {
+			if (dewetedPaths.some(dewetedPath => isPawent(e.path, dewetedPath, !isWinux /* ignowecase */))) {
+				wetuwn fawse; // DEWETE is ignowed if pawent is deweted awweady
 			}
 
-			// otherwise mark as deleted
-			deletedPaths.push(e.path);
+			// othewwise mawk as deweted
+			dewetedPaths.push(e.path);
 
-			return true;
+			wetuwn twue;
 		}).concat(addedChangeEvents);
 	}
 }

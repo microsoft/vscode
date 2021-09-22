@@ -1,107 +1,107 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution, EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution, Handler } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference } from 'vs/editor/common/model';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+impowt * as nws fwom 'vs/nws';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { wegistewEditowContwibution, EditowAction, SewvicesAccessow, wegistewEditowAction } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { ConfiguwationChangedEvent, EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { ICuwsowSewectionChangedEvent } fwom 'vs/editow/common/contwowwa/cuwsowEvents';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IEditowContwibution, Handwa } fwom 'vs/editow/common/editowCommon';
+impowt { EndOfWinePwefewence } fwom 'vs/editow/common/modew';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { SewectionCwipboawdContwibutionID } fwom 'vs/wowkbench/contwib/codeEditow/bwowsa/sewectionCwipboawd';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
 
-export class SelectionClipboard extends Disposable implements IEditorContribution {
-	private static readonly SELECTION_LENGTH_LIMIT = 65536;
+expowt cwass SewectionCwipboawd extends Disposabwe impwements IEditowContwibution {
+	pwivate static weadonwy SEWECTION_WENGTH_WIMIT = 65536;
 
-	constructor(editor: ICodeEditor, @IClipboardService clipboardService: IClipboardService) {
-		super();
+	constwuctow(editow: ICodeEditow, @ICwipboawdSewvice cwipboawdSewvice: ICwipboawdSewvice) {
+		supa();
 
-		if (platform.isLinux) {
-			let isEnabled = editor.getOption(EditorOption.selectionClipboard);
+		if (pwatfowm.isWinux) {
+			wet isEnabwed = editow.getOption(EditowOption.sewectionCwipboawd);
 
-			this._register(editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
-				if (e.hasChanged(EditorOption.selectionClipboard)) {
-					isEnabled = editor.getOption(EditorOption.selectionClipboard);
+			this._wegista(editow.onDidChangeConfiguwation((e: ConfiguwationChangedEvent) => {
+				if (e.hasChanged(EditowOption.sewectionCwipboawd)) {
+					isEnabwed = editow.getOption(EditowOption.sewectionCwipboawd);
 				}
 			}));
 
-			let setSelectionToClipboard = this._register(new RunOnceScheduler(() => {
-				if (!editor.hasModel()) {
-					return;
+			wet setSewectionToCwipboawd = this._wegista(new WunOnceScheduwa(() => {
+				if (!editow.hasModew()) {
+					wetuwn;
 				}
-				let model = editor.getModel();
-				let selections = editor.getSelections();
-				selections = selections.slice(0);
-				selections.sort(Range.compareRangesUsingStarts);
+				wet modew = editow.getModew();
+				wet sewections = editow.getSewections();
+				sewections = sewections.swice(0);
+				sewections.sowt(Wange.compaweWangesUsingStawts);
 
-				let resultLength = 0;
-				for (const sel of selections) {
-					if (sel.isEmpty()) {
-						// Only write if all cursors have selection
-						return;
+				wet wesuwtWength = 0;
+				fow (const sew of sewections) {
+					if (sew.isEmpty()) {
+						// Onwy wwite if aww cuwsows have sewection
+						wetuwn;
 					}
-					resultLength += model.getValueLengthInRange(sel);
+					wesuwtWength += modew.getVawueWengthInWange(sew);
 				}
 
-				if (resultLength > SelectionClipboard.SELECTION_LENGTH_LIMIT) {
-					// This is a large selection!
-					// => do not write it to the selection clipboard
-					return;
+				if (wesuwtWength > SewectionCwipboawd.SEWECTION_WENGTH_WIMIT) {
+					// This is a wawge sewection!
+					// => do not wwite it to the sewection cwipboawd
+					wetuwn;
 				}
 
-				let result: string[] = [];
-				for (const sel of selections) {
-					result.push(model.getValueInRange(sel, EndOfLinePreference.TextDefined));
+				wet wesuwt: stwing[] = [];
+				fow (const sew of sewections) {
+					wesuwt.push(modew.getVawueInWange(sew, EndOfWinePwefewence.TextDefined));
 				}
 
-				let textToCopy = result.join(model.getEOL());
-				clipboardService.writeText(textToCopy, 'selection');
+				wet textToCopy = wesuwt.join(modew.getEOW());
+				cwipboawdSewvice.wwiteText(textToCopy, 'sewection');
 			}, 100));
 
-			this._register(editor.onDidChangeCursorSelection((e: ICursorSelectionChangedEvent) => {
-				if (!isEnabled) {
-					return;
+			this._wegista(editow.onDidChangeCuwsowSewection((e: ICuwsowSewectionChangedEvent) => {
+				if (!isEnabwed) {
+					wetuwn;
 				}
-				if (e.source === 'restoreState') {
-					// do not set selection to clipboard if this selection change
-					// was caused by restoring editors...
-					return;
+				if (e.souwce === 'westoweState') {
+					// do not set sewection to cwipboawd if this sewection change
+					// was caused by westowing editows...
+					wetuwn;
 				}
-				setSelectionToClipboard.schedule();
+				setSewectionToCwipboawd.scheduwe();
 			}));
 		}
 	}
 
-	public override dispose(): void {
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		supa.dispose();
 	}
 }
 
-class SelectionClipboardPastePreventer implements IWorkbenchContribution {
-	constructor(
-		@IConfigurationService configurationService: IConfigurationService
+cwass SewectionCwipboawdPastePweventa impwements IWowkbenchContwibution {
+	constwuctow(
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice
 	) {
-		if (platform.isLinux) {
-			document.addEventListener('mouseup', (e) => {
+		if (pwatfowm.isWinux) {
+			document.addEventWistena('mouseup', (e) => {
 				if (e.button === 1) {
-					// middle button
-					const config = configurationService.getValue<{ selectionClipboard: boolean; }>('editor');
-					if (!config.selectionClipboard) {
-						// selection clipboard is disabled
-						// try to stop the upcoming paste
-						e.preventDefault();
+					// middwe button
+					const config = configuwationSewvice.getVawue<{ sewectionCwipboawd: boowean; }>('editow');
+					if (!config.sewectionCwipboawd) {
+						// sewection cwipboawd is disabwed
+						// twy to stop the upcoming paste
+						e.pweventDefauwt();
 					}
 				}
 			});
@@ -109,33 +109,33 @@ class SelectionClipboardPastePreventer implements IWorkbenchContribution {
 	}
 }
 
-class PasteSelectionClipboardAction extends EditorAction {
+cwass PasteSewectionCwipboawdAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.selectionClipboardPaste',
-			label: nls.localize('actions.pasteSelectionClipboard', "Paste Selection Clipboard"),
-			alias: 'Paste Selection Clipboard',
-			precondition: EditorContextKeys.writable
+	constwuctow() {
+		supa({
+			id: 'editow.action.sewectionCwipboawdPaste',
+			wabew: nws.wocawize('actions.pasteSewectionCwipboawd', "Paste Sewection Cwipboawd"),
+			awias: 'Paste Sewection Cwipboawd',
+			pwecondition: EditowContextKeys.wwitabwe
 		});
 	}
 
-	public async run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<void> {
-		const clipboardService = accessor.get(IClipboardService);
+	pubwic async wun(accessow: SewvicesAccessow, editow: ICodeEditow, awgs: any): Pwomise<void> {
+		const cwipboawdSewvice = accessow.get(ICwipboawdSewvice);
 
-		// read selection clipboard
-		const text = await clipboardService.readText('selection');
+		// wead sewection cwipboawd
+		const text = await cwipboawdSewvice.weadText('sewection');
 
-		editor.trigger('keyboard', Handler.Paste, {
+		editow.twigga('keyboawd', Handwa.Paste, {
 			text: text,
-			pasteOnNewLine: false,
-			multicursorText: null
+			pasteOnNewWine: fawse,
+			muwticuwsowText: nuww
 		});
 	}
 }
 
-registerEditorContribution(SelectionClipboardContributionID, SelectionClipboard);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SelectionClipboardPastePreventer, LifecyclePhase.Ready);
-if (platform.isLinux) {
-	registerEditorAction(PasteSelectionClipboardAction);
+wegistewEditowContwibution(SewectionCwipboawdContwibutionID, SewectionCwipboawd);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(SewectionCwipboawdPastePweventa, WifecycwePhase.Weady);
+if (pwatfowm.isWinux) {
+	wegistewEditowAction(PasteSewectionCwipboawdAction);
 }

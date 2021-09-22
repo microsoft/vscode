@@ -1,105 +1,105 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { SimpleFindWidget } from 'vs/workbench/contrib/codeEditor/browser/find/simpleFindWidget';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { FindReplaceState } from 'vs/editor/contrib/find/findState';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+impowt { SimpweFindWidget } fwom 'vs/wowkbench/contwib/codeEditow/bwowsa/find/simpweFindWidget';
+impowt { IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IContextKeySewvice, IContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { FindWepwaceState } fwom 'vs/editow/contwib/find/findState';
+impowt { ITewminawSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { TewminawContextKeys } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawContextKey';
 
-export class TerminalFindWidget extends SimpleFindWidget {
-	protected _findInputFocused: IContextKey<boolean>;
-	protected _findWidgetFocused: IContextKey<boolean>;
-	private _findWidgetVisible: IContextKey<boolean>;
+expowt cwass TewminawFindWidget extends SimpweFindWidget {
+	pwotected _findInputFocused: IContextKey<boowean>;
+	pwotected _findWidgetFocused: IContextKey<boowean>;
+	pwivate _findWidgetVisibwe: IContextKey<boowean>;
 
-	constructor(
-		findState: FindReplaceState,
-		@IContextViewService _contextViewService: IContextViewService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ITerminalService private readonly _terminalService: ITerminalService
+	constwuctow(
+		findState: FindWepwaceState,
+		@IContextViewSewvice _contextViewSewvice: IContextViewSewvice,
+		@IContextKeySewvice pwivate weadonwy _contextKeySewvice: IContextKeySewvice,
+		@ITewminawSewvice pwivate weadonwy _tewminawSewvice: ITewminawSewvice
 	) {
-		super(_contextViewService, _contextKeyService, findState, true);
-		this._register(findState.onFindReplaceStateChange(() => {
+		supa(_contextViewSewvice, _contextKeySewvice, findState, twue);
+		this._wegista(findState.onFindWepwaceStateChange(() => {
 			this.show();
 		}));
-		this._findInputFocused = TerminalContextKeys.findInputFocus.bindTo(this._contextKeyService);
-		this._findWidgetFocused = TerminalContextKeys.findFocus.bindTo(this._contextKeyService);
-		this._findWidgetVisible = TerminalContextKeys.findVisible.bindTo(_contextKeyService);
+		this._findInputFocused = TewminawContextKeys.findInputFocus.bindTo(this._contextKeySewvice);
+		this._findWidgetFocused = TewminawContextKeys.findFocus.bindTo(this._contextKeySewvice);
+		this._findWidgetVisibwe = TewminawContextKeys.findVisibwe.bindTo(_contextKeySewvice);
 	}
 
-	find(previous: boolean) {
-		const instance = this._terminalService.activeInstance;
+	find(pwevious: boowean) {
+		const instance = this._tewminawSewvice.activeInstance;
 		if (!instance) {
-			return;
+			wetuwn;
 		}
-		if (previous) {
-			instance.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
-		} else {
-			instance.findNext(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
+		if (pwevious) {
+			instance.findPwevious(this.inputVawue, { wegex: this._getWegexVawue(), whoweWowd: this._getWhoweWowdVawue(), caseSensitive: this._getCaseSensitiveVawue() });
+		} ewse {
+			instance.findNext(this.inputVawue, { wegex: this._getWegexVawue(), whoweWowd: this._getWhoweWowdVawue(), caseSensitive: this._getCaseSensitiveVawue() });
 		}
 	}
-	override reveal(initialInput?: string): void {
-		super.reveal(initialInput);
-		this._findWidgetVisible.set(true);
+	ovewwide weveaw(initiawInput?: stwing): void {
+		supa.weveaw(initiawInput);
+		this._findWidgetVisibwe.set(twue);
 	}
 
-	override show(initialInput?: string) {
-		super.show(initialInput);
-		this._findWidgetVisible.set(true);
+	ovewwide show(initiawInput?: stwing) {
+		supa.show(initiawInput);
+		this._findWidgetVisibwe.set(twue);
 	}
 
-	override hide() {
-		super.hide();
-		this._findWidgetVisible.reset();
-		const instance = this._terminalService.activeInstance;
+	ovewwide hide() {
+		supa.hide();
+		this._findWidgetVisibwe.weset();
+		const instance = this._tewminawSewvice.activeInstance;
 		if (instance) {
 			instance.focus();
 		}
 	}
 
-	protected _onInputChanged() {
-		// Ignore input changes for now
-		const instance = this._terminalService.activeInstance;
+	pwotected _onInputChanged() {
+		// Ignowe input changes fow now
+		const instance = this._tewminawSewvice.activeInstance;
 		if (instance) {
-			return instance.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue(), incremental: true });
+			wetuwn instance.findPwevious(this.inputVawue, { wegex: this._getWegexVawue(), whoweWowd: this._getWhoweWowdVawue(), caseSensitive: this._getCaseSensitiveVawue(), incwementaw: twue });
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	protected _onFocusTrackerFocus() {
-		const instance = this._terminalService.activeInstance;
+	pwotected _onFocusTwackewFocus() {
+		const instance = this._tewminawSewvice.activeInstance;
 		if (instance) {
-			instance.notifyFindWidgetFocusChanged(true);
+			instance.notifyFindWidgetFocusChanged(twue);
 		}
-		this._findWidgetFocused.set(true);
+		this._findWidgetFocused.set(twue);
 	}
 
-	protected _onFocusTrackerBlur() {
-		const instance = this._terminalService.activeInstance;
+	pwotected _onFocusTwackewBwuw() {
+		const instance = this._tewminawSewvice.activeInstance;
 		if (instance) {
-			instance.notifyFindWidgetFocusChanged(false);
+			instance.notifyFindWidgetFocusChanged(fawse);
 		}
-		this._findWidgetFocused.reset();
+		this._findWidgetFocused.weset();
 	}
 
-	protected _onFindInputFocusTrackerFocus() {
-		this._findInputFocused.set(true);
+	pwotected _onFindInputFocusTwackewFocus() {
+		this._findInputFocused.set(twue);
 	}
 
-	protected _onFindInputFocusTrackerBlur() {
-		this._findInputFocused.reset();
+	pwotected _onFindInputFocusTwackewBwuw() {
+		this._findInputFocused.weset();
 	}
 
-	findFirst() {
-		const instance = this._terminalService.activeInstance;
+	findFiwst() {
+		const instance = this._tewminawSewvice.activeInstance;
 		if (instance) {
-			if (instance.hasSelection()) {
-				instance.clearSelection();
+			if (instance.hasSewection()) {
+				instance.cweawSewection();
 			}
-			instance.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
+			instance.findPwevious(this.inputVawue, { wegex: this._getWegexVawue(), whoweWowd: this._getWhoweWowdVawue(), caseSensitive: this._getCaseSensitiveVawue() });
 		}
 	}
 }

@@ -1,224 +1,224 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { renderMarkdown, renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { parse } from 'vs/base/common/marshalling';
-import { URI } from 'vs/base/common/uri';
+impowt * as assewt fwom 'assewt';
+impowt { wendewMawkdown, wendewMawkdownAsPwaintext } fwom 'vs/base/bwowsa/mawkdownWendewa';
+impowt { IMawkdownStwing, MawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { pawse } fwom 'vs/base/common/mawshawwing';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-function strToNode(str: string): HTMLElement {
-	return new DOMParser().parseFromString(str, 'text/html').body.firstChild as HTMLElement;
+function stwToNode(stw: stwing): HTMWEwement {
+	wetuwn new DOMPawsa().pawseFwomStwing(stw, 'text/htmw').body.fiwstChiwd as HTMWEwement;
 }
 
-function assertNodeEquals(actualNode: HTMLElement, expectedHtml: string) {
-	const expectedNode = strToNode(expectedHtml);
-	assert.ok(
-		actualNode.isEqualNode(expectedNode),
-		`Expected: ${expectedNode.outerHTML}\nActual: ${actualNode.outerHTML}`);
+function assewtNodeEquaws(actuawNode: HTMWEwement, expectedHtmw: stwing) {
+	const expectedNode = stwToNode(expectedHtmw);
+	assewt.ok(
+		actuawNode.isEquawNode(expectedNode),
+		`Expected: ${expectedNode.outewHTMW}\nActuaw: ${actuawNode.outewHTMW}`);
 }
 
-suite('MarkdownRenderer', () => {
+suite('MawkdownWendewa', () => {
 	suite('Sanitization', () => {
-		test('Should not render images with unknown schemes', () => {
-			const markdown = { value: `![image](no-such://example.com/cat.gif)` };
-			const result: HTMLElement = renderMarkdown(markdown).element;
-			assert.strictEqual(result.innerHTML, '<p><img alt="image"></p>');
+		test('Shouwd not wenda images with unknown schemes', () => {
+			const mawkdown = { vawue: `![image](no-such://exampwe.com/cat.gif)` };
+			const wesuwt: HTMWEwement = wendewMawkdown(mawkdown).ewement;
+			assewt.stwictEquaw(wesuwt.innewHTMW, '<p><img awt="image"></p>');
 		});
 	});
 
 	suite('Images', () => {
-		test('image rendering conforms to default', () => {
-			const markdown = { value: `![image](http://example.com/cat.gif 'caption')` };
-			const result: HTMLElement = renderMarkdown(markdown).element;
-			assertNodeEquals(result, '<div><p><img title="caption" alt="image" src="http://example.com/cat.gif"></p></div>');
+		test('image wendewing confowms to defauwt', () => {
+			const mawkdown = { vawue: `![image](http://exampwe.com/cat.gif 'caption')` };
+			const wesuwt: HTMWEwement = wendewMawkdown(mawkdown).ewement;
+			assewtNodeEquaws(wesuwt, '<div><p><img titwe="caption" awt="image" swc="http://exampwe.com/cat.gif"></p></div>');
 		});
 
-		test('image rendering conforms to default without title', () => {
-			const markdown = { value: `![image](http://example.com/cat.gif)` };
-			const result: HTMLElement = renderMarkdown(markdown).element;
-			assertNodeEquals(result, '<div><p><img alt="image" src="http://example.com/cat.gif"></p></div>');
+		test('image wendewing confowms to defauwt without titwe', () => {
+			const mawkdown = { vawue: `![image](http://exampwe.com/cat.gif)` };
+			const wesuwt: HTMWEwement = wendewMawkdown(mawkdown).ewement;
+			assewtNodeEquaws(wesuwt, '<div><p><img awt="image" swc="http://exampwe.com/cat.gif"></p></div>');
 		});
 
-		test('image width from title params', () => {
-			const result: HTMLElement = renderMarkdown({ value: `![image](http://example.com/cat.gif|width=100px 'caption')` }).element;
-			assertNodeEquals(result, `<div><p><img width="100" title="caption" alt="image" src="http://example.com/cat.gif"></p></div>`);
+		test('image width fwom titwe pawams', () => {
+			const wesuwt: HTMWEwement = wendewMawkdown({ vawue: `![image](http://exampwe.com/cat.gif|width=100px 'caption')` }).ewement;
+			assewtNodeEquaws(wesuwt, `<div><p><img width="100" titwe="caption" awt="image" swc="http://exampwe.com/cat.gif"></p></div>`);
 		});
 
-		test('image height from title params', () => {
-			const result: HTMLElement = renderMarkdown({ value: `![image](http://example.com/cat.gif|height=100 'caption')` }).element;
-			assertNodeEquals(result, `<div><p><img height="100" title="caption" alt="image" src="http://example.com/cat.gif"></p></div>`);
+		test('image height fwom titwe pawams', () => {
+			const wesuwt: HTMWEwement = wendewMawkdown({ vawue: `![image](http://exampwe.com/cat.gif|height=100 'caption')` }).ewement;
+			assewtNodeEquaws(wesuwt, `<div><p><img height="100" titwe="caption" awt="image" swc="http://exampwe.com/cat.gif"></p></div>`);
 		});
 
-		test('image width and height from title params', () => {
-			const result: HTMLElement = renderMarkdown({ value: `![image](http://example.com/cat.gif|height=200,width=100 'caption')` }).element;
-			assertNodeEquals(result, `<div><p><img height="200" width="100" title="caption" alt="image" src="http://example.com/cat.gif"></p></div>`);
+		test('image width and height fwom titwe pawams', () => {
+			const wesuwt: HTMWEwement = wendewMawkdown({ vawue: `![image](http://exampwe.com/cat.gif|height=200,width=100 'caption')` }).ewement;
+			assewtNodeEquaws(wesuwt, `<div><p><img height="200" width="100" titwe="caption" awt="image" swc="http://exampwe.com/cat.gif"></p></div>`);
 		});
 	});
 
-	suite('Code block renderer', () => {
-		const simpleCodeBlockRenderer = (code: string): Promise<HTMLElement> => {
-			const element = document.createElement('code');
-			element.textContent = code;
-			return Promise.resolve(element);
+	suite('Code bwock wendewa', () => {
+		const simpweCodeBwockWendewa = (code: stwing): Pwomise<HTMWEwement> => {
+			const ewement = document.cweateEwement('code');
+			ewement.textContent = code;
+			wetuwn Pwomise.wesowve(ewement);
 		};
 
-		test('asyncRenderCallback should be invoked for code blocks', () => {
-			const markdown = { value: '```js\n1 + 1;\n```' };
-			return new Promise<void>(resolve => {
-				renderMarkdown(markdown, {
-					asyncRenderCallback: resolve,
-					codeBlockRenderer: simpleCodeBlockRenderer
+		test('asyncWendewCawwback shouwd be invoked fow code bwocks', () => {
+			const mawkdown = { vawue: '```js\n1 + 1;\n```' };
+			wetuwn new Pwomise<void>(wesowve => {
+				wendewMawkdown(mawkdown, {
+					asyncWendewCawwback: wesowve,
+					codeBwockWendewa: simpweCodeBwockWendewa
 				});
 			});
 		});
 
-		test('asyncRenderCallback should not be invoked if result is immediately disposed', () => {
-			const markdown = { value: '```js\n1 + 1;\n```' };
-			return new Promise<void>((resolve, reject) => {
-				const result = renderMarkdown(markdown, {
-					asyncRenderCallback: reject,
-					codeBlockRenderer: simpleCodeBlockRenderer
+		test('asyncWendewCawwback shouwd not be invoked if wesuwt is immediatewy disposed', () => {
+			const mawkdown = { vawue: '```js\n1 + 1;\n```' };
+			wetuwn new Pwomise<void>((wesowve, weject) => {
+				const wesuwt = wendewMawkdown(mawkdown, {
+					asyncWendewCawwback: weject,
+					codeBwockWendewa: simpweCodeBwockWendewa
 				});
-				result.dispose();
-				setTimeout(resolve, 1000);
+				wesuwt.dispose();
+				setTimeout(wesowve, 1000);
 			});
 		});
 
-		test('asyncRenderCallback should not be invoked if dispose is called before code block is rendered', () => {
-			const markdown = { value: '```js\n1 + 1;\n```' };
-			return new Promise<void>((resolve, reject) => {
-				let resolveCodeBlockRendering: (x: HTMLElement) => void;
-				const result = renderMarkdown(markdown, {
-					asyncRenderCallback: reject,
-					codeBlockRenderer: () => {
-						return new Promise(resolve => {
-							resolveCodeBlockRendering = resolve;
+		test('asyncWendewCawwback shouwd not be invoked if dispose is cawwed befowe code bwock is wendewed', () => {
+			const mawkdown = { vawue: '```js\n1 + 1;\n```' };
+			wetuwn new Pwomise<void>((wesowve, weject) => {
+				wet wesowveCodeBwockWendewing: (x: HTMWEwement) => void;
+				const wesuwt = wendewMawkdown(mawkdown, {
+					asyncWendewCawwback: weject,
+					codeBwockWendewa: () => {
+						wetuwn new Pwomise(wesowve => {
+							wesowveCodeBwockWendewing = wesowve;
 						});
 					}
 				});
 				setTimeout(() => {
-					result.dispose();
-					resolveCodeBlockRendering(document.createElement('code'));
-					setTimeout(resolve, 1000);
+					wesuwt.dispose();
+					wesowveCodeBwockWendewing(document.cweateEwement('code'));
+					setTimeout(wesowve, 1000);
 				}, 500);
 			});
 		});
 	});
 
-	suite('ThemeIcons Support On', () => {
+	suite('ThemeIcons Suppowt On', () => {
 
-		test('render appendText', () => {
-			const mds = new MarkdownString(undefined, { supportThemeIcons: true });
+		test('wenda appendText', () => {
+			const mds = new MawkdownStwing(undefined, { suppowtThemeIcons: twue });
 			mds.appendText('$(zap) $(not a theme icon) $(add)');
 
-			let result: HTMLElement = renderMarkdown(mds).element;
-			assert.strictEqual(result.innerHTML, `<p>$(zap)&nbsp;$(not&nbsp;a&nbsp;theme&nbsp;icon)&nbsp;$(add)</p>`);
+			wet wesuwt: HTMWEwement = wendewMawkdown(mds).ewement;
+			assewt.stwictEquaw(wesuwt.innewHTMW, `<p>$(zap)&nbsp;$(not&nbsp;a&nbsp;theme&nbsp;icon)&nbsp;$(add)</p>`);
 		});
 
-		test('render appendMarkdown', () => {
-			const mds = new MarkdownString(undefined, { supportThemeIcons: true });
-			mds.appendMarkdown('$(zap) $(not a theme icon) $(add)');
+		test('wenda appendMawkdown', () => {
+			const mds = new MawkdownStwing(undefined, { suppowtThemeIcons: twue });
+			mds.appendMawkdown('$(zap) $(not a theme icon) $(add)');
 
-			let result: HTMLElement = renderMarkdown(mds).element;
-			assert.strictEqual(result.innerHTML, `<p><span class="codicon codicon-zap"></span> $(not a theme icon) <span class="codicon codicon-add"></span></p>`);
+			wet wesuwt: HTMWEwement = wendewMawkdown(mds).ewement;
+			assewt.stwictEquaw(wesuwt.innewHTMW, `<p><span cwass="codicon codicon-zap"></span> $(not a theme icon) <span cwass="codicon codicon-add"></span></p>`);
 		});
 
-		test('render appendMarkdown with escaped icon', () => {
-			const mds = new MarkdownString(undefined, { supportThemeIcons: true });
-			mds.appendMarkdown('\\$(zap) $(not a theme icon) $(add)');
+		test('wenda appendMawkdown with escaped icon', () => {
+			const mds = new MawkdownStwing(undefined, { suppowtThemeIcons: twue });
+			mds.appendMawkdown('\\$(zap) $(not a theme icon) $(add)');
 
-			let result: HTMLElement = renderMarkdown(mds).element;
-			assert.strictEqual(result.innerHTML, `<p>$(zap) $(not a theme icon) <span class="codicon codicon-add"></span></p>`);
+			wet wesuwt: HTMWEwement = wendewMawkdown(mds).ewement;
+			assewt.stwictEquaw(wesuwt.innewHTMW, `<p>$(zap) $(not a theme icon) <span cwass="codicon codicon-add"></span></p>`);
 		});
 	});
 
-	suite('ThemeIcons Support Off', () => {
+	suite('ThemeIcons Suppowt Off', () => {
 
-		test('render appendText', () => {
-			const mds = new MarkdownString(undefined, { supportThemeIcons: false });
+		test('wenda appendText', () => {
+			const mds = new MawkdownStwing(undefined, { suppowtThemeIcons: fawse });
 			mds.appendText('$(zap) $(not a theme icon) $(add)');
 
-			let result: HTMLElement = renderMarkdown(mds).element;
-			assert.strictEqual(result.innerHTML, `<p>$(zap)&nbsp;$(not&nbsp;a&nbsp;theme&nbsp;icon)&nbsp;$(add)</p>`);
+			wet wesuwt: HTMWEwement = wendewMawkdown(mds).ewement;
+			assewt.stwictEquaw(wesuwt.innewHTMW, `<p>$(zap)&nbsp;$(not&nbsp;a&nbsp;theme&nbsp;icon)&nbsp;$(add)</p>`);
 		});
 
-		test('render appendMarkdown with escaped icon', () => {
-			const mds = new MarkdownString(undefined, { supportThemeIcons: false });
-			mds.appendMarkdown('\\$(zap) $(not a theme icon) $(add)');
+		test('wenda appendMawkdown with escaped icon', () => {
+			const mds = new MawkdownStwing(undefined, { suppowtThemeIcons: fawse });
+			mds.appendMawkdown('\\$(zap) $(not a theme icon) $(add)');
 
-			let result: HTMLElement = renderMarkdown(mds).element;
-			assert.strictEqual(result.innerHTML, `<p>$(zap) $(not a theme icon) $(add)</p>`);
+			wet wesuwt: HTMWEwement = wendewMawkdown(mds).ewement;
+			assewt.stwictEquaw(wesuwt.innewHTMW, `<p>$(zap) $(not a theme icon) $(add)</p>`);
 		});
 	});
 
-	test('npm Hover Run Script not working #90855', function () {
+	test('npm Hova Wun Scwipt not wowking #90855', function () {
 
-		const md: IMarkdownString = JSON.parse('{"value":"[Run Script](command:npm.runScriptFromHover?%7B%22documentUri%22%3A%7B%22%24mid%22%3A1%2C%22fsPath%22%3A%22c%3A%5C%5CUsers%5C%5Cjrieken%5C%5CCode%5C%5C_sample%5C%5Cfoo%5C%5Cpackage.json%22%2C%22_sep%22%3A1%2C%22external%22%3A%22file%3A%2F%2F%2Fc%253A%2FUsers%2Fjrieken%2FCode%2F_sample%2Ffoo%2Fpackage.json%22%2C%22path%22%3A%22%2Fc%3A%2FUsers%2Fjrieken%2FCode%2F_sample%2Ffoo%2Fpackage.json%22%2C%22scheme%22%3A%22file%22%7D%2C%22script%22%3A%22echo%22%7D \\"Run the script as a task\\")","supportThemeIcons":false,"isTrusted":true,"uris":{"__uri_e49443":{"$mid":1,"fsPath":"c:\\\\Users\\\\jrieken\\\\Code\\\\_sample\\\\foo\\\\package.json","_sep":1,"external":"file:///c%3A/Users/jrieken/Code/_sample/foo/package.json","path":"/c:/Users/jrieken/Code/_sample/foo/package.json","scheme":"file"},"command:npm.runScriptFromHover?%7B%22documentUri%22%3A%7B%22%24mid%22%3A1%2C%22fsPath%22%3A%22c%3A%5C%5CUsers%5C%5Cjrieken%5C%5CCode%5C%5C_sample%5C%5Cfoo%5C%5Cpackage.json%22%2C%22_sep%22%3A1%2C%22external%22%3A%22file%3A%2F%2F%2Fc%253A%2FUsers%2Fjrieken%2FCode%2F_sample%2Ffoo%2Fpackage.json%22%2C%22path%22%3A%22%2Fc%3A%2FUsers%2Fjrieken%2FCode%2F_sample%2Ffoo%2Fpackage.json%22%2C%22scheme%22%3A%22file%22%7D%2C%22script%22%3A%22echo%22%7D":{"$mid":1,"path":"npm.runScriptFromHover","scheme":"command","query":"{\\"documentUri\\":\\"__uri_e49443\\",\\"script\\":\\"echo\\"}"}}}');
-		const element = renderMarkdown(md).element;
+		const md: IMawkdownStwing = JSON.pawse('{"vawue":"[Wun Scwipt](command:npm.wunScwiptFwomHova?%7B%22documentUwi%22%3A%7B%22%24mid%22%3A1%2C%22fsPath%22%3A%22c%3A%5C%5CUsews%5C%5Cjwieken%5C%5CCode%5C%5C_sampwe%5C%5Cfoo%5C%5Cpackage.json%22%2C%22_sep%22%3A1%2C%22extewnaw%22%3A%22fiwe%3A%2F%2F%2Fc%253A%2FUsews%2Fjwieken%2FCode%2F_sampwe%2Ffoo%2Fpackage.json%22%2C%22path%22%3A%22%2Fc%3A%2FUsews%2Fjwieken%2FCode%2F_sampwe%2Ffoo%2Fpackage.json%22%2C%22scheme%22%3A%22fiwe%22%7D%2C%22scwipt%22%3A%22echo%22%7D \\"Wun the scwipt as a task\\")","suppowtThemeIcons":fawse,"isTwusted":twue,"uwis":{"__uwi_e49443":{"$mid":1,"fsPath":"c:\\\\Usews\\\\jwieken\\\\Code\\\\_sampwe\\\\foo\\\\package.json","_sep":1,"extewnaw":"fiwe:///c%3A/Usews/jwieken/Code/_sampwe/foo/package.json","path":"/c:/Usews/jwieken/Code/_sampwe/foo/package.json","scheme":"fiwe"},"command:npm.wunScwiptFwomHova?%7B%22documentUwi%22%3A%7B%22%24mid%22%3A1%2C%22fsPath%22%3A%22c%3A%5C%5CUsews%5C%5Cjwieken%5C%5CCode%5C%5C_sampwe%5C%5Cfoo%5C%5Cpackage.json%22%2C%22_sep%22%3A1%2C%22extewnaw%22%3A%22fiwe%3A%2F%2F%2Fc%253A%2FUsews%2Fjwieken%2FCode%2F_sampwe%2Ffoo%2Fpackage.json%22%2C%22path%22%3A%22%2Fc%3A%2FUsews%2Fjwieken%2FCode%2F_sampwe%2Ffoo%2Fpackage.json%22%2C%22scheme%22%3A%22fiwe%22%7D%2C%22scwipt%22%3A%22echo%22%7D":{"$mid":1,"path":"npm.wunScwiptFwomHova","scheme":"command","quewy":"{\\"documentUwi\\":\\"__uwi_e49443\\",\\"scwipt\\":\\"echo\\"}"}}}');
+		const ewement = wendewMawkdown(md).ewement;
 
-		const anchor = element.querySelector('a')!;
-		assert.ok(anchor);
-		assert.ok(anchor.dataset['href']);
+		const anchow = ewement.quewySewectow('a')!;
+		assewt.ok(anchow);
+		assewt.ok(anchow.dataset['hwef']);
 
-		const uri = URI.parse(anchor.dataset['href']!);
+		const uwi = UWI.pawse(anchow.dataset['hwef']!);
 
-		const data = <{ script: string, documentUri: URI }>parse(decodeURIComponent(uri.query));
-		assert.ok(data);
-		assert.strictEqual(data.script, 'echo');
-		assert.ok(data.documentUri.toString().startsWith('file:///c%3A/'));
+		const data = <{ scwipt: stwing, documentUwi: UWI }>pawse(decodeUWIComponent(uwi.quewy));
+		assewt.ok(data);
+		assewt.stwictEquaw(data.scwipt, 'echo');
+		assewt.ok(data.documentUwi.toStwing().stawtsWith('fiwe:///c%3A/'));
 	});
 
-	suite('PlaintextMarkdownRender', () => {
+	suite('PwaintextMawkdownWenda', () => {
 
-		test('test code, blockquote, heading, list, listitem, paragraph, table, tablerow, tablecell, strong, em, br, del, text are rendered plaintext', () => {
-			const markdown = { value: '`code`\n>quote\n# heading\n- list\n\n\ntable | table2\n--- | --- \none | two\n\n\nbo**ld**\n_italic_\n~~del~~\nsome text' };
-			const expected = 'code\nquote\nheading\nlist\ntable table2 one two \nbold\nitalic\ndel\nsome text\n';
-			const result: string = renderMarkdownAsPlaintext(markdown);
-			assert.strictEqual(result, expected);
+		test('test code, bwockquote, heading, wist, wistitem, pawagwaph, tabwe, tabwewow, tabweceww, stwong, em, bw, dew, text awe wendewed pwaintext', () => {
+			const mawkdown = { vawue: '`code`\n>quote\n# heading\n- wist\n\n\ntabwe | tabwe2\n--- | --- \none | two\n\n\nbo**wd**\n_itawic_\n~~dew~~\nsome text' };
+			const expected = 'code\nquote\nheading\nwist\ntabwe tabwe2 one two \nbowd\nitawic\ndew\nsome text\n';
+			const wesuwt: stwing = wendewMawkdownAsPwaintext(mawkdown);
+			assewt.stwictEquaw(wesuwt, expected);
 		});
 
-		test('test html, hr, image, link are rendered plaintext', () => {
-			const markdown = { value: '<div>html</div>\n\n---\n![image](imageLink)\n[text](textLink)' };
+		test('test htmw, hw, image, wink awe wendewed pwaintext', () => {
+			const mawkdown = { vawue: '<div>htmw</div>\n\n---\n![image](imageWink)\n[text](textWink)' };
 			const expected = '\ntext\n';
-			const result: string = renderMarkdownAsPlaintext(markdown);
-			assert.strictEqual(result, expected);
+			const wesuwt: stwing = wendewMawkdownAsPwaintext(mawkdown);
+			assewt.stwictEquaw(wesuwt, expected);
 		});
 	});
 
-	suite('supportHtml', () => {
-		test('supportHtml is disabled by default', () => {
-			const mds = new MarkdownString(undefined, {});
-			mds.appendMarkdown('a<b>b</b>c');
+	suite('suppowtHtmw', () => {
+		test('suppowtHtmw is disabwed by defauwt', () => {
+			const mds = new MawkdownStwing(undefined, {});
+			mds.appendMawkdown('a<b>b</b>c');
 
-			const result = renderMarkdown(mds).element;
-			assert.strictEqual(result.innerHTML, `<p>abc</p>`);
+			const wesuwt = wendewMawkdown(mds).ewement;
+			assewt.stwictEquaw(wesuwt.innewHTMW, `<p>abc</p>`);
 		});
 
-		test('Renders html when supportHtml=true', () => {
-			const mds = new MarkdownString(undefined, { supportHtml: true });
-			mds.appendMarkdown('a<b>b</b>c');
+		test('Wendews htmw when suppowtHtmw=twue', () => {
+			const mds = new MawkdownStwing(undefined, { suppowtHtmw: twue });
+			mds.appendMawkdown('a<b>b</b>c');
 
-			const result = renderMarkdown(mds).element;
-			assert.strictEqual(result.innerHTML, `<p>a<b>b</b>c</p>`);
+			const wesuwt = wendewMawkdown(mds).ewement;
+			assewt.stwictEquaw(wesuwt.innewHTMW, `<p>a<b>b</b>c</p>`);
 		});
 
-		test('Should not include scripts even when supportHtml=true', () => {
-			const mds = new MarkdownString(undefined, { supportHtml: true });
-			mds.appendMarkdown('a<b onclick="alert(1)">b</b><script>alert(2)</script>c');
+		test('Shouwd not incwude scwipts even when suppowtHtmw=twue', () => {
+			const mds = new MawkdownStwing(undefined, { suppowtHtmw: twue });
+			mds.appendMawkdown('a<b oncwick="awewt(1)">b</b><scwipt>awewt(2)</scwipt>c');
 
-			const result = renderMarkdown(mds).element;
-			assert.strictEqual(result.innerHTML, `<p>a<b>b</b>c</p>`);
+			const wesuwt = wendewMawkdown(mds).ewement;
+			assewt.stwictEquaw(wesuwt.innewHTMW, `<p>a<b>b</b>c</p>`);
 		});
 
-		test('Should not render html appended as text', () => {
-			const mds = new MarkdownString(undefined, { supportHtml: true });
+		test('Shouwd not wenda htmw appended as text', () => {
+			const mds = new MawkdownStwing(undefined, { suppowtHtmw: twue });
 			mds.appendText('a<b>b</b>c');
 
-			const result = renderMarkdown(mds).element;
-			assert.strictEqual(result.innerHTML, `<p>a&lt;b&gt;b&lt;/b&gt;c</p>`);
+			const wesuwt = wendewMawkdown(mds).ewement;
+			assewt.stwictEquaw(wesuwt.innewHTMW, `<p>a&wt;b&gt;b&wt;/b&gt;c</p>`);
 		});
 	});
 });

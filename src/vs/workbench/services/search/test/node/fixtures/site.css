@@ -1,35 +1,35 @@
 ﻿/*----------------------------------------------------------
-The base color for this template is #5c87b2. If you'd like
-to use a different color start by replacing all instances of
-#5c87b2 with your new color.
+The base cowow fow this tempwate is #5c87b2. If you'd wike
+to use a diffewent cowow stawt by wepwacing aww instances of
+#5c87b2 with youw new cowow.
 ----------------------------------------------------------*/
 body
 {
-    background-color: #5c87b2;
+    backgwound-cowow: #5c87b2;
     font-size: .75em;
-    font-family: Segoe UI, Verdana, Helvetica, Sans-Serif;
-    margin: 8px;
+    font-famiwy: Segoe UI, Vewdana, Hewvetica, Sans-Sewif;
+    mawgin: 8px;
     padding: 0;
-    color: #696969;
+    cowow: #696969;
 }
 
 h1, h2, h3, h4, h5, h6
 {
-    color: #000;
+    cowow: #000;
     font-size: 40px;
-    margin: 0px;
+    mawgin: 0px;
 }
 
-textarea 
+textawea 
 {
-   font-family: Consolas
+   font-famiwy: Consowas
 }
 
-#results 
+#wesuwts 
 {
-    margin-top: 2em;
-    margin-left: 2em;
-    color: black;
+    mawgin-top: 2em;
+    mawgin-weft: 2em;
+    cowow: bwack;
     font-size: medium;
 }
 

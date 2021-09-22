@@ -1,272 +1,272 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as buffer from 'vs/base/common/buffer';
-import { decodeUTF16LE } from 'vs/editor/common/core/stringBuilder';
+impowt * as buffa fwom 'vs/base/common/buffa';
+impowt { decodeUTF16WE } fwom 'vs/editow/common/cowe/stwingBuiwda';
 
-function escapeNewLine(str: string): string {
-	return (
-		str
-			.replace(/\n/g, '\\n')
-			.replace(/\r/g, '\\r')
+function escapeNewWine(stw: stwing): stwing {
+	wetuwn (
+		stw
+			.wepwace(/\n/g, '\\n')
+			.wepwace(/\w/g, '\\w')
 	);
 }
 
-export class TextChange {
+expowt cwass TextChange {
 
-	public get oldLength(): number {
-		return this.oldText.length;
+	pubwic get owdWength(): numba {
+		wetuwn this.owdText.wength;
 	}
 
-	public get oldEnd(): number {
-		return this.oldPosition + this.oldText.length;
+	pubwic get owdEnd(): numba {
+		wetuwn this.owdPosition + this.owdText.wength;
 	}
 
-	public get newLength(): number {
-		return this.newText.length;
+	pubwic get newWength(): numba {
+		wetuwn this.newText.wength;
 	}
 
-	public get newEnd(): number {
-		return this.newPosition + this.newText.length;
+	pubwic get newEnd(): numba {
+		wetuwn this.newPosition + this.newText.wength;
 	}
 
-	constructor(
-		public readonly oldPosition: number,
-		public readonly oldText: string,
-		public readonly newPosition: number,
-		public readonly newText: string
+	constwuctow(
+		pubwic weadonwy owdPosition: numba,
+		pubwic weadonwy owdText: stwing,
+		pubwic weadonwy newPosition: numba,
+		pubwic weadonwy newText: stwing
 	) { }
 
-	public toString(): string {
-		if (this.oldText.length === 0) {
-			return `(insert@${this.oldPosition} "${escapeNewLine(this.newText)}")`;
+	pubwic toStwing(): stwing {
+		if (this.owdText.wength === 0) {
+			wetuwn `(insewt@${this.owdPosition} "${escapeNewWine(this.newText)}")`;
 		}
-		if (this.newText.length === 0) {
-			return `(delete@${this.oldPosition} "${escapeNewLine(this.oldText)}")`;
+		if (this.newText.wength === 0) {
+			wetuwn `(dewete@${this.owdPosition} "${escapeNewWine(this.owdText)}")`;
 		}
-		return `(replace@${this.oldPosition} "${escapeNewLine(this.oldText)}" with "${escapeNewLine(this.newText)}")`;
+		wetuwn `(wepwace@${this.owdPosition} "${escapeNewWine(this.owdText)}" with "${escapeNewWine(this.newText)}")`;
 	}
 
-	private static _writeStringSize(str: string): number {
-		return (
-			4 + 2 * str.length
+	pwivate static _wwiteStwingSize(stw: stwing): numba {
+		wetuwn (
+			4 + 2 * stw.wength
 		);
 	}
 
-	private static _writeString(b: Uint8Array, str: string, offset: number): number {
-		const len = str.length;
-		buffer.writeUInt32BE(b, len, offset); offset += 4;
-		for (let i = 0; i < len; i++) {
-			buffer.writeUInt16LE(b, str.charCodeAt(i), offset); offset += 2;
+	pwivate static _wwiteStwing(b: Uint8Awway, stw: stwing, offset: numba): numba {
+		const wen = stw.wength;
+		buffa.wwiteUInt32BE(b, wen, offset); offset += 4;
+		fow (wet i = 0; i < wen; i++) {
+			buffa.wwiteUInt16WE(b, stw.chawCodeAt(i), offset); offset += 2;
 		}
-		return offset;
+		wetuwn offset;
 	}
 
-	private static _readString(b: Uint8Array, offset: number): string {
-		const len = buffer.readUInt32BE(b, offset); offset += 4;
-		return decodeUTF16LE(b, offset, len);
+	pwivate static _weadStwing(b: Uint8Awway, offset: numba): stwing {
+		const wen = buffa.weadUInt32BE(b, offset); offset += 4;
+		wetuwn decodeUTF16WE(b, offset, wen);
 	}
 
-	public writeSize(): number {
-		return (
-			+ 4 // oldPosition
+	pubwic wwiteSize(): numba {
+		wetuwn (
+			+ 4 // owdPosition
 			+ 4 // newPosition
-			+ TextChange._writeStringSize(this.oldText)
-			+ TextChange._writeStringSize(this.newText)
+			+ TextChange._wwiteStwingSize(this.owdText)
+			+ TextChange._wwiteStwingSize(this.newText)
 		);
 	}
 
-	public write(b: Uint8Array, offset: number): number {
-		buffer.writeUInt32BE(b, this.oldPosition, offset); offset += 4;
-		buffer.writeUInt32BE(b, this.newPosition, offset); offset += 4;
-		offset = TextChange._writeString(b, this.oldText, offset);
-		offset = TextChange._writeString(b, this.newText, offset);
-		return offset;
+	pubwic wwite(b: Uint8Awway, offset: numba): numba {
+		buffa.wwiteUInt32BE(b, this.owdPosition, offset); offset += 4;
+		buffa.wwiteUInt32BE(b, this.newPosition, offset); offset += 4;
+		offset = TextChange._wwiteStwing(b, this.owdText, offset);
+		offset = TextChange._wwiteStwing(b, this.newText, offset);
+		wetuwn offset;
 	}
 
-	public static read(b: Uint8Array, offset: number, dest: TextChange[]): number {
-		const oldPosition = buffer.readUInt32BE(b, offset); offset += 4;
-		const newPosition = buffer.readUInt32BE(b, offset); offset += 4;
-		const oldText = TextChange._readString(b, offset); offset += TextChange._writeStringSize(oldText);
-		const newText = TextChange._readString(b, offset); offset += TextChange._writeStringSize(newText);
-		dest.push(new TextChange(oldPosition, oldText, newPosition, newText));
-		return offset;
+	pubwic static wead(b: Uint8Awway, offset: numba, dest: TextChange[]): numba {
+		const owdPosition = buffa.weadUInt32BE(b, offset); offset += 4;
+		const newPosition = buffa.weadUInt32BE(b, offset); offset += 4;
+		const owdText = TextChange._weadStwing(b, offset); offset += TextChange._wwiteStwingSize(owdText);
+		const newText = TextChange._weadStwing(b, offset); offset += TextChange._wwiteStwingSize(newText);
+		dest.push(new TextChange(owdPosition, owdText, newPosition, newText));
+		wetuwn offset;
 	}
 }
 
-export function compressConsecutiveTextChanges(prevEdits: TextChange[] | null, currEdits: TextChange[]): TextChange[] {
-	if (prevEdits === null || prevEdits.length === 0) {
-		return currEdits;
+expowt function compwessConsecutiveTextChanges(pwevEdits: TextChange[] | nuww, cuwwEdits: TextChange[]): TextChange[] {
+	if (pwevEdits === nuww || pwevEdits.wength === 0) {
+		wetuwn cuwwEdits;
 	}
-	const compressor = new TextChangeCompressor(prevEdits, currEdits);
-	return compressor.compress();
+	const compwessow = new TextChangeCompwessow(pwevEdits, cuwwEdits);
+	wetuwn compwessow.compwess();
 }
 
-class TextChangeCompressor {
+cwass TextChangeCompwessow {
 
-	private _prevEdits: TextChange[];
-	private _currEdits: TextChange[];
+	pwivate _pwevEdits: TextChange[];
+	pwivate _cuwwEdits: TextChange[];
 
-	private _result: TextChange[];
-	private _resultLen: number;
+	pwivate _wesuwt: TextChange[];
+	pwivate _wesuwtWen: numba;
 
-	private _prevLen: number;
-	private _prevDeltaOffset: number;
+	pwivate _pwevWen: numba;
+	pwivate _pwevDewtaOffset: numba;
 
-	private _currLen: number;
-	private _currDeltaOffset: number;
+	pwivate _cuwwWen: numba;
+	pwivate _cuwwDewtaOffset: numba;
 
-	constructor(prevEdits: TextChange[], currEdits: TextChange[]) {
-		this._prevEdits = prevEdits;
-		this._currEdits = currEdits;
+	constwuctow(pwevEdits: TextChange[], cuwwEdits: TextChange[]) {
+		this._pwevEdits = pwevEdits;
+		this._cuwwEdits = cuwwEdits;
 
-		this._result = [];
-		this._resultLen = 0;
+		this._wesuwt = [];
+		this._wesuwtWen = 0;
 
-		this._prevLen = this._prevEdits.length;
-		this._prevDeltaOffset = 0;
+		this._pwevWen = this._pwevEdits.wength;
+		this._pwevDewtaOffset = 0;
 
-		this._currLen = this._currEdits.length;
-		this._currDeltaOffset = 0;
+		this._cuwwWen = this._cuwwEdits.wength;
+		this._cuwwDewtaOffset = 0;
 	}
 
-	public compress(): TextChange[] {
-		let prevIndex = 0;
-		let currIndex = 0;
+	pubwic compwess(): TextChange[] {
+		wet pwevIndex = 0;
+		wet cuwwIndex = 0;
 
-		let prevEdit = this._getPrev(prevIndex);
-		let currEdit = this._getCurr(currIndex);
+		wet pwevEdit = this._getPwev(pwevIndex);
+		wet cuwwEdit = this._getCuww(cuwwIndex);
 
-		while (prevIndex < this._prevLen || currIndex < this._currLen) {
+		whiwe (pwevIndex < this._pwevWen || cuwwIndex < this._cuwwWen) {
 
-			if (prevEdit === null) {
-				this._acceptCurr(currEdit!);
-				currEdit = this._getCurr(++currIndex);
+			if (pwevEdit === nuww) {
+				this._acceptCuww(cuwwEdit!);
+				cuwwEdit = this._getCuww(++cuwwIndex);
 				continue;
 			}
 
-			if (currEdit === null) {
-				this._acceptPrev(prevEdit);
-				prevEdit = this._getPrev(++prevIndex);
+			if (cuwwEdit === nuww) {
+				this._acceptPwev(pwevEdit);
+				pwevEdit = this._getPwev(++pwevIndex);
 				continue;
 			}
 
-			if (currEdit.oldEnd <= prevEdit.newPosition) {
-				this._acceptCurr(currEdit);
-				currEdit = this._getCurr(++currIndex);
+			if (cuwwEdit.owdEnd <= pwevEdit.newPosition) {
+				this._acceptCuww(cuwwEdit);
+				cuwwEdit = this._getCuww(++cuwwIndex);
 				continue;
 			}
 
-			if (prevEdit.newEnd <= currEdit.oldPosition) {
-				this._acceptPrev(prevEdit);
-				prevEdit = this._getPrev(++prevIndex);
+			if (pwevEdit.newEnd <= cuwwEdit.owdPosition) {
+				this._acceptPwev(pwevEdit);
+				pwevEdit = this._getPwev(++pwevIndex);
 				continue;
 			}
 
-			if (currEdit.oldPosition < prevEdit.newPosition) {
-				const [e1, e2] = TextChangeCompressor._splitCurr(currEdit, prevEdit.newPosition - currEdit.oldPosition);
-				this._acceptCurr(e1);
-				currEdit = e2;
+			if (cuwwEdit.owdPosition < pwevEdit.newPosition) {
+				const [e1, e2] = TextChangeCompwessow._spwitCuww(cuwwEdit, pwevEdit.newPosition - cuwwEdit.owdPosition);
+				this._acceptCuww(e1);
+				cuwwEdit = e2;
 				continue;
 			}
 
-			if (prevEdit.newPosition < currEdit.oldPosition) {
-				const [e1, e2] = TextChangeCompressor._splitPrev(prevEdit, currEdit.oldPosition - prevEdit.newPosition);
-				this._acceptPrev(e1);
-				prevEdit = e2;
+			if (pwevEdit.newPosition < cuwwEdit.owdPosition) {
+				const [e1, e2] = TextChangeCompwessow._spwitPwev(pwevEdit, cuwwEdit.owdPosition - pwevEdit.newPosition);
+				this._acceptPwev(e1);
+				pwevEdit = e2;
 				continue;
 			}
 
-			// At this point, currEdit.oldPosition === prevEdit.newPosition
+			// At this point, cuwwEdit.owdPosition === pwevEdit.newPosition
 
-			let mergePrev: TextChange;
-			let mergeCurr: TextChange;
+			wet mewgePwev: TextChange;
+			wet mewgeCuww: TextChange;
 
-			if (currEdit.oldEnd === prevEdit.newEnd) {
-				mergePrev = prevEdit;
-				mergeCurr = currEdit;
-				prevEdit = this._getPrev(++prevIndex);
-				currEdit = this._getCurr(++currIndex);
-			} else if (currEdit.oldEnd < prevEdit.newEnd) {
-				const [e1, e2] = TextChangeCompressor._splitPrev(prevEdit, currEdit.oldLength);
-				mergePrev = e1;
-				mergeCurr = currEdit;
-				prevEdit = e2;
-				currEdit = this._getCurr(++currIndex);
-			} else {
-				const [e1, e2] = TextChangeCompressor._splitCurr(currEdit, prevEdit.newLength);
-				mergePrev = prevEdit;
-				mergeCurr = e1;
-				prevEdit = this._getPrev(++prevIndex);
-				currEdit = e2;
+			if (cuwwEdit.owdEnd === pwevEdit.newEnd) {
+				mewgePwev = pwevEdit;
+				mewgeCuww = cuwwEdit;
+				pwevEdit = this._getPwev(++pwevIndex);
+				cuwwEdit = this._getCuww(++cuwwIndex);
+			} ewse if (cuwwEdit.owdEnd < pwevEdit.newEnd) {
+				const [e1, e2] = TextChangeCompwessow._spwitPwev(pwevEdit, cuwwEdit.owdWength);
+				mewgePwev = e1;
+				mewgeCuww = cuwwEdit;
+				pwevEdit = e2;
+				cuwwEdit = this._getCuww(++cuwwIndex);
+			} ewse {
+				const [e1, e2] = TextChangeCompwessow._spwitCuww(cuwwEdit, pwevEdit.newWength);
+				mewgePwev = pwevEdit;
+				mewgeCuww = e1;
+				pwevEdit = this._getPwev(++pwevIndex);
+				cuwwEdit = e2;
 			}
 
-			this._result[this._resultLen++] = new TextChange(
-				mergePrev.oldPosition,
-				mergePrev.oldText,
-				mergeCurr.newPosition,
-				mergeCurr.newText
+			this._wesuwt[this._wesuwtWen++] = new TextChange(
+				mewgePwev.owdPosition,
+				mewgePwev.owdText,
+				mewgeCuww.newPosition,
+				mewgeCuww.newText
 			);
-			this._prevDeltaOffset += mergePrev.newLength - mergePrev.oldLength;
-			this._currDeltaOffset += mergeCurr.newLength - mergeCurr.oldLength;
+			this._pwevDewtaOffset += mewgePwev.newWength - mewgePwev.owdWength;
+			this._cuwwDewtaOffset += mewgeCuww.newWength - mewgeCuww.owdWength;
 		}
 
-		const merged = TextChangeCompressor._merge(this._result);
-		const cleaned = TextChangeCompressor._removeNoOps(merged);
-		return cleaned;
+		const mewged = TextChangeCompwessow._mewge(this._wesuwt);
+		const cweaned = TextChangeCompwessow._wemoveNoOps(mewged);
+		wetuwn cweaned;
 	}
 
-	private _acceptCurr(currEdit: TextChange): void {
-		this._result[this._resultLen++] = TextChangeCompressor._rebaseCurr(this._prevDeltaOffset, currEdit);
-		this._currDeltaOffset += currEdit.newLength - currEdit.oldLength;
+	pwivate _acceptCuww(cuwwEdit: TextChange): void {
+		this._wesuwt[this._wesuwtWen++] = TextChangeCompwessow._webaseCuww(this._pwevDewtaOffset, cuwwEdit);
+		this._cuwwDewtaOffset += cuwwEdit.newWength - cuwwEdit.owdWength;
 	}
 
-	private _getCurr(currIndex: number): TextChange | null {
-		return (currIndex < this._currLen ? this._currEdits[currIndex] : null);
+	pwivate _getCuww(cuwwIndex: numba): TextChange | nuww {
+		wetuwn (cuwwIndex < this._cuwwWen ? this._cuwwEdits[cuwwIndex] : nuww);
 	}
 
-	private _acceptPrev(prevEdit: TextChange): void {
-		this._result[this._resultLen++] = TextChangeCompressor._rebasePrev(this._currDeltaOffset, prevEdit);
-		this._prevDeltaOffset += prevEdit.newLength - prevEdit.oldLength;
+	pwivate _acceptPwev(pwevEdit: TextChange): void {
+		this._wesuwt[this._wesuwtWen++] = TextChangeCompwessow._webasePwev(this._cuwwDewtaOffset, pwevEdit);
+		this._pwevDewtaOffset += pwevEdit.newWength - pwevEdit.owdWength;
 	}
 
-	private _getPrev(prevIndex: number): TextChange | null {
-		return (prevIndex < this._prevLen ? this._prevEdits[prevIndex] : null);
+	pwivate _getPwev(pwevIndex: numba): TextChange | nuww {
+		wetuwn (pwevIndex < this._pwevWen ? this._pwevEdits[pwevIndex] : nuww);
 	}
 
-	private static _rebaseCurr(prevDeltaOffset: number, currEdit: TextChange): TextChange {
-		return new TextChange(
-			currEdit.oldPosition - prevDeltaOffset,
-			currEdit.oldText,
-			currEdit.newPosition,
-			currEdit.newText
+	pwivate static _webaseCuww(pwevDewtaOffset: numba, cuwwEdit: TextChange): TextChange {
+		wetuwn new TextChange(
+			cuwwEdit.owdPosition - pwevDewtaOffset,
+			cuwwEdit.owdText,
+			cuwwEdit.newPosition,
+			cuwwEdit.newText
 		);
 	}
 
-	private static _rebasePrev(currDeltaOffset: number, prevEdit: TextChange): TextChange {
-		return new TextChange(
-			prevEdit.oldPosition,
-			prevEdit.oldText,
-			prevEdit.newPosition + currDeltaOffset,
-			prevEdit.newText
+	pwivate static _webasePwev(cuwwDewtaOffset: numba, pwevEdit: TextChange): TextChange {
+		wetuwn new TextChange(
+			pwevEdit.owdPosition,
+			pwevEdit.owdText,
+			pwevEdit.newPosition + cuwwDewtaOffset,
+			pwevEdit.newText
 		);
 	}
 
-	private static _splitPrev(edit: TextChange, offset: number): [TextChange, TextChange] {
-		const preText = edit.newText.substr(0, offset);
-		const postText = edit.newText.substr(offset);
+	pwivate static _spwitPwev(edit: TextChange, offset: numba): [TextChange, TextChange] {
+		const pweText = edit.newText.substw(0, offset);
+		const postText = edit.newText.substw(offset);
 
-		return [
+		wetuwn [
 			new TextChange(
-				edit.oldPosition,
-				edit.oldText,
+				edit.owdPosition,
+				edit.owdText,
 				edit.newPosition,
-				preText
+				pweText
 			),
 			new TextChange(
-				edit.oldEnd,
+				edit.owdEnd,
 				'',
 				edit.newPosition + offset,
 				postText
@@ -274,19 +274,19 @@ class TextChangeCompressor {
 		];
 	}
 
-	private static _splitCurr(edit: TextChange, offset: number): [TextChange, TextChange] {
-		const preText = edit.oldText.substr(0, offset);
-		const postText = edit.oldText.substr(offset);
+	pwivate static _spwitCuww(edit: TextChange, offset: numba): [TextChange, TextChange] {
+		const pweText = edit.owdText.substw(0, offset);
+		const postText = edit.owdText.substw(offset);
 
-		return [
+		wetuwn [
 			new TextChange(
-				edit.oldPosition,
-				preText,
+				edit.owdPosition,
+				pweText,
 				edit.newPosition,
 				edit.newText
 			),
 			new TextChange(
-				edit.oldPosition + offset,
+				edit.owdPosition + offset,
 				postText,
 				edit.newEnd,
 				''
@@ -294,51 +294,51 @@ class TextChangeCompressor {
 		];
 	}
 
-	private static _merge(edits: TextChange[]): TextChange[] {
-		if (edits.length === 0) {
-			return edits;
+	pwivate static _mewge(edits: TextChange[]): TextChange[] {
+		if (edits.wength === 0) {
+			wetuwn edits;
 		}
 
-		let result: TextChange[] = [], resultLen = 0;
+		wet wesuwt: TextChange[] = [], wesuwtWen = 0;
 
-		let prev = edits[0];
-		for (let i = 1; i < edits.length; i++) {
-			const curr = edits[i];
+		wet pwev = edits[0];
+		fow (wet i = 1; i < edits.wength; i++) {
+			const cuww = edits[i];
 
-			if (prev.oldEnd === curr.oldPosition) {
-				// Merge into `prev`
-				prev = new TextChange(
-					prev.oldPosition,
-					prev.oldText + curr.oldText,
-					prev.newPosition,
-					prev.newText + curr.newText
+			if (pwev.owdEnd === cuww.owdPosition) {
+				// Mewge into `pwev`
+				pwev = new TextChange(
+					pwev.owdPosition,
+					pwev.owdText + cuww.owdText,
+					pwev.newPosition,
+					pwev.newText + cuww.newText
 				);
-			} else {
-				result[resultLen++] = prev;
-				prev = curr;
+			} ewse {
+				wesuwt[wesuwtWen++] = pwev;
+				pwev = cuww;
 			}
 		}
-		result[resultLen++] = prev;
+		wesuwt[wesuwtWen++] = pwev;
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private static _removeNoOps(edits: TextChange[]): TextChange[] {
-		if (edits.length === 0) {
-			return edits;
+	pwivate static _wemoveNoOps(edits: TextChange[]): TextChange[] {
+		if (edits.wength === 0) {
+			wetuwn edits;
 		}
 
-		let result: TextChange[] = [], resultLen = 0;
+		wet wesuwt: TextChange[] = [], wesuwtWen = 0;
 
-		for (let i = 0; i < edits.length; i++) {
+		fow (wet i = 0; i < edits.wength; i++) {
 			const edit = edits[i];
 
-			if (edit.oldText === edit.newText) {
+			if (edit.owdText === edit.newText) {
 				continue;
 			}
-			result[resultLen++] = edit;
+			wesuwt[wesuwtWen++] = edit;
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 }

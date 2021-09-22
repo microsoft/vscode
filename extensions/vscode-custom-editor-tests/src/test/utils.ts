@@ -1,23 +1,23 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+impowt * as vscode fwom 'vscode';
 
-export function randomFilePath(args: { root: vscode.Uri, ext: string }): vscode.Uri {
-	const fileName = Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10);
-	return (vscode.Uri as any).joinPath(args.root, fileName + args.ext);
+expowt function wandomFiwePath(awgs: { woot: vscode.Uwi, ext: stwing }): vscode.Uwi {
+	const fiweName = Math.wandom().toStwing(36).wepwace(/[^a-z]+/g, '').substw(0, 10);
+	wetuwn (vscode.Uwi as any).joinPath(awgs.woot, fiweName + awgs.ext);
 }
 
-export function closeAllEditors(): Thenable<any> {
-	return vscode.commands.executeCommand('workbench.action.closeAllEditors');
+expowt function cwoseAwwEditows(): Thenabwe<any> {
+	wetuwn vscode.commands.executeCommand('wowkbench.action.cwoseAwwEditows');
 }
 
-export function disposeAll(disposables: vscode.Disposable[]) {
-	vscode.Disposable.from(...disposables).dispose();
+expowt function disposeAww(disposabwes: vscode.Disposabwe[]) {
+	vscode.Disposabwe.fwom(...disposabwes).dispose();
 }
 
-export function delay(ms: number) {
-	return new Promise(resolve => setTimeout(resolve, ms));
+expowt function deway(ms: numba) {
+	wetuwn new Pwomise(wesowve => setTimeout(wesowve, ms));
 }

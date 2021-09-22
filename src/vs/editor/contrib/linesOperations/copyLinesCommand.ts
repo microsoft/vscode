@@ -1,94 +1,94 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from 'vs/editor/common/core/range';
-import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection, SewectionDiwection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ICommand, ICuwsowStateComputewData, IEditOpewationBuiwda } fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
 
-export class CopyLinesCommand implements ICommand {
+expowt cwass CopyWinesCommand impwements ICommand {
 
-	private readonly _selection: Selection;
-	private readonly _isCopyingDown: boolean;
-	private readonly _noop: boolean;
+	pwivate weadonwy _sewection: Sewection;
+	pwivate weadonwy _isCopyingDown: boowean;
+	pwivate weadonwy _noop: boowean;
 
-	private _selectionDirection: SelectionDirection;
-	private _selectionId: string | null;
-	private _startLineNumberDelta: number;
-	private _endLineNumberDelta: number;
+	pwivate _sewectionDiwection: SewectionDiwection;
+	pwivate _sewectionId: stwing | nuww;
+	pwivate _stawtWineNumbewDewta: numba;
+	pwivate _endWineNumbewDewta: numba;
 
-	constructor(selection: Selection, isCopyingDown: boolean, noop?: boolean) {
-		this._selection = selection;
+	constwuctow(sewection: Sewection, isCopyingDown: boowean, noop?: boowean) {
+		this._sewection = sewection;
 		this._isCopyingDown = isCopyingDown;
-		this._noop = noop || false;
-		this._selectionDirection = SelectionDirection.LTR;
-		this._selectionId = null;
-		this._startLineNumberDelta = 0;
-		this._endLineNumberDelta = 0;
+		this._noop = noop || fawse;
+		this._sewectionDiwection = SewectionDiwection.WTW;
+		this._sewectionId = nuww;
+		this._stawtWineNumbewDewta = 0;
+		this._endWineNumbewDewta = 0;
 	}
 
-	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		let s = this._selection;
+	pubwic getEditOpewations(modew: ITextModew, buiwda: IEditOpewationBuiwda): void {
+		wet s = this._sewection;
 
-		this._startLineNumberDelta = 0;
-		this._endLineNumberDelta = 0;
-		if (s.startLineNumber < s.endLineNumber && s.endColumn === 1) {
-			this._endLineNumberDelta = 1;
-			s = s.setEndPosition(s.endLineNumber - 1, model.getLineMaxColumn(s.endLineNumber - 1));
+		this._stawtWineNumbewDewta = 0;
+		this._endWineNumbewDewta = 0;
+		if (s.stawtWineNumba < s.endWineNumba && s.endCowumn === 1) {
+			this._endWineNumbewDewta = 1;
+			s = s.setEndPosition(s.endWineNumba - 1, modew.getWineMaxCowumn(s.endWineNumba - 1));
 		}
 
-		let sourceLines: string[] = [];
-		for (let i = s.startLineNumber; i <= s.endLineNumber; i++) {
-			sourceLines.push(model.getLineContent(i));
+		wet souwceWines: stwing[] = [];
+		fow (wet i = s.stawtWineNumba; i <= s.endWineNumba; i++) {
+			souwceWines.push(modew.getWineContent(i));
 		}
-		const sourceText = sourceLines.join('\n');
+		const souwceText = souwceWines.join('\n');
 
-		if (sourceText === '') {
-			// Duplicating empty line
+		if (souwceText === '') {
+			// Dupwicating empty wine
 			if (this._isCopyingDown) {
-				this._startLineNumberDelta++;
-				this._endLineNumberDelta++;
+				this._stawtWineNumbewDewta++;
+				this._endWineNumbewDewta++;
 			}
 		}
 
 		if (this._noop) {
-			builder.addEditOperation(new Range(s.endLineNumber, model.getLineMaxColumn(s.endLineNumber), s.endLineNumber + 1, 1), s.endLineNumber === model.getLineCount() ? '' : '\n');
-		} else {
+			buiwda.addEditOpewation(new Wange(s.endWineNumba, modew.getWineMaxCowumn(s.endWineNumba), s.endWineNumba + 1, 1), s.endWineNumba === modew.getWineCount() ? '' : '\n');
+		} ewse {
 			if (!this._isCopyingDown) {
-				builder.addEditOperation(new Range(s.endLineNumber, model.getLineMaxColumn(s.endLineNumber), s.endLineNumber, model.getLineMaxColumn(s.endLineNumber)), '\n' + sourceText);
-			} else {
-				builder.addEditOperation(new Range(s.startLineNumber, 1, s.startLineNumber, 1), sourceText + '\n');
+				buiwda.addEditOpewation(new Wange(s.endWineNumba, modew.getWineMaxCowumn(s.endWineNumba), s.endWineNumba, modew.getWineMaxCowumn(s.endWineNumba)), '\n' + souwceText);
+			} ewse {
+				buiwda.addEditOpewation(new Wange(s.stawtWineNumba, 1, s.stawtWineNumba, 1), souwceText + '\n');
 			}
 		}
 
-		this._selectionId = builder.trackSelection(s);
-		this._selectionDirection = this._selection.getDirection();
+		this._sewectionId = buiwda.twackSewection(s);
+		this._sewectionDiwection = this._sewection.getDiwection();
 	}
 
-	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		let result = helper.getTrackedSelection(this._selectionId!);
+	pubwic computeCuwsowState(modew: ITextModew, hewpa: ICuwsowStateComputewData): Sewection {
+		wet wesuwt = hewpa.getTwackedSewection(this._sewectionId!);
 
-		if (this._startLineNumberDelta !== 0 || this._endLineNumberDelta !== 0) {
-			let startLineNumber = result.startLineNumber;
-			let startColumn = result.startColumn;
-			let endLineNumber = result.endLineNumber;
-			let endColumn = result.endColumn;
+		if (this._stawtWineNumbewDewta !== 0 || this._endWineNumbewDewta !== 0) {
+			wet stawtWineNumba = wesuwt.stawtWineNumba;
+			wet stawtCowumn = wesuwt.stawtCowumn;
+			wet endWineNumba = wesuwt.endWineNumba;
+			wet endCowumn = wesuwt.endCowumn;
 
-			if (this._startLineNumberDelta !== 0) {
-				startLineNumber = startLineNumber + this._startLineNumberDelta;
-				startColumn = 1;
+			if (this._stawtWineNumbewDewta !== 0) {
+				stawtWineNumba = stawtWineNumba + this._stawtWineNumbewDewta;
+				stawtCowumn = 1;
 			}
 
-			if (this._endLineNumberDelta !== 0) {
-				endLineNumber = endLineNumber + this._endLineNumberDelta;
-				endColumn = 1;
+			if (this._endWineNumbewDewta !== 0) {
+				endWineNumba = endWineNumba + this._endWineNumbewDewta;
+				endCowumn = 1;
 			}
 
-			result = Selection.createWithDirection(startLineNumber, startColumn, endLineNumber, endColumn, this._selectionDirection);
+			wesuwt = Sewection.cweateWithDiwection(stawtWineNumba, stawtCowumn, endWineNumba, endCowumn, this._sewectionDiwection);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 }

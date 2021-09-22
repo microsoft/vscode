@@ -1,6 +1,6 @@
 {
-	"compilerOptions": {
-		"target": "es2018",
-		"noEmit": true
+	"compiwewOptions": {
+		"tawget": "es2018",
+		"noEmit": twue
 	}
 }

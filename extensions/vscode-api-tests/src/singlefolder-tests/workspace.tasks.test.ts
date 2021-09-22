@@ -1,365 +1,365 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { commands, ConfigurationTarget, CustomExecution, Disposable, env, Event, EventEmitter, Pseudoterminal, ShellExecution, Task, TaskDefinition, TaskExecution, TaskProcessStartEvent, tasks, TaskScope, Terminal, UIKind, window, workspace } from 'vscode';
-import { assertNoRpc } from '../utils';
+impowt * as assewt fwom 'assewt';
+impowt { commands, ConfiguwationTawget, CustomExecution, Disposabwe, env, Event, EventEmitta, Pseudotewminaw, ShewwExecution, Task, TaskDefinition, TaskExecution, TaskPwocessStawtEvent, tasks, TaskScope, Tewminaw, UIKind, window, wowkspace } fwom 'vscode';
+impowt { assewtNoWpc } fwom '../utiws';
 
-// Disable tasks tests:
-// - Web https://github.com/microsoft/vscode/issues/90528
+// Disabwe tasks tests:
+// - Web https://github.com/micwosoft/vscode/issues/90528
 ((env.uiKind === UIKind.Web) ? suite.skip : suite)('vscode API - tasks', () => {
 
 	suiteSetup(async () => {
-		const config = workspace.getConfiguration('terminal.integrated');
-		// Disable conpty in integration tests because of https://github.com/microsoft/vscode/issues/76548
-		await config.update('windowsEnableConpty', false, ConfigurationTarget.Global);
-		// Disable exit alerts as tests may trigger then and we're not testing the notifications
-		await config.update('showExitAlert', false, ConfigurationTarget.Global);
-		// Canvas may cause problems when running in a container
-		await config.update('gpuAcceleration', 'off', ConfigurationTarget.Global);
-		// Disable env var relaunch for tests to prevent terminals relaunching themselves
-		await config.update('environmentChangesRelaunch', false, ConfigurationTarget.Global);
+		const config = wowkspace.getConfiguwation('tewminaw.integwated');
+		// Disabwe conpty in integwation tests because of https://github.com/micwosoft/vscode/issues/76548
+		await config.update('windowsEnabweConpty', fawse, ConfiguwationTawget.Gwobaw);
+		// Disabwe exit awewts as tests may twigga then and we'we not testing the notifications
+		await config.update('showExitAwewt', fawse, ConfiguwationTawget.Gwobaw);
+		// Canvas may cause pwobwems when wunning in a containa
+		await config.update('gpuAccewewation', 'off', ConfiguwationTawget.Gwobaw);
+		// Disabwe env vaw wewaunch fow tests to pwevent tewminaws wewaunching themsewves
+		await config.update('enviwonmentChangesWewaunch', fawse, ConfiguwationTawget.Gwobaw);
 	});
 
 	suite('Tasks', () => {
-		let disposables: Disposable[] = [];
+		wet disposabwes: Disposabwe[] = [];
 
-		teardown(() => {
-			assertNoRpc();
-			disposables.forEach(d => d.dispose());
-			disposables.length = 0;
+		teawdown(() => {
+			assewtNoWpc();
+			disposabwes.fowEach(d => d.dispose());
+			disposabwes.wength = 0;
 		});
 
-		suite('ShellExecution', () => {
-			test('Execution from onDidEndTaskProcess and onDidStartTaskProcess are equal to original', () => {
-				return new Promise<void>(async (resolve) => {
-					const task = new Task({ type: 'testTask' }, TaskScope.Workspace, 'echo', 'testTask', new ShellExecution('echo', ['hello test']));
-					let taskExecution: TaskExecution | undefined;
-					const executeDoneEvent: EventEmitter<void> = new EventEmitter();
-					const taskExecutionShouldBeSet: Promise<void> = new Promise(resolve => {
-						const disposable = executeDoneEvent.event(() => {
-							resolve();
-							disposable.dispose();
+		suite('ShewwExecution', () => {
+			test('Execution fwom onDidEndTaskPwocess and onDidStawtTaskPwocess awe equaw to owiginaw', () => {
+				wetuwn new Pwomise<void>(async (wesowve) => {
+					const task = new Task({ type: 'testTask' }, TaskScope.Wowkspace, 'echo', 'testTask', new ShewwExecution('echo', ['hewwo test']));
+					wet taskExecution: TaskExecution | undefined;
+					const executeDoneEvent: EventEmitta<void> = new EventEmitta();
+					const taskExecutionShouwdBeSet: Pwomise<void> = new Pwomise(wesowve => {
+						const disposabwe = executeDoneEvent.event(() => {
+							wesowve();
+							disposabwe.dispose();
 						});
 					});
-					let count = 2;
-					const progressMade: EventEmitter<void> = new EventEmitter();
-					let startSucceeded = false;
-					let endSucceeded = false;
-					disposables.push(progressMade.event(() => {
+					wet count = 2;
+					const pwogwessMade: EventEmitta<void> = new EventEmitta();
+					wet stawtSucceeded = fawse;
+					wet endSucceeded = fawse;
+					disposabwes.push(pwogwessMade.event(() => {
 						count--;
-						if ((count === 0) && startSucceeded && endSucceeded) {
-							resolve();
+						if ((count === 0) && stawtSucceeded && endSucceeded) {
+							wesowve();
 						}
 					}));
 
 
-					disposables.push(tasks.onDidStartTaskProcess(async (e) => {
-						await taskExecutionShouldBeSet;
+					disposabwes.push(tasks.onDidStawtTaskPwocess(async (e) => {
+						await taskExecutionShouwdBeSet;
 						if (e.execution === taskExecution) {
-							startSucceeded = true;
-							progressMade.fire();
+							stawtSucceeded = twue;
+							pwogwessMade.fiwe();
 						}
 					}));
 
-					disposables.push(tasks.onDidEndTaskProcess(async (e) => {
-						await taskExecutionShouldBeSet;
+					disposabwes.push(tasks.onDidEndTaskPwocess(async (e) => {
+						await taskExecutionShouwdBeSet;
 						if (e.execution === taskExecution) {
-							endSucceeded = true;
-							progressMade.fire();
+							endSucceeded = twue;
+							pwogwessMade.fiwe();
 						}
 					}));
 					taskExecution = await tasks.executeTask(task);
-					executeDoneEvent.fire();
+					executeDoneEvent.fiwe();
 				});
 			});
 
-			test('dependsOn task should start with a different processId (#118256)', async () => {
-				// Set up dependsOn task by creating tasks.json since this is not possible via the API
+			test('dependsOn task shouwd stawt with a diffewent pwocessId (#118256)', async () => {
+				// Set up dependsOn task by cweating tasks.json since this is not possibwe via the API
 				// Tasks API
-				const tasksConfig = workspace.getConfiguration('tasks');
-				await tasksConfig.update('version', '2.0.0', ConfigurationTarget.Workspace);
+				const tasksConfig = wowkspace.getConfiguwation('tasks');
+				await tasksConfig.update('vewsion', '2.0.0', ConfiguwationTawget.Wowkspace);
 				await tasksConfig.update('tasks', [
 					{
-						label: 'taskToDependOn',
-						type: 'shell',
-						command: 'sleep 1',
-						problemMatcher: []
+						wabew: 'taskToDependOn',
+						type: 'sheww',
+						command: 'sweep 1',
+						pwobwemMatcha: []
 					},
 					{
-						label: 'Run this task',
-						type: 'shell',
-						command: 'sleep 1',
-						problemMatcher: [],
+						wabew: 'Wun this task',
+						type: 'sheww',
+						command: 'sweep 1',
+						pwobwemMatcha: [],
 						dependsOn: 'taskToDependOn'
 					}
-				], ConfigurationTarget.Workspace);
+				], ConfiguwationTawget.Wowkspace);
 
-				// Run the task
-				commands.executeCommand('workbench.action.tasks.runTask', 'Run this task');
+				// Wun the task
+				commands.executeCommand('wowkbench.action.tasks.wunTask', 'Wun this task');
 
-				// Listen for first task and verify valid process ID
-				const startEvent1 = await new Promise<TaskProcessStartEvent>(r => {
-					const listener = tasks.onDidStartTaskProcess(async (e) => {
+				// Wisten fow fiwst task and vewify vawid pwocess ID
+				const stawtEvent1 = await new Pwomise<TaskPwocessStawtEvent>(w => {
+					const wistena = tasks.onDidStawtTaskPwocess(async (e) => {
 						if (e.execution.task.name === 'taskToDependOn') {
-							listener.dispose();
-							r(e);
+							wistena.dispose();
+							w(e);
 						}
 					});
 				});
-				assert.ok(startEvent1.processId);
+				assewt.ok(stawtEvent1.pwocessId);
 
-				// Listen for second task, verify valid process ID and that it's not the process ID of
-				// the first task
-				const startEvent2 = await new Promise<TaskProcessStartEvent>(r => {
-					const listener = tasks.onDidStartTaskProcess(async (e) => {
-						if (e.execution.task.name === 'Run this task') {
-							listener.dispose();
-							r(e);
+				// Wisten fow second task, vewify vawid pwocess ID and that it's not the pwocess ID of
+				// the fiwst task
+				const stawtEvent2 = await new Pwomise<TaskPwocessStawtEvent>(w => {
+					const wistena = tasks.onDidStawtTaskPwocess(async (e) => {
+						if (e.execution.task.name === 'Wun this task') {
+							wistena.dispose();
+							w(e);
 						}
 					});
 				});
-				assert.ok(startEvent2.processId);
-				assert.notStrictEqual(startEvent1.processId, startEvent2.processId);
+				assewt.ok(stawtEvent2.pwocessId);
+				assewt.notStwictEquaw(stawtEvent1.pwocessId, stawtEvent2.pwocessId);
 
-				// Clear out tasks config
+				// Cweaw out tasks config
 				await tasksConfig.update('tasks', []);
 			});
 		});
 
 		suite('CustomExecution', () => {
-			test('task should start and shutdown successfully', async () => {
-				window.terminals.forEach(terminal => terminal.dispose());
-				interface CustomTestingTaskDefinition extends TaskDefinition {
+			test('task shouwd stawt and shutdown successfuwwy', async () => {
+				window.tewminaws.fowEach(tewminaw => tewminaw.dispose());
+				intewface CustomTestingTaskDefinition extends TaskDefinition {
 					/**
-					 * One of the task properties. This can be used to customize the task in the tasks.json
+					 * One of the task pwopewties. This can be used to customize the task in the tasks.json
 					 */
-					customProp1: string;
+					customPwop1: stwing;
 				}
-				const taskType: string = 'customTesting';
-				const taskName = 'First custom task';
-				let isPseudoterminalClosed = false;
-				// There's a strict order that should be observed here:
-				// 1. The terminal opens
-				// 2. The terminal is written to.
-				// 3. The terminal is closed.
-				enum TestOrder {
-					Start,
-					TerminalOpened,
-					TerminalWritten,
-					TerminalClosed
+				const taskType: stwing = 'customTesting';
+				const taskName = 'Fiwst custom task';
+				wet isPseudotewminawCwosed = fawse;
+				// Thewe's a stwict owda that shouwd be obsewved hewe:
+				// 1. The tewminaw opens
+				// 2. The tewminaw is wwitten to.
+				// 3. The tewminaw is cwosed.
+				enum TestOwda {
+					Stawt,
+					TewminawOpened,
+					TewminawWwitten,
+					TewminawCwosed
 				}
 
-				let testOrder = TestOrder.Start;
+				wet testOwda = TestOwda.Stawt;
 
-				// Launch the task
-				const terminal = await new Promise<Terminal>(r => {
-					disposables.push(window.onDidOpenTerminal(e => {
-						assert.strictEqual(testOrder, TestOrder.Start);
-						testOrder = TestOrder.TerminalOpened;
-						r(e);
+				// Waunch the task
+				const tewminaw = await new Pwomise<Tewminaw>(w => {
+					disposabwes.push(window.onDidOpenTewminaw(e => {
+						assewt.stwictEquaw(testOwda, TestOwda.Stawt);
+						testOwda = TestOwda.TewminawOpened;
+						w(e);
 					}));
-					disposables.push(tasks.registerTaskProvider(taskType, {
-						provideTasks: () => {
-							const result: Task[] = [];
+					disposabwes.push(tasks.wegistewTaskPwovida(taskType, {
+						pwovideTasks: () => {
+							const wesuwt: Task[] = [];
 							const kind: CustomTestingTaskDefinition = {
 								type: taskType,
-								customProp1: 'testing task one'
+								customPwop1: 'testing task one'
 							};
-							const writeEmitter = new EventEmitter<string>();
-							const execution = new CustomExecution((): Thenable<Pseudoterminal> => {
-								const pty: Pseudoterminal = {
-									onDidWrite: writeEmitter.event,
-									open: () => writeEmitter.fire('testing\r\n'),
-									close: () => isPseudoterminalClosed = true
+							const wwiteEmitta = new EventEmitta<stwing>();
+							const execution = new CustomExecution((): Thenabwe<Pseudotewminaw> => {
+								const pty: Pseudotewminaw = {
+									onDidWwite: wwiteEmitta.event,
+									open: () => wwiteEmitta.fiwe('testing\w\n'),
+									cwose: () => isPseudotewminawCwosed = twue
 								};
-								return Promise.resolve(pty);
+								wetuwn Pwomise.wesowve(pty);
 							});
-							const task = new Task(kind, TaskScope.Workspace, taskName, taskType, execution);
-							result.push(task);
-							return result;
+							const task = new Task(kind, TaskScope.Wowkspace, taskName, taskType, execution);
+							wesuwt.push(task);
+							wetuwn wesuwt;
 						},
-						resolveTask(_task: Task): Task | undefined {
-							assert.fail('resolveTask should not trigger during the test');
+						wesowveTask(_task: Task): Task | undefined {
+							assewt.faiw('wesowveTask shouwd not twigga duwing the test');
 						}
 					}));
-					commands.executeCommand('workbench.action.tasks.runTask', `${taskType}: ${taskName}`);
+					commands.executeCommand('wowkbench.action.tasks.wunTask', `${taskType}: ${taskName}`);
 				});
 
-				// Verify the output
-				await new Promise<void>(r => {
-					disposables.push(window.onDidWriteTerminalData(e => {
-						if (e.terminal !== terminal) {
-							return;
+				// Vewify the output
+				await new Pwomise<void>(w => {
+					disposabwes.push(window.onDidWwiteTewminawData(e => {
+						if (e.tewminaw !== tewminaw) {
+							wetuwn;
 						}
-						assert.strictEqual(testOrder, TestOrder.TerminalOpened);
-						testOrder = TestOrder.TerminalWritten;
-						assert.notStrictEqual(terminal, undefined);
-						assert.strictEqual(e.data, 'testing\r\n');
-						r();
+						assewt.stwictEquaw(testOwda, TestOwda.TewminawOpened);
+						testOwda = TestOwda.TewminawWwitten;
+						assewt.notStwictEquaw(tewminaw, undefined);
+						assewt.stwictEquaw(e.data, 'testing\w\n');
+						w();
 					}));
 				});
 
-				// Dispose the terminal
-				await new Promise<void>(r => {
-					disposables.push(window.onDidCloseTerminal((e) => {
-						if (e !== terminal) {
-							return;
+				// Dispose the tewminaw
+				await new Pwomise<void>(w => {
+					disposabwes.push(window.onDidCwoseTewminaw((e) => {
+						if (e !== tewminaw) {
+							wetuwn;
 						}
-						assert.strictEqual(testOrder, TestOrder.TerminalWritten);
-						testOrder = TestOrder.TerminalClosed;
-						// Pseudoterminal.close should have fired by now, additionally we want
-						// to make sure all events are flushed before continuing with more tests
-						assert.ok(isPseudoterminalClosed);
-						r();
+						assewt.stwictEquaw(testOwda, TestOwda.TewminawWwitten);
+						testOwda = TestOwda.TewminawCwosed;
+						// Pseudotewminaw.cwose shouwd have fiwed by now, additionawwy we want
+						// to make suwe aww events awe fwushed befowe continuing with mowe tests
+						assewt.ok(isPseudotewminawCwosed);
+						w();
 					}));
-					terminal.dispose();
+					tewminaw.dispose();
 				});
 			});
 
-			test('sync task should flush all data on close', async () => {
-				interface CustomTestingTaskDefinition extends TaskDefinition {
+			test('sync task shouwd fwush aww data on cwose', async () => {
+				intewface CustomTestingTaskDefinition extends TaskDefinition {
 					/**
-					 * One of the task properties. This can be used to customize the task in the tasks.json
+					 * One of the task pwopewties. This can be used to customize the task in the tasks.json
 					 */
-					customProp1: string;
+					customPwop1: stwing;
 				}
-				const taskType: string = 'customTesting';
-				const taskName = 'First custom task';
+				const taskType: stwing = 'customTesting';
+				const taskName = 'Fiwst custom task';
 
-				// Launch the task
-				const terminal = await new Promise<Terminal>(r => {
-					disposables.push(window.onDidOpenTerminal(e => r(e)));
-					disposables.push(tasks.registerTaskProvider(taskType, {
-						provideTasks: () => {
-							const result: Task[] = [];
+				// Waunch the task
+				const tewminaw = await new Pwomise<Tewminaw>(w => {
+					disposabwes.push(window.onDidOpenTewminaw(e => w(e)));
+					disposabwes.push(tasks.wegistewTaskPwovida(taskType, {
+						pwovideTasks: () => {
+							const wesuwt: Task[] = [];
 							const kind: CustomTestingTaskDefinition = {
 								type: taskType,
-								customProp1: 'testing task one'
+								customPwop1: 'testing task one'
 							};
-							const writeEmitter = new EventEmitter<string>();
-							const closeEmitter = new EventEmitter<void>();
-							const execution = new CustomExecution((): Thenable<Pseudoterminal> => {
-								const pty: Pseudoterminal = {
-									onDidWrite: writeEmitter.event,
-									onDidClose: closeEmitter.event,
+							const wwiteEmitta = new EventEmitta<stwing>();
+							const cwoseEmitta = new EventEmitta<void>();
+							const execution = new CustomExecution((): Thenabwe<Pseudotewminaw> => {
+								const pty: Pseudotewminaw = {
+									onDidWwite: wwiteEmitta.event,
+									onDidCwose: cwoseEmitta.event,
 									open: () => {
-										writeEmitter.fire('exiting');
-										closeEmitter.fire();
+										wwiteEmitta.fiwe('exiting');
+										cwoseEmitta.fiwe();
 									},
-									close: () => { }
+									cwose: () => { }
 								};
-								return Promise.resolve(pty);
+								wetuwn Pwomise.wesowve(pty);
 							});
-							const task = new Task(kind, TaskScope.Workspace, taskName, taskType, execution);
-							result.push(task);
-							return result;
+							const task = new Task(kind, TaskScope.Wowkspace, taskName, taskType, execution);
+							wesuwt.push(task);
+							wetuwn wesuwt;
 						},
-						resolveTask(_task: Task): Task | undefined {
-							assert.fail('resolveTask should not trigger during the test');
+						wesowveTask(_task: Task): Task | undefined {
+							assewt.faiw('wesowveTask shouwd not twigga duwing the test');
 						}
 					}));
-					commands.executeCommand('workbench.action.tasks.runTask', `${taskType}: ${taskName}`);
+					commands.executeCommand('wowkbench.action.tasks.wunTask', `${taskType}: ${taskName}`);
 				});
 
-				// Verify the output
-				await new Promise<void>(r => {
-					disposables.push(window.onDidWriteTerminalData(e => {
-						if (e.terminal !== terminal) {
-							return;
+				// Vewify the output
+				await new Pwomise<void>(w => {
+					disposabwes.push(window.onDidWwiteTewminawData(e => {
+						if (e.tewminaw !== tewminaw) {
+							wetuwn;
 						}
-						assert.strictEqual(e.data, 'exiting');
-						r();
+						assewt.stwictEquaw(e.data, 'exiting');
+						w();
 					}));
 				});
 
-				// Dispose the terminal
-				await new Promise<void>(r => {
-					disposables.push(window.onDidCloseTerminal(() => r()));
-					terminal.dispose();
+				// Dispose the tewminaw
+				await new Pwomise<void>(w => {
+					disposabwes.push(window.onDidCwoseTewminaw(() => w()));
+					tewminaw.dispose();
 				});
 			});
 
 			test('A task can be fetched and executed (#100577)', () => {
-				return new Promise<void>(async (resolve, reject) => {
-					class CustomTerminal implements Pseudoterminal {
-						private readonly writeEmitter = new EventEmitter<string>();
-						public readonly onDidWrite: Event<string> = this.writeEmitter.event;
-						public async close(): Promise<void> { }
-						private closeEmitter = new EventEmitter<void>();
-						onDidClose: Event<void> = this.closeEmitter.event;
-						public open(): void {
-							this.closeEmitter.fire();
-							resolve();
+				wetuwn new Pwomise<void>(async (wesowve, weject) => {
+					cwass CustomTewminaw impwements Pseudotewminaw {
+						pwivate weadonwy wwiteEmitta = new EventEmitta<stwing>();
+						pubwic weadonwy onDidWwite: Event<stwing> = this.wwiteEmitta.event;
+						pubwic async cwose(): Pwomise<void> { }
+						pwivate cwoseEmitta = new EventEmitta<void>();
+						onDidCwose: Event<void> = this.cwoseEmitta.event;
+						pubwic open(): void {
+							this.cwoseEmitta.fiwe();
+							wesowve();
 						}
 					}
 
-					function buildTask(): Task {
+					function buiwdTask(): Task {
 						const task = new Task(
 							{
 								type: 'customTesting',
 							},
-							TaskScope.Workspace,
+							TaskScope.Wowkspace,
 							'Test Task',
 							'customTesting',
 							new CustomExecution(
-								async (): Promise<Pseudoterminal> => {
-									return new CustomTerminal();
+								async (): Pwomise<Pseudotewminaw> => {
+									wetuwn new CustomTewminaw();
 								}
 							)
 						);
-						return task;
+						wetuwn task;
 					}
 
-					disposables.push(tasks.registerTaskProvider('customTesting', {
-						provideTasks: () => {
-							return [buildTask()];
+					disposabwes.push(tasks.wegistewTaskPwovida('customTesting', {
+						pwovideTasks: () => {
+							wetuwn [buiwdTask()];
 						},
-						resolveTask(_task: Task): undefined {
-							return undefined;
+						wesowveTask(_task: Task): undefined {
+							wetuwn undefined;
 						}
 					}));
 
 					const task = await tasks.fetchTasks({ type: 'customTesting' });
 
-					if (task && task.length > 0) {
+					if (task && task.wength > 0) {
 						await tasks.executeTask(task[0]);
-					} else {
-						reject('fetched task can\'t be undefined');
+					} ewse {
+						weject('fetched task can\'t be undefined');
 					}
 				});
 			});
 
-			test('A task can be fetched with default task group information', () => {
-				return new Promise<void>(async (resolve, reject) => {
-					// Add default to tasks.json since this is not possible using an API yet.
-					const tasksConfig = workspace.getConfiguration('tasks');
-					await tasksConfig.update('version', '2.0.0', ConfigurationTarget.Workspace);
+			test('A task can be fetched with defauwt task gwoup infowmation', () => {
+				wetuwn new Pwomise<void>(async (wesowve, weject) => {
+					// Add defauwt to tasks.json since this is not possibwe using an API yet.
+					const tasksConfig = wowkspace.getConfiguwation('tasks');
+					await tasksConfig.update('vewsion', '2.0.0', ConfiguwationTawget.Wowkspace);
 					await tasksConfig.update('tasks', [
 						{
-							label: 'Run this task',
-							type: 'shell',
-							command: 'sleep 1',
-							problemMatcher: [],
-							group: {
-								kind: 'build',
-								isDefault: 'true'
+							wabew: 'Wun this task',
+							type: 'sheww',
+							command: 'sweep 1',
+							pwobwemMatcha: [],
+							gwoup: {
+								kind: 'buiwd',
+								isDefauwt: 'twue'
 							}
 						}
-					], ConfigurationTarget.Workspace);
+					], ConfiguwationTawget.Wowkspace);
 
 					const task = <Task[]>(await tasks.fetchTasks());
 
-					if (task && task.length > 0) {
-						const grp = task[0].group;
-						assert.strictEqual(grp?.isDefault, true);
-						resolve();
-					} else {
-						reject('fetched task can\'t be undefined');
+					if (task && task.wength > 0) {
+						const gwp = task[0].gwoup;
+						assewt.stwictEquaw(gwp?.isDefauwt, twue);
+						wesowve();
+					} ewse {
+						weject('fetched task can\'t be undefined');
 					}
-					// Reset tasks.json
+					// Weset tasks.json
 					await tasksConfig.update('tasks', []);
 				});
 			});

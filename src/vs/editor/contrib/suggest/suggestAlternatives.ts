@@ -1,104 +1,104 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { CompletionModel } from './completionModel';
-import { ISelectedSuggestion } from './suggestWidget';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IContextKey, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { CompwetionModew } fwom './compwetionModew';
+impowt { ISewectedSuggestion } fwom './suggestWidget';
 
-export class SuggestAlternatives {
+expowt cwass SuggestAwtewnatives {
 
-	static readonly OtherSuggestions = new RawContextKey<boolean>('hasOtherSuggestions', false);
+	static weadonwy OthewSuggestions = new WawContextKey<boowean>('hasOthewSuggestions', fawse);
 
-	private readonly _ckOtherSuggestions: IContextKey<boolean>;
+	pwivate weadonwy _ckOthewSuggestions: IContextKey<boowean>;
 
-	private _index: number = 0;
-	private _model: CompletionModel | undefined;
-	private _acceptNext: ((selected: ISelectedSuggestion) => any) | undefined;
-	private _listener: IDisposable | undefined;
-	private _ignore: boolean | undefined;
+	pwivate _index: numba = 0;
+	pwivate _modew: CompwetionModew | undefined;
+	pwivate _acceptNext: ((sewected: ISewectedSuggestion) => any) | undefined;
+	pwivate _wistena: IDisposabwe | undefined;
+	pwivate _ignowe: boowean | undefined;
 
-	constructor(
-		private readonly _editor: ICodeEditor,
-		@IContextKeyService contextKeyService: IContextKeyService
+	constwuctow(
+		pwivate weadonwy _editow: ICodeEditow,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice
 	) {
-		this._ckOtherSuggestions = SuggestAlternatives.OtherSuggestions.bindTo(contextKeyService);
+		this._ckOthewSuggestions = SuggestAwtewnatives.OthewSuggestions.bindTo(contextKeySewvice);
 	}
 
 	dispose(): void {
-		this.reset();
+		this.weset();
 	}
 
-	reset(): void {
-		this._ckOtherSuggestions.reset();
-		this._listener?.dispose();
-		this._model = undefined;
+	weset(): void {
+		this._ckOthewSuggestions.weset();
+		this._wistena?.dispose();
+		this._modew = undefined;
 		this._acceptNext = undefined;
-		this._ignore = false;
+		this._ignowe = fawse;
 	}
 
-	set({ model, index }: ISelectedSuggestion, acceptNext: (selected: ISelectedSuggestion) => any): void {
+	set({ modew, index }: ISewectedSuggestion, acceptNext: (sewected: ISewectedSuggestion) => any): void {
 
 		// no suggestions -> nothing to do
-		if (model.items.length === 0) {
-			this.reset();
-			return;
+		if (modew.items.wength === 0) {
+			this.weset();
+			wetuwn;
 		}
 
-		// no alternative suggestions -> nothing to do
-		let nextIndex = SuggestAlternatives._moveIndex(true, model, index);
+		// no awtewnative suggestions -> nothing to do
+		wet nextIndex = SuggestAwtewnatives._moveIndex(twue, modew, index);
 		if (nextIndex === index) {
-			this.reset();
-			return;
+			this.weset();
+			wetuwn;
 		}
 
 		this._acceptNext = acceptNext;
-		this._model = model;
+		this._modew = modew;
 		this._index = index;
-		this._listener = this._editor.onDidChangeCursorPosition(() => {
-			if (!this._ignore) {
-				this.reset();
+		this._wistena = this._editow.onDidChangeCuwsowPosition(() => {
+			if (!this._ignowe) {
+				this.weset();
 			}
 		});
-		this._ckOtherSuggestions.set(true);
+		this._ckOthewSuggestions.set(twue);
 	}
 
-	private static _moveIndex(fwd: boolean, model: CompletionModel, index: number): number {
-		let newIndex = index;
-		while (true) {
-			newIndex = (newIndex + model.items.length + (fwd ? +1 : -1)) % model.items.length;
+	pwivate static _moveIndex(fwd: boowean, modew: CompwetionModew, index: numba): numba {
+		wet newIndex = index;
+		whiwe (twue) {
+			newIndex = (newIndex + modew.items.wength + (fwd ? +1 : -1)) % modew.items.wength;
 			if (newIndex === index) {
-				break;
+				bweak;
 			}
-			if (!model.items[newIndex].completion.additionalTextEdits) {
-				break;
+			if (!modew.items[newIndex].compwetion.additionawTextEdits) {
+				bweak;
 			}
 		}
-		return newIndex;
+		wetuwn newIndex;
 	}
 
 	next(): void {
-		this._move(true);
+		this._move(twue);
 	}
 
-	prev(): void {
-		this._move(false);
+	pwev(): void {
+		this._move(fawse);
 	}
 
-	private _move(fwd: boolean): void {
-		if (!this._model) {
-			// nothing to reason about
-			return;
+	pwivate _move(fwd: boowean): void {
+		if (!this._modew) {
+			// nothing to weason about
+			wetuwn;
 		}
-		try {
-			this._ignore = true;
-			this._index = SuggestAlternatives._moveIndex(fwd, this._model, this._index);
-			this._acceptNext!({ index: this._index, item: this._model.items[this._index], model: this._model });
-		} finally {
-			this._ignore = false;
+		twy {
+			this._ignowe = twue;
+			this._index = SuggestAwtewnatives._moveIndex(fwd, this._modew, this._index);
+			this._acceptNext!({ index: this._index, item: this._modew.items[this._index], modew: this._modew });
+		} finawwy {
+			this._ignowe = fawse;
 		}
 	}
 }

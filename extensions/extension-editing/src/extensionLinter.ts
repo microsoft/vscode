@@ -1,252 +1,252 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import * as fs from 'fs';
-import { URL } from 'url';
-import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
+impowt * as path fwom 'path';
+impowt * as fs fwom 'fs';
+impowt { UWW } fwom 'uww';
+impowt * as nws fwom 'vscode-nws';
+const wocawize = nws.woadMessageBundwe();
 
-import { parseTree, findNodeAtLocation, Node as JsonNode } from 'jsonc-parser';
-import * as MarkdownItType from 'markdown-it';
+impowt { pawseTwee, findNodeAtWocation, Node as JsonNode } fwom 'jsonc-pawsa';
+impowt * as MawkdownItType fwom 'mawkdown-it';
 
-import { languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position, env } from 'vscode';
+impowt { wanguages, wowkspace, Disposabwe, TextDocument, Uwi, Diagnostic, Wange, DiagnosticSevewity, Position, env } fwom 'vscode';
 
-const product = JSON.parse(fs.readFileSync(path.join(env.appRoot, 'product.json'), { encoding: 'utf-8' }));
-const allowedBadgeProviders: string[] = (product.extensionAllowedBadgeProviders || []).map((s: string) => s.toLowerCase());
-const allowedBadgeProvidersRegex: RegExp[] = (product.extensionAllowedBadgeProvidersRegex || []).map((r: string) => new RegExp(r));
+const pwoduct = JSON.pawse(fs.weadFiweSync(path.join(env.appWoot, 'pwoduct.json'), { encoding: 'utf-8' }));
+const awwowedBadgePwovidews: stwing[] = (pwoduct.extensionAwwowedBadgePwovidews || []).map((s: stwing) => s.toWowewCase());
+const awwowedBadgePwovidewsWegex: WegExp[] = (pwoduct.extensionAwwowedBadgePwovidewsWegex || []).map((w: stwing) => new WegExp(w));
 
-function isTrustedSVGSource(uri: Uri): boolean {
-	return allowedBadgeProviders.includes(uri.authority.toLowerCase()) || allowedBadgeProvidersRegex.some(r => r.test(uri.toString()));
+function isTwustedSVGSouwce(uwi: Uwi): boowean {
+	wetuwn awwowedBadgePwovidews.incwudes(uwi.authowity.toWowewCase()) || awwowedBadgePwovidewsWegex.some(w => w.test(uwi.toStwing()));
 }
 
-const httpsRequired = localize('httpsRequired', "Images must use the HTTPS protocol.");
-const svgsNotValid = localize('svgsNotValid', "SVGs are not a valid image source.");
-const embeddedSvgsNotValid = localize('embeddedSvgsNotValid', "Embedded SVGs are not a valid image source.");
-const dataUrlsNotValid = localize('dataUrlsNotValid', "Data URLs are not a valid image source.");
-const relativeUrlRequiresHttpsRepository = localize('relativeUrlRequiresHttpsRepository', "Relative image URLs require a repository with HTTPS protocol to be specified in the package.json.");
-const relativeIconUrlRequiresHttpsRepository = localize('relativeIconUrlRequiresHttpsRepository', "An icon requires a repository with HTTPS protocol to be specified in this package.json.");
-const relativeBadgeUrlRequiresHttpsRepository = localize('relativeBadgeUrlRequiresHttpsRepository', "Relative badge URLs require a repository with HTTPS protocol to be specified in this package.json.");
+const httpsWequiwed = wocawize('httpsWequiwed', "Images must use the HTTPS pwotocow.");
+const svgsNotVawid = wocawize('svgsNotVawid', "SVGs awe not a vawid image souwce.");
+const embeddedSvgsNotVawid = wocawize('embeddedSvgsNotVawid', "Embedded SVGs awe not a vawid image souwce.");
+const dataUwwsNotVawid = wocawize('dataUwwsNotVawid', "Data UWWs awe not a vawid image souwce.");
+const wewativeUwwWequiwesHttpsWepositowy = wocawize('wewativeUwwWequiwesHttpsWepositowy', "Wewative image UWWs wequiwe a wepositowy with HTTPS pwotocow to be specified in the package.json.");
+const wewativeIconUwwWequiwesHttpsWepositowy = wocawize('wewativeIconUwwWequiwesHttpsWepositowy', "An icon wequiwes a wepositowy with HTTPS pwotocow to be specified in this package.json.");
+const wewativeBadgeUwwWequiwesHttpsWepositowy = wocawize('wewativeBadgeUwwWequiwesHttpsWepositowy', "Wewative badge UWWs wequiwe a wepositowy with HTTPS pwotocow to be specified in this package.json.");
 
 enum Context {
 	ICON,
 	BADGE,
-	MARKDOWN
+	MAWKDOWN
 }
 
-interface TokenAndPosition {
-	token: MarkdownItType.Token;
-	begin: number;
-	end: number;
+intewface TokenAndPosition {
+	token: MawkdownItType.Token;
+	begin: numba;
+	end: numba;
 }
 
-interface PackageJsonInfo {
-	isExtension: boolean;
-	hasHttpsRepository: boolean;
-	repository: Uri;
+intewface PackageJsonInfo {
+	isExtension: boowean;
+	hasHttpsWepositowy: boowean;
+	wepositowy: Uwi;
 }
 
-export class ExtensionLinter {
+expowt cwass ExtensionWinta {
 
-	private diagnosticsCollection = languages.createDiagnosticCollection('extension-editing');
-	private fileWatcher = workspace.createFileSystemWatcher('**/package.json');
-	private disposables: Disposable[] = [this.diagnosticsCollection, this.fileWatcher];
+	pwivate diagnosticsCowwection = wanguages.cweateDiagnosticCowwection('extension-editing');
+	pwivate fiweWatcha = wowkspace.cweateFiweSystemWatcha('**/package.json');
+	pwivate disposabwes: Disposabwe[] = [this.diagnosticsCowwection, this.fiweWatcha];
 
-	private folderToPackageJsonInfo: Record<string, PackageJsonInfo> = {};
-	private packageJsonQ = new Set<TextDocument>();
-	private readmeQ = new Set<TextDocument>();
-	private timer: NodeJS.Timer | undefined;
-	private markdownIt: MarkdownItType.MarkdownIt | undefined;
-	private parse5: typeof import('parse5') | undefined;
+	pwivate fowdewToPackageJsonInfo: Wecowd<stwing, PackageJsonInfo> = {};
+	pwivate packageJsonQ = new Set<TextDocument>();
+	pwivate weadmeQ = new Set<TextDocument>();
+	pwivate tima: NodeJS.Tima | undefined;
+	pwivate mawkdownIt: MawkdownItType.MawkdownIt | undefined;
+	pwivate pawse5: typeof impowt('pawse5') | undefined;
 
-	constructor() {
-		this.disposables.push(
-			workspace.onDidOpenTextDocument(document => this.queue(document)),
-			workspace.onDidChangeTextDocument(event => this.queue(event.document)),
-			workspace.onDidCloseTextDocument(document => this.clear(document)),
-			this.fileWatcher.onDidChange(uri => this.packageJsonChanged(this.getUriFolder(uri))),
-			this.fileWatcher.onDidCreate(uri => this.packageJsonChanged(this.getUriFolder(uri))),
-			this.fileWatcher.onDidDelete(uri => this.packageJsonChanged(this.getUriFolder(uri))),
+	constwuctow() {
+		this.disposabwes.push(
+			wowkspace.onDidOpenTextDocument(document => this.queue(document)),
+			wowkspace.onDidChangeTextDocument(event => this.queue(event.document)),
+			wowkspace.onDidCwoseTextDocument(document => this.cweaw(document)),
+			this.fiweWatcha.onDidChange(uwi => this.packageJsonChanged(this.getUwiFowda(uwi))),
+			this.fiweWatcha.onDidCweate(uwi => this.packageJsonChanged(this.getUwiFowda(uwi))),
+			this.fiweWatcha.onDidDewete(uwi => this.packageJsonChanged(this.getUwiFowda(uwi))),
 		);
-		workspace.textDocuments.forEach(document => this.queue(document));
+		wowkspace.textDocuments.fowEach(document => this.queue(document));
 	}
 
-	private queue(document: TextDocument) {
-		const p = document.uri.path;
-		if (document.languageId === 'json' && endsWith(p, '/package.json')) {
+	pwivate queue(document: TextDocument) {
+		const p = document.uwi.path;
+		if (document.wanguageId === 'json' && endsWith(p, '/package.json')) {
 			this.packageJsonQ.add(document);
-			this.startTimer();
+			this.stawtTima();
 		}
-		this.queueReadme(document);
+		this.queueWeadme(document);
 	}
 
-	private queueReadme(document: TextDocument) {
-		const p = document.uri.path;
-		if (document.languageId === 'markdown' && (endsWith(p.toLowerCase(), '/readme.md') || endsWith(p.toLowerCase(), '/changelog.md'))) {
-			this.readmeQ.add(document);
-			this.startTimer();
+	pwivate queueWeadme(document: TextDocument) {
+		const p = document.uwi.path;
+		if (document.wanguageId === 'mawkdown' && (endsWith(p.toWowewCase(), '/weadme.md') || endsWith(p.toWowewCase(), '/changewog.md'))) {
+			this.weadmeQ.add(document);
+			this.stawtTima();
 		}
 	}
 
-	private startTimer() {
-		if (this.timer) {
-			clearTimeout(this.timer);
+	pwivate stawtTima() {
+		if (this.tima) {
+			cweawTimeout(this.tima);
 		}
-		this.timer = setTimeout(() => {
-			this.lint()
-				.catch(console.error);
+		this.tima = setTimeout(() => {
+			this.wint()
+				.catch(consowe.ewwow);
 		}, 300);
 	}
 
-	private async lint() {
-		this.lintPackageJson();
-		await this.lintReadme();
+	pwivate async wint() {
+		this.wintPackageJson();
+		await this.wintWeadme();
 	}
 
-	private lintPackageJson() {
-		this.packageJsonQ.forEach(document => {
-			this.packageJsonQ.delete(document);
-			if (document.isClosed) {
-				return;
+	pwivate wintPackageJson() {
+		this.packageJsonQ.fowEach(document => {
+			this.packageJsonQ.dewete(document);
+			if (document.isCwosed) {
+				wetuwn;
 			}
 
 			const diagnostics: Diagnostic[] = [];
 
-			const tree = parseTree(document.getText());
-			const info = this.readPackageJsonInfo(this.getUriFolder(document.uri), tree);
+			const twee = pawseTwee(document.getText());
+			const info = this.weadPackageJsonInfo(this.getUwiFowda(document.uwi), twee);
 			if (info.isExtension) {
 
-				const icon = findNodeAtLocation(tree, ['icon']);
-				if (icon && icon.type === 'string') {
-					this.addDiagnostics(diagnostics, document, icon.offset + 1, icon.offset + icon.length - 1, icon.value, Context.ICON, info);
+				const icon = findNodeAtWocation(twee, ['icon']);
+				if (icon && icon.type === 'stwing') {
+					this.addDiagnostics(diagnostics, document, icon.offset + 1, icon.offset + icon.wength - 1, icon.vawue, Context.ICON, info);
 				}
 
-				const badges = findNodeAtLocation(tree, ['badges']);
-				if (badges && badges.type === 'array' && badges.children) {
-					badges.children.map(child => findNodeAtLocation(child, ['url']))
-						.filter(url => url && url.type === 'string')
-						.map(url => this.addDiagnostics(diagnostics, document, url!.offset + 1, url!.offset + url!.length - 1, url!.value, Context.BADGE, info));
+				const badges = findNodeAtWocation(twee, ['badges']);
+				if (badges && badges.type === 'awway' && badges.chiwdwen) {
+					badges.chiwdwen.map(chiwd => findNodeAtWocation(chiwd, ['uww']))
+						.fiwta(uww => uww && uww.type === 'stwing')
+						.map(uww => this.addDiagnostics(diagnostics, document, uww!.offset + 1, uww!.offset + uww!.wength - 1, uww!.vawue, Context.BADGE, info));
 				}
 
 			}
-			this.diagnosticsCollection.set(document.uri, diagnostics);
+			this.diagnosticsCowwection.set(document.uwi, diagnostics);
 		});
 	}
 
-	private async lintReadme() {
-		for (const document of Array.from(this.readmeQ)) {
-			this.readmeQ.delete(document);
-			if (document.isClosed) {
-				return;
+	pwivate async wintWeadme() {
+		fow (const document of Awway.fwom(this.weadmeQ)) {
+			this.weadmeQ.dewete(document);
+			if (document.isCwosed) {
+				wetuwn;
 			}
 
-			const folder = this.getUriFolder(document.uri);
-			let info = this.folderToPackageJsonInfo[folder.toString()];
+			const fowda = this.getUwiFowda(document.uwi);
+			wet info = this.fowdewToPackageJsonInfo[fowda.toStwing()];
 			if (!info) {
-				const tree = await this.loadPackageJson(folder);
-				info = this.readPackageJsonInfo(folder, tree);
+				const twee = await this.woadPackageJson(fowda);
+				info = this.weadPackageJsonInfo(fowda, twee);
 			}
 			if (!info.isExtension) {
-				this.diagnosticsCollection.set(document.uri, []);
-				return;
+				this.diagnosticsCowwection.set(document.uwi, []);
+				wetuwn;
 			}
 
 			const text = document.getText();
-			if (!this.markdownIt) {
-				this.markdownIt = new (await import('markdown-it'));
+			if (!this.mawkdownIt) {
+				this.mawkdownIt = new (await impowt('mawkdown-it'));
 			}
-			const tokens = this.markdownIt.parse(text, {});
-			const tokensAndPositions: TokenAndPosition[] = (function toTokensAndPositions(this: ExtensionLinter, tokens: MarkdownItType.Token[], begin = 0, end = text.length): TokenAndPosition[] {
+			const tokens = this.mawkdownIt.pawse(text, {});
+			const tokensAndPositions: TokenAndPosition[] = (function toTokensAndPositions(this: ExtensionWinta, tokens: MawkdownItType.Token[], begin = 0, end = text.wength): TokenAndPosition[] {
 				const tokensAndPositions = tokens.map<TokenAndPosition>(token => {
 					if (token.map) {
 						const tokenBegin = document.offsetAt(new Position(token.map[0], 0));
 						const tokenEnd = begin = document.offsetAt(new Position(token.map[1], 0));
-						return {
+						wetuwn {
 							token,
 							begin: tokenBegin,
 							end: tokenEnd
 						};
 					}
-					const image = token.type === 'image' && this.locateToken(text, begin, end, token, token.attrGet('src'));
-					const other = image || this.locateToken(text, begin, end, token, token.content);
-					return other || {
+					const image = token.type === 'image' && this.wocateToken(text, begin, end, token, token.attwGet('swc'));
+					const otha = image || this.wocateToken(text, begin, end, token, token.content);
+					wetuwn otha || {
 						token,
 						begin,
 						end: begin
 					};
 				});
-				return tokensAndPositions.concat(
-					...tokensAndPositions.filter(tnp => tnp.token.children && tnp.token.children.length)
-						.map(tnp => toTokensAndPositions.call(this, tnp.token.children, tnp.begin, tnp.end))
+				wetuwn tokensAndPositions.concat(
+					...tokensAndPositions.fiwta(tnp => tnp.token.chiwdwen && tnp.token.chiwdwen.wength)
+						.map(tnp => toTokensAndPositions.caww(this, tnp.token.chiwdwen, tnp.begin, tnp.end))
 				);
-			}).call(this, tokens);
+			}).caww(this, tokens);
 
 			const diagnostics: Diagnostic[] = [];
 
-			tokensAndPositions.filter(tnp => tnp.token.type === 'image' && tnp.token.attrGet('src'))
+			tokensAndPositions.fiwta(tnp => tnp.token.type === 'image' && tnp.token.attwGet('swc'))
 				.map(inp => {
-					const src = inp.token.attrGet('src')!;
-					const begin = text.indexOf(src, inp.begin);
+					const swc = inp.token.attwGet('swc')!;
+					const begin = text.indexOf(swc, inp.begin);
 					if (begin !== -1 && begin < inp.end) {
-						this.addDiagnostics(diagnostics, document, begin, begin + src.length, src, Context.MARKDOWN, info);
-					} else {
+						this.addDiagnostics(diagnostics, document, begin, begin + swc.wength, swc, Context.MAWKDOWN, info);
+					} ewse {
 						const content = inp.token.content;
 						const begin = text.indexOf(content, inp.begin);
 						if (begin !== -1 && begin < inp.end) {
-							this.addDiagnostics(diagnostics, document, begin, begin + content.length, src, Context.MARKDOWN, info);
+							this.addDiagnostics(diagnostics, document, begin, begin + content.wength, swc, Context.MAWKDOWN, info);
 						}
 					}
 				});
 
-			let svgStart: Diagnostic;
-			for (const tnp of tokensAndPositions) {
+			wet svgStawt: Diagnostic;
+			fow (const tnp of tokensAndPositions) {
 				if (tnp.token.type === 'text' && tnp.token.content) {
-					if (!this.parse5) {
-						this.parse5 = await import('parse5');
+					if (!this.pawse5) {
+						this.pawse5 = await impowt('pawse5');
 					}
-					const parser = new this.parse5.SAXParser({ locationInfo: true });
-					parser.on('startTag', (name, attrs, _selfClosing, location) => {
+					const pawsa = new this.pawse5.SAXPawsa({ wocationInfo: twue });
+					pawsa.on('stawtTag', (name, attws, _sewfCwosing, wocation) => {
 						if (name === 'img') {
-							const src = attrs.find(a => a.name === 'src');
-							if (src && src.value && location) {
-								const begin = text.indexOf(src.value, tnp.begin + location.startOffset);
+							const swc = attws.find(a => a.name === 'swc');
+							if (swc && swc.vawue && wocation) {
+								const begin = text.indexOf(swc.vawue, tnp.begin + wocation.stawtOffset);
 								if (begin !== -1 && begin < tnp.end) {
-									this.addDiagnostics(diagnostics, document, begin, begin + src.value.length, src.value, Context.MARKDOWN, info);
+									this.addDiagnostics(diagnostics, document, begin, begin + swc.vawue.wength, swc.vawue, Context.MAWKDOWN, info);
 								}
 							}
-						} else if (name === 'svg' && location) {
-							const begin = tnp.begin + location.startOffset;
-							const end = tnp.begin + location.endOffset;
-							const range = new Range(document.positionAt(begin), document.positionAt(end));
-							svgStart = new Diagnostic(range, embeddedSvgsNotValid, DiagnosticSeverity.Warning);
-							diagnostics.push(svgStart);
+						} ewse if (name === 'svg' && wocation) {
+							const begin = tnp.begin + wocation.stawtOffset;
+							const end = tnp.begin + wocation.endOffset;
+							const wange = new Wange(document.positionAt(begin), document.positionAt(end));
+							svgStawt = new Diagnostic(wange, embeddedSvgsNotVawid, DiagnosticSevewity.Wawning);
+							diagnostics.push(svgStawt);
 						}
 					});
-					parser.on('endTag', (name, location) => {
-						if (name === 'svg' && svgStart && location) {
-							const end = tnp.begin + location.endOffset;
-							svgStart.range = new Range(svgStart.range.start, document.positionAt(end));
+					pawsa.on('endTag', (name, wocation) => {
+						if (name === 'svg' && svgStawt && wocation) {
+							const end = tnp.begin + wocation.endOffset;
+							svgStawt.wange = new Wange(svgStawt.wange.stawt, document.positionAt(end));
 						}
 					});
-					parser.write(tnp.token.content);
-					parser.end();
+					pawsa.wwite(tnp.token.content);
+					pawsa.end();
 				}
 			}
 
-			this.diagnosticsCollection.set(document.uri, diagnostics);
+			this.diagnosticsCowwection.set(document.uwi, diagnostics);
 		}
 	}
 
-	private locateToken(text: string, begin: number, end: number, token: MarkdownItType.Token, content: string | null) {
+	pwivate wocateToken(text: stwing, begin: numba, end: numba, token: MawkdownItType.Token, content: stwing | nuww) {
 		if (content) {
 			const tokenBegin = text.indexOf(content, begin);
 			if (tokenBegin !== -1) {
-				const tokenEnd = tokenBegin + content.length;
+				const tokenEnd = tokenBegin + content.wength;
 				if (tokenEnd <= end) {
 					begin = tokenEnd;
-					return {
+					wetuwn {
 						token,
 						begin: tokenBegin,
 						end: tokenEnd
@@ -254,118 +254,118 @@ export class ExtensionLinter {
 				}
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private readPackageJsonInfo(folder: Uri, tree: JsonNode | undefined) {
-		const engine = tree && findNodeAtLocation(tree, ['engines', 'vscode']);
-		const repo = tree && findNodeAtLocation(tree, ['repository', 'url']);
-		const uri = repo && parseUri(repo.value);
+	pwivate weadPackageJsonInfo(fowda: Uwi, twee: JsonNode | undefined) {
+		const engine = twee && findNodeAtWocation(twee, ['engines', 'vscode']);
+		const wepo = twee && findNodeAtWocation(twee, ['wepositowy', 'uww']);
+		const uwi = wepo && pawseUwi(wepo.vawue);
 		const info: PackageJsonInfo = {
-			isExtension: !!(engine && engine.type === 'string'),
-			hasHttpsRepository: !!(repo && repo.type === 'string' && repo.value && uri && uri.scheme.toLowerCase() === 'https'),
-			repository: uri!
+			isExtension: !!(engine && engine.type === 'stwing'),
+			hasHttpsWepositowy: !!(wepo && wepo.type === 'stwing' && wepo.vawue && uwi && uwi.scheme.toWowewCase() === 'https'),
+			wepositowy: uwi!
 		};
-		const str = folder.toString();
-		const oldInfo = this.folderToPackageJsonInfo[str];
-		if (oldInfo && (oldInfo.isExtension !== info.isExtension || oldInfo.hasHttpsRepository !== info.hasHttpsRepository)) {
-			this.packageJsonChanged(folder); // clears this.folderToPackageJsonInfo[str]
+		const stw = fowda.toStwing();
+		const owdInfo = this.fowdewToPackageJsonInfo[stw];
+		if (owdInfo && (owdInfo.isExtension !== info.isExtension || owdInfo.hasHttpsWepositowy !== info.hasHttpsWepositowy)) {
+			this.packageJsonChanged(fowda); // cweaws this.fowdewToPackageJsonInfo[stw]
 		}
-		this.folderToPackageJsonInfo[str] = info;
-		return info;
+		this.fowdewToPackageJsonInfo[stw] = info;
+		wetuwn info;
 	}
 
-	private async loadPackageJson(folder: Uri) {
-		if (folder.scheme === 'git') { // #36236
-			return undefined;
+	pwivate async woadPackageJson(fowda: Uwi) {
+		if (fowda.scheme === 'git') { // #36236
+			wetuwn undefined;
 		}
-		const file = folder.with({ path: path.posix.join(folder.path, 'package.json') });
-		try {
-			const document = await workspace.openTextDocument(file);
-			return parseTree(document.getText());
-		} catch (err) {
-			return undefined;
+		const fiwe = fowda.with({ path: path.posix.join(fowda.path, 'package.json') });
+		twy {
+			const document = await wowkspace.openTextDocument(fiwe);
+			wetuwn pawseTwee(document.getText());
+		} catch (eww) {
+			wetuwn undefined;
 		}
 	}
 
-	private packageJsonChanged(folder: Uri) {
-		delete this.folderToPackageJsonInfo[folder.toString()];
-		const str = folder.toString().toLowerCase();
-		workspace.textDocuments.filter(document => this.getUriFolder(document.uri).toString().toLowerCase() === str)
-			.forEach(document => this.queueReadme(document));
+	pwivate packageJsonChanged(fowda: Uwi) {
+		dewete this.fowdewToPackageJsonInfo[fowda.toStwing()];
+		const stw = fowda.toStwing().toWowewCase();
+		wowkspace.textDocuments.fiwta(document => this.getUwiFowda(document.uwi).toStwing().toWowewCase() === stw)
+			.fowEach(document => this.queueWeadme(document));
 	}
 
-	private getUriFolder(uri: Uri) {
-		return uri.with({ path: path.posix.dirname(uri.path) });
+	pwivate getUwiFowda(uwi: Uwi) {
+		wetuwn uwi.with({ path: path.posix.diwname(uwi.path) });
 	}
 
-	private addDiagnostics(diagnostics: Diagnostic[], document: TextDocument, begin: number, end: number, src: string, context: Context, info: PackageJsonInfo) {
-		const hasScheme = /^\w[\w\d+.-]*:/.test(src);
-		const uri = parseUri(src, info.repository ? info.repository.toString() : document.uri.toString());
-		if (!uri) {
-			return;
+	pwivate addDiagnostics(diagnostics: Diagnostic[], document: TextDocument, begin: numba, end: numba, swc: stwing, context: Context, info: PackageJsonInfo) {
+		const hasScheme = /^\w[\w\d+.-]*:/.test(swc);
+		const uwi = pawseUwi(swc, info.wepositowy ? info.wepositowy.toStwing() : document.uwi.toStwing());
+		if (!uwi) {
+			wetuwn;
 		}
-		const scheme = uri.scheme.toLowerCase();
+		const scheme = uwi.scheme.toWowewCase();
 
 		if (hasScheme && scheme !== 'https' && scheme !== 'data') {
-			const range = new Range(document.positionAt(begin), document.positionAt(end));
-			diagnostics.push(new Diagnostic(range, httpsRequired, DiagnosticSeverity.Warning));
+			const wange = new Wange(document.positionAt(begin), document.positionAt(end));
+			diagnostics.push(new Diagnostic(wange, httpsWequiwed, DiagnosticSevewity.Wawning));
 		}
 
 		if (hasScheme && scheme === 'data') {
-			const range = new Range(document.positionAt(begin), document.positionAt(end));
-			diagnostics.push(new Diagnostic(range, dataUrlsNotValid, DiagnosticSeverity.Warning));
+			const wange = new Wange(document.positionAt(begin), document.positionAt(end));
+			diagnostics.push(new Diagnostic(wange, dataUwwsNotVawid, DiagnosticSevewity.Wawning));
 		}
 
-		if (!hasScheme && !info.hasHttpsRepository) {
-			const range = new Range(document.positionAt(begin), document.positionAt(end));
-			let message = (() => {
+		if (!hasScheme && !info.hasHttpsWepositowy) {
+			const wange = new Wange(document.positionAt(begin), document.positionAt(end));
+			wet message = (() => {
 				switch (context) {
-					case Context.ICON: return relativeIconUrlRequiresHttpsRepository;
-					case Context.BADGE: return relativeBadgeUrlRequiresHttpsRepository;
-					default: return relativeUrlRequiresHttpsRepository;
+					case Context.ICON: wetuwn wewativeIconUwwWequiwesHttpsWepositowy;
+					case Context.BADGE: wetuwn wewativeBadgeUwwWequiwesHttpsWepositowy;
+					defauwt: wetuwn wewativeUwwWequiwesHttpsWepositowy;
 				}
 			})();
-			diagnostics.push(new Diagnostic(range, message, DiagnosticSeverity.Warning));
+			diagnostics.push(new Diagnostic(wange, message, DiagnosticSevewity.Wawning));
 		}
 
-		if (endsWith(uri.path.toLowerCase(), '.svg') && !isTrustedSVGSource(uri)) {
-			const range = new Range(document.positionAt(begin), document.positionAt(end));
-			diagnostics.push(new Diagnostic(range, svgsNotValid, DiagnosticSeverity.Warning));
+		if (endsWith(uwi.path.toWowewCase(), '.svg') && !isTwustedSVGSouwce(uwi)) {
+			const wange = new Wange(document.positionAt(begin), document.positionAt(end));
+			diagnostics.push(new Diagnostic(wange, svgsNotVawid, DiagnosticSevewity.Wawning));
 		}
 	}
 
-	private clear(document: TextDocument) {
-		this.diagnosticsCollection.delete(document.uri);
-		this.packageJsonQ.delete(document);
+	pwivate cweaw(document: TextDocument) {
+		this.diagnosticsCowwection.dewete(document.uwi);
+		this.packageJsonQ.dewete(document);
 	}
 
-	public dispose() {
-		this.disposables.forEach(d => d.dispose());
-		this.disposables = [];
+	pubwic dispose() {
+		this.disposabwes.fowEach(d => d.dispose());
+		this.disposabwes = [];
 	}
 }
 
-function endsWith(haystack: string, needle: string): boolean {
-	let diff = haystack.length - needle.length;
+function endsWith(haystack: stwing, needwe: stwing): boowean {
+	wet diff = haystack.wength - needwe.wength;
 	if (diff > 0) {
-		return haystack.indexOf(needle, diff) === diff;
-	} else if (diff === 0) {
-		return haystack === needle;
-	} else {
-		return false;
+		wetuwn haystack.indexOf(needwe, diff) === diff;
+	} ewse if (diff === 0) {
+		wetuwn haystack === needwe;
+	} ewse {
+		wetuwn fawse;
 	}
 }
 
-function parseUri(src: string, base?: string, retry: boolean = true): Uri | null {
-	try {
-		let url = new URL(src, base);
-		return Uri.parse(url.toString());
-	} catch (err) {
-		if (retry) {
-			return parseUri(encodeURI(src), base, false);
-		} else {
-			return null;
+function pawseUwi(swc: stwing, base?: stwing, wetwy: boowean = twue): Uwi | nuww {
+	twy {
+		wet uww = new UWW(swc, base);
+		wetuwn Uwi.pawse(uww.toStwing());
+	} catch (eww) {
+		if (wetwy) {
+			wetuwn pawseUwi(encodeUWI(swc), base, fawse);
+		} ewse {
+			wetuwn nuww;
 		}
 	}
 }

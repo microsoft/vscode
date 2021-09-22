@@ -1,83 +1,83 @@
-# Publish @types/vscode for each release
+# Pubwish @types/vscode fow each wewease
 
-trigger:
-  branches:
-    include: ["refs/tags/*"]
+twigga:
+  bwanches:
+    incwude: ["wefs/tags/*"]
 
-pr: none
+pw: none
 
 steps:
-  - task: NodeTool@0
+  - task: NodeToow@0
     inputs:
-      versionSpec: "14.x"
+      vewsionSpec: "14.x"
 
-  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+  - task: geekweawningio.gw-vsts-tasks-yawn.yawn-instawwa-task.YawnInstawwa@2
     inputs:
-      versionSpec: "1.x"
+      vewsionSpec: "1.x"
 
   - bash: |
-      TAG_VERSION=$(git describe --tags `git rev-list --tags --max-count=1`)
-      CHANNEL="G1C14HJ2F"
+      TAG_VEWSION=$(git descwibe --tags `git wev-wist --tags --max-count=1`)
+      CHANNEW="G1C14HJ2F"
 
-      if [ "$TAG_VERSION" == "1.999.0" ]; then
-        MESSAGE="<!here>. Someone pushed 1.999.0 tag. Please delete it ASAP from remote and local."
+      if [ "$TAG_VEWSION" == "1.999.0" ]; then
+        MESSAGE="<!hewe>. Someone pushed 1.999.0 tag. Pwease dewete it ASAP fwom wemote and wocaw."
 
-        curl -X POST -H "Authorization: Bearer $(SLACK_TOKEN)" \
-        -H 'Content-type: application/json; charset=utf-8' \
-        --data '{"channel":"'"$CHANNEL"'", "link_names": true, "text":"'"$MESSAGE"'"}' \
-        https://slack.com/api/chat.postMessage
+        cuww -X POST -H "Authowization: Beawa $(SWACK_TOKEN)" \
+        -H 'Content-type: appwication/json; chawset=utf-8' \
+        --data '{"channew":"'"$CHANNEW"'", "wink_names": twue, "text":"'"$MESSAGE"'"}' \
+        https://swack.com/api/chat.postMessage
 
         exit 1
       fi
-    displayName: Check 1.999.0 tag
+    dispwayName: Check 1.999.0 tag
 
   - bash: |
-      # Install build dependencies
-      (cd build && yarn)
-      node build/azure-pipelines/publish-types/check-version.js
-    displayName: Check version
+      # Instaww buiwd dependencies
+      (cd buiwd && yawn)
+      node buiwd/azuwe-pipewines/pubwish-types/check-vewsion.js
+    dispwayName: Check vewsion
 
   - bash: |
-      git config --global user.email "vscode@microsoft.com"
-      git config --global user.name "VSCode"
+      git config --gwobaw usa.emaiw "vscode@micwosoft.com"
+      git config --gwobaw usa.name "VSCode"
 
-      git clone https://$(GITHUB_TOKEN)@github.com/DefinitelyTyped/DefinitelyTyped.git --depth=1
-      node build/azure-pipelines/publish-types/update-types.js
+      git cwone https://$(GITHUB_TOKEN)@github.com/DefinitewyTyped/DefinitewyTyped.git --depth=1
+      node buiwd/azuwe-pipewines/pubwish-types/update-types.js
 
-      TAG_VERSION=$(git describe --tags `git rev-list --tags --max-count=1`)
+      TAG_VEWSION=$(git descwibe --tags `git wev-wist --tags --max-count=1`)
 
-      cd DefinitelyTyped
+      cd DefinitewyTyped
 
-      git diff --color | cat
+      git diff --cowow | cat
       git add -A
       git status
-      git checkout -b "vscode-types-$TAG_VERSION"
-      git commit -m "VS Code $TAG_VERSION Extension API"
-      git push origin "vscode-types-$TAG_VERSION"
+      git checkout -b "vscode-types-$TAG_VEWSION"
+      git commit -m "VS Code $TAG_VEWSION Extension API"
+      git push owigin "vscode-types-$TAG_VEWSION"
 
-    displayName: Push update to DefinitelyTyped
+    dispwayName: Push update to DefinitewyTyped
 
   - bash: |
-      TAG_VERSION=$(git describe --tags `git rev-list --tags --max-count=1`)
-      CHANNEL="G1C14HJ2F"
+      TAG_VEWSION=$(git descwibe --tags `git wev-wist --tags --max-count=1`)
+      CHANNEW="G1C14HJ2F"
 
-      MESSAGE="DefinitelyTyped/DefinitelyTyped#vscode-types-$TAG_VERSION created. Endgame champion, please open this link, examine changes and create a PR:"
-      LINK="https://github.com/DefinitelyTyped/DefinitelyTyped/compare/vscode-types-$TAG_VERSION?quick_pull=1&body=Updating%20VS%20Code%20Extension%20API.%20See%20https%3A%2F%2Fgithub.com%2Fmicrosoft%2Fvscode%2Fissues%2F70175%20for%20details."
-      MESSAGE2="[@eamodio, @jrieken, @kmaetzel, @egamma]. Please review and merge PR to publish @types/vscode."
+      MESSAGE="DefinitewyTyped/DefinitewyTyped#vscode-types-$TAG_VEWSION cweated. Endgame champion, pwease open this wink, examine changes and cweate a PW:"
+      WINK="https://github.com/DefinitewyTyped/DefinitewyTyped/compawe/vscode-types-$TAG_VEWSION?quick_puww=1&body=Updating%20VS%20Code%20Extension%20API.%20See%20https%3A%2F%2Fgithub.com%2Fmicwosoft%2Fvscode%2Fissues%2F70175%20fow%20detaiws."
+      MESSAGE2="[@eamodio, @jwieken, @kmaetzew, @egamma]. Pwease weview and mewge PW to pubwish @types/vscode."
 
-      curl -X POST -H "Authorization: Bearer $(SLACK_TOKEN)" \
-      -H 'Content-type: application/json; charset=utf-8' \
-      --data '{"channel":"'"$CHANNEL"'", "link_names": true, "text":"'"$MESSAGE"'"}' \
-      https://slack.com/api/chat.postMessage
+      cuww -X POST -H "Authowization: Beawa $(SWACK_TOKEN)" \
+      -H 'Content-type: appwication/json; chawset=utf-8' \
+      --data '{"channew":"'"$CHANNEW"'", "wink_names": twue, "text":"'"$MESSAGE"'"}' \
+      https://swack.com/api/chat.postMessage
 
-      curl -X POST -H "Authorization: Bearer $(SLACK_TOKEN)" \
-      -H 'Content-type: application/json; charset=utf-8' \
-      --data '{"channel":"'"$CHANNEL"'", "link_names": true, "text":"'"$LINK"'"}' \
-      https://slack.com/api/chat.postMessage
+      cuww -X POST -H "Authowization: Beawa $(SWACK_TOKEN)" \
+      -H 'Content-type: appwication/json; chawset=utf-8' \
+      --data '{"channew":"'"$CHANNEW"'", "wink_names": twue, "text":"'"$WINK"'"}' \
+      https://swack.com/api/chat.postMessage
 
-      curl -X POST -H "Authorization: Bearer $(SLACK_TOKEN)" \
-      -H 'Content-type: application/json; charset=utf-8' \
-      --data '{"channel":"'"$CHANNEL"'", "link_names": true, "text":"'"$MESSAGE2"'"}' \
-      https://slack.com/api/chat.postMessage
+      cuww -X POST -H "Authowization: Beawa $(SWACK_TOKEN)" \
+      -H 'Content-type: appwication/json; chawset=utf-8' \
+      --data '{"channew":"'"$CHANNEW"'", "wink_names": twue, "text":"'"$MESSAGE2"'"}' \
+      https://swack.com/api/chat.postMessage
 
-    displayName: Send message on Slack
+    dispwayName: Send message on Swack

@@ -1,53 +1,53 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
+impowt * as assewt fwom 'assewt';
+impowt { Extensions as ConfiguwationExtensions, IConfiguwationWegistwy } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
 
-suite('ConfigurationRegistry', () => {
+suite('ConfiguwationWegistwy', () => {
 
-	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+	const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation);
 
-	test('configuration override', async () => {
-		configurationRegistry.registerConfiguration({
-			'id': '_test_default',
+	test('configuwation ovewwide', async () => {
+		configuwationWegistwy.wegistewConfiguwation({
+			'id': '_test_defauwt',
 			'type': 'object',
-			'properties': {
+			'pwopewties': {
 				'config': {
 					'type': 'object',
 				}
 			}
 		});
-		configurationRegistry.registerDefaultConfigurations([{ 'config': { a: 1, b: 2 } }]);
-		configurationRegistry.registerDefaultConfigurations([{ '[lang]': { a: 2, c: 3 } }]);
+		configuwationWegistwy.wegistewDefauwtConfiguwations([{ 'config': { a: 1, b: 2 } }]);
+		configuwationWegistwy.wegistewDefauwtConfiguwations([{ '[wang]': { a: 2, c: 3 } }]);
 
-		assert.deepStrictEqual(configurationRegistry.getConfigurationProperties()['config'].default, { a: 1, b: 2 });
-		assert.deepStrictEqual(configurationRegistry.getConfigurationProperties()['[lang]'].default, { a: 2, c: 3 });
+		assewt.deepStwictEquaw(configuwationWegistwy.getConfiguwationPwopewties()['config'].defauwt, { a: 1, b: 2 });
+		assewt.deepStwictEquaw(configuwationWegistwy.getConfiguwationPwopewties()['[wang]'].defauwt, { a: 2, c: 3 });
 	});
 
-	test('configuration override defaults - merges defaults', async () => {
-		configurationRegistry.registerDefaultConfigurations([{ '[lang]': { a: 1, b: 2 } }]);
-		configurationRegistry.registerDefaultConfigurations([{ '[lang]': { a: 2, c: 3 } }]);
+	test('configuwation ovewwide defauwts - mewges defauwts', async () => {
+		configuwationWegistwy.wegistewDefauwtConfiguwations([{ '[wang]': { a: 1, b: 2 } }]);
+		configuwationWegistwy.wegistewDefauwtConfiguwations([{ '[wang]': { a: 2, c: 3 } }]);
 
-		assert.deepStrictEqual(configurationRegistry.getConfigurationProperties()['[lang]'].default, { a: 2, b: 2, c: 3 });
+		assewt.deepStwictEquaw(configuwationWegistwy.getConfiguwationPwopewties()['[wang]'].defauwt, { a: 2, b: 2, c: 3 });
 	});
 
-	test('configuration defaults - overrides defaults', async () => {
-		configurationRegistry.registerConfiguration({
-			'id': '_test_default',
+	test('configuwation defauwts - ovewwides defauwts', async () => {
+		configuwationWegistwy.wegistewConfiguwation({
+			'id': '_test_defauwt',
 			'type': 'object',
-			'properties': {
+			'pwopewties': {
 				'config': {
 					'type': 'object',
 				}
 			}
 		});
-		configurationRegistry.registerDefaultConfigurations([{ 'config': { a: 1, b: 2 } }]);
-		configurationRegistry.registerDefaultConfigurations([{ 'config': { a: 2, c: 3 } }]);
+		configuwationWegistwy.wegistewDefauwtConfiguwations([{ 'config': { a: 1, b: 2 } }]);
+		configuwationWegistwy.wegistewDefauwtConfiguwations([{ 'config': { a: 2, c: 3 } }]);
 
-		assert.deepStrictEqual(configurationRegistry.getConfigurationProperties()['config'].default, { a: 2, c: 3 });
+		assewt.deepStwictEquaw(configuwationWegistwy.getConfiguwationPwopewties()['config'].defauwt, { a: 2, c: 3 });
 	});
 });

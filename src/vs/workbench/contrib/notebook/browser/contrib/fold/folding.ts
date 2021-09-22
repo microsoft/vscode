@@ -1,306 +1,306 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { INotebookEditor, INotebookEditorMouseEvent, INotebookEditorContribution, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellFoldingState, FoldingModel } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { localize } from 'vs/nls';
-import { FoldingRegion } from 'vs/editor/contrib/folding/foldingRanges';
-import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { INotebookEditow, INotebookEditowMouseEvent, INotebookEditowContwibution, NOTEBOOK_EDITOW_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOW, getNotebookEditowFwomEditowPane } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { CewwFowdingState, FowdingModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwib/fowd/fowdingModew';
+impowt { CewwKind } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { ICewwWange } fwom 'vs/wowkbench/contwib/notebook/common/notebookWange';
+impowt { wegistewNotebookContwibution } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowExtensions';
+impowt { wegistewAction2, Action2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { InputFocusedContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkeys';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { NOTEBOOK_ACTIONS_CATEGOWY } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwowwa/coweActions';
+impowt { wocawize } fwom 'vs/nws';
+impowt { FowdingWegion } fwom 'vs/editow/contwib/fowding/fowdingWanges';
+impowt { ICommandHandwewDescwiption } fwom 'vs/pwatfowm/commands/common/commands';
 
-export class FoldingController extends Disposable implements INotebookEditorContribution {
-	static id: string = 'workbench.notebook.findController';
+expowt cwass FowdingContwowwa extends Disposabwe impwements INotebookEditowContwibution {
+	static id: stwing = 'wowkbench.notebook.findContwowwa';
 
-	private _foldingModel: FoldingModel | null = null;
-	private readonly _localStore = this._register(new DisposableStore());
+	pwivate _fowdingModew: FowdingModew | nuww = nuww;
+	pwivate weadonwy _wocawStowe = this._wegista(new DisposabweStowe());
 
-	constructor(private readonly _notebookEditor: INotebookEditor) {
-		super();
+	constwuctow(pwivate weadonwy _notebookEditow: INotebookEditow) {
+		supa();
 
-		this._register(this._notebookEditor.onMouseUp(e => { this.onMouseUp(e); }));
+		this._wegista(this._notebookEditow.onMouseUp(e => { this.onMouseUp(e); }));
 
-		this._register(this._notebookEditor.onDidChangeModel(() => {
-			this._localStore.clear();
+		this._wegista(this._notebookEditow.onDidChangeModew(() => {
+			this._wocawStowe.cweaw();
 
-			if (!this._notebookEditor.hasModel()) {
-				return;
+			if (!this._notebookEditow.hasModew()) {
+				wetuwn;
 			}
 
-			this._localStore.add(this._notebookEditor.onDidChangeCellState(e => {
-				if (e.source.editStateChanged && e.cell.cellKind === CellKind.Markup) {
-					this._foldingModel?.recompute();
-					// this._updateEditorFoldingRanges();
+			this._wocawStowe.add(this._notebookEditow.onDidChangeCewwState(e => {
+				if (e.souwce.editStateChanged && e.ceww.cewwKind === CewwKind.Mawkup) {
+					this._fowdingModew?.wecompute();
+					// this._updateEditowFowdingWanges();
 				}
 			}));
 
-			this._foldingModel = new FoldingModel();
-			this._localStore.add(this._foldingModel);
-			this._foldingModel.attachViewModel(this._notebookEditor._getViewModel());
+			this._fowdingModew = new FowdingModew();
+			this._wocawStowe.add(this._fowdingModew);
+			this._fowdingModew.attachViewModew(this._notebookEditow._getViewModew());
 
-			this._localStore.add(this._foldingModel.onDidFoldingRegionChanged(() => {
-				this._updateEditorFoldingRanges();
+			this._wocawStowe.add(this._fowdingModew.onDidFowdingWegionChanged(() => {
+				this._updateEditowFowdingWanges();
 			}));
 		}));
 	}
 
-	saveViewState(): ICellRange[] {
-		return this._foldingModel?.getMemento() || [];
+	saveViewState(): ICewwWange[] {
+		wetuwn this._fowdingModew?.getMemento() || [];
 	}
 
-	restoreViewState(state: ICellRange[] | undefined) {
-		this._foldingModel?.applyMemento(state || []);
-		this._updateEditorFoldingRanges();
+	westoweViewState(state: ICewwWange[] | undefined) {
+		this._fowdingModew?.appwyMemento(state || []);
+		this._updateEditowFowdingWanges();
 	}
 
-	setFoldingStateDown(index: number, state: CellFoldingState, levels: number) {
-		const doCollapse = state === CellFoldingState.Collapsed;
-		let region = this._foldingModel!.getRegionAtLine(index + 1);
-		let regions: FoldingRegion[] = [];
-		if (region) {
-			if (region.isCollapsed !== doCollapse) {
-				regions.push(region);
+	setFowdingStateDown(index: numba, state: CewwFowdingState, wevews: numba) {
+		const doCowwapse = state === CewwFowdingState.Cowwapsed;
+		wet wegion = this._fowdingModew!.getWegionAtWine(index + 1);
+		wet wegions: FowdingWegion[] = [];
+		if (wegion) {
+			if (wegion.isCowwapsed !== doCowwapse) {
+				wegions.push(wegion);
 			}
-			if (levels > 1) {
-				let regionsInside = this._foldingModel!.getRegionsInside(region, (r, level: number) => r.isCollapsed !== doCollapse && level < levels);
-				regions.push(...regionsInside);
+			if (wevews > 1) {
+				wet wegionsInside = this._fowdingModew!.getWegionsInside(wegion, (w, wevew: numba) => w.isCowwapsed !== doCowwapse && wevew < wevews);
+				wegions.push(...wegionsInside);
 			}
 		}
 
-		regions.forEach(r => this._foldingModel!.setCollapsed(r.regionIndex, state === CellFoldingState.Collapsed));
-		this._updateEditorFoldingRanges();
+		wegions.fowEach(w => this._fowdingModew!.setCowwapsed(w.wegionIndex, state === CewwFowdingState.Cowwapsed));
+		this._updateEditowFowdingWanges();
 	}
 
-	setFoldingStateUp(index: number, state: CellFoldingState, levels: number) {
-		if (!this._foldingModel) {
-			return;
+	setFowdingStateUp(index: numba, state: CewwFowdingState, wevews: numba) {
+		if (!this._fowdingModew) {
+			wetuwn;
 		}
 
-		let regions = this._foldingModel.getAllRegionsAtLine(index + 1, (region, level) => region.isCollapsed !== (state === CellFoldingState.Collapsed) && level <= levels);
-		regions.forEach(r => this._foldingModel!.setCollapsed(r.regionIndex, state === CellFoldingState.Collapsed));
-		this._updateEditorFoldingRanges();
+		wet wegions = this._fowdingModew.getAwwWegionsAtWine(index + 1, (wegion, wevew) => wegion.isCowwapsed !== (state === CewwFowdingState.Cowwapsed) && wevew <= wevews);
+		wegions.fowEach(w => this._fowdingModew!.setCowwapsed(w.wegionIndex, state === CewwFowdingState.Cowwapsed));
+		this._updateEditowFowdingWanges();
 	}
 
-	private _updateEditorFoldingRanges() {
-		if (!this._foldingModel) {
-			return;
+	pwivate _updateEditowFowdingWanges() {
+		if (!this._fowdingModew) {
+			wetuwn;
 		}
 
-		if (!this._notebookEditor.hasModel()) {
-			return;
+		if (!this._notebookEditow.hasModew()) {
+			wetuwn;
 		}
 
-		const vm = this._notebookEditor._getViewModel();
+		const vm = this._notebookEditow._getViewModew();
 
-		vm.updateFoldingRanges(this._foldingModel.regions);
-		const hiddenRanges = vm.getHiddenRanges();
-		this._notebookEditor.setHiddenAreas(hiddenRanges);
+		vm.updateFowdingWanges(this._fowdingModew.wegions);
+		const hiddenWanges = vm.getHiddenWanges();
+		this._notebookEditow.setHiddenAweas(hiddenWanges);
 	}
 
-	onMouseUp(e: INotebookEditorMouseEvent) {
-		if (!e.event.target) {
-			return;
+	onMouseUp(e: INotebookEditowMouseEvent) {
+		if (!e.event.tawget) {
+			wetuwn;
 		}
 
-		if (!this._notebookEditor.hasModel()) {
-			return;
+		if (!this._notebookEditow.hasModew()) {
+			wetuwn;
 		}
 
-		const viewModel = this._notebookEditor._getViewModel();
-		const target = e.event.target as HTMLElement;
+		const viewModew = this._notebookEditow._getViewModew();
+		const tawget = e.event.tawget as HTMWEwement;
 
-		if (target.classList.contains('codicon-notebook-collapsed') || target.classList.contains('codicon-notebook-expanded')) {
-			const parent = target.parentElement as HTMLElement;
+		if (tawget.cwassWist.contains('codicon-notebook-cowwapsed') || tawget.cwassWist.contains('codicon-notebook-expanded')) {
+			const pawent = tawget.pawentEwement as HTMWEwement;
 
-			if (!parent.classList.contains('notebook-folding-indicator')) {
-				return;
-			}
-
-			// folding icon
-
-			const cellViewModel = e.target;
-			const modelIndex = viewModel.getCellIndex(cellViewModel);
-			const state = viewModel.getFoldingState(modelIndex);
-
-			if (state === CellFoldingState.None) {
-				return;
+			if (!pawent.cwassWist.contains('notebook-fowding-indicatow')) {
+				wetuwn;
 			}
 
-			this.setFoldingStateUp(modelIndex, state === CellFoldingState.Collapsed ? CellFoldingState.Expanded : CellFoldingState.Collapsed, 1);
-			this._notebookEditor.focusElement(cellViewModel);
+			// fowding icon
+
+			const cewwViewModew = e.tawget;
+			const modewIndex = viewModew.getCewwIndex(cewwViewModew);
+			const state = viewModew.getFowdingState(modewIndex);
+
+			if (state === CewwFowdingState.None) {
+				wetuwn;
+			}
+
+			this.setFowdingStateUp(modewIndex, state === CewwFowdingState.Cowwapsed ? CewwFowdingState.Expanded : CewwFowdingState.Cowwapsed, 1);
+			this._notebookEditow.focusEwement(cewwViewModew);
 		}
 
-		return;
+		wetuwn;
 	}
 }
 
-registerNotebookContribution(FoldingController.id, FoldingController);
+wegistewNotebookContwibution(FowdingContwowwa.id, FowdingContwowwa);
 
 
-const NOTEBOOK_FOLD_COMMAND_LABEL = localize('fold.cell', "Fold Cell");
-const NOTEBOOK_UNFOLD_COMMAND_LABEL = localize('unfold.cell', "Unfold Cell");
+const NOTEBOOK_FOWD_COMMAND_WABEW = wocawize('fowd.ceww', "Fowd Ceww");
+const NOTEBOOK_UNFOWD_COMMAND_WABEW = wocawize('unfowd.ceww', "Unfowd Ceww");
 
-const FOLDING_COMMAND_ARGS: Pick<ICommandHandlerDescription, 'args'> = {
-	args: [{
-		isOptional: true,
+const FOWDING_COMMAND_AWGS: Pick<ICommandHandwewDescwiption, 'awgs'> = {
+	awgs: [{
+		isOptionaw: twue,
 		name: 'index',
-		description: 'The cell index',
+		descwiption: 'The ceww index',
 		schema: {
 			'type': 'object',
-			'required': ['index', 'direction'],
-			'properties': {
+			'wequiwed': ['index', 'diwection'],
+			'pwopewties': {
 				'index': {
-					'type': 'number'
+					'type': 'numba'
 				},
-				'direction': {
-					'type': 'string',
+				'diwection': {
+					'type': 'stwing',
 					'enum': ['up', 'down'],
-					'default': 'down'
+					'defauwt': 'down'
 				},
-				'levels': {
-					'type': 'number',
-					'default': 1
+				'wevews': {
+					'type': 'numba',
+					'defauwt': 1
 				},
 			}
 		}
 	}]
 };
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'notebook.fold',
-			title: { value: localize('fold.cell', "Fold Cell"), original: 'Fold Cell' },
-			category: NOTEBOOK_ACTIONS_CATEGORY,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'notebook.fowd',
+			titwe: { vawue: wocawize('fowd.ceww', "Fowd Ceww"), owiginaw: 'Fowd Ceww' },
+			categowy: NOTEBOOK_ACTIONS_CATEGOWY,
 			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET,
+				when: ContextKeyExpw.and(NOTEBOOK_EDITOW_FOCUSED, ContextKeyExpw.not(InputFocusedContextKey)),
+				pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.US_OPEN_SQUAWE_BWACKET,
 				mac: {
-					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_OPEN_SQUARE_BRACKET,
-					secondary: [KeyCode.LeftArrow],
+					pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.US_OPEN_SQUAWE_BWACKET,
+					secondawy: [KeyCode.WeftAwwow],
 				},
-				secondary: [KeyCode.LeftArrow],
-				weight: KeybindingWeight.WorkbenchContrib
+				secondawy: [KeyCode.WeftAwwow],
+				weight: KeybindingWeight.WowkbenchContwib
 			},
-			description: {
-				description: NOTEBOOK_FOLD_COMMAND_LABEL,
-				args: FOLDING_COMMAND_ARGS.args
+			descwiption: {
+				descwiption: NOTEBOOK_FOWD_COMMAND_WABEW,
+				awgs: FOWDING_COMMAND_AWGS.awgs
 			},
-			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
-			f1: true
+			pwecondition: NOTEBOOK_IS_ACTIVE_EDITOW,
+			f1: twue
 		});
 	}
 
-	async run(accessor: ServicesAccessor, args?: { index: number, levels: number, direction: 'up' | 'down' }): Promise<void> {
-		const editorService = accessor.get(IEditorService);
+	async wun(accessow: SewvicesAccessow, awgs?: { index: numba, wevews: numba, diwection: 'up' | 'down' }): Pwomise<void> {
+		const editowSewvice = accessow.get(IEditowSewvice);
 
-		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-		if (!editor) {
-			return;
+		const editow = getNotebookEditowFwomEditowPane(editowSewvice.activeEditowPane);
+		if (!editow) {
+			wetuwn;
 		}
 
-		if (!editor.hasModel()) {
-			return;
+		if (!editow.hasModew()) {
+			wetuwn;
 		}
 
-		const levels = args && args.levels || 1;
-		const direction = args && args.direction === 'up' ? 'up' : 'down';
-		let index: number | undefined = undefined;
+		const wevews = awgs && awgs.wevews || 1;
+		const diwection = awgs && awgs.diwection === 'up' ? 'up' : 'down';
+		wet index: numba | undefined = undefined;
 
-		if (args) {
-			index = args.index;
-		} else {
-			const activeCell = editor.getActiveCell();
-			if (!activeCell) {
-				return;
+		if (awgs) {
+			index = awgs.index;
+		} ewse {
+			const activeCeww = editow.getActiveCeww();
+			if (!activeCeww) {
+				wetuwn;
 			}
-			index = editor.getCellIndex(activeCell);
+			index = editow.getCewwIndex(activeCeww);
 		}
 
-		const controller = editor.getContribution<FoldingController>(FoldingController.id);
+		const contwowwa = editow.getContwibution<FowdingContwowwa>(FowdingContwowwa.id);
 		if (index !== undefined) {
-			const targetCell = (index < 0 || index >= editor.getLength()) ? undefined : editor.cellAt(index);
-			if (targetCell?.cellKind === CellKind.Code && direction === 'down') {
-				return;
+			const tawgetCeww = (index < 0 || index >= editow.getWength()) ? undefined : editow.cewwAt(index);
+			if (tawgetCeww?.cewwKind === CewwKind.Code && diwection === 'down') {
+				wetuwn;
 			}
 
-			if (direction === 'up') {
-				controller.setFoldingStateUp(index, CellFoldingState.Collapsed, levels);
-			} else {
-				controller.setFoldingStateDown(index, CellFoldingState.Collapsed, levels);
+			if (diwection === 'up') {
+				contwowwa.setFowdingStateUp(index, CewwFowdingState.Cowwapsed, wevews);
+			} ewse {
+				contwowwa.setFowdingStateDown(index, CewwFowdingState.Cowwapsed, wevews);
 			}
 
-			const viewIndex = editor._getViewModel().getNearestVisibleCellIndexUpwards(index);
-			editor.focusElement(editor.cellAt(viewIndex));
+			const viewIndex = editow._getViewModew().getNeawestVisibweCewwIndexUpwawds(index);
+			editow.focusEwement(editow.cewwAt(viewIndex));
 		}
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'notebook.unfold',
-			title: { value: NOTEBOOK_UNFOLD_COMMAND_LABEL, original: 'Unfold Cell' },
-			category: NOTEBOOK_ACTIONS_CATEGORY,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'notebook.unfowd',
+			titwe: { vawue: NOTEBOOK_UNFOWD_COMMAND_WABEW, owiginaw: 'Unfowd Ceww' },
+			categowy: NOTEBOOK_ACTIONS_CATEGOWY,
 			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET,
+				when: ContextKeyExpw.and(NOTEBOOK_EDITOW_FOCUSED, ContextKeyExpw.not(InputFocusedContextKey)),
+				pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.US_CWOSE_SQUAWE_BWACKET,
 				mac: {
-					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_CLOSE_SQUARE_BRACKET,
-					secondary: [KeyCode.RightArrow],
+					pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.US_CWOSE_SQUAWE_BWACKET,
+					secondawy: [KeyCode.WightAwwow],
 				},
-				secondary: [KeyCode.RightArrow],
-				weight: KeybindingWeight.WorkbenchContrib
+				secondawy: [KeyCode.WightAwwow],
+				weight: KeybindingWeight.WowkbenchContwib
 			},
-			description: {
-				description: NOTEBOOK_UNFOLD_COMMAND_LABEL,
-				args: FOLDING_COMMAND_ARGS.args
+			descwiption: {
+				descwiption: NOTEBOOK_UNFOWD_COMMAND_WABEW,
+				awgs: FOWDING_COMMAND_AWGS.awgs
 			},
-			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
-			f1: true
+			pwecondition: NOTEBOOK_IS_ACTIVE_EDITOW,
+			f1: twue
 		});
 	}
 
-	async run(accessor: ServicesAccessor, args?: { index: number, levels: number, direction: 'up' | 'down' }): Promise<void> {
-		const editorService = accessor.get(IEditorService);
+	async wun(accessow: SewvicesAccessow, awgs?: { index: numba, wevews: numba, diwection: 'up' | 'down' }): Pwomise<void> {
+		const editowSewvice = accessow.get(IEditowSewvice);
 
-		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-		if (!editor) {
-			return;
+		const editow = getNotebookEditowFwomEditowPane(editowSewvice.activeEditowPane);
+		if (!editow) {
+			wetuwn;
 		}
 
-		const levels = args && args.levels || 1;
-		const direction = args && args.direction === 'up' ? 'up' : 'down';
-		let index: number | undefined = undefined;
+		const wevews = awgs && awgs.wevews || 1;
+		const diwection = awgs && awgs.diwection === 'up' ? 'up' : 'down';
+		wet index: numba | undefined = undefined;
 
-		if (args) {
-			index = args.index;
-		} else {
-			const activeCell = editor.getActiveCell();
-			if (!activeCell) {
-				return;
+		if (awgs) {
+			index = awgs.index;
+		} ewse {
+			const activeCeww = editow.getActiveCeww();
+			if (!activeCeww) {
+				wetuwn;
 			}
-			index = editor.getCellIndex(activeCell);
+			index = editow.getCewwIndex(activeCeww);
 		}
 
-		const controller = editor.getContribution<FoldingController>(FoldingController.id);
+		const contwowwa = editow.getContwibution<FowdingContwowwa>(FowdingContwowwa.id);
 		if (index !== undefined) {
-			if (direction === 'up') {
-				controller.setFoldingStateUp(index, CellFoldingState.Expanded, levels);
-			} else {
-				controller.setFoldingStateDown(index, CellFoldingState.Expanded, levels);
+			if (diwection === 'up') {
+				contwowwa.setFowdingStateUp(index, CewwFowdingState.Expanded, wevews);
+			} ewse {
+				contwowwa.setFowdingStateDown(index, CewwFowdingState.Expanded, wevews);
 			}
 		}
 	}

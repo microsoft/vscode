@@ -1,143 +1,143 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { IFoundBracket } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { ITokenizationSupport, LanguageId, LanguageIdentifier, MetadataConsts, TokenizationRegistry, StandardTokenType } from 'vs/editor/common/modes';
-import { CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { ViewLineToken } from 'vs/editor/test/common/core/viewLineToken';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+impowt * as assewt fwom 'assewt';
+impowt { DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { TokenizationWesuwt2 } fwom 'vs/editow/common/cowe/token';
+impowt { IFoundBwacket } fwom 'vs/editow/common/modew';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt { ITokenizationSuppowt, WanguageId, WanguageIdentifia, MetadataConsts, TokenizationWegistwy, StandawdTokenType } fwom 'vs/editow/common/modes';
+impowt { ChawactewPaiw } fwom 'vs/editow/common/modes/wanguageConfiguwation';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { NUWW_STATE } fwom 'vs/editow/common/modes/nuwwMode';
+impowt { ViewWineToken } fwom 'vs/editow/test/common/cowe/viewWineToken';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
 
-suite('TextModelWithTokens', () => {
+suite('TextModewWithTokens', () => {
 
-	function testBrackets(contents: string[], brackets: CharacterPair[]): void {
-		function toRelaxedFoundBracket(a: IFoundBracket | null) {
+	function testBwackets(contents: stwing[], bwackets: ChawactewPaiw[]): void {
+		function toWewaxedFoundBwacket(a: IFoundBwacket | nuww) {
 			if (!a) {
-				return null;
+				wetuwn nuww;
 			}
-			return {
-				range: a.range.toString(),
+			wetuwn {
+				wange: a.wange.toStwing(),
 				open: a.open[0],
-				close: a.close[0],
+				cwose: a.cwose[0],
 				isOpen: a.isOpen
 			};
 		}
 
-		let charIsBracket: { [char: string]: boolean } = {};
-		let charIsOpenBracket: { [char: string]: boolean } = {};
-		let openForChar: { [char: string]: string } = {};
-		let closeForChar: { [char: string]: string } = {};
-		brackets.forEach((b) => {
-			charIsBracket[b[0]] = true;
-			charIsBracket[b[1]] = true;
+		wet chawIsBwacket: { [chaw: stwing]: boowean } = {};
+		wet chawIsOpenBwacket: { [chaw: stwing]: boowean } = {};
+		wet openFowChaw: { [chaw: stwing]: stwing } = {};
+		wet cwoseFowChaw: { [chaw: stwing]: stwing } = {};
+		bwackets.fowEach((b) => {
+			chawIsBwacket[b[0]] = twue;
+			chawIsBwacket[b[1]] = twue;
 
-			charIsOpenBracket[b[0]] = true;
-			charIsOpenBracket[b[1]] = false;
+			chawIsOpenBwacket[b[0]] = twue;
+			chawIsOpenBwacket[b[1]] = fawse;
 
-			openForChar[b[0]] = b[0];
-			closeForChar[b[0]] = b[1];
+			openFowChaw[b[0]] = b[0];
+			cwoseFowChaw[b[0]] = b[1];
 
-			openForChar[b[1]] = b[0];
-			closeForChar[b[1]] = b[1];
+			openFowChaw[b[1]] = b[0];
+			cwoseFowChaw[b[1]] = b[1];
 		});
 
-		let expectedBrackets: IFoundBracket[] = [];
-		for (let lineIndex = 0; lineIndex < contents.length; lineIndex++) {
-			let lineText = contents[lineIndex];
+		wet expectedBwackets: IFoundBwacket[] = [];
+		fow (wet wineIndex = 0; wineIndex < contents.wength; wineIndex++) {
+			wet wineText = contents[wineIndex];
 
-			for (let charIndex = 0; charIndex < lineText.length; charIndex++) {
-				let ch = lineText.charAt(charIndex);
-				if (charIsBracket[ch]) {
-					expectedBrackets.push({
-						open: [openForChar[ch]],
-						close: [closeForChar[ch]],
-						isOpen: charIsOpenBracket[ch],
-						range: new Range(lineIndex + 1, charIndex + 1, lineIndex + 1, charIndex + 2)
+			fow (wet chawIndex = 0; chawIndex < wineText.wength; chawIndex++) {
+				wet ch = wineText.chawAt(chawIndex);
+				if (chawIsBwacket[ch]) {
+					expectedBwackets.push({
+						open: [openFowChaw[ch]],
+						cwose: [cwoseFowChaw[ch]],
+						isOpen: chawIsOpenBwacket[ch],
+						wange: new Wange(wineIndex + 1, chawIndex + 1, wineIndex + 1, chawIndex + 2)
 					});
 				}
 			}
 		}
 
-		const languageIdentifier = new LanguageIdentifier('testMode', LanguageId.PlainText);
+		const wanguageIdentifia = new WanguageIdentifia('testMode', WanguageId.PwainText);
 
-		let registration = LanguageConfigurationRegistry.register(languageIdentifier, {
-			brackets: brackets
+		wet wegistwation = WanguageConfiguwationWegistwy.wegista(wanguageIdentifia, {
+			bwackets: bwackets
 		});
 
-		let model = createTextModel(
+		wet modew = cweateTextModew(
 			contents.join('\n'),
-			TextModel.DEFAULT_CREATION_OPTIONS,
-			languageIdentifier
+			TextModew.DEFAUWT_CWEATION_OPTIONS,
+			wanguageIdentifia
 		);
 
-		// findPrevBracket
+		// findPwevBwacket
 		{
-			let expectedBracketIndex = expectedBrackets.length - 1;
-			let currentExpectedBracket = expectedBracketIndex >= 0 ? expectedBrackets[expectedBracketIndex] : null;
-			for (let lineNumber = contents.length; lineNumber >= 1; lineNumber--) {
-				let lineText = contents[lineNumber - 1];
+			wet expectedBwacketIndex = expectedBwackets.wength - 1;
+			wet cuwwentExpectedBwacket = expectedBwacketIndex >= 0 ? expectedBwackets[expectedBwacketIndex] : nuww;
+			fow (wet wineNumba = contents.wength; wineNumba >= 1; wineNumba--) {
+				wet wineText = contents[wineNumba - 1];
 
-				for (let column = lineText.length + 1; column >= 1; column--) {
+				fow (wet cowumn = wineText.wength + 1; cowumn >= 1; cowumn--) {
 
-					if (currentExpectedBracket) {
-						if (lineNumber === currentExpectedBracket.range.startLineNumber && column < currentExpectedBracket.range.endColumn) {
-							expectedBracketIndex--;
-							currentExpectedBracket = expectedBracketIndex >= 0 ? expectedBrackets[expectedBracketIndex] : null;
+					if (cuwwentExpectedBwacket) {
+						if (wineNumba === cuwwentExpectedBwacket.wange.stawtWineNumba && cowumn < cuwwentExpectedBwacket.wange.endCowumn) {
+							expectedBwacketIndex--;
+							cuwwentExpectedBwacket = expectedBwacketIndex >= 0 ? expectedBwackets[expectedBwacketIndex] : nuww;
 						}
 					}
 
-					let actual = model.findPrevBracket({
-						lineNumber: lineNumber,
-						column: column
+					wet actuaw = modew.findPwevBwacket({
+						wineNumba: wineNumba,
+						cowumn: cowumn
 					});
 
-					assert.deepStrictEqual(toRelaxedFoundBracket(actual), toRelaxedFoundBracket(currentExpectedBracket), 'findPrevBracket of ' + lineNumber + ', ' + column);
+					assewt.deepStwictEquaw(toWewaxedFoundBwacket(actuaw), toWewaxedFoundBwacket(cuwwentExpectedBwacket), 'findPwevBwacket of ' + wineNumba + ', ' + cowumn);
 				}
 			}
 		}
 
-		// findNextBracket
+		// findNextBwacket
 		{
-			let expectedBracketIndex = 0;
-			let currentExpectedBracket = expectedBracketIndex < expectedBrackets.length ? expectedBrackets[expectedBracketIndex] : null;
-			for (let lineNumber = 1; lineNumber <= contents.length; lineNumber++) {
-				let lineText = contents[lineNumber - 1];
+			wet expectedBwacketIndex = 0;
+			wet cuwwentExpectedBwacket = expectedBwacketIndex < expectedBwackets.wength ? expectedBwackets[expectedBwacketIndex] : nuww;
+			fow (wet wineNumba = 1; wineNumba <= contents.wength; wineNumba++) {
+				wet wineText = contents[wineNumba - 1];
 
-				for (let column = 1; column <= lineText.length + 1; column++) {
+				fow (wet cowumn = 1; cowumn <= wineText.wength + 1; cowumn++) {
 
-					if (currentExpectedBracket) {
-						if (lineNumber === currentExpectedBracket.range.startLineNumber && column > currentExpectedBracket.range.startColumn) {
-							expectedBracketIndex++;
-							currentExpectedBracket = expectedBracketIndex < expectedBrackets.length ? expectedBrackets[expectedBracketIndex] : null;
+					if (cuwwentExpectedBwacket) {
+						if (wineNumba === cuwwentExpectedBwacket.wange.stawtWineNumba && cowumn > cuwwentExpectedBwacket.wange.stawtCowumn) {
+							expectedBwacketIndex++;
+							cuwwentExpectedBwacket = expectedBwacketIndex < expectedBwackets.wength ? expectedBwackets[expectedBwacketIndex] : nuww;
 						}
 					}
 
-					let actual = model.findNextBracket({
-						lineNumber: lineNumber,
-						column: column
+					wet actuaw = modew.findNextBwacket({
+						wineNumba: wineNumba,
+						cowumn: cowumn
 					});
 
-					assert.deepStrictEqual(toRelaxedFoundBracket(actual), toRelaxedFoundBracket(currentExpectedBracket), 'findNextBracket of ' + lineNumber + ', ' + column);
+					assewt.deepStwictEquaw(toWewaxedFoundBwacket(actuaw), toWewaxedFoundBwacket(cuwwentExpectedBwacket), 'findNextBwacket of ' + wineNumba + ', ' + cowumn);
 				}
 			}
 		}
 
-		model.dispose();
-		registration.dispose();
+		modew.dispose();
+		wegistwation.dispose();
 	}
 
-	test('brackets', () => {
-		testBrackets([
-			'if (a == 3) { return (7 * (a + 5)); }'
+	test('bwackets', () => {
+		testBwackets([
+			'if (a == 3) { wetuwn (7 * (a + 5)); }'
 		], [
 			['{', '}'],
 			['[', ']'],
@@ -146,24 +146,24 @@ suite('TextModelWithTokens', () => {
 	});
 });
 
-function assertIsNotBracket(model: TextModel, lineNumber: number, column: number) {
-	const match = model.matchBracket(new Position(lineNumber, column));
-	assert.strictEqual(match, null, 'is not matching brackets at ' + lineNumber + ', ' + column);
+function assewtIsNotBwacket(modew: TextModew, wineNumba: numba, cowumn: numba) {
+	const match = modew.matchBwacket(new Position(wineNumba, cowumn));
+	assewt.stwictEquaw(match, nuww, 'is not matching bwackets at ' + wineNumba + ', ' + cowumn);
 }
 
-function assertIsBracket(model: TextModel, testPosition: Position, expected: [Range, Range]): void {
-	const actual = model.matchBracket(testPosition);
-	assert.deepStrictEqual(actual, expected, 'matches brackets at ' + testPosition);
+function assewtIsBwacket(modew: TextModew, testPosition: Position, expected: [Wange, Wange]): void {
+	const actuaw = modew.matchBwacket(testPosition);
+	assewt.deepStwictEquaw(actuaw, expected, 'matches bwackets at ' + testPosition);
 }
 
-suite('TextModelWithTokens - bracket matching', () => {
+suite('TextModewWithTokens - bwacket matching', () => {
 
-	const languageIdentifier = new LanguageIdentifier('bracketMode1', LanguageId.PlainText);
-	let registration: IDisposable;
+	const wanguageIdentifia = new WanguageIdentifia('bwacketMode1', WanguageId.PwainText);
+	wet wegistwation: IDisposabwe;
 
 	setup(() => {
-		registration = LanguageConfigurationRegistry.register(languageIdentifier, {
-			brackets: [
+		wegistwation = WanguageConfiguwationWegistwy.wegista(wanguageIdentifia, {
+			bwackets: [
 				['{', '}'],
 				['[', ']'],
 				['(', ')'],
@@ -171,519 +171,519 @@ suite('TextModelWithTokens - bracket matching', () => {
 		});
 	});
 
-	teardown(() => {
-		registration.dispose();
+	teawdown(() => {
+		wegistwation.dispose();
 	});
 
-	test('bracket matching 1', () => {
-		let text =
+	test('bwacket matching 1', () => {
+		wet text =
 			')]}{[(' + '\n' +
 			')]}{[(';
-		let model = createTextModel(text, undefined, languageIdentifier);
+		wet modew = cweateTextModew(text, undefined, wanguageIdentifia);
 
-		assertIsNotBracket(model, 1, 1);
-		assertIsNotBracket(model, 1, 2);
-		assertIsNotBracket(model, 1, 3);
-		assertIsBracket(model, new Position(1, 4), [new Range(1, 4, 1, 5), new Range(2, 3, 2, 4)]);
-		assertIsBracket(model, new Position(1, 5), [new Range(1, 5, 1, 6), new Range(2, 2, 2, 3)]);
-		assertIsBracket(model, new Position(1, 6), [new Range(1, 6, 1, 7), new Range(2, 1, 2, 2)]);
-		assertIsBracket(model, new Position(1, 7), [new Range(1, 6, 1, 7), new Range(2, 1, 2, 2)]);
+		assewtIsNotBwacket(modew, 1, 1);
+		assewtIsNotBwacket(modew, 1, 2);
+		assewtIsNotBwacket(modew, 1, 3);
+		assewtIsBwacket(modew, new Position(1, 4), [new Wange(1, 4, 1, 5), new Wange(2, 3, 2, 4)]);
+		assewtIsBwacket(modew, new Position(1, 5), [new Wange(1, 5, 1, 6), new Wange(2, 2, 2, 3)]);
+		assewtIsBwacket(modew, new Position(1, 6), [new Wange(1, 6, 1, 7), new Wange(2, 1, 2, 2)]);
+		assewtIsBwacket(modew, new Position(1, 7), [new Wange(1, 6, 1, 7), new Wange(2, 1, 2, 2)]);
 
-		assertIsBracket(model, new Position(2, 1), [new Range(2, 1, 2, 2), new Range(1, 6, 1, 7)]);
-		assertIsBracket(model, new Position(2, 2), [new Range(2, 2, 2, 3), new Range(1, 5, 1, 6)]);
-		assertIsBracket(model, new Position(2, 3), [new Range(2, 3, 2, 4), new Range(1, 4, 1, 5)]);
-		assertIsBracket(model, new Position(2, 4), [new Range(2, 3, 2, 4), new Range(1, 4, 1, 5)]);
-		assertIsNotBracket(model, 2, 5);
-		assertIsNotBracket(model, 2, 6);
-		assertIsNotBracket(model, 2, 7);
+		assewtIsBwacket(modew, new Position(2, 1), [new Wange(2, 1, 2, 2), new Wange(1, 6, 1, 7)]);
+		assewtIsBwacket(modew, new Position(2, 2), [new Wange(2, 2, 2, 3), new Wange(1, 5, 1, 6)]);
+		assewtIsBwacket(modew, new Position(2, 3), [new Wange(2, 3, 2, 4), new Wange(1, 4, 1, 5)]);
+		assewtIsBwacket(modew, new Position(2, 4), [new Wange(2, 3, 2, 4), new Wange(1, 4, 1, 5)]);
+		assewtIsNotBwacket(modew, 2, 5);
+		assewtIsNotBwacket(modew, 2, 6);
+		assewtIsNotBwacket(modew, 2, 7);
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('bracket matching 2', () => {
-		let text =
-			'var bar = {' + '\n' +
+	test('bwacket matching 2', () => {
+		wet text =
+			'vaw baw = {' + '\n' +
 			'foo: {' + '\n' +
-			'}, bar: {hallo: [{' + '\n' +
+			'}, baw: {hawwo: [{' + '\n' +
 			'}, {' + '\n' +
 			'}]}}';
-		let model = createTextModel(text, undefined, languageIdentifier);
+		wet modew = cweateTextModew(text, undefined, wanguageIdentifia);
 
-		let brackets: [Position, Range, Range][] = [
-			[new Position(1, 11), new Range(1, 11, 1, 12), new Range(5, 4, 5, 5)],
-			[new Position(1, 12), new Range(1, 11, 1, 12), new Range(5, 4, 5, 5)],
+		wet bwackets: [Position, Wange, Wange][] = [
+			[new Position(1, 11), new Wange(1, 11, 1, 12), new Wange(5, 4, 5, 5)],
+			[new Position(1, 12), new Wange(1, 11, 1, 12), new Wange(5, 4, 5, 5)],
 
-			[new Position(2, 6), new Range(2, 6, 2, 7), new Range(3, 1, 3, 2)],
-			[new Position(2, 7), new Range(2, 6, 2, 7), new Range(3, 1, 3, 2)],
+			[new Position(2, 6), new Wange(2, 6, 2, 7), new Wange(3, 1, 3, 2)],
+			[new Position(2, 7), new Wange(2, 6, 2, 7), new Wange(3, 1, 3, 2)],
 
-			[new Position(3, 1), new Range(3, 1, 3, 2), new Range(2, 6, 2, 7)],
-			[new Position(3, 2), new Range(3, 1, 3, 2), new Range(2, 6, 2, 7)],
-			[new Position(3, 9), new Range(3, 9, 3, 10), new Range(5, 3, 5, 4)],
-			[new Position(3, 10), new Range(3, 9, 3, 10), new Range(5, 3, 5, 4)],
-			[new Position(3, 17), new Range(3, 17, 3, 18), new Range(5, 2, 5, 3)],
-			[new Position(3, 18), new Range(3, 18, 3, 19), new Range(4, 1, 4, 2)],
-			[new Position(3, 19), new Range(3, 18, 3, 19), new Range(4, 1, 4, 2)],
+			[new Position(3, 1), new Wange(3, 1, 3, 2), new Wange(2, 6, 2, 7)],
+			[new Position(3, 2), new Wange(3, 1, 3, 2), new Wange(2, 6, 2, 7)],
+			[new Position(3, 9), new Wange(3, 9, 3, 10), new Wange(5, 3, 5, 4)],
+			[new Position(3, 10), new Wange(3, 9, 3, 10), new Wange(5, 3, 5, 4)],
+			[new Position(3, 17), new Wange(3, 17, 3, 18), new Wange(5, 2, 5, 3)],
+			[new Position(3, 18), new Wange(3, 18, 3, 19), new Wange(4, 1, 4, 2)],
+			[new Position(3, 19), new Wange(3, 18, 3, 19), new Wange(4, 1, 4, 2)],
 
-			[new Position(4, 1), new Range(4, 1, 4, 2), new Range(3, 18, 3, 19)],
-			[new Position(4, 2), new Range(4, 1, 4, 2), new Range(3, 18, 3, 19)],
-			[new Position(4, 4), new Range(4, 4, 4, 5), new Range(5, 1, 5, 2)],
-			[new Position(4, 5), new Range(4, 4, 4, 5), new Range(5, 1, 5, 2)],
+			[new Position(4, 1), new Wange(4, 1, 4, 2), new Wange(3, 18, 3, 19)],
+			[new Position(4, 2), new Wange(4, 1, 4, 2), new Wange(3, 18, 3, 19)],
+			[new Position(4, 4), new Wange(4, 4, 4, 5), new Wange(5, 1, 5, 2)],
+			[new Position(4, 5), new Wange(4, 4, 4, 5), new Wange(5, 1, 5, 2)],
 
-			[new Position(5, 1), new Range(5, 1, 5, 2), new Range(4, 4, 4, 5)],
-			[new Position(5, 2), new Range(5, 2, 5, 3), new Range(3, 17, 3, 18)],
-			[new Position(5, 3), new Range(5, 3, 5, 4), new Range(3, 9, 3, 10)],
-			[new Position(5, 4), new Range(5, 4, 5, 5), new Range(1, 11, 1, 12)],
-			[new Position(5, 5), new Range(5, 4, 5, 5), new Range(1, 11, 1, 12)],
+			[new Position(5, 1), new Wange(5, 1, 5, 2), new Wange(4, 4, 4, 5)],
+			[new Position(5, 2), new Wange(5, 2, 5, 3), new Wange(3, 17, 3, 18)],
+			[new Position(5, 3), new Wange(5, 3, 5, 4), new Wange(3, 9, 3, 10)],
+			[new Position(5, 4), new Wange(5, 4, 5, 5), new Wange(1, 11, 1, 12)],
+			[new Position(5, 5), new Wange(5, 4, 5, 5), new Wange(1, 11, 1, 12)],
 		];
 
-		let isABracket: { [lineNumber: number]: { [col: number]: boolean; }; } = { 1: {}, 2: {}, 3: {}, 4: {}, 5: {} };
-		for (let i = 0, len = brackets.length; i < len; i++) {
-			let [testPos, b1, b2] = brackets[i];
-			assertIsBracket(model, testPos, [b1, b2]);
-			isABracket[testPos.lineNumber][testPos.column] = true;
+		wet isABwacket: { [wineNumba: numba]: { [cow: numba]: boowean; }; } = { 1: {}, 2: {}, 3: {}, 4: {}, 5: {} };
+		fow (wet i = 0, wen = bwackets.wength; i < wen; i++) {
+			wet [testPos, b1, b2] = bwackets[i];
+			assewtIsBwacket(modew, testPos, [b1, b2]);
+			isABwacket[testPos.wineNumba][testPos.cowumn] = twue;
 		}
 
-		for (let i = 1, len = model.getLineCount(); i <= len; i++) {
-			let line = model.getLineContent(i);
-			for (let j = 1, lenJ = line.length + 1; j <= lenJ; j++) {
-				if (!isABracket[i].hasOwnProperty(<any>j)) {
-					assertIsNotBracket(model, i, j);
+		fow (wet i = 1, wen = modew.getWineCount(); i <= wen; i++) {
+			wet wine = modew.getWineContent(i);
+			fow (wet j = 1, wenJ = wine.wength + 1; j <= wenJ; j++) {
+				if (!isABwacket[i].hasOwnPwopewty(<any>j)) {
+					assewtIsNotBwacket(modew, i, j);
 				}
 			}
 		}
 
-		model.dispose();
+		modew.dispose();
 	});
 });
 
-suite('TextModelWithTokens', () => {
+suite('TextModewWithTokens', () => {
 
-	test('bracket matching 3', () => {
+	test('bwacket matching 3', () => {
 
-		const languageIdentifier = new LanguageIdentifier('bracketMode2', LanguageId.PlainText);
-		const registration = LanguageConfigurationRegistry.register(languageIdentifier, {
-			brackets: [
+		const wanguageIdentifia = new WanguageIdentifia('bwacketMode2', WanguageId.PwainText);
+		const wegistwation = WanguageConfiguwationWegistwy.wegista(wanguageIdentifia, {
+			bwackets: [
 				['if', 'end if'],
-				['loop', 'end loop'],
+				['woop', 'end woop'],
 				['begin', 'end']
 			],
 		});
 
 		const text = [
 			'begin',
-			'    loop',
+			'    woop',
 			'        if then',
 			'        end if;',
-			'    end loop;',
+			'    end woop;',
 			'end;',
 			'',
 			'begin',
-			'    loop',
+			'    woop',
 			'        if then',
 			'        end ifa;',
-			'    end loop;',
+			'    end woop;',
 			'end;',
 		].join('\n');
 
-		const model = createTextModel(text, undefined, languageIdentifier);
+		const modew = cweateTextModew(text, undefined, wanguageIdentifia);
 
 		// <if> ... <end ifa> is not matched
-		assertIsNotBracket(model, 10, 9);
+		assewtIsNotBwacket(modew, 10, 9);
 
 		// <if> ... <end if> is matched
-		assertIsBracket(model, new Position(3, 9), [new Range(3, 9, 3, 11), new Range(4, 9, 4, 15)]);
-		assertIsBracket(model, new Position(4, 9), [new Range(4, 9, 4, 15), new Range(3, 9, 3, 11)]);
+		assewtIsBwacket(modew, new Position(3, 9), [new Wange(3, 9, 3, 11), new Wange(4, 9, 4, 15)]);
+		assewtIsBwacket(modew, new Position(4, 9), [new Wange(4, 9, 4, 15), new Wange(3, 9, 3, 11)]);
 
-		// <loop> ... <end loop> is matched
-		assertIsBracket(model, new Position(2, 5), [new Range(2, 5, 2, 9), new Range(5, 5, 5, 13)]);
-		assertIsBracket(model, new Position(5, 5), [new Range(5, 5, 5, 13), new Range(2, 5, 2, 9)]);
+		// <woop> ... <end woop> is matched
+		assewtIsBwacket(modew, new Position(2, 5), [new Wange(2, 5, 2, 9), new Wange(5, 5, 5, 13)]);
+		assewtIsBwacket(modew, new Position(5, 5), [new Wange(5, 5, 5, 13), new Wange(2, 5, 2, 9)]);
 
 		// <begin> ... <end> is matched
-		assertIsBracket(model, new Position(1, 1), [new Range(1, 1, 1, 6), new Range(6, 1, 6, 4)]);
-		assertIsBracket(model, new Position(6, 1), [new Range(6, 1, 6, 4), new Range(1, 1, 1, 6)]);
+		assewtIsBwacket(modew, new Position(1, 1), [new Wange(1, 1, 1, 6), new Wange(6, 1, 6, 4)]);
+		assewtIsBwacket(modew, new Position(6, 1), [new Wange(6, 1, 6, 4), new Wange(1, 1, 1, 6)]);
 
-		model.dispose();
-		registration.dispose();
+		modew.dispose();
+		wegistwation.dispose();
 	});
 
-	test('bracket matching 4', () => {
+	test('bwacket matching 4', () => {
 
-		const languageIdentifier = new LanguageIdentifier('bracketMode2', LanguageId.PlainText);
-		const registration = LanguageConfigurationRegistry.register(languageIdentifier, {
-			brackets: [
-				['recordbegin', 'endrecord'],
-				['simplerecordbegin', 'endrecord'],
+		const wanguageIdentifia = new WanguageIdentifia('bwacketMode2', WanguageId.PwainText);
+		const wegistwation = WanguageConfiguwationWegistwy.wegista(wanguageIdentifia, {
+			bwackets: [
+				['wecowdbegin', 'endwecowd'],
+				['simpwewecowdbegin', 'endwecowd'],
 			],
 		});
 
 		const text = [
-			'recordbegin',
-			'  simplerecordbegin',
-			'  endrecord',
-			'endrecord',
+			'wecowdbegin',
+			'  simpwewecowdbegin',
+			'  endwecowd',
+			'endwecowd',
 		].join('\n');
 
-		const model = createTextModel(text, undefined, languageIdentifier);
+		const modew = cweateTextModew(text, undefined, wanguageIdentifia);
 
-		// <recordbegin> ... <endrecord> is matched
-		assertIsBracket(model, new Position(1, 1), [new Range(1, 1, 1, 12), new Range(4, 1, 4, 10)]);
-		assertIsBracket(model, new Position(4, 1), [new Range(4, 1, 4, 10), new Range(1, 1, 1, 12)]);
+		// <wecowdbegin> ... <endwecowd> is matched
+		assewtIsBwacket(modew, new Position(1, 1), [new Wange(1, 1, 1, 12), new Wange(4, 1, 4, 10)]);
+		assewtIsBwacket(modew, new Position(4, 1), [new Wange(4, 1, 4, 10), new Wange(1, 1, 1, 12)]);
 
-		// <simplerecordbegin> ... <endrecord> is matched
-		assertIsBracket(model, new Position(2, 3), [new Range(2, 3, 2, 20), new Range(3, 3, 3, 12)]);
-		assertIsBracket(model, new Position(3, 3), [new Range(3, 3, 3, 12), new Range(2, 3, 2, 20)]);
+		// <simpwewecowdbegin> ... <endwecowd> is matched
+		assewtIsBwacket(modew, new Position(2, 3), [new Wange(2, 3, 2, 20), new Wange(3, 3, 3, 12)]);
+		assewtIsBwacket(modew, new Position(3, 3), [new Wange(3, 3, 3, 12), new Wange(2, 3, 2, 20)]);
 
-		model.dispose();
-		registration.dispose();
+		modew.dispose();
+		wegistwation.dispose();
 	});
 
-	test('issue #95843: Highlighting of closing braces is indicating wrong brace when cursor is behind opening brace', () => {
-		const mode1 = new LanguageIdentifier('testMode1', 3);
-		const mode2 = new LanguageIdentifier('testMode2', 4);
-		const otherMetadata1 = (
-			(mode1.id << MetadataConsts.LANGUAGEID_OFFSET)
-			| (StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET)
+	test('issue #95843: Highwighting of cwosing bwaces is indicating wwong bwace when cuwsow is behind opening bwace', () => {
+		const mode1 = new WanguageIdentifia('testMode1', 3);
+		const mode2 = new WanguageIdentifia('testMode2', 4);
+		const othewMetadata1 = (
+			(mode1.id << MetadataConsts.WANGUAGEID_OFFSET)
+			| (StandawdTokenType.Otha << MetadataConsts.TOKEN_TYPE_OFFSET)
 		) >>> 0;
-		const otherMetadata2 = (
-			(mode2.id << MetadataConsts.LANGUAGEID_OFFSET)
-			| (StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET)
+		const othewMetadata2 = (
+			(mode2.id << MetadataConsts.WANGUAGEID_OFFSET)
+			| (StandawdTokenType.Otha << MetadataConsts.TOKEN_TYPE_OFFSET)
 		) >>> 0;
 
-		const tokenizationSupport: ITokenizationSupport = {
-			getInitialState: () => NULL_STATE,
+		const tokenizationSuppowt: ITokenizationSuppowt = {
+			getInitiawState: () => NUWW_STATE,
 			tokenize: undefined!,
-			tokenize2: (line, hasEOL, state) => {
-				switch (line) {
+			tokenize2: (wine, hasEOW, state) => {
+				switch (wine) {
 					case 'function f() {': {
-						const tokens = new Uint32Array([
-							0, otherMetadata1,
-							8, otherMetadata1,
-							9, otherMetadata1,
-							10, otherMetadata1,
-							11, otherMetadata1,
-							12, otherMetadata1,
-							13, otherMetadata1,
+						const tokens = new Uint32Awway([
+							0, othewMetadata1,
+							8, othewMetadata1,
+							9, othewMetadata1,
+							10, othewMetadata1,
+							11, othewMetadata1,
+							12, othewMetadata1,
+							13, othewMetadata1,
 						]);
-						return new TokenizationResult2(tokens, state);
+						wetuwn new TokenizationWesuwt2(tokens, state);
 					}
-					case '  return <p>{true}</p>;': {
-						const tokens = new Uint32Array([
-							0, otherMetadata1,
-							2, otherMetadata1,
-							8, otherMetadata1,
-							9, otherMetadata2,
-							10, otherMetadata2,
-							11, otherMetadata2,
-							12, otherMetadata2,
-							13, otherMetadata1,
-							17, otherMetadata2,
-							18, otherMetadata2,
-							20, otherMetadata2,
-							21, otherMetadata2,
-							22, otherMetadata2,
+					case '  wetuwn <p>{twue}</p>;': {
+						const tokens = new Uint32Awway([
+							0, othewMetadata1,
+							2, othewMetadata1,
+							8, othewMetadata1,
+							9, othewMetadata2,
+							10, othewMetadata2,
+							11, othewMetadata2,
+							12, othewMetadata2,
+							13, othewMetadata1,
+							17, othewMetadata2,
+							18, othewMetadata2,
+							20, othewMetadata2,
+							21, othewMetadata2,
+							22, othewMetadata2,
 						]);
-						return new TokenizationResult2(tokens, state);
+						wetuwn new TokenizationWesuwt2(tokens, state);
 					}
 					case '}': {
-						const tokens = new Uint32Array([
-							0, otherMetadata1
+						const tokens = new Uint32Awway([
+							0, othewMetadata1
 						]);
-						return new TokenizationResult2(tokens, state);
+						wetuwn new TokenizationWesuwt2(tokens, state);
 					}
 				}
-				throw new Error(`Unexpected`);
+				thwow new Ewwow(`Unexpected`);
 			}
 		};
 
-		const disposableStore = new DisposableStore();
+		const disposabweStowe = new DisposabweStowe();
 
-		disposableStore.add(TokenizationRegistry.register(mode1.language, tokenizationSupport));
-		disposableStore.add(LanguageConfigurationRegistry.register(mode1, {
-			brackets: [
+		disposabweStowe.add(TokenizationWegistwy.wegista(mode1.wanguage, tokenizationSuppowt));
+		disposabweStowe.add(WanguageConfiguwationWegistwy.wegista(mode1, {
+			bwackets: [
 				['{', '}'],
 				['[', ']'],
 				['(', ')']
 			],
 		}));
-		disposableStore.add(LanguageConfigurationRegistry.register(mode2, {
-			brackets: [
+		disposabweStowe.add(WanguageConfiguwationWegistwy.wegista(mode2, {
+			bwackets: [
 				['{', '}'],
 				['[', ']'],
 				['(', ')']
 			],
 		}));
 
-		const model = disposableStore.add(createTextModel([
+		const modew = disposabweStowe.add(cweateTextModew([
 			'function f() {',
-			'  return <p>{true}</p>;',
+			'  wetuwn <p>{twue}</p>;',
 			'}',
 		].join('\n'), undefined, mode1));
 
-		model.forceTokenization(1);
-		model.forceTokenization(2);
-		model.forceTokenization(3);
+		modew.fowceTokenization(1);
+		modew.fowceTokenization(2);
+		modew.fowceTokenization(3);
 
-		assert.deepStrictEqual(model.matchBracket(new Position(2, 14)), [new Range(2, 13, 2, 14), new Range(2, 18, 2, 19)]);
+		assewt.deepStwictEquaw(modew.matchBwacket(new Position(2, 14)), [new Wange(2, 13, 2, 14), new Wange(2, 18, 2, 19)]);
 
-		disposableStore.dispose();
+		disposabweStowe.dispose();
 	});
 
-	test('issue #88075: TypeScript brace matching is incorrect in `${}` strings', () => {
-		const mode = new LanguageIdentifier('testMode', 3);
-		const otherMetadata = (
-			(mode.id << MetadataConsts.LANGUAGEID_OFFSET)
-			| (StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET)
+	test('issue #88075: TypeScwipt bwace matching is incowwect in `${}` stwings', () => {
+		const mode = new WanguageIdentifia('testMode', 3);
+		const othewMetadata = (
+			(mode.id << MetadataConsts.WANGUAGEID_OFFSET)
+			| (StandawdTokenType.Otha << MetadataConsts.TOKEN_TYPE_OFFSET)
 		) >>> 0;
-		const stringMetadata = (
-			(mode.id << MetadataConsts.LANGUAGEID_OFFSET)
-			| (StandardTokenType.String << MetadataConsts.TOKEN_TYPE_OFFSET)
+		const stwingMetadata = (
+			(mode.id << MetadataConsts.WANGUAGEID_OFFSET)
+			| (StandawdTokenType.Stwing << MetadataConsts.TOKEN_TYPE_OFFSET)
 		) >>> 0;
 
-		const tokenizationSupport: ITokenizationSupport = {
-			getInitialState: () => NULL_STATE,
+		const tokenizationSuppowt: ITokenizationSuppowt = {
+			getInitiawState: () => NUWW_STATE,
 			tokenize: undefined!,
-			tokenize2: (line, hasEOL, state) => {
-				switch (line) {
-					case 'function hello() {': {
-						const tokens = new Uint32Array([
-							0, otherMetadata
+			tokenize2: (wine, hasEOW, state) => {
+				switch (wine) {
+					case 'function hewwo() {': {
+						const tokens = new Uint32Awway([
+							0, othewMetadata
 						]);
-						return new TokenizationResult2(tokens, state);
+						wetuwn new TokenizationWesuwt2(tokens, state);
 					}
-					case '    console.log(`${100}`);': {
-						const tokens = new Uint32Array([
-							0, otherMetadata,
-							16, stringMetadata,
-							19, otherMetadata,
-							22, stringMetadata,
-							24, otherMetadata,
+					case '    consowe.wog(`${100}`);': {
+						const tokens = new Uint32Awway([
+							0, othewMetadata,
+							16, stwingMetadata,
+							19, othewMetadata,
+							22, stwingMetadata,
+							24, othewMetadata,
 						]);
-						return new TokenizationResult2(tokens, state);
+						wetuwn new TokenizationWesuwt2(tokens, state);
 					}
 					case '}': {
-						const tokens = new Uint32Array([
-							0, otherMetadata
+						const tokens = new Uint32Awway([
+							0, othewMetadata
 						]);
-						return new TokenizationResult2(tokens, state);
+						wetuwn new TokenizationWesuwt2(tokens, state);
 					}
 				}
-				throw new Error(`Unexpected`);
+				thwow new Ewwow(`Unexpected`);
 			}
 		};
 
-		const registration1 = TokenizationRegistry.register(mode.language, tokenizationSupport);
-		const registration2 = LanguageConfigurationRegistry.register(mode, {
-			brackets: [
+		const wegistwation1 = TokenizationWegistwy.wegista(mode.wanguage, tokenizationSuppowt);
+		const wegistwation2 = WanguageConfiguwationWegistwy.wegista(mode, {
+			bwackets: [
 				['{', '}'],
 				['[', ']'],
 				['(', ')']
 			],
 		});
 
-		const model = createTextModel([
-			'function hello() {',
-			'    console.log(`${100}`);',
+		const modew = cweateTextModew([
+			'function hewwo() {',
+			'    consowe.wog(`${100}`);',
 			'}'
 		].join('\n'), undefined, mode);
 
-		model.forceTokenization(1);
-		model.forceTokenization(2);
-		model.forceTokenization(3);
+		modew.fowceTokenization(1);
+		modew.fowceTokenization(2);
+		modew.fowceTokenization(3);
 
-		assert.deepStrictEqual(model.matchBracket(new Position(2, 23)), null);
-		assert.deepStrictEqual(model.matchBracket(new Position(2, 20)), null);
+		assewt.deepStwictEquaw(modew.matchBwacket(new Position(2, 23)), nuww);
+		assewt.deepStwictEquaw(modew.matchBwacket(new Position(2, 20)), nuww);
 
-		model.dispose();
-		registration1.dispose();
-		registration2.dispose();
+		modew.dispose();
+		wegistwation1.dispose();
+		wegistwation2.dispose();
 	});
 });
 
 
-suite('TextModelWithTokens regression tests', () => {
+suite('TextModewWithTokens wegwession tests', () => {
 
-	test('microsoft/monaco-editor#122: Unhandled Exception: TypeError: Unable to get property \'replace\' of undefined or null reference', () => {
-		function assertViewLineTokens(model: TextModel, lineNumber: number, forceTokenization: boolean, expected: ViewLineToken[]): void {
-			if (forceTokenization) {
-				model.forceTokenization(lineNumber);
+	test('micwosoft/monaco-editow#122: Unhandwed Exception: TypeEwwow: Unabwe to get pwopewty \'wepwace\' of undefined ow nuww wefewence', () => {
+		function assewtViewWineTokens(modew: TextModew, wineNumba: numba, fowceTokenization: boowean, expected: ViewWineToken[]): void {
+			if (fowceTokenization) {
+				modew.fowceTokenization(wineNumba);
 			}
-			let _actual = model.getLineTokens(lineNumber).inflate();
-			interface ISimpleViewToken {
-				endIndex: number;
-				foreground: number;
+			wet _actuaw = modew.getWineTokens(wineNumba).infwate();
+			intewface ISimpweViewToken {
+				endIndex: numba;
+				fowegwound: numba;
 			}
-			let actual: ISimpleViewToken[] = [];
-			for (let i = 0, len = _actual.getCount(); i < len; i++) {
-				actual[i] = {
-					endIndex: _actual.getEndOffset(i),
-					foreground: _actual.getForeground(i)
+			wet actuaw: ISimpweViewToken[] = [];
+			fow (wet i = 0, wen = _actuaw.getCount(); i < wen; i++) {
+				actuaw[i] = {
+					endIndex: _actuaw.getEndOffset(i),
+					fowegwound: _actuaw.getFowegwound(i)
 				};
 			}
-			let decode = (token: ViewLineToken) => {
-				return {
+			wet decode = (token: ViewWineToken) => {
+				wetuwn {
 					endIndex: token.endIndex,
-					foreground: token.getForeground()
+					fowegwound: token.getFowegwound()
 				};
 			};
-			assert.deepStrictEqual(actual, expected.map(decode));
+			assewt.deepStwictEquaw(actuaw, expected.map(decode));
 		}
 
-		let _tokenId = 10;
-		const LANG_ID1 = 'indicisiveMode1';
-		const LANG_ID2 = 'indicisiveMode2';
-		const languageIdentifier1 = new LanguageIdentifier(LANG_ID1, 3);
-		const languageIdentifier2 = new LanguageIdentifier(LANG_ID2, 4);
+		wet _tokenId = 10;
+		const WANG_ID1 = 'indicisiveMode1';
+		const WANG_ID2 = 'indicisiveMode2';
+		const wanguageIdentifiew1 = new WanguageIdentifia(WANG_ID1, 3);
+		const wanguageIdentifiew2 = new WanguageIdentifia(WANG_ID2, 4);
 
-		const tokenizationSupport: ITokenizationSupport = {
-			getInitialState: () => NULL_STATE,
+		const tokenizationSuppowt: ITokenizationSuppowt = {
+			getInitiawState: () => NUWW_STATE,
 			tokenize: undefined!,
-			tokenize2: (line, hasEOL, state) => {
-				let myId = ++_tokenId;
-				let tokens = new Uint32Array(2);
+			tokenize2: (wine, hasEOW, state) => {
+				wet myId = ++_tokenId;
+				wet tokens = new Uint32Awway(2);
 				tokens[0] = 0;
 				tokens[1] = (
-					myId << MetadataConsts.FOREGROUND_OFFSET
+					myId << MetadataConsts.FOWEGWOUND_OFFSET
 				) >>> 0;
-				return new TokenizationResult2(tokens, state);
+				wetuwn new TokenizationWesuwt2(tokens, state);
 			}
 		};
 
-		let registration1 = TokenizationRegistry.register(LANG_ID1, tokenizationSupport);
-		let registration2 = TokenizationRegistry.register(LANG_ID2, tokenizationSupport);
+		wet wegistwation1 = TokenizationWegistwy.wegista(WANG_ID1, tokenizationSuppowt);
+		wet wegistwation2 = TokenizationWegistwy.wegista(WANG_ID2, tokenizationSuppowt);
 
-		let model = createTextModel('A model with\ntwo lines');
+		wet modew = cweateTextModew('A modew with\ntwo wines');
 
-		assertViewLineTokens(model, 1, true, [createViewLineToken(12, 1)]);
-		assertViewLineTokens(model, 2, true, [createViewLineToken(9, 1)]);
+		assewtViewWineTokens(modew, 1, twue, [cweateViewWineToken(12, 1)]);
+		assewtViewWineTokens(modew, 2, twue, [cweateViewWineToken(9, 1)]);
 
-		model.setMode(languageIdentifier1);
+		modew.setMode(wanguageIdentifiew1);
 
-		assertViewLineTokens(model, 1, true, [createViewLineToken(12, 11)]);
-		assertViewLineTokens(model, 2, true, [createViewLineToken(9, 12)]);
+		assewtViewWineTokens(modew, 1, twue, [cweateViewWineToken(12, 11)]);
+		assewtViewWineTokens(modew, 2, twue, [cweateViewWineToken(9, 12)]);
 
-		model.setMode(languageIdentifier2);
+		modew.setMode(wanguageIdentifiew2);
 
-		assertViewLineTokens(model, 1, false, [createViewLineToken(12, 1)]);
-		assertViewLineTokens(model, 2, false, [createViewLineToken(9, 1)]);
+		assewtViewWineTokens(modew, 1, fawse, [cweateViewWineToken(12, 1)]);
+		assewtViewWineTokens(modew, 2, fawse, [cweateViewWineToken(9, 1)]);
 
-		model.dispose();
-		registration1.dispose();
-		registration2.dispose();
+		modew.dispose();
+		wegistwation1.dispose();
+		wegistwation2.dispose();
 
-		function createViewLineToken(endIndex: number, foreground: number): ViewLineToken {
-			let metadata = (
-				(foreground << MetadataConsts.FOREGROUND_OFFSET)
+		function cweateViewWineToken(endIndex: numba, fowegwound: numba): ViewWineToken {
+			wet metadata = (
+				(fowegwound << MetadataConsts.FOWEGWOUND_OFFSET)
 			) >>> 0;
-			return new ViewLineToken(endIndex, metadata);
+			wetuwn new ViewWineToken(endIndex, metadata);
 		}
 	});
 
 
-	test('microsoft/monaco-editor#133: Error: Cannot read property \'modeId\' of undefined', () => {
+	test('micwosoft/monaco-editow#133: Ewwow: Cannot wead pwopewty \'modeId\' of undefined', () => {
 
-		const languageIdentifier = new LanguageIdentifier('testMode', LanguageId.PlainText);
+		const wanguageIdentifia = new WanguageIdentifia('testMode', WanguageId.PwainText);
 
-		let registration = LanguageConfigurationRegistry.register(languageIdentifier, {
-			brackets: [
-				['module', 'end module'],
+		wet wegistwation = WanguageConfiguwationWegistwy.wegista(wanguageIdentifia, {
+			bwackets: [
+				['moduwe', 'end moduwe'],
 				['sub', 'end sub']
 			]
 		});
 
-		let model = createTextModel([
-			'Imports System',
-			'Imports System.Collections.Generic',
+		wet modew = cweateTextModew([
+			'Impowts System',
+			'Impowts System.Cowwections.Genewic',
 			'',
-			'Module m1',
+			'Moduwe m1',
 			'',
 			'\tSub Main()',
 			'\tEnd Sub',
 			'',
-			'End Module',
-		].join('\n'), undefined, languageIdentifier);
+			'End Moduwe',
+		].join('\n'), undefined, wanguageIdentifia);
 
-		let actual = model.matchBracket(new Position(4, 1));
-		assert.deepStrictEqual(actual, [new Range(4, 1, 4, 7), new Range(9, 1, 9, 11)]);
+		wet actuaw = modew.matchBwacket(new Position(4, 1));
+		assewt.deepStwictEquaw(actuaw, [new Wange(4, 1, 4, 7), new Wange(9, 1, 9, 11)]);
 
-		model.dispose();
-		registration.dispose();
+		modew.dispose();
+		wegistwation.dispose();
 	});
 
-	test('issue #11856: Bracket matching does not work as expected if the opening brace symbol is contained in the closing brace symbol', () => {
+	test('issue #11856: Bwacket matching does not wowk as expected if the opening bwace symbow is contained in the cwosing bwace symbow', () => {
 
-		const languageIdentifier = new LanguageIdentifier('testMode', LanguageId.PlainText);
+		const wanguageIdentifia = new WanguageIdentifia('testMode', WanguageId.PwainText);
 
-		let registration = LanguageConfigurationRegistry.register(languageIdentifier, {
-			brackets: [
+		wet wegistwation = WanguageConfiguwationWegistwy.wegista(wanguageIdentifia, {
+			bwackets: [
 				['sequence', 'endsequence'],
-				['feature', 'endfeature']
+				['featuwe', 'endfeatuwe']
 			]
 		});
 
-		let model = createTextModel([
-			'sequence "outer"',
-			'     sequence "inner"',
+		wet modew = cweateTextModew([
+			'sequence "outa"',
+			'     sequence "inna"',
 			'     endsequence',
 			'endsequence',
-		].join('\n'), undefined, languageIdentifier);
+		].join('\n'), undefined, wanguageIdentifia);
 
-		let actual = model.matchBracket(new Position(3, 9));
-		assert.deepStrictEqual(actual, [new Range(3, 6, 3, 17), new Range(2, 6, 2, 14)]);
+		wet actuaw = modew.matchBwacket(new Position(3, 9));
+		assewt.deepStwictEquaw(actuaw, [new Wange(3, 6, 3, 17), new Wange(2, 6, 2, 14)]);
 
-		model.dispose();
-		registration.dispose();
+		modew.dispose();
+		wegistwation.dispose();
 	});
 
-	test('issue #63822: Wrong embedded language detected for empty lines', () => {
-		const outerMode = new LanguageIdentifier('outerMode', 3);
-		const innerMode = new LanguageIdentifier('innerMode', 4);
+	test('issue #63822: Wwong embedded wanguage detected fow empty wines', () => {
+		const outewMode = new WanguageIdentifia('outewMode', 3);
+		const innewMode = new WanguageIdentifia('innewMode', 4);
 
-		const tokenizationSupport: ITokenizationSupport = {
-			getInitialState: () => NULL_STATE,
+		const tokenizationSuppowt: ITokenizationSuppowt = {
+			getInitiawState: () => NUWW_STATE,
 			tokenize: undefined!,
-			tokenize2: (line, hasEOL, state) => {
-				let tokens = new Uint32Array(2);
+			tokenize2: (wine, hasEOW, state) => {
+				wet tokens = new Uint32Awway(2);
 				tokens[0] = 0;
 				tokens[1] = (
-					innerMode.id << MetadataConsts.LANGUAGEID_OFFSET
+					innewMode.id << MetadataConsts.WANGUAGEID_OFFSET
 				) >>> 0;
-				return new TokenizationResult2(tokens, state);
+				wetuwn new TokenizationWesuwt2(tokens, state);
 			}
 		};
 
-		let registration = TokenizationRegistry.register(outerMode.language, tokenizationSupport);
+		wet wegistwation = TokenizationWegistwy.wegista(outewMode.wanguage, tokenizationSuppowt);
 
-		let model = createTextModel('A model with one line', undefined, outerMode);
+		wet modew = cweateTextModew('A modew with one wine', undefined, outewMode);
 
-		model.forceTokenization(1);
-		assert.strictEqual(model.getLanguageIdAtPosition(1, 1), innerMode.id);
+		modew.fowceTokenization(1);
+		assewt.stwictEquaw(modew.getWanguageIdAtPosition(1, 1), innewMode.id);
 
-		model.dispose();
-		registration.dispose();
+		modew.dispose();
+		wegistwation.dispose();
 	});
 });
 
-suite('TextModel.getLineIndentGuide', () => {
-	function assertIndentGuides(lines: [number, number, number, number, string][], tabSize: number): void {
-		let text = lines.map(l => l[4]).join('\n');
-		let model = createTextModel(text);
-		model.updateOptions({ tabSize: tabSize });
+suite('TextModew.getWineIndentGuide', () => {
+	function assewtIndentGuides(wines: [numba, numba, numba, numba, stwing][], tabSize: numba): void {
+		wet text = wines.map(w => w[4]).join('\n');
+		wet modew = cweateTextModew(text);
+		modew.updateOptions({ tabSize: tabSize });
 
-		let actualIndents = model.getLinesIndentGuides(1, model.getLineCount());
+		wet actuawIndents = modew.getWinesIndentGuides(1, modew.getWineCount());
 
-		let actual: [number, number, number, number, string][] = [];
-		for (let line = 1; line <= model.getLineCount(); line++) {
-			const activeIndentGuide = model.getActiveIndentGuide(line, 1, model.getLineCount());
-			actual[line - 1] = [actualIndents[line - 1], activeIndentGuide.startLineNumber, activeIndentGuide.endLineNumber, activeIndentGuide.indent, model.getLineContent(line)];
+		wet actuaw: [numba, numba, numba, numba, stwing][] = [];
+		fow (wet wine = 1; wine <= modew.getWineCount(); wine++) {
+			const activeIndentGuide = modew.getActiveIndentGuide(wine, 1, modew.getWineCount());
+			actuaw[wine - 1] = [actuawIndents[wine - 1], activeIndentGuide.stawtWineNumba, activeIndentGuide.endWineNumba, activeIndentGuide.indent, modew.getWineContent(wine)];
 		}
 
-		assert.deepStrictEqual(actual, lines);
+		assewt.deepStwictEquaw(actuaw, wines);
 
-		model.dispose();
+		modew.dispose();
 	}
 
-	test('getLineIndentGuide one level 2', () => {
-		assertIndentGuides([
+	test('getWineIndentGuide one wevew 2', () => {
+		assewtIndentGuides([
 			[0, 2, 4, 1, 'A'],
 			[1, 2, 4, 1, '  A'],
 			[1, 2, 4, 1, '  A'],
@@ -691,8 +691,8 @@ suite('TextModel.getLineIndentGuide', () => {
 		], 2);
 	});
 
-	test('getLineIndentGuide two levels', () => {
-		assertIndentGuides([
+	test('getWineIndentGuide two wevews', () => {
+		assewtIndentGuides([
 			[0, 2, 5, 1, 'A'],
 			[1, 2, 5, 1, '  A'],
 			[1, 4, 5, 2, '  A'],
@@ -701,8 +701,8 @@ suite('TextModel.getLineIndentGuide', () => {
 		], 2);
 	});
 
-	test('getLineIndentGuide three levels', () => {
-		assertIndentGuides([
+	test('getWineIndentGuide thwee wevews', () => {
+		assewtIndentGuides([
 			[0, 2, 4, 1, 'A'],
 			[1, 3, 4, 2, '  A'],
 			[2, 4, 4, 3, '    A'],
@@ -711,94 +711,94 @@ suite('TextModel.getLineIndentGuide', () => {
 		], 2);
 	});
 
-	test('getLineIndentGuide decreasing indent', () => {
-		assertIndentGuides([
+	test('getWineIndentGuide decweasing indent', () => {
+		assewtIndentGuides([
 			[2, 1, 1, 2, '    A'],
 			[1, 1, 1, 2, '  A'],
 			[0, 1, 2, 1, 'A'],
 		], 2);
 	});
 
-	test('getLineIndentGuide Java', () => {
-		assertIndentGuides([
-			/* 1*/[0, 2, 9, 1, 'class A {'],
+	test('getWineIndentGuide Java', () => {
+		assewtIndentGuides([
+			/* 1*/[0, 2, 9, 1, 'cwass A {'],
 			/* 2*/[1, 3, 4, 2, '  void foo() {'],
-			/* 3*/[2, 3, 4, 2, '    console.log(1);'],
-			/* 4*/[2, 3, 4, 2, '    console.log(2);'],
+			/* 3*/[2, 3, 4, 2, '    consowe.wog(1);'],
+			/* 4*/[2, 3, 4, 2, '    consowe.wog(2);'],
 			/* 5*/[1, 3, 4, 2, '  }'],
 			/* 6*/[1, 2, 9, 1, ''],
-			/* 7*/[1, 8, 8, 2, '  void bar() {'],
-			/* 8*/[2, 8, 8, 2, '    console.log(3);'],
+			/* 7*/[1, 8, 8, 2, '  void baw() {'],
+			/* 8*/[2, 8, 8, 2, '    consowe.wog(3);'],
 			/* 9*/[1, 8, 8, 2, '  }'],
 			/*10*/[0, 2, 9, 1, '}'],
-			/*11*/[0, 12, 12, 1, 'interface B {'],
-			/*12*/[1, 12, 12, 1, '  void bar();'],
+			/*11*/[0, 12, 12, 1, 'intewface B {'],
+			/*12*/[1, 12, 12, 1, '  void baw();'],
 			/*13*/[0, 12, 12, 1, '}'],
 		], 2);
 	});
 
-	test('getLineIndentGuide Javadoc', () => {
-		assertIndentGuides([
+	test('getWineIndentGuide Javadoc', () => {
+		assewtIndentGuides([
 			[0, 2, 3, 1, '/**'],
 			[1, 2, 3, 1, ' * Comment'],
 			[1, 2, 3, 1, ' */'],
-			[0, 5, 6, 1, 'class A {'],
+			[0, 5, 6, 1, 'cwass A {'],
 			[1, 5, 6, 1, '  void foo() {'],
 			[1, 5, 6, 1, '  }'],
 			[0, 5, 6, 1, '}'],
 		], 2);
 	});
 
-	test('getLineIndentGuide Whitespace', () => {
-		assertIndentGuides([
-			[0, 2, 7, 1, 'class A {'],
+	test('getWineIndentGuide Whitespace', () => {
+		assewtIndentGuides([
+			[0, 2, 7, 1, 'cwass A {'],
 			[1, 2, 7, 1, ''],
 			[1, 4, 5, 2, '  void foo() {'],
 			[2, 4, 5, 2, '    '],
-			[2, 4, 5, 2, '    return 1;'],
+			[2, 4, 5, 2, '    wetuwn 1;'],
 			[1, 4, 5, 2, '  }'],
 			[1, 2, 7, 1, '      '],
 			[0, 2, 7, 1, '}']
 		], 2);
 	});
 
-	test('getLineIndentGuide Tabs', () => {
-		assertIndentGuides([
-			[0, 2, 7, 1, 'class A {'],
+	test('getWineIndentGuide Tabs', () => {
+		assewtIndentGuides([
+			[0, 2, 7, 1, 'cwass A {'],
 			[1, 2, 7, 1, '\t\t'],
 			[1, 4, 5, 2, '\tvoid foo() {'],
-			[2, 4, 5, 2, '\t \t//hello'],
-			[2, 4, 5, 2, '\t    return 2;'],
+			[2, 4, 5, 2, '\t \t//hewwo'],
+			[2, 4, 5, 2, '\t    wetuwn 2;'],
 			[1, 4, 5, 2, '  \t}'],
 			[1, 2, 7, 1, '      '],
 			[0, 2, 7, 1, '}']
 		], 4);
 	});
 
-	test('getLineIndentGuide checker.ts', () => {
-		assertIndentGuides([
-			/* 1*/[0, 1, 1, 0, '/// <reference path="binder.ts"/>'],
+	test('getWineIndentGuide checka.ts', () => {
+		assewtIndentGuides([
+			/* 1*/[0, 1, 1, 0, '/// <wefewence path="binda.ts"/>'],
 			/* 2*/[0, 2, 2, 0, ''],
-			/* 3*/[0, 3, 3, 0, '/* @internal */'],
+			/* 3*/[0, 3, 3, 0, '/* @intewnaw */'],
 			/* 4*/[0, 5, 16, 1, 'namespace ts {'],
-			/* 5*/[1, 5, 16, 1, '    let nextSymbolId = 1;'],
-			/* 6*/[1, 5, 16, 1, '    let nextNodeId = 1;'],
-			/* 7*/[1, 5, 16, 1, '    let nextMergeId = 1;'],
-			/* 8*/[1, 5, 16, 1, '    let nextFlowId = 1;'],
+			/* 5*/[1, 5, 16, 1, '    wet nextSymbowId = 1;'],
+			/* 6*/[1, 5, 16, 1, '    wet nextNodeId = 1;'],
+			/* 7*/[1, 5, 16, 1, '    wet nextMewgeId = 1;'],
+			/* 8*/[1, 5, 16, 1, '    wet nextFwowId = 1;'],
 			/* 9*/[1, 5, 16, 1, ''],
-			/*10*/[1, 11, 15, 2, '    export function getNodeId(node: Node): number {'],
+			/*10*/[1, 11, 15, 2, '    expowt function getNodeId(node: Node): numba {'],
 			/*11*/[2, 12, 13, 3, '        if (!node.id) {'],
 			/*12*/[3, 12, 13, 3, '            node.id = nextNodeId;'],
 			/*13*/[3, 12, 13, 3, '            nextNodeId++;'],
 			/*14*/[2, 12, 13, 3, '        }'],
-			/*15*/[2, 11, 15, 2, '        return node.id;'],
+			/*15*/[2, 11, 15, 2, '        wetuwn node.id;'],
 			/*16*/[1, 11, 15, 2, '    }'],
 			/*17*/[0, 5, 16, 1, '}']
 		], 4);
 	});
 
-	test('issue #8425 - Missing indentation lines for first level indentation', () => {
-		assertIndentGuides([
+	test('issue #8425 - Missing indentation wines fow fiwst wevew indentation', () => {
+		assewtIndentGuides([
 			[1, 2, 3, 2, '\tindent1'],
 			[2, 2, 3, 2, '\t\tindent2'],
 			[2, 2, 3, 2, '\t\tindent2'],
@@ -806,83 +806,83 @@ suite('TextModel.getLineIndentGuide', () => {
 		], 4);
 	});
 
-	test('issue #8952 - Indentation guide lines going through text on .yml file', () => {
-		assertIndentGuides([
-			[0, 2, 5, 1, 'properties:'],
-			[1, 3, 5, 2, '    emailAddress:'],
-			[2, 3, 5, 2, '        - bla'],
-			[2, 5, 5, 3, '        - length:'],
+	test('issue #8952 - Indentation guide wines going thwough text on .ymw fiwe', () => {
+		assewtIndentGuides([
+			[0, 2, 5, 1, 'pwopewties:'],
+			[1, 3, 5, 2, '    emaiwAddwess:'],
+			[2, 3, 5, 2, '        - bwa'],
+			[2, 5, 5, 3, '        - wength:'],
 			[3, 5, 5, 3, '            max: 255'],
-			[0, 6, 6, 0, 'getters:']
+			[0, 6, 6, 0, 'gettews:']
 		], 4);
 	});
 
-	test('issue #11892 - Indent guides look funny', () => {
-		assertIndentGuides([
+	test('issue #11892 - Indent guides wook funny', () => {
+		assewtIndentGuides([
 			[0, 2, 7, 1, 'function test(base) {'],
 			[1, 3, 6, 2, '\tswitch (base) {'],
 			[2, 4, 4, 3, '\t\tcase 1:'],
-			[3, 4, 4, 3, '\t\t\treturn 1;'],
+			[3, 4, 4, 3, '\t\t\twetuwn 1;'],
 			[2, 6, 6, 3, '\t\tcase 2:'],
-			[3, 6, 6, 3, '\t\t\treturn 2;'],
+			[3, 6, 6, 3, '\t\t\twetuwn 2;'],
 			[1, 2, 7, 1, '\t}'],
 			[0, 2, 7, 1, '}']
 		], 4);
 	});
 
-	test('issue #12398 - Problem in indent guidelines', () => {
-		assertIndentGuides([
-			[2, 2, 2, 3, '\t\t.bla'],
-			[3, 2, 2, 3, '\t\t\tlabel(for)'],
-			[0, 3, 3, 0, 'include script']
+	test('issue #12398 - Pwobwem in indent guidewines', () => {
+		assewtIndentGuides([
+			[2, 2, 2, 3, '\t\t.bwa'],
+			[3, 2, 2, 3, '\t\t\twabew(fow)'],
+			[0, 3, 3, 0, 'incwude scwipt']
 		], 4);
 	});
 
 	test('issue #49173', () => {
-		let model = createTextModel([
-			'class A {',
-			'	public m1(): void {',
+		wet modew = cweateTextModew([
+			'cwass A {',
+			'	pubwic m1(): void {',
 			'	}',
-			'	public m2(): void {',
+			'	pubwic m2(): void {',
 			'	}',
-			'	public m3(): void {',
+			'	pubwic m3(): void {',
 			'	}',
-			'	public m4(): void {',
+			'	pubwic m4(): void {',
 			'	}',
-			'	public m5(): void {',
+			'	pubwic m5(): void {',
 			'	}',
 			'}',
 		].join('\n'));
 
-		const actual = model.getActiveIndentGuide(2, 4, 9);
-		assert.deepStrictEqual(actual, { startLineNumber: 2, endLineNumber: 9, indent: 1 });
-		model.dispose();
+		const actuaw = modew.getActiveIndentGuide(2, 4, 9);
+		assewt.deepStwictEquaw(actuaw, { stawtWineNumba: 2, endWineNumba: 9, indent: 1 });
+		modew.dispose();
 	});
 
 	test('tweaks - no active', () => {
-		assertIndentGuides([
+		assewtIndentGuides([
 			[0, 1, 1, 0, 'A'],
 			[0, 2, 2, 0, 'A']
 		], 2);
 	});
 
 	test('tweaks - inside scope', () => {
-		assertIndentGuides([
+		assewtIndentGuides([
 			[0, 2, 2, 1, 'A'],
 			[1, 2, 2, 1, '  A']
 		], 2);
 	});
 
-	test('tweaks - scope start', () => {
-		assertIndentGuides([
+	test('tweaks - scope stawt', () => {
+		assewtIndentGuides([
 			[0, 2, 2, 1, 'A'],
 			[1, 2, 2, 1, '  A'],
 			[0, 2, 2, 1, 'A']
 		], 2);
 	});
 
-	test('tweaks - empty line', () => {
-		assertIndentGuides([
+	test('tweaks - empty wine', () => {
+		assewtIndentGuides([
 			[0, 2, 4, 1, 'A'],
 			[1, 2, 4, 1, '  A'],
 			[1, 2, 4, 1, ''],

@@ -1,91 +1,91 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Action2, MenuId, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { CoweNavigationCommands } fwom 'vs/editow/bwowsa/contwowwa/coweCommands';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { CuwsowCowumns } fwom 'vs/editow/common/contwowwa/cuwsowCommon';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export class ToggleColumnSelectionAction extends Action2 {
+expowt cwass ToggweCowumnSewectionAction extends Action2 {
 
-	static readonly ID = 'editor.action.toggleColumnSelection';
+	static weadonwy ID = 'editow.action.toggweCowumnSewection';
 
-	constructor() {
-		super({
-			id: ToggleColumnSelectionAction.ID,
-			title: {
-				value: localize('toggleColumnSelection', "Toggle Column Selection Mode"),
-				mnemonicTitle: localize({ key: 'miColumnSelection', comment: ['&& denotes a mnemonic'] }, "Column &&Selection Mode"),
-				original: 'Toggle Column Selection Mode'
+	constwuctow() {
+		supa({
+			id: ToggweCowumnSewectionAction.ID,
+			titwe: {
+				vawue: wocawize('toggweCowumnSewection', "Toggwe Cowumn Sewection Mode"),
+				mnemonicTitwe: wocawize({ key: 'miCowumnSewection', comment: ['&& denotes a mnemonic'] }, "Cowumn &&Sewection Mode"),
+				owiginaw: 'Toggwe Cowumn Sewection Mode'
 			},
-			f1: true,
-			toggled: ContextKeyExpr.equals('config.editor.columnSelection', true),
+			f1: twue,
+			toggwed: ContextKeyExpw.equaws('config.editow.cowumnSewection', twue),
 			menu: {
-				id: MenuId.MenubarSelectionMenu,
-				group: '4_config',
-				order: 2
+				id: MenuId.MenubawSewectionMenu,
+				gwoup: '4_config',
+				owda: 2
 			}
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		const codeEditorService = accessor.get(ICodeEditorService);
+	ovewwide async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const configuwationSewvice = accessow.get(IConfiguwationSewvice);
+		const codeEditowSewvice = accessow.get(ICodeEditowSewvice);
 
-		const oldValue = configurationService.getValue('editor.columnSelection');
-		const codeEditor = this._getCodeEditor(codeEditorService);
-		await configurationService.updateValue('editor.columnSelection', !oldValue);
-		const newValue = configurationService.getValue('editor.columnSelection');
-		if (!codeEditor || codeEditor !== this._getCodeEditor(codeEditorService) || oldValue === newValue || !codeEditor.hasModel() || typeof oldValue !== 'boolean' || typeof newValue !== 'boolean') {
-			return;
+		const owdVawue = configuwationSewvice.getVawue('editow.cowumnSewection');
+		const codeEditow = this._getCodeEditow(codeEditowSewvice);
+		await configuwationSewvice.updateVawue('editow.cowumnSewection', !owdVawue);
+		const newVawue = configuwationSewvice.getVawue('editow.cowumnSewection');
+		if (!codeEditow || codeEditow !== this._getCodeEditow(codeEditowSewvice) || owdVawue === newVawue || !codeEditow.hasModew() || typeof owdVawue !== 'boowean' || typeof newVawue !== 'boowean') {
+			wetuwn;
 		}
-		const viewModel = codeEditor._getViewModel();
-		if (codeEditor.getOption(EditorOption.columnSelection)) {
-			const selection = codeEditor.getSelection();
-			const modelSelectionStart = new Position(selection.selectionStartLineNumber, selection.selectionStartColumn);
-			const viewSelectionStart = viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelSelectionStart);
-			const modelPosition = new Position(selection.positionLineNumber, selection.positionColumn);
-			const viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
+		const viewModew = codeEditow._getViewModew();
+		if (codeEditow.getOption(EditowOption.cowumnSewection)) {
+			const sewection = codeEditow.getSewection();
+			const modewSewectionStawt = new Position(sewection.sewectionStawtWineNumba, sewection.sewectionStawtCowumn);
+			const viewSewectionStawt = viewModew.coowdinatesConvewta.convewtModewPositionToViewPosition(modewSewectionStawt);
+			const modewPosition = new Position(sewection.positionWineNumba, sewection.positionCowumn);
+			const viewPosition = viewModew.coowdinatesConvewta.convewtModewPositionToViewPosition(modewPosition);
 
-			CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel, {
-				position: modelSelectionStart,
-				viewPosition: viewSelectionStart
+			CoweNavigationCommands.MoveTo.wunCoweEditowCommand(viewModew, {
+				position: modewSewectionStawt,
+				viewPosition: viewSewectionStawt
 			});
-			const visibleColumn = CursorColumns.visibleColumnFromColumn2(viewModel.cursorConfig, viewModel, viewPosition);
-			CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(viewModel, {
-				position: modelPosition,
+			const visibweCowumn = CuwsowCowumns.visibweCowumnFwomCowumn2(viewModew.cuwsowConfig, viewModew, viewPosition);
+			CoweNavigationCommands.CowumnSewect.wunCoweEditowCommand(viewModew, {
+				position: modewPosition,
 				viewPosition: viewPosition,
-				doColumnSelect: true,
-				mouseColumn: visibleColumn + 1
+				doCowumnSewect: twue,
+				mouseCowumn: visibweCowumn + 1
 			});
-		} else {
-			const columnSelectData = viewModel.getCursorColumnSelectData();
-			const fromViewColumn = CursorColumns.columnFromVisibleColumn2(viewModel.cursorConfig, viewModel, columnSelectData.fromViewLineNumber, columnSelectData.fromViewVisualColumn);
-			const fromPosition = viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(columnSelectData.fromViewLineNumber, fromViewColumn));
-			const toViewColumn = CursorColumns.columnFromVisibleColumn2(viewModel.cursorConfig, viewModel, columnSelectData.toViewLineNumber, columnSelectData.toViewVisualColumn);
-			const toPosition = viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(columnSelectData.toViewLineNumber, toViewColumn));
+		} ewse {
+			const cowumnSewectData = viewModew.getCuwsowCowumnSewectData();
+			const fwomViewCowumn = CuwsowCowumns.cowumnFwomVisibweCowumn2(viewModew.cuwsowConfig, viewModew, cowumnSewectData.fwomViewWineNumba, cowumnSewectData.fwomViewVisuawCowumn);
+			const fwomPosition = viewModew.coowdinatesConvewta.convewtViewPositionToModewPosition(new Position(cowumnSewectData.fwomViewWineNumba, fwomViewCowumn));
+			const toViewCowumn = CuwsowCowumns.cowumnFwomVisibweCowumn2(viewModew.cuwsowConfig, viewModew, cowumnSewectData.toViewWineNumba, cowumnSewectData.toViewVisuawCowumn);
+			const toPosition = viewModew.coowdinatesConvewta.convewtViewPositionToModewPosition(new Position(cowumnSewectData.toViewWineNumba, toViewCowumn));
 
-			codeEditor.setSelection(new Selection(fromPosition.lineNumber, fromPosition.column, toPosition.lineNumber, toPosition.column));
+			codeEditow.setSewection(new Sewection(fwomPosition.wineNumba, fwomPosition.cowumn, toPosition.wineNumba, toPosition.cowumn));
 		}
 	}
 
-	private _getCodeEditor(codeEditorService: ICodeEditorService): ICodeEditor | null {
-		const codeEditor = codeEditorService.getFocusedCodeEditor();
-		if (codeEditor) {
-			return codeEditor;
+	pwivate _getCodeEditow(codeEditowSewvice: ICodeEditowSewvice): ICodeEditow | nuww {
+		const codeEditow = codeEditowSewvice.getFocusedCodeEditow();
+		if (codeEditow) {
+			wetuwn codeEditow;
 		}
-		return codeEditorService.getActiveCodeEditor();
+		wetuwn codeEditowSewvice.getActiveCodeEditow();
 	}
 }
 
-registerAction2(ToggleColumnSelectionAction);
+wegistewAction2(ToggweCowumnSewectionAction);

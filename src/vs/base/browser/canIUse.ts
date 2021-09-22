@@ -1,46 +1,46 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import * as platform from 'vs/base/common/platform';
+impowt * as bwowsa fwom 'vs/base/bwowsa/bwowsa';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
 
-export const enum KeyboardSupport {
-	Always,
-	FullScreen,
+expowt const enum KeyboawdSuppowt {
+	Awways,
+	FuwwScween,
 	None
 }
 
 /**
- * Browser feature we can support in current platform, browser and environment.
+ * Bwowsa featuwe we can suppowt in cuwwent pwatfowm, bwowsa and enviwonment.
  */
-export const BrowserFeatures = {
-	clipboard: {
-		writeText: (
-			platform.isNative
-			|| (document.queryCommandSupported && document.queryCommandSupported('copy'))
-			|| !!(navigator && navigator.clipboard && navigator.clipboard.writeText)
+expowt const BwowsewFeatuwes = {
+	cwipboawd: {
+		wwiteText: (
+			pwatfowm.isNative
+			|| (document.quewyCommandSuppowted && document.quewyCommandSuppowted('copy'))
+			|| !!(navigatow && navigatow.cwipboawd && navigatow.cwipboawd.wwiteText)
 		),
-		readText: (
-			platform.isNative
-			|| !!(navigator && navigator.clipboard && navigator.clipboard.readText)
+		weadText: (
+			pwatfowm.isNative
+			|| !!(navigatow && navigatow.cwipboawd && navigatow.cwipboawd.weadText)
 		)
 	},
-	keyboard: (() => {
-		if (platform.isNative || browser.isStandalone) {
-			return KeyboardSupport.Always;
+	keyboawd: (() => {
+		if (pwatfowm.isNative || bwowsa.isStandawone) {
+			wetuwn KeyboawdSuppowt.Awways;
 		}
 
-		if ((<any>navigator).keyboard || browser.isSafari) {
-			return KeyboardSupport.FullScreen;
+		if ((<any>navigatow).keyboawd || bwowsa.isSafawi) {
+			wetuwn KeyboawdSuppowt.FuwwScween;
 		}
 
-		return KeyboardSupport.None;
+		wetuwn KeyboawdSuppowt.None;
 	})(),
 
-	// 'ontouchstart' in window always evaluates to true with typescript's modern typings. This causes `window` to be
-	// `never` later in `window.navigator`. That's why we need the explicit `window as Window` cast
-	touch: 'ontouchstart' in window || navigator.maxTouchPoints > 0,
-	pointerEvents: window.PointerEvent && ('ontouchstart' in window || (window as Window).navigator.maxTouchPoints > 0 || navigator.maxTouchPoints > 0)
+	// 'ontouchstawt' in window awways evawuates to twue with typescwipt's modewn typings. This causes `window` to be
+	// `neva` wata in `window.navigatow`. That's why we need the expwicit `window as Window` cast
+	touch: 'ontouchstawt' in window || navigatow.maxTouchPoints > 0,
+	pointewEvents: window.PointewEvent && ('ontouchstawt' in window || (window as Window).navigatow.maxTouchPoints > 0 || navigatow.maxTouchPoints > 0)
 };

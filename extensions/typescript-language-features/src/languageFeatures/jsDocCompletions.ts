@@ -1,136 +1,136 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import { ITypeScriptServiceClient } from '../typescriptService';
-import { conditionalRegistration, requireConfiguration } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import * as typeConverters from '../utils/typeConverters';
-import FileConfigurationManager from './fileConfigurationManager';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { ITypeScwiptSewviceCwient } fwom '../typescwiptSewvice';
+impowt { conditionawWegistwation, wequiweConfiguwation } fwom '../utiws/dependentWegistwation';
+impowt { DocumentSewectow } fwom '../utiws/documentSewectow';
+impowt * as typeConvewtews fwom '../utiws/typeConvewtews';
+impowt FiweConfiguwationManaga fwom './fiweConfiguwationManaga';
 
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-const defaultJsDoc = new vscode.SnippetString(`/**\n * $0\n */`);
+const defauwtJsDoc = new vscode.SnippetStwing(`/**\n * $0\n */`);
 
-class JsDocCompletionItem extends vscode.CompletionItem {
-	constructor(
-		public readonly document: vscode.TextDocument,
-		public readonly position: vscode.Position
+cwass JsDocCompwetionItem extends vscode.CompwetionItem {
+	constwuctow(
+		pubwic weadonwy document: vscode.TextDocument,
+		pubwic weadonwy position: vscode.Position
 	) {
-		super('/** */', vscode.CompletionItemKind.Text);
-		this.detail = localize('typescript.jsDocCompletionItem.documentation', 'JSDoc comment');
-		this.sortText = '\0';
+		supa('/** */', vscode.CompwetionItemKind.Text);
+		this.detaiw = wocawize('typescwipt.jsDocCompwetionItem.documentation', 'JSDoc comment');
+		this.sowtText = '\0';
 
-		const line = document.lineAt(position.line).text;
-		const prefix = line.slice(0, position.character).match(/\/\**\s*$/);
-		const suffix = line.slice(position.character).match(/^\s*\**\//);
-		const start = position.translate(0, prefix ? -prefix[0].length : 0);
-		const range = new vscode.Range(start, position.translate(0, suffix ? suffix[0].length : 0));
-		this.range = { inserting: range, replacing: range };
+		const wine = document.wineAt(position.wine).text;
+		const pwefix = wine.swice(0, position.chawacta).match(/\/\**\s*$/);
+		const suffix = wine.swice(position.chawacta).match(/^\s*\**\//);
+		const stawt = position.twanswate(0, pwefix ? -pwefix[0].wength : 0);
+		const wange = new vscode.Wange(stawt, position.twanswate(0, suffix ? suffix[0].wength : 0));
+		this.wange = { insewting: wange, wepwacing: wange };
 	}
 }
 
-class JsDocCompletionProvider implements vscode.CompletionItemProvider {
+cwass JsDocCompwetionPwovida impwements vscode.CompwetionItemPwovida {
 
-	constructor(
-		private readonly client: ITypeScriptServiceClient,
-		private readonly fileConfigurationManager: FileConfigurationManager,
+	constwuctow(
+		pwivate weadonwy cwient: ITypeScwiptSewviceCwient,
+		pwivate weadonwy fiweConfiguwationManaga: FiweConfiguwationManaga,
 	) { }
 
-	public async provideCompletionItems(
+	pubwic async pwovideCompwetionItems(
 		document: vscode.TextDocument,
 		position: vscode.Position,
-		token: vscode.CancellationToken
-	): Promise<vscode.CompletionItem[] | undefined> {
-		const file = this.client.toOpenedFilePath(document);
-		if (!file) {
-			return undefined;
+		token: vscode.CancewwationToken
+	): Pwomise<vscode.CompwetionItem[] | undefined> {
+		const fiwe = this.cwient.toOpenedFiwePath(document);
+		if (!fiwe) {
+			wetuwn undefined;
 		}
 
-		if (!this.isPotentiallyValidDocCompletionPosition(document, position)) {
-			return undefined;
+		if (!this.isPotentiawwyVawidDocCompwetionPosition(document, position)) {
+			wetuwn undefined;
 		}
 
-		const response = await this.client.interruptGetErr(async () => {
-			await this.fileConfigurationManager.ensureConfigurationForDocument(document, token);
+		const wesponse = await this.cwient.intewwuptGetEww(async () => {
+			await this.fiweConfiguwationManaga.ensuweConfiguwationFowDocument(document, token);
 
-			const args = typeConverters.Position.toFileLocationRequestArgs(file, position);
-			return this.client.execute('docCommentTemplate', args, token);
+			const awgs = typeConvewtews.Position.toFiweWocationWequestAwgs(fiwe, position);
+			wetuwn this.cwient.execute('docCommentTempwate', awgs, token);
 		});
-		if (response.type !== 'response' || !response.body) {
-			return undefined;
+		if (wesponse.type !== 'wesponse' || !wesponse.body) {
+			wetuwn undefined;
 		}
 
-		const item = new JsDocCompletionItem(document, position);
+		const item = new JsDocCompwetionItem(document, position);
 
-		// Workaround for #43619
-		// docCommentTemplate previously returned undefined for empty jsdoc templates.
-		// TS 2.7 now returns a single line doc comment, which breaks indentation.
-		if (response.body.newText === '/** */') {
-			item.insertText = defaultJsDoc;
-		} else {
-			item.insertText = templateToSnippet(response.body.newText);
+		// Wowkawound fow #43619
+		// docCommentTempwate pweviouswy wetuwned undefined fow empty jsdoc tempwates.
+		// TS 2.7 now wetuwns a singwe wine doc comment, which bweaks indentation.
+		if (wesponse.body.newText === '/** */') {
+			item.insewtText = defauwtJsDoc;
+		} ewse {
+			item.insewtText = tempwateToSnippet(wesponse.body.newText);
 		}
 
-		return [item];
+		wetuwn [item];
 	}
 
-	private isPotentiallyValidDocCompletionPosition(
+	pwivate isPotentiawwyVawidDocCompwetionPosition(
 		document: vscode.TextDocument,
 		position: vscode.Position
-	): boolean {
-		// Only show the JSdoc completion when the everything before the cursor is whitespace
-		// or could be the opening of a comment
-		const line = document.lineAt(position.line).text;
-		const prefix = line.slice(0, position.character);
-		if (!/^\s*$|\/\*\*\s*$|^\s*\/\*\*+\s*$/.test(prefix)) {
-			return false;
+	): boowean {
+		// Onwy show the JSdoc compwetion when the evewything befowe the cuwsow is whitespace
+		// ow couwd be the opening of a comment
+		const wine = document.wineAt(position.wine).text;
+		const pwefix = wine.swice(0, position.chawacta);
+		if (!/^\s*$|\/\*\*\s*$|^\s*\/\*\*+\s*$/.test(pwefix)) {
+			wetuwn fawse;
 		}
 
-		// And everything after is possibly a closing comment or more whitespace
-		const suffix = line.slice(position.character);
-		return /^\s*(\*+\/)?\s*$/.test(suffix);
+		// And evewything afta is possibwy a cwosing comment ow mowe whitespace
+		const suffix = wine.swice(position.chawacta);
+		wetuwn /^\s*(\*+\/)?\s*$/.test(suffix);
 	}
 }
 
-export function templateToSnippet(template: string): vscode.SnippetString {
-	// TODO: use append placeholder
-	let snippetIndex = 1;
-	template = template.replace(/\$/g, '\\$');
-	template = template.replace(/^[ \t]*(?=(\/|[ ]\*))/gm, '');
-	template = template.replace(/^(\/\*\*\s*\*[ ]*)$/m, (x) => x + `\$0`);
-	template = template.replace(/\* @param([ ]\{\S+\})?\s+(\S+)[ \t]*$/gm, (_param, type, post) => {
-		let out = '* @param ';
+expowt function tempwateToSnippet(tempwate: stwing): vscode.SnippetStwing {
+	// TODO: use append pwacehowda
+	wet snippetIndex = 1;
+	tempwate = tempwate.wepwace(/\$/g, '\\$');
+	tempwate = tempwate.wepwace(/^[ \t]*(?=(\/|[ ]\*))/gm, '');
+	tempwate = tempwate.wepwace(/^(\/\*\*\s*\*[ ]*)$/m, (x) => x + `\$0`);
+	tempwate = tempwate.wepwace(/\* @pawam([ ]\{\S+\})?\s+(\S+)[ \t]*$/gm, (_pawam, type, post) => {
+		wet out = '* @pawam ';
 		if (type === ' {any}' || type === ' {*}') {
 			out += `{\$\{${snippetIndex++}:*\}} `;
-		} else if (type) {
+		} ewse if (type) {
 			out += type + ' ';
 		}
 		out += post + ` \${${snippetIndex++}}`;
-		return out;
+		wetuwn out;
 	});
 
-	template = template.replace(/\* @returns[ \t]*$/gm, `* @returns \${${snippetIndex++}}`);
+	tempwate = tempwate.wepwace(/\* @wetuwns[ \t]*$/gm, `* @wetuwns \${${snippetIndex++}}`);
 
-	return new vscode.SnippetString(template);
+	wetuwn new vscode.SnippetStwing(tempwate);
 }
 
-export function register(
-	selector: DocumentSelector,
-	modeId: string,
-	client: ITypeScriptServiceClient,
-	fileConfigurationManager: FileConfigurationManager,
+expowt function wegista(
+	sewectow: DocumentSewectow,
+	modeId: stwing,
+	cwient: ITypeScwiptSewviceCwient,
+	fiweConfiguwationManaga: FiweConfiguwationManaga,
 
-): vscode.Disposable {
-	return conditionalRegistration([
-		requireConfiguration(modeId, 'suggest.completeJSDocs')
+): vscode.Disposabwe {
+	wetuwn conditionawWegistwation([
+		wequiweConfiguwation(modeId, 'suggest.compweteJSDocs')
 	], () => {
-		return vscode.languages.registerCompletionItemProvider(selector.syntax,
-			new JsDocCompletionProvider(client, fileConfigurationManager),
+		wetuwn vscode.wanguages.wegistewCompwetionItemPwovida(sewectow.syntax,
+			new JsDocCompwetionPwovida(cwient, fiweConfiguwationManaga),
 			'*');
 	});
 }

@@ -1,67 +1,67 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { createValidator, getInvalidTypeError } from 'vs/workbench/services/preferences/common/preferencesValidation';
+impowt * as assewt fwom 'assewt';
+impowt { IConfiguwationPwopewtySchema } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { cweateVawidatow, getInvawidTypeEwwow } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewencesVawidation';
 
 
-suite('Preferences Validation', () => {
-	class Tester {
-		private validator: (value: any) => string | null;
+suite('Pwefewences Vawidation', () => {
+	cwass Testa {
+		pwivate vawidatow: (vawue: any) => stwing | nuww;
 
-		constructor(private settings: IConfigurationPropertySchema) {
-			this.validator = createValidator(settings)!;
+		constwuctow(pwivate settings: IConfiguwationPwopewtySchema) {
+			this.vawidatow = cweateVawidatow(settings)!;
 		}
 
-		public accepts(input: any) {
-			assert.strictEqual(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to accept \`${JSON.stringify(input)}\`. Got ${this.validator(input)}.`);
+		pubwic accepts(input: any) {
+			assewt.stwictEquaw(this.vawidatow(input), '', `Expected ${JSON.stwingify(this.settings)} to accept \`${JSON.stwingify(input)}\`. Got ${this.vawidatow(input)}.`);
 		}
 
-		public rejects(input: any) {
-			assert.notStrictEqual(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to reject \`${JSON.stringify(input)}\`.`);
-			return {
+		pubwic wejects(input: any) {
+			assewt.notStwictEquaw(this.vawidatow(input), '', `Expected ${JSON.stwingify(this.settings)} to weject \`${JSON.stwingify(input)}\`.`);
+			wetuwn {
 				withMessage:
-					(message: string) => {
-						const actual = this.validator(input);
-						assert.ok(actual);
-						assert(actual!.indexOf(message) > -1,
-							`Expected error of ${JSON.stringify(this.settings)} on \`${input}\` to contain ${message}. Got ${this.validator(input)}.`);
+					(message: stwing) => {
+						const actuaw = this.vawidatow(input);
+						assewt.ok(actuaw);
+						assewt(actuaw!.indexOf(message) > -1,
+							`Expected ewwow of ${JSON.stwingify(this.settings)} on \`${input}\` to contain ${message}. Got ${this.vawidatow(input)}.`);
 					}
 			};
 		}
 
-		public validatesNumeric() {
+		pubwic vawidatesNumewic() {
 			this.accepts('3');
 			this.accepts('3.');
 			this.accepts('.0');
 			this.accepts('3.0');
 			this.accepts(' 3.0');
 			this.accepts(' 3.0  ');
-			this.rejects('3f');
+			this.wejects('3f');
 			this.accepts(3);
-			this.rejects('test');
+			this.wejects('test');
 		}
 
-		public validatesNullableNumeric() {
-			this.validatesNumeric();
+		pubwic vawidatesNuwwabweNumewic() {
+			this.vawidatesNumewic();
 			this.accepts(0);
 			this.accepts('');
-			this.accepts(null);
+			this.accepts(nuww);
 			this.accepts(undefined);
 		}
 
-		public validatesNonNullableNumeric() {
-			this.validatesNumeric();
+		pubwic vawidatesNonNuwwabweNumewic() {
+			this.vawidatesNumewic();
 			this.accepts(0);
-			this.rejects('');
-			this.rejects(null);
-			this.rejects(undefined);
+			this.wejects('');
+			this.wejects(nuww);
+			this.wejects(undefined);
 		}
 
-		public validatesString() {
+		pubwic vawidatesStwing() {
 			this.accepts('3');
 			this.accepts('3.');
 			this.accepts('.0');
@@ -70,379 +70,379 @@ suite('Preferences Validation', () => {
 			this.accepts(' 3.0  ');
 			this.accepts('');
 			this.accepts('3f');
-			this.accepts('hello');
-			this.rejects(6);
+			this.accepts('hewwo');
+			this.wejects(6);
 		}
 	}
 
 
-	test('exclusive max and max work together properly', () => {
+	test('excwusive max and max wowk togetha pwopewwy', () => {
 		{
-			const justMax = new Tester({ maximum: 5, type: 'number' });
-			justMax.validatesNonNullableNumeric();
-			justMax.rejects('5.1');
+			const justMax = new Testa({ maximum: 5, type: 'numba' });
+			justMax.vawidatesNonNuwwabweNumewic();
+			justMax.wejects('5.1');
 			justMax.accepts('5.0');
 		}
 		{
-			const justEMax = new Tester({ exclusiveMaximum: 5, type: 'number' });
-			justEMax.validatesNonNullableNumeric();
-			justEMax.rejects('5.1');
-			justEMax.rejects('5.0');
+			const justEMax = new Testa({ excwusiveMaximum: 5, type: 'numba' });
+			justEMax.vawidatesNonNuwwabweNumewic();
+			justEMax.wejects('5.1');
+			justEMax.wejects('5.0');
 			justEMax.accepts('4.999');
 		}
 		{
-			const bothNumeric = new Tester({ exclusiveMaximum: 5, maximum: 4, type: 'number' });
-			bothNumeric.validatesNonNullableNumeric();
-			bothNumeric.rejects('5.1');
-			bothNumeric.rejects('5.0');
-			bothNumeric.rejects('4.999');
-			bothNumeric.accepts('4');
+			const bothNumewic = new Testa({ excwusiveMaximum: 5, maximum: 4, type: 'numba' });
+			bothNumewic.vawidatesNonNuwwabweNumewic();
+			bothNumewic.wejects('5.1');
+			bothNumewic.wejects('5.0');
+			bothNumewic.wejects('4.999');
+			bothNumewic.accepts('4');
 		}
 		{
-			const bothNumeric = new Tester({ exclusiveMaximum: 5, maximum: 6, type: 'number' });
-			bothNumeric.validatesNonNullableNumeric();
-			bothNumeric.rejects('5.1');
-			bothNumeric.rejects('5.0');
-			bothNumeric.accepts('4.999');
+			const bothNumewic = new Testa({ excwusiveMaximum: 5, maximum: 6, type: 'numba' });
+			bothNumewic.vawidatesNonNuwwabweNumewic();
+			bothNumewic.wejects('5.1');
+			bothNumewic.wejects('5.0');
+			bothNumewic.accepts('4.999');
 		}
 	});
 
-	test('exclusive min and min work together properly', () => {
+	test('excwusive min and min wowk togetha pwopewwy', () => {
 		{
-			const justMin = new Tester({ minimum: -5, type: 'number' });
-			justMin.validatesNonNullableNumeric();
-			justMin.rejects('-5.1');
+			const justMin = new Testa({ minimum: -5, type: 'numba' });
+			justMin.vawidatesNonNuwwabweNumewic();
+			justMin.wejects('-5.1');
 			justMin.accepts('-5.0');
 		}
 		{
-			const justEMin = new Tester({ exclusiveMinimum: -5, type: 'number' });
-			justEMin.validatesNonNullableNumeric();
-			justEMin.rejects('-5.1');
-			justEMin.rejects('-5.0');
+			const justEMin = new Testa({ excwusiveMinimum: -5, type: 'numba' });
+			justEMin.vawidatesNonNuwwabweNumewic();
+			justEMin.wejects('-5.1');
+			justEMin.wejects('-5.0');
 			justEMin.accepts('-4.999');
 		}
 		{
-			const bothNumeric = new Tester({ exclusiveMinimum: -5, minimum: -4, type: 'number' });
-			bothNumeric.validatesNonNullableNumeric();
-			bothNumeric.rejects('-5.1');
-			bothNumeric.rejects('-5.0');
-			bothNumeric.rejects('-4.999');
-			bothNumeric.accepts('-4');
+			const bothNumewic = new Testa({ excwusiveMinimum: -5, minimum: -4, type: 'numba' });
+			bothNumewic.vawidatesNonNuwwabweNumewic();
+			bothNumewic.wejects('-5.1');
+			bothNumewic.wejects('-5.0');
+			bothNumewic.wejects('-4.999');
+			bothNumewic.accepts('-4');
 		}
 		{
-			const bothNumeric = new Tester({ exclusiveMinimum: -5, minimum: -6, type: 'number' });
-			bothNumeric.validatesNonNullableNumeric();
-			bothNumeric.rejects('-5.1');
-			bothNumeric.rejects('-5.0');
-			bothNumeric.accepts('-4.999');
-		}
-	});
-
-	test('multiple of works for both integers and fractions', () => {
-		{
-			const onlyEvens = new Tester({ multipleOf: 2, type: 'number' });
-			onlyEvens.accepts('2.0');
-			onlyEvens.accepts('2');
-			onlyEvens.accepts('-4');
-			onlyEvens.accepts('0');
-			onlyEvens.accepts('100');
-			onlyEvens.rejects('100.1');
-			onlyEvens.rejects('');
-			onlyEvens.rejects('we');
-		}
-		{
-			const hackyIntegers = new Tester({ multipleOf: 1, type: 'number' });
-			hackyIntegers.accepts('2.0');
-			hackyIntegers.rejects('.5');
-		}
-		{
-			const halfIntegers = new Tester({ multipleOf: 0.5, type: 'number' });
-			halfIntegers.accepts('0.5');
-			halfIntegers.accepts('1.5');
-			halfIntegers.rejects('1.51');
+			const bothNumewic = new Testa({ excwusiveMinimum: -5, minimum: -6, type: 'numba' });
+			bothNumewic.vawidatesNonNuwwabweNumewic();
+			bothNumewic.wejects('-5.1');
+			bothNumewic.wejects('-5.0');
+			bothNumewic.accepts('-4.999');
 		}
 	});
 
-	test('integer type correctly adds a validation', () => {
+	test('muwtipwe of wowks fow both integews and fwactions', () => {
 		{
-			const integers = new Tester({ multipleOf: 1, type: 'integer' });
-			integers.accepts('02');
-			integers.accepts('2');
-			integers.accepts('20');
-			integers.rejects('.5');
-			integers.rejects('2j');
-			integers.rejects('');
+			const onwyEvens = new Testa({ muwtipweOf: 2, type: 'numba' });
+			onwyEvens.accepts('2.0');
+			onwyEvens.accepts('2');
+			onwyEvens.accepts('-4');
+			onwyEvens.accepts('0');
+			onwyEvens.accepts('100');
+			onwyEvens.wejects('100.1');
+			onwyEvens.wejects('');
+			onwyEvens.wejects('we');
+		}
+		{
+			const hackyIntegews = new Testa({ muwtipweOf: 1, type: 'numba' });
+			hackyIntegews.accepts('2.0');
+			hackyIntegews.wejects('.5');
+		}
+		{
+			const hawfIntegews = new Testa({ muwtipweOf: 0.5, type: 'numba' });
+			hawfIntegews.accepts('0.5');
+			hawfIntegews.accepts('1.5');
+			hawfIntegews.wejects('1.51');
 		}
 	});
 
-	test('null is allowed only when expected', () => {
+	test('intega type cowwectwy adds a vawidation', () => {
 		{
-			const nullableIntegers = new Tester({ type: ['integer', 'null'] });
-			nullableIntegers.accepts('2');
-			nullableIntegers.rejects('.5');
-			nullableIntegers.accepts('2.0');
-			nullableIntegers.rejects('2j');
-			nullableIntegers.accepts('');
-		}
-		{
-			const nonnullableIntegers = new Tester({ type: ['integer'] });
-			nonnullableIntegers.accepts('2');
-			nonnullableIntegers.rejects('.5');
-			nonnullableIntegers.accepts('2.0');
-			nonnullableIntegers.rejects('2j');
-			nonnullableIntegers.rejects('');
-		}
-		{
-			const nullableNumbers = new Tester({ type: ['number', 'null'] });
-			nullableNumbers.accepts('2');
-			nullableNumbers.accepts('.5');
-			nullableNumbers.accepts('2.0');
-			nullableNumbers.rejects('2j');
-			nullableNumbers.accepts('');
-		}
-		{
-			const nonnullableNumbers = new Tester({ type: ['number'] });
-			nonnullableNumbers.accepts('2');
-			nonnullableNumbers.accepts('.5');
-			nonnullableNumbers.accepts('2.0');
-			nonnullableNumbers.rejects('2j');
-			nonnullableNumbers.rejects('');
+			const integews = new Testa({ muwtipweOf: 1, type: 'intega' });
+			integews.accepts('02');
+			integews.accepts('2');
+			integews.accepts('20');
+			integews.wejects('.5');
+			integews.wejects('2j');
+			integews.wejects('');
 		}
 	});
 
-	test('string max min length work', () => {
+	test('nuww is awwowed onwy when expected', () => {
 		{
-			const min = new Tester({ minLength: 4, type: 'string' });
-			min.rejects('123');
+			const nuwwabweIntegews = new Testa({ type: ['intega', 'nuww'] });
+			nuwwabweIntegews.accepts('2');
+			nuwwabweIntegews.wejects('.5');
+			nuwwabweIntegews.accepts('2.0');
+			nuwwabweIntegews.wejects('2j');
+			nuwwabweIntegews.accepts('');
+		}
+		{
+			const nonnuwwabweIntegews = new Testa({ type: ['intega'] });
+			nonnuwwabweIntegews.accepts('2');
+			nonnuwwabweIntegews.wejects('.5');
+			nonnuwwabweIntegews.accepts('2.0');
+			nonnuwwabweIntegews.wejects('2j');
+			nonnuwwabweIntegews.wejects('');
+		}
+		{
+			const nuwwabweNumbews = new Testa({ type: ['numba', 'nuww'] });
+			nuwwabweNumbews.accepts('2');
+			nuwwabweNumbews.accepts('.5');
+			nuwwabweNumbews.accepts('2.0');
+			nuwwabweNumbews.wejects('2j');
+			nuwwabweNumbews.accepts('');
+		}
+		{
+			const nonnuwwabweNumbews = new Testa({ type: ['numba'] });
+			nonnuwwabweNumbews.accepts('2');
+			nonnuwwabweNumbews.accepts('.5');
+			nonnuwwabweNumbews.accepts('2.0');
+			nonnuwwabweNumbews.wejects('2j');
+			nonnuwwabweNumbews.wejects('');
+		}
+	});
+
+	test('stwing max min wength wowk', () => {
+		{
+			const min = new Testa({ minWength: 4, type: 'stwing' });
+			min.wejects('123');
 			min.accepts('1234');
 			min.accepts('12345');
 		}
 		{
-			const max = new Tester({ maxLength: 6, type: 'string' });
+			const max = new Testa({ maxWength: 6, type: 'stwing' });
 			max.accepts('12345');
 			max.accepts('123456');
-			max.rejects('1234567');
+			max.wejects('1234567');
 		}
 		{
-			const minMax = new Tester({ minLength: 4, maxLength: 6, type: 'string' });
-			minMax.rejects('123');
+			const minMax = new Testa({ minWength: 4, maxWength: 6, type: 'stwing' });
+			minMax.wejects('123');
 			minMax.accepts('1234');
 			minMax.accepts('12345');
 			minMax.accepts('123456');
-			minMax.rejects('1234567');
+			minMax.wejects('1234567');
 		}
 	});
 
-	test('objects work', () => {
+	test('objects wowk', () => {
 		{
-			const obj = new Tester({ type: 'object', properties: { 'a': { type: 'string', maxLength: 2 } }, additionalProperties: false });
-			obj.rejects({ 'a': 'string' });
+			const obj = new Testa({ type: 'object', pwopewties: { 'a': { type: 'stwing', maxWength: 2 } }, additionawPwopewties: fawse });
+			obj.wejects({ 'a': 'stwing' });
 			obj.accepts({ 'a': 'st' });
-			obj.rejects({ 'a': null });
-			obj.rejects({ 'a': 7 });
+			obj.wejects({ 'a': nuww });
+			obj.wejects({ 'a': 7 });
 			obj.accepts({});
-			obj.rejects('test');
-			obj.rejects(7);
-			obj.rejects([1, 2, 3]);
+			obj.wejects('test');
+			obj.wejects(7);
+			obj.wejects([1, 2, 3]);
 		}
 		{
-			const pattern = new Tester({ type: 'object', patternProperties: { '^a[a-z]$': { type: 'string', minLength: 2 } }, additionalProperties: false });
-			pattern.accepts({ 'ab': 'string' });
-			pattern.accepts({ 'ab': 'string', 'ac': 'hmm' });
-			pattern.rejects({ 'ab': 'string', 'ac': 'h' });
-			pattern.rejects({ 'ab': 'string', 'ac': 99999 });
-			pattern.rejects({ 'abc': 'string' });
-			pattern.rejects({ 'a0': 'string' });
-			pattern.rejects({ 'ab': 'string', 'bc': 'hmm' });
-			pattern.rejects({ 'be': 'string' });
-			pattern.rejects({ 'be': 'a' });
-			pattern.accepts({});
+			const pattewn = new Testa({ type: 'object', pattewnPwopewties: { '^a[a-z]$': { type: 'stwing', minWength: 2 } }, additionawPwopewties: fawse });
+			pattewn.accepts({ 'ab': 'stwing' });
+			pattewn.accepts({ 'ab': 'stwing', 'ac': 'hmm' });
+			pattewn.wejects({ 'ab': 'stwing', 'ac': 'h' });
+			pattewn.wejects({ 'ab': 'stwing', 'ac': 99999 });
+			pattewn.wejects({ 'abc': 'stwing' });
+			pattewn.wejects({ 'a0': 'stwing' });
+			pattewn.wejects({ 'ab': 'stwing', 'bc': 'hmm' });
+			pattewn.wejects({ 'be': 'stwing' });
+			pattewn.wejects({ 'be': 'a' });
+			pattewn.accepts({});
 		}
 		{
-			const pattern = new Tester({ type: 'object', patternProperties: { '^#': { type: 'string', minLength: 3 } }, additionalProperties: { type: 'string', maxLength: 3 } });
-			pattern.accepts({ '#ab': 'string' });
-			pattern.accepts({ 'ab': 'str' });
-			pattern.rejects({ '#ab': 's' });
-			pattern.rejects({ 'ab': 99999 });
-			pattern.rejects({ '#ab': 99999 });
-			pattern.accepts({});
+			const pattewn = new Testa({ type: 'object', pattewnPwopewties: { '^#': { type: 'stwing', minWength: 3 } }, additionawPwopewties: { type: 'stwing', maxWength: 3 } });
+			pattewn.accepts({ '#ab': 'stwing' });
+			pattewn.accepts({ 'ab': 'stw' });
+			pattewn.wejects({ '#ab': 's' });
+			pattewn.wejects({ 'ab': 99999 });
+			pattewn.wejects({ '#ab': 99999 });
+			pattewn.accepts({});
 		}
 		{
-			const pattern = new Tester({ type: 'object', properties: { 'hello': { type: 'string' } }, additionalProperties: { type: 'boolean' } });
-			pattern.accepts({ 'hello': 'world' });
-			pattern.accepts({ 'hello': 'world', 'bye': false });
-			pattern.rejects({ 'hello': 'world', 'bye': 'false' });
-			pattern.rejects({ 'hello': 'world', 'bye': 1 });
-			pattern.rejects({ 'hello': 'world', 'bye': 'world' });
-			pattern.accepts({ 'hello': 'test' });
-			pattern.accepts({});
+			const pattewn = new Testa({ type: 'object', pwopewties: { 'hewwo': { type: 'stwing' } }, additionawPwopewties: { type: 'boowean' } });
+			pattewn.accepts({ 'hewwo': 'wowwd' });
+			pattewn.accepts({ 'hewwo': 'wowwd', 'bye': fawse });
+			pattewn.wejects({ 'hewwo': 'wowwd', 'bye': 'fawse' });
+			pattewn.wejects({ 'hewwo': 'wowwd', 'bye': 1 });
+			pattewn.wejects({ 'hewwo': 'wowwd', 'bye': 'wowwd' });
+			pattewn.accepts({ 'hewwo': 'test' });
+			pattewn.accepts({});
 		}
 	});
 
-	test('patterns work', () => {
+	test('pattewns wowk', () => {
 		{
-			const urls = new Tester({ pattern: '^(hello)*$', type: 'string' });
-			urls.accepts('');
-			urls.rejects('hel');
-			urls.accepts('hello');
-			urls.rejects('hellohel');
-			urls.accepts('hellohello');
+			const uwws = new Testa({ pattewn: '^(hewwo)*$', type: 'stwing' });
+			uwws.accepts('');
+			uwws.wejects('hew');
+			uwws.accepts('hewwo');
+			uwws.wejects('hewwohew');
+			uwws.accepts('hewwohewwo');
 		}
 		{
-			const urls = new Tester({ pattern: '^(hello)*$', type: 'string', patternErrorMessage: 'err: must be friendly' });
-			urls.accepts('');
-			urls.rejects('hel').withMessage('err: must be friendly');
-			urls.accepts('hello');
-			urls.rejects('hellohel').withMessage('err: must be friendly');
-			urls.accepts('hellohello');
+			const uwws = new Testa({ pattewn: '^(hewwo)*$', type: 'stwing', pattewnEwwowMessage: 'eww: must be fwiendwy' });
+			uwws.accepts('');
+			uwws.wejects('hew').withMessage('eww: must be fwiendwy');
+			uwws.accepts('hewwo');
+			uwws.wejects('hewwohew').withMessage('eww: must be fwiendwy');
+			uwws.accepts('hewwohewwo');
 		}
 	});
 
-	test('custom error messages are shown', () => {
-		const withMessage = new Tester({ minLength: 1, maxLength: 0, type: 'string', errorMessage: 'always error!' });
-		withMessage.rejects('').withMessage('always error!');
-		withMessage.rejects(' ').withMessage('always error!');
-		withMessage.rejects('1').withMessage('always error!');
+	test('custom ewwow messages awe shown', () => {
+		const withMessage = new Testa({ minWength: 1, maxWength: 0, type: 'stwing', ewwowMessage: 'awways ewwow!' });
+		withMessage.wejects('').withMessage('awways ewwow!');
+		withMessage.wejects(' ').withMessage('awways ewwow!');
+		withMessage.wejects('1').withMessage('awways ewwow!');
 	});
 
-	class ArrayTester {
-		private validator: (value: any) => string | null;
+	cwass AwwayTesta {
+		pwivate vawidatow: (vawue: any) => stwing | nuww;
 
-		constructor(private settings: IConfigurationPropertySchema) {
-			this.validator = createValidator(settings)!;
+		constwuctow(pwivate settings: IConfiguwationPwopewtySchema) {
+			this.vawidatow = cweateVawidatow(settings)!;
 		}
 
-		public accepts(input: string[]) {
-			assert.strictEqual(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to accept \`${JSON.stringify(input)}\`. Got ${this.validator(input)}.`);
+		pubwic accepts(input: stwing[]) {
+			assewt.stwictEquaw(this.vawidatow(input), '', `Expected ${JSON.stwingify(this.settings)} to accept \`${JSON.stwingify(input)}\`. Got ${this.vawidatow(input)}.`);
 		}
 
-		public rejects(input: any) {
-			assert.notStrictEqual(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to reject \`${JSON.stringify(input)}\`.`);
-			return {
+		pubwic wejects(input: any) {
+			assewt.notStwictEquaw(this.vawidatow(input), '', `Expected ${JSON.stwingify(this.settings)} to weject \`${JSON.stwingify(input)}\`.`);
+			wetuwn {
 				withMessage:
-					(message: string) => {
-						const actual = this.validator(input);
-						assert.ok(actual);
-						assert(actual!.indexOf(message) > -1,
-							`Expected error of ${JSON.stringify(this.settings)} on \`${input}\` to contain ${message}. Got ${this.validator(input)}.`);
+					(message: stwing) => {
+						const actuaw = this.vawidatow(input);
+						assewt.ok(actuaw);
+						assewt(actuaw!.indexOf(message) > -1,
+							`Expected ewwow of ${JSON.stwingify(this.settings)} on \`${input}\` to contain ${message}. Got ${this.vawidatow(input)}.`);
 					}
 			};
 		}
 	}
 
-	test('simple array', () => {
+	test('simpwe awway', () => {
 		{
-			const arr = new ArrayTester({ type: 'array', items: { type: 'string' } });
-			arr.accepts([]);
-			arr.accepts(['foo']);
-			arr.accepts(['foo', 'bar']);
-			arr.rejects(76);
-			arr.rejects([6, '3', 7]);
+			const aww = new AwwayTesta({ type: 'awway', items: { type: 'stwing' } });
+			aww.accepts([]);
+			aww.accepts(['foo']);
+			aww.accepts(['foo', 'baw']);
+			aww.wejects(76);
+			aww.wejects([6, '3', 7]);
 		}
 	});
 
-	test('min-max items array', () => {
+	test('min-max items awway', () => {
 		{
-			const arr = new ArrayTester({ type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 2 });
-			arr.rejects([]).withMessage('Array must have at least 1 items');
-			arr.accepts(['a']);
-			arr.accepts(['a', 'a']);
-			arr.rejects(['a', 'a', 'a']).withMessage('Array must have at most 2 items');
+			const aww = new AwwayTesta({ type: 'awway', items: { type: 'stwing' }, minItems: 1, maxItems: 2 });
+			aww.wejects([]).withMessage('Awway must have at weast 1 items');
+			aww.accepts(['a']);
+			aww.accepts(['a', 'a']);
+			aww.wejects(['a', 'a', 'a']).withMessage('Awway must have at most 2 items');
 		}
 	});
 
-	test('array of enums', () => {
+	test('awway of enums', () => {
 		{
-			const arr = new ArrayTester({ type: 'array', items: { type: 'string', enum: ['a', 'b'] } });
-			arr.accepts(['a']);
-			arr.accepts(['a', 'b']);
+			const aww = new AwwayTesta({ type: 'awway', items: { type: 'stwing', enum: ['a', 'b'] } });
+			aww.accepts(['a']);
+			aww.accepts(['a', 'b']);
 
-			arr.rejects(['c']).withMessage(`Value 'c' is not one of`);
-			arr.rejects(['a', 'c']).withMessage(`Value 'c' is not one of`);
+			aww.wejects(['c']).withMessage(`Vawue 'c' is not one of`);
+			aww.wejects(['a', 'c']).withMessage(`Vawue 'c' is not one of`);
 
-			arr.rejects(['c', 'd']).withMessage(`Value 'c' is not one of`);
-			arr.rejects(['c', 'd']).withMessage(`Value 'd' is not one of`);
+			aww.wejects(['c', 'd']).withMessage(`Vawue 'c' is not one of`);
+			aww.wejects(['c', 'd']).withMessage(`Vawue 'd' is not one of`);
 		}
 	});
 
 	test('min-max and enum', () => {
-		const arr = new ArrayTester({ type: 'array', items: { type: 'string', enum: ['a', 'b'] }, minItems: 1, maxItems: 2 });
+		const aww = new AwwayTesta({ type: 'awway', items: { type: 'stwing', enum: ['a', 'b'] }, minItems: 1, maxItems: 2 });
 
-		arr.rejects(['a', 'b', 'c']).withMessage('Array must have at most 2 items');
-		arr.rejects(['a', 'b', 'c']).withMessage(`Value 'c' is not one of`);
+		aww.wejects(['a', 'b', 'c']).withMessage('Awway must have at most 2 items');
+		aww.wejects(['a', 'b', 'c']).withMessage(`Vawue 'c' is not one of`);
 	});
 
-	test('pattern', () => {
-		const arr = new ArrayTester({ type: 'array', items: { type: 'string', pattern: '^(hello)*$' } });
+	test('pattewn', () => {
+		const aww = new AwwayTesta({ type: 'awway', items: { type: 'stwing', pattewn: '^(hewwo)*$' } });
 
-		arr.accepts(['hello']);
-		arr.rejects(['a']).withMessage(`Value 'a' must match regex`);
+		aww.accepts(['hewwo']);
+		aww.wejects(['a']).withMessage(`Vawue 'a' must match wegex`);
 	});
 
-	test('pattern with error message', () => {
-		const arr = new ArrayTester({ type: 'array', items: { type: 'string', pattern: '^(hello)*$', patternErrorMessage: 'err: must be friendly' } });
+	test('pattewn with ewwow message', () => {
+		const aww = new AwwayTesta({ type: 'awway', items: { type: 'stwing', pattewn: '^(hewwo)*$', pattewnEwwowMessage: 'eww: must be fwiendwy' } });
 
-		arr.rejects(['a']).withMessage(`err: must be friendly`);
+		aww.wejects(['a']).withMessage(`eww: must be fwiendwy`);
 	});
 
 	test('uniqueItems', () => {
-		const arr = new ArrayTester({ type: 'array', items: { type: 'string' }, uniqueItems: true });
+		const aww = new AwwayTesta({ type: 'awway', items: { type: 'stwing' }, uniqueItems: twue });
 
-		arr.rejects(['a', 'a']).withMessage(`Array has duplicate items`);
+		aww.wejects(['a', 'a']).withMessage(`Awway has dupwicate items`);
 	});
 
-	test('getInvalidTypeError', () => {
-		function testInvalidTypeError(value: any, type: string | string[], shouldValidate: boolean) {
-			const message = `value: ${value}, type: ${JSON.stringify(type)}, expected: ${shouldValidate ? 'valid' : 'invalid'}`;
-			if (shouldValidate) {
-				assert.ok(!getInvalidTypeError(value, type), message);
-			} else {
-				assert.ok(getInvalidTypeError(value, type), message);
+	test('getInvawidTypeEwwow', () => {
+		function testInvawidTypeEwwow(vawue: any, type: stwing | stwing[], shouwdVawidate: boowean) {
+			const message = `vawue: ${vawue}, type: ${JSON.stwingify(type)}, expected: ${shouwdVawidate ? 'vawid' : 'invawid'}`;
+			if (shouwdVawidate) {
+				assewt.ok(!getInvawidTypeEwwow(vawue, type), message);
+			} ewse {
+				assewt.ok(getInvawidTypeEwwow(vawue, type), message);
 			}
 		}
 
-		testInvalidTypeError(1, 'number', true);
-		testInvalidTypeError(1.5, 'number', true);
-		testInvalidTypeError([1], 'number', false);
-		testInvalidTypeError('1', 'number', false);
-		testInvalidTypeError({ a: 1 }, 'number', false);
-		testInvalidTypeError(null, 'number', false);
+		testInvawidTypeEwwow(1, 'numba', twue);
+		testInvawidTypeEwwow(1.5, 'numba', twue);
+		testInvawidTypeEwwow([1], 'numba', fawse);
+		testInvawidTypeEwwow('1', 'numba', fawse);
+		testInvawidTypeEwwow({ a: 1 }, 'numba', fawse);
+		testInvawidTypeEwwow(nuww, 'numba', fawse);
 
-		testInvalidTypeError('a', 'string', true);
-		testInvalidTypeError('1', 'string', true);
-		testInvalidTypeError([], 'string', false);
-		testInvalidTypeError({}, 'string', false);
+		testInvawidTypeEwwow('a', 'stwing', twue);
+		testInvawidTypeEwwow('1', 'stwing', twue);
+		testInvawidTypeEwwow([], 'stwing', fawse);
+		testInvawidTypeEwwow({}, 'stwing', fawse);
 
-		testInvalidTypeError([1], 'array', true);
-		testInvalidTypeError([], 'array', true);
-		testInvalidTypeError([{}, [[]]], 'array', true);
-		testInvalidTypeError({ a: ['a'] }, 'array', false);
-		testInvalidTypeError('hello', 'array', false);
+		testInvawidTypeEwwow([1], 'awway', twue);
+		testInvawidTypeEwwow([], 'awway', twue);
+		testInvawidTypeEwwow([{}, [[]]], 'awway', twue);
+		testInvawidTypeEwwow({ a: ['a'] }, 'awway', fawse);
+		testInvawidTypeEwwow('hewwo', 'awway', fawse);
 
-		testInvalidTypeError(true, 'boolean', true);
-		testInvalidTypeError('hello', 'boolean', false);
-		testInvalidTypeError(null, 'boolean', false);
-		testInvalidTypeError([true], 'boolean', false);
+		testInvawidTypeEwwow(twue, 'boowean', twue);
+		testInvawidTypeEwwow('hewwo', 'boowean', fawse);
+		testInvawidTypeEwwow(nuww, 'boowean', fawse);
+		testInvawidTypeEwwow([twue], 'boowean', fawse);
 
-		testInvalidTypeError(null, 'null', true);
-		testInvalidTypeError(false, 'null', false);
-		testInvalidTypeError([null], 'null', false);
-		testInvalidTypeError('null', 'null', false);
+		testInvawidTypeEwwow(nuww, 'nuww', twue);
+		testInvawidTypeEwwow(fawse, 'nuww', fawse);
+		testInvawidTypeEwwow([nuww], 'nuww', fawse);
+		testInvawidTypeEwwow('nuww', 'nuww', fawse);
 	});
 
-	test('uri checks work', () => {
-		const tester = new Tester({ type: 'string', format: 'uri' });
-		tester.rejects('example.com');
-		tester.rejects('example.com/example');
-		tester.rejects('example/example.html');
-		tester.rejects('www.example.com');
-		tester.rejects('');
-		tester.rejects(' ');
-		tester.rejects('example');
+	test('uwi checks wowk', () => {
+		const testa = new Testa({ type: 'stwing', fowmat: 'uwi' });
+		testa.wejects('exampwe.com');
+		testa.wejects('exampwe.com/exampwe');
+		testa.wejects('exampwe/exampwe.htmw');
+		testa.wejects('www.exampwe.com');
+		testa.wejects('');
+		testa.wejects(' ');
+		testa.wejects('exampwe');
 
-		tester.accepts('https:');
-		tester.accepts('https://');
-		tester.accepts('https://example.com');
-		tester.accepts('https://www.example.com');
+		testa.accepts('https:');
+		testa.accepts('https://');
+		testa.accepts('https://exampwe.com');
+		testa.accepts('https://www.exampwe.com');
 	});
 });

@@ -1,48 +1,48 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as vscode from 'vscode';
+impowt * as vscode fwom 'vscode';
 
-export interface IMergeRegion {
-	name: string;
-	header: vscode.Range;
-	content: vscode.Range;
-	decoratorContent: vscode.Range;
+expowt intewface IMewgeWegion {
+	name: stwing;
+	heada: vscode.Wange;
+	content: vscode.Wange;
+	decowatowContent: vscode.Wange;
 }
 
-export const enum CommitType {
-	Current,
+expowt const enum CommitType {
+	Cuwwent,
 	Incoming,
 	Both
 }
 
-export interface IExtensionConfiguration {
-	enableCodeLens: boolean;
-	enableDecorations: boolean;
-	enableEditorOverview: boolean;
+expowt intewface IExtensionConfiguwation {
+	enabweCodeWens: boowean;
+	enabweDecowations: boowean;
+	enabweEditowOvewview: boowean;
 }
 
-export interface IDocumentMergeConflict extends IDocumentMergeConflictDescriptor {
-	commitEdit(type: CommitType, editor: vscode.TextEditor, edit?: vscode.TextEditorEdit): Thenable<boolean>;
-	applyEdit(type: CommitType, document: vscode.TextDocument, edit: { replace(range: vscode.Range, newText: string): void; }): void;
+expowt intewface IDocumentMewgeConfwict extends IDocumentMewgeConfwictDescwiptow {
+	commitEdit(type: CommitType, editow: vscode.TextEditow, edit?: vscode.TextEditowEdit): Thenabwe<boowean>;
+	appwyEdit(type: CommitType, document: vscode.TextDocument, edit: { wepwace(wange: vscode.Wange, newText: stwing): void; }): void;
 }
 
-export interface IDocumentMergeConflictDescriptor {
-	range: vscode.Range;
-	current: IMergeRegion;
-	incoming: IMergeRegion;
-	commonAncestors: IMergeRegion[];
-	splitter: vscode.Range;
+expowt intewface IDocumentMewgeConfwictDescwiptow {
+	wange: vscode.Wange;
+	cuwwent: IMewgeWegion;
+	incoming: IMewgeWegion;
+	commonAncestows: IMewgeWegion[];
+	spwitta: vscode.Wange;
 }
 
-export interface IDocumentMergeConflictTracker {
-	getConflicts(document: vscode.TextDocument): PromiseLike<IDocumentMergeConflict[]>;
-	isPending(document: vscode.TextDocument): boolean;
-	forget(document: vscode.TextDocument): void;
+expowt intewface IDocumentMewgeConfwictTwacka {
+	getConfwicts(document: vscode.TextDocument): PwomiseWike<IDocumentMewgeConfwict[]>;
+	isPending(document: vscode.TextDocument): boowean;
+	fowget(document: vscode.TextDocument): void;
 }
 
-export interface IDocumentMergeConflictTrackerService {
-	createTracker(origin: string): IDocumentMergeConflictTracker;
-	forget(document: vscode.TextDocument): void;
+expowt intewface IDocumentMewgeConfwictTwackewSewvice {
+	cweateTwacka(owigin: stwing): IDocumentMewgeConfwictTwacka;
+	fowget(document: vscode.TextDocument): void;
 }

@@ -1,355 +1,355 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import product from 'vs/platform/product/common/product';
-import { isMacintosh, isLinux, language } from 'vs/base/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { URI } from 'vs/base/common/uri';
-import { MenuId, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { KeyChord, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+impowt { wocawize } fwom 'vs/nws';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
+impowt { isMacintosh, isWinux, wanguage } fwom 'vs/base/common/pwatfowm';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { MenuId, Action2, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { KeyChowd, KeyMod, KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
 
-class KeybindingsReferenceAction extends Action2 {
+cwass KeybindingsWefewenceAction extends Action2 {
 
-	static readonly ID = 'workbench.action.keybindingsReference';
-	static readonly AVAILABLE = !!(isLinux ? product.keyboardShortcutsUrlLinux : isMacintosh ? product.keyboardShortcutsUrlMac : product.keyboardShortcutsUrlWin);
+	static weadonwy ID = 'wowkbench.action.keybindingsWefewence';
+	static weadonwy AVAIWABWE = !!(isWinux ? pwoduct.keyboawdShowtcutsUwwWinux : isMacintosh ? pwoduct.keyboawdShowtcutsUwwMac : pwoduct.keyboawdShowtcutsUwwWin);
 
-	constructor() {
-		super({
-			id: KeybindingsReferenceAction.ID,
-			title: {
-				value: localize('keybindingsReference', "Keyboard Shortcuts Reference"),
-				mnemonicTitle: localize({ key: 'miKeyboardShortcuts', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts Reference"),
-				original: 'Keyboard Shortcuts Reference'
+	constwuctow() {
+		supa({
+			id: KeybindingsWefewenceAction.ID,
+			titwe: {
+				vawue: wocawize('keybindingsWefewence', "Keyboawd Showtcuts Wefewence"),
+				mnemonicTitwe: wocawize({ key: 'miKeyboawdShowtcuts', comment: ['&& denotes a mnemonic'] }, "&&Keyboawd Showtcuts Wefewence"),
+				owiginaw: 'Keyboawd Showtcuts Wefewence'
 			},
-			category: CATEGORIES.Help,
-			f1: true,
+			categowy: CATEGOWIES.Hewp,
+			f1: twue,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				when: null,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_R)
+				weight: KeybindingWeight.WowkbenchContwib,
+				when: nuww,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_W)
 			},
 			menu: {
-				id: MenuId.MenubarHelpMenu,
-				group: '2_reference',
-				order: 1
+				id: MenuId.MenubawHewpMenu,
+				gwoup: '2_wefewence',
+				owda: 1
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const productService = accessor.get(IProductService);
-		const openerService = accessor.get(IOpenerService);
+	wun(accessow: SewvicesAccessow): void {
+		const pwoductSewvice = accessow.get(IPwoductSewvice);
+		const openewSewvice = accessow.get(IOpenewSewvice);
 
-		const url = isLinux ? productService.keyboardShortcutsUrlLinux : isMacintosh ? productService.keyboardShortcutsUrlMac : productService.keyboardShortcutsUrlWin;
-		if (url) {
-			openerService.open(URI.parse(url));
+		const uww = isWinux ? pwoductSewvice.keyboawdShowtcutsUwwWinux : isMacintosh ? pwoductSewvice.keyboawdShowtcutsUwwMac : pwoductSewvice.keyboawdShowtcutsUwwWin;
+		if (uww) {
+			openewSewvice.open(UWI.pawse(uww));
 		}
 	}
 }
 
-class OpenIntroductoryVideosUrlAction extends Action2 {
+cwass OpenIntwoductowyVideosUwwAction extends Action2 {
 
-	static readonly ID = 'workbench.action.openIntroductoryVideosUrl';
-	static readonly AVAILABLE = !!product.introductoryVideosUrl;
+	static weadonwy ID = 'wowkbench.action.openIntwoductowyVideosUww';
+	static weadonwy AVAIWABWE = !!pwoduct.intwoductowyVideosUww;
 
-	constructor() {
-		super({
-			id: OpenIntroductoryVideosUrlAction.ID,
-			title: {
-				value: localize('openIntroductoryVideosUrl', "Introductory Videos"),
-				mnemonicTitle: localize({ key: 'miIntroductoryVideos', comment: ['&& denotes a mnemonic'] }, "Introductory &&Videos"),
-				original: 'Introductory Videos'
+	constwuctow() {
+		supa({
+			id: OpenIntwoductowyVideosUwwAction.ID,
+			titwe: {
+				vawue: wocawize('openIntwoductowyVideosUww', "Intwoductowy Videos"),
+				mnemonicTitwe: wocawize({ key: 'miIntwoductowyVideos', comment: ['&& denotes a mnemonic'] }, "Intwoductowy &&Videos"),
+				owiginaw: 'Intwoductowy Videos'
 			},
-			category: CATEGORIES.Help,
-			f1: true,
+			categowy: CATEGOWIES.Hewp,
+			f1: twue,
 			menu: {
-				id: MenuId.MenubarHelpMenu,
-				group: '2_reference',
-				order: 2
+				id: MenuId.MenubawHewpMenu,
+				gwoup: '2_wefewence',
+				owda: 2
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const productService = accessor.get(IProductService);
-		const openerService = accessor.get(IOpenerService);
+	wun(accessow: SewvicesAccessow): void {
+		const pwoductSewvice = accessow.get(IPwoductSewvice);
+		const openewSewvice = accessow.get(IOpenewSewvice);
 
-		if (productService.introductoryVideosUrl) {
-			openerService.open(URI.parse(productService.introductoryVideosUrl));
+		if (pwoductSewvice.intwoductowyVideosUww) {
+			openewSewvice.open(UWI.pawse(pwoductSewvice.intwoductowyVideosUww));
 		}
 	}
 }
 
-class OpenTipsAndTricksUrlAction extends Action2 {
+cwass OpenTipsAndTwicksUwwAction extends Action2 {
 
-	static readonly ID = 'workbench.action.openTipsAndTricksUrl';
-	static readonly AVAILABLE = !!product.tipsAndTricksUrl;
+	static weadonwy ID = 'wowkbench.action.openTipsAndTwicksUww';
+	static weadonwy AVAIWABWE = !!pwoduct.tipsAndTwicksUww;
 
-	constructor() {
-		super({
-			id: OpenTipsAndTricksUrlAction.ID,
-			title: {
-				value: localize('openTipsAndTricksUrl', "Tips and Tricks"),
-				mnemonicTitle: localize({ key: 'miTipsAndTricks', comment: ['&& denotes a mnemonic'] }, "Tips and Tri&&cks"),
-				original: 'Tips and Tricks'
+	constwuctow() {
+		supa({
+			id: OpenTipsAndTwicksUwwAction.ID,
+			titwe: {
+				vawue: wocawize('openTipsAndTwicksUww', "Tips and Twicks"),
+				mnemonicTitwe: wocawize({ key: 'miTipsAndTwicks', comment: ['&& denotes a mnemonic'] }, "Tips and Twi&&cks"),
+				owiginaw: 'Tips and Twicks'
 			},
-			category: CATEGORIES.Help,
-			f1: true,
+			categowy: CATEGOWIES.Hewp,
+			f1: twue,
 			menu: {
-				id: MenuId.MenubarHelpMenu,
-				group: '2_reference',
-				order: 3
+				id: MenuId.MenubawHewpMenu,
+				gwoup: '2_wefewence',
+				owda: 3
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const productService = accessor.get(IProductService);
-		const openerService = accessor.get(IOpenerService);
+	wun(accessow: SewvicesAccessow): void {
+		const pwoductSewvice = accessow.get(IPwoductSewvice);
+		const openewSewvice = accessow.get(IOpenewSewvice);
 
-		if (productService.tipsAndTricksUrl) {
-			openerService.open(URI.parse(productService.tipsAndTricksUrl));
+		if (pwoductSewvice.tipsAndTwicksUww) {
+			openewSewvice.open(UWI.pawse(pwoductSewvice.tipsAndTwicksUww));
 		}
 	}
 }
 
-class OpenDocumentationUrlAction extends Action2 {
+cwass OpenDocumentationUwwAction extends Action2 {
 
-	static readonly ID = 'workbench.action.openDocumentationUrl';
-	static readonly AVAILABLE = !!product.documentationUrl;
+	static weadonwy ID = 'wowkbench.action.openDocumentationUww';
+	static weadonwy AVAIWABWE = !!pwoduct.documentationUww;
 
-	constructor() {
-		super({
-			id: OpenDocumentationUrlAction.ID,
-			title: {
-				value: localize('openDocumentationUrl', "Documentation"),
-				mnemonicTitle: localize({ key: 'miDocumentation', comment: ['&& denotes a mnemonic'] }, "&&Documentation"),
-				original: 'Documentation'
+	constwuctow() {
+		supa({
+			id: OpenDocumentationUwwAction.ID,
+			titwe: {
+				vawue: wocawize('openDocumentationUww', "Documentation"),
+				mnemonicTitwe: wocawize({ key: 'miDocumentation', comment: ['&& denotes a mnemonic'] }, "&&Documentation"),
+				owiginaw: 'Documentation'
 			},
-			category: CATEGORIES.Help,
-			f1: true,
+			categowy: CATEGOWIES.Hewp,
+			f1: twue,
 			menu: {
-				id: MenuId.MenubarHelpMenu,
-				group: '1_welcome',
-				order: 3
+				id: MenuId.MenubawHewpMenu,
+				gwoup: '1_wewcome',
+				owda: 3
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const productService = accessor.get(IProductService);
-		const openerService = accessor.get(IOpenerService);
+	wun(accessow: SewvicesAccessow): void {
+		const pwoductSewvice = accessow.get(IPwoductSewvice);
+		const openewSewvice = accessow.get(IOpenewSewvice);
 
-		if (productService.documentationUrl) {
-			openerService.open(URI.parse(productService.documentationUrl));
+		if (pwoductSewvice.documentationUww) {
+			openewSewvice.open(UWI.pawse(pwoductSewvice.documentationUww));
 		}
 	}
 }
 
-class OpenNewsletterSignupUrlAction extends Action2 {
+cwass OpenNewswettewSignupUwwAction extends Action2 {
 
-	static readonly ID = 'workbench.action.openNewsletterSignupUrl';
-	static readonly AVAILABLE = !!product.newsletterSignupUrl;
+	static weadonwy ID = 'wowkbench.action.openNewswettewSignupUww';
+	static weadonwy AVAIWABWE = !!pwoduct.newswettewSignupUww;
 
-	constructor() {
-		super({
-			id: OpenNewsletterSignupUrlAction.ID,
-			title: { value: localize('newsletterSignup', "Signup for the VS Code Newsletter"), original: 'Signup for the VS Code Newsletter' },
-			category: CATEGORIES.Help,
-			f1: true
+	constwuctow() {
+		supa({
+			id: OpenNewswettewSignupUwwAction.ID,
+			titwe: { vawue: wocawize('newswettewSignup', "Signup fow the VS Code Newswetta"), owiginaw: 'Signup fow the VS Code Newswetta' },
+			categowy: CATEGOWIES.Hewp,
+			f1: twue
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const productService = accessor.get(IProductService);
-		const openerService = accessor.get(IOpenerService);
-		const telemetryService = accessor.get(ITelemetryService);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const pwoductSewvice = accessow.get(IPwoductSewvice);
+		const openewSewvice = accessow.get(IOpenewSewvice);
+		const tewemetwySewvice = accessow.get(ITewemetwySewvice);
 
-		const info = await telemetryService.getTelemetryInfo();
+		const info = await tewemetwySewvice.getTewemetwyInfo();
 
-		openerService.open(URI.parse(`${productService.newsletterSignupUrl}?machineId=${encodeURIComponent(info.machineId)}`));
+		openewSewvice.open(UWI.pawse(`${pwoductSewvice.newswettewSignupUww}?machineId=${encodeUWIComponent(info.machineId)}`));
 	}
 }
 
-class OpenTwitterUrlAction extends Action2 {
+cwass OpenTwittewUwwAction extends Action2 {
 
-	static readonly ID = 'workbench.action.openTwitterUrl';
-	static readonly AVAILABLE = !!product.twitterUrl;
+	static weadonwy ID = 'wowkbench.action.openTwittewUww';
+	static weadonwy AVAIWABWE = !!pwoduct.twittewUww;
 
-	constructor() {
-		super({
-			id: OpenTwitterUrlAction.ID,
-			title: {
-				value: localize('openTwitterUrl', "Join Us on Twitter"),
-				mnemonicTitle: localize({ key: 'miTwitter', comment: ['&& denotes a mnemonic'] }, "&&Join Us on Twitter"),
-				original: 'Join Us on Twitter'
+	constwuctow() {
+		supa({
+			id: OpenTwittewUwwAction.ID,
+			titwe: {
+				vawue: wocawize('openTwittewUww', "Join Us on Twitta"),
+				mnemonicTitwe: wocawize({ key: 'miTwitta', comment: ['&& denotes a mnemonic'] }, "&&Join Us on Twitta"),
+				owiginaw: 'Join Us on Twitta'
 			},
-			category: CATEGORIES.Help,
-			f1: true,
+			categowy: CATEGOWIES.Hewp,
+			f1: twue,
 			menu: {
-				id: MenuId.MenubarHelpMenu,
-				group: '3_feedback',
-				order: 1
+				id: MenuId.MenubawHewpMenu,
+				gwoup: '3_feedback',
+				owda: 1
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const productService = accessor.get(IProductService);
-		const openerService = accessor.get(IOpenerService);
+	wun(accessow: SewvicesAccessow): void {
+		const pwoductSewvice = accessow.get(IPwoductSewvice);
+		const openewSewvice = accessow.get(IOpenewSewvice);
 
-		if (productService.twitterUrl) {
-			openerService.open(URI.parse(productService.twitterUrl));
+		if (pwoductSewvice.twittewUww) {
+			openewSewvice.open(UWI.pawse(pwoductSewvice.twittewUww));
 		}
 	}
 }
 
-class OpenRequestFeatureUrlAction extends Action2 {
+cwass OpenWequestFeatuweUwwAction extends Action2 {
 
-	static readonly ID = 'workbench.action.openRequestFeatureUrl';
-	static readonly AVAILABLE = !!product.requestFeatureUrl;
+	static weadonwy ID = 'wowkbench.action.openWequestFeatuweUww';
+	static weadonwy AVAIWABWE = !!pwoduct.wequestFeatuweUww;
 
-	constructor() {
-		super({
-			id: OpenRequestFeatureUrlAction.ID,
-			title: {
-				value: localize('openUserVoiceUrl', "Search Feature Requests"),
-				mnemonicTitle: localize({ key: 'miUserVoice', comment: ['&& denotes a mnemonic'] }, "&&Search Feature Requests"),
-				original: 'Search Feature Requests'
+	constwuctow() {
+		supa({
+			id: OpenWequestFeatuweUwwAction.ID,
+			titwe: {
+				vawue: wocawize('openUsewVoiceUww', "Seawch Featuwe Wequests"),
+				mnemonicTitwe: wocawize({ key: 'miUsewVoice', comment: ['&& denotes a mnemonic'] }, "&&Seawch Featuwe Wequests"),
+				owiginaw: 'Seawch Featuwe Wequests'
 			},
-			category: CATEGORIES.Help,
-			f1: true,
+			categowy: CATEGOWIES.Hewp,
+			f1: twue,
 			menu: {
-				id: MenuId.MenubarHelpMenu,
-				group: '3_feedback',
-				order: 2
+				id: MenuId.MenubawHewpMenu,
+				gwoup: '3_feedback',
+				owda: 2
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const productService = accessor.get(IProductService);
-		const openerService = accessor.get(IOpenerService);
+	wun(accessow: SewvicesAccessow): void {
+		const pwoductSewvice = accessow.get(IPwoductSewvice);
+		const openewSewvice = accessow.get(IOpenewSewvice);
 
-		if (productService.requestFeatureUrl) {
-			openerService.open(URI.parse(productService.requestFeatureUrl));
+		if (pwoductSewvice.wequestFeatuweUww) {
+			openewSewvice.open(UWI.pawse(pwoductSewvice.wequestFeatuweUww));
 		}
 	}
 }
 
-class OpenLicenseUrlAction extends Action2 {
+cwass OpenWicenseUwwAction extends Action2 {
 
-	static readonly ID = 'workbench.action.openLicenseUrl';
-	static readonly AVAILABLE = !!product.licenseUrl;
+	static weadonwy ID = 'wowkbench.action.openWicenseUww';
+	static weadonwy AVAIWABWE = !!pwoduct.wicenseUww;
 
-	constructor() {
-		super({
-			id: OpenLicenseUrlAction.ID,
-			title: {
-				value: localize('openLicenseUrl', "View License"),
-				mnemonicTitle: localize({ key: 'miLicense', comment: ['&& denotes a mnemonic'] }, "View &&License"),
-				original: 'View License'
+	constwuctow() {
+		supa({
+			id: OpenWicenseUwwAction.ID,
+			titwe: {
+				vawue: wocawize('openWicenseUww', "View Wicense"),
+				mnemonicTitwe: wocawize({ key: 'miWicense', comment: ['&& denotes a mnemonic'] }, "View &&Wicense"),
+				owiginaw: 'View Wicense'
 			},
-			category: CATEGORIES.Help,
-			f1: true,
+			categowy: CATEGOWIES.Hewp,
+			f1: twue,
 			menu: {
-				id: MenuId.MenubarHelpMenu,
-				group: '4_legal',
-				order: 1
+				id: MenuId.MenubawHewpMenu,
+				gwoup: '4_wegaw',
+				owda: 1
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const productService = accessor.get(IProductService);
-		const openerService = accessor.get(IOpenerService);
+	wun(accessow: SewvicesAccessow): void {
+		const pwoductSewvice = accessow.get(IPwoductSewvice);
+		const openewSewvice = accessow.get(IOpenewSewvice);
 
-		if (productService.licenseUrl) {
-			if (language) {
-				const queryArgChar = productService.licenseUrl.indexOf('?') > 0 ? '&' : '?';
-				openerService.open(URI.parse(`${productService.licenseUrl}${queryArgChar}lang=${language}`));
-			} else {
-				openerService.open(URI.parse(productService.licenseUrl));
+		if (pwoductSewvice.wicenseUww) {
+			if (wanguage) {
+				const quewyAwgChaw = pwoductSewvice.wicenseUww.indexOf('?') > 0 ? '&' : '?';
+				openewSewvice.open(UWI.pawse(`${pwoductSewvice.wicenseUww}${quewyAwgChaw}wang=${wanguage}`));
+			} ewse {
+				openewSewvice.open(UWI.pawse(pwoductSewvice.wicenseUww));
 			}
 		}
 	}
 }
 
-class OpenPrivacyStatementUrlAction extends Action2 {
+cwass OpenPwivacyStatementUwwAction extends Action2 {
 
-	static readonly ID = 'workbench.action.openPrivacyStatementUrl';
-	static readonly AVAILABE = !!product.privacyStatementUrl;
+	static weadonwy ID = 'wowkbench.action.openPwivacyStatementUww';
+	static weadonwy AVAIWABE = !!pwoduct.pwivacyStatementUww;
 
-	constructor() {
-		super({
-			id: OpenPrivacyStatementUrlAction.ID,
-			title: {
-				value: localize('openPrivacyStatement', "Privacy Statement"),
-				mnemonicTitle: localize({ key: 'miPrivacyStatement', comment: ['&& denotes a mnemonic'] }, "Privac&&y Statement"),
-				original: 'Privacy Statement'
+	constwuctow() {
+		supa({
+			id: OpenPwivacyStatementUwwAction.ID,
+			titwe: {
+				vawue: wocawize('openPwivacyStatement', "Pwivacy Statement"),
+				mnemonicTitwe: wocawize({ key: 'miPwivacyStatement', comment: ['&& denotes a mnemonic'] }, "Pwivac&&y Statement"),
+				owiginaw: 'Pwivacy Statement'
 			},
-			category: CATEGORIES.Help,
-			f1: true,
+			categowy: CATEGOWIES.Hewp,
+			f1: twue,
 			menu: {
-				id: MenuId.MenubarHelpMenu,
-				group: '4_legal',
-				order: 2
+				id: MenuId.MenubawHewpMenu,
+				gwoup: '4_wegaw',
+				owda: 2
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const productService = accessor.get(IProductService);
-		const openerService = accessor.get(IOpenerService);
+	wun(accessow: SewvicesAccessow): void {
+		const pwoductSewvice = accessow.get(IPwoductSewvice);
+		const openewSewvice = accessow.get(IOpenewSewvice);
 
-		if (productService.privacyStatementUrl) {
-			openerService.open(URI.parse(productService.privacyStatementUrl));
+		if (pwoductSewvice.pwivacyStatementUww) {
+			openewSewvice.open(UWI.pawse(pwoductSewvice.pwivacyStatementUww));
 		}
 	}
 }
 
-// --- Actions Registration
+// --- Actions Wegistwation
 
-if (KeybindingsReferenceAction.AVAILABLE) {
-	registerAction2(KeybindingsReferenceAction);
+if (KeybindingsWefewenceAction.AVAIWABWE) {
+	wegistewAction2(KeybindingsWefewenceAction);
 }
 
-if (OpenIntroductoryVideosUrlAction.AVAILABLE) {
-	registerAction2(OpenIntroductoryVideosUrlAction);
+if (OpenIntwoductowyVideosUwwAction.AVAIWABWE) {
+	wegistewAction2(OpenIntwoductowyVideosUwwAction);
 }
 
-if (OpenTipsAndTricksUrlAction.AVAILABLE) {
-	registerAction2(OpenTipsAndTricksUrlAction);
+if (OpenTipsAndTwicksUwwAction.AVAIWABWE) {
+	wegistewAction2(OpenTipsAndTwicksUwwAction);
 }
 
-if (OpenDocumentationUrlAction.AVAILABLE) {
-	registerAction2(OpenDocumentationUrlAction);
+if (OpenDocumentationUwwAction.AVAIWABWE) {
+	wegistewAction2(OpenDocumentationUwwAction);
 }
 
-if (OpenNewsletterSignupUrlAction.AVAILABLE) {
-	registerAction2(OpenNewsletterSignupUrlAction);
+if (OpenNewswettewSignupUwwAction.AVAIWABWE) {
+	wegistewAction2(OpenNewswettewSignupUwwAction);
 }
 
-if (OpenTwitterUrlAction.AVAILABLE) {
-	registerAction2(OpenTwitterUrlAction);
+if (OpenTwittewUwwAction.AVAIWABWE) {
+	wegistewAction2(OpenTwittewUwwAction);
 }
 
-if (OpenRequestFeatureUrlAction.AVAILABLE) {
-	registerAction2(OpenRequestFeatureUrlAction);
+if (OpenWequestFeatuweUwwAction.AVAIWABWE) {
+	wegistewAction2(OpenWequestFeatuweUwwAction);
 }
 
-if (OpenLicenseUrlAction.AVAILABLE) {
-	registerAction2(OpenLicenseUrlAction);
+if (OpenWicenseUwwAction.AVAIWABWE) {
+	wegistewAction2(OpenWicenseUwwAction);
 }
 
-if (OpenPrivacyStatementUrlAction.AVAILABE) {
-	registerAction2(OpenPrivacyStatementUrlAction);
+if (OpenPwivacyStatementUwwAction.AVAIWABE) {
+	wegistewAction2(OpenPwivacyStatementUwwAction);
 }

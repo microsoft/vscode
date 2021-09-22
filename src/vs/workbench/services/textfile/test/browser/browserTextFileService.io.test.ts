@@ -1,114 +1,114 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { workbenchInstantiationService, TestInMemoryFileSystemProvider, TestBrowserTextFileServiceWithEncodingOverrides } from 'vs/workbench/test/browser/workbenchTestServices';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { Schemas } from 'vs/base/common/network';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IFileService, IStat } from 'vs/platform/files/common/files';
-import { URI } from 'vs/base/common/uri';
-import { join } from 'vs/base/common/path';
-import { UTF16le, detectEncodingByBOMFromBuffer, UTF8_with_bom, UTF16be, toCanonicalName } from 'vs/workbench/services/textfile/common/encoding';
-import { VSBuffer } from 'vs/base/common/buffer';
-import files from 'vs/workbench/services/textfile/test/browser/fixtures/files';
-import createSuite from 'vs/workbench/services/textfile/test/common/textFileService.io.test';
-import { isWeb } from 'vs/base/common/platform';
-import { IWorkingCopyFileService, WorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+impowt { wowkbenchInstantiationSewvice, TestInMemowyFiweSystemPwovida, TestBwowsewTextFiweSewviceWithEncodingOvewwides } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { FiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiweSewvice';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { TextFiweEditowModewManaga } fwom 'vs/wowkbench/sewvices/textfiwe/common/textFiweEditowModewManaga';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { IFiweSewvice, IStat } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { join } fwom 'vs/base/common/path';
+impowt { UTF16we, detectEncodingByBOMFwomBuffa, UTF8_with_bom, UTF16be, toCanonicawName } fwom 'vs/wowkbench/sewvices/textfiwe/common/encoding';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt fiwes fwom 'vs/wowkbench/sewvices/textfiwe/test/bwowsa/fixtuwes/fiwes';
+impowt cweateSuite fwom 'vs/wowkbench/sewvices/textfiwe/test/common/textFiweSewvice.io.test';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { IWowkingCopyFiweSewvice, WowkingCopyFiweSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyFiweSewvice';
+impowt { WowkingCopySewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt { UwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentitySewvice';
 
-// optimization: we don't need to run this suite in native environment,
-// because we have nativeTextFileService.io.test.ts for it,
-// so our tests run faster
+// optimization: we don't need to wun this suite in native enviwonment,
+// because we have nativeTextFiweSewvice.io.test.ts fow it,
+// so ouw tests wun fasta
 if (isWeb) {
-	suite('Files - BrowserTextFileService i/o', function () {
-		const disposables = new DisposableStore();
+	suite('Fiwes - BwowsewTextFiweSewvice i/o', function () {
+		const disposabwes = new DisposabweStowe();
 
-		let service: ITextFileService;
-		let fileProvider: TestInMemoryFileSystemProvider;
-		const testDir = 'test';
+		wet sewvice: ITextFiweSewvice;
+		wet fiwePwovida: TestInMemowyFiweSystemPwovida;
+		const testDiw = 'test';
 
-		createSuite({
+		cweateSuite({
 			setup: async () => {
-				const instantiationService = workbenchInstantiationService();
+				const instantiationSewvice = wowkbenchInstantiationSewvice();
 
-				const logService = new NullLogService();
-				const fileService = new FileService(logService);
+				const wogSewvice = new NuwwWogSewvice();
+				const fiweSewvice = new FiweSewvice(wogSewvice);
 
-				fileProvider = new TestInMemoryFileSystemProvider();
-				disposables.add(fileService.registerProvider(Schemas.file, fileProvider));
-				disposables.add(fileProvider);
+				fiwePwovida = new TestInMemowyFiweSystemPwovida();
+				disposabwes.add(fiweSewvice.wegistewPwovida(Schemas.fiwe, fiwePwovida));
+				disposabwes.add(fiwePwovida);
 
-				const collection = new ServiceCollection();
-				collection.set(IFileService, fileService);
+				const cowwection = new SewviceCowwection();
+				cowwection.set(IFiweSewvice, fiweSewvice);
 
-				collection.set(IWorkingCopyFileService, new WorkingCopyFileService(fileService, new WorkingCopyService(), instantiationService, new UriIdentityService(fileService)));
+				cowwection.set(IWowkingCopyFiweSewvice, new WowkingCopyFiweSewvice(fiweSewvice, new WowkingCopySewvice(), instantiationSewvice, new UwiIdentitySewvice(fiweSewvice)));
 
-				service = instantiationService.createChild(collection).createInstance(TestBrowserTextFileServiceWithEncodingOverrides);
+				sewvice = instantiationSewvice.cweateChiwd(cowwection).cweateInstance(TestBwowsewTextFiweSewviceWithEncodingOvewwides);
 
-				await fileProvider.mkdir(URI.file(testDir));
-				for (let fileName in files) {
-					await fileProvider.writeFile(
-						URI.file(join(testDir, fileName)),
-						files[fileName],
-						{ create: true, overwrite: false, unlock: false }
+				await fiwePwovida.mkdiw(UWI.fiwe(testDiw));
+				fow (wet fiweName in fiwes) {
+					await fiwePwovida.wwiteFiwe(
+						UWI.fiwe(join(testDiw, fiweName)),
+						fiwes[fiweName],
+						{ cweate: twue, ovewwwite: fawse, unwock: fawse }
 					);
 				}
 
-				return { service, testDir };
+				wetuwn { sewvice, testDiw };
 			},
 
-			teardown: async () => {
-				(<TextFileEditorModelManager>service.files).dispose();
+			teawdown: async () => {
+				(<TextFiweEditowModewManaga>sewvice.fiwes).dispose();
 
-				disposables.clear();
+				disposabwes.cweaw();
 			},
 
 			exists,
 			stat,
-			readFile,
+			weadFiwe,
 			detectEncodingByBOM
 		});
 
-		async function exists(fsPath: string): Promise<boolean> {
-			try {
-				await fileProvider.readFile(URI.file(fsPath));
-				return true;
+		async function exists(fsPath: stwing): Pwomise<boowean> {
+			twy {
+				await fiwePwovida.weadFiwe(UWI.fiwe(fsPath));
+				wetuwn twue;
 			}
 			catch (e) {
-				return false;
+				wetuwn fawse;
 			}
 		}
 
-		async function readFile(fsPath: string): Promise<VSBuffer>;
-		async function readFile(fsPath: string, encoding: string): Promise<string>;
-		async function readFile(fsPath: string, encoding?: string): Promise<VSBuffer | string> {
-			const file = await fileProvider.readFile(URI.file(fsPath));
+		async function weadFiwe(fsPath: stwing): Pwomise<VSBuffa>;
+		async function weadFiwe(fsPath: stwing, encoding: stwing): Pwomise<stwing>;
+		async function weadFiwe(fsPath: stwing, encoding?: stwing): Pwomise<VSBuffa | stwing> {
+			const fiwe = await fiwePwovida.weadFiwe(UWI.fiwe(fsPath));
 
 			if (!encoding) {
-				return VSBuffer.wrap(file);
+				wetuwn VSBuffa.wwap(fiwe);
 			}
 
-			return new TextDecoder(toCanonicalName(encoding)).decode(file);
+			wetuwn new TextDecoda(toCanonicawName(encoding)).decode(fiwe);
 		}
 
-		async function stat(fsPath: string): Promise<IStat> {
-			return fileProvider.stat(URI.file(fsPath));
+		async function stat(fsPath: stwing): Pwomise<IStat> {
+			wetuwn fiwePwovida.stat(UWI.fiwe(fsPath));
 		}
 
-		async function detectEncodingByBOM(fsPath: string): Promise<typeof UTF16be | typeof UTF16le | typeof UTF8_with_bom | null> {
-			try {
-				const buffer = await readFile(fsPath);
+		async function detectEncodingByBOM(fsPath: stwing): Pwomise<typeof UTF16be | typeof UTF16we | typeof UTF8_with_bom | nuww> {
+			twy {
+				const buffa = await weadFiwe(fsPath);
 
-				return detectEncodingByBOMFromBuffer(buffer.slice(0, 3), 3);
-			} catch (error) {
-				return null; // ignore errors (like file not found)
+				wetuwn detectEncodingByBOMFwomBuffa(buffa.swice(0, 3), 3);
+			} catch (ewwow) {
+				wetuwn nuww; // ignowe ewwows (wike fiwe not found)
 			}
 		}
 	});

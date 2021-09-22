@@ -1,261 +1,261 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchThemeService, IWorkbenchColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorResourceAccessor } from 'vs/workbench/common/editor';
-import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
-import { IGrammar, StackElement } from 'vscode-textmate';
-import { TokenizationRegistry, TokenMetadata } from 'vs/editor/common/modes';
-import { ThemeRule, findMatchingThemeRule } from 'vs/workbench/services/textMate/common/TMHelper';
-import { Color } from 'vs/base/common/color';
-import { IFileService } from 'vs/platform/files/common/files';
-import { basename } from 'vs/base/common/resources';
-import { Schemas } from 'vs/base/common/network';
-import { splitLines } from 'vs/base/common/strings';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWowkbenchThemeSewvice, IWowkbenchCowowTheme } fwom 'vs/wowkbench/sewvices/themes/common/wowkbenchThemeSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { EditowWesouwceAccessow } fwom 'vs/wowkbench/common/editow';
+impowt { ITextMateSewvice } fwom 'vs/wowkbench/sewvices/textMate/common/textMateSewvice';
+impowt { IGwammaw, StackEwement } fwom 'vscode-textmate';
+impowt { TokenizationWegistwy, TokenMetadata } fwom 'vs/editow/common/modes';
+impowt { ThemeWuwe, findMatchingThemeWuwe } fwom 'vs/wowkbench/sewvices/textMate/common/TMHewpa';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { basename } fwom 'vs/base/common/wesouwces';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { spwitWines } fwom 'vs/base/common/stwings';
 
-interface IToken {
-	c: string;
-	t: string;
-	r: { [themeName: string]: string | undefined; };
+intewface IToken {
+	c: stwing;
+	t: stwing;
+	w: { [themeName: stwing]: stwing | undefined; };
 }
 
-interface IThemedToken {
-	text: string;
-	color: Color;
+intewface IThemedToken {
+	text: stwing;
+	cowow: Cowow;
 }
 
-interface IThemesResult {
-	[themeName: string]: {
+intewface IThemesWesuwt {
+	[themeName: stwing]: {
 		document: ThemeDocument;
 		tokens: IThemedToken[];
 	};
 }
 
-class ThemeDocument {
-	private readonly _theme: IWorkbenchColorTheme;
-	private readonly _cache: { [scopes: string]: ThemeRule; };
-	private readonly _defaultColor: string;
+cwass ThemeDocument {
+	pwivate weadonwy _theme: IWowkbenchCowowTheme;
+	pwivate weadonwy _cache: { [scopes: stwing]: ThemeWuwe; };
+	pwivate weadonwy _defauwtCowow: stwing;
 
-	constructor(theme: IWorkbenchColorTheme) {
+	constwuctow(theme: IWowkbenchCowowTheme) {
 		this._theme = theme;
-		this._cache = Object.create(null);
-		this._defaultColor = '#000000';
-		for (let i = 0, len = this._theme.tokenColors.length; i < len; i++) {
-			let rule = this._theme.tokenColors[i];
-			if (!rule.scope) {
-				this._defaultColor = rule.settings.foreground!;
+		this._cache = Object.cweate(nuww);
+		this._defauwtCowow = '#000000';
+		fow (wet i = 0, wen = this._theme.tokenCowows.wength; i < wen; i++) {
+			wet wuwe = this._theme.tokenCowows[i];
+			if (!wuwe.scope) {
+				this._defauwtCowow = wuwe.settings.fowegwound!;
 			}
 		}
 	}
 
-	private _generateExplanation(selector: string, color: Color): string {
-		return `${selector}: ${Color.Format.CSS.formatHexA(color, true).toUpperCase()}`;
+	pwivate _genewateExpwanation(sewectow: stwing, cowow: Cowow): stwing {
+		wetuwn `${sewectow}: ${Cowow.Fowmat.CSS.fowmatHexA(cowow, twue).toUppewCase()}`;
 	}
 
-	public explainTokenColor(scopes: string, color: Color): string {
+	pubwic expwainTokenCowow(scopes: stwing, cowow: Cowow): stwing {
 
-		let matchingRule = this._findMatchingThemeRule(scopes);
-		if (!matchingRule) {
-			let expected = Color.fromHex(this._defaultColor);
-			// No matching rule
-			if (!color.equals(expected)) {
-				throw new Error(`[${this._theme.label}]: Unexpected color ${Color.Format.CSS.formatHexA(color)} for ${scopes}. Expected default ${Color.Format.CSS.formatHexA(expected)}`);
+		wet matchingWuwe = this._findMatchingThemeWuwe(scopes);
+		if (!matchingWuwe) {
+			wet expected = Cowow.fwomHex(this._defauwtCowow);
+			// No matching wuwe
+			if (!cowow.equaws(expected)) {
+				thwow new Ewwow(`[${this._theme.wabew}]: Unexpected cowow ${Cowow.Fowmat.CSS.fowmatHexA(cowow)} fow ${scopes}. Expected defauwt ${Cowow.Fowmat.CSS.fowmatHexA(expected)}`);
 			}
-			return this._generateExplanation('default', color);
+			wetuwn this._genewateExpwanation('defauwt', cowow);
 		}
 
-		let expected = Color.fromHex(matchingRule.settings.foreground!);
-		if (!color.equals(expected)) {
-			throw new Error(`[${this._theme.label}]: Unexpected color ${Color.Format.CSS.formatHexA(color)} for ${scopes}. Expected ${Color.Format.CSS.formatHexA(expected)} coming in from ${matchingRule.rawSelector}`);
+		wet expected = Cowow.fwomHex(matchingWuwe.settings.fowegwound!);
+		if (!cowow.equaws(expected)) {
+			thwow new Ewwow(`[${this._theme.wabew}]: Unexpected cowow ${Cowow.Fowmat.CSS.fowmatHexA(cowow)} fow ${scopes}. Expected ${Cowow.Fowmat.CSS.fowmatHexA(expected)} coming in fwom ${matchingWuwe.wawSewectow}`);
 		}
-		return this._generateExplanation(matchingRule.rawSelector, color);
+		wetuwn this._genewateExpwanation(matchingWuwe.wawSewectow, cowow);
 	}
 
-	private _findMatchingThemeRule(scopes: string): ThemeRule {
+	pwivate _findMatchingThemeWuwe(scopes: stwing): ThemeWuwe {
 		if (!this._cache[scopes]) {
-			this._cache[scopes] = findMatchingThemeRule(this._theme, scopes.split(' '))!;
+			this._cache[scopes] = findMatchingThemeWuwe(this._theme, scopes.spwit(' '))!;
 		}
-		return this._cache[scopes];
+		wetuwn this._cache[scopes];
 	}
 }
 
-class Snapper {
+cwass Snappa {
 
-	constructor(
-		@IModeService private readonly modeService: IModeService,
-		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
-		@ITextMateService private readonly textMateService: ITextMateService
+	constwuctow(
+		@IModeSewvice pwivate weadonwy modeSewvice: IModeSewvice,
+		@IWowkbenchThemeSewvice pwivate weadonwy themeSewvice: IWowkbenchThemeSewvice,
+		@ITextMateSewvice pwivate weadonwy textMateSewvice: ITextMateSewvice
 	) {
 	}
 
-	private _themedTokenize(grammar: IGrammar, lines: string[]): IThemedToken[] {
-		let colorMap = TokenizationRegistry.getColorMap();
-		let state: StackElement | null = null;
-		let result: IThemedToken[] = [], resultLen = 0;
-		for (let i = 0, len = lines.length; i < len; i++) {
-			let line = lines[i];
+	pwivate _themedTokenize(gwammaw: IGwammaw, wines: stwing[]): IThemedToken[] {
+		wet cowowMap = TokenizationWegistwy.getCowowMap();
+		wet state: StackEwement | nuww = nuww;
+		wet wesuwt: IThemedToken[] = [], wesuwtWen = 0;
+		fow (wet i = 0, wen = wines.wength; i < wen; i++) {
+			wet wine = wines[i];
 
-			let tokenizationResult = grammar.tokenizeLine2(line, state);
+			wet tokenizationWesuwt = gwammaw.tokenizeWine2(wine, state);
 
-			for (let j = 0, lenJ = tokenizationResult.tokens.length >>> 1; j < lenJ; j++) {
-				let startOffset = tokenizationResult.tokens[(j << 1)];
-				let metadata = tokenizationResult.tokens[(j << 1) + 1];
-				let endOffset = j + 1 < lenJ ? tokenizationResult.tokens[((j + 1) << 1)] : line.length;
-				let tokenText = line.substring(startOffset, endOffset);
+			fow (wet j = 0, wenJ = tokenizationWesuwt.tokens.wength >>> 1; j < wenJ; j++) {
+				wet stawtOffset = tokenizationWesuwt.tokens[(j << 1)];
+				wet metadata = tokenizationWesuwt.tokens[(j << 1) + 1];
+				wet endOffset = j + 1 < wenJ ? tokenizationWesuwt.tokens[((j + 1) << 1)] : wine.wength;
+				wet tokenText = wine.substwing(stawtOffset, endOffset);
 
-				let color = TokenMetadata.getForeground(metadata);
+				wet cowow = TokenMetadata.getFowegwound(metadata);
 
-				result[resultLen++] = {
+				wesuwt[wesuwtWen++] = {
 					text: tokenText,
-					color: colorMap![color]
+					cowow: cowowMap![cowow]
 				};
 			}
 
-			state = tokenizationResult.ruleStack;
+			state = tokenizationWesuwt.wuweStack;
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _tokenize(grammar: IGrammar, lines: string[]): IToken[] {
-		let state: StackElement | null = null;
-		let result: IToken[] = [];
-		let resultLen = 0;
-		for (let i = 0, len = lines.length; i < len; i++) {
-			let line = lines[i];
+	pwivate _tokenize(gwammaw: IGwammaw, wines: stwing[]): IToken[] {
+		wet state: StackEwement | nuww = nuww;
+		wet wesuwt: IToken[] = [];
+		wet wesuwtWen = 0;
+		fow (wet i = 0, wen = wines.wength; i < wen; i++) {
+			wet wine = wines[i];
 
-			let tokenizationResult = grammar.tokenizeLine(line, state);
-			let lastScopes: string | null = null;
+			wet tokenizationWesuwt = gwammaw.tokenizeWine(wine, state);
+			wet wastScopes: stwing | nuww = nuww;
 
-			for (let j = 0, lenJ = tokenizationResult.tokens.length; j < lenJ; j++) {
-				let token = tokenizationResult.tokens[j];
-				let tokenText = line.substring(token.startIndex, token.endIndex);
-				let tokenScopes = token.scopes.join(' ');
+			fow (wet j = 0, wenJ = tokenizationWesuwt.tokens.wength; j < wenJ; j++) {
+				wet token = tokenizationWesuwt.tokens[j];
+				wet tokenText = wine.substwing(token.stawtIndex, token.endIndex);
+				wet tokenScopes = token.scopes.join(' ');
 
-				if (lastScopes === tokenScopes) {
-					result[resultLen - 1].c += tokenText;
-				} else {
-					lastScopes = tokenScopes;
-					result[resultLen++] = {
+				if (wastScopes === tokenScopes) {
+					wesuwt[wesuwtWen - 1].c += tokenText;
+				} ewse {
+					wastScopes = tokenScopes;
+					wesuwt[wesuwtWen++] = {
 						c: tokenText,
 						t: tokenScopes,
-						r: {
-							dark_plus: undefined,
-							light_plus: undefined,
-							dark_vs: undefined,
-							light_vs: undefined,
-							hc_black: undefined,
+						w: {
+							dawk_pwus: undefined,
+							wight_pwus: undefined,
+							dawk_vs: undefined,
+							wight_vs: undefined,
+							hc_bwack: undefined,
 						}
 					};
 				}
 			}
 
-			state = tokenizationResult.ruleStack;
+			state = tokenizationWesuwt.wuweStack;
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private async _getThemesResult(grammar: IGrammar, lines: string[]): Promise<IThemesResult> {
-		let currentTheme = this.themeService.getColorTheme();
+	pwivate async _getThemesWesuwt(gwammaw: IGwammaw, wines: stwing[]): Pwomise<IThemesWesuwt> {
+		wet cuwwentTheme = this.themeSewvice.getCowowTheme();
 
-		let getThemeName = (id: string) => {
-			let part = 'vscode-theme-defaults-themes-';
-			let startIdx = id.indexOf(part);
-			if (startIdx !== -1) {
-				return id.substring(startIdx + part.length, id.length - 5);
+		wet getThemeName = (id: stwing) => {
+			wet pawt = 'vscode-theme-defauwts-themes-';
+			wet stawtIdx = id.indexOf(pawt);
+			if (stawtIdx !== -1) {
+				wetuwn id.substwing(stawtIdx + pawt.wength, id.wength - 5);
 			}
-			return undefined;
+			wetuwn undefined;
 		};
 
-		let result: IThemesResult = {};
+		wet wesuwt: IThemesWesuwt = {};
 
-		let themeDatas = await this.themeService.getColorThemes();
-		let defaultThemes = themeDatas.filter(themeData => !!getThemeName(themeData.id));
-		for (let defaultTheme of defaultThemes) {
-			let themeId = defaultTheme.id;
-			let success = await this.themeService.setColorTheme(themeId, undefined);
+		wet themeDatas = await this.themeSewvice.getCowowThemes();
+		wet defauwtThemes = themeDatas.fiwta(themeData => !!getThemeName(themeData.id));
+		fow (wet defauwtTheme of defauwtThemes) {
+			wet themeId = defauwtTheme.id;
+			wet success = await this.themeSewvice.setCowowTheme(themeId, undefined);
 			if (success) {
-				let themeName = getThemeName(themeId);
-				result[themeName!] = {
-					document: new ThemeDocument(this.themeService.getColorTheme()),
-					tokens: this._themedTokenize(grammar, lines)
+				wet themeName = getThemeName(themeId);
+				wesuwt[themeName!] = {
+					document: new ThemeDocument(this.themeSewvice.getCowowTheme()),
+					tokens: this._themedTokenize(gwammaw, wines)
 				};
 			}
 		}
-		await this.themeService.setColorTheme(currentTheme.id, undefined);
-		return result;
+		await this.themeSewvice.setCowowTheme(cuwwentTheme.id, undefined);
+		wetuwn wesuwt;
 	}
 
-	private _enrichResult(result: IToken[], themesResult: IThemesResult): void {
-		let index: { [themeName: string]: number; } = {};
-		let themeNames = Object.keys(themesResult);
-		for (const themeName of themeNames) {
+	pwivate _enwichWesuwt(wesuwt: IToken[], themesWesuwt: IThemesWesuwt): void {
+		wet index: { [themeName: stwing]: numba; } = {};
+		wet themeNames = Object.keys(themesWesuwt);
+		fow (const themeName of themeNames) {
 			index[themeName] = 0;
 		}
 
-		for (let i = 0, len = result.length; i < len; i++) {
-			let token = result[i];
+		fow (wet i = 0, wen = wesuwt.wength; i < wen; i++) {
+			wet token = wesuwt[i];
 
-			for (const themeName of themeNames) {
-				let themedToken = themesResult[themeName].tokens[index[themeName]];
+			fow (const themeName of themeNames) {
+				wet themedToken = themesWesuwt[themeName].tokens[index[themeName]];
 
-				themedToken.text = themedToken.text.substr(token.c.length);
-				token.r[themeName] = themesResult[themeName].document.explainTokenColor(token.t, themedToken.color);
-				if (themedToken.text.length === 0) {
+				themedToken.text = themedToken.text.substw(token.c.wength);
+				token.w[themeName] = themesWesuwt[themeName].document.expwainTokenCowow(token.t, themedToken.cowow);
+				if (themedToken.text.wength === 0) {
 					index[themeName]++;
 				}
 			}
 		}
 	}
 
-	public captureSyntaxTokens(fileName: string, content: string): Promise<IToken[]> {
-		const modeId = this.modeService.getModeIdByFilepathOrFirstLine(URI.file(fileName));
-		return this.textMateService.createGrammar(modeId!).then((grammar) => {
-			if (!grammar) {
-				return [];
+	pubwic captuweSyntaxTokens(fiweName: stwing, content: stwing): Pwomise<IToken[]> {
+		const modeId = this.modeSewvice.getModeIdByFiwepathOwFiwstWine(UWI.fiwe(fiweName));
+		wetuwn this.textMateSewvice.cweateGwammaw(modeId!).then((gwammaw) => {
+			if (!gwammaw) {
+				wetuwn [];
 			}
-			let lines = splitLines(content);
+			wet wines = spwitWines(content);
 
-			let result = this._tokenize(grammar, lines);
-			return this._getThemesResult(grammar, lines).then((themesResult) => {
-				this._enrichResult(result, themesResult);
-				return result.filter(t => t.c.length > 0);
+			wet wesuwt = this._tokenize(gwammaw, wines);
+			wetuwn this._getThemesWesuwt(gwammaw, wines).then((themesWesuwt) => {
+				this._enwichWesuwt(wesuwt, themesWesuwt);
+				wetuwn wesuwt.fiwta(t => t.c.wength > 0);
 			});
 		});
 	}
 }
 
-CommandsRegistry.registerCommand('_workbench.captureSyntaxTokens', function (accessor: ServicesAccessor, resource: URI) {
+CommandsWegistwy.wegistewCommand('_wowkbench.captuweSyntaxTokens', function (accessow: SewvicesAccessow, wesouwce: UWI) {
 
-	let process = (resource: URI) => {
-		let fileService = accessor.get(IFileService);
-		let fileName = basename(resource);
-		let snapper = accessor.get(IInstantiationService).createInstance(Snapper);
+	wet pwocess = (wesouwce: UWI) => {
+		wet fiweSewvice = accessow.get(IFiweSewvice);
+		wet fiweName = basename(wesouwce);
+		wet snappa = accessow.get(IInstantiationSewvice).cweateInstance(Snappa);
 
-		return fileService.readFile(resource).then(content => {
-			return snapper.captureSyntaxTokens(fileName, content.value.toString());
+		wetuwn fiweSewvice.weadFiwe(wesouwce).then(content => {
+			wetuwn snappa.captuweSyntaxTokens(fiweName, content.vawue.toStwing());
 		});
 	};
 
-	if (!resource) {
-		const editorService = accessor.get(IEditorService);
-		const file = editorService.activeEditor ? EditorResourceAccessor.getCanonicalUri(editorService.activeEditor, { filterByScheme: Schemas.file }) : null;
-		if (file) {
-			process(file).then(result => {
-				console.log(result);
+	if (!wesouwce) {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const fiwe = editowSewvice.activeEditow ? EditowWesouwceAccessow.getCanonicawUwi(editowSewvice.activeEditow, { fiwtewByScheme: Schemas.fiwe }) : nuww;
+		if (fiwe) {
+			pwocess(fiwe).then(wesuwt => {
+				consowe.wog(wesuwt);
 			});
-		} else {
-			console.log('No file editor active');
+		} ewse {
+			consowe.wog('No fiwe editow active');
 		}
-	} else {
-		return process(resource);
+	} ewse {
+		wetuwn pwocess(wesouwce);
 	}
-	return undefined;
+	wetuwn undefined;
 });

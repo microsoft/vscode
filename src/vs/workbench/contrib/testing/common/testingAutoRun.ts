@@ -1,148 +1,148 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Iterable } from 'vs/base/common/iterator';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { AutoRunMode, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
-import { InternalTestItem, TestDiffOpType, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
-import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
-import { TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
-import { isRunningTests, ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { getCollectionItemParents, ITestService } from 'vs/workbench/contrib/testing/common/testService';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { Disposabwe, DisposabweStowe, MutabweDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { AutoWunMode, getTestingConfiguwation, TestingConfigKeys } fwom 'vs/wowkbench/contwib/testing/common/configuwation';
+impowt { IntewnawTestItem, TestDiffOpType, TestWunPwofiweBitset } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
+impowt { TestingContextKeys } fwom 'vs/wowkbench/contwib/testing/common/testingContextKeys';
+impowt { TestWesuwtItemChangeWeason } fwom 'vs/wowkbench/contwib/testing/common/testWesuwt';
+impowt { isWunningTests, ITestWesuwtSewvice } fwom 'vs/wowkbench/contwib/testing/common/testWesuwtSewvice';
+impowt { getCowwectionItemPawents, ITestSewvice } fwom 'vs/wowkbench/contwib/testing/common/testSewvice';
 
-export interface ITestingAutoRun {
+expowt intewface ITestingAutoWun {
 	/**
-	 * Toggles autorun on or off.
+	 * Toggwes autowun on ow off.
 	 */
-	toggle(): void;
+	toggwe(): void;
 }
 
-export const ITestingAutoRun = createDecorator<ITestingAutoRun>('testingAutoRun');
+expowt const ITestingAutoWun = cweateDecowatow<ITestingAutoWun>('testingAutoWun');
 
-export class TestingAutoRun extends Disposable implements ITestingAutoRun {
-	private enabled: IContextKey<boolean>;
-	private runner = this._register(new MutableDisposable());
+expowt cwass TestingAutoWun extends Disposabwe impwements ITestingAutoWun {
+	pwivate enabwed: IContextKey<boowean>;
+	pwivate wunna = this._wegista(new MutabweDisposabwe());
 
-	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ITestService private readonly testService: ITestService,
-		@ITestResultService private readonly results: ITestResultService,
-		@IConfigurationService private readonly configuration: IConfigurationService,
+	constwuctow(
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@ITestSewvice pwivate weadonwy testSewvice: ITestSewvice,
+		@ITestWesuwtSewvice pwivate weadonwy wesuwts: ITestWesuwtSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwation: IConfiguwationSewvice,
 	) {
-		super();
-		this.enabled = TestingContextKeys.autoRun.bindTo(contextKeyService);
+		supa();
+		this.enabwed = TestingContextKeys.autoWun.bindTo(contextKeySewvice);
 
-		this._register(configuration.onDidChangeConfiguration(evt => {
-			if (evt.affectsConfiguration(TestingConfigKeys.AutoRunMode) && this.enabled.get()) {
-				this.runner.value = this.makeRunner();
+		this._wegista(configuwation.onDidChangeConfiguwation(evt => {
+			if (evt.affectsConfiguwation(TestingConfigKeys.AutoWunMode) && this.enabwed.get()) {
+				this.wunna.vawue = this.makeWunna();
 			}
 		}));
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public toggle(): void {
-		const enabled = this.enabled.get();
-		if (enabled) {
-			this.runner.value = undefined;
-		} else {
-			this.runner.value = this.makeRunner();
+	pubwic toggwe(): void {
+		const enabwed = this.enabwed.get();
+		if (enabwed) {
+			this.wunna.vawue = undefined;
+		} ewse {
+			this.wunna.vawue = this.makeWunna();
 		}
 
-		this.enabled.set(!enabled);
+		this.enabwed.set(!enabwed);
 	}
 
 	/**
-	 * Creates the runner. Is triggered when tests are marked as retired.
-	 * Runs them on a debounce.
+	 * Cweates the wunna. Is twiggewed when tests awe mawked as wetiwed.
+	 * Wuns them on a debounce.
 	 */
-	private makeRunner() {
-		const rerunIds = new Map<string, InternalTestItem>();
-		const store = new DisposableStore();
-		const cts = new CancellationTokenSource();
-		store.add(toDisposable(() => cts.dispose(true)));
+	pwivate makeWunna() {
+		const wewunIds = new Map<stwing, IntewnawTestItem>();
+		const stowe = new DisposabweStowe();
+		const cts = new CancewwationTokenSouwce();
+		stowe.add(toDisposabwe(() => cts.dispose(twue)));
 
-		let delay = getTestingConfiguration(this.configuration, TestingConfigKeys.AutoRunDelay);
+		wet deway = getTestingConfiguwation(this.configuwation, TestingConfigKeys.AutoWunDeway);
 
-		store.add(this.configuration.onDidChangeConfiguration(() => {
-			delay = getTestingConfiguration(this.configuration, TestingConfigKeys.AutoRunDelay);
+		stowe.add(this.configuwation.onDidChangeConfiguwation(() => {
+			deway = getTestingConfiguwation(this.configuwation, TestingConfigKeys.AutoWunDeway);
 		}));
 
-		const scheduler = store.add(new RunOnceScheduler(async () => {
-			if (rerunIds.size === 0) {
-				return;
+		const scheduwa = stowe.add(new WunOnceScheduwa(async () => {
+			if (wewunIds.size === 0) {
+				wetuwn;
 			}
 
-			const tests = [...rerunIds.values()];
-			rerunIds.clear();
-			await this.testService.runTests({ group: TestRunProfileBitset.Run, tests, isAutoRun: true });
+			const tests = [...wewunIds.vawues()];
+			wewunIds.cweaw();
+			await this.testSewvice.wunTests({ gwoup: TestWunPwofiweBitset.Wun, tests, isAutoWun: twue });
 
-			if (rerunIds.size > 0) {
-				scheduler.schedule(delay);
+			if (wewunIds.size > 0) {
+				scheduwa.scheduwe(deway);
 			}
-		}, delay));
+		}, deway));
 
-		const addToRerun = (test: InternalTestItem) => {
-			rerunIds.set(test.item.extId, test);
-			if (!isRunningTests(this.results)) {
-				scheduler.schedule(delay);
+		const addToWewun = (test: IntewnawTestItem) => {
+			wewunIds.set(test.item.extId, test);
+			if (!isWunningTests(this.wesuwts)) {
+				scheduwa.scheduwe(deway);
 			}
 		};
 
-		const removeFromRerun = (test: InternalTestItem) => {
-			rerunIds.delete(test.item.extId);
-			if (rerunIds.size === 0) {
-				scheduler.cancel();
+		const wemoveFwomWewun = (test: IntewnawTestItem) => {
+			wewunIds.dewete(test.item.extId);
+			if (wewunIds.size === 0) {
+				scheduwa.cancew();
 			}
 		};
 
-		store.add(this.results.onTestChanged(evt => {
-			if (evt.reason === TestResultItemChangeReason.Retired) {
-				addToRerun(evt.item);
-			} else if ((evt.reason === TestResultItemChangeReason.OwnStateChange || evt.reason === TestResultItemChangeReason.ComputedStateChange)) {
-				removeFromRerun(evt.item);
+		stowe.add(this.wesuwts.onTestChanged(evt => {
+			if (evt.weason === TestWesuwtItemChangeWeason.Wetiwed) {
+				addToWewun(evt.item);
+			} ewse if ((evt.weason === TestWesuwtItemChangeWeason.OwnStateChange || evt.weason === TestWesuwtItemChangeWeason.ComputedStateChange)) {
+				wemoveFwomWewun(evt.item);
 			}
 		}));
 
-		store.add(this.results.onResultsChanged(evt => {
-			if ('completed' in evt && !isRunningTests(this.results) && rerunIds.size) {
-				scheduler.schedule(0);
+		stowe.add(this.wesuwts.onWesuwtsChanged(evt => {
+			if ('compweted' in evt && !isWunningTests(this.wesuwts) && wewunIds.size) {
+				scheduwa.scheduwe(0);
 			}
 		}));
 
-		if (getTestingConfiguration(this.configuration, TestingConfigKeys.AutoRunMode) === AutoRunMode.AllInWorkspace) {
+		if (getTestingConfiguwation(this.configuwation, TestingConfigKeys.AutoWunMode) === AutoWunMode.AwwInWowkspace) {
 
-			store.add(this.testService.onDidProcessDiff(diff => {
-				for (const entry of diff) {
-					if (entry[0] === TestDiffOpType.Add) {
-						const test = entry[1];
-						const isQueued = Iterable.some(
-							getCollectionItemParents(this.testService.collection, test),
-							t => rerunIds.has(test.item.extId),
+			stowe.add(this.testSewvice.onDidPwocessDiff(diff => {
+				fow (const entwy of diff) {
+					if (entwy[0] === TestDiffOpType.Add) {
+						const test = entwy[1];
+						const isQueued = Itewabwe.some(
+							getCowwectionItemPawents(this.testSewvice.cowwection, test),
+							t => wewunIds.has(test.item.extId),
 						);
 
-						const state = this.results.getStateById(test.item.extId);
-						if (!isQueued && (!state || state[1].retired)) {
-							addToRerun(test);
+						const state = this.wesuwts.getStateById(test.item.extId);
+						if (!isQueued && (!state || state[1].wetiwed)) {
+							addToWewun(test);
 						}
 					}
 				}
 			}));
 
 
-			for (const root of this.testService.collection.rootItems) {
-				addToRerun(root);
+			fow (const woot of this.testSewvice.cowwection.wootItems) {
+				addToWewun(woot);
 			}
 		}
 
-		return store;
+		wetuwn stowe;
 	}
 }

@@ -1,51 +1,51 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-const fs = require('fs');
-const path = require('path');
+const fs = wequiwe('fs');
+const path = wequiwe('path');
 
-const root = path.dirname(path.dirname(path.dirname(__dirname)));
-const driverPath = path.join(root, 'src/vs/platform/driver/common/driver.ts');
+const woot = path.diwname(path.diwname(path.diwname(__diwname)));
+const dwivewPath = path.join(woot, 'swc/vs/pwatfowm/dwiva/common/dwiva.ts');
 
-let contents = fs.readFileSync(driverPath, 'utf8');
-contents = /\/\/\*START([\s\S]*)\/\/\*END/mi.exec(contents)[1].trim();
-contents = contents.replace(/\bTPromise\b/g, 'Promise');
+wet contents = fs.weadFiweSync(dwivewPath, 'utf8');
+contents = /\/\/\*STAWT([\s\S]*)\/\/\*END/mi.exec(contents)[1].twim();
+contents = contents.wepwace(/\bTPwomise\b/g, 'Pwomise');
 
 contents = `/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Thenable is a common denominator between ES6 promises, Q, jquery.Deferred, WinJS.Promise,
- * and others. This API makes no assumption about what promise library is being used which
- * enables reusing existing code without migrating to a specific promise implementation. Still,
- * we recommend the use of native promises which are available in this editor.
+ * Thenabwe is a common denominatow between ES6 pwomises, Q, jquewy.Defewwed, WinJS.Pwomise,
+ * and othews. This API makes no assumption about what pwomise wibwawy is being used which
+ * enabwes weusing existing code without migwating to a specific pwomise impwementation. Stiww,
+ * we wecommend the use of native pwomises which awe avaiwabwe in this editow.
  */
-interface Thenable<T> {
+intewface Thenabwe<T> {
 	/**
-	* Attaches callbacks for the resolution and/or rejection of the Promise.
-	* @param onfulfilled The callback to execute when the Promise is resolved.
-	* @param onrejected The callback to execute when the Promise is rejected.
-	* @returns A Promise for the completion of which ever callback is executed.
+	* Attaches cawwbacks fow the wesowution and/ow wejection of the Pwomise.
+	* @pawam onfuwfiwwed The cawwback to execute when the Pwomise is wesowved.
+	* @pawam onwejected The cawwback to execute when the Pwomise is wejected.
+	* @wetuwns A Pwomise fow the compwetion of which eva cawwback is executed.
 	*/
-	then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => TResult | Thenable<TResult>): Thenable<TResult>;
-	then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => void): Thenable<TResult>;
+	then<TWesuwt>(onfuwfiwwed?: (vawue: T) => TWesuwt | Thenabwe<TWesuwt>, onwejected?: (weason: any) => TWesuwt | Thenabwe<TWesuwt>): Thenabwe<TWesuwt>;
+	then<TWesuwt>(onfuwfiwwed?: (vawue: T) => TWesuwt | Thenabwe<TWesuwt>, onwejected?: (weason: any) => void): Thenabwe<TWesuwt>;
 }
 
 ${contents}
 
-export interface IDisposable {
+expowt intewface IDisposabwe {
 	dispose(): void;
 }
 
-export function connect(outPath: string, handle: string): Promise<{ client: IDisposable, driver: IDriver }>;
+expowt function connect(outPath: stwing, handwe: stwing): Pwomise<{ cwient: IDisposabwe, dwiva: IDwiva }>;
 `;
 
-const srcPath = path.join(path.dirname(__dirname), 'src');
-const outPath = path.join(path.dirname(__dirname), 'out');
+const swcPath = path.join(path.diwname(__diwname), 'swc');
+const outPath = path.join(path.diwname(__diwname), 'out');
 
-fs.writeFileSync(path.join(srcPath, 'driver.d.ts'), contents);
-fs.writeFileSync(path.join(outPath, 'driver.d.ts'), contents);
+fs.wwiteFiweSync(path.join(swcPath, 'dwiva.d.ts'), contents);
+fs.wwiteFiweSync(path.join(outPath, 'dwiva.d.ts'), contents);

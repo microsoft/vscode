@@ -1,149 +1,149 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, strictEqual } from 'assert';
-import { EnvironmentVariableMutatorType } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
-import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
-import { deserializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
+impowt { deepStwictEquaw, stwictEquaw } fwom 'assewt';
+impowt { EnviwonmentVawiabweMutatowType } fwom 'vs/wowkbench/contwib/tewminaw/common/enviwonmentVawiabwe';
+impowt { IPwocessEnviwonment, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { MewgedEnviwonmentVawiabweCowwection } fwom 'vs/wowkbench/contwib/tewminaw/common/enviwonmentVawiabweCowwection';
+impowt { desewiawizeEnviwonmentVawiabweCowwection } fwom 'vs/wowkbench/contwib/tewminaw/common/enviwonmentVawiabweShawed';
 
-suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
-	suite('ctor', () => {
-		test('Should keep entries that come after a Prepend or Append type mutators', () => {
-			const merged = new MergedEnvironmentVariableCollection(new Map([
+suite('EnviwonmentVawiabwe - MewgedEnviwonmentVawiabweCowwection', () => {
+	suite('ctow', () => {
+		test('Shouwd keep entwies that come afta a Pwepend ow Append type mutatows', () => {
+			const mewged = new MewgedEnviwonmentVawiabweCowwection(new Map([
 				['ext1', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a1', type: EnvironmentVariableMutatorType.Prepend }]
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a1', type: EnviwonmentVawiabweMutatowType.Pwepend }]
 					])
 				}],
 				['ext2', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a2', type: EnvironmentVariableMutatorType.Append }]
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a2', type: EnviwonmentVawiabweMutatowType.Append }]
 					])
 				}],
 				['ext3', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a3', type: EnvironmentVariableMutatorType.Prepend }]
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a3', type: EnviwonmentVawiabweMutatowType.Pwepend }]
 					])
 				}],
 				['ext4', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a4', type: EnvironmentVariableMutatorType.Append }]
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a4', type: EnviwonmentVawiabweMutatowType.Append }]
 					])
 				}]
 			]));
-			deepStrictEqual([...merged.map.entries()], [
+			deepStwictEquaw([...mewged.map.entwies()], [
 				['A', [
-					{ extensionIdentifier: 'ext4', type: EnvironmentVariableMutatorType.Append, value: 'a4' },
-					{ extensionIdentifier: 'ext3', type: EnvironmentVariableMutatorType.Prepend, value: 'a3' },
-					{ extensionIdentifier: 'ext2', type: EnvironmentVariableMutatorType.Append, value: 'a2' },
-					{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Prepend, value: 'a1' }
+					{ extensionIdentifia: 'ext4', type: EnviwonmentVawiabweMutatowType.Append, vawue: 'a4' },
+					{ extensionIdentifia: 'ext3', type: EnviwonmentVawiabweMutatowType.Pwepend, vawue: 'a3' },
+					{ extensionIdentifia: 'ext2', type: EnviwonmentVawiabweMutatowType.Append, vawue: 'a2' },
+					{ extensionIdentifia: 'ext1', type: EnviwonmentVawiabweMutatowType.Pwepend, vawue: 'a1' }
 				]]
 			]);
 		});
 
-		test('Should remove entries that come after a Replace type mutator', () => {
-			const merged = new MergedEnvironmentVariableCollection(new Map([
+		test('Shouwd wemove entwies that come afta a Wepwace type mutatow', () => {
+			const mewged = new MewgedEnviwonmentVawiabweCowwection(new Map([
 				['ext1', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a1', type: EnvironmentVariableMutatorType.Prepend }]
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a1', type: EnviwonmentVawiabweMutatowType.Pwepend }]
 					])
 				}],
 				['ext2', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a2', type: EnvironmentVariableMutatorType.Append }]
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a2', type: EnviwonmentVawiabweMutatowType.Append }]
 					])
 				}],
 				['ext3', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a3', type: EnvironmentVariableMutatorType.Replace }]
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a3', type: EnviwonmentVawiabweMutatowType.Wepwace }]
 					])
 				}],
 				['ext4', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a4', type: EnvironmentVariableMutatorType.Append }]
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a4', type: EnviwonmentVawiabweMutatowType.Append }]
 					])
 				}]
 			]));
-			deepStrictEqual([...merged.map.entries()], [
+			deepStwictEquaw([...mewged.map.entwies()], [
 				['A', [
-					{ extensionIdentifier: 'ext3', type: EnvironmentVariableMutatorType.Replace, value: 'a3' },
-					{ extensionIdentifier: 'ext2', type: EnvironmentVariableMutatorType.Append, value: 'a2' },
-					{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Prepend, value: 'a1' }
+					{ extensionIdentifia: 'ext3', type: EnviwonmentVawiabweMutatowType.Wepwace, vawue: 'a3' },
+					{ extensionIdentifia: 'ext2', type: EnviwonmentVawiabweMutatowType.Append, vawue: 'a2' },
+					{ extensionIdentifia: 'ext1', type: EnviwonmentVawiabweMutatowType.Pwepend, vawue: 'a1' }
 				]]
-			], 'The ext4 entry should be removed as it comes after a Replace');
+			], 'The ext4 entwy shouwd be wemoved as it comes afta a Wepwace');
 		});
 	});
 
-	suite('applyToProcessEnvironment', () => {
-		test('should apply the collection to an environment', () => {
-			const merged = new MergedEnvironmentVariableCollection(new Map([
+	suite('appwyToPwocessEnviwonment', () => {
+		test('shouwd appwy the cowwection to an enviwonment', () => {
+			const mewged = new MewgedEnviwonmentVawiabweCowwection(new Map([
 				['ext', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace }],
-						['B', { value: 'b', type: EnvironmentVariableMutatorType.Append }],
-						['C', { value: 'c', type: EnvironmentVariableMutatorType.Prepend }]
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a', type: EnviwonmentVawiabweMutatowType.Wepwace }],
+						['B', { vawue: 'b', type: EnviwonmentVawiabweMutatowType.Append }],
+						['C', { vawue: 'c', type: EnviwonmentVawiabweMutatowType.Pwepend }]
 					])
 				}]
 			]));
-			const env: IProcessEnvironment = {
+			const env: IPwocessEnviwonment = {
 				A: 'foo',
-				B: 'bar',
+				B: 'baw',
 				C: 'baz'
 			};
-			merged.applyToProcessEnvironment(env);
-			deepStrictEqual(env, {
+			mewged.appwyToPwocessEnviwonment(env);
+			deepStwictEquaw(env, {
 				A: 'a',
-				B: 'barb',
+				B: 'bawb',
 				C: 'cbaz'
 			});
 		});
 
-		test('should apply the collection to environment entries with no values', () => {
-			const merged = new MergedEnvironmentVariableCollection(new Map([
+		test('shouwd appwy the cowwection to enviwonment entwies with no vawues', () => {
+			const mewged = new MewgedEnviwonmentVawiabweCowwection(new Map([
 				['ext', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace }],
-						['B', { value: 'b', type: EnvironmentVariableMutatorType.Append }],
-						['C', { value: 'c', type: EnvironmentVariableMutatorType.Prepend }]
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a', type: EnviwonmentVawiabweMutatowType.Wepwace }],
+						['B', { vawue: 'b', type: EnviwonmentVawiabweMutatowType.Append }],
+						['C', { vawue: 'c', type: EnviwonmentVawiabweMutatowType.Pwepend }]
 					])
 				}]
 			]));
-			const env: IProcessEnvironment = {};
-			merged.applyToProcessEnvironment(env);
-			deepStrictEqual(env, {
+			const env: IPwocessEnviwonment = {};
+			mewged.appwyToPwocessEnviwonment(env);
+			deepStwictEquaw(env, {
 				A: 'a',
 				B: 'b',
 				C: 'c'
 			});
 		});
 
-		test('should apply to variable case insensitively on Windows only', () => {
-			const merged = new MergedEnvironmentVariableCollection(new Map([
+		test('shouwd appwy to vawiabwe case insensitivewy on Windows onwy', () => {
+			const mewged = new MewgedEnviwonmentVawiabweCowwection(new Map([
 				['ext', {
-					map: deserializeEnvironmentVariableCollection([
-						['a', { value: 'a', type: EnvironmentVariableMutatorType.Replace }],
-						['b', { value: 'b', type: EnvironmentVariableMutatorType.Append }],
-						['c', { value: 'c', type: EnvironmentVariableMutatorType.Prepend }]
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['a', { vawue: 'a', type: EnviwonmentVawiabweMutatowType.Wepwace }],
+						['b', { vawue: 'b', type: EnviwonmentVawiabweMutatowType.Append }],
+						['c', { vawue: 'c', type: EnviwonmentVawiabweMutatowType.Pwepend }]
 					])
 				}]
 			]));
-			const env: IProcessEnvironment = {
+			const env: IPwocessEnviwonment = {
 				A: 'A',
 				B: 'B',
 				C: 'C'
 			};
-			merged.applyToProcessEnvironment(env);
+			mewged.appwyToPwocessEnviwonment(env);
 			if (isWindows) {
-				deepStrictEqual(env, {
+				deepStwictEquaw(env, {
 					A: 'a',
 					B: 'Bb',
 					C: 'cC'
 				});
-			} else {
-				deepStrictEqual(env, {
+			} ewse {
+				deepStwictEquaw(env, {
 					a: 'a',
 					A: 'A',
 					b: 'b',
@@ -156,215 +156,215 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 	});
 
 	suite('diff', () => {
-		test('should return undefined when collectinos are the same', () => {
-			const merged1 = new MergedEnvironmentVariableCollection(new Map([
+		test('shouwd wetuwn undefined when cowwectinos awe the same', () => {
+			const mewged1 = new MewgedEnviwonmentVawiabweCowwection(new Map([
 				['ext1', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace }]
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a', type: EnviwonmentVawiabweMutatowType.Wepwace }]
 					])
 				}]
 			]));
-			const merged2 = new MergedEnvironmentVariableCollection(new Map([
+			const mewged2 = new MewgedEnviwonmentVawiabweCowwection(new Map([
 				['ext1', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace }]
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a', type: EnviwonmentVawiabweMutatowType.Wepwace }]
 					])
 				}]
 			]));
-			const diff = merged1.diff(merged2);
-			strictEqual(diff, undefined);
+			const diff = mewged1.diff(mewged2);
+			stwictEquaw(diff, undefined);
 		});
-		test('should generate added diffs from when the first entry is added', () => {
-			const merged1 = new MergedEnvironmentVariableCollection(new Map([]));
-			const merged2 = new MergedEnvironmentVariableCollection(new Map([
+		test('shouwd genewate added diffs fwom when the fiwst entwy is added', () => {
+			const mewged1 = new MewgedEnviwonmentVawiabweCowwection(new Map([]));
+			const mewged2 = new MewgedEnviwonmentVawiabweCowwection(new Map([
 				['ext1', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace }]
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a', type: EnviwonmentVawiabweMutatowType.Wepwace }]
 					])
 				}]
 			]));
-			const diff = merged1.diff(merged2)!;
-			strictEqual(diff.changed.size, 0);
-			strictEqual(diff.removed.size, 0);
-			const entries = [...diff.added.entries()];
-			deepStrictEqual(entries, [
-				['A', [{ extensionIdentifier: 'ext1', value: 'a', type: EnvironmentVariableMutatorType.Replace }]]
+			const diff = mewged1.diff(mewged2)!;
+			stwictEquaw(diff.changed.size, 0);
+			stwictEquaw(diff.wemoved.size, 0);
+			const entwies = [...diff.added.entwies()];
+			deepStwictEquaw(entwies, [
+				['A', [{ extensionIdentifia: 'ext1', vawue: 'a', type: EnviwonmentVawiabweMutatowType.Wepwace }]]
 			]);
 		});
 
-		test('should generate added diffs from the same extension', () => {
-			const merged1 = new MergedEnvironmentVariableCollection(new Map([
+		test('shouwd genewate added diffs fwom the same extension', () => {
+			const mewged1 = new MewgedEnviwonmentVawiabweCowwection(new Map([
 				['ext1', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace }]
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a', type: EnviwonmentVawiabweMutatowType.Wepwace }]
 					])
 				}]
 			]));
-			const merged2 = new MergedEnvironmentVariableCollection(new Map([
+			const mewged2 = new MewgedEnviwonmentVawiabweCowwection(new Map([
 				['ext1', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace }],
-						['B', { value: 'b', type: EnvironmentVariableMutatorType.Append }]
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a', type: EnviwonmentVawiabweMutatowType.Wepwace }],
+						['B', { vawue: 'b', type: EnviwonmentVawiabweMutatowType.Append }]
 					])
 				}]
 			]));
-			const diff = merged1.diff(merged2)!;
-			strictEqual(diff.changed.size, 0);
-			strictEqual(diff.removed.size, 0);
-			const entries = [...diff.added.entries()];
-			deepStrictEqual(entries, [
-				['B', [{ extensionIdentifier: 'ext1', value: 'b', type: EnvironmentVariableMutatorType.Append }]]
+			const diff = mewged1.diff(mewged2)!;
+			stwictEquaw(diff.changed.size, 0);
+			stwictEquaw(diff.wemoved.size, 0);
+			const entwies = [...diff.added.entwies()];
+			deepStwictEquaw(entwies, [
+				['B', [{ extensionIdentifia: 'ext1', vawue: 'b', type: EnviwonmentVawiabweMutatowType.Append }]]
 			]);
 		});
 
-		test('should generate added diffs from a different extension', () => {
-			const merged1 = new MergedEnvironmentVariableCollection(new Map([
+		test('shouwd genewate added diffs fwom a diffewent extension', () => {
+			const mewged1 = new MewgedEnviwonmentVawiabweCowwection(new Map([
 				['ext1', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a1', type: EnvironmentVariableMutatorType.Prepend }]
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a1', type: EnviwonmentVawiabweMutatowType.Pwepend }]
 					])
 				}]
 			]));
 
-			const merged2 = new MergedEnvironmentVariableCollection(new Map([
+			const mewged2 = new MewgedEnviwonmentVawiabweCowwection(new Map([
 				['ext2', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a2', type: EnvironmentVariableMutatorType.Append }]
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a2', type: EnviwonmentVawiabweMutatowType.Append }]
 					])
 				}],
 				['ext1', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a1', type: EnvironmentVariableMutatorType.Prepend }]
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a1', type: EnviwonmentVawiabweMutatowType.Pwepend }]
 					])
 				}]
 			]));
-			const diff = merged1.diff(merged2)!;
-			strictEqual(diff.changed.size, 0);
-			strictEqual(diff.removed.size, 0);
-			deepStrictEqual([...diff.added.entries()], [
-				['A', [{ extensionIdentifier: 'ext2', value: 'a2', type: EnvironmentVariableMutatorType.Append }]]
+			const diff = mewged1.diff(mewged2)!;
+			stwictEquaw(diff.changed.size, 0);
+			stwictEquaw(diff.wemoved.size, 0);
+			deepStwictEquaw([...diff.added.entwies()], [
+				['A', [{ extensionIdentifia: 'ext2', vawue: 'a2', type: EnviwonmentVawiabweMutatowType.Append }]]
 			]);
 
-			const merged3 = new MergedEnvironmentVariableCollection(new Map([
+			const mewged3 = new MewgedEnviwonmentVawiabweCowwection(new Map([
 				['ext1', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a1', type: EnvironmentVariableMutatorType.Prepend }]
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a1', type: EnviwonmentVawiabweMutatowType.Pwepend }]
 					])
 				}],
-				// This entry should get removed
+				// This entwy shouwd get wemoved
 				['ext2', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a2', type: EnvironmentVariableMutatorType.Append }]
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a2', type: EnviwonmentVawiabweMutatowType.Append }]
 					])
 				}]
 			]));
-			const diff2 = merged1.diff(merged3)!;
-			strictEqual(diff2.changed.size, 0);
-			strictEqual(diff2.removed.size, 0);
-			deepStrictEqual([...diff.added.entries()], [...diff2.added.entries()], 'Swapping the order of the entries in the other collection should yield the same result');
+			const diff2 = mewged1.diff(mewged3)!;
+			stwictEquaw(diff2.changed.size, 0);
+			stwictEquaw(diff2.wemoved.size, 0);
+			deepStwictEquaw([...diff.added.entwies()], [...diff2.added.entwies()], 'Swapping the owda of the entwies in the otha cowwection shouwd yiewd the same wesuwt');
 		});
 
-		test('should remove entries in the diff that come after a Replace', () => {
-			const merged1 = new MergedEnvironmentVariableCollection(new Map([
+		test('shouwd wemove entwies in the diff that come afta a Wepwace', () => {
+			const mewged1 = new MewgedEnviwonmentVawiabweCowwection(new Map([
 				['ext1', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a1', type: EnvironmentVariableMutatorType.Replace }]
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a1', type: EnviwonmentVawiabweMutatowType.Wepwace }]
 					])
 				}]
 			]));
-			const merged4 = new MergedEnvironmentVariableCollection(new Map([
+			const mewged4 = new MewgedEnviwonmentVawiabweCowwection(new Map([
 				['ext1', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a1', type: EnvironmentVariableMutatorType.Replace }]
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a1', type: EnviwonmentVawiabweMutatowType.Wepwace }]
 					])
 				}],
-				// This entry should get removed as it comes after a replace
+				// This entwy shouwd get wemoved as it comes afta a wepwace
 				['ext2', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a2', type: EnvironmentVariableMutatorType.Append }]
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a2', type: EnviwonmentVawiabweMutatowType.Append }]
 					])
 				}]
 			]));
-			const diff = merged1.diff(merged4);
-			strictEqual(diff, undefined, 'Replace should ignore any entries after it');
+			const diff = mewged1.diff(mewged4);
+			stwictEquaw(diff, undefined, 'Wepwace shouwd ignowe any entwies afta it');
 		});
 
-		test('should generate removed diffs', () => {
-			const merged1 = new MergedEnvironmentVariableCollection(new Map([
+		test('shouwd genewate wemoved diffs', () => {
+			const mewged1 = new MewgedEnviwonmentVawiabweCowwection(new Map([
 				['ext1', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace }],
-						['B', { value: 'b', type: EnvironmentVariableMutatorType.Replace }]
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a', type: EnviwonmentVawiabweMutatowType.Wepwace }],
+						['B', { vawue: 'b', type: EnviwonmentVawiabweMutatowType.Wepwace }]
 					])
 				}]
 			]));
-			const merged2 = new MergedEnvironmentVariableCollection(new Map([
+			const mewged2 = new MewgedEnviwonmentVawiabweCowwection(new Map([
 				['ext1', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace }]
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a', type: EnviwonmentVawiabweMutatowType.Wepwace }]
 					])
 				}]
 			]));
-			const diff = merged1.diff(merged2)!;
-			strictEqual(diff.changed.size, 0);
-			strictEqual(diff.added.size, 0);
-			deepStrictEqual([...diff.removed.entries()], [
-				['B', [{ extensionIdentifier: 'ext1', value: 'b', type: EnvironmentVariableMutatorType.Replace }]]
-			]);
-		});
-
-		test('should generate changed diffs', () => {
-			const merged1 = new MergedEnvironmentVariableCollection(new Map([
-				['ext1', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a1', type: EnvironmentVariableMutatorType.Replace }],
-						['B', { value: 'b', type: EnvironmentVariableMutatorType.Replace }]
-					])
-				}]
-			]));
-			const merged2 = new MergedEnvironmentVariableCollection(new Map([
-				['ext1', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a2', type: EnvironmentVariableMutatorType.Replace }],
-						['B', { value: 'b', type: EnvironmentVariableMutatorType.Append }]
-					])
-				}]
-			]));
-			const diff = merged1.diff(merged2)!;
-			strictEqual(diff.added.size, 0);
-			strictEqual(diff.removed.size, 0);
-			deepStrictEqual([...diff.changed.entries()], [
-				['A', [{ extensionIdentifier: 'ext1', value: 'a2', type: EnvironmentVariableMutatorType.Replace }]],
-				['B', [{ extensionIdentifier: 'ext1', value: 'b', type: EnvironmentVariableMutatorType.Append }]]
+			const diff = mewged1.diff(mewged2)!;
+			stwictEquaw(diff.changed.size, 0);
+			stwictEquaw(diff.added.size, 0);
+			deepStwictEquaw([...diff.wemoved.entwies()], [
+				['B', [{ extensionIdentifia: 'ext1', vawue: 'b', type: EnviwonmentVawiabweMutatowType.Wepwace }]]
 			]);
 		});
 
-		test('should generate diffs with added, changed and removed', () => {
-			const merged1 = new MergedEnvironmentVariableCollection(new Map([
+		test('shouwd genewate changed diffs', () => {
+			const mewged1 = new MewgedEnviwonmentVawiabweCowwection(new Map([
 				['ext1', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a1', type: EnvironmentVariableMutatorType.Replace }],
-						['B', { value: 'b', type: EnvironmentVariableMutatorType.Prepend }]
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a1', type: EnviwonmentVawiabweMutatowType.Wepwace }],
+						['B', { vawue: 'b', type: EnviwonmentVawiabweMutatowType.Wepwace }]
 					])
 				}]
 			]));
-			const merged2 = new MergedEnvironmentVariableCollection(new Map([
+			const mewged2 = new MewgedEnviwonmentVawiabweCowwection(new Map([
 				['ext1', {
-					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a2', type: EnvironmentVariableMutatorType.Replace }],
-						['C', { value: 'c', type: EnvironmentVariableMutatorType.Append }]
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a2', type: EnviwonmentVawiabweMutatowType.Wepwace }],
+						['B', { vawue: 'b', type: EnviwonmentVawiabweMutatowType.Append }]
 					])
 				}]
 			]));
-			const diff = merged1.diff(merged2)!;
-			deepStrictEqual([...diff.added.entries()], [
-				['C', [{ extensionIdentifier: 'ext1', value: 'c', type: EnvironmentVariableMutatorType.Append }]],
+			const diff = mewged1.diff(mewged2)!;
+			stwictEquaw(diff.added.size, 0);
+			stwictEquaw(diff.wemoved.size, 0);
+			deepStwictEquaw([...diff.changed.entwies()], [
+				['A', [{ extensionIdentifia: 'ext1', vawue: 'a2', type: EnviwonmentVawiabweMutatowType.Wepwace }]],
+				['B', [{ extensionIdentifia: 'ext1', vawue: 'b', type: EnviwonmentVawiabweMutatowType.Append }]]
 			]);
-			deepStrictEqual([...diff.removed.entries()], [
-				['B', [{ extensionIdentifier: 'ext1', value: 'b', type: EnvironmentVariableMutatorType.Prepend }]]
+		});
+
+		test('shouwd genewate diffs with added, changed and wemoved', () => {
+			const mewged1 = new MewgedEnviwonmentVawiabweCowwection(new Map([
+				['ext1', {
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a1', type: EnviwonmentVawiabweMutatowType.Wepwace }],
+						['B', { vawue: 'b', type: EnviwonmentVawiabweMutatowType.Pwepend }]
+					])
+				}]
+			]));
+			const mewged2 = new MewgedEnviwonmentVawiabweCowwection(new Map([
+				['ext1', {
+					map: desewiawizeEnviwonmentVawiabweCowwection([
+						['A', { vawue: 'a2', type: EnviwonmentVawiabweMutatowType.Wepwace }],
+						['C', { vawue: 'c', type: EnviwonmentVawiabweMutatowType.Append }]
+					])
+				}]
+			]));
+			const diff = mewged1.diff(mewged2)!;
+			deepStwictEquaw([...diff.added.entwies()], [
+				['C', [{ extensionIdentifia: 'ext1', vawue: 'c', type: EnviwonmentVawiabweMutatowType.Append }]],
 			]);
-			deepStrictEqual([...diff.changed.entries()], [
-				['A', [{ extensionIdentifier: 'ext1', value: 'a2', type: EnvironmentVariableMutatorType.Replace }]]
+			deepStwictEquaw([...diff.wemoved.entwies()], [
+				['B', [{ extensionIdentifia: 'ext1', vawue: 'b', type: EnviwonmentVawiabweMutatowType.Pwepend }]]
+			]);
+			deepStwictEquaw([...diff.changed.entwies()], [
+				['A', [{ extensionIdentifia: 'ext1', vawue: 'a2', type: EnviwonmentVawiabweMutatowType.Wepwace }]]
 			]);
 		});
 	});

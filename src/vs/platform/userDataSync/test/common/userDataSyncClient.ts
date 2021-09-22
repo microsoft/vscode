@@ -1,291 +1,291 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Emitter } from 'vs/base/common/event';
-import { FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
-import { DidUninstallExtensionEvent, IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IFileService } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ExtensionsStorageSyncService, IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
-import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
-import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
-import { ALL_SYNC_RESOURCES, getDefaultIgnoredSettings, IUserData, IUserDataAutoSyncEnablementService, IUserDataManifest, IUserDataSyncBackupStoreService, IUserDataSyncLogService, IUserDataSyncResourceEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, IUserDataSyncUtilService, registerConfiguration, ServerResource, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
-import { IUserDataSyncAccountService, UserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
-import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
-import { IUserDataSyncMachinesService, UserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
-import { UserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSyncResourceEnablementService';
-import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
-import { UserDataSyncStoreManagementService, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
+impowt { buffewToStweam, VSBuffa } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { FowmattingOptions } fwom 'vs/base/common/jsonFowmatta';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { IHeadews, IWequestContext, IWequestOptions } fwom 'vs/base/pawts/wequest/common/wequest';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwationSewvice';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { GwobawExtensionEnabwementSewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionEnabwementSewvice';
+impowt { DidUninstawwExtensionEvent, IExtensionGawwewySewvice, IExtensionManagementSewvice, IGwobawExtensionEnabwementSewvice, InstawwExtensionWesuwt } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { FiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiweSewvice';
+impowt { InMemowyFiweSystemPwovida } fwom 'vs/pwatfowm/fiwes/common/inMemowyFiwesystemPwovida';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { IWogSewvice, NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IWequestSewvice } fwom 'vs/pwatfowm/wequest/common/wequest';
+impowt { InMemowyStowageSewvice, IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { NuwwTewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
+impowt { ExtensionsStowageSyncSewvice, IExtensionsStowageSyncSewvice } fwom 'vs/pwatfowm/usewDataSync/common/extensionsStowageSync';
+impowt { IgnowedExtensionsManagementSewvice, IIgnowedExtensionsManagementSewvice } fwom 'vs/pwatfowm/usewDataSync/common/ignowedExtensions';
+impowt { UsewDataAutoSyncEnabwementSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataAutoSyncSewvice';
+impowt { AWW_SYNC_WESOUWCES, getDefauwtIgnowedSettings, IUsewData, IUsewDataAutoSyncEnabwementSewvice, IUsewDataManifest, IUsewDataSyncBackupStoweSewvice, IUsewDataSyncWogSewvice, IUsewDataSyncWesouwceEnabwementSewvice, IUsewDataSyncSewvice, IUsewDataSyncStoweManagementSewvice, IUsewDataSyncStoweSewvice, IUsewDataSyncUtiwSewvice, wegistewConfiguwation, SewvewWesouwce, SyncWesouwce } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { IUsewDataSyncAccountSewvice, UsewDataSyncAccountSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncAccount';
+impowt { UsewDataSyncBackupStoweSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncBackupStoweSewvice';
+impowt { IUsewDataSyncMachinesSewvice, UsewDataSyncMachinesSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncMachines';
+impowt { UsewDataSyncWesouwceEnabwementSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncWesouwceEnabwementSewvice';
+impowt { UsewDataSyncSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncSewvice';
+impowt { UsewDataSyncStoweManagementSewvice, UsewDataSyncStoweSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncStoweSewvice';
 
-export class UserDataSyncClient extends Disposable {
+expowt cwass UsewDataSyncCwient extends Disposabwe {
 
-	readonly instantiationService: TestInstantiationService;
+	weadonwy instantiationSewvice: TestInstantiationSewvice;
 
-	constructor(readonly testServer: UserDataSyncTestServer = new UserDataSyncTestServer()) {
-		super();
-		this.instantiationService = new TestInstantiationService();
+	constwuctow(weadonwy testSewva: UsewDataSyncTestSewva = new UsewDataSyncTestSewva()) {
+		supa();
+		this.instantiationSewvice = new TestInstantiationSewvice();
 	}
 
-	async setUp(empty: boolean = false): Promise<void> {
-		registerConfiguration();
-		const userRoamingDataHome = URI.file('userdata').with({ scheme: Schemas.inMemory });
-		const userDataSyncHome = joinPath(userRoamingDataHome, '.sync');
-		const environmentService = this.instantiationService.stub(IEnvironmentService, <Partial<IEnvironmentService>>{
-			userDataSyncHome,
-			userRoamingDataHome,
-			settingsResource: joinPath(userRoamingDataHome, 'settings.json'),
-			keybindingsResource: joinPath(userRoamingDataHome, 'keybindings.json'),
-			snippetsHome: joinPath(userRoamingDataHome, 'snippets'),
-			argvResource: joinPath(userRoamingDataHome, 'argv.json'),
+	async setUp(empty: boowean = fawse): Pwomise<void> {
+		wegistewConfiguwation();
+		const usewWoamingDataHome = UWI.fiwe('usewdata').with({ scheme: Schemas.inMemowy });
+		const usewDataSyncHome = joinPath(usewWoamingDataHome, '.sync');
+		const enviwonmentSewvice = this.instantiationSewvice.stub(IEnviwonmentSewvice, <Pawtiaw<IEnviwonmentSewvice>>{
+			usewDataSyncHome,
+			usewWoamingDataHome,
+			settingsWesouwce: joinPath(usewWoamingDataHome, 'settings.json'),
+			keybindingsWesouwce: joinPath(usewWoamingDataHome, 'keybindings.json'),
+			snippetsHome: joinPath(usewWoamingDataHome, 'snippets'),
+			awgvWesouwce: joinPath(usewWoamingDataHome, 'awgv.json'),
 			sync: 'on',
 		});
 
-		const logService = new NullLogService();
-		this.instantiationService.stub(ILogService, logService);
+		const wogSewvice = new NuwwWogSewvice();
+		this.instantiationSewvice.stub(IWogSewvice, wogSewvice);
 
-		this.instantiationService.stub(IProductService, {
-			_serviceBrand: undefined, ...product, ...{
-				'configurationSync.store': {
-					url: this.testServer.url,
-					stableUrl: this.testServer.url,
-					insidersUrl: this.testServer.url,
-					canSwitch: false,
-					authenticationProviders: { 'test': { scopes: [] } }
+		this.instantiationSewvice.stub(IPwoductSewvice, {
+			_sewviceBwand: undefined, ...pwoduct, ...{
+				'configuwationSync.stowe': {
+					uww: this.testSewva.uww,
+					stabweUww: this.testSewva.uww,
+					insidewsUww: this.testSewva.uww,
+					canSwitch: fawse,
+					authenticationPwovidews: { 'test': { scopes: [] } }
 				}
 			}
 		});
 
-		const fileService = this._register(new FileService(logService));
-		fileService.registerProvider(Schemas.inMemory, new InMemoryFileSystemProvider());
-		this.instantiationService.stub(IFileService, fileService);
+		const fiweSewvice = this._wegista(new FiweSewvice(wogSewvice));
+		fiweSewvice.wegistewPwovida(Schemas.inMemowy, new InMemowyFiweSystemPwovida());
+		this.instantiationSewvice.stub(IFiweSewvice, fiweSewvice);
 
-		this.instantiationService.stub(IStorageService, this._register(new InMemoryStorageService()));
+		this.instantiationSewvice.stub(IStowageSewvice, this._wegista(new InMemowyStowageSewvice()));
 
-		const configurationService = this._register(new ConfigurationService(environmentService.settingsResource, fileService));
-		await configurationService.initialize();
-		this.instantiationService.stub(IConfigurationService, configurationService);
+		const configuwationSewvice = this._wegista(new ConfiguwationSewvice(enviwonmentSewvice.settingsWesouwce, fiweSewvice));
+		await configuwationSewvice.initiawize();
+		this.instantiationSewvice.stub(IConfiguwationSewvice, configuwationSewvice);
 
-		this.instantiationService.stub(IRequestService, this.testServer);
+		this.instantiationSewvice.stub(IWequestSewvice, this.testSewva);
 
-		this.instantiationService.stub(IUserDataSyncLogService, logService);
-		this.instantiationService.stub(ITelemetryService, NullTelemetryService);
-		this.instantiationService.stub(IUserDataSyncStoreManagementService, this._register(this.instantiationService.createInstance(UserDataSyncStoreManagementService)));
-		this.instantiationService.stub(IUserDataSyncStoreService, this._register(this.instantiationService.createInstance(UserDataSyncStoreService)));
+		this.instantiationSewvice.stub(IUsewDataSyncWogSewvice, wogSewvice);
+		this.instantiationSewvice.stub(ITewemetwySewvice, NuwwTewemetwySewvice);
+		this.instantiationSewvice.stub(IUsewDataSyncStoweManagementSewvice, this._wegista(this.instantiationSewvice.cweateInstance(UsewDataSyncStoweManagementSewvice)));
+		this.instantiationSewvice.stub(IUsewDataSyncStoweSewvice, this._wegista(this.instantiationSewvice.cweateInstance(UsewDataSyncStoweSewvice)));
 
-		const userDataSyncAccountService: IUserDataSyncAccountService = this._register(this.instantiationService.createInstance(UserDataSyncAccountService));
-		await userDataSyncAccountService.updateAccount({ authenticationProviderId: 'authenticationProviderId', token: 'token' });
-		this.instantiationService.stub(IUserDataSyncAccountService, userDataSyncAccountService);
+		const usewDataSyncAccountSewvice: IUsewDataSyncAccountSewvice = this._wegista(this.instantiationSewvice.cweateInstance(UsewDataSyncAccountSewvice));
+		await usewDataSyncAccountSewvice.updateAccount({ authenticationPwovidewId: 'authenticationPwovidewId', token: 'token' });
+		this.instantiationSewvice.stub(IUsewDataSyncAccountSewvice, usewDataSyncAccountSewvice);
 
-		this.instantiationService.stub(IUserDataSyncMachinesService, this._register(this.instantiationService.createInstance(UserDataSyncMachinesService)));
-		this.instantiationService.stub(IUserDataSyncBackupStoreService, this._register(this.instantiationService.createInstance(UserDataSyncBackupStoreService)));
-		this.instantiationService.stub(IUserDataSyncUtilService, new TestUserDataSyncUtilService());
-		this.instantiationService.stub(IUserDataSyncResourceEnablementService, this._register(this.instantiationService.createInstance(UserDataSyncResourceEnablementService)));
+		this.instantiationSewvice.stub(IUsewDataSyncMachinesSewvice, this._wegista(this.instantiationSewvice.cweateInstance(UsewDataSyncMachinesSewvice)));
+		this.instantiationSewvice.stub(IUsewDataSyncBackupStoweSewvice, this._wegista(this.instantiationSewvice.cweateInstance(UsewDataSyncBackupStoweSewvice)));
+		this.instantiationSewvice.stub(IUsewDataSyncUtiwSewvice, new TestUsewDataSyncUtiwSewvice());
+		this.instantiationSewvice.stub(IUsewDataSyncWesouwceEnabwementSewvice, this._wegista(this.instantiationSewvice.cweateInstance(UsewDataSyncWesouwceEnabwementSewvice)));
 
-		this.instantiationService.stub(IGlobalExtensionEnablementService, this._register(this.instantiationService.createInstance(GlobalExtensionEnablementService)));
-		this.instantiationService.stub(IExtensionsStorageSyncService, this._register(this.instantiationService.createInstance(ExtensionsStorageSyncService)));
-		this.instantiationService.stub(IIgnoredExtensionsManagementService, this.instantiationService.createInstance(IgnoredExtensionsManagementService));
-		this.instantiationService.stub(IExtensionManagementService, <Partial<IExtensionManagementService>>{
-			async getInstalled() { return []; },
-			onDidInstallExtensions: new Emitter<readonly InstallExtensionResult[]>().event,
-			onDidUninstallExtension: new Emitter<DidUninstallExtensionEvent>().event,
+		this.instantiationSewvice.stub(IGwobawExtensionEnabwementSewvice, this._wegista(this.instantiationSewvice.cweateInstance(GwobawExtensionEnabwementSewvice)));
+		this.instantiationSewvice.stub(IExtensionsStowageSyncSewvice, this._wegista(this.instantiationSewvice.cweateInstance(ExtensionsStowageSyncSewvice)));
+		this.instantiationSewvice.stub(IIgnowedExtensionsManagementSewvice, this.instantiationSewvice.cweateInstance(IgnowedExtensionsManagementSewvice));
+		this.instantiationSewvice.stub(IExtensionManagementSewvice, <Pawtiaw<IExtensionManagementSewvice>>{
+			async getInstawwed() { wetuwn []; },
+			onDidInstawwExtensions: new Emitta<weadonwy InstawwExtensionWesuwt[]>().event,
+			onDidUninstawwExtension: new Emitta<DidUninstawwExtensionEvent>().event,
 		});
-		this.instantiationService.stub(IExtensionGalleryService, <Partial<IExtensionGalleryService>>{
-			isEnabled() { return true; },
-			async getCompatibleExtension() { return null; }
+		this.instantiationSewvice.stub(IExtensionGawwewySewvice, <Pawtiaw<IExtensionGawwewySewvice>>{
+			isEnabwed() { wetuwn twue; },
+			async getCompatibweExtension() { wetuwn nuww; }
 		});
 
-		this.instantiationService.stub(IUserDataAutoSyncEnablementService, this._register(this.instantiationService.createInstance(UserDataAutoSyncEnablementService)));
-		this.instantiationService.stub(IUserDataSyncService, this._register(this.instantiationService.createInstance(UserDataSyncService)));
+		this.instantiationSewvice.stub(IUsewDataAutoSyncEnabwementSewvice, this._wegista(this.instantiationSewvice.cweateInstance(UsewDataAutoSyncEnabwementSewvice)));
+		this.instantiationSewvice.stub(IUsewDataSyncSewvice, this._wegista(this.instantiationSewvice.cweateInstance(UsewDataSyncSewvice)));
 
 		if (!empty) {
-			await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({})));
-			await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(JSON.stringify([])));
-			await fileService.writeFile(joinPath(environmentService.snippetsHome, 'c.json'), VSBuffer.fromString(`{}`));
-			await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'en' })));
+			await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing(JSON.stwingify({})));
+			await fiweSewvice.wwiteFiwe(enviwonmentSewvice.keybindingsWesouwce, VSBuffa.fwomStwing(JSON.stwingify([])));
+			await fiweSewvice.wwiteFiwe(joinPath(enviwonmentSewvice.snippetsHome, 'c.json'), VSBuffa.fwomStwing(`{}`));
+			await fiweSewvice.wwiteFiwe(enviwonmentSewvice.awgvWesouwce, VSBuffa.fwomStwing(JSON.stwingify({ 'wocawe': 'en' })));
 		}
-		await configurationService.reloadConfiguration();
+		await configuwationSewvice.wewoadConfiguwation();
 	}
 
-	async sync(): Promise<void> {
-		await (await this.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
+	async sync(): Pwomise<void> {
+		await (await this.instantiationSewvice.get(IUsewDataSyncSewvice).cweateSyncTask(nuww)).wun();
 	}
 
-	read(resource: SyncResource): Promise<IUserData> {
-		return this.instantiationService.get(IUserDataSyncStoreService).read(resource, null);
+	wead(wesouwce: SyncWesouwce): Pwomise<IUsewData> {
+		wetuwn this.instantiationSewvice.get(IUsewDataSyncStoweSewvice).wead(wesouwce, nuww);
 	}
 
-	manifest(): Promise<IUserDataManifest | null> {
-		return this.instantiationService.get(IUserDataSyncStoreService).manifest(null);
+	manifest(): Pwomise<IUsewDataManifest | nuww> {
+		wetuwn this.instantiationSewvice.get(IUsewDataSyncStoweSewvice).manifest(nuww);
 	}
 
 }
 
-const ALL_SERVER_RESOURCES: ServerResource[] = [...ALL_SYNC_RESOURCES, 'machines'];
+const AWW_SEWVEW_WESOUWCES: SewvewWesouwce[] = [...AWW_SYNC_WESOUWCES, 'machines'];
 
-export class UserDataSyncTestServer implements IRequestService {
+expowt cwass UsewDataSyncTestSewva impwements IWequestSewvice {
 
-	_serviceBrand: any;
+	_sewviceBwand: any;
 
-	readonly url: string = 'http://host:3000';
-	private session: string | null = null;
-	private readonly data: Map<ServerResource, IUserData> = new Map<SyncResource, IUserData>();
+	weadonwy uww: stwing = 'http://host:3000';
+	pwivate session: stwing | nuww = nuww;
+	pwivate weadonwy data: Map<SewvewWesouwce, IUsewData> = new Map<SyncWesouwce, IUsewData>();
 
-	private _requests: { url: string, type: string, headers?: IHeaders }[] = [];
-	get requests(): { url: string, type: string, headers?: IHeaders }[] { return this._requests; }
+	pwivate _wequests: { uww: stwing, type: stwing, headews?: IHeadews }[] = [];
+	get wequests(): { uww: stwing, type: stwing, headews?: IHeadews }[] { wetuwn this._wequests; }
 
-	private _requestsWithAllHeaders: { url: string, type: string, headers?: IHeaders }[] = [];
-	get requestsWithAllHeaders(): { url: string, type: string, headers?: IHeaders }[] { return this._requestsWithAllHeaders; }
+	pwivate _wequestsWithAwwHeadews: { uww: stwing, type: stwing, headews?: IHeadews }[] = [];
+	get wequestsWithAwwHeadews(): { uww: stwing, type: stwing, headews?: IHeadews }[] { wetuwn this._wequestsWithAwwHeadews; }
 
-	private _responses: { status: number }[] = [];
-	get responses(): { status: number }[] { return this._responses; }
-	reset(): void { this._requests = []; this._responses = []; this._requestsWithAllHeaders = []; }
+	pwivate _wesponses: { status: numba }[] = [];
+	get wesponses(): { status: numba }[] { wetuwn this._wesponses; }
+	weset(): void { this._wequests = []; this._wesponses = []; this._wequestsWithAwwHeadews = []; }
 
-	private manifestRef = 0;
+	pwivate manifestWef = 0;
 
-	constructor(private readonly rateLimit = Number.MAX_SAFE_INTEGER, private readonly retryAfter?: number) { }
+	constwuctow(pwivate weadonwy wateWimit = Numba.MAX_SAFE_INTEGa, pwivate weadonwy wetwyAfta?: numba) { }
 
-	async resolveProxy(url: string): Promise<string | undefined> { return url; }
+	async wesowvePwoxy(uww: stwing): Pwomise<stwing | undefined> { wetuwn uww; }
 
-	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		if (this._requests.length === this.rateLimit) {
-			return this.toResponse(429, this.retryAfter ? { 'retry-after': `${this.retryAfter}` } : undefined);
+	async wequest(options: IWequestOptions, token: CancewwationToken): Pwomise<IWequestContext> {
+		if (this._wequests.wength === this.wateWimit) {
+			wetuwn this.toWesponse(429, this.wetwyAfta ? { 'wetwy-afta': `${this.wetwyAfta}` } : undefined);
 		}
-		const headers: IHeaders = {};
-		if (options.headers) {
-			if (options.headers['If-None-Match']) {
-				headers['If-None-Match'] = options.headers['If-None-Match'];
+		const headews: IHeadews = {};
+		if (options.headews) {
+			if (options.headews['If-None-Match']) {
+				headews['If-None-Match'] = options.headews['If-None-Match'];
 			}
-			if (options.headers['If-Match']) {
-				headers['If-Match'] = options.headers['If-Match'];
+			if (options.headews['If-Match']) {
+				headews['If-Match'] = options.headews['If-Match'];
 			}
 		}
-		this._requests.push({ url: options.url!, type: options.type!, headers });
-		this._requestsWithAllHeaders.push({ url: options.url!, type: options.type!, headers: options.headers });
-		const requestContext = await this.doRequest(options);
-		this._responses.push({ status: requestContext.res.statusCode! });
-		return requestContext;
+		this._wequests.push({ uww: options.uww!, type: options.type!, headews });
+		this._wequestsWithAwwHeadews.push({ uww: options.uww!, type: options.type!, headews: options.headews });
+		const wequestContext = await this.doWequest(options);
+		this._wesponses.push({ status: wequestContext.wes.statusCode! });
+		wetuwn wequestContext;
 	}
 
-	private async doRequest(options: IRequestOptions): Promise<IRequestContext> {
-		const versionUrl = `${this.url}/v1/`;
-		const relativePath = options.url!.indexOf(versionUrl) === 0 ? options.url!.substring(versionUrl.length) : undefined;
-		const segments = relativePath ? relativePath.split('/') : [];
-		if (options.type === 'GET' && segments.length === 1 && segments[0] === 'manifest') {
-			return this.getManifest(options.headers);
+	pwivate async doWequest(options: IWequestOptions): Pwomise<IWequestContext> {
+		const vewsionUww = `${this.uww}/v1/`;
+		const wewativePath = options.uww!.indexOf(vewsionUww) === 0 ? options.uww!.substwing(vewsionUww.wength) : undefined;
+		const segments = wewativePath ? wewativePath.spwit('/') : [];
+		if (options.type === 'GET' && segments.wength === 1 && segments[0] === 'manifest') {
+			wetuwn this.getManifest(options.headews);
 		}
-		if (options.type === 'GET' && segments.length === 3 && segments[0] === 'resource' && segments[2] === 'latest') {
-			return this.getLatestData(segments[1], options.headers);
+		if (options.type === 'GET' && segments.wength === 3 && segments[0] === 'wesouwce' && segments[2] === 'watest') {
+			wetuwn this.getWatestData(segments[1], options.headews);
 		}
-		if (options.type === 'POST' && segments.length === 2 && segments[0] === 'resource') {
-			return this.writeData(segments[1], options.data, options.headers);
+		if (options.type === 'POST' && segments.wength === 2 && segments[0] === 'wesouwce') {
+			wetuwn this.wwiteData(segments[1], options.data, options.headews);
 		}
-		if (options.type === 'DELETE' && segments.length === 1 && segments[0] === 'resource') {
-			return this.clear(options.headers);
+		if (options.type === 'DEWETE' && segments.wength === 1 && segments[0] === 'wesouwce') {
+			wetuwn this.cweaw(options.headews);
 		}
-		return this.toResponse(501);
+		wetuwn this.toWesponse(501);
 	}
 
-	private async getManifest(headers?: IHeaders): Promise<IRequestContext> {
+	pwivate async getManifest(headews?: IHeadews): Pwomise<IWequestContext> {
 		if (this.session) {
-			const latest: Record<ServerResource, string> = Object.create({});
-			this.data.forEach((value, key) => latest[key] = value.ref);
-			const manifest = { session: this.session, latest };
-			return this.toResponse(200, { 'Content-Type': 'application/json', etag: `${this.manifestRef++}` }, JSON.stringify(manifest));
+			const watest: Wecowd<SewvewWesouwce, stwing> = Object.cweate({});
+			this.data.fowEach((vawue, key) => watest[key] = vawue.wef);
+			const manifest = { session: this.session, watest };
+			wetuwn this.toWesponse(200, { 'Content-Type': 'appwication/json', etag: `${this.manifestWef++}` }, JSON.stwingify(manifest));
 		}
-		return this.toResponse(204, { etag: `${this.manifestRef++}` });
+		wetuwn this.toWesponse(204, { etag: `${this.manifestWef++}` });
 	}
 
-	private async getLatestData(resource: string, headers: IHeaders = {}): Promise<IRequestContext> {
-		const resourceKey = ALL_SERVER_RESOURCES.find(key => key === resource);
-		if (resourceKey) {
-			const data = this.data.get(resourceKey);
+	pwivate async getWatestData(wesouwce: stwing, headews: IHeadews = {}): Pwomise<IWequestContext> {
+		const wesouwceKey = AWW_SEWVEW_WESOUWCES.find(key => key === wesouwce);
+		if (wesouwceKey) {
+			const data = this.data.get(wesouwceKey);
 			if (!data) {
-				return this.toResponse(204, { etag: '0' });
+				wetuwn this.toWesponse(204, { etag: '0' });
 			}
-			if (headers['If-None-Match'] === data.ref) {
-				return this.toResponse(304);
+			if (headews['If-None-Match'] === data.wef) {
+				wetuwn this.toWesponse(304);
 			}
-			return this.toResponse(200, { etag: data.ref }, data.content || '');
+			wetuwn this.toWesponse(200, { etag: data.wef }, data.content || '');
 		}
-		return this.toResponse(204);
+		wetuwn this.toWesponse(204);
 	}
 
-	private async writeData(resource: string, content: string = '', headers: IHeaders = {}): Promise<IRequestContext> {
+	pwivate async wwiteData(wesouwce: stwing, content: stwing = '', headews: IHeadews = {}): Pwomise<IWequestContext> {
 		if (!this.session) {
-			this.session = generateUuid();
+			this.session = genewateUuid();
 		}
-		const resourceKey = ALL_SERVER_RESOURCES.find(key => key === resource);
-		if (resourceKey) {
-			const data = this.data.get(resourceKey);
-			if (headers['If-Match'] !== undefined && headers['If-Match'] !== (data ? data.ref : '0')) {
-				return this.toResponse(412);
+		const wesouwceKey = AWW_SEWVEW_WESOUWCES.find(key => key === wesouwce);
+		if (wesouwceKey) {
+			const data = this.data.get(wesouwceKey);
+			if (headews['If-Match'] !== undefined && headews['If-Match'] !== (data ? data.wef : '0')) {
+				wetuwn this.toWesponse(412);
 			}
-			const ref = `${parseInt(data?.ref || '0') + 1}`;
-			this.data.set(resourceKey, { ref, content });
-			return this.toResponse(200, { etag: ref });
+			const wef = `${pawseInt(data?.wef || '0') + 1}`;
+			this.data.set(wesouwceKey, { wef, content });
+			wetuwn this.toWesponse(200, { etag: wef });
 		}
-		return this.toResponse(204);
+		wetuwn this.toWesponse(204);
 	}
 
-	async clear(headers?: IHeaders): Promise<IRequestContext> {
-		this.data.clear();
-		this.session = null;
-		return this.toResponse(204);
+	async cweaw(headews?: IHeadews): Pwomise<IWequestContext> {
+		this.data.cweaw();
+		this.session = nuww;
+		wetuwn this.toWesponse(204);
 	}
 
-	private toResponse(statusCode: number, headers?: IHeaders, data?: string): IRequestContext {
-		return {
-			res: {
-				headers: headers || {},
+	pwivate toWesponse(statusCode: numba, headews?: IHeadews, data?: stwing): IWequestContext {
+		wetuwn {
+			wes: {
+				headews: headews || {},
 				statusCode
 			},
-			stream: bufferToStream(VSBuffer.fromString(data || ''))
+			stweam: buffewToStweam(VSBuffa.fwomStwing(data || ''))
 		};
 	}
 }
 
-export class TestUserDataSyncUtilService implements IUserDataSyncUtilService {
+expowt cwass TestUsewDataSyncUtiwSewvice impwements IUsewDataSyncUtiwSewvice {
 
-	_serviceBrand: any;
+	_sewviceBwand: any;
 
-	async resolveDefaultIgnoredSettings(): Promise<string[]> {
-		return getDefaultIgnoredSettings();
+	async wesowveDefauwtIgnowedSettings(): Pwomise<stwing[]> {
+		wetuwn getDefauwtIgnowedSettings();
 	}
 
-	async resolveUserBindings(userbindings: string[]): Promise<IStringDictionary<string>> {
-		const keys: IStringDictionary<string> = {};
-		for (const keybinding of userbindings) {
+	async wesowveUsewBindings(usewbindings: stwing[]): Pwomise<IStwingDictionawy<stwing>> {
+		const keys: IStwingDictionawy<stwing> = {};
+		fow (const keybinding of usewbindings) {
 			keys[keybinding] = keybinding;
 		}
-		return keys;
+		wetuwn keys;
 	}
 
-	async resolveFormattingOptions(file?: URI): Promise<FormattingOptions> {
-		return { eol: '\n', insertSpaces: false, tabSize: 4 };
+	async wesowveFowmattingOptions(fiwe?: UWI): Pwomise<FowmattingOptions> {
+		wetuwn { eow: '\n', insewtSpaces: fawse, tabSize: 4 };
 	}
 
 }

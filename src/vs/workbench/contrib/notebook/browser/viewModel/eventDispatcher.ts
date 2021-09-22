@@ -1,36 +1,36 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { NotebookLayoutChangedEvent, NotebookMetadataChangedEvent, NotebookCellStateChangedEvent, NotebookViewEvent, NotebookViewEventType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { Disposable } from 'vs/base/common/lifecycle';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { NotebookWayoutChangedEvent, NotebookMetadataChangedEvent, NotebookCewwStateChangedEvent, NotebookViewEvent, NotebookViewEventType } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
 
-export class NotebookEventDispatcher extends Disposable {
-	private readonly _onDidChangeLayout = this._register(new Emitter<NotebookLayoutChangedEvent>());
-	readonly onDidChangeLayout = this._onDidChangeLayout.event;
+expowt cwass NotebookEventDispatcha extends Disposabwe {
+	pwivate weadonwy _onDidChangeWayout = this._wegista(new Emitta<NotebookWayoutChangedEvent>());
+	weadonwy onDidChangeWayout = this._onDidChangeWayout.event;
 
-	private readonly _onDidChangeMetadata = this._register(new Emitter<NotebookMetadataChangedEvent>());
-	readonly onDidChangeMetadata = this._onDidChangeMetadata.event;
+	pwivate weadonwy _onDidChangeMetadata = this._wegista(new Emitta<NotebookMetadataChangedEvent>());
+	weadonwy onDidChangeMetadata = this._onDidChangeMetadata.event;
 
-	private readonly _onDidChangeCellState = this._register(new Emitter<NotebookCellStateChangedEvent>());
-	readonly onDidChangeCellState = this._onDidChangeCellState.event;
+	pwivate weadonwy _onDidChangeCewwState = this._wegista(new Emitta<NotebookCewwStateChangedEvent>());
+	weadonwy onDidChangeCewwState = this._onDidChangeCewwState.event;
 
 	emit(events: NotebookViewEvent[]) {
-		for (let i = 0, len = events.length; i < len; i++) {
+		fow (wet i = 0, wen = events.wength; i < wen; i++) {
 			const e = events[i];
 
 			switch (e.type) {
-				case NotebookViewEventType.LayoutChanged:
-					this._onDidChangeLayout.fire(e);
-					break;
+				case NotebookViewEventType.WayoutChanged:
+					this._onDidChangeWayout.fiwe(e);
+					bweak;
 				case NotebookViewEventType.MetadataChanged:
-					this._onDidChangeMetadata.fire(e);
-					break;
-				case NotebookViewEventType.CellStateChanged:
-					this._onDidChangeCellState.fire(e);
-					break;
+					this._onDidChangeMetadata.fiwe(e);
+					bweak;
+				case NotebookViewEventType.CewwStateChanged:
+					this._onDidChangeCewwState.fiwe(e);
+					bweak;
 			}
 		}
 	}

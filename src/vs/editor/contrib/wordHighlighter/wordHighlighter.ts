@@ -1,672 +1,672 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import * as arrays from 'vs/base/common/arrays';
-import { CancelablePromise, createCancelablePromise, first, timeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, registerEditorAction, registerEditorContribution, registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IModelDeltaDecoration, ITextModel, IWordAtPosition, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
-import * as nls from 'vs/nls';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { activeContrastBorder, editorSelectionHighlight, editorSelectionHighlightBorder, minimapSelectionOccurrenceHighlight, overviewRulerSelectionHighlightForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
+impowt { awewt } fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt * as awways fwom 'vs/base/common/awways';
+impowt { CancewabwePwomise, cweateCancewabwePwomise, fiwst, timeout } fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { onUnexpectedEwwow, onUnexpectedExtewnawEwwow } fwom 'vs/base/common/ewwows';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IActiveCodeEditow, ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, IActionOptions, wegistewEditowAction, wegistewEditowContwibution, wegistewModewAndPositionCommand } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { CuwsowChangeWeason, ICuwsowPositionChangedEvent } fwom 'vs/editow/common/contwowwa/cuwsowEvents';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { IModewDewtaDecowation, ITextModew, IWowdAtPosition, MinimapPosition, OvewviewWuwewWane, TwackedWangeStickiness } fwom 'vs/editow/common/modew';
+impowt { ModewDecowationOptions } fwom 'vs/editow/common/modew/textModew';
+impowt { DocumentHighwight, DocumentHighwightKind, DocumentHighwightPwovidewWegistwy } fwom 'vs/editow/common/modes';
+impowt * as nws fwom 'vs/nws';
+impowt { IContextKey, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { activeContwastBowda, editowSewectionHighwight, editowSewectionHighwightBowda, minimapSewectionOccuwwenceHighwight, ovewviewWuwewSewectionHighwightFowegwound, wegistewCowow } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wegistewThemingPawticipant, themeCowowFwomId } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-const editorWordHighlight = registerColor('editor.wordHighlightBackground', { dark: '#575757B8', light: '#57575740', hc: null }, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable. The color must not be opaque so as not to hide underlying decorations.'), true);
-const editorWordHighlightStrong = registerColor('editor.wordHighlightStrongBackground', { dark: '#004972B8', light: '#0e639c40', hc: null }, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable. The color must not be opaque so as not to hide underlying decorations.'), true);
-const editorWordHighlightBorder = registerColor('editor.wordHighlightBorder', { light: null, dark: null, hc: activeContrastBorder }, nls.localize('wordHighlightBorder', 'Border color of a symbol during read-access, like reading a variable.'));
-const editorWordHighlightStrongBorder = registerColor('editor.wordHighlightStrongBorder', { light: null, dark: null, hc: activeContrastBorder }, nls.localize('wordHighlightStrongBorder', 'Border color of a symbol during write-access, like writing to a variable.'));
-const overviewRulerWordHighlightForeground = registerColor('editorOverviewRuler.wordHighlightForeground', { dark: '#A0A0A0CC', light: '#A0A0A0CC', hc: '#A0A0A0CC' }, nls.localize('overviewRulerWordHighlightForeground', 'Overview ruler marker color for symbol highlights. The color must not be opaque so as not to hide underlying decorations.'), true);
-const overviewRulerWordHighlightStrongForeground = registerColor('editorOverviewRuler.wordHighlightStrongForeground', { dark: '#C0A0C0CC', light: '#C0A0C0CC', hc: '#C0A0C0CC' }, nls.localize('overviewRulerWordHighlightStrongForeground', 'Overview ruler marker color for write-access symbol highlights. The color must not be opaque so as not to hide underlying decorations.'), true);
-const ctxHasWordHighlights = new RawContextKey<boolean>('hasWordHighlights', false);
+const editowWowdHighwight = wegistewCowow('editow.wowdHighwightBackgwound', { dawk: '#575757B8', wight: '#57575740', hc: nuww }, nws.wocawize('wowdHighwight', 'Backgwound cowow of a symbow duwing wead-access, wike weading a vawiabwe. The cowow must not be opaque so as not to hide undewwying decowations.'), twue);
+const editowWowdHighwightStwong = wegistewCowow('editow.wowdHighwightStwongBackgwound', { dawk: '#004972B8', wight: '#0e639c40', hc: nuww }, nws.wocawize('wowdHighwightStwong', 'Backgwound cowow of a symbow duwing wwite-access, wike wwiting to a vawiabwe. The cowow must not be opaque so as not to hide undewwying decowations.'), twue);
+const editowWowdHighwightBowda = wegistewCowow('editow.wowdHighwightBowda', { wight: nuww, dawk: nuww, hc: activeContwastBowda }, nws.wocawize('wowdHighwightBowda', 'Bowda cowow of a symbow duwing wead-access, wike weading a vawiabwe.'));
+const editowWowdHighwightStwongBowda = wegistewCowow('editow.wowdHighwightStwongBowda', { wight: nuww, dawk: nuww, hc: activeContwastBowda }, nws.wocawize('wowdHighwightStwongBowda', 'Bowda cowow of a symbow duwing wwite-access, wike wwiting to a vawiabwe.'));
+const ovewviewWuwewWowdHighwightFowegwound = wegistewCowow('editowOvewviewWuwa.wowdHighwightFowegwound', { dawk: '#A0A0A0CC', wight: '#A0A0A0CC', hc: '#A0A0A0CC' }, nws.wocawize('ovewviewWuwewWowdHighwightFowegwound', 'Ovewview wuwa mawka cowow fow symbow highwights. The cowow must not be opaque so as not to hide undewwying decowations.'), twue);
+const ovewviewWuwewWowdHighwightStwongFowegwound = wegistewCowow('editowOvewviewWuwa.wowdHighwightStwongFowegwound', { dawk: '#C0A0C0CC', wight: '#C0A0C0CC', hc: '#C0A0C0CC' }, nws.wocawize('ovewviewWuwewWowdHighwightStwongFowegwound', 'Ovewview wuwa mawka cowow fow wwite-access symbow highwights. The cowow must not be opaque so as not to hide undewwying decowations.'), twue);
+const ctxHasWowdHighwights = new WawContextKey<boowean>('hasWowdHighwights', fawse);
 
-export function getOccurrencesAtPosition(model: ITextModel, position: Position, token: CancellationToken): Promise<DocumentHighlight[] | null | undefined> {
+expowt function getOccuwwencesAtPosition(modew: ITextModew, position: Position, token: CancewwationToken): Pwomise<DocumentHighwight[] | nuww | undefined> {
 
-	const orderedByScore = DocumentHighlightProviderRegistry.ordered(model);
+	const owdewedByScowe = DocumentHighwightPwovidewWegistwy.owdewed(modew);
 
-	// in order of score ask the occurrences provider
-	// until someone response with a good result
-	// (good = none empty array)
-	return first<DocumentHighlight[] | null | undefined>(orderedByScore.map(provider => () => {
-		return Promise.resolve(provider.provideDocumentHighlights(model, position, token))
-			.then(undefined, onUnexpectedExternalError);
-	}), arrays.isNonEmptyArray);
+	// in owda of scowe ask the occuwwences pwovida
+	// untiw someone wesponse with a good wesuwt
+	// (good = none empty awway)
+	wetuwn fiwst<DocumentHighwight[] | nuww | undefined>(owdewedByScowe.map(pwovida => () => {
+		wetuwn Pwomise.wesowve(pwovida.pwovideDocumentHighwights(modew, position, token))
+			.then(undefined, onUnexpectedExtewnawEwwow);
+	}), awways.isNonEmptyAwway);
 }
 
-interface IOccurenceAtPositionRequest {
-	readonly result: Promise<DocumentHighlight[]>;
-	isValid(model: ITextModel, selection: Selection, decorationIds: string[]): boolean;
-	cancel(): void;
+intewface IOccuwenceAtPositionWequest {
+	weadonwy wesuwt: Pwomise<DocumentHighwight[]>;
+	isVawid(modew: ITextModew, sewection: Sewection, decowationIds: stwing[]): boowean;
+	cancew(): void;
 }
 
-abstract class OccurenceAtPositionRequest implements IOccurenceAtPositionRequest {
+abstwact cwass OccuwenceAtPositionWequest impwements IOccuwenceAtPositionWequest {
 
-	private readonly _wordRange: Range | null;
-	public readonly result: CancelablePromise<DocumentHighlight[]>;
+	pwivate weadonwy _wowdWange: Wange | nuww;
+	pubwic weadonwy wesuwt: CancewabwePwomise<DocumentHighwight[]>;
 
-	constructor(model: ITextModel, selection: Selection, wordSeparators: string) {
-		this._wordRange = this._getCurrentWordRange(model, selection);
-		this.result = createCancelablePromise(token => this._compute(model, selection, wordSeparators, token));
+	constwuctow(modew: ITextModew, sewection: Sewection, wowdSepawatows: stwing) {
+		this._wowdWange = this._getCuwwentWowdWange(modew, sewection);
+		this.wesuwt = cweateCancewabwePwomise(token => this._compute(modew, sewection, wowdSepawatows, token));
 	}
 
-	protected abstract _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Promise<DocumentHighlight[]>;
+	pwotected abstwact _compute(modew: ITextModew, sewection: Sewection, wowdSepawatows: stwing, token: CancewwationToken): Pwomise<DocumentHighwight[]>;
 
-	private _getCurrentWordRange(model: ITextModel, selection: Selection): Range | null {
-		const word = model.getWordAtPosition(selection.getPosition());
-		if (word) {
-			return new Range(selection.startLineNumber, word.startColumn, selection.startLineNumber, word.endColumn);
+	pwivate _getCuwwentWowdWange(modew: ITextModew, sewection: Sewection): Wange | nuww {
+		const wowd = modew.getWowdAtPosition(sewection.getPosition());
+		if (wowd) {
+			wetuwn new Wange(sewection.stawtWineNumba, wowd.stawtCowumn, sewection.stawtWineNumba, wowd.endCowumn);
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	public isValid(model: ITextModel, selection: Selection, decorationIds: string[]): boolean {
+	pubwic isVawid(modew: ITextModew, sewection: Sewection, decowationIds: stwing[]): boowean {
 
-		const lineNumber = selection.startLineNumber;
-		const startColumn = selection.startColumn;
-		const endColumn = selection.endColumn;
-		const currentWordRange = this._getCurrentWordRange(model, selection);
+		const wineNumba = sewection.stawtWineNumba;
+		const stawtCowumn = sewection.stawtCowumn;
+		const endCowumn = sewection.endCowumn;
+		const cuwwentWowdWange = this._getCuwwentWowdWange(modew, sewection);
 
-		let requestIsValid = Boolean(this._wordRange && this._wordRange.equalsRange(currentWordRange));
+		wet wequestIsVawid = Boowean(this._wowdWange && this._wowdWange.equawsWange(cuwwentWowdWange));
 
-		// Even if we are on a different word, if that word is in the decorations ranges, the request is still valid
-		// (Same symbol)
-		for (let i = 0, len = decorationIds.length; !requestIsValid && i < len; i++) {
-			let range = model.getDecorationRange(decorationIds[i]);
-			if (range && range.startLineNumber === lineNumber) {
-				if (range.startColumn <= startColumn && range.endColumn >= endColumn) {
-					requestIsValid = true;
+		// Even if we awe on a diffewent wowd, if that wowd is in the decowations wanges, the wequest is stiww vawid
+		// (Same symbow)
+		fow (wet i = 0, wen = decowationIds.wength; !wequestIsVawid && i < wen; i++) {
+			wet wange = modew.getDecowationWange(decowationIds[i]);
+			if (wange && wange.stawtWineNumba === wineNumba) {
+				if (wange.stawtCowumn <= stawtCowumn && wange.endCowumn >= endCowumn) {
+					wequestIsVawid = twue;
 				}
 			}
 		}
 
-		return requestIsValid;
+		wetuwn wequestIsVawid;
 	}
 
-	public cancel(): void {
-		this.result.cancel();
-	}
-}
-
-class SemanticOccurenceAtPositionRequest extends OccurenceAtPositionRequest {
-	protected _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Promise<DocumentHighlight[]> {
-		return getOccurrencesAtPosition(model, selection.getPosition(), token).then(value => value || []);
+	pubwic cancew(): void {
+		this.wesuwt.cancew();
 	}
 }
 
-class TextualOccurenceAtPositionRequest extends OccurenceAtPositionRequest {
+cwass SemanticOccuwenceAtPositionWequest extends OccuwenceAtPositionWequest {
+	pwotected _compute(modew: ITextModew, sewection: Sewection, wowdSepawatows: stwing, token: CancewwationToken): Pwomise<DocumentHighwight[]> {
+		wetuwn getOccuwwencesAtPosition(modew, sewection.getPosition(), token).then(vawue => vawue || []);
+	}
+}
 
-	private readonly _selectionIsEmpty: boolean;
+cwass TextuawOccuwenceAtPositionWequest extends OccuwenceAtPositionWequest {
 
-	constructor(model: ITextModel, selection: Selection, wordSeparators: string) {
-		super(model, selection, wordSeparators);
-		this._selectionIsEmpty = selection.isEmpty();
+	pwivate weadonwy _sewectionIsEmpty: boowean;
+
+	constwuctow(modew: ITextModew, sewection: Sewection, wowdSepawatows: stwing) {
+		supa(modew, sewection, wowdSepawatows);
+		this._sewectionIsEmpty = sewection.isEmpty();
 	}
 
-	protected _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Promise<DocumentHighlight[]> {
-		return timeout(250, token).then(() => {
-			if (!selection.isEmpty()) {
-				return [];
+	pwotected _compute(modew: ITextModew, sewection: Sewection, wowdSepawatows: stwing, token: CancewwationToken): Pwomise<DocumentHighwight[]> {
+		wetuwn timeout(250, token).then(() => {
+			if (!sewection.isEmpty()) {
+				wetuwn [];
 			}
 
-			const word = model.getWordAtPosition(selection.getPosition());
+			const wowd = modew.getWowdAtPosition(sewection.getPosition());
 
-			if (!word || word.word.length > 1000) {
-				return [];
+			if (!wowd || wowd.wowd.wength > 1000) {
+				wetuwn [];
 			}
-			const matches = model.findMatches(word.word, true, false, true, wordSeparators, false);
-			return matches.map(m => {
-				return {
-					range: m.range,
-					kind: DocumentHighlightKind.Text
+			const matches = modew.findMatches(wowd.wowd, twue, fawse, twue, wowdSepawatows, fawse);
+			wetuwn matches.map(m => {
+				wetuwn {
+					wange: m.wange,
+					kind: DocumentHighwightKind.Text
 				};
 			});
 		});
 	}
 
-	public override isValid(model: ITextModel, selection: Selection, decorationIds: string[]): boolean {
-		const currentSelectionIsEmpty = selection.isEmpty();
-		if (this._selectionIsEmpty !== currentSelectionIsEmpty) {
-			return false;
+	pubwic ovewwide isVawid(modew: ITextModew, sewection: Sewection, decowationIds: stwing[]): boowean {
+		const cuwwentSewectionIsEmpty = sewection.isEmpty();
+		if (this._sewectionIsEmpty !== cuwwentSewectionIsEmpty) {
+			wetuwn fawse;
 		}
-		return super.isValid(model, selection, decorationIds);
+		wetuwn supa.isVawid(modew, sewection, decowationIds);
 	}
 }
 
-function computeOccurencesAtPosition(model: ITextModel, selection: Selection, wordSeparators: string): IOccurenceAtPositionRequest {
-	if (DocumentHighlightProviderRegistry.has(model)) {
-		return new SemanticOccurenceAtPositionRequest(model, selection, wordSeparators);
+function computeOccuwencesAtPosition(modew: ITextModew, sewection: Sewection, wowdSepawatows: stwing): IOccuwenceAtPositionWequest {
+	if (DocumentHighwightPwovidewWegistwy.has(modew)) {
+		wetuwn new SemanticOccuwenceAtPositionWequest(modew, sewection, wowdSepawatows);
 	}
-	return new TextualOccurenceAtPositionRequest(model, selection, wordSeparators);
+	wetuwn new TextuawOccuwenceAtPositionWequest(modew, sewection, wowdSepawatows);
 }
 
-registerModelAndPositionCommand('_executeDocumentHighlights', (model, position) => getOccurrencesAtPosition(model, position, CancellationToken.None));
+wegistewModewAndPositionCommand('_executeDocumentHighwights', (modew, position) => getOccuwwencesAtPosition(modew, position, CancewwationToken.None));
 
-class WordHighlighter {
+cwass WowdHighwighta {
 
-	private readonly editor: IActiveCodeEditor;
-	private occurrencesHighlight: boolean;
-	private readonly model: ITextModel;
-	private _decorationIds: string[];
-	private readonly toUnhook = new DisposableStore();
+	pwivate weadonwy editow: IActiveCodeEditow;
+	pwivate occuwwencesHighwight: boowean;
+	pwivate weadonwy modew: ITextModew;
+	pwivate _decowationIds: stwing[];
+	pwivate weadonwy toUnhook = new DisposabweStowe();
 
-	private workerRequestTokenId: number = 0;
-	private workerRequest: IOccurenceAtPositionRequest | null;
-	private workerRequestCompleted: boolean = false;
-	private workerRequestValue: DocumentHighlight[] = [];
+	pwivate wowkewWequestTokenId: numba = 0;
+	pwivate wowkewWequest: IOccuwenceAtPositionWequest | nuww;
+	pwivate wowkewWequestCompweted: boowean = fawse;
+	pwivate wowkewWequestVawue: DocumentHighwight[] = [];
 
-	private lastCursorPositionChangeTime: number = 0;
-	private renderDecorationsTimer: any = -1;
+	pwivate wastCuwsowPositionChangeTime: numba = 0;
+	pwivate wendewDecowationsTima: any = -1;
 
-	private readonly _hasWordHighlights: IContextKey<boolean>;
-	private _ignorePositionChangeEvent: boolean;
+	pwivate weadonwy _hasWowdHighwights: IContextKey<boowean>;
+	pwivate _ignowePositionChangeEvent: boowean;
 
-	constructor(editor: IActiveCodeEditor, contextKeyService: IContextKeyService) {
-		this.editor = editor;
-		this._hasWordHighlights = ctxHasWordHighlights.bindTo(contextKeyService);
-		this._ignorePositionChangeEvent = false;
-		this.occurrencesHighlight = this.editor.getOption(EditorOption.occurrencesHighlight);
-		this.model = this.editor.getModel();
-		this.toUnhook.add(editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
+	constwuctow(editow: IActiveCodeEditow, contextKeySewvice: IContextKeySewvice) {
+		this.editow = editow;
+		this._hasWowdHighwights = ctxHasWowdHighwights.bindTo(contextKeySewvice);
+		this._ignowePositionChangeEvent = fawse;
+		this.occuwwencesHighwight = this.editow.getOption(EditowOption.occuwwencesHighwight);
+		this.modew = this.editow.getModew();
+		this.toUnhook.add(editow.onDidChangeCuwsowPosition((e: ICuwsowPositionChangedEvent) => {
 
-			if (this._ignorePositionChangeEvent) {
-				// We are changing the position => ignore this event
-				return;
+			if (this._ignowePositionChangeEvent) {
+				// We awe changing the position => ignowe this event
+				wetuwn;
 			}
 
-			if (!this.occurrencesHighlight) {
-				// Early exit if nothing needs to be done!
-				// Leave some form of early exit check here if you wish to continue being a cursor position change listener ;)
-				return;
+			if (!this.occuwwencesHighwight) {
+				// Eawwy exit if nothing needs to be done!
+				// Weave some fowm of eawwy exit check hewe if you wish to continue being a cuwsow position change wistena ;)
+				wetuwn;
 			}
 
 			this._onPositionChanged(e);
 		}));
-		this.toUnhook.add(editor.onDidChangeModelContent((e) => {
-			this._stopAll();
+		this.toUnhook.add(editow.onDidChangeModewContent((e) => {
+			this._stopAww();
 		}));
-		this.toUnhook.add(editor.onDidChangeConfiguration((e) => {
-			let newValue = this.editor.getOption(EditorOption.occurrencesHighlight);
-			if (this.occurrencesHighlight !== newValue) {
-				this.occurrencesHighlight = newValue;
-				this._stopAll();
+		this.toUnhook.add(editow.onDidChangeConfiguwation((e) => {
+			wet newVawue = this.editow.getOption(EditowOption.occuwwencesHighwight);
+			if (this.occuwwencesHighwight !== newVawue) {
+				this.occuwwencesHighwight = newVawue;
+				this._stopAww();
 			}
 		}));
 
-		this._decorationIds = [];
-		this.workerRequestTokenId = 0;
-		this.workerRequest = null;
-		this.workerRequestCompleted = false;
+		this._decowationIds = [];
+		this.wowkewWequestTokenId = 0;
+		this.wowkewWequest = nuww;
+		this.wowkewWequestCompweted = fawse;
 
-		this.lastCursorPositionChangeTime = 0;
-		this.renderDecorationsTimer = -1;
+		this.wastCuwsowPositionChangeTime = 0;
+		this.wendewDecowationsTima = -1;
 	}
 
-	public hasDecorations(): boolean {
-		return (this._decorationIds.length > 0);
+	pubwic hasDecowations(): boowean {
+		wetuwn (this._decowationIds.wength > 0);
 	}
 
-	public restore(): void {
-		if (!this.occurrencesHighlight) {
-			return;
+	pubwic westowe(): void {
+		if (!this.occuwwencesHighwight) {
+			wetuwn;
 		}
-		this._run();
+		this._wun();
 	}
 
-	private _getSortedHighlights(): Range[] {
-		return arrays.coalesce(
-			this._decorationIds
-				.map((id) => this.model.getDecorationRange(id))
-				.sort(Range.compareRangesUsingStarts)
+	pwivate _getSowtedHighwights(): Wange[] {
+		wetuwn awways.coawesce(
+			this._decowationIds
+				.map((id) => this.modew.getDecowationWange(id))
+				.sowt(Wange.compaweWangesUsingStawts)
 		);
 	}
 
-	public moveNext() {
-		let highlights = this._getSortedHighlights();
-		let index = highlights.findIndex((range) => range.containsPosition(this.editor.getPosition()));
-		let newIndex = ((index + 1) % highlights.length);
-		let dest = highlights[newIndex];
-		try {
-			this._ignorePositionChangeEvent = true;
-			this.editor.setPosition(dest.getStartPosition());
-			this.editor.revealRangeInCenterIfOutsideViewport(dest);
-			const word = this._getWord();
-			if (word) {
-				const lineContent = this.editor.getModel().getLineContent(dest.startLineNumber);
-				alert(`${lineContent}, ${newIndex + 1} of ${highlights.length} for '${word.word}'`);
+	pubwic moveNext() {
+		wet highwights = this._getSowtedHighwights();
+		wet index = highwights.findIndex((wange) => wange.containsPosition(this.editow.getPosition()));
+		wet newIndex = ((index + 1) % highwights.wength);
+		wet dest = highwights[newIndex];
+		twy {
+			this._ignowePositionChangeEvent = twue;
+			this.editow.setPosition(dest.getStawtPosition());
+			this.editow.weveawWangeInCentewIfOutsideViewpowt(dest);
+			const wowd = this._getWowd();
+			if (wowd) {
+				const wineContent = this.editow.getModew().getWineContent(dest.stawtWineNumba);
+				awewt(`${wineContent}, ${newIndex + 1} of ${highwights.wength} fow '${wowd.wowd}'`);
 			}
-		} finally {
-			this._ignorePositionChangeEvent = false;
+		} finawwy {
+			this._ignowePositionChangeEvent = fawse;
 		}
 	}
 
-	public moveBack() {
-		let highlights = this._getSortedHighlights();
-		let index = highlights.findIndex((range) => range.containsPosition(this.editor.getPosition()));
-		let newIndex = ((index - 1 + highlights.length) % highlights.length);
-		let dest = highlights[newIndex];
-		try {
-			this._ignorePositionChangeEvent = true;
-			this.editor.setPosition(dest.getStartPosition());
-			this.editor.revealRangeInCenterIfOutsideViewport(dest);
-			const word = this._getWord();
-			if (word) {
-				const lineContent = this.editor.getModel().getLineContent(dest.startLineNumber);
-				alert(`${lineContent}, ${newIndex + 1} of ${highlights.length} for '${word.word}'`);
+	pubwic moveBack() {
+		wet highwights = this._getSowtedHighwights();
+		wet index = highwights.findIndex((wange) => wange.containsPosition(this.editow.getPosition()));
+		wet newIndex = ((index - 1 + highwights.wength) % highwights.wength);
+		wet dest = highwights[newIndex];
+		twy {
+			this._ignowePositionChangeEvent = twue;
+			this.editow.setPosition(dest.getStawtPosition());
+			this.editow.weveawWangeInCentewIfOutsideViewpowt(dest);
+			const wowd = this._getWowd();
+			if (wowd) {
+				const wineContent = this.editow.getModew().getWineContent(dest.stawtWineNumba);
+				awewt(`${wineContent}, ${newIndex + 1} of ${highwights.wength} fow '${wowd.wowd}'`);
 			}
-		} finally {
-			this._ignorePositionChangeEvent = false;
+		} finawwy {
+			this._ignowePositionChangeEvent = fawse;
 		}
 	}
 
-	private _removeDecorations(): void {
-		if (this._decorationIds.length > 0) {
-			// remove decorations
-			this._decorationIds = this.editor.deltaDecorations(this._decorationIds, []);
-			this._hasWordHighlights.set(false);
+	pwivate _wemoveDecowations(): void {
+		if (this._decowationIds.wength > 0) {
+			// wemove decowations
+			this._decowationIds = this.editow.dewtaDecowations(this._decowationIds, []);
+			this._hasWowdHighwights.set(fawse);
 		}
 	}
 
-	private _stopAll(): void {
-		// Remove any existing decorations
-		this._removeDecorations();
+	pwivate _stopAww(): void {
+		// Wemove any existing decowations
+		this._wemoveDecowations();
 
-		// Cancel any renderDecorationsTimer
-		if (this.renderDecorationsTimer !== -1) {
-			clearTimeout(this.renderDecorationsTimer);
-			this.renderDecorationsTimer = -1;
+		// Cancew any wendewDecowationsTima
+		if (this.wendewDecowationsTima !== -1) {
+			cweawTimeout(this.wendewDecowationsTima);
+			this.wendewDecowationsTima = -1;
 		}
 
-		// Cancel any worker request
-		if (this.workerRequest !== null) {
-			this.workerRequest.cancel();
-			this.workerRequest = null;
+		// Cancew any wowka wequest
+		if (this.wowkewWequest !== nuww) {
+			this.wowkewWequest.cancew();
+			this.wowkewWequest = nuww;
 		}
 
-		// Invalidate any worker request callback
-		if (!this.workerRequestCompleted) {
-			this.workerRequestTokenId++;
-			this.workerRequestCompleted = true;
+		// Invawidate any wowka wequest cawwback
+		if (!this.wowkewWequestCompweted) {
+			this.wowkewWequestTokenId++;
+			this.wowkewWequestCompweted = twue;
 		}
 	}
 
-	private _onPositionChanged(e: ICursorPositionChangedEvent): void {
+	pwivate _onPositionChanged(e: ICuwsowPositionChangedEvent): void {
 
-		// disabled
-		if (!this.occurrencesHighlight) {
-			this._stopAll();
-			return;
+		// disabwed
+		if (!this.occuwwencesHighwight) {
+			this._stopAww();
+			wetuwn;
 		}
 
-		// ignore typing & other
-		if (e.reason !== CursorChangeReason.Explicit) {
-			this._stopAll();
-			return;
+		// ignowe typing & otha
+		if (e.weason !== CuwsowChangeWeason.Expwicit) {
+			this._stopAww();
+			wetuwn;
 		}
 
-		this._run();
+		this._wun();
 	}
 
-	private _getWord(): IWordAtPosition | null {
-		let editorSelection = this.editor.getSelection();
-		let lineNumber = editorSelection.startLineNumber;
-		let startColumn = editorSelection.startColumn;
+	pwivate _getWowd(): IWowdAtPosition | nuww {
+		wet editowSewection = this.editow.getSewection();
+		wet wineNumba = editowSewection.stawtWineNumba;
+		wet stawtCowumn = editowSewection.stawtCowumn;
 
-		return this.model.getWordAtPosition({
-			lineNumber: lineNumber,
-			column: startColumn
+		wetuwn this.modew.getWowdAtPosition({
+			wineNumba: wineNumba,
+			cowumn: stawtCowumn
 		});
 	}
 
-	private _run(): void {
-		let editorSelection = this.editor.getSelection();
+	pwivate _wun(): void {
+		wet editowSewection = this.editow.getSewection();
 
-		// ignore multiline selection
-		if (editorSelection.startLineNumber !== editorSelection.endLineNumber) {
-			this._stopAll();
-			return;
+		// ignowe muwtiwine sewection
+		if (editowSewection.stawtWineNumba !== editowSewection.endWineNumba) {
+			this._stopAww();
+			wetuwn;
 		}
 
-		let startColumn = editorSelection.startColumn;
-		let endColumn = editorSelection.endColumn;
+		wet stawtCowumn = editowSewection.stawtCowumn;
+		wet endCowumn = editowSewection.endCowumn;
 
-		const word = this._getWord();
+		const wowd = this._getWowd();
 
-		// The selection must be inside a word or surround one word at most
-		if (!word || word.startColumn > startColumn || word.endColumn < endColumn) {
-			this._stopAll();
-			return;
+		// The sewection must be inside a wowd ow suwwound one wowd at most
+		if (!wowd || wowd.stawtCowumn > stawtCowumn || wowd.endCowumn < endCowumn) {
+			this._stopAww();
+			wetuwn;
 		}
 
-		// All the effort below is trying to achieve this:
-		// - when cursor is moved to a word, trigger immediately a findOccurrences request
-		// - 250ms later after the last cursor move event, render the occurrences
-		// - no flickering!
+		// Aww the effowt bewow is twying to achieve this:
+		// - when cuwsow is moved to a wowd, twigga immediatewy a findOccuwwences wequest
+		// - 250ms wata afta the wast cuwsow move event, wenda the occuwwences
+		// - no fwickewing!
 
-		const workerRequestIsValid = (this.workerRequest && this.workerRequest.isValid(this.model, editorSelection, this._decorationIds));
+		const wowkewWequestIsVawid = (this.wowkewWequest && this.wowkewWequest.isVawid(this.modew, editowSewection, this._decowationIds));
 
-		// There are 4 cases:
-		// a) old workerRequest is valid & completed, renderDecorationsTimer fired
-		// b) old workerRequest is valid & completed, renderDecorationsTimer not fired
-		// c) old workerRequest is valid, but not completed
-		// d) old workerRequest is not valid
+		// Thewe awe 4 cases:
+		// a) owd wowkewWequest is vawid & compweted, wendewDecowationsTima fiwed
+		// b) owd wowkewWequest is vawid & compweted, wendewDecowationsTima not fiwed
+		// c) owd wowkewWequest is vawid, but not compweted
+		// d) owd wowkewWequest is not vawid
 
-		// For a) no action is needed
-		// For c), member 'lastCursorPositionChangeTime' will be used when installing the timer so no action is needed
+		// Fow a) no action is needed
+		// Fow c), memba 'wastCuwsowPositionChangeTime' wiww be used when instawwing the tima so no action is needed
 
-		this.lastCursorPositionChangeTime = (new Date()).getTime();
+		this.wastCuwsowPositionChangeTime = (new Date()).getTime();
 
-		if (workerRequestIsValid) {
-			if (this.workerRequestCompleted && this.renderDecorationsTimer !== -1) {
+		if (wowkewWequestIsVawid) {
+			if (this.wowkewWequestCompweted && this.wendewDecowationsTima !== -1) {
 				// case b)
-				// Delay the firing of renderDecorationsTimer by an extra 250 ms
-				clearTimeout(this.renderDecorationsTimer);
-				this.renderDecorationsTimer = -1;
-				this._beginRenderDecorations();
+				// Deway the fiwing of wendewDecowationsTima by an extwa 250 ms
+				cweawTimeout(this.wendewDecowationsTima);
+				this.wendewDecowationsTima = -1;
+				this._beginWendewDecowations();
 			}
-		} else {
+		} ewse {
 			// case d)
-			// Stop all previous actions and start fresh
-			this._stopAll();
+			// Stop aww pwevious actions and stawt fwesh
+			this._stopAww();
 
-			let myRequestId = ++this.workerRequestTokenId;
-			this.workerRequestCompleted = false;
+			wet myWequestId = ++this.wowkewWequestTokenId;
+			this.wowkewWequestCompweted = fawse;
 
-			this.workerRequest = computeOccurencesAtPosition(this.model, this.editor.getSelection(), this.editor.getOption(EditorOption.wordSeparators));
+			this.wowkewWequest = computeOccuwencesAtPosition(this.modew, this.editow.getSewection(), this.editow.getOption(EditowOption.wowdSepawatows));
 
-			this.workerRequest.result.then(data => {
-				if (myRequestId === this.workerRequestTokenId) {
-					this.workerRequestCompleted = true;
-					this.workerRequestValue = data || [];
-					this._beginRenderDecorations();
+			this.wowkewWequest.wesuwt.then(data => {
+				if (myWequestId === this.wowkewWequestTokenId) {
+					this.wowkewWequestCompweted = twue;
+					this.wowkewWequestVawue = data || [];
+					this._beginWendewDecowations();
 				}
-			}, onUnexpectedError);
+			}, onUnexpectedEwwow);
 		}
 	}
 
-	private _beginRenderDecorations(): void {
-		let currentTime = (new Date()).getTime();
-		let minimumRenderTime = this.lastCursorPositionChangeTime + 250;
+	pwivate _beginWendewDecowations(): void {
+		wet cuwwentTime = (new Date()).getTime();
+		wet minimumWendewTime = this.wastCuwsowPositionChangeTime + 250;
 
-		if (currentTime >= minimumRenderTime) {
-			// Synchronous
-			this.renderDecorationsTimer = -1;
-			this.renderDecorations();
-		} else {
-			// Asynchronous
-			this.renderDecorationsTimer = setTimeout(() => {
-				this.renderDecorations();
-			}, (minimumRenderTime - currentTime));
+		if (cuwwentTime >= minimumWendewTime) {
+			// Synchwonous
+			this.wendewDecowationsTima = -1;
+			this.wendewDecowations();
+		} ewse {
+			// Asynchwonous
+			this.wendewDecowationsTima = setTimeout(() => {
+				this.wendewDecowations();
+			}, (minimumWendewTime - cuwwentTime));
 		}
 	}
 
-	private renderDecorations(): void {
-		this.renderDecorationsTimer = -1;
-		let decorations: IModelDeltaDecoration[] = [];
-		for (const info of this.workerRequestValue) {
-			if (info.range) {
-				decorations.push({
-					range: info.range,
-					options: WordHighlighter._getDecorationOptions(info.kind)
+	pwivate wendewDecowations(): void {
+		this.wendewDecowationsTima = -1;
+		wet decowations: IModewDewtaDecowation[] = [];
+		fow (const info of this.wowkewWequestVawue) {
+			if (info.wange) {
+				decowations.push({
+					wange: info.wange,
+					options: WowdHighwighta._getDecowationOptions(info.kind)
 				});
 			}
 		}
 
-		this._decorationIds = this.editor.deltaDecorations(this._decorationIds, decorations);
-		this._hasWordHighlights.set(this.hasDecorations());
+		this._decowationIds = this.editow.dewtaDecowations(this._decowationIds, decowations);
+		this._hasWowdHighwights.set(this.hasDecowations());
 	}
 
-	private static _getDecorationOptions(kind: DocumentHighlightKind | undefined): ModelDecorationOptions {
-		if (kind === DocumentHighlightKind.Write) {
-			return this._WRITE_OPTIONS;
-		} else if (kind === DocumentHighlightKind.Text) {
-			return this._TEXT_OPTIONS;
-		} else {
-			return this._REGULAR_OPTIONS;
+	pwivate static _getDecowationOptions(kind: DocumentHighwightKind | undefined): ModewDecowationOptions {
+		if (kind === DocumentHighwightKind.Wwite) {
+			wetuwn this._WWITE_OPTIONS;
+		} ewse if (kind === DocumentHighwightKind.Text) {
+			wetuwn this._TEXT_OPTIONS;
+		} ewse {
+			wetuwn this._WEGUWAW_OPTIONS;
 		}
 	}
 
-	private static readonly _WRITE_OPTIONS = ModelDecorationOptions.register({
-		description: 'word-highlight-strong',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		className: 'wordHighlightStrong',
-		overviewRuler: {
-			color: themeColorFromId(overviewRulerWordHighlightStrongForeground),
-			position: OverviewRulerLane.Center
+	pwivate static weadonwy _WWITE_OPTIONS = ModewDecowationOptions.wegista({
+		descwiption: 'wowd-highwight-stwong',
+		stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
+		cwassName: 'wowdHighwightStwong',
+		ovewviewWuwa: {
+			cowow: themeCowowFwomId(ovewviewWuwewWowdHighwightStwongFowegwound),
+			position: OvewviewWuwewWane.Centa
 		},
 		minimap: {
-			color: themeColorFromId(minimapSelectionOccurrenceHighlight),
-			position: MinimapPosition.Inline
+			cowow: themeCowowFwomId(minimapSewectionOccuwwenceHighwight),
+			position: MinimapPosition.Inwine
 		},
 	});
 
-	private static readonly _TEXT_OPTIONS = ModelDecorationOptions.register({
-		description: 'selection-highlight',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		className: 'selectionHighlight',
-		overviewRuler: {
-			color: themeColorFromId(overviewRulerSelectionHighlightForeground),
-			position: OverviewRulerLane.Center
+	pwivate static weadonwy _TEXT_OPTIONS = ModewDecowationOptions.wegista({
+		descwiption: 'sewection-highwight',
+		stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
+		cwassName: 'sewectionHighwight',
+		ovewviewWuwa: {
+			cowow: themeCowowFwomId(ovewviewWuwewSewectionHighwightFowegwound),
+			position: OvewviewWuwewWane.Centa
 		},
 		minimap: {
-			color: themeColorFromId(minimapSelectionOccurrenceHighlight),
-			position: MinimapPosition.Inline
+			cowow: themeCowowFwomId(minimapSewectionOccuwwenceHighwight),
+			position: MinimapPosition.Inwine
 		},
 	});
 
-	private static readonly _REGULAR_OPTIONS = ModelDecorationOptions.register({
-		description: 'word-highlight',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		className: 'wordHighlight',
-		overviewRuler: {
-			color: themeColorFromId(overviewRulerWordHighlightForeground),
-			position: OverviewRulerLane.Center
+	pwivate static weadonwy _WEGUWAW_OPTIONS = ModewDecowationOptions.wegista({
+		descwiption: 'wowd-highwight',
+		stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
+		cwassName: 'wowdHighwight',
+		ovewviewWuwa: {
+			cowow: themeCowowFwomId(ovewviewWuwewWowdHighwightFowegwound),
+			position: OvewviewWuwewWane.Centa
 		},
 		minimap: {
-			color: themeColorFromId(minimapSelectionOccurrenceHighlight),
-			position: MinimapPosition.Inline
+			cowow: themeCowowFwomId(minimapSewectionOccuwwenceHighwight),
+			position: MinimapPosition.Inwine
 		},
 	});
 
-	public dispose(): void {
-		this._stopAll();
+	pubwic dispose(): void {
+		this._stopAww();
 		this.toUnhook.dispose();
 	}
 }
 
-class WordHighlighterContribution extends Disposable implements IEditorContribution {
+cwass WowdHighwightewContwibution extends Disposabwe impwements IEditowContwibution {
 
-	public static readonly ID = 'editor.contrib.wordHighlighter';
+	pubwic static weadonwy ID = 'editow.contwib.wowdHighwighta';
 
-	public static get(editor: ICodeEditor): WordHighlighterContribution {
-		return editor.getContribution<WordHighlighterContribution>(WordHighlighterContribution.ID);
+	pubwic static get(editow: ICodeEditow): WowdHighwightewContwibution {
+		wetuwn editow.getContwibution<WowdHighwightewContwibution>(WowdHighwightewContwibution.ID);
 	}
 
-	private wordHighlighter: WordHighlighter | null;
+	pwivate wowdHighwighta: WowdHighwighta | nuww;
 
-	constructor(editor: ICodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
-		super();
-		this.wordHighlighter = null;
-		const createWordHighlighterIfPossible = () => {
-			if (editor.hasModel()) {
-				this.wordHighlighter = new WordHighlighter(editor, contextKeyService);
+	constwuctow(editow: ICodeEditow, @IContextKeySewvice contextKeySewvice: IContextKeySewvice) {
+		supa();
+		this.wowdHighwighta = nuww;
+		const cweateWowdHighwightewIfPossibwe = () => {
+			if (editow.hasModew()) {
+				this.wowdHighwighta = new WowdHighwighta(editow, contextKeySewvice);
 			}
 		};
-		this._register(editor.onDidChangeModel((e) => {
-			if (this.wordHighlighter) {
-				this.wordHighlighter.dispose();
-				this.wordHighlighter = null;
+		this._wegista(editow.onDidChangeModew((e) => {
+			if (this.wowdHighwighta) {
+				this.wowdHighwighta.dispose();
+				this.wowdHighwighta = nuww;
 			}
-			createWordHighlighterIfPossible();
+			cweateWowdHighwightewIfPossibwe();
 		}));
-		createWordHighlighterIfPossible();
+		cweateWowdHighwightewIfPossibwe();
 	}
 
-	public saveViewState(): boolean {
-		if (this.wordHighlighter && this.wordHighlighter.hasDecorations()) {
-			return true;
+	pubwic saveViewState(): boowean {
+		if (this.wowdHighwighta && this.wowdHighwighta.hasDecowations()) {
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public moveNext() {
-		if (this.wordHighlighter) {
-			this.wordHighlighter.moveNext();
-		}
-	}
-
-	public moveBack() {
-		if (this.wordHighlighter) {
-			this.wordHighlighter.moveBack();
+	pubwic moveNext() {
+		if (this.wowdHighwighta) {
+			this.wowdHighwighta.moveNext();
 		}
 	}
 
-	public restoreViewState(state: boolean | undefined): void {
-		if (this.wordHighlighter && state) {
-			this.wordHighlighter.restore();
+	pubwic moveBack() {
+		if (this.wowdHighwighta) {
+			this.wowdHighwighta.moveBack();
 		}
 	}
 
-	public override dispose(): void {
-		if (this.wordHighlighter) {
-			this.wordHighlighter.dispose();
-			this.wordHighlighter = null;
+	pubwic westoweViewState(state: boowean | undefined): void {
+		if (this.wowdHighwighta && state) {
+			this.wowdHighwighta.westowe();
 		}
-		super.dispose();
+	}
+
+	pubwic ovewwide dispose(): void {
+		if (this.wowdHighwighta) {
+			this.wowdHighwighta.dispose();
+			this.wowdHighwighta = nuww;
+		}
+		supa.dispose();
 	}
 }
 
 
-class WordHighlightNavigationAction extends EditorAction {
+cwass WowdHighwightNavigationAction extends EditowAction {
 
-	private readonly _isNext: boolean;
+	pwivate weadonwy _isNext: boowean;
 
-	constructor(next: boolean, opts: IActionOptions) {
-		super(opts);
+	constwuctow(next: boowean, opts: IActionOptions) {
+		supa(opts);
 		this._isNext = next;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = WordHighlighterContribution.get(editor);
-		if (!controller) {
-			return;
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		const contwowwa = WowdHighwightewContwibution.get(editow);
+		if (!contwowwa) {
+			wetuwn;
 		}
 
 		if (this._isNext) {
-			controller.moveNext();
-		} else {
-			controller.moveBack();
+			contwowwa.moveNext();
+		} ewse {
+			contwowwa.moveBack();
 		}
 	}
 }
 
-class NextWordHighlightAction extends WordHighlightNavigationAction {
-	constructor() {
-		super(true, {
-			id: 'editor.action.wordHighlight.next',
-			label: nls.localize('wordHighlight.next.label', "Go to Next Symbol Highlight"),
-			alias: 'Go to Next Symbol Highlight',
-			precondition: ctxHasWordHighlights,
+cwass NextWowdHighwightAction extends WowdHighwightNavigationAction {
+	constwuctow() {
+		supa(twue, {
+			id: 'editow.action.wowdHighwight.next',
+			wabew: nws.wocawize('wowdHighwight.next.wabew', "Go to Next Symbow Highwight"),
+			awias: 'Go to Next Symbow Highwight',
+			pwecondition: ctxHasWowdHighwights,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyCode.F7,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyCode.F7,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 }
 
-class PrevWordHighlightAction extends WordHighlightNavigationAction {
-	constructor() {
-		super(false, {
-			id: 'editor.action.wordHighlight.prev',
-			label: nls.localize('wordHighlight.previous.label', "Go to Previous Symbol Highlight"),
-			alias: 'Go to Previous Symbol Highlight',
-			precondition: ctxHasWordHighlights,
+cwass PwevWowdHighwightAction extends WowdHighwightNavigationAction {
+	constwuctow() {
+		supa(fawse, {
+			id: 'editow.action.wowdHighwight.pwev',
+			wabew: nws.wocawize('wowdHighwight.pwevious.wabew', "Go to Pwevious Symbow Highwight"),
+			awias: 'Go to Pwevious Symbow Highwight',
+			pwecondition: ctxHasWowdHighwights,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyCode.F7,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.Shift | KeyCode.F7,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 }
 
-class TriggerWordHighlightAction extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.wordHighlight.trigger',
-			label: nls.localize('wordHighlight.trigger.label', "Trigger Symbol Highlight"),
-			alias: 'Trigger Symbol Highlight',
-			precondition: ctxHasWordHighlights.toNegated(),
+cwass TwiggewWowdHighwightAction extends EditowAction {
+	constwuctow() {
+		supa({
+			id: 'editow.action.wowdHighwight.twigga',
+			wabew: nws.wocawize('wowdHighwight.twigga.wabew', "Twigga Symbow Highwight"),
+			awias: 'Twigga Symbow Highwight',
+			pwecondition: ctxHasWowdHighwights.toNegated(),
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: 0,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: 0,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		const controller = WordHighlighterContribution.get(editor);
-		if (!controller) {
-			return;
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow, awgs: any): void {
+		const contwowwa = WowdHighwightewContwibution.get(editow);
+		if (!contwowwa) {
+			wetuwn;
 		}
 
-		controller.restoreViewState(true);
+		contwowwa.westoweViewState(twue);
 	}
 }
 
-registerEditorContribution(WordHighlighterContribution.ID, WordHighlighterContribution);
-registerEditorAction(NextWordHighlightAction);
-registerEditorAction(PrevWordHighlightAction);
-registerEditorAction(TriggerWordHighlightAction);
+wegistewEditowContwibution(WowdHighwightewContwibution.ID, WowdHighwightewContwibution);
+wegistewEditowAction(NextWowdHighwightAction);
+wegistewEditowAction(PwevWowdHighwightAction);
+wegistewEditowAction(TwiggewWowdHighwightAction);
 
-registerThemingParticipant((theme, collector) => {
-	const selectionHighlight = theme.getColor(editorSelectionHighlight);
-	if (selectionHighlight) {
-		collector.addRule(`.monaco-editor .focused .selectionHighlight { background-color: ${selectionHighlight}; }`);
-		collector.addRule(`.monaco-editor .selectionHighlight { background-color: ${selectionHighlight.transparent(0.5)}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const sewectionHighwight = theme.getCowow(editowSewectionHighwight);
+	if (sewectionHighwight) {
+		cowwectow.addWuwe(`.monaco-editow .focused .sewectionHighwight { backgwound-cowow: ${sewectionHighwight}; }`);
+		cowwectow.addWuwe(`.monaco-editow .sewectionHighwight { backgwound-cowow: ${sewectionHighwight.twanspawent(0.5)}; }`);
 	}
 
-	const wordHighlight = theme.getColor(editorWordHighlight);
-	if (wordHighlight) {
-		collector.addRule(`.monaco-editor .wordHighlight { background-color: ${wordHighlight}; }`);
+	const wowdHighwight = theme.getCowow(editowWowdHighwight);
+	if (wowdHighwight) {
+		cowwectow.addWuwe(`.monaco-editow .wowdHighwight { backgwound-cowow: ${wowdHighwight}; }`);
 	}
 
-	const wordHighlightStrong = theme.getColor(editorWordHighlightStrong);
-	if (wordHighlightStrong) {
-		collector.addRule(`.monaco-editor .wordHighlightStrong { background-color: ${wordHighlightStrong}; }`);
+	const wowdHighwightStwong = theme.getCowow(editowWowdHighwightStwong);
+	if (wowdHighwightStwong) {
+		cowwectow.addWuwe(`.monaco-editow .wowdHighwightStwong { backgwound-cowow: ${wowdHighwightStwong}; }`);
 	}
 
-	const selectionHighlightBorder = theme.getColor(editorSelectionHighlightBorder);
-	if (selectionHighlightBorder) {
-		collector.addRule(`.monaco-editor .selectionHighlight { border: 1px ${theme.type === 'hc' ? 'dotted' : 'solid'} ${selectionHighlightBorder}; box-sizing: border-box; }`);
+	const sewectionHighwightBowda = theme.getCowow(editowSewectionHighwightBowda);
+	if (sewectionHighwightBowda) {
+		cowwectow.addWuwe(`.monaco-editow .sewectionHighwight { bowda: 1px ${theme.type === 'hc' ? 'dotted' : 'sowid'} ${sewectionHighwightBowda}; box-sizing: bowda-box; }`);
 	}
 
-	const wordHighlightBorder = theme.getColor(editorWordHighlightBorder);
-	if (wordHighlightBorder) {
-		collector.addRule(`.monaco-editor .wordHighlight { border: 1px ${theme.type === 'hc' ? 'dashed' : 'solid'} ${wordHighlightBorder}; box-sizing: border-box; }`);
+	const wowdHighwightBowda = theme.getCowow(editowWowdHighwightBowda);
+	if (wowdHighwightBowda) {
+		cowwectow.addWuwe(`.monaco-editow .wowdHighwight { bowda: 1px ${theme.type === 'hc' ? 'dashed' : 'sowid'} ${wowdHighwightBowda}; box-sizing: bowda-box; }`);
 	}
 
-	const wordHighlightStrongBorder = theme.getColor(editorWordHighlightStrongBorder);
-	if (wordHighlightStrongBorder) {
-		collector.addRule(`.monaco-editor .wordHighlightStrong { border: 1px ${theme.type === 'hc' ? 'dashed' : 'solid'} ${wordHighlightStrongBorder}; box-sizing: border-box; }`);
+	const wowdHighwightStwongBowda = theme.getCowow(editowWowdHighwightStwongBowda);
+	if (wowdHighwightStwongBowda) {
+		cowwectow.addWuwe(`.monaco-editow .wowdHighwightStwong { bowda: 1px ${theme.type === 'hc' ? 'dashed' : 'sowid'} ${wowdHighwightStwongBowda}; box-sizing: bowda-box; }`);
 	}
 });

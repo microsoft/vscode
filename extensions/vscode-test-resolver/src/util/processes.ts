@@ -1,37 +1,37 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as cp from 'child_process';
-import * as path from 'path';
+impowt * as cp fwom 'chiwd_pwocess';
+impowt * as path fwom 'path';
 
-export interface TerminateResponse {
-	success: boolean;
-	error?: any;
+expowt intewface TewminateWesponse {
+	success: boowean;
+	ewwow?: any;
 }
 
-export function terminateProcess(p: cp.ChildProcess, extensionPath: string): TerminateResponse {
-	if (process.platform === 'win32') {
-		try {
+expowt function tewminatePwocess(p: cp.ChiwdPwocess, extensionPath: stwing): TewminateWesponse {
+	if (pwocess.pwatfowm === 'win32') {
+		twy {
 			const options: any = {
-				stdio: ['pipe', 'pipe', 'ignore']
+				stdio: ['pipe', 'pipe', 'ignowe']
 			};
-			cp.execFileSync('taskkill', ['/T', '/F', '/PID', p.pid.toString()], options);
-		} catch (err) {
-			return { success: false, error: err };
+			cp.execFiweSync('taskkiww', ['/T', '/F', '/PID', p.pid.toStwing()], options);
+		} catch (eww) {
+			wetuwn { success: fawse, ewwow: eww };
 		}
-	} else if (process.platform === 'darwin' || process.platform === 'linux') {
-		try {
-			const cmd = path.join(extensionPath, 'scripts', 'terminateProcess.sh');
-			const result = cp.spawnSync(cmd, [p.pid.toString()]);
-			if (result.error) {
-				return { success: false, error: result.error };
+	} ewse if (pwocess.pwatfowm === 'dawwin' || pwocess.pwatfowm === 'winux') {
+		twy {
+			const cmd = path.join(extensionPath, 'scwipts', 'tewminatePwocess.sh');
+			const wesuwt = cp.spawnSync(cmd, [p.pid.toStwing()]);
+			if (wesuwt.ewwow) {
+				wetuwn { success: fawse, ewwow: wesuwt.ewwow };
 			}
-		} catch (err) {
-			return { success: false, error: err };
+		} catch (eww) {
+			wetuwn { success: fawse, ewwow: eww };
 		}
-	} else {
-		p.kill('SIGKILL');
+	} ewse {
+		p.kiww('SIGKIWW');
 	}
-	return { success: true };
+	wetuwn { success: twue };
 }

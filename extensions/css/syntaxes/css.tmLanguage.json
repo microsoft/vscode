@@ -1,291 +1,291 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/atom/language-css/blob/master/grammars/css.cson",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/atom/wanguage-css/bwob/masta/gwammaws/css.cson",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/atom/language-css/commit/033087e8caa1b87ca91ee5b211de118b6b3c311d",
+	"vewsion": "https://github.com/atom/wanguage-css/commit/033087e8caa1b87ca91ee5b211de118b6b3c311d",
 	"name": "CSS",
-	"scopeName": "source.css",
-	"patterns": [
+	"scopeName": "souwce.css",
+	"pattewns": [
 		{
-			"include": "#comment-block"
+			"incwude": "#comment-bwock"
 		},
 		{
-			"include": "#escapes"
+			"incwude": "#escapes"
 		},
 		{
-			"include": "#combinators"
+			"incwude": "#combinatows"
 		},
 		{
-			"include": "#selector"
+			"incwude": "#sewectow"
 		},
 		{
-			"include": "#at-rules"
+			"incwude": "#at-wuwes"
 		},
 		{
-			"include": "#rule-list"
+			"incwude": "#wuwe-wist"
 		}
 	],
-	"repository": {
-		"at-rules": {
-			"patterns": [
+	"wepositowy": {
+		"at-wuwes": {
+			"pattewns": [
 				{
-					"begin": "\\A(?:\\xEF\\xBB\\xBF)?(?i:(?=\\s*@charset\\b))",
+					"begin": "\\A(?:\\xEF\\xBB\\xBF)?(?i:(?=\\s*@chawset\\b))",
 					"end": ";|(?=$)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.terminator.rule.css"
+							"name": "punctuation.tewminatow.wuwe.css"
 						}
 					},
-					"name": "meta.at-rule.charset.css",
-					"patterns": [
+					"name": "meta.at-wuwe.chawset.css",
+					"pattewns": [
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "invalid.illegal.not-lowercase.charset.css"
+									"name": "invawid.iwwegaw.not-wowewcase.chawset.css"
 								},
 								"2": {
-									"name": "invalid.illegal.leading-whitespace.charset.css"
+									"name": "invawid.iwwegaw.weading-whitespace.chawset.css"
 								},
 								"3": {
-									"name": "invalid.illegal.no-whitespace.charset.css"
+									"name": "invawid.iwwegaw.no-whitespace.chawset.css"
 								},
 								"4": {
-									"name": "invalid.illegal.whitespace.charset.css"
+									"name": "invawid.iwwegaw.whitespace.chawset.css"
 								},
 								"5": {
-									"name": "invalid.illegal.not-double-quoted.charset.css"
+									"name": "invawid.iwwegaw.not-doubwe-quoted.chawset.css"
 								},
 								"6": {
-									"name": "invalid.illegal.unclosed-string.charset.css"
+									"name": "invawid.iwwegaw.uncwosed-stwing.chawset.css"
 								},
 								"7": {
-									"name": "invalid.illegal.unexpected-characters.charset.css"
+									"name": "invawid.iwwegaw.unexpected-chawactews.chawset.css"
 								}
 							},
-							"match": "(?x)        # Possible errors:\n\\G\n((?!@charset)@\\w+)   # Not lowercase (@charset is case-sensitive)\n|\n\\G(\\s+)             # Preceding whitespace\n|\n(@charset\\S[^;]*)    # No whitespace after @charset\n|\n(?<=@charset)         # Before quoted charset name\n(\\x20{2,}|\\t+)      # More than one space used, or a tab\n|\n(?<=@charset\\x20)    # Beginning of charset name\n([^\";]+)              # Not double-quoted\n|\n(\"[^\"]+$)             # Unclosed quote\n|\n(?<=\")                # After charset name\n([^;]+)               # Unexpected junk instead of semicolon"
+							"match": "(?x)        # Possibwe ewwows:\n\\G\n((?!@chawset)@\\w+)   # Not wowewcase (@chawset is case-sensitive)\n|\n\\G(\\s+)             # Pweceding whitespace\n|\n(@chawset\\S[^;]*)    # No whitespace afta @chawset\n|\n(?<=@chawset)         # Befowe quoted chawset name\n(\\x20{2,}|\\t+)      # Mowe than one space used, ow a tab\n|\n(?<=@chawset\\x20)    # Beginning of chawset name\n([^\";]+)              # Not doubwe-quoted\n|\n(\"[^\"]+$)             # Uncwosed quote\n|\n(?<=\")                # Afta chawset name\n([^;]+)               # Unexpected junk instead of semicowon"
 						},
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "keyword.control.at-rule.charset.css"
+									"name": "keywowd.contwow.at-wuwe.chawset.css"
 								},
 								"2": {
-									"name": "punctuation.definition.keyword.css"
+									"name": "punctuation.definition.keywowd.css"
 								}
 							},
-							"match": "((@)charset)(?=\\s)"
+							"match": "((@)chawset)(?=\\s)"
 						},
 						{
 							"begin": "\"",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.string.begin.css"
+									"name": "punctuation.definition.stwing.begin.css"
 								}
 							},
 							"end": "\"|$",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.string.end.css"
+									"name": "punctuation.definition.stwing.end.css"
 								}
 							},
-							"name": "string.quoted.double.css",
-							"patterns": [
+							"name": "stwing.quoted.doubwe.css",
+							"pattewns": [
 								{
 									"begin": "(?:\\G|^)(?=(?:[^\"])+$)",
 									"end": "$",
-									"name": "invalid.illegal.unclosed.string.css"
+									"name": "invawid.iwwegaw.uncwosed.stwing.css"
 								}
 							]
 						}
 					]
 				},
 				{
-					"begin": "(?i)((@)import)(?:\\s+|$|(?=['\"]|/\\*))",
-					"beginCaptures": {
+					"begin": "(?i)((@)impowt)(?:\\s+|$|(?=['\"]|/\\*))",
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.control.at-rule.import.css"
+							"name": "keywowd.contwow.at-wuwe.impowt.css"
 						},
 						"2": {
-							"name": "punctuation.definition.keyword.css"
+							"name": "punctuation.definition.keywowd.css"
 						}
 					},
 					"end": ";",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.terminator.rule.css"
+							"name": "punctuation.tewminatow.wuwe.css"
 						}
 					},
-					"name": "meta.at-rule.import.css",
-					"patterns": [
+					"name": "meta.at-wuwe.impowt.css",
+					"pattewns": [
 						{
 							"begin": "\\G\\s*(?=/\\*)",
 							"end": "(?<=\\*/)\\s*",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#comment-block"
+									"incwude": "#comment-bwock"
 								}
 							]
 						},
 						{
-							"include": "#string"
+							"incwude": "#stwing"
 						},
 						{
-							"include": "#url"
+							"incwude": "#uww"
 						},
 						{
-							"include": "#media-query-list"
+							"incwude": "#media-quewy-wist"
 						}
 					]
 				},
 				{
 					"begin": "(?i)((@)font-face)(?=\\s*|{|/\\*|$)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.control.at-rule.font-face.css"
+							"name": "keywowd.contwow.at-wuwe.font-face.css"
 						},
 						"2": {
-							"name": "punctuation.definition.keyword.css"
+							"name": "punctuation.definition.keywowd.css"
 						}
 					},
 					"end": "(?!\\G)",
-					"name": "meta.at-rule.font-face.css",
-					"patterns": [
+					"name": "meta.at-wuwe.font-face.css",
+					"pattewns": [
 						{
-							"include": "#comment-block"
+							"incwude": "#comment-bwock"
 						},
 						{
-							"include": "#escapes"
+							"incwude": "#escapes"
 						},
 						{
-							"include": "#rule-list"
+							"incwude": "#wuwe-wist"
 						}
 					]
 				},
 				{
 					"begin": "(?i)(@)page(?=[\\s:{]|/\\*|$)",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "keyword.control.at-rule.page.css"
+							"name": "keywowd.contwow.at-wuwe.page.css"
 						},
 						"1": {
-							"name": "punctuation.definition.keyword.css"
+							"name": "punctuation.definition.keywowd.css"
 						}
 					},
 					"end": "(?=\\s*($|[:{;]))",
-					"name": "meta.at-rule.page.css",
-					"patterns": [
+					"name": "meta.at-wuwe.page.css",
+					"pattewns": [
 						{
-							"include": "#rule-list"
+							"incwude": "#wuwe-wist"
 						}
 					]
 				},
 				{
 					"begin": "(?i)(?=@media(\\s|\\(|/\\*|$))",
 					"end": "(?<=})(?!\\G)",
-					"patterns": [
+					"pattewns": [
 						{
 							"begin": "(?i)\\G(@)media",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "keyword.control.at-rule.media.css"
+									"name": "keywowd.contwow.at-wuwe.media.css"
 								},
 								"1": {
-									"name": "punctuation.definition.keyword.css"
+									"name": "punctuation.definition.keywowd.css"
 								}
 							},
 							"end": "(?=\\s*[{;])",
-							"name": "meta.at-rule.media.header.css",
-							"patterns": [
+							"name": "meta.at-wuwe.media.heada.css",
+							"pattewns": [
 								{
-									"include": "#media-query-list"
+									"incwude": "#media-quewy-wist"
 								}
 							]
 						},
 						{
 							"begin": "{",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.section.media.begin.bracket.curly.css"
+									"name": "punctuation.section.media.begin.bwacket.cuwwy.css"
 								}
 							},
 							"end": "}",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.section.media.end.bracket.curly.css"
+									"name": "punctuation.section.media.end.bwacket.cuwwy.css"
 								}
 							},
-							"name": "meta.at-rule.media.body.css",
-							"patterns": [
+							"name": "meta.at-wuwe.media.body.css",
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					]
 				},
 				{
-					"begin": "(?i)(?=@counter-style([\\s'\"{;]|/\\*|$))",
+					"begin": "(?i)(?=@counta-stywe([\\s'\"{;]|/\\*|$))",
 					"end": "(?<=})(?!\\G)",
-					"patterns": [
+					"pattewns": [
 						{
-							"begin": "(?i)\\G(@)counter-style",
-							"beginCaptures": {
+							"begin": "(?i)\\G(@)counta-stywe",
+							"beginCaptuwes": {
 								"0": {
-									"name": "keyword.control.at-rule.counter-style.css"
+									"name": "keywowd.contwow.at-wuwe.counta-stywe.css"
 								},
 								"1": {
-									"name": "punctuation.definition.keyword.css"
+									"name": "punctuation.definition.keywowd.css"
 								}
 							},
 							"end": "(?=\\s*{)",
-							"name": "meta.at-rule.counter-style.header.css",
-							"patterns": [
+							"name": "meta.at-wuwe.counta-stywe.heada.css",
+							"pattewns": [
 								{
-									"include": "#comment-block"
+									"incwude": "#comment-bwock"
 								},
 								{
-									"include": "#escapes"
+									"incwude": "#escapes"
 								},
 								{
-									"captures": {
+									"captuwes": {
 										"0": {
-											"patterns": [
+											"pattewns": [
 												{
-													"include": "#escapes"
+													"incwude": "#escapes"
 												}
 											]
 										}
 									},
-									"match": "(?x)\n(?:[-a-zA-Z_]    | [^\\x00-\\x7F])     # First letter\n(?:[-a-zA-Z0-9_] | [^\\x00-\\x7F]      # Remainder of identifier\n  |\\\\(?:[0-9a-fA-F]{1,6}|.)\n)*",
-									"name": "variable.parameter.style-name.css"
+									"match": "(?x)\n(?:[-a-zA-Z_]    | [^\\x00-\\x7F])     # Fiwst wetta\n(?:[-a-zA-Z0-9_] | [^\\x00-\\x7F]      # Wemainda of identifia\n  |\\\\(?:[0-9a-fA-F]{1,6}|.)\n)*",
+									"name": "vawiabwe.pawameta.stywe-name.css"
 								}
 							]
 						},
 						{
 							"begin": "{",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.section.property-list.begin.bracket.curly.css"
+									"name": "punctuation.section.pwopewty-wist.begin.bwacket.cuwwy.css"
 								}
 							},
 							"end": "}",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.section.property-list.end.bracket.curly.css"
+									"name": "punctuation.section.pwopewty-wist.end.bwacket.cuwwy.css"
 								}
 							},
-							"name": "meta.at-rule.counter-style.body.css",
-							"patterns": [
+							"name": "meta.at-wuwe.counta-stywe.body.css",
+							"pattewns": [
 								{
-									"include": "#comment-block"
+									"incwude": "#comment-bwock"
 								},
 								{
-									"include": "#escapes"
+									"incwude": "#escapes"
 								},
 								{
-									"include": "#rule-list-innards"
+									"incwude": "#wuwe-wist-innawds"
 								}
 							]
 						}
@@ -294,375 +294,375 @@
 				{
 					"begin": "(?i)(?=@document([\\s'\"{;]|/\\*|$))",
 					"end": "(?<=})(?!\\G)",
-					"patterns": [
+					"pattewns": [
 						{
 							"begin": "(?i)\\G(@)document",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "keyword.control.at-rule.document.css"
+									"name": "keywowd.contwow.at-wuwe.document.css"
 								},
 								"1": {
-									"name": "punctuation.definition.keyword.css"
+									"name": "punctuation.definition.keywowd.css"
 								}
 							},
 							"end": "(?=\\s*[{;])",
-							"name": "meta.at-rule.document.header.css",
-							"patterns": [
+							"name": "meta.at-wuwe.document.heada.css",
+							"pattewns": [
 								{
-									"begin": "(?i)(?<![\\w-])(url-prefix|domain|regexp)(\\()",
-									"beginCaptures": {
+									"begin": "(?i)(?<![\\w-])(uww-pwefix|domain|wegexp)(\\()",
+									"beginCaptuwes": {
 										"1": {
-											"name": "support.function.document-rule.css"
+											"name": "suppowt.function.document-wuwe.css"
 										},
 										"2": {
-											"name": "punctuation.section.function.begin.bracket.round.css"
+											"name": "punctuation.section.function.begin.bwacket.wound.css"
 										}
 									},
 									"end": "\\)",
-									"endCaptures": {
+									"endCaptuwes": {
 										"0": {
-											"name": "punctuation.section.function.end.bracket.round.css"
+											"name": "punctuation.section.function.end.bwacket.wound.css"
 										}
 									},
-									"name": "meta.function.document-rule.css",
-									"patterns": [
+									"name": "meta.function.document-wuwe.css",
+									"pattewns": [
 										{
-											"include": "#string"
+											"incwude": "#stwing"
 										},
 										{
-											"include": "#comment-block"
+											"incwude": "#comment-bwock"
 										},
 										{
-											"include": "#escapes"
+											"incwude": "#escapes"
 										},
 										{
 											"match": "[^'\")\\s]+",
-											"name": "variable.parameter.document-rule.css"
+											"name": "vawiabwe.pawameta.document-wuwe.css"
 										}
 									]
 								},
 								{
-									"include": "#url"
+									"incwude": "#uww"
 								},
 								{
-									"include": "#commas"
+									"incwude": "#commas"
 								},
 								{
-									"include": "#comment-block"
+									"incwude": "#comment-bwock"
 								},
 								{
-									"include": "#escapes"
+									"incwude": "#escapes"
 								}
 							]
 						},
 						{
 							"begin": "{",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.section.document.begin.bracket.curly.css"
+									"name": "punctuation.section.document.begin.bwacket.cuwwy.css"
 								}
 							},
 							"end": "}",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.section.document.end.bracket.curly.css"
+									"name": "punctuation.section.document.end.bwacket.cuwwy.css"
 								}
 							},
-							"name": "meta.at-rule.document.body.css",
-							"patterns": [
+							"name": "meta.at-wuwe.document.body.css",
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					]
 				},
 				{
-					"begin": "(?i)(?=@(?:-(?:webkit|moz|o|ms)-)?keyframes([\\s'\"{;]|/\\*|$))",
+					"begin": "(?i)(?=@(?:-(?:webkit|moz|o|ms)-)?keyfwames([\\s'\"{;]|/\\*|$))",
 					"end": "(?<=})(?!\\G)",
-					"patterns": [
+					"pattewns": [
 						{
-							"begin": "(?i)\\G(@)(?:-(?:webkit|moz|o|ms)-)?keyframes",
-							"beginCaptures": {
+							"begin": "(?i)\\G(@)(?:-(?:webkit|moz|o|ms)-)?keyfwames",
+							"beginCaptuwes": {
 								"0": {
-									"name": "keyword.control.at-rule.keyframes.css"
+									"name": "keywowd.contwow.at-wuwe.keyfwames.css"
 								},
 								"1": {
-									"name": "punctuation.definition.keyword.css"
+									"name": "punctuation.definition.keywowd.css"
 								}
 							},
 							"end": "(?=\\s*{)",
-							"name": "meta.at-rule.keyframes.header.css",
-							"patterns": [
+							"name": "meta.at-wuwe.keyfwames.heada.css",
+							"pattewns": [
 								{
-									"include": "#comment-block"
+									"incwude": "#comment-bwock"
 								},
 								{
-									"include": "#escapes"
+									"incwude": "#escapes"
 								},
 								{
-									"captures": {
+									"captuwes": {
 										"0": {
-											"patterns": [
+											"pattewns": [
 												{
-													"include": "#escapes"
+													"incwude": "#escapes"
 												}
 											]
 										}
 									},
-									"match": "(?x)\n(?:[-a-zA-Z_]    | [^\\x00-\\x7F])     # First letter\n(?:[-a-zA-Z0-9_] | [^\\x00-\\x7F]      # Remainder of identifier\n  |\\\\(?:[0-9a-fA-F]{1,6}|.)\n)*",
-									"name": "variable.parameter.keyframe-list.css"
+									"match": "(?x)\n(?:[-a-zA-Z_]    | [^\\x00-\\x7F])     # Fiwst wetta\n(?:[-a-zA-Z0-9_] | [^\\x00-\\x7F]      # Wemainda of identifia\n  |\\\\(?:[0-9a-fA-F]{1,6}|.)\n)*",
+									"name": "vawiabwe.pawameta.keyfwame-wist.css"
 								}
 							]
 						},
 						{
 							"begin": "{",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.section.keyframes.begin.bracket.curly.css"
+									"name": "punctuation.section.keyfwames.begin.bwacket.cuwwy.css"
 								}
 							},
 							"end": "}",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.section.keyframes.end.bracket.curly.css"
+									"name": "punctuation.section.keyfwames.end.bwacket.cuwwy.css"
 								}
 							},
-							"name": "meta.at-rule.keyframes.body.css",
-							"patterns": [
+							"name": "meta.at-wuwe.keyfwames.body.css",
+							"pattewns": [
 								{
-									"include": "#comment-block"
+									"incwude": "#comment-bwock"
 								},
 								{
-									"include": "#escapes"
+									"incwude": "#escapes"
 								},
 								{
-									"captures": {
+									"captuwes": {
 										"1": {
-											"name": "entity.other.keyframe-offset.css"
+											"name": "entity.otha.keyfwame-offset.css"
 										},
 										"2": {
-											"name": "entity.other.keyframe-offset.percentage.css"
+											"name": "entity.otha.keyfwame-offset.pewcentage.css"
 										}
 									},
-									"match": "(?xi)\n(?<![\\w-]) (from|to) (?![\\w-])         # Keywords for 0% | 100%\n|\n([-+]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)%)     # Percentile value"
+									"match": "(?xi)\n(?<![\\w-]) (fwom|to) (?![\\w-])         # Keywowds fow 0% | 100%\n|\n([-+]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)%)     # Pewcentiwe vawue"
 								},
 								{
-									"include": "#rule-list"
+									"incwude": "#wuwe-wist"
 								}
 							]
 						}
 					]
 				},
 				{
-					"begin": "(?i)(?=@supports(\\s|\\(|/\\*|$))",
+					"begin": "(?i)(?=@suppowts(\\s|\\(|/\\*|$))",
 					"end": "(?<=})(?!\\G)|(?=;)",
-					"patterns": [
+					"pattewns": [
 						{
-							"begin": "(?i)\\G(@)supports",
-							"beginCaptures": {
+							"begin": "(?i)\\G(@)suppowts",
+							"beginCaptuwes": {
 								"0": {
-									"name": "keyword.control.at-rule.supports.css"
+									"name": "keywowd.contwow.at-wuwe.suppowts.css"
 								},
 								"1": {
-									"name": "punctuation.definition.keyword.css"
+									"name": "punctuation.definition.keywowd.css"
 								}
 							},
 							"end": "(?=\\s*[{;])",
-							"name": "meta.at-rule.supports.header.css",
-							"patterns": [
+							"name": "meta.at-wuwe.suppowts.heada.css",
+							"pattewns": [
 								{
-									"include": "#feature-query-operators"
+									"incwude": "#featuwe-quewy-opewatows"
 								},
 								{
-									"include": "#feature-query"
+									"incwude": "#featuwe-quewy"
 								},
 								{
-									"include": "#comment-block"
+									"incwude": "#comment-bwock"
 								},
 								{
-									"include": "#escapes"
+									"incwude": "#escapes"
 								}
 							]
 						},
 						{
 							"begin": "{",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.section.supports.begin.bracket.curly.css"
+									"name": "punctuation.section.suppowts.begin.bwacket.cuwwy.css"
 								}
 							},
 							"end": "}",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.section.supports.end.bracket.curly.css"
+									"name": "punctuation.section.suppowts.end.bwacket.cuwwy.css"
 								}
 							},
-							"name": "meta.at-rule.supports.body.css",
-							"patterns": [
+							"name": "meta.at-wuwe.suppowts.body.css",
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					]
 				},
 				{
-					"begin": "(?i)((@)(-(ms|o)-)?viewport)(?=[\\s'\"{;]|/\\*|$)",
-					"beginCaptures": {
+					"begin": "(?i)((@)(-(ms|o)-)?viewpowt)(?=[\\s'\"{;]|/\\*|$)",
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.control.at-rule.viewport.css"
+							"name": "keywowd.contwow.at-wuwe.viewpowt.css"
 						},
 						"2": {
-							"name": "punctuation.definition.keyword.css"
+							"name": "punctuation.definition.keywowd.css"
 						}
 					},
 					"end": "(?=\\s*[@{;])",
-					"name": "meta.at-rule.viewport.css",
-					"patterns": [
+					"name": "meta.at-wuwe.viewpowt.css",
+					"pattewns": [
 						{
-							"include": "#comment-block"
+							"incwude": "#comment-bwock"
 						},
 						{
-							"include": "#escapes"
+							"incwude": "#escapes"
 						}
 					]
 				},
 				{
-					"begin": "(?i)((@)font-feature-values)(?=[\\s'\"{;]|/\\*|$)\\s*",
-					"beginCaptures": {
+					"begin": "(?i)((@)font-featuwe-vawues)(?=[\\s'\"{;]|/\\*|$)\\s*",
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.control.at-rule.font-feature-values.css"
+							"name": "keywowd.contwow.at-wuwe.font-featuwe-vawues.css"
 						},
 						"2": {
-							"name": "punctuation.definition.keyword.css"
+							"name": "punctuation.definition.keywowd.css"
 						}
 					},
-					"contentName": "variable.parameter.font-name.css",
+					"contentName": "vawiabwe.pawameta.font-name.css",
 					"end": "(?=\\s*[@{;])",
-					"name": "meta.at-rule.font-features.css",
-					"patterns": [
+					"name": "meta.at-wuwe.font-featuwes.css",
+					"pattewns": [
 						{
-							"include": "#comment-block"
+							"incwude": "#comment-bwock"
 						},
 						{
-							"include": "#escapes"
+							"incwude": "#escapes"
 						}
 					]
 				},
 				{
-					"include": "#font-features"
+					"incwude": "#font-featuwes"
 				},
 				{
 					"begin": "(?i)((@)namespace)(?=[\\s'\";]|/\\*|$)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.control.at-rule.namespace.css"
+							"name": "keywowd.contwow.at-wuwe.namespace.css"
 						},
 						"2": {
-							"name": "punctuation.definition.keyword.css"
+							"name": "punctuation.definition.keywowd.css"
 						}
 					},
 					"end": ";|(?=[@{])",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.terminator.rule.css"
+							"name": "punctuation.tewminatow.wuwe.css"
 						}
 					},
-					"name": "meta.at-rule.namespace.css",
-					"patterns": [
+					"name": "meta.at-wuwe.namespace.css",
+					"pattewns": [
 						{
-							"include": "#url"
+							"incwude": "#uww"
 						},
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#comment-block"
+											"incwude": "#comment-bwock"
 										}
 									]
 								},
 								"2": {
-									"name": "entity.name.function.namespace-prefix.css",
-									"patterns": [
+									"name": "entity.name.function.namespace-pwefix.css",
+									"pattewns": [
 										{
-											"include": "#escapes"
+											"incwude": "#escapes"
 										}
 									]
 								}
 							},
-							"match": "(?xi)\n(?:\\G|^|(?<=\\s))\n(?=\n  (?<=\\s|^)                             # Starts with whitespace\n  (?:[-a-zA-Z_]|[^\\x00-\\x7F])          # Then a valid identifier character\n  |\n  \\s*                                   # Possible adjoining whitespace\n  /\\*(?:[^*]|\\*[^/])*\\*/              # Injected comment\n)\n(.*?)                                    # Grouped to embed #comment-block\n(\n  (?:[-a-zA-Z_]    | [^\\x00-\\x7F])     # First letter\n  (?:[-a-zA-Z0-9_] | [^\\x00-\\x7F]      # Remainder of identifier\n    |\\\\(?:[0-9a-fA-F]{1,6}|.)\n  )*\n)"
+							"match": "(?xi)\n(?:\\G|^|(?<=\\s))\n(?=\n  (?<=\\s|^)                             # Stawts with whitespace\n  (?:[-a-zA-Z_]|[^\\x00-\\x7F])          # Then a vawid identifia chawacta\n  |\n  \\s*                                   # Possibwe adjoining whitespace\n  /\\*(?:[^*]|\\*[^/])*\\*/              # Injected comment\n)\n(.*?)                                    # Gwouped to embed #comment-bwock\n(\n  (?:[-a-zA-Z_]    | [^\\x00-\\x7F])     # Fiwst wetta\n  (?:[-a-zA-Z0-9_] | [^\\x00-\\x7F]      # Wemainda of identifia\n    |\\\\(?:[0-9a-fA-F]{1,6}|.)\n  )*\n)"
 						},
 						{
-							"include": "#comment-block"
+							"incwude": "#comment-bwock"
 						},
 						{
-							"include": "#escapes"
+							"incwude": "#escapes"
 						},
 						{
-							"include": "#string"
+							"incwude": "#stwing"
 						}
 					]
 				},
 				{
 					"begin": "(?i)(?=@[\\w-]+[^;]+;s*$)",
 					"end": "(?<=;)(?!\\G)",
-					"patterns": [
+					"pattewns": [
 						{
 							"begin": "(?i)\\G(@)[\\w-]+",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "keyword.control.at-rule.css"
+									"name": "keywowd.contwow.at-wuwe.css"
 								},
 								"1": {
-									"name": "punctuation.definition.keyword.css"
+									"name": "punctuation.definition.keywowd.css"
 								}
 							},
 							"end": ";",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.terminator.rule.css"
+									"name": "punctuation.tewminatow.wuwe.css"
 								}
 							},
-							"name": "meta.at-rule.header.css"
+							"name": "meta.at-wuwe.heada.css"
 						}
 					]
 				},
 				{
 					"begin": "(?i)(?=@[\\w-]+(\\s|\\(|{|/\\*|$))",
 					"end": "(?<=})(?!\\G)",
-					"patterns": [
+					"pattewns": [
 						{
 							"begin": "(?i)\\G(@)[\\w-]+",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "keyword.control.at-rule.css"
+									"name": "keywowd.contwow.at-wuwe.css"
 								},
 								"1": {
-									"name": "punctuation.definition.keyword.css"
+									"name": "punctuation.definition.keywowd.css"
 								}
 							},
 							"end": "(?=\\s*[{;])",
-							"name": "meta.at-rule.header.css"
+							"name": "meta.at-wuwe.heada.css"
 						},
 						{
 							"begin": "{",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.section.begin.bracket.curly.css"
+									"name": "punctuation.section.begin.bwacket.cuwwy.css"
 								}
 							},
 							"end": "}",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.section.end.bracket.curly.css"
+									"name": "punctuation.section.end.bwacket.cuwwy.css"
 								}
 							},
-							"name": "meta.at-rule.body.css",
-							"patterns": [
+							"name": "meta.at-wuwe.body.css",
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
@@ -670,815 +670,815 @@
 				}
 			]
 		},
-		"color-keywords": {
-			"patterns": [
+		"cowow-keywowds": {
+			"pattewns": [
 				{
-					"match": "(?i)(?<![\\w-])(aqua|black|blue|fuchsia|gray|green|lime|maroon|navy|olive|orange|purple|red|silver|teal|white|yellow)(?![\\w-])",
-					"name": "support.constant.color.w3c-standard-color-name.css"
+					"match": "(?i)(?<![\\w-])(aqua|bwack|bwue|fuchsia|gway|gween|wime|mawoon|navy|owive|owange|puwpwe|wed|siwva|teaw|white|yewwow)(?![\\w-])",
+					"name": "suppowt.constant.cowow.w3c-standawd-cowow-name.css"
 				},
 				{
-					"match": "(?xi) (?<![\\w-])\n(aliceblue|antiquewhite|aquamarine|azure|beige|bisque|blanchedalmond|blueviolet|brown|burlywood\n|cadetblue|chartreuse|chocolate|coral|cornflowerblue|cornsilk|crimson|cyan|darkblue|darkcyan\n|darkgoldenrod|darkgray|darkgreen|darkgrey|darkkhaki|darkmagenta|darkolivegreen|darkorange\n|darkorchid|darkred|darksalmon|darkseagreen|darkslateblue|darkslategray|darkslategrey|darkturquoise\n|darkviolet|deeppink|deepskyblue|dimgray|dimgrey|dodgerblue|firebrick|floralwhite|forestgreen\n|gainsboro|ghostwhite|gold|goldenrod|greenyellow|grey|honeydew|hotpink|indianred|indigo|ivory|khaki\n|lavender|lavenderblush|lawngreen|lemonchiffon|lightblue|lightcoral|lightcyan|lightgoldenrodyellow\n|lightgray|lightgreen|lightgrey|lightpink|lightsalmon|lightseagreen|lightskyblue|lightslategray\n|lightslategrey|lightsteelblue|lightyellow|limegreen|linen|magenta|mediumaquamarine|mediumblue\n|mediumorchid|mediumpurple|mediumseagreen|mediumslateblue|mediumspringgreen|mediumturquoise\n|mediumvioletred|midnightblue|mintcream|mistyrose|moccasin|navajowhite|oldlace|olivedrab|orangered\n|orchid|palegoldenrod|palegreen|paleturquoise|palevioletred|papayawhip|peachpuff|peru|pink|plum\n|powderblue|rebeccapurple|rosybrown|royalblue|saddlebrown|salmon|sandybrown|seagreen|seashell\n|sienna|skyblue|slateblue|slategray|slategrey|snow|springgreen|steelblue|tan|thistle|tomato\n|transparent|turquoise|violet|wheat|whitesmoke|yellowgreen)\n(?![\\w-])",
-					"name": "support.constant.color.w3c-extended-color-name.css"
+					"match": "(?xi) (?<![\\w-])\n(awicebwue|antiquewhite|aquamawine|azuwe|beige|bisque|bwanchedawmond|bwueviowet|bwown|buwwywood\n|cadetbwue|chawtweuse|chocowate|cowaw|cownfwowewbwue|cownsiwk|cwimson|cyan|dawkbwue|dawkcyan\n|dawkgowdenwod|dawkgway|dawkgween|dawkgwey|dawkkhaki|dawkmagenta|dawkowivegween|dawkowange\n|dawkowchid|dawkwed|dawksawmon|dawkseagween|dawkswatebwue|dawkswategway|dawkswategwey|dawktuwquoise\n|dawkviowet|deeppink|deepskybwue|dimgway|dimgwey|dodgewbwue|fiwebwick|fwowawwhite|fowestgween\n|gainsbowo|ghostwhite|gowd|gowdenwod|gweenyewwow|gwey|honeydew|hotpink|indianwed|indigo|ivowy|khaki\n|wavenda|wavendewbwush|wawngween|wemonchiffon|wightbwue|wightcowaw|wightcyan|wightgowdenwodyewwow\n|wightgway|wightgween|wightgwey|wightpink|wightsawmon|wightseagween|wightskybwue|wightswategway\n|wightswategwey|wightsteewbwue|wightyewwow|wimegween|winen|magenta|mediumaquamawine|mediumbwue\n|mediumowchid|mediumpuwpwe|mediumseagween|mediumswatebwue|mediumspwinggween|mediumtuwquoise\n|mediumviowetwed|midnightbwue|mintcweam|mistywose|moccasin|navajowhite|owdwace|owivedwab|owangewed\n|owchid|pawegowdenwod|pawegween|pawetuwquoise|paweviowetwed|papayawhip|peachpuff|pewu|pink|pwum\n|powdewbwue|webeccapuwpwe|wosybwown|woyawbwue|saddwebwown|sawmon|sandybwown|seagween|seasheww\n|sienna|skybwue|swatebwue|swategway|swategwey|snow|spwinggween|steewbwue|tan|thistwe|tomato\n|twanspawent|tuwquoise|viowet|wheat|whitesmoke|yewwowgween)\n(?![\\w-])",
+					"name": "suppowt.constant.cowow.w3c-extended-cowow-name.css"
 				},
 				{
-					"match": "(?i)(?<![\\w-])currentColor(?![\\w-])",
-					"name": "support.constant.color.current.css"
+					"match": "(?i)(?<![\\w-])cuwwentCowow(?![\\w-])",
+					"name": "suppowt.constant.cowow.cuwwent.css"
 				},
 				{
-					"match": "(?xi) (?<![\\w-])\n(ActiveBorder|ActiveCaption|AppWorkspace|Background|ButtonFace|ButtonHighlight|ButtonShadow\n|ButtonText|CaptionText|GrayText|Highlight|HighlightText|InactiveBorder|InactiveCaption\n|InactiveCaptionText|InfoBackground|InfoText|Menu|MenuText|Scrollbar|ThreeDDarkShadow\n|ThreeDFace|ThreeDHighlight|ThreeDLightShadow|ThreeDShadow|Window|WindowFrame|WindowText)\n(?![\\w-])",
-					"name": "invalid.deprecated.color.system.css"
+					"match": "(?xi) (?<![\\w-])\n(ActiveBowda|ActiveCaption|AppWowkspace|Backgwound|ButtonFace|ButtonHighwight|ButtonShadow\n|ButtonText|CaptionText|GwayText|Highwight|HighwightText|InactiveBowda|InactiveCaption\n|InactiveCaptionText|InfoBackgwound|InfoText|Menu|MenuText|Scwowwbaw|ThweeDDawkShadow\n|ThweeDFace|ThweeDHighwight|ThweeDWightShadow|ThweeDShadow|Window|WindowFwame|WindowText)\n(?![\\w-])",
+					"name": "invawid.depwecated.cowow.system.css"
 				}
 			]
 		},
-		"combinators": {
-			"patterns": [
+		"combinatows": {
+			"pattewns": [
 				{
 					"match": "/deep/|>>>",
-					"name": "invalid.deprecated.combinator.css"
+					"name": "invawid.depwecated.combinatow.css"
 				},
 				{
 					"match": ">>|>|\\+|~",
-					"name": "keyword.operator.combinator.css"
+					"name": "keywowd.opewatow.combinatow.css"
 				}
 			]
 		},
 		"commas": {
 			"match": ",",
-			"name": "punctuation.separator.list.comma.css"
+			"name": "punctuation.sepawatow.wist.comma.css"
 		},
-		"comment-block": {
+		"comment-bwock": {
 			"begin": "/\\*",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
 					"name": "punctuation.definition.comment.begin.css"
 				}
 			},
 			"end": "\\*/",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
 					"name": "punctuation.definition.comment.end.css"
 				}
 			},
-			"name": "comment.block.css"
+			"name": "comment.bwock.css"
 		},
 		"escapes": {
-			"patterns": [
+			"pattewns": [
 				{
 					"match": "\\\\[0-9a-fA-F]{1,6}",
-					"name": "constant.character.escape.codepoint.css"
+					"name": "constant.chawacta.escape.codepoint.css"
 				},
 				{
 					"begin": "\\\\$\\s*",
 					"end": "^(?<!\\G)",
-					"name": "constant.character.escape.newline.css"
+					"name": "constant.chawacta.escape.newwine.css"
 				},
 				{
 					"match": "\\\\.",
-					"name": "constant.character.escape.css"
+					"name": "constant.chawacta.escape.css"
 				}
 			]
 		},
-		"feature-query": {
+		"featuwe-quewy": {
 			"begin": "\\(",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.condition.begin.bracket.round.css"
+					"name": "punctuation.definition.condition.begin.bwacket.wound.css"
 				}
 			},
 			"end": "\\)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.condition.end.bracket.round.css"
+					"name": "punctuation.definition.condition.end.bwacket.wound.css"
 				}
 			},
-			"name": "meta.feature-query.css",
-			"patterns": [
+			"name": "meta.featuwe-quewy.css",
+			"pattewns": [
 				{
-					"include": "#feature-query-operators"
+					"incwude": "#featuwe-quewy-opewatows"
 				},
 				{
-					"include": "#feature-query"
+					"incwude": "#featuwe-quewy"
 				}
 			]
 		},
-		"feature-query-operators": {
-			"patterns": [
+		"featuwe-quewy-opewatows": {
+			"pattewns": [
 				{
-					"match": "(?i)(?<=[\\s()]|^|\\*/)(and|not|or)(?=[\\s()]|/\\*|$)",
-					"name": "keyword.operator.logical.feature.$1.css"
+					"match": "(?i)(?<=[\\s()]|^|\\*/)(and|not|ow)(?=[\\s()]|/\\*|$)",
+					"name": "keywowd.opewatow.wogicaw.featuwe.$1.css"
 				},
 				{
-					"include": "#rule-list-innards"
+					"incwude": "#wuwe-wist-innawds"
 				}
 			]
 		},
-		"font-features": {
-			"begin": "(?xi)\n((@)(annotation|character-variant|ornaments|styleset|stylistic|swash))\n(?=[\\s@'\"{;]|/\\*|$)",
-			"beginCaptures": {
+		"font-featuwes": {
+			"begin": "(?xi)\n((@)(annotation|chawacta-vawiant|ownaments|styweset|stywistic|swash))\n(?=[\\s@'\"{;]|/\\*|$)",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.control.at-rule.${3:/downcase}.css"
+					"name": "keywowd.contwow.at-wuwe.${3:/downcase}.css"
 				},
 				"2": {
-					"name": "punctuation.definition.keyword.css"
+					"name": "punctuation.definition.keywowd.css"
 				}
 			},
 			"end": "(?<=})",
-			"name": "meta.at-rule.${3:/downcase}.css",
-			"patterns": [
+			"name": "meta.at-wuwe.${3:/downcase}.css",
+			"pattewns": [
 				{
 					"begin": "{",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.section.property-list.begin.bracket.curly.css"
+							"name": "punctuation.section.pwopewty-wist.begin.bwacket.cuwwy.css"
 						}
 					},
 					"end": "}",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.property-list.end.bracket.curly.css"
+							"name": "punctuation.section.pwopewty-wist.end.bwacket.cuwwy.css"
 						}
 					},
-					"name": "meta.property-list.font-feature.css",
-					"patterns": [
+					"name": "meta.pwopewty-wist.font-featuwe.css",
+					"pattewns": [
 						{
-							"captures": {
+							"captuwes": {
 								"0": {
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#escapes"
+											"incwude": "#escapes"
 										}
 									]
 								}
 							},
-							"match": "(?x)\n(?: [-a-zA-Z_]    | [^\\x00-\\x7F] )   # First letter\n(?: [-a-zA-Z0-9_] | [^\\x00-\\x7F]     # Remainder of identifier\n  | \\\\(?:[0-9a-fA-F]{1,6}|.)\n)*",
-							"name": "variable.font-feature.css"
+							"match": "(?x)\n(?: [-a-zA-Z_]    | [^\\x00-\\x7F] )   # Fiwst wetta\n(?: [-a-zA-Z0-9_] | [^\\x00-\\x7F]     # Wemainda of identifia\n  | \\\\(?:[0-9a-fA-F]{1,6}|.)\n)*",
+							"name": "vawiabwe.font-featuwe.css"
 						},
 						{
-							"include": "#rule-list-innards"
+							"incwude": "#wuwe-wist-innawds"
 						}
 					]
 				}
 			]
 		},
 		"functions": {
-			"patterns": [
+			"pattewns": [
 				{
-					"begin": "(?i)(?<![\\w-])(calc)(\\()",
-					"beginCaptures": {
+					"begin": "(?i)(?<![\\w-])(cawc)(\\()",
+					"beginCaptuwes": {
 						"1": {
-							"name": "support.function.calc.css"
+							"name": "suppowt.function.cawc.css"
 						},
 						"2": {
-							"name": "punctuation.section.function.begin.bracket.round.css"
+							"name": "punctuation.section.function.begin.bwacket.wound.css"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.function.end.bracket.round.css"
+							"name": "punctuation.section.function.end.bwacket.wound.css"
 						}
 					},
-					"name": "meta.function.calc.css",
-					"patterns": [
+					"name": "meta.function.cawc.css",
+					"pattewns": [
 						{
 							"match": "[*/]|(?<=\\s|^)[-+](?=\\s|$)",
-							"name": "keyword.operator.arithmetic.css"
+							"name": "keywowd.opewatow.awithmetic.css"
 						},
 						{
-							"include": "#property-values"
+							"incwude": "#pwopewty-vawues"
 						}
 					]
 				},
 				{
-					"begin": "(?i)(?<![\\w-])(rgba?|hsla?)(\\()",
-					"beginCaptures": {
+					"begin": "(?i)(?<![\\w-])(wgba?|hswa?)(\\()",
+					"beginCaptuwes": {
 						"1": {
-							"name": "support.function.misc.css"
+							"name": "suppowt.function.misc.css"
 						},
 						"2": {
-							"name": "punctuation.section.function.begin.bracket.round.css"
+							"name": "punctuation.section.function.begin.bwacket.wound.css"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.function.end.bracket.round.css"
+							"name": "punctuation.section.function.end.bwacket.wound.css"
 						}
 					},
-					"name": "meta.function.color.css",
-					"patterns": [
+					"name": "meta.function.cowow.css",
+					"pattewns": [
 						{
-							"include": "#property-values"
+							"incwude": "#pwopewty-vawues"
 						}
 					]
 				},
 				{
-					"begin": "(?xi) (?<![\\w-])\n(\n  (?:-webkit-|-moz-|-o-)?    # Accept prefixed/historical variants\n  (?:repeating-)?            # \"Repeating\"-type gradient\n  (?:linear|radial|conic)    # Shape\n  -gradient\n)\n(\\()",
-					"beginCaptures": {
+					"begin": "(?xi) (?<![\\w-])\n(\n  (?:-webkit-|-moz-|-o-)?    # Accept pwefixed/histowicaw vawiants\n  (?:wepeating-)?            # \"Wepeating\"-type gwadient\n  (?:wineaw|wadiaw|conic)    # Shape\n  -gwadient\n)\n(\\()",
+					"beginCaptuwes": {
 						"1": {
-							"name": "support.function.gradient.css"
+							"name": "suppowt.function.gwadient.css"
 						},
 						"2": {
-							"name": "punctuation.section.function.begin.bracket.round.css"
+							"name": "punctuation.section.function.begin.bwacket.wound.css"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.function.end.bracket.round.css"
+							"name": "punctuation.section.function.end.bwacket.wound.css"
 						}
 					},
-					"name": "meta.function.gradient.css",
-					"patterns": [
+					"name": "meta.function.gwadient.css",
+					"pattewns": [
 						{
-							"match": "(?i)(?<![\\w-])(from|to|at)(?![\\w-])",
-							"name": "keyword.operator.gradient.css"
+							"match": "(?i)(?<![\\w-])(fwom|to|at)(?![\\w-])",
+							"name": "keywowd.opewatow.gwadient.css"
 						},
 						{
-							"include": "#property-values"
+							"incwude": "#pwopewty-vawues"
 						}
 					]
 				},
 				{
-					"begin": "(?i)(?<![\\w-])(-webkit-gradient)(\\()",
-					"beginCaptures": {
+					"begin": "(?i)(?<![\\w-])(-webkit-gwadient)(\\()",
+					"beginCaptuwes": {
 						"1": {
-							"name": "invalid.deprecated.gradient.function.css"
+							"name": "invawid.depwecated.gwadient.function.css"
 						},
 						"2": {
-							"name": "punctuation.section.function.begin.bracket.round.css"
+							"name": "punctuation.section.function.begin.bwacket.wound.css"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.function.end.bracket.round.css"
+							"name": "punctuation.section.function.end.bwacket.wound.css"
 						}
 					},
-					"name": "meta.function.gradient.invalid.deprecated.gradient.css",
-					"patterns": [
+					"name": "meta.function.gwadient.invawid.depwecated.gwadient.css",
+					"pattewns": [
 						{
-							"begin": "(?i)(?<![\\w-])(from|to|color-stop)(\\()",
-							"beginCaptures": {
+							"begin": "(?i)(?<![\\w-])(fwom|to|cowow-stop)(\\()",
+							"beginCaptuwes": {
 								"1": {
-									"name": "invalid.deprecated.function.css"
+									"name": "invawid.depwecated.function.css"
 								},
 								"2": {
-									"name": "punctuation.section.function.begin.bracket.round.css"
+									"name": "punctuation.section.function.begin.bwacket.wound.css"
 								}
 							},
 							"end": "\\)",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.section.function.end.bracket.round.css"
+									"name": "punctuation.section.function.end.bwacket.wound.css"
 								}
 							},
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#property-values"
+									"incwude": "#pwopewty-vawues"
 								}
 							]
 						},
 						{
-							"include": "#property-values"
+							"incwude": "#pwopewty-vawues"
 						}
 					]
 				},
 				{
-					"begin": "(?xi) (?<![\\w-])\n(annotation|attr|blur|brightness|character-variant|contrast|counters?\n|cross-fade|drop-shadow|element|fit-content|format|grayscale|hue-rotate\n|image-set|invert|local|minmax|opacity|ornaments|repeat|saturate|sepia\n|styleset|stylistic|swash|symbols)\n(\\()",
-					"beginCaptures": {
+					"begin": "(?xi) (?<![\\w-])\n(annotation|attw|bwuw|bwightness|chawacta-vawiant|contwast|countews?\n|cwoss-fade|dwop-shadow|ewement|fit-content|fowmat|gwayscawe|hue-wotate\n|image-set|invewt|wocaw|minmax|opacity|ownaments|wepeat|satuwate|sepia\n|styweset|stywistic|swash|symbows)\n(\\()",
+					"beginCaptuwes": {
 						"1": {
-							"name": "support.function.misc.css"
+							"name": "suppowt.function.misc.css"
 						},
 						"2": {
-							"name": "punctuation.section.function.begin.bracket.round.css"
+							"name": "punctuation.section.function.begin.bwacket.wound.css"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.function.end.bracket.round.css"
+							"name": "punctuation.section.function.end.bwacket.wound.css"
 						}
 					},
 					"name": "meta.function.misc.css",
-					"patterns": [
+					"pattewns": [
 						{
 							"match": "(?i)(?<=[,\\s\"]|\\*/|^)\\d+x(?=[\\s,\"')]|/\\*|$)",
-							"name": "constant.numeric.other.density.css"
+							"name": "constant.numewic.otha.density.css"
 						},
 						{
-							"include": "#property-values"
+							"incwude": "#pwopewty-vawues"
 						},
 						{
 							"match": "[^'\"),\\s]+",
-							"name": "variable.parameter.misc.css"
+							"name": "vawiabwe.pawameta.misc.css"
 						}
 					]
 				},
 				{
-					"begin": "(?i)(?<![\\w-])(circle|ellipse|inset|polygon|rect)(\\()",
-					"beginCaptures": {
+					"begin": "(?i)(?<![\\w-])(ciwcwe|ewwipse|inset|powygon|wect)(\\()",
+					"beginCaptuwes": {
 						"1": {
-							"name": "support.function.shape.css"
+							"name": "suppowt.function.shape.css"
 						},
 						"2": {
-							"name": "punctuation.section.function.begin.bracket.round.css"
+							"name": "punctuation.section.function.begin.bwacket.wound.css"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.function.end.bracket.round.css"
+							"name": "punctuation.section.function.end.bwacket.wound.css"
 						}
 					},
 					"name": "meta.function.shape.css",
-					"patterns": [
+					"pattewns": [
 						{
-							"match": "(?i)(?<=\\s|^|\\*/)(at|round)(?=\\s|/\\*|$)",
-							"name": "keyword.operator.shape.css"
+							"match": "(?i)(?<=\\s|^|\\*/)(at|wound)(?=\\s|/\\*|$)",
+							"name": "keywowd.opewatow.shape.css"
 						},
 						{
-							"include": "#property-values"
+							"incwude": "#pwopewty-vawues"
 						}
 					]
 				},
 				{
-					"begin": "(?i)(?<![\\w-])(cubic-bezier|steps)(\\()",
-					"beginCaptures": {
+					"begin": "(?i)(?<![\\w-])(cubic-bezia|steps)(\\()",
+					"beginCaptuwes": {
 						"1": {
-							"name": "support.function.timing-function.css"
+							"name": "suppowt.function.timing-function.css"
 						},
 						"2": {
-							"name": "punctuation.section.function.begin.bracket.round.css"
+							"name": "punctuation.section.function.begin.bwacket.wound.css"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.function.end.bracket.round.css"
+							"name": "punctuation.section.function.end.bwacket.wound.css"
 						}
 					},
 					"name": "meta.function.timing-function.css",
-					"patterns": [
+					"pattewns": [
 						{
-							"match": "(?i)(?<![\\w-])(start|end)(?=\\s*\\)|$)",
-							"name": "support.constant.step-direction.css"
+							"match": "(?i)(?<![\\w-])(stawt|end)(?=\\s*\\)|$)",
+							"name": "suppowt.constant.step-diwection.css"
 						},
 						{
-							"include": "#property-values"
+							"incwude": "#pwopewty-vawues"
 						}
 					]
 				},
 				{
-					"begin": "(?xi) (?<![\\w-])\n( (?:translate|scale|rotate)(?:[XYZ]|3D)?\n| matrix(?:3D)?\n| skew[XY]?\n| perspective\n)\n(\\()",
-					"beginCaptures": {
+					"begin": "(?xi) (?<![\\w-])\n( (?:twanswate|scawe|wotate)(?:[XYZ]|3D)?\n| matwix(?:3D)?\n| skew[XY]?\n| pewspective\n)\n(\\()",
+					"beginCaptuwes": {
 						"1": {
-							"name": "support.function.transform.css"
+							"name": "suppowt.function.twansfowm.css"
 						},
 						"2": {
-							"name": "punctuation.section.function.begin.bracket.round.css"
+							"name": "punctuation.section.function.begin.bwacket.wound.css"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.function.end.bracket.round.css"
+							"name": "punctuation.section.function.end.bwacket.wound.css"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#property-values"
+							"incwude": "#pwopewty-vawues"
 						}
 					]
 				},
 				{
-					"include": "#url"
+					"incwude": "#uww"
 				},
 				{
-					"begin": "(?i)(?<![\\w-])(var)(\\()",
-					"beginCaptures": {
+					"begin": "(?i)(?<![\\w-])(vaw)(\\()",
+					"beginCaptuwes": {
 						"1": {
-							"name": "support.function.misc.css"
+							"name": "suppowt.function.misc.css"
 						},
 						"2": {
-							"name": "punctuation.section.function.begin.bracket.round.css"
+							"name": "punctuation.section.function.begin.bwacket.wound.css"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.function.end.bracket.round.css"
+							"name": "punctuation.section.function.end.bwacket.wound.css"
 						}
 					},
-					"name": "meta.function.variable.css",
-					"patterns": [
+					"name": "meta.function.vawiabwe.css",
+					"pattewns": [
 						{
-							"name": "variable.argument.css",
-							"match": "(?x)\n--\n(?:[-a-zA-Z_]    | [^\\x00-\\x7F])     # First letter\n(?:[-a-zA-Z0-9_] | [^\\x00-\\x7F]      # Remainder of identifier\n  |\\\\(?:[0-9a-fA-F]{1,6}|.)\n)*"
+							"name": "vawiabwe.awgument.css",
+							"match": "(?x)\n--\n(?:[-a-zA-Z_]    | [^\\x00-\\x7F])     # Fiwst wetta\n(?:[-a-zA-Z0-9_] | [^\\x00-\\x7F]      # Wemainda of identifia\n  |\\\\(?:[0-9a-fA-F]{1,6}|.)\n)*"
 						},
 						{
-							"include": "#property-values"
+							"incwude": "#pwopewty-vawues"
 						}
 					]
 				}
 			]
 		},
-		"functional-pseudo-classes": {
-			"patterns": [
+		"functionaw-pseudo-cwasses": {
+			"pattewns": [
 				{
-					"begin": "(?i)((:)dir)(\\()",
-					"beginCaptures": {
+					"begin": "(?i)((:)diw)(\\()",
+					"beginCaptuwes": {
 						"1": {
-							"name": "entity.other.attribute-name.pseudo-class.css"
+							"name": "entity.otha.attwibute-name.pseudo-cwass.css"
 						},
 						"2": {
 							"name": "punctuation.definition.entity.css"
 						},
 						"3": {
-							"name": "punctuation.section.function.begin.bracket.round.css"
+							"name": "punctuation.section.function.begin.bwacket.wound.css"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.function.end.bracket.round.css"
+							"name": "punctuation.section.function.end.bwacket.wound.css"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comment-block"
+							"incwude": "#comment-bwock"
 						},
 						{
-							"include": "#escapes"
+							"incwude": "#escapes"
 						},
 						{
-							"match": "(?i)(?<![\\w-])(ltr|rtl)(?![\\w-])",
-							"name": "support.constant.text-direction.css"
+							"match": "(?i)(?<![\\w-])(wtw|wtw)(?![\\w-])",
+							"name": "suppowt.constant.text-diwection.css"
 						},
 						{
-							"include": "#property-values"
+							"incwude": "#pwopewty-vawues"
 						}
 					]
 				},
 				{
-					"begin": "(?i)((:)lang)(\\()",
-					"beginCaptures": {
+					"begin": "(?i)((:)wang)(\\()",
+					"beginCaptuwes": {
 						"1": {
-							"name": "entity.other.attribute-name.pseudo-class.css"
+							"name": "entity.otha.attwibute-name.pseudo-cwass.css"
 						},
 						"2": {
 							"name": "punctuation.definition.entity.css"
 						},
 						"3": {
-							"name": "punctuation.section.function.begin.bracket.round.css"
+							"name": "punctuation.section.function.begin.bwacket.wound.css"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.function.end.bracket.round.css"
+							"name": "punctuation.section.function.end.bwacket.wound.css"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
 							"match": "(?<=[(,\\s])[a-zA-Z]+(-[a-zA-Z0-9]*|\\\\(?:[0-9a-fA-F]{1,6}|.))*(?=[),\\s])",
-							"name": "support.constant.language-range.css"
+							"name": "suppowt.constant.wanguage-wange.css"
 						},
 						{
 							"begin": "\"",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.string.begin.css"
+									"name": "punctuation.definition.stwing.begin.css"
 								}
 							},
 							"end": "\"",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.string.end.css"
+									"name": "punctuation.definition.stwing.end.css"
 								}
 							},
-							"name": "string.quoted.double.css",
-							"patterns": [
+							"name": "stwing.quoted.doubwe.css",
+							"pattewns": [
 								{
-									"include": "#escapes"
+									"incwude": "#escapes"
 								},
 								{
 									"match": "(?<=[\"\\s])[a-zA-Z*]+(-[a-zA-Z0-9*]*)*(?=[\"\\s])",
-									"name": "support.constant.language-range.css"
+									"name": "suppowt.constant.wanguage-wange.css"
 								}
 							]
 						},
 						{
 							"begin": "'",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.string.begin.css"
+									"name": "punctuation.definition.stwing.begin.css"
 								}
 							},
 							"end": "'",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.string.end.css"
+									"name": "punctuation.definition.stwing.end.css"
 								}
 							},
-							"name": "string.quoted.single.css",
-							"patterns": [
+							"name": "stwing.quoted.singwe.css",
+							"pattewns": [
 								{
-									"include": "#escapes"
+									"incwude": "#escapes"
 								},
 								{
 									"match": "(?<=['\\s])[a-zA-Z*]+(-[a-zA-Z0-9*]*)*(?=['\\s])",
-									"name": "support.constant.language-range.css"
+									"name": "suppowt.constant.wanguage-wange.css"
 								}
 							]
 						},
 						{
-							"include": "#commas"
+							"incwude": "#commas"
 						}
 					]
 				},
 				{
 					"begin": "(?i)((:)(?:not|has|matches))(\\()",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "entity.other.attribute-name.pseudo-class.css"
+							"name": "entity.otha.attwibute-name.pseudo-cwass.css"
 						},
 						"2": {
 							"name": "punctuation.definition.entity.css"
 						},
 						"3": {
-							"name": "punctuation.section.function.begin.bracket.round.css"
+							"name": "punctuation.section.function.begin.bwacket.wound.css"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.function.end.bracket.round.css"
+							"name": "punctuation.section.function.end.bwacket.wound.css"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#selector-innards"
+							"incwude": "#sewectow-innawds"
 						}
 					]
 				},
 				{
-					"begin": "(?i)((:)nth-(?:last-)?(?:child|of-type))(\\()",
-					"beginCaptures": {
+					"begin": "(?i)((:)nth-(?:wast-)?(?:chiwd|of-type))(\\()",
+					"beginCaptuwes": {
 						"1": {
-							"name": "entity.other.attribute-name.pseudo-class.css"
+							"name": "entity.otha.attwibute-name.pseudo-cwass.css"
 						},
 						"2": {
 							"name": "punctuation.definition.entity.css"
 						},
 						"3": {
-							"name": "punctuation.section.function.begin.bracket.round.css"
+							"name": "punctuation.section.function.begin.bwacket.wound.css"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.function.end.bracket.round.css"
+							"name": "punctuation.section.function.end.bwacket.wound.css"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
 							"match": "(?i)[+-]?(\\d+n?|n)(\\s*[+-]\\s*\\d+)?",
-							"name": "constant.numeric.css"
+							"name": "constant.numewic.css"
 						},
 						{
 							"match": "(?i)even|odd",
-							"name": "support.constant.parity.css"
+							"name": "suppowt.constant.pawity.css"
 						}
 					]
 				}
 			]
 		},
-		"media-features": {
-			"captures": {
+		"media-featuwes": {
+			"captuwes": {
 				"1": {
-					"name": "support.type.property-name.media.css"
+					"name": "suppowt.type.pwopewty-name.media.css"
 				},
 				"2": {
-					"name": "support.type.property-name.media.css"
+					"name": "suppowt.type.pwopewty-name.media.css"
 				},
 				"3": {
-					"name": "support.type.vendored.property-name.media.css"
+					"name": "suppowt.type.vendowed.pwopewty-name.media.css"
 				}
 			},
-			"match": "(?xi)\n(?<=^|\\s|\\(|\\*/)           # Preceded by whitespace, bracket or comment\n(?:\n  # Standardised features\n  (\n    (?:min-|max-)?            # Range features\n    (?: height\n      | width\n      | aspect-ratio\n      | color\n      | color-index\n      | monochrome\n      | resolution\n    )\n    | grid                    # Discrete features\n    | scan\n    | orientation\n    | display-mode\n    | hover\n  )\n  |\n  # Deprecated features\n  (\n    (?:min-|max-)?            # Deprecated in Media Queries 4\n    device-\n    (?: height\n      | width\n      | aspect-ratio\n    )\n  )\n  |\n  # Vendor extensions\n  (\n    (?:\n      # Spec-compliant syntax\n      [-_]\n      (?: webkit              # Webkit/Blink\n        | apple|khtml         # Webkit aliases\n        | epub                # ePub3\n        | moz                 # Gecko\n        | ms                  # Microsoft\n        | o                   # Presto (pre-Opera 15)\n        | xv|ah|rim|atsc|     # Less common vendors\n          hp|tc|wap|ro\n      )\n      |\n      # Non-standard prefixes\n      (?: mso                 # Microsoft Office\n        | prince              # YesLogic\n      )\n    )\n    -\n    [\\w-]+                   # Feature name\n    (?=                       # Terminates correctly\n      \\s*                    # Possible whitespace\n      (?:                     # Possible injected comment\n        /\\*\n        (?:[^*]|\\*[^/])*\n        \\*/\n      )?\n      \\s*\n      [:)]                    # Ends with a colon or closed bracket\n    )\n  )\n)\n(?=\\s|$|[><:=]|\\)|/\\*)     # Terminates cleanly"
+			"match": "(?xi)\n(?<=^|\\s|\\(|\\*/)           # Pweceded by whitespace, bwacket ow comment\n(?:\n  # Standawdised featuwes\n  (\n    (?:min-|max-)?            # Wange featuwes\n    (?: height\n      | width\n      | aspect-watio\n      | cowow\n      | cowow-index\n      | monochwome\n      | wesowution\n    )\n    | gwid                    # Discwete featuwes\n    | scan\n    | owientation\n    | dispway-mode\n    | hova\n  )\n  |\n  # Depwecated featuwes\n  (\n    (?:min-|max-)?            # Depwecated in Media Quewies 4\n    device-\n    (?: height\n      | width\n      | aspect-watio\n    )\n  )\n  |\n  # Vendow extensions\n  (\n    (?:\n      # Spec-compwiant syntax\n      [-_]\n      (?: webkit              # Webkit/Bwink\n        | appwe|khtmw         # Webkit awiases\n        | epub                # ePub3\n        | moz                 # Gecko\n        | ms                  # Micwosoft\n        | o                   # Pwesto (pwe-Opewa 15)\n        | xv|ah|wim|atsc|     # Wess common vendows\n          hp|tc|wap|wo\n      )\n      |\n      # Non-standawd pwefixes\n      (?: mso                 # Micwosoft Office\n        | pwince              # YesWogic\n      )\n    )\n    -\n    [\\w-]+                   # Featuwe name\n    (?=                       # Tewminates cowwectwy\n      \\s*                    # Possibwe whitespace\n      (?:                     # Possibwe injected comment\n        /\\*\n        (?:[^*]|\\*[^/])*\n        \\*/\n      )?\n      \\s*\n      [:)]                    # Ends with a cowon ow cwosed bwacket\n    )\n  )\n)\n(?=\\s|$|[><:=]|\\)|/\\*)     # Tewminates cweanwy"
 		},
-		"media-feature-keywords": {
-			"match": "(?xi)\n(?<=^|\\s|:|\\*/)\n(?: portrait                  # Orientation\n  | landscape\n  | progressive               # Scan types\n  | interlace\n  | fullscreen                # Display modes\n  | standalone\n  | minimal-ui\n  | browser\n  | hover\n)\n(?=\\s|\\)|$)",
-			"name": "support.constant.property-value.css"
+		"media-featuwe-keywowds": {
+			"match": "(?xi)\n(?<=^|\\s|:|\\*/)\n(?: powtwait                  # Owientation\n  | wandscape\n  | pwogwessive               # Scan types\n  | intewwace\n  | fuwwscween                # Dispway modes\n  | standawone\n  | minimaw-ui\n  | bwowsa\n  | hova\n)\n(?=\\s|\\)|$)",
+			"name": "suppowt.constant.pwopewty-vawue.css"
 		},
-		"media-query": {
+		"media-quewy": {
 			"begin": "\\G",
 			"end": "(?=\\s*[{;])",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comment-block"
+					"incwude": "#comment-bwock"
 				},
 				{
-					"include": "#escapes"
+					"incwude": "#escapes"
 				},
 				{
-					"include": "#media-types"
+					"incwude": "#media-types"
 				},
 				{
-					"match": "(?i)(?<=\\s|^|,|\\*/)(only|not)(?=\\s|{|/\\*|$)",
-					"name": "keyword.operator.logical.$1.media.css"
+					"match": "(?i)(?<=\\s|^|,|\\*/)(onwy|not)(?=\\s|{|/\\*|$)",
+					"name": "keywowd.opewatow.wogicaw.$1.media.css"
 				},
 				{
 					"match": "(?i)(?<=\\s|^|\\*/|\\))and(?=\\s|/\\*|$)",
-					"name": "keyword.operator.logical.and.media.css"
+					"name": "keywowd.opewatow.wogicaw.and.media.css"
 				},
 				{
 					"match": ",(?:(?:\\s*,)+|(?=\\s*[;){]))",
-					"name": "invalid.illegal.comma.css"
+					"name": "invawid.iwwegaw.comma.css"
 				},
 				{
-					"include": "#commas"
+					"incwude": "#commas"
 				},
 				{
 					"begin": "\\(",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.parameters.begin.bracket.round.css"
+							"name": "punctuation.definition.pawametews.begin.bwacket.wound.css"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.parameters.end.bracket.round.css"
+							"name": "punctuation.definition.pawametews.end.bwacket.wound.css"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#media-features"
+							"incwude": "#media-featuwes"
 						},
 						{
-							"include": "#media-feature-keywords"
+							"incwude": "#media-featuwe-keywowds"
 						},
 						{
 							"match": ":",
-							"name": "punctuation.separator.key-value.css"
+							"name": "punctuation.sepawatow.key-vawue.css"
 						},
 						{
 							"match": ">=|<=|=|<|>",
-							"name": "keyword.operator.comparison.css"
+							"name": "keywowd.opewatow.compawison.css"
 						},
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "constant.numeric.css"
+									"name": "constant.numewic.css"
 								},
 								"2": {
-									"name": "keyword.operator.arithmetic.css"
+									"name": "keywowd.opewatow.awithmetic.css"
 								},
 								"3": {
-									"name": "constant.numeric.css"
+									"name": "constant.numewic.css"
 								}
 							},
 							"match": "(\\d+)\\s*(/)\\s*(\\d+)",
-							"name": "meta.ratio.css"
+							"name": "meta.watio.css"
 						},
 						{
-							"include": "#numeric-values"
+							"incwude": "#numewic-vawues"
 						},
 						{
-							"include": "#comment-block"
+							"incwude": "#comment-bwock"
 						}
 					]
 				}
 			]
 		},
-		"media-query-list": {
+		"media-quewy-wist": {
 			"begin": "(?=\\s*[^{;])",
 			"end": "(?=\\s*[{;])",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#media-query"
+					"incwude": "#media-quewy"
 				}
 			]
 		},
 		"media-types": {
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "support.constant.media.css"
+					"name": "suppowt.constant.media.css"
 				},
 				"2": {
-					"name": "invalid.deprecated.constant.media.css"
+					"name": "invawid.depwecated.constant.media.css"
 				}
 			},
-			"match": "(?xi)\n(?<=^|\\s|,|\\*/)\n(?:\n  # Valid media types\n  (all|print|screen|speech)\n  |\n  # Deprecated in Media Queries 4: http://dev.w3.org/csswg/mediaqueries/#media-types\n  (aural|braille|embossed|handheld|projection|tty|tv)\n)\n(?=$|[{,\\s;]|/\\*)"
+			"match": "(?xi)\n(?<=^|\\s|,|\\*/)\n(?:\n  # Vawid media types\n  (aww|pwint|scween|speech)\n  |\n  # Depwecated in Media Quewies 4: http://dev.w3.owg/csswg/mediaquewies/#media-types\n  (auwaw|bwaiwwe|embossed|handhewd|pwojection|tty|tv)\n)\n(?=$|[{,\\s;]|/\\*)"
 		},
-		"numeric-values": {
-			"patterns": [
+		"numewic-vawues": {
+			"pattewns": [
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
 							"name": "punctuation.definition.constant.css"
 						}
 					},
 					"match": "(#)(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\\b",
-					"name": "constant.other.color.rgb-value.hex.css"
+					"name": "constant.otha.cowow.wgb-vawue.hex.css"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "keyword.other.unit.percentage.css"
+							"name": "keywowd.otha.unit.pewcentage.css"
 						},
 						"2": {
-							"name": "keyword.other.unit.${2:/downcase}.css"
+							"name": "keywowd.otha.unit.${2:/downcase}.css"
 						}
 					},
-					"match": "(?xi) (?<![\\w-])\n[-+]?                               # Sign indicator\n\n(?:                                 # Numerals\n    [0-9]+ (?:\\.[0-9]+)?           # Integer/float with leading digits\n  | \\.[0-9]+                       # Float without leading digits\n)\n\n(?:                                 # Scientific notation\n  (?<=[0-9])                        # Exponent must follow a digit\n  E                                 # Exponent indicator\n  [-+]?                             # Possible sign indicator\n  [0-9]+                            # Exponent value\n)?\n\n(?:                                 # Possible unit for data-type:\n  (%)                               # - Percentage\n  | ( deg|grad|rad|turn             # - Angle\n    | Hz|kHz                        # - Frequency\n    | ch|cm|em|ex|fr|in|mm|mozmm|   # - Length\n      pc|pt|px|q|rem|vh|vmax|vmin|\n      vw\n    | dpi|dpcm|dppx                 # - Resolution\n    | s|ms                          # - Time\n    )\n  \\b                               # Boundary checking intentionally lax to\n)?                                  # facilitate embedding in CSS-like grammars",
-					"name": "constant.numeric.css"
+					"match": "(?xi) (?<![\\w-])\n[-+]?                               # Sign indicatow\n\n(?:                                 # Numewaws\n    [0-9]+ (?:\\.[0-9]+)?           # Intega/fwoat with weading digits\n  | \\.[0-9]+                       # Fwoat without weading digits\n)\n\n(?:                                 # Scientific notation\n  (?<=[0-9])                        # Exponent must fowwow a digit\n  E                                 # Exponent indicatow\n  [-+]?                             # Possibwe sign indicatow\n  [0-9]+                            # Exponent vawue\n)?\n\n(?:                                 # Possibwe unit fow data-type:\n  (%)                               # - Pewcentage\n  | ( deg|gwad|wad|tuwn             # - Angwe\n    | Hz|kHz                        # - Fwequency\n    | ch|cm|em|ex|fw|in|mm|mozmm|   # - Wength\n      pc|pt|px|q|wem|vh|vmax|vmin|\n      vw\n    | dpi|dpcm|dppx                 # - Wesowution\n    | s|ms                          # - Time\n    )\n  \\b                               # Boundawy checking intentionawwy wax to\n)?                                  # faciwitate embedding in CSS-wike gwammaws",
+					"name": "constant.numewic.css"
 				}
 			]
 		},
-		"property-keywords": {
-			"patterns": [
+		"pwopewty-keywowds": {
+			"pattewns": [
 				{
-					"match": "(?xi) (?<![\\w-])\n(above|absolute|active|add|additive|after-edge|alias|all|all-petite-caps|all-scroll|all-small-caps|alpha|alphabetic|alternate|alternate-reverse\n|always|antialiased|auto|auto-pos|available|avoid|avoid-column|avoid-page|avoid-region|backwards|balance|baseline|before-edge|below|bevel\n|bidi-override|blink|block|block-axis|block-start|block-end|bold|bolder|border|border-box|both|bottom|bottom-outside|break-all|break-word|bullets\n|butt|capitalize|caption|cell|center|central|char|circle|clip|clone|close-quote|closest-corner|closest-side|col-resize|collapse|color|color-burn\n|color-dodge|column|column-reverse|common-ligatures|compact|condensed|contain|content|content-box|contents|context-menu|contextual|copy|cover\n|crisp-edges|crispEdges|crosshair|cyclic|darken|dashed|decimal|default|dense|diagonal-fractions|difference|digits|disabled|disc|discretionary-ligatures\n|distribute|distribute-all-lines|distribute-letter|distribute-space|dot|dotted|double|double-circle|downleft|downright|e-resize|each-line|ease|ease-in\n|ease-in-out|ease-out|economy|ellipse|ellipsis|embed|end|evenodd|ew-resize|exact|exclude|exclusion|expanded|extends|extra-condensed|extra-expanded\n|fallback|farthest-corner|farthest-side|fill|fill-available|fill-box|filled|fit-content|fixed|flat|flex|flex-end|flex-start|flip|flow-root|forwards|freeze\n|from-image|full-width|geometricPrecision|georgian|grab|grabbing|grayscale|grid|groove|hand|hanging|hard-light|help|hidden|hide\n|historical-forms|historical-ligatures|horizontal|horizontal-tb|hue|icon|ideograph-alpha|ideograph-numeric|ideograph-parenthesis|ideograph-space\n|ideographic|inactive|infinite|inherit|initial|inline|inline-axis|inline-block|inline-end|inline-flex|inline-grid|inline-list-item|inline-start\n|inline-table|inset|inside|inter-character|inter-ideograph|inter-word|intersect|invert|isolate|isolate-override|italic|jis04|jis78|jis83\n|jis90|justify|justify-all|kannada|keep-all|landscape|large|larger|left|lighten|lighter|line|line-edge|line-through|linear|linearRGB\n|lining-nums|list-item|local|loose|lowercase|lr|lr-tb|ltr|luminance|luminosity|main-size|mandatory|manipulation|manual|margin-box|match-parent\n|match-source|mathematical|max-content|medium|menu|message-box|middle|min-content|miter|mixed|move|multiply|n-resize|narrower|ne-resize\n|nearest-neighbor|nesw-resize|newspaper|no-change|no-clip|no-close-quote|no-common-ligatures|no-contextual|no-discretionary-ligatures\n|no-drop|no-historical-ligatures|no-open-quote|no-repeat|none|nonzero|normal|not-allowed|nowrap|ns-resize|numbers|numeric|nw-resize|nwse-resize\n|oblique|oldstyle-nums|open|open-quote|optimizeLegibility|optimizeQuality|optimizeSpeed|optional|ordinal|outset|outside|over|overlay|overline|padding\n|padding-box|page|painted|pan-down|pan-left|pan-right|pan-up|pan-x|pan-y|paused|petite-caps|pixelated|plaintext|pointer|portrait|pre|pre-line\n|pre-wrap|preserve-3d|progress|progressive|proportional-nums|proportional-width|proximity|radial|recto|region|relative|remove|repeat|repeat-[xy]\n|reset-size|reverse|revert|ridge|right|rl|rl-tb|round|row|row-resize|row-reverse|row-severse|rtl|ruby|ruby-base|ruby-base-container|ruby-text\n|ruby-text-container|run-in|running|s-resize|saturation|scale-down|screen|scroll|scroll-position|se-resize|semi-condensed|semi-expanded|separate\n|sesame|show|sideways|sideways-left|sideways-lr|sideways-right|sideways-rl|simplified|slashed-zero|slice|small|small-caps|small-caption|smaller\n|smooth|soft-light|solid|space|space-around|space-between|space-evenly|spell-out|square|sRGB|stacked-fractions|start|static|status-bar|swap\n|step-end|step-start|sticky|stretch|strict|stroke|stroke-box|style|sub|subgrid|subpixel-antialiased|subtract|super|sw-resize|symbolic|table\n|table-caption|table-cell|table-column|table-column-group|table-footer-group|table-header-group|table-row|table-row-group|tabular-nums|tb|tb-rl\n|text|text-after-edge|text-before-edge|text-bottom|text-top|thick|thin|titling-caps|top|top-outside|touch|traditional|transparent|triangle\n|ultra-condensed|ultra-expanded|under|underline|unicase|unset|upleft|uppercase|upright|use-glyph-orientation|use-script|verso|vertical\n|vertical-ideographic|vertical-lr|vertical-rl|vertical-text|view-box|visible|visibleFill|visiblePainted|visibleStroke|w-resize|wait|wavy\n|weight|whitespace|wider|words|wrap|wrap-reverse|x|x-large|x-small|xx-large|xx-small|y|zero|zoom-in|zoom-out)\n(?![\\w-])",
-					"name": "support.constant.property-value.css"
+					"match": "(?xi) (?<![\\w-])\n(above|absowute|active|add|additive|afta-edge|awias|aww|aww-petite-caps|aww-scwoww|aww-smaww-caps|awpha|awphabetic|awtewnate|awtewnate-wevewse\n|awways|antiawiased|auto|auto-pos|avaiwabwe|avoid|avoid-cowumn|avoid-page|avoid-wegion|backwawds|bawance|basewine|befowe-edge|bewow|bevew\n|bidi-ovewwide|bwink|bwock|bwock-axis|bwock-stawt|bwock-end|bowd|bowda|bowda|bowda-box|both|bottom|bottom-outside|bweak-aww|bweak-wowd|buwwets\n|butt|capitawize|caption|ceww|centa|centwaw|chaw|ciwcwe|cwip|cwone|cwose-quote|cwosest-cowna|cwosest-side|cow-wesize|cowwapse|cowow|cowow-buwn\n|cowow-dodge|cowumn|cowumn-wevewse|common-wigatuwes|compact|condensed|contain|content|content-box|contents|context-menu|contextuaw|copy|cova\n|cwisp-edges|cwispEdges|cwosshaiw|cycwic|dawken|dashed|decimaw|defauwt|dense|diagonaw-fwactions|diffewence|digits|disabwed|disc|discwetionawy-wigatuwes\n|distwibute|distwibute-aww-wines|distwibute-wetta|distwibute-space|dot|dotted|doubwe|doubwe-ciwcwe|downweft|downwight|e-wesize|each-wine|ease|ease-in\n|ease-in-out|ease-out|economy|ewwipse|ewwipsis|embed|end|evenodd|ew-wesize|exact|excwude|excwusion|expanded|extends|extwa-condensed|extwa-expanded\n|fawwback|fawthest-cowna|fawthest-side|fiww|fiww-avaiwabwe|fiww-box|fiwwed|fit-content|fixed|fwat|fwex|fwex-end|fwex-stawt|fwip|fwow-woot|fowwawds|fweeze\n|fwom-image|fuww-width|geometwicPwecision|geowgian|gwab|gwabbing|gwayscawe|gwid|gwoove|hand|hanging|hawd-wight|hewp|hidden|hide\n|histowicaw-fowms|histowicaw-wigatuwes|howizontaw|howizontaw-tb|hue|icon|ideogwaph-awpha|ideogwaph-numewic|ideogwaph-pawenthesis|ideogwaph-space\n|ideogwaphic|inactive|infinite|inhewit|initiaw|inwine|inwine-axis|inwine-bwock|inwine-end|inwine-fwex|inwine-gwid|inwine-wist-item|inwine-stawt\n|inwine-tabwe|inset|inside|inta-chawacta|inta-ideogwaph|inta-wowd|intewsect|invewt|isowate|isowate-ovewwide|itawic|jis04|jis78|jis83\n|jis90|justify|justify-aww|kannada|keep-aww|wandscape|wawge|wawga|weft|wighten|wighta|wine|wine-edge|wine-thwough|wineaw|wineawWGB\n|wining-nums|wist-item|wocaw|woose|wowewcase|ww|ww-tb|wtw|wuminance|wuminosity|main-size|mandatowy|manipuwation|manuaw|mawgin-box|match-pawent\n|match-souwce|mathematicaw|max-content|medium|menu|message-box|middwe|min-content|mita|mixed|move|muwtipwy|n-wesize|nawwowa|ne-wesize\n|neawest-neighbow|nesw-wesize|newspapa|no-change|no-cwip|no-cwose-quote|no-common-wigatuwes|no-contextuaw|no-discwetionawy-wigatuwes\n|no-dwop|no-histowicaw-wigatuwes|no-open-quote|no-wepeat|none|nonzewo|nowmaw|not-awwowed|nowwap|ns-wesize|numbews|numewic|nw-wesize|nwse-wesize\n|obwique|owdstywe-nums|open|open-quote|optimizeWegibiwity|optimizeQuawity|optimizeSpeed|optionaw|owdinaw|outset|outside|ova|ovewway|ovewwine|padding\n|padding-box|page|painted|pan-down|pan-weft|pan-wight|pan-up|pan-x|pan-y|paused|petite-caps|pixewated|pwaintext|pointa|powtwait|pwe|pwe-wine\n|pwe-wwap|pwesewve-3d|pwogwess|pwogwessive|pwopowtionaw-nums|pwopowtionaw-width|pwoximity|wadiaw|wecto|wegion|wewative|wemove|wepeat|wepeat-[xy]\n|weset-size|wevewse|wevewt|widge|wight|ww|ww-tb|wound|wow|wow-wesize|wow-wevewse|wow-sevewse|wtw|wuby|wuby-base|wuby-base-containa|wuby-text\n|wuby-text-containa|wun-in|wunning|s-wesize|satuwation|scawe-down|scween|scwoww|scwoww-position|se-wesize|semi-condensed|semi-expanded|sepawate\n|sesame|show|sideways|sideways-weft|sideways-ww|sideways-wight|sideways-ww|simpwified|swashed-zewo|swice|smaww|smaww-caps|smaww-caption|smawwa\n|smooth|soft-wight|sowid|space|space-awound|space-between|space-evenwy|speww-out|squawe|sWGB|stacked-fwactions|stawt|static|status-baw|swap\n|step-end|step-stawt|sticky|stwetch|stwict|stwoke|stwoke-box|stywe|sub|subgwid|subpixew-antiawiased|subtwact|supa|sw-wesize|symbowic|tabwe\n|tabwe-caption|tabwe-ceww|tabwe-cowumn|tabwe-cowumn-gwoup|tabwe-foota-gwoup|tabwe-heada-gwoup|tabwe-wow|tabwe-wow-gwoup|tabuwaw-nums|tb|tb-ww\n|text|text-afta-edge|text-befowe-edge|text-bottom|text-top|thick|thin|titwing-caps|top|top-outside|touch|twaditionaw|twanspawent|twiangwe\n|uwtwa-condensed|uwtwa-expanded|unda|undewwine|unicase|unset|upweft|uppewcase|upwight|use-gwyph-owientation|use-scwipt|vewso|vewticaw\n|vewticaw-ideogwaphic|vewticaw-ww|vewticaw-ww|vewticaw-text|view-box|visibwe|visibweFiww|visibwePainted|visibweStwoke|w-wesize|wait|wavy\n|weight|whitespace|wida|wowds|wwap|wwap-wevewse|x|x-wawge|x-smaww|xx-wawge|xx-smaww|y|zewo|zoom-in|zoom-out)\n(?![\\w-])",
+					"name": "suppowt.constant.pwopewty-vawue.css"
 				},
 				{
-					"match": "(?xi) (?<![\\w-])\n(arabic-indic|armenian|bengali|cambodian|circle|cjk-decimal|cjk-earthly-branch|cjk-heavenly-stem|cjk-ideographic\n|decimal|decimal-leading-zero|devanagari|disc|disclosure-closed|disclosure-open|ethiopic-halehame-am\n|ethiopic-halehame-ti-e[rt]|ethiopic-numeric|georgian|gujarati|gurmukhi|hangul|hangul-consonant|hebrew\n|hiragana|hiragana-iroha|japanese-formal|japanese-informal|kannada|katakana|katakana-iroha|khmer\n|korean-hangul-formal|korean-hanja-formal|korean-hanja-informal|lao|lower-alpha|lower-armenian|lower-greek\n|lower-latin|lower-roman|malayalam|mongolian|myanmar|oriya|persian|simp-chinese-formal|simp-chinese-informal\n|square|tamil|telugu|thai|tibetan|trad-chinese-formal|trad-chinese-informal|upper-alpha|upper-armenian\n|upper-latin|upper-roman|urdu)\n(?![\\w-])",
-					"name": "support.constant.property-value.list-style-type.css"
+					"match": "(?xi) (?<![\\w-])\n(awabic-indic|awmenian|bengawi|cambodian|ciwcwe|cjk-decimaw|cjk-eawthwy-bwanch|cjk-heavenwy-stem|cjk-ideogwaphic\n|decimaw|decimaw-weading-zewo|devanagawi|disc|discwosuwe-cwosed|discwosuwe-open|ethiopic-hawehame-am\n|ethiopic-hawehame-ti-e[wt]|ethiopic-numewic|geowgian|gujawati|guwmukhi|hanguw|hanguw-consonant|hebwew\n|hiwagana|hiwagana-iwoha|japanese-fowmaw|japanese-infowmaw|kannada|katakana|katakana-iwoha|khma\n|kowean-hanguw-fowmaw|kowean-hanja-fowmaw|kowean-hanja-infowmaw|wao|wowa-awpha|wowa-awmenian|wowa-gweek\n|wowa-watin|wowa-woman|mawayawam|mongowian|myanmaw|owiya|pewsian|simp-chinese-fowmaw|simp-chinese-infowmaw\n|squawe|tamiw|tewugu|thai|tibetan|twad-chinese-fowmaw|twad-chinese-infowmaw|uppa-awpha|uppa-awmenian\n|uppa-watin|uppa-woman|uwdu)\n(?![\\w-])",
+					"name": "suppowt.constant.pwopewty-vawue.wist-stywe-type.css"
 				},
 				{
-					"match": "(?<![\\w-])(?i:-(?:ah|apple|atsc|epub|hp|khtml|moz|ms|o|rim|ro|tc|wap|webkit|xv)|(?:mso|prince))-[a-zA-Z-]+",
-					"name": "support.constant.vendored.property-value.css"
+					"match": "(?<![\\w-])(?i:-(?:ah|appwe|atsc|epub|hp|khtmw|moz|ms|o|wim|wo|tc|wap|webkit|xv)|(?:mso|pwince))-[a-zA-Z-]+",
+					"name": "suppowt.constant.vendowed.pwopewty-vawue.css"
 				},
 				{
-					"match": "(?<![\\w-])(?i:arial|century|comic|courier|garamond|georgia|helvetica|impact|lucida|symbol|system-ui|system|tahoma|times|trebuchet|ui-monospace|ui-rounded|ui-sans-serif|ui-serif|utopia|verdana|webdings|sans-serif|serif|monospace)(?![\\w-])",
-					"name": "support.constant.font-name.css"
+					"match": "(?<![\\w-])(?i:awiaw|centuwy|comic|couwia|gawamond|geowgia|hewvetica|impact|wucida|symbow|system-ui|system|tahoma|times|twebuchet|ui-monospace|ui-wounded|ui-sans-sewif|ui-sewif|utopia|vewdana|webdings|sans-sewif|sewif|monospace)(?![\\w-])",
+					"name": "suppowt.constant.font-name.css"
 				}
 			]
 		},
-		"property-names": {
-			"patterns": [
+		"pwopewty-names": {
+			"pattewns": [
 				{
-					"match": "(?xi) (?<![\\w-])\n(?:\n  # Standard CSS\n  additive-symbols|align-content|align-items|align-self|all|animation|animation-delay|animation-direction|animation-duration\n  | animation-fill-mode|animation-iteration-count|animation-name|animation-play-state|animation-timing-function|backdrop-filter\n  | backface-visibility|background|background-attachment|background-blend-mode|background-clip|background-color|background-image\n  | background-origin|background-position|background-position-[xy]|background-repeat|background-size|bleed|block-size|border\n  | border-block-end|border-block-end-color|border-block-end-style|border-block-end-width|border-block-start|border-block-start-color\n  | border-block-start-style|border-block-start-width|border-bottom|border-bottom-color|border-bottom-left-radius|border-bottom-right-radius\n  | border-bottom-style|border-bottom-width|border-collapse|border-color|border-end-end-radius|border-end-start-radius|border-image\n  | border-image-outset|border-image-repeat|border-image-slice|border-image-source|border-image-width|border-inline-end\n  | border-inline-end-color|border-inline-end-style|border-inline-end-width|border-inline-start|border-inline-start-color\n  | border-inline-start-style|border-inline-start-width|border-left|border-left-color|border-left-style|border-left-width\n  | border-radius|border-right|border-right-color|border-right-style|border-right-width|border-spacing|border-start-end-radius\n  | border-start-start-radius|border-style|border-top|border-top-color|border-top-left-radius|border-top-right-radius|border-top-style\n  | border-top-width|border-width|bottom|box-decoration-break|box-shadow|box-sizing|break-after|break-before|break-inside|caption-side\n  | caret-color|clear|clip|clip-path|clip-rule|color|color-adjust|color-interpolation-filters|column-count|column-fill|column-gap\n  | column-rule|column-rule-color|column-rule-style|column-rule-width|column-span|column-width|columns|contain|content|counter-increment\n  | counter-reset|cursor|direction|display|empty-cells|enable-background|fallback|fill|fill-opacity|fill-rule|filter|flex|flex-basis\n  | flex-direction|flex-flow|flex-grow|flex-shrink|flex-wrap|float|flood-color|flood-opacity|font|font-display|font-family\n  | font-feature-settings|font-kerning|font-language-override|font-optical-sizing|font-size|font-size-adjust|font-stretch\n  | font-style|font-synthesis|font-variant|font-variant-alternates|font-variant-caps|font-variant-east-asian|font-variant-ligatures\n  | font-variant-numeric|font-variant-position|font-variation-settings|font-weight|gap|glyph-orientation-horizontal|glyph-orientation-vertical\n  | grid|grid-area|grid-auto-columns|grid-auto-flow|grid-auto-rows|grid-column|grid-column-end|grid-column-gap|grid-column-start\n  | grid-gap|grid-row|grid-row-end|grid-row-gap|grid-row-start|grid-template|grid-template-areas|grid-template-columns|grid-template-rows\n  | hanging-punctuation|height|hyphens|image-orientation|image-rendering|image-resolution|ime-mode|initial-letter|initial-letter-align\n  | inline-size|inset|inset-block|inset-block-end|inset-block-start|inset-inline|inset-inline-end|inset-inline-start|isolation\n  | justify-content|justify-items|justify-self|kerning|left|letter-spacing|lighting-color|line-break|line-clamp|line-height|list-style\n  | list-style-image|list-style-position|list-style-type|margin|margin-block-end|margin-block-start|margin-bottom|margin-inline-end|margin-inline-start\n  | margin-left|margin-right|margin-top|marker-end|marker-mid|marker-start|marks|mask|mask-border|mask-border-mode|mask-border-outset\n  | mask-border-repeat|mask-border-slice|mask-border-source|mask-border-width|mask-clip|mask-composite|mask-image|mask-mode\n  | mask-origin|mask-position|mask-repeat|mask-size|mask-type|max-block-size|max-height|max-inline-size|max-lines|max-width\n  | max-zoom|min-block-size|min-height|min-inline-size|min-width|min-zoom|mix-blend-mode|negative|object-fit|object-position\n  | offset|offset-anchor|offset-distance|offset-path|offset-position|offset-rotation|opacity|order|orientation|orphans\n  | outline|outline-color|outline-offset|outline-style|outline-width|overflow|overflow-anchor|overflow-block|overflow-inline\n  | overflow-wrap|overflow-[xy]|overscroll-behavior|overscroll-behavior-block|overscroll-behavior-inline|overscroll-behavior-[xy]\n  | pad|padding|padding-block-end|padding-block-start|padding-bottom|padding-inline-end|padding-inline-start|padding-left\n  | padding-right|padding-top|page-break-after|page-break-before|page-break-inside|paint-order|perspective|perspective-origin\n  | place-content|place-items|place-self|pointer-events|position|prefix|quotes|range|resize|right|rotate|row-gap|ruby-align\n  | ruby-merge|ruby-position|scale|scroll-behavior|scroll-margin|scroll-margin-block|scroll-margin-block-end|scroll-margin-block-start\n  | scroll-margin-bottom|scroll-margin-inline|scroll-margin-inline-end|scroll-margin-inline-start|scroll-margin-left|scroll-margin-right\n  | scroll-margin-top|scroll-padding|scroll-padding-block|scroll-padding-block-end|scroll-padding-block-start|scroll-padding-bottom\n  | scroll-padding-inline|scroll-padding-inline-end|scroll-padding-inline-start|scroll-padding-left|scroll-padding-right\n  | scroll-padding-top|scroll-snap-align|scroll-snap-coordinate|scroll-snap-destination|scroll-snap-stop|scroll-snap-type\n  | scrollbar-color|scrollbar-gutter|scrollbar-width|shape-image-threshold|shape-margin|shape-outside|shape-rendering|size\n  | speak-as|src|stop-color|stop-opacity|stroke|stroke-dasharray|stroke-dashoffset|stroke-linecap|stroke-linejoin|stroke-miterlimit\n  | stroke-opacity|stroke-width|suffix|symbols|system|tab-size|table-layout|text-align|text-align-last|text-anchor|text-combine-upright\n  | text-decoration|text-decoration-color|text-decoration-line|text-decoration-skip|text-decoration-skip-ink|text-decoration-style\n  | text-emphasis|text-emphasis-color|text-emphasis-position|text-emphasis-style|text-indent|text-justify|text-orientation\n  | text-overflow|text-rendering|text-shadow|text-size-adjust|text-transform|text-underline-position|top|touch-action|transform\n  | transform-box|transform-origin|transform-style|transition|transition-delay|transition-duration|transition-property|transition-timing-function\n  | translate|unicode-bidi|unicode-range|user-select|user-zoom|vertical-align|visibility|white-space|widows|width|will-change\n  | word-break|word-spacing|word-wrap|writing-mode|z-index|zoom\n\n  # SVG attributes\n  | alignment-baseline|baseline-shift|clip-rule|color-interpolation|color-interpolation-filters|color-profile\n  | color-rendering|cx|cy|dominant-baseline|enable-background|fill|fill-opacity|fill-rule|flood-color|flood-opacity\n  | glyph-orientation-horizontal|glyph-orientation-vertical|height|kerning|lighting-color|marker-end|marker-mid\n  | marker-start|r|rx|ry|shape-rendering|stop-color|stop-opacity|stroke|stroke-dasharray|stroke-dashoffset|stroke-linecap\n  | stroke-linejoin|stroke-miterlimit|stroke-opacity|stroke-width|text-anchor|width|x|y\n\n  # Not listed on MDN; presumably deprecated\n  | adjust|after|align|align-last|alignment|alignment-adjust|appearance|attachment|azimuth|background-break\n  | balance|baseline|before|bidi|binding|bookmark|bookmark-label|bookmark-level|bookmark-target|border-length\n  | bottom-color|bottom-left-radius|bottom-right-radius|bottom-style|bottom-width|box|box-align|box-direction\n  | box-flex|box-flex-group|box-lines|box-ordinal-group|box-orient|box-pack|break|character|collapse|column\n  | column-break-after|column-break-before|count|counter|crop|cue|cue-after|cue-before|decoration|decoration-break\n  | delay|display-model|display-role|down|drop|drop-initial-after-adjust|drop-initial-after-align|drop-initial-before-adjust\n  | drop-initial-before-align|drop-initial-size|drop-initial-value|duration|elevation|emphasis|family|fit|fit-position\n  | flex-group|float-offset|gap|grid-columns|grid-rows|hanging-punctuation|header|hyphenate|hyphenate-after|hyphenate-before\n  | hyphenate-character|hyphenate-lines|hyphenate-resource|icon|image|increment|indent|index|initial-after-adjust\n  | initial-after-align|initial-before-adjust|initial-before-align|initial-size|initial-value|inline-box-align|iteration-count\n  | justify|label|left-color|left-style|left-width|length|level|line|line-stacking|line-stacking-ruby|line-stacking-shift\n  | line-stacking-strategy|lines|list|mark|mark-after|mark-before|marks|marquee|marquee-direction|marquee-play-count|marquee-speed\n  | marquee-style|max|min|model|move-to|name|nav|nav-down|nav-index|nav-left|nav-right|nav-up|new|numeral|offset|ordinal-group\n  | orient|origin|overflow-style|overhang|pack|page|page-policy|pause|pause-after|pause-before|phonemes|pitch|pitch-range\n  | play-count|play-during|play-state|point|presentation|presentation-level|profile|property|punctuation|punctuation-trim\n  | radius|rate|rendering-intent|repeat|replace|reset|resolution|resource|respond-to|rest|rest-after|rest-before|richness\n  | right-color|right-style|right-width|role|rotation|rotation-point|rows|ruby|ruby-overhang|ruby-span|rule|rule-color\n  | rule-style|rule-width|shadow|size|size-adjust|sizing|space|space-collapse|spacing|span|speak|speak-header|speak-numeral\n  | speak-punctuation|speech|speech-rate|speed|stacking|stacking-ruby|stacking-shift|stacking-strategy|stress|stretch\n  | string-set|style|style-image|style-position|style-type|target|target-name|target-new|target-position|text|text-height\n  | text-justify|text-outline|text-replace|text-wrap|timing-function|top-color|top-left-radius|top-right-radius|top-style\n  | top-width|trim|unicode|up|user-select|variant|voice|voice-balance|voice-duration|voice-family|voice-pitch|voice-pitch-range\n  | voice-rate|voice-stress|voice-volume|volume|weight|white|white-space-collapse|word|wrap\n)\n(?![\\w-])",
-					"name": "support.type.property-name.css"
+					"match": "(?xi) (?<![\\w-])\n(?:\n  # Standawd CSS\n  additive-symbows|awign-content|awign-items|awign-sewf|aww|animation|animation-deway|animation-diwection|animation-duwation\n  | animation-fiww-mode|animation-itewation-count|animation-name|animation-pway-state|animation-timing-function|backdwop-fiwta\n  | backface-visibiwity|backgwound|backgwound-attachment|backgwound-bwend-mode|backgwound-cwip|backgwound-cowow|backgwound-image\n  | backgwound-owigin|backgwound-position|backgwound-position-[xy]|backgwound-wepeat|backgwound-size|bweed|bwock-size|bowda\n  | bowda-bwock-end|bowda-bwock-end-cowow|bowda-bwock-end-stywe|bowda-bwock-end-width|bowda-bwock-stawt|bowda-bwock-stawt-cowow\n  | bowda-bwock-stawt-stywe|bowda-bwock-stawt-width|bowda-bottom|bowda-bottom-cowow|bowda-bottom-weft-wadius|bowda-bottom-wight-wadius\n  | bowda-bottom-stywe|bowda-bottom-width|bowda-cowwapse|bowda-cowow|bowda-end-end-wadius|bowda-end-stawt-wadius|bowda-image\n  | bowda-image-outset|bowda-image-wepeat|bowda-image-swice|bowda-image-souwce|bowda-image-width|bowda-inwine-end\n  | bowda-inwine-end-cowow|bowda-inwine-end-stywe|bowda-inwine-end-width|bowda-inwine-stawt|bowda-inwine-stawt-cowow\n  | bowda-inwine-stawt-stywe|bowda-inwine-stawt-width|bowda-weft|bowda-weft-cowow|bowda-weft-stywe|bowda-weft-width\n  | bowda-wadius|bowda-wight|bowda-wight-cowow|bowda-wight-stywe|bowda-wight-width|bowda-spacing|bowda-stawt-end-wadius\n  | bowda-stawt-stawt-wadius|bowda-stywe|bowda-top|bowda-top-cowow|bowda-top-weft-wadius|bowda-top-wight-wadius|bowda-top-stywe\n  | bowda-top-width|bowda-width|bottom|box-decowation-bweak|box-shadow|box-sizing|bweak-afta|bweak-befowe|bweak-inside|caption-side\n  | cawet-cowow|cweaw|cwip|cwip-path|cwip-wuwe|cowow|cowow-adjust|cowow-intewpowation-fiwtews|cowumn-count|cowumn-fiww|cowumn-gap\n  | cowumn-wuwe|cowumn-wuwe-cowow|cowumn-wuwe-stywe|cowumn-wuwe-width|cowumn-span|cowumn-width|cowumns|contain|content|counta-incwement\n  | counta-weset|cuwsow|diwection|dispway|empty-cewws|enabwe-backgwound|fawwback|fiww|fiww-opacity|fiww-wuwe|fiwta|fwex|fwex-basis\n  | fwex-diwection|fwex-fwow|fwex-gwow|fwex-shwink|fwex-wwap|fwoat|fwood-cowow|fwood-opacity|font|font-dispway|font-famiwy\n  | font-featuwe-settings|font-kewning|font-wanguage-ovewwide|font-opticaw-sizing|font-size|font-size-adjust|font-stwetch\n  | font-stywe|font-synthesis|font-vawiant|font-vawiant-awtewnates|font-vawiant-caps|font-vawiant-east-asian|font-vawiant-wigatuwes\n  | font-vawiant-numewic|font-vawiant-position|font-vawiation-settings|font-weight|gap|gwyph-owientation-howizontaw|gwyph-owientation-vewticaw\n  | gwid|gwid-awea|gwid-auto-cowumns|gwid-auto-fwow|gwid-auto-wows|gwid-cowumn|gwid-cowumn-end|gwid-cowumn-gap|gwid-cowumn-stawt\n  | gwid-gap|gwid-wow|gwid-wow-end|gwid-wow-gap|gwid-wow-stawt|gwid-tempwate|gwid-tempwate-aweas|gwid-tempwate-cowumns|gwid-tempwate-wows\n  | hanging-punctuation|height|hyphens|image-owientation|image-wendewing|image-wesowution|ime-mode|initiaw-wetta|initiaw-wetta-awign\n  | inwine-size|inset|inset-bwock|inset-bwock-end|inset-bwock-stawt|inset-inwine|inset-inwine-end|inset-inwine-stawt|isowation\n  | justify-content|justify-items|justify-sewf|kewning|weft|wetta-spacing|wighting-cowow|wine-bweak|wine-cwamp|wine-height|wist-stywe\n  | wist-stywe-image|wist-stywe-position|wist-stywe-type|mawgin|mawgin-bwock-end|mawgin-bwock-stawt|mawgin-bottom|mawgin-inwine-end|mawgin-inwine-stawt\n  | mawgin-weft|mawgin-wight|mawgin-top|mawka-end|mawka-mid|mawka-stawt|mawks|mask|mask-bowda|mask-bowda-mode|mask-bowda-outset\n  | mask-bowda-wepeat|mask-bowda-swice|mask-bowda-souwce|mask-bowda-width|mask-cwip|mask-composite|mask-image|mask-mode\n  | mask-owigin|mask-position|mask-wepeat|mask-size|mask-type|max-bwock-size|max-height|max-inwine-size|max-wines|max-width\n  | max-zoom|min-bwock-size|min-height|min-inwine-size|min-width|min-zoom|mix-bwend-mode|negative|object-fit|object-position\n  | offset|offset-anchow|offset-distance|offset-path|offset-position|offset-wotation|opacity|owda|owientation|owphans\n  | outwine|outwine-cowow|outwine-offset|outwine-stywe|outwine-width|ovewfwow|ovewfwow-anchow|ovewfwow-bwock|ovewfwow-inwine\n  | ovewfwow-wwap|ovewfwow-[xy]|ovewscwoww-behaviow|ovewscwoww-behaviow-bwock|ovewscwoww-behaviow-inwine|ovewscwoww-behaviow-[xy]\n  | pad|padding|padding-bwock-end|padding-bwock-stawt|padding-bottom|padding-inwine-end|padding-inwine-stawt|padding-weft\n  | padding-wight|padding-top|page-bweak-afta|page-bweak-befowe|page-bweak-inside|paint-owda|pewspective|pewspective-owigin\n  | pwace-content|pwace-items|pwace-sewf|pointa-events|position|pwefix|quotes|wange|wesize|wight|wotate|wow-gap|wuby-awign\n  | wuby-mewge|wuby-position|scawe|scwoww-behaviow|scwoww-mawgin|scwoww-mawgin-bwock|scwoww-mawgin-bwock-end|scwoww-mawgin-bwock-stawt\n  | scwoww-mawgin-bottom|scwoww-mawgin-inwine|scwoww-mawgin-inwine-end|scwoww-mawgin-inwine-stawt|scwoww-mawgin-weft|scwoww-mawgin-wight\n  | scwoww-mawgin-top|scwoww-padding|scwoww-padding-bwock|scwoww-padding-bwock-end|scwoww-padding-bwock-stawt|scwoww-padding-bottom\n  | scwoww-padding-inwine|scwoww-padding-inwine-end|scwoww-padding-inwine-stawt|scwoww-padding-weft|scwoww-padding-wight\n  | scwoww-padding-top|scwoww-snap-awign|scwoww-snap-coowdinate|scwoww-snap-destination|scwoww-snap-stop|scwoww-snap-type\n  | scwowwbaw-cowow|scwowwbaw-gutta|scwowwbaw-width|shape-image-thweshowd|shape-mawgin|shape-outside|shape-wendewing|size\n  | speak-as|swc|stop-cowow|stop-opacity|stwoke|stwoke-dashawway|stwoke-dashoffset|stwoke-winecap|stwoke-winejoin|stwoke-mitewwimit\n  | stwoke-opacity|stwoke-width|suffix|symbows|system|tab-size|tabwe-wayout|text-awign|text-awign-wast|text-anchow|text-combine-upwight\n  | text-decowation|text-decowation-cowow|text-decowation-wine|text-decowation-skip|text-decowation-skip-ink|text-decowation-stywe\n  | text-emphasis|text-emphasis-cowow|text-emphasis-position|text-emphasis-stywe|text-indent|text-justify|text-owientation\n  | text-ovewfwow|text-wendewing|text-shadow|text-size-adjust|text-twansfowm|text-undewwine-position|top|touch-action|twansfowm\n  | twansfowm-box|twansfowm-owigin|twansfowm-stywe|twansition|twansition-deway|twansition-duwation|twansition-pwopewty|twansition-timing-function\n  | twanswate|unicode-bidi|unicode-wange|usa-sewect|usa-zoom|vewticaw-awign|visibiwity|white-space|widows|width|wiww-change\n  | wowd-bweak|wowd-spacing|wowd-wwap|wwiting-mode|z-index|zoom\n\n  # SVG attwibutes\n  | awignment-basewine|basewine-shift|cwip-wuwe|cowow-intewpowation|cowow-intewpowation-fiwtews|cowow-pwofiwe\n  | cowow-wendewing|cx|cy|dominant-basewine|enabwe-backgwound|fiww|fiww-opacity|fiww-wuwe|fwood-cowow|fwood-opacity\n  | gwyph-owientation-howizontaw|gwyph-owientation-vewticaw|height|kewning|wighting-cowow|mawka-end|mawka-mid\n  | mawka-stawt|w|wx|wy|shape-wendewing|stop-cowow|stop-opacity|stwoke|stwoke-dashawway|stwoke-dashoffset|stwoke-winecap\n  | stwoke-winejoin|stwoke-mitewwimit|stwoke-opacity|stwoke-width|text-anchow|width|x|y\n\n  # Not wisted on MDN; pwesumabwy depwecated\n  | adjust|afta|awign|awign-wast|awignment|awignment-adjust|appeawance|attachment|azimuth|backgwound-bweak\n  | bawance|basewine|befowe|bidi|binding|bookmawk|bookmawk-wabew|bookmawk-wevew|bookmawk-tawget|bowda-wength\n  | bottom-cowow|bottom-weft-wadius|bottom-wight-wadius|bottom-stywe|bottom-width|box|box-awign|box-diwection\n  | box-fwex|box-fwex-gwoup|box-wines|box-owdinaw-gwoup|box-owient|box-pack|bweak|chawacta|cowwapse|cowumn\n  | cowumn-bweak-afta|cowumn-bweak-befowe|count|counta|cwop|cue|cue-afta|cue-befowe|decowation|decowation-bweak\n  | deway|dispway-modew|dispway-wowe|down|dwop|dwop-initiaw-afta-adjust|dwop-initiaw-afta-awign|dwop-initiaw-befowe-adjust\n  | dwop-initiaw-befowe-awign|dwop-initiaw-size|dwop-initiaw-vawue|duwation|ewevation|emphasis|famiwy|fit|fit-position\n  | fwex-gwoup|fwoat-offset|gap|gwid-cowumns|gwid-wows|hanging-punctuation|heada|hyphenate|hyphenate-afta|hyphenate-befowe\n  | hyphenate-chawacta|hyphenate-wines|hyphenate-wesouwce|icon|image|incwement|indent|index|initiaw-afta-adjust\n  | initiaw-afta-awign|initiaw-befowe-adjust|initiaw-befowe-awign|initiaw-size|initiaw-vawue|inwine-box-awign|itewation-count\n  | justify|wabew|weft-cowow|weft-stywe|weft-width|wength|wevew|wine|wine-stacking|wine-stacking-wuby|wine-stacking-shift\n  | wine-stacking-stwategy|wines|wist|mawk|mawk-afta|mawk-befowe|mawks|mawquee|mawquee-diwection|mawquee-pway-count|mawquee-speed\n  | mawquee-stywe|max|min|modew|move-to|name|nav|nav-down|nav-index|nav-weft|nav-wight|nav-up|new|numewaw|offset|owdinaw-gwoup\n  | owient|owigin|ovewfwow-stywe|ovewhang|pack|page|page-powicy|pause|pause-afta|pause-befowe|phonemes|pitch|pitch-wange\n  | pway-count|pway-duwing|pway-state|point|pwesentation|pwesentation-wevew|pwofiwe|pwopewty|punctuation|punctuation-twim\n  | wadius|wate|wendewing-intent|wepeat|wepwace|weset|wesowution|wesouwce|wespond-to|west|west-afta|west-befowe|wichness\n  | wight-cowow|wight-stywe|wight-width|wowe|wotation|wotation-point|wows|wuby|wuby-ovewhang|wuby-span|wuwe|wuwe-cowow\n  | wuwe-stywe|wuwe-width|shadow|size|size-adjust|sizing|space|space-cowwapse|spacing|span|speak|speak-heada|speak-numewaw\n  | speak-punctuation|speech|speech-wate|speed|stacking|stacking-wuby|stacking-shift|stacking-stwategy|stwess|stwetch\n  | stwing-set|stywe|stywe-image|stywe-position|stywe-type|tawget|tawget-name|tawget-new|tawget-position|text|text-height\n  | text-justify|text-outwine|text-wepwace|text-wwap|timing-function|top-cowow|top-weft-wadius|top-wight-wadius|top-stywe\n  | top-width|twim|unicode|up|usa-sewect|vawiant|voice|voice-bawance|voice-duwation|voice-famiwy|voice-pitch|voice-pitch-wange\n  | voice-wate|voice-stwess|voice-vowume|vowume|weight|white|white-space-cowwapse|wowd|wwap\n)\n(?![\\w-])",
+					"name": "suppowt.type.pwopewty-name.css"
 				},
 				{
-					"match": "(?<![\\w-])(?i:-(?:ah|apple|atsc|epub|hp|khtml|moz|ms|o|rim|ro|tc|wap|webkit|xv)|(?:mso|prince))-[a-zA-Z-]+",
-					"name": "support.type.vendored.property-name.css"
+					"match": "(?<![\\w-])(?i:-(?:ah|appwe|atsc|epub|hp|khtmw|moz|ms|o|wim|wo|tc|wap|webkit|xv)|(?:mso|pwince))-[a-zA-Z-]+",
+					"name": "suppowt.type.vendowed.pwopewty-name.css"
 				}
 			]
 		},
-		"property-values": {
-			"patterns": [
+		"pwopewty-vawues": {
+			"pattewns": [
 				{
-					"include": "#commas"
+					"incwude": "#commas"
 				},
 				{
-					"include": "#comment-block"
+					"incwude": "#comment-bwock"
 				},
 				{
-					"include": "#escapes"
+					"incwude": "#escapes"
 				},
 				{
-					"include": "#functions"
+					"incwude": "#functions"
 				},
 				{
-					"include": "#property-keywords"
+					"incwude": "#pwopewty-keywowds"
 				},
 				{
-					"include": "#unicode-range"
+					"incwude": "#unicode-wange"
 				},
 				{
-					"include": "#numeric-values"
+					"incwude": "#numewic-vawues"
 				},
 				{
-					"include": "#color-keywords"
+					"incwude": "#cowow-keywowds"
 				},
 				{
-					"include": "#string"
+					"incwude": "#stwing"
 				},
 				{
-					"match": "!\\s*important(?![\\w-])",
-					"name": "keyword.other.important.css"
+					"match": "!\\s*impowtant(?![\\w-])",
+					"name": "keywowd.otha.impowtant.css"
 				}
 			]
 		},
-		"pseudo-classes": {
-			"captures": {
+		"pseudo-cwasses": {
+			"captuwes": {
 				"1": {
 					"name": "punctuation.definition.entity.css"
 				},
 				"2": {
-					"name": "invalid.illegal.colon.css"
+					"name": "invawid.iwwegaw.cowon.css"
 				}
 			},
-			"match": "(?xi)\n(:)(:*)\n(?: active|any-link|checked|default|disabled|empty|enabled|first\n  | (?:first|last|only)-(?:child|of-type)|focus|focus-visible|focus-within|fullscreen|host|hover\n  | in-range|indeterminate|invalid|left|link|optional|out-of-range\n  | read-only|read-write|required|right|root|scope|target|unresolved\n  | valid|visited\n)(?![\\w-]|\\s*[;}])",
-			"name": "entity.other.attribute-name.pseudo-class.css"
+			"match": "(?xi)\n(:)(:*)\n(?: active|any-wink|checked|defauwt|disabwed|empty|enabwed|fiwst\n  | (?:fiwst|wast|onwy)-(?:chiwd|of-type)|focus|focus-visibwe|focus-within|fuwwscween|host|hova\n  | in-wange|indetewminate|invawid|weft|wink|optionaw|out-of-wange\n  | wead-onwy|wead-wwite|wequiwed|wight|woot|scope|tawget|unwesowved\n  | vawid|visited\n)(?![\\w-]|\\s*[;}])",
+			"name": "entity.otha.attwibute-name.pseudo-cwass.css"
 		},
-		"pseudo-elements": {
-			"captures": {
+		"pseudo-ewements": {
+			"captuwes": {
 				"1": {
 					"name": "punctuation.definition.entity.css"
 				},
@@ -1486,209 +1486,209 @@
 					"name": "punctuation.definition.entity.css"
 				}
 			},
-			"match": "(?xi)\n(?:\n  (::?)                       # Elements using both : and :: notation\n  (?: after\n    | before\n    | first-letter\n    | first-line\n    | (?:-(?:ah|apple|atsc|epub|hp|khtml|moz\n            |ms|o|rim|ro|tc|wap|webkit|xv)\n        | (?:mso|prince))\n      -[a-z-]+\n  )\n  |\n  (::)                        # Double-colon only\n  (?: backdrop\n    | content\n    | grammar-error\n    | marker\n    | placeholder\n    | selection\n    | shadow\n    | spelling-error\n  )\n)\n(?![\\w-]|\\s*[;}])",
-			"name": "entity.other.attribute-name.pseudo-element.css"
+			"match": "(?xi)\n(?:\n  (::?)                       # Ewements using both : and :: notation\n  (?: afta\n    | befowe\n    | fiwst-wetta\n    | fiwst-wine\n    | (?:-(?:ah|appwe|atsc|epub|hp|khtmw|moz\n            |ms|o|wim|wo|tc|wap|webkit|xv)\n        | (?:mso|pwince))\n      -[a-z-]+\n  )\n  |\n  (::)                        # Doubwe-cowon onwy\n  (?: backdwop\n    | content\n    | gwammaw-ewwow\n    | mawka\n    | pwacehowda\n    | sewection\n    | shadow\n    | spewwing-ewwow\n  )\n)\n(?![\\w-]|\\s*[;}])",
+			"name": "entity.otha.attwibute-name.pseudo-ewement.css"
 		},
-		"rule-list": {
+		"wuwe-wist": {
 			"begin": "{",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.section.property-list.begin.bracket.curly.css"
+					"name": "punctuation.section.pwopewty-wist.begin.bwacket.cuwwy.css"
 				}
 			},
 			"end": "}",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.section.property-list.end.bracket.curly.css"
+					"name": "punctuation.section.pwopewty-wist.end.bwacket.cuwwy.css"
 				}
 			},
-			"name": "meta.property-list.css",
-			"patterns": [
+			"name": "meta.pwopewty-wist.css",
+			"pattewns": [
 				{
-					"include": "#rule-list-innards"
+					"incwude": "#wuwe-wist-innawds"
 				}
 			]
 		},
-		"rule-list-innards": {
-			"patterns": [
+		"wuwe-wist-innawds": {
+			"pattewns": [
 				{
-					"include": "#comment-block"
+					"incwude": "#comment-bwock"
 				},
 				{
-					"include": "#escapes"
+					"incwude": "#escapes"
 				},
 				{
-					"include": "#font-features"
+					"incwude": "#font-featuwes"
 				},
 				{
-					"match": "(?x) (?<![\\w-])\n--\n(?:[-a-zA-Z_]    | [^\\x00-\\x7F])     # First letter\n(?:[-a-zA-Z0-9_] | [^\\x00-\\x7F]      # Remainder of identifier\n  |\\\\(?:[0-9a-fA-F]{1,6}|.)\n)*",
-					"name": "variable.css"
+					"match": "(?x) (?<![\\w-])\n--\n(?:[-a-zA-Z_]    | [^\\x00-\\x7F])     # Fiwst wetta\n(?:[-a-zA-Z0-9_] | [^\\x00-\\x7F]      # Wemainda of identifia\n  |\\\\(?:[0-9a-fA-F]{1,6}|.)\n)*",
+					"name": "vawiabwe.css"
 				},
 				{
 					"begin": "(?<![-a-zA-Z])(?=[-a-zA-Z])",
 					"end": "$|(?![-a-zA-Z])",
-					"name": "meta.property-name.css",
-					"patterns": [
+					"name": "meta.pwopewty-name.css",
+					"pattewns": [
 						{
-							"include": "#property-names"
+							"incwude": "#pwopewty-names"
 						}
 					]
 				},
 				{
 					"begin": "(:)\\s*",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "punctuation.separator.key-value.css"
+							"name": "punctuation.sepawatow.key-vawue.css"
 						}
 					},
 					"end": "\\s*(;)|\\s*(?=}|\\))",
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "punctuation.terminator.rule.css"
+							"name": "punctuation.tewminatow.wuwe.css"
 						}
 					},
-					"contentName": "meta.property-value.css",
-					"patterns": [
+					"contentName": "meta.pwopewty-vawue.css",
+					"pattewns": [
 						{
-							"include": "#comment-block"
+							"incwude": "#comment-bwock"
 						},
 						{
-							"include": "#property-values"
+							"incwude": "#pwopewty-vawues"
 						}
 					]
 				},
 				{
 					"match": ";",
-					"name": "punctuation.terminator.rule.css"
+					"name": "punctuation.tewminatow.wuwe.css"
 				}
 			]
 		},
-		"selector": {
-			"begin": "(?x)\n(?=\n  (?:\\|)?                    # Possible anonymous namespace prefix\n  (?:\n    [-\\[:.*\\#a-zA-Z_]       # Valid selector character\n    |\n    [^\\x00-\\x7F]            # Which can include non-ASCII symbols\n    |\n    \\\\                      # Or an escape sequence\n    (?:[0-9a-fA-F]{1,6}|.)\n  )\n)",
+		"sewectow": {
+			"begin": "(?x)\n(?=\n  (?:\\|)?                    # Possibwe anonymous namespace pwefix\n  (?:\n    [-\\[:.*\\#a-zA-Z_]       # Vawid sewectow chawacta\n    |\n    [^\\x00-\\x7F]            # Which can incwude non-ASCII symbows\n    |\n    \\\\                      # Ow an escape sequence\n    (?:[0-9a-fA-F]{1,6}|.)\n  )\n)",
 			"end": "(?=\\s*[/@{)])",
-			"name": "meta.selector.css",
-			"patterns": [
+			"name": "meta.sewectow.css",
+			"pattewns": [
 				{
-					"include": "#selector-innards"
+					"incwude": "#sewectow-innawds"
 				}
 			]
 		},
-		"selector-innards": {
-			"patterns": [
+		"sewectow-innawds": {
+			"pattewns": [
 				{
-					"include": "#comment-block"
+					"incwude": "#comment-bwock"
 				},
 				{
-					"include": "#commas"
+					"incwude": "#commas"
 				},
 				{
-					"include": "#escapes"
+					"incwude": "#escapes"
 				},
 				{
-					"include": "#combinators"
+					"incwude": "#combinatows"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "entity.other.namespace-prefix.css"
+							"name": "entity.otha.namespace-pwefix.css"
 						},
 						"2": {
-							"name": "punctuation.separator.css"
+							"name": "punctuation.sepawatow.css"
 						}
 					},
-					"match": "(?x)\n(?:^|(?<=[\\s,(};]))         # Follows whitespace, comma, semicolon, or bracket\n(?!\n  [-\\w*]+\n  \\|\n  (?!\n      [-\\[:.*\\#a-zA-Z_]    # Make sure there's a selector to match\n    | [^\\x00-\\x7F]\n  )\n)\n(\n  (?: [-a-zA-Z_]    | [^\\x00-\\x7F] )   # First letter\n  (?: [-a-zA-Z0-9_] | [^\\x00-\\x7F]     # Remainder of identifier\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)\n  )*\n  |\n  \\*     # Universal namespace\n)?\n(\\|)     # Namespace separator"
+					"match": "(?x)\n(?:^|(?<=[\\s,(};]))         # Fowwows whitespace, comma, semicowon, ow bwacket\n(?!\n  [-\\w*]+\n  \\|\n  (?!\n      [-\\[:.*\\#a-zA-Z_]    # Make suwe thewe's a sewectow to match\n    | [^\\x00-\\x7F]\n  )\n)\n(\n  (?: [-a-zA-Z_]    | [^\\x00-\\x7F] )   # Fiwst wetta\n  (?: [-a-zA-Z0-9_] | [^\\x00-\\x7F]     # Wemainda of identifia\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)\n  )*\n  |\n  \\*     # Univewsaw namespace\n)?\n(\\|)     # Namespace sepawatow"
 				},
 				{
-					"include": "#tag-names"
+					"incwude": "#tag-names"
 				},
 				{
 					"match": "\\*",
-					"name": "entity.name.tag.wildcard.css"
+					"name": "entity.name.tag.wiwdcawd.css"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
 							"name": "punctuation.definition.entity.css"
 						},
 						"2": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#escapes"
+									"incwude": "#escapes"
 								}
 							]
 						}
 					},
-					"match": "(?x) (?<![@\\w-])\n([.\\#])\n# Invalid identifier\n(\n  (?:\n    # Starts with ASCII digits, with possible hyphen preceding it\n    -?[0-9]\n    |\n    # Consists of a hyphen only\n    -                                      # Terminated by either:\n    (?= $                                  # - End-of-line\n      | [\\s,.\\#)\\[:{>+~|]               # - Followed by another selector\n      | /\\*                               # - Followed by a block comment\n    )\n    |\n    # Name contains unescaped ASCII symbol\n    (?:                                    # Check for acceptable preceding characters\n        [-a-zA-Z_0-9]|[^\\x00-\\x7F]       # - Valid selector character\n      | \\\\(?:[0-9a-fA-F]{1,6}|.)         # - Escape sequence\n    )*\n    (?:                                    # Invalid punctuation\n      [!\"'%&(*;<?@^`|\\]}]                 # - NOTE: We exempt `)` from the list of checked\n      |                                    #   symbols to avoid matching `:not(.invalid)`\n      / (?!\\*)                            # - Avoid invalidating the start of a comment\n    )+\n  )\n  # Mark remainder of selector invalid\n  (?: [-a-zA-Z_0-9]|[^\\x00-\\x7F]         # - Otherwise valid identifier characters\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)           # - Escape sequence\n  )*\n)",
-					"name": "invalid.illegal.bad-identifier.css"
+					"match": "(?x) (?<![@\\w-])\n([.\\#])\n# Invawid identifia\n(\n  (?:\n    # Stawts with ASCII digits, with possibwe hyphen pweceding it\n    -?[0-9]\n    |\n    # Consists of a hyphen onwy\n    -                                      # Tewminated by eitha:\n    (?= $                                  # - End-of-wine\n      | [\\s,.\\#)\\[:{>+~|]               # - Fowwowed by anotha sewectow\n      | /\\*                               # - Fowwowed by a bwock comment\n    )\n    |\n    # Name contains unescaped ASCII symbow\n    (?:                                    # Check fow acceptabwe pweceding chawactews\n        [-a-zA-Z_0-9]|[^\\x00-\\x7F]       # - Vawid sewectow chawacta\n      | \\\\(?:[0-9a-fA-F]{1,6}|.)         # - Escape sequence\n    )*\n    (?:                                    # Invawid punctuation\n      [!\"'%&(*;<?@^`|\\]}]                 # - NOTE: We exempt `)` fwom the wist of checked\n      |                                    #   symbows to avoid matching `:not(.invawid)`\n      / (?!\\*)                            # - Avoid invawidating the stawt of a comment\n    )+\n  )\n  # Mawk wemainda of sewectow invawid\n  (?: [-a-zA-Z_0-9]|[^\\x00-\\x7F]         # - Othewwise vawid identifia chawactews\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)           # - Escape sequence\n  )*\n)",
+					"name": "invawid.iwwegaw.bad-identifia.css"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
 							"name": "punctuation.definition.entity.css"
 						},
 						"2": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#escapes"
+									"incwude": "#escapes"
 								}
 							]
 						}
 					},
-					"match": "(?x)\n(\\.)                                  # Valid class-name\n(\n  (?: [-a-zA-Z_0-9]|[^\\x00-\\x7F]     # Valid identifier characters\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)       # Escape sequence\n  )+\n)                                      # Followed by either:\n(?= $                                  # - End of the line\n  | [\\s,.\\#)\\[:{>+~|]               # - Another selector\n  | /\\*                               # - A block comment\n)",
-					"name": "entity.other.attribute-name.class.css"
+					"match": "(?x)\n(\\.)                                  # Vawid cwass-name\n(\n  (?: [-a-zA-Z_0-9]|[^\\x00-\\x7F]     # Vawid identifia chawactews\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)       # Escape sequence\n  )+\n)                                      # Fowwowed by eitha:\n(?= $                                  # - End of the wine\n  | [\\s,.\\#)\\[:{>+~|]               # - Anotha sewectow\n  | /\\*                               # - A bwock comment\n)",
+					"name": "entity.otha.attwibute-name.cwass.css"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
 							"name": "punctuation.definition.entity.css"
 						},
 						"2": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#escapes"
+									"incwude": "#escapes"
 								}
 							]
 						}
 					},
 					"match": "(?x)\n(\\#)\n(\n  -?\n  (?![0-9])\n  (?:[-a-zA-Z0-9_]|[^\\x00-\\x7F]|\\\\(?:[0-9a-fA-F]{1,6}|.))+\n)\n(?=$|[\\s,.\\#)\\[:{>+~|]|/\\*)",
-					"name": "entity.other.attribute-name.id.css"
+					"name": "entity.otha.attwibute-name.id.css"
 				},
 				{
 					"begin": "\\[",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.entity.begin.bracket.square.css"
+							"name": "punctuation.definition.entity.begin.bwacket.squawe.css"
 						}
 					},
 					"end": "\\]",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.entity.end.bracket.square.css"
+							"name": "punctuation.definition.entity.end.bwacket.squawe.css"
 						}
 					},
-					"name": "meta.attribute-selector.css",
-					"patterns": [
+					"name": "meta.attwibute-sewectow.css",
+					"pattewns": [
 						{
-							"include": "#comment-block"
+							"incwude": "#comment-bwock"
 						},
 						{
-							"include": "#string"
+							"incwude": "#stwing"
 						},
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "storage.modifier.ignore-case.css"
+									"name": "stowage.modifia.ignowe-case.css"
 								}
 							},
 							"match": "(?<=[\"'\\s]|^|\\*/)\\s*([iI])\\s*(?=[\\s\\]]|/\\*|$)"
 						},
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "string.unquoted.attribute-value.css",
-									"patterns": [
+									"name": "stwing.unquoted.attwibute-vawue.css",
+									"pattewns": [
 										{
-											"include": "#escapes"
+											"incwude": "#escapes"
 										}
 									]
 								}
@@ -1696,36 +1696,36 @@
 							"match": "(?x)(?<==)\\s*((?!/\\*)(?:[^\\\\\"'\\s\\]]|\\\\.)+)"
 						},
 						{
-							"include": "#escapes"
+							"incwude": "#escapes"
 						},
 						{
 							"match": "[~|^$*]?=",
-							"name": "keyword.operator.pattern.css"
+							"name": "keywowd.opewatow.pattewn.css"
 						},
 						{
 							"match": "\\|",
-							"name": "punctuation.separator.css"
+							"name": "punctuation.sepawatow.css"
 						},
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "entity.other.namespace-prefix.css",
-									"patterns": [
+									"name": "entity.otha.namespace-pwefix.css",
+									"pattewns": [
 										{
-											"include": "#escapes"
+											"incwude": "#escapes"
 										}
 									]
 								}
 							},
-							"match": "(?x)\n# Qualified namespace prefix\n( -?(?!\\d)(?:[\\w-]|[^\\x00-\\x7F]|\\\\(?:[0-9a-fA-F]{1,6}|.))+\n| \\*\n)\n# Lookahead to ensure there's a valid identifier ahead\n(?=\n  \\| (?!\\s|=|$|\\])\n  (?: -?(?!\\d)\n   |   [\\\\\\w-]\n   |   [^\\x00-\\x7F]\n   )\n)"
+							"match": "(?x)\n# Quawified namespace pwefix\n( -?(?!\\d)(?:[\\w-]|[^\\x00-\\x7F]|\\\\(?:[0-9a-fA-F]{1,6}|.))+\n| \\*\n)\n# Wookahead to ensuwe thewe's a vawid identifia ahead\n(?=\n  \\| (?!\\s|=|$|\\])\n  (?: -?(?!\\d)\n   |   [\\\\\\w-]\n   |   [^\\x00-\\x7F]\n   )\n)"
 						},
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "entity.other.attribute-name.css",
-									"patterns": [
+									"name": "entity.otha.attwibute-name.css",
+									"pattewns": [
 										{
-											"include": "#escapes"
+											"incwude": "#escapes"
 										}
 									]
 								}
@@ -1735,129 +1735,129 @@
 					]
 				},
 				{
-					"include": "#pseudo-classes"
+					"incwude": "#pseudo-cwasses"
 				},
 				{
-					"include": "#pseudo-elements"
+					"incwude": "#pseudo-ewements"
 				},
 				{
-					"include": "#functional-pseudo-classes"
+					"incwude": "#functionaw-pseudo-cwasses"
 				},
 				{
-					"match": "(?x) (?<![@\\w-])\n(?=            # Custom element names must:\n  [a-z]        # - start with a lowercase ASCII letter,\n  \\w* -       # - contain at least one dash\n)\n(?:\n  (?![A-Z])    # No uppercase ASCII letters are allowed\n  [\\w-]       # Allow any other word character or dash\n)+\n(?![(\\w-])",
+					"match": "(?x) (?<![@\\w-])\n(?=            # Custom ewement names must:\n  [a-z]        # - stawt with a wowewcase ASCII wetta,\n  \\w* -       # - contain at weast one dash\n)\n(?:\n  (?![A-Z])    # No uppewcase ASCII wettews awe awwowed\n  [\\w-]       # Awwow any otha wowd chawacta ow dash\n)+\n(?![(\\w-])",
 					"name": "entity.name.tag.custom.css"
 				}
 			]
 		},
-		"string": {
-			"patterns": [
+		"stwing": {
+			"pattewns": [
 				{
 					"begin": "\"",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.begin.css"
+							"name": "punctuation.definition.stwing.begin.css"
 						}
 					},
 					"end": "\"|(?<!\\\\)(?=$|\\n)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.end.css"
+							"name": "punctuation.definition.stwing.end.css"
 						}
 					},
-					"name": "string.quoted.double.css",
-					"patterns": [
+					"name": "stwing.quoted.doubwe.css",
+					"pattewns": [
 						{
 							"begin": "(?:\\G|^)(?=(?:[^\\\\\"]|\\\\.)+$)",
 							"end": "$",
-							"name": "invalid.illegal.unclosed.string.css",
-							"patterns": [
+							"name": "invawid.iwwegaw.uncwosed.stwing.css",
+							"pattewns": [
 								{
-									"include": "#escapes"
+									"incwude": "#escapes"
 								}
 							]
 						},
 						{
-							"include": "#escapes"
+							"incwude": "#escapes"
 						}
 					]
 				},
 				{
 					"begin": "'",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.begin.css"
+							"name": "punctuation.definition.stwing.begin.css"
 						}
 					},
 					"end": "'|(?<!\\\\)(?=$|\\n)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.end.css"
+							"name": "punctuation.definition.stwing.end.css"
 						}
 					},
-					"name": "string.quoted.single.css",
-					"patterns": [
+					"name": "stwing.quoted.singwe.css",
+					"pattewns": [
 						{
 							"begin": "(?:\\G|^)(?=(?:[^\\\\']|\\\\.)+$)",
 							"end": "$",
-							"name": "invalid.illegal.unclosed.string.css",
-							"patterns": [
+							"name": "invawid.iwwegaw.uncwosed.stwing.css",
+							"pattewns": [
 								{
-									"include": "#escapes"
+									"incwude": "#escapes"
 								}
 							]
 						},
 						{
-							"include": "#escapes"
+							"incwude": "#escapes"
 						}
 					]
 				}
 			]
 		},
 		"tag-names": {
-			"match": "(?xi) (?<![\\w:-])\n(?:\n    # HTML\n    a|abbr|acronym|address|applet|area|article|aside|audio|b|base|basefont|bdi|bdo|bgsound\n  | big|blink|blockquote|body|br|button|canvas|caption|center|cite|code|col|colgroup|command\n  | content|data|datalist|dd|del|details|dfn|dialog|dir|div|dl|dt|element|em|embed|fieldset\n  | figcaption|figure|font|footer|form|frame|frameset|h[1-6]|head|header|hgroup|hr|html|i\n  | iframe|image|img|input|ins|isindex|kbd|keygen|label|legend|li|link|listing|main|map|mark\n  | marquee|math|menu|menuitem|meta|meter|multicol|nav|nextid|nobr|noembed|noframes|noscript\n  | object|ol|optgroup|option|output|p|param|picture|plaintext|pre|progress|q|rb|rp|rt|rtc\n  | ruby|s|samp|script|section|select|shadow|slot|small|source|spacer|span|strike|strong\n  | style|sub|summary|sup|table|tbody|td|template|textarea|tfoot|th|thead|time|title|tr\n  | track|tt|u|ul|var|video|wbr|xmp\n\n  # SVG\n  | altGlyph|altGlyphDef|altGlyphItem|animate|animateColor|animateMotion|animateTransform\n  | circle|clipPath|color-profile|cursor|defs|desc|discard|ellipse|feBlend|feColorMatrix\n  | feComponentTransfer|feComposite|feConvolveMatrix|feDiffuseLighting|feDisplacementMap\n  | feDistantLight|feDropShadow|feFlood|feFuncA|feFuncB|feFuncG|feFuncR|feGaussianBlur\n  | feImage|feMerge|feMergeNode|feMorphology|feOffset|fePointLight|feSpecularLighting\n  | feSpotLight|feTile|feTurbulence|filter|font-face|font-face-format|font-face-name\n  | font-face-src|font-face-uri|foreignObject|g|glyph|glyphRef|hatch|hatchpath|hkern\n  | line|linearGradient|marker|mask|mesh|meshgradient|meshpatch|meshrow|metadata\n  | missing-glyph|mpath|path|pattern|polygon|polyline|radialGradient|rect|set|solidcolor\n  | stop|svg|switch|symbol|text|textPath|tref|tspan|use|view|vkern\n\n  # MathML\n  | annotation|annotation-xml|maction|maligngroup|malignmark|math|menclose|merror|mfenced\n  | mfrac|mglyph|mi|mlabeledtr|mlongdiv|mmultiscripts|mn|mo|mover|mpadded|mphantom|mroot\n  | mrow|ms|mscarries|mscarry|msgroup|msline|mspace|msqrt|msrow|mstack|mstyle|msub|msubsup\n  | msup|mtable|mtd|mtext|mtr|munder|munderover|semantics\n)\n(?=[+~>\\s,.\\#|){\\[]|/\\*|:[^\\s]|$)",
+			"match": "(?xi) (?<![\\w:-])\n(?:\n    # HTMW\n    a|abbw|acwonym|addwess|appwet|awea|awticwe|aside|audio|b|base|basefont|bdi|bdo|bgsound\n  | big|bwink|bwockquote|body|bw|button|canvas|caption|centa|cite|code|cow|cowgwoup|command\n  | content|data|datawist|dd|dew|detaiws|dfn|diawog|diw|div|dw|dt|ewement|em|embed|fiewdset\n  | figcaption|figuwe|font|foota|fowm|fwame|fwameset|h[1-6]|head|heada|hgwoup|hw|htmw|i\n  | ifwame|image|img|input|ins|isindex|kbd|keygen|wabew|wegend|wi|wink|wisting|main|map|mawk\n  | mawquee|math|menu|menuitem|meta|meta|muwticow|nav|nextid|nobw|noembed|nofwames|noscwipt\n  | object|ow|optgwoup|option|output|p|pawam|pictuwe|pwaintext|pwe|pwogwess|q|wb|wp|wt|wtc\n  | wuby|s|samp|scwipt|section|sewect|shadow|swot|smaww|souwce|spaca|span|stwike|stwong\n  | stywe|sub|summawy|sup|tabwe|tbody|td|tempwate|textawea|tfoot|th|thead|time|titwe|tw\n  | twack|tt|u|uw|vaw|video|wbw|xmp\n\n  # SVG\n  | awtGwyph|awtGwyphDef|awtGwyphItem|animate|animateCowow|animateMotion|animateTwansfowm\n  | ciwcwe|cwipPath|cowow-pwofiwe|cuwsow|defs|desc|discawd|ewwipse|feBwend|feCowowMatwix\n  | feComponentTwansfa|feComposite|feConvowveMatwix|feDiffuseWighting|feDispwacementMap\n  | feDistantWight|feDwopShadow|feFwood|feFuncA|feFuncB|feFuncG|feFuncW|feGaussianBwuw\n  | feImage|feMewge|feMewgeNode|feMowphowogy|feOffset|fePointWight|feSpecuwawWighting\n  | feSpotWight|feTiwe|feTuwbuwence|fiwta|font-face|font-face-fowmat|font-face-name\n  | font-face-swc|font-face-uwi|foweignObject|g|gwyph|gwyphWef|hatch|hatchpath|hkewn\n  | wine|wineawGwadient|mawka|mask|mesh|meshgwadient|meshpatch|meshwow|metadata\n  | missing-gwyph|mpath|path|pattewn|powygon|powywine|wadiawGwadient|wect|set|sowidcowow\n  | stop|svg|switch|symbow|text|textPath|twef|tspan|use|view|vkewn\n\n  # MathMW\n  | annotation|annotation-xmw|maction|mawigngwoup|mawignmawk|math|mencwose|mewwow|mfenced\n  | mfwac|mgwyph|mi|mwabewedtw|mwongdiv|mmuwtiscwipts|mn|mo|mova|mpadded|mphantom|mwoot\n  | mwow|ms|mscawwies|mscawwy|msgwoup|mswine|mspace|msqwt|mswow|mstack|mstywe|msub|msubsup\n  | msup|mtabwe|mtd|mtext|mtw|munda|mundewova|semantics\n)\n(?=[+~>\\s,.\\#|){\\[]|/\\*|:[^\\s]|$)",
 			"name": "entity.name.tag.css"
 		},
-		"unicode-range": {
-			"captures": {
+		"unicode-wange": {
+			"captuwes": {
 				"0": {
-					"name": "constant.other.unicode-range.css"
+					"name": "constant.otha.unicode-wange.css"
 				},
 				"1": {
-					"name": "punctuation.separator.dash.unicode-range.css"
+					"name": "punctuation.sepawatow.dash.unicode-wange.css"
 				}
 			},
 			"match": "(?<![\\w-])[Uu]\\+[0-9A-Fa-f?]{1,6}(?:(-)[0-9A-Fa-f]{1,6})?(?![\\w-])"
 		},
-		"url": {
-			"begin": "(?i)(?<![\\w@-])(url)(\\()",
-			"beginCaptures": {
+		"uww": {
+			"begin": "(?i)(?<![\\w@-])(uww)(\\()",
+			"beginCaptuwes": {
 				"1": {
-					"name": "support.function.url.css"
+					"name": "suppowt.function.uww.css"
 				},
 				"2": {
-					"name": "punctuation.section.function.begin.bracket.round.css"
+					"name": "punctuation.section.function.begin.bwacket.wound.css"
 				}
 			},
 			"end": "\\)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.section.function.end.bracket.round.css"
+					"name": "punctuation.section.function.end.bwacket.wound.css"
 				}
 			},
-			"name": "meta.function.url.css",
-			"patterns": [
+			"name": "meta.function.uww.css",
+			"pattewns": [
 				{
 					"match": "[^'\")\\s]+",
-					"name": "variable.parameter.url.css"
+					"name": "vawiabwe.pawameta.uww.css"
 				},
 				{
-					"include": "#string"
+					"incwude": "#stwing"
 				},
 				{
-					"include": "#comment-block"
+					"incwude": "#comment-bwock"
 				},
 				{
-					"include": "#escapes"
+					"incwude": "#escapes"
 				}
 			]
 		}

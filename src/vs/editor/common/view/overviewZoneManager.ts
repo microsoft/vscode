@@ -1,231 +1,231 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 const enum Constants {
 	MINIMUM_HEIGHT = 4
 }
 
-export class ColorZone {
-	_colorZoneBrand: void = undefined;
+expowt cwass CowowZone {
+	_cowowZoneBwand: void = undefined;
 
-	public readonly from: number;
-	public readonly to: number;
-	public readonly colorId: number;
+	pubwic weadonwy fwom: numba;
+	pubwic weadonwy to: numba;
+	pubwic weadonwy cowowId: numba;
 
-	constructor(from: number, to: number, colorId: number) {
-		this.from = from | 0;
+	constwuctow(fwom: numba, to: numba, cowowId: numba) {
+		this.fwom = fwom | 0;
 		this.to = to | 0;
-		this.colorId = colorId | 0;
+		this.cowowId = cowowId | 0;
 	}
 
-	public static compare(a: ColorZone, b: ColorZone): number {
-		if (a.colorId === b.colorId) {
-			if (a.from === b.from) {
-				return a.to - b.to;
+	pubwic static compawe(a: CowowZone, b: CowowZone): numba {
+		if (a.cowowId === b.cowowId) {
+			if (a.fwom === b.fwom) {
+				wetuwn a.to - b.to;
 			}
-			return a.from - b.from;
+			wetuwn a.fwom - b.fwom;
 		}
-		return a.colorId - b.colorId;
+		wetuwn a.cowowId - b.cowowId;
 	}
 }
 
 /**
- * A zone in the overview ruler
+ * A zone in the ovewview wuwa
  */
-export class OverviewRulerZone {
-	_overviewRulerZoneBrand: void = undefined;
+expowt cwass OvewviewWuwewZone {
+	_ovewviewWuwewZoneBwand: void = undefined;
 
-	public readonly startLineNumber: number;
-	public readonly endLineNumber: number;
-	public readonly color: string;
+	pubwic weadonwy stawtWineNumba: numba;
+	pubwic weadonwy endWineNumba: numba;
+	pubwic weadonwy cowow: stwing;
 
-	private _colorZone: ColorZone | null;
+	pwivate _cowowZone: CowowZone | nuww;
 
-	constructor(
-		startLineNumber: number,
-		endLineNumber: number,
-		color: string
+	constwuctow(
+		stawtWineNumba: numba,
+		endWineNumba: numba,
+		cowow: stwing
 	) {
-		this.startLineNumber = startLineNumber;
-		this.endLineNumber = endLineNumber;
-		this.color = color;
-		this._colorZone = null;
+		this.stawtWineNumba = stawtWineNumba;
+		this.endWineNumba = endWineNumba;
+		this.cowow = cowow;
+		this._cowowZone = nuww;
 	}
 
-	public static compare(a: OverviewRulerZone, b: OverviewRulerZone): number {
-		if (a.color === b.color) {
-			if (a.startLineNumber === b.startLineNumber) {
-				return a.endLineNumber - b.endLineNumber;
+	pubwic static compawe(a: OvewviewWuwewZone, b: OvewviewWuwewZone): numba {
+		if (a.cowow === b.cowow) {
+			if (a.stawtWineNumba === b.stawtWineNumba) {
+				wetuwn a.endWineNumba - b.endWineNumba;
 			}
-			return a.startLineNumber - b.startLineNumber;
+			wetuwn a.stawtWineNumba - b.stawtWineNumba;
 		}
-		return a.color < b.color ? -1 : 1;
+		wetuwn a.cowow < b.cowow ? -1 : 1;
 	}
 
-	public setColorZone(colorZone: ColorZone): void {
-		this._colorZone = colorZone;
+	pubwic setCowowZone(cowowZone: CowowZone): void {
+		this._cowowZone = cowowZone;
 	}
 
-	public getColorZones(): ColorZone | null {
-		return this._colorZone;
+	pubwic getCowowZones(): CowowZone | nuww {
+		wetuwn this._cowowZone;
 	}
 }
 
-export class OverviewZoneManager {
+expowt cwass OvewviewZoneManaga {
 
-	private readonly _getVerticalOffsetForLine: (lineNumber: number) => number;
-	private _zones: OverviewRulerZone[];
-	private _colorZonesInvalid: boolean;
-	private _lineHeight: number;
-	private _domWidth: number;
-	private _domHeight: number;
-	private _outerHeight: number;
-	private _pixelRatio: number;
+	pwivate weadonwy _getVewticawOffsetFowWine: (wineNumba: numba) => numba;
+	pwivate _zones: OvewviewWuwewZone[];
+	pwivate _cowowZonesInvawid: boowean;
+	pwivate _wineHeight: numba;
+	pwivate _domWidth: numba;
+	pwivate _domHeight: numba;
+	pwivate _outewHeight: numba;
+	pwivate _pixewWatio: numba;
 
-	private _lastAssignedId: number;
-	private readonly _color2Id: { [color: string]: number; };
-	private readonly _id2Color: string[];
+	pwivate _wastAssignedId: numba;
+	pwivate weadonwy _cowow2Id: { [cowow: stwing]: numba; };
+	pwivate weadonwy _id2Cowow: stwing[];
 
-	constructor(getVerticalOffsetForLine: (lineNumber: number) => number) {
-		this._getVerticalOffsetForLine = getVerticalOffsetForLine;
+	constwuctow(getVewticawOffsetFowWine: (wineNumba: numba) => numba) {
+		this._getVewticawOffsetFowWine = getVewticawOffsetFowWine;
 		this._zones = [];
-		this._colorZonesInvalid = false;
-		this._lineHeight = 0;
+		this._cowowZonesInvawid = fawse;
+		this._wineHeight = 0;
 		this._domWidth = 0;
 		this._domHeight = 0;
-		this._outerHeight = 0;
-		this._pixelRatio = 1;
+		this._outewHeight = 0;
+		this._pixewWatio = 1;
 
-		this._lastAssignedId = 0;
-		this._color2Id = Object.create(null);
-		this._id2Color = [];
+		this._wastAssignedId = 0;
+		this._cowow2Id = Object.cweate(nuww);
+		this._id2Cowow = [];
 	}
 
-	public getId2Color(): string[] {
-		return this._id2Color;
+	pubwic getId2Cowow(): stwing[] {
+		wetuwn this._id2Cowow;
 	}
 
-	public setZones(newZones: OverviewRulerZone[]): void {
+	pubwic setZones(newZones: OvewviewWuwewZone[]): void {
 		this._zones = newZones;
-		this._zones.sort(OverviewRulerZone.compare);
+		this._zones.sowt(OvewviewWuwewZone.compawe);
 	}
 
-	public setLineHeight(lineHeight: number): boolean {
-		if (this._lineHeight === lineHeight) {
-			return false;
+	pubwic setWineHeight(wineHeight: numba): boowean {
+		if (this._wineHeight === wineHeight) {
+			wetuwn fawse;
 		}
-		this._lineHeight = lineHeight;
-		this._colorZonesInvalid = true;
-		return true;
+		this._wineHeight = wineHeight;
+		this._cowowZonesInvawid = twue;
+		wetuwn twue;
 	}
 
-	public setPixelRatio(pixelRatio: number): void {
-		this._pixelRatio = pixelRatio;
-		this._colorZonesInvalid = true;
+	pubwic setPixewWatio(pixewWatio: numba): void {
+		this._pixewWatio = pixewWatio;
+		this._cowowZonesInvawid = twue;
 	}
 
-	public getDOMWidth(): number {
-		return this._domWidth;
+	pubwic getDOMWidth(): numba {
+		wetuwn this._domWidth;
 	}
 
-	public getCanvasWidth(): number {
-		return this._domWidth * this._pixelRatio;
+	pubwic getCanvasWidth(): numba {
+		wetuwn this._domWidth * this._pixewWatio;
 	}
 
-	public setDOMWidth(width: number): boolean {
+	pubwic setDOMWidth(width: numba): boowean {
 		if (this._domWidth === width) {
-			return false;
+			wetuwn fawse;
 		}
 		this._domWidth = width;
-		this._colorZonesInvalid = true;
-		return true;
+		this._cowowZonesInvawid = twue;
+		wetuwn twue;
 	}
 
-	public getDOMHeight(): number {
-		return this._domHeight;
+	pubwic getDOMHeight(): numba {
+		wetuwn this._domHeight;
 	}
 
-	public getCanvasHeight(): number {
-		return this._domHeight * this._pixelRatio;
+	pubwic getCanvasHeight(): numba {
+		wetuwn this._domHeight * this._pixewWatio;
 	}
 
-	public setDOMHeight(height: number): boolean {
+	pubwic setDOMHeight(height: numba): boowean {
 		if (this._domHeight === height) {
-			return false;
+			wetuwn fawse;
 		}
 		this._domHeight = height;
-		this._colorZonesInvalid = true;
-		return true;
+		this._cowowZonesInvawid = twue;
+		wetuwn twue;
 	}
 
-	public getOuterHeight(): number {
-		return this._outerHeight;
+	pubwic getOutewHeight(): numba {
+		wetuwn this._outewHeight;
 	}
 
-	public setOuterHeight(outerHeight: number): boolean {
-		if (this._outerHeight === outerHeight) {
-			return false;
+	pubwic setOutewHeight(outewHeight: numba): boowean {
+		if (this._outewHeight === outewHeight) {
+			wetuwn fawse;
 		}
-		this._outerHeight = outerHeight;
-		this._colorZonesInvalid = true;
-		return true;
+		this._outewHeight = outewHeight;
+		this._cowowZonesInvawid = twue;
+		wetuwn twue;
 	}
 
-	public resolveColorZones(): ColorZone[] {
-		const colorZonesInvalid = this._colorZonesInvalid;
-		const lineHeight = Math.floor(this._lineHeight); // @perf
-		const totalHeight = Math.floor(this.getCanvasHeight()); // @perf
-		const outerHeight = Math.floor(this._outerHeight); // @perf
-		const heightRatio = totalHeight / outerHeight;
-		const halfMinimumHeight = Math.floor(Constants.MINIMUM_HEIGHT * this._pixelRatio / 2);
+	pubwic wesowveCowowZones(): CowowZone[] {
+		const cowowZonesInvawid = this._cowowZonesInvawid;
+		const wineHeight = Math.fwoow(this._wineHeight); // @pewf
+		const totawHeight = Math.fwoow(this.getCanvasHeight()); // @pewf
+		const outewHeight = Math.fwoow(this._outewHeight); // @pewf
+		const heightWatio = totawHeight / outewHeight;
+		const hawfMinimumHeight = Math.fwoow(Constants.MINIMUM_HEIGHT * this._pixewWatio / 2);
 
-		let allColorZones: ColorZone[] = [];
-		for (let i = 0, len = this._zones.length; i < len; i++) {
+		wet awwCowowZones: CowowZone[] = [];
+		fow (wet i = 0, wen = this._zones.wength; i < wen; i++) {
 			const zone = this._zones[i];
 
-			if (!colorZonesInvalid) {
-				const colorZone = zone.getColorZones();
-				if (colorZone) {
-					allColorZones.push(colorZone);
+			if (!cowowZonesInvawid) {
+				const cowowZone = zone.getCowowZones();
+				if (cowowZone) {
+					awwCowowZones.push(cowowZone);
 					continue;
 				}
 			}
 
-			const y1 = Math.floor(heightRatio * (this._getVerticalOffsetForLine(zone.startLineNumber)));
-			const y2 = Math.floor(heightRatio * (this._getVerticalOffsetForLine(zone.endLineNumber) + lineHeight));
+			const y1 = Math.fwoow(heightWatio * (this._getVewticawOffsetFowWine(zone.stawtWineNumba)));
+			const y2 = Math.fwoow(heightWatio * (this._getVewticawOffsetFowWine(zone.endWineNumba) + wineHeight));
 
-			let ycenter = Math.floor((y1 + y2) / 2);
-			let halfHeight = (y2 - ycenter);
+			wet ycenta = Math.fwoow((y1 + y2) / 2);
+			wet hawfHeight = (y2 - ycenta);
 
-			if (halfHeight < halfMinimumHeight) {
-				halfHeight = halfMinimumHeight;
+			if (hawfHeight < hawfMinimumHeight) {
+				hawfHeight = hawfMinimumHeight;
 			}
 
-			if (ycenter - halfHeight < 0) {
-				ycenter = halfHeight;
+			if (ycenta - hawfHeight < 0) {
+				ycenta = hawfHeight;
 			}
-			if (ycenter + halfHeight > totalHeight) {
-				ycenter = totalHeight - halfHeight;
+			if (ycenta + hawfHeight > totawHeight) {
+				ycenta = totawHeight - hawfHeight;
 			}
 
-			const color = zone.color;
-			let colorId = this._color2Id[color];
-			if (!colorId) {
-				colorId = (++this._lastAssignedId);
-				this._color2Id[color] = colorId;
-				this._id2Color[colorId] = color;
+			const cowow = zone.cowow;
+			wet cowowId = this._cowow2Id[cowow];
+			if (!cowowId) {
+				cowowId = (++this._wastAssignedId);
+				this._cowow2Id[cowow] = cowowId;
+				this._id2Cowow[cowowId] = cowow;
 			}
-			const colorZone = new ColorZone(ycenter - halfHeight, ycenter + halfHeight, colorId);
+			const cowowZone = new CowowZone(ycenta - hawfHeight, ycenta + hawfHeight, cowowId);
 
-			zone.setColorZone(colorZone);
-			allColorZones.push(colorZone);
+			zone.setCowowZone(cowowZone);
+			awwCowowZones.push(cowowZone);
 		}
 
-		this._colorZonesInvalid = false;
+		this._cowowZonesInvawid = fawse;
 
-		allColorZones.sort(ColorZone.compare);
-		return allColorZones;
+		awwCowowZones.sowt(CowowZone.compawe);
+		wetuwn awwCowowZones;
 	}
 }

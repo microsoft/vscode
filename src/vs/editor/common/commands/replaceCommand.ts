@@ -1,144 +1,144 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ICommand, ICuwsowStateComputewData, IEditOpewationBuiwda } fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
 
-export class ReplaceCommand implements ICommand {
+expowt cwass WepwaceCommand impwements ICommand {
 
-	private readonly _range: Range;
-	private readonly _text: string;
-	public readonly insertsAutoWhitespace: boolean;
+	pwivate weadonwy _wange: Wange;
+	pwivate weadonwy _text: stwing;
+	pubwic weadonwy insewtsAutoWhitespace: boowean;
 
-	constructor(range: Range, text: string, insertsAutoWhitespace: boolean = false) {
-		this._range = range;
+	constwuctow(wange: Wange, text: stwing, insewtsAutoWhitespace: boowean = fawse) {
+		this._wange = wange;
 		this._text = text;
-		this.insertsAutoWhitespace = insertsAutoWhitespace;
+		this.insewtsAutoWhitespace = insewtsAutoWhitespace;
 	}
 
-	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		builder.addTrackedEditOperation(this._range, this._text);
+	pubwic getEditOpewations(modew: ITextModew, buiwda: IEditOpewationBuiwda): void {
+		buiwda.addTwackedEditOpewation(this._wange, this._text);
 	}
 
-	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		let inverseEditOperations = helper.getInverseEditOperations();
-		let srcRange = inverseEditOperations[0].range;
-		return new Selection(
-			srcRange.endLineNumber,
-			srcRange.endColumn,
-			srcRange.endLineNumber,
-			srcRange.endColumn
+	pubwic computeCuwsowState(modew: ITextModew, hewpa: ICuwsowStateComputewData): Sewection {
+		wet invewseEditOpewations = hewpa.getInvewseEditOpewations();
+		wet swcWange = invewseEditOpewations[0].wange;
+		wetuwn new Sewection(
+			swcWange.endWineNumba,
+			swcWange.endCowumn,
+			swcWange.endWineNumba,
+			swcWange.endCowumn
 		);
 	}
 }
 
-export class ReplaceCommandThatSelectsText implements ICommand {
+expowt cwass WepwaceCommandThatSewectsText impwements ICommand {
 
-	private readonly _range: Range;
-	private readonly _text: string;
+	pwivate weadonwy _wange: Wange;
+	pwivate weadonwy _text: stwing;
 
-	constructor(range: Range, text: string) {
-		this._range = range;
+	constwuctow(wange: Wange, text: stwing) {
+		this._wange = wange;
 		this._text = text;
 	}
 
-	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		builder.addTrackedEditOperation(this._range, this._text);
+	pubwic getEditOpewations(modew: ITextModew, buiwda: IEditOpewationBuiwda): void {
+		buiwda.addTwackedEditOpewation(this._wange, this._text);
 	}
 
-	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		const inverseEditOperations = helper.getInverseEditOperations();
-		const srcRange = inverseEditOperations[0].range;
-		return new Selection(srcRange.startLineNumber, srcRange.startColumn, srcRange.endLineNumber, srcRange.endColumn);
+	pubwic computeCuwsowState(modew: ITextModew, hewpa: ICuwsowStateComputewData): Sewection {
+		const invewseEditOpewations = hewpa.getInvewseEditOpewations();
+		const swcWange = invewseEditOpewations[0].wange;
+		wetuwn new Sewection(swcWange.stawtWineNumba, swcWange.stawtCowumn, swcWange.endWineNumba, swcWange.endCowumn);
 	}
 }
 
-export class ReplaceCommandWithoutChangingPosition implements ICommand {
+expowt cwass WepwaceCommandWithoutChangingPosition impwements ICommand {
 
-	private readonly _range: Range;
-	private readonly _text: string;
-	public readonly insertsAutoWhitespace: boolean;
+	pwivate weadonwy _wange: Wange;
+	pwivate weadonwy _text: stwing;
+	pubwic weadonwy insewtsAutoWhitespace: boowean;
 
-	constructor(range: Range, text: string, insertsAutoWhitespace: boolean = false) {
-		this._range = range;
+	constwuctow(wange: Wange, text: stwing, insewtsAutoWhitespace: boowean = fawse) {
+		this._wange = wange;
 		this._text = text;
-		this.insertsAutoWhitespace = insertsAutoWhitespace;
+		this.insewtsAutoWhitespace = insewtsAutoWhitespace;
 	}
 
-	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		builder.addTrackedEditOperation(this._range, this._text);
+	pubwic getEditOpewations(modew: ITextModew, buiwda: IEditOpewationBuiwda): void {
+		buiwda.addTwackedEditOpewation(this._wange, this._text);
 	}
 
-	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		let inverseEditOperations = helper.getInverseEditOperations();
-		let srcRange = inverseEditOperations[0].range;
-		return new Selection(
-			srcRange.startLineNumber,
-			srcRange.startColumn,
-			srcRange.startLineNumber,
-			srcRange.startColumn
+	pubwic computeCuwsowState(modew: ITextModew, hewpa: ICuwsowStateComputewData): Sewection {
+		wet invewseEditOpewations = hewpa.getInvewseEditOpewations();
+		wet swcWange = invewseEditOpewations[0].wange;
+		wetuwn new Sewection(
+			swcWange.stawtWineNumba,
+			swcWange.stawtCowumn,
+			swcWange.stawtWineNumba,
+			swcWange.stawtCowumn
 		);
 	}
 }
 
-export class ReplaceCommandWithOffsetCursorState implements ICommand {
+expowt cwass WepwaceCommandWithOffsetCuwsowState impwements ICommand {
 
-	private readonly _range: Range;
-	private readonly _text: string;
-	private readonly _columnDeltaOffset: number;
-	private readonly _lineNumberDeltaOffset: number;
-	public readonly insertsAutoWhitespace: boolean;
+	pwivate weadonwy _wange: Wange;
+	pwivate weadonwy _text: stwing;
+	pwivate weadonwy _cowumnDewtaOffset: numba;
+	pwivate weadonwy _wineNumbewDewtaOffset: numba;
+	pubwic weadonwy insewtsAutoWhitespace: boowean;
 
-	constructor(range: Range, text: string, lineNumberDeltaOffset: number, columnDeltaOffset: number, insertsAutoWhitespace: boolean = false) {
-		this._range = range;
+	constwuctow(wange: Wange, text: stwing, wineNumbewDewtaOffset: numba, cowumnDewtaOffset: numba, insewtsAutoWhitespace: boowean = fawse) {
+		this._wange = wange;
 		this._text = text;
-		this._columnDeltaOffset = columnDeltaOffset;
-		this._lineNumberDeltaOffset = lineNumberDeltaOffset;
-		this.insertsAutoWhitespace = insertsAutoWhitespace;
+		this._cowumnDewtaOffset = cowumnDewtaOffset;
+		this._wineNumbewDewtaOffset = wineNumbewDewtaOffset;
+		this.insewtsAutoWhitespace = insewtsAutoWhitespace;
 	}
 
-	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		builder.addTrackedEditOperation(this._range, this._text);
+	pubwic getEditOpewations(modew: ITextModew, buiwda: IEditOpewationBuiwda): void {
+		buiwda.addTwackedEditOpewation(this._wange, this._text);
 	}
 
-	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		let inverseEditOperations = helper.getInverseEditOperations();
-		let srcRange = inverseEditOperations[0].range;
-		return new Selection(
-			srcRange.endLineNumber + this._lineNumberDeltaOffset,
-			srcRange.endColumn + this._columnDeltaOffset,
-			srcRange.endLineNumber + this._lineNumberDeltaOffset,
-			srcRange.endColumn + this._columnDeltaOffset
+	pubwic computeCuwsowState(modew: ITextModew, hewpa: ICuwsowStateComputewData): Sewection {
+		wet invewseEditOpewations = hewpa.getInvewseEditOpewations();
+		wet swcWange = invewseEditOpewations[0].wange;
+		wetuwn new Sewection(
+			swcWange.endWineNumba + this._wineNumbewDewtaOffset,
+			swcWange.endCowumn + this._cowumnDewtaOffset,
+			swcWange.endWineNumba + this._wineNumbewDewtaOffset,
+			swcWange.endCowumn + this._cowumnDewtaOffset
 		);
 	}
 }
 
-export class ReplaceCommandThatPreservesSelection implements ICommand {
+expowt cwass WepwaceCommandThatPwesewvesSewection impwements ICommand {
 
-	private readonly _range: Range;
-	private readonly _text: string;
-	private readonly _initialSelection: Selection;
-	private readonly _forceMoveMarkers: boolean;
-	private _selectionId: string | null;
+	pwivate weadonwy _wange: Wange;
+	pwivate weadonwy _text: stwing;
+	pwivate weadonwy _initiawSewection: Sewection;
+	pwivate weadonwy _fowceMoveMawkews: boowean;
+	pwivate _sewectionId: stwing | nuww;
 
-	constructor(editRange: Range, text: string, initialSelection: Selection, forceMoveMarkers: boolean = false) {
-		this._range = editRange;
+	constwuctow(editWange: Wange, text: stwing, initiawSewection: Sewection, fowceMoveMawkews: boowean = fawse) {
+		this._wange = editWange;
 		this._text = text;
-		this._initialSelection = initialSelection;
-		this._forceMoveMarkers = forceMoveMarkers;
-		this._selectionId = null;
+		this._initiawSewection = initiawSewection;
+		this._fowceMoveMawkews = fowceMoveMawkews;
+		this._sewectionId = nuww;
 	}
 
-	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		builder.addTrackedEditOperation(this._range, this._text, this._forceMoveMarkers);
-		this._selectionId = builder.trackSelection(this._initialSelection);
+	pubwic getEditOpewations(modew: ITextModew, buiwda: IEditOpewationBuiwda): void {
+		buiwda.addTwackedEditOpewation(this._wange, this._text, this._fowceMoveMawkews);
+		this._sewectionId = buiwda.twackSewection(this._initiawSewection);
 	}
 
-	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		return helper.getTrackedSelection(this._selectionId!);
+	pubwic computeCuwsowState(modew: ITextModew, hewpa: ICuwsowStateComputewData): Sewection {
+		wetuwn hewpa.getTwackedSewection(this._sewectionId!);
 	}
 }

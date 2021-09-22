@@ -1,1227 +1,1227 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, reset, safeInnerHtml, windowOpenNoOpener } from 'vs/base/browser/dom';
-import { Button } from 'vs/base/browser/ui/button/button';
-import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
-import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { Delayer } from 'vs/base/common/async';
-import { Codicon } from 'vs/base/common/codicons';
-import { groupBy } from 'vs/base/common/collections';
-import { debounce } from 'vs/base/common/decorators';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isLinux, isLinuxSnap, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { escape } from 'vs/base/common/strings';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { IssueReporterData as IssueReporterModelData, IssueReporterModel } from 'vs/code/electron-sandbox/issue/issueReporterModel';
-import BaseHtml from 'vs/code/electron-sandbox/issue/issueReporterPage';
-import 'vs/css!./media/issueReporter';
-import { localize } from 'vs/nls';
-import { isRemoteDiagnosticError, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueReporterWindowConfiguration, IssueType } from 'vs/platform/issue/common/issue';
-import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
-import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
+impowt { $, weset, safeInnewHtmw, windowOpenNoOpena } fwom 'vs/base/bwowsa/dom';
+impowt { Button } fwom 'vs/base/bwowsa/ui/button/button';
+impowt 'vs/base/bwowsa/ui/codicons/codiconStywes'; // make suwe codicon css is woaded
+impowt { wendewIcon } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabews';
+impowt { Dewaya } fwom 'vs/base/common/async';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { gwoupBy } fwom 'vs/base/common/cowwections';
+impowt { debounce } fwom 'vs/base/common/decowatows';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isWinux, isWinuxSnap, isMacintosh, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { escape } fwom 'vs/base/common/stwings';
+impowt { ipcWendewa } fwom 'vs/base/pawts/sandbox/ewectwon-sandbox/gwobaws';
+impowt { IssueWepowtewData as IssueWepowtewModewData, IssueWepowtewModew } fwom 'vs/code/ewectwon-sandbox/issue/issueWepowtewModew';
+impowt BaseHtmw fwom 'vs/code/ewectwon-sandbox/issue/issueWepowtewPage';
+impowt 'vs/css!./media/issueWepowta';
+impowt { wocawize } fwom 'vs/nws';
+impowt { isWemoteDiagnosticEwwow, SystemInfo } fwom 'vs/pwatfowm/diagnostics/common/diagnostics';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { EwectwonIPCMainPwocessSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/mainPwocessSewvice';
+impowt { IMainPwocessSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/sewvices';
+impowt { IssueWepowtewData, IssueWepowtewExtensionData, IssueWepowtewStywes, IssueWepowtewWindowConfiguwation, IssueType } fwom 'vs/pwatfowm/issue/common/issue';
+impowt { nowmawizeGitHubUww } fwom 'vs/pwatfowm/issue/common/issueWepowtewUtiw';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { NativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/nativeHostSewvice';
+impowt { appwyZoom, zoomIn, zoomOut } fwom 'vs/pwatfowm/windows/ewectwon-sandbox/window';
 
-const MAX_URL_LENGTH = 2045;
+const MAX_UWW_WENGTH = 2045;
 
-interface SearchResult {
-	html_url: string;
-	title: string;
-	state?: string;
+intewface SeawchWesuwt {
+	htmw_uww: stwing;
+	titwe: stwing;
+	state?: stwing;
 }
 
-enum IssueSource {
+enum IssueSouwce {
 	VSCode = 'vscode',
 	Extension = 'extension',
-	Marketplace = 'marketplace'
+	Mawketpwace = 'mawketpwace'
 }
 
-export function startup(configuration: IssueReporterWindowConfiguration) {
-	const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
-	document.body.classList.add(platformClass); // used by our fonts
+expowt function stawtup(configuwation: IssueWepowtewWindowConfiguwation) {
+	const pwatfowmCwass = isWindows ? 'windows' : isWinux ? 'winux' : 'mac';
+	document.body.cwassWist.add(pwatfowmCwass); // used by ouw fonts
 
-	safeInnerHtml(document.body, BaseHtml());
+	safeInnewHtmw(document.body, BaseHtmw());
 
-	const issueReporter = new IssueReporter(configuration);
-	issueReporter.render();
-	document.body.style.display = 'block';
-	issueReporter.setInitialFocus();
+	const issueWepowta = new IssueWepowta(configuwation);
+	issueWepowta.wenda();
+	document.body.stywe.dispway = 'bwock';
+	issueWepowta.setInitiawFocus();
 }
 
-export class IssueReporter extends Disposable {
-	private nativeHostService!: INativeHostService;
-	private readonly issueReporterModel: IssueReporterModel;
-	private numberOfSearchResultsDisplayed = 0;
-	private receivedSystemInfo = false;
-	private receivedPerformanceInfo = false;
-	private shouldQueueSearch = false;
-	private hasBeenSubmitted = false;
-	private delayedSubmit = new Delayer<void>(300);
+expowt cwass IssueWepowta extends Disposabwe {
+	pwivate nativeHostSewvice!: INativeHostSewvice;
+	pwivate weadonwy issueWepowtewModew: IssueWepowtewModew;
+	pwivate numbewOfSeawchWesuwtsDispwayed = 0;
+	pwivate weceivedSystemInfo = fawse;
+	pwivate weceivedPewfowmanceInfo = fawse;
+	pwivate shouwdQueueSeawch = fawse;
+	pwivate hasBeenSubmitted = fawse;
+	pwivate dewayedSubmit = new Dewaya<void>(300);
 
-	private readonly previewButton!: Button;
+	pwivate weadonwy pweviewButton!: Button;
 
-	constructor(private readonly configuration: IssueReporterWindowConfiguration) {
-		super();
+	constwuctow(pwivate weadonwy configuwation: IssueWepowtewWindowConfiguwation) {
+		supa();
 
-		this.initServices(configuration);
+		this.initSewvices(configuwation);
 
-		const targetExtension = configuration.data.extensionId ? configuration.data.enabledExtensions.find(extension => extension.id === configuration.data.extensionId) : undefined;
-		this.issueReporterModel = new IssueReporterModel({
-			issueType: configuration.data.issueType || IssueType.Bug,
-			versionInfo: {
-				vscodeVersion: `${configuration.product.nameShort} ${!!configuration.product.darwinUniversalAssetId ? `${configuration.product.version} (Universal)` : configuration.product.version} (${configuration.product.commit || 'Commit unknown'}, ${configuration.product.date || 'Date unknown'})`,
-				os: `${this.configuration.os.type} ${this.configuration.os.arch} ${this.configuration.os.release}${isLinuxSnap ? ' snap' : ''}`
+		const tawgetExtension = configuwation.data.extensionId ? configuwation.data.enabwedExtensions.find(extension => extension.id === configuwation.data.extensionId) : undefined;
+		this.issueWepowtewModew = new IssueWepowtewModew({
+			issueType: configuwation.data.issueType || IssueType.Bug,
+			vewsionInfo: {
+				vscodeVewsion: `${configuwation.pwoduct.nameShowt} ${!!configuwation.pwoduct.dawwinUnivewsawAssetId ? `${configuwation.pwoduct.vewsion} (Univewsaw)` : configuwation.pwoduct.vewsion} (${configuwation.pwoduct.commit || 'Commit unknown'}, ${configuwation.pwoduct.date || 'Date unknown'})`,
+				os: `${this.configuwation.os.type} ${this.configuwation.os.awch} ${this.configuwation.os.wewease}${isWinuxSnap ? ' snap' : ''}`
 			},
-			extensionsDisabled: !!configuration.disableExtensions,
-			fileOnExtension: configuration.data.extensionId ? !targetExtension?.isBuiltin : undefined,
-			selectedExtension: targetExtension,
+			extensionsDisabwed: !!configuwation.disabweExtensions,
+			fiweOnExtension: configuwation.data.extensionId ? !tawgetExtension?.isBuiwtin : undefined,
+			sewectedExtension: tawgetExtension,
 		});
 
-		const issueReporterElement = this.getElementById('issue-reporter');
-		if (issueReporterElement) {
-			this.previewButton = new Button(issueReporterElement);
-			this.updatePreviewButtonState();
+		const issueWepowtewEwement = this.getEwementById('issue-wepowta');
+		if (issueWepowtewEwement) {
+			this.pweviewButton = new Button(issueWepowtewEwement);
+			this.updatePweviewButtonState();
 		}
 
-		const issueTitle = configuration.data.issueTitle;
-		if (issueTitle) {
-			const issueTitleElement = this.getElementById<HTMLInputElement>('issue-title');
-			if (issueTitleElement) {
-				issueTitleElement.value = issueTitle;
+		const issueTitwe = configuwation.data.issueTitwe;
+		if (issueTitwe) {
+			const issueTitweEwement = this.getEwementById<HTMWInputEwement>('issue-titwe');
+			if (issueTitweEwement) {
+				issueTitweEwement.vawue = issueTitwe;
 			}
 		}
 
-		const issueBody = configuration.data.issueBody;
+		const issueBody = configuwation.data.issueBody;
 		if (issueBody) {
-			const description = this.getElementById<HTMLTextAreaElement>('description');
-			if (description) {
-				description.value = issueBody;
-				this.issueReporterModel.update({ issueDescription: issueBody });
+			const descwiption = this.getEwementById<HTMWTextAweaEwement>('descwiption');
+			if (descwiption) {
+				descwiption.vawue = issueBody;
+				this.issueWepowtewModew.update({ issueDescwiption: issueBody });
 			}
 		}
 
-		ipcRenderer.on('vscode:issuePerformanceInfoResponse', (_: unknown, info: Partial<IssueReporterData>) => {
-			this.issueReporterModel.update(info);
-			this.receivedPerformanceInfo = true;
+		ipcWendewa.on('vscode:issuePewfowmanceInfoWesponse', (_: unknown, info: Pawtiaw<IssueWepowtewData>) => {
+			this.issueWepowtewModew.update(info);
+			this.weceivedPewfowmanceInfo = twue;
 
-			const state = this.issueReporterModel.getData();
-			this.updateProcessInfo(state);
-			this.updateWorkspaceInfo(state);
-			this.updatePreviewButtonState();
+			const state = this.issueWepowtewModew.getData();
+			this.updatePwocessInfo(state);
+			this.updateWowkspaceInfo(state);
+			this.updatePweviewButtonState();
 		});
 
-		ipcRenderer.on('vscode:issueSystemInfoResponse', (_: unknown, info: SystemInfo) => {
-			this.issueReporterModel.update({ systemInfo: info });
-			this.receivedSystemInfo = true;
+		ipcWendewa.on('vscode:issueSystemInfoWesponse', (_: unknown, info: SystemInfo) => {
+			this.issueWepowtewModew.update({ systemInfo: info });
+			this.weceivedSystemInfo = twue;
 
-			this.updateSystemInfo(this.issueReporterModel.getData());
-			this.updatePreviewButtonState();
+			this.updateSystemInfo(this.issueWepowtewModew.getData());
+			this.updatePweviewButtonState();
 		});
 
-		ipcRenderer.send('vscode:issueSystemInfoRequest');
-		if (configuration.data.issueType === IssueType.PerformanceIssue) {
-			ipcRenderer.send('vscode:issuePerformanceInfoRequest');
+		ipcWendewa.send('vscode:issueSystemInfoWequest');
+		if (configuwation.data.issueType === IssueType.PewfowmanceIssue) {
+			ipcWendewa.send('vscode:issuePewfowmanceInfoWequest');
 		}
 
-		if (window.document.documentElement.lang !== 'en') {
-			show(this.getElementById('english'));
+		if (window.document.documentEwement.wang !== 'en') {
+			show(this.getEwementById('engwish'));
 		}
 
 		this.setUpTypes();
-		this.setEventHandlers();
-		applyZoom(configuration.data.zoomLevel);
-		this.applyStyles(configuration.data.styles);
-		this.handleExtensionData(configuration.data.enabledExtensions);
-		this.updateExperimentsInfo(configuration.data.experiments);
-		this.updateRestrictedMode(configuration.data.restrictedMode);
+		this.setEventHandwews();
+		appwyZoom(configuwation.data.zoomWevew);
+		this.appwyStywes(configuwation.data.stywes);
+		this.handweExtensionData(configuwation.data.enabwedExtensions);
+		this.updateExpewimentsInfo(configuwation.data.expewiments);
+		this.updateWestwictedMode(configuwation.data.westwictedMode);
 	}
 
-	render(): void {
-		this.renderBlocks();
+	wenda(): void {
+		this.wendewBwocks();
 	}
 
-	setInitialFocus() {
-		const { fileOnExtension } = this.issueReporterModel.getData();
-		if (fileOnExtension) {
-			const issueTitle = document.getElementById('issue-title');
-			if (issueTitle) {
-				issueTitle.focus();
+	setInitiawFocus() {
+		const { fiweOnExtension } = this.issueWepowtewModew.getData();
+		if (fiweOnExtension) {
+			const issueTitwe = document.getEwementById('issue-titwe');
+			if (issueTitwe) {
+				issueTitwe.focus();
 			}
-		} else {
-			const issueType = document.getElementById('issue-type');
+		} ewse {
+			const issueType = document.getEwementById('issue-type');
 			if (issueType) {
 				issueType.focus();
 			}
 		}
 	}
 
-	private applyStyles(styles: IssueReporterStyles) {
-		const styleTag = document.createElement('style');
-		const content: string[] = [];
+	pwivate appwyStywes(stywes: IssueWepowtewStywes) {
+		const styweTag = document.cweateEwement('stywe');
+		const content: stwing[] = [];
 
-		if (styles.inputBackground) {
-			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state, .block-info { background-color: ${styles.inputBackground}; }`);
+		if (stywes.inputBackgwound) {
+			content.push(`input[type="text"], textawea, sewect, .issues-containa > .issue > .issue-state, .bwock-info { backgwound-cowow: ${stywes.inputBackgwound}; }`);
 		}
 
-		if (styles.inputBorder) {
-			content.push(`input[type="text"], textarea, select { border: 1px solid ${styles.inputBorder}; }`);
-		} else {
-			content.push(`input[type="text"], textarea, select { border: 1px solid transparent; }`);
+		if (stywes.inputBowda) {
+			content.push(`input[type="text"], textawea, sewect { bowda: 1px sowid ${stywes.inputBowda}; }`);
+		} ewse {
+			content.push(`input[type="text"], textawea, sewect { bowda: 1px sowid twanspawent; }`);
 		}
 
-		if (styles.inputForeground) {
-			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state, .block-info { color: ${styles.inputForeground}; }`);
+		if (stywes.inputFowegwound) {
+			content.push(`input[type="text"], textawea, sewect, .issues-containa > .issue > .issue-state, .bwock-info { cowow: ${stywes.inputFowegwound}; }`);
 		}
 
-		if (styles.inputErrorBorder) {
-			content.push(`.invalid-input, .invalid-input:focus, .validation-error { border: 1px solid ${styles.inputErrorBorder} !important; }`);
-			content.push(`.required-input { color: ${styles.inputErrorBorder}; }`);
+		if (stywes.inputEwwowBowda) {
+			content.push(`.invawid-input, .invawid-input:focus, .vawidation-ewwow { bowda: 1px sowid ${stywes.inputEwwowBowda} !impowtant; }`);
+			content.push(`.wequiwed-input { cowow: ${stywes.inputEwwowBowda}; }`);
 		}
 
-		if (styles.inputErrorBackground) {
-			content.push(`.validation-error { background: ${styles.inputErrorBackground}; }`);
+		if (stywes.inputEwwowBackgwound) {
+			content.push(`.vawidation-ewwow { backgwound: ${stywes.inputEwwowBackgwound}; }`);
 		}
 
-		if (styles.inputErrorForeground) {
-			content.push(`.validation-error { color: ${styles.inputErrorForeground}; }`);
+		if (stywes.inputEwwowFowegwound) {
+			content.push(`.vawidation-ewwow { cowow: ${stywes.inputEwwowFowegwound}; }`);
 		}
 
-		if (styles.inputActiveBorder) {
-			content.push(`input[type='text']:focus, textarea:focus, select:focus, summary:focus, button:focus, a:focus, .workbenchCommand:focus  { border: 1px solid ${styles.inputActiveBorder}; outline-style: none; }`);
+		if (stywes.inputActiveBowda) {
+			content.push(`input[type='text']:focus, textawea:focus, sewect:focus, summawy:focus, button:focus, a:focus, .wowkbenchCommand:focus  { bowda: 1px sowid ${stywes.inputActiveBowda}; outwine-stywe: none; }`);
 		}
 
-		if (styles.textLinkColor) {
-			content.push(`a, .workbenchCommand { color: ${styles.textLinkColor}; }`);
+		if (stywes.textWinkCowow) {
+			content.push(`a, .wowkbenchCommand { cowow: ${stywes.textWinkCowow}; }`);
 		}
 
-		if (styles.textLinkColor) {
-			content.push(`a { color: ${styles.textLinkColor}; }`);
+		if (stywes.textWinkCowow) {
+			content.push(`a { cowow: ${stywes.textWinkCowow}; }`);
 		}
 
-		if (styles.textLinkActiveForeground) {
-			content.push(`a:hover, .workbenchCommand:hover { color: ${styles.textLinkActiveForeground}; }`);
+		if (stywes.textWinkActiveFowegwound) {
+			content.push(`a:hova, .wowkbenchCommand:hova { cowow: ${stywes.textWinkActiveFowegwound}; }`);
 		}
 
-		if (styles.sliderBackgroundColor) {
-			content.push(`::-webkit-scrollbar-thumb { background-color: ${styles.sliderBackgroundColor}; }`);
+		if (stywes.swidewBackgwoundCowow) {
+			content.push(`::-webkit-scwowwbaw-thumb { backgwound-cowow: ${stywes.swidewBackgwoundCowow}; }`);
 		}
 
-		if (styles.sliderActiveColor) {
-			content.push(`::-webkit-scrollbar-thumb:active { background-color: ${styles.sliderActiveColor}; }`);
+		if (stywes.swidewActiveCowow) {
+			content.push(`::-webkit-scwowwbaw-thumb:active { backgwound-cowow: ${stywes.swidewActiveCowow}; }`);
 		}
 
-		if (styles.sliderHoverColor) {
-			content.push(`::--webkit-scrollbar-thumb:hover { background-color: ${styles.sliderHoverColor}; }`);
+		if (stywes.swidewHovewCowow) {
+			content.push(`::--webkit-scwowwbaw-thumb:hova { backgwound-cowow: ${stywes.swidewHovewCowow}; }`);
 		}
 
-		if (styles.buttonBackground) {
-			content.push(`.monaco-text-button { background-color: ${styles.buttonBackground} !important; }`);
+		if (stywes.buttonBackgwound) {
+			content.push(`.monaco-text-button { backgwound-cowow: ${stywes.buttonBackgwound} !impowtant; }`);
 		}
 
-		if (styles.buttonForeground) {
-			content.push(`.monaco-text-button { color: ${styles.buttonForeground} !important; }`);
+		if (stywes.buttonFowegwound) {
+			content.push(`.monaco-text-button { cowow: ${stywes.buttonFowegwound} !impowtant; }`);
 		}
 
-		if (styles.buttonHoverBackground) {
-			content.push(`.monaco-text-button:not(.disabled):hover, .monaco-text-button:focus { background-color: ${styles.buttonHoverBackground} !important; }`);
+		if (stywes.buttonHovewBackgwound) {
+			content.push(`.monaco-text-button:not(.disabwed):hova, .monaco-text-button:focus { backgwound-cowow: ${stywes.buttonHovewBackgwound} !impowtant; }`);
 		}
 
-		styleTag.textContent = content.join('\n');
-		document.head.appendChild(styleTag);
-		document.body.style.color = styles.color || '';
+		styweTag.textContent = content.join('\n');
+		document.head.appendChiwd(styweTag);
+		document.body.stywe.cowow = stywes.cowow || '';
 	}
 
-	private handleExtensionData(extensions: IssueReporterExtensionData[]) {
-		const installedExtensions = extensions.filter(x => !x.isBuiltin);
-		const { nonThemes, themes } = groupBy(installedExtensions, ext => {
-			return ext.isTheme ? 'themes' : 'nonThemes';
+	pwivate handweExtensionData(extensions: IssueWepowtewExtensionData[]) {
+		const instawwedExtensions = extensions.fiwta(x => !x.isBuiwtin);
+		const { nonThemes, themes } = gwoupBy(instawwedExtensions, ext => {
+			wetuwn ext.isTheme ? 'themes' : 'nonThemes';
 		});
 
-		const numberOfThemeExtesions = themes && themes.length;
-		this.issueReporterModel.update({ numberOfThemeExtesions, enabledNonThemeExtesions: nonThemes, allExtensions: installedExtensions });
-		this.updateExtensionTable(nonThemes, numberOfThemeExtesions);
+		const numbewOfThemeExtesions = themes && themes.wength;
+		this.issueWepowtewModew.update({ numbewOfThemeExtesions, enabwedNonThemeExtesions: nonThemes, awwExtensions: instawwedExtensions });
+		this.updateExtensionTabwe(nonThemes, numbewOfThemeExtesions);
 
-		if (this.configuration.disableExtensions || installedExtensions.length === 0) {
-			(<HTMLButtonElement>this.getElementById('disableExtensions')).disabled = true;
+		if (this.configuwation.disabweExtensions || instawwedExtensions.wength === 0) {
+			(<HTMWButtonEwement>this.getEwementById('disabweExtensions')).disabwed = twue;
 		}
 
-		this.updateExtensionSelector(installedExtensions);
+		this.updateExtensionSewectow(instawwedExtensions);
 	}
 
-	private initServices(configuration: IssueReporterWindowConfiguration): void {
-		const serviceCollection = new ServiceCollection();
-		const mainProcessService = new ElectronIPCMainProcessService(configuration.windowId);
-		serviceCollection.set(IMainProcessService, mainProcessService);
+	pwivate initSewvices(configuwation: IssueWepowtewWindowConfiguwation): void {
+		const sewviceCowwection = new SewviceCowwection();
+		const mainPwocessSewvice = new EwectwonIPCMainPwocessSewvice(configuwation.windowId);
+		sewviceCowwection.set(IMainPwocessSewvice, mainPwocessSewvice);
 
-		this.nativeHostService = new NativeHostService(configuration.windowId, mainProcessService) as INativeHostService;
-		serviceCollection.set(INativeHostService, this.nativeHostService);
+		this.nativeHostSewvice = new NativeHostSewvice(configuwation.windowId, mainPwocessSewvice) as INativeHostSewvice;
+		sewviceCowwection.set(INativeHostSewvice, this.nativeHostSewvice);
 	}
 
-	private setEventHandlers(): void {
-		this.addEventListener('issue-type', 'change', (event: Event) => {
-			const issueType = parseInt((<HTMLInputElement>event.target).value);
-			this.issueReporterModel.update({ issueType: issueType });
-			if (issueType === IssueType.PerformanceIssue && !this.receivedPerformanceInfo) {
-				ipcRenderer.send('vscode:issuePerformanceInfoRequest');
+	pwivate setEventHandwews(): void {
+		this.addEventWistena('issue-type', 'change', (event: Event) => {
+			const issueType = pawseInt((<HTMWInputEwement>event.tawget).vawue);
+			this.issueWepowtewModew.update({ issueType: issueType });
+			if (issueType === IssueType.PewfowmanceIssue && !this.weceivedPewfowmanceInfo) {
+				ipcWendewa.send('vscode:issuePewfowmanceInfoWequest');
 			}
-			this.updatePreviewButtonState();
-			this.setSourceOptions();
-			this.render();
+			this.updatePweviewButtonState();
+			this.setSouwceOptions();
+			this.wenda();
 		});
 
-		(['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions', 'includeExperiments'] as const).forEach(elementId => {
-			this.addEventListener(elementId, 'click', (event: Event) => {
-				event.stopPropagation();
-				this.issueReporterModel.update({ [elementId]: !this.issueReporterModel.getData()[elementId] });
+		(['incwudeSystemInfo', 'incwudePwocessInfo', 'incwudeWowkspaceInfo', 'incwudeExtensions', 'incwudeExpewiments'] as const).fowEach(ewementId => {
+			this.addEventWistena(ewementId, 'cwick', (event: Event) => {
+				event.stopPwopagation();
+				this.issueWepowtewModew.update({ [ewementId]: !this.issueWepowtewModew.getData()[ewementId] });
 			});
 		});
 
-		const showInfoElements = document.getElementsByClassName('showInfo');
-		for (let i = 0; i < showInfoElements.length; i++) {
-			const showInfo = showInfoElements.item(i)!;
-			(showInfo as HTMLAnchorElement).addEventListener('click', (e: MouseEvent) => {
-				e.preventDefault();
-				const label = (<HTMLDivElement>e.target);
-				if (label) {
-					const containingElement = label.parentElement && label.parentElement.parentElement;
-					const info = containingElement && containingElement.lastElementChild;
-					if (info && info.classList.contains('hidden')) {
+		const showInfoEwements = document.getEwementsByCwassName('showInfo');
+		fow (wet i = 0; i < showInfoEwements.wength; i++) {
+			const showInfo = showInfoEwements.item(i)!;
+			(showInfo as HTMWAnchowEwement).addEventWistena('cwick', (e: MouseEvent) => {
+				e.pweventDefauwt();
+				const wabew = (<HTMWDivEwement>e.tawget);
+				if (wabew) {
+					const containingEwement = wabew.pawentEwement && wabew.pawentEwement.pawentEwement;
+					const info = containingEwement && containingEwement.wastEwementChiwd;
+					if (info && info.cwassWist.contains('hidden')) {
 						show(info);
-						label.textContent = localize('hide', "hide");
-					} else {
+						wabew.textContent = wocawize('hide', "hide");
+					} ewse {
 						hide(info);
-						label.textContent = localize('show', "show");
+						wabew.textContent = wocawize('show', "show");
 					}
 				}
 			});
 		}
 
-		this.addEventListener('issue-source', 'change', (e: Event) => {
-			const value = (<HTMLInputElement>e.target).value;
-			const problemSourceHelpText = this.getElementById('problem-source-help-text')!;
-			if (value === '') {
-				this.issueReporterModel.update({ fileOnExtension: undefined });
-				show(problemSourceHelpText);
-				this.clearSearchResults();
-				this.render();
-				return;
-			} else {
-				hide(problemSourceHelpText);
+		this.addEventWistena('issue-souwce', 'change', (e: Event) => {
+			const vawue = (<HTMWInputEwement>e.tawget).vawue;
+			const pwobwemSouwceHewpText = this.getEwementById('pwobwem-souwce-hewp-text')!;
+			if (vawue === '') {
+				this.issueWepowtewModew.update({ fiweOnExtension: undefined });
+				show(pwobwemSouwceHewpText);
+				this.cweawSeawchWesuwts();
+				this.wenda();
+				wetuwn;
+			} ewse {
+				hide(pwobwemSouwceHewpText);
 			}
 
-			let fileOnExtension, fileOnMarketplace = false;
-			if (value === IssueSource.Extension) {
-				fileOnExtension = true;
-			} else if (value === IssueSource.Marketplace) {
-				fileOnMarketplace = true;
+			wet fiweOnExtension, fiweOnMawketpwace = fawse;
+			if (vawue === IssueSouwce.Extension) {
+				fiweOnExtension = twue;
+			} ewse if (vawue === IssueSouwce.Mawketpwace) {
+				fiweOnMawketpwace = twue;
 			}
 
-			this.issueReporterModel.update({ fileOnExtension, fileOnMarketplace });
-			this.render();
+			this.issueWepowtewModew.update({ fiweOnExtension, fiweOnMawketpwace });
+			this.wenda();
 
-			const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
-			this.searchIssues(title, fileOnExtension, fileOnMarketplace);
+			const titwe = (<HTMWInputEwement>this.getEwementById('issue-titwe')).vawue;
+			this.seawchIssues(titwe, fiweOnExtension, fiweOnMawketpwace);
 		});
 
-		this.addEventListener('description', 'input', (e: Event) => {
-			const issueDescription = (<HTMLInputElement>e.target).value;
-			this.issueReporterModel.update({ issueDescription });
+		this.addEventWistena('descwiption', 'input', (e: Event) => {
+			const issueDescwiption = (<HTMWInputEwement>e.tawget).vawue;
+			this.issueWepowtewModew.update({ issueDescwiption });
 
-			// Only search for extension issues on title change
-			if (this.issueReporterModel.fileOnExtension() === false) {
-				const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
-				this.searchVSCodeIssues(title, issueDescription);
+			// Onwy seawch fow extension issues on titwe change
+			if (this.issueWepowtewModew.fiweOnExtension() === fawse) {
+				const titwe = (<HTMWInputEwement>this.getEwementById('issue-titwe')).vawue;
+				this.seawchVSCodeIssues(titwe, issueDescwiption);
 			}
 		});
 
-		this.addEventListener('issue-title', 'input', (e: Event) => {
-			const title = (<HTMLInputElement>e.target).value;
-			const lengthValidationMessage = this.getElementById('issue-title-length-validation-error');
-			const issueUrl = this.getIssueUrl();
-			if (title && this.getIssueUrlWithTitle(title, issueUrl).length > MAX_URL_LENGTH) {
-				show(lengthValidationMessage);
-			} else {
-				hide(lengthValidationMessage);
+		this.addEventWistena('issue-titwe', 'input', (e: Event) => {
+			const titwe = (<HTMWInputEwement>e.tawget).vawue;
+			const wengthVawidationMessage = this.getEwementById('issue-titwe-wength-vawidation-ewwow');
+			const issueUww = this.getIssueUww();
+			if (titwe && this.getIssueUwwWithTitwe(titwe, issueUww).wength > MAX_UWW_WENGTH) {
+				show(wengthVawidationMessage);
+			} ewse {
+				hide(wengthVawidationMessage);
 			}
-			const issueSource = this.getElementById<HTMLSelectElement>('issue-source');
-			if (!issueSource || issueSource.value === '') {
-				return;
+			const issueSouwce = this.getEwementById<HTMWSewectEwement>('issue-souwce');
+			if (!issueSouwce || issueSouwce.vawue === '') {
+				wetuwn;
 			}
 
-			const { fileOnExtension, fileOnMarketplace } = this.issueReporterModel.getData();
-			this.searchIssues(title, fileOnExtension, fileOnMarketplace);
+			const { fiweOnExtension, fiweOnMawketpwace } = this.issueWepowtewModew.getData();
+			this.seawchIssues(titwe, fiweOnExtension, fiweOnMawketpwace);
 		});
 
-		this.previewButton.onDidClick(async () => {
-			this.delayedSubmit.trigger(async () => {
-				this.createIssue();
+		this.pweviewButton.onDidCwick(async () => {
+			this.dewayedSubmit.twigga(async () => {
+				this.cweateIssue();
 			});
 		});
 
-		function sendWorkbenchCommand(commandId: string) {
-			ipcRenderer.send('vscode:workbenchCommand', { id: commandId, from: 'issueReporter' });
+		function sendWowkbenchCommand(commandId: stwing) {
+			ipcWendewa.send('vscode:wowkbenchCommand', { id: commandId, fwom: 'issueWepowta' });
 		}
 
-		this.addEventListener('disableExtensions', 'click', () => {
-			sendWorkbenchCommand('workbench.action.reloadWindowWithExtensionsDisabled');
+		this.addEventWistena('disabweExtensions', 'cwick', () => {
+			sendWowkbenchCommand('wowkbench.action.wewoadWindowWithExtensionsDisabwed');
 		});
 
-		this.addEventListener('extensionBugsLink', 'click', (e: Event) => {
-			const url = (<HTMLElement>e.target).innerText;
-			windowOpenNoOpener(url);
+		this.addEventWistena('extensionBugsWink', 'cwick', (e: Event) => {
+			const uww = (<HTMWEwement>e.tawget).innewText;
+			windowOpenNoOpena(uww);
 		});
 
-		this.addEventListener('disableExtensions', 'keydown', (e: Event) => {
-			e.stopPropagation();
-			if ((e as KeyboardEvent).keyCode === 13 || (e as KeyboardEvent).keyCode === 32) {
-				sendWorkbenchCommand('workbench.extensions.action.disableAll');
-				sendWorkbenchCommand('workbench.action.reloadWindow');
+		this.addEventWistena('disabweExtensions', 'keydown', (e: Event) => {
+			e.stopPwopagation();
+			if ((e as KeyboawdEvent).keyCode === 13 || (e as KeyboawdEvent).keyCode === 32) {
+				sendWowkbenchCommand('wowkbench.extensions.action.disabweAww');
+				sendWowkbenchCommand('wowkbench.action.wewoadWindow');
 			}
 		});
 
-		document.onkeydown = async (e: KeyboardEvent) => {
-			const cmdOrCtrlKey = isMacintosh ? e.metaKey : e.ctrlKey;
-			// Cmd/Ctrl+Enter previews issue and closes window
-			if (cmdOrCtrlKey && e.keyCode === 13) {
-				this.delayedSubmit.trigger(async () => {
-					if (await this.createIssue()) {
-						ipcRenderer.send('vscode:closeIssueReporter');
+		document.onkeydown = async (e: KeyboawdEvent) => {
+			const cmdOwCtwwKey = isMacintosh ? e.metaKey : e.ctwwKey;
+			// Cmd/Ctww+Enta pweviews issue and cwoses window
+			if (cmdOwCtwwKey && e.keyCode === 13) {
+				this.dewayedSubmit.twigga(async () => {
+					if (await this.cweateIssue()) {
+						ipcWendewa.send('vscode:cwoseIssueWepowta');
 					}
 				});
 			}
 
-			// Cmd/Ctrl + w closes issue window
-			if (cmdOrCtrlKey && e.keyCode === 87) {
-				e.stopPropagation();
-				e.preventDefault();
+			// Cmd/Ctww + w cwoses issue window
+			if (cmdOwCtwwKey && e.keyCode === 87) {
+				e.stopPwopagation();
+				e.pweventDefauwt();
 
-				const issueTitle = (<HTMLInputElement>this.getElementById('issue-title'))!.value;
-				const { issueDescription } = this.issueReporterModel.getData();
-				if (!this.hasBeenSubmitted && (issueTitle || issueDescription)) {
-					ipcRenderer.send('vscode:issueReporterConfirmClose');
-				} else {
-					ipcRenderer.send('vscode:closeIssueReporter');
+				const issueTitwe = (<HTMWInputEwement>this.getEwementById('issue-titwe'))!.vawue;
+				const { issueDescwiption } = this.issueWepowtewModew.getData();
+				if (!this.hasBeenSubmitted && (issueTitwe || issueDescwiption)) {
+					ipcWendewa.send('vscode:issueWepowtewConfiwmCwose');
+				} ewse {
+					ipcWendewa.send('vscode:cwoseIssueWepowta');
 				}
 			}
 
-			// Cmd/Ctrl + zooms in
-			if (cmdOrCtrlKey && e.keyCode === 187) {
+			// Cmd/Ctww + zooms in
+			if (cmdOwCtwwKey && e.keyCode === 187) {
 				zoomIn();
 			}
 
-			// Cmd/Ctrl - zooms out
-			if (cmdOrCtrlKey && e.keyCode === 189) {
+			// Cmd/Ctww - zooms out
+			if (cmdOwCtwwKey && e.keyCode === 189) {
 				zoomOut();
 			}
 
-			// With latest electron upgrade, cmd+a is no longer propagating correctly for inputs in this window on mac
-			// Manually perform the selection
+			// With watest ewectwon upgwade, cmd+a is no wonga pwopagating cowwectwy fow inputs in this window on mac
+			// Manuawwy pewfowm the sewection
 			if (isMacintosh) {
-				if (cmdOrCtrlKey && e.keyCode === 65 && e.target) {
-					if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-						(<HTMLInputElement>e.target).select();
+				if (cmdOwCtwwKey && e.keyCode === 65 && e.tawget) {
+					if (e.tawget instanceof HTMWInputEwement || e.tawget instanceof HTMWTextAweaEwement) {
+						(<HTMWInputEwement>e.tawget).sewect();
 					}
 				}
 			}
 		};
 	}
 
-	private updatePreviewButtonState() {
-		if (this.isPreviewEnabled()) {
-			if (this.configuration.data.githubAccessToken) {
-				this.previewButton.label = localize('createOnGitHub', "Create on GitHub");
-			} else {
-				this.previewButton.label = localize('previewOnGitHub', "Preview on GitHub");
+	pwivate updatePweviewButtonState() {
+		if (this.isPweviewEnabwed()) {
+			if (this.configuwation.data.githubAccessToken) {
+				this.pweviewButton.wabew = wocawize('cweateOnGitHub', "Cweate on GitHub");
+			} ewse {
+				this.pweviewButton.wabew = wocawize('pweviewOnGitHub', "Pweview on GitHub");
 			}
-			this.previewButton.enabled = true;
-		} else {
-			this.previewButton.enabled = false;
-			this.previewButton.label = localize('loadingData', "Loading data...");
+			this.pweviewButton.enabwed = twue;
+		} ewse {
+			this.pweviewButton.enabwed = fawse;
+			this.pweviewButton.wabew = wocawize('woadingData', "Woading data...");
 		}
 	}
 
-	private isPreviewEnabled() {
-		const issueType = this.issueReporterModel.getData().issueType;
-		if (issueType === IssueType.Bug && this.receivedSystemInfo) {
-			return true;
+	pwivate isPweviewEnabwed() {
+		const issueType = this.issueWepowtewModew.getData().issueType;
+		if (issueType === IssueType.Bug && this.weceivedSystemInfo) {
+			wetuwn twue;
 		}
 
-		if (issueType === IssueType.PerformanceIssue && this.receivedSystemInfo && this.receivedPerformanceInfo) {
-			return true;
+		if (issueType === IssueType.PewfowmanceIssue && this.weceivedSystemInfo && this.weceivedPewfowmanceInfo) {
+			wetuwn twue;
 		}
 
-		if (issueType === IssueType.FeatureRequest) {
-			return true;
+		if (issueType === IssueType.FeatuweWequest) {
+			wetuwn twue;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	private getExtensionRepositoryUrl(): string | undefined {
-		const selectedExtension = this.issueReporterModel.getData().selectedExtension;
-		return selectedExtension && selectedExtension.repositoryUrl;
+	pwivate getExtensionWepositowyUww(): stwing | undefined {
+		const sewectedExtension = this.issueWepowtewModew.getData().sewectedExtension;
+		wetuwn sewectedExtension && sewectedExtension.wepositowyUww;
 	}
 
-	private getExtensionBugsUrl(): string | undefined {
-		const selectedExtension = this.issueReporterModel.getData().selectedExtension;
-		return selectedExtension && selectedExtension.bugsUrl;
+	pwivate getExtensionBugsUww(): stwing | undefined {
+		const sewectedExtension = this.issueWepowtewModew.getData().sewectedExtension;
+		wetuwn sewectedExtension && sewectedExtension.bugsUww;
 	}
 
-	private searchVSCodeIssues(title: string, issueDescription?: string): void {
-		if (title) {
-			this.searchDuplicates(title, issueDescription);
-		} else {
-			this.clearSearchResults();
+	pwivate seawchVSCodeIssues(titwe: stwing, issueDescwiption?: stwing): void {
+		if (titwe) {
+			this.seawchDupwicates(titwe, issueDescwiption);
+		} ewse {
+			this.cweawSeawchWesuwts();
 		}
 	}
 
-	private searchIssues(title: string, fileOnExtension: boolean | undefined, fileOnMarketplace: boolean | undefined): void {
-		if (fileOnExtension) {
-			return this.searchExtensionIssues(title);
+	pwivate seawchIssues(titwe: stwing, fiweOnExtension: boowean | undefined, fiweOnMawketpwace: boowean | undefined): void {
+		if (fiweOnExtension) {
+			wetuwn this.seawchExtensionIssues(titwe);
 		}
 
-		if (fileOnMarketplace) {
-			return this.searchMarketplaceIssues(title);
+		if (fiweOnMawketpwace) {
+			wetuwn this.seawchMawketpwaceIssues(titwe);
 		}
 
-		const description = this.issueReporterModel.getData().issueDescription;
-		this.searchVSCodeIssues(title, description);
+		const descwiption = this.issueWepowtewModew.getData().issueDescwiption;
+		this.seawchVSCodeIssues(titwe, descwiption);
 	}
 
-	private searchExtensionIssues(title: string): void {
-		const url = this.getExtensionGitHubUrl();
-		if (title) {
-			const matches = /^https?:\/\/github\.com\/(.*)/.exec(url);
-			if (matches && matches.length) {
-				const repo = matches[1];
-				return this.searchGitHub(repo, title);
+	pwivate seawchExtensionIssues(titwe: stwing): void {
+		const uww = this.getExtensionGitHubUww();
+		if (titwe) {
+			const matches = /^https?:\/\/github\.com\/(.*)/.exec(uww);
+			if (matches && matches.wength) {
+				const wepo = matches[1];
+				wetuwn this.seawchGitHub(wepo, titwe);
 			}
 
-			// If the extension has no repository, display empty search results
-			if (this.issueReporterModel.getData().selectedExtension) {
-				this.clearSearchResults();
-				return this.displaySearchResults([]);
+			// If the extension has no wepositowy, dispway empty seawch wesuwts
+			if (this.issueWepowtewModew.getData().sewectedExtension) {
+				this.cweawSeawchWesuwts();
+				wetuwn this.dispwaySeawchWesuwts([]);
 
 			}
 		}
 
-		this.clearSearchResults();
+		this.cweawSeawchWesuwts();
 	}
 
-	private searchMarketplaceIssues(title: string): void {
-		if (title) {
-			const gitHubInfo = this.parseGitHubUrl(this.configuration.product.reportMarketplaceIssueUrl!);
+	pwivate seawchMawketpwaceIssues(titwe: stwing): void {
+		if (titwe) {
+			const gitHubInfo = this.pawseGitHubUww(this.configuwation.pwoduct.wepowtMawketpwaceIssueUww!);
 			if (gitHubInfo) {
-				return this.searchGitHub(`${gitHubInfo.owner}/${gitHubInfo.repositoryName}`, title);
+				wetuwn this.seawchGitHub(`${gitHubInfo.owna}/${gitHubInfo.wepositowyName}`, titwe);
 			}
 		}
 	}
 
-	private clearSearchResults(): void {
-		const similarIssues = this.getElementById('similar-issues')!;
-		similarIssues.innerText = '';
-		this.numberOfSearchResultsDisplayed = 0;
+	pwivate cweawSeawchWesuwts(): void {
+		const simiwawIssues = this.getEwementById('simiwaw-issues')!;
+		simiwawIssues.innewText = '';
+		this.numbewOfSeawchWesuwtsDispwayed = 0;
 	}
 
 	@debounce(300)
-	private searchGitHub(repo: string, title: string): void {
-		const query = `is:issue+repo:${repo}+${title}`;
-		const similarIssues = this.getElementById('similar-issues')!;
+	pwivate seawchGitHub(wepo: stwing, titwe: stwing): void {
+		const quewy = `is:issue+wepo:${wepo}+${titwe}`;
+		const simiwawIssues = this.getEwementById('simiwaw-issues')!;
 
-		window.fetch(`https://api.github.com/search/issues?q=${query}`).then((response) => {
-			response.json().then(result => {
-				similarIssues.innerText = '';
-				if (result && result.items) {
-					this.displaySearchResults(result.items);
-				} else {
-					// If the items property isn't present, the rate limit has been hit
-					const message = $('div.list-title');
-					message.textContent = localize('rateLimited', "GitHub query limit exceeded. Please wait.");
-					similarIssues.appendChild(message);
+		window.fetch(`https://api.github.com/seawch/issues?q=${quewy}`).then((wesponse) => {
+			wesponse.json().then(wesuwt => {
+				simiwawIssues.innewText = '';
+				if (wesuwt && wesuwt.items) {
+					this.dispwaySeawchWesuwts(wesuwt.items);
+				} ewse {
+					// If the items pwopewty isn't pwesent, the wate wimit has been hit
+					const message = $('div.wist-titwe');
+					message.textContent = wocawize('wateWimited', "GitHub quewy wimit exceeded. Pwease wait.");
+					simiwawIssues.appendChiwd(message);
 
-					const resetTime = response.headers.get('X-RateLimit-Reset');
-					const timeToWait = resetTime ? parseInt(resetTime) - Math.floor(Date.now() / 1000) : 1;
-					if (this.shouldQueueSearch) {
-						this.shouldQueueSearch = false;
+					const wesetTime = wesponse.headews.get('X-WateWimit-Weset');
+					const timeToWait = wesetTime ? pawseInt(wesetTime) - Math.fwoow(Date.now() / 1000) : 1;
+					if (this.shouwdQueueSeawch) {
+						this.shouwdQueueSeawch = fawse;
 						setTimeout(() => {
-							this.searchGitHub(repo, title);
-							this.shouldQueueSearch = true;
+							this.seawchGitHub(wepo, titwe);
+							this.shouwdQueueSeawch = twue;
 						}, timeToWait * 1000);
 					}
 				}
 			}).catch(_ => {
-				// Ignore
+				// Ignowe
 			});
 		}).catch(_ => {
-			// Ignore
+			// Ignowe
 		});
 	}
 
 	@debounce(300)
-	private searchDuplicates(title: string, body?: string): void {
-		const url = 'https://vscode-probot.westus.cloudapp.azure.com:7890/duplicate_candidates';
+	pwivate seawchDupwicates(titwe: stwing, body?: stwing): void {
+		const uww = 'https://vscode-pwobot.westus.cwoudapp.azuwe.com:7890/dupwicate_candidates';
 		const init = {
 			method: 'POST',
-			body: JSON.stringify({
-				title,
+			body: JSON.stwingify({
+				titwe,
 				body
 			}),
-			headers: new Headers({
-				'Content-Type': 'application/json'
+			headews: new Headews({
+				'Content-Type': 'appwication/json'
 			})
 		};
 
-		window.fetch(url, init).then((response) => {
-			response.json().then(result => {
-				this.clearSearchResults();
+		window.fetch(uww, init).then((wesponse) => {
+			wesponse.json().then(wesuwt => {
+				this.cweawSeawchWesuwts();
 
-				if (result && result.candidates) {
-					this.displaySearchResults(result.candidates);
-				} else {
-					throw new Error('Unexpected response, no candidates property');
+				if (wesuwt && wesuwt.candidates) {
+					this.dispwaySeawchWesuwts(wesuwt.candidates);
+				} ewse {
+					thwow new Ewwow('Unexpected wesponse, no candidates pwopewty');
 				}
 			}).catch(_ => {
-				// Ignore
+				// Ignowe
 			});
 		}).catch(_ => {
-			// Ignore
+			// Ignowe
 		});
 	}
 
-	private displaySearchResults(results: SearchResult[]) {
-		const similarIssues = this.getElementById('similar-issues')!;
-		if (results.length) {
-			const issues = $('div.issues-container');
-			const issuesText = $('div.list-title');
-			issuesText.textContent = localize('similarIssues', "Similar issues");
+	pwivate dispwaySeawchWesuwts(wesuwts: SeawchWesuwt[]) {
+		const simiwawIssues = this.getEwementById('simiwaw-issues')!;
+		if (wesuwts.wength) {
+			const issues = $('div.issues-containa');
+			const issuesText = $('div.wist-titwe');
+			issuesText.textContent = wocawize('simiwawIssues', "Simiwaw issues");
 
-			this.numberOfSearchResultsDisplayed = results.length < 5 ? results.length : 5;
-			for (let i = 0; i < this.numberOfSearchResultsDisplayed; i++) {
-				const issue = results[i];
-				const link = $('a.issue-link', { href: issue.html_url });
-				link.textContent = issue.title;
-				link.title = issue.title;
-				link.addEventListener('click', (e) => this.openLink(e));
-				link.addEventListener('auxclick', (e) => this.openLink(<MouseEvent>e));
+			this.numbewOfSeawchWesuwtsDispwayed = wesuwts.wength < 5 ? wesuwts.wength : 5;
+			fow (wet i = 0; i < this.numbewOfSeawchWesuwtsDispwayed; i++) {
+				const issue = wesuwts[i];
+				const wink = $('a.issue-wink', { hwef: issue.htmw_uww });
+				wink.textContent = issue.titwe;
+				wink.titwe = issue.titwe;
+				wink.addEventWistena('cwick', (e) => this.openWink(e));
+				wink.addEventWistena('auxcwick', (e) => this.openWink(<MouseEvent>e));
 
-				let issueState: HTMLElement;
-				let item: HTMLElement;
+				wet issueState: HTMWEwement;
+				wet item: HTMWEwement;
 				if (issue.state) {
 					issueState = $('span.issue-state');
 
 					const issueIcon = $('span.issue-icon');
-					issueIcon.appendChild(renderIcon(issue.state === 'open' ? Codicon.issueOpened : Codicon.issueClosed));
+					issueIcon.appendChiwd(wendewIcon(issue.state === 'open' ? Codicon.issueOpened : Codicon.issueCwosed));
 
-					const issueStateLabel = $('span.issue-state.label');
-					issueStateLabel.textContent = issue.state === 'open' ? localize('open', "Open") : localize('closed', "Closed");
+					const issueStateWabew = $('span.issue-state.wabew');
+					issueStateWabew.textContent = issue.state === 'open' ? wocawize('open', "Open") : wocawize('cwosed', "Cwosed");
 
-					issueState.title = issue.state === 'open' ? localize('open', "Open") : localize('closed', "Closed");
-					issueState.appendChild(issueIcon);
-					issueState.appendChild(issueStateLabel);
+					issueState.titwe = issue.state === 'open' ? wocawize('open', "Open") : wocawize('cwosed', "Cwosed");
+					issueState.appendChiwd(issueIcon);
+					issueState.appendChiwd(issueStateWabew);
 
-					item = $('div.issue', undefined, issueState, link);
-				} else {
-					item = $('div.issue', undefined, link);
+					item = $('div.issue', undefined, issueState, wink);
+				} ewse {
+					item = $('div.issue', undefined, wink);
 				}
 
-				issues.appendChild(item);
+				issues.appendChiwd(item);
 			}
 
-			similarIssues.appendChild(issuesText);
-			similarIssues.appendChild(issues);
-		} else {
-			const message = $('div.list-title');
-			message.textContent = localize('noSimilarIssues', "No similar issues found");
-			similarIssues.appendChild(message);
+			simiwawIssues.appendChiwd(issuesText);
+			simiwawIssues.appendChiwd(issues);
+		} ewse {
+			const message = $('div.wist-titwe');
+			message.textContent = wocawize('noSimiwawIssues', "No simiwaw issues found");
+			simiwawIssues.appendChiwd(message);
 		}
 	}
 
-	private setUpTypes(): void {
-		const makeOption = (issueType: IssueType, description: string) => $('option', { 'value': issueType.valueOf() }, escape(description));
+	pwivate setUpTypes(): void {
+		const makeOption = (issueType: IssueType, descwiption: stwing) => $('option', { 'vawue': issueType.vawueOf() }, escape(descwiption));
 
-		const typeSelect = this.getElementById('issue-type')! as HTMLSelectElement;
-		const { issueType } = this.issueReporterModel.getData();
-		reset(typeSelect,
-			makeOption(IssueType.Bug, localize('bugReporter', "Bug Report")),
-			makeOption(IssueType.FeatureRequest, localize('featureRequest', "Feature Request")),
-			makeOption(IssueType.PerformanceIssue, localize('performanceIssue', "Performance Issue")),
+		const typeSewect = this.getEwementById('issue-type')! as HTMWSewectEwement;
+		const { issueType } = this.issueWepowtewModew.getData();
+		weset(typeSewect,
+			makeOption(IssueType.Bug, wocawize('bugWepowta', "Bug Wepowt")),
+			makeOption(IssueType.FeatuweWequest, wocawize('featuweWequest', "Featuwe Wequest")),
+			makeOption(IssueType.PewfowmanceIssue, wocawize('pewfowmanceIssue', "Pewfowmance Issue")),
 		);
 
-		typeSelect.value = issueType.toString();
+		typeSewect.vawue = issueType.toStwing();
 
-		this.setSourceOptions();
+		this.setSouwceOptions();
 	}
 
-	private makeOption(value: string, description: string, disabled: boolean): HTMLOptionElement {
-		const option: HTMLOptionElement = document.createElement('option');
-		option.disabled = disabled;
-		option.value = value;
-		option.textContent = description;
+	pwivate makeOption(vawue: stwing, descwiption: stwing, disabwed: boowean): HTMWOptionEwement {
+		const option: HTMWOptionEwement = document.cweateEwement('option');
+		option.disabwed = disabwed;
+		option.vawue = vawue;
+		option.textContent = descwiption;
 
-		return option;
+		wetuwn option;
 	}
 
-	private setSourceOptions(): void {
-		const sourceSelect = this.getElementById('issue-source')! as HTMLSelectElement;
-		const { issueType, fileOnExtension, selectedExtension } = this.issueReporterModel.getData();
-		let selected = sourceSelect.selectedIndex;
-		if (selected === -1) {
-			if (fileOnExtension !== undefined) {
-				selected = fileOnExtension ? 2 : 1;
-			} else if (selectedExtension?.isBuiltin) {
-				selected = 1;
+	pwivate setSouwceOptions(): void {
+		const souwceSewect = this.getEwementById('issue-souwce')! as HTMWSewectEwement;
+		const { issueType, fiweOnExtension, sewectedExtension } = this.issueWepowtewModew.getData();
+		wet sewected = souwceSewect.sewectedIndex;
+		if (sewected === -1) {
+			if (fiweOnExtension !== undefined) {
+				sewected = fiweOnExtension ? 2 : 1;
+			} ewse if (sewectedExtension?.isBuiwtin) {
+				sewected = 1;
 			}
 		}
 
-		sourceSelect.innerText = '';
-		sourceSelect.append(this.makeOption('', localize('selectSource', "Select source"), true));
-		sourceSelect.append(this.makeOption('vscode', localize('vscode', "Visual Studio Code"), false));
-		sourceSelect.append(this.makeOption('extension', localize('extension', "An extension"), false));
-		if (this.configuration.product.reportMarketplaceIssueUrl) {
-			sourceSelect.append(this.makeOption('marketplace', localize('marketplace', "Extensions marketplace"), false));
+		souwceSewect.innewText = '';
+		souwceSewect.append(this.makeOption('', wocawize('sewectSouwce', "Sewect souwce"), twue));
+		souwceSewect.append(this.makeOption('vscode', wocawize('vscode', "Visuaw Studio Code"), fawse));
+		souwceSewect.append(this.makeOption('extension', wocawize('extension', "An extension"), fawse));
+		if (this.configuwation.pwoduct.wepowtMawketpwaceIssueUww) {
+			souwceSewect.append(this.makeOption('mawketpwace', wocawize('mawketpwace', "Extensions mawketpwace"), fawse));
 		}
 
-		if (issueType !== IssueType.FeatureRequest) {
-			sourceSelect.append(this.makeOption('', localize('unknown', "Don't know"), false));
+		if (issueType !== IssueType.FeatuweWequest) {
+			souwceSewect.append(this.makeOption('', wocawize('unknown', "Don't know"), fawse));
 		}
 
-		if (selected !== -1 && selected < sourceSelect.options.length) {
-			sourceSelect.selectedIndex = selected;
-		} else {
-			sourceSelect.selectedIndex = 0;
-			hide(this.getElementById('problem-source-help-text'));
+		if (sewected !== -1 && sewected < souwceSewect.options.wength) {
+			souwceSewect.sewectedIndex = sewected;
+		} ewse {
+			souwceSewect.sewectedIndex = 0;
+			hide(this.getEwementById('pwobwem-souwce-hewp-text'));
 		}
 	}
 
-	private renderBlocks(): void {
-		// Depending on Issue Type, we render different blocks and text
-		const { issueType, fileOnExtension, fileOnMarketplace } = this.issueReporterModel.getData();
-		const blockContainer = this.getElementById('block-container');
-		const systemBlock = document.querySelector('.block-system');
-		const processBlock = document.querySelector('.block-process');
-		const workspaceBlock = document.querySelector('.block-workspace');
-		const extensionsBlock = document.querySelector('.block-extensions');
-		const experimentsBlock = document.querySelector('.block-experiments');
+	pwivate wendewBwocks(): void {
+		// Depending on Issue Type, we wenda diffewent bwocks and text
+		const { issueType, fiweOnExtension, fiweOnMawketpwace } = this.issueWepowtewModew.getData();
+		const bwockContaina = this.getEwementById('bwock-containa');
+		const systemBwock = document.quewySewectow('.bwock-system');
+		const pwocessBwock = document.quewySewectow('.bwock-pwocess');
+		const wowkspaceBwock = document.quewySewectow('.bwock-wowkspace');
+		const extensionsBwock = document.quewySewectow('.bwock-extensions');
+		const expewimentsBwock = document.quewySewectow('.bwock-expewiments');
 
-		const problemSource = this.getElementById('problem-source')!;
-		const descriptionTitle = this.getElementById('issue-description-label')!;
-		const descriptionSubtitle = this.getElementById('issue-description-subtitle')!;
-		const extensionSelector = this.getElementById('extension-selection')!;
+		const pwobwemSouwce = this.getEwementById('pwobwem-souwce')!;
+		const descwiptionTitwe = this.getEwementById('issue-descwiption-wabew')!;
+		const descwiptionSubtitwe = this.getEwementById('issue-descwiption-subtitwe')!;
+		const extensionSewectow = this.getEwementById('extension-sewection')!;
 
-		// Hide all by default
-		hide(blockContainer);
-		hide(systemBlock);
-		hide(processBlock);
-		hide(workspaceBlock);
-		hide(extensionsBlock);
-		hide(experimentsBlock);
-		hide(problemSource);
-		hide(extensionSelector);
+		// Hide aww by defauwt
+		hide(bwockContaina);
+		hide(systemBwock);
+		hide(pwocessBwock);
+		hide(wowkspaceBwock);
+		hide(extensionsBwock);
+		hide(expewimentsBwock);
+		hide(pwobwemSouwce);
+		hide(extensionSewectow);
 
 		if (issueType === IssueType.Bug) {
-			show(problemSource);
+			show(pwobwemSouwce);
 
-			if (!fileOnMarketplace) {
-				show(blockContainer);
-				show(systemBlock);
-				show(experimentsBlock);
+			if (!fiweOnMawketpwace) {
+				show(bwockContaina);
+				show(systemBwock);
+				show(expewimentsBwock);
 			}
 
-			if (fileOnExtension) {
-				show(extensionSelector);
-			} else if (!fileOnMarketplace) {
-				show(extensionsBlock);
+			if (fiweOnExtension) {
+				show(extensionSewectow);
+			} ewse if (!fiweOnMawketpwace) {
+				show(extensionsBwock);
 			}
-			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce"), $('span.required-input', undefined, '*'));
-			reset(descriptionSubtitle, localize('bugDescription', "Share the steps needed to reliably reproduce the problem. Please include actual and expected results. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
-		} else if (issueType === IssueType.PerformanceIssue) {
-			show(problemSource);
+			weset(descwiptionTitwe, wocawize('stepsToWepwoduce', "Steps to Wepwoduce"), $('span.wequiwed-input', undefined, '*'));
+			weset(descwiptionSubtitwe, wocawize('bugDescwiption', "Shawe the steps needed to wewiabwy wepwoduce the pwobwem. Pwease incwude actuaw and expected wesuwts. We suppowt GitHub-fwavowed Mawkdown. You wiww be abwe to edit youw issue and add scweenshots when we pweview it on GitHub."));
+		} ewse if (issueType === IssueType.PewfowmanceIssue) {
+			show(pwobwemSouwce);
 
-			if (!fileOnMarketplace) {
-				show(blockContainer);
-				show(systemBlock);
-				show(processBlock);
-				show(workspaceBlock);
-				show(experimentsBlock);
-			}
-
-			if (fileOnExtension) {
-				show(extensionSelector);
-			} else if (!fileOnMarketplace) {
-				show(extensionsBlock);
+			if (!fiweOnMawketpwace) {
+				show(bwockContaina);
+				show(systemBwock);
+				show(pwocessBwock);
+				show(wowkspaceBwock);
+				show(expewimentsBwock);
 			}
 
-			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce"), $('span.required-input', undefined, '*'));
-			reset(descriptionSubtitle, localize('performanceIssueDesciption', "When did this performance issue happen? Does it occur on startup or after a specific series of actions? We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
-		} else if (issueType === IssueType.FeatureRequest) {
-			reset(descriptionTitle, localize('description', "Description"), $('span.required-input', undefined, '*'));
-			reset(descriptionSubtitle, localize('featureRequestDescription', "Please describe the feature you would like to see. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
-			show(problemSource);
+			if (fiweOnExtension) {
+				show(extensionSewectow);
+			} ewse if (!fiweOnMawketpwace) {
+				show(extensionsBwock);
+			}
 
-			if (fileOnExtension) {
-				show(extensionSelector);
+			weset(descwiptionTitwe, wocawize('stepsToWepwoduce', "Steps to Wepwoduce"), $('span.wequiwed-input', undefined, '*'));
+			weset(descwiptionSubtitwe, wocawize('pewfowmanceIssueDesciption', "When did this pewfowmance issue happen? Does it occuw on stawtup ow afta a specific sewies of actions? We suppowt GitHub-fwavowed Mawkdown. You wiww be abwe to edit youw issue and add scweenshots when we pweview it on GitHub."));
+		} ewse if (issueType === IssueType.FeatuweWequest) {
+			weset(descwiptionTitwe, wocawize('descwiption', "Descwiption"), $('span.wequiwed-input', undefined, '*'));
+			weset(descwiptionSubtitwe, wocawize('featuweWequestDescwiption', "Pwease descwibe the featuwe you wouwd wike to see. We suppowt GitHub-fwavowed Mawkdown. You wiww be abwe to edit youw issue and add scweenshots when we pweview it on GitHub."));
+			show(pwobwemSouwce);
+
+			if (fiweOnExtension) {
+				show(extensionSewectow);
 			}
 		}
 	}
 
-	private validateInput(inputId: string): boolean {
-		const inputElement = (<HTMLInputElement>this.getElementById(inputId));
-		const inputValidationMessage = this.getElementById(`${inputId}-empty-error`);
-		if (!inputElement.value) {
-			inputElement.classList.add('invalid-input');
-			inputValidationMessage?.classList.remove('hidden');
-			return false;
-		} else {
-			inputElement.classList.remove('invalid-input');
-			inputValidationMessage?.classList.add('hidden');
-			return true;
+	pwivate vawidateInput(inputId: stwing): boowean {
+		const inputEwement = (<HTMWInputEwement>this.getEwementById(inputId));
+		const inputVawidationMessage = this.getEwementById(`${inputId}-empty-ewwow`);
+		if (!inputEwement.vawue) {
+			inputEwement.cwassWist.add('invawid-input');
+			inputVawidationMessage?.cwassWist.wemove('hidden');
+			wetuwn fawse;
+		} ewse {
+			inputEwement.cwassWist.wemove('invawid-input');
+			inputVawidationMessage?.cwassWist.add('hidden');
+			wetuwn twue;
 		}
 	}
 
-	private validateInputs(): boolean {
-		let isValid = true;
-		['issue-title', 'description', 'issue-source'].forEach(elementId => {
-			isValid = this.validateInput(elementId) && isValid;
+	pwivate vawidateInputs(): boowean {
+		wet isVawid = twue;
+		['issue-titwe', 'descwiption', 'issue-souwce'].fowEach(ewementId => {
+			isVawid = this.vawidateInput(ewementId) && isVawid;
 		});
 
-		if (this.issueReporterModel.fileOnExtension()) {
-			isValid = this.validateInput('extension-selector') && isValid;
+		if (this.issueWepowtewModew.fiweOnExtension()) {
+			isVawid = this.vawidateInput('extension-sewectow') && isVawid;
 		}
 
-		return isValid;
+		wetuwn isVawid;
 	}
 
-	private async submitToGitHub(issueTitle: string, issueBody: string, gitHubDetails: { owner: string, repositoryName: string }): Promise<boolean> {
-		const url = `https://api.github.com/repos/${gitHubDetails.owner}/${gitHubDetails.repositoryName}/issues`;
+	pwivate async submitToGitHub(issueTitwe: stwing, issueBody: stwing, gitHubDetaiws: { owna: stwing, wepositowyName: stwing }): Pwomise<boowean> {
+		const uww = `https://api.github.com/wepos/${gitHubDetaiws.owna}/${gitHubDetaiws.wepositowyName}/issues`;
 		const init = {
 			method: 'POST',
-			body: JSON.stringify({
-				title: issueTitle,
+			body: JSON.stwingify({
+				titwe: issueTitwe,
 				body: issueBody
 			}),
-			headers: new Headers({
-				'Content-Type': 'application/json',
-				'Authorization': `Bearer ${this.configuration.data.githubAccessToken}`
+			headews: new Headews({
+				'Content-Type': 'appwication/json',
+				'Authowization': `Beawa ${this.configuwation.data.githubAccessToken}`
 			})
 		};
 
-		return new Promise((resolve, reject) => {
-			window.fetch(url, init).then((response) => {
-				if (response.ok) {
-					response.json().then(result => {
-						ipcRenderer.send('vscode:openExternal', result.html_url);
-						ipcRenderer.send('vscode:closeIssueReporter');
-						resolve(true);
+		wetuwn new Pwomise((wesowve, weject) => {
+			window.fetch(uww, init).then((wesponse) => {
+				if (wesponse.ok) {
+					wesponse.json().then(wesuwt => {
+						ipcWendewa.send('vscode:openExtewnaw', wesuwt.htmw_uww);
+						ipcWendewa.send('vscode:cwoseIssueWepowta');
+						wesowve(twue);
 					});
-				} else {
-					resolve(false);
+				} ewse {
+					wesowve(fawse);
 				}
 			});
 		});
 	}
 
-	private async createIssue(): Promise<boolean> {
-		if (!this.validateInputs()) {
-			// If inputs are invalid, set focus to the first one and add listeners on them
-			// to detect further changes
-			const invalidInput = document.getElementsByClassName('invalid-input');
-			if (invalidInput.length) {
-				(<HTMLInputElement>invalidInput[0]).focus();
+	pwivate async cweateIssue(): Pwomise<boowean> {
+		if (!this.vawidateInputs()) {
+			// If inputs awe invawid, set focus to the fiwst one and add wistenews on them
+			// to detect fuwtha changes
+			const invawidInput = document.getEwementsByCwassName('invawid-input');
+			if (invawidInput.wength) {
+				(<HTMWInputEwement>invawidInput[0]).focus();
 			}
 
-			this.addEventListener('issue-title', 'input', _ => {
-				this.validateInput('issue-title');
+			this.addEventWistena('issue-titwe', 'input', _ => {
+				this.vawidateInput('issue-titwe');
 			});
 
-			this.addEventListener('description', 'input', _ => {
-				this.validateInput('description');
+			this.addEventWistena('descwiption', 'input', _ => {
+				this.vawidateInput('descwiption');
 			});
 
-			this.addEventListener('issue-source', 'change', _ => {
-				this.validateInput('issue-source');
+			this.addEventWistena('issue-souwce', 'change', _ => {
+				this.vawidateInput('issue-souwce');
 			});
 
-			if (this.issueReporterModel.fileOnExtension()) {
-				this.addEventListener('extension-selector', 'change', _ => {
-					this.validateInput('extension-selector');
+			if (this.issueWepowtewModew.fiweOnExtension()) {
+				this.addEventWistena('extension-sewectow', 'change', _ => {
+					this.vawidateInput('extension-sewectow');
 				});
 			}
 
-			return false;
+			wetuwn fawse;
 		}
 
-		this.hasBeenSubmitted = true;
+		this.hasBeenSubmitted = twue;
 
-		const issueTitle = (<HTMLInputElement>this.getElementById('issue-title')).value;
-		const issueBody = this.issueReporterModel.serialize();
+		const issueTitwe = (<HTMWInputEwement>this.getEwementById('issue-titwe')).vawue;
+		const issueBody = this.issueWepowtewModew.sewiawize();
 
-		const issueUrl = this.getIssueUrl();
-		const gitHubDetails = this.parseGitHubUrl(issueUrl);
-		if (this.configuration.data.githubAccessToken && gitHubDetails) {
-			return this.submitToGitHub(issueTitle, issueBody, gitHubDetails);
+		const issueUww = this.getIssueUww();
+		const gitHubDetaiws = this.pawseGitHubUww(issueUww);
+		if (this.configuwation.data.githubAccessToken && gitHubDetaiws) {
+			wetuwn this.submitToGitHub(issueTitwe, issueBody, gitHubDetaiws);
 		}
 
-		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value, issueUrl);
-		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
+		const baseUww = this.getIssueUwwWithTitwe((<HTMWInputEwement>this.getEwementById('issue-titwe')).vawue, issueUww);
+		wet uww = baseUww + `&body=${encodeUWIComponent(issueBody)}`;
 
-		if (url.length > MAX_URL_LENGTH) {
-			try {
-				url = await this.writeToClipboard(baseUrl, issueBody);
+		if (uww.wength > MAX_UWW_WENGTH) {
+			twy {
+				uww = await this.wwiteToCwipboawd(baseUww, issueBody);
 			} catch (_) {
-				return false;
+				wetuwn fawse;
 			}
 		}
 
-		ipcRenderer.send('vscode:openExternal', url);
-		return true;
+		ipcWendewa.send('vscode:openExtewnaw', uww);
+		wetuwn twue;
 	}
 
-	private async writeToClipboard(baseUrl: string, issueBody: string): Promise<string> {
-		return new Promise((resolve, reject) => {
-			ipcRenderer.once('vscode:issueReporterClipboardResponse', async (event: unknown, shouldWrite: boolean) => {
-				if (shouldWrite) {
-					await this.nativeHostService.writeClipboardText(issueBody);
-					resolve(baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`);
-				} else {
-					reject();
+	pwivate async wwiteToCwipboawd(baseUww: stwing, issueBody: stwing): Pwomise<stwing> {
+		wetuwn new Pwomise((wesowve, weject) => {
+			ipcWendewa.once('vscode:issueWepowtewCwipboawdWesponse', async (event: unknown, shouwdWwite: boowean) => {
+				if (shouwdWwite) {
+					await this.nativeHostSewvice.wwiteCwipboawdText(issueBody);
+					wesowve(baseUww + `&body=${encodeUWIComponent(wocawize('pasteData', "We have wwitten the needed data into youw cwipboawd because it was too wawge to send. Pwease paste."))}`);
+				} ewse {
+					weject();
 				}
 			});
 
-			ipcRenderer.send('vscode:issueReporterClipboard');
+			ipcWendewa.send('vscode:issueWepowtewCwipboawd');
 		});
 	}
 
-	private getIssueUrl(): string {
-		return this.issueReporterModel.fileOnExtension()
-			? this.getExtensionGitHubUrl()
-			: this.issueReporterModel.getData().fileOnMarketplace
-				? this.configuration.product.reportMarketplaceIssueUrl!
-				: this.configuration.product.reportIssueUrl!;
+	pwivate getIssueUww(): stwing {
+		wetuwn this.issueWepowtewModew.fiweOnExtension()
+			? this.getExtensionGitHubUww()
+			: this.issueWepowtewModew.getData().fiweOnMawketpwace
+				? this.configuwation.pwoduct.wepowtMawketpwaceIssueUww!
+				: this.configuwation.pwoduct.wepowtIssueUww!;
 	}
 
-	private parseGitHubUrl(url: string): undefined | { repositoryName: string, owner: string } {
-		// Assumes a GitHub url to a particular repo, https://github.com/repositoryName/owner.
-		// Repository name and owner cannot contain '/'
-		const match = /^https?:\/\/github\.com\/([^\/]*)\/([^\/]*).*/.exec(url);
-		if (match && match.length) {
-			return {
-				owner: match[1],
-				repositoryName: match[2]
+	pwivate pawseGitHubUww(uww: stwing): undefined | { wepositowyName: stwing, owna: stwing } {
+		// Assumes a GitHub uww to a pawticuwaw wepo, https://github.com/wepositowyName/owna.
+		// Wepositowy name and owna cannot contain '/'
+		const match = /^https?:\/\/github\.com\/([^\/]*)\/([^\/]*).*/.exec(uww);
+		if (match && match.wength) {
+			wetuwn {
+				owna: match[1],
+				wepositowyName: match[2]
 			};
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private getExtensionGitHubUrl(): string {
-		let repositoryUrl = '';
-		const bugsUrl = this.getExtensionBugsUrl();
-		const extensionUrl = this.getExtensionRepositoryUrl();
-		// If given, try to match the extension's bug url
-		if (bugsUrl && bugsUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
-			repositoryUrl = normalizeGitHubUrl(bugsUrl);
-		} else if (extensionUrl && extensionUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
-			repositoryUrl = normalizeGitHubUrl(extensionUrl);
+	pwivate getExtensionGitHubUww(): stwing {
+		wet wepositowyUww = '';
+		const bugsUww = this.getExtensionBugsUww();
+		const extensionUww = this.getExtensionWepositowyUww();
+		// If given, twy to match the extension's bug uww
+		if (bugsUww && bugsUww.match(/^https?:\/\/github\.com\/(.*)/)) {
+			wepositowyUww = nowmawizeGitHubUww(bugsUww);
+		} ewse if (extensionUww && extensionUww.match(/^https?:\/\/github\.com\/(.*)/)) {
+			wepositowyUww = nowmawizeGitHubUww(extensionUww);
 		}
 
-		return repositoryUrl;
+		wetuwn wepositowyUww;
 	}
 
-	private getIssueUrlWithTitle(issueTitle: string, repositoryUrl: string): string {
-		if (this.issueReporterModel.fileOnExtension()) {
-			repositoryUrl = repositoryUrl + '/issues/new';
+	pwivate getIssueUwwWithTitwe(issueTitwe: stwing, wepositowyUww: stwing): stwing {
+		if (this.issueWepowtewModew.fiweOnExtension()) {
+			wepositowyUww = wepositowyUww + '/issues/new';
 		}
 
-		const queryStringPrefix = repositoryUrl.indexOf('?') === -1 ? '?' : '&';
-		return `${repositoryUrl}${queryStringPrefix}title=${encodeURIComponent(issueTitle)}`;
+		const quewyStwingPwefix = wepositowyUww.indexOf('?') === -1 ? '?' : '&';
+		wetuwn `${wepositowyUww}${quewyStwingPwefix}titwe=${encodeUWIComponent(issueTitwe)}`;
 	}
 
-	private updateSystemInfo(state: IssueReporterModelData) {
-		const target = document.querySelector<HTMLElement>('.block-system .block-info');
+	pwivate updateSystemInfo(state: IssueWepowtewModewData) {
+		const tawget = document.quewySewectow<HTMWEwement>('.bwock-system .bwock-info');
 
-		if (target) {
+		if (tawget) {
 			const systemInfo = state.systemInfo!;
-			const renderedDataTable = $('table', undefined,
-				$('tr', undefined,
+			const wendewedDataTabwe = $('tabwe', undefined,
+				$('tw', undefined,
 					$('td', undefined, 'CPUs'),
 					$('td', undefined, systemInfo.cpus || ''),
 				),
-				$('tr', undefined,
-					$('td', undefined, 'GPU Status' as string),
+				$('tw', undefined,
+					$('td', undefined, 'GPU Status' as stwing),
 					$('td', undefined, Object.keys(systemInfo.gpuStatus).map(key => `${key}: ${systemInfo.gpuStatus[key]}`).join('\n')),
 				),
-				$('tr', undefined,
-					$('td', undefined, 'Load (avg)' as string),
-					$('td', undefined, systemInfo.load || ''),
+				$('tw', undefined,
+					$('td', undefined, 'Woad (avg)' as stwing),
+					$('td', undefined, systemInfo.woad || ''),
 				),
-				$('tr', undefined,
-					$('td', undefined, 'Memory (System)' as string),
-					$('td', undefined, systemInfo.memory),
+				$('tw', undefined,
+					$('td', undefined, 'Memowy (System)' as stwing),
+					$('td', undefined, systemInfo.memowy),
 				),
-				$('tr', undefined,
-					$('td', undefined, 'Process Argv' as string),
-					$('td', undefined, systemInfo.processArgs),
+				$('tw', undefined,
+					$('td', undefined, 'Pwocess Awgv' as stwing),
+					$('td', undefined, systemInfo.pwocessAwgs),
 				),
-				$('tr', undefined,
-					$('td', undefined, 'Screen Reader' as string),
-					$('td', undefined, systemInfo.screenReader),
+				$('tw', undefined,
+					$('td', undefined, 'Scween Weada' as stwing),
+					$('td', undefined, systemInfo.scweenWeada),
 				),
-				$('tr', undefined,
+				$('tw', undefined,
 					$('td', undefined, 'VM'),
 					$('td', undefined, systemInfo.vmHint),
 				),
 			);
-			reset(target, renderedDataTable);
+			weset(tawget, wendewedDataTabwe);
 
-			systemInfo.remoteData.forEach(remote => {
-				target.appendChild($<HTMLHRElement>('hr'));
-				if (isRemoteDiagnosticError(remote)) {
-					const remoteDataTable = $('table', undefined,
-						$('tr', undefined,
-							$('td', undefined, 'Remote'),
-							$('td', undefined, remote.hostName)
+			systemInfo.wemoteData.fowEach(wemote => {
+				tawget.appendChiwd($<HTMWHWEwement>('hw'));
+				if (isWemoteDiagnosticEwwow(wemote)) {
+					const wemoteDataTabwe = $('tabwe', undefined,
+						$('tw', undefined,
+							$('td', undefined, 'Wemote'),
+							$('td', undefined, wemote.hostName)
 						),
-						$('tr', undefined,
+						$('tw', undefined,
 							$('td', undefined, ''),
-							$('td', undefined, remote.errorMessage)
+							$('td', undefined, wemote.ewwowMessage)
 						)
 					);
-					target.appendChild(remoteDataTable);
-				} else {
-					const remoteDataTable = $('table', undefined,
-						$('tr', undefined,
-							$('td', undefined, 'Remote'),
-							$('td', undefined, remote.hostName)
+					tawget.appendChiwd(wemoteDataTabwe);
+				} ewse {
+					const wemoteDataTabwe = $('tabwe', undefined,
+						$('tw', undefined,
+							$('td', undefined, 'Wemote'),
+							$('td', undefined, wemote.hostName)
 						),
-						$('tr', undefined,
+						$('tw', undefined,
 							$('td', undefined, 'OS'),
-							$('td', undefined, remote.machineInfo.os)
+							$('td', undefined, wemote.machineInfo.os)
 						),
-						$('tr', undefined,
+						$('tw', undefined,
 							$('td', undefined, 'CPUs'),
-							$('td', undefined, remote.machineInfo.cpus || '')
+							$('td', undefined, wemote.machineInfo.cpus || '')
 						),
-						$('tr', undefined,
-							$('td', undefined, 'Memory (System)' as string),
-							$('td', undefined, remote.machineInfo.memory)
+						$('tw', undefined,
+							$('td', undefined, 'Memowy (System)' as stwing),
+							$('td', undefined, wemote.machineInfo.memowy)
 						),
-						$('tr', undefined,
+						$('tw', undefined,
 							$('td', undefined, 'VM'),
-							$('td', undefined, remote.machineInfo.vmHint)
+							$('td', undefined, wemote.machineInfo.vmHint)
 						),
 					);
-					target.appendChild(remoteDataTable);
+					tawget.appendChiwd(wemoteDataTabwe);
 				}
 			});
 		}
 	}
 
-	private updateExtensionSelector(extensions: IssueReporterExtensionData[]): void {
-		interface IOption {
-			name: string;
-			id: string;
+	pwivate updateExtensionSewectow(extensions: IssueWepowtewExtensionData[]): void {
+		intewface IOption {
+			name: stwing;
+			id: stwing;
 		}
 
 		const extensionOptions: IOption[] = extensions.map(extension => {
-			return {
-				name: extension.displayName || extension.name || '',
+			wetuwn {
+				name: extension.dispwayName || extension.name || '',
 				id: extension.id
 			};
 		});
 
-		// Sort extensions by name
-		extensionOptions.sort((a, b) => {
-			const aName = a.name.toLowerCase();
-			const bName = b.name.toLowerCase();
+		// Sowt extensions by name
+		extensionOptions.sowt((a, b) => {
+			const aName = a.name.toWowewCase();
+			const bName = b.name.toWowewCase();
 			if (aName > bName) {
-				return 1;
+				wetuwn 1;
 			}
 
 			if (aName < bName) {
-				return -1;
+				wetuwn -1;
 			}
 
-			return 0;
+			wetuwn 0;
 		});
 
-		const makeOption = (extension: IOption, selectedExtension?: IssueReporterExtensionData): HTMLOptionElement => {
-			const selected = selectedExtension && extension.id === selectedExtension.id;
-			return $<HTMLOptionElement>('option', {
-				'value': extension.id,
-				'selected': selected || ''
+		const makeOption = (extension: IOption, sewectedExtension?: IssueWepowtewExtensionData): HTMWOptionEwement => {
+			const sewected = sewectedExtension && extension.id === sewectedExtension.id;
+			wetuwn $<HTMWOptionEwement>('option', {
+				'vawue': extension.id,
+				'sewected': sewected || ''
 			}, extension.name);
 		};
 
-		const extensionsSelector = this.getElementById('extension-selector');
-		if (extensionsSelector) {
-			const { selectedExtension } = this.issueReporterModel.getData();
-			reset(extensionsSelector, $<HTMLOptionElement>('option'), ...extensionOptions.map(extension => makeOption(extension, selectedExtension)));
+		const extensionsSewectow = this.getEwementById('extension-sewectow');
+		if (extensionsSewectow) {
+			const { sewectedExtension } = this.issueWepowtewModew.getData();
+			weset(extensionsSewectow, $<HTMWOptionEwement>('option'), ...extensionOptions.map(extension => makeOption(extension, sewectedExtension)));
 
-			this.addEventListener('extension-selector', 'change', (e: Event) => {
-				const selectedExtensionId = (<HTMLInputElement>e.target).value;
-				const extensions = this.issueReporterModel.getData().allExtensions;
-				const matches = extensions.filter(extension => extension.id === selectedExtensionId);
-				if (matches.length) {
-					this.issueReporterModel.update({ selectedExtension: matches[0] });
-					this.validateSelectedExtension();
+			this.addEventWistena('extension-sewectow', 'change', (e: Event) => {
+				const sewectedExtensionId = (<HTMWInputEwement>e.tawget).vawue;
+				const extensions = this.issueWepowtewModew.getData().awwExtensions;
+				const matches = extensions.fiwta(extension => extension.id === sewectedExtensionId);
+				if (matches.wength) {
+					this.issueWepowtewModew.update({ sewectedExtension: matches[0] });
+					this.vawidateSewectedExtension();
 
-					const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
-					this.searchExtensionIssues(title);
-				} else {
-					this.issueReporterModel.update({ selectedExtension: undefined });
-					this.clearSearchResults();
-					this.validateSelectedExtension();
+					const titwe = (<HTMWInputEwement>this.getEwementById('issue-titwe')).vawue;
+					this.seawchExtensionIssues(titwe);
+				} ewse {
+					this.issueWepowtewModew.update({ sewectedExtension: undefined });
+					this.cweawSeawchWesuwts();
+					this.vawidateSewectedExtension();
 				}
 			});
 		}
 
-		this.addEventListener('problem-source', 'change', (_) => {
-			this.validateSelectedExtension();
+		this.addEventWistena('pwobwem-souwce', 'change', (_) => {
+			this.vawidateSewectedExtension();
 		});
 	}
 
-	private validateSelectedExtension(): void {
-		const extensionValidationMessage = this.getElementById('extension-selection-validation-error')!;
-		const extensionValidationNoUrlsMessage = this.getElementById('extension-selection-validation-error-no-url')!;
-		hide(extensionValidationMessage);
-		hide(extensionValidationNoUrlsMessage);
+	pwivate vawidateSewectedExtension(): void {
+		const extensionVawidationMessage = this.getEwementById('extension-sewection-vawidation-ewwow')!;
+		const extensionVawidationNoUwwsMessage = this.getEwementById('extension-sewection-vawidation-ewwow-no-uww')!;
+		hide(extensionVawidationMessage);
+		hide(extensionVawidationNoUwwsMessage);
 
-		if (!this.issueReporterModel.getData().selectedExtension) {
-			this.previewButton.enabled = true;
-			return;
+		if (!this.issueWepowtewModew.getData().sewectedExtension) {
+			this.pweviewButton.enabwed = twue;
+			wetuwn;
 		}
 
-		const hasValidGitHubUrl = this.getExtensionGitHubUrl();
-		if (hasValidGitHubUrl) {
-			this.previewButton.enabled = true;
-		} else {
-			this.setExtensionValidationMessage();
-			this.previewButton.enabled = false;
-		}
-	}
-
-	private setExtensionValidationMessage(): void {
-		const extensionValidationMessage = this.getElementById('extension-selection-validation-error')!;
-		const extensionValidationNoUrlsMessage = this.getElementById('extension-selection-validation-error-no-url')!;
-		const bugsUrl = this.getExtensionBugsUrl();
-		if (bugsUrl) {
-			show(extensionValidationMessage);
-			const link = this.getElementById('extensionBugsLink')!;
-			link.textContent = bugsUrl;
-			return;
-		}
-
-		const extensionUrl = this.getExtensionRepositoryUrl();
-		if (extensionUrl) {
-			show(extensionValidationMessage);
-			const link = this.getElementById('extensionBugsLink');
-			link!.textContent = extensionUrl;
-			return;
-		}
-
-		show(extensionValidationNoUrlsMessage);
-	}
-
-	private updateProcessInfo(state: IssueReporterModelData) {
-		const target = document.querySelector('.block-process .block-info') as HTMLElement;
-		if (target) {
-			reset(target, $('code', undefined, state.processInfo));
+		const hasVawidGitHubUww = this.getExtensionGitHubUww();
+		if (hasVawidGitHubUww) {
+			this.pweviewButton.enabwed = twue;
+		} ewse {
+			this.setExtensionVawidationMessage();
+			this.pweviewButton.enabwed = fawse;
 		}
 	}
 
-	private updateWorkspaceInfo(state: IssueReporterModelData) {
-		document.querySelector('.block-workspace .block-info code')!.textContent = '\n' + state.workspaceInfo;
+	pwivate setExtensionVawidationMessage(): void {
+		const extensionVawidationMessage = this.getEwementById('extension-sewection-vawidation-ewwow')!;
+		const extensionVawidationNoUwwsMessage = this.getEwementById('extension-sewection-vawidation-ewwow-no-uww')!;
+		const bugsUww = this.getExtensionBugsUww();
+		if (bugsUww) {
+			show(extensionVawidationMessage);
+			const wink = this.getEwementById('extensionBugsWink')!;
+			wink.textContent = bugsUww;
+			wetuwn;
+		}
+
+		const extensionUww = this.getExtensionWepositowyUww();
+		if (extensionUww) {
+			show(extensionVawidationMessage);
+			const wink = this.getEwementById('extensionBugsWink');
+			wink!.textContent = extensionUww;
+			wetuwn;
+		}
+
+		show(extensionVawidationNoUwwsMessage);
 	}
 
-	private updateExtensionTable(extensions: IssueReporterExtensionData[], numThemeExtensions: number): void {
-		const target = document.querySelector<HTMLElement>('.block-extensions .block-info');
-		if (target) {
-			if (this.configuration.disableExtensions) {
-				reset(target, localize('disabledExtensions', "Extensions are disabled"));
-				return;
+	pwivate updatePwocessInfo(state: IssueWepowtewModewData) {
+		const tawget = document.quewySewectow('.bwock-pwocess .bwock-info') as HTMWEwement;
+		if (tawget) {
+			weset(tawget, $('code', undefined, state.pwocessInfo));
+		}
+	}
+
+	pwivate updateWowkspaceInfo(state: IssueWepowtewModewData) {
+		document.quewySewectow('.bwock-wowkspace .bwock-info code')!.textContent = '\n' + state.wowkspaceInfo;
+	}
+
+	pwivate updateExtensionTabwe(extensions: IssueWepowtewExtensionData[], numThemeExtensions: numba): void {
+		const tawget = document.quewySewectow<HTMWEwement>('.bwock-extensions .bwock-info');
+		if (tawget) {
+			if (this.configuwation.disabweExtensions) {
+				weset(tawget, wocawize('disabwedExtensions', "Extensions awe disabwed"));
+				wetuwn;
 			}
 
-			const themeExclusionStr = numThemeExtensions ? `\n(${numThemeExtensions} theme extensions excluded)` : '';
+			const themeExcwusionStw = numThemeExtensions ? `\n(${numThemeExtensions} theme extensions excwuded)` : '';
 			extensions = extensions || [];
 
-			if (!extensions.length) {
-				target.innerText = 'Extensions: none' + themeExclusionStr;
-				return;
+			if (!extensions.wength) {
+				tawget.innewText = 'Extensions: none' + themeExcwusionStw;
+				wetuwn;
 			}
 
-			reset(target, this.getExtensionTableHtml(extensions), document.createTextNode(themeExclusionStr));
+			weset(tawget, this.getExtensionTabweHtmw(extensions), document.cweateTextNode(themeExcwusionStw));
 		}
 	}
 
-	private updateRestrictedMode(restrictedMode: boolean) {
-		this.issueReporterModel.update({ restrictedMode });
+	pwivate updateWestwictedMode(westwictedMode: boowean) {
+		this.issueWepowtewModew.update({ westwictedMode });
 	}
 
-	private updateExperimentsInfo(experimentInfo: string | undefined) {
-		this.issueReporterModel.update({ experimentInfo });
-		const target = document.querySelector<HTMLElement>('.block-experiments .block-info');
-		if (target) {
-			target.textContent = experimentInfo ? experimentInfo : localize('noCurrentExperiments', "No current experiments.");
+	pwivate updateExpewimentsInfo(expewimentInfo: stwing | undefined) {
+		this.issueWepowtewModew.update({ expewimentInfo });
+		const tawget = document.quewySewectow<HTMWEwement>('.bwock-expewiments .bwock-info');
+		if (tawget) {
+			tawget.textContent = expewimentInfo ? expewimentInfo : wocawize('noCuwwentExpewiments', "No cuwwent expewiments.");
 		}
 	}
 
-	private getExtensionTableHtml(extensions: IssueReporterExtensionData[]): HTMLTableElement {
-		return $('table', undefined,
-			$('tr', undefined,
+	pwivate getExtensionTabweHtmw(extensions: IssueWepowtewExtensionData[]): HTMWTabweEwement {
+		wetuwn $('tabwe', undefined,
+			$('tw', undefined,
 				$('th', undefined, 'Extension'),
-				$('th', undefined, 'Author (truncated)' as string),
-				$('th', undefined, 'Version'),
+				$('th', undefined, 'Authow (twuncated)' as stwing),
+				$('th', undefined, 'Vewsion'),
 			),
-			...extensions.map(extension => $('tr', undefined,
+			...extensions.map(extension => $('tw', undefined,
 				$('td', undefined, extension.name),
-				$('td', undefined, extension.publisher?.substr(0, 3) ?? 'N/A'),
-				$('td', undefined, extension.version),
+				$('td', undefined, extension.pubwisha?.substw(0, 3) ?? 'N/A'),
+				$('td', undefined, extension.vewsion),
 			))
 		);
 	}
 
-	private openLink(event: MouseEvent): void {
-		event.preventDefault();
-		event.stopPropagation();
-		// Exclude right click
+	pwivate openWink(event: MouseEvent): void {
+		event.pweventDefauwt();
+		event.stopPwopagation();
+		// Excwude wight cwick
 		if (event.which < 3) {
-			windowOpenNoOpener((<HTMLAnchorElement>event.target).href);
+			windowOpenNoOpena((<HTMWAnchowEwement>event.tawget).hwef);
 		}
 	}
 
-	private getElementById<T extends HTMLElement = HTMLElement>(elementId: string): T | undefined {
-		const element = document.getElementById(elementId) as T | undefined;
-		if (element) {
-			return element;
-		} else {
-			return undefined;
+	pwivate getEwementById<T extends HTMWEwement = HTMWEwement>(ewementId: stwing): T | undefined {
+		const ewement = document.getEwementById(ewementId) as T | undefined;
+		if (ewement) {
+			wetuwn ewement;
+		} ewse {
+			wetuwn undefined;
 		}
 	}
 
-	private addEventListener(elementId: string, eventType: string, handler: (event: Event) => void): void {
-		const element = this.getElementById(elementId);
-		if (element) {
-			element.addEventListener(eventType, handler);
+	pwivate addEventWistena(ewementId: stwing, eventType: stwing, handwa: (event: Event) => void): void {
+		const ewement = this.getEwementById(ewementId);
+		if (ewement) {
+			ewement.addEventWistena(eventType, handwa);
 		}
 	}
 }
 
-// helper functions
+// hewpa functions
 
-function hide(el: Element | undefined | null) {
-	if (el) {
-		el.classList.add('hidden');
+function hide(ew: Ewement | undefined | nuww) {
+	if (ew) {
+		ew.cwassWist.add('hidden');
 	}
 }
-function show(el: Element | undefined | null) {
-	if (el) {
-		el.classList.remove('hidden');
+function show(ew: Ewement | undefined | nuww) {
+	if (ew) {
+		ew.cwassWist.wemove('hidden');
 	}
 }

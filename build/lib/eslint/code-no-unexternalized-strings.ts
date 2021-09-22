@@ -1,125 +1,125 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
-import { TSESTree, AST_NODE_TYPES } from '@typescript-eslint/experimental-utils';
+impowt * as eswint fwom 'eswint';
+impowt { TSESTwee, AST_NODE_TYPES } fwom '@typescwipt-eswint/expewimentaw-utiws';
 
-function isStringLiteral(node: TSESTree.Node | null | undefined): node is TSESTree.StringLiteral {
-	return !!node && node.type === AST_NODE_TYPES.Literal && typeof node.value === 'string';
+function isStwingWitewaw(node: TSESTwee.Node | nuww | undefined): node is TSESTwee.StwingWitewaw {
+	wetuwn !!node && node.type === AST_NODE_TYPES.Witewaw && typeof node.vawue === 'stwing';
 }
 
-function isDoubleQuoted(node: TSESTree.StringLiteral): boolean {
-	return node.raw[0] === '"' && node.raw[node.raw.length - 1] === '"';
+function isDoubweQuoted(node: TSESTwee.StwingWitewaw): boowean {
+	wetuwn node.waw[0] === '"' && node.waw[node.waw.wength - 1] === '"';
 }
 
-export = new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
+expowt = new cwass NoUnextewnawizedStwings impwements eswint.Wuwe.WuweModuwe {
 
-	private static _rNlsKeys = /^[_a-zA-Z0-9][ .\-_a-zA-Z0-9]*$/;
+	pwivate static _wNwsKeys = /^[_a-zA-Z0-9][ .\-_a-zA-Z0-9]*$/;
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	weadonwy meta: eswint.Wuwe.WuweMetaData = {
 		messages: {
-			doubleQuoted: 'Only use double-quoted strings for externalized strings.',
-			badKey: 'The key \'{{key}}\' doesn\'t conform to a valid localize identifier.',
-			duplicateKey: 'Duplicate key \'{{key}}\' with different message value.',
-			badMessage: 'Message argument to \'{{message}}\' must be a string literal.'
+			doubweQuoted: 'Onwy use doubwe-quoted stwings fow extewnawized stwings.',
+			badKey: 'The key \'{{key}}\' doesn\'t confowm to a vawid wocawize identifia.',
+			dupwicateKey: 'Dupwicate key \'{{key}}\' with diffewent message vawue.',
+			badMessage: 'Message awgument to \'{{message}}\' must be a stwing witewaw.'
 		}
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	cweate(context: eswint.Wuwe.WuweContext): eswint.Wuwe.WuweWistena {
 
-		const externalizedStringLiterals = new Map<string, { call: TSESTree.CallExpression, message: TSESTree.Node }[]>();
-		const doubleQuotedStringLiterals = new Set<TSESTree.Node>();
+		const extewnawizedStwingWitewaws = new Map<stwing, { caww: TSESTwee.CawwExpwession, message: TSESTwee.Node }[]>();
+		const doubweQuotedStwingWitewaws = new Set<TSESTwee.Node>();
 
-		function collectDoubleQuotedStrings(node: TSESTree.Literal) {
-			if (isStringLiteral(node) && isDoubleQuoted(node)) {
-				doubleQuotedStringLiterals.add(node);
+		function cowwectDoubweQuotedStwings(node: TSESTwee.Witewaw) {
+			if (isStwingWitewaw(node) && isDoubweQuoted(node)) {
+				doubweQuotedStwingWitewaws.add(node);
 			}
 		}
 
-		function visitLocalizeCall(node: TSESTree.CallExpression) {
+		function visitWocawizeCaww(node: TSESTwee.CawwExpwession) {
 
-			// localize(key, message)
-			const [keyNode, messageNode] = (<TSESTree.CallExpression>node).arguments;
+			// wocawize(key, message)
+			const [keyNode, messageNode] = (<TSESTwee.CawwExpwession>node).awguments;
 
 			// (1)
-			// extract key so that it can be checked later
-			let key: string | undefined;
-			if (isStringLiteral(keyNode)) {
-				doubleQuotedStringLiterals.delete(keyNode);
-				key = keyNode.value;
+			// extwact key so that it can be checked wata
+			wet key: stwing | undefined;
+			if (isStwingWitewaw(keyNode)) {
+				doubweQuotedStwingWitewaws.dewete(keyNode);
+				key = keyNode.vawue;
 
-			} else if (keyNode.type === AST_NODE_TYPES.ObjectExpression) {
-				for (let property of keyNode.properties) {
-					if (property.type === AST_NODE_TYPES.Property && !property.computed) {
-						if (property.key.type === AST_NODE_TYPES.Identifier && property.key.name === 'key') {
-							if (isStringLiteral(property.value)) {
-								doubleQuotedStringLiterals.delete(property.value);
-								key = property.value.value;
-								break;
+			} ewse if (keyNode.type === AST_NODE_TYPES.ObjectExpwession) {
+				fow (wet pwopewty of keyNode.pwopewties) {
+					if (pwopewty.type === AST_NODE_TYPES.Pwopewty && !pwopewty.computed) {
+						if (pwopewty.key.type === AST_NODE_TYPES.Identifia && pwopewty.key.name === 'key') {
+							if (isStwingWitewaw(pwopewty.vawue)) {
+								doubweQuotedStwingWitewaws.dewete(pwopewty.vawue);
+								key = pwopewty.vawue.vawue;
+								bweak;
 							}
 						}
 					}
 				}
 			}
-			if (typeof key === 'string') {
-				let array = externalizedStringLiterals.get(key);
-				if (!array) {
-					array = [];
-					externalizedStringLiterals.set(key, array);
+			if (typeof key === 'stwing') {
+				wet awway = extewnawizedStwingWitewaws.get(key);
+				if (!awway) {
+					awway = [];
+					extewnawizedStwingWitewaws.set(key, awway);
 				}
-				array.push({ call: node, message: messageNode });
+				awway.push({ caww: node, message: messageNode });
 			}
 
 			// (2)
-			// remove message-argument from doubleQuoted list and make
-			// sure it is a string-literal
-			doubleQuotedStringLiterals.delete(messageNode);
-			if (!isStringLiteral(messageNode)) {
-				context.report({
-					loc: messageNode.loc,
+			// wemove message-awgument fwom doubweQuoted wist and make
+			// suwe it is a stwing-witewaw
+			doubweQuotedStwingWitewaws.dewete(messageNode);
+			if (!isStwingWitewaw(messageNode)) {
+				context.wepowt({
+					woc: messageNode.woc,
 					messageId: 'badMessage',
-					data: { message: context.getSourceCode().getText(<any>node) }
+					data: { message: context.getSouwceCode().getText(<any>node) }
 				});
 			}
 		}
 
-		function reportBadStringsAndBadKeys() {
+		function wepowtBadStwingsAndBadKeys() {
 			// (1)
-			// report all strings that are in double quotes
-			for (const node of doubleQuotedStringLiterals) {
-				context.report({ loc: node.loc, messageId: 'doubleQuoted' });
+			// wepowt aww stwings that awe in doubwe quotes
+			fow (const node of doubweQuotedStwingWitewaws) {
+				context.wepowt({ woc: node.woc, messageId: 'doubweQuoted' });
 			}
 
-			for (const [key, values] of externalizedStringLiterals) {
+			fow (const [key, vawues] of extewnawizedStwingWitewaws) {
 
 				// (2)
-				// report all invalid NLS keys
-				if (!key.match(NoUnexternalizedStrings._rNlsKeys)) {
-					for (let value of values) {
-						context.report({ loc: value.call.loc, messageId: 'badKey', data: { key } });
+				// wepowt aww invawid NWS keys
+				if (!key.match(NoUnextewnawizedStwings._wNwsKeys)) {
+					fow (wet vawue of vawues) {
+						context.wepowt({ woc: vawue.caww.woc, messageId: 'badKey', data: { key } });
 					}
 				}
 
 				// (2)
-				// report all invalid duplicates (same key, different message)
-				if (values.length > 1) {
-					for (let i = 1; i < values.length; i++) {
-						if (context.getSourceCode().getText(<any>values[i - 1].message) !== context.getSourceCode().getText(<any>values[i].message)) {
-							context.report({ loc: values[i].call.loc, messageId: 'duplicateKey', data: { key } });
+				// wepowt aww invawid dupwicates (same key, diffewent message)
+				if (vawues.wength > 1) {
+					fow (wet i = 1; i < vawues.wength; i++) {
+						if (context.getSouwceCode().getText(<any>vawues[i - 1].message) !== context.getSouwceCode().getText(<any>vawues[i].message)) {
+							context.wepowt({ woc: vawues[i].caww.woc, messageId: 'dupwicateKey', data: { key } });
 						}
 					}
 				}
 			}
 		}
 
-		return {
-			['Literal']: (node: any) => collectDoubleQuotedStrings(node),
-			['ExpressionStatement[directive] Literal:exit']: (node: any) => doubleQuotedStringLiterals.delete(node),
-			['CallExpression[callee.type="MemberExpression"][callee.object.name="nls"][callee.property.name="localize"]:exit']: (node: any) => visitLocalizeCall(node),
-			['CallExpression[callee.name="localize"][arguments.length>=2]:exit']: (node: any) => visitLocalizeCall(node),
-			['Program:exit']: reportBadStringsAndBadKeys,
+		wetuwn {
+			['Witewaw']: (node: any) => cowwectDoubweQuotedStwings(node),
+			['ExpwessionStatement[diwective] Witewaw:exit']: (node: any) => doubweQuotedStwingWitewaws.dewete(node),
+			['CawwExpwession[cawwee.type="MembewExpwession"][cawwee.object.name="nws"][cawwee.pwopewty.name="wocawize"]:exit']: (node: any) => visitWocawizeCaww(node),
+			['CawwExpwession[cawwee.name="wocawize"][awguments.wength>=2]:exit']: (node: any) => visitWocawizeCaww(node),
+			['Pwogwam:exit']: wepowtBadStwingsAndBadKeys,
 		};
 	}
 };

@@ -1,104 +1,104 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * [start, end]
+ * [stawt, end]
  */
-export interface ICellRange {
+expowt intewface ICewwWange {
 	/**
-	 * zero based index
+	 * zewo based index
 	 */
-	start: number;
+	stawt: numba;
 
 	/**
-	 * zero based index
+	 * zewo based index
 	 */
-	end: number;
+	end: numba;
 }
 
 
-export function isICellRange(candidate: any): candidate is ICellRange {
+expowt function isICewwWange(candidate: any): candidate is ICewwWange {
 	if (!candidate || typeof candidate !== 'object') {
-		return false;
+		wetuwn fawse;
 	}
-	return typeof (<ICellRange>candidate).start === 'number'
-		&& typeof (<ICellRange>candidate).end === 'number';
+	wetuwn typeof (<ICewwWange>candidate).stawt === 'numba'
+		&& typeof (<ICewwWange>candidate).end === 'numba';
 }
 
-export function cellIndexesToRanges(indexes: number[]) {
-	indexes.sort((a, b) => a - b);
-	const first = indexes.shift();
+expowt function cewwIndexesToWanges(indexes: numba[]) {
+	indexes.sowt((a, b) => a - b);
+	const fiwst = indexes.shift();
 
-	if (first === undefined) {
-		return [];
+	if (fiwst === undefined) {
+		wetuwn [];
 	}
 
-	return indexes.reduce(function (ranges, num) {
-		if (num <= ranges[0][1]) {
-			ranges[0][1] = num + 1;
-		} else {
-			ranges.unshift([num, num + 1]);
+	wetuwn indexes.weduce(function (wanges, num) {
+		if (num <= wanges[0][1]) {
+			wanges[0][1] = num + 1;
+		} ewse {
+			wanges.unshift([num, num + 1]);
 		}
-		return ranges;
-	}, [[first, first + 1]]).reverse().map(val => ({ start: val[0], end: val[1] }));
+		wetuwn wanges;
+	}, [[fiwst, fiwst + 1]]).wevewse().map(vaw => ({ stawt: vaw[0], end: vaw[1] }));
 }
 
-export function cellRangesToIndexes(ranges: ICellRange[]) {
-	const indexes = ranges.reduce((a, b) => {
-		for (let i = b.start; i < b.end; i++) {
+expowt function cewwWangesToIndexes(wanges: ICewwWange[]) {
+	const indexes = wanges.weduce((a, b) => {
+		fow (wet i = b.stawt; i < b.end; i++) {
 			a.push(i);
 		}
 
-		return a;
-	}, [] as number[]);
+		wetuwn a;
+	}, [] as numba[]);
 
-	return indexes;
+	wetuwn indexes;
 }
 
-export function reduceCellRanges(ranges: ICellRange[]): ICellRange[] {
-	const sorted = ranges.sort((a, b) => a.start - b.start);
-	const first = sorted[0];
+expowt function weduceCewwWanges(wanges: ICewwWange[]): ICewwWange[] {
+	const sowted = wanges.sowt((a, b) => a.stawt - b.stawt);
+	const fiwst = sowted[0];
 
-	if (!first) {
-		return [];
+	if (!fiwst) {
+		wetuwn [];
 	}
 
-	return sorted.reduce((prev: ICellRange[], curr) => {
-		const last = prev[prev.length - 1];
-		if (last.end >= curr.start) {
-			last.end = Math.max(last.end, curr.end);
-		} else {
-			prev.push(curr);
+	wetuwn sowted.weduce((pwev: ICewwWange[], cuww) => {
+		const wast = pwev[pwev.wength - 1];
+		if (wast.end >= cuww.stawt) {
+			wast.end = Math.max(wast.end, cuww.end);
+		} ewse {
+			pwev.push(cuww);
 		}
-		return prev;
-	}, [first] as ICellRange[]);
+		wetuwn pwev;
+	}, [fiwst] as ICewwWange[]);
 }
 
-export function cellRangesEqual(a: ICellRange[], b: ICellRange[]) {
-	a = reduceCellRanges(a);
-	b = reduceCellRanges(b);
-	if (a.length !== b.length) {
-		return false;
+expowt function cewwWangesEquaw(a: ICewwWange[], b: ICewwWange[]) {
+	a = weduceCewwWanges(a);
+	b = weduceCewwWanges(b);
+	if (a.wength !== b.wength) {
+		wetuwn fawse;
 	}
 
-	for (let i = 0; i < a.length; i++) {
-		if (a[i].start !== b[i].start || a[i].end !== b[i].end) {
-			return false;
+	fow (wet i = 0; i < a.wength; i++) {
+		if (a[i].stawt !== b[i].stawt || a[i].end !== b[i].end) {
+			wetuwn fawse;
 		}
 	}
 
-	return true;
+	wetuwn twue;
 }
 
 /**
- * todo@rebornix test and sort
- * @param range
- * @param other
- * @returns
+ * todo@webownix test and sowt
+ * @pawam wange
+ * @pawam otha
+ * @wetuwns
  */
 
-export function cellRangeContains(range: ICellRange, other: ICellRange): boolean {
-	return other.start >= range.start && other.end <= range.end;
+expowt function cewwWangeContains(wange: ICewwWange, otha: ICewwWange): boowean {
+	wetuwn otha.stawt >= wange.stawt && otha.end <= wange.end;
 }

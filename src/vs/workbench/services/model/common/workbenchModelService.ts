@@ -1,37 +1,37 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { ModewSewviceImpw } fwom 'vs/editow/common/sewvices/modewSewviceImpw';
+impowt { ITextWesouwcePwopewtiesSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IUndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
 
-export class WorkbenchModelServiceImpl extends ModelServiceImpl {
-	constructor(
-		@IConfigurationService configurationService: IConfigurationService,
-		@ITextResourcePropertiesService resourcePropertiesService: ITextResourcePropertiesService,
-		@IThemeService themeService: IThemeService,
-		@ILogService logService: ILogService,
-		@IUndoRedoService undoRedoService: IUndoRedoService,
-		@IPathService private readonly _pathService: IPathService,
+expowt cwass WowkbenchModewSewviceImpw extends ModewSewviceImpw {
+	constwuctow(
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@ITextWesouwcePwopewtiesSewvice wesouwcePwopewtiesSewvice: ITextWesouwcePwopewtiesSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IUndoWedoSewvice undoWedoSewvice: IUndoWedoSewvice,
+		@IPathSewvice pwivate weadonwy _pathSewvice: IPathSewvice,
 	) {
-		super(configurationService, resourcePropertiesService, themeService, logService, undoRedoService);
+		supa(configuwationSewvice, wesouwcePwopewtiesSewvice, themeSewvice, wogSewvice, undoWedoSewvice);
 	}
 
-	protected override _schemaShouldMaintainUndoRedoElements(resource: URI) {
-		return (
-			super._schemaShouldMaintainUndoRedoElements(resource)
-			|| resource.scheme === this._pathService.defaultUriScheme
+	pwotected ovewwide _schemaShouwdMaintainUndoWedoEwements(wesouwce: UWI) {
+		wetuwn (
+			supa._schemaShouwdMaintainUndoWedoEwements(wesouwce)
+			|| wesouwce.scheme === this._pathSewvice.defauwtUwiScheme
 		);
 	}
 }
 
-registerSingleton(IModelService, WorkbenchModelServiceImpl, true);
+wegistewSingweton(IModewSewvice, WowkbenchModewSewviceImpw, twue);

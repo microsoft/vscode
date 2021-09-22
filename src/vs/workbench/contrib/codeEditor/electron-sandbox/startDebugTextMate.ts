@@ -1,104 +1,104 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Range } from 'vs/editor/common/core/range';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ITextModel } from 'vs/editor/common/model';
-import { Constants } from 'vs/base/common/uint';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { ILoggerService } from 'vs/platform/log/common/log';
-import { joinPath } from 'vs/base/common/resources';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+impowt * as nws fwom 'vs/nws';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Action2, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { ITextMateSewvice } fwom 'vs/wowkbench/sewvices/textMate/common/textMateSewvice';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { Constants } fwom 'vs/base/common/uint';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { INativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { IWoggewSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-class StartDebugTextMate extends Action2 {
+cwass StawtDebugTextMate extends Action2 {
 
-	private static resource = URI.parse(`inmemory:///tm-log.txt`);
+	pwivate static wesouwce = UWI.pawse(`inmemowy:///tm-wog.txt`);
 
-	constructor() {
-		super({
-			id: 'editor.action.startDebugTextMate',
-			title: { value: nls.localize('startDebugTextMate', "Start Text Mate Syntax Grammar Logging"), original: 'Start Text Mate Syntax Grammar Logging' },
-			category: CATEGORIES.Developer.value,
-			f1: true
+	constwuctow() {
+		supa({
+			id: 'editow.action.stawtDebugTextMate',
+			titwe: { vawue: nws.wocawize('stawtDebugTextMate', "Stawt Text Mate Syntax Gwammaw Wogging"), owiginaw: 'Stawt Text Mate Syntax Gwammaw Wogging' },
+			categowy: CATEGOWIES.Devewopa.vawue,
+			f1: twue
 		});
 	}
 
-	private _getOrCreateModel(modelService: IModelService): ITextModel {
-		const model = modelService.getModel(StartDebugTextMate.resource);
-		if (model) {
-			return model;
+	pwivate _getOwCweateModew(modewSewvice: IModewSewvice): ITextModew {
+		const modew = modewSewvice.getModew(StawtDebugTextMate.wesouwce);
+		if (modew) {
+			wetuwn modew;
 		}
-		return modelService.createModel('', null, StartDebugTextMate.resource);
+		wetuwn modewSewvice.cweateModew('', nuww, StawtDebugTextMate.wesouwce);
 	}
 
-	private _append(model: ITextModel, str: string) {
-		const lineCount = model.getLineCount();
-		model.applyEdits([{
-			range: new Range(lineCount, Constants.MAX_SAFE_SMALL_INTEGER, lineCount, Constants.MAX_SAFE_SMALL_INTEGER),
-			text: str
+	pwivate _append(modew: ITextModew, stw: stwing) {
+		const wineCount = modew.getWineCount();
+		modew.appwyEdits([{
+			wange: new Wange(wineCount, Constants.MAX_SAFE_SMAWW_INTEGa, wineCount, Constants.MAX_SAFE_SMAWW_INTEGa),
+			text: stw
 		}]);
 	}
 
-	async run(accessor: ServicesAccessor) {
-		const textMateService = accessor.get(ITextMateService);
-		const modelService = accessor.get(IModelService);
-		const editorService = accessor.get(IEditorService);
-		const codeEditorService = accessor.get(ICodeEditorService);
-		const hostService = accessor.get(IHostService);
-		const environmentService = accessor.get(INativeWorkbenchEnvironmentService);
-		const loggerService = accessor.get(ILoggerService);
-		const fileService = accessor.get(IFileService);
+	async wun(accessow: SewvicesAccessow) {
+		const textMateSewvice = accessow.get(ITextMateSewvice);
+		const modewSewvice = accessow.get(IModewSewvice);
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const codeEditowSewvice = accessow.get(ICodeEditowSewvice);
+		const hostSewvice = accessow.get(IHostSewvice);
+		const enviwonmentSewvice = accessow.get(INativeWowkbenchEnviwonmentSewvice);
+		const woggewSewvice = accessow.get(IWoggewSewvice);
+		const fiweSewvice = accessow.get(IFiweSewvice);
 
-		const pathInTemp = joinPath(environmentService.tmpDir, `vcode-tm-log-${generateUuid()}.txt`);
-		await fileService.createFile(pathInTemp);
-		const logger = loggerService.createLogger(pathInTemp, { name: 'debug textmate' });
-		const model = this._getOrCreateModel(modelService);
-		const append = (str: string) => {
-			this._append(model, str + '\n');
-			scrollEditor();
-			logger.info(str);
-			logger.flush();
+		const pathInTemp = joinPath(enviwonmentSewvice.tmpDiw, `vcode-tm-wog-${genewateUuid()}.txt`);
+		await fiweSewvice.cweateFiwe(pathInTemp);
+		const wogga = woggewSewvice.cweateWogga(pathInTemp, { name: 'debug textmate' });
+		const modew = this._getOwCweateModew(modewSewvice);
+		const append = (stw: stwing) => {
+			this._append(modew, stw + '\n');
+			scwowwEditow();
+			wogga.info(stw);
+			wogga.fwush();
 		};
-		await hostService.openWindow([{ fileUri: pathInTemp }], { forceNewWindow: true });
-		const textEditorPane = await editorService.openEditor({
-			resource: model.uri,
-			options: { pinned: true }
+		await hostSewvice.openWindow([{ fiweUwi: pathInTemp }], { fowceNewWindow: twue });
+		const textEditowPane = await editowSewvice.openEditow({
+			wesouwce: modew.uwi,
+			options: { pinned: twue }
 		});
-		if (!textEditorPane) {
-			return;
+		if (!textEditowPane) {
+			wetuwn;
 		}
-		const scrollEditor = () => {
-			const editors = codeEditorService.listCodeEditors();
-			for (const editor of editors) {
-				if (editor.hasModel()) {
-					if (editor.getModel().uri.toString() === StartDebugTextMate.resource.toString()) {
-						editor.revealLine(editor.getModel().getLineCount());
+		const scwowwEditow = () => {
+			const editows = codeEditowSewvice.wistCodeEditows();
+			fow (const editow of editows) {
+				if (editow.hasModew()) {
+					if (editow.getModew().uwi.toStwing() === StawtDebugTextMate.wesouwce.toStwing()) {
+						editow.weveawWine(editow.getModew().getWineCount());
 					}
 				}
 			}
 		};
 
-		append(`// Open the file you want to test to the side and watch here`);
-		append(`// Output mirrored at ${pathInTemp}`);
+		append(`// Open the fiwe you want to test to the side and watch hewe`);
+		append(`// Output miwwowed at ${pathInTemp}`);
 
-		textMateService.startDebugMode(
-			(str) => {
-				this._append(model, str + '\n');
-				scrollEditor();
-				logger.info(str);
-				logger.flush();
+		textMateSewvice.stawtDebugMode(
+			(stw) => {
+				this._append(modew, stw + '\n');
+				scwowwEditow();
+				wogga.info(stw);
+				wogga.fwush();
 			},
 			() => {
 
@@ -107,4 +107,4 @@ class StartDebugTextMate extends Action2 {
 	}
 }
 
-registerAction2(StartDebugTextMate);
+wegistewAction2(StawtDebugTextMate);

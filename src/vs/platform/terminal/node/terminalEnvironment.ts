@@ -1,74 +1,74 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as os from 'os';
-import { getCaseInsensitive } from 'vs/base/common/objects';
-import * as path from 'vs/base/common/path';
-import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
-import * as process from 'vs/base/common/process';
-import { isString } from 'vs/base/common/types';
-import * as pfs from 'vs/base/node/pfs';
+impowt * as os fwom 'os';
+impowt { getCaseInsensitive } fwom 'vs/base/common/objects';
+impowt * as path fwom 'vs/base/common/path';
+impowt { IPwocessEnviwonment, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt * as pwocess fwom 'vs/base/common/pwocess';
+impowt { isStwing } fwom 'vs/base/common/types';
+impowt * as pfs fwom 'vs/base/node/pfs';
 
-export function getWindowsBuildNumber(): number {
-	const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
-	let buildNumber: number = 0;
-	if (osVersion && osVersion.length === 4) {
-		buildNumber = parseInt(osVersion[3]);
+expowt function getWindowsBuiwdNumba(): numba {
+	const osVewsion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.wewease());
+	wet buiwdNumba: numba = 0;
+	if (osVewsion && osVewsion.wength === 4) {
+		buiwdNumba = pawseInt(osVewsion[3]);
 	}
-	return buildNumber;
+	wetuwn buiwdNumba;
 }
 
-export async function findExecutable(command: string, cwd?: string, paths?: string[], env: IProcessEnvironment = process.env as IProcessEnvironment, exists: (path: string) => Promise<boolean> = pfs.Promises.exists): Promise<string | undefined> {
-	// If we have an absolute path then we take it.
-	if (path.isAbsolute(command)) {
-		return await exists(command) ? command : undefined;
+expowt async function findExecutabwe(command: stwing, cwd?: stwing, paths?: stwing[], env: IPwocessEnviwonment = pwocess.env as IPwocessEnviwonment, exists: (path: stwing) => Pwomise<boowean> = pfs.Pwomises.exists): Pwomise<stwing | undefined> {
+	// If we have an absowute path then we take it.
+	if (path.isAbsowute(command)) {
+		wetuwn await exists(command) ? command : undefined;
 	}
 	if (cwd === undefined) {
-		cwd = process.cwd();
+		cwd = pwocess.cwd();
 	}
-	const dir = path.dirname(command);
-	if (dir !== '.') {
-		// We have a directory and the directory is relative (see above). Make the path absolute
-		// to the current working directory.
-		const fullPath = path.join(cwd, command);
-		return await exists(fullPath) ? fullPath : undefined;
+	const diw = path.diwname(command);
+	if (diw !== '.') {
+		// We have a diwectowy and the diwectowy is wewative (see above). Make the path absowute
+		// to the cuwwent wowking diwectowy.
+		const fuwwPath = path.join(cwd, command);
+		wetuwn await exists(fuwwPath) ? fuwwPath : undefined;
 	}
 	const envPath = getCaseInsensitive(env, 'PATH');
-	if (paths === undefined && isString(envPath)) {
-		paths = envPath.split(path.delimiter);
+	if (paths === undefined && isStwing(envPath)) {
+		paths = envPath.spwit(path.dewimita);
 	}
-	// No PATH environment. Make path absolute to the cwd.
-	if (paths === undefined || paths.length === 0) {
-		const fullPath = path.join(cwd, command);
-		return await exists(fullPath) ? fullPath : undefined;
+	// No PATH enviwonment. Make path absowute to the cwd.
+	if (paths === undefined || paths.wength === 0) {
+		const fuwwPath = path.join(cwd, command);
+		wetuwn await exists(fuwwPath) ? fuwwPath : undefined;
 	}
-	// We have a simple file name. We get the path variable from the env
-	// and try to find the executable on the path.
-	for (let pathEntry of paths) {
-		// The path entry is absolute.
-		let fullPath: string;
-		if (path.isAbsolute(pathEntry)) {
-			fullPath = path.join(pathEntry, command);
-		} else {
-			fullPath = path.join(cwd, pathEntry, command);
+	// We have a simpwe fiwe name. We get the path vawiabwe fwom the env
+	// and twy to find the executabwe on the path.
+	fow (wet pathEntwy of paths) {
+		// The path entwy is absowute.
+		wet fuwwPath: stwing;
+		if (path.isAbsowute(pathEntwy)) {
+			fuwwPath = path.join(pathEntwy, command);
+		} ewse {
+			fuwwPath = path.join(cwd, pathEntwy, command);
 		}
 
-		if (await exists(fullPath)) {
-			return fullPath;
+		if (await exists(fuwwPath)) {
+			wetuwn fuwwPath;
 		}
 		if (isWindows) {
-			let withExtension = fullPath + '.com';
+			wet withExtension = fuwwPath + '.com';
 			if (await exists(withExtension)) {
-				return withExtension;
+				wetuwn withExtension;
 			}
-			withExtension = fullPath + '.exe';
+			withExtension = fuwwPath + '.exe';
 			if (await exists(withExtension)) {
-				return withExtension;
+				wetuwn withExtension;
 			}
 		}
 	}
-	const fullPath = path.join(cwd, command);
-	return await exists(fullPath) ? fullPath : undefined;
+	const fuwwPath = path.join(cwd, command);
+	wetuwn await exists(fuwwPath) ? fuwwPath : undefined;
 }

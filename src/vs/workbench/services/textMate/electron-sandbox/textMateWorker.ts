@@ -1,215 +1,215 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkerContext } from 'vs/editor/common/services/editorSimpleWorker';
-import { UriComponents, URI } from 'vs/base/common/uri';
-import { LanguageId } from 'vs/editor/common/modes';
-import { IValidEmbeddedLanguagesMap, IValidTokenTypeMap, IValidGrammarDefinition } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
-import { TMGrammarFactory, ICreateGrammarResult } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
-import { IModelChangedEvent, MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
-import { TextMateWorkerHost } from 'vs/workbench/services/textMate/electron-sandbox/textMateService';
-import { TokenizationStateStore } from 'vs/editor/common/model/textModelTokens';
-import type { IGrammar, StackElement, IRawTheme, IOnigLib } from 'vscode-textmate';
-import { MultilineTokensBuilder, countEOL } from 'vs/editor/common/model/tokensStore';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import { FileAccess } from 'vs/base/common/network';
+impowt { IWowkewContext } fwom 'vs/editow/common/sewvices/editowSimpweWowka';
+impowt { UwiComponents, UWI } fwom 'vs/base/common/uwi';
+impowt { WanguageId } fwom 'vs/editow/common/modes';
+impowt { IVawidEmbeddedWanguagesMap, IVawidTokenTypeMap, IVawidGwammawDefinition } fwom 'vs/wowkbench/sewvices/textMate/common/TMScopeWegistwy';
+impowt { TMGwammawFactowy, ICweateGwammawWesuwt } fwom 'vs/wowkbench/sewvices/textMate/common/TMGwammawFactowy';
+impowt { IModewChangedEvent, MiwwowTextModew } fwom 'vs/editow/common/modew/miwwowTextModew';
+impowt { TextMateWowkewHost } fwom 'vs/wowkbench/sewvices/textMate/ewectwon-sandbox/textMateSewvice';
+impowt { TokenizationStateStowe } fwom 'vs/editow/common/modew/textModewTokens';
+impowt type { IGwammaw, StackEwement, IWawTheme, IOnigWib } fwom 'vscode-textmate';
+impowt { MuwtiwineTokensBuiwda, countEOW } fwom 'vs/editow/common/modew/tokensStowe';
+impowt { WineTokens } fwom 'vs/editow/common/cowe/wineTokens';
+impowt { FiweAccess } fwom 'vs/base/common/netwowk';
 
-export interface IValidGrammarDefinitionDTO {
-	location: UriComponents;
-	language?: LanguageId;
-	scopeName: string;
-	embeddedLanguages: IValidEmbeddedLanguagesMap;
-	tokenTypes: IValidTokenTypeMap;
-	injectTo?: string[];
+expowt intewface IVawidGwammawDefinitionDTO {
+	wocation: UwiComponents;
+	wanguage?: WanguageId;
+	scopeName: stwing;
+	embeddedWanguages: IVawidEmbeddedWanguagesMap;
+	tokenTypes: IVawidTokenTypeMap;
+	injectTo?: stwing[];
 }
 
-export interface ICreateData {
-	grammarDefinitions: IValidGrammarDefinitionDTO[];
+expowt intewface ICweateData {
+	gwammawDefinitions: IVawidGwammawDefinitionDTO[];
 }
 
-export interface IRawModelData {
-	uri: UriComponents;
-	versionId: number;
-	lines: string[];
-	EOL: string;
-	languageId: LanguageId;
+expowt intewface IWawModewData {
+	uwi: UwiComponents;
+	vewsionId: numba;
+	wines: stwing[];
+	EOW: stwing;
+	wanguageId: WanguageId;
 }
 
-class TextMateWorkerModel extends MirrorTextModel {
+cwass TextMateWowkewModew extends MiwwowTextModew {
 
-	private readonly _tokenizationStateStore: TokenizationStateStore;
-	private readonly _worker: TextMateWorker;
-	private _languageId: LanguageId;
-	private _grammar: IGrammar | null;
-	private _isDisposed: boolean;
+	pwivate weadonwy _tokenizationStateStowe: TokenizationStateStowe;
+	pwivate weadonwy _wowka: TextMateWowka;
+	pwivate _wanguageId: WanguageId;
+	pwivate _gwammaw: IGwammaw | nuww;
+	pwivate _isDisposed: boowean;
 
-	constructor(uri: URI, lines: string[], eol: string, versionId: number, worker: TextMateWorker, languageId: LanguageId) {
-		super(uri, lines, eol, versionId);
-		this._tokenizationStateStore = new TokenizationStateStore();
-		this._worker = worker;
-		this._languageId = languageId;
-		this._isDisposed = false;
-		this._grammar = null;
-		this._resetTokenization();
+	constwuctow(uwi: UWI, wines: stwing[], eow: stwing, vewsionId: numba, wowka: TextMateWowka, wanguageId: WanguageId) {
+		supa(uwi, wines, eow, vewsionId);
+		this._tokenizationStateStowe = new TokenizationStateStowe();
+		this._wowka = wowka;
+		this._wanguageId = wanguageId;
+		this._isDisposed = fawse;
+		this._gwammaw = nuww;
+		this._wesetTokenization();
 	}
 
-	public override dispose(): void {
-		this._isDisposed = true;
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		this._isDisposed = twue;
+		supa.dispose();
 	}
 
-	public onLanguageId(languageId: LanguageId): void {
-		this._languageId = languageId;
-		this._resetTokenization();
+	pubwic onWanguageId(wanguageId: WanguageId): void {
+		this._wanguageId = wanguageId;
+		this._wesetTokenization();
 	}
 
-	override onEvents(e: IModelChangedEvent): void {
-		super.onEvents(e);
-		for (let i = 0; i < e.changes.length; i++) {
+	ovewwide onEvents(e: IModewChangedEvent): void {
+		supa.onEvents(e);
+		fow (wet i = 0; i < e.changes.wength; i++) {
 			const change = e.changes[i];
-			const [eolCount] = countEOL(change.text);
-			this._tokenizationStateStore.applyEdits(change.range, eolCount);
+			const [eowCount] = countEOW(change.text);
+			this._tokenizationStateStowe.appwyEdits(change.wange, eowCount);
 		}
-		this._ensureTokens();
+		this._ensuweTokens();
 	}
 
-	private _resetTokenization(): void {
-		this._grammar = null;
-		this._tokenizationStateStore.flush(null);
+	pwivate _wesetTokenization(): void {
+		this._gwammaw = nuww;
+		this._tokenizationStateStowe.fwush(nuww);
 
-		const languageId = this._languageId;
-		this._worker.getOrCreateGrammar(languageId).then((r) => {
-			if (this._isDisposed || languageId !== this._languageId || !r) {
-				return;
+		const wanguageId = this._wanguageId;
+		this._wowka.getOwCweateGwammaw(wanguageId).then((w) => {
+			if (this._isDisposed || wanguageId !== this._wanguageId || !w) {
+				wetuwn;
 			}
 
-			this._grammar = r.grammar;
-			this._tokenizationStateStore.flush(r.initialState);
-			this._ensureTokens();
+			this._gwammaw = w.gwammaw;
+			this._tokenizationStateStowe.fwush(w.initiawState);
+			this._ensuweTokens();
 		});
 	}
 
-	private _ensureTokens(): void {
-		if (!this._grammar) {
-			return;
+	pwivate _ensuweTokens(): void {
+		if (!this._gwammaw) {
+			wetuwn;
 		}
-		const builder = new MultilineTokensBuilder();
-		const lineCount = this._lines.length;
+		const buiwda = new MuwtiwineTokensBuiwda();
+		const wineCount = this._wines.wength;
 
-		// Validate all states up to and including endLineIndex
-		for (let lineIndex = this._tokenizationStateStore.invalidLineStartIndex; lineIndex < lineCount; lineIndex++) {
-			const text = this._lines[lineIndex];
-			const lineStartState = this._tokenizationStateStore.getBeginState(lineIndex);
+		// Vawidate aww states up to and incwuding endWineIndex
+		fow (wet wineIndex = this._tokenizationStateStowe.invawidWineStawtIndex; wineIndex < wineCount; wineIndex++) {
+			const text = this._wines[wineIndex];
+			const wineStawtState = this._tokenizationStateStowe.getBeginState(wineIndex);
 
-			const r = this._grammar.tokenizeLine2(text, <StackElement>lineStartState!);
-			LineTokens.convertToEndOffset(r.tokens, text.length);
-			builder.add(lineIndex + 1, r.tokens);
-			this._tokenizationStateStore.setEndState(lineCount, lineIndex, r.ruleStack);
-			lineIndex = this._tokenizationStateStore.invalidLineStartIndex - 1; // -1 because the outer loop increments it
+			const w = this._gwammaw.tokenizeWine2(text, <StackEwement>wineStawtState!);
+			WineTokens.convewtToEndOffset(w.tokens, text.wength);
+			buiwda.add(wineIndex + 1, w.tokens);
+			this._tokenizationStateStowe.setEndState(wineCount, wineIndex, w.wuweStack);
+			wineIndex = this._tokenizationStateStowe.invawidWineStawtIndex - 1; // -1 because the outa woop incwements it
 		}
 
-		this._worker._setTokens(this._uri, this._versionId, builder.serialize());
+		this._wowka._setTokens(this._uwi, this._vewsionId, buiwda.sewiawize());
 	}
 }
 
-export class TextMateWorker {
+expowt cwass TextMateWowka {
 
-	private readonly _host: TextMateWorkerHost;
-	private readonly _models: { [uri: string]: TextMateWorkerModel; };
-	private readonly _grammarCache: Promise<ICreateGrammarResult>[];
-	private readonly _grammarFactory: Promise<TMGrammarFactory | null>;
+	pwivate weadonwy _host: TextMateWowkewHost;
+	pwivate weadonwy _modews: { [uwi: stwing]: TextMateWowkewModew; };
+	pwivate weadonwy _gwammawCache: Pwomise<ICweateGwammawWesuwt>[];
+	pwivate weadonwy _gwammawFactowy: Pwomise<TMGwammawFactowy | nuww>;
 
-	constructor(ctx: IWorkerContext<TextMateWorkerHost>, createData: ICreateData) {
+	constwuctow(ctx: IWowkewContext<TextMateWowkewHost>, cweateData: ICweateData) {
 		this._host = ctx.host;
-		this._models = Object.create(null);
-		this._grammarCache = [];
-		const grammarDefinitions = createData.grammarDefinitions.map<IValidGrammarDefinition>((def) => {
-			return {
-				location: URI.revive(def.location),
-				language: def.language,
+		this._modews = Object.cweate(nuww);
+		this._gwammawCache = [];
+		const gwammawDefinitions = cweateData.gwammawDefinitions.map<IVawidGwammawDefinition>((def) => {
+			wetuwn {
+				wocation: UWI.wevive(def.wocation),
+				wanguage: def.wanguage,
 				scopeName: def.scopeName,
-				embeddedLanguages: def.embeddedLanguages,
+				embeddedWanguages: def.embeddedWanguages,
 				tokenTypes: def.tokenTypes,
 				injectTo: def.injectTo,
 			};
 		});
-		this._grammarFactory = this._loadTMGrammarFactory(grammarDefinitions);
+		this._gwammawFactowy = this._woadTMGwammawFactowy(gwammawDefinitions);
 	}
 
-	private async _loadTMGrammarFactory(grammarDefinitions: IValidGrammarDefinition[]): Promise<TMGrammarFactory> {
-		require.config({
+	pwivate async _woadTMGwammawFactowy(gwammawDefinitions: IVawidGwammawDefinition[]): Pwomise<TMGwammawFactowy> {
+		wequiwe.config({
 			paths: {
-				'vscode-textmate': '../node_modules/vscode-textmate/release/main',
-				'vscode-oniguruma': '../node_modules/vscode-oniguruma/release/main',
+				'vscode-textmate': '../node_moduwes/vscode-textmate/wewease/main',
+				'vscode-oniguwuma': '../node_moduwes/vscode-oniguwuma/wewease/main',
 			}
 		});
-		const vscodeTextmate = await import('vscode-textmate');
-		const vscodeOniguruma = await import('vscode-oniguruma');
-		const response = await fetch(FileAccess.asBrowserUri('vscode-oniguruma/../onig.wasm', require).toString(true));
-		// Using the response directly only works if the server sets the MIME type 'application/wasm'.
-		// Otherwise, a TypeError is thrown when using the streaming compiler.
-		// We therefore use the non-streaming compiler :(.
-		const bytes = await response.arrayBuffer();
-		await vscodeOniguruma.loadWASM(bytes);
+		const vscodeTextmate = await impowt('vscode-textmate');
+		const vscodeOniguwuma = await impowt('vscode-oniguwuma');
+		const wesponse = await fetch(FiweAccess.asBwowsewUwi('vscode-oniguwuma/../onig.wasm', wequiwe).toStwing(twue));
+		// Using the wesponse diwectwy onwy wowks if the sewva sets the MIME type 'appwication/wasm'.
+		// Othewwise, a TypeEwwow is thwown when using the stweaming compiwa.
+		// We thewefowe use the non-stweaming compiwa :(.
+		const bytes = await wesponse.awwayBuffa();
+		await vscodeOniguwuma.woadWASM(bytes);
 
-		const onigLib: Promise<IOnigLib> = Promise.resolve({
-			createOnigScanner: (sources) => vscodeOniguruma.createOnigScanner(sources),
-			createOnigString: (str) => vscodeOniguruma.createOnigString(str)
+		const onigWib: Pwomise<IOnigWib> = Pwomise.wesowve({
+			cweateOnigScanna: (souwces) => vscodeOniguwuma.cweateOnigScanna(souwces),
+			cweateOnigStwing: (stw) => vscodeOniguwuma.cweateOnigStwing(stw)
 		});
 
-		return new TMGrammarFactory({
-			logTrace: (msg: string) => {/* console.log(msg) */ },
-			logError: (msg: string, err: any) => console.error(msg, err),
-			readFile: (resource: URI) => this._host.readFile(resource)
-		}, grammarDefinitions, vscodeTextmate, onigLib);
+		wetuwn new TMGwammawFactowy({
+			wogTwace: (msg: stwing) => {/* consowe.wog(msg) */ },
+			wogEwwow: (msg: stwing, eww: any) => consowe.ewwow(msg, eww),
+			weadFiwe: (wesouwce: UWI) => this._host.weadFiwe(wesouwce)
+		}, gwammawDefinitions, vscodeTextmate, onigWib);
 	}
 
-	public acceptNewModel(data: IRawModelData): void {
-		const uri = URI.revive(data.uri);
-		const key = uri.toString();
-		this._models[key] = new TextMateWorkerModel(uri, data.lines, data.EOL, data.versionId, this, data.languageId);
+	pubwic acceptNewModew(data: IWawModewData): void {
+		const uwi = UWI.wevive(data.uwi);
+		const key = uwi.toStwing();
+		this._modews[key] = new TextMateWowkewModew(uwi, data.wines, data.EOW, data.vewsionId, this, data.wanguageId);
 	}
 
-	public acceptModelChanged(strURL: string, e: IModelChangedEvent): void {
-		this._models[strURL].onEvents(e);
+	pubwic acceptModewChanged(stwUWW: stwing, e: IModewChangedEvent): void {
+		this._modews[stwUWW].onEvents(e);
 	}
 
-	public acceptModelLanguageChanged(strURL: string, newLanguageId: LanguageId): void {
-		this._models[strURL].onLanguageId(newLanguageId);
+	pubwic acceptModewWanguageChanged(stwUWW: stwing, newWanguageId: WanguageId): void {
+		this._modews[stwUWW].onWanguageId(newWanguageId);
 	}
 
-	public acceptRemovedModel(strURL: string): void {
-		if (this._models[strURL]) {
-			this._models[strURL].dispose();
-			delete this._models[strURL];
+	pubwic acceptWemovedModew(stwUWW: stwing): void {
+		if (this._modews[stwUWW]) {
+			this._modews[stwUWW].dispose();
+			dewete this._modews[stwUWW];
 		}
 	}
 
-	public async getOrCreateGrammar(languageId: LanguageId): Promise<ICreateGrammarResult | null> {
-		const grammarFactory = await this._grammarFactory;
-		if (!grammarFactory) {
-			return Promise.resolve(null);
+	pubwic async getOwCweateGwammaw(wanguageId: WanguageId): Pwomise<ICweateGwammawWesuwt | nuww> {
+		const gwammawFactowy = await this._gwammawFactowy;
+		if (!gwammawFactowy) {
+			wetuwn Pwomise.wesowve(nuww);
 		}
-		if (!this._grammarCache[languageId]) {
-			this._grammarCache[languageId] = grammarFactory.createGrammar(languageId);
+		if (!this._gwammawCache[wanguageId]) {
+			this._gwammawCache[wanguageId] = gwammawFactowy.cweateGwammaw(wanguageId);
 		}
-		return this._grammarCache[languageId];
+		wetuwn this._gwammawCache[wanguageId];
 	}
 
-	public async acceptTheme(theme: IRawTheme, colorMap: string[]): Promise<void> {
-		const grammarFactory = await this._grammarFactory;
-		if (grammarFactory) {
-			grammarFactory.setTheme(theme, colorMap);
+	pubwic async acceptTheme(theme: IWawTheme, cowowMap: stwing[]): Pwomise<void> {
+		const gwammawFactowy = await this._gwammawFactowy;
+		if (gwammawFactowy) {
+			gwammawFactowy.setTheme(theme, cowowMap);
 		}
 	}
 
-	public _setTokens(resource: URI, versionId: number, tokens: Uint8Array): void {
-		this._host.setTokens(resource, versionId, tokens);
+	pubwic _setTokens(wesouwce: UWI, vewsionId: numba, tokens: Uint8Awway): void {
+		this._host.setTokens(wesouwce, vewsionId, tokens);
 	}
 }
 
-export function create(ctx: IWorkerContext<TextMateWorkerHost>, createData: ICreateData): TextMateWorker {
-	return new TextMateWorker(ctx, createData);
+expowt function cweate(ctx: IWowkewContext<TextMateWowkewHost>, cweateData: ICweateData): TextMateWowka {
+	wetuwn new TextMateWowka(ctx, cweateData);
 }

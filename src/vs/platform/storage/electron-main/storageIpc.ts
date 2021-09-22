@@ -1,136 +1,136 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IBaseSerializableStorageRequest, ISerializableItemsChangeEvent, ISerializableUpdateRequest, Key, Value } from 'vs/platform/storage/common/storageIpc';
-import { IStorageChangeEvent, IStorageMain } from 'vs/platform/storage/electron-main/storageMain';
-import { IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, reviveIdentifier } from 'vs/platform/workspaces/common/workspaces';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ISewvewChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IBaseSewiawizabweStowageWequest, ISewiawizabweItemsChangeEvent, ISewiawizabweUpdateWequest, Key, Vawue } fwom 'vs/pwatfowm/stowage/common/stowageIpc';
+impowt { IStowageChangeEvent, IStowageMain } fwom 'vs/pwatfowm/stowage/ewectwon-main/stowageMain';
+impowt { IStowageMainSewvice } fwom 'vs/pwatfowm/stowage/ewectwon-main/stowageMainSewvice';
+impowt { IEmptyWowkspaceIdentifia, ISingweFowdewWowkspaceIdentifia, IWowkspaceIdentifia, weviveIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
 
-export class StorageDatabaseChannel extends Disposable implements IServerChannel {
+expowt cwass StowageDatabaseChannew extends Disposabwe impwements ISewvewChannew {
 
-	private static readonly STORAGE_CHANGE_DEBOUNCE_TIME = 100;
+	pwivate static weadonwy STOWAGE_CHANGE_DEBOUNCE_TIME = 100;
 
-	private readonly _onDidChangeGlobalStorage = this._register(new Emitter<ISerializableItemsChangeEvent>());
-	private readonly onDidChangeGlobalStorage = this._onDidChangeGlobalStorage.event;
+	pwivate weadonwy _onDidChangeGwobawStowage = this._wegista(new Emitta<ISewiawizabweItemsChangeEvent>());
+	pwivate weadonwy onDidChangeGwobawStowage = this._onDidChangeGwobawStowage.event;
 
-	constructor(
-		private logService: ILogService,
-		private storageMainService: IStorageMainService
+	constwuctow(
+		pwivate wogSewvice: IWogSewvice,
+		pwivate stowageMainSewvice: IStowageMainSewvice
 	) {
-		super();
+		supa();
 
-		this.registerGlobalStorageListeners();
+		this.wegistewGwobawStowageWistenews();
 	}
 
-	//#region Global Storage Change Events
+	//#wegion Gwobaw Stowage Change Events
 
-	private registerGlobalStorageListeners(): void {
+	pwivate wegistewGwobawStowageWistenews(): void {
 
-		// Listen for changes in global storage to send to listeners
-		// that are listening. Use a debouncer to reduce IPC traffic.
-		this._register(Event.debounce(this.storageMainService.globalStorage.onDidChangeStorage, (prev: IStorageChangeEvent[] | undefined, cur: IStorageChangeEvent) => {
-			if (!prev) {
-				prev = [cur];
-			} else {
-				prev.push(cur);
+		// Wisten fow changes in gwobaw stowage to send to wistenews
+		// that awe wistening. Use a debounca to weduce IPC twaffic.
+		this._wegista(Event.debounce(this.stowageMainSewvice.gwobawStowage.onDidChangeStowage, (pwev: IStowageChangeEvent[] | undefined, cuw: IStowageChangeEvent) => {
+			if (!pwev) {
+				pwev = [cuw];
+			} ewse {
+				pwev.push(cuw);
 			}
 
-			return prev;
-		}, StorageDatabaseChannel.STORAGE_CHANGE_DEBOUNCE_TIME)(events => {
-			if (events.length) {
-				this._onDidChangeGlobalStorage.fire(this.serializeGlobalStorageEvents(events));
+			wetuwn pwev;
+		}, StowageDatabaseChannew.STOWAGE_CHANGE_DEBOUNCE_TIME)(events => {
+			if (events.wength) {
+				this._onDidChangeGwobawStowage.fiwe(this.sewiawizeGwobawStowageEvents(events));
 			}
 		}));
 	}
 
-	private serializeGlobalStorageEvents(events: IStorageChangeEvent[]): ISerializableItemsChangeEvent {
-		const changed = new Map<Key, Value>();
-		const deleted = new Set<Key>();
-		events.forEach(event => {
-			const existing = this.storageMainService.globalStorage.get(event.key);
-			if (typeof existing === 'string') {
+	pwivate sewiawizeGwobawStowageEvents(events: IStowageChangeEvent[]): ISewiawizabweItemsChangeEvent {
+		const changed = new Map<Key, Vawue>();
+		const deweted = new Set<Key>();
+		events.fowEach(event => {
+			const existing = this.stowageMainSewvice.gwobawStowage.get(event.key);
+			if (typeof existing === 'stwing') {
 				changed.set(event.key, existing);
-			} else {
-				deleted.add(event.key);
+			} ewse {
+				deweted.add(event.key);
 			}
 		});
 
-		return {
-			changed: Array.from(changed.entries()),
-			deleted: Array.from(deleted.values())
+		wetuwn {
+			changed: Awway.fwom(changed.entwies()),
+			deweted: Awway.fwom(deweted.vawues())
 		};
 	}
 
-	listen(_: unknown, event: string): Event<any> {
+	wisten(_: unknown, event: stwing): Event<any> {
 		switch (event) {
-			case 'onDidChangeGlobalStorage': return this.onDidChangeGlobalStorage;
+			case 'onDidChangeGwobawStowage': wetuwn this.onDidChangeGwobawStowage;
 		}
 
-		throw new Error(`Event not found: ${event}`);
+		thwow new Ewwow(`Event not found: ${event}`);
 	}
 
-	//#endregion
+	//#endwegion
 
-	async call(_: unknown, command: string, arg: IBaseSerializableStorageRequest): Promise<any> {
-		const workspace = reviveIdentifier(arg.workspace);
+	async caww(_: unknown, command: stwing, awg: IBaseSewiawizabweStowageWequest): Pwomise<any> {
+		const wowkspace = weviveIdentifia(awg.wowkspace);
 
-		// Get storage to be ready
-		const storage = await this.withStorageInitialized(workspace);
+		// Get stowage to be weady
+		const stowage = await this.withStowageInitiawized(wowkspace);
 
-		// handle call
+		// handwe caww
 		switch (command) {
 			case 'getItems': {
-				return Array.from(storage.items.entries());
+				wetuwn Awway.fwom(stowage.items.entwies());
 			}
 
 			case 'updateItems': {
-				const items: ISerializableUpdateRequest = arg;
+				const items: ISewiawizabweUpdateWequest = awg;
 
-				if (items.insert) {
-					for (const [key, value] of items.insert) {
-						storage.set(key, value);
+				if (items.insewt) {
+					fow (const [key, vawue] of items.insewt) {
+						stowage.set(key, vawue);
 					}
 				}
 
-				if (items.delete) {
-					items.delete.forEach(key => storage.delete(key));
+				if (items.dewete) {
+					items.dewete.fowEach(key => stowage.dewete(key));
 				}
 
-				break;
+				bweak;
 			}
 
-			case 'close': {
+			case 'cwose': {
 
-				// We only allow to close workspace scoped storage because
-				// global storage is shared across all windows and closes
-				// only on shutdown.
-				if (workspace) {
-					return storage.close();
+				// We onwy awwow to cwose wowkspace scoped stowage because
+				// gwobaw stowage is shawed acwoss aww windows and cwoses
+				// onwy on shutdown.
+				if (wowkspace) {
+					wetuwn stowage.cwose();
 				}
 
-				break;
+				bweak;
 			}
 
-			default:
-				throw new Error(`Call not found: ${command}`);
+			defauwt:
+				thwow new Ewwow(`Caww not found: ${command}`);
 		}
 	}
 
-	private async withStorageInitialized(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): Promise<IStorageMain> {
-		const storage = workspace ? this.storageMainService.workspaceStorage(workspace) : this.storageMainService.globalStorage;
+	pwivate async withStowageInitiawized(wowkspace: IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia | IEmptyWowkspaceIdentifia | undefined): Pwomise<IStowageMain> {
+		const stowage = wowkspace ? this.stowageMainSewvice.wowkspaceStowage(wowkspace) : this.stowageMainSewvice.gwobawStowage;
 
-		try {
-			await storage.init();
-		} catch (error) {
-			this.logService.error(`StorageIPC#init: Unable to init ${workspace ? 'workspace' : 'global'} storage due to ${error}`);
+		twy {
+			await stowage.init();
+		} catch (ewwow) {
+			this.wogSewvice.ewwow(`StowageIPC#init: Unabwe to init ${wowkspace ? 'wowkspace' : 'gwobaw'} stowage due to ${ewwow}`);
 		}
 
-		return storage;
+		wetuwn stowage;
 	}
 }

@@ -1,42 +1,42 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-const path = require('path');
-const CopyPlugin = require('copy-webpack-plugin');
+const path = wequiwe('path');
+const CopyPwugin = wequiwe('copy-webpack-pwugin');
 
-module.exports = {
-	context: path.resolve(__dirname),
-	entry: {
-		index: './preview-src/index.ts',
+moduwe.expowts = {
+	context: path.wesowve(__diwname),
+	entwy: {
+		index: './pweview-swc/index.ts',
 	},
-	mode: 'production',
-	module: {
-		rules: [
+	mode: 'pwoduction',
+	moduwe: {
+		wuwes: [
 			{
 				test: /\.tsx?$/,
-				use: 'ts-loader',
-				exclude: /node_modules/
+				use: 'ts-woada',
+				excwude: /node_moduwes/
 			}
 		]
 	},
-	resolve: {
+	wesowve: {
 		extensions: ['.tsx', '.ts', '.js']
 	},
 	output: {
-		filename: '[name].js',
-		path: path.resolve(__dirname, 'media')
+		fiwename: '[name].js',
+		path: path.wesowve(__diwname, 'media')
 	},
-	plugins: [
-		// @ts-ignore
-		new CopyPlugin({
-			patterns: [
+	pwugins: [
+		// @ts-ignowe
+		new CopyPwugin({
+			pattewns: [
 				{
-					from: './node_modules/vscode-codicons/dist/codicon.css',
+					fwom: './node_moduwes/vscode-codicons/dist/codicon.css',
 					to: 'codicon.css'
 				},
 				{
-					from: './node_modules/vscode-codicons/dist/codicon.ttf',
+					fwom: './node_moduwes/vscode-codicons/dist/codicon.ttf',
 					to: 'codicon.ttf'
 				},
 			],

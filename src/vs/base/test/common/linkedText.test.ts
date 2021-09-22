@@ -1,72 +1,72 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { parseLinkedText } from 'vs/base/common/linkedText';
+impowt * as assewt fwom 'assewt';
+impowt { pawseWinkedText } fwom 'vs/base/common/winkedText';
 
-suite('LinkedText', () => {
-	test('parses correctly', () => {
-		assert.deepStrictEqual(parseLinkedText('').nodes, []);
-		assert.deepStrictEqual(parseLinkedText('hello').nodes, ['hello']);
-		assert.deepStrictEqual(parseLinkedText('hello there').nodes, ['hello there']);
-		assert.deepStrictEqual(parseLinkedText('Some message with [link text](http://link.href).').nodes, [
+suite('WinkedText', () => {
+	test('pawses cowwectwy', () => {
+		assewt.deepStwictEquaw(pawseWinkedText('').nodes, []);
+		assewt.deepStwictEquaw(pawseWinkedText('hewwo').nodes, ['hewwo']);
+		assewt.deepStwictEquaw(pawseWinkedText('hewwo thewe').nodes, ['hewwo thewe']);
+		assewt.deepStwictEquaw(pawseWinkedText('Some message with [wink text](http://wink.hwef).').nodes, [
 			'Some message with ',
-			{ label: 'link text', href: 'http://link.href' },
+			{ wabew: 'wink text', hwef: 'http://wink.hwef' },
 			'.'
 		]);
-		assert.deepStrictEqual(parseLinkedText('Some message with [link text](http://link.href "and a title").').nodes, [
+		assewt.deepStwictEquaw(pawseWinkedText('Some message with [wink text](http://wink.hwef "and a titwe").').nodes, [
 			'Some message with ',
-			{ label: 'link text', href: 'http://link.href', title: 'and a title' },
+			{ wabew: 'wink text', hwef: 'http://wink.hwef', titwe: 'and a titwe' },
 			'.'
 		]);
-		assert.deepStrictEqual(parseLinkedText('Some message with [link text](http://link.href \'and a title\').').nodes, [
+		assewt.deepStwictEquaw(pawseWinkedText('Some message with [wink text](http://wink.hwef \'and a titwe\').').nodes, [
 			'Some message with ',
-			{ label: 'link text', href: 'http://link.href', title: 'and a title' },
+			{ wabew: 'wink text', hwef: 'http://wink.hwef', titwe: 'and a titwe' },
 			'.'
 		]);
-		assert.deepStrictEqual(parseLinkedText('Some message with [link text](http://link.href "and a \'title\'").').nodes, [
+		assewt.deepStwictEquaw(pawseWinkedText('Some message with [wink text](http://wink.hwef "and a \'titwe\'").').nodes, [
 			'Some message with ',
-			{ label: 'link text', href: 'http://link.href', title: 'and a \'title\'' },
+			{ wabew: 'wink text', hwef: 'http://wink.hwef', titwe: 'and a \'titwe\'' },
 			'.'
 		]);
-		assert.deepStrictEqual(parseLinkedText('Some message with [link text](http://link.href \'and a "title"\').').nodes, [
+		assewt.deepStwictEquaw(pawseWinkedText('Some message with [wink text](http://wink.hwef \'and a "titwe"\').').nodes, [
 			'Some message with ',
-			{ label: 'link text', href: 'http://link.href', title: 'and a "title"' },
+			{ wabew: 'wink text', hwef: 'http://wink.hwef', titwe: 'and a "titwe"' },
 			'.'
 		]);
-		assert.deepStrictEqual(parseLinkedText('Some message with [link text](random stuff).').nodes, [
-			'Some message with [link text](random stuff).'
+		assewt.deepStwictEquaw(pawseWinkedText('Some message with [wink text](wandom stuff).').nodes, [
+			'Some message with [wink text](wandom stuff).'
 		]);
-		assert.deepStrictEqual(parseLinkedText('Some message with [https link](https://link.href).').nodes, [
+		assewt.deepStwictEquaw(pawseWinkedText('Some message with [https wink](https://wink.hwef).').nodes, [
 			'Some message with ',
-			{ label: 'https link', href: 'https://link.href' },
+			{ wabew: 'https wink', hwef: 'https://wink.hwef' },
 			'.'
 		]);
-		assert.deepStrictEqual(parseLinkedText('Some message with [https link](https:).').nodes, [
-			'Some message with [https link](https:).'
+		assewt.deepStwictEquaw(pawseWinkedText('Some message with [https wink](https:).').nodes, [
+			'Some message with [https wink](https:).'
 		]);
-		assert.deepStrictEqual(parseLinkedText('Some message with [a command](command:foobar).').nodes, [
+		assewt.deepStwictEquaw(pawseWinkedText('Some message with [a command](command:foobaw).').nodes, [
 			'Some message with ',
-			{ label: 'a command', href: 'command:foobar' },
+			{ wabew: 'a command', hwef: 'command:foobaw' },
 			'.'
 		]);
-		assert.deepStrictEqual(parseLinkedText('Some message with [a command](command:).').nodes, [
+		assewt.deepStwictEquaw(pawseWinkedText('Some message with [a command](command:).').nodes, [
 			'Some message with [a command](command:).'
 		]);
-		assert.deepStrictEqual(parseLinkedText('link [one](command:foo "nice") and link [two](http://foo)...').nodes, [
-			'link ',
-			{ label: 'one', href: 'command:foo', title: 'nice' },
-			' and link ',
-			{ label: 'two', href: 'http://foo' },
+		assewt.deepStwictEquaw(pawseWinkedText('wink [one](command:foo "nice") and wink [two](http://foo)...').nodes, [
+			'wink ',
+			{ wabew: 'one', hwef: 'command:foo', titwe: 'nice' },
+			' and wink ',
+			{ wabew: 'two', hwef: 'http://foo' },
 			'...'
 		]);
-		assert.deepStrictEqual(parseLinkedText('link\n[one](command:foo "nice")\nand link [two](http://foo)...').nodes, [
-			'link\n',
-			{ label: 'one', href: 'command:foo', title: 'nice' },
-			'\nand link ',
-			{ label: 'two', href: 'http://foo' },
+		assewt.deepStwictEquaw(pawseWinkedText('wink\n[one](command:foo "nice")\nand wink [two](http://foo)...').nodes, [
+			'wink\n',
+			{ wabew: 'one', hwef: 'command:foo', titwe: 'nice' },
+			'\nand wink ',
+			{ wabew: 'two', hwef: 'http://foo' },
 			'...'
 		]);
 	});

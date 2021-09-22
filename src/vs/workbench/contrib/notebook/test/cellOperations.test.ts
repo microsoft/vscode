@@ -1,547 +1,547 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
-import { changeCellToKind, computeCellLinesContents, copyCellRange, joinNotebookCells, moveCellRange, moveCellToIdx, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
-import { CellEditType, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
-import { Range } from 'vs/editor/common/core/range';
-import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
+impowt * as assewt fwom 'assewt';
+impowt { FowdingModew, updateFowdingStateAtIndex } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwib/fowd/fowdingModew';
+impowt { changeCewwToKind, computeCewwWinesContents, copyCewwWange, joinNotebookCewws, moveCewwWange, moveCewwToIdx, wunDeweteAction } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwowwa/cewwOpewations';
+impowt { CewwEditType, CewwKind, SewectionStateType } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { withTestNotebook } fwom 'vs/wowkbench/contwib/notebook/test/testNotebookEditow';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { WesouwceTextEdit } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
+impowt { WesouwceNotebookCewwEdit } fwom 'vs/wowkbench/contwib/buwkEdit/bwowsa/buwkCewwEdits';
 
-suite('CellOperations', () => {
-	test('move cells down', async function () {
+suite('CewwOpewations', () => {
+	test('move cewws down', async function () {
 		await withTestNotebook(
 			[
-				['//a', 'javascript', CellKind.Code, [], {}],
-				['//b', 'javascript', CellKind.Code, [], {}],
-				['//c', 'javascript', CellKind.Code, [], {}],
+				['//a', 'javascwipt', CewwKind.Code, [], {}],
+				['//b', 'javascwipt', CewwKind.Code, [], {}],
+				['//c', 'javascwipt', CewwKind.Code, [], {}],
 			],
-			(editor, viewModel) => {
-				moveCellToIdx(editor, 0, 1, 0, true);
+			(editow, viewModew) => {
+				moveCewwToIdx(editow, 0, 1, 0, twue);
 				// no-op
-				assert.strictEqual(viewModel.cellAt(0)?.getText(), '//a');
-				assert.strictEqual(viewModel.cellAt(1)?.getText(), '//b');
+				assewt.stwictEquaw(viewModew.cewwAt(0)?.getText(), '//a');
+				assewt.stwictEquaw(viewModew.cewwAt(1)?.getText(), '//b');
 
-				moveCellToIdx(editor, 0, 1, 1, true);
+				moveCewwToIdx(editow, 0, 1, 1, twue);
 				// b, a, c
-				assert.strictEqual(viewModel.cellAt(0)?.getText(), '//b');
-				assert.strictEqual(viewModel.cellAt(1)?.getText(), '//a');
-				assert.strictEqual(viewModel.cellAt(2)?.getText(), '//c');
+				assewt.stwictEquaw(viewModew.cewwAt(0)?.getText(), '//b');
+				assewt.stwictEquaw(viewModew.cewwAt(1)?.getText(), '//a');
+				assewt.stwictEquaw(viewModew.cewwAt(2)?.getText(), '//c');
 
-				moveCellToIdx(editor, 0, 1, 2, true);
+				moveCewwToIdx(editow, 0, 1, 2, twue);
 				// a, c, b
-				assert.strictEqual(viewModel.cellAt(0)?.getText(), '//a');
-				assert.strictEqual(viewModel.cellAt(1)?.getText(), '//c');
-				assert.strictEqual(viewModel.cellAt(2)?.getText(), '//b');
+				assewt.stwictEquaw(viewModew.cewwAt(0)?.getText(), '//a');
+				assewt.stwictEquaw(viewModew.cewwAt(1)?.getText(), '//c');
+				assewt.stwictEquaw(viewModew.cewwAt(2)?.getText(), '//b');
 			}
 		);
 	});
 
-	test('move cells up', async function () {
+	test('move cewws up', async function () {
 		await withTestNotebook(
 			[
-				['//a', 'javascript', CellKind.Code, [], {}],
-				['//b', 'javascript', CellKind.Code, [], {}],
-				['//c', 'javascript', CellKind.Code, [], {}],
+				['//a', 'javascwipt', CewwKind.Code, [], {}],
+				['//b', 'javascwipt', CewwKind.Code, [], {}],
+				['//c', 'javascwipt', CewwKind.Code, [], {}],
 			],
-			(editor, viewModel) => {
-				moveCellToIdx(editor, 1, 1, 0, true);
+			(editow, viewModew) => {
+				moveCewwToIdx(editow, 1, 1, 0, twue);
 				// b, a, c
-				assert.strictEqual(viewModel.cellAt(0)?.getText(), '//b');
-				assert.strictEqual(viewModel.cellAt(1)?.getText(), '//a');
+				assewt.stwictEquaw(viewModew.cewwAt(0)?.getText(), '//b');
+				assewt.stwictEquaw(viewModew.cewwAt(1)?.getText(), '//a');
 
-				moveCellToIdx(editor, 2, 1, 0, true);
+				moveCewwToIdx(editow, 2, 1, 0, twue);
 				// c, b, a
-				assert.strictEqual(viewModel.cellAt(0)?.getText(), '//c');
-				assert.strictEqual(viewModel.cellAt(1)?.getText(), '//b');
-				assert.strictEqual(viewModel.cellAt(2)?.getText(), '//a');
+				assewt.stwictEquaw(viewModew.cewwAt(0)?.getText(), '//c');
+				assewt.stwictEquaw(viewModew.cewwAt(1)?.getText(), '//b');
+				assewt.stwictEquaw(viewModew.cewwAt(2)?.getText(), '//a');
 			}
 		);
 	});
 
-	test('Move cells - single cell', async function () {
+	test('Move cewws - singwe ceww', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markup, [], {}],
-				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markup, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}]
+				['# heada a', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada b', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}]
 			],
-			async (editor, viewModel) => {
-				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 1, end: 2 }] });
-				await moveCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1)! }, 'down');
-				assert.strictEqual(viewModel.cellAt(2)?.getText(), 'var b = 1;');
+			async (editow, viewModew) => {
+				viewModew.updateSewectionsState({ kind: SewectionStateType.Index, focus: { stawt: 1, end: 2 }, sewections: [{ stawt: 1, end: 2 }] });
+				await moveCewwWange({ notebookEditow: editow, ceww: viewModew.cewwAt(1)! }, 'down');
+				assewt.stwictEquaw(viewModew.cewwAt(2)?.getText(), 'vaw b = 1;');
 			});
 	});
 
-	test('Move cells - multiple cells in a selection', async function () {
+	test('Move cewws - muwtipwe cewws in a sewection', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markup, [], {}],
-				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markup, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}]
+				['# heada a', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada b', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}]
 			],
-			async (editor, viewModel) => {
-				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 0, end: 2 }] });
-				await moveCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1)! }, 'down');
-				assert.strictEqual(viewModel.cellAt(0)?.getText(), '# header b');
-				assert.strictEqual(viewModel.cellAt(1)?.getText(), '# header a');
-				assert.strictEqual(viewModel.cellAt(2)?.getText(), 'var b = 1;');
+			async (editow, viewModew) => {
+				viewModew.updateSewectionsState({ kind: SewectionStateType.Index, focus: { stawt: 1, end: 2 }, sewections: [{ stawt: 0, end: 2 }] });
+				await moveCewwWange({ notebookEditow: editow, ceww: viewModew.cewwAt(1)! }, 'down');
+				assewt.stwictEquaw(viewModew.cewwAt(0)?.getText(), '# heada b');
+				assewt.stwictEquaw(viewModew.cewwAt(1)?.getText(), '# heada a');
+				assewt.stwictEquaw(viewModew.cewwAt(2)?.getText(), 'vaw b = 1;');
 			});
 	});
 
-	test('Move cells - move with folding ranges', async function () {
+	test('Move cewws - move with fowding wanges', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markup, [], {}],
-				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markup, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}]
+				['# heada a', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada b', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}]
 			],
-			async (editor, viewModel) => {
-				const foldingModel = new FoldingModel();
-				foldingModel.attachViewModel(viewModel);
-				updateFoldingStateAtIndex(foldingModel, 0, true);
-				updateFoldingStateAtIndex(foldingModel, 1, true);
-				viewModel.updateFoldingRanges(foldingModel.regions);
-				editor.setHiddenAreas([{ start: 1, end: 2 }]);
-				editor.setHiddenAreas(viewModel.getHiddenRanges());
+			async (editow, viewModew) => {
+				const fowdingModew = new FowdingModew();
+				fowdingModew.attachViewModew(viewModew);
+				updateFowdingStateAtIndex(fowdingModew, 0, twue);
+				updateFowdingStateAtIndex(fowdingModew, 1, twue);
+				viewModew.updateFowdingWanges(fowdingModew.wegions);
+				editow.setHiddenAweas([{ stawt: 1, end: 2 }]);
+				editow.setHiddenAweas(viewModew.getHiddenWanges());
 
-				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] });
-				await moveCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1)! }, 'down');
-				assert.strictEqual(viewModel.cellAt(0)?.getText(), '# header b');
-				assert.strictEqual(viewModel.cellAt(1)?.getText(), '# header a');
-				assert.strictEqual(viewModel.cellAt(2)?.getText(), 'var b = 1;');
+				viewModew.updateSewectionsState({ kind: SewectionStateType.Index, focus: { stawt: 0, end: 1 }, sewections: [{ stawt: 0, end: 1 }] });
+				await moveCewwWange({ notebookEditow: editow, ceww: viewModew.cewwAt(1)! }, 'down');
+				assewt.stwictEquaw(viewModew.cewwAt(0)?.getText(), '# heada b');
+				assewt.stwictEquaw(viewModew.cewwAt(1)?.getText(), '# heada a');
+				assewt.stwictEquaw(viewModew.cewwAt(2)?.getText(), 'vaw b = 1;');
 			});
 	});
 
 
-	test('Copy/duplicate cells - single cell', async function () {
+	test('Copy/dupwicate cewws - singwe ceww', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markup, [], {}],
-				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markup, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}]
+				['# heada a', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada b', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}]
 			],
-			async (editor, viewModel) => {
-				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 1, end: 2 }] });
-				await copyCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1)! }, 'down');
-				assert.strictEqual(viewModel.length, 6);
-				assert.strictEqual(viewModel.cellAt(1)?.getText(), 'var b = 1;');
-				assert.strictEqual(viewModel.cellAt(2)?.getText(), 'var b = 1;');
+			async (editow, viewModew) => {
+				viewModew.updateSewectionsState({ kind: SewectionStateType.Index, focus: { stawt: 1, end: 2 }, sewections: [{ stawt: 1, end: 2 }] });
+				await copyCewwWange({ notebookEditow: editow, ceww: viewModew.cewwAt(1)! }, 'down');
+				assewt.stwictEquaw(viewModew.wength, 6);
+				assewt.stwictEquaw(viewModew.cewwAt(1)?.getText(), 'vaw b = 1;');
+				assewt.stwictEquaw(viewModew.cewwAt(2)?.getText(), 'vaw b = 1;');
 			});
 	});
 
-	test('Copy/duplicate cells - target and selection are different, #119769', async function () {
+	test('Copy/dupwicate cewws - tawget and sewection awe diffewent, #119769', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markup, [], {}],
-				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markup, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}]
+				['# heada a', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada b', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}]
 			],
-			async (editor, viewModel) => {
-				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] });
-				await copyCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1)!, ui: true }, 'down');
-				assert.strictEqual(viewModel.length, 6);
-				assert.strictEqual(viewModel.cellAt(1)?.getText(), 'var b = 1;');
-				assert.strictEqual(viewModel.cellAt(2)?.getText(), 'var b = 1;');
+			async (editow, viewModew) => {
+				viewModew.updateSewectionsState({ kind: SewectionStateType.Index, focus: { stawt: 0, end: 1 }, sewections: [{ stawt: 0, end: 1 }] });
+				await copyCewwWange({ notebookEditow: editow, ceww: viewModew.cewwAt(1)!, ui: twue }, 'down');
+				assewt.stwictEquaw(viewModew.wength, 6);
+				assewt.stwictEquaw(viewModew.cewwAt(1)?.getText(), 'vaw b = 1;');
+				assewt.stwictEquaw(viewModew.cewwAt(2)?.getText(), 'vaw b = 1;');
 			});
 	});
 
-	test('Copy/duplicate cells - multiple cells in a selection', async function () {
+	test('Copy/dupwicate cewws - muwtipwe cewws in a sewection', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markup, [], {}],
-				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markup, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}]
+				['# heada a', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada b', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}]
 			],
-			async (editor, viewModel) => {
-				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 0, end: 2 }] });
-				await copyCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1)! }, 'down');
-				assert.strictEqual(viewModel.length, 7);
-				assert.strictEqual(viewModel.cellAt(0)?.getText(), '# header a');
-				assert.strictEqual(viewModel.cellAt(1)?.getText(), 'var b = 1;');
-				assert.strictEqual(viewModel.cellAt(2)?.getText(), '# header a');
-				assert.strictEqual(viewModel.cellAt(3)?.getText(), 'var b = 1;');
+			async (editow, viewModew) => {
+				viewModew.updateSewectionsState({ kind: SewectionStateType.Index, focus: { stawt: 1, end: 2 }, sewections: [{ stawt: 0, end: 2 }] });
+				await copyCewwWange({ notebookEditow: editow, ceww: viewModew.cewwAt(1)! }, 'down');
+				assewt.stwictEquaw(viewModew.wength, 7);
+				assewt.stwictEquaw(viewModew.cewwAt(0)?.getText(), '# heada a');
+				assewt.stwictEquaw(viewModew.cewwAt(1)?.getText(), 'vaw b = 1;');
+				assewt.stwictEquaw(viewModew.cewwAt(2)?.getText(), '# heada a');
+				assewt.stwictEquaw(viewModew.cewwAt(3)?.getText(), 'vaw b = 1;');
 			});
 	});
 
-	test('Copy/duplicate cells - move with folding ranges', async function () {
+	test('Copy/dupwicate cewws - move with fowding wanges', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markup, [], {}],
-				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markup, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}]
+				['# heada a', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada b', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}]
 			],
-			async (editor, viewModel) => {
-				const foldingModel = new FoldingModel();
-				foldingModel.attachViewModel(viewModel);
-				updateFoldingStateAtIndex(foldingModel, 0, true);
-				updateFoldingStateAtIndex(foldingModel, 1, true);
-				viewModel.updateFoldingRanges(foldingModel.regions);
-				editor.setHiddenAreas([{ start: 1, end: 2 }]);
-				editor.setHiddenAreas(viewModel.getHiddenRanges());
+			async (editow, viewModew) => {
+				const fowdingModew = new FowdingModew();
+				fowdingModew.attachViewModew(viewModew);
+				updateFowdingStateAtIndex(fowdingModew, 0, twue);
+				updateFowdingStateAtIndex(fowdingModew, 1, twue);
+				viewModew.updateFowdingWanges(fowdingModew.wegions);
+				editow.setHiddenAweas([{ stawt: 1, end: 2 }]);
+				editow.setHiddenAweas(viewModew.getHiddenWanges());
 
-				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] });
-				await copyCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1)! }, 'down');
-				assert.strictEqual(viewModel.length, 7);
-				assert.strictEqual(viewModel.cellAt(0)?.getText(), '# header a');
-				assert.strictEqual(viewModel.cellAt(1)?.getText(), 'var b = 1;');
-				assert.strictEqual(viewModel.cellAt(2)?.getText(), '# header a');
-				assert.strictEqual(viewModel.cellAt(3)?.getText(), 'var b = 1;');
+				viewModew.updateSewectionsState({ kind: SewectionStateType.Index, focus: { stawt: 0, end: 1 }, sewections: [{ stawt: 0, end: 1 }] });
+				await copyCewwWange({ notebookEditow: editow, ceww: viewModew.cewwAt(1)! }, 'down');
+				assewt.stwictEquaw(viewModew.wength, 7);
+				assewt.stwictEquaw(viewModew.cewwAt(0)?.getText(), '# heada a');
+				assewt.stwictEquaw(viewModew.cewwAt(1)?.getText(), 'vaw b = 1;');
+				assewt.stwictEquaw(viewModew.cewwAt(2)?.getText(), '# heada a');
+				assewt.stwictEquaw(viewModew.cewwAt(3)?.getText(), 'vaw b = 1;');
 			});
 	});
 
-	test('Join cell with below - single cell', async function () {
+	test('Join ceww with bewow - singwe ceww', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markup, [], {}],
-				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markup, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}]
+				['# heada a', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada b', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}]
 			],
-			async (editor, viewModel, accessor) => {
-				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 3, end: 4 }, selections: [{ start: 3, end: 4 }] });
-				const ret = await joinNotebookCells(editor, { start: 3, end: 4 }, 'below');
-				assert.strictEqual(ret?.edits.length, 2);
-				assert.deepStrictEqual(ret?.edits[0], new ResourceTextEdit(viewModel.cellAt(3)!.uri, {
-					range: new Range(1, 11, 1, 11), text: viewModel.cellAt(4)!.textBuffer.getEOL() + 'var c = 3;'
+			async (editow, viewModew, accessow) => {
+				viewModew.updateSewectionsState({ kind: SewectionStateType.Index, focus: { stawt: 3, end: 4 }, sewections: [{ stawt: 3, end: 4 }] });
+				const wet = await joinNotebookCewws(editow, { stawt: 3, end: 4 }, 'bewow');
+				assewt.stwictEquaw(wet?.edits.wength, 2);
+				assewt.deepStwictEquaw(wet?.edits[0], new WesouwceTextEdit(viewModew.cewwAt(3)!.uwi, {
+					wange: new Wange(1, 11, 1, 11), text: viewModew.cewwAt(4)!.textBuffa.getEOW() + 'vaw c = 3;'
 				}));
-				assert.deepStrictEqual(ret?.edits[1], new ResourceNotebookCellEdit(editor.textModel.uri,
+				assewt.deepStwictEquaw(wet?.edits[1], new WesouwceNotebookCewwEdit(editow.textModew.uwi,
 					{
-						editType: CellEditType.Replace,
+						editType: CewwEditType.Wepwace,
 						index: 4,
 						count: 1,
-						cells: []
+						cewws: []
 					}
 				));
 			});
 	});
 
-	test('Join cell with above - single cell', async function () {
+	test('Join ceww with above - singwe ceww', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markup, [], {}],
-				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markup, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}]
+				['# heada a', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada b', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}]
 			],
-			async (editor, viewModel, accessor) => {
-				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 3, end: 4 }, selections: [{ start: 3, end: 4 }] });
-				const ret = await joinNotebookCells(editor, { start: 4, end: 5 }, 'above');
-				assert.strictEqual(ret?.edits.length, 2);
-				assert.deepStrictEqual(ret?.edits[0], new ResourceTextEdit(viewModel.cellAt(3)!.uri, {
-					range: new Range(1, 11, 1, 11), text: viewModel.cellAt(4)!.textBuffer.getEOL() + 'var c = 3;'
+			async (editow, viewModew, accessow) => {
+				viewModew.updateSewectionsState({ kind: SewectionStateType.Index, focus: { stawt: 3, end: 4 }, sewections: [{ stawt: 3, end: 4 }] });
+				const wet = await joinNotebookCewws(editow, { stawt: 4, end: 5 }, 'above');
+				assewt.stwictEquaw(wet?.edits.wength, 2);
+				assewt.deepStwictEquaw(wet?.edits[0], new WesouwceTextEdit(viewModew.cewwAt(3)!.uwi, {
+					wange: new Wange(1, 11, 1, 11), text: viewModew.cewwAt(4)!.textBuffa.getEOW() + 'vaw c = 3;'
 				}));
-				assert.deepStrictEqual(ret?.edits[1], new ResourceNotebookCellEdit(editor.textModel.uri,
+				assewt.deepStwictEquaw(wet?.edits[1], new WesouwceNotebookCewwEdit(editow.textModew.uwi,
 					{
-						editType: CellEditType.Replace,
+						editType: CewwEditType.Wepwace,
 						index: 4,
 						count: 1,
-						cells: []
+						cewws: []
 					}
 				));
 			});
 	});
 
-	test('Join cell with below - multiple cells', async function () {
+	test('Join ceww with bewow - muwtipwe cewws', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}]
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}]
 			],
-			async (editor, viewModel, accessor) => {
-				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 0, end: 2 }] });
-				const ret = await joinNotebookCells(editor, { start: 0, end: 2 }, 'below');
-				assert.strictEqual(ret?.edits.length, 2);
-				assert.deepStrictEqual(ret?.edits[0], new ResourceTextEdit(viewModel.cellAt(0)!.uri, {
-					range: new Range(1, 11, 1, 11), text: viewModel.cellAt(1)!.textBuffer.getEOL() + 'var b = 2;' + viewModel.cellAt(2)!.textBuffer.getEOL() + 'var c = 3;'
+			async (editow, viewModew, accessow) => {
+				viewModew.updateSewectionsState({ kind: SewectionStateType.Index, focus: { stawt: 1, end: 2 }, sewections: [{ stawt: 0, end: 2 }] });
+				const wet = await joinNotebookCewws(editow, { stawt: 0, end: 2 }, 'bewow');
+				assewt.stwictEquaw(wet?.edits.wength, 2);
+				assewt.deepStwictEquaw(wet?.edits[0], new WesouwceTextEdit(viewModew.cewwAt(0)!.uwi, {
+					wange: new Wange(1, 11, 1, 11), text: viewModew.cewwAt(1)!.textBuffa.getEOW() + 'vaw b = 2;' + viewModew.cewwAt(2)!.textBuffa.getEOW() + 'vaw c = 3;'
 				}));
-				assert.deepStrictEqual(ret?.edits[1], new ResourceNotebookCellEdit(editor.textModel.uri,
+				assewt.deepStwictEquaw(wet?.edits[1], new WesouwceNotebookCewwEdit(editow.textModew.uwi,
 					{
-						editType: CellEditType.Replace,
+						editType: CewwEditType.Wepwace,
 						index: 1,
 						count: 2,
-						cells: []
+						cewws: []
 					}
 				));
 			});
 	});
 
-	test('Join cell with above - multiple cells', async function () {
+	test('Join ceww with above - muwtipwe cewws', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}]
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}]
 			],
-			async (editor, viewModel, accessor) => {
-				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 2, end: 3 }, selections: [{ start: 1, end: 3 }] });
-				const ret = await joinNotebookCells(editor, { start: 1, end: 3 }, 'above');
-				assert.strictEqual(ret?.edits.length, 2);
-				assert.deepStrictEqual(ret?.edits[0], new ResourceTextEdit(viewModel.cellAt(0)!.uri, {
-					range: new Range(1, 11, 1, 11), text: viewModel.cellAt(1)!.textBuffer.getEOL() + 'var b = 2;' + viewModel.cellAt(2)!.textBuffer.getEOL() + 'var c = 3;'
+			async (editow, viewModew, accessow) => {
+				viewModew.updateSewectionsState({ kind: SewectionStateType.Index, focus: { stawt: 2, end: 3 }, sewections: [{ stawt: 1, end: 3 }] });
+				const wet = await joinNotebookCewws(editow, { stawt: 1, end: 3 }, 'above');
+				assewt.stwictEquaw(wet?.edits.wength, 2);
+				assewt.deepStwictEquaw(wet?.edits[0], new WesouwceTextEdit(viewModew.cewwAt(0)!.uwi, {
+					wange: new Wange(1, 11, 1, 11), text: viewModew.cewwAt(1)!.textBuffa.getEOW() + 'vaw b = 2;' + viewModew.cewwAt(2)!.textBuffa.getEOW() + 'vaw c = 3;'
 				}));
-				assert.deepStrictEqual(ret?.edits[1], new ResourceNotebookCellEdit(editor.textModel.uri,
+				assewt.deepStwictEquaw(wet?.edits[1], new WesouwceNotebookCewwEdit(editow.textModew.uwi,
 					{
-						editType: CellEditType.Replace,
+						editType: CewwEditType.Wepwace,
 						index: 1,
 						count: 2,
-						cells: []
+						cewws: []
 					}
 				));
 			});
 	});
 
-	test('Delete focus cell', async function () {
+	test('Dewete focus ceww', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}]
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}]
 			],
-			async (editor, viewModel) => {
-				editor.setFocus({ start: 0, end: 1 });
-				editor.setSelections([{ start: 0, end: 1 }]);
-				runDeleteAction(editor, viewModel.cellAt(0)!);
-				assert.strictEqual(viewModel.length, 2);
+			async (editow, viewModew) => {
+				editow.setFocus({ stawt: 0, end: 1 });
+				editow.setSewections([{ stawt: 0, end: 1 }]);
+				wunDeweteAction(editow, viewModew.cewwAt(0)!);
+				assewt.stwictEquaw(viewModew.wength, 2);
 			});
 	});
 
-	test('Delete selected cells', async function () {
+	test('Dewete sewected cewws', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}]
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}]
 			],
-			async (editor, viewModel) => {
-				editor.setFocus({ start: 0, end: 1 });
-				editor.setSelections([{ start: 0, end: 2 }]);
-				runDeleteAction(editor, viewModel.cellAt(0)!);
-				assert.strictEqual(viewModel.length, 1);
+			async (editow, viewModew) => {
+				editow.setFocus({ stawt: 0, end: 1 });
+				editow.setSewections([{ stawt: 0, end: 2 }]);
+				wunDeweteAction(editow, viewModew.cewwAt(0)!);
+				assewt.stwictEquaw(viewModew.wength, 1);
 			});
 	});
 
-	test('Delete focus cell out of a selection', async function () {
+	test('Dewete focus ceww out of a sewection', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}],
-				['var d = 4;', 'javascript', CellKind.Code, [], {}],
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw d = 4;', 'javascwipt', CewwKind.Code, [], {}],
 			],
-			async (editor, viewModel) => {
-				editor.setFocus({ start: 0, end: 1 });
-				editor.setSelections([{ start: 2, end: 4 }]);
-				runDeleteAction(editor, viewModel.cellAt(0)!);
-				assert.strictEqual(viewModel.length, 3);
+			async (editow, viewModew) => {
+				editow.setFocus({ stawt: 0, end: 1 });
+				editow.setSewections([{ stawt: 2, end: 4 }]);
+				wunDeweteAction(editow, viewModew.cewwAt(0)!);
+				assewt.stwictEquaw(viewModew.wength, 3);
 			});
 	});
 
-	test('Delete UI target', async function () {
+	test('Dewete UI tawget', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}]
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}]
 			],
-			async (editor, viewModel) => {
-				editor.setFocus({ start: 0, end: 1 });
-				editor.setSelections([{ start: 0, end: 1 }]);
-				runDeleteAction(editor, viewModel.cellAt(2)!);
-				assert.strictEqual(viewModel.length, 2);
-				assert.strictEqual(viewModel.cellAt(0)?.getText(), 'var a = 1;');
-				assert.strictEqual(viewModel.cellAt(1)?.getText(), 'var b = 2;');
+			async (editow, viewModew) => {
+				editow.setFocus({ stawt: 0, end: 1 });
+				editow.setSewections([{ stawt: 0, end: 1 }]);
+				wunDeweteAction(editow, viewModew.cewwAt(2)!);
+				assewt.stwictEquaw(viewModew.wength, 2);
+				assewt.stwictEquaw(viewModew.cewwAt(0)?.getText(), 'vaw a = 1;');
+				assewt.stwictEquaw(viewModew.cewwAt(1)?.getText(), 'vaw b = 2;');
 			});
 	});
 
-	test('Delete UI target 2', async function () {
+	test('Dewete UI tawget 2', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}],
-				['var d = 4;', 'javascript', CellKind.Code, [], {}],
-				['var e = 5;', 'javascript', CellKind.Code, [], {}],
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw d = 4;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw e = 5;', 'javascwipt', CewwKind.Code, [], {}],
 			],
-			async (editor, viewModel) => {
-				editor.setFocus({ start: 0, end: 1 });
-				editor.setSelections([{ start: 0, end: 1 }, { start: 3, end: 5 }]);
-				runDeleteAction(editor, viewModel.cellAt(1)!);
-				assert.strictEqual(viewModel.length, 4);
-				assert.deepStrictEqual(editor.getFocus(), { start: 0, end: 1 });
-				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 0, end: 1 }, { start: 2, end: 4 }]);
+			async (editow, viewModew) => {
+				editow.setFocus({ stawt: 0, end: 1 });
+				editow.setSewections([{ stawt: 0, end: 1 }, { stawt: 3, end: 5 }]);
+				wunDeweteAction(editow, viewModew.cewwAt(1)!);
+				assewt.stwictEquaw(viewModew.wength, 4);
+				assewt.deepStwictEquaw(editow.getFocus(), { stawt: 0, end: 1 });
+				assewt.deepStwictEquaw(viewModew.getSewections(), [{ stawt: 0, end: 1 }, { stawt: 2, end: 4 }]);
 			});
 	});
 
-	test('Delete UI target 3', async function () {
+	test('Dewete UI tawget 3', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}],
-				['var d = 4;', 'javascript', CellKind.Code, [], {}],
-				['var e = 5;', 'javascript', CellKind.Code, [], {}],
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw d = 4;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw e = 5;', 'javascwipt', CewwKind.Code, [], {}],
 			],
-			async (editor, viewModel) => {
-				editor.setFocus({ start: 0, end: 1 });
-				editor.setSelections([{ start: 2, end: 3 }]);
-				runDeleteAction(editor, viewModel.cellAt(0)!);
-				assert.strictEqual(viewModel.length, 4);
-				assert.deepStrictEqual(editor.getFocus(), { start: 0, end: 1 });
-				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 1, end: 2 }]);
+			async (editow, viewModew) => {
+				editow.setFocus({ stawt: 0, end: 1 });
+				editow.setSewections([{ stawt: 2, end: 3 }]);
+				wunDeweteAction(editow, viewModew.cewwAt(0)!);
+				assewt.stwictEquaw(viewModew.wength, 4);
+				assewt.deepStwictEquaw(editow.getFocus(), { stawt: 0, end: 1 });
+				assewt.deepStwictEquaw(viewModew.getSewections(), [{ stawt: 1, end: 2 }]);
 			});
 	});
 
-	test('Delete UI target 4', async function () {
+	test('Dewete UI tawget 4', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}],
-				['var d = 4;', 'javascript', CellKind.Code, [], {}],
-				['var e = 5;', 'javascript', CellKind.Code, [], {}],
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw d = 4;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw e = 5;', 'javascwipt', CewwKind.Code, [], {}],
 			],
-			async (editor, viewModel) => {
-				editor.setFocus({ start: 2, end: 3 });
-				editor.setSelections([{ start: 3, end: 5 }]);
-				runDeleteAction(editor, viewModel.cellAt(0)!);
-				assert.strictEqual(viewModel.length, 4);
-				assert.deepStrictEqual(editor.getFocus(), { start: 1, end: 2 });
-				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 2, end: 4 }]);
-			});
-	});
-
-
-	test('Delete last cell sets selection correctly', async function () {
-		await withTestNotebook(
-			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}]
-			],
-			async (editor, viewModel) => {
-				editor.setFocus({ start: 2, end: 3 });
-				editor.setSelections([{ start: 2, end: 3 }]);
-				runDeleteAction(editor, viewModel.cellAt(2)!);
-				assert.strictEqual(viewModel.length, 2);
-				assert.deepStrictEqual(editor.getFocus(), { start: 1, end: 2 });
-			});
-	});
-
-	test('#120187. Delete should work on multiple distinct selection', async function () {
-		await withTestNotebook(
-			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}],
-				['var d = 4;', 'javascript', CellKind.Code, [], {}]
-			],
-			async (editor, viewModel) => {
-				editor.setFocus({ start: 0, end: 1 });
-				editor.setSelections([{ start: 0, end: 1 }, { start: 3, end: 4 }]);
-				runDeleteAction(editor, viewModel.cellAt(0)!);
-				assert.strictEqual(viewModel.length, 2);
-				assert.deepStrictEqual(editor.getFocus(), { start: 0, end: 1 });
-			});
-	});
-
-	test('#120187. Delete should work on multiple distinct selection 2', async function () {
-		await withTestNotebook(
-			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}],
-				['var d = 4;', 'javascript', CellKind.Code, [], {}],
-				['var e = 5;', 'javascript', CellKind.Code, [], {}],
-			],
-			async (editor, viewModel) => {
-				editor.setFocus({ start: 1, end: 2 });
-				editor.setSelections([{ start: 1, end: 2 }, { start: 3, end: 5 }]);
-				runDeleteAction(editor, viewModel.cellAt(1)!);
-				assert.strictEqual(viewModel.length, 2);
-				assert.deepStrictEqual(editor.getFocus(), { start: 1, end: 2 });
-			});
-	});
-
-	test('Change cell kind - single cell', async function () {
-		await withTestNotebook(
-			[
-				['# header a', 'markdown', CellKind.Markup, [], {}],
-				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markup, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}]
-			],
-			async (editor, viewModel) => {
-				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 1, end: 2 }] });
-				await changeCellToKind(CellKind.Markup, { notebookEditor: editor, cell: viewModel.cellAt(1)!, ui: true });
-				assert.strictEqual(viewModel.cellAt(1)?.cellKind, CellKind.Markup);
-			});
-	});
-
-	test('Change cell kind - multi cells', async function () {
-		await withTestNotebook(
-			[
-				['# header a', 'markdown', CellKind.Markup, [], {}],
-				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markup, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}]
-			],
-			async (editor, viewModel) => {
-				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 1, end: 2 }] });
-				await changeCellToKind(CellKind.Markup, { notebookEditor: editor, selectedCells: [viewModel.cellAt(3)!, viewModel.cellAt(4)!], ui: false });
-				assert.strictEqual(viewModel.cellAt(3)?.cellKind, CellKind.Markup);
-				assert.strictEqual(viewModel.cellAt(4)?.cellKind, CellKind.Markup);
+			async (editow, viewModew) => {
+				editow.setFocus({ stawt: 2, end: 3 });
+				editow.setSewections([{ stawt: 3, end: 5 }]);
+				wunDeweteAction(editow, viewModew.cewwAt(0)!);
+				assewt.stwictEquaw(viewModew.wength, 4);
+				assewt.deepStwictEquaw(editow.getFocus(), { stawt: 1, end: 2 });
+				assewt.deepStwictEquaw(viewModew.getSewections(), [{ stawt: 2, end: 4 }]);
 			});
 	});
 
 
-	test('split cell', async function () {
+	test('Dewete wast ceww sets sewection cowwectwy', async function () {
 		await withTestNotebook(
 			[
-				['var b = 1;', 'javascript', CellKind.Code, [], {}]
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}]
 			],
-			(editor, viewModel) => {
-				assert.deepStrictEqual(computeCellLinesContents(viewModel.cellAt(0)!, [{ lineNumber: 1, column: 4 }]), [
-					'var',
+			async (editow, viewModew) => {
+				editow.setFocus({ stawt: 2, end: 3 });
+				editow.setSewections([{ stawt: 2, end: 3 }]);
+				wunDeweteAction(editow, viewModew.cewwAt(2)!);
+				assewt.stwictEquaw(viewModew.wength, 2);
+				assewt.deepStwictEquaw(editow.getFocus(), { stawt: 1, end: 2 });
+			});
+	});
+
+	test('#120187. Dewete shouwd wowk on muwtipwe distinct sewection', async function () {
+		await withTestNotebook(
+			[
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw d = 4;', 'javascwipt', CewwKind.Code, [], {}]
+			],
+			async (editow, viewModew) => {
+				editow.setFocus({ stawt: 0, end: 1 });
+				editow.setSewections([{ stawt: 0, end: 1 }, { stawt: 3, end: 4 }]);
+				wunDeweteAction(editow, viewModew.cewwAt(0)!);
+				assewt.stwictEquaw(viewModew.wength, 2);
+				assewt.deepStwictEquaw(editow.getFocus(), { stawt: 0, end: 1 });
+			});
+	});
+
+	test('#120187. Dewete shouwd wowk on muwtipwe distinct sewection 2', async function () {
+		await withTestNotebook(
+			[
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw d = 4;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw e = 5;', 'javascwipt', CewwKind.Code, [], {}],
+			],
+			async (editow, viewModew) => {
+				editow.setFocus({ stawt: 1, end: 2 });
+				editow.setSewections([{ stawt: 1, end: 2 }, { stawt: 3, end: 5 }]);
+				wunDeweteAction(editow, viewModew.cewwAt(1)!);
+				assewt.stwictEquaw(viewModew.wength, 2);
+				assewt.deepStwictEquaw(editow.getFocus(), { stawt: 1, end: 2 });
+			});
+	});
+
+	test('Change ceww kind - singwe ceww', async function () {
+		await withTestNotebook(
+			[
+				['# heada a', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada b', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}]
+			],
+			async (editow, viewModew) => {
+				viewModew.updateSewectionsState({ kind: SewectionStateType.Index, focus: { stawt: 1, end: 2 }, sewections: [{ stawt: 1, end: 2 }] });
+				await changeCewwToKind(CewwKind.Mawkup, { notebookEditow: editow, ceww: viewModew.cewwAt(1)!, ui: twue });
+				assewt.stwictEquaw(viewModew.cewwAt(1)?.cewwKind, CewwKind.Mawkup);
+			});
+	});
+
+	test('Change ceww kind - muwti cewws', async function () {
+		await withTestNotebook(
+			[
+				['# heada a', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada b', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}]
+			],
+			async (editow, viewModew) => {
+				viewModew.updateSewectionsState({ kind: SewectionStateType.Index, focus: { stawt: 1, end: 2 }, sewections: [{ stawt: 1, end: 2 }] });
+				await changeCewwToKind(CewwKind.Mawkup, { notebookEditow: editow, sewectedCewws: [viewModew.cewwAt(3)!, viewModew.cewwAt(4)!], ui: fawse });
+				assewt.stwictEquaw(viewModew.cewwAt(3)?.cewwKind, CewwKind.Mawkup);
+				assewt.stwictEquaw(viewModew.cewwAt(4)?.cewwKind, CewwKind.Mawkup);
+			});
+	});
+
+
+	test('spwit ceww', async function () {
+		await withTestNotebook(
+			[
+				['vaw b = 1;', 'javascwipt', CewwKind.Code, [], {}]
+			],
+			(editow, viewModew) => {
+				assewt.deepStwictEquaw(computeCewwWinesContents(viewModew.cewwAt(0)!, [{ wineNumba: 1, cowumn: 4 }]), [
+					'vaw',
 					' b = 1;'
 				]);
 
-				assert.deepStrictEqual(computeCellLinesContents(viewModel.cellAt(0)!, [{ lineNumber: 1, column: 4 }, { lineNumber: 1, column: 6 }]), [
-					'var',
+				assewt.deepStwictEquaw(computeCewwWinesContents(viewModew.cewwAt(0)!, [{ wineNumba: 1, cowumn: 4 }, { wineNumba: 1, cowumn: 6 }]), [
+					'vaw',
 					' b',
 					' = 1;'
 				]);
 
-				assert.deepStrictEqual(computeCellLinesContents(viewModel.cellAt(0)!, [{ lineNumber: 1, column: 1 }]), [
+				assewt.deepStwictEquaw(computeCewwWinesContents(viewModew.cewwAt(0)!, [{ wineNumba: 1, cowumn: 1 }]), [
 					'',
-					'var b = 1;'
+					'vaw b = 1;'
 				]);
 
-				assert.deepStrictEqual(computeCellLinesContents(viewModel.cellAt(0)!, [{ lineNumber: 1, column: 11 }]), [
-					'var b = 1;',
+				assewt.deepStwictEquaw(computeCewwWinesContents(viewModew.cewwAt(0)!, [{ wineNumba: 1, cowumn: 11 }]), [
+					'vaw b = 1;',
 					'',
 				]);
 			}

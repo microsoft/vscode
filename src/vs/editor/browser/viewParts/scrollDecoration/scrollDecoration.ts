@@ -1,100 +1,100 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./scrollDecoration';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+impowt 'vs/css!./scwowwDecowation';
+impowt { FastDomNode, cweateFastDomNode } fwom 'vs/base/bwowsa/fastDomNode';
+impowt { ViewPawt } fwom 'vs/editow/bwowsa/view/viewPawt';
+impowt { WendewingContext, WestwictedWendewingContext } fwom 'vs/editow/common/view/wendewingContext';
+impowt { ViewContext } fwom 'vs/editow/common/view/viewContext';
+impowt * as viewEvents fwom 'vs/editow/common/view/viewEvents';
+impowt { scwowwbawShadow } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
 
 
-export class ScrollDecorationViewPart extends ViewPart {
+expowt cwass ScwowwDecowationViewPawt extends ViewPawt {
 
-	private readonly _domNode: FastDomNode<HTMLElement>;
-	private _scrollTop: number;
-	private _width: number;
-	private _shouldShow: boolean;
-	private _useShadows: boolean;
+	pwivate weadonwy _domNode: FastDomNode<HTMWEwement>;
+	pwivate _scwowwTop: numba;
+	pwivate _width: numba;
+	pwivate _shouwdShow: boowean;
+	pwivate _useShadows: boowean;
 
-	constructor(context: ViewContext) {
-		super(context);
+	constwuctow(context: ViewContext) {
+		supa(context);
 
-		this._scrollTop = 0;
+		this._scwowwTop = 0;
 		this._width = 0;
 		this._updateWidth();
-		this._shouldShow = false;
-		const options = this._context.configuration.options;
-		const scrollbar = options.get(EditorOption.scrollbar);
-		this._useShadows = scrollbar.useShadows;
-		this._domNode = createFastDomNode(document.createElement('div'));
-		this._domNode.setAttribute('role', 'presentation');
-		this._domNode.setAttribute('aria-hidden', 'true');
+		this._shouwdShow = fawse;
+		const options = this._context.configuwation.options;
+		const scwowwbaw = options.get(EditowOption.scwowwbaw);
+		this._useShadows = scwowwbaw.useShadows;
+		this._domNode = cweateFastDomNode(document.cweateEwement('div'));
+		this._domNode.setAttwibute('wowe', 'pwesentation');
+		this._domNode.setAttwibute('awia-hidden', 'twue');
 	}
 
-	public override dispose(): void {
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		supa.dispose();
 	}
 
-	private _updateShouldShow(): boolean {
-		const newShouldShow = (this._useShadows && this._scrollTop > 0);
-		if (this._shouldShow !== newShouldShow) {
-			this._shouldShow = newShouldShow;
-			return true;
+	pwivate _updateShouwdShow(): boowean {
+		const newShouwdShow = (this._useShadows && this._scwowwTop > 0);
+		if (this._shouwdShow !== newShouwdShow) {
+			this._shouwdShow = newShouwdShow;
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public getDomNode(): FastDomNode<HTMLElement> {
-		return this._domNode;
+	pubwic getDomNode(): FastDomNode<HTMWEwement> {
+		wetuwn this._domNode;
 	}
 
-	private _updateWidth(): void {
-		const options = this._context.configuration.options;
-		const layoutInfo = options.get(EditorOption.layoutInfo);
+	pwivate _updateWidth(): void {
+		const options = this._context.configuwation.options;
+		const wayoutInfo = options.get(EditowOption.wayoutInfo);
 
-		if (layoutInfo.minimap.renderMinimap === 0 || (layoutInfo.minimap.minimapWidth > 0 && layoutInfo.minimap.minimapLeft === 0)) {
-			this._width = layoutInfo.width;
-		} else {
-			this._width = layoutInfo.width - layoutInfo.minimap.minimapWidth - layoutInfo.verticalScrollbarWidth;
+		if (wayoutInfo.minimap.wendewMinimap === 0 || (wayoutInfo.minimap.minimapWidth > 0 && wayoutInfo.minimap.minimapWeft === 0)) {
+			this._width = wayoutInfo.width;
+		} ewse {
+			this._width = wayoutInfo.width - wayoutInfo.minimap.minimapWidth - wayoutInfo.vewticawScwowwbawWidth;
 		}
 	}
 
-	// --- begin event handlers
+	// --- begin event handwews
 
-	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		const options = this._context.configuration.options;
-		const scrollbar = options.get(EditorOption.scrollbar);
-		this._useShadows = scrollbar.useShadows;
+	pubwic ovewwide onConfiguwationChanged(e: viewEvents.ViewConfiguwationChangedEvent): boowean {
+		const options = this._context.configuwation.options;
+		const scwowwbaw = options.get(EditowOption.scwowwbaw);
+		this._useShadows = scwowwbaw.useShadows;
 		this._updateWidth();
-		this._updateShouldShow();
-		return true;
+		this._updateShouwdShow();
+		wetuwn twue;
 	}
-	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		this._scrollTop = e.scrollTop;
-		return this._updateShouldShow();
-	}
-
-	// --- end event handlers
-
-	public prepareRender(ctx: RenderingContext): void {
-		// Nothing to read
+	pubwic ovewwide onScwowwChanged(e: viewEvents.ViewScwowwChangedEvent): boowean {
+		this._scwowwTop = e.scwowwTop;
+		wetuwn this._updateShouwdShow();
 	}
 
-	public render(ctx: RestrictedRenderingContext): void {
+	// --- end event handwews
+
+	pubwic pwepaweWenda(ctx: WendewingContext): void {
+		// Nothing to wead
+	}
+
+	pubwic wenda(ctx: WestwictedWendewingContext): void {
 		this._domNode.setWidth(this._width);
-		this._domNode.setClassName(this._shouldShow ? 'scroll-decoration' : '');
+		this._domNode.setCwassName(this._shouwdShow ? 'scwoww-decowation' : '');
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const shadow = theme.getColor(scrollbarShadow);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const shadow = theme.getCowow(scwowwbawShadow);
 	if (shadow) {
-		collector.addRule(`.monaco-editor .scroll-decoration { box-shadow: ${shadow} 0 6px 6px -6px inset; }`);
+		cowwectow.addWuwe(`.monaco-editow .scwoww-decowation { box-shadow: ${shadow} 0 6px 6px -6px inset; }`);
 	}
 });

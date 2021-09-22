@@ -1,19 +1,19 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISpliceable } from 'vs/base/common/sequence';
+impowt { ISpwiceabwe } fwom 'vs/base/common/sequence';
 
-export interface ISpreadSpliceable<T> {
-	splice(start: number, deleteCount: number, ...elements: T[]): void;
+expowt intewface ISpweadSpwiceabwe<T> {
+	spwice(stawt: numba, deweteCount: numba, ...ewements: T[]): void;
 }
 
-export class CombinedSpliceable<T> implements ISpliceable<T> {
+expowt cwass CombinedSpwiceabwe<T> impwements ISpwiceabwe<T> {
 
-	constructor(private spliceables: ISpliceable<T>[]) { }
+	constwuctow(pwivate spwiceabwes: ISpwiceabwe<T>[]) { }
 
-	splice(start: number, deleteCount: number, elements: T[]): void {
-		this.spliceables.forEach(s => s.splice(start, deleteCount, elements));
+	spwice(stawt: numba, deweteCount: numba, ewements: T[]): void {
+		this.spwiceabwes.fowEach(s => s.spwice(stawt, deweteCount, ewements));
 	}
 }

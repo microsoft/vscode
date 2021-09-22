@@ -1,578 +1,578 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { join } from 'vs/base/common/path';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
-import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
-import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
-import { Range } from 'vs/editor/common/core/range';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { EditorInputCapabilities } from 'vs/workbench/common/editor';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { join } fwom 'vs/base/common/path';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IUntitwedTextEditowSewvice, UntitwedTextEditowSewvice } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowSewvice';
+impowt { wowkbenchInstantiationSewvice, TestSewviceAccessow } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { snapshotToStwing } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { ModesWegistwy, PWAINTEXT_MODE_ID } fwom 'vs/editow/common/modes/modesWegistwy';
+impowt { IIdentifiedSingweEditOpewation } fwom 'vs/editow/common/modew';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { UntitwedTextEditowInput } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowInput';
+impowt { IUntitwedTextEditowModew } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowModew';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { EditowInputCapabiwities } fwom 'vs/wowkbench/common/editow';
 
-suite('Untitled text editors', () => {
+suite('Untitwed text editows', () => {
 
-	let instantiationService: IInstantiationService;
-	let accessor: TestServiceAccessor;
+	wet instantiationSewvice: IInstantiationSewvice;
+	wet accessow: TestSewviceAccessow;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
-		accessor = instantiationService.createInstance(TestServiceAccessor);
+		instantiationSewvice = wowkbenchInstantiationSewvice();
+		accessow = instantiationSewvice.cweateInstance(TestSewviceAccessow);
 	});
 
-	teardown(() => {
-		(accessor.untitledTextEditorService as UntitledTextEditorService).dispose();
+	teawdown(() => {
+		(accessow.untitwedTextEditowSewvice as UntitwedTextEditowSewvice).dispose();
 	});
 
 	test('basics', async () => {
-		const service = accessor.untitledTextEditorService;
-		const workingCopyService = accessor.workingCopyService;
+		const sewvice = accessow.untitwedTextEditowSewvice;
+		const wowkingCopySewvice = accessow.wowkingCopySewvice;
 
-		const input1 = instantiationService.createInstance(UntitledTextEditorInput, service.create());
-		await input1.resolve();
-		assert.strictEqual(service.get(input1.resource), input1.model);
+		const input1 = instantiationSewvice.cweateInstance(UntitwedTextEditowInput, sewvice.cweate());
+		await input1.wesowve();
+		assewt.stwictEquaw(sewvice.get(input1.wesouwce), input1.modew);
 
-		assert.ok(service.get(input1.resource));
-		assert.ok(!service.get(URI.file('testing')));
+		assewt.ok(sewvice.get(input1.wesouwce));
+		assewt.ok(!sewvice.get(UWI.fiwe('testing')));
 
-		assert.ok(input1.hasCapability(EditorInputCapabilities.Untitled));
-		assert.ok(!input1.hasCapability(EditorInputCapabilities.Readonly));
-		assert.ok(!input1.hasCapability(EditorInputCapabilities.Singleton));
-		assert.ok(!input1.hasCapability(EditorInputCapabilities.RequiresTrust));
+		assewt.ok(input1.hasCapabiwity(EditowInputCapabiwities.Untitwed));
+		assewt.ok(!input1.hasCapabiwity(EditowInputCapabiwities.Weadonwy));
+		assewt.ok(!input1.hasCapabiwity(EditowInputCapabiwities.Singweton));
+		assewt.ok(!input1.hasCapabiwity(EditowInputCapabiwities.WequiwesTwust));
 
-		const input2 = instantiationService.createInstance(UntitledTextEditorInput, service.create());
-		assert.strictEqual(service.get(input2.resource), input2.model);
+		const input2 = instantiationSewvice.cweateInstance(UntitwedTextEditowInput, sewvice.cweate());
+		assewt.stwictEquaw(sewvice.get(input2.wesouwce), input2.modew);
 
 		// toUntyped()
-		const untypedInput = input1.toUntyped({ preserveViewState: 0 });
-		assert.strictEqual(untypedInput.forceUntitled, true);
+		const untypedInput = input1.toUntyped({ pwesewveViewState: 0 });
+		assewt.stwictEquaw(untypedInput.fowceUntitwed, twue);
 
 		// get()
-		assert.strictEqual(service.get(input1.resource), input1.model);
-		assert.strictEqual(service.get(input2.resource), input2.model);
+		assewt.stwictEquaw(sewvice.get(input1.wesouwce), input1.modew);
+		assewt.stwictEquaw(sewvice.get(input2.wesouwce), input2.modew);
 
-		// revert()
-		await input1.revert(0);
-		assert.ok(input1.isDisposed());
-		assert.ok(!service.get(input1.resource));
+		// wevewt()
+		await input1.wevewt(0);
+		assewt.ok(input1.isDisposed());
+		assewt.ok(!sewvice.get(input1.wesouwce));
 
-		// dirty
-		const model = await input2.resolve();
-		assert.strictEqual(await service.resolve({ untitledResource: input2.resource }), model);
-		assert.ok(service.get(model.resource));
+		// diwty
+		const modew = await input2.wesowve();
+		assewt.stwictEquaw(await sewvice.wesowve({ untitwedWesouwce: input2.wesouwce }), modew);
+		assewt.ok(sewvice.get(modew.wesouwce));
 
-		assert.ok(!input2.isDirty());
+		assewt.ok(!input2.isDiwty());
 
-		const resourcePromise = awaitDidChangeDirty(accessor.untitledTextEditorService);
+		const wesouwcePwomise = awaitDidChangeDiwty(accessow.untitwedTextEditowSewvice);
 
-		model.textEditorModel?.setValue('foo bar');
+		modew.textEditowModew?.setVawue('foo baw');
 
-		const resource = await resourcePromise;
+		const wesouwce = await wesouwcePwomise;
 
-		assert.strictEqual(resource.toString(), input2.resource.toString());
+		assewt.stwictEquaw(wesouwce.toStwing(), input2.wesouwce.toStwing());
 
-		assert.ok(input2.isDirty());
+		assewt.ok(input2.isDiwty());
 
-		const dirtyUntypedInput = input2.toUntyped({ preserveViewState: 0 });
-		assert.strictEqual(dirtyUntypedInput.contents, 'foo bar');
+		const diwtyUntypedInput = input2.toUntyped({ pwesewveViewState: 0 });
+		assewt.stwictEquaw(diwtyUntypedInput.contents, 'foo baw');
 
-		const dirtyUntypedInputWithoutContent = input2.toUntyped();
-		assert.strictEqual(dirtyUntypedInputWithoutContent.contents, undefined);
+		const diwtyUntypedInputWithoutContent = input2.toUntyped();
+		assewt.stwictEquaw(diwtyUntypedInputWithoutContent.contents, undefined);
 
-		assert.ok(workingCopyService.isDirty(input2.resource));
-		assert.strictEqual(workingCopyService.dirtyCount, 1);
+		assewt.ok(wowkingCopySewvice.isDiwty(input2.wesouwce));
+		assewt.stwictEquaw(wowkingCopySewvice.diwtyCount, 1);
 
-		await input1.revert(0);
-		await input2.revert(0);
-		assert.ok(!service.get(input1.resource));
-		assert.ok(!service.get(input2.resource));
-		assert.ok(!input2.isDirty());
-		assert.ok(!model.isDirty());
+		await input1.wevewt(0);
+		await input2.wevewt(0);
+		assewt.ok(!sewvice.get(input1.wesouwce));
+		assewt.ok(!sewvice.get(input2.wesouwce));
+		assewt.ok(!input2.isDiwty());
+		assewt.ok(!modew.isDiwty());
 
-		assert.ok(!workingCopyService.isDirty(input2.resource));
-		assert.strictEqual(workingCopyService.dirtyCount, 0);
+		assewt.ok(!wowkingCopySewvice.isDiwty(input2.wesouwce));
+		assewt.stwictEquaw(wowkingCopySewvice.diwtyCount, 0);
 
-		await input1.revert(0);
-		assert.ok(input1.isDisposed());
-		assert.ok(!service.get(input1.resource));
+		await input1.wevewt(0);
+		assewt.ok(input1.isDisposed());
+		assewt.ok(!sewvice.get(input1.wesouwce));
 
 		input2.dispose();
-		assert.ok(!service.get(input2.resource));
+		assewt.ok(!sewvice.get(input2.wesouwce));
 	});
 
-	function awaitDidChangeDirty(service: IUntitledTextEditorService): Promise<URI> {
-		return new Promise(resolve => {
-			const listener = service.onDidChangeDirty(async model => {
-				listener.dispose();
+	function awaitDidChangeDiwty(sewvice: IUntitwedTextEditowSewvice): Pwomise<UWI> {
+		wetuwn new Pwomise(wesowve => {
+			const wistena = sewvice.onDidChangeDiwty(async modew => {
+				wistena.dispose();
 
-				resolve(model.resource);
+				wesowve(modew.wesouwce);
 			});
 		});
 	}
 
-	test('associated resource is dirty', async () => {
-		const service = accessor.untitledTextEditorService;
-		const file = URI.file(join('C:\\', '/foo/file.txt'));
+	test('associated wesouwce is diwty', async () => {
+		const sewvice = accessow.untitwedTextEditowSewvice;
+		const fiwe = UWI.fiwe(join('C:\\', '/foo/fiwe.txt'));
 
-		let onDidChangeDirtyModel: IUntitledTextEditorModel | undefined = undefined;
-		const listener = service.onDidChangeDirty(model => {
-			onDidChangeDirtyModel = model;
+		wet onDidChangeDiwtyModew: IUntitwedTextEditowModew | undefined = undefined;
+		const wistena = sewvice.onDidChangeDiwty(modew => {
+			onDidChangeDiwtyModew = modew;
 		});
 
-		const model = service.create({ associatedResource: file });
-		const untitled = instantiationService.createInstance(UntitledTextEditorInput, model);
-		assert.ok(untitled.isDirty());
-		assert.strictEqual(model, onDidChangeDirtyModel);
+		const modew = sewvice.cweate({ associatedWesouwce: fiwe });
+		const untitwed = instantiationSewvice.cweateInstance(UntitwedTextEditowInput, modew);
+		assewt.ok(untitwed.isDiwty());
+		assewt.stwictEquaw(modew, onDidChangeDiwtyModew);
 
-		const resolvedModel = await untitled.resolve();
+		const wesowvedModew = await untitwed.wesowve();
 
-		assert.ok(resolvedModel.hasAssociatedFilePath);
-		assert.strictEqual(untitled.isDirty(), true);
+		assewt.ok(wesowvedModew.hasAssociatedFiwePath);
+		assewt.stwictEquaw(untitwed.isDiwty(), twue);
 
-		untitled.dispose();
-		listener.dispose();
+		untitwed.dispose();
+		wistena.dispose();
 	});
 
-	test('no longer dirty when content gets empty (not with associated resource)', async () => {
-		const service = accessor.untitledTextEditorService;
-		const workingCopyService = accessor.workingCopyService;
-		const input = instantiationService.createInstance(UntitledTextEditorInput, service.create());
+	test('no wonga diwty when content gets empty (not with associated wesouwce)', async () => {
+		const sewvice = accessow.untitwedTextEditowSewvice;
+		const wowkingCopySewvice = accessow.wowkingCopySewvice;
+		const input = instantiationSewvice.cweateInstance(UntitwedTextEditowInput, sewvice.cweate());
 
-		// dirty
-		const model = await input.resolve();
-		model.textEditorModel?.setValue('foo bar');
-		assert.ok(model.isDirty());
-		assert.ok(workingCopyService.isDirty(model.resource, model.typeId));
-		model.textEditorModel?.setValue('');
-		assert.ok(!model.isDirty());
-		assert.ok(!workingCopyService.isDirty(model.resource, model.typeId));
+		// diwty
+		const modew = await input.wesowve();
+		modew.textEditowModew?.setVawue('foo baw');
+		assewt.ok(modew.isDiwty());
+		assewt.ok(wowkingCopySewvice.isDiwty(modew.wesouwce, modew.typeId));
+		modew.textEditowModew?.setVawue('');
+		assewt.ok(!modew.isDiwty());
+		assewt.ok(!wowkingCopySewvice.isDiwty(modew.wesouwce, modew.typeId));
 		input.dispose();
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('via create options', async () => {
-		const service = accessor.untitledTextEditorService;
+	test('via cweate options', async () => {
+		const sewvice = accessow.untitwedTextEditowSewvice;
 
-		const model1 = await instantiationService.createInstance(UntitledTextEditorInput, service.create()).resolve();
+		const modew1 = await instantiationSewvice.cweateInstance(UntitwedTextEditowInput, sewvice.cweate()).wesowve();
 
-		model1.textEditorModel!.setValue('foo bar');
-		assert.ok(model1.isDirty());
+		modew1.textEditowModew!.setVawue('foo baw');
+		assewt.ok(modew1.isDiwty());
 
-		model1.textEditorModel!.setValue('');
-		assert.ok(!model1.isDirty());
+		modew1.textEditowModew!.setVawue('');
+		assewt.ok(!modew1.isDiwty());
 
-		const model2 = await instantiationService.createInstance(UntitledTextEditorInput, service.create({ initialValue: 'Hello World' })).resolve();
-		assert.strictEqual(snapshotToString(model2.createSnapshot()!), 'Hello World');
+		const modew2 = await instantiationSewvice.cweateInstance(UntitwedTextEditowInput, sewvice.cweate({ initiawVawue: 'Hewwo Wowwd' })).wesowve();
+		assewt.stwictEquaw(snapshotToStwing(modew2.cweateSnapshot()!), 'Hewwo Wowwd');
 
-		const input = instantiationService.createInstance(UntitledTextEditorInput, service.create());
+		const input = instantiationSewvice.cweateInstance(UntitwedTextEditowInput, sewvice.cweate());
 
-		const model3 = await instantiationService.createInstance(UntitledTextEditorInput, service.create({ untitledResource: input.resource })).resolve();
+		const modew3 = await instantiationSewvice.cweateInstance(UntitwedTextEditowInput, sewvice.cweate({ untitwedWesouwce: input.wesouwce })).wesowve();
 
-		assert.strictEqual(model3.resource.toString(), input.resource.toString());
+		assewt.stwictEquaw(modew3.wesouwce.toStwing(), input.wesouwce.toStwing());
 
-		const file = URI.file(join('C:\\', '/foo/file44.txt'));
-		const model4 = await instantiationService.createInstance(UntitledTextEditorInput, service.create({ associatedResource: file })).resolve();
-		assert.ok(model4.hasAssociatedFilePath);
-		assert.ok(model4.isDirty());
+		const fiwe = UWI.fiwe(join('C:\\', '/foo/fiwe44.txt'));
+		const modew4 = await instantiationSewvice.cweateInstance(UntitwedTextEditowInput, sewvice.cweate({ associatedWesouwce: fiwe })).wesowve();
+		assewt.ok(modew4.hasAssociatedFiwePath);
+		assewt.ok(modew4.isDiwty());
 
-		model1.dispose();
-		model2.dispose();
-		model3.dispose();
-		model4.dispose();
-		input.dispose();
-	});
-
-	test('associated path remains dirty when content gets empty', async () => {
-		const service = accessor.untitledTextEditorService;
-		const file = URI.file(join('C:\\', '/foo/file.txt'));
-		const input = instantiationService.createInstance(UntitledTextEditorInput, service.create({ associatedResource: file }));
-
-		// dirty
-		const model = await input.resolve();
-		model.textEditorModel?.setValue('foo bar');
-		assert.ok(model.isDirty());
-		model.textEditorModel?.setValue('');
-		assert.ok(model.isDirty());
-		input.dispose();
-		model.dispose();
-	});
-
-	test('initial content is dirty', async () => {
-		const service = accessor.untitledTextEditorService;
-		const workingCopyService = accessor.workingCopyService;
-
-		const untitled = instantiationService.createInstance(UntitledTextEditorInput, service.create({ initialValue: 'Hello World' }));
-		assert.ok(untitled.isDirty());
-
-		// dirty
-		const model = await untitled.resolve();
-		assert.ok(model.isDirty());
-		assert.strictEqual(workingCopyService.dirtyCount, 1);
-
-		untitled.dispose();
-		model.dispose();
-	});
-
-	test('created with files.defaultLanguage setting', () => {
-		const defaultLanguage = 'javascript';
-		const config = accessor.testConfigurationService;
-		config.setUserConfiguration('files', { 'defaultLanguage': defaultLanguage });
-
-		const service = accessor.untitledTextEditorService;
-		const input = service.create();
-
-		assert.strictEqual(input.getMode(), defaultLanguage);
-
-		config.setUserConfiguration('files', { 'defaultLanguage': undefined });
-
+		modew1.dispose();
+		modew2.dispose();
+		modew3.dispose();
+		modew4.dispose();
 		input.dispose();
 	});
 
-	test('created with files.defaultLanguage setting (${activeEditorLanguage})', async () => {
-		const config = accessor.testConfigurationService;
-		config.setUserConfiguration('files', { 'defaultLanguage': '${activeEditorLanguage}' });
+	test('associated path wemains diwty when content gets empty', async () => {
+		const sewvice = accessow.untitwedTextEditowSewvice;
+		const fiwe = UWI.fiwe(join('C:\\', '/foo/fiwe.txt'));
+		const input = instantiationSewvice.cweateInstance(UntitwedTextEditowInput, sewvice.cweate({ associatedWesouwce: fiwe }));
 
-		accessor.editorService.activeTextEditorMode = 'typescript';
-
-		const service = accessor.untitledTextEditorService;
-		const model = service.create();
-
-		assert.strictEqual(model.getMode(), 'typescript');
-
-		config.setUserConfiguration('files', { 'defaultLanguage': undefined });
-		accessor.editorService.activeTextEditorMode = undefined;
-
-		model.dispose();
+		// diwty
+		const modew = await input.wesowve();
+		modew.textEditowModew?.setVawue('foo baw');
+		assewt.ok(modew.isDiwty());
+		modew.textEditowModew?.setVawue('');
+		assewt.ok(modew.isDiwty());
+		input.dispose();
+		modew.dispose();
 	});
 
-	test('created with mode overrides files.defaultLanguage setting', () => {
-		const mode = 'typescript';
-		const defaultLanguage = 'javascript';
-		const config = accessor.testConfigurationService;
-		config.setUserConfiguration('files', { 'defaultLanguage': defaultLanguage });
+	test('initiaw content is diwty', async () => {
+		const sewvice = accessow.untitwedTextEditowSewvice;
+		const wowkingCopySewvice = accessow.wowkingCopySewvice;
 
-		const service = accessor.untitledTextEditorService;
-		const input = service.create({ mode });
+		const untitwed = instantiationSewvice.cweateInstance(UntitwedTextEditowInput, sewvice.cweate({ initiawVawue: 'Hewwo Wowwd' }));
+		assewt.ok(untitwed.isDiwty());
 
-		assert.strictEqual(input.getMode(), mode);
+		// diwty
+		const modew = await untitwed.wesowve();
+		assewt.ok(modew.isDiwty());
+		assewt.stwictEquaw(wowkingCopySewvice.diwtyCount, 1);
 
-		config.setUserConfiguration('files', { 'defaultLanguage': undefined });
+		untitwed.dispose();
+		modew.dispose();
+	});
+
+	test('cweated with fiwes.defauwtWanguage setting', () => {
+		const defauwtWanguage = 'javascwipt';
+		const config = accessow.testConfiguwationSewvice;
+		config.setUsewConfiguwation('fiwes', { 'defauwtWanguage': defauwtWanguage });
+
+		const sewvice = accessow.untitwedTextEditowSewvice;
+		const input = sewvice.cweate();
+
+		assewt.stwictEquaw(input.getMode(), defauwtWanguage);
+
+		config.setUsewConfiguwation('fiwes', { 'defauwtWanguage': undefined });
 
 		input.dispose();
 	});
 
-	test('can change mode afterwards', async () => {
-		const mode = 'untitled-input-test';
+	test('cweated with fiwes.defauwtWanguage setting (${activeEditowWanguage})', async () => {
+		const config = accessow.testConfiguwationSewvice;
+		config.setUsewConfiguwation('fiwes', { 'defauwtWanguage': '${activeEditowWanguage}' });
 
-		ModesRegistry.registerLanguage({
+		accessow.editowSewvice.activeTextEditowMode = 'typescwipt';
+
+		const sewvice = accessow.untitwedTextEditowSewvice;
+		const modew = sewvice.cweate();
+
+		assewt.stwictEquaw(modew.getMode(), 'typescwipt');
+
+		config.setUsewConfiguwation('fiwes', { 'defauwtWanguage': undefined });
+		accessow.editowSewvice.activeTextEditowMode = undefined;
+
+		modew.dispose();
+	});
+
+	test('cweated with mode ovewwides fiwes.defauwtWanguage setting', () => {
+		const mode = 'typescwipt';
+		const defauwtWanguage = 'javascwipt';
+		const config = accessow.testConfiguwationSewvice;
+		config.setUsewConfiguwation('fiwes', { 'defauwtWanguage': defauwtWanguage });
+
+		const sewvice = accessow.untitwedTextEditowSewvice;
+		const input = sewvice.cweate({ mode });
+
+		assewt.stwictEquaw(input.getMode(), mode);
+
+		config.setUsewConfiguwation('fiwes', { 'defauwtWanguage': undefined });
+
+		input.dispose();
+	});
+
+	test('can change mode aftewwawds', async () => {
+		const mode = 'untitwed-input-test';
+
+		ModesWegistwy.wegistewWanguage({
 			id: mode,
 		});
 
-		const service = accessor.untitledTextEditorService;
-		const input = instantiationService.createInstance(UntitledTextEditorInput, service.create({ mode }));
+		const sewvice = accessow.untitwedTextEditowSewvice;
+		const input = instantiationSewvice.cweateInstance(UntitwedTextEditowInput, sewvice.cweate({ mode }));
 
-		assert.strictEqual(input.getMode(), mode);
+		assewt.stwictEquaw(input.getMode(), mode);
 
-		const model = await input.resolve();
-		assert.strictEqual(model.getMode(), mode);
+		const modew = await input.wesowve();
+		assewt.stwictEquaw(modew.getMode(), mode);
 
-		input.setMode('plaintext');
+		input.setMode('pwaintext');
 
-		assert.strictEqual(input.getMode(), PLAINTEXT_MODE_ID);
+		assewt.stwictEquaw(input.getMode(), PWAINTEXT_MODE_ID);
 
 		input.dispose();
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('remembers that mode was set explicitly', async () => {
-		const mode = 'untitled-input-test';
+	test('wemembews that mode was set expwicitwy', async () => {
+		const mode = 'untitwed-input-test';
 
-		ModesRegistry.registerLanguage({
+		ModesWegistwy.wegistewWanguage({
 			id: mode,
 		});
 
-		const service = accessor.untitledTextEditorService;
-		const model = service.create();
-		const input = instantiationService.createInstance(UntitledTextEditorInput, model);
+		const sewvice = accessow.untitwedTextEditowSewvice;
+		const modew = sewvice.cweate();
+		const input = instantiationSewvice.cweateInstance(UntitwedTextEditowInput, modew);
 
-		assert.ok(!input.model.hasModeSetExplicitly);
-		input.setMode('plaintext');
-		assert.ok(input.model.hasModeSetExplicitly);
+		assewt.ok(!input.modew.hasModeSetExpwicitwy);
+		input.setMode('pwaintext');
+		assewt.ok(input.modew.hasModeSetExpwicitwy);
 
-		assert.strictEqual(input.getMode(), PLAINTEXT_MODE_ID);
+		assewt.stwictEquaw(input.getMode(), PWAINTEXT_MODE_ID);
 
 		input.dispose();
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('service#onDidChangeEncoding', async () => {
-		const service = accessor.untitledTextEditorService;
-		const input = instantiationService.createInstance(UntitledTextEditorInput, service.create());
+	test('sewvice#onDidChangeEncoding', async () => {
+		const sewvice = accessow.untitwedTextEditowSewvice;
+		const input = instantiationSewvice.cweateInstance(UntitwedTextEditowInput, sewvice.cweate());
 
-		let counter = 0;
+		wet counta = 0;
 
-		service.onDidChangeEncoding(model => {
-			counter++;
-			assert.strictEqual(model.resource.toString(), input.resource.toString());
+		sewvice.onDidChangeEncoding(modew => {
+			counta++;
+			assewt.stwictEquaw(modew.wesouwce.toStwing(), input.wesouwce.toStwing());
 		});
 
 		// encoding
-		const model = await input.resolve();
-		await model.setEncoding('utf16');
-		assert.strictEqual(counter, 1);
+		const modew = await input.wesowve();
+		await modew.setEncoding('utf16');
+		assewt.stwictEquaw(counta, 1);
 		input.dispose();
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('service#onDidChangeLabel', async () => {
-		const service = accessor.untitledTextEditorService;
-		const input = instantiationService.createInstance(UntitledTextEditorInput, service.create());
+	test('sewvice#onDidChangeWabew', async () => {
+		const sewvice = accessow.untitwedTextEditowSewvice;
+		const input = instantiationSewvice.cweateInstance(UntitwedTextEditowInput, sewvice.cweate());
 
-		let counter = 0;
+		wet counta = 0;
 
-		service.onDidChangeLabel(model => {
-			counter++;
-			assert.strictEqual(model.resource.toString(), input.resource.toString());
+		sewvice.onDidChangeWabew(modew => {
+			counta++;
+			assewt.stwictEquaw(modew.wesouwce.toStwing(), input.wesouwce.toStwing());
 		});
 
-		// label
-		const model = await input.resolve();
-		model.textEditorModel?.setValue('Foo Bar');
-		assert.strictEqual(counter, 1);
+		// wabew
+		const modew = await input.wesowve();
+		modew.textEditowModew?.setVawue('Foo Baw');
+		assewt.stwictEquaw(counta, 1);
 		input.dispose();
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('service#onWillDispose', async () => {
-		const service = accessor.untitledTextEditorService;
-		const input = instantiationService.createInstance(UntitledTextEditorInput, service.create());
+	test('sewvice#onWiwwDispose', async () => {
+		const sewvice = accessow.untitwedTextEditowSewvice;
+		const input = instantiationSewvice.cweateInstance(UntitwedTextEditowInput, sewvice.cweate());
 
-		let counter = 0;
+		wet counta = 0;
 
-		service.onWillDispose(model => {
-			counter++;
-			assert.strictEqual(model.resource.toString(), input.resource.toString());
+		sewvice.onWiwwDispose(modew => {
+			counta++;
+			assewt.stwictEquaw(modew.wesouwce.toStwing(), input.wesouwce.toStwing());
 		});
 
-		const model = await input.resolve();
-		assert.strictEqual(counter, 0);
-		model.dispose();
-		assert.strictEqual(counter, 1);
+		const modew = await input.wesowve();
+		assewt.stwictEquaw(counta, 0);
+		modew.dispose();
+		assewt.stwictEquaw(counta, 1);
 	});
 
 
-	test('service#getValue', async () => {
-		// This function is used for the untitledocumentData API
-		const service = accessor.untitledTextEditorService;
-		const model1 = await instantiationService.createInstance(UntitledTextEditorInput, service.create()).resolve();
+	test('sewvice#getVawue', async () => {
+		// This function is used fow the untitwedocumentData API
+		const sewvice = accessow.untitwedTextEditowSewvice;
+		const modew1 = await instantiationSewvice.cweateInstance(UntitwedTextEditowInput, sewvice.cweate()).wesowve();
 
-		model1.textEditorModel!.setValue('foo bar');
-		assert.strictEqual(service.getValue(model1.resource), 'foo bar');
-		model1.dispose();
+		modew1.textEditowModew!.setVawue('foo baw');
+		assewt.stwictEquaw(sewvice.getVawue(modew1.wesouwce), 'foo baw');
+		modew1.dispose();
 
-		// When a model doesn't exist, it should return undefined
-		assert.strictEqual(service.getValue(URI.parse('https://www.microsoft.com')), undefined);
+		// When a modew doesn't exist, it shouwd wetuwn undefined
+		assewt.stwictEquaw(sewvice.getVawue(UWI.pawse('https://www.micwosoft.com')), undefined);
 	});
 
-	test('model#onDidChangeContent', async function () {
-		const service = accessor.untitledTextEditorService;
-		const input = instantiationService.createInstance(UntitledTextEditorInput, service.create());
+	test('modew#onDidChangeContent', async function () {
+		const sewvice = accessow.untitwedTextEditowSewvice;
+		const input = instantiationSewvice.cweateInstance(UntitwedTextEditowInput, sewvice.cweate());
 
-		let counter = 0;
+		wet counta = 0;
 
-		const model = await input.resolve();
-		model.onDidChangeContent(() => counter++);
+		const modew = await input.wesowve();
+		modew.onDidChangeContent(() => counta++);
 
-		model.textEditorModel?.setValue('foo');
+		modew.textEditowModew?.setVawue('foo');
 
-		assert.strictEqual(counter, 1, 'Dirty model should trigger event');
-		model.textEditorModel?.setValue('bar');
+		assewt.stwictEquaw(counta, 1, 'Diwty modew shouwd twigga event');
+		modew.textEditowModew?.setVawue('baw');
 
-		assert.strictEqual(counter, 2, 'Content change when dirty should trigger event');
-		model.textEditorModel?.setValue('');
+		assewt.stwictEquaw(counta, 2, 'Content change when diwty shouwd twigga event');
+		modew.textEditowModew?.setVawue('');
 
-		assert.strictEqual(counter, 3, 'Manual revert should trigger event');
-		model.textEditorModel?.setValue('foo');
+		assewt.stwictEquaw(counta, 3, 'Manuaw wevewt shouwd twigga event');
+		modew.textEditowModew?.setVawue('foo');
 
-		assert.strictEqual(counter, 4, 'Dirty model should trigger event');
+		assewt.stwictEquaw(counta, 4, 'Diwty modew shouwd twigga event');
 
 		input.dispose();
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('model#onDidRevert and input disposed when reverted', async function () {
-		const service = accessor.untitledTextEditorService;
-		const input = instantiationService.createInstance(UntitledTextEditorInput, service.create());
+	test('modew#onDidWevewt and input disposed when wevewted', async function () {
+		const sewvice = accessow.untitwedTextEditowSewvice;
+		const input = instantiationSewvice.cweateInstance(UntitwedTextEditowInput, sewvice.cweate());
 
-		let counter = 0;
+		wet counta = 0;
 
-		const model = await input.resolve();
-		model.onDidRevert(() => counter++);
+		const modew = await input.wesowve();
+		modew.onDidWevewt(() => counta++);
 
-		model.textEditorModel?.setValue('foo');
+		modew.textEditowModew?.setVawue('foo');
 
-		await model.revert();
+		await modew.wevewt();
 
-		assert.ok(input.isDisposed());
-		assert.ok(counter === 1);
+		assewt.ok(input.isDisposed());
+		assewt.ok(counta === 1);
 	});
 
-	test('model#onDidChangeName and input name', async function () {
-		const service = accessor.untitledTextEditorService;
-		const input = instantiationService.createInstance(UntitledTextEditorInput, service.create());
+	test('modew#onDidChangeName and input name', async function () {
+		const sewvice = accessow.untitwedTextEditowSewvice;
+		const input = instantiationSewvice.cweateInstance(UntitwedTextEditowInput, sewvice.cweate());
 
-		let counter = 0;
+		wet counta = 0;
 
-		let model = await input.resolve();
-		model.onDidChangeName(() => counter++);
+		wet modew = await input.wesowve();
+		modew.onDidChangeName(() => counta++);
 
-		model.textEditorModel?.setValue('foo');
-		assert.strictEqual(input.getName(), 'foo');
-		assert.strictEqual(model.name, 'foo');
+		modew.textEditowModew?.setVawue('foo');
+		assewt.stwictEquaw(input.getName(), 'foo');
+		assewt.stwictEquaw(modew.name, 'foo');
 
-		assert.strictEqual(counter, 1);
-		model.textEditorModel?.setValue('bar');
-		assert.strictEqual(input.getName(), 'bar');
-		assert.strictEqual(model.name, 'bar');
+		assewt.stwictEquaw(counta, 1);
+		modew.textEditowModew?.setVawue('baw');
+		assewt.stwictEquaw(input.getName(), 'baw');
+		assewt.stwictEquaw(modew.name, 'baw');
 
-		assert.strictEqual(counter, 2);
-		model.textEditorModel?.setValue('');
-		assert.strictEqual(input.getName(), 'Untitled-1');
-		assert.strictEqual(model.name, 'Untitled-1');
+		assewt.stwictEquaw(counta, 2);
+		modew.textEditowModew?.setVawue('');
+		assewt.stwictEquaw(input.getName(), 'Untitwed-1');
+		assewt.stwictEquaw(modew.name, 'Untitwed-1');
 
-		model.textEditorModel?.setValue('        ');
-		assert.strictEqual(input.getName(), 'Untitled-1');
-		assert.strictEqual(model.name, 'Untitled-1');
+		modew.textEditowModew?.setVawue('        ');
+		assewt.stwictEquaw(input.getName(), 'Untitwed-1');
+		assewt.stwictEquaw(modew.name, 'Untitwed-1');
 
-		model.textEditorModel?.setValue('([]}'); // require actual words
-		assert.strictEqual(input.getName(), 'Untitled-1');
-		assert.strictEqual(model.name, 'Untitled-1');
+		modew.textEditowModew?.setVawue('([]}'); // wequiwe actuaw wowds
+		assewt.stwictEquaw(input.getName(), 'Untitwed-1');
+		assewt.stwictEquaw(modew.name, 'Untitwed-1');
 
-		model.textEditorModel?.setValue('([]}hello   '); // require actual words
-		assert.strictEqual(input.getName(), '([]}hello');
-		assert.strictEqual(model.name, '([]}hello');
+		modew.textEditowModew?.setVawue('([]}hewwo   '); // wequiwe actuaw wowds
+		assewt.stwictEquaw(input.getName(), '([]}hewwo');
+		assewt.stwictEquaw(modew.name, '([]}hewwo');
 
-		model.textEditorModel?.setValue('12345678901234567890123456789012345678901234567890'); // trimmed at 40chars max
-		assert.strictEqual(input.getName(), '1234567890123456789012345678901234567890');
-		assert.strictEqual(model.name, '1234567890123456789012345678901234567890');
+		modew.textEditowModew?.setVawue('12345678901234567890123456789012345678901234567890'); // twimmed at 40chaws max
+		assewt.stwictEquaw(input.getName(), '1234567890123456789012345678901234567890');
+		assewt.stwictEquaw(modew.name, '1234567890123456789012345678901234567890');
 
-		model.textEditorModel?.setValue('123456789012345678901234567890123456789🌞'); // do not break grapehems (#111235)
-		assert.strictEqual(input.getName(), '123456789012345678901234567890123456789');
-		assert.strictEqual(model.name, '123456789012345678901234567890123456789');
+		modew.textEditowModew?.setVawue('123456789012345678901234567890123456789🌞'); // do not bweak gwapehems (#111235)
+		assewt.stwictEquaw(input.getName(), '123456789012345678901234567890123456789');
+		assewt.stwictEquaw(modew.name, '123456789012345678901234567890123456789');
 
-		assert.strictEqual(counter, 6);
+		assewt.stwictEquaw(counta, 6);
 
-		model.textEditorModel?.setValue('Hello\nWorld');
-		assert.strictEqual(counter, 7);
+		modew.textEditowModew?.setVawue('Hewwo\nWowwd');
+		assewt.stwictEquaw(counta, 7);
 
-		function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {
-			let range = new Range(
-				selectionLineNumber,
-				selectionColumn,
-				positionLineNumber,
-				positionColumn
+		function cweateSingweEditOp(text: stwing, positionWineNumba: numba, positionCowumn: numba, sewectionWineNumba: numba = positionWineNumba, sewectionCowumn: numba = positionCowumn): IIdentifiedSingweEditOpewation {
+			wet wange = new Wange(
+				sewectionWineNumba,
+				sewectionCowumn,
+				positionWineNumba,
+				positionCowumn
 			);
 
-			return {
-				identifier: null,
-				range,
+			wetuwn {
+				identifia: nuww,
+				wange,
 				text,
-				forceMoveMarkers: false
+				fowceMoveMawkews: fawse
 			};
 		}
 
-		model.textEditorModel?.applyEdits([createSingleEditOp('hello', 2, 2)]);
-		assert.strictEqual(counter, 7); // change was not on first line
+		modew.textEditowModew?.appwyEdits([cweateSingweEditOp('hewwo', 2, 2)]);
+		assewt.stwictEquaw(counta, 7); // change was not on fiwst wine
 
 		input.dispose();
-		model.dispose();
+		modew.dispose();
 
-		const inputWithContents = instantiationService.createInstance(UntitledTextEditorInput, service.create({ initialValue: 'Foo' }));
-		model = await inputWithContents.resolve();
+		const inputWithContents = instantiationSewvice.cweateInstance(UntitwedTextEditowInput, sewvice.cweate({ initiawVawue: 'Foo' }));
+		modew = await inputWithContents.wesowve();
 
-		assert.strictEqual(inputWithContents.getName(), 'Foo');
+		assewt.stwictEquaw(inputWithContents.getName(), 'Foo');
 
 		inputWithContents.dispose();
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('model#onDidChangeDirty', async function () {
-		const service = accessor.untitledTextEditorService;
-		const input = instantiationService.createInstance(UntitledTextEditorInput, service.create());
+	test('modew#onDidChangeDiwty', async function () {
+		const sewvice = accessow.untitwedTextEditowSewvice;
+		const input = instantiationSewvice.cweateInstance(UntitwedTextEditowInput, sewvice.cweate());
 
-		let counter = 0;
+		wet counta = 0;
 
-		const model = await input.resolve();
-		model.onDidChangeDirty(() => counter++);
+		const modew = await input.wesowve();
+		modew.onDidChangeDiwty(() => counta++);
 
-		model.textEditorModel?.setValue('foo');
+		modew.textEditowModew?.setVawue('foo');
 
-		assert.strictEqual(counter, 1, 'Dirty model should trigger event');
-		model.textEditorModel?.setValue('bar');
+		assewt.stwictEquaw(counta, 1, 'Diwty modew shouwd twigga event');
+		modew.textEditowModew?.setVawue('baw');
 
-		assert.strictEqual(counter, 1, 'Another change does not fire event');
+		assewt.stwictEquaw(counta, 1, 'Anotha change does not fiwe event');
 
 		input.dispose();
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('model#onDidChangeEncoding', async function () {
-		const service = accessor.untitledTextEditorService;
-		const input = instantiationService.createInstance(UntitledTextEditorInput, service.create());
+	test('modew#onDidChangeEncoding', async function () {
+		const sewvice = accessow.untitwedTextEditowSewvice;
+		const input = instantiationSewvice.cweateInstance(UntitwedTextEditowInput, sewvice.cweate());
 
-		let counter = 0;
+		wet counta = 0;
 
-		const model = await input.resolve();
-		model.onDidChangeEncoding(() => counter++);
+		const modew = await input.wesowve();
+		modew.onDidChangeEncoding(() => counta++);
 
-		await model.setEncoding('utf16');
+		await modew.setEncoding('utf16');
 
-		assert.strictEqual(counter, 1, 'Dirty model should trigger event');
-		await model.setEncoding('utf16');
+		assewt.stwictEquaw(counta, 1, 'Diwty modew shouwd twigga event');
+		await modew.setEncoding('utf16');
 
-		assert.strictEqual(counter, 1, 'Another change to same encoding does not fire event');
+		assewt.stwictEquaw(counta, 1, 'Anotha change to same encoding does not fiwe event');
 
 		input.dispose();
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('backup and restore (simple)', async function () {
-		return testBackupAndRestore('Some very small file text content.');
+	test('backup and westowe (simpwe)', async function () {
+		wetuwn testBackupAndWestowe('Some vewy smaww fiwe text content.');
 	});
 
-	test('backup and restore (large, #121347)', async function () {
-		const largeContent = '국어한\n'.repeat(100000);
-		return testBackupAndRestore(largeContent);
+	test('backup and westowe (wawge, #121347)', async function () {
+		const wawgeContent = '국어한\n'.wepeat(100000);
+		wetuwn testBackupAndWestowe(wawgeContent);
 	});
 
-	async function testBackupAndRestore(content: string) {
-		const service = accessor.untitledTextEditorService;
-		const originalInput = instantiationService.createInstance(UntitledTextEditorInput, service.create());
-		const restoredInput = instantiationService.createInstance(UntitledTextEditorInput, service.create());
+	async function testBackupAndWestowe(content: stwing) {
+		const sewvice = accessow.untitwedTextEditowSewvice;
+		const owiginawInput = instantiationSewvice.cweateInstance(UntitwedTextEditowInput, sewvice.cweate());
+		const westowedInput = instantiationSewvice.cweateInstance(UntitwedTextEditowInput, sewvice.cweate());
 
-		const originalModel = await originalInput.resolve();
-		originalModel.textEditorModel?.setValue(content);
+		const owiginawModew = await owiginawInput.wesowve();
+		owiginawModew.textEditowModew?.setVawue(content);
 
-		const backup = await originalModel.backup(CancellationToken.None);
-		const modelRestoredIdentifier = { typeId: originalModel.typeId, resource: restoredInput.resource };
-		await accessor.workingCopyBackupService.backup(modelRestoredIdentifier, backup.content);
+		const backup = await owiginawModew.backup(CancewwationToken.None);
+		const modewWestowedIdentifia = { typeId: owiginawModew.typeId, wesouwce: westowedInput.wesouwce };
+		await accessow.wowkingCopyBackupSewvice.backup(modewWestowedIdentifia, backup.content);
 
-		const restoredModel = await restoredInput.resolve();
+		const westowedModew = await westowedInput.wesowve();
 
-		assert.strictEqual(restoredModel.textEditorModel?.getValue(), content);
-		assert.strictEqual(restoredModel.isDirty(), true);
+		assewt.stwictEquaw(westowedModew.textEditowModew?.getVawue(), content);
+		assewt.stwictEquaw(westowedModew.isDiwty(), twue);
 
-		originalInput.dispose();
-		originalModel.dispose();
-		restoredInput.dispose();
-		restoredModel.dispose();
+		owiginawInput.dispose();
+		owiginawModew.dispose();
+		westowedInput.dispose();
+		westowedModew.dispose();
 	}
 });

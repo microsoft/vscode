@@ -1,66 +1,66 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { AccessibilitySupport, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+impowt { awewt } fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { AccessibiwitySuppowt, CONTEXT_ACCESSIBIWITY_MODE_ENABWED, IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
 
-export class AccessibilityService extends Disposable implements IAccessibilityService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass AccessibiwitySewvice extends Disposabwe impwements IAccessibiwitySewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private _accessibilityModeEnabledContext: IContextKey<boolean>;
-	protected _accessibilitySupport = AccessibilitySupport.Unknown;
-	protected readonly _onDidChangeScreenReaderOptimized = new Emitter<void>();
+	pwivate _accessibiwityModeEnabwedContext: IContextKey<boowean>;
+	pwotected _accessibiwitySuppowt = AccessibiwitySuppowt.Unknown;
+	pwotected weadonwy _onDidChangeScweenWeadewOptimized = new Emitta<void>();
 
-	constructor(
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IConfigurationService protected readonly _configurationService: IConfigurationService,
+	constwuctow(
+		@IContextKeySewvice pwivate weadonwy _contextKeySewvice: IContextKeySewvice,
+		@IConfiguwationSewvice pwotected weadonwy _configuwationSewvice: IConfiguwationSewvice,
 	) {
-		super();
-		this._accessibilityModeEnabledContext = CONTEXT_ACCESSIBILITY_MODE_ENABLED.bindTo(this._contextKeyService);
-		const updateContextKey = () => this._accessibilityModeEnabledContext.set(this.isScreenReaderOptimized());
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('editor.accessibilitySupport')) {
+		supa();
+		this._accessibiwityModeEnabwedContext = CONTEXT_ACCESSIBIWITY_MODE_ENABWED.bindTo(this._contextKeySewvice);
+		const updateContextKey = () => this._accessibiwityModeEnabwedContext.set(this.isScweenWeadewOptimized());
+		this._wegista(this._configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation('editow.accessibiwitySuppowt')) {
 				updateContextKey();
-				this._onDidChangeScreenReaderOptimized.fire();
+				this._onDidChangeScweenWeadewOptimized.fiwe();
 			}
 		}));
 		updateContextKey();
-		this.onDidChangeScreenReaderOptimized(() => updateContextKey());
+		this.onDidChangeScweenWeadewOptimized(() => updateContextKey());
 	}
 
-	get onDidChangeScreenReaderOptimized(): Event<void> {
-		return this._onDidChangeScreenReaderOptimized.event;
+	get onDidChangeScweenWeadewOptimized(): Event<void> {
+		wetuwn this._onDidChangeScweenWeadewOptimized.event;
 	}
 
-	isScreenReaderOptimized(): boolean {
-		const config = this._configurationService.getValue('editor.accessibilitySupport');
-		return config === 'on' || (config === 'auto' && this._accessibilitySupport === AccessibilitySupport.Enabled);
+	isScweenWeadewOptimized(): boowean {
+		const config = this._configuwationSewvice.getVawue('editow.accessibiwitySuppowt');
+		wetuwn config === 'on' || (config === 'auto' && this._accessibiwitySuppowt === AccessibiwitySuppowt.Enabwed);
 	}
 
-	getAccessibilitySupport(): AccessibilitySupport {
-		return this._accessibilitySupport;
+	getAccessibiwitySuppowt(): AccessibiwitySuppowt {
+		wetuwn this._accessibiwitySuppowt;
 	}
 
-	alwaysUnderlineAccessKeys(): Promise<boolean> {
-		return Promise.resolve(false);
+	awwaysUndewwineAccessKeys(): Pwomise<boowean> {
+		wetuwn Pwomise.wesowve(fawse);
 	}
 
-	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void {
-		if (this._accessibilitySupport === accessibilitySupport) {
-			return;
+	setAccessibiwitySuppowt(accessibiwitySuppowt: AccessibiwitySuppowt): void {
+		if (this._accessibiwitySuppowt === accessibiwitySuppowt) {
+			wetuwn;
 		}
 
-		this._accessibilitySupport = accessibilitySupport;
-		this._onDidChangeScreenReaderOptimized.fire();
+		this._accessibiwitySuppowt = accessibiwitySuppowt;
+		this._onDidChangeScweenWeadewOptimized.fiwe();
 	}
 
-	alert(message: string): void {
-		alert(message);
+	awewt(message: stwing): void {
+		awewt(message);
 	}
 }

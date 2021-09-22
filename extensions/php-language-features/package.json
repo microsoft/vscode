@@ -1,89 +1,89 @@
 {
-  "name": "php-language-features",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
-  "icon": "icons/logo.png",
+  "name": "php-wanguage-featuwes",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
+  "icon": "icons/wogo.png",
   "engines": {
     "vscode": "0.10.x"
   },
-  "enableProposedApi": true,
+  "enabwePwoposedApi": twue,
   "activationEvents": [
-    "onLanguage:php"
+    "onWanguage:php"
   ],
   "main": "./out/phpMain",
-  "categories": [
-    "Programming Languages"
+  "categowies": [
+    "Pwogwamming Wanguages"
   ],
-  "capabilities": {
-    "virtualWorkspaces": false,
-    "untrustedWorkspaces": {
-      "supported": "limited",
-      "description": "%workspaceTrust%",
-      "restrictedConfigurations": [
-        "php.validate.executablePath"
+  "capabiwities": {
+    "viwtuawWowkspaces": fawse,
+    "untwustedWowkspaces": {
+      "suppowted": "wimited",
+      "descwiption": "%wowkspaceTwust%",
+      "westwictedConfiguwations": [
+        "php.vawidate.executabwePath"
       ]
     }
   },
-  "contributes": {
-    "configuration": {
-      "title": "%configuration.title%",
+  "contwibutes": {
+    "configuwation": {
+      "titwe": "%configuwation.titwe%",
       "type": "object",
-      "order": 20,
-      "properties": {
+      "owda": 20,
+      "pwopewties": {
         "php.suggest.basic": {
-          "type": "boolean",
-          "default": true,
-          "description": "%configuration.suggest.basic%"
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%configuwation.suggest.basic%"
         },
-        "php.validate.enable": {
-          "type": "boolean",
-          "default": true,
-          "description": "%configuration.validate.enable%"
+        "php.vawidate.enabwe": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%configuwation.vawidate.enabwe%"
         },
-        "php.validate.executablePath": {
+        "php.vawidate.executabwePath": {
           "type": [
-            "string",
-            "null"
+            "stwing",
+            "nuww"
           ],
-          "default": null,
-          "description": "%configuration.validate.executablePath%",
-          "scope": "machine-overridable"
+          "defauwt": nuww,
+          "descwiption": "%configuwation.vawidate.executabwePath%",
+          "scope": "machine-ovewwidabwe"
         },
-        "php.validate.run": {
-          "type": "string",
+        "php.vawidate.wun": {
+          "type": "stwing",
           "enum": [
             "onSave",
             "onType"
           ],
-          "default": "onSave",
-          "description": "%configuration.validate.run%"
+          "defauwt": "onSave",
+          "descwiption": "%configuwation.vawidate.wun%"
         }
       }
     },
-    "jsonValidation": [
+    "jsonVawidation": [
       {
-        "fileMatch": "composer.json",
-        "url": "https://getcomposer.org/schema.json"
+        "fiweMatch": "composa.json",
+        "uww": "https://getcomposa.owg/schema.json"
       }
     ]
   },
-  "scripts": {
-    "compile": "npx gulp compile-extension:php-language-features",
-    "watch": "npx gulp watch-extension:php-language-features"
+  "scwipts": {
+    "compiwe": "npx guwp compiwe-extension:php-wanguage-featuwes",
+    "watch": "npx guwp watch-extension:php-wanguage-featuwes"
   },
   "dependencies": {
-    "vscode-nls": "^4.0.0",
+    "vscode-nws": "^4.0.0",
     "which": "^2.0.2"
   },
   "devDependencies": {
     "@types/node": "14.x",
     "@types/which": "^2.0.0"
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

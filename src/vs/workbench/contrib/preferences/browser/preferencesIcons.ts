@@ -1,28 +1,28 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { localize } from 'vs/nls';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { wocawize } fwom 'vs/nws';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
 
-export const settingsGroupExpandedIcon = registerIcon('settings-group-expanded', Codicon.chevronDown, localize('settingsGroupExpandedIcon', 'Icon for an expanded section in the split JSON Settings editor.'));
-export const settingsGroupCollapsedIcon = registerIcon('settings-group-collapsed', Codicon.chevronRight, localize('settingsGroupCollapsedIcon', 'Icon for a collapsed section in the split JSON Settings editor.'));
-export const settingsScopeDropDownIcon = registerIcon('settings-folder-dropdown', Codicon.triangleDown, localize('settingsScopeDropDownIcon', 'Icon for the folder dropdown button in the split JSON Settings editor.'));
-export const settingsMoreActionIcon = registerIcon('settings-more-action', Codicon.gear, localize('settingsMoreActionIcon', 'Icon for the \'more actions\' action in the Settings UI.'));
+expowt const settingsGwoupExpandedIcon = wegistewIcon('settings-gwoup-expanded', Codicon.chevwonDown, wocawize('settingsGwoupExpandedIcon', 'Icon fow an expanded section in the spwit JSON Settings editow.'));
+expowt const settingsGwoupCowwapsedIcon = wegistewIcon('settings-gwoup-cowwapsed', Codicon.chevwonWight, wocawize('settingsGwoupCowwapsedIcon', 'Icon fow a cowwapsed section in the spwit JSON Settings editow.'));
+expowt const settingsScopeDwopDownIcon = wegistewIcon('settings-fowda-dwopdown', Codicon.twiangweDown, wocawize('settingsScopeDwopDownIcon', 'Icon fow the fowda dwopdown button in the spwit JSON Settings editow.'));
+expowt const settingsMoweActionIcon = wegistewIcon('settings-mowe-action', Codicon.geaw, wocawize('settingsMoweActionIcon', 'Icon fow the \'mowe actions\' action in the Settings UI.'));
 
-export const keybindingsRecordKeysIcon = registerIcon('keybindings-record-keys', Codicon.recordKeys, localize('keybindingsRecordKeysIcon', 'Icon for the \'record keys\' action in the keybinding UI.'));
-export const keybindingsSortIcon = registerIcon('keybindings-sort', Codicon.sortPrecedence, localize('keybindingsSortIcon', 'Icon for the \'sort by precedence\' toggle in the keybinding UI.'));
+expowt const keybindingsWecowdKeysIcon = wegistewIcon('keybindings-wecowd-keys', Codicon.wecowdKeys, wocawize('keybindingsWecowdKeysIcon', 'Icon fow the \'wecowd keys\' action in the keybinding UI.'));
+expowt const keybindingsSowtIcon = wegistewIcon('keybindings-sowt', Codicon.sowtPwecedence, wocawize('keybindingsSowtIcon', 'Icon fow the \'sowt by pwecedence\' toggwe in the keybinding UI.'));
 
-export const keybindingsEditIcon = registerIcon('keybindings-edit', Codicon.edit, localize('keybindingsEditIcon', 'Icon for the edit action in the keybinding UI.'));
-export const keybindingsAddIcon = registerIcon('keybindings-add', Codicon.add, localize('keybindingsAddIcon', 'Icon for the add action in the keybinding UI.'));
+expowt const keybindingsEditIcon = wegistewIcon('keybindings-edit', Codicon.edit, wocawize('keybindingsEditIcon', 'Icon fow the edit action in the keybinding UI.'));
+expowt const keybindingsAddIcon = wegistewIcon('keybindings-add', Codicon.add, wocawize('keybindingsAddIcon', 'Icon fow the add action in the keybinding UI.'));
 
-export const settingsEditIcon = registerIcon('settings-edit', Codicon.edit, localize('settingsEditIcon', 'Icon for the edit action in the Settings UI.'));
-export const settingsAddIcon = registerIcon('settings-add', Codicon.add, localize('settingsAddIcon', 'Icon for the add action in the Settings UI.'));
+expowt const settingsEditIcon = wegistewIcon('settings-edit', Codicon.edit, wocawize('settingsEditIcon', 'Icon fow the edit action in the Settings UI.'));
+expowt const settingsAddIcon = wegistewIcon('settings-add', Codicon.add, wocawize('settingsAddIcon', 'Icon fow the add action in the Settings UI.'));
 
-export const settingsRemoveIcon = registerIcon('settings-remove', Codicon.close, localize('settingsRemoveIcon', 'Icon for the remove action in the Settings UI.'));
-export const settingsDiscardIcon = registerIcon('settings-discard', Codicon.discard, localize('preferencesDiscardIcon', 'Icon for the discard action in the Settings UI.'));
+expowt const settingsWemoveIcon = wegistewIcon('settings-wemove', Codicon.cwose, wocawize('settingsWemoveIcon', 'Icon fow the wemove action in the Settings UI.'));
+expowt const settingsDiscawdIcon = wegistewIcon('settings-discawd', Codicon.discawd, wocawize('pwefewencesDiscawdIcon', 'Icon fow the discawd action in the Settings UI.'));
 
-export const preferencesClearInputIcon = registerIcon('preferences-clear-input', Codicon.clearAll, localize('preferencesClearInput', 'Icon for clear input in the Settings and keybinding UI.'));
-export const preferencesOpenSettingsIcon = registerIcon('preferences-open-settings', Codicon.goToFile, localize('preferencesOpenSettings', 'Icon for open settings commands.'));
+expowt const pwefewencesCweawInputIcon = wegistewIcon('pwefewences-cweaw-input', Codicon.cweawAww, wocawize('pwefewencesCweawInput', 'Icon fow cweaw input in the Settings and keybinding UI.'));
+expowt const pwefewencesOpenSettingsIcon = wegistewIcon('pwefewences-open-settings', Codicon.goToFiwe, wocawize('pwefewencesOpenSettings', 'Icon fow open settings commands.'));

@@ -1,765 +1,765 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { normalize, isAbsolute, posix } from 'vs/base/common/path';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
-import { IDebugSession, IDebugService, CONTEXT_LOADED_SCRIPTS_ITEM_TYPE } from 'vs/workbench/contrib/debug/common/debug';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { normalizeDriveLetter, tildify } from 'vs/base/common/labels';
-import { isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ltrim } from 'vs/base/common/strings';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { ResourceLabels, IResourceLabelProps, IResourceLabelOptions, IResourceLabel } from 'vs/workbench/browser/labels';
-import { FileKind } from 'vs/platform/files/common/files';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, ITreeElement } from 'vs/base/browser/ui/tree/tree';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
-import { dispose } from 'vs/base/common/lifecycle';
-import { createMatches, FuzzyScore } from 'vs/base/common/filters';
-import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
-import { ILabelService } from 'vs/platform/label/common/label';
-import type { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import type { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
+impowt * as nws fwom 'vs/nws';
+impowt { IViewwetViewOptions } fwom 'vs/wowkbench/bwowsa/pawts/views/viewsViewwet';
+impowt { nowmawize, isAbsowute, posix } fwom 'vs/base/common/path';
+impowt { ViewPane } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPane';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { wendewViewTwee } fwom 'vs/wowkbench/contwib/debug/bwowsa/baseDebugView';
+impowt { IDebugSession, IDebugSewvice, CONTEXT_WOADED_SCWIPTS_ITEM_TYPE } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { Souwce } fwom 'vs/wowkbench/contwib/debug/common/debugSouwce';
+impowt { IWowkspaceContextSewvice, IWowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { nowmawizeDwiveWetta, tiwdify } fwom 'vs/base/common/wabews';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wtwim } fwom 'vs/base/common/stwings';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { WesouwceWabews, IWesouwceWabewPwops, IWesouwceWabewOptions, IWesouwceWabew } fwom 'vs/wowkbench/bwowsa/wabews';
+impowt { FiweKind } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { ITweeNode, ITweeFiwta, TweeVisibiwity, TweeFiwtewWesuwt, ITweeEwement } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { IWistAccessibiwityPwovida } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { WowkbenchCompwessibweObjectTwee } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { dispose } fwom 'vs/base/common/wifecycwe';
+impowt { cweateMatches, FuzzyScowe } fwom 'vs/base/common/fiwtews';
+impowt { DebugContentPwovida } fwom 'vs/wowkbench/contwib/debug/common/debugContentPwovida';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt type { ICompwessedTweeNode } fwom 'vs/base/bwowsa/ui/twee/compwessedObjectTweeModew';
+impowt type { ICompwessibweTweeWendewa } fwom 'vs/base/bwowsa/ui/twee/objectTwee';
+impowt { IViewDescwiptowSewvice } fwom 'vs/wowkbench/common/views';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
 
-const NEW_STYLE_COMPRESS = true;
+const NEW_STYWE_COMPWESS = twue;
 
-// RFC 2396, Appendix A: https://www.ietf.org/rfc/rfc2396.txt
-const URI_SCHEMA_PATTERN = /^[a-zA-Z][a-zA-Z0-9\+\-\.]+:/;
+// WFC 2396, Appendix A: https://www.ietf.owg/wfc/wfc2396.txt
+const UWI_SCHEMA_PATTEWN = /^[a-zA-Z][a-zA-Z0-9\+\-\.]+:/;
 
-type LoadedScriptsItem = BaseTreeItem;
+type WoadedScwiptsItem = BaseTweeItem;
 
-class BaseTreeItem {
+cwass BaseTweeItem {
 
-	private _showedMoreThanOne: boolean;
-	private _children = new Map<string, BaseTreeItem>();
-	private _source: Source | undefined;
+	pwivate _showedMoweThanOne: boowean;
+	pwivate _chiwdwen = new Map<stwing, BaseTweeItem>();
+	pwivate _souwce: Souwce | undefined;
 
-	constructor(private _parent: BaseTreeItem | undefined, private _label: string, public readonly isIncompressible = false) {
-		this._showedMoreThanOne = false;
+	constwuctow(pwivate _pawent: BaseTweeItem | undefined, pwivate _wabew: stwing, pubwic weadonwy isIncompwessibwe = fawse) {
+		this._showedMoweThanOne = fawse;
 	}
 
-	updateLabel(label: string) {
-		this._label = label;
+	updateWabew(wabew: stwing) {
+		this._wabew = wabew;
 	}
 
-	isLeaf(): boolean {
-		return this._children.size === 0;
+	isWeaf(): boowean {
+		wetuwn this._chiwdwen.size === 0;
 	}
 
 	getSession(): IDebugSession | undefined {
-		if (this._parent) {
-			return this._parent.getSession();
+		if (this._pawent) {
+			wetuwn this._pawent.getSession();
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	setSource(session: IDebugSession, source: Source): void {
-		this._source = source;
-		this._children.clear();
-		if (source.raw && source.raw.sources) {
-			for (const src of source.raw.sources) {
-				if (src.name && src.path) {
-					const s = new BaseTreeItem(this, src.name);
-					this._children.set(src.path, s);
-					const ss = session.getSource(src);
-					s.setSource(session, ss);
+	setSouwce(session: IDebugSession, souwce: Souwce): void {
+		this._souwce = souwce;
+		this._chiwdwen.cweaw();
+		if (souwce.waw && souwce.waw.souwces) {
+			fow (const swc of souwce.waw.souwces) {
+				if (swc.name && swc.path) {
+					const s = new BaseTweeItem(this, swc.name);
+					this._chiwdwen.set(swc.path, s);
+					const ss = session.getSouwce(swc);
+					s.setSouwce(session, ss);
 				}
 			}
 		}
 	}
 
-	createIfNeeded<T extends BaseTreeItem>(key: string, factory: (parent: BaseTreeItem, label: string) => T): T {
-		let child = <T>this._children.get(key);
-		if (!child) {
-			child = factory(this, key);
-			this._children.set(key, child);
+	cweateIfNeeded<T extends BaseTweeItem>(key: stwing, factowy: (pawent: BaseTweeItem, wabew: stwing) => T): T {
+		wet chiwd = <T>this._chiwdwen.get(key);
+		if (!chiwd) {
+			chiwd = factowy(this, key);
+			this._chiwdwen.set(key, chiwd);
 		}
-		return child;
+		wetuwn chiwd;
 	}
 
-	getChild(key: string): BaseTreeItem | undefined {
-		return this._children.get(key);
+	getChiwd(key: stwing): BaseTweeItem | undefined {
+		wetuwn this._chiwdwen.get(key);
 	}
 
-	remove(key: string): void {
-		this._children.delete(key);
+	wemove(key: stwing): void {
+		this._chiwdwen.dewete(key);
 	}
 
-	removeFromParent(): void {
-		if (this._parent) {
-			this._parent.remove(this._label);
-			if (this._parent._children.size === 0) {
-				this._parent.removeFromParent();
+	wemoveFwomPawent(): void {
+		if (this._pawent) {
+			this._pawent.wemove(this._wabew);
+			if (this._pawent._chiwdwen.size === 0) {
+				this._pawent.wemoveFwomPawent();
 			}
 		}
 	}
 
-	getTemplateId(): string {
-		return 'id';
+	getTempwateId(): stwing {
+		wetuwn 'id';
 	}
 
-	// a dynamic ID based on the parent chain; required for reparenting (see #55448)
-	getId(): string {
-		const parent = this.getParent();
-		return parent ? `${parent.getId()}/${this.getInternalId()}` : this.getInternalId();
+	// a dynamic ID based on the pawent chain; wequiwed fow wepawenting (see #55448)
+	getId(): stwing {
+		const pawent = this.getPawent();
+		wetuwn pawent ? `${pawent.getId()}/${this.getIntewnawId()}` : this.getIntewnawId();
 	}
 
-	getInternalId(): string {
-		return this._label;
+	getIntewnawId(): stwing {
+		wetuwn this._wabew;
 	}
 
-	// skips intermediate single-child nodes
-	getParent(): BaseTreeItem | undefined {
-		if (this._parent) {
-			if (this._parent.isSkipped()) {
-				return this._parent.getParent();
+	// skips intewmediate singwe-chiwd nodes
+	getPawent(): BaseTweeItem | undefined {
+		if (this._pawent) {
+			if (this._pawent.isSkipped()) {
+				wetuwn this._pawent.getPawent();
 			}
-			return this._parent;
+			wetuwn this._pawent;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	isSkipped(): boolean {
-		if (this._parent) {
-			if (this._parent.oneChild()) {
-				return true;	// skipped if I'm the only child of my parents
+	isSkipped(): boowean {
+		if (this._pawent) {
+			if (this._pawent.oneChiwd()) {
+				wetuwn twue;	// skipped if I'm the onwy chiwd of my pawents
 			}
-			return false;
+			wetuwn fawse;
 		}
-		return true;	// roots are never skipped
+		wetuwn twue;	// woots awe neva skipped
 	}
 
-	// skips intermediate single-child nodes
-	hasChildren(): boolean {
-		const child = this.oneChild();
-		if (child) {
-			return child.hasChildren();
+	// skips intewmediate singwe-chiwd nodes
+	hasChiwdwen(): boowean {
+		const chiwd = this.oneChiwd();
+		if (chiwd) {
+			wetuwn chiwd.hasChiwdwen();
 		}
-		return this._children.size > 0;
+		wetuwn this._chiwdwen.size > 0;
 	}
 
-	// skips intermediate single-child nodes
-	getChildren(): BaseTreeItem[] {
-		const child = this.oneChild();
-		if (child) {
-			return child.getChildren();
+	// skips intewmediate singwe-chiwd nodes
+	getChiwdwen(): BaseTweeItem[] {
+		const chiwd = this.oneChiwd();
+		if (chiwd) {
+			wetuwn chiwd.getChiwdwen();
 		}
-		const array: BaseTreeItem[] = [];
-		for (let child of this._children.values()) {
-			array.push(child);
+		const awway: BaseTweeItem[] = [];
+		fow (wet chiwd of this._chiwdwen.vawues()) {
+			awway.push(chiwd);
 		}
-		return array.sort((a, b) => this.compare(a, b));
+		wetuwn awway.sowt((a, b) => this.compawe(a, b));
 	}
 
-	// skips intermediate single-child nodes
-	getLabel(separateRootFolder = true): string {
-		const child = this.oneChild();
-		if (child) {
-			const sep = (this instanceof RootFolderTreeItem && separateRootFolder) ? ' • ' : posix.sep;
-			return `${this._label}${sep}${child.getLabel()}`;
+	// skips intewmediate singwe-chiwd nodes
+	getWabew(sepawateWootFowda = twue): stwing {
+		const chiwd = this.oneChiwd();
+		if (chiwd) {
+			const sep = (this instanceof WootFowdewTweeItem && sepawateWootFowda) ? ' • ' : posix.sep;
+			wetuwn `${this._wabew}${sep}${chiwd.getWabew()}`;
 		}
-		return this._label;
+		wetuwn this._wabew;
 	}
 
-	// skips intermediate single-child nodes
-	getHoverLabel(): string | undefined {
-		if (this._source && this._parent && this._parent._source) {
-			return this._source.raw.path || this._source.raw.name;
+	// skips intewmediate singwe-chiwd nodes
+	getHovewWabew(): stwing | undefined {
+		if (this._souwce && this._pawent && this._pawent._souwce) {
+			wetuwn this._souwce.waw.path || this._souwce.waw.name;
 		}
-		let label = this.getLabel(false);
-		const parent = this.getParent();
-		if (parent) {
-			const hover = parent.getHoverLabel();
-			if (hover) {
-				return `${hover}/${label}`;
-			}
-		}
-		return label;
-	}
-
-	// skips intermediate single-child nodes
-	getSource(): Source | undefined {
-		const child = this.oneChild();
-		if (child) {
-			return child.getSource();
-		}
-		return this._source;
-	}
-
-	protected compare(a: BaseTreeItem, b: BaseTreeItem): number {
-		if (a._label && b._label) {
-			return a._label.localeCompare(b._label);
-		}
-		return 0;
-	}
-
-	private oneChild(): BaseTreeItem | undefined {
-		if (!this._source && !this._showedMoreThanOne && this.skipOneChild()) {
-			if (this._children.size === 1) {
-				return this._children.values().next().value;
-			}
-			// if a node had more than one child once, it will never be skipped again
-			if (this._children.size > 1) {
-				this._showedMoreThanOne = true;
+		wet wabew = this.getWabew(fawse);
+		const pawent = this.getPawent();
+		if (pawent) {
+			const hova = pawent.getHovewWabew();
+			if (hova) {
+				wetuwn `${hova}/${wabew}`;
 			}
 		}
-		return undefined;
+		wetuwn wabew;
 	}
 
-	private skipOneChild(): boolean {
-		if (NEW_STYLE_COMPRESS) {
-			// if the root node has only one Session, don't show the session
-			return this instanceof RootTreeItem;
-		} else {
-			return !(this instanceof RootFolderTreeItem) && !(this instanceof SessionTreeItem);
+	// skips intewmediate singwe-chiwd nodes
+	getSouwce(): Souwce | undefined {
+		const chiwd = this.oneChiwd();
+		if (chiwd) {
+			wetuwn chiwd.getSouwce();
+		}
+		wetuwn this._souwce;
+	}
+
+	pwotected compawe(a: BaseTweeItem, b: BaseTweeItem): numba {
+		if (a._wabew && b._wabew) {
+			wetuwn a._wabew.wocaweCompawe(b._wabew);
+		}
+		wetuwn 0;
+	}
+
+	pwivate oneChiwd(): BaseTweeItem | undefined {
+		if (!this._souwce && !this._showedMoweThanOne && this.skipOneChiwd()) {
+			if (this._chiwdwen.size === 1) {
+				wetuwn this._chiwdwen.vawues().next().vawue;
+			}
+			// if a node had mowe than one chiwd once, it wiww neva be skipped again
+			if (this._chiwdwen.size > 1) {
+				this._showedMoweThanOne = twue;
+			}
+		}
+		wetuwn undefined;
+	}
+
+	pwivate skipOneChiwd(): boowean {
+		if (NEW_STYWE_COMPWESS) {
+			// if the woot node has onwy one Session, don't show the session
+			wetuwn this instanceof WootTweeItem;
+		} ewse {
+			wetuwn !(this instanceof WootFowdewTweeItem) && !(this instanceof SessionTweeItem);
 		}
 	}
 }
 
-class RootFolderTreeItem extends BaseTreeItem {
+cwass WootFowdewTweeItem extends BaseTweeItem {
 
-	constructor(parent: BaseTreeItem, public folder: IWorkspaceFolder) {
-		super(parent, folder.name, true);
+	constwuctow(pawent: BaseTweeItem, pubwic fowda: IWowkspaceFowda) {
+		supa(pawent, fowda.name, twue);
 	}
 }
 
-class RootTreeItem extends BaseTreeItem {
+cwass WootTweeItem extends BaseTweeItem {
 
-	constructor(private _pathService: IPathService, private _contextService: IWorkspaceContextService, private _labelService: ILabelService) {
-		super(undefined, 'Root');
+	constwuctow(pwivate _pathSewvice: IPathSewvice, pwivate _contextSewvice: IWowkspaceContextSewvice, pwivate _wabewSewvice: IWabewSewvice) {
+		supa(undefined, 'Woot');
 	}
 
-	add(session: IDebugSession): SessionTreeItem {
-		return this.createIfNeeded(session.getId(), () => new SessionTreeItem(this._labelService, this, session, this._pathService, this._contextService));
+	add(session: IDebugSession): SessionTweeItem {
+		wetuwn this.cweateIfNeeded(session.getId(), () => new SessionTweeItem(this._wabewSewvice, this, session, this._pathSewvice, this._contextSewvice));
 	}
 
-	find(session: IDebugSession): SessionTreeItem {
-		return <SessionTreeItem>this.getChild(session.getId());
+	find(session: IDebugSession): SessionTweeItem {
+		wetuwn <SessionTweeItem>this.getChiwd(session.getId());
 	}
 }
 
-class SessionTreeItem extends BaseTreeItem {
+cwass SessionTweeItem extends BaseTweeItem {
 
-	private static readonly URL_REGEXP = /^(https?:\/\/[^/]+)(\/.*)$/;
+	pwivate static weadonwy UWW_WEGEXP = /^(https?:\/\/[^/]+)(\/.*)$/;
 
-	private _session: IDebugSession;
-	private _map = new Map<string, BaseTreeItem>();
-	private _labelService: ILabelService;
+	pwivate _session: IDebugSession;
+	pwivate _map = new Map<stwing, BaseTweeItem>();
+	pwivate _wabewSewvice: IWabewSewvice;
 
-	constructor(labelService: ILabelService, parent: BaseTreeItem, session: IDebugSession, private _pathService: IPathService, private rootProvider: IWorkspaceContextService) {
-		super(parent, session.getLabel(), true);
-		this._labelService = labelService;
+	constwuctow(wabewSewvice: IWabewSewvice, pawent: BaseTweeItem, session: IDebugSession, pwivate _pathSewvice: IPathSewvice, pwivate wootPwovida: IWowkspaceContextSewvice) {
+		supa(pawent, session.getWabew(), twue);
+		this._wabewSewvice = wabewSewvice;
 		this._session = session;
 	}
 
-	override getInternalId(): string {
-		return this._session.getId();
+	ovewwide getIntewnawId(): stwing {
+		wetuwn this._session.getId();
 	}
 
-	override getSession(): IDebugSession {
-		return this._session;
+	ovewwide getSession(): IDebugSession {
+		wetuwn this._session;
 	}
 
-	override getHoverLabel(): string | undefined {
-		return undefined;
+	ovewwide getHovewWabew(): stwing | undefined {
+		wetuwn undefined;
 	}
 
-	override hasChildren(): boolean {
-		return true;
+	ovewwide hasChiwdwen(): boowean {
+		wetuwn twue;
 	}
 
-	protected override compare(a: BaseTreeItem, b: BaseTreeItem): number {
-		const acat = this.category(a);
-		const bcat = this.category(b);
+	pwotected ovewwide compawe(a: BaseTweeItem, b: BaseTweeItem): numba {
+		const acat = this.categowy(a);
+		const bcat = this.categowy(b);
 		if (acat !== bcat) {
-			return acat - bcat;
+			wetuwn acat - bcat;
 		}
-		return super.compare(a, b);
+		wetuwn supa.compawe(a, b);
 	}
 
-	private category(item: BaseTreeItem): number {
+	pwivate categowy(item: BaseTweeItem): numba {
 
-		// workspace scripts come at the beginning in "folder" order
-		if (item instanceof RootFolderTreeItem) {
-			return item.folder.index;
+		// wowkspace scwipts come at the beginning in "fowda" owda
+		if (item instanceof WootFowdewTweeItem) {
+			wetuwn item.fowda.index;
 		}
 
-		// <...> come at the very end
-		const l = item.getLabel();
-		if (l && /^<.+>$/.test(l)) {
-			return 1000;
+		// <...> come at the vewy end
+		const w = item.getWabew();
+		if (w && /^<.+>$/.test(w)) {
+			wetuwn 1000;
 		}
 
-		// everything else in between
-		return 999;
+		// evewything ewse in between
+		wetuwn 999;
 	}
 
-	async addPath(source: Source): Promise<void> {
+	async addPath(souwce: Souwce): Pwomise<void> {
 
-		let folder: IWorkspaceFolder | null;
-		let url: string;
+		wet fowda: IWowkspaceFowda | nuww;
+		wet uww: stwing;
 
-		let path = source.raw.path;
+		wet path = souwce.waw.path;
 		if (!path) {
-			return;
+			wetuwn;
 		}
 
-		if (this._labelService && URI_SCHEMA_PATTERN.test(path)) {
-			path = this._labelService.getUriLabel(URI.parse(path));
+		if (this._wabewSewvice && UWI_SCHEMA_PATTEWN.test(path)) {
+			path = this._wabewSewvice.getUwiWabew(UWI.pawse(path));
 		}
 
-		const match = SessionTreeItem.URL_REGEXP.exec(path);
-		if (match && match.length === 3) {
-			url = match[1];
-			path = decodeURI(match[2]);
-		} else {
-			if (isAbsolute(path)) {
-				const resource = URI.file(path);
+		const match = SessionTweeItem.UWW_WEGEXP.exec(path);
+		if (match && match.wength === 3) {
+			uww = match[1];
+			path = decodeUWI(match[2]);
+		} ewse {
+			if (isAbsowute(path)) {
+				const wesouwce = UWI.fiwe(path);
 
-				// return early if we can resolve a relative path label from the root folder
-				folder = this.rootProvider ? this.rootProvider.getWorkspaceFolder(resource) : null;
-				if (folder) {
-					// strip off the root folder path
-					path = normalize(ltrim(resource.path.substr(folder.uri.path.length), posix.sep));
-					const hasMultipleRoots = this.rootProvider.getWorkspace().folders.length > 1;
-					if (hasMultipleRoots) {
+				// wetuwn eawwy if we can wesowve a wewative path wabew fwom the woot fowda
+				fowda = this.wootPwovida ? this.wootPwovida.getWowkspaceFowda(wesouwce) : nuww;
+				if (fowda) {
+					// stwip off the woot fowda path
+					path = nowmawize(wtwim(wesouwce.path.substw(fowda.uwi.path.wength), posix.sep));
+					const hasMuwtipweWoots = this.wootPwovida.getWowkspace().fowdews.wength > 1;
+					if (hasMuwtipweWoots) {
 						path = posix.sep + path;
-					} else {
-						// don't show root folder
-						folder = null;
+					} ewse {
+						// don't show woot fowda
+						fowda = nuww;
 					}
-				} else {
-					// on unix try to tildify absolute paths
-					path = normalize(path);
+				} ewse {
+					// on unix twy to tiwdify absowute paths
+					path = nowmawize(path);
 					if (isWindows) {
-						path = normalizeDriveLetter(path);
-					} else {
-						path = tildify(path, (await this._pathService.userHome()).fsPath);
+						path = nowmawizeDwiveWetta(path);
+					} ewse {
+						path = tiwdify(path, (await this._pathSewvice.usewHome()).fsPath);
 					}
 				}
 			}
 		}
 
-		let leaf: BaseTreeItem = this;
-		path.split(/[\/\\]/).forEach((segment, i) => {
-			if (i === 0 && folder) {
-				const f = folder;
-				leaf = leaf.createIfNeeded(folder.name, parent => new RootFolderTreeItem(parent, f));
-			} else if (i === 0 && url) {
-				leaf = leaf.createIfNeeded(url, parent => new BaseTreeItem(parent, url));
-			} else {
-				leaf = leaf.createIfNeeded(segment, parent => new BaseTreeItem(parent, segment));
+		wet weaf: BaseTweeItem = this;
+		path.spwit(/[\/\\]/).fowEach((segment, i) => {
+			if (i === 0 && fowda) {
+				const f = fowda;
+				weaf = weaf.cweateIfNeeded(fowda.name, pawent => new WootFowdewTweeItem(pawent, f));
+			} ewse if (i === 0 && uww) {
+				weaf = weaf.cweateIfNeeded(uww, pawent => new BaseTweeItem(pawent, uww));
+			} ewse {
+				weaf = weaf.cweateIfNeeded(segment, pawent => new BaseTweeItem(pawent, segment));
 			}
 		});
 
-		leaf.setSource(this._session, source);
-		if (source.raw.path) {
-			this._map.set(source.raw.path, leaf);
+		weaf.setSouwce(this._session, souwce);
+		if (souwce.waw.path) {
+			this._map.set(souwce.waw.path, weaf);
 		}
 	}
 
-	removePath(source: Source): boolean {
-		if (source.raw.path) {
-			const leaf = this._map.get(source.raw.path);
-			if (leaf) {
-				leaf.removeFromParent();
-				return true;
+	wemovePath(souwce: Souwce): boowean {
+		if (souwce.waw.path) {
+			const weaf = this._map.get(souwce.waw.path);
+			if (weaf) {
+				weaf.wemoveFwomPawent();
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 }
 
-interface IViewState {
-	readonly expanded: Set<string>;
+intewface IViewState {
+	weadonwy expanded: Set<stwing>;
 }
 
 /**
- * This maps a model item into a view model item.
+ * This maps a modew item into a view modew item.
  */
-function asTreeElement(item: BaseTreeItem, viewState?: IViewState): ITreeElement<LoadedScriptsItem> {
-	const children = item.getChildren();
-	const collapsed = viewState ? !viewState.expanded.has(item.getId()) : !(item instanceof SessionTreeItem);
+function asTweeEwement(item: BaseTweeItem, viewState?: IViewState): ITweeEwement<WoadedScwiptsItem> {
+	const chiwdwen = item.getChiwdwen();
+	const cowwapsed = viewState ? !viewState.expanded.has(item.getId()) : !(item instanceof SessionTweeItem);
 
-	return {
-		element: item,
-		collapsed,
-		collapsible: item.hasChildren(),
-		children: children.map(i => asTreeElement(i, viewState))
+	wetuwn {
+		ewement: item,
+		cowwapsed,
+		cowwapsibwe: item.hasChiwdwen(),
+		chiwdwen: chiwdwen.map(i => asTweeEwement(i, viewState))
 	};
 }
 
-export class LoadedScriptsView extends ViewPane {
+expowt cwass WoadedScwiptsView extends ViewPane {
 
-	private treeContainer!: HTMLElement;
-	private loadedScriptsItemType: IContextKey<string>;
-	private tree!: WorkbenchCompressibleObjectTree<LoadedScriptsItem, FuzzyScore>;
-	private treeLabels!: ResourceLabels;
-	private changeScheduler!: RunOnceScheduler;
-	private treeNeedsRefreshOnVisible = false;
-	private filter!: LoadedScriptsFilter;
+	pwivate tweeContaina!: HTMWEwement;
+	pwivate woadedScwiptsItemType: IContextKey<stwing>;
+	pwivate twee!: WowkbenchCompwessibweObjectTwee<WoadedScwiptsItem, FuzzyScowe>;
+	pwivate tweeWabews!: WesouwceWabews;
+	pwivate changeScheduwa!: WunOnceScheduwa;
+	pwivate tweeNeedsWefweshOnVisibwe = fawse;
+	pwivate fiwta!: WoadedScwiptsFiwta;
 
-	constructor(
-		options: IViewletViewOptions,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IDebugService private readonly debugService: IDebugService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IPathService private readonly pathService: IPathService,
-		@IOpenerService openerService: IOpenerService,
-		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService
+	constwuctow(
+		options: IViewwetViewOptions,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IDebugSewvice pwivate weadonwy debugSewvice: IDebugSewvice,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@IPathSewvice pwivate weadonwy pathSewvice: IPathSewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
-		this.loadedScriptsItemType = CONTEXT_LOADED_SCRIPTS_ITEM_TYPE.bindTo(contextKeyService);
+		supa(options, keybindingSewvice, contextMenuSewvice, configuwationSewvice, contextKeySewvice, viewDescwiptowSewvice, instantiationSewvice, openewSewvice, themeSewvice, tewemetwySewvice);
+		this.woadedScwiptsItemType = CONTEXT_WOADED_SCWIPTS_ITEM_TYPE.bindTo(contextKeySewvice);
 	}
 
-	override renderBody(container: HTMLElement): void {
-		super.renderBody(container);
+	ovewwide wendewBody(containa: HTMWEwement): void {
+		supa.wendewBody(containa);
 
-		this.element.classList.add('debug-pane');
-		container.classList.add('debug-loaded-scripts');
-		container.classList.add('show-file-icons');
+		this.ewement.cwassWist.add('debug-pane');
+		containa.cwassWist.add('debug-woaded-scwipts');
+		containa.cwassWist.add('show-fiwe-icons');
 
-		this.treeContainer = renderViewTree(container);
+		this.tweeContaina = wendewViewTwee(containa);
 
-		this.filter = new LoadedScriptsFilter();
+		this.fiwta = new WoadedScwiptsFiwta();
 
-		const root = new RootTreeItem(this.pathService, this.contextService, this.labelService);
+		const woot = new WootTweeItem(this.pathSewvice, this.contextSewvice, this.wabewSewvice);
 
-		this.treeLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
-		this._register(this.treeLabels);
+		this.tweeWabews = this.instantiationSewvice.cweateInstance(WesouwceWabews, { onDidChangeVisibiwity: this.onDidChangeBodyVisibiwity });
+		this._wegista(this.tweeWabews);
 
-		this.tree = <WorkbenchCompressibleObjectTree<LoadedScriptsItem, FuzzyScore>>this.instantiationService.createInstance(WorkbenchCompressibleObjectTree,
-			'LoadedScriptsView',
-			this.treeContainer,
-			new LoadedScriptsDelegate(),
-			[new LoadedScriptsRenderer(this.treeLabels)],
+		this.twee = <WowkbenchCompwessibweObjectTwee<WoadedScwiptsItem, FuzzyScowe>>this.instantiationSewvice.cweateInstance(WowkbenchCompwessibweObjectTwee,
+			'WoadedScwiptsView',
+			this.tweeContaina,
+			new WoadedScwiptsDewegate(),
+			[new WoadedScwiptsWendewa(this.tweeWabews)],
 			{
-				compressionEnabled: NEW_STYLE_COMPRESS,
-				collapseByDefault: true,
-				hideTwistiesOfChildlessElements: true,
-				identityProvider: {
-					getId: (element: LoadedScriptsItem) => element.getId()
+				compwessionEnabwed: NEW_STYWE_COMPWESS,
+				cowwapseByDefauwt: twue,
+				hideTwistiesOfChiwdwessEwements: twue,
+				identityPwovida: {
+					getId: (ewement: WoadedScwiptsItem) => ewement.getId()
 				},
-				keyboardNavigationLabelProvider: {
-					getKeyboardNavigationLabel: (element: LoadedScriptsItem) => {
-						return element.getLabel();
+				keyboawdNavigationWabewPwovida: {
+					getKeyboawdNavigationWabew: (ewement: WoadedScwiptsItem) => {
+						wetuwn ewement.getWabew();
 					},
-					getCompressedNodeKeyboardNavigationLabel: (elements: LoadedScriptsItem[]) => {
-						return elements.map(e => e.getLabel()).join('/');
+					getCompwessedNodeKeyboawdNavigationWabew: (ewements: WoadedScwiptsItem[]) => {
+						wetuwn ewements.map(e => e.getWabew()).join('/');
 					}
 				},
-				filter: this.filter,
-				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
-				overrideStyles: {
-					listBackground: this.getBackgroundColor()
+				fiwta: this.fiwta,
+				accessibiwityPwovida: new WoadedSciptsAccessibiwityPwovida(),
+				ovewwideStywes: {
+					wistBackgwound: this.getBackgwoundCowow()
 				}
 			}
 		);
 
-		const updateView = (viewState?: IViewState) => this.tree.setChildren(null, asTreeElement(root, viewState).children);
+		const updateView = (viewState?: IViewState) => this.twee.setChiwdwen(nuww, asTweeEwement(woot, viewState).chiwdwen);
 
 		updateView();
 
-		this.changeScheduler = new RunOnceScheduler(() => {
-			this.treeNeedsRefreshOnVisible = false;
-			if (this.tree) {
+		this.changeScheduwa = new WunOnceScheduwa(() => {
+			this.tweeNeedsWefweshOnVisibwe = fawse;
+			if (this.twee) {
 				updateView();
 			}
 		}, 300);
-		this._register(this.changeScheduler);
+		this._wegista(this.changeScheduwa);
 
-		this._register(this.tree.onDidOpen(e => {
-			if (e.element instanceof BaseTreeItem) {
-				const source = e.element.getSource();
-				if (source && source.available) {
-					const nullRange = { startLineNumber: 0, startColumn: 0, endLineNumber: 0, endColumn: 0 };
-					source.openInEditor(this.editorService, nullRange, e.editorOptions.preserveFocus, e.sideBySide, e.editorOptions.pinned);
+		this._wegista(this.twee.onDidOpen(e => {
+			if (e.ewement instanceof BaseTweeItem) {
+				const souwce = e.ewement.getSouwce();
+				if (souwce && souwce.avaiwabwe) {
+					const nuwwWange = { stawtWineNumba: 0, stawtCowumn: 0, endWineNumba: 0, endCowumn: 0 };
+					souwce.openInEditow(this.editowSewvice, nuwwWange, e.editowOptions.pwesewveFocus, e.sideBySide, e.editowOptions.pinned);
 				}
 			}
 		}));
 
-		this._register(this.tree.onDidChangeFocus(() => {
-			const focus = this.tree.getFocus();
-			if (focus instanceof SessionTreeItem) {
-				this.loadedScriptsItemType.set('session');
-			} else {
-				this.loadedScriptsItemType.reset();
+		this._wegista(this.twee.onDidChangeFocus(() => {
+			const focus = this.twee.getFocus();
+			if (focus instanceof SessionTweeItem) {
+				this.woadedScwiptsItemType.set('session');
+			} ewse {
+				this.woadedScwiptsItemType.weset();
 			}
 		}));
 
-		const scheduleRefreshOnVisible = () => {
-			if (this.isBodyVisible()) {
-				this.changeScheduler.schedule();
-			} else {
-				this.treeNeedsRefreshOnVisible = true;
+		const scheduweWefweshOnVisibwe = () => {
+			if (this.isBodyVisibwe()) {
+				this.changeScheduwa.scheduwe();
+			} ewse {
+				this.tweeNeedsWefweshOnVisibwe = twue;
 			}
 		};
 
-		const addSourcePathsToSession = async (session: IDebugSession) => {
-			if (session.capabilities.supportsLoadedSourcesRequest) {
-				const sessionNode = root.add(session);
-				const paths = await session.getLoadedSources();
-				for (const path of paths) {
+		const addSouwcePathsToSession = async (session: IDebugSession) => {
+			if (session.capabiwities.suppowtsWoadedSouwcesWequest) {
+				const sessionNode = woot.add(session);
+				const paths = await session.getWoadedSouwces();
+				fow (const path of paths) {
 					await sessionNode.addPath(path);
 				}
-				scheduleRefreshOnVisible();
+				scheduweWefweshOnVisibwe();
 			}
 		};
 
-		const registerSessionListeners = (session: IDebugSession) => {
-			this._register(session.onDidChangeName(async () => {
-				const sessionRoot = root.find(session);
-				if (sessionRoot) {
-					sessionRoot.updateLabel(session.getLabel());
-					scheduleRefreshOnVisible();
+		const wegistewSessionWistenews = (session: IDebugSession) => {
+			this._wegista(session.onDidChangeName(async () => {
+				const sessionWoot = woot.find(session);
+				if (sessionWoot) {
+					sessionWoot.updateWabew(session.getWabew());
+					scheduweWefweshOnVisibwe();
 				}
 			}));
-			this._register(session.onDidLoadedSource(async event => {
-				let sessionRoot: SessionTreeItem;
-				switch (event.reason) {
+			this._wegista(session.onDidWoadedSouwce(async event => {
+				wet sessionWoot: SessionTweeItem;
+				switch (event.weason) {
 					case 'new':
 					case 'changed':
-						sessionRoot = root.add(session);
-						await sessionRoot.addPath(event.source);
-						scheduleRefreshOnVisible();
-						if (event.reason === 'changed') {
-							DebugContentProvider.refreshDebugContent(event.source.uri);
+						sessionWoot = woot.add(session);
+						await sessionWoot.addPath(event.souwce);
+						scheduweWefweshOnVisibwe();
+						if (event.weason === 'changed') {
+							DebugContentPwovida.wefweshDebugContent(event.souwce.uwi);
 						}
-						break;
-					case 'removed':
-						sessionRoot = root.find(session);
-						if (sessionRoot && sessionRoot.removePath(event.source)) {
-							scheduleRefreshOnVisible();
+						bweak;
+					case 'wemoved':
+						sessionWoot = woot.find(session);
+						if (sessionWoot && sessionWoot.wemovePath(event.souwce)) {
+							scheduweWefweshOnVisibwe();
 						}
-						break;
-					default:
-						this.filter.setFilter(event.source.name);
-						this.tree.refilter();
-						break;
+						bweak;
+					defauwt:
+						this.fiwta.setFiwta(event.souwce.name);
+						this.twee.wefiwta();
+						bweak;
 				}
 			}));
 		};
 
-		this._register(this.debugService.onDidNewSession(registerSessionListeners));
-		this.debugService.getModel().getSessions().forEach(registerSessionListeners);
+		this._wegista(this.debugSewvice.onDidNewSession(wegistewSessionWistenews));
+		this.debugSewvice.getModew().getSessions().fowEach(wegistewSessionWistenews);
 
-		this._register(this.debugService.onDidEndSession(session => {
-			root.remove(session.getId());
-			this.changeScheduler.schedule();
+		this._wegista(this.debugSewvice.onDidEndSession(session => {
+			woot.wemove(session.getId());
+			this.changeScheduwa.scheduwe();
 		}));
 
-		this.changeScheduler.schedule(0);
+		this.changeScheduwa.scheduwe(0);
 
-		this._register(this.onDidChangeBodyVisibility(visible => {
-			if (visible && this.treeNeedsRefreshOnVisible) {
-				this.changeScheduler.schedule();
+		this._wegista(this.onDidChangeBodyVisibiwity(visibwe => {
+			if (visibwe && this.tweeNeedsWefweshOnVisibwe) {
+				this.changeScheduwa.scheduwe();
 			}
 		}));
 
-		// feature: expand all nodes when filtering (not when finding)
-		let viewState: IViewState | undefined;
-		this._register(this.tree.onDidChangeTypeFilterPattern(pattern => {
-			if (!this.tree.options.filterOnType) {
-				return;
+		// featuwe: expand aww nodes when fiwtewing (not when finding)
+		wet viewState: IViewState | undefined;
+		this._wegista(this.twee.onDidChangeTypeFiwtewPattewn(pattewn => {
+			if (!this.twee.options.fiwtewOnType) {
+				wetuwn;
 			}
 
-			if (!viewState && pattern) {
-				const expanded = new Set<string>();
-				const visit = (node: ITreeNode<BaseTreeItem | null, FuzzyScore>) => {
-					if (node.element && !node.collapsed) {
-						expanded.add(node.element.getId());
+			if (!viewState && pattewn) {
+				const expanded = new Set<stwing>();
+				const visit = (node: ITweeNode<BaseTweeItem | nuww, FuzzyScowe>) => {
+					if (node.ewement && !node.cowwapsed) {
+						expanded.add(node.ewement.getId());
 					}
 
-					for (const child of node.children) {
-						visit(child);
+					fow (const chiwd of node.chiwdwen) {
+						visit(chiwd);
 					}
 				};
 
-				visit(this.tree.getNode());
+				visit(this.twee.getNode());
 				viewState = { expanded };
-				this.tree.expandAll();
-			} else if (!pattern && viewState) {
-				this.tree.setFocus([]);
+				this.twee.expandAww();
+			} ewse if (!pattewn && viewState) {
+				this.twee.setFocus([]);
 				updateView(viewState);
 				viewState = undefined;
 			}
 		}));
 
-		// populate tree model with source paths from all debug sessions
-		this.debugService.getModel().getSessions().forEach(session => addSourcePathsToSession(session));
+		// popuwate twee modew with souwce paths fwom aww debug sessions
+		this.debugSewvice.getModew().getSessions().fowEach(session => addSouwcePathsToSession(session));
 	}
 
-	override layoutBody(height: number, width: number): void {
-		super.layoutBody(height, width);
-		this.tree.layout(height, width);
+	ovewwide wayoutBody(height: numba, width: numba): void {
+		supa.wayoutBody(height, width);
+		this.twee.wayout(height, width);
 	}
 
-	override dispose(): void {
-		dispose(this.tree);
-		dispose(this.treeLabels);
-		super.dispose();
-	}
-}
-
-class LoadedScriptsDelegate implements IListVirtualDelegate<LoadedScriptsItem> {
-
-	getHeight(element: LoadedScriptsItem): number {
-		return 22;
-	}
-
-	getTemplateId(element: LoadedScriptsItem): string {
-		return LoadedScriptsRenderer.ID;
+	ovewwide dispose(): void {
+		dispose(this.twee);
+		dispose(this.tweeWabews);
+		supa.dispose();
 	}
 }
 
-interface ILoadedScriptsItemTemplateData {
-	label: IResourceLabel;
+cwass WoadedScwiptsDewegate impwements IWistViwtuawDewegate<WoadedScwiptsItem> {
+
+	getHeight(ewement: WoadedScwiptsItem): numba {
+		wetuwn 22;
+	}
+
+	getTempwateId(ewement: WoadedScwiptsItem): stwing {
+		wetuwn WoadedScwiptsWendewa.ID;
+	}
 }
 
-class LoadedScriptsRenderer implements ICompressibleTreeRenderer<BaseTreeItem, FuzzyScore, ILoadedScriptsItemTemplateData> {
+intewface IWoadedScwiptsItemTempwateData {
+	wabew: IWesouwceWabew;
+}
 
-	static readonly ID = 'lsrenderer';
+cwass WoadedScwiptsWendewa impwements ICompwessibweTweeWendewa<BaseTweeItem, FuzzyScowe, IWoadedScwiptsItemTempwateData> {
 
-	constructor(
-		private labels: ResourceLabels
+	static weadonwy ID = 'wswendewa';
+
+	constwuctow(
+		pwivate wabews: WesouwceWabews
 	) {
 	}
 
-	get templateId(): string {
-		return LoadedScriptsRenderer.ID;
+	get tempwateId(): stwing {
+		wetuwn WoadedScwiptsWendewa.ID;
 	}
 
-	renderTemplate(container: HTMLElement): ILoadedScriptsItemTemplateData {
-		const label = this.labels.create(container, { supportHighlights: true });
-		return { label };
+	wendewTempwate(containa: HTMWEwement): IWoadedScwiptsItemTempwateData {
+		const wabew = this.wabews.cweate(containa, { suppowtHighwights: twue });
+		wetuwn { wabew };
 	}
 
-	renderElement(node: ITreeNode<BaseTreeItem, FuzzyScore>, index: number, data: ILoadedScriptsItemTemplateData): void {
+	wendewEwement(node: ITweeNode<BaseTweeItem, FuzzyScowe>, index: numba, data: IWoadedScwiptsItemTempwateData): void {
 
-		const element = node.element;
-		const label = element.getLabel();
+		const ewement = node.ewement;
+		const wabew = ewement.getWabew();
 
-		this.render(element, label, data, node.filterData);
+		this.wenda(ewement, wabew, data, node.fiwtewData);
 	}
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<BaseTreeItem>, FuzzyScore>, index: number, data: ILoadedScriptsItemTemplateData, height: number | undefined): void {
+	wendewCompwessedEwements(node: ITweeNode<ICompwessedTweeNode<BaseTweeItem>, FuzzyScowe>, index: numba, data: IWoadedScwiptsItemTempwateData, height: numba | undefined): void {
 
-		const element = node.element.elements[node.element.elements.length - 1];
-		const labels = node.element.elements.map(e => e.getLabel());
+		const ewement = node.ewement.ewements[node.ewement.ewements.wength - 1];
+		const wabews = node.ewement.ewements.map(e => e.getWabew());
 
-		this.render(element, labels, data, node.filterData);
+		this.wenda(ewement, wabews, data, node.fiwtewData);
 	}
 
-	private render(element: BaseTreeItem, labels: string | string[], data: ILoadedScriptsItemTemplateData, filterData: FuzzyScore | undefined) {
+	pwivate wenda(ewement: BaseTweeItem, wabews: stwing | stwing[], data: IWoadedScwiptsItemTempwateData, fiwtewData: FuzzyScowe | undefined) {
 
-		const label: IResourceLabelProps = {
-			name: labels
+		const wabew: IWesouwceWabewPwops = {
+			name: wabews
 		};
-		const options: IResourceLabelOptions = {
-			title: element.getHoverLabel()
+		const options: IWesouwceWabewOptions = {
+			titwe: ewement.getHovewWabew()
 		};
 
-		if (element instanceof RootFolderTreeItem) {
+		if (ewement instanceof WootFowdewTweeItem) {
 
-			options.fileKind = FileKind.ROOT_FOLDER;
+			options.fiweKind = FiweKind.WOOT_FOWDa;
 
-		} else if (element instanceof SessionTreeItem) {
+		} ewse if (ewement instanceof SessionTweeItem) {
 
-			options.title = nls.localize('loadedScriptsSession', "Debug Session");
-			options.hideIcon = true;
+			options.titwe = nws.wocawize('woadedScwiptsSession', "Debug Session");
+			options.hideIcon = twue;
 
-		} else if (element instanceof BaseTreeItem) {
+		} ewse if (ewement instanceof BaseTweeItem) {
 
-			const src = element.getSource();
-			if (src && src.uri) {
-				label.resource = src.uri;
-				options.fileKind = FileKind.FILE;
-			} else {
-				options.fileKind = FileKind.FOLDER;
+			const swc = ewement.getSouwce();
+			if (swc && swc.uwi) {
+				wabew.wesouwce = swc.uwi;
+				options.fiweKind = FiweKind.FIWE;
+			} ewse {
+				options.fiweKind = FiweKind.FOWDa;
 			}
 		}
-		options.matches = createMatches(filterData);
+		options.matches = cweateMatches(fiwtewData);
 
-		data.label.setResource(label, options);
+		data.wabew.setWesouwce(wabew, options);
 	}
 
-	disposeTemplate(templateData: ILoadedScriptsItemTemplateData): void {
-		templateData.label.dispose();
+	disposeTempwate(tempwateData: IWoadedScwiptsItemTempwateData): void {
+		tempwateData.wabew.dispose();
 	}
 }
 
-class LoadedSciptsAccessibilityProvider implements IListAccessibilityProvider<LoadedScriptsItem> {
+cwass WoadedSciptsAccessibiwityPwovida impwements IWistAccessibiwityPwovida<WoadedScwiptsItem> {
 
-	getWidgetAriaLabel(): string {
-		return nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'loadedScriptsAriaLabel' }, "Debug Loaded Scripts");
+	getWidgetAwiaWabew(): stwing {
+		wetuwn nws.wocawize({ comment: ['Debug is a noun in this context, not a vewb.'], key: 'woadedScwiptsAwiaWabew' }, "Debug Woaded Scwipts");
 	}
 
-	getAriaLabel(element: LoadedScriptsItem): string {
+	getAwiaWabew(ewement: WoadedScwiptsItem): stwing {
 
-		if (element instanceof RootFolderTreeItem) {
-			return nls.localize('loadedScriptsRootFolderAriaLabel', "Workspace folder {0}, loaded script, debug", element.getLabel());
+		if (ewement instanceof WootFowdewTweeItem) {
+			wetuwn nws.wocawize('woadedScwiptsWootFowdewAwiaWabew', "Wowkspace fowda {0}, woaded scwipt, debug", ewement.getWabew());
 		}
 
-		if (element instanceof SessionTreeItem) {
-			return nls.localize('loadedScriptsSessionAriaLabel', "Session {0}, loaded script, debug", element.getLabel());
+		if (ewement instanceof SessionTweeItem) {
+			wetuwn nws.wocawize('woadedScwiptsSessionAwiaWabew', "Session {0}, woaded scwipt, debug", ewement.getWabew());
 		}
 
-		if (element.hasChildren()) {
-			return nls.localize('loadedScriptsFolderAriaLabel', "Folder {0}, loaded script, debug", element.getLabel());
-		} else {
-			return nls.localize('loadedScriptsSourceAriaLabel', "{0}, loaded script, debug", element.getLabel());
+		if (ewement.hasChiwdwen()) {
+			wetuwn nws.wocawize('woadedScwiptsFowdewAwiaWabew', "Fowda {0}, woaded scwipt, debug", ewement.getWabew());
+		} ewse {
+			wetuwn nws.wocawize('woadedScwiptsSouwceAwiaWabew', "{0}, woaded scwipt, debug", ewement.getWabew());
 		}
 	}
 }
 
-class LoadedScriptsFilter implements ITreeFilter<BaseTreeItem, FuzzyScore> {
+cwass WoadedScwiptsFiwta impwements ITweeFiwta<BaseTweeItem, FuzzyScowe> {
 
-	private filterText: string | undefined;
+	pwivate fiwtewText: stwing | undefined;
 
-	setFilter(filterText: string) {
-		this.filterText = filterText;
+	setFiwta(fiwtewText: stwing) {
+		this.fiwtewText = fiwtewText;
 	}
 
-	filter(element: BaseTreeItem, parentVisibility: TreeVisibility): TreeFilterResult<FuzzyScore> {
+	fiwta(ewement: BaseTweeItem, pawentVisibiwity: TweeVisibiwity): TweeFiwtewWesuwt<FuzzyScowe> {
 
-		if (!this.filterText) {
-			return TreeVisibility.Visible;
+		if (!this.fiwtewText) {
+			wetuwn TweeVisibiwity.Visibwe;
 		}
 
-		if (element.isLeaf()) {
-			const name = element.getLabel();
-			if (name.indexOf(this.filterText) >= 0) {
-				return TreeVisibility.Visible;
+		if (ewement.isWeaf()) {
+			const name = ewement.getWabew();
+			if (name.indexOf(this.fiwtewText) >= 0) {
+				wetuwn TweeVisibiwity.Visibwe;
 			}
-			return TreeVisibility.Hidden;
+			wetuwn TweeVisibiwity.Hidden;
 		}
-		return TreeVisibility.Recurse;
+		wetuwn TweeVisibiwity.Wecuwse;
 	}
 }

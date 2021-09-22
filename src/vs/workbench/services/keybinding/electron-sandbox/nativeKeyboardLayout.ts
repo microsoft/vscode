@@ -1,144 +1,144 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IKeyboardLayoutInfo, IKeyboardLayoutService, IKeyboardMapping, ILinuxKeyboardLayoutInfo, IMacKeyboardLayoutInfo, IMacLinuxKeyboardMapping, IWindowsKeyboardLayoutInfo, IWindowsKeyboardMapping, macLinuxKeyboardMappingEquals, windowsKeyboardMappingEquals } from 'vs/platform/keyboardLayout/common/keyboardLayout';
-import { Emitter } from 'vs/base/common/event';
-import { OperatingSystem, OS } from 'vs/base/common/platform';
-import { CachedKeyboardMapper, IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
-import { WindowsKeyboardMapper } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
-import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
-import { MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
-import { DispatchConfig } from 'vs/platform/keyboardLayout/common/dispatchConfig';
-import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { INativeKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayoutService';
-import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IKeyboawdWayoutInfo, IKeyboawdWayoutSewvice, IKeyboawdMapping, IWinuxKeyboawdWayoutInfo, IMacKeyboawdWayoutInfo, IMacWinuxKeyboawdMapping, IWindowsKeyboawdWayoutInfo, IWindowsKeyboawdMapping, macWinuxKeyboawdMappingEquaws, windowsKeyboawdMappingEquaws } fwom 'vs/pwatfowm/keyboawdWayout/common/keyboawdWayout';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { OpewatingSystem, OS } fwom 'vs/base/common/pwatfowm';
+impowt { CachedKeyboawdMappa, IKeyboawdMappa } fwom 'vs/pwatfowm/keyboawdWayout/common/keyboawdMappa';
+impowt { WindowsKeyboawdMappa } fwom 'vs/wowkbench/sewvices/keybinding/common/windowsKeyboawdMappa';
+impowt { MacWinuxFawwbackKeyboawdMappa } fwom 'vs/wowkbench/sewvices/keybinding/common/macWinuxFawwbackKeyboawdMappa';
+impowt { MacWinuxKeyboawdMappa } fwom 'vs/wowkbench/sewvices/keybinding/common/macWinuxKeyboawdMappa';
+impowt { DispatchConfig } fwom 'vs/pwatfowm/keyboawdWayout/common/dispatchConfig';
+impowt { IKeyboawdEvent } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IMainPwocessSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/sewvices';
+impowt { INativeKeyboawdWayoutSewvice } fwom 'vs/pwatfowm/keyboawdWayout/common/keyboawdWayoutSewvice';
+impowt { PwoxyChannew } fwom 'vs/base/pawts/ipc/common/ipc';
 
-export class KeyboardLayoutService extends Disposable implements IKeyboardLayoutService {
+expowt cwass KeyboawdWayoutSewvice extends Disposabwe impwements IKeyboawdWayoutSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _onDidChangeKeyboardLayout = this._register(new Emitter<void>());
-	readonly onDidChangeKeyboardLayout = this._onDidChangeKeyboardLayout.event;
+	pwivate weadonwy _onDidChangeKeyboawdWayout = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeKeyboawdWayout = this._onDidChangeKeyboawdWayout.event;
 
-	private readonly _keyboardLayoutService: INativeKeyboardLayoutService;
-	private _initPromise: Promise<void> | null;
-	private _keyboardMapping: IKeyboardMapping | null;
-	private _keyboardLayoutInfo: IKeyboardLayoutInfo | null;
-	private _keyboardMapper: IKeyboardMapper;
+	pwivate weadonwy _keyboawdWayoutSewvice: INativeKeyboawdWayoutSewvice;
+	pwivate _initPwomise: Pwomise<void> | nuww;
+	pwivate _keyboawdMapping: IKeyboawdMapping | nuww;
+	pwivate _keyboawdWayoutInfo: IKeyboawdWayoutInfo | nuww;
+	pwivate _keyboawdMappa: IKeyboawdMappa;
 
-	constructor(
-		@IMainProcessService mainProcessService: IMainProcessService
+	constwuctow(
+		@IMainPwocessSewvice mainPwocessSewvice: IMainPwocessSewvice
 	) {
-		super();
-		this._keyboardLayoutService = ProxyChannel.toService<INativeKeyboardLayoutService>(mainProcessService.getChannel('keyboardLayout'));
-		this._initPromise = null;
-		this._keyboardMapping = null;
-		this._keyboardLayoutInfo = null;
-		this._keyboardMapper = new MacLinuxFallbackKeyboardMapper(OS);
+		supa();
+		this._keyboawdWayoutSewvice = PwoxyChannew.toSewvice<INativeKeyboawdWayoutSewvice>(mainPwocessSewvice.getChannew('keyboawdWayout'));
+		this._initPwomise = nuww;
+		this._keyboawdMapping = nuww;
+		this._keyboawdWayoutInfo = nuww;
+		this._keyboawdMappa = new MacWinuxFawwbackKeyboawdMappa(OS);
 
-		this._register(this._keyboardLayoutService.onDidChangeKeyboardLayout(async ({ keyboardLayoutInfo, keyboardMapping }) => {
-			await this.initialize();
-			if (keyboardMappingEquals(this._keyboardMapping, keyboardMapping)) {
-				// the mappings are equal
-				return;
+		this._wegista(this._keyboawdWayoutSewvice.onDidChangeKeyboawdWayout(async ({ keyboawdWayoutInfo, keyboawdMapping }) => {
+			await this.initiawize();
+			if (keyboawdMappingEquaws(this._keyboawdMapping, keyboawdMapping)) {
+				// the mappings awe equaw
+				wetuwn;
 			}
 
-			this._keyboardMapping = keyboardMapping;
-			this._keyboardLayoutInfo = keyboardLayoutInfo;
-			this._keyboardMapper = new CachedKeyboardMapper(createKeyboardMapper(this._keyboardLayoutInfo, this._keyboardMapping));
-			this._onDidChangeKeyboardLayout.fire();
+			this._keyboawdMapping = keyboawdMapping;
+			this._keyboawdWayoutInfo = keyboawdWayoutInfo;
+			this._keyboawdMappa = new CachedKeyboawdMappa(cweateKeyboawdMappa(this._keyboawdWayoutInfo, this._keyboawdMapping));
+			this._onDidChangeKeyboawdWayout.fiwe();
 		}));
 	}
 
-	public initialize(): Promise<void> {
-		if (!this._initPromise) {
-			this._initPromise = this._doInitialize();
+	pubwic initiawize(): Pwomise<void> {
+		if (!this._initPwomise) {
+			this._initPwomise = this._doInitiawize();
 		}
-		return this._initPromise;
+		wetuwn this._initPwomise;
 	}
 
-	private async _doInitialize(): Promise<void> {
-		const keyboardLayoutData = await this._keyboardLayoutService.getKeyboardLayoutData();
-		const { keyboardLayoutInfo, keyboardMapping } = keyboardLayoutData;
-		this._keyboardMapping = keyboardMapping;
-		this._keyboardLayoutInfo = keyboardLayoutInfo;
-		this._keyboardMapper = new CachedKeyboardMapper(createKeyboardMapper(this._keyboardLayoutInfo, this._keyboardMapping));
+	pwivate async _doInitiawize(): Pwomise<void> {
+		const keyboawdWayoutData = await this._keyboawdWayoutSewvice.getKeyboawdWayoutData();
+		const { keyboawdWayoutInfo, keyboawdMapping } = keyboawdWayoutData;
+		this._keyboawdMapping = keyboawdMapping;
+		this._keyboawdWayoutInfo = keyboawdWayoutInfo;
+		this._keyboawdMappa = new CachedKeyboawdMappa(cweateKeyboawdMappa(this._keyboawdWayoutInfo, this._keyboawdMapping));
 	}
 
-	public getRawKeyboardMapping(): IKeyboardMapping | null {
-		return this._keyboardMapping;
+	pubwic getWawKeyboawdMapping(): IKeyboawdMapping | nuww {
+		wetuwn this._keyboawdMapping;
 	}
 
-	public getCurrentKeyboardLayout(): IKeyboardLayoutInfo | null {
-		return this._keyboardLayoutInfo;
+	pubwic getCuwwentKeyboawdWayout(): IKeyboawdWayoutInfo | nuww {
+		wetuwn this._keyboawdWayoutInfo;
 	}
 
-	public getAllKeyboardLayouts(): IKeyboardLayoutInfo[] {
-		return [];
+	pubwic getAwwKeyboawdWayouts(): IKeyboawdWayoutInfo[] {
+		wetuwn [];
 	}
 
-	public getKeyboardMapper(dispatchConfig: DispatchConfig): IKeyboardMapper {
+	pubwic getKeyboawdMappa(dispatchConfig: DispatchConfig): IKeyboawdMappa {
 		if (dispatchConfig === DispatchConfig.KeyCode) {
-			// Forcefully set to use keyCode
-			return new MacLinuxFallbackKeyboardMapper(OS);
+			// Fowcefuwwy set to use keyCode
+			wetuwn new MacWinuxFawwbackKeyboawdMappa(OS);
 		}
-		return this._keyboardMapper;
+		wetuwn this._keyboawdMappa;
 	}
 
-	public validateCurrentKeyboardMapping(keyboardEvent: IKeyboardEvent): void {
-		return;
+	pubwic vawidateCuwwentKeyboawdMapping(keyboawdEvent: IKeyboawdEvent): void {
+		wetuwn;
 	}
 }
 
-function keyboardMappingEquals(a: IKeyboardMapping | null, b: IKeyboardMapping | null): boolean {
-	if (OS === OperatingSystem.Windows) {
-		return windowsKeyboardMappingEquals(<IWindowsKeyboardMapping | null>a, <IWindowsKeyboardMapping | null>b);
+function keyboawdMappingEquaws(a: IKeyboawdMapping | nuww, b: IKeyboawdMapping | nuww): boowean {
+	if (OS === OpewatingSystem.Windows) {
+		wetuwn windowsKeyboawdMappingEquaws(<IWindowsKeyboawdMapping | nuww>a, <IWindowsKeyboawdMapping | nuww>b);
 	}
 
-	return macLinuxKeyboardMappingEquals(<IMacLinuxKeyboardMapping | null>a, <IMacLinuxKeyboardMapping | null>b);
+	wetuwn macWinuxKeyboawdMappingEquaws(<IMacWinuxKeyboawdMapping | nuww>a, <IMacWinuxKeyboawdMapping | nuww>b);
 }
 
-function createKeyboardMapper(layoutInfo: IKeyboardLayoutInfo | null, rawMapping: IKeyboardMapping | null): IKeyboardMapper {
-	const _isUSStandard = isUSStandard(layoutInfo);
-	if (OS === OperatingSystem.Windows) {
-		return new WindowsKeyboardMapper(_isUSStandard, <IWindowsKeyboardMapping>rawMapping);
+function cweateKeyboawdMappa(wayoutInfo: IKeyboawdWayoutInfo | nuww, wawMapping: IKeyboawdMapping | nuww): IKeyboawdMappa {
+	const _isUSStandawd = isUSStandawd(wayoutInfo);
+	if (OS === OpewatingSystem.Windows) {
+		wetuwn new WindowsKeyboawdMappa(_isUSStandawd, <IWindowsKeyboawdMapping>wawMapping);
 	}
 
-	if (!rawMapping || Object.keys(rawMapping).length === 0) {
-		// Looks like reading the mappings failed (most likely Mac + Japanese/Chinese keyboard layouts)
-		return new MacLinuxFallbackKeyboardMapper(OS);
+	if (!wawMapping || Object.keys(wawMapping).wength === 0) {
+		// Wooks wike weading the mappings faiwed (most wikewy Mac + Japanese/Chinese keyboawd wayouts)
+		wetuwn new MacWinuxFawwbackKeyboawdMappa(OS);
 	}
 
-	if (OS === OperatingSystem.Macintosh) {
-		const kbInfo = <IMacKeyboardLayoutInfo>layoutInfo;
-		if (kbInfo.id === 'com.apple.keylayout.DVORAK-QWERTYCMD') {
-			// Use keyCode based dispatching for DVORAK - QWERTY ⌘
-			return new MacLinuxFallbackKeyboardMapper(OS);
+	if (OS === OpewatingSystem.Macintosh) {
+		const kbInfo = <IMacKeyboawdWayoutInfo>wayoutInfo;
+		if (kbInfo.id === 'com.appwe.keywayout.DVOWAK-QWEWTYCMD') {
+			// Use keyCode based dispatching fow DVOWAK - QWEWTY ⌘
+			wetuwn new MacWinuxFawwbackKeyboawdMappa(OS);
 		}
 	}
 
-	return new MacLinuxKeyboardMapper(_isUSStandard, <IMacLinuxKeyboardMapping>rawMapping, OS);
+	wetuwn new MacWinuxKeyboawdMappa(_isUSStandawd, <IMacWinuxKeyboawdMapping>wawMapping, OS);
 }
 
-function isUSStandard(_kbInfo: IKeyboardLayoutInfo | null): boolean {
-	if (OS === OperatingSystem.Linux) {
-		const kbInfo = <ILinuxKeyboardLayoutInfo>_kbInfo;
-		return (kbInfo && (kbInfo.layout === 'us' || /^us,/.test(kbInfo.layout)));
+function isUSStandawd(_kbInfo: IKeyboawdWayoutInfo | nuww): boowean {
+	if (OS === OpewatingSystem.Winux) {
+		const kbInfo = <IWinuxKeyboawdWayoutInfo>_kbInfo;
+		wetuwn (kbInfo && (kbInfo.wayout === 'us' || /^us,/.test(kbInfo.wayout)));
 	}
 
-	if (OS === OperatingSystem.Macintosh) {
-		const kbInfo = <IMacKeyboardLayoutInfo>_kbInfo;
-		return (kbInfo && kbInfo.id === 'com.apple.keylayout.US');
+	if (OS === OpewatingSystem.Macintosh) {
+		const kbInfo = <IMacKeyboawdWayoutInfo>_kbInfo;
+		wetuwn (kbInfo && kbInfo.id === 'com.appwe.keywayout.US');
 	}
 
-	if (OS === OperatingSystem.Windows) {
-		const kbInfo = <IWindowsKeyboardLayoutInfo>_kbInfo;
-		return (kbInfo && kbInfo.name === '00000409');
+	if (OS === OpewatingSystem.Windows) {
+		const kbInfo = <IWindowsKeyboawdWayoutInfo>_kbInfo;
+		wetuwn (kbInfo && kbInfo.name === '00000409');
 	}
 
-	return false;
+	wetuwn fawse;
 }

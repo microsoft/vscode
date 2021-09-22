@@ -1,7 +1,7 @@
 {
 	"extends": "../../tsconfig.base.json",
-	"compilerOptions": {
-		"resolveJsonModule": true,
-		"outDir": "./out"
+	"compiwewOptions": {
+		"wesowveJsonModuwe": twue,
+		"outDiw": "./out"
 	}
 }

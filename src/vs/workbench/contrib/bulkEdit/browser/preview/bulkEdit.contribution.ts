@@ -1,153 +1,153 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
-import { BulkEditPane } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPane';
-import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, FocusedViewContext, IViewsService } from 'vs/workbench/common/views';
-import { localize } from 'vs/nls';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { RawContextKey, IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { BulkEditPreviewProvider } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import type { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import Severity from 'vs/base/common/severity';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IBuwkEditSewvice, WesouwceEdit } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
+impowt { BuwkEditPane } fwom 'vs/wowkbench/contwib/buwkEdit/bwowsa/pweview/buwkEditPane';
+impowt { IViewContainewsWegistwy, Extensions as ViewContainewExtensions, ViewContainewWocation, IViewsWegistwy, FocusedViewContext, IViewsSewvice } fwom 'vs/wowkbench/common/views';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ViewPaneContaina } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPaneContaina';
+impowt { WawContextKey, IContextKeySewvice, IContextKey, ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { BuwkEditPweviewPwovida } fwom 'vs/wowkbench/contwib/buwkEdit/bwowsa/pweview/buwkEditPweview';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { KeyMod, KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { WowkbenchWistFocusContextKey } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { MenuId, wegistewAction2, Action2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { EditowWesouwceAccessow, SideBySideEditow } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt type { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
 
-async function getBulkEditPane(viewsService: IViewsService): Promise<BulkEditPane | undefined> {
-	const view = await viewsService.openView(BulkEditPane.ID, true);
-	if (view instanceof BulkEditPane) {
-		return view;
+async function getBuwkEditPane(viewsSewvice: IViewsSewvice): Pwomise<BuwkEditPane | undefined> {
+	const view = await viewsSewvice.openView(BuwkEditPane.ID, twue);
+	if (view instanceof BuwkEditPane) {
+		wetuwn view;
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
-class UXState {
+cwass UXState {
 
-	private readonly _activePanel: string | undefined;
+	pwivate weadonwy _activePanew: stwing | undefined;
 
-	constructor(
-		@IPaneCompositePartService private readonly _paneCompositeService: IPaneCompositePartService,
-		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
+	constwuctow(
+		@IPaneCompositePawtSewvice pwivate weadonwy _paneCompositeSewvice: IPaneCompositePawtSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy _editowGwoupsSewvice: IEditowGwoupsSewvice,
 	) {
-		this._activePanel = _paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)?.getId();
+		this._activePanew = _paneCompositeSewvice.getActivePaneComposite(ViewContainewWocation.Panew)?.getId();
 	}
 
-	async restore(): Promise<void> {
+	async westowe(): Pwomise<void> {
 
-		// (1) restore previous panel
-		if (typeof this._activePanel === 'string') {
-			await this._paneCompositeService.openPaneComposite(this._activePanel, ViewContainerLocation.Panel);
-		} else {
-			this._paneCompositeService.hideActivePaneComposite(ViewContainerLocation.Panel);
+		// (1) westowe pwevious panew
+		if (typeof this._activePanew === 'stwing') {
+			await this._paneCompositeSewvice.openPaneComposite(this._activePanew, ViewContainewWocation.Panew);
+		} ewse {
+			this._paneCompositeSewvice.hideActivePaneComposite(ViewContainewWocation.Panew);
 		}
 
-		// (2) close preview editors
-		for (let group of this._editorGroupsService.groups) {
-			let previewEditors: EditorInput[] = [];
-			for (let input of group.editors) {
+		// (2) cwose pweview editows
+		fow (wet gwoup of this._editowGwoupsSewvice.gwoups) {
+			wet pweviewEditows: EditowInput[] = [];
+			fow (wet input of gwoup.editows) {
 
-				let resource = EditorResourceAccessor.getCanonicalUri(input, { supportSideBySide: SideBySideEditor.PRIMARY });
-				if (resource?.scheme === BulkEditPreviewProvider.Schema) {
-					previewEditors.push(input);
+				wet wesouwce = EditowWesouwceAccessow.getCanonicawUwi(input, { suppowtSideBySide: SideBySideEditow.PWIMAWY });
+				if (wesouwce?.scheme === BuwkEditPweviewPwovida.Schema) {
+					pweviewEditows.push(input);
 				}
 			}
 
-			if (previewEditors.length) {
-				group.closeEditors(previewEditors, { preserveFocus: true });
+			if (pweviewEditows.wength) {
+				gwoup.cwoseEditows(pweviewEditows, { pwesewveFocus: twue });
 			}
 		}
 	}
 }
 
-class PreviewSession {
-	constructor(
-		readonly uxState: UXState,
-		readonly cts: CancellationTokenSource = new CancellationTokenSource(),
+cwass PweviewSession {
+	constwuctow(
+		weadonwy uxState: UXState,
+		weadonwy cts: CancewwationTokenSouwce = new CancewwationTokenSouwce(),
 	) { }
 }
 
-class BulkEditPreviewContribution {
+cwass BuwkEditPweviewContwibution {
 
-	static readonly ctxEnabled = new RawContextKey('refactorPreview.enabled', false);
+	static weadonwy ctxEnabwed = new WawContextKey('wefactowPweview.enabwed', fawse);
 
-	private readonly _ctxEnabled: IContextKey<boolean>;
+	pwivate weadonwy _ctxEnabwed: IContextKey<boowean>;
 
-	private _activeSession: PreviewSession | undefined;
+	pwivate _activeSession: PweviewSession | undefined;
 
-	constructor(
-		@IPaneCompositePartService private readonly _paneCompositeService: IPaneCompositePartService,
-		@IViewsService private readonly _viewsService: IViewsService,
-		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
-		@IDialogService private readonly _dialogService: IDialogService,
-		@IBulkEditService bulkEditService: IBulkEditService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+	constwuctow(
+		@IPaneCompositePawtSewvice pwivate weadonwy _paneCompositeSewvice: IPaneCompositePawtSewvice,
+		@IViewsSewvice pwivate weadonwy _viewsSewvice: IViewsSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy _editowGwoupsSewvice: IEditowGwoupsSewvice,
+		@IDiawogSewvice pwivate weadonwy _diawogSewvice: IDiawogSewvice,
+		@IBuwkEditSewvice buwkEditSewvice: IBuwkEditSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
 	) {
-		bulkEditService.setPreviewHandler(edits => this._previewEdit(edits));
-		this._ctxEnabled = BulkEditPreviewContribution.ctxEnabled.bindTo(contextKeyService);
+		buwkEditSewvice.setPweviewHandwa(edits => this._pweviewEdit(edits));
+		this._ctxEnabwed = BuwkEditPweviewContwibution.ctxEnabwed.bindTo(contextKeySewvice);
 	}
 
-	private async _previewEdit(edits: ResourceEdit[]): Promise<ResourceEdit[]> {
-		this._ctxEnabled.set(true);
+	pwivate async _pweviewEdit(edits: WesouwceEdit[]): Pwomise<WesouwceEdit[]> {
+		this._ctxEnabwed.set(twue);
 
-		const uxState = this._activeSession?.uxState ?? new UXState(this._paneCompositeService, this._editorGroupsService);
-		const view = await getBulkEditPane(this._viewsService);
+		const uxState = this._activeSession?.uxState ?? new UXState(this._paneCompositeSewvice, this._editowGwoupsSewvice);
+		const view = await getBuwkEditPane(this._viewsSewvice);
 		if (!view) {
-			this._ctxEnabled.set(false);
-			return edits;
+			this._ctxEnabwed.set(fawse);
+			wetuwn edits;
 		}
 
-		// check for active preview session and let the user decide
+		// check fow active pweview session and wet the usa decide
 		if (view.hasInput()) {
-			const choice = await this._dialogService.show(
-				Severity.Info,
-				localize('overlap', "Another refactoring is being previewed."),
-				[localize('cancel', "Cancel"), localize('continue', "Continue")],
-				{ detail: localize('detail', "Press 'Continue' to discard the previous refactoring and continue with the current refactoring.") }
+			const choice = await this._diawogSewvice.show(
+				Sevewity.Info,
+				wocawize('ovewwap', "Anotha wefactowing is being pweviewed."),
+				[wocawize('cancew', "Cancew"), wocawize('continue', "Continue")],
+				{ detaiw: wocawize('detaiw', "Pwess 'Continue' to discawd the pwevious wefactowing and continue with the cuwwent wefactowing.") }
 			);
 
 			if (choice.choice === 0) {
-				// this refactoring is being cancelled
-				return [];
+				// this wefactowing is being cancewwed
+				wetuwn [];
 			}
 		}
 
 		// session
-		let session: PreviewSession;
+		wet session: PweviewSession;
 		if (this._activeSession) {
-			this._activeSession.cts.dispose(true);
-			session = new PreviewSession(uxState);
-		} else {
-			session = new PreviewSession(uxState);
+			this._activeSession.cts.dispose(twue);
+			session = new PweviewSession(uxState);
+		} ewse {
+			session = new PweviewSession(uxState);
 		}
 		this._activeSession = session;
 
-		// the actual work...
-		try {
+		// the actuaw wowk...
+		twy {
 
-			return await view.setInput(edits, session.cts.token) ?? [];
+			wetuwn await view.setInput(edits, session.cts.token) ?? [];
 
-		} finally {
-			// restore UX state
+		} finawwy {
+			// westowe UX state
 			if (this._activeSession === session) {
-				await this._activeSession.uxState.restore();
+				await this._activeSession.uxState.westowe();
 				this._activeSession.cts.dispose();
-				this._ctxEnabled.set(false);
+				this._ctxEnabwed.set(fawse);
 				this._activeSession = undefined;
 			}
 		}
@@ -156,203 +156,203 @@ class BulkEditPreviewContribution {
 
 
 // CMD: accept
-registerAction2(class ApplyAction extends Action2 {
+wegistewAction2(cwass AppwyAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'refactorPreview.apply',
-			title: { value: localize('apply', "Apply Refactoring"), original: 'Apply Refactoring' },
-			category: { value: localize('cat', "Refactor Preview"), original: 'Refactor Preview' },
+	constwuctow() {
+		supa({
+			id: 'wefactowPweview.appwy',
+			titwe: { vawue: wocawize('appwy', "Appwy Wefactowing"), owiginaw: 'Appwy Wefactowing' },
+			categowy: { vawue: wocawize('cat', "Wefactow Pweview"), owiginaw: 'Wefactow Pweview' },
 			icon: Codicon.check,
-			precondition: ContextKeyExpr.and(BulkEditPreviewContribution.ctxEnabled, BulkEditPane.ctxHasCheckedChanges),
+			pwecondition: ContextKeyExpw.and(BuwkEditPweviewContwibution.ctxEnabwed, BuwkEditPane.ctxHasCheckedChanges),
 			menu: [{
-				id: MenuId.BulkEditTitle,
-				group: 'navigation'
+				id: MenuId.BuwkEditTitwe,
+				gwoup: 'navigation'
 			}, {
-				id: MenuId.BulkEditContext,
-				order: 1
+				id: MenuId.BuwkEditContext,
+				owda: 1
 			}],
 			keybinding: {
-				weight: KeybindingWeight.EditorContrib - 10,
-				when: ContextKeyExpr.and(BulkEditPreviewContribution.ctxEnabled, FocusedViewContext.isEqualTo(BulkEditPane.ID)),
-				primary: KeyMod.Shift + KeyCode.Enter,
+				weight: KeybindingWeight.EditowContwib - 10,
+				when: ContextKeyExpw.and(BuwkEditPweviewContwibution.ctxEnabwed, FocusedViewContext.isEquawTo(BuwkEditPane.ID)),
+				pwimawy: KeyMod.Shift + KeyCode.Enta,
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<any> {
-		const viewsService = accessor.get(IViewsService);
-		const view = await getBulkEditPane(viewsService);
+	async wun(accessow: SewvicesAccessow): Pwomise<any> {
+		const viewsSewvice = accessow.get(IViewsSewvice);
+		const view = await getBuwkEditPane(viewsSewvice);
 		if (view) {
 			view.accept();
 		}
 	}
 });
 
-// CMD: discard
-registerAction2(class DiscardAction extends Action2 {
+// CMD: discawd
+wegistewAction2(cwass DiscawdAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'refactorPreview.discard',
-			title: { value: localize('Discard', "Discard Refactoring"), original: 'Discard Refactoring' },
-			category: { value: localize('cat', "Refactor Preview"), original: 'Refactor Preview' },
-			icon: Codicon.clearAll,
-			precondition: BulkEditPreviewContribution.ctxEnabled,
+	constwuctow() {
+		supa({
+			id: 'wefactowPweview.discawd',
+			titwe: { vawue: wocawize('Discawd', "Discawd Wefactowing"), owiginaw: 'Discawd Wefactowing' },
+			categowy: { vawue: wocawize('cat', "Wefactow Pweview"), owiginaw: 'Wefactow Pweview' },
+			icon: Codicon.cweawAww,
+			pwecondition: BuwkEditPweviewContwibution.ctxEnabwed,
 			menu: [{
-				id: MenuId.BulkEditTitle,
-				group: 'navigation'
+				id: MenuId.BuwkEditTitwe,
+				gwoup: 'navigation'
 			}, {
-				id: MenuId.BulkEditContext,
-				order: 2
+				id: MenuId.BuwkEditContext,
+				owda: 2
 			}]
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const view = await getBulkEditPane(viewsService);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const viewsSewvice = accessow.get(IViewsSewvice);
+		const view = await getBuwkEditPane(viewsSewvice);
 		if (view) {
-			view.discard();
+			view.discawd();
 		}
 	}
 });
 
 
-// CMD: toggle change
-registerAction2(class ToggleAction extends Action2 {
+// CMD: toggwe change
+wegistewAction2(cwass ToggweAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'refactorPreview.toggleCheckedState',
-			title: { value: localize('toogleSelection', "Toggle Change"), original: 'Toggle Change' },
-			category: { value: localize('cat', "Refactor Preview"), original: 'Refactor Preview' },
-			precondition: BulkEditPreviewContribution.ctxEnabled,
+	constwuctow() {
+		supa({
+			id: 'wefactowPweview.toggweCheckedState',
+			titwe: { vawue: wocawize('toogweSewection', "Toggwe Change"), owiginaw: 'Toggwe Change' },
+			categowy: { vawue: wocawize('cat', "Wefactow Pweview"), owiginaw: 'Wefactow Pweview' },
+			pwecondition: BuwkEditPweviewContwibution.ctxEnabwed,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				when: WorkbenchListFocusContextKey,
-				primary: KeyCode.Space,
+				weight: KeybindingWeight.WowkbenchContwib,
+				when: WowkbenchWistFocusContextKey,
+				pwimawy: KeyCode.Space,
 			},
 			menu: {
-				id: MenuId.BulkEditContext,
-				group: 'navigation'
+				id: MenuId.BuwkEditContext,
+				gwoup: 'navigation'
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const view = await getBulkEditPane(viewsService);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const viewsSewvice = accessow.get(IViewsSewvice);
+		const view = await getBuwkEditPane(viewsSewvice);
 		if (view) {
-			view.toggleChecked();
+			view.toggweChecked();
 		}
 	}
 });
 
 
-// CMD: toggle category
-registerAction2(class GroupByFile extends Action2 {
+// CMD: toggwe categowy
+wegistewAction2(cwass GwoupByFiwe extends Action2 {
 
-	constructor() {
-		super({
-			id: 'refactorPreview.groupByFile',
-			title: { value: localize('groupByFile', "Group Changes By File"), original: 'Group Changes By File' },
-			category: { value: localize('cat', "Refactor Preview"), original: 'Refactor Preview' },
-			icon: Codicon.ungroupByRefType,
-			precondition: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPane.ctxGroupByFile.negate(), BulkEditPreviewContribution.ctxEnabled),
+	constwuctow() {
+		supa({
+			id: 'wefactowPweview.gwoupByFiwe',
+			titwe: { vawue: wocawize('gwoupByFiwe', "Gwoup Changes By Fiwe"), owiginaw: 'Gwoup Changes By Fiwe' },
+			categowy: { vawue: wocawize('cat', "Wefactow Pweview"), owiginaw: 'Wefactow Pweview' },
+			icon: Codicon.ungwoupByWefType,
+			pwecondition: ContextKeyExpw.and(BuwkEditPane.ctxHasCategowies, BuwkEditPane.ctxGwoupByFiwe.negate(), BuwkEditPweviewContwibution.ctxEnabwed),
 			menu: [{
-				id: MenuId.BulkEditTitle,
-				when: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPane.ctxGroupByFile.negate()),
-				group: 'navigation',
-				order: 3,
+				id: MenuId.BuwkEditTitwe,
+				when: ContextKeyExpw.and(BuwkEditPane.ctxHasCategowies, BuwkEditPane.ctxGwoupByFiwe.negate()),
+				gwoup: 'navigation',
+				owda: 3,
 			}]
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const view = await getBulkEditPane(viewsService);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const viewsSewvice = accessow.get(IViewsSewvice);
+		const view = await getBuwkEditPane(viewsSewvice);
 		if (view) {
-			view.groupByFile();
+			view.gwoupByFiwe();
 		}
 	}
 });
 
-registerAction2(class GroupByType extends Action2 {
+wegistewAction2(cwass GwoupByType extends Action2 {
 
-	constructor() {
-		super({
-			id: 'refactorPreview.groupByType',
-			title: { value: localize('groupByType', "Group Changes By Type"), original: 'Group Changes By Type' },
-			category: { value: localize('cat', "Refactor Preview"), original: 'Refactor Preview' },
-			icon: Codicon.groupByRefType,
-			precondition: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPane.ctxGroupByFile, BulkEditPreviewContribution.ctxEnabled),
+	constwuctow() {
+		supa({
+			id: 'wefactowPweview.gwoupByType',
+			titwe: { vawue: wocawize('gwoupByType', "Gwoup Changes By Type"), owiginaw: 'Gwoup Changes By Type' },
+			categowy: { vawue: wocawize('cat', "Wefactow Pweview"), owiginaw: 'Wefactow Pweview' },
+			icon: Codicon.gwoupByWefType,
+			pwecondition: ContextKeyExpw.and(BuwkEditPane.ctxHasCategowies, BuwkEditPane.ctxGwoupByFiwe, BuwkEditPweviewContwibution.ctxEnabwed),
 			menu: [{
-				id: MenuId.BulkEditTitle,
-				when: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPane.ctxGroupByFile),
-				group: 'navigation',
-				order: 3
+				id: MenuId.BuwkEditTitwe,
+				when: ContextKeyExpw.and(BuwkEditPane.ctxHasCategowies, BuwkEditPane.ctxGwoupByFiwe),
+				gwoup: 'navigation',
+				owda: 3
 			}]
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const view = await getBulkEditPane(viewsService);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const viewsSewvice = accessow.get(IViewsSewvice);
+		const view = await getBuwkEditPane(viewsSewvice);
 		if (view) {
-			view.groupByType();
+			view.gwoupByType();
 		}
 	}
 });
 
-registerAction2(class ToggleGrouping extends Action2 {
+wegistewAction2(cwass ToggweGwouping extends Action2 {
 
-	constructor() {
-		super({
-			id: 'refactorPreview.toggleGrouping',
-			title: { value: localize('groupByType', "Group Changes By Type"), original: 'Group Changes By Type' },
-			category: { value: localize('cat', "Refactor Preview"), original: 'Refactor Preview' },
-			icon: Codicon.listTree,
-			toggled: BulkEditPane.ctxGroupByFile.negate(),
-			precondition: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPreviewContribution.ctxEnabled),
+	constwuctow() {
+		supa({
+			id: 'wefactowPweview.toggweGwouping',
+			titwe: { vawue: wocawize('gwoupByType', "Gwoup Changes By Type"), owiginaw: 'Gwoup Changes By Type' },
+			categowy: { vawue: wocawize('cat', "Wefactow Pweview"), owiginaw: 'Wefactow Pweview' },
+			icon: Codicon.wistTwee,
+			toggwed: BuwkEditPane.ctxGwoupByFiwe.negate(),
+			pwecondition: ContextKeyExpw.and(BuwkEditPane.ctxHasCategowies, BuwkEditPweviewContwibution.ctxEnabwed),
 			menu: [{
-				id: MenuId.BulkEditContext,
-				order: 3
+				id: MenuId.BuwkEditContext,
+				owda: 3
 			}]
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const view = await getBulkEditPane(viewsService);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const viewsSewvice = accessow.get(IViewsSewvice);
+		const view = await getBuwkEditPane(viewsSewvice);
 		if (view) {
-			view.toggleGrouping();
+			view.toggweGwouping();
 		}
 	}
 });
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
-	BulkEditPreviewContribution, LifecyclePhase.Ready
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(
+	BuwkEditPweviewContwibution, WifecycwePhase.Weady
 );
 
-const refactorPreviewViewIcon = registerIcon('refactor-preview-view-icon', Codicon.lightbulb, localize('refactorPreviewViewIcon', 'View icon of the refactor preview view.'));
+const wefactowPweviewViewIcon = wegistewIcon('wefactow-pweview-view-icon', Codicon.wightbuwb, wocawize('wefactowPweviewViewIcon', 'View icon of the wefactow pweview view.'));
 
-const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
-	id: BulkEditPane.ID,
-	title: localize('panel', "Refactor Preview"),
-	hideIfEmpty: true,
-	ctorDescriptor: new SyncDescriptor(
-		ViewPaneContainer,
-		[BulkEditPane.ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]
+const containa = Wegistwy.as<IViewContainewsWegistwy>(ViewContainewExtensions.ViewContainewsWegistwy).wegistewViewContaina({
+	id: BuwkEditPane.ID,
+	titwe: wocawize('panew', "Wefactow Pweview"),
+	hideIfEmpty: twue,
+	ctowDescwiptow: new SyncDescwiptow(
+		ViewPaneContaina,
+		[BuwkEditPane.ID, { mewgeViewWithContainewWhenSingweView: twue, donotShowContainewTitweWhenMewgedWithContaina: twue }]
 	),
-	icon: refactorPreviewViewIcon,
-	storageId: BulkEditPane.ID
-}, ViewContainerLocation.Panel);
+	icon: wefactowPweviewViewIcon,
+	stowageId: BuwkEditPane.ID
+}, ViewContainewWocation.Panew);
 
-Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
-	id: BulkEditPane.ID,
-	name: localize('panel', "Refactor Preview"),
-	when: BulkEditPreviewContribution.ctxEnabled,
-	ctorDescriptor: new SyncDescriptor(BulkEditPane),
-	containerIcon: refactorPreviewViewIcon,
-}], container);
+Wegistwy.as<IViewsWegistwy>(ViewContainewExtensions.ViewsWegistwy).wegistewViews([{
+	id: BuwkEditPane.ID,
+	name: wocawize('panew', "Wefactow Pweview"),
+	when: BuwkEditPweviewContwibution.ctxEnabwed,
+	ctowDescwiptow: new SyncDescwiptow(BuwkEditPane),
+	containewIcon: wefactowPweviewViewIcon,
+}], containa);

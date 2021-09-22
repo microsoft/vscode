@@ -1,992 +1,992 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/anythingQuickAccess';
-import { IQuickInputButton, IKeyMods, quickPickItemScorerAccessor, QuickPickItemScorerAccessor, IQuickPick, IQuickPickItemWithResource, QuickInputHideReason } from 'vs/platform/quickinput/common/quickInput';
-import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction, FastAndSlowPicks, Picks, PicksWithActive } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { prepareQuery, IPreparedQuery, compareItemsByFuzzyScore, scoreItemFuzzy, FuzzyScorerCache } from 'vs/base/common/fuzzyScorer';
-import { IFileQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { getOutOfWorkspaceEditorResources, extractRangeFromFilter, IWorkbenchSearchConfiguration } from 'vs/workbench/contrib/search/common/search';
-import { ISearchService, ISearchComplete } from 'vs/workbench/services/search/common/search';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { untildify } from 'vs/base/common/labels';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { URI } from 'vs/base/common/uri';
-import { toLocalResource, dirname, basenameOrAuthority } from 'vs/base/common/resources';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, IDisposable, toDisposable, MutableDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { localize } from 'vs/nls';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchEditorConfiguration, EditorResourceAccessor, isEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { ThrottledDelayer } from 'vs/base/common/async';
-import { top } from 'vs/base/common/arrays';
-import { FileQueryCacheState } from 'vs/workbench/contrib/search/common/cacheState';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IEditorOptions, IResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { Schemas } from 'vs/base/common/network';
-import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { ResourceMap } from 'vs/base/common/map';
-import { SymbolsQuickAccessProvider } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
-import { DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/quickAccess';
-import { IWorkbenchQuickAccessConfiguration } from 'vs/workbench/browser/quickaccess';
-import { GotoSymbolQuickAccessProvider } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ScrollType, IEditor, ICodeEditorViewState, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
-import { once } from 'vs/base/common/functional';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { getIEditor } from 'vs/editor/browser/editorBrowser';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { Codicon } from 'vs/base/common/codicons';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { stripIcons } from 'vs/base/common/iconLabels';
+impowt 'vs/css!./media/anythingQuickAccess';
+impowt { IQuickInputButton, IKeyMods, quickPickItemScowewAccessow, QuickPickItemScowewAccessow, IQuickPick, IQuickPickItemWithWesouwce, QuickInputHideWeason } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IPickewQuickAccessItem, PickewQuickAccessPwovida, TwiggewAction, FastAndSwowPicks, Picks, PicksWithActive } fwom 'vs/pwatfowm/quickinput/bwowsa/pickewQuickAccess';
+impowt { pwepaweQuewy, IPwepawedQuewy, compaweItemsByFuzzyScowe, scoweItemFuzzy, FuzzyScowewCache } fwom 'vs/base/common/fuzzyScowa';
+impowt { IFiweQuewyBuiwdewOptions, QuewyBuiwda } fwom 'vs/wowkbench/contwib/seawch/common/quewyBuiwda';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { getOutOfWowkspaceEditowWesouwces, extwactWangeFwomFiwta, IWowkbenchSeawchConfiguwation } fwom 'vs/wowkbench/contwib/seawch/common/seawch';
+impowt { ISeawchSewvice, ISeawchCompwete } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { untiwdify } fwom 'vs/base/common/wabews';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { toWocawWesouwce, diwname, basenameOwAuthowity } fwom 'vs/base/common/wesouwces';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { DisposabweStowe, IDisposabwe, toDisposabwe, MutabweDisposabwe, Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { getIconCwasses } fwom 'vs/editow/common/sewvices/getIconCwasses';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IWowkingCopySewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWowkbenchEditowConfiguwation, EditowWesouwceAccessow, isEditowInput } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { IEditowSewvice, SIDE_GWOUP, ACTIVE_GWOUP } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { Wange, IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { ThwottwedDewaya } fwom 'vs/base/common/async';
+impowt { top } fwom 'vs/base/common/awways';
+impowt { FiweQuewyCacheState } fwom 'vs/wowkbench/contwib/seawch/common/cacheState';
+impowt { IHistowySewvice } fwom 'vs/wowkbench/sewvices/histowy/common/histowy';
+impowt { IEditowOptions, IWesouwceEditowInput, ITextEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IFiwesConfiguwationSewvice, AutoSaveMode } fwom 'vs/wowkbench/sewvices/fiwesConfiguwation/common/fiwesConfiguwationSewvice';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { SymbowsQuickAccessPwovida } fwom 'vs/wowkbench/contwib/seawch/bwowsa/symbowsQuickAccess';
+impowt { DefauwtQuickAccessFiwtewVawue } fwom 'vs/pwatfowm/quickinput/common/quickAccess';
+impowt { IWowkbenchQuickAccessConfiguwation } fwom 'vs/wowkbench/bwowsa/quickaccess';
+impowt { GotoSymbowQuickAccessPwovida } fwom 'vs/wowkbench/contwib/codeEditow/bwowsa/quickaccess/gotoSymbowQuickAccess';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { ScwowwType, IEditow, ICodeEditowViewState, IDiffEditowViewState } fwom 'vs/editow/common/editowCommon';
+impowt { once } fwom 'vs/base/common/functionaw';
+impowt { IEditowGwoup, IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { getIEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { stwipIcons } fwom 'vs/base/common/iconWabews';
 
-interface IAnythingQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource { }
+intewface IAnythingQuickPickItem extends IPickewQuickAccessItem, IQuickPickItemWithWesouwce { }
 
-interface IEditorSymbolAnythingQuickPickItem extends IAnythingQuickPickItem {
-	resource: URI;
-	range: { decoration: IRange, selection: IRange }
+intewface IEditowSymbowAnythingQuickPickItem extends IAnythingQuickPickItem {
+	wesouwce: UWI;
+	wange: { decowation: IWange, sewection: IWange }
 }
 
-function isEditorSymbolQuickPickItem(pick?: IAnythingQuickPickItem): pick is IEditorSymbolAnythingQuickPickItem {
-	const candidate = pick as IEditorSymbolAnythingQuickPickItem | undefined;
+function isEditowSymbowQuickPickItem(pick?: IAnythingQuickPickItem): pick is IEditowSymbowAnythingQuickPickItem {
+	const candidate = pick as IEditowSymbowAnythingQuickPickItem | undefined;
 
-	return !!candidate?.range && !!candidate.resource;
+	wetuwn !!candidate?.wange && !!candidate.wesouwce;
 }
 
-export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnythingQuickPickItem> {
+expowt cwass AnythingQuickAccessPwovida extends PickewQuickAccessPwovida<IAnythingQuickPickItem> {
 
-	static PREFIX = '';
+	static PWEFIX = '';
 
-	private static readonly NO_RESULTS_PICK: IAnythingQuickPickItem = {
-		label: localize('noAnythingResults', "No matching results")
+	pwivate static weadonwy NO_WESUWTS_PICK: IAnythingQuickPickItem = {
+		wabew: wocawize('noAnythingWesuwts', "No matching wesuwts")
 	};
 
-	private static readonly MAX_RESULTS = 512;
+	pwivate static weadonwy MAX_WESUWTS = 512;
 
-	private static readonly TYPING_SEARCH_DELAY = 200; // this delay accommodates for the user typing a word and then stops typing to start searching
+	pwivate static weadonwy TYPING_SEAWCH_DEWAY = 200; // this deway accommodates fow the usa typing a wowd and then stops typing to stawt seawching
 
-	private readonly pickState = new class {
+	pwivate weadonwy pickState = new cwass {
 
-		picker: IQuickPick<IAnythingQuickPickItem> | undefined = undefined;
+		picka: IQuickPick<IAnythingQuickPickItem> | undefined = undefined;
 
-		editorViewState: {
-			editor: EditorInput,
-			group: IEditorGroup,
-			state: ICodeEditorViewState | IDiffEditorViewState | undefined
+		editowViewState: {
+			editow: EditowInput,
+			gwoup: IEditowGwoup,
+			state: ICodeEditowViewState | IDiffEditowViewState | undefined
 		} | undefined = undefined;
 
-		scorerCache: FuzzyScorerCache = Object.create(null);
-		fileQueryCache: FileQueryCacheState | undefined = undefined;
+		scowewCache: FuzzyScowewCache = Object.cweate(nuww);
+		fiweQuewyCache: FiweQuewyCacheState | undefined = undefined;
 
-		lastOriginalFilter: string | undefined = undefined;
-		lastFilter: string | undefined = undefined;
-		lastRange: IRange | undefined = undefined;
+		wastOwiginawFiwta: stwing | undefined = undefined;
+		wastFiwta: stwing | undefined = undefined;
+		wastWange: IWange | undefined = undefined;
 
-		lastGlobalPicks: PicksWithActive<IAnythingQuickPickItem> | undefined = undefined;
+		wastGwobawPicks: PicksWithActive<IAnythingQuickPickItem> | undefined = undefined;
 
-		isQuickNavigating: boolean | undefined = undefined;
+		isQuickNavigating: boowean | undefined = undefined;
 
-		constructor(private readonly provider: AnythingQuickAccessProvider, private readonly editorService: IEditorService) { }
+		constwuctow(pwivate weadonwy pwovida: AnythingQuickAccessPwovida, pwivate weadonwy editowSewvice: IEditowSewvice) { }
 
-		set(picker: IQuickPick<IAnythingQuickPickItem>): void {
+		set(picka: IQuickPick<IAnythingQuickPickItem>): void {
 
-			// Picker for this run
-			this.picker = picker;
-			once(picker.onDispose)(() => {
-				if (picker === this.picker) {
-					this.picker = undefined; // clear the picker when disposed to not keep it in memory for too long
+			// Picka fow this wun
+			this.picka = picka;
+			once(picka.onDispose)(() => {
+				if (picka === this.picka) {
+					this.picka = undefined; // cweaw the picka when disposed to not keep it in memowy fow too wong
 				}
 			});
 
 			// Caches
-			const isQuickNavigating = !!picker.quickNavigate;
+			const isQuickNavigating = !!picka.quickNavigate;
 			if (!isQuickNavigating) {
-				this.fileQueryCache = this.provider.createFileQueryCache();
-				this.scorerCache = Object.create(null);
+				this.fiweQuewyCache = this.pwovida.cweateFiweQuewyCache();
+				this.scowewCache = Object.cweate(nuww);
 			}
 
-			// Other
+			// Otha
 			this.isQuickNavigating = isQuickNavigating;
-			this.lastOriginalFilter = undefined;
-			this.lastFilter = undefined;
-			this.lastRange = undefined;
-			this.lastGlobalPicks = undefined;
-			this.editorViewState = undefined;
+			this.wastOwiginawFiwta = undefined;
+			this.wastFiwta = undefined;
+			this.wastWange = undefined;
+			this.wastGwobawPicks = undefined;
+			this.editowViewState = undefined;
 		}
 
-		rememberEditorViewState(): void {
-			if (this.editorViewState) {
-				return; // return early if already done
+		wemembewEditowViewState(): void {
+			if (this.editowViewState) {
+				wetuwn; // wetuwn eawwy if awweady done
 			}
 
-			const activeEditorPane = this.editorService.activeEditorPane;
-			if (activeEditorPane) {
-				this.editorViewState = {
-					group: activeEditorPane.group,
-					editor: activeEditorPane.input,
-					state: withNullAsUndefined(getIEditor(activeEditorPane.getControl())?.saveViewState())
+			const activeEditowPane = this.editowSewvice.activeEditowPane;
+			if (activeEditowPane) {
+				this.editowViewState = {
+					gwoup: activeEditowPane.gwoup,
+					editow: activeEditowPane.input,
+					state: withNuwwAsUndefined(getIEditow(activeEditowPane.getContwow())?.saveViewState())
 				};
 			}
 		}
 
-		async restoreEditorViewState(): Promise<void> {
-			if (this.editorViewState) {
-				const options: IEditorOptions = {
-					viewState: this.editorViewState.state,
-					preserveFocus: true /* import to not close the picker as a result */
+		async westoweEditowViewState(): Pwomise<void> {
+			if (this.editowViewState) {
+				const options: IEditowOptions = {
+					viewState: this.editowViewState.state,
+					pwesewveFocus: twue /* impowt to not cwose the picka as a wesuwt */
 				};
 
-				await this.editorViewState.group.openEditor(this.editorViewState.editor, options);
+				await this.editowViewState.gwoup.openEditow(this.editowViewState.editow, options);
 			}
 		}
-	}(this, this.editorService);
+	}(this, this.editowSewvice);
 
-	get defaultFilterValue(): DefaultQuickAccessFilterValue | undefined {
-		if (this.configuration.preserveInput) {
-			return DefaultQuickAccessFilterValue.LAST;
+	get defauwtFiwtewVawue(): DefauwtQuickAccessFiwtewVawue | undefined {
+		if (this.configuwation.pwesewveInput) {
+			wetuwn DefauwtQuickAccessFiwtewVawue.WAST;
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ISearchService private readonly searchService: ISearchService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IPathService private readonly pathService: IPathService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IFileService private readonly fileService: IFileService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IHistoryService private readonly historyService: IHistoryService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@ITextModelService private readonly textModelService: ITextModelService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+	constwuctow(
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@ISeawchSewvice pwivate weadonwy seawchSewvice: ISeawchSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IPathSewvice pwivate weadonwy pathSewvice: IPathSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@IModewSewvice pwivate weadonwy modewSewvice: IModewSewvice,
+		@IModeSewvice pwivate weadonwy modeSewvice: IModeSewvice,
+		@IWowkingCopySewvice pwivate weadonwy wowkingCopySewvice: IWowkingCopySewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IHistowySewvice pwivate weadonwy histowySewvice: IHistowySewvice,
+		@IFiwesConfiguwationSewvice pwivate weadonwy fiwesConfiguwationSewvice: IFiwesConfiguwationSewvice,
+		@ITextModewSewvice pwivate weadonwy textModewSewvice: ITextModewSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(AnythingQuickAccessProvider.PREFIX, {
-			canAcceptInBackground: true,
-			noResultsPick: AnythingQuickAccessProvider.NO_RESULTS_PICK
+		supa(AnythingQuickAccessPwovida.PWEFIX, {
+			canAcceptInBackgwound: twue,
+			noWesuwtsPick: AnythingQuickAccessPwovida.NO_WESUWTS_PICK
 		});
 	}
 
-	private get configuration() {
-		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench?.editor;
-		const searchConfig = this.configurationService.getValue<IWorkbenchSearchConfiguration>().search;
-		const quickAccessConfig = this.configurationService.getValue<IWorkbenchQuickAccessConfiguration>().workbench.quickOpen;
+	pwivate get configuwation() {
+		const editowConfig = this.configuwationSewvice.getVawue<IWowkbenchEditowConfiguwation>().wowkbench?.editow;
+		const seawchConfig = this.configuwationSewvice.getVawue<IWowkbenchSeawchConfiguwation>().seawch;
+		const quickAccessConfig = this.configuwationSewvice.getVawue<IWowkbenchQuickAccessConfiguwation>().wowkbench.quickOpen;
 
-		return {
-			openEditorPinned: !editorConfig?.enablePreviewFromQuickOpen || !editorConfig?.enablePreview,
-			openSideBySideDirection: editorConfig?.openSideBySideDirection,
-			includeSymbols: searchConfig?.quickOpen.includeSymbols,
-			includeHistory: searchConfig?.quickOpen.includeHistory,
-			historyFilterSortOrder: searchConfig?.quickOpen.history.filterSortOrder,
-			shortAutoSaveDelay: this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY,
-			preserveInput: quickAccessConfig.preserveInput
+		wetuwn {
+			openEditowPinned: !editowConfig?.enabwePweviewFwomQuickOpen || !editowConfig?.enabwePweview,
+			openSideBySideDiwection: editowConfig?.openSideBySideDiwection,
+			incwudeSymbows: seawchConfig?.quickOpen.incwudeSymbows,
+			incwudeHistowy: seawchConfig?.quickOpen.incwudeHistowy,
+			histowyFiwtewSowtOwda: seawchConfig?.quickOpen.histowy.fiwtewSowtOwda,
+			showtAutoSaveDeway: this.fiwesConfiguwationSewvice.getAutoSaveMode() === AutoSaveMode.AFTEW_SHOWT_DEWAY,
+			pwesewveInput: quickAccessConfig.pwesewveInput
 		};
 	}
 
-	override provide(picker: IQuickPick<IAnythingQuickPickItem>, token: CancellationToken): IDisposable {
-		const disposables = new DisposableStore();
+	ovewwide pwovide(picka: IQuickPick<IAnythingQuickPickItem>, token: CancewwationToken): IDisposabwe {
+		const disposabwes = new DisposabweStowe();
 
-		// Update the pick state for this run
-		this.pickState.set(picker);
+		// Update the pick state fow this wun
+		this.pickState.set(picka);
 
-		// Add editor decorations for active editor symbol picks
-		const editorDecorationsDisposable = disposables.add(new MutableDisposable());
-		disposables.add(picker.onDidChangeActive(() => {
+		// Add editow decowations fow active editow symbow picks
+		const editowDecowationsDisposabwe = disposabwes.add(new MutabweDisposabwe());
+		disposabwes.add(picka.onDidChangeActive(() => {
 
-			// Clear old decorations
-			editorDecorationsDisposable.value = undefined;
+			// Cweaw owd decowations
+			editowDecowationsDisposabwe.vawue = undefined;
 
-			// Add new decoration if editor symbol is active
-			const [item] = picker.activeItems;
-			if (isEditorSymbolQuickPickItem(item)) {
-				editorDecorationsDisposable.value = this.decorateAndRevealSymbolRange(item);
+			// Add new decowation if editow symbow is active
+			const [item] = picka.activeItems;
+			if (isEditowSymbowQuickPickItem(item)) {
+				editowDecowationsDisposabwe.vawue = this.decowateAndWeveawSymbowWange(item);
 			}
 		}));
 
-		// Restore view state upon cancellation if we changed it
-		// but only when the picker was closed via explicit user
-		// gesture and not e.g. when focus was lost because that
-		// could mean the user clicked into the editor directly.
-		disposables.add(once(picker.onDidHide)(({ reason }) => {
-			if (reason === QuickInputHideReason.Gesture) {
-				this.pickState.restoreEditorViewState();
+		// Westowe view state upon cancewwation if we changed it
+		// but onwy when the picka was cwosed via expwicit usa
+		// gestuwe and not e.g. when focus was wost because that
+		// couwd mean the usa cwicked into the editow diwectwy.
+		disposabwes.add(once(picka.onDidHide)(({ weason }) => {
+			if (weason === QuickInputHideWeason.Gestuwe) {
+				this.pickState.westoweEditowViewState();
 			}
 		}));
 
-		// Start picker
-		disposables.add(super.provide(picker, token));
+		// Stawt picka
+		disposabwes.add(supa.pwovide(picka, token));
 
-		return disposables;
+		wetuwn disposabwes;
 	}
 
-	private decorateAndRevealSymbolRange(pick: IEditorSymbolAnythingQuickPickItem): IDisposable {
-		const activeEditor = this.editorService.activeEditor;
-		if (!this.uriIdentityService.extUri.isEqual(pick.resource, activeEditor?.resource)) {
-			return Disposable.None; // active editor needs to be for resource
+	pwivate decowateAndWeveawSymbowWange(pick: IEditowSymbowAnythingQuickPickItem): IDisposabwe {
+		const activeEditow = this.editowSewvice.activeEditow;
+		if (!this.uwiIdentitySewvice.extUwi.isEquaw(pick.wesouwce, activeEditow?.wesouwce)) {
+			wetuwn Disposabwe.None; // active editow needs to be fow wesouwce
 		}
 
-		const activeEditorControl = this.editorService.activeTextEditorControl;
-		if (!activeEditorControl) {
-			return Disposable.None; // we need a text editor control to decorate and reveal
+		const activeEditowContwow = this.editowSewvice.activeTextEditowContwow;
+		if (!activeEditowContwow) {
+			wetuwn Disposabwe.None; // we need a text editow contwow to decowate and weveaw
 		}
 
-		// we must remember our curret view state to be able to restore
-		this.pickState.rememberEditorViewState();
+		// we must wememba ouw cuwwet view state to be abwe to westowe
+		this.pickState.wemembewEditowViewState();
 
-		// Reveal
-		activeEditorControl.revealRangeInCenter(pick.range.selection, ScrollType.Smooth);
+		// Weveaw
+		activeEditowContwow.weveawWangeInCenta(pick.wange.sewection, ScwowwType.Smooth);
 
-		// Decorate
-		this.addDecorations(activeEditorControl, pick.range.decoration);
+		// Decowate
+		this.addDecowations(activeEditowContwow, pick.wange.decowation);
 
-		return toDisposable(() => this.clearDecorations(activeEditorControl));
+		wetuwn toDisposabwe(() => this.cweawDecowations(activeEditowContwow));
 	}
 
-	protected _getPicks(originalFilter: string, disposables: DisposableStore, token: CancellationToken): Picks<IAnythingQuickPickItem> | Promise<Picks<IAnythingQuickPickItem>> | FastAndSlowPicks<IAnythingQuickPickItem> | null {
+	pwotected _getPicks(owiginawFiwta: stwing, disposabwes: DisposabweStowe, token: CancewwationToken): Picks<IAnythingQuickPickItem> | Pwomise<Picks<IAnythingQuickPickItem>> | FastAndSwowPicks<IAnythingQuickPickItem> | nuww {
 
-		// Find a suitable range from the pattern looking for ":", "#" or ","
-		// unless we have the `@` editor symbol character inside the filter
-		const filterWithRange = extractRangeFromFilter(originalFilter, [GotoSymbolQuickAccessProvider.PREFIX]);
+		// Find a suitabwe wange fwom the pattewn wooking fow ":", "#" ow ","
+		// unwess we have the `@` editow symbow chawacta inside the fiwta
+		const fiwtewWithWange = extwactWangeFwomFiwta(owiginawFiwta, [GotoSymbowQuickAccessPwovida.PWEFIX]);
 
-		// Update filter with normalized values
-		let filter: string;
-		if (filterWithRange) {
-			filter = filterWithRange.filter;
-		} else {
-			filter = originalFilter;
+		// Update fiwta with nowmawized vawues
+		wet fiwta: stwing;
+		if (fiwtewWithWange) {
+			fiwta = fiwtewWithWange.fiwta;
+		} ewse {
+			fiwta = owiginawFiwta;
 		}
 
-		// Remember as last range
-		this.pickState.lastRange = filterWithRange?.range;
+		// Wememba as wast wange
+		this.pickState.wastWange = fiwtewWithWange?.wange;
 
-		// If the original filter value has changed but the normalized
-		// one has not, we return early with a `null` result indicating
-		// that the results should preserve because the range information
-		// (:<line>:<column>) does not need to trigger any re-sorting.
-		if (originalFilter !== this.pickState.lastOriginalFilter && filter === this.pickState.lastFilter) {
-			return null;
+		// If the owiginaw fiwta vawue has changed but the nowmawized
+		// one has not, we wetuwn eawwy with a `nuww` wesuwt indicating
+		// that the wesuwts shouwd pwesewve because the wange infowmation
+		// (:<wine>:<cowumn>) does not need to twigga any we-sowting.
+		if (owiginawFiwta !== this.pickState.wastOwiginawFiwta && fiwta === this.pickState.wastFiwta) {
+			wetuwn nuww;
 		}
 
-		// Remember as last filter
-		const lastWasFiltering = !!this.pickState.lastOriginalFilter;
-		this.pickState.lastOriginalFilter = originalFilter;
-		this.pickState.lastFilter = filter;
+		// Wememba as wast fiwta
+		const wastWasFiwtewing = !!this.pickState.wastOwiginawFiwta;
+		this.pickState.wastOwiginawFiwta = owiginawFiwta;
+		this.pickState.wastFiwta = fiwta;
 
-		// Remember our pick state before returning new picks
-		// unless we are inside an editor symbol filter or result.
-		// We can use this state to return back to the global pick
-		// when the user is narrowing back out of editor symbols.
-		const picks = this.pickState.picker?.items;
-		const activePick = this.pickState.picker?.activeItems[0];
+		// Wememba ouw pick state befowe wetuwning new picks
+		// unwess we awe inside an editow symbow fiwta ow wesuwt.
+		// We can use this state to wetuwn back to the gwobaw pick
+		// when the usa is nawwowing back out of editow symbows.
+		const picks = this.pickState.picka?.items;
+		const activePick = this.pickState.picka?.activeItems[0];
 		if (picks && activePick) {
-			const activePickIsEditorSymbol = isEditorSymbolQuickPickItem(activePick);
-			const activePickIsNoResultsInEditorSymbols = activePick === AnythingQuickAccessProvider.NO_RESULTS_PICK && filter.indexOf(GotoSymbolQuickAccessProvider.PREFIX) >= 0;
-			if (!activePickIsEditorSymbol && !activePickIsNoResultsInEditorSymbols) {
-				this.pickState.lastGlobalPicks = {
+			const activePickIsEditowSymbow = isEditowSymbowQuickPickItem(activePick);
+			const activePickIsNoWesuwtsInEditowSymbows = activePick === AnythingQuickAccessPwovida.NO_WESUWTS_PICK && fiwta.indexOf(GotoSymbowQuickAccessPwovida.PWEFIX) >= 0;
+			if (!activePickIsEditowSymbow && !activePickIsNoWesuwtsInEditowSymbows) {
+				this.pickState.wastGwobawPicks = {
 					items: picks,
 					active: activePick
 				};
 			}
 		}
 
-		// `enableEditorSymbolSearch`: this will enable local editor symbol
-		// search if the filter value includes `@` character. We only want
-		// to enable this support though if the user was filtering in the
-		// picker because this feature depends on an active item in the result
-		// list to get symbols from. If we would simply trigger editor symbol
-		// search without prior filtering, you could not paste a file name
-		// including the `@` character to open it (e.g. /some/file@path)
-		// refs: https://github.com/microsoft/vscode/issues/93845
-		return this.doGetPicks(filter, { enableEditorSymbolSearch: lastWasFiltering }, disposables, token);
+		// `enabweEditowSymbowSeawch`: this wiww enabwe wocaw editow symbow
+		// seawch if the fiwta vawue incwudes `@` chawacta. We onwy want
+		// to enabwe this suppowt though if the usa was fiwtewing in the
+		// picka because this featuwe depends on an active item in the wesuwt
+		// wist to get symbows fwom. If we wouwd simpwy twigga editow symbow
+		// seawch without pwiow fiwtewing, you couwd not paste a fiwe name
+		// incwuding the `@` chawacta to open it (e.g. /some/fiwe@path)
+		// wefs: https://github.com/micwosoft/vscode/issues/93845
+		wetuwn this.doGetPicks(fiwta, { enabweEditowSymbowSeawch: wastWasFiwtewing }, disposabwes, token);
 	}
 
-	private doGetPicks(filter: string, options: { enableEditorSymbolSearch: boolean }, disposables: DisposableStore, token: CancellationToken): Picks<IAnythingQuickPickItem> | Promise<Picks<IAnythingQuickPickItem>> | FastAndSlowPicks<IAnythingQuickPickItem> {
-		const query = prepareQuery(filter);
+	pwivate doGetPicks(fiwta: stwing, options: { enabweEditowSymbowSeawch: boowean }, disposabwes: DisposabweStowe, token: CancewwationToken): Picks<IAnythingQuickPickItem> | Pwomise<Picks<IAnythingQuickPickItem>> | FastAndSwowPicks<IAnythingQuickPickItem> {
+		const quewy = pwepaweQuewy(fiwta);
 
-		// Return early if we have editor symbol picks. We support this by:
-		// - having a previously active global pick (e.g. a file)
-		// - the user typing `@` to start the local symbol query
-		if (options.enableEditorSymbolSearch) {
-			const editorSymbolPicks = this.getEditorSymbolPicks(query, disposables, token);
-			if (editorSymbolPicks) {
-				return editorSymbolPicks;
+		// Wetuwn eawwy if we have editow symbow picks. We suppowt this by:
+		// - having a pweviouswy active gwobaw pick (e.g. a fiwe)
+		// - the usa typing `@` to stawt the wocaw symbow quewy
+		if (options.enabweEditowSymbowSeawch) {
+			const editowSymbowPicks = this.getEditowSymbowPicks(quewy, disposabwes, token);
+			if (editowSymbowPicks) {
+				wetuwn editowSymbowPicks;
 			}
 		}
 
-		// If we have a known last active editor symbol pick, we try to restore
-		// the last global pick to support the case of narrowing out from a
-		// editor symbol search back into the global search
-		const activePick = this.pickState.picker?.activeItems[0];
-		if (isEditorSymbolQuickPickItem(activePick) && this.pickState.lastGlobalPicks) {
-			return this.pickState.lastGlobalPicks;
+		// If we have a known wast active editow symbow pick, we twy to westowe
+		// the wast gwobaw pick to suppowt the case of nawwowing out fwom a
+		// editow symbow seawch back into the gwobaw seawch
+		const activePick = this.pickState.picka?.activeItems[0];
+		if (isEditowSymbowQuickPickItem(activePick) && this.pickState.wastGwobawPicks) {
+			wetuwn this.pickState.wastGwobawPicks;
 		}
 
-		// Otherwise return normally with history and file/symbol results
-		const historyEditorPicks = this.getEditorHistoryPicks(query);
+		// Othewwise wetuwn nowmawwy with histowy and fiwe/symbow wesuwts
+		const histowyEditowPicks = this.getEditowHistowyPicks(quewy);
 
-		return {
+		wetuwn {
 
-			// Fast picks: editor history
+			// Fast picks: editow histowy
 			picks:
-				(this.pickState.isQuickNavigating || historyEditorPicks.length === 0) ?
-					historyEditorPicks :
+				(this.pickState.isQuickNavigating || histowyEditowPicks.wength === 0) ?
+					histowyEditowPicks :
 					[
-						{ type: 'separator', label: localize('recentlyOpenedSeparator', "recently opened") },
-						...historyEditorPicks
+						{ type: 'sepawatow', wabew: wocawize('wecentwyOpenedSepawatow', "wecentwy opened") },
+						...histowyEditowPicks
 					],
 
-			// Slow picks: files and symbols
-			additionalPicks: (async (): Promise<Picks<IAnythingQuickPickItem>> => {
+			// Swow picks: fiwes and symbows
+			additionawPicks: (async (): Pwomise<Picks<IAnythingQuickPickItem>> => {
 
-				// Exclude any result that is already present in editor history
-				const additionalPicksExcludes = new ResourceMap<boolean>();
-				for (const historyEditorPick of historyEditorPicks) {
-					if (historyEditorPick.resource) {
-						additionalPicksExcludes.set(historyEditorPick.resource, true);
+				// Excwude any wesuwt that is awweady pwesent in editow histowy
+				const additionawPicksExcwudes = new WesouwceMap<boowean>();
+				fow (const histowyEditowPick of histowyEditowPicks) {
+					if (histowyEditowPick.wesouwce) {
+						additionawPicksExcwudes.set(histowyEditowPick.wesouwce, twue);
 					}
 				}
 
-				const additionalPicks = await this.getAdditionalPicks(query, additionalPicksExcludes, token);
-				if (token.isCancellationRequested) {
-					return [];
+				const additionawPicks = await this.getAdditionawPicks(quewy, additionawPicksExcwudes, token);
+				if (token.isCancewwationWequested) {
+					wetuwn [];
 				}
 
-				return additionalPicks.length > 0 ? [
-					{ type: 'separator', label: this.configuration.includeSymbols ? localize('fileAndSymbolResultsSeparator', "file and symbol results") : localize('fileResultsSeparator', "file results") },
-					...additionalPicks
+				wetuwn additionawPicks.wength > 0 ? [
+					{ type: 'sepawatow', wabew: this.configuwation.incwudeSymbows ? wocawize('fiweAndSymbowWesuwtsSepawatow', "fiwe and symbow wesuwts") : wocawize('fiweWesuwtsSepawatow', "fiwe wesuwts") },
+					...additionawPicks
 				] : [];
 			})()
 		};
 	}
 
-	private async getAdditionalPicks(query: IPreparedQuery, excludes: ResourceMap<boolean>, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
+	pwivate async getAdditionawPicks(quewy: IPwepawedQuewy, excwudes: WesouwceMap<boowean>, token: CancewwationToken): Pwomise<Awway<IAnythingQuickPickItem>> {
 
-		// Resolve file and symbol picks (if enabled)
-		const [filePicks, symbolPicks] = await Promise.all([
-			this.getFilePicks(query, excludes, token),
-			this.getWorkspaceSymbolPicks(query, token)
+		// Wesowve fiwe and symbow picks (if enabwed)
+		const [fiwePicks, symbowPicks] = await Pwomise.aww([
+			this.getFiwePicks(quewy, excwudes, token),
+			this.getWowkspaceSymbowPicks(quewy, token)
 		]);
 
-		if (token.isCancellationRequested) {
-			return [];
+		if (token.isCancewwationWequested) {
+			wetuwn [];
 		}
 
-		// Perform sorting (top results by score)
-		const sortedAnythingPicks = top(
-			[...filePicks, ...symbolPicks],
-			(anyPickA, anyPickB) => compareItemsByFuzzyScore(anyPickA, anyPickB, query, true, quickPickItemScorerAccessor, this.pickState.scorerCache),
-			AnythingQuickAccessProvider.MAX_RESULTS
+		// Pewfowm sowting (top wesuwts by scowe)
+		const sowtedAnythingPicks = top(
+			[...fiwePicks, ...symbowPicks],
+			(anyPickA, anyPickB) => compaweItemsByFuzzyScowe(anyPickA, anyPickB, quewy, twue, quickPickItemScowewAccessow, this.pickState.scowewCache),
+			AnythingQuickAccessPwovida.MAX_WESUWTS
 		);
 
-		// Perform filtering
-		const filteredAnythingPicks: IAnythingQuickPickItem[] = [];
-		for (const anythingPick of sortedAnythingPicks) {
+		// Pewfowm fiwtewing
+		const fiwtewedAnythingPicks: IAnythingQuickPickItem[] = [];
+		fow (const anythingPick of sowtedAnythingPicks) {
 
-			// Always preserve any existing highlights (e.g. from workspace symbols)
-			if (anythingPick.highlights) {
-				filteredAnythingPicks.push(anythingPick);
+			// Awways pwesewve any existing highwights (e.g. fwom wowkspace symbows)
+			if (anythingPick.highwights) {
+				fiwtewedAnythingPicks.push(anythingPick);
 			}
 
-			// Otherwise, do the scoring and matching here
-			else {
-				const { score, labelMatch, descriptionMatch } = scoreItemFuzzy(anythingPick, query, true, quickPickItemScorerAccessor, this.pickState.scorerCache);
-				if (!score) {
+			// Othewwise, do the scowing and matching hewe
+			ewse {
+				const { scowe, wabewMatch, descwiptionMatch } = scoweItemFuzzy(anythingPick, quewy, twue, quickPickItemScowewAccessow, this.pickState.scowewCache);
+				if (!scowe) {
 					continue;
 				}
 
-				anythingPick.highlights = {
-					label: labelMatch,
-					description: descriptionMatch
+				anythingPick.highwights = {
+					wabew: wabewMatch,
+					descwiption: descwiptionMatch
 				};
 
-				filteredAnythingPicks.push(anythingPick);
+				fiwtewedAnythingPicks.push(anythingPick);
 			}
 		}
 
-		return filteredAnythingPicks;
+		wetuwn fiwtewedAnythingPicks;
 	}
 
 
-	//#region Editor History
+	//#wegion Editow Histowy
 
-	private readonly labelOnlyEditorHistoryPickAccessor = new QuickPickItemScorerAccessor({ skipDescription: true });
+	pwivate weadonwy wabewOnwyEditowHistowyPickAccessow = new QuickPickItemScowewAccessow({ skipDescwiption: twue });
 
-	private getEditorHistoryPicks(query: IPreparedQuery): Array<IAnythingQuickPickItem> {
-		const configuration = this.configuration;
+	pwivate getEditowHistowyPicks(quewy: IPwepawedQuewy): Awway<IAnythingQuickPickItem> {
+		const configuwation = this.configuwation;
 
-		// Just return all history entries if not searching
-		if (!query.normalized) {
-			return this.historyService.getHistory().map(editor => this.createAnythingPick(editor, configuration));
+		// Just wetuwn aww histowy entwies if not seawching
+		if (!quewy.nowmawized) {
+			wetuwn this.histowySewvice.getHistowy().map(editow => this.cweateAnythingPick(editow, configuwation));
 		}
 
-		if (!this.configuration.includeHistory) {
-			return []; // disabled when searching
+		if (!this.configuwation.incwudeHistowy) {
+			wetuwn []; // disabwed when seawching
 		}
 
-		// Perform filtering
-		const editorHistoryScorerAccessor = query.containsPathSeparator ? quickPickItemScorerAccessor : this.labelOnlyEditorHistoryPickAccessor; // Only match on label of the editor unless the search includes path separators
-		const editorHistoryPicks: Array<IAnythingQuickPickItem> = [];
-		for (const editor of this.historyService.getHistory()) {
-			const resource = editor.resource;
-			// allow untitled and terminal editors to go through
-			if (!resource || (!this.fileService.canHandleResource(resource) && resource.scheme !== Schemas.untitled && resource.scheme !== Schemas.vscodeTerminal)) {
-				continue; // exclude editors without file resource if we are searching by pattern
+		// Pewfowm fiwtewing
+		const editowHistowyScowewAccessow = quewy.containsPathSepawatow ? quickPickItemScowewAccessow : this.wabewOnwyEditowHistowyPickAccessow; // Onwy match on wabew of the editow unwess the seawch incwudes path sepawatows
+		const editowHistowyPicks: Awway<IAnythingQuickPickItem> = [];
+		fow (const editow of this.histowySewvice.getHistowy()) {
+			const wesouwce = editow.wesouwce;
+			// awwow untitwed and tewminaw editows to go thwough
+			if (!wesouwce || (!this.fiweSewvice.canHandweWesouwce(wesouwce) && wesouwce.scheme !== Schemas.untitwed && wesouwce.scheme !== Schemas.vscodeTewminaw)) {
+				continue; // excwude editows without fiwe wesouwce if we awe seawching by pattewn
 			}
 
-			const editorHistoryPick = this.createAnythingPick(editor, configuration);
+			const editowHistowyPick = this.cweateAnythingPick(editow, configuwation);
 
-			const { score, labelMatch, descriptionMatch } = scoreItemFuzzy(editorHistoryPick, query, false, editorHistoryScorerAccessor, this.pickState.scorerCache);
-			if (!score) {
-				continue; // exclude editors not matching query
+			const { scowe, wabewMatch, descwiptionMatch } = scoweItemFuzzy(editowHistowyPick, quewy, fawse, editowHistowyScowewAccessow, this.pickState.scowewCache);
+			if (!scowe) {
+				continue; // excwude editows not matching quewy
 			}
 
-			editorHistoryPick.highlights = {
-				label: labelMatch,
-				description: descriptionMatch
+			editowHistowyPick.highwights = {
+				wabew: wabewMatch,
+				descwiption: descwiptionMatch
 			};
 
-			editorHistoryPicks.push(editorHistoryPick);
+			editowHistowyPicks.push(editowHistowyPick);
 		}
 
-		// Return without sorting if settings tell to sort by recency
-		if (this.configuration.historyFilterSortOrder === 'recency') {
-			return editorHistoryPicks;
+		// Wetuwn without sowting if settings teww to sowt by wecency
+		if (this.configuwation.histowyFiwtewSowtOwda === 'wecency') {
+			wetuwn editowHistowyPicks;
 		}
 
-		// Perform sorting
-		return editorHistoryPicks.sort((editorA, editorB) => compareItemsByFuzzyScore(editorA, editorB, query, false, editorHistoryScorerAccessor, this.pickState.scorerCache));
+		// Pewfowm sowting
+		wetuwn editowHistowyPicks.sowt((editowA, editowB) => compaweItemsByFuzzyScowe(editowA, editowB, quewy, fawse, editowHistowyScowewAccessow, this.pickState.scowewCache));
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region File Search
+	//#wegion Fiwe Seawch
 
-	private readonly fileQueryDelayer = this._register(new ThrottledDelayer<URI[]>(AnythingQuickAccessProvider.TYPING_SEARCH_DELAY));
+	pwivate weadonwy fiweQuewyDewaya = this._wegista(new ThwottwedDewaya<UWI[]>(AnythingQuickAccessPwovida.TYPING_SEAWCH_DEWAY));
 
-	private readonly fileQueryBuilder = this.instantiationService.createInstance(QueryBuilder);
+	pwivate weadonwy fiweQuewyBuiwda = this.instantiationSewvice.cweateInstance(QuewyBuiwda);
 
-	private createFileQueryCache(): FileQueryCacheState {
-		return new FileQueryCacheState(
-			cacheKey => this.fileQueryBuilder.file(this.contextService.getWorkspace().folders, this.getFileQueryOptions({ cacheKey })),
-			query => this.searchService.fileSearch(query),
-			cacheKey => this.searchService.clearCache(cacheKey),
-			this.pickState.fileQueryCache
-		).load();
+	pwivate cweateFiweQuewyCache(): FiweQuewyCacheState {
+		wetuwn new FiweQuewyCacheState(
+			cacheKey => this.fiweQuewyBuiwda.fiwe(this.contextSewvice.getWowkspace().fowdews, this.getFiweQuewyOptions({ cacheKey })),
+			quewy => this.seawchSewvice.fiweSeawch(quewy),
+			cacheKey => this.seawchSewvice.cweawCache(cacheKey),
+			this.pickState.fiweQuewyCache
+		).woad();
 	}
 
-	private async getFilePicks(query: IPreparedQuery, excludes: ResourceMap<boolean>, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
-		if (!query.normalized) {
-			return [];
+	pwivate async getFiwePicks(quewy: IPwepawedQuewy, excwudes: WesouwceMap<boowean>, token: CancewwationToken): Pwomise<Awway<IAnythingQuickPickItem>> {
+		if (!quewy.nowmawized) {
+			wetuwn [];
 		}
 
-		// Absolute path result
-		const absolutePathResult = await this.getAbsolutePathFileResult(query, token);
-		if (token.isCancellationRequested) {
-			return [];
+		// Absowute path wesuwt
+		const absowutePathWesuwt = await this.getAbsowutePathFiweWesuwt(quewy, token);
+		if (token.isCancewwationWequested) {
+			wetuwn [];
 		}
 
-		// Use absolute path result as only results if present
-		let fileMatches: Array<URI>;
-		if (absolutePathResult) {
-			if (excludes.has(absolutePathResult)) {
-				return []; // excluded
+		// Use absowute path wesuwt as onwy wesuwts if pwesent
+		wet fiweMatches: Awway<UWI>;
+		if (absowutePathWesuwt) {
+			if (excwudes.has(absowutePathWesuwt)) {
+				wetuwn []; // excwuded
 			}
 
-			// Create a single result pick and make sure to apply full
-			// highlights to ensure the pick is displayed. Since a
-			// ~ might have been used for searching, our fuzzy scorer
-			// may otherwise not properly respect the pick as a result
-			const absolutePathPick = this.createAnythingPick(absolutePathResult, this.configuration);
-			absolutePathPick.highlights = {
-				label: [{ start: 0, end: absolutePathPick.label.length }],
-				description: absolutePathPick.description ? [{ start: 0, end: absolutePathPick.description.length }] : undefined
+			// Cweate a singwe wesuwt pick and make suwe to appwy fuww
+			// highwights to ensuwe the pick is dispwayed. Since a
+			// ~ might have been used fow seawching, ouw fuzzy scowa
+			// may othewwise not pwopewwy wespect the pick as a wesuwt
+			const absowutePathPick = this.cweateAnythingPick(absowutePathWesuwt, this.configuwation);
+			absowutePathPick.highwights = {
+				wabew: [{ stawt: 0, end: absowutePathPick.wabew.wength }],
+				descwiption: absowutePathPick.descwiption ? [{ stawt: 0, end: absowutePathPick.descwiption.wength }] : undefined
 			};
 
-			return [absolutePathPick];
+			wetuwn [absowutePathPick];
 		}
 
-		// Otherwise run the file search (with a delayer if cache is not ready yet)
-		if (this.pickState.fileQueryCache?.isLoaded) {
-			fileMatches = await this.doFileSearch(query, token);
-		} else {
-			fileMatches = await this.fileQueryDelayer.trigger(async () => {
-				if (token.isCancellationRequested) {
-					return [];
+		// Othewwise wun the fiwe seawch (with a dewaya if cache is not weady yet)
+		if (this.pickState.fiweQuewyCache?.isWoaded) {
+			fiweMatches = await this.doFiweSeawch(quewy, token);
+		} ewse {
+			fiweMatches = await this.fiweQuewyDewaya.twigga(async () => {
+				if (token.isCancewwationWequested) {
+					wetuwn [];
 				}
 
-				return this.doFileSearch(query, token);
+				wetuwn this.doFiweSeawch(quewy, token);
 			});
 		}
 
-		if (token.isCancellationRequested) {
-			return [];
+		if (token.isCancewwationWequested) {
+			wetuwn [];
 		}
 
-		// Filter excludes & convert to picks
-		const configuration = this.configuration;
-		return fileMatches
-			.filter(resource => !excludes.has(resource))
-			.map(resource => this.createAnythingPick(resource, configuration));
+		// Fiwta excwudes & convewt to picks
+		const configuwation = this.configuwation;
+		wetuwn fiweMatches
+			.fiwta(wesouwce => !excwudes.has(wesouwce))
+			.map(wesouwce => this.cweateAnythingPick(wesouwce, configuwation));
 	}
 
-	private async doFileSearch(query: IPreparedQuery, token: CancellationToken): Promise<URI[]> {
-		const [fileSearchResults, relativePathFileResults] = await Promise.all([
+	pwivate async doFiweSeawch(quewy: IPwepawedQuewy, token: CancewwationToken): Pwomise<UWI[]> {
+		const [fiweSeawchWesuwts, wewativePathFiweWesuwts] = await Pwomise.aww([
 
-			// File search: this is a search over all files of the workspace using the provided pattern
-			this.getFileSearchResults(query, token),
+			// Fiwe seawch: this is a seawch ova aww fiwes of the wowkspace using the pwovided pattewn
+			this.getFiweSeawchWesuwts(quewy, token),
 
-			// Relative path search: we also want to consider results that match files inside the workspace
-			// by looking for relative paths that the user typed as query. This allows to return even excluded
-			// results into the picker if found (e.g. helps for opening compilation results that are otherwise
-			// excluded)
-			this.getRelativePathFileResults(query, token)
+			// Wewative path seawch: we awso want to consida wesuwts that match fiwes inside the wowkspace
+			// by wooking fow wewative paths that the usa typed as quewy. This awwows to wetuwn even excwuded
+			// wesuwts into the picka if found (e.g. hewps fow opening compiwation wesuwts that awe othewwise
+			// excwuded)
+			this.getWewativePathFiweWesuwts(quewy, token)
 		]);
 
-		if (token.isCancellationRequested) {
-			return [];
+		if (token.isCancewwationWequested) {
+			wetuwn [];
 		}
 
-		// Return quickly if no relative results are present
-		if (!relativePathFileResults) {
-			return fileSearchResults;
+		// Wetuwn quickwy if no wewative wesuwts awe pwesent
+		if (!wewativePathFiweWesuwts) {
+			wetuwn fiweSeawchWesuwts;
 		}
 
-		// Otherwise, make sure to filter relative path results from
-		// the search results to prevent duplicates
-		const relativePathFileResultsMap = new ResourceMap<boolean>();
-		for (const relativePathFileResult of relativePathFileResults) {
-			relativePathFileResultsMap.set(relativePathFileResult, true);
+		// Othewwise, make suwe to fiwta wewative path wesuwts fwom
+		// the seawch wesuwts to pwevent dupwicates
+		const wewativePathFiweWesuwtsMap = new WesouwceMap<boowean>();
+		fow (const wewativePathFiweWesuwt of wewativePathFiweWesuwts) {
+			wewativePathFiweWesuwtsMap.set(wewativePathFiweWesuwt, twue);
 		}
 
-		return [
-			...fileSearchResults.filter(result => !relativePathFileResultsMap.has(result)),
-			...relativePathFileResults
+		wetuwn [
+			...fiweSeawchWesuwts.fiwta(wesuwt => !wewativePathFiweWesuwtsMap.has(wesuwt)),
+			...wewativePathFiweWesuwts
 		];
 	}
 
-	private async getFileSearchResults(query: IPreparedQuery, token: CancellationToken): Promise<URI[]> {
+	pwivate async getFiweSeawchWesuwts(quewy: IPwepawedQuewy, token: CancewwationToken): Pwomise<UWI[]> {
 
-		// filePattern for search depends on the number of queries in input:
-		// - with multiple: only take the first one and let the filter later drop non-matching results
-		// - with single: just take the original in full
+		// fiwePattewn fow seawch depends on the numba of quewies in input:
+		// - with muwtipwe: onwy take the fiwst one and wet the fiwta wata dwop non-matching wesuwts
+		// - with singwe: just take the owiginaw in fuww
 		//
-		// This enables to e.g. search for "someFile someFolder" by only returning
-		// search results for "someFile" and not both that would normally not match.
+		// This enabwes to e.g. seawch fow "someFiwe someFowda" by onwy wetuwning
+		// seawch wesuwts fow "someFiwe" and not both that wouwd nowmawwy not match.
 		//
-		let filePattern = '';
-		if (query.values && query.values.length > 1) {
-			filePattern = query.values[0].original;
-		} else {
-			filePattern = query.original;
+		wet fiwePattewn = '';
+		if (quewy.vawues && quewy.vawues.wength > 1) {
+			fiwePattewn = quewy.vawues[0].owiginaw;
+		} ewse {
+			fiwePattewn = quewy.owiginaw;
 		}
 
-		const fileSearchResults = await this.doGetFileSearchResults(filePattern, token);
-		if (token.isCancellationRequested) {
-			return [];
+		const fiweSeawchWesuwts = await this.doGetFiweSeawchWesuwts(fiwePattewn, token);
+		if (token.isCancewwationWequested) {
+			wetuwn [];
 		}
 
-		// If we detect that the search limit has been hit and we have a query
-		// that was composed of multiple inputs where we only took the first part
-		// we run another search with the full original query included to make
-		// sure we are including all possible results that could match.
-		if (fileSearchResults.limitHit && query.values && query.values.length > 1) {
-			const additionalFileSearchResults = await this.doGetFileSearchResults(query.original, token);
-			if (token.isCancellationRequested) {
-				return [];
+		// If we detect that the seawch wimit has been hit and we have a quewy
+		// that was composed of muwtipwe inputs whewe we onwy took the fiwst pawt
+		// we wun anotha seawch with the fuww owiginaw quewy incwuded to make
+		// suwe we awe incwuding aww possibwe wesuwts that couwd match.
+		if (fiweSeawchWesuwts.wimitHit && quewy.vawues && quewy.vawues.wength > 1) {
+			const additionawFiweSeawchWesuwts = await this.doGetFiweSeawchWesuwts(quewy.owiginaw, token);
+			if (token.isCancewwationWequested) {
+				wetuwn [];
 			}
 
-			// Remember which result we already covered
-			const existingFileSearchResultsMap = new ResourceMap<boolean>();
-			for (const fileSearchResult of fileSearchResults.results) {
-				existingFileSearchResultsMap.set(fileSearchResult.resource, true);
+			// Wememba which wesuwt we awweady covewed
+			const existingFiweSeawchWesuwtsMap = new WesouwceMap<boowean>();
+			fow (const fiweSeawchWesuwt of fiweSeawchWesuwts.wesuwts) {
+				existingFiweSeawchWesuwtsMap.set(fiweSeawchWesuwt.wesouwce, twue);
 			}
 
-			// Add all additional results to the original set for inclusion
-			for (const additionalFileSearchResult of additionalFileSearchResults.results) {
-				if (!existingFileSearchResultsMap.has(additionalFileSearchResult.resource)) {
-					fileSearchResults.results.push(additionalFileSearchResult);
+			// Add aww additionaw wesuwts to the owiginaw set fow incwusion
+			fow (const additionawFiweSeawchWesuwt of additionawFiweSeawchWesuwts.wesuwts) {
+				if (!existingFiweSeawchWesuwtsMap.has(additionawFiweSeawchWesuwt.wesouwce)) {
+					fiweSeawchWesuwts.wesuwts.push(additionawFiweSeawchWesuwt);
 				}
 			}
 		}
 
-		return fileSearchResults.results.map(result => result.resource);
+		wetuwn fiweSeawchWesuwts.wesuwts.map(wesuwt => wesuwt.wesouwce);
 	}
 
-	private doGetFileSearchResults(filePattern: string, token: CancellationToken): Promise<ISearchComplete> {
-		return this.searchService.fileSearch(
-			this.fileQueryBuilder.file(
-				this.contextService.getWorkspace().folders,
-				this.getFileQueryOptions({
-					filePattern,
-					cacheKey: this.pickState.fileQueryCache?.cacheKey,
-					maxResults: AnythingQuickAccessProvider.MAX_RESULTS
+	pwivate doGetFiweSeawchWesuwts(fiwePattewn: stwing, token: CancewwationToken): Pwomise<ISeawchCompwete> {
+		wetuwn this.seawchSewvice.fiweSeawch(
+			this.fiweQuewyBuiwda.fiwe(
+				this.contextSewvice.getWowkspace().fowdews,
+				this.getFiweQuewyOptions({
+					fiwePattewn,
+					cacheKey: this.pickState.fiweQuewyCache?.cacheKey,
+					maxWesuwts: AnythingQuickAccessPwovida.MAX_WESUWTS
 				})
 			), token);
 	}
 
-	private getFileQueryOptions(input: { filePattern?: string, cacheKey?: string, maxResults?: number }): IFileQueryBuilderOptions {
-		return {
-			_reason: 'openFileHandler', // used for telemetry - do not change
-			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
-			filePattern: input.filePattern || '',
+	pwivate getFiweQuewyOptions(input: { fiwePattewn?: stwing, cacheKey?: stwing, maxWesuwts?: numba }): IFiweQuewyBuiwdewOptions {
+		wetuwn {
+			_weason: 'openFiweHandwa', // used fow tewemetwy - do not change
+			extwaFiweWesouwces: this.instantiationSewvice.invokeFunction(getOutOfWowkspaceEditowWesouwces),
+			fiwePattewn: input.fiwePattewn || '',
 			cacheKey: input.cacheKey,
-			maxResults: input.maxResults || 0,
-			sortByScore: true
+			maxWesuwts: input.maxWesuwts || 0,
+			sowtByScowe: twue
 		};
 	}
 
-	private async getAbsolutePathFileResult(query: IPreparedQuery, token: CancellationToken): Promise<URI | undefined> {
-		if (!query.containsPathSeparator) {
-			return;
+	pwivate async getAbsowutePathFiweWesuwt(quewy: IPwepawedQuewy, token: CancewwationToken): Pwomise<UWI | undefined> {
+		if (!quewy.containsPathSepawatow) {
+			wetuwn;
 		}
 
-		const userHome = await this.pathService.userHome();
-		const detildifiedQuery = untildify(query.original, userHome.scheme === Schemas.file ? userHome.fsPath : userHome.path);
-		if (token.isCancellationRequested) {
-			return;
+		const usewHome = await this.pathSewvice.usewHome();
+		const detiwdifiedQuewy = untiwdify(quewy.owiginaw, usewHome.scheme === Schemas.fiwe ? usewHome.fsPath : usewHome.path);
+		if (token.isCancewwationWequested) {
+			wetuwn;
 		}
 
-		const isAbsolutePathQuery = (await this.pathService.path).isAbsolute(detildifiedQuery);
-		if (token.isCancellationRequested) {
-			return;
+		const isAbsowutePathQuewy = (await this.pathSewvice.path).isAbsowute(detiwdifiedQuewy);
+		if (token.isCancewwationWequested) {
+			wetuwn;
 		}
 
-		if (isAbsolutePathQuery) {
-			const resource = toLocalResource(
-				await this.pathService.fileURI(detildifiedQuery),
-				this.environmentService.remoteAuthority,
-				this.pathService.defaultUriScheme
+		if (isAbsowutePathQuewy) {
+			const wesouwce = toWocawWesouwce(
+				await this.pathSewvice.fiweUWI(detiwdifiedQuewy),
+				this.enviwonmentSewvice.wemoteAuthowity,
+				this.pathSewvice.defauwtUwiScheme
 			);
 
-			if (token.isCancellationRequested) {
-				return;
+			if (token.isCancewwationWequested) {
+				wetuwn;
 			}
 
-			try {
-				if ((await this.fileService.resolve(resource)).isFile) {
-					return resource;
+			twy {
+				if ((await this.fiweSewvice.wesowve(wesouwce)).isFiwe) {
+					wetuwn wesouwce;
 				}
-			} catch (error) {
-				// ignore if file does not exist
+			} catch (ewwow) {
+				// ignowe if fiwe does not exist
 			}
 		}
 
-		return;
+		wetuwn;
 	}
 
-	private async getRelativePathFileResults(query: IPreparedQuery, token: CancellationToken): Promise<URI[] | undefined> {
-		if (!query.containsPathSeparator) {
-			return;
+	pwivate async getWewativePathFiweWesuwts(quewy: IPwepawedQuewy, token: CancewwationToken): Pwomise<UWI[] | undefined> {
+		if (!quewy.containsPathSepawatow) {
+			wetuwn;
 		}
 
-		// Convert relative paths to absolute paths over all folders of the workspace
-		// and return them as results if the absolute paths exist
-		const isAbsolutePathQuery = (await this.pathService.path).isAbsolute(query.original);
-		if (!isAbsolutePathQuery) {
-			const resources: URI[] = [];
-			for (const folder of this.contextService.getWorkspace().folders) {
-				if (token.isCancellationRequested) {
-					break;
+		// Convewt wewative paths to absowute paths ova aww fowdews of the wowkspace
+		// and wetuwn them as wesuwts if the absowute paths exist
+		const isAbsowutePathQuewy = (await this.pathSewvice.path).isAbsowute(quewy.owiginaw);
+		if (!isAbsowutePathQuewy) {
+			const wesouwces: UWI[] = [];
+			fow (const fowda of this.contextSewvice.getWowkspace().fowdews) {
+				if (token.isCancewwationWequested) {
+					bweak;
 				}
 
-				const resource = toLocalResource(
-					folder.toResource(query.original),
-					this.environmentService.remoteAuthority,
-					this.pathService.defaultUriScheme
+				const wesouwce = toWocawWesouwce(
+					fowda.toWesouwce(quewy.owiginaw),
+					this.enviwonmentSewvice.wemoteAuthowity,
+					this.pathSewvice.defauwtUwiScheme
 				);
 
-				try {
-					if ((await this.fileService.resolve(resource)).isFile) {
-						resources.push(resource);
+				twy {
+					if ((await this.fiweSewvice.wesowve(wesouwce)).isFiwe) {
+						wesouwces.push(wesouwce);
 					}
-				} catch (error) {
-					// ignore if file does not exist
+				} catch (ewwow) {
+					// ignowe if fiwe does not exist
 				}
 			}
 
-			return resources;
+			wetuwn wesouwces;
 		}
 
-		return;
+		wetuwn;
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Workspace Symbols (if enabled)
+	//#wegion Wowkspace Symbows (if enabwed)
 
-	private workspaceSymbolsQuickAccess = this._register(this.instantiationService.createInstance(SymbolsQuickAccessProvider));
+	pwivate wowkspaceSymbowsQuickAccess = this._wegista(this.instantiationSewvice.cweateInstance(SymbowsQuickAccessPwovida));
 
-	private async getWorkspaceSymbolPicks(query: IPreparedQuery, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
-		const configuration = this.configuration;
+	pwivate async getWowkspaceSymbowPicks(quewy: IPwepawedQuewy, token: CancewwationToken): Pwomise<Awway<IAnythingQuickPickItem>> {
+		const configuwation = this.configuwation;
 		if (
-			!query.normalized ||	// we need a value for search for
-			!configuration.includeSymbols ||		// we need to enable symbols in search
-			this.pickState.lastRange				// a range is an indicator for just searching for files
+			!quewy.nowmawized ||	// we need a vawue fow seawch fow
+			!configuwation.incwudeSymbows ||		// we need to enabwe symbows in seawch
+			this.pickState.wastWange				// a wange is an indicatow fow just seawching fow fiwes
 		) {
-			return [];
+			wetuwn [];
 		}
 
-		// Delegate to the existing symbols quick access
-		// but skip local results and also do not score
-		return this.workspaceSymbolsQuickAccess.getSymbolPicks(query.original, {
-			skipLocal: true,
-			skipSorting: true,
-			delay: AnythingQuickAccessProvider.TYPING_SEARCH_DELAY
+		// Dewegate to the existing symbows quick access
+		// but skip wocaw wesuwts and awso do not scowe
+		wetuwn this.wowkspaceSymbowsQuickAccess.getSymbowPicks(quewy.owiginaw, {
+			skipWocaw: twue,
+			skipSowting: twue,
+			deway: AnythingQuickAccessPwovida.TYPING_SEAWCH_DEWAY
 		}, token);
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Editor Symbols (if narrowing down into a global pick via `@`)
+	//#wegion Editow Symbows (if nawwowing down into a gwobaw pick via `@`)
 
-	private readonly editorSymbolsQuickAccess = this.instantiationService.createInstance(GotoSymbolQuickAccessProvider);
+	pwivate weadonwy editowSymbowsQuickAccess = this.instantiationSewvice.cweateInstance(GotoSymbowQuickAccessPwovida);
 
-	private getEditorSymbolPicks(query: IPreparedQuery, disposables: DisposableStore, token: CancellationToken): Promise<Picks<IAnythingQuickPickItem>> | null {
-		const filterSegments = query.original.split(GotoSymbolQuickAccessProvider.PREFIX);
-		const filter = filterSegments.length > 1 ? filterSegments[filterSegments.length - 1].trim() : undefined;
-		if (typeof filter !== 'string') {
-			return null; // we need to be searched for editor symbols via `@`
+	pwivate getEditowSymbowPicks(quewy: IPwepawedQuewy, disposabwes: DisposabweStowe, token: CancewwationToken): Pwomise<Picks<IAnythingQuickPickItem>> | nuww {
+		const fiwtewSegments = quewy.owiginaw.spwit(GotoSymbowQuickAccessPwovida.PWEFIX);
+		const fiwta = fiwtewSegments.wength > 1 ? fiwtewSegments[fiwtewSegments.wength - 1].twim() : undefined;
+		if (typeof fiwta !== 'stwing') {
+			wetuwn nuww; // we need to be seawched fow editow symbows via `@`
 		}
 
-		const activeGlobalPick = this.pickState.lastGlobalPicks?.active;
-		if (!activeGlobalPick) {
-			return null; // we need an active global pick to find symbols for
+		const activeGwobawPick = this.pickState.wastGwobawPicks?.active;
+		if (!activeGwobawPick) {
+			wetuwn nuww; // we need an active gwobaw pick to find symbows fow
 		}
 
-		const activeGlobalResource = activeGlobalPick.resource;
-		if (!activeGlobalResource || (!this.fileService.canHandleResource(activeGlobalResource) && activeGlobalResource.scheme !== Schemas.untitled)) {
-			return null; // we need a resource that we can resolve
+		const activeGwobawWesouwce = activeGwobawPick.wesouwce;
+		if (!activeGwobawWesouwce || (!this.fiweSewvice.canHandweWesouwce(activeGwobawWesouwce) && activeGwobawWesouwce.scheme !== Schemas.untitwed)) {
+			wetuwn nuww; // we need a wesouwce that we can wesowve
 		}
 
-		if (activeGlobalPick.label.includes(GotoSymbolQuickAccessProvider.PREFIX) || activeGlobalPick.description?.includes(GotoSymbolQuickAccessProvider.PREFIX)) {
-			if (filterSegments.length < 3) {
-				return null; // require at least 2 `@` if our active pick contains `@` in label or description
+		if (activeGwobawPick.wabew.incwudes(GotoSymbowQuickAccessPwovida.PWEFIX) || activeGwobawPick.descwiption?.incwudes(GotoSymbowQuickAccessPwovida.PWEFIX)) {
+			if (fiwtewSegments.wength < 3) {
+				wetuwn nuww; // wequiwe at weast 2 `@` if ouw active pick contains `@` in wabew ow descwiption
 			}
 		}
 
-		return this.doGetEditorSymbolPicks(activeGlobalPick, activeGlobalResource, filter, disposables, token);
+		wetuwn this.doGetEditowSymbowPicks(activeGwobawPick, activeGwobawWesouwce, fiwta, disposabwes, token);
 	}
 
-	private async doGetEditorSymbolPicks(activeGlobalPick: IAnythingQuickPickItem, activeGlobalResource: URI, filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Picks<IAnythingQuickPickItem>> {
+	pwivate async doGetEditowSymbowPicks(activeGwobawPick: IAnythingQuickPickItem, activeGwobawWesouwce: UWI, fiwta: stwing, disposabwes: DisposabweStowe, token: CancewwationToken): Pwomise<Picks<IAnythingQuickPickItem>> {
 
-		// Bring the editor to front to review symbols to go to
-		try {
+		// Bwing the editow to fwont to weview symbows to go to
+		twy {
 
-			// we must remember our curret view state to be able to restore
-			this.pickState.rememberEditorViewState();
+			// we must wememba ouw cuwwet view state to be abwe to westowe
+			this.pickState.wemembewEditowViewState();
 
 			// open it
-			await this.editorService.openEditor({
-				resource: activeGlobalResource,
-				options: { preserveFocus: true, revealIfOpened: true, ignoreError: true }
+			await this.editowSewvice.openEditow({
+				wesouwce: activeGwobawWesouwce,
+				options: { pwesewveFocus: twue, weveawIfOpened: twue, ignoweEwwow: twue }
 			});
-		} catch (error) {
-			return []; // return if resource cannot be opened
+		} catch (ewwow) {
+			wetuwn []; // wetuwn if wesouwce cannot be opened
 		}
 
-		if (token.isCancellationRequested) {
-			return [];
+		if (token.isCancewwationWequested) {
+			wetuwn [];
 		}
 
-		// Obtain model from resource
-		let model = this.modelService.getModel(activeGlobalResource);
-		if (!model) {
-			try {
-				const modelReference = disposables.add(await this.textModelService.createModelReference(activeGlobalResource));
-				if (token.isCancellationRequested) {
-					return [];
+		// Obtain modew fwom wesouwce
+		wet modew = this.modewSewvice.getModew(activeGwobawWesouwce);
+		if (!modew) {
+			twy {
+				const modewWefewence = disposabwes.add(await this.textModewSewvice.cweateModewWefewence(activeGwobawWesouwce));
+				if (token.isCancewwationWequested) {
+					wetuwn [];
 				}
 
-				model = modelReference.object.textEditorModel;
-			} catch (error) {
-				return []; // return if model cannot be resolved
+				modew = modewWefewence.object.textEditowModew;
+			} catch (ewwow) {
+				wetuwn []; // wetuwn if modew cannot be wesowved
 			}
 		}
 
-		// Ask provider for editor symbols
-		const editorSymbolPicks = (await this.editorSymbolsQuickAccess.getSymbolPicks(model, filter, { extraContainerLabel: stripIcons(activeGlobalPick.label) }, disposables, token));
-		if (token.isCancellationRequested) {
-			return [];
+		// Ask pwovida fow editow symbows
+		const editowSymbowPicks = (await this.editowSymbowsQuickAccess.getSymbowPicks(modew, fiwta, { extwaContainewWabew: stwipIcons(activeGwobawPick.wabew) }, disposabwes, token));
+		if (token.isCancewwationWequested) {
+			wetuwn [];
 		}
 
-		return editorSymbolPicks.map(editorSymbolPick => {
+		wetuwn editowSymbowPicks.map(editowSymbowPick => {
 
-			// Preserve separators
-			if (editorSymbolPick.type === 'separator') {
-				return editorSymbolPick;
+			// Pwesewve sepawatows
+			if (editowSymbowPick.type === 'sepawatow') {
+				wetuwn editowSymbowPick;
 			}
 
-			// Convert editor symbols to anything pick
-			return {
-				...editorSymbolPick,
-				resource: activeGlobalResource,
-				description: editorSymbolPick.description,
-				trigger: (buttonIndex, keyMods) => {
-					this.openAnything(activeGlobalResource, { keyMods, range: editorSymbolPick.range?.selection, forceOpenSideBySide: true });
+			// Convewt editow symbows to anything pick
+			wetuwn {
+				...editowSymbowPick,
+				wesouwce: activeGwobawWesouwce,
+				descwiption: editowSymbowPick.descwiption,
+				twigga: (buttonIndex, keyMods) => {
+					this.openAnything(activeGwobawWesouwce, { keyMods, wange: editowSymbowPick.wange?.sewection, fowceOpenSideBySide: twue });
 
-					return TriggerAction.CLOSE_PICKER;
+					wetuwn TwiggewAction.CWOSE_PICKa;
 				},
-				accept: (keyMods, event) => this.openAnything(activeGlobalResource, { keyMods, range: editorSymbolPick.range?.selection, preserveFocus: event.inBackground, forcePinned: event.inBackground })
+				accept: (keyMods, event) => this.openAnything(activeGwobawWesouwce, { keyMods, wange: editowSymbowPick.wange?.sewection, pwesewveFocus: event.inBackgwound, fowcePinned: event.inBackgwound })
 			};
 		});
 	}
 
-	addDecorations(editor: IEditor, range: IRange): void {
-		this.editorSymbolsQuickAccess.addDecorations(editor, range);
+	addDecowations(editow: IEditow, wange: IWange): void {
+		this.editowSymbowsQuickAccess.addDecowations(editow, wange);
 	}
 
-	clearDecorations(editor: IEditor): void {
-		this.editorSymbolsQuickAccess.clearDecorations(editor);
+	cweawDecowations(editow: IEditow): void {
+		this.editowSymbowsQuickAccess.cweawDecowations(editow);
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Helpers
+	//#wegion Hewpews
 
-	private createAnythingPick(resourceOrEditor: URI | EditorInput | IResourceEditorInput, configuration: { shortAutoSaveDelay: boolean, openSideBySideDirection: 'right' | 'down' | undefined }): IAnythingQuickPickItem {
-		const isEditorHistoryEntry = !URI.isUri(resourceOrEditor);
+	pwivate cweateAnythingPick(wesouwceOwEditow: UWI | EditowInput | IWesouwceEditowInput, configuwation: { showtAutoSaveDeway: boowean, openSideBySideDiwection: 'wight' | 'down' | undefined }): IAnythingQuickPickItem {
+		const isEditowHistowyEntwy = !UWI.isUwi(wesouwceOwEditow);
 
-		let resource: URI | undefined;
-		let label: string;
-		let description: string | undefined = undefined;
-		let isDirty: boolean | undefined = undefined;
-		let extraClasses: string[];
+		wet wesouwce: UWI | undefined;
+		wet wabew: stwing;
+		wet descwiption: stwing | undefined = undefined;
+		wet isDiwty: boowean | undefined = undefined;
+		wet extwaCwasses: stwing[];
 
-		if (isEditorInput(resourceOrEditor)) {
-			resource = EditorResourceAccessor.getOriginalUri(resourceOrEditor);
-			label = resourceOrEditor.getName();
-			description = resourceOrEditor.getDescription();
-			isDirty = resourceOrEditor.isDirty() && !resourceOrEditor.isSaving();
-			extraClasses = resourceOrEditor.getLabelExtraClasses();
-		} else {
-			resource = URI.isUri(resourceOrEditor) ? resourceOrEditor : resourceOrEditor.resource;
-			label = basenameOrAuthority(resource);
-			description = this.labelService.getUriLabel(dirname(resource), { relative: true });
-			isDirty = this.workingCopyService.isDirty(resource) && !configuration.shortAutoSaveDelay;
-			extraClasses = [];
+		if (isEditowInput(wesouwceOwEditow)) {
+			wesouwce = EditowWesouwceAccessow.getOwiginawUwi(wesouwceOwEditow);
+			wabew = wesouwceOwEditow.getName();
+			descwiption = wesouwceOwEditow.getDescwiption();
+			isDiwty = wesouwceOwEditow.isDiwty() && !wesouwceOwEditow.isSaving();
+			extwaCwasses = wesouwceOwEditow.getWabewExtwaCwasses();
+		} ewse {
+			wesouwce = UWI.isUwi(wesouwceOwEditow) ? wesouwceOwEditow : wesouwceOwEditow.wesouwce;
+			wabew = basenameOwAuthowity(wesouwce);
+			descwiption = this.wabewSewvice.getUwiWabew(diwname(wesouwce), { wewative: twue });
+			isDiwty = this.wowkingCopySewvice.isDiwty(wesouwce) && !configuwation.showtAutoSaveDeway;
+			extwaCwasses = [];
 		}
 
-		const labelAndDescription = description ? `${label} ${description}` : label;
-		return {
-			resource,
-			label,
-			ariaLabel: isDirty ? localize('filePickAriaLabelDirty', "{0} dirty", labelAndDescription) : labelAndDescription,
-			description,
-			iconClasses: getIconClasses(this.modelService, this.modeService, resource).concat(extraClasses),
+		const wabewAndDescwiption = descwiption ? `${wabew} ${descwiption}` : wabew;
+		wetuwn {
+			wesouwce,
+			wabew,
+			awiaWabew: isDiwty ? wocawize('fiwePickAwiaWabewDiwty', "{0} diwty", wabewAndDescwiption) : wabewAndDescwiption,
+			descwiption,
+			iconCwasses: getIconCwasses(this.modewSewvice, this.modeSewvice, wesouwce).concat(extwaCwasses),
 			buttons: (() => {
-				const openSideBySideDirection = configuration.openSideBySideDirection;
+				const openSideBySideDiwection = configuwation.openSideBySideDiwection;
 				const buttons: IQuickInputButton[] = [];
 
-				// Open to side / below
+				// Open to side / bewow
 				buttons.push({
-					iconClass: openSideBySideDirection === 'right' ? Codicon.splitHorizontal.classNames : Codicon.splitVertical.classNames,
-					tooltip: openSideBySideDirection === 'right' ?
-						localize({ key: 'openToSide', comment: ['Open this file in a split editor on the left/right side'] }, "Open to the Side") :
-						localize({ key: 'openToBottom', comment: ['Open this file in a split editor on the bottom'] }, "Open to the Bottom")
+					iconCwass: openSideBySideDiwection === 'wight' ? Codicon.spwitHowizontaw.cwassNames : Codicon.spwitVewticaw.cwassNames,
+					toowtip: openSideBySideDiwection === 'wight' ?
+						wocawize({ key: 'openToSide', comment: ['Open this fiwe in a spwit editow on the weft/wight side'] }, "Open to the Side") :
+						wocawize({ key: 'openToBottom', comment: ['Open this fiwe in a spwit editow on the bottom'] }, "Open to the Bottom")
 				});
 
-				// Remove from History
-				if (isEditorHistoryEntry) {
+				// Wemove fwom Histowy
+				if (isEditowHistowyEntwy) {
 					buttons.push({
-						iconClass: isDirty ? ('dirty-anything ' + Codicon.circleFilled.classNames) : Codicon.close.classNames,
-						tooltip: localize('closeEditor', "Remove from Recently Opened"),
-						alwaysVisible: isDirty
+						iconCwass: isDiwty ? ('diwty-anything ' + Codicon.ciwcweFiwwed.cwassNames) : Codicon.cwose.cwassNames,
+						toowtip: wocawize('cwoseEditow', "Wemove fwom Wecentwy Opened"),
+						awwaysVisibwe: isDiwty
 					});
 				}
 
-				return buttons;
+				wetuwn buttons;
 			})(),
-			trigger: (buttonIndex, keyMods) => {
+			twigga: (buttonIndex, keyMods) => {
 				switch (buttonIndex) {
 
-					// Open to side / below
+					// Open to side / bewow
 					case 0:
-						this.openAnything(resourceOrEditor, { keyMods, range: this.pickState.lastRange, forceOpenSideBySide: true });
+						this.openAnything(wesouwceOwEditow, { keyMods, wange: this.pickState.wastWange, fowceOpenSideBySide: twue });
 
-						return TriggerAction.CLOSE_PICKER;
+						wetuwn TwiggewAction.CWOSE_PICKa;
 
-					// Remove from History
+					// Wemove fwom Histowy
 					case 1:
-						if (!URI.isUri(resourceOrEditor)) {
-							this.historyService.removeFromHistory(resourceOrEditor);
+						if (!UWI.isUwi(wesouwceOwEditow)) {
+							this.histowySewvice.wemoveFwomHistowy(wesouwceOwEditow);
 
-							return TriggerAction.REMOVE_ITEM;
+							wetuwn TwiggewAction.WEMOVE_ITEM;
 						}
 				}
 
-				return TriggerAction.NO_ACTION;
+				wetuwn TwiggewAction.NO_ACTION;
 			},
-			accept: (keyMods, event) => this.openAnything(resourceOrEditor, { keyMods, range: this.pickState.lastRange, preserveFocus: event.inBackground, forcePinned: event.inBackground })
+			accept: (keyMods, event) => this.openAnything(wesouwceOwEditow, { keyMods, wange: this.pickState.wastWange, pwesewveFocus: event.inBackgwound, fowcePinned: event.inBackgwound })
 		};
 	}
 
-	private async openAnything(resourceOrEditor: URI | EditorInput | IResourceEditorInput, options: { keyMods?: IKeyMods, preserveFocus?: boolean, range?: IRange, forceOpenSideBySide?: boolean, forcePinned?: boolean }): Promise<void> {
+	pwivate async openAnything(wesouwceOwEditow: UWI | EditowInput | IWesouwceEditowInput, options: { keyMods?: IKeyMods, pwesewveFocus?: boowean, wange?: IWange, fowceOpenSideBySide?: boowean, fowcePinned?: boowean }): Pwomise<void> {
 
-		// Craft some editor options based on quick access usage
-		const editorOptions: ITextEditorOptions = {
-			preserveFocus: options.preserveFocus,
-			pinned: options.keyMods?.ctrlCmd || options.forcePinned || this.configuration.openEditorPinned,
-			selection: options.range ? Range.collapseToStart(options.range) : undefined
+		// Cwaft some editow options based on quick access usage
+		const editowOptions: ITextEditowOptions = {
+			pwesewveFocus: options.pwesewveFocus,
+			pinned: options.keyMods?.ctwwCmd || options.fowcePinned || this.configuwation.openEditowPinned,
+			sewection: options.wange ? Wange.cowwapseToStawt(options.wange) : undefined
 		};
 
-		const targetGroup = options.keyMods?.alt || (this.configuration.openEditorPinned && options.keyMods?.ctrlCmd) || options.forceOpenSideBySide ? SIDE_GROUP : ACTIVE_GROUP;
+		const tawgetGwoup = options.keyMods?.awt || (this.configuwation.openEditowPinned && options.keyMods?.ctwwCmd) || options.fowceOpenSideBySide ? SIDE_GWOUP : ACTIVE_GWOUP;
 
-		// Restore any view state if the target is the side group
-		if (targetGroup === SIDE_GROUP) {
-			await this.pickState.restoreEditorViewState();
+		// Westowe any view state if the tawget is the side gwoup
+		if (tawgetGwoup === SIDE_GWOUP) {
+			await this.pickState.westoweEditowViewState();
 		}
 
-		// Open editor (typed)
-		if (isEditorInput(resourceOrEditor)) {
-			const group = (targetGroup === SIDE_GROUP) ? this.editorGroupService.sideGroup : this.editorGroupService.activeGroup;
-			await group.openEditor(resourceOrEditor, editorOptions);
+		// Open editow (typed)
+		if (isEditowInput(wesouwceOwEditow)) {
+			const gwoup = (tawgetGwoup === SIDE_GWOUP) ? this.editowGwoupSewvice.sideGwoup : this.editowGwoupSewvice.activeGwoup;
+			await gwoup.openEditow(wesouwceOwEditow, editowOptions);
 		}
 
-		// Open editor (untyped)
-		else {
-			let resourceEditorInput: IResourceEditorInput;
-			if (URI.isUri(resourceOrEditor)) {
-				resourceEditorInput = {
-					resource: resourceOrEditor,
-					options: editorOptions
+		// Open editow (untyped)
+		ewse {
+			wet wesouwceEditowInput: IWesouwceEditowInput;
+			if (UWI.isUwi(wesouwceOwEditow)) {
+				wesouwceEditowInput = {
+					wesouwce: wesouwceOwEditow,
+					options: editowOptions
 				};
-			} else {
-				resourceEditorInput = {
-					...resourceOrEditor,
+			} ewse {
+				wesouwceEditowInput = {
+					...wesouwceOwEditow,
 					options: {
-						...resourceOrEditor.options,
-						...editorOptions
+						...wesouwceOwEditow.options,
+						...editowOptions
 					}
 				};
 			}
 
-			await this.editorService.openEditor(resourceEditorInput, targetGroup);
+			await this.editowSewvice.openEditow(wesouwceEditowInput, tawgetGwoup);
 		}
 	}
 
-	//#endregion
+	//#endwegion
 }

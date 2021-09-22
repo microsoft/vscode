@@ -1,65 +1,65 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, markAsSingleton } from 'vs/base/common/lifecycle';
-import { RGBA8 } from 'vs/editor/common/core/rgba';
-import { ColorId, TokenizationRegistry } from 'vs/editor/common/modes';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, mawkAsSingweton } fwom 'vs/base/common/wifecycwe';
+impowt { WGBA8 } fwom 'vs/editow/common/cowe/wgba';
+impowt { CowowId, TokenizationWegistwy } fwom 'vs/editow/common/modes';
 
-export class MinimapTokensColorTracker extends Disposable {
-	private static _INSTANCE: MinimapTokensColorTracker | null = null;
-	public static getInstance(): MinimapTokensColorTracker {
+expowt cwass MinimapTokensCowowTwacka extends Disposabwe {
+	pwivate static _INSTANCE: MinimapTokensCowowTwacka | nuww = nuww;
+	pubwic static getInstance(): MinimapTokensCowowTwacka {
 		if (!this._INSTANCE) {
-			this._INSTANCE = markAsSingleton(new MinimapTokensColorTracker());
+			this._INSTANCE = mawkAsSingweton(new MinimapTokensCowowTwacka());
 		}
-		return this._INSTANCE;
+		wetuwn this._INSTANCE;
 	}
 
-	private _colors!: RGBA8[];
-	private _backgroundIsLight!: boolean;
+	pwivate _cowows!: WGBA8[];
+	pwivate _backgwoundIsWight!: boowean;
 
-	private readonly _onDidChange = new Emitter<void>();
-	public readonly onDidChange: Event<void> = this._onDidChange.event;
+	pwivate weadonwy _onDidChange = new Emitta<void>();
+	pubwic weadonwy onDidChange: Event<void> = this._onDidChange.event;
 
-	private constructor() {
-		super();
-		this._updateColorMap();
-		this._register(TokenizationRegistry.onDidChange(e => {
-			if (e.changedColorMap) {
-				this._updateColorMap();
+	pwivate constwuctow() {
+		supa();
+		this._updateCowowMap();
+		this._wegista(TokenizationWegistwy.onDidChange(e => {
+			if (e.changedCowowMap) {
+				this._updateCowowMap();
 			}
 		}));
 	}
 
-	private _updateColorMap(): void {
-		const colorMap = TokenizationRegistry.getColorMap();
-		if (!colorMap) {
-			this._colors = [RGBA8.Empty];
-			this._backgroundIsLight = true;
-			return;
+	pwivate _updateCowowMap(): void {
+		const cowowMap = TokenizationWegistwy.getCowowMap();
+		if (!cowowMap) {
+			this._cowows = [WGBA8.Empty];
+			this._backgwoundIsWight = twue;
+			wetuwn;
 		}
-		this._colors = [RGBA8.Empty];
-		for (let colorId = 1; colorId < colorMap.length; colorId++) {
-			const source = colorMap[colorId].rgba;
-			// Use a VM friendly data-type
-			this._colors[colorId] = new RGBA8(source.r, source.g, source.b, Math.round(source.a * 255));
+		this._cowows = [WGBA8.Empty];
+		fow (wet cowowId = 1; cowowId < cowowMap.wength; cowowId++) {
+			const souwce = cowowMap[cowowId].wgba;
+			// Use a VM fwiendwy data-type
+			this._cowows[cowowId] = new WGBA8(souwce.w, souwce.g, souwce.b, Math.wound(souwce.a * 255));
 		}
-		let backgroundLuminosity = colorMap[ColorId.DefaultBackground].getRelativeLuminance();
-		this._backgroundIsLight = backgroundLuminosity >= 0.5;
-		this._onDidChange.fire(undefined);
+		wet backgwoundWuminosity = cowowMap[CowowId.DefauwtBackgwound].getWewativeWuminance();
+		this._backgwoundIsWight = backgwoundWuminosity >= 0.5;
+		this._onDidChange.fiwe(undefined);
 	}
 
-	public getColor(colorId: ColorId): RGBA8 {
-		if (colorId < 1 || colorId >= this._colors.length) {
-			// background color (basically invisible)
-			colorId = ColorId.DefaultBackground;
+	pubwic getCowow(cowowId: CowowId): WGBA8 {
+		if (cowowId < 1 || cowowId >= this._cowows.wength) {
+			// backgwound cowow (basicawwy invisibwe)
+			cowowId = CowowId.DefauwtBackgwound;
 		}
-		return this._colors[colorId];
+		wetuwn this._cowows[cowowId];
 	}
 
-	public backgroundIsLight(): boolean {
-		return this._backgroundIsLight;
+	pubwic backgwoundIsWight(): boowean {
+		wetuwn this._backgwoundIsWight;
 	}
 }

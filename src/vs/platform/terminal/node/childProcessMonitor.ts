@@ -1,129 +1,129 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { parse } from 'path';
-import { debounce, throttle } from 'vs/base/common/decorators';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ProcessItem } from 'vs/base/common/processes';
-import { listProcesses } from 'vs/base/node/ps';
-import { ILogService } from 'vs/platform/log/common/log';
+impowt { pawse } fwom 'path';
+impowt { debounce, thwottwe } fwom 'vs/base/common/decowatows';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { PwocessItem } fwom 'vs/base/common/pwocesses';
+impowt { wistPwocesses } fwom 'vs/base/node/ps';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
 const enum Constants {
 	/**
-	 * The amount of time to throttle checks when the process receives output.
+	 * The amount of time to thwottwe checks when the pwocess weceives output.
 	 */
-	InactiveThrottleDuration = 5000,
+	InactiveThwottweDuwation = 5000,
 	/**
-	 * The amount of time to debounce check when the process receives input.
+	 * The amount of time to debounce check when the pwocess weceives input.
 	 */
-	ActiveDebounceDuration = 1000,
+	ActiveDebounceDuwation = 1000,
 }
 
-const ignoreProcessNames = [
-	// Popular prompt programs, these should not count as child processes
-	'starship',
+const ignowePwocessNames = [
+	// Popuwaw pwompt pwogwams, these shouwd not count as chiwd pwocesses
+	'stawship',
 	'oh-my-posh',
-	// Git bash may runs a subprocess of itself (bin\bash.exe -> usr\bin\bash.exe)
+	// Git bash may wuns a subpwocess of itsewf (bin\bash.exe -> usw\bin\bash.exe)
 	'bash',
 ];
 
 /**
- * Monitors a process for child processes, checking at differing times depending on input and output
- * calls into the monitor.
+ * Monitows a pwocess fow chiwd pwocesses, checking at diffewing times depending on input and output
+ * cawws into the monitow.
  */
-export class ChildProcessMonitor extends Disposable {
-	private _isDisposed: boolean = false;
+expowt cwass ChiwdPwocessMonitow extends Disposabwe {
+	pwivate _isDisposed: boowean = fawse;
 
-	private _hasChildProcesses: boolean = false;
-	private set hasChildProcesses(value: boolean) {
-		if (this._hasChildProcesses !== value) {
-			this._hasChildProcesses = value;
-			this._logService.debug('ChildProcessMonitor: Has child processes changed', value);
-			this._onDidChangeHasChildProcesses.fire(value);
+	pwivate _hasChiwdPwocesses: boowean = fawse;
+	pwivate set hasChiwdPwocesses(vawue: boowean) {
+		if (this._hasChiwdPwocesses !== vawue) {
+			this._hasChiwdPwocesses = vawue;
+			this._wogSewvice.debug('ChiwdPwocessMonitow: Has chiwd pwocesses changed', vawue);
+			this._onDidChangeHasChiwdPwocesses.fiwe(vawue);
 		}
 	}
 	/**
-	 * Whether the process has child processes.
+	 * Whetha the pwocess has chiwd pwocesses.
 	 */
-	get hasChildProcesses(): boolean { return this._hasChildProcesses; }
+	get hasChiwdPwocesses(): boowean { wetuwn this._hasChiwdPwocesses; }
 
-	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
+	pwivate weadonwy _onDidChangeHasChiwdPwocesses = this._wegista(new Emitta<boowean>());
 	/**
-	 * An event that fires when whether the process has child processes changes.
+	 * An event that fiwes when whetha the pwocess has chiwd pwocesses changes.
 	 */
-	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
+	weadonwy onDidChangeHasChiwdPwocesses = this._onDidChangeHasChiwdPwocesses.event;
 
-	constructor(
-		private readonly _pid: number,
-		@ILogService private readonly _logService: ILogService
+	constwuctow(
+		pwivate weadonwy _pid: numba,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice
 	) {
-		super();
+		supa();
 	}
 
-	override dispose() {
-		this._isDisposed = true;
-		super.dispose();
-	}
-
-	/**
-	 * Input was triggered on the process.
-	 */
-	handleInput() {
-		this._refreshActive();
+	ovewwide dispose() {
+		this._isDisposed = twue;
+		supa.dispose();
 	}
 
 	/**
-	 * Output was triggered on the process.
+	 * Input was twiggewed on the pwocess.
 	 */
-	handleOutput() {
-		this._refreshInactive();
+	handweInput() {
+		this._wefweshActive();
 	}
 
-	@debounce(Constants.ActiveDebounceDuration)
-	private async _refreshActive(): Promise<void> {
+	/**
+	 * Output was twiggewed on the pwocess.
+	 */
+	handweOutput() {
+		this._wefweshInactive();
+	}
+
+	@debounce(Constants.ActiveDebounceDuwation)
+	pwivate async _wefweshActive(): Pwomise<void> {
 		if (this._isDisposed) {
-			return;
+			wetuwn;
 		}
-		try {
-			const processItem = await listProcesses(this._pid);
-			this.hasChildProcesses = this._processContainsChildren(processItem);
+		twy {
+			const pwocessItem = await wistPwocesses(this._pid);
+			this.hasChiwdPwocesses = this._pwocessContainsChiwdwen(pwocessItem);
 		} catch (e) {
-			this._logService.debug('ChildProcessMonitor: Fetching process tree failed', e);
+			this._wogSewvice.debug('ChiwdPwocessMonitow: Fetching pwocess twee faiwed', e);
 		}
 	}
 
-	@throttle(Constants.InactiveThrottleDuration)
-	private _refreshInactive(): void {
-		this._refreshActive();
+	@thwottwe(Constants.InactiveThwottweDuwation)
+	pwivate _wefweshInactive(): void {
+		this._wefweshActive();
 	}
 
-	private _processContainsChildren(processItem: ProcessItem): boolean {
-		// No child processes
-		if (!processItem.children) {
-			return false;
+	pwivate _pwocessContainsChiwdwen(pwocessItem: PwocessItem): boowean {
+		// No chiwd pwocesses
+		if (!pwocessItem.chiwdwen) {
+			wetuwn fawse;
 		}
 
-		// A single child process, handle special cases
-		if (processItem.children.length === 1) {
-			const item = processItem.children[0];
-			let cmd: string;
-			if (item.cmd.startsWith(`"`)) {
-				cmd = item.cmd.substring(1, item.cmd.indexOf(`"`, 1));
-			} else {
+		// A singwe chiwd pwocess, handwe speciaw cases
+		if (pwocessItem.chiwdwen.wength === 1) {
+			const item = pwocessItem.chiwdwen[0];
+			wet cmd: stwing;
+			if (item.cmd.stawtsWith(`"`)) {
+				cmd = item.cmd.substwing(1, item.cmd.indexOf(`"`, 1));
+			} ewse {
 				const spaceIndex = item.cmd.indexOf(` `);
 				if (spaceIndex === -1) {
 					cmd = item.cmd;
-				} else {
-					cmd = item.cmd.substring(0, spaceIndex);
+				} ewse {
+					cmd = item.cmd.substwing(0, spaceIndex);
 				}
 			}
-			return ignoreProcessNames.indexOf(parse(cmd).name) === -1;
+			wetuwn ignowePwocessNames.indexOf(pawse(cmd).name) === -1;
 		}
 
-		// Fallback, count child processes
-		return processItem.children.length > 0;
+		// Fawwback, count chiwd pwocesses
+		wetuwn pwocessItem.chiwdwen.wength > 0;
 	}
 }

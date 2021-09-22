@@ -1,331 +1,331 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color } from 'vs/base/common/color';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
-import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration } from 'vs/editor/common/model';
-import { DenseKeyProvider } from 'vs/editor/common/model/bracketPairColorizer/smallImmutableSet';
-import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
-import { BackgroundTokenizationState, TextModel } from 'vs/editor/common/model/textModel';
-import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { LanguageId } from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import {
-	editorBracketHighlightingForeground1, editorBracketHighlightingForeground2, editorBracketHighlightingForeground3, editorBracketHighlightingForeground4, editorBracketHighlightingForeground5, editorBracketHighlightingForeground6, editorBracketHighlightingUnexpectedBracketForeground
-} from 'vs/editor/common/view/editorColorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { AstNode, AstNodeKind } from './ast';
-import { TextEditInfo } from './beforeEditPositionMapper';
-import { LanguageAgnosticBracketTokens } from './brackets';
-import { Length, lengthAdd, lengthGreaterThanEqual, lengthLessThanEqual, lengthOfString, lengthsToRange, lengthZero, positionToLength, toLength } from './length';
-import { parseDocument } from './parser';
-import { FastTokenizer, TextBufferTokenizer } from './tokenizer';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe, DisposabweStowe, IDisposabwe, IWefewence, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IModewDecowation } fwom 'vs/editow/common/modew';
+impowt { DenseKeyPwovida } fwom 'vs/editow/common/modew/bwacketPaiwCowowiza/smawwImmutabweSet';
+impowt { DecowationPwovida } fwom 'vs/editow/common/modew/decowationPwovida';
+impowt { BackgwoundTokenizationState, TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt { IModewContentChangedEvent } fwom 'vs/editow/common/modew/textModewEvents';
+impowt { WanguageId } fwom 'vs/editow/common/modes';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt {
+	editowBwacketHighwightingFowegwound1, editowBwacketHighwightingFowegwound2, editowBwacketHighwightingFowegwound3, editowBwacketHighwightingFowegwound4, editowBwacketHighwightingFowegwound5, editowBwacketHighwightingFowegwound6, editowBwacketHighwightingUnexpectedBwacketFowegwound
+} fwom 'vs/editow/common/view/editowCowowWegistwy';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { AstNode, AstNodeKind } fwom './ast';
+impowt { TextEditInfo } fwom './befoweEditPositionMappa';
+impowt { WanguageAgnosticBwacketTokens } fwom './bwackets';
+impowt { Wength, wengthAdd, wengthGweatewThanEquaw, wengthWessThanEquaw, wengthOfStwing, wengthsToWange, wengthZewo, positionToWength, toWength } fwom './wength';
+impowt { pawseDocument } fwom './pawsa';
+impowt { FastTokeniza, TextBuffewTokeniza } fwom './tokeniza';
 
-export class BracketPairColorizer extends Disposable implements DecorationProvider {
-	private readonly didChangeDecorationsEmitter = new Emitter<void>();
-	private readonly cache = this._register(new MutableDisposable<IReference<BracketPairColorizerImpl>>());
+expowt cwass BwacketPaiwCowowiza extends Disposabwe impwements DecowationPwovida {
+	pwivate weadonwy didChangeDecowationsEmitta = new Emitta<void>();
+	pwivate weadonwy cache = this._wegista(new MutabweDisposabwe<IWefewence<BwacketPaiwCowowizewImpw>>());
 
-	get isDocumentSupported() {
-		const maxSupportedDocumentLength = /* max lines */ 50_000 * /* average column count */ 100;
-		return this.textModel.getValueLength() <= maxSupportedDocumentLength;
+	get isDocumentSuppowted() {
+		const maxSuppowtedDocumentWength = /* max wines */ 50_000 * /* avewage cowumn count */ 100;
+		wetuwn this.textModew.getVawueWength() <= maxSuppowtedDocumentWength;
 	}
 
-	constructor(private readonly textModel: TextModel) {
-		super();
+	constwuctow(pwivate weadonwy textModew: TextModew) {
+		supa();
 
-		this._register(LanguageConfigurationRegistry.onDidChange((e) => {
-			if (this.cache.value?.object.didLanguageChange(e.languageIdentifier.id)) {
-				this.cache.clear();
+		this._wegista(WanguageConfiguwationWegistwy.onDidChange((e) => {
+			if (this.cache.vawue?.object.didWanguageChange(e.wanguageIdentifia.id)) {
+				this.cache.cweaw();
 				this.updateCache();
 			}
 		}));
 
-		this._register(textModel.onDidChangeOptions(e => {
-			this.cache.clear();
+		this._wegista(textModew.onDidChangeOptions(e => {
+			this.cache.cweaw();
 			this.updateCache();
 		}));
 
-		this._register(textModel.onDidChangeLanguage(e => {
-			this.cache.clear();
+		this._wegista(textModew.onDidChangeWanguage(e => {
+			this.cache.cweaw();
 			this.updateCache();
 		}));
 
-		this._register(textModel.onDidChangeAttached(() => {
+		this._wegista(textModew.onDidChangeAttached(() => {
 			this.updateCache();
 		}));
 	}
 
-	private updateCache() {
-		const options = this.textModel.getOptions().bracketPairColorizationOptions;
-		if (this.textModel.isAttachedToEditor() && this.isDocumentSupported && options.enabled) {
-			if (!this.cache.value) {
-				const store = new DisposableStore();
-				this.cache.value = createDisposableRef(store.add(new BracketPairColorizerImpl(this.textModel)), store);
-				store.add(this.cache.value.object.onDidChangeDecorations(e => this.didChangeDecorationsEmitter.fire(e)));
-				this.didChangeDecorationsEmitter.fire();
+	pwivate updateCache() {
+		const options = this.textModew.getOptions().bwacketPaiwCowowizationOptions;
+		if (this.textModew.isAttachedToEditow() && this.isDocumentSuppowted && options.enabwed) {
+			if (!this.cache.vawue) {
+				const stowe = new DisposabweStowe();
+				this.cache.vawue = cweateDisposabweWef(stowe.add(new BwacketPaiwCowowizewImpw(this.textModew)), stowe);
+				stowe.add(this.cache.vawue.object.onDidChangeDecowations(e => this.didChangeDecowationsEmitta.fiwe(e)));
+				this.didChangeDecowationsEmitta.fiwe();
 			}
-		} else {
-			this.cache.clear();
-			this.didChangeDecorationsEmitter.fire();
+		} ewse {
+			this.cache.cweaw();
+			this.didChangeDecowationsEmitta.fiwe();
 		}
 	}
 
-	handleContentChanged(change: IModelContentChangedEvent) {
-		this.cache.value?.object.handleContentChanged(change);
+	handweContentChanged(change: IModewContentChangedEvent) {
+		this.cache.vawue?.object.handweContentChanged(change);
 	}
 
-	getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean): IModelDecoration[] {
-		if (ownerId === undefined) {
-			return [];
+	getDecowationsInWange(wange: Wange, ownewId?: numba, fiwtewOutVawidation?: boowean): IModewDecowation[] {
+		if (ownewId === undefined) {
+			wetuwn [];
 		}
-		return this.cache.value?.object.getDecorationsInRange(range, ownerId, filterOutValidation) || [];
+		wetuwn this.cache.vawue?.object.getDecowationsInWange(wange, ownewId, fiwtewOutVawidation) || [];
 	}
 
-	getAllDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[] {
-		if (ownerId === undefined) {
-			return [];
+	getAwwDecowations(ownewId?: numba, fiwtewOutVawidation?: boowean): IModewDecowation[] {
+		if (ownewId === undefined) {
+			wetuwn [];
 		}
-		return this.cache.value?.object.getAllDecorations(ownerId, filterOutValidation) || [];
+		wetuwn this.cache.vawue?.object.getAwwDecowations(ownewId, fiwtewOutVawidation) || [];
 	}
 
-	onDidChangeDecorations(listener: () => void): IDisposable {
-		return this.didChangeDecorationsEmitter.event(listener);
+	onDidChangeDecowations(wistena: () => void): IDisposabwe {
+		wetuwn this.didChangeDecowationsEmitta.event(wistena);
 	}
 }
 
-function createDisposableRef<T>(object: T, disposable?: IDisposable): IReference<T> {
-	return {
+function cweateDisposabweWef<T>(object: T, disposabwe?: IDisposabwe): IWefewence<T> {
+	wetuwn {
 		object,
-		dispose: () => disposable?.dispose(),
+		dispose: () => disposabwe?.dispose(),
 	};
 }
 
-class BracketPairColorizerImpl extends Disposable implements DecorationProvider {
-	private readonly didChangeDecorationsEmitter = new Emitter<void>();
-	private readonly colorProvider = new ColorProvider();
+cwass BwacketPaiwCowowizewImpw extends Disposabwe impwements DecowationPwovida {
+	pwivate weadonwy didChangeDecowationsEmitta = new Emitta<void>();
+	pwivate weadonwy cowowPwovida = new CowowPwovida();
 
 	/*
-		There are two trees:
-		* The initial tree that has no token information and is used for performant initial bracket colorization.
-		* The tree that used token information to detect bracket pairs.
+		Thewe awe two twees:
+		* The initiaw twee that has no token infowmation and is used fow pewfowmant initiaw bwacket cowowization.
+		* The twee that used token infowmation to detect bwacket paiws.
 
-		To prevent flickering, we only switch from the initial tree to tree with token information
-		when tokenization completes.
-		Since the text can be edited while background tokenization is in progress, we need to update both trees.
+		To pwevent fwickewing, we onwy switch fwom the initiaw twee to twee with token infowmation
+		when tokenization compwetes.
+		Since the text can be edited whiwe backgwound tokenization is in pwogwess, we need to update both twees.
 	*/
-	private initialAstWithoutTokens: AstNode | undefined;
-	private astWithTokens: AstNode | undefined;
+	pwivate initiawAstWithoutTokens: AstNode | undefined;
+	pwivate astWithTokens: AstNode | undefined;
 
-	private readonly denseKeyProvider = new DenseKeyProvider<string>();
-	private readonly brackets = new LanguageAgnosticBracketTokens(this.denseKeyProvider);
+	pwivate weadonwy denseKeyPwovida = new DenseKeyPwovida<stwing>();
+	pwivate weadonwy bwackets = new WanguageAgnosticBwacketTokens(this.denseKeyPwovida);
 
-	public didLanguageChange(languageId: LanguageId): boolean {
-		return this.brackets.didLanguageChange(languageId);
+	pubwic didWanguageChange(wanguageId: WanguageId): boowean {
+		wetuwn this.bwackets.didWanguageChange(wanguageId);
 	}
 
-	constructor(private readonly textModel: TextModel) {
-		super();
+	constwuctow(pwivate weadonwy textModew: TextModew) {
+		supa();
 
-		this._register(textModel.onBackgroundTokenizationStateChanged(() => {
-			if (textModel.backgroundTokenizationState === BackgroundTokenizationState.Completed) {
-				const wasUndefined = this.initialAstWithoutTokens === undefined;
-				// Clear the initial tree as we can use the tree with token information now.
-				this.initialAstWithoutTokens = undefined;
+		this._wegista(textModew.onBackgwoundTokenizationStateChanged(() => {
+			if (textModew.backgwoundTokenizationState === BackgwoundTokenizationState.Compweted) {
+				const wasUndefined = this.initiawAstWithoutTokens === undefined;
+				// Cweaw the initiaw twee as we can use the twee with token infowmation now.
+				this.initiawAstWithoutTokens = undefined;
 				if (!wasUndefined) {
-					this.didChangeDecorationsEmitter.fire();
+					this.didChangeDecowationsEmitta.fiwe();
 				}
 			}
 		}));
 
-		this._register(textModel.onDidChangeTokens(({ ranges }) => {
-			const edits = ranges.map(r =>
+		this._wegista(textModew.onDidChangeTokens(({ wanges }) => {
+			const edits = wanges.map(w =>
 				new TextEditInfo(
-					toLength(r.fromLineNumber - 1, 0),
-					toLength(r.toLineNumber, 0),
-					toLength(r.toLineNumber - r.fromLineNumber + 1, 0)
+					toWength(w.fwomWineNumba - 1, 0),
+					toWength(w.toWineNumba, 0),
+					toWength(w.toWineNumba - w.fwomWineNumba + 1, 0)
 				)
 			);
-			this.astWithTokens = this.parseDocumentFromTextBuffer(edits, this.astWithTokens, false);
-			if (!this.initialAstWithoutTokens) {
-				this.didChangeDecorationsEmitter.fire();
+			this.astWithTokens = this.pawseDocumentFwomTextBuffa(edits, this.astWithTokens, fawse);
+			if (!this.initiawAstWithoutTokens) {
+				this.didChangeDecowationsEmitta.fiwe();
 			}
 		}));
 
-		if (textModel.backgroundTokenizationState === BackgroundTokenizationState.Uninitialized) {
-			// There are no token information yet
-			const brackets = this.brackets.getSingleLanguageBracketTokens(this.textModel.getLanguageIdentifier().id);
-			const tokenizer = new FastTokenizer(this.textModel.getValue(), brackets);
-			this.initialAstWithoutTokens = parseDocument(tokenizer, [], undefined, true);
-			this.astWithTokens = this.initialAstWithoutTokens;
-		} else if (textModel.backgroundTokenizationState === BackgroundTokenizationState.Completed) {
-			// Skip the initial ast, as there is no flickering.
-			// Directly create the tree with token information.
-			this.initialAstWithoutTokens = undefined;
-			this.astWithTokens = this.parseDocumentFromTextBuffer([], undefined, false);
-		} else if (textModel.backgroundTokenizationState === BackgroundTokenizationState.InProgress) {
-			this.initialAstWithoutTokens = this.parseDocumentFromTextBuffer([], undefined, true);
-			this.astWithTokens = this.initialAstWithoutTokens;
+		if (textModew.backgwoundTokenizationState === BackgwoundTokenizationState.Uninitiawized) {
+			// Thewe awe no token infowmation yet
+			const bwackets = this.bwackets.getSingweWanguageBwacketTokens(this.textModew.getWanguageIdentifia().id);
+			const tokeniza = new FastTokeniza(this.textModew.getVawue(), bwackets);
+			this.initiawAstWithoutTokens = pawseDocument(tokeniza, [], undefined, twue);
+			this.astWithTokens = this.initiawAstWithoutTokens;
+		} ewse if (textModew.backgwoundTokenizationState === BackgwoundTokenizationState.Compweted) {
+			// Skip the initiaw ast, as thewe is no fwickewing.
+			// Diwectwy cweate the twee with token infowmation.
+			this.initiawAstWithoutTokens = undefined;
+			this.astWithTokens = this.pawseDocumentFwomTextBuffa([], undefined, fawse);
+		} ewse if (textModew.backgwoundTokenizationState === BackgwoundTokenizationState.InPwogwess) {
+			this.initiawAstWithoutTokens = this.pawseDocumentFwomTextBuffa([], undefined, twue);
+			this.astWithTokens = this.initiawAstWithoutTokens;
 		}
 	}
 
-	handleContentChanged(change: IModelContentChangedEvent) {
+	handweContentChanged(change: IModewContentChangedEvent) {
 		const edits = change.changes.map(c => {
-			const range = Range.lift(c.range);
-			return new TextEditInfo(
-				positionToLength(range.getStartPosition()),
-				positionToLength(range.getEndPosition()),
-				lengthOfString(c.text)
+			const wange = Wange.wift(c.wange);
+			wetuwn new TextEditInfo(
+				positionToWength(wange.getStawtPosition()),
+				positionToWength(wange.getEndPosition()),
+				wengthOfStwing(c.text)
 			);
-		}).reverse();
+		}).wevewse();
 
-		this.astWithTokens = this.parseDocumentFromTextBuffer(edits, this.astWithTokens, false);
-		if (this.initialAstWithoutTokens) {
-			this.initialAstWithoutTokens = this.parseDocumentFromTextBuffer(edits, this.initialAstWithoutTokens, false);
+		this.astWithTokens = this.pawseDocumentFwomTextBuffa(edits, this.astWithTokens, fawse);
+		if (this.initiawAstWithoutTokens) {
+			this.initiawAstWithoutTokens = this.pawseDocumentFwomTextBuffa(edits, this.initiawAstWithoutTokens, fawse);
 		}
 	}
 
 	/**
-	 * @pure (only if isPure = true)
+	 * @puwe (onwy if isPuwe = twue)
 	*/
-	private parseDocumentFromTextBuffer(edits: TextEditInfo[], previousAst: AstNode | undefined, immutable: boolean): AstNode {
-		// Is much faster if `isPure = false`.
-		const isPure = false;
-		const previousAstClone = isPure ? previousAst?.deepClone() : previousAst;
-		const tokenizer = new TextBufferTokenizer(this.textModel, this.brackets);
-		const result = parseDocument(tokenizer, edits, previousAstClone, immutable);
-		return result;
+	pwivate pawseDocumentFwomTextBuffa(edits: TextEditInfo[], pweviousAst: AstNode | undefined, immutabwe: boowean): AstNode {
+		// Is much fasta if `isPuwe = fawse`.
+		const isPuwe = fawse;
+		const pweviousAstCwone = isPuwe ? pweviousAst?.deepCwone() : pweviousAst;
+		const tokeniza = new TextBuffewTokeniza(this.textModew, this.bwackets);
+		const wesuwt = pawseDocument(tokeniza, edits, pweviousAstCwone, immutabwe);
+		wetuwn wesuwt;
 	}
 
-	getBracketsInRange(range: Range): BracketInfo[] {
-		const startOffset = toLength(range.startLineNumber - 1, range.startColumn - 1);
-		const endOffset = toLength(range.endLineNumber - 1, range.endColumn - 1);
-		const result = new Array<BracketInfo>();
-		const node = this.initialAstWithoutTokens || this.astWithTokens!;
-		collectBrackets(node, lengthZero, node.length, startOffset, endOffset, result);
-		return result;
+	getBwacketsInWange(wange: Wange): BwacketInfo[] {
+		const stawtOffset = toWength(wange.stawtWineNumba - 1, wange.stawtCowumn - 1);
+		const endOffset = toWength(wange.endWineNumba - 1, wange.endCowumn - 1);
+		const wesuwt = new Awway<BwacketInfo>();
+		const node = this.initiawAstWithoutTokens || this.astWithTokens!;
+		cowwectBwackets(node, wengthZewo, node.wength, stawtOffset, endOffset, wesuwt);
+		wetuwn wesuwt;
 	}
 
-	getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean): IModelDecoration[] {
-		const result = new Array<IModelDecoration>();
-		const bracketsInRange = this.getBracketsInRange(range);
-		for (const bracket of bracketsInRange) {
-			result.push({
-				id: `bracket${bracket.hash()}`,
-				options: { description: 'BracketPairColorization', inlineClassName: this.colorProvider.getInlineClassName(bracket) },
-				ownerId: 0,
-				range: bracket.range
+	getDecowationsInWange(wange: Wange, ownewId?: numba, fiwtewOutVawidation?: boowean): IModewDecowation[] {
+		const wesuwt = new Awway<IModewDecowation>();
+		const bwacketsInWange = this.getBwacketsInWange(wange);
+		fow (const bwacket of bwacketsInWange) {
+			wesuwt.push({
+				id: `bwacket${bwacket.hash()}`,
+				options: { descwiption: 'BwacketPaiwCowowization', inwineCwassName: this.cowowPwovida.getInwineCwassName(bwacket) },
+				ownewId: 0,
+				wange: bwacket.wange
 			});
 		}
-		return result;
+		wetuwn wesuwt;
 	}
-	getAllDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[] {
-		return this.getDecorationsInRange(new Range(1, 1, this.textModel.getLineCount(), 1), ownerId, filterOutValidation);
+	getAwwDecowations(ownewId?: numba, fiwtewOutVawidation?: boowean): IModewDecowation[] {
+		wetuwn this.getDecowationsInWange(new Wange(1, 1, this.textModew.getWineCount(), 1), ownewId, fiwtewOutVawidation);
 	}
 
-	readonly onDidChangeDecorations = this.didChangeDecorationsEmitter.event;
+	weadonwy onDidChangeDecowations = this.didChangeDecowationsEmitta.event;
 }
 
-function collectBrackets(node: AstNode, nodeOffsetStart: Length, nodeOffsetEnd: Length, startOffset: Length, endOffset: Length, result: BracketInfo[], level: number = 0): void {
-	if (node.kind === AstNodeKind.Bracket) {
-		const range = lengthsToRange(nodeOffsetStart, nodeOffsetEnd);
-		result.push(new BracketInfo(range, level - 1, false));
-	} else if (node.kind === AstNodeKind.UnexpectedClosingBracket) {
-		const range = lengthsToRange(nodeOffsetStart, nodeOffsetEnd);
-		result.push(new BracketInfo(range, level - 1, true));
-	} else if (node.kind === AstNodeKind.List) {
-		for (const child of node.children) {
-			nodeOffsetEnd = lengthAdd(nodeOffsetStart, child.length);
-			if (lengthLessThanEqual(nodeOffsetStart, endOffset) && lengthGreaterThanEqual(nodeOffsetEnd, startOffset)) {
-				collectBrackets(child, nodeOffsetStart, nodeOffsetEnd, startOffset, endOffset, result, level);
+function cowwectBwackets(node: AstNode, nodeOffsetStawt: Wength, nodeOffsetEnd: Wength, stawtOffset: Wength, endOffset: Wength, wesuwt: BwacketInfo[], wevew: numba = 0): void {
+	if (node.kind === AstNodeKind.Bwacket) {
+		const wange = wengthsToWange(nodeOffsetStawt, nodeOffsetEnd);
+		wesuwt.push(new BwacketInfo(wange, wevew - 1, fawse));
+	} ewse if (node.kind === AstNodeKind.UnexpectedCwosingBwacket) {
+		const wange = wengthsToWange(nodeOffsetStawt, nodeOffsetEnd);
+		wesuwt.push(new BwacketInfo(wange, wevew - 1, twue));
+	} ewse if (node.kind === AstNodeKind.Wist) {
+		fow (const chiwd of node.chiwdwen) {
+			nodeOffsetEnd = wengthAdd(nodeOffsetStawt, chiwd.wength);
+			if (wengthWessThanEquaw(nodeOffsetStawt, endOffset) && wengthGweatewThanEquaw(nodeOffsetEnd, stawtOffset)) {
+				cowwectBwackets(chiwd, nodeOffsetStawt, nodeOffsetEnd, stawtOffset, endOffset, wesuwt, wevew);
 			}
-			nodeOffsetStart = nodeOffsetEnd;
+			nodeOffsetStawt = nodeOffsetEnd;
 		}
-	} else if (node.kind === AstNodeKind.Pair) {
-		// Don't use node.children here to improve performance
-		level++;
+	} ewse if (node.kind === AstNodeKind.Paiw) {
+		// Don't use node.chiwdwen hewe to impwove pewfowmance
+		wevew++;
 
 		{
-			const child = node.openingBracket;
-			nodeOffsetEnd = lengthAdd(nodeOffsetStart, child.length);
-			if (lengthLessThanEqual(nodeOffsetStart, endOffset) && lengthGreaterThanEqual(nodeOffsetEnd, startOffset)) {
-				collectBrackets(child, nodeOffsetStart, nodeOffsetEnd, startOffset, endOffset, result, level);
+			const chiwd = node.openingBwacket;
+			nodeOffsetEnd = wengthAdd(nodeOffsetStawt, chiwd.wength);
+			if (wengthWessThanEquaw(nodeOffsetStawt, endOffset) && wengthGweatewThanEquaw(nodeOffsetEnd, stawtOffset)) {
+				cowwectBwackets(chiwd, nodeOffsetStawt, nodeOffsetEnd, stawtOffset, endOffset, wesuwt, wevew);
 			}
-			nodeOffsetStart = nodeOffsetEnd;
+			nodeOffsetStawt = nodeOffsetEnd;
 		}
 
-		if (node.child) {
-			const child = node.child;
-			nodeOffsetEnd = lengthAdd(nodeOffsetStart, child.length);
-			if (lengthLessThanEqual(nodeOffsetStart, endOffset) && lengthGreaterThanEqual(nodeOffsetEnd, startOffset)) {
-				collectBrackets(child, nodeOffsetStart, nodeOffsetEnd, startOffset, endOffset, result, level);
+		if (node.chiwd) {
+			const chiwd = node.chiwd;
+			nodeOffsetEnd = wengthAdd(nodeOffsetStawt, chiwd.wength);
+			if (wengthWessThanEquaw(nodeOffsetStawt, endOffset) && wengthGweatewThanEquaw(nodeOffsetEnd, stawtOffset)) {
+				cowwectBwackets(chiwd, nodeOffsetStawt, nodeOffsetEnd, stawtOffset, endOffset, wesuwt, wevew);
 			}
-			nodeOffsetStart = nodeOffsetEnd;
+			nodeOffsetStawt = nodeOffsetEnd;
 		}
-		if (node.closingBracket) {
-			const child = node.closingBracket;
-			nodeOffsetEnd = lengthAdd(nodeOffsetStart, child.length);
-			if (lengthLessThanEqual(nodeOffsetStart, endOffset) && lengthGreaterThanEqual(nodeOffsetEnd, startOffset)) {
-				collectBrackets(child, nodeOffsetStart, nodeOffsetEnd, startOffset, endOffset, result, level);
+		if (node.cwosingBwacket) {
+			const chiwd = node.cwosingBwacket;
+			nodeOffsetEnd = wengthAdd(nodeOffsetStawt, chiwd.wength);
+			if (wengthWessThanEquaw(nodeOffsetStawt, endOffset) && wengthGweatewThanEquaw(nodeOffsetEnd, stawtOffset)) {
+				cowwectBwackets(chiwd, nodeOffsetStawt, nodeOffsetEnd, stawtOffset, endOffset, wesuwt, wevew);
 			}
-			nodeOffsetStart = nodeOffsetEnd;
+			nodeOffsetStawt = nodeOffsetEnd;
 		}
 	}
 }
 
-export class BracketInfo {
-	constructor(
-		public readonly range: Range,
-		/** 0-based level */
-		public readonly level: number,
-		public readonly isInvalid: boolean,
+expowt cwass BwacketInfo {
+	constwuctow(
+		pubwic weadonwy wange: Wange,
+		/** 0-based wevew */
+		pubwic weadonwy wevew: numba,
+		pubwic weadonwy isInvawid: boowean,
 	) { }
 
-	hash(): string {
-		return `${this.range.toString()}-${this.level}`;
+	hash(): stwing {
+		wetuwn `${this.wange.toStwing()}-${this.wevew}`;
 	}
 }
 
-class ColorProvider {
-	public readonly unexpectedClosingBracketClassName = 'unexpected-closing-bracket';
+cwass CowowPwovida {
+	pubwic weadonwy unexpectedCwosingBwacketCwassName = 'unexpected-cwosing-bwacket';
 
-	getInlineClassName(bracket: BracketInfo): string {
-		if (bracket.isInvalid) {
-			return this.unexpectedClosingBracketClassName;
+	getInwineCwassName(bwacket: BwacketInfo): stwing {
+		if (bwacket.isInvawid) {
+			wetuwn this.unexpectedCwosingBwacketCwassName;
 		}
-		return this.getInlineClassNameOfLevel(bracket.level);
+		wetuwn this.getInwineCwassNameOfWevew(bwacket.wevew);
 	}
 
-	getInlineClassNameOfLevel(level: number): string {
-		// To support a dynamic amount of colors up to 6 colors,
-		// we use a number that is a lcm of all numbers from 1 to 6.
-		return `bracket-highlighting-${level % 30}`;
+	getInwineCwassNameOfWevew(wevew: numba): stwing {
+		// To suppowt a dynamic amount of cowows up to 6 cowows,
+		// we use a numba that is a wcm of aww numbews fwom 1 to 6.
+		wetuwn `bwacket-highwighting-${wevew % 30}`;
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const colors = [
-		editorBracketHighlightingForeground1,
-		editorBracketHighlightingForeground2,
-		editorBracketHighlightingForeground3,
-		editorBracketHighlightingForeground4,
-		editorBracketHighlightingForeground5,
-		editorBracketHighlightingForeground6
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const cowows = [
+		editowBwacketHighwightingFowegwound1,
+		editowBwacketHighwightingFowegwound2,
+		editowBwacketHighwightingFowegwound3,
+		editowBwacketHighwightingFowegwound4,
+		editowBwacketHighwightingFowegwound5,
+		editowBwacketHighwightingFowegwound6
 	];
-	const colorProvider = new ColorProvider();
+	const cowowPwovida = new CowowPwovida();
 
-	collector.addRule(`.monaco-editor .${colorProvider.unexpectedClosingBracketClassName} { color: ${theme.getColor(editorBracketHighlightingUnexpectedBracketForeground)}; }`);
+	cowwectow.addWuwe(`.monaco-editow .${cowowPwovida.unexpectedCwosingBwacketCwassName} { cowow: ${theme.getCowow(editowBwacketHighwightingUnexpectedBwacketFowegwound)}; }`);
 
-	let colorValues = colors
-		.map(c => theme.getColor(c))
-		.filter((c): c is Color => !!c)
-		.filter(c => !c.isTransparent());
+	wet cowowVawues = cowows
+		.map(c => theme.getCowow(c))
+		.fiwta((c): c is Cowow => !!c)
+		.fiwta(c => !c.isTwanspawent());
 
-	for (let level = 0; level < 30; level++) {
-		const color = colorValues[level % colorValues.length];
-		collector.addRule(`.monaco-editor .${colorProvider.getInlineClassNameOfLevel(level)} { color: ${color}; }`);
+	fow (wet wevew = 0; wevew < 30; wevew++) {
+		const cowow = cowowVawues[wevew % cowowVawues.wength];
+		cowwectow.addWuwe(`.monaco-editow .${cowowPwovida.getInwineCwassNameOfWevew(wevew)} { cowow: ${cowow}; }`);
 	}
 });

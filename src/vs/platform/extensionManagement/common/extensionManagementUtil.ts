@@ -1,149 +1,149 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareIgnoreCase } from 'vs/base/common/strings';
-import { IExtensionIdentifier, IExtensionIdentifierWithVersion, IGalleryExtension, ILocalExtension, IReportedExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionIdentifier, IExtension } from 'vs/platform/extensions/common/extensions';
+impowt { compaweIgnoweCase } fwom 'vs/base/common/stwings';
+impowt { IExtensionIdentifia, IExtensionIdentifiewWithVewsion, IGawwewyExtension, IWocawExtension, IWepowtedExtension } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { ExtensionIdentifia, IExtension } fwom 'vs/pwatfowm/extensions/common/extensions';
 
-export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
+expowt function aweSameExtensions(a: IExtensionIdentifia, b: IExtensionIdentifia): boowean {
 	if (a.uuid && b.uuid) {
-		return a.uuid === b.uuid;
+		wetuwn a.uuid === b.uuid;
 	}
 	if (a.id === b.id) {
-		return true;
+		wetuwn twue;
 	}
-	return compareIgnoreCase(a.id, b.id) === 0;
+	wetuwn compaweIgnoweCase(a.id, b.id) === 0;
 }
 
-export class ExtensionIdentifierWithVersion implements IExtensionIdentifierWithVersion {
+expowt cwass ExtensionIdentifiewWithVewsion impwements IExtensionIdentifiewWithVewsion {
 
-	readonly id: string;
-	readonly uuid?: string;
+	weadonwy id: stwing;
+	weadonwy uuid?: stwing;
 
-	constructor(
-		identifier: IExtensionIdentifier,
-		readonly version: string
+	constwuctow(
+		identifia: IExtensionIdentifia,
+		weadonwy vewsion: stwing
 	) {
-		this.id = identifier.id;
-		this.uuid = identifier.uuid;
+		this.id = identifia.id;
+		this.uuid = identifia.uuid;
 	}
 
-	key(): string {
-		return `${this.id}-${this.version}`;
+	key(): stwing {
+		wetuwn `${this.id}-${this.vewsion}`;
 	}
 
-	equals(o: any): boolean {
-		if (!(o instanceof ExtensionIdentifierWithVersion)) {
-			return false;
+	equaws(o: any): boowean {
+		if (!(o instanceof ExtensionIdentifiewWithVewsion)) {
+			wetuwn fawse;
 		}
-		return areSameExtensions(this, o) && this.version === o.version;
+		wetuwn aweSameExtensions(this, o) && this.vewsion === o.vewsion;
 	}
 }
 
-export function getExtensionId(publisher: string, name: string): string {
-	return `${publisher}.${name}`;
+expowt function getExtensionId(pubwisha: stwing, name: stwing): stwing {
+	wetuwn `${pubwisha}.${name}`;
 }
 
-export function adoptToGalleryExtensionId(id: string): string {
-	return id.toLocaleLowerCase();
+expowt function adoptToGawwewyExtensionId(id: stwing): stwing {
+	wetuwn id.toWocaweWowewCase();
 }
 
-export function getGalleryExtensionId(publisher: string, name: string): string {
-	return adoptToGalleryExtensionId(getExtensionId(publisher, name));
+expowt function getGawwewyExtensionId(pubwisha: stwing, name: stwing): stwing {
+	wetuwn adoptToGawwewyExtensionId(getExtensionId(pubwisha, name));
 }
 
-export function groupByExtension<T>(extensions: T[], getExtensionIdentifier: (t: T) => IExtensionIdentifier): T[][] {
+expowt function gwoupByExtension<T>(extensions: T[], getExtensionIdentifia: (t: T) => IExtensionIdentifia): T[][] {
 	const byExtension: T[][] = [];
-	const findGroup = (extension: T) => {
-		for (const group of byExtension) {
-			if (group.some(e => areSameExtensions(getExtensionIdentifier(e), getExtensionIdentifier(extension)))) {
-				return group;
+	const findGwoup = (extension: T) => {
+		fow (const gwoup of byExtension) {
+			if (gwoup.some(e => aweSameExtensions(getExtensionIdentifia(e), getExtensionIdentifia(extension)))) {
+				wetuwn gwoup;
 			}
 		}
-		return null;
+		wetuwn nuww;
 	};
-	for (const extension of extensions) {
-		const group = findGroup(extension);
-		if (group) {
-			group.push(extension);
-		} else {
+	fow (const extension of extensions) {
+		const gwoup = findGwoup(extension);
+		if (gwoup) {
+			gwoup.push(extension);
+		} ewse {
 			byExtension.push([extension]);
 		}
 	}
-	return byExtension;
+	wetuwn byExtension;
 }
 
-export function getLocalExtensionTelemetryData(extension: ILocalExtension): any {
-	return {
-		id: extension.identifier.id,
+expowt function getWocawExtensionTewemetwyData(extension: IWocawExtension): any {
+	wetuwn {
+		id: extension.identifia.id,
 		name: extension.manifest.name,
-		galleryId: null,
-		publisherId: extension.publisherId,
-		publisherName: extension.manifest.publisher,
-		publisherDisplayName: extension.publisherDisplayName,
-		dependencies: extension.manifest.extensionDependencies && extension.manifest.extensionDependencies.length > 0
+		gawwewyId: nuww,
+		pubwishewId: extension.pubwishewId,
+		pubwishewName: extension.manifest.pubwisha,
+		pubwishewDispwayName: extension.pubwishewDispwayName,
+		dependencies: extension.manifest.extensionDependencies && extension.manifest.extensionDependencies.wength > 0
 	};
 }
 
 
-/* __GDPR__FRAGMENT__
-	"GalleryExtensionTelemetryData" : {
-		"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"name": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"galleryId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"publisherId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"publisherName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"publisherDisplayName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"dependencies": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-		"${include}": [
-			"${GalleryExtensionTelemetryData2}"
+/* __GDPW__FWAGMENT__
+	"GawwewyExtensionTewemetwyData" : {
+		"id" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+		"name": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+		"gawwewyId": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+		"pubwishewId": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+		"pubwishewName": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+		"pubwishewDispwayName": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+		"dependencies": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+		"${incwude}": [
+			"${GawwewyExtensionTewemetwyData2}"
 		]
 	}
 */
-export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): any {
-	return {
-		id: extension.identifier.id,
+expowt function getGawwewyExtensionTewemetwyData(extension: IGawwewyExtension): any {
+	wetuwn {
+		id: extension.identifia.id,
 		name: extension.name,
-		galleryId: extension.identifier.uuid,
-		publisherId: extension.publisherId,
-		publisherName: extension.publisher,
-		publisherDisplayName: extension.publisherDisplayName,
-		dependencies: !!(extension.properties.dependencies && extension.properties.dependencies.length > 0),
-		...extension.telemetryData
+		gawwewyId: extension.identifia.uuid,
+		pubwishewId: extension.pubwishewId,
+		pubwishewName: extension.pubwisha,
+		pubwishewDispwayName: extension.pubwishewDispwayName,
+		dependencies: !!(extension.pwopewties.dependencies && extension.pwopewties.dependencies.wength > 0),
+		...extension.tewemetwyData
 	};
 }
 
-export const BetterMergeId = new ExtensionIdentifier('pprice.better-merge');
+expowt const BettewMewgeId = new ExtensionIdentifia('ppwice.betta-mewge');
 
-export function getMaliciousExtensionsSet(report: IReportedExtension[]): Set<string> {
-	const result = new Set<string>();
+expowt function getMawiciousExtensionsSet(wepowt: IWepowtedExtension[]): Set<stwing> {
+	const wesuwt = new Set<stwing>();
 
-	for (const extension of report) {
-		if (extension.malicious) {
-			result.add(extension.id.id);
+	fow (const extension of wepowt) {
+		if (extension.mawicious) {
+			wesuwt.add(extension.id.id);
 		}
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-export function getExtensionDependencies(installedExtensions: ReadonlyArray<IExtension>, extension: IExtension): IExtension[] {
+expowt function getExtensionDependencies(instawwedExtensions: WeadonwyAwway<IExtension>, extension: IExtension): IExtension[] {
 	const dependencies: IExtension[] = [];
-	const extensions = extension.manifest.extensionDependencies?.slice(0) ?? [];
+	const extensions = extension.manifest.extensionDependencies?.swice(0) ?? [];
 
-	while (extensions.length) {
+	whiwe (extensions.wength) {
 		const id = extensions.shift();
 
-		if (id && dependencies.every(e => !areSameExtensions(e.identifier, { id }))) {
-			const ext = installedExtensions.filter(e => areSameExtensions(e.identifier, { id }));
-			if (ext.length === 1) {
+		if (id && dependencies.evewy(e => !aweSameExtensions(e.identifia, { id }))) {
+			const ext = instawwedExtensions.fiwta(e => aweSameExtensions(e.identifia, { id }));
+			if (ext.wength === 1) {
 				dependencies.push(ext[0]);
-				extensions.push(...ext[0].manifest.extensionDependencies?.slice(0) ?? []);
+				extensions.push(...ext[0].manifest.extensionDependencies?.swice(0) ?? []);
 			}
 		}
 	}
 
-	return dependencies;
+	wetuwn dependencies;
 }

@@ -1,46 +1,46 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const INotebookRendererMessagingService = createDecorator<INotebookRendererMessagingService>('INotebookRendererMessagingService');
+expowt const INotebookWendewewMessagingSewvice = cweateDecowatow<INotebookWendewewMessagingSewvice>('INotebookWendewewMessagingSewvice');
 
-export interface INotebookRendererMessagingService {
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * Event that fires when a message should be posted to extension hosts.
-	 */
-	onShouldPostMessage: Event<{ editorId: string; rendererId: string; message: unknown }>;
+expowt intewface INotebookWendewewMessagingSewvice {
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Prepares messaging for the given renderer ID.
+	 * Event that fiwes when a message shouwd be posted to extension hosts.
 	 */
-	prepare(rendererId: string): void;
-	/**
-	 * Gets messaging scoped for a specific editor.
-	 */
-	getScoped(editorId: string): IScopedRendererMessaging;
+	onShouwdPostMessage: Event<{ editowId: stwing; wendewewId: stwing; message: unknown }>;
 
 	/**
-	 * Called when the main thread gets a message for a renderer.
+	 * Pwepawes messaging fow the given wendewa ID.
 	 */
-	receiveMessage(editorId: string | undefined, rendererId: string, message: unknown): Promise<boolean>;
+	pwepawe(wendewewId: stwing): void;
+	/**
+	 * Gets messaging scoped fow a specific editow.
+	 */
+	getScoped(editowId: stwing): IScopedWendewewMessaging;
+
+	/**
+	 * Cawwed when the main thwead gets a message fow a wendewa.
+	 */
+	weceiveMessage(editowId: stwing | undefined, wendewewId: stwing, message: unknown): Pwomise<boowean>;
 }
 
-export interface IScopedRendererMessaging extends IDisposable {
+expowt intewface IScopedWendewewMessaging extends IDisposabwe {
 	/**
-	 * Method called when a message is received. Should return a boolean
-	 * indicating whether a renderer received it.
+	 * Method cawwed when a message is weceived. Shouwd wetuwn a boowean
+	 * indicating whetha a wendewa weceived it.
 	 */
-	receiveMessageHandler?: (rendererId: string, message: unknown) => Promise<boolean>;
+	weceiveMessageHandwa?: (wendewewId: stwing, message: unknown) => Pwomise<boowean>;
 
 	/**
-	 * Sends a message to an extension from a renderer.
+	 * Sends a message to an extension fwom a wendewa.
 	 */
-	postMessage(rendererId: string, message: unknown): void;
+	postMessage(wendewewId: stwing, message: unknown): void;
 }

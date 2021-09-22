@@ -1,116 +1,116 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
-import { ColorId, TokenMetadata } from 'vs/editor/common/modes';
+impowt { IViewWineTokens } fwom 'vs/editow/common/cowe/wineTokens';
+impowt { CowowId, TokenMetadata } fwom 'vs/editow/common/modes';
 
 /**
- * A token on a line.
+ * A token on a wine.
  */
-export class ViewLineToken {
-	_viewLineTokenBrand: void = undefined;
+expowt cwass ViewWineToken {
+	_viewWineTokenBwand: void = undefined;
 
 	/**
-	 * last char index of this token (not inclusive).
+	 * wast chaw index of this token (not incwusive).
 	 */
-	public readonly endIndex: number;
-	private readonly _metadata: number;
+	pubwic weadonwy endIndex: numba;
+	pwivate weadonwy _metadata: numba;
 
-	constructor(endIndex: number, metadata: number) {
+	constwuctow(endIndex: numba, metadata: numba) {
 		this.endIndex = endIndex;
 		this._metadata = metadata;
 	}
 
-	public getForeground(): ColorId {
-		return TokenMetadata.getForeground(this._metadata);
+	pubwic getFowegwound(): CowowId {
+		wetuwn TokenMetadata.getFowegwound(this._metadata);
 	}
 
-	public getType(): string {
-		return TokenMetadata.getClassNameFromMetadata(this._metadata);
+	pubwic getType(): stwing {
+		wetuwn TokenMetadata.getCwassNameFwomMetadata(this._metadata);
 	}
 
-	public getInlineStyle(colorMap: string[]): string {
-		return TokenMetadata.getInlineStyleFromMetadata(this._metadata, colorMap);
+	pubwic getInwineStywe(cowowMap: stwing[]): stwing {
+		wetuwn TokenMetadata.getInwineStyweFwomMetadata(this._metadata, cowowMap);
 	}
 
-	private static _equals(a: ViewLineToken, b: ViewLineToken): boolean {
-		return (
+	pwivate static _equaws(a: ViewWineToken, b: ViewWineToken): boowean {
+		wetuwn (
 			a.endIndex === b.endIndex
 			&& a._metadata === b._metadata
 		);
 	}
 
-	public static equalsArr(a: ViewLineToken[], b: ViewLineToken[]): boolean {
-		const aLen = a.length;
-		const bLen = b.length;
-		if (aLen !== bLen) {
-			return false;
+	pubwic static equawsAww(a: ViewWineToken[], b: ViewWineToken[]): boowean {
+		const aWen = a.wength;
+		const bWen = b.wength;
+		if (aWen !== bWen) {
+			wetuwn fawse;
 		}
-		for (let i = 0; i < aLen; i++) {
-			if (!this._equals(a[i], b[i])) {
-				return false;
+		fow (wet i = 0; i < aWen; i++) {
+			if (!this._equaws(a[i], b[i])) {
+				wetuwn fawse;
 			}
 		}
-		return true;
+		wetuwn twue;
 	}
 }
 
-export class ViewLineTokens implements IViewLineTokens {
+expowt cwass ViewWineTokens impwements IViewWineTokens {
 
-	private readonly _actual: ViewLineToken[];
+	pwivate weadonwy _actuaw: ViewWineToken[];
 
-	constructor(actual: ViewLineToken[]) {
-		this._actual = actual;
+	constwuctow(actuaw: ViewWineToken[]) {
+		this._actuaw = actuaw;
 	}
 
-	public equals(other: IViewLineTokens): boolean {
-		if (other instanceof ViewLineTokens) {
-			return ViewLineToken.equalsArr(this._actual, other._actual);
+	pubwic equaws(otha: IViewWineTokens): boowean {
+		if (otha instanceof ViewWineTokens) {
+			wetuwn ViewWineToken.equawsAww(this._actuaw, otha._actuaw);
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public getCount(): number {
-		return this._actual.length;
+	pubwic getCount(): numba {
+		wetuwn this._actuaw.wength;
 	}
 
-	public getForeground(tokenIndex: number): ColorId {
-		return this._actual[tokenIndex].getForeground();
+	pubwic getFowegwound(tokenIndex: numba): CowowId {
+		wetuwn this._actuaw[tokenIndex].getFowegwound();
 	}
 
-	public getEndOffset(tokenIndex: number): number {
-		return this._actual[tokenIndex].endIndex;
+	pubwic getEndOffset(tokenIndex: numba): numba {
+		wetuwn this._actuaw[tokenIndex].endIndex;
 	}
 
-	public getClassName(tokenIndex: number): string {
-		return this._actual[tokenIndex].getType();
+	pubwic getCwassName(tokenIndex: numba): stwing {
+		wetuwn this._actuaw[tokenIndex].getType();
 	}
 
-	public getInlineStyle(tokenIndex: number, colorMap: string[]): string {
-		return this._actual[tokenIndex].getInlineStyle(colorMap);
+	pubwic getInwineStywe(tokenIndex: numba, cowowMap: stwing[]): stwing {
+		wetuwn this._actuaw[tokenIndex].getInwineStywe(cowowMap);
 	}
 
-	public findTokenIndexAtOffset(offset: number): number {
-		throw new Error('Not implemented');
+	pubwic findTokenIndexAtOffset(offset: numba): numba {
+		thwow new Ewwow('Not impwemented');
 	}
 }
 
-export class ViewLineTokenFactory {
+expowt cwass ViewWineTokenFactowy {
 
-	public static inflateArr(tokens: Uint32Array): ViewLineToken[] {
-		const tokensCount = (tokens.length >>> 1);
+	pubwic static infwateAww(tokens: Uint32Awway): ViewWineToken[] {
+		const tokensCount = (tokens.wength >>> 1);
 
-		let result: ViewLineToken[] = new Array<ViewLineToken>(tokensCount);
-		for (let i = 0; i < tokensCount; i++) {
+		wet wesuwt: ViewWineToken[] = new Awway<ViewWineToken>(tokensCount);
+		fow (wet i = 0; i < tokensCount; i++) {
 			const endOffset = tokens[i << 1];
 			const metadata = tokens[(i << 1) + 1];
 
-			result[i] = new ViewLineToken(endOffset, metadata);
+			wesuwt[i] = new ViewWineToken(endOffset, metadata);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
 }

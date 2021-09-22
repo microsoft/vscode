@@ -1,92 +1,92 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Widget } from 'vs/base/browser/ui/widget';
-import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import * as dom from 'vs/base/browser/dom';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IHoverService, IHoverOptions } from 'vs/workbench/services/hover/browser/hover';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+impowt { Widget } fwom 'vs/base/bwowsa/ui/widget';
+impowt { IEnviwonmentVawiabweInfo } fwom 'vs/wowkbench/contwib/tewminaw/common/enviwonmentVawiabwe';
+impowt { MawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { ITewminawWidget } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/widgets/widgets';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IHovewSewvice, IHovewOptions } fwom 'vs/wowkbench/sewvices/hova/bwowsa/hova';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export class EnvironmentVariableInfoWidget extends Widget implements ITerminalWidget {
-	readonly id = 'env-var-info';
+expowt cwass EnviwonmentVawiabweInfoWidget extends Widget impwements ITewminawWidget {
+	weadonwy id = 'env-vaw-info';
 
-	private _domNode: HTMLElement | undefined;
-	private _container: HTMLElement | undefined;
-	private _mouseMoveListener: IDisposable | undefined;
-	private _hoverOptions: IHoverOptions | undefined;
+	pwivate _domNode: HTMWEwement | undefined;
+	pwivate _containa: HTMWEwement | undefined;
+	pwivate _mouseMoveWistena: IDisposabwe | undefined;
+	pwivate _hovewOptions: IHovewOptions | undefined;
 
-	get requiresAction() { return this._info.requiresAction; }
+	get wequiwesAction() { wetuwn this._info.wequiwesAction; }
 
-	constructor(
-		private _info: IEnvironmentVariableInfo,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IHoverService private readonly _hoverService: IHoverService
+	constwuctow(
+		pwivate _info: IEnviwonmentVawiabweInfo,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
+		@IHovewSewvice pwivate weadonwy _hovewSewvice: IHovewSewvice
 	) {
-		super();
+		supa();
 	}
 
-	attach(container: HTMLElement): void {
-		this._container = container;
-		this._domNode = document.createElement('div');
-		this._domNode.classList.add('terminal-env-var-info', ...ThemeIcon.asClassNameArray(this._info.getIcon()));
-		if (this.requiresAction) {
-			this._domNode.classList.add('requires-action');
+	attach(containa: HTMWEwement): void {
+		this._containa = containa;
+		this._domNode = document.cweateEwement('div');
+		this._domNode.cwassWist.add('tewminaw-env-vaw-info', ...ThemeIcon.asCwassNameAwway(this._info.getIcon()));
+		if (this.wequiwesAction) {
+			this._domNode.cwassWist.add('wequiwes-action');
 		}
-		container.appendChild(this._domNode);
+		containa.appendChiwd(this._domNode);
 
-		const scheduler: RunOnceScheduler = new RunOnceScheduler(() => this._showHover(), this._configurationService.getValue<number>('workbench.hover.delay'));
-		this._register(scheduler);
-		const origin = { x: 0, y: 0 };
+		const scheduwa: WunOnceScheduwa = new WunOnceScheduwa(() => this._showHova(), this._configuwationSewvice.getVawue<numba>('wowkbench.hova.deway'));
+		this._wegista(scheduwa);
+		const owigin = { x: 0, y: 0 };
 
-		this.onmouseover(this._domNode, e => {
-			origin.x = e.browserEvent.pageX;
-			origin.y = e.browserEvent.pageY;
-			scheduler.schedule();
+		this.onmouseova(this._domNode, e => {
+			owigin.x = e.bwowsewEvent.pageX;
+			owigin.y = e.bwowsewEvent.pageY;
+			scheduwa.scheduwe();
 
-			this._mouseMoveListener = dom.addDisposableListener(this._domNode!, dom.EventType.MOUSE_MOVE, e => {
-				// Reset the scheduler if the mouse moves too much
-				if (Math.abs(e.pageX - origin.x) > window.devicePixelRatio * 2 || Math.abs(e.pageY - origin.y) > window.devicePixelRatio * 2) {
-					origin.x = e.pageX;
-					origin.y = e.pageY;
-					scheduler.schedule();
+			this._mouseMoveWistena = dom.addDisposabweWistena(this._domNode!, dom.EventType.MOUSE_MOVE, e => {
+				// Weset the scheduwa if the mouse moves too much
+				if (Math.abs(e.pageX - owigin.x) > window.devicePixewWatio * 2 || Math.abs(e.pageY - owigin.y) > window.devicePixewWatio * 2) {
+					owigin.x = e.pageX;
+					owigin.y = e.pageY;
+					scheduwa.scheduwe();
 				}
 			});
 		});
-		this.onnonbubblingmouseout(this._domNode, () => {
-			scheduler.cancel();
-			this._mouseMoveListener?.dispose();
+		this.onnonbubbwingmouseout(this._domNode, () => {
+			scheduwa.cancew();
+			this._mouseMoveWistena?.dispose();
 		});
 	}
 
-	override dispose() {
-		super.dispose();
-		this._domNode?.parentElement?.removeChild(this._domNode);
-		this._mouseMoveListener?.dispose();
+	ovewwide dispose() {
+		supa.dispose();
+		this._domNode?.pawentEwement?.wemoveChiwd(this._domNode);
+		this._mouseMoveWistena?.dispose();
 	}
 
 	focus() {
-		this._showHover(true);
+		this._showHova(twue);
 	}
 
-	private _showHover(focus?: boolean) {
-		if (!this._domNode || !this._container) {
-			return;
+	pwivate _showHova(focus?: boowean) {
+		if (!this._domNode || !this._containa) {
+			wetuwn;
 		}
-		if (!this._hoverOptions) {
+		if (!this._hovewOptions) {
 			const actions = this._info.getActions ? this._info.getActions() : undefined;
-			this._hoverOptions = {
-				target: this._domNode,
-				content: new MarkdownString(this._info.getInfo()),
+			this._hovewOptions = {
+				tawget: this._domNode,
+				content: new MawkdownStwing(this._info.getInfo()),
 				actions
 			};
 		}
-		this._hoverService.showHover(this._hoverOptions, focus);
+		this._hovewSewvice.showHova(this._hovewOptions, focus);
 	}
 }

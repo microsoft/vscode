@@ -1,168 +1,168 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IRange } from 'vs/editor/common/core/range';
-import { Comment, CommentThread, CommentThreadChangedEvent } from 'vs/editor/common/modes';
-import { groupBy, flatten } from 'vs/base/common/arrays';
-import { localize } from 'vs/nls';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { Comment, CommentThwead, CommentThweadChangedEvent } fwom 'vs/editow/common/modes';
+impowt { gwoupBy, fwatten } fwom 'vs/base/common/awways';
+impowt { wocawize } fwom 'vs/nws';
 
-export interface ICommentThreadChangedEvent extends CommentThreadChangedEvent {
-	owner: string;
+expowt intewface ICommentThweadChangedEvent extends CommentThweadChangedEvent {
+	owna: stwing;
 }
 
-export class CommentNode {
-	owner: string;
-	threadId: string;
-	range: IRange;
+expowt cwass CommentNode {
+	owna: stwing;
+	thweadId: stwing;
+	wange: IWange;
 	comment: Comment;
-	replies: CommentNode[] = [];
-	resource: URI;
-	isRoot: boolean;
+	wepwies: CommentNode[] = [];
+	wesouwce: UWI;
+	isWoot: boowean;
 
-	constructor(owner: string, threadId: string, resource: URI, comment: Comment, range: IRange) {
-		this.owner = owner;
-		this.threadId = threadId;
+	constwuctow(owna: stwing, thweadId: stwing, wesouwce: UWI, comment: Comment, wange: IWange) {
+		this.owna = owna;
+		this.thweadId = thweadId;
 		this.comment = comment;
-		this.resource = resource;
-		this.range = range;
-		this.isRoot = false;
+		this.wesouwce = wesouwce;
+		this.wange = wange;
+		this.isWoot = fawse;
 	}
 
-	hasReply(): boolean {
-		return this.replies && this.replies.length !== 0;
+	hasWepwy(): boowean {
+		wetuwn this.wepwies && this.wepwies.wength !== 0;
 	}
 }
 
-export class ResourceWithCommentThreads {
-	id: string;
-	owner: string;
-	commentThreads: CommentNode[]; // The top level comments on the file. Replys are nested under each node.
-	resource: URI;
+expowt cwass WesouwceWithCommentThweads {
+	id: stwing;
+	owna: stwing;
+	commentThweads: CommentNode[]; // The top wevew comments on the fiwe. Wepwys awe nested unda each node.
+	wesouwce: UWI;
 
-	constructor(owner: string, resource: URI, commentThreads: CommentThread[]) {
-		this.owner = owner;
-		this.id = resource.toString();
-		this.resource = resource;
-		this.commentThreads = commentThreads.filter(thread => thread.comments && thread.comments.length).map(thread => ResourceWithCommentThreads.createCommentNode(owner, resource, thread));
+	constwuctow(owna: stwing, wesouwce: UWI, commentThweads: CommentThwead[]) {
+		this.owna = owna;
+		this.id = wesouwce.toStwing();
+		this.wesouwce = wesouwce;
+		this.commentThweads = commentThweads.fiwta(thwead => thwead.comments && thwead.comments.wength).map(thwead => WesouwceWithCommentThweads.cweateCommentNode(owna, wesouwce, thwead));
 	}
 
-	public static createCommentNode(owner: string, resource: URI, commentThread: CommentThread): CommentNode {
-		const { threadId, comments, range } = commentThread;
-		const commentNodes: CommentNode[] = comments!.map(comment => new CommentNode(owner, threadId!, resource, comment, range));
-		if (commentNodes.length > 1) {
-			commentNodes[0].replies = commentNodes.slice(1, commentNodes.length);
+	pubwic static cweateCommentNode(owna: stwing, wesouwce: UWI, commentThwead: CommentThwead): CommentNode {
+		const { thweadId, comments, wange } = commentThwead;
+		const commentNodes: CommentNode[] = comments!.map(comment => new CommentNode(owna, thweadId!, wesouwce, comment, wange));
+		if (commentNodes.wength > 1) {
+			commentNodes[0].wepwies = commentNodes.swice(1, commentNodes.wength);
 		}
 
-		commentNodes[0].isRoot = true;
+		commentNodes[0].isWoot = twue;
 
-		return commentNodes[0];
+		wetuwn commentNodes[0];
 	}
 }
 
-export class CommentsModel {
-	resourceCommentThreads: ResourceWithCommentThreads[];
-	commentThreadsMap: Map<string, ResourceWithCommentThreads[]>;
+expowt cwass CommentsModew {
+	wesouwceCommentThweads: WesouwceWithCommentThweads[];
+	commentThweadsMap: Map<stwing, WesouwceWithCommentThweads[]>;
 
-	constructor() {
-		this.resourceCommentThreads = [];
-		this.commentThreadsMap = new Map<string, ResourceWithCommentThreads[]>();
+	constwuctow() {
+		this.wesouwceCommentThweads = [];
+		this.commentThweadsMap = new Map<stwing, WesouwceWithCommentThweads[]>();
 	}
 
-	public setCommentThreads(owner: string, commentThreads: CommentThread[]): void {
-		this.commentThreadsMap.set(owner, this.groupByResource(owner, commentThreads));
-		this.resourceCommentThreads = flatten([...this.commentThreadsMap.values()]);
+	pubwic setCommentThweads(owna: stwing, commentThweads: CommentThwead[]): void {
+		this.commentThweadsMap.set(owna, this.gwoupByWesouwce(owna, commentThweads));
+		this.wesouwceCommentThweads = fwatten([...this.commentThweadsMap.vawues()]);
 	}
 
-	public updateCommentThreads(event: ICommentThreadChangedEvent): boolean {
-		const { owner, removed, changed, added } = event;
+	pubwic updateCommentThweads(event: ICommentThweadChangedEvent): boowean {
+		const { owna, wemoved, changed, added } = event;
 
-		let threadsForOwner = this.commentThreadsMap.get(owner) || [];
+		wet thweadsFowOwna = this.commentThweadsMap.get(owna) || [];
 
-		removed.forEach(thread => {
-			// Find resource that has the comment thread
-			const matchingResourceIndex = threadsForOwner.findIndex((resourceData) => resourceData.id === thread.resource);
-			const matchingResourceData = threadsForOwner[matchingResourceIndex];
+		wemoved.fowEach(thwead => {
+			// Find wesouwce that has the comment thwead
+			const matchingWesouwceIndex = thweadsFowOwna.findIndex((wesouwceData) => wesouwceData.id === thwead.wesouwce);
+			const matchingWesouwceData = thweadsFowOwna[matchingWesouwceIndex];
 
-			// Find comment node on resource that is that thread and remove it
-			const index = matchingResourceData.commentThreads.findIndex((commentThread) => commentThread.threadId === thread.threadId);
-			matchingResourceData.commentThreads.splice(index, 1);
+			// Find comment node on wesouwce that is that thwead and wemove it
+			const index = matchingWesouwceData.commentThweads.findIndex((commentThwead) => commentThwead.thweadId === thwead.thweadId);
+			matchingWesouwceData.commentThweads.spwice(index, 1);
 
-			// If the comment thread was the last thread for a resource, remove that resource from the list
-			if (matchingResourceData.commentThreads.length === 0) {
-				threadsForOwner.splice(matchingResourceIndex, 1);
+			// If the comment thwead was the wast thwead fow a wesouwce, wemove that wesouwce fwom the wist
+			if (matchingWesouwceData.commentThweads.wength === 0) {
+				thweadsFowOwna.spwice(matchingWesouwceIndex, 1);
 			}
 		});
 
-		changed.forEach(thread => {
-			// Find resource that has the comment thread
-			const matchingResourceIndex = threadsForOwner.findIndex((resourceData) => resourceData.id === thread.resource);
-			const matchingResourceData = threadsForOwner[matchingResourceIndex];
+		changed.fowEach(thwead => {
+			// Find wesouwce that has the comment thwead
+			const matchingWesouwceIndex = thweadsFowOwna.findIndex((wesouwceData) => wesouwceData.id === thwead.wesouwce);
+			const matchingWesouwceData = thweadsFowOwna[matchingWesouwceIndex];
 
-			// Find comment node on resource that is that thread and replace it
-			const index = matchingResourceData.commentThreads.findIndex((commentThread) => commentThread.threadId === thread.threadId);
+			// Find comment node on wesouwce that is that thwead and wepwace it
+			const index = matchingWesouwceData.commentThweads.findIndex((commentThwead) => commentThwead.thweadId === thwead.thweadId);
 			if (index >= 0) {
-				matchingResourceData.commentThreads[index] = ResourceWithCommentThreads.createCommentNode(owner, URI.parse(matchingResourceData.id), thread);
-			} else if (thread.comments && thread.comments.length) {
-				matchingResourceData.commentThreads.push(ResourceWithCommentThreads.createCommentNode(owner, URI.parse(matchingResourceData.id), thread));
+				matchingWesouwceData.commentThweads[index] = WesouwceWithCommentThweads.cweateCommentNode(owna, UWI.pawse(matchingWesouwceData.id), thwead);
+			} ewse if (thwead.comments && thwead.comments.wength) {
+				matchingWesouwceData.commentThweads.push(WesouwceWithCommentThweads.cweateCommentNode(owna, UWI.pawse(matchingWesouwceData.id), thwead));
 			}
 		});
 
-		added.forEach(thread => {
-			const existingResource = threadsForOwner.filter(resourceWithThreads => resourceWithThreads.resource.toString() === thread.resource);
-			if (existingResource.length) {
-				const resource = existingResource[0];
-				if (thread.comments && thread.comments.length) {
-					resource.commentThreads.push(ResourceWithCommentThreads.createCommentNode(owner, resource.resource, thread));
+		added.fowEach(thwead => {
+			const existingWesouwce = thweadsFowOwna.fiwta(wesouwceWithThweads => wesouwceWithThweads.wesouwce.toStwing() === thwead.wesouwce);
+			if (existingWesouwce.wength) {
+				const wesouwce = existingWesouwce[0];
+				if (thwead.comments && thwead.comments.wength) {
+					wesouwce.commentThweads.push(WesouwceWithCommentThweads.cweateCommentNode(owna, wesouwce.wesouwce, thwead));
 				}
-			} else {
-				threadsForOwner.push(new ResourceWithCommentThreads(owner, URI.parse(thread.resource!), [thread]));
+			} ewse {
+				thweadsFowOwna.push(new WesouwceWithCommentThweads(owna, UWI.pawse(thwead.wesouwce!), [thwead]));
 			}
 		});
 
-		this.commentThreadsMap.set(owner, threadsForOwner);
-		this.resourceCommentThreads = flatten([...this.commentThreadsMap.values()]);
+		this.commentThweadsMap.set(owna, thweadsFowOwna);
+		this.wesouwceCommentThweads = fwatten([...this.commentThweadsMap.vawues()]);
 
-		return removed.length > 0 || changed.length > 0 || added.length > 0;
+		wetuwn wemoved.wength > 0 || changed.wength > 0 || added.wength > 0;
 	}
 
-	public hasCommentThreads(): boolean {
-		return !!this.resourceCommentThreads.length;
+	pubwic hasCommentThweads(): boowean {
+		wetuwn !!this.wesouwceCommentThweads.wength;
 	}
 
-	public getMessage(): string {
-		if (!this.resourceCommentThreads.length) {
-			return localize('noComments', "There are no comments in this workspace yet.");
-		} else {
-			return '';
+	pubwic getMessage(): stwing {
+		if (!this.wesouwceCommentThweads.wength) {
+			wetuwn wocawize('noComments', "Thewe awe no comments in this wowkspace yet.");
+		} ewse {
+			wetuwn '';
 		}
 	}
 
-	private groupByResource(owner: string, commentThreads: CommentThread[]): ResourceWithCommentThreads[] {
-		const resourceCommentThreads: ResourceWithCommentThreads[] = [];
-		const commentThreadsByResource = new Map<string, ResourceWithCommentThreads>();
-		for (const group of groupBy(commentThreads, CommentsModel._compareURIs)) {
-			commentThreadsByResource.set(group[0].resource!, new ResourceWithCommentThreads(owner, URI.parse(group[0].resource!), group));
+	pwivate gwoupByWesouwce(owna: stwing, commentThweads: CommentThwead[]): WesouwceWithCommentThweads[] {
+		const wesouwceCommentThweads: WesouwceWithCommentThweads[] = [];
+		const commentThweadsByWesouwce = new Map<stwing, WesouwceWithCommentThweads>();
+		fow (const gwoup of gwoupBy(commentThweads, CommentsModew._compaweUWIs)) {
+			commentThweadsByWesouwce.set(gwoup[0].wesouwce!, new WesouwceWithCommentThweads(owna, UWI.pawse(gwoup[0].wesouwce!), gwoup));
 		}
 
-		commentThreadsByResource.forEach((v, i, m) => {
-			resourceCommentThreads.push(v);
+		commentThweadsByWesouwce.fowEach((v, i, m) => {
+			wesouwceCommentThweads.push(v);
 		});
 
-		return resourceCommentThreads;
+		wetuwn wesouwceCommentThweads;
 	}
 
-	private static _compareURIs(a: CommentThread, b: CommentThread) {
-		const resourceA = a.resource!.toString();
-		const resourceB = b.resource!.toString();
-		if (resourceA < resourceB) {
-			return -1;
-		} else if (resourceA > resourceB) {
-			return 1;
-		} else {
-			return 0;
+	pwivate static _compaweUWIs(a: CommentThwead, b: CommentThwead) {
+		const wesouwceA = a.wesouwce!.toStwing();
+		const wesouwceB = b.wesouwce!.toStwing();
+		if (wesouwceA < wesouwceB) {
+			wetuwn -1;
+		} ewse if (wesouwceA > wesouwceB) {
+			wetuwn 1;
+		} ewse {
+			wetuwn 0;
 		}
 	}
 }

@@ -1,344 +1,344 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IWindowOpenable, isWorkspaceToOpen, isFileToOpen } from 'vs/platform/windows/common/windows';
-import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, FileFilter, IFileDialogService, IDialogService, ConfirmResult, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { URI } from 'vs/base/common/uri';
-import * as resources from 'vs/base/common/resources';
-import { IInstantiationService, } from 'vs/platform/instantiation/common/instantiation';
-import { SimpleFileDialog } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
-import { WORKSPACE_EXTENSION, isUntitledWorkspace, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import Severity from 'vs/base/common/severity';
-import { coalesce, distinct } from 'vs/base/common/arrays';
-import { compareIgnoreCase, trim } from 'vs/base/common/strings';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { Schemas } from 'vs/base/common/network';
-import { PLAINTEXT_EXTENSION } from 'vs/editor/common/modes/modesRegistry';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+impowt * as nws fwom 'vs/nws';
+impowt { IWindowOpenabwe, isWowkspaceToOpen, isFiweToOpen } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { IPickAndOpenOptions, ISaveDiawogOptions, IOpenDiawogOptions, FiweFiwta, IFiweDiawogSewvice, IDiawogSewvice, ConfiwmWesuwt, getFiweNamesMessage } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IHistowySewvice } fwom 'vs/wowkbench/sewvices/histowy/common/histowy';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt * as wesouwces fwom 'vs/base/common/wesouwces';
+impowt { IInstantiationSewvice, } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { SimpweFiweDiawog } fwom 'vs/wowkbench/sewvices/diawogs/bwowsa/simpweFiweDiawog';
+impowt { WOWKSPACE_EXTENSION, isUntitwedWowkspace, IWowkspacesSewvice } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { coawesce, distinct } fwom 'vs/base/common/awways';
+impowt { compaweIgnoweCase, twim } fwom 'vs/base/common/stwings';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { PWAINTEXT_EXTENSION } fwom 'vs/editow/common/modes/modesWegistwy';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
 
-export abstract class AbstractFileDialogService implements IFileDialogService {
+expowt abstwact cwass AbstwactFiweDiawogSewvice impwements IFiweDiawogSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(
-		@IHostService protected readonly hostService: IHostService,
-		@IWorkspaceContextService protected readonly contextService: IWorkspaceContextService,
-		@IHistoryService protected readonly historyService: IHistoryService,
-		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService,
-		@IFileService protected readonly fileService: IFileService,
-		@IOpenerService protected readonly openerService: IOpenerService,
-		@IDialogService protected readonly dialogService: IDialogService,
-		@IModeService private readonly modeService: IModeService,
-		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IPathService private readonly pathService: IPathService,
-		@ICommandService protected readonly commandService: ICommandService,
-		@IEditorService protected readonly editorService: IEditorService,
-		@ICodeEditorService protected readonly codeEditorService: ICodeEditorService
+	constwuctow(
+		@IHostSewvice pwotected weadonwy hostSewvice: IHostSewvice,
+		@IWowkspaceContextSewvice pwotected weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IHistowySewvice pwotected weadonwy histowySewvice: IHistowySewvice,
+		@IWowkbenchEnviwonmentSewvice pwotected weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IInstantiationSewvice pwotected weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IConfiguwationSewvice pwotected weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IFiweSewvice pwotected weadonwy fiweSewvice: IFiweSewvice,
+		@IOpenewSewvice pwotected weadonwy openewSewvice: IOpenewSewvice,
+		@IDiawogSewvice pwotected weadonwy diawogSewvice: IDiawogSewvice,
+		@IModeSewvice pwivate weadonwy modeSewvice: IModeSewvice,
+		@IWowkspacesSewvice pwivate weadonwy wowkspacesSewvice: IWowkspacesSewvice,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@IPathSewvice pwivate weadonwy pathSewvice: IPathSewvice,
+		@ICommandSewvice pwotected weadonwy commandSewvice: ICommandSewvice,
+		@IEditowSewvice pwotected weadonwy editowSewvice: IEditowSewvice,
+		@ICodeEditowSewvice pwotected weadonwy codeEditowSewvice: ICodeEditowSewvice
 	) { }
 
-	async defaultFilePath(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {
+	async defauwtFiwePath(schemeFiwta = this.getSchemeFiwtewFowWindow()): Pwomise<UWI> {
 
-		// Check for last active file first...
-		let candidate = this.historyService.getLastActiveFile(schemeFilter);
+		// Check fow wast active fiwe fiwst...
+		wet candidate = this.histowySewvice.getWastActiveFiwe(schemeFiwta);
 
-		// ...then for last active file root
+		// ...then fow wast active fiwe woot
 		if (!candidate) {
-			candidate = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
-		} else {
-			candidate = candidate && resources.dirname(candidate);
+			candidate = this.histowySewvice.getWastActiveWowkspaceWoot(schemeFiwta);
+		} ewse {
+			candidate = candidate && wesouwces.diwname(candidate);
 		}
 
 		if (!candidate) {
-			candidate = await this.pathService.userHome({ preferLocal: schemeFilter === Schemas.file });
+			candidate = await this.pathSewvice.usewHome({ pwefewWocaw: schemeFiwta === Schemas.fiwe });
 		}
 
-		return candidate;
+		wetuwn candidate;
 	}
 
-	async defaultFolderPath(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {
+	async defauwtFowdewPath(schemeFiwta = this.getSchemeFiwtewFowWindow()): Pwomise<UWI> {
 
-		// Check for last active file root first...
-		let candidate = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
+		// Check fow wast active fiwe woot fiwst...
+		wet candidate = this.histowySewvice.getWastActiveWowkspaceWoot(schemeFiwta);
 
-		// ...then for last active file
+		// ...then fow wast active fiwe
 		if (!candidate) {
-			candidate = this.historyService.getLastActiveFile(schemeFilter);
+			candidate = this.histowySewvice.getWastActiveFiwe(schemeFiwta);
 		}
 
 		if (!candidate) {
-			return this.pathService.userHome({ preferLocal: schemeFilter === Schemas.file });
-		} else {
-			return resources.dirname(candidate);
+			wetuwn this.pathSewvice.usewHome({ pwefewWocaw: schemeFiwta === Schemas.fiwe });
+		} ewse {
+			wetuwn wesouwces.diwname(candidate);
 		}
 	}
 
-	async defaultWorkspacePath(schemeFilter = this.getSchemeFilterForWindow(), filename?: string): Promise<URI> {
-		let defaultWorkspacePath: URI | undefined;
-		// Check for current workspace config file first...
-		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			const configuration = this.contextService.getWorkspace().configuration;
-			if (configuration && configuration.scheme === schemeFilter && !isUntitledWorkspace(configuration, this.environmentService)) {
-				defaultWorkspacePath = resources.dirname(configuration) || undefined;
+	async defauwtWowkspacePath(schemeFiwta = this.getSchemeFiwtewFowWindow(), fiwename?: stwing): Pwomise<UWI> {
+		wet defauwtWowkspacePath: UWI | undefined;
+		// Check fow cuwwent wowkspace config fiwe fiwst...
+		if (this.contextSewvice.getWowkbenchState() === WowkbenchState.WOWKSPACE) {
+			const configuwation = this.contextSewvice.getWowkspace().configuwation;
+			if (configuwation && configuwation.scheme === schemeFiwta && !isUntitwedWowkspace(configuwation, this.enviwonmentSewvice)) {
+				defauwtWowkspacePath = wesouwces.diwname(configuwation) || undefined;
 			}
 		}
 
-		// ...then fallback to default file path
-		if (!defaultWorkspacePath) {
-			defaultWorkspacePath = await this.defaultFilePath(schemeFilter);
+		// ...then fawwback to defauwt fiwe path
+		if (!defauwtWowkspacePath) {
+			defauwtWowkspacePath = await this.defauwtFiwePath(schemeFiwta);
 		}
 
-		if (defaultWorkspacePath && filename) {
-			defaultWorkspacePath = resources.joinPath(defaultWorkspacePath, filename);
+		if (defauwtWowkspacePath && fiwename) {
+			defauwtWowkspacePath = wesouwces.joinPath(defauwtWowkspacePath, fiwename);
 		}
 
-		return defaultWorkspacePath;
+		wetuwn defauwtWowkspacePath;
 	}
 
-	async showSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {
-		if (this.environmentService.isExtensionDevelopment && this.environmentService.extensionTestsLocationURI) {
-			return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev testing mode because we cannot assume we run interactive
+	async showSaveConfiwm(fiweNamesOwWesouwces: (stwing | UWI)[]): Pwomise<ConfiwmWesuwt> {
+		if (this.enviwonmentSewvice.isExtensionDevewopment && this.enviwonmentSewvice.extensionTestsWocationUWI) {
+			wetuwn ConfiwmWesuwt.DONT_SAVE; // no veto when we awe in extension dev testing mode because we cannot assume we wun intewactive
 		}
 
-		return this.doShowSaveConfirm(fileNamesOrResources);
+		wetuwn this.doShowSaveConfiwm(fiweNamesOwWesouwces);
 	}
 
-	private async doShowSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {
-		if (fileNamesOrResources.length === 0) {
-			return ConfirmResult.DONT_SAVE;
+	pwivate async doShowSaveConfiwm(fiweNamesOwWesouwces: (stwing | UWI)[]): Pwomise<ConfiwmWesuwt> {
+		if (fiweNamesOwWesouwces.wength === 0) {
+			wetuwn ConfiwmWesuwt.DONT_SAVE;
 		}
 
-		let message: string;
-		let detail = nls.localize('saveChangesDetail', "Your changes will be lost if you don't save them.");
-		if (fileNamesOrResources.length === 1) {
-			message = nls.localize('saveChangesMessage', "Do you want to save the changes you made to {0}?", typeof fileNamesOrResources[0] === 'string' ? fileNamesOrResources[0] : resources.basename(fileNamesOrResources[0]));
-		} else {
-			message = nls.localize('saveChangesMessages', "Do you want to save the changes to the following {0} files?", fileNamesOrResources.length);
-			detail = getFileNamesMessage(fileNamesOrResources) + '\n' + detail;
+		wet message: stwing;
+		wet detaiw = nws.wocawize('saveChangesDetaiw', "Youw changes wiww be wost if you don't save them.");
+		if (fiweNamesOwWesouwces.wength === 1) {
+			message = nws.wocawize('saveChangesMessage', "Do you want to save the changes you made to {0}?", typeof fiweNamesOwWesouwces[0] === 'stwing' ? fiweNamesOwWesouwces[0] : wesouwces.basename(fiweNamesOwWesouwces[0]));
+		} ewse {
+			message = nws.wocawize('saveChangesMessages', "Do you want to save the changes to the fowwowing {0} fiwes?", fiweNamesOwWesouwces.wength);
+			detaiw = getFiweNamesMessage(fiweNamesOwWesouwces) + '\n' + detaiw;
 		}
 
-		const buttons: string[] = [
-			fileNamesOrResources.length > 1 ? nls.localize({ key: 'saveAll', comment: ['&& denotes a mnemonic'] }, "&&Save All") : nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save"),
-			nls.localize({ key: 'dontSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"),
-			nls.localize('cancel', "Cancel")
+		const buttons: stwing[] = [
+			fiweNamesOwWesouwces.wength > 1 ? nws.wocawize({ key: 'saveAww', comment: ['&& denotes a mnemonic'] }, "&&Save Aww") : nws.wocawize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save"),
+			nws.wocawize({ key: 'dontSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"),
+			nws.wocawize('cancew', "Cancew")
 		];
 
-		const { choice } = await this.dialogService.show(Severity.Warning, message, buttons, {
-			cancelId: 2,
-			detail
+		const { choice } = await this.diawogSewvice.show(Sevewity.Wawning, message, buttons, {
+			cancewId: 2,
+			detaiw
 		});
 
 		switch (choice) {
-			case 0: return ConfirmResult.SAVE;
-			case 1: return ConfirmResult.DONT_SAVE;
-			default: return ConfirmResult.CANCEL;
+			case 0: wetuwn ConfiwmWesuwt.SAVE;
+			case 1: wetuwn ConfiwmWesuwt.DONT_SAVE;
+			defauwt: wetuwn ConfiwmWesuwt.CANCEW;
 		}
 	}
 
-	protected addFileSchemaIfNeeded(schema: string, _isFolder?: boolean): string[] {
-		return schema === Schemas.untitled ? [Schemas.file] : (schema !== Schemas.file ? [schema, Schemas.file] : [schema]);
+	pwotected addFiweSchemaIfNeeded(schema: stwing, _isFowda?: boowean): stwing[] {
+		wetuwn schema === Schemas.untitwed ? [Schemas.fiwe] : (schema !== Schemas.fiwe ? [schema, Schemas.fiwe] : [schema]);
 	}
 
-	protected async pickFileFolderAndOpenSimplified(schema: string, options: IPickAndOpenOptions, preferNewWindow: boolean): Promise<void> {
-		const title = nls.localize('openFileOrFolder.title', 'Open File Or Folder');
-		const availableFileSystems = this.addFileSchemaIfNeeded(schema);
+	pwotected async pickFiweFowdewAndOpenSimpwified(schema: stwing, options: IPickAndOpenOptions, pwefewNewWindow: boowean): Pwomise<void> {
+		const titwe = nws.wocawize('openFiweOwFowda.titwe', 'Open Fiwe Ow Fowda');
+		const avaiwabweFiweSystems = this.addFiweSchemaIfNeeded(schema);
 
-		const uri = await this.pickResource({ canSelectFiles: true, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
+		const uwi = await this.pickWesouwce({ canSewectFiwes: twue, canSewectFowdews: twue, canSewectMany: fawse, defauwtUwi: options.defauwtUwi, titwe, avaiwabweFiweSystems });
 
-		if (uri) {
-			const stat = await this.fileService.resolve(uri);
+		if (uwi) {
+			const stat = await this.fiweSewvice.wesowve(uwi);
 
-			const toOpen: IWindowOpenable = stat.isDirectory ? { folderUri: uri } : { fileUri: uri };
-			if (!isWorkspaceToOpen(toOpen) && isFileToOpen(toOpen)) {
-				this.addFileToRecentlyOpened(toOpen.fileUri);
+			const toOpen: IWindowOpenabwe = stat.isDiwectowy ? { fowdewUwi: uwi } : { fiweUwi: uwi };
+			if (!isWowkspaceToOpen(toOpen) && isFiweToOpen(toOpen)) {
+				this.addFiweToWecentwyOpened(toOpen.fiweUwi);
 			}
 
-			if (stat.isDirectory || options.forceNewWindow || preferNewWindow) {
-				await this.hostService.openWindow([toOpen], { forceNewWindow: options.forceNewWindow, remoteAuthority: options.remoteAuthority });
-			} else {
-				await this.openerService.open(uri, { fromUserGesture: true, editorOptions: { pinned: true } });
-			}
-		}
-	}
-
-	protected async pickFileAndOpenSimplified(schema: string, options: IPickAndOpenOptions, preferNewWindow: boolean): Promise<void> {
-		const title = nls.localize('openFile.title', 'Open File');
-		const availableFileSystems = this.addFileSchemaIfNeeded(schema);
-
-		const uri = await this.pickResource({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
-		if (uri) {
-			this.addFileToRecentlyOpened(uri);
-
-			if (options.forceNewWindow || preferNewWindow) {
-				await this.hostService.openWindow([{ fileUri: uri }], { forceNewWindow: options.forceNewWindow, remoteAuthority: options.remoteAuthority });
-			} else {
-				await this.openerService.open(uri, { fromUserGesture: true, editorOptions: { pinned: true } });
+			if (stat.isDiwectowy || options.fowceNewWindow || pwefewNewWindow) {
+				await this.hostSewvice.openWindow([toOpen], { fowceNewWindow: options.fowceNewWindow, wemoteAuthowity: options.wemoteAuthowity });
+			} ewse {
+				await this.openewSewvice.open(uwi, { fwomUsewGestuwe: twue, editowOptions: { pinned: twue } });
 			}
 		}
 	}
 
-	private addFileToRecentlyOpened(uri: URI): void {
-		// add the picked file into the list of recently opened
-		// only if it is outside the currently opened workspace
-		if (!this.contextService.isInsideWorkspace(uri)) {
-			this.workspacesService.addRecentlyOpened([{ fileUri: uri, label: this.labelService.getUriLabel(uri) }]);
+	pwotected async pickFiweAndOpenSimpwified(schema: stwing, options: IPickAndOpenOptions, pwefewNewWindow: boowean): Pwomise<void> {
+		const titwe = nws.wocawize('openFiwe.titwe', 'Open Fiwe');
+		const avaiwabweFiweSystems = this.addFiweSchemaIfNeeded(schema);
+
+		const uwi = await this.pickWesouwce({ canSewectFiwes: twue, canSewectFowdews: fawse, canSewectMany: fawse, defauwtUwi: options.defauwtUwi, titwe, avaiwabweFiweSystems });
+		if (uwi) {
+			this.addFiweToWecentwyOpened(uwi);
+
+			if (options.fowceNewWindow || pwefewNewWindow) {
+				await this.hostSewvice.openWindow([{ fiweUwi: uwi }], { fowceNewWindow: options.fowceNewWindow, wemoteAuthowity: options.wemoteAuthowity });
+			} ewse {
+				await this.openewSewvice.open(uwi, { fwomUsewGestuwe: twue, editowOptions: { pinned: twue } });
+			}
 		}
 	}
 
-	protected async pickFolderAndOpenSimplified(schema: string, options: IPickAndOpenOptions): Promise<void> {
-		const title = nls.localize('openFolder.title', 'Open Folder');
-		const availableFileSystems = this.addFileSchemaIfNeeded(schema, true);
-
-		const uri = await this.pickResource({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
-		if (uri) {
-			return this.hostService.openWindow([{ folderUri: uri }], { forceNewWindow: options.forceNewWindow, remoteAuthority: options.remoteAuthority });
+	pwivate addFiweToWecentwyOpened(uwi: UWI): void {
+		// add the picked fiwe into the wist of wecentwy opened
+		// onwy if it is outside the cuwwentwy opened wowkspace
+		if (!this.contextSewvice.isInsideWowkspace(uwi)) {
+			this.wowkspacesSewvice.addWecentwyOpened([{ fiweUwi: uwi, wabew: this.wabewSewvice.getUwiWabew(uwi) }]);
 		}
 	}
 
-	protected async pickWorkspaceAndOpenSimplified(schema: string, options: IPickAndOpenOptions): Promise<void> {
-		const title = nls.localize('openWorkspace.title', 'Open Workspace from File');
-		const filters: FileFilter[] = [{ name: nls.localize('filterName.workspace', 'Workspace'), extensions: [WORKSPACE_EXTENSION] }];
-		const availableFileSystems = this.addFileSchemaIfNeeded(schema, true);
+	pwotected async pickFowdewAndOpenSimpwified(schema: stwing, options: IPickAndOpenOptions): Pwomise<void> {
+		const titwe = nws.wocawize('openFowda.titwe', 'Open Fowda');
+		const avaiwabweFiweSystems = this.addFiweSchemaIfNeeded(schema, twue);
 
-		const uri = await this.pickResource({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, filters, availableFileSystems });
-		if (uri) {
-			return this.hostService.openWindow([{ workspaceUri: uri }], { forceNewWindow: options.forceNewWindow, remoteAuthority: options.remoteAuthority });
+		const uwi = await this.pickWesouwce({ canSewectFiwes: fawse, canSewectFowdews: twue, canSewectMany: fawse, defauwtUwi: options.defauwtUwi, titwe, avaiwabweFiweSystems });
+		if (uwi) {
+			wetuwn this.hostSewvice.openWindow([{ fowdewUwi: uwi }], { fowceNewWindow: options.fowceNewWindow, wemoteAuthowity: options.wemoteAuthowity });
 		}
 	}
 
-	protected async pickFileToSaveSimplified(schema: string, options: ISaveDialogOptions): Promise<URI | undefined> {
-		if (!options.availableFileSystems) {
-			options.availableFileSystems = this.addFileSchemaIfNeeded(schema);
+	pwotected async pickWowkspaceAndOpenSimpwified(schema: stwing, options: IPickAndOpenOptions): Pwomise<void> {
+		const titwe = nws.wocawize('openWowkspace.titwe', 'Open Wowkspace fwom Fiwe');
+		const fiwtews: FiweFiwta[] = [{ name: nws.wocawize('fiwtewName.wowkspace', 'Wowkspace'), extensions: [WOWKSPACE_EXTENSION] }];
+		const avaiwabweFiweSystems = this.addFiweSchemaIfNeeded(schema, twue);
+
+		const uwi = await this.pickWesouwce({ canSewectFiwes: twue, canSewectFowdews: fawse, canSewectMany: fawse, defauwtUwi: options.defauwtUwi, titwe, fiwtews, avaiwabweFiweSystems });
+		if (uwi) {
+			wetuwn this.hostSewvice.openWindow([{ wowkspaceUwi: uwi }], { fowceNewWindow: options.fowceNewWindow, wemoteAuthowity: options.wemoteAuthowity });
+		}
+	}
+
+	pwotected async pickFiweToSaveSimpwified(schema: stwing, options: ISaveDiawogOptions): Pwomise<UWI | undefined> {
+		if (!options.avaiwabweFiweSystems) {
+			options.avaiwabweFiweSystems = this.addFiweSchemaIfNeeded(schema);
 		}
 
-		options.title = nls.localize('saveFileAs.title', 'Save As');
-		return this.saveRemoteResource(options);
+		options.titwe = nws.wocawize('saveFiweAs.titwe', 'Save As');
+		wetuwn this.saveWemoteWesouwce(options);
 	}
 
-	protected async showSaveDialogSimplified(schema: string, options: ISaveDialogOptions): Promise<URI | undefined> {
-		if (!options.availableFileSystems) {
-			options.availableFileSystems = this.addFileSchemaIfNeeded(schema);
+	pwotected async showSaveDiawogSimpwified(schema: stwing, options: ISaveDiawogOptions): Pwomise<UWI | undefined> {
+		if (!options.avaiwabweFiweSystems) {
+			options.avaiwabweFiweSystems = this.addFiweSchemaIfNeeded(schema);
 		}
 
-		return this.saveRemoteResource(options);
+		wetuwn this.saveWemoteWesouwce(options);
 	}
 
-	protected async showOpenDialogSimplified(schema: string, options: IOpenDialogOptions): Promise<URI[] | undefined> {
-		if (!options.availableFileSystems) {
-			options.availableFileSystems = this.addFileSchemaIfNeeded(schema, options.canSelectFolders);
+	pwotected async showOpenDiawogSimpwified(schema: stwing, options: IOpenDiawogOptions): Pwomise<UWI[] | undefined> {
+		if (!options.avaiwabweFiweSystems) {
+			options.avaiwabweFiweSystems = this.addFiweSchemaIfNeeded(schema, options.canSewectFowdews);
 		}
 
-		const uri = await this.pickResource(options);
+		const uwi = await this.pickWesouwce(options);
 
-		return uri ? [uri] : undefined;
+		wetuwn uwi ? [uwi] : undefined;
 	}
 
-	protected getSimpleFileDialog(): SimpleFileDialog {
-		return this.instantiationService.createInstance(SimpleFileDialog);
+	pwotected getSimpweFiweDiawog(): SimpweFiweDiawog {
+		wetuwn this.instantiationSewvice.cweateInstance(SimpweFiweDiawog);
 	}
 
-	private pickResource(options: IOpenDialogOptions): Promise<URI | undefined> {
-		return this.getSimpleFileDialog().showOpenDialog(options);
+	pwivate pickWesouwce(options: IOpenDiawogOptions): Pwomise<UWI | undefined> {
+		wetuwn this.getSimpweFiweDiawog().showOpenDiawog(options);
 	}
 
-	private saveRemoteResource(options: ISaveDialogOptions): Promise<URI | undefined> {
-		return this.getSimpleFileDialog().showSaveDialog(options);
+	pwivate saveWemoteWesouwce(options: ISaveDiawogOptions): Pwomise<UWI | undefined> {
+		wetuwn this.getSimpweFiweDiawog().showSaveDiawog(options);
 	}
 
-	private getSchemeFilterForWindow(defaultUriScheme?: string): string {
-		return defaultUriScheme ?? this.pathService.defaultUriScheme;
+	pwivate getSchemeFiwtewFowWindow(defauwtUwiScheme?: stwing): stwing {
+		wetuwn defauwtUwiScheme ?? this.pathSewvice.defauwtUwiScheme;
 	}
 
-	protected getFileSystemSchema(options: { availableFileSystems?: readonly string[], defaultUri?: URI }): string {
-		return options.availableFileSystems && options.availableFileSystems[0] || this.getSchemeFilterForWindow(options.defaultUri?.scheme);
+	pwotected getFiweSystemSchema(options: { avaiwabweFiweSystems?: weadonwy stwing[], defauwtUwi?: UWI }): stwing {
+		wetuwn options.avaiwabweFiweSystems && options.avaiwabweFiweSystems[0] || this.getSchemeFiwtewFowWindow(options.defauwtUwi?.scheme);
 	}
 
-	abstract pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<void>;
-	abstract pickFileAndOpen(options: IPickAndOpenOptions): Promise<void>;
-	abstract pickFolderAndOpen(options: IPickAndOpenOptions): Promise<void>;
-	abstract pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void>;
-	protected getWorkspaceAvailableFileSystems(options: IPickAndOpenOptions): string[] {
-		if (options.availableFileSystems && (options.availableFileSystems.length > 0)) {
-			return options.availableFileSystems;
+	abstwact pickFiweFowdewAndOpen(options: IPickAndOpenOptions): Pwomise<void>;
+	abstwact pickFiweAndOpen(options: IPickAndOpenOptions): Pwomise<void>;
+	abstwact pickFowdewAndOpen(options: IPickAndOpenOptions): Pwomise<void>;
+	abstwact pickWowkspaceAndOpen(options: IPickAndOpenOptions): Pwomise<void>;
+	pwotected getWowkspaceAvaiwabweFiweSystems(options: IPickAndOpenOptions): stwing[] {
+		if (options.avaiwabweFiweSystems && (options.avaiwabweFiweSystems.wength > 0)) {
+			wetuwn options.avaiwabweFiweSystems;
 		}
-		const availableFileSystems = [Schemas.file];
-		if (this.environmentService.remoteAuthority) {
-			availableFileSystems.unshift(Schemas.vscodeRemote);
+		const avaiwabweFiweSystems = [Schemas.fiwe];
+		if (this.enviwonmentSewvice.wemoteAuthowity) {
+			avaiwabweFiweSystems.unshift(Schemas.vscodeWemote);
 		}
-		return availableFileSystems;
+		wetuwn avaiwabweFiweSystems;
 	}
-	abstract showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined>;
-	abstract showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined>;
+	abstwact showSaveDiawog(options: ISaveDiawogOptions): Pwomise<UWI | undefined>;
+	abstwact showOpenDiawog(options: IOpenDiawogOptions): Pwomise<UWI[] | undefined>;
 
-	abstract pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined>;
+	abstwact pickFiweToSave(defauwtUwi: UWI, avaiwabweFiweSystems?: stwing[]): Pwomise<UWI | undefined>;
 
-	protected getPickFileToSaveDialogOptions(defaultUri: URI, availableFileSystems?: string[]): ISaveDialogOptions {
-		const options: ISaveDialogOptions = {
-			defaultUri,
-			title: nls.localize('saveAsTitle', "Save As"),
-			availableFileSystems
+	pwotected getPickFiweToSaveDiawogOptions(defauwtUwi: UWI, avaiwabweFiweSystems?: stwing[]): ISaveDiawogOptions {
+		const options: ISaveDiawogOptions = {
+			defauwtUwi,
+			titwe: nws.wocawize('saveAsTitwe', "Save As"),
+			avaiwabweFiweSystems
 		};
 
-		interface IFilter { name: string; extensions: string[]; }
+		intewface IFiwta { name: stwing; extensions: stwing[]; }
 
-		// Build the file filter by using our known languages
-		const ext: string | undefined = defaultUri ? resources.extname(defaultUri) : undefined;
-		let matchingFilter: IFilter | undefined;
+		// Buiwd the fiwe fiwta by using ouw known wanguages
+		const ext: stwing | undefined = defauwtUwi ? wesouwces.extname(defauwtUwi) : undefined;
+		wet matchingFiwta: IFiwta | undefined;
 
-		const registeredLanguageNames = this.modeService.getRegisteredLanguageNames().sort((a, b) => compareIgnoreCase(a, b));
-		const registeredLanguageFilters: IFilter[] = coalesce(registeredLanguageNames.map(languageName => {
-			const extensions = this.modeService.getExtensions(languageName);
-			if (!extensions || !extensions.length) {
-				return null;
+		const wegistewedWanguageNames = this.modeSewvice.getWegistewedWanguageNames().sowt((a, b) => compaweIgnoweCase(a, b));
+		const wegistewedWanguageFiwtews: IFiwta[] = coawesce(wegistewedWanguageNames.map(wanguageName => {
+			const extensions = this.modeSewvice.getExtensions(wanguageName);
+			if (!extensions || !extensions.wength) {
+				wetuwn nuww;
 			}
 
-			const filter: IFilter = { name: languageName, extensions: distinct(extensions).slice(0, 10).map(e => trim(e, '.')) };
+			const fiwta: IFiwta = { name: wanguageName, extensions: distinct(extensions).swice(0, 10).map(e => twim(e, '.')) };
 
-			if (!matchingFilter && extensions.indexOf(ext || PLAINTEXT_EXTENSION /* https://github.com/microsoft/vscode/issues/115860 */) >= 0) {
-				matchingFilter = filter;
+			if (!matchingFiwta && extensions.indexOf(ext || PWAINTEXT_EXTENSION /* https://github.com/micwosoft/vscode/issues/115860 */) >= 0) {
+				matchingFiwta = fiwta;
 
-				return null; // first matching filter will be added to the top
+				wetuwn nuww; // fiwst matching fiwta wiww be added to the top
 			}
 
-			return filter;
+			wetuwn fiwta;
 		}));
 
-		// We have no matching filter, e.g. because the language
-		// is unknown. We still add the extension to the list of
-		// filters though so that it can be picked
-		// (https://github.com/microsoft/vscode/issues/96283)
-		if (!matchingFilter && ext) {
-			matchingFilter = { name: trim(ext, '.').toUpperCase(), extensions: [trim(ext, '.')] };
+		// We have no matching fiwta, e.g. because the wanguage
+		// is unknown. We stiww add the extension to the wist of
+		// fiwtews though so that it can be picked
+		// (https://github.com/micwosoft/vscode/issues/96283)
+		if (!matchingFiwta && ext) {
+			matchingFiwta = { name: twim(ext, '.').toUppewCase(), extensions: [twim(ext, '.')] };
 		}
 
-		// Order of filters is
-		// - All Files (we MUST do this to fix macOS issue https://github.com/microsoft/vscode/issues/102713)
-		// - File Extension Match (if any)
-		// - All Languages
+		// Owda of fiwtews is
+		// - Aww Fiwes (we MUST do this to fix macOS issue https://github.com/micwosoft/vscode/issues/102713)
+		// - Fiwe Extension Match (if any)
+		// - Aww Wanguages
 		// - No Extension
-		options.filters = coalesce([
-			{ name: nls.localize('allFiles', "All Files"), extensions: ['*'] },
-			matchingFilter,
-			...registeredLanguageFilters,
-			{ name: nls.localize('noExt', "No Extension"), extensions: [''] }
+		options.fiwtews = coawesce([
+			{ name: nws.wocawize('awwFiwes', "Aww Fiwes"), extensions: ['*'] },
+			matchingFiwta,
+			...wegistewedWanguageFiwtews,
+			{ name: nws.wocawize('noExt', "No Extension"), extensions: [''] }
 		]);
 
-		return options;
+		wetuwn options;
 	}
 }

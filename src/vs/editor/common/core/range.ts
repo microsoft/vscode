@@ -1,449 +1,449 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPosition, Position } from 'vs/editor/common/core/position';
+impowt { IPosition, Position } fwom 'vs/editow/common/cowe/position';
 
 /**
- * A range in the editor. This interface is suitable for serialization.
+ * A wange in the editow. This intewface is suitabwe fow sewiawization.
  */
-export interface IRange {
+expowt intewface IWange {
 	/**
-	 * Line number on which the range starts (starts at 1).
+	 * Wine numba on which the wange stawts (stawts at 1).
 	 */
-	readonly startLineNumber: number;
+	weadonwy stawtWineNumba: numba;
 	/**
-	 * Column on which the range starts in line `startLineNumber` (starts at 1).
+	 * Cowumn on which the wange stawts in wine `stawtWineNumba` (stawts at 1).
 	 */
-	readonly startColumn: number;
+	weadonwy stawtCowumn: numba;
 	/**
-	 * Line number on which the range ends.
+	 * Wine numba on which the wange ends.
 	 */
-	readonly endLineNumber: number;
+	weadonwy endWineNumba: numba;
 	/**
-	 * Column on which the range ends in line `endLineNumber`.
+	 * Cowumn on which the wange ends in wine `endWineNumba`.
 	 */
-	readonly endColumn: number;
+	weadonwy endCowumn: numba;
 }
 
 /**
- * A range in the editor. (startLineNumber,startColumn) is <= (endLineNumber,endColumn)
+ * A wange in the editow. (stawtWineNumba,stawtCowumn) is <= (endWineNumba,endCowumn)
  */
-export class Range {
+expowt cwass Wange {
 
 	/**
-	 * Line number on which the range starts (starts at 1).
+	 * Wine numba on which the wange stawts (stawts at 1).
 	 */
-	public readonly startLineNumber: number;
+	pubwic weadonwy stawtWineNumba: numba;
 	/**
-	 * Column on which the range starts in line `startLineNumber` (starts at 1).
+	 * Cowumn on which the wange stawts in wine `stawtWineNumba` (stawts at 1).
 	 */
-	public readonly startColumn: number;
+	pubwic weadonwy stawtCowumn: numba;
 	/**
-	 * Line number on which the range ends.
+	 * Wine numba on which the wange ends.
 	 */
-	public readonly endLineNumber: number;
+	pubwic weadonwy endWineNumba: numba;
 	/**
-	 * Column on which the range ends in line `endLineNumber`.
+	 * Cowumn on which the wange ends in wine `endWineNumba`.
 	 */
-	public readonly endColumn: number;
+	pubwic weadonwy endCowumn: numba;
 
-	constructor(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number) {
-		if ((startLineNumber > endLineNumber) || (startLineNumber === endLineNumber && startColumn > endColumn)) {
-			this.startLineNumber = endLineNumber;
-			this.startColumn = endColumn;
-			this.endLineNumber = startLineNumber;
-			this.endColumn = startColumn;
-		} else {
-			this.startLineNumber = startLineNumber;
-			this.startColumn = startColumn;
-			this.endLineNumber = endLineNumber;
-			this.endColumn = endColumn;
+	constwuctow(stawtWineNumba: numba, stawtCowumn: numba, endWineNumba: numba, endCowumn: numba) {
+		if ((stawtWineNumba > endWineNumba) || (stawtWineNumba === endWineNumba && stawtCowumn > endCowumn)) {
+			this.stawtWineNumba = endWineNumba;
+			this.stawtCowumn = endCowumn;
+			this.endWineNumba = stawtWineNumba;
+			this.endCowumn = stawtCowumn;
+		} ewse {
+			this.stawtWineNumba = stawtWineNumba;
+			this.stawtCowumn = stawtCowumn;
+			this.endWineNumba = endWineNumba;
+			this.endCowumn = endCowumn;
 		}
 	}
 
 	/**
-	 * Test if this range is empty.
+	 * Test if this wange is empty.
 	 */
-	public isEmpty(): boolean {
-		return Range.isEmpty(this);
+	pubwic isEmpty(): boowean {
+		wetuwn Wange.isEmpty(this);
 	}
 
 	/**
-	 * Test if `range` is empty.
+	 * Test if `wange` is empty.
 	 */
-	public static isEmpty(range: IRange): boolean {
-		return (range.startLineNumber === range.endLineNumber && range.startColumn === range.endColumn);
+	pubwic static isEmpty(wange: IWange): boowean {
+		wetuwn (wange.stawtWineNumba === wange.endWineNumba && wange.stawtCowumn === wange.endCowumn);
 	}
 
 	/**
-	 * Test if position is in this range. If the position is at the edges, will return true.
+	 * Test if position is in this wange. If the position is at the edges, wiww wetuwn twue.
 	 */
-	public containsPosition(position: IPosition): boolean {
-		return Range.containsPosition(this, position);
+	pubwic containsPosition(position: IPosition): boowean {
+		wetuwn Wange.containsPosition(this, position);
 	}
 
 	/**
-	 * Test if `position` is in `range`. If the position is at the edges, will return true.
+	 * Test if `position` is in `wange`. If the position is at the edges, wiww wetuwn twue.
 	 */
-	public static containsPosition(range: IRange, position: IPosition): boolean {
-		if (position.lineNumber < range.startLineNumber || position.lineNumber > range.endLineNumber) {
-			return false;
+	pubwic static containsPosition(wange: IWange, position: IPosition): boowean {
+		if (position.wineNumba < wange.stawtWineNumba || position.wineNumba > wange.endWineNumba) {
+			wetuwn fawse;
 		}
-		if (position.lineNumber === range.startLineNumber && position.column < range.startColumn) {
-			return false;
+		if (position.wineNumba === wange.stawtWineNumba && position.cowumn < wange.stawtCowumn) {
+			wetuwn fawse;
 		}
-		if (position.lineNumber === range.endLineNumber && position.column > range.endColumn) {
-			return false;
+		if (position.wineNumba === wange.endWineNumba && position.cowumn > wange.endCowumn) {
+			wetuwn fawse;
 		}
-		return true;
+		wetuwn twue;
 	}
 
 	/**
-	 * Test if range is in this range. If the range is equal to this range, will return true.
+	 * Test if wange is in this wange. If the wange is equaw to this wange, wiww wetuwn twue.
 	 */
-	public containsRange(range: IRange): boolean {
-		return Range.containsRange(this, range);
+	pubwic containsWange(wange: IWange): boowean {
+		wetuwn Wange.containsWange(this, wange);
 	}
 
 	/**
-	 * Test if `otherRange` is in `range`. If the ranges are equal, will return true.
+	 * Test if `othewWange` is in `wange`. If the wanges awe equaw, wiww wetuwn twue.
 	 */
-	public static containsRange(range: IRange, otherRange: IRange): boolean {
-		if (otherRange.startLineNumber < range.startLineNumber || otherRange.endLineNumber < range.startLineNumber) {
-			return false;
+	pubwic static containsWange(wange: IWange, othewWange: IWange): boowean {
+		if (othewWange.stawtWineNumba < wange.stawtWineNumba || othewWange.endWineNumba < wange.stawtWineNumba) {
+			wetuwn fawse;
 		}
-		if (otherRange.startLineNumber > range.endLineNumber || otherRange.endLineNumber > range.endLineNumber) {
-			return false;
+		if (othewWange.stawtWineNumba > wange.endWineNumba || othewWange.endWineNumba > wange.endWineNumba) {
+			wetuwn fawse;
 		}
-		if (otherRange.startLineNumber === range.startLineNumber && otherRange.startColumn < range.startColumn) {
-			return false;
+		if (othewWange.stawtWineNumba === wange.stawtWineNumba && othewWange.stawtCowumn < wange.stawtCowumn) {
+			wetuwn fawse;
 		}
-		if (otherRange.endLineNumber === range.endLineNumber && otherRange.endColumn > range.endColumn) {
-			return false;
+		if (othewWange.endWineNumba === wange.endWineNumba && othewWange.endCowumn > wange.endCowumn) {
+			wetuwn fawse;
 		}
-		return true;
+		wetuwn twue;
 	}
 
 	/**
-	 * Test if `range` is strictly in this range. `range` must start after and end before this range for the result to be true.
+	 * Test if `wange` is stwictwy in this wange. `wange` must stawt afta and end befowe this wange fow the wesuwt to be twue.
 	 */
-	public strictContainsRange(range: IRange): boolean {
-		return Range.strictContainsRange(this, range);
+	pubwic stwictContainsWange(wange: IWange): boowean {
+		wetuwn Wange.stwictContainsWange(this, wange);
 	}
 
 	/**
-	 * Test if `otherRange` is strictly in `range` (must start after, and end before). If the ranges are equal, will return false.
+	 * Test if `othewWange` is stwictwy in `wange` (must stawt afta, and end befowe). If the wanges awe equaw, wiww wetuwn fawse.
 	 */
-	public static strictContainsRange(range: IRange, otherRange: IRange): boolean {
-		if (otherRange.startLineNumber < range.startLineNumber || otherRange.endLineNumber < range.startLineNumber) {
-			return false;
+	pubwic static stwictContainsWange(wange: IWange, othewWange: IWange): boowean {
+		if (othewWange.stawtWineNumba < wange.stawtWineNumba || othewWange.endWineNumba < wange.stawtWineNumba) {
+			wetuwn fawse;
 		}
-		if (otherRange.startLineNumber > range.endLineNumber || otherRange.endLineNumber > range.endLineNumber) {
-			return false;
+		if (othewWange.stawtWineNumba > wange.endWineNumba || othewWange.endWineNumba > wange.endWineNumba) {
+			wetuwn fawse;
 		}
-		if (otherRange.startLineNumber === range.startLineNumber && otherRange.startColumn <= range.startColumn) {
-			return false;
+		if (othewWange.stawtWineNumba === wange.stawtWineNumba && othewWange.stawtCowumn <= wange.stawtCowumn) {
+			wetuwn fawse;
 		}
-		if (otherRange.endLineNumber === range.endLineNumber && otherRange.endColumn >= range.endColumn) {
-			return false;
+		if (othewWange.endWineNumba === wange.endWineNumba && othewWange.endCowumn >= wange.endCowumn) {
+			wetuwn fawse;
 		}
-		return true;
+		wetuwn twue;
 	}
 
 	/**
-	 * A reunion of the two ranges.
-	 * The smallest position will be used as the start point, and the largest one as the end point.
+	 * A weunion of the two wanges.
+	 * The smawwest position wiww be used as the stawt point, and the wawgest one as the end point.
 	 */
-	public plusRange(range: IRange): Range {
-		return Range.plusRange(this, range);
+	pubwic pwusWange(wange: IWange): Wange {
+		wetuwn Wange.pwusWange(this, wange);
 	}
 
 	/**
-	 * A reunion of the two ranges.
-	 * The smallest position will be used as the start point, and the largest one as the end point.
+	 * A weunion of the two wanges.
+	 * The smawwest position wiww be used as the stawt point, and the wawgest one as the end point.
 	 */
-	public static plusRange(a: IRange, b: IRange): Range {
-		let startLineNumber: number;
-		let startColumn: number;
-		let endLineNumber: number;
-		let endColumn: number;
+	pubwic static pwusWange(a: IWange, b: IWange): Wange {
+		wet stawtWineNumba: numba;
+		wet stawtCowumn: numba;
+		wet endWineNumba: numba;
+		wet endCowumn: numba;
 
-		if (b.startLineNumber < a.startLineNumber) {
-			startLineNumber = b.startLineNumber;
-			startColumn = b.startColumn;
-		} else if (b.startLineNumber === a.startLineNumber) {
-			startLineNumber = b.startLineNumber;
-			startColumn = Math.min(b.startColumn, a.startColumn);
-		} else {
-			startLineNumber = a.startLineNumber;
-			startColumn = a.startColumn;
+		if (b.stawtWineNumba < a.stawtWineNumba) {
+			stawtWineNumba = b.stawtWineNumba;
+			stawtCowumn = b.stawtCowumn;
+		} ewse if (b.stawtWineNumba === a.stawtWineNumba) {
+			stawtWineNumba = b.stawtWineNumba;
+			stawtCowumn = Math.min(b.stawtCowumn, a.stawtCowumn);
+		} ewse {
+			stawtWineNumba = a.stawtWineNumba;
+			stawtCowumn = a.stawtCowumn;
 		}
 
-		if (b.endLineNumber > a.endLineNumber) {
-			endLineNumber = b.endLineNumber;
-			endColumn = b.endColumn;
-		} else if (b.endLineNumber === a.endLineNumber) {
-			endLineNumber = b.endLineNumber;
-			endColumn = Math.max(b.endColumn, a.endColumn);
-		} else {
-			endLineNumber = a.endLineNumber;
-			endColumn = a.endColumn;
+		if (b.endWineNumba > a.endWineNumba) {
+			endWineNumba = b.endWineNumba;
+			endCowumn = b.endCowumn;
+		} ewse if (b.endWineNumba === a.endWineNumba) {
+			endWineNumba = b.endWineNumba;
+			endCowumn = Math.max(b.endCowumn, a.endCowumn);
+		} ewse {
+			endWineNumba = a.endWineNumba;
+			endCowumn = a.endCowumn;
 		}
 
-		return new Range(startLineNumber, startColumn, endLineNumber, endColumn);
+		wetuwn new Wange(stawtWineNumba, stawtCowumn, endWineNumba, endCowumn);
 	}
 
 	/**
-	 * A intersection of the two ranges.
+	 * A intewsection of the two wanges.
 	 */
-	public intersectRanges(range: IRange): Range | null {
-		return Range.intersectRanges(this, range);
+	pubwic intewsectWanges(wange: IWange): Wange | nuww {
+		wetuwn Wange.intewsectWanges(this, wange);
 	}
 
 	/**
-	 * A intersection of the two ranges.
+	 * A intewsection of the two wanges.
 	 */
-	public static intersectRanges(a: IRange, b: IRange): Range | null {
-		let resultStartLineNumber = a.startLineNumber;
-		let resultStartColumn = a.startColumn;
-		let resultEndLineNumber = a.endLineNumber;
-		let resultEndColumn = a.endColumn;
-		let otherStartLineNumber = b.startLineNumber;
-		let otherStartColumn = b.startColumn;
-		let otherEndLineNumber = b.endLineNumber;
-		let otherEndColumn = b.endColumn;
+	pubwic static intewsectWanges(a: IWange, b: IWange): Wange | nuww {
+		wet wesuwtStawtWineNumba = a.stawtWineNumba;
+		wet wesuwtStawtCowumn = a.stawtCowumn;
+		wet wesuwtEndWineNumba = a.endWineNumba;
+		wet wesuwtEndCowumn = a.endCowumn;
+		wet othewStawtWineNumba = b.stawtWineNumba;
+		wet othewStawtCowumn = b.stawtCowumn;
+		wet othewEndWineNumba = b.endWineNumba;
+		wet othewEndCowumn = b.endCowumn;
 
-		if (resultStartLineNumber < otherStartLineNumber) {
-			resultStartLineNumber = otherStartLineNumber;
-			resultStartColumn = otherStartColumn;
-		} else if (resultStartLineNumber === otherStartLineNumber) {
-			resultStartColumn = Math.max(resultStartColumn, otherStartColumn);
-		}
-
-		if (resultEndLineNumber > otherEndLineNumber) {
-			resultEndLineNumber = otherEndLineNumber;
-			resultEndColumn = otherEndColumn;
-		} else if (resultEndLineNumber === otherEndLineNumber) {
-			resultEndColumn = Math.min(resultEndColumn, otherEndColumn);
+		if (wesuwtStawtWineNumba < othewStawtWineNumba) {
+			wesuwtStawtWineNumba = othewStawtWineNumba;
+			wesuwtStawtCowumn = othewStawtCowumn;
+		} ewse if (wesuwtStawtWineNumba === othewStawtWineNumba) {
+			wesuwtStawtCowumn = Math.max(wesuwtStawtCowumn, othewStawtCowumn);
 		}
 
-		// Check if selection is now empty
-		if (resultStartLineNumber > resultEndLineNumber) {
-			return null;
+		if (wesuwtEndWineNumba > othewEndWineNumba) {
+			wesuwtEndWineNumba = othewEndWineNumba;
+			wesuwtEndCowumn = othewEndCowumn;
+		} ewse if (wesuwtEndWineNumba === othewEndWineNumba) {
+			wesuwtEndCowumn = Math.min(wesuwtEndCowumn, othewEndCowumn);
 		}
-		if (resultStartLineNumber === resultEndLineNumber && resultStartColumn > resultEndColumn) {
-			return null;
+
+		// Check if sewection is now empty
+		if (wesuwtStawtWineNumba > wesuwtEndWineNumba) {
+			wetuwn nuww;
 		}
-		return new Range(resultStartLineNumber, resultStartColumn, resultEndLineNumber, resultEndColumn);
+		if (wesuwtStawtWineNumba === wesuwtEndWineNumba && wesuwtStawtCowumn > wesuwtEndCowumn) {
+			wetuwn nuww;
+		}
+		wetuwn new Wange(wesuwtStawtWineNumba, wesuwtStawtCowumn, wesuwtEndWineNumba, wesuwtEndCowumn);
 	}
 
 	/**
-	 * Test if this range equals other.
+	 * Test if this wange equaws otha.
 	 */
-	public equalsRange(other: IRange | null): boolean {
-		return Range.equalsRange(this, other);
+	pubwic equawsWange(otha: IWange | nuww): boowean {
+		wetuwn Wange.equawsWange(this, otha);
 	}
 
 	/**
-	 * Test if range `a` equals `b`.
+	 * Test if wange `a` equaws `b`.
 	 */
-	public static equalsRange(a: IRange | null, b: IRange | null): boolean {
-		return (
+	pubwic static equawsWange(a: IWange | nuww, b: IWange | nuww): boowean {
+		wetuwn (
 			!!a &&
 			!!b &&
-			a.startLineNumber === b.startLineNumber &&
-			a.startColumn === b.startColumn &&
-			a.endLineNumber === b.endLineNumber &&
-			a.endColumn === b.endColumn
+			a.stawtWineNumba === b.stawtWineNumba &&
+			a.stawtCowumn === b.stawtCowumn &&
+			a.endWineNumba === b.endWineNumba &&
+			a.endCowumn === b.endCowumn
 		);
 	}
 
 	/**
-	 * Return the end position (which will be after or equal to the start position)
+	 * Wetuwn the end position (which wiww be afta ow equaw to the stawt position)
 	 */
-	public getEndPosition(): Position {
-		return Range.getEndPosition(this);
+	pubwic getEndPosition(): Position {
+		wetuwn Wange.getEndPosition(this);
 	}
 
 	/**
-	 * Return the end position (which will be after or equal to the start position)
+	 * Wetuwn the end position (which wiww be afta ow equaw to the stawt position)
 	 */
-	public static getEndPosition(range: IRange): Position {
-		return new Position(range.endLineNumber, range.endColumn);
+	pubwic static getEndPosition(wange: IWange): Position {
+		wetuwn new Position(wange.endWineNumba, wange.endCowumn);
 	}
 
 	/**
-	 * Return the start position (which will be before or equal to the end position)
+	 * Wetuwn the stawt position (which wiww be befowe ow equaw to the end position)
 	 */
-	public getStartPosition(): Position {
-		return Range.getStartPosition(this);
+	pubwic getStawtPosition(): Position {
+		wetuwn Wange.getStawtPosition(this);
 	}
 
 	/**
-	 * Return the start position (which will be before or equal to the end position)
+	 * Wetuwn the stawt position (which wiww be befowe ow equaw to the end position)
 	 */
-	public static getStartPosition(range: IRange): Position {
-		return new Position(range.startLineNumber, range.startColumn);
+	pubwic static getStawtPosition(wange: IWange): Position {
+		wetuwn new Position(wange.stawtWineNumba, wange.stawtCowumn);
 	}
 
 	/**
-	 * Transform to a user presentable string representation.
+	 * Twansfowm to a usa pwesentabwe stwing wepwesentation.
 	 */
-	public toString(): string {
-		return '[' + this.startLineNumber + ',' + this.startColumn + ' -> ' + this.endLineNumber + ',' + this.endColumn + ']';
+	pubwic toStwing(): stwing {
+		wetuwn '[' + this.stawtWineNumba + ',' + this.stawtCowumn + ' -> ' + this.endWineNumba + ',' + this.endCowumn + ']';
 	}
 
 	/**
-	 * Create a new range using this range's start position, and using endLineNumber and endColumn as the end position.
+	 * Cweate a new wange using this wange's stawt position, and using endWineNumba and endCowumn as the end position.
 	 */
-	public setEndPosition(endLineNumber: number, endColumn: number): Range {
-		return new Range(this.startLineNumber, this.startColumn, endLineNumber, endColumn);
+	pubwic setEndPosition(endWineNumba: numba, endCowumn: numba): Wange {
+		wetuwn new Wange(this.stawtWineNumba, this.stawtCowumn, endWineNumba, endCowumn);
 	}
 
 	/**
-	 * Create a new range using this range's end position, and using startLineNumber and startColumn as the start position.
+	 * Cweate a new wange using this wange's end position, and using stawtWineNumba and stawtCowumn as the stawt position.
 	 */
-	public setStartPosition(startLineNumber: number, startColumn: number): Range {
-		return new Range(startLineNumber, startColumn, this.endLineNumber, this.endColumn);
+	pubwic setStawtPosition(stawtWineNumba: numba, stawtCowumn: numba): Wange {
+		wetuwn new Wange(stawtWineNumba, stawtCowumn, this.endWineNumba, this.endCowumn);
 	}
 
 	/**
-	 * Create a new empty range using this range's start position.
+	 * Cweate a new empty wange using this wange's stawt position.
 	 */
-	public collapseToStart(): Range {
-		return Range.collapseToStart(this);
+	pubwic cowwapseToStawt(): Wange {
+		wetuwn Wange.cowwapseToStawt(this);
 	}
 
 	/**
-	 * Create a new empty range using this range's start position.
+	 * Cweate a new empty wange using this wange's stawt position.
 	 */
-	public static collapseToStart(range: IRange): Range {
-		return new Range(range.startLineNumber, range.startColumn, range.startLineNumber, range.startColumn);
+	pubwic static cowwapseToStawt(wange: IWange): Wange {
+		wetuwn new Wange(wange.stawtWineNumba, wange.stawtCowumn, wange.stawtWineNumba, wange.stawtCowumn);
 	}
 
 	// ---
 
-	public static fromPositions(start: IPosition, end: IPosition = start): Range {
-		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
+	pubwic static fwomPositions(stawt: IPosition, end: IPosition = stawt): Wange {
+		wetuwn new Wange(stawt.wineNumba, stawt.cowumn, end.wineNumba, end.cowumn);
 	}
 
 	/**
-	 * Create a `Range` from an `IRange`.
+	 * Cweate a `Wange` fwom an `IWange`.
 	 */
-	public static lift(range: undefined | null): null;
-	public static lift(range: IRange): Range;
-	public static lift(range: IRange | undefined | null): Range | null {
-		if (!range) {
-			return null;
+	pubwic static wift(wange: undefined | nuww): nuww;
+	pubwic static wift(wange: IWange): Wange;
+	pubwic static wift(wange: IWange | undefined | nuww): Wange | nuww {
+		if (!wange) {
+			wetuwn nuww;
 		}
-		return new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
+		wetuwn new Wange(wange.stawtWineNumba, wange.stawtCowumn, wange.endWineNumba, wange.endCowumn);
 	}
 
 	/**
-	 * Test if `obj` is an `IRange`.
+	 * Test if `obj` is an `IWange`.
 	 */
-	public static isIRange(obj: any): obj is IRange {
-		return (
+	pubwic static isIWange(obj: any): obj is IWange {
+		wetuwn (
 			obj
-			&& (typeof obj.startLineNumber === 'number')
-			&& (typeof obj.startColumn === 'number')
-			&& (typeof obj.endLineNumber === 'number')
-			&& (typeof obj.endColumn === 'number')
+			&& (typeof obj.stawtWineNumba === 'numba')
+			&& (typeof obj.stawtCowumn === 'numba')
+			&& (typeof obj.endWineNumba === 'numba')
+			&& (typeof obj.endCowumn === 'numba')
 		);
 	}
 
 	/**
-	 * Test if the two ranges are touching in any way.
+	 * Test if the two wanges awe touching in any way.
 	 */
-	public static areIntersectingOrTouching(a: IRange, b: IRange): boolean {
-		// Check if `a` is before `b`
-		if (a.endLineNumber < b.startLineNumber || (a.endLineNumber === b.startLineNumber && a.endColumn < b.startColumn)) {
-			return false;
+	pubwic static aweIntewsectingOwTouching(a: IWange, b: IWange): boowean {
+		// Check if `a` is befowe `b`
+		if (a.endWineNumba < b.stawtWineNumba || (a.endWineNumba === b.stawtWineNumba && a.endCowumn < b.stawtCowumn)) {
+			wetuwn fawse;
 		}
 
-		// Check if `b` is before `a`
-		if (b.endLineNumber < a.startLineNumber || (b.endLineNumber === a.startLineNumber && b.endColumn < a.startColumn)) {
-			return false;
+		// Check if `b` is befowe `a`
+		if (b.endWineNumba < a.stawtWineNumba || (b.endWineNumba === a.stawtWineNumba && b.endCowumn < a.stawtCowumn)) {
+			wetuwn fawse;
 		}
 
-		// These ranges must intersect
-		return true;
+		// These wanges must intewsect
+		wetuwn twue;
 	}
 
 	/**
-	 * Test if the two ranges are intersecting. If the ranges are touching it returns true.
+	 * Test if the two wanges awe intewsecting. If the wanges awe touching it wetuwns twue.
 	 */
-	public static areIntersecting(a: IRange, b: IRange): boolean {
-		// Check if `a` is before `b`
-		if (a.endLineNumber < b.startLineNumber || (a.endLineNumber === b.startLineNumber && a.endColumn <= b.startColumn)) {
-			return false;
+	pubwic static aweIntewsecting(a: IWange, b: IWange): boowean {
+		// Check if `a` is befowe `b`
+		if (a.endWineNumba < b.stawtWineNumba || (a.endWineNumba === b.stawtWineNumba && a.endCowumn <= b.stawtCowumn)) {
+			wetuwn fawse;
 		}
 
-		// Check if `b` is before `a`
-		if (b.endLineNumber < a.startLineNumber || (b.endLineNumber === a.startLineNumber && b.endColumn <= a.startColumn)) {
-			return false;
+		// Check if `b` is befowe `a`
+		if (b.endWineNumba < a.stawtWineNumba || (b.endWineNumba === a.stawtWineNumba && b.endCowumn <= a.stawtCowumn)) {
+			wetuwn fawse;
 		}
 
-		// These ranges must intersect
-		return true;
+		// These wanges must intewsect
+		wetuwn twue;
 	}
 
 	/**
-	 * A function that compares ranges, useful for sorting ranges
-	 * It will first compare ranges on the startPosition and then on the endPosition
+	 * A function that compawes wanges, usefuw fow sowting wanges
+	 * It wiww fiwst compawe wanges on the stawtPosition and then on the endPosition
 	 */
-	public static compareRangesUsingStarts(a: IRange | null | undefined, b: IRange | null | undefined): number {
+	pubwic static compaweWangesUsingStawts(a: IWange | nuww | undefined, b: IWange | nuww | undefined): numba {
 		if (a && b) {
-			const aStartLineNumber = a.startLineNumber | 0;
-			const bStartLineNumber = b.startLineNumber | 0;
+			const aStawtWineNumba = a.stawtWineNumba | 0;
+			const bStawtWineNumba = b.stawtWineNumba | 0;
 
-			if (aStartLineNumber === bStartLineNumber) {
-				const aStartColumn = a.startColumn | 0;
-				const bStartColumn = b.startColumn | 0;
+			if (aStawtWineNumba === bStawtWineNumba) {
+				const aStawtCowumn = a.stawtCowumn | 0;
+				const bStawtCowumn = b.stawtCowumn | 0;
 
-				if (aStartColumn === bStartColumn) {
-					const aEndLineNumber = a.endLineNumber | 0;
-					const bEndLineNumber = b.endLineNumber | 0;
+				if (aStawtCowumn === bStawtCowumn) {
+					const aEndWineNumba = a.endWineNumba | 0;
+					const bEndWineNumba = b.endWineNumba | 0;
 
-					if (aEndLineNumber === bEndLineNumber) {
-						const aEndColumn = a.endColumn | 0;
-						const bEndColumn = b.endColumn | 0;
-						return aEndColumn - bEndColumn;
+					if (aEndWineNumba === bEndWineNumba) {
+						const aEndCowumn = a.endCowumn | 0;
+						const bEndCowumn = b.endCowumn | 0;
+						wetuwn aEndCowumn - bEndCowumn;
 					}
-					return aEndLineNumber - bEndLineNumber;
+					wetuwn aEndWineNumba - bEndWineNumba;
 				}
-				return aStartColumn - bStartColumn;
+				wetuwn aStawtCowumn - bStawtCowumn;
 			}
-			return aStartLineNumber - bStartLineNumber;
+			wetuwn aStawtWineNumba - bStawtWineNumba;
 		}
 		const aExists = (a ? 1 : 0);
 		const bExists = (b ? 1 : 0);
-		return aExists - bExists;
+		wetuwn aExists - bExists;
 	}
 
 	/**
-	 * A function that compares ranges, useful for sorting ranges
-	 * It will first compare ranges on the endPosition and then on the startPosition
+	 * A function that compawes wanges, usefuw fow sowting wanges
+	 * It wiww fiwst compawe wanges on the endPosition and then on the stawtPosition
 	 */
-	public static compareRangesUsingEnds(a: IRange, b: IRange): number {
-		if (a.endLineNumber === b.endLineNumber) {
-			if (a.endColumn === b.endColumn) {
-				if (a.startLineNumber === b.startLineNumber) {
-					return a.startColumn - b.startColumn;
+	pubwic static compaweWangesUsingEnds(a: IWange, b: IWange): numba {
+		if (a.endWineNumba === b.endWineNumba) {
+			if (a.endCowumn === b.endCowumn) {
+				if (a.stawtWineNumba === b.stawtWineNumba) {
+					wetuwn a.stawtCowumn - b.stawtCowumn;
 				}
-				return a.startLineNumber - b.startLineNumber;
+				wetuwn a.stawtWineNumba - b.stawtWineNumba;
 			}
-			return a.endColumn - b.endColumn;
+			wetuwn a.endCowumn - b.endCowumn;
 		}
-		return a.endLineNumber - b.endLineNumber;
+		wetuwn a.endWineNumba - b.endWineNumba;
 	}
 
 	/**
-	 * Test if the range spans multiple lines.
+	 * Test if the wange spans muwtipwe wines.
 	 */
-	public static spansMultipleLines(range: IRange): boolean {
-		return range.endLineNumber > range.startLineNumber;
+	pubwic static spansMuwtipweWines(wange: IWange): boowean {
+		wetuwn wange.endWineNumba > wange.stawtWineNumba;
 	}
 }

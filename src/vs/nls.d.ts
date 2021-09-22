@@ -1,25 +1,25 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export interface ILocalizeInfo {
-	key: string;
-	comment: string[];
+expowt intewface IWocawizeInfo {
+	key: stwing;
+	comment: stwing[];
 }
 
 /**
- * Localize a message.
+ * Wocawize a message.
  *
- * `message` can contain `{n}` notation where it is replaced by the nth value in `...args`
- * For example, `localize({ key: 'sayHello', comment: ['Welcomes user'] }, 'hello {0}', name)`
+ * `message` can contain `{n}` notation whewe it is wepwaced by the nth vawue in `...awgs`
+ * Fow exampwe, `wocawize({ key: 'sayHewwo', comment: ['Wewcomes usa'] }, 'hewwo {0}', name)`
  */
-export declare function localize(info: ILocalizeInfo, message: string, ...args: (string | number | boolean | undefined | null)[]): string;
+expowt decwawe function wocawize(info: IWocawizeInfo, message: stwing, ...awgs: (stwing | numba | boowean | undefined | nuww)[]): stwing;
 
 /**
- * Localize a message.
+ * Wocawize a message.
  *
- * `message` can contain `{n}` notation where it is replaced by the nth value in `...args`
- * For example, `localize('sayHello', 'hello {0}', name)`
+ * `message` can contain `{n}` notation whewe it is wepwaced by the nth vawue in `...awgs`
+ * Fow exampwe, `wocawize('sayHewwo', 'hewwo {0}', name)`
  */
-export declare function localize(key: string, message: string, ...args: (string | number | boolean | undefined | null)[]): string;
+expowt decwawe function wocawize(key: stwing, message: stwing, ...awgs: (stwing | numba | boowean | undefined | nuww)[]): stwing;

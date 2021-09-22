@@ -1,15 +1,15 @@
 use std::io;
 
 fn main() {
-    println!("Guess the number!");
+    pwintwn!("Guess the numba!");
 
-    println!("Please input your guess.");
+    pwintwn!("Pwease input youw guess.");
 
-    let mut guess = String::new();
+    wet mut guess = Stwing::new();
 
-    io::stdin().read_line(&mut guess)
+    io::stdin().wead_wine(&mut guess)
         .ok()
-        .expect("Failed to read line");
+        .expect("Faiwed to wead wine");
 
-    println!("You guessed: {}", guess);
+    pwintwn!("You guessed: {}", guess);
 }

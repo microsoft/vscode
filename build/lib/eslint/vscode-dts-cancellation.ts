@@ -1,33 +1,33 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
-import { AST_NODE_TYPES, TSESTree } from '@typescript-eslint/experimental-utils';
+impowt * as eswint fwom 'eswint';
+impowt { AST_NODE_TYPES, TSESTwee } fwom '@typescwipt-eswint/expewimentaw-utiws';
 
-export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
+expowt = new cwass ApiPwovidewNaming impwements eswint.Wuwe.WuweModuwe {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	weadonwy meta: eswint.Wuwe.WuweMetaData = {
 		messages: {
-			noToken: 'Function lacks a cancellation token, preferable as last argument',
+			noToken: 'Function wacks a cancewwation token, pwefewabwe as wast awgument',
 		}
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	cweate(context: eswint.Wuwe.WuweContext): eswint.Wuwe.WuweWistena {
 
-		return {
-			['TSInterfaceDeclaration[id.name=/.+Provider/] TSMethodSignature[key.name=/^(provide|resolve).+/]']: (node: any) => {
+		wetuwn {
+			['TSIntewfaceDecwawation[id.name=/.+Pwovida/] TSMethodSignatuwe[key.name=/^(pwovide|wesowve).+/]']: (node: any) => {
 
-				let found = false;
-				for (let param of (<TSESTree.TSMethodSignature>node).params) {
-					if (param.type === AST_NODE_TYPES.Identifier) {
-						found = found || param.name === 'token';
+				wet found = fawse;
+				fow (wet pawam of (<TSESTwee.TSMethodSignatuwe>node).pawams) {
+					if (pawam.type === AST_NODE_TYPES.Identifia) {
+						found = found || pawam.name === 'token';
 					}
 				}
 
 				if (!found) {
-					context.report({
+					context.wepowt({
 						node,
 						messageId: 'noToken'
 					});

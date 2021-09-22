@@ -1,462 +1,462 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { isWindows } from 'vs/base/common/platform';
-import * as extpath from 'vs/base/common/extpath';
-import { extname, basename } from 'vs/base/common/path';
-import * as resources from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Action } from 'vs/base/common/actions';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { VIEWLET_ID, IFilesConfiguration, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
-import { IFileService } from 'vs/platform/files/common/files';
-import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
-import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ITextModel } from 'vs/editor/common/model';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
-import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Schemas } from 'vs/base/common/network';
-import { IDialogService, IConfirmationResult, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Constants } from 'vs/base/common/uint';
-import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { coalesce } from 'vs/base/common/arrays';
-import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
-import { getErrorMessage } from 'vs/base/common/errors';
-import { triggerUpload } from 'vs/base/browser/dom';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { timeout } from 'vs/base/common/async';
-import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { Codicon } from 'vs/base/common/codicons';
-import { IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { trim, rtrim } from 'vs/base/common/strings';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
-import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { BrowserFileUpload, FileDownload } from 'vs/workbench/contrib/files/browser/fileImportExport';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+impowt * as nws fwom 'vs/nws';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt * as extpath fwom 'vs/base/common/extpath';
+impowt { extname, basename } fwom 'vs/base/common/path';
+impowt * as wesouwces fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { dispose, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { VIEWWET_ID, IFiwesConfiguwation, VIEW_ID } fwom 'vs/wowkbench/contwib/fiwes/common/fiwes';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { EditowWesouwceAccessow, SideBySideEditow } fwom 'vs/wowkbench/common/editow';
+impowt { IQuickInputSewvice, ItemActivation } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { WEVEAW_IN_EXPWOWEW_COMMAND_ID, SAVE_AWW_IN_GWOUP_COMMAND_ID, NEW_UNTITWED_FIWE_COMMAND_ID } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/fiweCommands';
+impowt { ITextModewSewvice, ITextModewContentPwovida } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { ICommandSewvice, CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IDiawogSewvice, IConfiwmationWesuwt, getFiweNamesMessage } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { Constants } fwom 'vs/base/common/uint';
+impowt { CWOSE_EDITOWS_AND_GWOUP_COMMAND_ID } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowCommands';
+impowt { coawesce } fwom 'vs/base/common/awways';
+impowt { ExpwowewItem, NewExpwowewItem } fwom 'vs/wowkbench/contwib/fiwes/common/expwowewModew';
+impowt { getEwwowMessage } fwom 'vs/base/common/ewwows';
+impowt { twiggewUpwoad } fwom 'vs/base/bwowsa/dom';
+impowt { IFiwesConfiguwationSewvice } fwom 'vs/wowkbench/sewvices/fiwesConfiguwation/common/fiwesConfiguwationSewvice';
+impowt { IWowkingCopySewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt { IWowkingCopy } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { IWowkingCopyFiweSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyFiweSewvice';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { IViewsSewvice, ViewContainewWocation } fwom 'vs/wowkbench/common/views';
+impowt { twim, wtwim } fwom 'vs/base/common/stwings';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { WesouwceFiweEdit } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
+impowt { IExpwowewSewvice } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/fiwes';
+impowt { BwowsewFiweUpwoad, FiweDownwoad } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/fiweImpowtExpowt';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
 
-export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
-export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
-export const NEW_FOLDER_COMMAND_ID = 'explorer.newFolder';
-export const NEW_FOLDER_LABEL = nls.localize('newFolder', "New Folder");
-export const TRIGGER_RENAME_LABEL = nls.localize('rename', "Rename");
-export const MOVE_FILE_TO_TRASH_LABEL = nls.localize('delete', "Delete");
-export const COPY_FILE_LABEL = nls.localize('copyFile', "Copy");
-export const PASTE_FILE_LABEL = nls.localize('pasteFile', "Paste");
-export const FileCopiedContext = new RawContextKey<boolean>('fileCopied', false);
-export const DOWNLOAD_COMMAND_ID = 'explorer.download';
-export const DOWNLOAD_LABEL = nls.localize('download', "Download...");
-export const UPLOAD_COMMAND_ID = 'explorer.upload';
-export const UPLOAD_LABEL = nls.localize('upload', "Upload...");
-const CONFIRM_DELETE_SETTING_KEY = 'explorer.confirmDelete';
-const MAX_UNDO_FILE_SIZE = 5000000; // 5mb
+expowt const NEW_FIWE_COMMAND_ID = 'expwowa.newFiwe';
+expowt const NEW_FIWE_WABEW = nws.wocawize('newFiwe', "New Fiwe");
+expowt const NEW_FOWDEW_COMMAND_ID = 'expwowa.newFowda';
+expowt const NEW_FOWDEW_WABEW = nws.wocawize('newFowda', "New Fowda");
+expowt const TWIGGEW_WENAME_WABEW = nws.wocawize('wename', "Wename");
+expowt const MOVE_FIWE_TO_TWASH_WABEW = nws.wocawize('dewete', "Dewete");
+expowt const COPY_FIWE_WABEW = nws.wocawize('copyFiwe', "Copy");
+expowt const PASTE_FIWE_WABEW = nws.wocawize('pasteFiwe', "Paste");
+expowt const FiweCopiedContext = new WawContextKey<boowean>('fiweCopied', fawse);
+expowt const DOWNWOAD_COMMAND_ID = 'expwowa.downwoad';
+expowt const DOWNWOAD_WABEW = nws.wocawize('downwoad', "Downwoad...");
+expowt const UPWOAD_COMMAND_ID = 'expwowa.upwoad';
+expowt const UPWOAD_WABEW = nws.wocawize('upwoad', "Upwoad...");
+const CONFIWM_DEWETE_SETTING_KEY = 'expwowa.confiwmDewete';
+const MAX_UNDO_FIWE_SIZE = 5000000; // 5mb
 
-function onError(notificationService: INotificationService, error: any): void {
-	if (error.message === 'string') {
-		error = error.message;
+function onEwwow(notificationSewvice: INotificationSewvice, ewwow: any): void {
+	if (ewwow.message === 'stwing') {
+		ewwow = ewwow.message;
 	}
 
-	notificationService.error(toErrorMessage(error, false));
+	notificationSewvice.ewwow(toEwwowMessage(ewwow, fawse));
 }
 
-async function refreshIfSeparator(value: string, explorerService: IExplorerService): Promise<void> {
-	if (value && ((value.indexOf('/') >= 0) || (value.indexOf('\\') >= 0))) {
-		// New input contains separator, multiple resources will get created workaround for #68204
-		await explorerService.refresh();
+async function wefweshIfSepawatow(vawue: stwing, expwowewSewvice: IExpwowewSewvice): Pwomise<void> {
+	if (vawue && ((vawue.indexOf('/') >= 0) || (vawue.indexOf('\\') >= 0))) {
+		// New input contains sepawatow, muwtipwe wesouwces wiww get cweated wowkawound fow #68204
+		await expwowewSewvice.wefwesh();
 	}
 }
 
-async function deleteFiles(explorerService: IExplorerService, workingCopyFileService: IWorkingCopyFileService, dialogService: IDialogService, configurationService: IConfigurationService, elements: ExplorerItem[], useTrash: boolean, skipConfirm = false): Promise<void> {
-	let primaryButton: string;
-	if (useTrash) {
-		primaryButton = isWindows ? nls.localize('deleteButtonLabelRecycleBin', "&&Move to Recycle Bin") : nls.localize({ key: 'deleteButtonLabelTrash', comment: ['&& denotes a mnemonic'] }, "&&Move to Trash");
-	} else {
-		primaryButton = nls.localize({ key: 'deleteButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete");
+async function deweteFiwes(expwowewSewvice: IExpwowewSewvice, wowkingCopyFiweSewvice: IWowkingCopyFiweSewvice, diawogSewvice: IDiawogSewvice, configuwationSewvice: IConfiguwationSewvice, ewements: ExpwowewItem[], useTwash: boowean, skipConfiwm = fawse): Pwomise<void> {
+	wet pwimawyButton: stwing;
+	if (useTwash) {
+		pwimawyButton = isWindows ? nws.wocawize('deweteButtonWabewWecycweBin', "&&Move to Wecycwe Bin") : nws.wocawize({ key: 'deweteButtonWabewTwash', comment: ['&& denotes a mnemonic'] }, "&&Move to Twash");
+	} ewse {
+		pwimawyButton = nws.wocawize({ key: 'deweteButtonWabew', comment: ['&& denotes a mnemonic'] }, "&&Dewete");
 	}
 
-	// Handle dirty
-	const distinctElements = resources.distinctParents(elements, e => e.resource);
-	const dirtyWorkingCopies = new Set<IWorkingCopy>();
-	for (const distinctElement of distinctElements) {
-		for (const dirtyWorkingCopy of workingCopyFileService.getDirty(distinctElement.resource)) {
-			dirtyWorkingCopies.add(dirtyWorkingCopy);
+	// Handwe diwty
+	const distinctEwements = wesouwces.distinctPawents(ewements, e => e.wesouwce);
+	const diwtyWowkingCopies = new Set<IWowkingCopy>();
+	fow (const distinctEwement of distinctEwements) {
+		fow (const diwtyWowkingCopy of wowkingCopyFiweSewvice.getDiwty(distinctEwement.wesouwce)) {
+			diwtyWowkingCopies.add(diwtyWowkingCopy);
 		}
 	}
-	let confirmed = true;
-	if (dirtyWorkingCopies.size) {
-		let message: string;
-		if (distinctElements.length > 1) {
-			message = nls.localize('dirtyMessageFilesDelete', "You are deleting files with unsaved changes. Do you want to continue?");
-		} else if (distinctElements[0].isDirectory) {
-			if (dirtyWorkingCopies.size === 1) {
-				message = nls.localize('dirtyMessageFolderOneDelete', "You are deleting a folder {0} with unsaved changes in 1 file. Do you want to continue?", distinctElements[0].name);
-			} else {
-				message = nls.localize('dirtyMessageFolderDelete', "You are deleting a folder {0} with unsaved changes in {1} files. Do you want to continue?", distinctElements[0].name, dirtyWorkingCopies.size);
+	wet confiwmed = twue;
+	if (diwtyWowkingCopies.size) {
+		wet message: stwing;
+		if (distinctEwements.wength > 1) {
+			message = nws.wocawize('diwtyMessageFiwesDewete', "You awe deweting fiwes with unsaved changes. Do you want to continue?");
+		} ewse if (distinctEwements[0].isDiwectowy) {
+			if (diwtyWowkingCopies.size === 1) {
+				message = nws.wocawize('diwtyMessageFowdewOneDewete', "You awe deweting a fowda {0} with unsaved changes in 1 fiwe. Do you want to continue?", distinctEwements[0].name);
+			} ewse {
+				message = nws.wocawize('diwtyMessageFowdewDewete', "You awe deweting a fowda {0} with unsaved changes in {1} fiwes. Do you want to continue?", distinctEwements[0].name, diwtyWowkingCopies.size);
 			}
-		} else {
-			message = nls.localize('dirtyMessageFileDelete', "You are deleting {0} with unsaved changes. Do you want to continue?", distinctElements[0].name);
+		} ewse {
+			message = nws.wocawize('diwtyMessageFiweDewete', "You awe deweting {0} with unsaved changes. Do you want to continue?", distinctEwements[0].name);
 		}
 
-		const response = await dialogService.confirm({
+		const wesponse = await diawogSewvice.confiwm({
 			message,
-			type: 'warning',
-			detail: nls.localize('dirtyWarning', "Your changes will be lost if you don't save them."),
-			primaryButton
+			type: 'wawning',
+			detaiw: nws.wocawize('diwtyWawning', "Youw changes wiww be wost if you don't save them."),
+			pwimawyButton
 		});
 
-		if (!response.confirmed) {
-			confirmed = false;
-		} else {
-			skipConfirm = true;
+		if (!wesponse.confiwmed) {
+			confiwmed = fawse;
+		} ewse {
+			skipConfiwm = twue;
 		}
 	}
 
-	// Check if file is dirty in editor and save it to avoid data loss
-	if (!confirmed) {
-		return;
+	// Check if fiwe is diwty in editow and save it to avoid data woss
+	if (!confiwmed) {
+		wetuwn;
 	}
 
-	let confirmation: IConfirmationResult;
-	// We do not support undo of folders, so in that case the delete action is irreversible
-	const deleteDetail = distinctElements.some(e => e.isDirectory) ? nls.localize('irreversible', "This action is irreversible!") :
-		distinctElements.length > 1 ? nls.localize('restorePlural', "You can restore these files using the Undo command") : nls.localize('restore', "You can restore this file using the Undo command");
+	wet confiwmation: IConfiwmationWesuwt;
+	// We do not suppowt undo of fowdews, so in that case the dewete action is iwwevewsibwe
+	const deweteDetaiw = distinctEwements.some(e => e.isDiwectowy) ? nws.wocawize('iwwevewsibwe', "This action is iwwevewsibwe!") :
+		distinctEwements.wength > 1 ? nws.wocawize('westowePwuwaw', "You can westowe these fiwes using the Undo command") : nws.wocawize('westowe', "You can westowe this fiwe using the Undo command");
 
-	// Check if we need to ask for confirmation at all
-	if (skipConfirm || (useTrash && configurationService.getValue<boolean>(CONFIRM_DELETE_SETTING_KEY) === false)) {
-		confirmation = { confirmed: true };
+	// Check if we need to ask fow confiwmation at aww
+	if (skipConfiwm || (useTwash && configuwationSewvice.getVawue<boowean>(CONFIWM_DEWETE_SETTING_KEY) === fawse)) {
+		confiwmation = { confiwmed: twue };
 	}
 
-	// Confirm for moving to trash
-	else if (useTrash) {
-		let { message, detail } = getMoveToTrashMessage(distinctElements);
-		detail += detail ? '\n' : '';
+	// Confiwm fow moving to twash
+	ewse if (useTwash) {
+		wet { message, detaiw } = getMoveToTwashMessage(distinctEwements);
+		detaiw += detaiw ? '\n' : '';
 		if (isWindows) {
-			detail += distinctElements.length > 1 ? nls.localize('undoBinFiles', "You can restore these files from the Recycle Bin.") : nls.localize('undoBin', "You can restore this file from the Recycle Bin.");
-		} else {
-			detail += distinctElements.length > 1 ? nls.localize('undoTrashFiles', "You can restore these files from the Trash.") : nls.localize('undoTrash', "You can restore this file from the Trash.");
+			detaiw += distinctEwements.wength > 1 ? nws.wocawize('undoBinFiwes', "You can westowe these fiwes fwom the Wecycwe Bin.") : nws.wocawize('undoBin', "You can westowe this fiwe fwom the Wecycwe Bin.");
+		} ewse {
+			detaiw += distinctEwements.wength > 1 ? nws.wocawize('undoTwashFiwes', "You can westowe these fiwes fwom the Twash.") : nws.wocawize('undoTwash', "You can westowe this fiwe fwom the Twash.");
 		}
 
-		confirmation = await dialogService.confirm({
+		confiwmation = await diawogSewvice.confiwm({
 			message,
-			detail,
-			primaryButton,
+			detaiw,
+			pwimawyButton,
 			checkbox: {
-				label: nls.localize('doNotAskAgain', "Do not ask me again")
+				wabew: nws.wocawize('doNotAskAgain', "Do not ask me again")
 			},
 			type: 'question'
 		});
 	}
 
-	// Confirm for deleting permanently
-	else {
-		let { message, detail } = getDeleteMessage(distinctElements);
-		detail += detail ? '\n' : '';
-		detail += deleteDetail;
-		confirmation = await dialogService.confirm({
+	// Confiwm fow deweting pewmanentwy
+	ewse {
+		wet { message, detaiw } = getDeweteMessage(distinctEwements);
+		detaiw += detaiw ? '\n' : '';
+		detaiw += deweteDetaiw;
+		confiwmation = await diawogSewvice.confiwm({
 			message,
-			detail,
-			primaryButton,
-			type: 'warning'
+			detaiw,
+			pwimawyButton,
+			type: 'wawning'
 		});
 	}
 
-	// Check for confirmation checkbox
-	if (confirmation.confirmed && confirmation.checkboxChecked === true) {
-		await configurationService.updateValue(CONFIRM_DELETE_SETTING_KEY, false);
+	// Check fow confiwmation checkbox
+	if (confiwmation.confiwmed && confiwmation.checkboxChecked === twue) {
+		await configuwationSewvice.updateVawue(CONFIWM_DEWETE_SETTING_KEY, fawse);
 	}
 
-	// Check for confirmation
-	if (!confirmation.confirmed) {
-		return;
+	// Check fow confiwmation
+	if (!confiwmation.confiwmed) {
+		wetuwn;
 	}
 
-	// Call function
-	try {
-		const resourceFileEdits = distinctElements.map(e => new ResourceFileEdit(e.resource, undefined, { recursive: true, folder: e.isDirectory, skipTrashBin: !useTrash, maxSize: MAX_UNDO_FILE_SIZE }));
+	// Caww function
+	twy {
+		const wesouwceFiweEdits = distinctEwements.map(e => new WesouwceFiweEdit(e.wesouwce, undefined, { wecuwsive: twue, fowda: e.isDiwectowy, skipTwashBin: !useTwash, maxSize: MAX_UNDO_FIWE_SIZE }));
 		const options = {
-			undoLabel: distinctElements.length > 1 ? nls.localize({ key: 'deleteBulkEdit', comment: ['Placeholder will be replaced by the number of files deleted'] }, "Delete {0} files", distinctElements.length) : nls.localize({ key: 'deleteFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file deleted'] }, "Delete {0}", distinctElements[0].name),
-			progressLabel: distinctElements.length > 1 ? nls.localize({ key: 'deletingBulkEdit', comment: ['Placeholder will be replaced by the number of files deleted'] }, "Deleting {0} files", distinctElements.length) : nls.localize({ key: 'deletingFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file deleted'] }, "Deleting {0}", distinctElements[0].name),
+			undoWabew: distinctEwements.wength > 1 ? nws.wocawize({ key: 'deweteBuwkEdit', comment: ['Pwacehowda wiww be wepwaced by the numba of fiwes deweted'] }, "Dewete {0} fiwes", distinctEwements.wength) : nws.wocawize({ key: 'deweteFiweBuwkEdit', comment: ['Pwacehowda wiww be wepwaced by the name of the fiwe deweted'] }, "Dewete {0}", distinctEwements[0].name),
+			pwogwessWabew: distinctEwements.wength > 1 ? nws.wocawize({ key: 'dewetingBuwkEdit', comment: ['Pwacehowda wiww be wepwaced by the numba of fiwes deweted'] }, "Deweting {0} fiwes", distinctEwements.wength) : nws.wocawize({ key: 'dewetingFiweBuwkEdit', comment: ['Pwacehowda wiww be wepwaced by the name of the fiwe deweted'] }, "Deweting {0}", distinctEwements[0].name),
 		};
-		await explorerService.applyBulkEdit(resourceFileEdits, options);
-	} catch (error) {
+		await expwowewSewvice.appwyBuwkEdit(wesouwceFiweEdits, options);
+	} catch (ewwow) {
 
-		// Handle error to delete file(s) from a modal confirmation dialog
-		let errorMessage: string;
-		let detailMessage: string | undefined;
-		let primaryButton: string;
-		if (useTrash) {
-			errorMessage = isWindows ? nls.localize('binFailed', "Failed to delete using the Recycle Bin. Do you want to permanently delete instead?") : nls.localize('trashFailed', "Failed to delete using the Trash. Do you want to permanently delete instead?");
-			detailMessage = deleteDetail;
-			primaryButton = nls.localize({ key: 'deletePermanentlyButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete Permanently");
-		} else {
-			errorMessage = toErrorMessage(error, false);
-			primaryButton = nls.localize({ key: 'retryButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Retry");
+		// Handwe ewwow to dewete fiwe(s) fwom a modaw confiwmation diawog
+		wet ewwowMessage: stwing;
+		wet detaiwMessage: stwing | undefined;
+		wet pwimawyButton: stwing;
+		if (useTwash) {
+			ewwowMessage = isWindows ? nws.wocawize('binFaiwed', "Faiwed to dewete using the Wecycwe Bin. Do you want to pewmanentwy dewete instead?") : nws.wocawize('twashFaiwed', "Faiwed to dewete using the Twash. Do you want to pewmanentwy dewete instead?");
+			detaiwMessage = deweteDetaiw;
+			pwimawyButton = nws.wocawize({ key: 'dewetePewmanentwyButtonWabew', comment: ['&& denotes a mnemonic'] }, "&&Dewete Pewmanentwy");
+		} ewse {
+			ewwowMessage = toEwwowMessage(ewwow, fawse);
+			pwimawyButton = nws.wocawize({ key: 'wetwyButtonWabew', comment: ['&& denotes a mnemonic'] }, "&&Wetwy");
 		}
 
-		const res = await dialogService.confirm({
-			message: errorMessage,
-			detail: detailMessage,
-			type: 'warning',
-			primaryButton
+		const wes = await diawogSewvice.confiwm({
+			message: ewwowMessage,
+			detaiw: detaiwMessage,
+			type: 'wawning',
+			pwimawyButton
 		});
 
-		if (res.confirmed) {
-			if (useTrash) {
-				useTrash = false; // Delete Permanently
+		if (wes.confiwmed) {
+			if (useTwash) {
+				useTwash = fawse; // Dewete Pewmanentwy
 			}
 
-			skipConfirm = true;
+			skipConfiwm = twue;
 
-			return deleteFiles(explorerService, workingCopyFileService, dialogService, configurationService, elements, useTrash, skipConfirm);
+			wetuwn deweteFiwes(expwowewSewvice, wowkingCopyFiweSewvice, diawogSewvice, configuwationSewvice, ewements, useTwash, skipConfiwm);
 		}
 	}
 }
 
-function getMoveToTrashMessage(distinctElements: ExplorerItem[]): { message: string, detail: string } {
-	if (containsBothDirectoryAndFile(distinctElements)) {
-		return {
-			message: nls.localize('confirmMoveTrashMessageFilesAndDirectories', "Are you sure you want to delete the following {0} files/directories and their contents?", distinctElements.length),
-			detail: getFileNamesMessage(distinctElements.map(e => e.resource))
+function getMoveToTwashMessage(distinctEwements: ExpwowewItem[]): { message: stwing, detaiw: stwing } {
+	if (containsBothDiwectowyAndFiwe(distinctEwements)) {
+		wetuwn {
+			message: nws.wocawize('confiwmMoveTwashMessageFiwesAndDiwectowies', "Awe you suwe you want to dewete the fowwowing {0} fiwes/diwectowies and theiw contents?", distinctEwements.wength),
+			detaiw: getFiweNamesMessage(distinctEwements.map(e => e.wesouwce))
 		};
 	}
 
-	if (distinctElements.length > 1) {
-		if (distinctElements[0].isDirectory) {
-			return {
-				message: nls.localize('confirmMoveTrashMessageMultipleDirectories', "Are you sure you want to delete the following {0} directories and their contents?", distinctElements.length),
-				detail: getFileNamesMessage(distinctElements.map(e => e.resource))
+	if (distinctEwements.wength > 1) {
+		if (distinctEwements[0].isDiwectowy) {
+			wetuwn {
+				message: nws.wocawize('confiwmMoveTwashMessageMuwtipweDiwectowies', "Awe you suwe you want to dewete the fowwowing {0} diwectowies and theiw contents?", distinctEwements.wength),
+				detaiw: getFiweNamesMessage(distinctEwements.map(e => e.wesouwce))
 			};
 		}
 
-		return {
-			message: nls.localize('confirmMoveTrashMessageMultiple', "Are you sure you want to delete the following {0} files?", distinctElements.length),
-			detail: getFileNamesMessage(distinctElements.map(e => e.resource))
+		wetuwn {
+			message: nws.wocawize('confiwmMoveTwashMessageMuwtipwe', "Awe you suwe you want to dewete the fowwowing {0} fiwes?", distinctEwements.wength),
+			detaiw: getFiweNamesMessage(distinctEwements.map(e => e.wesouwce))
 		};
 	}
 
-	if (distinctElements[0].isDirectory) {
-		return { message: nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", distinctElements[0].name), detail: '' };
+	if (distinctEwements[0].isDiwectowy) {
+		wetuwn { message: nws.wocawize('confiwmMoveTwashMessageFowda', "Awe you suwe you want to dewete '{0}' and its contents?", distinctEwements[0].name), detaiw: '' };
 	}
 
-	return { message: nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", distinctElements[0].name), detail: '' };
+	wetuwn { message: nws.wocawize('confiwmMoveTwashMessageFiwe', "Awe you suwe you want to dewete '{0}'?", distinctEwements[0].name), detaiw: '' };
 }
 
-function getDeleteMessage(distinctElements: ExplorerItem[]): { message: string, detail: string } {
-	if (containsBothDirectoryAndFile(distinctElements)) {
-		return {
-			message: nls.localize('confirmDeleteMessageFilesAndDirectories', "Are you sure you want to permanently delete the following {0} files/directories and their contents?", distinctElements.length),
-			detail: getFileNamesMessage(distinctElements.map(e => e.resource))
+function getDeweteMessage(distinctEwements: ExpwowewItem[]): { message: stwing, detaiw: stwing } {
+	if (containsBothDiwectowyAndFiwe(distinctEwements)) {
+		wetuwn {
+			message: nws.wocawize('confiwmDeweteMessageFiwesAndDiwectowies', "Awe you suwe you want to pewmanentwy dewete the fowwowing {0} fiwes/diwectowies and theiw contents?", distinctEwements.wength),
+			detaiw: getFiweNamesMessage(distinctEwements.map(e => e.wesouwce))
 		};
 	}
 
-	if (distinctElements.length > 1) {
-		if (distinctElements[0].isDirectory) {
-			return {
-				message: nls.localize('confirmDeleteMessageMultipleDirectories', "Are you sure you want to permanently delete the following {0} directories and their contents?", distinctElements.length),
-				detail: getFileNamesMessage(distinctElements.map(e => e.resource))
+	if (distinctEwements.wength > 1) {
+		if (distinctEwements[0].isDiwectowy) {
+			wetuwn {
+				message: nws.wocawize('confiwmDeweteMessageMuwtipweDiwectowies', "Awe you suwe you want to pewmanentwy dewete the fowwowing {0} diwectowies and theiw contents?", distinctEwements.wength),
+				detaiw: getFiweNamesMessage(distinctEwements.map(e => e.wesouwce))
 			};
 		}
 
-		return {
-			message: nls.localize('confirmDeleteMessageMultiple', "Are you sure you want to permanently delete the following {0} files?", distinctElements.length),
-			detail: getFileNamesMessage(distinctElements.map(e => e.resource))
+		wetuwn {
+			message: nws.wocawize('confiwmDeweteMessageMuwtipwe', "Awe you suwe you want to pewmanentwy dewete the fowwowing {0} fiwes?", distinctEwements.wength),
+			detaiw: getFiweNamesMessage(distinctEwements.map(e => e.wesouwce))
 		};
 	}
 
-	if (distinctElements[0].isDirectory) {
-		return { message: nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", distinctElements[0].name), detail: '' };
+	if (distinctEwements[0].isDiwectowy) {
+		wetuwn { message: nws.wocawize('confiwmDeweteMessageFowda', "Awe you suwe you want to pewmanentwy dewete '{0}' and its contents?", distinctEwements[0].name), detaiw: '' };
 	}
 
-	return { message: nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", distinctElements[0].name), detail: '' };
+	wetuwn { message: nws.wocawize('confiwmDeweteMessageFiwe', "Awe you suwe you want to pewmanentwy dewete '{0}'?", distinctEwements[0].name), detaiw: '' };
 }
 
-function containsBothDirectoryAndFile(distinctElements: ExplorerItem[]): boolean {
-	const directory = distinctElements.find(element => element.isDirectory);
-	const file = distinctElements.find(element => !element.isDirectory);
+function containsBothDiwectowyAndFiwe(distinctEwements: ExpwowewItem[]): boowean {
+	const diwectowy = distinctEwements.find(ewement => ewement.isDiwectowy);
+	const fiwe = distinctEwements.find(ewement => !ewement.isDiwectowy);
 
-	return !!directory && !!file;
+	wetuwn !!diwectowy && !!fiwe;
 }
 
 
-export function findValidPasteFileTarget(explorerService: IExplorerService, targetFolder: ExplorerItem, fileToPaste: { resource: URI, isDirectory?: boolean, allowOverwrite: boolean }, incrementalNaming: 'simple' | 'smart'): URI {
-	let name = resources.basenameOrAuthority(fileToPaste.resource);
+expowt function findVawidPasteFiweTawget(expwowewSewvice: IExpwowewSewvice, tawgetFowda: ExpwowewItem, fiweToPaste: { wesouwce: UWI, isDiwectowy?: boowean, awwowOvewwwite: boowean }, incwementawNaming: 'simpwe' | 'smawt'): UWI {
+	wet name = wesouwces.basenameOwAuthowity(fiweToPaste.wesouwce);
 
-	let candidate = resources.joinPath(targetFolder.resource, name);
-	while (true && !fileToPaste.allowOverwrite) {
-		if (!explorerService.findClosest(candidate)) {
-			break;
+	wet candidate = wesouwces.joinPath(tawgetFowda.wesouwce, name);
+	whiwe (twue && !fiweToPaste.awwowOvewwwite) {
+		if (!expwowewSewvice.findCwosest(candidate)) {
+			bweak;
 		}
 
-		name = incrementFileName(name, !!fileToPaste.isDirectory, incrementalNaming);
-		candidate = resources.joinPath(targetFolder.resource, name);
+		name = incwementFiweName(name, !!fiweToPaste.isDiwectowy, incwementawNaming);
+		candidate = wesouwces.joinPath(tawgetFowda.wesouwce, name);
 	}
 
-	return candidate;
+	wetuwn candidate;
 }
 
-export function incrementFileName(name: string, isFolder: boolean, incrementalNaming: 'simple' | 'smart'): string {
-	if (incrementalNaming === 'simple') {
-		let namePrefix = name;
-		let extSuffix = '';
-		if (!isFolder) {
+expowt function incwementFiweName(name: stwing, isFowda: boowean, incwementawNaming: 'simpwe' | 'smawt'): stwing {
+	if (incwementawNaming === 'simpwe') {
+		wet namePwefix = name;
+		wet extSuffix = '';
+		if (!isFowda) {
 			extSuffix = extname(name);
-			namePrefix = basename(name, extSuffix);
+			namePwefix = basename(name, extSuffix);
 		}
 
 		// name copy 5(.txt) => name copy 6(.txt)
 		// name copy(.txt) => name copy 2(.txt)
-		const suffixRegex = /^(.+ copy)( \d+)?$/;
-		if (suffixRegex.test(namePrefix)) {
-			return namePrefix.replace(suffixRegex, (match, g1?, g2?) => {
-				let number = (g2 ? parseInt(g2) : 1);
-				return number === 0
+		const suffixWegex = /^(.+ copy)( \d+)?$/;
+		if (suffixWegex.test(namePwefix)) {
+			wetuwn namePwefix.wepwace(suffixWegex, (match, g1?, g2?) => {
+				wet numba = (g2 ? pawseInt(g2) : 1);
+				wetuwn numba === 0
 					? `${g1}`
-					: (number < Constants.MAX_SAFE_SMALL_INTEGER
-						? `${g1} ${number + 1}`
+					: (numba < Constants.MAX_SAFE_SMAWW_INTEGa
+						? `${g1} ${numba + 1}`
 						: `${g1}${g2} copy`);
 			}) + extSuffix;
 		}
 
 		// name(.txt) => name copy(.txt)
-		return `${namePrefix} copy${extSuffix}`;
+		wetuwn `${namePwefix} copy${extSuffix}`;
 	}
 
-	const separators = '[\\.\\-_]';
-	const maxNumber = Constants.MAX_SAFE_SMALL_INTEGER;
+	const sepawatows = '[\\.\\-_]';
+	const maxNumba = Constants.MAX_SAFE_SMAWW_INTEGa;
 
-	// file.1.txt=>file.2.txt
-	let suffixFileRegex = RegExp('(.*' + separators + ')(\\d+)(\\..*)$');
-	if (!isFolder && name.match(suffixFileRegex)) {
-		return name.replace(suffixFileRegex, (match, g1?, g2?, g3?) => {
-			let number = parseInt(g2);
-			return number < maxNumber
-				? g1 + String(number + 1).padStart(g2.length, '0') + g3
+	// fiwe.1.txt=>fiwe.2.txt
+	wet suffixFiweWegex = WegExp('(.*' + sepawatows + ')(\\d+)(\\..*)$');
+	if (!isFowda && name.match(suffixFiweWegex)) {
+		wetuwn name.wepwace(suffixFiweWegex, (match, g1?, g2?, g3?) => {
+			wet numba = pawseInt(g2);
+			wetuwn numba < maxNumba
+				? g1 + Stwing(numba + 1).padStawt(g2.wength, '0') + g3
 				: `${g1}${g2}.1${g3}`;
 		});
 	}
 
-	// 1.file.txt=>2.file.txt
-	let prefixFileRegex = RegExp('(\\d+)(' + separators + '.*)(\\..*)$');
-	if (!isFolder && name.match(prefixFileRegex)) {
-		return name.replace(prefixFileRegex, (match, g1?, g2?, g3?) => {
-			let number = parseInt(g1);
-			return number < maxNumber
-				? String(number + 1).padStart(g1.length, '0') + g2 + g3
+	// 1.fiwe.txt=>2.fiwe.txt
+	wet pwefixFiweWegex = WegExp('(\\d+)(' + sepawatows + '.*)(\\..*)$');
+	if (!isFowda && name.match(pwefixFiweWegex)) {
+		wetuwn name.wepwace(pwefixFiweWegex, (match, g1?, g2?, g3?) => {
+			wet numba = pawseInt(g1);
+			wetuwn numba < maxNumba
+				? Stwing(numba + 1).padStawt(g1.wength, '0') + g2 + g3
 				: `${g1}${g2}.1${g3}`;
 		});
 	}
 
 	// 1.txt=>2.txt
-	let prefixFileNoNameRegex = RegExp('(\\d+)(\\..*)$');
-	if (!isFolder && name.match(prefixFileNoNameRegex)) {
-		return name.replace(prefixFileNoNameRegex, (match, g1?, g2?) => {
-			let number = parseInt(g1);
-			return number < maxNumber
-				? String(number + 1).padStart(g1.length, '0') + g2
+	wet pwefixFiweNoNameWegex = WegExp('(\\d+)(\\..*)$');
+	if (!isFowda && name.match(pwefixFiweNoNameWegex)) {
+		wetuwn name.wepwace(pwefixFiweNoNameWegex, (match, g1?, g2?) => {
+			wet numba = pawseInt(g1);
+			wetuwn numba < maxNumba
+				? Stwing(numba + 1).padStawt(g1.wength, '0') + g2
 				: `${g1}.1${g2}`;
 		});
 	}
 
-	// file.txt=>file.1.txt
-	const lastIndexOfDot = name.lastIndexOf('.');
-	if (!isFolder && lastIndexOfDot >= 0) {
-		return `${name.substr(0, lastIndexOfDot)}.1${name.substr(lastIndexOfDot)}`;
+	// fiwe.txt=>fiwe.1.txt
+	const wastIndexOfDot = name.wastIndexOf('.');
+	if (!isFowda && wastIndexOfDot >= 0) {
+		wetuwn `${name.substw(0, wastIndexOfDot)}.1${name.substw(wastIndexOfDot)}`;
 	}
 
 	// 123 => 124
-	let noNameNoExtensionRegex = RegExp('(\\d+)$');
-	if (!isFolder && lastIndexOfDot === -1 && name.match(noNameNoExtensionRegex)) {
-		return name.replace(noNameNoExtensionRegex, (match, g1?) => {
-			let number = parseInt(g1);
-			return number < maxNumber
-				? String(number + 1).padStart(g1.length, '0')
+	wet noNameNoExtensionWegex = WegExp('(\\d+)$');
+	if (!isFowda && wastIndexOfDot === -1 && name.match(noNameNoExtensionWegex)) {
+		wetuwn name.wepwace(noNameNoExtensionWegex, (match, g1?) => {
+			wet numba = pawseInt(g1);
+			wetuwn numba < maxNumba
+				? Stwing(numba + 1).padStawt(g1.wength, '0')
 				: `${g1}.1`;
 		});
 	}
 
-	// file => file1
-	// file1 => file2
-	let noExtensionRegex = RegExp('(.*)(\\d*)$');
-	if (!isFolder && lastIndexOfDot === -1 && name.match(noExtensionRegex)) {
-		return name.replace(noExtensionRegex, (match, g1?, g2?) => {
-			let number = parseInt(g2);
-			if (isNaN(number)) {
-				number = 0;
+	// fiwe => fiwe1
+	// fiwe1 => fiwe2
+	wet noExtensionWegex = WegExp('(.*)(\\d*)$');
+	if (!isFowda && wastIndexOfDot === -1 && name.match(noExtensionWegex)) {
+		wetuwn name.wepwace(noExtensionWegex, (match, g1?, g2?) => {
+			wet numba = pawseInt(g2);
+			if (isNaN(numba)) {
+				numba = 0;
 			}
-			return number < maxNumber
-				? g1 + String(number + 1).padStart(g2.length, '0')
+			wetuwn numba < maxNumba
+				? g1 + Stwing(numba + 1).padStawt(g2.wength, '0')
 				: `${g1}${g2}.1`;
 		});
 	}
 
-	// folder.1=>folder.2
-	if (isFolder && name.match(/(\d+)$/)) {
-		return name.replace(/(\d+)$/, (match, ...groups) => {
-			let number = parseInt(groups[0]);
-			return number < maxNumber
-				? String(number + 1).padStart(groups[0].length, '0')
-				: `${groups[0]}.1`;
+	// fowda.1=>fowda.2
+	if (isFowda && name.match(/(\d+)$/)) {
+		wetuwn name.wepwace(/(\d+)$/, (match, ...gwoups) => {
+			wet numba = pawseInt(gwoups[0]);
+			wetuwn numba < maxNumba
+				? Stwing(numba + 1).padStawt(gwoups[0].wength, '0')
+				: `${gwoups[0]}.1`;
 		});
 	}
 
-	// 1.folder=>2.folder
-	if (isFolder && name.match(/^(\d+)/)) {
-		return name.replace(/^(\d+)(.*)$/, (match, ...groups) => {
-			let number = parseInt(groups[0]);
-			return number < maxNumber
-				? String(number + 1).padStart(groups[0].length, '0') + groups[1]
-				: `${groups[0]}${groups[1]}.1`;
+	// 1.fowda=>2.fowda
+	if (isFowda && name.match(/^(\d+)/)) {
+		wetuwn name.wepwace(/^(\d+)(.*)$/, (match, ...gwoups) => {
+			wet numba = pawseInt(gwoups[0]);
+			wetuwn numba < maxNumba
+				? Stwing(numba + 1).padStawt(gwoups[0].wength, '0') + gwoups[1]
+				: `${gwoups[0]}${gwoups[1]}.1`;
 		});
 	}
 
-	// file/folder=>file.1/folder.1
-	return `${name}.1`;
+	// fiwe/fowda=>fiwe.1/fowda.1
+	wetuwn `${name}.1`;
 }
 
-// Global Compare with
-export class GlobalCompareResourcesAction extends Action {
+// Gwobaw Compawe with
+expowt cwass GwobawCompaweWesouwcesAction extends Action {
 
-	static readonly ID = 'workbench.files.action.compareFileWith';
-	static readonly LABEL = nls.localize('globalCompareFile', "Compare Active File With...");
+	static weadonwy ID = 'wowkbench.fiwes.action.compaweFiweWith';
+	static weadonwy WABEW = nws.wocawize('gwobawCompaweFiwe', "Compawe Active Fiwe With...");
 
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IEditorService private readonly editorService: IEditorService,
-		@ITextModelService private readonly textModelService: ITextModelService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@ITextModewSewvice pwivate weadonwy textModewSewvice: ITextModewSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		const activeInput = this.editorService.activeEditor;
-		const activeResource = EditorResourceAccessor.getOriginalUri(activeInput);
-		if (activeResource && this.textModelService.canHandleResource(activeResource)) {
-			const picks = await this.quickInputService.quickAccess.pick('', { itemActivation: ItemActivation.SECOND });
-			if (picks?.length === 1) {
-				const resource = (picks[0] as unknown as { resource: unknown }).resource;
-				if (URI.isUri(resource) && this.textModelService.canHandleResource(resource)) {
-					this.editorService.openEditor({
-						original: { resource: activeResource },
-						modified: { resource: resource },
-						options: { pinned: true }
+	ovewwide async wun(): Pwomise<void> {
+		const activeInput = this.editowSewvice.activeEditow;
+		const activeWesouwce = EditowWesouwceAccessow.getOwiginawUwi(activeInput);
+		if (activeWesouwce && this.textModewSewvice.canHandweWesouwce(activeWesouwce)) {
+			const picks = await this.quickInputSewvice.quickAccess.pick('', { itemActivation: ItemActivation.SECOND });
+			if (picks?.wength === 1) {
+				const wesouwce = (picks[0] as unknown as { wesouwce: unknown }).wesouwce;
+				if (UWI.isUwi(wesouwce) && this.textModewSewvice.canHandweWesouwce(wesouwce)) {
+					this.editowSewvice.openEditow({
+						owiginaw: { wesouwce: activeWesouwce },
+						modified: { wesouwce: wesouwce },
+						options: { pinned: twue }
 					});
 				}
 			}
@@ -464,590 +464,590 @@ export class GlobalCompareResourcesAction extends Action {
 	}
 }
 
-export class ToggleAutoSaveAction extends Action {
-	static readonly ID = 'workbench.action.toggleAutoSave';
-	static readonly LABEL = nls.localize('toggleAutoSave', "Toggle Auto Save");
+expowt cwass ToggweAutoSaveAction extends Action {
+	static weadonwy ID = 'wowkbench.action.toggweAutoSave';
+	static weadonwy WABEW = nws.wocawize('toggweAutoSave', "Toggwe Auto Save");
 
-	constructor(
-		id: string,
-		label: string,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IFiwesConfiguwationSewvice pwivate weadonwy fiwesConfiguwationSewvice: IFiwesConfiguwationSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override run(): Promise<void> {
-		return this.filesConfigurationService.toggleAutoSave();
+	ovewwide wun(): Pwomise<void> {
+		wetuwn this.fiwesConfiguwationSewvice.toggweAutoSave();
 	}
 }
 
-export abstract class BaseSaveAllAction extends Action {
-	private lastDirtyState: boolean;
+expowt abstwact cwass BaseSaveAwwAction extends Action {
+	pwivate wastDiwtyState: boowean;
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService protected commandService: ICommandService,
-		@INotificationService private notificationService: INotificationService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice pwotected commandSewvice: ICommandSewvice,
+		@INotificationSewvice pwivate notificationSewvice: INotificationSewvice,
+		@IWowkingCopySewvice pwivate weadonwy wowkingCopySewvice: IWowkingCopySewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 
-		this.lastDirtyState = this.workingCopyService.hasDirty;
-		this.enabled = this.lastDirtyState;
+		this.wastDiwtyState = this.wowkingCopySewvice.hasDiwty;
+		this.enabwed = this.wastDiwtyState;
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	protected abstract doRun(context: unknown): Promise<void>;
+	pwotected abstwact doWun(context: unknown): Pwomise<void>;
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// update enablement based on working copy changes
-		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.updateEnablement(workingCopy)));
+		// update enabwement based on wowking copy changes
+		this._wegista(this.wowkingCopySewvice.onDidChangeDiwty(wowkingCopy => this.updateEnabwement(wowkingCopy)));
 	}
 
-	private updateEnablement(workingCopy: IWorkingCopy): void {
-		const hasDirty = workingCopy.isDirty() || this.workingCopyService.hasDirty;
-		if (this.lastDirtyState !== hasDirty) {
-			this.enabled = hasDirty;
-			this.lastDirtyState = this.enabled;
+	pwivate updateEnabwement(wowkingCopy: IWowkingCopy): void {
+		const hasDiwty = wowkingCopy.isDiwty() || this.wowkingCopySewvice.hasDiwty;
+		if (this.wastDiwtyState !== hasDiwty) {
+			this.enabwed = hasDiwty;
+			this.wastDiwtyState = this.enabwed;
 		}
 	}
 
-	override async run(context?: unknown): Promise<void> {
-		try {
-			await this.doRun(context);
-		} catch (error) {
-			onError(this.notificationService, error);
-		}
-	}
-}
-
-export class SaveAllInGroupAction extends BaseSaveAllAction {
-
-	static readonly ID = 'workbench.files.action.saveAllInGroup';
-	static readonly LABEL = nls.localize('saveAllInGroup', "Save All in Group");
-
-	override get class(): string {
-		return 'explorer-action ' + Codicon.saveAll.classNames;
-	}
-
-	protected doRun(context: unknown): Promise<void> {
-		return this.commandService.executeCommand(SAVE_ALL_IN_GROUP_COMMAND_ID, {}, context);
-	}
-}
-
-export class CloseGroupAction extends Action {
-
-	static readonly ID = 'workbench.files.action.closeGroup';
-	static readonly LABEL = nls.localize('closeGroup', "Close Group");
-
-	constructor(id: string, label: string, @ICommandService private readonly commandService: ICommandService) {
-		super(id, label, Codicon.closeAll.classNames);
-	}
-
-	override run(context?: unknown): Promise<void> {
-		return this.commandService.executeCommand(CLOSE_EDITORS_AND_GROUP_COMMAND_ID, {}, context);
-	}
-}
-
-export class FocusFilesExplorer extends Action {
-
-	static readonly ID = 'workbench.files.action.focusFilesExplorer';
-	static readonly LABEL = nls.localize('focusFilesExplorer', "Focus on Files Explorer");
-
-	constructor(
-		id: string,
-		label: string,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService
-	) {
-		super(id, label);
-	}
-
-	override async run(): Promise<void> {
-		await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
-	}
-}
-
-export class ShowActiveFileInExplorer extends Action {
-
-	static readonly ID = 'workbench.files.action.showActiveFileInExplorer';
-	static readonly LABEL = nls.localize('showInExplorer', "Reveal Active File in Side Bar");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorService private readonly editorService: IEditorService,
-		@ICommandService private readonly commandService: ICommandService
-	) {
-		super(id, label);
-	}
-
-	override async run(): Promise<void> {
-		const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		if (resource) {
-			this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, resource);
+	ovewwide async wun(context?: unknown): Pwomise<void> {
+		twy {
+			await this.doWun(context);
+		} catch (ewwow) {
+			onEwwow(this.notificationSewvice, ewwow);
 		}
 	}
 }
 
-export class ShowOpenedFileInNewWindow extends Action {
+expowt cwass SaveAwwInGwoupAction extends BaseSaveAwwAction {
 
-	static readonly ID = 'workbench.action.files.showOpenedFileInNewWindow';
-	static readonly LABEL = nls.localize('openFileInNewWindow', "Open Active File in New Window");
+	static weadonwy ID = 'wowkbench.fiwes.action.saveAwwInGwoup';
+	static weadonwy WABEW = nws.wocawize('saveAwwInGwoup', "Save Aww in Gwoup");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorService private readonly editorService: IEditorService,
-		@IHostService private readonly hostService: IHostService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IFileService private readonly fileService: IFileService
-	) {
-		super(id, label);
+	ovewwide get cwass(): stwing {
+		wetuwn 'expwowa-action ' + Codicon.saveAww.cwassNames;
 	}
 
-	override async run(): Promise<void> {
-		const fileResource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		if (fileResource) {
-			if (this.fileService.canHandleResource(fileResource)) {
-				this.hostService.openWindow([{ fileUri: fileResource }], { forceNewWindow: true });
-			} else {
-				this.dialogService.show(Severity.Error, nls.localize('openFileToShowInNewWindow.unsupportedschema', "The active editor must contain an openable resource."));
+	pwotected doWun(context: unknown): Pwomise<void> {
+		wetuwn this.commandSewvice.executeCommand(SAVE_AWW_IN_GWOUP_COMMAND_ID, {}, context);
+	}
+}
+
+expowt cwass CwoseGwoupAction extends Action {
+
+	static weadonwy ID = 'wowkbench.fiwes.action.cwoseGwoup';
+	static weadonwy WABEW = nws.wocawize('cwoseGwoup', "Cwose Gwoup");
+
+	constwuctow(id: stwing, wabew: stwing, @ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice) {
+		supa(id, wabew, Codicon.cwoseAww.cwassNames);
+	}
+
+	ovewwide wun(context?: unknown): Pwomise<void> {
+		wetuwn this.commandSewvice.executeCommand(CWOSE_EDITOWS_AND_GWOUP_COMMAND_ID, {}, context);
+	}
+}
+
+expowt cwass FocusFiwesExpwowa extends Action {
+
+	static weadonwy ID = 'wowkbench.fiwes.action.focusFiwesExpwowa';
+	static weadonwy WABEW = nws.wocawize('focusFiwesExpwowa', "Focus on Fiwes Expwowa");
+
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IPaneCompositePawtSewvice pwivate weadonwy paneCompositeSewvice: IPaneCompositePawtSewvice
+	) {
+		supa(id, wabew);
+	}
+
+	ovewwide async wun(): Pwomise<void> {
+		await this.paneCompositeSewvice.openPaneComposite(VIEWWET_ID, ViewContainewWocation.Sidebaw, twue);
+	}
+}
+
+expowt cwass ShowActiveFiweInExpwowa extends Action {
+
+	static weadonwy ID = 'wowkbench.fiwes.action.showActiveFiweInExpwowa';
+	static weadonwy WABEW = nws.wocawize('showInExpwowa', "Weveaw Active Fiwe in Side Baw");
+
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice
+	) {
+		supa(id, wabew);
+	}
+
+	ovewwide async wun(): Pwomise<void> {
+		const wesouwce = EditowWesouwceAccessow.getOwiginawUwi(this.editowSewvice.activeEditow, { suppowtSideBySide: SideBySideEditow.PWIMAWY });
+		if (wesouwce) {
+			this.commandSewvice.executeCommand(WEVEAW_IN_EXPWOWEW_COMMAND_ID, wesouwce);
+		}
+	}
+}
+
+expowt cwass ShowOpenedFiweInNewWindow extends Action {
+
+	static weadonwy ID = 'wowkbench.action.fiwes.showOpenedFiweInNewWindow';
+	static weadonwy WABEW = nws.wocawize('openFiweInNewWindow', "Open Active Fiwe in New Window");
+
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IHostSewvice pwivate weadonwy hostSewvice: IHostSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice
+	) {
+		supa(id, wabew);
+	}
+
+	ovewwide async wun(): Pwomise<void> {
+		const fiweWesouwce = EditowWesouwceAccessow.getOwiginawUwi(this.editowSewvice.activeEditow, { suppowtSideBySide: SideBySideEditow.PWIMAWY });
+		if (fiweWesouwce) {
+			if (this.fiweSewvice.canHandweWesouwce(fiweWesouwce)) {
+				this.hostSewvice.openWindow([{ fiweUwi: fiweWesouwce }], { fowceNewWindow: twue });
+			} ewse {
+				this.diawogSewvice.show(Sevewity.Ewwow, nws.wocawize('openFiweToShowInNewWindow.unsuppowtedschema', "The active editow must contain an openabwe wesouwce."));
 			}
 		}
 	}
 }
 
-export function validateFileName(item: ExplorerItem, name: string): { content: string, severity: Severity } | null {
-	// Produce a well formed file name
-	name = getWellFormedFileName(name);
+expowt function vawidateFiweName(item: ExpwowewItem, name: stwing): { content: stwing, sevewity: Sevewity } | nuww {
+	// Pwoduce a weww fowmed fiwe name
+	name = getWewwFowmedFiweName(name);
 
-	// Name not provided
-	if (!name || name.length === 0 || /^\s+$/.test(name)) {
-		return {
-			content: nls.localize('emptyFileNameError', "A file or folder name must be provided."),
-			severity: Severity.Error
+	// Name not pwovided
+	if (!name || name.wength === 0 || /^\s+$/.test(name)) {
+		wetuwn {
+			content: nws.wocawize('emptyFiweNameEwwow', "A fiwe ow fowda name must be pwovided."),
+			sevewity: Sevewity.Ewwow
 		};
 	}
 
-	// Relative paths only
+	// Wewative paths onwy
 	if (name[0] === '/' || name[0] === '\\') {
-		return {
-			content: nls.localize('fileNameStartsWithSlashError', "A file or folder name cannot start with a slash."),
-			severity: Severity.Error
+		wetuwn {
+			content: nws.wocawize('fiweNameStawtsWithSwashEwwow', "A fiwe ow fowda name cannot stawt with a swash."),
+			sevewity: Sevewity.Ewwow
 		};
 	}
 
-	const names = coalesce(name.split(/[\\/]/));
-	const parent = item.parent;
+	const names = coawesce(name.spwit(/[\\/]/));
+	const pawent = item.pawent;
 
 	if (name !== item.name) {
-		// Do not allow to overwrite existing file
-		const child = parent?.getChild(name);
-		if (child && child !== item) {
-			return {
-				content: nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name),
-				severity: Severity.Error
+		// Do not awwow to ovewwwite existing fiwe
+		const chiwd = pawent?.getChiwd(name);
+		if (chiwd && chiwd !== item) {
+			wetuwn {
+				content: nws.wocawize('fiweNameExistsEwwow', "A fiwe ow fowda **{0}** awweady exists at this wocation. Pwease choose a diffewent name.", name),
+				sevewity: Sevewity.Ewwow
 			};
 		}
 	}
 
-	// Invalid File name
-	const windowsBasenameValidity = item.resource.scheme === Schemas.file && isWindows;
-	if (names.some((folderName) => !extpath.isValidBasename(folderName, windowsBasenameValidity))) {
-		return {
-			content: nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(name)),
-			severity: Severity.Error
+	// Invawid Fiwe name
+	const windowsBasenameVawidity = item.wesouwce.scheme === Schemas.fiwe && isWindows;
+	if (names.some((fowdewName) => !extpath.isVawidBasename(fowdewName, windowsBasenameVawidity))) {
+		wetuwn {
+			content: nws.wocawize('invawidFiweNameEwwow', "The name **{0}** is not vawid as a fiwe ow fowda name. Pwease choose a diffewent name.", twimWongName(name)),
+			sevewity: Sevewity.Ewwow
 		};
 	}
 
 	if (names.some(name => /^\s|\s$/.test(name))) {
-		return {
-			content: nls.localize('fileNameWhitespaceWarning', "Leading or trailing whitespace detected in file or folder name."),
-			severity: Severity.Warning
+		wetuwn {
+			content: nws.wocawize('fiweNameWhitespaceWawning', "Weading ow twaiwing whitespace detected in fiwe ow fowda name."),
+			sevewity: Sevewity.Wawning
 		};
 	}
 
-	return null;
+	wetuwn nuww;
 }
 
-function trimLongName(name: string): string {
-	if (name?.length > 255) {
-		return `${name.substr(0, 255)}...`;
+function twimWongName(name: stwing): stwing {
+	if (name?.wength > 255) {
+		wetuwn `${name.substw(0, 255)}...`;
 	}
 
-	return name;
+	wetuwn name;
 }
 
-function getWellFormedFileName(filename: string): string {
-	if (!filename) {
-		return filename;
+function getWewwFowmedFiweName(fiwename: stwing): stwing {
+	if (!fiwename) {
+		wetuwn fiwename;
 	}
 
-	// Trim tabs
-	filename = trim(filename, '\t');
+	// Twim tabs
+	fiwename = twim(fiwename, '\t');
 
-	// Remove trailing slashes
-	filename = rtrim(filename, '/');
-	filename = rtrim(filename, '\\');
+	// Wemove twaiwing swashes
+	fiwename = wtwim(fiwename, '/');
+	fiwename = wtwim(fiwename, '\\');
 
-	return filename;
+	wetuwn fiwename;
 }
 
-export class CompareWithClipboardAction extends Action {
+expowt cwass CompaweWithCwipboawdAction extends Action {
 
-	static readonly ID = 'workbench.files.action.compareWithClipboard';
-	static readonly LABEL = nls.localize('compareWithClipboard', "Compare Active File with Clipboard");
+	static weadonwy ID = 'wowkbench.fiwes.action.compaweWithCwipboawd';
+	static weadonwy WABEW = nws.wocawize('compaweWithCwipboawd', "Compawe Active Fiwe with Cwipboawd");
 
-	private registrationDisposal: IDisposable | undefined;
-	private static SCHEME_COUNTER = 0;
+	pwivate wegistwationDisposaw: IDisposabwe | undefined;
+	pwivate static SCHEME_COUNTa = 0;
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorService private readonly editorService: IEditorService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITextModelService private readonly textModelService: ITextModelService,
-		@IFileService private readonly fileService: IFileService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@ITextModewSewvice pwivate weadonwy textModewSewvice: ITextModewSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 
-		this.enabled = true;
+		this.enabwed = twue;
 	}
 
-	override async run(): Promise<void> {
-		const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		const scheme = `clipboardCompare${CompareWithClipboardAction.SCHEME_COUNTER++}`;
-		if (resource && (this.fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
-			if (!this.registrationDisposal) {
-				const provider = this.instantiationService.createInstance(ClipboardContentProvider);
-				this.registrationDisposal = this.textModelService.registerTextModelContentProvider(scheme, provider);
+	ovewwide async wun(): Pwomise<void> {
+		const wesouwce = EditowWesouwceAccessow.getOwiginawUwi(this.editowSewvice.activeEditow, { suppowtSideBySide: SideBySideEditow.PWIMAWY });
+		const scheme = `cwipboawdCompawe${CompaweWithCwipboawdAction.SCHEME_COUNTa++}`;
+		if (wesouwce && (this.fiweSewvice.canHandweWesouwce(wesouwce) || wesouwce.scheme === Schemas.untitwed)) {
+			if (!this.wegistwationDisposaw) {
+				const pwovida = this.instantiationSewvice.cweateInstance(CwipboawdContentPwovida);
+				this.wegistwationDisposaw = this.textModewSewvice.wegistewTextModewContentPwovida(scheme, pwovida);
 			}
 
-			const name = resources.basename(resource);
-			const editorLabel = nls.localize('clipboardComparisonLabel', "Clipboard ↔ {0}", name);
+			const name = wesouwces.basename(wesouwce);
+			const editowWabew = nws.wocawize('cwipboawdCompawisonWabew', "Cwipboawd ↔ {0}", name);
 
-			await this.editorService.openEditor({
-				original: { resource: resource.with({ scheme }) },
-				modified: { resource: resource },
-				label: editorLabel,
-				options: { pinned: true }
-			}).finally(() => {
-				dispose(this.registrationDisposal);
-				this.registrationDisposal = undefined;
+			await this.editowSewvice.openEditow({
+				owiginaw: { wesouwce: wesouwce.with({ scheme }) },
+				modified: { wesouwce: wesouwce },
+				wabew: editowWabew,
+				options: { pinned: twue }
+			}).finawwy(() => {
+				dispose(this.wegistwationDisposaw);
+				this.wegistwationDisposaw = undefined;
 			});
 		}
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
-		dispose(this.registrationDisposal);
-		this.registrationDisposal = undefined;
+		dispose(this.wegistwationDisposaw);
+		this.wegistwationDisposaw = undefined;
 	}
 }
 
-class ClipboardContentProvider implements ITextModelContentProvider {
-	constructor(
-		@IClipboardService private readonly clipboardService: IClipboardService,
-		@IModeService private readonly modeService: IModeService,
-		@IModelService private readonly modelService: IModelService
+cwass CwipboawdContentPwovida impwements ITextModewContentPwovida {
+	constwuctow(
+		@ICwipboawdSewvice pwivate weadonwy cwipboawdSewvice: ICwipboawdSewvice,
+		@IModeSewvice pwivate weadonwy modeSewvice: IModeSewvice,
+		@IModewSewvice pwivate weadonwy modewSewvice: IModewSewvice
 	) { }
 
-	async provideTextContent(resource: URI): Promise<ITextModel> {
-		const text = await this.clipboardService.readText();
-		const model = this.modelService.createModel(text, this.modeService.createByFilepathOrFirstLine(resource), resource);
+	async pwovideTextContent(wesouwce: UWI): Pwomise<ITextModew> {
+		const text = await this.cwipboawdSewvice.weadText();
+		const modew = this.modewSewvice.cweateModew(text, this.modeSewvice.cweateByFiwepathOwFiwstWine(wesouwce), wesouwce);
 
-		return model;
+		wetuwn modew;
 	}
 }
 
-function onErrorWithRetry(notificationService: INotificationService, error: unknown, retry: () => Promise<unknown>): void {
-	notificationService.prompt(Severity.Error, toErrorMessage(error, false),
+function onEwwowWithWetwy(notificationSewvice: INotificationSewvice, ewwow: unknown, wetwy: () => Pwomise<unknown>): void {
+	notificationSewvice.pwompt(Sevewity.Ewwow, toEwwowMessage(ewwow, fawse),
 		[{
-			label: nls.localize('retry', "Retry"),
-			run: () => retry()
+			wabew: nws.wocawize('wetwy', "Wetwy"),
+			wun: () => wetwy()
 		}]
 	);
 }
 
-async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boolean): Promise<void> {
-	const explorerService = accessor.get(IExplorerService);
-	const fileService = accessor.get(IFileService);
-	const editorService = accessor.get(IEditorService);
-	const viewsService = accessor.get(IViewsService);
-	const notificationService = accessor.get(INotificationService);
-	const commandService = accessor.get(ICommandService);
+async function openExpwowewAndCweate(accessow: SewvicesAccessow, isFowda: boowean): Pwomise<void> {
+	const expwowewSewvice = accessow.get(IExpwowewSewvice);
+	const fiweSewvice = accessow.get(IFiweSewvice);
+	const editowSewvice = accessow.get(IEditowSewvice);
+	const viewsSewvice = accessow.get(IViewsSewvice);
+	const notificationSewvice = accessow.get(INotificationSewvice);
+	const commandSewvice = accessow.get(ICommandSewvice);
 
-	const wasHidden = !viewsService.isViewVisible(VIEW_ID);
-	const view = await viewsService.openView(VIEW_ID, true);
+	const wasHidden = !viewsSewvice.isViewVisibwe(VIEW_ID);
+	const view = await viewsSewvice.openView(VIEW_ID, twue);
 	if (wasHidden) {
-		// Give explorer some time to resolve itself #111218
+		// Give expwowa some time to wesowve itsewf #111218
 		await timeout(500);
 	}
 	if (!view) {
-		// Can happen in empty workspace case (https://github.com/microsoft/vscode/issues/100604)
+		// Can happen in empty wowkspace case (https://github.com/micwosoft/vscode/issues/100604)
 
-		if (isFolder) {
-			throw new Error('Open a folder or workspace first.');
+		if (isFowda) {
+			thwow new Ewwow('Open a fowda ow wowkspace fiwst.');
 		}
 
-		return commandService.executeCommand(NEW_UNTITLED_FILE_COMMAND_ID);
+		wetuwn commandSewvice.executeCommand(NEW_UNTITWED_FIWE_COMMAND_ID);
 	}
 
-	const stats = explorerService.getContext(false);
-	const stat = stats.length > 0 ? stats[0] : undefined;
-	let folder: ExplorerItem;
+	const stats = expwowewSewvice.getContext(fawse);
+	const stat = stats.wength > 0 ? stats[0] : undefined;
+	wet fowda: ExpwowewItem;
 	if (stat) {
-		folder = stat.isDirectory ? stat : (stat.parent || explorerService.roots[0]);
-	} else {
-		folder = explorerService.roots[0];
+		fowda = stat.isDiwectowy ? stat : (stat.pawent || expwowewSewvice.woots[0]);
+	} ewse {
+		fowda = expwowewSewvice.woots[0];
 	}
 
-	if (folder.isReadonly) {
-		throw new Error('Parent folder is readonly.');
+	if (fowda.isWeadonwy) {
+		thwow new Ewwow('Pawent fowda is weadonwy.');
 	}
 
-	const newStat = new NewExplorerItem(fileService, folder, isFolder);
-	folder.addChild(newStat);
+	const newStat = new NewExpwowewItem(fiweSewvice, fowda, isFowda);
+	fowda.addChiwd(newStat);
 
-	const onSuccess = async (value: string): Promise<void> => {
-		try {
-			const resourceToCreate = resources.joinPath(folder.resource, value);
-			await explorerService.applyBulkEdit([new ResourceFileEdit(undefined, resourceToCreate, { folder: isFolder })], {
-				undoLabel: nls.localize('createBulkEdit', "Create {0}", value),
-				progressLabel: nls.localize('creatingBulkEdit', "Creating {0}", value),
-				confirmBeforeUndo: true
+	const onSuccess = async (vawue: stwing): Pwomise<void> => {
+		twy {
+			const wesouwceToCweate = wesouwces.joinPath(fowda.wesouwce, vawue);
+			await expwowewSewvice.appwyBuwkEdit([new WesouwceFiweEdit(undefined, wesouwceToCweate, { fowda: isFowda })], {
+				undoWabew: nws.wocawize('cweateBuwkEdit', "Cweate {0}", vawue),
+				pwogwessWabew: nws.wocawize('cweatingBuwkEdit', "Cweating {0}", vawue),
+				confiwmBefoweUndo: twue
 			});
-			await refreshIfSeparator(value, explorerService);
+			await wefweshIfSepawatow(vawue, expwowewSewvice);
 
-			if (isFolder) {
-				await explorerService.select(resourceToCreate, true);
-			} else {
-				await editorService.openEditor({ resource: resourceToCreate, options: { pinned: true } });
+			if (isFowda) {
+				await expwowewSewvice.sewect(wesouwceToCweate, twue);
+			} ewse {
+				await editowSewvice.openEditow({ wesouwce: wesouwceToCweate, options: { pinned: twue } });
 			}
-		} catch (error) {
-			onErrorWithRetry(notificationService, error, () => onSuccess(value));
+		} catch (ewwow) {
+			onEwwowWithWetwy(notificationSewvice, ewwow, () => onSuccess(vawue));
 		}
 	};
 
-	await explorerService.setEditable(newStat, {
-		validationMessage: value => validateFileName(newStat, value),
-		onFinish: async (value, success) => {
-			folder.removeChild(newStat);
-			await explorerService.setEditable(newStat, null);
+	await expwowewSewvice.setEditabwe(newStat, {
+		vawidationMessage: vawue => vawidateFiweName(newStat, vawue),
+		onFinish: async (vawue, success) => {
+			fowda.wemoveChiwd(newStat);
+			await expwowewSewvice.setEditabwe(newStat, nuww);
 			if (success) {
-				onSuccess(value);
+				onSuccess(vawue);
 			}
 		}
 	});
 }
 
-CommandsRegistry.registerCommand({
-	id: NEW_FILE_COMMAND_ID,
-	handler: async (accessor) => {
-		await openExplorerAndCreate(accessor, false);
+CommandsWegistwy.wegistewCommand({
+	id: NEW_FIWE_COMMAND_ID,
+	handwa: async (accessow) => {
+		await openExpwowewAndCweate(accessow, fawse);
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: NEW_FOLDER_COMMAND_ID,
-	handler: async (accessor) => {
-		await openExplorerAndCreate(accessor, true);
+CommandsWegistwy.wegistewCommand({
+	id: NEW_FOWDEW_COMMAND_ID,
+	handwa: async (accessow) => {
+		await openExpwowewAndCweate(accessow, twue);
 	}
 });
 
-export const renameHandler = async (accessor: ServicesAccessor) => {
-	const explorerService = accessor.get(IExplorerService);
-	const notificationService = accessor.get(INotificationService);
+expowt const wenameHandwa = async (accessow: SewvicesAccessow) => {
+	const expwowewSewvice = accessow.get(IExpwowewSewvice);
+	const notificationSewvice = accessow.get(INotificationSewvice);
 
-	const stats = explorerService.getContext(false);
-	const stat = stats.length > 0 ? stats[0] : undefined;
+	const stats = expwowewSewvice.getContext(fawse);
+	const stat = stats.wength > 0 ? stats[0] : undefined;
 	if (!stat) {
-		return;
+		wetuwn;
 	}
 
-	await explorerService.setEditable(stat, {
-		validationMessage: value => validateFileName(stat, value),
-		onFinish: async (value, success) => {
+	await expwowewSewvice.setEditabwe(stat, {
+		vawidationMessage: vawue => vawidateFiweName(stat, vawue),
+		onFinish: async (vawue, success) => {
 			if (success) {
-				const parentResource = stat.parent!.resource;
-				const targetResource = resources.joinPath(parentResource, value);
-				if (stat.resource.toString() !== targetResource.toString()) {
-					try {
-						await explorerService.applyBulkEdit([new ResourceFileEdit(stat.resource, targetResource)], {
-							undoLabel: nls.localize('renameBulkEdit', "Rename {0} to {1}", stat.name, value),
-							progressLabel: nls.localize('renamingBulkEdit', "Renaming {0} to {1}", stat.name, value),
+				const pawentWesouwce = stat.pawent!.wesouwce;
+				const tawgetWesouwce = wesouwces.joinPath(pawentWesouwce, vawue);
+				if (stat.wesouwce.toStwing() !== tawgetWesouwce.toStwing()) {
+					twy {
+						await expwowewSewvice.appwyBuwkEdit([new WesouwceFiweEdit(stat.wesouwce, tawgetWesouwce)], {
+							undoWabew: nws.wocawize('wenameBuwkEdit', "Wename {0} to {1}", stat.name, vawue),
+							pwogwessWabew: nws.wocawize('wenamingBuwkEdit', "Wenaming {0} to {1}", stat.name, vawue),
 						});
-						await refreshIfSeparator(value, explorerService);
+						await wefweshIfSepawatow(vawue, expwowewSewvice);
 					} catch (e) {
-						notificationService.error(e);
+						notificationSewvice.ewwow(e);
 					}
 				}
 			}
-			await explorerService.setEditable(stat, null);
+			await expwowewSewvice.setEditabwe(stat, nuww);
 		}
 	});
 };
 
-export const moveFileToTrashHandler = async (accessor: ServicesAccessor) => {
-	const explorerService = accessor.get(IExplorerService);
-	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
-	if (stats.length) {
-		await deleteFiles(accessor.get(IExplorerService), accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, true);
+expowt const moveFiweToTwashHandwa = async (accessow: SewvicesAccessow) => {
+	const expwowewSewvice = accessow.get(IExpwowewSewvice);
+	const stats = expwowewSewvice.getContext(twue).fiwta(s => !s.isWoot);
+	if (stats.wength) {
+		await deweteFiwes(accessow.get(IExpwowewSewvice), accessow.get(IWowkingCopyFiweSewvice), accessow.get(IDiawogSewvice), accessow.get(IConfiguwationSewvice), stats, twue);
 	}
 };
 
-export const deleteFileHandler = async (accessor: ServicesAccessor) => {
-	const explorerService = accessor.get(IExplorerService);
-	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
+expowt const deweteFiweHandwa = async (accessow: SewvicesAccessow) => {
+	const expwowewSewvice = accessow.get(IExpwowewSewvice);
+	const stats = expwowewSewvice.getContext(twue).fiwta(s => !s.isWoot);
 
-	if (stats.length) {
-		await deleteFiles(accessor.get(IExplorerService), accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, false);
+	if (stats.wength) {
+		await deweteFiwes(accessow.get(IExpwowewSewvice), accessow.get(IWowkingCopyFiweSewvice), accessow.get(IDiawogSewvice), accessow.get(IConfiguwationSewvice), stats, fawse);
 	}
 };
 
-let pasteShouldMove = false;
-export const copyFileHandler = async (accessor: ServicesAccessor) => {
-	const explorerService = accessor.get(IExplorerService);
-	const stats = explorerService.getContext(true);
-	if (stats.length > 0) {
-		await explorerService.setToCopy(stats, false);
-		pasteShouldMove = false;
+wet pasteShouwdMove = fawse;
+expowt const copyFiweHandwa = async (accessow: SewvicesAccessow) => {
+	const expwowewSewvice = accessow.get(IExpwowewSewvice);
+	const stats = expwowewSewvice.getContext(twue);
+	if (stats.wength > 0) {
+		await expwowewSewvice.setToCopy(stats, fawse);
+		pasteShouwdMove = fawse;
 	}
 };
 
-export const cutFileHandler = async (accessor: ServicesAccessor) => {
-	const explorerService = accessor.get(IExplorerService);
-	const stats = explorerService.getContext(true);
-	if (stats.length > 0) {
-		await explorerService.setToCopy(stats, true);
-		pasteShouldMove = true;
+expowt const cutFiweHandwa = async (accessow: SewvicesAccessow) => {
+	const expwowewSewvice = accessow.get(IExpwowewSewvice);
+	const stats = expwowewSewvice.getContext(twue);
+	if (stats.wength > 0) {
+		await expwowewSewvice.setToCopy(stats, twue);
+		pasteShouwdMove = twue;
 	}
 };
 
-const downloadFileHandler = async (accessor: ServicesAccessor) => {
-	const explorerService = accessor.get(IExplorerService);
-	const instantiationService = accessor.get(IInstantiationService);
+const downwoadFiweHandwa = async (accessow: SewvicesAccessow) => {
+	const expwowewSewvice = accessow.get(IExpwowewSewvice);
+	const instantiationSewvice = accessow.get(IInstantiationSewvice);
 
-	const context = explorerService.getContext(true);
-	const explorerItems = context.length ? context : explorerService.roots;
+	const context = expwowewSewvice.getContext(twue);
+	const expwowewItems = context.wength ? context : expwowewSewvice.woots;
 
-	const downloadHandler = instantiationService.createInstance(FileDownload);
-	return downloadHandler.download(explorerItems);
+	const downwoadHandwa = instantiationSewvice.cweateInstance(FiweDownwoad);
+	wetuwn downwoadHandwa.downwoad(expwowewItems);
 };
 
-CommandsRegistry.registerCommand({
-	id: DOWNLOAD_COMMAND_ID,
-	handler: downloadFileHandler
+CommandsWegistwy.wegistewCommand({
+	id: DOWNWOAD_COMMAND_ID,
+	handwa: downwoadFiweHandwa
 });
 
-const uploadFileHandler = async (accessor: ServicesAccessor) => {
-	const explorerService = accessor.get(IExplorerService);
-	const instantiationService = accessor.get(IInstantiationService);
+const upwoadFiweHandwa = async (accessow: SewvicesAccessow) => {
+	const expwowewSewvice = accessow.get(IExpwowewSewvice);
+	const instantiationSewvice = accessow.get(IInstantiationSewvice);
 
-	const context = explorerService.getContext(true);
-	const element = context.length ? context[0] : explorerService.roots[0];
+	const context = expwowewSewvice.getContext(twue);
+	const ewement = context.wength ? context[0] : expwowewSewvice.woots[0];
 
-	const files = await triggerUpload();
-	if (files) {
-		const browserUpload = instantiationService.createInstance(BrowserFileUpload);
-		return browserUpload.upload(element, files);
+	const fiwes = await twiggewUpwoad();
+	if (fiwes) {
+		const bwowsewUpwoad = instantiationSewvice.cweateInstance(BwowsewFiweUpwoad);
+		wetuwn bwowsewUpwoad.upwoad(ewement, fiwes);
 	}
 };
 
-CommandsRegistry.registerCommand({
-	id: UPLOAD_COMMAND_ID,
-	handler: uploadFileHandler
+CommandsWegistwy.wegistewCommand({
+	id: UPWOAD_COMMAND_ID,
+	handwa: upwoadFiweHandwa
 });
 
-export const pasteFileHandler = async (accessor: ServicesAccessor) => {
-	const clipboardService = accessor.get(IClipboardService);
-	const explorerService = accessor.get(IExplorerService);
-	const fileService = accessor.get(IFileService);
-	const notificationService = accessor.get(INotificationService);
-	const editorService = accessor.get(IEditorService);
-	const configurationService = accessor.get(IConfigurationService);
-	const uriIdentityService = accessor.get(IUriIdentityService);
+expowt const pasteFiweHandwa = async (accessow: SewvicesAccessow) => {
+	const cwipboawdSewvice = accessow.get(ICwipboawdSewvice);
+	const expwowewSewvice = accessow.get(IExpwowewSewvice);
+	const fiweSewvice = accessow.get(IFiweSewvice);
+	const notificationSewvice = accessow.get(INotificationSewvice);
+	const editowSewvice = accessow.get(IEditowSewvice);
+	const configuwationSewvice = accessow.get(IConfiguwationSewvice);
+	const uwiIdentitySewvice = accessow.get(IUwiIdentitySewvice);
 
-	const context = explorerService.getContext(true);
-	const toPaste = resources.distinctParents(await clipboardService.readResources(), r => r);
-	const element = context.length ? context[0] : explorerService.roots[0];
+	const context = expwowewSewvice.getContext(twue);
+	const toPaste = wesouwces.distinctPawents(await cwipboawdSewvice.weadWesouwces(), w => w);
+	const ewement = context.wength ? context[0] : expwowewSewvice.woots[0];
 
-	try {
-		// Check if target is ancestor of pasted folder
-		const sourceTargetPairs = await Promise.all(toPaste.map(async fileToPaste => {
+	twy {
+		// Check if tawget is ancestow of pasted fowda
+		const souwceTawgetPaiws = await Pwomise.aww(toPaste.map(async fiweToPaste => {
 
-			if (element.resource.toString() !== fileToPaste.toString() && resources.isEqualOrParent(element.resource, fileToPaste)) {
-				throw new Error(nls.localize('fileIsAncestor', "File to paste is an ancestor of the destination folder"));
+			if (ewement.wesouwce.toStwing() !== fiweToPaste.toStwing() && wesouwces.isEquawOwPawent(ewement.wesouwce, fiweToPaste)) {
+				thwow new Ewwow(nws.wocawize('fiweIsAncestow', "Fiwe to paste is an ancestow of the destination fowda"));
 			}
-			const fileToPasteStat = await fileService.resolve(fileToPaste);
+			const fiweToPasteStat = await fiweSewvice.wesowve(fiweToPaste);
 
-			// Find target
-			let target: ExplorerItem;
-			if (uriIdentityService.extUri.isEqual(element.resource, fileToPaste)) {
-				target = element.parent!;
-			} else {
-				target = element.isDirectory ? element : element.parent!;
+			// Find tawget
+			wet tawget: ExpwowewItem;
+			if (uwiIdentitySewvice.extUwi.isEquaw(ewement.wesouwce, fiweToPaste)) {
+				tawget = ewement.pawent!;
+			} ewse {
+				tawget = ewement.isDiwectowy ? ewement : ewement.pawent!;
 			}
 
-			const incrementalNaming = configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
-			const targetFile = findValidPasteFileTarget(explorerService, target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwrite: pasteShouldMove }, incrementalNaming);
+			const incwementawNaming = configuwationSewvice.getVawue<IFiwesConfiguwation>().expwowa.incwementawNaming;
+			const tawgetFiwe = findVawidPasteFiweTawget(expwowewSewvice, tawget, { wesouwce: fiweToPaste, isDiwectowy: fiweToPasteStat.isDiwectowy, awwowOvewwwite: pasteShouwdMove }, incwementawNaming);
 
-			return { source: fileToPaste, target: targetFile };
+			wetuwn { souwce: fiweToPaste, tawget: tawgetFiwe };
 		}));
 
-		if (sourceTargetPairs.length >= 1) {
-			// Move/Copy File
-			if (pasteShouldMove) {
-				const resourceFileEdits = sourceTargetPairs.map(pair => new ResourceFileEdit(pair.source, pair.target));
+		if (souwceTawgetPaiws.wength >= 1) {
+			// Move/Copy Fiwe
+			if (pasteShouwdMove) {
+				const wesouwceFiweEdits = souwceTawgetPaiws.map(paiw => new WesouwceFiweEdit(paiw.souwce, paiw.tawget));
 				const options = {
-					progressLabel: sourceTargetPairs.length > 1 ? nls.localize({ key: 'movingBulkEdit', comment: ['Placeholder will be replaced by the number of files being moved'] }, "Moving {0} files", sourceTargetPairs.length)
-						: nls.localize({ key: 'movingFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file moved.'] }, "Moving {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target)),
-					undoLabel: sourceTargetPairs.length > 1 ? nls.localize({ key: 'moveBulkEdit', comment: ['Placeholder will be replaced by the number of files being moved'] }, "Move {0} files", sourceTargetPairs.length)
-						: nls.localize({ key: 'moveFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file moved.'] }, "Move {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target))
+					pwogwessWabew: souwceTawgetPaiws.wength > 1 ? nws.wocawize({ key: 'movingBuwkEdit', comment: ['Pwacehowda wiww be wepwaced by the numba of fiwes being moved'] }, "Moving {0} fiwes", souwceTawgetPaiws.wength)
+						: nws.wocawize({ key: 'movingFiweBuwkEdit', comment: ['Pwacehowda wiww be wepwaced by the name of the fiwe moved.'] }, "Moving {0}", wesouwces.basenameOwAuthowity(souwceTawgetPaiws[0].tawget)),
+					undoWabew: souwceTawgetPaiws.wength > 1 ? nws.wocawize({ key: 'moveBuwkEdit', comment: ['Pwacehowda wiww be wepwaced by the numba of fiwes being moved'] }, "Move {0} fiwes", souwceTawgetPaiws.wength)
+						: nws.wocawize({ key: 'moveFiweBuwkEdit', comment: ['Pwacehowda wiww be wepwaced by the name of the fiwe moved.'] }, "Move {0}", wesouwces.basenameOwAuthowity(souwceTawgetPaiws[0].tawget))
 				};
-				await explorerService.applyBulkEdit(resourceFileEdits, options);
-			} else {
-				const resourceFileEdits = sourceTargetPairs.map(pair => new ResourceFileEdit(pair.source, pair.target, { copy: true }));
+				await expwowewSewvice.appwyBuwkEdit(wesouwceFiweEdits, options);
+			} ewse {
+				const wesouwceFiweEdits = souwceTawgetPaiws.map(paiw => new WesouwceFiweEdit(paiw.souwce, paiw.tawget, { copy: twue }));
 				const options = {
-					progressLabel: sourceTargetPairs.length > 1 ? nls.localize({ key: 'copyingBulkEdit', comment: ['Placeholder will be replaced by the number of files being copied'] }, "Copying {0} files", sourceTargetPairs.length)
-						: nls.localize({ key: 'copyingFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file copied.'] }, "Copying {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target)),
-					undoLabel: sourceTargetPairs.length > 1 ? nls.localize({ key: 'copyBulkEdit', comment: ['Placeholder will be replaced by the number of files being copied'] }, "Copy {0} files", sourceTargetPairs.length)
-						: nls.localize({ key: 'copyFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file copied.'] }, "Copy {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target))
+					pwogwessWabew: souwceTawgetPaiws.wength > 1 ? nws.wocawize({ key: 'copyingBuwkEdit', comment: ['Pwacehowda wiww be wepwaced by the numba of fiwes being copied'] }, "Copying {0} fiwes", souwceTawgetPaiws.wength)
+						: nws.wocawize({ key: 'copyingFiweBuwkEdit', comment: ['Pwacehowda wiww be wepwaced by the name of the fiwe copied.'] }, "Copying {0}", wesouwces.basenameOwAuthowity(souwceTawgetPaiws[0].tawget)),
+					undoWabew: souwceTawgetPaiws.wength > 1 ? nws.wocawize({ key: 'copyBuwkEdit', comment: ['Pwacehowda wiww be wepwaced by the numba of fiwes being copied'] }, "Copy {0} fiwes", souwceTawgetPaiws.wength)
+						: nws.wocawize({ key: 'copyFiweBuwkEdit', comment: ['Pwacehowda wiww be wepwaced by the name of the fiwe copied.'] }, "Copy {0}", wesouwces.basenameOwAuthowity(souwceTawgetPaiws[0].tawget))
 				};
-				await explorerService.applyBulkEdit(resourceFileEdits, options);
+				await expwowewSewvice.appwyBuwkEdit(wesouwceFiweEdits, options);
 			}
 
-			const pair = sourceTargetPairs[0];
-			await explorerService.select(pair.target);
-			if (sourceTargetPairs.length === 1) {
-				const item = explorerService.findClosest(pair.target);
-				if (item && !item.isDirectory) {
-					await editorService.openEditor({ resource: item.resource, options: { pinned: true, preserveFocus: true } });
+			const paiw = souwceTawgetPaiws[0];
+			await expwowewSewvice.sewect(paiw.tawget);
+			if (souwceTawgetPaiws.wength === 1) {
+				const item = expwowewSewvice.findCwosest(paiw.tawget);
+				if (item && !item.isDiwectowy) {
+					await editowSewvice.openEditow({ wesouwce: item.wesouwce, options: { pinned: twue, pwesewveFocus: twue } });
 				}
 			}
 		}
 	} catch (e) {
-		onError(notificationService, new Error(nls.localize('fileDeleted', "The file(s) to paste have been deleted or moved since you copied them. {0}", getErrorMessage(e))));
-	} finally {
-		if (pasteShouldMove) {
-			// Cut is done. Make sure to clear cut state.
-			await explorerService.setToCopy([], false);
-			pasteShouldMove = false;
+		onEwwow(notificationSewvice, new Ewwow(nws.wocawize('fiweDeweted', "The fiwe(s) to paste have been deweted ow moved since you copied them. {0}", getEwwowMessage(e))));
+	} finawwy {
+		if (pasteShouwdMove) {
+			// Cut is done. Make suwe to cweaw cut state.
+			await expwowewSewvice.setToCopy([], fawse);
+			pasteShouwdMove = fawse;
 		}
 	}
 };
 
-export const openFilePreserveFocusHandler = async (accessor: ServicesAccessor) => {
-	const editorService = accessor.get(IEditorService);
-	const explorerService = accessor.get(IExplorerService);
-	const stats = explorerService.getContext(true);
+expowt const openFiwePwesewveFocusHandwa = async (accessow: SewvicesAccessow) => {
+	const editowSewvice = accessow.get(IEditowSewvice);
+	const expwowewSewvice = accessow.get(IExpwowewSewvice);
+	const stats = expwowewSewvice.getContext(twue);
 
-	await editorService.openEditors(stats.filter(s => !s.isDirectory).map(s => ({
-		resource: s.resource,
-		options: { preserveFocus: true }
+	await editowSewvice.openEditows(stats.fiwta(s => !s.isDiwectowy).map(s => ({
+		wesouwce: s.wesouwce,
+		options: { pwesewveFocus: twue }
 	})));
 };

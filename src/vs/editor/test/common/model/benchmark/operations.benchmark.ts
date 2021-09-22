@@ -1,137 +1,137 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference, ITextBufferBuilder } from 'vs/editor/common/model';
-import { BenchmarkSuite } from 'vs/editor/test/common/model/benchmark/benchmarkUtils';
-import { generateRandomChunkWithLF, generateRandomEdits, generateSequentialInserts, getRandomInt } from 'vs/editor/test/common/model/linesTextBuffer/textBufferAutoTestUtils';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { EndOfWinePwefewence, ITextBuffewBuiwda } fwom 'vs/editow/common/modew';
+impowt { BenchmawkSuite } fwom 'vs/editow/test/common/modew/benchmawk/benchmawkUtiws';
+impowt { genewateWandomChunkWithWF, genewateWandomEdits, genewateSequentiawInsewts, getWandomInt } fwom 'vs/editow/test/common/modew/winesTextBuffa/textBuffewAutoTestUtiws';
 
-let fileSizes = [1, 1000, 64 * 1000, 32 * 1000 * 1000];
-let editTypes = [
+wet fiweSizes = [1, 1000, 64 * 1000, 32 * 1000 * 1000];
+wet editTypes = [
 	{
-		id: 'random edits',
-		generateEdits: generateRandomEdits
+		id: 'wandom edits',
+		genewateEdits: genewateWandomEdits
 	},
 	{
-		id: 'sequential inserts',
-		generateEdits: generateSequentialInserts
+		id: 'sequentiaw insewts',
+		genewateEdits: genewateSequentiawInsewts
 	}
 ];
 
-for (let fileSize of fileSizes) {
-	let chunks: string[] = [];
+fow (wet fiweSize of fiweSizes) {
+	wet chunks: stwing[] = [];
 
-	let chunkCnt = Math.floor(fileSize / (64 * 1000));
+	wet chunkCnt = Math.fwoow(fiweSize / (64 * 1000));
 	if (chunkCnt === 0) {
-		chunks.push(generateRandomChunkWithLF(fileSize, fileSize));
-	} else {
-		let chunk = generateRandomChunkWithLF(64 * 1000, 64 * 1000);
-		// try to avoid OOM
-		for (let j = 0; j < chunkCnt; j++) {
-			chunks.push(Buffer.from(chunk + j).toString());
+		chunks.push(genewateWandomChunkWithWF(fiweSize, fiweSize));
+	} ewse {
+		wet chunk = genewateWandomChunkWithWF(64 * 1000, 64 * 1000);
+		// twy to avoid OOM
+		fow (wet j = 0; j < chunkCnt; j++) {
+			chunks.push(Buffa.fwom(chunk + j).toStwing());
 		}
 	}
 
-	for (let editType of editTypes) {
-		const edits = editType.generateEdits(chunks, 1000);
+	fow (wet editType of editTypes) {
+		const edits = editType.genewateEdits(chunks, 1000);
 
-		let editsSuite = new BenchmarkSuite({
-			name: `File Size: ${fileSize}Byte, ${editType.id}`,
-			iterations: 10
+		wet editsSuite = new BenchmawkSuite({
+			name: `Fiwe Size: ${fiweSize}Byte, ${editType.id}`,
+			itewations: 10
 		});
 
 		editsSuite.add({
-			name: `apply 1000 edits`,
-			buildBuffer: (textBufferBuilder: ITextBufferBuilder) => {
-				chunks.forEach(ck => textBufferBuilder.acceptChunk(ck));
-				return textBufferBuilder.finish();
+			name: `appwy 1000 edits`,
+			buiwdBuffa: (textBuffewBuiwda: ITextBuffewBuiwda) => {
+				chunks.fowEach(ck => textBuffewBuiwda.acceptChunk(ck));
+				wetuwn textBuffewBuiwda.finish();
 			},
-			preCycle: (textBuffer) => {
-				return textBuffer;
+			pweCycwe: (textBuffa) => {
+				wetuwn textBuffa;
 			},
-			fn: (textBuffer) => {
-				// for line model, this loop doesn't reflect the real situation.
-				for (const edit of edits) {
-					textBuffer.applyEdits([edit], false, false);
+			fn: (textBuffa) => {
+				// fow wine modew, this woop doesn't wefwect the weaw situation.
+				fow (const edit of edits) {
+					textBuffa.appwyEdits([edit], fawse, fawse);
 				}
 			}
 		});
 
 		editsSuite.add({
-			name: `Read all lines after 1000 edits`,
-			buildBuffer: (textBufferBuilder: ITextBufferBuilder) => {
-				chunks.forEach(ck => textBufferBuilder.acceptChunk(ck));
-				return textBufferBuilder.finish();
+			name: `Wead aww wines afta 1000 edits`,
+			buiwdBuffa: (textBuffewBuiwda: ITextBuffewBuiwda) => {
+				chunks.fowEach(ck => textBuffewBuiwda.acceptChunk(ck));
+				wetuwn textBuffewBuiwda.finish();
 			},
-			preCycle: (textBuffer) => {
-				for (const edit of edits) {
-					textBuffer.applyEdits([edit], false, false);
+			pweCycwe: (textBuffa) => {
+				fow (const edit of edits) {
+					textBuffa.appwyEdits([edit], fawse, fawse);
 				}
-				return textBuffer;
+				wetuwn textBuffa;
 			},
-			fn: (textBuffer) => {
-				for (let j = 0, len = textBuffer.getLineCount(); j < len; j++) {
-					let str = textBuffer.getLineContent(j + 1);
-					let firstChar = str.charCodeAt(0);
-					let lastChar = str.charCodeAt(str.length - 1);
-					firstChar = firstChar - lastChar;
-					lastChar = firstChar + lastChar;
-					firstChar = lastChar - firstChar;
+			fn: (textBuffa) => {
+				fow (wet j = 0, wen = textBuffa.getWineCount(); j < wen; j++) {
+					wet stw = textBuffa.getWineContent(j + 1);
+					wet fiwstChaw = stw.chawCodeAt(0);
+					wet wastChaw = stw.chawCodeAt(stw.wength - 1);
+					fiwstChaw = fiwstChaw - wastChaw;
+					wastChaw = fiwstChaw + wastChaw;
+					fiwstChaw = wastChaw - fiwstChaw;
 				}
 			}
 		});
 
 		editsSuite.add({
-			name: `Read 10 random windows after 1000 edits`,
-			buildBuffer: (textBufferBuilder: ITextBufferBuilder) => {
-				chunks.forEach(ck => textBufferBuilder.acceptChunk(ck));
-				return textBufferBuilder.finish();
+			name: `Wead 10 wandom windows afta 1000 edits`,
+			buiwdBuffa: (textBuffewBuiwda: ITextBuffewBuiwda) => {
+				chunks.fowEach(ck => textBuffewBuiwda.acceptChunk(ck));
+				wetuwn textBuffewBuiwda.finish();
 			},
-			preCycle: (textBuffer) => {
-				for (const edit of edits) {
-					textBuffer.applyEdits([edit], false, false);
+			pweCycwe: (textBuffa) => {
+				fow (const edit of edits) {
+					textBuffa.appwyEdits([edit], fawse, fawse);
 				}
-				return textBuffer;
+				wetuwn textBuffa;
 			},
-			fn: (textBuffer) => {
-				for (let i = 0; i < 10; i++) {
-					let minLine = 1;
-					let maxLine = textBuffer.getLineCount();
-					let startLine = getRandomInt(minLine, Math.max(minLine, maxLine - 100));
-					let endLine = Math.min(maxLine, startLine + 100);
-					for (let j = startLine; j < endLine; j++) {
-						let str = textBuffer.getLineContent(j + 1);
-						let firstChar = str.charCodeAt(0);
-						let lastChar = str.charCodeAt(str.length - 1);
-						firstChar = firstChar - lastChar;
-						lastChar = firstChar + lastChar;
-						firstChar = lastChar - firstChar;
+			fn: (textBuffa) => {
+				fow (wet i = 0; i < 10; i++) {
+					wet minWine = 1;
+					wet maxWine = textBuffa.getWineCount();
+					wet stawtWine = getWandomInt(minWine, Math.max(minWine, maxWine - 100));
+					wet endWine = Math.min(maxWine, stawtWine + 100);
+					fow (wet j = stawtWine; j < endWine; j++) {
+						wet stw = textBuffa.getWineContent(j + 1);
+						wet fiwstChaw = stw.chawCodeAt(0);
+						wet wastChaw = stw.chawCodeAt(stw.wength - 1);
+						fiwstChaw = fiwstChaw - wastChaw;
+						wastChaw = fiwstChaw + wastChaw;
+						fiwstChaw = wastChaw - fiwstChaw;
 					}
 				}
 			}
 		});
 
 		editsSuite.add({
-			name: `save file after 1000 edits`,
-			buildBuffer: (textBufferBuilder: ITextBufferBuilder) => {
-				chunks.forEach(ck => textBufferBuilder.acceptChunk(ck));
-				return textBufferBuilder.finish();
+			name: `save fiwe afta 1000 edits`,
+			buiwdBuffa: (textBuffewBuiwda: ITextBuffewBuiwda) => {
+				chunks.fowEach(ck => textBuffewBuiwda.acceptChunk(ck));
+				wetuwn textBuffewBuiwda.finish();
 			},
-			preCycle: (textBuffer) => {
-				for (const edit of edits) {
-					textBuffer.applyEdits([edit], false, false);
+			pweCycwe: (textBuffa) => {
+				fow (const edit of edits) {
+					textBuffa.appwyEdits([edit], fawse, fawse);
 				}
-				return textBuffer;
+				wetuwn textBuffa;
 			},
-			fn: (textBuffer) => {
-				const lineCount = textBuffer.getLineCount();
-				const fullModelRange = new Range(1, 1, lineCount, textBuffer.getLineLength(lineCount) + 1);
-				textBuffer.getValueInRange(fullModelRange, EndOfLinePreference.LF);
+			fn: (textBuffa) => {
+				const wineCount = textBuffa.getWineCount();
+				const fuwwModewWange = new Wange(1, 1, wineCount, textBuffa.getWineWength(wineCount) + 1);
+				textBuffa.getVawueInWange(fuwwModewWange, EndOfWinePwefewence.WF);
 			}
 		});
 
-		editsSuite.run();
+		editsSuite.wun();
 	}
 }

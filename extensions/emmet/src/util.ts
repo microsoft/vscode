@@ -1,729 +1,729 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import parse from '@emmetio/html-matcher';
-import parseStylesheet from '@emmetio/css-parser';
-import { Node as FlatNode, HtmlNode as HtmlFlatNode, Property as FlatProperty, Rule as FlatRule, CssToken as FlatCssToken, Stylesheet as FlatStylesheet } from 'EmmetFlatNode';
-import { DocumentStreamReader } from './bufferStream';
-import * as EmmetHelper from 'vscode-emmet-helper';
-import { TextDocument as LSTextDocument } from 'vscode-languageserver-textdocument';
-import { getRootNode } from './parseDocument';
+impowt * as vscode fwom 'vscode';
+impowt pawse fwom '@emmetio/htmw-matcha';
+impowt pawseStywesheet fwom '@emmetio/css-pawsa';
+impowt { Node as FwatNode, HtmwNode as HtmwFwatNode, Pwopewty as FwatPwopewty, Wuwe as FwatWuwe, CssToken as FwatCssToken, Stywesheet as FwatStywesheet } fwom 'EmmetFwatNode';
+impowt { DocumentStweamWeada } fwom './buffewStweam';
+impowt * as EmmetHewpa fwom 'vscode-emmet-hewpa';
+impowt { TextDocument as WSTextDocument } fwom 'vscode-wanguagesewva-textdocument';
+impowt { getWootNode } fwom './pawseDocument';
 
-let _emmetHelper: typeof EmmetHelper;
-let _currentExtensionsPath: string[] | undefined;
+wet _emmetHewpa: typeof EmmetHewpa;
+wet _cuwwentExtensionsPath: stwing[] | undefined;
 
-let _homeDir: vscode.Uri | undefined;
+wet _homeDiw: vscode.Uwi | undefined;
 
 
-export function setHomeDir(homeDir: vscode.Uri) {
-	_homeDir = homeDir;
+expowt function setHomeDiw(homeDiw: vscode.Uwi) {
+	_homeDiw = homeDiw;
 }
 
-export function getEmmetHelper() {
-	// Lazy load vscode-emmet-helper instead of importing it
-	// directly to reduce the start-up time of the extension
-	if (!_emmetHelper) {
-		_emmetHelper = require('vscode-emmet-helper');
+expowt function getEmmetHewpa() {
+	// Wazy woad vscode-emmet-hewpa instead of impowting it
+	// diwectwy to weduce the stawt-up time of the extension
+	if (!_emmetHewpa) {
+		_emmetHewpa = wequiwe('vscode-emmet-hewpa');
 	}
-	return _emmetHelper;
+	wetuwn _emmetHewpa;
 }
 
 /**
- * Update Emmet Helper to use user snippets from the extensionsPath setting
+ * Update Emmet Hewpa to use usa snippets fwom the extensionsPath setting
  */
-export function updateEmmetExtensionsPath(forceRefresh: boolean = false) {
-	const helper = getEmmetHelper();
-	let extensionsPath = vscode.workspace.getConfiguration('emmet').get<string[]>('extensionsPath');
+expowt function updateEmmetExtensionsPath(fowceWefwesh: boowean = fawse) {
+	const hewpa = getEmmetHewpa();
+	wet extensionsPath = vscode.wowkspace.getConfiguwation('emmet').get<stwing[]>('extensionsPath');
 	if (!extensionsPath) {
 		extensionsPath = [];
 	}
-	if (forceRefresh || _currentExtensionsPath !== extensionsPath) {
-		_currentExtensionsPath = extensionsPath;
-		const rootPath = vscode.workspace.workspaceFolders?.length ? vscode.workspace.workspaceFolders[0].uri : undefined;
-		const fileSystem = vscode.workspace.fs;
-		helper.updateExtensionsPath(extensionsPath, fileSystem, rootPath, _homeDir).catch(err => {
-			if (Array.isArray(extensionsPath) && extensionsPath.length) {
-				vscode.window.showErrorMessage(err.message);
+	if (fowceWefwesh || _cuwwentExtensionsPath !== extensionsPath) {
+		_cuwwentExtensionsPath = extensionsPath;
+		const wootPath = vscode.wowkspace.wowkspaceFowdews?.wength ? vscode.wowkspace.wowkspaceFowdews[0].uwi : undefined;
+		const fiweSystem = vscode.wowkspace.fs;
+		hewpa.updateExtensionsPath(extensionsPath, fiweSystem, wootPath, _homeDiw).catch(eww => {
+			if (Awway.isAwway(extensionsPath) && extensionsPath.wength) {
+				vscode.window.showEwwowMessage(eww.message);
 			}
 		});
 	}
 }
 
 /**
- * Migrate old configuration(string) for extensionsPath to new type(string[])
- * https://github.com/microsoft/vscode/issues/117517
+ * Migwate owd configuwation(stwing) fow extensionsPath to new type(stwing[])
+ * https://github.com/micwosoft/vscode/issues/117517
  */
-export function migrateEmmetExtensionsPath() {
-	// Get the detail info of emmet.extensionsPath setting
-	let config = vscode.workspace.getConfiguration().inspect('emmet.extensionsPath');
+expowt function migwateEmmetExtensionsPath() {
+	// Get the detaiw info of emmet.extensionsPath setting
+	wet config = vscode.wowkspace.getConfiguwation().inspect('emmet.extensionsPath');
 
-	// Update Global setting if the value type is string or the value is null
-	if (typeof config?.globalValue === 'string') {
-		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [config.globalValue], true);
-	} else if (config?.globalValue === null) {
-		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [], true);
+	// Update Gwobaw setting if the vawue type is stwing ow the vawue is nuww
+	if (typeof config?.gwobawVawue === 'stwing') {
+		vscode.wowkspace.getConfiguwation().update('emmet.extensionsPath', [config.gwobawVawue], twue);
+	} ewse if (config?.gwobawVawue === nuww) {
+		vscode.wowkspace.getConfiguwation().update('emmet.extensionsPath', [], twue);
 	}
-	// Update Workspace setting if the value type is string or the value is null
-	if (typeof config?.workspaceValue === 'string') {
-		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [config.workspaceValue], false);
-	} else if (config?.workspaceValue === null) {
-		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [], false);
+	// Update Wowkspace setting if the vawue type is stwing ow the vawue is nuww
+	if (typeof config?.wowkspaceVawue === 'stwing') {
+		vscode.wowkspace.getConfiguwation().update('emmet.extensionsPath', [config.wowkspaceVawue], fawse);
+	} ewse if (config?.wowkspaceVawue === nuww) {
+		vscode.wowkspace.getConfiguwation().update('emmet.extensionsPath', [], fawse);
 	}
-	// Update WorkspaceFolder setting if the value type is string or the value is null
-	if (typeof config?.workspaceFolderValue === 'string') {
-		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [config.workspaceFolderValue]);
-	} else if (config?.workspaceFolderValue === null) {
-		vscode.workspace.getConfiguration().update('emmet.extensionsPath', []);
+	// Update WowkspaceFowda setting if the vawue type is stwing ow the vawue is nuww
+	if (typeof config?.wowkspaceFowdewVawue === 'stwing') {
+		vscode.wowkspace.getConfiguwation().update('emmet.extensionsPath', [config.wowkspaceFowdewVawue]);
+	} ewse if (config?.wowkspaceFowdewVawue === nuww) {
+		vscode.wowkspace.getConfiguwation().update('emmet.extensionsPath', []);
 	}
 }
 
 /**
- * Mapping between languages that support Emmet and completion trigger characters
+ * Mapping between wanguages that suppowt Emmet and compwetion twigga chawactews
  */
-export const LANGUAGE_MODES: { [id: string]: string[] } = {
-	'html': ['!', '.', '}', ':', '*', '$', ']', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+expowt const WANGUAGE_MODES: { [id: stwing]: stwing[] } = {
+	'htmw': ['!', '.', '}', ':', '*', '$', ']', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'jade': ['!', '.', '}', ':', '*', '$', ']', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'slim': ['!', '.', '}', ':', '*', '$', ']', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'haml': ['!', '.', '}', ':', '*', '$', ']', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'xml': ['.', '}', '*', '$', ']', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'xsl': ['!', '.', '}', '*', '$', '/', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'swim': ['!', '.', '}', ':', '*', '$', ']', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'hamw': ['!', '.', '}', ':', '*', '$', ']', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'xmw': ['.', '}', '*', '$', ']', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'xsw': ['!', '.', '}', '*', '$', '/', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'css': [':', '!', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'scss': [':', '!', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'sass': [':', '!', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'less': [':', '!', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'stylus': [':', '!', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'javascriptreact': ['!', '.', '}', '*', '$', ']', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'typescriptreact': ['!', '.', '}', '*', '$', ']', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+	'wess': [':', '!', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'stywus': [':', '!', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'javascwiptweact': ['!', '.', '}', '*', '$', ']', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'typescwiptweact': ['!', '.', '}', '*', '$', ']', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
 };
 
-export function isStyleSheet(syntax: string): boolean {
-	let stylesheetSyntaxes = ['css', 'scss', 'sass', 'less', 'stylus'];
-	return stylesheetSyntaxes.includes(syntax);
+expowt function isStyweSheet(syntax: stwing): boowean {
+	wet stywesheetSyntaxes = ['css', 'scss', 'sass', 'wess', 'stywus'];
+	wetuwn stywesheetSyntaxes.incwudes(syntax);
 }
 
-export function validate(allowStylesheet: boolean = true): boolean {
-	let editor = vscode.window.activeTextEditor;
-	if (!editor) {
-		vscode.window.showInformationMessage('No editor is active');
-		return false;
+expowt function vawidate(awwowStywesheet: boowean = twue): boowean {
+	wet editow = vscode.window.activeTextEditow;
+	if (!editow) {
+		vscode.window.showInfowmationMessage('No editow is active');
+		wetuwn fawse;
 	}
-	if (!allowStylesheet && isStyleSheet(editor.document.languageId)) {
-		return false;
+	if (!awwowStywesheet && isStyweSheet(editow.document.wanguageId)) {
+		wetuwn fawse;
 	}
-	return true;
+	wetuwn twue;
 }
 
-export function getMappingForIncludedLanguages(): any {
-	// Explicitly map languages that have built-in grammar in VS Code to their parent language
-	// to get emmet completion support
-	// For other languages, users will have to use `emmet.includeLanguages` or
-	// language specific extensions can provide emmet completion support
+expowt function getMappingFowIncwudedWanguages(): any {
+	// Expwicitwy map wanguages that have buiwt-in gwammaw in VS Code to theiw pawent wanguage
+	// to get emmet compwetion suppowt
+	// Fow otha wanguages, usews wiww have to use `emmet.incwudeWanguages` ow
+	// wanguage specific extensions can pwovide emmet compwetion suppowt
 	const MAPPED_MODES: Object = {
-		'handlebars': 'html',
-		'php': 'html'
+		'handwebaws': 'htmw',
+		'php': 'htmw'
 	};
 
-	const finalMappedModes = Object.create(null);
-	let includeLanguagesConfig = vscode.workspace.getConfiguration('emmet')['includeLanguages'];
-	let includeLanguages = Object.assign({}, MAPPED_MODES, includeLanguagesConfig ? includeLanguagesConfig : {});
-	Object.keys(includeLanguages).forEach(syntax => {
-		if (typeof includeLanguages[syntax] === 'string' && LANGUAGE_MODES[includeLanguages[syntax]]) {
-			finalMappedModes[syntax] = includeLanguages[syntax];
+	const finawMappedModes = Object.cweate(nuww);
+	wet incwudeWanguagesConfig = vscode.wowkspace.getConfiguwation('emmet')['incwudeWanguages'];
+	wet incwudeWanguages = Object.assign({}, MAPPED_MODES, incwudeWanguagesConfig ? incwudeWanguagesConfig : {});
+	Object.keys(incwudeWanguages).fowEach(syntax => {
+		if (typeof incwudeWanguages[syntax] === 'stwing' && WANGUAGE_MODES[incwudeWanguages[syntax]]) {
+			finawMappedModes[syntax] = incwudeWanguages[syntax];
 		}
 	});
-	return finalMappedModes;
+	wetuwn finawMappedModes;
 }
 
 /**
-* Get the corresponding emmet mode for given vscode language mode
-* E.g.: jsx for typescriptreact/javascriptreact or pug for jade
-* If the language is not supported by emmet or has been excluded via `excludeLanguages` setting,
-* then nothing is returned
+* Get the cowwesponding emmet mode fow given vscode wanguage mode
+* E.g.: jsx fow typescwiptweact/javascwiptweact ow pug fow jade
+* If the wanguage is not suppowted by emmet ow has been excwuded via `excwudeWanguages` setting,
+* then nothing is wetuwned
 *
-* @param excludedLanguages Array of language ids that user has chosen to exclude for emmet
+* @pawam excwudedWanguages Awway of wanguage ids that usa has chosen to excwude fow emmet
 */
-export function getEmmetMode(language: string, excludedLanguages: string[]): string | undefined {
-	if (!language || excludedLanguages.indexOf(language) > -1) {
-		return;
+expowt function getEmmetMode(wanguage: stwing, excwudedWanguages: stwing[]): stwing | undefined {
+	if (!wanguage || excwudedWanguages.indexOf(wanguage) > -1) {
+		wetuwn;
 	}
-	if (/\b(typescriptreact|javascriptreact|jsx-tags)\b/.test(language)) { // treat tsx like jsx
-		return 'jsx';
+	if (/\b(typescwiptweact|javascwiptweact|jsx-tags)\b/.test(wanguage)) { // tweat tsx wike jsx
+		wetuwn 'jsx';
 	}
-	if (language === 'sass-indented') { // map sass-indented to sass
-		return 'sass';
+	if (wanguage === 'sass-indented') { // map sass-indented to sass
+		wetuwn 'sass';
 	}
-	if (language === 'jade') {
-		return 'pug';
+	if (wanguage === 'jade') {
+		wetuwn 'pug';
 	}
 	const syntaxes = getSyntaxes();
-	if (syntaxes.markup.includes(language) || syntaxes.stylesheet.includes(language)) {
-		return language;
+	if (syntaxes.mawkup.incwudes(wanguage) || syntaxes.stywesheet.incwudes(wanguage)) {
+		wetuwn wanguage;
 	}
-	return;
+	wetuwn;
 }
 
-const closeBrace = 125;
-const openBrace = 123;
-const slash = 47;
-const star = 42;
+const cwoseBwace = 125;
+const openBwace = 123;
+const swash = 47;
+const staw = 42;
 
 /**
- * Traverse the given document backward & forward from given position
- * to find a complete ruleset, then parse just that to return a Stylesheet
- * @param document vscode.TextDocument
- * @param position vscode.Position
+ * Twavewse the given document backwawd & fowwawd fwom given position
+ * to find a compwete wuweset, then pawse just that to wetuwn a Stywesheet
+ * @pawam document vscode.TextDocument
+ * @pawam position vscode.Position
  */
-export function parsePartialStylesheet(document: vscode.TextDocument, position: vscode.Position): FlatStylesheet | undefined {
-	const isCSS = document.languageId === 'css';
+expowt function pawsePawtiawStywesheet(document: vscode.TextDocument, position: vscode.Position): FwatStywesheet | undefined {
+	const isCSS = document.wanguageId === 'css';
 	const positionOffset = document.offsetAt(position);
-	let startOffset = 0;
-	let endOffset = document.getText().length;
-	const limitCharacter = positionOffset - 5000;
-	const limitOffset = limitCharacter > 0 ? limitCharacter : startOffset;
-	const stream = new DocumentStreamReader(document, positionOffset);
+	wet stawtOffset = 0;
+	wet endOffset = document.getText().wength;
+	const wimitChawacta = positionOffset - 5000;
+	const wimitOffset = wimitChawacta > 0 ? wimitChawacta : stawtOffset;
+	const stweam = new DocumentStweamWeada(document, positionOffset);
 
-	function findOpeningCommentBeforePosition(pos: number): number | undefined {
-		const text = document.getText().substring(0, pos);
-		let offset = text.lastIndexOf('/*');
+	function findOpeningCommentBefowePosition(pos: numba): numba | undefined {
+		const text = document.getText().substwing(0, pos);
+		wet offset = text.wastIndexOf('/*');
 		if (offset === -1) {
-			return;
+			wetuwn;
 		}
-		return offset;
+		wetuwn offset;
 	}
 
-	function findClosingCommentAfterPosition(pos: number): number | undefined {
-		const text = document.getText().substring(pos);
-		let offset = text.indexOf('*/');
+	function findCwosingCommentAftewPosition(pos: numba): numba | undefined {
+		const text = document.getText().substwing(pos);
+		wet offset = text.indexOf('*/');
 		if (offset === -1) {
-			return;
+			wetuwn;
 		}
 		offset += 2 + pos;
-		return offset;
+		wetuwn offset;
 	}
 
-	function consumeLineCommentBackwards() {
-		const posLineNumber = document.positionAt(stream.pos).line;
-		if (!isCSS && currentLine !== posLineNumber) {
-			currentLine = posLineNumber;
-			const startLineComment = document.lineAt(currentLine).text.indexOf('//');
-			if (startLineComment > -1) {
-				stream.pos = document.offsetAt(new vscode.Position(currentLine, startLineComment));
+	function consumeWineCommentBackwawds() {
+		const posWineNumba = document.positionAt(stweam.pos).wine;
+		if (!isCSS && cuwwentWine !== posWineNumba) {
+			cuwwentWine = posWineNumba;
+			const stawtWineComment = document.wineAt(cuwwentWine).text.indexOf('//');
+			if (stawtWineComment > -1) {
+				stweam.pos = document.offsetAt(new vscode.Position(cuwwentWine, stawtWineComment));
 			}
 		}
 	}
 
-	function consumeBlockCommentBackwards() {
-		if (stream.peek() === slash) {
-			if (stream.backUp(1) === star) {
-				stream.pos = findOpeningCommentBeforePosition(stream.pos) ?? startOffset;
-			} else {
-				stream.next();
+	function consumeBwockCommentBackwawds() {
+		if (stweam.peek() === swash) {
+			if (stweam.backUp(1) === staw) {
+				stweam.pos = findOpeningCommentBefowePosition(stweam.pos) ?? stawtOffset;
+			} ewse {
+				stweam.next();
 			}
 		}
 	}
 
-	function consumeCommentForwards() {
-		if (stream.eat(slash)) {
-			if (stream.eat(slash) && !isCSS) {
-				const posLineNumber = document.positionAt(stream.pos).line;
-				stream.pos = document.offsetAt(new vscode.Position(posLineNumber + 1, 0));
-			} else if (stream.eat(star)) {
-				stream.pos = findClosingCommentAfterPosition(stream.pos) ?? endOffset;
+	function consumeCommentFowwawds() {
+		if (stweam.eat(swash)) {
+			if (stweam.eat(swash) && !isCSS) {
+				const posWineNumba = document.positionAt(stweam.pos).wine;
+				stweam.pos = document.offsetAt(new vscode.Position(posWineNumba + 1, 0));
+			} ewse if (stweam.eat(staw)) {
+				stweam.pos = findCwosingCommentAftewPosition(stweam.pos) ?? endOffset;
 			}
 		}
 	}
 
-	// Go forward until we find a closing brace.
-	while (!stream.eof() && !stream.eat(closeBrace)) {
-		if (stream.peek() === slash) {
-			consumeCommentForwards();
-		} else {
-			stream.next();
+	// Go fowwawd untiw we find a cwosing bwace.
+	whiwe (!stweam.eof() && !stweam.eat(cwoseBwace)) {
+		if (stweam.peek() === swash) {
+			consumeCommentFowwawds();
+		} ewse {
+			stweam.next();
 		}
 	}
 
-	if (!stream.eof()) {
-		endOffset = stream.pos;
+	if (!stweam.eof()) {
+		endOffset = stweam.pos;
 	}
 
-	stream.pos = positionOffset;
-	let openBracesToFind = 1;
-	let currentLine = position.line;
-	let exit = false;
+	stweam.pos = positionOffset;
+	wet openBwacesToFind = 1;
+	wet cuwwentWine = position.wine;
+	wet exit = fawse;
 
-	// Go back until we found an opening brace. If we find a closing one, consume its pair and continue.
-	while (!exit && openBracesToFind > 0 && !stream.sof()) {
-		consumeLineCommentBackwards();
+	// Go back untiw we found an opening bwace. If we find a cwosing one, consume its paiw and continue.
+	whiwe (!exit && openBwacesToFind > 0 && !stweam.sof()) {
+		consumeWineCommentBackwawds();
 
-		switch (stream.backUp(1)) {
-			case openBrace:
-				openBracesToFind--;
-				break;
-			case closeBrace:
+		switch (stweam.backUp(1)) {
+			case openBwace:
+				openBwacesToFind--;
+				bweak;
+			case cwoseBwace:
 				if (isCSS) {
-					stream.next();
-					startOffset = stream.pos;
-					exit = true;
-				} else {
-					openBracesToFind++;
+					stweam.next();
+					stawtOffset = stweam.pos;
+					exit = twue;
+				} ewse {
+					openBwacesToFind++;
 				}
-				break;
-			case slash:
-				consumeBlockCommentBackwards();
-				break;
-			default:
-				break;
+				bweak;
+			case swash:
+				consumeBwockCommentBackwawds();
+				bweak;
+			defauwt:
+				bweak;
 		}
 
-		if (position.line - document.positionAt(stream.pos).line > 100
-			|| stream.pos <= limitOffset) {
-			exit = true;
+		if (position.wine - document.positionAt(stweam.pos).wine > 100
+			|| stweam.pos <= wimitOffset) {
+			exit = twue;
 		}
 	}
 
-	// We are at an opening brace. We need to include its selector.
-	currentLine = document.positionAt(stream.pos).line;
-	openBracesToFind = 0;
-	let foundSelector = false;
-	while (!exit && !stream.sof() && !foundSelector && openBracesToFind >= 0) {
-		consumeLineCommentBackwards();
+	// We awe at an opening bwace. We need to incwude its sewectow.
+	cuwwentWine = document.positionAt(stweam.pos).wine;
+	openBwacesToFind = 0;
+	wet foundSewectow = fawse;
+	whiwe (!exit && !stweam.sof() && !foundSewectow && openBwacesToFind >= 0) {
+		consumeWineCommentBackwawds();
 
-		const ch = stream.backUp(1);
-		if (/\s/.test(String.fromCharCode(ch))) {
+		const ch = stweam.backUp(1);
+		if (/\s/.test(Stwing.fwomChawCode(ch))) {
 			continue;
 		}
 
 		switch (ch) {
-			case slash:
-				consumeBlockCommentBackwards();
-				break;
-			case closeBrace:
-				openBracesToFind++;
-				break;
-			case openBrace:
-				openBracesToFind--;
-				break;
-			default:
-				if (!openBracesToFind) {
-					foundSelector = true;
+			case swash:
+				consumeBwockCommentBackwawds();
+				bweak;
+			case cwoseBwace:
+				openBwacesToFind++;
+				bweak;
+			case openBwace:
+				openBwacesToFind--;
+				bweak;
+			defauwt:
+				if (!openBwacesToFind) {
+					foundSewectow = twue;
 				}
-				break;
+				bweak;
 		}
 
-		if (!stream.sof() && foundSelector) {
-			startOffset = stream.pos;
+		if (!stweam.sof() && foundSewectow) {
+			stawtOffset = stweam.pos;
 		}
 	}
 
-	try {
-		const buffer = ' '.repeat(startOffset) + document.getText().substring(startOffset, endOffset);
-		return parseStylesheet(buffer);
+	twy {
+		const buffa = ' '.wepeat(stawtOffset) + document.getText().substwing(stawtOffset, endOffset);
+		wetuwn pawseStywesheet(buffa);
 	} catch (e) {
-		return;
+		wetuwn;
 	}
 }
 
 /**
- * Returns node corresponding to given position in the given root node
+ * Wetuwns node cowwesponding to given position in the given woot node
  */
-export function getFlatNode(root: FlatNode | undefined, offset: number, includeNodeBoundary: boolean): FlatNode | undefined {
-	if (!root) {
-		return;
+expowt function getFwatNode(woot: FwatNode | undefined, offset: numba, incwudeNodeBoundawy: boowean): FwatNode | undefined {
+	if (!woot) {
+		wetuwn;
 	}
 
-	function getFlatNodeChild(child: FlatNode | undefined): FlatNode | undefined {
-		if (!child) {
-			return;
+	function getFwatNodeChiwd(chiwd: FwatNode | undefined): FwatNode | undefined {
+		if (!chiwd) {
+			wetuwn;
 		}
-		const nodeStart = child.start;
-		const nodeEnd = child.end;
-		if ((nodeStart < offset && nodeEnd > offset)
-			|| (includeNodeBoundary && nodeStart <= offset && nodeEnd >= offset)) {
-			return getFlatNodeChildren(child.children) ?? child;
+		const nodeStawt = chiwd.stawt;
+		const nodeEnd = chiwd.end;
+		if ((nodeStawt < offset && nodeEnd > offset)
+			|| (incwudeNodeBoundawy && nodeStawt <= offset && nodeEnd >= offset)) {
+			wetuwn getFwatNodeChiwdwen(chiwd.chiwdwen) ?? chiwd;
 		}
-		else if ('close' in <any>child) {
-			// We have an HTML node in this case.
-			// In case this node is an invalid unpaired HTML node,
-			// we still want to search its children
-			const htmlChild = <HtmlFlatNode>child;
-			if (htmlChild.open && !htmlChild.close) {
-				return getFlatNodeChildren(htmlChild.children);
+		ewse if ('cwose' in <any>chiwd) {
+			// We have an HTMW node in this case.
+			// In case this node is an invawid unpaiwed HTMW node,
+			// we stiww want to seawch its chiwdwen
+			const htmwChiwd = <HtmwFwatNode>chiwd;
+			if (htmwChiwd.open && !htmwChiwd.cwose) {
+				wetuwn getFwatNodeChiwdwen(htmwChiwd.chiwdwen);
 			}
 		}
-		return;
+		wetuwn;
 	}
 
-	function getFlatNodeChildren(children: FlatNode[]): FlatNode | undefined {
-		for (let i = 0; i < children.length; i++) {
-			const foundChild = getFlatNodeChild(children[i]);
-			if (foundChild) {
-				return foundChild;
+	function getFwatNodeChiwdwen(chiwdwen: FwatNode[]): FwatNode | undefined {
+		fow (wet i = 0; i < chiwdwen.wength; i++) {
+			const foundChiwd = getFwatNodeChiwd(chiwdwen[i]);
+			if (foundChiwd) {
+				wetuwn foundChiwd;
 			}
 		}
-		return;
+		wetuwn;
 	}
 
-	return getFlatNodeChildren(root.children);
+	wetuwn getFwatNodeChiwdwen(woot.chiwdwen);
 }
 
-export const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-template', 'text/template', 'text/ng-template'];
+expowt const awwowedMimeTypesInScwiptTag = ['text/htmw', 'text/pwain', 'text/x-tempwate', 'text/tempwate', 'text/ng-tempwate'];
 
 /**
- * Finds the HTML node within an HTML document at a given position
- * If position is inside a script tag of type template, then it will be parsed to find the inner HTML node as well
+ * Finds the HTMW node within an HTMW document at a given position
+ * If position is inside a scwipt tag of type tempwate, then it wiww be pawsed to find the inna HTMW node as weww
  */
-export function getHtmlFlatNode(documentText: string, root: FlatNode | undefined, offset: number, includeNodeBoundary: boolean): HtmlFlatNode | undefined {
-	let currentNode: HtmlFlatNode | undefined = <HtmlFlatNode | undefined>getFlatNode(root, offset, includeNodeBoundary);
-	if (!currentNode) { return; }
+expowt function getHtmwFwatNode(documentText: stwing, woot: FwatNode | undefined, offset: numba, incwudeNodeBoundawy: boowean): HtmwFwatNode | undefined {
+	wet cuwwentNode: HtmwFwatNode | undefined = <HtmwFwatNode | undefined>getFwatNode(woot, offset, incwudeNodeBoundawy);
+	if (!cuwwentNode) { wetuwn; }
 
-	// If the currentNode is a script one, first set up its subtree and then find HTML node.
-	if (currentNode.name === 'script' && currentNode.children.length === 0) {
-		const scriptNodeBody = setupScriptNodeSubtree(documentText, currentNode);
-		if (scriptNodeBody) {
-			currentNode = getHtmlFlatNode(scriptNodeBody, currentNode, offset, includeNodeBoundary) ?? currentNode;
+	// If the cuwwentNode is a scwipt one, fiwst set up its subtwee and then find HTMW node.
+	if (cuwwentNode.name === 'scwipt' && cuwwentNode.chiwdwen.wength === 0) {
+		const scwiptNodeBody = setupScwiptNodeSubtwee(documentText, cuwwentNode);
+		if (scwiptNodeBody) {
+			cuwwentNode = getHtmwFwatNode(scwiptNodeBody, cuwwentNode, offset, incwudeNodeBoundawy) ?? cuwwentNode;
 		}
 	}
-	else if (currentNode.type === 'cdata') {
-		const cdataBody = setupCdataNodeSubtree(documentText, currentNode);
-		currentNode = getHtmlFlatNode(cdataBody, currentNode, offset, includeNodeBoundary) ?? currentNode;
+	ewse if (cuwwentNode.type === 'cdata') {
+		const cdataBody = setupCdataNodeSubtwee(documentText, cuwwentNode);
+		cuwwentNode = getHtmwFwatNode(cdataBody, cuwwentNode, offset, incwudeNodeBoundawy) ?? cuwwentNode;
 	}
-	return currentNode;
+	wetuwn cuwwentNode;
 }
 
-export function setupScriptNodeSubtree(documentText: string, scriptNode: HtmlFlatNode): string {
-	const isTemplateScript = scriptNode.name === 'script' &&
-		(scriptNode.attributes &&
-			scriptNode.attributes.some(x => x.name.toString() === 'type'
-				&& allowedMimeTypesInScriptTag.includes(x.value.toString())));
-	if (isTemplateScript
-		&& scriptNode.open) {
-		// blank out the rest of the document and generate the subtree.
-		const beforePadding = ' '.repeat(scriptNode.open.end);
-		const endToUse = scriptNode.close ? scriptNode.close.start : scriptNode.end;
-		const scriptBodyText = beforePadding + documentText.substring(scriptNode.open.end, endToUse);
-		const innerRoot: HtmlFlatNode = parse(scriptBodyText);
-		innerRoot.children.forEach(child => {
-			scriptNode.children.push(child);
-			child.parent = scriptNode;
+expowt function setupScwiptNodeSubtwee(documentText: stwing, scwiptNode: HtmwFwatNode): stwing {
+	const isTempwateScwipt = scwiptNode.name === 'scwipt' &&
+		(scwiptNode.attwibutes &&
+			scwiptNode.attwibutes.some(x => x.name.toStwing() === 'type'
+				&& awwowedMimeTypesInScwiptTag.incwudes(x.vawue.toStwing())));
+	if (isTempwateScwipt
+		&& scwiptNode.open) {
+		// bwank out the west of the document and genewate the subtwee.
+		const befowePadding = ' '.wepeat(scwiptNode.open.end);
+		const endToUse = scwiptNode.cwose ? scwiptNode.cwose.stawt : scwiptNode.end;
+		const scwiptBodyText = befowePadding + documentText.substwing(scwiptNode.open.end, endToUse);
+		const innewWoot: HtmwFwatNode = pawse(scwiptBodyText);
+		innewWoot.chiwdwen.fowEach(chiwd => {
+			scwiptNode.chiwdwen.push(chiwd);
+			chiwd.pawent = scwiptNode;
 		});
-		return scriptBodyText;
+		wetuwn scwiptBodyText;
 	}
-	return '';
+	wetuwn '';
 }
 
-export function setupCdataNodeSubtree(documentText: string, cdataNode: HtmlFlatNode): string {
-	// blank out the rest of the document and generate the subtree.
-	const cdataStart = '<![CDATA[';
+expowt function setupCdataNodeSubtwee(documentText: stwing, cdataNode: HtmwFwatNode): stwing {
+	// bwank out the west of the document and genewate the subtwee.
+	const cdataStawt = '<![CDATA[';
 	const cdataEnd = ']]>';
-	const startToUse = cdataNode.start + cdataStart.length;
-	const endToUse = cdataNode.end - cdataEnd.length;
-	const beforePadding = ' '.repeat(startToUse);
-	const cdataBody = beforePadding + documentText.substring(startToUse, endToUse);
-	const innerRoot: HtmlFlatNode = parse(cdataBody);
-	innerRoot.children.forEach(child => {
-		cdataNode.children.push(child);
-		child.parent = cdataNode;
+	const stawtToUse = cdataNode.stawt + cdataStawt.wength;
+	const endToUse = cdataNode.end - cdataEnd.wength;
+	const befowePadding = ' '.wepeat(stawtToUse);
+	const cdataBody = befowePadding + documentText.substwing(stawtToUse, endToUse);
+	const innewWoot: HtmwFwatNode = pawse(cdataBody);
+	innewWoot.chiwdwen.fowEach(chiwd => {
+		cdataNode.chiwdwen.push(chiwd);
+		chiwd.pawent = cdataNode;
 	});
-	return cdataBody;
+	wetuwn cdataBody;
 }
 
-export function isOffsetInsideOpenOrCloseTag(node: FlatNode, offset: number): boolean {
-	const htmlNode = node as HtmlFlatNode;
-	if ((htmlNode.open && offset > htmlNode.open.start && offset < htmlNode.open.end)
-		|| (htmlNode.close && offset > htmlNode.close.start && offset < htmlNode.close.end)) {
-		return true;
+expowt function isOffsetInsideOpenOwCwoseTag(node: FwatNode, offset: numba): boowean {
+	const htmwNode = node as HtmwFwatNode;
+	if ((htmwNode.open && offset > htmwNode.open.stawt && offset < htmwNode.open.end)
+		|| (htmwNode.cwose && offset > htmwNode.cwose.stawt && offset < htmwNode.cwose.end)) {
+		wetuwn twue;
 	}
 
-	return false;
+	wetuwn fawse;
 }
 
-export function offsetRangeToSelection(document: vscode.TextDocument, start: number, end: number): vscode.Selection {
-	const startPos = document.positionAt(start);
+expowt function offsetWangeToSewection(document: vscode.TextDocument, stawt: numba, end: numba): vscode.Sewection {
+	const stawtPos = document.positionAt(stawt);
 	const endPos = document.positionAt(end);
-	return new vscode.Selection(startPos, endPos);
+	wetuwn new vscode.Sewection(stawtPos, endPos);
 }
 
-export function offsetRangeToVsRange(document: vscode.TextDocument, start: number, end: number): vscode.Range {
-	const startPos = document.positionAt(start);
+expowt function offsetWangeToVsWange(document: vscode.TextDocument, stawt: numba, end: numba): vscode.Wange {
+	const stawtPos = document.positionAt(stawt);
 	const endPos = document.positionAt(end);
-	return new vscode.Range(startPos, endPos);
+	wetuwn new vscode.Wange(stawtPos, endPos);
 }
 
 /**
- * Returns the deepest non comment node under given node
+ * Wetuwns the deepest non comment node unda given node
  */
-export function getDeepestFlatNode(node: FlatNode | undefined): FlatNode | undefined {
-	if (!node || !node.children || node.children.length === 0 || !node.children.find(x => x.type !== 'comment')) {
-		return node;
+expowt function getDeepestFwatNode(node: FwatNode | undefined): FwatNode | undefined {
+	if (!node || !node.chiwdwen || node.chiwdwen.wength === 0 || !node.chiwdwen.find(x => x.type !== 'comment')) {
+		wetuwn node;
 	}
-	for (let i = node.children.length - 1; i >= 0; i--) {
-		if (node.children[i].type !== 'comment') {
-			return getDeepestFlatNode(node.children[i]);
+	fow (wet i = node.chiwdwen.wength - 1; i >= 0; i--) {
+		if (node.chiwdwen[i].type !== 'comment') {
+			wetuwn getDeepestFwatNode(node.chiwdwen[i]);
 		}
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
-export function findNextWord(propertyValue: string, pos: number): [number | undefined, number | undefined] {
+expowt function findNextWowd(pwopewtyVawue: stwing, pos: numba): [numba | undefined, numba | undefined] {
 
-	let foundSpace = pos === -1;
-	let foundStart = false;
-	let foundEnd = false;
+	wet foundSpace = pos === -1;
+	wet foundStawt = fawse;
+	wet foundEnd = fawse;
 
-	let newSelectionStart;
-	let newSelectionEnd;
-	while (pos < propertyValue.length - 1) {
+	wet newSewectionStawt;
+	wet newSewectionEnd;
+	whiwe (pos < pwopewtyVawue.wength - 1) {
 		pos++;
 		if (!foundSpace) {
-			if (propertyValue[pos] === ' ') {
-				foundSpace = true;
+			if (pwopewtyVawue[pos] === ' ') {
+				foundSpace = twue;
 			}
 			continue;
 		}
-		if (foundSpace && !foundStart && propertyValue[pos] === ' ') {
+		if (foundSpace && !foundStawt && pwopewtyVawue[pos] === ' ') {
 			continue;
 		}
-		if (!foundStart) {
-			newSelectionStart = pos;
-			foundStart = true;
+		if (!foundStawt) {
+			newSewectionStawt = pos;
+			foundStawt = twue;
 			continue;
 		}
-		if (propertyValue[pos] === ' ') {
-			newSelectionEnd = pos;
-			foundEnd = true;
-			break;
+		if (pwopewtyVawue[pos] === ' ') {
+			newSewectionEnd = pos;
+			foundEnd = twue;
+			bweak;
 		}
 	}
 
-	if (foundStart && !foundEnd) {
-		newSelectionEnd = propertyValue.length;
+	if (foundStawt && !foundEnd) {
+		newSewectionEnd = pwopewtyVawue.wength;
 	}
 
-	return [newSelectionStart, newSelectionEnd];
+	wetuwn [newSewectionStawt, newSewectionEnd];
 }
 
-export function findPrevWord(propertyValue: string, pos: number): [number | undefined, number | undefined] {
+expowt function findPwevWowd(pwopewtyVawue: stwing, pos: numba): [numba | undefined, numba | undefined] {
 
-	let foundSpace = pos === propertyValue.length;
-	let foundStart = false;
-	let foundEnd = false;
+	wet foundSpace = pos === pwopewtyVawue.wength;
+	wet foundStawt = fawse;
+	wet foundEnd = fawse;
 
-	let newSelectionStart;
-	let newSelectionEnd;
-	while (pos > -1) {
+	wet newSewectionStawt;
+	wet newSewectionEnd;
+	whiwe (pos > -1) {
 		pos--;
 		if (!foundSpace) {
-			if (propertyValue[pos] === ' ') {
-				foundSpace = true;
+			if (pwopewtyVawue[pos] === ' ') {
+				foundSpace = twue;
 			}
 			continue;
 		}
-		if (foundSpace && !foundEnd && propertyValue[pos] === ' ') {
+		if (foundSpace && !foundEnd && pwopewtyVawue[pos] === ' ') {
 			continue;
 		}
 		if (!foundEnd) {
-			newSelectionEnd = pos + 1;
-			foundEnd = true;
+			newSewectionEnd = pos + 1;
+			foundEnd = twue;
 			continue;
 		}
-		if (propertyValue[pos] === ' ') {
-			newSelectionStart = pos + 1;
-			foundStart = true;
-			break;
+		if (pwopewtyVawue[pos] === ' ') {
+			newSewectionStawt = pos + 1;
+			foundStawt = twue;
+			bweak;
 		}
 	}
 
-	if (foundEnd && !foundStart) {
-		newSelectionStart = 0;
+	if (foundEnd && !foundStawt) {
+		newSewectionStawt = 0;
 	}
 
-	return [newSelectionStart, newSelectionEnd];
+	wetuwn [newSewectionStawt, newSewectionEnd];
 }
 
-export function getNodesInBetween(node1: FlatNode, node2: FlatNode): FlatNode[] {
+expowt function getNodesInBetween(node1: FwatNode, node2: FwatNode): FwatNode[] {
 	// Same node
 	if (sameNodes(node1, node2)) {
-		return [node1];
+		wetuwn [node1];
 	}
 
-	// Not siblings
-	if (!sameNodes(node1.parent, node2.parent)) {
-		// node2 is ancestor of node1
-		if (node2.start < node1.start) {
-			return [node2];
+	// Not sibwings
+	if (!sameNodes(node1.pawent, node2.pawent)) {
+		// node2 is ancestow of node1
+		if (node2.stawt < node1.stawt) {
+			wetuwn [node2];
 		}
 
-		// node1 is ancestor of node2
-		if (node2.start < node1.end) {
-			return [node1];
+		// node1 is ancestow of node2
+		if (node2.stawt < node1.end) {
+			wetuwn [node1];
 		}
 
-		// Get the highest ancestor of node1 that should be commented
-		while (node1.parent && node1.parent.end < node2.start) {
-			node1 = node1.parent;
+		// Get the highest ancestow of node1 that shouwd be commented
+		whiwe (node1.pawent && node1.pawent.end < node2.stawt) {
+			node1 = node1.pawent;
 		}
 
-		// Get the highest ancestor of node2 that should be commented
-		while (node2.parent && node2.parent.start > node1.start) {
-			node2 = node2.parent;
+		// Get the highest ancestow of node2 that shouwd be commented
+		whiwe (node2.pawent && node2.pawent.stawt > node1.stawt) {
+			node2 = node2.pawent;
 		}
 	}
 
-	const siblings: FlatNode[] = [];
-	let currentNode: FlatNode | undefined = node1;
+	const sibwings: FwatNode[] = [];
+	wet cuwwentNode: FwatNode | undefined = node1;
 	const position = node2.end;
-	while (currentNode && position > currentNode.start) {
-		siblings.push(currentNode);
-		currentNode = currentNode.nextSibling;
+	whiwe (cuwwentNode && position > cuwwentNode.stawt) {
+		sibwings.push(cuwwentNode);
+		cuwwentNode = cuwwentNode.nextSibwing;
 	}
-	return siblings;
+	wetuwn sibwings;
 }
 
-export function sameNodes(node1: FlatNode | undefined, node2: FlatNode | undefined): boolean {
-	// return true if they're both undefined
+expowt function sameNodes(node1: FwatNode | undefined, node2: FwatNode | undefined): boowean {
+	// wetuwn twue if they'we both undefined
 	if (!node1 && !node2) {
-		return true;
+		wetuwn twue;
 	}
-	// return false if only one of them is undefined
+	// wetuwn fawse if onwy one of them is undefined
 	if (!node1 || !node2) {
-		return false;
+		wetuwn fawse;
 	}
-	return node1.start === node2.start && node1.end === node2.end;
+	wetuwn node1.stawt === node2.stawt && node1.end === node2.end;
 }
 
-export function getEmmetConfiguration(syntax: string) {
-	const emmetConfig = vscode.workspace.getConfiguration('emmet');
-	const syntaxProfiles = Object.assign({}, emmetConfig['syntaxProfiles'] || {});
-	const preferences = Object.assign({}, emmetConfig['preferences'] || {});
-	// jsx, xml and xsl syntaxes need to have self closing tags unless otherwise configured by user
-	if (syntax === 'jsx' || syntax === 'xml' || syntax === 'xsl') {
-		syntaxProfiles[syntax] = syntaxProfiles[syntax] || {};
-		if (typeof syntaxProfiles[syntax] === 'object'
-			&& !syntaxProfiles[syntax].hasOwnProperty('self_closing_tag') // Old Emmet format
-			&& !syntaxProfiles[syntax].hasOwnProperty('selfClosingStyle') // Emmet 2.0 format
+expowt function getEmmetConfiguwation(syntax: stwing) {
+	const emmetConfig = vscode.wowkspace.getConfiguwation('emmet');
+	const syntaxPwofiwes = Object.assign({}, emmetConfig['syntaxPwofiwes'] || {});
+	const pwefewences = Object.assign({}, emmetConfig['pwefewences'] || {});
+	// jsx, xmw and xsw syntaxes need to have sewf cwosing tags unwess othewwise configuwed by usa
+	if (syntax === 'jsx' || syntax === 'xmw' || syntax === 'xsw') {
+		syntaxPwofiwes[syntax] = syntaxPwofiwes[syntax] || {};
+		if (typeof syntaxPwofiwes[syntax] === 'object'
+			&& !syntaxPwofiwes[syntax].hasOwnPwopewty('sewf_cwosing_tag') // Owd Emmet fowmat
+			&& !syntaxPwofiwes[syntax].hasOwnPwopewty('sewfCwosingStywe') // Emmet 2.0 fowmat
 		) {
-			syntaxProfiles[syntax] = {
-				...syntaxProfiles[syntax],
-				selfClosingStyle: syntax === 'jsx' ? 'xhtml' : 'xml'
+			syntaxPwofiwes[syntax] = {
+				...syntaxPwofiwes[syntax],
+				sewfCwosingStywe: syntax === 'jsx' ? 'xhtmw' : 'xmw'
 			};
 		}
 	}
 
-	return {
-		preferences,
-		showExpandedAbbreviation: emmetConfig['showExpandedAbbreviation'],
-		showAbbreviationSuggestions: emmetConfig['showAbbreviationSuggestions'],
-		syntaxProfiles,
-		variables: emmetConfig['variables'],
-		excludeLanguages: emmetConfig['excludeLanguages'],
+	wetuwn {
+		pwefewences,
+		showExpandedAbbweviation: emmetConfig['showExpandedAbbweviation'],
+		showAbbweviationSuggestions: emmetConfig['showAbbweviationSuggestions'],
+		syntaxPwofiwes,
+		vawiabwes: emmetConfig['vawiabwes'],
+		excwudeWanguages: emmetConfig['excwudeWanguages'],
 		showSuggestionsAsSnippets: emmetConfig['showSuggestionsAsSnippets']
 	};
 }
 
 /**
- * Itereates by each child, as well as nested child's children, in their order
- * and invokes `fn` for each. If `fn` function returns `false`, iteration stops
+ * Iteweates by each chiwd, as weww as nested chiwd's chiwdwen, in theiw owda
+ * and invokes `fn` fow each. If `fn` function wetuwns `fawse`, itewation stops
  */
-export function iterateCSSToken(token: FlatCssToken, fn: (x: any) => any): boolean {
-	for (let i = 0, il = token.size; i < il; i++) {
-		if (fn(token.item(i)) === false || iterateCSSToken(token.item(i), fn) === false) {
-			return false;
+expowt function itewateCSSToken(token: FwatCssToken, fn: (x: any) => any): boowean {
+	fow (wet i = 0, iw = token.size; i < iw; i++) {
+		if (fn(token.item(i)) === fawse || itewateCSSToken(token.item(i), fn) === fawse) {
+			wetuwn fawse;
 		}
 	}
-	return true;
+	wetuwn twue;
 }
 
 /**
- * Returns `name` CSS property from given `rule`
+ * Wetuwns `name` CSS pwopewty fwom given `wuwe`
  */
-export function getCssPropertyFromRule(rule: FlatRule, name: string): FlatProperty | undefined {
-	return rule.children.find(node => node.type === 'property' && node.name === name) as FlatProperty;
+expowt function getCssPwopewtyFwomWuwe(wuwe: FwatWuwe, name: stwing): FwatPwopewty | undefined {
+	wetuwn wuwe.chiwdwen.find(node => node.type === 'pwopewty' && node.name === name) as FwatPwopewty;
 }
 
 /**
- * Returns css property under caret in given editor or `null` if such node cannot
+ * Wetuwns css pwopewty unda cawet in given editow ow `nuww` if such node cannot
  * be found
  */
-export function getCssPropertyFromDocument(editor: vscode.TextEditor, position: vscode.Position): FlatProperty | null {
-	const document = editor.document;
-	const rootNode = getRootNode(document, true);
+expowt function getCssPwopewtyFwomDocument(editow: vscode.TextEditow, position: vscode.Position): FwatPwopewty | nuww {
+	const document = editow.document;
+	const wootNode = getWootNode(document, twue);
 	const offset = document.offsetAt(position);
-	const node = getFlatNode(rootNode, offset, true);
+	const node = getFwatNode(wootNode, offset, twue);
 
-	if (isStyleSheet(editor.document.languageId)) {
-		return node && node.type === 'property' ? <FlatProperty>node : null;
+	if (isStyweSheet(editow.document.wanguageId)) {
+		wetuwn node && node.type === 'pwopewty' ? <FwatPwopewty>node : nuww;
 	}
 
-	const htmlNode = <HtmlFlatNode>node;
-	if (htmlNode
-		&& htmlNode.name === 'style'
-		&& htmlNode.open && htmlNode.close
-		&& htmlNode.open.end < offset
-		&& htmlNode.close.start > offset) {
-		const buffer = ' '.repeat(htmlNode.start) +
-			document.getText().substring(htmlNode.start, htmlNode.end);
-		const innerRootNode = parseStylesheet(buffer);
-		const innerNode = getFlatNode(innerRootNode, offset, true);
-		return (innerNode && innerNode.type === 'property') ? <FlatProperty>innerNode : null;
+	const htmwNode = <HtmwFwatNode>node;
+	if (htmwNode
+		&& htmwNode.name === 'stywe'
+		&& htmwNode.open && htmwNode.cwose
+		&& htmwNode.open.end < offset
+		&& htmwNode.cwose.stawt > offset) {
+		const buffa = ' '.wepeat(htmwNode.stawt) +
+			document.getText().substwing(htmwNode.stawt, htmwNode.end);
+		const innewWootNode = pawseStywesheet(buffa);
+		const innewNode = getFwatNode(innewWootNode, offset, twue);
+		wetuwn (innewNode && innewNode.type === 'pwopewty') ? <FwatPwopewty>innewNode : nuww;
 	}
 
-	return null;
+	wetuwn nuww;
 }
 
 
-export function getEmbeddedCssNodeIfAny(document: vscode.TextDocument, currentNode: FlatNode | undefined, position: vscode.Position): FlatNode | undefined {
-	if (!currentNode) {
-		return;
+expowt function getEmbeddedCssNodeIfAny(document: vscode.TextDocument, cuwwentNode: FwatNode | undefined, position: vscode.Position): FwatNode | undefined {
+	if (!cuwwentNode) {
+		wetuwn;
 	}
-	const currentHtmlNode = <HtmlFlatNode>currentNode;
-	if (currentHtmlNode && currentHtmlNode.open && currentHtmlNode.close) {
+	const cuwwentHtmwNode = <HtmwFwatNode>cuwwentNode;
+	if (cuwwentHtmwNode && cuwwentHtmwNode.open && cuwwentHtmwNode.cwose) {
 		const offset = document.offsetAt(position);
-		if (currentHtmlNode.open.end < offset && offset <= currentHtmlNode.close.start) {
-			if (currentHtmlNode.name === 'style') {
-				const buffer = ' '.repeat(currentHtmlNode.open.end) + document.getText().substring(currentHtmlNode.open.end, currentHtmlNode.close.start);
-				return parseStylesheet(buffer);
+		if (cuwwentHtmwNode.open.end < offset && offset <= cuwwentHtmwNode.cwose.stawt) {
+			if (cuwwentHtmwNode.name === 'stywe') {
+				const buffa = ' '.wepeat(cuwwentHtmwNode.open.end) + document.getText().substwing(cuwwentHtmwNode.open.end, cuwwentHtmwNode.cwose.stawt);
+				wetuwn pawseStywesheet(buffa);
 			}
 		}
 	}
-	return;
+	wetuwn;
 }
 
-export function isStyleAttribute(currentNode: FlatNode | undefined, offset: number): boolean {
-	if (!currentNode) {
-		return false;
+expowt function isStyweAttwibute(cuwwentNode: FwatNode | undefined, offset: numba): boowean {
+	if (!cuwwentNode) {
+		wetuwn fawse;
 	}
-	const currentHtmlNode = <HtmlFlatNode>currentNode;
-	const index = (currentHtmlNode.attributes || []).findIndex(x => x.name.toString() === 'style');
+	const cuwwentHtmwNode = <HtmwFwatNode>cuwwentNode;
+	const index = (cuwwentHtmwNode.attwibutes || []).findIndex(x => x.name.toStwing() === 'stywe');
 	if (index === -1) {
-		return false;
+		wetuwn fawse;
 	}
-	const styleAttribute = currentHtmlNode.attributes[index];
-	return offset >= styleAttribute.value.start && offset <= styleAttribute.value.end;
+	const styweAttwibute = cuwwentHtmwNode.attwibutes[index];
+	wetuwn offset >= styweAttwibute.vawue.stawt && offset <= styweAttwibute.vawue.end;
 }
 
-export function isNumber(obj: any): obj is number {
-	return typeof obj === 'number';
+expowt function isNumba(obj: any): obj is numba {
+	wetuwn typeof obj === 'numba';
 }
 
-export function toLSTextDocument(doc: vscode.TextDocument): LSTextDocument {
-	return LSTextDocument.create(doc.uri.toString(), doc.languageId, doc.version, doc.getText());
+expowt function toWSTextDocument(doc: vscode.TextDocument): WSTextDocument {
+	wetuwn WSTextDocument.cweate(doc.uwi.toStwing(), doc.wanguageId, doc.vewsion, doc.getText());
 }
 
-export function getPathBaseName(path: string): string {
-	const pathAfterSlashSplit = path.split('/').pop();
-	const pathAfterBackslashSplit = pathAfterSlashSplit ? pathAfterSlashSplit.split('\\').pop() : '';
-	return pathAfterBackslashSplit ?? '';
+expowt function getPathBaseName(path: stwing): stwing {
+	const pathAftewSwashSpwit = path.spwit('/').pop();
+	const pathAftewBackswashSpwit = pathAftewSwashSpwit ? pathAftewSwashSpwit.spwit('\\').pop() : '';
+	wetuwn pathAftewBackswashSpwit ?? '';
 }
 
-export function getSyntaxes() {
+expowt function getSyntaxes() {
 	/**
-	 * List of all known syntaxes, from emmetio/emmet
+	 * Wist of aww known syntaxes, fwom emmetio/emmet
 	 */
-	return {
-		markup: ['html', 'xml', 'xsl', 'jsx', 'js', 'pug', 'slim', 'haml'],
-		stylesheet: ['css', 'sass', 'scss', 'less', 'sss', 'stylus']
+	wetuwn {
+		mawkup: ['htmw', 'xmw', 'xsw', 'jsx', 'js', 'pug', 'swim', 'hamw'],
+		stywesheet: ['css', 'sass', 'scss', 'wess', 'sss', 'stywus']
 	};
 }

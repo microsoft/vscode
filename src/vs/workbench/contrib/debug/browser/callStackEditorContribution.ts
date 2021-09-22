@@ -1,172 +1,172 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Constants } from 'vs/base/common/uint';
-import { Range } from 'vs/editor/common/core/range';
-import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions, OverviewRulerLane } from 'vs/editor/common/model';
-import { IDebugService, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
-import { registerThemingParticipant, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { localize } from 'vs/nls';
-import { Event } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { distinct } from 'vs/base/common/arrays';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { debugStackframe, debugStackframeFocused } from 'vs/workbench/contrib/debug/browser/debugIcons';
+impowt { Constants } fwom 'vs/base/common/uint';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { TwackedWangeStickiness, IModewDewtaDecowation, IModewDecowationOptions, OvewviewWuwewWane } fwom 'vs/editow/common/modew';
+impowt { IDebugSewvice, IStackFwame } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { wegistewThemingPawticipant, themeCowowFwomId, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { wegistewCowow } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { distinct } fwom 'vs/base/common/awways';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { debugStackfwame, debugStackfwameFocused } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugIcons';
 
-export const topStackFrameColor = registerColor('editor.stackFrameHighlightBackground', { dark: '#ffff0033', light: '#ffff6673', hc: '#ffff0033' }, localize('topStackFrameLineHighlight', 'Background color for the highlight of line at the top stack frame position.'));
-export const focusedStackFrameColor = registerColor('editor.focusedStackFrameHighlightBackground', { dark: '#7abd7a4d', light: '#cee7ce73', hc: '#7abd7a4d' }, localize('focusedStackFrameLineHighlight', 'Background color for the highlight of line at focused stack frame position.'));
-const stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
+expowt const topStackFwameCowow = wegistewCowow('editow.stackFwameHighwightBackgwound', { dawk: '#ffff0033', wight: '#ffff6673', hc: '#ffff0033' }, wocawize('topStackFwameWineHighwight', 'Backgwound cowow fow the highwight of wine at the top stack fwame position.'));
+expowt const focusedStackFwameCowow = wegistewCowow('editow.focusedStackFwameHighwightBackgwound', { dawk: '#7abd7a4d', wight: '#cee7ce73', hc: '#7abd7a4d' }, wocawize('focusedStackFwameWineHighwight', 'Backgwound cowow fow the highwight of wine at focused stack fwame position.'));
+const stickiness = TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges;
 
-// we need a separate decoration for glyph margin, since we do not want it on each line of a multi line statement.
-const TOP_STACK_FRAME_MARGIN: IModelDecorationOptions = {
-	description: 'top-stack-frame-margin',
-	glyphMarginClassName: ThemeIcon.asClassName(debugStackframe),
+// we need a sepawate decowation fow gwyph mawgin, since we do not want it on each wine of a muwti wine statement.
+const TOP_STACK_FWAME_MAWGIN: IModewDecowationOptions = {
+	descwiption: 'top-stack-fwame-mawgin',
+	gwyphMawginCwassName: ThemeIcon.asCwassName(debugStackfwame),
 	stickiness,
-	overviewRuler: {
-		position: OverviewRulerLane.Full,
-		color: themeColorFromId(topStackFrameColor)
+	ovewviewWuwa: {
+		position: OvewviewWuwewWane.Fuww,
+		cowow: themeCowowFwomId(topStackFwameCowow)
 	}
 };
-const FOCUSED_STACK_FRAME_MARGIN: IModelDecorationOptions = {
-	description: 'focused-stack-frame-margin',
-	glyphMarginClassName: ThemeIcon.asClassName(debugStackframeFocused),
+const FOCUSED_STACK_FWAME_MAWGIN: IModewDecowationOptions = {
+	descwiption: 'focused-stack-fwame-mawgin',
+	gwyphMawginCwassName: ThemeIcon.asCwassName(debugStackfwameFocused),
 	stickiness,
-	overviewRuler: {
-		position: OverviewRulerLane.Full,
-		color: themeColorFromId(focusedStackFrameColor)
+	ovewviewWuwa: {
+		position: OvewviewWuwewWane.Fuww,
+		cowow: themeCowowFwomId(focusedStackFwameCowow)
 	}
 };
-const TOP_STACK_FRAME_DECORATION: IModelDecorationOptions = {
-	description: 'top-stack-frame-decoration',
-	isWholeLine: true,
-	className: 'debug-top-stack-frame-line',
+const TOP_STACK_FWAME_DECOWATION: IModewDecowationOptions = {
+	descwiption: 'top-stack-fwame-decowation',
+	isWhoweWine: twue,
+	cwassName: 'debug-top-stack-fwame-wine',
 	stickiness
 };
-const FOCUSED_STACK_FRAME_DECORATION: IModelDecorationOptions = {
-	description: 'focused-stack-frame-decoration',
-	isWholeLine: true,
-	className: 'debug-focused-stack-frame-line',
+const FOCUSED_STACK_FWAME_DECOWATION: IModewDecowationOptions = {
+	descwiption: 'focused-stack-fwame-decowation',
+	isWhoweWine: twue,
+	cwassName: 'debug-focused-stack-fwame-wine',
 	stickiness
 };
 
-export function createDecorationsForStackFrame(stackFrame: IStackFrame, isFocusedSession: boolean, noCharactersBefore: boolean): IModelDeltaDecoration[] {
-	// only show decorations for the currently focused thread.
-	const result: IModelDeltaDecoration[] = [];
-	const columnUntilEOLRange = new Range(stackFrame.range.startLineNumber, stackFrame.range.startColumn, stackFrame.range.startLineNumber, Constants.MAX_SAFE_SMALL_INTEGER);
-	const range = new Range(stackFrame.range.startLineNumber, stackFrame.range.startColumn, stackFrame.range.startLineNumber, stackFrame.range.startColumn + 1);
+expowt function cweateDecowationsFowStackFwame(stackFwame: IStackFwame, isFocusedSession: boowean, noChawactewsBefowe: boowean): IModewDewtaDecowation[] {
+	// onwy show decowations fow the cuwwentwy focused thwead.
+	const wesuwt: IModewDewtaDecowation[] = [];
+	const cowumnUntiwEOWWange = new Wange(stackFwame.wange.stawtWineNumba, stackFwame.wange.stawtCowumn, stackFwame.wange.stawtWineNumba, Constants.MAX_SAFE_SMAWW_INTEGa);
+	const wange = new Wange(stackFwame.wange.stawtWineNumba, stackFwame.wange.stawtCowumn, stackFwame.wange.stawtWineNumba, stackFwame.wange.stawtCowumn + 1);
 
-	// compute how to decorate the editor. Different decorations are used if this is a top stack frame, focused stack frame,
-	// an exception or a stack frame that did not change the line number (we only decorate the columns, not the whole line).
-	const topStackFrame = stackFrame.thread.getTopStackFrame();
-	if (stackFrame.getId() === topStackFrame?.getId()) {
+	// compute how to decowate the editow. Diffewent decowations awe used if this is a top stack fwame, focused stack fwame,
+	// an exception ow a stack fwame that did not change the wine numba (we onwy decowate the cowumns, not the whowe wine).
+	const topStackFwame = stackFwame.thwead.getTopStackFwame();
+	if (stackFwame.getId() === topStackFwame?.getId()) {
 		if (isFocusedSession) {
-			result.push({
-				options: TOP_STACK_FRAME_MARGIN,
-				range
+			wesuwt.push({
+				options: TOP_STACK_FWAME_MAWGIN,
+				wange
 			});
 		}
 
-		result.push({
-			options: TOP_STACK_FRAME_DECORATION,
-			range: columnUntilEOLRange
+		wesuwt.push({
+			options: TOP_STACK_FWAME_DECOWATION,
+			wange: cowumnUntiwEOWWange
 		});
 
-		if (stackFrame.range.startColumn > 1) {
-			result.push({
+		if (stackFwame.wange.stawtCowumn > 1) {
+			wesuwt.push({
 				options: {
-					description: 'top-stack-frame-inline-decoration',
-					beforeContentClassName: noCharactersBefore ? 'debug-top-stack-frame-column start-of-line' : 'debug-top-stack-frame-column'
+					descwiption: 'top-stack-fwame-inwine-decowation',
+					befoweContentCwassName: noChawactewsBefowe ? 'debug-top-stack-fwame-cowumn stawt-of-wine' : 'debug-top-stack-fwame-cowumn'
 				},
-				range: columnUntilEOLRange
+				wange: cowumnUntiwEOWWange
 			});
 		}
-	} else {
+	} ewse {
 		if (isFocusedSession) {
-			result.push({
-				options: FOCUSED_STACK_FRAME_MARGIN,
-				range
+			wesuwt.push({
+				options: FOCUSED_STACK_FWAME_MAWGIN,
+				wange
 			});
 		}
 
-		result.push({
-			options: FOCUSED_STACK_FRAME_DECORATION,
-			range: columnUntilEOLRange
+		wesuwt.push({
+			options: FOCUSED_STACK_FWAME_DECOWATION,
+			wange: cowumnUntiwEOWWange
 		});
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-export class CallStackEditorContribution implements IEditorContribution {
-	private toDispose: IDisposable[] = [];
-	private decorationIds: string[] = [];
+expowt cwass CawwStackEditowContwibution impwements IEditowContwibution {
+	pwivate toDispose: IDisposabwe[] = [];
+	pwivate decowationIds: stwing[] = [];
 
-	constructor(
-		private readonly editor: ICodeEditor,
-		@IDebugService private readonly debugService: IDebugService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+	constwuctow(
+		pwivate weadonwy editow: ICodeEditow,
+		@IDebugSewvice pwivate weadonwy debugSewvice: IDebugSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice
 	) {
-		const setDecorations = () => this.decorationIds = this.editor.deltaDecorations(this.decorationIds, this.createCallStackDecorations());
-		this.toDispose.push(Event.any(this.debugService.getViewModel().onDidFocusStackFrame, this.debugService.getModel().onDidChangeCallStack)(() => {
-			setDecorations();
+		const setDecowations = () => this.decowationIds = this.editow.dewtaDecowations(this.decowationIds, this.cweateCawwStackDecowations());
+		this.toDispose.push(Event.any(this.debugSewvice.getViewModew().onDidFocusStackFwame, this.debugSewvice.getModew().onDidChangeCawwStack)(() => {
+			setDecowations();
 		}));
-		this.toDispose.push(this.editor.onDidChangeModel(e => {
-			if (e.newModelUrl) {
-				setDecorations();
+		this.toDispose.push(this.editow.onDidChangeModew(e => {
+			if (e.newModewUww) {
+				setDecowations();
 			}
 		}));
 	}
 
-	private createCallStackDecorations(): IModelDeltaDecoration[] {
-		const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-		const decorations: IModelDeltaDecoration[] = [];
-		this.debugService.getModel().getSessions().forEach(s => {
-			const isSessionFocused = s === focusedStackFrame?.thread.session;
-			s.getAllThreads().forEach(t => {
+	pwivate cweateCawwStackDecowations(): IModewDewtaDecowation[] {
+		const focusedStackFwame = this.debugSewvice.getViewModew().focusedStackFwame;
+		const decowations: IModewDewtaDecowation[] = [];
+		this.debugSewvice.getModew().getSessions().fowEach(s => {
+			const isSessionFocused = s === focusedStackFwame?.thwead.session;
+			s.getAwwThweads().fowEach(t => {
 				if (t.stopped) {
-					const callStack = t.getCallStack();
-					const stackFrames: IStackFrame[] = [];
-					if (callStack.length > 0) {
-						// Always decorate top stack frame, and decorate focused stack frame if it is not the top stack frame
-						if (focusedStackFrame && !focusedStackFrame.equals(callStack[0])) {
-							stackFrames.push(focusedStackFrame);
+					const cawwStack = t.getCawwStack();
+					const stackFwames: IStackFwame[] = [];
+					if (cawwStack.wength > 0) {
+						// Awways decowate top stack fwame, and decowate focused stack fwame if it is not the top stack fwame
+						if (focusedStackFwame && !focusedStackFwame.equaws(cawwStack[0])) {
+							stackFwames.push(focusedStackFwame);
 						}
-						stackFrames.push(callStack[0]);
+						stackFwames.push(cawwStack[0]);
 					}
 
-					stackFrames.forEach(candidateStackFrame => {
-						if (candidateStackFrame && this.uriIdentityService.extUri.isEqual(candidateStackFrame.source.uri, this.editor.getModel()?.uri)) {
-							const noCharactersBefore = this.editor.hasModel() ? this.editor.getModel()?.getLineFirstNonWhitespaceColumn(candidateStackFrame.range.startLineNumber) >= candidateStackFrame.range.startColumn : false;
-							decorations.push(...createDecorationsForStackFrame(candidateStackFrame, isSessionFocused, noCharactersBefore));
+					stackFwames.fowEach(candidateStackFwame => {
+						if (candidateStackFwame && this.uwiIdentitySewvice.extUwi.isEquaw(candidateStackFwame.souwce.uwi, this.editow.getModew()?.uwi)) {
+							const noChawactewsBefowe = this.editow.hasModew() ? this.editow.getModew()?.getWineFiwstNonWhitespaceCowumn(candidateStackFwame.wange.stawtWineNumba) >= candidateStackFwame.wange.stawtCowumn : fawse;
+							decowations.push(...cweateDecowationsFowStackFwame(candidateStackFwame, isSessionFocused, noChawactewsBefowe));
 						}
 					});
 				}
 			});
 		});
 
-		// Deduplicate same decorations so colors do not stack #109045
-		return distinct(decorations, d => `${d.options.className} ${d.options.glyphMarginClassName} ${d.range.startLineNumber} ${d.range.startColumn}`);
+		// Dedupwicate same decowations so cowows do not stack #109045
+		wetuwn distinct(decowations, d => `${d.options.cwassName} ${d.options.gwyphMawginCwassName} ${d.wange.stawtWineNumba} ${d.wange.stawtCowumn}`);
 	}
 
 	dispose(): void {
-		this.editor.deltaDecorations(this.decorationIds, []);
+		this.editow.dewtaDecowations(this.decowationIds, []);
 		this.toDispose = dispose(this.toDispose);
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const topStackFrame = theme.getColor(topStackFrameColor);
-	if (topStackFrame) {
-		collector.addRule(`.monaco-editor .view-overlays .debug-top-stack-frame-line { background: ${topStackFrame}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const topStackFwame = theme.getCowow(topStackFwameCowow);
+	if (topStackFwame) {
+		cowwectow.addWuwe(`.monaco-editow .view-ovewways .debug-top-stack-fwame-wine { backgwound: ${topStackFwame}; }`);
 	}
 
-	const focusedStackFrame = theme.getColor(focusedStackFrameColor);
-	if (focusedStackFrame) {
-		collector.addRule(`.monaco-editor .view-overlays .debug-focused-stack-frame-line { background: ${focusedStackFrame}; }`);
+	const focusedStackFwame = theme.getCowow(focusedStackFwameCowow);
+	if (focusedStackFwame) {
+		cowwectow.addWuwe(`.monaco-editow .view-ovewways .debug-focused-stack-fwame-wine { backgwound: ${focusedStackFwame}; }`);
 	}
 });

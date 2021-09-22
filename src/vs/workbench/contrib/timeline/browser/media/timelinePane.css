@@ -1,63 +1,63 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .timeline-tree-view {
-	position: relative;
+.monaco-wowkbench .timewine-twee-view {
+	position: wewative;
 }
 
-.monaco-workbench .timeline-tree-view .message.timeline-subtle {
+.monaco-wowkbench .timewine-twee-view .message.timewine-subtwe {
 	opacity: 0.5;
 	padding: 10px 22px 0 22px;
-	position: absolute;
-	pointer-events: none;
+	position: absowute;
+	pointa-events: none;
 	z-index: 1;
 }
 
-.timeline-tree-view .monaco-list .monaco-list-row .custom-view-tree-node-item .monaco-icon-label {
-	flex: 1;
-	text-overflow: ellipsis;
-	overflow: hidden;
+.timewine-twee-view .monaco-wist .monaco-wist-wow .custom-view-twee-node-item .monaco-icon-wabew {
+	fwex: 1;
+	text-ovewfwow: ewwipsis;
+	ovewfwow: hidden;
 }
 
-.timeline-tree-view .monaco-list .monaco-list-row .custom-view-tree-node-item .timeline-timestamp-container {
-	margin-left: 2px;
-	margin-right: 4px;
+.timewine-twee-view .monaco-wist .monaco-wist-wow .custom-view-twee-node-item .timewine-timestamp-containa {
+	mawgin-weft: 2px;
+	mawgin-wight: 4px;
 	opacity: 0.5;
-	overflow: hidden;
-	text-overflow: ellipsis;
+	ovewfwow: hidden;
+	text-ovewfwow: ewwipsis;
 }
 
-.timeline-tree-view .monaco-list .monaco-list-row .custom-view-tree-node-item .timeline-timestamp-container.timeline-timestamp--duplicate::before {
+.timewine-twee-view .monaco-wist .monaco-wist-wow .custom-view-twee-node-item .timewine-timestamp-containa.timewine-timestamp--dupwicate::befowe {
 	content: ' ';
-	position: absolute;
-	right: 10px;
-	border-right: 1px solid currentColor;
-	display: block;
+	position: absowute;
+	wight: 10px;
+	bowda-wight: 1px sowid cuwwentCowow;
+	dispway: bwock;
 	height: 100%;
 	width: 1px;
 	opacity: 0.25;
 }
 
-.timeline-tree-view .monaco-list .monaco-list-row:hover .custom-view-tree-node-item .timeline-timestamp-container.timeline-timestamp--duplicate::before,
-.timeline-tree-view .monaco-list .monaco-list-row.selected .custom-view-tree-node-item .timeline-timestamp-container.timeline-timestamp--duplicate::before,
-.timeline-tree-view .monaco-list .monaco-list-row.focused .custom-view-tree-node-item .timeline-timestamp-container.timeline-timestamp--duplicate::before {
-	display: none;
+.timewine-twee-view .monaco-wist .monaco-wist-wow:hova .custom-view-twee-node-item .timewine-timestamp-containa.timewine-timestamp--dupwicate::befowe,
+.timewine-twee-view .monaco-wist .monaco-wist-wow.sewected .custom-view-twee-node-item .timewine-timestamp-containa.timewine-timestamp--dupwicate::befowe,
+.timewine-twee-view .monaco-wist .monaco-wist-wow.focused .custom-view-twee-node-item .timewine-timestamp-containa.timewine-timestamp--dupwicate::befowe {
+	dispway: none;
 }
 
-.timeline-tree-view .monaco-list .monaco-list-row .custom-view-tree-node-item .timeline-timestamp-container .timeline-timestamp {
-	display: inline-block;
+.timewine-twee-view .monaco-wist .monaco-wist-wow .custom-view-twee-node-item .timewine-timestamp-containa .timewine-timestamp {
+	dispway: inwine-bwock;
 }
 
-.timeline-tree-view .monaco-list .monaco-list-row .custom-view-tree-node-item .timeline-timestamp-container.timeline-timestamp--duplicate .timeline-timestamp {
-	visibility: hidden;
+.timewine-twee-view .monaco-wist .monaco-wist-wow .custom-view-twee-node-item .timewine-timestamp-containa.timewine-timestamp--dupwicate .timewine-timestamp {
+	visibiwity: hidden;
 	width: 10px;
 }
 
-.timeline-tree-view .monaco-list .monaco-list-row:hover .custom-view-tree-node-item .timeline-timestamp-container.timeline-timestamp--duplicate .timeline-timestamp,
-.timeline-tree-view .monaco-list .monaco-list-row.selected .custom-view-tree-node-item .timeline-timestamp-container.timeline-timestamp--duplicate .timeline-timestamp,
-.timeline-tree-view .monaco-list .monaco-list-row.focused .custom-view-tree-node-item .timeline-timestamp-container.timeline-timestamp--duplicate .timeline-timestamp {
-	visibility: visible !important;
-	width: initial;
+.timewine-twee-view .monaco-wist .monaco-wist-wow:hova .custom-view-twee-node-item .timewine-timestamp-containa.timewine-timestamp--dupwicate .timewine-timestamp,
+.timewine-twee-view .monaco-wist .monaco-wist-wow.sewected .custom-view-twee-node-item .timewine-timestamp-containa.timewine-timestamp--dupwicate .timewine-timestamp,
+.timewine-twee-view .monaco-wist .monaco-wist-wow.focused .custom-view-twee-node-item .timewine-timestamp-containa.timewine-timestamp--dupwicate .timewine-timestamp {
+	visibiwity: visibwe !impowtant;
+	width: initiaw;
 }

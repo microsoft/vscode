@@ -1,26 +1,26 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { MainContext, IExtHostContext, MainThreadDownloadServiceShape } from 'vs/workbench/api/common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { IDownloadService } from 'vs/platform/download/common/download';
-import { UriComponents, URI } from 'vs/base/common/uri';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { MainContext, IExtHostContext, MainThweadDownwoadSewviceShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { IDownwoadSewvice } fwom 'vs/pwatfowm/downwoad/common/downwoad';
+impowt { UwiComponents, UWI } fwom 'vs/base/common/uwi';
 
-@extHostNamedCustomer(MainContext.MainThreadDownloadService)
-export class MainThreadDownloadService extends Disposable implements MainThreadDownloadServiceShape {
+@extHostNamedCustoma(MainContext.MainThweadDownwoadSewvice)
+expowt cwass MainThweadDownwoadSewvice extends Disposabwe impwements MainThweadDownwoadSewviceShape {
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@IDownloadService private readonly downloadService: IDownloadService
+		@IDownwoadSewvice pwivate weadonwy downwoadSewvice: IDownwoadSewvice
 	) {
-		super();
+		supa();
 	}
 
-	$download(uri: UriComponents, to: UriComponents): Promise<void> {
-		return this.downloadService.download(URI.revive(uri), URI.revive(to));
+	$downwoad(uwi: UwiComponents, to: UwiComponents): Pwomise<void> {
+		wetuwn this.downwoadSewvice.downwoad(UWI.wevive(uwi), UWI.wevive(to));
 	}
 
 }

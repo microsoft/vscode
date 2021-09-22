@@ -1,247 +1,247 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IWorkspaceFolderProvider } from 'vs/base/common/labels';
-import { TernarySearchTree } from 'vs/base/common/map';
-import { basenameOrAuthority, joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ISingleFolderWorkspaceIdentifier, IStoredWorkspaceFolder, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IWowkspaceFowdewPwovida } fwom 'vs/base/common/wabews';
+impowt { TewnawySeawchTwee } fwom 'vs/base/common/map';
+impowt { basenameOwAuthowity, joinPath } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ISingweFowdewWowkspaceIdentifia, IStowedWowkspaceFowda, IWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
 
-export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
+expowt const IWowkspaceContextSewvice = cweateDecowatow<IWowkspaceContextSewvice>('contextSewvice');
 
-export interface IWorkspaceContextService extends IWorkspaceFolderProvider {
+expowt intewface IWowkspaceContextSewvice extends IWowkspaceFowdewPwovida {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * An event which fires on workbench state changes.
+	 * An event which fiwes on wowkbench state changes.
 	 */
-	readonly onDidChangeWorkbenchState: Event<WorkbenchState>;
+	weadonwy onDidChangeWowkbenchState: Event<WowkbenchState>;
 
 	/**
-	 * An event which fires on workspace name changes.
+	 * An event which fiwes on wowkspace name changes.
 	 */
-	readonly onDidChangeWorkspaceName: Event<void>;
+	weadonwy onDidChangeWowkspaceName: Event<void>;
 
 	/**
-	 * An event which fires before workspace folders change.
+	 * An event which fiwes befowe wowkspace fowdews change.
 	 */
-	readonly onWillChangeWorkspaceFolders: Event<IWorkspaceFoldersWillChangeEvent>;
+	weadonwy onWiwwChangeWowkspaceFowdews: Event<IWowkspaceFowdewsWiwwChangeEvent>;
 
 	/**
-	 * An event which fires on workspace folders change.
+	 * An event which fiwes on wowkspace fowdews change.
 	 */
-	readonly onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent>;
+	weadonwy onDidChangeWowkspaceFowdews: Event<IWowkspaceFowdewsChangeEvent>;
 
 	/**
-	 * Provides access to the complete workspace object.
+	 * Pwovides access to the compwete wowkspace object.
 	 */
-	getCompleteWorkspace(): Promise<IWorkspace>;
+	getCompweteWowkspace(): Pwomise<IWowkspace>;
 
 	/**
-	 * Provides access to the workspace object the window is running with.
-	 * Use `getCompleteWorkspace` to get complete workspace object.
+	 * Pwovides access to the wowkspace object the window is wunning with.
+	 * Use `getCompweteWowkspace` to get compwete wowkspace object.
 	 */
-	getWorkspace(): IWorkspace;
+	getWowkspace(): IWowkspace;
 
 	/**
-	 * Return the state of the workbench.
+	 * Wetuwn the state of the wowkbench.
 	 *
-	 * WorkbenchState.EMPTY - if the workbench was opened with empty window or file
-	 * WorkbenchState.FOLDER - if the workbench was opened with a folder
-	 * WorkbenchState.WORKSPACE - if the workbench was opened with a workspace
+	 * WowkbenchState.EMPTY - if the wowkbench was opened with empty window ow fiwe
+	 * WowkbenchState.FOWDa - if the wowkbench was opened with a fowda
+	 * WowkbenchState.WOWKSPACE - if the wowkbench was opened with a wowkspace
 	 */
-	getWorkbenchState(): WorkbenchState;
+	getWowkbenchState(): WowkbenchState;
 
 	/**
-	 * Returns the folder for the given resource from the workspace.
-	 * Can be null if there is no workspace or the resource is not inside the workspace.
+	 * Wetuwns the fowda fow the given wesouwce fwom the wowkspace.
+	 * Can be nuww if thewe is no wowkspace ow the wesouwce is not inside the wowkspace.
 	 */
-	getWorkspaceFolder(resource: URI): IWorkspaceFolder | null;
+	getWowkspaceFowda(wesouwce: UWI): IWowkspaceFowda | nuww;
 
 	/**
-	 * Return `true` if the current workspace has the given identifier or root URI otherwise `false`.
+	 * Wetuwn `twue` if the cuwwent wowkspace has the given identifia ow woot UWI othewwise `fawse`.
 	 */
-	isCurrentWorkspace(workspaceIdOrFolder: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI): boolean;
+	isCuwwentWowkspace(wowkspaceIdOwFowda: IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia | UWI): boowean;
 
 	/**
-	 * Returns if the provided resource is inside the workspace or not.
+	 * Wetuwns if the pwovided wesouwce is inside the wowkspace ow not.
 	 */
-	isInsideWorkspace(resource: URI): boolean;
+	isInsideWowkspace(wesouwce: UWI): boowean;
 }
 
-export const enum WorkbenchState {
+expowt const enum WowkbenchState {
 	EMPTY = 1,
-	FOLDER,
-	WORKSPACE
+	FOWDa,
+	WOWKSPACE
 }
 
-export interface IWorkspaceFoldersWillChangeEvent {
-	join(promise: Promise<void>): void;
-	readonly changes: IWorkspaceFoldersChangeEvent;
-	readonly fromCache: boolean;
+expowt intewface IWowkspaceFowdewsWiwwChangeEvent {
+	join(pwomise: Pwomise<void>): void;
+	weadonwy changes: IWowkspaceFowdewsChangeEvent;
+	weadonwy fwomCache: boowean;
 }
 
-export interface IWorkspaceFoldersChangeEvent {
-	added: IWorkspaceFolder[];
-	removed: IWorkspaceFolder[];
-	changed: IWorkspaceFolder[];
+expowt intewface IWowkspaceFowdewsChangeEvent {
+	added: IWowkspaceFowda[];
+	wemoved: IWowkspaceFowda[];
+	changed: IWowkspaceFowda[];
 }
 
-export interface IWorkspace {
+expowt intewface IWowkspace {
 
 	/**
-	 * the unique identifier of the workspace.
+	 * the unique identifia of the wowkspace.
 	 */
-	readonly id: string;
+	weadonwy id: stwing;
 
 	/**
-	 * Folders in the workspace.
+	 * Fowdews in the wowkspace.
 	 */
-	readonly folders: IWorkspaceFolder[];
+	weadonwy fowdews: IWowkspaceFowda[];
 
 	/**
-	 * the location of the workspace configuration
+	 * the wocation of the wowkspace configuwation
 	 */
-	readonly configuration?: URI | null;
+	weadonwy configuwation?: UWI | nuww;
 }
 
-export function isWorkspace(thing: unknown): thing is IWorkspace {
-	const candidate = thing as IWorkspace | undefined;
+expowt function isWowkspace(thing: unknown): thing is IWowkspace {
+	const candidate = thing as IWowkspace | undefined;
 
-	return !!(candidate && typeof candidate === 'object'
-		&& typeof candidate.id === 'string'
-		&& Array.isArray(candidate.folders));
+	wetuwn !!(candidate && typeof candidate === 'object'
+		&& typeof candidate.id === 'stwing'
+		&& Awway.isAwway(candidate.fowdews));
 }
 
-export interface IWorkspaceFolderData {
+expowt intewface IWowkspaceFowdewData {
 
 	/**
-	 * The associated URI for this workspace folder.
+	 * The associated UWI fow this wowkspace fowda.
 	 */
-	readonly uri: URI;
+	weadonwy uwi: UWI;
 
 	/**
-	 * The name of this workspace folder. Defaults to
-	 * the basename of its [uri-path](#Uri.path)
+	 * The name of this wowkspace fowda. Defauwts to
+	 * the basename of its [uwi-path](#Uwi.path)
 	 */
-	readonly name: string;
+	weadonwy name: stwing;
 
 	/**
-	 * The ordinal number of this workspace folder.
+	 * The owdinaw numba of this wowkspace fowda.
 	 */
-	readonly index: number;
+	weadonwy index: numba;
 }
 
-export interface IWorkspaceFolder extends IWorkspaceFolderData {
+expowt intewface IWowkspaceFowda extends IWowkspaceFowdewData {
 
 	/**
-	 * Given workspace folder relative path, returns the resource with the absolute path.
+	 * Given wowkspace fowda wewative path, wetuwns the wesouwce with the absowute path.
 	 */
-	toResource: (relativePath: string) => URI;
+	toWesouwce: (wewativePath: stwing) => UWI;
 }
 
-export function isWorkspaceFolder(thing: unknown): thing is IWorkspaceFolder {
-	const candidate = thing as IWorkspaceFolder;
+expowt function isWowkspaceFowda(thing: unknown): thing is IWowkspaceFowda {
+	const candidate = thing as IWowkspaceFowda;
 
-	return !!(candidate && typeof candidate === 'object'
-		&& URI.isUri(candidate.uri)
-		&& typeof candidate.name === 'string'
-		&& typeof candidate.toResource === 'function');
+	wetuwn !!(candidate && typeof candidate === 'object'
+		&& UWI.isUwi(candidate.uwi)
+		&& typeof candidate.name === 'stwing'
+		&& typeof candidate.toWesouwce === 'function');
 }
 
-export class Workspace implements IWorkspace {
+expowt cwass Wowkspace impwements IWowkspace {
 
-	private _foldersMap: TernarySearchTree<URI, WorkspaceFolder> = TernarySearchTree.forUris<WorkspaceFolder>(this._ignorePathCasing);
-	private _folders!: WorkspaceFolder[];
+	pwivate _fowdewsMap: TewnawySeawchTwee<UWI, WowkspaceFowda> = TewnawySeawchTwee.fowUwis<WowkspaceFowda>(this._ignowePathCasing);
+	pwivate _fowdews!: WowkspaceFowda[];
 
-	constructor(
-		private _id: string,
-		folders: WorkspaceFolder[],
-		private _configuration: URI | null,
-		private _ignorePathCasing: (key: URI) => boolean,
+	constwuctow(
+		pwivate _id: stwing,
+		fowdews: WowkspaceFowda[],
+		pwivate _configuwation: UWI | nuww,
+		pwivate _ignowePathCasing: (key: UWI) => boowean,
 	) {
-		this.folders = folders;
+		this.fowdews = fowdews;
 	}
 
-	update(workspace: Workspace) {
-		this._id = workspace.id;
-		this._configuration = workspace.configuration;
-		this._ignorePathCasing = workspace._ignorePathCasing;
-		this.folders = workspace.folders;
+	update(wowkspace: Wowkspace) {
+		this._id = wowkspace.id;
+		this._configuwation = wowkspace.configuwation;
+		this._ignowePathCasing = wowkspace._ignowePathCasing;
+		this.fowdews = wowkspace.fowdews;
 	}
 
-	get folders(): WorkspaceFolder[] {
-		return this._folders;
+	get fowdews(): WowkspaceFowda[] {
+		wetuwn this._fowdews;
 	}
 
-	set folders(folders: WorkspaceFolder[]) {
-		this._folders = folders;
-		this.updateFoldersMap();
+	set fowdews(fowdews: WowkspaceFowda[]) {
+		this._fowdews = fowdews;
+		this.updateFowdewsMap();
 	}
 
-	get id(): string {
-		return this._id;
+	get id(): stwing {
+		wetuwn this._id;
 	}
 
-	get configuration(): URI | null {
-		return this._configuration;
+	get configuwation(): UWI | nuww {
+		wetuwn this._configuwation;
 	}
 
-	set configuration(configuration: URI | null) {
-		this._configuration = configuration;
+	set configuwation(configuwation: UWI | nuww) {
+		this._configuwation = configuwation;
 	}
 
-	getFolder(resource: URI): IWorkspaceFolder | null {
-		if (!resource) {
-			return null;
+	getFowda(wesouwce: UWI): IWowkspaceFowda | nuww {
+		if (!wesouwce) {
+			wetuwn nuww;
 		}
 
-		return this._foldersMap.findSubstr(resource.with({
-			scheme: resource.scheme,
-			authority: resource.authority,
-			path: resource.path
-		})) || null;
+		wetuwn this._fowdewsMap.findSubstw(wesouwce.with({
+			scheme: wesouwce.scheme,
+			authowity: wesouwce.authowity,
+			path: wesouwce.path
+		})) || nuww;
 	}
 
-	private updateFoldersMap(): void {
-		this._foldersMap = TernarySearchTree.forUris<WorkspaceFolder>(this._ignorePathCasing);
-		for (const folder of this.folders) {
-			this._foldersMap.set(folder.uri, folder);
+	pwivate updateFowdewsMap(): void {
+		this._fowdewsMap = TewnawySeawchTwee.fowUwis<WowkspaceFowda>(this._ignowePathCasing);
+		fow (const fowda of this.fowdews) {
+			this._fowdewsMap.set(fowda.uwi, fowda);
 		}
 	}
 
-	toJSON(): IWorkspace {
-		return { id: this.id, folders: this.folders, configuration: this.configuration };
+	toJSON(): IWowkspace {
+		wetuwn { id: this.id, fowdews: this.fowdews, configuwation: this.configuwation };
 	}
 }
 
-export class WorkspaceFolder implements IWorkspaceFolder {
+expowt cwass WowkspaceFowda impwements IWowkspaceFowda {
 
-	readonly uri: URI;
-	name: string;
-	index: number;
+	weadonwy uwi: UWI;
+	name: stwing;
+	index: numba;
 
-	constructor(data: IWorkspaceFolderData,
-		readonly raw?: IStoredWorkspaceFolder) {
-		this.uri = data.uri;
+	constwuctow(data: IWowkspaceFowdewData,
+		weadonwy waw?: IStowedWowkspaceFowda) {
+		this.uwi = data.uwi;
 		this.index = data.index;
 		this.name = data.name;
 	}
 
-	toResource(relativePath: string): URI {
-		return joinPath(this.uri, relativePath);
+	toWesouwce(wewativePath: stwing): UWI {
+		wetuwn joinPath(this.uwi, wewativePath);
 	}
 
-	toJSON(): IWorkspaceFolderData {
-		return { uri: this.uri, name: this.name, index: this.index };
+	toJSON(): IWowkspaceFowdewData {
+		wetuwn { uwi: this.uwi, name: this.name, index: this.index };
 	}
 }
 
-export function toWorkspaceFolder(resource: URI): WorkspaceFolder {
-	return new WorkspaceFolder({ uri: resource, index: 0, name: basenameOrAuthority(resource) }, { uri: resource.toString() });
+expowt function toWowkspaceFowda(wesouwce: UWI): WowkspaceFowda {
+	wetuwn new WowkspaceFowda({ uwi: wesouwce, index: 0, name: basenameOwAuthowity(wesouwce) }, { uwi: wesouwce.toStwing() });
 }

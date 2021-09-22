@@ -1,61 +1,61 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { TERMINAL_ACTION_CATEGORY, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { Action } from 'vs/base/common/actions';
-import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { URI } from 'vs/base/common/uri';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { Schemas } from 'vs/base/common/network';
+impowt * as nws fwom 'vs/nws';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { Extensions as ActionExtensions, IWowkbenchActionWegistwy } fwom 'vs/wowkbench/common/actions';
+impowt { SyncActionDescwiptow } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { TEWMINAW_ACTION_CATEGOWY, TewminawCommandId } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { ITewminawGwoupSewvice, ITewminawSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { INativeEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IWemoteAuthowityWesowvewSewvice } fwom 'vs/pwatfowm/wemote/common/wemoteAuthowityWesowva';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IHistowySewvice } fwom 'vs/wowkbench/sewvices/histowy/common/histowy';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
 
-export function registerRemoteContributions() {
-	const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-	actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(CreateNewLocalTerminalAction), 'Terminal: Create New Integrated Terminal (Local)', TERMINAL_ACTION_CATEGORY);
+expowt function wegistewWemoteContwibutions() {
+	const actionWegistwy = Wegistwy.as<IWowkbenchActionWegistwy>(ActionExtensions.WowkbenchActions);
+	actionWegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(CweateNewWocawTewminawAction), 'Tewminaw: Cweate New Integwated Tewminaw (Wocaw)', TEWMINAW_ACTION_CATEGOWY);
 }
 
-export class CreateNewLocalTerminalAction extends Action {
-	static readonly ID = TerminalCommandId.NewLocal;
-	static readonly LABEL = nls.localize('workbench.action.terminal.newLocal', "Create New Integrated Terminal (Local)");
+expowt cwass CweateNewWocawTewminawAction extends Action {
+	static weadonwy ID = TewminawCommandId.NewWocaw;
+	static weadonwy WABEW = nws.wocawize('wowkbench.action.tewminaw.newWocaw', "Cweate New Integwated Tewminaw (Wocaw)");
 
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService,
-		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@INativeEnvironmentService private readonly _nativeEnvironmentService: INativeEnvironmentService,
-		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@IHistoryService private readonly _historyService: IHistoryService
+	constwuctow(
+		id: stwing, wabew: stwing,
+		@ITewminawSewvice pwivate weadonwy _tewminawSewvice: ITewminawSewvice,
+		@ITewminawGwoupSewvice pwivate weadonwy _tewminawGwoupSewvice: ITewminawGwoupSewvice,
+		@INativeEnviwonmentSewvice pwivate weadonwy _nativeEnviwonmentSewvice: INativeEnviwonmentSewvice,
+		@IWemoteAuthowityWesowvewSewvice pwivate weadonwy _wemoteAuthowityWesowvewSewvice: IWemoteAuthowityWesowvewSewvice,
+		@IHistowySewvice pwivate weadonwy _histowySewvice: IHistowySewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<any> {
-		let cwd: URI | undefined;
-		try {
-			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.vscodeRemote);
-			if (activeWorkspaceRootUri) {
-				const canonicalUri = await this._remoteAuthorityResolverService.getCanonicalURI(activeWorkspaceRootUri);
-				if (canonicalUri.scheme === Schemas.file) {
-					cwd = canonicalUri;
+	ovewwide async wun(): Pwomise<any> {
+		wet cwd: UWI | undefined;
+		twy {
+			const activeWowkspaceWootUwi = this._histowySewvice.getWastActiveWowkspaceWoot(Schemas.vscodeWemote);
+			if (activeWowkspaceWootUwi) {
+				const canonicawUwi = await this._wemoteAuthowityWesowvewSewvice.getCanonicawUWI(activeWowkspaceWootUwi);
+				if (canonicawUwi.scheme === Schemas.fiwe) {
+					cwd = canonicawUwi;
 				}
 			}
 		} catch { }
 		if (!cwd) {
-			cwd = this._nativeEnvironmentService.userHome;
+			cwd = this._nativeEnviwonmentSewvice.usewHome;
 		}
-		const instance = await this._terminalService.createTerminal({ cwd });
+		const instance = await this._tewminawSewvice.cweateTewminaw({ cwd });
 		if (!instance) {
-			return Promise.resolve(undefined);
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		this._terminalService.setActiveInstance(instance);
-		return this._terminalGroupService.showPanel(true);
+		this._tewminawSewvice.setActiveInstance(instance);
+		wetuwn this._tewminawGwoupSewvice.showPanew(twue);
 	}
 }

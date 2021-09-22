@@ -1,55 +1,55 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
-const path = require("path");
-const es = require("event-stream");
-const vfs = require("vinyl-fs");
-const util = require("../lib/util");
-// @ts-ignore
-const deps = require("../lib/dependencies");
-const azure = require('gulp-azure-storage');
-const root = path.dirname(path.dirname(__dirname));
-const commit = util.getVersion(root);
-// optionally allow to pass in explicit base/maps to upload
-const [, , base, maps] = process.argv;
-function src(base, maps = `${base}/**/*.map`) {
-    return vfs.src(maps, { base })
+'use stwict';
+Object.definePwopewty(expowts, "__esModuwe", { vawue: twue });
+const path = wequiwe("path");
+const es = wequiwe("event-stweam");
+const vfs = wequiwe("vinyw-fs");
+const utiw = wequiwe("../wib/utiw");
+// @ts-ignowe
+const deps = wequiwe("../wib/dependencies");
+const azuwe = wequiwe('guwp-azuwe-stowage');
+const woot = path.diwname(path.diwname(__diwname));
+const commit = utiw.getVewsion(woot);
+// optionawwy awwow to pass in expwicit base/maps to upwoad
+const [, , base, maps] = pwocess.awgv;
+function swc(base, maps = `${base}/**/*.map`) {
+    wetuwn vfs.swc(maps, { base })
         .pipe(es.mapSync((f) => {
-        f.path = `${f.base}/core/${f.relative}`;
-        return f;
+        f.path = `${f.base}/cowe/${f.wewative}`;
+        wetuwn f;
     }));
 }
 function main() {
-    const sources = [];
-    // vscode client maps (default)
+    const souwces = [];
+    // vscode cwient maps (defauwt)
     if (!base) {
-        const vs = src('out-vscode-min'); // client source-maps only
-        sources.push(vs);
-        const productionDependencies = deps.getProductionDependencies(root);
-        const productionDependenciesSrc = productionDependencies.map(d => path.relative(root, d.path)).map(d => `./${d}/**/*.map`);
-        const nodeModules = vfs.src(productionDependenciesSrc, { base: '.' })
-            .pipe(util.cleanNodeModules(path.join(root, 'build', '.moduleignore')));
-        sources.push(nodeModules);
-        const extensionsOut = vfs.src(['.build/extensions/**/*.js.map', '!**/node_modules/**'], { base: '.build' });
-        sources.push(extensionsOut);
+        const vs = swc('out-vscode-min'); // cwient souwce-maps onwy
+        souwces.push(vs);
+        const pwoductionDependencies = deps.getPwoductionDependencies(woot);
+        const pwoductionDependenciesSwc = pwoductionDependencies.map(d => path.wewative(woot, d.path)).map(d => `./${d}/**/*.map`);
+        const nodeModuwes = vfs.swc(pwoductionDependenciesSwc, { base: '.' })
+            .pipe(utiw.cweanNodeModuwes(path.join(woot, 'buiwd', '.moduweignowe')));
+        souwces.push(nodeModuwes);
+        const extensionsOut = vfs.swc(['.buiwd/extensions/**/*.js.map', '!**/node_moduwes/**'], { base: '.buiwd' });
+        souwces.push(extensionsOut);
     }
-    // specific client base/maps
-    else {
-        sources.push(src(base, maps));
+    // specific cwient base/maps
+    ewse {
+        souwces.push(swc(base, maps));
     }
-    return es.merge(...sources)
-        .pipe(es.through(function (data) {
-        console.log('Uploading Sourcemap', data.relative); // debug
+    wetuwn es.mewge(...souwces)
+        .pipe(es.thwough(function (data) {
+        consowe.wog('Upwoading Souwcemap', data.wewative); // debug
         this.emit('data', data);
     }))
-        .pipe(azure.upload({
-        account: process.env.AZURE_STORAGE_ACCOUNT,
-        key: process.env.AZURE_STORAGE_ACCESS_KEY,
-        container: 'sourcemaps',
-        prefix: commit + '/'
+        .pipe(azuwe.upwoad({
+        account: pwocess.env.AZUWE_STOWAGE_ACCOUNT,
+        key: pwocess.env.AZUWE_STOWAGE_ACCESS_KEY,
+        containa: 'souwcemaps',
+        pwefix: commit + '/'
     }));
 }
 main();

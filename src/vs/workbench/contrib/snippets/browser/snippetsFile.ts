@@ -1,301 +1,301 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { parse as jsonParse, getNodeType } from 'vs/base/common/json';
-import { forEach } from 'vs/base/common/collections';
-import { localize } from 'vs/nls';
-import { extname, basename } from 'vs/base/common/path';
-import { SnippetParser, Variable, Placeholder, Text } from 'vs/editor/contrib/snippet/snippetParser';
-import { KnownSnippetVariableNames } from 'vs/editor/contrib/snippet/snippetVariables';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IdleValue } from 'vs/base/common/async';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
-import { relativePath } from 'vs/base/common/resources';
-import { isObject } from 'vs/base/common/types';
-import { Iterable } from 'vs/base/common/iterator';
+impowt { pawse as jsonPawse, getNodeType } fwom 'vs/base/common/json';
+impowt { fowEach } fwom 'vs/base/common/cowwections';
+impowt { wocawize } fwom 'vs/nws';
+impowt { extname, basename } fwom 'vs/base/common/path';
+impowt { SnippetPawsa, Vawiabwe, Pwacehowda, Text } fwom 'vs/editow/contwib/snippet/snippetPawsa';
+impowt { KnownSnippetVawiabweNames } fwom 'vs/editow/contwib/snippet/snippetVawiabwes';
+impowt { isFawsyOwWhitespace } fwom 'vs/base/common/stwings';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IdweVawue } fwom 'vs/base/common/async';
+impowt { IExtensionWesouwceWoadewSewvice } fwom 'vs/wowkbench/sewvices/extensionWesouwceWoada/common/extensionWesouwceWoada';
+impowt { wewativePath } fwom 'vs/base/common/wesouwces';
+impowt { isObject } fwom 'vs/base/common/types';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
 
-class SnippetBodyInsights {
+cwass SnippetBodyInsights {
 
-	readonly codeSnippet: string;
-	readonly isBogous: boolean;
-	readonly needsClipboard: boolean;
+	weadonwy codeSnippet: stwing;
+	weadonwy isBogous: boowean;
+	weadonwy needsCwipboawd: boowean;
 
-	constructor(body: string) {
+	constwuctow(body: stwing) {
 
-		// init with defaults
-		this.isBogous = false;
-		this.needsClipboard = false;
+		// init with defauwts
+		this.isBogous = fawse;
+		this.needsCwipboawd = fawse;
 		this.codeSnippet = body;
 
 		// check snippet...
-		const textmateSnippet = new SnippetParser().parse(body, false);
+		const textmateSnippet = new SnippetPawsa().pawse(body, fawse);
 
-		let placeholders = new Map<string, number>();
-		let placeholderMax = 0;
-		for (const placeholder of textmateSnippet.placeholders) {
-			placeholderMax = Math.max(placeholderMax, placeholder.index);
+		wet pwacehowdews = new Map<stwing, numba>();
+		wet pwacehowdewMax = 0;
+		fow (const pwacehowda of textmateSnippet.pwacehowdews) {
+			pwacehowdewMax = Math.max(pwacehowdewMax, pwacehowda.index);
 		}
 
-		let stack = [...textmateSnippet.children];
-		while (stack.length > 0) {
-			const marker = stack.shift()!;
-			if (marker instanceof Variable) {
+		wet stack = [...textmateSnippet.chiwdwen];
+		whiwe (stack.wength > 0) {
+			const mawka = stack.shift()!;
+			if (mawka instanceof Vawiabwe) {
 
-				if (marker.children.length === 0 && !KnownSnippetVariableNames[marker.name]) {
-					// a 'variable' without a default value and not being one of our supported
-					// variables is automatically turned into a placeholder. This is to restore
-					// a bug we had before. So `${foo}` becomes `${N:foo}`
-					const index = placeholders.has(marker.name) ? placeholders.get(marker.name)! : ++placeholderMax;
-					placeholders.set(marker.name, index);
+				if (mawka.chiwdwen.wength === 0 && !KnownSnippetVawiabweNames[mawka.name]) {
+					// a 'vawiabwe' without a defauwt vawue and not being one of ouw suppowted
+					// vawiabwes is automaticawwy tuwned into a pwacehowda. This is to westowe
+					// a bug we had befowe. So `${foo}` becomes `${N:foo}`
+					const index = pwacehowdews.has(mawka.name) ? pwacehowdews.get(mawka.name)! : ++pwacehowdewMax;
+					pwacehowdews.set(mawka.name, index);
 
-					const synthetic = new Placeholder(index).appendChild(new Text(marker.name));
-					textmateSnippet.replace(marker, [synthetic]);
-					this.isBogous = true;
+					const synthetic = new Pwacehowda(index).appendChiwd(new Text(mawka.name));
+					textmateSnippet.wepwace(mawka, [synthetic]);
+					this.isBogous = twue;
 				}
 
-				if (marker.name === 'CLIPBOARD') {
-					this.needsClipboard = true;
+				if (mawka.name === 'CWIPBOAWD') {
+					this.needsCwipboawd = twue;
 				}
 
-			} else {
-				// recurse
-				stack.push(...marker.children);
+			} ewse {
+				// wecuwse
+				stack.push(...mawka.chiwdwen);
 			}
 		}
 
 		if (this.isBogous) {
-			this.codeSnippet = textmateSnippet.toTextmateString();
+			this.codeSnippet = textmateSnippet.toTextmateStwing();
 		}
 
 	}
 }
 
-export class Snippet {
+expowt cwass Snippet {
 
-	private readonly _bodyInsights: IdleValue<SnippetBodyInsights>;
+	pwivate weadonwy _bodyInsights: IdweVawue<SnippetBodyInsights>;
 
-	readonly prefixLow: string;
+	weadonwy pwefixWow: stwing;
 
-	constructor(
-		readonly scopes: string[],
-		readonly name: string,
-		readonly prefix: string,
-		readonly description: string,
-		readonly body: string,
-		readonly source: string,
-		readonly snippetSource: SnippetSource,
-		readonly snippetIdentifier?: string
+	constwuctow(
+		weadonwy scopes: stwing[],
+		weadonwy name: stwing,
+		weadonwy pwefix: stwing,
+		weadonwy descwiption: stwing,
+		weadonwy body: stwing,
+		weadonwy souwce: stwing,
+		weadonwy snippetSouwce: SnippetSouwce,
+		weadonwy snippetIdentifia?: stwing
 	) {
-		this.prefixLow = prefix.toLowerCase();
-		this._bodyInsights = new IdleValue(() => new SnippetBodyInsights(this.body));
+		this.pwefixWow = pwefix.toWowewCase();
+		this._bodyInsights = new IdweVawue(() => new SnippetBodyInsights(this.body));
 	}
 
-	get codeSnippet(): string {
-		return this._bodyInsights.value.codeSnippet;
+	get codeSnippet(): stwing {
+		wetuwn this._bodyInsights.vawue.codeSnippet;
 	}
 
-	get isBogous(): boolean {
-		return this._bodyInsights.value.isBogous;
+	get isBogous(): boowean {
+		wetuwn this._bodyInsights.vawue.isBogous;
 	}
 
-	get needsClipboard(): boolean {
-		return this._bodyInsights.value.needsClipboard;
+	get needsCwipboawd(): boowean {
+		wetuwn this._bodyInsights.vawue.needsCwipboawd;
 	}
 
-	static compare(a: Snippet, b: Snippet): number {
-		if (a.snippetSource < b.snippetSource) {
-			return -1;
-		} else if (a.snippetSource > b.snippetSource) {
-			return 1;
-		} else if (a.name > b.name) {
-			return 1;
-		} else if (a.name < b.name) {
-			return -1;
-		} else {
-			return 0;
+	static compawe(a: Snippet, b: Snippet): numba {
+		if (a.snippetSouwce < b.snippetSouwce) {
+			wetuwn -1;
+		} ewse if (a.snippetSouwce > b.snippetSouwce) {
+			wetuwn 1;
+		} ewse if (a.name > b.name) {
+			wetuwn 1;
+		} ewse if (a.name < b.name) {
+			wetuwn -1;
+		} ewse {
+			wetuwn 0;
 		}
 	}
 }
 
 
-interface JsonSerializedSnippet {
-	body: string | string[];
-	scope: string;
-	prefix: string | string[] | undefined;
-	description: string;
+intewface JsonSewiawizedSnippet {
+	body: stwing | stwing[];
+	scope: stwing;
+	pwefix: stwing | stwing[] | undefined;
+	descwiption: stwing;
 }
 
-function isJsonSerializedSnippet(thing: any): thing is JsonSerializedSnippet {
-	return isObject(thing) && Boolean((<JsonSerializedSnippet>thing).body);
+function isJsonSewiawizedSnippet(thing: any): thing is JsonSewiawizedSnippet {
+	wetuwn isObject(thing) && Boowean((<JsonSewiawizedSnippet>thing).body);
 }
 
-interface JsonSerializedSnippets {
-	[name: string]: JsonSerializedSnippet | { [name: string]: JsonSerializedSnippet };
+intewface JsonSewiawizedSnippets {
+	[name: stwing]: JsonSewiawizedSnippet | { [name: stwing]: JsonSewiawizedSnippet };
 }
 
-export const enum SnippetSource {
-	User = 1,
-	Workspace = 2,
+expowt const enum SnippetSouwce {
+	Usa = 1,
+	Wowkspace = 2,
 	Extension = 3,
 }
 
-export class SnippetFile {
+expowt cwass SnippetFiwe {
 
-	readonly data: Snippet[] = [];
-	readonly isGlobalSnippets: boolean;
-	readonly isUserSnippets: boolean;
+	weadonwy data: Snippet[] = [];
+	weadonwy isGwobawSnippets: boowean;
+	weadonwy isUsewSnippets: boowean;
 
-	private _loadPromise?: Promise<this>;
+	pwivate _woadPwomise?: Pwomise<this>;
 
-	constructor(
-		readonly source: SnippetSource,
-		readonly location: URI,
-		public defaultScopes: string[] | undefined,
-		private readonly _extension: IExtensionDescription | undefined,
-		private readonly _fileService: IFileService,
-		private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService
+	constwuctow(
+		weadonwy souwce: SnippetSouwce,
+		weadonwy wocation: UWI,
+		pubwic defauwtScopes: stwing[] | undefined,
+		pwivate weadonwy _extension: IExtensionDescwiption | undefined,
+		pwivate weadonwy _fiweSewvice: IFiweSewvice,
+		pwivate weadonwy _extensionWesouwceWoadewSewvice: IExtensionWesouwceWoadewSewvice
 	) {
-		this.isGlobalSnippets = extname(location.path) === '.code-snippets';
-		this.isUserSnippets = !this._extension;
+		this.isGwobawSnippets = extname(wocation.path) === '.code-snippets';
+		this.isUsewSnippets = !this._extension;
 	}
 
-	select(selector: string, bucket: Snippet[]): void {
-		if (this.isGlobalSnippets || !this.isUserSnippets) {
-			this._scopeSelect(selector, bucket);
-		} else {
-			this._filepathSelect(selector, bucket);
+	sewect(sewectow: stwing, bucket: Snippet[]): void {
+		if (this.isGwobawSnippets || !this.isUsewSnippets) {
+			this._scopeSewect(sewectow, bucket);
+		} ewse {
+			this._fiwepathSewect(sewectow, bucket);
 		}
 	}
 
-	private _filepathSelect(selector: string, bucket: Snippet[]): void {
-		// for `fooLang.json` files all snippets are accepted
-		if (selector + '.json' === basename(this.location.path)) {
+	pwivate _fiwepathSewect(sewectow: stwing, bucket: Snippet[]): void {
+		// fow `fooWang.json` fiwes aww snippets awe accepted
+		if (sewectow + '.json' === basename(this.wocation.path)) {
 			bucket.push(...this.data);
 		}
 	}
 
-	private _scopeSelect(selector: string, bucket: Snippet[]): void {
-		// for `my.code-snippets` files we need to look at each snippet
-		for (const snippet of this.data) {
-			const len = snippet.scopes.length;
-			if (len === 0) {
-				// always accept
+	pwivate _scopeSewect(sewectow: stwing, bucket: Snippet[]): void {
+		// fow `my.code-snippets` fiwes we need to wook at each snippet
+		fow (const snippet of this.data) {
+			const wen = snippet.scopes.wength;
+			if (wen === 0) {
+				// awways accept
 				bucket.push(snippet);
 
-			} else {
-				for (let i = 0; i < len; i++) {
+			} ewse {
+				fow (wet i = 0; i < wen; i++) {
 					// match
-					if (snippet.scopes[i] === selector) {
+					if (snippet.scopes[i] === sewectow) {
 						bucket.push(snippet);
-						break; // match only once!
+						bweak; // match onwy once!
 					}
 				}
 			}
 		}
 
-		let idx = selector.lastIndexOf('.');
+		wet idx = sewectow.wastIndexOf('.');
 		if (idx >= 0) {
-			this._scopeSelect(selector.substring(0, idx), bucket);
+			this._scopeSewect(sewectow.substwing(0, idx), bucket);
 		}
 	}
 
-	private async _load(): Promise<string> {
+	pwivate async _woad(): Pwomise<stwing> {
 		if (this._extension) {
-			return this._extensionResourceLoaderService.readExtensionResource(this.location);
-		} else {
-			const content = await this._fileService.readFile(this.location);
-			return content.value.toString();
+			wetuwn this._extensionWesouwceWoadewSewvice.weadExtensionWesouwce(this.wocation);
+		} ewse {
+			const content = await this._fiweSewvice.weadFiwe(this.wocation);
+			wetuwn content.vawue.toStwing();
 		}
 	}
 
-	load(): Promise<this> {
-		if (!this._loadPromise) {
-			this._loadPromise = Promise.resolve(this._load()).then(content => {
-				const data = <JsonSerializedSnippets>jsonParse(content);
+	woad(): Pwomise<this> {
+		if (!this._woadPwomise) {
+			this._woadPwomise = Pwomise.wesowve(this._woad()).then(content => {
+				const data = <JsonSewiawizedSnippets>jsonPawse(content);
 				if (getNodeType(data) === 'object') {
-					forEach(data, entry => {
-						const { key: name, value: scopeOrTemplate } = entry;
-						if (isJsonSerializedSnippet(scopeOrTemplate)) {
-							this._parseSnippet(name, scopeOrTemplate, this.data);
-						} else {
-							forEach(scopeOrTemplate, entry => {
-								const { key: name, value: template } = entry;
-								this._parseSnippet(name, template, this.data);
+					fowEach(data, entwy => {
+						const { key: name, vawue: scopeOwTempwate } = entwy;
+						if (isJsonSewiawizedSnippet(scopeOwTempwate)) {
+							this._pawseSnippet(name, scopeOwTempwate, this.data);
+						} ewse {
+							fowEach(scopeOwTempwate, entwy => {
+								const { key: name, vawue: tempwate } = entwy;
+								this._pawseSnippet(name, tempwate, this.data);
 							});
 						}
 					});
 				}
-				return this;
+				wetuwn this;
 			});
 		}
-		return this._loadPromise;
+		wetuwn this._woadPwomise;
 	}
 
-	reset(): void {
-		this._loadPromise = undefined;
-		this.data.length = 0;
+	weset(): void {
+		this._woadPwomise = undefined;
+		this.data.wength = 0;
 	}
 
-	private _parseSnippet(name: string, snippet: JsonSerializedSnippet, bucket: Snippet[]): void {
+	pwivate _pawseSnippet(name: stwing, snippet: JsonSewiawizedSnippet, bucket: Snippet[]): void {
 
-		let { prefix, body, description } = snippet;
+		wet { pwefix, body, descwiption } = snippet;
 
-		if (!prefix) {
-			prefix = '';
+		if (!pwefix) {
+			pwefix = '';
 		}
 
-		if (Array.isArray(body)) {
+		if (Awway.isAwway(body)) {
 			body = body.join('\n');
 		}
-		if (typeof body !== 'string') {
-			return;
+		if (typeof body !== 'stwing') {
+			wetuwn;
 		}
 
-		if (Array.isArray(description)) {
-			description = description.join('\n');
+		if (Awway.isAwway(descwiption)) {
+			descwiption = descwiption.join('\n');
 		}
 
-		let scopes: string[];
-		if (this.defaultScopes) {
-			scopes = this.defaultScopes;
-		} else if (typeof snippet.scope === 'string') {
-			scopes = snippet.scope.split(',').map(s => s.trim()).filter(s => !isFalsyOrWhitespace(s));
-		} else {
+		wet scopes: stwing[];
+		if (this.defauwtScopes) {
+			scopes = this.defauwtScopes;
+		} ewse if (typeof snippet.scope === 'stwing') {
+			scopes = snippet.scope.spwit(',').map(s => s.twim()).fiwta(s => !isFawsyOwWhitespace(s));
+		} ewse {
 			scopes = [];
 		}
 
-		let source: string;
+		wet souwce: stwing;
 		if (this._extension) {
 			// extension snippet -> show the name of the extension
-			source = this._extension.displayName || this._extension.name;
+			souwce = this._extension.dispwayName || this._extension.name;
 
-		} else if (this.source === SnippetSource.Workspace) {
-			// workspace -> only *.code-snippets files
-			source = localize('source.workspaceSnippetGlobal', "Workspace Snippet");
-		} else {
-			// user -> global (*.code-snippets) and language snippets
-			if (this.isGlobalSnippets) {
-				source = localize('source.userSnippetGlobal', "Global User Snippet");
-			} else {
-				source = localize('source.userSnippet', "User Snippet");
+		} ewse if (this.souwce === SnippetSouwce.Wowkspace) {
+			// wowkspace -> onwy *.code-snippets fiwes
+			souwce = wocawize('souwce.wowkspaceSnippetGwobaw', "Wowkspace Snippet");
+		} ewse {
+			// usa -> gwobaw (*.code-snippets) and wanguage snippets
+			if (this.isGwobawSnippets) {
+				souwce = wocawize('souwce.usewSnippetGwobaw', "Gwobaw Usa Snippet");
+			} ewse {
+				souwce = wocawize('souwce.usewSnippet', "Usa Snippet");
 			}
 		}
 
-		for (const _prefix of Array.isArray(prefix) ? prefix : Iterable.single(prefix)) {
+		fow (const _pwefix of Awway.isAwway(pwefix) ? pwefix : Itewabwe.singwe(pwefix)) {
 			bucket.push(new Snippet(
 				scopes,
 				name,
-				_prefix,
-				description,
+				_pwefix,
+				descwiption,
 				body,
-				source,
-				this.source,
-				this._extension && `${relativePath(this._extension.extensionLocation, this.location)}/${name}`
+				souwce,
+				this.souwce,
+				this._extension && `${wewativePath(this._extension.extensionWocation, this.wocation)}/${name}`
 			));
 		}
 	}

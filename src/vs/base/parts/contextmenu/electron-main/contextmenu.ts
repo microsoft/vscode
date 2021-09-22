@@ -1,69 +1,69 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, ipcMain, IpcMainEvent, Menu, MenuItem } from 'electron';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { CONTEXT_MENU_CHANNEL, CONTEXT_MENU_CLOSE_CHANNEL, IPopupOptions, ISerializableContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
+impowt { BwowsewWindow, ipcMain, IpcMainEvent, Menu, MenuItem } fwom 'ewectwon';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { CONTEXT_MENU_CHANNEW, CONTEXT_MENU_CWOSE_CHANNEW, IPopupOptions, ISewiawizabweContextMenuItem } fwom 'vs/base/pawts/contextmenu/common/contextmenu';
 
-export function registerContextMenuListener(): void {
-	ipcMain.on(CONTEXT_MENU_CHANNEL, (event: IpcMainEvent, contextMenuId: number, items: ISerializableContextMenuItem[], onClickChannel: string, options?: IPopupOptions) => {
-		const menu = createMenu(event, onClickChannel, items);
+expowt function wegistewContextMenuWistena(): void {
+	ipcMain.on(CONTEXT_MENU_CHANNEW, (event: IpcMainEvent, contextMenuId: numba, items: ISewiawizabweContextMenuItem[], onCwickChannew: stwing, options?: IPopupOptions) => {
+		const menu = cweateMenu(event, onCwickChannew, items);
 
 		menu.popup({
-			window: withNullAsUndefined(BrowserWindow.fromWebContents(event.sender)),
+			window: withNuwwAsUndefined(BwowsewWindow.fwomWebContents(event.senda)),
 			x: options ? options.x : undefined,
 			y: options ? options.y : undefined,
 			positioningItem: options ? options.positioningItem : undefined,
-			callback: () => {
-				// Workaround for https://github.com/microsoft/vscode/issues/72447
-				// It turns out that the menu gets GC'ed if not referenced anymore
-				// As such we drag it into this scope so that it is not being GC'ed
+			cawwback: () => {
+				// Wowkawound fow https://github.com/micwosoft/vscode/issues/72447
+				// It tuwns out that the menu gets GC'ed if not wefewenced anymowe
+				// As such we dwag it into this scope so that it is not being GC'ed
 				if (menu) {
-					event.sender.send(CONTEXT_MENU_CLOSE_CHANNEL, contextMenuId);
+					event.senda.send(CONTEXT_MENU_CWOSE_CHANNEW, contextMenuId);
 				}
 			}
 		});
 	});
 }
 
-function createMenu(event: IpcMainEvent, onClickChannel: string, items: ISerializableContextMenuItem[]): Menu {
+function cweateMenu(event: IpcMainEvent, onCwickChannew: stwing, items: ISewiawizabweContextMenuItem[]): Menu {
 	const menu = new Menu();
 
-	items.forEach(item => {
-		let menuitem: MenuItem;
+	items.fowEach(item => {
+		wet menuitem: MenuItem;
 
-		// Separator
-		if (item.type === 'separator') {
+		// Sepawatow
+		if (item.type === 'sepawatow') {
 			menuitem = new MenuItem({
 				type: item.type,
 			});
 		}
 
 		// Sub Menu
-		else if (Array.isArray(item.submenu)) {
+		ewse if (Awway.isAwway(item.submenu)) {
 			menuitem = new MenuItem({
-				submenu: createMenu(event, onClickChannel, item.submenu),
-				label: item.label
+				submenu: cweateMenu(event, onCwickChannew, item.submenu),
+				wabew: item.wabew
 			});
 		}
 
-		// Normal Menu Item
-		else {
+		// Nowmaw Menu Item
+		ewse {
 			menuitem = new MenuItem({
-				label: item.label,
+				wabew: item.wabew,
 				type: item.type,
-				accelerator: item.accelerator,
+				accewewatow: item.accewewatow,
 				checked: item.checked,
-				enabled: item.enabled,
-				visible: item.visible,
-				click: (menuItem, win, contextmenuEvent) => event.sender.send(onClickChannel, item.id, contextmenuEvent)
+				enabwed: item.enabwed,
+				visibwe: item.visibwe,
+				cwick: (menuItem, win, contextmenuEvent) => event.senda.send(onCwickChannew, item.id, contextmenuEvent)
 			});
 		}
 
 		menu.append(menuitem);
 	});
 
-	return menu;
+	wetuwn menu;
 }

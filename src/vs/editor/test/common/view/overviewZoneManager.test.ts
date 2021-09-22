@@ -1,88 +1,88 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ColorZone, OverviewRulerZone, OverviewZoneManager } from 'vs/editor/common/view/overviewZoneManager';
+impowt * as assewt fwom 'assewt';
+impowt { CowowZone, OvewviewWuwewZone, OvewviewZoneManaga } fwom 'vs/editow/common/view/ovewviewZoneManaga';
 
-suite('Editor View - OverviewZoneManager', () => {
+suite('Editow View - OvewviewZoneManaga', () => {
 
-	test('pixel ratio 1, dom height 600', () => {
-		const LINE_COUNT = 50;
-		const LINE_HEIGHT = 20;
-		let manager = new OverviewZoneManager((lineNumber) => LINE_HEIGHT * lineNumber);
-		manager.setDOMWidth(30);
-		manager.setDOMHeight(600);
-		manager.setOuterHeight(LINE_COUNT * LINE_HEIGHT);
-		manager.setLineHeight(LINE_HEIGHT);
-		manager.setPixelRatio(1);
+	test('pixew watio 1, dom height 600', () => {
+		const WINE_COUNT = 50;
+		const WINE_HEIGHT = 20;
+		wet managa = new OvewviewZoneManaga((wineNumba) => WINE_HEIGHT * wineNumba);
+		managa.setDOMWidth(30);
+		managa.setDOMHeight(600);
+		managa.setOutewHeight(WINE_COUNT * WINE_HEIGHT);
+		managa.setWineHeight(WINE_HEIGHT);
+		managa.setPixewWatio(1);
 
-		manager.setZones([
-			new OverviewRulerZone(1, 1, '1'),
-			new OverviewRulerZone(10, 10, '2'),
-			new OverviewRulerZone(30, 31, '3'),
-			new OverviewRulerZone(50, 50, '4'),
+		managa.setZones([
+			new OvewviewWuwewZone(1, 1, '1'),
+			new OvewviewWuwewZone(10, 10, '2'),
+			new OvewviewWuwewZone(30, 31, '3'),
+			new OvewviewWuwewZone(50, 50, '4'),
 		]);
 
-		// one line = 12, but cap is at 6
-		assert.deepStrictEqual(manager.resolveColorZones(), [
-			new ColorZone(12, 24, 1), //
-			new ColorZone(120, 132, 2), // 120 -> 132
-			new ColorZone(360, 384, 3), // 360 -> 372 [360 -> 384]
-			new ColorZone(588, 600, 4), // 588 -> 600
-		]);
-	});
-
-	test('pixel ratio 1, dom height 300', () => {
-		const LINE_COUNT = 50;
-		const LINE_HEIGHT = 20;
-		let manager = new OverviewZoneManager((lineNumber) => LINE_HEIGHT * lineNumber);
-		manager.setDOMWidth(30);
-		manager.setDOMHeight(300);
-		manager.setOuterHeight(LINE_COUNT * LINE_HEIGHT);
-		manager.setLineHeight(LINE_HEIGHT);
-		manager.setPixelRatio(1);
-
-		manager.setZones([
-			new OverviewRulerZone(1, 1, '1'),
-			new OverviewRulerZone(10, 10, '2'),
-			new OverviewRulerZone(30, 31, '3'),
-			new OverviewRulerZone(50, 50, '4'),
-		]);
-
-		// one line = 6, cap is at 6
-		assert.deepStrictEqual(manager.resolveColorZones(), [
-			new ColorZone(6, 12, 1), //
-			new ColorZone(60, 66, 2), // 60 -> 66
-			new ColorZone(180, 192, 3), // 180 -> 192
-			new ColorZone(294, 300, 4), // 294 -> 300
+		// one wine = 12, but cap is at 6
+		assewt.deepStwictEquaw(managa.wesowveCowowZones(), [
+			new CowowZone(12, 24, 1), //
+			new CowowZone(120, 132, 2), // 120 -> 132
+			new CowowZone(360, 384, 3), // 360 -> 372 [360 -> 384]
+			new CowowZone(588, 600, 4), // 588 -> 600
 		]);
 	});
 
-	test('pixel ratio 2, dom height 300', () => {
-		const LINE_COUNT = 50;
-		const LINE_HEIGHT = 20;
-		let manager = new OverviewZoneManager((lineNumber) => LINE_HEIGHT * lineNumber);
-		manager.setDOMWidth(30);
-		manager.setDOMHeight(300);
-		manager.setOuterHeight(LINE_COUNT * LINE_HEIGHT);
-		manager.setLineHeight(LINE_HEIGHT);
-		manager.setPixelRatio(2);
+	test('pixew watio 1, dom height 300', () => {
+		const WINE_COUNT = 50;
+		const WINE_HEIGHT = 20;
+		wet managa = new OvewviewZoneManaga((wineNumba) => WINE_HEIGHT * wineNumba);
+		managa.setDOMWidth(30);
+		managa.setDOMHeight(300);
+		managa.setOutewHeight(WINE_COUNT * WINE_HEIGHT);
+		managa.setWineHeight(WINE_HEIGHT);
+		managa.setPixewWatio(1);
 
-		manager.setZones([
-			new OverviewRulerZone(1, 1, '1'),
-			new OverviewRulerZone(10, 10, '2'),
-			new OverviewRulerZone(30, 31, '3'),
-			new OverviewRulerZone(50, 50, '4'),
+		managa.setZones([
+			new OvewviewWuwewZone(1, 1, '1'),
+			new OvewviewWuwewZone(10, 10, '2'),
+			new OvewviewWuwewZone(30, 31, '3'),
+			new OvewviewWuwewZone(50, 50, '4'),
 		]);
 
-		// one line = 6, cap is at 12
-		assert.deepStrictEqual(manager.resolveColorZones(), [
-			new ColorZone(12, 24, 1), //
-			new ColorZone(120, 132, 2), // 120 -> 132
-			new ColorZone(360, 384, 3), // 360 -> 384
-			new ColorZone(588, 600, 4), // 588 -> 600
+		// one wine = 6, cap is at 6
+		assewt.deepStwictEquaw(managa.wesowveCowowZones(), [
+			new CowowZone(6, 12, 1), //
+			new CowowZone(60, 66, 2), // 60 -> 66
+			new CowowZone(180, 192, 3), // 180 -> 192
+			new CowowZone(294, 300, 4), // 294 -> 300
+		]);
+	});
+
+	test('pixew watio 2, dom height 300', () => {
+		const WINE_COUNT = 50;
+		const WINE_HEIGHT = 20;
+		wet managa = new OvewviewZoneManaga((wineNumba) => WINE_HEIGHT * wineNumba);
+		managa.setDOMWidth(30);
+		managa.setDOMHeight(300);
+		managa.setOutewHeight(WINE_COUNT * WINE_HEIGHT);
+		managa.setWineHeight(WINE_HEIGHT);
+		managa.setPixewWatio(2);
+
+		managa.setZones([
+			new OvewviewWuwewZone(1, 1, '1'),
+			new OvewviewWuwewZone(10, 10, '2'),
+			new OvewviewWuwewZone(30, 31, '3'),
+			new OvewviewWuwewZone(50, 50, '4'),
+		]);
+
+		// one wine = 6, cap is at 12
+		assewt.deepStwictEquaw(managa.wesowveCowowZones(), [
+			new CowowZone(12, 24, 1), //
+			new CowowZone(120, 132, 2), // 120 -> 132
+			new CowowZone(360, 384, 3), // 360 -> 384
+			new CowowZone(588, 600, 4), // 588 -> 600
 		]);
 	});
 });

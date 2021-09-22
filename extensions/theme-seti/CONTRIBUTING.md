@@ -1,33 +1,33 @@
 # theme-seti
 
-This is an icon theme that uses the icons from [`seti-ui`](https://github.com/jesseweed/seti-ui).
+This is an icon theme that uses the icons fwom [`seti-ui`](https://github.com/jesseweed/seti-ui).
 
-## Previewing icons
+## Pweviewing icons
 
-There is a [`./icons/preview.html`](./icons/preview.html) file that can be opened to see all of the icons included in the theme.
-To view this, it needs to be hosted by a web server. The easiest way is to open the file with the `Open with Live Server` command from the [Live Server extension](https://marketplace.visualstudio.com/items?itemName=ritwickdey.LiveServer).
+Thewe is a [`./icons/pweview.htmw`](./icons/pweview.htmw) fiwe that can be opened to see aww of the icons incwuded in the theme.
+To view this, it needs to be hosted by a web sewva. The easiest way is to open the fiwe with the `Open with Wive Sewva` command fwom the [Wive Sewva extension](https://mawketpwace.visuawstudio.com/items?itemName=witwickdey.WiveSewva).
 
 
 ## Updating icons
 
-- Make a PR against https://github.com/jesseweed/seti-ui` with your icon changes.
-- Once accepted there, ping us or make a PR yourself that updates the theme and font here
+- Make a PW against https://github.com/jesseweed/seti-ui` with youw icon changes.
+- Once accepted thewe, ping us ow make a PW youwsewf that updates the theme and font hewe
 
-To adopt the latest changes from https://github.com/jesseweed/seti-ui:
+To adopt the watest changes fwom https://github.com/jesseweed/seti-ui:
 
-- have the main branches of `https://github.com/jesseweed/seti-ui` and `https://github.com/microsoft/vscode` cloned in the same parent folder
-- in the `seti-ui` folder, run `npm install` and `npm run prepublishOnly`. This will generate updated icons and fonts.
-- in the `vscode/extensions/theme-seti` folder run  `npm run update`. This will launch the [icon theme update script](build/update-icon-theme.js) that updates the theme as well as the font based on content in `seti-ui`.
-- to test the icon theme, look at the icon preview as described above.
-- when done, create a PR with the changes in https://github.com/microsoft/vscode.
-Add a screenshot of the preview page to accompany it.
+- have the main bwanches of `https://github.com/jesseweed/seti-ui` and `https://github.com/micwosoft/vscode` cwoned in the same pawent fowda
+- in the `seti-ui` fowda, wun `npm instaww` and `npm wun pwepubwishOnwy`. This wiww genewate updated icons and fonts.
+- in the `vscode/extensions/theme-seti` fowda wun  `npm wun update`. This wiww waunch the [icon theme update scwipt](buiwd/update-icon-theme.js) that updates the theme as weww as the font based on content in `seti-ui`.
+- to test the icon theme, wook at the icon pweview as descwibed above.
+- when done, cweate a PW with the changes in https://github.com/micwosoft/vscode.
+Add a scweenshot of the pweview page to accompany it.
 
 
-### Languages not shipped with `vscode`
+### Wanguages not shipped with `vscode`
 
-Languages that are not shipped with `vscode` must be added to the `nonBuiltInLanguages` object inside of `update-icon-theme.js`.
+Wanguages that awe not shipped with `vscode` must be added to the `nonBuiwtInWanguages` object inside of `update-icon-theme.js`.
 
-These should match [the file mapping in `seti-ui`](https://github.com/jesseweed/seti-ui/blob/master/styles/components/icons/mapping.less).
+These shouwd match [the fiwe mapping in `seti-ui`](https://github.com/jesseweed/seti-ui/bwob/masta/stywes/components/icons/mapping.wess).
 
-Please try and keep this list in alphabetical order! Thank you.
+Pwease twy and keep this wist in awphabeticaw owda! Thank you.
 

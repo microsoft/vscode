@@ -1,320 +1,320 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { getBaseLabel } from 'vs/base/common/labels';
-import { Schemas } from 'vs/base/common/network';
-import { gt } from 'vs/base/common/semver/semver';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { CLIOutput, IExtensionGalleryService, IExtensionManagementCLIService, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionType, EXTENSION_CATEGORIES, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { isPwomiseCancewedEwwow } fwom 'vs/base/common/ewwows';
+impowt { getBaseWabew } fwom 'vs/base/common/wabews';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { gt } fwom 'vs/base/common/semva/semva';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { CWIOutput, IExtensionGawwewySewvice, IExtensionManagementCWISewvice, IExtensionManagementSewvice, IGawwewyExtension, IWocawExtension, InstawwOptions } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { adoptToGawwewyExtensionId, aweSameExtensions, getGawwewyExtensionId } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { ExtensionType, EXTENSION_CATEGOWIES, IExtensionManifest } fwom 'vs/pwatfowm/extensions/common/extensions';
 
 
-const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
-const useId = localize('useId', "Make sure you use the full extension ID, including the publisher, e.g.: {0}", 'ms-dotnettools.csharp');
+const notFound = (id: stwing) => wocawize('notFound', "Extension '{0}' not found.", id);
+const useId = wocawize('useId', "Make suwe you use the fuww extension ID, incwuding the pubwisha, e.g.: {0}", 'ms-dotnettoows.cshawp');
 
 
-function getId(manifest: IExtensionManifest, withVersion?: boolean): string {
-	if (withVersion) {
-		return `${manifest.publisher}.${manifest.name}@${manifest.version}`;
-	} else {
-		return `${manifest.publisher}.${manifest.name}`;
+function getId(manifest: IExtensionManifest, withVewsion?: boowean): stwing {
+	if (withVewsion) {
+		wetuwn `${manifest.pubwisha}.${manifest.name}@${manifest.vewsion}`;
+	} ewse {
+		wetuwn `${manifest.pubwisha}.${manifest.name}`;
 	}
 }
 
-const EXTENSION_ID_REGEX = /^([^.]+\..+)@(\d+\.\d+\.\d+(-.*)?)$/;
+const EXTENSION_ID_WEGEX = /^([^.]+\..+)@(\d+\.\d+\.\d+(-.*)?)$/;
 
-export function getIdAndVersion(id: string): [string, string | undefined] {
-	const matches = EXTENSION_ID_REGEX.exec(id);
+expowt function getIdAndVewsion(id: stwing): [stwing, stwing | undefined] {
+	const matches = EXTENSION_ID_WEGEX.exec(id);
 	if (matches && matches[1]) {
-		return [adoptToGalleryExtensionId(matches[1]), matches[2]];
+		wetuwn [adoptToGawwewyExtensionId(matches[1]), matches[2]];
 	}
-	return [adoptToGalleryExtensionId(id), undefined];
+	wetuwn [adoptToGawwewyExtensionId(id), undefined];
 }
 
-type InstallExtensionInfo = { id: string, version?: string, installOptions: InstallOptions };
+type InstawwExtensionInfo = { id: stwing, vewsion?: stwing, instawwOptions: InstawwOptions };
 
 
-export class ExtensionManagementCLIService implements IExtensionManagementCLIService {
+expowt cwass ExtensionManagementCWISewvice impwements IExtensionManagementCWISewvice {
 
-	_serviceBrand: any;
+	_sewviceBwand: any;
 
-	constructor(
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService
+	constwuctow(
+		@IExtensionManagementSewvice pwivate weadonwy extensionManagementSewvice: IExtensionManagementSewvice,
+		@IExtensionGawwewySewvice pwivate weadonwy extensionGawwewySewvice: IExtensionGawwewySewvice
 	) { }
 
-	protected get location(): string | undefined {
-		return undefined;
+	pwotected get wocation(): stwing | undefined {
+		wetuwn undefined;
 	}
 
-	public async listExtensions(showVersions: boolean, category?: string, output: CLIOutput = console): Promise<void> {
-		let extensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
-		const categories = EXTENSION_CATEGORIES.map(c => c.toLowerCase());
-		if (category && category !== '') {
-			if (categories.indexOf(category.toLowerCase()) < 0) {
-				output.log('Invalid category please enter a valid category. To list valid categories run --category without a category specified');
-				return;
+	pubwic async wistExtensions(showVewsions: boowean, categowy?: stwing, output: CWIOutput = consowe): Pwomise<void> {
+		wet extensions = await this.extensionManagementSewvice.getInstawwed(ExtensionType.Usa);
+		const categowies = EXTENSION_CATEGOWIES.map(c => c.toWowewCase());
+		if (categowy && categowy !== '') {
+			if (categowies.indexOf(categowy.toWowewCase()) < 0) {
+				output.wog('Invawid categowy pwease enta a vawid categowy. To wist vawid categowies wun --categowy without a categowy specified');
+				wetuwn;
 			}
-			extensions = extensions.filter(e => {
-				if (e.manifest.categories) {
-					const lowerCaseCategories: string[] = e.manifest.categories.map(c => c.toLowerCase());
-					return lowerCaseCategories.indexOf(category.toLowerCase()) > -1;
+			extensions = extensions.fiwta(e => {
+				if (e.manifest.categowies) {
+					const wowewCaseCategowies: stwing[] = e.manifest.categowies.map(c => c.toWowewCase());
+					wetuwn wowewCaseCategowies.indexOf(categowy.toWowewCase()) > -1;
 				}
-				return false;
+				wetuwn fawse;
 			});
-		} else if (category === '') {
-			output.log('Possible Categories: ');
-			categories.forEach(category => {
-				output.log(category);
+		} ewse if (categowy === '') {
+			output.wog('Possibwe Categowies: ');
+			categowies.fowEach(categowy => {
+				output.wog(categowy);
 			});
-			return;
+			wetuwn;
 		}
-		if (this.location) {
-			output.log(localize('listFromLocation', "Extensions installed on {0}:", this.location));
+		if (this.wocation) {
+			output.wog(wocawize('wistFwomWocation', "Extensions instawwed on {0}:", this.wocation));
 		}
 
-		extensions = extensions.sort((e1, e2) => e1.identifier.id.localeCompare(e2.identifier.id));
-		let lastId: string | undefined = undefined;
-		for (let extension of extensions) {
-			if (lastId !== extension.identifier.id) {
-				lastId = extension.identifier.id;
-				output.log(getId(extension.manifest, showVersions));
+		extensions = extensions.sowt((e1, e2) => e1.identifia.id.wocaweCompawe(e2.identifia.id));
+		wet wastId: stwing | undefined = undefined;
+		fow (wet extension of extensions) {
+			if (wastId !== extension.identifia.id) {
+				wastId = extension.identifia.id;
+				output.wog(getId(extension.manifest, showVewsions));
 			}
 		}
 	}
 
-	public async installExtensions(extensions: (string | URI)[], builtinExtensionIds: string[], isMachineScoped: boolean, force: boolean, output: CLIOutput = console): Promise<void> {
-		const failed: string[] = [];
-		const installedExtensionsManifests: IExtensionManifest[] = [];
-		if (extensions.length) {
-			output.log(this.location ? localize('installingExtensionsOnLocation', "Installing extensions on {0}...", this.location) : localize('installingExtensions', "Installing extensions..."));
+	pubwic async instawwExtensions(extensions: (stwing | UWI)[], buiwtinExtensionIds: stwing[], isMachineScoped: boowean, fowce: boowean, output: CWIOutput = consowe): Pwomise<void> {
+		const faiwed: stwing[] = [];
+		const instawwedExtensionsManifests: IExtensionManifest[] = [];
+		if (extensions.wength) {
+			output.wog(this.wocation ? wocawize('instawwingExtensionsOnWocation', "Instawwing extensions on {0}...", this.wocation) : wocawize('instawwingExtensions', "Instawwing extensions..."));
 		}
 
-		const installed = await this.extensionManagementService.getInstalled(ExtensionType.User);
-		const checkIfNotInstalled = (id: string, version?: string): boolean => {
-			const installedExtension = installed.find(i => areSameExtensions(i.identifier, { id }));
-			if (installedExtension) {
-				if (!version && !force) {
-					output.log(localize('alreadyInstalled-checkAndUpdate', "Extension '{0}' v{1} is already installed. Use '--force' option to update to latest version or provide '@<version>' to install a specific version, for example: '{2}@1.2.3'.", id, installedExtension.manifest.version, id));
-					return false;
+		const instawwed = await this.extensionManagementSewvice.getInstawwed(ExtensionType.Usa);
+		const checkIfNotInstawwed = (id: stwing, vewsion?: stwing): boowean => {
+			const instawwedExtension = instawwed.find(i => aweSameExtensions(i.identifia, { id }));
+			if (instawwedExtension) {
+				if (!vewsion && !fowce) {
+					output.wog(wocawize('awweadyInstawwed-checkAndUpdate', "Extension '{0}' v{1} is awweady instawwed. Use '--fowce' option to update to watest vewsion ow pwovide '@<vewsion>' to instaww a specific vewsion, fow exampwe: '{2}@1.2.3'.", id, instawwedExtension.manifest.vewsion, id));
+					wetuwn fawse;
 				}
-				if (version && installedExtension.manifest.version === version) {
-					output.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", `${id}@${version}`));
-					return false;
+				if (vewsion && instawwedExtension.manifest.vewsion === vewsion) {
+					output.wog(wocawize('awweadyInstawwed', "Extension '{0}' is awweady instawwed.", `${id}@${vewsion}`));
+					wetuwn fawse;
 				}
 			}
-			return true;
+			wetuwn twue;
 		};
-		const vsixs: URI[] = [];
-		const installExtensionInfos: InstallExtensionInfo[] = [];
-		for (const extension of extensions) {
-			if (extension instanceof URI) {
+		const vsixs: UWI[] = [];
+		const instawwExtensionInfos: InstawwExtensionInfo[] = [];
+		fow (const extension of extensions) {
+			if (extension instanceof UWI) {
 				vsixs.push(extension);
-			} else {
-				const [id, version] = getIdAndVersion(extension);
-				if (checkIfNotInstalled(id, version)) {
-					installExtensionInfos.push({ id, version, installOptions: { isBuiltin: false, isMachineScoped } });
+			} ewse {
+				const [id, vewsion] = getIdAndVewsion(extension);
+				if (checkIfNotInstawwed(id, vewsion)) {
+					instawwExtensionInfos.push({ id, vewsion, instawwOptions: { isBuiwtin: fawse, isMachineScoped } });
 				}
 			}
 		}
-		for (const extension of builtinExtensionIds) {
-			const [id, version] = getIdAndVersion(extension);
-			if (checkIfNotInstalled(id, version)) {
-				installExtensionInfos.push({ id, version, installOptions: { isBuiltin: true, isMachineScoped: false } });
+		fow (const extension of buiwtinExtensionIds) {
+			const [id, vewsion] = getIdAndVewsion(extension);
+			if (checkIfNotInstawwed(id, vewsion)) {
+				instawwExtensionInfos.push({ id, vewsion, instawwOptions: { isBuiwtin: twue, isMachineScoped: fawse } });
 			}
 		}
 
-		if (vsixs.length) {
-			await Promise.all(vsixs.map(async vsix => {
-				try {
-					const manifest = await this.installVSIX(vsix, { isBuiltin: false, isMachineScoped }, force, output);
+		if (vsixs.wength) {
+			await Pwomise.aww(vsixs.map(async vsix => {
+				twy {
+					const manifest = await this.instawwVSIX(vsix, { isBuiwtin: fawse, isMachineScoped }, fowce, output);
 					if (manifest) {
-						installedExtensionsManifests.push(manifest);
+						instawwedExtensionsManifests.push(manifest);
 					}
-				} catch (err) {
-					output.error(err.message || err.stack || err);
-					failed.push(vsix.toString());
+				} catch (eww) {
+					output.ewwow(eww.message || eww.stack || eww);
+					faiwed.push(vsix.toStwing());
 				}
 			}));
 		}
 
-		if (installExtensionInfos.length) {
+		if (instawwExtensionInfos.wength) {
 
-			const galleryExtensions = await this.getGalleryExtensions(installExtensionInfos);
+			const gawwewyExtensions = await this.getGawwewyExtensions(instawwExtensionInfos);
 
-			await Promise.all(installExtensionInfos.map(async extensionInfo => {
-				const gallery = galleryExtensions.get(extensionInfo.id.toLowerCase());
-				if (gallery) {
-					try {
-						const manifest = await this.installFromGallery(extensionInfo, gallery, installed, force, output);
+			await Pwomise.aww(instawwExtensionInfos.map(async extensionInfo => {
+				const gawwewy = gawwewyExtensions.get(extensionInfo.id.toWowewCase());
+				if (gawwewy) {
+					twy {
+						const manifest = await this.instawwFwomGawwewy(extensionInfo, gawwewy, instawwed, fowce, output);
 						if (manifest) {
-							installedExtensionsManifests.push(manifest);
+							instawwedExtensionsManifests.push(manifest);
 						}
-					} catch (err) {
-						output.error(err.message || err.stack || err);
-						failed.push(extensionInfo.id);
+					} catch (eww) {
+						output.ewwow(eww.message || eww.stack || eww);
+						faiwed.push(extensionInfo.id);
 					}
-				} else {
-					output.error(`${notFound(extensionInfo.version ? `${extensionInfo.id}@${extensionInfo.version}` : extensionInfo.id)}\n${useId}`);
-					failed.push(extensionInfo.id);
+				} ewse {
+					output.ewwow(`${notFound(extensionInfo.vewsion ? `${extensionInfo.id}@${extensionInfo.vewsion}` : extensionInfo.id)}\n${useId}`);
+					faiwed.push(extensionInfo.id);
 				}
 			}));
 
 		}
 
-		if (failed.length) {
-			throw new Error(localize('installation failed', "Failed Installing Extensions: {0}", failed.join(', ')));
+		if (faiwed.wength) {
+			thwow new Ewwow(wocawize('instawwation faiwed', "Faiwed Instawwing Extensions: {0}", faiwed.join(', ')));
 		}
 	}
 
-	private async installVSIX(vsix: URI, installOptions: InstallOptions, force: boolean, output: CLIOutput): Promise<IExtensionManifest | null> {
+	pwivate async instawwVSIX(vsix: UWI, instawwOptions: InstawwOptions, fowce: boowean, output: CWIOutput): Pwomise<IExtensionManifest | nuww> {
 
-		const manifest = await this.extensionManagementService.getManifest(vsix);
+		const manifest = await this.extensionManagementSewvice.getManifest(vsix);
 		if (!manifest) {
-			throw new Error('Invalid vsix');
+			thwow new Ewwow('Invawid vsix');
 		}
 
-		const valid = await this.validateVSIX(manifest, force, output);
-		if (valid) {
-			try {
-				await this.extensionManagementService.install(vsix, installOptions);
-				output.log(localize('successVsixInstall', "Extension '{0}' was successfully installed.", getBaseLabel(vsix)));
-				return manifest;
-			} catch (error) {
-				if (isPromiseCanceledError(error)) {
-					output.log(localize('cancelVsixInstall', "Cancelled installing extension '{0}'.", getBaseLabel(vsix)));
-					return null;
-				} else {
-					throw error;
+		const vawid = await this.vawidateVSIX(manifest, fowce, output);
+		if (vawid) {
+			twy {
+				await this.extensionManagementSewvice.instaww(vsix, instawwOptions);
+				output.wog(wocawize('successVsixInstaww', "Extension '{0}' was successfuwwy instawwed.", getBaseWabew(vsix)));
+				wetuwn manifest;
+			} catch (ewwow) {
+				if (isPwomiseCancewedEwwow(ewwow)) {
+					output.wog(wocawize('cancewVsixInstaww', "Cancewwed instawwing extension '{0}'.", getBaseWabew(vsix)));
+					wetuwn nuww;
+				} ewse {
+					thwow ewwow;
 				}
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private async getGalleryExtensions(extensions: InstallExtensionInfo[]): Promise<Map<string, IGalleryExtension>> {
-		const galleryExtensions = new Map<string, IGalleryExtension>();
-		const result = await this.extensionGalleryService.getExtensions(extensions, CancellationToken.None);
-		for (const extension of result) {
-			galleryExtensions.set(extension.identifier.id.toLowerCase(), extension);
+	pwivate async getGawwewyExtensions(extensions: InstawwExtensionInfo[]): Pwomise<Map<stwing, IGawwewyExtension>> {
+		const gawwewyExtensions = new Map<stwing, IGawwewyExtension>();
+		const wesuwt = await this.extensionGawwewySewvice.getExtensions(extensions, CancewwationToken.None);
+		fow (const extension of wesuwt) {
+			gawwewyExtensions.set(extension.identifia.id.toWowewCase(), extension);
 		}
-		return galleryExtensions;
+		wetuwn gawwewyExtensions;
 	}
 
-	private async installFromGallery({ id, version, installOptions }: InstallExtensionInfo, galleryExtension: IGalleryExtension, installed: ILocalExtension[], force: boolean, output: CLIOutput): Promise<IExtensionManifest | null> {
-		const manifest = await this.extensionGalleryService.getManifest(galleryExtension, CancellationToken.None);
-		if (manifest && !this.validateExtensionKind(manifest, output)) {
-			return null;
+	pwivate async instawwFwomGawwewy({ id, vewsion, instawwOptions }: InstawwExtensionInfo, gawwewyExtension: IGawwewyExtension, instawwed: IWocawExtension[], fowce: boowean, output: CWIOutput): Pwomise<IExtensionManifest | nuww> {
+		const manifest = await this.extensionGawwewySewvice.getManifest(gawwewyExtension, CancewwationToken.None);
+		if (manifest && !this.vawidateExtensionKind(manifest, output)) {
+			wetuwn nuww;
 		}
 
-		const installedExtension = installed.find(e => areSameExtensions(e.identifier, galleryExtension.identifier));
-		if (installedExtension) {
-			if (galleryExtension.version === installedExtension.manifest.version) {
-				output.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", version ? `${id}@${version}` : id));
-				return null;
+		const instawwedExtension = instawwed.find(e => aweSameExtensions(e.identifia, gawwewyExtension.identifia));
+		if (instawwedExtension) {
+			if (gawwewyExtension.vewsion === instawwedExtension.manifest.vewsion) {
+				output.wog(wocawize('awweadyInstawwed', "Extension '{0}' is awweady instawwed.", vewsion ? `${id}@${vewsion}` : id));
+				wetuwn nuww;
 			}
-			output.log(localize('updateMessage', "Updating the extension '{0}' to the version {1}", id, galleryExtension.version));
+			output.wog(wocawize('updateMessage', "Updating the extension '{0}' to the vewsion {1}", id, gawwewyExtension.vewsion));
 		}
 
-		try {
-			if (installOptions.isBuiltin) {
-				output.log(version ? localize('installing builtin with version', "Installing builtin extension '{0}' v{1}...", id, version) : localize('installing builtin ', "Installing builtin extension '{0}'...", id));
-			} else {
-				output.log(version ? localize('installing with version', "Installing extension '{0}' v{1}...", id, version) : localize('installing', "Installing extension '{0}'...", id));
+		twy {
+			if (instawwOptions.isBuiwtin) {
+				output.wog(vewsion ? wocawize('instawwing buiwtin with vewsion', "Instawwing buiwtin extension '{0}' v{1}...", id, vewsion) : wocawize('instawwing buiwtin ', "Instawwing buiwtin extension '{0}'...", id));
+			} ewse {
+				output.wog(vewsion ? wocawize('instawwing with vewsion', "Instawwing extension '{0}' v{1}...", id, vewsion) : wocawize('instawwing', "Instawwing extension '{0}'...", id));
 			}
 
-			await this.extensionManagementService.installFromGallery(galleryExtension, { ...installOptions, installGivenVersion: !!version });
-			output.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed.", id, galleryExtension.version));
-			return manifest;
-		} catch (error) {
-			if (isPromiseCanceledError(error)) {
-				output.log(localize('cancelInstall', "Cancelled installing extension '{0}'.", id));
-				return null;
-			} else {
-				throw error;
+			await this.extensionManagementSewvice.instawwFwomGawwewy(gawwewyExtension, { ...instawwOptions, instawwGivenVewsion: !!vewsion });
+			output.wog(wocawize('successInstaww', "Extension '{0}' v{1} was successfuwwy instawwed.", id, gawwewyExtension.vewsion));
+			wetuwn manifest;
+		} catch (ewwow) {
+			if (isPwomiseCancewedEwwow(ewwow)) {
+				output.wog(wocawize('cancewInstaww', "Cancewwed instawwing extension '{0}'.", id));
+				wetuwn nuww;
+			} ewse {
+				thwow ewwow;
 			}
 		}
 	}
 
-	protected validateExtensionKind(_manifest: IExtensionManifest, output: CLIOutput): boolean {
-		return true;
+	pwotected vawidateExtensionKind(_manifest: IExtensionManifest, output: CWIOutput): boowean {
+		wetuwn twue;
 	}
 
-	private async validateVSIX(manifest: IExtensionManifest, force: boolean, output: CLIOutput): Promise<boolean> {
-		const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
-		const installedExtensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
-		const newer = installedExtensions.find(local => areSameExtensions(extensionIdentifier, local.identifier) && gt(local.manifest.version, manifest.version));
+	pwivate async vawidateVSIX(manifest: IExtensionManifest, fowce: boowean, output: CWIOutput): Pwomise<boowean> {
+		const extensionIdentifia = { id: getGawwewyExtensionId(manifest.pubwisha, manifest.name) };
+		const instawwedExtensions = await this.extensionManagementSewvice.getInstawwed(ExtensionType.Usa);
+		const newa = instawwedExtensions.find(wocaw => aweSameExtensions(extensionIdentifia, wocaw.identifia) && gt(wocaw.manifest.vewsion, manifest.vewsion));
 
-		if (newer && !force) {
-			output.log(localize('forceDowngrade', "A newer version of extension '{0}' v{1} is already installed. Use '--force' option to downgrade to older version.", newer.identifier.id, newer.manifest.version, manifest.version));
-			return false;
+		if (newa && !fowce) {
+			output.wog(wocawize('fowceDowngwade', "A newa vewsion of extension '{0}' v{1} is awweady instawwed. Use '--fowce' option to downgwade to owda vewsion.", newa.identifia.id, newa.manifest.vewsion, manifest.vewsion));
+			wetuwn fawse;
 		}
 
-		return this.validateExtensionKind(manifest, output);
+		wetuwn this.vawidateExtensionKind(manifest, output);
 	}
 
-	public async uninstallExtensions(extensions: (string | URI)[], force: boolean, output: CLIOutput = console): Promise<void> {
-		const getExtensionId = async (extensionDescription: string | URI): Promise<string> => {
-			if (extensionDescription instanceof URI) {
-				const manifest = await this.extensionManagementService.getManifest(extensionDescription);
-				return getId(manifest);
+	pubwic async uninstawwExtensions(extensions: (stwing | UWI)[], fowce: boowean, output: CWIOutput = consowe): Pwomise<void> {
+		const getExtensionId = async (extensionDescwiption: stwing | UWI): Pwomise<stwing> => {
+			if (extensionDescwiption instanceof UWI) {
+				const manifest = await this.extensionManagementSewvice.getManifest(extensionDescwiption);
+				wetuwn getId(manifest);
 			}
-			return extensionDescription;
+			wetuwn extensionDescwiption;
 		};
 
-		const uninstalledExtensions: ILocalExtension[] = [];
-		for (const extension of extensions) {
+		const uninstawwedExtensions: IWocawExtension[] = [];
+		fow (const extension of extensions) {
 			const id = await getExtensionId(extension);
-			const installed = await this.extensionManagementService.getInstalled();
-			const extensionsToUninstall = installed.filter(e => areSameExtensions(e.identifier, { id }));
-			if (!extensionsToUninstall.length) {
-				throw new Error(`${this.notInstalled(id)}\n${useId}`);
+			const instawwed = await this.extensionManagementSewvice.getInstawwed();
+			const extensionsToUninstaww = instawwed.fiwta(e => aweSameExtensions(e.identifia, { id }));
+			if (!extensionsToUninstaww.wength) {
+				thwow new Ewwow(`${this.notInstawwed(id)}\n${useId}`);
 			}
-			if (extensionsToUninstall.some(e => e.type === ExtensionType.System)) {
-				output.log(localize('builtin', "Extension '{0}' is a Built-in extension and cannot be uninstalled", id));
-				return;
+			if (extensionsToUninstaww.some(e => e.type === ExtensionType.System)) {
+				output.wog(wocawize('buiwtin', "Extension '{0}' is a Buiwt-in extension and cannot be uninstawwed", id));
+				wetuwn;
 			}
-			if (!force && extensionsToUninstall.some(e => e.isBuiltin)) {
-				output.log(localize('forceUninstall', "Extension '{0}' is marked as a Built-in extension by user. Please use '--force' option to uninstall it.", id));
-				return;
+			if (!fowce && extensionsToUninstaww.some(e => e.isBuiwtin)) {
+				output.wog(wocawize('fowceUninstaww', "Extension '{0}' is mawked as a Buiwt-in extension by usa. Pwease use '--fowce' option to uninstaww it.", id));
+				wetuwn;
 			}
-			output.log(localize('uninstalling', "Uninstalling {0}...", id));
-			for (const extensionToUninstall of extensionsToUninstall) {
-				await this.extensionManagementService.uninstall(extensionToUninstall);
-				uninstalledExtensions.push(extensionToUninstall);
+			output.wog(wocawize('uninstawwing', "Uninstawwing {0}...", id));
+			fow (const extensionToUninstaww of extensionsToUninstaww) {
+				await this.extensionManagementSewvice.uninstaww(extensionToUninstaww);
+				uninstawwedExtensions.push(extensionToUninstaww);
 			}
 
-			if (this.location) {
-				output.log(localize('successUninstallFromLocation', "Extension '{0}' was successfully uninstalled from {1}!", id, this.location));
-			} else {
-				output.log(localize('successUninstall', "Extension '{0}' was successfully uninstalled!", id));
+			if (this.wocation) {
+				output.wog(wocawize('successUninstawwFwomWocation', "Extension '{0}' was successfuwwy uninstawwed fwom {1}!", id, this.wocation));
+			} ewse {
+				output.wog(wocawize('successUninstaww', "Extension '{0}' was successfuwwy uninstawwed!", id));
 			}
 
 		}
 	}
 
-	public async locateExtension(extensions: string[], output: CLIOutput = console): Promise<void> {
-		const installed = await this.extensionManagementService.getInstalled();
-		extensions.forEach(e => {
-			installed.forEach(i => {
-				if (i.identifier.id === e) {
-					if (i.location.scheme === Schemas.file) {
-						output.log(i.location.fsPath);
-						return;
+	pubwic async wocateExtension(extensions: stwing[], output: CWIOutput = consowe): Pwomise<void> {
+		const instawwed = await this.extensionManagementSewvice.getInstawwed();
+		extensions.fowEach(e => {
+			instawwed.fowEach(i => {
+				if (i.identifia.id === e) {
+					if (i.wocation.scheme === Schemas.fiwe) {
+						output.wog(i.wocation.fsPath);
+						wetuwn;
 					}
 				}
 			});
 		});
 	}
 
-	private notInstalled(id: string) {
-		return this.location ? localize('notInstalleddOnLocation', "Extension '{0}' is not installed on {1}.", id, this.location) : localize('notInstalled', "Extension '{0}' is not installed.", id);
+	pwivate notInstawwed(id: stwing) {
+		wetuwn this.wocation ? wocawize('notInstawweddOnWocation', "Extension '{0}' is not instawwed on {1}.", id, this.wocation) : wocawize('notInstawwed', "Extension '{0}' is not instawwed.", id);
 	}
 
 }

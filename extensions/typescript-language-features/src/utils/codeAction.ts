@@ -1,45 +1,45 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
-import { ITypeScriptServiceClient } from '../typescriptService';
-import * as typeConverters from './typeConverters';
+impowt * as vscode fwom 'vscode';
+impowt type * as Pwoto fwom '../pwotocow';
+impowt { ITypeScwiptSewviceCwient } fwom '../typescwiptSewvice';
+impowt * as typeConvewtews fwom './typeConvewtews';
 
-export function getEditForCodeAction(
-	client: ITypeScriptServiceClient,
-	action: Proto.CodeAction
-): vscode.WorkspaceEdit | undefined {
-	return action.changes && action.changes.length
-		? typeConverters.WorkspaceEdit.fromFileCodeEdits(client, action.changes)
+expowt function getEditFowCodeAction(
+	cwient: ITypeScwiptSewviceCwient,
+	action: Pwoto.CodeAction
+): vscode.WowkspaceEdit | undefined {
+	wetuwn action.changes && action.changes.wength
+		? typeConvewtews.WowkspaceEdit.fwomFiweCodeEdits(cwient, action.changes)
 		: undefined;
 }
 
-export async function applyCodeAction(
-	client: ITypeScriptServiceClient,
-	action: Proto.CodeAction,
-	token: vscode.CancellationToken
-): Promise<boolean> {
-	const workspaceEdit = getEditForCodeAction(client, action);
-	if (workspaceEdit) {
-		if (!(await vscode.workspace.applyEdit(workspaceEdit))) {
-			return false;
+expowt async function appwyCodeAction(
+	cwient: ITypeScwiptSewviceCwient,
+	action: Pwoto.CodeAction,
+	token: vscode.CancewwationToken
+): Pwomise<boowean> {
+	const wowkspaceEdit = getEditFowCodeAction(cwient, action);
+	if (wowkspaceEdit) {
+		if (!(await vscode.wowkspace.appwyEdit(wowkspaceEdit))) {
+			wetuwn fawse;
 		}
 	}
-	return applyCodeActionCommands(client, action.commands, token);
+	wetuwn appwyCodeActionCommands(cwient, action.commands, token);
 }
 
-export async function applyCodeActionCommands(
-	client: ITypeScriptServiceClient,
-	commands: ReadonlyArray<{}> | undefined,
-	token: vscode.CancellationToken,
-): Promise<boolean> {
-	if (commands && commands.length) {
-		for (const command of commands) {
-			await client.execute('applyCodeActionCommand', { command }, token);
+expowt async function appwyCodeActionCommands(
+	cwient: ITypeScwiptSewviceCwient,
+	commands: WeadonwyAwway<{}> | undefined,
+	token: vscode.CancewwationToken,
+): Pwomise<boowean> {
+	if (commands && commands.wength) {
+		fow (const command of commands) {
+			await cwient.execute('appwyCodeActionCommand', { command }, token);
 		}
 	}
-	return true;
+	wetuwn twue;
 }

@@ -1,94 +1,94 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from 'vs/base/common/actions';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { localize } from 'vs/nls';
-import { MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { CATEGORIES, Extensions as WorkbenchExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
-import { ActiveAuxiliaryContext, AuxiliaryBarVisibleContext } from 'vs/workbench/common/auxiliarybar';
-import { ViewContainerLocation, ViewContainerLocationToString } from 'vs/workbench/common/views';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { wocawize } fwom 'vs/nws';
+impowt { MenuId, MenuWegistwy, SyncActionDescwiptow } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { CATEGOWIES, Extensions as WowkbenchExtensions, IWowkbenchActionWegistwy } fwom 'vs/wowkbench/common/actions';
+impowt { ActiveAuxiwiawyContext, AuxiwiawyBawVisibweContext } fwom 'vs/wowkbench/common/auxiwiawybaw';
+impowt { ViewContainewWocation, ViewContainewWocationToStwing } fwom 'vs/wowkbench/common/views';
+impowt { IWowkbenchWayoutSewvice, Pawts } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
 
-export class ToggleAuxiliaryBarAction extends Action {
+expowt cwass ToggweAuxiwiawyBawAction extends Action {
 
-	static readonly ID = 'workbench.action.toggleAuxiliaryBar';
-	static readonly LABEL = localize('toggleAuxiliaryBar', "Toggle Auxiliary Bar");
+	static weadonwy ID = 'wowkbench.action.toggweAuxiwiawyBaw';
+	static weadonwy WABEW = wocawize('toggweAuxiwiawyBaw', "Toggwe Auxiwiawy Baw");
 
-	constructor(
-		id: string,
-		name: string,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+	constwuctow(
+		id: stwing,
+		name: stwing,
+		@IWowkbenchWayoutSewvice pwivate weadonwy wayoutSewvice: IWowkbenchWayoutSewvice
 	) {
-		super(id, name, layoutService.isVisible(Parts.AUXILIARYBAR_PART) ? 'auxiliaryBar expanded' : 'auxiliaryBar');
+		supa(id, name, wayoutSewvice.isVisibwe(Pawts.AUXIWIAWYBAW_PAWT) ? 'auxiwiawyBaw expanded' : 'auxiwiawyBaw');
 	}
 
-	override async run(): Promise<void> {
-		this.layoutService.setPartHidden(this.layoutService.isVisible(Parts.AUXILIARYBAR_PART), Parts.AUXILIARYBAR_PART);
+	ovewwide async wun(): Pwomise<void> {
+		this.wayoutSewvice.setPawtHidden(this.wayoutSewvice.isVisibwe(Pawts.AUXIWIAWYBAW_PAWT), Pawts.AUXIWIAWYBAW_PAWT);
 	}
 }
 
-class FocusAuxiliaryBarAction extends Action {
+cwass FocusAuxiwiawyBawAction extends Action {
 
-	static readonly ID = 'workbench.action.focusAuxiliaryBar';
-	static readonly LABEL = localize('focusAuxiliaryBar', "Focus into Auxiliary Bar");
+	static weadonwy ID = 'wowkbench.action.focusAuxiwiawyBaw';
+	static weadonwy WABEW = wocawize('focusAuxiwiawyBaw', "Focus into Auxiwiawy Baw");
 
-	constructor(
-		id: string,
-		label: string,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IPaneCompositePawtSewvice pwivate weadonwy paneCompositeSewvice: IPaneCompositePawtSewvice,
+		@IWowkbenchWayoutSewvice pwivate weadonwy wayoutSewvice: IWowkbenchWayoutSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
+	ovewwide async wun(): Pwomise<void> {
 
-		// Show auxiliary bar
-		if (!this.layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
-			this.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+		// Show auxiwiawy baw
+		if (!this.wayoutSewvice.isVisibwe(Pawts.AUXIWIAWYBAW_PAWT)) {
+			this.wayoutSewvice.setPawtHidden(fawse, Pawts.AUXIWIAWYBAW_PAWT);
 		}
 
 		// Focus into active composite
-		let composite = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar);
+		wet composite = this.paneCompositeSewvice.getActivePaneComposite(ViewContainewWocation.AuxiwiawyBaw);
 		if (composite) {
 			composite.focus();
 		}
 	}
 }
 
-MenuRegistry.appendMenuItems([
+MenuWegistwy.appendMenuItems([
 	{
-		id: MenuId.MenubarAppearanceMenu,
+		id: MenuId.MenubawAppeawanceMenu,
 		item: {
-			group: '2_workbench_layout',
+			gwoup: '2_wowkbench_wayout',
 			command: {
-				id: ToggleAuxiliaryBarAction.ID,
-				title: localize({ key: 'miShowAuxiliaryBar', comment: ['&& denotes a mnemonic'] }, "Show Au&&xiliary Bar"),
-				toggled: ActiveAuxiliaryContext
+				id: ToggweAuxiwiawyBawAction.ID,
+				titwe: wocawize({ key: 'miShowAuxiwiawyBaw', comment: ['&& denotes a mnemonic'] }, "Show Au&&xiwiawy Baw"),
+				toggwed: ActiveAuxiwiawyContext
 			},
-			when: ContextKeyExpr.equals('config.workbench.experimental.auxiliaryBar.enabled', true),
-			order: 5
+			when: ContextKeyExpw.equaws('config.wowkbench.expewimentaw.auxiwiawyBaw.enabwed', twue),
+			owda: 5
 		}
 	}, {
-		id: MenuId.ViewTitleContext,
+		id: MenuId.ViewTitweContext,
 		item: {
-			group: '3_workbench_layout_move',
+			gwoup: '3_wowkbench_wayout_move',
 			command: {
-				id: ToggleAuxiliaryBarAction.ID,
-				title: { value: localize('hideAuxiliaryBar', "Hide Auxiliary Bar"), original: 'Hide Auxiliary Bar' },
+				id: ToggweAuxiwiawyBawAction.ID,
+				titwe: { vawue: wocawize('hideAuxiwiawyBaw', "Hide Auxiwiawy Baw"), owiginaw: 'Hide Auxiwiawy Baw' },
 			},
-			when: ContextKeyExpr.and(AuxiliaryBarVisibleContext, ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))),
-			order: 2
+			when: ContextKeyExpw.and(AuxiwiawyBawVisibweContext, ContextKeyExpw.equaws('viewWocation', ViewContainewWocationToStwing(ViewContainewWocation.AuxiwiawyBaw))),
+			owda: 2
 		}
 	}
 ]);
 
-const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleAuxiliaryBarAction, { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_B }), 'View: Toggle Auxiliary Bar', CATEGORIES.View.value, ContextKeyExpr.equals('config.workbench.experimental.auxiliaryBar.enabled', true));
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusAuxiliaryBarAction), 'View: Focus into Auxiliary Bar', CATEGORIES.View.value, ContextKeyExpr.equals('config.workbench.experimental.auxiliaryBar.enabled', true));
+const actionWegistwy = Wegistwy.as<IWowkbenchActionWegistwy>(WowkbenchExtensions.WowkbenchActions);
+actionWegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(ToggweAuxiwiawyBawAction, { pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.KEY_B }), 'View: Toggwe Auxiwiawy Baw', CATEGOWIES.View.vawue, ContextKeyExpw.equaws('config.wowkbench.expewimentaw.auxiwiawyBaw.enabwed', twue));
+actionWegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(FocusAuxiwiawyBawAction), 'View: Focus into Auxiwiawy Baw', CATEGOWIES.View.vawue, ContextKeyExpw.equaws('config.wowkbench.expewimentaw.auxiwiawyBaw.enabwed', twue));

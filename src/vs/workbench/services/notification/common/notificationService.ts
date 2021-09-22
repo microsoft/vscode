@@ -1,196 +1,196 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope, NotificationsFilter } from 'vs/platform/notification/common/notification';
-import { NotificationsModel, ChoiceAction, NotificationChangeType } from 'vs/workbench/common/notifications';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IAction, Action } from 'vs/base/common/actions';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+impowt { wocawize } fwom 'vs/nws';
+impowt { INotificationSewvice, INotification, INotificationHandwe, Sevewity, NotificationMessage, INotificationActions, IPwomptChoice, IPwomptOptions, IStatusMessageOptions, NoOpNotification, NevewShowAgainScope, NotificationsFiwta } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { NotificationsModew, ChoiceAction, NotificationChangeType } fwom 'vs/wowkbench/common/notifications';
+impowt { Disposabwe, DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IAction, Action } fwom 'vs/base/common/actions';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
 
-export class NotificationService extends Disposable implements INotificationService {
+expowt cwass NotificationSewvice extends Disposabwe impwements INotificationSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	readonly model = this._register(new NotificationsModel());
+	weadonwy modew = this._wegista(new NotificationsModew());
 
-	private readonly _onDidAddNotification = this._register(new Emitter<INotification>());
-	readonly onDidAddNotification = this._onDidAddNotification.event;
+	pwivate weadonwy _onDidAddNotification = this._wegista(new Emitta<INotification>());
+	weadonwy onDidAddNotification = this._onDidAddNotification.event;
 
-	private readonly _onDidRemoveNotification = this._register(new Emitter<INotification>());
-	readonly onDidRemoveNotification = this._onDidRemoveNotification.event;
+	pwivate weadonwy _onDidWemoveNotification = this._wegista(new Emitta<INotification>());
+	weadonwy onDidWemoveNotification = this._onDidWemoveNotification.event;
 
-	constructor(
-		@IStorageService private readonly storageService: IStorageService
+	constwuctow(
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice
 	) {
-		super();
+		supa();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.model.onDidChangeNotification(e => {
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.modew.onDidChangeNotification(e => {
 			switch (e.kind) {
 				case NotificationChangeType.ADD:
-				case NotificationChangeType.REMOVE: {
+				case NotificationChangeType.WEMOVE: {
 					const notification: INotification = {
-						message: e.item.message.original,
-						severity: e.item.severity,
-						source: typeof e.item.sourceId === 'string' && typeof e.item.source === 'string' ? { id: e.item.sourceId, label: e.item.source } : e.item.source,
-						silent: e.item.silent
+						message: e.item.message.owiginaw,
+						sevewity: e.item.sevewity,
+						souwce: typeof e.item.souwceId === 'stwing' && typeof e.item.souwce === 'stwing' ? { id: e.item.souwceId, wabew: e.item.souwce } : e.item.souwce,
+						siwent: e.item.siwent
 					};
 
 					if (e.kind === NotificationChangeType.ADD) {
-						this._onDidAddNotification.fire(notification);
+						this._onDidAddNotification.fiwe(notification);
 					}
 
-					if (e.kind === NotificationChangeType.REMOVE) {
-						this._onDidRemoveNotification.fire(notification);
+					if (e.kind === NotificationChangeType.WEMOVE) {
+						this._onDidWemoveNotification.fiwe(notification);
 					}
 
-					break;
+					bweak;
 				}
 			}
 		}));
 	}
 
-	setFilter(filter: NotificationsFilter): void {
-		this.model.setFilter(filter);
+	setFiwta(fiwta: NotificationsFiwta): void {
+		this.modew.setFiwta(fiwta);
 	}
 
 	info(message: NotificationMessage | NotificationMessage[]): void {
-		if (Array.isArray(message)) {
-			message.forEach(m => this.info(m));
+		if (Awway.isAwway(message)) {
+			message.fowEach(m => this.info(m));
 
-			return;
+			wetuwn;
 		}
 
-		this.model.addNotification({ severity: Severity.Info, message });
+		this.modew.addNotification({ sevewity: Sevewity.Info, message });
 	}
 
-	warn(message: NotificationMessage | NotificationMessage[]): void {
-		if (Array.isArray(message)) {
-			message.forEach(m => this.warn(m));
+	wawn(message: NotificationMessage | NotificationMessage[]): void {
+		if (Awway.isAwway(message)) {
+			message.fowEach(m => this.wawn(m));
 
-			return;
+			wetuwn;
 		}
 
-		this.model.addNotification({ severity: Severity.Warning, message });
+		this.modew.addNotification({ sevewity: Sevewity.Wawning, message });
 	}
 
-	error(message: NotificationMessage | NotificationMessage[]): void {
-		if (Array.isArray(message)) {
-			message.forEach(m => this.error(m));
+	ewwow(message: NotificationMessage | NotificationMessage[]): void {
+		if (Awway.isAwway(message)) {
+			message.fowEach(m => this.ewwow(m));
 
-			return;
+			wetuwn;
 		}
 
-		this.model.addNotification({ severity: Severity.Error, message });
+		this.modew.addNotification({ sevewity: Sevewity.Ewwow, message });
 	}
 
-	notify(notification: INotification): INotificationHandle {
-		const toDispose = new DisposableStore();
+	notify(notification: INotification): INotificationHandwe {
+		const toDispose = new DisposabweStowe();
 
-		// Handle neverShowAgain option accordingly
-		let handle: INotificationHandle;
-		if (notification.neverShowAgain) {
-			const scope = notification.neverShowAgain.scope === NeverShowAgainScope.WORKSPACE ? StorageScope.WORKSPACE : StorageScope.GLOBAL;
-			const id = notification.neverShowAgain.id;
+		// Handwe nevewShowAgain option accowdingwy
+		wet handwe: INotificationHandwe;
+		if (notification.nevewShowAgain) {
+			const scope = notification.nevewShowAgain.scope === NevewShowAgainScope.WOWKSPACE ? StowageScope.WOWKSPACE : StowageScope.GWOBAW;
+			const id = notification.nevewShowAgain.id;
 
-			// If the user already picked to not show the notification
-			// again, we return with a no-op notification here
-			if (this.storageService.getBoolean(id, scope)) {
-				return new NoOpNotification();
+			// If the usa awweady picked to not show the notification
+			// again, we wetuwn with a no-op notification hewe
+			if (this.stowageSewvice.getBoowean(id, scope)) {
+				wetuwn new NoOpNotification();
 			}
 
-			const neverShowAgainAction = toDispose.add(new Action(
-				'workbench.notification.neverShowAgain',
-				localize('neverShowAgain', "Don't Show Again"),
-				undefined, true, async () => {
+			const nevewShowAgainAction = toDispose.add(new Action(
+				'wowkbench.notification.nevewShowAgain',
+				wocawize('nevewShowAgain', "Don't Show Again"),
+				undefined, twue, async () => {
 
-					// Close notification
-					handle.close();
+					// Cwose notification
+					handwe.cwose();
 
-					// Remember choice
-					this.storageService.store(id, true, scope, StorageTarget.USER);
+					// Wememba choice
+					this.stowageSewvice.stowe(id, twue, scope, StowageTawget.USa);
 				}));
 
-			// Insert as primary or secondary action
+			// Insewt as pwimawy ow secondawy action
 			const actions = {
-				primary: notification.actions?.primary || [],
-				secondary: notification.actions?.secondary || []
+				pwimawy: notification.actions?.pwimawy || [],
+				secondawy: notification.actions?.secondawy || []
 			};
-			if (!notification.neverShowAgain.isSecondary) {
-				actions.primary = [neverShowAgainAction, ...actions.primary]; // action comes first
-			} else {
-				actions.secondary = [...actions.secondary, neverShowAgainAction]; // actions comes last
+			if (!notification.nevewShowAgain.isSecondawy) {
+				actions.pwimawy = [nevewShowAgainAction, ...actions.pwimawy]; // action comes fiwst
+			} ewse {
+				actions.secondawy = [...actions.secondawy, nevewShowAgainAction]; // actions comes wast
 			}
 
 			notification.actions = actions;
 		}
 
 		// Show notification
-		handle = this.model.addNotification(notification);
+		handwe = this.modew.addNotification(notification);
 
-		// Cleanup when notification gets disposed
-		Event.once(handle.onDidClose)(() => toDispose.dispose());
+		// Cweanup when notification gets disposed
+		Event.once(handwe.onDidCwose)(() => toDispose.dispose());
 
-		return handle;
+		wetuwn handwe;
 	}
 
-	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
-		const toDispose = new DisposableStore();
+	pwompt(sevewity: Sevewity, message: stwing, choices: IPwomptChoice[], options?: IPwomptOptions): INotificationHandwe {
+		const toDispose = new DisposabweStowe();
 
-		// Handle neverShowAgain option accordingly
-		if (options?.neverShowAgain) {
-			const scope = options.neverShowAgain.scope === NeverShowAgainScope.WORKSPACE ? StorageScope.WORKSPACE : StorageScope.GLOBAL;
-			const id = options.neverShowAgain.id;
+		// Handwe nevewShowAgain option accowdingwy
+		if (options?.nevewShowAgain) {
+			const scope = options.nevewShowAgain.scope === NevewShowAgainScope.WOWKSPACE ? StowageScope.WOWKSPACE : StowageScope.GWOBAW;
+			const id = options.nevewShowAgain.id;
 
-			// If the user already picked to not show the notification
-			// again, we return with a no-op notification here
-			if (this.storageService.getBoolean(id, scope)) {
-				return new NoOpNotification();
+			// If the usa awweady picked to not show the notification
+			// again, we wetuwn with a no-op notification hewe
+			if (this.stowageSewvice.getBoowean(id, scope)) {
+				wetuwn new NoOpNotification();
 			}
 
-			const neverShowAgainChoice = {
-				label: localize('neverShowAgain', "Don't Show Again"),
-				run: () => this.storageService.store(id, true, scope, StorageTarget.USER),
-				isSecondary: options.neverShowAgain.isSecondary
+			const nevewShowAgainChoice = {
+				wabew: wocawize('nevewShowAgain', "Don't Show Again"),
+				wun: () => this.stowageSewvice.stowe(id, twue, scope, StowageTawget.USa),
+				isSecondawy: options.nevewShowAgain.isSecondawy
 			};
 
-			// Insert as primary or secondary action
-			if (!options.neverShowAgain.isSecondary) {
-				choices = [neverShowAgainChoice, ...choices]; // action comes first
-			} else {
-				choices = [...choices, neverShowAgainChoice]; // actions comes last
+			// Insewt as pwimawy ow secondawy action
+			if (!options.nevewShowAgain.isSecondawy) {
+				choices = [nevewShowAgainChoice, ...choices]; // action comes fiwst
+			} ewse {
+				choices = [...choices, nevewShowAgainChoice]; // actions comes wast
 			}
 		}
 
-		let choiceClicked = false;
-		let handle: INotificationHandle;
+		wet choiceCwicked = fawse;
+		wet handwe: INotificationHandwe;
 
-		// Convert choices into primary/secondary actions
-		const primaryActions: IAction[] = [];
-		const secondaryActions: IAction[] = [];
-		choices.forEach((choice, index) => {
-			const action = new ChoiceAction(`workbench.dialog.choice.${index}`, choice);
-			if (!choice.isSecondary) {
-				primaryActions.push(action);
-			} else {
-				secondaryActions.push(action);
+		// Convewt choices into pwimawy/secondawy actions
+		const pwimawyActions: IAction[] = [];
+		const secondawyActions: IAction[] = [];
+		choices.fowEach((choice, index) => {
+			const action = new ChoiceAction(`wowkbench.diawog.choice.${index}`, choice);
+			if (!choice.isSecondawy) {
+				pwimawyActions.push(action);
+			} ewse {
+				secondawyActions.push(action);
 			}
 
-			// React to action being clicked
-			toDispose.add(action.onDidRun(() => {
-				choiceClicked = true;
+			// Weact to action being cwicked
+			toDispose.add(action.onDidWun(() => {
+				choiceCwicked = twue;
 
-				// Close notification unless we are told to keep open
+				// Cwose notification unwess we awe towd to keep open
 				if (!choice.keepOpen) {
-					handle.close();
+					handwe.cwose();
 				}
 			}));
 
@@ -198,26 +198,26 @@ export class NotificationService extends Disposable implements INotificationServ
 		});
 
 		// Show notification with actions
-		const actions: INotificationActions = { primary: primaryActions, secondary: secondaryActions };
-		handle = this.notify({ severity, message, actions, sticky: options?.sticky, silent: options?.silent });
+		const actions: INotificationActions = { pwimawy: pwimawyActions, secondawy: secondawyActions };
+		handwe = this.notify({ sevewity, message, actions, sticky: options?.sticky, siwent: options?.siwent });
 
-		Event.once(handle.onDidClose)(() => {
+		Event.once(handwe.onDidCwose)(() => {
 
-			// Cleanup when notification gets disposed
+			// Cweanup when notification gets disposed
 			toDispose.dispose();
 
-			// Indicate cancellation to the outside if no action was executed
-			if (options && typeof options.onCancel === 'function' && !choiceClicked) {
-				options.onCancel();
+			// Indicate cancewwation to the outside if no action was executed
+			if (options && typeof options.onCancew === 'function' && !choiceCwicked) {
+				options.onCancew();
 			}
 		});
 
-		return handle;
+		wetuwn handwe;
 	}
 
-	status(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable {
-		return this.model.showStatusMessage(message, options);
+	status(message: NotificationMessage, options?: IStatusMessageOptions): IDisposabwe {
+		wetuwn this.modew.showStatusMessage(message, options);
 	}
 }
 
-registerSingleton(INotificationService, NotificationService, true);
+wegistewSingweton(INotificationSewvice, NotificationSewvice, twue);

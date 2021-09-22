@@ -1,57 +1,57 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
-import { ITypeScriptServiceClient } from '../typescriptService';
-import { flatten } from '../utils/arrays';
-import { DocumentSelector } from '../utils/documentSelector';
-import * as typeConverters from '../utils/typeConverters';
+impowt * as vscode fwom 'vscode';
+impowt type * as Pwoto fwom '../pwotocow';
+impowt { ITypeScwiptSewviceCwient } fwom '../typescwiptSewvice';
+impowt { fwatten } fwom '../utiws/awways';
+impowt { DocumentSewectow } fwom '../utiws/documentSewectow';
+impowt * as typeConvewtews fwom '../utiws/typeConvewtews';
 
-class TypeScriptDocumentHighlightProvider implements vscode.DocumentHighlightProvider {
-	public constructor(
-		private readonly client: ITypeScriptServiceClient
+cwass TypeScwiptDocumentHighwightPwovida impwements vscode.DocumentHighwightPwovida {
+	pubwic constwuctow(
+		pwivate weadonwy cwient: ITypeScwiptSewviceCwient
 	) { }
 
-	public async provideDocumentHighlights(
+	pubwic async pwovideDocumentHighwights(
 		document: vscode.TextDocument,
 		position: vscode.Position,
-		token: vscode.CancellationToken
-	): Promise<vscode.DocumentHighlight[]> {
-		const file = this.client.toOpenedFilePath(document);
-		if (!file) {
-			return [];
+		token: vscode.CancewwationToken
+	): Pwomise<vscode.DocumentHighwight[]> {
+		const fiwe = this.cwient.toOpenedFiwePath(document);
+		if (!fiwe) {
+			wetuwn [];
 		}
 
-		const args = {
-			...typeConverters.Position.toFileLocationRequestArgs(file, position),
-			filesToSearch: [file]
+		const awgs = {
+			...typeConvewtews.Position.toFiweWocationWequestAwgs(fiwe, position),
+			fiwesToSeawch: [fiwe]
 		};
-		const response = await this.client.execute('documentHighlights', args, token);
-		if (response.type !== 'response' || !response.body) {
-			return [];
+		const wesponse = await this.cwient.execute('documentHighwights', awgs, token);
+		if (wesponse.type !== 'wesponse' || !wesponse.body) {
+			wetuwn [];
 		}
 
-		return flatten(
-			response.body
-				.filter(highlight => highlight.file === file)
-				.map(convertDocumentHighlight));
+		wetuwn fwatten(
+			wesponse.body
+				.fiwta(highwight => highwight.fiwe === fiwe)
+				.map(convewtDocumentHighwight));
 	}
 }
 
-function convertDocumentHighlight(highlight: Proto.DocumentHighlightsItem): ReadonlyArray<vscode.DocumentHighlight> {
-	return highlight.highlightSpans.map(span =>
-		new vscode.DocumentHighlight(
-			typeConverters.Range.fromTextSpan(span),
-			span.kind === 'writtenReference' ? vscode.DocumentHighlightKind.Write : vscode.DocumentHighlightKind.Read));
+function convewtDocumentHighwight(highwight: Pwoto.DocumentHighwightsItem): WeadonwyAwway<vscode.DocumentHighwight> {
+	wetuwn highwight.highwightSpans.map(span =>
+		new vscode.DocumentHighwight(
+			typeConvewtews.Wange.fwomTextSpan(span),
+			span.kind === 'wwittenWefewence' ? vscode.DocumentHighwightKind.Wwite : vscode.DocumentHighwightKind.Wead));
 }
 
-export function register(
-	selector: DocumentSelector,
-	client: ITypeScriptServiceClient,
+expowt function wegista(
+	sewectow: DocumentSewectow,
+	cwient: ITypeScwiptSewviceCwient,
 ) {
-	return vscode.languages.registerDocumentHighlightProvider(selector.syntax,
-		new TypeScriptDocumentHighlightProvider(client));
+	wetuwn vscode.wanguages.wegistewDocumentHighwightPwovida(sewectow.syntax,
+		new TypeScwiptDocumentHighwightPwovida(cwient));
 }

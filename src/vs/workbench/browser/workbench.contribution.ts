@@ -1,535 +1,535 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { localize } from 'vs/nls';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { isStandalone } from 'vs/base/browser/browser';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IConfiguwationWegistwy, Extensions as ConfiguwationExtensions, ConfiguwationScope } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { isMacintosh, isWindows, isWinux, isWeb, isNative } fwom 'vs/base/common/pwatfowm';
+impowt { wowkbenchConfiguwationNodeBase } fwom 'vs/wowkbench/common/configuwation';
+impowt { isStandawone } fwom 'vs/base/bwowsa/bwowsa';
 
-const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+const wegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation);
 
-// Configuration
-(function registerConfiguration(): void {
+// Configuwation
+(function wegistewConfiguwation(): void {
 
-	// Workbench
-	registry.registerConfiguration({
-		...workbenchConfigurationNodeBase,
-		'properties': {
-			'workbench.editor.titleScrollbarSizing': {
-				type: 'string',
-				enum: ['default', 'large'],
-				enumDescriptions: [
-					localize('workbench.editor.titleScrollbarSizing.default', "The default size."),
-					localize('workbench.editor.titleScrollbarSizing.large', "Increases the size, so it can be grabbed more easily with the mouse.")
+	// Wowkbench
+	wegistwy.wegistewConfiguwation({
+		...wowkbenchConfiguwationNodeBase,
+		'pwopewties': {
+			'wowkbench.editow.titweScwowwbawSizing': {
+				type: 'stwing',
+				enum: ['defauwt', 'wawge'],
+				enumDescwiptions: [
+					wocawize('wowkbench.editow.titweScwowwbawSizing.defauwt', "The defauwt size."),
+					wocawize('wowkbench.editow.titweScwowwbawSizing.wawge', "Incweases the size, so it can be gwabbed mowe easiwy with the mouse.")
 				],
-				description: localize('tabScrollbarHeight', "Controls the height of the scrollbars used for tabs and breadcrumbs in the editor title area."),
-				default: 'default',
+				descwiption: wocawize('tabScwowwbawHeight', "Contwows the height of the scwowwbaws used fow tabs and bweadcwumbs in the editow titwe awea."),
+				defauwt: 'defauwt',
 			},
-			'workbench.editor.showTabs': {
-				'type': 'boolean',
-				'description': localize('showEditorTabs', "Controls whether opened editors should show in tabs or not."),
-				'default': true
+			'wowkbench.editow.showTabs': {
+				'type': 'boowean',
+				'descwiption': wocawize('showEditowTabs', "Contwows whetha opened editows shouwd show in tabs ow not."),
+				'defauwt': twue
 			},
-			'workbench.editor.wrapTabs': {
-				'type': 'boolean',
-				'markdownDescription': localize('wrapTabs', "Controls whether tabs should be wrapped over multiple lines when exceeding available space or whether a scrollbar should appear instead. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
-				'default': false
+			'wowkbench.editow.wwapTabs': {
+				'type': 'boowean',
+				'mawkdownDescwiption': wocawize('wwapTabs', "Contwows whetha tabs shouwd be wwapped ova muwtipwe wines when exceeding avaiwabwe space ow whetha a scwowwbaw shouwd appeaw instead. This vawue is ignowed when `#wowkbench.editow.showTabs#` is disabwed."),
+				'defauwt': fawse
 			},
-			'workbench.editor.scrollToSwitchTabs': {
-				'type': 'boolean',
-				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'scrollToSwitchTabs' }, "Controls whether scrolling over tabs will open them or not. By default tabs will only reveal upon scrolling, but not open. You can press and hold the Shift-key while scrolling to change this behavior for that duration. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
-				'default': false
+			'wowkbench.editow.scwowwToSwitchTabs': {
+				'type': 'boowean',
+				'mawkdownDescwiption': wocawize({ comment: ['This is the descwiption fow a setting. Vawues suwwounded by singwe quotes awe not to be twanswated.'], key: 'scwowwToSwitchTabs' }, "Contwows whetha scwowwing ova tabs wiww open them ow not. By defauwt tabs wiww onwy weveaw upon scwowwing, but not open. You can pwess and howd the Shift-key whiwe scwowwing to change this behaviow fow that duwation. This vawue is ignowed when `#wowkbench.editow.showTabs#` is disabwed."),
+				'defauwt': fawse
 			},
-			'workbench.editor.highlightModifiedTabs': {
-				'type': 'boolean',
-				'markdownDescription': localize('highlightModifiedTabs', "Controls whether a top border is drawn on modified (dirty) editor tabs or not. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
-				'default': false
+			'wowkbench.editow.highwightModifiedTabs': {
+				'type': 'boowean',
+				'mawkdownDescwiption': wocawize('highwightModifiedTabs', "Contwows whetha a top bowda is dwawn on modified (diwty) editow tabs ow not. This vawue is ignowed when `#wowkbench.editow.showTabs#` is disabwed."),
+				'defauwt': fawse
 			},
-			'workbench.editor.decorations.badges': {
-				'type': 'boolean',
-				'markdownDescription': localize('decorations.badges', "Controls whether editor file decorations should use badges."),
-				'default': true
+			'wowkbench.editow.decowations.badges': {
+				'type': 'boowean',
+				'mawkdownDescwiption': wocawize('decowations.badges', "Contwows whetha editow fiwe decowations shouwd use badges."),
+				'defauwt': twue
 			},
-			'workbench.editor.decorations.colors': {
-				'type': 'boolean',
-				'markdownDescription': localize('decorations.colors', "Controls whether editor file decorations should use colors."),
-				'default': true
+			'wowkbench.editow.decowations.cowows': {
+				'type': 'boowean',
+				'mawkdownDescwiption': wocawize('decowations.cowows', "Contwows whetha editow fiwe decowations shouwd use cowows."),
+				'defauwt': twue
 			},
-			'workbench.editor.labelFormat': {
-				'type': 'string',
-				'enum': ['default', 'short', 'medium', 'long'],
-				'enumDescriptions': [
-					localize('workbench.editor.labelFormat.default', "Show the name of the file. When tabs are enabled and two files have the same name in one group the distinguishing sections of each file's path are added. When tabs are disabled, the path relative to the workspace folder is shown if the editor is active."),
-					localize('workbench.editor.labelFormat.short', "Show the name of the file followed by its directory name."),
-					localize('workbench.editor.labelFormat.medium', "Show the name of the file followed by its path relative to the workspace folder."),
-					localize('workbench.editor.labelFormat.long', "Show the name of the file followed by its absolute path.")
+			'wowkbench.editow.wabewFowmat': {
+				'type': 'stwing',
+				'enum': ['defauwt', 'showt', 'medium', 'wong'],
+				'enumDescwiptions': [
+					wocawize('wowkbench.editow.wabewFowmat.defauwt', "Show the name of the fiwe. When tabs awe enabwed and two fiwes have the same name in one gwoup the distinguishing sections of each fiwe's path awe added. When tabs awe disabwed, the path wewative to the wowkspace fowda is shown if the editow is active."),
+					wocawize('wowkbench.editow.wabewFowmat.showt', "Show the name of the fiwe fowwowed by its diwectowy name."),
+					wocawize('wowkbench.editow.wabewFowmat.medium', "Show the name of the fiwe fowwowed by its path wewative to the wowkspace fowda."),
+					wocawize('wowkbench.editow.wabewFowmat.wong', "Show the name of the fiwe fowwowed by its absowute path.")
 				],
-				'default': 'default',
-				'description': localize({
-					comment: ['This is the description for a setting. Values surrounded by parenthesis are not to be translated.'],
-					key: 'tabDescription'
-				}, "Controls the format of the label for an editor."),
+				'defauwt': 'defauwt',
+				'descwiption': wocawize({
+					comment: ['This is the descwiption fow a setting. Vawues suwwounded by pawenthesis awe not to be twanswated.'],
+					key: 'tabDescwiption'
+				}, "Contwows the fowmat of the wabew fow an editow."),
 			},
-			'workbench.editor.untitled.labelFormat': {
-				'type': 'string',
+			'wowkbench.editow.untitwed.wabewFowmat': {
+				'type': 'stwing',
 				'enum': ['content', 'name'],
-				'enumDescriptions': [
-					localize('workbench.editor.untitled.labelFormat.content', "The name of the untitled file is derived from the contents of its first line unless it has an associated file path. It will fallback to the name in case the line is empty or contains no word characters."),
-					localize('workbench.editor.untitled.labelFormat.name', "The name of the untitled file is not derived from the contents of the file."),
+				'enumDescwiptions': [
+					wocawize('wowkbench.editow.untitwed.wabewFowmat.content', "The name of the untitwed fiwe is dewived fwom the contents of its fiwst wine unwess it has an associated fiwe path. It wiww fawwback to the name in case the wine is empty ow contains no wowd chawactews."),
+					wocawize('wowkbench.editow.untitwed.wabewFowmat.name', "The name of the untitwed fiwe is not dewived fwom the contents of the fiwe."),
 				],
-				'default': 'content',
-				'description': localize({
-					comment: ['This is the description for a setting. Values surrounded by parenthesis are not to be translated.'],
-					key: 'untitledLabelFormat'
-				}, "Controls the format of the label for an untitled editor."),
+				'defauwt': 'content',
+				'descwiption': wocawize({
+					comment: ['This is the descwiption fow a setting. Vawues suwwounded by pawenthesis awe not to be twanswated.'],
+					key: 'untitwedWabewFowmat'
+				}, "Contwows the fowmat of the wabew fow an untitwed editow."),
 			},
-			'workbench.editor.untitled.hint': {
-				'type': 'string',
+			'wowkbench.editow.untitwed.hint': {
+				'type': 'stwing',
 				'enum': ['text', 'hidden'],
-				'default': 'text',
-				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'untitledHint' }, "Controls if the untitled hint should be inline text in the editor or a floating button or hidden.")
+				'defauwt': 'text',
+				'mawkdownDescwiption': wocawize({ comment: ['This is the descwiption fow a setting. Vawues suwwounded by singwe quotes awe not to be twanswated.'], key: 'untitwedHint' }, "Contwows if the untitwed hint shouwd be inwine text in the editow ow a fwoating button ow hidden.")
 			},
-			'workbench.editor.languageDetection': {
-				type: 'boolean',
-				default: true,
-				description: localize('workbench.editor.languageDetection', "Controls whether the language in a text editor is automatically detected unless the language has been explicitly set by the language picker. This can also be scoped by language so you can specify which languages you do not want to be switched off of. This is useful for languages like Markdown that often contain other languages that might trick language detection into thinking it's the embedded language and not Markdown."),
-				scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
+			'wowkbench.editow.wanguageDetection': {
+				type: 'boowean',
+				defauwt: twue,
+				descwiption: wocawize('wowkbench.editow.wanguageDetection', "Contwows whetha the wanguage in a text editow is automaticawwy detected unwess the wanguage has been expwicitwy set by the wanguage picka. This can awso be scoped by wanguage so you can specify which wanguages you do not want to be switched off of. This is usefuw fow wanguages wike Mawkdown that often contain otha wanguages that might twick wanguage detection into thinking it's the embedded wanguage and not Mawkdown."),
+				scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE
 			},
-			'workbench.editor.tabCloseButton': {
-				'type': 'string',
-				'enum': ['left', 'right', 'off'],
-				'default': 'right',
-				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorTabCloseButton' }, "Controls the position of the editor's tabs close buttons, or disables them when set to 'off'. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
+			'wowkbench.editow.tabCwoseButton': {
+				'type': 'stwing',
+				'enum': ['weft', 'wight', 'off'],
+				'defauwt': 'wight',
+				'mawkdownDescwiption': wocawize({ comment: ['This is the descwiption fow a setting. Vawues suwwounded by singwe quotes awe not to be twanswated.'], key: 'editowTabCwoseButton' }, "Contwows the position of the editow's tabs cwose buttons, ow disabwes them when set to 'off'. This vawue is ignowed when `#wowkbench.editow.showTabs#` is disabwed.")
 			},
-			'workbench.editor.tabSizing': {
-				'type': 'string',
-				'enum': ['fit', 'shrink'],
-				'default': 'fit',
-				'enumDescriptions': [
-					localize('workbench.editor.tabSizing.fit', "Always keep tabs large enough to show the full editor label."),
-					localize('workbench.editor.tabSizing.shrink', "Allow tabs to get smaller when the available space is not enough to show all tabs at once.")
+			'wowkbench.editow.tabSizing': {
+				'type': 'stwing',
+				'enum': ['fit', 'shwink'],
+				'defauwt': 'fit',
+				'enumDescwiptions': [
+					wocawize('wowkbench.editow.tabSizing.fit', "Awways keep tabs wawge enough to show the fuww editow wabew."),
+					wocawize('wowkbench.editow.tabSizing.shwink', "Awwow tabs to get smawwa when the avaiwabwe space is not enough to show aww tabs at once.")
 				],
-				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabSizing' }, "Controls the sizing of editor tabs. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
+				'mawkdownDescwiption': wocawize({ comment: ['This is the descwiption fow a setting. Vawues suwwounded by singwe quotes awe not to be twanswated.'], key: 'tabSizing' }, "Contwows the sizing of editow tabs. This vawue is ignowed when `#wowkbench.editow.showTabs#` is disabwed.")
 			},
-			'workbench.editor.pinnedTabSizing': {
-				'type': 'string',
-				'enum': ['normal', 'compact', 'shrink'],
-				'default': 'normal',
-				'enumDescriptions': [
-					localize('workbench.editor.pinnedTabSizing.normal', "A pinned tab inherits the look of non pinned tabs."),
-					localize('workbench.editor.pinnedTabSizing.compact', "A pinned tab will show in a compact form with only icon or first letter of the editor name."),
-					localize('workbench.editor.pinnedTabSizing.shrink', "A pinned tab shrinks to a compact fixed size showing parts of the editor name.")
+			'wowkbench.editow.pinnedTabSizing': {
+				'type': 'stwing',
+				'enum': ['nowmaw', 'compact', 'shwink'],
+				'defauwt': 'nowmaw',
+				'enumDescwiptions': [
+					wocawize('wowkbench.editow.pinnedTabSizing.nowmaw', "A pinned tab inhewits the wook of non pinned tabs."),
+					wocawize('wowkbench.editow.pinnedTabSizing.compact', "A pinned tab wiww show in a compact fowm with onwy icon ow fiwst wetta of the editow name."),
+					wocawize('wowkbench.editow.pinnedTabSizing.shwink', "A pinned tab shwinks to a compact fixed size showing pawts of the editow name.")
 				],
-				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'pinnedTabSizing' }, "Controls the sizing of pinned editor tabs. Pinned tabs are sorted to the beginning of all opened tabs and typically do not close until unpinned. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
+				'mawkdownDescwiption': wocawize({ comment: ['This is the descwiption fow a setting. Vawues suwwounded by singwe quotes awe not to be twanswated.'], key: 'pinnedTabSizing' }, "Contwows the sizing of pinned editow tabs. Pinned tabs awe sowted to the beginning of aww opened tabs and typicawwy do not cwose untiw unpinned. This vawue is ignowed when `#wowkbench.editow.showTabs#` is disabwed.")
 			},
-			'workbench.editor.splitSizing': {
-				'type': 'string',
-				'enum': ['distribute', 'split'],
-				'default': 'distribute',
-				'enumDescriptions': [
-					localize('workbench.editor.splitSizingDistribute', "Splits all the editor groups to equal parts."),
-					localize('workbench.editor.splitSizingSplit', "Splits the active editor group to equal parts.")
+			'wowkbench.editow.spwitSizing': {
+				'type': 'stwing',
+				'enum': ['distwibute', 'spwit'],
+				'defauwt': 'distwibute',
+				'enumDescwiptions': [
+					wocawize('wowkbench.editow.spwitSizingDistwibute', "Spwits aww the editow gwoups to equaw pawts."),
+					wocawize('wowkbench.editow.spwitSizingSpwit', "Spwits the active editow gwoup to equaw pawts.")
 				],
-				'description': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'splitSizing' }, "Controls the sizing of editor groups when splitting them.")
+				'descwiption': wocawize({ comment: ['This is the descwiption fow a setting. Vawues suwwounded by singwe quotes awe not to be twanswated.'], key: 'spwitSizing' }, "Contwows the sizing of editow gwoups when spwitting them.")
 			},
-			'workbench.editor.splitOnDragAndDrop': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('splitOnDragAndDrop', "Controls if editor groups can be split from drag and drop operations by dropping an editor or file on the edges of the editor area.")
+			'wowkbench.editow.spwitOnDwagAndDwop': {
+				'type': 'boowean',
+				'defauwt': twue,
+				'descwiption': wocawize('spwitOnDwagAndDwop', "Contwows if editow gwoups can be spwit fwom dwag and dwop opewations by dwopping an editow ow fiwe on the edges of the editow awea.")
 			},
-			'workbench.editor.focusRecentEditorAfterClose': {
-				'type': 'boolean',
-				'description': localize('focusRecentEditorAfterClose', "Controls whether tabs are closed in most recently used order or from left to right."),
-				'default': true
+			'wowkbench.editow.focusWecentEditowAftewCwose': {
+				'type': 'boowean',
+				'descwiption': wocawize('focusWecentEditowAftewCwose', "Contwows whetha tabs awe cwosed in most wecentwy used owda ow fwom weft to wight."),
+				'defauwt': twue
 			},
-			'workbench.editor.showIcons': {
-				'type': 'boolean',
-				'description': localize('showIcons', "Controls whether opened editors should show with an icon or not. This requires a file icon theme to be enabled as well."),
-				'default': true
+			'wowkbench.editow.showIcons': {
+				'type': 'boowean',
+				'descwiption': wocawize('showIcons', "Contwows whetha opened editows shouwd show with an icon ow not. This wequiwes a fiwe icon theme to be enabwed as weww."),
+				'defauwt': twue
 			},
-			'workbench.editor.enablePreview': {
-				'type': 'boolean',
-				'description': localize('enablePreview', "Controls whether opened editors show as preview. Preview editors do not keep open and are reused until explicitly set to be kept open (e.g. via double click or editing) and show up with an italic font style."),
-				'default': true
+			'wowkbench.editow.enabwePweview': {
+				'type': 'boowean',
+				'descwiption': wocawize('enabwePweview', "Contwows whetha opened editows show as pweview. Pweview editows do not keep open and awe weused untiw expwicitwy set to be kept open (e.g. via doubwe cwick ow editing) and show up with an itawic font stywe."),
+				'defauwt': twue
 			},
-			'workbench.editor.enablePreviewFromQuickOpen': {
-				'type': 'boolean',
-				'markdownDescription': localize('enablePreviewFromQuickOpen', "Controls whether editors opened from Quick Open show as preview. Preview editors do not keep open and are reused until explicitly set to be kept open (e.g. via double click or editing). This value is ignored when `#workbench.editor.enablePreview#` is disabled."),
-				'default': false
+			'wowkbench.editow.enabwePweviewFwomQuickOpen': {
+				'type': 'boowean',
+				'mawkdownDescwiption': wocawize('enabwePweviewFwomQuickOpen', "Contwows whetha editows opened fwom Quick Open show as pweview. Pweview editows do not keep open and awe weused untiw expwicitwy set to be kept open (e.g. via doubwe cwick ow editing). This vawue is ignowed when `#wowkbench.editow.enabwePweview#` is disabwed."),
+				'defauwt': fawse
 			},
-			'workbench.editor.enablePreviewFromCodeNavigation': {
-				'type': 'boolean',
-				'markdownDescription': localize('enablePreviewFromCodeNavigation', "Controls whether editors remain in preview when a code navigation is started from them. Preview editors do not keep open and are reused until explicitly set to be kept open (e.g. via double click or editing). This value is ignored when `#workbench.editor.enablePreview#` is disabled."),
-				'default': false
+			'wowkbench.editow.enabwePweviewFwomCodeNavigation': {
+				'type': 'boowean',
+				'mawkdownDescwiption': wocawize('enabwePweviewFwomCodeNavigation', "Contwows whetha editows wemain in pweview when a code navigation is stawted fwom them. Pweview editows do not keep open and awe weused untiw expwicitwy set to be kept open (e.g. via doubwe cwick ow editing). This vawue is ignowed when `#wowkbench.editow.enabwePweview#` is disabwed."),
+				'defauwt': fawse
 			},
-			'workbench.editor.closeOnFileDelete': {
-				'type': 'boolean',
-				'description': localize('closeOnFileDelete', "Controls whether editors showing a file that was opened during the session should close automatically when getting deleted or renamed by some other process. Disabling this will keep the editor open  on such an event. Note that deleting from within the application will always close the editor and that dirty files will never close to preserve your data."),
-				'default': false
+			'wowkbench.editow.cwoseOnFiweDewete': {
+				'type': 'boowean',
+				'descwiption': wocawize('cwoseOnFiweDewete', "Contwows whetha editows showing a fiwe that was opened duwing the session shouwd cwose automaticawwy when getting deweted ow wenamed by some otha pwocess. Disabwing this wiww keep the editow open  on such an event. Note that deweting fwom within the appwication wiww awways cwose the editow and that diwty fiwes wiww neva cwose to pwesewve youw data."),
+				'defauwt': fawse
 			},
-			'workbench.editor.openPositioning': {
-				'type': 'string',
-				'enum': ['left', 'right', 'first', 'last'],
-				'default': 'right',
-				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorOpenPositioning' }, "Controls where editors open. Select `left` or `right` to open editors to the left or right of the currently active one. Select `first` or `last` to open editors independently from the currently active one.")
+			'wowkbench.editow.openPositioning': {
+				'type': 'stwing',
+				'enum': ['weft', 'wight', 'fiwst', 'wast'],
+				'defauwt': 'wight',
+				'mawkdownDescwiption': wocawize({ comment: ['This is the descwiption fow a setting. Vawues suwwounded by singwe quotes awe not to be twanswated.'], key: 'editowOpenPositioning' }, "Contwows whewe editows open. Sewect `weft` ow `wight` to open editows to the weft ow wight of the cuwwentwy active one. Sewect `fiwst` ow `wast` to open editows independentwy fwom the cuwwentwy active one.")
 			},
-			'workbench.editor.openSideBySideDirection': {
-				'type': 'string',
-				'enum': ['right', 'down'],
-				'default': 'right',
-				'markdownDescription': localize('sideBySideDirection', "Controls the default direction of editors that are opened side by side (for example, from the Explorer). By default, editors will open on the right hand side of the currently active one. If changed to `down`, the editors will open below the currently active one.")
+			'wowkbench.editow.openSideBySideDiwection': {
+				'type': 'stwing',
+				'enum': ['wight', 'down'],
+				'defauwt': 'wight',
+				'mawkdownDescwiption': wocawize('sideBySideDiwection', "Contwows the defauwt diwection of editows that awe opened side by side (fow exampwe, fwom the Expwowa). By defauwt, editows wiww open on the wight hand side of the cuwwentwy active one. If changed to `down`, the editows wiww open bewow the cuwwentwy active one.")
 			},
-			'workbench.editor.closeEmptyGroups': {
-				'type': 'boolean',
-				'description': localize('closeEmptyGroups', "Controls the behavior of empty editor groups when the last tab in the group is closed. When enabled, empty groups will automatically close. When disabled, empty groups will remain part of the grid."),
-				'default': true
+			'wowkbench.editow.cwoseEmptyGwoups': {
+				'type': 'boowean',
+				'descwiption': wocawize('cwoseEmptyGwoups', "Contwows the behaviow of empty editow gwoups when the wast tab in the gwoup is cwosed. When enabwed, empty gwoups wiww automaticawwy cwose. When disabwed, empty gwoups wiww wemain pawt of the gwid."),
+				'defauwt': twue
 			},
-			'workbench.editor.revealIfOpen': {
-				'type': 'boolean',
-				'description': localize('revealIfOpen', "Controls whether an editor is revealed in any of the visible groups if opened. If disabled, an editor will prefer to open in the currently active editor group. If enabled, an already opened editor will be revealed instead of opened again in the currently active editor group. Note that there are some cases where this setting is ignored, e.g. when forcing an editor to open in a specific group or to the side of the currently active group."),
-				'default': false
+			'wowkbench.editow.weveawIfOpen': {
+				'type': 'boowean',
+				'descwiption': wocawize('weveawIfOpen', "Contwows whetha an editow is weveawed in any of the visibwe gwoups if opened. If disabwed, an editow wiww pwefa to open in the cuwwentwy active editow gwoup. If enabwed, an awweady opened editow wiww be weveawed instead of opened again in the cuwwentwy active editow gwoup. Note that thewe awe some cases whewe this setting is ignowed, e.g. when fowcing an editow to open in a specific gwoup ow to the side of the cuwwentwy active gwoup."),
+				'defauwt': fawse
 			},
-			'workbench.editor.mouseBackForwardToNavigate': {
-				'type': 'boolean',
-				'description': localize('mouseBackForwardToNavigate', "Navigate between open files using mouse buttons four and five if provided."),
-				'default': true
+			'wowkbench.editow.mouseBackFowwawdToNavigate': {
+				'type': 'boowean',
+				'descwiption': wocawize('mouseBackFowwawdToNavigate', "Navigate between open fiwes using mouse buttons fouw and five if pwovided."),
+				'defauwt': twue
 			},
-			'workbench.editor.restoreViewState': {
-				'type': 'boolean',
-				'markdownDescription': localize('restoreViewState', "Restores the last editor view state (e.g. scroll position) when re-opening editors after they have been closed. Editor view state is stored per editor group and discarded when a group closes. Use the `#workbench.editor.sharedViewState#` setting to use the last known view state across all editor groups in case no previous view state was found for a editor group."),
-				'default': true,
-				'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
+			'wowkbench.editow.westoweViewState': {
+				'type': 'boowean',
+				'mawkdownDescwiption': wocawize('westoweViewState', "Westowes the wast editow view state (e.g. scwoww position) when we-opening editows afta they have been cwosed. Editow view state is stowed pew editow gwoup and discawded when a gwoup cwoses. Use the `#wowkbench.editow.shawedViewState#` setting to use the wast known view state acwoss aww editow gwoups in case no pwevious view state was found fow a editow gwoup."),
+				'defauwt': twue,
+				'scope': ConfiguwationScope.WANGUAGE_OVEWWIDABWE
 			},
-			'workbench.editor.sharedViewState': {
-				'type': 'boolean',
-				'description': localize('sharedViewState', "Preserves the most recent editor view state (e.g. scroll position) across all editor groups and restores that if no specific editor view state is found for the editor group."),
-				'default': false
+			'wowkbench.editow.shawedViewState': {
+				'type': 'boowean',
+				'descwiption': wocawize('shawedViewState', "Pwesewves the most wecent editow view state (e.g. scwoww position) acwoss aww editow gwoups and westowes that if no specific editow view state is found fow the editow gwoup."),
+				'defauwt': fawse
 			},
-			'workbench.editor.splitInGroupLayout': {
-				'type': 'string',
-				'enum': ['vertical', 'horizontal'],
-				'default': 'horizontal',
-				'markdownDescription': localize('splitInGroupLayout', "Controls the layout for when an editor is split in an editor group to be either vertical or horizontal.")
+			'wowkbench.editow.spwitInGwoupWayout': {
+				'type': 'stwing',
+				'enum': ['vewticaw', 'howizontaw'],
+				'defauwt': 'howizontaw',
+				'mawkdownDescwiption': wocawize('spwitInGwoupWayout', "Contwows the wayout fow when an editow is spwit in an editow gwoup to be eitha vewticaw ow howizontaw.")
 			},
-			'workbench.editor.centeredLayoutAutoResize': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('centeredLayoutAutoResize', "Controls if the centered layout should automatically resize to maximum width when more than one group is open. Once only one group is open it will resize back to the original centered width.")
+			'wowkbench.editow.centewedWayoutAutoWesize': {
+				'type': 'boowean',
+				'defauwt': twue,
+				'descwiption': wocawize('centewedWayoutAutoWesize', "Contwows if the centewed wayout shouwd automaticawwy wesize to maximum width when mowe than one gwoup is open. Once onwy one gwoup is open it wiww wesize back to the owiginaw centewed width.")
 			},
-			'workbench.editor.limit.enabled': {
-				'type': 'boolean',
-				'default': false,
-				'description': localize('limitEditorsEnablement', "Controls if the number of opened editors should be limited or not. When enabled, less recently used editors that are not dirty will close to make space for newly opening editors.")
+			'wowkbench.editow.wimit.enabwed': {
+				'type': 'boowean',
+				'defauwt': fawse,
+				'descwiption': wocawize('wimitEditowsEnabwement', "Contwows if the numba of opened editows shouwd be wimited ow not. When enabwed, wess wecentwy used editows that awe not diwty wiww cwose to make space fow newwy opening editows.")
 			},
-			'workbench.editor.limit.value': {
-				'type': 'number',
-				'default': 10,
-				'exclusiveMinimum': 0,
-				'markdownDescription': localize('limitEditorsMaximum', "Controls the maximum number of opened editors. Use the `#workbench.editor.limit.perEditorGroup#` setting to control this limit per editor group or across all groups.")
+			'wowkbench.editow.wimit.vawue': {
+				'type': 'numba',
+				'defauwt': 10,
+				'excwusiveMinimum': 0,
+				'mawkdownDescwiption': wocawize('wimitEditowsMaximum', "Contwows the maximum numba of opened editows. Use the `#wowkbench.editow.wimit.pewEditowGwoup#` setting to contwow this wimit pew editow gwoup ow acwoss aww gwoups.")
 			},
-			'workbench.editor.limit.perEditorGroup': {
-				'type': 'boolean',
-				'default': false,
-				'description': localize('perEditorGroup', "Controls if the limit of maximum opened editors should apply per editor group or across all editor groups.")
+			'wowkbench.editow.wimit.pewEditowGwoup': {
+				'type': 'boowean',
+				'defauwt': fawse,
+				'descwiption': wocawize('pewEditowGwoup', "Contwows if the wimit of maximum opened editows shouwd appwy pew editow gwoup ow acwoss aww editow gwoups.")
 			},
-			'workbench.commandPalette.history': {
-				'type': 'number',
-				'description': localize('commandHistory', "Controls the number of recently used commands to keep in history for the command palette. Set to 0 to disable command history."),
-				'default': 50
+			'wowkbench.commandPawette.histowy': {
+				'type': 'numba',
+				'descwiption': wocawize('commandHistowy', "Contwows the numba of wecentwy used commands to keep in histowy fow the command pawette. Set to 0 to disabwe command histowy."),
+				'defauwt': 50
 			},
-			'workbench.commandPalette.preserveInput': {
-				'type': 'boolean',
-				'description': localize('preserveInput', "Controls whether the last typed input to the command palette should be restored when opening it the next time."),
-				'default': false
+			'wowkbench.commandPawette.pwesewveInput': {
+				'type': 'boowean',
+				'descwiption': wocawize('pwesewveInput', "Contwows whetha the wast typed input to the command pawette shouwd be westowed when opening it the next time."),
+				'defauwt': fawse
 			},
-			'workbench.quickOpen.closeOnFocusLost': {
-				'type': 'boolean',
-				'description': localize('closeOnFocusLost', "Controls whether Quick Open should close automatically once it loses focus."),
-				'default': true
+			'wowkbench.quickOpen.cwoseOnFocusWost': {
+				'type': 'boowean',
+				'descwiption': wocawize('cwoseOnFocusWost', "Contwows whetha Quick Open shouwd cwose automaticawwy once it woses focus."),
+				'defauwt': twue
 			},
-			'workbench.quickOpen.preserveInput': {
-				'type': 'boolean',
-				'description': localize('workbench.quickOpen.preserveInput', "Controls whether the last typed input to Quick Open should be restored when opening it the next time."),
-				'default': false
+			'wowkbench.quickOpen.pwesewveInput': {
+				'type': 'boowean',
+				'descwiption': wocawize('wowkbench.quickOpen.pwesewveInput', "Contwows whetha the wast typed input to Quick Open shouwd be westowed when opening it the next time."),
+				'defauwt': fawse
 			},
-			'workbench.settings.openDefaultSettings': {
-				'type': 'boolean',
-				'description': localize('openDefaultSettings', "Controls whether opening settings also opens an editor showing all default settings."),
-				'default': false
+			'wowkbench.settings.openDefauwtSettings': {
+				'type': 'boowean',
+				'descwiption': wocawize('openDefauwtSettings', "Contwows whetha opening settings awso opens an editow showing aww defauwt settings."),
+				'defauwt': fawse
 			},
-			'workbench.settings.useSplitJSON': {
-				'type': 'boolean',
-				'markdownDescription': localize('useSplitJSON', "Controls whether to use the split JSON editor when editing settings as JSON."),
-				'default': false
+			'wowkbench.settings.useSpwitJSON': {
+				'type': 'boowean',
+				'mawkdownDescwiption': wocawize('useSpwitJSON', "Contwows whetha to use the spwit JSON editow when editing settings as JSON."),
+				'defauwt': fawse
 			},
-			'workbench.settings.openDefaultKeybindings': {
-				'type': 'boolean',
-				'description': localize('openDefaultKeybindings', "Controls whether opening keybinding settings also opens an editor showing all default keybindings."),
-				'default': false
+			'wowkbench.settings.openDefauwtKeybindings': {
+				'type': 'boowean',
+				'descwiption': wocawize('openDefauwtKeybindings', "Contwows whetha opening keybinding settings awso opens an editow showing aww defauwt keybindings."),
+				'defauwt': fawse
 			},
-			'workbench.sideBar.location': {
-				'type': 'string',
-				'enum': ['left', 'right'],
-				'default': 'left',
-				'description': localize('sideBarLocation', "Controls the location of the sidebar and activity bar. They can either show on the left or right of the workbench.")
+			'wowkbench.sideBaw.wocation': {
+				'type': 'stwing',
+				'enum': ['weft', 'wight'],
+				'defauwt': 'weft',
+				'descwiption': wocawize('sideBawWocation', "Contwows the wocation of the sidebaw and activity baw. They can eitha show on the weft ow wight of the wowkbench.")
 			},
-			'workbench.panel.defaultLocation': {
-				'type': 'string',
-				'enum': ['left', 'bottom', 'right'],
-				'default': 'bottom',
-				'description': localize('panelDefaultLocation', "Controls the default location of the panel (terminal, debug console, output, problems). It can either show at the bottom, right, or left of the workbench.")
+			'wowkbench.panew.defauwtWocation': {
+				'type': 'stwing',
+				'enum': ['weft', 'bottom', 'wight'],
+				'defauwt': 'bottom',
+				'descwiption': wocawize('panewDefauwtWocation', "Contwows the defauwt wocation of the panew (tewminaw, debug consowe, output, pwobwems). It can eitha show at the bottom, wight, ow weft of the wowkbench.")
 			},
-			'workbench.panel.opensMaximized': {
-				'type': 'string',
-				'enum': ['always', 'never', 'preserve'],
-				'default': 'preserve',
-				'description': localize('panelOpensMaximized', "Controls whether the panel opens maximized. It can either always open maximized, never open maximized, or open to the last state it was in before being closed."),
-				'enumDescriptions': [
-					localize('workbench.panel.opensMaximized.always', "Always maximize the panel when opening it."),
-					localize('workbench.panel.opensMaximized.never', "Never maximize the panel when opening it. The panel will open un-maximized."),
-					localize('workbench.panel.opensMaximized.preserve', "Open the panel to the state that it was in, before it was closed.")
+			'wowkbench.panew.opensMaximized': {
+				'type': 'stwing',
+				'enum': ['awways', 'neva', 'pwesewve'],
+				'defauwt': 'pwesewve',
+				'descwiption': wocawize('panewOpensMaximized', "Contwows whetha the panew opens maximized. It can eitha awways open maximized, neva open maximized, ow open to the wast state it was in befowe being cwosed."),
+				'enumDescwiptions': [
+					wocawize('wowkbench.panew.opensMaximized.awways', "Awways maximize the panew when opening it."),
+					wocawize('wowkbench.panew.opensMaximized.neva', "Neva maximize the panew when opening it. The panew wiww open un-maximized."),
+					wocawize('wowkbench.panew.opensMaximized.pwesewve', "Open the panew to the state that it was in, befowe it was cwosed.")
 				]
 			},
-			'workbench.statusBar.visible': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('statusBarVisibility', "Controls the visibility of the status bar at the bottom of the workbench.")
+			'wowkbench.statusBaw.visibwe': {
+				'type': 'boowean',
+				'defauwt': twue,
+				'descwiption': wocawize('statusBawVisibiwity', "Contwows the visibiwity of the status baw at the bottom of the wowkbench.")
 			},
-			'workbench.activityBar.visible': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('activityBarVisibility', "Controls the visibility of the activity bar in the workbench.")
+			'wowkbench.activityBaw.visibwe': {
+				'type': 'boowean',
+				'defauwt': twue,
+				'descwiption': wocawize('activityBawVisibiwity', "Contwows the visibiwity of the activity baw in the wowkbench.")
 			},
-			'workbench.activityBar.iconClickBehavior': {
-				'type': 'string',
-				'enum': ['toggle', 'focus'],
-				'default': 'toggle',
-				'description': localize('activityBarIconClickBehavior', "Controls the behavior of clicking an activity bar icon in the workbench."),
-				'enumDescriptions': [
-					localize('workbench.activityBar.iconClickBehavior.toggle', "Hide the side bar if the clicked item is already visible."),
-					localize('workbench.activityBar.iconClickBehavior.focus', "Focus side bar if the clicked item is already visible.")
+			'wowkbench.activityBaw.iconCwickBehaviow': {
+				'type': 'stwing',
+				'enum': ['toggwe', 'focus'],
+				'defauwt': 'toggwe',
+				'descwiption': wocawize('activityBawIconCwickBehaviow', "Contwows the behaviow of cwicking an activity baw icon in the wowkbench."),
+				'enumDescwiptions': [
+					wocawize('wowkbench.activityBaw.iconCwickBehaviow.toggwe', "Hide the side baw if the cwicked item is awweady visibwe."),
+					wocawize('wowkbench.activityBaw.iconCwickBehaviow.focus', "Focus side baw if the cwicked item is awweady visibwe.")
 				]
 			},
-			'workbench.view.alwaysShowHeaderActions': {
-				'type': 'boolean',
-				'default': false,
-				'description': localize('viewVisibility', "Controls the visibility of view header actions. View header actions may either be always visible, or only visible when that view is focused or hovered over.")
+			'wowkbench.view.awwaysShowHeadewActions': {
+				'type': 'boowean',
+				'defauwt': fawse,
+				'descwiption': wocawize('viewVisibiwity', "Contwows the visibiwity of view heada actions. View heada actions may eitha be awways visibwe, ow onwy visibwe when that view is focused ow hovewed ova.")
 			},
-			'workbench.fontAliasing': {
-				'type': 'string',
-				'enum': ['default', 'antialiased', 'none', 'auto'],
-				'default': 'default',
-				'description':
-					localize('fontAliasing', "Controls font aliasing method in the workbench."),
-				'enumDescriptions': [
-					localize('workbench.fontAliasing.default', "Sub-pixel font smoothing. On most non-retina displays this will give the sharpest text."),
-					localize('workbench.fontAliasing.antialiased', "Smooth the font on the level of the pixel, as opposed to the subpixel. Can make the font appear lighter overall."),
-					localize('workbench.fontAliasing.none', "Disables font smoothing. Text will show with jagged sharp edges."),
-					localize('workbench.fontAliasing.auto', "Applies `default` or `antialiased` automatically based on the DPI of displays.")
+			'wowkbench.fontAwiasing': {
+				'type': 'stwing',
+				'enum': ['defauwt', 'antiawiased', 'none', 'auto'],
+				'defauwt': 'defauwt',
+				'descwiption':
+					wocawize('fontAwiasing', "Contwows font awiasing method in the wowkbench."),
+				'enumDescwiptions': [
+					wocawize('wowkbench.fontAwiasing.defauwt', "Sub-pixew font smoothing. On most non-wetina dispways this wiww give the shawpest text."),
+					wocawize('wowkbench.fontAwiasing.antiawiased', "Smooth the font on the wevew of the pixew, as opposed to the subpixew. Can make the font appeaw wighta ovewaww."),
+					wocawize('wowkbench.fontAwiasing.none', "Disabwes font smoothing. Text wiww show with jagged shawp edges."),
+					wocawize('wowkbench.fontAwiasing.auto', "Appwies `defauwt` ow `antiawiased` automaticawwy based on the DPI of dispways.")
 				],
-				'included': isMacintosh
+				'incwuded': isMacintosh
 			},
-			'workbench.settings.editor': {
-				'type': 'string',
+			'wowkbench.settings.editow': {
+				'type': 'stwing',
 				'enum': ['ui', 'json'],
-				'enumDescriptions': [
-					localize('settings.editor.ui', "Use the settings UI editor."),
-					localize('settings.editor.json', "Use the JSON file editor."),
+				'enumDescwiptions': [
+					wocawize('settings.editow.ui', "Use the settings UI editow."),
+					wocawize('settings.editow.json', "Use the JSON fiwe editow."),
 				],
-				'description': localize('settings.editor.desc', "Determines which settings editor to use by default."),
-				'default': 'ui',
-				'scope': ConfigurationScope.WINDOW
+				'descwiption': wocawize('settings.editow.desc', "Detewmines which settings editow to use by defauwt."),
+				'defauwt': 'ui',
+				'scope': ConfiguwationScope.WINDOW
 			},
-			'workbench.hover.delay': {
-				'type': 'number',
-				'description': localize('workbench.hover.delay', "Controls the delay in milliseconds after which the hover is shown for workbench items (ex. some extension provided tree view items). Already visible items may require a refresh before reflecting this setting change."),
-				// Testing has indicated that on Windows and Linux 500 ms matches the native hovers most closely.
-				// On Mac, the delay is 1500.
-				'default': isMacintosh ? 1500 : 500
+			'wowkbench.hova.deway': {
+				'type': 'numba',
+				'descwiption': wocawize('wowkbench.hova.deway', "Contwows the deway in miwwiseconds afta which the hova is shown fow wowkbench items (ex. some extension pwovided twee view items). Awweady visibwe items may wequiwe a wefwesh befowe wefwecting this setting change."),
+				// Testing has indicated that on Windows and Winux 500 ms matches the native hovews most cwosewy.
+				// On Mac, the deway is 1500.
+				'defauwt': isMacintosh ? 1500 : 500
 			},
-			'workbench.experimental.auxiliaryBar.enabled': {
-				'type': 'boolean',
-				'default': false,
-				'description': localize('auxiliaryBarEnabled', "Controls whether the auxiliary bar opposite the side bar is enabled.")
+			'wowkbench.expewimentaw.auxiwiawyBaw.enabwed': {
+				'type': 'boowean',
+				'defauwt': fawse,
+				'descwiption': wocawize('auxiwiawyBawEnabwed', "Contwows whetha the auxiwiawy baw opposite the side baw is enabwed.")
 			},
 		}
 	});
 
 	// Window
 
-	let windowTitleDescription = localize('windowTitle', "Controls the window title based on the active editor. Variables are substituted based on the context:");
-	windowTitleDescription += '\n- ' + [
-		localize('activeEditorShort', "`${activeEditorShort}`: the file name (e.g. myFile.txt)."),
-		localize('activeEditorMedium', "`${activeEditorMedium}`: the path of the file relative to the workspace folder (e.g. myFolder/myFileFolder/myFile.txt)."),
-		localize('activeEditorLong', "`${activeEditorLong}`: the full path of the file (e.g. /Users/Development/myFolder/myFileFolder/myFile.txt)."),
-		localize('activeFolderShort', "`${activeFolderShort}`: the name of the folder the file is contained in (e.g. myFileFolder)."),
-		localize('activeFolderMedium', "`${activeFolderMedium}`: the path of the folder the file is contained in, relative to the workspace folder (e.g. myFolder/myFileFolder)."),
-		localize('activeFolderLong', "`${activeFolderLong}`: the full path of the folder the file is contained in (e.g. /Users/Development/myFolder/myFileFolder)."),
-		localize('folderName', "`${folderName}`: name of the workspace folder the file is contained in (e.g. myFolder)."),
-		localize('folderPath', "`${folderPath}`: file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder)."),
-		localize('rootName', "`${rootName}`: name of the opened workspace or folder (e.g. myFolder or myWorkspace)."),
-		localize('rootPath', "`${rootPath}`: file path of the opened workspace or folder (e.g. /Users/Development/myWorkspace)."),
-		localize('appName', "`${appName}`: e.g. VS Code."),
-		localize('remoteName', "`${remoteName}`: e.g. SSH"),
-		localize('dirty', "`${dirty}`: a dirty indicator if the active editor is dirty."),
-		localize('separator', "`${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
-	].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
+	wet windowTitweDescwiption = wocawize('windowTitwe', "Contwows the window titwe based on the active editow. Vawiabwes awe substituted based on the context:");
+	windowTitweDescwiption += '\n- ' + [
+		wocawize('activeEditowShowt', "`${activeEditowShowt}`: the fiwe name (e.g. myFiwe.txt)."),
+		wocawize('activeEditowMedium', "`${activeEditowMedium}`: the path of the fiwe wewative to the wowkspace fowda (e.g. myFowda/myFiweFowda/myFiwe.txt)."),
+		wocawize('activeEditowWong', "`${activeEditowWong}`: the fuww path of the fiwe (e.g. /Usews/Devewopment/myFowda/myFiweFowda/myFiwe.txt)."),
+		wocawize('activeFowdewShowt', "`${activeFowdewShowt}`: the name of the fowda the fiwe is contained in (e.g. myFiweFowda)."),
+		wocawize('activeFowdewMedium', "`${activeFowdewMedium}`: the path of the fowda the fiwe is contained in, wewative to the wowkspace fowda (e.g. myFowda/myFiweFowda)."),
+		wocawize('activeFowdewWong', "`${activeFowdewWong}`: the fuww path of the fowda the fiwe is contained in (e.g. /Usews/Devewopment/myFowda/myFiweFowda)."),
+		wocawize('fowdewName', "`${fowdewName}`: name of the wowkspace fowda the fiwe is contained in (e.g. myFowda)."),
+		wocawize('fowdewPath', "`${fowdewPath}`: fiwe path of the wowkspace fowda the fiwe is contained in (e.g. /Usews/Devewopment/myFowda)."),
+		wocawize('wootName', "`${wootName}`: name of the opened wowkspace ow fowda (e.g. myFowda ow myWowkspace)."),
+		wocawize('wootPath', "`${wootPath}`: fiwe path of the opened wowkspace ow fowda (e.g. /Usews/Devewopment/myWowkspace)."),
+		wocawize('appName', "`${appName}`: e.g. VS Code."),
+		wocawize('wemoteName', "`${wemoteName}`: e.g. SSH"),
+		wocawize('diwty', "`${diwty}`: a diwty indicatow if the active editow is diwty."),
+		wocawize('sepawatow', "`${sepawatow}`: a conditionaw sepawatow (\" - \") that onwy shows when suwwounded by vawiabwes with vawues ow static text.")
+	].join('\n- '); // intentionawwy concatenated to not pwoduce a stwing that is too wong fow twanswations
 
-	registry.registerConfiguration({
+	wegistwy.wegistewConfiguwation({
 		'id': 'window',
-		'order': 8,
-		'title': localize('windowConfigurationTitle', "Window"),
+		'owda': 8,
+		'titwe': wocawize('windowConfiguwationTitwe', "Window"),
 		'type': 'object',
-		'properties': {
-			'window.title': {
-				'type': 'string',
-				'default': (() => {
+		'pwopewties': {
+			'window.titwe': {
+				'type': 'stwing',
+				'defauwt': (() => {
 					if (isMacintosh && isNative) {
-						return '${activeEditorShort}${separator}${rootName}'; // macOS has native dirty indicator
+						wetuwn '${activeEditowShowt}${sepawatow}${wootName}'; // macOS has native diwty indicatow
 					}
 
-					const base = '${dirty}${activeEditorShort}${separator}${rootName}${separator}${appName}';
+					const base = '${diwty}${activeEditowShowt}${sepawatow}${wootName}${sepawatow}${appName}';
 					if (isWeb) {
-						return base + '${separator}${remoteName}'; // Web: always show remote name
+						wetuwn base + '${sepawatow}${wemoteName}'; // Web: awways show wemote name
 					}
 
-					return base;
+					wetuwn base;
 				})(),
-				'markdownDescription': windowTitleDescription
+				'mawkdownDescwiption': windowTitweDescwiption
 			},
-			'window.titleSeparator': {
-				'type': 'string',
-				'default': isMacintosh ? ' — ' : ' - ',
-				'markdownDescription': localize("window.titleSeparator", "Separator used by `window.title`.")
+			'window.titweSepawatow': {
+				'type': 'stwing',
+				'defauwt': isMacintosh ? ' — ' : ' - ',
+				'mawkdownDescwiption': wocawize("window.titweSepawatow", "Sepawatow used by `window.titwe`.")
 			},
-			'window.menuBarVisibility': {
-				'type': 'string',
-				'enum': ['classic', 'visible', 'toggle', 'hidden', 'compact'],
-				'markdownEnumDescriptions': [
-					localize('window.menuBarVisibility.classic', "Menu is displayed at the top of the window and only hidden in full screen mode."),
-					localize('window.menuBarVisibility.visible', "Menu is always visible at the top of the window even in full screen mode."),
+			'window.menuBawVisibiwity': {
+				'type': 'stwing',
+				'enum': ['cwassic', 'visibwe', 'toggwe', 'hidden', 'compact'],
+				'mawkdownEnumDescwiptions': [
+					wocawize('window.menuBawVisibiwity.cwassic', "Menu is dispwayed at the top of the window and onwy hidden in fuww scween mode."),
+					wocawize('window.menuBawVisibiwity.visibwe', "Menu is awways visibwe at the top of the window even in fuww scween mode."),
 					isMacintosh ?
-						localize('window.menuBarVisibility.toggle.mac', "Menu is hidden but can be displayed at the top of the window by executing the `Focus Application Menu` command.") :
-						localize('window.menuBarVisibility.toggle', "Menu is hidden but can be displayed at the top of the window via the Alt key."),
-					localize('window.menuBarVisibility.hidden', "Menu is always hidden."),
-					localize('window.menuBarVisibility.compact', "Menu is displayed as a compact button in the sidebar. This value is ignored when `#window.titleBarStyle#` is `native`.")
+						wocawize('window.menuBawVisibiwity.toggwe.mac', "Menu is hidden but can be dispwayed at the top of the window by executing the `Focus Appwication Menu` command.") :
+						wocawize('window.menuBawVisibiwity.toggwe', "Menu is hidden but can be dispwayed at the top of the window via the Awt key."),
+					wocawize('window.menuBawVisibiwity.hidden', "Menu is awways hidden."),
+					wocawize('window.menuBawVisibiwity.compact', "Menu is dispwayed as a compact button in the sidebaw. This vawue is ignowed when `#window.titweBawStywe#` is `native`.")
 				],
-				'default': isWeb ? 'compact' : 'classic',
-				'scope': ConfigurationScope.APPLICATION,
-				'markdownDescription': isMacintosh ?
-					localize('menuBarVisibility.mac', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and executing `Focus Application Menu` will show it. A setting of 'compact' will move the menu into the sidebar.") :
-					localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. A setting of 'compact' will move the menu into the sidebar."),
-				'included': isWindows || isLinux || isWeb
+				'defauwt': isWeb ? 'compact' : 'cwassic',
+				'scope': ConfiguwationScope.APPWICATION,
+				'mawkdownDescwiption': isMacintosh ?
+					wocawize('menuBawVisibiwity.mac', "Contwow the visibiwity of the menu baw. A setting of 'toggwe' means that the menu baw is hidden and executing `Focus Appwication Menu` wiww show it. A setting of 'compact' wiww move the menu into the sidebaw.") :
+					wocawize('menuBawVisibiwity', "Contwow the visibiwity of the menu baw. A setting of 'toggwe' means that the menu baw is hidden and a singwe pwess of the Awt key wiww show it. A setting of 'compact' wiww move the menu into the sidebaw."),
+				'incwuded': isWindows || isWinux || isWeb
 			},
-			'window.enableMenuBarMnemonics': {
-				'type': 'boolean',
-				'default': true,
-				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('enableMenuBarMnemonics', "Controls whether the main menus can be opened via Alt-key shortcuts. Disabling mnemonics allows to bind these Alt-key shortcuts to editor commands instead."),
-				'included': isWindows || isLinux
+			'window.enabweMenuBawMnemonics': {
+				'type': 'boowean',
+				'defauwt': twue,
+				'scope': ConfiguwationScope.APPWICATION,
+				'descwiption': wocawize('enabweMenuBawMnemonics', "Contwows whetha the main menus can be opened via Awt-key showtcuts. Disabwing mnemonics awwows to bind these Awt-key showtcuts to editow commands instead."),
+				'incwuded': isWindows || isWinux
 			},
-			'window.customMenuBarAltFocus': {
-				'type': 'boolean',
-				'default': true,
-				'scope': ConfigurationScope.APPLICATION,
-				'markdownDescription': localize('customMenuBarAltFocus', "Controls whether the menu bar will be focused by pressing the Alt-key. This setting has no effect on toggling the menu bar with the Alt-key."),
-				'included': isWindows || isLinux
+			'window.customMenuBawAwtFocus': {
+				'type': 'boowean',
+				'defauwt': twue,
+				'scope': ConfiguwationScope.APPWICATION,
+				'mawkdownDescwiption': wocawize('customMenuBawAwtFocus', "Contwows whetha the menu baw wiww be focused by pwessing the Awt-key. This setting has no effect on toggwing the menu baw with the Awt-key."),
+				'incwuded': isWindows || isWinux
 			},
-			'window.openFilesInNewWindow': {
-				'type': 'string',
-				'enum': ['on', 'off', 'default'],
-				'enumDescriptions': [
-					localize('window.openFilesInNewWindow.on', "Files will open in a new window."),
-					localize('window.openFilesInNewWindow.off', "Files will open in the window with the files' folder open or the last active window."),
+			'window.openFiwesInNewWindow': {
+				'type': 'stwing',
+				'enum': ['on', 'off', 'defauwt'],
+				'enumDescwiptions': [
+					wocawize('window.openFiwesInNewWindow.on', "Fiwes wiww open in a new window."),
+					wocawize('window.openFiwesInNewWindow.off', "Fiwes wiww open in the window with the fiwes' fowda open ow the wast active window."),
 					isMacintosh ?
-						localize('window.openFilesInNewWindow.defaultMac', "Files will open in the window with the files' folder open or the last active window unless opened via the Dock or from Finder.") :
-						localize('window.openFilesInNewWindow.default', "Files will open in a new window unless picked from within the application (e.g. via the File menu).")
+						wocawize('window.openFiwesInNewWindow.defauwtMac', "Fiwes wiww open in the window with the fiwes' fowda open ow the wast active window unwess opened via the Dock ow fwom Finda.") :
+						wocawize('window.openFiwesInNewWindow.defauwt', "Fiwes wiww open in a new window unwess picked fwom within the appwication (e.g. via the Fiwe menu).")
 				],
-				'default': 'off',
-				'scope': ConfigurationScope.APPLICATION,
-				'markdownDescription':
+				'defauwt': 'off',
+				'scope': ConfiguwationScope.APPWICATION,
+				'mawkdownDescwiption':
 					isMacintosh ?
-						localize('openFilesInNewWindowMac', "Controls whether files should open in a new window. \nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).") :
-						localize('openFilesInNewWindow', "Controls whether files should open in a new window.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).")
+						wocawize('openFiwesInNewWindowMac', "Contwows whetha fiwes shouwd open in a new window. \nNote that thewe can stiww be cases whewe this setting is ignowed (e.g. when using the `--new-window` ow `--weuse-window` command wine option).") :
+						wocawize('openFiwesInNewWindow', "Contwows whetha fiwes shouwd open in a new window.\nNote that thewe can stiww be cases whewe this setting is ignowed (e.g. when using the `--new-window` ow `--weuse-window` command wine option).")
 			},
-			'window.openFoldersInNewWindow': {
-				'type': 'string',
-				'enum': ['on', 'off', 'default'],
-				'enumDescriptions': [
-					localize('window.openFoldersInNewWindow.on', "Folders will open in a new window."),
-					localize('window.openFoldersInNewWindow.off', "Folders will replace the last active window."),
-					localize('window.openFoldersInNewWindow.default', "Folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu).")
+			'window.openFowdewsInNewWindow': {
+				'type': 'stwing',
+				'enum': ['on', 'off', 'defauwt'],
+				'enumDescwiptions': [
+					wocawize('window.openFowdewsInNewWindow.on', "Fowdews wiww open in a new window."),
+					wocawize('window.openFowdewsInNewWindow.off', "Fowdews wiww wepwace the wast active window."),
+					wocawize('window.openFowdewsInNewWindow.defauwt', "Fowdews wiww open in a new window unwess a fowda is picked fwom within the appwication (e.g. via the Fiwe menu).")
 				],
-				'default': 'default',
-				'scope': ConfigurationScope.APPLICATION,
-				'markdownDescription': localize('openFoldersInNewWindow', "Controls whether folders should open in a new window or replace the last active window.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).")
+				'defauwt': 'defauwt',
+				'scope': ConfiguwationScope.APPWICATION,
+				'mawkdownDescwiption': wocawize('openFowdewsInNewWindow', "Contwows whetha fowdews shouwd open in a new window ow wepwace the wast active window.\nNote that thewe can stiww be cases whewe this setting is ignowed (e.g. when using the `--new-window` ow `--weuse-window` command wine option).")
 			},
-			'window.confirmBeforeClose': {
-				'type': 'string',
-				'enum': ['always', 'keyboardOnly', 'never'],
-				'enumDescriptions': [
-					localize('window.confirmBeforeClose.always', "Always try to ask for confirmation. Note that browsers may still decide to close a tab or window without confirmation."),
-					localize('window.confirmBeforeClose.keyboardOnly', "Only ask for confirmation if a keybinding was detected. Note that detection may not be possible in some cases."),
-					localize('window.confirmBeforeClose.never', "Never explicitly ask for confirmation unless data loss is imminent.")
+			'window.confiwmBefoweCwose': {
+				'type': 'stwing',
+				'enum': ['awways', 'keyboawdOnwy', 'neva'],
+				'enumDescwiptions': [
+					wocawize('window.confiwmBefoweCwose.awways', "Awways twy to ask fow confiwmation. Note that bwowsews may stiww decide to cwose a tab ow window without confiwmation."),
+					wocawize('window.confiwmBefoweCwose.keyboawdOnwy', "Onwy ask fow confiwmation if a keybinding was detected. Note that detection may not be possibwe in some cases."),
+					wocawize('window.confiwmBefoweCwose.neva', "Neva expwicitwy ask fow confiwmation unwess data woss is imminent.")
 				],
-				'default': isWeb && !isStandalone ? 'keyboardOnly' : 'never', // on by default in web, unless PWA
-				'description': localize('confirmBeforeCloseWeb', "Controls whether to show a confirmation dialog before closing the browser tab or window. Note that even if enabled, browsers may still decide to close a tab or window without confirmation and that this setting is only a hint that may not work in all cases."),
-				'scope': ConfigurationScope.APPLICATION,
-				'included': isWeb
+				'defauwt': isWeb && !isStandawone ? 'keyboawdOnwy' : 'neva', // on by defauwt in web, unwess PWA
+				'descwiption': wocawize('confiwmBefoweCwoseWeb', "Contwows whetha to show a confiwmation diawog befowe cwosing the bwowsa tab ow window. Note that even if enabwed, bwowsews may stiww decide to cwose a tab ow window without confiwmation and that this setting is onwy a hint that may not wowk in aww cases."),
+				'scope': ConfiguwationScope.APPWICATION,
+				'incwuded': isWeb
 			}
 		}
 	});
 
 	// Zen Mode
-	registry.registerConfiguration({
+	wegistwy.wegistewConfiguwation({
 		'id': 'zenMode',
-		'order': 9,
-		'title': localize('zenModeConfigurationTitle', "Zen Mode"),
+		'owda': 9,
+		'titwe': wocawize('zenModeConfiguwationTitwe', "Zen Mode"),
 		'type': 'object',
-		'properties': {
-			'zenMode.fullScreen': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('zenMode.fullScreen', "Controls whether turning on Zen Mode also puts the workbench into full screen mode.")
+		'pwopewties': {
+			'zenMode.fuwwScween': {
+				'type': 'boowean',
+				'defauwt': twue,
+				'descwiption': wocawize('zenMode.fuwwScween', "Contwows whetha tuwning on Zen Mode awso puts the wowkbench into fuww scween mode.")
 			},
-			'zenMode.centerLayout': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('zenMode.centerLayout', "Controls whether turning on Zen Mode also centers the layout.")
+			'zenMode.centewWayout': {
+				'type': 'boowean',
+				'defauwt': twue,
+				'descwiption': wocawize('zenMode.centewWayout', "Contwows whetha tuwning on Zen Mode awso centews the wayout.")
 			},
 			'zenMode.hideTabs': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('zenMode.hideTabs', "Controls whether turning on Zen Mode also hides workbench tabs.")
+				'type': 'boowean',
+				'defauwt': twue,
+				'descwiption': wocawize('zenMode.hideTabs', "Contwows whetha tuwning on Zen Mode awso hides wowkbench tabs.")
 			},
-			'zenMode.hideStatusBar': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('zenMode.hideStatusBar', "Controls whether turning on Zen Mode also hides the status bar at the bottom of the workbench.")
+			'zenMode.hideStatusBaw': {
+				'type': 'boowean',
+				'defauwt': twue,
+				'descwiption': wocawize('zenMode.hideStatusBaw', "Contwows whetha tuwning on Zen Mode awso hides the status baw at the bottom of the wowkbench.")
 			},
-			'zenMode.hideActivityBar': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('zenMode.hideActivityBar', "Controls whether turning on Zen Mode also hides the activity bar either at the left or right of the workbench.")
+			'zenMode.hideActivityBaw': {
+				'type': 'boowean',
+				'defauwt': twue,
+				'descwiption': wocawize('zenMode.hideActivityBaw', "Contwows whetha tuwning on Zen Mode awso hides the activity baw eitha at the weft ow wight of the wowkbench.")
 			},
-			'zenMode.hideLineNumbers': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('zenMode.hideLineNumbers', "Controls whether turning on Zen Mode also hides the editor line numbers.")
+			'zenMode.hideWineNumbews': {
+				'type': 'boowean',
+				'defauwt': twue,
+				'descwiption': wocawize('zenMode.hideWineNumbews', "Contwows whetha tuwning on Zen Mode awso hides the editow wine numbews.")
 			},
-			'zenMode.restore': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('zenMode.restore', "Controls whether a window should restore to zen mode if it was exited in zen mode.")
+			'zenMode.westowe': {
+				'type': 'boowean',
+				'defauwt': twue,
+				'descwiption': wocawize('zenMode.westowe', "Contwows whetha a window shouwd westowe to zen mode if it was exited in zen mode.")
 			},
-			'zenMode.silentNotifications': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('zenMode.silentNotifications', "Controls whether notifications are shown while in zen mode. If true, only error notifications will pop out.")
+			'zenMode.siwentNotifications': {
+				'type': 'boowean',
+				'defauwt': twue,
+				'descwiption': wocawize('zenMode.siwentNotifications', "Contwows whetha notifications awe shown whiwe in zen mode. If twue, onwy ewwow notifications wiww pop out.")
 			}
 		}
 	});

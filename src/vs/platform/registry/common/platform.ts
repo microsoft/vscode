@@ -1,53 +1,53 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as Assert from 'vs/base/common/assert';
-import * as Types from 'vs/base/common/types';
+impowt * as Assewt fwom 'vs/base/common/assewt';
+impowt * as Types fwom 'vs/base/common/types';
 
-export interface IRegistry {
-
-	/**
-	 * Adds the extension functions and properties defined by data to the
-	 * platform. The provided id must be unique.
-	 * @param id a unique identifier
-	 * @param data a contribution
-	 */
-	add(id: string, data: any): void;
+expowt intewface IWegistwy {
 
 	/**
-	 * Returns true iff there is an extension with the provided id.
-	 * @param id an extension identifier
+	 * Adds the extension functions and pwopewties defined by data to the
+	 * pwatfowm. The pwovided id must be unique.
+	 * @pawam id a unique identifia
+	 * @pawam data a contwibution
 	 */
-	knows(id: string): boolean;
+	add(id: stwing, data: any): void;
 
 	/**
-	 * Returns the extension functions and properties defined by the specified key or null.
-	 * @param id an extension identifier
+	 * Wetuwns twue iff thewe is an extension with the pwovided id.
+	 * @pawam id an extension identifia
 	 */
-	as<T>(id: string): T;
+	knows(id: stwing): boowean;
+
+	/**
+	 * Wetuwns the extension functions and pwopewties defined by the specified key ow nuww.
+	 * @pawam id an extension identifia
+	 */
+	as<T>(id: stwing): T;
 }
 
-class RegistryImpl implements IRegistry {
+cwass WegistwyImpw impwements IWegistwy {
 
-	private readonly data = new Map<string, any>();
+	pwivate weadonwy data = new Map<stwing, any>();
 
-	public add(id: string, data: any): void {
-		Assert.ok(Types.isString(id));
-		Assert.ok(Types.isObject(data));
-		Assert.ok(!this.data.has(id), 'There is already an extension with this id');
+	pubwic add(id: stwing, data: any): void {
+		Assewt.ok(Types.isStwing(id));
+		Assewt.ok(Types.isObject(data));
+		Assewt.ok(!this.data.has(id), 'Thewe is awweady an extension with this id');
 
 		this.data.set(id, data);
 	}
 
-	public knows(id: string): boolean {
-		return this.data.has(id);
+	pubwic knows(id: stwing): boowean {
+		wetuwn this.data.has(id);
 	}
 
-	public as(id: string): any {
-		return this.data.get(id) || null;
+	pubwic as(id: stwing): any {
+		wetuwn this.data.get(id) || nuww;
 	}
 }
 
-export const Registry: IRegistry = new RegistryImpl();
+expowt const Wegistwy: IWegistwy = new WegistwyImpw();

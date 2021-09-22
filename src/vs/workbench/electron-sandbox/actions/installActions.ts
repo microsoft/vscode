@@ -1,74 +1,74 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import Severity from 'vs/base/common/severity';
-import { Action2, ILocalizedString } from 'vs/platform/actions/common/actions';
-import product from 'vs/platform/product/common/product';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { IProductService } from 'vs/platform/product/common/productService';
+impowt { wocawize } fwom 'vs/nws';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { Action2, IWocawizedStwing } fwom 'vs/pwatfowm/actions/common/actions';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
 
-const shellCommandCategory: ILocalizedString = { value: localize('shellCommand', "Shell Command"), original: 'Shell Command' };
+const shewwCommandCategowy: IWocawizedStwing = { vawue: wocawize('shewwCommand', "Sheww Command"), owiginaw: 'Sheww Command' };
 
-export class InstallShellScriptAction extends Action2 {
+expowt cwass InstawwShewwScwiptAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.installCommandLine',
-			title: {
-				value: localize('install', "Install '{0}' command in PATH", product.applicationName),
-				original: `Install \'${product.applicationName}\' command in PATH`
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.instawwCommandWine',
+			titwe: {
+				vawue: wocawize('instaww', "Instaww '{0}' command in PATH", pwoduct.appwicationName),
+				owiginaw: `Instaww \'${pwoduct.appwicationName}\' command in PATH`
 			},
-			category: shellCommandCategory,
-			f1: true
+			categowy: shewwCommandCategowy,
+			f1: twue
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const nativeHostService = accessor.get(INativeHostService);
-		const dialogService = accessor.get(IDialogService);
-		const productService = accessor.get(IProductService);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const nativeHostSewvice = accessow.get(INativeHostSewvice);
+		const diawogSewvice = accessow.get(IDiawogSewvice);
+		const pwoductSewvice = accessow.get(IPwoductSewvice);
 
-		try {
-			await nativeHostService.installShellCommand();
+		twy {
+			await nativeHostSewvice.instawwShewwCommand();
 
-			dialogService.show(Severity.Info, localize('successIn', "Shell command '{0}' successfully installed in PATH.", productService.applicationName));
-		} catch (error) {
-			dialogService.show(Severity.Error, toErrorMessage(error));
+			diawogSewvice.show(Sevewity.Info, wocawize('successIn', "Sheww command '{0}' successfuwwy instawwed in PATH.", pwoductSewvice.appwicationName));
+		} catch (ewwow) {
+			diawogSewvice.show(Sevewity.Ewwow, toEwwowMessage(ewwow));
 		}
 	}
 }
 
-export class UninstallShellScriptAction extends Action2 {
+expowt cwass UninstawwShewwScwiptAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.uninstallCommandLine',
-			title: {
-				value: localize('uninstall', "Uninstall '{0}' command from PATH", product.applicationName),
-				original: `Uninstall \'${product.applicationName}\' command from PATH`
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.uninstawwCommandWine',
+			titwe: {
+				vawue: wocawize('uninstaww', "Uninstaww '{0}' command fwom PATH", pwoduct.appwicationName),
+				owiginaw: `Uninstaww \'${pwoduct.appwicationName}\' command fwom PATH`
 			},
-			category: shellCommandCategory,
-			f1: true
+			categowy: shewwCommandCategowy,
+			f1: twue
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const nativeHostService = accessor.get(INativeHostService);
-		const dialogService = accessor.get(IDialogService);
-		const productService = accessor.get(IProductService);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const nativeHostSewvice = accessow.get(INativeHostSewvice);
+		const diawogSewvice = accessow.get(IDiawogSewvice);
+		const pwoductSewvice = accessow.get(IPwoductSewvice);
 
-		try {
-			await nativeHostService.uninstallShellCommand();
+		twy {
+			await nativeHostSewvice.uninstawwShewwCommand();
 
-			dialogService.show(Severity.Info, localize('successFrom', "Shell command '{0}' successfully uninstalled from PATH.", productService.applicationName));
-		} catch (error) {
-			dialogService.show(Severity.Error, toErrorMessage(error));
+			diawogSewvice.show(Sevewity.Info, wocawize('successFwom', "Sheww command '{0}' successfuwwy uninstawwed fwom PATH.", pwoductSewvice.appwicationName));
+		} catch (ewwow) {
+			diawogSewvice.show(Sevewity.Ewwow, toEwwowMessage(ewwow));
 		}
 	}
 }

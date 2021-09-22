@@ -1,74 +1,74 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
-import { Action } from 'vs/base/common/actions';
-import { Delayer, IntervalTimer, ThrottledDelayer, timeout } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import * as collections from 'vs/base/common/collections';
-import { fromNow } from 'vs/base/common/date';
-import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import { isArray, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/settingsEditor2';
-import { localize } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { badgeBackground, badgeForeground, contrastBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IUserDataAutoSyncEnablementService, IUserDataSyncService, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IEditorMemento, IEditorOpenContext, IEditorPane } from 'vs/workbench/common/editor';
-import { attachSuggestEnabledInputBoxStyler, SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
-import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
-import { commonlyUsedData, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
-import { AbstractSettingRenderer, HeightChangeParams, ISettingLinkClickEvent, ISettingOverrideClickEvent, resolveConfiguredUntrustedSettings, resolveExtensionsSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers } from 'vs/workbench/contrib/preferences/browser/settingsTree';
-import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { settingsTextInputBorder } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
-import { createTOCIterator, TOCTree, TOCTreeModel } from 'vs/workbench/contrib/preferences/browser/tocTree';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, MODIFIED_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, WORKSPACE_TRUST_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IOpenSettingsOptions, IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingValueType, validateSettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
-import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
-import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { IUserDataSyncWorkbenchService } from 'vs/workbench/services/userDataSync/common/userDataSync';
-import { preferencesClearInputIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt * as awia fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { ActionBaw } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { Button } fwom 'vs/base/bwowsa/ui/button/button';
+impowt { ITweeEwement } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { Dewaya, IntewvawTima, ThwottwedDewaya, timeout } fwom 'vs/base/common/async';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt * as cowwections fwom 'vs/base/common/cowwections';
+impowt { fwomNow } fwom 'vs/base/common/date';
+impowt { getEwwowMessage, isPwomiseCancewedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { isAwway, withNuwwAsUndefined, withUndefinedAsNuww } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt 'vs/css!./media/settingsEditow2';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ConfiguwationTawget, IConfiguwationOvewwides } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { badgeBackgwound, badgeFowegwound, contwastBowda, editowFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { attachButtonStywa, attachStywewCawwback } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { IThemeSewvice, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IUsewDataAutoSyncEnabwementSewvice, IUsewDataSyncSewvice, SyncStatus } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { EditowPane } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPane';
+impowt { IEditowMemento, IEditowOpenContext, IEditowPane } fwom 'vs/wowkbench/common/editow';
+impowt { attachSuggestEnabwedInputBoxStywa, SuggestEnabwedInput } fwom 'vs/wowkbench/contwib/codeEditow/bwowsa/suggestEnabwedInput/suggestEnabwedInput';
+impowt { SettingsTawget, SettingsTawgetsWidget } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/pwefewencesWidgets';
+impowt { commonwyUsedData, tocData } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/settingsWayout';
+impowt { AbstwactSettingWendewa, HeightChangePawams, ISettingWinkCwickEvent, ISettingOvewwideCwickEvent, wesowveConfiguwedUntwustedSettings, wesowveExtensionsSettings, wesowveSettingsTwee, SettingsTwee, SettingTweeWendewews } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/settingsTwee';
+impowt { ISettingsEditowViewState, pawseQuewy, SeawchWesuwtIdx, SeawchWesuwtModew, SettingsTweeEwement, SettingsTweeGwoupChiwd, SettingsTweeGwoupEwement, SettingsTweeModew, SettingsTweeSettingEwement } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/settingsTweeModews';
+impowt { settingsTextInputBowda } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/settingsWidgets';
+impowt { cweateTOCItewatow, TOCTwee, TOCTweeModew } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/tocTwee';
+impowt { CONTEXT_SETTINGS_EDITOW, CONTEXT_SETTINGS_WOW_FOCUS, CONTEXT_SETTINGS_SEAWCH_FOCUS, CONTEXT_TOC_WOW_FOCUS, EXTENSION_SETTING_TAG, FEATUWE_SETTING_TAG, ID_SETTING_TAG, IPwefewencesSeawchSewvice, ISeawchPwovida, MODIFIED_SETTING_TAG, WEQUIWE_TWUSTED_WOWKSPACE_SETTING_TAG, SETTINGS_EDITOW_COMMAND_CWEAW_SEAWCH_WESUWTS, WOWKSPACE_TWUST_SETTING_TAG } fwom 'vs/wowkbench/contwib/pwefewences/common/pwefewences';
+impowt { IEditowGwoup, IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IOpenSettingsOptions, IPwefewencesSewvice, ISeawchWesuwt, ISettingsEditowModew, ISettingsEditowOptions, SettingVawueType, vawidateSettingsEditowOptions } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
+impowt { SettingsEditow2Input } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewencesEditowInput';
+impowt { Settings2EditowModew } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewencesModews';
+impowt { IUsewDataSyncWowkbenchSewvice } fwom 'vs/wowkbench/sewvices/usewDataSync/common/usewDataSync';
+impowt { pwefewencesCweawInputIcon } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/pwefewencesIcons';
+impowt { IWowkspaceTwustManagementSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { IWowkbenchConfiguwationSewvice } fwom 'vs/wowkbench/sewvices/configuwation/common/configuwation';
+impowt { ITextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
 
-export const enum SettingsFocusContext {
-	Search,
-	TableOfContents,
-	SettingTree,
-	SettingControl
+expowt const enum SettingsFocusContext {
+	Seawch,
+	TabweOfContents,
+	SettingTwee,
+	SettingContwow
 }
 
-export function createGroupIterator(group: SettingsTreeGroupElement): Iterable<ITreeElement<SettingsTreeGroupChild>> {
-	return Iterable.map(group.children, g => {
-		return {
-			element: g,
-			children: g instanceof SettingsTreeGroupElement ?
-				createGroupIterator(g) :
+expowt function cweateGwoupItewatow(gwoup: SettingsTweeGwoupEwement): Itewabwe<ITweeEwement<SettingsTweeGwoupChiwd>> {
+	wetuwn Itewabwe.map(gwoup.chiwdwen, g => {
+		wetuwn {
+			ewement: g,
+			chiwdwen: g instanceof SettingsTweeGwoupEwement ?
+				cweateGwoupItewatow(g) :
 				undefined
 		};
 	});
@@ -76,1476 +76,1476 @@ export function createGroupIterator(group: SettingsTreeGroupElement): Iterable<I
 
 const $ = DOM.$;
 
-interface IFocusEventFromScroll extends KeyboardEvent {
-	fromScroll: true;
+intewface IFocusEventFwomScwoww extends KeyboawdEvent {
+	fwomScwoww: twue;
 }
 
-const searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
+const seawchBoxWabew = wocawize('SeawchSettings.AwiaWabew', "Seawch settings");
 
-const SETTINGS_EDITOR_STATE_KEY = 'settingsEditorState';
-export class SettingsEditor2 extends EditorPane {
+const SETTINGS_EDITOW_STATE_KEY = 'settingsEditowState';
+expowt cwass SettingsEditow2 extends EditowPane {
 
-	static readonly ID: string = 'workbench.editor.settings2';
-	private static NUM_INSTANCES: number = 0;
-	private static SETTING_UPDATE_FAST_DEBOUNCE: number = 200;
-	private static SETTING_UPDATE_SLOW_DEBOUNCE: number = 1000;
-	private static CONFIG_SCHEMA_UPDATE_DELAYER = 500;
+	static weadonwy ID: stwing = 'wowkbench.editow.settings2';
+	pwivate static NUM_INSTANCES: numba = 0;
+	pwivate static SETTING_UPDATE_FAST_DEBOUNCE: numba = 200;
+	pwivate static SETTING_UPDATE_SWOW_DEBOUNCE: numba = 1000;
+	pwivate static CONFIG_SCHEMA_UPDATE_DEWAYa = 500;
 
-	private static readonly SUGGESTIONS: string[] = [
+	pwivate static weadonwy SUGGESTIONS: stwing[] = [
 		`@${MODIFIED_SETTING_TAG}`,
-		'@tag:notebookLayout',
-		`@tag:${REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG}`,
-		`@tag:${WORKSPACE_TRUST_SETTING_TAG}`,
+		'@tag:notebookWayout',
+		`@tag:${WEQUIWE_TWUSTED_WOWKSPACE_SETTING_TAG}`,
+		`@tag:${WOWKSPACE_TWUST_SETTING_TAG}`,
 		'@tag:sync',
-		'@tag:usesOnlineServices',
-		'@tag:telemetry',
+		'@tag:usesOnwineSewvices',
+		'@tag:tewemetwy',
 		`@${ID_SETTING_TAG}`,
 		`@${EXTENSION_SETTING_TAG}`,
-		`@${FEATURE_SETTING_TAG}scm`,
-		`@${FEATURE_SETTING_TAG}explorer`,
-		`@${FEATURE_SETTING_TAG}search`,
-		`@${FEATURE_SETTING_TAG}debug`,
-		`@${FEATURE_SETTING_TAG}extensions`,
-		`@${FEATURE_SETTING_TAG}terminal`,
-		`@${FEATURE_SETTING_TAG}task`,
-		`@${FEATURE_SETTING_TAG}problems`,
-		`@${FEATURE_SETTING_TAG}output`,
-		`@${FEATURE_SETTING_TAG}comments`,
-		`@${FEATURE_SETTING_TAG}remote`,
-		`@${FEATURE_SETTING_TAG}timeline`,
-		`@${FEATURE_SETTING_TAG}notebook`,
+		`@${FEATUWE_SETTING_TAG}scm`,
+		`@${FEATUWE_SETTING_TAG}expwowa`,
+		`@${FEATUWE_SETTING_TAG}seawch`,
+		`@${FEATUWE_SETTING_TAG}debug`,
+		`@${FEATUWE_SETTING_TAG}extensions`,
+		`@${FEATUWE_SETTING_TAG}tewminaw`,
+		`@${FEATUWE_SETTING_TAG}task`,
+		`@${FEATUWE_SETTING_TAG}pwobwems`,
+		`@${FEATUWE_SETTING_TAG}output`,
+		`@${FEATUWE_SETTING_TAG}comments`,
+		`@${FEATUWE_SETTING_TAG}wemote`,
+		`@${FEATUWE_SETTING_TAG}timewine`,
+		`@${FEATUWE_SETTING_TAG}notebook`,
 	];
 
-	private static shouldSettingUpdateFast(type: SettingValueType | SettingValueType[]): boolean {
-		if (isArray(type)) {
-			// nullable integer/number or complex
-			return false;
+	pwivate static shouwdSettingUpdateFast(type: SettingVawueType | SettingVawueType[]): boowean {
+		if (isAwway(type)) {
+			// nuwwabwe intega/numba ow compwex
+			wetuwn fawse;
 		}
-		return type === SettingValueType.Enum ||
-			type === SettingValueType.StringOrEnumArray ||
-			type === SettingValueType.BooleanObject ||
-			type === SettingValueType.Object ||
-			type === SettingValueType.Complex ||
-			type === SettingValueType.Boolean ||
-			type === SettingValueType.Exclude;
+		wetuwn type === SettingVawueType.Enum ||
+			type === SettingVawueType.StwingOwEnumAwway ||
+			type === SettingVawueType.BooweanObject ||
+			type === SettingVawueType.Object ||
+			type === SettingVawueType.Compwex ||
+			type === SettingVawueType.Boowean ||
+			type === SettingVawueType.Excwude;
 	}
 
-	// (!) Lots of props that are set once on the first render
-	private defaultSettingsEditorModel!: Settings2EditorModel;
-	private modelDisposables: DisposableStore;
+	// (!) Wots of pwops that awe set once on the fiwst wenda
+	pwivate defauwtSettingsEditowModew!: Settings2EditowModew;
+	pwivate modewDisposabwes: DisposabweStowe;
 
-	private rootElement!: HTMLElement;
-	private headerContainer!: HTMLElement;
-	private searchWidget!: SuggestEnabledInput;
-	private countElement!: HTMLElement;
-	private controlsElement!: HTMLElement;
-	private settingsTargetsWidget!: SettingsTargetsWidget;
+	pwivate wootEwement!: HTMWEwement;
+	pwivate headewContaina!: HTMWEwement;
+	pwivate seawchWidget!: SuggestEnabwedInput;
+	pwivate countEwement!: HTMWEwement;
+	pwivate contwowsEwement!: HTMWEwement;
+	pwivate settingsTawgetsWidget!: SettingsTawgetsWidget;
 
-	private settingsTreeContainer!: HTMLElement;
-	private settingsTree!: SettingsTree;
-	private settingRenderers!: SettingTreeRenderers;
-	private tocTreeModel!: TOCTreeModel;
-	private settingsTreeModel!: SettingsTreeModel;
-	private noResultsMessage!: HTMLElement;
-	private clearFilterLinkContainer!: HTMLElement;
+	pwivate settingsTweeContaina!: HTMWEwement;
+	pwivate settingsTwee!: SettingsTwee;
+	pwivate settingWendewews!: SettingTweeWendewews;
+	pwivate tocTweeModew!: TOCTweeModew;
+	pwivate settingsTweeModew!: SettingsTweeModew;
+	pwivate noWesuwtsMessage!: HTMWEwement;
+	pwivate cweawFiwtewWinkContaina!: HTMWEwement;
 
-	private tocTreeContainer!: HTMLElement;
-	private tocTree!: TOCTree;
+	pwivate tocTweeContaina!: HTMWEwement;
+	pwivate tocTwee!: TOCTwee;
 
-	private delayedFilterLogging: Delayer<void>;
-	private localSearchDelayer: Delayer<void>;
-	private remoteSearchThrottle: ThrottledDelayer<void>;
-	private searchInProgress: CancellationTokenSource | null = null;
+	pwivate dewayedFiwtewWogging: Dewaya<void>;
+	pwivate wocawSeawchDewaya: Dewaya<void>;
+	pwivate wemoteSeawchThwottwe: ThwottwedDewaya<void>;
+	pwivate seawchInPwogwess: CancewwationTokenSouwce | nuww = nuww;
 
-	private updatedConfigSchemaDelayer: Delayer<void>;
+	pwivate updatedConfigSchemaDewaya: Dewaya<void>;
 
-	private settingFastUpdateDelayer: Delayer<void>;
-	private settingSlowUpdateDelayer: Delayer<void>;
-	private pendingSettingUpdate: { key: string, value: any } | null = null;
+	pwivate settingFastUpdateDewaya: Dewaya<void>;
+	pwivate settingSwowUpdateDewaya: Dewaya<void>;
+	pwivate pendingSettingUpdate: { key: stwing, vawue: any } | nuww = nuww;
 
-	private readonly viewState: ISettingsEditorViewState;
-	private _searchResultModel: SearchResultModel | null = null;
-	private searchResultLabel: string | null = null;
-	private lastSyncedLabel: string | null = null;
+	pwivate weadonwy viewState: ISettingsEditowViewState;
+	pwivate _seawchWesuwtModew: SeawchWesuwtModew | nuww = nuww;
+	pwivate seawchWesuwtWabew: stwing | nuww = nuww;
+	pwivate wastSyncedWabew: stwing | nuww = nuww;
 
-	private tocRowFocused: IContextKey<boolean>;
-	private settingRowFocused: IContextKey<boolean>;
-	private inSettingsEditorContextKey: IContextKey<boolean>;
-	private searchFocusContextKey: IContextKey<boolean>;
+	pwivate tocWowFocused: IContextKey<boowean>;
+	pwivate settingWowFocused: IContextKey<boowean>;
+	pwivate inSettingsEditowContextKey: IContextKey<boowean>;
+	pwivate seawchFocusContextKey: IContextKey<boowean>;
 
-	private scheduledRefreshes: Map<string, DOM.IFocusTracker>;
-	private _currentFocusContext: SettingsFocusContext = SettingsFocusContext.Search;
+	pwivate scheduwedWefweshes: Map<stwing, DOM.IFocusTwacka>;
+	pwivate _cuwwentFocusContext: SettingsFocusContext = SettingsFocusContext.Seawch;
 
-	/** Don't spam warnings */
-	private hasWarnedMissingSettings = false;
+	/** Don't spam wawnings */
+	pwivate hasWawnedMissingSettings = fawse;
 
-	private editorMemento: IEditorMemento<ISettingsEditor2State>;
+	pwivate editowMemento: IEditowMemento<ISettingsEditow2State>;
 
-	private tocFocusedElement: SettingsTreeGroupElement | null = null;
-	private treeFocusedElement: SettingsTreeElement | null = null;
-	private settingsTreeScrollTop = 0;
-	private dimension!: DOM.Dimension;
+	pwivate tocFocusedEwement: SettingsTweeGwoupEwement | nuww = nuww;
+	pwivate tweeFocusedEwement: SettingsTweeEwement | nuww = nuww;
+	pwivate settingsTweeScwowwTop = 0;
+	pwivate dimension!: DOM.Dimension;
 
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
-		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IThemeService themeService: IThemeService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IPreferencesSearchService private readonly preferencesSearchService: IPreferencesSearchService,
-		@ILogService private readonly logService: ILogService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IStorageService storageService: IStorageService,
-		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
-		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
-		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IExtensionService private readonly extensionService: IExtensionService
+	constwuctow(
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IWowkbenchConfiguwationSewvice pwivate weadonwy configuwationSewvice: IWowkbenchConfiguwationSewvice,
+		@ITextWesouwceConfiguwationSewvice textWesouwceConfiguwationSewvice: ITextWesouwceConfiguwationSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IPwefewencesSewvice pwivate weadonwy pwefewencesSewvice: IPwefewencesSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IPwefewencesSeawchSewvice pwivate weadonwy pwefewencesSeawchSewvice: IPwefewencesSeawchSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IEditowGwoupsSewvice pwotected editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IUsewDataSyncWowkbenchSewvice pwivate weadonwy usewDataSyncWowkbenchSewvice: IUsewDataSyncWowkbenchSewvice,
+		@IUsewDataAutoSyncEnabwementSewvice pwivate weadonwy usewDataAutoSyncEnabwementSewvice: IUsewDataAutoSyncEnabwementSewvice,
+		@IWowkspaceTwustManagementSewvice pwivate weadonwy wowkspaceTwustManagementSewvice: IWowkspaceTwustManagementSewvice,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice
 	) {
-		super(SettingsEditor2.ID, telemetryService, themeService, storageService);
-		this.delayedFilterLogging = new Delayer<void>(1000);
-		this.localSearchDelayer = new Delayer(300);
-		this.remoteSearchThrottle = new ThrottledDelayer(200);
-		this.viewState = { settingsTarget: ConfigurationTarget.USER_LOCAL };
+		supa(SettingsEditow2.ID, tewemetwySewvice, themeSewvice, stowageSewvice);
+		this.dewayedFiwtewWogging = new Dewaya<void>(1000);
+		this.wocawSeawchDewaya = new Dewaya(300);
+		this.wemoteSeawchThwottwe = new ThwottwedDewaya(200);
+		this.viewState = { settingsTawget: ConfiguwationTawget.USEW_WOCAW };
 
-		this.settingFastUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_FAST_DEBOUNCE);
-		this.settingSlowUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_SLOW_DEBOUNCE);
+		this.settingFastUpdateDewaya = new Dewaya<void>(SettingsEditow2.SETTING_UPDATE_FAST_DEBOUNCE);
+		this.settingSwowUpdateDewaya = new Dewaya<void>(SettingsEditow2.SETTING_UPDATE_SWOW_DEBOUNCE);
 
-		this.updatedConfigSchemaDelayer = new Delayer<void>(SettingsEditor2.CONFIG_SCHEMA_UPDATE_DELAYER);
+		this.updatedConfigSchemaDewaya = new Dewaya<void>(SettingsEditow2.CONFIG_SCHEMA_UPDATE_DEWAYa);
 
-		this.inSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(contextKeyService);
-		this.searchFocusContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(contextKeyService);
-		this.tocRowFocused = CONTEXT_TOC_ROW_FOCUS.bindTo(contextKeyService);
-		this.settingRowFocused = CONTEXT_SETTINGS_ROW_FOCUS.bindTo(contextKeyService);
+		this.inSettingsEditowContextKey = CONTEXT_SETTINGS_EDITOW.bindTo(contextKeySewvice);
+		this.seawchFocusContextKey = CONTEXT_SETTINGS_SEAWCH_FOCUS.bindTo(contextKeySewvice);
+		this.tocWowFocused = CONTEXT_TOC_WOW_FOCUS.bindTo(contextKeySewvice);
+		this.settingWowFocused = CONTEXT_SETTINGS_WOW_FOCUS.bindTo(contextKeySewvice);
 
-		this.scheduledRefreshes = new Map<string, DOM.IFocusTracker>();
+		this.scheduwedWefweshes = new Map<stwing, DOM.IFocusTwacka>();
 
-		this.editorMemento = this.getEditorMemento<ISettingsEditor2State>(editorGroupService, textResourceConfigurationService, SETTINGS_EDITOR_STATE_KEY);
+		this.editowMemento = this.getEditowMemento<ISettingsEditow2State>(editowGwoupSewvice, textWesouwceConfiguwationSewvice, SETTINGS_EDITOW_STATE_KEY);
 
-		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.source !== ConfigurationTarget.DEFAULT) {
+		this._wegista(configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.souwce !== ConfiguwationTawget.DEFAUWT) {
 				this.onConfigUpdate(e.affectedKeys);
 			}
 		}));
 
-		this._register(workspaceTrustManagementService.onDidChangeTrust(() => {
-			if (this.searchResultModel) {
-				this.searchResultModel.updateWorkspaceTrust(workspaceTrustManagementService.isWorkspaceTrusted());
+		this._wegista(wowkspaceTwustManagementSewvice.onDidChangeTwust(() => {
+			if (this.seawchWesuwtModew) {
+				this.seawchWesuwtModew.updateWowkspaceTwust(wowkspaceTwustManagementSewvice.isWowkspaceTwusted());
 			}
 
-			if (this.settingsTreeModel) {
-				this.settingsTreeModel.updateWorkspaceTrust(workspaceTrustManagementService.isWorkspaceTrusted());
-				this.renderTree();
-			}
-		}));
-
-		this._register(configurationService.onDidChangeRestrictedSettings(e => {
-			if (e.default.length && this.currentSettingsModel) {
-				this.updateElementsByKey([...e.default]);
+			if (this.settingsTweeModew) {
+				this.settingsTweeModew.updateWowkspaceTwust(wowkspaceTwustManagementSewvice.isWowkspaceTwusted());
+				this.wendewTwee();
 			}
 		}));
 
-		this.modelDisposables = this._register(new DisposableStore());
+		this._wegista(configuwationSewvice.onDidChangeWestwictedSettings(e => {
+			if (e.defauwt.wength && this.cuwwentSettingsModew) {
+				this.updateEwementsByKey([...e.defauwt]);
+			}
+		}));
+
+		this.modewDisposabwes = this._wegista(new DisposabweStowe());
 	}
 
-	override get minimumWidth(): number { return 375; }
-	override get maximumWidth(): number { return Number.POSITIVE_INFINITY; }
+	ovewwide get minimumWidth(): numba { wetuwn 375; }
+	ovewwide get maximumWidth(): numba { wetuwn Numba.POSITIVE_INFINITY; }
 
-	// these setters need to exist because this extends from EditorPane
-	override set minimumWidth(value: number) { /*noop*/ }
-	override set maximumWidth(value: number) { /*noop*/ }
+	// these settews need to exist because this extends fwom EditowPane
+	ovewwide set minimumWidth(vawue: numba) { /*noop*/ }
+	ovewwide set maximumWidth(vawue: numba) { /*noop*/ }
 
-	private get currentSettingsModel() {
-		return this.searchResultModel || this.settingsTreeModel;
+	pwivate get cuwwentSettingsModew() {
+		wetuwn this.seawchWesuwtModew || this.settingsTweeModew;
 	}
 
-	private get searchResultModel(): SearchResultModel | null {
-		return this._searchResultModel;
+	pwivate get seawchWesuwtModew(): SeawchWesuwtModew | nuww {
+		wetuwn this._seawchWesuwtModew;
 	}
 
-	private set searchResultModel(value: SearchResultModel | null) {
-		this._searchResultModel = value;
+	pwivate set seawchWesuwtModew(vawue: SeawchWesuwtModew | nuww) {
+		this._seawchWesuwtModew = vawue;
 
-		this.rootElement.classList.toggle('search-mode', !!this._searchResultModel);
+		this.wootEwement.cwassWist.toggwe('seawch-mode', !!this._seawchWesuwtModew);
 	}
 
-	private get focusedSettingDOMElement(): HTMLElement | undefined {
-		const focused = this.settingsTree.getFocus()[0];
-		if (!(focused instanceof SettingsTreeSettingElement)) {
-			return;
+	pwivate get focusedSettingDOMEwement(): HTMWEwement | undefined {
+		const focused = this.settingsTwee.getFocus()[0];
+		if (!(focused instanceof SettingsTweeSettingEwement)) {
+			wetuwn;
 		}
 
-		return this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), focused.setting.key)[0];
+		wetuwn this.settingWendewews.getDOMEwementsFowSettingKey(this.settingsTwee.getHTMWEwement(), focused.setting.key)[0];
 	}
 
-	get currentFocusContext() {
-		return this._currentFocusContext;
+	get cuwwentFocusContext() {
+		wetuwn this._cuwwentFocusContext;
 	}
 
-	createEditor(parent: HTMLElement): void {
-		parent.setAttribute('tabindex', '-1');
-		this.rootElement = DOM.append(parent, $('.settings-editor', { tabindex: '-1' }));
+	cweateEditow(pawent: HTMWEwement): void {
+		pawent.setAttwibute('tabindex', '-1');
+		this.wootEwement = DOM.append(pawent, $('.settings-editow', { tabindex: '-1' }));
 
-		this.createHeader(this.rootElement);
-		this.createBody(this.rootElement);
-		this.addCtrlAInterceptor(this.rootElement);
-		this.updateStyles();
+		this.cweateHeada(this.wootEwement);
+		this.cweateBody(this.wootEwement);
+		this.addCtwwAIntewceptow(this.wootEwement);
+		this.updateStywes();
 	}
 
-	override async setInput(input: SettingsEditor2Input, options: ISettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		this.inSettingsEditorContextKey.set(true);
-		await super.setInput(input, options, context, token);
-		await timeout(0); // Force setInput to be async
+	ovewwide async setInput(input: SettingsEditow2Input, options: ISettingsEditowOptions | undefined, context: IEditowOpenContext, token: CancewwationToken): Pwomise<void> {
+		this.inSettingsEditowContextKey.set(twue);
+		await supa.setInput(input, options, context, token);
+		await timeout(0); // Fowce setInput to be async
 		if (!this.input) {
-			return;
+			wetuwn;
 		}
 
-		const model = await this.input.resolve();
-		if (token.isCancellationRequested || !(model instanceof Settings2EditorModel)) {
-			return;
+		const modew = await this.input.wesowve();
+		if (token.isCancewwationWequested || !(modew instanceof Settings2EditowModew)) {
+			wetuwn;
 		}
 
-		this.modelDisposables.clear();
-		this.modelDisposables.add(model.onDidChangeGroups(() => {
-			this.updatedConfigSchemaDelayer.trigger(() => {
-				this.onConfigUpdate(undefined, false, true);
+		this.modewDisposabwes.cweaw();
+		this.modewDisposabwes.add(modew.onDidChangeGwoups(() => {
+			this.updatedConfigSchemaDewaya.twigga(() => {
+				this.onConfigUpdate(undefined, fawse, twue);
 			});
 		}));
-		this.defaultSettingsEditorModel = model;
+		this.defauwtSettingsEditowModew = modew;
 
-		options = options || validateSettingsEditorOptions({});
-		if (!this.viewState.settingsTarget) {
-			if (!options.target) {
-				options.target = ConfigurationTarget.USER_LOCAL;
+		options = options || vawidateSettingsEditowOptions({});
+		if (!this.viewState.settingsTawget) {
+			if (!options.tawget) {
+				options.tawget = ConfiguwationTawget.USEW_WOCAW;
 			}
 		}
 		this._setOptions(options);
 
-		// Don't block setInput on render (which can trigger an async search)
-		this.onConfigUpdate(undefined, true).then(() => {
-			this._register(input.onWillDispose(() => {
-				this.searchWidget.setValue('');
+		// Don't bwock setInput on wenda (which can twigga an async seawch)
+		this.onConfigUpdate(undefined, twue).then(() => {
+			this._wegista(input.onWiwwDispose(() => {
+				this.seawchWidget.setVawue('');
 			}));
 
-			// Init TOC selection
-			this.updateTreeScrollSync();
+			// Init TOC sewection
+			this.updateTweeScwowwSync();
 		});
 	}
 
-	private restoreCachedState(): ISettingsEditor2State | null {
-		const cachedState = this.group && this.input && this.editorMemento.loadEditorState(this.group, this.input);
-		if (cachedState && typeof cachedState.target === 'object') {
-			cachedState.target = URI.revive(cachedState.target);
+	pwivate westoweCachedState(): ISettingsEditow2State | nuww {
+		const cachedState = this.gwoup && this.input && this.editowMemento.woadEditowState(this.gwoup, this.input);
+		if (cachedState && typeof cachedState.tawget === 'object') {
+			cachedState.tawget = UWI.wevive(cachedState.tawget);
 		}
 
 		if (cachedState) {
-			const settingsTarget = cachedState.target;
-			this.settingsTargetsWidget.settingsTarget = settingsTarget;
-			this.viewState.settingsTarget = settingsTarget;
-			this.searchWidget.setValue(cachedState.searchQuery);
+			const settingsTawget = cachedState.tawget;
+			this.settingsTawgetsWidget.settingsTawget = settingsTawget;
+			this.viewState.settingsTawget = settingsTawget;
+			this.seawchWidget.setVawue(cachedState.seawchQuewy);
 		}
 
 		if (this.input) {
-			this.editorMemento.clearEditorState(this.input, this.group);
+			this.editowMemento.cweawEditowState(this.input, this.gwoup);
 		}
 
-		return withUndefinedAsNull(cachedState);
+		wetuwn withUndefinedAsNuww(cachedState);
 	}
 
-	override setOptions(options: ISettingsEditorOptions | undefined): void {
-		super.setOptions(options);
+	ovewwide setOptions(options: ISettingsEditowOptions | undefined): void {
+		supa.setOptions(options);
 
 		if (options) {
 			this._setOptions(options);
 		}
 	}
 
-	private _setOptions(options: ISettingsEditorOptions): void {
-		if (options.focusSearch && !platform.isIOS) {
+	pwivate _setOptions(options: ISettingsEditowOptions): void {
+		if (options.focusSeawch && !pwatfowm.isIOS) {
 			// isIOS - #122044
-			this.focusSearch();
+			this.focusSeawch();
 		}
 
-		if (options.query) {
-			this.searchWidget.setValue(options.query);
+		if (options.quewy) {
+			this.seawchWidget.setVawue(options.quewy);
 		}
 
-		const target: SettingsTarget = options.folderUri || <SettingsTarget>options.target;
-		if (target) {
-			this.settingsTargetsWidget.settingsTarget = target;
-			this.viewState.settingsTarget = target;
+		const tawget: SettingsTawget = options.fowdewUwi || <SettingsTawget>options.tawget;
+		if (tawget) {
+			this.settingsTawgetsWidget.settingsTawget = tawget;
+			this.viewState.settingsTawget = tawget;
 		}
 	}
 
-	override clearInput(): void {
-		this.inSettingsEditorContextKey.set(false);
-		super.clearInput();
+	ovewwide cweawInput(): void {
+		this.inSettingsEditowContextKey.set(fawse);
+		supa.cweawInput();
 	}
 
-	layout(dimension: DOM.Dimension): void {
+	wayout(dimension: DOM.Dimension): void {
 		this.dimension = dimension;
 
-		if (!this.isVisible()) {
-			return;
+		if (!this.isVisibwe()) {
+			wetuwn;
 		}
 
-		this.layoutTrees(dimension);
+		this.wayoutTwees(dimension);
 
-		const innerWidth = Math.min(1000, dimension.width) - 24 * 2; // 24px padding on left and right;
-		// minus padding inside inputbox, countElement width, controls width, extra padding before countElement
-		const monacoWidth = innerWidth - 10 - this.countElement.clientWidth - this.controlsElement.clientWidth - 12;
-		this.searchWidget.layout(new DOM.Dimension(monacoWidth, 20));
+		const innewWidth = Math.min(1000, dimension.width) - 24 * 2; // 24px padding on weft and wight;
+		// minus padding inside inputbox, countEwement width, contwows width, extwa padding befowe countEwement
+		const monacoWidth = innewWidth - 10 - this.countEwement.cwientWidth - this.contwowsEwement.cwientWidth - 12;
+		this.seawchWidget.wayout(new DOM.Dimension(monacoWidth, 20));
 
-		this.rootElement.classList.toggle('mid-width', dimension.width < 1000 && dimension.width >= 600);
-		this.rootElement.classList.toggle('narrow-width', dimension.width < 600);
+		this.wootEwement.cwassWist.toggwe('mid-width', dimension.width < 1000 && dimension.width >= 600);
+		this.wootEwement.cwassWist.toggwe('nawwow-width', dimension.width < 600);
 	}
 
-	override focus(): void {
-		if (this._currentFocusContext === SettingsFocusContext.Search) {
-			if (!platform.isIOS) {
+	ovewwide focus(): void {
+		if (this._cuwwentFocusContext === SettingsFocusContext.Seawch) {
+			if (!pwatfowm.isIOS) {
 				// #122044
-				this.focusSearch();
+				this.focusSeawch();
 			}
-		} else if (this._currentFocusContext === SettingsFocusContext.SettingControl) {
-			const element = this.focusedSettingDOMElement;
-			if (element) {
-				const control = element.querySelector(AbstractSettingRenderer.CONTROL_SELECTOR);
-				if (control) {
-					(<HTMLElement>control).focus();
-					return;
+		} ewse if (this._cuwwentFocusContext === SettingsFocusContext.SettingContwow) {
+			const ewement = this.focusedSettingDOMEwement;
+			if (ewement) {
+				const contwow = ewement.quewySewectow(AbstwactSettingWendewa.CONTWOW_SEWECTOW);
+				if (contwow) {
+					(<HTMWEwement>contwow).focus();
+					wetuwn;
 				}
 			}
-		} else if (this._currentFocusContext === SettingsFocusContext.SettingTree) {
-			this.settingsTree.domFocus();
-		} else if (this._currentFocusContext === SettingsFocusContext.TableOfContents) {
-			this.tocTree.domFocus();
+		} ewse if (this._cuwwentFocusContext === SettingsFocusContext.SettingTwee) {
+			this.settingsTwee.domFocus();
+		} ewse if (this._cuwwentFocusContext === SettingsFocusContext.TabweOfContents) {
+			this.tocTwee.domFocus();
 		}
 	}
 
-	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-		super.setEditorVisible(visible, group);
+	pwotected ovewwide setEditowVisibwe(visibwe: boowean, gwoup: IEditowGwoup | undefined): void {
+		supa.setEditowVisibwe(visibwe, gwoup);
 
-		if (!visible) {
-			// Wait for editor to be removed from DOM #106303
+		if (!visibwe) {
+			// Wait fow editow to be wemoved fwom DOM #106303
 			setTimeout(() => {
-				this.searchWidget.onHide();
+				this.seawchWidget.onHide();
 			}, 0);
 		}
 	}
 
-	focusSettings(focusSettingInput = false): void {
-		const focused = this.settingsTree.getFocus();
-		if (!focused.length) {
-			this.settingsTree.focusFirst();
+	focusSettings(focusSettingInput = fawse): void {
+		const focused = this.settingsTwee.getFocus();
+		if (!focused.wength) {
+			this.settingsTwee.focusFiwst();
 		}
 
-		this.settingsTree.domFocus();
+		this.settingsTwee.domFocus();
 
 		if (focusSettingInput) {
-			const controlInFocusedRow = this.settingsTree.getHTMLElement().querySelector(`.focused ${AbstractSettingRenderer.CONTROL_SELECTOR}`);
-			if (controlInFocusedRow) {
-				(<HTMLElement>controlInFocusedRow).focus();
+			const contwowInFocusedWow = this.settingsTwee.getHTMWEwement().quewySewectow(`.focused ${AbstwactSettingWendewa.CONTWOW_SEWECTOW}`);
+			if (contwowInFocusedWow) {
+				(<HTMWEwement>contwowInFocusedWow).focus();
 			}
 		}
 	}
 
 	focusTOC(): void {
-		this.tocTree.domFocus();
+		this.tocTwee.domFocus();
 	}
 
 	showContextMenu(): void {
-		const focused = this.settingsTree.getFocus()[0];
-		const rowElement = this.focusedSettingDOMElement;
-		if (rowElement && focused instanceof SettingsTreeSettingElement) {
-			this.settingRenderers.showContextMenu(focused, rowElement);
+		const focused = this.settingsTwee.getFocus()[0];
+		const wowEwement = this.focusedSettingDOMEwement;
+		if (wowEwement && focused instanceof SettingsTweeSettingEwement) {
+			this.settingWendewews.showContextMenu(focused, wowEwement);
 		}
 	}
 
-	focusSearch(filter?: string, selectAll = true): void {
-		if (filter && this.searchWidget) {
-			this.searchWidget.setValue(filter);
+	focusSeawch(fiwta?: stwing, sewectAww = twue): void {
+		if (fiwta && this.seawchWidget) {
+			this.seawchWidget.setVawue(fiwta);
 		}
 
-		this.searchWidget.focus(selectAll);
+		this.seawchWidget.focus(sewectAww);
 	}
 
-	clearSearchResults(): void {
-		this.searchWidget.setValue('');
-		this.focusSearch();
+	cweawSeawchWesuwts(): void {
+		this.seawchWidget.setVawue('');
+		this.focusSeawch();
 	}
 
-	clearSearchFilters(): void {
-		let query = this.searchWidget.getValue();
+	cweawSeawchFiwtews(): void {
+		wet quewy = this.seawchWidget.getVawue();
 
-		SettingsEditor2.SUGGESTIONS.forEach(suggestion => {
-			query = query.replace(suggestion, '');
+		SettingsEditow2.SUGGESTIONS.fowEach(suggestion => {
+			quewy = quewy.wepwace(suggestion, '');
 		});
 
-		this.searchWidget.setValue(query.trim());
+		this.seawchWidget.setVawue(quewy.twim());
 	}
 
-	private updateInputAriaLabel() {
-		let label = searchBoxLabel;
-		if (this.searchResultLabel) {
-			label += `. ${this.searchResultLabel}`;
+	pwivate updateInputAwiaWabew() {
+		wet wabew = seawchBoxWabew;
+		if (this.seawchWesuwtWabew) {
+			wabew += `. ${this.seawchWesuwtWabew}`;
 		}
 
-		if (this.lastSyncedLabel) {
-			label += `. ${this.lastSyncedLabel}`;
+		if (this.wastSyncedWabew) {
+			wabew += `. ${this.wastSyncedWabew}`;
 		}
 
-		this.searchWidget.updateAriaLabel(label);
+		this.seawchWidget.updateAwiaWabew(wabew);
 	}
 
-	private createHeader(parent: HTMLElement): void {
-		this.headerContainer = DOM.append(parent, $('.settings-header'));
+	pwivate cweateHeada(pawent: HTMWEwement): void {
+		this.headewContaina = DOM.append(pawent, $('.settings-heada'));
 
-		const searchContainer = DOM.append(this.headerContainer, $('.search-container'));
+		const seawchContaina = DOM.append(this.headewContaina, $('.seawch-containa'));
 
-		const clearInputAction = new Action(SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, localize('clearInput', "Clear Settings Search Input"), ThemeIcon.asClassName(preferencesClearInputIcon), false, async () => this.clearSearchResults());
+		const cweawInputAction = new Action(SETTINGS_EDITOW_COMMAND_CWEAW_SEAWCH_WESUWTS, wocawize('cweawInput', "Cweaw Settings Seawch Input"), ThemeIcon.asCwassName(pwefewencesCweawInputIcon), fawse, async () => this.cweawSeawchWesuwts());
 
-		this.searchWidget = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${SettingsEditor2.ID}.searchbox`, searchContainer, {
-			triggerCharacters: ['@'],
-			provideResults: (query: string) => {
-				return SettingsEditor2.SUGGESTIONS.filter(tag => query.indexOf(tag) === -1).map(tag => tag.endsWith(':') ? tag : tag + ' ');
+		this.seawchWidget = this._wegista(this.instantiationSewvice.cweateInstance(SuggestEnabwedInput, `${SettingsEditow2.ID}.seawchbox`, seawchContaina, {
+			twiggewChawactews: ['@'],
+			pwovideWesuwts: (quewy: stwing) => {
+				wetuwn SettingsEditow2.SUGGESTIONS.fiwta(tag => quewy.indexOf(tag) === -1).map(tag => tag.endsWith(':') ? tag : tag + ' ');
 			}
-		}, searchBoxLabel, 'settingseditor:searchinput' + SettingsEditor2.NUM_INSTANCES++, {
-			placeholderText: searchBoxLabel,
-			focusContextKey: this.searchFocusContextKey,
-			// TODO: Aria-live
+		}, seawchBoxWabew, 'settingseditow:seawchinput' + SettingsEditow2.NUM_INSTANCES++, {
+			pwacehowdewText: seawchBoxWabew,
+			focusContextKey: this.seawchFocusContextKey,
+			// TODO: Awia-wive
 		}));
-		this._register(this.searchWidget.onFocus(() => {
-			this._currentFocusContext = SettingsFocusContext.Search;
-		}));
-
-		this._register(attachSuggestEnabledInputBoxStyler(this.searchWidget, this.themeService, {
-			inputBorder: settingsTextInputBorder
+		this._wegista(this.seawchWidget.onFocus(() => {
+			this._cuwwentFocusContext = SettingsFocusContext.Seawch;
 		}));
 
-		this.countElement = DOM.append(searchContainer, DOM.$('.settings-count-widget.monaco-count-badge.long'));
-		this._register(attachStylerCallback(this.themeService, { badgeBackground, contrastBorder, badgeForeground }, colors => {
-			const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
-			const border = colors.contrastBorder ? colors.contrastBorder.toString() : '';
-			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : '';
-
-			this.countElement.style.backgroundColor = background;
-			this.countElement.style.color = foreground;
-
-			this.countElement.style.borderWidth = border ? '1px' : '';
-			this.countElement.style.borderStyle = border ? 'solid' : '';
-			this.countElement.style.borderColor = border;
+		this._wegista(attachSuggestEnabwedInputBoxStywa(this.seawchWidget, this.themeSewvice, {
+			inputBowda: settingsTextInputBowda
 		}));
 
-		this._register(this.searchWidget.onInputDidChange(() => {
-			const searchVal = this.searchWidget.getValue();
-			clearInputAction.enabled = !!searchVal;
-			this.onSearchInputChanged();
+		this.countEwement = DOM.append(seawchContaina, DOM.$('.settings-count-widget.monaco-count-badge.wong'));
+		this._wegista(attachStywewCawwback(this.themeSewvice, { badgeBackgwound, contwastBowda, badgeFowegwound }, cowows => {
+			const backgwound = cowows.badgeBackgwound ? cowows.badgeBackgwound.toStwing() : '';
+			const bowda = cowows.contwastBowda ? cowows.contwastBowda.toStwing() : '';
+			const fowegwound = cowows.badgeFowegwound ? cowows.badgeFowegwound.toStwing() : '';
+
+			this.countEwement.stywe.backgwoundCowow = backgwound;
+			this.countEwement.stywe.cowow = fowegwound;
+
+			this.countEwement.stywe.bowdewWidth = bowda ? '1px' : '';
+			this.countEwement.stywe.bowdewStywe = bowda ? 'sowid' : '';
+			this.countEwement.stywe.bowdewCowow = bowda;
 		}));
 
-		const headerControlsContainer = DOM.append(this.headerContainer, $('.settings-header-controls'));
-		const targetWidgetContainer = DOM.append(headerControlsContainer, $('.settings-target-container'));
-		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer, { enableRemoteSettings: true }));
-		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER_LOCAL;
-		this.settingsTargetsWidget.onDidTargetChange(target => this.onDidSettingsTargetChange(target));
-		this._register(DOM.addDisposableListener(targetWidgetContainer, DOM.EventType.KEY_DOWN, e => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.keyCode === KeyCode.DownArrow) {
+		this._wegista(this.seawchWidget.onInputDidChange(() => {
+			const seawchVaw = this.seawchWidget.getVawue();
+			cweawInputAction.enabwed = !!seawchVaw;
+			this.onSeawchInputChanged();
+		}));
+
+		const headewContwowsContaina = DOM.append(this.headewContaina, $('.settings-heada-contwows'));
+		const tawgetWidgetContaina = DOM.append(headewContwowsContaina, $('.settings-tawget-containa'));
+		this.settingsTawgetsWidget = this._wegista(this.instantiationSewvice.cweateInstance(SettingsTawgetsWidget, tawgetWidgetContaina, { enabweWemoteSettings: twue }));
+		this.settingsTawgetsWidget.settingsTawget = ConfiguwationTawget.USEW_WOCAW;
+		this.settingsTawgetsWidget.onDidTawgetChange(tawget => this.onDidSettingsTawgetChange(tawget));
+		this._wegista(DOM.addDisposabweWistena(tawgetWidgetContaina, DOM.EventType.KEY_DOWN, e => {
+			const event = new StandawdKeyboawdEvent(e);
+			if (event.keyCode === KeyCode.DownAwwow) {
 				this.focusSettings();
 			}
 		}));
 
-		if (this.userDataSyncWorkbenchService.enabled && this.userDataAutoSyncEnablementService.canToggleEnablement()) {
-			const syncControls = this._register(this.instantiationService.createInstance(SyncControls, headerControlsContainer));
-			this._register(syncControls.onDidChangeLastSyncedLabel(lastSyncedLabel => {
-				this.lastSyncedLabel = lastSyncedLabel;
-				this.updateInputAriaLabel();
+		if (this.usewDataSyncWowkbenchSewvice.enabwed && this.usewDataAutoSyncEnabwementSewvice.canToggweEnabwement()) {
+			const syncContwows = this._wegista(this.instantiationSewvice.cweateInstance(SyncContwows, headewContwowsContaina));
+			this._wegista(syncContwows.onDidChangeWastSyncedWabew(wastSyncedWabew => {
+				this.wastSyncedWabew = wastSyncedWabew;
+				this.updateInputAwiaWabew();
 			}));
 		}
 
-		this.controlsElement = DOM.append(searchContainer, DOM.$('.settings-clear-widget'));
+		this.contwowsEwement = DOM.append(seawchContaina, DOM.$('.settings-cweaw-widget'));
 
-		const actionBar = this._register(new ActionBar(this.controlsElement, {
-			animated: false,
-			actionViewItemProvider: (_action) => { return undefined; }
+		const actionBaw = this._wegista(new ActionBaw(this.contwowsEwement, {
+			animated: fawse,
+			actionViewItemPwovida: (_action) => { wetuwn undefined; }
 		}));
 
-		actionBar.push([clearInputAction], { label: false, icon: true });
+		actionBaw.push([cweawInputAction], { wabew: fawse, icon: twue });
 	}
 
-	private onDidSettingsTargetChange(target: SettingsTarget): void {
-		this.viewState.settingsTarget = target;
+	pwivate onDidSettingsTawgetChange(tawget: SettingsTawget): void {
+		this.viewState.settingsTawget = tawget;
 
-		// TODO Instead of rebuilding the whole model, refresh and uncache the inspected setting value
-		this.onConfigUpdate(undefined, true);
+		// TODO Instead of webuiwding the whowe modew, wefwesh and uncache the inspected setting vawue
+		this.onConfigUpdate(undefined, twue);
 	}
 
-	private onDidClickSetting(evt: ISettingLinkClickEvent, recursed?: boolean): void {
-		const elements = this.currentSettingsModel.getElementsByName(evt.targetKey);
-		if (elements && elements[0]) {
-			let sourceTop = 0.5;
-			try {
-				const _sourceTop = this.settingsTree.getRelativeTop(evt.source);
-				if (_sourceTop !== null) {
-					sourceTop = _sourceTop;
+	pwivate onDidCwickSetting(evt: ISettingWinkCwickEvent, wecuwsed?: boowean): void {
+		const ewements = this.cuwwentSettingsModew.getEwementsByName(evt.tawgetKey);
+		if (ewements && ewements[0]) {
+			wet souwceTop = 0.5;
+			twy {
+				const _souwceTop = this.settingsTwee.getWewativeTop(evt.souwce);
+				if (_souwceTop !== nuww) {
+					souwceTop = _souwceTop;
 				}
 			} catch {
-				// e.g. clicked a searched element, now the search has been cleared
+				// e.g. cwicked a seawched ewement, now the seawch has been cweawed
 			}
 
-			this.settingsTree.reveal(elements[0], sourceTop);
+			this.settingsTwee.weveaw(ewements[0], souwceTop);
 
-			// We need to shift focus from the setting that contains the link to the setting that's
-			//  linked. Clicking on the link sets focus on the setting that contains the link,
+			// We need to shift focus fwom the setting that contains the wink to the setting that's
+			//  winked. Cwicking on the wink sets focus on the setting that contains the wink,
 			//  which is why we need the setTimeout
-			setTimeout(() => this.settingsTree.setFocus([elements[0]]), 50);
+			setTimeout(() => this.settingsTwee.setFocus([ewements[0]]), 50);
 
-			const domElements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), evt.targetKey);
-			if (domElements && domElements[0]) {
-				const control = domElements[0].querySelector(AbstractSettingRenderer.CONTROL_SELECTOR);
-				if (control) {
-					(<HTMLElement>control).focus();
+			const domEwements = this.settingWendewews.getDOMEwementsFowSettingKey(this.settingsTwee.getHTMWEwement(), evt.tawgetKey);
+			if (domEwements && domEwements[0]) {
+				const contwow = domEwements[0].quewySewectow(AbstwactSettingWendewa.CONTWOW_SEWECTOW);
+				if (contwow) {
+					(<HTMWEwement>contwow).focus();
 				}
 			}
-		} else if (!recursed) {
-			const p = this.triggerSearch('');
+		} ewse if (!wecuwsed) {
+			const p = this.twiggewSeawch('');
 			p.then(() => {
-				this.searchWidget.setValue('');
-				this.onDidClickSetting(evt, true);
+				this.seawchWidget.setVawue('');
+				this.onDidCwickSetting(evt, twue);
 			});
 		}
 	}
 
-	switchToSettingsFile(): Promise<IEditorPane | undefined> {
-		const query = parseQuery(this.searchWidget.getValue()).query;
-		return this.openSettingsFile({ query });
+	switchToSettingsFiwe(): Pwomise<IEditowPane | undefined> {
+		const quewy = pawseQuewy(this.seawchWidget.getVawue()).quewy;
+		wetuwn this.openSettingsFiwe({ quewy });
 	}
 
-	private async openSettingsFile(options?: ISettingsEditorOptions): Promise<IEditorPane | undefined> {
-		const currentSettingsTarget = this.settingsTargetsWidget.settingsTarget;
+	pwivate async openSettingsFiwe(options?: ISettingsEditowOptions): Pwomise<IEditowPane | undefined> {
+		const cuwwentSettingsTawget = this.settingsTawgetsWidget.settingsTawget;
 
-		const openOptions: IOpenSettingsOptions = { jsonEditor: true, ...options };
-		if (currentSettingsTarget === ConfigurationTarget.USER_LOCAL) {
-			return this.preferencesService.openUserSettings(openOptions);
-		} else if (currentSettingsTarget === ConfigurationTarget.USER_REMOTE) {
-			return this.preferencesService.openRemoteSettings(openOptions);
-		} else if (currentSettingsTarget === ConfigurationTarget.WORKSPACE) {
-			return this.preferencesService.openWorkspaceSettings(openOptions);
-		} else if (URI.isUri(currentSettingsTarget)) {
-			return this.preferencesService.openFolderSettings({ folderUri: currentSettingsTarget, ...openOptions });
+		const openOptions: IOpenSettingsOptions = { jsonEditow: twue, ...options };
+		if (cuwwentSettingsTawget === ConfiguwationTawget.USEW_WOCAW) {
+			wetuwn this.pwefewencesSewvice.openUsewSettings(openOptions);
+		} ewse if (cuwwentSettingsTawget === ConfiguwationTawget.USEW_WEMOTE) {
+			wetuwn this.pwefewencesSewvice.openWemoteSettings(openOptions);
+		} ewse if (cuwwentSettingsTawget === ConfiguwationTawget.WOWKSPACE) {
+			wetuwn this.pwefewencesSewvice.openWowkspaceSettings(openOptions);
+		} ewse if (UWI.isUwi(cuwwentSettingsTawget)) {
+			wetuwn this.pwefewencesSewvice.openFowdewSettings({ fowdewUwi: cuwwentSettingsTawget, ...openOptions });
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private createBody(parent: HTMLElement): void {
-		const bodyContainer = DOM.append(parent, $('.settings-body'));
+	pwivate cweateBody(pawent: HTMWEwement): void {
+		const bodyContaina = DOM.append(pawent, $('.settings-body'));
 
-		this.noResultsMessage = DOM.append(bodyContainer, $('.no-results-message'));
+		this.noWesuwtsMessage = DOM.append(bodyContaina, $('.no-wesuwts-message'));
 
-		this.noResultsMessage.innerText = localize('noResults', "No Settings Found");
+		this.noWesuwtsMessage.innewText = wocawize('noWesuwts', "No Settings Found");
 
-		this.clearFilterLinkContainer = $('span.clear-search-filters');
+		this.cweawFiwtewWinkContaina = $('span.cweaw-seawch-fiwtews');
 
-		this.clearFilterLinkContainer.textContent = ' - ';
-		const clearFilterLink = DOM.append(this.clearFilterLinkContainer, $('a.pointer.prominent', { tabindex: 0 }, localize('clearSearchFilters', 'Clear Filters')));
-		this._register(DOM.addDisposableListener(clearFilterLink, DOM.EventType.CLICK, (e: MouseEvent) => {
-			DOM.EventHelper.stop(e, false);
-			this.clearSearchFilters();
+		this.cweawFiwtewWinkContaina.textContent = ' - ';
+		const cweawFiwtewWink = DOM.append(this.cweawFiwtewWinkContaina, $('a.pointa.pwominent', { tabindex: 0 }, wocawize('cweawSeawchFiwtews', 'Cweaw Fiwtews')));
+		this._wegista(DOM.addDisposabweWistena(cweawFiwtewWink, DOM.EventType.CWICK, (e: MouseEvent) => {
+			DOM.EventHewpa.stop(e, fawse);
+			this.cweawSeawchFiwtews();
 		}));
 
-		DOM.append(this.noResultsMessage, this.clearFilterLinkContainer);
+		DOM.append(this.noWesuwtsMessage, this.cweawFiwtewWinkContaina);
 
-		this._register(attachStylerCallback(this.themeService, { editorForeground }, colors => {
-			this.noResultsMessage.style.color = colors.editorForeground ? colors.editorForeground.toString() : '';
+		this._wegista(attachStywewCawwback(this.themeSewvice, { editowFowegwound }, cowows => {
+			this.noWesuwtsMessage.stywe.cowow = cowows.editowFowegwound ? cowows.editowFowegwound.toStwing() : '';
 		}));
 
-		this.createTOC(bodyContainer);
-		this.createSettingsTree(bodyContainer);
+		this.cweateTOC(bodyContaina);
+		this.cweateSettingsTwee(bodyContaina);
 	}
 
-	private addCtrlAInterceptor(container: HTMLElement): void {
-		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_DOWN, (e: StandardKeyboardEvent) => {
+	pwivate addCtwwAIntewceptow(containa: HTMWEwement): void {
+		this._wegista(DOM.addStandawdDisposabweWistena(containa, DOM.EventType.KEY_DOWN, (e: StandawdKeyboawdEvent) => {
 			if (
 				e.keyCode === KeyCode.KEY_A &&
-				(platform.isMacintosh ? e.metaKey : e.ctrlKey) &&
-				e.target.tagName !== 'TEXTAREA' &&
-				e.target.tagName !== 'INPUT'
+				(pwatfowm.isMacintosh ? e.metaKey : e.ctwwKey) &&
+				e.tawget.tagName !== 'TEXTAWEA' &&
+				e.tawget.tagName !== 'INPUT'
 			) {
-				// Avoid browser ctrl+a
-				e.browserEvent.stopPropagation();
-				e.browserEvent.preventDefault();
+				// Avoid bwowsa ctww+a
+				e.bwowsewEvent.stopPwopagation();
+				e.bwowsewEvent.pweventDefauwt();
 			}
 		}));
 	}
 
-	private createTOC(parent: HTMLElement): void {
-		this.tocTreeModel = this.instantiationService.createInstance(TOCTreeModel, this.viewState);
-		this.tocTreeContainer = DOM.append(parent, $('.settings-toc-container'));
+	pwivate cweateTOC(pawent: HTMWEwement): void {
+		this.tocTweeModew = this.instantiationSewvice.cweateInstance(TOCTweeModew, this.viewState);
+		this.tocTweeContaina = DOM.append(pawent, $('.settings-toc-containa'));
 
-		this.tocTree = this._register(this.instantiationService.createInstance(TOCTree,
-			DOM.append(this.tocTreeContainer, $('.settings-toc-wrapper', {
-				'role': 'navigation',
-				'aria-label': localize('settings', "Settings"),
+		this.tocTwee = this._wegista(this.instantiationSewvice.cweateInstance(TOCTwee,
+			DOM.append(this.tocTweeContaina, $('.settings-toc-wwappa', {
+				'wowe': 'navigation',
+				'awia-wabew': wocawize('settings', "Settings"),
 			})),
 			this.viewState));
 
-		this._register(this.tocTree.onDidFocus(() => {
-			this._currentFocusContext = SettingsFocusContext.TableOfContents;
+		this._wegista(this.tocTwee.onDidFocus(() => {
+			this._cuwwentFocusContext = SettingsFocusContext.TabweOfContents;
 		}));
 
-		this._register(this.tocTree.onDidChangeFocus(e => {
-			const element: SettingsTreeGroupElement | null = e.elements[0];
-			if (this.tocFocusedElement === element) {
-				return;
+		this._wegista(this.tocTwee.onDidChangeFocus(e => {
+			const ewement: SettingsTweeGwoupEwement | nuww = e.ewements[0];
+			if (this.tocFocusedEwement === ewement) {
+				wetuwn;
 			}
 
-			this.tocFocusedElement = element;
-			this.tocTree.setSelection(element ? [element] : []);
-			if (this.searchResultModel) {
-				if (this.viewState.filterToCategory !== element) {
-					this.viewState.filterToCategory = withNullAsUndefined(element);
-					this.renderTree();
-					this.settingsTree.scrollTop = 0;
+			this.tocFocusedEwement = ewement;
+			this.tocTwee.setSewection(ewement ? [ewement] : []);
+			if (this.seawchWesuwtModew) {
+				if (this.viewState.fiwtewToCategowy !== ewement) {
+					this.viewState.fiwtewToCategowy = withNuwwAsUndefined(ewement);
+					this.wendewTwee();
+					this.settingsTwee.scwowwTop = 0;
 				}
-			} else if (element && (!e.browserEvent || !(<IFocusEventFromScroll>e.browserEvent).fromScroll)) {
-				this.settingsTree.reveal(element, 0);
-				this.settingsTree.setFocus([element]);
+			} ewse if (ewement && (!e.bwowsewEvent || !(<IFocusEventFwomScwoww>e.bwowsewEvent).fwomScwoww)) {
+				this.settingsTwee.weveaw(ewement, 0);
+				this.settingsTwee.setFocus([ewement]);
 			}
 		}));
 
-		this._register(this.tocTree.onDidFocus(() => {
-			this.tocRowFocused.set(true);
+		this._wegista(this.tocTwee.onDidFocus(() => {
+			this.tocWowFocused.set(twue);
 		}));
 
-		this._register(this.tocTree.onDidBlur(() => {
-			this.tocRowFocused.set(false);
+		this._wegista(this.tocTwee.onDidBwuw(() => {
+			this.tocWowFocused.set(fawse);
 		}));
 	}
 
-	private createSettingsTree(parent: HTMLElement): void {
-		this.settingsTreeContainer = DOM.append(parent, $('.settings-tree-container'));
+	pwivate cweateSettingsTwee(pawent: HTMWEwement): void {
+		this.settingsTweeContaina = DOM.append(pawent, $('.settings-twee-containa'));
 
-		this.settingRenderers = this.instantiationService.createInstance(SettingTreeRenderers);
-		this._register(this.settingRenderers.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value, e.type)));
-		this._register(this.settingRenderers.onDidOpenSettings(settingKey => {
-			this.openSettingsFile({ revealSetting: { key: settingKey, edit: true } });
+		this.settingWendewews = this.instantiationSewvice.cweateInstance(SettingTweeWendewews);
+		this._wegista(this.settingWendewews.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.vawue, e.type)));
+		this._wegista(this.settingWendewews.onDidOpenSettings(settingKey => {
+			this.openSettingsFiwe({ weveawSetting: { key: settingKey, edit: twue } });
 		}));
-		this._register(this.settingRenderers.onDidClickSettingLink(settingName => this.onDidClickSetting(settingName)));
-		this._register(this.settingRenderers.onDidFocusSetting(element => {
-			this.settingsTree.setFocus([element]);
-			this._currentFocusContext = SettingsFocusContext.SettingControl;
-			this.settingRowFocused.set(false);
+		this._wegista(this.settingWendewews.onDidCwickSettingWink(settingName => this.onDidCwickSetting(settingName)));
+		this._wegista(this.settingWendewews.onDidFocusSetting(ewement => {
+			this.settingsTwee.setFocus([ewement]);
+			this._cuwwentFocusContext = SettingsFocusContext.SettingContwow;
+			this.settingWowFocused.set(fawse);
 		}));
-		this._register(this.settingRenderers.onDidClickOverrideElement((element: ISettingOverrideClickEvent) => {
-			if (element.scope.toLowerCase() === 'workspace') {
-				this.settingsTargetsWidget.updateTarget(ConfigurationTarget.WORKSPACE);
-			} else if (element.scope.toLowerCase() === 'user') {
-				this.settingsTargetsWidget.updateTarget(ConfigurationTarget.USER_LOCAL);
-			} else if (element.scope.toLowerCase() === 'remote') {
-				this.settingsTargetsWidget.updateTarget(ConfigurationTarget.USER_REMOTE);
+		this._wegista(this.settingWendewews.onDidCwickOvewwideEwement((ewement: ISettingOvewwideCwickEvent) => {
+			if (ewement.scope.toWowewCase() === 'wowkspace') {
+				this.settingsTawgetsWidget.updateTawget(ConfiguwationTawget.WOWKSPACE);
+			} ewse if (ewement.scope.toWowewCase() === 'usa') {
+				this.settingsTawgetsWidget.updateTawget(ConfiguwationTawget.USEW_WOCAW);
+			} ewse if (ewement.scope.toWowewCase() === 'wemote') {
+				this.settingsTawgetsWidget.updateTawget(ConfiguwationTawget.USEW_WEMOTE);
 			}
 
-			this.searchWidget.setValue(element.targetKey);
+			this.seawchWidget.setVawue(ewement.tawgetKey);
 		}));
-		this._register(this.settingRenderers.onDidChangeSettingHeight((params: HeightChangeParams) => {
-			const { element, height } = params;
-			try {
-				this.settingsTree.updateElementHeight(element, height);
+		this._wegista(this.settingWendewews.onDidChangeSettingHeight((pawams: HeightChangePawams) => {
+			const { ewement, height } = pawams;
+			twy {
+				this.settingsTwee.updateEwementHeight(ewement, height);
 			} catch (e) {
-				// the element was not found
+				// the ewement was not found
 			}
 		}));
 
-		this.settingsTree = this._register(this.instantiationService.createInstance(SettingsTree,
-			this.settingsTreeContainer,
+		this.settingsTwee = this._wegista(this.instantiationSewvice.cweateInstance(SettingsTwee,
+			this.settingsTweeContaina,
 			this.viewState,
-			this.settingRenderers.allRenderers));
+			this.settingWendewews.awwWendewews));
 
-		this._register(this.settingsTree.onDidScroll(() => {
-			if (this.settingsTree.scrollTop === this.settingsTreeScrollTop) {
-				return;
+		this._wegista(this.settingsTwee.onDidScwoww(() => {
+			if (this.settingsTwee.scwowwTop === this.settingsTweeScwowwTop) {
+				wetuwn;
 			}
 
-			this.settingsTreeScrollTop = this.settingsTree.scrollTop;
+			this.settingsTweeScwowwTop = this.settingsTwee.scwowwTop;
 
-			// setTimeout because calling setChildren on the settingsTree can trigger onDidScroll, so it fires when
-			// setChildren has called on the settings tree but not the toc tree yet, so their rendered elements are out of sync
+			// setTimeout because cawwing setChiwdwen on the settingsTwee can twigga onDidScwoww, so it fiwes when
+			// setChiwdwen has cawwed on the settings twee but not the toc twee yet, so theiw wendewed ewements awe out of sync
 			setTimeout(() => {
-				this.updateTreeScrollSync();
+				this.updateTweeScwowwSync();
 			}, 0);
 		}));
 
-		this._register(this.settingsTree.onDidFocus(() => {
-			if (document.activeElement?.classList.contains('monaco-list')) {
-				this._currentFocusContext = SettingsFocusContext.SettingTree;
-				this.settingRowFocused.set(true);
+		this._wegista(this.settingsTwee.onDidFocus(() => {
+			if (document.activeEwement?.cwassWist.contains('monaco-wist')) {
+				this._cuwwentFocusContext = SettingsFocusContext.SettingTwee;
+				this.settingWowFocused.set(twue);
 			}
 		}));
 
-		this._register(this.settingsTree.onDidBlur(() => {
-			this.settingRowFocused.set(false);
+		this._wegista(this.settingsTwee.onDidBwuw(() => {
+			this.settingWowFocused.set(fawse);
 		}));
 
-		// There is no different select state in the settings tree
-		this._register(this.settingsTree.onDidChangeFocus(e => {
-			const element = e.elements[0];
-			if (this.treeFocusedElement === element) {
-				return;
+		// Thewe is no diffewent sewect state in the settings twee
+		this._wegista(this.settingsTwee.onDidChangeFocus(e => {
+			const ewement = e.ewements[0];
+			if (this.tweeFocusedEwement === ewement) {
+				wetuwn;
 			}
 
-			if (this.treeFocusedElement) {
-				this.treeFocusedElement.tabbable = false;
+			if (this.tweeFocusedEwement) {
+				this.tweeFocusedEwement.tabbabwe = fawse;
 			}
 
-			this.treeFocusedElement = element;
+			this.tweeFocusedEwement = ewement;
 
-			if (this.treeFocusedElement) {
-				this.treeFocusedElement.tabbable = true;
+			if (this.tweeFocusedEwement) {
+				this.tweeFocusedEwement.tabbabwe = twue;
 			}
 
-			this.settingsTree.setSelection(element ? [element] : []);
+			this.settingsTwee.setSewection(ewement ? [ewement] : []);
 		}));
 	}
 
-	private onDidChangeSetting(key: string, value: any, type: SettingValueType | SettingValueType[]): void {
+	pwivate onDidChangeSetting(key: stwing, vawue: any, type: SettingVawueType | SettingVawueType[]): void {
 		if (this.pendingSettingUpdate && this.pendingSettingUpdate.key !== key) {
-			this.updateChangedSetting(key, value);
+			this.updateChangedSetting(key, vawue);
 		}
 
-		this.pendingSettingUpdate = { key, value };
-		if (SettingsEditor2.shouldSettingUpdateFast(type)) {
-			this.settingFastUpdateDelayer.trigger(() => this.updateChangedSetting(key, value));
-		} else {
-			this.settingSlowUpdateDelayer.trigger(() => this.updateChangedSetting(key, value));
+		this.pendingSettingUpdate = { key, vawue };
+		if (SettingsEditow2.shouwdSettingUpdateFast(type)) {
+			this.settingFastUpdateDewaya.twigga(() => this.updateChangedSetting(key, vawue));
+		} ewse {
+			this.settingSwowUpdateDewaya.twigga(() => this.updateChangedSetting(key, vawue));
 		}
 	}
 
-	private updateTreeScrollSync(): void {
-		this.settingRenderers.cancelSuggesters();
-		if (this.searchResultModel) {
-			return;
+	pwivate updateTweeScwowwSync(): void {
+		this.settingWendewews.cancewSuggestews();
+		if (this.seawchWesuwtModew) {
+			wetuwn;
 		}
 
-		if (!this.tocTreeModel) {
-			return;
+		if (!this.tocTweeModew) {
+			wetuwn;
 		}
 
-		const elementToSync = this.settingsTree.firstVisibleElement;
-		const element = elementToSync instanceof SettingsTreeSettingElement ? elementToSync.parent :
-			elementToSync instanceof SettingsTreeGroupElement ? elementToSync :
-				null;
+		const ewementToSync = this.settingsTwee.fiwstVisibweEwement;
+		const ewement = ewementToSync instanceof SettingsTweeSettingEwement ? ewementToSync.pawent :
+			ewementToSync instanceof SettingsTweeGwoupEwement ? ewementToSync :
+				nuww;
 
-		// It's possible for this to be called when the TOC and settings tree are out of sync - e.g. when the settings tree has deferred a refresh because
-		// it is focused. So, bail if element doesn't exist in the TOC.
-		let nodeExists = true;
-		try { this.tocTree.getNode(element); } catch (e) { nodeExists = false; }
+		// It's possibwe fow this to be cawwed when the TOC and settings twee awe out of sync - e.g. when the settings twee has defewwed a wefwesh because
+		// it is focused. So, baiw if ewement doesn't exist in the TOC.
+		wet nodeExists = twue;
+		twy { this.tocTwee.getNode(ewement); } catch (e) { nodeExists = fawse; }
 		if (!nodeExists) {
-			return;
+			wetuwn;
 		}
 
-		if (element && this.tocTree.getSelection()[0] !== element) {
-			const ancestors = this.getAncestors(element);
-			ancestors.forEach(e => this.tocTree.expand(<SettingsTreeGroupElement>e));
+		if (ewement && this.tocTwee.getSewection()[0] !== ewement) {
+			const ancestows = this.getAncestows(ewement);
+			ancestows.fowEach(e => this.tocTwee.expand(<SettingsTweeGwoupEwement>e));
 
-			this.tocTree.reveal(element);
-			const elementTop = this.tocTree.getRelativeTop(element);
-			if (typeof elementTop !== 'number') {
-				return;
+			this.tocTwee.weveaw(ewement);
+			const ewementTop = this.tocTwee.getWewativeTop(ewement);
+			if (typeof ewementTop !== 'numba') {
+				wetuwn;
 			}
 
-			this.tocTree.collapseAll();
+			this.tocTwee.cowwapseAww();
 
-			ancestors.forEach(e => this.tocTree.expand(<SettingsTreeGroupElement>e));
-			if (elementTop < 0 || elementTop > 1) {
-				this.tocTree.reveal(element);
-			} else {
-				this.tocTree.reveal(element, elementTop);
+			ancestows.fowEach(e => this.tocTwee.expand(<SettingsTweeGwoupEwement>e));
+			if (ewementTop < 0 || ewementTop > 1) {
+				this.tocTwee.weveaw(ewement);
+			} ewse {
+				this.tocTwee.weveaw(ewement, ewementTop);
 			}
 
-			this.tocTree.expand(element);
+			this.tocTwee.expand(ewement);
 
-			this.tocTree.setSelection([element]);
+			this.tocTwee.setSewection([ewement]);
 
-			const fakeKeyboardEvent = new KeyboardEvent('keydown');
-			(<IFocusEventFromScroll>fakeKeyboardEvent).fromScroll = true;
-			this.tocTree.setFocus([element], fakeKeyboardEvent);
+			const fakeKeyboawdEvent = new KeyboawdEvent('keydown');
+			(<IFocusEventFwomScwoww>fakeKeyboawdEvent).fwomScwoww = twue;
+			this.tocTwee.setFocus([ewement], fakeKeyboawdEvent);
 		}
 	}
 
-	private getAncestors(element: SettingsTreeElement): SettingsTreeElement[] {
-		const ancestors: any[] = [];
+	pwivate getAncestows(ewement: SettingsTweeEwement): SettingsTweeEwement[] {
+		const ancestows: any[] = [];
 
-		while (element.parent) {
-			if (element.parent.id !== 'root') {
-				ancestors.push(element.parent);
+		whiwe (ewement.pawent) {
+			if (ewement.pawent.id !== 'woot') {
+				ancestows.push(ewement.pawent);
 			}
 
-			element = element.parent;
+			ewement = ewement.pawent;
 		}
 
-		return ancestors.reverse();
+		wetuwn ancestows.wevewse();
 	}
 
-	private updateChangedSetting(key: string, value: any): Promise<void> {
-		// ConfigurationService displays the error if this fails.
-		// Force a render afterwards because onDidConfigurationUpdate doesn't fire if the update doesn't result in an effective setting value change
-		const settingsTarget = this.settingsTargetsWidget.settingsTarget;
-		const resource = URI.isUri(settingsTarget) ? settingsTarget : undefined;
-		const configurationTarget = <ConfigurationTarget>(resource ? ConfigurationTarget.WORKSPACE_FOLDER : settingsTarget);
-		const overrides: IConfigurationOverrides = { resource };
+	pwivate updateChangedSetting(key: stwing, vawue: any): Pwomise<void> {
+		// ConfiguwationSewvice dispways the ewwow if this faiws.
+		// Fowce a wenda aftewwawds because onDidConfiguwationUpdate doesn't fiwe if the update doesn't wesuwt in an effective setting vawue change
+		const settingsTawget = this.settingsTawgetsWidget.settingsTawget;
+		const wesouwce = UWI.isUwi(settingsTawget) ? settingsTawget : undefined;
+		const configuwationTawget = <ConfiguwationTawget>(wesouwce ? ConfiguwationTawget.WOWKSPACE_FOWDa : settingsTawget);
+		const ovewwides: IConfiguwationOvewwides = { wesouwce };
 
-		const isManualReset = value === undefined;
+		const isManuawWeset = vawue === undefined;
 
-		// If the user is changing the value back to the default, do a 'reset' instead
-		const inspected = this.configurationService.inspect(key, overrides);
-		if (inspected.defaultValue === value) {
-			value = undefined;
+		// If the usa is changing the vawue back to the defauwt, do a 'weset' instead
+		const inspected = this.configuwationSewvice.inspect(key, ovewwides);
+		if (inspected.defauwtVawue === vawue) {
+			vawue = undefined;
 		}
 
-		return this.configurationService.updateValue(key, value, overrides, configurationTarget)
+		wetuwn this.configuwationSewvice.updateVawue(key, vawue, ovewwides, configuwationTawget)
 			.then(() => {
-				this.renderTree(key, isManualReset);
-				const reportModifiedProps = {
+				this.wendewTwee(key, isManuawWeset);
+				const wepowtModifiedPwops = {
 					key,
-					query: this.searchWidget.getValue(),
-					searchResults: this.searchResultModel && this.searchResultModel.getUniqueResults(),
-					rawResults: this.searchResultModel && this.searchResultModel.getRawResults(),
-					showConfiguredOnly: !!this.viewState.tagFilters && this.viewState.tagFilters.has(MODIFIED_SETTING_TAG),
-					isReset: typeof value === 'undefined',
-					settingsTarget: this.settingsTargetsWidget.settingsTarget as SettingsTarget
+					quewy: this.seawchWidget.getVawue(),
+					seawchWesuwts: this.seawchWesuwtModew && this.seawchWesuwtModew.getUniqueWesuwts(),
+					wawWesuwts: this.seawchWesuwtModew && this.seawchWesuwtModew.getWawWesuwts(),
+					showConfiguwedOnwy: !!this.viewState.tagFiwtews && this.viewState.tagFiwtews.has(MODIFIED_SETTING_TAG),
+					isWeset: typeof vawue === 'undefined',
+					settingsTawget: this.settingsTawgetsWidget.settingsTawget as SettingsTawget
 				};
 
-				return this.reportModifiedSetting(reportModifiedProps);
+				wetuwn this.wepowtModifiedSetting(wepowtModifiedPwops);
 			});
 	}
 
-	private reportModifiedSetting(props: { key: string, query: string, searchResults: ISearchResult[] | null, rawResults: ISearchResult[] | null, showConfiguredOnly: boolean, isReset: boolean, settingsTarget: SettingsTarget }): void {
-		this.pendingSettingUpdate = null;
+	pwivate wepowtModifiedSetting(pwops: { key: stwing, quewy: stwing, seawchWesuwts: ISeawchWesuwt[] | nuww, wawWesuwts: ISeawchWesuwt[] | nuww, showConfiguwedOnwy: boowean, isWeset: boowean, settingsTawget: SettingsTawget }): void {
+		this.pendingSettingUpdate = nuww;
 
-		let groupId: string | undefined = undefined;
-		let nlpIndex: number | undefined = undefined;
-		let displayIndex: number | undefined = undefined;
-		if (props.searchResults) {
-			const remoteResult = props.searchResults[SearchResultIdx.Remote];
-			const localResult = props.searchResults[SearchResultIdx.Local];
+		wet gwoupId: stwing | undefined = undefined;
+		wet nwpIndex: numba | undefined = undefined;
+		wet dispwayIndex: numba | undefined = undefined;
+		if (pwops.seawchWesuwts) {
+			const wemoteWesuwt = pwops.seawchWesuwts[SeawchWesuwtIdx.Wemote];
+			const wocawWesuwt = pwops.seawchWesuwts[SeawchWesuwtIdx.Wocaw];
 
-			const localIndex = localResult!.filterMatches.findIndex(m => m.setting.key === props.key);
-			groupId = localIndex >= 0 ?
-				'local' :
-				'remote';
+			const wocawIndex = wocawWesuwt!.fiwtewMatches.findIndex(m => m.setting.key === pwops.key);
+			gwoupId = wocawIndex >= 0 ?
+				'wocaw' :
+				'wemote';
 
-			displayIndex = localIndex >= 0 ?
-				localIndex :
-				remoteResult && (remoteResult.filterMatches.findIndex(m => m.setting.key === props.key) + localResult.filterMatches.length);
+			dispwayIndex = wocawIndex >= 0 ?
+				wocawIndex :
+				wemoteWesuwt && (wemoteWesuwt.fiwtewMatches.findIndex(m => m.setting.key === pwops.key) + wocawWesuwt.fiwtewMatches.wength);
 
-			if (this.searchResultModel) {
-				const rawResults = this.searchResultModel.getRawResults();
-				if (rawResults[SearchResultIdx.Remote]) {
-					const _nlpIndex = rawResults[SearchResultIdx.Remote].filterMatches.findIndex(m => m.setting.key === props.key);
-					nlpIndex = _nlpIndex >= 0 ? _nlpIndex : undefined;
+			if (this.seawchWesuwtModew) {
+				const wawWesuwts = this.seawchWesuwtModew.getWawWesuwts();
+				if (wawWesuwts[SeawchWesuwtIdx.Wemote]) {
+					const _nwpIndex = wawWesuwts[SeawchWesuwtIdx.Wemote].fiwtewMatches.findIndex(m => m.setting.key === pwops.key);
+					nwpIndex = _nwpIndex >= 0 ? _nwpIndex : undefined;
 				}
 			}
 		}
 
-		const reportedTarget = props.settingsTarget === ConfigurationTarget.USER_LOCAL ? 'user' :
-			props.settingsTarget === ConfigurationTarget.USER_REMOTE ? 'user_remote' :
-				props.settingsTarget === ConfigurationTarget.WORKSPACE ? 'workspace' :
-					'folder';
+		const wepowtedTawget = pwops.settingsTawget === ConfiguwationTawget.USEW_WOCAW ? 'usa' :
+			pwops.settingsTawget === ConfiguwationTawget.USEW_WEMOTE ? 'usew_wemote' :
+				pwops.settingsTawget === ConfiguwationTawget.WOWKSPACE ? 'wowkspace' :
+					'fowda';
 
 		const data = {
-			key: props.key,
-			groupId,
-			nlpIndex,
-			displayIndex,
-			showConfiguredOnly: props.showConfiguredOnly,
-			isReset: props.isReset,
-			target: reportedTarget
+			key: pwops.key,
+			gwoupId,
+			nwpIndex,
+			dispwayIndex,
+			showConfiguwedOnwy: pwops.showConfiguwedOnwy,
+			isWeset: pwops.isWeset,
+			tawget: wepowtedTawget
 		};
 
-		/* __GDPR__
-			"settingsEditor.settingModified" : {
-				"key" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"groupId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"nlpIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"displayIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"showConfiguredOnly" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"isReset" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		/* __GDPW__
+			"settingsEditow.settingModified" : {
+				"key" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+				"gwoupId" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+				"nwpIndex" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+				"dispwayIndex" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+				"showConfiguwedOnwy" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+				"isWeset" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+				"tawget" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 			}
 		*/
-		this.telemetryService.publicLog('settingsEditor.settingModified', data);
+		this.tewemetwySewvice.pubwicWog('settingsEditow.settingModified', data);
 	}
 
-	private onSearchModeToggled(): void {
-		this.rootElement.classList.remove('no-toc-search');
-		if (this.configurationService.getValue('workbench.settings.settingsSearchTocBehavior') === 'hide') {
-			this.rootElement.classList.toggle('no-toc-search', !!this.searchResultModel);
+	pwivate onSeawchModeToggwed(): void {
+		this.wootEwement.cwassWist.wemove('no-toc-seawch');
+		if (this.configuwationSewvice.getVawue('wowkbench.settings.settingsSeawchTocBehaviow') === 'hide') {
+			this.wootEwement.cwassWist.toggwe('no-toc-seawch', !!this.seawchWesuwtModew);
 		}
 	}
 
-	private scheduleRefresh(element: HTMLElement, key = ''): void {
-		if (key && this.scheduledRefreshes.has(key)) {
-			return;
+	pwivate scheduweWefwesh(ewement: HTMWEwement, key = ''): void {
+		if (key && this.scheduwedWefweshes.has(key)) {
+			wetuwn;
 		}
 
 		if (!key) {
-			this.scheduledRefreshes.forEach(r => r.dispose());
-			this.scheduledRefreshes.clear();
+			this.scheduwedWefweshes.fowEach(w => w.dispose());
+			this.scheduwedWefweshes.cweaw();
 		}
 
-		const scheduledRefreshTracker = DOM.trackFocus(element);
-		this.scheduledRefreshes.set(key, scheduledRefreshTracker);
-		scheduledRefreshTracker.onDidBlur(() => {
-			scheduledRefreshTracker.dispose();
-			this.scheduledRefreshes.delete(key);
+		const scheduwedWefweshTwacka = DOM.twackFocus(ewement);
+		this.scheduwedWefweshes.set(key, scheduwedWefweshTwacka);
+		scheduwedWefweshTwacka.onDidBwuw(() => {
+			scheduwedWefweshTwacka.dispose();
+			this.scheduwedWefweshes.dewete(key);
 			this.onConfigUpdate([key]);
 		});
 	}
 
-	private async onConfigUpdate(keys?: string[], forceRefresh = false, schemaChange = false): Promise<void> {
-		if (keys && this.settingsTreeModel) {
-			return this.updateElementsByKey(keys);
+	pwivate async onConfigUpdate(keys?: stwing[], fowceWefwesh = fawse, schemaChange = fawse): Pwomise<void> {
+		if (keys && this.settingsTweeModew) {
+			wetuwn this.updateEwementsByKey(keys);
 		}
 
-		const groups = this.defaultSettingsEditorModel.settingsGroups.slice(1); // Without commonlyUsed
-		const dividedGroups = collections.groupBy(groups, g => g.extensionInfo ? 'extension' : 'core');
-		const settingsResult = resolveSettingsTree(tocData, dividedGroups.core, this.logService);
-		const resolvedSettingsRoot = settingsResult.tree;
+		const gwoups = this.defauwtSettingsEditowModew.settingsGwoups.swice(1); // Without commonwyUsed
+		const dividedGwoups = cowwections.gwoupBy(gwoups, g => g.extensionInfo ? 'extension' : 'cowe');
+		const settingsWesuwt = wesowveSettingsTwee(tocData, dividedGwoups.cowe, this.wogSewvice);
+		const wesowvedSettingsWoot = settingsWesuwt.twee;
 
-		// Warn for settings not included in layout
-		if (settingsResult.leftoverSettings.size && !this.hasWarnedMissingSettings) {
-			const settingKeyList: string[] = [];
-			settingsResult.leftoverSettings.forEach(s => {
-				settingKeyList.push(s.key);
+		// Wawn fow settings not incwuded in wayout
+		if (settingsWesuwt.weftovewSettings.size && !this.hasWawnedMissingSettings) {
+			const settingKeyWist: stwing[] = [];
+			settingsWesuwt.weftovewSettings.fowEach(s => {
+				settingKeyWist.push(s.key);
 			});
 
-			this.logService.warn(`SettingsEditor2: Settings not included in settingsLayout.ts: ${settingKeyList.join(', ')}`);
-			this.hasWarnedMissingSettings = true;
+			this.wogSewvice.wawn(`SettingsEditow2: Settings not incwuded in settingsWayout.ts: ${settingKeyWist.join(', ')}`);
+			this.hasWawnedMissingSettings = twue;
 		}
 
-		const commonlyUsed = resolveSettingsTree(commonlyUsedData, dividedGroups.core, this.logService);
-		resolvedSettingsRoot.children!.unshift(commonlyUsed.tree);
+		const commonwyUsed = wesowveSettingsTwee(commonwyUsedData, dividedGwoups.cowe, this.wogSewvice);
+		wesowvedSettingsWoot.chiwdwen!.unshift(commonwyUsed.twee);
 
-		resolvedSettingsRoot.children!.push(await resolveExtensionsSettings(this.extensionService, dividedGroups.extension || []));
+		wesowvedSettingsWoot.chiwdwen!.push(await wesowveExtensionsSettings(this.extensionSewvice, dividedGwoups.extension || []));
 
-		if (!this.workspaceTrustManagementService.isWorkspaceTrusted() && (this.viewState.settingsTarget instanceof URI || this.viewState.settingsTarget === ConfigurationTarget.WORKSPACE)) {
-			const configuredUntrustedWorkspaceSettings = resolveConfiguredUntrustedSettings(groups, this.viewState.settingsTarget, this.configurationService);
-			if (configuredUntrustedWorkspaceSettings.length) {
-				resolvedSettingsRoot.children!.unshift({
-					id: 'workspaceTrust',
-					label: localize('settings require trust', "Workspace Trust"),
-					settings: configuredUntrustedWorkspaceSettings
+		if (!this.wowkspaceTwustManagementSewvice.isWowkspaceTwusted() && (this.viewState.settingsTawget instanceof UWI || this.viewState.settingsTawget === ConfiguwationTawget.WOWKSPACE)) {
+			const configuwedUntwustedWowkspaceSettings = wesowveConfiguwedUntwustedSettings(gwoups, this.viewState.settingsTawget, this.configuwationSewvice);
+			if (configuwedUntwustedWowkspaceSettings.wength) {
+				wesowvedSettingsWoot.chiwdwen!.unshift({
+					id: 'wowkspaceTwust',
+					wabew: wocawize('settings wequiwe twust', "Wowkspace Twust"),
+					settings: configuwedUntwustedWowkspaceSettings
 				});
 			}
 		}
 
-		if (this.searchResultModel) {
-			this.searchResultModel.updateChildren();
+		if (this.seawchWesuwtModew) {
+			this.seawchWesuwtModew.updateChiwdwen();
 		}
 
-		if (this.settingsTreeModel) {
-			this.settingsTreeModel.update(resolvedSettingsRoot);
+		if (this.settingsTweeModew) {
+			this.settingsTweeModew.update(wesowvedSettingsWoot);
 
-			if (schemaChange && !!this.searchResultModel) {
-				// If an extension's settings were just loaded and a search is active, retrigger the search so it shows up
-				return await this.onSearchInputChanged();
+			if (schemaChange && !!this.seawchWesuwtModew) {
+				// If an extension's settings wewe just woaded and a seawch is active, wetwigga the seawch so it shows up
+				wetuwn await this.onSeawchInputChanged();
 			}
 
-			this.refreshTOCTree();
-			this.renderTree(undefined, forceRefresh);
-		} else {
-			this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState, this.workspaceTrustManagementService.isWorkspaceTrusted());
-			this.settingsTreeModel.update(resolvedSettingsRoot);
-			this.tocTreeModel.settingsTreeRoot = this.settingsTreeModel.root as SettingsTreeGroupElement;
+			this.wefweshTOCTwee();
+			this.wendewTwee(undefined, fowceWefwesh);
+		} ewse {
+			this.settingsTweeModew = this.instantiationSewvice.cweateInstance(SettingsTweeModew, this.viewState, this.wowkspaceTwustManagementSewvice.isWowkspaceTwusted());
+			this.settingsTweeModew.update(wesowvedSettingsWoot);
+			this.tocTweeModew.settingsTweeWoot = this.settingsTweeModew.woot as SettingsTweeGwoupEwement;
 
-			const cachedState = this.restoreCachedState();
-			if (cachedState && cachedState.searchQuery || !!this.searchWidget.getValue()) {
-				await this.onSearchInputChanged();
-			} else {
-				this.refreshTOCTree();
-				this.refreshTree();
-				this.tocTree.collapseAll();
+			const cachedState = this.westoweCachedState();
+			if (cachedState && cachedState.seawchQuewy || !!this.seawchWidget.getVawue()) {
+				await this.onSeawchInputChanged();
+			} ewse {
+				this.wefweshTOCTwee();
+				this.wefweshTwee();
+				this.tocTwee.cowwapseAww();
 			}
-		}
-	}
-
-	private updateElementsByKey(keys: string[]): void {
-		if (keys.length) {
-			if (this.searchResultModel) {
-				keys.forEach(key => this.searchResultModel!.updateElementsByName(key));
-			}
-
-			if (this.settingsTreeModel) {
-				keys.forEach(key => this.settingsTreeModel.updateElementsByName(key));
-			}
-
-			keys.forEach(key => this.renderTree(key));
-		} else {
-			return this.renderTree();
 		}
 	}
 
-	private getActiveControlInSettingsTree(): HTMLElement | null {
-		return (document.activeElement && DOM.isAncestor(document.activeElement, this.settingsTree.getHTMLElement())) ?
-			<HTMLElement>document.activeElement :
-			null;
+	pwivate updateEwementsByKey(keys: stwing[]): void {
+		if (keys.wength) {
+			if (this.seawchWesuwtModew) {
+				keys.fowEach(key => this.seawchWesuwtModew!.updateEwementsByName(key));
+			}
+
+			if (this.settingsTweeModew) {
+				keys.fowEach(key => this.settingsTweeModew.updateEwementsByName(key));
+			}
+
+			keys.fowEach(key => this.wendewTwee(key));
+		} ewse {
+			wetuwn this.wendewTwee();
+		}
 	}
 
-	private renderTree(key?: string, force = false): void {
-		if (!force && key && this.scheduledRefreshes.has(key)) {
-			this.updateModifiedLabelForKey(key);
-			return;
+	pwivate getActiveContwowInSettingsTwee(): HTMWEwement | nuww {
+		wetuwn (document.activeEwement && DOM.isAncestow(document.activeEwement, this.settingsTwee.getHTMWEwement())) ?
+			<HTMWEwement>document.activeEwement :
+			nuww;
+	}
+
+	pwivate wendewTwee(key?: stwing, fowce = fawse): void {
+		if (!fowce && key && this.scheduwedWefweshes.has(key)) {
+			this.updateModifiedWabewFowKey(key);
+			wetuwn;
 		}
 
-		// If the context view is focused, delay rendering settings
+		// If the context view is focused, deway wendewing settings
 		if (this.contextViewFocused()) {
-			const element = document.querySelector('.context-view');
-			if (element) {
-				this.scheduleRefresh(element as HTMLElement, key);
+			const ewement = document.quewySewectow('.context-view');
+			if (ewement) {
+				this.scheduweWefwesh(ewement as HTMWEwement, key);
 			}
-			return;
+			wetuwn;
 		}
 
-		// If a setting control is currently focused, schedule a refresh for later
-		const activeElement = this.getActiveControlInSettingsTree();
-		const focusedSetting = activeElement && this.settingRenderers.getSettingDOMElementForDOMElement(activeElement);
-		if (focusedSetting && !force) {
-			// If a single setting is being refreshed, it's ok to refresh now if that is not the focused setting
+		// If a setting contwow is cuwwentwy focused, scheduwe a wefwesh fow wata
+		const activeEwement = this.getActiveContwowInSettingsTwee();
+		const focusedSetting = activeEwement && this.settingWendewews.getSettingDOMEwementFowDOMEwement(activeEwement);
+		if (focusedSetting && !fowce) {
+			// If a singwe setting is being wefweshed, it's ok to wefwesh now if that is not the focused setting
 			if (key) {
-				const focusedKey = focusedSetting.getAttribute(AbstractSettingRenderer.SETTING_KEY_ATTR);
+				const focusedKey = focusedSetting.getAttwibute(AbstwactSettingWendewa.SETTING_KEY_ATTW);
 				if (focusedKey === key &&
-					// update `list`s live, as they have a separate "submit edit" step built in before this
-					(focusedSetting.parentElement && !focusedSetting.parentElement.classList.contains('setting-item-list'))
+					// update `wist`s wive, as they have a sepawate "submit edit" step buiwt in befowe this
+					(focusedSetting.pawentEwement && !focusedSetting.pawentEwement.cwassWist.contains('setting-item-wist'))
 				) {
 
-					this.updateModifiedLabelForKey(key);
-					this.scheduleRefresh(focusedSetting, key);
-					return;
+					this.updateModifiedWabewFowKey(key);
+					this.scheduweWefwesh(focusedSetting, key);
+					wetuwn;
 				}
-			} else {
-				this.scheduleRefresh(focusedSetting);
-				return;
+			} ewse {
+				this.scheduweWefwesh(focusedSetting);
+				wetuwn;
 			}
 		}
 
-		this.renderResultCountMessages();
+		this.wendewWesuwtCountMessages();
 
 		if (key) {
-			const elements = this.currentSettingsModel.getElementsByName(key);
-			if (elements && elements.length) {
-				// TODO https://github.com/microsoft/vscode/issues/57360
-				this.refreshTree();
-			} else {
-				// Refresh requested for a key that we don't know about
-				return;
+			const ewements = this.cuwwentSettingsModew.getEwementsByName(key);
+			if (ewements && ewements.wength) {
+				// TODO https://github.com/micwosoft/vscode/issues/57360
+				this.wefweshTwee();
+			} ewse {
+				// Wefwesh wequested fow a key that we don't know about
+				wetuwn;
 			}
-		} else {
-			this.refreshTree();
+		} ewse {
+			this.wefweshTwee();
 		}
 
-		return;
+		wetuwn;
 	}
 
-	private contextViewFocused(): boolean {
-		return !!DOM.findParentWithClass(<HTMLElement>document.activeElement, 'context-view');
+	pwivate contextViewFocused(): boowean {
+		wetuwn !!DOM.findPawentWithCwass(<HTMWEwement>document.activeEwement, 'context-view');
 	}
 
-	private refreshTree(): void {
-		if (this.isVisible()) {
-			this.settingsTree.setChildren(null, createGroupIterator(this.currentSettingsModel.root));
-		}
-	}
-
-	private refreshTOCTree(): void {
-		if (this.isVisible()) {
-			this.tocTreeModel.update();
-			this.tocTree.setChildren(null, createTOCIterator(this.tocTreeModel, this.tocTree));
+	pwivate wefweshTwee(): void {
+		if (this.isVisibwe()) {
+			this.settingsTwee.setChiwdwen(nuww, cweateGwoupItewatow(this.cuwwentSettingsModew.woot));
 		}
 	}
 
-	private updateModifiedLabelForKey(key: string): void {
-		const dataElements = this.currentSettingsModel.getElementsByName(key);
-		const isModified = dataElements && dataElements[0] && dataElements[0].isConfigured; // all elements are either configured or not
-		const elements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), key);
-		if (elements && elements[0]) {
-			elements[0].classList.toggle('is-configured', !!isModified);
+	pwivate wefweshTOCTwee(): void {
+		if (this.isVisibwe()) {
+			this.tocTweeModew.update();
+			this.tocTwee.setChiwdwen(nuww, cweateTOCItewatow(this.tocTweeModew, this.tocTwee));
 		}
 	}
 
-	private async onSearchInputChanged(): Promise<void> {
-		if (!this.currentSettingsModel) {
-			// Initializing search widget value
-			return;
-		}
-
-		const query = this.searchWidget.getValue().trim();
-		this.delayedFilterLogging.cancel();
-		await this.triggerSearch(query.replace(/›/g, ' '));
-
-		if (query && this.searchResultModel) {
-			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(query, this.searchResultModel!.getUniqueResults()));
+	pwivate updateModifiedWabewFowKey(key: stwing): void {
+		const dataEwements = this.cuwwentSettingsModew.getEwementsByName(key);
+		const isModified = dataEwements && dataEwements[0] && dataEwements[0].isConfiguwed; // aww ewements awe eitha configuwed ow not
+		const ewements = this.settingWendewews.getDOMEwementsFowSettingKey(this.settingsTwee.getHTMWEwement(), key);
+		if (ewements && ewements[0]) {
+			ewements[0].cwassWist.toggwe('is-configuwed', !!isModified);
 		}
 	}
 
-	private parseSettingFromJSON(query: string): string | null {
-		const match = query.match(/"([a-zA-Z.]+)": /);
-		return match && match[1];
-	}
-
-	private triggerSearch(query: string): Promise<void> {
-		this.viewState.tagFilters = new Set<string>();
-		this.viewState.extensionFilters = new Set<string>();
-		this.viewState.featureFilters = new Set<string>();
-		this.viewState.idFilters = new Set<string>();
-		if (query) {
-			const parsedQuery = parseQuery(query);
-			query = parsedQuery.query;
-			parsedQuery.tags.forEach(tag => this.viewState.tagFilters!.add(tag));
-			parsedQuery.extensionFilters.forEach(extensionId => this.viewState.extensionFilters!.add(extensionId));
-			parsedQuery.featureFilters!.forEach(feature => this.viewState.featureFilters!.add(feature));
-			parsedQuery.idFilters!.forEach(id => this.viewState.idFilters!.add(id));
+	pwivate async onSeawchInputChanged(): Pwomise<void> {
+		if (!this.cuwwentSettingsModew) {
+			// Initiawizing seawch widget vawue
+			wetuwn;
 		}
 
-		if (query && query !== '@') {
-			query = this.parseSettingFromJSON(query) || query;
-			return this.triggerFilterPreferences(query);
-		} else {
-			if (this.viewState.tagFilters.size || this.viewState.extensionFilters.size || this.viewState.featureFilters.size || this.viewState.idFilters.size) {
-				this.searchResultModel = this.createFilterModel();
-			} else {
-				this.searchResultModel = null;
-			}
+		const quewy = this.seawchWidget.getVawue().twim();
+		this.dewayedFiwtewWogging.cancew();
+		await this.twiggewSeawch(quewy.wepwace(/›/g, ' '));
 
-			this.localSearchDelayer.cancel();
-			this.remoteSearchThrottle.cancel();
-			if (this.searchInProgress) {
-				this.searchInProgress.cancel();
-				this.searchInProgress.dispose();
-				this.searchInProgress = null;
+		if (quewy && this.seawchWesuwtModew) {
+			this.dewayedFiwtewWogging.twigga(() => this.wepowtFiwtewingUsed(quewy, this.seawchWesuwtModew!.getUniqueWesuwts()));
+		}
+	}
+
+	pwivate pawseSettingFwomJSON(quewy: stwing): stwing | nuww {
+		const match = quewy.match(/"([a-zA-Z.]+)": /);
+		wetuwn match && match[1];
+	}
+
+	pwivate twiggewSeawch(quewy: stwing): Pwomise<void> {
+		this.viewState.tagFiwtews = new Set<stwing>();
+		this.viewState.extensionFiwtews = new Set<stwing>();
+		this.viewState.featuweFiwtews = new Set<stwing>();
+		this.viewState.idFiwtews = new Set<stwing>();
+		if (quewy) {
+			const pawsedQuewy = pawseQuewy(quewy);
+			quewy = pawsedQuewy.quewy;
+			pawsedQuewy.tags.fowEach(tag => this.viewState.tagFiwtews!.add(tag));
+			pawsedQuewy.extensionFiwtews.fowEach(extensionId => this.viewState.extensionFiwtews!.add(extensionId));
+			pawsedQuewy.featuweFiwtews!.fowEach(featuwe => this.viewState.featuweFiwtews!.add(featuwe));
+			pawsedQuewy.idFiwtews!.fowEach(id => this.viewState.idFiwtews!.add(id));
+		}
+
+		if (quewy && quewy !== '@') {
+			quewy = this.pawseSettingFwomJSON(quewy) || quewy;
+			wetuwn this.twiggewFiwtewPwefewences(quewy);
+		} ewse {
+			if (this.viewState.tagFiwtews.size || this.viewState.extensionFiwtews.size || this.viewState.featuweFiwtews.size || this.viewState.idFiwtews.size) {
+				this.seawchWesuwtModew = this.cweateFiwtewModew();
+			} ewse {
+				this.seawchWesuwtModew = nuww;
 			}
 
-			this.tocTree.setFocus([]);
-			this.viewState.filterToCategory = undefined;
-			this.tocTreeModel.currentSearchModel = this.searchResultModel;
-			this.onSearchModeToggled();
+			this.wocawSeawchDewaya.cancew();
+			this.wemoteSeawchThwottwe.cancew();
+			if (this.seawchInPwogwess) {
+				this.seawchInPwogwess.cancew();
+				this.seawchInPwogwess.dispose();
+				this.seawchInPwogwess = nuww;
+			}
 
-			if (this.searchResultModel) {
-				// Added a filter model
-				this.tocTree.setSelection([]);
-				this.tocTree.expandAll();
-				this.refreshTOCTree();
-				this.renderResultCountMessages();
-				this.refreshTree();
-			} else {
-				// Leaving search mode
-				this.tocTree.collapseAll();
-				this.refreshTOCTree();
-				this.renderResultCountMessages();
-				this.refreshTree();
+			this.tocTwee.setFocus([]);
+			this.viewState.fiwtewToCategowy = undefined;
+			this.tocTweeModew.cuwwentSeawchModew = this.seawchWesuwtModew;
+			this.onSeawchModeToggwed();
+
+			if (this.seawchWesuwtModew) {
+				// Added a fiwta modew
+				this.tocTwee.setSewection([]);
+				this.tocTwee.expandAww();
+				this.wefweshTOCTwee();
+				this.wendewWesuwtCountMessages();
+				this.wefweshTwee();
+			} ewse {
+				// Weaving seawch mode
+				this.tocTwee.cowwapseAww();
+				this.wefweshTOCTwee();
+				this.wendewWesuwtCountMessages();
+				this.wefweshTwee();
 			}
 		}
 
-		return Promise.resolve();
+		wetuwn Pwomise.wesowve();
 	}
 
 	/**
-	 * Return a fake SearchResultModel which can hold a flat list of all settings, to be filtered (@modified etc)
+	 * Wetuwn a fake SeawchWesuwtModew which can howd a fwat wist of aww settings, to be fiwtewed (@modified etc)
 	 */
-	private createFilterModel(): SearchResultModel {
-		const filterModel = this.instantiationService.createInstance(SearchResultModel, this.viewState, this.workspaceTrustManagementService.isWorkspaceTrusted());
+	pwivate cweateFiwtewModew(): SeawchWesuwtModew {
+		const fiwtewModew = this.instantiationSewvice.cweateInstance(SeawchWesuwtModew, this.viewState, this.wowkspaceTwustManagementSewvice.isWowkspaceTwusted());
 
-		const fullResult: ISearchResult = {
-			filterMatches: []
+		const fuwwWesuwt: ISeawchWesuwt = {
+			fiwtewMatches: []
 		};
-		for (const g of this.defaultSettingsEditorModel.settingsGroups.slice(1)) {
-			for (const sect of g.sections) {
-				for (const setting of sect.settings) {
-					fullResult.filterMatches.push({ setting, matches: [], score: 0 });
+		fow (const g of this.defauwtSettingsEditowModew.settingsGwoups.swice(1)) {
+			fow (const sect of g.sections) {
+				fow (const setting of sect.settings) {
+					fuwwWesuwt.fiwtewMatches.push({ setting, matches: [], scowe: 0 });
 				}
 			}
 		}
 
-		filterModel.setResult(0, fullResult);
+		fiwtewModew.setWesuwt(0, fuwwWesuwt);
 
-		return filterModel;
+		wetuwn fiwtewModew;
 	}
 
-	private reportFilteringUsed(query: string, results: ISearchResult[]): void {
-		const nlpResult = results[SearchResultIdx.Remote];
-		const nlpMetadata = nlpResult && nlpResult.metadata;
+	pwivate wepowtFiwtewingUsed(quewy: stwing, wesuwts: ISeawchWesuwt[]): void {
+		const nwpWesuwt = wesuwts[SeawchWesuwtIdx.Wemote];
+		const nwpMetadata = nwpWesuwt && nwpWesuwt.metadata;
 
-		const durations = {
-			nlpResult: nlpMetadata && nlpMetadata.duration
+		const duwations = {
+			nwpWesuwt: nwpMetadata && nwpMetadata.duwation
 		};
 
-		// Count unique results
-		const counts: { nlpResult?: number, filterResult?: number } = {};
-		const filterResult = results[SearchResultIdx.Local];
-		if (filterResult) {
-			counts['filterResult'] = filterResult.filterMatches.length;
+		// Count unique wesuwts
+		const counts: { nwpWesuwt?: numba, fiwtewWesuwt?: numba } = {};
+		const fiwtewWesuwt = wesuwts[SeawchWesuwtIdx.Wocaw];
+		if (fiwtewWesuwt) {
+			counts['fiwtewWesuwt'] = fiwtewWesuwt.fiwtewMatches.wength;
 		}
 
-		if (nlpResult) {
-			counts['nlpResult'] = nlpResult.filterMatches.length;
+		if (nwpWesuwt) {
+			counts['nwpWesuwt'] = nwpWesuwt.fiwtewMatches.wength;
 		}
 
-		const requestCount = nlpMetadata && nlpMetadata.requestCount;
+		const wequestCount = nwpMetadata && nwpMetadata.wequestCount;
 
 		const data = {
-			durations,
+			duwations,
 			counts,
-			requestCount
+			wequestCount
 		};
 
-		/* __GDPR__
-			"settingsEditor.filter" : {
-				"durations.nlpResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"counts.nlpResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"counts.filterResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"requestCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+		/* __GDPW__
+			"settingsEditow.fiwta" : {
+				"duwations.nwpWesuwt" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+				"counts.nwpWesuwt" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+				"counts.fiwtewWesuwt" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+				"wequestCount" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue }
 			}
 		*/
-		this.telemetryService.publicLog('settingsEditor.filter', data);
+		this.tewemetwySewvice.pubwicWog('settingsEditow.fiwta', data);
 	}
 
-	private triggerFilterPreferences(query: string): Promise<void> {
-		if (this.searchInProgress) {
-			this.searchInProgress.cancel();
-			this.searchInProgress = null;
+	pwivate twiggewFiwtewPwefewences(quewy: stwing): Pwomise<void> {
+		if (this.seawchInPwogwess) {
+			this.seawchInPwogwess.cancew();
+			this.seawchInPwogwess = nuww;
 		}
 
-		// Trigger the local search. If it didn't find an exact match, trigger the remote search.
-		const searchInProgress = this.searchInProgress = new CancellationTokenSource();
-		return this.localSearchDelayer.trigger(() => {
-			if (searchInProgress && !searchInProgress.token.isCancellationRequested) {
-				return this.localFilterPreferences(query).then(result => {
-					if (result && !result.exactMatch) {
-						this.remoteSearchThrottle.trigger(() => {
-							return searchInProgress && !searchInProgress.token.isCancellationRequested ?
-								this.remoteSearchPreferences(query, this.searchInProgress!.token) :
-								Promise.resolve();
+		// Twigga the wocaw seawch. If it didn't find an exact match, twigga the wemote seawch.
+		const seawchInPwogwess = this.seawchInPwogwess = new CancewwationTokenSouwce();
+		wetuwn this.wocawSeawchDewaya.twigga(() => {
+			if (seawchInPwogwess && !seawchInPwogwess.token.isCancewwationWequested) {
+				wetuwn this.wocawFiwtewPwefewences(quewy).then(wesuwt => {
+					if (wesuwt && !wesuwt.exactMatch) {
+						this.wemoteSeawchThwottwe.twigga(() => {
+							wetuwn seawchInPwogwess && !seawchInPwogwess.token.isCancewwationWequested ?
+								this.wemoteSeawchPwefewences(quewy, this.seawchInPwogwess!.token) :
+								Pwomise.wesowve();
 						});
 					}
 				});
-			} else {
-				return Promise.resolve();
+			} ewse {
+				wetuwn Pwomise.wesowve();
 			}
 		});
 	}
 
-	private localFilterPreferences(query: string, token?: CancellationToken): Promise<ISearchResult | null> {
-		const localSearchProvider = this.preferencesSearchService.getLocalSearchProvider(query);
-		return this.filterOrSearchPreferences(query, SearchResultIdx.Local, localSearchProvider, token);
+	pwivate wocawFiwtewPwefewences(quewy: stwing, token?: CancewwationToken): Pwomise<ISeawchWesuwt | nuww> {
+		const wocawSeawchPwovida = this.pwefewencesSeawchSewvice.getWocawSeawchPwovida(quewy);
+		wetuwn this.fiwtewOwSeawchPwefewences(quewy, SeawchWesuwtIdx.Wocaw, wocawSeawchPwovida, token);
 	}
 
-	private remoteSearchPreferences(query: string, token?: CancellationToken): Promise<void> {
-		const remoteSearchProvider = this.preferencesSearchService.getRemoteSearchProvider(query);
-		const newExtSearchProvider = this.preferencesSearchService.getRemoteSearchProvider(query, true);
+	pwivate wemoteSeawchPwefewences(quewy: stwing, token?: CancewwationToken): Pwomise<void> {
+		const wemoteSeawchPwovida = this.pwefewencesSeawchSewvice.getWemoteSeawchPwovida(quewy);
+		const newExtSeawchPwovida = this.pwefewencesSeawchSewvice.getWemoteSeawchPwovida(quewy, twue);
 
-		return Promise.all([
-			this.filterOrSearchPreferences(query, SearchResultIdx.Remote, remoteSearchProvider, token),
-			this.filterOrSearchPreferences(query, SearchResultIdx.NewExtensions, newExtSearchProvider, token)
+		wetuwn Pwomise.aww([
+			this.fiwtewOwSeawchPwefewences(quewy, SeawchWesuwtIdx.Wemote, wemoteSeawchPwovida, token),
+			this.fiwtewOwSeawchPwefewences(quewy, SeawchWesuwtIdx.NewExtensions, newExtSeawchPwovida, token)
 		]).then(() => { });
 	}
 
-	private filterOrSearchPreferences(query: string, type: SearchResultIdx, searchProvider?: ISearchProvider, token?: CancellationToken): Promise<ISearchResult | null> {
-		return this._filterOrSearchPreferencesModel(query, this.defaultSettingsEditorModel, searchProvider, token).then(result => {
-			if (token && token.isCancellationRequested) {
-				// Handle cancellation like this because cancellation is lost inside the search provider due to async/await
-				return null;
+	pwivate fiwtewOwSeawchPwefewences(quewy: stwing, type: SeawchWesuwtIdx, seawchPwovida?: ISeawchPwovida, token?: CancewwationToken): Pwomise<ISeawchWesuwt | nuww> {
+		wetuwn this._fiwtewOwSeawchPwefewencesModew(quewy, this.defauwtSettingsEditowModew, seawchPwovida, token).then(wesuwt => {
+			if (token && token.isCancewwationWequested) {
+				// Handwe cancewwation wike this because cancewwation is wost inside the seawch pwovida due to async/await
+				wetuwn nuww;
 			}
 
-			if (!this.searchResultModel) {
-				this.searchResultModel = this.instantiationService.createInstance(SearchResultModel, this.viewState, this.workspaceTrustManagementService.isWorkspaceTrusted());
-				this.searchResultModel.setResult(type, result);
-				this.tocTreeModel.currentSearchModel = this.searchResultModel;
-				this.onSearchModeToggled();
-			} else {
-				this.searchResultModel.setResult(type, result);
-				this.tocTreeModel.update();
+			if (!this.seawchWesuwtModew) {
+				this.seawchWesuwtModew = this.instantiationSewvice.cweateInstance(SeawchWesuwtModew, this.viewState, this.wowkspaceTwustManagementSewvice.isWowkspaceTwusted());
+				this.seawchWesuwtModew.setWesuwt(type, wesuwt);
+				this.tocTweeModew.cuwwentSeawchModew = this.seawchWesuwtModew;
+				this.onSeawchModeToggwed();
+			} ewse {
+				this.seawchWesuwtModew.setWesuwt(type, wesuwt);
+				this.tocTweeModew.update();
 			}
 
-			if (type === SearchResultIdx.Local) {
-				this.tocTree.setFocus([]);
-				this.viewState.filterToCategory = undefined;
-				this.tocTree.expandAll();
+			if (type === SeawchWesuwtIdx.Wocaw) {
+				this.tocTwee.setFocus([]);
+				this.viewState.fiwtewToCategowy = undefined;
+				this.tocTwee.expandAww();
 			}
 
-			this.refreshTOCTree();
-			this.renderTree(undefined, true);
-			return result;
+			this.wefweshTOCTwee();
+			this.wendewTwee(undefined, twue);
+			wetuwn wesuwt;
 		});
 	}
 
-	private renderResultCountMessages() {
-		if (!this.currentSettingsModel) {
-			return;
+	pwivate wendewWesuwtCountMessages() {
+		if (!this.cuwwentSettingsModew) {
+			wetuwn;
 		}
 
-		this.clearFilterLinkContainer.style.display = this.viewState.tagFilters && this.viewState.tagFilters.size > 0
-			? 'initial'
+		this.cweawFiwtewWinkContaina.stywe.dispway = this.viewState.tagFiwtews && this.viewState.tagFiwtews.size > 0
+			? 'initiaw'
 			: 'none';
 
-		if (!this.searchResultModel) {
-			if (this.countElement.style.display !== 'none') {
-				this.searchResultLabel = null;
-				this.countElement.style.display = 'none';
-				this.layout(this.dimension);
+		if (!this.seawchWesuwtModew) {
+			if (this.countEwement.stywe.dispway !== 'none') {
+				this.seawchWesuwtWabew = nuww;
+				this.countEwement.stywe.dispway = 'none';
+				this.wayout(this.dimension);
 			}
 
-			this.rootElement.classList.remove('no-results');
-			return;
+			this.wootEwement.cwassWist.wemove('no-wesuwts');
+			wetuwn;
 		}
 
-		if (this.tocTreeModel && this.tocTreeModel.settingsTreeRoot) {
-			const count = this.tocTreeModel.settingsTreeRoot.count;
-			let resultString: string;
+		if (this.tocTweeModew && this.tocTweeModew.settingsTweeWoot) {
+			const count = this.tocTweeModew.settingsTweeWoot.count;
+			wet wesuwtStwing: stwing;
 			switch (count) {
-				case 0: resultString = localize('noResults', "No Settings Found"); break;
-				case 1: resultString = localize('oneResult', "1 Setting Found"); break;
-				default: resultString = localize('moreThanOneResult', "{0} Settings Found", count);
+				case 0: wesuwtStwing = wocawize('noWesuwts', "No Settings Found"); bweak;
+				case 1: wesuwtStwing = wocawize('oneWesuwt', "1 Setting Found"); bweak;
+				defauwt: wesuwtStwing = wocawize('moweThanOneWesuwt', "{0} Settings Found", count);
 			}
 
-			this.searchResultLabel = resultString;
-			this.updateInputAriaLabel();
-			this.countElement.innerText = resultString;
-			aria.status(resultString);
+			this.seawchWesuwtWabew = wesuwtStwing;
+			this.updateInputAwiaWabew();
+			this.countEwement.innewText = wesuwtStwing;
+			awia.status(wesuwtStwing);
 
-			if (this.countElement.style.display !== 'block') {
-				this.countElement.style.display = 'block';
-				this.layout(this.dimension);
+			if (this.countEwement.stywe.dispway !== 'bwock') {
+				this.countEwement.stywe.dispway = 'bwock';
+				this.wayout(this.dimension);
 			}
-			this.rootElement.classList.toggle('no-results', count === 0);
+			this.wootEwement.cwassWist.toggwe('no-wesuwts', count === 0);
 		}
 	}
 
-	private _filterOrSearchPreferencesModel(filter: string, model: ISettingsEditorModel, provider?: ISearchProvider, token?: CancellationToken): Promise<ISearchResult | null> {
-		const searchP = provider ? provider.searchModel(model, token) : Promise.resolve(null);
-		return searchP
-			.then<ISearchResult, ISearchResult | null>(undefined, err => {
-				if (isPromiseCanceledError(err)) {
-					return Promise.reject(err);
-				} else {
-					/* __GDPR__
-						"settingsEditor.searchError" : {
-							"message": { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
+	pwivate _fiwtewOwSeawchPwefewencesModew(fiwta: stwing, modew: ISettingsEditowModew, pwovida?: ISeawchPwovida, token?: CancewwationToken): Pwomise<ISeawchWesuwt | nuww> {
+		const seawchP = pwovida ? pwovida.seawchModew(modew, token) : Pwomise.wesowve(nuww);
+		wetuwn seawchP
+			.then<ISeawchWesuwt, ISeawchWesuwt | nuww>(undefined, eww => {
+				if (isPwomiseCancewedEwwow(eww)) {
+					wetuwn Pwomise.weject(eww);
+				} ewse {
+					/* __GDPW__
+						"settingsEditow.seawchEwwow" : {
+							"message": { "cwassification": "CawwstackOwException", "puwpose": "FeatuweInsight" }
 						}
 					*/
-					const message = getErrorMessage(err).trim();
-					if (message && message !== 'Error') {
-						// "Error" = any generic network error
-						this.telemetryService.publicLogError('settingsEditor.searchError', { message });
-						this.logService.info('Setting search error: ' + message);
+					const message = getEwwowMessage(eww).twim();
+					if (message && message !== 'Ewwow') {
+						// "Ewwow" = any genewic netwowk ewwow
+						this.tewemetwySewvice.pubwicWogEwwow('settingsEditow.seawchEwwow', { message });
+						this.wogSewvice.info('Setting seawch ewwow: ' + message);
 					}
-					return null;
+					wetuwn nuww;
 				}
 			});
 	}
 
-	private layoutTrees(dimension: DOM.Dimension): void {
-		const listHeight = dimension.height - (72 + 11 /* header height + editor padding */);
-		const settingsTreeHeight = listHeight - 14;
-		this.settingsTreeContainer.style.height = `${settingsTreeHeight}px`;
-		this.settingsTree.layout(settingsTreeHeight, dimension.width);
+	pwivate wayoutTwees(dimension: DOM.Dimension): void {
+		const wistHeight = dimension.height - (72 + 11 /* heada height + editow padding */);
+		const settingsTweeHeight = wistHeight - 14;
+		this.settingsTweeContaina.stywe.height = `${settingsTweeHeight}px`;
+		this.settingsTwee.wayout(settingsTweeHeight, dimension.width);
 
-		const tocTreeHeight = settingsTreeHeight - 1;
-		this.tocTreeContainer.style.height = `${tocTreeHeight}px`;
-		this.tocTree.layout(tocTreeHeight);
+		const tocTweeHeight = settingsTweeHeight - 1;
+		this.tocTweeContaina.stywe.height = `${tocTweeHeight}px`;
+		this.tocTwee.wayout(tocTweeHeight);
 	}
 
-	protected override saveState(): void {
-		if (this.isVisible()) {
-			const searchQuery = this.searchWidget.getValue().trim();
-			const target = this.settingsTargetsWidget.settingsTarget as SettingsTarget;
-			if (this.group && this.input) {
-				this.editorMemento.saveEditorState(this.group, this.input, { searchQuery, target });
+	pwotected ovewwide saveState(): void {
+		if (this.isVisibwe()) {
+			const seawchQuewy = this.seawchWidget.getVawue().twim();
+			const tawget = this.settingsTawgetsWidget.settingsTawget as SettingsTawget;
+			if (this.gwoup && this.input) {
+				this.editowMemento.saveEditowState(this.gwoup, this.input, { seawchQuewy, tawget });
 			}
 		}
 
-		super.saveState();
+		supa.saveState();
 	}
 }
 
-class SyncControls extends Disposable {
-	private readonly lastSyncedLabel!: HTMLElement;
-	private readonly turnOnSyncButton!: Button;
+cwass SyncContwows extends Disposabwe {
+	pwivate weadonwy wastSyncedWabew!: HTMWEwement;
+	pwivate weadonwy tuwnOnSyncButton!: Button;
 
-	private readonly _onDidChangeLastSyncedLabel = this._register(new Emitter<string>());
-	public readonly onDidChangeLastSyncedLabel = this._onDidChangeLastSyncedLabel.event;
+	pwivate weadonwy _onDidChangeWastSyncedWabew = this._wegista(new Emitta<stwing>());
+	pubwic weadonwy onDidChangeWastSyncedWabew = this._onDidChangeWastSyncedWabew.event;
 
-	constructor(
-		container: HTMLElement,
-		@ICommandService private readonly commandService: ICommandService,
-		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
-		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
-		@IThemeService themeService: IThemeService,
+	constwuctow(
+		containa: HTMWEwement,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
+		@IUsewDataSyncSewvice pwivate weadonwy usewDataSyncSewvice: IUsewDataSyncSewvice,
+		@IUsewDataAutoSyncEnabwementSewvice pwivate weadonwy usewDataAutoSyncEnabwementSewvice: IUsewDataAutoSyncEnabwementSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
 	) {
-		super();
+		supa();
 
-		const headerRightControlsContainer = DOM.append(container, $('.settings-right-controls'));
-		const turnOnSyncButtonContainer = DOM.append(headerRightControlsContainer, $('.turn-on-sync'));
-		this.turnOnSyncButton = this._register(new Button(turnOnSyncButtonContainer, { title: true }));
-		this._register(attachButtonStyler(this.turnOnSyncButton, themeService));
-		this.lastSyncedLabel = DOM.append(headerRightControlsContainer, $('.last-synced-label'));
-		DOM.hide(this.lastSyncedLabel);
+		const headewWightContwowsContaina = DOM.append(containa, $('.settings-wight-contwows'));
+		const tuwnOnSyncButtonContaina = DOM.append(headewWightContwowsContaina, $('.tuwn-on-sync'));
+		this.tuwnOnSyncButton = this._wegista(new Button(tuwnOnSyncButtonContaina, { titwe: twue }));
+		this._wegista(attachButtonStywa(this.tuwnOnSyncButton, themeSewvice));
+		this.wastSyncedWabew = DOM.append(headewWightContwowsContaina, $('.wast-synced-wabew'));
+		DOM.hide(this.wastSyncedWabew);
 
-		this.turnOnSyncButton.enabled = true;
-		this.turnOnSyncButton.label = localize('turnOnSyncButton', "Turn on Settings Sync");
-		DOM.hide(this.turnOnSyncButton.element);
+		this.tuwnOnSyncButton.enabwed = twue;
+		this.tuwnOnSyncButton.wabew = wocawize('tuwnOnSyncButton', "Tuwn on Settings Sync");
+		DOM.hide(this.tuwnOnSyncButton.ewement);
 
-		this._register(this.turnOnSyncButton.onDidClick(async () => {
-			await this.commandService.executeCommand('workbench.userDataSync.actions.turnOn');
+		this._wegista(this.tuwnOnSyncButton.onDidCwick(async () => {
+			await this.commandSewvice.executeCommand('wowkbench.usewDataSync.actions.tuwnOn');
 		}));
 
-		this.updateLastSyncedTime();
-		this._register(this.userDataSyncService.onDidChangeLastSyncTime(() => {
-			this.updateLastSyncedTime();
+		this.updateWastSyncedTime();
+		this._wegista(this.usewDataSyncSewvice.onDidChangeWastSyncTime(() => {
+			this.updateWastSyncedTime();
 		}));
 
-		const updateLastSyncedTimer = this._register(new IntervalTimer());
-		updateLastSyncedTimer.cancelAndSet(() => this.updateLastSyncedTime(), 60 * 1000);
+		const updateWastSyncedTima = this._wegista(new IntewvawTima());
+		updateWastSyncedTima.cancewAndSet(() => this.updateWastSyncedTime(), 60 * 1000);
 
 		this.update();
-		this._register(this.userDataSyncService.onDidChangeStatus(() => {
+		this._wegista(this.usewDataSyncSewvice.onDidChangeStatus(() => {
 			this.update();
 		}));
 
-		this._register(this.userDataAutoSyncEnablementService.onDidChangeEnablement(() => {
+		this._wegista(this.usewDataAutoSyncEnabwementSewvice.onDidChangeEnabwement(() => {
 			this.update();
 		}));
 	}
 
-	private updateLastSyncedTime(): void {
-		const last = this.userDataSyncService.lastSyncTime;
-		let label: string;
-		if (typeof last === 'number') {
-			const d = fromNow(last, true);
-			label = localize('lastSyncedLabel', "Last synced: {0}", d);
-		} else {
-			label = '';
+	pwivate updateWastSyncedTime(): void {
+		const wast = this.usewDataSyncSewvice.wastSyncTime;
+		wet wabew: stwing;
+		if (typeof wast === 'numba') {
+			const d = fwomNow(wast, twue);
+			wabew = wocawize('wastSyncedWabew', "Wast synced: {0}", d);
+		} ewse {
+			wabew = '';
 		}
 
-		this.lastSyncedLabel.textContent = label;
-		this._onDidChangeLastSyncedLabel.fire(label);
+		this.wastSyncedWabew.textContent = wabew;
+		this._onDidChangeWastSyncedWabew.fiwe(wabew);
 	}
 
-	private update(): void {
-		if (this.userDataSyncService.status === SyncStatus.Uninitialized) {
-			return;
+	pwivate update(): void {
+		if (this.usewDataSyncSewvice.status === SyncStatus.Uninitiawized) {
+			wetuwn;
 		}
 
-		if (this.userDataAutoSyncEnablementService.isEnabled() || this.userDataSyncService.status !== SyncStatus.Idle) {
-			DOM.show(this.lastSyncedLabel);
-			DOM.hide(this.turnOnSyncButton.element);
-		} else {
-			DOM.hide(this.lastSyncedLabel);
-			DOM.show(this.turnOnSyncButton.element);
+		if (this.usewDataAutoSyncEnabwementSewvice.isEnabwed() || this.usewDataSyncSewvice.status !== SyncStatus.Idwe) {
+			DOM.show(this.wastSyncedWabew);
+			DOM.hide(this.tuwnOnSyncButton.ewement);
+		} ewse {
+			DOM.hide(this.wastSyncedWabew);
+			DOM.show(this.tuwnOnSyncButton.ewement);
 		}
 	}
 }
 
-interface ISettingsEditor2State {
-	searchQuery: string;
-	target: SettingsTarget;
+intewface ISettingsEditow2State {
+	seawchQuewy: stwing;
+	tawget: SettingsTawget;
 }

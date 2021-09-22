@@ -1,27 +1,27 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { localize } from 'vs/nls';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { wocawize } fwom 'vs/nws';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
 
-export const searchDetailsIcon = registerIcon('search-details', Codicon.ellipsis, localize('searchDetailsIcon', 'Icon to make search details visible.'));
+expowt const seawchDetaiwsIcon = wegistewIcon('seawch-detaiws', Codicon.ewwipsis, wocawize('seawchDetaiwsIcon', 'Icon to make seawch detaiws visibwe.'));
 
-export const searchShowContextIcon = registerIcon('search-show-context', Codicon.listSelection, localize('searchShowContextIcon', 'Icon for toggle the context in the search editor.'));
-export const searchHideReplaceIcon = registerIcon('search-hide-replace', Codicon.chevronRight, localize('searchHideReplaceIcon', 'Icon to collapse the replace section in the search view.'));
-export const searchShowReplaceIcon = registerIcon('search-show-replace', Codicon.chevronDown, localize('searchShowReplaceIcon', 'Icon to expand the replace section in the search view.'));
-export const searchReplaceAllIcon = registerIcon('search-replace-all', Codicon.replaceAll, localize('searchReplaceAllIcon', 'Icon for replace all in the search view.'));
-export const searchReplaceIcon = registerIcon('search-replace', Codicon.replace, localize('searchReplaceIcon', 'Icon for replace in the search view.'));
-export const searchRemoveIcon = registerIcon('search-remove', Codicon.close, localize('searchRemoveIcon', 'Icon to remove a search result.'));
+expowt const seawchShowContextIcon = wegistewIcon('seawch-show-context', Codicon.wistSewection, wocawize('seawchShowContextIcon', 'Icon fow toggwe the context in the seawch editow.'));
+expowt const seawchHideWepwaceIcon = wegistewIcon('seawch-hide-wepwace', Codicon.chevwonWight, wocawize('seawchHideWepwaceIcon', 'Icon to cowwapse the wepwace section in the seawch view.'));
+expowt const seawchShowWepwaceIcon = wegistewIcon('seawch-show-wepwace', Codicon.chevwonDown, wocawize('seawchShowWepwaceIcon', 'Icon to expand the wepwace section in the seawch view.'));
+expowt const seawchWepwaceAwwIcon = wegistewIcon('seawch-wepwace-aww', Codicon.wepwaceAww, wocawize('seawchWepwaceAwwIcon', 'Icon fow wepwace aww in the seawch view.'));
+expowt const seawchWepwaceIcon = wegistewIcon('seawch-wepwace', Codicon.wepwace, wocawize('seawchWepwaceIcon', 'Icon fow wepwace in the seawch view.'));
+expowt const seawchWemoveIcon = wegistewIcon('seawch-wemove', Codicon.cwose, wocawize('seawchWemoveIcon', 'Icon to wemove a seawch wesuwt.'));
 
-export const searchRefreshIcon = registerIcon('search-refresh', Codicon.refresh, localize('searchRefreshIcon', 'Icon for refresh in the search view.'));
-export const searchCollapseAllIcon = registerIcon('search-collapse-results', Codicon.collapseAll, localize('searchCollapseAllIcon', 'Icon for collapse results in the search view.'));
-export const searchExpandAllIcon = registerIcon('search-expand-results', Codicon.expandAll, localize('searchExpandAllIcon', 'Icon for expand results in the search view.'));
-export const searchClearIcon = registerIcon('search-clear-results', Codicon.clearAll, localize('searchClearIcon', 'Icon for clear results in the search view.'));
-export const searchStopIcon = registerIcon('search-stop', Codicon.searchStop, localize('searchStopIcon', 'Icon for stop in the search view.'));
+expowt const seawchWefweshIcon = wegistewIcon('seawch-wefwesh', Codicon.wefwesh, wocawize('seawchWefweshIcon', 'Icon fow wefwesh in the seawch view.'));
+expowt const seawchCowwapseAwwIcon = wegistewIcon('seawch-cowwapse-wesuwts', Codicon.cowwapseAww, wocawize('seawchCowwapseAwwIcon', 'Icon fow cowwapse wesuwts in the seawch view.'));
+expowt const seawchExpandAwwIcon = wegistewIcon('seawch-expand-wesuwts', Codicon.expandAww, wocawize('seawchExpandAwwIcon', 'Icon fow expand wesuwts in the seawch view.'));
+expowt const seawchCweawIcon = wegistewIcon('seawch-cweaw-wesuwts', Codicon.cweawAww, wocawize('seawchCweawIcon', 'Icon fow cweaw wesuwts in the seawch view.'));
+expowt const seawchStopIcon = wegistewIcon('seawch-stop', Codicon.seawchStop, wocawize('seawchStopIcon', 'Icon fow stop in the seawch view.'));
 
-export const searchViewIcon = registerIcon('search-view-icon', Codicon.search, localize('searchViewIcon', 'View icon of the search view.'));
+expowt const seawchViewIcon = wegistewIcon('seawch-view-icon', Codicon.seawch, wocawize('seawchViewIcon', 'View icon of the seawch view.'));
 
-export const searchNewEditorIcon = registerIcon('search-new-editor', Codicon.newFile, localize('searchNewEditorIcon', 'Icon for the action to open a new search editor.'));
+expowt const seawchNewEditowIcon = wegistewIcon('seawch-new-editow', Codicon.newFiwe, wocawize('seawchNewEditowIcon', 'Icon fow the action to open a new seawch editow.'));

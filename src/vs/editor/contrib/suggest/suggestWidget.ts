@@ -1,803 +1,803 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
-import { IListEvent, IListGestureEvent, IListMouseEvent } from 'vs/base/browser/ui/list/list';
-import { List } from 'vs/base/browser/ui/list/listWidget';
-import { CancelablePromise, createCancelablePromise, disposableTimeout, TimeoutTimer } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { clamp } from 'vs/base/common/numbers';
-import * as strings from 'vs/base/common/strings';
-import 'vs/css!./media/suggest';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IPosition } from 'vs/editor/common/core/position';
-import { SuggestWidgetStatus } from 'vs/editor/contrib/suggest/suggestWidgetStatus';
-import 'vs/editor/contrib/symbolIcons/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
-import * as nls from 'vs/nls';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { activeContrastBorder, editorForeground, editorWidgetBackground, editorWidgetBorder, focusBorder, listFocusHighlightForeground, listHighlightForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, registerColor, textCodeBlockBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { attachListStyler } from 'vs/platform/theme/common/styler';
-import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { CompletionModel } from './completionModel';
-import { ResizableHTMLElement } from './resizable';
-import { CompletionItem, Context as SuggestContext } from './suggest';
-import { canExpandCompletionItem, SuggestDetailsOverlay, SuggestDetailsWidget } from './suggestWidgetDetails';
-import { getAriaId, ItemRenderer } from './suggestWidgetRenderer';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt 'vs/base/bwowsa/ui/codicons/codiconStywes'; // The codicon symbow stywes awe defined hewe and must be woaded
+impowt { IWistEvent, IWistGestuweEvent, IWistMouseEvent } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { Wist } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { CancewabwePwomise, cweateCancewabwePwomise, disposabweTimeout, TimeoutTima } fwom 'vs/base/common/async';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { cwamp } fwom 'vs/base/common/numbews';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt 'vs/css!./media/suggest';
+impowt { ContentWidgetPositionPwefewence, ICodeEditow, IContentWidget, IContentWidgetPosition, IEditowMouseEvent } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EmbeddedCodeEditowWidget } fwom 'vs/editow/bwowsa/widget/embeddedCodeEditowWidget';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { SuggestWidgetStatus } fwom 'vs/editow/contwib/suggest/suggestWidgetStatus';
+impowt 'vs/editow/contwib/symbowIcons/symbowIcons'; // The codicon symbow cowows awe defined hewe and must be woaded to get cowows
+impowt * as nws fwom 'vs/nws';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { activeContwastBowda, editowFowegwound, editowWidgetBackgwound, editowWidgetBowda, focusBowda, wistFocusHighwightFowegwound, wistHighwightFowegwound, quickInputWistFocusBackgwound, quickInputWistFocusFowegwound, quickInputWistFocusIconFowegwound, wegistewCowow, textCodeBwockBackgwound, textWinkActiveFowegwound, textWinkFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { attachWistStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { ICowowTheme, IThemeSewvice, wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { CompwetionModew } fwom './compwetionModew';
+impowt { WesizabweHTMWEwement } fwom './wesizabwe';
+impowt { CompwetionItem, Context as SuggestContext } fwom './suggest';
+impowt { canExpandCompwetionItem, SuggestDetaiwsOvewway, SuggestDetaiwsWidget } fwom './suggestWidgetDetaiws';
+impowt { getAwiaId, ItemWendewa } fwom './suggestWidgetWendewa';
 
 /**
- * Suggest widget colors
+ * Suggest widget cowows
  */
-export const editorSuggestWidgetBackground = registerColor('editorSuggestWidget.background', { dark: editorWidgetBackground, light: editorWidgetBackground, hc: editorWidgetBackground }, nls.localize('editorSuggestWidgetBackground', 'Background color of the suggest widget.'));
-export const editorSuggestWidgetBorder = registerColor('editorSuggestWidget.border', { dark: editorWidgetBorder, light: editorWidgetBorder, hc: editorWidgetBorder }, nls.localize('editorSuggestWidgetBorder', 'Border color of the suggest widget.'));
-export const editorSuggestWidgetForeground = registerColor('editorSuggestWidget.foreground', { dark: editorForeground, light: editorForeground, hc: editorForeground }, nls.localize('editorSuggestWidgetForeground', 'Foreground color of the suggest widget.'));
-export const editorSuggestWidgetSelectedForeground = registerColor('editorSuggestWidget.selectedForeground', { dark: quickInputListFocusForeground, light: quickInputListFocusForeground, hc: quickInputListFocusForeground }, nls.localize('editorSuggestWidgetSelectedForeground', 'Foreground color of the selected entry in the suggest widget.'));
-export const editorSuggestWidgetSelectedIconForeground = registerColor('editorSuggestWidget.selectedIconForeground', { dark: quickInputListFocusIconForeground, light: quickInputListFocusIconForeground, hc: quickInputListFocusIconForeground }, nls.localize('editorSuggestWidgetSelectedIconForeground', 'Icon foreground color of the selected entry in the suggest widget.'));
-export const editorSuggestWidgetSelectedBackground = registerColor('editorSuggestWidget.selectedBackground', { dark: quickInputListFocusBackground, light: quickInputListFocusBackground, hc: quickInputListFocusBackground }, nls.localize('editorSuggestWidgetSelectedBackground', 'Background color of the selected entry in the suggest widget.'));
-export const editorSuggestWidgetHighlightForeground = registerColor('editorSuggestWidget.highlightForeground', { dark: listHighlightForeground, light: listHighlightForeground, hc: listHighlightForeground }, nls.localize('editorSuggestWidgetHighlightForeground', 'Color of the match highlights in the suggest widget.'));
-export const editorSuggestWidgetHighlightFocusForeground = registerColor('editorSuggestWidget.focusHighlightForeground', { dark: listFocusHighlightForeground, light: listFocusHighlightForeground, hc: listFocusHighlightForeground }, nls.localize('editorSuggestWidgetFocusHighlightForeground', 'Color of the match highlights in the suggest widget when an item is focused.'));
+expowt const editowSuggestWidgetBackgwound = wegistewCowow('editowSuggestWidget.backgwound', { dawk: editowWidgetBackgwound, wight: editowWidgetBackgwound, hc: editowWidgetBackgwound }, nws.wocawize('editowSuggestWidgetBackgwound', 'Backgwound cowow of the suggest widget.'));
+expowt const editowSuggestWidgetBowda = wegistewCowow('editowSuggestWidget.bowda', { dawk: editowWidgetBowda, wight: editowWidgetBowda, hc: editowWidgetBowda }, nws.wocawize('editowSuggestWidgetBowda', 'Bowda cowow of the suggest widget.'));
+expowt const editowSuggestWidgetFowegwound = wegistewCowow('editowSuggestWidget.fowegwound', { dawk: editowFowegwound, wight: editowFowegwound, hc: editowFowegwound }, nws.wocawize('editowSuggestWidgetFowegwound', 'Fowegwound cowow of the suggest widget.'));
+expowt const editowSuggestWidgetSewectedFowegwound = wegistewCowow('editowSuggestWidget.sewectedFowegwound', { dawk: quickInputWistFocusFowegwound, wight: quickInputWistFocusFowegwound, hc: quickInputWistFocusFowegwound }, nws.wocawize('editowSuggestWidgetSewectedFowegwound', 'Fowegwound cowow of the sewected entwy in the suggest widget.'));
+expowt const editowSuggestWidgetSewectedIconFowegwound = wegistewCowow('editowSuggestWidget.sewectedIconFowegwound', { dawk: quickInputWistFocusIconFowegwound, wight: quickInputWistFocusIconFowegwound, hc: quickInputWistFocusIconFowegwound }, nws.wocawize('editowSuggestWidgetSewectedIconFowegwound', 'Icon fowegwound cowow of the sewected entwy in the suggest widget.'));
+expowt const editowSuggestWidgetSewectedBackgwound = wegistewCowow('editowSuggestWidget.sewectedBackgwound', { dawk: quickInputWistFocusBackgwound, wight: quickInputWistFocusBackgwound, hc: quickInputWistFocusBackgwound }, nws.wocawize('editowSuggestWidgetSewectedBackgwound', 'Backgwound cowow of the sewected entwy in the suggest widget.'));
+expowt const editowSuggestWidgetHighwightFowegwound = wegistewCowow('editowSuggestWidget.highwightFowegwound', { dawk: wistHighwightFowegwound, wight: wistHighwightFowegwound, hc: wistHighwightFowegwound }, nws.wocawize('editowSuggestWidgetHighwightFowegwound', 'Cowow of the match highwights in the suggest widget.'));
+expowt const editowSuggestWidgetHighwightFocusFowegwound = wegistewCowow('editowSuggestWidget.focusHighwightFowegwound', { dawk: wistFocusHighwightFowegwound, wight: wistFocusHighwightFowegwound, hc: wistFocusHighwightFowegwound }, nws.wocawize('editowSuggestWidgetFocusHighwightFowegwound', 'Cowow of the match highwights in the suggest widget when an item is focused.'));
 
 const enum State {
 	Hidden,
-	Loading,
+	Woading,
 	Empty,
 	Open,
-	Frozen,
-	Details
+	Fwozen,
+	Detaiws
 }
 
-export interface ISelectedSuggestion {
-	item: CompletionItem;
-	index: number;
-	model: CompletionModel;
+expowt intewface ISewectedSuggestion {
+	item: CompwetionItem;
+	index: numba;
+	modew: CompwetionModew;
 }
 
-class PersistedWidgetSize {
+cwass PewsistedWidgetSize {
 
-	private readonly _key: string;
+	pwivate weadonwy _key: stwing;
 
-	constructor(
-		private readonly _service: IStorageService,
-		editor: ICodeEditor
+	constwuctow(
+		pwivate weadonwy _sewvice: IStowageSewvice,
+		editow: ICodeEditow
 	) {
-		this._key = `suggestWidget.size/${editor.getEditorType()}/${editor instanceof EmbeddedCodeEditorWidget}`;
+		this._key = `suggestWidget.size/${editow.getEditowType()}/${editow instanceof EmbeddedCodeEditowWidget}`;
 	}
 
-	restore(): dom.Dimension | undefined {
-		const raw = this._service.get(this._key, StorageScope.GLOBAL) ?? '';
-		try {
-			const obj = JSON.parse(raw);
+	westowe(): dom.Dimension | undefined {
+		const waw = this._sewvice.get(this._key, StowageScope.GWOBAW) ?? '';
+		twy {
+			const obj = JSON.pawse(waw);
 			if (dom.Dimension.is(obj)) {
-				return dom.Dimension.lift(obj);
+				wetuwn dom.Dimension.wift(obj);
 			}
 		} catch {
-			// ignore
+			// ignowe
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	store(size: dom.Dimension) {
-		this._service.store(this._key, JSON.stringify(size), StorageScope.GLOBAL, StorageTarget.MACHINE);
+	stowe(size: dom.Dimension) {
+		this._sewvice.stowe(this._key, JSON.stwingify(size), StowageScope.GWOBAW, StowageTawget.MACHINE);
 	}
 
-	reset(): void {
-		this._service.remove(this._key, StorageScope.GLOBAL);
+	weset(): void {
+		this._sewvice.wemove(this._key, StowageScope.GWOBAW);
 	}
 }
 
-export class SuggestWidget implements IDisposable {
+expowt cwass SuggestWidget impwements IDisposabwe {
 
-	private static LOADING_MESSAGE: string = nls.localize('suggestWidget.loading', "Loading...");
-	private static NO_SUGGESTIONS_MESSAGE: string = nls.localize('suggestWidget.noSuggestions', "No suggestions.");
+	pwivate static WOADING_MESSAGE: stwing = nws.wocawize('suggestWidget.woading', "Woading...");
+	pwivate static NO_SUGGESTIONS_MESSAGE: stwing = nws.wocawize('suggestWidget.noSuggestions', "No suggestions.");
 
-	private _state: State = State.Hidden;
-	private _isAuto: boolean = false;
-	private _loadingTimeout?: IDisposable;
-	private _currentSuggestionDetails?: CancelablePromise<void>;
-	private _focusedItem?: CompletionItem;
-	private _ignoreFocusEvents: boolean = false;
-	private _completionModel?: CompletionModel;
-	private _cappedHeight?: { wanted: number; capped: number; };
-	private _forceRenderingAbove: boolean = false;
-	private _explainMode: boolean = false;
+	pwivate _state: State = State.Hidden;
+	pwivate _isAuto: boowean = fawse;
+	pwivate _woadingTimeout?: IDisposabwe;
+	pwivate _cuwwentSuggestionDetaiws?: CancewabwePwomise<void>;
+	pwivate _focusedItem?: CompwetionItem;
+	pwivate _ignoweFocusEvents: boowean = fawse;
+	pwivate _compwetionModew?: CompwetionModew;
+	pwivate _cappedHeight?: { wanted: numba; capped: numba; };
+	pwivate _fowceWendewingAbove: boowean = fawse;
+	pwivate _expwainMode: boowean = fawse;
 
-	readonly element: ResizableHTMLElement;
-	private readonly _messageElement: HTMLElement;
-	private readonly _listElement: HTMLElement;
-	private readonly _list: List<CompletionItem>;
-	private readonly _status: SuggestWidgetStatus;
-	private readonly _details: SuggestDetailsOverlay;
-	private readonly _contentWidget: SuggestContentWidget;
-	private readonly _persistedSize: PersistedWidgetSize;
+	weadonwy ewement: WesizabweHTMWEwement;
+	pwivate weadonwy _messageEwement: HTMWEwement;
+	pwivate weadonwy _wistEwement: HTMWEwement;
+	pwivate weadonwy _wist: Wist<CompwetionItem>;
+	pwivate weadonwy _status: SuggestWidgetStatus;
+	pwivate weadonwy _detaiws: SuggestDetaiwsOvewway;
+	pwivate weadonwy _contentWidget: SuggestContentWidget;
+	pwivate weadonwy _pewsistedSize: PewsistedWidgetSize;
 
-	private readonly _ctxSuggestWidgetVisible: IContextKey<boolean>;
-	private readonly _ctxSuggestWidgetDetailsVisible: IContextKey<boolean>;
-	private readonly _ctxSuggestWidgetMultipleSuggestions: IContextKey<boolean>;
+	pwivate weadonwy _ctxSuggestWidgetVisibwe: IContextKey<boowean>;
+	pwivate weadonwy _ctxSuggestWidgetDetaiwsVisibwe: IContextKey<boowean>;
+	pwivate weadonwy _ctxSuggestWidgetMuwtipweSuggestions: IContextKey<boowean>;
 
-	private readonly _showTimeout = new TimeoutTimer();
-	private readonly _disposables = new DisposableStore();
+	pwivate weadonwy _showTimeout = new TimeoutTima();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
 
 
-	private readonly _onDidSelect = new Emitter<ISelectedSuggestion>();
-	private readonly _onDidFocus = new Emitter<ISelectedSuggestion>();
-	private readonly _onDidHide = new Emitter<this>();
-	private readonly _onDidShow = new Emitter<this>();
+	pwivate weadonwy _onDidSewect = new Emitta<ISewectedSuggestion>();
+	pwivate weadonwy _onDidFocus = new Emitta<ISewectedSuggestion>();
+	pwivate weadonwy _onDidHide = new Emitta<this>();
+	pwivate weadonwy _onDidShow = new Emitta<this>();
 
-	readonly onDidSelect: Event<ISelectedSuggestion> = this._onDidSelect.event;
-	readonly onDidFocus: Event<ISelectedSuggestion> = this._onDidFocus.event;
-	readonly onDidHide: Event<this> = this._onDidHide.event;
-	readonly onDidShow: Event<this> = this._onDidShow.event;
+	weadonwy onDidSewect: Event<ISewectedSuggestion> = this._onDidSewect.event;
+	weadonwy onDidFocus: Event<ISewectedSuggestion> = this._onDidFocus.event;
+	weadonwy onDidHide: Event<this> = this._onDidHide.event;
+	weadonwy onDidShow: Event<this> = this._onDidShow.event;
 
-	private readonly _onDetailsKeydown = new Emitter<IKeyboardEvent>();
-	readonly onDetailsKeyDown: Event<IKeyboardEvent> = this._onDetailsKeydown.event;
+	pwivate weadonwy _onDetaiwsKeydown = new Emitta<IKeyboawdEvent>();
+	weadonwy onDetaiwsKeyDown: Event<IKeyboawdEvent> = this._onDetaiwsKeydown.event;
 
-	private _detailsFocusBorderColor?: string;
-	private _detailsBorderColor?: string;
+	pwivate _detaiwsFocusBowdewCowow?: stwing;
+	pwivate _detaiwsBowdewCowow?: stwing;
 
-	constructor(
-		private readonly editor: ICodeEditor,
-		@IStorageService private readonly _storageService: IStorageService,
-		@IContextKeyService _contextKeyService: IContextKeyService,
-		@IThemeService _themeService: IThemeService,
-		@IInstantiationService instantiationService: IInstantiationService,
+	constwuctow(
+		pwivate weadonwy editow: ICodeEditow,
+		@IStowageSewvice pwivate weadonwy _stowageSewvice: IStowageSewvice,
+		@IContextKeySewvice _contextKeySewvice: IContextKeySewvice,
+		@IThemeSewvice _themeSewvice: IThemeSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
 	) {
-		this.element = new ResizableHTMLElement();
-		this.element.domNode.classList.add('editor-widget', 'suggest-widget');
+		this.ewement = new WesizabweHTMWEwement();
+		this.ewement.domNode.cwassWist.add('editow-widget', 'suggest-widget');
 
-		this._contentWidget = new SuggestContentWidget(this, editor);
-		this._persistedSize = new PersistedWidgetSize(_storageService, editor);
+		this._contentWidget = new SuggestContentWidget(this, editow);
+		this._pewsistedSize = new PewsistedWidgetSize(_stowageSewvice, editow);
 
-		class ResizeState {
-			constructor(
-				readonly persistedSize: dom.Dimension | undefined,
-				readonly currentSize: dom.Dimension,
-				public persistHeight = false,
-				public persistWidth = false,
+		cwass WesizeState {
+			constwuctow(
+				weadonwy pewsistedSize: dom.Dimension | undefined,
+				weadonwy cuwwentSize: dom.Dimension,
+				pubwic pewsistHeight = fawse,
+				pubwic pewsistWidth = fawse,
 			) { }
 		}
 
-		let state: ResizeState | undefined;
-		this._disposables.add(this.element.onDidWillResize(() => {
-			this._contentWidget.lockPreference();
-			state = new ResizeState(this._persistedSize.restore(), this.element.size);
+		wet state: WesizeState | undefined;
+		this._disposabwes.add(this.ewement.onDidWiwwWesize(() => {
+			this._contentWidget.wockPwefewence();
+			state = new WesizeState(this._pewsistedSize.westowe(), this.ewement.size);
 		}));
-		this._disposables.add(this.element.onDidResize(e => {
+		this._disposabwes.add(this.ewement.onDidWesize(e => {
 
-			this._resize(e.dimension.width, e.dimension.height);
+			this._wesize(e.dimension.width, e.dimension.height);
 
 			if (state) {
-				state.persistHeight = state.persistHeight || !!e.north || !!e.south;
-				state.persistWidth = state.persistWidth || !!e.east || !!e.west;
+				state.pewsistHeight = state.pewsistHeight || !!e.nowth || !!e.south;
+				state.pewsistWidth = state.pewsistWidth || !!e.east || !!e.west;
 			}
 
 			if (!e.done) {
-				return;
+				wetuwn;
 			}
 
 			if (state) {
-				// only store width or height value that have changed and also
-				// only store changes that are above a certain threshold
-				const { itemHeight, defaultSize } = this.getLayoutInfo();
-				const threshold = Math.round(itemHeight / 2);
-				let { width, height } = this.element.size;
-				if (!state.persistHeight || Math.abs(state.currentSize.height - height) <= threshold) {
-					height = state.persistedSize?.height ?? defaultSize.height;
+				// onwy stowe width ow height vawue that have changed and awso
+				// onwy stowe changes that awe above a cewtain thweshowd
+				const { itemHeight, defauwtSize } = this.getWayoutInfo();
+				const thweshowd = Math.wound(itemHeight / 2);
+				wet { width, height } = this.ewement.size;
+				if (!state.pewsistHeight || Math.abs(state.cuwwentSize.height - height) <= thweshowd) {
+					height = state.pewsistedSize?.height ?? defauwtSize.height;
 				}
-				if (!state.persistWidth || Math.abs(state.currentSize.width - width) <= threshold) {
-					width = state.persistedSize?.width ?? defaultSize.width;
+				if (!state.pewsistWidth || Math.abs(state.cuwwentSize.width - width) <= thweshowd) {
+					width = state.pewsistedSize?.width ?? defauwtSize.width;
 				}
-				this._persistedSize.store(new dom.Dimension(width, height));
+				this._pewsistedSize.stowe(new dom.Dimension(width, height));
 			}
 
-			// reset working state
-			this._contentWidget.unlockPreference();
+			// weset wowking state
+			this._contentWidget.unwockPwefewence();
 			state = undefined;
 		}));
 
-		this._messageElement = dom.append(this.element.domNode, dom.$('.message'));
-		this._listElement = dom.append(this.element.domNode, dom.$('.tree'));
+		this._messageEwement = dom.append(this.ewement.domNode, dom.$('.message'));
+		this._wistEwement = dom.append(this.ewement.domNode, dom.$('.twee'));
 
-		const details = instantiationService.createInstance(SuggestDetailsWidget, this.editor);
-		details.onDidClose(this.toggleDetails, this, this._disposables);
-		this._details = new SuggestDetailsOverlay(details, this.editor);
+		const detaiws = instantiationSewvice.cweateInstance(SuggestDetaiwsWidget, this.editow);
+		detaiws.onDidCwose(this.toggweDetaiws, this, this._disposabwes);
+		this._detaiws = new SuggestDetaiwsOvewway(detaiws, this.editow);
 
-		const applyIconStyle = () => this.element.domNode.classList.toggle('no-icons', !this.editor.getOption(EditorOption.suggest).showIcons);
-		applyIconStyle();
+		const appwyIconStywe = () => this.ewement.domNode.cwassWist.toggwe('no-icons', !this.editow.getOption(EditowOption.suggest).showIcons);
+		appwyIconStywe();
 
-		const renderer = instantiationService.createInstance(ItemRenderer, this.editor);
-		this._disposables.add(renderer);
-		this._disposables.add(renderer.onDidToggleDetails(() => this.toggleDetails()));
+		const wendewa = instantiationSewvice.cweateInstance(ItemWendewa, this.editow);
+		this._disposabwes.add(wendewa);
+		this._disposabwes.add(wendewa.onDidToggweDetaiws(() => this.toggweDetaiws()));
 
-		this._list = new List('SuggestWidget', this._listElement, {
-			getHeight: (_element: CompletionItem): number => this.getLayoutInfo().itemHeight,
-			getTemplateId: (_element: CompletionItem): string => 'suggestion'
-		}, [renderer], {
-			alwaysConsumeMouseWheel: true,
-			useShadows: false,
-			mouseSupport: false,
-			accessibilityProvider: {
-				getRole: () => 'option',
-				getAriaLabel: (item: CompletionItem) => {
-					if (item.isResolved && this._isDetailsVisible()) {
-						const { documentation, detail } = item.completion;
-						const docs = strings.format(
+		this._wist = new Wist('SuggestWidget', this._wistEwement, {
+			getHeight: (_ewement: CompwetionItem): numba => this.getWayoutInfo().itemHeight,
+			getTempwateId: (_ewement: CompwetionItem): stwing => 'suggestion'
+		}, [wendewa], {
+			awwaysConsumeMouseWheew: twue,
+			useShadows: fawse,
+			mouseSuppowt: fawse,
+			accessibiwityPwovida: {
+				getWowe: () => 'option',
+				getAwiaWabew: (item: CompwetionItem) => {
+					if (item.isWesowved && this._isDetaiwsVisibwe()) {
+						const { documentation, detaiw } = item.compwetion;
+						const docs = stwings.fowmat(
 							'{0}{1}',
-							detail || '',
-							documentation ? (typeof documentation === 'string' ? documentation : documentation.value) : '');
+							detaiw || '',
+							documentation ? (typeof documentation === 'stwing' ? documentation : documentation.vawue) : '');
 
-						return nls.localize('ariaCurrenttSuggestionReadDetails', "{0}, docs: {1}", item.textLabel, docs);
-					} else {
-						return item.textLabel;
+						wetuwn nws.wocawize('awiaCuwwenttSuggestionWeadDetaiws', "{0}, docs: {1}", item.textWabew, docs);
+					} ewse {
+						wetuwn item.textWabew;
 					}
 				},
-				getWidgetAriaLabel: () => nls.localize('suggest', "Suggest"),
-				getWidgetRole: () => 'listbox'
+				getWidgetAwiaWabew: () => nws.wocawize('suggest', "Suggest"),
+				getWidgetWowe: () => 'wistbox'
 			}
 		});
 
-		this._status = instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode);
-		const applyStatusBarStyle = () => this.element.domNode.classList.toggle('with-status-bar', this.editor.getOption(EditorOption.suggest).showStatusBar);
-		applyStatusBarStyle();
+		this._status = instantiationSewvice.cweateInstance(SuggestWidgetStatus, this.ewement.domNode);
+		const appwyStatusBawStywe = () => this.ewement.domNode.cwassWist.toggwe('with-status-baw', this.editow.getOption(EditowOption.suggest).showStatusBaw);
+		appwyStatusBawStywe();
 
-		this._disposables.add(attachListStyler(this._list, _themeService, {
-			listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,
-			listInactiveFocusOutline: activeContrastBorder
+		this._disposabwes.add(attachWistStywa(this._wist, _themeSewvice, {
+			wistInactiveFocusBackgwound: editowSuggestWidgetSewectedBackgwound,
+			wistInactiveFocusOutwine: activeContwastBowda
 		}));
-		this._disposables.add(_themeService.onDidColorThemeChange(t => this._onThemeChange(t)));
-		this._onThemeChange(_themeService.getColorTheme());
+		this._disposabwes.add(_themeSewvice.onDidCowowThemeChange(t => this._onThemeChange(t)));
+		this._onThemeChange(_themeSewvice.getCowowTheme());
 
-		this._disposables.add(this._list.onMouseDown(e => this._onListMouseDownOrTap(e)));
-		this._disposables.add(this._list.onTap(e => this._onListMouseDownOrTap(e)));
-		this._disposables.add(this._list.onDidChangeSelection(e => this._onListSelection(e)));
-		this._disposables.add(this._list.onDidChangeFocus(e => this._onListFocus(e)));
-		this._disposables.add(this.editor.onDidChangeCursorSelection(() => this._onCursorSelectionChanged()));
-		this._disposables.add(this.editor.onDidChangeConfiguration(e => {
-			if (e.hasChanged(EditorOption.suggest)) {
-				applyStatusBarStyle();
-				applyIconStyle();
+		this._disposabwes.add(this._wist.onMouseDown(e => this._onWistMouseDownOwTap(e)));
+		this._disposabwes.add(this._wist.onTap(e => this._onWistMouseDownOwTap(e)));
+		this._disposabwes.add(this._wist.onDidChangeSewection(e => this._onWistSewection(e)));
+		this._disposabwes.add(this._wist.onDidChangeFocus(e => this._onWistFocus(e)));
+		this._disposabwes.add(this.editow.onDidChangeCuwsowSewection(() => this._onCuwsowSewectionChanged()));
+		this._disposabwes.add(this.editow.onDidChangeConfiguwation(e => {
+			if (e.hasChanged(EditowOption.suggest)) {
+				appwyStatusBawStywe();
+				appwyIconStywe();
 			}
 		}));
 
-		this._ctxSuggestWidgetVisible = SuggestContext.Visible.bindTo(_contextKeyService);
-		this._ctxSuggestWidgetDetailsVisible = SuggestContext.DetailsVisible.bindTo(_contextKeyService);
-		this._ctxSuggestWidgetMultipleSuggestions = SuggestContext.MultipleSuggestions.bindTo(_contextKeyService);
+		this._ctxSuggestWidgetVisibwe = SuggestContext.Visibwe.bindTo(_contextKeySewvice);
+		this._ctxSuggestWidgetDetaiwsVisibwe = SuggestContext.DetaiwsVisibwe.bindTo(_contextKeySewvice);
+		this._ctxSuggestWidgetMuwtipweSuggestions = SuggestContext.MuwtipweSuggestions.bindTo(_contextKeySewvice);
 
 
-		this._disposables.add(dom.addStandardDisposableListener(this._details.widget.domNode, 'keydown', e => {
-			this._onDetailsKeydown.fire(e);
+		this._disposabwes.add(dom.addStandawdDisposabweWistena(this._detaiws.widget.domNode, 'keydown', e => {
+			this._onDetaiwsKeydown.fiwe(e);
 		}));
 
-		this._disposables.add(this.editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
+		this._disposabwes.add(this.editow.onMouseDown((e: IEditowMouseEvent) => this._onEditowMouseDown(e)));
 	}
 
 	dispose(): void {
-		this._details.widget.dispose();
-		this._details.dispose();
-		this._list.dispose();
+		this._detaiws.widget.dispose();
+		this._detaiws.dispose();
+		this._wist.dispose();
 		this._status.dispose();
-		this._disposables.dispose();
-		this._loadingTimeout?.dispose();
+		this._disposabwes.dispose();
+		this._woadingTimeout?.dispose();
 		this._showTimeout.dispose();
 		this._contentWidget.dispose();
-		this.element.dispose();
+		this.ewement.dispose();
 	}
 
-	private _onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
-		if (this._details.widget.domNode.contains(mouseEvent.target.element)) {
-			// Clicking inside details
-			this._details.widget.domNode.focus();
-		} else {
-			// Clicking outside details and inside suggest
-			if (this.element.domNode.contains(mouseEvent.target.element)) {
-				this.editor.focus();
+	pwivate _onEditowMouseDown(mouseEvent: IEditowMouseEvent): void {
+		if (this._detaiws.widget.domNode.contains(mouseEvent.tawget.ewement)) {
+			// Cwicking inside detaiws
+			this._detaiws.widget.domNode.focus();
+		} ewse {
+			// Cwicking outside detaiws and inside suggest
+			if (this.ewement.domNode.contains(mouseEvent.tawget.ewement)) {
+				this.editow.focus();
 			}
 		}
 	}
 
-	private _onCursorSelectionChanged(): void {
+	pwivate _onCuwsowSewectionChanged(): void {
 		if (this._state !== State.Hidden) {
-			this._contentWidget.layout();
+			this._contentWidget.wayout();
 		}
 	}
 
-	private _onListMouseDownOrTap(e: IListMouseEvent<CompletionItem> | IListGestureEvent<CompletionItem>): void {
-		if (typeof e.element === 'undefined' || typeof e.index === 'undefined') {
-			return;
+	pwivate _onWistMouseDownOwTap(e: IWistMouseEvent<CompwetionItem> | IWistGestuweEvent<CompwetionItem>): void {
+		if (typeof e.ewement === 'undefined' || typeof e.index === 'undefined') {
+			wetuwn;
 		}
 
-		// prevent stealing browser focus from the editor
-		e.browserEvent.preventDefault();
-		e.browserEvent.stopPropagation();
+		// pwevent steawing bwowsa focus fwom the editow
+		e.bwowsewEvent.pweventDefauwt();
+		e.bwowsewEvent.stopPwopagation();
 
-		this._select(e.element, e.index);
+		this._sewect(e.ewement, e.index);
 	}
 
-	private _onListSelection(e: IListEvent<CompletionItem>): void {
-		if (e.elements.length) {
-			this._select(e.elements[0], e.indexes[0]);
-		}
-	}
-
-	private _select(item: CompletionItem, index: number): void {
-		const completionModel = this._completionModel;
-		if (completionModel) {
-			this._onDidSelect.fire({ item, index, model: completionModel });
-			this.editor.focus();
+	pwivate _onWistSewection(e: IWistEvent<CompwetionItem>): void {
+		if (e.ewements.wength) {
+			this._sewect(e.ewements[0], e.indexes[0]);
 		}
 	}
 
-	private _onThemeChange(theme: IColorTheme) {
-		const backgroundColor = theme.getColor(editorSuggestWidgetBackground);
-		if (backgroundColor) {
-			this.element.domNode.style.backgroundColor = backgroundColor.toString();
-			this._messageElement.style.backgroundColor = backgroundColor.toString();
-			this._details.widget.domNode.style.backgroundColor = backgroundColor.toString();
+	pwivate _sewect(item: CompwetionItem, index: numba): void {
+		const compwetionModew = this._compwetionModew;
+		if (compwetionModew) {
+			this._onDidSewect.fiwe({ item, index, modew: compwetionModew });
+			this.editow.focus();
 		}
-		const borderColor = theme.getColor(editorSuggestWidgetBorder);
-		if (borderColor) {
-			this.element.domNode.style.borderColor = borderColor.toString();
-			this._messageElement.style.borderColor = borderColor.toString();
-			this._status.element.style.borderTopColor = borderColor.toString();
-			this._details.widget.domNode.style.borderColor = borderColor.toString();
-			this._detailsBorderColor = borderColor.toString();
-		}
-		const focusBorderColor = theme.getColor(focusBorder);
-		if (focusBorderColor) {
-			this._detailsFocusBorderColor = focusBorderColor.toString();
-		}
-		this._details.widget.borderWidth = theme.type === 'hc' ? 2 : 1;
 	}
 
-	private _onListFocus(e: IListEvent<CompletionItem>): void {
-		if (this._ignoreFocusEvents) {
-			return;
+	pwivate _onThemeChange(theme: ICowowTheme) {
+		const backgwoundCowow = theme.getCowow(editowSuggestWidgetBackgwound);
+		if (backgwoundCowow) {
+			this.ewement.domNode.stywe.backgwoundCowow = backgwoundCowow.toStwing();
+			this._messageEwement.stywe.backgwoundCowow = backgwoundCowow.toStwing();
+			this._detaiws.widget.domNode.stywe.backgwoundCowow = backgwoundCowow.toStwing();
+		}
+		const bowdewCowow = theme.getCowow(editowSuggestWidgetBowda);
+		if (bowdewCowow) {
+			this.ewement.domNode.stywe.bowdewCowow = bowdewCowow.toStwing();
+			this._messageEwement.stywe.bowdewCowow = bowdewCowow.toStwing();
+			this._status.ewement.stywe.bowdewTopCowow = bowdewCowow.toStwing();
+			this._detaiws.widget.domNode.stywe.bowdewCowow = bowdewCowow.toStwing();
+			this._detaiwsBowdewCowow = bowdewCowow.toStwing();
+		}
+		const focusBowdewCowow = theme.getCowow(focusBowda);
+		if (focusBowdewCowow) {
+			this._detaiwsFocusBowdewCowow = focusBowdewCowow.toStwing();
+		}
+		this._detaiws.widget.bowdewWidth = theme.type === 'hc' ? 2 : 1;
+	}
+
+	pwivate _onWistFocus(e: IWistEvent<CompwetionItem>): void {
+		if (this._ignoweFocusEvents) {
+			wetuwn;
 		}
 
-		if (!e.elements.length) {
-			if (this._currentSuggestionDetails) {
-				this._currentSuggestionDetails.cancel();
-				this._currentSuggestionDetails = undefined;
+		if (!e.ewements.wength) {
+			if (this._cuwwentSuggestionDetaiws) {
+				this._cuwwentSuggestionDetaiws.cancew();
+				this._cuwwentSuggestionDetaiws = undefined;
 				this._focusedItem = undefined;
 			}
 
-			this.editor.setAriaOptions({ activeDescendant: undefined });
-			return;
+			this.editow.setAwiaOptions({ activeDescendant: undefined });
+			wetuwn;
 		}
 
-		if (!this._completionModel) {
-			return;
+		if (!this._compwetionModew) {
+			wetuwn;
 		}
 
-		const item = e.elements[0];
+		const item = e.ewements[0];
 		const index = e.indexes[0];
 
 		if (item !== this._focusedItem) {
 
-			this._currentSuggestionDetails?.cancel();
-			this._currentSuggestionDetails = undefined;
+			this._cuwwentSuggestionDetaiws?.cancew();
+			this._cuwwentSuggestionDetaiws = undefined;
 
 			this._focusedItem = item;
 
-			this._list.reveal(index);
+			this._wist.weveaw(index);
 
-			this._currentSuggestionDetails = createCancelablePromise(async token => {
-				const loading = disposableTimeout(() => {
-					if (this._isDetailsVisible()) {
-						this.showDetails(true);
+			this._cuwwentSuggestionDetaiws = cweateCancewabwePwomise(async token => {
+				const woading = disposabweTimeout(() => {
+					if (this._isDetaiwsVisibwe()) {
+						this.showDetaiws(twue);
 					}
 				}, 250);
-				token.onCancellationRequested(() => loading.dispose());
-				const result = await item.resolve(token);
-				loading.dispose();
-				return result;
+				token.onCancewwationWequested(() => woading.dispose());
+				const wesuwt = await item.wesowve(token);
+				woading.dispose();
+				wetuwn wesuwt;
 			});
 
-			this._currentSuggestionDetails.then(() => {
-				if (index >= this._list.length || item !== this._list.element(index)) {
-					return;
+			this._cuwwentSuggestionDetaiws.then(() => {
+				if (index >= this._wist.wength || item !== this._wist.ewement(index)) {
+					wetuwn;
 				}
 
-				// item can have extra information, so re-render
-				this._ignoreFocusEvents = true;
-				this._list.splice(index, 1, [item]);
-				this._list.setFocus([index]);
-				this._ignoreFocusEvents = false;
+				// item can have extwa infowmation, so we-wenda
+				this._ignoweFocusEvents = twue;
+				this._wist.spwice(index, 1, [item]);
+				this._wist.setFocus([index]);
+				this._ignoweFocusEvents = fawse;
 
-				if (this._isDetailsVisible()) {
-					this.showDetails(false);
-				} else {
-					this.element.domNode.classList.remove('docs-side');
+				if (this._isDetaiwsVisibwe()) {
+					this.showDetaiws(fawse);
+				} ewse {
+					this.ewement.domNode.cwassWist.wemove('docs-side');
 				}
 
-				this.editor.setAriaOptions({ activeDescendant: getAriaId(index) });
-			}).catch(onUnexpectedError);
+				this.editow.setAwiaOptions({ activeDescendant: getAwiaId(index) });
+			}).catch(onUnexpectedEwwow);
 		}
 
 		// emit an event
-		this._onDidFocus.fire({ item, index, model: this._completionModel });
+		this._onDidFocus.fiwe({ item, index, modew: this._compwetionModew });
 	}
 
-	private _setState(state: State): void {
+	pwivate _setState(state: State): void {
 
 		if (this._state === state) {
-			return;
+			wetuwn;
 		}
 		this._state = state;
 
-		this.element.domNode.classList.toggle('frozen', state === State.Frozen);
-		this.element.domNode.classList.remove('message');
+		this.ewement.domNode.cwassWist.toggwe('fwozen', state === State.Fwozen);
+		this.ewement.domNode.cwassWist.wemove('message');
 
 		switch (state) {
 			case State.Hidden:
-				dom.hide(this._messageElement, this._listElement, this._status.element);
-				this._details.hide(true);
+				dom.hide(this._messageEwement, this._wistEwement, this._status.ewement);
+				this._detaiws.hide(twue);
 				this._status.hide();
 				this._contentWidget.hide();
-				this._ctxSuggestWidgetVisible.reset();
-				this._ctxSuggestWidgetMultipleSuggestions.reset();
-				this._showTimeout.cancel();
-				this.element.domNode.classList.remove('visible');
-				this._list.splice(0, this._list.length);
+				this._ctxSuggestWidgetVisibwe.weset();
+				this._ctxSuggestWidgetMuwtipweSuggestions.weset();
+				this._showTimeout.cancew();
+				this.ewement.domNode.cwassWist.wemove('visibwe');
+				this._wist.spwice(0, this._wist.wength);
 				this._focusedItem = undefined;
 				this._cappedHeight = undefined;
-				this._explainMode = false;
-				break;
-			case State.Loading:
-				this.element.domNode.classList.add('message');
-				this._messageElement.textContent = SuggestWidget.LOADING_MESSAGE;
-				dom.hide(this._listElement, this._status.element);
-				dom.show(this._messageElement);
-				this._details.hide();
+				this._expwainMode = fawse;
+				bweak;
+			case State.Woading:
+				this.ewement.domNode.cwassWist.add('message');
+				this._messageEwement.textContent = SuggestWidget.WOADING_MESSAGE;
+				dom.hide(this._wistEwement, this._status.ewement);
+				dom.show(this._messageEwement);
+				this._detaiws.hide();
 				this._show();
 				this._focusedItem = undefined;
-				break;
+				bweak;
 			case State.Empty:
-				this.element.domNode.classList.add('message');
-				this._messageElement.textContent = SuggestWidget.NO_SUGGESTIONS_MESSAGE;
-				dom.hide(this._listElement, this._status.element);
-				dom.show(this._messageElement);
-				this._details.hide();
+				this.ewement.domNode.cwassWist.add('message');
+				this._messageEwement.textContent = SuggestWidget.NO_SUGGESTIONS_MESSAGE;
+				dom.hide(this._wistEwement, this._status.ewement);
+				dom.show(this._messageEwement);
+				this._detaiws.hide();
 				this._show();
 				this._focusedItem = undefined;
-				break;
+				bweak;
 			case State.Open:
-				dom.hide(this._messageElement);
-				dom.show(this._listElement, this._status.element);
+				dom.hide(this._messageEwement);
+				dom.show(this._wistEwement, this._status.ewement);
 				this._show();
-				break;
-			case State.Frozen:
-				dom.hide(this._messageElement);
-				dom.show(this._listElement, this._status.element);
+				bweak;
+			case State.Fwozen:
+				dom.hide(this._messageEwement);
+				dom.show(this._wistEwement, this._status.ewement);
 				this._show();
-				break;
-			case State.Details:
-				dom.hide(this._messageElement);
-				dom.show(this._listElement, this._status.element);
-				this._details.show();
+				bweak;
+			case State.Detaiws:
+				dom.hide(this._messageEwement);
+				dom.show(this._wistEwement, this._status.ewement);
+				this._detaiws.show();
 				this._show();
-				break;
+				bweak;
 		}
 	}
 
-	private _show(): void {
+	pwivate _show(): void {
 		this._status.show();
 		this._contentWidget.show();
-		this._layout(this._persistedSize.restore());
-		this._ctxSuggestWidgetVisible.set(true);
+		this._wayout(this._pewsistedSize.westowe());
+		this._ctxSuggestWidgetVisibwe.set(twue);
 
-		this._showTimeout.cancelAndSet(() => {
-			this.element.domNode.classList.add('visible');
-			this._onDidShow.fire(this);
+		this._showTimeout.cancewAndSet(() => {
+			this.ewement.domNode.cwassWist.add('visibwe');
+			this._onDidShow.fiwe(this);
 		}, 100);
 	}
 
-	showTriggered(auto: boolean, delay: number) {
+	showTwiggewed(auto: boowean, deway: numba) {
 		if (this._state !== State.Hidden) {
-			return;
+			wetuwn;
 		}
-		this._contentWidget.setPosition(this.editor.getPosition());
+		this._contentWidget.setPosition(this.editow.getPosition());
 		this._isAuto = !!auto;
 
 		if (!this._isAuto) {
-			this._loadingTimeout = disposableTimeout(() => this._setState(State.Loading), delay);
+			this._woadingTimeout = disposabweTimeout(() => this._setState(State.Woading), deway);
 		}
 	}
 
-	showSuggestions(completionModel: CompletionModel, selectionIndex: number, isFrozen: boolean, isAuto: boolean): void {
+	showSuggestions(compwetionModew: CompwetionModew, sewectionIndex: numba, isFwozen: boowean, isAuto: boowean): void {
 
-		this._contentWidget.setPosition(this.editor.getPosition());
-		this._loadingTimeout?.dispose();
+		this._contentWidget.setPosition(this.editow.getPosition());
+		this._woadingTimeout?.dispose();
 
-		this._currentSuggestionDetails?.cancel();
-		this._currentSuggestionDetails = undefined;
+		this._cuwwentSuggestionDetaiws?.cancew();
+		this._cuwwentSuggestionDetaiws = undefined;
 
-		if (this._completionModel !== completionModel) {
-			this._completionModel = completionModel;
+		if (this._compwetionModew !== compwetionModew) {
+			this._compwetionModew = compwetionModew;
 		}
 
-		if (isFrozen && this._state !== State.Empty && this._state !== State.Hidden) {
-			this._setState(State.Frozen);
-			return;
+		if (isFwozen && this._state !== State.Empty && this._state !== State.Hidden) {
+			this._setState(State.Fwozen);
+			wetuwn;
 		}
 
-		const visibleCount = this._completionModel.items.length;
-		const isEmpty = visibleCount === 0;
-		this._ctxSuggestWidgetMultipleSuggestions.set(visibleCount > 1);
+		const visibweCount = this._compwetionModew.items.wength;
+		const isEmpty = visibweCount === 0;
+		this._ctxSuggestWidgetMuwtipweSuggestions.set(visibweCount > 1);
 
 		if (isEmpty) {
 			this._setState(isAuto ? State.Hidden : State.Empty);
-			this._completionModel = undefined;
-			return;
+			this._compwetionModew = undefined;
+			wetuwn;
 		}
 
 		this._focusedItem = undefined;
-		this._list.splice(0, this._list.length, this._completionModel.items);
-		this._setState(isFrozen ? State.Frozen : State.Open);
-		this._list.reveal(selectionIndex, 0);
-		this._list.setFocus([selectionIndex]);
+		this._wist.spwice(0, this._wist.wength, this._compwetionModew.items);
+		this._setState(isFwozen ? State.Fwozen : State.Open);
+		this._wist.weveaw(sewectionIndex, 0);
+		this._wist.setFocus([sewectionIndex]);
 
-		this._layout(this.element.size);
-		// Reset focus border
-		if (this._detailsBorderColor) {
-			this._details.widget.domNode.style.borderColor = this._detailsBorderColor;
+		this._wayout(this.ewement.size);
+		// Weset focus bowda
+		if (this._detaiwsBowdewCowow) {
+			this._detaiws.widget.domNode.stywe.bowdewCowow = this._detaiwsBowdewCowow;
 		}
 	}
 
-	selectNextPage(): boolean {
+	sewectNextPage(): boowean {
 		switch (this._state) {
 			case State.Hidden:
-				return false;
-			case State.Details:
-				this._details.widget.pageDown();
-				return true;
-			case State.Loading:
-				return !this._isAuto;
-			default:
-				this._list.focusNextPage();
-				return true;
+				wetuwn fawse;
+			case State.Detaiws:
+				this._detaiws.widget.pageDown();
+				wetuwn twue;
+			case State.Woading:
+				wetuwn !this._isAuto;
+			defauwt:
+				this._wist.focusNextPage();
+				wetuwn twue;
 		}
 	}
 
-	selectNext(): boolean {
+	sewectNext(): boowean {
 		switch (this._state) {
 			case State.Hidden:
-				return false;
-			case State.Loading:
-				return !this._isAuto;
-			default:
-				this._list.focusNext(1, true);
-				return true;
+				wetuwn fawse;
+			case State.Woading:
+				wetuwn !this._isAuto;
+			defauwt:
+				this._wist.focusNext(1, twue);
+				wetuwn twue;
 		}
 	}
 
-	selectLast(): boolean {
+	sewectWast(): boowean {
 		switch (this._state) {
 			case State.Hidden:
-				return false;
-			case State.Details:
-				this._details.widget.scrollBottom();
-				return true;
-			case State.Loading:
-				return !this._isAuto;
-			default:
-				this._list.focusLast();
-				return true;
+				wetuwn fawse;
+			case State.Detaiws:
+				this._detaiws.widget.scwowwBottom();
+				wetuwn twue;
+			case State.Woading:
+				wetuwn !this._isAuto;
+			defauwt:
+				this._wist.focusWast();
+				wetuwn twue;
 		}
 	}
 
-	selectPreviousPage(): boolean {
+	sewectPweviousPage(): boowean {
 		switch (this._state) {
 			case State.Hidden:
-				return false;
-			case State.Details:
-				this._details.widget.pageUp();
-				return true;
-			case State.Loading:
-				return !this._isAuto;
-			default:
-				this._list.focusPreviousPage();
-				return true;
+				wetuwn fawse;
+			case State.Detaiws:
+				this._detaiws.widget.pageUp();
+				wetuwn twue;
+			case State.Woading:
+				wetuwn !this._isAuto;
+			defauwt:
+				this._wist.focusPweviousPage();
+				wetuwn twue;
 		}
 	}
 
-	selectPrevious(): boolean {
+	sewectPwevious(): boowean {
 		switch (this._state) {
 			case State.Hidden:
-				return false;
-			case State.Loading:
-				return !this._isAuto;
-			default:
-				this._list.focusPrevious(1, true);
-				return false;
+				wetuwn fawse;
+			case State.Woading:
+				wetuwn !this._isAuto;
+			defauwt:
+				this._wist.focusPwevious(1, twue);
+				wetuwn fawse;
 		}
 	}
 
-	selectFirst(): boolean {
+	sewectFiwst(): boowean {
 		switch (this._state) {
 			case State.Hidden:
-				return false;
-			case State.Details:
-				this._details.widget.scrollTop();
-				return true;
-			case State.Loading:
-				return !this._isAuto;
-			default:
-				this._list.focusFirst();
-				return true;
+				wetuwn fawse;
+			case State.Detaiws:
+				this._detaiws.widget.scwowwTop();
+				wetuwn twue;
+			case State.Woading:
+				wetuwn !this._isAuto;
+			defauwt:
+				this._wist.focusFiwst();
+				wetuwn twue;
 		}
 	}
 
-	getFocusedItem(): ISelectedSuggestion | undefined {
+	getFocusedItem(): ISewectedSuggestion | undefined {
 		if (this._state !== State.Hidden
 			&& this._state !== State.Empty
-			&& this._state !== State.Loading
-			&& this._completionModel
+			&& this._state !== State.Woading
+			&& this._compwetionModew
 		) {
 
-			return {
-				item: this._list.getFocusedElements()[0],
-				index: this._list.getFocus()[0],
-				model: this._completionModel
+			wetuwn {
+				item: this._wist.getFocusedEwements()[0],
+				index: this._wist.getFocus()[0],
+				modew: this._compwetionModew
 			};
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	toggleDetailsFocus(): void {
-		if (this._state === State.Details) {
+	toggweDetaiwsFocus(): void {
+		if (this._state === State.Detaiws) {
 			this._setState(State.Open);
-			if (this._detailsBorderColor) {
-				this._details.widget.domNode.style.borderColor = this._detailsBorderColor;
+			if (this._detaiwsBowdewCowow) {
+				this._detaiws.widget.domNode.stywe.bowdewCowow = this._detaiwsBowdewCowow;
 			}
-		} else if (this._state === State.Open && this._isDetailsVisible()) {
-			this._setState(State.Details);
-			if (this._detailsFocusBorderColor) {
-				this._details.widget.domNode.style.borderColor = this._detailsFocusBorderColor;
-			}
-		}
-	}
-
-	toggleDetails(): void {
-		if (this._isDetailsVisible()) {
-			// hide details widget
-			this._ctxSuggestWidgetDetailsVisible.set(false);
-			this._setDetailsVisible(false);
-			this._details.hide();
-			this.element.domNode.classList.remove('shows-details');
-
-		} else if ((canExpandCompletionItem(this._list.getFocusedElements()[0]) || this._explainMode) && (this._state === State.Open || this._state === State.Details || this._state === State.Frozen)) {
-			// show details widget (iff possible)
-			this._ctxSuggestWidgetDetailsVisible.set(true);
-			this._setDetailsVisible(true);
-			this.showDetails(false);
-		}
-	}
-
-	showDetails(loading: boolean): void {
-		this._details.show();
-		if (loading) {
-			this._details.widget.renderLoading();
-		} else {
-			this._details.widget.renderItem(this._list.getFocusedElements()[0], this._explainMode);
-		}
-		this._positionDetails();
-		this.editor.focus();
-		this.element.domNode.classList.add('shows-details');
-	}
-
-	toggleExplainMode(): void {
-		if (this._list.getFocusedElements()[0]) {
-			this._explainMode = !this._explainMode;
-			if (!this._isDetailsVisible()) {
-				this.toggleDetails();
-			} else {
-				this.showDetails(false);
+		} ewse if (this._state === State.Open && this._isDetaiwsVisibwe()) {
+			this._setState(State.Detaiws);
+			if (this._detaiwsFocusBowdewCowow) {
+				this._detaiws.widget.domNode.stywe.bowdewCowow = this._detaiwsFocusBowdewCowow;
 			}
 		}
 	}
 
-	resetPersistedSize(): void {
-		this._persistedSize.reset();
+	toggweDetaiws(): void {
+		if (this._isDetaiwsVisibwe()) {
+			// hide detaiws widget
+			this._ctxSuggestWidgetDetaiwsVisibwe.set(fawse);
+			this._setDetaiwsVisibwe(fawse);
+			this._detaiws.hide();
+			this.ewement.domNode.cwassWist.wemove('shows-detaiws');
+
+		} ewse if ((canExpandCompwetionItem(this._wist.getFocusedEwements()[0]) || this._expwainMode) && (this._state === State.Open || this._state === State.Detaiws || this._state === State.Fwozen)) {
+			// show detaiws widget (iff possibwe)
+			this._ctxSuggestWidgetDetaiwsVisibwe.set(twue);
+			this._setDetaiwsVisibwe(twue);
+			this.showDetaiws(fawse);
+		}
+	}
+
+	showDetaiws(woading: boowean): void {
+		this._detaiws.show();
+		if (woading) {
+			this._detaiws.widget.wendewWoading();
+		} ewse {
+			this._detaiws.widget.wendewItem(this._wist.getFocusedEwements()[0], this._expwainMode);
+		}
+		this._positionDetaiws();
+		this.editow.focus();
+		this.ewement.domNode.cwassWist.add('shows-detaiws');
+	}
+
+	toggweExpwainMode(): void {
+		if (this._wist.getFocusedEwements()[0]) {
+			this._expwainMode = !this._expwainMode;
+			if (!this._isDetaiwsVisibwe()) {
+				this.toggweDetaiws();
+			} ewse {
+				this.showDetaiws(fawse);
+			}
+		}
+	}
+
+	wesetPewsistedSize(): void {
+		this._pewsistedSize.weset();
 	}
 
 	hideWidget(): void {
-		this._loadingTimeout?.dispose();
+		this._woadingTimeout?.dispose();
 		this._setState(State.Hidden);
-		this._onDidHide.fire(this);
-		this.element.clearSashHoverState();
+		this._onDidHide.fiwe(this);
+		this.ewement.cweawSashHovewState();
 
-		// ensure that a reasonable widget height is persisted so that
-		// accidential "resize-to-single-items" cases aren't happening
-		const dim = this._persistedSize.restore();
-		const minPersistedHeight = Math.ceil(this.getLayoutInfo().itemHeight * 4.3);
-		if (dim && dim.height < minPersistedHeight) {
-			this._persistedSize.store(dim.with(undefined, minPersistedHeight));
+		// ensuwe that a weasonabwe widget height is pewsisted so that
+		// accidentiaw "wesize-to-singwe-items" cases awen't happening
+		const dim = this._pewsistedSize.westowe();
+		const minPewsistedHeight = Math.ceiw(this.getWayoutInfo().itemHeight * 4.3);
+		if (dim && dim.height < minPewsistedHeight) {
+			this._pewsistedSize.stowe(dim.with(undefined, minPewsistedHeight));
 		}
 	}
 
-	isFrozen(): boolean {
-		return this._state === State.Frozen;
+	isFwozen(): boowean {
+		wetuwn this._state === State.Fwozen;
 	}
 
-	_afterRender(position: ContentWidgetPositionPreference | null) {
-		if (position === null) {
-			if (this._isDetailsVisible()) {
-				this._details.hide(); //todo@jrieken soft-hide
+	_aftewWenda(position: ContentWidgetPositionPwefewence | nuww) {
+		if (position === nuww) {
+			if (this._isDetaiwsVisibwe()) {
+				this._detaiws.hide(); //todo@jwieken soft-hide
 			}
-			return;
+			wetuwn;
 		}
-		if (this._state === State.Empty || this._state === State.Loading) {
-			// no special positioning when widget isn't showing list
-			return;
+		if (this._state === State.Empty || this._state === State.Woading) {
+			// no speciaw positioning when widget isn't showing wist
+			wetuwn;
 		}
-		if (this._isDetailsVisible()) {
-			this._details.show();
+		if (this._isDetaiwsVisibwe()) {
+			this._detaiws.show();
 		}
-		this._positionDetails();
+		this._positionDetaiws();
 	}
 
-	private _layout(size: dom.Dimension | undefined): void {
-		if (!this.editor.hasModel()) {
-			return;
+	pwivate _wayout(size: dom.Dimension | undefined): void {
+		if (!this.editow.hasModew()) {
+			wetuwn;
 		}
-		if (!this.editor.getDomNode()) {
-			// happens when running tests
-			return;
+		if (!this.editow.getDomNode()) {
+			// happens when wunning tests
+			wetuwn;
 		}
 
-		const bodyBox = dom.getClientArea(document.body);
-		const info = this.getLayoutInfo();
+		const bodyBox = dom.getCwientAwea(document.body);
+		const info = this.getWayoutInfo();
 
 		if (!size) {
-			size = info.defaultSize;
+			size = info.defauwtSize;
 		}
 
-		let height = size.height;
-		let width = size.width;
+		wet height = size.height;
+		wet width = size.width;
 
-		// status bar
-		this._status.element.style.lineHeight = `${info.itemHeight}px`;
+		// status baw
+		this._status.ewement.stywe.wineHeight = `${info.itemHeight}px`;
 
-		if (this._state === State.Empty || this._state === State.Loading) {
-			// showing a message only
-			height = info.itemHeight + info.borderHeight;
-			width = info.defaultSize.width / 2;
-			this.element.enableSashes(false, false, false, false);
-			this.element.minSize = this.element.maxSize = new dom.Dimension(width, height);
-			this._contentWidget.setPreference(ContentWidgetPositionPreference.BELOW);
+		if (this._state === State.Empty || this._state === State.Woading) {
+			// showing a message onwy
+			height = info.itemHeight + info.bowdewHeight;
+			width = info.defauwtSize.width / 2;
+			this.ewement.enabweSashes(fawse, fawse, fawse, fawse);
+			this.ewement.minSize = this.ewement.maxSize = new dom.Dimension(width, height);
+			this._contentWidget.setPwefewence(ContentWidgetPositionPwefewence.BEWOW);
 
-		} else {
+		} ewse {
 			// showing items
 
 			// width math
-			const maxWidth = bodyBox.width - info.borderHeight - 2 * info.horizontalPadding;
+			const maxWidth = bodyBox.width - info.bowdewHeight - 2 * info.howizontawPadding;
 			if (width > maxWidth) {
 				width = maxWidth;
 			}
-			const preferredWidth = this._completionModel ? this._completionModel.stats.pLabelLen * info.typicalHalfwidthCharacterWidth : width;
+			const pwefewwedWidth = this._compwetionModew ? this._compwetionModew.stats.pWabewWen * info.typicawHawfwidthChawactewWidth : width;
 
 			// height math
-			const fullHeight = info.statusBarHeight + this._list.contentHeight + info.borderHeight;
-			const minHeight = info.itemHeight + info.statusBarHeight;
-			const editorBox = dom.getDomNodePagePosition(this.editor.getDomNode());
-			const cursorBox = this.editor.getScrolledVisiblePosition(this.editor.getPosition());
-			const cursorBottom = editorBox.top + cursorBox.top + cursorBox.height;
-			const maxHeightBelow = Math.min(bodyBox.height - cursorBottom - info.verticalPadding, fullHeight);
-			const availableSpaceAbove = editorBox.top + cursorBox.top - info.verticalPadding;
-			const maxHeightAbove = Math.min(availableSpaceAbove, fullHeight);
-			let maxHeight = Math.min(Math.max(maxHeightAbove, maxHeightBelow) + info.borderHeight, fullHeight);
+			const fuwwHeight = info.statusBawHeight + this._wist.contentHeight + info.bowdewHeight;
+			const minHeight = info.itemHeight + info.statusBawHeight;
+			const editowBox = dom.getDomNodePagePosition(this.editow.getDomNode());
+			const cuwsowBox = this.editow.getScwowwedVisibwePosition(this.editow.getPosition());
+			const cuwsowBottom = editowBox.top + cuwsowBox.top + cuwsowBox.height;
+			const maxHeightBewow = Math.min(bodyBox.height - cuwsowBottom - info.vewticawPadding, fuwwHeight);
+			const avaiwabweSpaceAbove = editowBox.top + cuwsowBox.top - info.vewticawPadding;
+			const maxHeightAbove = Math.min(avaiwabweSpaceAbove, fuwwHeight);
+			wet maxHeight = Math.min(Math.max(maxHeightAbove, maxHeightBewow) + info.bowdewHeight, fuwwHeight);
 
 			if (height === this._cappedHeight?.capped) {
-				// Restore the old (wanted) height when the current
+				// Westowe the owd (wanted) height when the cuwwent
 				// height is capped to fit
 				height = this._cappedHeight.wanted;
 			}
@@ -809,218 +809,218 @@ export class SuggestWidget implements IDisposable {
 				height = maxHeight;
 			}
 
-			const forceRenderingAboveRequiredSpace = 150;
-			if (height > maxHeightBelow || (this._forceRenderingAbove && availableSpaceAbove > forceRenderingAboveRequiredSpace)) {
-				this._contentWidget.setPreference(ContentWidgetPositionPreference.ABOVE);
-				this.element.enableSashes(true, true, false, false);
+			const fowceWendewingAboveWequiwedSpace = 150;
+			if (height > maxHeightBewow || (this._fowceWendewingAbove && avaiwabweSpaceAbove > fowceWendewingAboveWequiwedSpace)) {
+				this._contentWidget.setPwefewence(ContentWidgetPositionPwefewence.ABOVE);
+				this.ewement.enabweSashes(twue, twue, fawse, fawse);
 				maxHeight = maxHeightAbove;
-			} else {
-				this._contentWidget.setPreference(ContentWidgetPositionPreference.BELOW);
-				this.element.enableSashes(false, true, true, false);
-				maxHeight = maxHeightBelow;
+			} ewse {
+				this._contentWidget.setPwefewence(ContentWidgetPositionPwefewence.BEWOW);
+				this.ewement.enabweSashes(fawse, twue, twue, fawse);
+				maxHeight = maxHeightBewow;
 			}
-			this.element.preferredSize = new dom.Dimension(preferredWidth, info.defaultSize.height);
-			this.element.maxSize = new dom.Dimension(maxWidth, maxHeight);
-			this.element.minSize = new dom.Dimension(220, minHeight);
+			this.ewement.pwefewwedSize = new dom.Dimension(pwefewwedWidth, info.defauwtSize.height);
+			this.ewement.maxSize = new dom.Dimension(maxWidth, maxHeight);
+			this.ewement.minSize = new dom.Dimension(220, minHeight);
 
-			// Know when the height was capped to fit and remember
-			// the wanted height for later. This is required when going
-			// left to widen suggestions.
-			this._cappedHeight = height === fullHeight
+			// Know when the height was capped to fit and wememba
+			// the wanted height fow wata. This is wequiwed when going
+			// weft to widen suggestions.
+			this._cappedHeight = height === fuwwHeight
 				? { wanted: this._cappedHeight?.wanted ?? size.height, capped: height }
 				: undefined;
 		}
-		this._resize(width, height);
+		this._wesize(width, height);
 	}
 
-	private _resize(width: number, height: number): void {
+	pwivate _wesize(width: numba, height: numba): void {
 
-		const { width: maxWidth, height: maxHeight } = this.element.maxSize;
+		const { width: maxWidth, height: maxHeight } = this.ewement.maxSize;
 		width = Math.min(maxWidth, width);
 		height = Math.min(maxHeight, height);
 
-		const { statusBarHeight } = this.getLayoutInfo();
-		this._list.layout(height - statusBarHeight, width);
-		this._listElement.style.height = `${height - statusBarHeight}px`;
-		this.element.layout(height, width);
-		this._contentWidget.layout();
+		const { statusBawHeight } = this.getWayoutInfo();
+		this._wist.wayout(height - statusBawHeight, width);
+		this._wistEwement.stywe.height = `${height - statusBawHeight}px`;
+		this.ewement.wayout(height, width);
+		this._contentWidget.wayout();
 
-		this._positionDetails();
+		this._positionDetaiws();
 	}
 
-	private _positionDetails(): void {
-		if (this._isDetailsVisible()) {
-			this._details.placeAtAnchor(this.element.domNode);
+	pwivate _positionDetaiws(): void {
+		if (this._isDetaiwsVisibwe()) {
+			this._detaiws.pwaceAtAnchow(this.ewement.domNode);
 		}
 	}
 
-	getLayoutInfo() {
-		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
-		const itemHeight = clamp(this.editor.getOption(EditorOption.suggestLineHeight) || fontInfo.lineHeight, 8, 1000);
-		const statusBarHeight = !this.editor.getOption(EditorOption.suggest).showStatusBar || this._state === State.Empty || this._state === State.Loading ? 0 : itemHeight;
-		const borderWidth = this._details.widget.borderWidth;
-		const borderHeight = 2 * borderWidth;
+	getWayoutInfo() {
+		const fontInfo = this.editow.getOption(EditowOption.fontInfo);
+		const itemHeight = cwamp(this.editow.getOption(EditowOption.suggestWineHeight) || fontInfo.wineHeight, 8, 1000);
+		const statusBawHeight = !this.editow.getOption(EditowOption.suggest).showStatusBaw || this._state === State.Empty || this._state === State.Woading ? 0 : itemHeight;
+		const bowdewWidth = this._detaiws.widget.bowdewWidth;
+		const bowdewHeight = 2 * bowdewWidth;
 
-		return {
+		wetuwn {
 			itemHeight,
-			statusBarHeight,
-			borderWidth,
-			borderHeight,
-			typicalHalfwidthCharacterWidth: fontInfo.typicalHalfwidthCharacterWidth,
-			verticalPadding: 22,
-			horizontalPadding: 14,
-			defaultSize: new dom.Dimension(430, statusBarHeight + 12 * itemHeight + borderHeight)
+			statusBawHeight,
+			bowdewWidth,
+			bowdewHeight,
+			typicawHawfwidthChawactewWidth: fontInfo.typicawHawfwidthChawactewWidth,
+			vewticawPadding: 22,
+			howizontawPadding: 14,
+			defauwtSize: new dom.Dimension(430, statusBawHeight + 12 * itemHeight + bowdewHeight)
 		};
 	}
 
-	private _isDetailsVisible(): boolean {
-		return this._storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false);
+	pwivate _isDetaiwsVisibwe(): boowean {
+		wetuwn this._stowageSewvice.getBoowean('expandSuggestionDocs', StowageScope.GWOBAW, fawse);
 	}
 
-	private _setDetailsVisible(value: boolean) {
-		this._storageService.store('expandSuggestionDocs', value, StorageScope.GLOBAL, StorageTarget.USER);
+	pwivate _setDetaiwsVisibwe(vawue: boowean) {
+		this._stowageSewvice.stowe('expandSuggestionDocs', vawue, StowageScope.GWOBAW, StowageTawget.USa);
 	}
 
-	forceRenderingAbove() {
-		if (!this._forceRenderingAbove) {
-			this._forceRenderingAbove = true;
-			this._layout(this._persistedSize.restore());
+	fowceWendewingAbove() {
+		if (!this._fowceWendewingAbove) {
+			this._fowceWendewingAbove = twue;
+			this._wayout(this._pewsistedSize.westowe());
 		}
 	}
 
-	stopForceRenderingAbove() {
-		this._forceRenderingAbove = false;
+	stopFowceWendewingAbove() {
+		this._fowceWendewingAbove = fawse;
 	}
 }
 
-export class SuggestContentWidget implements IContentWidget {
+expowt cwass SuggestContentWidget impwements IContentWidget {
 
-	readonly allowEditorOverflow = true;
-	readonly suppressMouseDown = false;
+	weadonwy awwowEditowOvewfwow = twue;
+	weadonwy suppwessMouseDown = fawse;
 
-	private _position?: IPosition | null;
-	private _preference?: ContentWidgetPositionPreference;
-	private _preferenceLocked = false;
+	pwivate _position?: IPosition | nuww;
+	pwivate _pwefewence?: ContentWidgetPositionPwefewence;
+	pwivate _pwefewenceWocked = fawse;
 
-	private _added: boolean = false;
-	private _hidden: boolean = false;
+	pwivate _added: boowean = fawse;
+	pwivate _hidden: boowean = fawse;
 
-	constructor(
-		private readonly _widget: SuggestWidget,
-		private readonly _editor: ICodeEditor
+	constwuctow(
+		pwivate weadonwy _widget: SuggestWidget,
+		pwivate weadonwy _editow: ICodeEditow
 	) { }
 
 	dispose(): void {
 		if (this._added) {
-			this._added = false;
-			this._editor.removeContentWidget(this);
+			this._added = fawse;
+			this._editow.wemoveContentWidget(this);
 		}
 	}
 
-	getId(): string {
-		return 'editor.widget.suggestWidget';
+	getId(): stwing {
+		wetuwn 'editow.widget.suggestWidget';
 	}
 
-	getDomNode(): HTMLElement {
-		return this._widget.element.domNode;
+	getDomNode(): HTMWEwement {
+		wetuwn this._widget.ewement.domNode;
 	}
 
 	show(): void {
-		this._hidden = false;
+		this._hidden = fawse;
 		if (!this._added) {
-			this._added = true;
-			this._editor.addContentWidget(this);
+			this._added = twue;
+			this._editow.addContentWidget(this);
 		}
 	}
 
 	hide(): void {
 		if (!this._hidden) {
-			this._hidden = true;
-			this.layout();
+			this._hidden = twue;
+			this.wayout();
 		}
 	}
 
-	layout(): void {
-		this._editor.layoutContentWidget(this);
+	wayout(): void {
+		this._editow.wayoutContentWidget(this);
 	}
 
-	getPosition(): IContentWidgetPosition | null {
-		if (this._hidden || !this._position || !this._preference) {
-			return null;
+	getPosition(): IContentWidgetPosition | nuww {
+		if (this._hidden || !this._position || !this._pwefewence) {
+			wetuwn nuww;
 		}
-		return {
+		wetuwn {
 			position: this._position,
-			preference: [this._preference]
+			pwefewence: [this._pwefewence]
 		};
 	}
 
-	beforeRender() {
-		const { height, width } = this._widget.element.size;
-		const { borderWidth, horizontalPadding } = this._widget.getLayoutInfo();
-		return new dom.Dimension(width + 2 * borderWidth + horizontalPadding, height + 2 * borderWidth);
+	befoweWenda() {
+		const { height, width } = this._widget.ewement.size;
+		const { bowdewWidth, howizontawPadding } = this._widget.getWayoutInfo();
+		wetuwn new dom.Dimension(width + 2 * bowdewWidth + howizontawPadding, height + 2 * bowdewWidth);
 	}
 
-	afterRender(position: ContentWidgetPositionPreference | null) {
-		this._widget._afterRender(position);
+	aftewWenda(position: ContentWidgetPositionPwefewence | nuww) {
+		this._widget._aftewWenda(position);
 	}
 
-	setPreference(preference: ContentWidgetPositionPreference) {
-		if (!this._preferenceLocked) {
-			this._preference = preference;
+	setPwefewence(pwefewence: ContentWidgetPositionPwefewence) {
+		if (!this._pwefewenceWocked) {
+			this._pwefewence = pwefewence;
 		}
 	}
 
-	lockPreference() {
-		this._preferenceLocked = true;
+	wockPwefewence() {
+		this._pwefewenceWocked = twue;
 	}
 
-	unlockPreference() {
-		this._preferenceLocked = false;
+	unwockPwefewence() {
+		this._pwefewenceWocked = fawse;
 	}
 
-	setPosition(position: IPosition | null): void {
+	setPosition(position: IPosition | nuww): void {
 		this._position = position;
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const matchHighlight = theme.getColor(editorSuggestWidgetHighlightForeground);
-	if (matchHighlight) {
-		collector.addRule(`.monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-highlighted-label .highlight { color: ${matchHighlight}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const matchHighwight = theme.getCowow(editowSuggestWidgetHighwightFowegwound);
+	if (matchHighwight) {
+		cowwectow.addWuwe(`.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow .monaco-highwighted-wabew .highwight { cowow: ${matchHighwight}; }`);
 	}
 
-	const matchHighlightFocus = theme.getColor(editorSuggestWidgetHighlightFocusForeground);
-	if (matchHighlight) {
-		collector.addRule(`.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused .monaco-highlighted-label .highlight { color: ${matchHighlightFocus}; }`);
+	const matchHighwightFocus = theme.getCowow(editowSuggestWidgetHighwightFocusFowegwound);
+	if (matchHighwight) {
+		cowwectow.addWuwe(`.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow.focused .monaco-highwighted-wabew .highwight { cowow: ${matchHighwightFocus}; }`);
 	}
 
-	const foreground = theme.getColor(editorSuggestWidgetForeground);
-	if (foreground) {
-		collector.addRule(`.monaco-editor .suggest-widget, .monaco-editor .suggest-details { color: ${foreground}; }`);
+	const fowegwound = theme.getCowow(editowSuggestWidgetFowegwound);
+	if (fowegwound) {
+		cowwectow.addWuwe(`.monaco-editow .suggest-widget, .monaco-editow .suggest-detaiws { cowow: ${fowegwound}; }`);
 	}
 
-	const selectedForeground = theme.getColor(editorSuggestWidgetSelectedForeground);
-	if (selectedForeground) {
-		collector.addRule(`.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused { color: ${selectedForeground}; }`);
+	const sewectedFowegwound = theme.getCowow(editowSuggestWidgetSewectedFowegwound);
+	if (sewectedFowegwound) {
+		cowwectow.addWuwe(`.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow.focused { cowow: ${sewectedFowegwound}; }`);
 	}
 
-	const selectedIconForeground = theme.getColor(editorSuggestWidgetSelectedIconForeground);
-	if (selectedIconForeground) {
-		collector.addRule(`.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused .codicon { color: ${selectedIconForeground}; }`);
+	const sewectedIconFowegwound = theme.getCowow(editowSuggestWidgetSewectedIconFowegwound);
+	if (sewectedIconFowegwound) {
+		cowwectow.addWuwe(`.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow.focused .codicon { cowow: ${sewectedIconFowegwound}; }`);
 	}
 
-	const link = theme.getColor(textLinkForeground);
-	if (link) {
-		collector.addRule(`.monaco-editor .suggest-details a { color: ${link}; }`);
+	const wink = theme.getCowow(textWinkFowegwound);
+	if (wink) {
+		cowwectow.addWuwe(`.monaco-editow .suggest-detaiws a { cowow: ${wink}; }`);
 	}
 
-	const linkHover = theme.getColor(textLinkActiveForeground);
-	if (linkHover) {
-		collector.addRule(`.monaco-editor .suggest-details a:hover { color: ${linkHover}; }`);
+	const winkHova = theme.getCowow(textWinkActiveFowegwound);
+	if (winkHova) {
+		cowwectow.addWuwe(`.monaco-editow .suggest-detaiws a:hova { cowow: ${winkHova}; }`);
 	}
 
-	const codeBackground = theme.getColor(textCodeBlockBackground);
-	if (codeBackground) {
-		collector.addRule(`.monaco-editor .suggest-details code { background-color: ${codeBackground}; }`);
+	const codeBackgwound = theme.getCowow(textCodeBwockBackgwound);
+	if (codeBackgwound) {
+		cowwectow.addWuwe(`.monaco-editow .suggest-detaiws code { backgwound-cowow: ${codeBackgwound}; }`);
 	}
 });

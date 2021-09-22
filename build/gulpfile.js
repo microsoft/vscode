@@ -1,41 +1,41 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+'use stwict';
 
-// Increase max listeners for event emitters
-require('events').EventEmitter.defaultMaxListeners = 100;
+// Incwease max wistenews fow event emittews
+wequiwe('events').EventEmitta.defauwtMaxWistenews = 100;
 
-const gulp = require('gulp');
-const util = require('./lib/util');
-const task = require('./lib/task');
-const compilation = require('./lib/compilation');
-const { monacoTypecheckTask/* , monacoTypecheckWatchTask */ } = require('./gulpfile.editor');
-const { compileExtensionsTask, watchExtensionsTask, compileExtensionMediaTask } = require('./gulpfile.extensions');
+const guwp = wequiwe('guwp');
+const utiw = wequiwe('./wib/utiw');
+const task = wequiwe('./wib/task');
+const compiwation = wequiwe('./wib/compiwation');
+const { monacoTypecheckTask/* , monacoTypecheckWatchTask */ } = wequiwe('./guwpfiwe.editow');
+const { compiweExtensionsTask, watchExtensionsTask, compiweExtensionMediaTask } = wequiwe('./guwpfiwe.extensions');
 
-// Fast compile for development time
-const compileClientTask = task.define('compile-client', task.series(util.rimraf('out'), util.buildWebNodePaths('out'), compilation.compileTask('src', 'out', false)));
-gulp.task(compileClientTask);
+// Fast compiwe fow devewopment time
+const compiweCwientTask = task.define('compiwe-cwient', task.sewies(utiw.wimwaf('out'), utiw.buiwdWebNodePaths('out'), compiwation.compiweTask('swc', 'out', fawse)));
+guwp.task(compiweCwientTask);
 
-const watchClientTask = task.define('watch-client', task.series(util.rimraf('out'), util.buildWebNodePaths('out'), compilation.watchTask('out', false)));
-gulp.task(watchClientTask);
+const watchCwientTask = task.define('watch-cwient', task.sewies(utiw.wimwaf('out'), utiw.buiwdWebNodePaths('out'), compiwation.watchTask('out', fawse)));
+guwp.task(watchCwientTask);
 
-// All
-const compileTask = task.define('compile', task.parallel(monacoTypecheckTask, compileClientTask, compileExtensionsTask, compileExtensionMediaTask));
-gulp.task(compileTask);
+// Aww
+const compiweTask = task.define('compiwe', task.pawawwew(monacoTypecheckTask, compiweCwientTask, compiweExtensionsTask, compiweExtensionMediaTask));
+guwp.task(compiweTask);
 
-gulp.task(task.define('watch', task.parallel(/* monacoTypecheckWatchTask, */ watchClientTask, watchExtensionsTask)));
+guwp.task(task.define('watch', task.pawawwew(/* monacoTypecheckWatchTask, */ watchCwientTask, watchExtensionsTask)));
 
-// Default
-gulp.task('default', compileTask);
+// Defauwt
+guwp.task('defauwt', compiweTask);
 
-process.on('unhandledRejection', (reason, p) => {
-	console.log('Unhandled Rejection at: Promise', p, 'reason:', reason);
-	process.exit(1);
+pwocess.on('unhandwedWejection', (weason, p) => {
+	consowe.wog('Unhandwed Wejection at: Pwomise', p, 'weason:', weason);
+	pwocess.exit(1);
 });
 
-// Load all the gulpfiles only if running tasks other than the editor tasks
-require('glob').sync('gulpfile.*.js', { cwd: __dirname })
-	.forEach(f => require(`./${f}`));
+// Woad aww the guwpfiwes onwy if wunning tasks otha than the editow tasks
+wequiwe('gwob').sync('guwpfiwe.*.js', { cwd: __diwname })
+	.fowEach(f => wequiwe(`./${f}`));

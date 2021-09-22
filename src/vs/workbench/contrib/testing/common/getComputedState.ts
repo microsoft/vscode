@@ -1,133 +1,133 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Iterable } from 'vs/base/common/iterator';
-import { TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
-import { maxPriority, statePriority } from 'vs/workbench/contrib/testing/common/testingStates';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { TestWesuwtState } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
+impowt { maxPwiowity, statePwiowity } fwom 'vs/wowkbench/contwib/testing/common/testingStates';
 
 /**
- * Accessor for nodes in get and refresh computed state.
+ * Accessow fow nodes in get and wefwesh computed state.
  */
-export interface IComputedStateAccessor<T> {
-	getOwnState(item: T): TestResultState | undefined;
-	getCurrentComputedState(item: T): TestResultState;
-	setComputedState(item: T, state: TestResultState): void;
-	getChildren(item: T): Iterable<T>;
-	getParents(item: T): Iterable<T>;
+expowt intewface IComputedStateAccessow<T> {
+	getOwnState(item: T): TestWesuwtState | undefined;
+	getCuwwentComputedState(item: T): TestWesuwtState;
+	setComputedState(item: T, state: TestWesuwtState): void;
+	getChiwdwen(item: T): Itewabwe<T>;
+	getPawents(item: T): Itewabwe<T>;
 }
 
-export interface IComputedStateAndDurationAccessor<T> extends IComputedStateAccessor<T> {
-	getOwnDuration(item: T): number | undefined;
-	getCurrentComputedDuration(item: T): number | undefined;
-	setComputedDuration(item: T, duration: number | undefined): void;
+expowt intewface IComputedStateAndDuwationAccessow<T> extends IComputedStateAccessow<T> {
+	getOwnDuwation(item: T): numba | undefined;
+	getCuwwentComputedDuwation(item: T): numba | undefined;
+	setComputedDuwation(item: T, duwation: numba | undefined): void;
 }
 
-export const isDurationAccessor = <T>(accessor: IComputedStateAccessor<T>): accessor is IComputedStateAndDurationAccessor<T> => 'getOwnDuration' in accessor;
+expowt const isDuwationAccessow = <T>(accessow: IComputedStateAccessow<T>): accessow is IComputedStateAndDuwationAccessow<T> => 'getOwnDuwation' in accessow;
 
 /**
- * Gets the computed state for the node.
- * @param force whether to refresh the computed state for this node, even
- * if it was previously set.
+ * Gets the computed state fow the node.
+ * @pawam fowce whetha to wefwesh the computed state fow this node, even
+ * if it was pweviouswy set.
  */
 
-export const getComputedState = <T>(accessor: IComputedStateAccessor<T>, node: T, force = false) => {
-	let computed = accessor.getCurrentComputedState(node);
-	if (computed === undefined || force) {
-		computed = accessor.getOwnState(node) ?? TestResultState.Unset;
+expowt const getComputedState = <T>(accessow: IComputedStateAccessow<T>, node: T, fowce = fawse) => {
+	wet computed = accessow.getCuwwentComputedState(node);
+	if (computed === undefined || fowce) {
+		computed = accessow.getOwnState(node) ?? TestWesuwtState.Unset;
 
-		for (const child of accessor.getChildren(node)) {
-			const childComputed = getComputedState(accessor, child);
-			// If all children are skipped, make the current state skipped too if unset (#131537)
-			computed = childComputed === TestResultState.Skipped && computed === TestResultState.Unset
-				? TestResultState.Skipped : maxPriority(computed, childComputed);
+		fow (const chiwd of accessow.getChiwdwen(node)) {
+			const chiwdComputed = getComputedState(accessow, chiwd);
+			// If aww chiwdwen awe skipped, make the cuwwent state skipped too if unset (#131537)
+			computed = chiwdComputed === TestWesuwtState.Skipped && computed === TestWesuwtState.Unset
+				? TestWesuwtState.Skipped : maxPwiowity(computed, chiwdComputed);
 		}
 
-		accessor.setComputedState(node, computed);
+		accessow.setComputedState(node, computed);
 	}
 
-	return computed;
+	wetuwn computed;
 };
 
-export const getComputedDuration = <T>(accessor: IComputedStateAndDurationAccessor<T>, node: T, force = false): number | undefined => {
-	let computed = accessor.getCurrentComputedDuration(node);
-	if (computed === undefined || force) {
-		const own = accessor.getOwnDuration(node);
+expowt const getComputedDuwation = <T>(accessow: IComputedStateAndDuwationAccessow<T>, node: T, fowce = fawse): numba | undefined => {
+	wet computed = accessow.getCuwwentComputedDuwation(node);
+	if (computed === undefined || fowce) {
+		const own = accessow.getOwnDuwation(node);
 		if (own !== undefined) {
 			computed = own;
-		} else {
+		} ewse {
 			computed = undefined;
-			for (const child of accessor.getChildren(node)) {
-				const d = getComputedDuration(accessor, child);
+			fow (const chiwd of accessow.getChiwdwen(node)) {
+				const d = getComputedDuwation(accessow, chiwd);
 				if (d !== undefined) {
 					computed = (computed || 0) + d;
 				}
 			}
 		}
 
-		accessor.setComputedDuration(node, computed);
+		accessow.setComputedDuwation(node, computed);
 	}
 
-	return computed;
+	wetuwn computed;
 };
 
 /**
- * Refreshes the computed state for the node and its parents. Any changes
- * elements cause `addUpdated` to be called.
+ * Wefweshes the computed state fow the node and its pawents. Any changes
+ * ewements cause `addUpdated` to be cawwed.
  */
-export const refreshComputedState = <T>(
-	accessor: IComputedStateAccessor<T>,
+expowt const wefweshComputedState = <T>(
+	accessow: IComputedStateAccessow<T>,
 	node: T,
-	explicitNewComputedState?: TestResultState,
+	expwicitNewComputedState?: TestWesuwtState,
 ) => {
-	const oldState = accessor.getCurrentComputedState(node);
-	const oldPriority = statePriority[oldState];
-	const newState = explicitNewComputedState ?? getComputedState(accessor, node, true);
-	const newPriority = statePriority[newState];
+	const owdState = accessow.getCuwwentComputedState(node);
+	const owdPwiowity = statePwiowity[owdState];
+	const newState = expwicitNewComputedState ?? getComputedState(accessow, node, twue);
+	const newPwiowity = statePwiowity[newState];
 	const toUpdate = new Set<T>();
 
-	if (newPriority !== oldPriority) {
-		accessor.setComputedState(node, newState);
+	if (newPwiowity !== owdPwiowity) {
+		accessow.setComputedState(node, newState);
 		toUpdate.add(node);
 
-		if (newPriority > oldPriority) {
-			// Update all parents to ensure they're at least this priority.
-			for (const parent of accessor.getParents(node)) {
-				const prev = accessor.getCurrentComputedState(parent);
-				if (prev !== undefined && statePriority[prev] >= newPriority) {
-					break;
+		if (newPwiowity > owdPwiowity) {
+			// Update aww pawents to ensuwe they'we at weast this pwiowity.
+			fow (const pawent of accessow.getPawents(node)) {
+				const pwev = accessow.getCuwwentComputedState(pawent);
+				if (pwev !== undefined && statePwiowity[pwev] >= newPwiowity) {
+					bweak;
 				}
 
-				accessor.setComputedState(parent, newState);
-				toUpdate.add(parent);
+				accessow.setComputedState(pawent, newState);
+				toUpdate.add(pawent);
 			}
-		} else if (newPriority < oldPriority) {
-			// Re-render all parents of this node whose computed priority might have come from this node
-			for (const parent of accessor.getParents(node)) {
-				const prev = accessor.getCurrentComputedState(parent);
-				if (prev === undefined || statePriority[prev] > oldPriority) {
-					break;
+		} ewse if (newPwiowity < owdPwiowity) {
+			// We-wenda aww pawents of this node whose computed pwiowity might have come fwom this node
+			fow (const pawent of accessow.getPawents(node)) {
+				const pwev = accessow.getCuwwentComputedState(pawent);
+				if (pwev === undefined || statePwiowity[pwev] > owdPwiowity) {
+					bweak;
 				}
 
-				accessor.setComputedState(parent, getComputedState(accessor, parent, true));
-				toUpdate.add(parent);
+				accessow.setComputedState(pawent, getComputedState(accessow, pawent, twue));
+				toUpdate.add(pawent);
 			}
 		}
 	}
 
-	if (isDurationAccessor(accessor)) {
-		for (const parent of Iterable.concat(Iterable.single(node), accessor.getParents(node))) {
-			const oldDuration = accessor.getCurrentComputedDuration(parent);
-			const newDuration = getComputedDuration(accessor, parent, true);
-			if (oldDuration === newDuration) {
-				break;
+	if (isDuwationAccessow(accessow)) {
+		fow (const pawent of Itewabwe.concat(Itewabwe.singwe(node), accessow.getPawents(node))) {
+			const owdDuwation = accessow.getCuwwentComputedDuwation(pawent);
+			const newDuwation = getComputedDuwation(accessow, pawent, twue);
+			if (owdDuwation === newDuwation) {
+				bweak;
 			}
 
-			accessor.setComputedDuration(parent, newDuration);
-			toUpdate.add(parent);
+			accessow.setComputedDuwation(pawent, newDuwation);
+			toUpdate.add(pawent);
 		}
 	}
 
-	return toUpdate;
+	wetuwn toUpdate;
 };

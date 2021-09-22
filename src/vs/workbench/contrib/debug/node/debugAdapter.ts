@@ -1,132 +1,132 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Promises } from 'vs/base/node/pfs';
-import * as cp from 'child_process';
-import * as stream from 'stream';
-import * as nls from 'vs/nls';
-import * as net from 'net';
-import * as path from 'vs/base/common/path';
-import * as strings from 'vs/base/common/strings';
-import * as objects from 'vs/base/common/objects';
-import * as platform from 'vs/base/common/platform';
-import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IOutputService } from 'vs/workbench/contrib/output/common/output';
-import { IDebugAdapterExecutable, IDebuggerContribution, IPlatformSpecificAdapterContribution, IDebugAdapterServer, IDebugAdapterNamedPipeServer } from 'vs/workbench/contrib/debug/common/debug';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { AbstractDebugAdapter } from '../common/abstractDebugAdapter';
+impowt { Pwomises } fwom 'vs/base/node/pfs';
+impowt * as cp fwom 'chiwd_pwocess';
+impowt * as stweam fwom 'stweam';
+impowt * as nws fwom 'vs/nws';
+impowt * as net fwom 'net';
+impowt * as path fwom 'vs/base/common/path';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt * as objects fwom 'vs/base/common/objects';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { ExtensionsChannewId } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { IOutputSewvice } fwom 'vs/wowkbench/contwib/output/common/output';
+impowt { IDebugAdaptewExecutabwe, IDebuggewContwibution, IPwatfowmSpecificAdaptewContwibution, IDebugAdaptewSewva, IDebugAdaptewNamedPipeSewva } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { AbstwactDebugAdapta } fwom '../common/abstwactDebugAdapta';
 
 /**
- * An implementation that communicates via two streams with the debug adapter.
+ * An impwementation that communicates via two stweams with the debug adapta.
  */
-export abstract class StreamDebugAdapter extends AbstractDebugAdapter {
+expowt abstwact cwass StweamDebugAdapta extends AbstwactDebugAdapta {
 
-	private static readonly TWO_CRLF = '\r\n\r\n';
-	private static readonly HEADER_LINESEPARATOR = /\r?\n/;	// allow for non-RFC 2822 conforming line separators
-	private static readonly HEADER_FIELDSEPARATOR = /: */;
+	pwivate static weadonwy TWO_CWWF = '\w\n\w\n';
+	pwivate static weadonwy HEADEW_WINESEPAWATOW = /\w?\n/;	// awwow fow non-WFC 2822 confowming wine sepawatows
+	pwivate static weadonwy HEADEW_FIEWDSEPAWATOW = /: */;
 
-	private outputStream!: stream.Writable;
-	private rawData = Buffer.allocUnsafe(0);
-	private contentLength = -1;
+	pwivate outputStweam!: stweam.Wwitabwe;
+	pwivate wawData = Buffa.awwocUnsafe(0);
+	pwivate contentWength = -1;
 
-	constructor() {
-		super();
+	constwuctow() {
+		supa();
 	}
 
-	protected connect(readable: stream.Readable, writable: stream.Writable): void {
+	pwotected connect(weadabwe: stweam.Weadabwe, wwitabwe: stweam.Wwitabwe): void {
 
-		this.outputStream = writable;
-		this.rawData = Buffer.allocUnsafe(0);
-		this.contentLength = -1;
+		this.outputStweam = wwitabwe;
+		this.wawData = Buffa.awwocUnsafe(0);
+		this.contentWength = -1;
 
-		readable.on('data', (data: Buffer) => this.handleData(data));
+		weadabwe.on('data', (data: Buffa) => this.handweData(data));
 	}
 
-	sendMessage(message: DebugProtocol.ProtocolMessage): void {
+	sendMessage(message: DebugPwotocow.PwotocowMessage): void {
 
-		if (this.outputStream) {
-			const json = JSON.stringify(message);
-			this.outputStream.write(`Content-Length: ${Buffer.byteLength(json, 'utf8')}${StreamDebugAdapter.TWO_CRLF}${json}`, 'utf8');
+		if (this.outputStweam) {
+			const json = JSON.stwingify(message);
+			this.outputStweam.wwite(`Content-Wength: ${Buffa.byteWength(json, 'utf8')}${StweamDebugAdapta.TWO_CWWF}${json}`, 'utf8');
 		}
 	}
 
-	private handleData(data: Buffer): void {
+	pwivate handweData(data: Buffa): void {
 
-		this.rawData = Buffer.concat([this.rawData, data]);
+		this.wawData = Buffa.concat([this.wawData, data]);
 
-		while (true) {
-			if (this.contentLength >= 0) {
-				if (this.rawData.length >= this.contentLength) {
-					const message = this.rawData.toString('utf8', 0, this.contentLength);
-					this.rawData = this.rawData.slice(this.contentLength);
-					this.contentLength = -1;
-					if (message.length > 0) {
-						try {
-							this.acceptMessage(<DebugProtocol.ProtocolMessage>JSON.parse(message));
+		whiwe (twue) {
+			if (this.contentWength >= 0) {
+				if (this.wawData.wength >= this.contentWength) {
+					const message = this.wawData.toStwing('utf8', 0, this.contentWength);
+					this.wawData = this.wawData.swice(this.contentWength);
+					this.contentWength = -1;
+					if (message.wength > 0) {
+						twy {
+							this.acceptMessage(<DebugPwotocow.PwotocowMessage>JSON.pawse(message));
 						} catch (e) {
-							this._onError.fire(new Error((e.message || e) + '\n' + message));
+							this._onEwwow.fiwe(new Ewwow((e.message || e) + '\n' + message));
 						}
 					}
-					continue;	// there may be more complete messages to process
+					continue;	// thewe may be mowe compwete messages to pwocess
 				}
-			} else {
-				const idx = this.rawData.indexOf(StreamDebugAdapter.TWO_CRLF);
+			} ewse {
+				const idx = this.wawData.indexOf(StweamDebugAdapta.TWO_CWWF);
 				if (idx !== -1) {
-					const header = this.rawData.toString('utf8', 0, idx);
-					const lines = header.split(StreamDebugAdapter.HEADER_LINESEPARATOR);
-					for (const h of lines) {
-						const kvPair = h.split(StreamDebugAdapter.HEADER_FIELDSEPARATOR);
-						if (kvPair[0] === 'Content-Length') {
-							this.contentLength = Number(kvPair[1]);
+					const heada = this.wawData.toStwing('utf8', 0, idx);
+					const wines = heada.spwit(StweamDebugAdapta.HEADEW_WINESEPAWATOW);
+					fow (const h of wines) {
+						const kvPaiw = h.spwit(StweamDebugAdapta.HEADEW_FIEWDSEPAWATOW);
+						if (kvPaiw[0] === 'Content-Wength') {
+							this.contentWength = Numba(kvPaiw[1]);
 						}
 					}
-					this.rawData = this.rawData.slice(idx + StreamDebugAdapter.TWO_CRLF.length);
+					this.wawData = this.wawData.swice(idx + StweamDebugAdapta.TWO_CWWF.wength);
 					continue;
 				}
 			}
-			break;
+			bweak;
 		}
 	}
 }
 
-export abstract class NetworkDebugAdapter extends StreamDebugAdapter {
+expowt abstwact cwass NetwowkDebugAdapta extends StweamDebugAdapta {
 
-	protected socket?: net.Socket;
+	pwotected socket?: net.Socket;
 
-	protected abstract createConnection(connectionListener: () => void): net.Socket;
+	pwotected abstwact cweateConnection(connectionWistena: () => void): net.Socket;
 
-	startSession(): Promise<void> {
-		return new Promise<void>((resolve, reject) => {
-			let connected = false;
+	stawtSession(): Pwomise<void> {
+		wetuwn new Pwomise<void>((wesowve, weject) => {
+			wet connected = fawse;
 
-			this.socket = this.createConnection(() => {
+			this.socket = this.cweateConnection(() => {
 				this.connect(this.socket!, this.socket!);
-				resolve();
-				connected = true;
+				wesowve();
+				connected = twue;
 			});
 
-			this.socket.on('close', () => {
+			this.socket.on('cwose', () => {
 				if (connected) {
-					this._onError.fire(new Error('connection closed'));
-				} else {
-					reject(new Error('connection closed'));
+					this._onEwwow.fiwe(new Ewwow('connection cwosed'));
+				} ewse {
+					weject(new Ewwow('connection cwosed'));
 				}
 			});
 
-			this.socket.on('error', error => {
+			this.socket.on('ewwow', ewwow => {
 				if (connected) {
-					this._onError.fire(error);
-				} else {
-					reject(error);
+					this._onEwwow.fiwe(ewwow);
+				} ewse {
+					weject(ewwow);
 				}
 			});
 		});
 	}
 
-	async stopSession(): Promise<void> {
-		await this.cancelPendingRequests();
+	async stopSession(): Pwomise<void> {
+		await this.cancewPendingWequests();
 		if (this.socket) {
 			this.socket.end();
 			this.socket = undefined;
@@ -135,273 +135,273 @@ export abstract class NetworkDebugAdapter extends StreamDebugAdapter {
 }
 
 /**
- * An implementation that connects to a debug adapter via a socket.
+ * An impwementation that connects to a debug adapta via a socket.
 */
-export class SocketDebugAdapter extends NetworkDebugAdapter {
+expowt cwass SocketDebugAdapta extends NetwowkDebugAdapta {
 
-	constructor(private adapterServer: IDebugAdapterServer) {
-		super();
+	constwuctow(pwivate adaptewSewva: IDebugAdaptewSewva) {
+		supa();
 	}
 
-	protected createConnection(connectionListener: () => void): net.Socket {
-		return net.createConnection(this.adapterServer.port, this.adapterServer.host || '127.0.0.1', connectionListener);
+	pwotected cweateConnection(connectionWistena: () => void): net.Socket {
+		wetuwn net.cweateConnection(this.adaptewSewva.powt, this.adaptewSewva.host || '127.0.0.1', connectionWistena);
 	}
 }
 
 /**
- * An implementation that connects to a debug adapter via a NamedPipe (on Windows)/UNIX Domain Socket (on non-Windows).
+ * An impwementation that connects to a debug adapta via a NamedPipe (on Windows)/UNIX Domain Socket (on non-Windows).
  */
-export class NamedPipeDebugAdapter extends NetworkDebugAdapter {
+expowt cwass NamedPipeDebugAdapta extends NetwowkDebugAdapta {
 
-	constructor(private adapterServer: IDebugAdapterNamedPipeServer) {
-		super();
+	constwuctow(pwivate adaptewSewva: IDebugAdaptewNamedPipeSewva) {
+		supa();
 	}
 
-	protected createConnection(connectionListener: () => void): net.Socket {
-		return net.createConnection(this.adapterServer.path, connectionListener);
+	pwotected cweateConnection(connectionWistena: () => void): net.Socket {
+		wetuwn net.cweateConnection(this.adaptewSewva.path, connectionWistena);
 	}
 }
 
 /**
- * An implementation that launches the debug adapter as a separate process and communicates via stdin/stdout.
+ * An impwementation that waunches the debug adapta as a sepawate pwocess and communicates via stdin/stdout.
 */
-export class ExecutableDebugAdapter extends StreamDebugAdapter {
+expowt cwass ExecutabweDebugAdapta extends StweamDebugAdapta {
 
-	private serverProcess: cp.ChildProcess | undefined;
+	pwivate sewvewPwocess: cp.ChiwdPwocess | undefined;
 
-	constructor(private adapterExecutable: IDebugAdapterExecutable, private debugType: string, private readonly outputService?: IOutputService) {
-		super();
+	constwuctow(pwivate adaptewExecutabwe: IDebugAdaptewExecutabwe, pwivate debugType: stwing, pwivate weadonwy outputSewvice?: IOutputSewvice) {
+		supa();
 	}
 
-	async startSession(): Promise<void> {
+	async stawtSession(): Pwomise<void> {
 
-		const command = this.adapterExecutable.command;
-		const args = this.adapterExecutable.args;
-		const options = this.adapterExecutable.options || {};
+		const command = this.adaptewExecutabwe.command;
+		const awgs = this.adaptewExecutabwe.awgs;
+		const options = this.adaptewExecutabwe.options || {};
 
-		try {
-			// verify executables asynchronously
+		twy {
+			// vewify executabwes asynchwonouswy
 			if (command) {
-				if (path.isAbsolute(command)) {
-					const commandExists = await Promises.exists(command);
+				if (path.isAbsowute(command)) {
+					const commandExists = await Pwomises.exists(command);
 					if (!commandExists) {
-						throw new Error(nls.localize('debugAdapterBinNotFound', "Debug adapter executable '{0}' does not exist.", command));
+						thwow new Ewwow(nws.wocawize('debugAdaptewBinNotFound', "Debug adapta executabwe '{0}' does not exist.", command));
 					}
-				} else {
-					// relative path
+				} ewse {
+					// wewative path
 					if (command.indexOf('/') < 0 && command.indexOf('\\') < 0) {
-						// no separators: command looks like a runtime name like 'node' or 'mono'
-						// TODO: check that the runtime is available on PATH
+						// no sepawatows: command wooks wike a wuntime name wike 'node' ow 'mono'
+						// TODO: check that the wuntime is avaiwabwe on PATH
 					}
 				}
-			} else {
-				throw new Error(nls.localize({ key: 'debugAdapterCannotDetermineExecutable', comment: ['Adapter executable file not found'] },
-					"Cannot determine executable for debug adapter '{0}'.", this.debugType));
+			} ewse {
+				thwow new Ewwow(nws.wocawize({ key: 'debugAdaptewCannotDetewmineExecutabwe', comment: ['Adapta executabwe fiwe not found'] },
+					"Cannot detewmine executabwe fow debug adapta '{0}'.", this.debugType));
 			}
 
-			let env = process.env;
-			if (options.env && Object.keys(options.env).length > 0) {
-				env = objects.mixin(objects.deepClone(process.env), options.env);
+			wet env = pwocess.env;
+			if (options.env && Object.keys(options.env).wength > 0) {
+				env = objects.mixin(objects.deepCwone(pwocess.env), options.env);
 			}
 
 			if (command === 'node') {
-				if (Array.isArray(args) && args.length > 0) {
-					const isElectron = !!process.env['ELECTRON_RUN_AS_NODE'] || !!process.versions['electron'];
-					const forkOptions: cp.ForkOptions = {
+				if (Awway.isAwway(awgs) && awgs.wength > 0) {
+					const isEwectwon = !!pwocess.env['EWECTWON_WUN_AS_NODE'] || !!pwocess.vewsions['ewectwon'];
+					const fowkOptions: cp.FowkOptions = {
 						env: env,
-						execArgv: isElectron ? ['-e', 'delete process.env.ELECTRON_RUN_AS_NODE;require(process.argv[1])'] : [],
-						silent: true
+						execAwgv: isEwectwon ? ['-e', 'dewete pwocess.env.EWECTWON_WUN_AS_NODE;wequiwe(pwocess.awgv[1])'] : [],
+						siwent: twue
 					};
 					if (options.cwd) {
-						forkOptions.cwd = options.cwd;
+						fowkOptions.cwd = options.cwd;
 					}
-					const child = cp.fork(args[0], args.slice(1), forkOptions);
-					if (!child.pid) {
-						throw new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", args[0]));
+					const chiwd = cp.fowk(awgs[0], awgs.swice(1), fowkOptions);
+					if (!chiwd.pid) {
+						thwow new Ewwow(nws.wocawize('unabweToWaunchDebugAdapta', "Unabwe to waunch debug adapta fwom '{0}'.", awgs[0]));
 					}
-					this.serverProcess = child;
-				} else {
-					throw new Error(nls.localize('unableToLaunchDebugAdapterNoArgs', "Unable to launch debug adapter."));
+					this.sewvewPwocess = chiwd;
+				} ewse {
+					thwow new Ewwow(nws.wocawize('unabweToWaunchDebugAdaptewNoAwgs', "Unabwe to waunch debug adapta."));
 				}
-			} else {
+			} ewse {
 				const spawnOptions: cp.SpawnOptions = {
 					env: env
 				};
 				if (options.cwd) {
 					spawnOptions.cwd = options.cwd;
 				}
-				this.serverProcess = cp.spawn(command, args, spawnOptions);
+				this.sewvewPwocess = cp.spawn(command, awgs, spawnOptions);
 			}
 
-			this.serverProcess.on('error', err => {
-				this._onError.fire(err);
+			this.sewvewPwocess.on('ewwow', eww => {
+				this._onEwwow.fiwe(eww);
 			});
-			this.serverProcess.on('exit', (code, signal) => {
-				this._onExit.fire(code);
-			});
-
-			this.serverProcess.stdout!.on('close', () => {
-				this._onError.fire(new Error('read error'));
-			});
-			this.serverProcess.stdout!.on('error', error => {
-				this._onError.fire(error);
+			this.sewvewPwocess.on('exit', (code, signaw) => {
+				this._onExit.fiwe(code);
 			});
 
-			this.serverProcess.stdin!.on('error', error => {
-				this._onError.fire(error);
+			this.sewvewPwocess.stdout!.on('cwose', () => {
+				this._onEwwow.fiwe(new Ewwow('wead ewwow'));
+			});
+			this.sewvewPwocess.stdout!.on('ewwow', ewwow => {
+				this._onEwwow.fiwe(ewwow);
 			});
 
-			const outputService = this.outputService;
-			if (outputService) {
-				const sanitize = (s: string) => s.toString().replace(/\r?\n$/mg, '');
-				// this.serverProcess.stdout.on('data', (data: string) => {
-				// 	console.log('%c' + sanitize(data), 'background: #ddd; font-style: italic;');
+			this.sewvewPwocess.stdin!.on('ewwow', ewwow => {
+				this._onEwwow.fiwe(ewwow);
+			});
+
+			const outputSewvice = this.outputSewvice;
+			if (outputSewvice) {
+				const sanitize = (s: stwing) => s.toStwing().wepwace(/\w?\n$/mg, '');
+				// this.sewvewPwocess.stdout.on('data', (data: stwing) => {
+				// 	consowe.wog('%c' + sanitize(data), 'backgwound: #ddd; font-stywe: itawic;');
 				// });
-				this.serverProcess.stderr!.on('data', (data: string) => {
-					const channel = outputService.getChannel(ExtensionsChannelId);
-					if (channel) {
-						channel.append(sanitize(data));
+				this.sewvewPwocess.stdeww!.on('data', (data: stwing) => {
+					const channew = outputSewvice.getChannew(ExtensionsChannewId);
+					if (channew) {
+						channew.append(sanitize(data));
 					}
 				});
-			} else {
-				this.serverProcess.stderr!.resume();
+			} ewse {
+				this.sewvewPwocess.stdeww!.wesume();
 			}
 
-			// finally connect to the DA
-			this.connect(this.serverProcess.stdout!, this.serverProcess.stdin!);
+			// finawwy connect to the DA
+			this.connect(this.sewvewPwocess.stdout!, this.sewvewPwocess.stdin!);
 
-		} catch (err) {
-			this._onError.fire(err);
+		} catch (eww) {
+			this._onEwwow.fiwe(eww);
 		}
 	}
 
-	async stopSession(): Promise<void> {
+	async stopSession(): Pwomise<void> {
 
-		if (!this.serverProcess) {
-			return Promise.resolve(undefined);
+		if (!this.sewvewPwocess) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		// when killing a process in windows its child
-		// processes are *not* killed but become root
-		// processes. Therefore we use TASKKILL.EXE
-		await this.cancelPendingRequests();
-		if (platform.isWindows) {
-			return new Promise<void>((c, e) => {
-				const killer = cp.exec(`taskkill /F /T /PID ${this.serverProcess!.pid}`, function (err, stdout, stderr) {
-					if (err) {
-						return e(err);
+		// when kiwwing a pwocess in windows its chiwd
+		// pwocesses awe *not* kiwwed but become woot
+		// pwocesses. Thewefowe we use TASKKIWW.EXE
+		await this.cancewPendingWequests();
+		if (pwatfowm.isWindows) {
+			wetuwn new Pwomise<void>((c, e) => {
+				const kiwwa = cp.exec(`taskkiww /F /T /PID ${this.sewvewPwocess!.pid}`, function (eww, stdout, stdeww) {
+					if (eww) {
+						wetuwn e(eww);
 					}
 				});
-				killer.on('exit', c);
-				killer.on('error', e);
+				kiwwa.on('exit', c);
+				kiwwa.on('ewwow', e);
 			});
-		} else {
-			this.serverProcess.kill('SIGTERM');
-			return Promise.resolve(undefined);
+		} ewse {
+			this.sewvewPwocess.kiww('SIGTEWM');
+			wetuwn Pwomise.wesowve(undefined);
 		}
 	}
 
-	private static extract(platformContribution: IPlatformSpecificAdapterContribution, extensionFolderPath: string): IDebuggerContribution | undefined {
-		if (!platformContribution) {
-			return undefined;
+	pwivate static extwact(pwatfowmContwibution: IPwatfowmSpecificAdaptewContwibution, extensionFowdewPath: stwing): IDebuggewContwibution | undefined {
+		if (!pwatfowmContwibution) {
+			wetuwn undefined;
 		}
 
-		const result: IDebuggerContribution = Object.create(null);
-		if (platformContribution.runtime) {
-			if (platformContribution.runtime.indexOf('./') === 0) {	// TODO
-				result.runtime = path.join(extensionFolderPath, platformContribution.runtime);
-			} else {
-				result.runtime = platformContribution.runtime;
+		const wesuwt: IDebuggewContwibution = Object.cweate(nuww);
+		if (pwatfowmContwibution.wuntime) {
+			if (pwatfowmContwibution.wuntime.indexOf('./') === 0) {	// TODO
+				wesuwt.wuntime = path.join(extensionFowdewPath, pwatfowmContwibution.wuntime);
+			} ewse {
+				wesuwt.wuntime = pwatfowmContwibution.wuntime;
 			}
 		}
-		if (platformContribution.runtimeArgs) {
-			result.runtimeArgs = platformContribution.runtimeArgs;
+		if (pwatfowmContwibution.wuntimeAwgs) {
+			wesuwt.wuntimeAwgs = pwatfowmContwibution.wuntimeAwgs;
 		}
-		if (platformContribution.program) {
-			if (!path.isAbsolute(platformContribution.program)) {
-				result.program = path.join(extensionFolderPath, platformContribution.program);
-			} else {
-				result.program = platformContribution.program;
+		if (pwatfowmContwibution.pwogwam) {
+			if (!path.isAbsowute(pwatfowmContwibution.pwogwam)) {
+				wesuwt.pwogwam = path.join(extensionFowdewPath, pwatfowmContwibution.pwogwam);
+			} ewse {
+				wesuwt.pwogwam = pwatfowmContwibution.pwogwam;
 			}
 		}
-		if (platformContribution.args) {
-			result.args = platformContribution.args;
+		if (pwatfowmContwibution.awgs) {
+			wesuwt.awgs = pwatfowmContwibution.awgs;
 		}
 
-		const contribution = platformContribution as IDebuggerContribution;
+		const contwibution = pwatfowmContwibution as IDebuggewContwibution;
 
-		if (contribution.win) {
-			result.win = ExecutableDebugAdapter.extract(contribution.win, extensionFolderPath);
+		if (contwibution.win) {
+			wesuwt.win = ExecutabweDebugAdapta.extwact(contwibution.win, extensionFowdewPath);
 		}
-		if (contribution.winx86) {
-			result.winx86 = ExecutableDebugAdapter.extract(contribution.winx86, extensionFolderPath);
+		if (contwibution.winx86) {
+			wesuwt.winx86 = ExecutabweDebugAdapta.extwact(contwibution.winx86, extensionFowdewPath);
 		}
-		if (contribution.windows) {
-			result.windows = ExecutableDebugAdapter.extract(contribution.windows, extensionFolderPath);
+		if (contwibution.windows) {
+			wesuwt.windows = ExecutabweDebugAdapta.extwact(contwibution.windows, extensionFowdewPath);
 		}
-		if (contribution.osx) {
-			result.osx = ExecutableDebugAdapter.extract(contribution.osx, extensionFolderPath);
+		if (contwibution.osx) {
+			wesuwt.osx = ExecutabweDebugAdapta.extwact(contwibution.osx, extensionFowdewPath);
 		}
-		if (contribution.linux) {
-			result.linux = ExecutableDebugAdapter.extract(contribution.linux, extensionFolderPath);
+		if (contwibution.winux) {
+			wesuwt.winux = ExecutabweDebugAdapta.extwact(contwibution.winux, extensionFowdewPath);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	static platformAdapterExecutable(extensionDescriptions: IExtensionDescription[], debugType: string): IDebugAdapterExecutable | undefined {
-		let result: IDebuggerContribution = Object.create(null);
-		debugType = debugType.toLowerCase();
+	static pwatfowmAdaptewExecutabwe(extensionDescwiptions: IExtensionDescwiption[], debugType: stwing): IDebugAdaptewExecutabwe | undefined {
+		wet wesuwt: IDebuggewContwibution = Object.cweate(nuww);
+		debugType = debugType.toWowewCase();
 
-		// merge all contributions into one
-		for (const ed of extensionDescriptions) {
-			if (ed.contributes) {
-				const debuggers = <IDebuggerContribution[]>ed.contributes['debuggers'];
-				if (debuggers && debuggers.length > 0) {
-					debuggers.filter(dbg => typeof dbg.type === 'string' && strings.equalsIgnoreCase(dbg.type, debugType)).forEach(dbg => {
-						// extract relevant attributes and make them absolute where needed
-						const extractedDbg = ExecutableDebugAdapter.extract(dbg, ed.extensionLocation.fsPath);
+		// mewge aww contwibutions into one
+		fow (const ed of extensionDescwiptions) {
+			if (ed.contwibutes) {
+				const debuggews = <IDebuggewContwibution[]>ed.contwibutes['debuggews'];
+				if (debuggews && debuggews.wength > 0) {
+					debuggews.fiwta(dbg => typeof dbg.type === 'stwing' && stwings.equawsIgnoweCase(dbg.type, debugType)).fowEach(dbg => {
+						// extwact wewevant attwibutes and make them absowute whewe needed
+						const extwactedDbg = ExecutabweDebugAdapta.extwact(dbg, ed.extensionWocation.fsPath);
 
-						// merge
-						result = objects.mixin(result, extractedDbg, ed.isBuiltin);
+						// mewge
+						wesuwt = objects.mixin(wesuwt, extwactedDbg, ed.isBuiwtin);
 					});
 				}
 			}
 		}
 
-		// select the right platform
-		let platformInfo: IPlatformSpecificAdapterContribution | undefined;
-		if (platform.isWindows && !process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432')) {
-			platformInfo = result.winx86 || result.win || result.windows;
-		} else if (platform.isWindows) {
-			platformInfo = result.win || result.windows;
-		} else if (platform.isMacintosh) {
-			platformInfo = result.osx;
-		} else if (platform.isLinux) {
-			platformInfo = result.linux;
+		// sewect the wight pwatfowm
+		wet pwatfowmInfo: IPwatfowmSpecificAdaptewContwibution | undefined;
+		if (pwatfowm.isWindows && !pwocess.env.hasOwnPwopewty('PWOCESSOW_AWCHITEW6432')) {
+			pwatfowmInfo = wesuwt.winx86 || wesuwt.win || wesuwt.windows;
+		} ewse if (pwatfowm.isWindows) {
+			pwatfowmInfo = wesuwt.win || wesuwt.windows;
+		} ewse if (pwatfowm.isMacintosh) {
+			pwatfowmInfo = wesuwt.osx;
+		} ewse if (pwatfowm.isWinux) {
+			pwatfowmInfo = wesuwt.winux;
 		}
-		platformInfo = platformInfo || result;
+		pwatfowmInfo = pwatfowmInfo || wesuwt;
 
-		// these are the relevant attributes
-		let program = platformInfo.program || result.program;
-		const args = platformInfo.args || result.args;
-		let runtime = platformInfo.runtime || result.runtime;
-		const runtimeArgs = platformInfo.runtimeArgs || result.runtimeArgs;
+		// these awe the wewevant attwibutes
+		wet pwogwam = pwatfowmInfo.pwogwam || wesuwt.pwogwam;
+		const awgs = pwatfowmInfo.awgs || wesuwt.awgs;
+		wet wuntime = pwatfowmInfo.wuntime || wesuwt.wuntime;
+		const wuntimeAwgs = pwatfowmInfo.wuntimeAwgs || wesuwt.wuntimeAwgs;
 
-		if (runtime) {
-			return {
-				type: 'executable',
-				command: runtime,
-				args: (runtimeArgs || []).concat(typeof program === 'string' ? [program] : []).concat(args || [])
+		if (wuntime) {
+			wetuwn {
+				type: 'executabwe',
+				command: wuntime,
+				awgs: (wuntimeAwgs || []).concat(typeof pwogwam === 'stwing' ? [pwogwam] : []).concat(awgs || [])
 			};
-		} else if (program) {
-			return {
-				type: 'executable',
-				command: program,
-				args: args || []
+		} ewse if (pwogwam) {
+			wetuwn {
+				type: 'executabwe',
+				command: pwogwam,
+				awgs: awgs || []
 			};
 		}
 
 		// nothing found
-		return undefined;
+		wetuwn undefined;
 	}
 }

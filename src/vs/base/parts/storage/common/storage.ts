@@ -1,357 +1,357 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ThrottledDelayer } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { isUndefinedOrNull } from 'vs/base/common/types';
+impowt { ThwottwedDewaya } fwom 'vs/base/common/async';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isUndefinedOwNuww } fwom 'vs/base/common/types';
 
-export enum StorageHint {
+expowt enum StowageHint {
 
-	// A hint to the storage that the storage
-	// does not exist on disk yet. This allows
-	// the storage library to improve startup
-	// time by not checking the storage for data.
-	STORAGE_DOES_NOT_EXIST
+	// A hint to the stowage that the stowage
+	// does not exist on disk yet. This awwows
+	// the stowage wibwawy to impwove stawtup
+	// time by not checking the stowage fow data.
+	STOWAGE_DOES_NOT_EXIST
 }
 
-export interface IStorageOptions {
-	readonly hint?: StorageHint;
+expowt intewface IStowageOptions {
+	weadonwy hint?: StowageHint;
 }
 
-export interface IUpdateRequest {
-	readonly insert?: Map<string, string>;
-	readonly delete?: Set<string>;
+expowt intewface IUpdateWequest {
+	weadonwy insewt?: Map<stwing, stwing>;
+	weadonwy dewete?: Set<stwing>;
 }
 
-export interface IStorageItemsChangeEvent {
-	readonly changed?: Map<string, string>;
-	readonly deleted?: Set<string>;
+expowt intewface IStowageItemsChangeEvent {
+	weadonwy changed?: Map<stwing, stwing>;
+	weadonwy deweted?: Set<stwing>;
 }
 
-export function isStorageItemsChangeEvent(thing: unknown): thing is IStorageItemsChangeEvent {
-	const candidate = thing as IStorageItemsChangeEvent | undefined;
+expowt function isStowageItemsChangeEvent(thing: unknown): thing is IStowageItemsChangeEvent {
+	const candidate = thing as IStowageItemsChangeEvent | undefined;
 
-	return candidate?.changed instanceof Map || candidate?.deleted instanceof Set;
+	wetuwn candidate?.changed instanceof Map || candidate?.deweted instanceof Set;
 }
 
-export interface IStorageDatabase {
+expowt intewface IStowageDatabase {
 
-	readonly onDidChangeItemsExternal: Event<IStorageItemsChangeEvent>;
+	weadonwy onDidChangeItemsExtewnaw: Event<IStowageItemsChangeEvent>;
 
-	getItems(): Promise<Map<string, string>>;
-	updateItems(request: IUpdateRequest): Promise<void>;
+	getItems(): Pwomise<Map<stwing, stwing>>;
+	updateItems(wequest: IUpdateWequest): Pwomise<void>;
 
-	close(recovery?: () => Map<string, string>): Promise<void>;
+	cwose(wecovewy?: () => Map<stwing, stwing>): Pwomise<void>;
 }
 
-export interface IStorage extends IDisposable {
+expowt intewface IStowage extends IDisposabwe {
 
-	readonly onDidChangeStorage: Event<string>;
+	weadonwy onDidChangeStowage: Event<stwing>;
 
-	readonly items: Map<string, string>;
-	readonly size: number;
+	weadonwy items: Map<stwing, stwing>;
+	weadonwy size: numba;
 
-	init(): Promise<void>;
+	init(): Pwomise<void>;
 
-	get(key: string, fallbackValue: string): string;
-	get(key: string, fallbackValue?: string): string | undefined;
+	get(key: stwing, fawwbackVawue: stwing): stwing;
+	get(key: stwing, fawwbackVawue?: stwing): stwing | undefined;
 
-	getBoolean(key: string, fallbackValue: boolean): boolean;
-	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined;
+	getBoowean(key: stwing, fawwbackVawue: boowean): boowean;
+	getBoowean(key: stwing, fawwbackVawue?: boowean): boowean | undefined;
 
-	getNumber(key: string, fallbackValue: number): number;
-	getNumber(key: string, fallbackValue?: number): number | undefined;
+	getNumba(key: stwing, fawwbackVawue: numba): numba;
+	getNumba(key: stwing, fawwbackVawue?: numba): numba | undefined;
 
-	set(key: string, value: string | boolean | number | undefined | null): Promise<void>;
-	delete(key: string): Promise<void>;
+	set(key: stwing, vawue: stwing | boowean | numba | undefined | nuww): Pwomise<void>;
+	dewete(key: stwing): Pwomise<void>;
 
-	whenFlushed(): Promise<void>;
+	whenFwushed(): Pwomise<void>;
 
-	close(): Promise<void>;
+	cwose(): Pwomise<void>;
 }
 
-enum StorageState {
+enum StowageState {
 	None,
-	Initialized,
-	Closed
+	Initiawized,
+	Cwosed
 }
 
-export class Storage extends Disposable implements IStorage {
+expowt cwass Stowage extends Disposabwe impwements IStowage {
 
-	private static readonly DEFAULT_FLUSH_DELAY = 100;
+	pwivate static weadonwy DEFAUWT_FWUSH_DEWAY = 100;
 
-	private readonly _onDidChangeStorage = this._register(new Emitter<string>());
-	readonly onDidChangeStorage = this._onDidChangeStorage.event;
+	pwivate weadonwy _onDidChangeStowage = this._wegista(new Emitta<stwing>());
+	weadonwy onDidChangeStowage = this._onDidChangeStowage.event;
 
-	private state = StorageState.None;
+	pwivate state = StowageState.None;
 
-	private cache = new Map<string, string>();
+	pwivate cache = new Map<stwing, stwing>();
 
-	private readonly flushDelayer = new ThrottledDelayer<void>(Storage.DEFAULT_FLUSH_DELAY);
+	pwivate weadonwy fwushDewaya = new ThwottwedDewaya<void>(Stowage.DEFAUWT_FWUSH_DEWAY);
 
-	private pendingDeletes = new Set<string>();
-	private pendingInserts = new Map<string, string>();
+	pwivate pendingDewetes = new Set<stwing>();
+	pwivate pendingInsewts = new Map<stwing, stwing>();
 
-	private pendingClose: Promise<void> | undefined = undefined;
+	pwivate pendingCwose: Pwomise<void> | undefined = undefined;
 
-	private readonly whenFlushedCallbacks: Function[] = [];
+	pwivate weadonwy whenFwushedCawwbacks: Function[] = [];
 
-	constructor(
-		protected readonly database: IStorageDatabase,
-		private readonly options: IStorageOptions = Object.create(null)
+	constwuctow(
+		pwotected weadonwy database: IStowageDatabase,
+		pwivate weadonwy options: IStowageOptions = Object.cweate(nuww)
 	) {
-		super();
+		supa();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.database.onDidChangeItemsExternal(e => this.onDidChangeItemsExternal(e)));
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.database.onDidChangeItemsExtewnaw(e => this.onDidChangeItemsExtewnaw(e)));
 	}
 
-	private onDidChangeItemsExternal(e: IStorageItemsChangeEvent): void {
-		// items that change external require us to update our
-		// caches with the values. we just accept the value and
-		// emit an event if there is a change.
-		e.changed?.forEach((value, key) => this.accept(key, value));
-		e.deleted?.forEach(key => this.accept(key, undefined));
+	pwivate onDidChangeItemsExtewnaw(e: IStowageItemsChangeEvent): void {
+		// items that change extewnaw wequiwe us to update ouw
+		// caches with the vawues. we just accept the vawue and
+		// emit an event if thewe is a change.
+		e.changed?.fowEach((vawue, key) => this.accept(key, vawue));
+		e.deweted?.fowEach(key => this.accept(key, undefined));
 	}
 
-	private accept(key: string, value: string | undefined): void {
-		if (this.state === StorageState.Closed) {
-			return; // Return early if we are already closed
+	pwivate accept(key: stwing, vawue: stwing | undefined): void {
+		if (this.state === StowageState.Cwosed) {
+			wetuwn; // Wetuwn eawwy if we awe awweady cwosed
 		}
 
-		let changed = false;
+		wet changed = fawse;
 
-		// Item got removed, check for deletion
-		if (isUndefinedOrNull(value)) {
-			changed = this.cache.delete(key);
+		// Item got wemoved, check fow dewetion
+		if (isUndefinedOwNuww(vawue)) {
+			changed = this.cache.dewete(key);
 		}
 
-		// Item got updated, check for change
-		else {
-			const currentValue = this.cache.get(key);
-			if (currentValue !== value) {
-				this.cache.set(key, value);
-				changed = true;
+		// Item got updated, check fow change
+		ewse {
+			const cuwwentVawue = this.cache.get(key);
+			if (cuwwentVawue !== vawue) {
+				this.cache.set(key, vawue);
+				changed = twue;
 			}
 		}
 
-		// Signal to outside listeners
+		// Signaw to outside wistenews
 		if (changed) {
-			this._onDidChangeStorage.fire(key);
+			this._onDidChangeStowage.fiwe(key);
 		}
 	}
 
-	get items(): Map<string, string> {
-		return this.cache;
+	get items(): Map<stwing, stwing> {
+		wetuwn this.cache;
 	}
 
-	get size(): number {
-		return this.cache.size;
+	get size(): numba {
+		wetuwn this.cache.size;
 	}
 
-	async init(): Promise<void> {
-		if (this.state !== StorageState.None) {
-			return; // either closed or already initialized
+	async init(): Pwomise<void> {
+		if (this.state !== StowageState.None) {
+			wetuwn; // eitha cwosed ow awweady initiawized
 		}
 
-		this.state = StorageState.Initialized;
+		this.state = StowageState.Initiawized;
 
-		if (this.options.hint === StorageHint.STORAGE_DOES_NOT_EXIST) {
-			// return early if we know the storage file does not exist. this is a performance
-			// optimization to not load all items of the underlying storage if we know that
-			// there can be no items because the storage does not exist.
-			return;
+		if (this.options.hint === StowageHint.STOWAGE_DOES_NOT_EXIST) {
+			// wetuwn eawwy if we know the stowage fiwe does not exist. this is a pewfowmance
+			// optimization to not woad aww items of the undewwying stowage if we know that
+			// thewe can be no items because the stowage does not exist.
+			wetuwn;
 		}
 
 		this.cache = await this.database.getItems();
 	}
 
-	get(key: string, fallbackValue: string): string;
-	get(key: string, fallbackValue?: string): string | undefined;
-	get(key: string, fallbackValue?: string): string | undefined {
-		const value = this.cache.get(key);
+	get(key: stwing, fawwbackVawue: stwing): stwing;
+	get(key: stwing, fawwbackVawue?: stwing): stwing | undefined;
+	get(key: stwing, fawwbackVawue?: stwing): stwing | undefined {
+		const vawue = this.cache.get(key);
 
-		if (isUndefinedOrNull(value)) {
-			return fallbackValue;
+		if (isUndefinedOwNuww(vawue)) {
+			wetuwn fawwbackVawue;
 		}
 
-		return value;
+		wetuwn vawue;
 	}
 
-	getBoolean(key: string, fallbackValue: boolean): boolean;
-	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined;
-	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined {
-		const value = this.get(key);
+	getBoowean(key: stwing, fawwbackVawue: boowean): boowean;
+	getBoowean(key: stwing, fawwbackVawue?: boowean): boowean | undefined;
+	getBoowean(key: stwing, fawwbackVawue?: boowean): boowean | undefined {
+		const vawue = this.get(key);
 
-		if (isUndefinedOrNull(value)) {
-			return fallbackValue;
+		if (isUndefinedOwNuww(vawue)) {
+			wetuwn fawwbackVawue;
 		}
 
-		return value === 'true';
+		wetuwn vawue === 'twue';
 	}
 
-	getNumber(key: string, fallbackValue: number): number;
-	getNumber(key: string, fallbackValue?: number): number | undefined;
-	getNumber(key: string, fallbackValue?: number): number | undefined {
-		const value = this.get(key);
+	getNumba(key: stwing, fawwbackVawue: numba): numba;
+	getNumba(key: stwing, fawwbackVawue?: numba): numba | undefined;
+	getNumba(key: stwing, fawwbackVawue?: numba): numba | undefined {
+		const vawue = this.get(key);
 
-		if (isUndefinedOrNull(value)) {
-			return fallbackValue;
+		if (isUndefinedOwNuww(vawue)) {
+			wetuwn fawwbackVawue;
 		}
 
-		return parseInt(value, 10);
+		wetuwn pawseInt(vawue, 10);
 	}
 
-	async set(key: string, value: string | boolean | number | null | undefined): Promise<void> {
-		if (this.state === StorageState.Closed) {
-			return; // Return early if we are already closed
+	async set(key: stwing, vawue: stwing | boowean | numba | nuww | undefined): Pwomise<void> {
+		if (this.state === StowageState.Cwosed) {
+			wetuwn; // Wetuwn eawwy if we awe awweady cwosed
 		}
 
-		// We remove the key for undefined/null values
-		if (isUndefinedOrNull(value)) {
-			return this.delete(key);
+		// We wemove the key fow undefined/nuww vawues
+		if (isUndefinedOwNuww(vawue)) {
+			wetuwn this.dewete(key);
 		}
 
-		// Otherwise, convert to String and store
-		const valueStr = String(value);
+		// Othewwise, convewt to Stwing and stowe
+		const vawueStw = Stwing(vawue);
 
-		// Return early if value already set
-		const currentValue = this.cache.get(key);
-		if (currentValue === valueStr) {
-			return;
+		// Wetuwn eawwy if vawue awweady set
+		const cuwwentVawue = this.cache.get(key);
+		if (cuwwentVawue === vawueStw) {
+			wetuwn;
 		}
 
 		// Update in cache and pending
-		this.cache.set(key, valueStr);
-		this.pendingInserts.set(key, valueStr);
-		this.pendingDeletes.delete(key);
+		this.cache.set(key, vawueStw);
+		this.pendingInsewts.set(key, vawueStw);
+		this.pendingDewetes.dewete(key);
 
 		// Event
-		this._onDidChangeStorage.fire(key);
+		this._onDidChangeStowage.fiwe(key);
 
-		// Accumulate work by scheduling after timeout
-		return this.flushDelayer.trigger(() => this.flushPending());
+		// Accumuwate wowk by scheduwing afta timeout
+		wetuwn this.fwushDewaya.twigga(() => this.fwushPending());
 	}
 
-	async delete(key: string): Promise<void> {
-		if (this.state === StorageState.Closed) {
-			return; // Return early if we are already closed
+	async dewete(key: stwing): Pwomise<void> {
+		if (this.state === StowageState.Cwosed) {
+			wetuwn; // Wetuwn eawwy if we awe awweady cwosed
 		}
 
-		// Remove from cache and add to pending
-		const wasDeleted = this.cache.delete(key);
-		if (!wasDeleted) {
-			return; // Return early if value already deleted
+		// Wemove fwom cache and add to pending
+		const wasDeweted = this.cache.dewete(key);
+		if (!wasDeweted) {
+			wetuwn; // Wetuwn eawwy if vawue awweady deweted
 		}
 
-		if (!this.pendingDeletes.has(key)) {
-			this.pendingDeletes.add(key);
+		if (!this.pendingDewetes.has(key)) {
+			this.pendingDewetes.add(key);
 		}
 
-		this.pendingInserts.delete(key);
+		this.pendingInsewts.dewete(key);
 
 		// Event
-		this._onDidChangeStorage.fire(key);
+		this._onDidChangeStowage.fiwe(key);
 
-		// Accumulate work by scheduling after timeout
-		return this.flushDelayer.trigger(() => this.flushPending());
+		// Accumuwate wowk by scheduwing afta timeout
+		wetuwn this.fwushDewaya.twigga(() => this.fwushPending());
 	}
 
-	async close(): Promise<void> {
-		if (!this.pendingClose) {
-			this.pendingClose = this.doClose();
+	async cwose(): Pwomise<void> {
+		if (!this.pendingCwose) {
+			this.pendingCwose = this.doCwose();
 		}
 
-		return this.pendingClose;
+		wetuwn this.pendingCwose;
 	}
 
-	private async doClose(): Promise<void> {
+	pwivate async doCwose(): Pwomise<void> {
 
 		// Update state
-		this.state = StorageState.Closed;
+		this.state = StowageState.Cwosed;
 
-		// Trigger new flush to ensure data is persisted and then close
-		// even if there is an error flushing. We must always ensure
-		// the DB is closed to avoid corruption.
+		// Twigga new fwush to ensuwe data is pewsisted and then cwose
+		// even if thewe is an ewwow fwushing. We must awways ensuwe
+		// the DB is cwosed to avoid cowwuption.
 		//
-		// Recovery: we pass our cache over as recovery option in case
-		// the DB is not healthy.
-		try {
-			await this.flushDelayer.trigger(() => this.flushPending(), 0 /* as soon as possible */);
-		} catch (error) {
-			// Ignore
+		// Wecovewy: we pass ouw cache ova as wecovewy option in case
+		// the DB is not heawthy.
+		twy {
+			await this.fwushDewaya.twigga(() => this.fwushPending(), 0 /* as soon as possibwe */);
+		} catch (ewwow) {
+			// Ignowe
 		}
 
-		await this.database.close(() => this.cache);
+		await this.database.cwose(() => this.cache);
 	}
 
-	private get hasPending() {
-		return this.pendingInserts.size > 0 || this.pendingDeletes.size > 0;
+	pwivate get hasPending() {
+		wetuwn this.pendingInsewts.size > 0 || this.pendingDewetes.size > 0;
 	}
 
-	private async flushPending(): Promise<void> {
+	pwivate async fwushPending(): Pwomise<void> {
 		if (!this.hasPending) {
-			return; // return early if nothing to do
+			wetuwn; // wetuwn eawwy if nothing to do
 		}
 
 		// Get pending data
-		const updateRequest: IUpdateRequest = { insert: this.pendingInserts, delete: this.pendingDeletes };
+		const updateWequest: IUpdateWequest = { insewt: this.pendingInsewts, dewete: this.pendingDewetes };
 
-		// Reset pending data for next run
-		this.pendingDeletes = new Set<string>();
-		this.pendingInserts = new Map<string, string>();
+		// Weset pending data fow next wun
+		this.pendingDewetes = new Set<stwing>();
+		this.pendingInsewts = new Map<stwing, stwing>();
 
-		// Update in storage and release any
-		// waiters we have once done
-		return this.database.updateItems(updateRequest).finally(() => {
+		// Update in stowage and wewease any
+		// waitews we have once done
+		wetuwn this.database.updateItems(updateWequest).finawwy(() => {
 			if (!this.hasPending) {
-				while (this.whenFlushedCallbacks.length) {
-					this.whenFlushedCallbacks.pop()?.();
+				whiwe (this.whenFwushedCawwbacks.wength) {
+					this.whenFwushedCawwbacks.pop()?.();
 				}
 			}
 		});
 	}
 
-	async whenFlushed(): Promise<void> {
+	async whenFwushed(): Pwomise<void> {
 		if (!this.hasPending) {
-			return; // return early if nothing to do
+			wetuwn; // wetuwn eawwy if nothing to do
 		}
 
-		return new Promise(resolve => this.whenFlushedCallbacks.push(resolve));
+		wetuwn new Pwomise(wesowve => this.whenFwushedCawwbacks.push(wesowve));
 	}
 
-	override dispose(): void {
-		this.flushDelayer.dispose();
+	ovewwide dispose(): void {
+		this.fwushDewaya.dispose();
 
-		super.dispose();
+		supa.dispose();
 	}
 }
 
-export class InMemoryStorageDatabase implements IStorageDatabase {
+expowt cwass InMemowyStowageDatabase impwements IStowageDatabase {
 
-	readonly onDidChangeItemsExternal = Event.None;
+	weadonwy onDidChangeItemsExtewnaw = Event.None;
 
-	private readonly items = new Map<string, string>();
+	pwivate weadonwy items = new Map<stwing, stwing>();
 
-	async getItems(): Promise<Map<string, string>> {
-		return this.items;
+	async getItems(): Pwomise<Map<stwing, stwing>> {
+		wetuwn this.items;
 	}
 
-	async updateItems(request: IUpdateRequest): Promise<void> {
-		if (request.insert) {
-			request.insert.forEach((value, key) => this.items.set(key, value));
+	async updateItems(wequest: IUpdateWequest): Pwomise<void> {
+		if (wequest.insewt) {
+			wequest.insewt.fowEach((vawue, key) => this.items.set(key, vawue));
 		}
 
-		if (request.delete) {
-			request.delete.forEach(key => this.items.delete(key));
+		if (wequest.dewete) {
+			wequest.dewete.fowEach(key => this.items.dewete(key));
 		}
 	}
 
-	async close(): Promise<void> { }
+	async cwose(): Pwomise<void> { }
 }

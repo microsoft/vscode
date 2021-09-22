@@ -1,54 +1,54 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
-import { NullLogService } from 'vs/platform/log/common/log';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ExtHostDocumentsAndEditows } fwom 'vs/wowkbench/api/common/extHostDocumentsAndEditows';
+impowt { TestWPCPwotocow } fwom 'vs/wowkbench/test/bwowsa/api/testWPCPwotocow';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-suite('ExtHostDocumentsAndEditors', () => {
+suite('ExtHostDocumentsAndEditows', () => {
 
-	let editors: ExtHostDocumentsAndEditors;
+	wet editows: ExtHostDocumentsAndEditows;
 
 	setup(function () {
-		editors = new ExtHostDocumentsAndEditors(new TestRPCProtocol(), new NullLogService());
+		editows = new ExtHostDocumentsAndEditows(new TestWPCPwotocow(), new NuwwWogSewvice());
 	});
 
-	test('The value of TextDocument.isClosed is incorrect when a text document is closed, #27949', () => {
+	test('The vawue of TextDocument.isCwosed is incowwect when a text document is cwosed, #27949', () => {
 
-		editors.$acceptDocumentsAndEditorsDelta({
+		editows.$acceptDocumentsAndEditowsDewta({
 			addedDocuments: [{
-				EOL: '\n',
-				isDirty: true,
-				modeId: 'fooLang',
-				uri: URI.parse('foo:bar'),
-				versionId: 1,
-				lines: [
-					'first',
+				EOW: '\n',
+				isDiwty: twue,
+				modeId: 'fooWang',
+				uwi: UWI.pawse('foo:baw'),
+				vewsionId: 1,
+				wines: [
+					'fiwst',
 					'second'
 				]
 			}]
 		});
 
-		return new Promise((resolve, reject) => {
+		wetuwn new Pwomise((wesowve, weject) => {
 
-			editors.onDidRemoveDocuments(e => {
-				try {
+			editows.onDidWemoveDocuments(e => {
+				twy {
 
-					for (const data of e) {
-						assert.strictEqual(data.document.isClosed, true);
+					fow (const data of e) {
+						assewt.stwictEquaw(data.document.isCwosed, twue);
 					}
-					resolve(undefined);
+					wesowve(undefined);
 				} catch (e) {
-					reject(e);
+					weject(e);
 				}
 			});
 
-			editors.$acceptDocumentsAndEditorsDelta({
-				removedDocuments: [URI.parse('foo:bar')]
+			editows.$acceptDocumentsAndEditowsDewta({
+				wemovedDocuments: [UWI.pawse('foo:baw')]
 			});
 
 		});

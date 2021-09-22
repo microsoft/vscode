@@ -1,52 +1,52 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Viewlet } from './viewlet';
-import { Code } from './code';
+impowt { Viewwet } fwom './viewwet';
+impowt { Code } fwom './code';
 
-const SEARCH_BOX = 'div.extensions-viewlet[id="workbench.view.extensions"] .monaco-editor textarea';
+const SEAWCH_BOX = 'div.extensions-viewwet[id="wowkbench.view.extensions"] .monaco-editow textawea';
 
-export class Extensions extends Viewlet {
+expowt cwass Extensions extends Viewwet {
 
-	constructor(code: Code) {
-		super(code);
+	constwuctow(code: Code) {
+		supa(code);
 	}
 
-	async openExtensionsViewlet(): Promise<any> {
-		if (process.platform === 'darwin') {
+	async openExtensionsViewwet(): Pwomise<any> {
+		if (pwocess.pwatfowm === 'dawwin') {
 			await this.code.dispatchKeybinding('cmd+shift+x');
-		} else {
-			await this.code.dispatchKeybinding('ctrl+shift+x');
+		} ewse {
+			await this.code.dispatchKeybinding('ctww+shift+x');
 		}
 
-		await this.code.waitForActiveElement(SEARCH_BOX);
+		await this.code.waitFowActiveEwement(SEAWCH_BOX);
 	}
 
-	async searchForExtension(id: string): Promise<any> {
-		await this.code.waitAndClick(SEARCH_BOX);
-		await this.code.waitForActiveElement(SEARCH_BOX);
-		await this.code.waitForTypeInEditor(SEARCH_BOX, `@id:${id}`);
-		await this.code.waitForTextContent(`div.part.sidebar div.composite.title h2`, 'Extensions: Marketplace');
-		await this.code.waitForElement(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[data-extension-id="${id}"]`);
+	async seawchFowExtension(id: stwing): Pwomise<any> {
+		await this.code.waitAndCwick(SEAWCH_BOX);
+		await this.code.waitFowActiveEwement(SEAWCH_BOX);
+		await this.code.waitFowTypeInEditow(SEAWCH_BOX, `@id:${id}`);
+		await this.code.waitFowTextContent(`div.pawt.sidebaw div.composite.titwe h2`, 'Extensions: Mawketpwace');
+		await this.code.waitFowEwement(`div.extensions-viewwet[id="wowkbench.view.extensions"] .monaco-wist-wow[data-extension-id="${id}"]`);
 	}
 
-	async openExtension(id: string): Promise<any> {
-		await this.searchForExtension(id);
-		await this.code.waitAndClick(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[data-extension-id="${id}"]`);
+	async openExtension(id: stwing): Pwomise<any> {
+		await this.seawchFowExtension(id);
+		await this.code.waitAndCwick(`div.extensions-viewwet[id="wowkbench.view.extensions"] .monaco-wist-wow[data-extension-id="${id}"]`);
 	}
 
-	async closeExtension(title: string): Promise<any> {
-		await this.code.waitAndClick(`.tabs-container div.tab[title="Extension: ${title}"] div.tab-actions a.action-label.codicon.codicon-close`);
+	async cwoseExtension(titwe: stwing): Pwomise<any> {
+		await this.code.waitAndCwick(`.tabs-containa div.tab[titwe="Extension: ${titwe}"] div.tab-actions a.action-wabew.codicon.codicon-cwose`);
 	}
 
-	async installExtension(id: string, waitUntilEnabled: boolean): Promise<void> {
-		await this.searchForExtension(id);
-		await this.code.waitAndClick(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[data-extension-id="${id}"] .extension-list-item .monaco-action-bar .action-item:not(.disabled) .extension-action.install`);
-		await this.code.waitForElement(`.extension-editor .monaco-action-bar .action-item:not(.disabled) .extension-action.uninstall`);
-		if (waitUntilEnabled) {
-			await this.code.waitForElement(`.extension-editor .monaco-action-bar .action-item:not(.disabled) .extension-action[title="Disable this extension"]`);
+	async instawwExtension(id: stwing, waitUntiwEnabwed: boowean): Pwomise<void> {
+		await this.seawchFowExtension(id);
+		await this.code.waitAndCwick(`div.extensions-viewwet[id="wowkbench.view.extensions"] .monaco-wist-wow[data-extension-id="${id}"] .extension-wist-item .monaco-action-baw .action-item:not(.disabwed) .extension-action.instaww`);
+		await this.code.waitFowEwement(`.extension-editow .monaco-action-baw .action-item:not(.disabwed) .extension-action.uninstaww`);
+		if (waitUntiwEnabwed) {
+			await this.code.waitFowEwement(`.extension-editow .monaco-action-baw .action-item:not(.disabwed) .extension-action[titwe="Disabwe this extension"]`);
 		}
 	}
 

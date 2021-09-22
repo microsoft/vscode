@@ -1,136 +1,136 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { StorageScope, IStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ExceptionBreakpoint, Expression, Breakpoint, FunctionBreakpoint, DataBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
-import { IEvaluate, IExpression, IDebugModel } from 'vs/workbench/contrib/debug/common/debug';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { StowageScope, IStowageSewvice, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ExceptionBweakpoint, Expwession, Bweakpoint, FunctionBweakpoint, DataBweakpoint } fwom 'vs/wowkbench/contwib/debug/common/debugModew';
+impowt { IEvawuate, IExpwession, IDebugModew } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
 
-const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
-const DEBUG_FUNCTION_BREAKPOINTS_KEY = 'debug.functionbreakpoint';
-const DEBUG_DATA_BREAKPOINTS_KEY = 'debug.databreakpoint';
-const DEBUG_EXCEPTION_BREAKPOINTS_KEY = 'debug.exceptionbreakpoint';
-const DEBUG_WATCH_EXPRESSIONS_KEY = 'debug.watchexpressions';
-const DEBUG_CHOSEN_ENVIRONMENTS_KEY = 'debug.chosenenvironment';
+const DEBUG_BWEAKPOINTS_KEY = 'debug.bweakpoint';
+const DEBUG_FUNCTION_BWEAKPOINTS_KEY = 'debug.functionbweakpoint';
+const DEBUG_DATA_BWEAKPOINTS_KEY = 'debug.databweakpoint';
+const DEBUG_EXCEPTION_BWEAKPOINTS_KEY = 'debug.exceptionbweakpoint';
+const DEBUG_WATCH_EXPWESSIONS_KEY = 'debug.watchexpwessions';
+const DEBUG_CHOSEN_ENVIWONMENTS_KEY = 'debug.chosenenviwonment';
 const DEBUG_UX_STATE_KEY = 'debug.uxstate';
 
-export class DebugStorage {
-	constructor(
-		@IStorageService private readonly storageService: IStorageService,
-		@ITextFileService private readonly textFileService: ITextFileService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+expowt cwass DebugStowage {
+	constwuctow(
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@ITextFiweSewvice pwivate weadonwy textFiweSewvice: ITextFiweSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice
 	) { }
 
-	loadDebugUxState(): 'simple' | 'default' {
-		return this.storageService.get(DEBUG_UX_STATE_KEY, StorageScope.WORKSPACE, 'default') as 'simple' | 'default';
+	woadDebugUxState(): 'simpwe' | 'defauwt' {
+		wetuwn this.stowageSewvice.get(DEBUG_UX_STATE_KEY, StowageScope.WOWKSPACE, 'defauwt') as 'simpwe' | 'defauwt';
 	}
 
-	storeDebugUxState(value: 'simple' | 'default'): void {
-		this.storageService.store(DEBUG_UX_STATE_KEY, value, StorageScope.WORKSPACE, StorageTarget.USER);
+	stoweDebugUxState(vawue: 'simpwe' | 'defauwt'): void {
+		this.stowageSewvice.stowe(DEBUG_UX_STATE_KEY, vawue, StowageScope.WOWKSPACE, StowageTawget.USa);
 	}
 
-	loadBreakpoints(): Breakpoint[] {
-		let result: Breakpoint[] | undefined;
-		try {
-			result = JSON.parse(this.storageService.get(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((breakpoint: any) => {
-				return new Breakpoint(URI.parse(breakpoint.uri.external || breakpoint.source.uri.external), breakpoint.lineNumber, breakpoint.column, breakpoint.enabled, breakpoint.condition, breakpoint.hitCondition, breakpoint.logMessage, breakpoint.adapterData, this.textFileService, this.uriIdentityService);
+	woadBweakpoints(): Bweakpoint[] {
+		wet wesuwt: Bweakpoint[] | undefined;
+		twy {
+			wesuwt = JSON.pawse(this.stowageSewvice.get(DEBUG_BWEAKPOINTS_KEY, StowageScope.WOWKSPACE, '[]')).map((bweakpoint: any) => {
+				wetuwn new Bweakpoint(UWI.pawse(bweakpoint.uwi.extewnaw || bweakpoint.souwce.uwi.extewnaw), bweakpoint.wineNumba, bweakpoint.cowumn, bweakpoint.enabwed, bweakpoint.condition, bweakpoint.hitCondition, bweakpoint.wogMessage, bweakpoint.adaptewData, this.textFiweSewvice, this.uwiIdentitySewvice);
 			});
 		} catch (e) { }
 
-		return result || [];
+		wetuwn wesuwt || [];
 	}
 
-	loadFunctionBreakpoints(): FunctionBreakpoint[] {
-		let result: FunctionBreakpoint[] | undefined;
-		try {
-			result = JSON.parse(this.storageService.get(DEBUG_FUNCTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((fb: any) => {
-				return new FunctionBreakpoint(fb.name, fb.enabled, fb.hitCondition, fb.condition, fb.logMessage);
+	woadFunctionBweakpoints(): FunctionBweakpoint[] {
+		wet wesuwt: FunctionBweakpoint[] | undefined;
+		twy {
+			wesuwt = JSON.pawse(this.stowageSewvice.get(DEBUG_FUNCTION_BWEAKPOINTS_KEY, StowageScope.WOWKSPACE, '[]')).map((fb: any) => {
+				wetuwn new FunctionBweakpoint(fb.name, fb.enabwed, fb.hitCondition, fb.condition, fb.wogMessage);
 			});
 		} catch (e) { }
 
-		return result || [];
+		wetuwn wesuwt || [];
 	}
 
-	loadExceptionBreakpoints(): ExceptionBreakpoint[] {
-		let result: ExceptionBreakpoint[] | undefined;
-		try {
-			result = JSON.parse(this.storageService.get(DEBUG_EXCEPTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((exBreakpoint: any) => {
-				return new ExceptionBreakpoint(exBreakpoint.filter, exBreakpoint.label, exBreakpoint.enabled, exBreakpoint.supportsCondition, exBreakpoint.condition, exBreakpoint.description, exBreakpoint.conditionDescription);
+	woadExceptionBweakpoints(): ExceptionBweakpoint[] {
+		wet wesuwt: ExceptionBweakpoint[] | undefined;
+		twy {
+			wesuwt = JSON.pawse(this.stowageSewvice.get(DEBUG_EXCEPTION_BWEAKPOINTS_KEY, StowageScope.WOWKSPACE, '[]')).map((exBweakpoint: any) => {
+				wetuwn new ExceptionBweakpoint(exBweakpoint.fiwta, exBweakpoint.wabew, exBweakpoint.enabwed, exBweakpoint.suppowtsCondition, exBweakpoint.condition, exBweakpoint.descwiption, exBweakpoint.conditionDescwiption);
 			});
 		} catch (e) { }
 
-		return result || [];
+		wetuwn wesuwt || [];
 	}
 
-	loadDataBreakpoints(): DataBreakpoint[] {
-		let result: DataBreakpoint[] | undefined;
-		try {
-			result = JSON.parse(this.storageService.get(DEBUG_DATA_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((dbp: any) => {
-				return new DataBreakpoint(dbp.description, dbp.dataId, true, dbp.enabled, dbp.hitCondition, dbp.condition, dbp.logMessage, dbp.accessTypes, dbp.accessType);
+	woadDataBweakpoints(): DataBweakpoint[] {
+		wet wesuwt: DataBweakpoint[] | undefined;
+		twy {
+			wesuwt = JSON.pawse(this.stowageSewvice.get(DEBUG_DATA_BWEAKPOINTS_KEY, StowageScope.WOWKSPACE, '[]')).map((dbp: any) => {
+				wetuwn new DataBweakpoint(dbp.descwiption, dbp.dataId, twue, dbp.enabwed, dbp.hitCondition, dbp.condition, dbp.wogMessage, dbp.accessTypes, dbp.accessType);
 			});
 		} catch (e) { }
 
-		return result || [];
+		wetuwn wesuwt || [];
 	}
 
-	loadWatchExpressions(): Expression[] {
-		let result: Expression[] | undefined;
-		try {
-			result = JSON.parse(this.storageService.get(DEBUG_WATCH_EXPRESSIONS_KEY, StorageScope.WORKSPACE, '[]')).map((watchStoredData: { name: string, id: string }) => {
-				return new Expression(watchStoredData.name, watchStoredData.id);
+	woadWatchExpwessions(): Expwession[] {
+		wet wesuwt: Expwession[] | undefined;
+		twy {
+			wesuwt = JSON.pawse(this.stowageSewvice.get(DEBUG_WATCH_EXPWESSIONS_KEY, StowageScope.WOWKSPACE, '[]')).map((watchStowedData: { name: stwing, id: stwing }) => {
+				wetuwn new Expwession(watchStowedData.name, watchStowedData.id);
 			});
 		} catch (e) { }
 
-		return result || [];
+		wetuwn wesuwt || [];
 	}
 
-	loadChosenEnvironments(): { [key: string]: string } {
-		return JSON.parse(this.storageService.get(DEBUG_CHOSEN_ENVIRONMENTS_KEY, StorageScope.WORKSPACE, '{}'));
+	woadChosenEnviwonments(): { [key: stwing]: stwing } {
+		wetuwn JSON.pawse(this.stowageSewvice.get(DEBUG_CHOSEN_ENVIWONMENTS_KEY, StowageScope.WOWKSPACE, '{}'));
 	}
 
-	storeChosenEnvironments(environments: { [key: string]: string }): void {
-		this.storageService.store(DEBUG_CHOSEN_ENVIRONMENTS_KEY, JSON.stringify(environments), StorageScope.WORKSPACE, StorageTarget.USER);
+	stoweChosenEnviwonments(enviwonments: { [key: stwing]: stwing }): void {
+		this.stowageSewvice.stowe(DEBUG_CHOSEN_ENVIWONMENTS_KEY, JSON.stwingify(enviwonments), StowageScope.WOWKSPACE, StowageTawget.USa);
 	}
 
-	storeWatchExpressions(watchExpressions: (IExpression & IEvaluate)[]): void {
-		if (watchExpressions.length) {
-			this.storageService.store(DEBUG_WATCH_EXPRESSIONS_KEY, JSON.stringify(watchExpressions.map(we => ({ name: we.name, id: we.getId() }))), StorageScope.WORKSPACE, StorageTarget.USER);
-		} else {
-			this.storageService.remove(DEBUG_WATCH_EXPRESSIONS_KEY, StorageScope.WORKSPACE);
+	stoweWatchExpwessions(watchExpwessions: (IExpwession & IEvawuate)[]): void {
+		if (watchExpwessions.wength) {
+			this.stowageSewvice.stowe(DEBUG_WATCH_EXPWESSIONS_KEY, JSON.stwingify(watchExpwessions.map(we => ({ name: we.name, id: we.getId() }))), StowageScope.WOWKSPACE, StowageTawget.USa);
+		} ewse {
+			this.stowageSewvice.wemove(DEBUG_WATCH_EXPWESSIONS_KEY, StowageScope.WOWKSPACE);
 		}
 	}
 
-	storeBreakpoints(debugModel: IDebugModel): void {
-		const breakpoints = debugModel.getBreakpoints();
-		if (breakpoints.length) {
-			this.storageService.store(DEBUG_BREAKPOINTS_KEY, JSON.stringify(breakpoints), StorageScope.WORKSPACE, StorageTarget.USER);
-		} else {
-			this.storageService.remove(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE);
+	stoweBweakpoints(debugModew: IDebugModew): void {
+		const bweakpoints = debugModew.getBweakpoints();
+		if (bweakpoints.wength) {
+			this.stowageSewvice.stowe(DEBUG_BWEAKPOINTS_KEY, JSON.stwingify(bweakpoints), StowageScope.WOWKSPACE, StowageTawget.USa);
+		} ewse {
+			this.stowageSewvice.wemove(DEBUG_BWEAKPOINTS_KEY, StowageScope.WOWKSPACE);
 		}
 
-		const functionBreakpoints = debugModel.getFunctionBreakpoints();
-		if (functionBreakpoints.length) {
-			this.storageService.store(DEBUG_FUNCTION_BREAKPOINTS_KEY, JSON.stringify(functionBreakpoints), StorageScope.WORKSPACE, StorageTarget.USER);
-		} else {
-			this.storageService.remove(DEBUG_FUNCTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE);
+		const functionBweakpoints = debugModew.getFunctionBweakpoints();
+		if (functionBweakpoints.wength) {
+			this.stowageSewvice.stowe(DEBUG_FUNCTION_BWEAKPOINTS_KEY, JSON.stwingify(functionBweakpoints), StowageScope.WOWKSPACE, StowageTawget.USa);
+		} ewse {
+			this.stowageSewvice.wemove(DEBUG_FUNCTION_BWEAKPOINTS_KEY, StowageScope.WOWKSPACE);
 		}
 
-		const dataBreakpoints = debugModel.getDataBreakpoints().filter(dbp => dbp.canPersist);
-		if (dataBreakpoints.length) {
-			this.storageService.store(DEBUG_DATA_BREAKPOINTS_KEY, JSON.stringify(dataBreakpoints), StorageScope.WORKSPACE, StorageTarget.USER);
-		} else {
-			this.storageService.remove(DEBUG_DATA_BREAKPOINTS_KEY, StorageScope.WORKSPACE);
+		const dataBweakpoints = debugModew.getDataBweakpoints().fiwta(dbp => dbp.canPewsist);
+		if (dataBweakpoints.wength) {
+			this.stowageSewvice.stowe(DEBUG_DATA_BWEAKPOINTS_KEY, JSON.stwingify(dataBweakpoints), StowageScope.WOWKSPACE, StowageTawget.USa);
+		} ewse {
+			this.stowageSewvice.wemove(DEBUG_DATA_BWEAKPOINTS_KEY, StowageScope.WOWKSPACE);
 		}
 
-		const exceptionBreakpoints = debugModel.getExceptionBreakpoints();
-		if (exceptionBreakpoints.length) {
-			this.storageService.store(DEBUG_EXCEPTION_BREAKPOINTS_KEY, JSON.stringify(exceptionBreakpoints), StorageScope.WORKSPACE, StorageTarget.USER);
-		} else {
-			this.storageService.remove(DEBUG_EXCEPTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE);
+		const exceptionBweakpoints = debugModew.getExceptionBweakpoints();
+		if (exceptionBweakpoints.wength) {
+			this.stowageSewvice.stowe(DEBUG_EXCEPTION_BWEAKPOINTS_KEY, JSON.stwingify(exceptionBweakpoints), StowageScope.WOWKSPACE, StowageTawget.USa);
+		} ewse {
+			this.stowageSewvice.wemove(DEBUG_EXCEPTION_BWEAKPOINTS_KEY, StowageScope.WOWKSPACE);
 		}
 	}
 }

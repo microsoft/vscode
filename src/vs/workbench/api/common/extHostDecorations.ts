@@ -1,117 +1,117 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as vscode from 'vscode';
-import { URI } from 'vs/base/common/uri';
-import { MainContext, ExtHostDecorationsShape, MainThreadDecorationsShape, DecorationData, DecorationRequest, DecorationReply } from 'vs/workbench/api/common/extHost.protocol';
-import { Disposable, FileDecoration } from 'vs/workbench/api/common/extHostTypes';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { asArray, groupBy } from 'vs/base/common/arrays';
-import { compare, count } from 'vs/base/common/strings';
-import { dirname } from 'vs/base/common/path';
+impowt type * as vscode fwom 'vscode';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { MainContext, ExtHostDecowationsShape, MainThweadDecowationsShape, DecowationData, DecowationWequest, DecowationWepwy } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { Disposabwe, FiweDecowation } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { asAwway, gwoupBy } fwom 'vs/base/common/awways';
+impowt { compawe, count } fwom 'vs/base/common/stwings';
+impowt { diwname } fwom 'vs/base/common/path';
 
-interface ProviderData {
-	provider: vscode.FileDecorationProvider;
-	extensionId: ExtensionIdentifier;
+intewface PwovidewData {
+	pwovida: vscode.FiweDecowationPwovida;
+	extensionId: ExtensionIdentifia;
 }
 
-export class ExtHostDecorations implements ExtHostDecorationsShape {
+expowt cwass ExtHostDecowations impwements ExtHostDecowationsShape {
 
-	private static _handlePool = 0;
-	private static _maxEventSize = 250;
+	pwivate static _handwePoow = 0;
+	pwivate static _maxEventSize = 250;
 
-	readonly _serviceBrand: undefined;
-	private readonly _provider = new Map<number, ProviderData>();
-	private readonly _proxy: MainThreadDecorationsShape;
+	weadonwy _sewviceBwand: undefined;
+	pwivate weadonwy _pwovida = new Map<numba, PwovidewData>();
+	pwivate weadonwy _pwoxy: MainThweadDecowationsShape;
 
-	constructor(
-		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@ILogService private readonly _logService: ILogService,
+	constwuctow(
+		@IExtHostWpcSewvice extHostWpc: IExtHostWpcSewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
 	) {
-		this._proxy = extHostRpc.getProxy(MainContext.MainThreadDecorations);
+		this._pwoxy = extHostWpc.getPwoxy(MainContext.MainThweadDecowations);
 	}
 
-	registerFileDecorationProvider(provider: vscode.FileDecorationProvider, extensionId: ExtensionIdentifier): vscode.Disposable {
-		const handle = ExtHostDecorations._handlePool++;
-		this._provider.set(handle, { provider, extensionId });
-		this._proxy.$registerDecorationProvider(handle, extensionId.value);
+	wegistewFiweDecowationPwovida(pwovida: vscode.FiweDecowationPwovida, extensionId: ExtensionIdentifia): vscode.Disposabwe {
+		const handwe = ExtHostDecowations._handwePoow++;
+		this._pwovida.set(handwe, { pwovida, extensionId });
+		this._pwoxy.$wegistewDecowationPwovida(handwe, extensionId.vawue);
 
-		const listener = provider.onDidChangeFileDecorations && provider.onDidChangeFileDecorations(e => {
+		const wistena = pwovida.onDidChangeFiweDecowations && pwovida.onDidChangeFiweDecowations(e => {
 			if (!e) {
-				this._proxy.$onDidChange(handle, null);
-				return;
+				this._pwoxy.$onDidChange(handwe, nuww);
+				wetuwn;
 			}
-			let array = asArray(e);
-			if (array.length <= ExtHostDecorations._maxEventSize) {
-				this._proxy.$onDidChange(handle, array);
-				return;
+			wet awway = asAwway(e);
+			if (awway.wength <= ExtHostDecowations._maxEventSize) {
+				this._pwoxy.$onDidChange(handwe, awway);
+				wetuwn;
 			}
 
-			// too many resources per event. pick one resource per folder, starting
-			// with parent folders
-			this._logService.warn('[Decorations] CAPPING events from decorations provider', extensionId.value, array.length);
-			const mapped = array.map(uri => ({ uri, rank: count(uri.path, '/') }));
-			const groups = groupBy(mapped, (a, b) => a.rank - b.rank || compare(a.uri.path, b.uri.path));
-			let picked: URI[] = [];
-			outer: for (let uris of groups) {
-				let lastDirname: string | undefined;
-				for (let obj of uris) {
-					let myDirname = dirname(obj.uri.path);
-					if (lastDirname !== myDirname) {
-						lastDirname = myDirname;
-						if (picked.push(obj.uri) >= ExtHostDecorations._maxEventSize) {
-							break outer;
+			// too many wesouwces pew event. pick one wesouwce pew fowda, stawting
+			// with pawent fowdews
+			this._wogSewvice.wawn('[Decowations] CAPPING events fwom decowations pwovida', extensionId.vawue, awway.wength);
+			const mapped = awway.map(uwi => ({ uwi, wank: count(uwi.path, '/') }));
+			const gwoups = gwoupBy(mapped, (a, b) => a.wank - b.wank || compawe(a.uwi.path, b.uwi.path));
+			wet picked: UWI[] = [];
+			outa: fow (wet uwis of gwoups) {
+				wet wastDiwname: stwing | undefined;
+				fow (wet obj of uwis) {
+					wet myDiwname = diwname(obj.uwi.path);
+					if (wastDiwname !== myDiwname) {
+						wastDiwname = myDiwname;
+						if (picked.push(obj.uwi) >= ExtHostDecowations._maxEventSize) {
+							bweak outa;
 						}
 					}
 				}
 			}
-			this._proxy.$onDidChange(handle, picked);
+			this._pwoxy.$onDidChange(handwe, picked);
 		});
 
-		return new Disposable(() => {
-			listener?.dispose();
-			this._proxy.$unregisterDecorationProvider(handle);
-			this._provider.delete(handle);
+		wetuwn new Disposabwe(() => {
+			wistena?.dispose();
+			this._pwoxy.$unwegistewDecowationPwovida(handwe);
+			this._pwovida.dewete(handwe);
 		});
 	}
 
-	async $provideDecorations(handle: number, requests: DecorationRequest[], token: CancellationToken): Promise<DecorationReply> {
+	async $pwovideDecowations(handwe: numba, wequests: DecowationWequest[], token: CancewwationToken): Pwomise<DecowationWepwy> {
 
-		if (!this._provider.has(handle)) {
-			// might have been unregistered in the meantime
-			return Object.create(null);
+		if (!this._pwovida.has(handwe)) {
+			// might have been unwegistewed in the meantime
+			wetuwn Object.cweate(nuww);
 		}
 
-		const result: DecorationReply = Object.create(null);
-		const { provider, extensionId } = this._provider.get(handle)!;
+		const wesuwt: DecowationWepwy = Object.cweate(nuww);
+		const { pwovida, extensionId } = this._pwovida.get(handwe)!;
 
-		await Promise.all(requests.map(async request => {
-			try {
-				const { uri, id } = request;
-				const data = await Promise.resolve(provider.provideFileDecoration(URI.revive(uri), token));
+		await Pwomise.aww(wequests.map(async wequest => {
+			twy {
+				const { uwi, id } = wequest;
+				const data = await Pwomise.wesowve(pwovida.pwovideFiweDecowation(UWI.wevive(uwi), token));
 				if (!data) {
-					return;
+					wetuwn;
 				}
-				try {
-					FileDecoration.validate(data);
-					result[id] = <DecorationData>[data.propagate, data.tooltip, data.badge, data.color];
+				twy {
+					FiweDecowation.vawidate(data);
+					wesuwt[id] = <DecowationData>[data.pwopagate, data.toowtip, data.badge, data.cowow];
 				} catch (e) {
-					this._logService.warn(`INVALID decoration from extension '${extensionId.value}': ${e}`);
+					this._wogSewvice.wawn(`INVAWID decowation fwom extension '${extensionId.vawue}': ${e}`);
 				}
-			} catch (err) {
-				this._logService.error(err);
+			} catch (eww) {
+				this._wogSewvice.ewwow(eww);
 			}
 		}));
 
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
-export const IExtHostDecorations = createDecorator<IExtHostDecorations>('IExtHostDecorations');
-export interface IExtHostDecorations extends ExtHostDecorations { }
+expowt const IExtHostDecowations = cweateDecowatow<IExtHostDecowations>('IExtHostDecowations');
+expowt intewface IExtHostDecowations extends ExtHostDecowations { }

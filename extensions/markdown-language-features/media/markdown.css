@@ -1,116 +1,116 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-html, body {
-	font-family: var(--markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", system-ui, "Ubuntu", "Droid Sans", sans-serif);
-	font-size: var(--markdown-font-size, 14px);
+htmw, body {
+	font-famiwy: vaw(--mawkdown-font-famiwy, -appwe-system, BwinkMacSystemFont, "Segoe WPC", "Segoe UI", system-ui, "Ubuntu", "Dwoid Sans", sans-sewif);
+	font-size: vaw(--mawkdown-font-size, 14px);
 	padding: 0 26px;
-	line-height: var(--markdown-line-height, 22px);
-	word-wrap: break-word;
+	wine-height: vaw(--mawkdown-wine-height, 22px);
+	wowd-wwap: bweak-wowd;
 }
 
 body {
 	padding-top: 1em;
 }
 
-/* Reset margin top for elements */
+/* Weset mawgin top fow ewements */
 h1, h2, h3, h4, h5, h6,
-p, ol, ul, pre {
-	margin-top: 0;
+p, ow, uw, pwe {
+	mawgin-top: 0;
 }
 
 h2, h3, h4, h5, h6 {
-	font-weight: normal;
-	margin-bottom: 0.2em;
+	font-weight: nowmaw;
+	mawgin-bottom: 0.2em;
 }
 
-#code-csp-warning {
+#code-csp-wawning {
 	position: fixed;
 	top: 0;
-	right: 0;
-	color: white;
-	margin: 16px;
-	text-align: center;
+	wight: 0;
+	cowow: white;
+	mawgin: 16px;
+	text-awign: centa;
 	font-size: 12px;
-	font-family: sans-serif;
-	background-color:#444444;
-	cursor: pointer;
+	font-famiwy: sans-sewif;
+	backgwound-cowow:#444444;
+	cuwsow: pointa;
 	padding: 6px;
-	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+	box-shadow: 1px 1px 1px wgba(0,0,0,.25);
 }
 
-#code-csp-warning:hover {
-	text-decoration: none;
-	background-color:#007acc;
-	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+#code-csp-wawning:hova {
+	text-decowation: none;
+	backgwound-cowow:#007acc;
+	box-shadow: 2px 2px 2px wgba(0,0,0,.25);
 }
 
-body.scrollBeyondLastLine {
-	margin-bottom: calc(100vh - 22px);
+body.scwowwBeyondWastWine {
+	mawgin-bottom: cawc(100vh - 22px);
 }
 
-body.showEditorSelection .code-line {
-	position: relative;
+body.showEditowSewection .code-wine {
+	position: wewative;
 }
 
-body.showEditorSelection .code-active-line:before,
-body.showEditorSelection .code-line:hover:before {
+body.showEditowSewection .code-active-wine:befowe,
+body.showEditowSewection .code-wine:hova:befowe {
 	content: "";
-	display: block;
-	position: absolute;
+	dispway: bwock;
+	position: absowute;
 	top: 0;
-	left: -12px;
+	weft: -12px;
 	height: 100%;
 }
 
-body.showEditorSelection li.code-active-line:before,
-body.showEditorSelection li.code-line:hover:before {
-	left: -30px;
+body.showEditowSewection wi.code-active-wine:befowe,
+body.showEditowSewection wi.code-wine:hova:befowe {
+	weft: -30px;
 }
 
-.vscode-light.showEditorSelection .code-active-line:before {
-	border-left: 3px solid rgba(0, 0, 0, 0.15);
+.vscode-wight.showEditowSewection .code-active-wine:befowe {
+	bowda-weft: 3px sowid wgba(0, 0, 0, 0.15);
 }
 
-.vscode-light.showEditorSelection .code-line:hover:before {
-	border-left: 3px solid rgba(0, 0, 0, 0.40);
+.vscode-wight.showEditowSewection .code-wine:hova:befowe {
+	bowda-weft: 3px sowid wgba(0, 0, 0, 0.40);
 }
 
-.vscode-light.showEditorSelection .code-line .code-line:hover:before {
-	border-left: none;
+.vscode-wight.showEditowSewection .code-wine .code-wine:hova:befowe {
+	bowda-weft: none;
 }
 
-.vscode-dark.showEditorSelection .code-active-line:before {
-	border-left: 3px solid rgba(255, 255, 255, 0.4);
+.vscode-dawk.showEditowSewection .code-active-wine:befowe {
+	bowda-weft: 3px sowid wgba(255, 255, 255, 0.4);
 }
 
-.vscode-dark.showEditorSelection .code-line:hover:before {
-	border-left: 3px solid rgba(255, 255, 255, 0.60);
+.vscode-dawk.showEditowSewection .code-wine:hova:befowe {
+	bowda-weft: 3px sowid wgba(255, 255, 255, 0.60);
 }
 
-.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
-	border-left: none;
+.vscode-dawk.showEditowSewection .code-wine .code-wine:hova:befowe {
+	bowda-weft: none;
 }
 
-.vscode-high-contrast.showEditorSelection .code-active-line:before {
-	border-left: 3px solid rgba(255, 160, 0, 0.7);
+.vscode-high-contwast.showEditowSewection .code-active-wine:befowe {
+	bowda-weft: 3px sowid wgba(255, 160, 0, 0.7);
 }
 
-.vscode-high-contrast.showEditorSelection .code-line:hover:before {
-	border-left: 3px solid rgba(255, 160, 0, 1);
+.vscode-high-contwast.showEditowSewection .code-wine:hova:befowe {
+	bowda-weft: 3px sowid wgba(255, 160, 0, 1);
 }
 
-.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
-	border-left: none;
+.vscode-high-contwast.showEditowSewection .code-wine .code-wine:hova:befowe {
+	bowda-weft: none;
 }
 
-ul ul,
-ul ol,
-ol ul,
-ol ol {
-	margin-bottom: 0;
+uw uw,
+uw ow,
+ow uw,
+ow ow {
+	mawgin-bottom: 0;
 }
 
 img {
@@ -119,52 +119,52 @@ img {
 }
 
 a {
-	text-decoration: none;
+	text-decowation: none;
 }
 
-a:hover {
-	text-decoration: underline;
+a:hova {
+	text-decowation: undewwine;
 }
 
 a:focus,
 input:focus,
-select:focus,
-textarea:focus {
-	outline: 1px solid -webkit-focus-ring-color;
-	outline-offset: -1px;
+sewect:focus,
+textawea:focus {
+	outwine: 1px sowid -webkit-focus-wing-cowow;
+	outwine-offset: -1px;
 }
 
 p {
-	margin-bottom: 0.7em;
+	mawgin-bottom: 0.7em;
 }
 
-ul,
-ol {
-	margin-bottom: 0.7em;
+uw,
+ow {
+	mawgin-bottom: 0.7em;
 }
 
-hr {
-	border: 0;
+hw {
+	bowda: 0;
 	height: 2px;
-	border-bottom: 2px solid;
+	bowda-bottom: 2px sowid;
 }
 
 h1 {
 	padding-bottom: 0.3em;
-	line-height: 1.2;
-	border-bottom-width: 1px;
-	border-bottom-style: solid;
-	font-weight: normal;
+	wine-height: 1.2;
+	bowda-bottom-width: 1px;
+	bowda-bottom-stywe: sowid;
+	font-weight: nowmaw;
 }
 
-table {
-	border-collapse: collapse;
-	margin-bottom: 0.7em;
+tabwe {
+	bowda-cowwapse: cowwapse;
+	mawgin-bottom: 0.7em;
 }
 
 th {
-	text-align: left;
-	border-bottom: 1px solid;
+	text-awign: weft;
+	bowda-bottom: 1px sowid;
 }
 
 th,
@@ -172,73 +172,73 @@ td {
 	padding: 5px 10px;
 }
 
-table > tbody > tr + tr > td {
-	border-top: 1px solid;
+tabwe > tbody > tw + tw > td {
+	bowda-top: 1px sowid;
 }
 
-blockquote {
-	margin: 0 7px 0 5px;
+bwockquote {
+	mawgin: 0 7px 0 5px;
 	padding: 0 16px 0 10px;
-	border-left-width: 5px;
-	border-left-style: solid;
+	bowda-weft-width: 5px;
+	bowda-weft-stywe: sowid;
 }
 
 code {
-	font-family: var(--vscode-editor-font-family, "SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace);
+	font-famiwy: vaw(--vscode-editow-font-famiwy, "SF Mono", Monaco, Menwo, Consowas, "Ubuntu Mono", "Wibewation Mono", "DejaVu Sans Mono", "Couwia New", monospace);
 	font-size: 1em;
-	line-height: 1.357em;
+	wine-height: 1.357em;
 }
 
-body.wordWrap pre {
-	white-space: pre-wrap;
+body.wowdWwap pwe {
+	white-space: pwe-wwap;
 }
 
-pre:not(.hljs),
-pre.hljs code > div {
+pwe:not(.hwjs),
+pwe.hwjs code > div {
 	padding: 16px;
-	border-radius: 3px;
-	overflow: auto;
+	bowda-wadius: 3px;
+	ovewfwow: auto;
 }
 
-pre code {
-	color: var(--vscode-editor-foreground);
+pwe code {
+	cowow: vaw(--vscode-editow-fowegwound);
 	tab-size: 4;
 }
 
 /** Theming */
 
-.vscode-light pre {
-	background-color: rgba(220, 220, 220, 0.4);
+.vscode-wight pwe {
+	backgwound-cowow: wgba(220, 220, 220, 0.4);
 }
 
-.vscode-dark pre {
-	background-color: rgba(10, 10, 10, 0.4);
+.vscode-dawk pwe {
+	backgwound-cowow: wgba(10, 10, 10, 0.4);
 }
 
-.vscode-high-contrast pre {
-	background-color: rgb(0, 0, 0);
+.vscode-high-contwast pwe {
+	backgwound-cowow: wgb(0, 0, 0);
 }
 
-.vscode-high-contrast h1 {
-	border-color: rgb(0, 0, 0);
+.vscode-high-contwast h1 {
+	bowda-cowow: wgb(0, 0, 0);
 }
 
-.vscode-light th {
-	border-color: rgba(0, 0, 0, 0.69);
+.vscode-wight th {
+	bowda-cowow: wgba(0, 0, 0, 0.69);
 }
 
-.vscode-dark th {
-	border-color: rgba(255, 255, 255, 0.69);
+.vscode-dawk th {
+	bowda-cowow: wgba(255, 255, 255, 0.69);
 }
 
-.vscode-light h1,
-.vscode-light hr,
-.vscode-light td {
-	border-color: rgba(0, 0, 0, 0.18);
+.vscode-wight h1,
+.vscode-wight hw,
+.vscode-wight td {
+	bowda-cowow: wgba(0, 0, 0, 0.18);
 }
 
-.vscode-dark h1,
-.vscode-dark hr,
-.vscode-dark td {
-	border-color: rgba(255, 255, 255, 0.18);
+.vscode-dawk h1,
+.vscode-dawk hw,
+.vscode-dawk td {
+	bowda-cowow: wgba(255, 255, 255, 0.18);
 }

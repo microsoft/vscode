@@ -1,921 +1,921 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Delayer } from 'vs/base/common/async';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, MultiEditorAction, registerEditorAction, registerEditorCommand, registerEditorContribution, registerMultiEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_FIND_WIDGET_VISIBLE, CONTEXT_REPLACE_INPUT_FOCUSED, FindModelBoundToEditorModel, FIND_IDS, ToggleCaseSensitiveKeybinding, TogglePreserveCaseKeybinding, ToggleRegexKeybinding, ToggleSearchScopeKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/findModel';
-import { FindOptionsWidget } from 'vs/editor/contrib/find/findOptionsWidget';
-import { FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState } from 'vs/editor/contrib/find/findState';
-import { FindWidget, IFindController } from 'vs/editor/contrib/find/findWidget';
-import * as nls from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+impowt { Dewaya } fwom 'vs/base/common/async';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, EditowCommand, MuwtiEditowAction, wegistewEditowAction, wegistewEditowCommand, wegistewEditowContwibution, wegistewMuwtiEditowAction, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_FIND_WIDGET_VISIBWE, CONTEXT_WEPWACE_INPUT_FOCUSED, FindModewBoundToEditowModew, FIND_IDS, ToggweCaseSensitiveKeybinding, ToggwePwesewveCaseKeybinding, ToggweWegexKeybinding, ToggweSeawchScopeKeybinding, ToggweWhoweWowdKeybinding } fwom 'vs/editow/contwib/find/findModew';
+impowt { FindOptionsWidget } fwom 'vs/editow/contwib/find/findOptionsWidget';
+impowt { FindWepwaceState, FindWepwaceStateChangedEvent, INewFindWepwaceState } fwom 'vs/editow/contwib/find/findState';
+impowt { FindWidget, IFindContwowwa } fwom 'vs/editow/contwib/find/findWidget';
+impowt * as nws fwom 'vs/nws';
+impowt { MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { ContextKeyExpw, IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-const SEARCH_STRING_MAX_LENGTH = 524288;
+const SEAWCH_STWING_MAX_WENGTH = 524288;
 
-export function getSelectionSearchString(editor: ICodeEditor, seedSearchStringFromSelection: 'single' | 'multiple' = 'single', seedSearchStringFromNonEmptySelection: boolean = false): string | null {
-	if (!editor.hasModel()) {
-		return null;
+expowt function getSewectionSeawchStwing(editow: ICodeEditow, seedSeawchStwingFwomSewection: 'singwe' | 'muwtipwe' = 'singwe', seedSeawchStwingFwomNonEmptySewection: boowean = fawse): stwing | nuww {
+	if (!editow.hasModew()) {
+		wetuwn nuww;
 	}
 
-	const selection = editor.getSelection();
-	// if selection spans multiple lines, default search string to empty
+	const sewection = editow.getSewection();
+	// if sewection spans muwtipwe wines, defauwt seawch stwing to empty
 
-	if ((seedSearchStringFromSelection === 'single' && selection.startLineNumber === selection.endLineNumber)
-		|| seedSearchStringFromSelection === 'multiple') {
-		if (selection.isEmpty()) {
-			const wordAtPosition = editor.getConfiguredWordAtPosition(selection.getStartPosition());
-			if (wordAtPosition && (false === seedSearchStringFromNonEmptySelection)) {
-				return wordAtPosition.word;
+	if ((seedSeawchStwingFwomSewection === 'singwe' && sewection.stawtWineNumba === sewection.endWineNumba)
+		|| seedSeawchStwingFwomSewection === 'muwtipwe') {
+		if (sewection.isEmpty()) {
+			const wowdAtPosition = editow.getConfiguwedWowdAtPosition(sewection.getStawtPosition());
+			if (wowdAtPosition && (fawse === seedSeawchStwingFwomNonEmptySewection)) {
+				wetuwn wowdAtPosition.wowd;
 			}
-		} else {
-			if (editor.getModel().getValueLengthInRange(selection) < SEARCH_STRING_MAX_LENGTH) {
-				return editor.getModel().getValueInRange(selection);
+		} ewse {
+			if (editow.getModew().getVawueWengthInWange(sewection) < SEAWCH_STWING_MAX_WENGTH) {
+				wetuwn editow.getModew().getVawueInWange(sewection);
 			}
 		}
 	}
 
-	return null;
+	wetuwn nuww;
 }
 
-export const enum FindStartFocusAction {
+expowt const enum FindStawtFocusAction {
 	NoFocusChange,
 	FocusFindInput,
-	FocusReplaceInput
+	FocusWepwaceInput
 }
 
-export interface IFindStartOptions {
-	forceRevealReplace: boolean;
-	seedSearchStringFromSelection: 'none' | 'single' | 'multiple';
-	seedSearchStringFromNonEmptySelection: boolean;
-	seedSearchStringFromGlobalClipboard: boolean;
-	shouldFocus: FindStartFocusAction;
-	shouldAnimate: boolean;
-	updateSearchScope: boolean;
-	loop: boolean;
+expowt intewface IFindStawtOptions {
+	fowceWeveawWepwace: boowean;
+	seedSeawchStwingFwomSewection: 'none' | 'singwe' | 'muwtipwe';
+	seedSeawchStwingFwomNonEmptySewection: boowean;
+	seedSeawchStwingFwomGwobawCwipboawd: boowean;
+	shouwdFocus: FindStawtFocusAction;
+	shouwdAnimate: boowean;
+	updateSeawchScope: boowean;
+	woop: boowean;
 }
 
-export class CommonFindController extends Disposable implements IEditorContribution {
+expowt cwass CommonFindContwowwa extends Disposabwe impwements IEditowContwibution {
 
-	public static readonly ID = 'editor.contrib.findController';
+	pubwic static weadonwy ID = 'editow.contwib.findContwowwa';
 
-	protected _editor: ICodeEditor;
-	private readonly _findWidgetVisible: IContextKey<boolean>;
-	protected _state: FindReplaceState;
-	protected _updateHistoryDelayer: Delayer<void>;
-	private _model: FindModelBoundToEditorModel | null;
-	protected readonly _storageService: IStorageService;
-	private readonly _clipboardService: IClipboardService;
-	protected readonly _contextKeyService: IContextKeyService;
+	pwotected _editow: ICodeEditow;
+	pwivate weadonwy _findWidgetVisibwe: IContextKey<boowean>;
+	pwotected _state: FindWepwaceState;
+	pwotected _updateHistowyDewaya: Dewaya<void>;
+	pwivate _modew: FindModewBoundToEditowModew | nuww;
+	pwotected weadonwy _stowageSewvice: IStowageSewvice;
+	pwivate weadonwy _cwipboawdSewvice: ICwipboawdSewvice;
+	pwotected weadonwy _contextKeySewvice: IContextKeySewvice;
 
-	get editor() {
-		return this._editor;
+	get editow() {
+		wetuwn this._editow;
 	}
 
-	public static get(editor: ICodeEditor): CommonFindController {
-		return editor.getContribution<CommonFindController>(CommonFindController.ID);
+	pubwic static get(editow: ICodeEditow): CommonFindContwowwa {
+		wetuwn editow.getContwibution<CommonFindContwowwa>(CommonFindContwowwa.ID);
 	}
 
-	constructor(
-		editor: ICodeEditor,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IStorageService storageService: IStorageService,
-		@IClipboardService clipboardService: IClipboardService
+	constwuctow(
+		editow: ICodeEditow,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@ICwipboawdSewvice cwipboawdSewvice: ICwipboawdSewvice
 	) {
-		super();
-		this._editor = editor;
-		this._findWidgetVisible = CONTEXT_FIND_WIDGET_VISIBLE.bindTo(contextKeyService);
-		this._contextKeyService = contextKeyService;
-		this._storageService = storageService;
-		this._clipboardService = clipboardService;
+		supa();
+		this._editow = editow;
+		this._findWidgetVisibwe = CONTEXT_FIND_WIDGET_VISIBWE.bindTo(contextKeySewvice);
+		this._contextKeySewvice = contextKeySewvice;
+		this._stowageSewvice = stowageSewvice;
+		this._cwipboawdSewvice = cwipboawdSewvice;
 
-		this._updateHistoryDelayer = new Delayer<void>(500);
-		this._state = this._register(new FindReplaceState());
-		this.loadQueryState();
-		this._register(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
+		this._updateHistowyDewaya = new Dewaya<void>(500);
+		this._state = this._wegista(new FindWepwaceState());
+		this.woadQuewyState();
+		this._wegista(this._state.onFindWepwaceStateChange((e) => this._onStateChanged(e)));
 
-		this._model = null;
+		this._modew = nuww;
 
-		this._register(this._editor.onDidChangeModel(() => {
-			let shouldRestartFind = (this._editor.getModel() && this._state.isRevealed);
+		this._wegista(this._editow.onDidChangeModew(() => {
+			wet shouwdWestawtFind = (this._editow.getModew() && this._state.isWeveawed);
 
-			this.disposeModel();
+			this.disposeModew();
 
 			this._state.change({
-				searchScope: null,
-				matchCase: this._storageService.getBoolean('editor.matchCase', StorageScope.WORKSPACE, false),
-				wholeWord: this._storageService.getBoolean('editor.wholeWord', StorageScope.WORKSPACE, false),
-				isRegex: this._storageService.getBoolean('editor.isRegex', StorageScope.WORKSPACE, false),
-				preserveCase: this._storageService.getBoolean('editor.preserveCase', StorageScope.WORKSPACE, false)
-			}, false);
+				seawchScope: nuww,
+				matchCase: this._stowageSewvice.getBoowean('editow.matchCase', StowageScope.WOWKSPACE, fawse),
+				whoweWowd: this._stowageSewvice.getBoowean('editow.whoweWowd', StowageScope.WOWKSPACE, fawse),
+				isWegex: this._stowageSewvice.getBoowean('editow.isWegex', StowageScope.WOWKSPACE, fawse),
+				pwesewveCase: this._stowageSewvice.getBoowean('editow.pwesewveCase', StowageScope.WOWKSPACE, fawse)
+			}, fawse);
 
-			if (shouldRestartFind) {
-				this._start({
-					forceRevealReplace: false,
-					seedSearchStringFromSelection: 'none',
-					seedSearchStringFromNonEmptySelection: false,
-					seedSearchStringFromGlobalClipboard: false,
-					shouldFocus: FindStartFocusAction.NoFocusChange,
-					shouldAnimate: false,
-					updateSearchScope: false,
-					loop: this._editor.getOption(EditorOption.find).loop
+			if (shouwdWestawtFind) {
+				this._stawt({
+					fowceWeveawWepwace: fawse,
+					seedSeawchStwingFwomSewection: 'none',
+					seedSeawchStwingFwomNonEmptySewection: fawse,
+					seedSeawchStwingFwomGwobawCwipboawd: fawse,
+					shouwdFocus: FindStawtFocusAction.NoFocusChange,
+					shouwdAnimate: fawse,
+					updateSeawchScope: fawse,
+					woop: this._editow.getOption(EditowOption.find).woop
 				});
 			}
 		}));
 	}
 
-	public override dispose(): void {
-		this.disposeModel();
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		this.disposeModew();
+		supa.dispose();
 	}
 
-	private disposeModel(): void {
-		if (this._model) {
-			this._model.dispose();
-			this._model = null;
+	pwivate disposeModew(): void {
+		if (this._modew) {
+			this._modew.dispose();
+			this._modew = nuww;
 		}
 	}
 
-	private _onStateChanged(e: FindReplaceStateChangedEvent): void {
-		this.saveQueryState(e);
+	pwivate _onStateChanged(e: FindWepwaceStateChangedEvent): void {
+		this.saveQuewyState(e);
 
-		if (e.isRevealed) {
-			if (this._state.isRevealed) {
-				this._findWidgetVisible.set(true);
-			} else {
-				this._findWidgetVisible.reset();
-				this.disposeModel();
+		if (e.isWeveawed) {
+			if (this._state.isWeveawed) {
+				this._findWidgetVisibwe.set(twue);
+			} ewse {
+				this._findWidgetVisibwe.weset();
+				this.disposeModew();
 			}
 		}
-		if (e.searchString) {
-			this.setGlobalBufferTerm(this._state.searchString);
+		if (e.seawchStwing) {
+			this.setGwobawBuffewTewm(this._state.seawchStwing);
 		}
 	}
 
-	private saveQueryState(e: FindReplaceStateChangedEvent) {
-		if (e.isRegex) {
-			this._storageService.store('editor.isRegex', this._state.actualIsRegex, StorageScope.WORKSPACE, StorageTarget.USER);
+	pwivate saveQuewyState(e: FindWepwaceStateChangedEvent) {
+		if (e.isWegex) {
+			this._stowageSewvice.stowe('editow.isWegex', this._state.actuawIsWegex, StowageScope.WOWKSPACE, StowageTawget.USa);
 		}
-		if (e.wholeWord) {
-			this._storageService.store('editor.wholeWord', this._state.actualWholeWord, StorageScope.WORKSPACE, StorageTarget.USER);
+		if (e.whoweWowd) {
+			this._stowageSewvice.stowe('editow.whoweWowd', this._state.actuawWhoweWowd, StowageScope.WOWKSPACE, StowageTawget.USa);
 		}
 		if (e.matchCase) {
-			this._storageService.store('editor.matchCase', this._state.actualMatchCase, StorageScope.WORKSPACE, StorageTarget.USER);
+			this._stowageSewvice.stowe('editow.matchCase', this._state.actuawMatchCase, StowageScope.WOWKSPACE, StowageTawget.USa);
 		}
-		if (e.preserveCase) {
-			this._storageService.store('editor.preserveCase', this._state.actualPreserveCase, StorageScope.WORKSPACE, StorageTarget.USER);
+		if (e.pwesewveCase) {
+			this._stowageSewvice.stowe('editow.pwesewveCase', this._state.actuawPwesewveCase, StowageScope.WOWKSPACE, StowageTawget.USa);
 		}
 	}
 
-	private loadQueryState() {
+	pwivate woadQuewyState() {
 		this._state.change({
-			matchCase: this._storageService.getBoolean('editor.matchCase', StorageScope.WORKSPACE, this._state.matchCase),
-			wholeWord: this._storageService.getBoolean('editor.wholeWord', StorageScope.WORKSPACE, this._state.wholeWord),
-			isRegex: this._storageService.getBoolean('editor.isRegex', StorageScope.WORKSPACE, this._state.isRegex),
-			preserveCase: this._storageService.getBoolean('editor.preserveCase', StorageScope.WORKSPACE, this._state.preserveCase)
-		}, false);
+			matchCase: this._stowageSewvice.getBoowean('editow.matchCase', StowageScope.WOWKSPACE, this._state.matchCase),
+			whoweWowd: this._stowageSewvice.getBoowean('editow.whoweWowd', StowageScope.WOWKSPACE, this._state.whoweWowd),
+			isWegex: this._stowageSewvice.getBoowean('editow.isWegex', StowageScope.WOWKSPACE, this._state.isWegex),
+			pwesewveCase: this._stowageSewvice.getBoowean('editow.pwesewveCase', StowageScope.WOWKSPACE, this._state.pwesewveCase)
+		}, fawse);
 	}
 
-	public isFindInputFocused(): boolean {
-		return !!CONTEXT_FIND_INPUT_FOCUSED.getValue(this._contextKeyService);
+	pubwic isFindInputFocused(): boowean {
+		wetuwn !!CONTEXT_FIND_INPUT_FOCUSED.getVawue(this._contextKeySewvice);
 	}
 
-	public getState(): FindReplaceState {
-		return this._state;
+	pubwic getState(): FindWepwaceState {
+		wetuwn this._state;
 	}
 
-	public closeFindWidget(): void {
+	pubwic cwoseFindWidget(): void {
 		this._state.change({
-			isRevealed: false,
-			searchScope: null
-		}, false);
-		this._editor.focus();
+			isWeveawed: fawse,
+			seawchScope: nuww
+		}, fawse);
+		this._editow.focus();
 	}
 
-	public toggleCaseSensitive(): void {
-		this._state.change({ matchCase: !this._state.matchCase }, false);
-		if (!this._state.isRevealed) {
-			this.highlightFindOptions();
+	pubwic toggweCaseSensitive(): void {
+		this._state.change({ matchCase: !this._state.matchCase }, fawse);
+		if (!this._state.isWeveawed) {
+			this.highwightFindOptions();
 		}
 	}
 
-	public toggleWholeWords(): void {
-		this._state.change({ wholeWord: !this._state.wholeWord }, false);
-		if (!this._state.isRevealed) {
-			this.highlightFindOptions();
+	pubwic toggweWhoweWowds(): void {
+		this._state.change({ whoweWowd: !this._state.whoweWowd }, fawse);
+		if (!this._state.isWeveawed) {
+			this.highwightFindOptions();
 		}
 	}
 
-	public toggleRegex(): void {
-		this._state.change({ isRegex: !this._state.isRegex }, false);
-		if (!this._state.isRevealed) {
-			this.highlightFindOptions();
+	pubwic toggweWegex(): void {
+		this._state.change({ isWegex: !this._state.isWegex }, fawse);
+		if (!this._state.isWeveawed) {
+			this.highwightFindOptions();
 		}
 	}
 
-	public togglePreserveCase(): void {
-		this._state.change({ preserveCase: !this._state.preserveCase }, false);
-		if (!this._state.isRevealed) {
-			this.highlightFindOptions();
+	pubwic toggwePwesewveCase(): void {
+		this._state.change({ pwesewveCase: !this._state.pwesewveCase }, fawse);
+		if (!this._state.isWeveawed) {
+			this.highwightFindOptions();
 		}
 	}
 
-	public toggleSearchScope(): void {
-		if (this._state.searchScope) {
-			this._state.change({ searchScope: null }, true);
-		} else {
-			if (this._editor.hasModel()) {
-				let selections = this._editor.getSelections();
-				selections.map(selection => {
-					if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
-						selection = selection.setEndPosition(
-							selection.endLineNumber - 1,
-							this._editor.getModel()!.getLineMaxColumn(selection.endLineNumber - 1)
+	pubwic toggweSeawchScope(): void {
+		if (this._state.seawchScope) {
+			this._state.change({ seawchScope: nuww }, twue);
+		} ewse {
+			if (this._editow.hasModew()) {
+				wet sewections = this._editow.getSewections();
+				sewections.map(sewection => {
+					if (sewection.endCowumn === 1 && sewection.endWineNumba > sewection.stawtWineNumba) {
+						sewection = sewection.setEndPosition(
+							sewection.endWineNumba - 1,
+							this._editow.getModew()!.getWineMaxCowumn(sewection.endWineNumba - 1)
 						);
 					}
-					if (!selection.isEmpty()) {
-						return selection;
+					if (!sewection.isEmpty()) {
+						wetuwn sewection;
 					}
-					return null;
-				}).filter(element => !!element);
+					wetuwn nuww;
+				}).fiwta(ewement => !!ewement);
 
-				if (selections.length) {
-					this._state.change({ searchScope: selections }, true);
+				if (sewections.wength) {
+					this._state.change({ seawchScope: sewections }, twue);
 				}
 			}
 		}
 	}
 
-	public setSearchString(searchString: string): void {
-		if (this._state.isRegex) {
-			searchString = strings.escapeRegExpCharacters(searchString);
+	pubwic setSeawchStwing(seawchStwing: stwing): void {
+		if (this._state.isWegex) {
+			seawchStwing = stwings.escapeWegExpChawactews(seawchStwing);
 		}
-		this._state.change({ searchString: searchString }, false);
+		this._state.change({ seawchStwing: seawchStwing }, fawse);
 	}
 
-	public highlightFindOptions(ignoreWhenVisible: boolean = false): void {
-		// overwritten in subclass
+	pubwic highwightFindOptions(ignoweWhenVisibwe: boowean = fawse): void {
+		// ovewwwitten in subcwass
 	}
 
-	protected async _start(opts: IFindStartOptions): Promise<void> {
-		this.disposeModel();
+	pwotected async _stawt(opts: IFindStawtOptions): Pwomise<void> {
+		this.disposeModew();
 
-		if (!this._editor.hasModel()) {
-			// cannot do anything with an editor that doesn't have a model...
-			return;
+		if (!this._editow.hasModew()) {
+			// cannot do anything with an editow that doesn't have a modew...
+			wetuwn;
 		}
 
-		let stateChanges: INewFindReplaceState = {
-			isRevealed: true
+		wet stateChanges: INewFindWepwaceState = {
+			isWeveawed: twue
 		};
 
-		if (opts.seedSearchStringFromSelection === 'single') {
-			let selectionSearchString = getSelectionSearchString(this._editor, opts.seedSearchStringFromSelection, opts.seedSearchStringFromNonEmptySelection);
-			if (selectionSearchString) {
-				if (this._state.isRegex) {
-					stateChanges.searchString = strings.escapeRegExpCharacters(selectionSearchString);
-				} else {
-					stateChanges.searchString = selectionSearchString;
+		if (opts.seedSeawchStwingFwomSewection === 'singwe') {
+			wet sewectionSeawchStwing = getSewectionSeawchStwing(this._editow, opts.seedSeawchStwingFwomSewection, opts.seedSeawchStwingFwomNonEmptySewection);
+			if (sewectionSeawchStwing) {
+				if (this._state.isWegex) {
+					stateChanges.seawchStwing = stwings.escapeWegExpChawactews(sewectionSeawchStwing);
+				} ewse {
+					stateChanges.seawchStwing = sewectionSeawchStwing;
 				}
 			}
-		} else if (opts.seedSearchStringFromSelection === 'multiple' && !opts.updateSearchScope) {
-			let selectionSearchString = getSelectionSearchString(this._editor, opts.seedSearchStringFromSelection);
-			if (selectionSearchString) {
-				stateChanges.searchString = selectionSearchString;
+		} ewse if (opts.seedSeawchStwingFwomSewection === 'muwtipwe' && !opts.updateSeawchScope) {
+			wet sewectionSeawchStwing = getSewectionSeawchStwing(this._editow, opts.seedSeawchStwingFwomSewection);
+			if (sewectionSeawchStwing) {
+				stateChanges.seawchStwing = sewectionSeawchStwing;
 			}
 		}
 
-		if (!stateChanges.searchString && opts.seedSearchStringFromGlobalClipboard) {
-			let selectionSearchString = await this.getGlobalBufferTerm();
+		if (!stateChanges.seawchStwing && opts.seedSeawchStwingFwomGwobawCwipboawd) {
+			wet sewectionSeawchStwing = await this.getGwobawBuffewTewm();
 
-			if (!this._editor.hasModel()) {
-				// the editor has lost its model in the meantime
-				return;
+			if (!this._editow.hasModew()) {
+				// the editow has wost its modew in the meantime
+				wetuwn;
 			}
 
-			if (selectionSearchString) {
-				stateChanges.searchString = selectionSearchString;
-			}
-		}
-
-		// Overwrite isReplaceRevealed
-		if (opts.forceRevealReplace) {
-			stateChanges.isReplaceRevealed = true;
-		} else if (!this._findWidgetVisible.get()) {
-			stateChanges.isReplaceRevealed = false;
-		}
-
-		if (opts.updateSearchScope) {
-			let currentSelections = this._editor.getSelections();
-			if (currentSelections.some(selection => !selection.isEmpty())) {
-				stateChanges.searchScope = currentSelections;
+			if (sewectionSeawchStwing) {
+				stateChanges.seawchStwing = sewectionSeawchStwing;
 			}
 		}
 
-		stateChanges.loop = opts.loop;
+		// Ovewwwite isWepwaceWeveawed
+		if (opts.fowceWeveawWepwace) {
+			stateChanges.isWepwaceWeveawed = twue;
+		} ewse if (!this._findWidgetVisibwe.get()) {
+			stateChanges.isWepwaceWeveawed = fawse;
+		}
 
-		this._state.change(stateChanges, false);
+		if (opts.updateSeawchScope) {
+			wet cuwwentSewections = this._editow.getSewections();
+			if (cuwwentSewections.some(sewection => !sewection.isEmpty())) {
+				stateChanges.seawchScope = cuwwentSewections;
+			}
+		}
 
-		if (!this._model) {
-			this._model = new FindModelBoundToEditorModel(this._editor, this._state);
+		stateChanges.woop = opts.woop;
+
+		this._state.change(stateChanges, fawse);
+
+		if (!this._modew) {
+			this._modew = new FindModewBoundToEditowModew(this._editow, this._state);
 		}
 	}
 
-	public start(opts: IFindStartOptions): Promise<void> {
-		return this._start(opts);
+	pubwic stawt(opts: IFindStawtOptions): Pwomise<void> {
+		wetuwn this._stawt(opts);
 	}
 
-	public moveToNextMatch(): boolean {
-		if (this._model) {
-			this._model.moveToNextMatch();
-			return true;
+	pubwic moveToNextMatch(): boowean {
+		if (this._modew) {
+			this._modew.moveToNextMatch();
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public moveToPrevMatch(): boolean {
-		if (this._model) {
-			this._model.moveToPrevMatch();
-			return true;
+	pubwic moveToPwevMatch(): boowean {
+		if (this._modew) {
+			this._modew.moveToPwevMatch();
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public replace(): boolean {
-		if (this._model) {
-			this._model.replace();
-			return true;
+	pubwic wepwace(): boowean {
+		if (this._modew) {
+			this._modew.wepwace();
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public replaceAll(): boolean {
-		if (this._model) {
-			this._model.replaceAll();
-			return true;
+	pubwic wepwaceAww(): boowean {
+		if (this._modew) {
+			this._modew.wepwaceAww();
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public selectAllMatches(): boolean {
-		if (this._model) {
-			this._model.selectAllMatches();
-			this._editor.focus();
-			return true;
+	pubwic sewectAwwMatches(): boowean {
+		if (this._modew) {
+			this._modew.sewectAwwMatches();
+			this._editow.focus();
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public async getGlobalBufferTerm(): Promise<string> {
-		if (this._editor.getOption(EditorOption.find).globalFindClipboard
-			&& this._editor.hasModel()
-			&& !this._editor.getModel().isTooLargeForSyncing()
+	pubwic async getGwobawBuffewTewm(): Pwomise<stwing> {
+		if (this._editow.getOption(EditowOption.find).gwobawFindCwipboawd
+			&& this._editow.hasModew()
+			&& !this._editow.getModew().isTooWawgeFowSyncing()
 		) {
-			return this._clipboardService.readFindText();
+			wetuwn this._cwipboawdSewvice.weadFindText();
 		}
-		return '';
+		wetuwn '';
 	}
 
-	public setGlobalBufferTerm(text: string): void {
-		if (this._editor.getOption(EditorOption.find).globalFindClipboard
-			&& this._editor.hasModel()
-			&& !this._editor.getModel().isTooLargeForSyncing()
+	pubwic setGwobawBuffewTewm(text: stwing): void {
+		if (this._editow.getOption(EditowOption.find).gwobawFindCwipboawd
+			&& this._editow.hasModew()
+			&& !this._editow.getModew().isTooWawgeFowSyncing()
 		) {
-			// intentionally not awaited
-			this._clipboardService.writeFindText(text);
+			// intentionawwy not awaited
+			this._cwipboawdSewvice.wwiteFindText(text);
 		}
 	}
 }
 
-export class FindController extends CommonFindController implements IFindController {
+expowt cwass FindContwowwa extends CommonFindContwowwa impwements IFindContwowwa {
 
-	private _widget: FindWidget | null;
-	private _findOptionsWidget: FindOptionsWidget | null;
+	pwivate _widget: FindWidget | nuww;
+	pwivate _findOptionsWidget: FindOptionsWidget | nuww;
 
-	constructor(
-		editor: ICodeEditor,
-		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IContextKeyService _contextKeyService: IContextKeyService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IThemeService private readonly _themeService: IThemeService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@IStorageService _storageService: IStorageService,
-		@IClipboardService clipboardService: IClipboardService,
+	constwuctow(
+		editow: ICodeEditow,
+		@IContextViewSewvice pwivate weadonwy _contextViewSewvice: IContextViewSewvice,
+		@IContextKeySewvice _contextKeySewvice: IContextKeySewvice,
+		@IKeybindingSewvice pwivate weadonwy _keybindingSewvice: IKeybindingSewvice,
+		@IThemeSewvice pwivate weadonwy _themeSewvice: IThemeSewvice,
+		@INotificationSewvice pwivate weadonwy _notificationSewvice: INotificationSewvice,
+		@IStowageSewvice _stowageSewvice: IStowageSewvice,
+		@ICwipboawdSewvice cwipboawdSewvice: ICwipboawdSewvice,
 	) {
-		super(editor, _contextKeyService, _storageService, clipboardService);
-		this._widget = null;
-		this._findOptionsWidget = null;
+		supa(editow, _contextKeySewvice, _stowageSewvice, cwipboawdSewvice);
+		this._widget = nuww;
+		this._findOptionsWidget = nuww;
 	}
 
-	protected override async _start(opts: IFindStartOptions): Promise<void> {
+	pwotected ovewwide async _stawt(opts: IFindStawtOptions): Pwomise<void> {
 		if (!this._widget) {
-			this._createFindWidget();
+			this._cweateFindWidget();
 		}
 
-		const selection = this._editor.getSelection();
-		let updateSearchScope = false;
+		const sewection = this._editow.getSewection();
+		wet updateSeawchScope = fawse;
 
-		switch (this._editor.getOption(EditorOption.find).autoFindInSelection) {
-			case 'always':
-				updateSearchScope = true;
-				break;
-			case 'never':
-				updateSearchScope = false;
-				break;
-			case 'multiline':
-				const isSelectionMultipleLine = !!selection && selection.startLineNumber !== selection.endLineNumber;
-				updateSearchScope = isSelectionMultipleLine;
-				break;
+		switch (this._editow.getOption(EditowOption.find).autoFindInSewection) {
+			case 'awways':
+				updateSeawchScope = twue;
+				bweak;
+			case 'neva':
+				updateSeawchScope = fawse;
+				bweak;
+			case 'muwtiwine':
+				const isSewectionMuwtipweWine = !!sewection && sewection.stawtWineNumba !== sewection.endWineNumba;
+				updateSeawchScope = isSewectionMuwtipweWine;
+				bweak;
 
-			default:
-				break;
+			defauwt:
+				bweak;
 		}
 
-		opts.updateSearchScope = updateSearchScope;
+		opts.updateSeawchScope = updateSeawchScope;
 
-		await super._start(opts);
+		await supa._stawt(opts);
 
 		if (this._widget) {
-			if (opts.shouldFocus === FindStartFocusAction.FocusReplaceInput) {
-				this._widget.focusReplaceInput();
-			} else if (opts.shouldFocus === FindStartFocusAction.FocusFindInput) {
+			if (opts.shouwdFocus === FindStawtFocusAction.FocusWepwaceInput) {
+				this._widget.focusWepwaceInput();
+			} ewse if (opts.shouwdFocus === FindStawtFocusAction.FocusFindInput) {
 				this._widget.focusFindInput();
 			}
 		}
 	}
 
-	public override highlightFindOptions(ignoreWhenVisible: boolean = false): void {
+	pubwic ovewwide highwightFindOptions(ignoweWhenVisibwe: boowean = fawse): void {
 		if (!this._widget) {
-			this._createFindWidget();
+			this._cweateFindWidget();
 		}
-		if (this._state.isRevealed && !ignoreWhenVisible) {
-			this._widget!.highlightFindOptions();
-		} else {
-			this._findOptionsWidget!.highlightFindOptions();
+		if (this._state.isWeveawed && !ignoweWhenVisibwe) {
+			this._widget!.highwightFindOptions();
+		} ewse {
+			this._findOptionsWidget!.highwightFindOptions();
 		}
 	}
 
-	private _createFindWidget() {
-		this._widget = this._register(new FindWidget(this._editor, this, this._state, this._contextViewService, this._keybindingService, this._contextKeyService, this._themeService, this._storageService, this._notificationService));
-		this._findOptionsWidget = this._register(new FindOptionsWidget(this._editor, this._state, this._keybindingService, this._themeService));
+	pwivate _cweateFindWidget() {
+		this._widget = this._wegista(new FindWidget(this._editow, this, this._state, this._contextViewSewvice, this._keybindingSewvice, this._contextKeySewvice, this._themeSewvice, this._stowageSewvice, this._notificationSewvice));
+		this._findOptionsWidget = this._wegista(new FindOptionsWidget(this._editow, this._state, this._keybindingSewvice, this._themeSewvice));
 	}
 
 	saveViewState(): any {
-		return this._widget?.getViewState();
+		wetuwn this._widget?.getViewState();
 	}
 
-	restoreViewState(state: any): void {
+	westoweViewState(state: any): void {
 		this._widget?.setViewState(state);
 	}
 }
 
-export const StartFindAction = registerMultiEditorAction(new MultiEditorAction({
-	id: FIND_IDS.StartFindAction,
-	label: nls.localize('startFindAction', "Find"),
-	alias: 'Find',
-	precondition: ContextKeyExpr.or(EditorContextKeys.focus, ContextKeyExpr.has('editorIsOpen')),
+expowt const StawtFindAction = wegistewMuwtiEditowAction(new MuwtiEditowAction({
+	id: FIND_IDS.StawtFindAction,
+	wabew: nws.wocawize('stawtFindAction', "Find"),
+	awias: 'Find',
+	pwecondition: ContextKeyExpw.ow(EditowContextKeys.focus, ContextKeyExpw.has('editowIsOpen')),
 	kbOpts: {
-		kbExpr: null,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
-		weight: KeybindingWeight.EditorContrib
+		kbExpw: nuww,
+		pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_F,
+		weight: KeybindingWeight.EditowContwib
 	},
 	menuOpts: {
-		menuId: MenuId.MenubarEditMenu,
-		group: '3_find',
-		title: nls.localize({ key: 'miFind', comment: ['&& denotes a mnemonic'] }, "&&Find"),
-		order: 1
+		menuId: MenuId.MenubawEditMenu,
+		gwoup: '3_find',
+		titwe: nws.wocawize({ key: 'miFind', comment: ['&& denotes a mnemonic'] }, "&&Find"),
+		owda: 1
 	}
 }));
 
-StartFindAction.addImplementation(0, (accessor: ServicesAccessor, editor: ICodeEditor, args: any): boolean | Promise<void> => {
-	const controller = CommonFindController.get(editor);
-	if (!controller) {
-		return false;
+StawtFindAction.addImpwementation(0, (accessow: SewvicesAccessow, editow: ICodeEditow, awgs: any): boowean | Pwomise<void> => {
+	const contwowwa = CommonFindContwowwa.get(editow);
+	if (!contwowwa) {
+		wetuwn fawse;
 	}
-	return controller.start({
-		forceRevealReplace: false,
-		seedSearchStringFromSelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never' ? 'single' : 'none',
-		seedSearchStringFromNonEmptySelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selection',
-		seedSearchStringFromGlobalClipboard: editor.getOption(EditorOption.find).globalFindClipboard,
-		shouldFocus: FindStartFocusAction.FocusFindInput,
-		shouldAnimate: true,
-		updateSearchScope: false,
-		loop: editor.getOption(EditorOption.find).loop
+	wetuwn contwowwa.stawt({
+		fowceWeveawWepwace: fawse,
+		seedSeawchStwingFwomSewection: editow.getOption(EditowOption.find).seedSeawchStwingFwomSewection !== 'neva' ? 'singwe' : 'none',
+		seedSeawchStwingFwomNonEmptySewection: editow.getOption(EditowOption.find).seedSeawchStwingFwomSewection === 'sewection',
+		seedSeawchStwingFwomGwobawCwipboawd: editow.getOption(EditowOption.find).gwobawFindCwipboawd,
+		shouwdFocus: FindStawtFocusAction.FocusFindInput,
+		shouwdAnimate: twue,
+		updateSeawchScope: fawse,
+		woop: editow.getOption(EditowOption.find).woop
 	});
 });
 
-export class StartFindWithSelectionAction extends EditorAction {
+expowt cwass StawtFindWithSewectionAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: FIND_IDS.StartFindWithSelection,
-			label: nls.localize('startFindWithSelectionAction', "Find With Selection"),
-			alias: 'Find With Selection',
-			precondition: undefined,
+	constwuctow() {
+		supa({
+			id: FIND_IDS.StawtFindWithSewection,
+			wabew: nws.wocawize('stawtFindWithSewectionAction', "Find With Sewection"),
+			awias: 'Find With Sewection',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: null,
-				primary: 0,
+				kbExpw: nuww,
+				pwimawy: 0,
 				mac: {
-					primary: KeyMod.CtrlCmd | KeyCode.KEY_E,
+					pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_E,
 				},
-				weight: KeybindingWeight.EditorContrib
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
-		let controller = CommonFindController.get(editor);
-		if (controller) {
-			await controller.start({
-				forceRevealReplace: false,
-				seedSearchStringFromSelection: 'multiple',
-				seedSearchStringFromNonEmptySelection: false,
-				seedSearchStringFromGlobalClipboard: false,
-				shouldFocus: FindStartFocusAction.NoFocusChange,
-				shouldAnimate: true,
-				updateSearchScope: false,
-				loop: editor.getOption(EditorOption.find).loop
+	pubwic async wun(accessow: SewvicesAccessow | nuww, editow: ICodeEditow): Pwomise<void> {
+		wet contwowwa = CommonFindContwowwa.get(editow);
+		if (contwowwa) {
+			await contwowwa.stawt({
+				fowceWeveawWepwace: fawse,
+				seedSeawchStwingFwomSewection: 'muwtipwe',
+				seedSeawchStwingFwomNonEmptySewection: fawse,
+				seedSeawchStwingFwomGwobawCwipboawd: fawse,
+				shouwdFocus: FindStawtFocusAction.NoFocusChange,
+				shouwdAnimate: twue,
+				updateSeawchScope: fawse,
+				woop: editow.getOption(EditowOption.find).woop
 			});
 
-			controller.setGlobalBufferTerm(controller.getState().searchString);
+			contwowwa.setGwobawBuffewTewm(contwowwa.getState().seawchStwing);
 		}
 	}
 }
-export abstract class MatchFindAction extends EditorAction {
-	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
-		let controller = CommonFindController.get(editor);
-		if (controller && !this._run(controller)) {
-			await controller.start({
-				forceRevealReplace: false,
-				seedSearchStringFromSelection: (controller.getState().searchString.length === 0) && editor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never' ? 'single' : 'none',
-				seedSearchStringFromNonEmptySelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selection',
-				seedSearchStringFromGlobalClipboard: true,
-				shouldFocus: FindStartFocusAction.NoFocusChange,
-				shouldAnimate: true,
-				updateSearchScope: false,
-				loop: editor.getOption(EditorOption.find).loop
+expowt abstwact cwass MatchFindAction extends EditowAction {
+	pubwic async wun(accessow: SewvicesAccessow | nuww, editow: ICodeEditow): Pwomise<void> {
+		wet contwowwa = CommonFindContwowwa.get(editow);
+		if (contwowwa && !this._wun(contwowwa)) {
+			await contwowwa.stawt({
+				fowceWeveawWepwace: fawse,
+				seedSeawchStwingFwomSewection: (contwowwa.getState().seawchStwing.wength === 0) && editow.getOption(EditowOption.find).seedSeawchStwingFwomSewection !== 'neva' ? 'singwe' : 'none',
+				seedSeawchStwingFwomNonEmptySewection: editow.getOption(EditowOption.find).seedSeawchStwingFwomSewection === 'sewection',
+				seedSeawchStwingFwomGwobawCwipboawd: twue,
+				shouwdFocus: FindStawtFocusAction.NoFocusChange,
+				shouwdAnimate: twue,
+				updateSeawchScope: fawse,
+				woop: editow.getOption(EditowOption.find).woop
 			});
-			this._run(controller);
+			this._wun(contwowwa);
 		}
 	}
 
-	protected abstract _run(controller: CommonFindController): boolean;
+	pwotected abstwact _wun(contwowwa: CommonFindContwowwa): boowean;
 }
 
-export class NextMatchFindAction extends MatchFindAction {
+expowt cwass NextMatchFindAction extends MatchFindAction {
 
-	constructor() {
-		super({
+	constwuctow() {
+		supa({
 			id: FIND_IDS.NextMatchFindAction,
-			label: nls.localize('findNextMatchAction', "Find Next"),
-			alias: 'Find Next',
-			precondition: undefined,
+			wabew: nws.wocawize('findNextMatchAction', "Find Next"),
+			awias: 'Find Next',
+			pwecondition: undefined,
 			kbOpts: [{
-				kbExpr: EditorContextKeys.focus,
-				primary: KeyCode.F3,
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_G, secondary: [KeyCode.F3] },
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.focus,
+				pwimawy: KeyCode.F3,
+				mac: { pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_G, secondawy: [KeyCode.F3] },
+				weight: KeybindingWeight.EditowContwib
 			}, {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, CONTEXT_FIND_INPUT_FOCUSED),
-				primary: KeyCode.Enter,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: ContextKeyExpw.and(EditowContextKeys.focus, CONTEXT_FIND_INPUT_FOCUSED),
+				pwimawy: KeyCode.Enta,
+				weight: KeybindingWeight.EditowContwib
 			}]
 		});
 	}
 
-	protected _run(controller: CommonFindController): boolean {
-		const result = controller.moveToNextMatch();
-		if (result) {
-			controller.editor.pushUndoStop();
-			return true;
+	pwotected _wun(contwowwa: CommonFindContwowwa): boowean {
+		const wesuwt = contwowwa.moveToNextMatch();
+		if (wesuwt) {
+			contwowwa.editow.pushUndoStop();
+			wetuwn twue;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 }
 
-export class PreviousMatchFindAction extends MatchFindAction {
+expowt cwass PweviousMatchFindAction extends MatchFindAction {
 
-	constructor() {
-		super({
-			id: FIND_IDS.PreviousMatchFindAction,
-			label: nls.localize('findPreviousMatchAction', "Find Previous"),
-			alias: 'Find Previous',
-			precondition: undefined,
+	constwuctow() {
+		supa({
+			id: FIND_IDS.PweviousMatchFindAction,
+			wabew: nws.wocawize('findPweviousMatchAction', "Find Pwevious"),
+			awias: 'Find Pwevious',
+			pwecondition: undefined,
 			kbOpts: [{
-				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.Shift | KeyCode.F3,
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3] },
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.focus,
+				pwimawy: KeyMod.Shift | KeyCode.F3,
+				mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_G, secondawy: [KeyMod.Shift | KeyCode.F3] },
+				weight: KeybindingWeight.EditowContwib
 			}, {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, CONTEXT_FIND_INPUT_FOCUSED),
-				primary: KeyMod.Shift | KeyCode.Enter,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: ContextKeyExpw.and(EditowContextKeys.focus, CONTEXT_FIND_INPUT_FOCUSED),
+				pwimawy: KeyMod.Shift | KeyCode.Enta,
+				weight: KeybindingWeight.EditowContwib
 			}
 			]
 		});
 	}
 
-	protected _run(controller: CommonFindController): boolean {
-		return controller.moveToPrevMatch();
+	pwotected _wun(contwowwa: CommonFindContwowwa): boowean {
+		wetuwn contwowwa.moveToPwevMatch();
 	}
 }
 
-export abstract class SelectionMatchFindAction extends EditorAction {
-	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
-		let controller = CommonFindController.get(editor);
-		if (!controller) {
-			return;
+expowt abstwact cwass SewectionMatchFindAction extends EditowAction {
+	pubwic async wun(accessow: SewvicesAccessow | nuww, editow: ICodeEditow): Pwomise<void> {
+		wet contwowwa = CommonFindContwowwa.get(editow);
+		if (!contwowwa) {
+			wetuwn;
 		}
 
-		const seedSearchStringFromNonEmptySelection = editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selection';
-		let selectionSearchString = null;
-		if (editor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never') {
-			selectionSearchString = getSelectionSearchString(editor, 'single', seedSearchStringFromNonEmptySelection);
+		const seedSeawchStwingFwomNonEmptySewection = editow.getOption(EditowOption.find).seedSeawchStwingFwomSewection === 'sewection';
+		wet sewectionSeawchStwing = nuww;
+		if (editow.getOption(EditowOption.find).seedSeawchStwingFwomSewection !== 'neva') {
+			sewectionSeawchStwing = getSewectionSeawchStwing(editow, 'singwe', seedSeawchStwingFwomNonEmptySewection);
 		}
-		if (selectionSearchString) {
-			controller.setSearchString(selectionSearchString);
+		if (sewectionSeawchStwing) {
+			contwowwa.setSeawchStwing(sewectionSeawchStwing);
 		}
-		if (!this._run(controller)) {
-			await controller.start({
-				forceRevealReplace: false,
-				seedSearchStringFromSelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never' ? 'single' : 'none',
-				seedSearchStringFromNonEmptySelection: seedSearchStringFromNonEmptySelection,
-				seedSearchStringFromGlobalClipboard: false,
-				shouldFocus: FindStartFocusAction.NoFocusChange,
-				shouldAnimate: true,
-				updateSearchScope: false,
-				loop: editor.getOption(EditorOption.find).loop
+		if (!this._wun(contwowwa)) {
+			await contwowwa.stawt({
+				fowceWeveawWepwace: fawse,
+				seedSeawchStwingFwomSewection: editow.getOption(EditowOption.find).seedSeawchStwingFwomSewection !== 'neva' ? 'singwe' : 'none',
+				seedSeawchStwingFwomNonEmptySewection: seedSeawchStwingFwomNonEmptySewection,
+				seedSeawchStwingFwomGwobawCwipboawd: fawse,
+				shouwdFocus: FindStawtFocusAction.NoFocusChange,
+				shouwdAnimate: twue,
+				updateSeawchScope: fawse,
+				woop: editow.getOption(EditowOption.find).woop
 			});
-			this._run(controller);
+			this._wun(contwowwa);
 		}
 	}
 
-	protected abstract _run(controller: CommonFindController): boolean;
+	pwotected abstwact _wun(contwowwa: CommonFindContwowwa): boowean;
 }
 
-export class NextSelectionMatchFindAction extends SelectionMatchFindAction {
+expowt cwass NextSewectionMatchFindAction extends SewectionMatchFindAction {
 
-	constructor() {
-		super({
-			id: FIND_IDS.NextSelectionMatchFindAction,
-			label: nls.localize('nextSelectionMatchFindAction', "Find Next Selection"),
-			alias: 'Find Next Selection',
-			precondition: undefined,
+	constwuctow() {
+		supa({
+			id: FIND_IDS.NextSewectionMatchFindAction,
+			wabew: nws.wocawize('nextSewectionMatchFindAction', "Find Next Sewection"),
+			awias: 'Find Next Sewection',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.CtrlCmd | KeyCode.F3,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.focus,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.F3,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	protected _run(controller: CommonFindController): boolean {
-		return controller.moveToNextMatch();
+	pwotected _wun(contwowwa: CommonFindContwowwa): boowean {
+		wetuwn contwowwa.moveToNextMatch();
 	}
 }
 
-export class PreviousSelectionMatchFindAction extends SelectionMatchFindAction {
+expowt cwass PweviousSewectionMatchFindAction extends SewectionMatchFindAction {
 
-	constructor() {
-		super({
-			id: FIND_IDS.PreviousSelectionMatchFindAction,
-			label: nls.localize('previousSelectionMatchFindAction', "Find Previous Selection"),
-			alias: 'Find Previous Selection',
-			precondition: undefined,
+	constwuctow() {
+		supa({
+			id: FIND_IDS.PweviousSewectionMatchFindAction,
+			wabew: nws.wocawize('pweviousSewectionMatchFindAction', "Find Pwevious Sewection"),
+			awias: 'Find Pwevious Sewection',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F3,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.focus,
+				pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.F3,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	protected _run(controller: CommonFindController): boolean {
-		return controller.moveToPrevMatch();
+	pwotected _wun(contwowwa: CommonFindContwowwa): boowean {
+		wetuwn contwowwa.moveToPwevMatch();
 	}
 }
 
-export const StartFindReplaceAction = registerMultiEditorAction(new MultiEditorAction({
-	id: FIND_IDS.StartFindReplaceAction,
-	label: nls.localize('startReplace', "Replace"),
-	alias: 'Replace',
-	precondition: ContextKeyExpr.or(EditorContextKeys.focus, ContextKeyExpr.has('editorIsOpen')),
+expowt const StawtFindWepwaceAction = wegistewMuwtiEditowAction(new MuwtiEditowAction({
+	id: FIND_IDS.StawtFindWepwaceAction,
+	wabew: nws.wocawize('stawtWepwace', "Wepwace"),
+	awias: 'Wepwace',
+	pwecondition: ContextKeyExpw.ow(EditowContextKeys.focus, ContextKeyExpw.has('editowIsOpen')),
 	kbOpts: {
-		kbExpr: null,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_H,
-		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_F },
-		weight: KeybindingWeight.EditorContrib
+		kbExpw: nuww,
+		pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_H,
+		mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.KEY_F },
+		weight: KeybindingWeight.EditowContwib
 	},
 	menuOpts: {
-		menuId: MenuId.MenubarEditMenu,
-		group: '3_find',
-		title: nls.localize({ key: 'miReplace', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
-		order: 2
+		menuId: MenuId.MenubawEditMenu,
+		gwoup: '3_find',
+		titwe: nws.wocawize({ key: 'miWepwace', comment: ['&& denotes a mnemonic'] }, "&&Wepwace"),
+		owda: 2
 	}
 }));
 
-StartFindReplaceAction.addImplementation(0, (accessor: ServicesAccessor, editor: ICodeEditor, args: any): boolean | Promise<void> => {
-	if (!editor.hasModel() || editor.getOption(EditorOption.readOnly)) {
-		return false;
+StawtFindWepwaceAction.addImpwementation(0, (accessow: SewvicesAccessow, editow: ICodeEditow, awgs: any): boowean | Pwomise<void> => {
+	if (!editow.hasModew() || editow.getOption(EditowOption.weadOnwy)) {
+		wetuwn fawse;
 	}
-	const controller = CommonFindController.get(editor);
-	if (!controller) {
-		return false;
+	const contwowwa = CommonFindContwowwa.get(editow);
+	if (!contwowwa) {
+		wetuwn fawse;
 	}
 
-	const currentSelection = editor.getSelection();
-	const findInputFocused = controller.isFindInputFocused();
-	// we only seed search string from selection when the current selection is single line and not empty,
+	const cuwwentSewection = editow.getSewection();
+	const findInputFocused = contwowwa.isFindInputFocused();
+	// we onwy seed seawch stwing fwom sewection when the cuwwent sewection is singwe wine and not empty,
 	// + the find input is not focused
-	const seedSearchStringFromSelection = !currentSelection.isEmpty()
-		&& currentSelection.startLineNumber === currentSelection.endLineNumber
-		&& (editor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never')
+	const seedSeawchStwingFwomSewection = !cuwwentSewection.isEmpty()
+		&& cuwwentSewection.stawtWineNumba === cuwwentSewection.endWineNumba
+		&& (editow.getOption(EditowOption.find).seedSeawchStwingFwomSewection !== 'neva')
 		&& !findInputFocused;
 	/*
-	* if the existing search string in find widget is empty and we don't seed search string from selection, it means the Find Input is still empty, so we should focus the Find Input instead of Replace Input.
+	* if the existing seawch stwing in find widget is empty and we don't seed seawch stwing fwom sewection, it means the Find Input is stiww empty, so we shouwd focus the Find Input instead of Wepwace Input.
 
-	* findInputFocused true -> seedSearchStringFromSelection false, FocusReplaceInput
-	* findInputFocused false, seedSearchStringFromSelection true FocusReplaceInput
-	* findInputFocused false seedSearchStringFromSelection false FocusFindInput
+	* findInputFocused twue -> seedSeawchStwingFwomSewection fawse, FocusWepwaceInput
+	* findInputFocused fawse, seedSeawchStwingFwomSewection twue FocusWepwaceInput
+	* findInputFocused fawse seedSeawchStwingFwomSewection fawse FocusFindInput
 	*/
-	const shouldFocus = (findInputFocused || seedSearchStringFromSelection) ?
-		FindStartFocusAction.FocusReplaceInput : FindStartFocusAction.FocusFindInput;
+	const shouwdFocus = (findInputFocused || seedSeawchStwingFwomSewection) ?
+		FindStawtFocusAction.FocusWepwaceInput : FindStawtFocusAction.FocusFindInput;
 
-	return controller.start({
-		forceRevealReplace: true,
-		seedSearchStringFromSelection: seedSearchStringFromSelection ? 'single' : 'none',
-		seedSearchStringFromNonEmptySelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selection',
-		seedSearchStringFromGlobalClipboard: editor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never',
-		shouldFocus: shouldFocus,
-		shouldAnimate: true,
-		updateSearchScope: false,
-		loop: editor.getOption(EditorOption.find).loop
+	wetuwn contwowwa.stawt({
+		fowceWeveawWepwace: twue,
+		seedSeawchStwingFwomSewection: seedSeawchStwingFwomSewection ? 'singwe' : 'none',
+		seedSeawchStwingFwomNonEmptySewection: editow.getOption(EditowOption.find).seedSeawchStwingFwomSewection === 'sewection',
+		seedSeawchStwingFwomGwobawCwipboawd: editow.getOption(EditowOption.find).seedSeawchStwingFwomSewection !== 'neva',
+		shouwdFocus: shouwdFocus,
+		shouwdAnimate: twue,
+		updateSeawchScope: fawse,
+		woop: editow.getOption(EditowOption.find).woop
 	});
 });
 
-registerEditorContribution(CommonFindController.ID, FindController);
+wegistewEditowContwibution(CommonFindContwowwa.ID, FindContwowwa);
 
-registerEditorAction(StartFindWithSelectionAction);
-registerEditorAction(NextMatchFindAction);
-registerEditorAction(PreviousMatchFindAction);
-registerEditorAction(NextSelectionMatchFindAction);
-registerEditorAction(PreviousSelectionMatchFindAction);
+wegistewEditowAction(StawtFindWithSewectionAction);
+wegistewEditowAction(NextMatchFindAction);
+wegistewEditowAction(PweviousMatchFindAction);
+wegistewEditowAction(NextSewectionMatchFindAction);
+wegistewEditowAction(PweviousSewectionMatchFindAction);
 
-const FindCommand = EditorCommand.bindToContribution<CommonFindController>(CommonFindController.get);
+const FindCommand = EditowCommand.bindToContwibution<CommonFindContwowwa>(CommonFindContwowwa.get);
 
-registerEditorCommand(new FindCommand({
-	id: FIND_IDS.CloseFindWidgetCommand,
-	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
-	handler: x => x.closeFindWidget(),
+wegistewEditowCommand(new FindCommand({
+	id: FIND_IDS.CwoseFindWidgetCommand,
+	pwecondition: CONTEXT_FIND_WIDGET_VISIBWE,
+	handwa: x => x.cwoseFindWidget(),
 	kbOpts: {
-		weight: KeybindingWeight.EditorContrib + 5,
-		kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, ContextKeyExpr.not('isComposing')),
-		primary: KeyCode.Escape,
-		secondary: [KeyMod.Shift | KeyCode.Escape]
+		weight: KeybindingWeight.EditowContwib + 5,
+		kbExpw: ContextKeyExpw.and(EditowContextKeys.focus, ContextKeyExpw.not('isComposing')),
+		pwimawy: KeyCode.Escape,
+		secondawy: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));
 
-registerEditorCommand(new FindCommand({
-	id: FIND_IDS.ToggleCaseSensitiveCommand,
-	precondition: undefined,
-	handler: x => x.toggleCaseSensitive(),
+wegistewEditowCommand(new FindCommand({
+	id: FIND_IDS.ToggweCaseSensitiveCommand,
+	pwecondition: undefined,
+	handwa: x => x.toggweCaseSensitive(),
 	kbOpts: {
-		weight: KeybindingWeight.EditorContrib + 5,
-		kbExpr: EditorContextKeys.focus,
-		primary: ToggleCaseSensitiveKeybinding.primary,
-		mac: ToggleCaseSensitiveKeybinding.mac,
-		win: ToggleCaseSensitiveKeybinding.win,
-		linux: ToggleCaseSensitiveKeybinding.linux
+		weight: KeybindingWeight.EditowContwib + 5,
+		kbExpw: EditowContextKeys.focus,
+		pwimawy: ToggweCaseSensitiveKeybinding.pwimawy,
+		mac: ToggweCaseSensitiveKeybinding.mac,
+		win: ToggweCaseSensitiveKeybinding.win,
+		winux: ToggweCaseSensitiveKeybinding.winux
 	}
 }));
 
-registerEditorCommand(new FindCommand({
-	id: FIND_IDS.ToggleWholeWordCommand,
-	precondition: undefined,
-	handler: x => x.toggleWholeWords(),
+wegistewEditowCommand(new FindCommand({
+	id: FIND_IDS.ToggweWhoweWowdCommand,
+	pwecondition: undefined,
+	handwa: x => x.toggweWhoweWowds(),
 	kbOpts: {
-		weight: KeybindingWeight.EditorContrib + 5,
-		kbExpr: EditorContextKeys.focus,
-		primary: ToggleWholeWordKeybinding.primary,
-		mac: ToggleWholeWordKeybinding.mac,
-		win: ToggleWholeWordKeybinding.win,
-		linux: ToggleWholeWordKeybinding.linux
+		weight: KeybindingWeight.EditowContwib + 5,
+		kbExpw: EditowContextKeys.focus,
+		pwimawy: ToggweWhoweWowdKeybinding.pwimawy,
+		mac: ToggweWhoweWowdKeybinding.mac,
+		win: ToggweWhoweWowdKeybinding.win,
+		winux: ToggweWhoweWowdKeybinding.winux
 	}
 }));
 
-registerEditorCommand(new FindCommand({
-	id: FIND_IDS.ToggleRegexCommand,
-	precondition: undefined,
-	handler: x => x.toggleRegex(),
+wegistewEditowCommand(new FindCommand({
+	id: FIND_IDS.ToggweWegexCommand,
+	pwecondition: undefined,
+	handwa: x => x.toggweWegex(),
 	kbOpts: {
-		weight: KeybindingWeight.EditorContrib + 5,
-		kbExpr: EditorContextKeys.focus,
-		primary: ToggleRegexKeybinding.primary,
-		mac: ToggleRegexKeybinding.mac,
-		win: ToggleRegexKeybinding.win,
-		linux: ToggleRegexKeybinding.linux
+		weight: KeybindingWeight.EditowContwib + 5,
+		kbExpw: EditowContextKeys.focus,
+		pwimawy: ToggweWegexKeybinding.pwimawy,
+		mac: ToggweWegexKeybinding.mac,
+		win: ToggweWegexKeybinding.win,
+		winux: ToggweWegexKeybinding.winux
 	}
 }));
 
-registerEditorCommand(new FindCommand({
-	id: FIND_IDS.ToggleSearchScopeCommand,
-	precondition: undefined,
-	handler: x => x.toggleSearchScope(),
+wegistewEditowCommand(new FindCommand({
+	id: FIND_IDS.ToggweSeawchScopeCommand,
+	pwecondition: undefined,
+	handwa: x => x.toggweSeawchScope(),
 	kbOpts: {
-		weight: KeybindingWeight.EditorContrib + 5,
-		kbExpr: EditorContextKeys.focus,
-		primary: ToggleSearchScopeKeybinding.primary,
-		mac: ToggleSearchScopeKeybinding.mac,
-		win: ToggleSearchScopeKeybinding.win,
-		linux: ToggleSearchScopeKeybinding.linux
+		weight: KeybindingWeight.EditowContwib + 5,
+		kbExpw: EditowContextKeys.focus,
+		pwimawy: ToggweSeawchScopeKeybinding.pwimawy,
+		mac: ToggweSeawchScopeKeybinding.mac,
+		win: ToggweSeawchScopeKeybinding.win,
+		winux: ToggweSeawchScopeKeybinding.winux
 	}
 }));
 
-registerEditorCommand(new FindCommand({
-	id: FIND_IDS.TogglePreserveCaseCommand,
-	precondition: undefined,
-	handler: x => x.togglePreserveCase(),
+wegistewEditowCommand(new FindCommand({
+	id: FIND_IDS.ToggwePwesewveCaseCommand,
+	pwecondition: undefined,
+	handwa: x => x.toggwePwesewveCase(),
 	kbOpts: {
-		weight: KeybindingWeight.EditorContrib + 5,
-		kbExpr: EditorContextKeys.focus,
-		primary: TogglePreserveCaseKeybinding.primary,
-		mac: TogglePreserveCaseKeybinding.mac,
-		win: TogglePreserveCaseKeybinding.win,
-		linux: TogglePreserveCaseKeybinding.linux
+		weight: KeybindingWeight.EditowContwib + 5,
+		kbExpw: EditowContextKeys.focus,
+		pwimawy: ToggwePwesewveCaseKeybinding.pwimawy,
+		mac: ToggwePwesewveCaseKeybinding.mac,
+		win: ToggwePwesewveCaseKeybinding.win,
+		winux: ToggwePwesewveCaseKeybinding.winux
 	}
 }));
 
-registerEditorCommand(new FindCommand({
-	id: FIND_IDS.ReplaceOneAction,
-	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
-	handler: x => x.replace(),
+wegistewEditowCommand(new FindCommand({
+	id: FIND_IDS.WepwaceOneAction,
+	pwecondition: CONTEXT_FIND_WIDGET_VISIBWE,
+	handwa: x => x.wepwace(),
 	kbOpts: {
-		weight: KeybindingWeight.EditorContrib + 5,
-		kbExpr: EditorContextKeys.focus,
-		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_1
+		weight: KeybindingWeight.EditowContwib + 5,
+		kbExpw: EditowContextKeys.focus,
+		pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_1
 	}
 }));
 
-registerEditorCommand(new FindCommand({
-	id: FIND_IDS.ReplaceOneAction,
-	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
-	handler: x => x.replace(),
+wegistewEditowCommand(new FindCommand({
+	id: FIND_IDS.WepwaceOneAction,
+	pwecondition: CONTEXT_FIND_WIDGET_VISIBWE,
+	handwa: x => x.wepwace(),
 	kbOpts: {
-		weight: KeybindingWeight.EditorContrib + 5,
-		kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, CONTEXT_REPLACE_INPUT_FOCUSED),
-		primary: KeyCode.Enter
+		weight: KeybindingWeight.EditowContwib + 5,
+		kbExpw: ContextKeyExpw.and(EditowContextKeys.focus, CONTEXT_WEPWACE_INPUT_FOCUSED),
+		pwimawy: KeyCode.Enta
 	}
 }));
 
-registerEditorCommand(new FindCommand({
-	id: FIND_IDS.ReplaceAllAction,
-	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
-	handler: x => x.replaceAll(),
+wegistewEditowCommand(new FindCommand({
+	id: FIND_IDS.WepwaceAwwAction,
+	pwecondition: CONTEXT_FIND_WIDGET_VISIBWE,
+	handwa: x => x.wepwaceAww(),
 	kbOpts: {
-		weight: KeybindingWeight.EditorContrib + 5,
-		kbExpr: EditorContextKeys.focus,
-		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
+		weight: KeybindingWeight.EditowContwib + 5,
+		kbExpw: EditowContextKeys.focus,
+		pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.Enta
 	}
 }));
 
-registerEditorCommand(new FindCommand({
-	id: FIND_IDS.ReplaceAllAction,
-	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
-	handler: x => x.replaceAll(),
+wegistewEditowCommand(new FindCommand({
+	id: FIND_IDS.WepwaceAwwAction,
+	pwecondition: CONTEXT_FIND_WIDGET_VISIBWE,
+	handwa: x => x.wepwaceAww(),
 	kbOpts: {
-		weight: KeybindingWeight.EditorContrib + 5,
-		kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, CONTEXT_REPLACE_INPUT_FOCUSED),
-		primary: undefined,
+		weight: KeybindingWeight.EditowContwib + 5,
+		kbExpw: ContextKeyExpw.and(EditowContextKeys.focus, CONTEXT_WEPWACE_INPUT_FOCUSED),
+		pwimawy: undefined,
 		mac: {
-			primary: KeyMod.CtrlCmd | KeyCode.Enter,
+			pwimawy: KeyMod.CtwwCmd | KeyCode.Enta,
 		}
 	}
 }));
 
-registerEditorCommand(new FindCommand({
-	id: FIND_IDS.SelectAllMatchesAction,
-	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
-	handler: x => x.selectAllMatches(),
+wegistewEditowCommand(new FindCommand({
+	id: FIND_IDS.SewectAwwMatchesAction,
+	pwecondition: CONTEXT_FIND_WIDGET_VISIBWE,
+	handwa: x => x.sewectAwwMatches(),
 	kbOpts: {
-		weight: KeybindingWeight.EditorContrib + 5,
-		kbExpr: EditorContextKeys.focus,
-		primary: KeyMod.Alt | KeyCode.Enter
+		weight: KeybindingWeight.EditowContwib + 5,
+		kbExpw: EditowContextKeys.focus,
+		pwimawy: KeyMod.Awt | KeyCode.Enta
 	}
 }));

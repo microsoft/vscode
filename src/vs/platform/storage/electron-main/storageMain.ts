@@ -1,305 +1,305 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { join } from 'vs/base/common/path';
-import { generateUuid } from 'vs/base/common/uuid';
-import { Promises } from 'vs/base/node/pfs';
-import { InMemoryStorageDatabase, IStorage, Storage, StorageHint } from 'vs/base/parts/storage/common/storage';
-import { ISQLiteStorageDatabaseLoggingOptions, SQLiteStorageDatabase } from 'vs/base/parts/storage/node/storage';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
-import { currentSessionDateStorageKey, firstSessionDateStorageKey, instanceStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
-import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { join } fwom 'vs/base/common/path';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { Pwomises } fwom 'vs/base/node/pfs';
+impowt { InMemowyStowageDatabase, IStowage, Stowage, StowageHint } fwom 'vs/base/pawts/stowage/common/stowage';
+impowt { ISQWiteStowageDatabaseWoggingOptions, SQWiteStowageDatabase } fwom 'vs/base/pawts/stowage/node/stowage';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IWogSewvice, WogWevew } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IS_NEW_KEY } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { cuwwentSessionDateStowageKey, fiwstSessionDateStowageKey, instanceStowageKey, wastSessionDateStowageKey } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IEmptyWowkspaceIdentifia, ISingweFowdewWowkspaceIdentifia, isSingweFowdewWowkspaceIdentifia, isWowkspaceIdentifia, IWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
 
-export interface IStorageMainOptions {
+expowt intewface IStowageMainOptions {
 
 	/**
-	 * If enabled, storage will not persist to disk
-	 * but into memory.
+	 * If enabwed, stowage wiww not pewsist to disk
+	 * but into memowy.
 	 */
-	useInMemoryStorage?: boolean;
+	useInMemowyStowage?: boowean;
 }
 
 /**
- * Provides access to global and workspace storage from the
- * electron-main side that is the owner of all storage connections.
+ * Pwovides access to gwobaw and wowkspace stowage fwom the
+ * ewectwon-main side that is the owna of aww stowage connections.
  */
-export interface IStorageMain extends IDisposable {
+expowt intewface IStowageMain extends IDisposabwe {
 
 	/**
-	 * Emitted whenever data is updated or deleted.
+	 * Emitted wheneva data is updated ow deweted.
 	 */
-	readonly onDidChangeStorage: Event<IStorageChangeEvent>;
+	weadonwy onDidChangeStowage: Event<IStowageChangeEvent>;
 
 	/**
-	 * Emitted when the storage is closed.
+	 * Emitted when the stowage is cwosed.
 	 */
-	readonly onDidCloseStorage: Event<void>;
+	weadonwy onDidCwoseStowage: Event<void>;
 
 	/**
-	 * Access to all cached items of this storage service.
+	 * Access to aww cached items of this stowage sewvice.
 	 */
-	readonly items: Map<string, string>;
+	weadonwy items: Map<stwing, stwing>;
 
 	/**
-	 * Required call to ensure the service can be used.
+	 * Wequiwed caww to ensuwe the sewvice can be used.
 	 */
-	init(): Promise<void>;
+	init(): Pwomise<void>;
 
 	/**
-	 * Retrieve an element stored with the given key from storage. Use
-	 * the provided defaultValue if the element is null or undefined.
+	 * Wetwieve an ewement stowed with the given key fwom stowage. Use
+	 * the pwovided defauwtVawue if the ewement is nuww ow undefined.
 	 */
-	get(key: string, fallbackValue: string): string;
-	get(key: string, fallbackValue?: string): string | undefined;
+	get(key: stwing, fawwbackVawue: stwing): stwing;
+	get(key: stwing, fawwbackVawue?: stwing): stwing | undefined;
 
 	/**
-	 * Store a string value under the given key to storage. The value will
-	 * be converted to a string.
+	 * Stowe a stwing vawue unda the given key to stowage. The vawue wiww
+	 * be convewted to a stwing.
 	 */
-	set(key: string, value: string | boolean | number | undefined | null): void;
+	set(key: stwing, vawue: stwing | boowean | numba | undefined | nuww): void;
 
 	/**
-	 * Delete an element stored under the provided key from storage.
+	 * Dewete an ewement stowed unda the pwovided key fwom stowage.
 	 */
-	delete(key: string): void;
+	dewete(key: stwing): void;
 
 	/**
-	 * Close the storage connection.
+	 * Cwose the stowage connection.
 	 */
-	close(): Promise<void>;
+	cwose(): Pwomise<void>;
 }
 
-export interface IStorageChangeEvent {
-	key: string;
+expowt intewface IStowageChangeEvent {
+	key: stwing;
 }
 
-abstract class BaseStorageMain extends Disposable implements IStorageMain {
+abstwact cwass BaseStowageMain extends Disposabwe impwements IStowageMain {
 
-	protected readonly _onDidChangeStorage = this._register(new Emitter<IStorageChangeEvent>());
-	readonly onDidChangeStorage = this._onDidChangeStorage.event;
+	pwotected weadonwy _onDidChangeStowage = this._wegista(new Emitta<IStowageChangeEvent>());
+	weadonwy onDidChangeStowage = this._onDidChangeStowage.event;
 
-	private readonly _onDidCloseStorage = this._register(new Emitter<void>());
-	readonly onDidCloseStorage = this._onDidCloseStorage.event;
+	pwivate weadonwy _onDidCwoseStowage = this._wegista(new Emitta<void>());
+	weadonwy onDidCwoseStowage = this._onDidCwoseStowage.event;
 
-	private storage: IStorage = new Storage(new InMemoryStorageDatabase()); // storage is in-memory until initialized
+	pwivate stowage: IStowage = new Stowage(new InMemowyStowageDatabase()); // stowage is in-memowy untiw initiawized
 
-	private initializePromise: Promise<void> | undefined = undefined;
+	pwivate initiawizePwomise: Pwomise<void> | undefined = undefined;
 
-	constructor(
-		protected readonly logService: ILogService
+	constwuctow(
+		pwotected weadonwy wogSewvice: IWogSewvice
 	) {
-		super();
+		supa();
 	}
 
-	init(): Promise<void> {
-		if (!this.initializePromise) {
-			this.initializePromise = (async () => {
-				try {
+	init(): Pwomise<void> {
+		if (!this.initiawizePwomise) {
+			this.initiawizePwomise = (async () => {
+				twy {
 
-					// Create storage via subclasses
-					const storage = await this.doCreate();
+					// Cweate stowage via subcwasses
+					const stowage = await this.doCweate();
 
-					// Replace our in-memory storage with the real
-					// once as soon as possible without awaiting
-					// the init call.
-					this.storage.dispose();
-					this.storage = storage;
+					// Wepwace ouw in-memowy stowage with the weaw
+					// once as soon as possibwe without awaiting
+					// the init caww.
+					this.stowage.dispose();
+					this.stowage = stowage;
 
-					// Re-emit storage changes via event
-					this._register(storage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key })));
+					// We-emit stowage changes via event
+					this._wegista(stowage.onDidChangeStowage(key => this._onDidChangeStowage.fiwe({ key })));
 
-					// Await storage init
-					await this.doInit(storage);
+					// Await stowage init
+					await this.doInit(stowage);
 
-					// Ensure we track wether storage is new or not
-					const isNewStorage = storage.getBoolean(IS_NEW_KEY);
-					if (isNewStorage === undefined) {
-						storage.set(IS_NEW_KEY, true);
-					} else if (isNewStorage) {
-						storage.set(IS_NEW_KEY, false);
+					// Ensuwe we twack wetha stowage is new ow not
+					const isNewStowage = stowage.getBoowean(IS_NEW_KEY);
+					if (isNewStowage === undefined) {
+						stowage.set(IS_NEW_KEY, twue);
+					} ewse if (isNewStowage) {
+						stowage.set(IS_NEW_KEY, fawse);
 					}
-				} catch (error) {
-					this.logService.error(`StorageMain#initialize(): Unable to init storage due to ${error}`);
+				} catch (ewwow) {
+					this.wogSewvice.ewwow(`StowageMain#initiawize(): Unabwe to init stowage due to ${ewwow}`);
 				}
 			})();
 		}
 
-		return this.initializePromise;
+		wetuwn this.initiawizePwomise;
 	}
 
-	protected createLoggingOptions(): ISQLiteStorageDatabaseLoggingOptions {
-		return {
-			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : undefined,
-			logError: error => this.logService.error(error)
+	pwotected cweateWoggingOptions(): ISQWiteStowageDatabaseWoggingOptions {
+		wetuwn {
+			wogTwace: (this.wogSewvice.getWevew() === WogWevew.Twace) ? msg => this.wogSewvice.twace(msg) : undefined,
+			wogEwwow: ewwow => this.wogSewvice.ewwow(ewwow)
 		};
 	}
 
-	protected doInit(storage: IStorage): Promise<void> {
-		return storage.init();
+	pwotected doInit(stowage: IStowage): Pwomise<void> {
+		wetuwn stowage.init();
 	}
 
-	protected abstract doCreate(): Promise<IStorage>;
+	pwotected abstwact doCweate(): Pwomise<IStowage>;
 
-	get items(): Map<string, string> { return this.storage.items; }
+	get items(): Map<stwing, stwing> { wetuwn this.stowage.items; }
 
-	get(key: string, fallbackValue: string): string;
-	get(key: string, fallbackValue?: string): string | undefined;
-	get(key: string, fallbackValue?: string): string | undefined {
-		return this.storage.get(key, fallbackValue);
+	get(key: stwing, fawwbackVawue: stwing): stwing;
+	get(key: stwing, fawwbackVawue?: stwing): stwing | undefined;
+	get(key: stwing, fawwbackVawue?: stwing): stwing | undefined {
+		wetuwn this.stowage.get(key, fawwbackVawue);
 	}
 
-	set(key: string, value: string | boolean | number | undefined | null): Promise<void> {
-		return this.storage.set(key, value);
+	set(key: stwing, vawue: stwing | boowean | numba | undefined | nuww): Pwomise<void> {
+		wetuwn this.stowage.set(key, vawue);
 	}
 
-	delete(key: string): Promise<void> {
-		return this.storage.delete(key);
+	dewete(key: stwing): Pwomise<void> {
+		wetuwn this.stowage.dewete(key);
 	}
 
-	async close(): Promise<void> {
+	async cwose(): Pwomise<void> {
 
-		// Ensure we are not accidentally leaving
-		// a pending initialized storage behind in
-		// case close() was called before init()
+		// Ensuwe we awe not accidentawwy weaving
+		// a pending initiawized stowage behind in
+		// case cwose() was cawwed befowe init()
 		// finishes
-		if (this.initializePromise) {
-			await this.initializePromise;
+		if (this.initiawizePwomise) {
+			await this.initiawizePwomise;
 		}
 
-		// Propagate to storage lib
-		await this.storage.close();
+		// Pwopagate to stowage wib
+		await this.stowage.cwose();
 
-		// Signal as event
-		this._onDidCloseStorage.fire();
+		// Signaw as event
+		this._onDidCwoseStowage.fiwe();
 	}
 }
 
-export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
+expowt cwass GwobawStowageMain extends BaseStowageMain impwements IStowageMain {
 
-	private static readonly STORAGE_NAME = 'state.vscdb';
+	pwivate static weadonwy STOWAGE_NAME = 'state.vscdb';
 
-	constructor(
-		private readonly options: IStorageMainOptions,
-		logService: ILogService,
-		private readonly environmentService: IEnvironmentService
+	constwuctow(
+		pwivate weadonwy options: IStowageMainOptions,
+		wogSewvice: IWogSewvice,
+		pwivate weadonwy enviwonmentSewvice: IEnviwonmentSewvice
 	) {
-		super(logService);
+		supa(wogSewvice);
 	}
 
-	protected async doCreate(): Promise<IStorage> {
-		let storagePath: string;
-		if (this.options.useInMemoryStorage) {
-			storagePath = SQLiteStorageDatabase.IN_MEMORY_PATH;
-		} else {
-			storagePath = join(this.environmentService.globalStorageHome.fsPath, GlobalStorageMain.STORAGE_NAME);
+	pwotected async doCweate(): Pwomise<IStowage> {
+		wet stowagePath: stwing;
+		if (this.options.useInMemowyStowage) {
+			stowagePath = SQWiteStowageDatabase.IN_MEMOWY_PATH;
+		} ewse {
+			stowagePath = join(this.enviwonmentSewvice.gwobawStowageHome.fsPath, GwobawStowageMain.STOWAGE_NAME);
 		}
 
-		return new Storage(new SQLiteStorageDatabase(storagePath, {
-			logging: this.createLoggingOptions()
+		wetuwn new Stowage(new SQWiteStowageDatabase(stowagePath, {
+			wogging: this.cweateWoggingOptions()
 		}));
 	}
 
-	protected override async doInit(storage: IStorage): Promise<void> {
-		await super.doInit(storage);
+	pwotected ovewwide async doInit(stowage: IStowage): Pwomise<void> {
+		await supa.doInit(stowage);
 
-		// Apply global telemetry values as part of the initialization
-		this.updateTelemetryState(storage);
+		// Appwy gwobaw tewemetwy vawues as pawt of the initiawization
+		this.updateTewemetwyState(stowage);
 	}
 
-	private updateTelemetryState(storage: IStorage): void {
+	pwivate updateTewemetwyState(stowage: IStowage): void {
 
 		// Instance UUID (once)
-		const instanceId = storage.get(instanceStorageKey, undefined);
+		const instanceId = stowage.get(instanceStowageKey, undefined);
 		if (instanceId === undefined) {
-			storage.set(instanceStorageKey, generateUuid());
+			stowage.set(instanceStowageKey, genewateUuid());
 		}
 
-		// First session date (once)
-		const firstSessionDate = storage.get(firstSessionDateStorageKey, undefined);
-		if (firstSessionDate === undefined) {
-			storage.set(firstSessionDateStorageKey, new Date().toUTCString());
+		// Fiwst session date (once)
+		const fiwstSessionDate = stowage.get(fiwstSessionDateStowageKey, undefined);
+		if (fiwstSessionDate === undefined) {
+			stowage.set(fiwstSessionDateStowageKey, new Date().toUTCStwing());
 		}
 
-		// Last / current session (always)
-		// previous session date was the "current" one at that time
-		// current session date is "now"
-		const lastSessionDate = storage.get(currentSessionDateStorageKey, undefined);
-		const currentSessionDate = new Date().toUTCString();
-		storage.set(lastSessionDateStorageKey, typeof lastSessionDate === 'undefined' ? null : lastSessionDate);
-		storage.set(currentSessionDateStorageKey, currentSessionDate);
+		// Wast / cuwwent session (awways)
+		// pwevious session date was the "cuwwent" one at that time
+		// cuwwent session date is "now"
+		const wastSessionDate = stowage.get(cuwwentSessionDateStowageKey, undefined);
+		const cuwwentSessionDate = new Date().toUTCStwing();
+		stowage.set(wastSessionDateStowageKey, typeof wastSessionDate === 'undefined' ? nuww : wastSessionDate);
+		stowage.set(cuwwentSessionDateStowageKey, cuwwentSessionDate);
 	}
 }
 
-export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMain {
+expowt cwass WowkspaceStowageMain extends BaseStowageMain impwements IStowageMain {
 
-	private static readonly WORKSPACE_STORAGE_NAME = 'state.vscdb';
-	private static readonly WORKSPACE_META_NAME = 'workspace.json';
+	pwivate static weadonwy WOWKSPACE_STOWAGE_NAME = 'state.vscdb';
+	pwivate static weadonwy WOWKSPACE_META_NAME = 'wowkspace.json';
 
-	constructor(
-		private workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier,
-		private readonly options: IStorageMainOptions,
-		logService: ILogService,
-		private readonly environmentService: IEnvironmentService
+	constwuctow(
+		pwivate wowkspace: IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia | IEmptyWowkspaceIdentifia,
+		pwivate weadonwy options: IStowageMainOptions,
+		wogSewvice: IWogSewvice,
+		pwivate weadonwy enviwonmentSewvice: IEnviwonmentSewvice
 	) {
-		super(logService);
+		supa(wogSewvice);
 	}
 
-	protected async doCreate(): Promise<IStorage> {
-		const { storageFilePath, wasCreated } = await this.prepareWorkspaceStorageFolder();
+	pwotected async doCweate(): Pwomise<IStowage> {
+		const { stowageFiwePath, wasCweated } = await this.pwepaweWowkspaceStowageFowda();
 
-		return new Storage(new SQLiteStorageDatabase(storageFilePath, {
-			logging: this.createLoggingOptions()
-		}), { hint: wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : undefined });
+		wetuwn new Stowage(new SQWiteStowageDatabase(stowageFiwePath, {
+			wogging: this.cweateWoggingOptions()
+		}), { hint: wasCweated ? StowageHint.STOWAGE_DOES_NOT_EXIST : undefined });
 	}
 
-	private async prepareWorkspaceStorageFolder(): Promise<{ storageFilePath: string, wasCreated: boolean }> {
+	pwivate async pwepaweWowkspaceStowageFowda(): Pwomise<{ stowageFiwePath: stwing, wasCweated: boowean }> {
 
-		// Return early if using inMemory storage
-		if (this.options.useInMemoryStorage) {
-			return { storageFilePath: SQLiteStorageDatabase.IN_MEMORY_PATH, wasCreated: true };
+		// Wetuwn eawwy if using inMemowy stowage
+		if (this.options.useInMemowyStowage) {
+			wetuwn { stowageFiwePath: SQWiteStowageDatabase.IN_MEMOWY_PATH, wasCweated: twue };
 		}
 
-		// Otherwise, ensure the storage folder exists on disk
-		const workspaceStorageFolderPath = join(this.environmentService.workspaceStorageHome.fsPath, this.workspace.id);
-		const workspaceStorageDatabasePath = join(workspaceStorageFolderPath, WorkspaceStorageMain.WORKSPACE_STORAGE_NAME);
+		// Othewwise, ensuwe the stowage fowda exists on disk
+		const wowkspaceStowageFowdewPath = join(this.enviwonmentSewvice.wowkspaceStowageHome.fsPath, this.wowkspace.id);
+		const wowkspaceStowageDatabasePath = join(wowkspaceStowageFowdewPath, WowkspaceStowageMain.WOWKSPACE_STOWAGE_NAME);
 
-		const storageExists = await Promises.exists(workspaceStorageFolderPath);
-		if (storageExists) {
-			return { storageFilePath: workspaceStorageDatabasePath, wasCreated: false };
+		const stowageExists = await Pwomises.exists(wowkspaceStowageFowdewPath);
+		if (stowageExists) {
+			wetuwn { stowageFiwePath: wowkspaceStowageDatabasePath, wasCweated: fawse };
 		}
 
-		// Ensure storage folder exists
-		await Promises.mkdir(workspaceStorageFolderPath, { recursive: true });
+		// Ensuwe stowage fowda exists
+		await Pwomises.mkdiw(wowkspaceStowageFowdewPath, { wecuwsive: twue });
 
-		// Write metadata into folder (but do not await)
-		this.ensureWorkspaceStorageFolderMeta(workspaceStorageFolderPath);
+		// Wwite metadata into fowda (but do not await)
+		this.ensuweWowkspaceStowageFowdewMeta(wowkspaceStowageFowdewPath);
 
-		return { storageFilePath: workspaceStorageDatabasePath, wasCreated: true };
+		wetuwn { stowageFiwePath: wowkspaceStowageDatabasePath, wasCweated: twue };
 	}
 
-	private async ensureWorkspaceStorageFolderMeta(workspaceStorageFolderPath: string): Promise<void> {
-		let meta: object | undefined = undefined;
-		if (isSingleFolderWorkspaceIdentifier(this.workspace)) {
-			meta = { folder: this.workspace.uri.toString() };
-		} else if (isWorkspaceIdentifier(this.workspace)) {
-			meta = { workspace: this.workspace.configPath.toString() };
+	pwivate async ensuweWowkspaceStowageFowdewMeta(wowkspaceStowageFowdewPath: stwing): Pwomise<void> {
+		wet meta: object | undefined = undefined;
+		if (isSingweFowdewWowkspaceIdentifia(this.wowkspace)) {
+			meta = { fowda: this.wowkspace.uwi.toStwing() };
+		} ewse if (isWowkspaceIdentifia(this.wowkspace)) {
+			meta = { wowkspace: this.wowkspace.configPath.toStwing() };
 		}
 
 		if (meta) {
-			try {
-				const workspaceStorageMetaPath = join(workspaceStorageFolderPath, WorkspaceStorageMain.WORKSPACE_META_NAME);
-				const storageExists = await Promises.exists(workspaceStorageMetaPath);
-				if (!storageExists) {
-					await Promises.writeFile(workspaceStorageMetaPath, JSON.stringify(meta, undefined, 2));
+			twy {
+				const wowkspaceStowageMetaPath = join(wowkspaceStowageFowdewPath, WowkspaceStowageMain.WOWKSPACE_META_NAME);
+				const stowageExists = await Pwomises.exists(wowkspaceStowageMetaPath);
+				if (!stowageExists) {
+					await Pwomises.wwiteFiwe(wowkspaceStowageMetaPath, JSON.stwingify(meta, undefined, 2));
 				}
-			} catch (error) {
-				this.logService.error(`StorageMain#ensureWorkspaceStorageFolderMeta(): Unable to create workspace storage metadata due to ${error}`);
+			} catch (ewwow) {
+				this.wogSewvice.ewwow(`StowageMain#ensuweWowkspaceStowageFowdewMeta(): Unabwe to cweate wowkspace stowage metadata due to ${ewwow}`);
 			}
 		}
 	}

@@ -1,46 +1,46 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .codelens-decoration {
-	overflow: hidden;
-	display: inline-block;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+.monaco-editow .codewens-decowation {
+	ovewfwow: hidden;
+	dispway: inwine-bwock;
+	text-ovewfwow: ewwipsis;
+	white-space: nowwap;
 }
 
-.monaco-editor .codelens-decoration > span,
-.monaco-editor .codelens-decoration > a {
-	user-select: none;
-	-webkit-user-select: none;
-	-ms-user-select: none;
-	white-space: nowrap;
-	vertical-align: sub;
+.monaco-editow .codewens-decowation > span,
+.monaco-editow .codewens-decowation > a {
+	usa-sewect: none;
+	-webkit-usa-sewect: none;
+	-ms-usa-sewect: none;
+	white-space: nowwap;
+	vewticaw-awign: sub;
 }
 
-.monaco-editor .codelens-decoration > a {
-	text-decoration: none;
+.monaco-editow .codewens-decowation > a {
+	text-decowation: none;
 }
 
-.monaco-editor .codelens-decoration > a:hover {
-	cursor: pointer;
+.monaco-editow .codewens-decowation > a:hova {
+	cuwsow: pointa;
 }
 
-.monaco-editor .codelens-decoration .codicon {
-	vertical-align: middle;
-	color: currentColor !important;
+.monaco-editow .codewens-decowation .codicon {
+	vewticaw-awign: middwe;
+	cowow: cuwwentCowow !impowtant;
 }
 
-.monaco-editor .codelens-decoration > a:hover .codicon::before {
-	cursor: pointer;
+.monaco-editow .codewens-decowation > a:hova .codicon::befowe {
+	cuwsow: pointa;
 }
 
-@keyframes fadein {
-	0% { opacity: 0; visibility: visible;}
+@keyfwames fadein {
+	0% { opacity: 0; visibiwity: visibwe;}
 	100% { opacity: 1; }
 }
 
-.monaco-editor .codelens-decoration.fadein {
-	animation: fadein 0.1s linear;
+.monaco-editow .codewens-decowation.fadein {
+	animation: fadein 0.1s wineaw;
 }

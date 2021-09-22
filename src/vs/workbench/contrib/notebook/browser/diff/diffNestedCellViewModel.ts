@@ -1,132 +1,132 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { generateUuid } from 'vs/base/common/uuid';
-import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { IDiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
-import { CellViewModelStateChangeEvent, ICellOutputViewModel, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/cellOutputViewModel';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { PwefixSumComputa } fwom 'vs/editow/common/viewModew/pwefixSumComputa';
+impowt { IDiffNestedCewwViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/diff/notebookDiffEditowBwowsa';
+impowt { CewwViewModewStateChangeEvent, ICewwOutputViewModew, IGenewicCewwViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { CewwOutputViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/cewwOutputViewModew';
+impowt { NotebookCewwTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookCewwTextModew';
+impowt { INotebookSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookSewvice';
 
-export class DiffNestedCellViewModel extends Disposable implements IDiffNestedCellViewModel, IGenericCellViewModel {
-	private _id: string;
+expowt cwass DiffNestedCewwViewModew extends Disposabwe impwements IDiffNestedCewwViewModew, IGenewicCewwViewModew {
+	pwivate _id: stwing;
 	get id() {
-		return this._id;
+		wetuwn this._id;
 	}
 
 	get outputs() {
-		return this.textModel.outputs;
+		wetuwn this.textModew.outputs;
 	}
 
-	get language() {
-		return this.textModel.language;
+	get wanguage() {
+		wetuwn this.textModew.wanguage;
 	}
 
 	get metadata() {
-		return this.textModel.metadata;
+		wetuwn this.textModew.metadata;
 	}
 
-	get uri() {
-		return this.textModel.uri;
+	get uwi() {
+		wetuwn this.textModew.uwi;
 	}
 
-	get handle() {
-		return this.textModel.handle;
+	get handwe() {
+		wetuwn this.textModew.handwe;
 	}
 
-	protected readonly _onDidChangeState: Emitter<CellViewModelStateChangeEvent> = this._register(new Emitter<CellViewModelStateChangeEvent>());
+	pwotected weadonwy _onDidChangeState: Emitta<CewwViewModewStateChangeEvent> = this._wegista(new Emitta<CewwViewModewStateChangeEvent>());
 
-	private _hoveringOutput: boolean = false;
-	public get outputIsHovered(): boolean {
-		return this._hoveringOutput;
+	pwivate _hovewingOutput: boowean = fawse;
+	pubwic get outputIsHovewed(): boowean {
+		wetuwn this._hovewingOutput;
 	}
 
-	public set outputIsHovered(v: boolean) {
-		this._hoveringOutput = v;
-		this._onDidChangeState.fire({ outputIsHoveredChanged: true });
+	pubwic set outputIsHovewed(v: boowean) {
+		this._hovewingOutput = v;
+		this._onDidChangeState.fiwe({ outputIsHovewedChanged: twue });
 	}
 
-	private _focusOnOutput: boolean = false;
-	public get outputIsFocused(): boolean {
-		return this._focusOnOutput;
+	pwivate _focusOnOutput: boowean = fawse;
+	pubwic get outputIsFocused(): boowean {
+		wetuwn this._focusOnOutput;
 	}
 
-	public set outputIsFocused(v: boolean) {
+	pubwic set outputIsFocused(v: boowean) {
 		this._focusOnOutput = v;
-		this._onDidChangeState.fire({ outputIsFocusedChanged: true });
+		this._onDidChangeState.fiwe({ outputIsFocusedChanged: twue });
 	}
 
-	private _outputViewModels: ICellOutputViewModel[];
+	pwivate _outputViewModews: ICewwOutputViewModew[];
 
-	get outputsViewModels() {
-		return this._outputViewModels;
+	get outputsViewModews() {
+		wetuwn this._outputViewModews;
 	}
 
-	protected _outputCollection: number[] = [];
-	protected _outputsTop: PrefixSumComputer | null = null;
+	pwotected _outputCowwection: numba[] = [];
+	pwotected _outputsTop: PwefixSumComputa | nuww = nuww;
 
-	protected readonly _onDidChangeOutputLayout = this._register(new Emitter<void>());
-	readonly onDidChangeOutputLayout = this._onDidChangeOutputLayout.event;
+	pwotected weadonwy _onDidChangeOutputWayout = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeOutputWayout = this._onDidChangeOutputWayout.event;
 
-	constructor(
-		readonly textModel: NotebookCellTextModel,
-		@INotebookService private _notebookService: INotebookService
+	constwuctow(
+		weadonwy textModew: NotebookCewwTextModew,
+		@INotebookSewvice pwivate _notebookSewvice: INotebookSewvice
 	) {
-		super();
-		this._id = generateUuid();
+		supa();
+		this._id = genewateUuid();
 
-		this._outputViewModels = this.textModel.outputs.map(output => new CellOutputViewModel(this, output, this._notebookService));
-		this._register(this.textModel.onDidChangeOutputs((splice) => {
-			this._outputCollection.splice(splice.start, splice.deleteCount, ...splice.newOutputs.map(() => 0));
-			this._outputViewModels.splice(splice.start, splice.deleteCount, ...splice.newOutputs.map(output => new CellOutputViewModel(this, output, this._notebookService)));
+		this._outputViewModews = this.textModew.outputs.map(output => new CewwOutputViewModew(this, output, this._notebookSewvice));
+		this._wegista(this.textModew.onDidChangeOutputs((spwice) => {
+			this._outputCowwection.spwice(spwice.stawt, spwice.deweteCount, ...spwice.newOutputs.map(() => 0));
+			this._outputViewModews.spwice(spwice.stawt, spwice.deweteCount, ...spwice.newOutputs.map(output => new CewwOutputViewModew(this, output, this._notebookSewvice)));
 
-			this._outputsTop = null;
-			this._onDidChangeOutputLayout.fire();
+			this._outputsTop = nuww;
+			this._onDidChangeOutputWayout.fiwe();
 		}));
-		this._outputCollection = new Array(this.textModel.outputs.length);
+		this._outputCowwection = new Awway(this.textModew.outputs.wength);
 	}
 
-	private _ensureOutputsTop() {
+	pwivate _ensuweOutputsTop() {
 		if (!this._outputsTop) {
-			const values = new Uint32Array(this._outputCollection.length);
-			for (let i = 0; i < this._outputCollection.length; i++) {
-				values[i] = this._outputCollection[i];
+			const vawues = new Uint32Awway(this._outputCowwection.wength);
+			fow (wet i = 0; i < this._outputCowwection.wength; i++) {
+				vawues[i] = this._outputCowwection[i];
 			}
 
-			this._outputsTop = new PrefixSumComputer(values);
+			this._outputsTop = new PwefixSumComputa(vawues);
 		}
 	}
 
-	getOutputOffset(index: number): number {
-		this._ensureOutputsTop();
+	getOutputOffset(index: numba): numba {
+		this._ensuweOutputsTop();
 
-		if (index >= this._outputCollection.length) {
-			throw new Error('Output index out of range!');
+		if (index >= this._outputCowwection.wength) {
+			thwow new Ewwow('Output index out of wange!');
 		}
 
-		return this._outputsTop!.getPrefixSum(index - 1);
+		wetuwn this._outputsTop!.getPwefixSum(index - 1);
 	}
 
-	updateOutputHeight(index: number, height: number): void {
-		if (index >= this._outputCollection.length) {
-			throw new Error('Output index out of range!');
+	updateOutputHeight(index: numba, height: numba): void {
+		if (index >= this._outputCowwection.wength) {
+			thwow new Ewwow('Output index out of wange!');
 		}
 
-		this._ensureOutputsTop();
-		this._outputCollection[index] = height;
-		if (this._outputsTop!.changeValue(index, height)) {
-			this._onDidChangeOutputLayout.fire();
+		this._ensuweOutputsTop();
+		this._outputCowwection[index] = height;
+		if (this._outputsTop!.changeVawue(index, height)) {
+			this._onDidChangeOutputWayout.fiwe();
 		}
 	}
 
-	getOutputTotalHeight() {
-		this._ensureOutputsTop();
+	getOutputTotawHeight() {
+		this._ensuweOutputsTop();
 
-		return this._outputsTop?.getTotalSum() ?? 0;
+		wetuwn this._outputsTop?.getTotawSum() ?? 0;
 	}
 }

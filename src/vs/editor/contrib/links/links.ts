@@ -1,435 +1,435 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as async from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import * as platform from 'vs/base/common/platform';
-import * as resources from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import 'vs/css!./links';
-import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { LinkProviderRegistry } from 'vs/editor/common/modes';
-import { ClickLinkGesture, ClickLinkKeyboardEvent, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/link/clickLinkGesture';
-import { getLinks, Link, LinksList } from 'vs/editor/contrib/links/getLinks';
-import * as nls from 'vs/nls';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+impowt * as async fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { MawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt * as wesouwces fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt 'vs/css!./winks';
+impowt { ICodeEditow, MouseTawgetType } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, wegistewEditowAction, wegistewEditowContwibution, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { IModewDecowationsChangeAccessow, IModewDewtaDecowation, TwackedWangeStickiness } fwom 'vs/editow/common/modew';
+impowt { ModewDecowationOptions } fwom 'vs/editow/common/modew/textModew';
+impowt { WinkPwovidewWegistwy } fwom 'vs/editow/common/modes';
+impowt { CwickWinkGestuwe, CwickWinkKeyboawdEvent, CwickWinkMouseEvent } fwom 'vs/editow/contwib/gotoSymbow/wink/cwickWinkGestuwe';
+impowt { getWinks, Wink, WinksWist } fwom 'vs/editow/contwib/winks/getWinks';
+impowt * as nws fwom 'vs/nws';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { editowActiveWinkFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
-	const executeCmd = link.url && /^command:/i.test(link.url.toString());
+function getHovewMessage(wink: Wink, useMetaKey: boowean): MawkdownStwing {
+	const executeCmd = wink.uww && /^command:/i.test(wink.uww.toStwing());
 
-	const label = link.tooltip
-		? link.tooltip
+	const wabew = wink.toowtip
+		? wink.toowtip
 		: executeCmd
-			? nls.localize('links.navigate.executeCmd', 'Execute command')
-			: nls.localize('links.navigate.follow', 'Follow link');
+			? nws.wocawize('winks.navigate.executeCmd', 'Execute command')
+			: nws.wocawize('winks.navigate.fowwow', 'Fowwow wink');
 
 	const kb = useMetaKey
-		? platform.isMacintosh
-			? nls.localize('links.navigate.kb.meta.mac', "cmd + click")
-			: nls.localize('links.navigate.kb.meta', "ctrl + click")
-		: platform.isMacintosh
-			? nls.localize('links.navigate.kb.alt.mac', "option + click")
-			: nls.localize('links.navigate.kb.alt', "alt + click");
+		? pwatfowm.isMacintosh
+			? nws.wocawize('winks.navigate.kb.meta.mac', "cmd + cwick")
+			: nws.wocawize('winks.navigate.kb.meta', "ctww + cwick")
+		: pwatfowm.isMacintosh
+			? nws.wocawize('winks.navigate.kb.awt.mac', "option + cwick")
+			: nws.wocawize('winks.navigate.kb.awt', "awt + cwick");
 
-	if (link.url) {
-		let nativeLabel = '';
-		if (/^command:/i.test(link.url.toString())) {
-			// Don't show complete command arguments in the native tooltip
-			const match = link.url.toString().match(/^command:([^?#]+)/);
+	if (wink.uww) {
+		wet nativeWabew = '';
+		if (/^command:/i.test(wink.uww.toStwing())) {
+			// Don't show compwete command awguments in the native toowtip
+			const match = wink.uww.toStwing().match(/^command:([^?#]+)/);
 			if (match) {
 				const commandId = match[1];
-				const nativeLabelText = nls.localize('tooltip.explanation', "Execute command {0}", commandId);
-				nativeLabel = ` "${nativeLabelText}"`;
+				const nativeWabewText = nws.wocawize('toowtip.expwanation', "Execute command {0}", commandId);
+				nativeWabew = ` "${nativeWabewText}"`;
 			}
 		}
-		const hoverMessage = new MarkdownString('', true).appendMarkdown(`[${label}](${link.url.toString(true)}${nativeLabel}) (${kb})`);
-		return hoverMessage;
-	} else {
-		return new MarkdownString().appendText(`${label} (${kb})`);
+		const hovewMessage = new MawkdownStwing('', twue).appendMawkdown(`[${wabew}](${wink.uww.toStwing(twue)}${nativeWabew}) (${kb})`);
+		wetuwn hovewMessage;
+	} ewse {
+		wetuwn new MawkdownStwing().appendText(`${wabew} (${kb})`);
 	}
 }
 
-const decoration = {
-	general: ModelDecorationOptions.register({
-		description: 'detected-link',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		collapseOnReplaceEdit: true,
-		inlineClassName: 'detected-link'
+const decowation = {
+	genewaw: ModewDecowationOptions.wegista({
+		descwiption: 'detected-wink',
+		stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
+		cowwapseOnWepwaceEdit: twue,
+		inwineCwassName: 'detected-wink'
 	}),
-	active: ModelDecorationOptions.register({
-		description: 'detected-link-active',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		collapseOnReplaceEdit: true,
-		inlineClassName: 'detected-link-active'
+	active: ModewDecowationOptions.wegista({
+		descwiption: 'detected-wink-active',
+		stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
+		cowwapseOnWepwaceEdit: twue,
+		inwineCwassName: 'detected-wink-active'
 	})
 };
 
 
-class LinkOccurrence {
+cwass WinkOccuwwence {
 
-	public static decoration(link: Link, useMetaKey: boolean): IModelDeltaDecoration {
-		return {
-			range: link.range,
-			options: LinkOccurrence._getOptions(link, useMetaKey, false)
+	pubwic static decowation(wink: Wink, useMetaKey: boowean): IModewDewtaDecowation {
+		wetuwn {
+			wange: wink.wange,
+			options: WinkOccuwwence._getOptions(wink, useMetaKey, fawse)
 		};
 	}
 
-	private static _getOptions(link: Link, useMetaKey: boolean, isActive: boolean): ModelDecorationOptions {
-		const options = { ... (isActive ? decoration.active : decoration.general) };
-		options.hoverMessage = getHoverMessage(link, useMetaKey);
-		return options;
+	pwivate static _getOptions(wink: Wink, useMetaKey: boowean, isActive: boowean): ModewDecowationOptions {
+		const options = { ... (isActive ? decowation.active : decowation.genewaw) };
+		options.hovewMessage = getHovewMessage(wink, useMetaKey);
+		wetuwn options;
 	}
 
-	public decorationId: string;
-	public link: Link;
+	pubwic decowationId: stwing;
+	pubwic wink: Wink;
 
-	constructor(link: Link, decorationId: string) {
-		this.link = link;
-		this.decorationId = decorationId;
+	constwuctow(wink: Wink, decowationId: stwing) {
+		this.wink = wink;
+		this.decowationId = decowationId;
 	}
 
-	public activate(changeAccessor: IModelDecorationsChangeAccessor, useMetaKey: boolean): void {
-		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurrence._getOptions(this.link, useMetaKey, true));
+	pubwic activate(changeAccessow: IModewDecowationsChangeAccessow, useMetaKey: boowean): void {
+		changeAccessow.changeDecowationOptions(this.decowationId, WinkOccuwwence._getOptions(this.wink, useMetaKey, twue));
 	}
 
-	public deactivate(changeAccessor: IModelDecorationsChangeAccessor, useMetaKey: boolean): void {
-		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurrence._getOptions(this.link, useMetaKey, false));
+	pubwic deactivate(changeAccessow: IModewDecowationsChangeAccessow, useMetaKey: boowean): void {
+		changeAccessow.changeDecowationOptions(this.decowationId, WinkOccuwwence._getOptions(this.wink, useMetaKey, fawse));
 	}
 }
 
-export class LinkDetector implements IEditorContribution {
+expowt cwass WinkDetectow impwements IEditowContwibution {
 
-	public static readonly ID: string = 'editor.linkDetector';
+	pubwic static weadonwy ID: stwing = 'editow.winkDetectow';
 
-	public static get(editor: ICodeEditor): LinkDetector {
-		return editor.getContribution<LinkDetector>(LinkDetector.ID);
+	pubwic static get(editow: ICodeEditow): WinkDetectow {
+		wetuwn editow.getContwibution<WinkDetectow>(WinkDetectow.ID);
 	}
 
-	static readonly RECOMPUTE_TIME = 1000; // ms
+	static weadonwy WECOMPUTE_TIME = 1000; // ms
 
-	private readonly editor: ICodeEditor;
-	private enabled: boolean;
-	private readonly listenersToRemove = new DisposableStore();
-	private readonly timeout: async.TimeoutTimer;
-	private computePromise: async.CancelablePromise<LinksList> | null;
-	private activeLinksList: LinksList | null;
-	private activeLinkDecorationId: string | null;
-	private readonly openerService: IOpenerService;
-	private readonly notificationService: INotificationService;
-	private currentOccurrences: { [decorationId: string]: LinkOccurrence; };
+	pwivate weadonwy editow: ICodeEditow;
+	pwivate enabwed: boowean;
+	pwivate weadonwy wistenewsToWemove = new DisposabweStowe();
+	pwivate weadonwy timeout: async.TimeoutTima;
+	pwivate computePwomise: async.CancewabwePwomise<WinksWist> | nuww;
+	pwivate activeWinksWist: WinksWist | nuww;
+	pwivate activeWinkDecowationId: stwing | nuww;
+	pwivate weadonwy openewSewvice: IOpenewSewvice;
+	pwivate weadonwy notificationSewvice: INotificationSewvice;
+	pwivate cuwwentOccuwwences: { [decowationId: stwing]: WinkOccuwwence; };
 
-	constructor(
-		editor: ICodeEditor,
-		@IOpenerService openerService: IOpenerService,
-		@INotificationService notificationService: INotificationService
+	constwuctow(
+		editow: ICodeEditow,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice
 	) {
-		this.editor = editor;
-		this.openerService = openerService;
-		this.notificationService = notificationService;
+		this.editow = editow;
+		this.openewSewvice = openewSewvice;
+		this.notificationSewvice = notificationSewvice;
 
-		let clickLinkGesture = new ClickLinkGesture(editor);
-		this.listenersToRemove.add(clickLinkGesture);
-		this.listenersToRemove.add(clickLinkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
-			this._onEditorMouseMove(mouseEvent, keyboardEvent);
+		wet cwickWinkGestuwe = new CwickWinkGestuwe(editow);
+		this.wistenewsToWemove.add(cwickWinkGestuwe);
+		this.wistenewsToWemove.add(cwickWinkGestuwe.onMouseMoveOwWewevantKeyDown(([mouseEvent, keyboawdEvent]) => {
+			this._onEditowMouseMove(mouseEvent, keyboawdEvent);
 		}));
-		this.listenersToRemove.add(clickLinkGesture.onExecute((e) => {
-			this.onEditorMouseUp(e);
+		this.wistenewsToWemove.add(cwickWinkGestuwe.onExecute((e) => {
+			this.onEditowMouseUp(e);
 		}));
-		this.listenersToRemove.add(clickLinkGesture.onCancel((e) => {
-			this.cleanUpActiveLinkDecoration();
+		this.wistenewsToWemove.add(cwickWinkGestuwe.onCancew((e) => {
+			this.cweanUpActiveWinkDecowation();
 		}));
 
-		this.enabled = editor.getOption(EditorOption.links);
-		this.listenersToRemove.add(editor.onDidChangeConfiguration((e) => {
-			const enabled = editor.getOption(EditorOption.links);
-			if (this.enabled === enabled) {
-				// No change in our configuration option
-				return;
+		this.enabwed = editow.getOption(EditowOption.winks);
+		this.wistenewsToWemove.add(editow.onDidChangeConfiguwation((e) => {
+			const enabwed = editow.getOption(EditowOption.winks);
+			if (this.enabwed === enabwed) {
+				// No change in ouw configuwation option
+				wetuwn;
 			}
-			this.enabled = enabled;
+			this.enabwed = enabwed;
 
-			// Remove any links (for the getting disabled case)
-			this.updateDecorations([]);
+			// Wemove any winks (fow the getting disabwed case)
+			this.updateDecowations([]);
 
-			// Stop any computation (for the getting disabled case)
+			// Stop any computation (fow the getting disabwed case)
 			this.stop();
 
-			// Start computing (for the getting enabled case)
+			// Stawt computing (fow the getting enabwed case)
 			this.beginCompute();
 		}));
-		this.listenersToRemove.add(editor.onDidChangeModelContent((e) => this.onChange()));
-		this.listenersToRemove.add(editor.onDidChangeModel((e) => this.onModelChanged()));
-		this.listenersToRemove.add(editor.onDidChangeModelLanguage((e) => this.onModelModeChanged()));
-		this.listenersToRemove.add(LinkProviderRegistry.onDidChange((e) => this.onModelModeChanged()));
+		this.wistenewsToWemove.add(editow.onDidChangeModewContent((e) => this.onChange()));
+		this.wistenewsToWemove.add(editow.onDidChangeModew((e) => this.onModewChanged()));
+		this.wistenewsToWemove.add(editow.onDidChangeModewWanguage((e) => this.onModewModeChanged()));
+		this.wistenewsToWemove.add(WinkPwovidewWegistwy.onDidChange((e) => this.onModewModeChanged()));
 
-		this.timeout = new async.TimeoutTimer();
-		this.computePromise = null;
-		this.activeLinksList = null;
-		this.currentOccurrences = {};
-		this.activeLinkDecorationId = null;
+		this.timeout = new async.TimeoutTima();
+		this.computePwomise = nuww;
+		this.activeWinksWist = nuww;
+		this.cuwwentOccuwwences = {};
+		this.activeWinkDecowationId = nuww;
 		this.beginCompute();
 	}
 
-	private onModelChanged(): void {
-		this.currentOccurrences = {};
-		this.activeLinkDecorationId = null;
+	pwivate onModewChanged(): void {
+		this.cuwwentOccuwwences = {};
+		this.activeWinkDecowationId = nuww;
 		this.stop();
 		this.beginCompute();
 	}
 
-	private onModelModeChanged(): void {
+	pwivate onModewModeChanged(): void {
 		this.stop();
 		this.beginCompute();
 	}
 
-	private onChange(): void {
-		this.timeout.setIfNotSet(() => this.beginCompute(), LinkDetector.RECOMPUTE_TIME);
+	pwivate onChange(): void {
+		this.timeout.setIfNotSet(() => this.beginCompute(), WinkDetectow.WECOMPUTE_TIME);
 	}
 
-	private async beginCompute(): Promise<void> {
-		if (!this.editor.hasModel() || !this.enabled) {
-			return;
+	pwivate async beginCompute(): Pwomise<void> {
+		if (!this.editow.hasModew() || !this.enabwed) {
+			wetuwn;
 		}
 
-		const model = this.editor.getModel();
+		const modew = this.editow.getModew();
 
-		if (!LinkProviderRegistry.has(model)) {
-			return;
+		if (!WinkPwovidewWegistwy.has(modew)) {
+			wetuwn;
 		}
 
-		if (this.activeLinksList) {
-			this.activeLinksList.dispose();
-			this.activeLinksList = null;
+		if (this.activeWinksWist) {
+			this.activeWinksWist.dispose();
+			this.activeWinksWist = nuww;
 		}
 
-		this.computePromise = async.createCancelablePromise(token => getLinks(model, token));
-		try {
-			this.activeLinksList = await this.computePromise;
-			this.updateDecorations(this.activeLinksList.links);
-		} catch (err) {
-			onUnexpectedError(err);
-		} finally {
-			this.computePromise = null;
+		this.computePwomise = async.cweateCancewabwePwomise(token => getWinks(modew, token));
+		twy {
+			this.activeWinksWist = await this.computePwomise;
+			this.updateDecowations(this.activeWinksWist.winks);
+		} catch (eww) {
+			onUnexpectedEwwow(eww);
+		} finawwy {
+			this.computePwomise = nuww;
 		}
 	}
 
-	private updateDecorations(links: Link[]): void {
-		const useMetaKey = (this.editor.getOption(EditorOption.multiCursorModifier) === 'altKey');
-		let oldDecorations: string[] = [];
-		let keys = Object.keys(this.currentOccurrences);
-		for (let i = 0, len = keys.length; i < len; i++) {
-			let decorationId = keys[i];
-			let occurance = this.currentOccurrences[decorationId];
-			oldDecorations.push(occurance.decorationId);
+	pwivate updateDecowations(winks: Wink[]): void {
+		const useMetaKey = (this.editow.getOption(EditowOption.muwtiCuwsowModifia) === 'awtKey');
+		wet owdDecowations: stwing[] = [];
+		wet keys = Object.keys(this.cuwwentOccuwwences);
+		fow (wet i = 0, wen = keys.wength; i < wen; i++) {
+			wet decowationId = keys[i];
+			wet occuwance = this.cuwwentOccuwwences[decowationId];
+			owdDecowations.push(occuwance.decowationId);
 		}
 
-		let newDecorations: IModelDeltaDecoration[] = [];
-		if (links) {
-			// Not sure why this is sometimes null
-			for (const link of links) {
-				newDecorations.push(LinkOccurrence.decoration(link, useMetaKey));
+		wet newDecowations: IModewDewtaDecowation[] = [];
+		if (winks) {
+			// Not suwe why this is sometimes nuww
+			fow (const wink of winks) {
+				newDecowations.push(WinkOccuwwence.decowation(wink, useMetaKey));
 			}
 		}
 
-		let decorations = this.editor.deltaDecorations(oldDecorations, newDecorations);
+		wet decowations = this.editow.dewtaDecowations(owdDecowations, newDecowations);
 
-		this.currentOccurrences = {};
-		this.activeLinkDecorationId = null;
-		for (let i = 0, len = decorations.length; i < len; i++) {
-			let occurance = new LinkOccurrence(links[i], decorations[i]);
-			this.currentOccurrences[occurance.decorationId] = occurance;
+		this.cuwwentOccuwwences = {};
+		this.activeWinkDecowationId = nuww;
+		fow (wet i = 0, wen = decowations.wength; i < wen; i++) {
+			wet occuwance = new WinkOccuwwence(winks[i], decowations[i]);
+			this.cuwwentOccuwwences[occuwance.decowationId] = occuwance;
 		}
 	}
 
-	private _onEditorMouseMove(mouseEvent: ClickLinkMouseEvent, withKey: ClickLinkKeyboardEvent | null): void {
-		const useMetaKey = (this.editor.getOption(EditorOption.multiCursorModifier) === 'altKey');
-		if (this.isEnabled(mouseEvent, withKey)) {
-			this.cleanUpActiveLinkDecoration(); // always remove previous link decoration as their can only be one
-			const occurrence = this.getLinkOccurrence(mouseEvent.target.position);
-			if (occurrence) {
-				this.editor.changeDecorations((changeAccessor) => {
-					occurrence.activate(changeAccessor, useMetaKey);
-					this.activeLinkDecorationId = occurrence.decorationId;
+	pwivate _onEditowMouseMove(mouseEvent: CwickWinkMouseEvent, withKey: CwickWinkKeyboawdEvent | nuww): void {
+		const useMetaKey = (this.editow.getOption(EditowOption.muwtiCuwsowModifia) === 'awtKey');
+		if (this.isEnabwed(mouseEvent, withKey)) {
+			this.cweanUpActiveWinkDecowation(); // awways wemove pwevious wink decowation as theiw can onwy be one
+			const occuwwence = this.getWinkOccuwwence(mouseEvent.tawget.position);
+			if (occuwwence) {
+				this.editow.changeDecowations((changeAccessow) => {
+					occuwwence.activate(changeAccessow, useMetaKey);
+					this.activeWinkDecowationId = occuwwence.decowationId;
 				});
 			}
-		} else {
-			this.cleanUpActiveLinkDecoration();
+		} ewse {
+			this.cweanUpActiveWinkDecowation();
 		}
 	}
 
-	private cleanUpActiveLinkDecoration(): void {
-		const useMetaKey = (this.editor.getOption(EditorOption.multiCursorModifier) === 'altKey');
-		if (this.activeLinkDecorationId) {
-			const occurrence = this.currentOccurrences[this.activeLinkDecorationId];
-			if (occurrence) {
-				this.editor.changeDecorations((changeAccessor) => {
-					occurrence.deactivate(changeAccessor, useMetaKey);
+	pwivate cweanUpActiveWinkDecowation(): void {
+		const useMetaKey = (this.editow.getOption(EditowOption.muwtiCuwsowModifia) === 'awtKey');
+		if (this.activeWinkDecowationId) {
+			const occuwwence = this.cuwwentOccuwwences[this.activeWinkDecowationId];
+			if (occuwwence) {
+				this.editow.changeDecowations((changeAccessow) => {
+					occuwwence.deactivate(changeAccessow, useMetaKey);
 				});
 			}
 
-			this.activeLinkDecorationId = null;
+			this.activeWinkDecowationId = nuww;
 		}
 	}
 
-	private onEditorMouseUp(mouseEvent: ClickLinkMouseEvent): void {
-		if (!this.isEnabled(mouseEvent)) {
-			return;
+	pwivate onEditowMouseUp(mouseEvent: CwickWinkMouseEvent): void {
+		if (!this.isEnabwed(mouseEvent)) {
+			wetuwn;
 		}
-		const occurrence = this.getLinkOccurrence(mouseEvent.target.position);
-		if (!occurrence) {
-			return;
+		const occuwwence = this.getWinkOccuwwence(mouseEvent.tawget.position);
+		if (!occuwwence) {
+			wetuwn;
 		}
-		this.openLinkOccurrence(occurrence, mouseEvent.hasSideBySideModifier, true /* from user gesture */);
+		this.openWinkOccuwwence(occuwwence, mouseEvent.hasSideBySideModifia, twue /* fwom usa gestuwe */);
 	}
 
-	public openLinkOccurrence(occurrence: LinkOccurrence, openToSide: boolean, fromUserGesture = false): void {
+	pubwic openWinkOccuwwence(occuwwence: WinkOccuwwence, openToSide: boowean, fwomUsewGestuwe = fawse): void {
 
-		if (!this.openerService) {
-			return;
+		if (!this.openewSewvice) {
+			wetuwn;
 		}
 
-		const { link } = occurrence;
+		const { wink } = occuwwence;
 
-		link.resolve(CancellationToken.None).then(uri => {
+		wink.wesowve(CancewwationToken.None).then(uwi => {
 
-			// Support for relative file URIs of the shape file://./relativeFile.txt or file:///./relativeFile.txt
-			if (typeof uri === 'string' && this.editor.hasModel()) {
-				const modelUri = this.editor.getModel().uri;
-				if (modelUri.scheme === Schemas.file && uri.startsWith(`${Schemas.file}:`)) {
-					const parsedUri = URI.parse(uri);
-					if (parsedUri.scheme === Schemas.file) {
-						const fsPath = resources.originalFSPath(parsedUri);
+			// Suppowt fow wewative fiwe UWIs of the shape fiwe://./wewativeFiwe.txt ow fiwe:///./wewativeFiwe.txt
+			if (typeof uwi === 'stwing' && this.editow.hasModew()) {
+				const modewUwi = this.editow.getModew().uwi;
+				if (modewUwi.scheme === Schemas.fiwe && uwi.stawtsWith(`${Schemas.fiwe}:`)) {
+					const pawsedUwi = UWI.pawse(uwi);
+					if (pawsedUwi.scheme === Schemas.fiwe) {
+						const fsPath = wesouwces.owiginawFSPath(pawsedUwi);
 
-						let relativePath: string | null = null;
-						if (fsPath.startsWith('/./')) {
-							relativePath = `.${fsPath.substr(1)}`;
-						} else if (fsPath.startsWith('//./')) {
-							relativePath = `.${fsPath.substr(2)}`;
+						wet wewativePath: stwing | nuww = nuww;
+						if (fsPath.stawtsWith('/./')) {
+							wewativePath = `.${fsPath.substw(1)}`;
+						} ewse if (fsPath.stawtsWith('//./')) {
+							wewativePath = `.${fsPath.substw(2)}`;
 						}
 
-						if (relativePath) {
-							uri = resources.joinPath(modelUri, relativePath);
+						if (wewativePath) {
+							uwi = wesouwces.joinPath(modewUwi, wewativePath);
 						}
 					}
 				}
 			}
 
-			return this.openerService.open(uri, { openToSide, fromUserGesture, allowContributedOpeners: true, allowCommands: true });
+			wetuwn this.openewSewvice.open(uwi, { openToSide, fwomUsewGestuwe, awwowContwibutedOpenews: twue, awwowCommands: twue });
 
-		}, err => {
-			const messageOrError =
-				err instanceof Error ? (<Error>err).message : err;
-			// different error cases
-			if (messageOrError === 'invalid') {
-				this.notificationService.warn(nls.localize('invalid.url', 'Failed to open this link because it is not well-formed: {0}', link.url!.toString()));
-			} else if (messageOrError === 'missing') {
-				this.notificationService.warn(nls.localize('missing.url', 'Failed to open this link because its target is missing.'));
-			} else {
-				onUnexpectedError(err);
+		}, eww => {
+			const messageOwEwwow =
+				eww instanceof Ewwow ? (<Ewwow>eww).message : eww;
+			// diffewent ewwow cases
+			if (messageOwEwwow === 'invawid') {
+				this.notificationSewvice.wawn(nws.wocawize('invawid.uww', 'Faiwed to open this wink because it is not weww-fowmed: {0}', wink.uww!.toStwing()));
+			} ewse if (messageOwEwwow === 'missing') {
+				this.notificationSewvice.wawn(nws.wocawize('missing.uww', 'Faiwed to open this wink because its tawget is missing.'));
+			} ewse {
+				onUnexpectedEwwow(eww);
 			}
 		});
 	}
 
-	public getLinkOccurrence(position: Position | null): LinkOccurrence | null {
-		if (!this.editor.hasModel() || !position) {
-			return null;
+	pubwic getWinkOccuwwence(position: Position | nuww): WinkOccuwwence | nuww {
+		if (!this.editow.hasModew() || !position) {
+			wetuwn nuww;
 		}
-		const decorations = this.editor.getModel().getDecorationsInRange({
-			startLineNumber: position.lineNumber,
-			startColumn: position.column,
-			endLineNumber: position.lineNumber,
-			endColumn: position.column
-		}, 0, true);
+		const decowations = this.editow.getModew().getDecowationsInWange({
+			stawtWineNumba: position.wineNumba,
+			stawtCowumn: position.cowumn,
+			endWineNumba: position.wineNumba,
+			endCowumn: position.cowumn
+		}, 0, twue);
 
-		for (const decoration of decorations) {
-			const currentOccurrence = this.currentOccurrences[decoration.id];
-			if (currentOccurrence) {
-				return currentOccurrence;
+		fow (const decowation of decowations) {
+			const cuwwentOccuwwence = this.cuwwentOccuwwences[decowation.id];
+			if (cuwwentOccuwwence) {
+				wetuwn cuwwentOccuwwence;
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	private isEnabled(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent | null): boolean {
-		return Boolean(
-			(mouseEvent.target.type === MouseTargetType.CONTENT_TEXT)
-			&& (mouseEvent.hasTriggerModifier || (withKey && withKey.keyCodeIsTriggerKey))
+	pwivate isEnabwed(mouseEvent: CwickWinkMouseEvent, withKey?: CwickWinkKeyboawdEvent | nuww): boowean {
+		wetuwn Boowean(
+			(mouseEvent.tawget.type === MouseTawgetType.CONTENT_TEXT)
+			&& (mouseEvent.hasTwiggewModifia || (withKey && withKey.keyCodeIsTwiggewKey))
 		);
 	}
 
-	private stop(): void {
-		this.timeout.cancel();
-		if (this.activeLinksList) {
-			this.activeLinksList?.dispose();
-			this.activeLinksList = null;
+	pwivate stop(): void {
+		this.timeout.cancew();
+		if (this.activeWinksWist) {
+			this.activeWinksWist?.dispose();
+			this.activeWinksWist = nuww;
 		}
-		if (this.computePromise) {
-			this.computePromise.cancel();
-			this.computePromise = null;
+		if (this.computePwomise) {
+			this.computePwomise.cancew();
+			this.computePwomise = nuww;
 		}
 	}
 
-	public dispose(): void {
-		this.listenersToRemove.dispose();
+	pubwic dispose(): void {
+		this.wistenewsToWemove.dispose();
 		this.stop();
 		this.timeout.dispose();
 	}
 }
 
-class OpenLinkAction extends EditorAction {
+cwass OpenWinkAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.openLink',
-			label: nls.localize('label', "Open Link"),
-			alias: 'Open Link',
-			precondition: undefined
+	constwuctow() {
+		supa({
+			id: 'editow.action.openWink',
+			wabew: nws.wocawize('wabew', "Open Wink"),
+			awias: 'Open Wink',
+			pwecondition: undefined
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let linkDetector = LinkDetector.get(editor);
-		if (!linkDetector) {
-			return;
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		wet winkDetectow = WinkDetectow.get(editow);
+		if (!winkDetectow) {
+			wetuwn;
 		}
-		if (!editor.hasModel()) {
-			return;
+		if (!editow.hasModew()) {
+			wetuwn;
 		}
 
-		let selections = editor.getSelections();
+		wet sewections = editow.getSewections();
 
-		for (let sel of selections) {
-			let link = linkDetector.getLinkOccurrence(sel.getEndPosition());
+		fow (wet sew of sewections) {
+			wet wink = winkDetectow.getWinkOccuwwence(sew.getEndPosition());
 
-			if (link) {
-				linkDetector.openLinkOccurrence(link, false);
+			if (wink) {
+				winkDetectow.openWinkOccuwwence(wink, fawse);
 			}
 		}
 	}
 }
 
-registerEditorContribution(LinkDetector.ID, LinkDetector);
-registerEditorAction(OpenLinkAction);
+wegistewEditowContwibution(WinkDetectow.ID, WinkDetectow);
+wegistewEditowAction(OpenWinkAction);
 
-registerThemingParticipant((theme, collector) => {
-	const activeLinkForeground = theme.getColor(editorActiveLinkForeground);
-	if (activeLinkForeground) {
-		collector.addRule(`.monaco-editor .detected-link-active { color: ${activeLinkForeground} !important; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const activeWinkFowegwound = theme.getCowow(editowActiveWinkFowegwound);
+	if (activeWinkFowegwound) {
+		cowwectow.addWuwe(`.monaco-editow .detected-wink-active { cowow: ${activeWinkFowegwound} !impowtant; }`);
 	}
 });

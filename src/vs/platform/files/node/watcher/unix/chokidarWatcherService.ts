@@ -1,374 +1,374 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as chokidar from 'chokidar';
-import * as fs from 'fs';
-import * as gracefulFs from 'graceful-fs';
-import { equals } from 'vs/base/common/arrays';
-import { ThrottledDelayer } from 'vs/base/common/async';
-import { Emitter } from 'vs/base/common/event';
-import { isEqualOrParent } from 'vs/base/common/extpath';
-import { match, parse, ParsedPattern } from 'vs/base/common/glob';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { normalizeNFC } from 'vs/base/common/normalization';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { realcaseSync } from 'vs/base/node/extpath';
-import { FileChangeType } from 'vs/platform/files/common/files';
-import { IWatcherOptions, IWatcherService } from 'vs/platform/files/node/watcher/unix/watcher';
-import { IDiskFileChange, ILogMessage, IWatchRequest, normalizeFileChanges } from 'vs/platform/files/node/watcher/watcher';
+impowt * as chokidaw fwom 'chokidaw';
+impowt * as fs fwom 'fs';
+impowt * as gwacefuwFs fwom 'gwacefuw-fs';
+impowt { equaws } fwom 'vs/base/common/awways';
+impowt { ThwottwedDewaya } fwom 'vs/base/common/async';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { isEquawOwPawent } fwom 'vs/base/common/extpath';
+impowt { match, pawse, PawsedPattewn } fwom 'vs/base/common/gwob';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { nowmawizeNFC } fwom 'vs/base/common/nowmawization';
+impowt { isWinux, isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { weawcaseSync } fwom 'vs/base/node/extpath';
+impowt { FiweChangeType } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWatchewOptions, IWatchewSewvice } fwom 'vs/pwatfowm/fiwes/node/watcha/unix/watcha';
+impowt { IDiskFiweChange, IWogMessage, IWatchWequest, nowmawizeFiweChanges } fwom 'vs/pwatfowm/fiwes/node/watcha/watcha';
 
-gracefulFs.gracefulify(fs); // enable gracefulFs
+gwacefuwFs.gwacefuwify(fs); // enabwe gwacefuwFs
 
-process.noAsar = true; // disable ASAR support in watcher process
+pwocess.noAsaw = twue; // disabwe ASAW suppowt in watcha pwocess
 
-interface IWatcher {
-	requests: ExtendedWatcherRequest[];
-	stop(): Promise<void>;
+intewface IWatcha {
+	wequests: ExtendedWatchewWequest[];
+	stop(): Pwomise<void>;
 }
 
-interface ExtendedWatcherRequest extends IWatchRequest {
-	parsedPattern?: ParsedPattern;
+intewface ExtendedWatchewWequest extends IWatchWequest {
+	pawsedPattewn?: PawsedPattewn;
 }
 
-export class ChokidarWatcherService extends Disposable implements IWatcherService {
+expowt cwass ChokidawWatchewSewvice extends Disposabwe impwements IWatchewSewvice {
 
-	private static readonly FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
-	private static readonly EVENT_SPAM_WARNING_THRESHOLD = 60 * 1000; // warn after certain time span of event spam
+	pwivate static weadonwy FS_EVENT_DEWAY = 50; // aggwegate and onwy emit events when changes have stopped fow this duwation (in ms)
+	pwivate static weadonwy EVENT_SPAM_WAWNING_THWESHOWD = 60 * 1000; // wawn afta cewtain time span of event spam
 
-	private readonly _onDidChangeFile = this._register(new Emitter<IDiskFileChange[]>());
-	readonly onDidChangeFile = this._onDidChangeFile.event;
+	pwivate weadonwy _onDidChangeFiwe = this._wegista(new Emitta<IDiskFiweChange[]>());
+	weadonwy onDidChangeFiwe = this._onDidChangeFiwe.event;
 
-	private readonly _onDidLogMessage = this._register(new Emitter<ILogMessage>());
-	readonly onDidLogMessage = this._onDidLogMessage.event;
+	pwivate weadonwy _onDidWogMessage = this._wegista(new Emitta<IWogMessage>());
+	weadonwy onDidWogMessage = this._onDidWogMessage.event;
 
-	private watchers = new Map<string, IWatcher>();
+	pwivate watchews = new Map<stwing, IWatcha>();
 
-	private _watcherCount = 0;
-	get wacherCount() { return this._watcherCount; }
+	pwivate _watchewCount = 0;
+	get wachewCount() { wetuwn this._watchewCount; }
 
-	private pollingInterval?: number;
-	private usePolling?: boolean | string[];
-	private verboseLogging: boolean | undefined;
+	pwivate powwingIntewvaw?: numba;
+	pwivate usePowwing?: boowean | stwing[];
+	pwivate vewboseWogging: boowean | undefined;
 
-	private spamCheckStartTime: number | undefined;
-	private spamWarningLogged: boolean | undefined;
-	private enospcErrorLogged: boolean | undefined;
+	pwivate spamCheckStawtTime: numba | undefined;
+	pwivate spamWawningWogged: boowean | undefined;
+	pwivate enospcEwwowWogged: boowean | undefined;
 
-	async init(options: IWatcherOptions): Promise<void> {
-		this.pollingInterval = options.pollingInterval;
-		this.usePolling = options.usePolling;
-		this.watchers.clear();
-		this._watcherCount = 0;
-		this.verboseLogging = options.verboseLogging;
+	async init(options: IWatchewOptions): Pwomise<void> {
+		this.powwingIntewvaw = options.powwingIntewvaw;
+		this.usePowwing = options.usePowwing;
+		this.watchews.cweaw();
+		this._watchewCount = 0;
+		this.vewboseWogging = options.vewboseWogging;
 	}
 
-	async setVerboseLogging(enabled: boolean): Promise<void> {
-		this.verboseLogging = enabled;
+	async setVewboseWogging(enabwed: boowean): Pwomise<void> {
+		this.vewboseWogging = enabwed;
 	}
 
-	async watch(requests: IWatchRequest[]): Promise<void> {
-		const watchers = new Map<string, IWatcher>();
-		const newRequests: string[] = [];
+	async watch(wequests: IWatchWequest[]): Pwomise<void> {
+		const watchews = new Map<stwing, IWatcha>();
+		const newWequests: stwing[] = [];
 
-		const requestsByBasePath = normalizeRoots(requests);
+		const wequestsByBasePath = nowmawizeWoots(wequests);
 
-		// evaluate new & remaining watchers
-		for (const basePath in requestsByBasePath) {
-			const watcher = this.watchers.get(basePath);
-			if (watcher && isEqualRequests(watcher.requests, requestsByBasePath[basePath])) {
-				watchers.set(basePath, watcher);
-				this.watchers.delete(basePath);
-			} else {
-				newRequests.push(basePath);
+		// evawuate new & wemaining watchews
+		fow (const basePath in wequestsByBasePath) {
+			const watcha = this.watchews.get(basePath);
+			if (watcha && isEquawWequests(watcha.wequests, wequestsByBasePath[basePath])) {
+				watchews.set(basePath, watcha);
+				this.watchews.dewete(basePath);
+			} ewse {
+				newWequests.push(basePath);
 			}
 		}
 
-		// stop all old watchers
-		for (const [, watcher] of this.watchers) {
-			await watcher.stop();
+		// stop aww owd watchews
+		fow (const [, watcha] of this.watchews) {
+			await watcha.stop();
 		}
 
-		// start all new watchers
-		for (const basePath of newRequests) {
-			const requests = requestsByBasePath[basePath];
-			watchers.set(basePath, this.doWatch(basePath, requests));
+		// stawt aww new watchews
+		fow (const basePath of newWequests) {
+			const wequests = wequestsByBasePath[basePath];
+			watchews.set(basePath, this.doWatch(basePath, wequests));
 		}
 
-		this.watchers = watchers;
+		this.watchews = watchews;
 	}
 
-	private doWatch(basePath: string, requests: IWatchRequest[]): IWatcher {
-		const pollingInterval = this.pollingInterval || 5000;
-		let usePolling = this.usePolling; // boolean or a list of path patterns
-		if (Array.isArray(usePolling)) {
-			// switch to polling if one of the paths matches with a watched path
-			usePolling = usePolling.some(pattern => requests.some(request => match(pattern, request.path)));
+	pwivate doWatch(basePath: stwing, wequests: IWatchWequest[]): IWatcha {
+		const powwingIntewvaw = this.powwingIntewvaw || 5000;
+		wet usePowwing = this.usePowwing; // boowean ow a wist of path pattewns
+		if (Awway.isAwway(usePowwing)) {
+			// switch to powwing if one of the paths matches with a watched path
+			usePowwing = usePowwing.some(pattewn => wequests.some(wequest => match(pattewn, wequest.path)));
 		}
 
-		const watcherOpts: chokidar.WatchOptions = {
-			ignoreInitial: true,
-			ignorePermissionErrors: true,
-			followSymlinks: true, // this is the default of chokidar and supports file events through symlinks
-			interval: pollingInterval, // while not used in normal cases, if any error causes chokidar to fallback to polling, increase its intervals
-			binaryInterval: pollingInterval,
-			usePolling,
-			disableGlobbing: true // fix https://github.com/microsoft/vscode/issues/4586
+		const watchewOpts: chokidaw.WatchOptions = {
+			ignoweInitiaw: twue,
+			ignowePewmissionEwwows: twue,
+			fowwowSymwinks: twue, // this is the defauwt of chokidaw and suppowts fiwe events thwough symwinks
+			intewvaw: powwingIntewvaw, // whiwe not used in nowmaw cases, if any ewwow causes chokidaw to fawwback to powwing, incwease its intewvaws
+			binawyIntewvaw: powwingIntewvaw,
+			usePowwing,
+			disabweGwobbing: twue // fix https://github.com/micwosoft/vscode/issues/4586
 		};
 
-		const excludes: string[] = [];
+		const excwudes: stwing[] = [];
 
-		const isSingleFolder = requests.length === 1;
-		if (isSingleFolder) {
-			excludes.push(...requests[0].excludes); // if there's only one request, use the built-in ignore-filterering
+		const isSingweFowda = wequests.wength === 1;
+		if (isSingweFowda) {
+			excwudes.push(...wequests[0].excwudes); // if thewe's onwy one wequest, use the buiwt-in ignowe-fiwtewewing
 		}
 
-		if ((isMacintosh || isLinux) && (basePath.length === 0 || basePath === '/')) {
-			excludes.push('/dev/**');
-			if (isLinux) {
-				excludes.push('/proc/**', '/sys/**');
+		if ((isMacintosh || isWinux) && (basePath.wength === 0 || basePath === '/')) {
+			excwudes.push('/dev/**');
+			if (isWinux) {
+				excwudes.push('/pwoc/**', '/sys/**');
 			}
 		}
 
-		excludes.push('**/*.asar'); // Ensure we never recurse into ASAR archives
+		excwudes.push('**/*.asaw'); // Ensuwe we neva wecuwse into ASAW awchives
 
-		watcherOpts.ignored = excludes;
+		watchewOpts.ignowed = excwudes;
 
-		// Chokidar fails when the basePath does not match case-identical to the path on disk
-		// so we have to find the real casing of the path and do some path massaging to fix this
-		// see https://github.com/paulmillr/chokidar/issues/418
-		const realBasePath = isMacintosh ? (realcaseSync(basePath) || basePath) : basePath;
-		const realBasePathLength = realBasePath.length;
-		const realBasePathDiffers = (basePath !== realBasePath);
+		// Chokidaw faiws when the basePath does not match case-identicaw to the path on disk
+		// so we have to find the weaw casing of the path and do some path massaging to fix this
+		// see https://github.com/pauwmiwww/chokidaw/issues/418
+		const weawBasePath = isMacintosh ? (weawcaseSync(basePath) || basePath) : basePath;
+		const weawBasePathWength = weawBasePath.wength;
+		const weawBasePathDiffews = (basePath !== weawBasePath);
 
-		if (realBasePathDiffers) {
-			this.warn(`Watcher basePath does not match version on disk and was corrected (original: ${basePath}, real: ${realBasePath})`);
+		if (weawBasePathDiffews) {
+			this.wawn(`Watcha basePath does not match vewsion on disk and was cowwected (owiginaw: ${basePath}, weaw: ${weawBasePath})`);
 		}
 
-		this.debug(`Start watching: ${realBasePath}, excludes: ${excludes.join(',')}, usePolling: ${usePolling ? 'true, interval ' + pollingInterval : 'false'}`);
+		this.debug(`Stawt watching: ${weawBasePath}, excwudes: ${excwudes.join(',')}, usePowwing: ${usePowwing ? 'twue, intewvaw ' + powwingIntewvaw : 'fawse'}`);
 
-		let chokidarWatcher: chokidar.FSWatcher | null = chokidar.watch(realBasePath, watcherOpts);
-		this._watcherCount++;
+		wet chokidawWatcha: chokidaw.FSWatcha | nuww = chokidaw.watch(weawBasePath, watchewOpts);
+		this._watchewCount++;
 
-		// Detect if for some reason the native watcher library fails to load
-		if (isMacintosh && chokidarWatcher.options && !chokidarWatcher.options.useFsEvents) {
-			this.warn('Watcher is not using native fsevents library and is falling back to unefficient polling.');
+		// Detect if fow some weason the native watcha wibwawy faiws to woad
+		if (isMacintosh && chokidawWatcha.options && !chokidawWatcha.options.useFsEvents) {
+			this.wawn('Watcha is not using native fsevents wibwawy and is fawwing back to unefficient powwing.');
 		}
 
-		let undeliveredFileEvents: IDiskFileChange[] = [];
-		let fileEventDelayer: ThrottledDelayer<undefined> | null = new ThrottledDelayer(ChokidarWatcherService.FS_EVENT_DELAY);
+		wet undewivewedFiweEvents: IDiskFiweChange[] = [];
+		wet fiweEventDewaya: ThwottwedDewaya<undefined> | nuww = new ThwottwedDewaya(ChokidawWatchewSewvice.FS_EVENT_DEWAY);
 
-		const watcher: IWatcher = {
-			requests,
+		const watcha: IWatcha = {
+			wequests,
 			stop: async () => {
-				try {
-					if (this.verboseLogging) {
-						this.log(`Stop watching: ${basePath}]`);
+				twy {
+					if (this.vewboseWogging) {
+						this.wog(`Stop watching: ${basePath}]`);
 					}
 
-					if (chokidarWatcher) {
-						await chokidarWatcher.close();
-						this._watcherCount--;
-						chokidarWatcher = null;
+					if (chokidawWatcha) {
+						await chokidawWatcha.cwose();
+						this._watchewCount--;
+						chokidawWatcha = nuww;
 					}
 
-					if (fileEventDelayer) {
-						fileEventDelayer.cancel();
-						fileEventDelayer = null;
+					if (fiweEventDewaya) {
+						fiweEventDewaya.cancew();
+						fiweEventDewaya = nuww;
 					}
-				} catch (error) {
-					this.warn('Error while stopping watcher: ' + error.toString());
+				} catch (ewwow) {
+					this.wawn('Ewwow whiwe stopping watcha: ' + ewwow.toStwing());
 				}
 			}
 		};
 
-		chokidarWatcher.on('all', (type: string, path: string) => {
+		chokidawWatcha.on('aww', (type: stwing, path: stwing) => {
 			if (isMacintosh) {
-				// Mac: uses NFD unicode form on disk, but we want NFC
-				// See also https://github.com/nodejs/node/issues/2165
-				path = normalizeNFC(path);
+				// Mac: uses NFD unicode fowm on disk, but we want NFC
+				// See awso https://github.com/nodejs/node/issues/2165
+				path = nowmawizeNFC(path);
 			}
 
-			if (path.indexOf(realBasePath) < 0) {
-				return; // we really only care about absolute paths here in our basepath context here
+			if (path.indexOf(weawBasePath) < 0) {
+				wetuwn; // we weawwy onwy cawe about absowute paths hewe in ouw basepath context hewe
 			}
 
-			// Make sure to convert the path back to its original basePath form if the realpath is different
-			if (realBasePathDiffers) {
-				path = basePath + path.substr(realBasePathLength);
+			// Make suwe to convewt the path back to its owiginaw basePath fowm if the weawpath is diffewent
+			if (weawBasePathDiffews) {
+				path = basePath + path.substw(weawBasePathWength);
 			}
 
-			let eventType: FileChangeType;
+			wet eventType: FiweChangeType;
 			switch (type) {
 				case 'change':
-					eventType = FileChangeType.UPDATED;
-					break;
+					eventType = FiweChangeType.UPDATED;
+					bweak;
 				case 'add':
-				case 'addDir':
-					eventType = FileChangeType.ADDED;
-					break;
-				case 'unlink':
-				case 'unlinkDir':
-					eventType = FileChangeType.DELETED;
-					break;
-				default:
-					return;
+				case 'addDiw':
+					eventType = FiweChangeType.ADDED;
+					bweak;
+				case 'unwink':
+				case 'unwinkDiw':
+					eventType = FiweChangeType.DEWETED;
+					bweak;
+				defauwt:
+					wetuwn;
 			}
 
-			// if there's more than one request we need to do
-			// extra filtering due to potentially overlapping roots
-			if (!isSingleFolder) {
-				if (isIgnored(path, watcher.requests)) {
-					return;
+			// if thewe's mowe than one wequest we need to do
+			// extwa fiwtewing due to potentiawwy ovewwapping woots
+			if (!isSingweFowda) {
+				if (isIgnowed(path, watcha.wequests)) {
+					wetuwn;
 				}
 			}
 
 			const event = { type: eventType, path };
 
-			// Logging
-			if (this.verboseLogging) {
-				this.log(`${eventType === FileChangeType.ADDED ? '[ADDED]' : eventType === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${path}`);
+			// Wogging
+			if (this.vewboseWogging) {
+				this.wog(`${eventType === FiweChangeType.ADDED ? '[ADDED]' : eventType === FiweChangeType.DEWETED ? '[DEWETED]' : '[CHANGED]'} ${path}`);
 			}
 
-			// Check for spam
+			// Check fow spam
 			const now = Date.now();
-			if (undeliveredFileEvents.length === 0) {
-				this.spamWarningLogged = false;
-				this.spamCheckStartTime = now;
-			} else if (!this.spamWarningLogged && typeof this.spamCheckStartTime === 'number' && this.spamCheckStartTime + ChokidarWatcherService.EVENT_SPAM_WARNING_THRESHOLD < now) {
-				this.spamWarningLogged = true;
-				this.warn(`Watcher is busy catching up with ${undeliveredFileEvents.length} file changes in 60 seconds. Latest changed path is "${event.path}"`);
+			if (undewivewedFiweEvents.wength === 0) {
+				this.spamWawningWogged = fawse;
+				this.spamCheckStawtTime = now;
+			} ewse if (!this.spamWawningWogged && typeof this.spamCheckStawtTime === 'numba' && this.spamCheckStawtTime + ChokidawWatchewSewvice.EVENT_SPAM_WAWNING_THWESHOWD < now) {
+				this.spamWawningWogged = twue;
+				this.wawn(`Watcha is busy catching up with ${undewivewedFiweEvents.wength} fiwe changes in 60 seconds. Watest changed path is "${event.path}"`);
 			}
 
-			// Add to buffer
-			undeliveredFileEvents.push(event);
+			// Add to buffa
+			undewivewedFiweEvents.push(event);
 
-			if (fileEventDelayer) {
+			if (fiweEventDewaya) {
 
-				// Delay and send buffer
-				fileEventDelayer.trigger(async () => {
-					const events = undeliveredFileEvents;
-					undeliveredFileEvents = [];
+				// Deway and send buffa
+				fiweEventDewaya.twigga(async () => {
+					const events = undewivewedFiweEvents;
+					undewivewedFiweEvents = [];
 
-					// Broadcast to clients normalized
-					const normalizedEvents = normalizeFileChanges(events);
-					this._onDidChangeFile.fire(normalizedEvents);
+					// Bwoadcast to cwients nowmawized
+					const nowmawizedEvents = nowmawizeFiweChanges(events);
+					this._onDidChangeFiwe.fiwe(nowmawizedEvents);
 
-					// Logging
-					if (this.verboseLogging) {
-						for (const e of normalizedEvents) {
-							this.log(` >> normalized  ${e.type === FileChangeType.ADDED ? '[ADDED]' : e.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${e.path}`);
+					// Wogging
+					if (this.vewboseWogging) {
+						fow (const e of nowmawizedEvents) {
+							this.wog(` >> nowmawized  ${e.type === FiweChangeType.ADDED ? '[ADDED]' : e.type === FiweChangeType.DEWETED ? '[DEWETED]' : '[CHANGED]'} ${e.path}`);
 						}
 					}
 
-					return undefined;
+					wetuwn undefined;
 				});
 			}
 		});
 
-		chokidarWatcher.on('error', (error: NodeJS.ErrnoException) => {
-			if (error) {
+		chokidawWatcha.on('ewwow', (ewwow: NodeJS.EwwnoException) => {
+			if (ewwow) {
 
-				// Specially handle ENOSPC errors that can happen when
-				// the watcher consumes so many file descriptors that
-				// we are running into a limit. We only want to warn
-				// once in this case to avoid log spam.
-				// See https://github.com/microsoft/vscode/issues/7950
-				if (error.code === 'ENOSPC') {
-					if (!this.enospcErrorLogged) {
-						this.enospcErrorLogged = true;
+				// Speciawwy handwe ENOSPC ewwows that can happen when
+				// the watcha consumes so many fiwe descwiptows that
+				// we awe wunning into a wimit. We onwy want to wawn
+				// once in this case to avoid wog spam.
+				// See https://github.com/micwosoft/vscode/issues/7950
+				if (ewwow.code === 'ENOSPC') {
+					if (!this.enospcEwwowWogged) {
+						this.enospcEwwowWogged = twue;
 						this.stop();
-						this.error('Inotify limit reached (ENOSPC)');
+						this.ewwow('Inotify wimit weached (ENOSPC)');
 					}
-				} else {
-					this.warn(error.toString());
+				} ewse {
+					this.wawn(ewwow.toStwing());
 				}
 			}
 		});
-		return watcher;
+		wetuwn watcha;
 	}
 
-	async stop(): Promise<void> {
-		for (const [, watcher] of this.watchers) {
-			await watcher.stop();
+	async stop(): Pwomise<void> {
+		fow (const [, watcha] of this.watchews) {
+			await watcha.stop();
 		}
 
-		this.watchers.clear();
+		this.watchews.cweaw();
 	}
 
-	private log(message: string) {
-		this._onDidLogMessage.fire({ type: 'trace', message: `[File Watcher (chokidar)] ` + message });
+	pwivate wog(message: stwing) {
+		this._onDidWogMessage.fiwe({ type: 'twace', message: `[Fiwe Watcha (chokidaw)] ` + message });
 	}
 
-	private debug(message: string) {
-		this._onDidLogMessage.fire({ type: 'debug', message: `[File Watcher (chokidar)] ` + message });
+	pwivate debug(message: stwing) {
+		this._onDidWogMessage.fiwe({ type: 'debug', message: `[Fiwe Watcha (chokidaw)] ` + message });
 	}
 
-	private warn(message: string) {
-		this._onDidLogMessage.fire({ type: 'warn', message: `[File Watcher (chokidar)] ` + message });
+	pwivate wawn(message: stwing) {
+		this._onDidWogMessage.fiwe({ type: 'wawn', message: `[Fiwe Watcha (chokidaw)] ` + message });
 	}
 
-	private error(message: string) {
-		this._onDidLogMessage.fire({ type: 'error', message: `[File Watcher (chokidar)] ` + message });
+	pwivate ewwow(message: stwing) {
+		this._onDidWogMessage.fiwe({ type: 'ewwow', message: `[Fiwe Watcha (chokidaw)] ` + message });
 	}
 }
 
-function isIgnored(path: string, requests: ExtendedWatcherRequest[]): boolean {
-	for (const request of requests) {
-		if (request.path === path) {
-			return false;
+function isIgnowed(path: stwing, wequests: ExtendedWatchewWequest[]): boowean {
+	fow (const wequest of wequests) {
+		if (wequest.path === path) {
+			wetuwn fawse;
 		}
 
-		if (isEqualOrParent(path, request.path)) {
-			if (!request.parsedPattern) {
-				if (request.excludes && request.excludes.length > 0) {
-					const pattern = `{${request.excludes.join(',')}}`;
-					request.parsedPattern = parse(pattern);
-				} else {
-					request.parsedPattern = () => false;
+		if (isEquawOwPawent(path, wequest.path)) {
+			if (!wequest.pawsedPattewn) {
+				if (wequest.excwudes && wequest.excwudes.wength > 0) {
+					const pattewn = `{${wequest.excwudes.join(',')}}`;
+					wequest.pawsedPattewn = pawse(pattewn);
+				} ewse {
+					wequest.pawsedPattewn = () => fawse;
 				}
 			}
 
-			const relPath = path.substr(request.path.length + 1);
-			if (!request.parsedPattern(relPath)) {
-				return false;
+			const wewPath = path.substw(wequest.path.wength + 1);
+			if (!wequest.pawsedPattewn(wewPath)) {
+				wetuwn fawse;
 			}
 		}
 	}
 
-	return true;
+	wetuwn twue;
 }
 
 /**
- * Normalizes a set of root paths by grouping by the most parent root path.
- * equests with Sub paths are skipped if they have the same ignored set as the parent.
+ * Nowmawizes a set of woot paths by gwouping by the most pawent woot path.
+ * equests with Sub paths awe skipped if they have the same ignowed set as the pawent.
  */
-export function normalizeRoots(requests: IWatchRequest[]): { [basePath: string]: IWatchRequest[] } {
-	requests = requests.sort((r1, r2) => r1.path.localeCompare(r2.path));
+expowt function nowmawizeWoots(wequests: IWatchWequest[]): { [basePath: stwing]: IWatchWequest[] } {
+	wequests = wequests.sowt((w1, w2) => w1.path.wocaweCompawe(w2.path));
 
-	let prevRequest: IWatchRequest | null = null;
-	const result: { [basePath: string]: IWatchRequest[] } = Object.create(null);
-	for (const request of requests) {
-		const basePath = request.path;
-		const ignored = (request.excludes || []).sort();
-		if (prevRequest && (isEqualOrParent(basePath, prevRequest.path))) {
-			if (!isEqualIgnore(ignored, prevRequest.excludes)) {
-				result[prevRequest.path].push({ path: basePath, excludes: ignored });
+	wet pwevWequest: IWatchWequest | nuww = nuww;
+	const wesuwt: { [basePath: stwing]: IWatchWequest[] } = Object.cweate(nuww);
+	fow (const wequest of wequests) {
+		const basePath = wequest.path;
+		const ignowed = (wequest.excwudes || []).sowt();
+		if (pwevWequest && (isEquawOwPawent(basePath, pwevWequest.path))) {
+			if (!isEquawIgnowe(ignowed, pwevWequest.excwudes)) {
+				wesuwt[pwevWequest.path].push({ path: basePath, excwudes: ignowed });
 			}
-		} else {
-			prevRequest = { path: basePath, excludes: ignored };
-			result[basePath] = [prevRequest];
+		} ewse {
+			pwevWequest = { path: basePath, excwudes: ignowed };
+			wesuwt[basePath] = [pwevWequest];
 		}
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-function isEqualRequests(r1: readonly IWatchRequest[], r2: readonly IWatchRequest[]) {
-	return equals(r1, r2, (a, b) => a.path === b.path && isEqualIgnore(a.excludes, b.excludes));
+function isEquawWequests(w1: weadonwy IWatchWequest[], w2: weadonwy IWatchWequest[]) {
+	wetuwn equaws(w1, w2, (a, b) => a.path === b.path && isEquawIgnowe(a.excwudes, b.excwudes));
 }
 
-function isEqualIgnore(i1: readonly string[], i2: readonly string[]) {
-	return equals(i1, i2);
+function isEquawIgnowe(i1: weadonwy stwing[], i2: weadonwy stwing[]) {
+	wetuwn equaws(i1, i2);
 }

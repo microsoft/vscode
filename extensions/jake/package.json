@@ -1,77 +1,77 @@
 {
   "name": "jake",
-  "publisher": "vscode",
-  "description": "%description%",
-  "displayName": "%displayName%",
+  "pubwisha": "vscode",
+  "descwiption": "%descwiption%",
+  "dispwayName": "%dispwayName%",
   "icon": "images/cowboy_hat.png",
-  "version": "1.0.0",
-  "license": "MIT",
+  "vewsion": "1.0.0",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "categories": [
-    "Other"
+  "categowies": [
+    "Otha"
   ],
-  "scripts": {
-    "compile": "gulp compile-extension:jake",
-    "watch": "gulp watch-extension:jake"
+  "scwipts": {
+    "compiwe": "guwp compiwe-extension:jake",
+    "watch": "guwp watch-extension:jake"
   },
   "dependencies": {
-    "vscode-nls": "^4.0.0"
+    "vscode-nws": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "14.x"
   },
   "main": "./out/main",
   "activationEvents": [
-    "onCommand:workbench.action.tasks.runTask"
+    "onCommand:wowkbench.action.tasks.wunTask"
   ],
-  "capabilities": {
-    "virtualWorkspaces": false,
-    "untrustedWorkspaces": {
-      "supported": true
+  "capabiwities": {
+    "viwtuawWowkspaces": fawse,
+    "untwustedWowkspaces": {
+      "suppowted": twue
     }
   },
-  "contributes": {
-    "configuration": {
+  "contwibutes": {
+    "configuwation": {
       "id": "jake",
       "type": "object",
-      "title": "Jake",
-      "properties": {
+      "titwe": "Jake",
+      "pwopewties": {
         "jake.autoDetect": {
-          "scope": "application",
-          "type": "string",
+          "scope": "appwication",
+          "type": "stwing",
           "enum": [
             "off",
             "on"
           ],
-          "default": "off",
-          "description": "%config.jake.autoDetect%"
+          "defauwt": "off",
+          "descwiption": "%config.jake.autoDetect%"
         }
       }
     },
     "taskDefinitions": [
       {
         "type": "jake",
-        "required": [
+        "wequiwed": [
           "task"
         ],
-        "properties": {
+        "pwopewties": {
           "task": {
-            "type": "string",
-            "description": "%jake.taskDefinition.type.description%"
+            "type": "stwing",
+            "descwiption": "%jake.taskDefinition.type.descwiption%"
           },
-          "file": {
-            "type": "string",
-            "description": "%jake.taskDefinition.file.description%"
+          "fiwe": {
+            "type": "stwing",
+            "descwiption": "%jake.taskDefinition.fiwe.descwiption%"
           }
         },
-        "when": "shellExecutionSupported"
+        "when": "shewwExecutionSuppowted"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

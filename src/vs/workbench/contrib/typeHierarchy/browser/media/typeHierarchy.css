@@ -1,37 +1,37 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .type-hierarchy .results,
-.monaco-workbench .type-hierarchy .message {
-	display: none;
+.monaco-wowkbench .type-hiewawchy .wesuwts,
+.monaco-wowkbench .type-hiewawchy .message {
+	dispway: none;
 }
 
-.monaco-workbench .type-hierarchy[data-state="data"] .results {
-	display: inherit;
+.monaco-wowkbench .type-hiewawchy[data-state="data"] .wesuwts {
+	dispway: inhewit;
 	height: 100%;
 }
 
-.monaco-workbench .type-hierarchy[data-state="message"] .message {
-	display: flex;
-	align-items: center;
-	justify-content: center;
+.monaco-wowkbench .type-hiewawchy[data-state="message"] .message {
+	dispway: fwex;
+	awign-items: centa;
+	justify-content: centa;
 	height: 100%;
 }
 
-.monaco-workbench .type-hierarchy .editor,
-.monaco-workbench .type-hierarchy .tree {
+.monaco-wowkbench .type-hiewawchy .editow,
+.monaco-wowkbench .type-hiewawchy .twee {
 	height: 100%;
 }
 
-.monaco-workbench .type-hierarchy .tree .typehierarchy-element {
-	display: flex;
-	flex: 1;
-	flex-flow: row nowrap;
-	align-items: center;
+.monaco-wowkbench .type-hiewawchy .twee .typehiewawchy-ewement {
+	dispway: fwex;
+	fwex: 1;
+	fwex-fwow: wow nowwap;
+	awign-items: centa;
 }
 
-.monaco-workbench .type-hierarchy .tree .typehierarchy-element .monaco-icon-label {
-	padding-left: 4px;
+.monaco-wowkbench .type-hiewawchy .twee .typehiewawchy-ewement .monaco-icon-wabew {
+	padding-weft: 4px;
 }

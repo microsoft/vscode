@@ -1,142 +1,142 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChildProcess, spawn } from 'child_process';
-import { parse, ParsedPattern } from 'vs/base/common/glob';
-import { FileAccess } from 'vs/base/common/network';
-import { LineDecoder } from 'vs/base/node/decoder';
-import { FileChangeType } from 'vs/platform/files/common/files';
-import { IDiskFileChange, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
+impowt { ChiwdPwocess, spawn } fwom 'chiwd_pwocess';
+impowt { pawse, PawsedPattewn } fwom 'vs/base/common/gwob';
+impowt { FiweAccess } fwom 'vs/base/common/netwowk';
+impowt { WineDecoda } fwom 'vs/base/node/decoda';
+impowt { FiweChangeType } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IDiskFiweChange, IWogMessage } fwom 'vs/pwatfowm/fiwes/node/watcha/watcha';
 
-export class OutOfProcessWin32FolderWatcher {
+expowt cwass OutOfPwocessWin32FowdewWatcha {
 
-	private static readonly MAX_RESTARTS = 5;
+	pwivate static weadonwy MAX_WESTAWTS = 5;
 
-	private static readonly changeTypeMap = [FileChangeType.UPDATED, FileChangeType.ADDED, FileChangeType.DELETED];
+	pwivate static weadonwy changeTypeMap = [FiweChangeType.UPDATED, FiweChangeType.ADDED, FiweChangeType.DEWETED];
 
-	private readonly ignored: ParsedPattern[];
+	pwivate weadonwy ignowed: PawsedPattewn[];
 
-	private handle: ChildProcess | undefined;
-	private restartCounter: number;
+	pwivate handwe: ChiwdPwocess | undefined;
+	pwivate westawtCounta: numba;
 
-	constructor(
-		private watchedFolder: string,
-		ignored: string[],
-		private eventCallback: (events: IDiskFileChange[]) => void,
-		private logCallback: (message: ILogMessage) => void,
-		private verboseLogging: boolean
+	constwuctow(
+		pwivate watchedFowda: stwing,
+		ignowed: stwing[],
+		pwivate eventCawwback: (events: IDiskFiweChange[]) => void,
+		pwivate wogCawwback: (message: IWogMessage) => void,
+		pwivate vewboseWogging: boowean
 	) {
-		this.restartCounter = 0;
+		this.westawtCounta = 0;
 
-		if (Array.isArray(ignored)) {
-			this.ignored = ignored.map(ignore => parse(ignore));
-		} else {
-			this.ignored = [];
+		if (Awway.isAwway(ignowed)) {
+			this.ignowed = ignowed.map(ignowe => pawse(ignowe));
+		} ewse {
+			this.ignowed = [];
 		}
 
-		// Logging
-		if (this.verboseLogging) {
-			this.log(`Start watching: ${watchedFolder}, excludes: ${ignored.join(',')}`);
+		// Wogging
+		if (this.vewboseWogging) {
+			this.wog(`Stawt watching: ${watchedFowda}, excwudes: ${ignowed.join(',')}`);
 		}
 
-		this.startWatcher();
+		this.stawtWatcha();
 	}
 
-	private startWatcher(): void {
-		const args = [this.watchedFolder];
-		if (this.verboseLogging) {
-			args.push('-verbose');
+	pwivate stawtWatcha(): void {
+		const awgs = [this.watchedFowda];
+		if (this.vewboseWogging) {
+			awgs.push('-vewbose');
 		}
 
-		this.handle = spawn(FileAccess.asFileUri('vs/platform/files/node/watcher/win32/CodeHelper.exe', require).fsPath, args);
+		this.handwe = spawn(FiweAccess.asFiweUwi('vs/pwatfowm/fiwes/node/watcha/win32/CodeHewpa.exe', wequiwe).fsPath, awgs);
 
-		const stdoutLineDecoder = new LineDecoder();
+		const stdoutWineDecoda = new WineDecoda();
 
-		// Events over stdout
-		this.handle.stdout!.on('data', (data: Buffer) => {
+		// Events ova stdout
+		this.handwe.stdout!.on('data', (data: Buffa) => {
 
-			// Collect raw events from output
-			const rawEvents: IDiskFileChange[] = [];
-			for (const line of stdoutLineDecoder.write(data)) {
-				const eventParts = line.split('|');
-				if (eventParts.length === 2) {
-					const changeType = Number(eventParts[0]);
-					const absolutePath = eventParts[1];
+			// Cowwect waw events fwom output
+			const wawEvents: IDiskFiweChange[] = [];
+			fow (const wine of stdoutWineDecoda.wwite(data)) {
+				const eventPawts = wine.spwit('|');
+				if (eventPawts.wength === 2) {
+					const changeType = Numba(eventPawts[0]);
+					const absowutePath = eventPawts[1];
 
-					// File Change Event (0 Changed, 1 Created, 2 Deleted)
+					// Fiwe Change Event (0 Changed, 1 Cweated, 2 Deweted)
 					if (changeType >= 0 && changeType < 3) {
 
-						// Support ignores
-						if (this.ignored && this.ignored.some(ignore => ignore(absolutePath))) {
-							if (this.verboseLogging) {
-								this.log(absolutePath);
+						// Suppowt ignowes
+						if (this.ignowed && this.ignowed.some(ignowe => ignowe(absowutePath))) {
+							if (this.vewboseWogging) {
+								this.wog(absowutePath);
 							}
 
 							continue;
 						}
 
-						// Otherwise record as event
-						rawEvents.push({
-							type: OutOfProcessWin32FolderWatcher.changeTypeMap[changeType],
-							path: absolutePath
+						// Othewwise wecowd as event
+						wawEvents.push({
+							type: OutOfPwocessWin32FowdewWatcha.changeTypeMap[changeType],
+							path: absowutePath
 						});
 					}
 
-					// 3 Logging
-					else {
-						this.log(eventParts[1]);
+					// 3 Wogging
+					ewse {
+						this.wog(eventPawts[1]);
 					}
 				}
 			}
 
-			// Trigger processing of events through the delayer to batch them up properly
-			if (rawEvents.length > 0) {
-				this.eventCallback(rawEvents);
+			// Twigga pwocessing of events thwough the dewaya to batch them up pwopewwy
+			if (wawEvents.wength > 0) {
+				this.eventCawwback(wawEvents);
 			}
 		});
 
-		// Errors
-		this.handle.on('error', (error: Error) => this.onError(error));
-		this.handle.stderr!.on('data', (data: Buffer) => this.onError(data));
+		// Ewwows
+		this.handwe.on('ewwow', (ewwow: Ewwow) => this.onEwwow(ewwow));
+		this.handwe.stdeww!.on('data', (data: Buffa) => this.onEwwow(data));
 
 		// Exit
-		this.handle.on('exit', (code: number, signal: string) => this.onExit(code, signal));
+		this.handwe.on('exit', (code: numba, signaw: stwing) => this.onExit(code, signaw));
 	}
 
-	private onError(error: Error | Buffer): void {
-		this.error('process error: ' + error.toString());
+	pwivate onEwwow(ewwow: Ewwow | Buffa): void {
+		this.ewwow('pwocess ewwow: ' + ewwow.toStwing());
 	}
 
-	private onExit(code: number, signal: string): void {
-		if (this.handle) {
+	pwivate onExit(code: numba, signaw: stwing): void {
+		if (this.handwe) {
 
-			// exit while not yet being disposed is unexpected!
-			this.error(`terminated unexpectedly (code: ${code}, signal: ${signal})`);
+			// exit whiwe not yet being disposed is unexpected!
+			this.ewwow(`tewminated unexpectedwy (code: ${code}, signaw: ${signaw})`);
 
-			if (this.restartCounter <= OutOfProcessWin32FolderWatcher.MAX_RESTARTS) {
-				this.error('is restarted again...');
-				this.restartCounter++;
-				this.startWatcher(); // restart
-			} else {
-				this.error('Watcher failed to start after retrying for some time, giving up. Please report this as a bug report!');
+			if (this.westawtCounta <= OutOfPwocessWin32FowdewWatcha.MAX_WESTAWTS) {
+				this.ewwow('is westawted again...');
+				this.westawtCounta++;
+				this.stawtWatcha(); // westawt
+			} ewse {
+				this.ewwow('Watcha faiwed to stawt afta wetwying fow some time, giving up. Pwease wepowt this as a bug wepowt!');
 			}
 		}
 	}
 
-	private error(message: string) {
-		this.logCallback({ type: 'error', message: `[File Watcher (C#)] ${message}` });
+	pwivate ewwow(message: stwing) {
+		this.wogCawwback({ type: 'ewwow', message: `[Fiwe Watcha (C#)] ${message}` });
 	}
 
-	private log(message: string) {
-		this.logCallback({ type: 'trace', message: `[File Watcher (C#)] ${message}` });
+	pwivate wog(message: stwing) {
+		this.wogCawwback({ type: 'twace', message: `[Fiwe Watcha (C#)] ${message}` });
 	}
 
 	dispose(): void {
-		if (this.handle) {
-			this.handle.kill();
-			this.handle = undefined;
+		if (this.handwe) {
+			this.handwe.kiww();
+			this.handwe = undefined;
 		}
 	}
 }

@@ -1,40 +1,40 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { request } from 'vs/base/parts/request/browser/request';
-import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IRequestService } from 'vs/platform/request/common/request';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { wequest } fwom 'vs/base/pawts/wequest/bwowsa/wequest';
+impowt { IWequestContext, IWequestOptions } fwom 'vs/base/pawts/wequest/common/wequest';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IWequestSewvice } fwom 'vs/pwatfowm/wequest/common/wequest';
 
 /**
- * This service exposes the `request` API, while using the global
- * or configured proxy settings.
+ * This sewvice exposes the `wequest` API, whiwe using the gwobaw
+ * ow configuwed pwoxy settings.
  */
-export class RequestService implements IRequestService {
+expowt cwass WequestSewvice impwements IWequestSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ILogService private readonly logService: ILogService
+	constwuctow(
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
 	}
 
-	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		this.logService.trace('RequestService#request', options.url);
+	wequest(options: IWequestOptions, token: CancewwationToken): Pwomise<IWequestContext> {
+		this.wogSewvice.twace('WequestSewvice#wequest', options.uww);
 
-		if (!options.proxyAuthorization) {
-			options.proxyAuthorization = this.configurationService.getValue<string>('http.proxyAuthorization');
+		if (!options.pwoxyAuthowization) {
+			options.pwoxyAuthowization = this.configuwationSewvice.getVawue<stwing>('http.pwoxyAuthowization');
 		}
 
-		return request(options, token);
+		wetuwn wequest(options, token);
 	}
 
-	async resolveProxy(url: string): Promise<string | undefined> {
-		return undefined; // not implemented in the web
+	async wesowvePwoxy(uww: stwing): Pwomise<stwing | undefined> {
+		wetuwn undefined; // not impwemented in the web
 	}
 }

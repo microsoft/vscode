@@ -1,5 +1,5 @@
 function foo(): void {
-    var a = 1;
+    vaw a = 1;
     a = 1;
     a = 1;
     a = 1;

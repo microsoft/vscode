@@ -1,45 +1,45 @@
 {
-  "name": "vscode-custom-editor-tests",
-  "description": "Custom editor tests for VS Code",
-  "version": "0.0.1",
-  "publisher": "vscode",
-  "license": "MIT",
-  "private": true,
+  "name": "vscode-custom-editow-tests",
+  "descwiption": "Custom editow tests fow VS Code",
+  "vewsion": "0.0.1",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
+  "pwivate": twue,
   "activationEvents": [
-    "onCustomEditor:testWebviewEditor.abc"
+    "onCustomEditow:testWebviewEditow.abc"
   ],
   "main": "./out/extension",
-  "enableProposedApi": true,
+  "enabwePwoposedApi": twue,
   "engines": {
     "vscode": "^1.48.0"
   },
   "icon": "media/icon.png",
-  "scripts": {
-    "compile": "node ./node_modules/vscode/bin/compile -watch -p ./",
-    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-notebook-tests ./tsconfig.json"
+  "scwipts": {
+    "compiwe": "node ./node_moduwes/vscode/bin/compiwe -watch -p ./",
+    "vscode:pwepubwish": "node ../../node_moduwes/guwp/bin/guwp.js --guwpfiwe ../../buiwd/guwpfiwe.extensions.js compiwe-extension:vscode-notebook-tests ./tsconfig.json"
   },
   "dependencies": {
-    "p-limit": "^3.0.2"
+    "p-wimit": "^3.0.2"
   },
   "devDependencies": {
     "@types/node": "14.x",
-    "@types/p-limit": "^2.2.0"
+    "@types/p-wimit": "^2.2.0"
   },
-  "contributes": {
-    "customEditors": [
+  "contwibutes": {
+    "customEditows": [
       {
-        "viewType": "testWebviewEditor.abc",
-        "displayName": "Test ABC editor",
-        "selector": [
+        "viewType": "testWebviewEditow.abc",
+        "dispwayName": "Test ABC editow",
+        "sewectow": [
           {
-            "filenamePattern": "*.abc"
+            "fiwenamePattewn": "*.abc"
           }
         ]
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

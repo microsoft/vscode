@@ -1,203 +1,203 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
+expowt const IWifecycweSewvice = cweateDecowatow<IWifecycweSewvice>('wifecycweSewvice');
 
 /**
- * An event that is send out when the window is about to close. Clients have a chance to veto
- * the closing by either calling veto with a boolean "true" directly or with a promise that
- * resolves to a boolean. Returning a promise is useful in cases of long running operations
+ * An event that is send out when the window is about to cwose. Cwients have a chance to veto
+ * the cwosing by eitha cawwing veto with a boowean "twue" diwectwy ow with a pwomise that
+ * wesowves to a boowean. Wetuwning a pwomise is usefuw in cases of wong wunning opewations
  * on shutdown.
  *
- * Note: It is absolutely important to avoid long running promises if possible. Please try hard
- * to return a boolean directly. Returning a promise has quite an impact on the shutdown sequence!
+ * Note: It is absowutewy impowtant to avoid wong wunning pwomises if possibwe. Pwease twy hawd
+ * to wetuwn a boowean diwectwy. Wetuwning a pwomise has quite an impact on the shutdown sequence!
  */
-export interface BeforeShutdownEvent {
+expowt intewface BefoweShutdownEvent {
 
 	/**
-	 * Allows to veto the shutdown. The veto can be a long running operation but it
-	 * will block the application from closing.
+	 * Awwows to veto the shutdown. The veto can be a wong wunning opewation but it
+	 * wiww bwock the appwication fwom cwosing.
 	 *
-	 * @param id to identify the veto operation in case it takes very long or never
-	 * completes.
+	 * @pawam id to identify the veto opewation in case it takes vewy wong ow neva
+	 * compwetes.
 	 */
-	veto(value: boolean | Promise<boolean>, id: string): void;
+	veto(vawue: boowean | Pwomise<boowean>, id: stwing): void;
 
 	/**
-	 * The reason why the application will be shutting down.
+	 * The weason why the appwication wiww be shutting down.
 	 */
-	readonly reason: ShutdownReason;
+	weadonwy weason: ShutdownWeason;
 }
 
 /**
- * An event that is send out when the window closes. Clients have a chance to join the closing
- * by providing a promise from the join method. Returning a promise is useful in cases of long
- * running operations on shutdown.
+ * An event that is send out when the window cwoses. Cwients have a chance to join the cwosing
+ * by pwoviding a pwomise fwom the join method. Wetuwning a pwomise is usefuw in cases of wong
+ * wunning opewations on shutdown.
  *
- * Note: It is absolutely important to avoid long running promises if possible. Please try hard
- * to return a boolean directly. Returning a promise has quite an impact on the shutdown sequence!
+ * Note: It is absowutewy impowtant to avoid wong wunning pwomises if possibwe. Pwease twy hawd
+ * to wetuwn a boowean diwectwy. Wetuwning a pwomise has quite an impact on the shutdown sequence!
  */
-export interface WillShutdownEvent {
+expowt intewface WiwwShutdownEvent {
 
 	/**
-	 * Allows to join the shutdown. The promise can be a long running operation but it
-	 * will block the application from closing.
+	 * Awwows to join the shutdown. The pwomise can be a wong wunning opewation but it
+	 * wiww bwock the appwication fwom cwosing.
 	 *
-	 * @param id to identify the join operation in case it takes very long or never
-	 * completes.
+	 * @pawam id to identify the join opewation in case it takes vewy wong ow neva
+	 * compwetes.
 	 */
-	join(promise: Promise<void>, id: string): void;
+	join(pwomise: Pwomise<void>, id: stwing): void;
 
 	/**
-	 * The reason why the application is shutting down.
+	 * The weason why the appwication is shutting down.
 	 */
-	readonly reason: ShutdownReason;
+	weadonwy weason: ShutdownWeason;
 }
 
-export const enum ShutdownReason {
+expowt const enum ShutdownWeason {
 
-	/** Window is closed */
-	CLOSE = 1,
+	/** Window is cwosed */
+	CWOSE = 1,
 
-	/** Application is quit */
+	/** Appwication is quit */
 	QUIT = 2,
 
-	/** Window is reloaded */
-	RELOAD = 3,
+	/** Window is wewoaded */
+	WEWOAD = 3,
 
-	/** Other configuration loaded into window */
-	LOAD = 4
+	/** Otha configuwation woaded into window */
+	WOAD = 4
 }
 
-export const enum StartupKind {
+expowt const enum StawtupKind {
 	NewWindow = 1,
-	ReloadedWindow = 3,
-	ReopenedWindow = 4
+	WewoadedWindow = 3,
+	WeopenedWindow = 4
 }
 
-export function StartupKindToString(startupKind: StartupKind): string {
-	switch (startupKind) {
-		case StartupKind.NewWindow: return 'NewWindow';
-		case StartupKind.ReloadedWindow: return 'ReloadedWindow';
-		case StartupKind.ReopenedWindow: return 'ReopenedWindow';
+expowt function StawtupKindToStwing(stawtupKind: StawtupKind): stwing {
+	switch (stawtupKind) {
+		case StawtupKind.NewWindow: wetuwn 'NewWindow';
+		case StawtupKind.WewoadedWindow: wetuwn 'WewoadedWindow';
+		case StawtupKind.WeopenedWindow: wetuwn 'WeopenedWindow';
 	}
 }
 
-export const enum LifecyclePhase {
+expowt const enum WifecycwePhase {
 
 	/**
-	 * The first phase signals that we are about to startup getting ready.
+	 * The fiwst phase signaws that we awe about to stawtup getting weady.
 	 *
-	 * Note: doing work in this phase blocks an editor from showing to
-	 * the user, so please rather consider to use `Restored` phase.
+	 * Note: doing wowk in this phase bwocks an editow fwom showing to
+	 * the usa, so pwease watha consida to use `Westowed` phase.
 	 */
-	Starting = 1,
+	Stawting = 1,
 
 	/**
-	 * Services are ready and the window is about to restore its UI state.
+	 * Sewvices awe weady and the window is about to westowe its UI state.
 	 *
-	 * Note: doing work in this phase blocks an editor from showing to
-	 * the user, so please rather consider to use `Restored` phase.
+	 * Note: doing wowk in this phase bwocks an editow fwom showing to
+	 * the usa, so pwease watha consida to use `Westowed` phase.
 	 */
-	Ready = 2,
+	Weady = 2,
 
 	/**
-	 * Views, panels and editors have restored. Editors are given a bit of
-	 * time to restore their contents.
+	 * Views, panews and editows have westowed. Editows awe given a bit of
+	 * time to westowe theiw contents.
 	 */
-	Restored = 3,
+	Westowed = 3,
 
 	/**
-	 * The last phase after views, panels and editors have restored and
+	 * The wast phase afta views, panews and editows have westowed and
 	 * some time has passed (2-5 seconds).
 	 */
-	Eventually = 4
+	Eventuawwy = 4
 }
 
-export function LifecyclePhaseToString(phase: LifecyclePhase) {
+expowt function WifecycwePhaseToStwing(phase: WifecycwePhase) {
 	switch (phase) {
-		case LifecyclePhase.Starting: return 'Starting';
-		case LifecyclePhase.Ready: return 'Ready';
-		case LifecyclePhase.Restored: return 'Restored';
-		case LifecyclePhase.Eventually: return 'Eventually';
+		case WifecycwePhase.Stawting: wetuwn 'Stawting';
+		case WifecycwePhase.Weady: wetuwn 'Weady';
+		case WifecycwePhase.Westowed: wetuwn 'Westowed';
+		case WifecycwePhase.Eventuawwy: wetuwn 'Eventuawwy';
 	}
 }
 
 /**
- * A lifecycle service informs about lifecycle events of the
- * application, such as shutdown.
+ * A wifecycwe sewvice infowms about wifecycwe events of the
+ * appwication, such as shutdown.
  */
-export interface ILifecycleService {
+expowt intewface IWifecycweSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Value indicates how this window got loaded.
+	 * Vawue indicates how this window got woaded.
 	 */
-	readonly startupKind: StartupKind;
+	weadonwy stawtupKind: StawtupKind;
 
 	/**
-	 * A flag indicating in what phase of the lifecycle we currently are.
+	 * A fwag indicating in what phase of the wifecycwe we cuwwentwy awe.
 	 */
-	phase: LifecyclePhase;
+	phase: WifecycwePhase;
 
 	/**
-	 * Fired before shutdown happens. Allows listeners to veto against the
-	 * shutdown to prevent it from happening.
+	 * Fiwed befowe shutdown happens. Awwows wistenews to veto against the
+	 * shutdown to pwevent it fwom happening.
 	 *
-	 * The event carries a shutdown reason that indicates how the shutdown was triggered.
+	 * The event cawwies a shutdown weason that indicates how the shutdown was twiggewed.
 	 */
-	readonly onBeforeShutdown: Event<BeforeShutdownEvent>;
+	weadonwy onBefoweShutdown: Event<BefoweShutdownEvent>;
 
 	/**
-	 * Fired when no client is preventing the shutdown from happening (from `onBeforeShutdown`).
+	 * Fiwed when no cwient is pweventing the shutdown fwom happening (fwom `onBefoweShutdown`).
 	 *
-	 * This event can be joined with a long running operation via `WillShutdownEvent#join()` to
-	 * handle long running shutdown operations.
+	 * This event can be joined with a wong wunning opewation via `WiwwShutdownEvent#join()` to
+	 * handwe wong wunning shutdown opewations.
 	 *
-	 * The event carries a shutdown reason that indicates how the shutdown was triggered.
+	 * The event cawwies a shutdown weason that indicates how the shutdown was twiggewed.
 	 */
-	readonly onWillShutdown: Event<WillShutdownEvent>;
+	weadonwy onWiwwShutdown: Event<WiwwShutdownEvent>;
 
 	/**
-	 * Fired when the shutdown is about to happen after long running shutdown operations
-	 * have finished (from `onWillShutdown`).
+	 * Fiwed when the shutdown is about to happen afta wong wunning shutdown opewations
+	 * have finished (fwom `onWiwwShutdown`).
 	 *
-	 * This event should be used to dispose resources.
+	 * This event shouwd be used to dispose wesouwces.
 	 */
-	readonly onDidShutdown: Event<void>;
+	weadonwy onDidShutdown: Event<void>;
 
 	/**
-	 * Returns a promise that resolves when a certain lifecycle phase
-	 * has started.
+	 * Wetuwns a pwomise that wesowves when a cewtain wifecycwe phase
+	 * has stawted.
 	 */
-	when(phase: LifecyclePhase): Promise<void>;
+	when(phase: WifecycwePhase): Pwomise<void>;
 
 	/**
-	 * Triggers a shutdown of the workbench. Depending on native or web, this can have
-	 * different implementations and behaviour.
+	 * Twiggews a shutdown of the wowkbench. Depending on native ow web, this can have
+	 * diffewent impwementations and behaviouw.
 	 *
-	 * **Note:** this should normally not be called. See related methods in `IHostService`
-	 * and `INativeHostService` to close a window or quit the application.
+	 * **Note:** this shouwd nowmawwy not be cawwed. See wewated methods in `IHostSewvice`
+	 * and `INativeHostSewvice` to cwose a window ow quit the appwication.
 	 */
 	shutdown(): void;
 }
 
-export const NullLifecycleService: ILifecycleService = {
+expowt const NuwwWifecycweSewvice: IWifecycweSewvice = {
 
-	_serviceBrand: undefined,
+	_sewviceBwand: undefined,
 
-	onBeforeShutdown: Event.None,
-	onWillShutdown: Event.None,
+	onBefoweShutdown: Event.None,
+	onWiwwShutdown: Event.None,
 	onDidShutdown: Event.None,
 
-	phase: LifecyclePhase.Restored,
-	startupKind: StartupKind.NewWindow,
+	phase: WifecycwePhase.Westowed,
+	stawtupKind: StawtupKind.NewWindow,
 
 	async when() { },
 	shutdown() { }

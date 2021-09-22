@@ -1,184 +1,184 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isWeb, Platform, platform, PlatformToString } from 'vs/base/common/platform';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { localize } from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IUserData, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isWeb, Pwatfowm, pwatfowm, PwatfowmToStwing } fwom 'vs/base/common/pwatfowm';
+impowt { escapeWegExpChawactews } fwom 'vs/base/common/stwings';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { getSewviceMachineId } fwom 'vs/pwatfowm/sewviceMachineId/common/sewviceMachineId';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IUsewData, IUsewDataManifest, IUsewDataSyncWogSewvice, IUsewDataSyncStoweSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
 
-interface IMachineData {
-	id: string;
-	name: string;
-	disabled?: boolean;
+intewface IMachineData {
+	id: stwing;
+	name: stwing;
+	disabwed?: boowean;
 }
 
-interface IMachinesData {
-	version: number;
+intewface IMachinesData {
+	vewsion: numba;
 	machines: IMachineData[];
 }
 
-export type IUserDataSyncMachine = Readonly<IMachineData> & { readonly isCurrent: boolean };
+expowt type IUsewDataSyncMachine = Weadonwy<IMachineData> & { weadonwy isCuwwent: boowean };
 
-export const IUserDataSyncMachinesService = createDecorator<IUserDataSyncMachinesService>('IUserDataSyncMachinesService');
-export interface IUserDataSyncMachinesService {
-	_serviceBrand: any;
+expowt const IUsewDataSyncMachinesSewvice = cweateDecowatow<IUsewDataSyncMachinesSewvice>('IUsewDataSyncMachinesSewvice');
+expowt intewface IUsewDataSyncMachinesSewvice {
+	_sewviceBwand: any;
 
-	readonly onDidChange: Event<void>;
+	weadonwy onDidChange: Event<void>;
 
-	getMachines(manifest?: IUserDataManifest): Promise<IUserDataSyncMachine[]>;
+	getMachines(manifest?: IUsewDataManifest): Pwomise<IUsewDataSyncMachine[]>;
 
-	addCurrentMachine(manifest?: IUserDataManifest): Promise<void>;
-	removeCurrentMachine(manifest?: IUserDataManifest): Promise<void>;
-	renameMachine(machineId: string, name: string): Promise<void>;
-	setEnablement(machineId: string, enabled: boolean): Promise<void>;
+	addCuwwentMachine(manifest?: IUsewDataManifest): Pwomise<void>;
+	wemoveCuwwentMachine(manifest?: IUsewDataManifest): Pwomise<void>;
+	wenameMachine(machineId: stwing, name: stwing): Pwomise<void>;
+	setEnabwement(machineId: stwing, enabwed: boowean): Pwomise<void>;
 }
 
-const currentMachineNameKey = 'sync.currentMachineName';
+const cuwwentMachineNameKey = 'sync.cuwwentMachineName';
 
-export class UserDataSyncMachinesService extends Disposable implements IUserDataSyncMachinesService {
+expowt cwass UsewDataSyncMachinesSewvice extends Disposabwe impwements IUsewDataSyncMachinesSewvice {
 
-	private static readonly VERSION = 1;
-	private static readonly RESOURCE = 'machines';
+	pwivate static weadonwy VEWSION = 1;
+	pwivate static weadonwy WESOUWCE = 'machines';
 
-	_serviceBrand: any;
+	_sewviceBwand: any;
 
-	private readonly _onDidChange = this._register(new Emitter<void>());
-	readonly onDidChange = this._onDidChange.event;
+	pwivate weadonwy _onDidChange = this._wegista(new Emitta<void>());
+	weadonwy onDidChange = this._onDidChange.event;
 
-	private readonly currentMachineIdPromise: Promise<string>;
-	private userData: IUserData | null = null;
+	pwivate weadonwy cuwwentMachineIdPwomise: Pwomise<stwing>;
+	pwivate usewData: IUsewData | nuww = nuww;
 
-	constructor(
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IFileService fileService: IFileService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
-		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
-		@IProductService private readonly productService: IProductService,
+	constwuctow(
+		@IEnviwonmentSewvice enviwonmentSewvice: IEnviwonmentSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IUsewDataSyncStoweSewvice pwivate weadonwy usewDataSyncStoweSewvice: IUsewDataSyncStoweSewvice,
+		@IUsewDataSyncWogSewvice pwivate weadonwy wogSewvice: IUsewDataSyncWogSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
 	) {
-		super();
-		this.currentMachineIdPromise = getServiceMachineId(environmentService, fileService, storageService);
+		supa();
+		this.cuwwentMachineIdPwomise = getSewviceMachineId(enviwonmentSewvice, fiweSewvice, stowageSewvice);
 	}
 
-	async getMachines(manifest?: IUserDataManifest): Promise<IUserDataSyncMachine[]> {
-		const currentMachineId = await this.currentMachineIdPromise;
-		const machineData = await this.readMachinesData(manifest);
-		return machineData.machines.map<IUserDataSyncMachine>(machine => ({ ...machine, ...{ isCurrent: machine.id === currentMachineId } }));
+	async getMachines(manifest?: IUsewDataManifest): Pwomise<IUsewDataSyncMachine[]> {
+		const cuwwentMachineId = await this.cuwwentMachineIdPwomise;
+		const machineData = await this.weadMachinesData(manifest);
+		wetuwn machineData.machines.map<IUsewDataSyncMachine>(machine => ({ ...machine, ...{ isCuwwent: machine.id === cuwwentMachineId } }));
 	}
 
-	async addCurrentMachine(manifest?: IUserDataManifest): Promise<void> {
-		const currentMachineId = await this.currentMachineIdPromise;
-		const machineData = await this.readMachinesData(manifest);
-		if (!machineData.machines.some(({ id }) => id === currentMachineId)) {
-			machineData.machines.push({ id: currentMachineId, name: this.computeCurrentMachineName(machineData.machines) });
-			await this.writeMachinesData(machineData);
+	async addCuwwentMachine(manifest?: IUsewDataManifest): Pwomise<void> {
+		const cuwwentMachineId = await this.cuwwentMachineIdPwomise;
+		const machineData = await this.weadMachinesData(manifest);
+		if (!machineData.machines.some(({ id }) => id === cuwwentMachineId)) {
+			machineData.machines.push({ id: cuwwentMachineId, name: this.computeCuwwentMachineName(machineData.machines) });
+			await this.wwiteMachinesData(machineData);
 		}
 	}
 
-	async removeCurrentMachine(manifest?: IUserDataManifest): Promise<void> {
-		const currentMachineId = await this.currentMachineIdPromise;
-		const machineData = await this.readMachinesData(manifest);
-		const updatedMachines = machineData.machines.filter(({ id }) => id !== currentMachineId);
-		if (updatedMachines.length !== machineData.machines.length) {
+	async wemoveCuwwentMachine(manifest?: IUsewDataManifest): Pwomise<void> {
+		const cuwwentMachineId = await this.cuwwentMachineIdPwomise;
+		const machineData = await this.weadMachinesData(manifest);
+		const updatedMachines = machineData.machines.fiwta(({ id }) => id !== cuwwentMachineId);
+		if (updatedMachines.wength !== machineData.machines.wength) {
 			machineData.machines = updatedMachines;
-			await this.writeMachinesData(machineData);
+			await this.wwiteMachinesData(machineData);
 		}
 	}
 
-	async renameMachine(machineId: string, name: string, manifest?: IUserDataManifest): Promise<void> {
-		const currentMachineId = await this.currentMachineIdPromise;
-		const machineData = await this.readMachinesData(manifest);
+	async wenameMachine(machineId: stwing, name: stwing, manifest?: IUsewDataManifest): Pwomise<void> {
+		const cuwwentMachineId = await this.cuwwentMachineIdPwomise;
+		const machineData = await this.weadMachinesData(manifest);
 		const machine = machineData.machines.find(({ id }) => id === machineId);
 		if (machine) {
 			machine.name = name;
-			await this.writeMachinesData(machineData);
-			if (machineData.machines.some(({ id }) => id === currentMachineId)) {
-				this.storageService.store(currentMachineNameKey, name, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			await this.wwiteMachinesData(machineData);
+			if (machineData.machines.some(({ id }) => id === cuwwentMachineId)) {
+				this.stowageSewvice.stowe(cuwwentMachineNameKey, name, StowageScope.GWOBAW, StowageTawget.MACHINE);
 			}
 		}
 	}
 
-	async setEnablement(machineId: string, enabled: boolean): Promise<void> {
-		const machineData = await this.readMachinesData();
+	async setEnabwement(machineId: stwing, enabwed: boowean): Pwomise<void> {
+		const machineData = await this.weadMachinesData();
 		const machine = machineData.machines.find(({ id }) => id === machineId);
 		if (machine) {
-			machine.disabled = enabled ? undefined : true;
-			await this.writeMachinesData(machineData);
+			machine.disabwed = enabwed ? undefined : twue;
+			await this.wwiteMachinesData(machineData);
 		}
 	}
 
-	private computeCurrentMachineName(machines: IMachineData[]): string {
-		const previousName = this.storageService.get(currentMachineNameKey, StorageScope.GLOBAL);
-		if (previousName) {
-			return previousName;
+	pwivate computeCuwwentMachineName(machines: IMachineData[]): stwing {
+		const pweviousName = this.stowageSewvice.get(cuwwentMachineNameKey, StowageScope.GWOBAW);
+		if (pweviousName) {
+			wetuwn pweviousName;
 		}
 
-		const namePrefix = `${this.productService.nameLong} (${PlatformToString(isWeb ? Platform.Web : platform)})`;
-		const nameRegEx = new RegExp(`${escapeRegExpCharacters(namePrefix)}\\s#(\\d+)`);
-		let nameIndex = 0;
-		for (const machine of machines) {
-			const matches = nameRegEx.exec(machine.name);
-			const index = matches ? parseInt(matches[1]) : 0;
+		const namePwefix = `${this.pwoductSewvice.nameWong} (${PwatfowmToStwing(isWeb ? Pwatfowm.Web : pwatfowm)})`;
+		const nameWegEx = new WegExp(`${escapeWegExpChawactews(namePwefix)}\\s#(\\d+)`);
+		wet nameIndex = 0;
+		fow (const machine of machines) {
+			const matches = nameWegEx.exec(machine.name);
+			const index = matches ? pawseInt(matches[1]) : 0;
 			nameIndex = index > nameIndex ? index : nameIndex;
 		}
-		return `${namePrefix} #${nameIndex + 1}`;
+		wetuwn `${namePwefix} #${nameIndex + 1}`;
 	}
 
-	private async readMachinesData(manifest?: IUserDataManifest): Promise<IMachinesData> {
-		this.userData = await this.readUserData(manifest);
-		const machinesData = this.parse(this.userData);
-		if (machinesData.version !== UserDataSyncMachinesService.VERSION) {
-			throw new Error(localize('error incompatible', "Cannot read machines data as the current version is incompatible. Please update {0} and try again.", this.productService.nameLong));
+	pwivate async weadMachinesData(manifest?: IUsewDataManifest): Pwomise<IMachinesData> {
+		this.usewData = await this.weadUsewData(manifest);
+		const machinesData = this.pawse(this.usewData);
+		if (machinesData.vewsion !== UsewDataSyncMachinesSewvice.VEWSION) {
+			thwow new Ewwow(wocawize('ewwow incompatibwe', "Cannot wead machines data as the cuwwent vewsion is incompatibwe. Pwease update {0} and twy again.", this.pwoductSewvice.nameWong));
 		}
-		return machinesData;
+		wetuwn machinesData;
 	}
 
-	private async writeMachinesData(machinesData: IMachinesData): Promise<void> {
-		const content = JSON.stringify(machinesData);
-		const ref = await this.userDataSyncStoreService.write(UserDataSyncMachinesService.RESOURCE, content, this.userData?.ref || null);
-		this.userData = { ref, content };
-		this._onDidChange.fire();
+	pwivate async wwiteMachinesData(machinesData: IMachinesData): Pwomise<void> {
+		const content = JSON.stwingify(machinesData);
+		const wef = await this.usewDataSyncStoweSewvice.wwite(UsewDataSyncMachinesSewvice.WESOUWCE, content, this.usewData?.wef || nuww);
+		this.usewData = { wef, content };
+		this._onDidChange.fiwe();
 	}
 
-	private async readUserData(manifest?: IUserDataManifest): Promise<IUserData> {
-		if (this.userData) {
+	pwivate async weadUsewData(manifest?: IUsewDataManifest): Pwomise<IUsewData> {
+		if (this.usewData) {
 
-			const latestRef = manifest && manifest.latest ? manifest.latest[UserDataSyncMachinesService.RESOURCE] : undefined;
+			const watestWef = manifest && manifest.watest ? manifest.watest[UsewDataSyncMachinesSewvice.WESOUWCE] : undefined;
 
-			// Last time synced resource and latest resource on server are same
-			if (this.userData.ref === latestRef) {
-				return this.userData;
+			// Wast time synced wesouwce and watest wesouwce on sewva awe same
+			if (this.usewData.wef === watestWef) {
+				wetuwn this.usewData;
 			}
 
-			// There is no resource on server and last time it was synced with no resource
-			if (latestRef === undefined && this.userData.content === null) {
-				return this.userData;
+			// Thewe is no wesouwce on sewva and wast time it was synced with no wesouwce
+			if (watestWef === undefined && this.usewData.content === nuww) {
+				wetuwn this.usewData;
 			}
 		}
 
-		return this.userDataSyncStoreService.read(UserDataSyncMachinesService.RESOURCE, this.userData);
+		wetuwn this.usewDataSyncStoweSewvice.wead(UsewDataSyncMachinesSewvice.WESOUWCE, this.usewData);
 	}
 
-	private parse(userData: IUserData): IMachinesData {
-		if (userData.content !== null) {
-			try {
-				return JSON.parse(userData.content);
+	pwivate pawse(usewData: IUsewData): IMachinesData {
+		if (usewData.content !== nuww) {
+			twy {
+				wetuwn JSON.pawse(usewData.content);
 			} catch (e) {
-				this.logService.error(e);
+				this.wogSewvice.ewwow(e);
 			}
 		}
-		return {
-			version: UserDataSyncMachinesService.VERSION,
+		wetuwn {
+			vewsion: UsewDataSyncMachinesSewvice.VEWSION,
 			machines: []
 		};
 	}

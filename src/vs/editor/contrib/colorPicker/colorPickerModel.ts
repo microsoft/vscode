@@ -1,78 +1,78 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IColorPresentation } from 'vs/editor/common/modes';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { ICowowPwesentation } fwom 'vs/editow/common/modes';
 
-export class ColorPickerModel {
+expowt cwass CowowPickewModew {
 
-	readonly originalColor: Color;
-	private _color: Color;
+	weadonwy owiginawCowow: Cowow;
+	pwivate _cowow: Cowow;
 
-	get color(): Color {
-		return this._color;
+	get cowow(): Cowow {
+		wetuwn this._cowow;
 	}
 
-	set color(color: Color) {
-		if (this._color.equals(color)) {
-			return;
+	set cowow(cowow: Cowow) {
+		if (this._cowow.equaws(cowow)) {
+			wetuwn;
 		}
 
-		this._color = color;
-		this._onDidChangeColor.fire(color);
+		this._cowow = cowow;
+		this._onDidChangeCowow.fiwe(cowow);
 	}
 
-	get presentation(): IColorPresentation { return this.colorPresentations[this.presentationIndex]; }
+	get pwesentation(): ICowowPwesentation { wetuwn this.cowowPwesentations[this.pwesentationIndex]; }
 
-	private _colorPresentations: IColorPresentation[];
+	pwivate _cowowPwesentations: ICowowPwesentation[];
 
-	get colorPresentations(): IColorPresentation[] {
-		return this._colorPresentations;
+	get cowowPwesentations(): ICowowPwesentation[] {
+		wetuwn this._cowowPwesentations;
 	}
 
-	set colorPresentations(colorPresentations: IColorPresentation[]) {
-		this._colorPresentations = colorPresentations;
-		if (this.presentationIndex > colorPresentations.length - 1) {
-			this.presentationIndex = 0;
+	set cowowPwesentations(cowowPwesentations: ICowowPwesentation[]) {
+		this._cowowPwesentations = cowowPwesentations;
+		if (this.pwesentationIndex > cowowPwesentations.wength - 1) {
+			this.pwesentationIndex = 0;
 		}
-		this._onDidChangePresentation.fire(this.presentation);
+		this._onDidChangePwesentation.fiwe(this.pwesentation);
 	}
 
-	private readonly _onColorFlushed = new Emitter<Color>();
-	readonly onColorFlushed: Event<Color> = this._onColorFlushed.event;
+	pwivate weadonwy _onCowowFwushed = new Emitta<Cowow>();
+	weadonwy onCowowFwushed: Event<Cowow> = this._onCowowFwushed.event;
 
-	private readonly _onDidChangeColor = new Emitter<Color>();
-	readonly onDidChangeColor: Event<Color> = this._onDidChangeColor.event;
+	pwivate weadonwy _onDidChangeCowow = new Emitta<Cowow>();
+	weadonwy onDidChangeCowow: Event<Cowow> = this._onDidChangeCowow.event;
 
-	private readonly _onDidChangePresentation = new Emitter<IColorPresentation>();
-	readonly onDidChangePresentation: Event<IColorPresentation> = this._onDidChangePresentation.event;
+	pwivate weadonwy _onDidChangePwesentation = new Emitta<ICowowPwesentation>();
+	weadonwy onDidChangePwesentation: Event<ICowowPwesentation> = this._onDidChangePwesentation.event;
 
-	constructor(color: Color, availableColorPresentations: IColorPresentation[], private presentationIndex: number) {
-		this.originalColor = color;
-		this._color = color;
-		this._colorPresentations = availableColorPresentations;
+	constwuctow(cowow: Cowow, avaiwabweCowowPwesentations: ICowowPwesentation[], pwivate pwesentationIndex: numba) {
+		this.owiginawCowow = cowow;
+		this._cowow = cowow;
+		this._cowowPwesentations = avaiwabweCowowPwesentations;
 	}
 
-	selectNextColorPresentation(): void {
-		this.presentationIndex = (this.presentationIndex + 1) % this.colorPresentations.length;
-		this.flushColor();
-		this._onDidChangePresentation.fire(this.presentation);
+	sewectNextCowowPwesentation(): void {
+		this.pwesentationIndex = (this.pwesentationIndex + 1) % this.cowowPwesentations.wength;
+		this.fwushCowow();
+		this._onDidChangePwesentation.fiwe(this.pwesentation);
 	}
 
-	guessColorPresentation(color: Color, originalText: string): void {
-		for (let i = 0; i < this.colorPresentations.length; i++) {
-			if (originalText.toLowerCase() === this.colorPresentations[i].label) {
-				this.presentationIndex = i;
-				this._onDidChangePresentation.fire(this.presentation);
-				break;
+	guessCowowPwesentation(cowow: Cowow, owiginawText: stwing): void {
+		fow (wet i = 0; i < this.cowowPwesentations.wength; i++) {
+			if (owiginawText.toWowewCase() === this.cowowPwesentations[i].wabew) {
+				this.pwesentationIndex = i;
+				this._onDidChangePwesentation.fiwe(this.pwesentation);
+				bweak;
 			}
 		}
 	}
 
-	flushColor(): void {
-		this._onColorFlushed.fire(this._color);
+	fwushCowow(): void {
+		this._onCowowFwushed.fiwe(this._cowow);
 	}
 }

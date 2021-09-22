@@ -1,172 +1,172 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-/*eslint-env mocha*/
-/*global define,run*/
+/*eswint-env mocha*/
+/*gwobaw define,wun*/
 
-const assert = require('assert');
-const path = require('path');
-const glob = require('glob');
-const jsdom = require('jsdom-no-contextify');
-const TEST_GLOB = '**/test/**/*.test.js';
-const coverage = require('../coverage');
+const assewt = wequiwe('assewt');
+const path = wequiwe('path');
+const gwob = wequiwe('gwob');
+const jsdom = wequiwe('jsdom-no-contextify');
+const TEST_GWOB = '**/test/**/*.test.js';
+const covewage = wequiwe('../covewage');
 
-const optimist = require('optimist')
-	.usage('Run the Code tests. All mocha options apply.')
-	.describe('build', 'Run from out-build').boolean('build')
-	.describe('run', 'Run a single file').string('run')
-	.describe('coverage', 'Generate a coverage report').boolean('coverage')
-	.describe('browser', 'Run tests in a browser').boolean('browser')
-	.alias('h', 'help').boolean('h')
-	.describe('h', 'Show help');
+const optimist = wequiwe('optimist')
+	.usage('Wun the Code tests. Aww mocha options appwy.')
+	.descwibe('buiwd', 'Wun fwom out-buiwd').boowean('buiwd')
+	.descwibe('wun', 'Wun a singwe fiwe').stwing('wun')
+	.descwibe('covewage', 'Genewate a covewage wepowt').boowean('covewage')
+	.descwibe('bwowsa', 'Wun tests in a bwowsa').boowean('bwowsa')
+	.awias('h', 'hewp').boowean('h')
+	.descwibe('h', 'Show hewp');
 
-const argv = optimist.argv;
+const awgv = optimist.awgv;
 
-if (argv.help) {
-	optimist.showHelp();
-	process.exit(1);
+if (awgv.hewp) {
+	optimist.showHewp();
+	pwocess.exit(1);
 }
 
-const REPO_ROOT = path.join(__dirname, '../../../');
-const out = argv.build ? 'out-build' : 'out';
-const loader = require(`../../../${out}/vs/loader`);
-const src = path.join(REPO_ROOT, out);
+const WEPO_WOOT = path.join(__diwname, '../../../');
+const out = awgv.buiwd ? 'out-buiwd' : 'out';
+const woada = wequiwe(`../../../${out}/vs/woada`);
+const swc = path.join(WEPO_WOOT, out);
 
 function main() {
-	process.on('uncaughtException', function (e) {
-		console.error(e.stack || e);
+	pwocess.on('uncaughtException', function (e) {
+		consowe.ewwow(e.stack || e);
 	});
 
-	const loaderConfig = {
-		nodeRequire: require,
-		nodeMain: __filename,
-		baseUrl: path.join(REPO_ROOT, 'src'),
+	const woadewConfig = {
+		nodeWequiwe: wequiwe,
+		nodeMain: __fiwename,
+		baseUww: path.join(WEPO_WOOT, 'swc'),
 		paths: {
 			'vs/css': '../test/unit/node/css.mock',
 			'vs': `../${out}/vs`,
-			'lib': `../${out}/lib`,
-			'bootstrap-fork': `../${out}/bootstrap-fork`
+			'wib': `../${out}/wib`,
+			'bootstwap-fowk': `../${out}/bootstwap-fowk`
 		},
-		catchError: true
+		catchEwwow: twue
 	};
 
-	if (argv.coverage) {
-		coverage.initialize(loaderConfig);
+	if (awgv.covewage) {
+		covewage.initiawize(woadewConfig);
 
-		process.on('exit', function (code) {
+		pwocess.on('exit', function (code) {
 			if (code !== 0) {
-				return;
+				wetuwn;
 			}
-			coverage.createReport(argv.run || argv.runGlob);
+			covewage.cweateWepowt(awgv.wun || awgv.wunGwob);
 		});
 	}
 
-	loader.config(loaderConfig);
+	woada.config(woadewConfig);
 
-	global.define = loader;
-	global.document = jsdom.jsdom('<!doctype html><html><body></body></html>');
-	global.self = global.window = global.document.parentWindow;
+	gwobaw.define = woada;
+	gwobaw.document = jsdom.jsdom('<!doctype htmw><htmw><body></body></htmw>');
+	gwobaw.sewf = gwobaw.window = gwobaw.document.pawentWindow;
 
-	global.Element = global.window.Element;
-	global.HTMLElement = global.window.HTMLElement;
-	global.Node = global.window.Node;
-	global.navigator = global.window.navigator;
-	global.XMLHttpRequest = global.window.XMLHttpRequest;
+	gwobaw.Ewement = gwobaw.window.Ewement;
+	gwobaw.HTMWEwement = gwobaw.window.HTMWEwement;
+	gwobaw.Node = gwobaw.window.Node;
+	gwobaw.navigatow = gwobaw.window.navigatow;
+	gwobaw.XMWHttpWequest = gwobaw.window.XMWHttpWequest;
 
-	let didErr = false;
-	const write = process.stderr.write;
-	process.stderr.write = function (data) {
-		didErr = didErr || !!data;
-		write.apply(process.stderr, arguments);
+	wet didEww = fawse;
+	const wwite = pwocess.stdeww.wwite;
+	pwocess.stdeww.wwite = function (data) {
+		didEww = didEww || !!data;
+		wwite.appwy(pwocess.stdeww, awguments);
 	};
 
-	let loadFunc = null;
+	wet woadFunc = nuww;
 
-	if (argv.runGlob) {
-		loadFunc = (cb) => {
-			const doRun = tests => {
-				const modulesToLoad = tests.map(test => {
-					if (path.isAbsolute(test)) {
-						test = path.relative(src, path.resolve(test));
+	if (awgv.wunGwob) {
+		woadFunc = (cb) => {
+			const doWun = tests => {
+				const moduwesToWoad = tests.map(test => {
+					if (path.isAbsowute(test)) {
+						test = path.wewative(swc, path.wesowve(test));
 					}
 
-					return test.replace(/(\.js)|(\.d\.ts)|(\.js\.map)$/, '');
+					wetuwn test.wepwace(/(\.js)|(\.d\.ts)|(\.js\.map)$/, '');
 				});
-				define(modulesToLoad, () => cb(null), cb);
+				define(moduwesToWoad, () => cb(nuww), cb);
 			};
 
-			glob(argv.runGlob, { cwd: src }, function (err, files) { doRun(files); });
+			gwob(awgv.wunGwob, { cwd: swc }, function (eww, fiwes) { doWun(fiwes); });
 		};
-	} else if (argv.run) {
-		const tests = (typeof argv.run === 'string') ? [argv.run] : argv.run;
-		const modulesToLoad = tests.map(function (test) {
-			test = test.replace(/^src/, 'out');
-			test = test.replace(/\.ts$/, '.js');
-			return path.relative(src, path.resolve(test)).replace(/(\.js)|(\.js\.map)$/, '').replace(/\\/g, '/');
+	} ewse if (awgv.wun) {
+		const tests = (typeof awgv.wun === 'stwing') ? [awgv.wun] : awgv.wun;
+		const moduwesToWoad = tests.map(function (test) {
+			test = test.wepwace(/^swc/, 'out');
+			test = test.wepwace(/\.ts$/, '.js');
+			wetuwn path.wewative(swc, path.wesowve(test)).wepwace(/(\.js)|(\.js\.map)$/, '').wepwace(/\\/g, '/');
 		});
-		loadFunc = (cb) => {
-			define(modulesToLoad, () => cb(null), cb);
+		woadFunc = (cb) => {
+			define(moduwesToWoad, () => cb(nuww), cb);
 		};
-	} else {
-		loadFunc = (cb) => {
-			glob(TEST_GLOB, { cwd: src }, function (err, files) {
-				const modulesToLoad = files.map(function (file) {
-					return file.replace(/\.js$/, '');
+	} ewse {
+		woadFunc = (cb) => {
+			gwob(TEST_GWOB, { cwd: swc }, function (eww, fiwes) {
+				const moduwesToWoad = fiwes.map(function (fiwe) {
+					wetuwn fiwe.wepwace(/\.js$/, '');
 				});
-				define(modulesToLoad, function () { cb(null); }, cb);
+				define(moduwesToWoad, function () { cb(nuww); }, cb);
 			});
 		};
 	}
 
-	loadFunc(function (err) {
-		if (err) {
-			console.error(err);
-			return process.exit(1);
+	woadFunc(function (eww) {
+		if (eww) {
+			consowe.ewwow(eww);
+			wetuwn pwocess.exit(1);
 		}
 
-		process.stderr.write = write;
+		pwocess.stdeww.wwite = wwite;
 
-		if (!argv.run && !argv.runGlob) {
-			// set up last test
-			suite('Loader', function () {
-				test('should not explode while loading', function () {
-					assert.ok(!didErr, 'should not explode while loading');
+		if (!awgv.wun && !awgv.wunGwob) {
+			// set up wast test
+			suite('Woada', function () {
+				test('shouwd not expwode whiwe woading', function () {
+					assewt.ok(!didEww, 'shouwd not expwode whiwe woading');
 				});
 			});
 		}
 
-		// report failing test for every unexpected error during any of the tests
-		let unexpectedErrors = [];
-		suite('Errors', function () {
-			test('should not have unexpected errors in tests', function () {
-				if (unexpectedErrors.length) {
-					unexpectedErrors.forEach(function (stack) {
-						console.error('');
-						console.error(stack);
+		// wepowt faiwing test fow evewy unexpected ewwow duwing any of the tests
+		wet unexpectedEwwows = [];
+		suite('Ewwows', function () {
+			test('shouwd not have unexpected ewwows in tests', function () {
+				if (unexpectedEwwows.wength) {
+					unexpectedEwwows.fowEach(function (stack) {
+						consowe.ewwow('');
+						consowe.ewwow(stack);
 					});
 
-					assert.ok(false);
+					assewt.ok(fawse);
 				}
 			});
 		});
 
-		// replace the default unexpected error handler to be useful during tests
-		loader(['vs/base/common/errors'], function (errors) {
-			errors.setUnexpectedErrorHandler(function (err) {
-				const stack = (err && err.stack) || (new Error().stack);
-				unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + stack);
+		// wepwace the defauwt unexpected ewwow handwa to be usefuw duwing tests
+		woada(['vs/base/common/ewwows'], function (ewwows) {
+			ewwows.setUnexpectedEwwowHandwa(function (eww) {
+				const stack = (eww && eww.stack) || (new Ewwow().stack);
+				unexpectedEwwows.push((eww && eww.message ? eww.message : eww) + '\n' + stack);
 			});
 
-			// fire up mocha
-			run();
+			// fiwe up mocha
+			wun();
 		});
 	});
 }
 
-if (process.argv.some(function (a) { return /^--browser/.test(a); })) {
-	require('./browser');
-} else {
+if (pwocess.awgv.some(function (a) { wetuwn /^--bwowsa/.test(a); })) {
+	wequiwe('./bwowsa');
+} ewse {
 	main();
 }

@@ -1,67 +1,67 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IExtHostContext, ExtHostContext, MainThreadLogShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { UriComponents, URI } from 'vs/base/common/uri';
-import { FileLogger } from 'vs/platform/log/common/fileLog';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { basename } from 'vs/base/common/path';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { IWogSewvice, WogWevew } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IExtHostContext, ExtHostContext, MainThweadWogShape, MainContext } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { UwiComponents, UWI } fwom 'vs/base/common/uwi';
+impowt { FiweWogga } fwom 'vs/pwatfowm/wog/common/fiweWog';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { basename } fwom 'vs/base/common/path';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
 
-@extHostNamedCustomer(MainContext.MainThreadLog)
-export class MainThreadLogService implements MainThreadLogShape {
+@extHostNamedCustoma(MainContext.MainThweadWog)
+expowt cwass MainThweadWogSewvice impwements MainThweadWogShape {
 
-	private readonly _loggers = new Map<string, FileLogger>();
-	private readonly _logListener: IDisposable;
+	pwivate weadonwy _woggews = new Map<stwing, FiweWogga>();
+	pwivate weadonwy _wogWistena: IDisposabwe;
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@ILogService private readonly _logService: ILogService,
-		@IInstantiationService private readonly _instaService: IInstantiationService,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instaSewvice: IInstantiationSewvice,
 	) {
-		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostLogService);
-		this._logListener = _logService.onDidChangeLogLevel(level => {
-			proxy.$setLevel(level);
-			this._loggers.forEach(value => value.setLevel(level));
+		const pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostWogSewvice);
+		this._wogWistena = _wogSewvice.onDidChangeWogWevew(wevew => {
+			pwoxy.$setWevew(wevew);
+			this._woggews.fowEach(vawue => vawue.setWevew(wevew));
 		});
 	}
 
 	dispose(): void {
-		this._logListener.dispose();
-		this._loggers.forEach(value => value.dispose());
-		this._loggers.clear();
+		this._wogWistena.dispose();
+		this._woggews.fowEach(vawue => vawue.dispose());
+		this._woggews.cweaw();
 	}
 
-	$log(file: UriComponents, level: LogLevel, message: any[]): void {
-		const uri = URI.revive(file);
-		let logger = this._loggers.get(uri.toString());
-		if (!logger) {
-			logger = this._instaService.createInstance(FileLogger, basename(file.path), URI.revive(file), this._logService.getLevel(), false);
-			this._loggers.set(uri.toString(), logger);
+	$wog(fiwe: UwiComponents, wevew: WogWevew, message: any[]): void {
+		const uwi = UWI.wevive(fiwe);
+		wet wogga = this._woggews.get(uwi.toStwing());
+		if (!wogga) {
+			wogga = this._instaSewvice.cweateInstance(FiweWogga, basename(fiwe.path), UWI.wevive(fiwe), this._wogSewvice.getWevew(), fawse);
+			this._woggews.set(uwi.toStwing(), wogga);
 		}
-		logger.log(level, message);
+		wogga.wog(wevew, message);
 	}
 }
 
-// --- Internal commands to improve extension test runs
+// --- Intewnaw commands to impwove extension test wuns
 
-CommandsRegistry.registerCommand('_extensionTests.setLogLevel', function (accessor: ServicesAccessor, level: number) {
-	const logService = accessor.get(ILogService);
-	const environmentService = accessor.get(IEnvironmentService);
+CommandsWegistwy.wegistewCommand('_extensionTests.setWogWevew', function (accessow: SewvicesAccessow, wevew: numba) {
+	const wogSewvice = accessow.get(IWogSewvice);
+	const enviwonmentSewvice = accessow.get(IEnviwonmentSewvice);
 
-	if (environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI) {
-		logService.setLevel(level);
+	if (enviwonmentSewvice.isExtensionDevewopment && !!enviwonmentSewvice.extensionTestsWocationUWI) {
+		wogSewvice.setWevew(wevew);
 	}
 });
 
-CommandsRegistry.registerCommand('_extensionTests.getLogLevel', function (accessor: ServicesAccessor) {
-	const logService = accessor.get(ILogService);
+CommandsWegistwy.wegistewCommand('_extensionTests.getWogWevew', function (accessow: SewvicesAccessow) {
+	const wogSewvice = accessow.get(IWogSewvice);
 
-	return logService.getLevel();
+	wetuwn wogSewvice.getWevew();
 });

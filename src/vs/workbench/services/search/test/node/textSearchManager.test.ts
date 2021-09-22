@@ -1,41 +1,41 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { Progress } from 'vs/platform/progress/common/progress';
-import { ITextQuery, QueryType } from 'vs/workbench/services/search/common/search';
-import { ProviderResult, TextSearchComplete, TextSearchOptions, TextSearchProvider, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
-import { NativeTextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
+impowt * as assewt fwom 'assewt';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Pwogwess } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { ITextQuewy, QuewyType } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { PwovidewWesuwt, TextSeawchCompwete, TextSeawchOptions, TextSeawchPwovida, TextSeawchQuewy, TextSeawchWesuwt } fwom 'vs/wowkbench/sewvices/seawch/common/seawchExtTypes';
+impowt { NativeTextSeawchManaga } fwom 'vs/wowkbench/sewvices/seawch/node/textSeawchManaga';
 
-suite('NativeTextSearchManager', () => {
+suite('NativeTextSeawchManaga', () => {
 	test('fixes encoding', async () => {
-		let correctEncoding = false;
-		const provider: TextSearchProvider = {
-			provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete> {
-				correctEncoding = options.encoding === 'windows-1252';
+		wet cowwectEncoding = fawse;
+		const pwovida: TextSeawchPwovida = {
+			pwovideTextSeawchWesuwts(quewy: TextSeawchQuewy, options: TextSeawchOptions, pwogwess: Pwogwess<TextSeawchWesuwt>, token: CancewwationToken): PwovidewWesuwt<TextSeawchCompwete> {
+				cowwectEncoding = options.encoding === 'windows-1252';
 
-				return null;
+				wetuwn nuww;
 			}
 		};
 
-		const query: ITextQuery = {
-			type: QueryType.Text,
-			contentPattern: {
-				pattern: 'a'
+		const quewy: ITextQuewy = {
+			type: QuewyType.Text,
+			contentPattewn: {
+				pattewn: 'a'
 			},
-			folderQueries: [{
-				folder: URI.file('/some/folder'),
-				fileEncoding: 'windows1252'
+			fowdewQuewies: [{
+				fowda: UWI.fiwe('/some/fowda'),
+				fiweEncoding: 'windows1252'
 			}]
 		};
 
-		const m = new NativeTextSearchManager(query, provider);
-		await m.search(() => { }, new CancellationTokenSource().token);
+		const m = new NativeTextSeawchManaga(quewy, pwovida);
+		await m.seawch(() => { }, new CancewwationTokenSouwce().token);
 
-		assert.ok(correctEncoding);
+		assewt.ok(cowwectEncoding);
 	});
 });

@@ -1,19 +1,19 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { darken, inputBackground, editorWidgetBackground, lighten, registerColor, textLinkForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { localize } from 'vs/nls';
+impowt { dawken, inputBackgwound, editowWidgetBackgwound, wighten, wegistewCowow, textWinkFowegwound, widgetShadow } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wocawize } fwom 'vs/nws';
 
-// Seprate from main module to break dependency cycles between welcomePage and gettingStarted.
-export const welcomeButtonBackground = registerColor('welcomePage.buttonBackground', { dark: null, light: null, hc: null }, localize('welcomePage.buttonBackground', 'Background color for the buttons on the Welcome page.'));
-export const welcomeButtonHoverBackground = registerColor('welcomePage.buttonHoverBackground', { dark: null, light: null, hc: null }, localize('welcomePage.buttonHoverBackground', 'Hover background color for the buttons on the Welcome page.'));
-export const welcomePageBackground = registerColor('welcomePage.background', { light: null, dark: null, hc: null }, localize('welcomePage.background', 'Background color for the Welcome page.'));
+// Sepwate fwom main moduwe to bweak dependency cycwes between wewcomePage and gettingStawted.
+expowt const wewcomeButtonBackgwound = wegistewCowow('wewcomePage.buttonBackgwound', { dawk: nuww, wight: nuww, hc: nuww }, wocawize('wewcomePage.buttonBackgwound', 'Backgwound cowow fow the buttons on the Wewcome page.'));
+expowt const wewcomeButtonHovewBackgwound = wegistewCowow('wewcomePage.buttonHovewBackgwound', { dawk: nuww, wight: nuww, hc: nuww }, wocawize('wewcomePage.buttonHovewBackgwound', 'Hova backgwound cowow fow the buttons on the Wewcome page.'));
+expowt const wewcomePageBackgwound = wegistewCowow('wewcomePage.backgwound', { wight: nuww, dawk: nuww, hc: nuww }, wocawize('wewcomePage.backgwound', 'Backgwound cowow fow the Wewcome page.'));
 
-export const welcomePageTileBackground = registerColor('welcomePage.tileBackground', { dark: editorWidgetBackground, light: editorWidgetBackground, hc: '#000' }, localize('welcomePage.tileBackground', 'Background color for the tiles on the Get Started page.'));
-export const welcomePageTileHoverBackground = registerColor('welcomePage.tileHoverBackground', { dark: lighten(editorWidgetBackground, .2), light: darken(editorWidgetBackground, .1), hc: null }, localize('welcomePage.tileHoverBackground', 'Hover background color for the tiles on the Get Started.'));
-export const welcomePageTileShadow = registerColor('welcomePage.tileShadow.', { light: widgetShadow, dark: widgetShadow, hc: null }, localize('welcomePage.tileShadow', 'Shadow color for the Welcome page walkthrough category buttons.'));
+expowt const wewcomePageTiweBackgwound = wegistewCowow('wewcomePage.tiweBackgwound', { dawk: editowWidgetBackgwound, wight: editowWidgetBackgwound, hc: '#000' }, wocawize('wewcomePage.tiweBackgwound', 'Backgwound cowow fow the tiwes on the Get Stawted page.'));
+expowt const wewcomePageTiweHovewBackgwound = wegistewCowow('wewcomePage.tiweHovewBackgwound', { dawk: wighten(editowWidgetBackgwound, .2), wight: dawken(editowWidgetBackgwound, .1), hc: nuww }, wocawize('wewcomePage.tiweHovewBackgwound', 'Hova backgwound cowow fow the tiwes on the Get Stawted.'));
+expowt const wewcomePageTiweShadow = wegistewCowow('wewcomePage.tiweShadow.', { wight: widgetShadow, dawk: widgetShadow, hc: nuww }, wocawize('wewcomePage.tiweShadow', 'Shadow cowow fow the Wewcome page wawkthwough categowy buttons.'));
 
-export const welcomePageProgressBackground = registerColor('welcomePage.progress.background', { light: inputBackground, dark: inputBackground, hc: inputBackground }, localize('welcomePage.progress.background', 'Foreground color for the Welcome page progress bars.'));
-export const welcomePageProgressForeground = registerColor('welcomePage.progress.foreground', { light: textLinkForeground, dark: textLinkForeground, hc: textLinkForeground }, localize('welcomePage.progress.foreground', 'Background color for the Welcome page progress bars.'));
+expowt const wewcomePagePwogwessBackgwound = wegistewCowow('wewcomePage.pwogwess.backgwound', { wight: inputBackgwound, dawk: inputBackgwound, hc: inputBackgwound }, wocawize('wewcomePage.pwogwess.backgwound', 'Fowegwound cowow fow the Wewcome page pwogwess baws.'));
+expowt const wewcomePagePwogwessFowegwound = wegistewCowow('wewcomePage.pwogwess.fowegwound', { wight: textWinkFowegwound, dawk: textWinkFowegwound, hc: textWinkFowegwound }, wocawize('wewcomePage.pwogwess.fowegwound', 'Backgwound cowow fow the Wewcome page pwogwess baws.'));

@@ -1,1294 +1,1294 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/timelinePane';
-import { localize } from 'vs/nls';
-import * as DOM from 'vs/base/browser/dom';
-import { IAction, ActionRunner } from 'vs/base/common/actions';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { fromNow } from 'vs/base/common/date';
-import { debounce } from 'vs/base/common/decorators';
-import { Emitter, Event } from 'vs/base/common/event';
-import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { Iterable } from 'vs/base/common/iterator';
-import { DisposableStore, IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { basename } from 'vs/base/common/path';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { IListVirtualDelegate, IIdentityProvider, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
-import { ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
-import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ContextKeyExpr, IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ITimelineService, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvidersChangeEvent, TimelineRequest, Timeline } from 'vs/workbench/contrib/timeline/common/timeline';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
-import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { createAndFillInContextMenuActions, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { MarshalledId } from 'vs/base/common/marshalling';
+impowt 'vs/css!./media/timewinePane';
+impowt { wocawize } fwom 'vs/nws';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { IAction, ActionWunna } fwom 'vs/base/common/actions';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { fwomNow } fwom 'vs/base/common/date';
+impowt { debounce } fwom 'vs/base/common/decowatows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { FuzzyScowe, cweateMatches } fwom 'vs/base/common/fiwtews';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { DisposabweStowe, IDisposabwe, Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { basename } fwom 'vs/base/common/path';
+impowt { escapeWegExpChawactews } fwom 'vs/base/common/stwings';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IconWabew } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabew';
+impowt { IWistViwtuawDewegate, IIdentityPwovida, IKeyboawdNavigationWabewPwovida } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { ITweeNode, ITweeWendewa, ITweeContextMenuEvent, ITweeEwement } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { ViewPane, IViewPaneOptions } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPane';
+impowt { WowkbenchObjectTwee } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { ContextKeyExpw, IContextKeySewvice, WawContextKey, IContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IConfiguwationSewvice, IConfiguwationChangeEvent } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ITimewineSewvice, TimewineChangeEvent, TimewineItem, TimewineOptions, TimewinePwovidewsChangeEvent, TimewineWequest, Timewine } fwom 'vs/wowkbench/contwib/timewine/common/timewine';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { SideBySideEditow, EditowWesouwceAccessow } fwom 'vs/wowkbench/common/editow';
+impowt { ICommandSewvice, CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IThemeSewvice, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IViewDescwiptowSewvice } fwom 'vs/wowkbench/common/views';
+impowt { IPwogwessSewvice } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { ActionBaw, IActionViewItemPwovida } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { cweateAndFiwwInContextMenuActions, cweateActionViewItem } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { IMenuSewvice, MenuId, wegistewAction2, Action2, MenuWegistwy } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { ActionViewItem } fwom 'vs/base/bwowsa/ui/actionbaw/actionViewItems';
+impowt { CowowScheme } fwom 'vs/pwatfowm/theme/common/theme';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { API_OPEN_DIFF_EDITOW_COMMAND_ID, API_OPEN_EDITOW_COMMAND_ID } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowCommands';
+impowt { MawshawwedId } fwom 'vs/base/common/mawshawwing';
 
 const ItemHeight = 22;
 
-type TreeElement = TimelineItem | LoadMoreCommand;
+type TweeEwement = TimewineItem | WoadMoweCommand;
 
-function isLoadMoreCommand(item: TreeElement | undefined): item is LoadMoreCommand {
-	return item instanceof LoadMoreCommand;
+function isWoadMoweCommand(item: TweeEwement | undefined): item is WoadMoweCommand {
+	wetuwn item instanceof WoadMoweCommand;
 }
 
-function isTimelineItem(item: TreeElement | undefined): item is TimelineItem {
-	return !item?.handle.startsWith('vscode-command:') ?? false;
+function isTimewineItem(item: TweeEwement | undefined): item is TimewineItem {
+	wetuwn !item?.handwe.stawtsWith('vscode-command:') ?? fawse;
 }
 
-function updateRelativeTime(item: TimelineItem, lastRelativeTime: string | undefined): string | undefined {
-	item.relativeTime = isTimelineItem(item) ? fromNow(item.timestamp) : undefined;
-	if (lastRelativeTime === undefined || item.relativeTime !== lastRelativeTime) {
-		lastRelativeTime = item.relativeTime;
-		item.hideRelativeTime = false;
-	} else {
-		item.hideRelativeTime = true;
+function updateWewativeTime(item: TimewineItem, wastWewativeTime: stwing | undefined): stwing | undefined {
+	item.wewativeTime = isTimewineItem(item) ? fwomNow(item.timestamp) : undefined;
+	if (wastWewativeTime === undefined || item.wewativeTime !== wastWewativeTime) {
+		wastWewativeTime = item.wewativeTime;
+		item.hideWewativeTime = fawse;
+	} ewse {
+		item.hideWewativeTime = twue;
 	}
 
-	return lastRelativeTime;
+	wetuwn wastWewativeTime;
 }
 
-interface TimelineActionContext {
-	uri: URI | undefined;
-	item: TreeElement;
+intewface TimewineActionContext {
+	uwi: UWI | undefined;
+	item: TweeEwement;
 }
 
-class TimelineAggregate {
-	readonly items: TimelineItem[];
-	readonly source: string;
+cwass TimewineAggwegate {
+	weadonwy items: TimewineItem[];
+	weadonwy souwce: stwing;
 
-	lastRenderedIndex: number;
+	wastWendewedIndex: numba;
 
-	constructor(timeline: Timeline) {
-		this.source = timeline.source;
-		this.items = timeline.items;
-		this._cursor = timeline.paging?.cursor;
-		this.lastRenderedIndex = -1;
+	constwuctow(timewine: Timewine) {
+		this.souwce = timewine.souwce;
+		this.items = timewine.items;
+		this._cuwsow = timewine.paging?.cuwsow;
+		this.wastWendewedIndex = -1;
 	}
 
-	private _cursor?: string;
-	get cursor(): string | undefined {
-		return this._cursor;
+	pwivate _cuwsow?: stwing;
+	get cuwsow(): stwing | undefined {
+		wetuwn this._cuwsow;
 	}
 
-	get more(): boolean {
-		return this._cursor !== undefined;
+	get mowe(): boowean {
+		wetuwn this._cuwsow !== undefined;
 	}
 
-	get newest(): TimelineItem | undefined {
-		return this.items[0];
+	get newest(): TimewineItem | undefined {
+		wetuwn this.items[0];
 	}
 
-	get oldest(): TimelineItem | undefined {
-		return this.items[this.items.length - 1];
+	get owdest(): TimewineItem | undefined {
+		wetuwn this.items[this.items.wength - 1];
 	}
 
-	add(timeline: Timeline, options: TimelineOptions) {
-		let updated = false;
+	add(timewine: Timewine, options: TimewineOptions) {
+		wet updated = fawse;
 
-		if (timeline.items.length !== 0 && this.items.length !== 0) {
-			updated = true;
+		if (timewine.items.wength !== 0 && this.items.wength !== 0) {
+			updated = twue;
 
 			const ids = new Set();
 			const timestamps = new Set();
 
-			for (const item of timeline.items) {
+			fow (const item of timewine.items) {
 				if (item.id === undefined) {
 					timestamps.add(item.timestamp);
 				}
-				else {
+				ewse {
 					ids.add(item.id);
 				}
 			}
 
-			// Remove any duplicate items
-			let i = this.items.length;
-			let item;
-			while (i--) {
+			// Wemove any dupwicate items
+			wet i = this.items.wength;
+			wet item;
+			whiwe (i--) {
 				item = this.items[i];
 				if ((item.id !== undefined && ids.has(item.id)) || timestamps.has(item.timestamp)) {
-					this.items.splice(i, 1);
+					this.items.spwice(i, 1);
 				}
 			}
 
-			if ((timeline.items[timeline.items.length - 1]?.timestamp ?? 0) >= (this.newest?.timestamp ?? 0)) {
-				this.items.splice(0, 0, ...timeline.items);
-			} else {
-				this.items.push(...timeline.items);
+			if ((timewine.items[timewine.items.wength - 1]?.timestamp ?? 0) >= (this.newest?.timestamp ?? 0)) {
+				this.items.spwice(0, 0, ...timewine.items);
+			} ewse {
+				this.items.push(...timewine.items);
 			}
-		} else if (timeline.items.length !== 0) {
-			updated = true;
+		} ewse if (timewine.items.wength !== 0) {
+			updated = twue;
 
-			this.items.push(...timeline.items);
+			this.items.push(...timewine.items);
 		}
 
-		// If we are not requesting more recent items than we have, then update the cursor
-		if (options.cursor !== undefined || typeof options.limit !== 'object') {
-			this._cursor = timeline.paging?.cursor;
+		// If we awe not wequesting mowe wecent items than we have, then update the cuwsow
+		if (options.cuwsow !== undefined || typeof options.wimit !== 'object') {
+			this._cuwsow = timewine.paging?.cuwsow;
 		}
 
 		if (updated) {
-			this.items.sort(
+			this.items.sowt(
 				(a, b) =>
 					(b.timestamp - a.timestamp) ||
-					(a.source === undefined
-						? b.source === undefined ? 0 : 1
-						: b.source === undefined ? -1 : b.source.localeCompare(a.source, undefined, { numeric: true, sensitivity: 'base' }))
+					(a.souwce === undefined
+						? b.souwce === undefined ? 0 : 1
+						: b.souwce === undefined ? -1 : b.souwce.wocaweCompawe(a.souwce, undefined, { numewic: twue, sensitivity: 'base' }))
 			);
 		}
 
-		return updated;
+		wetuwn updated;
 	}
 
-	private _stale = false;
-	get stale() {
-		return this._stale;
+	pwivate _stawe = fawse;
+	get stawe() {
+		wetuwn this._stawe;
 	}
 
-	private _requiresReset = false;
-	get requiresReset(): boolean {
-		return this._requiresReset;
+	pwivate _wequiwesWeset = fawse;
+	get wequiwesWeset(): boowean {
+		wetuwn this._wequiwesWeset;
 	}
 
-	invalidate(requiresReset: boolean) {
-		this._stale = true;
-		this._requiresReset = requiresReset;
+	invawidate(wequiwesWeset: boowean) {
+		this._stawe = twue;
+		this._wequiwesWeset = wequiwesWeset;
 	}
 }
 
-class LoadMoreCommand {
-	readonly handle = 'vscode-command:loadMore';
-	readonly timestamp = 0;
-	readonly description = undefined;
-	readonly detail = undefined;
-	readonly contextValue = undefined;
-	// Make things easier for duck typing
-	readonly id = undefined;
-	readonly icon = undefined;
-	readonly iconDark = undefined;
-	readonly source = undefined;
-	readonly relativeTime = undefined;
-	readonly hideRelativeTime = undefined;
+cwass WoadMoweCommand {
+	weadonwy handwe = 'vscode-command:woadMowe';
+	weadonwy timestamp = 0;
+	weadonwy descwiption = undefined;
+	weadonwy detaiw = undefined;
+	weadonwy contextVawue = undefined;
+	// Make things easia fow duck typing
+	weadonwy id = undefined;
+	weadonwy icon = undefined;
+	weadonwy iconDawk = undefined;
+	weadonwy souwce = undefined;
+	weadonwy wewativeTime = undefined;
+	weadonwy hideWewativeTime = undefined;
 
-	constructor(loading: boolean) {
-		this._loading = loading;
+	constwuctow(woading: boowean) {
+		this._woading = woading;
 	}
-	private _loading: boolean = false;
-	get loading(): boolean {
-		return this._loading;
+	pwivate _woading: boowean = fawse;
+	get woading(): boowean {
+		wetuwn this._woading;
 	}
-	set loading(value: boolean) {
-		this._loading = value;
-	}
-
-	get ariaLabel() {
-		return this.label;
+	set woading(vawue: boowean) {
+		this._woading = vawue;
 	}
 
-	get label() {
-		return this.loading ? localize('timeline.loadingMore', "Loading...") : localize('timeline.loadMore', "Load more");
+	get awiaWabew() {
+		wetuwn this.wabew;
+	}
+
+	get wabew() {
+		wetuwn this.woading ? wocawize('timewine.woadingMowe', "Woading...") : wocawize('timewine.woadMowe', "Woad mowe");
 	}
 
 	get themeIcon(): ThemeIcon | undefined {
-		return undefined; //this.loading ? { id: 'sync~spin' } : undefined;
+		wetuwn undefined; //this.woading ? { id: 'sync~spin' } : undefined;
 	}
 }
 
-export const TimelineFollowActiveEditorContext = new RawContextKey<boolean>('timelineFollowActiveEditor', true, true);
+expowt const TimewineFowwowActiveEditowContext = new WawContextKey<boowean>('timewineFowwowActiveEditow', twue, twue);
 
-export class TimelinePane extends ViewPane {
-	static readonly TITLE = localize('timeline', "Timeline");
+expowt cwass TimewinePane extends ViewPane {
+	static weadonwy TITWE = wocawize('timewine', "Timewine");
 
-	private $container!: HTMLElement;
-	private $message!: HTMLDivElement;
-	private $tree!: HTMLDivElement;
-	private tree!: WorkbenchObjectTree<TreeElement, FuzzyScore>;
-	private treeRenderer: TimelineTreeRenderer | undefined;
-	private commands: TimelinePaneCommands;
-	private visibilityDisposables: DisposableStore | undefined;
+	pwivate $containa!: HTMWEwement;
+	pwivate $message!: HTMWDivEwement;
+	pwivate $twee!: HTMWDivEwement;
+	pwivate twee!: WowkbenchObjectTwee<TweeEwement, FuzzyScowe>;
+	pwivate tweeWendewa: TimewineTweeWendewa | undefined;
+	pwivate commands: TimewinePaneCommands;
+	pwivate visibiwityDisposabwes: DisposabweStowe | undefined;
 
-	private followActiveEditorContext: IContextKey<boolean>;
+	pwivate fowwowActiveEditowContext: IContextKey<boowean>;
 
-	private excludedSources: Set<string>;
-	private pendingRequests = new Map<string, TimelineRequest>();
-	private timelinesBySource = new Map<string, TimelineAggregate>();
+	pwivate excwudedSouwces: Set<stwing>;
+	pwivate pendingWequests = new Map<stwing, TimewineWequest>();
+	pwivate timewinesBySouwce = new Map<stwing, TimewineAggwegate>();
 
-	private uri: URI | undefined;
+	pwivate uwi: UWI | undefined;
 
-	constructor(
+	constwuctow(
 		options: IViewPaneOptions,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IEditorService protected editorService: IEditorService,
-		@ICommandService protected commandService: ICommandService,
-		@IProgressService private readonly progressService: IProgressService,
-		@ITimelineService protected timelineService: ITimelineService,
-		@IOpenerService openerService: IOpenerService,
-		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IEditowSewvice pwotected editowSewvice: IEditowSewvice,
+		@ICommandSewvice pwotected commandSewvice: ICommandSewvice,
+		@IPwogwessSewvice pwivate weadonwy pwogwessSewvice: IPwogwessSewvice,
+		@ITimewineSewvice pwotected timewineSewvice: ITimewineSewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
 	) {
-		super({ ...options, titleMenuId: MenuId.TimelineTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		supa({ ...options, titweMenuId: MenuId.TimewineTitwe }, keybindingSewvice, contextMenuSewvice, configuwationSewvice, contextKeySewvice, viewDescwiptowSewvice, instantiationSewvice, openewSewvice, themeSewvice, tewemetwySewvice);
 
-		this.commands = this._register(this.instantiationService.createInstance(TimelinePaneCommands, this));
+		this.commands = this._wegista(this.instantiationSewvice.cweateInstance(TimewinePaneCommands, this));
 
-		this.followActiveEditorContext = TimelineFollowActiveEditorContext.bindTo(this.contextKeyService);
+		this.fowwowActiveEditowContext = TimewineFowwowActiveEditowContext.bindTo(this.contextKeySewvice);
 
-		this.excludedSources = new Set(configurationService.getValue('timeline.excludeSources'));
-		configurationService.onDidChangeConfiguration(this.onConfigurationChanged, this);
+		this.excwudedSouwces = new Set(configuwationSewvice.getVawue('timewine.excwudeSouwces'));
+		configuwationSewvice.onDidChangeConfiguwation(this.onConfiguwationChanged, this);
 
-		this._register(timelineService.onDidChangeProviders(this.onProvidersChanged, this));
-		this._register(timelineService.onDidChangeTimeline(this.onTimelineChanged, this));
-		this._register(timelineService.onDidChangeUri(uri => this.setUri(uri), this));
+		this._wegista(timewineSewvice.onDidChangePwovidews(this.onPwovidewsChanged, this));
+		this._wegista(timewineSewvice.onDidChangeTimewine(this.onTimewineChanged, this));
+		this._wegista(timewineSewvice.onDidChangeUwi(uwi => this.setUwi(uwi), this));
 	}
 
-	private _followActiveEditor: boolean = true;
-	get followActiveEditor(): boolean {
-		return this._followActiveEditor;
+	pwivate _fowwowActiveEditow: boowean = twue;
+	get fowwowActiveEditow(): boowean {
+		wetuwn this._fowwowActiveEditow;
 	}
-	set followActiveEditor(value: boolean) {
-		if (this._followActiveEditor === value) {
-			return;
+	set fowwowActiveEditow(vawue: boowean) {
+		if (this._fowwowActiveEditow === vawue) {
+			wetuwn;
 		}
 
-		this._followActiveEditor = value;
-		this.followActiveEditorContext.set(value);
+		this._fowwowActiveEditow = vawue;
+		this.fowwowActiveEditowContext.set(vawue);
 
-		this.updateFilename(this._filename);
+		this.updateFiwename(this._fiwename);
 
-		if (value) {
-			this.onActiveEditorChanged();
+		if (vawue) {
+			this.onActiveEditowChanged();
 		}
 	}
 
-	private _pageOnScroll: boolean | undefined;
-	get pageOnScroll() {
-		if (this._pageOnScroll === undefined) {
-			this._pageOnScroll = this.configurationService.getValue<boolean | null | undefined>('timeline.pageOnScroll') ?? false;
+	pwivate _pageOnScwoww: boowean | undefined;
+	get pageOnScwoww() {
+		if (this._pageOnScwoww === undefined) {
+			this._pageOnScwoww = this.configuwationSewvice.getVawue<boowean | nuww | undefined>('timewine.pageOnScwoww') ?? fawse;
 		}
 
-		return this._pageOnScroll;
+		wetuwn this._pageOnScwoww;
 	}
 
 	get pageSize() {
-		let pageSize = this.configurationService.getValue<number | null | undefined>('timeline.pageSize');
-		if (pageSize === undefined || pageSize === null) {
-			// If we are paging when scrolling, then add an extra item to the end to make sure the "Load more" item is out of view
-			pageSize = Math.max(20, Math.floor((this.tree.renderHeight / ItemHeight) + (this.pageOnScroll ? 1 : -1)));
+		wet pageSize = this.configuwationSewvice.getVawue<numba | nuww | undefined>('timewine.pageSize');
+		if (pageSize === undefined || pageSize === nuww) {
+			// If we awe paging when scwowwing, then add an extwa item to the end to make suwe the "Woad mowe" item is out of view
+			pageSize = Math.max(20, Math.fwoow((this.twee.wendewHeight / ItemHeight) + (this.pageOnScwoww ? 1 : -1)));
 		}
-		return pageSize;
+		wetuwn pageSize;
 	}
 
-	reset() {
-		this.loadTimeline(true);
+	weset() {
+		this.woadTimewine(twue);
 	}
 
-	setUri(uri: URI) {
-		this.setUriCore(uri, true);
+	setUwi(uwi: UWI) {
+		this.setUwiCowe(uwi, twue);
 	}
 
-	private setUriCore(uri: URI | undefined, disableFollowing: boolean) {
-		if (disableFollowing) {
-			this.followActiveEditor = false;
-		}
-
-		this.uri = uri;
-		this.updateFilename(uri ? basename(uri.fsPath) : undefined);
-		this.treeRenderer?.setUri(uri);
-		this.loadTimeline(true);
-	}
-
-	private onConfigurationChanged(e: IConfigurationChangeEvent) {
-		if (e.affectsConfiguration('timeline.pageOnScroll')) {
-			this._pageOnScroll = undefined;
+	pwivate setUwiCowe(uwi: UWI | undefined, disabweFowwowing: boowean) {
+		if (disabweFowwowing) {
+			this.fowwowActiveEditow = fawse;
 		}
 
-		if (e.affectsConfiguration('timeline.excludeSources')) {
-			this.excludedSources = new Set(this.configurationService.getValue('timeline.excludeSources'));
+		this.uwi = uwi;
+		this.updateFiwename(uwi ? basename(uwi.fsPath) : undefined);
+		this.tweeWendewa?.setUwi(uwi);
+		this.woadTimewine(twue);
+	}
 
-			const missing = this.timelineService.getSources()
-				.filter(({ id }) => !this.excludedSources.has(id) && !this.timelinesBySource.has(id));
-			if (missing.length !== 0) {
-				this.loadTimeline(true, missing.map(({ id }) => id));
-			} else {
-				this.refresh();
+	pwivate onConfiguwationChanged(e: IConfiguwationChangeEvent) {
+		if (e.affectsConfiguwation('timewine.pageOnScwoww')) {
+			this._pageOnScwoww = undefined;
+		}
+
+		if (e.affectsConfiguwation('timewine.excwudeSouwces')) {
+			this.excwudedSouwces = new Set(this.configuwationSewvice.getVawue('timewine.excwudeSouwces'));
+
+			const missing = this.timewineSewvice.getSouwces()
+				.fiwta(({ id }) => !this.excwudedSouwces.has(id) && !this.timewinesBySouwce.has(id));
+			if (missing.wength !== 0) {
+				this.woadTimewine(twue, missing.map(({ id }) => id));
+			} ewse {
+				this.wefwesh();
 			}
 		}
 	}
 
-	private onActiveEditorChanged() {
-		if (!this.followActiveEditor) {
-			return;
+	pwivate onActiveEditowChanged() {
+		if (!this.fowwowActiveEditow) {
+			wetuwn;
 		}
 
-		const uri = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		const uwi = EditowWesouwceAccessow.getOwiginawUwi(this.editowSewvice.activeEditow, { suppowtSideBySide: SideBySideEditow.PWIMAWY });
 
-		if ((uri?.toString(true) === this.uri?.toString(true) && uri !== undefined) ||
-			// Fallback to match on fsPath if we are dealing with files or git schemes
-			(uri?.fsPath === this.uri?.fsPath && (uri?.scheme === Schemas.file || uri?.scheme === 'git') && (this.uri?.scheme === Schemas.file || this.uri?.scheme === 'git'))) {
+		if ((uwi?.toStwing(twue) === this.uwi?.toStwing(twue) && uwi !== undefined) ||
+			// Fawwback to match on fsPath if we awe deawing with fiwes ow git schemes
+			(uwi?.fsPath === this.uwi?.fsPath && (uwi?.scheme === Schemas.fiwe || uwi?.scheme === 'git') && (this.uwi?.scheme === Schemas.fiwe || this.uwi?.scheme === 'git'))) {
 
-			// If the uri hasn't changed, make sure we have valid caches
-			for (const source of this.timelineService.getSources()) {
-				if (this.excludedSources.has(source.id)) {
+			// If the uwi hasn't changed, make suwe we have vawid caches
+			fow (const souwce of this.timewineSewvice.getSouwces()) {
+				if (this.excwudedSouwces.has(souwce.id)) {
 					continue;
 				}
 
-				const timeline = this.timelinesBySource.get(source.id);
-				if (timeline !== undefined && !timeline.stale) {
+				const timewine = this.timewinesBySouwce.get(souwce.id);
+				if (timewine !== undefined && !timewine.stawe) {
 					continue;
 				}
 
-				if (timeline !== undefined) {
-					this.updateTimeline(timeline, timeline.requiresReset);
-				} else {
-					this.loadTimelineForSource(source.id, uri, true);
+				if (timewine !== undefined) {
+					this.updateTimewine(timewine, timewine.wequiwesWeset);
+				} ewse {
+					this.woadTimewineFowSouwce(souwce.id, uwi, twue);
 				}
 			}
 
-			return;
+			wetuwn;
 		}
 
-		this.setUriCore(uri, false);
+		this.setUwiCowe(uwi, fawse);
 	}
 
-	private onProvidersChanged(e: TimelineProvidersChangeEvent) {
-		if (e.removed) {
-			for (const source of e.removed) {
-				this.timelinesBySource.delete(source);
+	pwivate onPwovidewsChanged(e: TimewinePwovidewsChangeEvent) {
+		if (e.wemoved) {
+			fow (const souwce of e.wemoved) {
+				this.timewinesBySouwce.dewete(souwce);
 			}
 
-			this.refresh();
+			this.wefwesh();
 		}
 
 		if (e.added) {
-			this.loadTimeline(true, e.added);
+			this.woadTimewine(twue, e.added);
 		}
 	}
 
-	private onTimelineChanged(e: TimelineChangeEvent) {
-		if (e?.uri === undefined || e.uri.toString(true) !== this.uri?.toString(true)) {
-			const timeline = this.timelinesBySource.get(e.id);
-			if (timeline === undefined) {
-				return;
+	pwivate onTimewineChanged(e: TimewineChangeEvent) {
+		if (e?.uwi === undefined || e.uwi.toStwing(twue) !== this.uwi?.toStwing(twue)) {
+			const timewine = this.timewinesBySouwce.get(e.id);
+			if (timewine === undefined) {
+				wetuwn;
 			}
 
-			if (this.isBodyVisible()) {
-				this.updateTimeline(timeline, e.reset);
-			} else {
-				timeline.invalidate(e.reset);
+			if (this.isBodyVisibwe()) {
+				this.updateTimewine(timewine, e.weset);
+			} ewse {
+				timewine.invawidate(e.weset);
 			}
 		}
 	}
 
-	private _filename: string | undefined;
-	updateFilename(filename: string | undefined) {
-		this._filename = filename;
-		if (this.followActiveEditor || !filename) {
-			this.updateTitleDescription(filename);
-		} else {
-			this.updateTitleDescription(`${filename} (pinned)`);
+	pwivate _fiwename: stwing | undefined;
+	updateFiwename(fiwename: stwing | undefined) {
+		this._fiwename = fiwename;
+		if (this.fowwowActiveEditow || !fiwename) {
+			this.updateTitweDescwiption(fiwename);
+		} ewse {
+			this.updateTitweDescwiption(`${fiwename} (pinned)`);
 		}
 	}
 
-	private _message: string | undefined;
-	get message(): string | undefined {
-		return this._message;
+	pwivate _message: stwing | undefined;
+	get message(): stwing | undefined {
+		wetuwn this._message;
 	}
 
-	set message(message: string | undefined) {
+	set message(message: stwing | undefined) {
 		this._message = message;
 		this.updateMessage();
 	}
 
-	private updateMessage(): void {
+	pwivate updateMessage(): void {
 		if (this._message !== undefined) {
 			this.showMessage(this._message);
-		} else {
+		} ewse {
 			this.hideMessage();
 		}
 	}
 
-	private showMessage(message: string): void {
-		this.$message.classList.remove('hide');
-		this.resetMessageElement();
+	pwivate showMessage(message: stwing): void {
+		this.$message.cwassWist.wemove('hide');
+		this.wesetMessageEwement();
 
 		this.$message.textContent = message;
 	}
 
-	private hideMessage(): void {
-		this.resetMessageElement();
-		this.$message.classList.add('hide');
+	pwivate hideMessage(): void {
+		this.wesetMessageEwement();
+		this.$message.cwassWist.add('hide');
 	}
 
-	private resetMessageElement(): void {
-		DOM.clearNode(this.$message);
+	pwivate wesetMessageEwement(): void {
+		DOM.cweawNode(this.$message);
 	}
 
-	private _isEmpty = true;
-	private _maxItemCount = 0;
+	pwivate _isEmpty = twue;
+	pwivate _maxItemCount = 0;
 
-	private _visibleItemCount = 0;
-	private get hasVisibleItems() {
-		return this._visibleItemCount > 0;
+	pwivate _visibweItemCount = 0;
+	pwivate get hasVisibweItems() {
+		wetuwn this._visibweItemCount > 0;
 	}
 
-	private clear(cancelPending: boolean) {
-		this._visibleItemCount = 0;
+	pwivate cweaw(cancewPending: boowean) {
+		this._visibweItemCount = 0;
 		this._maxItemCount = this.pageSize;
-		this.timelinesBySource.clear();
+		this.timewinesBySouwce.cweaw();
 
-		if (cancelPending) {
-			for (const { tokenSource } of this.pendingRequests.values()) {
-				tokenSource.dispose(true);
+		if (cancewPending) {
+			fow (const { tokenSouwce } of this.pendingWequests.vawues()) {
+				tokenSouwce.dispose(twue);
 			}
 
-			this.pendingRequests.clear();
+			this.pendingWequests.cweaw();
 
-			if (!this.isBodyVisible()) {
-				this.tree.setChildren(null, undefined);
-				this._isEmpty = true;
+			if (!this.isBodyVisibwe()) {
+				this.twee.setChiwdwen(nuww, undefined);
+				this._isEmpty = twue;
 			}
 		}
 	}
 
-	private async loadTimeline(reset: boolean, sources?: string[]) {
-		// If we have no source, we are reseting all sources, so cancel everything in flight and reset caches
-		if (sources === undefined) {
-			if (reset) {
-				this.clear(true);
+	pwivate async woadTimewine(weset: boowean, souwces?: stwing[]) {
+		// If we have no souwce, we awe weseting aww souwces, so cancew evewything in fwight and weset caches
+		if (souwces === undefined) {
+			if (weset) {
+				this.cweaw(twue);
 			}
 
-			// TODO@eamodio: Are these the right the list of schemes to exclude? Is there a better way?
-			if (this.uri?.scheme === Schemas.vscodeSettings || this.uri?.scheme === Schemas.webviewPanel || this.uri?.scheme === Schemas.walkThrough) {
-				this.uri = undefined;
+			// TODO@eamodio: Awe these the wight the wist of schemes to excwude? Is thewe a betta way?
+			if (this.uwi?.scheme === Schemas.vscodeSettings || this.uwi?.scheme === Schemas.webviewPanew || this.uwi?.scheme === Schemas.wawkThwough) {
+				this.uwi = undefined;
 
-				this.clear(false);
-				this.refresh();
+				this.cweaw(fawse);
+				this.wefwesh();
 
-				return;
+				wetuwn;
 			}
 
-			if (this._isEmpty && this.uri !== undefined) {
-				this.setLoadingUriMessage();
-			}
-		}
-
-		if (this.uri === undefined) {
-			this.clear(false);
-			this.refresh();
-
-			return;
-		}
-
-		if (!this.isBodyVisible()) {
-			return;
-		}
-
-		let hasPendingRequests = false;
-
-		for (const source of sources ?? this.timelineService.getSources().map(s => s.id)) {
-			const requested = this.loadTimelineForSource(source, this.uri, reset);
-			if (requested) {
-				hasPendingRequests = true;
+			if (this._isEmpty && this.uwi !== undefined) {
+				this.setWoadingUwiMessage();
 			}
 		}
 
-		if (!hasPendingRequests) {
-			this.refresh();
-		} else if (this._isEmpty) {
-			this.setLoadingUriMessage();
+		if (this.uwi === undefined) {
+			this.cweaw(fawse);
+			this.wefwesh();
+
+			wetuwn;
+		}
+
+		if (!this.isBodyVisibwe()) {
+			wetuwn;
+		}
+
+		wet hasPendingWequests = fawse;
+
+		fow (const souwce of souwces ?? this.timewineSewvice.getSouwces().map(s => s.id)) {
+			const wequested = this.woadTimewineFowSouwce(souwce, this.uwi, weset);
+			if (wequested) {
+				hasPendingWequests = twue;
+			}
+		}
+
+		if (!hasPendingWequests) {
+			this.wefwesh();
+		} ewse if (this._isEmpty) {
+			this.setWoadingUwiMessage();
 		}
 	}
 
-	private loadTimelineForSource(source: string, uri: URI, reset: boolean, options?: TimelineOptions) {
-		if (this.excludedSources.has(source)) {
-			return false;
+	pwivate woadTimewineFowSouwce(souwce: stwing, uwi: UWI, weset: boowean, options?: TimewineOptions) {
+		if (this.excwudedSouwces.has(souwce)) {
+			wetuwn fawse;
 		}
 
-		const timeline = this.timelinesBySource.get(source);
+		const timewine = this.timewinesBySouwce.get(souwce);
 
-		// If we are paging, and there are no more items or we have enough cached items to cover the next page,
-		// don't bother querying for more
+		// If we awe paging, and thewe awe no mowe items ow we have enough cached items to cova the next page,
+		// don't botha quewying fow mowe
 		if (
-			!reset &&
-			options?.cursor !== undefined &&
-			timeline !== undefined &&
-			(!timeline?.more || timeline.items.length > timeline.lastRenderedIndex + this.pageSize)
+			!weset &&
+			options?.cuwsow !== undefined &&
+			timewine !== undefined &&
+			(!timewine?.mowe || timewine.items.wength > timewine.wastWendewedIndex + this.pageSize)
 		) {
-			return false;
+			wetuwn fawse;
 		}
 
 		if (options === undefined) {
-			options = { cursor: reset ? undefined : timeline?.cursor, limit: this.pageSize };
+			options = { cuwsow: weset ? undefined : timewine?.cuwsow, wimit: this.pageSize };
 		}
 
-		let request = this.pendingRequests.get(source);
-		if (request !== undefined) {
-			options.cursor = request.options.cursor;
+		wet wequest = this.pendingWequests.get(souwce);
+		if (wequest !== undefined) {
+			options.cuwsow = wequest.options.cuwsow;
 
-			// TODO@eamodio deal with concurrent requests better
-			if (typeof options.limit === 'number') {
-				if (typeof request.options.limit === 'number') {
-					options.limit += request.options.limit;
-				} else {
-					options.limit = request.options.limit;
+			// TODO@eamodio deaw with concuwwent wequests betta
+			if (typeof options.wimit === 'numba') {
+				if (typeof wequest.options.wimit === 'numba') {
+					options.wimit += wequest.options.wimit;
+				} ewse {
+					options.wimit = wequest.options.wimit;
 				}
 			}
 		}
-		request?.tokenSource.dispose(true);
+		wequest?.tokenSouwce.dispose(twue);
 
-		request = this.timelineService.getTimeline(
-			source, uri, options, new CancellationTokenSource(), { cacheResults: true, resetCache: reset }
+		wequest = this.timewineSewvice.getTimewine(
+			souwce, uwi, options, new CancewwationTokenSouwce(), { cacheWesuwts: twue, wesetCache: weset }
 		);
 
-		if (request === undefined) {
-			return false;
+		if (wequest === undefined) {
+			wetuwn fawse;
 		}
 
-		this.pendingRequests.set(source, request);
-		request.tokenSource.token.onCancellationRequested(() => this.pendingRequests.delete(source));
+		this.pendingWequests.set(souwce, wequest);
+		wequest.tokenSouwce.token.onCancewwationWequested(() => this.pendingWequests.dewete(souwce));
 
-		this.handleRequest(request);
+		this.handweWequest(wequest);
 
-		return true;
+		wetuwn twue;
 	}
 
-	private updateTimeline(timeline: TimelineAggregate, reset: boolean) {
-		if (reset) {
-			this.timelinesBySource.delete(timeline.source);
-			// Override the limit, to re-query for all our existing cached (possibly visible) items to keep visual continuity
-			const { oldest } = timeline;
-			this.loadTimelineForSource(timeline.source, this.uri!, true, oldest !== undefined ? { limit: { timestamp: oldest.timestamp, id: oldest.id } } : undefined);
-		} else {
-			// Override the limit, to query for any newer items
-			const { newest } = timeline;
-			this.loadTimelineForSource(timeline.source, this.uri!, false, newest !== undefined ? { limit: { timestamp: newest.timestamp, id: newest.id } } : { limit: this.pageSize });
+	pwivate updateTimewine(timewine: TimewineAggwegate, weset: boowean) {
+		if (weset) {
+			this.timewinesBySouwce.dewete(timewine.souwce);
+			// Ovewwide the wimit, to we-quewy fow aww ouw existing cached (possibwy visibwe) items to keep visuaw continuity
+			const { owdest } = timewine;
+			this.woadTimewineFowSouwce(timewine.souwce, this.uwi!, twue, owdest !== undefined ? { wimit: { timestamp: owdest.timestamp, id: owdest.id } } : undefined);
+		} ewse {
+			// Ovewwide the wimit, to quewy fow any newa items
+			const { newest } = timewine;
+			this.woadTimewineFowSouwce(timewine.souwce, this.uwi!, fawse, newest !== undefined ? { wimit: { timestamp: newest.timestamp, id: newest.id } } : { wimit: this.pageSize });
 		}
 	}
 
-	private _pendingRefresh = false;
+	pwivate _pendingWefwesh = fawse;
 
-	private async handleRequest(request: TimelineRequest) {
-		let response: Timeline | undefined;
-		try {
-			response = await this.progressService.withProgress({ location: this.id }, () => request.result);
+	pwivate async handweWequest(wequest: TimewineWequest) {
+		wet wesponse: Timewine | undefined;
+		twy {
+			wesponse = await this.pwogwessSewvice.withPwogwess({ wocation: this.id }, () => wequest.wesuwt);
 		}
-		finally {
-			this.pendingRequests.delete(request.source);
+		finawwy {
+			this.pendingWequests.dewete(wequest.souwce);
 		}
 
 		if (
-			response === undefined ||
-			request.tokenSource.token.isCancellationRequested ||
-			request.uri !== this.uri
+			wesponse === undefined ||
+			wequest.tokenSouwce.token.isCancewwationWequested ||
+			wequest.uwi !== this.uwi
 		) {
-			if (this.pendingRequests.size === 0 && this._pendingRefresh) {
-				this.refresh();
+			if (this.pendingWequests.size === 0 && this._pendingWefwesh) {
+				this.wefwesh();
 			}
 
-			return;
+			wetuwn;
 		}
 
-		const source = request.source;
+		const souwce = wequest.souwce;
 
-		let updated = false;
-		const timeline = this.timelinesBySource.get(source);
-		if (timeline === undefined) {
-			this.timelinesBySource.set(source, new TimelineAggregate(response));
-			updated = true;
+		wet updated = fawse;
+		const timewine = this.timewinesBySouwce.get(souwce);
+		if (timewine === undefined) {
+			this.timewinesBySouwce.set(souwce, new TimewineAggwegate(wesponse));
+			updated = twue;
 		}
-		else {
-			updated = timeline.add(response, request.options);
+		ewse {
+			updated = timewine.add(wesponse, wequest.options);
 		}
 
 		if (updated) {
-			this._pendingRefresh = true;
+			this._pendingWefwesh = twue;
 
-			// If we have visible items already and there are other pending requests, debounce for a bit to wait for other requests
-			if (this.hasVisibleItems && this.pendingRequests.size !== 0) {
-				this.refreshDebounced();
-			} else {
-				this.refresh();
+			// If we have visibwe items awweady and thewe awe otha pending wequests, debounce fow a bit to wait fow otha wequests
+			if (this.hasVisibweItems && this.pendingWequests.size !== 0) {
+				this.wefweshDebounced();
+			} ewse {
+				this.wefwesh();
 			}
-		} else if (this.pendingRequests.size === 0) {
-			if (this._pendingRefresh) {
-				this.refresh();
-			} else {
-				this.tree.rerender();
+		} ewse if (this.pendingWequests.size === 0) {
+			if (this._pendingWefwesh) {
+				this.wefwesh();
+			} ewse {
+				this.twee.wewenda();
 			}
 		}
 	}
 
-	private *getItems(): Generator<ITreeElement<TreeElement>, any, any> {
-		let more = false;
+	pwivate *getItems(): Genewatow<ITweeEwement<TweeEwement>, any, any> {
+		wet mowe = fawse;
 
-		if (this.uri === undefined || this.timelinesBySource.size === 0) {
-			this._visibleItemCount = 0;
+		if (this.uwi === undefined || this.timewinesBySouwce.size === 0) {
+			this._visibweItemCount = 0;
 
-			return;
+			wetuwn;
 		}
 
 		const maxCount = this._maxItemCount;
-		let count = 0;
+		wet count = 0;
 
-		if (this.timelinesBySource.size === 1) {
-			const [source, timeline] = Iterable.first(this.timelinesBySource)!;
+		if (this.timewinesBySouwce.size === 1) {
+			const [souwce, timewine] = Itewabwe.fiwst(this.timewinesBySouwce)!;
 
-			timeline.lastRenderedIndex = -1;
+			timewine.wastWendewedIndex = -1;
 
-			if (this.excludedSources.has(source)) {
-				this._visibleItemCount = 0;
+			if (this.excwudedSouwces.has(souwce)) {
+				this._visibweItemCount = 0;
 
-				return;
+				wetuwn;
 			}
 
-			if (timeline.items.length !== 0) {
-				// If we have any items, just say we have one for now -- the real count will be updated below
-				this._visibleItemCount = 1;
+			if (timewine.items.wength !== 0) {
+				// If we have any items, just say we have one fow now -- the weaw count wiww be updated bewow
+				this._visibweItemCount = 1;
 			}
 
-			more = timeline.more;
+			mowe = timewine.mowe;
 
-			let lastRelativeTime: string | undefined;
-			for (const item of timeline.items) {
-				item.relativeTime = undefined;
-				item.hideRelativeTime = undefined;
+			wet wastWewativeTime: stwing | undefined;
+			fow (const item of timewine.items) {
+				item.wewativeTime = undefined;
+				item.hideWewativeTime = undefined;
 
 				count++;
 				if (count > maxCount) {
-					more = true;
-					break;
+					mowe = twue;
+					bweak;
 				}
 
-				lastRelativeTime = updateRelativeTime(item, lastRelativeTime);
-				yield { element: item };
+				wastWewativeTime = updateWewativeTime(item, wastWewativeTime);
+				yiewd { ewement: item };
 			}
 
-			timeline.lastRenderedIndex = count - 1;
+			timewine.wastWendewedIndex = count - 1;
 		}
-		else {
-			const sources: { timeline: TimelineAggregate; iterator: IterableIterator<TimelineItem>; nextItem: IteratorResult<TimelineItem, TimelineItem> }[] = [];
+		ewse {
+			const souwces: { timewine: TimewineAggwegate; itewatow: ItewabweItewatow<TimewineItem>; nextItem: ItewatowWesuwt<TimewineItem, TimewineItem> }[] = [];
 
-			let hasAnyItems = false;
-			let mostRecentEnd = 0;
+			wet hasAnyItems = fawse;
+			wet mostWecentEnd = 0;
 
-			for (const [source, timeline] of this.timelinesBySource) {
-				timeline.lastRenderedIndex = -1;
+			fow (const [souwce, timewine] of this.timewinesBySouwce) {
+				timewine.wastWendewedIndex = -1;
 
-				if (this.excludedSources.has(source) || timeline.stale) {
+				if (this.excwudedSouwces.has(souwce) || timewine.stawe) {
 					continue;
 				}
 
-				if (timeline.items.length !== 0) {
-					hasAnyItems = true;
+				if (timewine.items.wength !== 0) {
+					hasAnyItems = twue;
 				}
 
-				if (timeline.more) {
-					more = true;
+				if (timewine.mowe) {
+					mowe = twue;
 
-					const last = timeline.items[Math.min(maxCount, timeline.items.length - 1)];
-					if (last.timestamp > mostRecentEnd) {
-						mostRecentEnd = last.timestamp;
+					const wast = timewine.items[Math.min(maxCount, timewine.items.wength - 1)];
+					if (wast.timestamp > mostWecentEnd) {
+						mostWecentEnd = wast.timestamp;
 					}
 				}
 
-				const iterator = timeline.items[Symbol.iterator]();
-				sources.push({ timeline: timeline, iterator: iterator, nextItem: iterator.next() });
+				const itewatow = timewine.items[Symbow.itewatow]();
+				souwces.push({ timewine: timewine, itewatow: itewatow, nextItem: itewatow.next() });
 			}
 
-			this._visibleItemCount = hasAnyItems ? 1 : 0;
+			this._visibweItemCount = hasAnyItems ? 1 : 0;
 
-			function getNextMostRecentSource() {
-				return sources
-					.filter(source => !source.nextItem!.done)
-					.reduce((previous, current) => (previous === undefined || current.nextItem!.value.timestamp >= previous.nextItem!.value.timestamp) ? current : previous, undefined!);
+			function getNextMostWecentSouwce() {
+				wetuwn souwces
+					.fiwta(souwce => !souwce.nextItem!.done)
+					.weduce((pwevious, cuwwent) => (pwevious === undefined || cuwwent.nextItem!.vawue.timestamp >= pwevious.nextItem!.vawue.timestamp) ? cuwwent : pwevious, undefined!);
 			}
 
-			let lastRelativeTime: string | undefined;
-			let nextSource;
-			while (nextSource = getNextMostRecentSource()) {
-				nextSource.timeline.lastRenderedIndex++;
+			wet wastWewativeTime: stwing | undefined;
+			wet nextSouwce;
+			whiwe (nextSouwce = getNextMostWecentSouwce()) {
+				nextSouwce.timewine.wastWendewedIndex++;
 
-				const item = nextSource.nextItem.value;
-				item.relativeTime = undefined;
-				item.hideRelativeTime = undefined;
+				const item = nextSouwce.nextItem.vawue;
+				item.wewativeTime = undefined;
+				item.hideWewativeTime = undefined;
 
-				if (item.timestamp >= mostRecentEnd) {
+				if (item.timestamp >= mostWecentEnd) {
 					count++;
 					if (count > maxCount) {
-						more = true;
-						break;
+						mowe = twue;
+						bweak;
 					}
 
-					lastRelativeTime = updateRelativeTime(item, lastRelativeTime);
-					yield { element: item };
+					wastWewativeTime = updateWewativeTime(item, wastWewativeTime);
+					yiewd { ewement: item };
 				}
 
-				nextSource.nextItem = nextSource.iterator.next();
+				nextSouwce.nextItem = nextSouwce.itewatow.next();
 			}
 		}
 
-		this._visibleItemCount = count;
+		this._visibweItemCount = count;
 
-		if (more) {
-			yield {
-				element: new LoadMoreCommand(this.pendingRequests.size !== 0)
+		if (mowe) {
+			yiewd {
+				ewement: new WoadMoweCommand(this.pendingWequests.size !== 0)
 			};
-		} else if (this.pendingRequests.size !== 0) {
-			yield {
-				element: new LoadMoreCommand(true)
+		} ewse if (this.pendingWequests.size !== 0) {
+			yiewd {
+				ewement: new WoadMoweCommand(twue)
 			};
 		}
 	}
 
-	private refresh() {
-		if (!this.isBodyVisible()) {
-			return;
+	pwivate wefwesh() {
+		if (!this.isBodyVisibwe()) {
+			wetuwn;
 		}
 
-		this.tree.setChildren(null, this.getItems() as any);
-		this._isEmpty = !this.hasVisibleItems;
+		this.twee.setChiwdwen(nuww, this.getItems() as any);
+		this._isEmpty = !this.hasVisibweItems;
 
-		if (this.uri === undefined) {
-			this.updateFilename(undefined);
-			this.message = localize('timeline.editorCannotProvideTimeline', "The active editor cannot provide timeline information.");
-		} else if (this._isEmpty) {
-			if (this.pendingRequests.size !== 0) {
-				this.setLoadingUriMessage();
-			} else {
-				this.updateFilename(basename(this.uri.fsPath));
-				this.message = localize('timeline.noTimelineInfo', "No timeline information was provided.");
+		if (this.uwi === undefined) {
+			this.updateFiwename(undefined);
+			this.message = wocawize('timewine.editowCannotPwovideTimewine', "The active editow cannot pwovide timewine infowmation.");
+		} ewse if (this._isEmpty) {
+			if (this.pendingWequests.size !== 0) {
+				this.setWoadingUwiMessage();
+			} ewse {
+				this.updateFiwename(basename(this.uwi.fsPath));
+				this.message = wocawize('timewine.noTimewineInfo', "No timewine infowmation was pwovided.");
 			}
-		} else {
-			this.updateFilename(basename(this.uri.fsPath));
+		} ewse {
+			this.updateFiwename(basename(this.uwi.fsPath));
 			this.message = undefined;
 		}
 
-		this._pendingRefresh = false;
+		this._pendingWefwesh = fawse;
 	}
 
 	@debounce(500)
-	private refreshDebounced() {
-		this.refresh();
+	pwivate wefweshDebounced() {
+		this.wefwesh();
 	}
 
-	override focus(): void {
-		super.focus();
-		this.tree.domFocus();
+	ovewwide focus(): void {
+		supa.focus();
+		this.twee.domFocus();
 	}
 
-	override setExpanded(expanded: boolean): boolean {
-		const changed = super.setExpanded(expanded);
+	ovewwide setExpanded(expanded: boowean): boowean {
+		const changed = supa.setExpanded(expanded);
 
-		if (changed && this.isBodyVisible()) {
-			if (!this.followActiveEditor) {
-				this.setUriCore(this.uri, true);
-			} else {
-				this.onActiveEditorChanged();
+		if (changed && this.isBodyVisibwe()) {
+			if (!this.fowwowActiveEditow) {
+				this.setUwiCowe(this.uwi, twue);
+			} ewse {
+				this.onActiveEditowChanged();
 			}
 		}
 
-		return changed;
+		wetuwn changed;
 	}
 
-	override setVisible(visible: boolean): void {
-		if (visible) {
-			this.visibilityDisposables = new DisposableStore();
+	ovewwide setVisibwe(visibwe: boowean): void {
+		if (visibwe) {
+			this.visibiwityDisposabwes = new DisposabweStowe();
 
-			this.editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this, this.visibilityDisposables);
-			// Refresh the view on focus to update the relative timestamps
-			this.onDidFocus(() => this.refreshDebounced(), this, this.visibilityDisposables);
+			this.editowSewvice.onDidActiveEditowChange(this.onActiveEditowChanged, this, this.visibiwityDisposabwes);
+			// Wefwesh the view on focus to update the wewative timestamps
+			this.onDidFocus(() => this.wefweshDebounced(), this, this.visibiwityDisposabwes);
 
-			super.setVisible(visible);
+			supa.setVisibwe(visibwe);
 
-			this.onActiveEditorChanged();
-		} else {
-			this.visibilityDisposables?.dispose();
+			this.onActiveEditowChanged();
+		} ewse {
+			this.visibiwityDisposabwes?.dispose();
 
-			super.setVisible(visible);
+			supa.setVisibwe(visibwe);
 		}
 	}
 
-	protected override layoutBody(height: number, width: number): void {
-		super.layoutBody(height, width);
-		this.tree.layout(height, width);
+	pwotected ovewwide wayoutBody(height: numba, width: numba): void {
+		supa.wayoutBody(height, width);
+		this.twee.wayout(height, width);
 	}
 
-	protected override renderHeaderTitle(container: HTMLElement): void {
-		super.renderHeaderTitle(container, this.title);
+	pwotected ovewwide wendewHeadewTitwe(containa: HTMWEwement): void {
+		supa.wendewHeadewTitwe(containa, this.titwe);
 
-		container.classList.add('timeline-view');
+		containa.cwassWist.add('timewine-view');
 	}
 
-	protected override renderBody(container: HTMLElement): void {
-		super.renderBody(container);
+	pwotected ovewwide wendewBody(containa: HTMWEwement): void {
+		supa.wendewBody(containa);
 
-		this.$container = container;
-		container.classList.add('tree-explorer-viewlet-tree-view', 'timeline-tree-view');
+		this.$containa = containa;
+		containa.cwassWist.add('twee-expwowa-viewwet-twee-view', 'timewine-twee-view');
 
-		this.$message = DOM.append(this.$container, DOM.$('.message'));
-		this.$message.classList.add('timeline-subtle');
+		this.$message = DOM.append(this.$containa, DOM.$('.message'));
+		this.$message.cwassWist.add('timewine-subtwe');
 
-		this.message = localize('timeline.editorCannotProvideTimeline', "The active editor cannot provide timeline information.");
+		this.message = wocawize('timewine.editowCannotPwovideTimewine', "The active editow cannot pwovide timewine infowmation.");
 
-		this.$tree = document.createElement('div');
-		this.$tree.classList.add('customview-tree', 'file-icon-themable-tree', 'hide-arrows');
-		// this.treeElement.classList.add('show-file-icons');
-		container.appendChild(this.$tree);
+		this.$twee = document.cweateEwement('div');
+		this.$twee.cwassWist.add('customview-twee', 'fiwe-icon-themabwe-twee', 'hide-awwows');
+		// this.tweeEwement.cwassWist.add('show-fiwe-icons');
+		containa.appendChiwd(this.$twee);
 
-		this.treeRenderer = this.instantiationService.createInstance(TimelineTreeRenderer, this.commands);
-		this.treeRenderer.onDidScrollToEnd(item => {
-			if (this.pageOnScroll) {
-				this.loadMore(item);
+		this.tweeWendewa = this.instantiationSewvice.cweateInstance(TimewineTweeWendewa, this.commands);
+		this.tweeWendewa.onDidScwowwToEnd(item => {
+			if (this.pageOnScwoww) {
+				this.woadMowe(item);
 			}
 		});
 
-		this.tree = <WorkbenchObjectTree<TreeElement, FuzzyScore>>this.instantiationService.createInstance(WorkbenchObjectTree, 'TimelinePane',
-			this.$tree, new TimelineListVirtualDelegate(), [this.treeRenderer], {
-			identityProvider: new TimelineIdentityProvider(),
-			accessibilityProvider: {
-				getAriaLabel(element: TreeElement): string {
-					if (isLoadMoreCommand(element)) {
-						return element.ariaLabel;
+		this.twee = <WowkbenchObjectTwee<TweeEwement, FuzzyScowe>>this.instantiationSewvice.cweateInstance(WowkbenchObjectTwee, 'TimewinePane',
+			this.$twee, new TimewineWistViwtuawDewegate(), [this.tweeWendewa], {
+			identityPwovida: new TimewineIdentityPwovida(),
+			accessibiwityPwovida: {
+				getAwiaWabew(ewement: TweeEwement): stwing {
+					if (isWoadMoweCommand(ewement)) {
+						wetuwn ewement.awiaWabew;
 					}
-					return element.accessibilityInformation ? element.accessibilityInformation.label : localize('timeline.aria.item', "{0}: {1}", element.relativeTime ?? '', element.label);
+					wetuwn ewement.accessibiwityInfowmation ? ewement.accessibiwityInfowmation.wabew : wocawize('timewine.awia.item', "{0}: {1}", ewement.wewativeTime ?? '', ewement.wabew);
 				},
-				getRole(element: TreeElement): string {
-					if (isLoadMoreCommand(element)) {
-						return 'treeitem';
+				getWowe(ewement: TweeEwement): stwing {
+					if (isWoadMoweCommand(ewement)) {
+						wetuwn 'tweeitem';
 					}
-					return element.accessibilityInformation && element.accessibilityInformation.role ? element.accessibilityInformation.role : 'treeitem';
+					wetuwn ewement.accessibiwityInfowmation && ewement.accessibiwityInfowmation.wowe ? ewement.accessibiwityInfowmation.wowe : 'tweeitem';
 				},
-				getWidgetAriaLabel(): string {
-					return localize('timeline', "Timeline");
+				getWidgetAwiaWabew(): stwing {
+					wetuwn wocawize('timewine', "Timewine");
 				}
 			},
-			keyboardNavigationLabelProvider: new TimelineKeyboardNavigationLabelProvider(),
-			multipleSelectionSupport: true,
-			overrideStyles: {
-				listBackground: this.getBackgroundColor(),
+			keyboawdNavigationWabewPwovida: new TimewineKeyboawdNavigationWabewPwovida(),
+			muwtipweSewectionSuppowt: twue,
+			ovewwideStywes: {
+				wistBackgwound: this.getBackgwoundCowow(),
 			}
 		});
 
-		this._register(this.tree.onContextMenu(e => this.onContextMenu(this.commands, e)));
-		this._register(this.tree.onDidChangeSelection(e => this.ensureValidItems()));
-		this._register(this.tree.onDidOpen(e => {
-			if (!e.browserEvent || !this.ensureValidItems()) {
-				return;
+		this._wegista(this.twee.onContextMenu(e => this.onContextMenu(this.commands, e)));
+		this._wegista(this.twee.onDidChangeSewection(e => this.ensuweVawidItems()));
+		this._wegista(this.twee.onDidOpen(e => {
+			if (!e.bwowsewEvent || !this.ensuweVawidItems()) {
+				wetuwn;
 			}
 
-			const selection = this.tree.getSelection();
-			let item;
-			if (selection.length === 1) {
-				item = selection[0];
+			const sewection = this.twee.getSewection();
+			wet item;
+			if (sewection.wength === 1) {
+				item = sewection[0];
 			}
 
-			if (item === null) {
-				return;
+			if (item === nuww) {
+				wetuwn;
 			}
 
-			if (isTimelineItem(item)) {
+			if (isTimewineItem(item)) {
 				if (item.command) {
-					let args = item.command.arguments ?? [];
-					if (item.command.id === API_OPEN_EDITOR_COMMAND_ID || item.command.id === API_OPEN_DIFF_EDITOR_COMMAND_ID) {
-						// Some commands owned by us should receive the
-						// `IOpenEvent` as context to open properly
-						args = [...args, e];
+					wet awgs = item.command.awguments ?? [];
+					if (item.command.id === API_OPEN_EDITOW_COMMAND_ID || item.command.id === API_OPEN_DIFF_EDITOW_COMMAND_ID) {
+						// Some commands owned by us shouwd weceive the
+						// `IOpenEvent` as context to open pwopewwy
+						awgs = [...awgs, e];
 					}
 
-					this.commandService.executeCommand(item.command.id, ...args);
+					this.commandSewvice.executeCommand(item.command.id, ...awgs);
 				}
 			}
-			else if (isLoadMoreCommand(item)) {
-				this.loadMore(item);
+			ewse if (isWoadMoweCommand(item)) {
+				this.woadMowe(item);
 			}
 		}));
 	}
 
-	private loadMore(item: LoadMoreCommand) {
-		if (item.loading) {
-			return;
+	pwivate woadMowe(item: WoadMoweCommand) {
+		if (item.woading) {
+			wetuwn;
 		}
 
-		item.loading = true;
-		this.tree.rerender(item);
+		item.woading = twue;
+		this.twee.wewenda(item);
 
-		if (this.pendingRequests.size !== 0) {
-			return;
+		if (this.pendingWequests.size !== 0) {
+			wetuwn;
 		}
 
-		this._maxItemCount = this._visibleItemCount + this.pageSize;
-		this.loadTimeline(false);
+		this._maxItemCount = this._visibweItemCount + this.pageSize;
+		this.woadTimewine(fawse);
 	}
 
-	ensureValidItems() {
-		// If we don't have any non-excluded timelines, clear the tree and show the loading message
-		if (!this.hasVisibleItems || !this.timelineService.getSources().some(({ id }) => !this.excludedSources.has(id) && this.timelinesBySource.has(id))) {
-			this.tree.setChildren(null, undefined);
-			this._isEmpty = true;
+	ensuweVawidItems() {
+		// If we don't have any non-excwuded timewines, cweaw the twee and show the woading message
+		if (!this.hasVisibweItems || !this.timewineSewvice.getSouwces().some(({ id }) => !this.excwudedSouwces.has(id) && this.timewinesBySouwce.has(id))) {
+			this.twee.setChiwdwen(nuww, undefined);
+			this._isEmpty = twue;
 
-			this.setLoadingUriMessage();
+			this.setWoadingUwiMessage();
 
-			return false;
+			wetuwn fawse;
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	setLoadingUriMessage() {
-		const file = this.uri && basename(this.uri.fsPath);
-		this.updateFilename(file);
-		this.message = file ? localize('timeline.loading', "Loading timeline for {0}...", file) : '';
+	setWoadingUwiMessage() {
+		const fiwe = this.uwi && basename(this.uwi.fsPath);
+		this.updateFiwename(fiwe);
+		this.message = fiwe ? wocawize('timewine.woading', "Woading timewine fow {0}...", fiwe) : '';
 	}
 
-	private onContextMenu(commands: TimelinePaneCommands, treeEvent: ITreeContextMenuEvent<TreeElement | null>): void {
-		const item = treeEvent.element;
-		if (item === null) {
-			return;
+	pwivate onContextMenu(commands: TimewinePaneCommands, tweeEvent: ITweeContextMenuEvent<TweeEwement | nuww>): void {
+		const item = tweeEvent.ewement;
+		if (item === nuww) {
+			wetuwn;
 		}
-		const event: UIEvent = treeEvent.browserEvent;
+		const event: UIEvent = tweeEvent.bwowsewEvent;
 
-		event.preventDefault();
-		event.stopPropagation();
+		event.pweventDefauwt();
+		event.stopPwopagation();
 
-		if (!this.ensureValidItems()) {
-			return;
+		if (!this.ensuweVawidItems()) {
+			wetuwn;
 		}
 
-		this.tree.setFocus([item]);
+		this.twee.setFocus([item]);
 		const actions = commands.getItemContextActions(item);
-		if (!actions.length) {
-			return;
+		if (!actions.wength) {
+			wetuwn;
 		}
 
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => treeEvent.anchor,
+		this.contextMenuSewvice.showContextMenu({
+			getAnchow: () => tweeEvent.anchow,
 			getActions: () => actions,
 			getActionViewItem: (action) => {
-				const keybinding = this.keybindingService.lookupKeybinding(action.id);
+				const keybinding = this.keybindingSewvice.wookupKeybinding(action.id);
 				if (keybinding) {
-					return new ActionViewItem(action, action, { label: true, keybinding: keybinding.getLabel() });
+					wetuwn new ActionViewItem(action, action, { wabew: twue, keybinding: keybinding.getWabew() });
 				}
-				return undefined;
+				wetuwn undefined;
 			},
-			onHide: (wasCancelled?: boolean) => {
-				if (wasCancelled) {
-					this.tree.domFocus();
+			onHide: (wasCancewwed?: boowean) => {
+				if (wasCancewwed) {
+					this.twee.domFocus();
 				}
 			},
-			getActionsContext: (): TimelineActionContext => ({ uri: this.uri, item: item }),
-			actionRunner: new TimelineActionRunner()
+			getActionsContext: (): TimewineActionContext => ({ uwi: this.uwi, item: item }),
+			actionWunna: new TimewineActionWunna()
 		});
 	}
 }
 
-export class TimelineElementTemplate implements IDisposable {
-	static readonly id = 'TimelineElementTemplate';
+expowt cwass TimewineEwementTempwate impwements IDisposabwe {
+	static weadonwy id = 'TimewineEwementTempwate';
 
-	readonly actionBar: ActionBar;
-	readonly icon: HTMLElement;
-	readonly iconLabel: IconLabel;
-	readonly timestamp: HTMLSpanElement;
+	weadonwy actionBaw: ActionBaw;
+	weadonwy icon: HTMWEwement;
+	weadonwy iconWabew: IconWabew;
+	weadonwy timestamp: HTMWSpanEwement;
 
-	constructor(
-		readonly container: HTMLElement,
-		actionViewItemProvider: IActionViewItemProvider
+	constwuctow(
+		weadonwy containa: HTMWEwement,
+		actionViewItemPwovida: IActionViewItemPwovida
 	) {
-		container.classList.add('custom-view-tree-node-item');
-		this.icon = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
+		containa.cwassWist.add('custom-view-twee-node-item');
+		this.icon = DOM.append(containa, DOM.$('.custom-view-twee-node-item-icon'));
 
-		this.iconLabel = new IconLabel(container, { supportHighlights: true, supportIcons: true });
+		this.iconWabew = new IconWabew(containa, { suppowtHighwights: twue, suppowtIcons: twue });
 
-		const timestampContainer = DOM.append(this.iconLabel.element, DOM.$('.timeline-timestamp-container'));
-		this.timestamp = DOM.append(timestampContainer, DOM.$('span.timeline-timestamp'));
+		const timestampContaina = DOM.append(this.iconWabew.ewement, DOM.$('.timewine-timestamp-containa'));
+		this.timestamp = DOM.append(timestampContaina, DOM.$('span.timewine-timestamp'));
 
-		const actionsContainer = DOM.append(this.iconLabel.element, DOM.$('.actions'));
-		this.actionBar = new ActionBar(actionsContainer, { actionViewItemProvider: actionViewItemProvider });
+		const actionsContaina = DOM.append(this.iconWabew.ewement, DOM.$('.actions'));
+		this.actionBaw = new ActionBaw(actionsContaina, { actionViewItemPwovida: actionViewItemPwovida });
 	}
 
 	dispose() {
-		this.iconLabel.dispose();
-		this.actionBar.dispose();
+		this.iconWabew.dispose();
+		this.actionBaw.dispose();
 	}
 
-	reset() {
-		this.icon.className = '';
-		this.icon.style.backgroundImage = '';
-		this.actionBar.clear();
-	}
-}
-
-export class TimelineIdentityProvider implements IIdentityProvider<TreeElement> {
-	getId(item: TreeElement): { toString(): string } {
-		return item.handle;
+	weset() {
+		this.icon.cwassName = '';
+		this.icon.stywe.backgwoundImage = '';
+		this.actionBaw.cweaw();
 	}
 }
 
-class TimelineActionRunner extends ActionRunner {
+expowt cwass TimewineIdentityPwovida impwements IIdentityPwovida<TweeEwement> {
+	getId(item: TweeEwement): { toStwing(): stwing } {
+		wetuwn item.handwe;
+	}
+}
 
-	override async runAction(action: IAction, { uri, item }: TimelineActionContext): Promise<void> {
-		if (!isTimelineItem(item)) {
-			// TODO@eamodio do we need to do anything else?
-			await action.run();
-			return;
+cwass TimewineActionWunna extends ActionWunna {
+
+	ovewwide async wunAction(action: IAction, { uwi, item }: TimewineActionContext): Pwomise<void> {
+		if (!isTimewineItem(item)) {
+			// TODO@eamodio do we need to do anything ewse?
+			await action.wun();
+			wetuwn;
 		}
 
-		await action.run(...[
+		await action.wun(...[
 			{
-				$mid: MarshalledId.TimelineActionContext,
-				handle: item.handle,
-				source: item.source,
-				uri: uri
+				$mid: MawshawwedId.TimewineActionContext,
+				handwe: item.handwe,
+				souwce: item.souwce,
+				uwi: uwi
 			},
-			uri,
-			item.source,
+			uwi,
+			item.souwce,
 		]);
 	}
 }
 
-export class TimelineKeyboardNavigationLabelProvider implements IKeyboardNavigationLabelProvider<TreeElement> {
-	getKeyboardNavigationLabel(element: TreeElement): { toString(): string } {
-		return element.label;
+expowt cwass TimewineKeyboawdNavigationWabewPwovida impwements IKeyboawdNavigationWabewPwovida<TweeEwement> {
+	getKeyboawdNavigationWabew(ewement: TweeEwement): { toStwing(): stwing } {
+		wetuwn ewement.wabew;
 	}
 }
 
-export class TimelineListVirtualDelegate implements IListVirtualDelegate<TreeElement> {
-	getHeight(_element: TreeElement): number {
-		return ItemHeight;
+expowt cwass TimewineWistViwtuawDewegate impwements IWistViwtuawDewegate<TweeEwement> {
+	getHeight(_ewement: TweeEwement): numba {
+		wetuwn ItemHeight;
 	}
 
-	getTemplateId(element: TreeElement): string {
-		return TimelineElementTemplate.id;
+	getTempwateId(ewement: TweeEwement): stwing {
+		wetuwn TimewineEwementTempwate.id;
 	}
 }
 
-class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, TimelineElementTemplate> {
-	private readonly _onDidScrollToEnd = new Emitter<LoadMoreCommand>();
-	readonly onDidScrollToEnd: Event<LoadMoreCommand> = this._onDidScrollToEnd.event;
+cwass TimewineTweeWendewa impwements ITweeWendewa<TweeEwement, FuzzyScowe, TimewineEwementTempwate> {
+	pwivate weadonwy _onDidScwowwToEnd = new Emitta<WoadMoweCommand>();
+	weadonwy onDidScwowwToEnd: Event<WoadMoweCommand> = this._onDidScwowwToEnd.event;
 
-	readonly templateId: string = TimelineElementTemplate.id;
+	weadonwy tempwateId: stwing = TimewineEwementTempwate.id;
 
-	private actionViewItemProvider: IActionViewItemProvider;
+	pwivate actionViewItemPwovida: IActionViewItemPwovida;
 
-	constructor(
-		private readonly commands: TimelinePaneCommands,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService
+	constwuctow(
+		pwivate weadonwy commands: TimewinePaneCommands,
+		@IInstantiationSewvice pwotected weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IThemeSewvice pwivate themeSewvice: IThemeSewvice
 	) {
-		this.actionViewItemProvider = createActionViewItem.bind(undefined, this.instantiationService);
+		this.actionViewItemPwovida = cweateActionViewItem.bind(undefined, this.instantiationSewvice);
 	}
 
-	private uri: URI | undefined;
-	setUri(uri: URI | undefined) {
-		this.uri = uri;
+	pwivate uwi: UWI | undefined;
+	setUwi(uwi: UWI | undefined) {
+		this.uwi = uwi;
 	}
 
-	renderTemplate(container: HTMLElement): TimelineElementTemplate {
-		return new TimelineElementTemplate(container, this.actionViewItemProvider);
+	wendewTempwate(containa: HTMWEwement): TimewineEwementTempwate {
+		wetuwn new TimewineEwementTempwate(containa, this.actionViewItemPwovida);
 	}
 
-	renderElement(
-		node: ITreeNode<TreeElement, FuzzyScore>,
-		index: number,
-		template: TimelineElementTemplate,
-		height: number | undefined
+	wendewEwement(
+		node: ITweeNode<TweeEwement, FuzzyScowe>,
+		index: numba,
+		tempwate: TimewineEwementTempwate,
+		height: numba | undefined
 	): void {
-		template.reset();
+		tempwate.weset();
 
-		const { element: item } = node;
+		const { ewement: item } = node;
 
-		const theme = this.themeService.getColorTheme();
-		const icon = theme.type === ColorScheme.LIGHT ? item.icon : item.iconDark;
-		const iconUrl = icon ? URI.revive(icon) : null;
+		const theme = this.themeSewvice.getCowowTheme();
+		const icon = theme.type === CowowScheme.WIGHT ? item.icon : item.iconDawk;
+		const iconUww = icon ? UWI.wevive(icon) : nuww;
 
-		if (iconUrl) {
-			template.icon.className = 'custom-view-tree-node-item-icon';
-			template.icon.style.backgroundImage = DOM.asCSSUrl(iconUrl);
-			template.icon.style.color = '';
-		} else if (item.themeIcon) {
-			template.icon.className = `custom-view-tree-node-item-icon ${ThemeIcon.asClassName(item.themeIcon)}`;
-			if (item.themeIcon.color) {
-				template.icon.style.color = theme.getColor(item.themeIcon.color.id)?.toString() ?? '';
+		if (iconUww) {
+			tempwate.icon.cwassName = 'custom-view-twee-node-item-icon';
+			tempwate.icon.stywe.backgwoundImage = DOM.asCSSUww(iconUww);
+			tempwate.icon.stywe.cowow = '';
+		} ewse if (item.themeIcon) {
+			tempwate.icon.cwassName = `custom-view-twee-node-item-icon ${ThemeIcon.asCwassName(item.themeIcon)}`;
+			if (item.themeIcon.cowow) {
+				tempwate.icon.stywe.cowow = theme.getCowow(item.themeIcon.cowow.id)?.toStwing() ?? '';
 			}
-			template.icon.style.backgroundImage = '';
-		} else {
-			template.icon.className = 'custom-view-tree-node-item-icon';
-			template.icon.style.backgroundImage = '';
-			template.icon.style.color = '';
+			tempwate.icon.stywe.backgwoundImage = '';
+		} ewse {
+			tempwate.icon.cwassName = 'custom-view-twee-node-item-icon';
+			tempwate.icon.stywe.backgwoundImage = '';
+			tempwate.icon.stywe.cowow = '';
 		}
 
-		template.iconLabel.setLabel(item.label, item.description, {
-			title: item.detail,
-			matches: createMatches(node.filterData)
+		tempwate.iconWabew.setWabew(item.wabew, item.descwiption, {
+			titwe: item.detaiw,
+			matches: cweateMatches(node.fiwtewData)
 		});
 
-		template.timestamp.textContent = item.relativeTime ?? '';
-		template.timestamp.parentElement!.classList.toggle('timeline-timestamp--duplicate', isTimelineItem(item) && item.hideRelativeTime);
+		tempwate.timestamp.textContent = item.wewativeTime ?? '';
+		tempwate.timestamp.pawentEwement!.cwassWist.toggwe('timewine-timestamp--dupwicate', isTimewineItem(item) && item.hideWewativeTime);
 
-		template.actionBar.context = { uri: this.uri, item: item } as TimelineActionContext;
-		template.actionBar.actionRunner = new TimelineActionRunner();
-		template.actionBar.push(this.commands.getItemActions(item), { icon: true, label: false });
+		tempwate.actionBaw.context = { uwi: this.uwi, item: item } as TimewineActionContext;
+		tempwate.actionBaw.actionWunna = new TimewineActionWunna();
+		tempwate.actionBaw.push(this.commands.getItemActions(item), { icon: twue, wabew: fawse });
 
-		// If we are rendering the load more item, we've scrolled to the end, so trigger an event
-		if (isLoadMoreCommand(item)) {
-			setTimeout(() => this._onDidScrollToEnd.fire(item), 0);
+		// If we awe wendewing the woad mowe item, we've scwowwed to the end, so twigga an event
+		if (isWoadMoweCommand(item)) {
+			setTimeout(() => this._onDidScwowwToEnd.fiwe(item), 0);
 		}
 	}
 
-	disposeTemplate(template: TimelineElementTemplate): void {
-		template.iconLabel.dispose();
+	disposeTempwate(tempwate: TimewineEwementTempwate): void {
+		tempwate.iconWabew.dispose();
 	}
 }
 
 
-const timelineRefresh = registerIcon('timeline-refresh', Codicon.refresh, localize('timelineRefresh', 'Icon for the refresh timeline action.'));
-const timelinePin = registerIcon('timeline-pin', Codicon.pin, localize('timelinePin', 'Icon for the pin timeline action.'));
-const timelineUnpin = registerIcon('timeline-unpin', Codicon.pinned, localize('timelineUnpin', 'Icon for the unpin timeline action.'));
+const timewineWefwesh = wegistewIcon('timewine-wefwesh', Codicon.wefwesh, wocawize('timewineWefwesh', 'Icon fow the wefwesh timewine action.'));
+const timewinePin = wegistewIcon('timewine-pin', Codicon.pin, wocawize('timewinePin', 'Icon fow the pin timewine action.'));
+const timewineUnpin = wegistewIcon('timewine-unpin', Codicon.pinned, wocawize('timewineUnpin', 'Icon fow the unpin timewine action.'));
 
-class TimelinePaneCommands extends Disposable {
-	private sourceDisposables: DisposableStore;
+cwass TimewinePaneCommands extends Disposabwe {
+	pwivate souwceDisposabwes: DisposabweStowe;
 
-	constructor(
-		private readonly pane: TimelinePane,
-		@ITimelineService private readonly timelineService: ITimelineService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IMenuService private readonly menuService: IMenuService,
+	constwuctow(
+		pwivate weadonwy pane: TimewinePane,
+		@ITimewineSewvice pwivate weadonwy timewineSewvice: ITimewineSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IMenuSewvice pwivate weadonwy menuSewvice: IMenuSewvice,
 	) {
-		super();
+		supa();
 
-		this._register(this.sourceDisposables = new DisposableStore());
+		this._wegista(this.souwceDisposabwes = new DisposabweStowe());
 
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'timeline.refresh',
-					title: { value: localize('refresh', "Refresh"), original: 'Refresh' },
-					icon: timelineRefresh,
-					category: { value: localize('timeline', "Timeline"), original: 'Timeline' },
+		this._wegista(wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: 'timewine.wefwesh',
+					titwe: { vawue: wocawize('wefwesh', "Wefwesh"), owiginaw: 'Wefwesh' },
+					icon: timewineWefwesh,
+					categowy: { vawue: wocawize('timewine', "Timewine"), owiginaw: 'Timewine' },
 					menu: {
-						id: MenuId.TimelineTitle,
-						group: 'navigation',
-						order: 99,
+						id: MenuId.TimewineTitwe,
+						gwoup: 'navigation',
+						owda: 99,
 					}
 				});
 			}
-			run(accessor: ServicesAccessor, ...args: any[]) {
-				pane.reset();
+			wun(accessow: SewvicesAccessow, ...awgs: any[]) {
+				pane.weset();
 			}
 		}));
 
-		this._register(CommandsRegistry.registerCommand('timeline.toggleFollowActiveEditor',
-			(accessor: ServicesAccessor, ...args: any[]) => pane.followActiveEditor = !pane.followActiveEditor
+		this._wegista(CommandsWegistwy.wegistewCommand('timewine.toggweFowwowActiveEditow',
+			(accessow: SewvicesAccessow, ...awgs: any[]) => pane.fowwowActiveEditow = !pane.fowwowActiveEditow
 		));
 
-		this._register(MenuRegistry.appendMenuItem(MenuId.TimelineTitle, ({
+		this._wegista(MenuWegistwy.appendMenuItem(MenuId.TimewineTitwe, ({
 			command: {
-				id: 'timeline.toggleFollowActiveEditor',
-				title: { value: localize('timeline.toggleFollowActiveEditorCommand.follow', "Pin the Current Timeline"), original: 'Pin the Current Timeline' },
-				icon: timelinePin,
-				category: { value: localize('timeline', "Timeline"), original: 'Timeline' },
+				id: 'timewine.toggweFowwowActiveEditow',
+				titwe: { vawue: wocawize('timewine.toggweFowwowActiveEditowCommand.fowwow', "Pin the Cuwwent Timewine"), owiginaw: 'Pin the Cuwwent Timewine' },
+				icon: timewinePin,
+				categowy: { vawue: wocawize('timewine', "Timewine"), owiginaw: 'Timewine' },
 			},
-			group: 'navigation',
-			order: 98,
-			when: TimelineFollowActiveEditorContext
+			gwoup: 'navigation',
+			owda: 98,
+			when: TimewineFowwowActiveEditowContext
 		})));
 
-		this._register(MenuRegistry.appendMenuItem(MenuId.TimelineTitle, ({
+		this._wegista(MenuWegistwy.appendMenuItem(MenuId.TimewineTitwe, ({
 			command: {
-				id: 'timeline.toggleFollowActiveEditor',
-				title: { value: localize('timeline.toggleFollowActiveEditorCommand.unfollow', "Unpin the Current Timeline"), original: 'Unpin the Current Timeline' },
-				icon: timelineUnpin,
-				category: { value: localize('timeline', "Timeline"), original: 'Timeline' },
+				id: 'timewine.toggweFowwowActiveEditow',
+				titwe: { vawue: wocawize('timewine.toggweFowwowActiveEditowCommand.unfowwow', "Unpin the Cuwwent Timewine"), owiginaw: 'Unpin the Cuwwent Timewine' },
+				icon: timewineUnpin,
+				categowy: { vawue: wocawize('timewine', "Timewine"), owiginaw: 'Timewine' },
 			},
-			group: 'navigation',
-			order: 98,
-			when: TimelineFollowActiveEditorContext.toNegated()
+			gwoup: 'navigation',
+			owda: 98,
+			when: TimewineFowwowActiveEditowContext.toNegated()
 		})));
 
-		this._register(timelineService.onDidChangeProviders(() => this.updateTimelineSourceFilters()));
-		this.updateTimelineSourceFilters();
+		this._wegista(timewineSewvice.onDidChangePwovidews(() => this.updateTimewineSouwceFiwtews()));
+		this.updateTimewineSouwceFiwtews();
 	}
 
-	getItemActions(element: TreeElement): IAction[] {
-		return this.getActions(MenuId.TimelineItemContext, { key: 'timelineItem', value: element.contextValue }).primary;
+	getItemActions(ewement: TweeEwement): IAction[] {
+		wetuwn this.getActions(MenuId.TimewineItemContext, { key: 'timewineItem', vawue: ewement.contextVawue }).pwimawy;
 	}
 
-	getItemContextActions(element: TreeElement): IAction[] {
-		return this.getActions(MenuId.TimelineItemContext, { key: 'timelineItem', value: element.contextValue }).secondary;
+	getItemContextActions(ewement: TweeEwement): IAction[] {
+		wetuwn this.getActions(MenuId.TimewineItemContext, { key: 'timewineItem', vawue: ewement.contextVawue }).secondawy;
 	}
 
-	private getActions(menuId: MenuId, context: { key: string, value?: string }): { primary: IAction[]; secondary: IAction[]; } {
-		const contextKeyService = this.contextKeyService.createOverlay([
+	pwivate getActions(menuId: MenuId, context: { key: stwing, vawue?: stwing }): { pwimawy: IAction[]; secondawy: IAction[]; } {
+		const contextKeySewvice = this.contextKeySewvice.cweateOvewway([
 			['view', this.pane.id],
-			[context.key, context.value],
+			[context.key, context.vawue],
 		]);
 
-		const menu = this.menuService.createMenu(menuId, contextKeyService);
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
-		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, 'inline');
+		const menu = this.menuSewvice.cweateMenu(menuId, contextKeySewvice);
+		const pwimawy: IAction[] = [];
+		const secondawy: IAction[] = [];
+		const wesuwt = { pwimawy, secondawy };
+		cweateAndFiwwInContextMenuActions(menu, { shouwdFowwawdAwgs: twue }, wesuwt, 'inwine');
 
 		menu.dispose();
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private updateTimelineSourceFilters() {
-		this.sourceDisposables.clear();
+	pwivate updateTimewineSouwceFiwtews() {
+		this.souwceDisposabwes.cweaw();
 
-		const excluded = new Set(this.configurationService.getValue<string[] | undefined>('timeline.excludeSources') ?? []);
+		const excwuded = new Set(this.configuwationSewvice.getVawue<stwing[] | undefined>('timewine.excwudeSouwces') ?? []);
 
-		for (const source of this.timelineService.getSources()) {
-			this.sourceDisposables.add(registerAction2(class extends Action2 {
-				constructor() {
-					super({
-						id: `timeline.toggleExcludeSource:${source.id}`,
-						title: { value: localize('timeline.filterSource', "Include: {0}", source.label), original: `Include: ${source.label}` },
-						category: { value: localize('timeline', "Timeline"), original: 'Timeline' },
+		fow (const souwce of this.timewineSewvice.getSouwces()) {
+			this.souwceDisposabwes.add(wegistewAction2(cwass extends Action2 {
+				constwuctow() {
+					supa({
+						id: `timewine.toggweExcwudeSouwce:${souwce.id}`,
+						titwe: { vawue: wocawize('timewine.fiwtewSouwce', "Incwude: {0}", souwce.wabew), owiginaw: `Incwude: ${souwce.wabew}` },
+						categowy: { vawue: wocawize('timewine', "Timewine"), owiginaw: 'Timewine' },
 						menu: {
-							id: MenuId.TimelineTitle,
-							group: '2_sources',
+							id: MenuId.TimewineTitwe,
+							gwoup: '2_souwces',
 						},
-						toggled: ContextKeyExpr.regex(`config.timeline.excludeSources`, new RegExp(`\\b${escapeRegExpCharacters(source.id)}\\b`)).negate()
+						toggwed: ContextKeyExpw.wegex(`config.timewine.excwudeSouwces`, new WegExp(`\\b${escapeWegExpChawactews(souwce.id)}\\b`)).negate()
 					});
 				}
-				run(accessor: ServicesAccessor, ...args: any[]) {
-					if (excluded.has(source.id)) {
-						excluded.delete(source.id);
-					} else {
-						excluded.add(source.id);
+				wun(accessow: SewvicesAccessow, ...awgs: any[]) {
+					if (excwuded.has(souwce.id)) {
+						excwuded.dewete(souwce.id);
+					} ewse {
+						excwuded.add(souwce.id);
 					}
 
-					const configurationService = accessor.get(IConfigurationService);
-					configurationService.updateValue('timeline.excludeSources', [...excluded.keys()]);
+					const configuwationSewvice = accessow.get(IConfiguwationSewvice);
+					configuwationSewvice.updateVawue('timewine.excwudeSouwces', [...excwuded.keys()]);
 				}
 			}));
 		}

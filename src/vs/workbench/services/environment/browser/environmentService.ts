@@ -1,332 +1,332 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
-import { IColorScheme, IPath, IWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import type { IWorkbenchConstructionOptions as IWorkbenchOptions } from 'vs/workbench/workbench.web.api';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { memoize } from 'vs/base/common/decorators';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { parseLineAndColumnAware } from 'vs/base/common/extpath';
-import { LogLevelToString } from 'vs/platform/log/common/log';
-import { ExtensionKind } from 'vs/platform/extensions/common/extensions';
-import { isUndefined } from 'vs/base/common/types';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { IExtensionHostDebugPawams } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { ICowowScheme, IPath, IWindowConfiguwation } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt type { IWowkbenchConstwuctionOptions as IWowkbenchOptions } fwom 'vs/wowkbench/wowkbench.web.api';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { memoize } fwom 'vs/base/common/decowatows';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { pawseWineAndCowumnAwawe } fwom 'vs/base/common/extpath';
+impowt { WogWevewToStwing } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { ExtensionKind } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { isUndefined } fwom 'vs/base/common/types';
 
-class BrowserWorkbenchConfiguration implements IWindowConfiguration {
+cwass BwowsewWowkbenchConfiguwation impwements IWindowConfiguwation {
 
-	constructor(
-		private readonly options: IBrowserWorkbenchOptions,
-		private readonly payload: Map<string, string> | undefined
+	constwuctow(
+		pwivate weadonwy options: IBwowsewWowkbenchOptions,
+		pwivate weadonwy paywoad: Map<stwing, stwing> | undefined
 	) { }
 
 	@memoize
-	get sessionId(): string { return generateUuid(); }
+	get sessionId(): stwing { wetuwn genewateUuid(); }
 
 	@memoize
-	get remoteAuthority(): string | undefined { return this.options.remoteAuthority; }
+	get wemoteAuthowity(): stwing | undefined { wetuwn this.options.wemoteAuthowity; }
 
 	@memoize
-	get filesToOpenOrCreate(): IPath[] | undefined {
-		if (this.payload) {
-			const fileToOpen = this.payload.get('openFile');
-			if (fileToOpen) {
-				const fileUri = URI.parse(fileToOpen);
+	get fiwesToOpenOwCweate(): IPath[] | undefined {
+		if (this.paywoad) {
+			const fiweToOpen = this.paywoad.get('openFiwe');
+			if (fiweToOpen) {
+				const fiweUwi = UWI.pawse(fiweToOpen);
 
-				// Support: --goto parameter to open on line/col
-				if (this.payload.has('gotoLineMode')) {
-					const pathColumnAware = parseLineAndColumnAware(fileUri.path);
+				// Suppowt: --goto pawameta to open on wine/cow
+				if (this.paywoad.has('gotoWineMode')) {
+					const pathCowumnAwawe = pawseWineAndCowumnAwawe(fiweUwi.path);
 
-					return [{
-						fileUri: fileUri.with({ path: pathColumnAware.path }),
-						selection: !isUndefined(pathColumnAware.line) ? { startLineNumber: pathColumnAware.line, startColumn: pathColumnAware.column || 1 } : undefined
+					wetuwn [{
+						fiweUwi: fiweUwi.with({ path: pathCowumnAwawe.path }),
+						sewection: !isUndefined(pathCowumnAwawe.wine) ? { stawtWineNumba: pathCowumnAwawe.wine, stawtCowumn: pathCowumnAwawe.cowumn || 1 } : undefined
 					}];
 				}
 
-				return [{ fileUri }];
+				wetuwn [{ fiweUwi }];
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
 	@memoize
-	get filesToDiff(): IPath[] | undefined {
-		if (this.payload) {
-			const fileToDiffPrimary = this.payload.get('diffFilePrimary');
-			const fileToDiffSecondary = this.payload.get('diffFileSecondary');
-			if (fileToDiffPrimary && fileToDiffSecondary) {
-				return [
-					{ fileUri: URI.parse(fileToDiffSecondary) },
-					{ fileUri: URI.parse(fileToDiffPrimary) }
+	get fiwesToDiff(): IPath[] | undefined {
+		if (this.paywoad) {
+			const fiweToDiffPwimawy = this.paywoad.get('diffFiwePwimawy');
+			const fiweToDiffSecondawy = this.paywoad.get('diffFiweSecondawy');
+			if (fiweToDiffPwimawy && fiweToDiffSecondawy) {
+				wetuwn [
+					{ fiweUwi: UWI.pawse(fiweToDiffSecondawy) },
+					{ fiweUwi: UWI.pawse(fiweToDiffPwimawy) }
 				];
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	get colorScheme(): IColorScheme {
-		return { dark: false, highContrast: false };
+	get cowowScheme(): ICowowScheme {
+		wetuwn { dawk: fawse, highContwast: fawse };
 	}
 }
 
-interface IBrowserWorkbenchOptions extends IWorkbenchOptions {
-	workspaceId: string;
-	logsPath: URI;
+intewface IBwowsewWowkbenchOptions extends IWowkbenchOptions {
+	wowkspaceId: stwing;
+	wogsPath: UWI;
 }
 
-interface IExtensionHostDebugEnvironment {
-	params: IExtensionHostDebugParams;
-	debugRenderer: boolean;
-	isExtensionDevelopment: boolean;
-	extensionDevelopmentLocationURI?: URI[];
-	extensionDevelopmentKind?: ExtensionKind[];
-	extensionTestsLocationURI?: URI;
-	extensionEnabledProposedApi?: string[];
+intewface IExtensionHostDebugEnviwonment {
+	pawams: IExtensionHostDebugPawams;
+	debugWendewa: boowean;
+	isExtensionDevewopment: boowean;
+	extensionDevewopmentWocationUWI?: UWI[];
+	extensionDevewopmentKind?: ExtensionKind[];
+	extensionTestsWocationUWI?: UWI;
+	extensionEnabwedPwoposedApi?: stwing[];
 }
 
-export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironmentService {
+expowt cwass BwowsewWowkbenchEnviwonmentSewvice impwements IWowkbenchEnviwonmentSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private _configuration: IWindowConfiguration | undefined = undefined;
-	get configuration(): IWindowConfiguration {
-		if (!this._configuration) {
-			this._configuration = new BrowserWorkbenchConfiguration(this.options, this.payload);
+	pwivate _configuwation: IWindowConfiguwation | undefined = undefined;
+	get configuwation(): IWindowConfiguwation {
+		if (!this._configuwation) {
+			this._configuwation = new BwowsewWowkbenchConfiguwation(this.options, this.paywoad);
 		}
 
-		return this._configuration;
+		wetuwn this._configuwation;
 	}
 
 	@memoize
-	get remoteAuthority(): string | undefined { return this.options.remoteAuthority; }
+	get wemoteAuthowity(): stwing | undefined { wetuwn this.options.wemoteAuthowity; }
 
 	@memoize
-	get isBuilt(): boolean { return !!this.productService.commit; }
+	get isBuiwt(): boowean { wetuwn !!this.pwoductSewvice.commit; }
 
 	@memoize
-	get logsPath(): string { return this.options.logsPath.path; }
+	get wogsPath(): stwing { wetuwn this.options.wogsPath.path; }
 
 	@memoize
-	get logLevel(): string | undefined { return this.payload?.get('logLevel') || (this.options.developmentOptions?.logLevel !== undefined ? LogLevelToString(this.options.developmentOptions?.logLevel) : undefined); }
+	get wogWevew(): stwing | undefined { wetuwn this.paywoad?.get('wogWevew') || (this.options.devewopmentOptions?.wogWevew !== undefined ? WogWevewToStwing(this.options.devewopmentOptions?.wogWevew) : undefined); }
 
 	@memoize
-	get logFile(): URI { return joinPath(this.options.logsPath, 'window.log'); }
+	get wogFiwe(): UWI { wetuwn joinPath(this.options.wogsPath, 'window.wog'); }
 
 	@memoize
-	get userRoamingDataHome(): URI { return URI.file('/User').with({ scheme: Schemas.userData }); }
+	get usewWoamingDataHome(): UWI { wetuwn UWI.fiwe('/Usa').with({ scheme: Schemas.usewData }); }
 
 	@memoize
-	get settingsResource(): URI { return joinPath(this.userRoamingDataHome, 'settings.json'); }
+	get settingsWesouwce(): UWI { wetuwn joinPath(this.usewWoamingDataHome, 'settings.json'); }
 
 	@memoize
-	get argvResource(): URI { return joinPath(this.userRoamingDataHome, 'argv.json'); }
+	get awgvWesouwce(): UWI { wetuwn joinPath(this.usewWoamingDataHome, 'awgv.json'); }
 
 	@memoize
-	get snippetsHome(): URI { return joinPath(this.userRoamingDataHome, 'snippets'); }
+	get snippetsHome(): UWI { wetuwn joinPath(this.usewWoamingDataHome, 'snippets'); }
 
 	@memoize
-	get globalStorageHome(): URI { return URI.joinPath(this.userRoamingDataHome, 'globalStorage'); }
+	get gwobawStowageHome(): UWI { wetuwn UWI.joinPath(this.usewWoamingDataHome, 'gwobawStowage'); }
 
 	@memoize
-	get workspaceStorageHome(): URI { return URI.joinPath(this.userRoamingDataHome, 'workspaceStorage'); }
+	get wowkspaceStowageHome(): UWI { wetuwn UWI.joinPath(this.usewWoamingDataHome, 'wowkspaceStowage'); }
 
 	/*
-	 * In Web every workspace can potentially have scoped user-data and/or extensions and if Sync state is shared then it can make
-	 * Sync error prone - say removing extensions from another workspace. Hence scope Sync state per workspace.
-	 * Sync scoped to a workspace is capable of handling opening same workspace in multiple windows.
+	 * In Web evewy wowkspace can potentiawwy have scoped usa-data and/ow extensions and if Sync state is shawed then it can make
+	 * Sync ewwow pwone - say wemoving extensions fwom anotha wowkspace. Hence scope Sync state pew wowkspace.
+	 * Sync scoped to a wowkspace is capabwe of handwing opening same wowkspace in muwtipwe windows.
 	 */
 	@memoize
-	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'sync', this.options.workspaceId); }
+	get usewDataSyncHome(): UWI { wetuwn joinPath(this.usewWoamingDataHome, 'sync', this.options.wowkspaceId); }
 
 	@memoize
-	get userDataSyncLogResource(): URI { return joinPath(this.options.logsPath, 'userDataSync.log'); }
+	get usewDataSyncWogWesouwce(): UWI { wetuwn joinPath(this.options.wogsPath, 'usewDataSync.wog'); }
 
 	@memoize
-	get sync(): 'on' | 'off' | undefined { return undefined; }
+	get sync(): 'on' | 'off' | undefined { wetuwn undefined; }
 
 	@memoize
-	get keybindingsResource(): URI { return joinPath(this.userRoamingDataHome, 'keybindings.json'); }
+	get keybindingsWesouwce(): UWI { wetuwn joinPath(this.usewWoamingDataHome, 'keybindings.json'); }
 
 	@memoize
-	get keyboardLayoutResource(): URI { return joinPath(this.userRoamingDataHome, 'keyboardLayout.json'); }
+	get keyboawdWayoutWesouwce(): UWI { wetuwn joinPath(this.usewWoamingDataHome, 'keyboawdWayout.json'); }
 
 	@memoize
-	get untitledWorkspacesHome(): URI { return joinPath(this.userRoamingDataHome, 'Workspaces'); }
+	get untitwedWowkspacesHome(): UWI { wetuwn joinPath(this.usewWoamingDataHome, 'Wowkspaces'); }
 
 	@memoize
-	get serviceMachineIdResource(): URI { return joinPath(this.userRoamingDataHome, 'machineid'); }
+	get sewviceMachineIdWesouwce(): UWI { wetuwn joinPath(this.usewWoamingDataHome, 'machineid'); }
 
 	@memoize
-	get extHostLogsPath(): URI { return joinPath(this.options.logsPath, 'exthost'); }
+	get extHostWogsPath(): UWI { wetuwn joinPath(this.options.wogsPath, 'exthost'); }
 
-	private _extensionHostDebugEnvironment: IExtensionHostDebugEnvironment | undefined = undefined;
-	get debugExtensionHost(): IExtensionHostDebugParams {
-		if (!this._extensionHostDebugEnvironment) {
-			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+	pwivate _extensionHostDebugEnviwonment: IExtensionHostDebugEnviwonment | undefined = undefined;
+	get debugExtensionHost(): IExtensionHostDebugPawams {
+		if (!this._extensionHostDebugEnviwonment) {
+			this._extensionHostDebugEnviwonment = this.wesowveExtensionHostDebugEnviwonment();
 		}
 
-		return this._extensionHostDebugEnvironment.params;
+		wetuwn this._extensionHostDebugEnviwonment.pawams;
 	}
 
-	get isExtensionDevelopment(): boolean {
-		if (!this._extensionHostDebugEnvironment) {
-			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+	get isExtensionDevewopment(): boowean {
+		if (!this._extensionHostDebugEnviwonment) {
+			this._extensionHostDebugEnviwonment = this.wesowveExtensionHostDebugEnviwonment();
 		}
 
-		return this._extensionHostDebugEnvironment.isExtensionDevelopment;
+		wetuwn this._extensionHostDebugEnviwonment.isExtensionDevewopment;
 	}
 
-	get extensionDevelopmentLocationURI(): URI[] | undefined {
-		if (!this._extensionHostDebugEnvironment) {
-			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+	get extensionDevewopmentWocationUWI(): UWI[] | undefined {
+		if (!this._extensionHostDebugEnviwonment) {
+			this._extensionHostDebugEnviwonment = this.wesowveExtensionHostDebugEnviwonment();
 		}
 
-		return this._extensionHostDebugEnvironment.extensionDevelopmentLocationURI;
+		wetuwn this._extensionHostDebugEnviwonment.extensionDevewopmentWocationUWI;
 	}
 
-	get extensionDevelopmentLocationKind(): ExtensionKind[] | undefined {
-		if (!this._extensionHostDebugEnvironment) {
-			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+	get extensionDevewopmentWocationKind(): ExtensionKind[] | undefined {
+		if (!this._extensionHostDebugEnviwonment) {
+			this._extensionHostDebugEnviwonment = this.wesowveExtensionHostDebugEnviwonment();
 		}
 
-		return this._extensionHostDebugEnvironment.extensionDevelopmentKind;
+		wetuwn this._extensionHostDebugEnviwonment.extensionDevewopmentKind;
 	}
 
-	get extensionTestsLocationURI(): URI | undefined {
-		if (!this._extensionHostDebugEnvironment) {
-			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+	get extensionTestsWocationUWI(): UWI | undefined {
+		if (!this._extensionHostDebugEnviwonment) {
+			this._extensionHostDebugEnviwonment = this.wesowveExtensionHostDebugEnviwonment();
 		}
 
-		return this._extensionHostDebugEnvironment.extensionTestsLocationURI;
+		wetuwn this._extensionHostDebugEnviwonment.extensionTestsWocationUWI;
 	}
 
-	get extensionEnabledProposedApi(): string[] | undefined {
-		if (!this._extensionHostDebugEnvironment) {
-			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+	get extensionEnabwedPwoposedApi(): stwing[] | undefined {
+		if (!this._extensionHostDebugEnviwonment) {
+			this._extensionHostDebugEnviwonment = this.wesowveExtensionHostDebugEnviwonment();
 		}
 
-		return this._extensionHostDebugEnvironment.extensionEnabledProposedApi;
+		wetuwn this._extensionHostDebugEnviwonment.extensionEnabwedPwoposedApi;
 	}
 
-	get debugRenderer(): boolean {
-		if (!this._extensionHostDebugEnvironment) {
-			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+	get debugWendewa(): boowean {
+		if (!this._extensionHostDebugEnviwonment) {
+			this._extensionHostDebugEnviwonment = this.wesowveExtensionHostDebugEnviwonment();
 		}
 
-		return this._extensionHostDebugEnvironment.debugRenderer;
+		wetuwn this._extensionHostDebugEnviwonment.debugWendewa;
 	}
 
-	get disableExtensions() { return this.payload?.get('disableExtensions') === 'true'; }
+	get disabweExtensions() { wetuwn this.paywoad?.get('disabweExtensions') === 'twue'; }
 
-	get enableExtensions() { return this.options.enabledExtensions; }
+	get enabweExtensions() { wetuwn this.options.enabwedExtensions; }
 
 	@memoize
-	get webviewExternalEndpoint(): string {
+	get webviewExtewnawEndpoint(): stwing {
 		const endpoint = this.options.webviewEndpoint
-			|| this.productService.webviewContentExternalBaseUrlTemplate
-			|| 'https://{{uuid}}.vscode-webview.net/{{quality}}/{{commit}}/out/vs/workbench/contrib/webview/browser/pre/';
+			|| this.pwoductSewvice.webviewContentExtewnawBaseUwwTempwate
+			|| 'https://{{uuid}}.vscode-webview.net/{{quawity}}/{{commit}}/out/vs/wowkbench/contwib/webview/bwowsa/pwe/';
 
-		return endpoint
-			.replace('{{commit}}', this.payload?.get('webviewExternalEndpointCommit') ?? this.productService.commit ?? '5f19eee5dc9588ca96192f89587b5878b7d7180d')
-			.replace('{{quality}}', this.productService.quality || 'insider');
+		wetuwn endpoint
+			.wepwace('{{commit}}', this.paywoad?.get('webviewExtewnawEndpointCommit') ?? this.pwoductSewvice.commit ?? '5f19eee5dc9588ca96192f89587b5878b7d7180d')
+			.wepwace('{{quawity}}', this.pwoductSewvice.quawity || 'insida');
 	}
 
 	@memoize
-	get telemetryLogResource(): URI { return joinPath(this.options.logsPath, 'telemetry.log'); }
-	get disableTelemetry(): boolean { return false; }
+	get tewemetwyWogWesouwce(): UWI { wetuwn joinPath(this.options.wogsPath, 'tewemetwy.wog'); }
+	get disabweTewemetwy(): boowean { wetuwn fawse; }
 
-	get verbose(): boolean { return this.payload?.get('verbose') === 'true'; }
-	get logExtensionHostCommunication(): boolean { return this.payload?.get('logExtensionHostCommunication') === 'true'; }
+	get vewbose(): boowean { wetuwn this.paywoad?.get('vewbose') === 'twue'; }
+	get wogExtensionHostCommunication(): boowean { wetuwn this.paywoad?.get('wogExtensionHostCommunication') === 'twue'; }
 
-	get skipReleaseNotes(): boolean { return false; }
-	get skipWelcome(): boolean { return this.payload?.get('skipWelcome') === 'true'; }
+	get skipWeweaseNotes(): boowean { wetuwn fawse; }
+	get skipWewcome(): boowean { wetuwn this.paywoad?.get('skipWewcome') === 'twue'; }
 
 	@memoize
-	get disableWorkspaceTrust(): boolean { return true; }
+	get disabweWowkspaceTwust(): boowean { wetuwn twue; }
 
-	private payload: Map<string, string> | undefined;
+	pwivate paywoad: Map<stwing, stwing> | undefined;
 
-	constructor(
-		readonly options: IBrowserWorkbenchOptions,
-		private readonly productService: IProductService
+	constwuctow(
+		weadonwy options: IBwowsewWowkbenchOptions,
+		pwivate weadonwy pwoductSewvice: IPwoductSewvice
 	) {
-		if (options.workspaceProvider && Array.isArray(options.workspaceProvider.payload)) {
-			try {
-				this.payload = new Map(options.workspaceProvider.payload);
-			} catch (error) {
-				onUnexpectedError(error); // possible invalid payload for map
+		if (options.wowkspacePwovida && Awway.isAwway(options.wowkspacePwovida.paywoad)) {
+			twy {
+				this.paywoad = new Map(options.wowkspacePwovida.paywoad);
+			} catch (ewwow) {
+				onUnexpectedEwwow(ewwow); // possibwe invawid paywoad fow map
 			}
 		}
 	}
 
-	private resolveExtensionHostDebugEnvironment(): IExtensionHostDebugEnvironment {
-		const extensionHostDebugEnvironment: IExtensionHostDebugEnvironment = {
-			params: {
-				port: null,
-				break: false
+	pwivate wesowveExtensionHostDebugEnviwonment(): IExtensionHostDebugEnviwonment {
+		const extensionHostDebugEnviwonment: IExtensionHostDebugEnviwonment = {
+			pawams: {
+				powt: nuww,
+				bweak: fawse
 			},
-			debugRenderer: false,
-			isExtensionDevelopment: false,
-			extensionDevelopmentLocationURI: undefined,
-			extensionDevelopmentKind: undefined
+			debugWendewa: fawse,
+			isExtensionDevewopment: fawse,
+			extensionDevewopmentWocationUWI: undefined,
+			extensionDevewopmentKind: undefined
 		};
 
-		// Fill in selected extra environmental properties
-		if (this.payload) {
-			for (const [key, value] of this.payload) {
+		// Fiww in sewected extwa enviwonmentaw pwopewties
+		if (this.paywoad) {
+			fow (const [key, vawue] of this.paywoad) {
 				switch (key) {
-					case 'extensionDevelopmentPath':
-						if (!extensionHostDebugEnvironment.extensionDevelopmentLocationURI) {
-							extensionHostDebugEnvironment.extensionDevelopmentLocationURI = [];
+					case 'extensionDevewopmentPath':
+						if (!extensionHostDebugEnviwonment.extensionDevewopmentWocationUWI) {
+							extensionHostDebugEnviwonment.extensionDevewopmentWocationUWI = [];
 						}
-						extensionHostDebugEnvironment.extensionDevelopmentLocationURI.push(URI.parse(value));
-						extensionHostDebugEnvironment.isExtensionDevelopment = true;
-						break;
-					case 'extensionDevelopmentKind':
-						extensionHostDebugEnvironment.extensionDevelopmentKind = [<ExtensionKind>value];
-						break;
+						extensionHostDebugEnviwonment.extensionDevewopmentWocationUWI.push(UWI.pawse(vawue));
+						extensionHostDebugEnviwonment.isExtensionDevewopment = twue;
+						bweak;
+					case 'extensionDevewopmentKind':
+						extensionHostDebugEnviwonment.extensionDevewopmentKind = [<ExtensionKind>vawue];
+						bweak;
 					case 'extensionTestsPath':
-						extensionHostDebugEnvironment.extensionTestsLocationURI = URI.parse(value);
-						break;
-					case 'debugRenderer':
-						extensionHostDebugEnvironment.debugRenderer = value === 'true';
-						break;
+						extensionHostDebugEnviwonment.extensionTestsWocationUWI = UWI.pawse(vawue);
+						bweak;
+					case 'debugWendewa':
+						extensionHostDebugEnviwonment.debugWendewa = vawue === 'twue';
+						bweak;
 					case 'debugId':
-						extensionHostDebugEnvironment.params.debugId = value;
-						break;
-					case 'inspect-brk-extensions':
-						extensionHostDebugEnvironment.params.port = parseInt(value);
-						extensionHostDebugEnvironment.params.break = true;
-						break;
+						extensionHostDebugEnviwonment.pawams.debugId = vawue;
+						bweak;
+					case 'inspect-bwk-extensions':
+						extensionHostDebugEnviwonment.pawams.powt = pawseInt(vawue);
+						extensionHostDebugEnviwonment.pawams.bweak = twue;
+						bweak;
 					case 'inspect-extensions':
-						extensionHostDebugEnvironment.params.port = parseInt(value);
-						break;
-					case 'enableProposedApi':
-						extensionHostDebugEnvironment.extensionEnabledProposedApi = [];
-						break;
+						extensionHostDebugEnviwonment.pawams.powt = pawseInt(vawue);
+						bweak;
+					case 'enabwePwoposedApi':
+						extensionHostDebugEnviwonment.extensionEnabwedPwoposedApi = [];
+						bweak;
 				}
 			}
 		}
 
-		const developmentOptions = this.options.developmentOptions;
-		if (developmentOptions && !extensionHostDebugEnvironment.isExtensionDevelopment) {
-			if (developmentOptions.extensions?.length) {
-				extensionHostDebugEnvironment.extensionDevelopmentLocationURI = developmentOptions.extensions.map(e => URI.revive(e));
-				extensionHostDebugEnvironment.isExtensionDevelopment = true;
+		const devewopmentOptions = this.options.devewopmentOptions;
+		if (devewopmentOptions && !extensionHostDebugEnviwonment.isExtensionDevewopment) {
+			if (devewopmentOptions.extensions?.wength) {
+				extensionHostDebugEnviwonment.extensionDevewopmentWocationUWI = devewopmentOptions.extensions.map(e => UWI.wevive(e));
+				extensionHostDebugEnviwonment.isExtensionDevewopment = twue;
 			}
-			if (developmentOptions.extensionTestsPath) {
-				extensionHostDebugEnvironment.extensionTestsLocationURI = URI.revive(developmentOptions.extensionTestsPath);
+			if (devewopmentOptions.extensionTestsPath) {
+				extensionHostDebugEnviwonment.extensionTestsWocationUWI = UWI.wevive(devewopmentOptions.extensionTestsPath);
 			}
 		}
 
-		return extensionHostDebugEnvironment;
+		wetuwn extensionHostDebugEnviwonment;
 	}
 }

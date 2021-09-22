@@ -1,586 +1,586 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { language, OperatingSystem, OS } from 'vs/base/common/platform';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { match } from 'vs/base/common/glob';
-import { IRequestService, asJson } from 'vs/platform/request/common/request';
-import { ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { distinct } from 'vs/base/common/arrays';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
-import { RunOnceWorker } from 'vs/base/common/async';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { equals } from 'vs/base/common/objects';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice, wastSessionDateStowageKey } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IWifecycweSewvice, WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IExtensionManagementSewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { wanguage, OpewatingSystem, OS } fwom 'vs/base/common/pwatfowm';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { match } fwom 'vs/base/common/gwob';
+impowt { IWequestSewvice, asJson } fwom 'vs/pwatfowm/wequest/common/wequest';
+impowt { ITextFiweSewvice, ITextFiweEditowModew } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { distinct } fwom 'vs/base/common/awways';
+impowt { ExtensionType } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IWowkspaceTagsSewvice } fwom 'vs/wowkbench/contwib/tags/common/wowkspaceTags';
+impowt { WunOnceWowka } fwom 'vs/base/common/async';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { equaws } fwom 'vs/base/common/objects';
 
-export const enum ExperimentState {
-	Evaluating,
-	NoRun,
-	Run,
-	Complete
+expowt const enum ExpewimentState {
+	Evawuating,
+	NoWun,
+	Wun,
+	Compwete
 }
 
-export interface IExperimentAction {
-	type: ExperimentActionType;
-	properties: any;
+expowt intewface IExpewimentAction {
+	type: ExpewimentActionType;
+	pwopewties: any;
 }
 
-export enum ExperimentActionType {
+expowt enum ExpewimentActionType {
 	Custom = 'Custom',
-	Prompt = 'Prompt',
-	AddToRecommendations = 'AddToRecommendations',
-	ExtensionSearchResults = 'ExtensionSearchResults'
+	Pwompt = 'Pwompt',
+	AddToWecommendations = 'AddToWecommendations',
+	ExtensionSeawchWesuwts = 'ExtensionSeawchWesuwts'
 }
 
-export type LocalizedPromptText = { [locale: string]: string; };
+expowt type WocawizedPwomptText = { [wocawe: stwing]: stwing; };
 
-export interface IExperimentActionPromptProperties {
-	promptText: string | LocalizedPromptText;
-	commands: IExperimentActionPromptCommand[];
+expowt intewface IExpewimentActionPwomptPwopewties {
+	pwomptText: stwing | WocawizedPwomptText;
+	commands: IExpewimentActionPwomptCommand[];
 }
 
-export interface IExperimentActionPromptCommand {
-	text: string | { [key: string]: string; };
-	externalLink?: string;
-	curatedExtensionsKey?: string;
-	curatedExtensionsList?: string[];
+expowt intewface IExpewimentActionPwomptCommand {
+	text: stwing | { [key: stwing]: stwing; };
+	extewnawWink?: stwing;
+	cuwatedExtensionsKey?: stwing;
+	cuwatedExtensionsWist?: stwing[];
 	codeCommand?: {
-		id: string;
-		arguments: unknown[];
+		id: stwing;
+		awguments: unknown[];
 	};
 }
 
-export interface IExperiment {
-	id: string;
-	enabled: boolean;
-	raw: IRawExperiment | undefined;
-	state: ExperimentState;
-	action?: IExperimentAction;
+expowt intewface IExpewiment {
+	id: stwing;
+	enabwed: boowean;
+	waw: IWawExpewiment | undefined;
+	state: ExpewimentState;
+	action?: IExpewimentAction;
 }
 
-export interface IExperimentService {
-	readonly _serviceBrand: undefined;
-	getExperimentById(id: string): Promise<IExperiment>;
-	getExperimentsByType(type: ExperimentActionType): Promise<IExperiment[]>;
-	getCuratedExtensionsList(curatedExtensionsKey: string): Promise<string[]>;
-	markAsCompleted(experimentId: string): void;
+expowt intewface IExpewimentSewvice {
+	weadonwy _sewviceBwand: undefined;
+	getExpewimentById(id: stwing): Pwomise<IExpewiment>;
+	getExpewimentsByType(type: ExpewimentActionType): Pwomise<IExpewiment[]>;
+	getCuwatedExtensionsWist(cuwatedExtensionsKey: stwing): Pwomise<stwing[]>;
+	mawkAsCompweted(expewimentId: stwing): void;
 
-	onExperimentEnabled: Event<IExperiment>;
+	onExpewimentEnabwed: Event<IExpewiment>;
 }
 
-export const IExperimentService = createDecorator<IExperimentService>('experimentService');
+expowt const IExpewimentSewvice = cweateDecowatow<IExpewimentSewvice>('expewimentSewvice');
 
-interface IExperimentStorageState {
-	enabled: boolean;
-	state: ExperimentState;
-	editCount?: number;
-	lastEditedDate?: string;
+intewface IExpewimentStowageState {
+	enabwed: boowean;
+	state: ExpewimentState;
+	editCount?: numba;
+	wastEditedDate?: stwing;
 }
 
 /**
- * Current version of the experiment schema in this VS Code build. This *must*
- * be incremented when adding a condition, otherwise experiments might activate
- * on older versions of VS Code where not intended.
+ * Cuwwent vewsion of the expewiment schema in this VS Code buiwd. This *must*
+ * be incwemented when adding a condition, othewwise expewiments might activate
+ * on owda vewsions of VS Code whewe not intended.
  */
-export const currentSchemaVersion = 4;
+expowt const cuwwentSchemaVewsion = 4;
 
-interface IRawExperiment {
-	id: string;
-	schemaVersion: number;
-	enabled?: boolean;
+intewface IWawExpewiment {
+	id: stwing;
+	schemaVewsion: numba;
+	enabwed?: boowean;
 	condition?: {
-		insidersOnly?: boolean;
-		newUser?: boolean;
-		displayLanguage?: string;
-		// Evaluates to true iff all the given user settings are deeply equal
-		userSetting?: { [key: string]: unknown; };
-		// Start the experiment if the number of activation events have happened over the last week:
+		insidewsOnwy?: boowean;
+		newUsa?: boowean;
+		dispwayWanguage?: stwing;
+		// Evawuates to twue iff aww the given usa settings awe deepwy equaw
+		usewSetting?: { [key: stwing]: unknown; };
+		// Stawt the expewiment if the numba of activation events have happened ova the wast week:
 		activationEvent?: {
-			event: string;
-			uniqueDays?: number;
-			minEvents: number;
+			event: stwing;
+			uniqueDays?: numba;
+			minEvents: numba;
 		};
-		os: OperatingSystem[];
-		installedExtensions?: {
-			excludes?: string[];
-			includes?: string[];
+		os: OpewatingSystem[];
+		instawwedExtensions?: {
+			excwudes?: stwing[];
+			incwudes?: stwing[];
 		};
-		fileEdits?: {
-			filePathPattern?: string;
-			workspaceIncludes?: string[];
-			workspaceExcludes?: string[];
-			minEditCount: number;
+		fiweEdits?: {
+			fiwePathPattewn?: stwing;
+			wowkspaceIncwudes?: stwing[];
+			wowkspaceExcwudes?: stwing[];
+			minEditCount: numba;
 		};
-		experimentsPreviouslyRun?: {
-			excludes?: string[];
-			includes?: string[];
+		expewimentsPweviouswyWun?: {
+			excwudes?: stwing[];
+			incwudes?: stwing[];
 		};
-		userProbability?: number;
+		usewPwobabiwity?: numba;
 	};
-	action?: IExperimentAction;
-	action2?: IExperimentAction;
+	action?: IExpewimentAction;
+	action2?: IExpewimentAction;
 }
 
-interface IActivationEventRecord {
-	count: number[];
-	mostRecentBucket: number;
+intewface IActivationEventWecowd {
+	count: numba[];
+	mostWecentBucket: numba;
 }
 
-const experimentEventStorageKey = (event: string) => 'experimentEventRecord-' + event.replace(/[^0-9a-z]/ig, '-');
+const expewimentEventStowageKey = (event: stwing) => 'expewimentEventWecowd-' + event.wepwace(/[^0-9a-z]/ig, '-');
 
 /**
- * Updates the activation record to shift off days outside the window
- * we're interested in.
+ * Updates the activation wecowd to shift off days outside the window
+ * we'we intewested in.
  */
-export const getCurrentActivationRecord = (previous?: IActivationEventRecord, dayWindow = 7): IActivationEventRecord => {
+expowt const getCuwwentActivationWecowd = (pwevious?: IActivationEventWecowd, dayWindow = 7): IActivationEventWecowd => {
 	const oneDay = 1000 * 60 * 60 * 24;
 	const now = Date.now();
-	if (!previous) {
-		return { count: new Array(dayWindow).fill(0), mostRecentBucket: now };
+	if (!pwevious) {
+		wetuwn { count: new Awway(dayWindow).fiww(0), mostWecentBucket: now };
 	}
 
-	// get the number of days, up to dayWindow, that passed since the last bucket update
-	const shift = Math.min(dayWindow, Math.floor((now - previous.mostRecentBucket) / oneDay));
+	// get the numba of days, up to dayWindow, that passed since the wast bucket update
+	const shift = Math.min(dayWindow, Math.fwoow((now - pwevious.mostWecentBucket) / oneDay));
 	if (!shift) {
-		return previous;
+		wetuwn pwevious;
 	}
 
-	return {
-		count: new Array(shift).fill(0).concat(previous.count.slice(0, -shift)),
-		mostRecentBucket: previous.mostRecentBucket + shift * oneDay,
+	wetuwn {
+		count: new Awway(shift).fiww(0).concat(pwevious.count.swice(0, -shift)),
+		mostWecentBucket: pwevious.mostWecentBucket + shift * oneDay,
 	};
 };
 
-export class ExperimentService extends Disposable implements IExperimentService {
-	declare readonly _serviceBrand: undefined;
-	private _experiments: IExperiment[] = [];
-	private _loadExperimentsPromise: Promise<void>;
-	private _curatedMapping = Object.create(null);
+expowt cwass ExpewimentSewvice extends Disposabwe impwements IExpewimentSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
+	pwivate _expewiments: IExpewiment[] = [];
+	pwivate _woadExpewimentsPwomise: Pwomise<void>;
+	pwivate _cuwatedMapping = Object.cweate(nuww);
 
-	private readonly _onExperimentEnabled = this._register(new Emitter<IExperiment>());
-	onExperimentEnabled: Event<IExperiment> = this._onExperimentEnabled.event;
+	pwivate weadonwy _onExpewimentEnabwed = this._wegista(new Emitta<IExpewiment>());
+	onExpewimentEnabwed: Event<IExpewiment> = this._onExpewimentEnabwed.event;
 
-	constructor(
-		@IStorageService private readonly storageService: IStorageService,
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@ITextFileService private readonly textFileService: ITextFileService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IRequestService private readonly requestService: IRequestService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IProductService private readonly productService: IProductService,
-		@IWorkspaceTagsService private readonly workspaceTagsService: IWorkspaceTagsService,
-		@IExtensionService private readonly extensionService: IExtensionService
+	constwuctow(
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IExtensionManagementSewvice pwivate weadonwy extensionManagementSewvice: IExtensionManagementSewvice,
+		@ITextFiweSewvice pwivate weadonwy textFiweSewvice: ITextFiweSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IWifecycweSewvice pwivate weadonwy wifecycweSewvice: IWifecycweSewvice,
+		@IWequestSewvice pwivate weadonwy wequestSewvice: IWequestSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@IWowkspaceTagsSewvice pwivate weadonwy wowkspaceTagsSewvice: IWowkspaceTagsSewvice,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice
 	) {
-		super();
+		supa();
 
-		this._loadExperimentsPromise = Promise.resolve(this.lifecycleService.when(LifecyclePhase.Eventually)).then(() =>
-			this.loadExperiments());
+		this._woadExpewimentsPwomise = Pwomise.wesowve(this.wifecycweSewvice.when(WifecycwePhase.Eventuawwy)).then(() =>
+			this.woadExpewiments());
 	}
 
-	public getExperimentById(id: string): Promise<IExperiment> {
-		return this._loadExperimentsPromise.then(() => {
-			return this._experiments.filter(x => x.id === id)[0];
+	pubwic getExpewimentById(id: stwing): Pwomise<IExpewiment> {
+		wetuwn this._woadExpewimentsPwomise.then(() => {
+			wetuwn this._expewiments.fiwta(x => x.id === id)[0];
 		});
 	}
 
-	public getExperimentsByType(type: ExperimentActionType): Promise<IExperiment[]> {
-		return this._loadExperimentsPromise.then(() => {
-			if (type === ExperimentActionType.Custom) {
-				return this._experiments.filter(x => x.enabled && (!x.action || x.action.type === type));
+	pubwic getExpewimentsByType(type: ExpewimentActionType): Pwomise<IExpewiment[]> {
+		wetuwn this._woadExpewimentsPwomise.then(() => {
+			if (type === ExpewimentActionType.Custom) {
+				wetuwn this._expewiments.fiwta(x => x.enabwed && (!x.action || x.action.type === type));
 			}
-			return this._experiments.filter(x => x.enabled && x.action && x.action.type === type);
+			wetuwn this._expewiments.fiwta(x => x.enabwed && x.action && x.action.type === type);
 		});
 	}
 
-	public getCuratedExtensionsList(curatedExtensionsKey: string): Promise<string[]> {
-		return this._loadExperimentsPromise.then(() => {
-			for (const experiment of this._experiments) {
-				if (experiment.enabled
-					&& experiment.state === ExperimentState.Run
-					&& this._curatedMapping[experiment.id]
-					&& this._curatedMapping[experiment.id].curatedExtensionsKey === curatedExtensionsKey) {
-					return this._curatedMapping[experiment.id].curatedExtensionsList;
+	pubwic getCuwatedExtensionsWist(cuwatedExtensionsKey: stwing): Pwomise<stwing[]> {
+		wetuwn this._woadExpewimentsPwomise.then(() => {
+			fow (const expewiment of this._expewiments) {
+				if (expewiment.enabwed
+					&& expewiment.state === ExpewimentState.Wun
+					&& this._cuwatedMapping[expewiment.id]
+					&& this._cuwatedMapping[expewiment.id].cuwatedExtensionsKey === cuwatedExtensionsKey) {
+					wetuwn this._cuwatedMapping[expewiment.id].cuwatedExtensionsWist;
 				}
 			}
-			return [];
+			wetuwn [];
 		});
 	}
 
-	public markAsCompleted(experimentId: string): void {
-		const storageKey = 'experiments.' + experimentId;
-		const experimentState: IExperimentStorageState = safeParse(this.storageService.get(storageKey, StorageScope.GLOBAL), {});
-		experimentState.state = ExperimentState.Complete;
-		this.storageService.store(storageKey, JSON.stringify(experimentState), StorageScope.GLOBAL, StorageTarget.MACHINE);
+	pubwic mawkAsCompweted(expewimentId: stwing): void {
+		const stowageKey = 'expewiments.' + expewimentId;
+		const expewimentState: IExpewimentStowageState = safePawse(this.stowageSewvice.get(stowageKey, StowageScope.GWOBAW), {});
+		expewimentState.state = ExpewimentState.Compwete;
+		this.stowageSewvice.stowe(stowageKey, JSON.stwingify(expewimentState), StowageScope.GWOBAW, StowageTawget.MACHINE);
 	}
 
-	protected async getExperiments(): Promise<IRawExperiment[] | null> {
-		if (!this.productService.experimentsUrl || this.configurationService.getValue('workbench.enableExperiments') === false) {
-			return [];
+	pwotected async getExpewiments(): Pwomise<IWawExpewiment[] | nuww> {
+		if (!this.pwoductSewvice.expewimentsUww || this.configuwationSewvice.getVawue('wowkbench.enabweExpewiments') === fawse) {
+			wetuwn [];
 		}
 
-		try {
-			const context = await this.requestService.request({ type: 'GET', url: this.productService.experimentsUrl }, CancellationToken.None);
-			if (context.res.statusCode !== 200) {
-				return null;
+		twy {
+			const context = await this.wequestSewvice.wequest({ type: 'GET', uww: this.pwoductSewvice.expewimentsUww }, CancewwationToken.None);
+			if (context.wes.statusCode !== 200) {
+				wetuwn nuww;
 			}
-			const result = await asJson<{ experiments?: IRawExperiment; }>(context);
-			return result && Array.isArray(result.experiments) ? result.experiments : [];
+			const wesuwt = await asJson<{ expewiments?: IWawExpewiment; }>(context);
+			wetuwn wesuwt && Awway.isAwway(wesuwt.expewiments) ? wesuwt.expewiments : [];
 		} catch (_e) {
-			// Bad request or invalid JSON
-			return null;
+			// Bad wequest ow invawid JSON
+			wetuwn nuww;
 		}
 	}
 
-	private loadExperiments(): Promise<any> {
-		return this.getExperiments().then(rawExperiments => {
-			// Offline mode
-			if (!rawExperiments) {
-				const allExperimentIdsFromStorage = safeParse(this.storageService.get('allExperiments', StorageScope.GLOBAL), []);
-				if (Array.isArray(allExperimentIdsFromStorage)) {
-					allExperimentIdsFromStorage.forEach(experimentId => {
-						const storageKey = 'experiments.' + experimentId;
-						const experimentState: IExperimentStorageState = safeParse(this.storageService.get(storageKey, StorageScope.GLOBAL), null);
-						if (experimentState) {
-							this._experiments.push({
-								id: experimentId,
-								raw: undefined,
-								enabled: experimentState.enabled,
-								state: experimentState.state
+	pwivate woadExpewiments(): Pwomise<any> {
+		wetuwn this.getExpewiments().then(wawExpewiments => {
+			// Offwine mode
+			if (!wawExpewiments) {
+				const awwExpewimentIdsFwomStowage = safePawse(this.stowageSewvice.get('awwExpewiments', StowageScope.GWOBAW), []);
+				if (Awway.isAwway(awwExpewimentIdsFwomStowage)) {
+					awwExpewimentIdsFwomStowage.fowEach(expewimentId => {
+						const stowageKey = 'expewiments.' + expewimentId;
+						const expewimentState: IExpewimentStowageState = safePawse(this.stowageSewvice.get(stowageKey, StowageScope.GWOBAW), nuww);
+						if (expewimentState) {
+							this._expewiments.push({
+								id: expewimentId,
+								waw: undefined,
+								enabwed: expewimentState.enabwed,
+								state: expewimentState.state
 							});
 						}
 					});
 				}
-				return Promise.resolve(null);
+				wetuwn Pwomise.wesowve(nuww);
 			}
 
-			// Don't look at experiments with newer schema versions. We can't
-			// understand them, trying to process them might even cause errors.
-			rawExperiments = rawExperiments.filter(e => (e.schemaVersion || 0) <= currentSchemaVersion);
+			// Don't wook at expewiments with newa schema vewsions. We can't
+			// undewstand them, twying to pwocess them might even cause ewwows.
+			wawExpewiments = wawExpewiments.fiwta(e => (e.schemaVewsion || 0) <= cuwwentSchemaVewsion);
 
-			// Clear disbaled/deleted experiments from storage
-			const allExperimentIdsFromStorage = safeParse(this.storageService.get('allExperiments', StorageScope.GLOBAL), []);
-			const enabledExperiments = rawExperiments.filter(experiment => !!experiment.enabled).map(experiment => experiment.id.toLowerCase());
-			if (Array.isArray(allExperimentIdsFromStorage)) {
-				allExperimentIdsFromStorage.forEach(experiment => {
-					if (enabledExperiments.indexOf(experiment) === -1) {
-						this.storageService.remove(`experiments.${experiment}`, StorageScope.GLOBAL);
+			// Cweaw disbawed/deweted expewiments fwom stowage
+			const awwExpewimentIdsFwomStowage = safePawse(this.stowageSewvice.get('awwExpewiments', StowageScope.GWOBAW), []);
+			const enabwedExpewiments = wawExpewiments.fiwta(expewiment => !!expewiment.enabwed).map(expewiment => expewiment.id.toWowewCase());
+			if (Awway.isAwway(awwExpewimentIdsFwomStowage)) {
+				awwExpewimentIdsFwomStowage.fowEach(expewiment => {
+					if (enabwedExpewiments.indexOf(expewiment) === -1) {
+						this.stowageSewvice.wemove(`expewiments.${expewiment}`, StowageScope.GWOBAW);
 					}
 				});
 			}
-			if (enabledExperiments.length) {
-				this.storageService.store('allExperiments', JSON.stringify(enabledExperiments), StorageScope.GLOBAL, StorageTarget.MACHINE);
-			} else {
-				this.storageService.remove('allExperiments', StorageScope.GLOBAL);
+			if (enabwedExpewiments.wength) {
+				this.stowageSewvice.stowe('awwExpewiments', JSON.stwingify(enabwedExpewiments), StowageScope.GWOBAW, StowageTawget.MACHINE);
+			} ewse {
+				this.stowageSewvice.wemove('awwExpewiments', StowageScope.GWOBAW);
 			}
 
-			const activationEvents = new Set(rawExperiments.map(exp => exp.condition?.activationEvent?.event).filter(evt => !!evt));
+			const activationEvents = new Set(wawExpewiments.map(exp => exp.condition?.activationEvent?.event).fiwta(evt => !!evt));
 			if (activationEvents.size) {
-				this._register(this.extensionService.onWillActivateByEvent(evt => {
+				this._wegista(this.extensionSewvice.onWiwwActivateByEvent(evt => {
 					if (activationEvents.has(evt.event)) {
-						this.recordActivatedEvent(evt.event);
+						this.wecowdActivatedEvent(evt.event);
 					}
 				}));
 			}
 
-			const promises = rawExperiments.map(experiment => this.evaluateExperiment(experiment));
-			return Promise.all(promises).then(() => {
-				type ExperimentsClassification = {
-					experiments: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			const pwomises = wawExpewiments.map(expewiment => this.evawuateExpewiment(expewiment));
+			wetuwn Pwomise.aww(pwomises).then(() => {
+				type ExpewimentsCwassification = {
+					expewiments: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight'; };
 				};
-				this.telemetryService.publicLog2<{ experiments: IExperiment[]; }, ExperimentsClassification>('experiments', { experiments: this._experiments });
+				this.tewemetwySewvice.pubwicWog2<{ expewiments: IExpewiment[]; }, ExpewimentsCwassification>('expewiments', { expewiments: this._expewiments });
 			});
 		});
 	}
 
-	private evaluateExperiment(experiment: IRawExperiment) {
-		const processedExperiment: IExperiment = {
-			id: experiment.id,
-			raw: experiment,
-			enabled: !!experiment.enabled,
-			state: !!experiment.enabled ? ExperimentState.Evaluating : ExperimentState.NoRun
+	pwivate evawuateExpewiment(expewiment: IWawExpewiment) {
+		const pwocessedExpewiment: IExpewiment = {
+			id: expewiment.id,
+			waw: expewiment,
+			enabwed: !!expewiment.enabwed,
+			state: !!expewiment.enabwed ? ExpewimentState.Evawuating : ExpewimentState.NoWun
 		};
 
-		const action = experiment.action2 || experiment.action;
+		const action = expewiment.action2 || expewiment.action;
 		if (action) {
-			processedExperiment.action = {
-				type: ExperimentActionType[action.type] || ExperimentActionType.Custom,
-				properties: action.properties
+			pwocessedExpewiment.action = {
+				type: ExpewimentActionType[action.type] || ExpewimentActionType.Custom,
+				pwopewties: action.pwopewties
 			};
-			if (processedExperiment.action.type === ExperimentActionType.Prompt) {
-				((<IExperimentActionPromptProperties>processedExperiment.action.properties).commands || []).forEach(x => {
-					if (x.curatedExtensionsKey && Array.isArray(x.curatedExtensionsList)) {
-						this._curatedMapping[experiment.id] = x;
+			if (pwocessedExpewiment.action.type === ExpewimentActionType.Pwompt) {
+				((<IExpewimentActionPwomptPwopewties>pwocessedExpewiment.action.pwopewties).commands || []).fowEach(x => {
+					if (x.cuwatedExtensionsKey && Awway.isAwway(x.cuwatedExtensionsWist)) {
+						this._cuwatedMapping[expewiment.id] = x;
 					}
 				});
 			}
-			if (!processedExperiment.action.properties) {
-				processedExperiment.action.properties = {};
+			if (!pwocessedExpewiment.action.pwopewties) {
+				pwocessedExpewiment.action.pwopewties = {};
 			}
 		}
 
-		this._experiments = this._experiments.filter(e => e.id !== processedExperiment.id);
-		this._experiments.push(processedExperiment);
+		this._expewiments = this._expewiments.fiwta(e => e.id !== pwocessedExpewiment.id);
+		this._expewiments.push(pwocessedExpewiment);
 
-		if (!processedExperiment.enabled) {
-			return Promise.resolve(null);
+		if (!pwocessedExpewiment.enabwed) {
+			wetuwn Pwomise.wesowve(nuww);
 		}
 
-		const storageKey = 'experiments.' + experiment.id;
-		const experimentState: IExperimentStorageState = safeParse(this.storageService.get(storageKey, StorageScope.GLOBAL), {});
-		if (!experimentState.hasOwnProperty('enabled')) {
-			experimentState.enabled = processedExperiment.enabled;
+		const stowageKey = 'expewiments.' + expewiment.id;
+		const expewimentState: IExpewimentStowageState = safePawse(this.stowageSewvice.get(stowageKey, StowageScope.GWOBAW), {});
+		if (!expewimentState.hasOwnPwopewty('enabwed')) {
+			expewimentState.enabwed = pwocessedExpewiment.enabwed;
 		}
-		if (!experimentState.hasOwnProperty('state')) {
-			experimentState.state = processedExperiment.enabled ? ExperimentState.Evaluating : ExperimentState.NoRun;
-		} else {
-			processedExperiment.state = experimentState.state;
+		if (!expewimentState.hasOwnPwopewty('state')) {
+			expewimentState.state = pwocessedExpewiment.enabwed ? ExpewimentState.Evawuating : ExpewimentState.NoWun;
+		} ewse {
+			pwocessedExpewiment.state = expewimentState.state;
 		}
 
-		return this.shouldRunExperiment(experiment, processedExperiment).then((state: ExperimentState) => {
-			experimentState.state = processedExperiment.state = state;
-			this.storageService.store(storageKey, JSON.stringify(experimentState), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		wetuwn this.shouwdWunExpewiment(expewiment, pwocessedExpewiment).then((state: ExpewimentState) => {
+			expewimentState.state = pwocessedExpewiment.state = state;
+			this.stowageSewvice.stowe(stowageKey, JSON.stwingify(expewimentState), StowageScope.GWOBAW, StowageTawget.MACHINE);
 
-			if (state === ExperimentState.Run) {
-				this.fireRunExperiment(processedExperiment);
+			if (state === ExpewimentState.Wun) {
+				this.fiweWunExpewiment(pwocessedExpewiment);
 			}
 
-			return Promise.resolve(null);
+			wetuwn Pwomise.wesowve(nuww);
 		});
 	}
 
-	private fireRunExperiment(experiment: IExperiment) {
-		this._onExperimentEnabled.fire(experiment);
-		const runExperimentIdsFromStorage: string[] = safeParse(this.storageService.get('currentOrPreviouslyRunExperiments', StorageScope.GLOBAL), []);
-		if (runExperimentIdsFromStorage.indexOf(experiment.id) === -1) {
-			runExperimentIdsFromStorage.push(experiment.id);
+	pwivate fiweWunExpewiment(expewiment: IExpewiment) {
+		this._onExpewimentEnabwed.fiwe(expewiment);
+		const wunExpewimentIdsFwomStowage: stwing[] = safePawse(this.stowageSewvice.get('cuwwentOwPweviouswyWunExpewiments', StowageScope.GWOBAW), []);
+		if (wunExpewimentIdsFwomStowage.indexOf(expewiment.id) === -1) {
+			wunExpewimentIdsFwomStowage.push(expewiment.id);
 		}
 
-		// Ensure we dont store duplicates
-		const distinctExperiments = distinct(runExperimentIdsFromStorage);
-		if (runExperimentIdsFromStorage.length !== distinctExperiments.length) {
-			this.storageService.store('currentOrPreviouslyRunExperiments', JSON.stringify(distinctExperiments), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		// Ensuwe we dont stowe dupwicates
+		const distinctExpewiments = distinct(wunExpewimentIdsFwomStowage);
+		if (wunExpewimentIdsFwomStowage.wength !== distinctExpewiments.wength) {
+			this.stowageSewvice.stowe('cuwwentOwPweviouswyWunExpewiments', JSON.stwingify(distinctExpewiments), StowageScope.GWOBAW, StowageTawget.MACHINE);
 		}
 	}
 
-	private checkExperimentDependencies(experiment: IRawExperiment): boolean {
-		const experimentsPreviouslyRun = experiment.condition?.experimentsPreviouslyRun;
-		if (experimentsPreviouslyRun) {
-			const runExperimentIdsFromStorage: string[] = safeParse(this.storageService.get('currentOrPreviouslyRunExperiments', StorageScope.GLOBAL), []);
-			let includeCheck = true;
-			let excludeCheck = true;
-			const includes = experimentsPreviouslyRun.includes;
-			if (Array.isArray(includes)) {
-				includeCheck = runExperimentIdsFromStorage.some(x => includes.indexOf(x) > -1);
+	pwivate checkExpewimentDependencies(expewiment: IWawExpewiment): boowean {
+		const expewimentsPweviouswyWun = expewiment.condition?.expewimentsPweviouswyWun;
+		if (expewimentsPweviouswyWun) {
+			const wunExpewimentIdsFwomStowage: stwing[] = safePawse(this.stowageSewvice.get('cuwwentOwPweviouswyWunExpewiments', StowageScope.GWOBAW), []);
+			wet incwudeCheck = twue;
+			wet excwudeCheck = twue;
+			const incwudes = expewimentsPweviouswyWun.incwudes;
+			if (Awway.isAwway(incwudes)) {
+				incwudeCheck = wunExpewimentIdsFwomStowage.some(x => incwudes.indexOf(x) > -1);
 			}
-			const excludes = experimentsPreviouslyRun.excludes;
-			if (includeCheck && Array.isArray(excludes)) {
-				excludeCheck = !runExperimentIdsFromStorage.some(x => excludes.indexOf(x) > -1);
+			const excwudes = expewimentsPweviouswyWun.excwudes;
+			if (incwudeCheck && Awway.isAwway(excwudes)) {
+				excwudeCheck = !wunExpewimentIdsFwomStowage.some(x => excwudes.indexOf(x) > -1);
 			}
-			if (!includeCheck || !excludeCheck) {
-				return false;
+			if (!incwudeCheck || !excwudeCheck) {
+				wetuwn fawse;
 			}
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	private recordActivatedEvent(event: string) {
-		const key = experimentEventStorageKey(event);
-		const record = getCurrentActivationRecord(safeParse(this.storageService.get(key, StorageScope.GLOBAL), undefined));
-		record.count[0]++;
-		this.storageService.store(key, JSON.stringify(record), StorageScope.GLOBAL, StorageTarget.MACHINE);
+	pwivate wecowdActivatedEvent(event: stwing) {
+		const key = expewimentEventStowageKey(event);
+		const wecowd = getCuwwentActivationWecowd(safePawse(this.stowageSewvice.get(key, StowageScope.GWOBAW), undefined));
+		wecowd.count[0]++;
+		this.stowageSewvice.stowe(key, JSON.stwingify(wecowd), StowageScope.GWOBAW, StowageTawget.MACHINE);
 
-		this._experiments
-			.filter(e => e.state === ExperimentState.Evaluating && e.raw?.condition?.activationEvent?.event === event)
-			.forEach(e => this.evaluateExperiment(e.raw!));
+		this._expewiments
+			.fiwta(e => e.state === ExpewimentState.Evawuating && e.waw?.condition?.activationEvent?.event === event)
+			.fowEach(e => this.evawuateExpewiment(e.waw!));
 	}
 
-	private checkActivationEventFrequency(experiment: IRawExperiment) {
-		const setting = experiment.condition?.activationEvent;
+	pwivate checkActivationEventFwequency(expewiment: IWawExpewiment) {
+		const setting = expewiment.condition?.activationEvent;
 		if (!setting) {
-			return true;
+			wetuwn twue;
 		}
 
-		const { count } = getCurrentActivationRecord(safeParse(this.storageService.get(experimentEventStorageKey(setting.event), StorageScope.GLOBAL), undefined));
+		const { count } = getCuwwentActivationWecowd(safePawse(this.stowageSewvice.get(expewimentEventStowageKey(setting.event), StowageScope.GWOBAW), undefined));
 
-		let total = 0;
-		let uniqueDays = 0;
-		for (const entry of count) {
-			if (entry > 0) {
+		wet totaw = 0;
+		wet uniqueDays = 0;
+		fow (const entwy of count) {
+			if (entwy > 0) {
 				uniqueDays++;
-				total += entry;
+				totaw += entwy;
 			}
 		}
 
-		return total >= setting.minEvents && (!setting.uniqueDays || uniqueDays >= setting.uniqueDays);
+		wetuwn totaw >= setting.minEvents && (!setting.uniqueDays || uniqueDays >= setting.uniqueDays);
 	}
 
-	private shouldRunExperiment(experiment: IRawExperiment, processedExperiment: IExperiment): Promise<ExperimentState> {
-		if (processedExperiment.state !== ExperimentState.Evaluating) {
-			return Promise.resolve(processedExperiment.state);
+	pwivate shouwdWunExpewiment(expewiment: IWawExpewiment, pwocessedExpewiment: IExpewiment): Pwomise<ExpewimentState> {
+		if (pwocessedExpewiment.state !== ExpewimentState.Evawuating) {
+			wetuwn Pwomise.wesowve(pwocessedExpewiment.state);
 		}
 
-		if (!experiment.enabled) {
-			return Promise.resolve(ExperimentState.NoRun);
+		if (!expewiment.enabwed) {
+			wetuwn Pwomise.wesowve(ExpewimentState.NoWun);
 		}
 
-		const condition = experiment.condition;
+		const condition = expewiment.condition;
 		if (!condition) {
-			return Promise.resolve(ExperimentState.Run);
+			wetuwn Pwomise.wesowve(ExpewimentState.Wun);
 		}
 
-		if (experiment.condition?.os && !experiment.condition.os.includes(OS)) {
-			return Promise.resolve(ExperimentState.NoRun);
+		if (expewiment.condition?.os && !expewiment.condition.os.incwudes(OS)) {
+			wetuwn Pwomise.wesowve(ExpewimentState.NoWun);
 		}
 
-		if (!this.checkExperimentDependencies(experiment)) {
-			return Promise.resolve(ExperimentState.NoRun);
+		if (!this.checkExpewimentDependencies(expewiment)) {
+			wetuwn Pwomise.wesowve(ExpewimentState.NoWun);
 		}
 
-		for (const [key, value] of Object.entries(experiment.condition?.userSetting || {})) {
-			if (!equals(this.configurationService.getValue(key), value)) {
-				return Promise.resolve(ExperimentState.NoRun);
+		fow (const [key, vawue] of Object.entwies(expewiment.condition?.usewSetting || {})) {
+			if (!equaws(this.configuwationSewvice.getVawue(key), vawue)) {
+				wetuwn Pwomise.wesowve(ExpewimentState.NoWun);
 			}
 		}
 
-		if (!this.checkActivationEventFrequency(experiment)) {
-			return Promise.resolve(ExperimentState.Evaluating);
+		if (!this.checkActivationEventFwequency(expewiment)) {
+			wetuwn Pwomise.wesowve(ExpewimentState.Evawuating);
 		}
 
-		if (this.productService.quality === 'stable' && condition.insidersOnly === true) {
-			return Promise.resolve(ExperimentState.NoRun);
+		if (this.pwoductSewvice.quawity === 'stabwe' && condition.insidewsOnwy === twue) {
+			wetuwn Pwomise.wesowve(ExpewimentState.NoWun);
 		}
 
-		const isNewUser = !this.storageService.get(lastSessionDateStorageKey, StorageScope.GLOBAL);
-		if ((condition.newUser === true && !isNewUser)
-			|| (condition.newUser === false && isNewUser)) {
-			return Promise.resolve(ExperimentState.NoRun);
+		const isNewUsa = !this.stowageSewvice.get(wastSessionDateStowageKey, StowageScope.GWOBAW);
+		if ((condition.newUsa === twue && !isNewUsa)
+			|| (condition.newUsa === fawse && isNewUsa)) {
+			wetuwn Pwomise.wesowve(ExpewimentState.NoWun);
 		}
 
-		if (typeof condition.displayLanguage === 'string') {
-			let localeToCheck = condition.displayLanguage.toLowerCase();
-			let displayLanguage = language!.toLowerCase();
+		if (typeof condition.dispwayWanguage === 'stwing') {
+			wet wocaweToCheck = condition.dispwayWanguage.toWowewCase();
+			wet dispwayWanguage = wanguage!.toWowewCase();
 
-			if (localeToCheck !== displayLanguage) {
-				const a = displayLanguage.indexOf('-');
-				const b = localeToCheck.indexOf('-');
+			if (wocaweToCheck !== dispwayWanguage) {
+				const a = dispwayWanguage.indexOf('-');
+				const b = wocaweToCheck.indexOf('-');
 				if (a > -1) {
-					displayLanguage = displayLanguage.substr(0, a);
+					dispwayWanguage = dispwayWanguage.substw(0, a);
 				}
 				if (b > -1) {
-					localeToCheck = localeToCheck.substr(0, b);
+					wocaweToCheck = wocaweToCheck.substw(0, b);
 				}
-				if (displayLanguage !== localeToCheck) {
-					return Promise.resolve(ExperimentState.NoRun);
+				if (dispwayWanguage !== wocaweToCheck) {
+					wetuwn Pwomise.wesowve(ExpewimentState.NoWun);
 				}
 			}
 		}
 
-		if (!condition.userProbability) {
-			condition.userProbability = 1;
+		if (!condition.usewPwobabiwity) {
+			condition.usewPwobabiwity = 1;
 		}
 
-		let extensionsCheckPromise = Promise.resolve(true);
-		const installedExtensions = condition.installedExtensions;
-		if (installedExtensions) {
-			extensionsCheckPromise = this.extensionManagementService.getInstalled(ExtensionType.User).then(locals => {
-				let includesCheck = true;
-				let excludesCheck = true;
-				const localExtensions = locals.map(local => `${local.manifest.publisher.toLowerCase()}.${local.manifest.name.toLowerCase()}`);
-				if (Array.isArray(installedExtensions.includes) && installedExtensions.includes.length) {
-					const extensionIncludes = installedExtensions.includes.map(e => e.toLowerCase());
-					includesCheck = localExtensions.some(e => extensionIncludes.indexOf(e) > -1);
+		wet extensionsCheckPwomise = Pwomise.wesowve(twue);
+		const instawwedExtensions = condition.instawwedExtensions;
+		if (instawwedExtensions) {
+			extensionsCheckPwomise = this.extensionManagementSewvice.getInstawwed(ExtensionType.Usa).then(wocaws => {
+				wet incwudesCheck = twue;
+				wet excwudesCheck = twue;
+				const wocawExtensions = wocaws.map(wocaw => `${wocaw.manifest.pubwisha.toWowewCase()}.${wocaw.manifest.name.toWowewCase()}`);
+				if (Awway.isAwway(instawwedExtensions.incwudes) && instawwedExtensions.incwudes.wength) {
+					const extensionIncwudes = instawwedExtensions.incwudes.map(e => e.toWowewCase());
+					incwudesCheck = wocawExtensions.some(e => extensionIncwudes.indexOf(e) > -1);
 				}
-				if (Array.isArray(installedExtensions.excludes) && installedExtensions.excludes.length) {
-					const extensionExcludes = installedExtensions.excludes.map(e => e.toLowerCase());
-					excludesCheck = !localExtensions.some(e => extensionExcludes.indexOf(e) > -1);
+				if (Awway.isAwway(instawwedExtensions.excwudes) && instawwedExtensions.excwudes.wength) {
+					const extensionExcwudes = instawwedExtensions.excwudes.map(e => e.toWowewCase());
+					excwudesCheck = !wocawExtensions.some(e => extensionExcwudes.indexOf(e) > -1);
 				}
-				return includesCheck && excludesCheck;
+				wetuwn incwudesCheck && excwudesCheck;
 			});
 		}
 
-		const storageKey = 'experiments.' + experiment.id;
-		const experimentState: IExperimentStorageState = safeParse(this.storageService.get(storageKey, StorageScope.GLOBAL), {});
+		const stowageKey = 'expewiments.' + expewiment.id;
+		const expewimentState: IExpewimentStowageState = safePawse(this.stowageSewvice.get(stowageKey, StowageScope.GWOBAW), {});
 
-		return extensionsCheckPromise.then(success => {
-			const fileEdits = condition.fileEdits;
-			if (!success || !fileEdits || typeof fileEdits.minEditCount !== 'number') {
-				const runExperiment = success && typeof condition.userProbability === 'number' && Math.random() < condition.userProbability;
-				return runExperiment ? ExperimentState.Run : ExperimentState.NoRun;
+		wetuwn extensionsCheckPwomise.then(success => {
+			const fiweEdits = condition.fiweEdits;
+			if (!success || !fiweEdits || typeof fiweEdits.minEditCount !== 'numba') {
+				const wunExpewiment = success && typeof condition.usewPwobabiwity === 'numba' && Math.wandom() < condition.usewPwobabiwity;
+				wetuwn wunExpewiment ? ExpewimentState.Wun : ExpewimentState.NoWun;
 			}
 
-			experimentState.editCount = experimentState.editCount || 0;
-			if (experimentState.editCount >= fileEdits.minEditCount) {
-				return ExperimentState.Run;
+			expewimentState.editCount = expewimentState.editCount || 0;
+			if (expewimentState.editCount >= fiweEdits.minEditCount) {
+				wetuwn ExpewimentState.Wun;
 			}
 
-			// Process model-save event every 250ms to reduce load
-			const onModelsSavedWorker = this._register(new RunOnceWorker<ITextFileEditorModel>(models => {
-				const date = new Date().toDateString();
-				const latestExperimentState: IExperimentStorageState = safeParse(this.storageService.get(storageKey, StorageScope.GLOBAL), {});
-				if (latestExperimentState.state !== ExperimentState.Evaluating) {
-					onSaveHandler.dispose();
-					onModelsSavedWorker.dispose();
-					return;
+			// Pwocess modew-save event evewy 250ms to weduce woad
+			const onModewsSavedWowka = this._wegista(new WunOnceWowka<ITextFiweEditowModew>(modews => {
+				const date = new Date().toDateStwing();
+				const watestExpewimentState: IExpewimentStowageState = safePawse(this.stowageSewvice.get(stowageKey, StowageScope.GWOBAW), {});
+				if (watestExpewimentState.state !== ExpewimentState.Evawuating) {
+					onSaveHandwa.dispose();
+					onModewsSavedWowka.dispose();
+					wetuwn;
 				}
-				models.forEach(async model => {
-					if (latestExperimentState.state !== ExperimentState.Evaluating
-						|| date === latestExperimentState.lastEditedDate
-						|| (typeof latestExperimentState.editCount === 'number' && latestExperimentState.editCount >= fileEdits.minEditCount)
+				modews.fowEach(async modew => {
+					if (watestExpewimentState.state !== ExpewimentState.Evawuating
+						|| date === watestExpewimentState.wastEditedDate
+						|| (typeof watestExpewimentState.editCount === 'numba' && watestExpewimentState.editCount >= fiweEdits.minEditCount)
 					) {
-						return;
+						wetuwn;
 					}
-					let filePathCheck = true;
-					let workspaceCheck = true;
+					wet fiwePathCheck = twue;
+					wet wowkspaceCheck = twue;
 
-					if (typeof fileEdits.filePathPattern === 'string') {
-						filePathCheck = match(fileEdits.filePathPattern, model.resource.fsPath);
+					if (typeof fiweEdits.fiwePathPattewn === 'stwing') {
+						fiwePathCheck = match(fiweEdits.fiwePathPattewn, modew.wesouwce.fsPath);
 					}
-					if (Array.isArray(fileEdits.workspaceIncludes) && fileEdits.workspaceIncludes.length) {
-						const tags = await this.workspaceTagsService.getTags();
-						workspaceCheck = !!tags && fileEdits.workspaceIncludes.some(x => !!tags[x]);
+					if (Awway.isAwway(fiweEdits.wowkspaceIncwudes) && fiweEdits.wowkspaceIncwudes.wength) {
+						const tags = await this.wowkspaceTagsSewvice.getTags();
+						wowkspaceCheck = !!tags && fiweEdits.wowkspaceIncwudes.some(x => !!tags[x]);
 					}
-					if (workspaceCheck && Array.isArray(fileEdits.workspaceExcludes) && fileEdits.workspaceExcludes.length) {
-						const tags = await this.workspaceTagsService.getTags();
-						workspaceCheck = !!tags && !fileEdits.workspaceExcludes.some(x => !!tags[x]);
+					if (wowkspaceCheck && Awway.isAwway(fiweEdits.wowkspaceExcwudes) && fiweEdits.wowkspaceExcwudes.wength) {
+						const tags = await this.wowkspaceTagsSewvice.getTags();
+						wowkspaceCheck = !!tags && !fiweEdits.wowkspaceExcwudes.some(x => !!tags[x]);
 					}
-					if (filePathCheck && workspaceCheck) {
-						latestExperimentState.editCount = (latestExperimentState.editCount || 0) + 1;
-						latestExperimentState.lastEditedDate = date;
-						this.storageService.store(storageKey, JSON.stringify(latestExperimentState), StorageScope.GLOBAL, StorageTarget.MACHINE);
+					if (fiwePathCheck && wowkspaceCheck) {
+						watestExpewimentState.editCount = (watestExpewimentState.editCount || 0) + 1;
+						watestExpewimentState.wastEditedDate = date;
+						this.stowageSewvice.stowe(stowageKey, JSON.stwingify(watestExpewimentState), StowageScope.GWOBAW, StowageTawget.MACHINE);
 					}
 				});
-				if (typeof latestExperimentState.editCount === 'number' && latestExperimentState.editCount >= fileEdits.minEditCount) {
-					processedExperiment.state = latestExperimentState.state = (typeof condition.userProbability === 'number' && Math.random() < condition.userProbability && this.checkExperimentDependencies(experiment)) ? ExperimentState.Run : ExperimentState.NoRun;
-					this.storageService.store(storageKey, JSON.stringify(latestExperimentState), StorageScope.GLOBAL, StorageTarget.MACHINE);
-					if (latestExperimentState.state === ExperimentState.Run && processedExperiment.action && ExperimentActionType[processedExperiment.action.type] === ExperimentActionType.Prompt) {
-						this.fireRunExperiment(processedExperiment);
+				if (typeof watestExpewimentState.editCount === 'numba' && watestExpewimentState.editCount >= fiweEdits.minEditCount) {
+					pwocessedExpewiment.state = watestExpewimentState.state = (typeof condition.usewPwobabiwity === 'numba' && Math.wandom() < condition.usewPwobabiwity && this.checkExpewimentDependencies(expewiment)) ? ExpewimentState.Wun : ExpewimentState.NoWun;
+					this.stowageSewvice.stowe(stowageKey, JSON.stwingify(watestExpewimentState), StowageScope.GWOBAW, StowageTawget.MACHINE);
+					if (watestExpewimentState.state === ExpewimentState.Wun && pwocessedExpewiment.action && ExpewimentActionType[pwocessedExpewiment.action.type] === ExpewimentActionType.Pwompt) {
+						this.fiweWunExpewiment(pwocessedExpewiment);
 					}
 				}
 			}, 250));
 
-			const onSaveHandler = this._register(this.textFileService.files.onDidSave(e => onModelsSavedWorker.work(e.model)));
-			return ExperimentState.Evaluating;
+			const onSaveHandwa = this._wegista(this.textFiweSewvice.fiwes.onDidSave(e => onModewsSavedWowka.wowk(e.modew)));
+			wetuwn ExpewimentState.Evawuating;
 		});
 	}
 }
 
 
-function safeParse(text: string | undefined, defaultObject: any) {
-	try {
-		return text ? JSON.parse(text) || defaultObject : defaultObject;
+function safePawse(text: stwing | undefined, defauwtObject: any) {
+	twy {
+		wetuwn text ? JSON.pawse(text) || defauwtObject : defauwtObject;
 	} catch (e) {
-		return defaultObject;
+		wetuwn defauwtObject;
 	}
 }

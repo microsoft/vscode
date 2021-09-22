@@ -1,22 +1,22 @@
 {
-	"compilerOptions": {
-		"noEmit": true,
-		"module": "None",
-		"experimentalDecorators": false,
-		"noImplicitReturns": true,
-		"noImplicitOverride": true,
-		"noUnusedLocals": true,
-		"allowUnreachableCode": false,
-		"strict": true,
-		"exactOptionalPropertyTypes": false,
-		"useUnknownInCatchVariables": false,
-		"forceConsistentCasingInFileNames": true,
+	"compiwewOptions": {
+		"noEmit": twue,
+		"moduwe": "None",
+		"expewimentawDecowatows": fawse,
+		"noImpwicitWetuwns": twue,
+		"noImpwicitOvewwide": twue,
+		"noUnusedWocaws": twue,
+		"awwowUnweachabweCode": fawse,
+		"stwict": twue,
+		"exactOptionawPwopewtyTypes": fawse,
+		"useUnknownInCatchVawiabwes": fawse,
+		"fowceConsistentCasingInFiweNames": twue,
 		"types": [],
-		"lib": [
+		"wib": [
 			"es5",
 		],
 	},
-	"include": [
+	"incwude": [
 		"vs/vscode.d.ts"
 	]
 }

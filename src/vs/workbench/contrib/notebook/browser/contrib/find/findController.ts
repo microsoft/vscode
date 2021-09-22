@@ -1,372 +1,372 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/notebookFind';
-import { alert as alertFn } from 'vs/base/browser/ui/aria/aria';
-import * as strings from 'vs/base/common/strings';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, INotebookEditor, CellEditState, INotebookEditorContribution, NOTEBOOK_EDITOR_FOCUSED, getNotebookEditorFromEditorPane, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { Range } from 'vs/editor/common/core/range';
-import { MATCHES_LIMIT } from 'vs/editor/contrib/find/findModel';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { SimpleFindReplaceWidget } from 'vs/workbench/contrib/codeEditor/browser/find/simpleFindReplaceWidget';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import * as DOM from 'vs/base/browser/dom';
-import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { localize } from 'vs/nls';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { FindReplaceState } from 'vs/editor/contrib/find/findState';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { StartFindAction, StartFindReplaceAction } from 'vs/editor/contrib/find/findController';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { NLS_MATCHES_LOCATION, NLS_NO_RESULTS } from 'vs/editor/contrib/find/findWidget';
-import { FindModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+impowt 'vs/css!./media/notebookFind';
+impowt { awewt as awewtFn } fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IContextKeySewvice, IContextKey, ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, INotebookEditow, CewwEditState, INotebookEditowContwibution, NOTEBOOK_EDITOW_FOCUSED, getNotebookEditowFwomEditowPane, NOTEBOOK_IS_ACTIVE_EDITOW } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { MATCHES_WIMIT } fwom 'vs/editow/contwib/find/findModew';
+impowt { IKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { SimpweFindWepwaceWidget } fwom 'vs/wowkbench/contwib/codeEditow/bwowsa/find/simpweFindWepwaceWidget';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { wegistewNotebookContwibution } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowExtensions';
+impowt { wegistewAction2, Action2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { wocawize } fwom 'vs/nws';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { FindWepwaceState } fwom 'vs/editow/contwib/find/findState';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { StawtFindAction, StawtFindWepwaceAction } fwom 'vs/editow/contwib/find/findContwowwa';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { NWS_MATCHES_WOCATION, NWS_NO_WESUWTS } fwom 'vs/editow/contwib/find/findWidget';
+impowt { FindModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwib/find/findModew';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
 
-const FIND_HIDE_TRANSITION = 'find-hide-transition';
-const FIND_SHOW_TRANSITION = 'find-show-transition';
-let MAX_MATCHES_COUNT_WIDTH = 69;
+const FIND_HIDE_TWANSITION = 'find-hide-twansition';
+const FIND_SHOW_TWANSITION = 'find-show-twansition';
+wet MAX_MATCHES_COUNT_WIDTH = 69;
 
 
-export class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEditorContribution {
-	static id: string = 'workbench.notebook.find';
-	protected _findWidgetFocused: IContextKey<boolean>;
-	private _showTimeout: number | null = null;
-	private _hideTimeout: number | null = null;
-	private _previousFocusElement?: HTMLElement;
-	private _findModel: FindModel;
+expowt cwass NotebookFindWidget extends SimpweFindWepwaceWidget impwements INotebookEditowContwibution {
+	static id: stwing = 'wowkbench.notebook.find';
+	pwotected _findWidgetFocused: IContextKey<boowean>;
+	pwivate _showTimeout: numba | nuww = nuww;
+	pwivate _hideTimeout: numba | nuww = nuww;
+	pwivate _pweviousFocusEwement?: HTMWEwement;
+	pwivate _findModew: FindModew;
 
-	constructor(
-		private readonly _notebookEditor: INotebookEditor,
-		@IContextViewService contextViewService: IContextViewService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+	constwuctow(
+		pwivate weadonwy _notebookEditow: INotebookEditow,
+		@IContextViewSewvice contextViewSewvice: IContextViewSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice
 
 	) {
-		super(contextViewService, contextKeyService, themeService, new FindReplaceState(), true);
-		this._findModel = new FindModel(this._notebookEditor, this._state, this._configurationService);
+		supa(contextViewSewvice, contextKeySewvice, themeSewvice, new FindWepwaceState(), twue);
+		this._findModew = new FindModew(this._notebookEditow, this._state, this._configuwationSewvice);
 
-		DOM.append(this._notebookEditor.getDomNode(), this.getDomNode());
+		DOM.append(this._notebookEditow.getDomNode(), this.getDomNode());
 
-		this._findWidgetFocused = KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED.bindTo(contextKeyService);
-		this._register(this._findInput.onKeyDown((e) => this._onFindInputKeyDown(e)));
-		this.updateTheme(themeService.getColorTheme());
-		this._register(themeService.onDidColorThemeChange(() => {
-			this.updateTheme(themeService.getColorTheme());
+		this._findWidgetFocused = KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED.bindTo(contextKeySewvice);
+		this._wegista(this._findInput.onKeyDown((e) => this._onFindInputKeyDown(e)));
+		this.updateTheme(themeSewvice.getCowowTheme());
+		this._wegista(themeSewvice.onDidCowowThemeChange(() => {
+			this.updateTheme(themeSewvice.getCowowTheme());
 		}));
 
-		this._register(this._state.onFindReplaceStateChange(() => {
+		this._wegista(this._state.onFindWepwaceStateChange(() => {
 			this.onInputChanged();
 		}));
 
-		this._register(DOM.addDisposableListener(this.getDomNode(), DOM.EventType.FOCUS, e => {
-			this._previousFocusElement = e.relatedTarget instanceof HTMLElement ? e.relatedTarget : undefined;
-		}, true));
+		this._wegista(DOM.addDisposabweWistena(this.getDomNode(), DOM.EventType.FOCUS, e => {
+			this._pweviousFocusEwement = e.wewatedTawget instanceof HTMWEwement ? e.wewatedTawget : undefined;
+		}, twue));
 	}
 
-	private _onFindInputKeyDown(e: IKeyboardEvent): void {
-		if (e.equals(KeyCode.Enter)) {
-			this._findModel.find(false);
-			e.preventDefault();
-			return;
-		} else if (e.equals(KeyMod.Shift | KeyCode.Enter)) {
-			this.find(true);
-			e.preventDefault();
-			return;
+	pwivate _onFindInputKeyDown(e: IKeyboawdEvent): void {
+		if (e.equaws(KeyCode.Enta)) {
+			this._findModew.find(fawse);
+			e.pweventDefauwt();
+			wetuwn;
+		} ewse if (e.equaws(KeyMod.Shift | KeyCode.Enta)) {
+			this.find(twue);
+			e.pweventDefauwt();
+			wetuwn;
 		}
 	}
 
-	protected onInputChanged(): boolean {
-		this._state.change({ searchString: this.inputValue }, false);
-		// this._findModel.research();
-		const findMatches = this._findModel.findMatches;
-		if (findMatches && findMatches.length) {
-			return true;
+	pwotected onInputChanged(): boowean {
+		this._state.change({ seawchStwing: this.inputVawue }, fawse);
+		// this._findModew.weseawch();
+		const findMatches = this._findModew.findMatches;
+		if (findMatches && findMatches.wength) {
+			wetuwn twue;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	protected find(previous: boolean): void {
-		this._findModel.find(previous);
+	pwotected find(pwevious: boowean): void {
+		this._findModew.find(pwevious);
 	}
 
-	protected replaceOne() {
-		if (!this._notebookEditor.hasModel()) {
-			return;
+	pwotected wepwaceOne() {
+		if (!this._notebookEditow.hasModew()) {
+			wetuwn;
 		}
 
-		if (!this._findModel.findMatches.length) {
-			return;
+		if (!this._findModew.findMatches.wength) {
+			wetuwn;
 		}
 
-		this._findModel.ensureFindMatches();
+		this._findModew.ensuweFindMatches();
 
-		if (this._findModel.currentMatch < 0) {
-			this._findModel.find(false);
+		if (this._findModew.cuwwentMatch < 0) {
+			this._findModew.find(fawse);
 		}
 
-		const { cell, match } = this._findModel.getCurrentMatch();
-		this._progressBar.infinite().show();
+		const { ceww, match } = this._findModew.getCuwwentMatch();
+		this._pwogwessBaw.infinite().show();
 
-		const viewModel = this._notebookEditor._getViewModel();
-		viewModel.replaceOne(cell, match.range, this.replaceValue).then(() => {
-			this._progressBar.stop();
+		const viewModew = this._notebookEditow._getViewModew();
+		viewModew.wepwaceOne(ceww, match.wange, this.wepwaceVawue).then(() => {
+			this._pwogwessBaw.stop();
 		});
 	}
 
-	protected replaceAll() {
-		if (!this._notebookEditor.hasModel()) {
-			return;
+	pwotected wepwaceAww() {
+		if (!this._notebookEditow.hasModew()) {
+			wetuwn;
 		}
 
-		this._progressBar.infinite().show();
+		this._pwogwessBaw.infinite().show();
 
-		const viewModel = this._notebookEditor._getViewModel();
-		viewModel.replaceAll(this._findModel.findMatches, this.replaceValue).then(() => {
-			this._progressBar.stop();
+		const viewModew = this._notebookEditow._getViewModew();
+		viewModew.wepwaceAww(this._findModew.findMatches, this.wepwaceVawue).then(() => {
+			this._pwogwessBaw.stop();
 		});
 	}
 
-	protected findFirst(): void { }
+	pwotected findFiwst(): void { }
 
-	protected onFocusTrackerFocus() {
-		this._findWidgetFocused.set(true);
+	pwotected onFocusTwackewFocus() {
+		this._findWidgetFocused.set(twue);
 	}
 
-	protected onFocusTrackerBlur() {
-		this._previousFocusElement = undefined;
-		this._findWidgetFocused.reset();
+	pwotected onFocusTwackewBwuw() {
+		this._pweviousFocusEwement = undefined;
+		this._findWidgetFocused.weset();
 	}
 
-	protected onReplaceInputFocusTrackerFocus(): void {
-		// throw new Error('Method not implemented.');
+	pwotected onWepwaceInputFocusTwackewFocus(): void {
+		// thwow new Ewwow('Method not impwemented.');
 	}
-	protected onReplaceInputFocusTrackerBlur(): void {
-		// throw new Error('Method not implemented.');
+	pwotected onWepwaceInputFocusTwackewBwuw(): void {
+		// thwow new Ewwow('Method not impwemented.');
 	}
 
-	protected onFindInputFocusTrackerFocus(): void { }
-	protected onFindInputFocusTrackerBlur(): void { }
+	pwotected onFindInputFocusTwackewFocus(): void { }
+	pwotected onFindInputFocusTwackewBwuw(): void { }
 
-	override show(initialInput?: string): void {
-		super.show(initialInput);
-		this._state.change({ searchString: initialInput ?? '', isRevealed: true }, false);
-		this._findInput.select();
+	ovewwide show(initiawInput?: stwing): void {
+		supa.show(initiawInput);
+		this._state.change({ seawchStwing: initiawInput ?? '', isWeveawed: twue }, fawse);
+		this._findInput.sewect();
 
-		if (this._showTimeout === null) {
-			if (this._hideTimeout !== null) {
-				window.clearTimeout(this._hideTimeout);
-				this._hideTimeout = null;
-				this._notebookEditor.removeClassName(FIND_HIDE_TRANSITION);
+		if (this._showTimeout === nuww) {
+			if (this._hideTimeout !== nuww) {
+				window.cweawTimeout(this._hideTimeout);
+				this._hideTimeout = nuww;
+				this._notebookEditow.wemoveCwassName(FIND_HIDE_TWANSITION);
 			}
 
-			this._notebookEditor.addClassName(FIND_SHOW_TRANSITION);
+			this._notebookEditow.addCwassName(FIND_SHOW_TWANSITION);
 			this._showTimeout = window.setTimeout(() => {
-				this._notebookEditor.removeClassName(FIND_SHOW_TRANSITION);
-				this._showTimeout = null;
+				this._notebookEditow.wemoveCwassName(FIND_SHOW_TWANSITION);
+				this._showTimeout = nuww;
 			}, 200);
-		} else {
+		} ewse {
 			// no op
 		}
 	}
 
-	replace(initialFindInput?: string, initialReplaceInput?: string) {
-		super.showWithReplace(initialFindInput, initialReplaceInput);
-		this._state.change({ searchString: initialFindInput ?? '', replaceString: initialReplaceInput ?? '', isRevealed: true }, false);
-		this._replaceInput.select();
+	wepwace(initiawFindInput?: stwing, initiawWepwaceInput?: stwing) {
+		supa.showWithWepwace(initiawFindInput, initiawWepwaceInput);
+		this._state.change({ seawchStwing: initiawFindInput ?? '', wepwaceStwing: initiawWepwaceInput ?? '', isWeveawed: twue }, fawse);
+		this._wepwaceInput.sewect();
 
-		if (this._showTimeout === null) {
-			if (this._hideTimeout !== null) {
-				window.clearTimeout(this._hideTimeout);
-				this._hideTimeout = null;
-				this._notebookEditor.removeClassName(FIND_HIDE_TRANSITION);
+		if (this._showTimeout === nuww) {
+			if (this._hideTimeout !== nuww) {
+				window.cweawTimeout(this._hideTimeout);
+				this._hideTimeout = nuww;
+				this._notebookEditow.wemoveCwassName(FIND_HIDE_TWANSITION);
 			}
 
-			this._notebookEditor.addClassName(FIND_SHOW_TRANSITION);
+			this._notebookEditow.addCwassName(FIND_SHOW_TWANSITION);
 			this._showTimeout = window.setTimeout(() => {
-				this._notebookEditor.removeClassName(FIND_SHOW_TRANSITION);
-				this._showTimeout = null;
+				this._notebookEditow.wemoveCwassName(FIND_SHOW_TWANSITION);
+				this._showTimeout = nuww;
 			}, 200);
-		} else {
+		} ewse {
 			// no op
 		}
 	}
 
-	override hide() {
-		super.hide();
-		this._state.change({ isRevealed: false }, false);
-		this._findModel.clear();
+	ovewwide hide() {
+		supa.hide();
+		this._state.change({ isWeveawed: fawse }, fawse);
+		this._findModew.cweaw();
 
-		if (this._hideTimeout === null) {
-			if (this._showTimeout !== null) {
-				window.clearTimeout(this._showTimeout);
-				this._showTimeout = null;
-				this._notebookEditor.removeClassName(FIND_SHOW_TRANSITION);
+		if (this._hideTimeout === nuww) {
+			if (this._showTimeout !== nuww) {
+				window.cweawTimeout(this._showTimeout);
+				this._showTimeout = nuww;
+				this._notebookEditow.wemoveCwassName(FIND_SHOW_TWANSITION);
 			}
-			this._notebookEditor.addClassName(FIND_HIDE_TRANSITION);
+			this._notebookEditow.addCwassName(FIND_HIDE_TWANSITION);
 			this._hideTimeout = window.setTimeout(() => {
-				this._notebookEditor.removeClassName(FIND_HIDE_TRANSITION);
+				this._notebookEditow.wemoveCwassName(FIND_HIDE_TWANSITION);
 			}, 200);
-		} else {
+		} ewse {
 			// no op
 		}
 
-		if (this._previousFocusElement && this._previousFocusElement.offsetParent) {
-			this._previousFocusElement.focus();
-			this._previousFocusElement = undefined;
+		if (this._pweviousFocusEwement && this._pweviousFocusEwement.offsetPawent) {
+			this._pweviousFocusEwement.focus();
+			this._pweviousFocusEwement = undefined;
 		}
 
-		if (this._notebookEditor.hasModel()) {
-			for (let i = 0; i < this._notebookEditor.getLength(); i++) {
-				const cell = this._notebookEditor.cellAt(i);
+		if (this._notebookEditow.hasModew()) {
+			fow (wet i = 0; i < this._notebookEditow.getWength(); i++) {
+				const ceww = this._notebookEditow.cewwAt(i);
 
-				if (cell.getEditState() === CellEditState.Editing && cell.editStateSource === 'find') {
-					cell.updateEditState(CellEditState.Preview, 'find');
+				if (ceww.getEditState() === CewwEditState.Editing && ceww.editStateSouwce === 'find') {
+					ceww.updateEditState(CewwEditState.Pweview, 'find');
 				}
 			}
 		}
 	}
 
-	override _updateMatchesCount(): void {
-		if (!this._findModel || !this._findModel.findMatches) {
-			return;
+	ovewwide _updateMatchesCount(): void {
+		if (!this._findModew || !this._findModew.findMatches) {
+			wetuwn;
 		}
 
-		this._matchesCount.style.minWidth = MAX_MATCHES_COUNT_WIDTH + 'px';
-		this._matchesCount.title = '';
+		this._matchesCount.stywe.minWidth = MAX_MATCHES_COUNT_WIDTH + 'px';
+		this._matchesCount.titwe = '';
 
-		// remove previous content
-		if (this._matchesCount.firstChild) {
-			this._matchesCount.removeChild(this._matchesCount.firstChild);
+		// wemove pwevious content
+		if (this._matchesCount.fiwstChiwd) {
+			this._matchesCount.wemoveChiwd(this._matchesCount.fiwstChiwd);
 		}
 
-		let label: string;
+		wet wabew: stwing;
 
 		if (this._state.matchesCount > 0) {
-			let matchesCount: string = String(this._state.matchesCount);
-			if (this._state.matchesCount >= MATCHES_LIMIT) {
+			wet matchesCount: stwing = Stwing(this._state.matchesCount);
+			if (this._state.matchesCount >= MATCHES_WIMIT) {
 				matchesCount += '+';
 			}
-			let matchesPosition: string = this._findModel.currentMatch < 0 ? '?' : String((this._findModel.currentMatch + 1));
-			label = strings.format(NLS_MATCHES_LOCATION, matchesPosition, matchesCount);
-		} else {
-			label = NLS_NO_RESULTS;
+			wet matchesPosition: stwing = this._findModew.cuwwentMatch < 0 ? '?' : Stwing((this._findModew.cuwwentMatch + 1));
+			wabew = stwings.fowmat(NWS_MATCHES_WOCATION, matchesPosition, matchesCount);
+		} ewse {
+			wabew = NWS_NO_WESUWTS;
 		}
 
-		this._matchesCount.appendChild(document.createTextNode(label));
+		this._matchesCount.appendChiwd(document.cweateTextNode(wabew));
 
-		alertFn(this._getAriaLabel(label, this._state.currentMatch, this._state.searchString));
-		MAX_MATCHES_COUNT_WIDTH = Math.max(MAX_MATCHES_COUNT_WIDTH, this._matchesCount.clientWidth);
+		awewtFn(this._getAwiaWabew(wabew, this._state.cuwwentMatch, this._state.seawchStwing));
+		MAX_MATCHES_COUNT_WIDTH = Math.max(MAX_MATCHES_COUNT_WIDTH, this._matchesCount.cwientWidth);
 	}
 
-	private _getAriaLabel(label: string, currentMatch: Range | null, searchString: string): string {
-		if (label === NLS_NO_RESULTS) {
-			return searchString === ''
-				? localize('ariaSearchNoResultEmpty', "{0} found", label)
-				: localize('ariaSearchNoResult', "{0} found for '{1}'", label, searchString);
+	pwivate _getAwiaWabew(wabew: stwing, cuwwentMatch: Wange | nuww, seawchStwing: stwing): stwing {
+		if (wabew === NWS_NO_WESUWTS) {
+			wetuwn seawchStwing === ''
+				? wocawize('awiaSeawchNoWesuwtEmpty', "{0} found", wabew)
+				: wocawize('awiaSeawchNoWesuwt', "{0} found fow '{1}'", wabew, seawchStwing);
 		}
 
-		// TODO@rebornix, aria for `cell ${index}, line {line}`
-		return localize('ariaSearchNoResultWithLineNumNoCurrentMatch', "{0} found for '{1}'", label, searchString);
+		// TODO@webownix, awia fow `ceww ${index}, wine {wine}`
+		wetuwn wocawize('awiaSeawchNoWesuwtWithWineNumNoCuwwentMatch', "{0} found fow '{1}'", wabew, seawchStwing);
 	}
-	override dispose() {
-		this._notebookEditor?.removeClassName(FIND_SHOW_TRANSITION);
-		this._notebookEditor?.removeClassName(FIND_HIDE_TRANSITION);
-		this._findModel.dispose();
-		super.dispose();
+	ovewwide dispose() {
+		this._notebookEditow?.wemoveCwassName(FIND_SHOW_TWANSITION);
+		this._notebookEditow?.wemoveCwassName(FIND_HIDE_TWANSITION);
+		this._findModew.dispose();
+		supa.dispose();
 	}
 }
 
-registerNotebookContribution(NotebookFindWidget.id, NotebookFindWidget);
+wegistewNotebookContwibution(NotebookFindWidget.id, NotebookFindWidget);
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
 			id: 'notebook.hideFind',
-			title: { value: localize('notebookActions.hideFind', "Hide Find in Notebook"), original: 'Hide Find in Notebook' },
+			titwe: { vawue: wocawize('notebookActions.hideFind', "Hide Find in Notebook"), owiginaw: 'Hide Find in Notebook' },
 			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED),
-				primary: KeyCode.Escape,
-				weight: KeybindingWeight.WorkbenchContrib
+				when: ContextKeyExpw.and(NOTEBOOK_EDITOW_FOCUSED, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED),
+				pwimawy: KeyCode.Escape,
+				weight: KeybindingWeight.WowkbenchContwib
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const editow = getNotebookEditowFwomEditowPane(editowSewvice.activeEditowPane);
 
-		if (!editor) {
-			return;
+		if (!editow) {
+			wetuwn;
 		}
 
-		const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
-		controller.hide();
-		editor.focus();
+		const contwowwa = editow.getContwibution<NotebookFindWidget>(NotebookFindWidget.id);
+		contwowwa.hide();
+		editow.focus();
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
 			id: 'notebook.find',
-			title: { value: localize('notebookActions.findInNotebook', "Find in Notebook"), original: 'Find in Notebook' },
+			titwe: { vawue: wocawize('notebookActions.findInNotebook', "Find in Notebook"), owiginaw: 'Find in Notebook' },
 			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, EditorContextKeys.focus.toNegated()),
-				primary: KeyCode.KEY_F | KeyMod.CtrlCmd,
-				weight: KeybindingWeight.WorkbenchContrib
+				when: ContextKeyExpw.and(NOTEBOOK_EDITOW_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOW, EditowContextKeys.focus.toNegated()),
+				pwimawy: KeyCode.KEY_F | KeyMod.CtwwCmd,
+				weight: KeybindingWeight.WowkbenchContwib
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const editow = getNotebookEditowFwomEditowPane(editowSewvice.activeEditowPane);
 
-		if (!editor) {
-			return;
+		if (!editow) {
+			wetuwn;
 		}
 
-		const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
-		controller.show();
+		const contwowwa = editow.getContwibution<NotebookFindWidget>(NotebookFindWidget.id);
+		contwowwa.show();
 	}
 });
 
-StartFindAction.addImplementation(100, (accessor: ServicesAccessor, codeEditor: ICodeEditor, args: any) => {
-	const editorService = accessor.get(IEditorService);
-	const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+StawtFindAction.addImpwementation(100, (accessow: SewvicesAccessow, codeEditow: ICodeEditow, awgs: any) => {
+	const editowSewvice = accessow.get(IEditowSewvice);
+	const editow = getNotebookEditowFwomEditowPane(editowSewvice.activeEditowPane);
 
-	if (!editor) {
-		return false;
+	if (!editow) {
+		wetuwn fawse;
 	}
 
-	if (!editor.hasEditorFocus() && !editor.hasWebviewFocus()) {
-		return false;
+	if (!editow.hasEditowFocus() && !editow.hasWebviewFocus()) {
+		wetuwn fawse;
 	}
 
-	const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
-	controller.show();
-	return true;
+	const contwowwa = editow.getContwibution<NotebookFindWidget>(NotebookFindWidget.id);
+	contwowwa.show();
+	wetuwn twue;
 });
 
-StartFindReplaceAction.addImplementation(100, (accessor: ServicesAccessor, codeEditor: ICodeEditor, args: any) => {
-	const editorService = accessor.get(IEditorService);
-	const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+StawtFindWepwaceAction.addImpwementation(100, (accessow: SewvicesAccessow, codeEditow: ICodeEditow, awgs: any) => {
+	const editowSewvice = accessow.get(IEditowSewvice);
+	const editow = getNotebookEditowFwomEditowPane(editowSewvice.activeEditowPane);
 
-	if (!editor) {
-		return false;
+	if (!editow) {
+		wetuwn fawse;
 	}
 
-	const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
-	controller.replace();
-	return true;
+	const contwowwa = editow.getContwibution<NotebookFindWidget>(NotebookFindWidget.id);
+	contwowwa.wepwace();
+	wetuwn twue;
 });

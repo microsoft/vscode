@@ -1,289 +1,289 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
-import { KeyCode, KeyMod, ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { isIOS } from 'vs/base/common/platform';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITextModel } from 'vs/editor/common/model';
-import * as nls from 'vs/nls';
-import { IMenuService, MenuId, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { IMouseWheewEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { ActionViewItem } fwom 'vs/base/bwowsa/ui/actionbaw/actionViewItems';
+impowt { IAnchow } fwom 'vs/base/bwowsa/ui/contextview/contextview';
+impowt { IAction, Sepawatow, SubmenuAction } fwom 'vs/base/common/actions';
+impowt { KeyCode, KeyMod, WesowvedKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { isIOS } fwom 'vs/base/common/pwatfowm';
+impowt { ICodeEditow, IEditowMouseEvent, MouseTawgetType } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, wegistewEditowAction, wegistewEditowContwibution, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { IEditowContwibution, ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt * as nws fwom 'vs/nws';
+impowt { IMenuSewvice, MenuId, SubmenuItemAction } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IContextMenuSewvice, IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
 
-export class ContextMenuController implements IEditorContribution {
+expowt cwass ContextMenuContwowwa impwements IEditowContwibution {
 
-	public static readonly ID = 'editor.contrib.contextmenu';
+	pubwic static weadonwy ID = 'editow.contwib.contextmenu';
 
-	public static get(editor: ICodeEditor): ContextMenuController {
-		return editor.getContribution<ContextMenuController>(ContextMenuController.ID);
+	pubwic static get(editow: ICodeEditow): ContextMenuContwowwa {
+		wetuwn editow.getContwibution<ContextMenuContwowwa>(ContextMenuContwowwa.ID);
 	}
 
-	private readonly _toDispose = new DisposableStore();
-	private _contextMenuIsBeingShownCount: number = 0;
-	private readonly _editor: ICodeEditor;
+	pwivate weadonwy _toDispose = new DisposabweStowe();
+	pwivate _contextMenuIsBeingShownCount: numba = 0;
+	pwivate weadonwy _editow: ICodeEditow;
 
-	constructor(
-		editor: ICodeEditor,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IMenuService private readonly _menuService: IMenuService
+	constwuctow(
+		editow: ICodeEditow,
+		@IContextMenuSewvice pwivate weadonwy _contextMenuSewvice: IContextMenuSewvice,
+		@IContextViewSewvice pwivate weadonwy _contextViewSewvice: IContextViewSewvice,
+		@IContextKeySewvice pwivate weadonwy _contextKeySewvice: IContextKeySewvice,
+		@IKeybindingSewvice pwivate weadonwy _keybindingSewvice: IKeybindingSewvice,
+		@IMenuSewvice pwivate weadonwy _menuSewvice: IMenuSewvice
 	) {
-		this._editor = editor;
+		this._editow = editow;
 
-		this._toDispose.add(this._editor.onContextMenu((e: IEditorMouseEvent) => this._onContextMenu(e)));
-		this._toDispose.add(this._editor.onMouseWheel((e: IMouseWheelEvent) => {
+		this._toDispose.add(this._editow.onContextMenu((e: IEditowMouseEvent) => this._onContextMenu(e)));
+		this._toDispose.add(this._editow.onMouseWheew((e: IMouseWheewEvent) => {
 			if (this._contextMenuIsBeingShownCount > 0) {
-				const view = this._contextViewService.getContextViewElement();
-				const target = e.srcElement as HTMLElement;
+				const view = this._contextViewSewvice.getContextViewEwement();
+				const tawget = e.swcEwement as HTMWEwement;
 
-				// Event triggers on shadow root host first
-				// Check if the context view is under this host before hiding it #103169
-				if (!(target.shadowRoot && dom.getShadowRoot(view) === target.shadowRoot)) {
-					this._contextViewService.hideContextView();
+				// Event twiggews on shadow woot host fiwst
+				// Check if the context view is unda this host befowe hiding it #103169
+				if (!(tawget.shadowWoot && dom.getShadowWoot(view) === tawget.shadowWoot)) {
+					this._contextViewSewvice.hideContextView();
 				}
 			}
 		}));
-		this._toDispose.add(this._editor.onKeyDown((e: IKeyboardEvent) => {
+		this._toDispose.add(this._editow.onKeyDown((e: IKeyboawdEvent) => {
 			if (e.keyCode === KeyCode.ContextMenu) {
-				// Chrome is funny like that
-				e.preventDefault();
-				e.stopPropagation();
+				// Chwome is funny wike that
+				e.pweventDefauwt();
+				e.stopPwopagation();
 				this.showContextMenu();
 			}
 		}));
 	}
 
-	private _onContextMenu(e: IEditorMouseEvent): void {
-		if (!this._editor.hasModel()) {
-			return;
+	pwivate _onContextMenu(e: IEditowMouseEvent): void {
+		if (!this._editow.hasModew()) {
+			wetuwn;
 		}
 
-		if (!this._editor.getOption(EditorOption.contextmenu)) {
-			this._editor.focus();
-			// Ensure the cursor is at the position of the mouse click
-			if (e.target.position && !this._editor.getSelection().containsPosition(e.target.position)) {
-				this._editor.setPosition(e.target.position);
+		if (!this._editow.getOption(EditowOption.contextmenu)) {
+			this._editow.focus();
+			// Ensuwe the cuwsow is at the position of the mouse cwick
+			if (e.tawget.position && !this._editow.getSewection().containsPosition(e.tawget.position)) {
+				this._editow.setPosition(e.tawget.position);
 			}
-			return; // Context menu is turned off through configuration
+			wetuwn; // Context menu is tuwned off thwough configuwation
 		}
 
-		if (e.target.type === MouseTargetType.OVERLAY_WIDGET) {
-			return; // allow native menu on widgets to support right click on input field for example in find
+		if (e.tawget.type === MouseTawgetType.OVEWWAY_WIDGET) {
+			wetuwn; // awwow native menu on widgets to suppowt wight cwick on input fiewd fow exampwe in find
 		}
 
-		e.event.preventDefault();
-		e.event.stopPropagation();
+		e.event.pweventDefauwt();
+		e.event.stopPwopagation();
 
-		if (e.target.type !== MouseTargetType.CONTENT_TEXT && e.target.type !== MouseTargetType.CONTENT_EMPTY && e.target.type !== MouseTargetType.TEXTAREA) {
-			return; // only support mouse click into text or native context menu key for now
+		if (e.tawget.type !== MouseTawgetType.CONTENT_TEXT && e.tawget.type !== MouseTawgetType.CONTENT_EMPTY && e.tawget.type !== MouseTawgetType.TEXTAWEA) {
+			wetuwn; // onwy suppowt mouse cwick into text ow native context menu key fow now
 		}
 
-		// Ensure the editor gets focus if it hasn't, so the right events are being sent to other contributions
-		this._editor.focus();
+		// Ensuwe the editow gets focus if it hasn't, so the wight events awe being sent to otha contwibutions
+		this._editow.focus();
 
-		// Ensure the cursor is at the position of the mouse click
-		if (e.target.position) {
-			let hasSelectionAtPosition = false;
-			for (const selection of this._editor.getSelections()) {
-				if (selection.containsPosition(e.target.position)) {
-					hasSelectionAtPosition = true;
-					break;
+		// Ensuwe the cuwsow is at the position of the mouse cwick
+		if (e.tawget.position) {
+			wet hasSewectionAtPosition = fawse;
+			fow (const sewection of this._editow.getSewections()) {
+				if (sewection.containsPosition(e.tawget.position)) {
+					hasSewectionAtPosition = twue;
+					bweak;
 				}
 			}
 
-			if (!hasSelectionAtPosition) {
-				this._editor.setPosition(e.target.position);
+			if (!hasSewectionAtPosition) {
+				this._editow.setPosition(e.tawget.position);
 			}
 		}
 
-		// Unless the user triggerd the context menu through Shift+F10, use the mouse position as menu position
-		let anchor: IAnchor | null = null;
-		if (e.target.type !== MouseTargetType.TEXTAREA) {
-			anchor = { x: e.event.posx - 1, width: 2, y: e.event.posy - 1, height: 2 };
+		// Unwess the usa twiggewd the context menu thwough Shift+F10, use the mouse position as menu position
+		wet anchow: IAnchow | nuww = nuww;
+		if (e.tawget.type !== MouseTawgetType.TEXTAWEA) {
+			anchow = { x: e.event.posx - 1, width: 2, y: e.event.posy - 1, height: 2 };
 		}
 
 		// Show the context menu
-		this.showContextMenu(anchor);
+		this.showContextMenu(anchow);
 	}
 
-	public showContextMenu(anchor?: IAnchor | null): void {
-		if (!this._editor.getOption(EditorOption.contextmenu)) {
-			return; // Context menu is turned off through configuration
+	pubwic showContextMenu(anchow?: IAnchow | nuww): void {
+		if (!this._editow.getOption(EditowOption.contextmenu)) {
+			wetuwn; // Context menu is tuwned off thwough configuwation
 		}
-		if (!this._editor.hasModel()) {
-			return;
-		}
-
-		if (!this._contextMenuService) {
-			this._editor.focus();
-			return;	// We need the context menu service to function
+		if (!this._editow.hasModew()) {
+			wetuwn;
 		}
 
-		// Find actions available for menu
-		const menuActions = this._getMenuActions(this._editor.getModel(),
-			this._editor.isSimpleWidget ? MenuId.SimpleEditorContext : MenuId.EditorContext);
+		if (!this._contextMenuSewvice) {
+			this._editow.focus();
+			wetuwn;	// We need the context menu sewvice to function
+		}
+
+		// Find actions avaiwabwe fow menu
+		const menuActions = this._getMenuActions(this._editow.getModew(),
+			this._editow.isSimpweWidget ? MenuId.SimpweEditowContext : MenuId.EditowContext);
 
 		// Show menu if we have actions to show
-		if (menuActions.length > 0) {
-			this._doShowContextMenu(menuActions, anchor);
+		if (menuActions.wength > 0) {
+			this._doShowContextMenu(menuActions, anchow);
 		}
 	}
 
-	private _getMenuActions(model: ITextModel, menuId: MenuId): IAction[] {
-		const result: IAction[] = [];
+	pwivate _getMenuActions(modew: ITextModew, menuId: MenuId): IAction[] {
+		const wesuwt: IAction[] = [];
 
-		// get menu groups
-		const menu = this._menuService.createMenu(menuId, this._contextKeyService);
-		const groups = menu.getActions({ arg: model.uri });
+		// get menu gwoups
+		const menu = this._menuSewvice.cweateMenu(menuId, this._contextKeySewvice);
+		const gwoups = menu.getActions({ awg: modew.uwi });
 		menu.dispose();
 
-		// translate them into other actions
-		for (let group of groups) {
-			const [, actions] = group;
-			let addedItems = 0;
-			for (const action of actions) {
+		// twanswate them into otha actions
+		fow (wet gwoup of gwoups) {
+			const [, actions] = gwoup;
+			wet addedItems = 0;
+			fow (const action of actions) {
 				if (action instanceof SubmenuItemAction) {
-					const subActions = this._getMenuActions(model, action.item.submenu);
-					if (subActions.length > 0) {
-						result.push(new SubmenuAction(action.id, action.label, subActions));
+					const subActions = this._getMenuActions(modew, action.item.submenu);
+					if (subActions.wength > 0) {
+						wesuwt.push(new SubmenuAction(action.id, action.wabew, subActions));
 						addedItems++;
 					}
-				} else {
-					result.push(action);
+				} ewse {
+					wesuwt.push(action);
 					addedItems++;
 				}
 			}
 
 			if (addedItems) {
-				result.push(new Separator());
+				wesuwt.push(new Sepawatow());
 			}
 		}
 
-		if (result.length) {
-			result.pop(); // remove last separator
+		if (wesuwt.wength) {
+			wesuwt.pop(); // wemove wast sepawatow
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _doShowContextMenu(actions: IAction[], anchor: IAnchor | null = null): void {
-		if (!this._editor.hasModel()) {
-			return;
+	pwivate _doShowContextMenu(actions: IAction[], anchow: IAnchow | nuww = nuww): void {
+		if (!this._editow.hasModew()) {
+			wetuwn;
 		}
 
-		// Disable hover
-		const oldHoverSetting = this._editor.getOption(EditorOption.hover);
-		this._editor.updateOptions({
-			hover: {
-				enabled: false
+		// Disabwe hova
+		const owdHovewSetting = this._editow.getOption(EditowOption.hova);
+		this._editow.updateOptions({
+			hova: {
+				enabwed: fawse
 			}
 		});
 
-		if (!anchor) {
-			// Ensure selection is visible
-			this._editor.revealPosition(this._editor.getPosition(), ScrollType.Immediate);
+		if (!anchow) {
+			// Ensuwe sewection is visibwe
+			this._editow.weveawPosition(this._editow.getPosition(), ScwowwType.Immediate);
 
-			this._editor.render();
-			const cursorCoords = this._editor.getScrolledVisiblePosition(this._editor.getPosition());
+			this._editow.wenda();
+			const cuwsowCoowds = this._editow.getScwowwedVisibwePosition(this._editow.getPosition());
 
-			// Translate to absolute editor position
-			const editorCoords = dom.getDomNodePagePosition(this._editor.getDomNode());
-			const posx = editorCoords.left + cursorCoords.left;
-			const posy = editorCoords.top + cursorCoords.top + cursorCoords.height;
+			// Twanswate to absowute editow position
+			const editowCoowds = dom.getDomNodePagePosition(this._editow.getDomNode());
+			const posx = editowCoowds.weft + cuwsowCoowds.weft;
+			const posy = editowCoowds.top + cuwsowCoowds.top + cuwsowCoowds.height;
 
-			anchor = { x: posx, y: posy };
+			anchow = { x: posx, y: posy };
 		}
 
-		const useShadowDOM = this._editor.getOption(EditorOption.useShadowDOM) && !isIOS; // Do not use shadow dom on IOS #122035
+		const useShadowDOM = this._editow.getOption(EditowOption.useShadowDOM) && !isIOS; // Do not use shadow dom on IOS #122035
 
 		// Show menu
 		this._contextMenuIsBeingShownCount++;
-		this._contextMenuService.showContextMenu({
-			domForShadowRoot: useShadowDOM ? this._editor.getDomNode() : undefined,
+		this._contextMenuSewvice.showContextMenu({
+			domFowShadowWoot: useShadowDOM ? this._editow.getDomNode() : undefined,
 
-			getAnchor: () => anchor!,
+			getAnchow: () => anchow!,
 
 			getActions: () => actions,
 
 			getActionViewItem: (action) => {
-				const keybinding = this._keybindingFor(action);
+				const keybinding = this._keybindingFow(action);
 				if (keybinding) {
-					return new ActionViewItem(action, action, { label: true, keybinding: keybinding.getLabel(), isMenu: true });
+					wetuwn new ActionViewItem(action, action, { wabew: twue, keybinding: keybinding.getWabew(), isMenu: twue });
 				}
 
 				const customActionViewItem = <any>action;
 				if (typeof customActionViewItem.getActionViewItem === 'function') {
-					return customActionViewItem.getActionViewItem();
+					wetuwn customActionViewItem.getActionViewItem();
 				}
 
-				return new ActionViewItem(action, action, { icon: true, label: true, isMenu: true });
+				wetuwn new ActionViewItem(action, action, { icon: twue, wabew: twue, isMenu: twue });
 			},
 
-			getKeyBinding: (action): ResolvedKeybinding | undefined => {
-				return this._keybindingFor(action);
+			getKeyBinding: (action): WesowvedKeybinding | undefined => {
+				wetuwn this._keybindingFow(action);
 			},
 
-			onHide: (wasCancelled: boolean) => {
+			onHide: (wasCancewwed: boowean) => {
 				this._contextMenuIsBeingShownCount--;
-				this._editor.focus();
-				this._editor.updateOptions({
-					hover: oldHoverSetting
+				this._editow.focus();
+				this._editow.updateOptions({
+					hova: owdHovewSetting
 				});
 			}
 		});
 	}
 
-	private _keybindingFor(action: IAction): ResolvedKeybinding | undefined {
-		return this._keybindingService.lookupKeybinding(action.id);
+	pwivate _keybindingFow(action: IAction): WesowvedKeybinding | undefined {
+		wetuwn this._keybindingSewvice.wookupKeybinding(action.id);
 	}
 
-	public dispose(): void {
+	pubwic dispose(): void {
 		if (this._contextMenuIsBeingShownCount > 0) {
-			this._contextViewService.hideContextView();
+			this._contextViewSewvice.hideContextView();
 		}
 
 		this._toDispose.dispose();
 	}
 }
 
-class ShowContextMenu extends EditorAction {
+cwass ShowContextMenu extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.showContextMenu',
-			label: nls.localize('action.showContextMenu.label', "Show Editor Context Menu"),
-			alias: 'Show Editor Context Menu',
-			precondition: undefined,
+	constwuctow() {
+		supa({
+			id: 'editow.action.showContextMenu',
+			wabew: nws.wocawize('action.showContextMenu.wabew', "Show Editow Context Menu"),
+			awias: 'Show Editow Context Menu',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.Shift | KeyCode.F10,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.textInputFocus,
+				pwimawy: KeyMod.Shift | KeyCode.F10,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let contribution = ContextMenuController.get(editor);
-		contribution.showContextMenu();
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		wet contwibution = ContextMenuContwowwa.get(editow);
+		contwibution.showContextMenu();
 	}
 }
 
-registerEditorContribution(ContextMenuController.ID, ContextMenuController);
-registerEditorAction(ShowContextMenu);
+wegistewEditowContwibution(ContextMenuContwowwa.ID, ContextMenuContwowwa);
+wegistewEditowAction(ShowContextMenu);

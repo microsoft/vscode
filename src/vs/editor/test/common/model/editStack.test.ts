@@ -1,31 +1,31 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { EndOfLineSequence } from 'vs/editor/common/model';
-import { SingleModelEditStackData } from 'vs/editor/common/model/editStack';
-import { Selection } from 'vs/editor/common/core/selection';
-import { TextChange } from 'vs/editor/common/model/textChange';
+impowt * as assewt fwom 'assewt';
+impowt { EndOfWineSequence } fwom 'vs/editow/common/modew';
+impowt { SingweModewEditStackData } fwom 'vs/editow/common/modew/editStack';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { TextChange } fwom 'vs/editow/common/modew/textChange';
 
 suite('EditStack', () => {
 
-	test('issue #118041: unicode character undo bug', () => {
-		const stackData = new SingleModelEditStackData(
+	test('issue #118041: unicode chawacta undo bug', () => {
+		const stackData = new SingweModewEditStackData(
 			1,
 			2,
-			EndOfLineSequence.LF,
-			EndOfLineSequence.LF,
-			[new Selection(10, 2, 10, 2)],
-			[new Selection(10, 1, 10, 1)],
+			EndOfWineSequence.WF,
+			EndOfWineSequence.WF,
+			[new Sewection(10, 2, 10, 2)],
+			[new Sewection(10, 1, 10, 1)],
 			[new TextChange(428, '﻿', 428, '')]
 		);
 
-		const buff = stackData.serialize();
-		const actual = SingleModelEditStackData.deserialize(buff);
+		const buff = stackData.sewiawize();
+		const actuaw = SingweModewEditStackData.desewiawize(buff);
 
-		assert.deepStrictEqual(actual, stackData);
+		assewt.deepStwictEquaw(actuaw, stackData);
 	});
 
 });

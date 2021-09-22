@@ -1,159 +1,159 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals } from 'vs/base/common/objects';
-import { toValuesTree, IConfigurationModel, IConfigurationOverrides, IConfigurationValue, IConfigurationChange } from 'vs/platform/configuration/common/configuration';
-import { Configuration as BaseConfiguration, ConfigurationModelParser, ConfigurationModel, ConfigurationParseOptions } from 'vs/platform/configuration/common/configurationModels';
-import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
-import { Workspace } from 'vs/platform/workspace/common/workspace';
-import { ResourceMap } from 'vs/base/common/map';
-import { URI } from 'vs/base/common/uri';
-import { OVERRIDE_PROPERTY_PATTERN, overrideIdentifierFromKey } from 'vs/platform/configuration/common/configurationRegistry';
+impowt { equaws } fwom 'vs/base/common/objects';
+impowt { toVawuesTwee, IConfiguwationModew, IConfiguwationOvewwides, IConfiguwationVawue, IConfiguwationChange } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { Configuwation as BaseConfiguwation, ConfiguwationModewPawsa, ConfiguwationModew, ConfiguwationPawseOptions } fwom 'vs/pwatfowm/configuwation/common/configuwationModews';
+impowt { IStowedWowkspaceFowda } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { Wowkspace } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { OVEWWIDE_PWOPEWTY_PATTEWN, ovewwideIdentifiewFwomKey } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
 
-export class WorkspaceConfigurationModelParser extends ConfigurationModelParser {
+expowt cwass WowkspaceConfiguwationModewPawsa extends ConfiguwationModewPawsa {
 
-	private _folders: IStoredWorkspaceFolder[] = [];
-	private _settingsModelParser: ConfigurationModelParser;
-	private _launchModel: ConfigurationModel;
-	private _tasksModel: ConfigurationModel;
+	pwivate _fowdews: IStowedWowkspaceFowda[] = [];
+	pwivate _settingsModewPawsa: ConfiguwationModewPawsa;
+	pwivate _waunchModew: ConfiguwationModew;
+	pwivate _tasksModew: ConfiguwationModew;
 
-	constructor(name: string) {
-		super(name);
-		this._settingsModelParser = new ConfigurationModelParser(name);
-		this._launchModel = new ConfigurationModel();
-		this._tasksModel = new ConfigurationModel();
+	constwuctow(name: stwing) {
+		supa(name);
+		this._settingsModewPawsa = new ConfiguwationModewPawsa(name);
+		this._waunchModew = new ConfiguwationModew();
+		this._tasksModew = new ConfiguwationModew();
 	}
 
-	get folders(): IStoredWorkspaceFolder[] {
-		return this._folders;
+	get fowdews(): IStowedWowkspaceFowda[] {
+		wetuwn this._fowdews;
 	}
 
-	get settingsModel(): ConfigurationModel {
-		return this._settingsModelParser.configurationModel;
+	get settingsModew(): ConfiguwationModew {
+		wetuwn this._settingsModewPawsa.configuwationModew;
 	}
 
-	get launchModel(): ConfigurationModel {
-		return this._launchModel;
+	get waunchModew(): ConfiguwationModew {
+		wetuwn this._waunchModew;
 	}
 
-	get tasksModel(): ConfigurationModel {
-		return this._tasksModel;
+	get tasksModew(): ConfiguwationModew {
+		wetuwn this._tasksModew;
 	}
 
-	reparseWorkspaceSettings(configurationParseOptions: ConfigurationParseOptions): void {
-		this._settingsModelParser.reparse(configurationParseOptions);
+	wepawseWowkspaceSettings(configuwationPawseOptions: ConfiguwationPawseOptions): void {
+		this._settingsModewPawsa.wepawse(configuwationPawseOptions);
 	}
 
-	getRestrictedWorkspaceSettings(): string[] {
-		return this._settingsModelParser.restrictedConfigurations;
+	getWestwictedWowkspaceSettings(): stwing[] {
+		wetuwn this._settingsModewPawsa.westwictedConfiguwations;
 	}
 
-	protected override doParseRaw(raw: any, configurationParseOptions?: ConfigurationParseOptions): IConfigurationModel {
-		this._folders = (raw['folders'] || []) as IStoredWorkspaceFolder[];
-		this._settingsModelParser.parseRaw(raw['settings'], configurationParseOptions);
-		this._launchModel = this.createConfigurationModelFrom(raw, 'launch');
-		this._tasksModel = this.createConfigurationModelFrom(raw, 'tasks');
-		return super.doParseRaw(raw, configurationParseOptions);
+	pwotected ovewwide doPawseWaw(waw: any, configuwationPawseOptions?: ConfiguwationPawseOptions): IConfiguwationModew {
+		this._fowdews = (waw['fowdews'] || []) as IStowedWowkspaceFowda[];
+		this._settingsModewPawsa.pawseWaw(waw['settings'], configuwationPawseOptions);
+		this._waunchModew = this.cweateConfiguwationModewFwom(waw, 'waunch');
+		this._tasksModew = this.cweateConfiguwationModewFwom(waw, 'tasks');
+		wetuwn supa.doPawseWaw(waw, configuwationPawseOptions);
 	}
 
-	private createConfigurationModelFrom(raw: any, key: string): ConfigurationModel {
-		const data = raw[key];
+	pwivate cweateConfiguwationModewFwom(waw: any, key: stwing): ConfiguwationModew {
+		const data = waw[key];
 		if (data) {
-			const contents = toValuesTree(data, message => console.error(`Conflict in settings file ${this._name}: ${message}`));
-			const scopedContents = Object.create(null);
+			const contents = toVawuesTwee(data, message => consowe.ewwow(`Confwict in settings fiwe ${this._name}: ${message}`));
+			const scopedContents = Object.cweate(nuww);
 			scopedContents[key] = contents;
 			const keys = Object.keys(data).map(k => `${key}.${k}`);
-			return new ConfigurationModel(scopedContents, keys, []);
+			wetuwn new ConfiguwationModew(scopedContents, keys, []);
 		}
-		return new ConfigurationModel();
+		wetuwn new ConfiguwationModew();
 	}
 }
 
-export class StandaloneConfigurationModelParser extends ConfigurationModelParser {
+expowt cwass StandawoneConfiguwationModewPawsa extends ConfiguwationModewPawsa {
 
-	constructor(name: string, private readonly scope: string) {
-		super(name);
+	constwuctow(name: stwing, pwivate weadonwy scope: stwing) {
+		supa(name);
 	}
 
-	protected override doParseRaw(raw: any, configurationParseOptions?: ConfigurationParseOptions): IConfigurationModel {
-		const contents = toValuesTree(raw, message => console.error(`Conflict in settings file ${this._name}: ${message}`));
-		const scopedContents = Object.create(null);
+	pwotected ovewwide doPawseWaw(waw: any, configuwationPawseOptions?: ConfiguwationPawseOptions): IConfiguwationModew {
+		const contents = toVawuesTwee(waw, message => consowe.ewwow(`Confwict in settings fiwe ${this._name}: ${message}`));
+		const scopedContents = Object.cweate(nuww);
 		scopedContents[this.scope] = contents;
-		const keys = Object.keys(raw).map(key => `${this.scope}.${key}`);
-		return { contents: scopedContents, keys, overrides: [] };
+		const keys = Object.keys(waw).map(key => `${this.scope}.${key}`);
+		wetuwn { contents: scopedContents, keys, ovewwides: [] };
 	}
 
 }
 
-export class Configuration extends BaseConfiguration {
+expowt cwass Configuwation extends BaseConfiguwation {
 
-	constructor(
-		defaults: ConfigurationModel,
-		localUser: ConfigurationModel,
-		remoteUser: ConfigurationModel,
-		workspaceConfiguration: ConfigurationModel,
-		folders: ResourceMap<ConfigurationModel>,
-		memoryConfiguration: ConfigurationModel,
-		memoryConfigurationByResource: ResourceMap<ConfigurationModel>,
-		private readonly _workspace?: Workspace) {
-		super(defaults, localUser, remoteUser, workspaceConfiguration, folders, memoryConfiguration, memoryConfigurationByResource);
+	constwuctow(
+		defauwts: ConfiguwationModew,
+		wocawUsa: ConfiguwationModew,
+		wemoteUsa: ConfiguwationModew,
+		wowkspaceConfiguwation: ConfiguwationModew,
+		fowdews: WesouwceMap<ConfiguwationModew>,
+		memowyConfiguwation: ConfiguwationModew,
+		memowyConfiguwationByWesouwce: WesouwceMap<ConfiguwationModew>,
+		pwivate weadonwy _wowkspace?: Wowkspace) {
+		supa(defauwts, wocawUsa, wemoteUsa, wowkspaceConfiguwation, fowdews, memowyConfiguwation, memowyConfiguwationByWesouwce);
 	}
 
-	override getValue(key: string | undefined, overrides: IConfigurationOverrides = {}): any {
-		return super.getValue(key, overrides, this._workspace);
+	ovewwide getVawue(key: stwing | undefined, ovewwides: IConfiguwationOvewwides = {}): any {
+		wetuwn supa.getVawue(key, ovewwides, this._wowkspace);
 	}
 
-	override inspect<C>(key: string, overrides: IConfigurationOverrides = {}): IConfigurationValue<C> {
-		return super.inspect(key, overrides, this._workspace);
+	ovewwide inspect<C>(key: stwing, ovewwides: IConfiguwationOvewwides = {}): IConfiguwationVawue<C> {
+		wetuwn supa.inspect(key, ovewwides, this._wowkspace);
 	}
 
-	override keys(): {
-		default: string[];
-		user: string[];
-		workspace: string[];
-		workspaceFolder: string[];
+	ovewwide keys(): {
+		defauwt: stwing[];
+		usa: stwing[];
+		wowkspace: stwing[];
+		wowkspaceFowda: stwing[];
 	} {
-		return super.keys(this._workspace);
+		wetuwn supa.keys(this._wowkspace);
 	}
 
-	override compareAndDeleteFolderConfiguration(folder: URI): IConfigurationChange {
-		if (this._workspace && this._workspace.folders.length > 0 && this._workspace.folders[0].uri.toString() === folder.toString()) {
-			// Do not remove workspace configuration
-			return { keys: [], overrides: [] };
+	ovewwide compaweAndDeweteFowdewConfiguwation(fowda: UWI): IConfiguwationChange {
+		if (this._wowkspace && this._wowkspace.fowdews.wength > 0 && this._wowkspace.fowdews[0].uwi.toStwing() === fowda.toStwing()) {
+			// Do not wemove wowkspace configuwation
+			wetuwn { keys: [], ovewwides: [] };
 		}
-		return super.compareAndDeleteFolderConfiguration(folder);
+		wetuwn supa.compaweAndDeweteFowdewConfiguwation(fowda);
 	}
 
-	compare(other: Configuration): IConfigurationChange {
-		const compare = (fromKeys: string[], toKeys: string[], overrideIdentifier?: string): string[] => {
-			const keys: string[] = [];
-			keys.push(...toKeys.filter(key => fromKeys.indexOf(key) === -1));
-			keys.push(...fromKeys.filter(key => toKeys.indexOf(key) === -1));
-			keys.push(...fromKeys.filter(key => {
-				// Ignore if the key does not exist in both models
+	compawe(otha: Configuwation): IConfiguwationChange {
+		const compawe = (fwomKeys: stwing[], toKeys: stwing[], ovewwideIdentifia?: stwing): stwing[] => {
+			const keys: stwing[] = [];
+			keys.push(...toKeys.fiwta(key => fwomKeys.indexOf(key) === -1));
+			keys.push(...fwomKeys.fiwta(key => toKeys.indexOf(key) === -1));
+			keys.push(...fwomKeys.fiwta(key => {
+				// Ignowe if the key does not exist in both modews
 				if (toKeys.indexOf(key) === -1) {
-					return false;
+					wetuwn fawse;
 				}
-				// Compare workspace value
-				if (!equals(this.getValue(key, { overrideIdentifier }), other.getValue(key, { overrideIdentifier }))) {
-					return true;
+				// Compawe wowkspace vawue
+				if (!equaws(this.getVawue(key, { ovewwideIdentifia }), otha.getVawue(key, { ovewwideIdentifia }))) {
+					wetuwn twue;
 				}
-				// Compare workspace folder value
-				return this._workspace && this._workspace.folders.some(folder => !equals(this.getValue(key, { resource: folder.uri, overrideIdentifier }), other.getValue(key, { resource: folder.uri, overrideIdentifier })));
+				// Compawe wowkspace fowda vawue
+				wetuwn this._wowkspace && this._wowkspace.fowdews.some(fowda => !equaws(this.getVawue(key, { wesouwce: fowda.uwi, ovewwideIdentifia }), otha.getVawue(key, { wesouwce: fowda.uwi, ovewwideIdentifia })));
 			}));
-			return keys;
+			wetuwn keys;
 		};
-		const keys = compare(this.allKeys(), other.allKeys());
-		const overrides: [string, string[]][] = [];
-		for (const key of keys) {
-			if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
-				const overrideIdentifier = overrideIdentifierFromKey(key);
-				overrides.push([overrideIdentifier, compare(this.getAllKeysForOverrideIdentifier(overrideIdentifier), other.getAllKeysForOverrideIdentifier(overrideIdentifier), overrideIdentifier)]);
+		const keys = compawe(this.awwKeys(), otha.awwKeys());
+		const ovewwides: [stwing, stwing[]][] = [];
+		fow (const key of keys) {
+			if (OVEWWIDE_PWOPEWTY_PATTEWN.test(key)) {
+				const ovewwideIdentifia = ovewwideIdentifiewFwomKey(key);
+				ovewwides.push([ovewwideIdentifia, compawe(this.getAwwKeysFowOvewwideIdentifia(ovewwideIdentifia), otha.getAwwKeysFowOvewwideIdentifia(ovewwideIdentifia), ovewwideIdentifia)]);
 			}
 		}
-		return { keys, overrides };
+		wetuwn { keys, ovewwides };
 	}
 
 }

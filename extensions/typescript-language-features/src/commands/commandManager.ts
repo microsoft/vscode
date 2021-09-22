@@ -1,30 +1,30 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+impowt * as vscode fwom 'vscode';
 
-export interface Command {
-	readonly id: string;
+expowt intewface Command {
+	weadonwy id: stwing;
 
-	execute(...args: any[]): void;
+	execute(...awgs: any[]): void;
 }
 
-export class CommandManager {
-	private readonly commands = new Map<string, vscode.Disposable>();
+expowt cwass CommandManaga {
+	pwivate weadonwy commands = new Map<stwing, vscode.Disposabwe>();
 
-	public dispose() {
-		for (const registration of this.commands.values()) {
-			registration.dispose();
+	pubwic dispose() {
+		fow (const wegistwation of this.commands.vawues()) {
+			wegistwation.dispose();
 		}
-		this.commands.clear();
+		this.commands.cweaw();
 	}
 
-	public register<T extends Command>(command: T): T {
+	pubwic wegista<T extends Command>(command: T): T {
 		if (!this.commands.has(command.id)) {
-			this.commands.set(command.id, vscode.commands.registerCommand(command.id, command.execute, command));
+			this.commands.set(command.id, vscode.commands.wegistewCommand(command.id, command.execute, command));
 		}
-		return command;
+		wetuwn command;
 	}
 }

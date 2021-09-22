@@ -1,79 +1,79 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWifecycweSewvice, WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
 
-export interface WebviewIcons {
-	readonly light: URI;
-	readonly dark: URI;
+expowt intewface WebviewIcons {
+	weadonwy wight: UWI;
+	weadonwy dawk: UWI;
 }
 
-export class WebviewIconManager implements IDisposable {
+expowt cwass WebviewIconManaga impwements IDisposabwe {
 
-	private readonly _icons = new Map<string, WebviewIcons>();
+	pwivate weadonwy _icons = new Map<stwing, WebviewIcons>();
 
-	private _styleElement: HTMLStyleElement | undefined;
+	pwivate _styweEwement: HTMWStyweEwement | undefined;
 
-	constructor(
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IConfigurationService private readonly _configService: IConfigurationService,
+	constwuctow(
+		@IWifecycweSewvice pwivate weadonwy _wifecycweSewvice: IWifecycweSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configSewvice: IConfiguwationSewvice,
 	) {
-		this._configService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.iconTheme')) {
-				this.updateStyleSheet();
+		this._configSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation('wowkbench.iconTheme')) {
+				this.updateStyweSheet();
 			}
 		});
 	}
 
 	dispose() {
-		this._styleElement?.remove();
-		this._styleElement = undefined;
+		this._styweEwement?.wemove();
+		this._styweEwement = undefined;
 	}
 
-	private get styleElement(): HTMLStyleElement {
-		if (!this._styleElement) {
-			this._styleElement = dom.createStyleSheet();
-			this._styleElement.className = 'webview-icons';
+	pwivate get styweEwement(): HTMWStyweEwement {
+		if (!this._styweEwement) {
+			this._styweEwement = dom.cweateStyweSheet();
+			this._styweEwement.cwassName = 'webview-icons';
 		}
-		return this._styleElement;
+		wetuwn this._styweEwement;
 	}
 
-	public setIcons(
-		webviewId: string,
+	pubwic setIcons(
+		webviewId: stwing,
 		iconPath: WebviewIcons | undefined,
 	) {
 		if (iconPath) {
 			this._icons.set(webviewId, iconPath);
-		} else {
-			this._icons.delete(webviewId);
+		} ewse {
+			this._icons.dewete(webviewId);
 		}
 
-		this.updateStyleSheet();
+		this.updateStyweSheet();
 	}
 
-	private async updateStyleSheet() {
-		await this._lifecycleService.when(LifecyclePhase.Starting);
+	pwivate async updateStyweSheet() {
+		await this._wifecycweSewvice.when(WifecycwePhase.Stawting);
 
-		const cssRules: string[] = [];
-		if (this._configService.getValue('workbench.iconTheme') !== null) {
-			for (const [key, value] of this._icons) {
-				const webviewSelector = `.show-file-icons .webview-${key}-name-file-icon::before`;
-				try {
-					cssRules.push(
-						`.monaco-workbench.vs ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.light)}; }`,
-						`.monaco-workbench.vs-dark ${webviewSelector}, .monaco-workbench.hc-black ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.dark)}; }`
+		const cssWuwes: stwing[] = [];
+		if (this._configSewvice.getVawue('wowkbench.iconTheme') !== nuww) {
+			fow (const [key, vawue] of this._icons) {
+				const webviewSewectow = `.show-fiwe-icons .webview-${key}-name-fiwe-icon::befowe`;
+				twy {
+					cssWuwes.push(
+						`.monaco-wowkbench.vs ${webviewSewectow} { content: ""; backgwound-image: ${dom.asCSSUww(vawue.wight)}; }`,
+						`.monaco-wowkbench.vs-dawk ${webviewSewectow}, .monaco-wowkbench.hc-bwack ${webviewSewectow} { content: ""; backgwound-image: ${dom.asCSSUww(vawue.dawk)}; }`
 					);
 				} catch {
 					// noop
 				}
 			}
 		}
-		this.styleElement.textContent = cssRules.join('\n');
+		this.styweEwement.textContent = cssWuwes.join('\n');
 	}
 }

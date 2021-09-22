@@ -1,111 +1,111 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { BreadcrumbsWidget } from 'vs/base/browser/ui/breadcrumbs/breadcrumbsWidget';
-import { Emitter, Event } from 'vs/base/common/event';
-import * as glob from 'vs/base/common/glob';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { IConfigurationOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Extensions, IConfigurationRegistry, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { GroupIdentifier, IEditorPartOptions } from 'vs/workbench/common/editor';
+impowt { BweadcwumbsWidget } fwom 'vs/base/bwowsa/ui/bweadcwumbs/bweadcwumbsWidget';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt * as gwob fwom 'vs/base/common/gwob';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IConfiguwationOvewwides, IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { Extensions, IConfiguwationWegistwy, ConfiguwationScope } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { GwoupIdentifia, IEditowPawtOptions } fwom 'vs/wowkbench/common/editow';
 
-export const IBreadcrumbsService = createDecorator<IBreadcrumbsService>('IEditorBreadcrumbsService');
+expowt const IBweadcwumbsSewvice = cweateDecowatow<IBweadcwumbsSewvice>('IEditowBweadcwumbsSewvice');
 
-export interface IBreadcrumbsService {
+expowt intewface IBweadcwumbsSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	register(group: GroupIdentifier, widget: BreadcrumbsWidget): IDisposable;
+	wegista(gwoup: GwoupIdentifia, widget: BweadcwumbsWidget): IDisposabwe;
 
-	getWidget(group: GroupIdentifier): BreadcrumbsWidget | undefined;
+	getWidget(gwoup: GwoupIdentifia): BweadcwumbsWidget | undefined;
 }
 
 
-export class BreadcrumbsService implements IBreadcrumbsService {
+expowt cwass BweadcwumbsSewvice impwements IBweadcwumbsSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _map = new Map<number, BreadcrumbsWidget>();
+	pwivate weadonwy _map = new Map<numba, BweadcwumbsWidget>();
 
-	register(group: number, widget: BreadcrumbsWidget): IDisposable {
-		if (this._map.has(group)) {
-			throw new Error(`group (${group}) has already a widget`);
+	wegista(gwoup: numba, widget: BweadcwumbsWidget): IDisposabwe {
+		if (this._map.has(gwoup)) {
+			thwow new Ewwow(`gwoup (${gwoup}) has awweady a widget`);
 		}
-		this._map.set(group, widget);
-		return {
-			dispose: () => this._map.delete(group)
+		this._map.set(gwoup, widget);
+		wetuwn {
+			dispose: () => this._map.dewete(gwoup)
 		};
 	}
 
-	getWidget(group: number): BreadcrumbsWidget | undefined {
-		return this._map.get(group);
+	getWidget(gwoup: numba): BweadcwumbsWidget | undefined {
+		wetuwn this._map.get(gwoup);
 	}
 }
 
-registerSingleton(IBreadcrumbsService, BreadcrumbsService, true);
+wegistewSingweton(IBweadcwumbsSewvice, BweadcwumbsSewvice, twue);
 
 
-//#region config
+//#wegion config
 
-export abstract class BreadcrumbsConfig<T> {
+expowt abstwact cwass BweadcwumbsConfig<T> {
 
-	abstract get name(): string;
-	abstract get onDidChange(): Event<void>;
+	abstwact get name(): stwing;
+	abstwact get onDidChange(): Event<void>;
 
-	abstract getValue(overrides?: IConfigurationOverrides): T;
-	abstract updateValue(value: T, overrides?: IConfigurationOverrides): Promise<void>;
-	abstract dispose(): void;
+	abstwact getVawue(ovewwides?: IConfiguwationOvewwides): T;
+	abstwact updateVawue(vawue: T, ovewwides?: IConfiguwationOvewwides): Pwomise<void>;
+	abstwact dispose(): void;
 
-	private constructor() {
-		// internal
+	pwivate constwuctow() {
+		// intewnaw
 	}
 
-	static readonly IsEnabled = BreadcrumbsConfig._stub<boolean>('breadcrumbs.enabled');
-	static readonly UseQuickPick = BreadcrumbsConfig._stub<boolean>('breadcrumbs.useQuickPick');
-	static readonly FilePath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.filePath');
-	static readonly SymbolPath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.symbolPath');
-	static readonly SymbolSortOrder = BreadcrumbsConfig._stub<'position' | 'name' | 'type'>('breadcrumbs.symbolSortOrder');
-	static readonly Icons = BreadcrumbsConfig._stub<boolean>('breadcrumbs.icons');
-	static readonly TitleScrollbarSizing = BreadcrumbsConfig._stub<IEditorPartOptions['titleScrollbarSizing']>('workbench.editor.titleScrollbarSizing');
+	static weadonwy IsEnabwed = BweadcwumbsConfig._stub<boowean>('bweadcwumbs.enabwed');
+	static weadonwy UseQuickPick = BweadcwumbsConfig._stub<boowean>('bweadcwumbs.useQuickPick');
+	static weadonwy FiwePath = BweadcwumbsConfig._stub<'on' | 'off' | 'wast'>('bweadcwumbs.fiwePath');
+	static weadonwy SymbowPath = BweadcwumbsConfig._stub<'on' | 'off' | 'wast'>('bweadcwumbs.symbowPath');
+	static weadonwy SymbowSowtOwda = BweadcwumbsConfig._stub<'position' | 'name' | 'type'>('bweadcwumbs.symbowSowtOwda');
+	static weadonwy Icons = BweadcwumbsConfig._stub<boowean>('bweadcwumbs.icons');
+	static weadonwy TitweScwowwbawSizing = BweadcwumbsConfig._stub<IEditowPawtOptions['titweScwowwbawSizing']>('wowkbench.editow.titweScwowwbawSizing');
 
-	static readonly FileExcludes = BreadcrumbsConfig._stub<glob.IExpression>('files.exclude');
+	static weadonwy FiweExcwudes = BweadcwumbsConfig._stub<gwob.IExpwession>('fiwes.excwude');
 
-	private static _stub<T>(name: string): { bindTo(service: IConfigurationService): BreadcrumbsConfig<T> } {
-		return {
-			bindTo(service) {
-				let onDidChange = new Emitter<void>();
+	pwivate static _stub<T>(name: stwing): { bindTo(sewvice: IConfiguwationSewvice): BweadcwumbsConfig<T> } {
+		wetuwn {
+			bindTo(sewvice) {
+				wet onDidChange = new Emitta<void>();
 
-				let listener = service.onDidChangeConfiguration(e => {
-					if (e.affectsConfiguration(name)) {
-						onDidChange.fire(undefined);
+				wet wistena = sewvice.onDidChangeConfiguwation(e => {
+					if (e.affectsConfiguwation(name)) {
+						onDidChange.fiwe(undefined);
 					}
 				});
 
-				return new class implements BreadcrumbsConfig<T>{
-					readonly name = name;
-					readonly onDidChange = onDidChange.event;
-					getValue(overrides?: IConfigurationOverrides): T {
-						if (overrides) {
-							return service.getValue(name, overrides);
-						} else {
-							return service.getValue(name);
+				wetuwn new cwass impwements BweadcwumbsConfig<T>{
+					weadonwy name = name;
+					weadonwy onDidChange = onDidChange.event;
+					getVawue(ovewwides?: IConfiguwationOvewwides): T {
+						if (ovewwides) {
+							wetuwn sewvice.getVawue(name, ovewwides);
+						} ewse {
+							wetuwn sewvice.getVawue(name);
 						}
 					}
-					updateValue(newValue: T, overrides?: IConfigurationOverrides): Promise<void> {
-						if (overrides) {
-							return service.updateValue(name, newValue, overrides);
-						} else {
-							return service.updateValue(name, newValue);
+					updateVawue(newVawue: T, ovewwides?: IConfiguwationOvewwides): Pwomise<void> {
+						if (ovewwides) {
+							wetuwn sewvice.updateVawue(name, newVawue, ovewwides);
+						} ewse {
+							wetuwn sewvice.updateVawue(name, newVawue);
 						}
 					}
 					dispose(): void {
-						listener.dispose();
+						wistena.dispose();
 						onDidChange.dispose();
 					}
 				};
@@ -114,213 +114,213 @@ export abstract class BreadcrumbsConfig<T> {
 	}
 }
 
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	id: 'breadcrumbs',
-	title: localize('title', "Breadcrumb Navigation"),
-	order: 101,
+Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation).wegistewConfiguwation({
+	id: 'bweadcwumbs',
+	titwe: wocawize('titwe', "Bweadcwumb Navigation"),
+	owda: 101,
 	type: 'object',
-	properties: {
-		'breadcrumbs.enabled': {
-			description: localize('enabled', "Enable/disable navigation breadcrumbs."),
-			type: 'boolean',
-			default: true
+	pwopewties: {
+		'bweadcwumbs.enabwed': {
+			descwiption: wocawize('enabwed', "Enabwe/disabwe navigation bweadcwumbs."),
+			type: 'boowean',
+			defauwt: twue
 		},
-		'breadcrumbs.filePath': {
-			description: localize('filepath', "Controls whether and how file paths are shown in the breadcrumbs view."),
-			type: 'string',
-			default: 'on',
-			enum: ['on', 'off', 'last'],
-			enumDescriptions: [
-				localize('filepath.on', "Show the file path in the breadcrumbs view."),
-				localize('filepath.off', "Do not show the file path in the breadcrumbs view."),
-				localize('filepath.last', "Only show the last element of the file path in the breadcrumbs view."),
+		'bweadcwumbs.fiwePath': {
+			descwiption: wocawize('fiwepath', "Contwows whetha and how fiwe paths awe shown in the bweadcwumbs view."),
+			type: 'stwing',
+			defauwt: 'on',
+			enum: ['on', 'off', 'wast'],
+			enumDescwiptions: [
+				wocawize('fiwepath.on', "Show the fiwe path in the bweadcwumbs view."),
+				wocawize('fiwepath.off', "Do not show the fiwe path in the bweadcwumbs view."),
+				wocawize('fiwepath.wast', "Onwy show the wast ewement of the fiwe path in the bweadcwumbs view."),
 			]
 		},
-		'breadcrumbs.symbolPath': {
-			description: localize('symbolpath', "Controls whether and how symbols are shown in the breadcrumbs view."),
-			type: 'string',
-			default: 'on',
-			enum: ['on', 'off', 'last'],
-			enumDescriptions: [
-				localize('symbolpath.on', "Show all symbols in the breadcrumbs view."),
-				localize('symbolpath.off', "Do not show symbols in the breadcrumbs view."),
-				localize('symbolpath.last', "Only show the current symbol in the breadcrumbs view."),
+		'bweadcwumbs.symbowPath': {
+			descwiption: wocawize('symbowpath', "Contwows whetha and how symbows awe shown in the bweadcwumbs view."),
+			type: 'stwing',
+			defauwt: 'on',
+			enum: ['on', 'off', 'wast'],
+			enumDescwiptions: [
+				wocawize('symbowpath.on', "Show aww symbows in the bweadcwumbs view."),
+				wocawize('symbowpath.off', "Do not show symbows in the bweadcwumbs view."),
+				wocawize('symbowpath.wast', "Onwy show the cuwwent symbow in the bweadcwumbs view."),
 			]
 		},
-		'breadcrumbs.symbolSortOrder': {
-			description: localize('symbolSortOrder', "Controls how symbols are sorted in the breadcrumbs outline view."),
-			type: 'string',
-			default: 'position',
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
+		'bweadcwumbs.symbowSowtOwda': {
+			descwiption: wocawize('symbowSowtOwda', "Contwows how symbows awe sowted in the bweadcwumbs outwine view."),
+			type: 'stwing',
+			defauwt: 'position',
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
 			enum: ['position', 'name', 'type'],
-			enumDescriptions: [
-				localize('symbolSortOrder.position', "Show symbol outline in file position order."),
-				localize('symbolSortOrder.name', "Show symbol outline in alphabetical order."),
-				localize('symbolSortOrder.type', "Show symbol outline in symbol type order."),
+			enumDescwiptions: [
+				wocawize('symbowSowtOwda.position', "Show symbow outwine in fiwe position owda."),
+				wocawize('symbowSowtOwda.name', "Show symbow outwine in awphabeticaw owda."),
+				wocawize('symbowSowtOwda.type', "Show symbow outwine in symbow type owda."),
 			]
 		},
-		'breadcrumbs.icons': {
-			description: localize('icons', "Render breadcrumb items with icons."),
-			type: 'boolean',
-			default: true
+		'bweadcwumbs.icons': {
+			descwiption: wocawize('icons', "Wenda bweadcwumb items with icons."),
+			type: 'boowean',
+			defauwt: twue
 		},
-		'breadcrumbs.showFiles': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.file', "When enabled breadcrumbs show `file`-symbols.")
+		'bweadcwumbs.showFiwes': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.fiwe', "When enabwed bweadcwumbs show `fiwe`-symbows.")
 		},
-		'breadcrumbs.showModules': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.module', "When enabled breadcrumbs show `module`-symbols.")
+		'bweadcwumbs.showModuwes': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.moduwe', "When enabwed bweadcwumbs show `moduwe`-symbows.")
 		},
-		'breadcrumbs.showNamespaces': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.namespace', "When enabled breadcrumbs show `namespace`-symbols.")
+		'bweadcwumbs.showNamespaces': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.namespace', "When enabwed bweadcwumbs show `namespace`-symbows.")
 		},
-		'breadcrumbs.showPackages': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.package', "When enabled breadcrumbs show `package`-symbols.")
+		'bweadcwumbs.showPackages': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.package', "When enabwed bweadcwumbs show `package`-symbows.")
 		},
-		'breadcrumbs.showClasses': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.class', "When enabled breadcrumbs show `class`-symbols.")
+		'bweadcwumbs.showCwasses': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.cwass', "When enabwed bweadcwumbs show `cwass`-symbows.")
 		},
-		'breadcrumbs.showMethods': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.method', "When enabled breadcrumbs show `method`-symbols.")
+		'bweadcwumbs.showMethods': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.method', "When enabwed bweadcwumbs show `method`-symbows.")
 		},
-		'breadcrumbs.showProperties': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.property', "When enabled breadcrumbs show `property`-symbols.")
+		'bweadcwumbs.showPwopewties': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.pwopewty', "When enabwed bweadcwumbs show `pwopewty`-symbows.")
 		},
-		'breadcrumbs.showFields': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.field', "When enabled breadcrumbs show `field`-symbols.")
+		'bweadcwumbs.showFiewds': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.fiewd', "When enabwed bweadcwumbs show `fiewd`-symbows.")
 		},
-		'breadcrumbs.showConstructors': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.constructor', "When enabled breadcrumbs show `constructor`-symbols.")
+		'bweadcwumbs.showConstwuctows': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.constwuctow', "When enabwed bweadcwumbs show `constwuctow`-symbows.")
 		},
-		'breadcrumbs.showEnums': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.enum', "When enabled breadcrumbs show `enum`-symbols.")
+		'bweadcwumbs.showEnums': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.enum', "When enabwed bweadcwumbs show `enum`-symbows.")
 		},
-		'breadcrumbs.showInterfaces': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.interface', "When enabled breadcrumbs show `interface`-symbols.")
+		'bweadcwumbs.showIntewfaces': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.intewface', "When enabwed bweadcwumbs show `intewface`-symbows.")
 		},
-		'breadcrumbs.showFunctions': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.function', "When enabled breadcrumbs show `function`-symbols.")
+		'bweadcwumbs.showFunctions': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.function', "When enabwed bweadcwumbs show `function`-symbows.")
 		},
-		'breadcrumbs.showVariables': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.variable', "When enabled breadcrumbs show `variable`-symbols.")
+		'bweadcwumbs.showVawiabwes': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.vawiabwe', "When enabwed bweadcwumbs show `vawiabwe`-symbows.")
 		},
-		'breadcrumbs.showConstants': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.constant', "When enabled breadcrumbs show `constant`-symbols.")
+		'bweadcwumbs.showConstants': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.constant', "When enabwed bweadcwumbs show `constant`-symbows.")
 		},
-		'breadcrumbs.showStrings': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.string', "When enabled breadcrumbs show `string`-symbols.")
+		'bweadcwumbs.showStwings': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.stwing', "When enabwed bweadcwumbs show `stwing`-symbows.")
 		},
-		'breadcrumbs.showNumbers': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.number', "When enabled breadcrumbs show `number`-symbols.")
+		'bweadcwumbs.showNumbews': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.numba', "When enabwed bweadcwumbs show `numba`-symbows.")
 		},
-		'breadcrumbs.showBooleans': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.boolean', "When enabled breadcrumbs show `boolean`-symbols.")
+		'bweadcwumbs.showBooweans': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.boowean', "When enabwed bweadcwumbs show `boowean`-symbows.")
 		},
-		'breadcrumbs.showArrays': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.array', "When enabled breadcrumbs show `array`-symbols.")
+		'bweadcwumbs.showAwways': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.awway', "When enabwed bweadcwumbs show `awway`-symbows.")
 		},
-		'breadcrumbs.showObjects': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.object', "When enabled breadcrumbs show `object`-symbols.")
+		'bweadcwumbs.showObjects': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.object', "When enabwed bweadcwumbs show `object`-symbows.")
 		},
-		'breadcrumbs.showKeys': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.key', "When enabled breadcrumbs show `key`-symbols.")
+		'bweadcwumbs.showKeys': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.key', "When enabwed bweadcwumbs show `key`-symbows.")
 		},
-		'breadcrumbs.showNull': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.null', "When enabled breadcrumbs show `null`-symbols.")
+		'bweadcwumbs.showNuww': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.nuww', "When enabwed bweadcwumbs show `nuww`-symbows.")
 		},
-		'breadcrumbs.showEnumMembers': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.enumMember', "When enabled breadcrumbs show `enumMember`-symbols.")
+		'bweadcwumbs.showEnumMembews': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.enumMemba', "When enabwed bweadcwumbs show `enumMemba`-symbows.")
 		},
-		'breadcrumbs.showStructs': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.struct', "When enabled breadcrumbs show `struct`-symbols.")
+		'bweadcwumbs.showStwucts': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.stwuct', "When enabwed bweadcwumbs show `stwuct`-symbows.")
 		},
-		'breadcrumbs.showEvents': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.event', "When enabled breadcrumbs show `event`-symbols.")
+		'bweadcwumbs.showEvents': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.event', "When enabwed bweadcwumbs show `event`-symbows.")
 		},
-		'breadcrumbs.showOperators': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.operator', "When enabled breadcrumbs show `operator`-symbols.")
+		'bweadcwumbs.showOpewatows': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.opewatow', "When enabwed bweadcwumbs show `opewatow`-symbows.")
 		},
-		'breadcrumbs.showTypeParameters': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.typeParameter', "When enabled breadcrumbs show `typeParameter`-symbols.")
+		'bweadcwumbs.showTypePawametews': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.typePawameta', "When enabwed bweadcwumbs show `typePawameta`-symbows.")
 		}
 	}
 });
 
-//#endregion
+//#endwegion

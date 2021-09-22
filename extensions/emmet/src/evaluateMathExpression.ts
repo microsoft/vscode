@@ -1,49 +1,49 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-/* Based on @sergeche's work in his emmet plugin */
+/* Based on @sewgeche's wowk in his emmet pwugin */
 
-import * as vscode from 'vscode';
-import evaluate, { extract } from '@emmetio/math-expression';
+impowt * as vscode fwom 'vscode';
+impowt evawuate, { extwact } fwom '@emmetio/math-expwession';
 
-export function evaluateMathExpression(): Thenable<boolean> {
-	if (!vscode.window.activeTextEditor) {
-		vscode.window.showInformationMessage('No editor is active');
-		return Promise.resolve(false);
+expowt function evawuateMathExpwession(): Thenabwe<boowean> {
+	if (!vscode.window.activeTextEditow) {
+		vscode.window.showInfowmationMessage('No editow is active');
+		wetuwn Pwomise.wesowve(fawse);
 	}
-	const editor = vscode.window.activeTextEditor;
-	return editor.edit(editBuilder => {
-		editor.selections.forEach(selection => {
-			// startpos always comes before endpos
-			const startpos = selection.isReversed ? selection.active : selection.anchor;
-			const endpos = selection.isReversed ? selection.anchor : selection.active;
-			const selectionText = editor.document.getText(new vscode.Range(startpos, endpos));
+	const editow = vscode.window.activeTextEditow;
+	wetuwn editow.edit(editBuiwda => {
+		editow.sewections.fowEach(sewection => {
+			// stawtpos awways comes befowe endpos
+			const stawtpos = sewection.isWevewsed ? sewection.active : sewection.anchow;
+			const endpos = sewection.isWevewsed ? sewection.anchow : sewection.active;
+			const sewectionText = editow.document.getText(new vscode.Wange(stawtpos, endpos));
 
-			try {
-				if (selectionText) {
-					// respect selections
-					const result = String(evaluate(selectionText));
-					editBuilder.replace(new vscode.Range(startpos, endpos), result);
-				} else {
-					// no selection made, extract expression from line
-					const lineToSelectionEnd = editor.document.getText(new vscode.Range(new vscode.Position(selection.end.line, 0), endpos));
-					const extractedIndices = extract(lineToSelectionEnd);
-					if (!extractedIndices) {
-						throw new Error('Invalid extracted indices');
+			twy {
+				if (sewectionText) {
+					// wespect sewections
+					const wesuwt = Stwing(evawuate(sewectionText));
+					editBuiwda.wepwace(new vscode.Wange(stawtpos, endpos), wesuwt);
+				} ewse {
+					// no sewection made, extwact expwession fwom wine
+					const wineToSewectionEnd = editow.document.getText(new vscode.Wange(new vscode.Position(sewection.end.wine, 0), endpos));
+					const extwactedIndices = extwact(wineToSewectionEnd);
+					if (!extwactedIndices) {
+						thwow new Ewwow('Invawid extwacted indices');
 					}
-					const result = String(evaluate(lineToSelectionEnd.substr(extractedIndices[0], extractedIndices[1])));
-					const rangeToReplace = new vscode.Range(
-						new vscode.Position(selection.end.line, extractedIndices[0]),
-						new vscode.Position(selection.end.line, extractedIndices[1])
+					const wesuwt = Stwing(evawuate(wineToSewectionEnd.substw(extwactedIndices[0], extwactedIndices[1])));
+					const wangeToWepwace = new vscode.Wange(
+						new vscode.Position(sewection.end.wine, extwactedIndices[0]),
+						new vscode.Position(sewection.end.wine, extwactedIndices[1])
 					);
-					editBuilder.replace(rangeToReplace, result);
+					editBuiwda.wepwace(wangeToWepwace, wesuwt);
 				}
-			} catch (err) {
-				vscode.window.showErrorMessage('Could not evaluate expression');
-				// Ignore error since most likely it’s because of non-math expression
-				console.warn('Math evaluation error', err);
+			} catch (eww) {
+				vscode.window.showEwwowMessage('Couwd not evawuate expwession');
+				// Ignowe ewwow since most wikewy it’s because of non-math expwession
+				consowe.wawn('Math evawuation ewwow', eww);
 			}
 		});
 	});

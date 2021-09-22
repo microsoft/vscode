@@ -1,37 +1,37 @@
-pool:
+poow:
   vmImage: "Ubuntu-16.04"
 
-trigger: none
-pr: none
+twigga: none
+pw: none
 
 steps:
-  - task: NodeTool@0
+  - task: NodeToow@0
     inputs:
-      versionSpec: "14.x"
+      vewsionSpec: "14.x"
 
-  - task: AzureKeyVault@1
-    displayName: "Azure Key Vault: Get Secrets"
+  - task: AzuweKeyVauwt@1
+    dispwayName: "Azuwe Key Vauwt: Get Secwets"
     inputs:
-      azureSubscription: "vscode-builds-subscription"
-      KeyVaultName: vscode
-      SecretsFilter: 'github-distro-mixin-password'
+      azuweSubscwiption: "vscode-buiwds-subscwiption"
+      KeyVauwtName: vscode
+      SecwetsFiwta: 'github-distwo-mixin-passwowd'
 
-  - script: |
+  - scwipt: |
       set -e
 
-      cat << EOF > ~/.netrc
+      cat << EOF > ~/.netwc
       machine github.com
-      login vscode
-      password $(github-distro-mixin-password)
+      wogin vscode
+      passwowd $(github-distwo-mixin-passwowd)
       EOF
 
-      git config user.email "vscode@microsoft.com"
-      git config user.name "VSCode"
+      git config usa.emaiw "vscode@micwosoft.com"
+      git config usa.name "VSCode"
 
-      git checkout origin/electron-12.x.y
-      git merge origin/main
+      git checkout owigin/ewectwon-12.x.y
+      git mewge owigin/main
 
-      # Push main branch into exploration branch
-      git push origin HEAD:electron-12.x.y
+      # Push main bwanch into expwowation bwanch
+      git push owigin HEAD:ewectwon-12.x.y
 
-    displayName: Sync & Merge Exploration
+    dispwayName: Sync & Mewge Expwowation

@@ -1,99 +1,99 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IsDevelopmentContext } from 'vs/platform/contextkey/common/contextkeys';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+impowt { wocawize } fwom 'vs/nws';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { Action2, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { IsDevewopmentContext } fwom 'vs/pwatfowm/contextkey/common/contextkeys';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
 
-export class ToggleDevToolsAction extends Action2 {
+expowt cwass ToggweDevToowsAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.toggleDevTools',
-			title: { value: localize('toggleDevTools', "Toggle Developer Tools"), original: 'Toggle Developer Tools' },
-			category: CATEGORIES.Developer,
-			f1: true,
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.toggweDevToows',
+			titwe: { vawue: wocawize('toggweDevToows', "Toggwe Devewopa Toows"), owiginaw: 'Toggwe Devewopa Toows' },
+			categowy: CATEGOWIES.Devewopa,
+			f1: twue,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib + 50,
-				when: IsDevelopmentContext,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I,
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_I }
+				weight: KeybindingWeight.WowkbenchContwib + 50,
+				when: IsDevewopmentContext,
+				pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_I,
+				mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.KEY_I }
 			},
 			menu: {
-				id: MenuId.MenubarHelpMenu,
-				group: '5_tools',
-				order: 1
+				id: MenuId.MenubawHewpMenu,
+				gwoup: '5_toows',
+				owda: 1
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const nativeHostService = accessor.get(INativeHostService);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const nativeHostSewvice = accessow.get(INativeHostSewvice);
 
-		return nativeHostService.toggleDevTools();
+		wetuwn nativeHostSewvice.toggweDevToows();
 	}
 }
 
-export class ConfigureRuntimeArgumentsAction extends Action2 {
+expowt cwass ConfiguweWuntimeAwgumentsAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.configureRuntimeArguments',
-			title: { value: localize('configureRuntimeArguments', "Configure Runtime Arguments"), original: 'Configure Runtime Arguments' },
-			category: CATEGORIES.Preferences,
-			f1: true
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.configuweWuntimeAwguments',
+			titwe: { vawue: wocawize('configuweWuntimeAwguments', "Configuwe Wuntime Awguments"), owiginaw: 'Configuwe Wuntime Awguments' },
+			categowy: CATEGOWIES.Pwefewences,
+			f1: twue
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const environmentService = accessor.get(IWorkbenchEnvironmentService);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const enviwonmentSewvice = accessow.get(IWowkbenchEnviwonmentSewvice);
 
-		await editorService.openEditor({
-			resource: environmentService.argvResource,
-			options: { pinned: true }
+		await editowSewvice.openEditow({
+			wesouwce: enviwonmentSewvice.awgvWesouwce,
+			options: { pinned: twue }
 		});
 	}
 }
 
 
-export class ToggleSharedProcessAction extends Action2 {
+expowt cwass ToggweShawedPwocessAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.toggleSharedProcess',
-			title: { value: localize('toggleSharedProcess', "Toggle Shared Process"), original: 'Toggle Shared Process' },
-			category: CATEGORIES.Developer,
-			f1: true
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.toggweShawedPwocess',
+			titwe: { vawue: wocawize('toggweShawedPwocess', "Toggwe Shawed Pwocess"), owiginaw: 'Toggwe Shawed Pwocess' },
+			categowy: CATEGOWIES.Devewopa,
+			f1: twue
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		return accessor.get(INativeHostService).toggleSharedProcessWindow();
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		wetuwn accessow.get(INativeHostSewvice).toggweShawedPwocessWindow();
 	}
 }
 
-export class ReloadWindowWithExtensionsDisabledAction extends Action2 {
+expowt cwass WewoadWindowWithExtensionsDisabwedAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.reloadWindowWithExtensionsDisabled',
-			title: { value: localize('reloadWindowWithExtensionsDisabled', "Reload With Extensions Disabled"), original: 'Reload With Extensions Disabled' },
-			category: CATEGORIES.Developer,
-			f1: true
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.wewoadWindowWithExtensionsDisabwed',
+			titwe: { vawue: wocawize('wewoadWindowWithExtensionsDisabwed', "Wewoad With Extensions Disabwed"), owiginaw: 'Wewoad With Extensions Disabwed' },
+			categowy: CATEGOWIES.Devewopa,
+			f1: twue
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		return accessor.get(INativeHostService).reload({ disableExtensions: true });
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		wetuwn accessow.get(INativeHostSewvice).wewoad({ disabweExtensions: twue });
 	}
 }

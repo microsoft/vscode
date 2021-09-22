@@ -1,254 +1,254 @@
 {
-  "enableProposedApi": true,
-  "name": "html-language-features",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "enabwePwoposedApi": twue,
+  "name": "htmw-wanguage-featuwes",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "engines": {
     "vscode": "0.10.x"
   },
-  "icon": "icons/html.png",
+  "icon": "icons/htmw.png",
   "activationEvents": [
-    "onLanguage:html",
-    "onLanguage:handlebars"
+    "onWanguage:htmw",
+    "onWanguage:handwebaws"
   ],
-  "main": "./client/out/node/htmlClientMain",
-  "browser": "./client/dist/browser/htmlClientMain",
-  "capabilities": {
-    "virtualWorkspaces": true,
-    "untrustedWorkspaces": {
-      "supported": true
+  "main": "./cwient/out/node/htmwCwientMain",
+  "bwowsa": "./cwient/dist/bwowsa/htmwCwientMain",
+  "capabiwities": {
+    "viwtuawWowkspaces": twue,
+    "untwustedWowkspaces": {
+      "suppowted": twue
     }
   },
-  "scripts": {
-    "compile": "npx gulp compile-extension:html-language-features-client compile-extension:html-language-features-server",
-    "watch": "npx gulp watch-extension:html-language-features-client watch-extension:html-language-features-server",
-    "install-client-next": "yarn add vscode-languageclient@next"
+  "scwipts": {
+    "compiwe": "npx guwp compiwe-extension:htmw-wanguage-featuwes-cwient compiwe-extension:htmw-wanguage-featuwes-sewva",
+    "watch": "npx guwp watch-extension:htmw-wanguage-featuwes-cwient watch-extension:htmw-wanguage-featuwes-sewva",
+    "instaww-cwient-next": "yawn add vscode-wanguagecwient@next"
   },
-  "categories": [
-    "Programming Languages"
+  "categowies": [
+    "Pwogwamming Wanguages"
   ],
-  "contributes": {
-    "configuration": {
-      "id": "html",
-      "order": 20,
+  "contwibutes": {
+    "configuwation": {
+      "id": "htmw",
+      "owda": 20,
       "type": "object",
-      "title": "HTML",
-      "properties": {
-        "html.customData": {
-          "type": "array",
-          "markdownDescription": "%html.customData.desc%",
-          "default": [],
+      "titwe": "HTMW",
+      "pwopewties": {
+        "htmw.customData": {
+          "type": "awway",
+          "mawkdownDescwiption": "%htmw.customData.desc%",
+          "defauwt": [],
           "items": {
-            "type": "string"
+            "type": "stwing"
           },
-          "scope": "resource"
+          "scope": "wesouwce"
         },
-        "html.format.enable": {
-          "type": "boolean",
+        "htmw.fowmat.enabwe": {
+          "type": "boowean",
           "scope": "window",
-          "default": true,
-          "description": "%html.format.enable.desc%"
+          "defauwt": twue,
+          "descwiption": "%htmw.fowmat.enabwe.desc%"
         },
-        "html.format.wrapLineLength": {
-          "type": "integer",
-          "scope": "resource",
-          "default": 120,
-          "description": "%html.format.wrapLineLength.desc%"
+        "htmw.fowmat.wwapWineWength": {
+          "type": "intega",
+          "scope": "wesouwce",
+          "defauwt": 120,
+          "descwiption": "%htmw.fowmat.wwapWineWength.desc%"
         },
-        "html.format.unformatted": {
+        "htmw.fowmat.unfowmatted": {
           "type": [
-            "string",
-            "null"
+            "stwing",
+            "nuww"
           ],
-          "scope": "resource",
-          "default": "wbr",
-          "markdownDescription": "%html.format.unformatted.desc%"
+          "scope": "wesouwce",
+          "defauwt": "wbw",
+          "mawkdownDescwiption": "%htmw.fowmat.unfowmatted.desc%"
         },
-        "html.format.contentUnformatted": {
+        "htmw.fowmat.contentUnfowmatted": {
           "type": [
-            "string",
-            "null"
+            "stwing",
+            "nuww"
           ],
-          "scope": "resource",
-          "default": "pre,code,textarea",
-          "markdownDescription": "%html.format.contentUnformatted.desc%"
+          "scope": "wesouwce",
+          "defauwt": "pwe,code,textawea",
+          "mawkdownDescwiption": "%htmw.fowmat.contentUnfowmatted.desc%"
         },
-        "html.format.indentInnerHtml": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": false,
-          "markdownDescription": "%html.format.indentInnerHtml.desc%"
+        "htmw.fowmat.indentInnewHtmw": {
+          "type": "boowean",
+          "scope": "wesouwce",
+          "defauwt": fawse,
+          "mawkdownDescwiption": "%htmw.fowmat.indentInnewHtmw.desc%"
         },
-        "html.format.preserveNewLines": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": true,
-          "description": "%html.format.preserveNewLines.desc%"
+        "htmw.fowmat.pwesewveNewWines": {
+          "type": "boowean",
+          "scope": "wesouwce",
+          "defauwt": twue,
+          "descwiption": "%htmw.fowmat.pwesewveNewWines.desc%"
         },
-        "html.format.maxPreserveNewLines": {
+        "htmw.fowmat.maxPwesewveNewWines": {
           "type": [
-            "number",
-            "null"
+            "numba",
+            "nuww"
           ],
-          "scope": "resource",
-          "default": null,
-          "markdownDescription": "%html.format.maxPreserveNewLines.desc%"
+          "scope": "wesouwce",
+          "defauwt": nuww,
+          "mawkdownDescwiption": "%htmw.fowmat.maxPwesewveNewWines.desc%"
         },
-        "html.format.indentHandlebars": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": false,
-          "markdownDescription": "%html.format.indentHandlebars.desc%"
+        "htmw.fowmat.indentHandwebaws": {
+          "type": "boowean",
+          "scope": "wesouwce",
+          "defauwt": fawse,
+          "mawkdownDescwiption": "%htmw.fowmat.indentHandwebaws.desc%"
         },
-        "html.format.endWithNewline": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": false,
-          "description": "%html.format.endWithNewline.desc%"
+        "htmw.fowmat.endWithNewwine": {
+          "type": "boowean",
+          "scope": "wesouwce",
+          "defauwt": fawse,
+          "descwiption": "%htmw.fowmat.endWithNewwine.desc%"
         },
-        "html.format.extraLiners": {
+        "htmw.fowmat.extwaWinews": {
           "type": [
-            "string",
-            "null"
+            "stwing",
+            "nuww"
           ],
-          "scope": "resource",
-          "default": "head, body, /html",
-          "markdownDescription": "%html.format.extraLiners.desc%"
+          "scope": "wesouwce",
+          "defauwt": "head, body, /htmw",
+          "mawkdownDescwiption": "%htmw.fowmat.extwaWinews.desc%"
         },
-        "html.format.wrapAttributes": {
-          "type": "string",
-          "scope": "resource",
-          "default": "auto",
+        "htmw.fowmat.wwapAttwibutes": {
+          "type": "stwing",
+          "scope": "wesouwce",
+          "defauwt": "auto",
           "enum": [
             "auto",
-            "force",
-            "force-aligned",
-            "force-expand-multiline",
-            "aligned-multiple",
-            "preserve",
-            "preserve-aligned"
+            "fowce",
+            "fowce-awigned",
+            "fowce-expand-muwtiwine",
+            "awigned-muwtipwe",
+            "pwesewve",
+            "pwesewve-awigned"
           ],
-          "enumDescriptions": [
-            "%html.format.wrapAttributes.auto%",
-            "%html.format.wrapAttributes.force%",
-            "%html.format.wrapAttributes.forcealign%",
-            "%html.format.wrapAttributes.forcemultiline%",
-            "%html.format.wrapAttributes.alignedmultiple%",
-            "%html.format.wrapAttributes.preserve%",
-            "%html.format.wrapAttributes.preservealigned%"
+          "enumDescwiptions": [
+            "%htmw.fowmat.wwapAttwibutes.auto%",
+            "%htmw.fowmat.wwapAttwibutes.fowce%",
+            "%htmw.fowmat.wwapAttwibutes.fowceawign%",
+            "%htmw.fowmat.wwapAttwibutes.fowcemuwtiwine%",
+            "%htmw.fowmat.wwapAttwibutes.awignedmuwtipwe%",
+            "%htmw.fowmat.wwapAttwibutes.pwesewve%",
+            "%htmw.fowmat.wwapAttwibutes.pwesewveawigned%"
           ],
-          "description": "%html.format.wrapAttributes.desc%"
+          "descwiption": "%htmw.fowmat.wwapAttwibutes.desc%"
         },
-        "html.format.wrapAttributesIndentSize": {
+        "htmw.fowmat.wwapAttwibutesIndentSize": {
           "type": [
-            "number",
-            "null"
+            "numba",
+            "nuww"
           ],
-          "scope": "resource",
-          "default": null,
-          "description": "%html.format.wrapAttributesIndentSize.desc%"
+          "scope": "wesouwce",
+          "defauwt": nuww,
+          "descwiption": "%htmw.fowmat.wwapAttwibutesIndentSize.desc%"
         },
-        "html.format.templating": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": false,
-          "description": "%html.format.templating.desc%"
+        "htmw.fowmat.tempwating": {
+          "type": "boowean",
+          "scope": "wesouwce",
+          "defauwt": fawse,
+          "descwiption": "%htmw.fowmat.tempwating.desc%"
         },
-        "html.format.unformattedContentDelimiter": {
-          "type": "string",
-          "scope": "resource",
-          "default": "",
-          "markdownDescription": "%html.format.unformattedContentDelimiter.desc%"
+        "htmw.fowmat.unfowmattedContentDewimita": {
+          "type": "stwing",
+          "scope": "wesouwce",
+          "defauwt": "",
+          "mawkdownDescwiption": "%htmw.fowmat.unfowmattedContentDewimita.desc%"
         },
-        "html.suggest.html5": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": true,
-          "description": "%html.suggest.html5.desc%"
+        "htmw.suggest.htmw5": {
+          "type": "boowean",
+          "scope": "wesouwce",
+          "defauwt": twue,
+          "descwiption": "%htmw.suggest.htmw5.desc%"
         },
-        "html.validate.scripts": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": true,
-          "description": "%html.validate.scripts%"
+        "htmw.vawidate.scwipts": {
+          "type": "boowean",
+          "scope": "wesouwce",
+          "defauwt": twue,
+          "descwiption": "%htmw.vawidate.scwipts%"
         },
-        "html.validate.styles": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": true,
-          "description": "%html.validate.styles%"
+        "htmw.vawidate.stywes": {
+          "type": "boowean",
+          "scope": "wesouwce",
+          "defauwt": twue,
+          "descwiption": "%htmw.vawidate.stywes%"
         },
-        "html.autoClosingTags": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": true,
-          "description": "%html.autoClosingTags%"
+        "htmw.autoCwosingTags": {
+          "type": "boowean",
+          "scope": "wesouwce",
+          "defauwt": twue,
+          "descwiption": "%htmw.autoCwosingTags%"
         },
-        "html.hover.documentation": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": true,
-          "description": "%html.hover.documentation%"
+        "htmw.hova.documentation": {
+          "type": "boowean",
+          "scope": "wesouwce",
+          "defauwt": twue,
+          "descwiption": "%htmw.hova.documentation%"
         },
-        "html.hover.references": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": true,
-          "description": "%html.hover.references%"
+        "htmw.hova.wefewences": {
+          "type": "boowean",
+          "scope": "wesouwce",
+          "defauwt": twue,
+          "descwiption": "%htmw.hova.wefewences%"
         },
-        "html.mirrorCursorOnMatchingTag": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": false,
-          "description": "%html.mirrorCursorOnMatchingTag%",
-          "deprecationMessage": "%html.mirrorCursorOnMatchingTagDeprecationMessage%"
+        "htmw.miwwowCuwsowOnMatchingTag": {
+          "type": "boowean",
+          "scope": "wesouwce",
+          "defauwt": fawse,
+          "descwiption": "%htmw.miwwowCuwsowOnMatchingTag%",
+          "depwecationMessage": "%htmw.miwwowCuwsowOnMatchingTagDepwecationMessage%"
         },
-        "html.trace.server": {
-          "type": "string",
+        "htmw.twace.sewva": {
+          "type": "stwing",
           "scope": "window",
           "enum": [
             "off",
             "messages",
-            "verbose"
+            "vewbose"
           ],
-          "default": "off",
-          "description": "%html.trace.server.desc%"
+          "defauwt": "off",
+          "descwiption": "%htmw.twace.sewva.desc%"
         }
       }
     },
-    "configurationDefaults": {
-      "[html]": {
-        "editor.suggest.insertMode": "replace"
+    "configuwationDefauwts": {
+      "[htmw]": {
+        "editow.suggest.insewtMode": "wepwace"
       },
-      "[handlebars]": {
-        "editor.suggest.insertMode": "replace"
+      "[handwebaws]": {
+        "editow.suggest.insewtMode": "wepwace"
       }
     },
-    "jsonValidation": [
+    "jsonVawidation": [
       {
-        "fileMatch": "*.html-data.json",
-        "url": "https://raw.githubusercontent.com/microsoft/vscode-html-languageservice/master/docs/customData.schema.json"
+        "fiweMatch": "*.htmw-data.json",
+        "uww": "https://waw.githubusewcontent.com/micwosoft/vscode-htmw-wanguagesewvice/masta/docs/customData.schema.json"
       },
       {
-        "fileMatch": "package.json",
-        "url": "./schemas/package.schema.json"
+        "fiweMatch": "package.json",
+        "uww": "./schemas/package.schema.json"
       }
     ]
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.3.2",
-    "vscode-languageclient": "^7.0.0",
-    "vscode-nls": "^5.0.0"
+    "vscode-extension-tewemetwy": "0.3.2",
+    "vscode-wanguagecwient": "^7.0.0",
+    "vscode-nws": "^5.0.0"
   },
   "devDependencies": {
     "@types/node": "14.x"
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

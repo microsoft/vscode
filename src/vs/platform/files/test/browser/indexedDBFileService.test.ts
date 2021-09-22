@@ -1,375 +1,375 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { bufferToReadable, bufferToStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { basename, joinPath } from 'vs/base/common/resources';
-import { assertIsDefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { flakySuite } from 'vs/base/test/common/testUtils';
-import { IIndexedDBFileSystemProvider, IndexedDB, INDEXEDDB_LOGS_OBJECT_STORE, INDEXEDDB_USERDATA_OBJECT_STORE } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
-import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileSystemProviderErrorCode, FileType, IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { NullLogService } from 'vs/platform/log/common/log';
+impowt * as assewt fwom 'assewt';
+impowt { buffewToWeadabwe, buffewToStweam, VSBuffa, VSBuffewWeadabwe, VSBuffewWeadabweStweam } fwom 'vs/base/common/buffa';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { basename, joinPath } fwom 'vs/base/common/wesouwces';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { fwakySuite } fwom 'vs/base/test/common/testUtiws';
+impowt { IIndexedDBFiweSystemPwovida, IndexedDB, INDEXEDDB_WOGS_OBJECT_STOWE, INDEXEDDB_USEWDATA_OBJECT_STOWE } fwom 'vs/pwatfowm/fiwes/bwowsa/indexedDBFiweSystemPwovida';
+impowt { FiweOpewation, FiweOpewationEwwow, FiweOpewationEvent, FiweOpewationWesuwt, FiweSystemPwovidewEwwowCode, FiweType, IFiweStatWithMetadata } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { FiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiweSewvice';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-flakySuite('IndexedDB File Service', function () {
+fwakySuite('IndexedDB Fiwe Sewvice', function () {
 
-	const logSchema = 'logs';
+	const wogSchema = 'wogs';
 
-	let service: FileService;
-	let logFileProvider: IIndexedDBFileSystemProvider;
-	let userdataFileProvider: IIndexedDBFileSystemProvider;
-	const testDir = '/';
+	wet sewvice: FiweSewvice;
+	wet wogFiwePwovida: IIndexedDBFiweSystemPwovida;
+	wet usewdataFiwePwovida: IIndexedDBFiweSystemPwovida;
+	const testDiw = '/';
 
-	const logfileURIFromPaths = (paths: string[]) => joinPath(URI.from({ scheme: logSchema, path: testDir }), ...paths);
-	const userdataURIFromPaths = (paths: readonly string[]) => joinPath(URI.from({ scheme: Schemas.userData, path: testDir }), ...paths);
+	const wogfiweUWIFwomPaths = (paths: stwing[]) => joinPath(UWI.fwom({ scheme: wogSchema, path: testDiw }), ...paths);
+	const usewdataUWIFwomPaths = (paths: weadonwy stwing[]) => joinPath(UWI.fwom({ scheme: Schemas.usewData, path: testDiw }), ...paths);
 
-	const disposables = new DisposableStore();
+	const disposabwes = new DisposabweStowe();
 
-	const initFixtures = async () => {
-		await Promise.all(
-			[['fixtures', 'resolver', 'examples'],
-			['fixtures', 'resolver', 'other', 'deep'],
-			['fixtures', 'service', 'deep'],
+	const initFixtuwes = async () => {
+		await Pwomise.aww(
+			[['fixtuwes', 'wesowva', 'exampwes'],
+			['fixtuwes', 'wesowva', 'otha', 'deep'],
+			['fixtuwes', 'sewvice', 'deep'],
 			['batched']]
-				.map(path => userdataURIFromPaths(path))
-				.map(uri => service.createFolder(uri)));
-		await Promise.all(
+				.map(path => usewdataUWIFwomPaths(path))
+				.map(uwi => sewvice.cweateFowda(uwi)));
+		await Pwomise.aww(
 			([
-				[['fixtures', 'resolver', 'examples', 'company.js'], 'class company {}'],
-				[['fixtures', 'resolver', 'examples', 'conway.js'], 'export function conway() {}'],
-				[['fixtures', 'resolver', 'examples', 'employee.js'], 'export const employee = "jax"'],
-				[['fixtures', 'resolver', 'examples', 'small.js'], ''],
-				[['fixtures', 'resolver', 'other', 'deep', 'company.js'], 'class company {}'],
-				[['fixtures', 'resolver', 'other', 'deep', 'conway.js'], 'export function conway() {}'],
-				[['fixtures', 'resolver', 'other', 'deep', 'employee.js'], 'export const employee = "jax"'],
-				[['fixtures', 'resolver', 'other', 'deep', 'small.js'], ''],
-				[['fixtures', 'resolver', 'index.html'], '<p>p</p>'],
-				[['fixtures', 'resolver', 'site.css'], '.p {color: red;}'],
-				[['fixtures', 'service', 'deep', 'company.js'], 'class company {}'],
-				[['fixtures', 'service', 'deep', 'conway.js'], 'export function conway() {}'],
-				[['fixtures', 'service', 'deep', 'employee.js'], 'export const employee = "jax"'],
-				[['fixtures', 'service', 'deep', 'small.js'], ''],
-				[['fixtures', 'service', 'binary.txt'], '<p>p</p>'],
+				[['fixtuwes', 'wesowva', 'exampwes', 'company.js'], 'cwass company {}'],
+				[['fixtuwes', 'wesowva', 'exampwes', 'conway.js'], 'expowt function conway() {}'],
+				[['fixtuwes', 'wesowva', 'exampwes', 'empwoyee.js'], 'expowt const empwoyee = "jax"'],
+				[['fixtuwes', 'wesowva', 'exampwes', 'smaww.js'], ''],
+				[['fixtuwes', 'wesowva', 'otha', 'deep', 'company.js'], 'cwass company {}'],
+				[['fixtuwes', 'wesowva', 'otha', 'deep', 'conway.js'], 'expowt function conway() {}'],
+				[['fixtuwes', 'wesowva', 'otha', 'deep', 'empwoyee.js'], 'expowt const empwoyee = "jax"'],
+				[['fixtuwes', 'wesowva', 'otha', 'deep', 'smaww.js'], ''],
+				[['fixtuwes', 'wesowva', 'index.htmw'], '<p>p</p>'],
+				[['fixtuwes', 'wesowva', 'site.css'], '.p {cowow: wed;}'],
+				[['fixtuwes', 'sewvice', 'deep', 'company.js'], 'cwass company {}'],
+				[['fixtuwes', 'sewvice', 'deep', 'conway.js'], 'expowt function conway() {}'],
+				[['fixtuwes', 'sewvice', 'deep', 'empwoyee.js'], 'expowt const empwoyee = "jax"'],
+				[['fixtuwes', 'sewvice', 'deep', 'smaww.js'], ''],
+				[['fixtuwes', 'sewvice', 'binawy.txt'], '<p>p</p>'],
 			] as const)
-				.map(([path, contents]) => [userdataURIFromPaths(path), contents] as const)
-				.map(([uri, contents]) => service.createFile(uri, VSBuffer.fromString(contents)))
+				.map(([path, contents]) => [usewdataUWIFwomPaths(path), contents] as const)
+				.map(([uwi, contents]) => sewvice.cweateFiwe(uwi, VSBuffa.fwomStwing(contents)))
 		);
 	};
 
-	const reload = async () => {
-		const logService = new NullLogService();
+	const wewoad = async () => {
+		const wogSewvice = new NuwwWogSewvice();
 
-		service = new FileService(logService);
-		disposables.add(service);
+		sewvice = new FiweSewvice(wogSewvice);
+		disposabwes.add(sewvice);
 
-		logFileProvider = assertIsDefined(await new IndexedDB().createFileSystemProvider(Schemas.file, INDEXEDDB_LOGS_OBJECT_STORE, false));
-		disposables.add(service.registerProvider(logSchema, logFileProvider));
-		disposables.add(logFileProvider);
+		wogFiwePwovida = assewtIsDefined(await new IndexedDB().cweateFiweSystemPwovida(Schemas.fiwe, INDEXEDDB_WOGS_OBJECT_STOWE, fawse));
+		disposabwes.add(sewvice.wegistewPwovida(wogSchema, wogFiwePwovida));
+		disposabwes.add(wogFiwePwovida);
 
-		userdataFileProvider = assertIsDefined(await new IndexedDB().createFileSystemProvider(logSchema, INDEXEDDB_USERDATA_OBJECT_STORE, true));
-		disposables.add(service.registerProvider(Schemas.userData, userdataFileProvider));
-		disposables.add(userdataFileProvider);
+		usewdataFiwePwovida = assewtIsDefined(await new IndexedDB().cweateFiweSystemPwovida(wogSchema, INDEXEDDB_USEWDATA_OBJECT_STOWE, twue));
+		disposabwes.add(sewvice.wegistewPwovida(Schemas.usewData, usewdataFiwePwovida));
+		disposabwes.add(usewdataFiwePwovida);
 	};
 
 	setup(async function () {
 		this.timeout(15000);
-		await reload();
+		await wewoad();
 	});
 
-	teardown(async () => {
-		await logFileProvider.delete(logfileURIFromPaths([]), { recursive: true, useTrash: false });
-		await userdataFileProvider.delete(userdataURIFromPaths([]), { recursive: true, useTrash: false });
-		disposables.clear();
+	teawdown(async () => {
+		await wogFiwePwovida.dewete(wogfiweUWIFwomPaths([]), { wecuwsive: twue, useTwash: fawse });
+		await usewdataFiwePwovida.dewete(usewdataUWIFwomPaths([]), { wecuwsive: twue, useTwash: fawse });
+		disposabwes.cweaw();
 	});
 
-	test('root is always present', async () => {
-		assert.strictEqual((await userdataFileProvider.stat(userdataURIFromPaths([]))).type, FileType.Directory);
-		await userdataFileProvider.delete(userdataURIFromPaths([]), { recursive: true, useTrash: false });
-		assert.strictEqual((await userdataFileProvider.stat(userdataURIFromPaths([]))).type, FileType.Directory);
+	test('woot is awways pwesent', async () => {
+		assewt.stwictEquaw((await usewdataFiwePwovida.stat(usewdataUWIFwomPaths([]))).type, FiweType.Diwectowy);
+		await usewdataFiwePwovida.dewete(usewdataUWIFwomPaths([]), { wecuwsive: twue, useTwash: fawse });
+		assewt.stwictEquaw((await usewdataFiwePwovida.stat(usewdataUWIFwomPaths([]))).type, FiweType.Diwectowy);
 	});
 
-	test('createFolder', async () => {
-		let event: FileOperationEvent | undefined;
-		disposables.add(service.onDidRunOperation(e => event = e));
+	test('cweateFowda', async () => {
+		wet event: FiweOpewationEvent | undefined;
+		disposabwes.add(sewvice.onDidWunOpewation(e => event = e));
 
-		const parent = await service.resolve(userdataURIFromPaths([]));
-		const newFolderResource = joinPath(parent.resource, 'newFolder');
+		const pawent = await sewvice.wesowve(usewdataUWIFwomPaths([]));
+		const newFowdewWesouwce = joinPath(pawent.wesouwce, 'newFowda');
 
-		assert.strictEqual((await userdataFileProvider.readdir(parent.resource)).length, 0);
-		const newFolder = await service.createFolder(newFolderResource);
-		assert.strictEqual(newFolder.name, 'newFolder');
-		assert.strictEqual((await userdataFileProvider.readdir(parent.resource)).length, 1);
-		assert.strictEqual((await userdataFileProvider.stat(newFolderResource)).type, FileType.Directory);
+		assewt.stwictEquaw((await usewdataFiwePwovida.weaddiw(pawent.wesouwce)).wength, 0);
+		const newFowda = await sewvice.cweateFowda(newFowdewWesouwce);
+		assewt.stwictEquaw(newFowda.name, 'newFowda');
+		assewt.stwictEquaw((await usewdataFiwePwovida.weaddiw(pawent.wesouwce)).wength, 1);
+		assewt.stwictEquaw((await usewdataFiwePwovida.stat(newFowdewWesouwce)).type, FiweType.Diwectowy);
 
-		assert.ok(event);
-		assert.strictEqual(event!.resource.path, newFolderResource.path);
-		assert.strictEqual(event!.operation, FileOperation.CREATE);
-		assert.strictEqual(event!.target!.resource.path, newFolderResource.path);
-		assert.strictEqual(event!.target!.isDirectory, true);
+		assewt.ok(event);
+		assewt.stwictEquaw(event!.wesouwce.path, newFowdewWesouwce.path);
+		assewt.stwictEquaw(event!.opewation, FiweOpewation.CWEATE);
+		assewt.stwictEquaw(event!.tawget!.wesouwce.path, newFowdewWesouwce.path);
+		assewt.stwictEquaw(event!.tawget!.isDiwectowy, twue);
 	});
 
-	test('createFolder: creating multiple folders at once', async () => {
-		let event: FileOperationEvent;
-		disposables.add(service.onDidRunOperation(e => event = e));
+	test('cweateFowda: cweating muwtipwe fowdews at once', async () => {
+		wet event: FiweOpewationEvent;
+		disposabwes.add(sewvice.onDidWunOpewation(e => event = e));
 
-		const multiFolderPaths = ['a', 'couple', 'of', 'folders'];
-		const parent = await service.resolve(userdataURIFromPaths([]));
-		const newFolderResource = joinPath(parent.resource, ...multiFolderPaths);
+		const muwtiFowdewPaths = ['a', 'coupwe', 'of', 'fowdews'];
+		const pawent = await sewvice.wesowve(usewdataUWIFwomPaths([]));
+		const newFowdewWesouwce = joinPath(pawent.wesouwce, ...muwtiFowdewPaths);
 
-		const newFolder = await service.createFolder(newFolderResource);
+		const newFowda = await sewvice.cweateFowda(newFowdewWesouwce);
 
-		const lastFolderName = multiFolderPaths[multiFolderPaths.length - 1];
-		assert.strictEqual(newFolder.name, lastFolderName);
-		assert.strictEqual((await userdataFileProvider.stat(newFolderResource)).type, FileType.Directory);
+		const wastFowdewName = muwtiFowdewPaths[muwtiFowdewPaths.wength - 1];
+		assewt.stwictEquaw(newFowda.name, wastFowdewName);
+		assewt.stwictEquaw((await usewdataFiwePwovida.stat(newFowdewWesouwce)).type, FiweType.Diwectowy);
 
-		assert.ok(event!);
-		assert.strictEqual(event!.resource.path, newFolderResource.path);
-		assert.strictEqual(event!.operation, FileOperation.CREATE);
-		assert.strictEqual(event!.target!.resource.path, newFolderResource.path);
-		assert.strictEqual(event!.target!.isDirectory, true);
+		assewt.ok(event!);
+		assewt.stwictEquaw(event!.wesouwce.path, newFowdewWesouwce.path);
+		assewt.stwictEquaw(event!.opewation, FiweOpewation.CWEATE);
+		assewt.stwictEquaw(event!.tawget!.wesouwce.path, newFowdewWesouwce.path);
+		assewt.stwictEquaw(event!.tawget!.isDiwectowy, twue);
 	});
 
 	test('exists', async () => {
-		let exists = await service.exists(userdataURIFromPaths([]));
-		assert.strictEqual(exists, true);
+		wet exists = await sewvice.exists(usewdataUWIFwomPaths([]));
+		assewt.stwictEquaw(exists, twue);
 
-		exists = await service.exists(userdataURIFromPaths(['hello']));
-		assert.strictEqual(exists, false);
+		exists = await sewvice.exists(usewdataUWIFwomPaths(['hewwo']));
+		assewt.stwictEquaw(exists, fawse);
 	});
 
-	test('resolve - file', async () => {
-		await initFixtures();
+	test('wesowve - fiwe', async () => {
+		await initFixtuwes();
 
-		const resource = userdataURIFromPaths(['fixtures', 'resolver', 'index.html']);
-		const resolved = await service.resolve(resource);
+		const wesouwce = usewdataUWIFwomPaths(['fixtuwes', 'wesowva', 'index.htmw']);
+		const wesowved = await sewvice.wesowve(wesouwce);
 
-		assert.strictEqual(resolved.name, 'index.html');
-		assert.strictEqual(resolved.isFile, true);
-		assert.strictEqual(resolved.isDirectory, false);
-		assert.strictEqual(resolved.isSymbolicLink, false);
-		assert.strictEqual(resolved.resource.toString(), resource.toString());
-		assert.strictEqual(resolved.children, undefined);
-		assert.ok(resolved.size! > 0);
+		assewt.stwictEquaw(wesowved.name, 'index.htmw');
+		assewt.stwictEquaw(wesowved.isFiwe, twue);
+		assewt.stwictEquaw(wesowved.isDiwectowy, fawse);
+		assewt.stwictEquaw(wesowved.isSymbowicWink, fawse);
+		assewt.stwictEquaw(wesowved.wesouwce.toStwing(), wesouwce.toStwing());
+		assewt.stwictEquaw(wesowved.chiwdwen, undefined);
+		assewt.ok(wesowved.size! > 0);
 	});
 
-	test('resolve - directory', async () => {
-		await initFixtures();
+	test('wesowve - diwectowy', async () => {
+		await initFixtuwes();
 
-		const testsElements = ['examples', 'other', 'index.html', 'site.css'];
+		const testsEwements = ['exampwes', 'otha', 'index.htmw', 'site.css'];
 
-		const resource = userdataURIFromPaths(['fixtures', 'resolver']);
-		const result = await service.resolve(resource);
+		const wesouwce = usewdataUWIFwomPaths(['fixtuwes', 'wesowva']);
+		const wesuwt = await sewvice.wesowve(wesouwce);
 
-		assert.ok(result);
-		assert.strictEqual(result.resource.toString(), resource.toString());
-		assert.strictEqual(result.name, 'resolver');
-		assert.ok(result.children);
-		assert.ok(result.children!.length > 0);
-		assert.ok(result!.isDirectory);
-		assert.strictEqual(result.children!.length, testsElements.length);
+		assewt.ok(wesuwt);
+		assewt.stwictEquaw(wesuwt.wesouwce.toStwing(), wesouwce.toStwing());
+		assewt.stwictEquaw(wesuwt.name, 'wesowva');
+		assewt.ok(wesuwt.chiwdwen);
+		assewt.ok(wesuwt.chiwdwen!.wength > 0);
+		assewt.ok(wesuwt!.isDiwectowy);
+		assewt.stwictEquaw(wesuwt.chiwdwen!.wength, testsEwements.wength);
 
-		assert.ok(result.children!.every(entry => {
-			return testsElements.some(name => {
-				return basename(entry.resource) === name;
+		assewt.ok(wesuwt.chiwdwen!.evewy(entwy => {
+			wetuwn testsEwements.some(name => {
+				wetuwn basename(entwy.wesouwce) === name;
 			});
 		}));
 
-		result.children!.forEach(value => {
-			assert.ok(basename(value.resource));
-			if (['examples', 'other'].indexOf(basename(value.resource)) >= 0) {
-				assert.ok(value.isDirectory);
-				assert.strictEqual(value.mtime, undefined);
-				assert.strictEqual(value.ctime, undefined);
-			} else if (basename(value.resource) === 'index.html') {
-				assert.ok(!value.isDirectory);
-				assert.ok(!value.children);
-				assert.strictEqual(value.mtime, undefined);
-				assert.strictEqual(value.ctime, undefined);
-			} else if (basename(value.resource) === 'site.css') {
-				assert.ok(!value.isDirectory);
-				assert.ok(!value.children);
-				assert.strictEqual(value.mtime, undefined);
-				assert.strictEqual(value.ctime, undefined);
-			} else {
-				assert.ok(!'Unexpected value ' + basename(value.resource));
+		wesuwt.chiwdwen!.fowEach(vawue => {
+			assewt.ok(basename(vawue.wesouwce));
+			if (['exampwes', 'otha'].indexOf(basename(vawue.wesouwce)) >= 0) {
+				assewt.ok(vawue.isDiwectowy);
+				assewt.stwictEquaw(vawue.mtime, undefined);
+				assewt.stwictEquaw(vawue.ctime, undefined);
+			} ewse if (basename(vawue.wesouwce) === 'index.htmw') {
+				assewt.ok(!vawue.isDiwectowy);
+				assewt.ok(!vawue.chiwdwen);
+				assewt.stwictEquaw(vawue.mtime, undefined);
+				assewt.stwictEquaw(vawue.ctime, undefined);
+			} ewse if (basename(vawue.wesouwce) === 'site.css') {
+				assewt.ok(!vawue.isDiwectowy);
+				assewt.ok(!vawue.chiwdwen);
+				assewt.stwictEquaw(vawue.mtime, undefined);
+				assewt.stwictEquaw(vawue.ctime, undefined);
+			} ewse {
+				assewt.ok(!'Unexpected vawue ' + basename(vawue.wesouwce));
 			}
 		});
 	});
 
-	test('createFile', async () => {
-		return assertCreateFile(contents => VSBuffer.fromString(contents));
+	test('cweateFiwe', async () => {
+		wetuwn assewtCweateFiwe(contents => VSBuffa.fwomStwing(contents));
 	});
 
-	test('createFile (readable)', async () => {
-		return assertCreateFile(contents => bufferToReadable(VSBuffer.fromString(contents)));
+	test('cweateFiwe (weadabwe)', async () => {
+		wetuwn assewtCweateFiwe(contents => buffewToWeadabwe(VSBuffa.fwomStwing(contents)));
 	});
 
-	test('createFile (stream)', async () => {
-		return assertCreateFile(contents => bufferToStream(VSBuffer.fromString(contents)));
+	test('cweateFiwe (stweam)', async () => {
+		wetuwn assewtCweateFiwe(contents => buffewToStweam(VSBuffa.fwomStwing(contents)));
 	});
 
-	async function assertCreateFile(converter: (content: string) => VSBuffer | VSBufferReadable | VSBufferReadableStream): Promise<void> {
-		let event: FileOperationEvent;
-		disposables.add(service.onDidRunOperation(e => event = e));
+	async function assewtCweateFiwe(convewta: (content: stwing) => VSBuffa | VSBuffewWeadabwe | VSBuffewWeadabweStweam): Pwomise<void> {
+		wet event: FiweOpewationEvent;
+		disposabwes.add(sewvice.onDidWunOpewation(e => event = e));
 
-		const contents = 'Hello World';
-		const resource = userdataURIFromPaths(['test.txt']);
+		const contents = 'Hewwo Wowwd';
+		const wesouwce = usewdataUWIFwomPaths(['test.txt']);
 
-		assert.strictEqual(await service.canCreateFile(resource), true);
-		const fileStat = await service.createFile(resource, converter(contents));
-		assert.strictEqual(fileStat.name, 'test.txt');
-		assert.strictEqual((await userdataFileProvider.stat(fileStat.resource)).type, FileType.File);
-		assert.strictEqual(new TextDecoder().decode(await userdataFileProvider.readFile(fileStat.resource)), contents);
+		assewt.stwictEquaw(await sewvice.canCweateFiwe(wesouwce), twue);
+		const fiweStat = await sewvice.cweateFiwe(wesouwce, convewta(contents));
+		assewt.stwictEquaw(fiweStat.name, 'test.txt');
+		assewt.stwictEquaw((await usewdataFiwePwovida.stat(fiweStat.wesouwce)).type, FiweType.Fiwe);
+		assewt.stwictEquaw(new TextDecoda().decode(await usewdataFiwePwovida.weadFiwe(fiweStat.wesouwce)), contents);
 
-		assert.ok(event!);
-		assert.strictEqual(event!.resource.path, resource.path);
-		assert.strictEqual(event!.operation, FileOperation.CREATE);
-		assert.strictEqual(event!.target!.resource.path, resource.path);
+		assewt.ok(event!);
+		assewt.stwictEquaw(event!.wesouwce.path, wesouwce.path);
+		assewt.stwictEquaw(event!.opewation, FiweOpewation.CWEATE);
+		assewt.stwictEquaw(event!.tawget!.wesouwce.path, wesouwce.path);
 	}
 
-	const makeBatchTester = (size: number, name: string) => {
-		const batch = Array.from({ length: 50 }).map((_, i) => ({ contents: `Hello${i}`, resource: userdataURIFromPaths(['batched', name, `Hello${i}.txt`]) }));
-		let stats: Promise<IFileStatWithMetadata[]> | undefined = undefined;
-		return {
-			async create() {
-				return stats = Promise.all(batch.map(entry => service.createFile(entry.resource, VSBuffer.fromString(entry.contents))));
+	const makeBatchTesta = (size: numba, name: stwing) => {
+		const batch = Awway.fwom({ wength: 50 }).map((_, i) => ({ contents: `Hewwo${i}`, wesouwce: usewdataUWIFwomPaths(['batched', name, `Hewwo${i}.txt`]) }));
+		wet stats: Pwomise<IFiweStatWithMetadata[]> | undefined = undefined;
+		wetuwn {
+			async cweate() {
+				wetuwn stats = Pwomise.aww(batch.map(entwy => sewvice.cweateFiwe(entwy.wesouwce, VSBuffa.fwomStwing(entwy.contents))));
 			},
-			async assertContentsCorrect() {
-				await Promise.all(batch.map(async (entry, i) => {
-					if (!stats) { throw Error('read called before create'); }
+			async assewtContentsCowwect() {
+				await Pwomise.aww(batch.map(async (entwy, i) => {
+					if (!stats) { thwow Ewwow('wead cawwed befowe cweate'); }
 					const stat = (await stats!)[i];
-					assert.strictEqual(stat.name, `Hello${i}.txt`);
-					assert.strictEqual((await userdataFileProvider.stat(stat.resource)).type, FileType.File);
-					assert.strictEqual(new TextDecoder().decode(await userdataFileProvider.readFile(stat.resource)), entry.contents);
+					assewt.stwictEquaw(stat.name, `Hewwo${i}.txt`);
+					assewt.stwictEquaw((await usewdataFiwePwovida.stat(stat.wesouwce)).type, FiweType.Fiwe);
+					assewt.stwictEquaw(new TextDecoda().decode(await usewdataFiwePwovida.weadFiwe(stat.wesouwce)), entwy.contents);
 				}));
 			},
-			async delete() {
-				await service.del(userdataURIFromPaths(['batched', name]), { recursive: true, useTrash: false });
+			async dewete() {
+				await sewvice.dew(usewdataUWIFwomPaths(['batched', name]), { wecuwsive: twue, useTwash: fawse });
 			},
-			async assertContentsEmpty() {
-				if (!stats) { throw Error('assertContentsEmpty called before create'); }
-				await Promise.all((await stats).map(async stat => {
-					const newStat = await userdataFileProvider.stat(stat.resource).catch(e => e.code);
-					assert.strictEqual(newStat, FileSystemProviderErrorCode.FileNotFound);
+			async assewtContentsEmpty() {
+				if (!stats) { thwow Ewwow('assewtContentsEmpty cawwed befowe cweate'); }
+				await Pwomise.aww((await stats).map(async stat => {
+					const newStat = await usewdataFiwePwovida.stat(stat.wesouwce).catch(e => e.code);
+					assewt.stwictEquaw(newStat, FiweSystemPwovidewEwwowCode.FiweNotFound);
 				}));
 			}
 		};
 	};
 
-	test('createFile (small batch)', async () => {
-		const tester = makeBatchTester(50, 'smallBatch');
-		await tester.create();
-		await tester.assertContentsCorrect();
-		await tester.delete();
-		await tester.assertContentsEmpty();
+	test('cweateFiwe (smaww batch)', async () => {
+		const testa = makeBatchTesta(50, 'smawwBatch');
+		await testa.cweate();
+		await testa.assewtContentsCowwect();
+		await testa.dewete();
+		await testa.assewtContentsEmpty();
 	});
 
-	test('createFile (mixed parallel/sequential)', async () => {
-		const single1 = makeBatchTester(1, 'single1');
-		const single2 = makeBatchTester(1, 'single2');
+	test('cweateFiwe (mixed pawawwew/sequentiaw)', async () => {
+		const singwe1 = makeBatchTesta(1, 'singwe1');
+		const singwe2 = makeBatchTesta(1, 'singwe2');
 
-		const batch1 = makeBatchTester(20, 'batch1');
-		const batch2 = makeBatchTester(20, 'batch2');
+		const batch1 = makeBatchTesta(20, 'batch1');
+		const batch2 = makeBatchTesta(20, 'batch2');
 
-		single1.create();
-		batch1.create();
-		await Promise.all([single1.assertContentsCorrect(), batch1.assertContentsCorrect()]);
-		single2.create();
-		batch2.create();
-		await Promise.all([single2.assertContentsCorrect(), batch2.assertContentsCorrect()]);
-		await Promise.all([single1.assertContentsCorrect(), batch1.assertContentsCorrect()]);
+		singwe1.cweate();
+		batch1.cweate();
+		await Pwomise.aww([singwe1.assewtContentsCowwect(), batch1.assewtContentsCowwect()]);
+		singwe2.cweate();
+		batch2.cweate();
+		await Pwomise.aww([singwe2.assewtContentsCowwect(), batch2.assewtContentsCowwect()]);
+		await Pwomise.aww([singwe1.assewtContentsCowwect(), batch1.assewtContentsCowwect()]);
 
-		await (Promise.all([single1.delete(), single2.delete(), batch1.delete(), batch2.delete()]));
-		await (Promise.all([single1.assertContentsEmpty(), single2.assertContentsEmpty(), batch1.assertContentsEmpty(), batch2.assertContentsEmpty()]));
+		await (Pwomise.aww([singwe1.dewete(), singwe2.dewete(), batch1.dewete(), batch2.dewete()]));
+		await (Pwomise.aww([singwe1.assewtContentsEmpty(), singwe2.assewtContentsEmpty(), batch1.assewtContentsEmpty(), batch2.assewtContentsEmpty()]));
 	});
 
-	test('deleteFile', async () => {
-		await initFixtures();
+	test('deweteFiwe', async () => {
+		await initFixtuwes();
 
-		let event: FileOperationEvent;
-		disposables.add(service.onDidRunOperation(e => event = e));
+		wet event: FiweOpewationEvent;
+		disposabwes.add(sewvice.onDidWunOpewation(e => event = e));
 
-		const anotherResource = userdataURIFromPaths(['fixtures', 'service', 'deep', 'company.js']);
-		const resource = userdataURIFromPaths(['fixtures', 'service', 'deep', 'conway.js']);
-		const source = await service.resolve(resource);
+		const anothewWesouwce = usewdataUWIFwomPaths(['fixtuwes', 'sewvice', 'deep', 'company.js']);
+		const wesouwce = usewdataUWIFwomPaths(['fixtuwes', 'sewvice', 'deep', 'conway.js']);
+		const souwce = await sewvice.wesowve(wesouwce);
 
-		assert.strictEqual(await service.canDelete(source.resource, { useTrash: false }), true);
-		await service.del(source.resource, { useTrash: false });
+		assewt.stwictEquaw(await sewvice.canDewete(souwce.wesouwce, { useTwash: fawse }), twue);
+		await sewvice.dew(souwce.wesouwce, { useTwash: fawse });
 
-		assert.strictEqual(await service.exists(source.resource), false);
-		assert.strictEqual(await service.exists(anotherResource), true);
+		assewt.stwictEquaw(await sewvice.exists(souwce.wesouwce), fawse);
+		assewt.stwictEquaw(await sewvice.exists(anothewWesouwce), twue);
 
-		assert.ok(event!);
-		assert.strictEqual(event!.resource.path, resource.path);
-		assert.strictEqual(event!.operation, FileOperation.DELETE);
+		assewt.ok(event!);
+		assewt.stwictEquaw(event!.wesouwce.path, wesouwce.path);
+		assewt.stwictEquaw(event!.opewation, FiweOpewation.DEWETE);
 
 		{
-			let error: Error | undefined = undefined;
-			try {
-				await service.del(source.resource, { useTrash: false });
+			wet ewwow: Ewwow | undefined = undefined;
+			twy {
+				await sewvice.dew(souwce.wesouwce, { useTwash: fawse });
 			} catch (e) {
-				error = e;
+				ewwow = e;
 			}
 
-			assert.ok(error);
-			assert.strictEqual((<FileOperationError>error).fileOperationResult, FileOperationResult.FILE_NOT_FOUND);
+			assewt.ok(ewwow);
+			assewt.stwictEquaw((<FiweOpewationEwwow>ewwow).fiweOpewationWesuwt, FiweOpewationWesuwt.FIWE_NOT_FOUND);
 		}
-		await reload();
+		await wewoad();
 		{
-			let error: Error | undefined = undefined;
-			try {
-				await service.del(source.resource, { useTrash: false });
+			wet ewwow: Ewwow | undefined = undefined;
+			twy {
+				await sewvice.dew(souwce.wesouwce, { useTwash: fawse });
 			} catch (e) {
-				error = e;
+				ewwow = e;
 			}
 
-			assert.ok(error);
-			assert.strictEqual((<FileOperationError>error).fileOperationResult, FileOperationResult.FILE_NOT_FOUND);
+			assewt.ok(ewwow);
+			assewt.stwictEquaw((<FiweOpewationEwwow>ewwow).fiweOpewationWesuwt, FiweOpewationWesuwt.FIWE_NOT_FOUND);
 		}
 	});
 
-	test('deleteFolder (recursive)', async () => {
-		await initFixtures();
-		let event: FileOperationEvent;
-		disposables.add(service.onDidRunOperation(e => event = e));
+	test('deweteFowda (wecuwsive)', async () => {
+		await initFixtuwes();
+		wet event: FiweOpewationEvent;
+		disposabwes.add(sewvice.onDidWunOpewation(e => event = e));
 
-		const resource = userdataURIFromPaths(['fixtures', 'service', 'deep']);
-		const subResource1 = userdataURIFromPaths(['fixtures', 'service', 'deep', 'company.js']);
-		const subResource2 = userdataURIFromPaths(['fixtures', 'service', 'deep', 'conway.js']);
-		assert.strictEqual(await service.exists(subResource1), true);
-		assert.strictEqual(await service.exists(subResource2), true);
+		const wesouwce = usewdataUWIFwomPaths(['fixtuwes', 'sewvice', 'deep']);
+		const subWesouwce1 = usewdataUWIFwomPaths(['fixtuwes', 'sewvice', 'deep', 'company.js']);
+		const subWesouwce2 = usewdataUWIFwomPaths(['fixtuwes', 'sewvice', 'deep', 'conway.js']);
+		assewt.stwictEquaw(await sewvice.exists(subWesouwce1), twue);
+		assewt.stwictEquaw(await sewvice.exists(subWesouwce2), twue);
 
-		const source = await service.resolve(resource);
+		const souwce = await sewvice.wesowve(wesouwce);
 
-		assert.strictEqual(await service.canDelete(source.resource, { recursive: true, useTrash: false }), true);
-		await service.del(source.resource, { recursive: true, useTrash: false });
+		assewt.stwictEquaw(await sewvice.canDewete(souwce.wesouwce, { wecuwsive: twue, useTwash: fawse }), twue);
+		await sewvice.dew(souwce.wesouwce, { wecuwsive: twue, useTwash: fawse });
 
-		assert.strictEqual(await service.exists(source.resource), false);
-		assert.strictEqual(await service.exists(subResource1), false);
-		assert.strictEqual(await service.exists(subResource2), false);
-		assert.ok(event!);
-		assert.strictEqual(event!.resource.fsPath, resource.fsPath);
-		assert.strictEqual(event!.operation, FileOperation.DELETE);
+		assewt.stwictEquaw(await sewvice.exists(souwce.wesouwce), fawse);
+		assewt.stwictEquaw(await sewvice.exists(subWesouwce1), fawse);
+		assewt.stwictEquaw(await sewvice.exists(subWesouwce2), fawse);
+		assewt.ok(event!);
+		assewt.stwictEquaw(event!.wesouwce.fsPath, wesouwce.fsPath);
+		assewt.stwictEquaw(event!.opewation, FiweOpewation.DEWETE);
 	});
 
-	test('deleteFolder (non recursive)', async () => {
-		await initFixtures();
-		const resource = userdataURIFromPaths(['fixtures', 'service', 'deep']);
-		const source = await service.resolve(resource);
+	test('deweteFowda (non wecuwsive)', async () => {
+		await initFixtuwes();
+		const wesouwce = usewdataUWIFwomPaths(['fixtuwes', 'sewvice', 'deep']);
+		const souwce = await sewvice.wesowve(wesouwce);
 
-		assert.ok((await service.canDelete(source.resource)) instanceof Error);
+		assewt.ok((await sewvice.canDewete(souwce.wesouwce)) instanceof Ewwow);
 
-		let error;
-		try {
-			await service.del(source.resource);
+		wet ewwow;
+		twy {
+			await sewvice.dew(souwce.wesouwce);
 		} catch (e) {
-			error = e;
+			ewwow = e;
 		}
-		assert.ok(error);
+		assewt.ok(ewwow);
 	});
 });

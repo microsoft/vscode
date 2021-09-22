@@ -1,125 +1,125 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ITextResourceConfigurationService, ITextResourceConfigurationChangeEvent } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IConfigurationService, ConfigurationTarget, IConfigurationValue, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IPosition, Position } fwom 'vs/editow/common/cowe/position';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { ITextWesouwceConfiguwationSewvice, ITextWesouwceConfiguwationChangeEvent } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { IConfiguwationSewvice, ConfiguwationTawget, IConfiguwationVawue, IConfiguwationChangeEvent } fwom 'vs/pwatfowm/configuwation/common/configuwation';
 
-export class TextResourceConfigurationService extends Disposable implements ITextResourceConfigurationService {
+expowt cwass TextWesouwceConfiguwationSewvice extends Disposabwe impwements ITextWesouwceConfiguwationSewvice {
 
-	public _serviceBrand: undefined;
+	pubwic _sewviceBwand: undefined;
 
-	private readonly _onDidChangeConfiguration: Emitter<ITextResourceConfigurationChangeEvent> = this._register(new Emitter<ITextResourceConfigurationChangeEvent>());
-	public readonly onDidChangeConfiguration: Event<ITextResourceConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
+	pwivate weadonwy _onDidChangeConfiguwation: Emitta<ITextWesouwceConfiguwationChangeEvent> = this._wegista(new Emitta<ITextWesouwceConfiguwationChangeEvent>());
+	pubwic weadonwy onDidChangeConfiguwation: Event<ITextWesouwceConfiguwationChangeEvent> = this._onDidChangeConfiguwation.event;
 
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
+	constwuctow(
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IModewSewvice pwivate weadonwy modewSewvice: IModewSewvice,
+		@IModeSewvice pwivate weadonwy modeSewvice: IModeSewvice,
 	) {
-		super();
-		this._register(this.configurationService.onDidChangeConfiguration(e => this._onDidChangeConfiguration.fire(this.toResourceConfigurationChangeEvent(e))));
+		supa();
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => this._onDidChangeConfiguwation.fiwe(this.toWesouwceConfiguwationChangeEvent(e))));
 	}
 
-	getValue<T>(resource: URI | undefined, section?: string): T;
-	getValue<T>(resource: URI | undefined, at?: IPosition, section?: string): T;
-	getValue<T>(resource: URI | undefined, arg2?: any, arg3?: any): T {
-		if (typeof arg3 === 'string') {
-			return this._getValue(resource, Position.isIPosition(arg2) ? arg2 : null, arg3);
+	getVawue<T>(wesouwce: UWI | undefined, section?: stwing): T;
+	getVawue<T>(wesouwce: UWI | undefined, at?: IPosition, section?: stwing): T;
+	getVawue<T>(wesouwce: UWI | undefined, awg2?: any, awg3?: any): T {
+		if (typeof awg3 === 'stwing') {
+			wetuwn this._getVawue(wesouwce, Position.isIPosition(awg2) ? awg2 : nuww, awg3);
 		}
-		return this._getValue(resource, null, typeof arg2 === 'string' ? arg2 : undefined);
+		wetuwn this._getVawue(wesouwce, nuww, typeof awg2 === 'stwing' ? awg2 : undefined);
 	}
 
-	updateValue(resource: URI, key: string, value: any, configurationTarget?: ConfigurationTarget): Promise<void> {
-		const language = this.getLanguage(resource, null);
-		const configurationValue = this.configurationService.inspect(key, { resource, overrideIdentifier: language });
-		if (configurationTarget === undefined) {
-			configurationTarget = this.deriveConfigurationTarget(configurationValue, language);
+	updateVawue(wesouwce: UWI, key: stwing, vawue: any, configuwationTawget?: ConfiguwationTawget): Pwomise<void> {
+		const wanguage = this.getWanguage(wesouwce, nuww);
+		const configuwationVawue = this.configuwationSewvice.inspect(key, { wesouwce, ovewwideIdentifia: wanguage });
+		if (configuwationTawget === undefined) {
+			configuwationTawget = this.dewiveConfiguwationTawget(configuwationVawue, wanguage);
 		}
-		switch (configurationTarget) {
-			case ConfigurationTarget.MEMORY:
-				return this._updateValue(key, value, configurationTarget, configurationValue.memory?.override, resource, language);
-			case ConfigurationTarget.WORKSPACE_FOLDER:
-				return this._updateValue(key, value, configurationTarget, configurationValue.workspaceFolder?.override, resource, language);
-			case ConfigurationTarget.WORKSPACE:
-				return this._updateValue(key, value, configurationTarget, configurationValue.workspace?.override, resource, language);
-			case ConfigurationTarget.USER_REMOTE:
-				return this._updateValue(key, value, configurationTarget, configurationValue.userRemote?.override, resource, language);
-			default:
-				return this._updateValue(key, value, configurationTarget, configurationValue.userLocal?.override, resource, language);
-		}
-	}
-
-	private _updateValue(key: string, value: any, configurationTarget: ConfigurationTarget, overriddenValue: any | undefined, resource: URI, language: string | null): Promise<void> {
-		if (language && overriddenValue !== undefined) {
-			return this.configurationService.updateValue(key, value, { resource, overrideIdentifier: language }, configurationTarget);
-		} else {
-			return this.configurationService.updateValue(key, value, { resource }, configurationTarget);
+		switch (configuwationTawget) {
+			case ConfiguwationTawget.MEMOWY:
+				wetuwn this._updateVawue(key, vawue, configuwationTawget, configuwationVawue.memowy?.ovewwide, wesouwce, wanguage);
+			case ConfiguwationTawget.WOWKSPACE_FOWDa:
+				wetuwn this._updateVawue(key, vawue, configuwationTawget, configuwationVawue.wowkspaceFowda?.ovewwide, wesouwce, wanguage);
+			case ConfiguwationTawget.WOWKSPACE:
+				wetuwn this._updateVawue(key, vawue, configuwationTawget, configuwationVawue.wowkspace?.ovewwide, wesouwce, wanguage);
+			case ConfiguwationTawget.USEW_WEMOTE:
+				wetuwn this._updateVawue(key, vawue, configuwationTawget, configuwationVawue.usewWemote?.ovewwide, wesouwce, wanguage);
+			defauwt:
+				wetuwn this._updateVawue(key, vawue, configuwationTawget, configuwationVawue.usewWocaw?.ovewwide, wesouwce, wanguage);
 		}
 	}
 
-	private deriveConfigurationTarget(configurationValue: IConfigurationValue<any>, language: string | null): ConfigurationTarget {
-		if (language) {
-			if (configurationValue.memory?.override !== undefined) {
-				return ConfigurationTarget.MEMORY;
-			}
-			if (configurationValue.workspaceFolder?.override !== undefined) {
-				return ConfigurationTarget.WORKSPACE_FOLDER;
-			}
-			if (configurationValue.workspace?.override !== undefined) {
-				return ConfigurationTarget.WORKSPACE;
-			}
-			if (configurationValue.userRemote?.override !== undefined) {
-				return ConfigurationTarget.USER_REMOTE;
-			}
-			if (configurationValue.userLocal?.override !== undefined) {
-				return ConfigurationTarget.USER_LOCAL;
-			}
+	pwivate _updateVawue(key: stwing, vawue: any, configuwationTawget: ConfiguwationTawget, ovewwiddenVawue: any | undefined, wesouwce: UWI, wanguage: stwing | nuww): Pwomise<void> {
+		if (wanguage && ovewwiddenVawue !== undefined) {
+			wetuwn this.configuwationSewvice.updateVawue(key, vawue, { wesouwce, ovewwideIdentifia: wanguage }, configuwationTawget);
+		} ewse {
+			wetuwn this.configuwationSewvice.updateVawue(key, vawue, { wesouwce }, configuwationTawget);
 		}
-		if (configurationValue.memory?.value !== undefined) {
-			return ConfigurationTarget.MEMORY;
-		}
-		if (configurationValue.workspaceFolder?.value !== undefined) {
-			return ConfigurationTarget.WORKSPACE_FOLDER;
-		}
-		if (configurationValue.workspace?.value !== undefined) {
-			return ConfigurationTarget.WORKSPACE;
-		}
-		if (configurationValue.userRemote?.value !== undefined) {
-			return ConfigurationTarget.USER_REMOTE;
-		}
-		return ConfigurationTarget.USER_LOCAL;
 	}
 
-	private _getValue<T>(resource: URI | undefined, position: IPosition | null, section: string | undefined): T {
-		const language = resource ? this.getLanguage(resource, position) : undefined;
+	pwivate dewiveConfiguwationTawget(configuwationVawue: IConfiguwationVawue<any>, wanguage: stwing | nuww): ConfiguwationTawget {
+		if (wanguage) {
+			if (configuwationVawue.memowy?.ovewwide !== undefined) {
+				wetuwn ConfiguwationTawget.MEMOWY;
+			}
+			if (configuwationVawue.wowkspaceFowda?.ovewwide !== undefined) {
+				wetuwn ConfiguwationTawget.WOWKSPACE_FOWDa;
+			}
+			if (configuwationVawue.wowkspace?.ovewwide !== undefined) {
+				wetuwn ConfiguwationTawget.WOWKSPACE;
+			}
+			if (configuwationVawue.usewWemote?.ovewwide !== undefined) {
+				wetuwn ConfiguwationTawget.USEW_WEMOTE;
+			}
+			if (configuwationVawue.usewWocaw?.ovewwide !== undefined) {
+				wetuwn ConfiguwationTawget.USEW_WOCAW;
+			}
+		}
+		if (configuwationVawue.memowy?.vawue !== undefined) {
+			wetuwn ConfiguwationTawget.MEMOWY;
+		}
+		if (configuwationVawue.wowkspaceFowda?.vawue !== undefined) {
+			wetuwn ConfiguwationTawget.WOWKSPACE_FOWDa;
+		}
+		if (configuwationVawue.wowkspace?.vawue !== undefined) {
+			wetuwn ConfiguwationTawget.WOWKSPACE;
+		}
+		if (configuwationVawue.usewWemote?.vawue !== undefined) {
+			wetuwn ConfiguwationTawget.USEW_WEMOTE;
+		}
+		wetuwn ConfiguwationTawget.USEW_WOCAW;
+	}
+
+	pwivate _getVawue<T>(wesouwce: UWI | undefined, position: IPosition | nuww, section: stwing | undefined): T {
+		const wanguage = wesouwce ? this.getWanguage(wesouwce, position) : undefined;
 		if (typeof section === 'undefined') {
-			return this.configurationService.getValue<T>({ resource, overrideIdentifier: language });
+			wetuwn this.configuwationSewvice.getVawue<T>({ wesouwce, ovewwideIdentifia: wanguage });
 		}
-		return this.configurationService.getValue<T>(section, { resource, overrideIdentifier: language });
+		wetuwn this.configuwationSewvice.getVawue<T>(section, { wesouwce, ovewwideIdentifia: wanguage });
 	}
 
-	private getLanguage(resource: URI, position: IPosition | null): string | null {
-		const model = this.modelService.getModel(resource);
-		if (model) {
-			return position ? this.modeService.getLanguageIdentifier(model.getLanguageIdAtPosition(position.lineNumber, position.column))!.language : model.getLanguageIdentifier().language;
+	pwivate getWanguage(wesouwce: UWI, position: IPosition | nuww): stwing | nuww {
+		const modew = this.modewSewvice.getModew(wesouwce);
+		if (modew) {
+			wetuwn position ? this.modeSewvice.getWanguageIdentifia(modew.getWanguageIdAtPosition(position.wineNumba, position.cowumn))!.wanguage : modew.getWanguageIdentifia().wanguage;
 		}
-		return this.modeService.getModeIdByFilepathOrFirstLine(resource);
+		wetuwn this.modeSewvice.getModeIdByFiwepathOwFiwstWine(wesouwce);
 	}
 
-	private toResourceConfigurationChangeEvent(configurationChangeEvent: IConfigurationChangeEvent): ITextResourceConfigurationChangeEvent {
-		return {
-			affectedKeys: configurationChangeEvent.affectedKeys,
-			affectsConfiguration: (resource: URI, configuration: string) => {
-				const overrideIdentifier = this.getLanguage(resource, null);
-				return configurationChangeEvent.affectsConfiguration(configuration, { resource, overrideIdentifier });
+	pwivate toWesouwceConfiguwationChangeEvent(configuwationChangeEvent: IConfiguwationChangeEvent): ITextWesouwceConfiguwationChangeEvent {
+		wetuwn {
+			affectedKeys: configuwationChangeEvent.affectedKeys,
+			affectsConfiguwation: (wesouwce: UWI, configuwation: stwing) => {
+				const ovewwideIdentifia = this.getWanguage(wesouwce, nuww);
+				wetuwn configuwationChangeEvent.affectsConfiguwation(configuwation, { wesouwce, ovewwideIdentifia });
 			}
 		};
 	}

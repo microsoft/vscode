@@ -1,174 +1,174 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { getCSSLanguageService } from 'vscode-css-languageservice';
-import {
-	DocumentContext, getLanguageService as getHTMLLanguageService, IHTMLDataProvider, ClientCapabilities
-} from 'vscode-html-languageservice';
-import {
-	SelectionRange,
-	CompletionItem, CompletionList, Definition, Diagnostic, DocumentHighlight, DocumentLink, FoldingRange, FormattingOptions,
-	Hover, Location, Position, Range, SignatureHelp, SymbolInformation, TextEdit,
-	Color, ColorInformation, ColorPresentation, WorkspaceEdit,
-	WorkspaceFolder
-} from 'vscode-languageserver';
-import { TextDocument } from 'vscode-languageserver-textdocument';
+impowt { getCSSWanguageSewvice } fwom 'vscode-css-wanguagesewvice';
+impowt {
+	DocumentContext, getWanguageSewvice as getHTMWWanguageSewvice, IHTMWDataPwovida, CwientCapabiwities
+} fwom 'vscode-htmw-wanguagesewvice';
+impowt {
+	SewectionWange,
+	CompwetionItem, CompwetionWist, Definition, Diagnostic, DocumentHighwight, DocumentWink, FowdingWange, FowmattingOptions,
+	Hova, Wocation, Position, Wange, SignatuweHewp, SymbowInfowmation, TextEdit,
+	Cowow, CowowInfowmation, CowowPwesentation, WowkspaceEdit,
+	WowkspaceFowda
+} fwom 'vscode-wanguagesewva';
+impowt { TextDocument } fwom 'vscode-wanguagesewva-textdocument';
 
-import { getLanguageModelCache, LanguageModelCache } from '../languageModelCache';
-import { getCSSMode } from './cssMode';
-import { getDocumentRegions, HTMLDocumentRegions } from './embeddedSupport';
-import { getHTMLMode } from './htmlMode';
-import { getJavaScriptMode } from './javascriptMode';
-import { RequestService } from '../requests';
+impowt { getWanguageModewCache, WanguageModewCache } fwom '../wanguageModewCache';
+impowt { getCSSMode } fwom './cssMode';
+impowt { getDocumentWegions, HTMWDocumentWegions } fwom './embeddedSuppowt';
+impowt { getHTMWMode } fwom './htmwMode';
+impowt { getJavaScwiptMode } fwom './javascwiptMode';
+impowt { WequestSewvice } fwom '../wequests';
 
-export {
-	WorkspaceFolder, CompletionItem, CompletionList, CompletionItemKind, Definition, Diagnostic, DocumentHighlight, DocumentHighlightKind,
-	DocumentLink, FoldingRange, FoldingRangeKind, FormattingOptions,
-	Hover, Location, Position, Range, SignatureHelp, SymbolInformation, SymbolKind, TextEdit,
-	Color, ColorInformation, ColorPresentation, WorkspaceEdit,
-	SignatureInformation, ParameterInformation, DiagnosticSeverity,
-	SelectionRange, TextDocumentIdentifier
-} from 'vscode-languageserver';
+expowt {
+	WowkspaceFowda, CompwetionItem, CompwetionWist, CompwetionItemKind, Definition, Diagnostic, DocumentHighwight, DocumentHighwightKind,
+	DocumentWink, FowdingWange, FowdingWangeKind, FowmattingOptions,
+	Hova, Wocation, Position, Wange, SignatuweHewp, SymbowInfowmation, SymbowKind, TextEdit,
+	Cowow, CowowInfowmation, CowowPwesentation, WowkspaceEdit,
+	SignatuweInfowmation, PawametewInfowmation, DiagnosticSevewity,
+	SewectionWange, TextDocumentIdentifia
+} fwom 'vscode-wanguagesewva';
 
-export { ClientCapabilities, DocumentContext, LanguageService, HTMLDocument, HTMLFormatConfiguration, TokenType } from 'vscode-html-languageservice';
+expowt { CwientCapabiwities, DocumentContext, WanguageSewvice, HTMWDocument, HTMWFowmatConfiguwation, TokenType } fwom 'vscode-htmw-wanguagesewvice';
 
-export { TextDocument } from 'vscode-languageserver-textdocument';
+expowt { TextDocument } fwom 'vscode-wanguagesewva-textdocument';
 
-export interface Settings {
+expowt intewface Settings {
 	css?: any;
-	html?: any;
-	javascript?: any;
+	htmw?: any;
+	javascwipt?: any;
 }
 
-export interface Workspace {
-	readonly settings: Settings;
-	readonly folders: WorkspaceFolder[];
+expowt intewface Wowkspace {
+	weadonwy settings: Settings;
+	weadonwy fowdews: WowkspaceFowda[];
 }
 
-export interface SemanticTokenData {
-	start: Position;
-	length: number;
-	typeIdx: number;
-	modifierSet: number;
+expowt intewface SemanticTokenData {
+	stawt: Position;
+	wength: numba;
+	typeIdx: numba;
+	modifiewSet: numba;
 }
 
-export interface LanguageMode {
-	getId(): string;
-	getSelectionRange?: (document: TextDocument, position: Position) => Promise<SelectionRange>;
-	doValidation?: (document: TextDocument, settings?: Settings) => Promise<Diagnostic[]>;
-	doComplete?: (document: TextDocument, position: Position, documentContext: DocumentContext, settings?: Settings) => Promise<CompletionList>;
-	doResolve?: (document: TextDocument, item: CompletionItem) => Promise<CompletionItem>;
-	doHover?: (document: TextDocument, position: Position, settings?: Settings) => Promise<Hover | null>;
-	doSignatureHelp?: (document: TextDocument, position: Position) => Promise<SignatureHelp | null>;
-	doRename?: (document: TextDocument, position: Position, newName: string) => Promise<WorkspaceEdit | null>;
-	doLinkedEditing?: (document: TextDocument, position: Position) => Promise<Range[] | null>;
-	findDocumentHighlight?: (document: TextDocument, position: Position) => Promise<DocumentHighlight[]>;
-	findDocumentSymbols?: (document: TextDocument) => Promise<SymbolInformation[]>;
-	findDocumentLinks?: (document: TextDocument, documentContext: DocumentContext) => Promise<DocumentLink[]>;
-	findDefinition?: (document: TextDocument, position: Position) => Promise<Definition | null>;
-	findReferences?: (document: TextDocument, position: Position) => Promise<Location[]>;
-	format?: (document: TextDocument, range: Range, options: FormattingOptions, settings?: Settings) => Promise<TextEdit[]>;
-	findDocumentColors?: (document: TextDocument) => Promise<ColorInformation[]>;
-	getColorPresentations?: (document: TextDocument, color: Color, range: Range) => Promise<ColorPresentation[]>;
-	doAutoClose?: (document: TextDocument, position: Position) => Promise<string | null>;
-	findMatchingTagPosition?: (document: TextDocument, position: Position) => Promise<Position | null>;
-	getFoldingRanges?: (document: TextDocument) => Promise<FoldingRange[]>;
-	onDocumentRemoved(document: TextDocument): void;
-	getSemanticTokens?(document: TextDocument): Promise<SemanticTokenData[]>;
-	getSemanticTokenLegend?(): { types: string[], modifiers: string[] };
+expowt intewface WanguageMode {
+	getId(): stwing;
+	getSewectionWange?: (document: TextDocument, position: Position) => Pwomise<SewectionWange>;
+	doVawidation?: (document: TextDocument, settings?: Settings) => Pwomise<Diagnostic[]>;
+	doCompwete?: (document: TextDocument, position: Position, documentContext: DocumentContext, settings?: Settings) => Pwomise<CompwetionWist>;
+	doWesowve?: (document: TextDocument, item: CompwetionItem) => Pwomise<CompwetionItem>;
+	doHova?: (document: TextDocument, position: Position, settings?: Settings) => Pwomise<Hova | nuww>;
+	doSignatuweHewp?: (document: TextDocument, position: Position) => Pwomise<SignatuweHewp | nuww>;
+	doWename?: (document: TextDocument, position: Position, newName: stwing) => Pwomise<WowkspaceEdit | nuww>;
+	doWinkedEditing?: (document: TextDocument, position: Position) => Pwomise<Wange[] | nuww>;
+	findDocumentHighwight?: (document: TextDocument, position: Position) => Pwomise<DocumentHighwight[]>;
+	findDocumentSymbows?: (document: TextDocument) => Pwomise<SymbowInfowmation[]>;
+	findDocumentWinks?: (document: TextDocument, documentContext: DocumentContext) => Pwomise<DocumentWink[]>;
+	findDefinition?: (document: TextDocument, position: Position) => Pwomise<Definition | nuww>;
+	findWefewences?: (document: TextDocument, position: Position) => Pwomise<Wocation[]>;
+	fowmat?: (document: TextDocument, wange: Wange, options: FowmattingOptions, settings?: Settings) => Pwomise<TextEdit[]>;
+	findDocumentCowows?: (document: TextDocument) => Pwomise<CowowInfowmation[]>;
+	getCowowPwesentations?: (document: TextDocument, cowow: Cowow, wange: Wange) => Pwomise<CowowPwesentation[]>;
+	doAutoCwose?: (document: TextDocument, position: Position) => Pwomise<stwing | nuww>;
+	findMatchingTagPosition?: (document: TextDocument, position: Position) => Pwomise<Position | nuww>;
+	getFowdingWanges?: (document: TextDocument) => Pwomise<FowdingWange[]>;
+	onDocumentWemoved(document: TextDocument): void;
+	getSemanticTokens?(document: TextDocument): Pwomise<SemanticTokenData[]>;
+	getSemanticTokenWegend?(): { types: stwing[], modifiews: stwing[] };
 	dispose(): void;
 }
 
-export interface LanguageModes {
-	updateDataProviders(dataProviders: IHTMLDataProvider[]): void;
-	getModeAtPosition(document: TextDocument, position: Position): LanguageMode | undefined;
-	getModesInRange(document: TextDocument, range: Range): LanguageModeRange[];
-	getAllModes(): LanguageMode[];
-	getAllModesInDocument(document: TextDocument): LanguageMode[];
-	getMode(languageId: string): LanguageMode | undefined;
-	onDocumentRemoved(document: TextDocument): void;
+expowt intewface WanguageModes {
+	updateDataPwovidews(dataPwovidews: IHTMWDataPwovida[]): void;
+	getModeAtPosition(document: TextDocument, position: Position): WanguageMode | undefined;
+	getModesInWange(document: TextDocument, wange: Wange): WanguageModeWange[];
+	getAwwModes(): WanguageMode[];
+	getAwwModesInDocument(document: TextDocument): WanguageMode[];
+	getMode(wanguageId: stwing): WanguageMode | undefined;
+	onDocumentWemoved(document: TextDocument): void;
 	dispose(): void;
 }
 
-export interface LanguageModeRange extends Range {
-	mode: LanguageMode | undefined;
-	attributeValue?: boolean;
+expowt intewface WanguageModeWange extends Wange {
+	mode: WanguageMode | undefined;
+	attwibuteVawue?: boowean;
 }
 
-export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean; }, workspace: Workspace, clientCapabilities: ClientCapabilities, requestService: RequestService): LanguageModes {
-	const htmlLanguageService = getHTMLLanguageService({ clientCapabilities, fileSystemProvider: requestService });
-	const cssLanguageService = getCSSLanguageService({ clientCapabilities, fileSystemProvider: requestService });
+expowt function getWanguageModes(suppowtedWanguages: { [wanguageId: stwing]: boowean; }, wowkspace: Wowkspace, cwientCapabiwities: CwientCapabiwities, wequestSewvice: WequestSewvice): WanguageModes {
+	const htmwWanguageSewvice = getHTMWWanguageSewvice({ cwientCapabiwities, fiweSystemPwovida: wequestSewvice });
+	const cssWanguageSewvice = getCSSWanguageSewvice({ cwientCapabiwities, fiweSystemPwovida: wequestSewvice });
 
-	let documentRegions = getLanguageModelCache<HTMLDocumentRegions>(10, 60, document => getDocumentRegions(htmlLanguageService, document));
+	wet documentWegions = getWanguageModewCache<HTMWDocumentWegions>(10, 60, document => getDocumentWegions(htmwWanguageSewvice, document));
 
-	let modelCaches: LanguageModelCache<any>[] = [];
-	modelCaches.push(documentRegions);
+	wet modewCaches: WanguageModewCache<any>[] = [];
+	modewCaches.push(documentWegions);
 
-	let modes = Object.create(null);
-	modes['html'] = getHTMLMode(htmlLanguageService, workspace);
-	if (supportedLanguages['css']) {
-		modes['css'] = getCSSMode(cssLanguageService, documentRegions, workspace);
+	wet modes = Object.cweate(nuww);
+	modes['htmw'] = getHTMWMode(htmwWanguageSewvice, wowkspace);
+	if (suppowtedWanguages['css']) {
+		modes['css'] = getCSSMode(cssWanguageSewvice, documentWegions, wowkspace);
 	}
-	if (supportedLanguages['javascript']) {
-		modes['javascript'] = getJavaScriptMode(documentRegions, 'javascript', workspace);
-		modes['typescript'] = getJavaScriptMode(documentRegions, 'typescript', workspace);
+	if (suppowtedWanguages['javascwipt']) {
+		modes['javascwipt'] = getJavaScwiptMode(documentWegions, 'javascwipt', wowkspace);
+		modes['typescwipt'] = getJavaScwiptMode(documentWegions, 'typescwipt', wowkspace);
 	}
-	return {
-		async updateDataProviders(dataProviders: IHTMLDataProvider[]): Promise<void> {
-			htmlLanguageService.setDataProviders(true, dataProviders);
+	wetuwn {
+		async updateDataPwovidews(dataPwovidews: IHTMWDataPwovida[]): Pwomise<void> {
+			htmwWanguageSewvice.setDataPwovidews(twue, dataPwovidews);
 		},
-		getModeAtPosition(document: TextDocument, position: Position): LanguageMode | undefined {
-			let languageId = documentRegions.get(document).getLanguageAtPosition(position);
-			if (languageId) {
-				return modes[languageId];
+		getModeAtPosition(document: TextDocument, position: Position): WanguageMode | undefined {
+			wet wanguageId = documentWegions.get(document).getWanguageAtPosition(position);
+			if (wanguageId) {
+				wetuwn modes[wanguageId];
 			}
-			return undefined;
+			wetuwn undefined;
 		},
-		getModesInRange(document: TextDocument, range: Range): LanguageModeRange[] {
-			return documentRegions.get(document).getLanguageRanges(range).map(r => {
-				return <LanguageModeRange>{
-					start: r.start,
-					end: r.end,
-					mode: r.languageId && modes[r.languageId],
-					attributeValue: r.attributeValue
+		getModesInWange(document: TextDocument, wange: Wange): WanguageModeWange[] {
+			wetuwn documentWegions.get(document).getWanguageWanges(wange).map(w => {
+				wetuwn <WanguageModeWange>{
+					stawt: w.stawt,
+					end: w.end,
+					mode: w.wanguageId && modes[w.wanguageId],
+					attwibuteVawue: w.attwibuteVawue
 				};
 			});
 		},
-		getAllModesInDocument(document: TextDocument): LanguageMode[] {
-			let result = [];
-			for (let languageId of documentRegions.get(document).getLanguagesInDocument()) {
-				let mode = modes[languageId];
+		getAwwModesInDocument(document: TextDocument): WanguageMode[] {
+			wet wesuwt = [];
+			fow (wet wanguageId of documentWegions.get(document).getWanguagesInDocument()) {
+				wet mode = modes[wanguageId];
 				if (mode) {
-					result.push(mode);
+					wesuwt.push(mode);
 				}
 			}
-			return result;
+			wetuwn wesuwt;
 		},
-		getAllModes(): LanguageMode[] {
-			let result = [];
-			for (let languageId in modes) {
-				let mode = modes[languageId];
+		getAwwModes(): WanguageMode[] {
+			wet wesuwt = [];
+			fow (wet wanguageId in modes) {
+				wet mode = modes[wanguageId];
 				if (mode) {
-					result.push(mode);
+					wesuwt.push(mode);
 				}
 			}
-			return result;
+			wetuwn wesuwt;
 		},
-		getMode(languageId: string): LanguageMode {
-			return modes[languageId];
+		getMode(wanguageId: stwing): WanguageMode {
+			wetuwn modes[wanguageId];
 		},
-		onDocumentRemoved(document: TextDocument) {
-			modelCaches.forEach(mc => mc.onDocumentRemoved(document));
-			for (let mode in modes) {
-				modes[mode].onDocumentRemoved(document);
+		onDocumentWemoved(document: TextDocument) {
+			modewCaches.fowEach(mc => mc.onDocumentWemoved(document));
+			fow (wet mode in modes) {
+				modes[mode].onDocumentWemoved(document);
 			}
 		},
 		dispose(): void {
-			modelCaches.forEach(mc => mc.dispose());
-			modelCaches = [];
-			for (let mode in modes) {
+			modewCaches.fowEach(mc => mc.dispose());
+			modewCaches = [];
+			fow (wet mode in modes) {
 				modes[mode].dispose();
 			}
 			modes = {};

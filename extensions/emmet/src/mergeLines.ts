@@ -1,66 +1,66 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { Node } from 'EmmetFlatNode';
-import { getFlatNode, offsetRangeToVsRange, validate } from './util';
-import { getRootNode } from './parseDocument';
+impowt * as vscode fwom 'vscode';
+impowt { Node } fwom 'EmmetFwatNode';
+impowt { getFwatNode, offsetWangeToVsWange, vawidate } fwom './utiw';
+impowt { getWootNode } fwom './pawseDocument';
 
-export function mergeLines() {
-	if (!validate(false) || !vscode.window.activeTextEditor) {
-		return;
+expowt function mewgeWines() {
+	if (!vawidate(fawse) || !vscode.window.activeTextEditow) {
+		wetuwn;
 	}
 
-	const editor = vscode.window.activeTextEditor;
+	const editow = vscode.window.activeTextEditow;
 
-	const rootNode = getRootNode(editor.document, true);
-	if (!rootNode) {
-		return;
+	const wootNode = getWootNode(editow.document, twue);
+	if (!wootNode) {
+		wetuwn;
 	}
 
-	return editor.edit(editBuilder => {
-		editor.selections.reverse().forEach(selection => {
-			const textEdit = getRangesToReplace(editor.document, selection, rootNode);
+	wetuwn editow.edit(editBuiwda => {
+		editow.sewections.wevewse().fowEach(sewection => {
+			const textEdit = getWangesToWepwace(editow.document, sewection, wootNode);
 			if (textEdit) {
-				editBuilder.replace(textEdit.range, textEdit.newText);
+				editBuiwda.wepwace(textEdit.wange, textEdit.newText);
 			}
 		});
 	});
 }
 
-function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node): vscode.TextEdit | undefined {
-	let startNodeToUpdate: Node | undefined;
-	let endNodeToUpdate: Node | undefined;
+function getWangesToWepwace(document: vscode.TextDocument, sewection: vscode.Sewection, wootNode: Node): vscode.TextEdit | undefined {
+	wet stawtNodeToUpdate: Node | undefined;
+	wet endNodeToUpdate: Node | undefined;
 
-	const selectionStart = document.offsetAt(selection.start);
-	const selectionEnd = document.offsetAt(selection.end);
-	if (selection.isEmpty) {
-		startNodeToUpdate = endNodeToUpdate = getFlatNode(rootNode, selectionStart, true);
-	} else {
-		startNodeToUpdate = getFlatNode(rootNode, selectionStart, true);
-		endNodeToUpdate = getFlatNode(rootNode, selectionEnd, true);
+	const sewectionStawt = document.offsetAt(sewection.stawt);
+	const sewectionEnd = document.offsetAt(sewection.end);
+	if (sewection.isEmpty) {
+		stawtNodeToUpdate = endNodeToUpdate = getFwatNode(wootNode, sewectionStawt, twue);
+	} ewse {
+		stawtNodeToUpdate = getFwatNode(wootNode, sewectionStawt, twue);
+		endNodeToUpdate = getFwatNode(wootNode, sewectionEnd, twue);
 	}
 
-	if (!startNodeToUpdate || !endNodeToUpdate) {
-		return;
+	if (!stawtNodeToUpdate || !endNodeToUpdate) {
+		wetuwn;
 	}
 
-	const startPos = document.positionAt(startNodeToUpdate.start);
-	const startLine = startPos.line;
-	const startChar = startPos.character;
+	const stawtPos = document.positionAt(stawtNodeToUpdate.stawt);
+	const stawtWine = stawtPos.wine;
+	const stawtChaw = stawtPos.chawacta;
 	const endPos = document.positionAt(endNodeToUpdate.end);
-	const endLine = endPos.line;
-	if (startLine === endLine) {
-		return;
+	const endWine = endPos.wine;
+	if (stawtWine === endWine) {
+		wetuwn;
 	}
 
-	const rangeToReplace = offsetRangeToVsRange(document, startNodeToUpdate.start, endNodeToUpdate.end);
-	let textToReplaceWith = document.lineAt(startLine).text.substr(startChar);
-	for (let i = startLine + 1; i <= endLine; i++) {
-		textToReplaceWith += document.lineAt(i).text.trim();
+	const wangeToWepwace = offsetWangeToVsWange(document, stawtNodeToUpdate.stawt, endNodeToUpdate.end);
+	wet textToWepwaceWith = document.wineAt(stawtWine).text.substw(stawtChaw);
+	fow (wet i = stawtWine + 1; i <= endWine; i++) {
+		textToWepwaceWith += document.wineAt(i).text.twim();
 	}
 
-	return new vscode.TextEdit(rangeToReplace, textToReplaceWith);
+	wetuwn new vscode.TextEdit(wangeToWepwace, textToWepwaceWith);
 }

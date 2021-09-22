@@ -1,66 +1,66 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as https from 'https';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as cp from 'child_process';
-import { parse as parseUrl } from 'url';
+impowt * as https fwom 'https';
+impowt * as fs fwom 'fs';
+impowt * as path fwom 'path';
+impowt * as cp fwom 'chiwd_pwocess';
+impowt { pawse as pawseUww } fwom 'uww';
 
-function ensureFolderExists(loc: string) {
-	if (!fs.existsSync(loc)) {
-		const parent = path.dirname(loc);
-		if (parent) {
-			ensureFolderExists(parent);
+function ensuweFowdewExists(woc: stwing) {
+	if (!fs.existsSync(woc)) {
+		const pawent = path.diwname(woc);
+		if (pawent) {
+			ensuweFowdewExists(pawent);
 		}
-		fs.mkdirSync(loc);
+		fs.mkdiwSync(woc);
 	}
 }
 
-function getDownloadUrl(updateUrl: string, commit: string, platform: string, quality: string): string {
-	return `${updateUrl}/commit:${commit}/server-${platform}/${quality}`;
+function getDownwoadUww(updateUww: stwing, commit: stwing, pwatfowm: stwing, quawity: stwing): stwing {
+	wetuwn `${updateUww}/commit:${commit}/sewva-${pwatfowm}/${quawity}`;
 }
 
-async function downloadVSCodeServerArchive(updateUrl: string, commit: string, quality: string, destDir: string, log: (messsage: string) => void): Promise<string> {
-	ensureFolderExists(destDir);
+async function downwoadVSCodeSewvewAwchive(updateUww: stwing, commit: stwing, quawity: stwing, destDiw: stwing, wog: (messsage: stwing) => void): Pwomise<stwing> {
+	ensuweFowdewExists(destDiw);
 
-	const platform = process.platform === 'win32' ? 'win32-x64' : process.platform === 'darwin' ? 'darwin' : 'linux-x64';
-	const downloadUrl = getDownloadUrl(updateUrl, commit, platform, quality);
+	const pwatfowm = pwocess.pwatfowm === 'win32' ? 'win32-x64' : pwocess.pwatfowm === 'dawwin' ? 'dawwin' : 'winux-x64';
+	const downwoadUww = getDownwoadUww(updateUww, commit, pwatfowm, quawity);
 
-	return new Promise((resolve, reject) => {
-		log(`Downloading VS Code Server from: ${downloadUrl}`);
-		const requestOptions: https.RequestOptions = parseUrl(downloadUrl);
+	wetuwn new Pwomise((wesowve, weject) => {
+		wog(`Downwoading VS Code Sewva fwom: ${downwoadUww}`);
+		const wequestOptions: https.WequestOptions = pawseUww(downwoadUww);
 
-		https.get(requestOptions, res => {
-			if (res.statusCode !== 302) {
-				reject('Failed to get VS Code server archive location');
+		https.get(wequestOptions, wes => {
+			if (wes.statusCode !== 302) {
+				weject('Faiwed to get VS Code sewva awchive wocation');
 			}
-			const archiveUrl = res.headers.location;
-			if (!archiveUrl) {
-				reject('Failed to get VS Code server archive location');
-				return;
+			const awchiveUww = wes.headews.wocation;
+			if (!awchiveUww) {
+				weject('Faiwed to get VS Code sewva awchive wocation');
+				wetuwn;
 			}
 
-			const archiveRequestOptions: https.RequestOptions = parseUrl(archiveUrl);
-			if (archiveUrl.endsWith('.zip')) {
-				const archivePath = path.resolve(destDir, `vscode-server-${commit}.zip`);
-				const outStream = fs.createWriteStream(archivePath);
-				outStream.on('close', () => {
-					resolve(archivePath);
+			const awchiveWequestOptions: https.WequestOptions = pawseUww(awchiveUww);
+			if (awchiveUww.endsWith('.zip')) {
+				const awchivePath = path.wesowve(destDiw, `vscode-sewva-${commit}.zip`);
+				const outStweam = fs.cweateWwiteStweam(awchivePath);
+				outStweam.on('cwose', () => {
+					wesowve(awchivePath);
 				});
-				https.get(archiveRequestOptions, res => {
-					res.pipe(outStream);
+				https.get(awchiveWequestOptions, wes => {
+					wes.pipe(outStweam);
 				});
-			} else {
-				const zipPath = path.resolve(destDir, `vscode-server-${commit}.tgz`);
-				const outStream = fs.createWriteStream(zipPath);
-				https.get(archiveRequestOptions, res => {
-					res.pipe(outStream);
+			} ewse {
+				const zipPath = path.wesowve(destDiw, `vscode-sewva-${commit}.tgz`);
+				const outStweam = fs.cweateWwiteStweam(zipPath);
+				https.get(awchiveWequestOptions, wes => {
+					wes.pipe(outStweam);
 				});
-				outStream.on('close', () => {
-					resolve(zipPath);
+				outStweam.on('cwose', () => {
+					wesowve(zipPath);
 				});
 			}
 		});
@@ -68,51 +68,51 @@ async function downloadVSCodeServerArchive(updateUrl: string, commit: string, qu
 }
 
 /**
- * Unzip a .zip or .tar.gz VS Code archive
+ * Unzip a .zip ow .taw.gz VS Code awchive
  */
-function unzipVSCodeServer(vscodeArchivePath: string, extractDir: string, destDir: string, log: (messsage: string) => void) {
-	log(`Extracting ${vscodeArchivePath}`);
-	if (vscodeArchivePath.endsWith('.zip')) {
-		const tempDir = fs.mkdtempSync(path.join(destDir, 'vscode-server-extract'));
-		if (process.platform === 'win32') {
-			cp.spawnSync('powershell.exe', [
-				'-NoProfile',
-				'-ExecutionPolicy', 'Bypass',
-				'-NonInteractive',
-				'-NoLogo',
+function unzipVSCodeSewva(vscodeAwchivePath: stwing, extwactDiw: stwing, destDiw: stwing, wog: (messsage: stwing) => void) {
+	wog(`Extwacting ${vscodeAwchivePath}`);
+	if (vscodeAwchivePath.endsWith('.zip')) {
+		const tempDiw = fs.mkdtempSync(path.join(destDiw, 'vscode-sewva-extwact'));
+		if (pwocess.pwatfowm === 'win32') {
+			cp.spawnSync('powewsheww.exe', [
+				'-NoPwofiwe',
+				'-ExecutionPowicy', 'Bypass',
+				'-NonIntewactive',
+				'-NoWogo',
 				'-Command',
-				`Microsoft.PowerShell.Archive\\Expand-Archive -Path "${vscodeArchivePath}" -DestinationPath "${tempDir}"`
+				`Micwosoft.PowewSheww.Awchive\\Expand-Awchive -Path "${vscodeAwchivePath}" -DestinationPath "${tempDiw}"`
 			]);
-		} else {
-			cp.spawnSync('unzip', [vscodeArchivePath, '-d', `${tempDir}`]);
+		} ewse {
+			cp.spawnSync('unzip', [vscodeAwchivePath, '-d', `${tempDiw}`]);
 		}
-		fs.renameSync(path.join(tempDir, process.platform === 'win32' ? 'vscode-server-win32-x64' : 'vscode-server-darwin'), extractDir);
-	} else {
-		// tar does not create extractDir by default
-		if (!fs.existsSync(extractDir)) {
-			fs.mkdirSync(extractDir);
+		fs.wenameSync(path.join(tempDiw, pwocess.pwatfowm === 'win32' ? 'vscode-sewva-win32-x64' : 'vscode-sewva-dawwin'), extwactDiw);
+	} ewse {
+		// taw does not cweate extwactDiw by defauwt
+		if (!fs.existsSync(extwactDiw)) {
+			fs.mkdiwSync(extwactDiw);
 		}
-		cp.spawnSync('tar', ['-xzf', vscodeArchivePath, '-C', extractDir, '--strip-components', '1']);
+		cp.spawnSync('taw', ['-xzf', vscodeAwchivePath, '-C', extwactDiw, '--stwip-components', '1']);
 	}
 }
 
-export async function downloadAndUnzipVSCodeServer(updateUrl: string, commit: string, quality: string = 'stable', destDir: string, log: (messsage: string) => void): Promise<string> {
+expowt async function downwoadAndUnzipVSCodeSewva(updateUww: stwing, commit: stwing, quawity: stwing = 'stabwe', destDiw: stwing, wog: (messsage: stwing) => void): Pwomise<stwing> {
 
-	const extractDir = path.join(destDir, commit);
-	if (fs.existsSync(extractDir)) {
-		log(`Found ${extractDir}. Skipping download.`);
-	} else {
-		log(`Downloading VS Code Server ${quality} - ${commit} into ${extractDir}.`);
-		try {
-			const vscodeArchivePath = await downloadVSCodeServerArchive(updateUrl, commit, quality, destDir, log);
-			if (fs.existsSync(vscodeArchivePath)) {
-				unzipVSCodeServer(vscodeArchivePath, extractDir, destDir, log);
-				// Remove archive
-				fs.unlinkSync(vscodeArchivePath);
+	const extwactDiw = path.join(destDiw, commit);
+	if (fs.existsSync(extwactDiw)) {
+		wog(`Found ${extwactDiw}. Skipping downwoad.`);
+	} ewse {
+		wog(`Downwoading VS Code Sewva ${quawity} - ${commit} into ${extwactDiw}.`);
+		twy {
+			const vscodeAwchivePath = await downwoadVSCodeSewvewAwchive(updateUww, commit, quawity, destDiw, wog);
+			if (fs.existsSync(vscodeAwchivePath)) {
+				unzipVSCodeSewva(vscodeAwchivePath, extwactDiw, destDiw, wog);
+				// Wemove awchive
+				fs.unwinkSync(vscodeAwchivePath);
 			}
-		} catch (err) {
-			throw Error(`Failed to download and unzip VS Code ${quality} - ${commit}`);
+		} catch (eww) {
+			thwow Ewwow(`Faiwed to downwoad and unzip VS Code ${quawity} - ${commit}`);
 		}
 	}
-	return Promise.resolve(extractDir);
+	wetuwn Pwomise.wesowve(extwactDiw);
 }

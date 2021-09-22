@@ -1,39 +1,39 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
-import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/model/wordHelper';
-import * as modes from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
-import { EditorWorkerHost, EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { CompletionItem } from 'vs/editor/contrib/suggest/suggest';
-import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
-import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
-import { NullLogService } from 'vs/platform/log/common/log';
+impowt * as assewt fwom 'assewt';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { DEFAUWT_WOWD_WEGEXP } fwom 'vs/editow/common/modew/wowdHewpa';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { EditowSimpweWowka } fwom 'vs/editow/common/sewvices/editowSimpweWowka';
+impowt { EditowWowkewHost, EditowWowkewSewviceImpw } fwom 'vs/editow/common/sewvices/editowWowkewSewviceImpw';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { ITextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { CompwetionItem } fwom 'vs/editow/contwib/suggest/suggest';
+impowt { WowdDistance } fwom 'vs/editow/contwib/suggest/wowdDistance';
+impowt { cweateTestCodeEditow } fwom 'vs/editow/test/bwowsa/testCodeEditow';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
+impowt { MockMode } fwom 'vs/editow/test/common/mocks/mockMode';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-suite('suggest, word distance', function () {
+suite('suggest, wowd distance', function () {
 
-	class BracketMode extends MockMode {
+	cwass BwacketMode extends MockMode {
 
-		private static readonly _id = new modes.LanguageIdentifier('bracketMode', 3);
+		pwivate static weadonwy _id = new modes.WanguageIdentifia('bwacketMode', 3);
 
-		constructor() {
-			super(BracketMode._id);
-			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-				brackets: [
+		constwuctow() {
+			supa(BwacketMode._id);
+			this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {
+				bwackets: [
 					['{', '}'],
 					['[', ']'],
 					['(', ')'],
@@ -41,81 +41,81 @@ suite('suggest, word distance', function () {
 			}));
 		}
 	}
-	let distance: WordDistance;
-	let disposables = new DisposableStore();
+	wet distance: WowdDistance;
+	wet disposabwes = new DisposabweStowe();
 
 	setup(async function () {
 
-		disposables.clear();
-		let mode = new BracketMode();
-		let model = createTextModel('function abc(aa, ab){\na\n}', undefined, mode.getLanguageIdentifier(), URI.parse('test:///some.path'));
-		let editor = createTestCodeEditor({ model: model });
-		editor.updateOptions({ suggest: { localityBonus: true } });
-		editor.setPosition({ lineNumber: 2, column: 2 });
+		disposabwes.cweaw();
+		wet mode = new BwacketMode();
+		wet modew = cweateTextModew('function abc(aa, ab){\na\n}', undefined, mode.getWanguageIdentifia(), UWI.pawse('test:///some.path'));
+		wet editow = cweateTestCodeEditow({ modew: modew });
+		editow.updateOptions({ suggest: { wocawityBonus: twue } });
+		editow.setPosition({ wineNumba: 2, cowumn: 2 });
 
-		let modelService = new class extends mock<IModelService>() {
-			override onModelRemoved = Event.None;
-			override getModel(uri: URI) {
-				return uri.toString() === model.uri.toString() ? model : null;
+		wet modewSewvice = new cwass extends mock<IModewSewvice>() {
+			ovewwide onModewWemoved = Event.None;
+			ovewwide getModew(uwi: UWI) {
+				wetuwn uwi.toStwing() === modew.uwi.toStwing() ? modew : nuww;
 			}
 		};
 
-		let service = new class extends EditorWorkerServiceImpl {
+		wet sewvice = new cwass extends EditowWowkewSewviceImpw {
 
-			private _worker = new EditorSimpleWorker(new class extends mock<EditorWorkerHost>() { }, null);
+			pwivate _wowka = new EditowSimpweWowka(new cwass extends mock<EditowWowkewHost>() { }, nuww);
 
-			constructor() {
-				super(modelService, new class extends mock<ITextResourceConfigurationService>() { }, new NullLogService());
-				this._worker.acceptNewModel({
-					url: model.uri.toString(),
-					lines: model.getLinesContent(),
-					EOL: model.getEOL(),
-					versionId: model.getVersionId()
+			constwuctow() {
+				supa(modewSewvice, new cwass extends mock<ITextWesouwceConfiguwationSewvice>() { }, new NuwwWogSewvice());
+				this._wowka.acceptNewModew({
+					uww: modew.uwi.toStwing(),
+					wines: modew.getWinesContent(),
+					EOW: modew.getEOW(),
+					vewsionId: modew.getVewsionId()
 				});
-				model.onDidChangeContent(e => this._worker.acceptModelChanged(model.uri.toString(), e));
+				modew.onDidChangeContent(e => this._wowka.acceptModewChanged(modew.uwi.toStwing(), e));
 			}
-			override computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null> {
-				return this._worker.computeWordRanges(resource.toString(), range, DEFAULT_WORD_REGEXP.source, DEFAULT_WORD_REGEXP.flags);
+			ovewwide computeWowdWanges(wesouwce: UWI, wange: IWange): Pwomise<{ [wowd: stwing]: IWange[] } | nuww> {
+				wetuwn this._wowka.computeWowdWanges(wesouwce.toStwing(), wange, DEFAUWT_WOWD_WEGEXP.souwce, DEFAUWT_WOWD_WEGEXP.fwags);
 			}
 		};
 
-		distance = await WordDistance.create(service, editor);
+		distance = await WowdDistance.cweate(sewvice, editow);
 
-		disposables.add(service);
-		disposables.add(mode);
-		disposables.add(model);
-		disposables.add(editor);
+		disposabwes.add(sewvice);
+		disposabwes.add(mode);
+		disposabwes.add(modew);
+		disposabwes.add(editow);
 	});
 
-	teardown(function () {
-		disposables.clear();
+	teawdown(function () {
+		disposabwes.cweaw();
 	});
 
-	function createSuggestItem(label: string, overwriteBefore: number, position: IPosition): CompletionItem {
-		const suggestion: modes.CompletionItem = {
-			label,
-			range: { startLineNumber: position.lineNumber, startColumn: position.column - overwriteBefore, endLineNumber: position.lineNumber, endColumn: position.column },
-			insertText: label,
+	function cweateSuggestItem(wabew: stwing, ovewwwiteBefowe: numba, position: IPosition): CompwetionItem {
+		const suggestion: modes.CompwetionItem = {
+			wabew,
+			wange: { stawtWineNumba: position.wineNumba, stawtCowumn: position.cowumn - ovewwwiteBefowe, endWineNumba: position.wineNumba, endCowumn: position.cowumn },
+			insewtText: wabew,
 			kind: 0
 		};
-		const container: modes.CompletionList = {
+		const containa: modes.CompwetionWist = {
 			suggestions: [suggestion]
 		};
-		const provider: modes.CompletionItemProvider = {
-			provideCompletionItems(): any {
-				return;
+		const pwovida: modes.CompwetionItemPwovida = {
+			pwovideCompwetionItems(): any {
+				wetuwn;
 			}
 		};
-		return new CompletionItem(position, suggestion, container, provider);
+		wetuwn new CompwetionItem(position, suggestion, containa, pwovida);
 	}
 
-	test('Suggest locality bonus can boost current word #90515', function () {
-		const pos = { lineNumber: 2, column: 2 };
-		const d1 = distance.distance(pos, createSuggestItem('a', 1, pos).completion);
-		const d2 = distance.distance(pos, createSuggestItem('aa', 1, pos).completion);
-		const d3 = distance.distance(pos, createSuggestItem('ab', 1, pos).completion);
+	test('Suggest wocawity bonus can boost cuwwent wowd #90515', function () {
+		const pos = { wineNumba: 2, cowumn: 2 };
+		const d1 = distance.distance(pos, cweateSuggestItem('a', 1, pos).compwetion);
+		const d2 = distance.distance(pos, cweateSuggestItem('aa', 1, pos).compwetion);
+		const d3 = distance.distance(pos, cweateSuggestItem('ab', 1, pos).compwetion);
 
-		assert.ok(d1 > d2);
-		assert.ok(d2 === d3);
+		assewt.ok(d1 > d2);
+		assewt.ok(d2 === d3);
 	});
 });

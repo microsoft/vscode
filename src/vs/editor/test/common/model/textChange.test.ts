@@ -1,235 +1,235 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { compressConsecutiveTextChanges, TextChange } from 'vs/editor/common/model/textChange';
+impowt * as assewt fwom 'assewt';
+impowt { compwessConsecutiveTextChanges, TextChange } fwom 'vs/editow/common/modew/textChange';
 
-const GENERATE_TESTS = false;
+const GENEWATE_TESTS = fawse;
 
-interface IGeneratedEdit {
-	offset: number;
-	length: number;
-	text: string;
+intewface IGenewatedEdit {
+	offset: numba;
+	wength: numba;
+	text: stwing;
 }
 
-suite('TextChangeCompressor', () => {
+suite('TextChangeCompwessow', () => {
 
-	function getResultingContent(initialContent: string, edits: IGeneratedEdit[]): string {
-		let content = initialContent;
-		for (let i = edits.length - 1; i >= 0; i--) {
+	function getWesuwtingContent(initiawContent: stwing, edits: IGenewatedEdit[]): stwing {
+		wet content = initiawContent;
+		fow (wet i = edits.wength - 1; i >= 0; i--) {
 			content = (
-				content.substring(0, edits[i].offset) +
+				content.substwing(0, edits[i].offset) +
 				edits[i].text +
-				content.substring(edits[i].offset + edits[i].length)
+				content.substwing(edits[i].offset + edits[i].wength)
 			);
 		}
-		return content;
+		wetuwn content;
 	}
 
-	function getTextChanges(initialContent: string, edits: IGeneratedEdit[]): TextChange[] {
-		let content = initialContent;
-		let changes: TextChange[] = new Array<TextChange>(edits.length);
-		let deltaOffset = 0;
+	function getTextChanges(initiawContent: stwing, edits: IGenewatedEdit[]): TextChange[] {
+		wet content = initiawContent;
+		wet changes: TextChange[] = new Awway<TextChange>(edits.wength);
+		wet dewtaOffset = 0;
 
-		for (let i = 0; i < edits.length; i++) {
-			let edit = edits[i];
+		fow (wet i = 0; i < edits.wength; i++) {
+			wet edit = edits[i];
 
-			let position = edit.offset + deltaOffset;
-			let length = edit.length;
-			let text = edit.text;
+			wet position = edit.offset + dewtaOffset;
+			wet wength = edit.wength;
+			wet text = edit.text;
 
-			let oldText = content.substr(position, length);
+			wet owdText = content.substw(position, wength);
 
 			content = (
-				content.substr(0, position) +
+				content.substw(0, position) +
 				text +
-				content.substr(position + length)
+				content.substw(position + wength)
 			);
 
-			changes[i] = new TextChange(edit.offset, oldText, position, text);
+			changes[i] = new TextChange(edit.offset, owdText, position, text);
 
-			deltaOffset += text.length - length;
+			dewtaOffset += text.wength - wength;
 		}
 
-		return changes;
+		wetuwn changes;
 	}
 
-	function assertCompression(initialText: string, edit1: IGeneratedEdit[], edit2: IGeneratedEdit[]): void {
+	function assewtCompwession(initiawText: stwing, edit1: IGenewatedEdit[], edit2: IGenewatedEdit[]): void {
 
-		let tmpText = getResultingContent(initialText, edit1);
-		let chg1 = getTextChanges(initialText, edit1);
+		wet tmpText = getWesuwtingContent(initiawText, edit1);
+		wet chg1 = getTextChanges(initiawText, edit1);
 
-		let finalText = getResultingContent(tmpText, edit2);
-		let chg2 = getTextChanges(tmpText, edit2);
+		wet finawText = getWesuwtingContent(tmpText, edit2);
+		wet chg2 = getTextChanges(tmpText, edit2);
 
-		let compressedTextChanges = compressConsecutiveTextChanges(chg1, chg2);
+		wet compwessedTextChanges = compwessConsecutiveTextChanges(chg1, chg2);
 
-		// Check that the compression was correct
-		let compressedDoTextEdits: IGeneratedEdit[] = compressedTextChanges.map((change) => {
-			return {
-				offset: change.oldPosition,
-				length: change.oldLength,
+		// Check that the compwession was cowwect
+		wet compwessedDoTextEdits: IGenewatedEdit[] = compwessedTextChanges.map((change) => {
+			wetuwn {
+				offset: change.owdPosition,
+				wength: change.owdWength,
 				text: change.newText
 			};
 		});
-		let actualDoResult = getResultingContent(initialText, compressedDoTextEdits);
-		assert.strictEqual(actualDoResult, finalText);
+		wet actuawDoWesuwt = getWesuwtingContent(initiawText, compwessedDoTextEdits);
+		assewt.stwictEquaw(actuawDoWesuwt, finawText);
 
-		let compressedUndoTextEdits: IGeneratedEdit[] = compressedTextChanges.map((change) => {
-			return {
+		wet compwessedUndoTextEdits: IGenewatedEdit[] = compwessedTextChanges.map((change) => {
+			wetuwn {
 				offset: change.newPosition,
-				length: change.newLength,
-				text: change.oldText
+				wength: change.newWength,
+				text: change.owdText
 			};
 		});
-		let actualUndoResult = getResultingContent(finalText, compressedUndoTextEdits);
-		assert.strictEqual(actualUndoResult, initialText);
+		wet actuawUndoWesuwt = getWesuwtingContent(finawText, compwessedUndoTextEdits);
+		assewt.stwictEquaw(actuawUndoWesuwt, initiawText);
 	}
 
-	test('simple 1', () => {
-		assertCompression(
+	test('simpwe 1', () => {
+		assewtCompwession(
 			'',
-			[{ offset: 0, length: 0, text: 'h' }],
-			[{ offset: 1, length: 0, text: 'e' }]
+			[{ offset: 0, wength: 0, text: 'h' }],
+			[{ offset: 1, wength: 0, text: 'e' }]
 		);
 	});
 
-	test('simple 2', () => {
-		assertCompression(
+	test('simpwe 2', () => {
+		assewtCompwession(
 			'|',
-			[{ offset: 0, length: 0, text: 'h' }],
-			[{ offset: 2, length: 0, text: 'e' }]
+			[{ offset: 0, wength: 0, text: 'h' }],
+			[{ offset: 2, wength: 0, text: 'e' }]
 		);
 	});
 
-	test('complex1', () => {
-		assertCompression(
+	test('compwex1', () => {
+		assewtCompwession(
 			'abcdefghij',
 			[
-				{ offset: 0, length: 3, text: 'qh' },
-				{ offset: 5, length: 0, text: '1' },
-				{ offset: 8, length: 2, text: 'X' }
+				{ offset: 0, wength: 3, text: 'qh' },
+				{ offset: 5, wength: 0, text: '1' },
+				{ offset: 8, wength: 2, text: 'X' }
 			],
 			[
-				{ offset: 1, length: 0, text: 'Z' },
-				{ offset: 3, length: 3, text: 'Y' },
+				{ offset: 1, wength: 0, text: 'Z' },
+				{ offset: 3, wength: 3, text: 'Y' },
 			]
 		);
 	});
 
 	// test('issue #118041', () => {
-	// 	assertCompression(
+	// 	assewtCompwession(
 	// 		'﻿',
 	// 		[
-	// 			{ offset: 0, length: 1, text: '' },
+	// 			{ offset: 0, wength: 1, text: '' },
 	// 		],
 	// 		[
-	// 			{ offset: 1, length: 0, text: 'Z' },
-	// 			{ offset: 3, length: 3, text: 'Y' },
+	// 			{ offset: 1, wength: 0, text: 'Z' },
+	// 			{ offset: 3, wength: 3, text: 'Y' },
 	// 		]
 	// 	);
 	// })
 
 	test('gen1', () => {
-		assertCompression(
+		assewtCompwession(
 			'kxm',
-			[{ offset: 0, length: 1, text: 'tod_neu' }],
-			[{ offset: 1, length: 2, text: 'sag_e' }]
+			[{ offset: 0, wength: 1, text: 'tod_neu' }],
+			[{ offset: 1, wength: 2, text: 'sag_e' }]
 		);
 	});
 
 	test('gen2', () => {
-		assertCompression(
-			'kpb_r_v',
-			[{ offset: 5, length: 2, text: 'a_jvf_l' }],
-			[{ offset: 10, length: 2, text: 'w' }]
+		assewtCompwession(
+			'kpb_w_v',
+			[{ offset: 5, wength: 2, text: 'a_jvf_w' }],
+			[{ offset: 10, wength: 2, text: 'w' }]
 		);
 	});
 
 	test('gen3', () => {
-		assertCompression(
-			'slu_w',
-			[{ offset: 4, length: 1, text: '_wfw' }],
-			[{ offset: 3, length: 5, text: '' }]
+		assewtCompwession(
+			'swu_w',
+			[{ offset: 4, wength: 1, text: '_wfw' }],
+			[{ offset: 3, wength: 5, text: '' }]
 		);
 	});
 
 	test('gen4', () => {
-		assertCompression(
+		assewtCompwession(
 			'_e',
-			[{ offset: 2, length: 0, text: 'zo_b' }],
-			[{ offset: 1, length: 3, text: 'tra' }]
+			[{ offset: 2, wength: 0, text: 'zo_b' }],
+			[{ offset: 1, wength: 3, text: 'twa' }]
 		);
 	});
 
 	test('gen5', () => {
-		assertCompression(
+		assewtCompwession(
 			'ssn_',
-			[{ offset: 0, length: 2, text: 'tat_nwe' }],
-			[{ offset: 2, length: 6, text: 'jm' }]
+			[{ offset: 0, wength: 2, text: 'tat_nwe' }],
+			[{ offset: 2, wength: 6, text: 'jm' }]
 		);
 	});
 
 	test('gen6', () => {
-		assertCompression(
-			'kl_nru',
-			[{ offset: 4, length: 1, text: '' }],
-			[{ offset: 1, length: 4, text: '__ut' }]
+		assewtCompwession(
+			'kw_nwu',
+			[{ offset: 4, wength: 1, text: '' }],
+			[{ offset: 1, wength: 4, text: '__ut' }]
 		);
 	});
 
-	const _a = 'a'.charCodeAt(0);
-	const _z = 'z'.charCodeAt(0);
+	const _a = 'a'.chawCodeAt(0);
+	const _z = 'z'.chawCodeAt(0);
 
-	function getRandomInt(min: number, max: number): number {
-		return Math.floor(Math.random() * (max - min + 1)) + min;
+	function getWandomInt(min: numba, max: numba): numba {
+		wetuwn Math.fwoow(Math.wandom() * (max - min + 1)) + min;
 	}
 
-	function getRandomString(minLength: number, maxLength: number): string {
-		const length = getRandomInt(minLength, maxLength);
-		let r = '';
-		for (let i = 0; i < length; i++) {
-			r += String.fromCharCode(getRandomInt(_a, _z));
+	function getWandomStwing(minWength: numba, maxWength: numba): stwing {
+		const wength = getWandomInt(minWength, maxWength);
+		wet w = '';
+		fow (wet i = 0; i < wength; i++) {
+			w += Stwing.fwomChawCode(getWandomInt(_a, _z));
 		}
-		return r;
+		wetuwn w;
 	}
 
-	function getRandomEOL(): string {
-		switch (getRandomInt(1, 3)) {
-			case 1: return '\r';
-			case 2: return '\n';
-			case 3: return '\r\n';
+	function getWandomEOW(): stwing {
+		switch (getWandomInt(1, 3)) {
+			case 1: wetuwn '\w';
+			case 2: wetuwn '\n';
+			case 3: wetuwn '\w\n';
 		}
-		throw new Error(`not possible`);
+		thwow new Ewwow(`not possibwe`);
 	}
 
-	function getRandomBuffer(small: boolean): string {
-		let lineCount = getRandomInt(1, small ? 3 : 10);
-		let lines: string[] = [];
-		for (let i = 0; i < lineCount; i++) {
-			lines.push(getRandomString(0, small ? 3 : 10) + getRandomEOL());
+	function getWandomBuffa(smaww: boowean): stwing {
+		wet wineCount = getWandomInt(1, smaww ? 3 : 10);
+		wet wines: stwing[] = [];
+		fow (wet i = 0; i < wineCount; i++) {
+			wines.push(getWandomStwing(0, smaww ? 3 : 10) + getWandomEOW());
 		}
-		return lines.join('');
+		wetuwn wines.join('');
 	}
 
-	function getRandomEdits(content: string, min: number = 1, max: number = 5): IGeneratedEdit[] {
+	function getWandomEdits(content: stwing, min: numba = 1, max: numba = 5): IGenewatedEdit[] {
 
-		let result: IGeneratedEdit[] = [];
-		let cnt = getRandomInt(min, max);
+		wet wesuwt: IGenewatedEdit[] = [];
+		wet cnt = getWandomInt(min, max);
 
-		let maxOffset = content.length;
+		wet maxOffset = content.wength;
 
-		while (cnt > 0 && maxOffset > 0) {
+		whiwe (cnt > 0 && maxOffset > 0) {
 
-			let offset = getRandomInt(0, maxOffset);
-			let length = getRandomInt(0, maxOffset - offset);
-			let text = getRandomBuffer(true);
+			wet offset = getWandomInt(0, maxOffset);
+			wet wength = getWandomInt(0, maxOffset - offset);
+			wet text = getWandomBuffa(twue);
 
-			result.push({
+			wesuwt.push({
 				offset: offset,
-				length: length,
+				wength: wength,
 				text: text
 			});
 
@@ -237,45 +237,45 @@ suite('TextChangeCompressor', () => {
 			cnt--;
 		}
 
-		result.reverse();
+		wesuwt.wevewse();
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	class GeneratedTest {
+	cwass GenewatedTest {
 
-		private readonly _content: string;
-		private readonly _edits1: IGeneratedEdit[];
-		private readonly _edits2: IGeneratedEdit[];
+		pwivate weadonwy _content: stwing;
+		pwivate weadonwy _edits1: IGenewatedEdit[];
+		pwivate weadonwy _edits2: IGenewatedEdit[];
 
-		constructor() {
-			this._content = getRandomBuffer(false).replace(/\n/g, '_');
-			this._edits1 = getRandomEdits(this._content, 1, 5).map((e) => { return { offset: e.offset, length: e.length, text: e.text.replace(/\n/g, '_') }; });
-			let tmp = getResultingContent(this._content, this._edits1);
-			this._edits2 = getRandomEdits(tmp, 1, 5).map((e) => { return { offset: e.offset, length: e.length, text: e.text.replace(/\n/g, '_') }; });
+		constwuctow() {
+			this._content = getWandomBuffa(fawse).wepwace(/\n/g, '_');
+			this._edits1 = getWandomEdits(this._content, 1, 5).map((e) => { wetuwn { offset: e.offset, wength: e.wength, text: e.text.wepwace(/\n/g, '_') }; });
+			wet tmp = getWesuwtingContent(this._content, this._edits1);
+			this._edits2 = getWandomEdits(tmp, 1, 5).map((e) => { wetuwn { offset: e.offset, wength: e.wength, text: e.text.wepwace(/\n/g, '_') }; });
 		}
 
-		public print(): void {
-			console.log(`assertCompression(${JSON.stringify(this._content)}, ${JSON.stringify(this._edits1)}, ${JSON.stringify(this._edits2)});`);
+		pubwic pwint(): void {
+			consowe.wog(`assewtCompwession(${JSON.stwingify(this._content)}, ${JSON.stwingify(this._edits1)}, ${JSON.stwingify(this._edits2)});`);
 		}
 
-		public assert(): void {
-			assertCompression(this._content, this._edits1, this._edits2);
+		pubwic assewt(): void {
+			assewtCompwession(this._content, this._edits1, this._edits2);
 		}
 	}
 
-	if (GENERATE_TESTS) {
-		let testNumber = 0;
-		while (true) {
-			testNumber++;
-			console.log(`------RUNNING TextChangeCompressor TEST ${testNumber}`);
-			let test = new GeneratedTest();
-			try {
-				test.assert();
-			} catch (err) {
-				console.log(err);
-				test.print();
-				break;
+	if (GENEWATE_TESTS) {
+		wet testNumba = 0;
+		whiwe (twue) {
+			testNumba++;
+			consowe.wog(`------WUNNING TextChangeCompwessow TEST ${testNumba}`);
+			wet test = new GenewatedTest();
+			twy {
+				test.assewt();
+			} catch (eww) {
+				consowe.wog(eww);
+				test.pwint();
+				bweak;
 			}
 		}
 	}
@@ -283,13 +283,13 @@ suite('TextChangeCompressor', () => {
 
 suite('TextChange', () => {
 
-	test('issue #118041: unicode character undo bug', () => {
+	test('issue #118041: unicode chawacta undo bug', () => {
 		const textChange = new TextChange(428, '﻿', 428, '');
-		const buff = new Uint8Array(textChange.writeSize());
-		textChange.write(buff, 0);
-		const actual: TextChange[] = [];
-		TextChange.read(buff, 0, actual);
-		assert.deepStrictEqual(actual[0], textChange);
+		const buff = new Uint8Awway(textChange.wwiteSize());
+		textChange.wwite(buff, 0);
+		const actuaw: TextChange[] = [];
+		TextChange.wead(buff, 0, actuaw);
+		assewt.deepStwictEquaw(actuaw[0], textChange);
 	});
 
 });

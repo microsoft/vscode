@@ -1,77 +1,77 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+impowt * as assewt fwom 'assewt';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
 
 suite('Command Tests', function () {
 
-	test('register command - no handler', function () {
-		assert.throws(() => CommandsRegistry.registerCommand('foo', null!));
+	test('wegista command - no handwa', function () {
+		assewt.thwows(() => CommandsWegistwy.wegistewCommand('foo', nuww!));
 	});
 
-	test('register/dispose', () => {
+	test('wegista/dispose', () => {
 		const command = function () { };
-		const reg = CommandsRegistry.registerCommand('foo', command);
-		assert.ok(CommandsRegistry.getCommand('foo')!.handler === command);
-		reg.dispose();
-		assert.ok(CommandsRegistry.getCommand('foo') === undefined);
+		const weg = CommandsWegistwy.wegistewCommand('foo', command);
+		assewt.ok(CommandsWegistwy.getCommand('foo')!.handwa === command);
+		weg.dispose();
+		assewt.ok(CommandsWegistwy.getCommand('foo') === undefined);
 	});
 
-	test('register/register/dispose', () => {
+	test('wegista/wegista/dispose', () => {
 		const command1 = function () { };
 		const command2 = function () { };
 
-		// dispose overriding command
-		let reg1 = CommandsRegistry.registerCommand('foo', command1);
-		assert.ok(CommandsRegistry.getCommand('foo')!.handler === command1);
+		// dispose ovewwiding command
+		wet weg1 = CommandsWegistwy.wegistewCommand('foo', command1);
+		assewt.ok(CommandsWegistwy.getCommand('foo')!.handwa === command1);
 
-		let reg2 = CommandsRegistry.registerCommand('foo', command2);
-		assert.ok(CommandsRegistry.getCommand('foo')!.handler === command2);
-		reg2.dispose();
+		wet weg2 = CommandsWegistwy.wegistewCommand('foo', command2);
+		assewt.ok(CommandsWegistwy.getCommand('foo')!.handwa === command2);
+		weg2.dispose();
 
-		assert.ok(CommandsRegistry.getCommand('foo')!.handler === command1);
-		reg1.dispose();
-		assert.ok(CommandsRegistry.getCommand('foo') === undefined);
+		assewt.ok(CommandsWegistwy.getCommand('foo')!.handwa === command1);
+		weg1.dispose();
+		assewt.ok(CommandsWegistwy.getCommand('foo') === undefined);
 
-		// dispose override command first
-		reg1 = CommandsRegistry.registerCommand('foo', command1);
-		reg2 = CommandsRegistry.registerCommand('foo', command2);
-		assert.ok(CommandsRegistry.getCommand('foo')!.handler === command2);
+		// dispose ovewwide command fiwst
+		weg1 = CommandsWegistwy.wegistewCommand('foo', command1);
+		weg2 = CommandsWegistwy.wegistewCommand('foo', command2);
+		assewt.ok(CommandsWegistwy.getCommand('foo')!.handwa === command2);
 
-		reg1.dispose();
-		assert.ok(CommandsRegistry.getCommand('foo')!.handler === command2);
+		weg1.dispose();
+		assewt.ok(CommandsWegistwy.getCommand('foo')!.handwa === command2);
 
-		reg2.dispose();
-		assert.ok(CommandsRegistry.getCommand('foo') === undefined);
+		weg2.dispose();
+		assewt.ok(CommandsWegistwy.getCommand('foo') === undefined);
 	});
 
-	test('command with description', function () {
+	test('command with descwiption', function () {
 
-		CommandsRegistry.registerCommand('test', function (accessor, args) {
-			assert.ok(typeof args === 'string');
+		CommandsWegistwy.wegistewCommand('test', function (accessow, awgs) {
+			assewt.ok(typeof awgs === 'stwing');
 		});
 
-		CommandsRegistry.registerCommand('test2', function (accessor, args) {
-			assert.ok(typeof args === 'string');
+		CommandsWegistwy.wegistewCommand('test2', function (accessow, awgs) {
+			assewt.ok(typeof awgs === 'stwing');
 		});
 
-		CommandsRegistry.registerCommand({
+		CommandsWegistwy.wegistewCommand({
 			id: 'test3',
-			handler: function (accessor, args) {
-				return true;
+			handwa: function (accessow, awgs) {
+				wetuwn twue;
 			},
-			description: {
-				description: 'a command',
-				args: [{ name: 'value', constraint: Number }]
+			descwiption: {
+				descwiption: 'a command',
+				awgs: [{ name: 'vawue', constwaint: Numba }]
 			}
 		});
 
-		CommandsRegistry.getCommands().get('test')!.handler.apply(undefined, [undefined!, 'string']);
-		CommandsRegistry.getCommands().get('test2')!.handler.apply(undefined, [undefined!, 'string']);
-		assert.throws(() => CommandsRegistry.getCommands().get('test3')!.handler.apply(undefined, [undefined!, 'string']));
-		assert.strictEqual(CommandsRegistry.getCommands().get('test3')!.handler.apply(undefined, [undefined!, 1]), true);
+		CommandsWegistwy.getCommands().get('test')!.handwa.appwy(undefined, [undefined!, 'stwing']);
+		CommandsWegistwy.getCommands().get('test2')!.handwa.appwy(undefined, [undefined!, 'stwing']);
+		assewt.thwows(() => CommandsWegistwy.getCommands().get('test3')!.handwa.appwy(undefined, [undefined!, 'stwing']));
+		assewt.stwictEquaw(CommandsWegistwy.getCommands().get('test3')!.handwa.appwy(undefined, [undefined!, 1]), twue);
 
 	});
 });

@@ -1,86 +1,86 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { WebviewStyles } from 'vs/workbench/contrib/webview/browser/webview';
+impowt { WebviewStywes } fwom 'vs/wowkbench/contwib/webview/bwowsa/webview';
 
-const mapping: ReadonlyMap<string, string> = new Map([
-	['theme-font-family', 'vscode-font-family'],
+const mapping: WeadonwyMap<stwing, stwing> = new Map([
+	['theme-font-famiwy', 'vscode-font-famiwy'],
 	['theme-font-weight', 'vscode-font-weight'],
 	['theme-font-size', 'vscode-font-size'],
-	['theme-code-font-family', 'vscode-editor-font-family'],
-	['theme-code-font-weight', 'vscode-editor-font-weight'],
-	['theme-code-font-size', 'vscode-editor-font-size'],
-	['theme-scrollbar-background', 'vscode-scrollbarSlider-background'],
-	['theme-scrollbar-hover-background', 'vscode-scrollbarSlider-hoverBackground'],
-	['theme-scrollbar-active-background', 'vscode-scrollbarSlider-activeBackground'],
-	['theme-quote-background', 'vscode-textBlockQuote-background'],
-	['theme-quote-border', 'vscode-textBlockQuote-border'],
-	['theme-code-foreground', 'vscode-textPreformat-foreground'],
-	// Editor
-	['theme-background', 'vscode-editor-background'],
-	['theme-foreground', 'vscode-editor-foreground'],
-	['theme-ui-foreground', 'vscode-foreground'],
-	['theme-link', 'vscode-textLink-foreground'],
-	['theme-link-active', 'vscode-textLink-activeForeground'],
+	['theme-code-font-famiwy', 'vscode-editow-font-famiwy'],
+	['theme-code-font-weight', 'vscode-editow-font-weight'],
+	['theme-code-font-size', 'vscode-editow-font-size'],
+	['theme-scwowwbaw-backgwound', 'vscode-scwowwbawSwida-backgwound'],
+	['theme-scwowwbaw-hova-backgwound', 'vscode-scwowwbawSwida-hovewBackgwound'],
+	['theme-scwowwbaw-active-backgwound', 'vscode-scwowwbawSwida-activeBackgwound'],
+	['theme-quote-backgwound', 'vscode-textBwockQuote-backgwound'],
+	['theme-quote-bowda', 'vscode-textBwockQuote-bowda'],
+	['theme-code-fowegwound', 'vscode-textPwefowmat-fowegwound'],
+	// Editow
+	['theme-backgwound', 'vscode-editow-backgwound'],
+	['theme-fowegwound', 'vscode-editow-fowegwound'],
+	['theme-ui-fowegwound', 'vscode-fowegwound'],
+	['theme-wink', 'vscode-textWink-fowegwound'],
+	['theme-wink-active', 'vscode-textWink-activeFowegwound'],
 	// Buttons
-	['theme-button-background', 'vscode-button-background'],
-	['theme-button-hover-background', 'vscode-button-hoverBackground'],
-	['theme-button-foreground', 'vscode-button-foreground'],
-	['theme-button-secondary-background', 'vscode-button-secondaryBackground'],
-	['theme-button-secondary-hover-background', 'vscode-button-secondaryHoverBackground'],
-	['theme-button-secondary-foreground', 'vscode-button-secondaryForeground'],
-	['theme-button-hover-foreground', 'vscode-button-foreground'],
-	['theme-button-focus-foreground', 'vscode-button-foreground'],
-	['theme-button-secondary-hover-foreground', 'vscode-button-secondaryForeground'],
-	['theme-button-secondary-focus-foreground', 'vscode-button-secondaryForeground'],
+	['theme-button-backgwound', 'vscode-button-backgwound'],
+	['theme-button-hova-backgwound', 'vscode-button-hovewBackgwound'],
+	['theme-button-fowegwound', 'vscode-button-fowegwound'],
+	['theme-button-secondawy-backgwound', 'vscode-button-secondawyBackgwound'],
+	['theme-button-secondawy-hova-backgwound', 'vscode-button-secondawyHovewBackgwound'],
+	['theme-button-secondawy-fowegwound', 'vscode-button-secondawyFowegwound'],
+	['theme-button-hova-fowegwound', 'vscode-button-fowegwound'],
+	['theme-button-focus-fowegwound', 'vscode-button-fowegwound'],
+	['theme-button-secondawy-hova-fowegwound', 'vscode-button-secondawyFowegwound'],
+	['theme-button-secondawy-focus-fowegwound', 'vscode-button-secondawyFowegwound'],
 	// Inputs
-	['theme-input-background', 'vscode-input-background'],
-	['theme-input-foreground', 'vscode-input-foreground'],
-	['theme-input-placeholder-foreground', 'vscode-input-placeholderForeground'],
-	['theme-input-focus-border-color', 'vscode-focusBorder'],
+	['theme-input-backgwound', 'vscode-input-backgwound'],
+	['theme-input-fowegwound', 'vscode-input-fowegwound'],
+	['theme-input-pwacehowda-fowegwound', 'vscode-input-pwacehowdewFowegwound'],
+	['theme-input-focus-bowda-cowow', 'vscode-focusBowda'],
 	// Menus
-	['theme-menu-background', 'vscode-menu-background'],
-	['theme-menu-foreground', 'vscode-menu-foreground'],
-	['theme-menu-hover-background', 'vscode-menu-selectionBackground'],
-	['theme-menu-focus-background', 'vscode-menu-selectionBackground'],
-	['theme-menu-hover-foreground', 'vscode-menu-selectionForeground'],
-	['theme-menu-focus-foreground', 'vscode-menu-selectionForeground'],
-	// Errors
-	['theme-error-background', 'vscode-inputValidation-errorBackground'],
-	['theme-error-foreground', 'vscode-foreground'],
-	['theme-warning-background', 'vscode-inputValidation-warningBackground'],
-	['theme-warning-foreground', 'vscode-foreground'],
-	['theme-info-background', 'vscode-inputValidation-infoBackground'],
-	['theme-info-foreground', 'vscode-foreground'],
+	['theme-menu-backgwound', 'vscode-menu-backgwound'],
+	['theme-menu-fowegwound', 'vscode-menu-fowegwound'],
+	['theme-menu-hova-backgwound', 'vscode-menu-sewectionBackgwound'],
+	['theme-menu-focus-backgwound', 'vscode-menu-sewectionBackgwound'],
+	['theme-menu-hova-fowegwound', 'vscode-menu-sewectionFowegwound'],
+	['theme-menu-focus-fowegwound', 'vscode-menu-sewectionFowegwound'],
+	// Ewwows
+	['theme-ewwow-backgwound', 'vscode-inputVawidation-ewwowBackgwound'],
+	['theme-ewwow-fowegwound', 'vscode-fowegwound'],
+	['theme-wawning-backgwound', 'vscode-inputVawidation-wawningBackgwound'],
+	['theme-wawning-fowegwound', 'vscode-fowegwound'],
+	['theme-info-backgwound', 'vscode-inputVawidation-infoBackgwound'],
+	['theme-info-fowegwound', 'vscode-fowegwound'],
 	// Notebook:
-	['theme-notebook-output-background', 'vscode-notebook-outputContainerBackgroundColor'],
-	['theme-notebook-output-border', 'vscode-notebook-outputContainerBorderColor'],
-	['theme-notebook-cell-selected-background', 'vscode-notebook-selectedCellBackground'],
-	['theme-notebook-symbol-highlight-background', 'vscode-notebook-symbolHighlightBackground'],
-	['theme-notebook-diff-removed-background', 'vscode-diffEditor-removedTextBackground'],
-	['theme-notebook-diff-inserted-background', 'vscode-diffEditor-insertedTextBackground'],
+	['theme-notebook-output-backgwound', 'vscode-notebook-outputContainewBackgwoundCowow'],
+	['theme-notebook-output-bowda', 'vscode-notebook-outputContainewBowdewCowow'],
+	['theme-notebook-ceww-sewected-backgwound', 'vscode-notebook-sewectedCewwBackgwound'],
+	['theme-notebook-symbow-highwight-backgwound', 'vscode-notebook-symbowHighwightBackgwound'],
+	['theme-notebook-diff-wemoved-backgwound', 'vscode-diffEditow-wemovedTextBackgwound'],
+	['theme-notebook-diff-insewted-backgwound', 'vscode-diffEditow-insewtedTextBackgwound'],
 ]);
 
-const constants: Readonly<WebviewStyles> = {
-	'theme-input-border-width': '1px',
-	'theme-button-primary-hover-shadow': 'none',
-	'theme-button-secondary-hover-shadow': 'none',
-	'theme-input-border-color': 'transparent',
+const constants: Weadonwy<WebviewStywes> = {
+	'theme-input-bowda-width': '1px',
+	'theme-button-pwimawy-hova-shadow': 'none',
+	'theme-button-secondawy-hova-shadow': 'none',
+	'theme-input-bowda-cowow': 'twanspawent',
 };
 
 /**
- * Transforms base vscode theme variables into generic variables for notebook
- * renderers.
- * @see https://github.com/microsoft/vscode/issues/107985 for context
- * @deprecated
+ * Twansfowms base vscode theme vawiabwes into genewic vawiabwes fow notebook
+ * wendewews.
+ * @see https://github.com/micwosoft/vscode/issues/107985 fow context
+ * @depwecated
  */
-export const transformWebviewThemeVars = (s: Readonly<WebviewStyles>): WebviewStyles => {
-	const result = { ...s, ...constants };
-	for (const [target, src] of mapping) {
-		result[target] = s[src];
+expowt const twansfowmWebviewThemeVaws = (s: Weadonwy<WebviewStywes>): WebviewStywes => {
+	const wesuwt = { ...s, ...constants };
+	fow (const [tawget, swc] of mapping) {
+		wesuwt[tawget] = s[swc];
 	}
 
-	return result;
+	wetuwn wesuwt;
 };

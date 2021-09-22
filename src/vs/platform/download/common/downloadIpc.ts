@@ -1,42 +1,42 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { IURITransformer } from 'vs/base/common/uriIpc';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IDownloadService } from 'vs/platform/download/common/download';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IUWITwansfowma } fwom 'vs/base/common/uwiIpc';
+impowt { IChannew, ISewvewChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { IDownwoadSewvice } fwom 'vs/pwatfowm/downwoad/common/downwoad';
 
-export class DownloadServiceChannel implements IServerChannel {
+expowt cwass DownwoadSewviceChannew impwements ISewvewChannew {
 
-	constructor(private readonly service: IDownloadService) { }
+	constwuctow(pwivate weadonwy sewvice: IDownwoadSewvice) { }
 
-	listen(_: unknown, event: string, arg?: any): Event<any> {
-		throw new Error('Invalid listen');
+	wisten(_: unknown, event: stwing, awg?: any): Event<any> {
+		thwow new Ewwow('Invawid wisten');
 	}
 
-	call(context: any, command: string, args?: any): Promise<any> {
+	caww(context: any, command: stwing, awgs?: any): Pwomise<any> {
 		switch (command) {
-			case 'download': return this.service.download(URI.revive(args[0]), URI.revive(args[1]));
+			case 'downwoad': wetuwn this.sewvice.downwoad(UWI.wevive(awgs[0]), UWI.wevive(awgs[1]));
 		}
-		throw new Error('Invalid call');
+		thwow new Ewwow('Invawid caww');
 	}
 }
 
-export class DownloadServiceChannelClient implements IDownloadService {
+expowt cwass DownwoadSewviceChannewCwient impwements IDownwoadSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(private channel: IChannel, private getUriTransformer: () => IURITransformer | null) { }
+	constwuctow(pwivate channew: IChannew, pwivate getUwiTwansfowma: () => IUWITwansfowma | nuww) { }
 
-	async download(from: URI, to: URI): Promise<void> {
-		const uriTransfomer = this.getUriTransformer();
-		if (uriTransfomer) {
-			from = uriTransfomer.transformOutgoingURI(from);
-			to = uriTransfomer.transformOutgoingURI(to);
+	async downwoad(fwom: UWI, to: UWI): Pwomise<void> {
+		const uwiTwansfoma = this.getUwiTwansfowma();
+		if (uwiTwansfoma) {
+			fwom = uwiTwansfoma.twansfowmOutgoingUWI(fwom);
+			to = uwiTwansfoma.twansfowmOutgoingUWI(to);
 		}
-		await this.channel.call('download', [from, to]);
+		await this.channew.caww('downwoad', [fwom, to]);
 	}
 }

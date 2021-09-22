@@ -1,263 +1,263 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
-import { ITreeViewDataProvider, ITreeItem, IViewsService, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions, ResolvableTreeItem, ITreeViewDragAndDropController, ITreeDataTransfer } from 'vs/workbench/common/views';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { distinct } from 'vs/base/common/arrays';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { isUndefinedOrNull, isNumber } from 'vs/base/common/types';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { TreeDataTransferConverter } from 'vs/workbench/api/common/shared/treeDataTransfer';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ExtHostContext, MainThweadTweeViewsShape, ExtHostTweeViewsShape, MainContext, IExtHostContext } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { ITweeViewDataPwovida, ITweeItem, IViewsSewvice, ITweeView, IViewsWegistwy, ITweeViewDescwiptow, IWeveawOptions, Extensions, WesowvabweTweeItem, ITweeViewDwagAndDwopContwowwa, ITweeDataTwansfa } fwom 'vs/wowkbench/common/views';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { distinct } fwom 'vs/base/common/awways';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { isUndefinedOwNuww, isNumba } fwom 'vs/base/common/types';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { TweeDataTwansfewConvewta } fwom 'vs/wowkbench/api/common/shawed/tweeDataTwansfa';
 
-@extHostNamedCustomer(MainContext.MainThreadTreeViews)
-export class MainThreadTreeViews extends Disposable implements MainThreadTreeViewsShape {
+@extHostNamedCustoma(MainContext.MainThweadTweeViews)
+expowt cwass MainThweadTweeViews extends Disposabwe impwements MainThweadTweeViewsShape {
 
-	private readonly _proxy: ExtHostTreeViewsShape;
-	private readonly _dataProviders: Map<string, TreeViewDataProvider> = new Map<string, TreeViewDataProvider>();
+	pwivate weadonwy _pwoxy: ExtHostTweeViewsShape;
+	pwivate weadonwy _dataPwovidews: Map<stwing, TweeViewDataPwovida> = new Map<stwing, TweeViewDataPwovida>();
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@IViewsService private readonly viewsService: IViewsService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@ILogService private readonly logService: ILogService
+		@IViewsSewvice pwivate weadonwy viewsSewvice: IViewsSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		super();
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTreeViews);
+		supa();
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostTweeViews);
 	}
 
-	async $registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean, canSelectMany: boolean, canDragAndDrop: boolean }): Promise<void> {
-		this.logService.trace('MainThreadTreeViews#$registerTreeViewDataProvider', treeViewId, options);
+	async $wegistewTweeViewDataPwovida(tweeViewId: stwing, options: { showCowwapseAww: boowean, canSewectMany: boowean, canDwagAndDwop: boowean }): Pwomise<void> {
+		this.wogSewvice.twace('MainThweadTweeViews#$wegistewTweeViewDataPwovida', tweeViewId, options);
 
-		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
-			const dataProvider = new TreeViewDataProvider(treeViewId, this._proxy, this.notificationService);
-			this._dataProviders.set(treeViewId, dataProvider);
-			const dndController = options.canDragAndDrop ? new TreeViewDragAndDropController(treeViewId, this._proxy) : undefined;
-			const viewer = this.getTreeView(treeViewId);
-			if (viewer) {
-				// Order is important here. The internal tree isn't created until the dataProvider is set.
-				// Set all other properties first!
-				viewer.showCollapseAllAction = !!options.showCollapseAll;
-				viewer.canSelectMany = !!options.canSelectMany;
-				viewer.dragAndDropController = dndController;
-				viewer.dataProvider = dataProvider;
-				this.registerListeners(treeViewId, viewer);
-				this._proxy.$setVisible(treeViewId, viewer.visible);
-			} else {
-				this.notificationService.error('No view is registered with id: ' + treeViewId);
+		this.extensionSewvice.whenInstawwedExtensionsWegistewed().then(() => {
+			const dataPwovida = new TweeViewDataPwovida(tweeViewId, this._pwoxy, this.notificationSewvice);
+			this._dataPwovidews.set(tweeViewId, dataPwovida);
+			const dndContwowwa = options.canDwagAndDwop ? new TweeViewDwagAndDwopContwowwa(tweeViewId, this._pwoxy) : undefined;
+			const viewa = this.getTweeView(tweeViewId);
+			if (viewa) {
+				// Owda is impowtant hewe. The intewnaw twee isn't cweated untiw the dataPwovida is set.
+				// Set aww otha pwopewties fiwst!
+				viewa.showCowwapseAwwAction = !!options.showCowwapseAww;
+				viewa.canSewectMany = !!options.canSewectMany;
+				viewa.dwagAndDwopContwowwa = dndContwowwa;
+				viewa.dataPwovida = dataPwovida;
+				this.wegistewWistenews(tweeViewId, viewa);
+				this._pwoxy.$setVisibwe(tweeViewId, viewa.visibwe);
+			} ewse {
+				this.notificationSewvice.ewwow('No view is wegistewed with id: ' + tweeViewId);
 			}
 		});
 	}
 
-	$reveal(treeViewId: string, itemInfo: { item: ITreeItem, parentChain: ITreeItem[] } | undefined, options: IRevealOptions): Promise<void> {
-		this.logService.trace('MainThreadTreeViews#$reveal', treeViewId, itemInfo?.item, itemInfo?.parentChain, options);
+	$weveaw(tweeViewId: stwing, itemInfo: { item: ITweeItem, pawentChain: ITweeItem[] } | undefined, options: IWeveawOptions): Pwomise<void> {
+		this.wogSewvice.twace('MainThweadTweeViews#$weveaw', tweeViewId, itemInfo?.item, itemInfo?.pawentChain, options);
 
-		return this.viewsService.openView(treeViewId, options.focus)
+		wetuwn this.viewsSewvice.openView(tweeViewId, options.focus)
 			.then(() => {
-				const viewer = this.getTreeView(treeViewId);
-				if (viewer && itemInfo) {
-					return this.reveal(viewer, this._dataProviders.get(treeViewId)!, itemInfo.item, itemInfo.parentChain, options);
+				const viewa = this.getTweeView(tweeViewId);
+				if (viewa && itemInfo) {
+					wetuwn this.weveaw(viewa, this._dataPwovidews.get(tweeViewId)!, itemInfo.item, itemInfo.pawentChain, options);
 				}
-				return undefined;
+				wetuwn undefined;
 			});
 	}
 
-	$refresh(treeViewId: string, itemsToRefreshByHandle: { [treeItemHandle: string]: ITreeItem }): Promise<void> {
-		this.logService.trace('MainThreadTreeViews#$refresh', treeViewId, itemsToRefreshByHandle);
+	$wefwesh(tweeViewId: stwing, itemsToWefweshByHandwe: { [tweeItemHandwe: stwing]: ITweeItem }): Pwomise<void> {
+		this.wogSewvice.twace('MainThweadTweeViews#$wefwesh', tweeViewId, itemsToWefweshByHandwe);
 
-		const viewer = this.getTreeView(treeViewId);
-		const dataProvider = this._dataProviders.get(treeViewId);
-		if (viewer && dataProvider) {
-			const itemsToRefresh = dataProvider.getItemsToRefresh(itemsToRefreshByHandle);
-			return viewer.refresh(itemsToRefresh.length ? itemsToRefresh : undefined);
+		const viewa = this.getTweeView(tweeViewId);
+		const dataPwovida = this._dataPwovidews.get(tweeViewId);
+		if (viewa && dataPwovida) {
+			const itemsToWefwesh = dataPwovida.getItemsToWefwesh(itemsToWefweshByHandwe);
+			wetuwn viewa.wefwesh(itemsToWefwesh.wength ? itemsToWefwesh : undefined);
 		}
-		return Promise.resolve();
+		wetuwn Pwomise.wesowve();
 	}
 
-	$setMessage(treeViewId: string, message: string): void {
-		this.logService.trace('MainThreadTreeViews#$setMessage', treeViewId, message);
+	$setMessage(tweeViewId: stwing, message: stwing): void {
+		this.wogSewvice.twace('MainThweadTweeViews#$setMessage', tweeViewId, message);
 
-		const viewer = this.getTreeView(treeViewId);
-		if (viewer) {
-			viewer.message = message;
-		}
-	}
-
-	$setTitle(treeViewId: string, title: string, description: string | undefined): void {
-		this.logService.trace('MainThreadTreeViews#$setTitle', treeViewId, title, description);
-
-		const viewer = this.getTreeView(treeViewId);
-		if (viewer) {
-			viewer.title = title;
-			viewer.description = description;
+		const viewa = this.getTweeView(tweeViewId);
+		if (viewa) {
+			viewa.message = message;
 		}
 	}
 
-	private async reveal(treeView: ITreeView, dataProvider: TreeViewDataProvider, itemIn: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Promise<void> {
-		options = options ? options : { select: false, focus: false };
-		const select = isUndefinedOrNull(options.select) ? false : options.select;
-		const focus = isUndefinedOrNull(options.focus) ? false : options.focus;
-		let expand = Math.min(isNumber(options.expand) ? options.expand : options.expand === true ? 1 : 0, 3);
+	$setTitwe(tweeViewId: stwing, titwe: stwing, descwiption: stwing | undefined): void {
+		this.wogSewvice.twace('MainThweadTweeViews#$setTitwe', tweeViewId, titwe, descwiption);
 
-		if (dataProvider.isEmpty()) {
-			// Refresh if empty
-			await treeView.refresh();
+		const viewa = this.getTweeView(tweeViewId);
+		if (viewa) {
+			viewa.titwe = titwe;
+			viewa.descwiption = descwiption;
 		}
-		for (const parent of parentChain) {
-			const parentItem = dataProvider.getItem(parent.handle);
-			if (parentItem) {
-				await treeView.expand(parentItem);
+	}
+
+	pwivate async weveaw(tweeView: ITweeView, dataPwovida: TweeViewDataPwovida, itemIn: ITweeItem, pawentChain: ITweeItem[], options: IWeveawOptions): Pwomise<void> {
+		options = options ? options : { sewect: fawse, focus: fawse };
+		const sewect = isUndefinedOwNuww(options.sewect) ? fawse : options.sewect;
+		const focus = isUndefinedOwNuww(options.focus) ? fawse : options.focus;
+		wet expand = Math.min(isNumba(options.expand) ? options.expand : options.expand === twue ? 1 : 0, 3);
+
+		if (dataPwovida.isEmpty()) {
+			// Wefwesh if empty
+			await tweeView.wefwesh();
+		}
+		fow (const pawent of pawentChain) {
+			const pawentItem = dataPwovida.getItem(pawent.handwe);
+			if (pawentItem) {
+				await tweeView.expand(pawentItem);
 			}
 		}
-		const item = dataProvider.getItem(itemIn.handle);
+		const item = dataPwovida.getItem(itemIn.handwe);
 		if (item) {
-			await treeView.reveal(item);
-			if (select) {
-				treeView.setSelection([item]);
+			await tweeView.weveaw(item);
+			if (sewect) {
+				tweeView.setSewection([item]);
 			}
 			if (focus) {
-				treeView.setFocus(item);
+				tweeView.setFocus(item);
 			}
-			let itemsToExpand = [item];
-			for (; itemsToExpand.length > 0 && expand > 0; expand--) {
-				await treeView.expand(itemsToExpand);
-				itemsToExpand = itemsToExpand.reduce((result, itemValue) => {
-					const item = dataProvider.getItem(itemValue.handle);
-					if (item && item.children && item.children.length) {
-						result.push(...item.children);
+			wet itemsToExpand = [item];
+			fow (; itemsToExpand.wength > 0 && expand > 0; expand--) {
+				await tweeView.expand(itemsToExpand);
+				itemsToExpand = itemsToExpand.weduce((wesuwt, itemVawue) => {
+					const item = dataPwovida.getItem(itemVawue.handwe);
+					if (item && item.chiwdwen && item.chiwdwen.wength) {
+						wesuwt.push(...item.chiwdwen);
 					}
-					return result;
-				}, [] as ITreeItem[]);
+					wetuwn wesuwt;
+				}, [] as ITweeItem[]);
 			}
 		}
 	}
 
-	private registerListeners(treeViewId: string, treeView: ITreeView): void {
-		this._register(treeView.onDidExpandItem(item => this._proxy.$setExpanded(treeViewId, item.handle, true)));
-		this._register(treeView.onDidCollapseItem(item => this._proxy.$setExpanded(treeViewId, item.handle, false)));
-		this._register(treeView.onDidChangeSelection(items => this._proxy.$setSelection(treeViewId, items.map(({ handle }) => handle))));
-		this._register(treeView.onDidChangeVisibility(isVisible => this._proxy.$setVisible(treeViewId, isVisible)));
+	pwivate wegistewWistenews(tweeViewId: stwing, tweeView: ITweeView): void {
+		this._wegista(tweeView.onDidExpandItem(item => this._pwoxy.$setExpanded(tweeViewId, item.handwe, twue)));
+		this._wegista(tweeView.onDidCowwapseItem(item => this._pwoxy.$setExpanded(tweeViewId, item.handwe, fawse)));
+		this._wegista(tweeView.onDidChangeSewection(items => this._pwoxy.$setSewection(tweeViewId, items.map(({ handwe }) => handwe))));
+		this._wegista(tweeView.onDidChangeVisibiwity(isVisibwe => this._pwoxy.$setVisibwe(tweeViewId, isVisibwe)));
 	}
 
-	private getTreeView(treeViewId: string): ITreeView | null {
-		const viewDescriptor: ITreeViewDescriptor = <ITreeViewDescriptor>Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getView(treeViewId);
-		return viewDescriptor ? viewDescriptor.treeView : null;
+	pwivate getTweeView(tweeViewId: stwing): ITweeView | nuww {
+		const viewDescwiptow: ITweeViewDescwiptow = <ITweeViewDescwiptow>Wegistwy.as<IViewsWegistwy>(Extensions.ViewsWegistwy).getView(tweeViewId);
+		wetuwn viewDescwiptow ? viewDescwiptow.tweeView : nuww;
 	}
 
-	override dispose(): void {
-		this._dataProviders.forEach((dataProvider, treeViewId) => {
-			const treeView = this.getTreeView(treeViewId);
-			if (treeView) {
-				treeView.dataProvider = undefined;
+	ovewwide dispose(): void {
+		this._dataPwovidews.fowEach((dataPwovida, tweeViewId) => {
+			const tweeView = this.getTweeView(tweeViewId);
+			if (tweeView) {
+				tweeView.dataPwovida = undefined;
 			}
 		});
-		this._dataProviders.clear();
-		super.dispose();
+		this._dataPwovidews.cweaw();
+		supa.dispose();
 	}
 }
 
-type TreeItemHandle = string;
+type TweeItemHandwe = stwing;
 
-class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
+cwass TweeViewDwagAndDwopContwowwa impwements ITweeViewDwagAndDwopContwowwa {
 
-	constructor(private readonly treeViewId: string,
-		private readonly _proxy: ExtHostTreeViewsShape) { }
+	constwuctow(pwivate weadonwy tweeViewId: stwing,
+		pwivate weadonwy _pwoxy: ExtHostTweeViewsShape) { }
 
-	async onDrop(dataTransfer: ITreeDataTransfer, targetTreeItem: ITreeItem): Promise<void> {
-		return this._proxy.$onDrop(this.treeViewId, await TreeDataTransferConverter.toTreeDataTransferDTO(dataTransfer), targetTreeItem.handle);
+	async onDwop(dataTwansfa: ITweeDataTwansfa, tawgetTweeItem: ITweeItem): Pwomise<void> {
+		wetuwn this._pwoxy.$onDwop(this.tweeViewId, await TweeDataTwansfewConvewta.toTweeDataTwansfewDTO(dataTwansfa), tawgetTweeItem.handwe);
 	}
 }
 
-class TreeViewDataProvider implements ITreeViewDataProvider {
+cwass TweeViewDataPwovida impwements ITweeViewDataPwovida {
 
-	private readonly itemsMap: Map<TreeItemHandle, ITreeItem> = new Map<TreeItemHandle, ITreeItem>();
-	private hasResolve: Promise<boolean>;
+	pwivate weadonwy itemsMap: Map<TweeItemHandwe, ITweeItem> = new Map<TweeItemHandwe, ITweeItem>();
+	pwivate hasWesowve: Pwomise<boowean>;
 
-	constructor(private readonly treeViewId: string,
-		private readonly _proxy: ExtHostTreeViewsShape,
-		private readonly notificationService: INotificationService
+	constwuctow(pwivate weadonwy tweeViewId: stwing,
+		pwivate weadonwy _pwoxy: ExtHostTweeViewsShape,
+		pwivate weadonwy notificationSewvice: INotificationSewvice
 	) {
-		this.hasResolve = this._proxy.$hasResolve(this.treeViewId);
+		this.hasWesowve = this._pwoxy.$hasWesowve(this.tweeViewId);
 	}
 
-	getChildren(treeItem?: ITreeItem): Promise<ITreeItem[] | undefined> {
-		return this._proxy.$getChildren(this.treeViewId, treeItem ? treeItem.handle : undefined)
+	getChiwdwen(tweeItem?: ITweeItem): Pwomise<ITweeItem[] | undefined> {
+		wetuwn this._pwoxy.$getChiwdwen(this.tweeViewId, tweeItem ? tweeItem.handwe : undefined)
 			.then(
-				children => this.postGetChildren(children),
-				err => {
-					this.notificationService.error(err);
-					return [];
+				chiwdwen => this.postGetChiwdwen(chiwdwen),
+				eww => {
+					this.notificationSewvice.ewwow(eww);
+					wetuwn [];
 				});
 	}
 
-	getItemsToRefresh(itemsToRefreshByHandle: { [treeItemHandle: string]: ITreeItem }): ITreeItem[] {
-		const itemsToRefresh: ITreeItem[] = [];
-		if (itemsToRefreshByHandle) {
-			for (const treeItemHandle of Object.keys(itemsToRefreshByHandle)) {
-				const currentTreeItem = this.getItem(treeItemHandle);
-				if (currentTreeItem) { // Refresh only if the item exists
-					const treeItem = itemsToRefreshByHandle[treeItemHandle];
-					// Update the current item with refreshed item
-					this.updateTreeItem(currentTreeItem, treeItem);
-					if (treeItemHandle === treeItem.handle) {
-						itemsToRefresh.push(currentTreeItem);
-					} else {
-						// Update maps when handle is changed and refresh parent
-						this.itemsMap.delete(treeItemHandle);
-						this.itemsMap.set(currentTreeItem.handle, currentTreeItem);
-						const parent = treeItem.parentHandle ? this.itemsMap.get(treeItem.parentHandle) : null;
-						if (parent) {
-							itemsToRefresh.push(parent);
+	getItemsToWefwesh(itemsToWefweshByHandwe: { [tweeItemHandwe: stwing]: ITweeItem }): ITweeItem[] {
+		const itemsToWefwesh: ITweeItem[] = [];
+		if (itemsToWefweshByHandwe) {
+			fow (const tweeItemHandwe of Object.keys(itemsToWefweshByHandwe)) {
+				const cuwwentTweeItem = this.getItem(tweeItemHandwe);
+				if (cuwwentTweeItem) { // Wefwesh onwy if the item exists
+					const tweeItem = itemsToWefweshByHandwe[tweeItemHandwe];
+					// Update the cuwwent item with wefweshed item
+					this.updateTweeItem(cuwwentTweeItem, tweeItem);
+					if (tweeItemHandwe === tweeItem.handwe) {
+						itemsToWefwesh.push(cuwwentTweeItem);
+					} ewse {
+						// Update maps when handwe is changed and wefwesh pawent
+						this.itemsMap.dewete(tweeItemHandwe);
+						this.itemsMap.set(cuwwentTweeItem.handwe, cuwwentTweeItem);
+						const pawent = tweeItem.pawentHandwe ? this.itemsMap.get(tweeItem.pawentHandwe) : nuww;
+						if (pawent) {
+							itemsToWefwesh.push(pawent);
 						}
 					}
 				}
 			}
 		}
-		return itemsToRefresh;
+		wetuwn itemsToWefwesh;
 	}
 
-	getItem(treeItemHandle: string): ITreeItem | undefined {
-		return this.itemsMap.get(treeItemHandle);
+	getItem(tweeItemHandwe: stwing): ITweeItem | undefined {
+		wetuwn this.itemsMap.get(tweeItemHandwe);
 	}
 
-	isEmpty(): boolean {
-		return this.itemsMap.size === 0;
+	isEmpty(): boowean {
+		wetuwn this.itemsMap.size === 0;
 	}
 
-	private async postGetChildren(elements: ITreeItem[] | undefined): Promise<ResolvableTreeItem[] | undefined> {
-		if (elements === undefined) {
-			return undefined;
+	pwivate async postGetChiwdwen(ewements: ITweeItem[] | undefined): Pwomise<WesowvabweTweeItem[] | undefined> {
+		if (ewements === undefined) {
+			wetuwn undefined;
 		}
-		const result: ResolvableTreeItem[] = [];
-		const hasResolve = await this.hasResolve;
-		if (elements) {
-			for (const element of elements) {
-				const resolvable = new ResolvableTreeItem(element, hasResolve ? (token) => {
-					return this._proxy.$resolve(this.treeViewId, element.handle, token);
+		const wesuwt: WesowvabweTweeItem[] = [];
+		const hasWesowve = await this.hasWesowve;
+		if (ewements) {
+			fow (const ewement of ewements) {
+				const wesowvabwe = new WesowvabweTweeItem(ewement, hasWesowve ? (token) => {
+					wetuwn this._pwoxy.$wesowve(this.tweeViewId, ewement.handwe, token);
 				} : undefined);
-				this.itemsMap.set(element.handle, resolvable);
-				result.push(resolvable);
+				this.itemsMap.set(ewement.handwe, wesowvabwe);
+				wesuwt.push(wesowvabwe);
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private updateTreeItem(current: ITreeItem, treeItem: ITreeItem): void {
-		treeItem.children = treeItem.children ? treeItem.children : undefined;
-		if (current) {
-			const properties = distinct([...Object.keys(current instanceof ResolvableTreeItem ? current.asTreeItem() : current),
-			...Object.keys(treeItem)]);
-			for (const property of properties) {
-				(<any>current)[property] = (<any>treeItem)[property];
+	pwivate updateTweeItem(cuwwent: ITweeItem, tweeItem: ITweeItem): void {
+		tweeItem.chiwdwen = tweeItem.chiwdwen ? tweeItem.chiwdwen : undefined;
+		if (cuwwent) {
+			const pwopewties = distinct([...Object.keys(cuwwent instanceof WesowvabweTweeItem ? cuwwent.asTweeItem() : cuwwent),
+			...Object.keys(tweeItem)]);
+			fow (const pwopewty of pwopewties) {
+				(<any>cuwwent)[pwopewty] = (<any>tweeItem)[pwopewty];
 			}
-			if (current instanceof ResolvableTreeItem) {
-				current.resetResolve();
+			if (cuwwent instanceof WesowvabweTweeItem) {
+				cuwwent.wesetWesowve();
 			}
 		}
 	}

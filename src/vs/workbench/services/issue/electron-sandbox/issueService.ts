@@ -1,148 +1,148 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IssueReporterStyles, IssueReporterData, ProcessExplorerData, IssueReporterExtensionData } from 'vs/platform/issue/common/issue';
-import { IIssueService } from 'vs/platform/issue/electron-sandbox/issue';
-import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, editorBackground, editorForeground, listHoverBackground, listHoverForeground, textLinkActiveForeground, inputValidationErrorBackground, inputValidationErrorForeground, listActiveSelectionBackground, listActiveSelectionForeground, listFocusOutline, listFocusBackground, listFocusForeground, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { getZoomLevel } from 'vs/base/browser/browser';
-import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { platform } from 'vs/base/common/process';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+impowt { IssueWepowtewStywes, IssueWepowtewData, PwocessExpwowewData, IssueWepowtewExtensionData } fwom 'vs/pwatfowm/issue/common/issue';
+impowt { IIssueSewvice } fwom 'vs/pwatfowm/issue/ewectwon-sandbox/issue';
+impowt { ICowowTheme, IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { textWinkFowegwound, inputBackgwound, inputBowda, inputFowegwound, buttonBackgwound, buttonHovewBackgwound, buttonFowegwound, inputVawidationEwwowBowda, fowegwound, inputActiveOptionBowda, scwowwbawSwidewActiveBackgwound, scwowwbawSwidewBackgwound, scwowwbawSwidewHovewBackgwound, editowBackgwound, editowFowegwound, wistHovewBackgwound, wistHovewFowegwound, textWinkActiveFowegwound, inputVawidationEwwowBackgwound, inputVawidationEwwowFowegwound, wistActiveSewectionBackgwound, wistActiveSewectionFowegwound, wistFocusOutwine, wistFocusBackgwound, wistFocusFowegwound, activeContwastBowda } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { SIDE_BAW_BACKGWOUND } fwom 'vs/wowkbench/common/theme';
+impowt { IExtensionManagementSewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { IWowkbenchExtensionEnabwementSewvice } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
+impowt { getZoomWevew } fwom 'vs/base/bwowsa/bwowsa';
+impowt { IWowkbenchIssueSewvice } fwom 'vs/wowkbench/sewvices/issue/common/issue';
+impowt { INativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { ExtensionType } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { pwatfowm } fwom 'vs/base/common/pwocess';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { ITASExpewimentSewvice } fwom 'vs/wowkbench/sewvices/expewiment/common/expewimentSewvice';
+impowt { IAuthenticationSewvice } fwom 'vs/wowkbench/sewvices/authentication/bwowsa/authenticationSewvice';
+impowt { wegistewMainPwocessWemoteSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/sewvices';
+impowt { IWowkspaceTwustManagementSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
 
-export class WorkbenchIssueService implements IWorkbenchIssueService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass WowkbenchIssueSewvice impwements IWowkbenchIssueSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(
-		@IIssueService private readonly issueService: IIssueService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
-		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IProductService private readonly productService: IProductService,
-		@ITASExperimentService private readonly experimentService: ITASExperimentService,
-		@IAuthenticationService private readonly authenticationService: IAuthenticationService
+	constwuctow(
+		@IIssueSewvice pwivate weadonwy issueSewvice: IIssueSewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
+		@IExtensionManagementSewvice pwivate weadonwy extensionManagementSewvice: IExtensionManagementSewvice,
+		@IWowkbenchExtensionEnabwementSewvice pwivate weadonwy extensionEnabwementSewvice: IWowkbenchExtensionEnabwementSewvice,
+		@INativeWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice,
+		@IWowkspaceTwustManagementSewvice pwivate weadonwy wowkspaceTwustManagementSewvice: IWowkspaceTwustManagementSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@ITASExpewimentSewvice pwivate weadonwy expewimentSewvice: ITASExpewimentSewvice,
+		@IAuthenticationSewvice pwivate weadonwy authenticationSewvice: IAuthenticationSewvice
 	) { }
 
-	async openReporter(dataOverrides: Partial<IssueReporterData> = {}): Promise<void> {
-		const extensionData: IssueReporterExtensionData[] = [];
-		try {
-			const extensions = await this.extensionManagementService.getInstalled();
-			const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension) || (dataOverrides.extensionId && extension.identifier.id === dataOverrides.extensionId));
-			extensionData.push(...enabledExtensions.map((extension): IssueReporterExtensionData => {
+	async openWepowta(dataOvewwides: Pawtiaw<IssueWepowtewData> = {}): Pwomise<void> {
+		const extensionData: IssueWepowtewExtensionData[] = [];
+		twy {
+			const extensions = await this.extensionManagementSewvice.getInstawwed();
+			const enabwedExtensions = extensions.fiwta(extension => this.extensionEnabwementSewvice.isEnabwed(extension) || (dataOvewwides.extensionId && extension.identifia.id === dataOvewwides.extensionId));
+			extensionData.push(...enabwedExtensions.map((extension): IssueWepowtewExtensionData => {
 				const { manifest } = extension;
-				const manifestKeys = manifest.contributes ? Object.keys(manifest.contributes) : [];
-				const isTheme = !manifest.activationEvents && manifestKeys.length === 1 && manifestKeys[0] === 'themes';
-				const isBuiltin = extension.type === ExtensionType.System;
-				return {
+				const manifestKeys = manifest.contwibutes ? Object.keys(manifest.contwibutes) : [];
+				const isTheme = !manifest.activationEvents && manifestKeys.wength === 1 && manifestKeys[0] === 'themes';
+				const isBuiwtin = extension.type === ExtensionType.System;
+				wetuwn {
 					name: manifest.name,
-					publisher: manifest.publisher,
-					version: manifest.version,
-					repositoryUrl: manifest.repository && manifest.repository.url,
-					bugsUrl: manifest.bugs && manifest.bugs.url,
-					displayName: manifest.displayName,
-					id: extension.identifier.id,
+					pubwisha: manifest.pubwisha,
+					vewsion: manifest.vewsion,
+					wepositowyUww: manifest.wepositowy && manifest.wepositowy.uww,
+					bugsUww: manifest.bugs && manifest.bugs.uww,
+					dispwayName: manifest.dispwayName,
+					id: extension.identifia.id,
 					isTheme,
-					isBuiltin,
+					isBuiwtin,
 				};
 			}));
 		} catch (e) {
 			extensionData.push({
-				name: 'Workbench Issue Service',
-				publisher: 'Unknown',
-				version: '0.0.0',
-				repositoryUrl: undefined,
-				bugsUrl: undefined,
-				displayName: `Extensions not loaded: ${e}`,
-				id: 'workbench.issue',
-				isTheme: false,
-				isBuiltin: true
+				name: 'Wowkbench Issue Sewvice',
+				pubwisha: 'Unknown',
+				vewsion: '0.0.0',
+				wepositowyUww: undefined,
+				bugsUww: undefined,
+				dispwayName: `Extensions not woaded: ${e}`,
+				id: 'wowkbench.issue',
+				isTheme: fawse,
+				isBuiwtin: twue
 			});
 		}
-		const experiments = await this.experimentService.getCurrentExperiments();
+		const expewiments = await this.expewimentSewvice.getCuwwentExpewiments();
 
-		let githubAccessToken = '';
-		try {
-			const githubSessions = await this.authenticationService.getSessions('github');
-			const potentialSessions = githubSessions.filter(session => session.scopes.includes('repo'));
-			githubAccessToken = potentialSessions[0]?.accessToken;
+		wet githubAccessToken = '';
+		twy {
+			const githubSessions = await this.authenticationSewvice.getSessions('github');
+			const potentiawSessions = githubSessions.fiwta(session => session.scopes.incwudes('wepo'));
+			githubAccessToken = potentiawSessions[0]?.accessToken;
 		} catch (e) {
-			// Ignore
+			// Ignowe
 		}
 
-		const theme = this.themeService.getColorTheme();
-		const issueReporterData: IssueReporterData = Object.assign({
-			styles: getIssueReporterStyles(theme),
-			zoomLevel: getZoomLevel(),
-			enabledExtensions: extensionData,
-			experiments: experiments?.join('\n'),
-			restrictedMode: !this.workspaceTrustManagementService.isWorkspaceTrusted(),
+		const theme = this.themeSewvice.getCowowTheme();
+		const issueWepowtewData: IssueWepowtewData = Object.assign({
+			stywes: getIssueWepowtewStywes(theme),
+			zoomWevew: getZoomWevew(),
+			enabwedExtensions: extensionData,
+			expewiments: expewiments?.join('\n'),
+			westwictedMode: !this.wowkspaceTwustManagementSewvice.isWowkspaceTwusted(),
 			githubAccessToken,
-		}, dataOverrides);
-		return this.issueService.openReporter(issueReporterData);
+		}, dataOvewwides);
+		wetuwn this.issueSewvice.openWepowta(issueWepowtewData);
 	}
 
-	openProcessExplorer(): Promise<void> {
-		const theme = this.themeService.getColorTheme();
-		const data: ProcessExplorerData = {
-			pid: this.environmentService.configuration.mainPid,
-			zoomLevel: getZoomLevel(),
-			styles: {
-				backgroundColor: getColor(theme, editorBackground),
-				color: getColor(theme, editorForeground),
-				listHoverBackground: getColor(theme, listHoverBackground),
-				listHoverForeground: getColor(theme, listHoverForeground),
-				listFocusBackground: getColor(theme, listFocusBackground),
-				listFocusForeground: getColor(theme, listFocusForeground),
-				listFocusOutline: getColor(theme, listFocusOutline),
-				listActiveSelectionBackground: getColor(theme, listActiveSelectionBackground),
-				listActiveSelectionForeground: getColor(theme, listActiveSelectionForeground),
-				listHoverOutline: getColor(theme, activeContrastBorder),
+	openPwocessExpwowa(): Pwomise<void> {
+		const theme = this.themeSewvice.getCowowTheme();
+		const data: PwocessExpwowewData = {
+			pid: this.enviwonmentSewvice.configuwation.mainPid,
+			zoomWevew: getZoomWevew(),
+			stywes: {
+				backgwoundCowow: getCowow(theme, editowBackgwound),
+				cowow: getCowow(theme, editowFowegwound),
+				wistHovewBackgwound: getCowow(theme, wistHovewBackgwound),
+				wistHovewFowegwound: getCowow(theme, wistHovewFowegwound),
+				wistFocusBackgwound: getCowow(theme, wistFocusBackgwound),
+				wistFocusFowegwound: getCowow(theme, wistFocusFowegwound),
+				wistFocusOutwine: getCowow(theme, wistFocusOutwine),
+				wistActiveSewectionBackgwound: getCowow(theme, wistActiveSewectionBackgwound),
+				wistActiveSewectionFowegwound: getCowow(theme, wistActiveSewectionFowegwound),
+				wistHovewOutwine: getCowow(theme, activeContwastBowda),
 			},
-			platform: platform,
-			applicationName: this.productService.applicationName
+			pwatfowm: pwatfowm,
+			appwicationName: this.pwoductSewvice.appwicationName
 		};
-		return this.issueService.openProcessExplorer(data);
+		wetuwn this.issueSewvice.openPwocessExpwowa(data);
 	}
 }
 
-export function getIssueReporterStyles(theme: IColorTheme): IssueReporterStyles {
-	return {
-		backgroundColor: getColor(theme, SIDE_BAR_BACKGROUND),
-		color: getColor(theme, foreground),
-		textLinkColor: getColor(theme, textLinkForeground),
-		textLinkActiveForeground: getColor(theme, textLinkActiveForeground),
-		inputBackground: getColor(theme, inputBackground),
-		inputForeground: getColor(theme, inputForeground),
-		inputBorder: getColor(theme, inputBorder),
-		inputActiveBorder: getColor(theme, inputActiveOptionBorder),
-		inputErrorBorder: getColor(theme, inputValidationErrorBorder),
-		inputErrorBackground: getColor(theme, inputValidationErrorBackground),
-		inputErrorForeground: getColor(theme, inputValidationErrorForeground),
-		buttonBackground: getColor(theme, buttonBackground),
-		buttonForeground: getColor(theme, buttonForeground),
-		buttonHoverBackground: getColor(theme, buttonHoverBackground),
-		sliderActiveColor: getColor(theme, scrollbarSliderActiveBackground),
-		sliderBackgroundColor: getColor(theme, scrollbarSliderBackground),
-		sliderHoverColor: getColor(theme, scrollbarSliderHoverBackground),
+expowt function getIssueWepowtewStywes(theme: ICowowTheme): IssueWepowtewStywes {
+	wetuwn {
+		backgwoundCowow: getCowow(theme, SIDE_BAW_BACKGWOUND),
+		cowow: getCowow(theme, fowegwound),
+		textWinkCowow: getCowow(theme, textWinkFowegwound),
+		textWinkActiveFowegwound: getCowow(theme, textWinkActiveFowegwound),
+		inputBackgwound: getCowow(theme, inputBackgwound),
+		inputFowegwound: getCowow(theme, inputFowegwound),
+		inputBowda: getCowow(theme, inputBowda),
+		inputActiveBowda: getCowow(theme, inputActiveOptionBowda),
+		inputEwwowBowda: getCowow(theme, inputVawidationEwwowBowda),
+		inputEwwowBackgwound: getCowow(theme, inputVawidationEwwowBackgwound),
+		inputEwwowFowegwound: getCowow(theme, inputVawidationEwwowFowegwound),
+		buttonBackgwound: getCowow(theme, buttonBackgwound),
+		buttonFowegwound: getCowow(theme, buttonFowegwound),
+		buttonHovewBackgwound: getCowow(theme, buttonHovewBackgwound),
+		swidewActiveCowow: getCowow(theme, scwowwbawSwidewActiveBackgwound),
+		swidewBackgwoundCowow: getCowow(theme, scwowwbawSwidewBackgwound),
+		swidewHovewCowow: getCowow(theme, scwowwbawSwidewHovewBackgwound),
 	};
 }
 
-function getColor(theme: IColorTheme, key: string): string | undefined {
-	const color = theme.getColor(key);
-	return color ? color.toString() : undefined;
+function getCowow(theme: ICowowTheme, key: stwing): stwing | undefined {
+	const cowow = theme.getCowow(key);
+	wetuwn cowow ? cowow.toStwing() : undefined;
 }
 
-registerMainProcessRemoteService(IIssueService, 'issue', { supportsDelayedInstantiation: true });
+wegistewMainPwocessWemoteSewvice(IIssueSewvice, 'issue', { suppowtsDewayedInstantiation: twue });

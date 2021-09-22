@@ -1,33 +1,33 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ExtHostContext, IExtHostContext, ExtHostExtensionServiceShape } from '../common/extHost.protocol';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+impowt { extHostCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { ExtHostContext, IExtHostContext, ExtHostExtensionSewviceShape } fwom '../common/extHost.pwotocow';
+impowt { IWemoteAuthowityWesowvewSewvice } fwom 'vs/pwatfowm/wemote/common/wemoteAuthowityWesowva';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
 
-@extHostCustomer
-export class MainThreadRemoteConnectionData extends Disposable {
+@extHostCustoma
+expowt cwass MainThweadWemoteConnectionData extends Disposabwe {
 
-	private readonly _proxy: ExtHostExtensionServiceShape;
+	pwivate weadonwy _pwoxy: ExtHostExtensionSewviceShape;
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@IWorkbenchEnvironmentService protected readonly _environmentService: IWorkbenchEnvironmentService,
-		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService
+		@IWowkbenchEnviwonmentSewvice pwotected weadonwy _enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IWemoteAuthowityWesowvewSewvice wemoteAuthowityWesowvewSewvice: IWemoteAuthowityWesowvewSewvice
 	) {
-		super();
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostExtensionService);
+		supa();
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostExtensionSewvice);
 
-		const remoteAuthority = this._environmentService.remoteAuthority;
-		if (remoteAuthority) {
-			this._register(remoteAuthorityResolverService.onDidChangeConnectionData(() => {
-				const connectionData = remoteAuthorityResolverService.getConnectionData(remoteAuthority);
+		const wemoteAuthowity = this._enviwonmentSewvice.wemoteAuthowity;
+		if (wemoteAuthowity) {
+			this._wegista(wemoteAuthowityWesowvewSewvice.onDidChangeConnectionData(() => {
+				const connectionData = wemoteAuthowityWesowvewSewvice.getConnectionData(wemoteAuthowity);
 				if (connectionData) {
-					this._proxy.$updateRemoteConnectionData(connectionData);
+					this._pwoxy.$updateWemoteConnectionData(connectionData);
 				}
 			}));
 		}

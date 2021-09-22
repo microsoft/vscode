@@ -1,25 +1,25 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { ILineChange } from 'vs/editor/common/editorCommon';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { INotebookDiffResult } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWineChange } fwom 'vs/editow/common/editowCommon';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { INotebookDiffWesuwt } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
 
-export const ID_NOTEBOOK_EDITOR_WORKER_SERVICE = 'notebookEditorWorkerService';
-export const INotebookEditorWorkerService = createDecorator<INotebookEditorWorkerService>(ID_NOTEBOOK_EDITOR_WORKER_SERVICE);
+expowt const ID_NOTEBOOK_EDITOW_WOWKEW_SEWVICE = 'notebookEditowWowkewSewvice';
+expowt const INotebookEditowWowkewSewvice = cweateDecowatow<INotebookEditowWowkewSewvice>(ID_NOTEBOOK_EDITOW_WOWKEW_SEWVICE);
 
-export interface IDiffComputationResult {
-	quitEarly: boolean;
-	identical: boolean;
-	changes: ILineChange[];
+expowt intewface IDiffComputationWesuwt {
+	quitEawwy: boowean;
+	identicaw: boowean;
+	changes: IWineChange[];
 }
 
-export interface INotebookEditorWorkerService {
-	readonly _serviceBrand: undefined;
+expowt intewface INotebookEditowWowkewSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	canComputeDiff(original: URI, modified: URI): boolean;
-	computeDiff(original: URI, modified: URI): Promise<INotebookDiffResult>;
+	canComputeDiff(owiginaw: UWI, modified: UWI): boowean;
+	computeDiff(owiginaw: UWI, modified: UWI): Pwomise<INotebookDiffWesuwt>;
 }

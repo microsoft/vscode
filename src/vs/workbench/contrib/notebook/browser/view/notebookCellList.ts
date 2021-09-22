@@ -1,1314 +1,1314 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { IListRenderer, IListVirtualDelegate, ListError } from 'vs/base/browser/ui/list/list';
-import { IListStyles, IStyleController } from 'vs/base/browser/ui/list/listWidget';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { isMacintosh } from 'vs/base/common/platform';
-import { ScrollEvent } from 'vs/base/common/scrollable';
-import { Range } from 'vs/editor/common/core/range';
-import { TrackedRangeStickiness } from 'vs/editor/common/model';
-import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { CellRevealPosition, CellRevealType, CursorAtBoundary, getVisibleCells, ICellViewModel, CellEditState, CellFocusMode, NOTEBOOK_CELL_LIST_FOCUSED, ICellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellRange, cellRangesToIndexes, reduceCellRanges, cellRangesEqual } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { clamp } from 'vs/base/common/numbers';
-import { ISplice } from 'vs/base/common/sequence';
-import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
-import { BaseCellRenderTemplate, INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { IMouseWheewEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { IWistWendewa, IWistViwtuawDewegate, WistEwwow } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { IWistStywes, IStyweContwowwa } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { DisposabweStowe, IDisposabwe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { ScwowwEvent } fwom 'vs/base/common/scwowwabwe';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { TwackedWangeStickiness } fwom 'vs/editow/common/modew';
+impowt { PwefixSumComputa } fwom 'vs/editow/common/viewModew/pwefixSumComputa';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IWistSewvice, IWowkbenchWistOptions, WowkbenchWist } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { CewwWeveawPosition, CewwWeveawType, CuwsowAtBoundawy, getVisibweCewws, ICewwViewModew, CewwEditState, CewwFocusMode, NOTEBOOK_CEWW_WIST_FOCUSED, ICewwOutputViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { CewwViewModew, NotebookViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/notebookViewModew';
+impowt { diff, NOTEBOOK_EDITOW_CUWSOW_BOUNDAWY, CewwKind, SewectionStateType } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { ICewwWange, cewwWangesToIndexes, weduceCewwWanges, cewwWangesEquaw } fwom 'vs/wowkbench/contwib/notebook/common/notebookWange';
+impowt { cwamp } fwom 'vs/base/common/numbews';
+impowt { ISpwice } fwom 'vs/base/common/sequence';
+impowt { ViewContext } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/viewContext';
+impowt { BaseCewwWendewTempwate, INotebookCewwWist } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/notebookWendewingCommon';
 
-export interface IFocusNextPreviousDelegate {
-	onFocusNext(applyFocusNext: () => void): void;
-	onFocusPrevious(applyFocusPrevious: () => void): void;
+expowt intewface IFocusNextPweviousDewegate {
+	onFocusNext(appwyFocusNext: () => void): void;
+	onFocusPwevious(appwyFocusPwevious: () => void): void;
 }
 
-export interface INotebookCellListOptions extends IWorkbenchListOptions<CellViewModel> {
-	focusNextPreviousDelegate: IFocusNextPreviousDelegate;
+expowt intewface INotebookCewwWistOptions extends IWowkbenchWistOptions<CewwViewModew> {
+	focusNextPweviousDewegate: IFocusNextPweviousDewegate;
 }
 
-export class NotebookCellList extends WorkbenchList<CellViewModel> implements IDisposable, IStyleController, INotebookCellList {
-	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
+expowt cwass NotebookCewwWist extends WowkbenchWist<CewwViewModew> impwements IDisposabwe, IStyweContwowwa, INotebookCewwWist {
+	get onWiwwScwoww(): Event<ScwowwEvent> { wetuwn this.view.onWiwwScwoww; }
 
-	get rowsContainer(): HTMLElement {
-		return this.view.containerDomNode;
+	get wowsContaina(): HTMWEwement {
+		wetuwn this.view.containewDomNode;
 	}
-	private _previousFocusedElements: CellViewModel[] = [];
-	private readonly _localDisposableStore = new DisposableStore();
-	private readonly _viewModelStore = new DisposableStore();
-	private styleElement?: HTMLStyleElement;
+	pwivate _pweviousFocusedEwements: CewwViewModew[] = [];
+	pwivate weadonwy _wocawDisposabweStowe = new DisposabweStowe();
+	pwivate weadonwy _viewModewStowe = new DisposabweStowe();
+	pwivate styweEwement?: HTMWStyweEwement;
 
-	private readonly _onDidRemoveOutputs = this._localDisposableStore.add(new Emitter<readonly ICellOutputViewModel[]>());
-	readonly onDidRemoveOutputs = this._onDidRemoveOutputs.event;
+	pwivate weadonwy _onDidWemoveOutputs = this._wocawDisposabweStowe.add(new Emitta<weadonwy ICewwOutputViewModew[]>());
+	weadonwy onDidWemoveOutputs = this._onDidWemoveOutputs.event;
 
-	private readonly _onDidHideOutputs = this._localDisposableStore.add(new Emitter<readonly ICellOutputViewModel[]>());
-	readonly onDidHideOutputs = this._onDidHideOutputs.event;
+	pwivate weadonwy _onDidHideOutputs = this._wocawDisposabweStowe.add(new Emitta<weadonwy ICewwOutputViewModew[]>());
+	weadonwy onDidHideOutputs = this._onDidHideOutputs.event;
 
-	private readonly _onDidRemoveCellsFromView = this._localDisposableStore.add(new Emitter<readonly ICellViewModel[]>());
-	readonly onDidRemoveCellsFromView = this._onDidRemoveCellsFromView.event;
+	pwivate weadonwy _onDidWemoveCewwsFwomView = this._wocawDisposabweStowe.add(new Emitta<weadonwy ICewwViewModew[]>());
+	weadonwy onDidWemoveCewwsFwomView = this._onDidWemoveCewwsFwomView.event;
 
-	private _viewModel: NotebookViewModel | null = null;
-	get viewModel(): NotebookViewModel | null {
-		return this._viewModel;
+	pwivate _viewModew: NotebookViewModew | nuww = nuww;
+	get viewModew(): NotebookViewModew | nuww {
+		wetuwn this._viewModew;
 	}
-	private _hiddenRangeIds: string[] = [];
-	private hiddenRangesPrefixSum: PrefixSumComputer | null = null;
+	pwivate _hiddenWangeIds: stwing[] = [];
+	pwivate hiddenWangesPwefixSum: PwefixSumComputa | nuww = nuww;
 
-	private readonly _onDidChangeVisibleRanges = this._localDisposableStore.add(new Emitter<void>());
+	pwivate weadonwy _onDidChangeVisibweWanges = this._wocawDisposabweStowe.add(new Emitta<void>());
 
-	onDidChangeVisibleRanges: Event<void> = this._onDidChangeVisibleRanges.event;
-	private _visibleRanges: ICellRange[] = [];
+	onDidChangeVisibweWanges: Event<void> = this._onDidChangeVisibweWanges.event;
+	pwivate _visibweWanges: ICewwWange[] = [];
 
-	get visibleRanges() {
-		return this._visibleRanges;
+	get visibweWanges() {
+		wetuwn this._visibweWanges;
 	}
 
-	set visibleRanges(ranges: ICellRange[]) {
-		if (cellRangesEqual(this._visibleRanges, ranges)) {
-			return;
+	set visibweWanges(wanges: ICewwWange[]) {
+		if (cewwWangesEquaw(this._visibweWanges, wanges)) {
+			wetuwn;
 		}
 
-		this._visibleRanges = ranges;
-		this._onDidChangeVisibleRanges.fire();
+		this._visibweWanges = wanges;
+		this._onDidChangeVisibweWanges.fiwe();
 	}
 
-	private _isDisposed = false;
+	pwivate _isDisposed = fawse;
 
 	get isDisposed() {
-		return this._isDisposed;
+		wetuwn this._isDisposed;
 	}
 
-	private _isInLayout: boolean = false;
+	pwivate _isInWayout: boowean = fawse;
 
-	private readonly _focusNextPreviousDelegate: IFocusNextPreviousDelegate;
+	pwivate weadonwy _focusNextPweviousDewegate: IFocusNextPweviousDewegate;
 
-	private readonly _viewContext: ViewContext;
+	pwivate weadonwy _viewContext: ViewContext;
 
-	constructor(
-		private listUser: string,
-		parentContainer: HTMLElement,
-		container: HTMLElement,
+	constwuctow(
+		pwivate wistUsa: stwing,
+		pawentContaina: HTMWEwement,
+		containa: HTMWEwement,
 		viewContext: ViewContext,
-		delegate: IListVirtualDelegate<CellViewModel>,
-		renderers: IListRenderer<CellViewModel, BaseCellRenderTemplate>[],
-		contextKeyService: IContextKeyService,
-		options: INotebookCellListOptions,
-		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService
+		dewegate: IWistViwtuawDewegate<CewwViewModew>,
+		wendewews: IWistWendewa<CewwViewModew, BaseCewwWendewTempwate>[],
+		contextKeySewvice: IContextKeySewvice,
+		options: INotebookCewwWistOptions,
+		@IWistSewvice wistSewvice: IWistSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice
 	) {
-		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, keybindingService);
-		NOTEBOOK_CELL_LIST_FOCUSED.bindTo(this.contextKeyService).set(true);
+		supa(wistUsa, containa, dewegate, wendewews, options, contextKeySewvice, wistSewvice, themeSewvice, configuwationSewvice, keybindingSewvice);
+		NOTEBOOK_CEWW_WIST_FOCUSED.bindTo(this.contextKeySewvice).set(twue);
 		this._viewContext = viewContext;
-		this._focusNextPreviousDelegate = options.focusNextPreviousDelegate;
-		this._previousFocusedElements = this.getFocusedElements();
-		this._localDisposableStore.add(this.onDidChangeFocus((e) => {
-			this._previousFocusedElements.forEach(element => {
-				if (e.elements.indexOf(element) < 0) {
-					element.onDeselect();
+		this._focusNextPweviousDewegate = options.focusNextPweviousDewegate;
+		this._pweviousFocusedEwements = this.getFocusedEwements();
+		this._wocawDisposabweStowe.add(this.onDidChangeFocus((e) => {
+			this._pweviousFocusedEwements.fowEach(ewement => {
+				if (e.ewements.indexOf(ewement) < 0) {
+					ewement.onDesewect();
 				}
 			});
-			this._previousFocusedElements = e.elements;
+			this._pweviousFocusedEwements = e.ewements;
 
-			if (document.activeElement && document.activeElement.classList.contains('webview')) {
-				super.domFocus();
+			if (document.activeEwement && document.activeEwement.cwassWist.contains('webview')) {
+				supa.domFocus();
 			}
 		}));
 
-		const notebookEditorCursorAtBoundaryContext = NOTEBOOK_EDITOR_CURSOR_BOUNDARY.bindTo(contextKeyService);
-		notebookEditorCursorAtBoundaryContext.set('none');
+		const notebookEditowCuwsowAtBoundawyContext = NOTEBOOK_EDITOW_CUWSOW_BOUNDAWY.bindTo(contextKeySewvice);
+		notebookEditowCuwsowAtBoundawyContext.set('none');
 
-		const cursorSelectionListener = this._localDisposableStore.add(new MutableDisposable());
-		const textEditorAttachListener = this._localDisposableStore.add(new MutableDisposable());
+		const cuwsowSewectionWistena = this._wocawDisposabweStowe.add(new MutabweDisposabwe());
+		const textEditowAttachWistena = this._wocawDisposabweStowe.add(new MutabweDisposabwe());
 
-		const recomputeContext = (element: CellViewModel) => {
-			switch (element.cursorAtBoundary()) {
-				case CursorAtBoundary.Both:
-					notebookEditorCursorAtBoundaryContext.set('both');
-					break;
-				case CursorAtBoundary.Top:
-					notebookEditorCursorAtBoundaryContext.set('top');
-					break;
-				case CursorAtBoundary.Bottom:
-					notebookEditorCursorAtBoundaryContext.set('bottom');
-					break;
-				default:
-					notebookEditorCursorAtBoundaryContext.set('none');
-					break;
+		const wecomputeContext = (ewement: CewwViewModew) => {
+			switch (ewement.cuwsowAtBoundawy()) {
+				case CuwsowAtBoundawy.Both:
+					notebookEditowCuwsowAtBoundawyContext.set('both');
+					bweak;
+				case CuwsowAtBoundawy.Top:
+					notebookEditowCuwsowAtBoundawyContext.set('top');
+					bweak;
+				case CuwsowAtBoundawy.Bottom:
+					notebookEditowCuwsowAtBoundawyContext.set('bottom');
+					bweak;
+				defauwt:
+					notebookEditowCuwsowAtBoundawyContext.set('none');
+					bweak;
 			}
 
-			return;
+			wetuwn;
 		};
 
-		// Cursor Boundary context
-		this._localDisposableStore.add(this.onDidChangeFocus((e) => {
-			if (e.elements.length) {
-				// we only validate the first focused element
-				const focusedElement = e.elements[0];
+		// Cuwsow Boundawy context
+		this._wocawDisposabweStowe.add(this.onDidChangeFocus((e) => {
+			if (e.ewements.wength) {
+				// we onwy vawidate the fiwst focused ewement
+				const focusedEwement = e.ewements[0];
 
-				cursorSelectionListener.value = focusedElement.onDidChangeState((e) => {
-					if (e.selectionChanged) {
-						recomputeContext(focusedElement);
+				cuwsowSewectionWistena.vawue = focusedEwement.onDidChangeState((e) => {
+					if (e.sewectionChanged) {
+						wecomputeContext(focusedEwement);
 					}
 				});
 
-				textEditorAttachListener.value = focusedElement.onDidChangeEditorAttachState(() => {
-					if (focusedElement.editorAttached) {
-						recomputeContext(focusedElement);
+				textEditowAttachWistena.vawue = focusedEwement.onDidChangeEditowAttachState(() => {
+					if (focusedEwement.editowAttached) {
+						wecomputeContext(focusedEwement);
 					}
 				});
 
-				recomputeContext(focusedElement);
-				return;
+				wecomputeContext(focusedEwement);
+				wetuwn;
 			}
 
-			// reset context
-			notebookEditorCursorAtBoundaryContext.set('none');
+			// weset context
+			notebookEditowCuwsowAtBoundawyContext.set('none');
 		}));
 
-		this._localDisposableStore.add(this.view.onMouseDblClick(() => {
-			const focus = this.getFocusedElements()[0];
+		this._wocawDisposabweStowe.add(this.view.onMouseDbwCwick(() => {
+			const focus = this.getFocusedEwements()[0];
 
-			if (focus && focus.cellKind === CellKind.Markup && !focus.metadata.inputCollapsed && !this._viewModel?.options.isReadOnly) {
-				// scroll the cell into view if out of viewport
-				this.revealElementInView(focus);
-				focus.updateEditState(CellEditState.Editing, 'dbclick');
-				focus.focusMode = CellFocusMode.Editor;
+			if (focus && focus.cewwKind === CewwKind.Mawkup && !focus.metadata.inputCowwapsed && !this._viewModew?.options.isWeadOnwy) {
+				// scwoww the ceww into view if out of viewpowt
+				this.weveawEwementInView(focus);
+				focus.updateEditState(CewwEditState.Editing, 'dbcwick');
+				focus.focusMode = CewwFocusMode.Editow;
 			}
 		}));
 
-		// update visibleRanges
-		const updateVisibleRanges = () => {
-			if (!this.view.length) {
-				return;
+		// update visibweWanges
+		const updateVisibweWanges = () => {
+			if (!this.view.wength) {
+				wetuwn;
 			}
 
-			const top = this.getViewScrollTop();
-			const bottom = this.getViewScrollBottom();
+			const top = this.getViewScwowwTop();
+			const bottom = this.getViewScwowwBottom();
 			if (top >= bottom) {
-				return;
+				wetuwn;
 			}
 
-			const topViewIndex = clamp(this.view.indexAt(top), 0, this.view.length - 1);
-			const topElement = this.view.element(topViewIndex);
-			const topModelIndex = this._viewModel!.getCellIndex(topElement);
-			const bottomViewIndex = clamp(this.view.indexAt(bottom), 0, this.view.length - 1);
-			const bottomElement = this.view.element(bottomViewIndex);
-			const bottomModelIndex = this._viewModel!.getCellIndex(bottomElement);
+			const topViewIndex = cwamp(this.view.indexAt(top), 0, this.view.wength - 1);
+			const topEwement = this.view.ewement(topViewIndex);
+			const topModewIndex = this._viewModew!.getCewwIndex(topEwement);
+			const bottomViewIndex = cwamp(this.view.indexAt(bottom), 0, this.view.wength - 1);
+			const bottomEwement = this.view.ewement(bottomViewIndex);
+			const bottomModewIndex = this._viewModew!.getCewwIndex(bottomEwement);
 
-			if (bottomModelIndex - topModelIndex === bottomViewIndex - topViewIndex) {
-				this.visibleRanges = [{ start: topModelIndex, end: bottomModelIndex }];
-			} else {
-				this.visibleRanges = this._getVisibleRangesFromIndex(topViewIndex, topModelIndex, bottomViewIndex, bottomModelIndex);
+			if (bottomModewIndex - topModewIndex === bottomViewIndex - topViewIndex) {
+				this.visibweWanges = [{ stawt: topModewIndex, end: bottomModewIndex }];
+			} ewse {
+				this.visibweWanges = this._getVisibweWangesFwomIndex(topViewIndex, topModewIndex, bottomViewIndex, bottomModewIndex);
 			}
 		};
 
-		this._localDisposableStore.add(this.view.onDidChangeContentHeight(() => {
-			if (this._isInLayout) {
-				DOM.scheduleAtNextAnimationFrame(() => {
-					updateVisibleRanges();
+		this._wocawDisposabweStowe.add(this.view.onDidChangeContentHeight(() => {
+			if (this._isInWayout) {
+				DOM.scheduweAtNextAnimationFwame(() => {
+					updateVisibweWanges();
 				});
 			}
-			updateVisibleRanges();
+			updateVisibweWanges();
 		}));
-		this._localDisposableStore.add(this.view.onDidScroll(() => {
-			if (this._isInLayout) {
-				DOM.scheduleAtNextAnimationFrame(() => {
-					updateVisibleRanges();
+		this._wocawDisposabweStowe.add(this.view.onDidScwoww(() => {
+			if (this._isInWayout) {
+				DOM.scheduweAtNextAnimationFwame(() => {
+					updateVisibweWanges();
 				});
 			}
-			updateVisibleRanges();
+			updateVisibweWanges();
 		}));
 	}
 
-	elementAt(position: number): ICellViewModel | undefined {
-		if (!this.view.length) {
-			return undefined;
+	ewementAt(position: numba): ICewwViewModew | undefined {
+		if (!this.view.wength) {
+			wetuwn undefined;
 		}
 
 		const idx = this.view.indexAt(position);
-		const clamped = clamp(idx, 0, this.view.length - 1);
-		return this.element(clamped);
+		const cwamped = cwamp(idx, 0, this.view.wength - 1);
+		wetuwn this.ewement(cwamped);
 	}
 
-	elementHeight(element: ICellViewModel): number {
-		const index = this._getViewIndexUpperBound(element);
-		if (index === undefined || index < 0 || index >= this.length) {
-			this._getViewIndexUpperBound(element);
-			throw new ListError(this.listUser, `Invalid index ${index}`);
+	ewementHeight(ewement: ICewwViewModew): numba {
+		const index = this._getViewIndexUppewBound(ewement);
+		if (index === undefined || index < 0 || index >= this.wength) {
+			this._getViewIndexUppewBound(ewement);
+			thwow new WistEwwow(this.wistUsa, `Invawid index ${index}`);
 		}
 
-		return this.view.elementHeight(index);
+		wetuwn this.view.ewementHeight(index);
 	}
 
-	detachViewModel() {
-		this._viewModelStore.clear();
-		this._viewModel = null;
-		this.hiddenRangesPrefixSum = null;
+	detachViewModew() {
+		this._viewModewStowe.cweaw();
+		this._viewModew = nuww;
+		this.hiddenWangesPwefixSum = nuww;
 	}
 
-	attachViewModel(model: NotebookViewModel) {
-		this._viewModel = model;
-		this._viewModelStore.add(model.onDidChangeViewCells((e) => {
+	attachViewModew(modew: NotebookViewModew) {
+		this._viewModew = modew;
+		this._viewModewStowe.add(modew.onDidChangeViewCewws((e) => {
 			if (this._isDisposed) {
-				return;
+				wetuwn;
 			}
 
-			const currentRanges = this._hiddenRangeIds.map(id => this._viewModel!.getTrackedRange(id)).filter(range => range !== null) as ICellRange[];
-			const newVisibleViewCells: CellViewModel[] = getVisibleCells(this._viewModel!.viewCells as CellViewModel[], currentRanges);
+			const cuwwentWanges = this._hiddenWangeIds.map(id => this._viewModew!.getTwackedWange(id)).fiwta(wange => wange !== nuww) as ICewwWange[];
+			const newVisibweViewCewws: CewwViewModew[] = getVisibweCewws(this._viewModew!.viewCewws as CewwViewModew[], cuwwentWanges);
 
-			const oldVisibleViewCells: CellViewModel[] = [];
-			const oldViewCellMapping = new Set<string>();
-			for (let i = 0; i < this.length; i++) {
-				oldVisibleViewCells.push(this.element(i));
-				oldViewCellMapping.add(this.element(i).uri.toString());
+			const owdVisibweViewCewws: CewwViewModew[] = [];
+			const owdViewCewwMapping = new Set<stwing>();
+			fow (wet i = 0; i < this.wength; i++) {
+				owdVisibweViewCewws.push(this.ewement(i));
+				owdViewCewwMapping.add(this.ewement(i).uwi.toStwing());
 			}
 
-			const viewDiffs = diff<CellViewModel>(oldVisibleViewCells, newVisibleViewCells, a => {
-				return oldViewCellMapping.has(a.uri.toString());
+			const viewDiffs = diff<CewwViewModew>(owdVisibweViewCewws, newVisibweViewCewws, a => {
+				wetuwn owdViewCewwMapping.has(a.uwi.toStwing());
 			});
 
-			if (e.synchronous) {
-				this._updateElementsInWebview(viewDiffs);
-			} else {
-				this._viewModelStore.add(DOM.scheduleAtNextAnimationFrame(() => {
+			if (e.synchwonous) {
+				this._updateEwementsInWebview(viewDiffs);
+			} ewse {
+				this._viewModewStowe.add(DOM.scheduweAtNextAnimationFwame(() => {
 					if (this._isDisposed) {
-						return;
+						wetuwn;
 					}
 
-					this._updateElementsInWebview(viewDiffs);
+					this._updateEwementsInWebview(viewDiffs);
 				}));
 			}
 		}));
 
-		this._viewModelStore.add(model.onDidChangeSelection((e) => {
+		this._viewModewStowe.add(modew.onDidChangeSewection((e) => {
 			if (e === 'view') {
-				return;
+				wetuwn;
 			}
 
-			// convert model selections to view selections
-			const viewSelections = cellRangesToIndexes(model.getSelections()).map(index => model.cellAt(index)).filter(cell => !!cell).map(cell => this._getViewIndexUpperBound(cell!));
-			this.setSelection(viewSelections, undefined, true);
-			const primary = cellRangesToIndexes([model.getFocus()]).map(index => model.cellAt(index)).filter(cell => !!cell).map(cell => this._getViewIndexUpperBound(cell!));
+			// convewt modew sewections to view sewections
+			const viewSewections = cewwWangesToIndexes(modew.getSewections()).map(index => modew.cewwAt(index)).fiwta(ceww => !!ceww).map(ceww => this._getViewIndexUppewBound(ceww!));
+			this.setSewection(viewSewections, undefined, twue);
+			const pwimawy = cewwWangesToIndexes([modew.getFocus()]).map(index => modew.cewwAt(index)).fiwta(ceww => !!ceww).map(ceww => this._getViewIndexUppewBound(ceww!));
 
-			if (primary.length) {
-				this.setFocus(primary, undefined, true);
+			if (pwimawy.wength) {
+				this.setFocus(pwimawy, undefined, twue);
 			}
 		}));
 
-		const hiddenRanges = model.getHiddenRanges();
-		this.setHiddenAreas(hiddenRanges, false);
-		const newRanges = reduceCellRanges(hiddenRanges);
-		const viewCells = model.viewCells.slice(0) as CellViewModel[];
-		newRanges.reverse().forEach(range => {
-			const removedCells = viewCells.splice(range.start, range.end - range.start + 1);
-			this._onDidRemoveCellsFromView.fire(removedCells);
+		const hiddenWanges = modew.getHiddenWanges();
+		this.setHiddenAweas(hiddenWanges, fawse);
+		const newWanges = weduceCewwWanges(hiddenWanges);
+		const viewCewws = modew.viewCewws.swice(0) as CewwViewModew[];
+		newWanges.wevewse().fowEach(wange => {
+			const wemovedCewws = viewCewws.spwice(wange.stawt, wange.end - wange.stawt + 1);
+			this._onDidWemoveCewwsFwomView.fiwe(wemovedCewws);
 		});
 
-		this.splice2(0, 0, viewCells);
+		this.spwice2(0, 0, viewCewws);
 	}
 
-	private _updateElementsInWebview(viewDiffs: ISplice<CellViewModel>[]) {
-		viewDiffs.reverse().forEach((diff) => {
-			const hiddenOutputs: ICellOutputViewModel[] = [];
-			const deletedOutputs: ICellOutputViewModel[] = [];
-			const removedMarkdownCells: ICellViewModel[] = [];
+	pwivate _updateEwementsInWebview(viewDiffs: ISpwice<CewwViewModew>[]) {
+		viewDiffs.wevewse().fowEach((diff) => {
+			const hiddenOutputs: ICewwOutputViewModew[] = [];
+			const dewetedOutputs: ICewwOutputViewModew[] = [];
+			const wemovedMawkdownCewws: ICewwViewModew[] = [];
 
-			for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
-				const cell = this.element(i);
-				if (cell.cellKind === CellKind.Code) {
-					if (this._viewModel!.hasCell(cell)) {
-						hiddenOutputs.push(...cell?.outputsViewModels);
-					} else {
-						deletedOutputs.push(...cell?.outputsViewModels);
+			fow (wet i = diff.stawt; i < diff.stawt + diff.deweteCount; i++) {
+				const ceww = this.ewement(i);
+				if (ceww.cewwKind === CewwKind.Code) {
+					if (this._viewModew!.hasCeww(ceww)) {
+						hiddenOutputs.push(...ceww?.outputsViewModews);
+					} ewse {
+						dewetedOutputs.push(...ceww?.outputsViewModews);
 					}
-				} else {
-					removedMarkdownCells.push(cell);
+				} ewse {
+					wemovedMawkdownCewws.push(ceww);
 				}
 			}
 
-			this.splice2(diff.start, diff.deleteCount, diff.toInsert);
+			this.spwice2(diff.stawt, diff.deweteCount, diff.toInsewt);
 
-			this._onDidHideOutputs.fire(hiddenOutputs);
-			this._onDidRemoveOutputs.fire(deletedOutputs);
-			this._onDidRemoveCellsFromView.fire(removedMarkdownCells);
+			this._onDidHideOutputs.fiwe(hiddenOutputs);
+			this._onDidWemoveOutputs.fiwe(dewetedOutputs);
+			this._onDidWemoveCewwsFwomView.fiwe(wemovedMawkdownCewws);
 		});
 	}
 
-	clear() {
-		super.splice(0, this.length);
+	cweaw() {
+		supa.spwice(0, this.wength);
 	}
 
-	setHiddenAreas(_ranges: ICellRange[], triggerViewUpdate: boolean): boolean {
-		if (!this._viewModel) {
-			return false;
+	setHiddenAweas(_wanges: ICewwWange[], twiggewViewUpdate: boowean): boowean {
+		if (!this._viewModew) {
+			wetuwn fawse;
 		}
 
-		const newRanges = reduceCellRanges(_ranges);
-		// delete old tracking ranges
-		const oldRanges = this._hiddenRangeIds.map(id => this._viewModel!.getTrackedRange(id)).filter(range => range !== null) as ICellRange[];
-		if (newRanges.length === oldRanges.length) {
-			let hasDifference = false;
-			for (let i = 0; i < newRanges.length; i++) {
-				if (!(newRanges[i].start === oldRanges[i].start && newRanges[i].end === oldRanges[i].end)) {
-					hasDifference = true;
-					break;
+		const newWanges = weduceCewwWanges(_wanges);
+		// dewete owd twacking wanges
+		const owdWanges = this._hiddenWangeIds.map(id => this._viewModew!.getTwackedWange(id)).fiwta(wange => wange !== nuww) as ICewwWange[];
+		if (newWanges.wength === owdWanges.wength) {
+			wet hasDiffewence = fawse;
+			fow (wet i = 0; i < newWanges.wength; i++) {
+				if (!(newWanges[i].stawt === owdWanges[i].stawt && newWanges[i].end === owdWanges[i].end)) {
+					hasDiffewence = twue;
+					bweak;
 				}
 			}
 
-			if (!hasDifference) {
-				// they call 'setHiddenAreas' for a reason, even if the ranges are still the same, it's possible that the hiddenRangeSum is not update to date
-				this._updateHiddenRangePrefixSum(newRanges);
-				return false;
+			if (!hasDiffewence) {
+				// they caww 'setHiddenAweas' fow a weason, even if the wanges awe stiww the same, it's possibwe that the hiddenWangeSum is not update to date
+				this._updateHiddenWangePwefixSum(newWanges);
+				wetuwn fawse;
 			}
 		}
 
-		this._hiddenRangeIds.forEach(id => this._viewModel!.setTrackedRange(id, null, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter));
-		const hiddenAreaIds = newRanges.map(range => this._viewModel!.setTrackedRange(null, range, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter)).filter(id => id !== null) as string[];
+		this._hiddenWangeIds.fowEach(id => this._viewModew!.setTwackedWange(id, nuww, TwackedWangeStickiness.GwowsOnwyWhenTypingAfta));
+		const hiddenAweaIds = newWanges.map(wange => this._viewModew!.setTwackedWange(nuww, wange, TwackedWangeStickiness.GwowsOnwyWhenTypingAfta)).fiwta(id => id !== nuww) as stwing[];
 
-		this._hiddenRangeIds = hiddenAreaIds;
+		this._hiddenWangeIds = hiddenAweaIds;
 
-		// set hidden ranges prefix sum
-		this._updateHiddenRangePrefixSum(newRanges);
+		// set hidden wanges pwefix sum
+		this._updateHiddenWangePwefixSum(newWanges);
 
-		if (triggerViewUpdate) {
-			this.updateHiddenAreasInView(oldRanges, newRanges);
+		if (twiggewViewUpdate) {
+			this.updateHiddenAweasInView(owdWanges, newWanges);
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private _updateHiddenRangePrefixSum(newRanges: ICellRange[]) {
-		let start = 0;
-		let index = 0;
-		const ret: number[] = [];
+	pwivate _updateHiddenWangePwefixSum(newWanges: ICewwWange[]) {
+		wet stawt = 0;
+		wet index = 0;
+		const wet: numba[] = [];
 
-		while (index < newRanges.length) {
-			for (let j = start; j < newRanges[index].start - 1; j++) {
-				ret.push(1);
+		whiwe (index < newWanges.wength) {
+			fow (wet j = stawt; j < newWanges[index].stawt - 1; j++) {
+				wet.push(1);
 			}
 
-			ret.push(newRanges[index].end - newRanges[index].start + 1 + 1);
-			start = newRanges[index].end + 1;
+			wet.push(newWanges[index].end - newWanges[index].stawt + 1 + 1);
+			stawt = newWanges[index].end + 1;
 			index++;
 		}
 
-		for (let i = start; i < this._viewModel!.length; i++) {
-			ret.push(1);
+		fow (wet i = stawt; i < this._viewModew!.wength; i++) {
+			wet.push(1);
 		}
 
-		const values = new Uint32Array(ret.length);
-		for (let i = 0; i < ret.length; i++) {
-			values[i] = ret[i];
+		const vawues = new Uint32Awway(wet.wength);
+		fow (wet i = 0; i < wet.wength; i++) {
+			vawues[i] = wet[i];
 		}
 
-		this.hiddenRangesPrefixSum = new PrefixSumComputer(values);
+		this.hiddenWangesPwefixSum = new PwefixSumComputa(vawues);
 	}
 
 	/**
-	 * oldRanges and newRanges are all reduced and sorted.
+	 * owdWanges and newWanges awe aww weduced and sowted.
 	 */
-	updateHiddenAreasInView(oldRanges: ICellRange[], newRanges: ICellRange[]) {
-		const oldViewCellEntries: CellViewModel[] = getVisibleCells(this._viewModel!.viewCells as CellViewModel[], oldRanges);
-		const oldViewCellMapping = new Set<string>();
-		oldViewCellEntries.forEach(cell => {
-			oldViewCellMapping.add(cell.uri.toString());
+	updateHiddenAweasInView(owdWanges: ICewwWange[], newWanges: ICewwWange[]) {
+		const owdViewCewwEntwies: CewwViewModew[] = getVisibweCewws(this._viewModew!.viewCewws as CewwViewModew[], owdWanges);
+		const owdViewCewwMapping = new Set<stwing>();
+		owdViewCewwEntwies.fowEach(ceww => {
+			owdViewCewwMapping.add(ceww.uwi.toStwing());
 		});
 
-		const newViewCellEntries: CellViewModel[] = getVisibleCells(this._viewModel!.viewCells as CellViewModel[], newRanges);
+		const newViewCewwEntwies: CewwViewModew[] = getVisibweCewws(this._viewModew!.viewCewws as CewwViewModew[], newWanges);
 
-		const viewDiffs = diff<CellViewModel>(oldViewCellEntries, newViewCellEntries, a => {
-			return oldViewCellMapping.has(a.uri.toString());
+		const viewDiffs = diff<CewwViewModew>(owdViewCewwEntwies, newViewCewwEntwies, a => {
+			wetuwn owdViewCewwMapping.has(a.uwi.toStwing());
 		});
 
-		this._updateElementsInWebview(viewDiffs);
+		this._updateEwementsInWebview(viewDiffs);
 	}
 
-	splice2(start: number, deleteCount: number, elements: CellViewModel[] = []): void {
-		// we need to convert start and delete count based on hidden ranges
-		if (start < 0 || start > this.view.length) {
-			return;
+	spwice2(stawt: numba, deweteCount: numba, ewements: CewwViewModew[] = []): void {
+		// we need to convewt stawt and dewete count based on hidden wanges
+		if (stawt < 0 || stawt > this.view.wength) {
+			wetuwn;
 		}
 
-		const focusInside = DOM.isAncestor(document.activeElement, this.rowsContainer);
-		super.splice(start, deleteCount, elements);
+		const focusInside = DOM.isAncestow(document.activeEwement, this.wowsContaina);
+		supa.spwice(stawt, deweteCount, ewements);
 		if (focusInside) {
 			this.domFocus();
 		}
 
-		const selectionsLeft = [];
-		this.getSelectedElements().forEach(el => {
-			if (this._viewModel!.hasCell(el)) {
-				selectionsLeft.push(el.handle);
+		const sewectionsWeft = [];
+		this.getSewectedEwements().fowEach(ew => {
+			if (this._viewModew!.hasCeww(ew)) {
+				sewectionsWeft.push(ew.handwe);
 			}
 		});
 
-		if (!selectionsLeft.length && this._viewModel!.viewCells.length) {
-			// after splice, the selected cells are deleted
-			this._viewModel!.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] });
+		if (!sewectionsWeft.wength && this._viewModew!.viewCewws.wength) {
+			// afta spwice, the sewected cewws awe deweted
+			this._viewModew!.updateSewectionsState({ kind: SewectionStateType.Index, focus: { stawt: 0, end: 1 }, sewections: [{ stawt: 0, end: 1 }] });
 		}
 	}
 
-	getModelIndex(cell: CellViewModel): number | undefined {
-		const viewIndex = this.indexOf(cell);
-		return this.getModelIndex2(viewIndex);
+	getModewIndex(ceww: CewwViewModew): numba | undefined {
+		const viewIndex = this.indexOf(ceww);
+		wetuwn this.getModewIndex2(viewIndex);
 	}
 
-	getModelIndex2(viewIndex: number): number | undefined {
-		if (!this.hiddenRangesPrefixSum) {
-			return viewIndex;
+	getModewIndex2(viewIndex: numba): numba | undefined {
+		if (!this.hiddenWangesPwefixSum) {
+			wetuwn viewIndex;
 		}
 
-		const modelIndex = this.hiddenRangesPrefixSum.getPrefixSum(viewIndex - 1);
-		return modelIndex;
+		const modewIndex = this.hiddenWangesPwefixSum.getPwefixSum(viewIndex - 1);
+		wetuwn modewIndex;
 	}
 
-	getViewIndex(cell: ICellViewModel) {
-		const modelIndex = this._viewModel!.getCellIndex(cell);
-		return this.getViewIndex2(modelIndex);
+	getViewIndex(ceww: ICewwViewModew) {
+		const modewIndex = this._viewModew!.getCewwIndex(ceww);
+		wetuwn this.getViewIndex2(modewIndex);
 	}
 
-	getViewIndex2(modelIndex: number): number | undefined {
-		if (!this.hiddenRangesPrefixSum) {
-			return modelIndex;
+	getViewIndex2(modewIndex: numba): numba | undefined {
+		if (!this.hiddenWangesPwefixSum) {
+			wetuwn modewIndex;
 		}
 
-		const viewIndexInfo = this.hiddenRangesPrefixSum.getIndexOf(modelIndex);
+		const viewIndexInfo = this.hiddenWangesPwefixSum.getIndexOf(modewIndex);
 
-		if (viewIndexInfo.remainder !== 0) {
-			if (modelIndex >= this.hiddenRangesPrefixSum.getTotalSum()) {
-				// it's already after the last hidden range
-				return modelIndex - (this.hiddenRangesPrefixSum.getTotalSum() - this.hiddenRangesPrefixSum.getCount());
+		if (viewIndexInfo.wemainda !== 0) {
+			if (modewIndex >= this.hiddenWangesPwefixSum.getTotawSum()) {
+				// it's awweady afta the wast hidden wange
+				wetuwn modewIndex - (this.hiddenWangesPwefixSum.getTotawSum() - this.hiddenWangesPwefixSum.getCount());
 			}
-			return undefined;
-		} else {
-			return viewIndexInfo.index;
+			wetuwn undefined;
+		} ewse {
+			wetuwn viewIndexInfo.index;
 		}
 	}
 
-	private _getVisibleRangesFromIndex(topViewIndex: number, topModelIndex: number, bottomViewIndex: number, bottomModelIndex: number) {
-		let stack: number[] = [];
-		const ranges: ICellRange[] = [];
-		// there are hidden ranges
-		let index = topViewIndex;
-		let modelIndex = topModelIndex;
+	pwivate _getVisibweWangesFwomIndex(topViewIndex: numba, topModewIndex: numba, bottomViewIndex: numba, bottomModewIndex: numba) {
+		wet stack: numba[] = [];
+		const wanges: ICewwWange[] = [];
+		// thewe awe hidden wanges
+		wet index = topViewIndex;
+		wet modewIndex = topModewIndex;
 
-		while (index <= bottomViewIndex) {
-			const accu = this.hiddenRangesPrefixSum!.getPrefixSum(index);
-			if (accu === modelIndex + 1) {
-				// no hidden area after it
-				if (stack.length) {
-					if (stack[stack.length - 1] === modelIndex - 1) {
-						ranges.push({ start: stack[stack.length - 1], end: modelIndex });
-					} else {
-						ranges.push({ start: stack[stack.length - 1], end: stack[stack.length - 1] });
+		whiwe (index <= bottomViewIndex) {
+			const accu = this.hiddenWangesPwefixSum!.getPwefixSum(index);
+			if (accu === modewIndex + 1) {
+				// no hidden awea afta it
+				if (stack.wength) {
+					if (stack[stack.wength - 1] === modewIndex - 1) {
+						wanges.push({ stawt: stack[stack.wength - 1], end: modewIndex });
+					} ewse {
+						wanges.push({ stawt: stack[stack.wength - 1], end: stack[stack.wength - 1] });
 					}
 				}
 
-				stack.push(modelIndex);
+				stack.push(modewIndex);
 				index++;
-				modelIndex++;
-			} else {
-				// there are hidden ranges after it
-				if (stack.length) {
-					if (stack[stack.length - 1] === modelIndex - 1) {
-						ranges.push({ start: stack[stack.length - 1], end: modelIndex });
-					} else {
-						ranges.push({ start: stack[stack.length - 1], end: stack[stack.length - 1] });
+				modewIndex++;
+			} ewse {
+				// thewe awe hidden wanges afta it
+				if (stack.wength) {
+					if (stack[stack.wength - 1] === modewIndex - 1) {
+						wanges.push({ stawt: stack[stack.wength - 1], end: modewIndex });
+					} ewse {
+						wanges.push({ stawt: stack[stack.wength - 1], end: stack[stack.wength - 1] });
 					}
 				}
 
-				stack.push(modelIndex);
+				stack.push(modewIndex);
 				index++;
-				modelIndex = accu;
+				modewIndex = accu;
 			}
 		}
 
-		if (stack.length) {
-			ranges.push({ start: stack[stack.length - 1], end: stack[stack.length - 1] });
+		if (stack.wength) {
+			wanges.push({ stawt: stack[stack.wength - 1], end: stack[stack.wength - 1] });
 		}
 
-		return reduceCellRanges(ranges);
+		wetuwn weduceCewwWanges(wanges);
 	}
 
-	getVisibleRangesPlusViewportBelow() {
-		if (this.view.length <= 0) {
-			return [];
+	getVisibweWangesPwusViewpowtBewow() {
+		if (this.view.wength <= 0) {
+			wetuwn [];
 		}
 
-		const bottom = clamp(this.getViewScrollBottom() + this.renderHeight, 0, this.scrollHeight);
-		const topViewIndex = this.firstVisibleIndex;
-		const topElement = this.view.element(topViewIndex);
-		const topModelIndex = this._viewModel!.getCellIndex(topElement);
-		const bottomViewIndex = clamp(this.view.indexAt(bottom), 0, this.view.length - 1);
-		const bottomElement = this.view.element(bottomViewIndex);
-		const bottomModelIndex = this._viewModel!.getCellIndex(bottomElement);
+		const bottom = cwamp(this.getViewScwowwBottom() + this.wendewHeight, 0, this.scwowwHeight);
+		const topViewIndex = this.fiwstVisibweIndex;
+		const topEwement = this.view.ewement(topViewIndex);
+		const topModewIndex = this._viewModew!.getCewwIndex(topEwement);
+		const bottomViewIndex = cwamp(this.view.indexAt(bottom), 0, this.view.wength - 1);
+		const bottomEwement = this.view.ewement(bottomViewIndex);
+		const bottomModewIndex = this._viewModew!.getCewwIndex(bottomEwement);
 
-		if (bottomModelIndex - topModelIndex === bottomViewIndex - topViewIndex) {
-			return [{ start: topModelIndex, end: bottomModelIndex }];
-		} else {
-			return this._getVisibleRangesFromIndex(topViewIndex, topModelIndex, bottomViewIndex, bottomModelIndex);
+		if (bottomModewIndex - topModewIndex === bottomViewIndex - topViewIndex) {
+			wetuwn [{ stawt: topModewIndex, end: bottomModewIndex }];
+		} ewse {
+			wetuwn this._getVisibweWangesFwomIndex(topViewIndex, topModewIndex, bottomViewIndex, bottomModewIndex);
 		}
 	}
 
-	private _getViewIndexUpperBound(cell: ICellViewModel): number {
-		if (!this._viewModel) {
-			return -1;
+	pwivate _getViewIndexUppewBound(ceww: ICewwViewModew): numba {
+		if (!this._viewModew) {
+			wetuwn -1;
 		}
 
-		const modelIndex = this._viewModel.getCellIndex(cell);
-		if (!this.hiddenRangesPrefixSum) {
-			return modelIndex;
+		const modewIndex = this._viewModew.getCewwIndex(ceww);
+		if (!this.hiddenWangesPwefixSum) {
+			wetuwn modewIndex;
 		}
 
-		const viewIndexInfo = this.hiddenRangesPrefixSum.getIndexOf(modelIndex);
+		const viewIndexInfo = this.hiddenWangesPwefixSum.getIndexOf(modewIndex);
 
-		if (viewIndexInfo.remainder !== 0) {
-			if (modelIndex >= this.hiddenRangesPrefixSum.getTotalSum()) {
-				return modelIndex - (this.hiddenRangesPrefixSum.getTotalSum() - this.hiddenRangesPrefixSum.getCount());
+		if (viewIndexInfo.wemainda !== 0) {
+			if (modewIndex >= this.hiddenWangesPwefixSum.getTotawSum()) {
+				wetuwn modewIndex - (this.hiddenWangesPwefixSum.getTotawSum() - this.hiddenWangesPwefixSum.getCount());
 			}
 		}
 
-		return viewIndexInfo.index;
+		wetuwn viewIndexInfo.index;
 	}
 
-	private _getViewIndexUpperBound2(modelIndex: number) {
-		if (!this.hiddenRangesPrefixSum) {
-			return modelIndex;
+	pwivate _getViewIndexUppewBound2(modewIndex: numba) {
+		if (!this.hiddenWangesPwefixSum) {
+			wetuwn modewIndex;
 		}
 
-		const viewIndexInfo = this.hiddenRangesPrefixSum.getIndexOf(modelIndex);
+		const viewIndexInfo = this.hiddenWangesPwefixSum.getIndexOf(modewIndex);
 
-		if (viewIndexInfo.remainder !== 0) {
-			if (modelIndex >= this.hiddenRangesPrefixSum.getTotalSum()) {
-				return modelIndex - (this.hiddenRangesPrefixSum.getTotalSum() - this.hiddenRangesPrefixSum.getCount());
+		if (viewIndexInfo.wemainda !== 0) {
+			if (modewIndex >= this.hiddenWangesPwefixSum.getTotawSum()) {
+				wetuwn modewIndex - (this.hiddenWangesPwefixSum.getTotawSum() - this.hiddenWangesPwefixSum.getCount());
 			}
 		}
 
-		return viewIndexInfo.index;
+		wetuwn viewIndexInfo.index;
 	}
 
-	focusElement(cell: ICellViewModel) {
-		const index = this._getViewIndexUpperBound(cell);
+	focusEwement(ceww: ICewwViewModew) {
+		const index = this._getViewIndexUppewBound(ceww);
 
-		if (index >= 0 && this._viewModel) {
-			// update view model first, which will update both `focus` and `selection` in a single transaction
-			const focusedElementHandle = this.element(index).handle;
-			this._viewModel.updateSelectionsState({
-				kind: SelectionStateType.Handle,
-				primary: focusedElementHandle,
-				selections: [focusedElementHandle]
+		if (index >= 0 && this._viewModew) {
+			// update view modew fiwst, which wiww update both `focus` and `sewection` in a singwe twansaction
+			const focusedEwementHandwe = this.ewement(index).handwe;
+			this._viewModew.updateSewectionsState({
+				kind: SewectionStateType.Handwe,
+				pwimawy: focusedEwementHandwe,
+				sewections: [focusedEwementHandwe]
 			}, 'view');
 
-			// update the view as previous model update will not trigger event
-			this.setFocus([index], undefined, false);
+			// update the view as pwevious modew update wiww not twigga event
+			this.setFocus([index], undefined, fawse);
 		}
 	}
 
-	selectElements(elements: ICellViewModel[]) {
-		const indices = elements.map(cell => this._getViewIndexUpperBound(cell)).filter(index => index >= 0);
-		this.setSelection(indices);
+	sewectEwements(ewements: ICewwViewModew[]) {
+		const indices = ewements.map(ceww => this._getViewIndexUppewBound(ceww)).fiwta(index => index >= 0);
+		this.setSewection(indices);
 	}
 
-	override focusNext(n: number | undefined, loop: boolean | undefined, browserEvent?: UIEvent, filter?: (element: CellViewModel) => boolean): void {
-		this._focusNextPreviousDelegate.onFocusNext(() => {
-			super.focusNext(n, loop, browserEvent, filter);
+	ovewwide focusNext(n: numba | undefined, woop: boowean | undefined, bwowsewEvent?: UIEvent, fiwta?: (ewement: CewwViewModew) => boowean): void {
+		this._focusNextPweviousDewegate.onFocusNext(() => {
+			supa.focusNext(n, woop, bwowsewEvent, fiwta);
 		});
 	}
 
-	override focusPrevious(n: number | undefined, loop: boolean | undefined, browserEvent?: UIEvent, filter?: (element: CellViewModel) => boolean): void {
-		this._focusNextPreviousDelegate.onFocusPrevious(() => {
-			super.focusPrevious(n, loop, browserEvent, filter);
+	ovewwide focusPwevious(n: numba | undefined, woop: boowean | undefined, bwowsewEvent?: UIEvent, fiwta?: (ewement: CewwViewModew) => boowean): void {
+		this._focusNextPweviousDewegate.onFocusPwevious(() => {
+			supa.focusPwevious(n, woop, bwowsewEvent, fiwta);
 		});
 	}
 
-	override setFocus(indexes: number[], browserEvent?: UIEvent, ignoreTextModelUpdate?: boolean): void {
-		if (ignoreTextModelUpdate) {
-			super.setFocus(indexes, browserEvent);
-			return;
+	ovewwide setFocus(indexes: numba[], bwowsewEvent?: UIEvent, ignoweTextModewUpdate?: boowean): void {
+		if (ignoweTextModewUpdate) {
+			supa.setFocus(indexes, bwowsewEvent);
+			wetuwn;
 		}
 
-		if (!indexes.length) {
-			if (this._viewModel) {
-				this._viewModel.updateSelectionsState({
-					kind: SelectionStateType.Handle,
-					primary: null,
-					selections: []
+		if (!indexes.wength) {
+			if (this._viewModew) {
+				this._viewModew.updateSewectionsState({
+					kind: SewectionStateType.Handwe,
+					pwimawy: nuww,
+					sewections: []
 				}, 'view');
 			}
-		} else {
-			if (this._viewModel) {
-				const focusedElementHandle = this.element(indexes[0]).handle;
-				this._viewModel.updateSelectionsState({
-					kind: SelectionStateType.Handle,
-					primary: focusedElementHandle,
-					selections: this.getSelection().map(selection => this.element(selection).handle)
+		} ewse {
+			if (this._viewModew) {
+				const focusedEwementHandwe = this.ewement(indexes[0]).handwe;
+				this._viewModew.updateSewectionsState({
+					kind: SewectionStateType.Handwe,
+					pwimawy: focusedEwementHandwe,
+					sewections: this.getSewection().map(sewection => this.ewement(sewection).handwe)
 				}, 'view');
 			}
 		}
 
-		super.setFocus(indexes, browserEvent);
+		supa.setFocus(indexes, bwowsewEvent);
 	}
 
-	override setSelection(indexes: number[], browserEvent?: UIEvent | undefined, ignoreTextModelUpdate?: boolean) {
-		if (ignoreTextModelUpdate) {
-			super.setSelection(indexes, browserEvent);
-			return;
+	ovewwide setSewection(indexes: numba[], bwowsewEvent?: UIEvent | undefined, ignoweTextModewUpdate?: boowean) {
+		if (ignoweTextModewUpdate) {
+			supa.setSewection(indexes, bwowsewEvent);
+			wetuwn;
 		}
 
-		if (!indexes.length) {
-			if (this._viewModel) {
-				this._viewModel.updateSelectionsState({
-					kind: SelectionStateType.Handle,
-					primary: this.getFocusedElements()[0]?.handle ?? null,
-					selections: []
+		if (!indexes.wength) {
+			if (this._viewModew) {
+				this._viewModew.updateSewectionsState({
+					kind: SewectionStateType.Handwe,
+					pwimawy: this.getFocusedEwements()[0]?.handwe ?? nuww,
+					sewections: []
 				}, 'view');
 			}
-		} else {
-			if (this._viewModel) {
-				this._viewModel.updateSelectionsState({
-					kind: SelectionStateType.Handle,
-					primary: this.getFocusedElements()[0]?.handle ?? null,
-					selections: indexes.map(index => this.element(index)).map(cell => cell.handle)
+		} ewse {
+			if (this._viewModew) {
+				this._viewModew.updateSewectionsState({
+					kind: SewectionStateType.Handwe,
+					pwimawy: this.getFocusedEwements()[0]?.handwe ?? nuww,
+					sewections: indexes.map(index => this.ewement(index)).map(ceww => ceww.handwe)
 				}, 'view');
 			}
 		}
 
-		super.setSelection(indexes, browserEvent);
+		supa.setSewection(indexes, bwowsewEvent);
 	}
 
 	/**
-	 * The range will be revealed with as little scrolling as possible.
+	 * The wange wiww be weveawed with as wittwe scwowwing as possibwe.
 	 */
-	revealElementsInView(range: ICellRange) {
-		const startIndex = this._getViewIndexUpperBound2(range.start);
+	weveawEwementsInView(wange: ICewwWange) {
+		const stawtIndex = this._getViewIndexUppewBound2(wange.stawt);
 
-		if (startIndex < 0) {
-			return;
+		if (stawtIndex < 0) {
+			wetuwn;
 		}
 
-		const endIndex = this._getViewIndexUpperBound2(range.end - 1);
+		const endIndex = this._getViewIndexUppewBound2(wange.end - 1);
 
-		const scrollTop = this.getViewScrollTop();
-		const wrapperBottom = this.getViewScrollBottom();
-		const elementTop = this.view.elementTop(startIndex);
-		if (elementTop >= scrollTop
-			&& elementTop < wrapperBottom) {
-			// start element is visible
+		const scwowwTop = this.getViewScwowwTop();
+		const wwappewBottom = this.getViewScwowwBottom();
+		const ewementTop = this.view.ewementTop(stawtIndex);
+		if (ewementTop >= scwowwTop
+			&& ewementTop < wwappewBottom) {
+			// stawt ewement is visibwe
 			// check end
 
-			const endElementTop = this.view.elementTop(endIndex);
-			const endElementHeight = this.view.elementHeight(endIndex);
+			const endEwementTop = this.view.ewementTop(endIndex);
+			const endEwementHeight = this.view.ewementHeight(endIndex);
 
-			if (endElementTop + endElementHeight <= wrapperBottom) {
-				// fully visible
-				return;
+			if (endEwementTop + endEwementHeight <= wwappewBottom) {
+				// fuwwy visibwe
+				wetuwn;
 			}
 
-			if (endElementTop >= wrapperBottom) {
-				return this._revealInternal(endIndex, false, CellRevealPosition.Bottom);
+			if (endEwementTop >= wwappewBottom) {
+				wetuwn this._weveawIntewnaw(endIndex, fawse, CewwWeveawPosition.Bottom);
 			}
 
-			if (endElementTop < wrapperBottom) {
-				// end element partially visible
-				if (endElementTop + endElementHeight - wrapperBottom < elementTop - scrollTop) {
-					// there is enough space to just scroll up a little bit to make the end element visible
-					return this.view.setScrollTop(scrollTop + endElementTop + endElementHeight - wrapperBottom);
-				} else {
-					// don't even try it
-					return this._revealInternal(startIndex, false, CellRevealPosition.Top);
+			if (endEwementTop < wwappewBottom) {
+				// end ewement pawtiawwy visibwe
+				if (endEwementTop + endEwementHeight - wwappewBottom < ewementTop - scwowwTop) {
+					// thewe is enough space to just scwoww up a wittwe bit to make the end ewement visibwe
+					wetuwn this.view.setScwowwTop(scwowwTop + endEwementTop + endEwementHeight - wwappewBottom);
+				} ewse {
+					// don't even twy it
+					wetuwn this._weveawIntewnaw(stawtIndex, fawse, CewwWeveawPosition.Top);
 				}
 			}
 		}
 
 
-		this._revealInView(startIndex);
+		this._weveawInView(stawtIndex);
 	}
 
-	scrollToBottom() {
-		const scrollHeight = this.view.scrollHeight;
-		const scrollTop = this.getViewScrollTop();
-		const wrapperBottom = this.getViewScrollBottom();
-		const topInsertToolbarHeight = this._viewContext.notebookOptions.computeTopInserToolbarHeight(this.viewModel?.viewType);
+	scwowwToBottom() {
+		const scwowwHeight = this.view.scwowwHeight;
+		const scwowwTop = this.getViewScwowwTop();
+		const wwappewBottom = this.getViewScwowwBottom();
+		const topInsewtToowbawHeight = this._viewContext.notebookOptions.computeTopInsewToowbawHeight(this.viewModew?.viewType);
 
-		this.view.setScrollTop(scrollHeight - (wrapperBottom - scrollTop) - topInsertToolbarHeight);
+		this.view.setScwowwTop(scwowwHeight - (wwappewBottom - scwowwTop) - topInsewtToowbawHeight);
 	}
 
-	revealElementInView(cell: ICellViewModel) {
-		const index = this._getViewIndexUpperBound(cell);
+	weveawEwementInView(ceww: ICewwViewModew) {
+		const index = this._getViewIndexUppewBound(ceww);
 
 		if (index >= 0) {
-			this._revealInView(index);
+			this._weveawInView(index);
 		}
 	}
 
-	revealElementInViewAtTop(cell: ICellViewModel) {
-		const index = this._getViewIndexUpperBound(cell);
+	weveawEwementInViewAtTop(ceww: ICewwViewModew) {
+		const index = this._getViewIndexUppewBound(ceww);
 
 		if (index >= 0) {
-			this._revealInternal(index, false, CellRevealPosition.Top);
+			this._weveawIntewnaw(index, fawse, CewwWeveawPosition.Top);
 		}
 	}
 
-	revealElementInCenterIfOutsideViewport(cell: ICellViewModel) {
-		const index = this._getViewIndexUpperBound(cell);
+	weveawEwementInCentewIfOutsideViewpowt(ceww: ICewwViewModew) {
+		const index = this._getViewIndexUppewBound(ceww);
 
 		if (index >= 0) {
-			this._revealInCenterIfOutsideViewport(index);
+			this._weveawInCentewIfOutsideViewpowt(index);
 		}
 	}
 
-	revealElementInCenter(cell: ICellViewModel) {
-		const index = this._getViewIndexUpperBound(cell);
+	weveawEwementInCenta(ceww: ICewwViewModew) {
+		const index = this._getViewIndexUppewBound(ceww);
 
 		if (index >= 0) {
-			this._revealInCenter(index);
+			this._weveawInCenta(index);
 		}
 	}
 
-	async revealElementInCenterIfOutsideViewportAsync(cell: ICellViewModel): Promise<void> {
-		const index = this._getViewIndexUpperBound(cell);
+	async weveawEwementInCentewIfOutsideViewpowtAsync(ceww: ICewwViewModew): Pwomise<void> {
+		const index = this._getViewIndexUppewBound(ceww);
 
 		if (index >= 0) {
-			return this._revealInCenterIfOutsideViewportAsync(index);
+			wetuwn this._weveawInCentewIfOutsideViewpowtAsync(index);
 		}
 	}
 
-	async revealElementLineInViewAsync(cell: ICellViewModel, line: number): Promise<void> {
-		const index = this._getViewIndexUpperBound(cell);
+	async weveawEwementWineInViewAsync(ceww: ICewwViewModew, wine: numba): Pwomise<void> {
+		const index = this._getViewIndexUppewBound(ceww);
 
 		if (index >= 0) {
-			return this._revealLineInViewAsync(index, line);
+			wetuwn this._weveawWineInViewAsync(index, wine);
 		}
 	}
 
-	async revealElementLineInCenterAsync(cell: ICellViewModel, line: number): Promise<void> {
-		const index = this._getViewIndexUpperBound(cell);
+	async weveawEwementWineInCentewAsync(ceww: ICewwViewModew, wine: numba): Pwomise<void> {
+		const index = this._getViewIndexUppewBound(ceww);
 
 		if (index >= 0) {
-			return this._revealLineInCenterAsync(index, line);
+			wetuwn this._weveawWineInCentewAsync(index, wine);
 		}
 	}
 
-	async revealElementLineInCenterIfOutsideViewportAsync(cell: ICellViewModel, line: number): Promise<void> {
-		const index = this._getViewIndexUpperBound(cell);
+	async weveawEwementWineInCentewIfOutsideViewpowtAsync(ceww: ICewwViewModew, wine: numba): Pwomise<void> {
+		const index = this._getViewIndexUppewBound(ceww);
 
 		if (index >= 0) {
-			return this._revealLineInCenterIfOutsideViewportAsync(index, line);
+			wetuwn this._weveawWineInCentewIfOutsideViewpowtAsync(index, wine);
 		}
 	}
 
-	async revealElementRangeInViewAsync(cell: ICellViewModel, range: Range): Promise<void> {
-		const index = this._getViewIndexUpperBound(cell);
+	async weveawEwementWangeInViewAsync(ceww: ICewwViewModew, wange: Wange): Pwomise<void> {
+		const index = this._getViewIndexUppewBound(ceww);
 
 		if (index >= 0) {
-			return this._revealRangeInView(index, range);
+			wetuwn this._weveawWangeInView(index, wange);
 		}
 	}
 
-	async revealElementRangeInCenterAsync(cell: ICellViewModel, range: Range): Promise<void> {
-		const index = this._getViewIndexUpperBound(cell);
+	async weveawEwementWangeInCentewAsync(ceww: ICewwViewModew, wange: Wange): Pwomise<void> {
+		const index = this._getViewIndexUppewBound(ceww);
 
 		if (index >= 0) {
-			return this._revealRangeInCenterAsync(index, range);
+			wetuwn this._weveawWangeInCentewAsync(index, wange);
 		}
 	}
 
-	async revealElementRangeInCenterIfOutsideViewportAsync(cell: ICellViewModel, range: Range): Promise<void> {
-		const index = this._getViewIndexUpperBound(cell);
+	async weveawEwementWangeInCentewIfOutsideViewpowtAsync(ceww: ICewwViewModew, wange: Wange): Pwomise<void> {
+		const index = this._getViewIndexUppewBound(ceww);
 
 		if (index >= 0) {
-			return this._revealRangeInCenterIfOutsideViewportAsync(index, range);
+			wetuwn this._weveawWangeInCentewIfOutsideViewpowtAsync(index, wange);
 		}
 	}
 
-	domElementOfElement(element: ICellViewModel): HTMLElement | null {
-		const index = this._getViewIndexUpperBound(element);
+	domEwementOfEwement(ewement: ICewwViewModew): HTMWEwement | nuww {
+		const index = this._getViewIndexUppewBound(ewement);
 		if (index >= 0) {
-			return this.view.domElement(index);
+			wetuwn this.view.domEwement(index);
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
 	focusView() {
 		this.view.domNode.focus();
 	}
 
-	getAbsoluteTopOfElement(element: ICellViewModel): number {
-		const index = this._getViewIndexUpperBound(element);
-		if (index === undefined || index < 0 || index >= this.length) {
-			this._getViewIndexUpperBound(element);
-			throw new ListError(this.listUser, `Invalid index ${index}`);
+	getAbsowuteTopOfEwement(ewement: ICewwViewModew): numba {
+		const index = this._getViewIndexUppewBound(ewement);
+		if (index === undefined || index < 0 || index >= this.wength) {
+			this._getViewIndexUppewBound(ewement);
+			thwow new WistEwwow(this.wistUsa, `Invawid index ${index}`);
 		}
 
-		return this.view.elementTop(index);
+		wetuwn this.view.ewementTop(index);
 	}
 
-	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
-		this.view.triggerScrollFromMouseWheelEvent(browserEvent);
+	twiggewScwowwFwomMouseWheewEvent(bwowsewEvent: IMouseWheewEvent) {
+		this.view.twiggewScwowwFwomMouseWheewEvent(bwowsewEvent);
 	}
 
 
-	updateElementHeight2(element: ICellViewModel, size: number): void {
-		const index = this._getViewIndexUpperBound(element);
-		if (index === undefined || index < 0 || index >= this.length) {
-			return;
+	updateEwementHeight2(ewement: ICewwViewModew, size: numba): void {
+		const index = this._getViewIndexUppewBound(ewement);
+		if (index === undefined || index < 0 || index >= this.wength) {
+			wetuwn;
 		}
 
 		const focused = this.getFocus();
-		if (!focused.length) {
-			this.view.updateElementHeight(index, size, null);
-			return;
+		if (!focused.wength) {
+			this.view.updateEwementHeight(index, size, nuww);
+			wetuwn;
 		}
 
 		const focus = focused[0];
 
 		if (focus <= index) {
-			this.view.updateElementHeight(index, size, focus);
-			return;
+			this.view.updateEwementHeight(index, size, focus);
+			wetuwn;
 		}
 
-		// the `element` is in the viewport, it's very often that the height update is triggerred by user interaction (collapse, run cell)
-		// then we should make sure that the `element`'s visual view position doesn't change.
+		// the `ewement` is in the viewpowt, it's vewy often that the height update is twiggewwed by usa intewaction (cowwapse, wun ceww)
+		// then we shouwd make suwe that the `ewement`'s visuaw view position doesn't change.
 
-		if (this.view.elementTop(index) >= this.view.scrollTop) {
-			this.view.updateElementHeight(index, size, index);
-			return;
+		if (this.view.ewementTop(index) >= this.view.scwowwTop) {
+			this.view.updateEwementHeight(index, size, index);
+			wetuwn;
 		}
 
-		this.view.updateElementHeight(index, size, focus);
+		this.view.updateEwementHeight(index, size, focus);
 	}
 
-	// override
-	override domFocus() {
-		const focused = this.getFocusedElements()[0];
-		const focusedDomElement = focused && this.domElementOfElement(focused);
+	// ovewwide
+	ovewwide domFocus() {
+		const focused = this.getFocusedEwements()[0];
+		const focusedDomEwement = focused && this.domEwementOfEwement(focused);
 
-		if (document.activeElement && focusedDomElement && focusedDomElement.contains(document.activeElement)) {
-			// for example, when focus goes into monaco editor, if we refocus the list view, the editor will lose focus.
-			return;
+		if (document.activeEwement && focusedDomEwement && focusedDomEwement.contains(document.activeEwement)) {
+			// fow exampwe, when focus goes into monaco editow, if we wefocus the wist view, the editow wiww wose focus.
+			wetuwn;
 		}
 
-		if (!isMacintosh && document.activeElement && isContextMenuFocused()) {
-			return;
+		if (!isMacintosh && document.activeEwement && isContextMenuFocused()) {
+			wetuwn;
 		}
 
-		super.domFocus();
+		supa.domFocus();
 	}
 
-	getViewScrollTop() {
-		return this.view.getScrollTop();
+	getViewScwowwTop() {
+		wetuwn this.view.getScwowwTop();
 	}
 
-	getViewScrollBottom() {
-		const topInsertToolbarHeight = this._viewContext.notebookOptions.computeTopInserToolbarHeight(this.viewModel?.viewType);
-		return this.getViewScrollTop() + this.view.renderHeight - topInsertToolbarHeight;
+	getViewScwowwBottom() {
+		const topInsewtToowbawHeight = this._viewContext.notebookOptions.computeTopInsewToowbawHeight(this.viewModew?.viewType);
+		wetuwn this.getViewScwowwTop() + this.view.wendewHeight - topInsewtToowbawHeight;
 	}
 
-	private _revealRange(viewIndex: number, range: Range, revealType: CellRevealType, newlyCreated: boolean, alignToBottom: boolean) {
-		const element = this.view.element(viewIndex);
-		const scrollTop = this.getViewScrollTop();
-		const wrapperBottom = this.getViewScrollBottom();
-		const positionOffset = element.getPositionScrollTopOffset(range.startLineNumber, range.startColumn);
-		const elementTop = this.view.elementTop(viewIndex);
-		const positionTop = elementTop + positionOffset;
+	pwivate _weveawWange(viewIndex: numba, wange: Wange, weveawType: CewwWeveawType, newwyCweated: boowean, awignToBottom: boowean) {
+		const ewement = this.view.ewement(viewIndex);
+		const scwowwTop = this.getViewScwowwTop();
+		const wwappewBottom = this.getViewScwowwBottom();
+		const positionOffset = ewement.getPositionScwowwTopOffset(wange.stawtWineNumba, wange.stawtCowumn);
+		const ewementTop = this.view.ewementTop(viewIndex);
+		const positionTop = ewementTop + positionOffset;
 
-		// TODO@rebornix 30 ---> line height * 1.5
-		if (positionTop < scrollTop) {
-			this.view.setScrollTop(positionTop - 30);
-		} else if (positionTop > wrapperBottom) {
-			this.view.setScrollTop(scrollTop + positionTop - wrapperBottom + 30);
-		} else if (newlyCreated) {
-			// newly scrolled into view
-			if (alignToBottom) {
-				// align to the bottom
-				this.view.setScrollTop(scrollTop + positionTop - wrapperBottom + 30);
-			} else {
-				// align to to top
-				this.view.setScrollTop(positionTop - 30);
+		// TODO@webownix 30 ---> wine height * 1.5
+		if (positionTop < scwowwTop) {
+			this.view.setScwowwTop(positionTop - 30);
+		} ewse if (positionTop > wwappewBottom) {
+			this.view.setScwowwTop(scwowwTop + positionTop - wwappewBottom + 30);
+		} ewse if (newwyCweated) {
+			// newwy scwowwed into view
+			if (awignToBottom) {
+				// awign to the bottom
+				this.view.setScwowwTop(scwowwTop + positionTop - wwappewBottom + 30);
+			} ewse {
+				// awign to to top
+				this.view.setScwowwTop(positionTop - 30);
 			}
 		}
 
-		if (revealType === CellRevealType.Range) {
-			element.revealRangeInCenter(range);
+		if (weveawType === CewwWeveawType.Wange) {
+			ewement.weveawWangeInCenta(wange);
 		}
 	}
 
-	// List items have real dynamic heights, which means after we set `scrollTop` based on the `elementTop(index)`, the element at `index` might still be removed from the view once all relayouting tasks are done.
-	// For example, we scroll item 10 into the view upwards, in the first round, items 7, 8, 9, 10 are all in the viewport. Then item 7 and 8 resize themselves to be larger and finally item 10 is removed from the view.
-	// To ensure that item 10 is always there, we need to scroll item 10 to the top edge of the viewport.
-	private async _revealRangeInternalAsync(viewIndex: number, range: Range, revealType: CellRevealType): Promise<void> {
-		const scrollTop = this.getViewScrollTop();
-		const wrapperBottom = this.getViewScrollBottom();
-		const elementTop = this.view.elementTop(viewIndex);
-		const element = this.view.element(viewIndex);
+	// Wist items have weaw dynamic heights, which means afta we set `scwowwTop` based on the `ewementTop(index)`, the ewement at `index` might stiww be wemoved fwom the view once aww wewayouting tasks awe done.
+	// Fow exampwe, we scwoww item 10 into the view upwawds, in the fiwst wound, items 7, 8, 9, 10 awe aww in the viewpowt. Then item 7 and 8 wesize themsewves to be wawga and finawwy item 10 is wemoved fwom the view.
+	// To ensuwe that item 10 is awways thewe, we need to scwoww item 10 to the top edge of the viewpowt.
+	pwivate async _weveawWangeIntewnawAsync(viewIndex: numba, wange: Wange, weveawType: CewwWeveawType): Pwomise<void> {
+		const scwowwTop = this.getViewScwowwTop();
+		const wwappewBottom = this.getViewScwowwBottom();
+		const ewementTop = this.view.ewementTop(viewIndex);
+		const ewement = this.view.ewement(viewIndex);
 
-		if (element.editorAttached) {
-			this._revealRange(viewIndex, range, revealType, false, false);
-		} else {
-			const elementHeight = this.view.elementHeight(viewIndex);
-			let upwards = false;
+		if (ewement.editowAttached) {
+			this._weveawWange(viewIndex, wange, weveawType, fawse, fawse);
+		} ewse {
+			const ewementHeight = this.view.ewementHeight(viewIndex);
+			wet upwawds = fawse;
 
-			if (elementTop + elementHeight < scrollTop) {
-				// scroll downwards
-				this.view.setScrollTop(elementTop);
-				upwards = false;
-			} else if (elementTop > wrapperBottom) {
-				// scroll upwards
-				this.view.setScrollTop(elementTop - this.view.renderHeight / 2);
-				upwards = true;
+			if (ewementTop + ewementHeight < scwowwTop) {
+				// scwoww downwawds
+				this.view.setScwowwTop(ewementTop);
+				upwawds = fawse;
+			} ewse if (ewementTop > wwappewBottom) {
+				// scwoww upwawds
+				this.view.setScwowwTop(ewementTop - this.view.wendewHeight / 2);
+				upwawds = twue;
 			}
 
-			const editorAttachedPromise = new Promise<void>((resolve, reject) => {
-				element.onDidChangeEditorAttachState(() => {
-					element.editorAttached ? resolve() : reject();
+			const editowAttachedPwomise = new Pwomise<void>((wesowve, weject) => {
+				ewement.onDidChangeEditowAttachState(() => {
+					ewement.editowAttached ? wesowve() : weject();
 				});
 			});
 
-			return editorAttachedPromise.then(() => {
-				this._revealRange(viewIndex, range, revealType, true, upwards);
+			wetuwn editowAttachedPwomise.then(() => {
+				this._weveawWange(viewIndex, wange, weveawType, twue, upwawds);
 			});
 		}
 	}
 
-	private async _revealLineInViewAsync(viewIndex: number, line: number): Promise<void> {
-		return this._revealRangeInternalAsync(viewIndex, new Range(line, 1, line, 1), CellRevealType.Line);
+	pwivate async _weveawWineInViewAsync(viewIndex: numba, wine: numba): Pwomise<void> {
+		wetuwn this._weveawWangeIntewnawAsync(viewIndex, new Wange(wine, 1, wine, 1), CewwWeveawType.Wine);
 	}
 
-	private async _revealRangeInView(viewIndex: number, range: Range): Promise<void> {
-		return this._revealRangeInternalAsync(viewIndex, range, CellRevealType.Range);
+	pwivate async _weveawWangeInView(viewIndex: numba, wange: Wange): Pwomise<void> {
+		wetuwn this._weveawWangeIntewnawAsync(viewIndex, wange, CewwWeveawType.Wange);
 	}
 
-	private async _revealRangeInCenterInternalAsync(viewIndex: number, range: Range, revealType: CellRevealType): Promise<void> {
-		const reveal = (viewIndex: number, range: Range, revealType: CellRevealType) => {
-			const element = this.view.element(viewIndex);
-			const positionOffset = element.getPositionScrollTopOffset(range.startLineNumber, range.startColumn);
-			const positionOffsetInView = this.view.elementTop(viewIndex) + positionOffset;
-			this.view.setScrollTop(positionOffsetInView - this.view.renderHeight / 2);
+	pwivate async _weveawWangeInCentewIntewnawAsync(viewIndex: numba, wange: Wange, weveawType: CewwWeveawType): Pwomise<void> {
+		const weveaw = (viewIndex: numba, wange: Wange, weveawType: CewwWeveawType) => {
+			const ewement = this.view.ewement(viewIndex);
+			const positionOffset = ewement.getPositionScwowwTopOffset(wange.stawtWineNumba, wange.stawtCowumn);
+			const positionOffsetInView = this.view.ewementTop(viewIndex) + positionOffset;
+			this.view.setScwowwTop(positionOffsetInView - this.view.wendewHeight / 2);
 
-			if (revealType === CellRevealType.Range) {
-				element.revealRangeInCenter(range);
+			if (weveawType === CewwWeveawType.Wange) {
+				ewement.weveawWangeInCenta(wange);
 			}
 		};
 
-		const elementTop = this.view.elementTop(viewIndex);
-		const viewItemOffset = elementTop;
-		this.view.setScrollTop(viewItemOffset - this.view.renderHeight / 2);
-		const element = this.view.element(viewIndex);
+		const ewementTop = this.view.ewementTop(viewIndex);
+		const viewItemOffset = ewementTop;
+		this.view.setScwowwTop(viewItemOffset - this.view.wendewHeight / 2);
+		const ewement = this.view.ewement(viewIndex);
 
-		if (!element.editorAttached) {
-			return getEditorAttachedPromise(element).then(() => reveal(viewIndex, range, revealType));
-		} else {
-			reveal(viewIndex, range, revealType);
+		if (!ewement.editowAttached) {
+			wetuwn getEditowAttachedPwomise(ewement).then(() => weveaw(viewIndex, wange, weveawType));
+		} ewse {
+			weveaw(viewIndex, wange, weveawType);
 		}
 	}
 
-	private async _revealLineInCenterAsync(viewIndex: number, line: number): Promise<void> {
-		return this._revealRangeInCenterInternalAsync(viewIndex, new Range(line, 1, line, 1), CellRevealType.Line);
+	pwivate async _weveawWineInCentewAsync(viewIndex: numba, wine: numba): Pwomise<void> {
+		wetuwn this._weveawWangeInCentewIntewnawAsync(viewIndex, new Wange(wine, 1, wine, 1), CewwWeveawType.Wine);
 	}
 
-	private _revealRangeInCenterAsync(viewIndex: number, range: Range): Promise<void> {
-		return this._revealRangeInCenterInternalAsync(viewIndex, range, CellRevealType.Range);
+	pwivate _weveawWangeInCentewAsync(viewIndex: numba, wange: Wange): Pwomise<void> {
+		wetuwn this._weveawWangeInCentewIntewnawAsync(viewIndex, wange, CewwWeveawType.Wange);
 	}
 
-	private async _revealRangeInCenterIfOutsideViewportInternalAsync(viewIndex: number, range: Range, revealType: CellRevealType): Promise<void> {
-		const reveal = (viewIndex: number, range: Range, revealType: CellRevealType) => {
-			const element = this.view.element(viewIndex);
-			const positionOffset = element.getPositionScrollTopOffset(range.startLineNumber, range.startColumn);
-			const positionOffsetInView = this.view.elementTop(viewIndex) + positionOffset;
-			this.view.setScrollTop(positionOffsetInView - this.view.renderHeight / 2);
+	pwivate async _weveawWangeInCentewIfOutsideViewpowtIntewnawAsync(viewIndex: numba, wange: Wange, weveawType: CewwWeveawType): Pwomise<void> {
+		const weveaw = (viewIndex: numba, wange: Wange, weveawType: CewwWeveawType) => {
+			const ewement = this.view.ewement(viewIndex);
+			const positionOffset = ewement.getPositionScwowwTopOffset(wange.stawtWineNumba, wange.stawtCowumn);
+			const positionOffsetInView = this.view.ewementTop(viewIndex) + positionOffset;
+			this.view.setScwowwTop(positionOffsetInView - this.view.wendewHeight / 2);
 
-			if (revealType === CellRevealType.Range) {
-				element.revealRangeInCenter(range);
+			if (weveawType === CewwWeveawType.Wange) {
+				ewement.weveawWangeInCenta(wange);
 			}
 		};
 
-		const scrollTop = this.getViewScrollTop();
-		const wrapperBottom = this.getViewScrollBottom();
-		const elementTop = this.view.elementTop(viewIndex);
-		const viewItemOffset = elementTop;
-		const element = this.view.element(viewIndex);
-		const positionOffset = viewItemOffset + element.getPositionScrollTopOffset(range.startLineNumber, range.startColumn);
+		const scwowwTop = this.getViewScwowwTop();
+		const wwappewBottom = this.getViewScwowwBottom();
+		const ewementTop = this.view.ewementTop(viewIndex);
+		const viewItemOffset = ewementTop;
+		const ewement = this.view.ewement(viewIndex);
+		const positionOffset = viewItemOffset + ewement.getPositionScwowwTopOffset(wange.stawtWineNumba, wange.stawtCowumn);
 
-		if (positionOffset < scrollTop || positionOffset > wrapperBottom) {
-			// let it render
-			this.view.setScrollTop(positionOffset - this.view.renderHeight / 2);
+		if (positionOffset < scwowwTop || positionOffset > wwappewBottom) {
+			// wet it wenda
+			this.view.setScwowwTop(positionOffset - this.view.wendewHeight / 2);
 
-			// after rendering, it might be pushed down due to markdown cell dynamic height
-			const newPositionOffset = this.view.elementTop(viewIndex) + element.getPositionScrollTopOffset(range.startLineNumber, range.startColumn);
-			this.view.setScrollTop(newPositionOffset - this.view.renderHeight / 2);
+			// afta wendewing, it might be pushed down due to mawkdown ceww dynamic height
+			const newPositionOffset = this.view.ewementTop(viewIndex) + ewement.getPositionScwowwTopOffset(wange.stawtWineNumba, wange.stawtCowumn);
+			this.view.setScwowwTop(newPositionOffset - this.view.wendewHeight / 2);
 
-			// reveal editor
-			if (!element.editorAttached) {
-				return getEditorAttachedPromise(element).then(() => reveal(viewIndex, range, revealType));
-			} else {
-				// for example markdown
+			// weveaw editow
+			if (!ewement.editowAttached) {
+				wetuwn getEditowAttachedPwomise(ewement).then(() => weveaw(viewIndex, wange, weveawType));
+			} ewse {
+				// fow exampwe mawkdown
 			}
-		} else {
-			if (element.editorAttached) {
-				element.revealRangeInCenter(range);
-			} else {
-				// for example, markdown cell in preview mode
-				return getEditorAttachedPromise(element).then(() => reveal(viewIndex, range, revealType));
-			}
-		}
-	}
-
-	private async _revealInCenterIfOutsideViewportAsync(viewIndex: number): Promise<void> {
-		this._revealInternal(viewIndex, true, CellRevealPosition.Center);
-		const element = this.view.element(viewIndex);
-
-		// wait for the editor to be created only if the cell is in editing mode (meaning it has an editor and will focus the editor)
-		if (element.getEditState() === CellEditState.Editing && !element.editorAttached) {
-			return getEditorAttachedPromise(element);
-		}
-
-		return;
-	}
-
-	private async _revealLineInCenterIfOutsideViewportAsync(viewIndex: number, line: number): Promise<void> {
-		return this._revealRangeInCenterIfOutsideViewportInternalAsync(viewIndex, new Range(line, 1, line, 1), CellRevealType.Line);
-	}
-
-	private async _revealRangeInCenterIfOutsideViewportAsync(viewIndex: number, range: Range): Promise<void> {
-		return this._revealRangeInCenterIfOutsideViewportInternalAsync(viewIndex, range, CellRevealType.Range);
-	}
-
-	private _revealInternal(viewIndex: number, ignoreIfInsideViewport: boolean, revealPosition: CellRevealPosition) {
-		if (viewIndex >= this.view.length) {
-			return;
-		}
-
-		const scrollTop = this.getViewScrollTop();
-		const wrapperBottom = this.getViewScrollBottom();
-		const elementTop = this.view.elementTop(viewIndex);
-		const elementBottom = this.view.elementHeight(viewIndex) + elementTop;
-
-		if (ignoreIfInsideViewport
-			&& elementTop >= scrollTop
-			&& elementTop < wrapperBottom) {
-
-			if (revealPosition === CellRevealPosition.Center
-				&& elementBottom > wrapperBottom
-				&& elementTop > (scrollTop + wrapperBottom) / 2) {
-				// the element is partially visible and it's below the center of the viewport
-			} else {
-				return;
+		} ewse {
+			if (ewement.editowAttached) {
+				ewement.weveawWangeInCenta(wange);
+			} ewse {
+				// fow exampwe, mawkdown ceww in pweview mode
+				wetuwn getEditowAttachedPwomise(ewement).then(() => weveaw(viewIndex, wange, weveawType));
 			}
 		}
+	}
 
-		switch (revealPosition) {
-			case CellRevealPosition.Top:
-				this.view.setScrollTop(elementTop);
-				this.view.setScrollTop(this.view.elementTop(viewIndex));
-				break;
-			case CellRevealPosition.Center:
-				this.view.setScrollTop(elementTop - this.view.renderHeight / 2);
-				this.view.setScrollTop(this.view.elementTop(viewIndex) - this.view.renderHeight / 2);
-				break;
-			case CellRevealPosition.Bottom:
-				this.view.setScrollTop(this.scrollTop + (elementBottom - wrapperBottom));
-				this.view.setScrollTop(this.scrollTop + (this.view.elementTop(viewIndex) + this.view.elementHeight(viewIndex) - this.getViewScrollBottom()));
-				break;
-			default:
-				break;
+	pwivate async _weveawInCentewIfOutsideViewpowtAsync(viewIndex: numba): Pwomise<void> {
+		this._weveawIntewnaw(viewIndex, twue, CewwWeveawPosition.Centa);
+		const ewement = this.view.ewement(viewIndex);
+
+		// wait fow the editow to be cweated onwy if the ceww is in editing mode (meaning it has an editow and wiww focus the editow)
+		if (ewement.getEditState() === CewwEditState.Editing && !ewement.editowAttached) {
+			wetuwn getEditowAttachedPwomise(ewement);
 		}
+
+		wetuwn;
 	}
 
-	private _revealInView(viewIndex: number) {
-		const firstIndex = this.view.firstVisibleIndex;
-		if (viewIndex < firstIndex) {
-			this._revealInternal(viewIndex, true, CellRevealPosition.Top);
-		} else {
-			this._revealInternal(viewIndex, true, CellRevealPosition.Bottom);
+	pwivate async _weveawWineInCentewIfOutsideViewpowtAsync(viewIndex: numba, wine: numba): Pwomise<void> {
+		wetuwn this._weveawWangeInCentewIfOutsideViewpowtIntewnawAsync(viewIndex, new Wange(wine, 1, wine, 1), CewwWeveawType.Wine);
+	}
+
+	pwivate async _weveawWangeInCentewIfOutsideViewpowtAsync(viewIndex: numba, wange: Wange): Pwomise<void> {
+		wetuwn this._weveawWangeInCentewIfOutsideViewpowtIntewnawAsync(viewIndex, wange, CewwWeveawType.Wange);
+	}
+
+	pwivate _weveawIntewnaw(viewIndex: numba, ignoweIfInsideViewpowt: boowean, weveawPosition: CewwWeveawPosition) {
+		if (viewIndex >= this.view.wength) {
+			wetuwn;
 		}
-	}
 
-	private _revealInCenter(viewIndex: number) {
-		this._revealInternal(viewIndex, false, CellRevealPosition.Center);
-	}
+		const scwowwTop = this.getViewScwowwTop();
+		const wwappewBottom = this.getViewScwowwBottom();
+		const ewementTop = this.view.ewementTop(viewIndex);
+		const ewementBottom = this.view.ewementHeight(viewIndex) + ewementTop;
 
-	private _revealInCenterIfOutsideViewport(viewIndex: number) {
-		this._revealInternal(viewIndex, true, CellRevealPosition.Center);
-	}
+		if (ignoweIfInsideViewpowt
+			&& ewementTop >= scwowwTop
+			&& ewementTop < wwappewBottom) {
 
-	setCellSelection(cell: ICellViewModel, range: Range) {
-		const element = cell as CellViewModel;
-		if (element.editorAttached) {
-			element.setSelection(range);
-		} else {
-			getEditorAttachedPromise(element).then(() => { element.setSelection(range); });
-		}
-	}
-
-
-	override style(styles: IListStyles) {
-		const selectorSuffix = this.view.domId;
-		if (!this.styleElement) {
-			this.styleElement = DOM.createStyleSheet(this.view.domNode);
-		}
-		const suffix = selectorSuffix && `.${selectorSuffix}`;
-		const content: string[] = [];
-
-		if (styles.listBackground) {
-			if (styles.listBackground.isOpaque()) {
-				content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows { background: ${styles.listBackground}; }`);
-			} else if (!isMacintosh) { // subpixel AA doesn't exist in macOS
-				console.warn(`List with id '${selectorSuffix}' was styled with a non-opaque background color. This will break sub-pixel antialiasing.`);
+			if (weveawPosition === CewwWeveawPosition.Centa
+				&& ewementBottom > wwappewBottom
+				&& ewementTop > (scwowwTop + wwappewBottom) / 2) {
+				// the ewement is pawtiawwy visibwe and it's bewow the centa of the viewpowt
+			} ewse {
+				wetuwn;
 			}
 		}
 
-		if (styles.listFocusBackground) {
-			content.push(`.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused { background-color: ${styles.listFocusBackground}; }`);
-			content.push(`.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused:hover { background-color: ${styles.listFocusBackground}; }`); // overwrite :hover style in this case!
-		}
-
-		if (styles.listFocusForeground) {
-			content.push(`.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused { color: ${styles.listFocusForeground}; }`);
-		}
-
-		if (styles.listActiveSelectionBackground) {
-			content.push(`.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected { background-color: ${styles.listActiveSelectionBackground}; }`);
-			content.push(`.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected:hover { background-color: ${styles.listActiveSelectionBackground}; }`); // overwrite :hover style in this case!
-		}
-
-		if (styles.listActiveSelectionForeground) {
-			content.push(`.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected { color: ${styles.listActiveSelectionForeground}; }`);
-		}
-
-		if (styles.listFocusAndSelectionBackground) {
-			content.push(`
-				.monaco-drag-image,
-				.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected.focused { background-color: ${styles.listFocusAndSelectionBackground}; }
-			`);
-		}
-
-		if (styles.listFocusAndSelectionForeground) {
-			content.push(`
-				.monaco-drag-image,
-				.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected.focused { color: ${styles.listFocusAndSelectionForeground}; }
-			`);
-		}
-
-		if (styles.listInactiveFocusBackground) {
-			content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused { background-color:  ${styles.listInactiveFocusBackground}; }`);
-			content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused:hover { background-color:  ${styles.listInactiveFocusBackground}; }`); // overwrite :hover style in this case!
-		}
-
-		if (styles.listInactiveSelectionBackground) {
-			content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected { background-color:  ${styles.listInactiveSelectionBackground}; }`);
-			content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected:hover { background-color:  ${styles.listInactiveSelectionBackground}; }`); // overwrite :hover style in this case!
-		}
-
-		if (styles.listInactiveSelectionForeground) {
-			content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected { color: ${styles.listInactiveSelectionForeground}; }`);
-		}
-
-		if (styles.listHoverBackground) {
-			content.push(`.monaco-list${suffix}:not(.drop-target) > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover:not(.selected):not(.focused) { background-color:  ${styles.listHoverBackground}; }`);
-		}
-
-		if (styles.listHoverForeground) {
-			content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover:not(.selected):not(.focused) { color:  ${styles.listHoverForeground}; }`);
-		}
-
-		if (styles.listSelectionOutline) {
-			content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected { outline: 1px dotted ${styles.listSelectionOutline}; outline-offset: -1px; }`);
-		}
-
-		if (styles.listFocusOutline) {
-			content.push(`
-				.monaco-drag-image,
-				.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }
-			`);
-		}
-
-		if (styles.listInactiveFocusOutline) {
-			content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused { outline: 1px dotted ${styles.listInactiveFocusOutline}; outline-offset: -1px; }`);
-		}
-
-		if (styles.listHoverOutline) {
-			content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover { outline: 1px dashed ${styles.listHoverOutline}; outline-offset: -1px; }`);
-		}
-
-		if (styles.listDropBackground) {
-			content.push(`
-				.monaco-list${suffix}.drop-target,
-				.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows.drop-target,
-				.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-row.drop-target { background-color: ${styles.listDropBackground} !important; color: inherit !important; }
-			`);
-		}
-
-		if (styles.listFilterWidgetBackground) {
-			content.push(`.monaco-list-type-filter { background-color: ${styles.listFilterWidgetBackground} }`);
-		}
-
-		if (styles.listFilterWidgetOutline) {
-			content.push(`.monaco-list-type-filter { border: 1px solid ${styles.listFilterWidgetOutline}; }`);
-		}
-
-		if (styles.listFilterWidgetNoMatchesOutline) {
-			content.push(`.monaco-list-type-filter.no-matches { border: 1px solid ${styles.listFilterWidgetNoMatchesOutline}; }`);
-		}
-
-		if (styles.listMatchesShadow) {
-			content.push(`.monaco-list-type-filter { box-shadow: 1px 1px 1px ${styles.listMatchesShadow}; }`);
-		}
-
-		const newStyles = content.join('\n');
-		if (newStyles !== this.styleElement.textContent) {
-			this.styleElement.textContent = newStyles;
+		switch (weveawPosition) {
+			case CewwWeveawPosition.Top:
+				this.view.setScwowwTop(ewementTop);
+				this.view.setScwowwTop(this.view.ewementTop(viewIndex));
+				bweak;
+			case CewwWeveawPosition.Centa:
+				this.view.setScwowwTop(ewementTop - this.view.wendewHeight / 2);
+				this.view.setScwowwTop(this.view.ewementTop(viewIndex) - this.view.wendewHeight / 2);
+				bweak;
+			case CewwWeveawPosition.Bottom:
+				this.view.setScwowwTop(this.scwowwTop + (ewementBottom - wwappewBottom));
+				this.view.setScwowwTop(this.scwowwTop + (this.view.ewementTop(viewIndex) + this.view.ewementHeight(viewIndex) - this.getViewScwowwBottom()));
+				bweak;
+			defauwt:
+				bweak;
 		}
 	}
 
-	getRenderHeight() {
-		return this.view.renderHeight;
-	}
-
-	override layout(height?: number, width?: number): void {
-		this._isInLayout = true;
-		super.layout(height, width);
-		if (this.renderHeight === 0) {
-			this.view.domNode.style.visibility = 'hidden';
-		} else {
-			this.view.domNode.style.visibility = 'initial';
+	pwivate _weveawInView(viewIndex: numba) {
+		const fiwstIndex = this.view.fiwstVisibweIndex;
+		if (viewIndex < fiwstIndex) {
+			this._weveawIntewnaw(viewIndex, twue, CewwWeveawPosition.Top);
+		} ewse {
+			this._weveawIntewnaw(viewIndex, twue, CewwWeveawPosition.Bottom);
 		}
-		this._isInLayout = false;
 	}
 
-	override dispose() {
-		this._isDisposed = true;
-		this._viewModelStore.dispose();
-		this._localDisposableStore.dispose();
-		super.dispose();
+	pwivate _weveawInCenta(viewIndex: numba) {
+		this._weveawIntewnaw(viewIndex, fawse, CewwWeveawPosition.Centa);
+	}
 
-		// un-ref
-		this._previousFocusedElements = [];
-		this._viewModel = null;
-		this._hiddenRangeIds = [];
-		this.hiddenRangesPrefixSum = null;
-		this._visibleRanges = [];
+	pwivate _weveawInCentewIfOutsideViewpowt(viewIndex: numba) {
+		this._weveawIntewnaw(viewIndex, twue, CewwWeveawPosition.Centa);
+	}
+
+	setCewwSewection(ceww: ICewwViewModew, wange: Wange) {
+		const ewement = ceww as CewwViewModew;
+		if (ewement.editowAttached) {
+			ewement.setSewection(wange);
+		} ewse {
+			getEditowAttachedPwomise(ewement).then(() => { ewement.setSewection(wange); });
+		}
+	}
+
+
+	ovewwide stywe(stywes: IWistStywes) {
+		const sewectowSuffix = this.view.domId;
+		if (!this.styweEwement) {
+			this.styweEwement = DOM.cweateStyweSheet(this.view.domNode);
+		}
+		const suffix = sewectowSuffix && `.${sewectowSuffix}`;
+		const content: stwing[] = [];
+
+		if (stywes.wistBackgwound) {
+			if (stywes.wistBackgwound.isOpaque()) {
+				content.push(`.monaco-wist${suffix} > div.monaco-scwowwabwe-ewement > .monaco-wist-wows { backgwound: ${stywes.wistBackgwound}; }`);
+			} ewse if (!isMacintosh) { // subpixew AA doesn't exist in macOS
+				consowe.wawn(`Wist with id '${sewectowSuffix}' was stywed with a non-opaque backgwound cowow. This wiww bweak sub-pixew antiawiasing.`);
+			}
+		}
+
+		if (stywes.wistFocusBackgwound) {
+			content.push(`.monaco-wist${suffix}:focus > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.focused { backgwound-cowow: ${stywes.wistFocusBackgwound}; }`);
+			content.push(`.monaco-wist${suffix}:focus > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.focused:hova { backgwound-cowow: ${stywes.wistFocusBackgwound}; }`); // ovewwwite :hova stywe in this case!
+		}
+
+		if (stywes.wistFocusFowegwound) {
+			content.push(`.monaco-wist${suffix}:focus > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.focused { cowow: ${stywes.wistFocusFowegwound}; }`);
+		}
+
+		if (stywes.wistActiveSewectionBackgwound) {
+			content.push(`.monaco-wist${suffix}:focus > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.sewected { backgwound-cowow: ${stywes.wistActiveSewectionBackgwound}; }`);
+			content.push(`.monaco-wist${suffix}:focus > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.sewected:hova { backgwound-cowow: ${stywes.wistActiveSewectionBackgwound}; }`); // ovewwwite :hova stywe in this case!
+		}
+
+		if (stywes.wistActiveSewectionFowegwound) {
+			content.push(`.monaco-wist${suffix}:focus > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.sewected { cowow: ${stywes.wistActiveSewectionFowegwound}; }`);
+		}
+
+		if (stywes.wistFocusAndSewectionBackgwound) {
+			content.push(`
+				.monaco-dwag-image,
+				.monaco-wist${suffix}:focus > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.sewected.focused { backgwound-cowow: ${stywes.wistFocusAndSewectionBackgwound}; }
+			`);
+		}
+
+		if (stywes.wistFocusAndSewectionFowegwound) {
+			content.push(`
+				.monaco-dwag-image,
+				.monaco-wist${suffix}:focus > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.sewected.focused { cowow: ${stywes.wistFocusAndSewectionFowegwound}; }
+			`);
+		}
+
+		if (stywes.wistInactiveFocusBackgwound) {
+			content.push(`.monaco-wist${suffix} > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.focused { backgwound-cowow:  ${stywes.wistInactiveFocusBackgwound}; }`);
+			content.push(`.monaco-wist${suffix} > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.focused:hova { backgwound-cowow:  ${stywes.wistInactiveFocusBackgwound}; }`); // ovewwwite :hova stywe in this case!
+		}
+
+		if (stywes.wistInactiveSewectionBackgwound) {
+			content.push(`.monaco-wist${suffix} > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.sewected { backgwound-cowow:  ${stywes.wistInactiveSewectionBackgwound}; }`);
+			content.push(`.monaco-wist${suffix} > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.sewected:hova { backgwound-cowow:  ${stywes.wistInactiveSewectionBackgwound}; }`); // ovewwwite :hova stywe in this case!
+		}
+
+		if (stywes.wistInactiveSewectionFowegwound) {
+			content.push(`.monaco-wist${suffix} > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.sewected { cowow: ${stywes.wistInactiveSewectionFowegwound}; }`);
+		}
+
+		if (stywes.wistHovewBackgwound) {
+			content.push(`.monaco-wist${suffix}:not(.dwop-tawget) > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow:hova:not(.sewected):not(.focused) { backgwound-cowow:  ${stywes.wistHovewBackgwound}; }`);
+		}
+
+		if (stywes.wistHovewFowegwound) {
+			content.push(`.monaco-wist${suffix} > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow:hova:not(.sewected):not(.focused) { cowow:  ${stywes.wistHovewFowegwound}; }`);
+		}
+
+		if (stywes.wistSewectionOutwine) {
+			content.push(`.monaco-wist${suffix} > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.sewected { outwine: 1px dotted ${stywes.wistSewectionOutwine}; outwine-offset: -1px; }`);
+		}
+
+		if (stywes.wistFocusOutwine) {
+			content.push(`
+				.monaco-dwag-image,
+				.monaco-wist${suffix}:focus > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.focused { outwine: 1px sowid ${stywes.wistFocusOutwine}; outwine-offset: -1px; }
+			`);
+		}
+
+		if (stywes.wistInactiveFocusOutwine) {
+			content.push(`.monaco-wist${suffix} > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.focused { outwine: 1px dotted ${stywes.wistInactiveFocusOutwine}; outwine-offset: -1px; }`);
+		}
+
+		if (stywes.wistHovewOutwine) {
+			content.push(`.monaco-wist${suffix} > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow:hova { outwine: 1px dashed ${stywes.wistHovewOutwine}; outwine-offset: -1px; }`);
+		}
+
+		if (stywes.wistDwopBackgwound) {
+			content.push(`
+				.monaco-wist${suffix}.dwop-tawget,
+				.monaco-wist${suffix} > div.monaco-scwowwabwe-ewement > .monaco-wist-wows.dwop-tawget,
+				.monaco-wist${suffix} > div.monaco-scwowwabwe-ewement > .monaco-wist-wow.dwop-tawget { backgwound-cowow: ${stywes.wistDwopBackgwound} !impowtant; cowow: inhewit !impowtant; }
+			`);
+		}
+
+		if (stywes.wistFiwtewWidgetBackgwound) {
+			content.push(`.monaco-wist-type-fiwta { backgwound-cowow: ${stywes.wistFiwtewWidgetBackgwound} }`);
+		}
+
+		if (stywes.wistFiwtewWidgetOutwine) {
+			content.push(`.monaco-wist-type-fiwta { bowda: 1px sowid ${stywes.wistFiwtewWidgetOutwine}; }`);
+		}
+
+		if (stywes.wistFiwtewWidgetNoMatchesOutwine) {
+			content.push(`.monaco-wist-type-fiwta.no-matches { bowda: 1px sowid ${stywes.wistFiwtewWidgetNoMatchesOutwine}; }`);
+		}
+
+		if (stywes.wistMatchesShadow) {
+			content.push(`.monaco-wist-type-fiwta { box-shadow: 1px 1px 1px ${stywes.wistMatchesShadow}; }`);
+		}
+
+		const newStywes = content.join('\n');
+		if (newStywes !== this.styweEwement.textContent) {
+			this.styweEwement.textContent = newStywes;
+		}
+	}
+
+	getWendewHeight() {
+		wetuwn this.view.wendewHeight;
+	}
+
+	ovewwide wayout(height?: numba, width?: numba): void {
+		this._isInWayout = twue;
+		supa.wayout(height, width);
+		if (this.wendewHeight === 0) {
+			this.view.domNode.stywe.visibiwity = 'hidden';
+		} ewse {
+			this.view.domNode.stywe.visibiwity = 'initiaw';
+		}
+		this._isInWayout = fawse;
+	}
+
+	ovewwide dispose() {
+		this._isDisposed = twue;
+		this._viewModewStowe.dispose();
+		this._wocawDisposabweStowe.dispose();
+		supa.dispose();
+
+		// un-wef
+		this._pweviousFocusedEwements = [];
+		this._viewModew = nuww;
+		this._hiddenWangeIds = [];
+		this.hiddenWangesPwefixSum = nuww;
+		this._visibweWanges = [];
 	}
 }
 
-function getEditorAttachedPromise(element: CellViewModel) {
-	return new Promise<void>((resolve, reject) => {
-		Event.once(element.onDidChangeEditorAttachState)(() => element.editorAttached ? resolve() : reject());
+function getEditowAttachedPwomise(ewement: CewwViewModew) {
+	wetuwn new Pwomise<void>((wesowve, weject) => {
+		Event.once(ewement.onDidChangeEditowAttachState)(() => ewement.editowAttached ? wesowve() : weject());
 	});
 }
 
 function isContextMenuFocused() {
-	return !!DOM.findParentWithClass(<HTMLElement>document.activeElement, 'context-view');
+	wetuwn !!DOM.findPawentWithCwass(<HTMWEwement>document.activeEwement, 'context-view');
 }

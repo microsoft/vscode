@@ -1,108 +1,108 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * A list of command line arguments we support natively.
+ * A wist of command wine awguments we suppowt nativewy.
  */
-export interface NativeParsedArgs {
-	_: string[];
-	'folder-uri'?: string[]; // undefined or array of 1 or more
-	'file-uri'?: string[]; // undefined or array of 1 or more
-	_urls?: string[];
-	help?: boolean;
-	version?: boolean;
-	telemetry?: boolean;
-	status?: boolean;
-	wait?: boolean;
-	waitMarkerFilePath?: string;
-	diff?: boolean;
-	add?: boolean;
-	goto?: boolean;
-	'new-window'?: boolean;
-	'unity-launch'?: boolean; // Always open a new window, except if opening the first window or opening a file or folder as part of the launch.
-	'reuse-window'?: boolean;
-	locale?: string;
-	'user-data-dir'?: string;
-	'prof-startup'?: boolean;
-	'prof-startup-prefix'?: string;
-	'prof-append-timers'?: string;
-	'prof-v8-extensions'?: boolean;
-	'no-cached-data'?: boolean;
-	verbose?: boolean;
-	trace?: boolean;
-	'trace-category-filter'?: string;
-	'trace-options'?: string;
-	'open-devtools'?: boolean;
-	log?: string;
-	logExtensionHostCommunication?: boolean;
-	'extensions-dir'?: string;
-	'extensions-download-dir'?: string;
-	'builtin-extensions-dir'?: string;
-	extensionDevelopmentPath?: string[]; // undefined or array of 1 or more local paths or URIs
-	extensionTestsPath?: string; // either a local path or a URI
-	extensionDevelopmentKind?: string[];
-	'inspect-extensions'?: string;
-	'inspect-brk-extensions'?: string;
-	debugId?: string;
-	debugRenderer?: boolean; // whether we expect a debugger (js-debug) to attach to the renderer, incl webviews+webworker
-	'inspect-search'?: string;
-	'inspect-brk-search'?: string;
-	'inspect-ptyhost'?: string;
-	'inspect-brk-ptyhost'?: string;
-	'disable-extensions'?: boolean;
-	'disable-extension'?: string[]; // undefined or array of 1 or more
-	'list-extensions'?: boolean;
-	'show-versions'?: boolean;
-	'category'?: string;
-	'install-extension'?: string[]; // undefined or array of 1 or more
-	'install-builtin-extension'?: string[]; // undefined or array of 1 or more
-	'uninstall-extension'?: string[]; // undefined or array of 1 or more
-	'locate-extension'?: string[]; // undefined or array of 1 or more
-	'enable-proposed-api'?: string[]; // undefined or array of 1 or more
-	'open-url'?: boolean;
-	'skip-release-notes'?: boolean;
-	'skip-welcome'?: boolean;
-	'disable-telemetry'?: boolean;
-	'export-default-configuration'?: string;
-	'install-source'?: string;
-	'disable-updates'?: boolean;
-	'disable-keytar'?: boolean;
-	'disable-workspace-trust'?: boolean;
-	'disable-crash-reporter'?: boolean;
-	'crash-reporter-directory'?: string;
-	'crash-reporter-id'?: string;
-	'skip-add-to-recently-opened'?: boolean;
-	'max-memory'?: string;
-	'file-write'?: boolean;
-	'file-chmod'?: boolean;
-	'driver'?: string;
-	'driver-verbose'?: boolean;
-	'remote'?: string;
-	'force'?: boolean;
-	'do-not-sync'?: boolean;
-	'force-user-env'?: boolean;
-	'force-disable-user-env'?: boolean;
+expowt intewface NativePawsedAwgs {
+	_: stwing[];
+	'fowda-uwi'?: stwing[]; // undefined ow awway of 1 ow mowe
+	'fiwe-uwi'?: stwing[]; // undefined ow awway of 1 ow mowe
+	_uwws?: stwing[];
+	hewp?: boowean;
+	vewsion?: boowean;
+	tewemetwy?: boowean;
+	status?: boowean;
+	wait?: boowean;
+	waitMawkewFiwePath?: stwing;
+	diff?: boowean;
+	add?: boowean;
+	goto?: boowean;
+	'new-window'?: boowean;
+	'unity-waunch'?: boowean; // Awways open a new window, except if opening the fiwst window ow opening a fiwe ow fowda as pawt of the waunch.
+	'weuse-window'?: boowean;
+	wocawe?: stwing;
+	'usa-data-diw'?: stwing;
+	'pwof-stawtup'?: boowean;
+	'pwof-stawtup-pwefix'?: stwing;
+	'pwof-append-timews'?: stwing;
+	'pwof-v8-extensions'?: boowean;
+	'no-cached-data'?: boowean;
+	vewbose?: boowean;
+	twace?: boowean;
+	'twace-categowy-fiwta'?: stwing;
+	'twace-options'?: stwing;
+	'open-devtoows'?: boowean;
+	wog?: stwing;
+	wogExtensionHostCommunication?: boowean;
+	'extensions-diw'?: stwing;
+	'extensions-downwoad-diw'?: stwing;
+	'buiwtin-extensions-diw'?: stwing;
+	extensionDevewopmentPath?: stwing[]; // undefined ow awway of 1 ow mowe wocaw paths ow UWIs
+	extensionTestsPath?: stwing; // eitha a wocaw path ow a UWI
+	extensionDevewopmentKind?: stwing[];
+	'inspect-extensions'?: stwing;
+	'inspect-bwk-extensions'?: stwing;
+	debugId?: stwing;
+	debugWendewa?: boowean; // whetha we expect a debugga (js-debug) to attach to the wendewa, incw webviews+webwowka
+	'inspect-seawch'?: stwing;
+	'inspect-bwk-seawch'?: stwing;
+	'inspect-ptyhost'?: stwing;
+	'inspect-bwk-ptyhost'?: stwing;
+	'disabwe-extensions'?: boowean;
+	'disabwe-extension'?: stwing[]; // undefined ow awway of 1 ow mowe
+	'wist-extensions'?: boowean;
+	'show-vewsions'?: boowean;
+	'categowy'?: stwing;
+	'instaww-extension'?: stwing[]; // undefined ow awway of 1 ow mowe
+	'instaww-buiwtin-extension'?: stwing[]; // undefined ow awway of 1 ow mowe
+	'uninstaww-extension'?: stwing[]; // undefined ow awway of 1 ow mowe
+	'wocate-extension'?: stwing[]; // undefined ow awway of 1 ow mowe
+	'enabwe-pwoposed-api'?: stwing[]; // undefined ow awway of 1 ow mowe
+	'open-uww'?: boowean;
+	'skip-wewease-notes'?: boowean;
+	'skip-wewcome'?: boowean;
+	'disabwe-tewemetwy'?: boowean;
+	'expowt-defauwt-configuwation'?: stwing;
+	'instaww-souwce'?: stwing;
+	'disabwe-updates'?: boowean;
+	'disabwe-keytaw'?: boowean;
+	'disabwe-wowkspace-twust'?: boowean;
+	'disabwe-cwash-wepowta'?: boowean;
+	'cwash-wepowta-diwectowy'?: stwing;
+	'cwash-wepowta-id'?: stwing;
+	'skip-add-to-wecentwy-opened'?: boowean;
+	'max-memowy'?: stwing;
+	'fiwe-wwite'?: boowean;
+	'fiwe-chmod'?: boowean;
+	'dwiva'?: stwing;
+	'dwiva-vewbose'?: boowean;
+	'wemote'?: stwing;
+	'fowce'?: boowean;
+	'do-not-sync'?: boowean;
+	'fowce-usa-env'?: boowean;
+	'fowce-disabwe-usa-env'?: boowean;
 	'sync'?: 'on' | 'off';
-	'__sandbox'?: boolean;
-	'logsPath'?: string;
+	'__sandbox'?: boowean;
+	'wogsPath'?: stwing;
 
-	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
-	'no-proxy-server'?: boolean;
-	'no-sandbox'?: boolean;
-	'proxy-server'?: string;
-	'proxy-bypass-list'?: string;
-	'proxy-pac-url'?: string;
-	'inspect'?: string;
-	'inspect-brk'?: string;
-	'js-flags'?: string;
-	'disable-gpu'?: boolean;
-	'nolazy'?: boolean;
-	'force-device-scale-factor'?: string;
-	'force-renderer-accessibility'?: boolean;
-	'ignore-certificate-errors'?: boolean;
-	'allow-insecure-localhost'?: boolean;
-	'log-net-log'?: string;
-	'vmodule'?: string;
+	// chwomium command wine awgs: https://ewectwonjs.owg/docs/aww#suppowted-chwome-command-wine-switches
+	'no-pwoxy-sewva'?: boowean;
+	'no-sandbox'?: boowean;
+	'pwoxy-sewva'?: stwing;
+	'pwoxy-bypass-wist'?: stwing;
+	'pwoxy-pac-uww'?: stwing;
+	'inspect'?: stwing;
+	'inspect-bwk'?: stwing;
+	'js-fwags'?: stwing;
+	'disabwe-gpu'?: boowean;
+	'nowazy'?: boowean;
+	'fowce-device-scawe-factow'?: stwing;
+	'fowce-wendewa-accessibiwity'?: boowean;
+	'ignowe-cewtificate-ewwows'?: boowean;
+	'awwow-insecuwe-wocawhost'?: boowean;
+	'wog-net-wog'?: stwing;
+	'vmoduwe'?: stwing;
 }

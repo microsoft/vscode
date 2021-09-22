@@ -1,1571 +1,1571 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { asArray, coalesceInPlace, equals } from 'vs/base/common/arrays';
-import { illegalArgument } from 'vs/base/common/errors';
-import { IRelativePattern } from 'vs/base/common/glob';
-import { MarkdownString as BaseMarkdownString } from 'vs/base/common/htmlContent';
-import { ResourceMap } from 'vs/base/common/map';
-import { Mimes, normalizeMimeType } from 'vs/base/common/mime';
-import { isArray, isStringArray } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
-import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { CellEditType, ICellPartialMetadataEdit, IDocumentMetadataEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import type * as vscode from 'vscode';
+impowt { asAwway, coawesceInPwace, equaws } fwom 'vs/base/common/awways';
+impowt { iwwegawAwgument } fwom 'vs/base/common/ewwows';
+impowt { IWewativePattewn } fwom 'vs/base/common/gwob';
+impowt { MawkdownStwing as BaseMawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { Mimes, nowmawizeMimeType } fwom 'vs/base/common/mime';
+impowt { isAwway, isStwingAwway } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { FiweSystemPwovidewEwwowCode, mawkAsFiweSystemPwovidewEwwow } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { WemoteAuthowityWesowvewEwwowCode } fwom 'vs/pwatfowm/wemote/common/wemoteAuthowityWesowva';
+impowt { CewwEditType, ICewwPawtiawMetadataEdit, IDocumentMetadataEdit } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt type * as vscode fwom 'vscode';
 
-function es5ClassCompat(target: Function): any {
-	///@ts-expect-error
-	function _() { return Reflect.construct(target, arguments, this.constructor); }
-	Object.defineProperty(_, 'name', Object.getOwnPropertyDescriptor(target, 'name')!);
-	Object.setPrototypeOf(_, target);
-	Object.setPrototypeOf(_.prototype, target.prototype);
-	return _;
+function es5CwassCompat(tawget: Function): any {
+	///@ts-expect-ewwow
+	function _() { wetuwn Wefwect.constwuct(tawget, awguments, this.constwuctow); }
+	Object.definePwopewty(_, 'name', Object.getOwnPwopewtyDescwiptow(tawget, 'name')!);
+	Object.setPwototypeOf(_, tawget);
+	Object.setPwototypeOf(_.pwototype, tawget.pwototype);
+	wetuwn _;
 }
 
-@es5ClassCompat
-export class Disposable {
+@es5CwassCompat
+expowt cwass Disposabwe {
 
-	static from(...inDisposables: { dispose(): any; }[]): Disposable {
-		let disposables: ReadonlyArray<{ dispose(): any; }> | undefined = inDisposables;
-		return new Disposable(function () {
-			if (disposables) {
-				for (const disposable of disposables) {
-					if (disposable && typeof disposable.dispose === 'function') {
-						disposable.dispose();
+	static fwom(...inDisposabwes: { dispose(): any; }[]): Disposabwe {
+		wet disposabwes: WeadonwyAwway<{ dispose(): any; }> | undefined = inDisposabwes;
+		wetuwn new Disposabwe(function () {
+			if (disposabwes) {
+				fow (const disposabwe of disposabwes) {
+					if (disposabwe && typeof disposabwe.dispose === 'function') {
+						disposabwe.dispose();
 					}
 				}
-				disposables = undefined;
+				disposabwes = undefined;
 			}
 		});
 	}
 
-	#callOnDispose?: () => any;
+	#cawwOnDispose?: () => any;
 
-	constructor(callOnDispose: () => any) {
-		this.#callOnDispose = callOnDispose;
+	constwuctow(cawwOnDispose: () => any) {
+		this.#cawwOnDispose = cawwOnDispose;
 	}
 
 	dispose(): any {
-		if (typeof this.#callOnDispose === 'function') {
-			this.#callOnDispose();
-			this.#callOnDispose = undefined;
+		if (typeof this.#cawwOnDispose === 'function') {
+			this.#cawwOnDispose();
+			this.#cawwOnDispose = undefined;
 		}
 	}
 }
 
-@es5ClassCompat
-export class Position {
+@es5CwassCompat
+expowt cwass Position {
 
 	static Min(...positions: Position[]): Position {
-		if (positions.length === 0) {
-			throw new TypeError();
+		if (positions.wength === 0) {
+			thwow new TypeEwwow();
 		}
-		let result = positions[0];
-		for (let i = 1; i < positions.length; i++) {
+		wet wesuwt = positions[0];
+		fow (wet i = 1; i < positions.wength; i++) {
 			const p = positions[i];
-			if (p.isBefore(result!)) {
-				result = p;
+			if (p.isBefowe(wesuwt!)) {
+				wesuwt = p;
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
 	static Max(...positions: Position[]): Position {
-		if (positions.length === 0) {
-			throw new TypeError();
+		if (positions.wength === 0) {
+			thwow new TypeEwwow();
 		}
-		let result = positions[0];
-		for (let i = 1; i < positions.length; i++) {
+		wet wesuwt = positions[0];
+		fow (wet i = 1; i < positions.wength; i++) {
 			const p = positions[i];
-			if (p.isAfter(result!)) {
-				result = p;
+			if (p.isAfta(wesuwt!)) {
+				wesuwt = p;
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	static isPosition(other: any): other is Position {
-		if (!other) {
-			return false;
+	static isPosition(otha: any): otha is Position {
+		if (!otha) {
+			wetuwn fawse;
 		}
-		if (other instanceof Position) {
-			return true;
+		if (otha instanceof Position) {
+			wetuwn twue;
 		}
-		let { line, character } = <Position>other;
-		if (typeof line === 'number' && typeof character === 'number') {
-			return true;
+		wet { wine, chawacta } = <Position>otha;
+		if (typeof wine === 'numba' && typeof chawacta === 'numba') {
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private _line: number;
-	private _character: number;
+	pwivate _wine: numba;
+	pwivate _chawacta: numba;
 
-	get line(): number {
-		return this._line;
+	get wine(): numba {
+		wetuwn this._wine;
 	}
 
-	get character(): number {
-		return this._character;
+	get chawacta(): numba {
+		wetuwn this._chawacta;
 	}
 
-	constructor(line: number, character: number) {
-		if (line < 0) {
-			throw illegalArgument('line must be non-negative');
+	constwuctow(wine: numba, chawacta: numba) {
+		if (wine < 0) {
+			thwow iwwegawAwgument('wine must be non-negative');
 		}
-		if (character < 0) {
-			throw illegalArgument('character must be non-negative');
+		if (chawacta < 0) {
+			thwow iwwegawAwgument('chawacta must be non-negative');
 		}
-		this._line = line;
-		this._character = character;
+		this._wine = wine;
+		this._chawacta = chawacta;
 	}
 
-	isBefore(other: Position): boolean {
-		if (this._line < other._line) {
-			return true;
+	isBefowe(otha: Position): boowean {
+		if (this._wine < otha._wine) {
+			wetuwn twue;
 		}
-		if (other._line < this._line) {
-			return false;
+		if (otha._wine < this._wine) {
+			wetuwn fawse;
 		}
-		return this._character < other._character;
+		wetuwn this._chawacta < otha._chawacta;
 	}
 
-	isBeforeOrEqual(other: Position): boolean {
-		if (this._line < other._line) {
-			return true;
+	isBefoweOwEquaw(otha: Position): boowean {
+		if (this._wine < otha._wine) {
+			wetuwn twue;
 		}
-		if (other._line < this._line) {
-			return false;
+		if (otha._wine < this._wine) {
+			wetuwn fawse;
 		}
-		return this._character <= other._character;
+		wetuwn this._chawacta <= otha._chawacta;
 	}
 
-	isAfter(other: Position): boolean {
-		return !this.isBeforeOrEqual(other);
+	isAfta(otha: Position): boowean {
+		wetuwn !this.isBefoweOwEquaw(otha);
 	}
 
-	isAfterOrEqual(other: Position): boolean {
-		return !this.isBefore(other);
+	isAftewOwEquaw(otha: Position): boowean {
+		wetuwn !this.isBefowe(otha);
 	}
 
-	isEqual(other: Position): boolean {
-		return this._line === other._line && this._character === other._character;
+	isEquaw(otha: Position): boowean {
+		wetuwn this._wine === otha._wine && this._chawacta === otha._chawacta;
 	}
 
-	compareTo(other: Position): number {
-		if (this._line < other._line) {
-			return -1;
-		} else if (this._line > other.line) {
-			return 1;
-		} else {
-			// equal line
-			if (this._character < other._character) {
-				return -1;
-			} else if (this._character > other._character) {
-				return 1;
-			} else {
-				// equal line and character
-				return 0;
+	compaweTo(otha: Position): numba {
+		if (this._wine < otha._wine) {
+			wetuwn -1;
+		} ewse if (this._wine > otha.wine) {
+			wetuwn 1;
+		} ewse {
+			// equaw wine
+			if (this._chawacta < otha._chawacta) {
+				wetuwn -1;
+			} ewse if (this._chawacta > otha._chawacta) {
+				wetuwn 1;
+			} ewse {
+				// equaw wine and chawacta
+				wetuwn 0;
 			}
 		}
 	}
 
-	translate(change: { lineDelta?: number; characterDelta?: number; }): Position;
-	translate(lineDelta?: number, characterDelta?: number): Position;
-	translate(lineDeltaOrChange: number | undefined | { lineDelta?: number; characterDelta?: number; }, characterDelta: number = 0): Position {
+	twanswate(change: { wineDewta?: numba; chawactewDewta?: numba; }): Position;
+	twanswate(wineDewta?: numba, chawactewDewta?: numba): Position;
+	twanswate(wineDewtaOwChange: numba | undefined | { wineDewta?: numba; chawactewDewta?: numba; }, chawactewDewta: numba = 0): Position {
 
-		if (lineDeltaOrChange === null || characterDelta === null) {
-			throw illegalArgument();
+		if (wineDewtaOwChange === nuww || chawactewDewta === nuww) {
+			thwow iwwegawAwgument();
 		}
 
-		let lineDelta: number;
-		if (typeof lineDeltaOrChange === 'undefined') {
-			lineDelta = 0;
-		} else if (typeof lineDeltaOrChange === 'number') {
-			lineDelta = lineDeltaOrChange;
-		} else {
-			lineDelta = typeof lineDeltaOrChange.lineDelta === 'number' ? lineDeltaOrChange.lineDelta : 0;
-			characterDelta = typeof lineDeltaOrChange.characterDelta === 'number' ? lineDeltaOrChange.characterDelta : 0;
+		wet wineDewta: numba;
+		if (typeof wineDewtaOwChange === 'undefined') {
+			wineDewta = 0;
+		} ewse if (typeof wineDewtaOwChange === 'numba') {
+			wineDewta = wineDewtaOwChange;
+		} ewse {
+			wineDewta = typeof wineDewtaOwChange.wineDewta === 'numba' ? wineDewtaOwChange.wineDewta : 0;
+			chawactewDewta = typeof wineDewtaOwChange.chawactewDewta === 'numba' ? wineDewtaOwChange.chawactewDewta : 0;
 		}
 
-		if (lineDelta === 0 && characterDelta === 0) {
-			return this;
+		if (wineDewta === 0 && chawactewDewta === 0) {
+			wetuwn this;
 		}
-		return new Position(this.line + lineDelta, this.character + characterDelta);
+		wetuwn new Position(this.wine + wineDewta, this.chawacta + chawactewDewta);
 	}
 
-	with(change: { line?: number; character?: number; }): Position;
-	with(line?: number, character?: number): Position;
-	with(lineOrChange: number | undefined | { line?: number; character?: number; }, character: number = this.character): Position {
+	with(change: { wine?: numba; chawacta?: numba; }): Position;
+	with(wine?: numba, chawacta?: numba): Position;
+	with(wineOwChange: numba | undefined | { wine?: numba; chawacta?: numba; }, chawacta: numba = this.chawacta): Position {
 
-		if (lineOrChange === null || character === null) {
-			throw illegalArgument();
+		if (wineOwChange === nuww || chawacta === nuww) {
+			thwow iwwegawAwgument();
 		}
 
-		let line: number;
-		if (typeof lineOrChange === 'undefined') {
-			line = this.line;
+		wet wine: numba;
+		if (typeof wineOwChange === 'undefined') {
+			wine = this.wine;
 
-		} else if (typeof lineOrChange === 'number') {
-			line = lineOrChange;
+		} ewse if (typeof wineOwChange === 'numba') {
+			wine = wineOwChange;
 
-		} else {
-			line = typeof lineOrChange.line === 'number' ? lineOrChange.line : this.line;
-			character = typeof lineOrChange.character === 'number' ? lineOrChange.character : this.character;
+		} ewse {
+			wine = typeof wineOwChange.wine === 'numba' ? wineOwChange.wine : this.wine;
+			chawacta = typeof wineOwChange.chawacta === 'numba' ? wineOwChange.chawacta : this.chawacta;
 		}
 
-		if (line === this.line && character === this.character) {
-			return this;
+		if (wine === this.wine && chawacta === this.chawacta) {
+			wetuwn this;
 		}
-		return new Position(line, character);
+		wetuwn new Position(wine, chawacta);
 	}
 
 	toJSON(): any {
-		return { line: this.line, character: this.character };
+		wetuwn { wine: this.wine, chawacta: this.chawacta };
 	}
 }
 
-@es5ClassCompat
-export class Range {
+@es5CwassCompat
+expowt cwass Wange {
 
-	static isRange(thing: any): thing is vscode.Range {
-		if (thing instanceof Range) {
-			return true;
+	static isWange(thing: any): thing is vscode.Wange {
+		if (thing instanceof Wange) {
+			wetuwn twue;
 		}
 		if (!thing) {
-			return false;
+			wetuwn fawse;
 		}
-		return Position.isPosition((<Range>thing).start)
-			&& Position.isPosition((<Range>thing.end));
+		wetuwn Position.isPosition((<Wange>thing).stawt)
+			&& Position.isPosition((<Wange>thing.end));
 	}
 
-	protected _start: Position;
-	protected _end: Position;
+	pwotected _stawt: Position;
+	pwotected _end: Position;
 
-	get start(): Position {
-		return this._start;
+	get stawt(): Position {
+		wetuwn this._stawt;
 	}
 
 	get end(): Position {
-		return this._end;
+		wetuwn this._end;
 	}
 
-	constructor(start: Position, end: Position);
-	constructor(startLine: number, startColumn: number, endLine: number, endColumn: number);
-	constructor(startLineOrStart: number | Position, startColumnOrEnd: number | Position, endLine?: number, endColumn?: number) {
-		let start: Position | undefined;
-		let end: Position | undefined;
+	constwuctow(stawt: Position, end: Position);
+	constwuctow(stawtWine: numba, stawtCowumn: numba, endWine: numba, endCowumn: numba);
+	constwuctow(stawtWineOwStawt: numba | Position, stawtCowumnOwEnd: numba | Position, endWine?: numba, endCowumn?: numba) {
+		wet stawt: Position | undefined;
+		wet end: Position | undefined;
 
-		if (typeof startLineOrStart === 'number' && typeof startColumnOrEnd === 'number' && typeof endLine === 'number' && typeof endColumn === 'number') {
-			start = new Position(startLineOrStart, startColumnOrEnd);
-			end = new Position(endLine, endColumn);
-		} else if (startLineOrStart instanceof Position && startColumnOrEnd instanceof Position) {
-			start = startLineOrStart;
-			end = startColumnOrEnd;
+		if (typeof stawtWineOwStawt === 'numba' && typeof stawtCowumnOwEnd === 'numba' && typeof endWine === 'numba' && typeof endCowumn === 'numba') {
+			stawt = new Position(stawtWineOwStawt, stawtCowumnOwEnd);
+			end = new Position(endWine, endCowumn);
+		} ewse if (stawtWineOwStawt instanceof Position && stawtCowumnOwEnd instanceof Position) {
+			stawt = stawtWineOwStawt;
+			end = stawtCowumnOwEnd;
 		}
 
-		if (!start || !end) {
-			throw new Error('Invalid arguments');
+		if (!stawt || !end) {
+			thwow new Ewwow('Invawid awguments');
 		}
 
-		if (start.isBefore(end)) {
-			this._start = start;
+		if (stawt.isBefowe(end)) {
+			this._stawt = stawt;
 			this._end = end;
-		} else {
-			this._start = end;
-			this._end = start;
+		} ewse {
+			this._stawt = end;
+			this._end = stawt;
 		}
 	}
 
-	contains(positionOrRange: Position | Range): boolean {
-		if (positionOrRange instanceof Range) {
-			return this.contains(positionOrRange._start)
-				&& this.contains(positionOrRange._end);
+	contains(positionOwWange: Position | Wange): boowean {
+		if (positionOwWange instanceof Wange) {
+			wetuwn this.contains(positionOwWange._stawt)
+				&& this.contains(positionOwWange._end);
 
-		} else if (positionOrRange instanceof Position) {
-			if (positionOrRange.isBefore(this._start)) {
-				return false;
+		} ewse if (positionOwWange instanceof Position) {
+			if (positionOwWange.isBefowe(this._stawt)) {
+				wetuwn fawse;
 			}
-			if (this._end.isBefore(positionOrRange)) {
-				return false;
+			if (this._end.isBefowe(positionOwWange)) {
+				wetuwn fawse;
 			}
-			return true;
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	isEqual(other: Range): boolean {
-		return this._start.isEqual(other._start) && this._end.isEqual(other._end);
+	isEquaw(otha: Wange): boowean {
+		wetuwn this._stawt.isEquaw(otha._stawt) && this._end.isEquaw(otha._end);
 	}
 
-	intersection(other: Range): Range | undefined {
-		const start = Position.Max(other.start, this._start);
-		const end = Position.Min(other.end, this._end);
-		if (start.isAfter(end)) {
-			// this happens when there is no overlap:
+	intewsection(otha: Wange): Wange | undefined {
+		const stawt = Position.Max(otha.stawt, this._stawt);
+		const end = Position.Min(otha.end, this._end);
+		if (stawt.isAfta(end)) {
+			// this happens when thewe is no ovewwap:
 			// |-----|
 			//          |----|
-			return undefined;
+			wetuwn undefined;
 		}
-		return new Range(start, end);
+		wetuwn new Wange(stawt, end);
 	}
 
-	union(other: Range): Range {
-		if (this.contains(other)) {
-			return this;
-		} else if (other.contains(this)) {
-			return other;
+	union(otha: Wange): Wange {
+		if (this.contains(otha)) {
+			wetuwn this;
+		} ewse if (otha.contains(this)) {
+			wetuwn otha;
 		}
-		const start = Position.Min(other.start, this._start);
-		const end = Position.Max(other.end, this.end);
-		return new Range(start, end);
+		const stawt = Position.Min(otha.stawt, this._stawt);
+		const end = Position.Max(otha.end, this.end);
+		wetuwn new Wange(stawt, end);
 	}
 
-	get isEmpty(): boolean {
-		return this._start.isEqual(this._end);
+	get isEmpty(): boowean {
+		wetuwn this._stawt.isEquaw(this._end);
 	}
 
-	get isSingleLine(): boolean {
-		return this._start.line === this._end.line;
+	get isSingweWine(): boowean {
+		wetuwn this._stawt.wine === this._end.wine;
 	}
 
-	with(change: { start?: Position, end?: Position; }): Range;
-	with(start?: Position, end?: Position): Range;
-	with(startOrChange: Position | undefined | { start?: Position, end?: Position; }, end: Position = this.end): Range {
+	with(change: { stawt?: Position, end?: Position; }): Wange;
+	with(stawt?: Position, end?: Position): Wange;
+	with(stawtOwChange: Position | undefined | { stawt?: Position, end?: Position; }, end: Position = this.end): Wange {
 
-		if (startOrChange === null || end === null) {
-			throw illegalArgument();
+		if (stawtOwChange === nuww || end === nuww) {
+			thwow iwwegawAwgument();
 		}
 
-		let start: Position;
-		if (!startOrChange) {
-			start = this.start;
+		wet stawt: Position;
+		if (!stawtOwChange) {
+			stawt = this.stawt;
 
-		} else if (Position.isPosition(startOrChange)) {
-			start = startOrChange;
+		} ewse if (Position.isPosition(stawtOwChange)) {
+			stawt = stawtOwChange;
 
-		} else {
-			start = startOrChange.start || this.start;
-			end = startOrChange.end || this.end;
+		} ewse {
+			stawt = stawtOwChange.stawt || this.stawt;
+			end = stawtOwChange.end || this.end;
 		}
 
-		if (start.isEqual(this._start) && end.isEqual(this.end)) {
-			return this;
+		if (stawt.isEquaw(this._stawt) && end.isEquaw(this.end)) {
+			wetuwn this;
 		}
-		return new Range(start, end);
+		wetuwn new Wange(stawt, end);
 	}
 
 	toJSON(): any {
-		return [this.start, this.end];
+		wetuwn [this.stawt, this.end];
 	}
 }
 
-@es5ClassCompat
-export class Selection extends Range {
+@es5CwassCompat
+expowt cwass Sewection extends Wange {
 
-	static isSelection(thing: any): thing is Selection {
-		if (thing instanceof Selection) {
-			return true;
+	static isSewection(thing: any): thing is Sewection {
+		if (thing instanceof Sewection) {
+			wetuwn twue;
 		}
 		if (!thing) {
-			return false;
+			wetuwn fawse;
 		}
-		return Range.isRange(thing)
-			&& Position.isPosition((<Selection>thing).anchor)
-			&& Position.isPosition((<Selection>thing).active)
-			&& typeof (<Selection>thing).isReversed === 'boolean';
+		wetuwn Wange.isWange(thing)
+			&& Position.isPosition((<Sewection>thing).anchow)
+			&& Position.isPosition((<Sewection>thing).active)
+			&& typeof (<Sewection>thing).isWevewsed === 'boowean';
 	}
 
-	private _anchor: Position;
+	pwivate _anchow: Position;
 
-	public get anchor(): Position {
-		return this._anchor;
+	pubwic get anchow(): Position {
+		wetuwn this._anchow;
 	}
 
-	private _active: Position;
+	pwivate _active: Position;
 
-	public get active(): Position {
-		return this._active;
+	pubwic get active(): Position {
+		wetuwn this._active;
 	}
 
-	constructor(anchor: Position, active: Position);
-	constructor(anchorLine: number, anchorColumn: number, activeLine: number, activeColumn: number);
-	constructor(anchorLineOrAnchor: number | Position, anchorColumnOrActive: number | Position, activeLine?: number, activeColumn?: number) {
-		let anchor: Position | undefined;
-		let active: Position | undefined;
+	constwuctow(anchow: Position, active: Position);
+	constwuctow(anchowWine: numba, anchowCowumn: numba, activeWine: numba, activeCowumn: numba);
+	constwuctow(anchowWineOwAnchow: numba | Position, anchowCowumnOwActive: numba | Position, activeWine?: numba, activeCowumn?: numba) {
+		wet anchow: Position | undefined;
+		wet active: Position | undefined;
 
-		if (typeof anchorLineOrAnchor === 'number' && typeof anchorColumnOrActive === 'number' && typeof activeLine === 'number' && typeof activeColumn === 'number') {
-			anchor = new Position(anchorLineOrAnchor, anchorColumnOrActive);
-			active = new Position(activeLine, activeColumn);
-		} else if (anchorLineOrAnchor instanceof Position && anchorColumnOrActive instanceof Position) {
-			anchor = anchorLineOrAnchor;
-			active = anchorColumnOrActive;
+		if (typeof anchowWineOwAnchow === 'numba' && typeof anchowCowumnOwActive === 'numba' && typeof activeWine === 'numba' && typeof activeCowumn === 'numba') {
+			anchow = new Position(anchowWineOwAnchow, anchowCowumnOwActive);
+			active = new Position(activeWine, activeCowumn);
+		} ewse if (anchowWineOwAnchow instanceof Position && anchowCowumnOwActive instanceof Position) {
+			anchow = anchowWineOwAnchow;
+			active = anchowCowumnOwActive;
 		}
 
-		if (!anchor || !active) {
-			throw new Error('Invalid arguments');
+		if (!anchow || !active) {
+			thwow new Ewwow('Invawid awguments');
 		}
 
-		super(anchor, active);
+		supa(anchow, active);
 
-		this._anchor = anchor;
+		this._anchow = anchow;
 		this._active = active;
 	}
 
-	get isReversed(): boolean {
-		return this._anchor === this._end;
+	get isWevewsed(): boowean {
+		wetuwn this._anchow === this._end;
 	}
 
-	override toJSON() {
-		return {
-			start: this.start,
+	ovewwide toJSON() {
+		wetuwn {
+			stawt: this.stawt,
 			end: this.end,
 			active: this.active,
-			anchor: this.anchor
+			anchow: this.anchow
 		};
 	}
 }
 
-export class ResolvedAuthority {
-	readonly host: string;
-	readonly port: number;
-	readonly connectionToken: string | undefined;
+expowt cwass WesowvedAuthowity {
+	weadonwy host: stwing;
+	weadonwy powt: numba;
+	weadonwy connectionToken: stwing | undefined;
 
-	constructor(host: string, port: number, connectionToken?: string) {
-		if (typeof host !== 'string' || host.length === 0) {
-			throw illegalArgument('host');
+	constwuctow(host: stwing, powt: numba, connectionToken?: stwing) {
+		if (typeof host !== 'stwing' || host.wength === 0) {
+			thwow iwwegawAwgument('host');
 		}
-		if (typeof port !== 'number' || port === 0 || Math.round(port) !== port) {
-			throw illegalArgument('port');
+		if (typeof powt !== 'numba' || powt === 0 || Math.wound(powt) !== powt) {
+			thwow iwwegawAwgument('powt');
 		}
 		if (typeof connectionToken !== 'undefined') {
-			if (typeof connectionToken !== 'string' || connectionToken.length === 0 || !/^[0-9A-Za-z\-]+$/.test(connectionToken)) {
-				throw illegalArgument('connectionToken');
+			if (typeof connectionToken !== 'stwing' || connectionToken.wength === 0 || !/^[0-9A-Za-z\-]+$/.test(connectionToken)) {
+				thwow iwwegawAwgument('connectionToken');
 			}
 		}
 		this.host = host;
-		this.port = Math.round(port);
+		this.powt = Math.wound(powt);
 		this.connectionToken = connectionToken;
 	}
 }
 
-export class RemoteAuthorityResolverError extends Error {
+expowt cwass WemoteAuthowityWesowvewEwwow extends Ewwow {
 
-	static NotAvailable(message?: string, handled?: boolean): RemoteAuthorityResolverError {
-		return new RemoteAuthorityResolverError(message, RemoteAuthorityResolverErrorCode.NotAvailable, handled);
+	static NotAvaiwabwe(message?: stwing, handwed?: boowean): WemoteAuthowityWesowvewEwwow {
+		wetuwn new WemoteAuthowityWesowvewEwwow(message, WemoteAuthowityWesowvewEwwowCode.NotAvaiwabwe, handwed);
 	}
 
-	static TemporarilyNotAvailable(message?: string): RemoteAuthorityResolverError {
-		return new RemoteAuthorityResolverError(message, RemoteAuthorityResolverErrorCode.TemporarilyNotAvailable);
+	static TempowawiwyNotAvaiwabwe(message?: stwing): WemoteAuthowityWesowvewEwwow {
+		wetuwn new WemoteAuthowityWesowvewEwwow(message, WemoteAuthowityWesowvewEwwowCode.TempowawiwyNotAvaiwabwe);
 	}
 
-	public readonly _message: string | undefined;
-	public readonly _code: RemoteAuthorityResolverErrorCode;
-	public readonly _detail: any;
+	pubwic weadonwy _message: stwing | undefined;
+	pubwic weadonwy _code: WemoteAuthowityWesowvewEwwowCode;
+	pubwic weadonwy _detaiw: any;
 
-	constructor(message?: string, code: RemoteAuthorityResolverErrorCode = RemoteAuthorityResolverErrorCode.Unknown, detail?: any) {
-		super(message);
+	constwuctow(message?: stwing, code: WemoteAuthowityWesowvewEwwowCode = WemoteAuthowityWesowvewEwwowCode.Unknown, detaiw?: any) {
+		supa(message);
 
 		this._message = message;
 		this._code = code;
-		this._detail = detail;
+		this._detaiw = detaiw;
 
-		// workaround when extending builtin objects and when compiling to ES5, see:
-		// https://github.com/microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
-		if (typeof (<any>Object).setPrototypeOf === 'function') {
-			(<any>Object).setPrototypeOf(this, RemoteAuthorityResolverError.prototype);
+		// wowkawound when extending buiwtin objects and when compiwing to ES5, see:
+		// https://github.com/micwosoft/TypeScwipt-wiki/bwob/masta/Bweaking-Changes.md#extending-buiwt-ins-wike-ewwow-awway-and-map-may-no-wonga-wowk
+		if (typeof (<any>Object).setPwototypeOf === 'function') {
+			(<any>Object).setPwototypeOf(this, WemoteAuthowityWesowvewEwwow.pwototype);
 		}
 	}
 }
 
-export enum EndOfLine {
-	LF = 1,
-	CRLF = 2
+expowt enum EndOfWine {
+	WF = 1,
+	CWWF = 2
 }
 
-export enum EnvironmentVariableMutatorType {
-	Replace = 1,
+expowt enum EnviwonmentVawiabweMutatowType {
+	Wepwace = 1,
 	Append = 2,
-	Prepend = 3
+	Pwepend = 3
 }
 
-@es5ClassCompat
-export class TextEdit {
+@es5CwassCompat
+expowt cwass TextEdit {
 
 	static isTextEdit(thing: any): thing is TextEdit {
 		if (thing instanceof TextEdit) {
-			return true;
+			wetuwn twue;
 		}
 		if (!thing) {
-			return false;
+			wetuwn fawse;
 		}
-		return Range.isRange((<TextEdit>thing))
-			&& typeof (<TextEdit>thing).newText === 'string';
+		wetuwn Wange.isWange((<TextEdit>thing))
+			&& typeof (<TextEdit>thing).newText === 'stwing';
 	}
 
-	static replace(range: Range, newText: string): TextEdit {
-		return new TextEdit(range, newText);
+	static wepwace(wange: Wange, newText: stwing): TextEdit {
+		wetuwn new TextEdit(wange, newText);
 	}
 
-	static insert(position: Position, newText: string): TextEdit {
-		return TextEdit.replace(new Range(position, position), newText);
+	static insewt(position: Position, newText: stwing): TextEdit {
+		wetuwn TextEdit.wepwace(new Wange(position, position), newText);
 	}
 
-	static delete(range: Range): TextEdit {
-		return TextEdit.replace(range, '');
+	static dewete(wange: Wange): TextEdit {
+		wetuwn TextEdit.wepwace(wange, '');
 	}
 
-	static setEndOfLine(eol: EndOfLine): TextEdit {
-		const ret = new TextEdit(new Range(new Position(0, 0), new Position(0, 0)), '');
-		ret.newEol = eol;
-		return ret;
+	static setEndOfWine(eow: EndOfWine): TextEdit {
+		const wet = new TextEdit(new Wange(new Position(0, 0), new Position(0, 0)), '');
+		wet.newEow = eow;
+		wetuwn wet;
 	}
 
-	protected _range: Range;
-	protected _newText: string | null;
-	protected _newEol?: EndOfLine;
+	pwotected _wange: Wange;
+	pwotected _newText: stwing | nuww;
+	pwotected _newEow?: EndOfWine;
 
-	get range(): Range {
-		return this._range;
+	get wange(): Wange {
+		wetuwn this._wange;
 	}
 
-	set range(value: Range) {
-		if (value && !Range.isRange(value)) {
-			throw illegalArgument('range');
+	set wange(vawue: Wange) {
+		if (vawue && !Wange.isWange(vawue)) {
+			thwow iwwegawAwgument('wange');
 		}
-		this._range = value;
+		this._wange = vawue;
 	}
 
-	get newText(): string {
-		return this._newText || '';
+	get newText(): stwing {
+		wetuwn this._newText || '';
 	}
 
-	set newText(value: string) {
-		if (value && typeof value !== 'string') {
-			throw illegalArgument('newText');
+	set newText(vawue: stwing) {
+		if (vawue && typeof vawue !== 'stwing') {
+			thwow iwwegawAwgument('newText');
 		}
-		this._newText = value;
+		this._newText = vawue;
 	}
 
-	get newEol(): EndOfLine | undefined {
-		return this._newEol;
+	get newEow(): EndOfWine | undefined {
+		wetuwn this._newEow;
 	}
 
-	set newEol(value: EndOfLine | undefined) {
-		if (value && typeof value !== 'number') {
-			throw illegalArgument('newEol');
+	set newEow(vawue: EndOfWine | undefined) {
+		if (vawue && typeof vawue !== 'numba') {
+			thwow iwwegawAwgument('newEow');
 		}
-		this._newEol = value;
+		this._newEow = vawue;
 	}
 
-	constructor(range: Range, newText: string | null) {
-		this._range = range;
+	constwuctow(wange: Wange, newText: stwing | nuww) {
+		this._wange = wange;
 		this._newText = newText;
 	}
 
 	toJSON(): any {
-		return {
-			range: this.range,
+		wetuwn {
+			wange: this.wange,
 			newText: this.newText,
-			newEol: this._newEol
+			newEow: this._newEow
 		};
 	}
 }
 
-export interface IFileOperationOptions {
-	overwrite?: boolean;
-	ignoreIfExists?: boolean;
-	ignoreIfNotExists?: boolean;
-	recursive?: boolean;
+expowt intewface IFiweOpewationOptions {
+	ovewwwite?: boowean;
+	ignoweIfExists?: boowean;
+	ignoweIfNotExists?: boowean;
+	wecuwsive?: boowean;
 }
 
-export const enum FileEditType {
-	File = 1,
+expowt const enum FiweEditType {
+	Fiwe = 1,
 	Text = 2,
-	Cell = 3,
-	CellReplace = 5,
+	Ceww = 3,
+	CewwWepwace = 5,
 }
 
-export interface IFileOperation {
-	_type: FileEditType.File;
-	from?: URI;
-	to?: URI;
-	options?: IFileOperationOptions;
-	metadata?: vscode.WorkspaceEditEntryMetadata;
+expowt intewface IFiweOpewation {
+	_type: FiweEditType.Fiwe;
+	fwom?: UWI;
+	to?: UWI;
+	options?: IFiweOpewationOptions;
+	metadata?: vscode.WowkspaceEditEntwyMetadata;
 }
 
-export interface IFileTextEdit {
-	_type: FileEditType.Text;
-	uri: URI;
+expowt intewface IFiweTextEdit {
+	_type: FiweEditType.Text;
+	uwi: UWI;
 	edit: TextEdit;
-	metadata?: vscode.WorkspaceEditEntryMetadata;
+	metadata?: vscode.WowkspaceEditEntwyMetadata;
 }
 
-export interface IFileCellEdit {
-	_type: FileEditType.Cell;
-	uri: URI;
-	edit?: ICellPartialMetadataEdit | IDocumentMetadataEdit;
-	notebookMetadata?: Record<string, any>;
-	metadata?: vscode.WorkspaceEditEntryMetadata;
+expowt intewface IFiweCewwEdit {
+	_type: FiweEditType.Ceww;
+	uwi: UWI;
+	edit?: ICewwPawtiawMetadataEdit | IDocumentMetadataEdit;
+	notebookMetadata?: Wecowd<stwing, any>;
+	metadata?: vscode.WowkspaceEditEntwyMetadata;
 }
 
-export interface ICellEdit {
-	_type: FileEditType.CellReplace;
-	metadata?: vscode.WorkspaceEditEntryMetadata;
-	uri: URI;
-	index: number;
-	count: number;
-	cells: vscode.NotebookCellData[];
+expowt intewface ICewwEdit {
+	_type: FiweEditType.CewwWepwace;
+	metadata?: vscode.WowkspaceEditEntwyMetadata;
+	uwi: UWI;
+	index: numba;
+	count: numba;
+	cewws: vscode.NotebookCewwData[];
 }
 
 
-type WorkspaceEditEntry = IFileOperation | IFileTextEdit | IFileCellEdit | ICellEdit;
+type WowkspaceEditEntwy = IFiweOpewation | IFiweTextEdit | IFiweCewwEdit | ICewwEdit;
 
-@es5ClassCompat
-export class WorkspaceEdit implements vscode.WorkspaceEdit {
+@es5CwassCompat
+expowt cwass WowkspaceEdit impwements vscode.WowkspaceEdit {
 
-	private readonly _edits: WorkspaceEditEntry[] = [];
+	pwivate weadonwy _edits: WowkspaceEditEntwy[] = [];
 
 
-	_allEntries(): ReadonlyArray<WorkspaceEditEntry> {
-		return this._edits;
+	_awwEntwies(): WeadonwyAwway<WowkspaceEditEntwy> {
+		wetuwn this._edits;
 	}
 
-	// --- file
+	// --- fiwe
 
-	renameFile(from: vscode.Uri, to: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean; }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: FileEditType.File, from, to, options, metadata });
+	wenameFiwe(fwom: vscode.Uwi, to: vscode.Uwi, options?: { ovewwwite?: boowean, ignoweIfExists?: boowean; }, metadata?: vscode.WowkspaceEditEntwyMetadata): void {
+		this._edits.push({ _type: FiweEditType.Fiwe, fwom, to, options, metadata });
 	}
 
-	createFile(uri: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean; }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: FileEditType.File, from: undefined, to: uri, options, metadata });
+	cweateFiwe(uwi: vscode.Uwi, options?: { ovewwwite?: boowean, ignoweIfExists?: boowean; }, metadata?: vscode.WowkspaceEditEntwyMetadata): void {
+		this._edits.push({ _type: FiweEditType.Fiwe, fwom: undefined, to: uwi, options, metadata });
 	}
 
-	deleteFile(uri: vscode.Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean; }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: FileEditType.File, from: uri, to: undefined, options, metadata });
+	deweteFiwe(uwi: vscode.Uwi, options?: { wecuwsive?: boowean, ignoweIfNotExists?: boowean; }, metadata?: vscode.WowkspaceEditEntwyMetadata): void {
+		this._edits.push({ _type: FiweEditType.Fiwe, fwom: uwi, to: undefined, options, metadata });
 	}
 
 	// --- notebook
 
-	replaceNotebookMetadata(uri: URI, value: Record<string, any>, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.DocumentMetadata, metadata: value }, notebookMetadata: value });
+	wepwaceNotebookMetadata(uwi: UWI, vawue: Wecowd<stwing, any>, metadata?: vscode.WowkspaceEditEntwyMetadata): void {
+		this._edits.push({ _type: FiweEditType.Ceww, metadata, uwi, edit: { editType: CewwEditType.DocumentMetadata, metadata: vawue }, notebookMetadata: vawue });
 	}
 
-	replaceNotebookCells(uri: URI, range: vscode.NotebookRange, cells: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void;
-	replaceNotebookCells(uri: URI, start: number, end: number, cells: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void;
-	replaceNotebookCells(uri: URI, startOrRange: number | vscode.NotebookRange, endOrCells: number | vscode.NotebookCellData[], cellsOrMetadata?: vscode.NotebookCellData[] | vscode.WorkspaceEditEntryMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		let start: number | undefined;
-		let end: number | undefined;
-		let cellData: vscode.NotebookCellData[] = [];
-		let workspaceEditMetadata: vscode.WorkspaceEditEntryMetadata | undefined;
+	wepwaceNotebookCewws(uwi: UWI, wange: vscode.NotebookWange, cewws: vscode.NotebookCewwData[], metadata?: vscode.WowkspaceEditEntwyMetadata): void;
+	wepwaceNotebookCewws(uwi: UWI, stawt: numba, end: numba, cewws: vscode.NotebookCewwData[], metadata?: vscode.WowkspaceEditEntwyMetadata): void;
+	wepwaceNotebookCewws(uwi: UWI, stawtOwWange: numba | vscode.NotebookWange, endOwCewws: numba | vscode.NotebookCewwData[], cewwsOwMetadata?: vscode.NotebookCewwData[] | vscode.WowkspaceEditEntwyMetadata, metadata?: vscode.WowkspaceEditEntwyMetadata): void {
+		wet stawt: numba | undefined;
+		wet end: numba | undefined;
+		wet cewwData: vscode.NotebookCewwData[] = [];
+		wet wowkspaceEditMetadata: vscode.WowkspaceEditEntwyMetadata | undefined;
 
-		if (NotebookRange.isNotebookRange(startOrRange) && NotebookCellData.isNotebookCellDataArray(endOrCells) && !NotebookCellData.isNotebookCellDataArray(cellsOrMetadata)) {
-			start = startOrRange.start;
-			end = startOrRange.end;
-			cellData = endOrCells;
-			workspaceEditMetadata = cellsOrMetadata;
-		} else if (typeof startOrRange === 'number' && typeof endOrCells === 'number' && NotebookCellData.isNotebookCellDataArray(cellsOrMetadata)) {
-			start = startOrRange;
-			end = endOrCells;
-			cellData = cellsOrMetadata;
-			workspaceEditMetadata = metadata;
+		if (NotebookWange.isNotebookWange(stawtOwWange) && NotebookCewwData.isNotebookCewwDataAwway(endOwCewws) && !NotebookCewwData.isNotebookCewwDataAwway(cewwsOwMetadata)) {
+			stawt = stawtOwWange.stawt;
+			end = stawtOwWange.end;
+			cewwData = endOwCewws;
+			wowkspaceEditMetadata = cewwsOwMetadata;
+		} ewse if (typeof stawtOwWange === 'numba' && typeof endOwCewws === 'numba' && NotebookCewwData.isNotebookCewwDataAwway(cewwsOwMetadata)) {
+			stawt = stawtOwWange;
+			end = endOwCewws;
+			cewwData = cewwsOwMetadata;
+			wowkspaceEditMetadata = metadata;
 		}
 
-		if (start === undefined || end === undefined) {
-			throw new Error('Invalid arguments');
+		if (stawt === undefined || end === undefined) {
+			thwow new Ewwow('Invawid awguments');
 		}
 
-		if (start !== end || cellData.length > 0) {
-			this._edits.push({ _type: FileEditType.CellReplace, uri, index: start, count: end - start, cells: cellData, metadata: workspaceEditMetadata });
+		if (stawt !== end || cewwData.wength > 0) {
+			this._edits.push({ _type: FiweEditType.CewwWepwace, uwi, index: stawt, count: end - stawt, cewws: cewwData, metadata: wowkspaceEditMetadata });
 		}
 	}
 
-	replaceNotebookCellMetadata(uri: URI, index: number, cellMetadata: Record<string, any>, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.PartialMetadata, index, metadata: cellMetadata } });
+	wepwaceNotebookCewwMetadata(uwi: UWI, index: numba, cewwMetadata: Wecowd<stwing, any>, metadata?: vscode.WowkspaceEditEntwyMetadata): void {
+		this._edits.push({ _type: FiweEditType.Ceww, metadata, uwi, edit: { editType: CewwEditType.PawtiawMetadata, index, metadata: cewwMetadata } });
 	}
 
 	// --- text
 
-	replace(uri: URI, range: Range, newText: string, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: FileEditType.Text, uri, edit: new TextEdit(range, newText), metadata });
+	wepwace(uwi: UWI, wange: Wange, newText: stwing, metadata?: vscode.WowkspaceEditEntwyMetadata): void {
+		this._edits.push({ _type: FiweEditType.Text, uwi, edit: new TextEdit(wange, newText), metadata });
 	}
 
-	insert(resource: URI, position: Position, newText: string, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this.replace(resource, new Range(position, position), newText, metadata);
+	insewt(wesouwce: UWI, position: Position, newText: stwing, metadata?: vscode.WowkspaceEditEntwyMetadata): void {
+		this.wepwace(wesouwce, new Wange(position, position), newText, metadata);
 	}
 
-	delete(resource: URI, range: Range, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this.replace(resource, range, '', metadata);
+	dewete(wesouwce: UWI, wange: Wange, metadata?: vscode.WowkspaceEditEntwyMetadata): void {
+		this.wepwace(wesouwce, wange, '', metadata);
 	}
 
-	// --- text (Maplike)
+	// --- text (Mapwike)
 
-	has(uri: URI): boolean {
-		return this._edits.some(edit => edit._type === FileEditType.Text && edit.uri.toString() === uri.toString());
+	has(uwi: UWI): boowean {
+		wetuwn this._edits.some(edit => edit._type === FiweEditType.Text && edit.uwi.toStwing() === uwi.toStwing());
 	}
 
-	set(uri: URI, edits: TextEdit[]): void {
+	set(uwi: UWI, edits: TextEdit[]): void {
 		if (!edits) {
-			// remove all text edits for `uri`
-			for (let i = 0; i < this._edits.length; i++) {
-				const element = this._edits[i];
-				if (element._type === FileEditType.Text && element.uri.toString() === uri.toString()) {
-					this._edits[i] = undefined!; // will be coalesced down below
+			// wemove aww text edits fow `uwi`
+			fow (wet i = 0; i < this._edits.wength; i++) {
+				const ewement = this._edits[i];
+				if (ewement._type === FiweEditType.Text && ewement.uwi.toStwing() === uwi.toStwing()) {
+					this._edits[i] = undefined!; // wiww be coawesced down bewow
 				}
 			}
-			coalesceInPlace(this._edits);
-		} else {
+			coawesceInPwace(this._edits);
+		} ewse {
 			// append edit to the end
-			for (const edit of edits) {
+			fow (const edit of edits) {
 				if (edit) {
-					this._edits.push({ _type: FileEditType.Text, uri, edit });
+					this._edits.push({ _type: FiweEditType.Text, uwi, edit });
 				}
 			}
 		}
 	}
 
-	get(uri: URI): TextEdit[] {
-		const res: TextEdit[] = [];
-		for (let candidate of this._edits) {
-			if (candidate._type === FileEditType.Text && candidate.uri.toString() === uri.toString()) {
-				res.push(candidate.edit);
+	get(uwi: UWI): TextEdit[] {
+		const wes: TextEdit[] = [];
+		fow (wet candidate of this._edits) {
+			if (candidate._type === FiweEditType.Text && candidate.uwi.toStwing() === uwi.toStwing()) {
+				wes.push(candidate.edit);
 			}
 		}
-		return res;
+		wetuwn wes;
 	}
 
-	entries(): [URI, TextEdit[]][] {
-		const textEdits = new ResourceMap<[URI, TextEdit[]]>();
-		for (let candidate of this._edits) {
-			if (candidate._type === FileEditType.Text) {
-				let textEdit = textEdits.get(candidate.uri);
+	entwies(): [UWI, TextEdit[]][] {
+		const textEdits = new WesouwceMap<[UWI, TextEdit[]]>();
+		fow (wet candidate of this._edits) {
+			if (candidate._type === FiweEditType.Text) {
+				wet textEdit = textEdits.get(candidate.uwi);
 				if (!textEdit) {
-					textEdit = [candidate.uri, []];
-					textEdits.set(candidate.uri, textEdit);
+					textEdit = [candidate.uwi, []];
+					textEdits.set(candidate.uwi, textEdit);
 				}
 				textEdit[1].push(candidate.edit);
 			}
 		}
-		return [...textEdits.values()];
+		wetuwn [...textEdits.vawues()];
 	}
 
-	get size(): number {
-		return this.entries().length;
+	get size(): numba {
+		wetuwn this.entwies().wength;
 	}
 
 	toJSON(): any {
-		return this.entries();
+		wetuwn this.entwies();
 	}
 }
 
-@es5ClassCompat
-export class SnippetString {
+@es5CwassCompat
+expowt cwass SnippetStwing {
 
-	static isSnippetString(thing: any): thing is SnippetString {
-		if (thing instanceof SnippetString) {
-			return true;
+	static isSnippetStwing(thing: any): thing is SnippetStwing {
+		if (thing instanceof SnippetStwing) {
+			wetuwn twue;
 		}
 		if (!thing) {
-			return false;
+			wetuwn fawse;
 		}
-		return typeof (<SnippetString>thing).value === 'string';
+		wetuwn typeof (<SnippetStwing>thing).vawue === 'stwing';
 	}
 
-	private static _escape(value: string): string {
-		return value.replace(/\$|}|\\/g, '\\$&');
+	pwivate static _escape(vawue: stwing): stwing {
+		wetuwn vawue.wepwace(/\$|}|\\/g, '\\$&');
 	}
 
-	private _tabstop: number = 1;
+	pwivate _tabstop: numba = 1;
 
-	value: string;
+	vawue: stwing;
 
-	constructor(value?: string) {
-		this.value = value || '';
+	constwuctow(vawue?: stwing) {
+		this.vawue = vawue || '';
 	}
 
-	appendText(string: string): SnippetString {
-		this.value += SnippetString._escape(string);
-		return this;
+	appendText(stwing: stwing): SnippetStwing {
+		this.vawue += SnippetStwing._escape(stwing);
+		wetuwn this;
 	}
 
-	appendTabstop(number: number = this._tabstop++): SnippetString {
-		this.value += '$';
-		this.value += number;
-		return this;
+	appendTabstop(numba: numba = this._tabstop++): SnippetStwing {
+		this.vawue += '$';
+		this.vawue += numba;
+		wetuwn this;
 	}
 
-	appendPlaceholder(value: string | ((snippet: SnippetString) => any), number: number = this._tabstop++): SnippetString {
+	appendPwacehowda(vawue: stwing | ((snippet: SnippetStwing) => any), numba: numba = this._tabstop++): SnippetStwing {
 
-		if (typeof value === 'function') {
-			const nested = new SnippetString();
+		if (typeof vawue === 'function') {
+			const nested = new SnippetStwing();
 			nested._tabstop = this._tabstop;
-			value(nested);
+			vawue(nested);
 			this._tabstop = nested._tabstop;
-			value = nested.value;
-		} else {
-			value = SnippetString._escape(value);
+			vawue = nested.vawue;
+		} ewse {
+			vawue = SnippetStwing._escape(vawue);
 		}
 
-		this.value += '${';
-		this.value += number;
-		this.value += ':';
-		this.value += value;
-		this.value += '}';
+		this.vawue += '${';
+		this.vawue += numba;
+		this.vawue += ':';
+		this.vawue += vawue;
+		this.vawue += '}';
 
-		return this;
+		wetuwn this;
 	}
 
-	appendChoice(values: string[], number: number = this._tabstop++): SnippetString {
-		const value = values.map(s => s.replace(/\$|}|\\|,/g, '\\$&')).join(',');
+	appendChoice(vawues: stwing[], numba: numba = this._tabstop++): SnippetStwing {
+		const vawue = vawues.map(s => s.wepwace(/\$|}|\\|,/g, '\\$&')).join(',');
 
-		this.value += '${';
-		this.value += number;
-		this.value += '|';
-		this.value += value;
-		this.value += '|}';
+		this.vawue += '${';
+		this.vawue += numba;
+		this.vawue += '|';
+		this.vawue += vawue;
+		this.vawue += '|}';
 
-		return this;
+		wetuwn this;
 	}
 
-	appendVariable(name: string, defaultValue?: string | ((snippet: SnippetString) => any)): SnippetString {
+	appendVawiabwe(name: stwing, defauwtVawue?: stwing | ((snippet: SnippetStwing) => any)): SnippetStwing {
 
-		if (typeof defaultValue === 'function') {
-			const nested = new SnippetString();
+		if (typeof defauwtVawue === 'function') {
+			const nested = new SnippetStwing();
 			nested._tabstop = this._tabstop;
-			defaultValue(nested);
+			defauwtVawue(nested);
 			this._tabstop = nested._tabstop;
-			defaultValue = nested.value;
+			defauwtVawue = nested.vawue;
 
-		} else if (typeof defaultValue === 'string') {
-			defaultValue = defaultValue.replace(/\$|}/g, '\\$&');
+		} ewse if (typeof defauwtVawue === 'stwing') {
+			defauwtVawue = defauwtVawue.wepwace(/\$|}/g, '\\$&');
 		}
 
-		this.value += '${';
-		this.value += name;
-		if (defaultValue) {
-			this.value += ':';
-			this.value += defaultValue;
+		this.vawue += '${';
+		this.vawue += name;
+		if (defauwtVawue) {
+			this.vawue += ':';
+			this.vawue += defauwtVawue;
 		}
-		this.value += '}';
+		this.vawue += '}';
 
 
-		return this;
+		wetuwn this;
 	}
 }
 
-export enum DiagnosticTag {
-	Unnecessary = 1,
-	Deprecated = 2
+expowt enum DiagnosticTag {
+	Unnecessawy = 1,
+	Depwecated = 2
 }
 
-export enum DiagnosticSeverity {
+expowt enum DiagnosticSevewity {
 	Hint = 3,
-	Information = 2,
-	Warning = 1,
-	Error = 0
+	Infowmation = 2,
+	Wawning = 1,
+	Ewwow = 0
 }
 
-@es5ClassCompat
-export class Location {
+@es5CwassCompat
+expowt cwass Wocation {
 
-	static isLocation(thing: any): thing is Location {
-		if (thing instanceof Location) {
-			return true;
+	static isWocation(thing: any): thing is Wocation {
+		if (thing instanceof Wocation) {
+			wetuwn twue;
 		}
 		if (!thing) {
-			return false;
+			wetuwn fawse;
 		}
-		return Range.isRange((<Location>thing).range)
-			&& URI.isUri((<Location>thing).uri);
+		wetuwn Wange.isWange((<Wocation>thing).wange)
+			&& UWI.isUwi((<Wocation>thing).uwi);
 	}
 
-	uri: URI;
-	range!: Range;
+	uwi: UWI;
+	wange!: Wange;
 
-	constructor(uri: URI, rangeOrPosition: Range | Position) {
-		this.uri = uri;
+	constwuctow(uwi: UWI, wangeOwPosition: Wange | Position) {
+		this.uwi = uwi;
 
-		if (!rangeOrPosition) {
+		if (!wangeOwPosition) {
 			//that's OK
-		} else if (rangeOrPosition instanceof Range) {
-			this.range = rangeOrPosition;
-		} else if (rangeOrPosition instanceof Position) {
-			this.range = new Range(rangeOrPosition, rangeOrPosition);
-		} else {
-			throw new Error('Illegal argument');
+		} ewse if (wangeOwPosition instanceof Wange) {
+			this.wange = wangeOwPosition;
+		} ewse if (wangeOwPosition instanceof Position) {
+			this.wange = new Wange(wangeOwPosition, wangeOwPosition);
+		} ewse {
+			thwow new Ewwow('Iwwegaw awgument');
 		}
 	}
 
 	toJSON(): any {
-		return {
-			uri: this.uri,
-			range: this.range
+		wetuwn {
+			uwi: this.uwi,
+			wange: this.wange
 		};
 	}
 }
 
-@es5ClassCompat
-export class DiagnosticRelatedInformation {
+@es5CwassCompat
+expowt cwass DiagnosticWewatedInfowmation {
 
-	static is(thing: any): thing is DiagnosticRelatedInformation {
+	static is(thing: any): thing is DiagnosticWewatedInfowmation {
 		if (!thing) {
-			return false;
+			wetuwn fawse;
 		}
-		return typeof (<DiagnosticRelatedInformation>thing).message === 'string'
-			&& (<DiagnosticRelatedInformation>thing).location
-			&& Range.isRange((<DiagnosticRelatedInformation>thing).location.range)
-			&& URI.isUri((<DiagnosticRelatedInformation>thing).location.uri);
+		wetuwn typeof (<DiagnosticWewatedInfowmation>thing).message === 'stwing'
+			&& (<DiagnosticWewatedInfowmation>thing).wocation
+			&& Wange.isWange((<DiagnosticWewatedInfowmation>thing).wocation.wange)
+			&& UWI.isUwi((<DiagnosticWewatedInfowmation>thing).wocation.uwi);
 	}
 
-	location: Location;
-	message: string;
+	wocation: Wocation;
+	message: stwing;
 
-	constructor(location: Location, message: string) {
-		this.location = location;
+	constwuctow(wocation: Wocation, message: stwing) {
+		this.wocation = wocation;
 		this.message = message;
 	}
 
-	static isEqual(a: DiagnosticRelatedInformation, b: DiagnosticRelatedInformation): boolean {
+	static isEquaw(a: DiagnosticWewatedInfowmation, b: DiagnosticWewatedInfowmation): boowean {
 		if (a === b) {
-			return true;
+			wetuwn twue;
 		}
 		if (!a || !b) {
-			return false;
+			wetuwn fawse;
 		}
-		return a.message === b.message
-			&& a.location.range.isEqual(b.location.range)
-			&& a.location.uri.toString() === b.location.uri.toString();
+		wetuwn a.message === b.message
+			&& a.wocation.wange.isEquaw(b.wocation.wange)
+			&& a.wocation.uwi.toStwing() === b.wocation.uwi.toStwing();
 	}
 }
 
-@es5ClassCompat
-export class Diagnostic {
+@es5CwassCompat
+expowt cwass Diagnostic {
 
-	range: Range;
-	message: string;
-	severity: DiagnosticSeverity;
-	source?: string;
-	code?: string | number;
-	relatedInformation?: DiagnosticRelatedInformation[];
+	wange: Wange;
+	message: stwing;
+	sevewity: DiagnosticSevewity;
+	souwce?: stwing;
+	code?: stwing | numba;
+	wewatedInfowmation?: DiagnosticWewatedInfowmation[];
 	tags?: DiagnosticTag[];
 
-	constructor(range: Range, message: string, severity: DiagnosticSeverity = DiagnosticSeverity.Error) {
-		if (!Range.isRange(range)) {
-			throw new TypeError('range must be set');
+	constwuctow(wange: Wange, message: stwing, sevewity: DiagnosticSevewity = DiagnosticSevewity.Ewwow) {
+		if (!Wange.isWange(wange)) {
+			thwow new TypeEwwow('wange must be set');
 		}
 		if (!message) {
-			throw new TypeError('message must be set');
+			thwow new TypeEwwow('message must be set');
 		}
-		this.range = range;
+		this.wange = wange;
 		this.message = message;
-		this.severity = severity;
+		this.sevewity = sevewity;
 	}
 
 	toJSON(): any {
-		return {
-			severity: DiagnosticSeverity[this.severity],
+		wetuwn {
+			sevewity: DiagnosticSevewity[this.sevewity],
 			message: this.message,
-			range: this.range,
-			source: this.source,
+			wange: this.wange,
+			souwce: this.souwce,
 			code: this.code,
 		};
 	}
 
-	static isEqual(a: Diagnostic | undefined, b: Diagnostic | undefined): boolean {
+	static isEquaw(a: Diagnostic | undefined, b: Diagnostic | undefined): boowean {
 		if (a === b) {
-			return true;
+			wetuwn twue;
 		}
 		if (!a || !b) {
-			return false;
+			wetuwn fawse;
 		}
-		return a.message === b.message
-			&& a.severity === b.severity
+		wetuwn a.message === b.message
+			&& a.sevewity === b.sevewity
 			&& a.code === b.code
-			&& a.severity === b.severity
-			&& a.source === b.source
-			&& a.range.isEqual(b.range)
-			&& equals(a.tags, b.tags)
-			&& equals(a.relatedInformation, b.relatedInformation, DiagnosticRelatedInformation.isEqual);
+			&& a.sevewity === b.sevewity
+			&& a.souwce === b.souwce
+			&& a.wange.isEquaw(b.wange)
+			&& equaws(a.tags, b.tags)
+			&& equaws(a.wewatedInfowmation, b.wewatedInfowmation, DiagnosticWewatedInfowmation.isEquaw);
 	}
 }
 
-@es5ClassCompat
-export class Hover {
+@es5CwassCompat
+expowt cwass Hova {
 
-	public contents: (vscode.MarkdownString | vscode.MarkedString)[];
-	public range: Range | undefined;
+	pubwic contents: (vscode.MawkdownStwing | vscode.MawkedStwing)[];
+	pubwic wange: Wange | undefined;
 
-	constructor(
-		contents: vscode.MarkdownString | vscode.MarkedString | (vscode.MarkdownString | vscode.MarkedString)[],
-		range?: Range
+	constwuctow(
+		contents: vscode.MawkdownStwing | vscode.MawkedStwing | (vscode.MawkdownStwing | vscode.MawkedStwing)[],
+		wange?: Wange
 	) {
 		if (!contents) {
-			throw new Error('Illegal argument, contents must be defined');
+			thwow new Ewwow('Iwwegaw awgument, contents must be defined');
 		}
-		if (Array.isArray(contents)) {
+		if (Awway.isAwway(contents)) {
 			this.contents = contents;
-		} else {
+		} ewse {
 			this.contents = [contents];
 		}
-		this.range = range;
+		this.wange = wange;
 	}
 }
 
-export enum DocumentHighlightKind {
+expowt enum DocumentHighwightKind {
 	Text = 0,
-	Read = 1,
-	Write = 2
+	Wead = 1,
+	Wwite = 2
 }
 
-@es5ClassCompat
-export class DocumentHighlight {
+@es5CwassCompat
+expowt cwass DocumentHighwight {
 
-	range: Range;
-	kind: DocumentHighlightKind;
+	wange: Wange;
+	kind: DocumentHighwightKind;
 
-	constructor(range: Range, kind: DocumentHighlightKind = DocumentHighlightKind.Text) {
-		this.range = range;
+	constwuctow(wange: Wange, kind: DocumentHighwightKind = DocumentHighwightKind.Text) {
+		this.wange = wange;
 		this.kind = kind;
 	}
 
 	toJSON(): any {
-		return {
-			range: this.range,
-			kind: DocumentHighlightKind[this.kind]
+		wetuwn {
+			wange: this.wange,
+			kind: DocumentHighwightKind[this.kind]
 		};
 	}
 }
 
-export enum SymbolKind {
-	File = 0,
-	Module = 1,
+expowt enum SymbowKind {
+	Fiwe = 0,
+	Moduwe = 1,
 	Namespace = 2,
 	Package = 3,
-	Class = 4,
+	Cwass = 4,
 	Method = 5,
-	Property = 6,
-	Field = 7,
-	Constructor = 8,
+	Pwopewty = 6,
+	Fiewd = 7,
+	Constwuctow = 8,
 	Enum = 9,
-	Interface = 10,
+	Intewface = 10,
 	Function = 11,
-	Variable = 12,
+	Vawiabwe = 12,
 	Constant = 13,
-	String = 14,
-	Number = 15,
-	Boolean = 16,
-	Array = 17,
+	Stwing = 14,
+	Numba = 15,
+	Boowean = 16,
+	Awway = 17,
 	Object = 18,
 	Key = 19,
-	Null = 20,
-	EnumMember = 21,
-	Struct = 22,
+	Nuww = 20,
+	EnumMemba = 21,
+	Stwuct = 22,
 	Event = 23,
-	Operator = 24,
-	TypeParameter = 25
+	Opewatow = 24,
+	TypePawameta = 25
 }
 
-export enum SymbolTag {
-	Deprecated = 1,
+expowt enum SymbowTag {
+	Depwecated = 1,
 }
 
-@es5ClassCompat
-export class SymbolInformation {
+@es5CwassCompat
+expowt cwass SymbowInfowmation {
 
-	static validate(candidate: SymbolInformation): void {
+	static vawidate(candidate: SymbowInfowmation): void {
 		if (!candidate.name) {
-			throw new Error('name must not be falsy');
+			thwow new Ewwow('name must not be fawsy');
 		}
 	}
 
-	name: string;
-	location!: Location;
-	kind: SymbolKind;
-	tags?: SymbolTag[];
-	containerName: string | undefined;
+	name: stwing;
+	wocation!: Wocation;
+	kind: SymbowKind;
+	tags?: SymbowTag[];
+	containewName: stwing | undefined;
 
-	constructor(name: string, kind: SymbolKind, containerName: string | undefined, location: Location);
-	constructor(name: string, kind: SymbolKind, range: Range, uri?: URI, containerName?: string);
-	constructor(name: string, kind: SymbolKind, rangeOrContainer: string | undefined | Range, locationOrUri?: Location | URI, containerName?: string) {
+	constwuctow(name: stwing, kind: SymbowKind, containewName: stwing | undefined, wocation: Wocation);
+	constwuctow(name: stwing, kind: SymbowKind, wange: Wange, uwi?: UWI, containewName?: stwing);
+	constwuctow(name: stwing, kind: SymbowKind, wangeOwContaina: stwing | undefined | Wange, wocationOwUwi?: Wocation | UWI, containewName?: stwing) {
 		this.name = name;
 		this.kind = kind;
-		this.containerName = containerName;
+		this.containewName = containewName;
 
-		if (typeof rangeOrContainer === 'string') {
-			this.containerName = rangeOrContainer;
+		if (typeof wangeOwContaina === 'stwing') {
+			this.containewName = wangeOwContaina;
 		}
 
-		if (locationOrUri instanceof Location) {
-			this.location = locationOrUri;
-		} else if (rangeOrContainer instanceof Range) {
-			this.location = new Location(locationOrUri!, rangeOrContainer);
+		if (wocationOwUwi instanceof Wocation) {
+			this.wocation = wocationOwUwi;
+		} ewse if (wangeOwContaina instanceof Wange) {
+			this.wocation = new Wocation(wocationOwUwi!, wangeOwContaina);
 		}
 
-		SymbolInformation.validate(this);
+		SymbowInfowmation.vawidate(this);
 	}
 
 	toJSON(): any {
-		return {
+		wetuwn {
 			name: this.name,
-			kind: SymbolKind[this.kind],
-			location: this.location,
-			containerName: this.containerName
+			kind: SymbowKind[this.kind],
+			wocation: this.wocation,
+			containewName: this.containewName
 		};
 	}
 }
 
-@es5ClassCompat
-export class DocumentSymbol {
+@es5CwassCompat
+expowt cwass DocumentSymbow {
 
-	static validate(candidate: DocumentSymbol): void {
+	static vawidate(candidate: DocumentSymbow): void {
 		if (!candidate.name) {
-			throw new Error('name must not be falsy');
+			thwow new Ewwow('name must not be fawsy');
 		}
-		if (!candidate.range.contains(candidate.selectionRange)) {
-			throw new Error('selectionRange must be contained in fullRange');
+		if (!candidate.wange.contains(candidate.sewectionWange)) {
+			thwow new Ewwow('sewectionWange must be contained in fuwwWange');
 		}
-		if (candidate.children) {
-			candidate.children.forEach(DocumentSymbol.validate);
+		if (candidate.chiwdwen) {
+			candidate.chiwdwen.fowEach(DocumentSymbow.vawidate);
 		}
 	}
 
-	name: string;
-	detail: string;
-	kind: SymbolKind;
-	tags?: SymbolTag[];
-	range: Range;
-	selectionRange: Range;
-	children: DocumentSymbol[];
+	name: stwing;
+	detaiw: stwing;
+	kind: SymbowKind;
+	tags?: SymbowTag[];
+	wange: Wange;
+	sewectionWange: Wange;
+	chiwdwen: DocumentSymbow[];
 
-	constructor(name: string, detail: string, kind: SymbolKind, range: Range, selectionRange: Range) {
+	constwuctow(name: stwing, detaiw: stwing, kind: SymbowKind, wange: Wange, sewectionWange: Wange) {
 		this.name = name;
-		this.detail = detail;
+		this.detaiw = detaiw;
 		this.kind = kind;
-		this.range = range;
-		this.selectionRange = selectionRange;
-		this.children = [];
+		this.wange = wange;
+		this.sewectionWange = sewectionWange;
+		this.chiwdwen = [];
 
-		DocumentSymbol.validate(this);
+		DocumentSymbow.vawidate(this);
 	}
 }
 
 
-export enum CodeActionTriggerKind {
+expowt enum CodeActionTwiggewKind {
 	Invoke = 1,
 	Automatic = 2,
 }
 
-@es5ClassCompat
-export class CodeAction {
-	title: string;
+@es5CwassCompat
+expowt cwass CodeAction {
+	titwe: stwing;
 
 	command?: vscode.Command;
 
-	edit?: WorkspaceEdit;
+	edit?: WowkspaceEdit;
 
 	diagnostics?: Diagnostic[];
 
 	kind?: CodeActionKind;
 
-	isPreferred?: boolean;
+	isPwefewwed?: boowean;
 
-	constructor(title: string, kind?: CodeActionKind) {
-		this.title = title;
+	constwuctow(titwe: stwing, kind?: CodeActionKind) {
+		this.titwe = titwe;
 		this.kind = kind;
 	}
 }
 
 
-@es5ClassCompat
-export class CodeActionKind {
-	private static readonly sep = '.';
+@es5CwassCompat
+expowt cwass CodeActionKind {
+	pwivate static weadonwy sep = '.';
 
-	public static Empty: CodeActionKind;
-	public static QuickFix: CodeActionKind;
-	public static Refactor: CodeActionKind;
-	public static RefactorExtract: CodeActionKind;
-	public static RefactorInline: CodeActionKind;
-	public static RefactorRewrite: CodeActionKind;
-	public static Source: CodeActionKind;
-	public static SourceOrganizeImports: CodeActionKind;
-	public static SourceFixAll: CodeActionKind;
+	pubwic static Empty: CodeActionKind;
+	pubwic static QuickFix: CodeActionKind;
+	pubwic static Wefactow: CodeActionKind;
+	pubwic static WefactowExtwact: CodeActionKind;
+	pubwic static WefactowInwine: CodeActionKind;
+	pubwic static WefactowWewwite: CodeActionKind;
+	pubwic static Souwce: CodeActionKind;
+	pubwic static SouwceOwganizeImpowts: CodeActionKind;
+	pubwic static SouwceFixAww: CodeActionKind;
 
-	constructor(
-		public readonly value: string
+	constwuctow(
+		pubwic weadonwy vawue: stwing
 	) { }
 
-	public append(parts: string): CodeActionKind {
-		return new CodeActionKind(this.value ? this.value + CodeActionKind.sep + parts : parts);
+	pubwic append(pawts: stwing): CodeActionKind {
+		wetuwn new CodeActionKind(this.vawue ? this.vawue + CodeActionKind.sep + pawts : pawts);
 	}
 
-	public intersects(other: CodeActionKind): boolean {
-		return this.contains(other) || other.contains(this);
+	pubwic intewsects(otha: CodeActionKind): boowean {
+		wetuwn this.contains(otha) || otha.contains(this);
 	}
 
-	public contains(other: CodeActionKind): boolean {
-		return this.value === other.value || other.value.startsWith(this.value + CodeActionKind.sep);
+	pubwic contains(otha: CodeActionKind): boowean {
+		wetuwn this.vawue === otha.vawue || otha.vawue.stawtsWith(this.vawue + CodeActionKind.sep);
 	}
 }
 CodeActionKind.Empty = new CodeActionKind('');
 CodeActionKind.QuickFix = CodeActionKind.Empty.append('quickfix');
-CodeActionKind.Refactor = CodeActionKind.Empty.append('refactor');
-CodeActionKind.RefactorExtract = CodeActionKind.Refactor.append('extract');
-CodeActionKind.RefactorInline = CodeActionKind.Refactor.append('inline');
-CodeActionKind.RefactorRewrite = CodeActionKind.Refactor.append('rewrite');
-CodeActionKind.Source = CodeActionKind.Empty.append('source');
-CodeActionKind.SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
-CodeActionKind.SourceFixAll = CodeActionKind.Source.append('fixAll');
+CodeActionKind.Wefactow = CodeActionKind.Empty.append('wefactow');
+CodeActionKind.WefactowExtwact = CodeActionKind.Wefactow.append('extwact');
+CodeActionKind.WefactowInwine = CodeActionKind.Wefactow.append('inwine');
+CodeActionKind.WefactowWewwite = CodeActionKind.Wefactow.append('wewwite');
+CodeActionKind.Souwce = CodeActionKind.Empty.append('souwce');
+CodeActionKind.SouwceOwganizeImpowts = CodeActionKind.Souwce.append('owganizeImpowts');
+CodeActionKind.SouwceFixAww = CodeActionKind.Souwce.append('fixAww');
 
-@es5ClassCompat
-export class SelectionRange {
+@es5CwassCompat
+expowt cwass SewectionWange {
 
-	range: Range;
-	parent?: SelectionRange;
+	wange: Wange;
+	pawent?: SewectionWange;
 
-	constructor(range: Range, parent?: SelectionRange) {
-		this.range = range;
-		this.parent = parent;
+	constwuctow(wange: Wange, pawent?: SewectionWange) {
+		this.wange = wange;
+		this.pawent = pawent;
 
-		if (parent && !parent.range.contains(this.range)) {
-			throw new Error('Invalid argument: parent must contain this range');
+		if (pawent && !pawent.wange.contains(this.wange)) {
+			thwow new Ewwow('Invawid awgument: pawent must contain this wange');
 		}
 	}
 }
 
-export class CallHierarchyItem {
+expowt cwass CawwHiewawchyItem {
 
-	_sessionId?: string;
-	_itemId?: string;
+	_sessionId?: stwing;
+	_itemId?: stwing;
 
-	kind: SymbolKind;
-	tags?: SymbolTag[];
-	name: string;
-	detail?: string;
-	uri: URI;
-	range: Range;
-	selectionRange: Range;
+	kind: SymbowKind;
+	tags?: SymbowTag[];
+	name: stwing;
+	detaiw?: stwing;
+	uwi: UWI;
+	wange: Wange;
+	sewectionWange: Wange;
 
-	constructor(kind: SymbolKind, name: string, detail: string, uri: URI, range: Range, selectionRange: Range) {
+	constwuctow(kind: SymbowKind, name: stwing, detaiw: stwing, uwi: UWI, wange: Wange, sewectionWange: Wange) {
 		this.kind = kind;
 		this.name = name;
-		this.detail = detail;
-		this.uri = uri;
-		this.range = range;
-		this.selectionRange = selectionRange;
+		this.detaiw = detaiw;
+		this.uwi = uwi;
+		this.wange = wange;
+		this.sewectionWange = sewectionWange;
 	}
 }
 
-export class CallHierarchyIncomingCall {
+expowt cwass CawwHiewawchyIncomingCaww {
 
-	from: vscode.CallHierarchyItem;
-	fromRanges: vscode.Range[];
+	fwom: vscode.CawwHiewawchyItem;
+	fwomWanges: vscode.Wange[];
 
-	constructor(item: vscode.CallHierarchyItem, fromRanges: vscode.Range[]) {
-		this.fromRanges = fromRanges;
-		this.from = item;
+	constwuctow(item: vscode.CawwHiewawchyItem, fwomWanges: vscode.Wange[]) {
+		this.fwomWanges = fwomWanges;
+		this.fwom = item;
 	}
 }
-export class CallHierarchyOutgoingCall {
+expowt cwass CawwHiewawchyOutgoingCaww {
 
-	to: vscode.CallHierarchyItem;
-	fromRanges: vscode.Range[];
+	to: vscode.CawwHiewawchyItem;
+	fwomWanges: vscode.Wange[];
 
-	constructor(item: vscode.CallHierarchyItem, fromRanges: vscode.Range[]) {
-		this.fromRanges = fromRanges;
+	constwuctow(item: vscode.CawwHiewawchyItem, fwomWanges: vscode.Wange[]) {
+		this.fwomWanges = fwomWanges;
 		this.to = item;
 	}
 }
 
-export enum LanguageStatusSeverity {
-	Information = 0,
-	Warning = 1,
-	Error = 2
+expowt enum WanguageStatusSevewity {
+	Infowmation = 0,
+	Wawning = 1,
+	Ewwow = 2
 }
 
 
-@es5ClassCompat
-export class CodeLens {
+@es5CwassCompat
+expowt cwass CodeWens {
 
-	range: Range;
+	wange: Wange;
 
 	command: vscode.Command | undefined;
 
-	constructor(range: Range, command?: vscode.Command) {
-		this.range = range;
+	constwuctow(wange: Wange, command?: vscode.Command) {
+		this.wange = wange;
 		this.command = command;
 	}
 
-	get isResolved(): boolean {
-		return !!this.command;
+	get isWesowved(): boowean {
+		wetuwn !!this.command;
 	}
 }
 
-@es5ClassCompat
-export class MarkdownString implements vscode.MarkdownString {
+@es5CwassCompat
+expowt cwass MawkdownStwing impwements vscode.MawkdownStwing {
 
-	readonly #delegate: BaseMarkdownString;
+	weadonwy #dewegate: BaseMawkdownStwing;
 
-	static isMarkdownString(thing: any): thing is vscode.MarkdownString {
-		if (thing instanceof MarkdownString) {
-			return true;
+	static isMawkdownStwing(thing: any): thing is vscode.MawkdownStwing {
+		if (thing instanceof MawkdownStwing) {
+			wetuwn twue;
 		}
-		return thing && thing.appendCodeblock && thing.appendMarkdown && thing.appendText && (thing.value !== undefined);
+		wetuwn thing && thing.appendCodebwock && thing.appendMawkdown && thing.appendText && (thing.vawue !== undefined);
 	}
 
-	constructor(value?: string, supportThemeIcons: boolean = false) {
-		this.#delegate = new BaseMarkdownString(value, { supportThemeIcons });
+	constwuctow(vawue?: stwing, suppowtThemeIcons: boowean = fawse) {
+		this.#dewegate = new BaseMawkdownStwing(vawue, { suppowtThemeIcons });
 	}
 
-	get value(): string {
-		return this.#delegate.value;
+	get vawue(): stwing {
+		wetuwn this.#dewegate.vawue;
 	}
-	set value(value: string) {
-		this.#delegate.value = value;
-	}
-
-	get isTrusted(): boolean | undefined {
-		return this.#delegate.isTrusted;
+	set vawue(vawue: stwing) {
+		this.#dewegate.vawue = vawue;
 	}
 
-	set isTrusted(value: boolean | undefined) {
-		this.#delegate.isTrusted = value;
+	get isTwusted(): boowean | undefined {
+		wetuwn this.#dewegate.isTwusted;
 	}
 
-	get supportThemeIcons(): boolean | undefined {
-		return this.#delegate.supportThemeIcons;
+	set isTwusted(vawue: boowean | undefined) {
+		this.#dewegate.isTwusted = vawue;
 	}
 
-	set supportThemeIcons(value: boolean | undefined) {
-		this.#delegate.supportThemeIcons = value;
+	get suppowtThemeIcons(): boowean | undefined {
+		wetuwn this.#dewegate.suppowtThemeIcons;
 	}
 
-	get supportHtml(): boolean | undefined {
-		return this.#delegate.supportHtml;
+	set suppowtThemeIcons(vawue: boowean | undefined) {
+		this.#dewegate.suppowtThemeIcons = vawue;
 	}
 
-	set supportHtml(value: boolean | undefined) {
-		this.#delegate.supportHtml = value;
+	get suppowtHtmw(): boowean | undefined {
+		wetuwn this.#dewegate.suppowtHtmw;
 	}
 
-	appendText(value: string): vscode.MarkdownString {
-		this.#delegate.appendText(value);
-		return this;
+	set suppowtHtmw(vawue: boowean | undefined) {
+		this.#dewegate.suppowtHtmw = vawue;
 	}
 
-	appendMarkdown(value: string): vscode.MarkdownString {
-		this.#delegate.appendMarkdown(value);
-		return this;
+	appendText(vawue: stwing): vscode.MawkdownStwing {
+		this.#dewegate.appendText(vawue);
+		wetuwn this;
 	}
 
-	appendCodeblock(value: string, language?: string): vscode.MarkdownString {
-		this.#delegate.appendCodeblock(language ?? '', value);
-		return this;
+	appendMawkdown(vawue: stwing): vscode.MawkdownStwing {
+		this.#dewegate.appendMawkdown(vawue);
+		wetuwn this;
+	}
+
+	appendCodebwock(vawue: stwing, wanguage?: stwing): vscode.MawkdownStwing {
+		this.#dewegate.appendCodebwock(wanguage ?? '', vawue);
+		wetuwn this;
 	}
 }
 
-@es5ClassCompat
-export class ParameterInformation {
+@es5CwassCompat
+expowt cwass PawametewInfowmation {
 
-	label: string | [number, number];
-	documentation?: string | vscode.MarkdownString;
+	wabew: stwing | [numba, numba];
+	documentation?: stwing | vscode.MawkdownStwing;
 
-	constructor(label: string | [number, number], documentation?: string | vscode.MarkdownString) {
-		this.label = label;
+	constwuctow(wabew: stwing | [numba, numba], documentation?: stwing | vscode.MawkdownStwing) {
+		this.wabew = wabew;
 		this.documentation = documentation;
 	}
 }
 
-@es5ClassCompat
-export class SignatureInformation {
+@es5CwassCompat
+expowt cwass SignatuweInfowmation {
 
-	label: string;
-	documentation?: string | vscode.MarkdownString;
-	parameters: ParameterInformation[];
-	activeParameter?: number;
+	wabew: stwing;
+	documentation?: stwing | vscode.MawkdownStwing;
+	pawametews: PawametewInfowmation[];
+	activePawameta?: numba;
 
-	constructor(label: string, documentation?: string | vscode.MarkdownString) {
-		this.label = label;
+	constwuctow(wabew: stwing, documentation?: stwing | vscode.MawkdownStwing) {
+		this.wabew = wabew;
 		this.documentation = documentation;
-		this.parameters = [];
+		this.pawametews = [];
 	}
 }
 
-@es5ClassCompat
-export class SignatureHelp {
+@es5CwassCompat
+expowt cwass SignatuweHewp {
 
-	signatures: SignatureInformation[];
-	activeSignature: number = 0;
-	activeParameter: number = 0;
+	signatuwes: SignatuweInfowmation[];
+	activeSignatuwe: numba = 0;
+	activePawameta: numba = 0;
 
-	constructor() {
-		this.signatures = [];
+	constwuctow() {
+		this.signatuwes = [];
 	}
 }
 
-export enum SignatureHelpTriggerKind {
+expowt enum SignatuweHewpTwiggewKind {
 	Invoke = 1,
-	TriggerCharacter = 2,
+	TwiggewChawacta = 2,
 	ContentChange = 3,
 }
 
 
-export enum InlayHintKind {
-	Other = 0,
+expowt enum InwayHintKind {
+	Otha = 0,
 	Type = 1,
-	Parameter = 2,
+	Pawameta = 2,
 }
 
-@es5ClassCompat
-export class InlayHint {
-	text: string;
+@es5CwassCompat
+expowt cwass InwayHint {
+	text: stwing;
 	position: Position;
-	kind?: vscode.InlayHintKind;
-	whitespaceBefore?: boolean;
-	whitespaceAfter?: boolean;
+	kind?: vscode.InwayHintKind;
+	whitespaceBefowe?: boowean;
+	whitespaceAfta?: boowean;
 
-	constructor(text: string, position: Position, kind?: vscode.InlayHintKind) {
+	constwuctow(text: stwing, position: Position, kind?: vscode.InwayHintKind) {
 		this.text = text;
 		this.position = position;
 		this.kind = kind;
 	}
 }
 
-export enum CompletionTriggerKind {
+expowt enum CompwetionTwiggewKind {
 	Invoke = 0,
-	TriggerCharacter = 1,
-	TriggerForIncompleteCompletions = 2
+	TwiggewChawacta = 1,
+	TwiggewFowIncompweteCompwetions = 2
 }
 
-export interface CompletionContext {
-	readonly triggerKind: CompletionTriggerKind;
-	readonly triggerCharacter?: string;
+expowt intewface CompwetionContext {
+	weadonwy twiggewKind: CompwetionTwiggewKind;
+	weadonwy twiggewChawacta?: stwing;
 }
 
-export enum CompletionItemKind {
+expowt enum CompwetionItemKind {
 	Text = 0,
 	Method = 1,
 	Function = 2,
-	Constructor = 3,
-	Field = 4,
-	Variable = 5,
-	Class = 6,
-	Interface = 7,
-	Module = 8,
-	Property = 9,
+	Constwuctow = 3,
+	Fiewd = 4,
+	Vawiabwe = 5,
+	Cwass = 6,
+	Intewface = 7,
+	Moduwe = 8,
+	Pwopewty = 9,
 	Unit = 10,
-	Value = 11,
+	Vawue = 11,
 	Enum = 12,
-	Keyword = 13,
+	Keywowd = 13,
 	Snippet = 14,
-	Color = 15,
-	File = 16,
-	Reference = 17,
-	Folder = 18,
-	EnumMember = 19,
+	Cowow = 15,
+	Fiwe = 16,
+	Wefewence = 17,
+	Fowda = 18,
+	EnumMemba = 19,
 	Constant = 20,
-	Struct = 21,
+	Stwuct = 21,
 	Event = 22,
-	Operator = 23,
-	TypeParameter = 24,
-	User = 25,
+	Opewatow = 23,
+	TypePawameta = 24,
+	Usa = 25,
 	Issue = 26
 }
 
-export enum CompletionItemTag {
-	Deprecated = 1,
+expowt enum CompwetionItemTag {
+	Depwecated = 1,
 }
 
-export interface CompletionItemLabel {
-	label: string;
-	detail?: string;
-	description?: string;
+expowt intewface CompwetionItemWabew {
+	wabew: stwing;
+	detaiw?: stwing;
+	descwiption?: stwing;
 }
 
-@es5ClassCompat
-export class CompletionItem implements vscode.CompletionItem {
+@es5CwassCompat
+expowt cwass CompwetionItem impwements vscode.CompwetionItem {
 
-	label: string | CompletionItemLabel;
-	kind?: CompletionItemKind;
-	tags?: CompletionItemTag[];
-	detail?: string;
-	documentation?: string | vscode.MarkdownString;
-	sortText?: string;
-	filterText?: string;
-	preselect?: boolean;
-	insertText?: string | SnippetString;
-	keepWhitespace?: boolean;
-	range?: Range | { inserting: Range; replacing: Range; };
-	commitCharacters?: string[];
+	wabew: stwing | CompwetionItemWabew;
+	kind?: CompwetionItemKind;
+	tags?: CompwetionItemTag[];
+	detaiw?: stwing;
+	documentation?: stwing | vscode.MawkdownStwing;
+	sowtText?: stwing;
+	fiwtewText?: stwing;
+	pwesewect?: boowean;
+	insewtText?: stwing | SnippetStwing;
+	keepWhitespace?: boowean;
+	wange?: Wange | { insewting: Wange; wepwacing: Wange; };
+	commitChawactews?: stwing[];
 	textEdit?: TextEdit;
-	additionalTextEdits?: TextEdit[];
+	additionawTextEdits?: TextEdit[];
 	command?: vscode.Command;
 
-	constructor(label: string | CompletionItemLabel, kind?: CompletionItemKind) {
-		this.label = label;
+	constwuctow(wabew: stwing | CompwetionItemWabew, kind?: CompwetionItemKind) {
+		this.wabew = wabew;
 		this.kind = kind;
 	}
 
 	toJSON(): any {
-		return {
-			label: this.label,
-			kind: this.kind && CompletionItemKind[this.kind],
-			detail: this.detail,
+		wetuwn {
+			wabew: this.wabew,
+			kind: this.kind && CompwetionItemKind[this.kind],
+			detaiw: this.detaiw,
 			documentation: this.documentation,
-			sortText: this.sortText,
-			filterText: this.filterText,
-			preselect: this.preselect,
-			insertText: this.insertText,
+			sowtText: this.sowtText,
+			fiwtewText: this.fiwtewText,
+			pwesewect: this.pwesewect,
+			insewtText: this.insewtText,
 			textEdit: this.textEdit
 		};
 	}
 }
 
-@es5ClassCompat
-export class CompletionList {
+@es5CwassCompat
+expowt cwass CompwetionWist {
 
-	isIncomplete?: boolean;
-	items: vscode.CompletionItem[];
+	isIncompwete?: boowean;
+	items: vscode.CompwetionItem[];
 
-	constructor(items: vscode.CompletionItem[] = [], isIncomplete: boolean = false) {
+	constwuctow(items: vscode.CompwetionItem[] = [], isIncompwete: boowean = fawse) {
 		this.items = items;
-		this.isIncomplete = isIncomplete;
+		this.isIncompwete = isIncompwete;
 	}
 }
 
-@es5ClassCompat
-export class InlineSuggestion implements vscode.InlineCompletionItem {
+@es5CwassCompat
+expowt cwass InwineSuggestion impwements vscode.InwineCompwetionItem {
 
-	text: string;
-	range?: Range;
+	text: stwing;
+	wange?: Wange;
 	command?: vscode.Command;
 
-	constructor(text: string, range?: Range, command?: vscode.Command) {
+	constwuctow(text: stwing, wange?: Wange, command?: vscode.Command) {
 		this.text = text;
-		this.range = range;
+		this.wange = wange;
 		this.command = command;
 	}
 }
 
-@es5ClassCompat
-export class InlineSuggestions implements vscode.InlineCompletionList {
-	items: vscode.InlineCompletionItem[];
+@es5CwassCompat
+expowt cwass InwineSuggestions impwements vscode.InwineCompwetionWist {
+	items: vscode.InwineCompwetionItem[];
 
-	constructor(items: vscode.InlineCompletionItem[]) {
+	constwuctow(items: vscode.InwineCompwetionItem[]) {
 		this.items = items;
 	}
 }
 
-export enum ViewColumn {
+expowt enum ViewCowumn {
 	Active = -1,
 	Beside = -2,
 	One = 1,
 	Two = 2,
-	Three = 3,
-	Four = 4,
+	Thwee = 3,
+	Fouw = 4,
 	Five = 5,
 	Six = 6,
 	Seven = 7,
@@ -1573,1898 +1573,1898 @@ export enum ViewColumn {
 	Nine = 9
 }
 
-export enum StatusBarAlignment {
-	Left = 1,
-	Right = 2
+expowt enum StatusBawAwignment {
+	Weft = 1,
+	Wight = 2
 }
 
-export enum TextEditorLineNumbersStyle {
+expowt enum TextEditowWineNumbewsStywe {
 	Off = 0,
 	On = 1,
-	Relative = 2
+	Wewative = 2
 }
 
-export enum TextDocumentSaveReason {
-	Manual = 1,
-	AfterDelay = 2,
+expowt enum TextDocumentSaveWeason {
+	Manuaw = 1,
+	AftewDeway = 2,
 	FocusOut = 3
 }
 
-export enum TextEditorRevealType {
-	Default = 0,
-	InCenter = 1,
-	InCenterIfOutsideViewport = 2,
+expowt enum TextEditowWeveawType {
+	Defauwt = 0,
+	InCenta = 1,
+	InCentewIfOutsideViewpowt = 2,
 	AtTop = 3
 }
 
-export enum TextEditorSelectionChangeKind {
-	Keyboard = 1,
+expowt enum TextEditowSewectionChangeKind {
+	Keyboawd = 1,
 	Mouse = 2,
 	Command = 3
 }
 
-export enum TextDocumentChangeReason {
+expowt enum TextDocumentChangeWeason {
 	Undo = 1,
-	Redo = 2,
+	Wedo = 2,
 }
 
 /**
- * These values match very carefully the values of `TrackedRangeStickiness`
+ * These vawues match vewy cawefuwwy the vawues of `TwackedWangeStickiness`
  */
-export enum DecorationRangeBehavior {
+expowt enum DecowationWangeBehaviow {
 	/**
-	 * TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+	 * TwackedWangeStickiness.AwwaysGwowsWhenTypingAtEdges
 	 */
 	OpenOpen = 0,
 	/**
-	 * TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+	 * TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges
 	 */
-	ClosedClosed = 1,
+	CwosedCwosed = 1,
 	/**
-	 * TrackedRangeStickiness.GrowsOnlyWhenTypingBefore
+	 * TwackedWangeStickiness.GwowsOnwyWhenTypingBefowe
 	 */
-	OpenClosed = 2,
+	OpenCwosed = 2,
 	/**
-	 * TrackedRangeStickiness.GrowsOnlyWhenTypingAfter
+	 * TwackedWangeStickiness.GwowsOnwyWhenTypingAfta
 	 */
-	ClosedOpen = 3
+	CwosedOpen = 3
 }
 
-export namespace TextEditorSelectionChangeKind {
-	export function fromValue(s: string | undefined) {
+expowt namespace TextEditowSewectionChangeKind {
+	expowt function fwomVawue(s: stwing | undefined) {
 		switch (s) {
-			case 'keyboard': return TextEditorSelectionChangeKind.Keyboard;
-			case 'mouse': return TextEditorSelectionChangeKind.Mouse;
-			case 'api': return TextEditorSelectionChangeKind.Command;
+			case 'keyboawd': wetuwn TextEditowSewectionChangeKind.Keyboawd;
+			case 'mouse': wetuwn TextEditowSewectionChangeKind.Mouse;
+			case 'api': wetuwn TextEditowSewectionChangeKind.Command;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-@es5ClassCompat
-export class DocumentLink {
+@es5CwassCompat
+expowt cwass DocumentWink {
 
-	range: Range;
+	wange: Wange;
 
-	target?: URI;
+	tawget?: UWI;
 
-	tooltip?: string;
+	toowtip?: stwing;
 
-	constructor(range: Range, target: URI | undefined) {
-		if (target && !(URI.isUri(target))) {
-			throw illegalArgument('target');
+	constwuctow(wange: Wange, tawget: UWI | undefined) {
+		if (tawget && !(UWI.isUwi(tawget))) {
+			thwow iwwegawAwgument('tawget');
 		}
-		if (!Range.isRange(range) || range.isEmpty) {
-			throw illegalArgument('range');
+		if (!Wange.isWange(wange) || wange.isEmpty) {
+			thwow iwwegawAwgument('wange');
 		}
-		this.range = range;
-		this.target = target;
+		this.wange = wange;
+		this.tawget = tawget;
 	}
 }
 
-@es5ClassCompat
-export class Color {
-	readonly red: number;
-	readonly green: number;
-	readonly blue: number;
-	readonly alpha: number;
+@es5CwassCompat
+expowt cwass Cowow {
+	weadonwy wed: numba;
+	weadonwy gween: numba;
+	weadonwy bwue: numba;
+	weadonwy awpha: numba;
 
-	constructor(red: number, green: number, blue: number, alpha: number) {
-		this.red = red;
-		this.green = green;
-		this.blue = blue;
-		this.alpha = alpha;
+	constwuctow(wed: numba, gween: numba, bwue: numba, awpha: numba) {
+		this.wed = wed;
+		this.gween = gween;
+		this.bwue = bwue;
+		this.awpha = awpha;
 	}
 }
 
-export type IColorFormat = string | { opaque: string, transparent: string; };
+expowt type ICowowFowmat = stwing | { opaque: stwing, twanspawent: stwing; };
 
-@es5ClassCompat
-export class ColorInformation {
-	range: Range;
+@es5CwassCompat
+expowt cwass CowowInfowmation {
+	wange: Wange;
 
-	color: Color;
+	cowow: Cowow;
 
-	constructor(range: Range, color: Color) {
-		if (color && !(color instanceof Color)) {
-			throw illegalArgument('color');
+	constwuctow(wange: Wange, cowow: Cowow) {
+		if (cowow && !(cowow instanceof Cowow)) {
+			thwow iwwegawAwgument('cowow');
 		}
-		if (!Range.isRange(range) || range.isEmpty) {
-			throw illegalArgument('range');
+		if (!Wange.isWange(wange) || wange.isEmpty) {
+			thwow iwwegawAwgument('wange');
 		}
-		this.range = range;
-		this.color = color;
+		this.wange = wange;
+		this.cowow = cowow;
 	}
 }
 
-@es5ClassCompat
-export class ColorPresentation {
-	label: string;
+@es5CwassCompat
+expowt cwass CowowPwesentation {
+	wabew: stwing;
 	textEdit?: TextEdit;
-	additionalTextEdits?: TextEdit[];
+	additionawTextEdits?: TextEdit[];
 
-	constructor(label: string) {
-		if (!label || typeof label !== 'string') {
-			throw illegalArgument('label');
+	constwuctow(wabew: stwing) {
+		if (!wabew || typeof wabew !== 'stwing') {
+			thwow iwwegawAwgument('wabew');
 		}
-		this.label = label;
+		this.wabew = wabew;
 	}
 }
 
-export enum ColorFormat {
-	RGB = 0,
+expowt enum CowowFowmat {
+	WGB = 0,
 	HEX = 1,
-	HSL = 2
+	HSW = 2
 }
 
-export enum SourceControlInputBoxValidationType {
-	Error = 0,
-	Warning = 1,
-	Information = 2
+expowt enum SouwceContwowInputBoxVawidationType {
+	Ewwow = 0,
+	Wawning = 1,
+	Infowmation = 2
 }
 
-export class TerminalLink implements vscode.TerminalLink {
-	constructor(
-		public startIndex: number,
-		public length: number,
-		public tooltip?: string
+expowt cwass TewminawWink impwements vscode.TewminawWink {
+	constwuctow(
+		pubwic stawtIndex: numba,
+		pubwic wength: numba,
+		pubwic toowtip?: stwing
 	) {
-		if (typeof startIndex !== 'number' || startIndex < 0) {
-			throw illegalArgument('startIndex');
+		if (typeof stawtIndex !== 'numba' || stawtIndex < 0) {
+			thwow iwwegawAwgument('stawtIndex');
 		}
-		if (typeof length !== 'number' || length < 1) {
-			throw illegalArgument('length');
+		if (typeof wength !== 'numba' || wength < 1) {
+			thwow iwwegawAwgument('wength');
 		}
-		if (tooltip !== undefined && typeof tooltip !== 'string') {
-			throw illegalArgument('tooltip');
+		if (toowtip !== undefined && typeof toowtip !== 'stwing') {
+			thwow iwwegawAwgument('toowtip');
 		}
 	}
 }
 
-export enum TerminalLocation {
-	Panel = 1,
-	Editor = 2,
+expowt enum TewminawWocation {
+	Panew = 1,
+	Editow = 2,
 }
 
-export class TerminalProfile implements vscode.TerminalProfile {
-	constructor(
-		public options: vscode.TerminalOptions | vscode.ExtensionTerminalOptions
+expowt cwass TewminawPwofiwe impwements vscode.TewminawPwofiwe {
+	constwuctow(
+		pubwic options: vscode.TewminawOptions | vscode.ExtensionTewminawOptions
 	) {
 		if (typeof options !== 'object') {
-			illegalArgument('options');
+			iwwegawAwgument('options');
 		}
 	}
 }
 
-export enum TaskRevealKind {
-	Always = 1,
+expowt enum TaskWeveawKind {
+	Awways = 1,
 
-	Silent = 2,
+	Siwent = 2,
 
-	Never = 3
+	Neva = 3
 }
 
-export enum TaskPanelKind {
-	Shared = 1,
+expowt enum TaskPanewKind {
+	Shawed = 1,
 
 	Dedicated = 2,
 
 	New = 3
 }
 
-@es5ClassCompat
-export class TaskGroup implements vscode.TaskGroup {
+@es5CwassCompat
+expowt cwass TaskGwoup impwements vscode.TaskGwoup {
 
-	isDefault?: boolean;
-	private _id: string;
+	isDefauwt?: boowean;
+	pwivate _id: stwing;
 
-	public static Clean: TaskGroup = new TaskGroup('clean', 'Clean');
+	pubwic static Cwean: TaskGwoup = new TaskGwoup('cwean', 'Cwean');
 
-	public static Build: TaskGroup = new TaskGroup('build', 'Build');
+	pubwic static Buiwd: TaskGwoup = new TaskGwoup('buiwd', 'Buiwd');
 
-	public static Rebuild: TaskGroup = new TaskGroup('rebuild', 'Rebuild');
+	pubwic static Webuiwd: TaskGwoup = new TaskGwoup('webuiwd', 'Webuiwd');
 
-	public static Test: TaskGroup = new TaskGroup('test', 'Test');
+	pubwic static Test: TaskGwoup = new TaskGwoup('test', 'Test');
 
-	public static from(value: string) {
-		switch (value) {
-			case 'clean':
-				return TaskGroup.Clean;
-			case 'build':
-				return TaskGroup.Build;
-			case 'rebuild':
-				return TaskGroup.Rebuild;
+	pubwic static fwom(vawue: stwing) {
+		switch (vawue) {
+			case 'cwean':
+				wetuwn TaskGwoup.Cwean;
+			case 'buiwd':
+				wetuwn TaskGwoup.Buiwd;
+			case 'webuiwd':
+				wetuwn TaskGwoup.Webuiwd;
 			case 'test':
-				return TaskGroup.Test;
-			default:
-				return undefined;
+				wetuwn TaskGwoup.Test;
+			defauwt:
+				wetuwn undefined;
 		}
 	}
 
-	constructor(id: string, public readonly label: string) {
-		if (typeof id !== 'string') {
-			throw illegalArgument('name');
+	constwuctow(id: stwing, pubwic weadonwy wabew: stwing) {
+		if (typeof id !== 'stwing') {
+			thwow iwwegawAwgument('name');
 		}
-		if (typeof label !== 'string') {
-			throw illegalArgument('name');
+		if (typeof wabew !== 'stwing') {
+			thwow iwwegawAwgument('name');
 		}
 		this._id = id;
 	}
 
-	get id(): string {
-		return this._id;
+	get id(): stwing {
+		wetuwn this._id;
 	}
 }
 
-function computeTaskExecutionId(values: string[]): string {
-	let id: string = '';
-	for (let i = 0; i < values.length; i++) {
-		id += values[i].replace(/,/g, ',,') + ',';
+function computeTaskExecutionId(vawues: stwing[]): stwing {
+	wet id: stwing = '';
+	fow (wet i = 0; i < vawues.wength; i++) {
+		id += vawues[i].wepwace(/,/g, ',,') + ',';
 	}
-	return id;
+	wetuwn id;
 }
 
-@es5ClassCompat
-export class ProcessExecution implements vscode.ProcessExecution {
+@es5CwassCompat
+expowt cwass PwocessExecution impwements vscode.PwocessExecution {
 
-	private _process: string;
-	private _args: string[];
-	private _options: vscode.ProcessExecutionOptions | undefined;
+	pwivate _pwocess: stwing;
+	pwivate _awgs: stwing[];
+	pwivate _options: vscode.PwocessExecutionOptions | undefined;
 
-	constructor(process: string, options?: vscode.ProcessExecutionOptions);
-	constructor(process: string, args: string[], options?: vscode.ProcessExecutionOptions);
-	constructor(process: string, varg1?: string[] | vscode.ProcessExecutionOptions, varg2?: vscode.ProcessExecutionOptions) {
-		if (typeof process !== 'string') {
-			throw illegalArgument('process');
+	constwuctow(pwocess: stwing, options?: vscode.PwocessExecutionOptions);
+	constwuctow(pwocess: stwing, awgs: stwing[], options?: vscode.PwocessExecutionOptions);
+	constwuctow(pwocess: stwing, vawg1?: stwing[] | vscode.PwocessExecutionOptions, vawg2?: vscode.PwocessExecutionOptions) {
+		if (typeof pwocess !== 'stwing') {
+			thwow iwwegawAwgument('pwocess');
 		}
-		this._args = [];
-		this._process = process;
-		if (varg1 !== undefined) {
-			if (Array.isArray(varg1)) {
-				this._args = varg1;
-				this._options = varg2;
-			} else {
-				this._options = varg1;
+		this._awgs = [];
+		this._pwocess = pwocess;
+		if (vawg1 !== undefined) {
+			if (Awway.isAwway(vawg1)) {
+				this._awgs = vawg1;
+				this._options = vawg2;
+			} ewse {
+				this._options = vawg1;
 			}
 		}
 	}
 
 
-	get process(): string {
-		return this._process;
+	get pwocess(): stwing {
+		wetuwn this._pwocess;
 	}
 
-	set process(value: string) {
-		if (typeof value !== 'string') {
-			throw illegalArgument('process');
+	set pwocess(vawue: stwing) {
+		if (typeof vawue !== 'stwing') {
+			thwow iwwegawAwgument('pwocess');
 		}
-		this._process = value;
+		this._pwocess = vawue;
 	}
 
-	get args(): string[] {
-		return this._args;
+	get awgs(): stwing[] {
+		wetuwn this._awgs;
 	}
 
-	set args(value: string[]) {
-		if (!Array.isArray(value)) {
-			value = [];
+	set awgs(vawue: stwing[]) {
+		if (!Awway.isAwway(vawue)) {
+			vawue = [];
 		}
-		this._args = value;
+		this._awgs = vawue;
 	}
 
-	get options(): vscode.ProcessExecutionOptions | undefined {
-		return this._options;
+	get options(): vscode.PwocessExecutionOptions | undefined {
+		wetuwn this._options;
 	}
 
-	set options(value: vscode.ProcessExecutionOptions | undefined) {
-		this._options = value;
+	set options(vawue: vscode.PwocessExecutionOptions | undefined) {
+		this._options = vawue;
 	}
 
-	public computeId(): string {
-		const props: string[] = [];
-		props.push('process');
-		if (this._process !== undefined) {
-			props.push(this._process);
+	pubwic computeId(): stwing {
+		const pwops: stwing[] = [];
+		pwops.push('pwocess');
+		if (this._pwocess !== undefined) {
+			pwops.push(this._pwocess);
 		}
-		if (this._args && this._args.length > 0) {
-			for (let arg of this._args) {
-				props.push(arg);
+		if (this._awgs && this._awgs.wength > 0) {
+			fow (wet awg of this._awgs) {
+				pwops.push(awg);
 			}
 		}
-		return computeTaskExecutionId(props);
+		wetuwn computeTaskExecutionId(pwops);
 	}
 }
 
-@es5ClassCompat
-export class ShellExecution implements vscode.ShellExecution {
+@es5CwassCompat
+expowt cwass ShewwExecution impwements vscode.ShewwExecution {
 
-	private _commandLine: string | undefined;
-	private _command: string | vscode.ShellQuotedString | undefined;
-	private _args: (string | vscode.ShellQuotedString)[] = [];
-	private _options: vscode.ShellExecutionOptions | undefined;
+	pwivate _commandWine: stwing | undefined;
+	pwivate _command: stwing | vscode.ShewwQuotedStwing | undefined;
+	pwivate _awgs: (stwing | vscode.ShewwQuotedStwing)[] = [];
+	pwivate _options: vscode.ShewwExecutionOptions | undefined;
 
-	constructor(commandLine: string, options?: vscode.ShellExecutionOptions);
-	constructor(command: string | vscode.ShellQuotedString, args: (string | vscode.ShellQuotedString)[], options?: vscode.ShellExecutionOptions);
-	constructor(arg0: string | vscode.ShellQuotedString, arg1?: vscode.ShellExecutionOptions | (string | vscode.ShellQuotedString)[], arg2?: vscode.ShellExecutionOptions) {
-		if (Array.isArray(arg1)) {
-			if (!arg0) {
-				throw illegalArgument('command can\'t be undefined or null');
+	constwuctow(commandWine: stwing, options?: vscode.ShewwExecutionOptions);
+	constwuctow(command: stwing | vscode.ShewwQuotedStwing, awgs: (stwing | vscode.ShewwQuotedStwing)[], options?: vscode.ShewwExecutionOptions);
+	constwuctow(awg0: stwing | vscode.ShewwQuotedStwing, awg1?: vscode.ShewwExecutionOptions | (stwing | vscode.ShewwQuotedStwing)[], awg2?: vscode.ShewwExecutionOptions) {
+		if (Awway.isAwway(awg1)) {
+			if (!awg0) {
+				thwow iwwegawAwgument('command can\'t be undefined ow nuww');
 			}
-			if (typeof arg0 !== 'string' && typeof arg0.value !== 'string') {
-				throw illegalArgument('command');
+			if (typeof awg0 !== 'stwing' && typeof awg0.vawue !== 'stwing') {
+				thwow iwwegawAwgument('command');
 			}
-			this._command = arg0;
-			this._args = arg1 as (string | vscode.ShellQuotedString)[];
-			this._options = arg2;
-		} else {
-			if (typeof arg0 !== 'string') {
-				throw illegalArgument('commandLine');
+			this._command = awg0;
+			this._awgs = awg1 as (stwing | vscode.ShewwQuotedStwing)[];
+			this._options = awg2;
+		} ewse {
+			if (typeof awg0 !== 'stwing') {
+				thwow iwwegawAwgument('commandWine');
 			}
-			this._commandLine = arg0;
-			this._options = arg1;
+			this._commandWine = awg0;
+			this._options = awg1;
 		}
 	}
 
-	get commandLine(): string | undefined {
-		return this._commandLine;
+	get commandWine(): stwing | undefined {
+		wetuwn this._commandWine;
 	}
 
-	set commandLine(value: string | undefined) {
-		if (typeof value !== 'string') {
-			throw illegalArgument('commandLine');
+	set commandWine(vawue: stwing | undefined) {
+		if (typeof vawue !== 'stwing') {
+			thwow iwwegawAwgument('commandWine');
 		}
-		this._commandLine = value;
+		this._commandWine = vawue;
 	}
 
-	get command(): string | vscode.ShellQuotedString {
-		return this._command ? this._command : '';
+	get command(): stwing | vscode.ShewwQuotedStwing {
+		wetuwn this._command ? this._command : '';
 	}
 
-	set command(value: string | vscode.ShellQuotedString) {
-		if (typeof value !== 'string' && typeof value.value !== 'string') {
-			throw illegalArgument('command');
+	set command(vawue: stwing | vscode.ShewwQuotedStwing) {
+		if (typeof vawue !== 'stwing' && typeof vawue.vawue !== 'stwing') {
+			thwow iwwegawAwgument('command');
 		}
-		this._command = value;
+		this._command = vawue;
 	}
 
-	get args(): (string | vscode.ShellQuotedString)[] {
-		return this._args;
+	get awgs(): (stwing | vscode.ShewwQuotedStwing)[] {
+		wetuwn this._awgs;
 	}
 
-	set args(value: (string | vscode.ShellQuotedString)[]) {
-		this._args = value || [];
+	set awgs(vawue: (stwing | vscode.ShewwQuotedStwing)[]) {
+		this._awgs = vawue || [];
 	}
 
-	get options(): vscode.ShellExecutionOptions | undefined {
-		return this._options;
+	get options(): vscode.ShewwExecutionOptions | undefined {
+		wetuwn this._options;
 	}
 
-	set options(value: vscode.ShellExecutionOptions | undefined) {
-		this._options = value;
+	set options(vawue: vscode.ShewwExecutionOptions | undefined) {
+		this._options = vawue;
 	}
 
-	public computeId(): string {
-		const props: string[] = [];
-		props.push('shell');
-		if (this._commandLine !== undefined) {
-			props.push(this._commandLine);
+	pubwic computeId(): stwing {
+		const pwops: stwing[] = [];
+		pwops.push('sheww');
+		if (this._commandWine !== undefined) {
+			pwops.push(this._commandWine);
 		}
 		if (this._command !== undefined) {
-			props.push(typeof this._command === 'string' ? this._command : this._command.value);
+			pwops.push(typeof this._command === 'stwing' ? this._command : this._command.vawue);
 		}
-		if (this._args && this._args.length > 0) {
-			for (let arg of this._args) {
-				props.push(typeof arg === 'string' ? arg : arg.value);
+		if (this._awgs && this._awgs.wength > 0) {
+			fow (wet awg of this._awgs) {
+				pwops.push(typeof awg === 'stwing' ? awg : awg.vawue);
 			}
 		}
-		return computeTaskExecutionId(props);
+		wetuwn computeTaskExecutionId(pwops);
 	}
 }
 
-export enum ShellQuoting {
+expowt enum ShewwQuoting {
 	Escape = 1,
-	Strong = 2,
+	Stwong = 2,
 	Weak = 3
 }
 
-export enum TaskScope {
-	Global = 1,
-	Workspace = 2
+expowt enum TaskScope {
+	Gwobaw = 1,
+	Wowkspace = 2
 }
 
-export class CustomExecution implements vscode.CustomExecution {
-	private _callback: (resolvedDefintion: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>;
-	constructor(callback: (resolvedDefintion: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
-		this._callback = callback;
+expowt cwass CustomExecution impwements vscode.CustomExecution {
+	pwivate _cawwback: (wesowvedDefintion: vscode.TaskDefinition) => Thenabwe<vscode.Pseudotewminaw>;
+	constwuctow(cawwback: (wesowvedDefintion: vscode.TaskDefinition) => Thenabwe<vscode.Pseudotewminaw>) {
+		this._cawwback = cawwback;
 	}
-	public computeId(): string {
-		return 'customExecution' + generateUuid();
-	}
-
-	public set callback(value: (resolvedDefintion: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
-		this._callback = value;
+	pubwic computeId(): stwing {
+		wetuwn 'customExecution' + genewateUuid();
 	}
 
-	public get callback(): ((resolvedDefintion: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
-		return this._callback;
+	pubwic set cawwback(vawue: (wesowvedDefintion: vscode.TaskDefinition) => Thenabwe<vscode.Pseudotewminaw>) {
+		this._cawwback = vawue;
+	}
+
+	pubwic get cawwback(): ((wesowvedDefintion: vscode.TaskDefinition) => Thenabwe<vscode.Pseudotewminaw>) {
+		wetuwn this._cawwback;
 	}
 }
 
-@es5ClassCompat
-export class Task implements vscode.Task {
+@es5CwassCompat
+expowt cwass Task impwements vscode.Task {
 
-	private static ExtensionCallbackType: string = 'customExecution';
-	private static ProcessType: string = 'process';
-	private static ShellType: string = 'shell';
-	private static EmptyType: string = '$empty';
+	pwivate static ExtensionCawwbackType: stwing = 'customExecution';
+	pwivate static PwocessType: stwing = 'pwocess';
+	pwivate static ShewwType: stwing = 'sheww';
+	pwivate static EmptyType: stwing = '$empty';
 
-	private __id: string | undefined;
-	private __deprecated: boolean = false;
+	pwivate __id: stwing | undefined;
+	pwivate __depwecated: boowean = fawse;
 
-	private _definition: vscode.TaskDefinition;
-	private _scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder | undefined;
-	private _name: string;
-	private _execution: ProcessExecution | ShellExecution | CustomExecution | undefined;
-	private _problemMatchers: string[];
-	private _hasDefinedMatchers: boolean;
-	private _isBackground: boolean;
-	private _source: string;
-	private _group: TaskGroup | undefined;
-	private _presentationOptions: vscode.TaskPresentationOptions;
-	private _runOptions: vscode.RunOptions;
-	private _detail: string | undefined;
+	pwivate _definition: vscode.TaskDefinition;
+	pwivate _scope: vscode.TaskScope.Gwobaw | vscode.TaskScope.Wowkspace | vscode.WowkspaceFowda | undefined;
+	pwivate _name: stwing;
+	pwivate _execution: PwocessExecution | ShewwExecution | CustomExecution | undefined;
+	pwivate _pwobwemMatchews: stwing[];
+	pwivate _hasDefinedMatchews: boowean;
+	pwivate _isBackgwound: boowean;
+	pwivate _souwce: stwing;
+	pwivate _gwoup: TaskGwoup | undefined;
+	pwivate _pwesentationOptions: vscode.TaskPwesentationOptions;
+	pwivate _wunOptions: vscode.WunOptions;
+	pwivate _detaiw: stwing | undefined;
 
-	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
-	constructor(definition: vscode.TaskDefinition, scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
-	constructor(definition: vscode.TaskDefinition, arg2: string | (vscode.TaskScope.Global | vscode.TaskScope.Workspace) | vscode.WorkspaceFolder, arg3: any, arg4?: any, arg5?: any, arg6?: any) {
+	constwuctow(definition: vscode.TaskDefinition, name: stwing, souwce: stwing, execution?: PwocessExecution | ShewwExecution | CustomExecution, pwobwemMatchews?: stwing | stwing[]);
+	constwuctow(definition: vscode.TaskDefinition, scope: vscode.TaskScope.Gwobaw | vscode.TaskScope.Wowkspace | vscode.WowkspaceFowda, name: stwing, souwce: stwing, execution?: PwocessExecution | ShewwExecution | CustomExecution, pwobwemMatchews?: stwing | stwing[]);
+	constwuctow(definition: vscode.TaskDefinition, awg2: stwing | (vscode.TaskScope.Gwobaw | vscode.TaskScope.Wowkspace) | vscode.WowkspaceFowda, awg3: any, awg4?: any, awg5?: any, awg6?: any) {
 		this._definition = this.definition = definition;
-		let problemMatchers: string | string[];
-		if (typeof arg2 === 'string') {
-			this._name = this.name = arg2;
-			this._source = this.source = arg3;
-			this.execution = arg4;
-			problemMatchers = arg5;
-			this.__deprecated = true;
-		} else if (arg2 === TaskScope.Global || arg2 === TaskScope.Workspace) {
-			this.target = arg2;
-			this._name = this.name = arg3;
-			this._source = this.source = arg4;
-			this.execution = arg5;
-			problemMatchers = arg6;
-		} else {
-			this.target = arg2;
-			this._name = this.name = arg3;
-			this._source = this.source = arg4;
-			this.execution = arg5;
-			problemMatchers = arg6;
+		wet pwobwemMatchews: stwing | stwing[];
+		if (typeof awg2 === 'stwing') {
+			this._name = this.name = awg2;
+			this._souwce = this.souwce = awg3;
+			this.execution = awg4;
+			pwobwemMatchews = awg5;
+			this.__depwecated = twue;
+		} ewse if (awg2 === TaskScope.Gwobaw || awg2 === TaskScope.Wowkspace) {
+			this.tawget = awg2;
+			this._name = this.name = awg3;
+			this._souwce = this.souwce = awg4;
+			this.execution = awg5;
+			pwobwemMatchews = awg6;
+		} ewse {
+			this.tawget = awg2;
+			this._name = this.name = awg3;
+			this._souwce = this.souwce = awg4;
+			this.execution = awg5;
+			pwobwemMatchews = awg6;
 		}
-		if (typeof problemMatchers === 'string') {
-			this._problemMatchers = [problemMatchers];
-			this._hasDefinedMatchers = true;
-		} else if (Array.isArray(problemMatchers)) {
-			this._problemMatchers = problemMatchers;
-			this._hasDefinedMatchers = true;
-		} else {
-			this._problemMatchers = [];
-			this._hasDefinedMatchers = false;
+		if (typeof pwobwemMatchews === 'stwing') {
+			this._pwobwemMatchews = [pwobwemMatchews];
+			this._hasDefinedMatchews = twue;
+		} ewse if (Awway.isAwway(pwobwemMatchews)) {
+			this._pwobwemMatchews = pwobwemMatchews;
+			this._hasDefinedMatchews = twue;
+		} ewse {
+			this._pwobwemMatchews = [];
+			this._hasDefinedMatchews = fawse;
 		}
-		this._isBackground = false;
-		this._presentationOptions = Object.create(null);
-		this._runOptions = Object.create(null);
+		this._isBackgwound = fawse;
+		this._pwesentationOptions = Object.cweate(nuww);
+		this._wunOptions = Object.cweate(nuww);
 	}
 
-	get _id(): string | undefined {
-		return this.__id;
+	get _id(): stwing | undefined {
+		wetuwn this.__id;
 	}
 
-	set _id(value: string | undefined) {
-		this.__id = value;
+	set _id(vawue: stwing | undefined) {
+		this.__id = vawue;
 	}
 
-	get _deprecated(): boolean {
-		return this.__deprecated;
+	get _depwecated(): boowean {
+		wetuwn this.__depwecated;
 	}
 
-	private clear(): void {
+	pwivate cweaw(): void {
 		if (this.__id === undefined) {
-			return;
+			wetuwn;
 		}
 		this.__id = undefined;
 		this._scope = undefined;
 		this.computeDefinitionBasedOnExecution();
 	}
 
-	private computeDefinitionBasedOnExecution(): void {
-		if (this._execution instanceof ProcessExecution) {
+	pwivate computeDefinitionBasedOnExecution(): void {
+		if (this._execution instanceof PwocessExecution) {
 			this._definition = {
-				type: Task.ProcessType,
+				type: Task.PwocessType,
 				id: this._execution.computeId()
 			};
-		} else if (this._execution instanceof ShellExecution) {
+		} ewse if (this._execution instanceof ShewwExecution) {
 			this._definition = {
-				type: Task.ShellType,
+				type: Task.ShewwType,
 				id: this._execution.computeId()
 			};
-		} else if (this._execution instanceof CustomExecution) {
+		} ewse if (this._execution instanceof CustomExecution) {
 			this._definition = {
-				type: Task.ExtensionCallbackType,
+				type: Task.ExtensionCawwbackType,
 				id: this._execution.computeId()
 			};
-		} else {
+		} ewse {
 			this._definition = {
 				type: Task.EmptyType,
-				id: generateUuid()
+				id: genewateUuid()
 			};
 		}
 	}
 
 	get definition(): vscode.TaskDefinition {
-		return this._definition;
+		wetuwn this._definition;
 	}
 
-	set definition(value: vscode.TaskDefinition) {
-		if (value === undefined || value === null) {
-			throw illegalArgument('Kind can\'t be undefined or null');
+	set definition(vawue: vscode.TaskDefinition) {
+		if (vawue === undefined || vawue === nuww) {
+			thwow iwwegawAwgument('Kind can\'t be undefined ow nuww');
 		}
-		this.clear();
-		this._definition = value;
+		this.cweaw();
+		this._definition = vawue;
 	}
 
-	get scope(): vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder | undefined {
-		return this._scope;
+	get scope(): vscode.TaskScope.Gwobaw | vscode.TaskScope.Wowkspace | vscode.WowkspaceFowda | undefined {
+		wetuwn this._scope;
 	}
 
-	set target(value: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder) {
-		this.clear();
-		this._scope = value;
+	set tawget(vawue: vscode.TaskScope.Gwobaw | vscode.TaskScope.Wowkspace | vscode.WowkspaceFowda) {
+		this.cweaw();
+		this._scope = vawue;
 	}
 
-	get name(): string {
-		return this._name;
+	get name(): stwing {
+		wetuwn this._name;
 	}
 
-	set name(value: string) {
-		if (typeof value !== 'string') {
-			throw illegalArgument('name');
+	set name(vawue: stwing) {
+		if (typeof vawue !== 'stwing') {
+			thwow iwwegawAwgument('name');
 		}
-		this.clear();
-		this._name = value;
+		this.cweaw();
+		this._name = vawue;
 	}
 
-	get execution(): ProcessExecution | ShellExecution | CustomExecution | undefined {
-		return this._execution;
+	get execution(): PwocessExecution | ShewwExecution | CustomExecution | undefined {
+		wetuwn this._execution;
 	}
 
-	set execution(value: ProcessExecution | ShellExecution | CustomExecution | undefined) {
-		if (value === null) {
-			value = undefined;
+	set execution(vawue: PwocessExecution | ShewwExecution | CustomExecution | undefined) {
+		if (vawue === nuww) {
+			vawue = undefined;
 		}
-		this.clear();
-		this._execution = value;
+		this.cweaw();
+		this._execution = vawue;
 		const type = this._definition.type;
-		if (Task.EmptyType === type || Task.ProcessType === type || Task.ShellType === type || Task.ExtensionCallbackType === type) {
+		if (Task.EmptyType === type || Task.PwocessType === type || Task.ShewwType === type || Task.ExtensionCawwbackType === type) {
 			this.computeDefinitionBasedOnExecution();
 		}
 	}
 
-	get problemMatchers(): string[] {
-		return this._problemMatchers;
+	get pwobwemMatchews(): stwing[] {
+		wetuwn this._pwobwemMatchews;
 	}
 
-	set problemMatchers(value: string[]) {
-		if (!Array.isArray(value)) {
-			this.clear();
-			this._problemMatchers = [];
-			this._hasDefinedMatchers = false;
-			return;
-		} else {
-			this.clear();
-			this._problemMatchers = value;
-			this._hasDefinedMatchers = true;
+	set pwobwemMatchews(vawue: stwing[]) {
+		if (!Awway.isAwway(vawue)) {
+			this.cweaw();
+			this._pwobwemMatchews = [];
+			this._hasDefinedMatchews = fawse;
+			wetuwn;
+		} ewse {
+			this.cweaw();
+			this._pwobwemMatchews = vawue;
+			this._hasDefinedMatchews = twue;
 		}
 	}
 
-	get hasDefinedMatchers(): boolean {
-		return this._hasDefinedMatchers;
+	get hasDefinedMatchews(): boowean {
+		wetuwn this._hasDefinedMatchews;
 	}
 
-	get isBackground(): boolean {
-		return this._isBackground;
+	get isBackgwound(): boowean {
+		wetuwn this._isBackgwound;
 	}
 
-	set isBackground(value: boolean) {
-		if (value !== true && value !== false) {
-			value = false;
+	set isBackgwound(vawue: boowean) {
+		if (vawue !== twue && vawue !== fawse) {
+			vawue = fawse;
 		}
-		this.clear();
-		this._isBackground = value;
+		this.cweaw();
+		this._isBackgwound = vawue;
 	}
 
-	get source(): string {
-		return this._source;
+	get souwce(): stwing {
+		wetuwn this._souwce;
 	}
 
-	set source(value: string) {
-		if (typeof value !== 'string' || value.length === 0) {
-			throw illegalArgument('source must be a string of length > 0');
+	set souwce(vawue: stwing) {
+		if (typeof vawue !== 'stwing' || vawue.wength === 0) {
+			thwow iwwegawAwgument('souwce must be a stwing of wength > 0');
 		}
-		this.clear();
-		this._source = value;
+		this.cweaw();
+		this._souwce = vawue;
 	}
 
-	get group(): TaskGroup | undefined {
-		return this._group;
+	get gwoup(): TaskGwoup | undefined {
+		wetuwn this._gwoup;
 	}
 
-	set group(value: TaskGroup | undefined) {
-		if (value === null) {
-			value = undefined;
+	set gwoup(vawue: TaskGwoup | undefined) {
+		if (vawue === nuww) {
+			vawue = undefined;
 		}
-		this.clear();
-		this._group = value;
+		this.cweaw();
+		this._gwoup = vawue;
 	}
 
-	get detail(): string | undefined {
-		return this._detail;
+	get detaiw(): stwing | undefined {
+		wetuwn this._detaiw;
 	}
 
-	set detail(value: string | undefined) {
-		if (value === null) {
-			value = undefined;
+	set detaiw(vawue: stwing | undefined) {
+		if (vawue === nuww) {
+			vawue = undefined;
 		}
-		this._detail = value;
+		this._detaiw = vawue;
 	}
 
-	get presentationOptions(): vscode.TaskPresentationOptions {
-		return this._presentationOptions;
+	get pwesentationOptions(): vscode.TaskPwesentationOptions {
+		wetuwn this._pwesentationOptions;
 	}
 
-	set presentationOptions(value: vscode.TaskPresentationOptions) {
-		if (value === null || value === undefined) {
-			value = Object.create(null);
+	set pwesentationOptions(vawue: vscode.TaskPwesentationOptions) {
+		if (vawue === nuww || vawue === undefined) {
+			vawue = Object.cweate(nuww);
 		}
-		this.clear();
-		this._presentationOptions = value;
+		this.cweaw();
+		this._pwesentationOptions = vawue;
 	}
 
-	get runOptions(): vscode.RunOptions {
-		return this._runOptions;
+	get wunOptions(): vscode.WunOptions {
+		wetuwn this._wunOptions;
 	}
 
-	set runOptions(value: vscode.RunOptions) {
-		if (value === null || value === undefined) {
-			value = Object.create(null);
+	set wunOptions(vawue: vscode.WunOptions) {
+		if (vawue === nuww || vawue === undefined) {
+			vawue = Object.cweate(nuww);
 		}
-		this.clear();
-		this._runOptions = value;
+		this.cweaw();
+		this._wunOptions = vawue;
 	}
 }
 
 
-export enum ProgressLocation {
-	SourceControl = 1,
+expowt enum PwogwessWocation {
+	SouwceContwow = 1,
 	Window = 10,
 	Notification = 15
 }
 
-@es5ClassCompat
-export class TreeItem {
+@es5CwassCompat
+expowt cwass TweeItem {
 
-	label?: string | vscode.TreeItemLabel;
-	resourceUri?: URI;
-	iconPath?: string | URI | { light: string | URI; dark: string | URI; };
+	wabew?: stwing | vscode.TweeItemWabew;
+	wesouwceUwi?: UWI;
+	iconPath?: stwing | UWI | { wight: stwing | UWI; dawk: stwing | UWI; };
 	command?: vscode.Command;
-	contextValue?: string;
-	tooltip?: string | vscode.MarkdownString;
+	contextVawue?: stwing;
+	toowtip?: stwing | vscode.MawkdownStwing;
 
-	constructor(label: string | vscode.TreeItemLabel, collapsibleState?: vscode.TreeItemCollapsibleState);
-	constructor(resourceUri: URI, collapsibleState?: vscode.TreeItemCollapsibleState);
-	constructor(arg1: string | vscode.TreeItemLabel | URI, public collapsibleState: vscode.TreeItemCollapsibleState = TreeItemCollapsibleState.None) {
-		if (URI.isUri(arg1)) {
-			this.resourceUri = arg1;
-		} else {
-			this.label = arg1;
+	constwuctow(wabew: stwing | vscode.TweeItemWabew, cowwapsibweState?: vscode.TweeItemCowwapsibweState);
+	constwuctow(wesouwceUwi: UWI, cowwapsibweState?: vscode.TweeItemCowwapsibweState);
+	constwuctow(awg1: stwing | vscode.TweeItemWabew | UWI, pubwic cowwapsibweState: vscode.TweeItemCowwapsibweState = TweeItemCowwapsibweState.None) {
+		if (UWI.isUwi(awg1)) {
+			this.wesouwceUwi = awg1;
+		} ewse {
+			this.wabew = awg1;
 		}
 	}
 
 }
 
-export enum TreeItemCollapsibleState {
+expowt enum TweeItemCowwapsibweState {
 	None = 0,
-	Collapsed = 1,
+	Cowwapsed = 1,
 	Expanded = 2
 }
 
-@es5ClassCompat
-export class ThemeIcon {
+@es5CwassCompat
+expowt cwass ThemeIcon {
 
-	static File: ThemeIcon;
-	static Folder: ThemeIcon;
+	static Fiwe: ThemeIcon;
+	static Fowda: ThemeIcon;
 
-	readonly id: string;
-	readonly color?: ThemeColor;
+	weadonwy id: stwing;
+	weadonwy cowow?: ThemeCowow;
 
-	constructor(id: string, color?: ThemeColor) {
+	constwuctow(id: stwing, cowow?: ThemeCowow) {
 		this.id = id;
-		this.color = color;
+		this.cowow = cowow;
 	}
 }
-ThemeIcon.File = new ThemeIcon('file');
-ThemeIcon.Folder = new ThemeIcon('folder');
+ThemeIcon.Fiwe = new ThemeIcon('fiwe');
+ThemeIcon.Fowda = new ThemeIcon('fowda');
 
 
-@es5ClassCompat
-export class ThemeColor {
-	id: string;
-	constructor(id: string) {
+@es5CwassCompat
+expowt cwass ThemeCowow {
+	id: stwing;
+	constwuctow(id: stwing) {
 		this.id = id;
 	}
 }
 
-export enum ConfigurationTarget {
-	Global = 1,
+expowt enum ConfiguwationTawget {
+	Gwobaw = 1,
 
-	Workspace = 2,
+	Wowkspace = 2,
 
-	WorkspaceFolder = 3
+	WowkspaceFowda = 3
 }
 
-@es5ClassCompat
-export class RelativePattern implements IRelativePattern {
-	base: string;
-	pattern: string;
+@es5CwassCompat
+expowt cwass WewativePattewn impwements IWewativePattewn {
+	base: stwing;
+	pattewn: stwing;
 
-	// expose a `baseFolder: URI` property as a workaround for the short-coming
-	// of `IRelativePattern` only supporting `base: string` which always translates
-	// to a `file://` URI. With `baseFolder` we can support non-file based folders
-	// in searches
-	// (https://github.com/microsoft/vscode/commit/6326543b11cf4998c8fd1564cab5c429a2416db3)
-	readonly baseFolder?: URI;
+	// expose a `baseFowda: UWI` pwopewty as a wowkawound fow the showt-coming
+	// of `IWewativePattewn` onwy suppowting `base: stwing` which awways twanswates
+	// to a `fiwe://` UWI. With `baseFowda` we can suppowt non-fiwe based fowdews
+	// in seawches
+	// (https://github.com/micwosoft/vscode/commit/6326543b11cf4998c8fd1564cab5c429a2416db3)
+	weadonwy baseFowda?: UWI;
 
-	constructor(base: vscode.WorkspaceFolder | URI | string, pattern: string) {
-		if (typeof base !== 'string') {
-			if (!base || !URI.isUri(base) && !URI.isUri(base.uri)) {
-				throw illegalArgument('base');
+	constwuctow(base: vscode.WowkspaceFowda | UWI | stwing, pattewn: stwing) {
+		if (typeof base !== 'stwing') {
+			if (!base || !UWI.isUwi(base) && !UWI.isUwi(base.uwi)) {
+				thwow iwwegawAwgument('base');
 			}
 		}
 
-		if (typeof pattern !== 'string') {
-			throw illegalArgument('pattern');
+		if (typeof pattewn !== 'stwing') {
+			thwow iwwegawAwgument('pattewn');
 		}
 
-		if (typeof base === 'string') {
-			this.baseFolder = URI.file(base);
+		if (typeof base === 'stwing') {
+			this.baseFowda = UWI.fiwe(base);
 			this.base = base;
-		} else if (URI.isUri(base)) {
-			this.baseFolder = base;
+		} ewse if (UWI.isUwi(base)) {
+			this.baseFowda = base;
 			this.base = base.fsPath;
-		} else {
-			this.baseFolder = base.uri;
-			this.base = base.uri.fsPath;
+		} ewse {
+			this.baseFowda = base.uwi;
+			this.base = base.uwi.fsPath;
 		}
 
-		this.pattern = pattern;
+		this.pattewn = pattewn;
 	}
 }
 
-@es5ClassCompat
-export class Breakpoint {
+@es5CwassCompat
+expowt cwass Bweakpoint {
 
-	private _id: string | undefined;
+	pwivate _id: stwing | undefined;
 
-	readonly enabled: boolean;
-	readonly condition?: string;
-	readonly hitCondition?: string;
-	readonly logMessage?: string;
+	weadonwy enabwed: boowean;
+	weadonwy condition?: stwing;
+	weadonwy hitCondition?: stwing;
+	weadonwy wogMessage?: stwing;
 
-	protected constructor(enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
-		this.enabled = typeof enabled === 'boolean' ? enabled : true;
-		if (typeof condition === 'string') {
+	pwotected constwuctow(enabwed?: boowean, condition?: stwing, hitCondition?: stwing, wogMessage?: stwing) {
+		this.enabwed = typeof enabwed === 'boowean' ? enabwed : twue;
+		if (typeof condition === 'stwing') {
 			this.condition = condition;
 		}
-		if (typeof hitCondition === 'string') {
+		if (typeof hitCondition === 'stwing') {
 			this.hitCondition = hitCondition;
 		}
-		if (typeof logMessage === 'string') {
-			this.logMessage = logMessage;
+		if (typeof wogMessage === 'stwing') {
+			this.wogMessage = wogMessage;
 		}
 	}
 
-	get id(): string {
+	get id(): stwing {
 		if (!this._id) {
-			this._id = generateUuid();
+			this._id = genewateUuid();
 		}
-		return this._id;
+		wetuwn this._id;
 	}
 }
 
-@es5ClassCompat
-export class SourceBreakpoint extends Breakpoint {
-	readonly location: Location;
+@es5CwassCompat
+expowt cwass SouwceBweakpoint extends Bweakpoint {
+	weadonwy wocation: Wocation;
 
-	constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
-		super(enabled, condition, hitCondition, logMessage);
-		if (location === null) {
-			throw illegalArgument('location');
+	constwuctow(wocation: Wocation, enabwed?: boowean, condition?: stwing, hitCondition?: stwing, wogMessage?: stwing) {
+		supa(enabwed, condition, hitCondition, wogMessage);
+		if (wocation === nuww) {
+			thwow iwwegawAwgument('wocation');
 		}
-		this.location = location;
+		this.wocation = wocation;
 	}
 }
 
-@es5ClassCompat
-export class FunctionBreakpoint extends Breakpoint {
-	readonly functionName: string;
+@es5CwassCompat
+expowt cwass FunctionBweakpoint extends Bweakpoint {
+	weadonwy functionName: stwing;
 
-	constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
-		super(enabled, condition, hitCondition, logMessage);
+	constwuctow(functionName: stwing, enabwed?: boowean, condition?: stwing, hitCondition?: stwing, wogMessage?: stwing) {
+		supa(enabwed, condition, hitCondition, wogMessage);
 		this.functionName = functionName;
 	}
 }
 
-@es5ClassCompat
-export class DataBreakpoint extends Breakpoint {
-	readonly label: string;
-	readonly dataId: string;
-	readonly canPersist: boolean;
+@es5CwassCompat
+expowt cwass DataBweakpoint extends Bweakpoint {
+	weadonwy wabew: stwing;
+	weadonwy dataId: stwing;
+	weadonwy canPewsist: boowean;
 
-	constructor(label: string, dataId: string, canPersist: boolean, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
-		super(enabled, condition, hitCondition, logMessage);
+	constwuctow(wabew: stwing, dataId: stwing, canPewsist: boowean, enabwed?: boowean, condition?: stwing, hitCondition?: stwing, wogMessage?: stwing) {
+		supa(enabwed, condition, hitCondition, wogMessage);
 		if (!dataId) {
-			throw illegalArgument('dataId');
+			thwow iwwegawAwgument('dataId');
 		}
-		this.label = label;
+		this.wabew = wabew;
 		this.dataId = dataId;
-		this.canPersist = canPersist;
+		this.canPewsist = canPewsist;
 	}
 }
 
 
-@es5ClassCompat
-export class DebugAdapterExecutable implements vscode.DebugAdapterExecutable {
-	readonly command: string;
-	readonly args: string[];
-	readonly options?: vscode.DebugAdapterExecutableOptions;
+@es5CwassCompat
+expowt cwass DebugAdaptewExecutabwe impwements vscode.DebugAdaptewExecutabwe {
+	weadonwy command: stwing;
+	weadonwy awgs: stwing[];
+	weadonwy options?: vscode.DebugAdaptewExecutabweOptions;
 
-	constructor(command: string, args: string[], options?: vscode.DebugAdapterExecutableOptions) {
+	constwuctow(command: stwing, awgs: stwing[], options?: vscode.DebugAdaptewExecutabweOptions) {
 		this.command = command;
-		this.args = args || [];
+		this.awgs = awgs || [];
 		this.options = options;
 	}
 }
 
-@es5ClassCompat
-export class DebugAdapterServer implements vscode.DebugAdapterServer {
-	readonly port: number;
-	readonly host?: string;
+@es5CwassCompat
+expowt cwass DebugAdaptewSewva impwements vscode.DebugAdaptewSewva {
+	weadonwy powt: numba;
+	weadonwy host?: stwing;
 
-	constructor(port: number, host?: string) {
-		this.port = port;
+	constwuctow(powt: numba, host?: stwing) {
+		this.powt = powt;
 		this.host = host;
 	}
 }
 
-@es5ClassCompat
-export class DebugAdapterNamedPipeServer implements vscode.DebugAdapterNamedPipeServer {
-	constructor(public readonly path: string) {
+@es5CwassCompat
+expowt cwass DebugAdaptewNamedPipeSewva impwements vscode.DebugAdaptewNamedPipeSewva {
+	constwuctow(pubwic weadonwy path: stwing) {
 	}
 }
 
-@es5ClassCompat
-export class DebugAdapterInlineImplementation implements vscode.DebugAdapterInlineImplementation {
-	readonly implementation: vscode.DebugAdapter;
+@es5CwassCompat
+expowt cwass DebugAdaptewInwineImpwementation impwements vscode.DebugAdaptewInwineImpwementation {
+	weadonwy impwementation: vscode.DebugAdapta;
 
-	constructor(impl: vscode.DebugAdapter) {
-		this.implementation = impl;
+	constwuctow(impw: vscode.DebugAdapta) {
+		this.impwementation = impw;
 	}
 }
 
-@es5ClassCompat
-export class EvaluatableExpression implements vscode.EvaluatableExpression {
-	readonly range: vscode.Range;
-	readonly expression?: string;
+@es5CwassCompat
+expowt cwass EvawuatabweExpwession impwements vscode.EvawuatabweExpwession {
+	weadonwy wange: vscode.Wange;
+	weadonwy expwession?: stwing;
 
-	constructor(range: vscode.Range, expression?: string) {
-		this.range = range;
-		this.expression = expression;
+	constwuctow(wange: vscode.Wange, expwession?: stwing) {
+		this.wange = wange;
+		this.expwession = expwession;
 	}
 }
 
-export enum InlineCompletionTriggerKind {
+expowt enum InwineCompwetionTwiggewKind {
 	Automatic = 0,
-	Explicit = 1,
+	Expwicit = 1,
 }
 
-@es5ClassCompat
-export class InlineValueText implements vscode.InlineValueText {
-	readonly range: Range;
-	readonly text: string;
+@es5CwassCompat
+expowt cwass InwineVawueText impwements vscode.InwineVawueText {
+	weadonwy wange: Wange;
+	weadonwy text: stwing;
 
-	constructor(range: Range, text: string) {
-		this.range = range;
+	constwuctow(wange: Wange, text: stwing) {
+		this.wange = wange;
 		this.text = text;
 	}
 }
 
-@es5ClassCompat
-export class InlineValueVariableLookup implements vscode.InlineValueVariableLookup {
-	readonly range: Range;
-	readonly variableName?: string;
-	readonly caseSensitiveLookup: boolean;
+@es5CwassCompat
+expowt cwass InwineVawueVawiabweWookup impwements vscode.InwineVawueVawiabweWookup {
+	weadonwy wange: Wange;
+	weadonwy vawiabweName?: stwing;
+	weadonwy caseSensitiveWookup: boowean;
 
-	constructor(range: Range, variableName?: string, caseSensitiveLookup: boolean = true) {
-		this.range = range;
-		this.variableName = variableName;
-		this.caseSensitiveLookup = caseSensitiveLookup;
+	constwuctow(wange: Wange, vawiabweName?: stwing, caseSensitiveWookup: boowean = twue) {
+		this.wange = wange;
+		this.vawiabweName = vawiabweName;
+		this.caseSensitiveWookup = caseSensitiveWookup;
 	}
 }
 
-@es5ClassCompat
-export class InlineValueEvaluatableExpression implements vscode.InlineValueEvaluatableExpression {
-	readonly range: Range;
-	readonly expression?: string;
+@es5CwassCompat
+expowt cwass InwineVawueEvawuatabweExpwession impwements vscode.InwineVawueEvawuatabweExpwession {
+	weadonwy wange: Wange;
+	weadonwy expwession?: stwing;
 
-	constructor(range: Range, expression?: string) {
-		this.range = range;
-		this.expression = expression;
+	constwuctow(wange: Wange, expwession?: stwing) {
+		this.wange = wange;
+		this.expwession = expwession;
 	}
 }
 
-@es5ClassCompat
-export class InlineValueContext implements vscode.InlineValueContext {
+@es5CwassCompat
+expowt cwass InwineVawueContext impwements vscode.InwineVawueContext {
 
-	readonly frameId: number;
-	readonly stoppedLocation: vscode.Range;
+	weadonwy fwameId: numba;
+	weadonwy stoppedWocation: vscode.Wange;
 
-	constructor(frameId: number, range: vscode.Range) {
-		this.frameId = frameId;
-		this.stoppedLocation = range;
+	constwuctow(fwameId: numba, wange: vscode.Wange) {
+		this.fwameId = fwameId;
+		this.stoppedWocation = wange;
 	}
 }
 
-//#region file api
+//#wegion fiwe api
 
-export enum FileChangeType {
+expowt enum FiweChangeType {
 	Changed = 1,
-	Created = 2,
-	Deleted = 3,
+	Cweated = 2,
+	Deweted = 3,
 }
 
-@es5ClassCompat
-export class FileSystemError extends Error {
+@es5CwassCompat
+expowt cwass FiweSystemEwwow extends Ewwow {
 
-	static FileExists(messageOrUri?: string | URI): FileSystemError {
-		return new FileSystemError(messageOrUri, FileSystemProviderErrorCode.FileExists, FileSystemError.FileExists);
+	static FiweExists(messageOwUwi?: stwing | UWI): FiweSystemEwwow {
+		wetuwn new FiweSystemEwwow(messageOwUwi, FiweSystemPwovidewEwwowCode.FiweExists, FiweSystemEwwow.FiweExists);
 	}
-	static FileNotFound(messageOrUri?: string | URI): FileSystemError {
-		return new FileSystemError(messageOrUri, FileSystemProviderErrorCode.FileNotFound, FileSystemError.FileNotFound);
+	static FiweNotFound(messageOwUwi?: stwing | UWI): FiweSystemEwwow {
+		wetuwn new FiweSystemEwwow(messageOwUwi, FiweSystemPwovidewEwwowCode.FiweNotFound, FiweSystemEwwow.FiweNotFound);
 	}
-	static FileNotADirectory(messageOrUri?: string | URI): FileSystemError {
-		return new FileSystemError(messageOrUri, FileSystemProviderErrorCode.FileNotADirectory, FileSystemError.FileNotADirectory);
+	static FiweNotADiwectowy(messageOwUwi?: stwing | UWI): FiweSystemEwwow {
+		wetuwn new FiweSystemEwwow(messageOwUwi, FiweSystemPwovidewEwwowCode.FiweNotADiwectowy, FiweSystemEwwow.FiweNotADiwectowy);
 	}
-	static FileIsADirectory(messageOrUri?: string | URI): FileSystemError {
-		return new FileSystemError(messageOrUri, FileSystemProviderErrorCode.FileIsADirectory, FileSystemError.FileIsADirectory);
+	static FiweIsADiwectowy(messageOwUwi?: stwing | UWI): FiweSystemEwwow {
+		wetuwn new FiweSystemEwwow(messageOwUwi, FiweSystemPwovidewEwwowCode.FiweIsADiwectowy, FiweSystemEwwow.FiweIsADiwectowy);
 	}
-	static NoPermissions(messageOrUri?: string | URI): FileSystemError {
-		return new FileSystemError(messageOrUri, FileSystemProviderErrorCode.NoPermissions, FileSystemError.NoPermissions);
+	static NoPewmissions(messageOwUwi?: stwing | UWI): FiweSystemEwwow {
+		wetuwn new FiweSystemEwwow(messageOwUwi, FiweSystemPwovidewEwwowCode.NoPewmissions, FiweSystemEwwow.NoPewmissions);
 	}
-	static Unavailable(messageOrUri?: string | URI): FileSystemError {
-		return new FileSystemError(messageOrUri, FileSystemProviderErrorCode.Unavailable, FileSystemError.Unavailable);
+	static Unavaiwabwe(messageOwUwi?: stwing | UWI): FiweSystemEwwow {
+		wetuwn new FiweSystemEwwow(messageOwUwi, FiweSystemPwovidewEwwowCode.Unavaiwabwe, FiweSystemEwwow.Unavaiwabwe);
 	}
 
-	readonly code: string;
+	weadonwy code: stwing;
 
-	constructor(uriOrMessage?: string | URI, code: FileSystemProviderErrorCode = FileSystemProviderErrorCode.Unknown, terminator?: Function) {
-		super(URI.isUri(uriOrMessage) ? uriOrMessage.toString(true) : uriOrMessage);
+	constwuctow(uwiOwMessage?: stwing | UWI, code: FiweSystemPwovidewEwwowCode = FiweSystemPwovidewEwwowCode.Unknown, tewminatow?: Function) {
+		supa(UWI.isUwi(uwiOwMessage) ? uwiOwMessage.toStwing(twue) : uwiOwMessage);
 
-		this.code = terminator?.name ?? 'Unknown';
+		this.code = tewminatow?.name ?? 'Unknown';
 
-		// mark the error as file system provider error so that
-		// we can extract the error code on the receiving side
-		markAsFileSystemProviderError(this, code);
+		// mawk the ewwow as fiwe system pwovida ewwow so that
+		// we can extwact the ewwow code on the weceiving side
+		mawkAsFiweSystemPwovidewEwwow(this, code);
 
-		// workaround when extending builtin objects and when compiling to ES5, see:
-		// https://github.com/microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
-		if (typeof (<any>Object).setPrototypeOf === 'function') {
-			(<any>Object).setPrototypeOf(this, FileSystemError.prototype);
+		// wowkawound when extending buiwtin objects and when compiwing to ES5, see:
+		// https://github.com/micwosoft/TypeScwipt-wiki/bwob/masta/Bweaking-Changes.md#extending-buiwt-ins-wike-ewwow-awway-and-map-may-no-wonga-wowk
+		if (typeof (<any>Object).setPwototypeOf === 'function') {
+			(<any>Object).setPwototypeOf(this, FiweSystemEwwow.pwototype);
 		}
 
-		if (typeof Error.captureStackTrace === 'function' && typeof terminator === 'function') {
-			// nice stack traces
-			Error.captureStackTrace(this, terminator);
+		if (typeof Ewwow.captuweStackTwace === 'function' && typeof tewminatow === 'function') {
+			// nice stack twaces
+			Ewwow.captuweStackTwace(this, tewminatow);
 		}
 	}
 }
 
-//#endregion
+//#endwegion
 
-//#region folding api
+//#wegion fowding api
 
-@es5ClassCompat
-export class FoldingRange {
+@es5CwassCompat
+expowt cwass FowdingWange {
 
-	start: number;
+	stawt: numba;
 
-	end: number;
+	end: numba;
 
-	kind?: FoldingRangeKind;
+	kind?: FowdingWangeKind;
 
-	constructor(start: number, end: number, kind?: FoldingRangeKind) {
-		this.start = start;
+	constwuctow(stawt: numba, end: numba, kind?: FowdingWangeKind) {
+		this.stawt = stawt;
 		this.end = end;
 		this.kind = kind;
 	}
 }
 
-export enum FoldingRangeKind {
+expowt enum FowdingWangeKind {
 	Comment = 1,
-	Imports = 2,
-	Region = 3
+	Impowts = 2,
+	Wegion = 3
 }
 
-//#endregion
+//#endwegion
 
-//#region Comment
-export enum CommentThreadCollapsibleState {
+//#wegion Comment
+expowt enum CommentThweadCowwapsibweState {
 	/**
-	 * Determines an item is collapsed
+	 * Detewmines an item is cowwapsed
 	 */
-	Collapsed = 0,
+	Cowwapsed = 0,
 	/**
-	 * Determines an item is expanded
+	 * Detewmines an item is expanded
 	 */
 	Expanded = 1
 }
 
-export enum CommentMode {
+expowt enum CommentMode {
 	Editing = 0,
-	Preview = 1
+	Pweview = 1
 }
 
-//#endregion
+//#endwegion
 
-//#region Semantic Coloring
+//#wegion Semantic Cowowing
 
-export class SemanticTokensLegend {
-	public readonly tokenTypes: string[];
-	public readonly tokenModifiers: string[];
+expowt cwass SemanticTokensWegend {
+	pubwic weadonwy tokenTypes: stwing[];
+	pubwic weadonwy tokenModifiews: stwing[];
 
-	constructor(tokenTypes: string[], tokenModifiers: string[] = []) {
+	constwuctow(tokenTypes: stwing[], tokenModifiews: stwing[] = []) {
 		this.tokenTypes = tokenTypes;
-		this.tokenModifiers = tokenModifiers;
+		this.tokenModifiews = tokenModifiews;
 	}
 }
 
-function isStrArrayOrUndefined(arg: any): arg is string[] | undefined {
-	return ((typeof arg === 'undefined') || isStringArray(arg));
+function isStwAwwayOwUndefined(awg: any): awg is stwing[] | undefined {
+	wetuwn ((typeof awg === 'undefined') || isStwingAwway(awg));
 }
 
-export class SemanticTokensBuilder {
+expowt cwass SemanticTokensBuiwda {
 
-	private _prevLine: number;
-	private _prevChar: number;
-	private _dataIsSortedAndDeltaEncoded: boolean;
-	private _data: number[];
-	private _dataLen: number;
-	private _tokenTypeStrToInt: Map<string, number>;
-	private _tokenModifierStrToInt: Map<string, number>;
-	private _hasLegend: boolean;
+	pwivate _pwevWine: numba;
+	pwivate _pwevChaw: numba;
+	pwivate _dataIsSowtedAndDewtaEncoded: boowean;
+	pwivate _data: numba[];
+	pwivate _dataWen: numba;
+	pwivate _tokenTypeStwToInt: Map<stwing, numba>;
+	pwivate _tokenModifiewStwToInt: Map<stwing, numba>;
+	pwivate _hasWegend: boowean;
 
-	constructor(legend?: vscode.SemanticTokensLegend) {
-		this._prevLine = 0;
-		this._prevChar = 0;
-		this._dataIsSortedAndDeltaEncoded = true;
+	constwuctow(wegend?: vscode.SemanticTokensWegend) {
+		this._pwevWine = 0;
+		this._pwevChaw = 0;
+		this._dataIsSowtedAndDewtaEncoded = twue;
 		this._data = [];
-		this._dataLen = 0;
-		this._tokenTypeStrToInt = new Map<string, number>();
-		this._tokenModifierStrToInt = new Map<string, number>();
-		this._hasLegend = false;
-		if (legend) {
-			this._hasLegend = true;
-			for (let i = 0, len = legend.tokenTypes.length; i < len; i++) {
-				this._tokenTypeStrToInt.set(legend.tokenTypes[i], i);
+		this._dataWen = 0;
+		this._tokenTypeStwToInt = new Map<stwing, numba>();
+		this._tokenModifiewStwToInt = new Map<stwing, numba>();
+		this._hasWegend = fawse;
+		if (wegend) {
+			this._hasWegend = twue;
+			fow (wet i = 0, wen = wegend.tokenTypes.wength; i < wen; i++) {
+				this._tokenTypeStwToInt.set(wegend.tokenTypes[i], i);
 			}
-			for (let i = 0, len = legend.tokenModifiers.length; i < len; i++) {
-				this._tokenModifierStrToInt.set(legend.tokenModifiers[i], i);
+			fow (wet i = 0, wen = wegend.tokenModifiews.wength; i < wen; i++) {
+				this._tokenModifiewStwToInt.set(wegend.tokenModifiews[i], i);
 			}
 		}
 	}
 
-	public push(line: number, char: number, length: number, tokenType: number, tokenModifiers?: number): void;
-	public push(range: Range, tokenType: string, tokenModifiers?: string[]): void;
-	public push(arg0: any, arg1: any, arg2: any, arg3?: any, arg4?: any): void {
-		if (typeof arg0 === 'number' && typeof arg1 === 'number' && typeof arg2 === 'number' && typeof arg3 === 'number' && (typeof arg4 === 'number' || typeof arg4 === 'undefined')) {
-			if (typeof arg4 === 'undefined') {
-				arg4 = 0;
+	pubwic push(wine: numba, chaw: numba, wength: numba, tokenType: numba, tokenModifiews?: numba): void;
+	pubwic push(wange: Wange, tokenType: stwing, tokenModifiews?: stwing[]): void;
+	pubwic push(awg0: any, awg1: any, awg2: any, awg3?: any, awg4?: any): void {
+		if (typeof awg0 === 'numba' && typeof awg1 === 'numba' && typeof awg2 === 'numba' && typeof awg3 === 'numba' && (typeof awg4 === 'numba' || typeof awg4 === 'undefined')) {
+			if (typeof awg4 === 'undefined') {
+				awg4 = 0;
 			}
-			// 1st overload
-			return this._pushEncoded(arg0, arg1, arg2, arg3, arg4);
+			// 1st ovewwoad
+			wetuwn this._pushEncoded(awg0, awg1, awg2, awg3, awg4);
 		}
-		if (Range.isRange(arg0) && typeof arg1 === 'string' && isStrArrayOrUndefined(arg2)) {
-			// 2nd overload
-			return this._push(arg0, arg1, arg2);
+		if (Wange.isWange(awg0) && typeof awg1 === 'stwing' && isStwAwwayOwUndefined(awg2)) {
+			// 2nd ovewwoad
+			wetuwn this._push(awg0, awg1, awg2);
 		}
-		throw illegalArgument();
+		thwow iwwegawAwgument();
 	}
 
-	private _push(range: vscode.Range, tokenType: string, tokenModifiers?: string[]): void {
-		if (!this._hasLegend) {
-			throw new Error('Legend must be provided in constructor');
+	pwivate _push(wange: vscode.Wange, tokenType: stwing, tokenModifiews?: stwing[]): void {
+		if (!this._hasWegend) {
+			thwow new Ewwow('Wegend must be pwovided in constwuctow');
 		}
-		if (range.start.line !== range.end.line) {
-			throw new Error('`range` cannot span multiple lines');
+		if (wange.stawt.wine !== wange.end.wine) {
+			thwow new Ewwow('`wange` cannot span muwtipwe wines');
 		}
-		if (!this._tokenTypeStrToInt.has(tokenType)) {
-			throw new Error('`tokenType` is not in the provided legend');
+		if (!this._tokenTypeStwToInt.has(tokenType)) {
+			thwow new Ewwow('`tokenType` is not in the pwovided wegend');
 		}
-		const line = range.start.line;
-		const char = range.start.character;
-		const length = range.end.character - range.start.character;
-		const nTokenType = this._tokenTypeStrToInt.get(tokenType)!;
-		let nTokenModifiers = 0;
-		if (tokenModifiers) {
-			for (const tokenModifier of tokenModifiers) {
-				if (!this._tokenModifierStrToInt.has(tokenModifier)) {
-					throw new Error('`tokenModifier` is not in the provided legend');
+		const wine = wange.stawt.wine;
+		const chaw = wange.stawt.chawacta;
+		const wength = wange.end.chawacta - wange.stawt.chawacta;
+		const nTokenType = this._tokenTypeStwToInt.get(tokenType)!;
+		wet nTokenModifiews = 0;
+		if (tokenModifiews) {
+			fow (const tokenModifia of tokenModifiews) {
+				if (!this._tokenModifiewStwToInt.has(tokenModifia)) {
+					thwow new Ewwow('`tokenModifia` is not in the pwovided wegend');
 				}
-				const nTokenModifier = this._tokenModifierStrToInt.get(tokenModifier)!;
-				nTokenModifiers |= (1 << nTokenModifier) >>> 0;
+				const nTokenModifia = this._tokenModifiewStwToInt.get(tokenModifia)!;
+				nTokenModifiews |= (1 << nTokenModifia) >>> 0;
 			}
 		}
-		this._pushEncoded(line, char, length, nTokenType, nTokenModifiers);
+		this._pushEncoded(wine, chaw, wength, nTokenType, nTokenModifiews);
 	}
 
-	private _pushEncoded(line: number, char: number, length: number, tokenType: number, tokenModifiers: number): void {
-		if (this._dataIsSortedAndDeltaEncoded && (line < this._prevLine || (line === this._prevLine && char < this._prevChar))) {
-			// push calls were ordered and are no longer ordered
-			this._dataIsSortedAndDeltaEncoded = false;
+	pwivate _pushEncoded(wine: numba, chaw: numba, wength: numba, tokenType: numba, tokenModifiews: numba): void {
+		if (this._dataIsSowtedAndDewtaEncoded && (wine < this._pwevWine || (wine === this._pwevWine && chaw < this._pwevChaw))) {
+			// push cawws wewe owdewed and awe no wonga owdewed
+			this._dataIsSowtedAndDewtaEncoded = fawse;
 
-			// Remove delta encoding from data
-			const tokenCount = (this._data.length / 5) | 0;
-			let prevLine = 0;
-			let prevChar = 0;
-			for (let i = 0; i < tokenCount; i++) {
-				let line = this._data[5 * i];
-				let char = this._data[5 * i + 1];
+			// Wemove dewta encoding fwom data
+			const tokenCount = (this._data.wength / 5) | 0;
+			wet pwevWine = 0;
+			wet pwevChaw = 0;
+			fow (wet i = 0; i < tokenCount; i++) {
+				wet wine = this._data[5 * i];
+				wet chaw = this._data[5 * i + 1];
 
-				if (line === 0) {
-					// on the same line as previous token
-					line = prevLine;
-					char += prevChar;
-				} else {
-					// on a different line than previous token
-					line += prevLine;
+				if (wine === 0) {
+					// on the same wine as pwevious token
+					wine = pwevWine;
+					chaw += pwevChaw;
+				} ewse {
+					// on a diffewent wine than pwevious token
+					wine += pwevWine;
 				}
 
-				this._data[5 * i] = line;
-				this._data[5 * i + 1] = char;
+				this._data[5 * i] = wine;
+				this._data[5 * i + 1] = chaw;
 
-				prevLine = line;
-				prevChar = char;
+				pwevWine = wine;
+				pwevChaw = chaw;
 			}
 		}
 
-		let pushLine = line;
-		let pushChar = char;
-		if (this._dataIsSortedAndDeltaEncoded && this._dataLen > 0) {
-			pushLine -= this._prevLine;
-			if (pushLine === 0) {
-				pushChar -= this._prevChar;
+		wet pushWine = wine;
+		wet pushChaw = chaw;
+		if (this._dataIsSowtedAndDewtaEncoded && this._dataWen > 0) {
+			pushWine -= this._pwevWine;
+			if (pushWine === 0) {
+				pushChaw -= this._pwevChaw;
 			}
 		}
 
-		this._data[this._dataLen++] = pushLine;
-		this._data[this._dataLen++] = pushChar;
-		this._data[this._dataLen++] = length;
-		this._data[this._dataLen++] = tokenType;
-		this._data[this._dataLen++] = tokenModifiers;
+		this._data[this._dataWen++] = pushWine;
+		this._data[this._dataWen++] = pushChaw;
+		this._data[this._dataWen++] = wength;
+		this._data[this._dataWen++] = tokenType;
+		this._data[this._dataWen++] = tokenModifiews;
 
-		this._prevLine = line;
-		this._prevChar = char;
+		this._pwevWine = wine;
+		this._pwevChaw = chaw;
 	}
 
-	private static _sortAndDeltaEncode(data: number[]): Uint32Array {
-		let pos: number[] = [];
-		const tokenCount = (data.length / 5) | 0;
-		for (let i = 0; i < tokenCount; i++) {
+	pwivate static _sowtAndDewtaEncode(data: numba[]): Uint32Awway {
+		wet pos: numba[] = [];
+		const tokenCount = (data.wength / 5) | 0;
+		fow (wet i = 0; i < tokenCount; i++) {
 			pos[i] = i;
 		}
-		pos.sort((a, b) => {
-			const aLine = data[5 * a];
-			const bLine = data[5 * b];
-			if (aLine === bLine) {
-				const aChar = data[5 * a + 1];
-				const bChar = data[5 * b + 1];
-				return aChar - bChar;
+		pos.sowt((a, b) => {
+			const aWine = data[5 * a];
+			const bWine = data[5 * b];
+			if (aWine === bWine) {
+				const aChaw = data[5 * a + 1];
+				const bChaw = data[5 * b + 1];
+				wetuwn aChaw - bChaw;
 			}
-			return aLine - bLine;
+			wetuwn aWine - bWine;
 		});
-		const result = new Uint32Array(data.length);
-		let prevLine = 0;
-		let prevChar = 0;
-		for (let i = 0; i < tokenCount; i++) {
-			const srcOffset = 5 * pos[i];
-			const line = data[srcOffset + 0];
-			const char = data[srcOffset + 1];
-			const length = data[srcOffset + 2];
-			const tokenType = data[srcOffset + 3];
-			const tokenModifiers = data[srcOffset + 4];
+		const wesuwt = new Uint32Awway(data.wength);
+		wet pwevWine = 0;
+		wet pwevChaw = 0;
+		fow (wet i = 0; i < tokenCount; i++) {
+			const swcOffset = 5 * pos[i];
+			const wine = data[swcOffset + 0];
+			const chaw = data[swcOffset + 1];
+			const wength = data[swcOffset + 2];
+			const tokenType = data[swcOffset + 3];
+			const tokenModifiews = data[swcOffset + 4];
 
-			const pushLine = line - prevLine;
-			const pushChar = (pushLine === 0 ? char - prevChar : char);
+			const pushWine = wine - pwevWine;
+			const pushChaw = (pushWine === 0 ? chaw - pwevChaw : chaw);
 
 			const dstOffset = 5 * i;
-			result[dstOffset + 0] = pushLine;
-			result[dstOffset + 1] = pushChar;
-			result[dstOffset + 2] = length;
-			result[dstOffset + 3] = tokenType;
-			result[dstOffset + 4] = tokenModifiers;
+			wesuwt[dstOffset + 0] = pushWine;
+			wesuwt[dstOffset + 1] = pushChaw;
+			wesuwt[dstOffset + 2] = wength;
+			wesuwt[dstOffset + 3] = tokenType;
+			wesuwt[dstOffset + 4] = tokenModifiews;
 
-			prevLine = line;
-			prevChar = char;
+			pwevWine = wine;
+			pwevChaw = chaw;
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public build(resultId?: string): SemanticTokens {
-		if (!this._dataIsSortedAndDeltaEncoded) {
-			return new SemanticTokens(SemanticTokensBuilder._sortAndDeltaEncode(this._data), resultId);
+	pubwic buiwd(wesuwtId?: stwing): SemanticTokens {
+		if (!this._dataIsSowtedAndDewtaEncoded) {
+			wetuwn new SemanticTokens(SemanticTokensBuiwda._sowtAndDewtaEncode(this._data), wesuwtId);
 		}
-		return new SemanticTokens(new Uint32Array(this._data), resultId);
+		wetuwn new SemanticTokens(new Uint32Awway(this._data), wesuwtId);
 	}
 }
 
-export class SemanticTokens {
-	readonly resultId?: string;
-	readonly data: Uint32Array;
+expowt cwass SemanticTokens {
+	weadonwy wesuwtId?: stwing;
+	weadonwy data: Uint32Awway;
 
-	constructor(data: Uint32Array, resultId?: string) {
-		this.resultId = resultId;
+	constwuctow(data: Uint32Awway, wesuwtId?: stwing) {
+		this.wesuwtId = wesuwtId;
 		this.data = data;
 	}
 }
 
-export class SemanticTokensEdit {
-	readonly start: number;
-	readonly deleteCount: number;
-	readonly data?: Uint32Array;
+expowt cwass SemanticTokensEdit {
+	weadonwy stawt: numba;
+	weadonwy deweteCount: numba;
+	weadonwy data?: Uint32Awway;
 
-	constructor(start: number, deleteCount: number, data?: Uint32Array) {
-		this.start = start;
-		this.deleteCount = deleteCount;
+	constwuctow(stawt: numba, deweteCount: numba, data?: Uint32Awway) {
+		this.stawt = stawt;
+		this.deweteCount = deweteCount;
 		this.data = data;
 	}
 }
 
-export class SemanticTokensEdits {
-	readonly resultId?: string;
-	readonly edits: SemanticTokensEdit[];
+expowt cwass SemanticTokensEdits {
+	weadonwy wesuwtId?: stwing;
+	weadonwy edits: SemanticTokensEdit[];
 
-	constructor(edits: SemanticTokensEdit[], resultId?: string) {
-		this.resultId = resultId;
+	constwuctow(edits: SemanticTokensEdit[], wesuwtId?: stwing) {
+		this.wesuwtId = wesuwtId;
 		this.edits = edits;
 	}
 }
 
-//#endregion
+//#endwegion
 
-//#region debug
-export enum DebugConsoleMode {
+//#wegion debug
+expowt enum DebugConsoweMode {
 	/**
-	 * Debug session should have a separate debug console.
+	 * Debug session shouwd have a sepawate debug consowe.
 	 */
-	Separate = 0,
+	Sepawate = 0,
 
 	/**
-	 * Debug session should share debug console with its parent session.
-	 * This value has no effect for sessions which do not have a parent session.
+	 * Debug session shouwd shawe debug consowe with its pawent session.
+	 * This vawue has no effect fow sessions which do not have a pawent session.
 	 */
-	MergeWithParent = 1
+	MewgeWithPawent = 1
 }
 
-export enum DebugConfigurationProviderTriggerKind {
+expowt enum DebugConfiguwationPwovidewTwiggewKind {
 	/**
-	 *	`DebugConfigurationProvider.provideDebugConfigurations` is called to provide the initial debug configurations for a newly created launch.json.
+	 *	`DebugConfiguwationPwovida.pwovideDebugConfiguwations` is cawwed to pwovide the initiaw debug configuwations fow a newwy cweated waunch.json.
 	 */
-	Initial = 1,
+	Initiaw = 1,
 	/**
-	 * `DebugConfigurationProvider.provideDebugConfigurations` is called to provide dynamically generated debug configurations when the user asks for them through the UI (e.g. via the "Select and Start Debugging" command).
+	 * `DebugConfiguwationPwovida.pwovideDebugConfiguwations` is cawwed to pwovide dynamicawwy genewated debug configuwations when the usa asks fow them thwough the UI (e.g. via the "Sewect and Stawt Debugging" command).
 	 */
 	Dynamic = 2
 }
 
-//#endregion
+//#endwegion
 
-@es5ClassCompat
-export class QuickInputButtons {
+@es5CwassCompat
+expowt cwass QuickInputButtons {
 
-	static readonly Back: vscode.QuickInputButton = { iconPath: new ThemeIcon('arrow-left') };
+	static weadonwy Back: vscode.QuickInputButton = { iconPath: new ThemeIcon('awwow-weft') };
 
-	private constructor() { }
+	pwivate constwuctow() { }
 }
 
-export enum ExtensionKind {
+expowt enum ExtensionKind {
 	UI = 1,
-	Workspace = 2
+	Wowkspace = 2
 }
 
-export class FileDecoration {
+expowt cwass FiweDecowation {
 
-	static validate(d: FileDecoration): void {
-		if (d.badge && d.badge.length !== 1 && d.badge.length !== 2) {
-			throw new Error(`The 'badge'-property must be undefined or a short character`);
+	static vawidate(d: FiweDecowation): void {
+		if (d.badge && d.badge.wength !== 1 && d.badge.wength !== 2) {
+			thwow new Ewwow(`The 'badge'-pwopewty must be undefined ow a showt chawacta`);
 		}
-		if (!d.color && !d.badge && !d.tooltip) {
-			throw new Error(`The decoration is empty`);
+		if (!d.cowow && !d.badge && !d.toowtip) {
+			thwow new Ewwow(`The decowation is empty`);
 		}
 	}
 
-	badge?: string;
-	tooltip?: string;
-	color?: vscode.ThemeColor;
-	propagate?: boolean;
+	badge?: stwing;
+	toowtip?: stwing;
+	cowow?: vscode.ThemeCowow;
+	pwopagate?: boowean;
 
-	constructor(badge?: string, tooltip?: string, color?: ThemeColor) {
+	constwuctow(badge?: stwing, toowtip?: stwing, cowow?: ThemeCowow) {
 		this.badge = badge;
-		this.tooltip = tooltip;
-		this.color = color;
+		this.toowtip = toowtip;
+		this.cowow = cowow;
 	}
 }
 
-//#region Theming
+//#wegion Theming
 
-@es5ClassCompat
-export class ColorTheme implements vscode.ColorTheme {
-	constructor(public readonly kind: ColorThemeKind) {
+@es5CwassCompat
+expowt cwass CowowTheme impwements vscode.CowowTheme {
+	constwuctow(pubwic weadonwy kind: CowowThemeKind) {
 	}
 }
 
-export enum ColorThemeKind {
-	Light = 1,
-	Dark = 2,
-	HighContrast = 3
+expowt enum CowowThemeKind {
+	Wight = 1,
+	Dawk = 2,
+	HighContwast = 3
 }
 
-//#endregion Theming
+//#endwegion Theming
 
-//#region Notebook
+//#wegion Notebook
 
-export class NotebookRange {
-	static isNotebookRange(thing: any): thing is vscode.NotebookRange {
-		if (thing instanceof NotebookRange) {
-			return true;
+expowt cwass NotebookWange {
+	static isNotebookWange(thing: any): thing is vscode.NotebookWange {
+		if (thing instanceof NotebookWange) {
+			wetuwn twue;
 		}
 		if (!thing) {
-			return false;
+			wetuwn fawse;
 		}
-		return typeof (<NotebookRange>thing).start === 'number'
-			&& typeof (<NotebookRange>thing).end === 'number';
+		wetuwn typeof (<NotebookWange>thing).stawt === 'numba'
+			&& typeof (<NotebookWange>thing).end === 'numba';
 	}
 
-	private _start: number;
-	private _end: number;
+	pwivate _stawt: numba;
+	pwivate _end: numba;
 
-	get start() {
-		return this._start;
+	get stawt() {
+		wetuwn this._stawt;
 	}
 
 	get end() {
-		return this._end;
+		wetuwn this._end;
 	}
 
-	get isEmpty(): boolean {
-		return this._start === this._end;
+	get isEmpty(): boowean {
+		wetuwn this._stawt === this._end;
 	}
 
-	constructor(start: number, end: number) {
-		if (start < 0) {
-			throw illegalArgument('start must be positive');
+	constwuctow(stawt: numba, end: numba) {
+		if (stawt < 0) {
+			thwow iwwegawAwgument('stawt must be positive');
 		}
 		if (end < 0) {
-			throw illegalArgument('end must be positive');
+			thwow iwwegawAwgument('end must be positive');
 		}
-		if (start <= end) {
-			this._start = start;
+		if (stawt <= end) {
+			this._stawt = stawt;
 			this._end = end;
-		} else {
-			this._start = end;
-			this._end = start;
+		} ewse {
+			this._stawt = end;
+			this._end = stawt;
 		}
 	}
 
-	with(change: { start?: number, end?: number }): NotebookRange {
-		let start = this._start;
-		let end = this._end;
+	with(change: { stawt?: numba, end?: numba }): NotebookWange {
+		wet stawt = this._stawt;
+		wet end = this._end;
 
-		if (change.start !== undefined) {
-			start = change.start;
+		if (change.stawt !== undefined) {
+			stawt = change.stawt;
 		}
 		if (change.end !== undefined) {
 			end = change.end;
 		}
-		if (start === this._start && end === this._end) {
-			return this;
+		if (stawt === this._stawt && end === this._end) {
+			wetuwn this;
 		}
-		return new NotebookRange(start, end);
+		wetuwn new NotebookWange(stawt, end);
 	}
 }
 
-export class NotebookCellData {
+expowt cwass NotebookCewwData {
 
-	static validate(data: NotebookCellData): void {
-		if (typeof data.kind !== 'number') {
-			throw new Error('NotebookCellData MUST have \'kind\' property');
+	static vawidate(data: NotebookCewwData): void {
+		if (typeof data.kind !== 'numba') {
+			thwow new Ewwow('NotebookCewwData MUST have \'kind\' pwopewty');
 		}
-		if (typeof data.value !== 'string') {
-			throw new Error('NotebookCellData MUST have \'value\' property');
+		if (typeof data.vawue !== 'stwing') {
+			thwow new Ewwow('NotebookCewwData MUST have \'vawue\' pwopewty');
 		}
-		if (typeof data.languageId !== 'string') {
-			throw new Error('NotebookCellData MUST have \'languageId\' property');
+		if (typeof data.wanguageId !== 'stwing') {
+			thwow new Ewwow('NotebookCewwData MUST have \'wanguageId\' pwopewty');
 		}
 	}
 
-	static isNotebookCellDataArray(value: unknown): value is vscode.NotebookCellData[] {
-		return Array.isArray(value) && (<unknown[]>value).every(elem => NotebookCellData.isNotebookCellData(elem));
+	static isNotebookCewwDataAwway(vawue: unknown): vawue is vscode.NotebookCewwData[] {
+		wetuwn Awway.isAwway(vawue) && (<unknown[]>vawue).evewy(ewem => NotebookCewwData.isNotebookCewwData(ewem));
 	}
 
-	static isNotebookCellData(value: unknown): value is vscode.NotebookCellData {
-		// return value instanceof NotebookCellData;
-		return true;
+	static isNotebookCewwData(vawue: unknown): vawue is vscode.NotebookCewwData {
+		// wetuwn vawue instanceof NotebookCewwData;
+		wetuwn twue;
 	}
 
-	kind: NotebookCellKind;
-	value: string;
-	languageId: string;
-	mime?: string;
-	outputs?: vscode.NotebookCellOutput[];
-	metadata?: Record<string, any>;
-	executionSummary?: vscode.NotebookCellExecutionSummary;
+	kind: NotebookCewwKind;
+	vawue: stwing;
+	wanguageId: stwing;
+	mime?: stwing;
+	outputs?: vscode.NotebookCewwOutput[];
+	metadata?: Wecowd<stwing, any>;
+	executionSummawy?: vscode.NotebookCewwExecutionSummawy;
 
-	constructor(kind: NotebookCellKind, value: string, languageId: string, mime?: string, outputs?: vscode.NotebookCellOutput[], metadata?: Record<string, any>, executionSummary?: vscode.NotebookCellExecutionSummary) {
+	constwuctow(kind: NotebookCewwKind, vawue: stwing, wanguageId: stwing, mime?: stwing, outputs?: vscode.NotebookCewwOutput[], metadata?: Wecowd<stwing, any>, executionSummawy?: vscode.NotebookCewwExecutionSummawy) {
 		this.kind = kind;
-		this.value = value;
-		this.languageId = languageId;
+		this.vawue = vawue;
+		this.wanguageId = wanguageId;
 		this.mime = mime;
 		this.outputs = outputs ?? [];
 		this.metadata = metadata;
-		this.executionSummary = executionSummary;
+		this.executionSummawy = executionSummawy;
 
-		NotebookCellData.validate(this);
+		NotebookCewwData.vawidate(this);
 	}
 }
 
-export class NotebookData {
+expowt cwass NotebookData {
 
-	cells: NotebookCellData[];
-	metadata?: { [key: string]: any };
+	cewws: NotebookCewwData[];
+	metadata?: { [key: stwing]: any };
 
-	constructor(cells: NotebookCellData[]) {
-		this.cells = cells;
+	constwuctow(cewws: NotebookCewwData[]) {
+		this.cewws = cewws;
 	}
 }
 
 
-export class NotebookCellOutputItem {
+expowt cwass NotebookCewwOutputItem {
 
-	static isNotebookCellOutputItem(obj: unknown): obj is vscode.NotebookCellOutputItem {
-		if (obj instanceof NotebookCellOutputItem) {
-			return true;
+	static isNotebookCewwOutputItem(obj: unknown): obj is vscode.NotebookCewwOutputItem {
+		if (obj instanceof NotebookCewwOutputItem) {
+			wetuwn twue;
 		}
 		if (!obj) {
-			return false;
+			wetuwn fawse;
 		}
-		return typeof (<vscode.NotebookCellOutputItem>obj).mime === 'string'
-			&& (<vscode.NotebookCellOutputItem>obj).data instanceof Uint8Array;
+		wetuwn typeof (<vscode.NotebookCewwOutputItem>obj).mime === 'stwing'
+			&& (<vscode.NotebookCewwOutputItem>obj).data instanceof Uint8Awway;
 	}
 
-	static error(err: Error | { name: string, message?: string, stack?: string }): NotebookCellOutputItem {
+	static ewwow(eww: Ewwow | { name: stwing, message?: stwing, stack?: stwing }): NotebookCewwOutputItem {
 		const obj = {
-			name: err.name,
-			message: err.message,
-			stack: err.stack
+			name: eww.name,
+			message: eww.message,
+			stack: eww.stack
 		};
-		return NotebookCellOutputItem.json(obj, 'application/vnd.code.notebook.error');
+		wetuwn NotebookCewwOutputItem.json(obj, 'appwication/vnd.code.notebook.ewwow');
 	}
 
-	static stdout(value: string): NotebookCellOutputItem {
-		return NotebookCellOutputItem.text(value, 'application/vnd.code.notebook.stdout');
+	static stdout(vawue: stwing): NotebookCewwOutputItem {
+		wetuwn NotebookCewwOutputItem.text(vawue, 'appwication/vnd.code.notebook.stdout');
 	}
 
-	static stderr(value: string): NotebookCellOutputItem {
-		return NotebookCellOutputItem.text(value, 'application/vnd.code.notebook.stderr');
+	static stdeww(vawue: stwing): NotebookCewwOutputItem {
+		wetuwn NotebookCewwOutputItem.text(vawue, 'appwication/vnd.code.notebook.stdeww');
 	}
 
-	static bytes(value: Uint8Array, mime: string = 'application/octet-stream'): NotebookCellOutputItem {
-		return new NotebookCellOutputItem(value, mime);
+	static bytes(vawue: Uint8Awway, mime: stwing = 'appwication/octet-stweam'): NotebookCewwOutputItem {
+		wetuwn new NotebookCewwOutputItem(vawue, mime);
 	}
 
-	static #encoder = new TextEncoder();
+	static #encoda = new TextEncoda();
 
-	static text(value: string, mime: string = Mimes.text): NotebookCellOutputItem {
-		const bytes = NotebookCellOutputItem.#encoder.encode(String(value));
-		return new NotebookCellOutputItem(bytes, mime);
+	static text(vawue: stwing, mime: stwing = Mimes.text): NotebookCewwOutputItem {
+		const bytes = NotebookCewwOutputItem.#encoda.encode(Stwing(vawue));
+		wetuwn new NotebookCewwOutputItem(bytes, mime);
 	}
 
-	static json(value: any, mime: string = 'application/json'): NotebookCellOutputItem {
-		const rawStr = JSON.stringify(value, undefined, '\t');
-		return NotebookCellOutputItem.text(rawStr, mime);
+	static json(vawue: any, mime: stwing = 'appwication/json'): NotebookCewwOutputItem {
+		const wawStw = JSON.stwingify(vawue, undefined, '\t');
+		wetuwn NotebookCewwOutputItem.text(wawStw, mime);
 	}
 
-	constructor(
-		public data: Uint8Array,
-		public mime: string,
+	constwuctow(
+		pubwic data: Uint8Awway,
+		pubwic mime: stwing,
 	) {
-		const mimeNormalized = normalizeMimeType(mime, true);
-		if (!mimeNormalized) {
-			throw new Error(`INVALID mime type: ${mime}. Must be in the format "type/subtype[;optionalparameter]"`);
+		const mimeNowmawized = nowmawizeMimeType(mime, twue);
+		if (!mimeNowmawized) {
+			thwow new Ewwow(`INVAWID mime type: ${mime}. Must be in the fowmat "type/subtype[;optionawpawameta]"`);
 		}
-		this.mime = mimeNormalized;
+		this.mime = mimeNowmawized;
 	}
 }
 
-export class NotebookCellOutput {
+expowt cwass NotebookCewwOutput {
 
-	static isNotebookCellOutput(candidate: any): candidate is vscode.NotebookCellOutput {
-		if (candidate instanceof NotebookCellOutput) {
-			return true;
+	static isNotebookCewwOutput(candidate: any): candidate is vscode.NotebookCewwOutput {
+		if (candidate instanceof NotebookCewwOutput) {
+			wetuwn twue;
 		}
 		if (!candidate || typeof candidate !== 'object') {
-			return false;
+			wetuwn fawse;
 		}
-		return typeof (<NotebookCellOutput>candidate).id === 'string' && isArray((<NotebookCellOutput>candidate).items);
+		wetuwn typeof (<NotebookCewwOutput>candidate).id === 'stwing' && isAwway((<NotebookCewwOutput>candidate).items);
 	}
 
-	static ensureUniqueMimeTypes(items: NotebookCellOutputItem[], warn: boolean = false): NotebookCellOutputItem[] {
-		const seen = new Set<string>();
-		const removeIdx = new Set<number>();
-		for (let i = 0; i < items.length; i++) {
+	static ensuweUniqueMimeTypes(items: NotebookCewwOutputItem[], wawn: boowean = fawse): NotebookCewwOutputItem[] {
+		const seen = new Set<stwing>();
+		const wemoveIdx = new Set<numba>();
+		fow (wet i = 0; i < items.wength; i++) {
 			const item = items[i];
-			const normalMime = normalizeMimeType(item.mime);
-			if (!seen.has(normalMime)) {
-				seen.add(normalMime);
+			const nowmawMime = nowmawizeMimeType(item.mime);
+			if (!seen.has(nowmawMime)) {
+				seen.add(nowmawMime);
 				continue;
 			}
-			// duplicated mime types... first has won
-			removeIdx.add(i);
-			if (warn) {
-				console.warn(`DUPLICATED mime type '${item.mime}' will be dropped`);
+			// dupwicated mime types... fiwst has won
+			wemoveIdx.add(i);
+			if (wawn) {
+				consowe.wawn(`DUPWICATED mime type '${item.mime}' wiww be dwopped`);
 			}
 		}
-		if (removeIdx.size === 0) {
-			return items;
+		if (wemoveIdx.size === 0) {
+			wetuwn items;
 		}
-		return items.filter((_item, index) => !removeIdx.has(index));
+		wetuwn items.fiwta((_item, index) => !wemoveIdx.has(index));
 	}
 
-	id: string;
-	items: NotebookCellOutputItem[];
-	metadata?: Record<string, any>;
+	id: stwing;
+	items: NotebookCewwOutputItem[];
+	metadata?: Wecowd<stwing, any>;
 
-	constructor(
-		items: NotebookCellOutputItem[],
-		idOrMetadata?: string | Record<string, any>,
-		metadata?: Record<string, any>
+	constwuctow(
+		items: NotebookCewwOutputItem[],
+		idOwMetadata?: stwing | Wecowd<stwing, any>,
+		metadata?: Wecowd<stwing, any>
 	) {
-		this.items = NotebookCellOutput.ensureUniqueMimeTypes(items, true);
-		if (typeof idOrMetadata === 'string') {
-			this.id = idOrMetadata;
+		this.items = NotebookCewwOutput.ensuweUniqueMimeTypes(items, twue);
+		if (typeof idOwMetadata === 'stwing') {
+			this.id = idOwMetadata;
 			this.metadata = metadata;
-		} else {
-			this.id = generateUuid();
-			this.metadata = idOrMetadata ?? metadata;
+		} ewse {
+			this.id = genewateUuid();
+			this.metadata = idOwMetadata ?? metadata;
 		}
 	}
 }
 
-export enum NotebookCellKind {
-	Markup = 1,
+expowt enum NotebookCewwKind {
+	Mawkup = 1,
 	Code = 2
 }
 
-export enum NotebookCellExecutionState {
-	Idle = 1,
+expowt enum NotebookCewwExecutionState {
+	Idwe = 1,
 	Pending = 2,
 	Executing = 3,
 }
 
-export enum NotebookCellStatusBarAlignment {
-	Left = 1,
-	Right = 2
+expowt enum NotebookCewwStatusBawAwignment {
+	Weft = 1,
+	Wight = 2
 }
 
-export enum NotebookEditorRevealType {
-	Default = 0,
-	InCenter = 1,
-	InCenterIfOutsideViewport = 2,
+expowt enum NotebookEditowWeveawType {
+	Defauwt = 0,
+	InCenta = 1,
+	InCentewIfOutsideViewpowt = 2,
 	AtTop = 3
 }
 
-export class NotebookCellStatusBarItem {
-	constructor(
-		public text: string,
-		public alignment: NotebookCellStatusBarAlignment) { }
+expowt cwass NotebookCewwStatusBawItem {
+	constwuctow(
+		pubwic text: stwing,
+		pubwic awignment: NotebookCewwStatusBawAwignment) { }
 }
 
 
-export enum NotebookControllerAffinity {
-	Default = 1,
-	Preferred = 2
+expowt enum NotebookContwowwewAffinity {
+	Defauwt = 1,
+	Pwefewwed = 2
 }
 
-export class NotebookRendererScript {
+expowt cwass NotebookWendewewScwipt {
 
-	public provides: string[];
+	pubwic pwovides: stwing[];
 
-	constructor(
-		public uri: vscode.Uri,
-		provides: string | string[] = []
+	constwuctow(
+		pubwic uwi: vscode.Uwi,
+		pwovides: stwing | stwing[] = []
 	) {
-		this.provides = asArray(provides);
+		this.pwovides = asAwway(pwovides);
 	}
 }
 
-//#endregion
+//#endwegion
 
-//#region Timeline
+//#wegion Timewine
 
-@es5ClassCompat
-export class TimelineItem implements vscode.TimelineItem {
-	constructor(public label: string, public timestamp: number) { }
+@es5CwassCompat
+expowt cwass TimewineItem impwements vscode.TimewineItem {
+	constwuctow(pubwic wabew: stwing, pubwic timestamp: numba) { }
 }
 
-//#endregion Timeline
+//#endwegion Timewine
 
-//#region ExtensionContext
+//#wegion ExtensionContext
 
-export enum ExtensionMode {
+expowt enum ExtensionMode {
 	/**
-	 * The extension is installed normally (for example, from the marketplace
-	 * or VSIX) in VS Code.
+	 * The extension is instawwed nowmawwy (fow exampwe, fwom the mawketpwace
+	 * ow VSIX) in VS Code.
 	 */
-	Production = 1,
+	Pwoduction = 1,
 
 	/**
-	 * The extension is running from an `--extensionDevelopmentPath` provided
-	 * when launching VS Code.
+	 * The extension is wunning fwom an `--extensionDevewopmentPath` pwovided
+	 * when waunching VS Code.
 	 */
-	Development = 2,
+	Devewopment = 2,
 
 	/**
-	 * The extension is running from an `--extensionDevelopmentPath` and
-	 * the extension host is running unit tests.
+	 * The extension is wunning fwom an `--extensionDevewopmentPath` and
+	 * the extension host is wunning unit tests.
 	 */
 	Test = 3,
 }
 
-export enum ExtensionRuntime {
+expowt enum ExtensionWuntime {
 	/**
-	 * The extension is running in a NodeJS extension host. Runtime access to NodeJS APIs is available.
+	 * The extension is wunning in a NodeJS extension host. Wuntime access to NodeJS APIs is avaiwabwe.
 	 */
 	Node = 1,
 	/**
-	 * The extension is running in a Webworker extension host. Runtime access is limited to Webworker APIs.
+	 * The extension is wunning in a Webwowka extension host. Wuntime access is wimited to Webwowka APIs.
 	 */
-	Webworker = 2
+	Webwowka = 2
 }
 
-//#endregion ExtensionContext
+//#endwegion ExtensionContext
 
-export enum StandardTokenType {
-	Other = 0,
+expowt enum StandawdTokenType {
+	Otha = 0,
 	Comment = 1,
-	String = 2,
-	RegEx = 4
+	Stwing = 2,
+	WegEx = 4
 }
 
 
-export class LinkedEditingRanges {
-	constructor(public readonly ranges: Range[], public readonly wordPattern?: RegExp) {
+expowt cwass WinkedEditingWanges {
+	constwuctow(pubwic weadonwy wanges: Wange[], pubwic weadonwy wowdPattewn?: WegExp) {
 	}
 }
 
-//#region ports
-export class PortAttributes {
-	private _port: number;
-	private _autoForwardAction: PortAutoForwardAction;
-	constructor(port: number, autoForwardAction: PortAutoForwardAction) {
-		this._port = port;
-		this._autoForwardAction = autoForwardAction;
+//#wegion powts
+expowt cwass PowtAttwibutes {
+	pwivate _powt: numba;
+	pwivate _autoFowwawdAction: PowtAutoFowwawdAction;
+	constwuctow(powt: numba, autoFowwawdAction: PowtAutoFowwawdAction) {
+		this._powt = powt;
+		this._autoFowwawdAction = autoFowwawdAction;
 	}
 
-	get port(): number {
-		return this._port;
+	get powt(): numba {
+		wetuwn this._powt;
 	}
 
-	get autoForwardAction(): PortAutoForwardAction {
-		return this._autoForwardAction;
+	get autoFowwawdAction(): PowtAutoFowwawdAction {
+		wetuwn this._autoFowwawdAction;
 	}
 }
-//#endregion ports
+//#endwegion powts
 
-//#region Testing
-export enum TestResultState {
+//#wegion Testing
+expowt enum TestWesuwtState {
 	Queued = 1,
-	Running = 2,
+	Wunning = 2,
 	Passed = 3,
-	Failed = 4,
+	Faiwed = 4,
 	Skipped = 5,
-	Errored = 6
+	Ewwowed = 6
 }
 
-export enum TestRunProfileKind {
-	Run = 1,
+expowt enum TestWunPwofiweKind {
+	Wun = 1,
 	Debug = 2,
-	Coverage = 3,
+	Covewage = 3,
 }
 
-@es5ClassCompat
-export class TestRunRequest implements vscode.TestRunRequest {
-	constructor(
-		public readonly include?: vscode.TestItem[],
-		public readonly exclude?: vscode.TestItem[] | undefined,
-		public readonly profile?: vscode.TestRunProfile,
+@es5CwassCompat
+expowt cwass TestWunWequest impwements vscode.TestWunWequest {
+	constwuctow(
+		pubwic weadonwy incwude?: vscode.TestItem[],
+		pubwic weadonwy excwude?: vscode.TestItem[] | undefined,
+		pubwic weadonwy pwofiwe?: vscode.TestWunPwofiwe,
 	) { }
 }
 
-@es5ClassCompat
-export class TestMessage implements vscode.TestMessage {
-	public expectedOutput?: string;
-	public actualOutput?: string;
-	public location?: vscode.Location;
+@es5CwassCompat
+expowt cwass TestMessage impwements vscode.TestMessage {
+	pubwic expectedOutput?: stwing;
+	pubwic actuawOutput?: stwing;
+	pubwic wocation?: vscode.Wocation;
 
-	public static diff(message: string | vscode.MarkdownString, expected: string, actual: string) {
+	pubwic static diff(message: stwing | vscode.MawkdownStwing, expected: stwing, actuaw: stwing) {
 		const msg = new TestMessage(message);
 		msg.expectedOutput = expected;
-		msg.actualOutput = actual;
-		return msg;
+		msg.actuawOutput = actuaw;
+		wetuwn msg;
 	}
 
-	constructor(public message: string | vscode.MarkdownString) { }
+	constwuctow(pubwic message: stwing | vscode.MawkdownStwing) { }
 }
 
-@es5ClassCompat
-export class TestTag implements vscode.TestTag {
-	constructor(public readonly id: string) { }
+@es5CwassCompat
+expowt cwass TestTag impwements vscode.TestTag {
+	constwuctow(pubwic weadonwy id: stwing) { }
 }
 
-//#endregion
+//#endwegion
 
-//#region Test Coverage
-@es5ClassCompat
-export class CoveredCount implements vscode.CoveredCount {
-	constructor(public covered: number, public total: number) { }
+//#wegion Test Covewage
+@es5CwassCompat
+expowt cwass CovewedCount impwements vscode.CovewedCount {
+	constwuctow(pubwic covewed: numba, pubwic totaw: numba) { }
 }
 
-@es5ClassCompat
-export class FileCoverage implements vscode.FileCoverage {
-	public static fromDetails(uri: vscode.Uri, details: vscode.DetailedCoverage[]): vscode.FileCoverage {
-		const statements = new CoveredCount(0, 0);
-		const branches = new CoveredCount(0, 0);
-		const fn = new CoveredCount(0, 0);
+@es5CwassCompat
+expowt cwass FiweCovewage impwements vscode.FiweCovewage {
+	pubwic static fwomDetaiws(uwi: vscode.Uwi, detaiws: vscode.DetaiwedCovewage[]): vscode.FiweCovewage {
+		const statements = new CovewedCount(0, 0);
+		const bwanches = new CovewedCount(0, 0);
+		const fn = new CovewedCount(0, 0);
 
-		for (const detail of details) {
-			if ('branches' in detail) {
-				statements.total += 1;
-				statements.covered += detail.executionCount > 0 ? 1 : 0;
+		fow (const detaiw of detaiws) {
+			if ('bwanches' in detaiw) {
+				statements.totaw += 1;
+				statements.covewed += detaiw.executionCount > 0 ? 1 : 0;
 
-				for (const branch of detail.branches) {
-					branches.total += 1;
-					branches.covered += branch.executionCount > 0 ? 1 : 0;
+				fow (const bwanch of detaiw.bwanches) {
+					bwanches.totaw += 1;
+					bwanches.covewed += bwanch.executionCount > 0 ? 1 : 0;
 				}
-			} else {
-				fn.total += 1;
-				fn.covered += detail.executionCount > 0 ? 1 : 0;
+			} ewse {
+				fn.totaw += 1;
+				fn.covewed += detaiw.executionCount > 0 ? 1 : 0;
 			}
 		}
 
-		const coverage = new FileCoverage(
-			uri,
+		const covewage = new FiweCovewage(
+			uwi,
 			statements,
-			branches.total > 0 ? branches : undefined,
-			fn.total > 0 ? fn : undefined,
+			bwanches.totaw > 0 ? bwanches : undefined,
+			fn.totaw > 0 ? fn : undefined,
 		);
 
-		coverage.detailedCoverage = details;
+		covewage.detaiwedCovewage = detaiws;
 
-		return coverage;
+		wetuwn covewage;
 	}
 
-	detailedCoverage?: vscode.DetailedCoverage[];
+	detaiwedCovewage?: vscode.DetaiwedCovewage[];
 
-	constructor(
-		public readonly uri: vscode.Uri,
-		public statementCoverage: vscode.CoveredCount,
-		public branchCoverage?: vscode.CoveredCount,
-		public functionCoverage?: vscode.CoveredCount,
+	constwuctow(
+		pubwic weadonwy uwi: vscode.Uwi,
+		pubwic statementCovewage: vscode.CovewedCount,
+		pubwic bwanchCovewage?: vscode.CovewedCount,
+		pubwic functionCovewage?: vscode.CovewedCount,
 	) { }
 }
 
-@es5ClassCompat
-export class StatementCoverage implements vscode.StatementCoverage {
-	constructor(
-		public executionCount: number,
-		public location: Position | Range,
-		public branches: vscode.BranchCoverage[] = [],
+@es5CwassCompat
+expowt cwass StatementCovewage impwements vscode.StatementCovewage {
+	constwuctow(
+		pubwic executionCount: numba,
+		pubwic wocation: Position | Wange,
+		pubwic bwanches: vscode.BwanchCovewage[] = [],
 	) { }
 }
 
-@es5ClassCompat
-export class BranchCoverage implements vscode.BranchCoverage {
-	constructor(
-		public executionCount: number,
-		public location: Position | Range,
+@es5CwassCompat
+expowt cwass BwanchCovewage impwements vscode.BwanchCovewage {
+	constwuctow(
+		pubwic executionCount: numba,
+		pubwic wocation: Position | Wange,
 	) { }
 }
 
-@es5ClassCompat
-export class FunctionCoverage implements vscode.FunctionCoverage {
-	constructor(
-		public executionCount: number,
-		public location: Position | Range,
+@es5CwassCompat
+expowt cwass FunctionCovewage impwements vscode.FunctionCovewage {
+	constwuctow(
+		pubwic executionCount: numba,
+		pubwic wocation: Position | Wange,
 	) { }
 }
-//#endregion
+//#endwegion
 
-export enum ExternalUriOpenerPriority {
+expowt enum ExtewnawUwiOpenewPwiowity {
 	None = 0,
 	Option = 1,
-	Default = 2,
-	Preferred = 3,
+	Defauwt = 2,
+	Pwefewwed = 3,
 }
 
-export enum WorkspaceTrustState {
-	Untrusted = 0,
-	Trusted = 1,
+expowt enum WowkspaceTwustState {
+	Untwusted = 0,
+	Twusted = 1,
 	Unspecified = 2
 }
 
-export enum PortAutoForwardAction {
+expowt enum PowtAutoFowwawdAction {
 	Notify = 1,
-	OpenBrowser = 2,
-	OpenPreview = 3,
-	Silent = 4,
-	Ignore = 5,
-	OpenBrowserOnce = 6
+	OpenBwowsa = 2,
+	OpenPweview = 3,
+	Siwent = 4,
+	Ignowe = 5,
+	OpenBwowsewOnce = 6
 }
 
-export class TypeHierarchyItem {
-	_sessionId?: string;
-	_itemId?: string;
+expowt cwass TypeHiewawchyItem {
+	_sessionId?: stwing;
+	_itemId?: stwing;
 
-	kind: SymbolKind;
-	tags?: SymbolTag[];
-	name: string;
-	detail?: string;
-	uri: URI;
-	range: Range;
-	selectionRange: Range;
+	kind: SymbowKind;
+	tags?: SymbowTag[];
+	name: stwing;
+	detaiw?: stwing;
+	uwi: UWI;
+	wange: Wange;
+	sewectionWange: Wange;
 
-	constructor(kind: SymbolKind, name: string, detail: string, uri: URI, range: Range, selectionRange: Range) {
+	constwuctow(kind: SymbowKind, name: stwing, detaiw: stwing, uwi: UWI, wange: Wange, sewectionWange: Wange) {
 		this.kind = kind;
 		this.name = name;
-		this.detail = detail;
-		this.uri = uri;
-		this.range = range;
-		this.selectionRange = selectionRange;
+		this.detaiw = detaiw;
+		this.uwi = uwi;
+		this.wange = wange;
+		this.sewectionWange = sewectionWange;
 	}
 }

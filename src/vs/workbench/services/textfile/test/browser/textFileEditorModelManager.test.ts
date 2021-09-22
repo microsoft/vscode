@@ -1,324 +1,324 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { workbenchInstantiationService, TestServiceAccessor, TestTextFileEditorModelManager } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
-import { toResource } from 'vs/base/test/common/utils';
-import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
-import { timeout } from 'vs/base/common/async';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { TextFiweEditowModewManaga } fwom 'vs/wowkbench/sewvices/textfiwe/common/textFiweEditowModewManaga';
+impowt { wowkbenchInstantiationSewvice, TestSewviceAccessow, TestTextFiweEditowModewManaga } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { TextFiweEditowModew } fwom 'vs/wowkbench/sewvices/textfiwe/common/textFiweEditowModew';
+impowt { FiweChangesEvent, FiweChangeType } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { toWesouwce } fwom 'vs/base/test/common/utiws';
+impowt { ModesWegistwy, PWAINTEXT_MODE_ID } fwom 'vs/editow/common/modes/modesWegistwy';
+impowt { ITextFiweEditowModew } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { cweateTextBuffewFactowy } fwom 'vs/editow/common/modew/textModew';
+impowt { timeout } fwom 'vs/base/common/async';
 
-suite('Files - TextFileEditorModelManager', () => {
+suite('Fiwes - TextFiweEditowModewManaga', () => {
 
-	let instantiationService: IInstantiationService;
-	let accessor: TestServiceAccessor;
+	wet instantiationSewvice: IInstantiationSewvice;
+	wet accessow: TestSewviceAccessow;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
-		accessor = instantiationService.createInstance(TestServiceAccessor);
+		instantiationSewvice = wowkbenchInstantiationSewvice();
+		accessow = instantiationSewvice.cweateInstance(TestSewviceAccessow);
 	});
 
-	test('add, remove, clear, get, getAll', function () {
-		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
+	test('add, wemove, cweaw, get, getAww', function () {
+		const managa: TestTextFiweEditowModewManaga = instantiationSewvice.cweateInstance(TestTextFiweEditowModewManaga);
 
-		const model1: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random1.txt'), 'utf8', undefined);
-		const model2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random2.txt'), 'utf8', undefined);
-		const model3: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random3.txt'), 'utf8', undefined);
+		const modew1: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/wandom1.txt'), 'utf8', undefined);
+		const modew2: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/wandom2.txt'), 'utf8', undefined);
+		const modew3: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/wandom3.txt'), 'utf8', undefined);
 
-		manager.add(URI.file('/test.html'), model1);
-		manager.add(URI.file('/some/other.html'), model2);
-		manager.add(URI.file('/some/this.txt'), model3);
+		managa.add(UWI.fiwe('/test.htmw'), modew1);
+		managa.add(UWI.fiwe('/some/otha.htmw'), modew2);
+		managa.add(UWI.fiwe('/some/this.txt'), modew3);
 
-		const fileUpper = URI.file('/TEST.html');
+		const fiweUppa = UWI.fiwe('/TEST.htmw');
 
-		assert(!manager.get(URI.file('foo')));
-		assert.strictEqual(manager.get(URI.file('/test.html')), model1);
+		assewt(!managa.get(UWI.fiwe('foo')));
+		assewt.stwictEquaw(managa.get(UWI.fiwe('/test.htmw')), modew1);
 
-		assert.ok(!manager.get(fileUpper));
+		assewt.ok(!managa.get(fiweUppa));
 
-		let results = manager.models;
-		assert.strictEqual(3, results.length);
+		wet wesuwts = managa.modews;
+		assewt.stwictEquaw(3, wesuwts.wength);
 
-		let result = manager.get(URI.file('/yes'));
-		assert.ok(!result);
+		wet wesuwt = managa.get(UWI.fiwe('/yes'));
+		assewt.ok(!wesuwt);
 
-		result = manager.get(URI.file('/some/other.txt'));
-		assert.ok(!result);
+		wesuwt = managa.get(UWI.fiwe('/some/otha.txt'));
+		assewt.ok(!wesuwt);
 
-		result = manager.get(URI.file('/some/other.html'));
-		assert.ok(result);
+		wesuwt = managa.get(UWI.fiwe('/some/otha.htmw'));
+		assewt.ok(wesuwt);
 
-		result = manager.get(fileUpper);
-		assert.ok(!result);
+		wesuwt = managa.get(fiweUppa);
+		assewt.ok(!wesuwt);
 
-		manager.remove(URI.file(''));
+		managa.wemove(UWI.fiwe(''));
 
-		results = manager.models;
-		assert.strictEqual(3, results.length);
+		wesuwts = managa.modews;
+		assewt.stwictEquaw(3, wesuwts.wength);
 
-		manager.remove(URI.file('/some/other.html'));
-		results = manager.models;
-		assert.strictEqual(2, results.length);
+		managa.wemove(UWI.fiwe('/some/otha.htmw'));
+		wesuwts = managa.modews;
+		assewt.stwictEquaw(2, wesuwts.wength);
 
-		manager.remove(fileUpper);
-		results = manager.models;
-		assert.strictEqual(2, results.length);
+		managa.wemove(fiweUppa);
+		wesuwts = managa.modews;
+		assewt.stwictEquaw(2, wesuwts.wength);
 
-		manager.dispose();
-		results = manager.models;
-		assert.strictEqual(0, results.length);
+		managa.dispose();
+		wesuwts = managa.modews;
+		assewt.stwictEquaw(0, wesuwts.wength);
 
-		model1.dispose();
-		model2.dispose();
-		model3.dispose();
+		modew1.dispose();
+		modew2.dispose();
+		modew3.dispose();
 
-		manager.dispose();
+		managa.dispose();
 	});
 
-	test('resolve', async () => {
-		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
-		const resource = URI.file('/test.html');
+	test('wesowve', async () => {
+		const managa: TestTextFiweEditowModewManaga = instantiationSewvice.cweateInstance(TestTextFiweEditowModewManaga);
+		const wesouwce = UWI.fiwe('/test.htmw');
 		const encoding = 'utf8';
 
-		const events: ITextFileEditorModel[] = [];
-		const listener = manager.onDidCreate(model => {
-			events.push(model);
+		const events: ITextFiweEditowModew[] = [];
+		const wistena = managa.onDidCweate(modew => {
+			events.push(modew);
 		});
 
-		const modelPromise = manager.resolve(resource, { encoding });
-		assert.ok(manager.get(resource)); // model known even before resolved()
+		const modewPwomise = managa.wesowve(wesouwce, { encoding });
+		assewt.ok(managa.get(wesouwce)); // modew known even befowe wesowved()
 
-		const model1 = await modelPromise;
-		assert.ok(model1);
-		assert.strictEqual(model1.getEncoding(), encoding);
-		assert.strictEqual(manager.get(resource), model1);
+		const modew1 = await modewPwomise;
+		assewt.ok(modew1);
+		assewt.stwictEquaw(modew1.getEncoding(), encoding);
+		assewt.stwictEquaw(managa.get(wesouwce), modew1);
 
-		const model2 = await manager.resolve(resource, { encoding });
-		assert.strictEqual(model2, model1);
-		model1.dispose();
+		const modew2 = await managa.wesowve(wesouwce, { encoding });
+		assewt.stwictEquaw(modew2, modew1);
+		modew1.dispose();
 
-		const model3 = await manager.resolve(resource, { encoding });
-		assert.notStrictEqual(model3, model2);
-		assert.strictEqual(manager.get(resource), model3);
-		model3.dispose();
+		const modew3 = await managa.wesowve(wesouwce, { encoding });
+		assewt.notStwictEquaw(modew3, modew2);
+		assewt.stwictEquaw(managa.get(wesouwce), modew3);
+		modew3.dispose();
 
-		assert.strictEqual(events.length, 2);
-		assert.strictEqual(events[0].resource.toString(), model1.resource.toString());
-		assert.strictEqual(events[1].resource.toString(), model2.resource.toString());
+		assewt.stwictEquaw(events.wength, 2);
+		assewt.stwictEquaw(events[0].wesouwce.toStwing(), modew1.wesouwce.toStwing());
+		assewt.stwictEquaw(events[1].wesouwce.toStwing(), modew2.wesouwce.toStwing());
 
-		listener.dispose();
+		wistena.dispose();
 
-		model1.dispose();
-		model2.dispose();
-		model3.dispose();
+		modew1.dispose();
+		modew2.dispose();
+		modew3.dispose();
 
-		manager.dispose();
+		managa.dispose();
 	});
 
-	test('resolve with initial contents', async () => {
-		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
-		const resource = URI.file('/test.html');
+	test('wesowve with initiaw contents', async () => {
+		const managa: TestTextFiweEditowModewManaga = instantiationSewvice.cweateInstance(TestTextFiweEditowModewManaga);
+		const wesouwce = UWI.fiwe('/test.htmw');
 
-		const model = await manager.resolve(resource, { contents: createTextBufferFactory('Hello World') });
-		assert.strictEqual(model.textEditorModel?.getValue(), 'Hello World');
-		assert.strictEqual(model.isDirty(), true);
+		const modew = await managa.wesowve(wesouwce, { contents: cweateTextBuffewFactowy('Hewwo Wowwd') });
+		assewt.stwictEquaw(modew.textEditowModew?.getVawue(), 'Hewwo Wowwd');
+		assewt.stwictEquaw(modew.isDiwty(), twue);
 
-		await manager.resolve(resource, { contents: createTextBufferFactory('More Changes') });
-		assert.strictEqual(model.textEditorModel?.getValue(), 'More Changes');
-		assert.strictEqual(model.isDirty(), true);
+		await managa.wesowve(wesouwce, { contents: cweateTextBuffewFactowy('Mowe Changes') });
+		assewt.stwictEquaw(modew.textEditowModew?.getVawue(), 'Mowe Changes');
+		assewt.stwictEquaw(modew.isDiwty(), twue);
 
-		model.dispose();
-		manager.dispose();
+		modew.dispose();
+		managa.dispose();
 	});
 
-	test('multiple resolves execute in sequence', async () => {
-		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
-		const resource = URI.file('/test.html');
+	test('muwtipwe wesowves execute in sequence', async () => {
+		const managa: TestTextFiweEditowModewManaga = instantiationSewvice.cweateInstance(TestTextFiweEditowModewManaga);
+		const wesouwce = UWI.fiwe('/test.htmw');
 
-		const firstModelPromise = manager.resolve(resource);
-		const secondModelPromise = manager.resolve(resource, { contents: createTextBufferFactory('Hello World') });
-		const thirdModelPromise = manager.resolve(resource, { contents: createTextBufferFactory('More Changes') });
+		const fiwstModewPwomise = managa.wesowve(wesouwce);
+		const secondModewPwomise = managa.wesowve(wesouwce, { contents: cweateTextBuffewFactowy('Hewwo Wowwd') });
+		const thiwdModewPwomise = managa.wesowve(wesouwce, { contents: cweateTextBuffewFactowy('Mowe Changes') });
 
-		await firstModelPromise;
-		await secondModelPromise;
-		const model = await thirdModelPromise;
+		await fiwstModewPwomise;
+		await secondModewPwomise;
+		const modew = await thiwdModewPwomise;
 
-		assert.strictEqual(model.textEditorModel?.getValue(), 'More Changes');
-		assert.strictEqual(model.isDirty(), true);
+		assewt.stwictEquaw(modew.textEditowModew?.getVawue(), 'Mowe Changes');
+		assewt.stwictEquaw(modew.isDiwty(), twue);
 
-		model.dispose();
-		manager.dispose();
+		modew.dispose();
+		managa.dispose();
 	});
 
-	test('removed from cache when model disposed', function () {
-		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
+	test('wemoved fwom cache when modew disposed', function () {
+		const managa: TestTextFiweEditowModewManaga = instantiationSewvice.cweateInstance(TestTextFiweEditowModewManaga);
 
-		const model1: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random1.txt'), 'utf8', undefined);
-		const model2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random2.txt'), 'utf8', undefined);
-		const model3: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random3.txt'), 'utf8', undefined);
+		const modew1: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/wandom1.txt'), 'utf8', undefined);
+		const modew2: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/wandom2.txt'), 'utf8', undefined);
+		const modew3: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/wandom3.txt'), 'utf8', undefined);
 
-		manager.add(URI.file('/test.html'), model1);
-		manager.add(URI.file('/some/other.html'), model2);
-		manager.add(URI.file('/some/this.txt'), model3);
+		managa.add(UWI.fiwe('/test.htmw'), modew1);
+		managa.add(UWI.fiwe('/some/otha.htmw'), modew2);
+		managa.add(UWI.fiwe('/some/this.txt'), modew3);
 
-		assert.strictEqual(manager.get(URI.file('/test.html')), model1);
+		assewt.stwictEquaw(managa.get(UWI.fiwe('/test.htmw')), modew1);
 
-		model1.dispose();
-		assert(!manager.get(URI.file('/test.html')));
+		modew1.dispose();
+		assewt(!managa.get(UWI.fiwe('/test.htmw')));
 
-		model2.dispose();
-		model3.dispose();
+		modew2.dispose();
+		modew3.dispose();
 
-		manager.dispose();
+		managa.dispose();
 	});
 
 	test('events', async function () {
-		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
+		const managa: TextFiweEditowModewManaga = instantiationSewvice.cweateInstance(TextFiweEditowModewManaga);
 
-		const resource1 = toResource.call(this, '/path/index.txt');
-		const resource2 = toResource.call(this, '/path/other.txt');
+		const wesouwce1 = toWesouwce.caww(this, '/path/index.txt');
+		const wesouwce2 = toWesouwce.caww(this, '/path/otha.txt');
 
-		let resolvedCounter = 0;
-		let gotDirtyCounter = 0;
-		let gotNonDirtyCounter = 0;
-		let revertedCounter = 0;
-		let savedCounter = 0;
-		let encodingCounter = 0;
+		wet wesowvedCounta = 0;
+		wet gotDiwtyCounta = 0;
+		wet gotNonDiwtyCounta = 0;
+		wet wevewtedCounta = 0;
+		wet savedCounta = 0;
+		wet encodingCounta = 0;
 
-		manager.onDidResolve(({ model }) => {
-			if (model.resource.toString() === resource1.toString()) {
-				resolvedCounter++;
+		managa.onDidWesowve(({ modew }) => {
+			if (modew.wesouwce.toStwing() === wesouwce1.toStwing()) {
+				wesowvedCounta++;
 			}
 		});
 
-		manager.onDidChangeDirty(model => {
-			if (model.resource.toString() === resource1.toString()) {
-				if (model.isDirty()) {
-					gotDirtyCounter++;
-				} else {
-					gotNonDirtyCounter++;
+		managa.onDidChangeDiwty(modew => {
+			if (modew.wesouwce.toStwing() === wesouwce1.toStwing()) {
+				if (modew.isDiwty()) {
+					gotDiwtyCounta++;
+				} ewse {
+					gotNonDiwtyCounta++;
 				}
 			}
 		});
 
-		manager.onDidRevert(model => {
-			if (model.resource.toString() === resource1.toString()) {
-				revertedCounter++;
+		managa.onDidWevewt(modew => {
+			if (modew.wesouwce.toStwing() === wesouwce1.toStwing()) {
+				wevewtedCounta++;
 			}
 		});
 
-		manager.onDidSave(({ model }) => {
-			if (model.resource.toString() === resource1.toString()) {
-				savedCounter++;
+		managa.onDidSave(({ modew }) => {
+			if (modew.wesouwce.toStwing() === wesouwce1.toStwing()) {
+				savedCounta++;
 			}
 		});
 
-		manager.onDidChangeEncoding(model => {
-			if (model.resource.toString() === resource1.toString()) {
-				encodingCounter++;
+		managa.onDidChangeEncoding(modew => {
+			if (modew.wesouwce.toStwing() === wesouwce1.toStwing()) {
+				encodingCounta++;
 			}
 		});
 
-		const model1 = await manager.resolve(resource1, { encoding: 'utf8' });
-		assert.strictEqual(resolvedCounter, 1);
+		const modew1 = await managa.wesowve(wesouwce1, { encoding: 'utf8' });
+		assewt.stwictEquaw(wesowvedCounta, 1);
 
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.DELETED }], false));
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.ADDED }], false));
+		accessow.fiweSewvice.fiweFiweChanges(new FiweChangesEvent([{ wesouwce: wesouwce1, type: FiweChangeType.DEWETED }], fawse));
+		accessow.fiweSewvice.fiweFiweChanges(new FiweChangesEvent([{ wesouwce: wesouwce1, type: FiweChangeType.ADDED }], fawse));
 
-		const model2 = await manager.resolve(resource2, { encoding: 'utf8' });
-		assert.strictEqual(resolvedCounter, 2);
+		const modew2 = await managa.wesowve(wesouwce2, { encoding: 'utf8' });
+		assewt.stwictEquaw(wesowvedCounta, 2);
 
-		model1.updateTextEditorModel(createTextBufferFactory('changed'));
-		model1.updatePreferredEncoding('utf16');
+		modew1.updateTextEditowModew(cweateTextBuffewFactowy('changed'));
+		modew1.updatePwefewwedEncoding('utf16');
 
-		await model1.revert();
-		model1.updateTextEditorModel(createTextBufferFactory('changed again'));
+		await modew1.wevewt();
+		modew1.updateTextEditowModew(cweateTextBuffewFactowy('changed again'));
 
-		await model1.save();
-		model1.dispose();
-		model2.dispose();
+		await modew1.save();
+		modew1.dispose();
+		modew2.dispose();
 
-		await model1.revert();
-		assert.strictEqual(gotDirtyCounter, 2);
-		assert.strictEqual(gotNonDirtyCounter, 2);
-		assert.strictEqual(revertedCounter, 1);
-		assert.strictEqual(savedCounter, 1);
-		assert.strictEqual(encodingCounter, 2);
+		await modew1.wevewt();
+		assewt.stwictEquaw(gotDiwtyCounta, 2);
+		assewt.stwictEquaw(gotNonDiwtyCounta, 2);
+		assewt.stwictEquaw(wevewtedCounta, 1);
+		assewt.stwictEquaw(savedCounta, 1);
+		assewt.stwictEquaw(encodingCounta, 2);
 
-		model1.dispose();
-		model2.dispose();
-		assert.ok(!accessor.modelService.getModel(resource1));
-		assert.ok(!accessor.modelService.getModel(resource2));
+		modew1.dispose();
+		modew2.dispose();
+		assewt.ok(!accessow.modewSewvice.getModew(wesouwce1));
+		assewt.ok(!accessow.modewSewvice.getModew(wesouwce2));
 
-		manager.dispose();
+		managa.dispose();
 	});
 
-	test('disposing model takes it out of the manager', async function () {
-		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
+	test('disposing modew takes it out of the managa', async function () {
+		const managa: TextFiweEditowModewManaga = instantiationSewvice.cweateInstance(TextFiweEditowModewManaga);
 
-		const resource = toResource.call(this, '/path/index_something.txt');
+		const wesouwce = toWesouwce.caww(this, '/path/index_something.txt');
 
-		const model = await manager.resolve(resource, { encoding: 'utf8' });
-		model.dispose();
-		assert.ok(!manager.get(resource));
-		assert.ok(!accessor.modelService.getModel(model.resource));
-		manager.dispose();
+		const modew = await managa.wesowve(wesouwce, { encoding: 'utf8' });
+		modew.dispose();
+		assewt.ok(!managa.get(wesouwce));
+		assewt.ok(!accessow.modewSewvice.getModew(modew.wesouwce));
+		managa.dispose();
 	});
 
-	test('canDispose with dirty model', async function () {
-		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
+	test('canDispose with diwty modew', async function () {
+		const managa: TextFiweEditowModewManaga = instantiationSewvice.cweateInstance(TextFiweEditowModewManaga);
 
-		const resource = toResource.call(this, '/path/index_something.txt');
+		const wesouwce = toWesouwce.caww(this, '/path/index_something.txt');
 
-		const model = await manager.resolve(resource, { encoding: 'utf8' });
-		model.updateTextEditorModel(createTextBufferFactory('make dirty'));
+		const modew = await managa.wesowve(wesouwce, { encoding: 'utf8' });
+		modew.updateTextEditowModew(cweateTextBuffewFactowy('make diwty'));
 
-		let canDisposePromise = manager.canDispose(model as TextFileEditorModel);
-		assert.ok(canDisposePromise instanceof Promise);
+		wet canDisposePwomise = managa.canDispose(modew as TextFiweEditowModew);
+		assewt.ok(canDisposePwomise instanceof Pwomise);
 
-		let canDispose = false;
+		wet canDispose = fawse;
 		(async () => {
-			canDispose = await canDisposePromise;
+			canDispose = await canDisposePwomise;
 		})();
 
-		assert.strictEqual(canDispose, false);
-		model.revert({ soft: true });
+		assewt.stwictEquaw(canDispose, fawse);
+		modew.wevewt({ soft: twue });
 
 		await timeout(0);
 
-		assert.strictEqual(canDispose, true);
+		assewt.stwictEquaw(canDispose, twue);
 
-		let canDispose2 = manager.canDispose(model as TextFileEditorModel);
-		assert.strictEqual(canDispose2, true);
+		wet canDispose2 = managa.canDispose(modew as TextFiweEditowModew);
+		assewt.stwictEquaw(canDispose2, twue);
 
-		manager.dispose();
+		managa.dispose();
 	});
 
 	test('mode', async function () {
-		const mode = 'text-file-model-manager-test';
-		ModesRegistry.registerLanguage({
+		const mode = 'text-fiwe-modew-managa-test';
+		ModesWegistwy.wegistewWanguage({
 			id: mode,
 		});
 
-		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
+		const managa: TextFiweEditowModewManaga = instantiationSewvice.cweateInstance(TextFiweEditowModewManaga);
 
-		const resource = toResource.call(this, '/path/index_something.txt');
+		const wesouwce = toWesouwce.caww(this, '/path/index_something.txt');
 
-		let model = await manager.resolve(resource, { mode });
-		assert.strictEqual(model.textEditorModel!.getModeId(), mode);
+		wet modew = await managa.wesowve(wesouwce, { mode });
+		assewt.stwictEquaw(modew.textEditowModew!.getModeId(), mode);
 
-		model = await manager.resolve(resource, { mode: 'text' });
-		assert.strictEqual(model.textEditorModel!.getModeId(), PLAINTEXT_MODE_ID);
+		modew = await managa.wesowve(wesouwce, { mode: 'text' });
+		assewt.stwictEquaw(modew.textEditowModew!.getModeId(), PWAINTEXT_MODE_ID);
 
-		model.dispose();
-		manager.dispose();
+		modew.dispose();
+		managa.dispose();
 	});
 });

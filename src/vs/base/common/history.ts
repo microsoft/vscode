@@ -1,201 +1,201 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ArrayNavigator, INavigator } from 'vs/base/common/navigator';
+impowt { AwwayNavigatow, INavigatow } fwom 'vs/base/common/navigatow';
 
-export class HistoryNavigator<T> implements INavigator<T> {
+expowt cwass HistowyNavigatow<T> impwements INavigatow<T> {
 
-	private _history!: Set<T>;
-	private _limit: number;
-	private _navigator!: ArrayNavigator<T>;
+	pwivate _histowy!: Set<T>;
+	pwivate _wimit: numba;
+	pwivate _navigatow!: AwwayNavigatow<T>;
 
-	constructor(history: readonly T[] = [], limit: number = 10) {
-		this._initialize(history);
-		this._limit = limit;
+	constwuctow(histowy: weadonwy T[] = [], wimit: numba = 10) {
+		this._initiawize(histowy);
+		this._wimit = wimit;
 		this._onChange();
 	}
 
-	public getHistory(): T[] {
-		return this._elements;
+	pubwic getHistowy(): T[] {
+		wetuwn this._ewements;
 	}
 
-	public add(t: T) {
-		this._history.delete(t);
-		this._history.add(t);
+	pubwic add(t: T) {
+		this._histowy.dewete(t);
+		this._histowy.add(t);
 		this._onChange();
 	}
 
-	public next(): T | null {
-		if (this._currentPosition() !== this._elements.length - 1) {
-			return this._navigator.next();
+	pubwic next(): T | nuww {
+		if (this._cuwwentPosition() !== this._ewements.wength - 1) {
+			wetuwn this._navigatow.next();
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	public previous(): T | null {
-		if (this._currentPosition() !== 0) {
-			return this._navigator.previous();
+	pubwic pwevious(): T | nuww {
+		if (this._cuwwentPosition() !== 0) {
+			wetuwn this._navigatow.pwevious();
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	public current(): T | null {
-		return this._navigator.current();
+	pubwic cuwwent(): T | nuww {
+		wetuwn this._navigatow.cuwwent();
 	}
 
-	public first(): T | null {
-		return this._navigator.first();
+	pubwic fiwst(): T | nuww {
+		wetuwn this._navigatow.fiwst();
 	}
 
-	public last(): T | null {
-		return this._navigator.last();
+	pubwic wast(): T | nuww {
+		wetuwn this._navigatow.wast();
 	}
 
-	public has(t: T): boolean {
-		return this._history.has(t);
+	pubwic has(t: T): boowean {
+		wetuwn this._histowy.has(t);
 	}
 
-	public clear(): void {
-		this._initialize([]);
+	pubwic cweaw(): void {
+		this._initiawize([]);
 		this._onChange();
 	}
 
-	private _onChange() {
-		this._reduceToLimit();
-		const elements = this._elements;
-		this._navigator = new ArrayNavigator(elements, 0, elements.length, elements.length);
+	pwivate _onChange() {
+		this._weduceToWimit();
+		const ewements = this._ewements;
+		this._navigatow = new AwwayNavigatow(ewements, 0, ewements.wength, ewements.wength);
 	}
 
-	private _reduceToLimit() {
-		const data = this._elements;
-		if (data.length > this._limit) {
-			this._initialize(data.slice(data.length - this._limit));
+	pwivate _weduceToWimit() {
+		const data = this._ewements;
+		if (data.wength > this._wimit) {
+			this._initiawize(data.swice(data.wength - this._wimit));
 		}
 	}
 
-	private _currentPosition(): number {
-		const currentElement = this._navigator.current();
-		if (!currentElement) {
-			return -1;
+	pwivate _cuwwentPosition(): numba {
+		const cuwwentEwement = this._navigatow.cuwwent();
+		if (!cuwwentEwement) {
+			wetuwn -1;
 		}
 
-		return this._elements.indexOf(currentElement);
+		wetuwn this._ewements.indexOf(cuwwentEwement);
 	}
 
-	private _initialize(history: readonly T[]): void {
-		this._history = new Set();
-		for (const entry of history) {
-			this._history.add(entry);
+	pwivate _initiawize(histowy: weadonwy T[]): void {
+		this._histowy = new Set();
+		fow (const entwy of histowy) {
+			this._histowy.add(entwy);
 		}
 	}
 
-	private get _elements(): T[] {
-		const elements: T[] = [];
-		this._history.forEach(e => elements.push(e));
-		return elements;
+	pwivate get _ewements(): T[] {
+		const ewements: T[] = [];
+		this._histowy.fowEach(e => ewements.push(e));
+		wetuwn ewements;
 	}
 }
 
-interface HistoryNode<T> {
-	value: T;
-	previous: HistoryNode<T> | undefined;
-	next: HistoryNode<T> | undefined;
+intewface HistowyNode<T> {
+	vawue: T;
+	pwevious: HistowyNode<T> | undefined;
+	next: HistowyNode<T> | undefined;
 }
 
-export class HistoryNavigator2<T> {
+expowt cwass HistowyNavigatow2<T> {
 
-	private head: HistoryNode<T>;
-	private tail: HistoryNode<T>;
-	private cursor: HistoryNode<T>;
-	private size: number;
+	pwivate head: HistowyNode<T>;
+	pwivate taiw: HistowyNode<T>;
+	pwivate cuwsow: HistowyNode<T>;
+	pwivate size: numba;
 
-	constructor(history: readonly T[], private capacity: number = 10) {
-		if (history.length < 1) {
-			throw new Error('not supported');
+	constwuctow(histowy: weadonwy T[], pwivate capacity: numba = 10) {
+		if (histowy.wength < 1) {
+			thwow new Ewwow('not suppowted');
 		}
 
 		this.size = 1;
-		this.head = this.tail = this.cursor = {
-			value: history[0],
-			previous: undefined,
+		this.head = this.taiw = this.cuwsow = {
+			vawue: histowy[0],
+			pwevious: undefined,
 			next: undefined
 		};
 
-		for (let i = 1; i < history.length; i++) {
-			this.add(history[i]);
+		fow (wet i = 1; i < histowy.wength; i++) {
+			this.add(histowy[i]);
 		}
 	}
 
-	add(value: T): void {
-		const node: HistoryNode<T> = {
-			value,
-			previous: this.tail,
+	add(vawue: T): void {
+		const node: HistowyNode<T> = {
+			vawue,
+			pwevious: this.taiw,
 			next: undefined
 		};
 
-		this.tail.next = node;
-		this.tail = node;
-		this.cursor = this.tail;
+		this.taiw.next = node;
+		this.taiw = node;
+		this.cuwsow = this.taiw;
 		this.size++;
 
-		while (this.size > this.capacity) {
+		whiwe (this.size > this.capacity) {
 			this.head = this.head.next!;
-			this.head.previous = undefined;
+			this.head.pwevious = undefined;
 			this.size--;
 		}
 	}
 
-	replaceLast(value: T): void {
-		this.tail.value = value;
+	wepwaceWast(vawue: T): void {
+		this.taiw.vawue = vawue;
 	}
 
-	isAtEnd(): boolean {
-		return this.cursor === this.tail;
+	isAtEnd(): boowean {
+		wetuwn this.cuwsow === this.taiw;
 	}
 
-	current(): T {
-		return this.cursor.value;
+	cuwwent(): T {
+		wetuwn this.cuwsow.vawue;
 	}
 
-	previous(): T {
-		if (this.cursor.previous) {
-			this.cursor = this.cursor.previous;
+	pwevious(): T {
+		if (this.cuwsow.pwevious) {
+			this.cuwsow = this.cuwsow.pwevious;
 		}
 
-		return this.cursor.value;
+		wetuwn this.cuwsow.vawue;
 	}
 
 	next(): T {
-		if (this.cursor.next) {
-			this.cursor = this.cursor.next;
+		if (this.cuwsow.next) {
+			this.cuwsow = this.cuwsow.next;
 		}
 
-		return this.cursor.value;
+		wetuwn this.cuwsow.vawue;
 	}
 
-	has(t: T): boolean {
-		let temp: HistoryNode<T> | undefined = this.head;
-		while (temp) {
-			if (temp.value === t) {
-				return true;
+	has(t: T): boowean {
+		wet temp: HistowyNode<T> | undefined = this.head;
+		whiwe (temp) {
+			if (temp.vawue === t) {
+				wetuwn twue;
 			}
 			temp = temp.next;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	resetCursor(): T {
-		this.cursor = this.tail;
-		return this.cursor.value;
+	wesetCuwsow(): T {
+		this.cuwsow = this.taiw;
+		wetuwn this.cuwsow.vawue;
 	}
 
-	*[Symbol.iterator](): Iterator<T> {
-		let node: HistoryNode<T> | undefined = this.head;
+	*[Symbow.itewatow](): Itewatow<T> {
+		wet node: HistowyNode<T> | undefined = this.head;
 
-		while (node) {
-			yield node.value;
+		whiwe (node) {
+			yiewd node.vawue;
 			node = node.next;
 		}
 	}

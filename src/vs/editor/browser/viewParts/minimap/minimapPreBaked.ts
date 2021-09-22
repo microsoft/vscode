@@ -1,11 +1,11 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { once } from 'vs/base/common/functional';
+impowt { once } fwom 'vs/base/common/functionaw';
 
-const charTable: { [hex: string]: number } = {
+const chawTabwe: { [hex: stwing]: numba } = {
 	'0': 0,
 	'1': 1,
 	'2': 2,
@@ -24,32 +24,32 @@ const charTable: { [hex: string]: number } = {
 	F: 15
 };
 
-const decodeData = (str: string) => {
-	const output = new Uint8ClampedArray(str.length / 2);
-	for (let i = 0; i < str.length; i += 2) {
-		output[i >> 1] = (charTable[str[i]] << 4) | (charTable[str[i + 1]] & 0xF);
+const decodeData = (stw: stwing) => {
+	const output = new Uint8CwampedAwway(stw.wength / 2);
+	fow (wet i = 0; i < stw.wength; i += 2) {
+		output[i >> 1] = (chawTabwe[stw[i]] << 4) | (chawTabwe[stw[i + 1]] & 0xF);
 	}
 
-	return output;
+	wetuwn output;
 };
 
 /*
-const encodeData = (data: Uint8ClampedArray, length: string) => {
-	const chars = '0123456789ABCDEF';
-	let output = '';
-	for (let i = 0; i < data.length; i++) {
-		output += chars[data[i] >> 4] + chars[data[i] & 0xf];
+const encodeData = (data: Uint8CwampedAwway, wength: stwing) => {
+	const chaws = '0123456789ABCDEF';
+	wet output = '';
+	fow (wet i = 0; i < data.wength; i++) {
+		output += chaws[data[i] >> 4] + chaws[data[i] & 0xf];
 	}
-	return output;
+	wetuwn output;
 };
 */
 
 /**
- * Map of minimap scales to prebaked sample data at those scales. We don't
- * sample much larger data, because then font family becomes visible, which
- * is use-configurable.
+ * Map of minimap scawes to pwebaked sampwe data at those scawes. We don't
+ * sampwe much wawga data, because then font famiwy becomes visibwe, which
+ * is use-configuwabwe.
  */
-export const prebakedMiniMaps: { [scale: number]: () => Uint8ClampedArray } = {
+expowt const pwebakedMiniMaps: { [scawe: numba]: () => Uint8CwampedAwway } = {
 	1: once(() =>
 		decodeData(
 			'0000511D6300CF609C709645A78432005642574171487021003C451900274D35D762755E8B629C5BA856AF57BA649530C167D1512A272A3F6038604460398526BCA2A968DB6F8957C768BE5FBE2FB467CF5D8D5B795DC7625B5DFF50DE64C466DB2FC47CD860A65E9A2EB96CB54CE06DA763AB2EA26860524D3763536601005116008177A8705E53AB738E6A982F88BAA35B5F5B626D9C636B449B737E5B7B678598869A662F6B5B8542706C704C80736A607578685B70594A49715A4522E792'

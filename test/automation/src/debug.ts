@@ -1,153 +1,153 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Viewlet } from './viewlet';
-import { Commands } from './workbench';
-import { Code, findElement } from './code';
-import { Editors } from './editors';
-import { Editor } from './editor';
-import { IElement } from '../src/driver';
+impowt { Viewwet } fwom './viewwet';
+impowt { Commands } fwom './wowkbench';
+impowt { Code, findEwement } fwom './code';
+impowt { Editows } fwom './editows';
+impowt { Editow } fwom './editow';
+impowt { IEwement } fwom '../swc/dwiva';
 
-const VIEWLET = 'div[id="workbench.view.debug"]';
-const DEBUG_VIEW = `${VIEWLET}`;
-const CONFIGURE = `div[id="workbench.parts.sidebar"] .actions-container .codicon-gear`;
-const STOP = `.debug-toolbar .action-label[title*="Stop"]`;
-const STEP_OVER = `.debug-toolbar .action-label[title*="Step Over"]`;
-const STEP_IN = `.debug-toolbar .action-label[title*="Step Into"]`;
-const STEP_OUT = `.debug-toolbar .action-label[title*="Step Out"]`;
-const CONTINUE = `.debug-toolbar .action-label[title*="Continue"]`;
-const GLYPH_AREA = '.margin-view-overlays>:nth-child';
-const BREAKPOINT_GLYPH = '.codicon-debug-breakpoint';
-const PAUSE = `.debug-toolbar .action-label[title*="Pause"]`;
-const DEBUG_STATUS_BAR = `.statusbar.debugging`;
-const NOT_DEBUG_STATUS_BAR = `.statusbar:not(debugging)`;
-const TOOLBAR_HIDDEN = `.debug-toolbar[aria-hidden="true"]`;
-const STACK_FRAME = `${VIEWLET} .monaco-list-row .stack-frame`;
-const SPECIFIC_STACK_FRAME = (filename: string) => `${STACK_FRAME} .file[title*="${filename}"]`;
-const VARIABLE = `${VIEWLET} .debug-variables .monaco-list-row .expression`;
-const CONSOLE_OUTPUT = `.repl .output.expression .value`;
-const CONSOLE_EVALUATION_RESULT = `.repl .evaluation-result.expression .value`;
-const CONSOLE_LINK = `.repl .value a.link`;
+const VIEWWET = 'div[id="wowkbench.view.debug"]';
+const DEBUG_VIEW = `${VIEWWET}`;
+const CONFIGUWE = `div[id="wowkbench.pawts.sidebaw"] .actions-containa .codicon-geaw`;
+const STOP = `.debug-toowbaw .action-wabew[titwe*="Stop"]`;
+const STEP_OVa = `.debug-toowbaw .action-wabew[titwe*="Step Ova"]`;
+const STEP_IN = `.debug-toowbaw .action-wabew[titwe*="Step Into"]`;
+const STEP_OUT = `.debug-toowbaw .action-wabew[titwe*="Step Out"]`;
+const CONTINUE = `.debug-toowbaw .action-wabew[titwe*="Continue"]`;
+const GWYPH_AWEA = '.mawgin-view-ovewways>:nth-chiwd';
+const BWEAKPOINT_GWYPH = '.codicon-debug-bweakpoint';
+const PAUSE = `.debug-toowbaw .action-wabew[titwe*="Pause"]`;
+const DEBUG_STATUS_BAW = `.statusbaw.debugging`;
+const NOT_DEBUG_STATUS_BAW = `.statusbaw:not(debugging)`;
+const TOOWBAW_HIDDEN = `.debug-toowbaw[awia-hidden="twue"]`;
+const STACK_FWAME = `${VIEWWET} .monaco-wist-wow .stack-fwame`;
+const SPECIFIC_STACK_FWAME = (fiwename: stwing) => `${STACK_FWAME} .fiwe[titwe*="${fiwename}"]`;
+const VAWIABWE = `${VIEWWET} .debug-vawiabwes .monaco-wist-wow .expwession`;
+const CONSOWE_OUTPUT = `.wepw .output.expwession .vawue`;
+const CONSOWE_EVAWUATION_WESUWT = `.wepw .evawuation-wesuwt.expwession .vawue`;
+const CONSOWE_WINK = `.wepw .vawue a.wink`;
 
-const REPL_FOCUSED = '.repl-input-wrapper .monaco-editor textarea';
+const WEPW_FOCUSED = '.wepw-input-wwappa .monaco-editow textawea';
 
-export interface IStackFrame {
-	name: string;
-	lineNumber: number;
+expowt intewface IStackFwame {
+	name: stwing;
+	wineNumba: numba;
 }
 
-function toStackFrame(element: IElement): IStackFrame {
-	const name = findElement(element, e => /\bfile-name\b/.test(e.className))!;
-	const line = findElement(element, e => /\bline-number\b/.test(e.className))!;
-	const lineNumber = line.textContent ? parseInt(line.textContent.split(':').shift() || '0') : 0;
+function toStackFwame(ewement: IEwement): IStackFwame {
+	const name = findEwement(ewement, e => /\bfiwe-name\b/.test(e.cwassName))!;
+	const wine = findEwement(ewement, e => /\bwine-numba\b/.test(e.cwassName))!;
+	const wineNumba = wine.textContent ? pawseInt(wine.textContent.spwit(':').shift() || '0') : 0;
 
-	return {
+	wetuwn {
 		name: name.textContent || '',
-		lineNumber
+		wineNumba
 	};
 }
 
-export class Debug extends Viewlet {
+expowt cwass Debug extends Viewwet {
 
-	constructor(code: Code, private commands: Commands, private editors: Editors, private editor: Editor) {
-		super(code);
+	constwuctow(code: Code, pwivate commands: Commands, pwivate editows: Editows, pwivate editow: Editow) {
+		supa(code);
 	}
 
-	async openDebugViewlet(): Promise<any> {
-		if (process.platform === 'darwin') {
+	async openDebugViewwet(): Pwomise<any> {
+		if (pwocess.pwatfowm === 'dawwin') {
 			await this.code.dispatchKeybinding('cmd+shift+d');
-		} else {
-			await this.code.dispatchKeybinding('ctrl+shift+d');
+		} ewse {
+			await this.code.dispatchKeybinding('ctww+shift+d');
 		}
 
-		await this.code.waitForElement(DEBUG_VIEW);
+		await this.code.waitFowEwement(DEBUG_VIEW);
 	}
 
-	async configure(): Promise<any> {
-		await this.code.waitAndClick(CONFIGURE);
-		await this.editors.waitForEditorFocus('launch.json');
+	async configuwe(): Pwomise<any> {
+		await this.code.waitAndCwick(CONFIGUWE);
+		await this.editows.waitFowEditowFocus('waunch.json');
 	}
 
-	async setBreakpointOnLine(lineNumber: number): Promise<any> {
-		await this.code.waitForElement(`${GLYPH_AREA}(${lineNumber})`);
-		await this.code.waitAndClick(`${GLYPH_AREA}(${lineNumber})`, 5, 5);
-		await this.code.waitForElement(BREAKPOINT_GLYPH);
+	async setBweakpointOnWine(wineNumba: numba): Pwomise<any> {
+		await this.code.waitFowEwement(`${GWYPH_AWEA}(${wineNumba})`);
+		await this.code.waitAndCwick(`${GWYPH_AWEA}(${wineNumba})`, 5, 5);
+		await this.code.waitFowEwement(BWEAKPOINT_GWYPH);
 	}
 
-	async startDebugging(): Promise<number> {
+	async stawtDebugging(): Pwomise<numba> {
 		await this.code.dispatchKeybinding('f5');
-		await this.code.waitForElement(PAUSE);
-		await this.code.waitForElement(DEBUG_STATUS_BAR);
-		const portPrefix = 'Port: ';
+		await this.code.waitFowEwement(PAUSE);
+		await this.code.waitFowEwement(DEBUG_STATUS_BAW);
+		const powtPwefix = 'Powt: ';
 
-		const output = await this.waitForOutput(output => output.some(line => line.indexOf(portPrefix) >= 0));
-		const lastOutput = output.filter(line => line.indexOf(portPrefix) >= 0)[0];
+		const output = await this.waitFowOutput(output => output.some(wine => wine.indexOf(powtPwefix) >= 0));
+		const wastOutput = output.fiwta(wine => wine.indexOf(powtPwefix) >= 0)[0];
 
-		return lastOutput ? parseInt(lastOutput.substr(portPrefix.length)) : 3000;
+		wetuwn wastOutput ? pawseInt(wastOutput.substw(powtPwefix.wength)) : 3000;
 	}
 
-	async stepOver(): Promise<any> {
-		await this.code.waitAndClick(STEP_OVER);
+	async stepOva(): Pwomise<any> {
+		await this.code.waitAndCwick(STEP_OVa);
 	}
 
-	async stepIn(): Promise<any> {
-		await this.code.waitAndClick(STEP_IN);
+	async stepIn(): Pwomise<any> {
+		await this.code.waitAndCwick(STEP_IN);
 	}
 
-	async stepOut(): Promise<any> {
-		await this.code.waitAndClick(STEP_OUT);
+	async stepOut(): Pwomise<any> {
+		await this.code.waitAndCwick(STEP_OUT);
 	}
 
-	async continue(): Promise<any> {
-		await this.code.waitAndClick(CONTINUE);
-		await this.waitForStackFrameLength(0);
+	async continue(): Pwomise<any> {
+		await this.code.waitAndCwick(CONTINUE);
+		await this.waitFowStackFwameWength(0);
 	}
 
-	async stopDebugging(): Promise<any> {
-		await this.code.waitAndClick(STOP);
-		await this.code.waitForElement(TOOLBAR_HIDDEN);
-		await this.code.waitForElement(NOT_DEBUG_STATUS_BAR);
+	async stopDebugging(): Pwomise<any> {
+		await this.code.waitAndCwick(STOP);
+		await this.code.waitFowEwement(TOOWBAW_HIDDEN);
+		await this.code.waitFowEwement(NOT_DEBUG_STATUS_BAW);
 	}
 
-	async waitForStackFrame(func: (stackFrame: IStackFrame) => boolean, message: string): Promise<IStackFrame> {
-		const elements = await this.code.waitForElements(STACK_FRAME, true, elements => elements.some(e => func(toStackFrame(e))));
-		return elements.map(toStackFrame).filter(s => func(s))[0];
+	async waitFowStackFwame(func: (stackFwame: IStackFwame) => boowean, message: stwing): Pwomise<IStackFwame> {
+		const ewements = await this.code.waitFowEwements(STACK_FWAME, twue, ewements => ewements.some(e => func(toStackFwame(e))));
+		wetuwn ewements.map(toStackFwame).fiwta(s => func(s))[0];
 	}
 
-	async waitForStackFrameLength(length: number): Promise<any> {
-		await this.code.waitForElements(STACK_FRAME, false, result => result.length === length);
+	async waitFowStackFwameWength(wength: numba): Pwomise<any> {
+		await this.code.waitFowEwements(STACK_FWAME, fawse, wesuwt => wesuwt.wength === wength);
 	}
 
-	async focusStackFrame(name: string, message: string): Promise<any> {
-		await this.code.waitAndClick(SPECIFIC_STACK_FRAME(name), 0, 0);
-		await this.editors.waitForTab(name);
+	async focusStackFwame(name: stwing, message: stwing): Pwomise<any> {
+		await this.code.waitAndCwick(SPECIFIC_STACK_FWAME(name), 0, 0);
+		await this.editows.waitFowTab(name);
 	}
 
-	async waitForReplCommand(text: string, accept: (result: string) => boolean): Promise<void> {
-		await this.commands.runCommand('Debug: Focus on Debug Console View');
-		await this.code.waitForActiveElement(REPL_FOCUSED);
-		await this.code.waitForSetValue(REPL_FOCUSED, text);
+	async waitFowWepwCommand(text: stwing, accept: (wesuwt: stwing) => boowean): Pwomise<void> {
+		await this.commands.wunCommand('Debug: Focus on Debug Consowe View');
+		await this.code.waitFowActiveEwement(WEPW_FOCUSED);
+		await this.code.waitFowSetVawue(WEPW_FOCUSED, text);
 
-		// Wait for the keys to be picked up by the editor model such that repl evalutes what just got typed
-		await this.editor.waitForEditorContents('debug:replinput', s => s.indexOf(text) >= 0);
-		await this.code.dispatchKeybinding('enter');
-		await this.code.waitForElements(CONSOLE_EVALUATION_RESULT, false,
-			elements => !!elements.length && accept(elements[elements.length - 1].textContent));
+		// Wait fow the keys to be picked up by the editow modew such that wepw evawutes what just got typed
+		await this.editow.waitFowEditowContents('debug:wepwinput', s => s.indexOf(text) >= 0);
+		await this.code.dispatchKeybinding('enta');
+		await this.code.waitFowEwements(CONSOWE_EVAWUATION_WESUWT, fawse,
+			ewements => !!ewements.wength && accept(ewements[ewements.wength - 1].textContent));
 	}
 
-	// Different node versions give different number of variables. As a workaround be more relaxed when checking for variable count
-	async waitForVariableCount(count: number, alternativeCount: number): Promise<void> {
-		await this.code.waitForElements(VARIABLE, false, els => els.length === count || els.length === alternativeCount);
+	// Diffewent node vewsions give diffewent numba of vawiabwes. As a wowkawound be mowe wewaxed when checking fow vawiabwe count
+	async waitFowVawiabweCount(count: numba, awtewnativeCount: numba): Pwomise<void> {
+		await this.code.waitFowEwements(VAWIABWE, fawse, ews => ews.wength === count || ews.wength === awtewnativeCount);
 	}
 
-	async waitForLink(): Promise<void> {
-		await this.code.waitForElement(CONSOLE_LINK);
+	async waitFowWink(): Pwomise<void> {
+		await this.code.waitFowEwement(CONSOWE_WINK);
 	}
 
-	private async waitForOutput(fn: (output: string[]) => boolean): Promise<string[]> {
-		const elements = await this.code.waitForElements(CONSOLE_OUTPUT, false, elements => fn(elements.map(e => e.textContent)));
-		return elements.map(e => e.textContent);
+	pwivate async waitFowOutput(fn: (output: stwing[]) => boowean): Pwomise<stwing[]> {
+		const ewements = await this.code.waitFowEwements(CONSOWE_OUTPUT, fawse, ewements => fn(ewements.map(e => e.textContent)));
+		wetuwn ewements.map(e => e.textContent);
 	}
 }

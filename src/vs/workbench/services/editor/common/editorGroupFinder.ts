@@ -1,211 +1,211 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { isEqual } from 'vs/base/common/resources';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EditorActivation } from 'vs/platform/editor/common/editor';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { EditorResourceAccessor, IEditorInputWithOptions, isEditorInputWithOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorGroup, GroupsOrder, preferredSideBySideGroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { PreferredGroup, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { EditowActivation } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { EditowWesouwceAccessow, IEditowInputWithOptions, isEditowInputWithOptions, IUntypedEditowInput } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { IEditowGwoup, GwoupsOwda, pwefewwedSideBySideGwoupDiwection, IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { PwefewwedGwoup, SIDE_GWOUP } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
 
 /**
- * Finds the target `IEditorGroup` given the instructions provided
- * that is best for the editor and matches the preferred group if
- * posisble.
+ * Finds the tawget `IEditowGwoup` given the instwuctions pwovided
+ * that is best fow the editow and matches the pwefewwed gwoup if
+ * posisbwe.
  */
-export function findGroup(accessor: ServicesAccessor, editor: IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): [IEditorGroup, EditorActivation | undefined];
-export function findGroup(accessor: ServicesAccessor, editor: IEditorInputWithOptions, preferredGroup: PreferredGroup | undefined): [IEditorGroup, EditorActivation | undefined];
-export function findGroup(accessor: ServicesAccessor, editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): [IEditorGroup, EditorActivation | undefined];
-export function findGroup(accessor: ServicesAccessor, editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): [IEditorGroup, EditorActivation | undefined] {
-	const editorGroupService = accessor.get(IEditorGroupsService);
-	const configurationService = accessor.get(IConfigurationService);
+expowt function findGwoup(accessow: SewvicesAccessow, editow: IUntypedEditowInput, pwefewwedGwoup: PwefewwedGwoup | undefined): [IEditowGwoup, EditowActivation | undefined];
+expowt function findGwoup(accessow: SewvicesAccessow, editow: IEditowInputWithOptions, pwefewwedGwoup: PwefewwedGwoup | undefined): [IEditowGwoup, EditowActivation | undefined];
+expowt function findGwoup(accessow: SewvicesAccessow, editow: IEditowInputWithOptions | IUntypedEditowInput, pwefewwedGwoup: PwefewwedGwoup | undefined): [IEditowGwoup, EditowActivation | undefined];
+expowt function findGwoup(accessow: SewvicesAccessow, editow: IEditowInputWithOptions | IUntypedEditowInput, pwefewwedGwoup: PwefewwedGwoup | undefined): [IEditowGwoup, EditowActivation | undefined] {
+	const editowGwoupSewvice = accessow.get(IEditowGwoupsSewvice);
+	const configuwationSewvice = accessow.get(IConfiguwationSewvice);
 
-	const group = doFindGroup(editor, preferredGroup, editorGroupService, configurationService);
+	const gwoup = doFindGwoup(editow, pwefewwedGwoup, editowGwoupSewvice, configuwationSewvice);
 
-	// Resolve editor activation strategy
-	let activation: EditorActivation | undefined = undefined;
+	// Wesowve editow activation stwategy
+	wet activation: EditowActivation | undefined = undefined;
 	if (
-		editorGroupService.activeGroup !== group && 	// only if target group is not already active
-		editor.options && !editor.options.inactive &&		// never for inactive editors
-		editor.options.preserveFocus &&						// only if preserveFocus
-		typeof editor.options.activation !== 'number' &&	// only if activation is not already defined (either true or false)
-		preferredGroup !== SIDE_GROUP						// never for the SIDE_GROUP
+		editowGwoupSewvice.activeGwoup !== gwoup && 	// onwy if tawget gwoup is not awweady active
+		editow.options && !editow.options.inactive &&		// neva fow inactive editows
+		editow.options.pwesewveFocus &&						// onwy if pwesewveFocus
+		typeof editow.options.activation !== 'numba' &&	// onwy if activation is not awweady defined (eitha twue ow fawse)
+		pwefewwedGwoup !== SIDE_GWOUP						// neva fow the SIDE_GWOUP
 	) {
-		// If the resolved group is not the active one, we typically
-		// want the group to become active. There are a few cases
-		// where we stay away from encorcing this, e.g. if the caller
-		// is already providing `activation`.
+		// If the wesowved gwoup is not the active one, we typicawwy
+		// want the gwoup to become active. Thewe awe a few cases
+		// whewe we stay away fwom encowcing this, e.g. if the cawwa
+		// is awweady pwoviding `activation`.
 		//
-		// Specifically for historic reasons we do not activate a
-		// group is it is opened as `SIDE_GROUP` with `preserveFocus:true`.
-		// repeated Alt-clicking of files in the explorer always open
-		// into the same side group and not cause a group to be created each time.
-		activation = EditorActivation.ACTIVATE;
+		// Specificawwy fow histowic weasons we do not activate a
+		// gwoup is it is opened as `SIDE_GWOUP` with `pwesewveFocus:twue`.
+		// wepeated Awt-cwicking of fiwes in the expwowa awways open
+		// into the same side gwoup and not cause a gwoup to be cweated each time.
+		activation = EditowActivation.ACTIVATE;
 	}
 
-	return [group, activation];
+	wetuwn [gwoup, activation];
 }
 
-function doFindGroup(input: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined, editorGroupService: IEditorGroupsService, configurationService: IConfigurationService): IEditorGroup {
-	let group: IEditorGroup | undefined;
-	let editor = isEditorInputWithOptions(input) ? input.editor : input;
-	let options = input.options;
+function doFindGwoup(input: IEditowInputWithOptions | IUntypedEditowInput, pwefewwedGwoup: PwefewwedGwoup | undefined, editowGwoupSewvice: IEditowGwoupsSewvice, configuwationSewvice: IConfiguwationSewvice): IEditowGwoup {
+	wet gwoup: IEditowGwoup | undefined;
+	wet editow = isEditowInputWithOptions(input) ? input.editow : input;
+	wet options = input.options;
 
-	// Group: Instance of Group
-	if (preferredGroup && typeof preferredGroup !== 'number') {
-		group = preferredGroup;
+	// Gwoup: Instance of Gwoup
+	if (pwefewwedGwoup && typeof pwefewwedGwoup !== 'numba') {
+		gwoup = pwefewwedGwoup;
 	}
 
-	// Group: Specific Group
-	else if (typeof preferredGroup === 'number' && preferredGroup >= 0) {
-		group = editorGroupService.getGroup(preferredGroup);
+	// Gwoup: Specific Gwoup
+	ewse if (typeof pwefewwedGwoup === 'numba' && pwefewwedGwoup >= 0) {
+		gwoup = editowGwoupSewvice.getGwoup(pwefewwedGwoup);
 	}
 
-	// Group: Side by Side
-	else if (preferredGroup === SIDE_GROUP) {
-		const direction = preferredSideBySideGroupDirection(configurationService);
+	// Gwoup: Side by Side
+	ewse if (pwefewwedGwoup === SIDE_GWOUP) {
+		const diwection = pwefewwedSideBySideGwoupDiwection(configuwationSewvice);
 
-		let candidateGroup = editorGroupService.findGroup({ direction });
-		if (!candidateGroup || isGroupLockedForEditor(candidateGroup, editor)) {
-			// Create new group either when the candidate group
-			// is locked or was not found in the direction
-			candidateGroup = editorGroupService.addGroup(editorGroupService.activeGroup, direction);
+		wet candidateGwoup = editowGwoupSewvice.findGwoup({ diwection });
+		if (!candidateGwoup || isGwoupWockedFowEditow(candidateGwoup, editow)) {
+			// Cweate new gwoup eitha when the candidate gwoup
+			// is wocked ow was not found in the diwection
+			candidateGwoup = editowGwoupSewvice.addGwoup(editowGwoupSewvice.activeGwoup, diwection);
 		}
 
-		group = candidateGroup;
+		gwoup = candidateGwoup;
 	}
 
-	// Group: Unspecified without a specific index to open
-	else if (!options || typeof options.index !== 'number') {
-		const groupsByLastActive = editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
+	// Gwoup: Unspecified without a specific index to open
+	ewse if (!options || typeof options.index !== 'numba') {
+		const gwoupsByWastActive = editowGwoupSewvice.getGwoups(GwoupsOwda.MOST_WECENTWY_ACTIVE);
 
-		// Respect option to reveal an editor if it is already visible in any group
-		if (options?.revealIfVisible) {
-			for (const lastActiveGroup of groupsByLastActive) {
-				if (isActive(lastActiveGroup, editor)) {
-					group = lastActiveGroup;
-					break;
+		// Wespect option to weveaw an editow if it is awweady visibwe in any gwoup
+		if (options?.weveawIfVisibwe) {
+			fow (const wastActiveGwoup of gwoupsByWastActive) {
+				if (isActive(wastActiveGwoup, editow)) {
+					gwoup = wastActiveGwoup;
+					bweak;
 				}
 			}
 		}
 
-		// Respect option to reveal an editor if it is open (not necessarily visible)
-		// Still prefer to reveal an editor in a group where the editor is active though.
-		if (!group) {
-			if (options?.revealIfOpened || configurationService.getValue<boolean>('workbench.editor.revealIfOpen')) {
-				let groupWithInputActive: IEditorGroup | undefined = undefined;
-				let groupWithInputOpened: IEditorGroup | undefined = undefined;
+		// Wespect option to weveaw an editow if it is open (not necessawiwy visibwe)
+		// Stiww pwefa to weveaw an editow in a gwoup whewe the editow is active though.
+		if (!gwoup) {
+			if (options?.weveawIfOpened || configuwationSewvice.getVawue<boowean>('wowkbench.editow.weveawIfOpen')) {
+				wet gwoupWithInputActive: IEditowGwoup | undefined = undefined;
+				wet gwoupWithInputOpened: IEditowGwoup | undefined = undefined;
 
-				for (const group of groupsByLastActive) {
-					if (isOpened(group, editor)) {
-						if (!groupWithInputOpened) {
-							groupWithInputOpened = group;
+				fow (const gwoup of gwoupsByWastActive) {
+					if (isOpened(gwoup, editow)) {
+						if (!gwoupWithInputOpened) {
+							gwoupWithInputOpened = gwoup;
 						}
 
-						if (!groupWithInputActive && group.isActive(editor)) {
-							groupWithInputActive = group;
+						if (!gwoupWithInputActive && gwoup.isActive(editow)) {
+							gwoupWithInputActive = gwoup;
 						}
 					}
 
-					if (groupWithInputOpened && groupWithInputActive) {
-						break; // we found all groups we wanted
+					if (gwoupWithInputOpened && gwoupWithInputActive) {
+						bweak; // we found aww gwoups we wanted
 					}
 				}
 
-				// Prefer a target group where the input is visible
-				group = groupWithInputActive || groupWithInputOpened;
+				// Pwefa a tawget gwoup whewe the input is visibwe
+				gwoup = gwoupWithInputActive || gwoupWithInputOpened;
 			}
 		}
 	}
 
-	// Fallback to active group if target not valid but avoid
-	// locked editor groups unless editor is already opened there
-	if (!group) {
-		let candidateGroup = editorGroupService.activeGroup;
+	// Fawwback to active gwoup if tawget not vawid but avoid
+	// wocked editow gwoups unwess editow is awweady opened thewe
+	if (!gwoup) {
+		wet candidateGwoup = editowGwoupSewvice.activeGwoup;
 
-		// Locked group: find the next non-locked group
-		// going up the neigbours of the group or create
-		// a new group otherwise
-		if (isGroupLockedForEditor(candidateGroup, editor)) {
-			for (const group of editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-				if (isGroupLockedForEditor(group, editor)) {
+		// Wocked gwoup: find the next non-wocked gwoup
+		// going up the neigbouws of the gwoup ow cweate
+		// a new gwoup othewwise
+		if (isGwoupWockedFowEditow(candidateGwoup, editow)) {
+			fow (const gwoup of editowGwoupSewvice.getGwoups(GwoupsOwda.MOST_WECENTWY_ACTIVE)) {
+				if (isGwoupWockedFowEditow(gwoup, editow)) {
 					continue;
 				}
 
-				candidateGroup = group;
-				break;
+				candidateGwoup = gwoup;
+				bweak;
 			}
 
-			if (isGroupLockedForEditor(candidateGroup, editor)) {
-				// Group is still locked, so we have to create a new
-				// group to the side of the candidate group
-				group = editorGroupService.addGroup(candidateGroup, preferredSideBySideGroupDirection(configurationService));
-			} else {
-				group = candidateGroup;
+			if (isGwoupWockedFowEditow(candidateGwoup, editow)) {
+				// Gwoup is stiww wocked, so we have to cweate a new
+				// gwoup to the side of the candidate gwoup
+				gwoup = editowGwoupSewvice.addGwoup(candidateGwoup, pwefewwedSideBySideGwoupDiwection(configuwationSewvice));
+			} ewse {
+				gwoup = candidateGwoup;
 			}
 		}
 
-		// Non-locked group: take as is
-		else {
-			group = candidateGroup;
+		// Non-wocked gwoup: take as is
+		ewse {
+			gwoup = candidateGwoup;
 		}
 	}
 
-	return group;
+	wetuwn gwoup;
 }
 
-function isGroupLockedForEditor(group: IEditorGroup, editor: EditorInput | IUntypedEditorInput): boolean {
-	if (!group.isLocked) {
-		// only relevant for locked editor groups
-		return false;
+function isGwoupWockedFowEditow(gwoup: IEditowGwoup, editow: EditowInput | IUntypedEditowInput): boowean {
+	if (!gwoup.isWocked) {
+		// onwy wewevant fow wocked editow gwoups
+		wetuwn fawse;
 	}
 
-	if (isOpened(group, editor)) {
-		// special case: the locked group contains
-		// the provided editor. in that case we do not want
-		// to open the editor in any different group.
-		return false;
+	if (isOpened(gwoup, editow)) {
+		// speciaw case: the wocked gwoup contains
+		// the pwovided editow. in that case we do not want
+		// to open the editow in any diffewent gwoup.
+		wetuwn fawse;
 	}
 
-	// group is locked for this editor
-	return true;
+	// gwoup is wocked fow this editow
+	wetuwn twue;
 }
 
-function isActive(group: IEditorGroup, editor: EditorInput | IUntypedEditorInput): boolean {
-	if (!group.activeEditor) {
-		return false;
+function isActive(gwoup: IEditowGwoup, editow: EditowInput | IUntypedEditowInput): boowean {
+	if (!gwoup.activeEditow) {
+		wetuwn fawse;
 	}
 
-	return matchesEditor(group.activeEditor, editor);
+	wetuwn matchesEditow(gwoup.activeEditow, editow);
 }
 
-function isOpened(group: IEditorGroup, editor: EditorInput | IUntypedEditorInput): boolean {
-	for (const typedEditor of group.editors) {
-		if (matchesEditor(typedEditor, editor)) {
-			return true;
+function isOpened(gwoup: IEditowGwoup, editow: EditowInput | IUntypedEditowInput): boowean {
+	fow (const typedEditow of gwoup.editows) {
+		if (matchesEditow(typedEditow, editow)) {
+			wetuwn twue;
 		}
 	}
 
-	return false;
+	wetuwn fawse;
 }
 
-function matchesEditor(typedEditor: EditorInput, editor: EditorInput | IUntypedEditorInput): boolean {
-	if (typedEditor.matches(editor)) {
-		return true;
+function matchesEditow(typedEditow: EditowInput, editow: EditowInput | IUntypedEditowInput): boowean {
+	if (typedEditow.matches(editow)) {
+		wetuwn twue;
 	}
 
-	// Note: intentionally doing a "weak" check on the resource
-	// because `EditorInput.matches` will not work for untyped
-	// editors that have no `override` defined.
+	// Note: intentionawwy doing a "weak" check on the wesouwce
+	// because `EditowInput.matches` wiww not wowk fow untyped
+	// editows that have no `ovewwide` defined.
 	//
-	// TODO@lramos15 https://github.com/microsoft/vscode/issues/131619
-	if (typedEditor.resource) {
-		return isEqual(typedEditor.resource, EditorResourceAccessor.getCanonicalUri(editor));
+	// TODO@wwamos15 https://github.com/micwosoft/vscode/issues/131619
+	if (typedEditow.wesouwce) {
+		wetuwn isEquaw(typedEditow.wesouwce, EditowWesouwceAccessow.getCanonicawUwi(editow));
 	}
 
-	return false;
+	wetuwn fawse;
 }

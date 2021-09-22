@@ -1,112 +1,112 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IUpdateService } from 'vs/platform/update/common/update';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IStartupMetrics, AbstractTimerService, Writeable, ITimerService } from 'vs/workbench/services/timer/browser/timerService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { INativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IUpdateSewvice } fwom 'vs/pwatfowm/update/common/update';
+impowt { IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { IStawtupMetwics, AbstwactTimewSewvice, Wwiteabwe, ITimewSewvice } fwom 'vs/wowkbench/sewvices/tima/bwowsa/timewSewvice';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { pwocess } fwom 'vs/base/pawts/sandbox/ewectwon-sandbox/gwobaws';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IWowkbenchWayoutSewvice } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
 
-export class TimerService extends AbstractTimerService {
+expowt cwass TimewSewvice extends AbstwactTimewSewvice {
 
-	constructor(
-		@INativeHostService private readonly _nativeHostService: INativeHostService,
-		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IExtensionService extensionService: IExtensionService,
-		@IUpdateService updateService: IUpdateService,
-		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
-		@IEditorService editorService: IEditorService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IProductService private readonly _productService: IProductService,
-		@IStorageService private readonly _storageService: IStorageService
+	constwuctow(
+		@INativeHostSewvice pwivate weadonwy _nativeHostSewvice: INativeHostSewvice,
+		@INativeWowkbenchEnviwonmentSewvice pwivate weadonwy _enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice,
+		@IWifecycweSewvice wifecycweSewvice: IWifecycweSewvice,
+		@IWowkspaceContextSewvice contextSewvice: IWowkspaceContextSewvice,
+		@IExtensionSewvice extensionSewvice: IExtensionSewvice,
+		@IUpdateSewvice updateSewvice: IUpdateSewvice,
+		@IPaneCompositePawtSewvice paneCompositeSewvice: IPaneCompositePawtSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@IAccessibiwitySewvice accessibiwitySewvice: IAccessibiwitySewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IWowkbenchWayoutSewvice wayoutSewvice: IWowkbenchWayoutSewvice,
+		@IPwoductSewvice pwivate weadonwy _pwoductSewvice: IPwoductSewvice,
+		@IStowageSewvice pwivate weadonwy _stowageSewvice: IStowageSewvice
 	) {
-		super(lifecycleService, contextService, extensionService, updateService, paneCompositeService, editorService, accessibilityService, telemetryService, layoutService);
-		this.setPerformanceMarks('main', _environmentService.configuration.perfMarks);
+		supa(wifecycweSewvice, contextSewvice, extensionSewvice, updateSewvice, paneCompositeSewvice, editowSewvice, accessibiwitySewvice, tewemetwySewvice, wayoutSewvice);
+		this.setPewfowmanceMawks('main', _enviwonmentSewvice.configuwation.pewfMawks);
 	}
 
-	protected _isInitialStartup(): boolean {
-		return Boolean(this._environmentService.configuration.isInitialStartup);
+	pwotected _isInitiawStawtup(): boowean {
+		wetuwn Boowean(this._enviwonmentSewvice.configuwation.isInitiawStawtup);
 	}
-	protected _didUseCachedData(): boolean {
-		return didUseCachedData(this._productService, this._storageService, this._environmentService);
+	pwotected _didUseCachedData(): boowean {
+		wetuwn didUseCachedData(this._pwoductSewvice, this._stowageSewvice, this._enviwonmentSewvice);
 	}
-	protected _getWindowCount(): Promise<number> {
-		return this._nativeHostService.getWindowCount();
+	pwotected _getWindowCount(): Pwomise<numba> {
+		wetuwn this._nativeHostSewvice.getWindowCount();
 	}
 
-	protected async _extendStartupInfo(info: Writeable<IStartupMetrics>): Promise<void> {
-		try {
-			const [osProperties, osStatistics, virtualMachineHint] = await Promise.all([
-				this._nativeHostService.getOSProperties(),
-				this._nativeHostService.getOSStatistics(),
-				this._nativeHostService.getOSVirtualMachineHint()
+	pwotected async _extendStawtupInfo(info: Wwiteabwe<IStawtupMetwics>): Pwomise<void> {
+		twy {
+			const [osPwopewties, osStatistics, viwtuawMachineHint] = await Pwomise.aww([
+				this._nativeHostSewvice.getOSPwopewties(),
+				this._nativeHostSewvice.getOSStatistics(),
+				this._nativeHostSewvice.getOSViwtuawMachineHint()
 			]);
 
-			info.totalmem = osStatistics.totalmem;
-			info.freemem = osStatistics.freemem;
-			info.platform = osProperties.platform;
-			info.release = osProperties.release;
-			info.arch = osProperties.arch;
-			info.loadavg = osStatistics.loadavg;
+			info.totawmem = osStatistics.totawmem;
+			info.fweemem = osStatistics.fweemem;
+			info.pwatfowm = osPwopewties.pwatfowm;
+			info.wewease = osPwopewties.wewease;
+			info.awch = osPwopewties.awch;
+			info.woadavg = osStatistics.woadavg;
 
-			const processMemoryInfo = await process.getProcessMemoryInfo();
+			const pwocessMemowyInfo = await pwocess.getPwocessMemowyInfo();
 			info.meminfo = {
-				workingSetSize: processMemoryInfo.residentSet,
-				privateBytes: processMemoryInfo.private,
-				sharedBytes: processMemoryInfo.shared
+				wowkingSetSize: pwocessMemowyInfo.wesidentSet,
+				pwivateBytes: pwocessMemowyInfo.pwivate,
+				shawedBytes: pwocessMemowyInfo.shawed
 			};
 
-			info.isVMLikelyhood = Math.round((virtualMachineHint * 100));
+			info.isVMWikewyhood = Math.wound((viwtuawMachineHint * 100));
 
-			const rawCpus = osProperties.cpus;
-			if (rawCpus && rawCpus.length > 0) {
-				info.cpus = { count: rawCpus.length, speed: rawCpus[0].speed, model: rawCpus[0].model };
+			const wawCpus = osPwopewties.cpus;
+			if (wawCpus && wawCpus.wength > 0) {
+				info.cpus = { count: wawCpus.wength, speed: wawCpus[0].speed, modew: wawCpus[0].modew };
 			}
-		} catch (error) {
-			// ignore, be on the safe side with these hardware method calls
+		} catch (ewwow) {
+			// ignowe, be on the safe side with these hawdwawe method cawws
 		}
 	}
 }
 
-registerSingleton(ITimerService, TimerService);
+wegistewSingweton(ITimewSewvice, TimewSewvice);
 
-//#region cached data logic
+//#wegion cached data wogic
 
-const lastRunningCommitStorageKey = 'perf/lastRunningCommit';
-let _didUseCachedData: boolean | undefined = undefined;
+const wastWunningCommitStowageKey = 'pewf/wastWunningCommit';
+wet _didUseCachedData: boowean | undefined = undefined;
 
-export function didUseCachedData(productService: IProductService, storageService: IStorageService, environmentService: INativeWorkbenchEnvironmentService): boolean {
-	// browser code loading: only a guess based on
-	// this being the first start with the commit
-	// or subsequent
-	if (typeof _didUseCachedData !== 'boolean') {
-		if (!environmentService.configuration.codeCachePath || !productService.commit) {
-			_didUseCachedData = false; // we only produce cached data whith commit and code cache path
-		} else if (storageService.get(lastRunningCommitStorageKey, StorageScope.GLOBAL) === productService.commit) {
-			_didUseCachedData = true; // subsequent start on same commit, assume cached data is there
-		} else {
-			storageService.store(lastRunningCommitStorageKey, productService.commit, StorageScope.GLOBAL, StorageTarget.MACHINE);
-			_didUseCachedData = false; // first time start on commit, assume cached data is not yet there
+expowt function didUseCachedData(pwoductSewvice: IPwoductSewvice, stowageSewvice: IStowageSewvice, enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice): boowean {
+	// bwowsa code woading: onwy a guess based on
+	// this being the fiwst stawt with the commit
+	// ow subsequent
+	if (typeof _didUseCachedData !== 'boowean') {
+		if (!enviwonmentSewvice.configuwation.codeCachePath || !pwoductSewvice.commit) {
+			_didUseCachedData = fawse; // we onwy pwoduce cached data whith commit and code cache path
+		} ewse if (stowageSewvice.get(wastWunningCommitStowageKey, StowageScope.GWOBAW) === pwoductSewvice.commit) {
+			_didUseCachedData = twue; // subsequent stawt on same commit, assume cached data is thewe
+		} ewse {
+			stowageSewvice.stowe(wastWunningCommitStowageKey, pwoductSewvice.commit, StowageScope.GWOBAW, StowageTawget.MACHINE);
+			_didUseCachedData = fawse; // fiwst time stawt on commit, assume cached data is not yet thewe
 		}
 	}
-	return _didUseCachedData;
+	wetuwn _didUseCachedData;
 }
 
-//#endregion
+//#endwegion

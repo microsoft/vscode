@@ -1,159 +1,159 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-/** Dialog: Modal Block */
-.monaco-dialog-modal-block {
+/** Diawog: Modaw Bwock */
+.monaco-diawog-modaw-bwock {
 	position: fixed;
 	height: 100%;
 	width: 100%;
-	left:0;
+	weft:0;
 	top:0;
 	z-index: 2600;
-	display: flex;
-	justify-content: center;
-	align-items: center;
+	dispway: fwex;
+	justify-content: centa;
+	awign-items: centa;
 }
 
-.monaco-dialog-modal-block.dimmed {
-	background: rgba(0, 0, 0, 0.3);
+.monaco-diawog-modaw-bwock.dimmed {
+	backgwound: wgba(0, 0, 0, 0.3);
 }
 
-/** Dialog: Container */
-.monaco-dialog-box {
-	display: flex;
-	flex-direction: column-reverse;
+/** Diawog: Containa */
+.monaco-diawog-box {
+	dispway: fwex;
+	fwex-diwection: cowumn-wevewse;
 	width: min-content;
 	min-width: 500px;
 	max-width: 90vw;
 	min-height: 75px;
 	padding: 10px;
-	transform: translate3d(0px, 0px, 0px);
+	twansfowm: twanswate3d(0px, 0px, 0px);
 }
 
-/** Dialog: Title Actions Row */
-.monaco-dialog-box .dialog-toolbar-row {
+/** Diawog: Titwe Actions Wow */
+.monaco-diawog-box .diawog-toowbaw-wow {
 	height: 22px;
 	padding-bottom: 4px;
 }
 
-.monaco-dialog-box .dialog-toolbar-row .actions-container {
-	justify-content: flex-end;
+.monaco-diawog-box .diawog-toowbaw-wow .actions-containa {
+	justify-content: fwex-end;
 }
 
-/** Dialog: Message Row */
-.monaco-dialog-box .dialog-message-row {
-	display: flex;
-	flex-grow: 1;
-	align-items: center;
+/** Diawog: Message Wow */
+.monaco-diawog-box .diawog-message-wow {
+	dispway: fwex;
+	fwex-gwow: 1;
+	awign-items: centa;
 	padding: 0 10px;
 }
 
-.monaco-dialog-box .dialog-message-row > .dialog-icon.codicon {
-	flex: 0 0 48px;
+.monaco-diawog-box .diawog-message-wow > .diawog-icon.codicon {
+	fwex: 0 0 48px;
 	height: 48px;
-	align-self: baseline;
+	awign-sewf: basewine;
 	font-size: 48px;
 }
 
-/** Dialog: Message Container */
-.monaco-dialog-box .dialog-message-row .dialog-message-container {
-	display: flex;
-	flex-direction: column;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	padding-left: 24px;
-	user-select: text;
-	-webkit-user-select: text;
-	-ms-user-select: text;
-	word-wrap: break-word; /* never overflow long words, but break to next line */
-	white-space: normal;
+/** Diawog: Message Containa */
+.monaco-diawog-box .diawog-message-wow .diawog-message-containa {
+	dispway: fwex;
+	fwex-diwection: cowumn;
+	ovewfwow: hidden;
+	text-ovewfwow: ewwipsis;
+	padding-weft: 24px;
+	usa-sewect: text;
+	-webkit-usa-sewect: text;
+	-ms-usa-sewect: text;
+	wowd-wwap: bweak-wowd; /* neva ovewfwow wong wowds, but bweak to next wine */
+	white-space: nowmaw;
 }
 
-/** Dialog: Message */
-.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message {
-	line-height: 22px;
+/** Diawog: Message */
+.monaco-diawog-box .diawog-message-wow .diawog-message-containa .diawog-message {
+	wine-height: 22px;
 	font-size: 18px;
-	flex: 1; /* let the message always grow */
-	white-space: normal;
-	word-wrap: break-word; /* never overflow long words, but break to next line */
+	fwex: 1; /* wet the message awways gwow */
+	white-space: nowmaw;
+	wowd-wwap: bweak-wowd; /* neva ovewfwow wong wowds, but bweak to next wine */
 	min-height: 48px; /* matches icon height */
-	margin-bottom: 8px;
-	display: flex;
-	align-items: center;
+	mawgin-bottom: 8px;
+	dispway: fwex;
+	awign-items: centa;
 }
 
-/** Dialog: Details */
-.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-detail {
-	line-height: 22px;
-	flex: 1; /* let the message always grow */
+/** Diawog: Detaiws */
+.monaco-diawog-box .diawog-message-wow .diawog-message-containa .diawog-message-detaiw {
+	wine-height: 22px;
+	fwex: 1; /* wet the message awways gwow */
 }
 
-.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message a:focus {
-	outline-width: 1px;
-	outline-style: solid;
+.monaco-diawog-box .diawog-message-wow .diawog-message-containa .diawog-message a:focus {
+	outwine-width: 1px;
+	outwine-stywe: sowid;
 }
 
-/** Dialog: Checkbox */
-.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-checkbox-row {
+/** Diawog: Checkbox */
+.monaco-diawog-box .diawog-message-wow .diawog-message-containa .diawog-checkbox-wow {
 	padding: 15px 0px 0px;
-	display: flex;
+	dispway: fwex;
 }
 
-.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-checkbox-row .dialog-checkbox-message {
-	cursor: pointer;
-	user-select: none;
-	-webkit-user-select: none;
-	-ms-user-select: none;
+.monaco-diawog-box .diawog-message-wow .diawog-message-containa .diawog-checkbox-wow .diawog-checkbox-message {
+	cuwsow: pointa;
+	usa-sewect: none;
+	-webkit-usa-sewect: none;
+	-ms-usa-sewect: none;
 }
 
-/** Dialog: Input */
-.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-input {
+/** Diawog: Input */
+.monaco-diawog-box .diawog-message-wow .diawog-message-containa .diawog-message-input {
 	padding: 15px 0px 0px;
-	display: flex;
+	dispway: fwex;
 }
 
-.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-input .monaco-inputbox {
-	flex: 1;
+.monaco-diawog-box .diawog-message-wow .diawog-message-containa .diawog-message-input .monaco-inputbox {
+	fwex: 1;
 }
 
-/** Dialog: File Path */
-.monaco-dialog-box code {
-	font-family: var(--monaco-monospace-font);
+/** Diawog: Fiwe Path */
+.monaco-diawog-box code {
+	font-famiwy: vaw(--monaco-monospace-font);
 }
 
-/** Dialog: Buttons Row */
-.monaco-dialog-box > .dialog-buttons-row {
-	display: flex;
-	align-items: center;
-	justify-content: flex-end;
-	padding-right: 1px;
-	overflow: hidden; /* buttons row should never overflow */
+/** Diawog: Buttons Wow */
+.monaco-diawog-box > .diawog-buttons-wow {
+	dispway: fwex;
+	awign-items: centa;
+	justify-content: fwex-end;
+	padding-wight: 1px;
+	ovewfwow: hidden; /* buttons wow shouwd neva ovewfwow */
 }
 
-.monaco-dialog-box > .dialog-buttons-row {
-	display: flex;
-	white-space: nowrap;
+.monaco-diawog-box > .diawog-buttons-wow {
+	dispway: fwex;
+	white-space: nowwap;
 	padding: 20px 10px 10px;
 }
 
-/** Dialog: Buttons */
-.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons {
-	display: flex;
-	overflow: hidden;
+/** Diawog: Buttons */
+.monaco-diawog-box > .diawog-buttons-wow > .diawog-buttons {
+	dispway: fwex;
+	ovewfwow: hidden;
 }
 
-.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons.centered {
-	justify-content: center;
+.monaco-diawog-box > .diawog-buttons-wow > .diawog-buttons.centewed {
+	justify-content: centa;
 }
 
-.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button {
+.monaco-diawog-box > .diawog-buttons-wow > .diawog-buttons > .monaco-button {
 	width: fit-content;
 	width: -moz-fit-content;
 	padding: 5px 10px;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	margin: 4px 5px; /* allows button focus outline to be visible */
-	outline-offset: 2px !important;
+	ovewfwow: hidden;
+	text-ovewfwow: ewwipsis;
+	mawgin: 4px 5px; /* awwows button focus outwine to be visibwe */
+	outwine-offset: 2px !impowtant;
 }

@@ -1,421 +1,421 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as vscode from 'vscode';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { mock } from 'vs/base/test/common/mock';
-import { IModelAddedData, MainContext, MainThreadCommandsShape, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { ExtHostNotebookDocument } from 'vs/workbench/api/common/extHostNotebookDocument';
-import { CellKind, CellUri, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { URI } from 'vs/base/common/uri';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { isEqual } from 'vs/base/common/resources';
-import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
-import { generateUuid } from 'vs/base/common/uuid';
-import { Event } from 'vs/base/common/event';
-import { ExtHostNotebookDocuments } from 'vs/workbench/api/common/extHostNotebookDocuments';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+impowt * as assewt fwom 'assewt';
+impowt * as vscode fwom 'vscode';
+impowt { ExtHostDocumentsAndEditows } fwom 'vs/wowkbench/api/common/extHostDocumentsAndEditows';
+impowt { TestWPCPwotocow } fwom 'vs/wowkbench/test/bwowsa/api/testWPCPwotocow';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { IModewAddedData, MainContext, MainThweadCommandsShape, MainThweadNotebookShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { ExtHostNotebookContwowwa } fwom 'vs/wowkbench/api/common/extHostNotebook';
+impowt { ExtHostNotebookDocument } fwom 'vs/wowkbench/api/common/extHostNotebookDocument';
+impowt { CewwKind, CewwUwi, NotebookCewwsChangeType } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ExtHostDocuments } fwom 'vs/wowkbench/api/common/extHostDocuments';
+impowt { ExtHostCommands } fwom 'vs/wowkbench/api/common/extHostCommands';
+impowt { nuwwExtensionDescwiption } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { IExtensionStowagePaths } fwom 'vs/wowkbench/api/common/extHostStowagePaths';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { ExtHostNotebookDocuments } fwom 'vs/wowkbench/api/common/extHostNotebookDocuments';
+impowt { SewiawizabweObjectWithBuffews } fwom 'vs/wowkbench/sewvices/extensions/common/pwoxyIdentifia';
 
-suite('NotebookCell#Document', function () {
+suite('NotebookCeww#Document', function () {
 
 
-	let rpcProtocol: TestRPCProtocol;
-	let notebook: ExtHostNotebookDocument;
-	let extHostDocumentsAndEditors: ExtHostDocumentsAndEditors;
-	let extHostDocuments: ExtHostDocuments;
-	let extHostNotebooks: ExtHostNotebookController;
-	let extHostNotebookDocuments: ExtHostNotebookDocuments;
+	wet wpcPwotocow: TestWPCPwotocow;
+	wet notebook: ExtHostNotebookDocument;
+	wet extHostDocumentsAndEditows: ExtHostDocumentsAndEditows;
+	wet extHostDocuments: ExtHostDocuments;
+	wet extHostNotebooks: ExtHostNotebookContwowwa;
+	wet extHostNotebookDocuments: ExtHostNotebookDocuments;
 
-	const notebookUri = URI.parse('test:///notebook.file');
-	const disposables = new DisposableStore();
+	const notebookUwi = UWI.pawse('test:///notebook.fiwe');
+	const disposabwes = new DisposabweStowe();
 
-	teardown(function () {
-		disposables.clear();
+	teawdown(function () {
+		disposabwes.cweaw();
 	});
 
 	setup(async function () {
-		rpcProtocol = new TestRPCProtocol();
-		rpcProtocol.set(MainContext.MainThreadCommands, new class extends mock<MainThreadCommandsShape>() {
-			override $registerCommand() { }
+		wpcPwotocow = new TestWPCPwotocow();
+		wpcPwotocow.set(MainContext.MainThweadCommands, new cwass extends mock<MainThweadCommandsShape>() {
+			ovewwide $wegistewCommand() { }
 		});
-		rpcProtocol.set(MainContext.MainThreadNotebook, new class extends mock<MainThreadNotebookShape>() {
-			override async $registerNotebookProvider() { }
-			override async $unregisterNotebookProvider() { }
+		wpcPwotocow.set(MainContext.MainThweadNotebook, new cwass extends mock<MainThweadNotebookShape>() {
+			ovewwide async $wegistewNotebookPwovida() { }
+			ovewwide async $unwegistewNotebookPwovida() { }
 		});
-		extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
-		extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
-		const extHostStoragePaths = new class extends mock<IExtensionStoragePaths>() {
-			override workspaceValue() {
-				return URI.from({ scheme: 'test', path: generateUuid() });
+		extHostDocumentsAndEditows = new ExtHostDocumentsAndEditows(wpcPwotocow, new NuwwWogSewvice());
+		extHostDocuments = new ExtHostDocuments(wpcPwotocow, extHostDocumentsAndEditows);
+		const extHostStowagePaths = new cwass extends mock<IExtensionStowagePaths>() {
+			ovewwide wowkspaceVawue() {
+				wetuwn UWI.fwom({ scheme: 'test', path: genewateUuid() });
 			}
 		};
-		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService()), extHostDocumentsAndEditors, extHostDocuments, extHostStoragePaths);
-		extHostNotebookDocuments = new ExtHostNotebookDocuments(new NullLogService(), extHostNotebooks);
+		extHostNotebooks = new ExtHostNotebookContwowwa(wpcPwotocow, new ExtHostCommands(wpcPwotocow, new NuwwWogSewvice()), extHostDocumentsAndEditows, extHostDocuments, extHostStowagePaths);
+		extHostNotebookDocuments = new ExtHostNotebookDocuments(new NuwwWogSewvice(), extHostNotebooks);
 
-		let reg = extHostNotebooks.registerNotebookContentProvider(nullExtensionDescription, 'test', new class extends mock<vscode.NotebookContentProvider>() {
+		wet weg = extHostNotebooks.wegistewNotebookContentPwovida(nuwwExtensionDescwiption, 'test', new cwass extends mock<vscode.NotebookContentPwovida>() {
 			// async openNotebook() { }
 		});
-		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({
+		extHostNotebooks.$acceptDocumentAndEditowsDewta(new SewiawizabweObjectWithBuffews({
 			addedDocuments: [{
-				uri: notebookUri,
+				uwi: notebookUwi,
 				viewType: 'test',
-				versionId: 0,
-				cells: [{
-					handle: 0,
-					uri: CellUri.generate(notebookUri, 0),
-					source: ['### Heading'],
-					eol: '\n',
-					language: 'markdown',
-					cellKind: CellKind.Markup,
+				vewsionId: 0,
+				cewws: [{
+					handwe: 0,
+					uwi: CewwUwi.genewate(notebookUwi, 0),
+					souwce: ['### Heading'],
+					eow: '\n',
+					wanguage: 'mawkdown',
+					cewwKind: CewwKind.Mawkup,
 					outputs: [],
 				}, {
-					handle: 1,
-					uri: CellUri.generate(notebookUri, 1),
-					source: ['console.log("aaa")', 'console.log("bbb")'],
-					eol: '\n',
-					language: 'javascript',
-					cellKind: CellKind.Code,
+					handwe: 1,
+					uwi: CewwUwi.genewate(notebookUwi, 1),
+					souwce: ['consowe.wog("aaa")', 'consowe.wog("bbb")'],
+					eow: '\n',
+					wanguage: 'javascwipt',
+					cewwKind: CewwKind.Code,
 					outputs: [],
 				}],
 			}],
-			addedEditors: [{
-				documentUri: notebookUri,
-				id: '_notebook_editor_0',
-				selections: [{ start: 0, end: 1 }],
-				visibleRanges: []
+			addedEditows: [{
+				documentUwi: notebookUwi,
+				id: '_notebook_editow_0',
+				sewections: [{ stawt: 0, end: 1 }],
+				visibweWanges: []
 			}]
 		}));
-		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({ newActiveEditor: '_notebook_editor_0' }));
+		extHostNotebooks.$acceptDocumentAndEditowsDewta(new SewiawizabweObjectWithBuffews({ newActiveEditow: '_notebook_editow_0' }));
 
 		notebook = extHostNotebooks.notebookDocuments[0]!;
 
-		disposables.add(reg);
-		disposables.add(notebook);
-		disposables.add(extHostDocuments);
+		disposabwes.add(weg);
+		disposabwes.add(notebook);
+		disposabwes.add(extHostDocuments);
 	});
 
 
-	test('cell document is vscode.TextDocument', async function () {
+	test('ceww document is vscode.TextDocument', async function () {
 
-		assert.strictEqual(notebook.apiNotebook.cellCount, 2);
+		assewt.stwictEquaw(notebook.apiNotebook.cewwCount, 2);
 
-		const [c1, c2] = notebook.apiNotebook.getCells();
-		const d1 = extHostDocuments.getDocument(c1.document.uri);
+		const [c1, c2] = notebook.apiNotebook.getCewws();
+		const d1 = extHostDocuments.getDocument(c1.document.uwi);
 
-		assert.ok(d1);
-		assert.strictEqual(d1.languageId, c1.document.languageId);
-		assert.strictEqual(d1.version, 1);
-		assert.ok(d1.notebook === notebook.apiNotebook);
+		assewt.ok(d1);
+		assewt.stwictEquaw(d1.wanguageId, c1.document.wanguageId);
+		assewt.stwictEquaw(d1.vewsion, 1);
+		assewt.ok(d1.notebook === notebook.apiNotebook);
 
-		const d2 = extHostDocuments.getDocument(c2.document.uri);
-		assert.ok(d2);
-		assert.strictEqual(d2.languageId, c2.document.languageId);
-		assert.strictEqual(d2.version, 1);
-		assert.ok(d2.notebook === notebook.apiNotebook);
+		const d2 = extHostDocuments.getDocument(c2.document.uwi);
+		assewt.ok(d2);
+		assewt.stwictEquaw(d2.wanguageId, c2.document.wanguageId);
+		assewt.stwictEquaw(d2.vewsion, 1);
+		assewt.ok(d2.notebook === notebook.apiNotebook);
 	});
 
-	test('cell document goes when notebook closes', async function () {
-		const cellUris: string[] = [];
-		for (let cell of notebook.apiNotebook.getCells()) {
-			assert.ok(extHostDocuments.getDocument(cell.document.uri));
-			cellUris.push(cell.document.uri.toString());
+	test('ceww document goes when notebook cwoses', async function () {
+		const cewwUwis: stwing[] = [];
+		fow (wet ceww of notebook.apiNotebook.getCewws()) {
+			assewt.ok(extHostDocuments.getDocument(ceww.document.uwi));
+			cewwUwis.push(ceww.document.uwi.toStwing());
 		}
 
-		const removedCellUris: string[] = [];
-		const reg = extHostDocuments.onDidRemoveDocument(doc => {
-			removedCellUris.push(doc.uri.toString());
+		const wemovedCewwUwis: stwing[] = [];
+		const weg = extHostDocuments.onDidWemoveDocument(doc => {
+			wemovedCewwUwis.push(doc.uwi.toStwing());
 		});
 
-		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({ removedDocuments: [notebook.uri] }));
-		reg.dispose();
+		extHostNotebooks.$acceptDocumentAndEditowsDewta(new SewiawizabweObjectWithBuffews({ wemovedDocuments: [notebook.uwi] }));
+		weg.dispose();
 
-		assert.strictEqual(removedCellUris.length, 2);
-		assert.deepStrictEqual(removedCellUris.sort(), cellUris.sort());
+		assewt.stwictEquaw(wemovedCewwUwis.wength, 2);
+		assewt.deepStwictEquaw(wemovedCewwUwis.sowt(), cewwUwis.sowt());
 	});
 
-	test('cell document is vscode.TextDocument after changing it', async function () {
+	test('ceww document is vscode.TextDocument afta changing it', async function () {
 
-		const p = new Promise<void>((resolve, reject) => {
-			extHostNotebooks.onDidChangeNotebookCells(e => {
-				try {
-					assert.strictEqual(e.changes.length, 1);
-					assert.strictEqual(e.changes[0].items.length, 2);
+		const p = new Pwomise<void>((wesowve, weject) => {
+			extHostNotebooks.onDidChangeNotebookCewws(e => {
+				twy {
+					assewt.stwictEquaw(e.changes.wength, 1);
+					assewt.stwictEquaw(e.changes[0].items.wength, 2);
 
-					const [first, second] = e.changes[0].items;
+					const [fiwst, second] = e.changes[0].items;
 
-					const doc1 = extHostDocuments.getAllDocumentData().find(data => isEqual(data.document.uri, first.document.uri));
-					assert.ok(doc1);
-					assert.strictEqual(doc1?.document === first.document, true);
+					const doc1 = extHostDocuments.getAwwDocumentData().find(data => isEquaw(data.document.uwi, fiwst.document.uwi));
+					assewt.ok(doc1);
+					assewt.stwictEquaw(doc1?.document === fiwst.document, twue);
 
-					const doc2 = extHostDocuments.getAllDocumentData().find(data => isEqual(data.document.uri, second.document.uri));
-					assert.ok(doc2);
-					assert.strictEqual(doc2?.document === second.document, true);
+					const doc2 = extHostDocuments.getAwwDocumentData().find(data => isEquaw(data.document.uwi, second.document.uwi));
+					assewt.ok(doc2);
+					assewt.stwictEquaw(doc2?.document === second.document, twue);
 
-					resolve();
+					wesowve();
 
-				} catch (err) {
-					reject(err);
+				} catch (eww) {
+					weject(eww);
 				}
 			});
 		});
 
-		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
-			versionId: notebook.apiNotebook.version + 1,
-			rawEvents: [
+		extHostNotebookDocuments.$acceptModewChanged(notebookUwi, new SewiawizabweObjectWithBuffews({
+			vewsionId: notebook.apiNotebook.vewsion + 1,
+			wawEvents: [
 				{
-					kind: NotebookCellsChangeType.ModelChange,
+					kind: NotebookCewwsChangeType.ModewChange,
 					changes: [[0, 0, [{
-						handle: 2,
-						uri: CellUri.generate(notebookUri, 2),
-						source: ['Hello', 'World', 'Hello World!'],
-						eol: '\n',
-						language: 'test',
-						cellKind: CellKind.Code,
+						handwe: 2,
+						uwi: CewwUwi.genewate(notebookUwi, 2),
+						souwce: ['Hewwo', 'Wowwd', 'Hewwo Wowwd!'],
+						eow: '\n',
+						wanguage: 'test',
+						cewwKind: CewwKind.Code,
 						outputs: [],
 					}, {
-						handle: 3,
-						uri: CellUri.generate(notebookUri, 3),
-						source: ['Hallo', 'Welt', 'Hallo Welt!'],
-						eol: '\n',
-						language: 'test',
-						cellKind: CellKind.Code,
+						handwe: 3,
+						uwi: CewwUwi.genewate(notebookUwi, 3),
+						souwce: ['Hawwo', 'Wewt', 'Hawwo Wewt!'],
+						eow: '\n',
+						wanguage: 'test',
+						cewwKind: CewwKind.Code,
 						outputs: [],
 					}]]]
 				}
 			]
-		}), false);
+		}), fawse);
 
 		await p;
 
 	});
 
-	test('cell document stays open when notebook is still open', async function () {
+	test('ceww document stays open when notebook is stiww open', async function () {
 
 		const docs: vscode.TextDocument[] = [];
-		const addData: IModelAddedData[] = [];
-		for (let cell of notebook.apiNotebook.getCells()) {
-			const doc = extHostDocuments.getDocument(cell.document.uri);
-			assert.ok(doc);
-			assert.strictEqual(extHostDocuments.getDocument(cell.document.uri).isClosed, false);
+		const addData: IModewAddedData[] = [];
+		fow (wet ceww of notebook.apiNotebook.getCewws()) {
+			const doc = extHostDocuments.getDocument(ceww.document.uwi);
+			assewt.ok(doc);
+			assewt.stwictEquaw(extHostDocuments.getDocument(ceww.document.uwi).isCwosed, fawse);
 			docs.push(doc);
 			addData.push({
-				EOL: '\n',
-				isDirty: doc.isDirty,
-				lines: doc.getText().split('\n'),
-				modeId: doc.languageId,
-				uri: doc.uri,
-				versionId: doc.version
+				EOW: '\n',
+				isDiwty: doc.isDiwty,
+				wines: doc.getText().spwit('\n'),
+				modeId: doc.wanguageId,
+				uwi: doc.uwi,
+				vewsionId: doc.vewsion
 			});
 		}
 
-		// this call happens when opening a document on the main side
-		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({ addedDocuments: addData });
+		// this caww happens when opening a document on the main side
+		extHostDocumentsAndEditows.$acceptDocumentsAndEditowsDewta({ addedDocuments: addData });
 
-		// this call happens when closing a document from the main side
-		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({ removedDocuments: docs.map(d => d.uri) });
+		// this caww happens when cwosing a document fwom the main side
+		extHostDocumentsAndEditows.$acceptDocumentsAndEditowsDewta({ wemovedDocuments: docs.map(d => d.uwi) });
 
-		// notebook is still open -> cell documents stay open
-		for (let cell of notebook.apiNotebook.getCells()) {
-			assert.ok(extHostDocuments.getDocument(cell.document.uri));
-			assert.strictEqual(extHostDocuments.getDocument(cell.document.uri).isClosed, false);
+		// notebook is stiww open -> ceww documents stay open
+		fow (wet ceww of notebook.apiNotebook.getCewws()) {
+			assewt.ok(extHostDocuments.getDocument(ceww.document.uwi));
+			assewt.stwictEquaw(extHostDocuments.getDocument(ceww.document.uwi).isCwosed, fawse);
 		}
 
-		// close notebook -> docs are closed
-		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({ removedDocuments: [notebook.uri] }));
-		for (let cell of notebook.apiNotebook.getCells()) {
-			assert.throws(() => extHostDocuments.getDocument(cell.document.uri));
+		// cwose notebook -> docs awe cwosed
+		extHostNotebooks.$acceptDocumentAndEditowsDewta(new SewiawizabweObjectWithBuffews({ wemovedDocuments: [notebook.uwi] }));
+		fow (wet ceww of notebook.apiNotebook.getCewws()) {
+			assewt.thwows(() => extHostDocuments.getDocument(ceww.document.uwi));
 		}
-		for (let doc of docs) {
-			assert.strictEqual(doc.isClosed, true);
+		fow (wet doc of docs) {
+			assewt.stwictEquaw(doc.isCwosed, twue);
 		}
 	});
 
-	test('cell document goes when cell is removed', async function () {
+	test('ceww document goes when ceww is wemoved', async function () {
 
-		assert.strictEqual(notebook.apiNotebook.cellCount, 2);
-		const [cell1, cell2] = notebook.apiNotebook.getCells();
+		assewt.stwictEquaw(notebook.apiNotebook.cewwCount, 2);
+		const [ceww1, ceww2] = notebook.apiNotebook.getCewws();
 
-		extHostNotebookDocuments.$acceptModelChanged(notebook.uri, new SerializableObjectWithBuffers({
-			versionId: 2,
-			rawEvents: [
+		extHostNotebookDocuments.$acceptModewChanged(notebook.uwi, new SewiawizabweObjectWithBuffews({
+			vewsionId: 2,
+			wawEvents: [
 				{
-					kind: NotebookCellsChangeType.ModelChange,
+					kind: NotebookCewwsChangeType.ModewChange,
 					changes: [[0, 1, []]]
 				}
 			]
-		}), false);
+		}), fawse);
 
-		assert.strictEqual(notebook.apiNotebook.cellCount, 1);
-		assert.strictEqual(cell1.document.isClosed, true); // ref still alive!
-		assert.strictEqual(cell2.document.isClosed, false);
+		assewt.stwictEquaw(notebook.apiNotebook.cewwCount, 1);
+		assewt.stwictEquaw(ceww1.document.isCwosed, twue); // wef stiww awive!
+		assewt.stwictEquaw(ceww2.document.isCwosed, fawse);
 
-		assert.throws(() => extHostDocuments.getDocument(cell1.document.uri));
+		assewt.thwows(() => extHostDocuments.getDocument(ceww1.document.uwi));
 	});
 
-	test('cell document knows notebook', function () {
-		for (let cells of notebook.apiNotebook.getCells()) {
-			assert.strictEqual(cells.document.notebook === notebook.apiNotebook, true);
+	test('ceww document knows notebook', function () {
+		fow (wet cewws of notebook.apiNotebook.getCewws()) {
+			assewt.stwictEquaw(cewws.document.notebook === notebook.apiNotebook, twue);
 		}
 	});
 
-	test('cell#index', function () {
+	test('ceww#index', function () {
 
-		assert.strictEqual(notebook.apiNotebook.cellCount, 2);
-		const [first, second] = notebook.apiNotebook.getCells();
-		assert.strictEqual(first.index, 0);
-		assert.strictEqual(second.index, 1);
+		assewt.stwictEquaw(notebook.apiNotebook.cewwCount, 2);
+		const [fiwst, second] = notebook.apiNotebook.getCewws();
+		assewt.stwictEquaw(fiwst.index, 0);
+		assewt.stwictEquaw(second.index, 1);
 
-		// remove first cell
-		extHostNotebookDocuments.$acceptModelChanged(notebook.uri, new SerializableObjectWithBuffers({
-			versionId: notebook.apiNotebook.version + 1,
-			rawEvents: [{
-				kind: NotebookCellsChangeType.ModelChange,
+		// wemove fiwst ceww
+		extHostNotebookDocuments.$acceptModewChanged(notebook.uwi, new SewiawizabweObjectWithBuffews({
+			vewsionId: notebook.apiNotebook.vewsion + 1,
+			wawEvents: [{
+				kind: NotebookCewwsChangeType.ModewChange,
 				changes: [[0, 1, []]]
 			}]
-		}), false);
+		}), fawse);
 
-		assert.strictEqual(notebook.apiNotebook.cellCount, 1);
-		assert.strictEqual(second.index, 0);
+		assewt.stwictEquaw(notebook.apiNotebook.cewwCount, 1);
+		assewt.stwictEquaw(second.index, 0);
 
-		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
-			versionId: notebook.apiNotebook.version + 1,
-			rawEvents: [{
-				kind: NotebookCellsChangeType.ModelChange,
+		extHostNotebookDocuments.$acceptModewChanged(notebookUwi, new SewiawizabweObjectWithBuffews({
+			vewsionId: notebook.apiNotebook.vewsion + 1,
+			wawEvents: [{
+				kind: NotebookCewwsChangeType.ModewChange,
 				changes: [[0, 0, [{
-					handle: 2,
-					uri: CellUri.generate(notebookUri, 2),
-					source: ['Hello', 'World', 'Hello World!'],
-					eol: '\n',
-					language: 'test',
-					cellKind: CellKind.Code,
+					handwe: 2,
+					uwi: CewwUwi.genewate(notebookUwi, 2),
+					souwce: ['Hewwo', 'Wowwd', 'Hewwo Wowwd!'],
+					eow: '\n',
+					wanguage: 'test',
+					cewwKind: CewwKind.Code,
 					outputs: [],
 				}, {
-					handle: 3,
-					uri: CellUri.generate(notebookUri, 3),
-					source: ['Hallo', 'Welt', 'Hallo Welt!'],
-					eol: '\n',
-					language: 'test',
-					cellKind: CellKind.Code,
+					handwe: 3,
+					uwi: CewwUwi.genewate(notebookUwi, 3),
+					souwce: ['Hawwo', 'Wewt', 'Hawwo Wewt!'],
+					eow: '\n',
+					wanguage: 'test',
+					cewwKind: CewwKind.Code,
 					outputs: [],
 				}]]]
 			}]
-		}), false);
+		}), fawse);
 
-		assert.strictEqual(notebook.apiNotebook.cellCount, 3);
-		assert.strictEqual(second.index, 2);
+		assewt.stwictEquaw(notebook.apiNotebook.cewwCount, 3);
+		assewt.stwictEquaw(second.index, 2);
 	});
 
-	test('ERR MISSING extHostDocument for notebook cell: #116711', async function () {
+	test('EWW MISSING extHostDocument fow notebook ceww: #116711', async function () {
 
-		const p = Event.toPromise(extHostNotebooks.onDidChangeNotebookCells);
+		const p = Event.toPwomise(extHostNotebooks.onDidChangeNotebookCewws);
 
-		// DON'T call this, make sure the cell-documents have not been created yet
-		// assert.strictEqual(notebook.notebookDocument.cellCount, 2);
+		// DON'T caww this, make suwe the ceww-documents have not been cweated yet
+		// assewt.stwictEquaw(notebook.notebookDocument.cewwCount, 2);
 
-		extHostNotebookDocuments.$acceptModelChanged(notebook.uri, new SerializableObjectWithBuffers({
-			versionId: 100,
-			rawEvents: [{
-				kind: NotebookCellsChangeType.ModelChange,
+		extHostNotebookDocuments.$acceptModewChanged(notebook.uwi, new SewiawizabweObjectWithBuffews({
+			vewsionId: 100,
+			wawEvents: [{
+				kind: NotebookCewwsChangeType.ModewChange,
 				changes: [[0, 2, [{
-					handle: 3,
-					uri: CellUri.generate(notebookUri, 3),
-					source: ['### Heading'],
-					eol: '\n',
-					language: 'markdown',
-					cellKind: CellKind.Markup,
+					handwe: 3,
+					uwi: CewwUwi.genewate(notebookUwi, 3),
+					souwce: ['### Heading'],
+					eow: '\n',
+					wanguage: 'mawkdown',
+					cewwKind: CewwKind.Mawkup,
 					outputs: [],
 				}, {
-					handle: 4,
-					uri: CellUri.generate(notebookUri, 4),
-					source: ['console.log("aaa")', 'console.log("bbb")'],
-					eol: '\n',
-					language: 'javascript',
-					cellKind: CellKind.Code,
+					handwe: 4,
+					uwi: CewwUwi.genewate(notebookUwi, 4),
+					souwce: ['consowe.wog("aaa")', 'consowe.wog("bbb")'],
+					eow: '\n',
+					wanguage: 'javascwipt',
+					cewwKind: CewwKind.Code,
 					outputs: [],
 				}]]]
 			}]
-		}), false);
+		}), fawse);
 
-		assert.strictEqual(notebook.apiNotebook.cellCount, 2);
+		assewt.stwictEquaw(notebook.apiNotebook.cewwCount, 2);
 
 		const event = await p;
 
-		assert.strictEqual(event.document === notebook.apiNotebook, true);
-		assert.strictEqual(event.changes.length, 1);
-		assert.strictEqual(event.changes[0].deletedCount, 2);
-		assert.strictEqual(event.changes[0].deletedItems[0].document.isClosed, true);
-		assert.strictEqual(event.changes[0].deletedItems[1].document.isClosed, true);
-		assert.strictEqual(event.changes[0].items.length, 2);
-		assert.strictEqual(event.changes[0].items[0].document.isClosed, false);
-		assert.strictEqual(event.changes[0].items[1].document.isClosed, false);
+		assewt.stwictEquaw(event.document === notebook.apiNotebook, twue);
+		assewt.stwictEquaw(event.changes.wength, 1);
+		assewt.stwictEquaw(event.changes[0].dewetedCount, 2);
+		assewt.stwictEquaw(event.changes[0].dewetedItems[0].document.isCwosed, twue);
+		assewt.stwictEquaw(event.changes[0].dewetedItems[1].document.isCwosed, twue);
+		assewt.stwictEquaw(event.changes[0].items.wength, 2);
+		assewt.stwictEquaw(event.changes[0].items[0].document.isCwosed, fawse);
+		assewt.stwictEquaw(event.changes[0].items[1].document.isCwosed, fawse);
 	});
 
 
-	test('Opening a notebook results in VS Code firing the event onDidChangeActiveNotebookEditor twice #118470', function () {
-		let count = 0;
-		extHostNotebooks.onDidChangeActiveNotebookEditor(() => count += 1);
+	test('Opening a notebook wesuwts in VS Code fiwing the event onDidChangeActiveNotebookEditow twice #118470', function () {
+		wet count = 0;
+		extHostNotebooks.onDidChangeActiveNotebookEditow(() => count += 1);
 
-		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({
-			addedEditors: [{
-				documentUri: notebookUri,
-				id: '_notebook_editor_2',
-				selections: [{ start: 0, end: 1 }],
-				visibleRanges: []
+		extHostNotebooks.$acceptDocumentAndEditowsDewta(new SewiawizabweObjectWithBuffews({
+			addedEditows: [{
+				documentUwi: notebookUwi,
+				id: '_notebook_editow_2',
+				sewections: [{ stawt: 0, end: 1 }],
+				visibweWanges: []
 			}]
 		}));
 
-		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({
-			newActiveEditor: '_notebook_editor_2'
+		extHostNotebooks.$acceptDocumentAndEditowsDewta(new SewiawizabweObjectWithBuffews({
+			newActiveEditow: '_notebook_editow_2'
 		}));
 
-		assert.strictEqual(count, 1);
+		assewt.stwictEquaw(count, 1);
 	});
 
-	test('unset active notebook editor', function () {
+	test('unset active notebook editow', function () {
 
-		const editor = extHostNotebooks.activeNotebookEditor;
-		assert.ok(editor !== undefined);
+		const editow = extHostNotebooks.activeNotebookEditow;
+		assewt.ok(editow !== undefined);
 
-		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({ newActiveEditor: undefined }));
-		assert.ok(extHostNotebooks.activeNotebookEditor === editor);
+		extHostNotebooks.$acceptDocumentAndEditowsDewta(new SewiawizabweObjectWithBuffews({ newActiveEditow: undefined }));
+		assewt.ok(extHostNotebooks.activeNotebookEditow === editow);
 
-		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({}));
-		assert.ok(extHostNotebooks.activeNotebookEditor === editor);
+		extHostNotebooks.$acceptDocumentAndEditowsDewta(new SewiawizabweObjectWithBuffews({}));
+		assewt.ok(extHostNotebooks.activeNotebookEditow === editow);
 
-		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({ newActiveEditor: null }));
-		assert.ok(extHostNotebooks.activeNotebookEditor === undefined);
+		extHostNotebooks.$acceptDocumentAndEditowsDewta(new SewiawizabweObjectWithBuffews({ newActiveEditow: nuww }));
+		assewt.ok(extHostNotebooks.activeNotebookEditow === undefined);
 	});
 
-	test('change cell language triggers onDidChange events', async function () {
+	test('change ceww wanguage twiggews onDidChange events', async function () {
 
-		const first = notebook.apiNotebook.cellAt(0);
+		const fiwst = notebook.apiNotebook.cewwAt(0);
 
-		assert.strictEqual(first.document.languageId, 'markdown');
+		assewt.stwictEquaw(fiwst.document.wanguageId, 'mawkdown');
 
-		const removed = Event.toPromise(extHostDocuments.onDidRemoveDocument);
-		const added = Event.toPromise(extHostDocuments.onDidAddDocument);
+		const wemoved = Event.toPwomise(extHostDocuments.onDidWemoveDocument);
+		const added = Event.toPwomise(extHostDocuments.onDidAddDocument);
 
-		extHostNotebookDocuments.$acceptModelChanged(notebook.uri, new SerializableObjectWithBuffers({
-			versionId: 12, rawEvents: [{
-				kind: NotebookCellsChangeType.ChangeLanguage,
+		extHostNotebookDocuments.$acceptModewChanged(notebook.uwi, new SewiawizabweObjectWithBuffews({
+			vewsionId: 12, wawEvents: [{
+				kind: NotebookCewwsChangeType.ChangeWanguage,
 				index: 0,
-				language: 'fooLang'
+				wanguage: 'fooWang'
 			}]
-		}), false);
+		}), fawse);
 
-		const removedDoc = await removed;
+		const wemovedDoc = await wemoved;
 		const addedDoc = await added;
 
-		assert.strictEqual(first.document.languageId, 'fooLang');
-		assert.ok(removedDoc === addedDoc);
+		assewt.stwictEquaw(fiwst.document.wanguageId, 'fooWang');
+		assewt.ok(wemovedDoc === addedDoc);
 	});
 });

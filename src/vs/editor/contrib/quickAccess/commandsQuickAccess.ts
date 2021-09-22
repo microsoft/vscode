@@ -1,50 +1,50 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { stripIcons } from 'vs/base/common/iconLabels';
-import { IEditor } from 'vs/editor/common/editorCommon';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AbstractCommandsQuickAccessProvider, ICommandQuickPick, ICommandsQuickAccessOptions } from 'vs/platform/quickinput/browser/commandsQuickAccess';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+impowt { stwipIcons } fwom 'vs/base/common/iconWabews';
+impowt { IEditow } fwom 'vs/editow/common/editowCommon';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { AbstwactCommandsQuickAccessPwovida, ICommandQuickPick, ICommandsQuickAccessOptions } fwom 'vs/pwatfowm/quickinput/bwowsa/commandsQuickAccess';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
 
-export abstract class AbstractEditorCommandsQuickAccessProvider extends AbstractCommandsQuickAccessProvider {
+expowt abstwact cwass AbstwactEditowCommandsQuickAccessPwovida extends AbstwactCommandsQuickAccessPwovida {
 
-	constructor(
+	constwuctow(
 		options: ICommandsQuickAccessOptions,
-		instantiationService: IInstantiationService,
-		keybindingService: IKeybindingService,
-		commandService: ICommandService,
-		telemetryService: ITelemetryService,
-		dialogService: IDialogService
+		instantiationSewvice: IInstantiationSewvice,
+		keybindingSewvice: IKeybindingSewvice,
+		commandSewvice: ICommandSewvice,
+		tewemetwySewvice: ITewemetwySewvice,
+		diawogSewvice: IDiawogSewvice
 	) {
-		super(options, instantiationService, keybindingService, commandService, telemetryService, dialogService);
+		supa(options, instantiationSewvice, keybindingSewvice, commandSewvice, tewemetwySewvice, diawogSewvice);
 	}
 
 	/**
-	 * Subclasses to provide the current active editor control.
+	 * Subcwasses to pwovide the cuwwent active editow contwow.
 	 */
-	protected abstract activeTextEditorControl: IEditor | undefined;
+	pwotected abstwact activeTextEditowContwow: IEditow | undefined;
 
-	protected getCodeEditorCommandPicks(): ICommandQuickPick[] {
-		const activeTextEditorControl = this.activeTextEditorControl;
-		if (!activeTextEditorControl) {
-			return [];
+	pwotected getCodeEditowCommandPicks(): ICommandQuickPick[] {
+		const activeTextEditowContwow = this.activeTextEditowContwow;
+		if (!activeTextEditowContwow) {
+			wetuwn [];
 		}
 
-		const editorCommandPicks: ICommandQuickPick[] = [];
-		for (const editorAction of activeTextEditorControl.getSupportedActions()) {
-			editorCommandPicks.push({
-				commandId: editorAction.id,
-				commandAlias: editorAction.alias,
-				label: stripIcons(editorAction.label) || editorAction.id,
+		const editowCommandPicks: ICommandQuickPick[] = [];
+		fow (const editowAction of activeTextEditowContwow.getSuppowtedActions()) {
+			editowCommandPicks.push({
+				commandId: editowAction.id,
+				commandAwias: editowAction.awias,
+				wabew: stwipIcons(editowAction.wabew) || editowAction.id,
 			});
 		}
 
-		return editorCommandPicks;
+		wetuwn editowCommandPicks;
 	}
 }

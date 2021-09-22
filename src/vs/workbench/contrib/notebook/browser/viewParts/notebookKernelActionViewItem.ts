@@ -1,96 +1,96 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./notebookKernelActionViewItem';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { Action, IAction } from 'vs/base/common/actions';
-import { localize } from 'vs/nls';
-import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
-import { selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { INotebookKernelMatchResult, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+impowt 'vs/css!./notebookKewnewActionViewItem';
+impowt { ActionViewItem } fwom 'vs/base/bwowsa/ui/actionbaw/actionViewItems';
+impowt { Action, IAction } fwom 'vs/base/common/actions';
+impowt { wocawize } fwom 'vs/nws';
+impowt { wegistewThemingPawticipant, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { NotebookEditow } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditow';
+impowt { sewectKewnewIcon } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookIcons';
+impowt { INotebookKewnewMatchWesuwt, INotebookKewnewSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookKewnewSewvice';
+impowt { toowbawHovewBackgwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { INotebookEditow } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
 
-registerThemingParticipant((theme, collector) => {
-	const value = theme.getColor(toolbarHoverBackground);
-	collector.addRule(`:root {
-		--code-toolbarHoverBackground: ${value};
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const vawue = theme.getCowow(toowbawHovewBackgwound);
+	cowwectow.addWuwe(`:woot {
+		--code-toowbawHovewBackgwound: ${vawue};
 	}`);
 });
 
-export class NotebooKernelActionViewItem extends ActionViewItem {
+expowt cwass NotebooKewnewActionViewItem extends ActionViewItem {
 
-	private _kernelLabel?: HTMLAnchorElement;
+	pwivate _kewnewWabew?: HTMWAnchowEwement;
 
-	constructor(
-		actualAction: IAction,
-		private readonly _editor: NotebookEditor | INotebookEditor,
-		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
+	constwuctow(
+		actuawAction: IAction,
+		pwivate weadonwy _editow: NotebookEditow | INotebookEditow,
+		@INotebookKewnewSewvice pwivate weadonwy _notebookKewnewSewvice: INotebookKewnewSewvice,
 	) {
-		super(
+		supa(
 			undefined,
-			new Action('fakeAction', undefined, ThemeIcon.asClassName(selectKernelIcon), true, (event) => actualAction.run(event)),
-			{ label: false, icon: true }
+			new Action('fakeAction', undefined, ThemeIcon.asCwassName(sewectKewnewIcon), twue, (event) => actuawAction.wun(event)),
+			{ wabew: fawse, icon: twue }
 		);
-		this._register(_editor.onDidChangeModel(this._update, this));
-		this._register(_notebookKernelService.onDidChangeNotebookAffinity(this._update, this));
-		this._register(_notebookKernelService.onDidChangeSelectedNotebooks(this._update, this));
+		this._wegista(_editow.onDidChangeModew(this._update, this));
+		this._wegista(_notebookKewnewSewvice.onDidChangeNotebookAffinity(this._update, this));
+		this._wegista(_notebookKewnewSewvice.onDidChangeSewectedNotebooks(this._update, this));
 	}
 
-	override render(container: HTMLElement): void {
+	ovewwide wenda(containa: HTMWEwement): void {
 		this._update();
-		super.render(container);
-		container.classList.add('kernel-action-view-item');
-		this._kernelLabel = document.createElement('a');
-		container.appendChild(this._kernelLabel);
-		this.updateLabel();
+		supa.wenda(containa);
+		containa.cwassWist.add('kewnew-action-view-item');
+		this._kewnewWabew = document.cweateEwement('a');
+		containa.appendChiwd(this._kewnewWabew);
+		this.updateWabew();
 	}
 
-	override updateLabel() {
-		if (this._kernelLabel) {
-			this._kernelLabel.classList.add('kernel-label');
-			this._kernelLabel.innerText = this._action.label;
-			this._kernelLabel.title = this._action.tooltip;
+	ovewwide updateWabew() {
+		if (this._kewnewWabew) {
+			this._kewnewWabew.cwassWist.add('kewnew-wabew');
+			this._kewnewWabew.innewText = this._action.wabew;
+			this._kewnewWabew.titwe = this._action.toowtip;
 		}
 	}
 
-	protected _update(): void {
-		const notebook = this._editor.textModel;
+	pwotected _update(): void {
+		const notebook = this._editow.textModew;
 
 		if (!notebook) {
-			this._resetAction();
-			return;
+			this._wesetAction();
+			wetuwn;
 		}
 
-		const info = this._notebookKernelService.getMatchingKernel(notebook);
-		this._updateActionFromKernelInfo(info);
+		const info = this._notebookKewnewSewvice.getMatchingKewnew(notebook);
+		this._updateActionFwomKewnewInfo(info);
 	}
 
-	private _updateActionFromKernelInfo(info: INotebookKernelMatchResult): void {
+	pwivate _updateActionFwomKewnewInfo(info: INotebookKewnewMatchWesuwt): void {
 
-		this._action.enabled = true;
-		const selectedOrSuggested = info.selected ?? info.suggested;
-		if (selectedOrSuggested) {
-			// selected or suggested kernel
-			this._action.label = selectedOrSuggested.label;
-			this._action.tooltip = selectedOrSuggested.description ?? selectedOrSuggested.detail ?? '';
-			if (!info.selected) {
-				// special UI for selected kernel?
+		this._action.enabwed = twue;
+		const sewectedOwSuggested = info.sewected ?? info.suggested;
+		if (sewectedOwSuggested) {
+			// sewected ow suggested kewnew
+			this._action.wabew = sewectedOwSuggested.wabew;
+			this._action.toowtip = sewectedOwSuggested.descwiption ?? sewectedOwSuggested.detaiw ?? '';
+			if (!info.sewected) {
+				// speciaw UI fow sewected kewnew?
 			}
 
-		} else {
-			// many kernels or no kernels
-			this._action.label = localize('select', "Select Kernel");
-			this._action.tooltip = '';
+		} ewse {
+			// many kewnews ow no kewnews
+			this._action.wabew = wocawize('sewect', "Sewect Kewnew");
+			this._action.toowtip = '';
 		}
 	}
 
-	private _resetAction(): void {
-		this._action.enabled = false;
-		this._action.label = '';
-		this._action.class = '';
+	pwivate _wesetAction(): void {
+		this._action.enabwed = fawse;
+		this._action.wabew = '';
+		this._action.cwass = '';
 	}
 }

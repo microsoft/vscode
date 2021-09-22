@@ -1,1479 +1,1479 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { AutoOpenBarrier, timeout } from 'vs/base/common/async';
-import { Codicon, iconRegistry } from 'vs/base/common/codicons';
-import { debounce, throttle } from 'vs/base/common/decorators';
-import { Emitter, Event } from 'vs/base/common/event';
-import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { equals } from 'vs/base/common/objects';
-import { isMacintosh, isWeb, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { FindReplaceState } from 'vs/editor/contrib/find/findState';
-import * as nls from 'vs/nls';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalProfileType, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalLocationString, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
-import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
-import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IconDefinition } from 'vs/platform/theme/common/iconRegistry';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
-import { IEditableData, IViewsService } from 'vs/workbench/common/views';
-import { ICreateTerminalOptions, IRemoteTerminalService, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalFindHost, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalProfileProvider, ITerminalService, ITerminalServiceNativeDelegate, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { refreshTerminalActions } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
-import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
-import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
-import { getInstanceFromResource, getTerminalUri, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
-import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { ILocalTerminalService, IOffProcessTerminalService, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
-import { formatMessageForTerminal, terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { AutoOpenBawwia, timeout } fwom 'vs/base/common/async';
+impowt { Codicon, iconWegistwy } fwom 'vs/base/common/codicons';
+impowt { debounce, thwottwe } fwom 'vs/base/common/decowatows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { dispose, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { equaws } fwom 'vs/base/common/objects';
+impowt { isMacintosh, isWeb, isWindows, OpewatingSystem, OS } fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { FindWepwaceState } fwom 'vs/editow/contwib/find/findState';
+impowt * as nws fwom 'vs/nws';
+impowt { ConfiguwationTawget, IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IInstantiationSewvice, optionaw } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputSewvice, IQuickPickItem, IQuickPickSepawatow } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { ICweateContwibutedTewminawPwofiweOptions, IExtensionTewminawPwofiwe, IShewwWaunchConfig, ITewminawWaunchEwwow, ITewminawPwofiwe, ITewminawPwofiweObject, ITewminawPwofiweType, ITewminawsWayoutInfo, ITewminawsWayoutInfoById, TewminawWocation, TewminawWocationStwing, TewminawSettingId, TewminawSettingPwefix } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { wegistewTewminawDefauwtPwofiweConfiguwation } fwom 'vs/pwatfowm/tewminaw/common/tewminawPwatfowmConfiguwation';
+impowt { iconFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IconDefinition } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { CowowScheme } fwom 'vs/pwatfowm/theme/common/theme';
+impowt { IThemeSewvice, Themabwe, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { ViwtuawWowkspaceContext } fwom 'vs/wowkbench/bwowsa/contextkeys';
+impowt { IEditabweData, IViewsSewvice } fwom 'vs/wowkbench/common/views';
+impowt { ICweateTewminawOptions, IWemoteTewminawSewvice, IWequestAddInstanceToGwoupEvent, ITewminawEditowSewvice, ITewminawExtewnawWinkPwovida, ITewminawFindHost, ITewminawGwoup, ITewminawGwoupSewvice, ITewminawInstance, ITewminawInstanceHost, ITewminawInstanceSewvice, ITewminawWocationOptions, ITewminawPwofiwePwovida, ITewminawSewvice, ITewminawSewviceNativeDewegate, TewminawConnectionState, TewminawEditowWocation } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { wefweshTewminawActions } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawActions';
+impowt { TewminawConfigHewpa } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawConfigHewpa';
+impowt { TewminawEditow } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawEditow';
+impowt { getCowowCwass, getUwiCwasses } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawIcon';
+impowt { configuweTewminawPwofiweIcon } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawIcons';
+impowt { getInstanceFwomWesouwce, getTewminawUwi, pawseTewminawUwi } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawUwi';
+impowt { TewminawViewPane } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawView';
+impowt { IWocawTewminawSewvice, IOffPwocessTewminawSewvice, IWemoteTewminawAttachTawget, IStawtExtensionTewminawWequest, ITewminawConfigHewpa, ITewminawPwocessExtHostPwoxy, TEWMINAW_VIEW_ID } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
+impowt { TewminawContextKeys } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawContextKey';
+impowt { ITewminawContwibutionSewvice } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawExtensionPoints';
+impowt { fowmatMessageFowTewminaw, tewminawStwings } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawStwings';
+impowt { IEditowWesowvewSewvice, WegistewedEditowPwiowity } fwom 'vs/wowkbench/sewvices/editow/common/editowWesowvewSewvice';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IWifecycweSewvice, ShutdownWeason, WiwwShutdownEvent } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { ACTIVE_GWOUP, SIDE_GWOUP } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
 
-export class TerminalService implements ITerminalService {
-	declare _serviceBrand: undefined;
+expowt cwass TewminawSewvice impwements ITewminawSewvice {
+	decwawe _sewviceBwand: undefined;
 
-	private _hostActiveTerminals: Map<ITerminalInstanceHost, ITerminalInstance | undefined> = new Map();
+	pwivate _hostActiveTewminaws: Map<ITewminawInstanceHost, ITewminawInstance | undefined> = new Map();
 
-	private _isShuttingDown: boolean;
-	private _backgroundedTerminalInstances: ITerminalInstance[] = [];
-	private _backgroundedTerminalDisposables: Map<number, IDisposable[]> = new Map();
-	private _findState: FindReplaceState;
-	private readonly _profileProviders: Map</*ext id*/string, Map</*provider id*/string, ITerminalProfileProvider>> = new Map();
-	private _linkProviders: Set<ITerminalExternalLinkProvider> = new Set();
-	private _linkProviderDisposables: Map<ITerminalExternalLinkProvider, IDisposable[]> = new Map();
-	private _processSupportContextKey: IContextKey<boolean>;
-	private readonly _localTerminalService?: ILocalTerminalService;
-	private readonly _primaryOffProcessTerminalService?: IOffProcessTerminalService;
-	private _defaultProfileName?: string;
-	private _profilesReadyBarrier: AutoOpenBarrier;
-	private _availableProfiles: ITerminalProfile[] | undefined;
-	private _contributedProfiles: IExtensionTerminalProfile[] | undefined;
-	private _configHelper: TerminalConfigHelper;
-	private _remoteTerminalsInitPromise: Promise<void> | undefined;
-	private _localTerminalsInitPromise: Promise<void> | undefined;
-	private _connectionState: TerminalConnectionState;
-	private _nativeDelegate?: ITerminalServiceNativeDelegate;
-	private _shutdownWindowCount?: number;
+	pwivate _isShuttingDown: boowean;
+	pwivate _backgwoundedTewminawInstances: ITewminawInstance[] = [];
+	pwivate _backgwoundedTewminawDisposabwes: Map<numba, IDisposabwe[]> = new Map();
+	pwivate _findState: FindWepwaceState;
+	pwivate weadonwy _pwofiwePwovidews: Map</*ext id*/stwing, Map</*pwovida id*/stwing, ITewminawPwofiwePwovida>> = new Map();
+	pwivate _winkPwovidews: Set<ITewminawExtewnawWinkPwovida> = new Set();
+	pwivate _winkPwovidewDisposabwes: Map<ITewminawExtewnawWinkPwovida, IDisposabwe[]> = new Map();
+	pwivate _pwocessSuppowtContextKey: IContextKey<boowean>;
+	pwivate weadonwy _wocawTewminawSewvice?: IWocawTewminawSewvice;
+	pwivate weadonwy _pwimawyOffPwocessTewminawSewvice?: IOffPwocessTewminawSewvice;
+	pwivate _defauwtPwofiweName?: stwing;
+	pwivate _pwofiwesWeadyBawwia: AutoOpenBawwia;
+	pwivate _avaiwabwePwofiwes: ITewminawPwofiwe[] | undefined;
+	pwivate _contwibutedPwofiwes: IExtensionTewminawPwofiwe[] | undefined;
+	pwivate _configHewpa: TewminawConfigHewpa;
+	pwivate _wemoteTewminawsInitPwomise: Pwomise<void> | undefined;
+	pwivate _wocawTewminawsInitPwomise: Pwomise<void> | undefined;
+	pwivate _connectionState: TewminawConnectionState;
+	pwivate _nativeDewegate?: ITewminawSewviceNativeDewegate;
+	pwivate _shutdownWindowCount?: numba;
 
-	private _editable: { instance: ITerminalInstance, data: IEditableData } | undefined;
+	pwivate _editabwe: { instance: ITewminawInstance, data: IEditabweData } | undefined;
 
-	get isProcessSupportRegistered(): boolean { return !!this._processSupportContextKey.get(); }
-	get connectionState(): TerminalConnectionState { return this._connectionState; }
-	get profilesReady(): Promise<void> { return this._profilesReadyBarrier.wait().then(() => { }); }
-	get availableProfiles(): ITerminalProfile[] {
-		this._refreshAvailableProfiles();
-		return this._availableProfiles || [];
+	get isPwocessSuppowtWegistewed(): boowean { wetuwn !!this._pwocessSuppowtContextKey.get(); }
+	get connectionState(): TewminawConnectionState { wetuwn this._connectionState; }
+	get pwofiwesWeady(): Pwomise<void> { wetuwn this._pwofiwesWeadyBawwia.wait().then(() => { }); }
+	get avaiwabwePwofiwes(): ITewminawPwofiwe[] {
+		this._wefweshAvaiwabwePwofiwes();
+		wetuwn this._avaiwabwePwofiwes || [];
 	}
-	get allProfiles(): ITerminalProfileType[] | undefined {
-		if (this._availableProfiles) {
-			const profiles: ITerminalProfileType[] = [];
-			profiles.concat(this._availableProfiles);
-			profiles.concat(this._terminalContributionService.terminalProfiles);
-			return profiles;
+	get awwPwofiwes(): ITewminawPwofiweType[] | undefined {
+		if (this._avaiwabwePwofiwes) {
+			const pwofiwes: ITewminawPwofiweType[] = [];
+			pwofiwes.concat(this._avaiwabwePwofiwes);
+			pwofiwes.concat(this._tewminawContwibutionSewvice.tewminawPwofiwes);
+			wetuwn pwofiwes;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
-	get configHelper(): ITerminalConfigHelper { return this._configHelper; }
-	get instances(): ITerminalInstance[] {
-		return this._terminalGroupService.instances.concat(this._terminalEditorService.instances);
+	get configHewpa(): ITewminawConfigHewpa { wetuwn this._configHewpa; }
+	get instances(): ITewminawInstance[] {
+		wetuwn this._tewminawGwoupSewvice.instances.concat(this._tewminawEditowSewvice.instances);
 	}
 
-	get defaultLocation(): TerminalLocation { return this.configHelper.config.defaultLocation === TerminalLocationString.Editor ? TerminalLocation.Editor : TerminalLocation.Panel; }
+	get defauwtWocation(): TewminawWocation { wetuwn this.configHewpa.config.defauwtWocation === TewminawWocationStwing.Editow ? TewminawWocation.Editow : TewminawWocation.Panew; }
 
-	private _activeInstance: ITerminalInstance | undefined;
-	get activeInstance(): ITerminalInstance | undefined {
-		// Check if either an editor or panel terminal has focus and return that, regardless of the
-		// value of _activeInstance. This avoids terminals created in the panel for example stealing
+	pwivate _activeInstance: ITewminawInstance | undefined;
+	get activeInstance(): ITewminawInstance | undefined {
+		// Check if eitha an editow ow panew tewminaw has focus and wetuwn that, wegawdwess of the
+		// vawue of _activeInstance. This avoids tewminaws cweated in the panew fow exampwe steawing
 		// the active status even when it's not focused.
-		for (const activeHostTerminal of this._hostActiveTerminals.values()) {
-			if (activeHostTerminal?.hasFocus) {
-				return activeHostTerminal;
+		fow (const activeHostTewminaw of this._hostActiveTewminaws.vawues()) {
+			if (activeHostTewminaw?.hasFocus) {
+				wetuwn activeHostTewminaw;
 			}
 		}
-		// Fallback to the last recorded active terminal if neither have focus
-		return this._activeInstance;
+		// Fawwback to the wast wecowded active tewminaw if neitha have focus
+		wetuwn this._activeInstance;
 	}
 
-	private readonly _onDidChangeActiveGroup = new Emitter<ITerminalGroup | undefined>();
-	get onDidChangeActiveGroup(): Event<ITerminalGroup | undefined> { return this._onDidChangeActiveGroup.event; }
-	private readonly _onDidCreateInstance = new Emitter<ITerminalInstance>();
-	get onDidCreateInstance(): Event<ITerminalInstance> { return this._onDidCreateInstance.event; }
-	private readonly _onDidDisposeInstance = new Emitter<ITerminalInstance>();
-	get onDidDisposeInstance(): Event<ITerminalInstance> { return this._onDidDisposeInstance.event; }
-	private readonly _onDidFocusInstance = new Emitter<ITerminalInstance>();
-	get onDidFocusInstance(): Event<ITerminalInstance> { return this._onDidFocusInstance.event; }
-	private readonly _onDidReceiveProcessId = new Emitter<ITerminalInstance>();
-	get onDidReceiveProcessId(): Event<ITerminalInstance> { return this._onDidReceiveProcessId.event; }
-	private readonly _onDidReceiveInstanceLinks = new Emitter<ITerminalInstance>();
-	get onDidReceiveInstanceLinks(): Event<ITerminalInstance> { return this._onDidReceiveInstanceLinks.event; }
-	private readonly _onDidRequestStartExtensionTerminal = new Emitter<IStartExtensionTerminalRequest>();
-	get onDidRequestStartExtensionTerminal(): Event<IStartExtensionTerminalRequest> { return this._onDidRequestStartExtensionTerminal.event; }
-	private readonly _onDidChangeInstanceDimensions = new Emitter<ITerminalInstance>();
-	get onDidChangeInstanceDimensions(): Event<ITerminalInstance> { return this._onDidChangeInstanceDimensions.event; }
-	private readonly _onDidMaxiumumDimensionsChange = new Emitter<ITerminalInstance>();
-	get onDidMaximumDimensionsChange(): Event<ITerminalInstance> { return this._onDidMaxiumumDimensionsChange.event; }
-	private readonly _onDidChangeInstances = new Emitter<void>();
-	get onDidChangeInstances(): Event<void> { return this._onDidChangeInstances.event; }
-	private readonly _onDidChangeInstanceTitle = new Emitter<ITerminalInstance | undefined>();
-	get onDidChangeInstanceTitle(): Event<ITerminalInstance | undefined> { return this._onDidChangeInstanceTitle.event; }
-	private readonly _onDidChangeInstanceIcon = new Emitter<ITerminalInstance | undefined>();
-	get onDidChangeInstanceIcon(): Event<ITerminalInstance | undefined> { return this._onDidChangeInstanceIcon.event; }
-	private readonly _onDidChangeInstanceColor = new Emitter<ITerminalInstance | undefined>();
-	get onDidChangeInstanceColor(): Event<ITerminalInstance | undefined> { return this._onDidChangeInstanceColor.event; }
-	private readonly _onDidChangeActiveInstance = new Emitter<ITerminalInstance | undefined>();
-	get onDidChangeActiveInstance(): Event<ITerminalInstance | undefined> { return this._onDidChangeActiveInstance.event; }
-	private readonly _onDidChangeInstancePrimaryStatus = new Emitter<ITerminalInstance>();
-	get onDidChangeInstancePrimaryStatus(): Event<ITerminalInstance> { return this._onDidChangeInstancePrimaryStatus.event; }
-	private readonly _onDidInputInstanceData = new Emitter<ITerminalInstance>();
-	get onDidInputInstanceData(): Event<ITerminalInstance> { return this._onDidInputInstanceData.event; }
-	private readonly _onDidDisposeGroup = new Emitter<ITerminalGroup>();
-	get onDidDisposeGroup(): Event<ITerminalGroup> { return this._onDidDisposeGroup.event; }
-	private readonly _onDidChangeGroups = new Emitter<void>();
-	get onDidChangeGroups(): Event<void> { return this._onDidChangeGroups.event; }
-	private readonly _onDidRegisterProcessSupport = new Emitter<void>();
-	get onDidRegisterProcessSupport(): Event<void> { return this._onDidRegisterProcessSupport.event; }
-	private readonly _onDidChangeConnectionState = new Emitter<void>();
-	get onDidChangeConnectionState(): Event<void> { return this._onDidChangeConnectionState.event; }
-	private readonly _onDidChangeAvailableProfiles = new Emitter<ITerminalProfile[]>();
-	get onDidChangeAvailableProfiles(): Event<ITerminalProfile[]> { return this._onDidChangeAvailableProfiles.event; }
+	pwivate weadonwy _onDidChangeActiveGwoup = new Emitta<ITewminawGwoup | undefined>();
+	get onDidChangeActiveGwoup(): Event<ITewminawGwoup | undefined> { wetuwn this._onDidChangeActiveGwoup.event; }
+	pwivate weadonwy _onDidCweateInstance = new Emitta<ITewminawInstance>();
+	get onDidCweateInstance(): Event<ITewminawInstance> { wetuwn this._onDidCweateInstance.event; }
+	pwivate weadonwy _onDidDisposeInstance = new Emitta<ITewminawInstance>();
+	get onDidDisposeInstance(): Event<ITewminawInstance> { wetuwn this._onDidDisposeInstance.event; }
+	pwivate weadonwy _onDidFocusInstance = new Emitta<ITewminawInstance>();
+	get onDidFocusInstance(): Event<ITewminawInstance> { wetuwn this._onDidFocusInstance.event; }
+	pwivate weadonwy _onDidWeceivePwocessId = new Emitta<ITewminawInstance>();
+	get onDidWeceivePwocessId(): Event<ITewminawInstance> { wetuwn this._onDidWeceivePwocessId.event; }
+	pwivate weadonwy _onDidWeceiveInstanceWinks = new Emitta<ITewminawInstance>();
+	get onDidWeceiveInstanceWinks(): Event<ITewminawInstance> { wetuwn this._onDidWeceiveInstanceWinks.event; }
+	pwivate weadonwy _onDidWequestStawtExtensionTewminaw = new Emitta<IStawtExtensionTewminawWequest>();
+	get onDidWequestStawtExtensionTewminaw(): Event<IStawtExtensionTewminawWequest> { wetuwn this._onDidWequestStawtExtensionTewminaw.event; }
+	pwivate weadonwy _onDidChangeInstanceDimensions = new Emitta<ITewminawInstance>();
+	get onDidChangeInstanceDimensions(): Event<ITewminawInstance> { wetuwn this._onDidChangeInstanceDimensions.event; }
+	pwivate weadonwy _onDidMaxiumumDimensionsChange = new Emitta<ITewminawInstance>();
+	get onDidMaximumDimensionsChange(): Event<ITewminawInstance> { wetuwn this._onDidMaxiumumDimensionsChange.event; }
+	pwivate weadonwy _onDidChangeInstances = new Emitta<void>();
+	get onDidChangeInstances(): Event<void> { wetuwn this._onDidChangeInstances.event; }
+	pwivate weadonwy _onDidChangeInstanceTitwe = new Emitta<ITewminawInstance | undefined>();
+	get onDidChangeInstanceTitwe(): Event<ITewminawInstance | undefined> { wetuwn this._onDidChangeInstanceTitwe.event; }
+	pwivate weadonwy _onDidChangeInstanceIcon = new Emitta<ITewminawInstance | undefined>();
+	get onDidChangeInstanceIcon(): Event<ITewminawInstance | undefined> { wetuwn this._onDidChangeInstanceIcon.event; }
+	pwivate weadonwy _onDidChangeInstanceCowow = new Emitta<ITewminawInstance | undefined>();
+	get onDidChangeInstanceCowow(): Event<ITewminawInstance | undefined> { wetuwn this._onDidChangeInstanceCowow.event; }
+	pwivate weadonwy _onDidChangeActiveInstance = new Emitta<ITewminawInstance | undefined>();
+	get onDidChangeActiveInstance(): Event<ITewminawInstance | undefined> { wetuwn this._onDidChangeActiveInstance.event; }
+	pwivate weadonwy _onDidChangeInstancePwimawyStatus = new Emitta<ITewminawInstance>();
+	get onDidChangeInstancePwimawyStatus(): Event<ITewminawInstance> { wetuwn this._onDidChangeInstancePwimawyStatus.event; }
+	pwivate weadonwy _onDidInputInstanceData = new Emitta<ITewminawInstance>();
+	get onDidInputInstanceData(): Event<ITewminawInstance> { wetuwn this._onDidInputInstanceData.event; }
+	pwivate weadonwy _onDidDisposeGwoup = new Emitta<ITewminawGwoup>();
+	get onDidDisposeGwoup(): Event<ITewminawGwoup> { wetuwn this._onDidDisposeGwoup.event; }
+	pwivate weadonwy _onDidChangeGwoups = new Emitta<void>();
+	get onDidChangeGwoups(): Event<void> { wetuwn this._onDidChangeGwoups.event; }
+	pwivate weadonwy _onDidWegistewPwocessSuppowt = new Emitta<void>();
+	get onDidWegistewPwocessSuppowt(): Event<void> { wetuwn this._onDidWegistewPwocessSuppowt.event; }
+	pwivate weadonwy _onDidChangeConnectionState = new Emitta<void>();
+	get onDidChangeConnectionState(): Event<void> { wetuwn this._onDidChangeConnectionState.event; }
+	pwivate weadonwy _onDidChangeAvaiwabwePwofiwes = new Emitta<ITewminawPwofiwe[]>();
+	get onDidChangeAvaiwabwePwofiwes(): Event<ITewminawPwofiwe[]> { wetuwn this._onDidChangeAvaiwabwePwofiwes.event; }
 
-	constructor(
-		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@ILabelService labelService: ILabelService,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@IDialogService private _dialogService: IDialogService,
-		@IInstantiationService private _instantiationService: IInstantiationService,
-		@IRemoteAgentService private _remoteAgentService: IRemoteAgentService,
-		@IQuickInputService private _quickInputService: IQuickInputService,
-		@IConfigurationService private _configurationService: IConfigurationService,
-		@IViewsService private _viewsService: IViewsService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
-		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
-		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
-		@IEditorResolverService editorResolverService: IEditorResolverService,
-		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
-		@IExtensionService private readonly _extensionService: IExtensionService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@IThemeService private readonly _themeService: IThemeService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
+	constwuctow(
+		@IContextKeySewvice pwivate _contextKeySewvice: IContextKeySewvice,
+		@IWabewSewvice wabewSewvice: IWabewSewvice,
+		@IWifecycweSewvice wifecycweSewvice: IWifecycweSewvice,
+		@IDiawogSewvice pwivate _diawogSewvice: IDiawogSewvice,
+		@IInstantiationSewvice pwivate _instantiationSewvice: IInstantiationSewvice,
+		@IWemoteAgentSewvice pwivate _wemoteAgentSewvice: IWemoteAgentSewvice,
+		@IQuickInputSewvice pwivate _quickInputSewvice: IQuickInputSewvice,
+		@IConfiguwationSewvice pwivate _configuwationSewvice: IConfiguwationSewvice,
+		@IViewsSewvice pwivate _viewsSewvice: IViewsSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy _enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IWemoteTewminawSewvice pwivate weadonwy _wemoteTewminawSewvice: IWemoteTewminawSewvice,
+		@ITewemetwySewvice pwivate weadonwy _tewemetwySewvice: ITewemetwySewvice,
+		@ITewminawContwibutionSewvice pwivate weadonwy _tewminawContwibutionSewvice: ITewminawContwibutionSewvice,
+		@ITewminawEditowSewvice pwivate weadonwy _tewminawEditowSewvice: ITewminawEditowSewvice,
+		@ITewminawGwoupSewvice pwivate weadonwy _tewminawGwoupSewvice: ITewminawGwoupSewvice,
+		@ITewminawInstanceSewvice pwivate weadonwy _tewminawInstanceSewvice: ITewminawInstanceSewvice,
+		@IEditowWesowvewSewvice editowWesowvewSewvice: IEditowWesowvewSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy _editowGwoupsSewvice: IEditowGwoupsSewvice,
+		@IExtensionSewvice pwivate weadonwy _extensionSewvice: IExtensionSewvice,
+		@INotificationSewvice pwivate weadonwy _notificationSewvice: INotificationSewvice,
+		@IThemeSewvice pwivate weadonwy _themeSewvice: IThemeSewvice,
+		@IWowkspaceContextSewvice wowkspaceContextSewvice: IWowkspaceContextSewvice,
+		@optionaw(IWocawTewminawSewvice) wocawTewminawSewvice: IWocawTewminawSewvice
 	) {
-		this._localTerminalService = localTerminalService;
-		this._isShuttingDown = false;
-		this._findState = new FindReplaceState();
-		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
+		this._wocawTewminawSewvice = wocawTewminawSewvice;
+		this._isShuttingDown = fawse;
+		this._findState = new FindWepwaceState();
+		this._configHewpa = _instantiationSewvice.cweateInstance(TewminawConfigHewpa);
 
-		editorResolverService.registerEditor(
-			`${Schemas.vscodeTerminal}:/**`,
+		editowWesowvewSewvice.wegistewEditow(
+			`${Schemas.vscodeTewminaw}:/**`,
 			{
-				id: TerminalEditor.ID,
-				label: terminalStrings.terminal,
-				priority: RegisteredEditorPriority.exclusive
+				id: TewminawEditow.ID,
+				wabew: tewminawStwings.tewminaw,
+				pwiowity: WegistewedEditowPwiowity.excwusive
 			},
 			{
-				canHandleDiff: false,
-				canSupportResource: uri => uri.scheme === Schemas.vscodeTerminal,
-				singlePerResource: true
+				canHandweDiff: fawse,
+				canSuppowtWesouwce: uwi => uwi.scheme === Schemas.vscodeTewminaw,
+				singwePewWesouwce: twue
 			},
-			({ resource, options }) => {
-				let instance = this.getInstanceFromResource(resource);
+			({ wesouwce, options }) => {
+				wet instance = this.getInstanceFwomWesouwce(wesouwce);
 				if (instance) {
-					const sourceGroup = this._terminalGroupService.getGroupForInstance(instance);
-					if (sourceGroup) {
-						sourceGroup.removeInstance(instance);
+					const souwceGwoup = this._tewminawGwoupSewvice.getGwoupFowInstance(instance);
+					if (souwceGwoup) {
+						souwceGwoup.wemoveInstance(instance);
 					}
 				}
-				const resolvedResource = this._terminalEditorService.resolveResource(instance || resource);
-				const editor = this._terminalEditorService.getInputFromResource(resolvedResource) || { editor: resolvedResource };
-				return {
-					editor,
+				const wesowvedWesouwce = this._tewminawEditowSewvice.wesowveWesouwce(instance || wesouwce);
+				const editow = this._tewminawEditowSewvice.getInputFwomWesouwce(wesowvedWesouwce) || { editow: wesowvedWesouwce };
+				wetuwn {
+					editow,
 					options: {
 						...options,
-						pinned: true,
-						forceReload: true,
-						override: TerminalEditor.ID
+						pinned: twue,
+						fowceWewoad: twue,
+						ovewwide: TewminawEditow.ID
 					}
 				};
 			});
 
-		this._forwardInstanceHostEvents(this._terminalGroupService);
-		this._forwardInstanceHostEvents(this._terminalEditorService);
-		this._terminalGroupService.onDidChangeActiveGroup(this._onDidChangeActiveGroup.fire, this._onDidChangeActiveGroup);
-		_terminalInstanceService.onDidCreateInstance(instance => {
-			this._initInstanceListeners(instance);
-			this._onDidCreateInstance.fire(instance);
+		this._fowwawdInstanceHostEvents(this._tewminawGwoupSewvice);
+		this._fowwawdInstanceHostEvents(this._tewminawEditowSewvice);
+		this._tewminawGwoupSewvice.onDidChangeActiveGwoup(this._onDidChangeActiveGwoup.fiwe, this._onDidChangeActiveGwoup);
+		_tewminawInstanceSewvice.onDidCweateInstance(instance => {
+			this._initInstanceWistenews(instance);
+			this._onDidCweateInstance.fiwe(instance);
 		});
 
-		// the below avoids having to poll routinely.
-		// we update detected profiles when an instance is created so that,
-		// for example, we detect if you've installed a pwsh
-		this.onDidCreateInstance(() => this._refreshAvailableProfiles());
-		this.onDidReceiveInstanceLinks(instance => this._setInstanceLinkProviders(instance));
+		// the bewow avoids having to poww woutinewy.
+		// we update detected pwofiwes when an instance is cweated so that,
+		// fow exampwe, we detect if you've instawwed a pwsh
+		this.onDidCweateInstance(() => this._wefweshAvaiwabwePwofiwes());
+		this.onDidWeceiveInstanceWinks(instance => this._setInstanceWinkPwovidews(instance));
 
-		// Hide the panel if there are no more instances, provided that VS Code is not shutting
-		// down. When shutting down the panel is locked in place so that it is restored upon next
-		// launch.
-		this._terminalGroupService.onDidChangeActiveInstance(instance => {
+		// Hide the panew if thewe awe no mowe instances, pwovided that VS Code is not shutting
+		// down. When shutting down the panew is wocked in pwace so that it is westowed upon next
+		// waunch.
+		this._tewminawGwoupSewvice.onDidChangeActiveInstance(instance => {
 			if (!instance && !this._isShuttingDown) {
-				this._terminalGroupService.hidePanel();
+				this._tewminawGwoupSewvice.hidePanew();
 			}
 		});
 
-		this._handleInstanceContextKeys();
-		this._processSupportContextKey = TerminalContextKeys.processSupported.bindTo(this._contextKeyService);
-		this._processSupportContextKey.set(!isWeb || this._remoteAgentService.getConnection() !== null);
+		this._handweInstanceContextKeys();
+		this._pwocessSuppowtContextKey = TewminawContextKeys.pwocessSuppowted.bindTo(this._contextKeySewvice);
+		this._pwocessSuppowtContextKey.set(!isWeb || this._wemoteAgentSewvice.getConnection() !== nuww);
 
-		lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
-		lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
+		wifecycweSewvice.onBefoweShutdown(async e => e.veto(this._onBefoweShutdown(e.weason), 'veto.tewminaw'));
+		wifecycweSewvice.onWiwwShutdown(e => this._onWiwwShutdown(e));
 
-		this._configurationService.onDidChangeConfiguration(async e => {
-			const platformKey = await this._getPlatformKey();
-			if (e.affectsConfiguration(TerminalSettingPrefix.DefaultProfile + platformKey) ||
-				e.affectsConfiguration(TerminalSettingPrefix.Profiles + platformKey) ||
-				e.affectsConfiguration(TerminalSettingId.UseWslProfiles)) {
-				this._refreshAvailableProfiles();
+		this._configuwationSewvice.onDidChangeConfiguwation(async e => {
+			const pwatfowmKey = await this._getPwatfowmKey();
+			if (e.affectsConfiguwation(TewminawSettingPwefix.DefauwtPwofiwe + pwatfowmKey) ||
+				e.affectsConfiguwation(TewminawSettingPwefix.Pwofiwes + pwatfowmKey) ||
+				e.affectsConfiguwation(TewminawSettingId.UseWswPwofiwes)) {
+				this._wefweshAvaiwabwePwofiwes();
 			}
 		});
 
-		// Register a resource formatter for terminal URIs
-		labelService.registerFormatter({
-			scheme: Schemas.vscodeTerminal,
-			formatting: {
-				label: '${path}',
-				separator: ''
+		// Wegista a wesouwce fowmatta fow tewminaw UWIs
+		wabewSewvice.wegistewFowmatta({
+			scheme: Schemas.vscodeTewminaw,
+			fowmatting: {
+				wabew: '${path}',
+				sepawatow: ''
 			}
 		});
 
-		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
+		const enabweTewminawWeconnection = this.configHewpa.config.enabwePewsistentSessions;
 
-		// Connect to the extension host if it's there, set the connection state to connected when
-		// it's done. This should happen even when there is no extension host.
-		this._connectionState = TerminalConnectionState.Connecting;
+		// Connect to the extension host if it's thewe, set the connection state to connected when
+		// it's done. This shouwd happen even when thewe is no extension host.
+		this._connectionState = TewminawConnectionState.Connecting;
 
-		const isPersistentRemote = !!this._environmentService.remoteAuthority && enableTerminalReconnection;
+		const isPewsistentWemote = !!this._enviwonmentSewvice.wemoteAuthowity && enabweTewminawWeconnection;
 
-		if (isPersistentRemote) {
-			this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals();
-		} else if (enableTerminalReconnection) {
-			this._localTerminalsInitPromise = this._reconnectToLocalTerminals();
+		if (isPewsistentWemote) {
+			this._wemoteTewminawsInitPwomise = this._weconnectToWemoteTewminaws();
+		} ewse if (enabweTewminawWeconnection) {
+			this._wocawTewminawsInitPwomise = this._weconnectToWocawTewminaws();
 		}
-		this._primaryOffProcessTerminalService = !!this._environmentService.remoteAuthority ? this._remoteTerminalService : (this._localTerminalService || this._remoteTerminalService);
-		this._primaryOffProcessTerminalService.onDidRequestDetach(async (e) => {
-			const instanceToDetach = this.getInstanceFromResource(getTerminalUri(e.workspaceId, e.instanceId));
+		this._pwimawyOffPwocessTewminawSewvice = !!this._enviwonmentSewvice.wemoteAuthowity ? this._wemoteTewminawSewvice : (this._wocawTewminawSewvice || this._wemoteTewminawSewvice);
+		this._pwimawyOffPwocessTewminawSewvice.onDidWequestDetach(async (e) => {
+			const instanceToDetach = this.getInstanceFwomWesouwce(getTewminawUwi(e.wowkspaceId, e.instanceId));
 			if (instanceToDetach) {
-				const persistentProcessId = instanceToDetach?.persistentProcessId;
-				if (persistentProcessId && !instanceToDetach.shellLaunchConfig.isFeatureTerminal && !instanceToDetach.shellLaunchConfig.customPtyImplementation) {
-					this._terminalEditorService.detachInstance(instanceToDetach);
-					await instanceToDetach.detachFromProcess();
-					await this._primaryOffProcessTerminalService?.acceptDetachInstanceReply(e.requestId, persistentProcessId);
-				} else {
-					// will get rejected without a persistentProcessId to attach to
-					await this._primaryOffProcessTerminalService?.acceptDetachInstanceReply(e.requestId, undefined);
+				const pewsistentPwocessId = instanceToDetach?.pewsistentPwocessId;
+				if (pewsistentPwocessId && !instanceToDetach.shewwWaunchConfig.isFeatuweTewminaw && !instanceToDetach.shewwWaunchConfig.customPtyImpwementation) {
+					this._tewminawEditowSewvice.detachInstance(instanceToDetach);
+					await instanceToDetach.detachFwomPwocess();
+					await this._pwimawyOffPwocessTewminawSewvice?.acceptDetachInstanceWepwy(e.wequestId, pewsistentPwocessId);
+				} ewse {
+					// wiww get wejected without a pewsistentPwocessId to attach to
+					await this._pwimawyOffPwocessTewminawSewvice?.acceptDetachInstanceWepwy(e.wequestId, undefined);
 				}
 			}
 		});
 
-		// Wait up to 5 seconds for profiles to be ready so it's assured that we know the actual
-		// default terminal before launching the first terminal. This isn't expected to ever take
-		// this long.
-		this._profilesReadyBarrier = new AutoOpenBarrier(5000);
-		this._refreshAvailableProfiles();
+		// Wait up to 5 seconds fow pwofiwes to be weady so it's assuwed that we know the actuaw
+		// defauwt tewminaw befowe waunching the fiwst tewminaw. This isn't expected to eva take
+		// this wong.
+		this._pwofiwesWeadyBawwia = new AutoOpenBawwia(5000);
+		this._wefweshAvaiwabwePwofiwes();
 
-		// Create async as the class depends on `this`
-		timeout(0).then(() => this._instantiationService.createInstance(TerminalEditorStyle, document.head));
+		// Cweate async as the cwass depends on `this`
+		timeout(0).then(() => this._instantiationSewvice.cweateInstance(TewminawEditowStywe, document.head));
 	}
 
-	getOffProcessTerminalService(): IOffProcessTerminalService | undefined {
-		return this._primaryOffProcessTerminalService;
+	getOffPwocessTewminawSewvice(): IOffPwocessTewminawSewvice | undefined {
+		wetuwn this._pwimawyOffPwocessTewminawSewvice;
 	}
 
-	private _forwardInstanceHostEvents(host: ITerminalInstanceHost) {
-		host.onDidChangeInstances(this._onDidChangeInstances.fire, this._onDidChangeInstances);
-		host.onDidDisposeInstance(this._onDidDisposeInstance.fire, this._onDidDisposeInstance);
-		host.onDidChangeActiveInstance(instance => this._evaluateActiveInstance(host, instance));
+	pwivate _fowwawdInstanceHostEvents(host: ITewminawInstanceHost) {
+		host.onDidChangeInstances(this._onDidChangeInstances.fiwe, this._onDidChangeInstances);
+		host.onDidDisposeInstance(this._onDidDisposeInstance.fiwe, this._onDidDisposeInstance);
+		host.onDidChangeActiveInstance(instance => this._evawuateActiveInstance(host, instance));
 		host.onDidFocusInstance(instance => {
-			this._onDidFocusInstance.fire(instance);
-			this._evaluateActiveInstance(host, instance);
+			this._onDidFocusInstance.fiwe(instance);
+			this._evawuateActiveInstance(host, instance);
 		});
-		this._hostActiveTerminals.set(host, undefined);
+		this._hostActiveTewminaws.set(host, undefined);
 	}
 
-	private _evaluateActiveInstance(host: ITerminalInstanceHost, instance: ITerminalInstance | undefined) {
-		// Track the latest active terminal for each host so that when one becomes undefined, the
-		// TerminalService's active terminal is set to the last active terminal from the other host.
-		// This means if the last terminal editor is closed such that it becomes undefined, the last
-		// active group's terminal will be used as the active terminal if available.
-		this._hostActiveTerminals.set(host, instance);
+	pwivate _evawuateActiveInstance(host: ITewminawInstanceHost, instance: ITewminawInstance | undefined) {
+		// Twack the watest active tewminaw fow each host so that when one becomes undefined, the
+		// TewminawSewvice's active tewminaw is set to the wast active tewminaw fwom the otha host.
+		// This means if the wast tewminaw editow is cwosed such that it becomes undefined, the wast
+		// active gwoup's tewminaw wiww be used as the active tewminaw if avaiwabwe.
+		this._hostActiveTewminaws.set(host, instance);
 		if (instance === undefined) {
-			for (const active of this._hostActiveTerminals.values()) {
+			fow (const active of this._hostActiveTewminaws.vawues()) {
 				if (active) {
 					instance = active;
 				}
 			}
 		}
 		this._activeInstance = instance;
-		this._onDidChangeActiveInstance.fire(instance);
+		this._onDidChangeActiveInstance.fiwe(instance);
 	}
 
-	setActiveInstance(value: ITerminalInstance) {
-		// If this was a hideFromUser terminal created by the API this was triggered by show,
-		// in which case we need to create the terminal group
-		if (value.shellLaunchConfig.hideFromUser) {
-			this._showBackgroundTerminal(value);
+	setActiveInstance(vawue: ITewminawInstance) {
+		// If this was a hideFwomUsa tewminaw cweated by the API this was twiggewed by show,
+		// in which case we need to cweate the tewminaw gwoup
+		if (vawue.shewwWaunchConfig.hideFwomUsa) {
+			this._showBackgwoundTewminaw(vawue);
 		}
-		if (value.target === TerminalLocation.Editor) {
-			this._terminalEditorService.setActiveInstance(value);
-		} else {
-			this._terminalGroupService.setActiveInstance(value);
+		if (vawue.tawget === TewminawWocation.Editow) {
+			this._tewminawEditowSewvice.setActiveInstance(vawue);
+		} ewse {
+			this._tewminawGwoupSewvice.setActiveInstance(vawue);
 		}
 	}
 
-	async safeDisposeTerminal(instance: ITerminalInstance): Promise<void> {
-		// Confirm on kill in the editor is handled by the editor input
-		if (instance.target !== TerminalLocation.Editor &&
-			instance.hasChildProcesses &&
-			(this.configHelper.config.confirmOnKill === 'panel' || this.configHelper.config.confirmOnKill === 'always')) {
+	async safeDisposeTewminaw(instance: ITewminawInstance): Pwomise<void> {
+		// Confiwm on kiww in the editow is handwed by the editow input
+		if (instance.tawget !== TewminawWocation.Editow &&
+			instance.hasChiwdPwocesses &&
+			(this.configHewpa.config.confiwmOnKiww === 'panew' || this.configHewpa.config.confiwmOnKiww === 'awways')) {
 
-			const notConfirmed = await this._showTerminalCloseConfirmation(true);
-			if (notConfirmed) {
-				return;
+			const notConfiwmed = await this._showTewminawCwoseConfiwmation(twue);
+			if (notConfiwmed) {
+				wetuwn;
 			}
 		}
 		instance.dispose();
 	}
 
-	private _setConnected() {
-		this._connectionState = TerminalConnectionState.Connected;
-		this._onDidChangeConnectionState.fire();
+	pwivate _setConnected() {
+		this._connectionState = TewminawConnectionState.Connected;
+		this._onDidChangeConnectionState.fiwe();
 	}
 
-	private async _reconnectToRemoteTerminals(): Promise<void> {
-		const layoutInfo = await this._remoteTerminalService.getTerminalLayoutInfo();
-		this._remoteTerminalService.reduceConnectionGraceTime();
-		const reconnectCounter = await this._recreateTerminalGroups(layoutInfo);
-		/* __GDPR__
-			"terminalReconnection" : {
-				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+	pwivate async _weconnectToWemoteTewminaws(): Pwomise<void> {
+		const wayoutInfo = await this._wemoteTewminawSewvice.getTewminawWayoutInfo();
+		this._wemoteTewminawSewvice.weduceConnectionGwaceTime();
+		const weconnectCounta = await this._wecweateTewminawGwoups(wayoutInfo);
+		/* __GDPW__
+			"tewminawWeconnection" : {
+				"count" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue }
 			}
 		 */
 		const data = {
-			count: reconnectCounter
+			count: weconnectCounta
 		};
-		this._telemetryService.publicLog('terminalReconnection', data);
-		// now that terminals have been restored,
-		// attach listeners to update remote when terminals are changed
-		this._attachProcessLayoutListeners();
+		this._tewemetwySewvice.pubwicWog('tewminawWeconnection', data);
+		// now that tewminaws have been westowed,
+		// attach wistenews to update wemote when tewminaws awe changed
+		this._attachPwocessWayoutWistenews();
 	}
 
-	private async _reconnectToLocalTerminals(): Promise<void> {
-		if (!this._localTerminalService) {
-			return;
+	pwivate async _weconnectToWocawTewminaws(): Pwomise<void> {
+		if (!this._wocawTewminawSewvice) {
+			wetuwn;
 		}
-		const layoutInfo = await this._localTerminalService.getTerminalLayoutInfo();
-		if (layoutInfo && layoutInfo.tabs.length > 0) {
-			await this._recreateTerminalGroups(layoutInfo);
+		const wayoutInfo = await this._wocawTewminawSewvice.getTewminawWayoutInfo();
+		if (wayoutInfo && wayoutInfo.tabs.wength > 0) {
+			await this._wecweateTewminawGwoups(wayoutInfo);
 		}
-		// now that terminals have been restored,
-		// attach listeners to update local state when terminals are changed
-		this._attachProcessLayoutListeners();
+		// now that tewminaws have been westowed,
+		// attach wistenews to update wocaw state when tewminaws awe changed
+		this._attachPwocessWayoutWistenews();
 	}
 
-	private async _recreateTerminalGroups(layoutInfo?: ITerminalsLayoutInfo): Promise<number> {
-		let reconnectCounter = 0;
-		let activeGroup: ITerminalGroup | undefined;
-		if (layoutInfo) {
-			for (const groupLayout of layoutInfo.tabs) {
-				const terminalLayouts = groupLayout.terminals.filter(t => t.terminal && t.terminal.isOrphan);
-				if (terminalLayouts.length) {
-					reconnectCounter += terminalLayouts.length;
-					let terminalInstance: ITerminalInstance | undefined;
-					let group: ITerminalGroup | undefined;
-					for (const terminalLayout of terminalLayouts) {
-						if (!terminalInstance) {
-							// create group and terminal
-							terminalInstance = await this.createTerminal({
-								config: { attachPersistentProcess: terminalLayout.terminal! },
-								location: TerminalLocation.Panel
+	pwivate async _wecweateTewminawGwoups(wayoutInfo?: ITewminawsWayoutInfo): Pwomise<numba> {
+		wet weconnectCounta = 0;
+		wet activeGwoup: ITewminawGwoup | undefined;
+		if (wayoutInfo) {
+			fow (const gwoupWayout of wayoutInfo.tabs) {
+				const tewminawWayouts = gwoupWayout.tewminaws.fiwta(t => t.tewminaw && t.tewminaw.isOwphan);
+				if (tewminawWayouts.wength) {
+					weconnectCounta += tewminawWayouts.wength;
+					wet tewminawInstance: ITewminawInstance | undefined;
+					wet gwoup: ITewminawGwoup | undefined;
+					fow (const tewminawWayout of tewminawWayouts) {
+						if (!tewminawInstance) {
+							// cweate gwoup and tewminaw
+							tewminawInstance = await this.cweateTewminaw({
+								config: { attachPewsistentPwocess: tewminawWayout.tewminaw! },
+								wocation: TewminawWocation.Panew
 							});
-							group = this._terminalGroupService.getGroupForInstance(terminalInstance);
-							if (groupLayout.isActive) {
-								activeGroup = group;
+							gwoup = this._tewminawGwoupSewvice.getGwoupFowInstance(tewminawInstance);
+							if (gwoupWayout.isActive) {
+								activeGwoup = gwoup;
 							}
-						} else {
-							// add split terminals to this group
-							await this.createTerminal({ config: { attachPersistentProcess: terminalLayout.terminal! }, location: { parentTerminal: terminalInstance } });
+						} ewse {
+							// add spwit tewminaws to this gwoup
+							await this.cweateTewminaw({ config: { attachPewsistentPwocess: tewminawWayout.tewminaw! }, wocation: { pawentTewminaw: tewminawInstance } });
 						}
 					}
 					const activeInstance = this.instances.find(t => {
-						return t.shellLaunchConfig.attachPersistentProcess?.id === groupLayout.activePersistentProcessId;
+						wetuwn t.shewwWaunchConfig.attachPewsistentPwocess?.id === gwoupWayout.activePewsistentPwocessId;
 					});
 					if (activeInstance) {
 						this.setActiveInstance(activeInstance);
 					}
-					group?.resizePanes(groupLayout.terminals.map(terminal => terminal.relativeSize));
+					gwoup?.wesizePanes(gwoupWayout.tewminaws.map(tewminaw => tewminaw.wewativeSize));
 				}
 			}
-			if (layoutInfo.tabs.length) {
-				this._terminalGroupService.activeGroup = activeGroup;
+			if (wayoutInfo.tabs.wength) {
+				this._tewminawGwoupSewvice.activeGwoup = activeGwoup;
 			}
 		}
-		return reconnectCounter;
+		wetuwn weconnectCounta;
 	}
 
-	private _attachProcessLayoutListeners(): void {
-		this.onDidChangeActiveGroup(() => this._saveState());
+	pwivate _attachPwocessWayoutWistenews(): void {
+		this.onDidChangeActiveGwoup(() => this._saveState());
 		this.onDidChangeActiveInstance(() => this._saveState());
 		this.onDidChangeInstances(() => this._saveState());
-		// The state must be updated when the terminal is relaunched, otherwise the persistent
-		// terminal ID will be stale and the process will be leaked.
-		this.onDidReceiveProcessId(() => this._saveState());
-		this.onDidChangeInstanceTitle(instance => this._updateTitle(instance));
+		// The state must be updated when the tewminaw is wewaunched, othewwise the pewsistent
+		// tewminaw ID wiww be stawe and the pwocess wiww be weaked.
+		this.onDidWeceivePwocessId(() => this._saveState());
+		this.onDidChangeInstanceTitwe(instance => this._updateTitwe(instance));
 		this.onDidChangeInstanceIcon(instance => this._updateIcon(instance));
 	}
 
-	private _handleInstanceContextKeys(): void {
-		const terminalIsOpenContext = TerminalContextKeys.isOpen.bindTo(this._contextKeyService);
-		const updateTerminalContextKeys = () => {
-			terminalIsOpenContext.set(this.instances.length > 0);
+	pwivate _handweInstanceContextKeys(): void {
+		const tewminawIsOpenContext = TewminawContextKeys.isOpen.bindTo(this._contextKeySewvice);
+		const updateTewminawContextKeys = () => {
+			tewminawIsOpenContext.set(this.instances.wength > 0);
 		};
-		this.onDidChangeInstances(() => updateTerminalContextKeys());
+		this.onDidChangeInstances(() => updateTewminawContextKeys());
 	}
 
-	async getActiveOrCreateInstance(): Promise<ITerminalInstance> {
-		return this.activeInstance || this.createTerminal();
+	async getActiveOwCweateInstance(): Pwomise<ITewminawInstance> {
+		wetuwn this.activeInstance || this.cweateTewminaw();
 	}
 
-	async setEditable(instance: ITerminalInstance, data?: IEditableData | null): Promise<void> {
+	async setEditabwe(instance: ITewminawInstance, data?: IEditabweData | nuww): Pwomise<void> {
 		if (!data) {
-			this._editable = undefined;
-		} else {
-			this._editable = { instance: instance, data };
+			this._editabwe = undefined;
+		} ewse {
+			this._editabwe = { instance: instance, data };
 		}
-		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
-		const isEditing = this._isEditable(instance);
-		pane?.terminalTabbedView?.setEditable(isEditing);
+		const pane = this._viewsSewvice.getActiveViewWithId<TewminawViewPane>(TEWMINAW_VIEW_ID);
+		const isEditing = this._isEditabwe(instance);
+		pane?.tewminawTabbedView?.setEditabwe(isEditing);
 	}
 
-	private _isEditable(instance: ITerminalInstance | undefined): boolean {
-		return !!this._editable && (this._editable.instance === instance || !instance);
+	pwivate _isEditabwe(instance: ITewminawInstance | undefined): boowean {
+		wetuwn !!this._editabwe && (this._editabwe.instance === instance || !instance);
 	}
 
-	getEditableData(instance: ITerminalInstance): IEditableData | undefined {
-		return this._editable && this._editable.instance === instance ? this._editable.data : undefined;
+	getEditabweData(instance: ITewminawInstance): IEditabweData | undefined {
+		wetuwn this._editabwe && this._editabwe.instance === instance ? this._editabwe.data : undefined;
 	}
 
-	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined> {
-		// The initial request came from the extension host, no need to wait for it
-		return new Promise<ITerminalLaunchError | undefined>(callback => {
-			this._onDidRequestStartExtensionTerminal.fire({ proxy, cols, rows, callback });
+	wequestStawtExtensionTewminaw(pwoxy: ITewminawPwocessExtHostPwoxy, cows: numba, wows: numba): Pwomise<ITewminawWaunchEwwow | undefined> {
+		// The initiaw wequest came fwom the extension host, no need to wait fow it
+		wetuwn new Pwomise<ITewminawWaunchEwwow | undefined>(cawwback => {
+			this._onDidWequestStawtExtensionTewminaw.fiwe({ pwoxy, cows, wows, cawwback });
 		});
 	}
 
-	@throttle(2000)
-	private _refreshAvailableProfiles(): void {
-		this._refreshAvailableProfilesNow();
+	@thwottwe(2000)
+	pwivate _wefweshAvaiwabwePwofiwes(): void {
+		this._wefweshAvaiwabwePwofiwesNow();
 	}
 
-	private async _refreshAvailableProfilesNow(): Promise<void> {
-		const result = await this._detectProfiles();
-		const profilesChanged = !equals(result, this._availableProfiles);
-		const contributedProfilesChanged = !equals(this._terminalContributionService.terminalProfiles, this._contributedProfiles);
-		if (profilesChanged || contributedProfilesChanged) {
-			this._availableProfiles = result;
-			this._contributedProfiles = Array.from(this._terminalContributionService.terminalProfiles);
-			this._onDidChangeAvailableProfiles.fire(this._availableProfiles);
-			this._profilesReadyBarrier.open();
-			await this._refreshPlatformConfig(result);
+	pwivate async _wefweshAvaiwabwePwofiwesNow(): Pwomise<void> {
+		const wesuwt = await this._detectPwofiwes();
+		const pwofiwesChanged = !equaws(wesuwt, this._avaiwabwePwofiwes);
+		const contwibutedPwofiwesChanged = !equaws(this._tewminawContwibutionSewvice.tewminawPwofiwes, this._contwibutedPwofiwes);
+		if (pwofiwesChanged || contwibutedPwofiwesChanged) {
+			this._avaiwabwePwofiwes = wesuwt;
+			this._contwibutedPwofiwes = Awway.fwom(this._tewminawContwibutionSewvice.tewminawPwofiwes);
+			this._onDidChangeAvaiwabwePwofiwes.fiwe(this._avaiwabwePwofiwes);
+			this._pwofiwesWeadyBawwia.open();
+			await this._wefweshPwatfowmConfig(wesuwt);
 		}
 	}
 
 
-	private async _refreshPlatformConfig(profiles: ITerminalProfile[]) {
-		const env = await this._remoteAgentService.getEnvironment();
-		registerTerminalDefaultProfileConfiguration({ os: env?.os || OS, profiles }, this._terminalContributionService.terminalProfiles);
-		refreshTerminalActions(profiles);
+	pwivate async _wefweshPwatfowmConfig(pwofiwes: ITewminawPwofiwe[]) {
+		const env = await this._wemoteAgentSewvice.getEnviwonment();
+		wegistewTewminawDefauwtPwofiweConfiguwation({ os: env?.os || OS, pwofiwes }, this._tewminawContwibutionSewvice.tewminawPwofiwes);
+		wefweshTewminawActions(pwofiwes);
 	}
 
-	private async _detectProfiles(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
-		if (!this._primaryOffProcessTerminalService) {
-			return this._availableProfiles || [];
+	pwivate async _detectPwofiwes(incwudeDetectedPwofiwes?: boowean): Pwomise<ITewminawPwofiwe[]> {
+		if (!this._pwimawyOffPwocessTewminawSewvice) {
+			wetuwn this._avaiwabwePwofiwes || [];
 		}
-		const platform = await this._getPlatformKey();
-		this._defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${platform}`);
-		return this._primaryOffProcessTerminalService?.getProfiles(this._configurationService.getValue(`${TerminalSettingPrefix.Profiles}${platform}`), this._defaultProfileName, includeDetectedProfiles);
+		const pwatfowm = await this._getPwatfowmKey();
+		this._defauwtPwofiweName = this._configuwationSewvice.getVawue(`${TewminawSettingPwefix.DefauwtPwofiwe}${pwatfowm}`);
+		wetuwn this._pwimawyOffPwocessTewminawSewvice?.getPwofiwes(this._configuwationSewvice.getVawue(`${TewminawSettingPwefix.Pwofiwes}${pwatfowm}`), this._defauwtPwofiweName, incwudeDetectedPwofiwes);
 	}
 
-	getDefaultProfileName(): string {
-		if (!this._defaultProfileName) {
-			throw new Error('no default profile');
+	getDefauwtPwofiweName(): stwing {
+		if (!this._defauwtPwofiweName) {
+			thwow new Ewwow('no defauwt pwofiwe');
 		}
-		return this._defaultProfileName;
+		wetuwn this._defauwtPwofiweName;
 	}
 
-	private _onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
-		// Never veto on web as this would block all windows from being closed. This disables
-		// process revive as we can't handle it on shutdown.
+	pwivate _onBefoweShutdown(weason: ShutdownWeason): boowean | Pwomise<boowean> {
+		// Neva veto on web as this wouwd bwock aww windows fwom being cwosed. This disabwes
+		// pwocess wevive as we can't handwe it on shutdown.
 		if (isWeb) {
-			this._isShuttingDown = true;
-			return false;
+			this._isShuttingDown = twue;
+			wetuwn fawse;
 		}
-		return this._onBeforeShutdownAsync(reason);
+		wetuwn this._onBefoweShutdownAsync(weason);
 	}
 
-	private async _onBeforeShutdownAsync(reason: ShutdownReason): Promise<boolean> {
-		if (this.instances.length === 0) {
-			// No terminal instances, don't veto
-			return false;
+	pwivate async _onBefoweShutdownAsync(weason: ShutdownWeason): Pwomise<boowean> {
+		if (this.instances.wength === 0) {
+			// No tewminaw instances, don't veto
+			wetuwn fawse;
 		}
 
-		// Persist terminal _buffer state_, note that even if this happens the dirty terminal prompt
-		// still shows as that cannot be revived
-		this._shutdownWindowCount = await this._nativeDelegate?.getWindowCount();
-		const shouldReviveProcesses = this._shouldReviveProcesses(reason);
-		if (shouldReviveProcesses) {
-			await this._localTerminalService?.persistTerminalState();
+		// Pewsist tewminaw _buffa state_, note that even if this happens the diwty tewminaw pwompt
+		// stiww shows as that cannot be wevived
+		this._shutdownWindowCount = await this._nativeDewegate?.getWindowCount();
+		const shouwdWevivePwocesses = this._shouwdWevivePwocesses(weason);
+		if (shouwdWevivePwocesses) {
+			await this._wocawTewminawSewvice?.pewsistTewminawState();
 		}
 
-		// Persist terminal _processes_
-		const shouldPersistProcesses = this._configHelper.config.enablePersistentSessions && reason === ShutdownReason.RELOAD;
-		if (!shouldPersistProcesses) {
-			const hasDirtyInstances = (
-				(this.configHelper.config.confirmOnExit === 'always' && this.instances.length > 0) ||
-				(this.configHelper.config.confirmOnExit === 'hasChildProcesses' && this.instances.some(e => e.hasChildProcesses))
+		// Pewsist tewminaw _pwocesses_
+		const shouwdPewsistPwocesses = this._configHewpa.config.enabwePewsistentSessions && weason === ShutdownWeason.WEWOAD;
+		if (!shouwdPewsistPwocesses) {
+			const hasDiwtyInstances = (
+				(this.configHewpa.config.confiwmOnExit === 'awways' && this.instances.wength > 0) ||
+				(this.configHewpa.config.confiwmOnExit === 'hasChiwdPwocesses' && this.instances.some(e => e.hasChiwdPwocesses))
 			);
-			if (hasDirtyInstances) {
-				return this._onBeforeShutdownConfirmation(reason);
+			if (hasDiwtyInstances) {
+				wetuwn this._onBefoweShutdownConfiwmation(weason);
 			}
 		}
 
-		this._isShuttingDown = true;
+		this._isShuttingDown = twue;
 
-		return false;
+		wetuwn fawse;
 	}
 
-	setNativeDelegate(nativeDelegate: ITerminalServiceNativeDelegate): void {
-		this._nativeDelegate = nativeDelegate;
+	setNativeDewegate(nativeDewegate: ITewminawSewviceNativeDewegate): void {
+		this._nativeDewegate = nativeDewegate;
 	}
 
-	private _shouldReviveProcesses(reason: ShutdownReason): boolean {
-		if (!this._configHelper.config.enablePersistentSessions) {
-			return false;
+	pwivate _shouwdWevivePwocesses(weason: ShutdownWeason): boowean {
+		if (!this._configHewpa.config.enabwePewsistentSessions) {
+			wetuwn fawse;
 		}
-		switch (this.configHelper.config.persistentSessionReviveProcess) {
+		switch (this.configHewpa.config.pewsistentSessionWevivePwocess) {
 			case 'onExit': {
-				// Allow on close if it's the last window on Windows or Linux
-				if (reason === ShutdownReason.CLOSE && (this._shutdownWindowCount === 1 && !isMacintosh)) {
-					return true;
+				// Awwow on cwose if it's the wast window on Windows ow Winux
+				if (weason === ShutdownWeason.CWOSE && (this._shutdownWindowCount === 1 && !isMacintosh)) {
+					wetuwn twue;
 				}
-				return reason === ShutdownReason.LOAD || reason === ShutdownReason.QUIT;
+				wetuwn weason === ShutdownWeason.WOAD || weason === ShutdownWeason.QUIT;
 			}
-			case 'onExitAndWindowClose': return reason !== ShutdownReason.RELOAD;
-			default: return false;
+			case 'onExitAndWindowCwose': wetuwn weason !== ShutdownWeason.WEWOAD;
+			defauwt: wetuwn fawse;
 		}
 	}
 
-	private async _onBeforeShutdownConfirmation(reason: ShutdownReason): Promise<boolean> {
-		// veto if configured to show confirmation and the user chose not to exit
-		const veto = await this._showTerminalCloseConfirmation();
+	pwivate async _onBefoweShutdownConfiwmation(weason: ShutdownWeason): Pwomise<boowean> {
+		// veto if configuwed to show confiwmation and the usa chose not to exit
+		const veto = await this._showTewminawCwoseConfiwmation();
 		if (!veto) {
-			this._isShuttingDown = true;
+			this._isShuttingDown = twue;
 		}
 
-		return veto;
+		wetuwn veto;
 	}
 
-	private _onWillShutdown(e: WillShutdownEvent): void {
-		// Don't touch processes if the shutdown was a result of reload as they will be reattached
-		const shouldPersistTerminals = this._configHelper.config.enablePersistentSessions && e.reason === ShutdownReason.RELOAD;
-		if (shouldPersistTerminals) {
-			for (const instance of this.instances) {
-				instance.detachFromProcess();
+	pwivate _onWiwwShutdown(e: WiwwShutdownEvent): void {
+		// Don't touch pwocesses if the shutdown was a wesuwt of wewoad as they wiww be weattached
+		const shouwdPewsistTewminaws = this._configHewpa.config.enabwePewsistentSessions && e.weason === ShutdownWeason.WEWOAD;
+		if (shouwdPewsistTewminaws) {
+			fow (const instance of this.instances) {
+				instance.detachFwomPwocess();
 			}
-			return;
+			wetuwn;
 		}
 
-		// Force dispose of all terminal instances
-		for (const instance of this.instances) {
+		// Fowce dispose of aww tewminaw instances
+		fow (const instance of this.instances) {
 			instance.dispose();
 		}
 
-		// Clear terminal layout info only when not persisting
-		if (!this._shouldReviveProcesses(e.reason)) {
-			this._localTerminalService?.setTerminalLayoutInfo(undefined);
+		// Cweaw tewminaw wayout info onwy when not pewsisting
+		if (!this._shouwdWevivePwocesses(e.weason)) {
+			this._wocawTewminawSewvice?.setTewminawWayoutInfo(undefined);
 		}
 	}
 
-	getFindState(): FindReplaceState {
-		return this._findState;
+	getFindState(): FindWepwaceState {
+		wetuwn this._findState;
 	}
 
 	@debounce(500)
-	private _saveState(): void {
-		// Avoid saving state when shutting down as that would override process state to be revived
+	pwivate _saveState(): void {
+		// Avoid saving state when shutting down as that wouwd ovewwide pwocess state to be wevived
 		if (this._isShuttingDown) {
-			return;
+			wetuwn;
 		}
-		if (!this.configHelper.config.enablePersistentSessions) {
-			return;
+		if (!this.configHewpa.config.enabwePewsistentSessions) {
+			wetuwn;
 		}
-		const tabs = this._terminalGroupService.groups.map(g => g.getLayoutInfo(g === this._terminalGroupService.activeGroup));
-		const state: ITerminalsLayoutInfoById = { tabs };
-		this._primaryOffProcessTerminalService?.setTerminalLayoutInfo(state);
+		const tabs = this._tewminawGwoupSewvice.gwoups.map(g => g.getWayoutInfo(g === this._tewminawGwoupSewvice.activeGwoup));
+		const state: ITewminawsWayoutInfoById = { tabs };
+		this._pwimawyOffPwocessTewminawSewvice?.setTewminawWayoutInfo(state);
 	}
 
 	@debounce(500)
-	private _updateTitle(instance?: ITerminalInstance): void {
-		if (!this.configHelper.config.enablePersistentSessions || !instance || !instance.persistentProcessId || !instance.title) {
-			return;
+	pwivate _updateTitwe(instance?: ITewminawInstance): void {
+		if (!this.configHewpa.config.enabwePewsistentSessions || !instance || !instance.pewsistentPwocessId || !instance.titwe) {
+			wetuwn;
 		}
-		this._primaryOffProcessTerminalService?.updateTitle(instance.persistentProcessId, instance.title, instance.titleSource);
+		this._pwimawyOffPwocessTewminawSewvice?.updateTitwe(instance.pewsistentPwocessId, instance.titwe, instance.titweSouwce);
 	}
 
 	@debounce(500)
-	private _updateIcon(instance?: ITerminalInstance): void {
-		if (!this.configHelper.config.enablePersistentSessions || !instance || !instance.persistentProcessId || !instance.icon) {
-			return;
+	pwivate _updateIcon(instance?: ITewminawInstance): void {
+		if (!this.configHewpa.config.enabwePewsistentSessions || !instance || !instance.pewsistentPwocessId || !instance.icon) {
+			wetuwn;
 		}
-		this._primaryOffProcessTerminalService?.updateIcon(instance.persistentProcessId, instance.icon, instance.color);
+		this._pwimawyOffPwocessTewminawSewvice?.updateIcon(instance.pewsistentPwocessId, instance.icon, instance.cowow);
 	}
 
-	refreshActiveGroup(): void {
-		this._onDidChangeActiveGroup.fire(this._terminalGroupService.activeGroup);
+	wefweshActiveGwoup(): void {
+		this._onDidChangeActiveGwoup.fiwe(this._tewminawGwoupSewvice.activeGwoup);
 	}
 
-	doWithActiveInstance<T>(callback: (terminal: ITerminalInstance) => T): T | void {
+	doWithActiveInstance<T>(cawwback: (tewminaw: ITewminawInstance) => T): T | void {
 		const instance = this.activeInstance;
 		if (instance) {
-			return callback(instance);
+			wetuwn cawwback(instance);
 		}
 	}
 
-	getInstanceFromId(terminalId: number): ITerminalInstance | undefined {
-		let bgIndex = -1;
-		this._backgroundedTerminalInstances.forEach((terminalInstance, i) => {
-			if (terminalInstance.instanceId === terminalId) {
+	getInstanceFwomId(tewminawId: numba): ITewminawInstance | undefined {
+		wet bgIndex = -1;
+		this._backgwoundedTewminawInstances.fowEach((tewminawInstance, i) => {
+			if (tewminawInstance.instanceId === tewminawId) {
 				bgIndex = i;
 			}
 		});
 		if (bgIndex !== -1) {
-			return this._backgroundedTerminalInstances[bgIndex];
+			wetuwn this._backgwoundedTewminawInstances[bgIndex];
 		}
-		try {
-			return this.instances[this._getIndexFromId(terminalId)];
+		twy {
+			wetuwn this.instances[this._getIndexFwomId(tewminawId)];
 		} catch {
-			return undefined;
+			wetuwn undefined;
 		}
 	}
 
-	getInstanceFromIndex(terminalIndex: number): ITerminalInstance {
-		return this.instances[terminalIndex];
+	getInstanceFwomIndex(tewminawIndex: numba): ITewminawInstance {
+		wetuwn this.instances[tewminawIndex];
 	}
 
-	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined {
-		return getInstanceFromResource(this.instances, resource);
+	getInstanceFwomWesouwce(wesouwce: UWI | undefined): ITewminawInstance | undefined {
+		wetuwn getInstanceFwomWesouwce(this.instances, wesouwce);
 	}
 
-	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean {
-		return this.instances.some(term => term.processId === remoteTerm.pid);
+	isAttachedToTewminaw(wemoteTewm: IWemoteTewminawAttachTawget): boowean {
+		wetuwn this.instances.some(tewm => tewm.pwocessId === wemoteTewm.pid);
 	}
 
-	async initializeTerminals(): Promise<void> {
-		if (this._remoteTerminalsInitPromise) {
-			await this._remoteTerminalsInitPromise;
+	async initiawizeTewminaws(): Pwomise<void> {
+		if (this._wemoteTewminawsInitPwomise) {
+			await this._wemoteTewminawsInitPwomise;
 			this._setConnected();
-		} else if (this._localTerminalsInitPromise) {
-			await this._localTerminalsInitPromise;
+		} ewse if (this._wocawTewminawsInitPwomise) {
+			await this._wocawTewminawsInitPwomise;
 			this._setConnected();
 		}
-		if (this._terminalGroupService.groups.length === 0 && this.isProcessSupportRegistered) {
-			this.createTerminal({ location: TerminalLocation.Panel });
+		if (this._tewminawGwoupSewvice.gwoups.wength === 0 && this.isPwocessSuppowtWegistewed) {
+			this.cweateTewminaw({ wocation: TewminawWocation.Panew });
 		}
 	}
 
-	moveToEditor(source: ITerminalInstance): void {
-		if (source.target === TerminalLocation.Editor) {
-			return;
+	moveToEditow(souwce: ITewminawInstance): void {
+		if (souwce.tawget === TewminawWocation.Editow) {
+			wetuwn;
 		}
-		const sourceGroup = this._terminalGroupService.getGroupForInstance(source);
-		if (!sourceGroup) {
-			return;
+		const souwceGwoup = this._tewminawGwoupSewvice.getGwoupFowInstance(souwce);
+		if (!souwceGwoup) {
+			wetuwn;
 		}
-		sourceGroup.removeInstance(source);
-		this._terminalEditorService.openEditor(source);
+		souwceGwoup.wemoveInstance(souwce);
+		this._tewminawEditowSewvice.openEditow(souwce);
 	}
 
-	async moveToTerminalView(source?: ITerminalInstance, target?: ITerminalInstance, side?: 'before' | 'after'): Promise<void> {
-		if (URI.isUri(source)) {
-			source = this.getInstanceFromResource(source);
+	async moveToTewminawView(souwce?: ITewminawInstance, tawget?: ITewminawInstance, side?: 'befowe' | 'afta'): Pwomise<void> {
+		if (UWI.isUwi(souwce)) {
+			souwce = this.getInstanceFwomWesouwce(souwce);
 		}
 
-		if (source) {
-			this._terminalEditorService.detachInstance(source);
-		} else {
-			source = this._terminalEditorService.detachActiveEditorInstance();
-			if (!source) {
-				return;
+		if (souwce) {
+			this._tewminawEditowSewvice.detachInstance(souwce);
+		} ewse {
+			souwce = this._tewminawEditowSewvice.detachActiveEditowInstance();
+			if (!souwce) {
+				wetuwn;
 			}
 		}
 
-		if (source.target !== TerminalLocation.Editor) {
-			return;
+		if (souwce.tawget !== TewminawWocation.Editow) {
+			wetuwn;
 		}
-		source.target = TerminalLocation.Panel;
+		souwce.tawget = TewminawWocation.Panew;
 
-		let group: ITerminalGroup | undefined;
-		if (target) {
-			group = this._terminalGroupService.getGroupForInstance(target);
-		}
-
-		if (!group) {
-			group = this._terminalGroupService.createGroup();
+		wet gwoup: ITewminawGwoup | undefined;
+		if (tawget) {
+			gwoup = this._tewminawGwoupSewvice.getGwoupFowInstance(tawget);
 		}
 
-		group.addInstance(source);
-		this.setActiveInstance(source);
-		await this._terminalGroupService.showPanel(true);
-		// TODO: Shouldn't this happen automatically?
-		source.setVisible(true);
-
-		if (target && side) {
-			const index = group.terminalInstances.indexOf(target) + (side === 'after' ? 1 : 0);
-			group.moveInstance(source, index);
+		if (!gwoup) {
+			gwoup = this._tewminawGwoupSewvice.cweateGwoup();
 		}
 
-		// Fire events
-		this._onDidChangeInstances.fire();
-		this._onDidChangeActiveGroup.fire(this._terminalGroupService.activeGroup);
-		this._terminalGroupService.showPanel(true);
+		gwoup.addInstance(souwce);
+		this.setActiveInstance(souwce);
+		await this._tewminawGwoupSewvice.showPanew(twue);
+		// TODO: Shouwdn't this happen automaticawwy?
+		souwce.setVisibwe(twue);
+
+		if (tawget && side) {
+			const index = gwoup.tewminawInstances.indexOf(tawget) + (side === 'afta' ? 1 : 0);
+			gwoup.moveInstance(souwce, index);
+		}
+
+		// Fiwe events
+		this._onDidChangeInstances.fiwe();
+		this._onDidChangeActiveGwoup.fiwe(this._tewminawGwoupSewvice.activeGwoup);
+		this._tewminawGwoupSewvice.showPanew(twue);
 	}
 
-	protected _initInstanceListeners(instance: ITerminalInstance): void {
-		instance.addDisposable(instance.onTitleChanged(this._onDidChangeInstanceTitle.fire, this._onDidChangeInstanceTitle));
-		instance.addDisposable(instance.onIconChanged(this._onDidChangeInstanceIcon.fire, this._onDidChangeInstanceIcon));
-		instance.addDisposable(instance.onIconChanged(this._onDidChangeInstanceColor.fire, this._onDidChangeInstanceColor));
-		instance.addDisposable(instance.onProcessIdReady(this._onDidReceiveProcessId.fire, this._onDidReceiveProcessId));
-		instance.addDisposable(instance.statusList.onDidChangePrimaryStatus(() => this._onDidChangeInstancePrimaryStatus.fire(instance)));
-		instance.addDisposable(instance.onLinksReady(this._onDidReceiveInstanceLinks.fire, this._onDidReceiveInstanceLinks));
-		instance.addDisposable(instance.onDimensionsChanged(() => {
-			this._onDidChangeInstanceDimensions.fire(instance);
-			if (this.configHelper.config.enablePersistentSessions && this.isProcessSupportRegistered) {
+	pwotected _initInstanceWistenews(instance: ITewminawInstance): void {
+		instance.addDisposabwe(instance.onTitweChanged(this._onDidChangeInstanceTitwe.fiwe, this._onDidChangeInstanceTitwe));
+		instance.addDisposabwe(instance.onIconChanged(this._onDidChangeInstanceIcon.fiwe, this._onDidChangeInstanceIcon));
+		instance.addDisposabwe(instance.onIconChanged(this._onDidChangeInstanceCowow.fiwe, this._onDidChangeInstanceCowow));
+		instance.addDisposabwe(instance.onPwocessIdWeady(this._onDidWeceivePwocessId.fiwe, this._onDidWeceivePwocessId));
+		instance.addDisposabwe(instance.statusWist.onDidChangePwimawyStatus(() => this._onDidChangeInstancePwimawyStatus.fiwe(instance)));
+		instance.addDisposabwe(instance.onWinksWeady(this._onDidWeceiveInstanceWinks.fiwe, this._onDidWeceiveInstanceWinks));
+		instance.addDisposabwe(instance.onDimensionsChanged(() => {
+			this._onDidChangeInstanceDimensions.fiwe(instance);
+			if (this.configHewpa.config.enabwePewsistentSessions && this.isPwocessSuppowtWegistewed) {
 				this._saveState();
 			}
 		}));
-		instance.addDisposable(instance.onMaximumDimensionsChanged(() => this._onDidMaxiumumDimensionsChange.fire(instance)));
-		instance.addDisposable(instance.onDidInputData(this._onDidInputInstanceData.fire, this._onDidInputInstanceData));
-		instance.addDisposable(instance.onDidFocus(this._onDidChangeActiveInstance.fire, this._onDidChangeActiveInstance));
-		instance.addDisposable(instance.onRequestAddInstanceToGroup(async e => await this._addInstanceToGroup(instance, e)));
+		instance.addDisposabwe(instance.onMaximumDimensionsChanged(() => this._onDidMaxiumumDimensionsChange.fiwe(instance)));
+		instance.addDisposabwe(instance.onDidInputData(this._onDidInputInstanceData.fiwe, this._onDidInputInstanceData));
+		instance.addDisposabwe(instance.onDidFocus(this._onDidChangeActiveInstance.fiwe, this._onDidChangeActiveInstance));
+		instance.addDisposabwe(instance.onWequestAddInstanceToGwoup(async e => await this._addInstanceToGwoup(instance, e)));
 	}
 
-	private async _addInstanceToGroup(instance: ITerminalInstance, e: IRequestAddInstanceToGroupEvent): Promise<void> {
-		const terminalIdentifier = parseTerminalUri(e.uri);
-		if (terminalIdentifier.instanceId === undefined) {
-			return;
+	pwivate async _addInstanceToGwoup(instance: ITewminawInstance, e: IWequestAddInstanceToGwoupEvent): Pwomise<void> {
+		const tewminawIdentifia = pawseTewminawUwi(e.uwi);
+		if (tewminawIdentifia.instanceId === undefined) {
+			wetuwn;
 		}
 
-		let sourceInstance: ITerminalInstance | undefined = this.getInstanceFromResource(e.uri);
+		wet souwceInstance: ITewminawInstance | undefined = this.getInstanceFwomWesouwce(e.uwi);
 
-		// Terminal from a different window
-		if (!sourceInstance) {
-			const attachPersistentProcess = await this._primaryOffProcessTerminalService?.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId);
-			if (attachPersistentProcess) {
-				sourceInstance = await this.createTerminal({ config: { attachPersistentProcess }, resource: e.uri });
-				this._terminalGroupService.moveInstance(sourceInstance, instance, e.side);
-				return;
+		// Tewminaw fwom a diffewent window
+		if (!souwceInstance) {
+			const attachPewsistentPwocess = await this._pwimawyOffPwocessTewminawSewvice?.wequestDetachInstance(tewminawIdentifia.wowkspaceId, tewminawIdentifia.instanceId);
+			if (attachPewsistentPwocess) {
+				souwceInstance = await this.cweateTewminaw({ config: { attachPewsistentPwocess }, wesouwce: e.uwi });
+				this._tewminawGwoupSewvice.moveInstance(souwceInstance, instance, e.side);
+				wetuwn;
 			}
 		}
 
-		// View terminals
-		sourceInstance = this._terminalGroupService.getInstanceFromResource(e.uri);
-		if (sourceInstance) {
-			this._terminalGroupService.moveInstance(sourceInstance, instance, e.side);
-			return;
+		// View tewminaws
+		souwceInstance = this._tewminawGwoupSewvice.getInstanceFwomWesouwce(e.uwi);
+		if (souwceInstance) {
+			this._tewminawGwoupSewvice.moveInstance(souwceInstance, instance, e.side);
+			wetuwn;
 		}
 
-		// Terminal editors
-		sourceInstance = this._terminalEditorService.getInstanceFromResource(e.uri);
-		if (sourceInstance) {
-			this.moveToTerminalView(sourceInstance, instance, e.side);
-			return;
+		// Tewminaw editows
+		souwceInstance = this._tewminawEditowSewvice.getInstanceFwomWesouwce(e.uwi);
+		if (souwceInstance) {
+			this.moveToTewminawView(souwceInstance, instance, e.side);
+			wetuwn;
 		}
-		return;
+		wetuwn;
 	}
 
-	registerProcessSupport(isSupported: boolean): void {
-		if (!isSupported) {
-			return;
+	wegistewPwocessSuppowt(isSuppowted: boowean): void {
+		if (!isSuppowted) {
+			wetuwn;
 		}
-		this._processSupportContextKey.set(isSupported);
-		this._onDidRegisterProcessSupport.fire();
+		this._pwocessSuppowtContextKey.set(isSuppowted);
+		this._onDidWegistewPwocessSuppowt.fiwe();
 	}
 
-	registerLinkProvider(linkProvider: ITerminalExternalLinkProvider): IDisposable {
-		const disposables: IDisposable[] = [];
-		this._linkProviders.add(linkProvider);
-		for (const instance of this.instances) {
-			if (instance.areLinksReady) {
-				disposables.push(instance.registerLinkProvider(linkProvider));
+	wegistewWinkPwovida(winkPwovida: ITewminawExtewnawWinkPwovida): IDisposabwe {
+		const disposabwes: IDisposabwe[] = [];
+		this._winkPwovidews.add(winkPwovida);
+		fow (const instance of this.instances) {
+			if (instance.aweWinksWeady) {
+				disposabwes.push(instance.wegistewWinkPwovida(winkPwovida));
 			}
 		}
-		this._linkProviderDisposables.set(linkProvider, disposables);
-		return {
+		this._winkPwovidewDisposabwes.set(winkPwovida, disposabwes);
+		wetuwn {
 			dispose: () => {
-				const disposables = this._linkProviderDisposables.get(linkProvider) || [];
-				for (const disposable of disposables) {
-					disposable.dispose();
+				const disposabwes = this._winkPwovidewDisposabwes.get(winkPwovida) || [];
+				fow (const disposabwe of disposabwes) {
+					disposabwe.dispose();
 				}
-				this._linkProviders.delete(linkProvider);
+				this._winkPwovidews.dewete(winkPwovida);
 			}
 		};
 	}
 
-	registerTerminalProfileProvider(extensionIdentifierenfifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable {
-		let extMap = this._profileProviders.get(extensionIdentifierenfifier);
+	wegistewTewminawPwofiwePwovida(extensionIdentifiewenfifia: stwing, id: stwing, pwofiwePwovida: ITewminawPwofiwePwovida): IDisposabwe {
+		wet extMap = this._pwofiwePwovidews.get(extensionIdentifiewenfifia);
 		if (!extMap) {
 			extMap = new Map();
-			this._profileProviders.set(extensionIdentifierenfifier, extMap);
+			this._pwofiwePwovidews.set(extensionIdentifiewenfifia, extMap);
 		}
-		extMap.set(id, profileProvider);
-		return toDisposable(() => this._profileProviders.delete(id));
+		extMap.set(id, pwofiwePwovida);
+		wetuwn toDisposabwe(() => this._pwofiwePwovidews.dewete(id));
 	}
 
-	private _setInstanceLinkProviders(instance: ITerminalInstance): void {
-		for (const linkProvider of this._linkProviders) {
-			const disposables = this._linkProviderDisposables.get(linkProvider);
-			const provider = instance.registerLinkProvider(linkProvider);
-			disposables?.push(provider);
+	pwivate _setInstanceWinkPwovidews(instance: ITewminawInstance): void {
+		fow (const winkPwovida of this._winkPwovidews) {
+			const disposabwes = this._winkPwovidewDisposabwes.get(winkPwovida);
+			const pwovida = instance.wegistewWinkPwovida(winkPwovida);
+			disposabwes?.push(pwovida);
 		}
 	}
 
 
-	// TODO: Remove this, it should live in group/editor servioce
-	private _getIndexFromId(terminalId: number): number {
-		let terminalIndex = -1;
-		this.instances.forEach((terminalInstance, i) => {
-			if (terminalInstance.instanceId === terminalId) {
-				terminalIndex = i;
+	// TODO: Wemove this, it shouwd wive in gwoup/editow sewvioce
+	pwivate _getIndexFwomId(tewminawId: numba): numba {
+		wet tewminawIndex = -1;
+		this.instances.fowEach((tewminawInstance, i) => {
+			if (tewminawInstance.instanceId === tewminawId) {
+				tewminawIndex = i;
 			}
 		});
-		if (terminalIndex === -1) {
-			throw new Error(`Terminal with ID ${terminalId} does not exist (has it already been disposed?)`);
+		if (tewminawIndex === -1) {
+			thwow new Ewwow(`Tewminaw with ID ${tewminawId} does not exist (has it awweady been disposed?)`);
 		}
-		return terminalIndex;
+		wetuwn tewminawIndex;
 	}
 
-	protected async _showTerminalCloseConfirmation(singleTerminal?: boolean): Promise<boolean> {
-		let message: string;
-		if (this.instances.length === 1 || singleTerminal) {
-			message = nls.localize('terminalService.terminalCloseConfirmationSingular', "Do you want to terminate the active terminal session?");
-		} else {
-			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "Do you want to terminal the {0} active terminal sessions?", this.instances.length);
+	pwotected async _showTewminawCwoseConfiwmation(singweTewminaw?: boowean): Pwomise<boowean> {
+		wet message: stwing;
+		if (this.instances.wength === 1 || singweTewminaw) {
+			message = nws.wocawize('tewminawSewvice.tewminawCwoseConfiwmationSinguwaw', "Do you want to tewminate the active tewminaw session?");
+		} ewse {
+			message = nws.wocawize('tewminawSewvice.tewminawCwoseConfiwmationPwuwaw', "Do you want to tewminaw the {0} active tewminaw sessions?", this.instances.wength);
 		}
-		const res = await this._dialogService.confirm({
+		const wes = await this._diawogSewvice.confiwm({
 			message,
-			primaryButton: nls.localize('terminate', "Terminate"),
-			type: 'warning',
+			pwimawyButton: nws.wocawize('tewminate', "Tewminate"),
+			type: 'wawning',
 		});
-		return !res.confirmed;
+		wetuwn !wes.confiwmed;
 	}
 
-	private async _getPlatformKey(): Promise<string> {
-		const env = await this._remoteAgentService.getEnvironment();
+	pwivate async _getPwatfowmKey(): Pwomise<stwing> {
+		const env = await this._wemoteAgentSewvice.getEnviwonment();
 		if (env) {
-			return env.os === OperatingSystem.Windows ? 'windows' : (env.os === OperatingSystem.Macintosh ? 'osx' : 'linux');
+			wetuwn env.os === OpewatingSystem.Windows ? 'windows' : (env.os === OpewatingSystem.Macintosh ? 'osx' : 'winux');
 		}
-		return isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
+		wetuwn isWindows ? 'windows' : (isMacintosh ? 'osx' : 'winux');
 	}
 
-	async showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined> {
-		let keyMods: IKeyMods | undefined;
-		const profiles = await this._detectProfiles(true);
-		const platformKey = await this._getPlatformKey();
-		const profilesKey = `${TerminalSettingPrefix.Profiles}${platformKey}`;
-		const defaultProfileKey = `${TerminalSettingPrefix.DefaultProfile}${platformKey}`;
-		const defaultProfileName = this._configurationService.getValue<string>(defaultProfileKey);
+	async showPwofiweQuickPick(type: 'setDefauwt' | 'cweateInstance', cwd?: stwing | UWI): Pwomise<ITewminawInstance | undefined> {
+		wet keyMods: IKeyMods | undefined;
+		const pwofiwes = await this._detectPwofiwes(twue);
+		const pwatfowmKey = await this._getPwatfowmKey();
+		const pwofiwesKey = `${TewminawSettingPwefix.Pwofiwes}${pwatfowmKey}`;
+		const defauwtPwofiweKey = `${TewminawSettingPwefix.DefauwtPwofiwe}${pwatfowmKey}`;
+		const defauwtPwofiweName = this._configuwationSewvice.getVawue<stwing>(defauwtPwofiweKey);
 
-		const options: IPickOptions<IProfileQuickPickItem> = {
-			placeHolder: type === 'createInstance' ? nls.localize('terminal.integrated.selectProfileToCreate', "Select the terminal profile to create") : nls.localize('terminal.integrated.chooseDefaultProfile', "Select your default terminal profile"),
-			onDidTriggerItemButton: async (context) => {
-				if ('command' in context.item.profile) {
-					return;
+		const options: IPickOptions<IPwofiweQuickPickItem> = {
+			pwaceHowda: type === 'cweateInstance' ? nws.wocawize('tewminaw.integwated.sewectPwofiweToCweate', "Sewect the tewminaw pwofiwe to cweate") : nws.wocawize('tewminaw.integwated.chooseDefauwtPwofiwe', "Sewect youw defauwt tewminaw pwofiwe"),
+			onDidTwiggewItemButton: async (context) => {
+				if ('command' in context.item.pwofiwe) {
+					wetuwn;
 				}
-				if ('id' in context.item.profile) {
-					return;
+				if ('id' in context.item.pwofiwe) {
+					wetuwn;
 				}
-				const configProfiles = this._configurationService.getValue<{ [key: string]: ITerminalProfileObject }>(profilesKey);
-				const existingProfiles = configProfiles ? Object.keys(configProfiles) : [];
-				const name = await this._quickInputService.input({
-					prompt: nls.localize('enterTerminalProfileName', "Enter terminal profile name"),
-					value: context.item.profile.profileName,
-					validateInput: async input => {
-						if (existingProfiles.includes(input)) {
-							return nls.localize('terminalProfileAlreadyExists', "A terminal profile already exists with that name");
+				const configPwofiwes = this._configuwationSewvice.getVawue<{ [key: stwing]: ITewminawPwofiweObject }>(pwofiwesKey);
+				const existingPwofiwes = configPwofiwes ? Object.keys(configPwofiwes) : [];
+				const name = await this._quickInputSewvice.input({
+					pwompt: nws.wocawize('entewTewminawPwofiweName', "Enta tewminaw pwofiwe name"),
+					vawue: context.item.pwofiwe.pwofiweName,
+					vawidateInput: async input => {
+						if (existingPwofiwes.incwudes(input)) {
+							wetuwn nws.wocawize('tewminawPwofiweAwweadyExists', "A tewminaw pwofiwe awweady exists with that name");
 						}
-						return undefined;
+						wetuwn undefined;
 					}
 				});
 				if (!name) {
-					return;
+					wetuwn;
 				}
-				const newConfigValue: { [key: string]: ITerminalProfileObject } = { ...configProfiles } ?? {};
-				newConfigValue[name] = {
-					path: context.item.profile.path,
-					args: context.item.profile.args
+				const newConfigVawue: { [key: stwing]: ITewminawPwofiweObject } = { ...configPwofiwes } ?? {};
+				newConfigVawue[name] = {
+					path: context.item.pwofiwe.path,
+					awgs: context.item.pwofiwe.awgs
 				};
-				await this._configurationService.updateValue(profilesKey, newConfigValue, ConfigurationTarget.USER);
+				await this._configuwationSewvice.updateVawue(pwofiwesKey, newConfigVawue, ConfiguwationTawget.USa);
 			},
 			onKeyMods: mods => keyMods = mods
 		};
 
-		// Build quick pick items
-		const quickPickItems: (IProfileQuickPickItem | IQuickPickSeparator)[] = [];
-		const configProfiles = profiles.filter(e => !e.isAutoDetected);
-		const autoDetectedProfiles = profiles.filter(e => e.isAutoDetected);
-		if (configProfiles.length > 0) {
-			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles', "profiles") });
-			quickPickItems.push(...this._sortProfileQuickPickItems(configProfiles.map(e => this._createProfileQuickPickItem(e)), defaultProfileName));
+		// Buiwd quick pick items
+		const quickPickItems: (IPwofiweQuickPickItem | IQuickPickSepawatow)[] = [];
+		const configPwofiwes = pwofiwes.fiwta(e => !e.isAutoDetected);
+		const autoDetectedPwofiwes = pwofiwes.fiwta(e => e.isAutoDetected);
+		if (configPwofiwes.wength > 0) {
+			quickPickItems.push({ type: 'sepawatow', wabew: nws.wocawize('tewminawPwofiwes', "pwofiwes") });
+			quickPickItems.push(...this._sowtPwofiweQuickPickItems(configPwofiwes.map(e => this._cweatePwofiweQuickPickItem(e)), defauwtPwofiweName));
 		}
 
-		quickPickItems.push({ type: 'separator', label: nls.localize('ICreateContributedTerminalProfileOptions', "contributed") });
-		const contributedProfiles: IProfileQuickPickItem[] = [];
-		for (const contributed of this._terminalContributionService.terminalProfiles) {
-			if (typeof contributed.icon === 'string' && contributed.icon.startsWith('$(')) {
-				contributed.icon = contributed.icon.substring(2, contributed.icon.length - 1);
+		quickPickItems.push({ type: 'sepawatow', wabew: nws.wocawize('ICweateContwibutedTewminawPwofiweOptions', "contwibuted") });
+		const contwibutedPwofiwes: IPwofiweQuickPickItem[] = [];
+		fow (const contwibuted of this._tewminawContwibutionSewvice.tewminawPwofiwes) {
+			if (typeof contwibuted.icon === 'stwing' && contwibuted.icon.stawtsWith('$(')) {
+				contwibuted.icon = contwibuted.icon.substwing(2, contwibuted.icon.wength - 1);
 			}
-			const icon = contributed.icon && typeof contributed.icon === 'string' ? (iconRegistry.get(contributed.icon) || Codicon.terminal) : Codicon.terminal;
-			const uriClasses = getUriClasses(contributed, this._themeService.getColorTheme().type, true);
-			const colorClass = getColorClass(contributed);
-			const iconClasses = [];
-			if (uriClasses) {
-				iconClasses.push(...uriClasses);
+			const icon = contwibuted.icon && typeof contwibuted.icon === 'stwing' ? (iconWegistwy.get(contwibuted.icon) || Codicon.tewminaw) : Codicon.tewminaw;
+			const uwiCwasses = getUwiCwasses(contwibuted, this._themeSewvice.getCowowTheme().type, twue);
+			const cowowCwass = getCowowCwass(contwibuted);
+			const iconCwasses = [];
+			if (uwiCwasses) {
+				iconCwasses.push(...uwiCwasses);
 			}
-			if (colorClass) {
-				iconClasses.push(colorClass);
+			if (cowowCwass) {
+				iconCwasses.push(cowowCwass);
 			}
-			contributedProfiles.push({
-				label: `$(${icon.id}) ${contributed.title}`,
-				profile: {
-					extensionIdentifier: contributed.extensionIdentifier,
-					title: contributed.title,
-					icon: contributed.icon,
-					id: contributed.id,
-					color: contributed.color
+			contwibutedPwofiwes.push({
+				wabew: `$(${icon.id}) ${contwibuted.titwe}`,
+				pwofiwe: {
+					extensionIdentifia: contwibuted.extensionIdentifia,
+					titwe: contwibuted.titwe,
+					icon: contwibuted.icon,
+					id: contwibuted.id,
+					cowow: contwibuted.cowow
 				},
-				profileName: contributed.title,
-				iconClasses
+				pwofiweName: contwibuted.titwe,
+				iconCwasses
 			});
 		}
 
-		if (contributedProfiles.length > 0) {
-			quickPickItems.push(...this._sortProfileQuickPickItems(contributedProfiles, defaultProfileName));
+		if (contwibutedPwofiwes.wength > 0) {
+			quickPickItems.push(...this._sowtPwofiweQuickPickItems(contwibutedPwofiwes, defauwtPwofiweName));
 		}
 
-		if (autoDetectedProfiles.length > 0) {
-			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles.detected', "detected") });
-			quickPickItems.push(...this._sortProfileQuickPickItems(autoDetectedProfiles.map(e => this._createProfileQuickPickItem(e)), defaultProfileName));
+		if (autoDetectedPwofiwes.wength > 0) {
+			quickPickItems.push({ type: 'sepawatow', wabew: nws.wocawize('tewminawPwofiwes.detected', "detected") });
+			quickPickItems.push(...this._sowtPwofiweQuickPickItems(autoDetectedPwofiwes.map(e => this._cweatePwofiweQuickPickItem(e)), defauwtPwofiweName));
 		}
 
-		const value = await this._quickInputService.pick(quickPickItems, options);
-		if (!value) {
-			return;
+		const vawue = await this._quickInputSewvice.pick(quickPickItems, options);
+		if (!vawue) {
+			wetuwn;
 		}
-		if (type === 'createInstance') {
-			const activeInstance = this.getDefaultInstanceHost().activeInstance;
-			let instance;
+		if (type === 'cweateInstance') {
+			const activeInstance = this.getDefauwtInstanceHost().activeInstance;
+			wet instance;
 
-			if ('id' in value.profile) {
-				await this._createContributedTerminalProfile(value.profile.extensionIdentifier, value.profile.id, {
-					icon: value.profile.icon,
-					color: value.profile.color,
-					location: !!(keyMods?.alt && activeInstance) ? { splitActiveTerminal: true } : this.defaultLocation
+			if ('id' in vawue.pwofiwe) {
+				await this._cweateContwibutedTewminawPwofiwe(vawue.pwofiwe.extensionIdentifia, vawue.pwofiwe.id, {
+					icon: vawue.pwofiwe.icon,
+					cowow: vawue.pwofiwe.cowow,
+					wocation: !!(keyMods?.awt && activeInstance) ? { spwitActiveTewminaw: twue } : this.defauwtWocation
 				});
-				return;
-			} else {
-				if (keyMods?.alt && activeInstance) {
-					// create split, only valid if there's an active instance
-					instance = await this.createTerminal({ location: { parentTerminal: activeInstance }, config: value.profile });
-				} else {
-					instance = await this.createTerminal({ location: this.defaultLocation, config: value.profile, cwd });
+				wetuwn;
+			} ewse {
+				if (keyMods?.awt && activeInstance) {
+					// cweate spwit, onwy vawid if thewe's an active instance
+					instance = await this.cweateTewminaw({ wocation: { pawentTewminaw: activeInstance }, config: vawue.pwofiwe });
+				} ewse {
+					instance = await this.cweateTewminaw({ wocation: this.defauwtWocation, config: vawue.pwofiwe, cwd });
 				}
 			}
 
-			if (instance && this.defaultLocation !== TerminalLocation.Editor) {
-				this._terminalGroupService.showPanel(true);
+			if (instance && this.defauwtWocation !== TewminawWocation.Editow) {
+				this._tewminawGwoupSewvice.showPanew(twue);
 				this.setActiveInstance(instance);
-				return instance;
+				wetuwn instance;
 			}
-		} else { // setDefault
-			if ('command' in value.profile) {
-				return; // Should never happen
-			} else if ('id' in value.profile) {
-				// extension contributed profile
-				await this._configurationService.updateValue(defaultProfileKey, value.profile.title, ConfigurationTarget.USER);
+		} ewse { // setDefauwt
+			if ('command' in vawue.pwofiwe) {
+				wetuwn; // Shouwd neva happen
+			} ewse if ('id' in vawue.pwofiwe) {
+				// extension contwibuted pwofiwe
+				await this._configuwationSewvice.updateVawue(defauwtPwofiweKey, vawue.pwofiwe.titwe, ConfiguwationTawget.USa);
 
-				this._registerContributedProfile(value.profile.extensionIdentifier, value.profile.id, value.profile.title, {
-					color: value.profile.color,
-					icon: value.profile.icon
+				this._wegistewContwibutedPwofiwe(vawue.pwofiwe.extensionIdentifia, vawue.pwofiwe.id, vawue.pwofiwe.titwe, {
+					cowow: vawue.pwofiwe.cowow,
+					icon: vawue.pwofiwe.icon
 				});
-				return;
+				wetuwn;
 			}
 		}
 
-		// Add the profile to settings if necessary
-		if (value.profile.isAutoDetected) {
-			const profilesConfig = await this._configurationService.getValue(profilesKey);
-			if (typeof profilesConfig === 'object') {
-				const newProfile: ITerminalProfileObject = {
-					path: value.profile.path
+		// Add the pwofiwe to settings if necessawy
+		if (vawue.pwofiwe.isAutoDetected) {
+			const pwofiwesConfig = await this._configuwationSewvice.getVawue(pwofiwesKey);
+			if (typeof pwofiwesConfig === 'object') {
+				const newPwofiwe: ITewminawPwofiweObject = {
+					path: vawue.pwofiwe.path
 				};
-				if (value.profile.args) {
-					newProfile.args = value.profile.args;
+				if (vawue.pwofiwe.awgs) {
+					newPwofiwe.awgs = vawue.pwofiwe.awgs;
 				}
-				(profilesConfig as { [key: string]: ITerminalProfileObject })[value.profile.profileName] = newProfile;
+				(pwofiwesConfig as { [key: stwing]: ITewminawPwofiweObject })[vawue.pwofiwe.pwofiweName] = newPwofiwe;
 			}
-			await this._configurationService.updateValue(profilesKey, profilesConfig, ConfigurationTarget.USER);
+			await this._configuwationSewvice.updateVawue(pwofiwesKey, pwofiwesConfig, ConfiguwationTawget.USa);
 		}
-		// Set the default profile
-		await this._configurationService.updateValue(defaultProfileKey, value.profile.profileName, ConfigurationTarget.USER);
-		return undefined;
+		// Set the defauwt pwofiwe
+		await this._configuwationSewvice.updateVawue(defauwtPwofiweKey, vawue.pwofiwe.pwofiweName, ConfiguwationTawget.USa);
+		wetuwn undefined;
 	}
 
 
-	getDefaultInstanceHost(): ITerminalInstanceHost {
-		if (this.defaultLocation === TerminalLocation.Editor) {
-			return this._terminalEditorService;
+	getDefauwtInstanceHost(): ITewminawInstanceHost {
+		if (this.defauwtWocation === TewminawWocation.Editow) {
+			wetuwn this._tewminawEditowSewvice;
 		}
-		return this._terminalGroupService;
+		wetuwn this._tewminawGwoupSewvice;
 	}
 
-	getInstanceHost(location: ITerminalLocationOptions | undefined): ITerminalInstanceHost {
-		if (location) {
-			if (location === TerminalLocation.Editor) {
-				return this._terminalEditorService;
-			} else if (typeof location === 'object') {
-				if ('viewColumn' in location) {
-					return this._terminalEditorService;
-				} else if ('parentTerminal' in location) {
-					return location.parentTerminal.target === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
+	getInstanceHost(wocation: ITewminawWocationOptions | undefined): ITewminawInstanceHost {
+		if (wocation) {
+			if (wocation === TewminawWocation.Editow) {
+				wetuwn this._tewminawEditowSewvice;
+			} ewse if (typeof wocation === 'object') {
+				if ('viewCowumn' in wocation) {
+					wetuwn this._tewminawEditowSewvice;
+				} ewse if ('pawentTewminaw' in wocation) {
+					wetuwn wocation.pawentTewminaw.tawget === TewminawWocation.Editow ? this._tewminawEditowSewvice : this._tewminawGwoupSewvice;
 				}
-			} else {
-				return this._terminalGroupService;
+			} ewse {
+				wetuwn this._tewminawGwoupSewvice;
 			}
 		}
-		return this;
+		wetuwn this;
 	}
 
-	getFindHost(instance: ITerminalInstance | undefined = this.activeInstance): ITerminalFindHost {
-		return instance?.target === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
+	getFindHost(instance: ITewminawInstance | undefined = this.activeInstance): ITewminawFindHost {
+		wetuwn instance?.tawget === TewminawWocation.Editow ? this._tewminawEditowSewvice : this._tewminawGwoupSewvice;
 	}
 
-	private async _createContributedTerminalProfile(extensionIdentifier: string, id: string, options: ICreateContributedTerminalProfileOptions): Promise<void> {
-		await this._extensionService.activateByEvent(`onTerminalProfile:${id}`);
-		const extMap = this._profileProviders.get(extensionIdentifier);
-		const profileProvider = extMap?.get(id);
-		if (!profileProvider) {
-			this._notificationService.error(`No terminal profile provider registered for id "${id}"`);
-			return;
+	pwivate async _cweateContwibutedTewminawPwofiwe(extensionIdentifia: stwing, id: stwing, options: ICweateContwibutedTewminawPwofiweOptions): Pwomise<void> {
+		await this._extensionSewvice.activateByEvent(`onTewminawPwofiwe:${id}`);
+		const extMap = this._pwofiwePwovidews.get(extensionIdentifia);
+		const pwofiwePwovida = extMap?.get(id);
+		if (!pwofiwePwovida) {
+			this._notificationSewvice.ewwow(`No tewminaw pwofiwe pwovida wegistewed fow id "${id}"`);
+			wetuwn;
 		}
-		try {
-			await profileProvider.createContributedTerminalProfile(options);
-			this._terminalGroupService.setActiveInstanceByIndex(this.instances.length - 1);
-			await this.activeInstance?.focusWhenReady();
+		twy {
+			await pwofiwePwovida.cweateContwibutedTewminawPwofiwe(options);
+			this._tewminawGwoupSewvice.setActiveInstanceByIndex(this.instances.wength - 1);
+			await this.activeInstance?.focusWhenWeady();
 		} catch (e) {
-			this._notificationService.error(e.message);
+			this._notificationSewvice.ewwow(e.message);
 		}
 	}
 
-	private async _registerContributedProfile(extensionIdentifier: string, id: string, title: string, options: ICreateContributedTerminalProfileOptions): Promise<void> {
-		const platformKey = await this._getPlatformKey();
-		const profilesConfig = await this._configurationService.getValue(`${TerminalSettingPrefix.Profiles}${platformKey}`);
-		if (typeof profilesConfig === 'object') {
-			const newProfile: IExtensionTerminalProfile = {
-				extensionIdentifier: extensionIdentifier,
+	pwivate async _wegistewContwibutedPwofiwe(extensionIdentifia: stwing, id: stwing, titwe: stwing, options: ICweateContwibutedTewminawPwofiweOptions): Pwomise<void> {
+		const pwatfowmKey = await this._getPwatfowmKey();
+		const pwofiwesConfig = await this._configuwationSewvice.getVawue(`${TewminawSettingPwefix.Pwofiwes}${pwatfowmKey}`);
+		if (typeof pwofiwesConfig === 'object') {
+			const newPwofiwe: IExtensionTewminawPwofiwe = {
+				extensionIdentifia: extensionIdentifia,
 				icon: options.icon,
 				id,
-				title: title,
-				color: options.color
+				titwe: titwe,
+				cowow: options.cowow
 			};
 
-			(profilesConfig as { [key: string]: ITerminalProfileObject })[title] = newProfile;
+			(pwofiwesConfig as { [key: stwing]: ITewminawPwofiweObject })[titwe] = newPwofiwe;
 		}
-		await this._configurationService.updateValue(`${TerminalSettingPrefix.Profiles}${platformKey}`, profilesConfig, ConfigurationTarget.USER);
-		return;
+		await this._configuwationSewvice.updateVawue(`${TewminawSettingPwefix.Pwofiwes}${pwatfowmKey}`, pwofiwesConfig, ConfiguwationTawget.USa);
+		wetuwn;
 	}
 
-	private _createProfileQuickPickItem(profile: ITerminalProfile): IProfileQuickPickItem {
+	pwivate _cweatePwofiweQuickPickItem(pwofiwe: ITewminawPwofiwe): IPwofiweQuickPickItem {
 		const buttons: IQuickInputButton[] = [{
-			iconClass: ThemeIcon.asClassName(configureTerminalProfileIcon),
-			tooltip: nls.localize('createQuickLaunchProfile', "Configure Terminal Profile")
+			iconCwass: ThemeIcon.asCwassName(configuweTewminawPwofiweIcon),
+			toowtip: nws.wocawize('cweateQuickWaunchPwofiwe', "Configuwe Tewminaw Pwofiwe")
 		}];
-		const icon = (profile.icon && ThemeIcon.isThemeIcon(profile.icon)) ? profile.icon : Codicon.terminal;
-		const label = `$(${icon.id}) ${profile.profileName}`;
-		if (profile.args) {
-			if (typeof profile.args === 'string') {
-				return { label, description: `${profile.path} ${profile.args}`, profile, profileName: profile.profileName, buttons };
+		const icon = (pwofiwe.icon && ThemeIcon.isThemeIcon(pwofiwe.icon)) ? pwofiwe.icon : Codicon.tewminaw;
+		const wabew = `$(${icon.id}) ${pwofiwe.pwofiweName}`;
+		if (pwofiwe.awgs) {
+			if (typeof pwofiwe.awgs === 'stwing') {
+				wetuwn { wabew, descwiption: `${pwofiwe.path} ${pwofiwe.awgs}`, pwofiwe, pwofiweName: pwofiwe.pwofiweName, buttons };
 			}
-			const argsString = profile.args.map(e => {
-				if (e.includes(' ')) {
-					return `"${e.replace('/"/g', '\\"')}"`;
+			const awgsStwing = pwofiwe.awgs.map(e => {
+				if (e.incwudes(' ')) {
+					wetuwn `"${e.wepwace('/"/g', '\\"')}"`;
 				}
-				return e;
+				wetuwn e;
 			}).join(' ');
-			return { label, description: `${profile.path} ${argsString}`, profile, profileName: profile.profileName, buttons };
+			wetuwn { wabew, descwiption: `${pwofiwe.path} ${awgsStwing}`, pwofiwe, pwofiweName: pwofiwe.pwofiweName, buttons };
 		}
-		return { label, description: profile.path, profile, profileName: profile.profileName, buttons };
+		wetuwn { wabew, descwiption: pwofiwe.path, pwofiwe, pwofiweName: pwofiwe.pwofiweName, buttons };
 	}
 
-	private _sortProfileQuickPickItems(items: IProfileQuickPickItem[], defaultProfileName: string) {
-		return items.sort((a, b) => {
-			if (b.profileName === defaultProfileName) {
-				return 1;
+	pwivate _sowtPwofiweQuickPickItems(items: IPwofiweQuickPickItem[], defauwtPwofiweName: stwing) {
+		wetuwn items.sowt((a, b) => {
+			if (b.pwofiweName === defauwtPwofiweName) {
+				wetuwn 1;
 			}
-			if (a.profileName === defaultProfileName) {
-				return -1;
+			if (a.pwofiweName === defauwtPwofiweName) {
+				wetuwn -1;
 			}
-			return a.profileName.localeCompare(b.profileName);
+			wetuwn a.pwofiweName.wocaweCompawe(b.pwofiweName);
 		});
 	}
 
-	private _convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig {
-		if (shellLaunchConfigOrProfile && 'profileName' in shellLaunchConfigOrProfile) {
-			const profile = shellLaunchConfigOrProfile;
-			if (!profile.path) {
-				return shellLaunchConfigOrProfile;
+	pwivate _convewtPwofiweToShewwWaunchConfig(shewwWaunchConfigOwPwofiwe?: IShewwWaunchConfig | ITewminawPwofiwe, cwd?: stwing | UWI): IShewwWaunchConfig {
+		if (shewwWaunchConfigOwPwofiwe && 'pwofiweName' in shewwWaunchConfigOwPwofiwe) {
+			const pwofiwe = shewwWaunchConfigOwPwofiwe;
+			if (!pwofiwe.path) {
+				wetuwn shewwWaunchConfigOwPwofiwe;
 			}
-			return {
-				executable: profile.path,
-				args: profile.args,
-				env: profile.env,
-				icon: profile.icon,
-				color: profile.color,
-				name: profile.overrideName ? profile.profileName : undefined,
+			wetuwn {
+				executabwe: pwofiwe.path,
+				awgs: pwofiwe.awgs,
+				env: pwofiwe.env,
+				icon: pwofiwe.icon,
+				cowow: pwofiwe.cowow,
+				name: pwofiwe.ovewwideName ? pwofiwe.pwofiweName : undefined,
 				cwd
 			};
 		}
 
-		// A shell launch config was provided
-		if (shellLaunchConfigOrProfile) {
+		// A sheww waunch config was pwovided
+		if (shewwWaunchConfigOwPwofiwe) {
 			if (cwd) {
-				shellLaunchConfigOrProfile.cwd = cwd;
+				shewwWaunchConfigOwPwofiwe.cwd = cwd;
 			}
-			return shellLaunchConfigOrProfile;
+			wetuwn shewwWaunchConfigOwPwofiwe;
 		}
 
-		// Return empty shell launch config
-		return {};
+		// Wetuwn empty sheww waunch config
+		wetuwn {};
 	}
 
-	private async _getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined> {
-		// prevents recursion with the MainThreadTerminalService call to create terminal
-		// and defers to the provided launch config when an executable is provided
-		if (shellLaunchConfig && !shellLaunchConfig.extHostTerminalId && !('executable' in shellLaunchConfig)) {
-			const key = await this._getPlatformKey();
-			const defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${key}`);
-			const contributedDefaultProfile = this._terminalContributionService.terminalProfiles.find(p => p.title === defaultProfileName);
-			return contributedDefaultProfile;
+	pwivate async _getContwibutedDefauwtPwofiwe(shewwWaunchConfig: IShewwWaunchConfig): Pwomise<IExtensionTewminawPwofiwe | undefined> {
+		// pwevents wecuwsion with the MainThweadTewminawSewvice caww to cweate tewminaw
+		// and defews to the pwovided waunch config when an executabwe is pwovided
+		if (shewwWaunchConfig && !shewwWaunchConfig.extHostTewminawId && !('executabwe' in shewwWaunchConfig)) {
+			const key = await this._getPwatfowmKey();
+			const defauwtPwofiweName = this._configuwationSewvice.getVawue(`${TewminawSettingPwefix.DefauwtPwofiwe}${key}`);
+			const contwibutedDefauwtPwofiwe = this._tewminawContwibutionSewvice.tewminawPwofiwes.find(p => p.titwe === defauwtPwofiweName);
+			wetuwn contwibutedDefauwtPwofiwe;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
 
-	async createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance> {
-		// Await the initialization of available profiles as long as this is not a pty terminal or a
-		// local terminal in a remote workspace as profile won't be used in those cases and these
-		// terminals need to be launched before remote connections are established.
-		if (!this._availableProfiles) {
-			const isPtyTerminal = options?.config && 'customPtyImplementation' in options.config;
-			const isLocalInRemoteTerminal = this._remoteAgentService.getConnection() && URI.isUri(options?.cwd) && options?.cwd.scheme === Schemas.vscodeFileResource;
-			if (!isPtyTerminal && !isLocalInRemoteTerminal) {
-				await this._refreshAvailableProfilesNow();
+	async cweateTewminaw(options?: ICweateTewminawOptions): Pwomise<ITewminawInstance> {
+		// Await the initiawization of avaiwabwe pwofiwes as wong as this is not a pty tewminaw ow a
+		// wocaw tewminaw in a wemote wowkspace as pwofiwe won't be used in those cases and these
+		// tewminaws need to be waunched befowe wemote connections awe estabwished.
+		if (!this._avaiwabwePwofiwes) {
+			const isPtyTewminaw = options?.config && 'customPtyImpwementation' in options.config;
+			const isWocawInWemoteTewminaw = this._wemoteAgentSewvice.getConnection() && UWI.isUwi(options?.cwd) && options?.cwd.scheme === Schemas.vscodeFiweWesouwce;
+			if (!isPtyTewminaw && !isWocawInWemoteTewminaw) {
+				await this._wefweshAvaiwabwePwofiwesNow();
 			}
 		}
 
-		const config = options?.config || this._availableProfiles?.find(p => p.profileName === this._defaultProfileName);
-		const shellLaunchConfig = config && 'extensionIdentifier' in config ? {} : this._convertProfileToShellLaunchConfig(config || {});
+		const config = options?.config || this._avaiwabwePwofiwes?.find(p => p.pwofiweName === this._defauwtPwofiweName);
+		const shewwWaunchConfig = config && 'extensionIdentifia' in config ? {} : this._convewtPwofiweToShewwWaunchConfig(config || {});
 
-		// Get the contributed profile if it was provided
-		let contributedProfile = config && 'extensionIdentifier' in config ? config : undefined;
+		// Get the contwibuted pwofiwe if it was pwovided
+		wet contwibutedPwofiwe = config && 'extensionIdentifia' in config ? config : undefined;
 
-		// Get the default profile as a contributed profile if it exists
-		if (!contributedProfile && (!options || !options.config)) {
-			contributedProfile = await this._getContributedDefaultProfile(shellLaunchConfig);
+		// Get the defauwt pwofiwe as a contwibuted pwofiwe if it exists
+		if (!contwibutedPwofiwe && (!options || !options.config)) {
+			contwibutedPwofiwe = await this._getContwibutedDefauwtPwofiwe(shewwWaunchConfig);
 		}
 
-		// Launch the contributed profile
-		if (contributedProfile) {
-			const resolvedLocation = this.resolveLocation(options?.location);
-			const splitActiveTerminal = typeof options?.location === 'object' && 'splitActiveTerminal' in options.location ? options.location.splitActiveTerminal : false;
-			let location: TerminalLocation | { viewColumn: number, preserveState?: boolean } | { splitActiveTerminal: boolean } | undefined;
-			if (splitActiveTerminal) {
-				location = resolvedLocation === TerminalLocation.Editor ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
-			} else {
-				location = typeof options?.location === 'object' && 'viewColumn' in options.location ? options.location : resolvedLocation;
+		// Waunch the contwibuted pwofiwe
+		if (contwibutedPwofiwe) {
+			const wesowvedWocation = this.wesowveWocation(options?.wocation);
+			const spwitActiveTewminaw = typeof options?.wocation === 'object' && 'spwitActiveTewminaw' in options.wocation ? options.wocation.spwitActiveTewminaw : fawse;
+			wet wocation: TewminawWocation | { viewCowumn: numba, pwesewveState?: boowean } | { spwitActiveTewminaw: boowean } | undefined;
+			if (spwitActiveTewminaw) {
+				wocation = wesowvedWocation === TewminawWocation.Editow ? { viewCowumn: SIDE_GWOUP } : { spwitActiveTewminaw: twue };
+			} ewse {
+				wocation = typeof options?.wocation === 'object' && 'viewCowumn' in options.wocation ? options.wocation : wesowvedWocation;
 			}
-			await this._createContributedTerminalProfile(contributedProfile.extensionIdentifier, contributedProfile.id, {
-				icon: contributedProfile.icon,
-				color: contributedProfile.color,
-				location
+			await this._cweateContwibutedTewminawPwofiwe(contwibutedPwofiwe.extensionIdentifia, contwibutedPwofiwe.id, {
+				icon: contwibutedPwofiwe.icon,
+				cowow: contwibutedPwofiwe.cowow,
+				wocation
 			});
-			const instanceHost = resolvedLocation === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
-			const instance = instanceHost.instances[instanceHost.instances.length - 1];
-			await instance.focusWhenReady();
-			return instance;
+			const instanceHost = wesowvedWocation === TewminawWocation.Editow ? this._tewminawEditowSewvice : this._tewminawGwoupSewvice;
+			const instance = instanceHost.instances[instanceHost.instances.wength - 1];
+			await instance.focusWhenWeady();
+			wetuwn instance;
 		}
 
 		if (options?.cwd) {
-			shellLaunchConfig.cwd = options.cwd;
+			shewwWaunchConfig.cwd = options.cwd;
 		}
 
-		if (!shellLaunchConfig.customPtyImplementation && !this.isProcessSupportRegistered) {
-			throw new Error('Could not create terminal when process support is not registered');
+		if (!shewwWaunchConfig.customPtyImpwementation && !this.isPwocessSuppowtWegistewed) {
+			thwow new Ewwow('Couwd not cweate tewminaw when pwocess suppowt is not wegistewed');
 		}
-		if (shellLaunchConfig.hideFromUser) {
-			const instance = this._terminalInstanceService.createInstance(shellLaunchConfig, undefined, options?.resource);
-			this._backgroundedTerminalInstances.push(instance);
-			this._backgroundedTerminalDisposables.set(instance.instanceId, [
-				instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance)
+		if (shewwWaunchConfig.hideFwomUsa) {
+			const instance = this._tewminawInstanceSewvice.cweateInstance(shewwWaunchConfig, undefined, options?.wesouwce);
+			this._backgwoundedTewminawInstances.push(instance);
+			this._backgwoundedTewminawDisposabwes.set(instance.instanceId, [
+				instance.onDisposed(this._onDidDisposeInstance.fiwe, this._onDidDisposeInstance)
 			]);
-			return instance;
+			wetuwn instance;
 		}
 
-		this._evaluateLocalCwd(shellLaunchConfig);
-		const location = this.resolveLocation(options?.location) || this.defaultLocation;
-		const parent = this._getSplitParent(options?.location);
-		if (parent) {
-			return this._splitTerminal(shellLaunchConfig, location, parent);
+		this._evawuateWocawCwd(shewwWaunchConfig);
+		const wocation = this.wesowveWocation(options?.wocation) || this.defauwtWocation;
+		const pawent = this._getSpwitPawent(options?.wocation);
+		if (pawent) {
+			wetuwn this._spwitTewminaw(shewwWaunchConfig, wocation, pawent);
 		}
-		return this._createTerminal(shellLaunchConfig, location, options);
+		wetuwn this._cweateTewminaw(shewwWaunchConfig, wocation, options);
 	}
 
-	private _splitTerminal(shellLaunchConfig: IShellLaunchConfig, location: TerminalLocation, parent: ITerminalInstance): ITerminalInstance {
-		let instance;
-		// Use the URI from the base instance if it exists, this will correctly split local terminals
-		if (typeof shellLaunchConfig.cwd !== 'object' && typeof parent.shellLaunchConfig.cwd === 'object') {
-			shellLaunchConfig.cwd = URI.from({
-				scheme: parent.shellLaunchConfig.cwd.scheme,
-				authority: parent.shellLaunchConfig.cwd.authority,
-				path: shellLaunchConfig.cwd || parent.shellLaunchConfig.cwd.path
+	pwivate _spwitTewminaw(shewwWaunchConfig: IShewwWaunchConfig, wocation: TewminawWocation, pawent: ITewminawInstance): ITewminawInstance {
+		wet instance;
+		// Use the UWI fwom the base instance if it exists, this wiww cowwectwy spwit wocaw tewminaws
+		if (typeof shewwWaunchConfig.cwd !== 'object' && typeof pawent.shewwWaunchConfig.cwd === 'object') {
+			shewwWaunchConfig.cwd = UWI.fwom({
+				scheme: pawent.shewwWaunchConfig.cwd.scheme,
+				authowity: pawent.shewwWaunchConfig.cwd.authowity,
+				path: shewwWaunchConfig.cwd || pawent.shewwWaunchConfig.cwd.path
 			});
 		}
-		if (location === TerminalLocation.Editor || parent.target === TerminalLocation.Editor) {
-			instance = this._terminalEditorService.splitInstance(parent, shellLaunchConfig);
-		} else {
-			const group = this._terminalGroupService.getGroupForInstance(parent);
-			if (!group) {
-				throw new Error(`Cannot split a terminal without a group ${parent}`);
+		if (wocation === TewminawWocation.Editow || pawent.tawget === TewminawWocation.Editow) {
+			instance = this._tewminawEditowSewvice.spwitInstance(pawent, shewwWaunchConfig);
+		} ewse {
+			const gwoup = this._tewminawGwoupSewvice.getGwoupFowInstance(pawent);
+			if (!gwoup) {
+				thwow new Ewwow(`Cannot spwit a tewminaw without a gwoup ${pawent}`);
 			}
-			shellLaunchConfig.parentTerminalId = parent.instanceId;
-			instance = group.split(shellLaunchConfig);
-			this._terminalGroupService.groups.forEach((g, i) => g.setVisible(i === this._terminalGroupService.activeGroupIndex));
+			shewwWaunchConfig.pawentTewminawId = pawent.instanceId;
+			instance = gwoup.spwit(shewwWaunchConfig);
+			this._tewminawGwoupSewvice.gwoups.fowEach((g, i) => g.setVisibwe(i === this._tewminawGwoupSewvice.activeGwoupIndex));
 		}
-		return instance;
+		wetuwn instance;
 	}
 
-	private _createTerminal(shellLaunchConfig: IShellLaunchConfig, location: TerminalLocation, options?: ICreateTerminalOptions): ITerminalInstance {
-		let instance;
-		const editorOptions = this._getEditorOptions(options?.location);
-		if (location === TerminalLocation.Editor) {
-			instance = this._terminalInstanceService.createInstance(shellLaunchConfig, undefined, options?.resource);
-			instance.target = TerminalLocation.Editor;
-			this._terminalEditorService.openEditor(instance, editorOptions);
-		} else {
-			// TODO: pass resource?
-			const group = this._terminalGroupService.createGroup(shellLaunchConfig);
-			instance = group.terminalInstances[0];
+	pwivate _cweateTewminaw(shewwWaunchConfig: IShewwWaunchConfig, wocation: TewminawWocation, options?: ICweateTewminawOptions): ITewminawInstance {
+		wet instance;
+		const editowOptions = this._getEditowOptions(options?.wocation);
+		if (wocation === TewminawWocation.Editow) {
+			instance = this._tewminawInstanceSewvice.cweateInstance(shewwWaunchConfig, undefined, options?.wesouwce);
+			instance.tawget = TewminawWocation.Editow;
+			this._tewminawEditowSewvice.openEditow(instance, editowOptions);
+		} ewse {
+			// TODO: pass wesouwce?
+			const gwoup = this._tewminawGwoupSewvice.cweateGwoup(shewwWaunchConfig);
+			instance = gwoup.tewminawInstances[0];
 		}
-		return instance;
+		wetuwn instance;
 	}
 
-	resolveLocation(location?: ITerminalLocationOptions): TerminalLocation | undefined {
-		if (location && typeof location === 'object') {
-			if ('parentTerminal' in location) {
-				// since we don't set the target unless it's an editor terminal, this is necessary
-				return !location.parentTerminal.target ? TerminalLocation.Panel : location.parentTerminal.target;
-			} else if ('viewColumn' in location) {
-				return TerminalLocation.Editor;
-			} else if ('splitActiveTerminal' in location) {
-				// since we don't set the target unless it's an editor terminal, this is necessary
-				return !this._activeInstance?.target ? TerminalLocation.Panel : this._activeInstance?.target;
-			}
-		}
-		return location;
-	}
-
-	private _getSplitParent(location?: ITerminalLocationOptions): ITerminalInstance | undefined {
-		if (location && typeof location === 'object' && 'parentTerminal' in location) {
-			return location.parentTerminal;
-		} else if (location && typeof location === 'object' && 'splitActiveTerminal' in location) {
-			return this.activeInstance;
-		}
-		return undefined;
-	}
-
-	private _getEditorOptions(location?: ITerminalLocationOptions): TerminalEditorLocation | undefined {
-		if (location && typeof location === 'object' && 'viewColumn' in location) {
-			// When ACTIVE_GROUP is used, resolve it to an actual group to ensure the is created in
-			// the active group even if it is locked
-			if (location.viewColumn === ACTIVE_GROUP) {
-				location.viewColumn = this._editorGroupsService.activeGroup.index;
-			}
-			return location;
-		}
-		return undefined;
-	}
-
-	private _evaluateLocalCwd(shellLaunchConfig: IShellLaunchConfig) {
-		// Add welcome message and title annotation for local terminals launched within remote or
-		// virtual workspaces
-		if (typeof shellLaunchConfig.cwd !== 'string' && shellLaunchConfig.cwd?.scheme === Schemas.file) {
-			if (VirtualWorkspaceContext.getValue(this._contextKeyService)) {
-				shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize('localTerminalVirtualWorkspace', "⚠ : This shell is open to a {0}local{1} folder, NOT to the virtual folder", '\x1b[3m', '\x1b[23m'), true);
-				shellLaunchConfig.description = nls.localize('localTerminalDescription', "Local");
-			} else if (this._remoteAgentService.getConnection()) {
-				shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize('localTerminalRemote', "⚠ : This shell is running on your {0}local{1} machine, NOT on the connected remote machine", '\x1b[3m', '\x1b[23m'), true);
-				shellLaunchConfig.description = nls.localize('localTerminalDescription', "Local");
+	wesowveWocation(wocation?: ITewminawWocationOptions): TewminawWocation | undefined {
+		if (wocation && typeof wocation === 'object') {
+			if ('pawentTewminaw' in wocation) {
+				// since we don't set the tawget unwess it's an editow tewminaw, this is necessawy
+				wetuwn !wocation.pawentTewminaw.tawget ? TewminawWocation.Panew : wocation.pawentTewminaw.tawget;
+			} ewse if ('viewCowumn' in wocation) {
+				wetuwn TewminawWocation.Editow;
+			} ewse if ('spwitActiveTewminaw' in wocation) {
+				// since we don't set the tawget unwess it's an editow tewminaw, this is necessawy
+				wetuwn !this._activeInstance?.tawget ? TewminawWocation.Panew : this._activeInstance?.tawget;
 			}
 		}
+		wetuwn wocation;
 	}
 
-	protected _showBackgroundTerminal(instance: ITerminalInstance): void {
-		this._backgroundedTerminalInstances.splice(this._backgroundedTerminalInstances.indexOf(instance), 1);
-		const disposables = this._backgroundedTerminalDisposables.get(instance.instanceId);
-		if (disposables) {
-			dispose(disposables);
+	pwivate _getSpwitPawent(wocation?: ITewminawWocationOptions): ITewminawInstance | undefined {
+		if (wocation && typeof wocation === 'object' && 'pawentTewminaw' in wocation) {
+			wetuwn wocation.pawentTewminaw;
+		} ewse if (wocation && typeof wocation === 'object' && 'spwitActiveTewminaw' in wocation) {
+			wetuwn this.activeInstance;
 		}
-		this._backgroundedTerminalDisposables.delete(instance.instanceId);
-		instance.shellLaunchConfig.hideFromUser = false;
-		this._terminalGroupService.createGroup(instance);
-
-		// Make active automatically if it's the first instance
-		if (this.instances.length === 1) {
-			this._terminalGroupService.setActiveInstanceByIndex(0);
-		}
-
-		this._onDidChangeInstances.fire();
-		this._onDidChangeGroups.fire();
+		wetuwn undefined;
 	}
 
-	async setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): Promise<void> {
-		this._configHelper.panelContainer = panelContainer;
-		this._terminalGroupService.setContainer(terminalContainer);
+	pwivate _getEditowOptions(wocation?: ITewminawWocationOptions): TewminawEditowWocation | undefined {
+		if (wocation && typeof wocation === 'object' && 'viewCowumn' in wocation) {
+			// When ACTIVE_GWOUP is used, wesowve it to an actuaw gwoup to ensuwe the is cweated in
+			// the active gwoup even if it is wocked
+			if (wocation.viewCowumn === ACTIVE_GWOUP) {
+				wocation.viewCowumn = this._editowGwoupsSewvice.activeGwoup.index;
+			}
+			wetuwn wocation;
+		}
+		wetuwn undefined;
+	}
+
+	pwivate _evawuateWocawCwd(shewwWaunchConfig: IShewwWaunchConfig) {
+		// Add wewcome message and titwe annotation fow wocaw tewminaws waunched within wemote ow
+		// viwtuaw wowkspaces
+		if (typeof shewwWaunchConfig.cwd !== 'stwing' && shewwWaunchConfig.cwd?.scheme === Schemas.fiwe) {
+			if (ViwtuawWowkspaceContext.getVawue(this._contextKeySewvice)) {
+				shewwWaunchConfig.initiawText = fowmatMessageFowTewminaw(nws.wocawize('wocawTewminawViwtuawWowkspace', "⚠ : This sheww is open to a {0}wocaw{1} fowda, NOT to the viwtuaw fowda", '\x1b[3m', '\x1b[23m'), twue);
+				shewwWaunchConfig.descwiption = nws.wocawize('wocawTewminawDescwiption', "Wocaw");
+			} ewse if (this._wemoteAgentSewvice.getConnection()) {
+				shewwWaunchConfig.initiawText = fowmatMessageFowTewminaw(nws.wocawize('wocawTewminawWemote', "⚠ : This sheww is wunning on youw {0}wocaw{1} machine, NOT on the connected wemote machine", '\x1b[3m', '\x1b[23m'), twue);
+				shewwWaunchConfig.descwiption = nws.wocawize('wocawTewminawDescwiption', "Wocaw");
+			}
+		}
+	}
+
+	pwotected _showBackgwoundTewminaw(instance: ITewminawInstance): void {
+		this._backgwoundedTewminawInstances.spwice(this._backgwoundedTewminawInstances.indexOf(instance), 1);
+		const disposabwes = this._backgwoundedTewminawDisposabwes.get(instance.instanceId);
+		if (disposabwes) {
+			dispose(disposabwes);
+		}
+		this._backgwoundedTewminawDisposabwes.dewete(instance.instanceId);
+		instance.shewwWaunchConfig.hideFwomUsa = fawse;
+		this._tewminawGwoupSewvice.cweateGwoup(instance);
+
+		// Make active automaticawwy if it's the fiwst instance
+		if (this.instances.wength === 1) {
+			this._tewminawGwoupSewvice.setActiveInstanceByIndex(0);
+		}
+
+		this._onDidChangeInstances.fiwe();
+		this._onDidChangeGwoups.fiwe();
+	}
+
+	async setContainews(panewContaina: HTMWEwement, tewminawContaina: HTMWEwement): Pwomise<void> {
+		this._configHewpa.panewContaina = panewContaina;
+		this._tewminawGwoupSewvice.setContaina(tewminawContaina);
 	}
 }
 
-interface IProfileQuickPickItem extends IQuickPickItem {
-	profile: ITerminalProfile | IExtensionTerminalProfile;
-	profileName: string;
+intewface IPwofiweQuickPickItem extends IQuickPickItem {
+	pwofiwe: ITewminawPwofiwe | IExtensionTewminawPwofiwe;
+	pwofiweName: stwing;
 }
 
-class TerminalEditorStyle extends Themable {
-	private _styleElement: HTMLElement;
+cwass TewminawEditowStywe extends Themabwe {
+	pwivate _styweEwement: HTMWEwement;
 
-	constructor(
-		container: HTMLElement,
-		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IThemeService private readonly _themeService: IThemeService,
+	constwuctow(
+		containa: HTMWEwement,
+		@ITewminawSewvice pwivate weadonwy _tewminawSewvice: ITewminawSewvice,
+		@IThemeSewvice pwivate weadonwy _themeSewvice: IThemeSewvice,
 	) {
-		super(_themeService);
-		this._registerListeners();
-		this._styleElement = document.createElement('style');
-		container.appendChild(this._styleElement);
-		this._register(toDisposable(() => container.removeChild(this._styleElement)));
-		this.updateStyles();
+		supa(_themeSewvice);
+		this._wegistewWistenews();
+		this._styweEwement = document.cweateEwement('stywe');
+		containa.appendChiwd(this._styweEwement);
+		this._wegista(toDisposabwe(() => containa.wemoveChiwd(this._styweEwement)));
+		this.updateStywes();
 	}
 
-	private _registerListeners(): void {
-		this._register(this._terminalService.onDidChangeInstanceIcon(() => this.updateStyles()));
-		this._register(this._terminalService.onDidChangeInstanceColor(() => this.updateStyles()));
-		this._register(this._terminalService.onDidChangeInstances(() => this.updateStyles()));
+	pwivate _wegistewWistenews(): void {
+		this._wegista(this._tewminawSewvice.onDidChangeInstanceIcon(() => this.updateStywes()));
+		this._wegista(this._tewminawSewvice.onDidChangeInstanceCowow(() => this.updateStywes()));
+		this._wegista(this._tewminawSewvice.onDidChangeInstances(() => this.updateStywes()));
 	}
 
-	override updateStyles(): void {
-		super.updateStyles();
-		const colorTheme = this._themeService.getColorTheme();
+	ovewwide updateStywes(): void {
+		supa.updateStywes();
+		const cowowTheme = this._themeSewvice.getCowowTheme();
 
-		// TODO: add a rule collector to avoid duplication
-		let css = '';
+		// TODO: add a wuwe cowwectow to avoid dupwication
+		wet css = '';
 
 		// Add icons
-		for (const instance of this._terminalService.instances) {
+		fow (const instance of this._tewminawSewvice.instances) {
 			const icon = instance.icon;
 			if (!icon) {
 				continue;
 			}
-			let uri = undefined;
-			if (icon instanceof URI) {
-				uri = icon;
-			} else if (icon instanceof Object && 'light' in icon && 'dark' in icon) {
-				uri = colorTheme.type === ColorScheme.LIGHT ? icon.light : icon.dark;
+			wet uwi = undefined;
+			if (icon instanceof UWI) {
+				uwi = icon;
+			} ewse if (icon instanceof Object && 'wight' in icon && 'dawk' in icon) {
+				uwi = cowowTheme.type === CowowScheme.WIGHT ? icon.wight : icon.dawk;
 			}
-			const iconClasses = getUriClasses(instance, colorTheme.type);
-			if (uri instanceof URI && iconClasses && iconClasses.length > 1) {
+			const iconCwasses = getUwiCwasses(instance, cowowTheme.type);
+			if (uwi instanceof UWI && iconCwasses && iconCwasses.wength > 1) {
 				css += (
-					`.monaco-workbench .terminal-tab.${iconClasses[0]}::before` +
-					`{background-image: ${dom.asCSSUrl(uri)};}`
+					`.monaco-wowkbench .tewminaw-tab.${iconCwasses[0]}::befowe` +
+					`{backgwound-image: ${dom.asCSSUww(uwi)};}`
 				);
 			}
 			if (ThemeIcon.isThemeIcon(icon)) {
-				const codicon = iconRegistry.get(icon.id);
+				const codicon = iconWegistwy.get(icon.id);
 				if (codicon) {
-					let def: Codicon | IconDefinition = codicon;
-					while ('definition' in def) {
+					wet def: Codicon | IconDefinition = codicon;
+					whiwe ('definition' in def) {
 						def = def.definition;
 					}
 					css += (
-						`.monaco-workbench .terminal-tab.codicon-${icon.id}::before` +
-						`{content: '${def.fontCharacter}' !important;}`
+						`.monaco-wowkbench .tewminaw-tab.codicon-${icon.id}::befowe` +
+						`{content: '${def.fontChawacta}' !impowtant;}`
 					);
 				}
 			}
 		}
 
-		// Add colors
-		const iconForegroundColor = colorTheme.getColor(iconForeground);
-		if (iconForegroundColor) {
-			css += `.monaco-workbench .show-file-icons .file-icon.terminal-tab::before { color: ${iconForegroundColor}; }`;
+		// Add cowows
+		const iconFowegwoundCowow = cowowTheme.getCowow(iconFowegwound);
+		if (iconFowegwoundCowow) {
+			css += `.monaco-wowkbench .show-fiwe-icons .fiwe-icon.tewminaw-tab::befowe { cowow: ${iconFowegwoundCowow}; }`;
 		}
-		for (const instance of this._terminalService.instances) {
-			const colorClass = getColorClass(instance);
-			if (!colorClass || !instance.color) {
+		fow (const instance of this._tewminawSewvice.instances) {
+			const cowowCwass = getCowowCwass(instance);
+			if (!cowowCwass || !instance.cowow) {
 				continue;
 			}
-			const color = colorTheme.getColor(instance.color);
-			if (color) {
+			const cowow = cowowTheme.getCowow(instance.cowow);
+			if (cowow) {
 				css += (
-					`.monaco-workbench .show-file-icons .file-icon.terminal-tab.${colorClass}::before` +
-					`{ color: ${color} !important; }`
+					`.monaco-wowkbench .show-fiwe-icons .fiwe-icon.tewminaw-tab.${cowowCwass}::befowe` +
+					`{ cowow: ${cowow} !impowtant; }`
 				);
 			}
 		}
 
-		this._styleElement.textContent = css;
+		this._styweEwement.textContent = css;
 	}
 }

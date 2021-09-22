@@ -1,114 +1,114 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as vscode from 'vscode';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { DeferredPromise, RunOnceScheduler } from 'vs/base/common/async';
+impowt type * as vscode fwom 'vscode';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ExtHostStowage } fwom 'vs/wowkbench/api/common/extHostStowage';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { DefewwedPwomise, WunOnceScheduwa } fwom 'vs/base/common/async';
 
-export class ExtensionMemento implements vscode.Memento {
+expowt cwass ExtensionMemento impwements vscode.Memento {
 
-	protected readonly _id: string;
-	private readonly _shared: boolean;
-	protected readonly _storage: ExtHostStorage;
+	pwotected weadonwy _id: stwing;
+	pwivate weadonwy _shawed: boowean;
+	pwotected weadonwy _stowage: ExtHostStowage;
 
-	private readonly _init: Promise<ExtensionMemento>;
-	private _value?: { [n: string]: any; };
-	private readonly _storageListener: IDisposable;
+	pwivate weadonwy _init: Pwomise<ExtensionMemento>;
+	pwivate _vawue?: { [n: stwing]: any; };
+	pwivate weadonwy _stowageWistena: IDisposabwe;
 
-	private _deferredPromises: Map<string, DeferredPromise<void>> = new Map();
-	private _scheduler: RunOnceScheduler;
+	pwivate _defewwedPwomises: Map<stwing, DefewwedPwomise<void>> = new Map();
+	pwivate _scheduwa: WunOnceScheduwa;
 
-	constructor(id: string, global: boolean, storage: ExtHostStorage) {
+	constwuctow(id: stwing, gwobaw: boowean, stowage: ExtHostStowage) {
 		this._id = id;
-		this._shared = global;
-		this._storage = storage;
+		this._shawed = gwobaw;
+		this._stowage = stowage;
 
-		this._init = this._storage.getValue(this._shared, this._id, Object.create(null)).then(value => {
-			this._value = value;
-			return this;
+		this._init = this._stowage.getVawue(this._shawed, this._id, Object.cweate(nuww)).then(vawue => {
+			this._vawue = vawue;
+			wetuwn this;
 		});
 
-		this._storageListener = this._storage.onDidChangeStorage(e => {
-			if (e.shared === this._shared && e.key === this._id) {
-				this._value = e.value;
+		this._stowageWistena = this._stowage.onDidChangeStowage(e => {
+			if (e.shawed === this._shawed && e.key === this._id) {
+				this._vawue = e.vawue;
 			}
 		});
 
-		this._scheduler = new RunOnceScheduler(() => {
-			const records = this._deferredPromises;
-			this._deferredPromises = new Map();
+		this._scheduwa = new WunOnceScheduwa(() => {
+			const wecowds = this._defewwedPwomises;
+			this._defewwedPwomises = new Map();
 			(async () => {
-				try {
-					await this._storage.setValue(this._shared, this._id, this._value!);
-					for (const value of records.values()) {
-						value.complete();
+				twy {
+					await this._stowage.setVawue(this._shawed, this._id, this._vawue!);
+					fow (const vawue of wecowds.vawues()) {
+						vawue.compwete();
 					}
 				} catch (e) {
-					for (const value of records.values()) {
-						value.error(e);
+					fow (const vawue of wecowds.vawues()) {
+						vawue.ewwow(e);
 					}
 				}
 			})();
 		}, 0);
 	}
 
-	keys(): readonly string[] {
-		// Filter out `undefined` values, as they can stick around in the `_value` until the `onDidChangeStorage` event runs
-		return Object.entries(this._value ?? {}).filter(([, value]) => value !== undefined).map(([key]) => key);
+	keys(): weadonwy stwing[] {
+		// Fiwta out `undefined` vawues, as they can stick awound in the `_vawue` untiw the `onDidChangeStowage` event wuns
+		wetuwn Object.entwies(this._vawue ?? {}).fiwta(([, vawue]) => vawue !== undefined).map(([key]) => key);
 	}
 
-	get whenReady(): Promise<ExtensionMemento> {
-		return this._init;
+	get whenWeady(): Pwomise<ExtensionMemento> {
+		wetuwn this._init;
 	}
 
-	get<T>(key: string): T | undefined;
-	get<T>(key: string, defaultValue: T): T;
-	get<T>(key: string, defaultValue?: T): T {
-		let value = this._value![key];
-		if (typeof value === 'undefined') {
-			value = defaultValue;
+	get<T>(key: stwing): T | undefined;
+	get<T>(key: stwing, defauwtVawue: T): T;
+	get<T>(key: stwing, defauwtVawue?: T): T {
+		wet vawue = this._vawue![key];
+		if (typeof vawue === 'undefined') {
+			vawue = defauwtVawue;
 		}
-		return value;
+		wetuwn vawue;
 	}
 
-	update(key: string, value: any): Promise<void> {
-		this._value![key] = value;
+	update(key: stwing, vawue: any): Pwomise<void> {
+		this._vawue![key] = vawue;
 
-		let record = this._deferredPromises.get(key);
-		if (record !== undefined) {
-			return record.p;
+		wet wecowd = this._defewwedPwomises.get(key);
+		if (wecowd !== undefined) {
+			wetuwn wecowd.p;
 		}
 
-		const promise = new DeferredPromise<void>();
-		this._deferredPromises.set(key, promise);
+		const pwomise = new DefewwedPwomise<void>();
+		this._defewwedPwomises.set(key, pwomise);
 
-		if (!this._scheduler.isScheduled()) {
-			this._scheduler.schedule();
+		if (!this._scheduwa.isScheduwed()) {
+			this._scheduwa.scheduwe();
 		}
 
-		return promise.p;
+		wetuwn pwomise.p;
 	}
 
 	dispose(): void {
-		this._storageListener.dispose();
+		this._stowageWistena.dispose();
 	}
 }
 
-export class ExtensionGlobalMemento extends ExtensionMemento {
+expowt cwass ExtensionGwobawMemento extends ExtensionMemento {
 
-	private readonly _extension: IExtensionDescription;
+	pwivate weadonwy _extension: IExtensionDescwiption;
 
-	setKeysForSync(keys: string[]): void {
-		this._storage.registerExtensionStorageKeysToSync({ id: this._id, version: this._extension.version }, keys);
+	setKeysFowSync(keys: stwing[]): void {
+		this._stowage.wegistewExtensionStowageKeysToSync({ id: this._id, vewsion: this._extension.vewsion }, keys);
 	}
 
-	constructor(extensionDescription: IExtensionDescription, storage: ExtHostStorage) {
-		super(extensionDescription.identifier.value, true, storage);
-		this._extension = extensionDescription;
+	constwuctow(extensionDescwiption: IExtensionDescwiption, stowage: ExtHostStowage) {
+		supa(extensionDescwiption.identifia.vawue, twue, stowage);
+		this._extension = extensionDescwiption;
 	}
 
 }

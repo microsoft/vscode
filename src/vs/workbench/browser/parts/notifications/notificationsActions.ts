@@ -1,193 +1,193 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/notificationsActions';
-import { INotificationViewItem, isNotificationViewItem } from 'vs/workbench/common/notifications';
-import { localize } from 'vs/nls';
-import { Action, IAction, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { CLEAR_NOTIFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION, CLEAR_ALL_NOTIFICATIONS, HIDE_NOTIFICATIONS_CENTER } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { hash } from 'vs/base/common/hash';
+impowt 'vs/css!./media/notificationsActions';
+impowt { INotificationViewItem, isNotificationViewItem } fwom 'vs/wowkbench/common/notifications';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Action, IAction, ActionWunna, WowkbenchActionExecutedEvent, WowkbenchActionExecutedCwassification } fwom 'vs/base/common/actions';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { CWEAW_NOTIFICATION, EXPAND_NOTIFICATION, COWWAPSE_NOTIFICATION, CWEAW_AWW_NOTIFICATIONS, HIDE_NOTIFICATIONS_CENTa } fwom 'vs/wowkbench/bwowsa/pawts/notifications/notificationsCommands';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { hash } fwom 'vs/base/common/hash';
 
-const clearIcon = registerIcon('notifications-clear', Codicon.close, localize('clearIcon', 'Icon for the clear action in notifications.'));
-const clearAllIcon = registerIcon('notifications-clear-all', Codicon.clearAll, localize('clearAllIcon', 'Icon for the clear all action in notifications.'));
-const hideIcon = registerIcon('notifications-hide', Codicon.chevronDown, localize('hideIcon', 'Icon for the hide action in notifications.'));
-const expandIcon = registerIcon('notifications-expand', Codicon.chevronUp, localize('expandIcon', 'Icon for the expand action in notifications.'));
-const collapseIcon = registerIcon('notifications-collapse', Codicon.chevronDown, localize('collapseIcon', 'Icon for the collapse action in notifications.'));
-const configureIcon = registerIcon('notifications-configure', Codicon.gear, localize('configureIcon', 'Icon for the configure action in notifications.'));
+const cweawIcon = wegistewIcon('notifications-cweaw', Codicon.cwose, wocawize('cweawIcon', 'Icon fow the cweaw action in notifications.'));
+const cweawAwwIcon = wegistewIcon('notifications-cweaw-aww', Codicon.cweawAww, wocawize('cweawAwwIcon', 'Icon fow the cweaw aww action in notifications.'));
+const hideIcon = wegistewIcon('notifications-hide', Codicon.chevwonDown, wocawize('hideIcon', 'Icon fow the hide action in notifications.'));
+const expandIcon = wegistewIcon('notifications-expand', Codicon.chevwonUp, wocawize('expandIcon', 'Icon fow the expand action in notifications.'));
+const cowwapseIcon = wegistewIcon('notifications-cowwapse', Codicon.chevwonDown, wocawize('cowwapseIcon', 'Icon fow the cowwapse action in notifications.'));
+const configuweIcon = wegistewIcon('notifications-configuwe', Codicon.geaw, wocawize('configuweIcon', 'Icon fow the configuwe action in notifications.'));
 
-export class ClearNotificationAction extends Action {
+expowt cwass CweawNotificationAction extends Action {
 
-	static readonly ID = CLEAR_NOTIFICATION;
-	static readonly LABEL = localize('clearNotification', "Clear Notification");
+	static weadonwy ID = CWEAW_NOTIFICATION;
+	static weadonwy WABEW = wocawize('cweawNotification', "Cweaw Notification");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private readonly commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice
 	) {
-		super(id, label, ThemeIcon.asClassName(clearIcon));
+		supa(id, wabew, ThemeIcon.asCwassName(cweawIcon));
 	}
 
-	override async run(notification: INotificationViewItem): Promise<void> {
-		this.commandService.executeCommand(CLEAR_NOTIFICATION, notification);
+	ovewwide async wun(notification: INotificationViewItem): Pwomise<void> {
+		this.commandSewvice.executeCommand(CWEAW_NOTIFICATION, notification);
 	}
 }
 
-export class ClearAllNotificationsAction extends Action {
+expowt cwass CweawAwwNotificationsAction extends Action {
 
-	static readonly ID = CLEAR_ALL_NOTIFICATIONS;
-	static readonly LABEL = localize('clearNotifications', "Clear All Notifications");
+	static weadonwy ID = CWEAW_AWW_NOTIFICATIONS;
+	static weadonwy WABEW = wocawize('cweawNotifications', "Cweaw Aww Notifications");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private readonly commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice
 	) {
-		super(id, label, ThemeIcon.asClassName(clearAllIcon));
+		supa(id, wabew, ThemeIcon.asCwassName(cweawAwwIcon));
 	}
 
-	override async run(): Promise<void> {
-		this.commandService.executeCommand(CLEAR_ALL_NOTIFICATIONS);
+	ovewwide async wun(): Pwomise<void> {
+		this.commandSewvice.executeCommand(CWEAW_AWW_NOTIFICATIONS);
 	}
 }
 
-export class HideNotificationsCenterAction extends Action {
+expowt cwass HideNotificationsCentewAction extends Action {
 
-	static readonly ID = HIDE_NOTIFICATIONS_CENTER;
-	static readonly LABEL = localize('hideNotificationsCenter', "Hide Notifications");
+	static weadonwy ID = HIDE_NOTIFICATIONS_CENTa;
+	static weadonwy WABEW = wocawize('hideNotificationsCenta', "Hide Notifications");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private readonly commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice
 	) {
-		super(id, label, ThemeIcon.asClassName(hideIcon));
+		supa(id, wabew, ThemeIcon.asCwassName(hideIcon));
 	}
 
-	override async run(): Promise<void> {
-		this.commandService.executeCommand(HIDE_NOTIFICATIONS_CENTER);
+	ovewwide async wun(): Pwomise<void> {
+		this.commandSewvice.executeCommand(HIDE_NOTIFICATIONS_CENTa);
 	}
 }
 
-export class ExpandNotificationAction extends Action {
+expowt cwass ExpandNotificationAction extends Action {
 
-	static readonly ID = EXPAND_NOTIFICATION;
-	static readonly LABEL = localize('expandNotification', "Expand Notification");
+	static weadonwy ID = EXPAND_NOTIFICATION;
+	static weadonwy WABEW = wocawize('expandNotification', "Expand Notification");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private readonly commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice
 	) {
-		super(id, label, ThemeIcon.asClassName(expandIcon));
+		supa(id, wabew, ThemeIcon.asCwassName(expandIcon));
 	}
 
-	override async run(notification: INotificationViewItem): Promise<void> {
-		this.commandService.executeCommand(EXPAND_NOTIFICATION, notification);
+	ovewwide async wun(notification: INotificationViewItem): Pwomise<void> {
+		this.commandSewvice.executeCommand(EXPAND_NOTIFICATION, notification);
 	}
 }
 
-export class CollapseNotificationAction extends Action {
+expowt cwass CowwapseNotificationAction extends Action {
 
-	static readonly ID = COLLAPSE_NOTIFICATION;
-	static readonly LABEL = localize('collapseNotification', "Collapse Notification");
+	static weadonwy ID = COWWAPSE_NOTIFICATION;
+	static weadonwy WABEW = wocawize('cowwapseNotification', "Cowwapse Notification");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private readonly commandService: ICommandService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice
 	) {
-		super(id, label, ThemeIcon.asClassName(collapseIcon));
+		supa(id, wabew, ThemeIcon.asCwassName(cowwapseIcon));
 	}
 
-	override async run(notification: INotificationViewItem): Promise<void> {
-		this.commandService.executeCommand(COLLAPSE_NOTIFICATION, notification);
+	ovewwide async wun(notification: INotificationViewItem): Pwomise<void> {
+		this.commandSewvice.executeCommand(COWWAPSE_NOTIFICATION, notification);
 	}
 }
 
-export class ConfigureNotificationAction extends Action {
+expowt cwass ConfiguweNotificationAction extends Action {
 
-	static readonly ID = 'workbench.action.configureNotification';
-	static readonly LABEL = localize('configureNotification', "Configure Notification");
+	static weadonwy ID = 'wowkbench.action.configuweNotification';
+	static weadonwy WABEW = wocawize('configuweNotification', "Configuwe Notification");
 
-	constructor(
-		id: string,
-		label: string,
-		readonly configurationActions: readonly IAction[]
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		weadonwy configuwationActions: weadonwy IAction[]
 	) {
-		super(id, label, ThemeIcon.asClassName(configureIcon));
+		supa(id, wabew, ThemeIcon.asCwassName(configuweIcon));
 	}
 }
 
-export class CopyNotificationMessageAction extends Action {
+expowt cwass CopyNotificationMessageAction extends Action {
 
-	static readonly ID = 'workbench.action.copyNotificationMessage';
-	static readonly LABEL = localize('copyNotification', "Copy Text");
+	static weadonwy ID = 'wowkbench.action.copyNotificationMessage';
+	static weadonwy WABEW = wocawize('copyNotification', "Copy Text");
 
-	constructor(
-		id: string,
-		label: string,
-		@IClipboardService private readonly clipboardService: IClipboardService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@ICwipboawdSewvice pwivate weadonwy cwipboawdSewvice: ICwipboawdSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override run(notification: INotificationViewItem): Promise<void> {
-		return this.clipboardService.writeText(notification.message.raw);
+	ovewwide wun(notification: INotificationViewItem): Pwomise<void> {
+		wetuwn this.cwipboawdSewvice.wwiteText(notification.message.waw);
 	}
 }
 
-interface NotificationActionMetrics {
-	id: string;
-	actionLabel: string;
-	source: string;
-	silent: boolean;
+intewface NotificationActionMetwics {
+	id: stwing;
+	actionWabew: stwing;
+	souwce: stwing;
+	siwent: boowean;
 }
 
-type NotificationActionMetricsClassification = {
-	id: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	actionLabel: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	silent: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+type NotificationActionMetwicsCwassification = {
+	id: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+	actionWabew: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+	souwce: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+	siwent: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
 };
 
-export class NotificationActionRunner extends ActionRunner {
+expowt cwass NotificationActionWunna extends ActionWunna {
 
-	constructor(
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@INotificationService private readonly notificationService: INotificationService
+	constwuctow(
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice
 	) {
-		super();
+		supa();
 	}
 
-	protected override async runAction(action: IAction, context: unknown): Promise<void> {
-		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: action.id, from: 'message' });
+	pwotected ovewwide async wunAction(action: IAction, context: unknown): Pwomise<void> {
+		this.tewemetwySewvice.pubwicWog2<WowkbenchActionExecutedEvent, WowkbenchActionExecutedCwassification>('wowkbenchActionExecuted', { id: action.id, fwom: 'message' });
 
 		if (isNotificationViewItem(context)) {
-			// Log some additional telemetry specifically for actions
-			// that are triggered from within notifications.
-			this.telemetryService.publicLog2<NotificationActionMetrics, NotificationActionMetricsClassification>('notification:actionExecuted', {
-				id: hash(context.message.original.toString()).toString(),
-				actionLabel: action.label,
-				source: context.sourceId || 'core',
-				silent: context.silent
+			// Wog some additionaw tewemetwy specificawwy fow actions
+			// that awe twiggewed fwom within notifications.
+			this.tewemetwySewvice.pubwicWog2<NotificationActionMetwics, NotificationActionMetwicsCwassification>('notification:actionExecuted', {
+				id: hash(context.message.owiginaw.toStwing()).toStwing(),
+				actionWabew: action.wabew,
+				souwce: context.souwceId || 'cowe',
+				siwent: context.siwent
 			});
 		}
 
-		// Run and make sure to notify on any error again
-		try {
-			await super.runAction(action, context);
-		} catch (error) {
-			this.notificationService.error(error);
+		// Wun and make suwe to notify on any ewwow again
+		twy {
+			await supa.wunAction(action, context);
+		} catch (ewwow) {
+			this.notificationSewvice.ewwow(ewwow);
 		}
 	}
 }

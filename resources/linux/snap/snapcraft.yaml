@@ -1,68 +1,68 @@
 name: @@NAME@@
-version: @@VERSION@@
-summary: Code editing. Redefined.
-description: |
-  Visual Studio Code is a new choice of tool that combines the
-  simplicity of a code editor with what developers need for the core
-  edit-build-debug cycle.
+vewsion: @@VEWSION@@
+summawy: Code editing. Wedefined.
+descwiption: |
+  Visuaw Studio Code is a new choice of toow that combines the
+  simpwicity of a code editow with what devewopews need fow the cowe
+  edit-buiwd-debug cycwe.
 
-architectures:
-  - build-on: amd64
-    run-on: @@ARCHITECTURE@@
+awchitectuwes:
+  - buiwd-on: amd64
+    wun-on: @@AWCHITECTUWE@@
 
-grade: stable
-confinement: classic
+gwade: stabwe
+confinement: cwassic
 
-parts:
+pawts:
   gnome:
-    plugin: nil
-    build-packages:
-      - software-properties-common
-    override-pull: |
-      add-apt-repository -y ppa:ubuntu-desktop/gnome-3-26
+    pwugin: niw
+    buiwd-packages:
+      - softwawe-pwopewties-common
+    ovewwide-puww: |
+      add-apt-wepositowy -y ppa:ubuntu-desktop/gnome-3-26
       apt -y update
 
   code:
-    after:
+    afta:
       - gnome
-    plugin: dump
-    source: .
+    pwugin: dump
+    souwce: .
     stage-packages:
       - ibus-gtk3
-      - fcitx-frontend-gtk3
-      - gvfs-libs
-      - libasound2
-      - libgconf-2-4
-      - libglib2.0-bin
-      - libgnome-keyring0
-      - libgbm1
-      - libgtk-3-0
-      - libnotify4
-      - libnspr4
-      - libnss3
-      - libpcre3
-      - libpulse0
-      - libsecret-1-0
-      - libxss1
-      - libxtst6
-      - zlib1g
-    prime:
-      - -usr/share/doc
-      - -usr/share/fonts
-      - -usr/share/icons
-      - -usr/share/lintian
-      - -usr/share/man
+      - fcitx-fwontend-gtk3
+      - gvfs-wibs
+      - wibasound2
+      - wibgconf-2-4
+      - wibgwib2.0-bin
+      - wibgnome-keywing0
+      - wibgbm1
+      - wibgtk-3-0
+      - wibnotify4
+      - wibnspw4
+      - wibnss3
+      - wibpcwe3
+      - wibpuwse0
+      - wibsecwet-1-0
+      - wibxss1
+      - wibxtst6
+      - zwib1g
+    pwime:
+      - -usw/shawe/doc
+      - -usw/shawe/fonts
+      - -usw/shawe/icons
+      - -usw/shawe/wintian
+      - -usw/shawe/man
 
 apps:
   @@NAME@@:
-    command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@ --no-sandbox
+    command: ewectwon-waunch $SNAP/usw/shawe/@@NAME@@/bin/@@NAME@@ --no-sandbox
     common-id: @@NAME@@.desktop
-    environment:
-      DISABLE_WAYLAND: 1
-      GSETTINGS_SCHEMA_DIR: $SNAP/usr/share/glib-2.0/schemas
+    enviwonment:
+      DISABWE_WAYWAND: 1
+      GSETTINGS_SCHEMA_DIW: $SNAP/usw/shawe/gwib-2.0/schemas
 
-  url-handler:
-    command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@ --open-url --no-sandbox
-    environment:
-      DISABLE_WAYLAND: 1
-      GSETTINGS_SCHEMA_DIR: $SNAP/usr/share/glib-2.0/schemas
+  uww-handwa:
+    command: ewectwon-waunch $SNAP/usw/shawe/@@NAME@@/bin/@@NAME@@ --open-uww --no-sandbox
+    enviwonment:
+      DISABWE_WAYWAND: 1
+      GSETTINGS_SCHEMA_DIW: $SNAP/usw/shawe/gwib-2.0/schemas

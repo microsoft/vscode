@@ -1,62 +1,62 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from 'vs/base/common/actions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IExtensionService, IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { AbstractRuntimeExtensionsEditor, IRuntimeExtension } from 'vs/workbench/contrib/extensions/browser/abstractRuntimeExtensionsEditor';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IExtensionsWowkbenchSewvice } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IExtensionSewvice, IExtensionHostPwofiwe } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { AbstwactWuntimeExtensionsEditow, IWuntimeExtension } fwom 'vs/wowkbench/contwib/extensions/bwowsa/abstwactWuntimeExtensionsEditow';
 
-export class RuntimeExtensionsEditor extends AbstractRuntimeExtensionsEditor {
+expowt cwass WuntimeExtensionsEditow extends AbstwactWuntimeExtensionsEditow {
 
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionService extensionService: IExtensionService,
-		@INotificationService notificationService: INotificationService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IStorageService storageService: IStorageService,
-		@ILabelService labelService: ILabelService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+	constwuctow(
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IExtensionsWowkbenchSewvice extensionsWowkbenchSewvice: IExtensionsWowkbenchSewvice,
+		@IExtensionSewvice extensionSewvice: IExtensionSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IWabewSewvice wabewSewvice: IWabewSewvice,
+		@IWowkbenchEnviwonmentSewvice enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
 	) {
-		super(telemetryService, themeService, contextKeyService, extensionsWorkbenchService, extensionService, notificationService, contextMenuService, instantiationService, storageService, labelService, environmentService);
+		supa(tewemetwySewvice, themeSewvice, contextKeySewvice, extensionsWowkbenchSewvice, extensionSewvice, notificationSewvice, contextMenuSewvice, instantiationSewvice, stowageSewvice, wabewSewvice, enviwonmentSewvice);
 	}
 
-	protected _getProfileInfo(): IExtensionHostProfile | null {
-		return null;
+	pwotected _getPwofiweInfo(): IExtensionHostPwofiwe | nuww {
+		wetuwn nuww;
 	}
 
-	protected _getUnresponsiveProfile(extensionId: ExtensionIdentifier): IExtensionHostProfile | undefined {
-		return undefined;
+	pwotected _getUnwesponsivePwofiwe(extensionId: ExtensionIdentifia): IExtensionHostPwofiwe | undefined {
+		wetuwn undefined;
 	}
 
-	protected _createSlowExtensionAction(element: IRuntimeExtension): Action | null {
-		return null;
+	pwotected _cweateSwowExtensionAction(ewement: IWuntimeExtension): Action | nuww {
+		wetuwn nuww;
 	}
 
-	protected _createReportExtensionIssueAction(element: IRuntimeExtension): Action | null {
-		return null;
+	pwotected _cweateWepowtExtensionIssueAction(ewement: IWuntimeExtension): Action | nuww {
+		wetuwn nuww;
 	}
 
-	protected _createSaveExtensionHostProfileAction(): Action | null {
-		return null;
+	pwotected _cweateSaveExtensionHostPwofiweAction(): Action | nuww {
+		wetuwn nuww;
 	}
 
-	protected _createProfileAction(): Action | null {
-		return null;
+	pwotected _cweatePwofiweAction(): Action | nuww {
+		wetuwn nuww;
 	}
 }

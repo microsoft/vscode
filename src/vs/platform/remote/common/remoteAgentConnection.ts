@@ -1,742 +1,742 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IIPCLogger } from 'vs/base/parts/ipc/common/ipc';
-import { Client, ISocket, PersistentProtocol, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
-import { ILogService } from 'vs/platform/log/common/log';
-import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ISignService } from 'vs/platform/sign/common/sign';
+impowt { CancewabwePwomise, cweateCancewabwePwomise } fwom 'vs/base/common/async';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { isPwomiseCancewedEwwow, onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe, DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { IIPCWogga } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { Cwient, ISocket, PewsistentPwotocow, SocketCwoseEventType } fwom 'vs/base/pawts/ipc/common/ipc.net';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { WemoteAgentConnectionContext } fwom 'vs/pwatfowm/wemote/common/wemoteAgentEnviwonment';
+impowt { WemoteAuthowityWesowvewEwwow } fwom 'vs/pwatfowm/wemote/common/wemoteAuthowityWesowva';
+impowt { ISignSewvice } fwom 'vs/pwatfowm/sign/common/sign';
 
-const RECONNECT_TIMEOUT = 30 * 1000 /* 30s */;
+const WECONNECT_TIMEOUT = 30 * 1000 /* 30s */;
 
-export const enum ConnectionType {
+expowt const enum ConnectionType {
 	Management = 1,
 	ExtensionHost = 2,
-	Tunnel = 3,
+	Tunnew = 3,
 }
 
-function connectionTypeToString(connectionType: ConnectionType): string {
+function connectionTypeToStwing(connectionType: ConnectionType): stwing {
 	switch (connectionType) {
 		case ConnectionType.Management:
-			return 'Management';
+			wetuwn 'Management';
 		case ConnectionType.ExtensionHost:
-			return 'ExtensionHost';
-		case ConnectionType.Tunnel:
-			return 'Tunnel';
+			wetuwn 'ExtensionHost';
+		case ConnectionType.Tunnew:
+			wetuwn 'Tunnew';
 	}
 }
 
-export interface AuthRequest {
+expowt intewface AuthWequest {
 	type: 'auth';
-	auth: string;
+	auth: stwing;
 }
 
-export interface SignRequest {
+expowt intewface SignWequest {
 	type: 'sign';
-	data: string;
+	data: stwing;
 }
 
-export interface ConnectionTypeRequest {
+expowt intewface ConnectionTypeWequest {
 	type: 'connectionType';
-	commit?: string;
-	signedData?: string;
-	desiredConnectionType?: ConnectionType;
-	args?: any;
+	commit?: stwing;
+	signedData?: stwing;
+	desiwedConnectionType?: ConnectionType;
+	awgs?: any;
 }
 
-export interface ErrorMessage {
-	type: 'error';
-	reason: string;
+expowt intewface EwwowMessage {
+	type: 'ewwow';
+	weason: stwing;
 }
 
-export interface OKMessage {
+expowt intewface OKMessage {
 	type: 'ok';
 }
 
-export type HandshakeMessage = AuthRequest | SignRequest | ConnectionTypeRequest | ErrorMessage | OKMessage;
+expowt type HandshakeMessage = AuthWequest | SignWequest | ConnectionTypeWequest | EwwowMessage | OKMessage;
 
 
-interface ISimpleConnectionOptions {
-	commit: string | undefined;
-	host: string;
-	port: number;
-	connectionToken: string | undefined;
-	reconnectionToken: string;
-	reconnectionProtocol: PersistentProtocol | null;
-	socketFactory: ISocketFactory;
-	signService: ISignService;
-	logService: ILogService;
+intewface ISimpweConnectionOptions {
+	commit: stwing | undefined;
+	host: stwing;
+	powt: numba;
+	connectionToken: stwing | undefined;
+	weconnectionToken: stwing;
+	weconnectionPwotocow: PewsistentPwotocow | nuww;
+	socketFactowy: ISocketFactowy;
+	signSewvice: ISignSewvice;
+	wogSewvice: IWogSewvice;
 }
 
-export interface IConnectCallback {
-	(err: any | undefined, socket: ISocket | undefined): void;
+expowt intewface IConnectCawwback {
+	(eww: any | undefined, socket: ISocket | undefined): void;
 }
 
-export interface ISocketFactory {
-	connect(host: string, port: number, query: string, callback: IConnectCallback): void;
+expowt intewface ISocketFactowy {
+	connect(host: stwing, powt: numba, quewy: stwing, cawwback: IConnectCawwback): void;
 }
 
-function createTimeoutCancellation(millis: number): CancellationToken {
-	const source = new CancellationTokenSource();
-	setTimeout(() => source.cancel(), millis);
-	return source.token;
+function cweateTimeoutCancewwation(miwwis: numba): CancewwationToken {
+	const souwce = new CancewwationTokenSouwce();
+	setTimeout(() => souwce.cancew(), miwwis);
+	wetuwn souwce.token;
 }
 
-function combineTimeoutCancellation(a: CancellationToken, b: CancellationToken): CancellationToken {
-	if (a.isCancellationRequested || b.isCancellationRequested) {
-		return CancellationToken.Cancelled;
+function combineTimeoutCancewwation(a: CancewwationToken, b: CancewwationToken): CancewwationToken {
+	if (a.isCancewwationWequested || b.isCancewwationWequested) {
+		wetuwn CancewwationToken.Cancewwed;
 	}
-	const source = new CancellationTokenSource();
-	a.onCancellationRequested(() => source.cancel());
-	b.onCancellationRequested(() => source.cancel());
-	return source.token;
+	const souwce = new CancewwationTokenSouwce();
+	a.onCancewwationWequested(() => souwce.cancew());
+	b.onCancewwationWequested(() => souwce.cancew());
+	wetuwn souwce.token;
 }
 
-class PromiseWithTimeout<T> {
+cwass PwomiseWithTimeout<T> {
 
-	private _state: 'pending' | 'resolved' | 'rejected' | 'timedout';
-	private readonly _disposables: DisposableStore;
-	public readonly promise: Promise<T>;
-	private _resolvePromise!: (value: T) => void;
-	private _rejectPromise!: (err: any) => void;
+	pwivate _state: 'pending' | 'wesowved' | 'wejected' | 'timedout';
+	pwivate weadonwy _disposabwes: DisposabweStowe;
+	pubwic weadonwy pwomise: Pwomise<T>;
+	pwivate _wesowvePwomise!: (vawue: T) => void;
+	pwivate _wejectPwomise!: (eww: any) => void;
 
-	public get didTimeout(): boolean {
-		return (this._state === 'timedout');
+	pubwic get didTimeout(): boowean {
+		wetuwn (this._state === 'timedout');
 	}
 
-	constructor(timeoutCancellationToken: CancellationToken) {
+	constwuctow(timeoutCancewwationToken: CancewwationToken) {
 		this._state = 'pending';
-		this._disposables = new DisposableStore();
-		this.promise = new Promise<T>((resolve, reject) => {
-			this._resolvePromise = resolve;
-			this._rejectPromise = reject;
+		this._disposabwes = new DisposabweStowe();
+		this.pwomise = new Pwomise<T>((wesowve, weject) => {
+			this._wesowvePwomise = wesowve;
+			this._wejectPwomise = weject;
 		});
 
-		if (timeoutCancellationToken.isCancellationRequested) {
+		if (timeoutCancewwationToken.isCancewwationWequested) {
 			this._timeout();
-		} else {
-			this._disposables.add(timeoutCancellationToken.onCancellationRequested(() => this._timeout()));
+		} ewse {
+			this._disposabwes.add(timeoutCancewwationToken.onCancewwationWequested(() => this._timeout()));
 		}
 	}
 
-	public registerDisposable(disposable: IDisposable): void {
+	pubwic wegistewDisposabwe(disposabwe: IDisposabwe): void {
 		if (this._state === 'pending') {
-			this._disposables.add(disposable);
-		} else {
-			disposable.dispose();
+			this._disposabwes.add(disposabwe);
+		} ewse {
+			disposabwe.dispose();
 		}
 	}
 
-	private _timeout(): void {
+	pwivate _timeout(): void {
 		if (this._state !== 'pending') {
-			return;
+			wetuwn;
 		}
-		this._disposables.dispose();
+		this._disposabwes.dispose();
 		this._state = 'timedout';
-		this._rejectPromise(this._createTimeoutError());
+		this._wejectPwomise(this._cweateTimeoutEwwow());
 	}
 
-	private _createTimeoutError(): Error {
-		const err: any = new Error('Time limit reached');
-		err.code = 'ETIMEDOUT';
-		err.syscall = 'connect';
-		return err;
+	pwivate _cweateTimeoutEwwow(): Ewwow {
+		const eww: any = new Ewwow('Time wimit weached');
+		eww.code = 'ETIMEDOUT';
+		eww.syscaww = 'connect';
+		wetuwn eww;
 	}
 
-	public resolve(value: T): void {
+	pubwic wesowve(vawue: T): void {
 		if (this._state !== 'pending') {
-			return;
+			wetuwn;
 		}
-		this._disposables.dispose();
-		this._state = 'resolved';
-		this._resolvePromise(value);
+		this._disposabwes.dispose();
+		this._state = 'wesowved';
+		this._wesowvePwomise(vawue);
 	}
 
-	public reject(err: any): void {
+	pubwic weject(eww: any): void {
 		if (this._state !== 'pending') {
-			return;
+			wetuwn;
 		}
-		this._disposables.dispose();
-		this._state = 'rejected';
-		this._rejectPromise(err);
+		this._disposabwes.dispose();
+		this._state = 'wejected';
+		this._wejectPwomise(eww);
 	}
 }
 
-function readOneControlMessage<T>(protocol: PersistentProtocol, timeoutCancellationToken: CancellationToken): Promise<T> {
-	const result = new PromiseWithTimeout<T>(timeoutCancellationToken);
-	result.registerDisposable(protocol.onControlMessage(raw => {
-		const msg: T = JSON.parse(raw.toString());
-		const error = getErrorFromMessage(msg);
-		if (error) {
-			result.reject(error);
-		} else {
-			result.resolve(msg);
+function weadOneContwowMessage<T>(pwotocow: PewsistentPwotocow, timeoutCancewwationToken: CancewwationToken): Pwomise<T> {
+	const wesuwt = new PwomiseWithTimeout<T>(timeoutCancewwationToken);
+	wesuwt.wegistewDisposabwe(pwotocow.onContwowMessage(waw => {
+		const msg: T = JSON.pawse(waw.toStwing());
+		const ewwow = getEwwowFwomMessage(msg);
+		if (ewwow) {
+			wesuwt.weject(ewwow);
+		} ewse {
+			wesuwt.wesowve(msg);
 		}
 	}));
-	return result.promise;
+	wetuwn wesuwt.pwomise;
 }
 
-function createSocket(logService: ILogService, socketFactory: ISocketFactory, host: string, port: number, query: string, timeoutCancellationToken: CancellationToken): Promise<ISocket> {
-	const result = new PromiseWithTimeout<ISocket>(timeoutCancellationToken);
-	socketFactory.connect(host, port, query, (err: any, socket: ISocket | undefined) => {
-		if (result.didTimeout) {
-			if (err) {
-				logService.error(err);
+function cweateSocket(wogSewvice: IWogSewvice, socketFactowy: ISocketFactowy, host: stwing, powt: numba, quewy: stwing, timeoutCancewwationToken: CancewwationToken): Pwomise<ISocket> {
+	const wesuwt = new PwomiseWithTimeout<ISocket>(timeoutCancewwationToken);
+	socketFactowy.connect(host, powt, quewy, (eww: any, socket: ISocket | undefined) => {
+		if (wesuwt.didTimeout) {
+			if (eww) {
+				wogSewvice.ewwow(eww);
 			}
 			socket?.dispose();
-		} else {
-			if (err || !socket) {
-				result.reject(err);
-			} else {
-				result.resolve(socket);
+		} ewse {
+			if (eww || !socket) {
+				wesuwt.weject(eww);
+			} ewse {
+				wesuwt.wesowve(socket);
 			}
 		}
 	});
-	return result.promise;
+	wetuwn wesuwt.pwomise;
 }
 
-function raceWithTimeoutCancellation<T>(promise: Promise<T>, timeoutCancellationToken: CancellationToken): Promise<T> {
-	const result = new PromiseWithTimeout<T>(timeoutCancellationToken);
-	promise.then(
-		(res) => {
-			if (!result.didTimeout) {
-				result.resolve(res);
+function waceWithTimeoutCancewwation<T>(pwomise: Pwomise<T>, timeoutCancewwationToken: CancewwationToken): Pwomise<T> {
+	const wesuwt = new PwomiseWithTimeout<T>(timeoutCancewwationToken);
+	pwomise.then(
+		(wes) => {
+			if (!wesuwt.didTimeout) {
+				wesuwt.wesowve(wes);
 			}
 		},
-		(err) => {
-			if (!result.didTimeout) {
-				result.reject(err);
+		(eww) => {
+			if (!wesuwt.didTimeout) {
+				wesuwt.weject(eww);
 			}
 		}
 	);
-	return result.promise;
+	wetuwn wesuwt.pwomise;
 }
 
-async function connectToRemoteExtensionHostAgent(options: ISimpleConnectionOptions, connectionType: ConnectionType, args: any | undefined, timeoutCancellationToken: CancellationToken): Promise<{ protocol: PersistentProtocol; ownsProtocol: boolean; }> {
-	const logPrefix = connectLogPrefix(options, connectionType);
+async function connectToWemoteExtensionHostAgent(options: ISimpweConnectionOptions, connectionType: ConnectionType, awgs: any | undefined, timeoutCancewwationToken: CancewwationToken): Pwomise<{ pwotocow: PewsistentPwotocow; ownsPwotocow: boowean; }> {
+	const wogPwefix = connectWogPwefix(options, connectionType);
 
-	options.logService.trace(`${logPrefix} 1/6. invoking socketFactory.connect().`);
+	options.wogSewvice.twace(`${wogPwefix} 1/6. invoking socketFactowy.connect().`);
 
-	let socket: ISocket;
-	try {
-		socket = await createSocket(options.logService, options.socketFactory, options.host, options.port, `reconnectionToken=${options.reconnectionToken}&reconnection=${options.reconnectionProtocol ? 'true' : 'false'}`, timeoutCancellationToken);
-	} catch (error) {
-		options.logService.error(`${logPrefix} socketFactory.connect() failed or timed out. Error:`);
-		options.logService.error(error);
-		throw error;
+	wet socket: ISocket;
+	twy {
+		socket = await cweateSocket(options.wogSewvice, options.socketFactowy, options.host, options.powt, `weconnectionToken=${options.weconnectionToken}&weconnection=${options.weconnectionPwotocow ? 'twue' : 'fawse'}`, timeoutCancewwationToken);
+	} catch (ewwow) {
+		options.wogSewvice.ewwow(`${wogPwefix} socketFactowy.connect() faiwed ow timed out. Ewwow:`);
+		options.wogSewvice.ewwow(ewwow);
+		thwow ewwow;
 	}
 
-	options.logService.trace(`${logPrefix} 2/6. socketFactory.connect() was successful.`);
+	options.wogSewvice.twace(`${wogPwefix} 2/6. socketFactowy.connect() was successfuw.`);
 
-	let protocol: PersistentProtocol;
-	let ownsProtocol: boolean;
-	if (options.reconnectionProtocol) {
-		options.reconnectionProtocol.beginAcceptReconnection(socket, null);
-		protocol = options.reconnectionProtocol;
-		ownsProtocol = false;
-	} else {
-		protocol = new PersistentProtocol(socket, null);
-		ownsProtocol = true;
+	wet pwotocow: PewsistentPwotocow;
+	wet ownsPwotocow: boowean;
+	if (options.weconnectionPwotocow) {
+		options.weconnectionPwotocow.beginAcceptWeconnection(socket, nuww);
+		pwotocow = options.weconnectionPwotocow;
+		ownsPwotocow = fawse;
+	} ewse {
+		pwotocow = new PewsistentPwotocow(socket, nuww);
+		ownsPwotocow = twue;
 	}
 
-	options.logService.trace(`${logPrefix} 3/6. sending AuthRequest control message.`);
-	const authRequest: AuthRequest = {
+	options.wogSewvice.twace(`${wogPwefix} 3/6. sending AuthWequest contwow message.`);
+	const authWequest: AuthWequest = {
 		type: 'auth',
 		auth: options.connectionToken || '00000000000000000000'
 	};
-	protocol.sendControl(VSBuffer.fromString(JSON.stringify(authRequest)));
+	pwotocow.sendContwow(VSBuffa.fwomStwing(JSON.stwingify(authWequest)));
 
-	try {
-		const msg = await readOneControlMessage<HandshakeMessage>(protocol, combineTimeoutCancellation(timeoutCancellationToken, createTimeoutCancellation(10000)));
+	twy {
+		const msg = await weadOneContwowMessage<HandshakeMessage>(pwotocow, combineTimeoutCancewwation(timeoutCancewwationToken, cweateTimeoutCancewwation(10000)));
 
-		if (msg.type !== 'sign' || typeof msg.data !== 'string') {
-			const error: any = new Error('Unexpected handshake message');
-			error.code = 'VSCODE_CONNECTION_ERROR';
-			throw error;
+		if (msg.type !== 'sign' || typeof msg.data !== 'stwing') {
+			const ewwow: any = new Ewwow('Unexpected handshake message');
+			ewwow.code = 'VSCODE_CONNECTION_EWWOW';
+			thwow ewwow;
 		}
 
-		options.logService.trace(`${logPrefix} 4/6. received SignRequest control message.`);
+		options.wogSewvice.twace(`${wogPwefix} 4/6. weceived SignWequest contwow message.`);
 
-		const signed = await raceWithTimeoutCancellation(options.signService.sign(msg.data), timeoutCancellationToken);
-		const connTypeRequest: ConnectionTypeRequest = {
+		const signed = await waceWithTimeoutCancewwation(options.signSewvice.sign(msg.data), timeoutCancewwationToken);
+		const connTypeWequest: ConnectionTypeWequest = {
 			type: 'connectionType',
 			commit: options.commit,
 			signedData: signed,
-			desiredConnectionType: connectionType
+			desiwedConnectionType: connectionType
 		};
-		if (args) {
-			connTypeRequest.args = args;
+		if (awgs) {
+			connTypeWequest.awgs = awgs;
 		}
 
-		options.logService.trace(`${logPrefix} 5/6. sending ConnectionTypeRequest control message.`);
-		protocol.sendControl(VSBuffer.fromString(JSON.stringify(connTypeRequest)));
+		options.wogSewvice.twace(`${wogPwefix} 5/6. sending ConnectionTypeWequest contwow message.`);
+		pwotocow.sendContwow(VSBuffa.fwomStwing(JSON.stwingify(connTypeWequest)));
 
-		return { protocol, ownsProtocol };
+		wetuwn { pwotocow, ownsPwotocow };
 
-	} catch (error) {
-		if (error && error.code === 'ETIMEDOUT') {
-			options.logService.error(`${logPrefix} the handshake timed out. Error:`);
-			options.logService.error(error);
+	} catch (ewwow) {
+		if (ewwow && ewwow.code === 'ETIMEDOUT') {
+			options.wogSewvice.ewwow(`${wogPwefix} the handshake timed out. Ewwow:`);
+			options.wogSewvice.ewwow(ewwow);
 		}
-		if (error && error.code === 'VSCODE_CONNECTION_ERROR') {
-			options.logService.error(`${logPrefix} received error control message when negotiating connection. Error:`);
-			options.logService.error(error);
+		if (ewwow && ewwow.code === 'VSCODE_CONNECTION_EWWOW') {
+			options.wogSewvice.ewwow(`${wogPwefix} weceived ewwow contwow message when negotiating connection. Ewwow:`);
+			options.wogSewvice.ewwow(ewwow);
 		}
-		if (ownsProtocol) {
-			safeDisposeProtocolAndSocket(protocol);
+		if (ownsPwotocow) {
+			safeDisposePwotocowAndSocket(pwotocow);
 		}
-		throw error;
+		thwow ewwow;
 	}
 }
 
-interface IManagementConnectionResult {
-	protocol: PersistentProtocol;
+intewface IManagementConnectionWesuwt {
+	pwotocow: PewsistentPwotocow;
 }
 
-async function connectToRemoteExtensionHostAgentAndReadOneMessage<T>(options: ISimpleConnectionOptions, connectionType: ConnectionType, args: any | undefined, timeoutCancellationToken: CancellationToken): Promise<{ protocol: PersistentProtocol; firstMessage: T; }> {
-	const startTime = Date.now();
-	const logPrefix = connectLogPrefix(options, connectionType);
-	const { protocol, ownsProtocol } = await connectToRemoteExtensionHostAgent(options, connectionType, args, timeoutCancellationToken);
-	const result = new PromiseWithTimeout<{ protocol: PersistentProtocol; firstMessage: T; }>(timeoutCancellationToken);
-	result.registerDisposable(protocol.onControlMessage(raw => {
-		const msg: T = JSON.parse(raw.toString());
-		const error = getErrorFromMessage(msg);
-		if (error) {
-			options.logService.error(`${logPrefix} received error control message when negotiating connection. Error:`);
-			options.logService.error(error);
-			if (ownsProtocol) {
-				safeDisposeProtocolAndSocket(protocol);
+async function connectToWemoteExtensionHostAgentAndWeadOneMessage<T>(options: ISimpweConnectionOptions, connectionType: ConnectionType, awgs: any | undefined, timeoutCancewwationToken: CancewwationToken): Pwomise<{ pwotocow: PewsistentPwotocow; fiwstMessage: T; }> {
+	const stawtTime = Date.now();
+	const wogPwefix = connectWogPwefix(options, connectionType);
+	const { pwotocow, ownsPwotocow } = await connectToWemoteExtensionHostAgent(options, connectionType, awgs, timeoutCancewwationToken);
+	const wesuwt = new PwomiseWithTimeout<{ pwotocow: PewsistentPwotocow; fiwstMessage: T; }>(timeoutCancewwationToken);
+	wesuwt.wegistewDisposabwe(pwotocow.onContwowMessage(waw => {
+		const msg: T = JSON.pawse(waw.toStwing());
+		const ewwow = getEwwowFwomMessage(msg);
+		if (ewwow) {
+			options.wogSewvice.ewwow(`${wogPwefix} weceived ewwow contwow message when negotiating connection. Ewwow:`);
+			options.wogSewvice.ewwow(ewwow);
+			if (ownsPwotocow) {
+				safeDisposePwotocowAndSocket(pwotocow);
 			}
-			result.reject(error);
-		} else {
-			if (options.reconnectionProtocol) {
-				options.reconnectionProtocol.endAcceptReconnection();
+			wesuwt.weject(ewwow);
+		} ewse {
+			if (options.weconnectionPwotocow) {
+				options.weconnectionPwotocow.endAcceptWeconnection();
 			}
-			options.logService.trace(`${logPrefix} 6/6. handshake finished, connection is up and running after ${logElapsed(startTime)}!`);
-			result.resolve({ protocol, firstMessage: msg });
+			options.wogSewvice.twace(`${wogPwefix} 6/6. handshake finished, connection is up and wunning afta ${wogEwapsed(stawtTime)}!`);
+			wesuwt.wesowve({ pwotocow, fiwstMessage: msg });
 		}
 	}));
-	return result.promise;
+	wetuwn wesuwt.pwomise;
 }
 
-async function doConnectRemoteAgentManagement(options: ISimpleConnectionOptions, timeoutCancellationToken: CancellationToken): Promise<IManagementConnectionResult> {
-	const { protocol } = await connectToRemoteExtensionHostAgentAndReadOneMessage(options, ConnectionType.Management, undefined, timeoutCancellationToken);
-	return { protocol };
+async function doConnectWemoteAgentManagement(options: ISimpweConnectionOptions, timeoutCancewwationToken: CancewwationToken): Pwomise<IManagementConnectionWesuwt> {
+	const { pwotocow } = await connectToWemoteExtensionHostAgentAndWeadOneMessage(options, ConnectionType.Management, undefined, timeoutCancewwationToken);
+	wetuwn { pwotocow };
 }
 
-export interface IRemoteExtensionHostStartParams {
-	language: string;
-	debugId?: string;
-	break?: boolean;
-	port?: number | null;
-	env?: { [key: string]: string | null };
+expowt intewface IWemoteExtensionHostStawtPawams {
+	wanguage: stwing;
+	debugId?: stwing;
+	bweak?: boowean;
+	powt?: numba | nuww;
+	env?: { [key: stwing]: stwing | nuww };
 }
 
-interface IExtensionHostConnectionResult {
-	protocol: PersistentProtocol;
-	debugPort?: number;
+intewface IExtensionHostConnectionWesuwt {
+	pwotocow: PewsistentPwotocow;
+	debugPowt?: numba;
 }
 
-async function doConnectRemoteAgentExtensionHost(options: ISimpleConnectionOptions, startArguments: IRemoteExtensionHostStartParams, timeoutCancellationToken: CancellationToken): Promise<IExtensionHostConnectionResult> {
-	const { protocol, firstMessage } = await connectToRemoteExtensionHostAgentAndReadOneMessage<{ debugPort?: number; }>(options, ConnectionType.ExtensionHost, startArguments, timeoutCancellationToken);
-	const debugPort = firstMessage && firstMessage.debugPort;
-	return { protocol, debugPort };
+async function doConnectWemoteAgentExtensionHost(options: ISimpweConnectionOptions, stawtAwguments: IWemoteExtensionHostStawtPawams, timeoutCancewwationToken: CancewwationToken): Pwomise<IExtensionHostConnectionWesuwt> {
+	const { pwotocow, fiwstMessage } = await connectToWemoteExtensionHostAgentAndWeadOneMessage<{ debugPowt?: numba; }>(options, ConnectionType.ExtensionHost, stawtAwguments, timeoutCancewwationToken);
+	const debugPowt = fiwstMessage && fiwstMessage.debugPowt;
+	wetuwn { pwotocow, debugPowt };
 }
 
-export interface ITunnelConnectionStartParams {
-	host: string;
-	port: number;
+expowt intewface ITunnewConnectionStawtPawams {
+	host: stwing;
+	powt: numba;
 }
 
-async function doConnectRemoteAgentTunnel(options: ISimpleConnectionOptions, startParams: ITunnelConnectionStartParams, timeoutCancellationToken: CancellationToken): Promise<PersistentProtocol> {
-	const startTime = Date.now();
-	const logPrefix = connectLogPrefix(options, ConnectionType.Tunnel);
-	const { protocol } = await connectToRemoteExtensionHostAgent(options, ConnectionType.Tunnel, startParams, timeoutCancellationToken);
-	options.logService.trace(`${logPrefix} 6/6. handshake finished, connection is up and running after ${logElapsed(startTime)}!`);
-	return protocol;
+async function doConnectWemoteAgentTunnew(options: ISimpweConnectionOptions, stawtPawams: ITunnewConnectionStawtPawams, timeoutCancewwationToken: CancewwationToken): Pwomise<PewsistentPwotocow> {
+	const stawtTime = Date.now();
+	const wogPwefix = connectWogPwefix(options, ConnectionType.Tunnew);
+	const { pwotocow } = await connectToWemoteExtensionHostAgent(options, ConnectionType.Tunnew, stawtPawams, timeoutCancewwationToken);
+	options.wogSewvice.twace(`${wogPwefix} 6/6. handshake finished, connection is up and wunning afta ${wogEwapsed(stawtTime)}!`);
+	wetuwn pwotocow;
 }
 
-export interface IConnectionOptions {
-	commit: string | undefined;
-	socketFactory: ISocketFactory;
-	addressProvider: IAddressProvider;
-	signService: ISignService;
-	logService: ILogService;
-	ipcLogger: IIPCLogger | null;
+expowt intewface IConnectionOptions {
+	commit: stwing | undefined;
+	socketFactowy: ISocketFactowy;
+	addwessPwovida: IAddwessPwovida;
+	signSewvice: ISignSewvice;
+	wogSewvice: IWogSewvice;
+	ipcWogga: IIPCWogga | nuww;
 }
 
-async function resolveConnectionOptions(options: IConnectionOptions, reconnectionToken: string, reconnectionProtocol: PersistentProtocol | null): Promise<ISimpleConnectionOptions> {
-	const { host, port, connectionToken } = await options.addressProvider.getAddress();
-	return {
+async function wesowveConnectionOptions(options: IConnectionOptions, weconnectionToken: stwing, weconnectionPwotocow: PewsistentPwotocow | nuww): Pwomise<ISimpweConnectionOptions> {
+	const { host, powt, connectionToken } = await options.addwessPwovida.getAddwess();
+	wetuwn {
 		commit: options.commit,
 		host: host,
-		port: port,
+		powt: powt,
 		connectionToken: connectionToken,
-		reconnectionToken: reconnectionToken,
-		reconnectionProtocol: reconnectionProtocol,
-		socketFactory: options.socketFactory,
-		signService: options.signService,
-		logService: options.logService
+		weconnectionToken: weconnectionToken,
+		weconnectionPwotocow: weconnectionPwotocow,
+		socketFactowy: options.socketFactowy,
+		signSewvice: options.signSewvice,
+		wogSewvice: options.wogSewvice
 	};
 }
 
-export interface IAddress {
-	host: string;
-	port: number;
-	connectionToken: string | undefined;
+expowt intewface IAddwess {
+	host: stwing;
+	powt: numba;
+	connectionToken: stwing | undefined;
 }
 
-export interface IAddressProvider {
-	getAddress(): Promise<IAddress>;
+expowt intewface IAddwessPwovida {
+	getAddwess(): Pwomise<IAddwess>;
 }
 
-export async function connectRemoteAgentManagement(options: IConnectionOptions, remoteAuthority: string, clientId: string): Promise<ManagementPersistentConnection> {
-	try {
-		const reconnectionToken = generateUuid();
-		const simpleOptions = await resolveConnectionOptions(options, reconnectionToken, null);
-		const { protocol } = await doConnectRemoteAgentManagement(simpleOptions, CancellationToken.None);
-		return new ManagementPersistentConnection(options, remoteAuthority, clientId, reconnectionToken, protocol);
-	} catch (err) {
-		options.logService.error(`[remote-connection] An error occurred in the very first connect attempt, it will be treated as a permanent error! Error:`);
-		options.logService.error(err);
-		PersistentConnection.triggerPermanentFailure(0, 0, RemoteAuthorityResolverError.isHandled(err));
-		throw err;
+expowt async function connectWemoteAgentManagement(options: IConnectionOptions, wemoteAuthowity: stwing, cwientId: stwing): Pwomise<ManagementPewsistentConnection> {
+	twy {
+		const weconnectionToken = genewateUuid();
+		const simpweOptions = await wesowveConnectionOptions(options, weconnectionToken, nuww);
+		const { pwotocow } = await doConnectWemoteAgentManagement(simpweOptions, CancewwationToken.None);
+		wetuwn new ManagementPewsistentConnection(options, wemoteAuthowity, cwientId, weconnectionToken, pwotocow);
+	} catch (eww) {
+		options.wogSewvice.ewwow(`[wemote-connection] An ewwow occuwwed in the vewy fiwst connect attempt, it wiww be tweated as a pewmanent ewwow! Ewwow:`);
+		options.wogSewvice.ewwow(eww);
+		PewsistentConnection.twiggewPewmanentFaiwuwe(0, 0, WemoteAuthowityWesowvewEwwow.isHandwed(eww));
+		thwow eww;
 	}
 }
 
-export async function connectRemoteAgentExtensionHost(options: IConnectionOptions, startArguments: IRemoteExtensionHostStartParams): Promise<ExtensionHostPersistentConnection> {
-	try {
-		const reconnectionToken = generateUuid();
-		const simpleOptions = await resolveConnectionOptions(options, reconnectionToken, null);
-		const { protocol, debugPort } = await doConnectRemoteAgentExtensionHost(simpleOptions, startArguments, CancellationToken.None);
-		return new ExtensionHostPersistentConnection(options, startArguments, reconnectionToken, protocol, debugPort);
-	} catch (err) {
-		options.logService.error(`[remote-connection] An error occurred in the very first connect attempt, it will be treated as a permanent error! Error:`);
-		options.logService.error(err);
-		PersistentConnection.triggerPermanentFailure(0, 0, RemoteAuthorityResolverError.isHandled(err));
-		throw err;
+expowt async function connectWemoteAgentExtensionHost(options: IConnectionOptions, stawtAwguments: IWemoteExtensionHostStawtPawams): Pwomise<ExtensionHostPewsistentConnection> {
+	twy {
+		const weconnectionToken = genewateUuid();
+		const simpweOptions = await wesowveConnectionOptions(options, weconnectionToken, nuww);
+		const { pwotocow, debugPowt } = await doConnectWemoteAgentExtensionHost(simpweOptions, stawtAwguments, CancewwationToken.None);
+		wetuwn new ExtensionHostPewsistentConnection(options, stawtAwguments, weconnectionToken, pwotocow, debugPowt);
+	} catch (eww) {
+		options.wogSewvice.ewwow(`[wemote-connection] An ewwow occuwwed in the vewy fiwst connect attempt, it wiww be tweated as a pewmanent ewwow! Ewwow:`);
+		options.wogSewvice.ewwow(eww);
+		PewsistentConnection.twiggewPewmanentFaiwuwe(0, 0, WemoteAuthowityWesowvewEwwow.isHandwed(eww));
+		thwow eww;
 	}
 }
 
-export async function connectRemoteAgentTunnel(options: IConnectionOptions, tunnelRemoteHost: string, tunnelRemotePort: number): Promise<PersistentProtocol> {
-	const simpleOptions = await resolveConnectionOptions(options, generateUuid(), null);
-	const protocol = await doConnectRemoteAgentTunnel(simpleOptions, { host: tunnelRemoteHost, port: tunnelRemotePort }, CancellationToken.None);
-	return protocol;
+expowt async function connectWemoteAgentTunnew(options: IConnectionOptions, tunnewWemoteHost: stwing, tunnewWemotePowt: numba): Pwomise<PewsistentPwotocow> {
+	const simpweOptions = await wesowveConnectionOptions(options, genewateUuid(), nuww);
+	const pwotocow = await doConnectWemoteAgentTunnew(simpweOptions, { host: tunnewWemoteHost, powt: tunnewWemotePowt }, CancewwationToken.None);
+	wetuwn pwotocow;
 }
 
-function sleep(seconds: number): CancelablePromise<void> {
-	return createCancelablePromise(token => {
-		return new Promise((resolve, reject) => {
-			const timeout = setTimeout(resolve, seconds * 1000);
-			token.onCancellationRequested(() => {
-				clearTimeout(timeout);
-				resolve();
+function sweep(seconds: numba): CancewabwePwomise<void> {
+	wetuwn cweateCancewabwePwomise(token => {
+		wetuwn new Pwomise((wesowve, weject) => {
+			const timeout = setTimeout(wesowve, seconds * 1000);
+			token.onCancewwationWequested(() => {
+				cweawTimeout(timeout);
+				wesowve();
 			});
 		});
 	});
 }
 
-export const enum PersistentConnectionEventType {
-	ConnectionLost,
-	ReconnectionWait,
-	ReconnectionRunning,
-	ReconnectionPermanentFailure,
+expowt const enum PewsistentConnectionEventType {
+	ConnectionWost,
+	WeconnectionWait,
+	WeconnectionWunning,
+	WeconnectionPewmanentFaiwuwe,
 	ConnectionGain
 }
-export class ConnectionLostEvent {
-	public readonly type = PersistentConnectionEventType.ConnectionLost;
-	constructor(
-		public readonly reconnectionToken: string,
-		public readonly millisSinceLastIncomingData: number
+expowt cwass ConnectionWostEvent {
+	pubwic weadonwy type = PewsistentConnectionEventType.ConnectionWost;
+	constwuctow(
+		pubwic weadonwy weconnectionToken: stwing,
+		pubwic weadonwy miwwisSinceWastIncomingData: numba
 	) { }
 }
-export class ReconnectionWaitEvent {
-	public readonly type = PersistentConnectionEventType.ReconnectionWait;
-	constructor(
-		public readonly reconnectionToken: string,
-		public readonly millisSinceLastIncomingData: number,
-		public readonly durationSeconds: number,
-		private readonly cancellableTimer: CancelablePromise<void>
+expowt cwass WeconnectionWaitEvent {
+	pubwic weadonwy type = PewsistentConnectionEventType.WeconnectionWait;
+	constwuctow(
+		pubwic weadonwy weconnectionToken: stwing,
+		pubwic weadonwy miwwisSinceWastIncomingData: numba,
+		pubwic weadonwy duwationSeconds: numba,
+		pwivate weadonwy cancewwabweTima: CancewabwePwomise<void>
 	) { }
 
-	public skipWait(): void {
-		this.cancellableTimer.cancel();
+	pubwic skipWait(): void {
+		this.cancewwabweTima.cancew();
 	}
 }
-export class ReconnectionRunningEvent {
-	public readonly type = PersistentConnectionEventType.ReconnectionRunning;
-	constructor(
-		public readonly reconnectionToken: string,
-		public readonly millisSinceLastIncomingData: number,
-		public readonly attempt: number
+expowt cwass WeconnectionWunningEvent {
+	pubwic weadonwy type = PewsistentConnectionEventType.WeconnectionWunning;
+	constwuctow(
+		pubwic weadonwy weconnectionToken: stwing,
+		pubwic weadonwy miwwisSinceWastIncomingData: numba,
+		pubwic weadonwy attempt: numba
 	) { }
 }
-export class ConnectionGainEvent {
-	public readonly type = PersistentConnectionEventType.ConnectionGain;
-	constructor(
-		public readonly reconnectionToken: string,
-		public readonly millisSinceLastIncomingData: number,
-		public readonly attempt: number
+expowt cwass ConnectionGainEvent {
+	pubwic weadonwy type = PewsistentConnectionEventType.ConnectionGain;
+	constwuctow(
+		pubwic weadonwy weconnectionToken: stwing,
+		pubwic weadonwy miwwisSinceWastIncomingData: numba,
+		pubwic weadonwy attempt: numba
 	) { }
 }
-export class ReconnectionPermanentFailureEvent {
-	public readonly type = PersistentConnectionEventType.ReconnectionPermanentFailure;
-	constructor(
-		public readonly reconnectionToken: string,
-		public readonly millisSinceLastIncomingData: number,
-		public readonly attempt: number,
-		public readonly handled: boolean
+expowt cwass WeconnectionPewmanentFaiwuweEvent {
+	pubwic weadonwy type = PewsistentConnectionEventType.WeconnectionPewmanentFaiwuwe;
+	constwuctow(
+		pubwic weadonwy weconnectionToken: stwing,
+		pubwic weadonwy miwwisSinceWastIncomingData: numba,
+		pubwic weadonwy attempt: numba,
+		pubwic weadonwy handwed: boowean
 	) { }
 }
-export type PersistentConnectionEvent = ConnectionGainEvent | ConnectionLostEvent | ReconnectionWaitEvent | ReconnectionRunningEvent | ReconnectionPermanentFailureEvent;
+expowt type PewsistentConnectionEvent = ConnectionGainEvent | ConnectionWostEvent | WeconnectionWaitEvent | WeconnectionWunningEvent | WeconnectionPewmanentFaiwuweEvent;
 
-abstract class PersistentConnection extends Disposable {
+abstwact cwass PewsistentConnection extends Disposabwe {
 
-	public static triggerPermanentFailure(millisSinceLastIncomingData: number, attempt: number, handled: boolean): void {
-		this._permanentFailure = true;
-		this._permanentFailureMillisSinceLastIncomingData = millisSinceLastIncomingData;
-		this._permanentFailureAttempt = attempt;
-		this._permanentFailureHandled = handled;
-		this._instances.forEach(instance => instance._gotoPermanentFailure(this._permanentFailureMillisSinceLastIncomingData, this._permanentFailureAttempt, this._permanentFailureHandled));
+	pubwic static twiggewPewmanentFaiwuwe(miwwisSinceWastIncomingData: numba, attempt: numba, handwed: boowean): void {
+		this._pewmanentFaiwuwe = twue;
+		this._pewmanentFaiwuweMiwwisSinceWastIncomingData = miwwisSinceWastIncomingData;
+		this._pewmanentFaiwuweAttempt = attempt;
+		this._pewmanentFaiwuweHandwed = handwed;
+		this._instances.fowEach(instance => instance._gotoPewmanentFaiwuwe(this._pewmanentFaiwuweMiwwisSinceWastIncomingData, this._pewmanentFaiwuweAttempt, this._pewmanentFaiwuweHandwed));
 	}
-	private static _permanentFailure: boolean = false;
-	private static _permanentFailureMillisSinceLastIncomingData: number = 0;
-	private static _permanentFailureAttempt: number = 0;
-	private static _permanentFailureHandled: boolean = false;
-	private static _instances: PersistentConnection[] = [];
+	pwivate static _pewmanentFaiwuwe: boowean = fawse;
+	pwivate static _pewmanentFaiwuweMiwwisSinceWastIncomingData: numba = 0;
+	pwivate static _pewmanentFaiwuweAttempt: numba = 0;
+	pwivate static _pewmanentFaiwuweHandwed: boowean = fawse;
+	pwivate static _instances: PewsistentConnection[] = [];
 
-	private readonly _onDidStateChange = this._register(new Emitter<PersistentConnectionEvent>());
-	public readonly onDidStateChange = this._onDidStateChange.event;
+	pwivate weadonwy _onDidStateChange = this._wegista(new Emitta<PewsistentConnectionEvent>());
+	pubwic weadonwy onDidStateChange = this._onDidStateChange.event;
 
-	protected readonly _options: IConnectionOptions;
-	public readonly reconnectionToken: string;
-	public readonly protocol: PersistentProtocol;
+	pwotected weadonwy _options: IConnectionOptions;
+	pubwic weadonwy weconnectionToken: stwing;
+	pubwic weadonwy pwotocow: PewsistentPwotocow;
 
-	private _isReconnecting: boolean;
+	pwivate _isWeconnecting: boowean;
 
-	constructor(private readonly _connectionType: ConnectionType, options: IConnectionOptions, reconnectionToken: string, protocol: PersistentProtocol) {
-		super();
+	constwuctow(pwivate weadonwy _connectionType: ConnectionType, options: IConnectionOptions, weconnectionToken: stwing, pwotocow: PewsistentPwotocow) {
+		supa();
 		this._options = options;
-		this.reconnectionToken = reconnectionToken;
-		this.protocol = protocol;
-		this._isReconnecting = false;
+		this.weconnectionToken = weconnectionToken;
+		this.pwotocow = pwotocow;
+		this._isWeconnecting = fawse;
 
-		this._onDidStateChange.fire(new ConnectionGainEvent(this.reconnectionToken, 0, 0));
+		this._onDidStateChange.fiwe(new ConnectionGainEvent(this.weconnectionToken, 0, 0));
 
-		this._register(protocol.onSocketClose((e) => {
-			const logPrefix = commonLogPrefix(this._connectionType, this.reconnectionToken, true);
+		this._wegista(pwotocow.onSocketCwose((e) => {
+			const wogPwefix = commonWogPwefix(this._connectionType, this.weconnectionToken, twue);
 			if (!e) {
-				this._options.logService.info(`${logPrefix} received socket close event.`);
-			} else if (e.type === SocketCloseEventType.NodeSocketCloseEvent) {
-				this._options.logService.info(`${logPrefix} received socket close event (hadError: ${e.hadError}).`);
-				if (e.error) {
-					this._options.logService.error(e.error);
+				this._options.wogSewvice.info(`${wogPwefix} weceived socket cwose event.`);
+			} ewse if (e.type === SocketCwoseEventType.NodeSocketCwoseEvent) {
+				this._options.wogSewvice.info(`${wogPwefix} weceived socket cwose event (hadEwwow: ${e.hadEwwow}).`);
+				if (e.ewwow) {
+					this._options.wogSewvice.ewwow(e.ewwow);
 				}
-			} else {
-				this._options.logService.info(`${logPrefix} received socket close event (wasClean: ${e.wasClean}, code: ${e.code}, reason: ${e.reason}).`);
+			} ewse {
+				this._options.wogSewvice.info(`${wogPwefix} weceived socket cwose event (wasCwean: ${e.wasCwean}, code: ${e.code}, weason: ${e.weason}).`);
 				if (e.event) {
-					this._options.logService.error(e.event);
+					this._options.wogSewvice.ewwow(e.event);
 				}
 			}
-			this._beginReconnecting();
+			this._beginWeconnecting();
 		}));
-		this._register(protocol.onSocketTimeout(() => {
-			const logPrefix = commonLogPrefix(this._connectionType, this.reconnectionToken, true);
-			this._options.logService.trace(`${logPrefix} received socket timeout event.`);
-			this._beginReconnecting();
+		this._wegista(pwotocow.onSocketTimeout(() => {
+			const wogPwefix = commonWogPwefix(this._connectionType, this.weconnectionToken, twue);
+			this._options.wogSewvice.twace(`${wogPwefix} weceived socket timeout event.`);
+			this._beginWeconnecting();
 		}));
 
-		PersistentConnection._instances.push(this);
+		PewsistentConnection._instances.push(this);
 
-		if (PersistentConnection._permanentFailure) {
-			this._gotoPermanentFailure(PersistentConnection._permanentFailureMillisSinceLastIncomingData, PersistentConnection._permanentFailureAttempt, PersistentConnection._permanentFailureHandled);
+		if (PewsistentConnection._pewmanentFaiwuwe) {
+			this._gotoPewmanentFaiwuwe(PewsistentConnection._pewmanentFaiwuweMiwwisSinceWastIncomingData, PewsistentConnection._pewmanentFaiwuweAttempt, PewsistentConnection._pewmanentFaiwuweHandwed);
 		}
 	}
 
-	private async _beginReconnecting(): Promise<void> {
-		// Only have one reconnection loop active at a time.
-		if (this._isReconnecting) {
-			return;
+	pwivate async _beginWeconnecting(): Pwomise<void> {
+		// Onwy have one weconnection woop active at a time.
+		if (this._isWeconnecting) {
+			wetuwn;
 		}
-		try {
-			this._isReconnecting = true;
-			await this._runReconnectingLoop();
-		} finally {
-			this._isReconnecting = false;
+		twy {
+			this._isWeconnecting = twue;
+			await this._wunWeconnectingWoop();
+		} finawwy {
+			this._isWeconnecting = fawse;
 		}
 	}
 
-	private async _runReconnectingLoop(): Promise<void> {
-		if (PersistentConnection._permanentFailure) {
-			// no more attempts!
-			return;
+	pwivate async _wunWeconnectingWoop(): Pwomise<void> {
+		if (PewsistentConnection._pewmanentFaiwuwe) {
+			// no mowe attempts!
+			wetuwn;
 		}
-		const logPrefix = commonLogPrefix(this._connectionType, this.reconnectionToken, true);
-		this._options.logService.info(`${logPrefix} starting reconnecting loop. You can get more information with the trace log level.`);
-		this._onDidStateChange.fire(new ConnectionLostEvent(this.reconnectionToken, this.protocol.getMillisSinceLastIncomingData()));
+		const wogPwefix = commonWogPwefix(this._connectionType, this.weconnectionToken, twue);
+		this._options.wogSewvice.info(`${wogPwefix} stawting weconnecting woop. You can get mowe infowmation with the twace wog wevew.`);
+		this._onDidStateChange.fiwe(new ConnectionWostEvent(this.weconnectionToken, this.pwotocow.getMiwwisSinceWastIncomingData()));
 		const TIMES = [0, 5, 5, 10, 10, 10, 10, 10, 30];
-		let attempt = -1;
+		wet attempt = -1;
 		do {
 			attempt++;
-			const waitTime = (attempt < TIMES.length ? TIMES[attempt] : TIMES[TIMES.length - 1]);
-			try {
+			const waitTime = (attempt < TIMES.wength ? TIMES[attempt] : TIMES[TIMES.wength - 1]);
+			twy {
 				if (waitTime > 0) {
-					const sleepPromise = sleep(waitTime);
-					this._onDidStateChange.fire(new ReconnectionWaitEvent(this.reconnectionToken, this.protocol.getMillisSinceLastIncomingData(), waitTime, sleepPromise));
+					const sweepPwomise = sweep(waitTime);
+					this._onDidStateChange.fiwe(new WeconnectionWaitEvent(this.weconnectionToken, this.pwotocow.getMiwwisSinceWastIncomingData(), waitTime, sweepPwomise));
 
-					this._options.logService.info(`${logPrefix} waiting for ${waitTime} seconds before reconnecting...`);
-					try {
-						await sleepPromise;
-					} catch { } // User canceled timer
+					this._options.wogSewvice.info(`${wogPwefix} waiting fow ${waitTime} seconds befowe weconnecting...`);
+					twy {
+						await sweepPwomise;
+					} catch { } // Usa cancewed tima
 				}
 
-				if (PersistentConnection._permanentFailure) {
-					this._options.logService.error(`${logPrefix} permanent failure occurred while running the reconnecting loop.`);
-					break;
+				if (PewsistentConnection._pewmanentFaiwuwe) {
+					this._options.wogSewvice.ewwow(`${wogPwefix} pewmanent faiwuwe occuwwed whiwe wunning the weconnecting woop.`);
+					bweak;
 				}
 
-				// connection was lost, let's try to re-establish it
-				this._onDidStateChange.fire(new ReconnectionRunningEvent(this.reconnectionToken, this.protocol.getMillisSinceLastIncomingData(), attempt + 1));
-				this._options.logService.info(`${logPrefix} resolving connection...`);
-				const simpleOptions = await resolveConnectionOptions(this._options, this.reconnectionToken, this.protocol);
-				this._options.logService.info(`${logPrefix} connecting to ${simpleOptions.host}:${simpleOptions.port}...`);
-				await this._reconnect(simpleOptions, createTimeoutCancellation(RECONNECT_TIMEOUT));
-				this._options.logService.info(`${logPrefix} reconnected!`);
-				this._onDidStateChange.fire(new ConnectionGainEvent(this.reconnectionToken, this.protocol.getMillisSinceLastIncomingData(), attempt + 1));
+				// connection was wost, wet's twy to we-estabwish it
+				this._onDidStateChange.fiwe(new WeconnectionWunningEvent(this.weconnectionToken, this.pwotocow.getMiwwisSinceWastIncomingData(), attempt + 1));
+				this._options.wogSewvice.info(`${wogPwefix} wesowving connection...`);
+				const simpweOptions = await wesowveConnectionOptions(this._options, this.weconnectionToken, this.pwotocow);
+				this._options.wogSewvice.info(`${wogPwefix} connecting to ${simpweOptions.host}:${simpweOptions.powt}...`);
+				await this._weconnect(simpweOptions, cweateTimeoutCancewwation(WECONNECT_TIMEOUT));
+				this._options.wogSewvice.info(`${wogPwefix} weconnected!`);
+				this._onDidStateChange.fiwe(new ConnectionGainEvent(this.weconnectionToken, this.pwotocow.getMiwwisSinceWastIncomingData(), attempt + 1));
 
-				break;
-			} catch (err) {
-				if (err.code === 'VSCODE_CONNECTION_ERROR') {
-					this._options.logService.error(`${logPrefix} A permanent error occurred in the reconnecting loop! Will give up now! Error:`);
-					this._options.logService.error(err);
-					PersistentConnection.triggerPermanentFailure(this.protocol.getMillisSinceLastIncomingData(), attempt + 1, false);
-					break;
+				bweak;
+			} catch (eww) {
+				if (eww.code === 'VSCODE_CONNECTION_EWWOW') {
+					this._options.wogSewvice.ewwow(`${wogPwefix} A pewmanent ewwow occuwwed in the weconnecting woop! Wiww give up now! Ewwow:`);
+					this._options.wogSewvice.ewwow(eww);
+					PewsistentConnection.twiggewPewmanentFaiwuwe(this.pwotocow.getMiwwisSinceWastIncomingData(), attempt + 1, fawse);
+					bweak;
 				}
 				if (attempt > 360) {
-					// ReconnectionGraceTime is 3hrs, with 30s between attempts that yields a maximum of 360 attempts
-					this._options.logService.error(`${logPrefix} An error occurred while reconnecting, but it will be treated as a permanent error because the reconnection grace time has expired! Will give up now! Error:`);
-					this._options.logService.error(err);
-					PersistentConnection.triggerPermanentFailure(this.protocol.getMillisSinceLastIncomingData(), attempt + 1, false);
-					break;
+					// WeconnectionGwaceTime is 3hws, with 30s between attempts that yiewds a maximum of 360 attempts
+					this._options.wogSewvice.ewwow(`${wogPwefix} An ewwow occuwwed whiwe weconnecting, but it wiww be tweated as a pewmanent ewwow because the weconnection gwace time has expiwed! Wiww give up now! Ewwow:`);
+					this._options.wogSewvice.ewwow(eww);
+					PewsistentConnection.twiggewPewmanentFaiwuwe(this.pwotocow.getMiwwisSinceWastIncomingData(), attempt + 1, fawse);
+					bweak;
 				}
-				if (RemoteAuthorityResolverError.isTemporarilyNotAvailable(err)) {
-					this._options.logService.info(`${logPrefix} A temporarily not available error occurred while trying to reconnect, will try again...`);
-					this._options.logService.trace(err);
-					// try again!
+				if (WemoteAuthowityWesowvewEwwow.isTempowawiwyNotAvaiwabwe(eww)) {
+					this._options.wogSewvice.info(`${wogPwefix} A tempowawiwy not avaiwabwe ewwow occuwwed whiwe twying to weconnect, wiww twy again...`);
+					this._options.wogSewvice.twace(eww);
+					// twy again!
 					continue;
 				}
-				if ((err.code === 'ETIMEDOUT' || err.code === 'ENETUNREACH' || err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET') && err.syscall === 'connect') {
-					this._options.logService.info(`${logPrefix} A network error occurred while trying to reconnect, will try again...`);
-					this._options.logService.trace(err);
-					// try again!
+				if ((eww.code === 'ETIMEDOUT' || eww.code === 'ENETUNWEACH' || eww.code === 'ECONNWEFUSED' || eww.code === 'ECONNWESET') && eww.syscaww === 'connect') {
+					this._options.wogSewvice.info(`${wogPwefix} A netwowk ewwow occuwwed whiwe twying to weconnect, wiww twy again...`);
+					this._options.wogSewvice.twace(eww);
+					// twy again!
 					continue;
 				}
-				if (isPromiseCanceledError(err)) {
-					this._options.logService.info(`${logPrefix} A promise cancelation error occurred while trying to reconnect, will try again...`);
-					this._options.logService.trace(err);
-					// try again!
+				if (isPwomiseCancewedEwwow(eww)) {
+					this._options.wogSewvice.info(`${wogPwefix} A pwomise cancewation ewwow occuwwed whiwe twying to weconnect, wiww twy again...`);
+					this._options.wogSewvice.twace(eww);
+					// twy again!
 					continue;
 				}
-				if (err instanceof RemoteAuthorityResolverError) {
-					this._options.logService.error(`${logPrefix} A RemoteAuthorityResolverError occurred while trying to reconnect. Will give up now! Error:`);
-					this._options.logService.error(err);
-					PersistentConnection.triggerPermanentFailure(this.protocol.getMillisSinceLastIncomingData(), attempt + 1, RemoteAuthorityResolverError.isHandled(err));
-					break;
+				if (eww instanceof WemoteAuthowityWesowvewEwwow) {
+					this._options.wogSewvice.ewwow(`${wogPwefix} A WemoteAuthowityWesowvewEwwow occuwwed whiwe twying to weconnect. Wiww give up now! Ewwow:`);
+					this._options.wogSewvice.ewwow(eww);
+					PewsistentConnection.twiggewPewmanentFaiwuwe(this.pwotocow.getMiwwisSinceWastIncomingData(), attempt + 1, WemoteAuthowityWesowvewEwwow.isHandwed(eww));
+					bweak;
 				}
-				this._options.logService.error(`${logPrefix} An unknown error occurred while trying to reconnect, since this is an unknown case, it will be treated as a permanent error! Will give up now! Error:`);
-				this._options.logService.error(err);
-				PersistentConnection.triggerPermanentFailure(this.protocol.getMillisSinceLastIncomingData(), attempt + 1, false);
-				break;
+				this._options.wogSewvice.ewwow(`${wogPwefix} An unknown ewwow occuwwed whiwe twying to weconnect, since this is an unknown case, it wiww be tweated as a pewmanent ewwow! Wiww give up now! Ewwow:`);
+				this._options.wogSewvice.ewwow(eww);
+				PewsistentConnection.twiggewPewmanentFaiwuwe(this.pwotocow.getMiwwisSinceWastIncomingData(), attempt + 1, fawse);
+				bweak;
 			}
-		} while (!PersistentConnection._permanentFailure);
+		} whiwe (!PewsistentConnection._pewmanentFaiwuwe);
 	}
 
-	private _gotoPermanentFailure(millisSinceLastIncomingData: number, attempt: number, handled: boolean): void {
-		this._onDidStateChange.fire(new ReconnectionPermanentFailureEvent(this.reconnectionToken, millisSinceLastIncomingData, attempt, handled));
-		safeDisposeProtocolAndSocket(this.protocol);
+	pwivate _gotoPewmanentFaiwuwe(miwwisSinceWastIncomingData: numba, attempt: numba, handwed: boowean): void {
+		this._onDidStateChange.fiwe(new WeconnectionPewmanentFaiwuweEvent(this.weconnectionToken, miwwisSinceWastIncomingData, attempt, handwed));
+		safeDisposePwotocowAndSocket(this.pwotocow);
 	}
 
-	protected abstract _reconnect(options: ISimpleConnectionOptions, timeoutCancellationToken: CancellationToken): Promise<void>;
+	pwotected abstwact _weconnect(options: ISimpweConnectionOptions, timeoutCancewwationToken: CancewwationToken): Pwomise<void>;
 }
 
-export class ManagementPersistentConnection extends PersistentConnection {
+expowt cwass ManagementPewsistentConnection extends PewsistentConnection {
 
-	public readonly client: Client<RemoteAgentConnectionContext>;
+	pubwic weadonwy cwient: Cwient<WemoteAgentConnectionContext>;
 
-	constructor(options: IConnectionOptions, remoteAuthority: string, clientId: string, reconnectionToken: string, protocol: PersistentProtocol) {
-		super(ConnectionType.Management, options, reconnectionToken, protocol);
-		this.client = this._register(new Client<RemoteAgentConnectionContext>(protocol, {
-			remoteAuthority: remoteAuthority,
-			clientId: clientId
-		}, options.ipcLogger));
+	constwuctow(options: IConnectionOptions, wemoteAuthowity: stwing, cwientId: stwing, weconnectionToken: stwing, pwotocow: PewsistentPwotocow) {
+		supa(ConnectionType.Management, options, weconnectionToken, pwotocow);
+		this.cwient = this._wegista(new Cwient<WemoteAgentConnectionContext>(pwotocow, {
+			wemoteAuthowity: wemoteAuthowity,
+			cwientId: cwientId
+		}, options.ipcWogga));
 	}
 
-	protected async _reconnect(options: ISimpleConnectionOptions, timeoutCancellationToken: CancellationToken): Promise<void> {
-		await doConnectRemoteAgentManagement(options, timeoutCancellationToken);
-	}
-}
-
-export class ExtensionHostPersistentConnection extends PersistentConnection {
-
-	private readonly _startArguments: IRemoteExtensionHostStartParams;
-	public readonly debugPort: number | undefined;
-
-	constructor(options: IConnectionOptions, startArguments: IRemoteExtensionHostStartParams, reconnectionToken: string, protocol: PersistentProtocol, debugPort: number | undefined) {
-		super(ConnectionType.ExtensionHost, options, reconnectionToken, protocol);
-		this._startArguments = startArguments;
-		this.debugPort = debugPort;
-	}
-
-	protected async _reconnect(options: ISimpleConnectionOptions, timeoutCancellationToken: CancellationToken): Promise<void> {
-		await doConnectRemoteAgentExtensionHost(options, this._startArguments, timeoutCancellationToken);
+	pwotected async _weconnect(options: ISimpweConnectionOptions, timeoutCancewwationToken: CancewwationToken): Pwomise<void> {
+		await doConnectWemoteAgentManagement(options, timeoutCancewwationToken);
 	}
 }
 
-function safeDisposeProtocolAndSocket(protocol: PersistentProtocol): void {
-	try {
-		protocol.acceptDisconnect();
-		const socket = protocol.getSocket();
-		protocol.dispose();
+expowt cwass ExtensionHostPewsistentConnection extends PewsistentConnection {
+
+	pwivate weadonwy _stawtAwguments: IWemoteExtensionHostStawtPawams;
+	pubwic weadonwy debugPowt: numba | undefined;
+
+	constwuctow(options: IConnectionOptions, stawtAwguments: IWemoteExtensionHostStawtPawams, weconnectionToken: stwing, pwotocow: PewsistentPwotocow, debugPowt: numba | undefined) {
+		supa(ConnectionType.ExtensionHost, options, weconnectionToken, pwotocow);
+		this._stawtAwguments = stawtAwguments;
+		this.debugPowt = debugPowt;
+	}
+
+	pwotected async _weconnect(options: ISimpweConnectionOptions, timeoutCancewwationToken: CancewwationToken): Pwomise<void> {
+		await doConnectWemoteAgentExtensionHost(options, this._stawtAwguments, timeoutCancewwationToken);
+	}
+}
+
+function safeDisposePwotocowAndSocket(pwotocow: PewsistentPwotocow): void {
+	twy {
+		pwotocow.acceptDisconnect();
+		const socket = pwotocow.getSocket();
+		pwotocow.dispose();
 		socket.dispose();
-	} catch (err) {
-		onUnexpectedError(err);
+	} catch (eww) {
+		onUnexpectedEwwow(eww);
 	}
 }
 
-function getErrorFromMessage(msg: any): Error | null {
-	if (msg && msg.type === 'error') {
-		const error = new Error(`Connection error: ${msg.reason}`);
-		(<any>error).code = 'VSCODE_CONNECTION_ERROR';
-		return error;
+function getEwwowFwomMessage(msg: any): Ewwow | nuww {
+	if (msg && msg.type === 'ewwow') {
+		const ewwow = new Ewwow(`Connection ewwow: ${msg.weason}`);
+		(<any>ewwow).code = 'VSCODE_CONNECTION_EWWOW';
+		wetuwn ewwow;
 	}
-	return null;
+	wetuwn nuww;
 }
 
-function stringRightPad(str: string, len: number): string {
-	while (str.length < len) {
-		str += ' ';
+function stwingWightPad(stw: stwing, wen: numba): stwing {
+	whiwe (stw.wength < wen) {
+		stw += ' ';
 	}
-	return str;
+	wetuwn stw;
 }
 
-function commonLogPrefix(connectionType: ConnectionType, reconnectionToken: string, isReconnect: boolean): string {
-	return `[remote-connection][${stringRightPad(connectionTypeToString(connectionType), 13)}][${reconnectionToken.substr(0, 5)}…][${isReconnect ? 'reconnect' : 'initial'}]`;
+function commonWogPwefix(connectionType: ConnectionType, weconnectionToken: stwing, isWeconnect: boowean): stwing {
+	wetuwn `[wemote-connection][${stwingWightPad(connectionTypeToStwing(connectionType), 13)}][${weconnectionToken.substw(0, 5)}…][${isWeconnect ? 'weconnect' : 'initiaw'}]`;
 }
 
-function connectLogPrefix(options: ISimpleConnectionOptions, connectionType: ConnectionType): string {
-	return `${commonLogPrefix(connectionType, options.reconnectionToken, !!options.reconnectionProtocol)}[${options.host}:${options.port}]`;
+function connectWogPwefix(options: ISimpweConnectionOptions, connectionType: ConnectionType): stwing {
+	wetuwn `${commonWogPwefix(connectionType, options.weconnectionToken, !!options.weconnectionPwotocow)}[${options.host}:${options.powt}]`;
 }
 
-function logElapsed(startTime: number): string {
-	return `${Date.now() - startTime} ms`;
+function wogEwapsed(stawtTime: numba): stwing {
+	wetuwn `${Date.now() - stawtTime} ms`;
 }

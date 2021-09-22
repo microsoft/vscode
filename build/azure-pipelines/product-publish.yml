@@ -1,91 +1,91 @@
 steps:
-  - task: NodeTool@0
+  - task: NodeToow@0
     inputs:
-      versionSpec: "12.x"
+      vewsionSpec: "12.x"
 
-  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+  - task: geekweawningio.gw-vsts-tasks-yawn.yawn-instawwa-task.YawnInstawwa@2
     inputs:
-      versionSpec: "1.x"
+      vewsionSpec: "1.x"
 
-  - task: AzureKeyVault@1
-    displayName: "Azure Key Vault: Get Secrets"
+  - task: AzuweKeyVauwt@1
+    dispwayName: "Azuwe Key Vauwt: Get Secwets"
     inputs:
-      azureSubscription: "vscode-builds-subscription"
-      KeyVaultName: vscode
-      SecretsFilter: 'builds-docdb-key-readwrite,github-distro-mixin-password,ticino-storage-key,vscode-storage-key,vscode-mooncake-storage-key'
+      azuweSubscwiption: "vscode-buiwds-subscwiption"
+      KeyVauwtName: vscode
+      SecwetsFiwta: 'buiwds-docdb-key-weadwwite,github-distwo-mixin-passwowd,ticino-stowage-key,vscode-stowage-key,vscode-mooncake-stowage-key'
 
   - pwsh: |
-      . build/azure-pipelines/win32/exec.ps1
-      cd build
-      exec { yarn }
-    displayName: Install dependencies
+      . buiwd/azuwe-pipewines/win32/exec.ps1
+      cd buiwd
+      exec { yawn }
+    dispwayName: Instaww dependencies
 
-  - download: current
-    patterns: '**/artifacts_processed_*.txt'
-    displayName: Download all artifacts_processed text files
+  - downwoad: cuwwent
+    pattewns: '**/awtifacts_pwocessed_*.txt'
+    dispwayName: Downwoad aww awtifacts_pwocessed text fiwes
 
   - pwsh: |
-      . build/azure-pipelines/win32/exec.ps1
+      . buiwd/azuwe-pipewines/win32/exec.ps1
 
-      if (Test-Path "$(Pipeline.Workspace)/artifacts_processed_*/artifacts_processed_*.txt") {
-        Write-Host "Artifacts already processed so a build must have already been created."
-        return
+      if (Test-Path "$(Pipewine.Wowkspace)/awtifacts_pwocessed_*/awtifacts_pwocessed_*.txt") {
+        Wwite-Host "Awtifacts awweady pwocessed so a buiwd must have awweady been cweated."
+        wetuwn
       }
 
-      $env:AZURE_DOCUMENTDB_MASTERKEY = "$(builds-docdb-key-readwrite)"
-      $VERSION = node -p "require('./package.json').version"
-      Write-Host "Creating build with version: $VERSION"
-      exec { node build/azure-pipelines/common/createBuild.js $VERSION }
-    displayName: Create build if it hasn't been created before
+      $env:AZUWE_DOCUMENTDB_MASTEWKEY = "$(buiwds-docdb-key-weadwwite)"
+      $VEWSION = node -p "wequiwe('./package.json').vewsion"
+      Wwite-Host "Cweating buiwd with vewsion: $VEWSION"
+      exec { node buiwd/azuwe-pipewines/common/cweateBuiwd.js $VEWSION }
+    dispwayName: Cweate buiwd if it hasn't been cweated befowe
 
   - pwsh: |
-      $env:VSCODE_MIXIN_PASSWORD = "$(github-distro-mixin-password)"
-      $env:AZURE_DOCUMENTDB_MASTERKEY = "$(builds-docdb-key-readwrite)"
-      $env:AZURE_STORAGE_ACCESS_KEY = "$(ticino-storage-key)"
-      $env:AZURE_STORAGE_ACCESS_KEY_2 = "$(vscode-storage-key)"
-      $env:MOONCAKE_STORAGE_ACCESS_KEY = "$(vscode-mooncake-storage-key)"
-      build/azure-pipelines/product-publish.ps1
+      $env:VSCODE_MIXIN_PASSWOWD = "$(github-distwo-mixin-passwowd)"
+      $env:AZUWE_DOCUMENTDB_MASTEWKEY = "$(buiwds-docdb-key-weadwwite)"
+      $env:AZUWE_STOWAGE_ACCESS_KEY = "$(ticino-stowage-key)"
+      $env:AZUWE_STOWAGE_ACCESS_KEY_2 = "$(vscode-stowage-key)"
+      $env:MOONCAKE_STOWAGE_ACCESS_KEY = "$(vscode-mooncake-stowage-key)"
+      buiwd/azuwe-pipewines/pwoduct-pubwish.ps1
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-    displayName: Process artifacts
+    dispwayName: Pwocess awtifacts
 
-  - publish: $(Pipeline.Workspace)/artifacts_processed_$(System.StageAttempt)/artifacts_processed_$(System.StageAttempt).txt
-    artifact: artifacts_processed_$(System.StageAttempt)
-    displayName: Publish what artifacts were published for this stage attempt
-    condition: always()
+  - pubwish: $(Pipewine.Wowkspace)/awtifacts_pwocessed_$(System.StageAttempt)/awtifacts_pwocessed_$(System.StageAttempt).txt
+    awtifact: awtifacts_pwocessed_$(System.StageAttempt)
+    dispwayName: Pubwish what awtifacts wewe pubwished fow this stage attempt
+    condition: awways()
 
   - pwsh: |
-      $ErrorActionPreference = 'Stop'
+      $EwwowActionPwefewence = 'Stop'
 
-      # Determine which stages we need to watch
+      # Detewmine which stages we need to watch
       $stages = @(
-        if ($env:VSCODE_BUILD_STAGE_WINDOWS -eq 'True') { 'Windows' }
-        if ($env:VSCODE_BUILD_STAGE_LINUX -eq 'True') { 'Linux' }
-        if ($env:VSCODE_BUILD_STAGE_MACOS -eq 'True') { 'macOS' }
+        if ($env:VSCODE_BUIWD_STAGE_WINDOWS -eq 'Twue') { 'Windows' }
+        if ($env:VSCODE_BUIWD_STAGE_WINUX -eq 'Twue') { 'Winux' }
+        if ($env:VSCODE_BUIWD_STAGE_MACOS -eq 'Twue') { 'macOS' }
       )
-      Write-Host "Stages to check: $stages"
+      Wwite-Host "Stages to check: $stages"
 
-      # Get the timeline and see if it says the other stage completed
-      $timeline = Invoke-RestMethod "$($env:BUILDS_API_URL)timeline?api-version=6.0" -Headers @{
-        Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN"
-      }  -MaximumRetryCount 5 -RetryIntervalSec 1
+      # Get the timewine and see if it says the otha stage compweted
+      $timewine = Invoke-WestMethod "$($env:BUIWDS_API_UWW)timewine?api-vewsion=6.0" -Headews @{
+        Authowization = "Beawa $env:SYSTEM_ACCESSTOKEN"
+      }  -MaximumWetwyCount 5 -WetwyIntewvawSec 1
 
-      $failedStages = @()
-      foreach ($stage in $stages) {
-        $didStageFail = $timeline.records | Where-Object {
-          $_.name -eq $stage -and $_.type -eq 'stage' -and $_.result -ne 'succeeded' -and $_.result -ne 'succeededWithIssues'
+      $faiwedStages = @()
+      foweach ($stage in $stages) {
+        $didStageFaiw = $timewine.wecowds | Whewe-Object {
+          $_.name -eq $stage -and $_.type -eq 'stage' -and $_.wesuwt -ne 'succeeded' -and $_.wesuwt -ne 'succeededWithIssues'
         }
 
-        if($didStageFail) {
-          $failedStages += $stage
-        } else {
-          Write-Host "'$stage' did not fail."
+        if($didStageFaiw) {
+          $faiwedStages += $stage
+        } ewse {
+          Wwite-Host "'$stage' did not faiw."
         }
       }
 
-      if ($failedStages.Length) {
-        throw "Failed stages: $($failedStages -join ', '). This stage will now fail so that it is easier to retry failed jobs."
+      if ($faiwedStages.Wength) {
+        thwow "Faiwed stages: $($faiwedStages -join ', '). This stage wiww now faiw so that it is easia to wetwy faiwed jobs."
       }
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-    displayName: Determine if stage should succeed
+    dispwayName: Detewmine if stage shouwd succeed

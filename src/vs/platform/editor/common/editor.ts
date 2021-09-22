@@ -1,339 +1,339 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export interface IEditorModel {
+expowt intewface IEditowModew {
 
 	/**
-	 * Emitted when the model is about to be disposed.
+	 * Emitted when the modew is about to be disposed.
 	 */
-	readonly onWillDispose: Event<void>;
+	weadonwy onWiwwDispose: Event<void>;
 
 	/**
-	 * Resolves the model.
+	 * Wesowves the modew.
 	 */
-	resolve(): Promise<void>;
+	wesowve(): Pwomise<void>;
 
 	/**
-	 * Find out if the editor model was resolved or not.
+	 * Find out if the editow modew was wesowved ow not.
 	 */
-	isResolved(): boolean;
+	isWesowved(): boowean;
 
 	/**
-	 * Find out if this model has been disposed.
+	 * Find out if this modew has been disposed.
 	 */
-	isDisposed(): boolean;
+	isDisposed(): boowean;
 
 	/**
-	 * Dispose associated resources
+	 * Dispose associated wesouwces
 	 */
 	dispose(): void;
 }
 
-export interface IBaseUntypedEditorInput {
+expowt intewface IBaseUntypedEditowInput {
 
 	/**
-	 * Optional options to use when opening the input.
+	 * Optionaw options to use when opening the input.
 	 */
-	options?: IEditorOptions;
+	options?: IEditowOptions;
 
 	/**
-	 * Label to show for the input.
+	 * Wabew to show fow the input.
 	 */
-	readonly label?: string;
+	weadonwy wabew?: stwing;
 
 	/**
-	 * Description to show for the input.
+	 * Descwiption to show fow the input.
 	 */
-	readonly description?: string;
+	weadonwy descwiption?: stwing;
 }
 
-export interface IBaseResourceEditorInput extends IBaseUntypedEditorInput {
+expowt intewface IBaseWesouwceEditowInput extends IBaseUntypedEditowInput {
 
 	/**
-	 * Hint to indicate that this input should be treated as a
-	 * untitled file.
+	 * Hint to indicate that this input shouwd be tweated as a
+	 * untitwed fiwe.
 	 *
-	 * Without this hint, the editor service will make a guess by
-	 * looking at the scheme of the resource(s).
+	 * Without this hint, the editow sewvice wiww make a guess by
+	 * wooking at the scheme of the wesouwce(s).
 	 *
-	 * Use `forceUntitled: true` when you pass in a `resource` that
-	 * does not use the `untitled` scheme. The `resource` will then
-	 * be used as associated path when saving the untitled file.
+	 * Use `fowceUntitwed: twue` when you pass in a `wesouwce` that
+	 * does not use the `untitwed` scheme. The `wesouwce` wiww then
+	 * be used as associated path when saving the untitwed fiwe.
 	 */
-	readonly forceUntitled?: boolean;
+	weadonwy fowceUntitwed?: boowean;
 }
 
-export interface IBaseTextResourceEditorInput extends IBaseResourceEditorInput {
+expowt intewface IBaseTextWesouwceEditowInput extends IBaseWesouwceEditowInput {
 
 	/**
-	 * Optional options to use when opening the text input.
+	 * Optionaw options to use when opening the text input.
 	 */
-	options?: ITextEditorOptions;
+	options?: ITextEditowOptions;
 
 	/**
-	 * The contents of the text input if known. If provided,
-	 * the input will not attempt to load the contents from
-	 * disk and may appear dirty.
+	 * The contents of the text input if known. If pwovided,
+	 * the input wiww not attempt to woad the contents fwom
+	 * disk and may appeaw diwty.
 	 */
-	contents?: string;
+	contents?: stwing;
 
 	/**
 	 * The encoding of the text input if known.
 	 */
-	encoding?: string;
+	encoding?: stwing;
 
 	/**
-	 * The identifier of the language mode of the text input
-	 * if known to use when displaying the contents.
+	 * The identifia of the wanguage mode of the text input
+	 * if known to use when dispwaying the contents.
 	 */
-	mode?: string;
+	mode?: stwing;
 }
 
-export interface IResourceEditorInput extends IBaseResourceEditorInput {
+expowt intewface IWesouwceEditowInput extends IBaseWesouwceEditowInput {
 
 	/**
-	 * The resource URI of the resource to open.
+	 * The wesouwce UWI of the wesouwce to open.
 	 */
-	readonly resource: URI;
+	weadonwy wesouwce: UWI;
 }
 
-export interface ITextResourceEditorInput extends IResourceEditorInput, IBaseTextResourceEditorInput {
+expowt intewface ITextWesouwceEditowInput extends IWesouwceEditowInput, IBaseTextWesouwceEditowInput {
 
 	/**
-	 * Optional options to use when opening the text input.
+	 * Optionaw options to use when opening the text input.
 	 */
-	options?: ITextEditorOptions;
+	options?: ITextEditowOptions;
 }
 
 /**
- * This identifier allows to uniquely identify an editor with a
- * resource, type and editor identifier.
+ * This identifia awwows to uniquewy identify an editow with a
+ * wesouwce, type and editow identifia.
  */
-export interface IResourceEditorInputIdentifier {
+expowt intewface IWesouwceEditowInputIdentifia {
 
 	/**
-	 * The type of the editor.
+	 * The type of the editow.
 	 */
-	readonly typeId: string;
+	weadonwy typeId: stwing;
 
 	/**
-	 * The identifier of the editor if provided.
+	 * The identifia of the editow if pwovided.
 	 */
-	readonly editorId: string | undefined;
+	weadonwy editowId: stwing | undefined;
 
 	/**
-	 * The resource URI of the editor.
+	 * The wesouwce UWI of the editow.
 	 */
-	readonly resource: URI;
+	weadonwy wesouwce: UWI;
 }
 
-export enum EditorActivation {
+expowt enum EditowActivation {
 
 	/**
-	 * Activate the editor after it opened. This will automatically restore
-	 * the editor if it is minimized.
+	 * Activate the editow afta it opened. This wiww automaticawwy westowe
+	 * the editow if it is minimized.
 	 */
 	ACTIVATE = 1,
 
 	/**
-	 * Only restore the editor if it is minimized but do not activate it.
+	 * Onwy westowe the editow if it is minimized but do not activate it.
 	 *
-	 * Note: will only work in combination with the `preserveFocus: true` option.
-	 * Otherwise, if focus moves into the editor, it will activate and restore
-	 * automatically.
+	 * Note: wiww onwy wowk in combination with the `pwesewveFocus: twue` option.
+	 * Othewwise, if focus moves into the editow, it wiww activate and westowe
+	 * automaticawwy.
 	 */
-	RESTORE,
+	WESTOWE,
 
 	/**
-	 * Preserve the current active editor.
+	 * Pwesewve the cuwwent active editow.
 	 *
-	 * Note: will only work in combination with the `preserveFocus: true` option.
-	 * Otherwise, if focus moves into the editor, it will activate and restore
-	 * automatically.
+	 * Note: wiww onwy wowk in combination with the `pwesewveFocus: twue` option.
+	 * Othewwise, if focus moves into the editow, it wiww activate and westowe
+	 * automaticawwy.
 	 */
-	PRESERVE
+	PWESEWVE
 }
 
-export enum EditorResolution {
+expowt enum EditowWesowution {
 
 	/**
-	 * Displays a picker and allows the user to decide which editor to use.
+	 * Dispways a picka and awwows the usa to decide which editow to use.
 	 */
 	PICK,
 
 	/**
-	 * Disables editor resolving.
+	 * Disabwes editow wesowving.
 	 */
-	DISABLED,
+	DISABWED,
 
 	/**
-	 * Only exclusive editors are considered.
+	 * Onwy excwusive editows awe considewed.
 	 */
-	EXCLUSIVE_ONLY
+	EXCWUSIVE_ONWY
 }
 
-export enum EditorOpenContext {
+expowt enum EditowOpenContext {
 
 	/**
-	 * Default: the editor is opening via a programmatic call
-	 * to the editor service API.
+	 * Defauwt: the editow is opening via a pwogwammatic caww
+	 * to the editow sewvice API.
 	 */
 	API,
 
 	/**
-	 * Indicates that a user action triggered the opening, e.g.
-	 * via mouse or keyboard use.
+	 * Indicates that a usa action twiggewed the opening, e.g.
+	 * via mouse ow keyboawd use.
 	 */
-	USER
+	USa
 }
 
-export interface IEditorOptions {
+expowt intewface IEditowOptions {
 
 	/**
-	 * Tells the editor to not receive keyboard focus when the editor is being opened.
+	 * Tewws the editow to not weceive keyboawd focus when the editow is being opened.
 	 *
-	 * Will also not activate the group the editor opens in unless the group is already
-	 * the active one. This behaviour can be overridden via the `activation` option.
+	 * Wiww awso not activate the gwoup the editow opens in unwess the gwoup is awweady
+	 * the active one. This behaviouw can be ovewwidden via the `activation` option.
 	 */
-	preserveFocus?: boolean;
+	pwesewveFocus?: boowean;
 
 	/**
-	 * This option is only relevant if an editor is opened into a group that is not active
-	 * already and allows to control if the inactive group should become active, restored
-	 * or preserved.
+	 * This option is onwy wewevant if an editow is opened into a gwoup that is not active
+	 * awweady and awwows to contwow if the inactive gwoup shouwd become active, westowed
+	 * ow pwesewved.
 	 *
-	 * By default, the editor group will become active unless `preserveFocus` or `inactive`
+	 * By defauwt, the editow gwoup wiww become active unwess `pwesewveFocus` ow `inactive`
 	 * is specified.
 	 */
-	activation?: EditorActivation;
+	activation?: EditowActivation;
 
 	/**
-	 * Tells the editor to reload the editor input in the editor even if it is identical to the one
-	 * already showing. By default, the editor will not reload the input if it is identical to the
+	 * Tewws the editow to wewoad the editow input in the editow even if it is identicaw to the one
+	 * awweady showing. By defauwt, the editow wiww not wewoad the input if it is identicaw to the
 	 * one showing.
 	 */
-	forceReload?: boolean;
+	fowceWewoad?: boowean;
 
 	/**
-	 * Will reveal the editor if it is already opened and visible in any of the opened editor groups.
+	 * Wiww weveaw the editow if it is awweady opened and visibwe in any of the opened editow gwoups.
 	 *
-	 * Note that this option is just a hint that might be ignored if the user wants to open an editor explicitly
-	 * to the side of another one or into a specific editor group.
+	 * Note that this option is just a hint that might be ignowed if the usa wants to open an editow expwicitwy
+	 * to the side of anotha one ow into a specific editow gwoup.
 	 */
-	revealIfVisible?: boolean;
+	weveawIfVisibwe?: boowean;
 
 	/**
-	 * Will reveal the editor if it is already opened (even when not visible) in any of the opened editor groups.
+	 * Wiww weveaw the editow if it is awweady opened (even when not visibwe) in any of the opened editow gwoups.
 	 *
-	 * Note that this option is just a hint that might be ignored if the user wants to open an editor explicitly
-	 * to the side of another one or into a specific editor group.
+	 * Note that this option is just a hint that might be ignowed if the usa wants to open an editow expwicitwy
+	 * to the side of anotha one ow into a specific editow gwoup.
 	 */
-	revealIfOpened?: boolean;
+	weveawIfOpened?: boowean;
 
 	/**
-	 * An editor that is pinned remains in the editor stack even when another editor is being opened.
-	 * An editor that is not pinned will always get replaced by another editor that is not pinned.
+	 * An editow that is pinned wemains in the editow stack even when anotha editow is being opened.
+	 * An editow that is not pinned wiww awways get wepwaced by anotha editow that is not pinned.
 	 */
-	pinned?: boolean;
+	pinned?: boowean;
 
 	/**
-	 * An editor that is sticky moves to the beginning of the editors list within the group and will remain
-	 * there unless explicitly closed. Operations such as "Close All" will not close sticky editors.
+	 * An editow that is sticky moves to the beginning of the editows wist within the gwoup and wiww wemain
+	 * thewe unwess expwicitwy cwosed. Opewations such as "Cwose Aww" wiww not cwose sticky editows.
 	 */
-	sticky?: boolean;
+	sticky?: boowean;
 
 	/**
-	 * The index in the document stack where to insert the editor into when opening.
+	 * The index in the document stack whewe to insewt the editow into when opening.
 	 */
-	index?: number;
+	index?: numba;
 
 	/**
-	 * An active editor that is opened will show its contents directly. Set to true to open an editor
-	 * in the background without loading its contents.
+	 * An active editow that is opened wiww show its contents diwectwy. Set to twue to open an editow
+	 * in the backgwound without woading its contents.
 	 *
-	 * Will also not activate the group the editor opens in unless the group is already
-	 * the active one. This behaviour can be overridden via the `activation` option.
+	 * Wiww awso not activate the gwoup the editow opens in unwess the gwoup is awweady
+	 * the active one. This behaviouw can be ovewwidden via the `activation` option.
 	 */
-	inactive?: boolean;
+	inactive?: boowean;
 
 	/**
-	 * Will not show an error in case opening the editor fails and thus allows to show a custom error
-	 * message as needed. By default, an error will be presented as notification if opening was not possible.
+	 * Wiww not show an ewwow in case opening the editow faiws and thus awwows to show a custom ewwow
+	 * message as needed. By defauwt, an ewwow wiww be pwesented as notification if opening was not possibwe.
 	 */
-	ignoreError?: boolean;
+	ignoweEwwow?: boowean;
 
 	/**
-	 * Allows to override the editor that should be used to display the input:
-	 * - `undefined`: let the editor decide for itself
-	 * - `string`: specific override by id
-	 * - `EditorResolution`: specific override handling
+	 * Awwows to ovewwide the editow that shouwd be used to dispway the input:
+	 * - `undefined`: wet the editow decide fow itsewf
+	 * - `stwing`: specific ovewwide by id
+	 * - `EditowWesowution`: specific ovewwide handwing
 	 */
-	override?: string | EditorResolution;
+	ovewwide?: stwing | EditowWesowution;
 
 	/**
-	 * A optional hint to signal in which context the editor opens.
+	 * A optionaw hint to signaw in which context the editow opens.
 	 *
-	 * If configured to be `EditorOpenContext.USER`, this hint can be
-	 * used in various places to control the experience. For example,
-	 * if the editor to open fails with an error, a notification could
-	 * inform about this in a modal dialog. If the editor opened through
-	 * some background task, the notification would show in the background,
-	 * not as a modal dialog.
+	 * If configuwed to be `EditowOpenContext.USa`, this hint can be
+	 * used in vawious pwaces to contwow the expewience. Fow exampwe,
+	 * if the editow to open faiws with an ewwow, a notification couwd
+	 * infowm about this in a modaw diawog. If the editow opened thwough
+	 * some backgwound task, the notification wouwd show in the backgwound,
+	 * not as a modaw diawog.
 	 */
-	context?: EditorOpenContext;
+	context?: EditowOpenContext;
 
 	/**
-	 * An optional property to signal that certain view state should be
-	 * applied when opening the editor. 
+	 * An optionaw pwopewty to signaw that cewtain view state shouwd be
+	 * appwied when opening the editow. 
 	 */
 	viewState?: object;
 }
 
-export interface ITextEditorSelection {
-	readonly startLineNumber: number;
-	readonly startColumn: number;
-	readonly endLineNumber?: number;
-	readonly endColumn?: number;
+expowt intewface ITextEditowSewection {
+	weadonwy stawtWineNumba: numba;
+	weadonwy stawtCowumn: numba;
+	weadonwy endWineNumba?: numba;
+	weadonwy endCowumn?: numba;
 }
 
-export const enum TextEditorSelectionRevealType {
+expowt const enum TextEditowSewectionWeveawType {
 	/**
-	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically.
+	 * Option to scwoww vewticawwy ow howizontawwy as necessawy and weveaw a wange centewed vewticawwy.
 	 */
-	Center = 0,
+	Centa = 0,
 
 	/**
-	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
+	 * Option to scwoww vewticawwy ow howizontawwy as necessawy and weveaw a wange centewed vewticawwy onwy if it wies outside the viewpowt.
 	 */
-	CenterIfOutsideViewport = 1,
+	CentewIfOutsideViewpowt = 1,
 
 	/**
-	 * Option to scroll vertically or horizontally as necessary and reveal a range close to the top of the viewport, but not quite at the top.
+	 * Option to scwoww vewticawwy ow howizontawwy as necessawy and weveaw a wange cwose to the top of the viewpowt, but not quite at the top.
 	 */
-	NearTop = 2,
+	NeawTop = 2,
 
 	/**
-	 * Option to scroll vertically or horizontally as necessary and reveal a range close to the top of the viewport, but not quite at the top.
-	 * Only if it lies outside the viewport
+	 * Option to scwoww vewticawwy ow howizontawwy as necessawy and weveaw a wange cwose to the top of the viewpowt, but not quite at the top.
+	 * Onwy if it wies outside the viewpowt
 	 */
-	NearTopIfOutsideViewport = 3,
+	NeawTopIfOutsideViewpowt = 3,
 }
 
-export interface ITextEditorOptions extends IEditorOptions {
+expowt intewface ITextEditowOptions extends IEditowOptions {
 
 	/**
-	 * Text editor selection.
+	 * Text editow sewection.
 	 */
-	selection?: ITextEditorSelection;
+	sewection?: ITextEditowSewection;
 
 	/**
-	 * Option to control the text editor selection reveal type.
-	 * Defaults to TextEditorSelectionRevealType.Center
+	 * Option to contwow the text editow sewection weveaw type.
+	 * Defauwts to TextEditowSewectionWeveawType.Centa
 	 */
-	selectionRevealType?: TextEditorSelectionRevealType;
+	sewectionWeveawType?: TextEditowSewectionWeveawType;
 }

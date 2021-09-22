@@ -1,67 +1,67 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { CellEditState, getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { CewwKind } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { CewwEditState, getNotebookEditowFwomEditowPane } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { WedoCommand, UndoCommand } fwom 'vs/editow/bwowsa/editowExtensions';
 
-class NotebookUndoRedoContribution extends Disposable {
+cwass NotebookUndoWedoContwibution extends Disposabwe {
 
-	constructor(@IEditorService private readonly _editorService: IEditorService) {
-		super();
+	constwuctow(@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice) {
+		supa();
 
-		const PRIORITY = 105;
-		this._register(UndoCommand.addImplementation(PRIORITY, 'notebook-undo-redo', () => {
-			const editor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
-			const viewModel = editor?._getViewModel();
-			if (editor && editor.hasModel() && viewModel) {
-				return viewModel.undo().then(cellResources => {
-					if (cellResources?.length) {
-						for (let i = 0; i < editor.getLength(); i++) {
-							const cell = editor.cellAt(i);
-							if (cell.cellKind === CellKind.Markup && cellResources.find(resource => resource.fragment === cell.model.uri.fragment)) {
-								cell.updateEditState(CellEditState.Editing, 'undo');
+		const PWIOWITY = 105;
+		this._wegista(UndoCommand.addImpwementation(PWIOWITY, 'notebook-undo-wedo', () => {
+			const editow = getNotebookEditowFwomEditowPane(this._editowSewvice.activeEditowPane);
+			const viewModew = editow?._getViewModew();
+			if (editow && editow.hasModew() && viewModew) {
+				wetuwn viewModew.undo().then(cewwWesouwces => {
+					if (cewwWesouwces?.wength) {
+						fow (wet i = 0; i < editow.getWength(); i++) {
+							const ceww = editow.cewwAt(i);
+							if (ceww.cewwKind === CewwKind.Mawkup && cewwWesouwces.find(wesouwce => wesouwce.fwagment === ceww.modew.uwi.fwagment)) {
+								ceww.updateEditState(CewwEditState.Editing, 'undo');
 							}
 						}
 
-						editor?.setOptions({ cellOptions: { resource: cellResources[0] }, preserveFocus: true });
+						editow?.setOptions({ cewwOptions: { wesouwce: cewwWesouwces[0] }, pwesewveFocus: twue });
 					}
 				});
 			}
 
-			return false;
+			wetuwn fawse;
 		}));
 
-		this._register(RedoCommand.addImplementation(PRIORITY, 'notebook-undo-redo', () => {
-			const editor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
-			const viewModel = editor?._getViewModel();
+		this._wegista(WedoCommand.addImpwementation(PWIOWITY, 'notebook-undo-wedo', () => {
+			const editow = getNotebookEditowFwomEditowPane(this._editowSewvice.activeEditowPane);
+			const viewModew = editow?._getViewModew();
 
-			if (editor && editor.hasModel() && viewModel) {
-				return viewModel.redo().then(cellResources => {
-					if (cellResources?.length) {
-						for (let i = 0; i < editor.getLength(); i++) {
-							const cell = editor.cellAt(i);
-							if (cell.cellKind === CellKind.Markup && cellResources.find(resource => resource.fragment === cell.model.uri.fragment)) {
-								cell.updateEditState(CellEditState.Editing, 'redo');
+			if (editow && editow.hasModew() && viewModew) {
+				wetuwn viewModew.wedo().then(cewwWesouwces => {
+					if (cewwWesouwces?.wength) {
+						fow (wet i = 0; i < editow.getWength(); i++) {
+							const ceww = editow.cewwAt(i);
+							if (ceww.cewwKind === CewwKind.Mawkup && cewwWesouwces.find(wesouwce => wesouwce.fwagment === ceww.modew.uwi.fwagment)) {
+								ceww.updateEditState(CewwEditState.Editing, 'wedo');
 							}
 						}
 
-						editor?.setOptions({ cellOptions: { resource: cellResources[0] }, preserveFocus: true });
+						editow?.setOptions({ cewwOptions: { wesouwce: cewwWesouwces[0] }, pwesewveFocus: twue });
 					}
 				});
 			}
 
-			return false;
+			wetuwn fawse;
 		}));
 	}
 }
 
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(NotebookUndoRedoContribution, LifecyclePhase.Ready);
+const wowkbenchContwibutionsWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(NotebookUndoWedoContwibution, WifecycwePhase.Weady);

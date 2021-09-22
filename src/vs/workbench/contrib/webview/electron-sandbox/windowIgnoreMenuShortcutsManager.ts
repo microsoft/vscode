@@ -1,46 +1,46 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { isMacintosh } from 'vs/base/common/platform';
-import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
+impowt { isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { PwoxyChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IMainPwocessSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/sewvices';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { IWebviewManagewSewvice } fwom 'vs/pwatfowm/webview/common/webviewManagewSewvice';
 
-export class WindowIgnoreMenuShortcutsManager {
+expowt cwass WindowIgnoweMenuShowtcutsManaga {
 
-	private readonly _isUsingNativeTitleBars: boolean;
+	pwivate weadonwy _isUsingNativeTitweBaws: boowean;
 
-	private readonly webviewMainService: IWebviewManagerService;
+	pwivate weadonwy webviewMainSewvice: IWebviewManagewSewvice;
 
-	constructor(
-		configurationService: IConfigurationService,
-		mainProcessService: IMainProcessService,
-		private readonly nativeHostService: INativeHostService
+	constwuctow(
+		configuwationSewvice: IConfiguwationSewvice,
+		mainPwocessSewvice: IMainPwocessSewvice,
+		pwivate weadonwy nativeHostSewvice: INativeHostSewvice
 	) {
-		this._isUsingNativeTitleBars = configurationService.getValue<string>('window.titleBarStyle') === 'native';
+		this._isUsingNativeTitweBaws = configuwationSewvice.getVawue<stwing>('window.titweBawStywe') === 'native';
 
-		this.webviewMainService = ProxyChannel.toService<IWebviewManagerService>(mainProcessService.getChannel('webview'));
+		this.webviewMainSewvice = PwoxyChannew.toSewvice<IWebviewManagewSewvice>(mainPwocessSewvice.getChannew('webview'));
 	}
 
-	public didFocus(): void {
-		this.setIgnoreMenuShortcuts(true);
+	pubwic didFocus(): void {
+		this.setIgnoweMenuShowtcuts(twue);
 	}
 
-	public didBlur(): void {
-		this.setIgnoreMenuShortcuts(false);
+	pubwic didBwuw(): void {
+		this.setIgnoweMenuShowtcuts(fawse);
 	}
 
-	private get shouldToggleMenuShortcutsEnablement() {
-		return isMacintosh || this._isUsingNativeTitleBars;
+	pwivate get shouwdToggweMenuShowtcutsEnabwement() {
+		wetuwn isMacintosh || this._isUsingNativeTitweBaws;
 	}
 
-	protected setIgnoreMenuShortcuts(value: boolean) {
-		if (this.shouldToggleMenuShortcutsEnablement) {
-			this.webviewMainService.setIgnoreMenuShortcuts({ windowId: this.nativeHostService.windowId }, value);
+	pwotected setIgnoweMenuShowtcuts(vawue: boowean) {
+		if (this.shouwdToggweMenuShowtcutsEnabwement) {
+			this.webviewMainSewvice.setIgnoweMenuShowtcuts({ windowId: this.nativeHostSewvice.windowId }, vawue);
 		}
 	}
 }

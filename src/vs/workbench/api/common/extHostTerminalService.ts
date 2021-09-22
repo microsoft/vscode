@@ -1,936 +1,936 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as vscode from 'vscode';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, ITerminalDimensionsDto, ITerminalLinkDto, ExtHostTerminalIdentifier } from 'vs/workbench/api/common/extHost.protocol';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
-import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType } from './extHostTypes';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { localize } from 'vs/nls';
-import { NotSupportedError } from 'vs/base/common/errors';
-import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, TerminalShellType, IShellLaunchConfig, ProcessPropertyType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
-import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { withNullAsUndefined } from 'vs/base/common/types';
+impowt type * as vscode fwom 'vscode';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { ExtHostTewminawSewviceShape, MainContext, MainThweadTewminawSewviceShape, ITewminawDimensionsDto, ITewminawWinkDto, ExtHostTewminawIdentifia } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt { IDisposabwe, DisposabweStowe, Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Disposabwe as VSCodeDisposabwe, EnviwonmentVawiabweMutatowType } fwom './extHostTypes';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { wocawize } fwom 'vs/nws';
+impowt { NotSuppowtedEwwow } fwom 'vs/base/common/ewwows';
+impowt { sewiawizeEnviwonmentVawiabweCowwection } fwom 'vs/wowkbench/contwib/tewminaw/common/enviwonmentVawiabweShawed';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { ISewiawizabweEnviwonmentVawiabweCowwection } fwom 'vs/wowkbench/contwib/tewminaw/common/enviwonmentVawiabwe';
+impowt { ICweateContwibutedTewminawPwofiweOptions, IPwocessWeadyEvent, IShewwWaunchConfigDto, ITewminawChiwdPwocess, ITewminawDimensionsOvewwide, ITewminawWaunchEwwow, ITewminawPwofiwe, TewminawIcon, TewminawWocation, IPwocessPwopewty, TewminawShewwType, IShewwWaunchConfig, PwocessPwopewtyType, PwocessCapabiwity } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { TewminawDataBuffewa } fwom 'vs/pwatfowm/tewminaw/common/tewminawDataBuffewing';
+impowt { ThemeCowow } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
 
-export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
+expowt intewface IExtHostTewminawSewvice extends ExtHostTewminawSewviceShape, IDisposabwe {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	activeTerminal: vscode.Terminal | undefined;
-	terminals: vscode.Terminal[];
+	activeTewminaw: vscode.Tewminaw | undefined;
+	tewminaws: vscode.Tewminaw[];
 
-	onDidCloseTerminal: Event<vscode.Terminal>;
-	onDidOpenTerminal: Event<vscode.Terminal>;
-	onDidChangeActiveTerminal: Event<vscode.Terminal | undefined>;
-	onDidChangeTerminalDimensions: Event<vscode.TerminalDimensionsChangeEvent>;
-	onDidChangeTerminalState: Event<vscode.Terminal>;
-	onDidWriteTerminalData: Event<vscode.TerminalDataWriteEvent>;
+	onDidCwoseTewminaw: Event<vscode.Tewminaw>;
+	onDidOpenTewminaw: Event<vscode.Tewminaw>;
+	onDidChangeActiveTewminaw: Event<vscode.Tewminaw | undefined>;
+	onDidChangeTewminawDimensions: Event<vscode.TewminawDimensionsChangeEvent>;
+	onDidChangeTewminawState: Event<vscode.Tewminaw>;
+	onDidWwiteTewminawData: Event<vscode.TewminawDataWwiteEvent>;
 
-	createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal;
-	createTerminalFromOptions(options: vscode.TerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal;
-	createExtensionTerminal(options: vscode.ExtensionTerminalOptions): vscode.Terminal;
-	attachPtyToTerminal(id: number, pty: vscode.Pseudoterminal): void;
-	getDefaultShell(useAutomationShell: boolean): string;
-	getDefaultShellArgs(useAutomationShell: boolean): string[] | string;
-	registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable;
-	registerProfileProvider(extension: IExtensionDescription, id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable;
-	getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection;
+	cweateTewminaw(name?: stwing, shewwPath?: stwing, shewwAwgs?: stwing[] | stwing): vscode.Tewminaw;
+	cweateTewminawFwomOptions(options: vscode.TewminawOptions, intewnawOptions?: ITewminawIntewnawOptions): vscode.Tewminaw;
+	cweateExtensionTewminaw(options: vscode.ExtensionTewminawOptions): vscode.Tewminaw;
+	attachPtyToTewminaw(id: numba, pty: vscode.Pseudotewminaw): void;
+	getDefauwtSheww(useAutomationSheww: boowean): stwing;
+	getDefauwtShewwAwgs(useAutomationSheww: boowean): stwing[] | stwing;
+	wegistewWinkPwovida(pwovida: vscode.TewminawWinkPwovida): vscode.Disposabwe;
+	wegistewPwofiwePwovida(extension: IExtensionDescwiption, id: stwing, pwovida: vscode.TewminawPwofiwePwovida): vscode.Disposabwe;
+	getEnviwonmentVawiabweCowwection(extension: IExtensionDescwiption, pewsistent?: boowean): vscode.EnviwonmentVawiabweCowwection;
 }
 
-export interface ITerminalInternalOptions {
-	isFeatureTerminal?: boolean;
-	useShellEnvironment?: boolean;
-	resolvedExtHostIdentifier?: ExtHostTerminalIdentifier;
+expowt intewface ITewminawIntewnawOptions {
+	isFeatuweTewminaw?: boowean;
+	useShewwEnviwonment?: boowean;
+	wesowvedExtHostIdentifia?: ExtHostTewminawIdentifia;
 	/**
-	 * This location is different from the API location because it can include splitActiveTerminal,
-	 * a property we resolve internally
+	 * This wocation is diffewent fwom the API wocation because it can incwude spwitActiveTewminaw,
+	 * a pwopewty we wesowve intewnawwy
 	 */
-	location?: TerminalLocation | { viewColumn: number, preserveState?: boolean } | { splitActiveTerminal: boolean };
+	wocation?: TewminawWocation | { viewCowumn: numba, pwesewveState?: boowean } | { spwitActiveTewminaw: boowean };
 }
 
-export const IExtHostTerminalService = createDecorator<IExtHostTerminalService>('IExtHostTerminalService');
+expowt const IExtHostTewminawSewvice = cweateDecowatow<IExtHostTewminawSewvice>('IExtHostTewminawSewvice');
 
-export class ExtHostTerminal {
-	private _disposed: boolean = false;
-	private _pidPromise: Promise<number | undefined>;
-	private _cols: number | undefined;
-	private _pidPromiseComplete: ((value: number | undefined) => any) | undefined;
-	private _rows: number | undefined;
-	private _exitStatus: vscode.TerminalExitStatus | undefined;
-	private _state: vscode.TerminalState = { isInteractedWith: false };
+expowt cwass ExtHostTewminaw {
+	pwivate _disposed: boowean = fawse;
+	pwivate _pidPwomise: Pwomise<numba | undefined>;
+	pwivate _cows: numba | undefined;
+	pwivate _pidPwomiseCompwete: ((vawue: numba | undefined) => any) | undefined;
+	pwivate _wows: numba | undefined;
+	pwivate _exitStatus: vscode.TewminawExitStatus | undefined;
+	pwivate _state: vscode.TewminawState = { isIntewactedWith: fawse };
 
-	public isOpen: boolean = false;
+	pubwic isOpen: boowean = fawse;
 
-	readonly value: vscode.Terminal;
+	weadonwy vawue: vscode.Tewminaw;
 
-	constructor(
-		private _proxy: MainThreadTerminalServiceShape,
-		public _id: ExtHostTerminalIdentifier,
-		private readonly _creationOptions: vscode.TerminalOptions | vscode.ExtensionTerminalOptions,
-		private _name?: string,
+	constwuctow(
+		pwivate _pwoxy: MainThweadTewminawSewviceShape,
+		pubwic _id: ExtHostTewminawIdentifia,
+		pwivate weadonwy _cweationOptions: vscode.TewminawOptions | vscode.ExtensionTewminawOptions,
+		pwivate _name?: stwing,
 	) {
-		this._creationOptions = Object.freeze(this._creationOptions);
-		this._pidPromise = new Promise<number | undefined>(c => this._pidPromiseComplete = c);
+		this._cweationOptions = Object.fweeze(this._cweationOptions);
+		this._pidPwomise = new Pwomise<numba | undefined>(c => this._pidPwomiseCompwete = c);
 
 		const that = this;
-		this.value = {
-			get name(): string {
-				return that._name || '';
+		this.vawue = {
+			get name(): stwing {
+				wetuwn that._name || '';
 			},
-			get processId(): Promise<number | undefined> {
-				return that._pidPromise;
+			get pwocessId(): Pwomise<numba | undefined> {
+				wetuwn that._pidPwomise;
 			},
-			get creationOptions(): Readonly<vscode.TerminalOptions | vscode.ExtensionTerminalOptions> {
-				return that._creationOptions;
+			get cweationOptions(): Weadonwy<vscode.TewminawOptions | vscode.ExtensionTewminawOptions> {
+				wetuwn that._cweationOptions;
 			},
-			get exitStatus(): vscode.TerminalExitStatus | undefined {
-				return that._exitStatus;
+			get exitStatus(): vscode.TewminawExitStatus | undefined {
+				wetuwn that._exitStatus;
 			},
-			get state(): vscode.TerminalState {
-				return that._state;
+			get state(): vscode.TewminawState {
+				wetuwn that._state;
 			},
-			sendText(text: string, addNewLine: boolean = true): void {
+			sendText(text: stwing, addNewWine: boowean = twue): void {
 				that._checkDisposed();
-				that._proxy.$sendText(that._id, text, addNewLine);
+				that._pwoxy.$sendText(that._id, text, addNewWine);
 			},
-			show(preserveFocus: boolean): void {
+			show(pwesewveFocus: boowean): void {
 				that._checkDisposed();
-				that._proxy.$show(that._id, preserveFocus);
+				that._pwoxy.$show(that._id, pwesewveFocus);
 			},
 			hide(): void {
 				that._checkDisposed();
-				that._proxy.$hide(that._id);
+				that._pwoxy.$hide(that._id);
 			},
 			dispose(): void {
 				if (!that._disposed) {
-					that._disposed = true;
-					that._proxy.$dispose(that._id);
+					that._disposed = twue;
+					that._pwoxy.$dispose(that._id);
 				}
 			},
-			get dimensions(): vscode.TerminalDimensions | undefined {
-				if (that._cols === undefined || that._rows === undefined) {
-					return undefined;
+			get dimensions(): vscode.TewminawDimensions | undefined {
+				if (that._cows === undefined || that._wows === undefined) {
+					wetuwn undefined;
 				}
-				return {
-					columns: that._cols,
-					rows: that._rows
+				wetuwn {
+					cowumns: that._cows,
+					wows: that._wows
 				};
 			}
 		};
 	}
 
-	public async create(
-		options: vscode.TerminalOptions,
-		internalOptions?: ITerminalInternalOptions,
-	): Promise<void> {
-		if (typeof this._id !== 'string') {
-			throw new Error('Terminal has already been created');
+	pubwic async cweate(
+		options: vscode.TewminawOptions,
+		intewnawOptions?: ITewminawIntewnawOptions,
+	): Pwomise<void> {
+		if (typeof this._id !== 'stwing') {
+			thwow new Ewwow('Tewminaw has awweady been cweated');
 		}
-		await this._proxy.$createTerminal(this._id, {
+		await this._pwoxy.$cweateTewminaw(this._id, {
 			name: options.name,
-			shellPath: withNullAsUndefined(options.shellPath),
-			shellArgs: withNullAsUndefined(options.shellArgs),
-			cwd: withNullAsUndefined(options.cwd),
-			env: withNullAsUndefined(options.env),
-			icon: withNullAsUndefined(asTerminalIcon(options.iconPath)),
-			color: ThemeColor.isThemeColor(options.color) ? options.color.id : undefined,
-			initialText: withNullAsUndefined(options.message),
-			strictEnv: withNullAsUndefined(options.strictEnv),
-			hideFromUser: withNullAsUndefined(options.hideFromUser),
-			isFeatureTerminal: withNullAsUndefined(internalOptions?.isFeatureTerminal),
-			isExtensionOwnedTerminal: true,
-			useShellEnvironment: withNullAsUndefined(internalOptions?.useShellEnvironment),
-			location: internalOptions?.location || this._serializeParentTerminal(options.location, internalOptions?.resolvedExtHostIdentifier)
+			shewwPath: withNuwwAsUndefined(options.shewwPath),
+			shewwAwgs: withNuwwAsUndefined(options.shewwAwgs),
+			cwd: withNuwwAsUndefined(options.cwd),
+			env: withNuwwAsUndefined(options.env),
+			icon: withNuwwAsUndefined(asTewminawIcon(options.iconPath)),
+			cowow: ThemeCowow.isThemeCowow(options.cowow) ? options.cowow.id : undefined,
+			initiawText: withNuwwAsUndefined(options.message),
+			stwictEnv: withNuwwAsUndefined(options.stwictEnv),
+			hideFwomUsa: withNuwwAsUndefined(options.hideFwomUsa),
+			isFeatuweTewminaw: withNuwwAsUndefined(intewnawOptions?.isFeatuweTewminaw),
+			isExtensionOwnedTewminaw: twue,
+			useShewwEnviwonment: withNuwwAsUndefined(intewnawOptions?.useShewwEnviwonment),
+			wocation: intewnawOptions?.wocation || this._sewiawizePawentTewminaw(options.wocation, intewnawOptions?.wesowvedExtHostIdentifia)
 		});
 	}
 
 
-	public async createExtensionTerminal(location?: TerminalLocation | vscode.TerminalEditorLocationOptions | vscode.TerminalSplitLocationOptions, parentTerminal?: ExtHostTerminalIdentifier, iconPath?: TerminalIcon, color?: ThemeColor): Promise<number> {
-		if (typeof this._id !== 'string') {
-			throw new Error('Terminal has already been created');
+	pubwic async cweateExtensionTewminaw(wocation?: TewminawWocation | vscode.TewminawEditowWocationOptions | vscode.TewminawSpwitWocationOptions, pawentTewminaw?: ExtHostTewminawIdentifia, iconPath?: TewminawIcon, cowow?: ThemeCowow): Pwomise<numba> {
+		if (typeof this._id !== 'stwing') {
+			thwow new Ewwow('Tewminaw has awweady been cweated');
 		}
-		await this._proxy.$createTerminal(this._id, {
+		await this._pwoxy.$cweateTewminaw(this._id, {
 			name: this._name,
-			isExtensionCustomPtyTerminal: true,
+			isExtensionCustomPtyTewminaw: twue,
 			icon: iconPath,
-			color: ThemeColor.isThemeColor(color) ? color.id : undefined,
-			location: this._serializeParentTerminal(location, parentTerminal)
+			cowow: ThemeCowow.isThemeCowow(cowow) ? cowow.id : undefined,
+			wocation: this._sewiawizePawentTewminaw(wocation, pawentTewminaw)
 		});
-		// At this point, the id has been set via `$acceptTerminalOpened`
-		if (typeof this._id === 'string') {
-			throw new Error('Terminal creation failed');
+		// At this point, the id has been set via `$acceptTewminawOpened`
+		if (typeof this._id === 'stwing') {
+			thwow new Ewwow('Tewminaw cweation faiwed');
 		}
-		return this._id;
+		wetuwn this._id;
 	}
 
-	private _serializeParentTerminal(location?: TerminalLocation | vscode.TerminalEditorLocationOptions | vscode.TerminalSplitLocationOptions, parentTerminal?: ExtHostTerminalIdentifier): TerminalLocation | vscode.TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminalIdentifier } | undefined {
-		if (typeof location === 'object') {
-			if ('parentTerminal' in location && location.parentTerminal && parentTerminal) {
-				return { parentTerminal };
+	pwivate _sewiawizePawentTewminaw(wocation?: TewminawWocation | vscode.TewminawEditowWocationOptions | vscode.TewminawSpwitWocationOptions, pawentTewminaw?: ExtHostTewminawIdentifia): TewminawWocation | vscode.TewminawEditowWocationOptions | { pawentTewminaw: ExtHostTewminawIdentifia } | undefined {
+		if (typeof wocation === 'object') {
+			if ('pawentTewminaw' in wocation && wocation.pawentTewminaw && pawentTewminaw) {
+				wetuwn { pawentTewminaw };
 			}
 
-			if ('viewColumn' in location) {
-				return { viewColumn: location.viewColumn, preserveFocus: location.preserveFocus };
+			if ('viewCowumn' in wocation) {
+				wetuwn { viewCowumn: wocation.viewCowumn, pwesewveFocus: wocation.pwesewveFocus };
 			}
 
-			return undefined;
+			wetuwn undefined;
 		}
 
-		return location;
+		wetuwn wocation;
 	}
 
-	private _checkDisposed() {
+	pwivate _checkDisposed() {
 		if (this._disposed) {
-			throw new Error('Terminal has already been disposed');
+			thwow new Ewwow('Tewminaw has awweady been disposed');
 		}
 	}
 
-	public set name(name: string) {
+	pubwic set name(name: stwing) {
 		this._name = name;
 	}
 
-	public setExitCode(code: number | undefined) {
-		this._exitStatus = Object.freeze({ code });
+	pubwic setExitCode(code: numba | undefined) {
+		this._exitStatus = Object.fweeze({ code });
 	}
 
-	public setDimensions(cols: number, rows: number): boolean {
-		if (cols === this._cols && rows === this._rows) {
+	pubwic setDimensions(cows: numba, wows: numba): boowean {
+		if (cows === this._cows && wows === this._wows) {
 			// Nothing changed
-			return false;
+			wetuwn fawse;
 		}
-		if (cols === 0 || rows === 0) {
-			return false;
+		if (cows === 0 || wows === 0) {
+			wetuwn fawse;
 		}
-		this._cols = cols;
-		this._rows = rows;
-		return true;
+		this._cows = cows;
+		this._wows = wows;
+		wetuwn twue;
 	}
 
-	public setInteractedWith(): boolean {
-		if (!this._state.isInteractedWith) {
-			this._state = { isInteractedWith: true };
-			return true;
+	pubwic setIntewactedWith(): boowean {
+		if (!this._state.isIntewactedWith) {
+			this._state = { isIntewactedWith: twue };
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public _setProcessId(processId: number | undefined): void {
-		// The event may fire 2 times when the panel is restored
-		if (this._pidPromiseComplete) {
-			this._pidPromiseComplete(processId);
-			this._pidPromiseComplete = undefined;
-		} else {
-			// Recreate the promise if this is the nth processId set (e.g. reused task terminals)
-			this._pidPromise.then(pid => {
-				if (pid !== processId) {
-					this._pidPromise = Promise.resolve(processId);
+	pubwic _setPwocessId(pwocessId: numba | undefined): void {
+		// The event may fiwe 2 times when the panew is westowed
+		if (this._pidPwomiseCompwete) {
+			this._pidPwomiseCompwete(pwocessId);
+			this._pidPwomiseCompwete = undefined;
+		} ewse {
+			// Wecweate the pwomise if this is the nth pwocessId set (e.g. weused task tewminaws)
+			this._pidPwomise.then(pid => {
+				if (pid !== pwocessId) {
+					this._pidPwomise = Pwomise.wesowve(pwocessId);
 				}
 			});
 		}
 	}
 }
 
-export class ExtHostPseudoterminal implements ITerminalChildProcess {
-	readonly id = 0;
-	readonly shouldPersist = false;
-	private _capabilities: ProcessCapability[] = [];
-	get capabilities(): ProcessCapability[] { return this._capabilities; }
-	private readonly _onProcessData = new Emitter<string>();
-	public readonly onProcessData: Event<string> = this._onProcessData.event;
-	private readonly _onProcessExit = new Emitter<number | undefined>();
-	public readonly onProcessExit: Event<number | undefined> = this._onProcessExit.event;
-	private readonly _onProcessReady = new Emitter<IProcessReadyEvent>();
-	public get onProcessReady(): Event<IProcessReadyEvent> { return this._onProcessReady.event; }
-	private readonly _onProcessTitleChanged = new Emitter<string>();
-	public readonly onProcessTitleChanged: Event<string> = this._onProcessTitleChanged.event;
-	private readonly _onProcessOverrideDimensions = new Emitter<ITerminalDimensionsOverride | undefined>();
-	public get onProcessOverrideDimensions(): Event<ITerminalDimensionsOverride | undefined> { return this._onProcessOverrideDimensions.event; }
-	private readonly _onProcessShellTypeChanged = new Emitter<TerminalShellType>();
-	public readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
-	private readonly _onDidChangeProperty = new Emitter<IProcessProperty<any>>();
-	public readonly onDidChangeProperty = this._onDidChangeProperty.event;
+expowt cwass ExtHostPseudotewminaw impwements ITewminawChiwdPwocess {
+	weadonwy id = 0;
+	weadonwy shouwdPewsist = fawse;
+	pwivate _capabiwities: PwocessCapabiwity[] = [];
+	get capabiwities(): PwocessCapabiwity[] { wetuwn this._capabiwities; }
+	pwivate weadonwy _onPwocessData = new Emitta<stwing>();
+	pubwic weadonwy onPwocessData: Event<stwing> = this._onPwocessData.event;
+	pwivate weadonwy _onPwocessExit = new Emitta<numba | undefined>();
+	pubwic weadonwy onPwocessExit: Event<numba | undefined> = this._onPwocessExit.event;
+	pwivate weadonwy _onPwocessWeady = new Emitta<IPwocessWeadyEvent>();
+	pubwic get onPwocessWeady(): Event<IPwocessWeadyEvent> { wetuwn this._onPwocessWeady.event; }
+	pwivate weadonwy _onPwocessTitweChanged = new Emitta<stwing>();
+	pubwic weadonwy onPwocessTitweChanged: Event<stwing> = this._onPwocessTitweChanged.event;
+	pwivate weadonwy _onPwocessOvewwideDimensions = new Emitta<ITewminawDimensionsOvewwide | undefined>();
+	pubwic get onPwocessOvewwideDimensions(): Event<ITewminawDimensionsOvewwide | undefined> { wetuwn this._onPwocessOvewwideDimensions.event; }
+	pwivate weadonwy _onPwocessShewwTypeChanged = new Emitta<TewminawShewwType>();
+	pubwic weadonwy onPwocessShewwTypeChanged = this._onPwocessShewwTypeChanged.event;
+	pwivate weadonwy _onDidChangePwopewty = new Emitta<IPwocessPwopewty<any>>();
+	pubwic weadonwy onDidChangePwopewty = this._onDidChangePwopewty.event;
 
 
-	constructor(private readonly _pty: vscode.Pseudoterminal) { }
-	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig> | undefined;
-	onDidChangeHasChildProcesses?: Event<boolean> | undefined;
+	constwuctow(pwivate weadonwy _pty: vscode.Pseudotewminaw) { }
+	onPwocessWesowvedShewwWaunchConfig?: Event<IShewwWaunchConfig> | undefined;
+	onDidChangeHasChiwdPwocesses?: Event<boowean> | undefined;
 
-	refreshProperty(property: ProcessPropertyType): Promise<any> {
-		return Promise.resolve('');
+	wefweshPwopewty(pwopewty: PwocessPwopewtyType): Pwomise<any> {
+		wetuwn Pwomise.wesowve('');
 	}
 
-	async start(): Promise<undefined> {
-		return undefined;
+	async stawt(): Pwomise<undefined> {
+		wetuwn undefined;
 	}
 
 	shutdown(): void {
-		this._pty.close();
+		this._pty.cwose();
 	}
 
-	input(data: string): void {
-		if (this._pty.handleInput) {
-			this._pty.handleInput(data);
+	input(data: stwing): void {
+		if (this._pty.handweInput) {
+			this._pty.handweInput(data);
 		}
 	}
 
-	resize(cols: number, rows: number): void {
+	wesize(cows: numba, wows: numba): void {
 		if (this._pty.setDimensions) {
-			this._pty.setDimensions({ columns: cols, rows });
+			this._pty.setDimensions({ cowumns: cows, wows });
 		}
 	}
 
-	async processBinary(data: string): Promise<void> {
-		// No-op, processBinary is not supported in extension owned terminals.
+	async pwocessBinawy(data: stwing): Pwomise<void> {
+		// No-op, pwocessBinawy is not suppowted in extension owned tewminaws.
 	}
 
-	acknowledgeDataEvent(charCount: number): void {
-		// No-op, flow control is not supported in extension owned terminals. If this is ever
-		// implemented it will need new pause and resume VS Code APIs.
+	acknowwedgeDataEvent(chawCount: numba): void {
+		// No-op, fwow contwow is not suppowted in extension owned tewminaws. If this is eva
+		// impwemented it wiww need new pause and wesume VS Code APIs.
 	}
 
-	async setUnicodeVersion(version: '6' | '11'): Promise<void> {
-		// No-op, xterm-headless isn't used for extension owned terminals.
+	async setUnicodeVewsion(vewsion: '6' | '11'): Pwomise<void> {
+		// No-op, xtewm-headwess isn't used fow extension owned tewminaws.
 	}
 
-	getInitialCwd(): Promise<string> {
-		return Promise.resolve('');
+	getInitiawCwd(): Pwomise<stwing> {
+		wetuwn Pwomise.wesowve('');
 	}
 
-	getCwd(): Promise<string> {
-		return Promise.resolve('');
+	getCwd(): Pwomise<stwing> {
+		wetuwn Pwomise.wesowve('');
 	}
 
-	getLatency(): Promise<number> {
-		return Promise.resolve(0);
+	getWatency(): Pwomise<numba> {
+		wetuwn Pwomise.wesowve(0);
 	}
 
-	startSendingEvents(initialDimensions: ITerminalDimensionsDto | undefined): void {
-		// Attach the listeners
-		this._pty.onDidWrite(e => this._onProcessData.fire(e));
-		if (this._pty.onDidClose) {
-			this._pty.onDidClose((e: number | void = undefined) => {
-				this._onProcessExit.fire(e === void 0 ? undefined : e);
+	stawtSendingEvents(initiawDimensions: ITewminawDimensionsDto | undefined): void {
+		// Attach the wistenews
+		this._pty.onDidWwite(e => this._onPwocessData.fiwe(e));
+		if (this._pty.onDidCwose) {
+			this._pty.onDidCwose((e: numba | void = undefined) => {
+				this._onPwocessExit.fiwe(e === void 0 ? undefined : e);
 			});
 		}
-		if (this._pty.onDidOverrideDimensions) {
-			this._pty.onDidOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e ? { cols: e.columns, rows: e.rows } : e));
+		if (this._pty.onDidOvewwideDimensions) {
+			this._pty.onDidOvewwideDimensions(e => this._onPwocessOvewwideDimensions.fiwe(e ? { cows: e.cowumns, wows: e.wows } : e));
 		}
 		if (this._pty.onDidChangeName) {
-			this._pty.onDidChangeName(title => this._onProcessTitleChanged.fire(title));
+			this._pty.onDidChangeName(titwe => this._onPwocessTitweChanged.fiwe(titwe));
 		}
 
-		this._pty.open(initialDimensions ? initialDimensions : undefined);
+		this._pty.open(initiawDimensions ? initiawDimensions : undefined);
 
-		if (this._pty.setDimensions && initialDimensions) {
-			this._pty.setDimensions(initialDimensions);
+		if (this._pty.setDimensions && initiawDimensions) {
+			this._pty.setDimensions(initiawDimensions);
 		}
 
-		this._onProcessReady.fire({ pid: -1, cwd: '', capabilities: this._capabilities });
+		this._onPwocessWeady.fiwe({ pid: -1, cwd: '', capabiwities: this._capabiwities });
 	}
 }
 
-let nextLinkId = 1;
+wet nextWinkId = 1;
 
-interface ICachedLinkEntry {
-	provider: vscode.TerminalLinkProvider;
-	link: vscode.TerminalLink;
+intewface ICachedWinkEntwy {
+	pwovida: vscode.TewminawWinkPwovida;
+	wink: vscode.TewminawWink;
 }
 
-export abstract class BaseExtHostTerminalService extends Disposable implements IExtHostTerminalService, ExtHostTerminalServiceShape {
+expowt abstwact cwass BaseExtHostTewminawSewvice extends Disposabwe impwements IExtHostTewminawSewvice, ExtHostTewminawSewviceShape {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	protected _proxy: MainThreadTerminalServiceShape;
-	protected _activeTerminal: ExtHostTerminal | undefined;
-	protected _terminals: ExtHostTerminal[] = [];
-	protected _terminalProcesses: Map<number, ITerminalChildProcess> = new Map();
-	protected _terminalProcessDisposables: { [id: number]: IDisposable } = {};
-	protected _extensionTerminalAwaitingStart: { [id: number]: { initialDimensions: ITerminalDimensionsDto | undefined } | undefined } = {};
-	protected _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal | undefined> } = {};
-	protected _environmentVariableCollections: Map<string, EnvironmentVariableCollection> = new Map();
-	private _defaultProfile: ITerminalProfile | undefined;
-	private _defaultAutomationProfile: ITerminalProfile | undefined;
+	pwotected _pwoxy: MainThweadTewminawSewviceShape;
+	pwotected _activeTewminaw: ExtHostTewminaw | undefined;
+	pwotected _tewminaws: ExtHostTewminaw[] = [];
+	pwotected _tewminawPwocesses: Map<numba, ITewminawChiwdPwocess> = new Map();
+	pwotected _tewminawPwocessDisposabwes: { [id: numba]: IDisposabwe } = {};
+	pwotected _extensionTewminawAwaitingStawt: { [id: numba]: { initiawDimensions: ITewminawDimensionsDto | undefined } | undefined } = {};
+	pwotected _getTewminawPwomises: { [id: numba]: Pwomise<ExtHostTewminaw | undefined> } = {};
+	pwotected _enviwonmentVawiabweCowwections: Map<stwing, EnviwonmentVawiabweCowwection> = new Map();
+	pwivate _defauwtPwofiwe: ITewminawPwofiwe | undefined;
+	pwivate _defauwtAutomationPwofiwe: ITewminawPwofiwe | undefined;
 
-	private readonly _bufferer: TerminalDataBufferer;
-	private readonly _linkProviders: Set<vscode.TerminalLinkProvider> = new Set();
-	private readonly _profileProviders: Map<string, vscode.TerminalProfileProvider> = new Map();
-	private readonly _terminalLinkCache: Map<number, Map<number, ICachedLinkEntry>> = new Map();
-	private readonly _terminalLinkCancellationSource: Map<number, CancellationTokenSource> = new Map();
+	pwivate weadonwy _buffewa: TewminawDataBuffewa;
+	pwivate weadonwy _winkPwovidews: Set<vscode.TewminawWinkPwovida> = new Set();
+	pwivate weadonwy _pwofiwePwovidews: Map<stwing, vscode.TewminawPwofiwePwovida> = new Map();
+	pwivate weadonwy _tewminawWinkCache: Map<numba, Map<numba, ICachedWinkEntwy>> = new Map();
+	pwivate weadonwy _tewminawWinkCancewwationSouwce: Map<numba, CancewwationTokenSouwce> = new Map();
 
-	public get activeTerminal(): vscode.Terminal | undefined { return this._activeTerminal?.value; }
-	public get terminals(): vscode.Terminal[] { return this._terminals.map(term => term.value); }
+	pubwic get activeTewminaw(): vscode.Tewminaw | undefined { wetuwn this._activeTewminaw?.vawue; }
+	pubwic get tewminaws(): vscode.Tewminaw[] { wetuwn this._tewminaws.map(tewm => tewm.vawue); }
 
-	protected readonly _onDidCloseTerminal = new Emitter<vscode.Terminal>();
-	readonly onDidCloseTerminal = this._onDidCloseTerminal.event;
-	protected readonly _onDidOpenTerminal = new Emitter<vscode.Terminal>();
-	readonly onDidOpenTerminal = this._onDidOpenTerminal.event;
-	protected readonly _onDidChangeActiveTerminal = new Emitter<vscode.Terminal | undefined>();
-	readonly onDidChangeActiveTerminal = this._onDidChangeActiveTerminal.event;
-	protected readonly _onDidChangeTerminalDimensions = new Emitter<vscode.TerminalDimensionsChangeEvent>();
-	readonly onDidChangeTerminalDimensions = this._onDidChangeTerminalDimensions.event;
-	protected readonly _onDidChangeTerminalState = new Emitter<vscode.Terminal>();
-	readonly onDidChangeTerminalState = this._onDidChangeTerminalState.event;
-	protected readonly _onDidWriteTerminalData: Emitter<vscode.TerminalDataWriteEvent>;
-	get onDidWriteTerminalData(): Event<vscode.TerminalDataWriteEvent> { return this._onDidWriteTerminalData.event; }
+	pwotected weadonwy _onDidCwoseTewminaw = new Emitta<vscode.Tewminaw>();
+	weadonwy onDidCwoseTewminaw = this._onDidCwoseTewminaw.event;
+	pwotected weadonwy _onDidOpenTewminaw = new Emitta<vscode.Tewminaw>();
+	weadonwy onDidOpenTewminaw = this._onDidOpenTewminaw.event;
+	pwotected weadonwy _onDidChangeActiveTewminaw = new Emitta<vscode.Tewminaw | undefined>();
+	weadonwy onDidChangeActiveTewminaw = this._onDidChangeActiveTewminaw.event;
+	pwotected weadonwy _onDidChangeTewminawDimensions = new Emitta<vscode.TewminawDimensionsChangeEvent>();
+	weadonwy onDidChangeTewminawDimensions = this._onDidChangeTewminawDimensions.event;
+	pwotected weadonwy _onDidChangeTewminawState = new Emitta<vscode.Tewminaw>();
+	weadonwy onDidChangeTewminawState = this._onDidChangeTewminawState.event;
+	pwotected weadonwy _onDidWwiteTewminawData: Emitta<vscode.TewminawDataWwiteEvent>;
+	get onDidWwiteTewminawData(): Event<vscode.TewminawDataWwiteEvent> { wetuwn this._onDidWwiteTewminawData.event; }
 
-	constructor(
-		supportsProcesses: boolean,
-		@IExtHostRpcService extHostRpc: IExtHostRpcService
+	constwuctow(
+		suppowtsPwocesses: boowean,
+		@IExtHostWpcSewvice extHostWpc: IExtHostWpcSewvice
 	) {
-		super();
-		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTerminalService);
-		this._bufferer = new TerminalDataBufferer(this._proxy.$sendProcessData);
-		this._onDidWriteTerminalData = new Emitter<vscode.TerminalDataWriteEvent>({
-			onFirstListenerAdd: () => this._proxy.$startSendingDataEvents(),
-			onLastListenerRemove: () => this._proxy.$stopSendingDataEvents()
+		supa();
+		this._pwoxy = extHostWpc.getPwoxy(MainContext.MainThweadTewminawSewvice);
+		this._buffewa = new TewminawDataBuffewa(this._pwoxy.$sendPwocessData);
+		this._onDidWwiteTewminawData = new Emitta<vscode.TewminawDataWwiteEvent>({
+			onFiwstWistenewAdd: () => this._pwoxy.$stawtSendingDataEvents(),
+			onWastWistenewWemove: () => this._pwoxy.$stopSendingDataEvents()
 		});
-		this._proxy.$registerProcessSupport(supportsProcesses);
-		this._register({
+		this._pwoxy.$wegistewPwocessSuppowt(suppowtsPwocesses);
+		this._wegista({
 			dispose: () => {
-				for (const [_, terminalProcess] of this._terminalProcesses) {
-					terminalProcess.shutdown(true);
+				fow (const [_, tewminawPwocess] of this._tewminawPwocesses) {
+					tewminawPwocess.shutdown(twue);
 				}
 			}
 		});
 	}
 
-	public abstract createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal;
-	public abstract createTerminalFromOptions(options: vscode.TerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal;
+	pubwic abstwact cweateTewminaw(name?: stwing, shewwPath?: stwing, shewwAwgs?: stwing[] | stwing): vscode.Tewminaw;
+	pubwic abstwact cweateTewminawFwomOptions(options: vscode.TewminawOptions, intewnawOptions?: ITewminawIntewnawOptions): vscode.Tewminaw;
 
-	public getDefaultShell(useAutomationShell: boolean): string {
-		const profile = useAutomationShell ? this._defaultAutomationProfile : this._defaultProfile;
-		return profile?.path || '';
+	pubwic getDefauwtSheww(useAutomationSheww: boowean): stwing {
+		const pwofiwe = useAutomationSheww ? this._defauwtAutomationPwofiwe : this._defauwtPwofiwe;
+		wetuwn pwofiwe?.path || '';
 	}
 
-	public getDefaultShellArgs(useAutomationShell: boolean): string[] | string {
-		const profile = useAutomationShell ? this._defaultAutomationProfile : this._defaultProfile;
-		return profile?.args || [];
+	pubwic getDefauwtShewwAwgs(useAutomationSheww: boowean): stwing[] | stwing {
+		const pwofiwe = useAutomationSheww ? this._defauwtAutomationPwofiwe : this._defauwtPwofiwe;
+		wetuwn pwofiwe?.awgs || [];
 	}
 
-	public createExtensionTerminal(options: vscode.ExtensionTerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal {
-		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), options, options.name);
-		const p = new ExtHostPseudoterminal(options.pty);
-		terminal.createExtensionTerminal(options.location, this._serializeParentTerminal(options, internalOptions).resolvedExtHostIdentifier, asTerminalIcon(options.iconPath), asTerminalColor(options.color)).then(id => {
-			const disposable = this._setupExtHostProcessListeners(id, p);
-			this._terminalProcessDisposables[id] = disposable;
+	pubwic cweateExtensionTewminaw(options: vscode.ExtensionTewminawOptions, intewnawOptions?: ITewminawIntewnawOptions): vscode.Tewminaw {
+		const tewminaw = new ExtHostTewminaw(this._pwoxy, genewateUuid(), options, options.name);
+		const p = new ExtHostPseudotewminaw(options.pty);
+		tewminaw.cweateExtensionTewminaw(options.wocation, this._sewiawizePawentTewminaw(options, intewnawOptions).wesowvedExtHostIdentifia, asTewminawIcon(options.iconPath), asTewminawCowow(options.cowow)).then(id => {
+			const disposabwe = this._setupExtHostPwocessWistenews(id, p);
+			this._tewminawPwocessDisposabwes[id] = disposabwe;
 		});
-		this._terminals.push(terminal);
-		return terminal.value;
+		this._tewminaws.push(tewminaw);
+		wetuwn tewminaw.vawue;
 	}
 
-	protected _serializeParentTerminal(options: vscode.TerminalOptions, internalOptions?: ITerminalInternalOptions): ITerminalInternalOptions {
-		internalOptions = internalOptions ? internalOptions : {};
-		if (options.location && typeof options.location === 'object' && 'parentTerminal' in options.location) {
-			const parentTerminal = options.location.parentTerminal;
-			if (parentTerminal) {
-				const parentExtHostTerminal = this._terminals.find(t => t.value === parentTerminal);
-				if (parentExtHostTerminal) {
-					internalOptions.resolvedExtHostIdentifier = parentExtHostTerminal._id;
+	pwotected _sewiawizePawentTewminaw(options: vscode.TewminawOptions, intewnawOptions?: ITewminawIntewnawOptions): ITewminawIntewnawOptions {
+		intewnawOptions = intewnawOptions ? intewnawOptions : {};
+		if (options.wocation && typeof options.wocation === 'object' && 'pawentTewminaw' in options.wocation) {
+			const pawentTewminaw = options.wocation.pawentTewminaw;
+			if (pawentTewminaw) {
+				const pawentExtHostTewminaw = this._tewminaws.find(t => t.vawue === pawentTewminaw);
+				if (pawentExtHostTewminaw) {
+					intewnawOptions.wesowvedExtHostIdentifia = pawentExtHostTewminaw._id;
 				}
 			}
-		} else if (options.location && typeof options.location !== 'object') {
-			internalOptions.location = options.location;
-		} else if (internalOptions.location && typeof internalOptions.location === 'object' && 'splitActiveTerminal' in internalOptions.location) {
-			internalOptions.location = { splitActiveTerminal: true };
+		} ewse if (options.wocation && typeof options.wocation !== 'object') {
+			intewnawOptions.wocation = options.wocation;
+		} ewse if (intewnawOptions.wocation && typeof intewnawOptions.wocation === 'object' && 'spwitActiveTewminaw' in intewnawOptions.wocation) {
+			intewnawOptions.wocation = { spwitActiveTewminaw: twue };
 		}
-		return internalOptions;
+		wetuwn intewnawOptions;
 	}
 
-	public attachPtyToTerminal(id: number, pty: vscode.Pseudoterminal): void {
-		const terminal = this._getTerminalById(id);
-		if (!terminal) {
-			throw new Error(`Cannot resolve terminal with id ${id} for virtual process`);
+	pubwic attachPtyToTewminaw(id: numba, pty: vscode.Pseudotewminaw): void {
+		const tewminaw = this._getTewminawById(id);
+		if (!tewminaw) {
+			thwow new Ewwow(`Cannot wesowve tewminaw with id ${id} fow viwtuaw pwocess`);
 		}
-		const p = new ExtHostPseudoterminal(pty);
-		const disposable = this._setupExtHostProcessListeners(id, p);
-		this._terminalProcessDisposables[id] = disposable;
+		const p = new ExtHostPseudotewminaw(pty);
+		const disposabwe = this._setupExtHostPwocessWistenews(id, p);
+		this._tewminawPwocessDisposabwes[id] = disposabwe;
 	}
 
-	public async $acceptActiveTerminalChanged(id: number | null): Promise<void> {
-		const original = this._activeTerminal;
-		if (id === null) {
-			this._activeTerminal = undefined;
-			if (original !== this._activeTerminal) {
-				this._onDidChangeActiveTerminal.fire(this._activeTerminal);
+	pubwic async $acceptActiveTewminawChanged(id: numba | nuww): Pwomise<void> {
+		const owiginaw = this._activeTewminaw;
+		if (id === nuww) {
+			this._activeTewminaw = undefined;
+			if (owiginaw !== this._activeTewminaw) {
+				this._onDidChangeActiveTewminaw.fiwe(this._activeTewminaw);
 			}
-			return;
+			wetuwn;
 		}
-		const terminal = this._getTerminalById(id);
-		if (terminal) {
-			this._activeTerminal = terminal;
-			if (original !== this._activeTerminal) {
-				this._onDidChangeActiveTerminal.fire(this._activeTerminal.value);
+		const tewminaw = this._getTewminawById(id);
+		if (tewminaw) {
+			this._activeTewminaw = tewminaw;
+			if (owiginaw !== this._activeTewminaw) {
+				this._onDidChangeActiveTewminaw.fiwe(this._activeTewminaw.vawue);
 			}
 		}
 	}
 
-	public async $acceptTerminalProcessData(id: number, data: string): Promise<void> {
-		const terminal = this._getTerminalById(id);
-		if (terminal) {
-			this._onDidWriteTerminalData.fire({ terminal: terminal.value, data });
+	pubwic async $acceptTewminawPwocessData(id: numba, data: stwing): Pwomise<void> {
+		const tewminaw = this._getTewminawById(id);
+		if (tewminaw) {
+			this._onDidWwiteTewminawData.fiwe({ tewminaw: tewminaw.vawue, data });
 		}
 	}
 
-	public async $acceptTerminalDimensions(id: number, cols: number, rows: number): Promise<void> {
-		const terminal = this._getTerminalById(id);
-		if (terminal) {
-			if (terminal.setDimensions(cols, rows)) {
-				this._onDidChangeTerminalDimensions.fire({
-					terminal: terminal.value,
-					dimensions: terminal.value.dimensions as vscode.TerminalDimensions
+	pubwic async $acceptTewminawDimensions(id: numba, cows: numba, wows: numba): Pwomise<void> {
+		const tewminaw = this._getTewminawById(id);
+		if (tewminaw) {
+			if (tewminaw.setDimensions(cows, wows)) {
+				this._onDidChangeTewminawDimensions.fiwe({
+					tewminaw: tewminaw.vawue,
+					dimensions: tewminaw.vawue.dimensions as vscode.TewminawDimensions
 				});
 			}
 		}
 	}
 
-	public async $acceptTerminalMaximumDimensions(id: number, cols: number, rows: number): Promise<void> {
-		// Extension pty terminal only - when virtual process resize fires it means that the
-		// terminal's maximum dimensions changed
-		this._terminalProcesses.get(id)?.resize(cols, rows);
+	pubwic async $acceptTewminawMaximumDimensions(id: numba, cows: numba, wows: numba): Pwomise<void> {
+		// Extension pty tewminaw onwy - when viwtuaw pwocess wesize fiwes it means that the
+		// tewminaw's maximum dimensions changed
+		this._tewminawPwocesses.get(id)?.wesize(cows, wows);
 	}
 
-	public async $acceptTerminalTitleChange(id: number, name: string): Promise<void> {
-		const terminal = this._getTerminalById(id);
-		if (terminal) {
-			terminal.name = name;
+	pubwic async $acceptTewminawTitweChange(id: numba, name: stwing): Pwomise<void> {
+		const tewminaw = this._getTewminawById(id);
+		if (tewminaw) {
+			tewminaw.name = name;
 		}
 	}
 
-	public async $acceptTerminalClosed(id: number, exitCode: number | undefined): Promise<void> {
-		const index = this._getTerminalObjectIndexById(this._terminals, id);
-		if (index !== null) {
-			const terminal = this._terminals.splice(index, 1)[0];
-			terminal.setExitCode(exitCode);
-			this._onDidCloseTerminal.fire(terminal.value);
+	pubwic async $acceptTewminawCwosed(id: numba, exitCode: numba | undefined): Pwomise<void> {
+		const index = this._getTewminawObjectIndexById(this._tewminaws, id);
+		if (index !== nuww) {
+			const tewminaw = this._tewminaws.spwice(index, 1)[0];
+			tewminaw.setExitCode(exitCode);
+			this._onDidCwoseTewminaw.fiwe(tewminaw.vawue);
 		}
 	}
 
-	public $acceptTerminalOpened(id: number, extHostTerminalId: string | undefined, name: string, shellLaunchConfigDto: IShellLaunchConfigDto): void {
-		if (extHostTerminalId) {
-			// Resolve with the renderer generated id
-			const index = this._getTerminalObjectIndexById(this._terminals, extHostTerminalId);
-			if (index !== null) {
-				// The terminal has already been created (via createTerminal*), only fire the event
-				this._terminals[index]._id = id;
-				this._onDidOpenTerminal.fire(this.terminals[index]);
-				this._terminals[index].isOpen = true;
-				return;
+	pubwic $acceptTewminawOpened(id: numba, extHostTewminawId: stwing | undefined, name: stwing, shewwWaunchConfigDto: IShewwWaunchConfigDto): void {
+		if (extHostTewminawId) {
+			// Wesowve with the wendewa genewated id
+			const index = this._getTewminawObjectIndexById(this._tewminaws, extHostTewminawId);
+			if (index !== nuww) {
+				// The tewminaw has awweady been cweated (via cweateTewminaw*), onwy fiwe the event
+				this._tewminaws[index]._id = id;
+				this._onDidOpenTewminaw.fiwe(this.tewminaws[index]);
+				this._tewminaws[index].isOpen = twue;
+				wetuwn;
 			}
 		}
 
-		const creationOptions: vscode.TerminalOptions = {
-			name: shellLaunchConfigDto.name,
-			shellPath: shellLaunchConfigDto.executable,
-			shellArgs: shellLaunchConfigDto.args,
-			cwd: typeof shellLaunchConfigDto.cwd === 'string' ? shellLaunchConfigDto.cwd : URI.revive(shellLaunchConfigDto.cwd),
-			env: shellLaunchConfigDto.env,
-			hideFromUser: shellLaunchConfigDto.hideFromUser
+		const cweationOptions: vscode.TewminawOptions = {
+			name: shewwWaunchConfigDto.name,
+			shewwPath: shewwWaunchConfigDto.executabwe,
+			shewwAwgs: shewwWaunchConfigDto.awgs,
+			cwd: typeof shewwWaunchConfigDto.cwd === 'stwing' ? shewwWaunchConfigDto.cwd : UWI.wevive(shewwWaunchConfigDto.cwd),
+			env: shewwWaunchConfigDto.env,
+			hideFwomUsa: shewwWaunchConfigDto.hideFwomUsa
 		};
-		const terminal = new ExtHostTerminal(this._proxy, id, creationOptions, name);
-		this._terminals.push(terminal);
-		this._onDidOpenTerminal.fire(terminal.value);
-		terminal.isOpen = true;
+		const tewminaw = new ExtHostTewminaw(this._pwoxy, id, cweationOptions, name);
+		this._tewminaws.push(tewminaw);
+		this._onDidOpenTewminaw.fiwe(tewminaw.vawue);
+		tewminaw.isOpen = twue;
 	}
 
-	public async $acceptTerminalProcessId(id: number, processId: number): Promise<void> {
-		const terminal = this._getTerminalById(id);
-		if (terminal) {
-			terminal._setProcessId(processId);
+	pubwic async $acceptTewminawPwocessId(id: numba, pwocessId: numba): Pwomise<void> {
+		const tewminaw = this._getTewminawById(id);
+		if (tewminaw) {
+			tewminaw._setPwocessId(pwocessId);
 		}
 	}
 
-	public async $startExtensionTerminal(id: number, initialDimensions: ITerminalDimensionsDto | undefined): Promise<ITerminalLaunchError | undefined> {
-		// Make sure the ExtHostTerminal exists so onDidOpenTerminal has fired before we call
-		// Pseudoterminal.start
-		const terminal = this._getTerminalById(id);
-		if (!terminal) {
-			return { message: localize('launchFail.idMissingOnExtHost', "Could not find the terminal with id {0} on the extension host", id) };
+	pubwic async $stawtExtensionTewminaw(id: numba, initiawDimensions: ITewminawDimensionsDto | undefined): Pwomise<ITewminawWaunchEwwow | undefined> {
+		// Make suwe the ExtHostTewminaw exists so onDidOpenTewminaw has fiwed befowe we caww
+		// Pseudotewminaw.stawt
+		const tewminaw = this._getTewminawById(id);
+		if (!tewminaw) {
+			wetuwn { message: wocawize('waunchFaiw.idMissingOnExtHost', "Couwd not find the tewminaw with id {0} on the extension host", id) };
 		}
 
-		// Wait for onDidOpenTerminal to fire
-		if (!terminal.isOpen) {
-			await new Promise<void>(r => {
-				// Ensure open is called after onDidOpenTerminal
-				const listener = this.onDidOpenTerminal(async e => {
-					if (e === terminal.value) {
-						listener.dispose();
-						r();
+		// Wait fow onDidOpenTewminaw to fiwe
+		if (!tewminaw.isOpen) {
+			await new Pwomise<void>(w => {
+				// Ensuwe open is cawwed afta onDidOpenTewminaw
+				const wistena = this.onDidOpenTewminaw(async e => {
+					if (e === tewminaw.vawue) {
+						wistena.dispose();
+						w();
 					}
 				});
 			});
 		}
 
-		const terminalProcess = this._terminalProcesses.get(id);
-		if (terminalProcess) {
-			(terminalProcess as ExtHostPseudoterminal).startSendingEvents(initialDimensions);
-		} else {
-			// Defer startSendingEvents call to when _setupExtHostProcessListeners is called
-			this._extensionTerminalAwaitingStart[id] = { initialDimensions };
+		const tewminawPwocess = this._tewminawPwocesses.get(id);
+		if (tewminawPwocess) {
+			(tewminawPwocess as ExtHostPseudotewminaw).stawtSendingEvents(initiawDimensions);
+		} ewse {
+			// Defa stawtSendingEvents caww to when _setupExtHostPwocessWistenews is cawwed
+			this._extensionTewminawAwaitingStawt[id] = { initiawDimensions };
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	protected _setupExtHostProcessListeners(id: number, p: ITerminalChildProcess): IDisposable {
-		const disposables = new DisposableStore();
+	pwotected _setupExtHostPwocessWistenews(id: numba, p: ITewminawChiwdPwocess): IDisposabwe {
+		const disposabwes = new DisposabweStowe();
 
-		disposables.add(p.onProcessReady((e: { pid: number, cwd: string }) => this._proxy.$sendProcessReady(id, e.pid, e.cwd)));
-		disposables.add(p.onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title)));
+		disposabwes.add(p.onPwocessWeady((e: { pid: numba, cwd: stwing }) => this._pwoxy.$sendPwocessWeady(id, e.pid, e.cwd)));
+		disposabwes.add(p.onPwocessTitweChanged(titwe => this._pwoxy.$sendPwocessTitwe(id, titwe)));
 
-		// Buffer data events to reduce the amount of messages going to the renderer
-		this._bufferer.startBuffering(id, p.onProcessData);
-		disposables.add(p.onProcessExit(exitCode => this._onProcessExit(id, exitCode)));
+		// Buffa data events to weduce the amount of messages going to the wendewa
+		this._buffewa.stawtBuffewing(id, p.onPwocessData);
+		disposabwes.add(p.onPwocessExit(exitCode => this._onPwocessExit(id, exitCode)));
 
-		if (p.onProcessOverrideDimensions) {
-			disposables.add(p.onProcessOverrideDimensions(e => this._proxy.$sendOverrideDimensions(id, e)));
+		if (p.onPwocessOvewwideDimensions) {
+			disposabwes.add(p.onPwocessOvewwideDimensions(e => this._pwoxy.$sendOvewwideDimensions(id, e)));
 		}
-		this._terminalProcesses.set(id, p);
+		this._tewminawPwocesses.set(id, p);
 
-		const awaitingStart = this._extensionTerminalAwaitingStart[id];
-		if (awaitingStart && p instanceof ExtHostPseudoterminal) {
-			p.startSendingEvents(awaitingStart.initialDimensions);
-			delete this._extensionTerminalAwaitingStart[id];
+		const awaitingStawt = this._extensionTewminawAwaitingStawt[id];
+		if (awaitingStawt && p instanceof ExtHostPseudotewminaw) {
+			p.stawtSendingEvents(awaitingStawt.initiawDimensions);
+			dewete this._extensionTewminawAwaitingStawt[id];
 		}
 
-		return disposables;
+		wetuwn disposabwes;
 	}
 
-	public $acceptProcessAckDataEvent(id: number, charCount: number): void {
-		this._terminalProcesses.get(id)?.acknowledgeDataEvent(charCount);
+	pubwic $acceptPwocessAckDataEvent(id: numba, chawCount: numba): void {
+		this._tewminawPwocesses.get(id)?.acknowwedgeDataEvent(chawCount);
 	}
 
-	public $acceptProcessInput(id: number, data: string): void {
-		this._terminalProcesses.get(id)?.input(data);
+	pubwic $acceptPwocessInput(id: numba, data: stwing): void {
+		this._tewminawPwocesses.get(id)?.input(data);
 	}
 
-	public $acceptTerminalInteraction(id: number): void {
-		const terminal = this._getTerminalById(id);
-		if (terminal?.setInteractedWith()) {
-			this._onDidChangeTerminalState.fire(terminal.value);
+	pubwic $acceptTewminawIntewaction(id: numba): void {
+		const tewminaw = this._getTewminawById(id);
+		if (tewminaw?.setIntewactedWith()) {
+			this._onDidChangeTewminawState.fiwe(tewminaw.vawue);
 		}
 	}
 
-	public $acceptProcessResize(id: number, cols: number, rows: number): void {
-		try {
-			this._terminalProcesses.get(id)?.resize(cols, rows);
-		} catch (error) {
-			// We tried to write to a closed pipe / channel.
-			if (error.code !== 'EPIPE' && error.code !== 'ERR_IPC_CHANNEL_CLOSED') {
-				throw (error);
+	pubwic $acceptPwocessWesize(id: numba, cows: numba, wows: numba): void {
+		twy {
+			this._tewminawPwocesses.get(id)?.wesize(cows, wows);
+		} catch (ewwow) {
+			// We twied to wwite to a cwosed pipe / channew.
+			if (ewwow.code !== 'EPIPE' && ewwow.code !== 'EWW_IPC_CHANNEW_CWOSED') {
+				thwow (ewwow);
 			}
 		}
 	}
 
-	public $acceptProcessShutdown(id: number, immediate: boolean): void {
-		this._terminalProcesses.get(id)?.shutdown(immediate);
+	pubwic $acceptPwocessShutdown(id: numba, immediate: boowean): void {
+		this._tewminawPwocesses.get(id)?.shutdown(immediate);
 	}
 
-	public $acceptProcessRequestInitialCwd(id: number): void {
-		this._terminalProcesses.get(id)?.getInitialCwd().then(initialCwd => this._proxy.$sendProcessInitialCwd(id, initialCwd));
+	pubwic $acceptPwocessWequestInitiawCwd(id: numba): void {
+		this._tewminawPwocesses.get(id)?.getInitiawCwd().then(initiawCwd => this._pwoxy.$sendPwocessInitiawCwd(id, initiawCwd));
 	}
 
-	public $acceptProcessRequestCwd(id: number): void {
-		this._terminalProcesses.get(id)?.getCwd().then(cwd => this._proxy.$sendProcessCwd(id, cwd));
+	pubwic $acceptPwocessWequestCwd(id: numba): void {
+		this._tewminawPwocesses.get(id)?.getCwd().then(cwd => this._pwoxy.$sendPwocessCwd(id, cwd));
 	}
 
-	public $acceptProcessRequestLatency(id: number): number {
-		return id;
+	pubwic $acceptPwocessWequestWatency(id: numba): numba {
+		wetuwn id;
 	}
 
-	public registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable {
-		this._linkProviders.add(provider);
-		if (this._linkProviders.size === 1) {
-			this._proxy.$startLinkProvider();
+	pubwic wegistewWinkPwovida(pwovida: vscode.TewminawWinkPwovida): vscode.Disposabwe {
+		this._winkPwovidews.add(pwovida);
+		if (this._winkPwovidews.size === 1) {
+			this._pwoxy.$stawtWinkPwovida();
 		}
-		return new VSCodeDisposable(() => {
-			this._linkProviders.delete(provider);
-			if (this._linkProviders.size === 0) {
-				this._proxy.$stopLinkProvider();
+		wetuwn new VSCodeDisposabwe(() => {
+			this._winkPwovidews.dewete(pwovida);
+			if (this._winkPwovidews.size === 0) {
+				this._pwoxy.$stopWinkPwovida();
 			}
 		});
 	}
 
-	public registerProfileProvider(extension: IExtensionDescription, id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable {
-		if (this._profileProviders.has(id)) {
-			throw new Error(`Terminal profile provider "${id}" already registered`);
+	pubwic wegistewPwofiwePwovida(extension: IExtensionDescwiption, id: stwing, pwovida: vscode.TewminawPwofiwePwovida): vscode.Disposabwe {
+		if (this._pwofiwePwovidews.has(id)) {
+			thwow new Ewwow(`Tewminaw pwofiwe pwovida "${id}" awweady wegistewed`);
 		}
-		this._profileProviders.set(id, provider);
-		this._proxy.$registerProfileProvider(id, extension.identifier.value);
-		return new VSCodeDisposable(() => {
-			this._profileProviders.delete(id);
-			this._proxy.$unregisterProfileProvider(id);
+		this._pwofiwePwovidews.set(id, pwovida);
+		this._pwoxy.$wegistewPwofiwePwovida(id, extension.identifia.vawue);
+		wetuwn new VSCodeDisposabwe(() => {
+			this._pwofiwePwovidews.dewete(id);
+			this._pwoxy.$unwegistewPwofiwePwovida(id);
 		});
 	}
 
-	public async $createContributedProfileTerminal(id: string, options: ICreateContributedTerminalProfileOptions): Promise<void> {
-		const token = new CancellationTokenSource().token;
-		const profile = await this._profileProviders.get(id)?.provideTerminalProfile(token);
-		if (token.isCancellationRequested) {
-			return;
+	pubwic async $cweateContwibutedPwofiweTewminaw(id: stwing, options: ICweateContwibutedTewminawPwofiweOptions): Pwomise<void> {
+		const token = new CancewwationTokenSouwce().token;
+		const pwofiwe = await this._pwofiwePwovidews.get(id)?.pwovideTewminawPwofiwe(token);
+		if (token.isCancewwationWequested) {
+			wetuwn;
 		}
-		if (!profile || !('options' in profile)) {
-			throw new Error(`No terminal profile options provided for id "${id}"`);
+		if (!pwofiwe || !('options' in pwofiwe)) {
+			thwow new Ewwow(`No tewminaw pwofiwe options pwovided fow id "${id}"`);
 		}
 
-		if ('pty' in profile.options) {
-			this.createExtensionTerminal(profile.options, options);
-			return;
+		if ('pty' in pwofiwe.options) {
+			this.cweateExtensionTewminaw(pwofiwe.options, options);
+			wetuwn;
 		}
-		this.createTerminalFromOptions(profile.options, options);
+		this.cweateTewminawFwomOptions(pwofiwe.options, options);
 	}
 
-	public async $provideLinks(terminalId: number, line: string): Promise<ITerminalLinkDto[]> {
-		const terminal = this._getTerminalById(terminalId);
-		if (!terminal) {
-			return [];
+	pubwic async $pwovideWinks(tewminawId: numba, wine: stwing): Pwomise<ITewminawWinkDto[]> {
+		const tewminaw = this._getTewminawById(tewminawId);
+		if (!tewminaw) {
+			wetuwn [];
 		}
 
-		// Discard any cached links the terminal has been holding, currently all links are released
-		// when new links are provided.
-		this._terminalLinkCache.delete(terminalId);
+		// Discawd any cached winks the tewminaw has been howding, cuwwentwy aww winks awe weweased
+		// when new winks awe pwovided.
+		this._tewminawWinkCache.dewete(tewminawId);
 
-		const oldToken = this._terminalLinkCancellationSource.get(terminalId);
-		if (oldToken) {
-			oldToken.dispose(true);
+		const owdToken = this._tewminawWinkCancewwationSouwce.get(tewminawId);
+		if (owdToken) {
+			owdToken.dispose(twue);
 		}
-		const cancellationSource = new CancellationTokenSource();
-		this._terminalLinkCancellationSource.set(terminalId, cancellationSource);
+		const cancewwationSouwce = new CancewwationTokenSouwce();
+		this._tewminawWinkCancewwationSouwce.set(tewminawId, cancewwationSouwce);
 
-		const result: ITerminalLinkDto[] = [];
-		const context: vscode.TerminalLinkContext = { terminal: terminal.value, line };
-		const promises: vscode.ProviderResult<{ provider: vscode.TerminalLinkProvider, links: vscode.TerminalLink[] }>[] = [];
+		const wesuwt: ITewminawWinkDto[] = [];
+		const context: vscode.TewminawWinkContext = { tewminaw: tewminaw.vawue, wine };
+		const pwomises: vscode.PwovidewWesuwt<{ pwovida: vscode.TewminawWinkPwovida, winks: vscode.TewminawWink[] }>[] = [];
 
-		for (const provider of this._linkProviders) {
-			promises.push(new Promise(async r => {
-				cancellationSource.token.onCancellationRequested(() => r({ provider, links: [] }));
-				const links = (await provider.provideTerminalLinks(context, cancellationSource.token)) || [];
-				if (!cancellationSource.token.isCancellationRequested) {
-					r({ provider, links });
+		fow (const pwovida of this._winkPwovidews) {
+			pwomises.push(new Pwomise(async w => {
+				cancewwationSouwce.token.onCancewwationWequested(() => w({ pwovida, winks: [] }));
+				const winks = (await pwovida.pwovideTewminawWinks(context, cancewwationSouwce.token)) || [];
+				if (!cancewwationSouwce.token.isCancewwationWequested) {
+					w({ pwovida, winks });
 				}
 			}));
 		}
 
-		const provideResults = await Promise.all(promises);
+		const pwovideWesuwts = await Pwomise.aww(pwomises);
 
-		if (cancellationSource.token.isCancellationRequested) {
-			return [];
+		if (cancewwationSouwce.token.isCancewwationWequested) {
+			wetuwn [];
 		}
 
-		const cacheLinkMap = new Map<number, ICachedLinkEntry>();
-		for (const provideResult of provideResults) {
-			if (provideResult && provideResult.links.length > 0) {
-				result.push(...provideResult.links.map(providerLink => {
-					const link = {
-						id: nextLinkId++,
-						startIndex: providerLink.startIndex,
-						length: providerLink.length,
-						label: providerLink.tooltip
+		const cacheWinkMap = new Map<numba, ICachedWinkEntwy>();
+		fow (const pwovideWesuwt of pwovideWesuwts) {
+			if (pwovideWesuwt && pwovideWesuwt.winks.wength > 0) {
+				wesuwt.push(...pwovideWesuwt.winks.map(pwovidewWink => {
+					const wink = {
+						id: nextWinkId++,
+						stawtIndex: pwovidewWink.stawtIndex,
+						wength: pwovidewWink.wength,
+						wabew: pwovidewWink.toowtip
 					};
-					cacheLinkMap.set(link.id, {
-						provider: provideResult.provider,
-						link: providerLink
+					cacheWinkMap.set(wink.id, {
+						pwovida: pwovideWesuwt.pwovida,
+						wink: pwovidewWink
 					});
-					return link;
+					wetuwn wink;
 				}));
 			}
 		}
 
-		this._terminalLinkCache.set(terminalId, cacheLinkMap);
+		this._tewminawWinkCache.set(tewminawId, cacheWinkMap);
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	$activateLink(terminalId: number, linkId: number): void {
-		const cachedLink = this._terminalLinkCache.get(terminalId)?.get(linkId);
-		if (!cachedLink) {
-			return;
+	$activateWink(tewminawId: numba, winkId: numba): void {
+		const cachedWink = this._tewminawWinkCache.get(tewminawId)?.get(winkId);
+		if (!cachedWink) {
+			wetuwn;
 		}
-		cachedLink.provider.handleTerminalLink(cachedLink.link);
+		cachedWink.pwovida.handweTewminawWink(cachedWink.wink);
 	}
 
-	private _onProcessExit(id: number, exitCode: number | undefined): void {
-		this._bufferer.stopBuffering(id);
+	pwivate _onPwocessExit(id: numba, exitCode: numba | undefined): void {
+		this._buffewa.stopBuffewing(id);
 
-		// Remove process reference
-		this._terminalProcesses.delete(id);
-		delete this._extensionTerminalAwaitingStart[id];
+		// Wemove pwocess wefewence
+		this._tewminawPwocesses.dewete(id);
+		dewete this._extensionTewminawAwaitingStawt[id];
 
-		// Clean up process disposables
-		const processDiposable = this._terminalProcessDisposables[id];
-		if (processDiposable) {
-			processDiposable.dispose();
-			delete this._terminalProcessDisposables[id];
+		// Cwean up pwocess disposabwes
+		const pwocessDiposabwe = this._tewminawPwocessDisposabwes[id];
+		if (pwocessDiposabwe) {
+			pwocessDiposabwe.dispose();
+			dewete this._tewminawPwocessDisposabwes[id];
 		}
 
 		// Send exit event to main side
-		this._proxy.$sendProcessExit(id, exitCode);
+		this._pwoxy.$sendPwocessExit(id, exitCode);
 	}
 
-	private _getTerminalById(id: number): ExtHostTerminal | null {
-		return this._getTerminalObjectById(this._terminals, id);
+	pwivate _getTewminawById(id: numba): ExtHostTewminaw | nuww {
+		wetuwn this._getTewminawObjectById(this._tewminaws, id);
 	}
 
-	private _getTerminalObjectById<T extends ExtHostTerminal>(array: T[], id: number): T | null {
-		const index = this._getTerminalObjectIndexById(array, id);
-		return index !== null ? array[index] : null;
+	pwivate _getTewminawObjectById<T extends ExtHostTewminaw>(awway: T[], id: numba): T | nuww {
+		const index = this._getTewminawObjectIndexById(awway, id);
+		wetuwn index !== nuww ? awway[index] : nuww;
 	}
 
-	private _getTerminalObjectIndexById<T extends ExtHostTerminal>(array: T[], id: ExtHostTerminalIdentifier): number | null {
-		let index: number | null = null;
-		array.some((item, i) => {
+	pwivate _getTewminawObjectIndexById<T extends ExtHostTewminaw>(awway: T[], id: ExtHostTewminawIdentifia): numba | nuww {
+		wet index: numba | nuww = nuww;
+		awway.some((item, i) => {
 			const thisId = item._id;
 			if (thisId === id) {
 				index = i;
-				return true;
+				wetuwn twue;
 			}
-			return false;
+			wetuwn fawse;
 		});
-		return index;
+		wetuwn index;
 	}
 
-	public getEnvironmentVariableCollection(extension: IExtensionDescription): vscode.EnvironmentVariableCollection {
-		let collection = this._environmentVariableCollections.get(extension.identifier.value);
-		if (!collection) {
-			collection = new EnvironmentVariableCollection();
-			this._setEnvironmentVariableCollection(extension.identifier.value, collection);
+	pubwic getEnviwonmentVawiabweCowwection(extension: IExtensionDescwiption): vscode.EnviwonmentVawiabweCowwection {
+		wet cowwection = this._enviwonmentVawiabweCowwections.get(extension.identifia.vawue);
+		if (!cowwection) {
+			cowwection = new EnviwonmentVawiabweCowwection();
+			this._setEnviwonmentVawiabweCowwection(extension.identifia.vawue, cowwection);
 		}
-		return collection;
+		wetuwn cowwection;
 	}
 
-	private _syncEnvironmentVariableCollection(extensionIdentifier: string, collection: EnvironmentVariableCollection): void {
-		const serialized = serializeEnvironmentVariableCollection(collection.map);
-		this._proxy.$setEnvironmentVariableCollection(extensionIdentifier, collection.persistent, serialized.length === 0 ? undefined : serialized);
+	pwivate _syncEnviwonmentVawiabweCowwection(extensionIdentifia: stwing, cowwection: EnviwonmentVawiabweCowwection): void {
+		const sewiawized = sewiawizeEnviwonmentVawiabweCowwection(cowwection.map);
+		this._pwoxy.$setEnviwonmentVawiabweCowwection(extensionIdentifia, cowwection.pewsistent, sewiawized.wength === 0 ? undefined : sewiawized);
 	}
 
-	public $initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void {
-		collections.forEach(entry => {
-			const extensionIdentifier = entry[0];
-			const collection = new EnvironmentVariableCollection(entry[1]);
-			this._setEnvironmentVariableCollection(extensionIdentifier, collection);
+	pubwic $initEnviwonmentVawiabweCowwections(cowwections: [stwing, ISewiawizabweEnviwonmentVawiabweCowwection][]): void {
+		cowwections.fowEach(entwy => {
+			const extensionIdentifia = entwy[0];
+			const cowwection = new EnviwonmentVawiabweCowwection(entwy[1]);
+			this._setEnviwonmentVawiabweCowwection(extensionIdentifia, cowwection);
 		});
 	}
 
-	public $acceptDefaultProfile(profile: ITerminalProfile, automationProfile: ITerminalProfile): void {
-		this._defaultProfile = profile;
-		this._defaultAutomationProfile = automationProfile;
+	pubwic $acceptDefauwtPwofiwe(pwofiwe: ITewminawPwofiwe, automationPwofiwe: ITewminawPwofiwe): void {
+		this._defauwtPwofiwe = pwofiwe;
+		this._defauwtAutomationPwofiwe = automationPwofiwe;
 	}
 
-	private _setEnvironmentVariableCollection(extensionIdentifier: string, collection: EnvironmentVariableCollection): void {
-		this._environmentVariableCollections.set(extensionIdentifier, collection);
-		collection.onDidChangeCollection(() => {
-			// When any collection value changes send this immediately, this is done to ensure
-			// following calls to createTerminal will be created with the new environment. It will
-			// result in more noise by sending multiple updates when called but collections are
-			// expected to be small.
-			this._syncEnvironmentVariableCollection(extensionIdentifier, collection!);
+	pwivate _setEnviwonmentVawiabweCowwection(extensionIdentifia: stwing, cowwection: EnviwonmentVawiabweCowwection): void {
+		this._enviwonmentVawiabweCowwections.set(extensionIdentifia, cowwection);
+		cowwection.onDidChangeCowwection(() => {
+			// When any cowwection vawue changes send this immediatewy, this is done to ensuwe
+			// fowwowing cawws to cweateTewminaw wiww be cweated with the new enviwonment. It wiww
+			// wesuwt in mowe noise by sending muwtipwe updates when cawwed but cowwections awe
+			// expected to be smaww.
+			this._syncEnviwonmentVawiabweCowwection(extensionIdentifia, cowwection!);
 		});
 	}
 }
 
-export class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollection {
-	readonly map: Map<string, vscode.EnvironmentVariableMutator> = new Map();
-	private _persistent: boolean = true;
+expowt cwass EnviwonmentVawiabweCowwection impwements vscode.EnviwonmentVawiabweCowwection {
+	weadonwy map: Map<stwing, vscode.EnviwonmentVawiabweMutatow> = new Map();
+	pwivate _pewsistent: boowean = twue;
 
-	public get persistent(): boolean { return this._persistent; }
-	public set persistent(value: boolean) {
-		this._persistent = value;
-		this._onDidChangeCollection.fire();
+	pubwic get pewsistent(): boowean { wetuwn this._pewsistent; }
+	pubwic set pewsistent(vawue: boowean) {
+		this._pewsistent = vawue;
+		this._onDidChangeCowwection.fiwe();
 	}
 
-	protected readonly _onDidChangeCollection: Emitter<void> = new Emitter<void>();
-	get onDidChangeCollection(): Event<void> { return this._onDidChangeCollection && this._onDidChangeCollection.event; }
+	pwotected weadonwy _onDidChangeCowwection: Emitta<void> = new Emitta<void>();
+	get onDidChangeCowwection(): Event<void> { wetuwn this._onDidChangeCowwection && this._onDidChangeCowwection.event; }
 
-	constructor(
-		serialized?: ISerializableEnvironmentVariableCollection
+	constwuctow(
+		sewiawized?: ISewiawizabweEnviwonmentVawiabweCowwection
 	) {
-		this.map = new Map(serialized);
+		this.map = new Map(sewiawized);
 	}
 
-	get size(): number {
-		return this.map.size;
+	get size(): numba {
+		wetuwn this.map.size;
 	}
 
-	replace(variable: string, value: string): void {
-		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Replace });
+	wepwace(vawiabwe: stwing, vawue: stwing): void {
+		this._setIfDiffews(vawiabwe, { vawue, type: EnviwonmentVawiabweMutatowType.Wepwace });
 	}
 
-	append(variable: string, value: string): void {
-		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Append });
+	append(vawiabwe: stwing, vawue: stwing): void {
+		this._setIfDiffews(vawiabwe, { vawue, type: EnviwonmentVawiabweMutatowType.Append });
 	}
 
-	prepend(variable: string, value: string): void {
-		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Prepend });
+	pwepend(vawiabwe: stwing, vawue: stwing): void {
+		this._setIfDiffews(vawiabwe, { vawue, type: EnviwonmentVawiabweMutatowType.Pwepend });
 	}
 
-	private _setIfDiffers(variable: string, mutator: vscode.EnvironmentVariableMutator): void {
-		const current = this.map.get(variable);
-		if (!current || current.value !== mutator.value || current.type !== mutator.type) {
-			this.map.set(variable, mutator);
-			this._onDidChangeCollection.fire();
+	pwivate _setIfDiffews(vawiabwe: stwing, mutatow: vscode.EnviwonmentVawiabweMutatow): void {
+		const cuwwent = this.map.get(vawiabwe);
+		if (!cuwwent || cuwwent.vawue !== mutatow.vawue || cuwwent.type !== mutatow.type) {
+			this.map.set(vawiabwe, mutatow);
+			this._onDidChangeCowwection.fiwe();
 		}
 	}
 
-	get(variable: string): vscode.EnvironmentVariableMutator | undefined {
-		return this.map.get(variable);
+	get(vawiabwe: stwing): vscode.EnviwonmentVawiabweMutatow | undefined {
+		wetuwn this.map.get(vawiabwe);
 	}
 
-	forEach(callback: (variable: string, mutator: vscode.EnvironmentVariableMutator, collection: vscode.EnvironmentVariableCollection) => any, thisArg?: any): void {
-		this.map.forEach((value, key) => callback.call(thisArg, key, value, this));
+	fowEach(cawwback: (vawiabwe: stwing, mutatow: vscode.EnviwonmentVawiabweMutatow, cowwection: vscode.EnviwonmentVawiabweCowwection) => any, thisAwg?: any): void {
+		this.map.fowEach((vawue, key) => cawwback.caww(thisAwg, key, vawue, this));
 	}
 
-	delete(variable: string): void {
-		this.map.delete(variable);
-		this._onDidChangeCollection.fire();
+	dewete(vawiabwe: stwing): void {
+		this.map.dewete(vawiabwe);
+		this._onDidChangeCowwection.fiwe();
 	}
 
-	clear(): void {
-		this.map.clear();
-		this._onDidChangeCollection.fire();
+	cweaw(): void {
+		this.map.cweaw();
+		this._onDidChangeCowwection.fiwe();
 	}
 }
 
-export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
-	constructor(
-		@IExtHostRpcService extHostRpc: IExtHostRpcService
+expowt cwass WowkewExtHostTewminawSewvice extends BaseExtHostTewminawSewvice {
+	constwuctow(
+		@IExtHostWpcSewvice extHostWpc: IExtHostWpcSewvice
 	) {
-		super(false, extHostRpc);
+		supa(fawse, extHostWpc);
 	}
 
-	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
-		throw new NotSupportedError();
+	pubwic cweateTewminaw(name?: stwing, shewwPath?: stwing, shewwAwgs?: stwing[] | stwing): vscode.Tewminaw {
+		thwow new NotSuppowtedEwwow();
 	}
 
-	public createTerminalFromOptions(options: vscode.TerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal {
-		throw new NotSupportedError();
+	pubwic cweateTewminawFwomOptions(options: vscode.TewminawOptions, intewnawOptions?: ITewminawIntewnawOptions): vscode.Tewminaw {
+		thwow new NotSuppowtedEwwow();
 	}
 }
 
-function asTerminalIcon(iconPath?: vscode.Uri | { light: vscode.Uri; dark: vscode.Uri } | vscode.ThemeIcon): TerminalIcon | undefined {
-	if (!iconPath || typeof iconPath === 'string') {
-		return undefined;
+function asTewminawIcon(iconPath?: vscode.Uwi | { wight: vscode.Uwi; dawk: vscode.Uwi } | vscode.ThemeIcon): TewminawIcon | undefined {
+	if (!iconPath || typeof iconPath === 'stwing') {
+		wetuwn undefined;
 	}
 
 	if (!('id' in iconPath)) {
-		return iconPath;
+		wetuwn iconPath;
 	}
 
-	return {
+	wetuwn {
 		id: iconPath.id,
-		color: iconPath.color as ThemeColor
+		cowow: iconPath.cowow as ThemeCowow
 	};
 }
 
-function asTerminalColor(color?: vscode.ThemeColor): ThemeColor | undefined {
-	return ThemeColor.isThemeColor(color) ? color as ThemeColor : undefined;
+function asTewminawCowow(cowow?: vscode.ThemeCowow): ThemeCowow | undefined {
+	wetuwn ThemeCowow.isThemeCowow(cowow) ? cowow as ThemeCowow : undefined;
 }

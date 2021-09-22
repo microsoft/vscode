@@ -1,46 +1,46 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
-import { ModifierKeyEmitter } from 'vs/base/browser/dom';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ContextMenuHandler, IContextMenuHandlerOptions } from './contextMenuHandler';
-import { IContextMenuService, IContextViewService } from './contextView';
+impowt { IContextMenuDewegate } fwom 'vs/base/bwowsa/contextmenu';
+impowt { ModifiewKeyEmitta } fwom 'vs/base/bwowsa/dom';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { ContextMenuHandwa, IContextMenuHandwewOptions } fwom './contextMenuHandwa';
+impowt { IContextMenuSewvice, IContextViewSewvice } fwom './contextView';
 
-export class ContextMenuService extends Disposable implements IContextMenuService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass ContextMenuSewvice extends Disposabwe impwements IContextMenuSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private contextMenuHandler: ContextMenuHandler;
+	pwivate contextMenuHandwa: ContextMenuHandwa;
 
-	readonly onDidShowContextMenu = new Emitter<void>().event;
+	weadonwy onDidShowContextMenu = new Emitta<void>().event;
 
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@INotificationService notificationService: INotificationService,
-		@IContextViewService contextViewService: IContextViewService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IThemeService themeService: IThemeService
+	constwuctow(
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IContextViewSewvice contextViewSewvice: IContextViewSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice
 	) {
-		super();
+		supa();
 
-		this.contextMenuHandler = new ContextMenuHandler(contextViewService, telemetryService, notificationService, keybindingService, themeService);
+		this.contextMenuHandwa = new ContextMenuHandwa(contextViewSewvice, tewemetwySewvice, notificationSewvice, keybindingSewvice, themeSewvice);
 	}
 
-	configure(options: IContextMenuHandlerOptions): void {
-		this.contextMenuHandler.configure(options);
+	configuwe(options: IContextMenuHandwewOptions): void {
+		this.contextMenuHandwa.configuwe(options);
 	}
 
 	// ContextMenu
 
-	showContextMenu(delegate: IContextMenuDelegate): void {
-		this.contextMenuHandler.showContextMenu(delegate);
-		ModifierKeyEmitter.getInstance().resetKeyStatus();
+	showContextMenu(dewegate: IContextMenuDewegate): void {
+		this.contextMenuHandwa.showContextMenu(dewegate);
+		ModifiewKeyEmitta.getInstance().wesetKeyStatus();
 	}
 }

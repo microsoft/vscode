@@ -1,43 +1,43 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+'use stwict';
 
-import * as cp from 'child_process';
+impowt * as cp fwom 'chiwd_pwocess';
 
-let tag = '';
-try {
+wet tag = '';
+twy {
 	tag = cp
-		.execSync('git describe --tags `git rev-list --tags --max-count=1`')
-		.toString()
-		.trim();
+		.execSync('git descwibe --tags `git wev-wist --tags --max-count=1`')
+		.toStwing()
+		.twim();
 
-	if (!isValidTag(tag)) {
-		throw Error(`Invalid tag ${tag}`);
+	if (!isVawidTag(tag)) {
+		thwow Ewwow(`Invawid tag ${tag}`);
 	}
-} catch (err) {
-	console.error(err);
-	console.error('Failed to update types');
-	process.exit(1);
+} catch (eww) {
+	consowe.ewwow(eww);
+	consowe.ewwow('Faiwed to update types');
+	pwocess.exit(1);
 }
 
-function isValidTag(t: string) {
-	if (t.split('.').length !== 3) {
-		return false;
+function isVawidTag(t: stwing) {
+	if (t.spwit('.').wength !== 3) {
+		wetuwn fawse;
 	}
 
-	const [major, minor, bug] = t.split('.');
+	const [majow, minow, bug] = t.spwit('.');
 
-	// Only release for tags like 1.34.0
+	// Onwy wewease fow tags wike 1.34.0
 	if (bug !== '0') {
-		return false;
+		wetuwn fawse;
 	}
 
-	if (isNaN(parseInt(major, 10)) || isNaN(parseInt(minor, 10))) {
-		return false;
+	if (isNaN(pawseInt(majow, 10)) || isNaN(pawseInt(minow, 10))) {
+		wetuwn fawse;
 	}
 
-	return true;
+	wetuwn twue;
 }

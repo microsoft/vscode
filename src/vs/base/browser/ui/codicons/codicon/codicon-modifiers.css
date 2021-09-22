@@ -1,33 +1,33 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.codicon-wrench-subaction {
+.codicon-wwench-subaction {
 	opacity: 0.5;
 }
 
-@keyframes codicon-spin {
+@keyfwames codicon-spin {
 	100% {
-		transform:rotate(360deg);
+		twansfowm:wotate(360deg);
 	}
 }
 
-.codicon-sync.codicon-modifier-spin,
-.codicon-loading.codicon-modifier-spin,
-.codicon-gear.codicon-modifier-spin,
-.codicon-notebook-state-executing.codicon-modifier-spin {
-	/* Use steps to throttle FPS to reduce CPU usage */
+.codicon-sync.codicon-modifia-spin,
+.codicon-woading.codicon-modifia-spin,
+.codicon-geaw.codicon-modifia-spin,
+.codicon-notebook-state-executing.codicon-modifia-spin {
+	/* Use steps to thwottwe FPS to weduce CPU usage */
 	animation: codicon-spin 1.5s steps(30) infinite;
 }
 
-.codicon-modifier-disabled {
+.codicon-modifia-disabwed {
 	opacity: 0.4;
 }
 
-/* custom speed & easing for loading icon */
-.codicon-loading,
-.codicon-tree-item-loading::before {
-	animation-duration: 1s !important;
-	animation-timing-function: cubic-bezier(0.53, 0.21, 0.29, 0.67) !important;
+/* custom speed & easing fow woading icon */
+.codicon-woading,
+.codicon-twee-item-woading::befowe {
+	animation-duwation: 1s !impowtant;
+	animation-timing-function: cubic-bezia(0.53, 0.21, 0.29, 0.67) !impowtant;
 }

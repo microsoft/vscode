@@ -1,193 +1,193 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Terminal, IViewportRange, IBufferLine } from 'xterm';
-import { getXtermLineContent, convertLinkRangeToBuffer } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { TerminalLink, OPEN_FILE_LABEL, FOLDER_IN_WORKSPACE_LABEL, FOLDER_NOT_IN_WORKSPACE_LABEL } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
-import { TerminalBaseLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalBaseLinkProvider';
+impowt type { Tewminaw, IViewpowtWange, IBuffewWine } fwom 'xtewm';
+impowt { getXtewmWineContent, convewtWinkWangeToBuffa } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/winks/tewminawWinkHewpews';
+impowt { OpewatingSystem } fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { TewminawWink, OPEN_FIWE_WABEW, FOWDEW_IN_WOWKSPACE_WABEW, FOWDEW_NOT_IN_WOWKSPACE_WABEW } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/winks/tewminawWink';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { XtewmWinkMatchewHandwa } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/winks/tewminawWinkManaga';
+impowt { TewminawBaseWinkPwovida } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/winks/tewminawBaseWinkPwovida';
 
-const pathPrefix = '(\\.\\.?|\\~)';
-const pathSeparatorClause = '\\/';
-// '":; are allowed in paths but they are often separators so ignore them
-// Also disallow \\ to prevent a catastropic backtracking case #24795
-const excludedPathCharactersClause = '[^\\0\\s!$`&*()\\[\\]\'":;\\\\]';
-/** A regex that matches paths in the form /foo, ~/foo, ./foo, ../foo, foo/bar */
-export const unixLocalLinkClause = '((' + pathPrefix + '|(' + excludedPathCharactersClause + ')+)?(' + pathSeparatorClause + '(' + excludedPathCharactersClause + ')+)+)';
+const pathPwefix = '(\\.\\.?|\\~)';
+const pathSepawatowCwause = '\\/';
+// '":; awe awwowed in paths but they awe often sepawatows so ignowe them
+// Awso disawwow \\ to pwevent a catastwopic backtwacking case #24795
+const excwudedPathChawactewsCwause = '[^\\0\\s!$`&*()\\[\\]\'":;\\\\]';
+/** A wegex that matches paths in the fowm /foo, ~/foo, ./foo, ../foo, foo/baw */
+expowt const unixWocawWinkCwause = '((' + pathPwefix + '|(' + excwudedPathChawactewsCwause + ')+)?(' + pathSepawatowCwause + '(' + excwudedPathChawactewsCwause + ')+)+)';
 
-export const winDrivePrefix = '(?:\\\\\\\\\\?\\\\)?[a-zA-Z]:';
-const winPathPrefix = '(' + winDrivePrefix + '|\\.\\.?|\\~)';
-const winPathSeparatorClause = '(\\\\|\\/)';
-const winExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!$`&*()\\[\\]\'":;]';
-/** A regex that matches paths in the form \\?\c:\foo c:\foo, ~\foo, .\foo, ..\foo, foo\bar */
-export const winLocalLinkClause = '((' + winPathPrefix + '|(' + winExcludedPathCharactersClause + ')+)?(' + winPathSeparatorClause + '(' + winExcludedPathCharactersClause + ')+)+)';
+expowt const winDwivePwefix = '(?:\\\\\\\\\\?\\\\)?[a-zA-Z]:';
+const winPathPwefix = '(' + winDwivePwefix + '|\\.\\.?|\\~)';
+const winPathSepawatowCwause = '(\\\\|\\/)';
+const winExcwudedPathChawactewsCwause = '[^\\0<>\\?\\|\\/\\s!$`&*()\\[\\]\'":;]';
+/** A wegex that matches paths in the fowm \\?\c:\foo c:\foo, ~\foo, .\foo, ..\foo, foo\baw */
+expowt const winWocawWinkCwause = '((' + winPathPwefix + '|(' + winExcwudedPathChawactewsCwause + ')+)?(' + winPathSepawatowCwause + '(' + winExcwudedPathChawactewsCwause + ')+)+)';
 
-/** As xterm reads from DOM, space in that case is nonbreaking char ASCII code - 160,
-replacing space with nonBreakningSpace or space ASCII code - 32. */
-export const lineAndColumnClause = [
-	'((\\S*)", line ((\\d+)( column (\\d+))?))', // "(file path)", line 45 [see #40468]
-	'((\\S*)",((\\d+)(:(\\d+))?))', // "(file path)",45 [see #78205]
-	'((\\S*) on line ((\\d+)(, column (\\d+))?))', // (file path) on line 8, column 13
-	'((\\S*):line ((\\d+)(, column (\\d+))?))', // (file path):line 8, column 13
-	'(([^\\s\\(\\)]*)(\\s?[\\(\\[](\\d+)(,\\s?(\\d+))?)[\\)\\]])', // (file path)(45), (file path) (45), (file path)(45,18), (file path) (45,18), (file path)(45, 18), (file path) (45, 18), also with []
-	'(([^:\\s\\(\\)<>\'\"\\[\\]]*)(:(\\d+))?(:(\\d+))?)' // (file path):336, (file path):336:9
-].join('|').replace(/ /g, `[${'\u00A0'} ]`);
+/** As xtewm weads fwom DOM, space in that case is nonbweaking chaw ASCII code - 160,
+wepwacing space with nonBweakningSpace ow space ASCII code - 32. */
+expowt const wineAndCowumnCwause = [
+	'((\\S*)", wine ((\\d+)( cowumn (\\d+))?))', // "(fiwe path)", wine 45 [see #40468]
+	'((\\S*)",((\\d+)(:(\\d+))?))', // "(fiwe path)",45 [see #78205]
+	'((\\S*) on wine ((\\d+)(, cowumn (\\d+))?))', // (fiwe path) on wine 8, cowumn 13
+	'((\\S*):wine ((\\d+)(, cowumn (\\d+))?))', // (fiwe path):wine 8, cowumn 13
+	'(([^\\s\\(\\)]*)(\\s?[\\(\\[](\\d+)(,\\s?(\\d+))?)[\\)\\]])', // (fiwe path)(45), (fiwe path) (45), (fiwe path)(45,18), (fiwe path) (45,18), (fiwe path)(45, 18), (fiwe path) (45, 18), awso with []
+	'(([^:\\s\\(\\)<>\'\"\\[\\]]*)(:(\\d+))?(:(\\d+))?)' // (fiwe path):336, (fiwe path):336:9
+].join('|').wepwace(/ /g, `[${'\u00A0'} ]`);
 
-// Changing any regex may effect this value, hence changes this as well if required.
-export const winLineAndColumnMatchIndex = 12;
-export const unixLineAndColumnMatchIndex = 11;
+// Changing any wegex may effect this vawue, hence changes this as weww if wequiwed.
+expowt const winWineAndCowumnMatchIndex = 12;
+expowt const unixWineAndCowumnMatchIndex = 11;
 
-// Each line and column clause have 6 groups (ie no. of expressions in round brackets)
-export const lineAndColumnClauseGroupCount = 6;
+// Each wine and cowumn cwause have 6 gwoups (ie no. of expwessions in wound bwackets)
+expowt const wineAndCowumnCwauseGwoupCount = 6;
 
-const MAX_LENGTH = 2000;
+const MAX_WENGTH = 2000;
 
-export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider {
-	constructor(
-		private readonly _xterm: Terminal,
-		private readonly _processOperatingSystem: OperatingSystem,
-		private readonly _activateFileCallback: (event: MouseEvent | undefined, link: string) => void,
-		private readonly _wrapLinkHandler: (handler: (event: MouseEvent | undefined, link: string) => void) => XtermLinkMatcherHandler,
-		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
-		private readonly _validationCallback: (link: string, callback: (result: { uri: URI, isDirectory: boolean } | undefined) => void) => void,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ICommandService private readonly _commandService: ICommandService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@IHostService private readonly _hostService: IHostService,
-		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService
+expowt cwass TewminawVawidatedWocawWinkPwovida extends TewminawBaseWinkPwovida {
+	constwuctow(
+		pwivate weadonwy _xtewm: Tewminaw,
+		pwivate weadonwy _pwocessOpewatingSystem: OpewatingSystem,
+		pwivate weadonwy _activateFiweCawwback: (event: MouseEvent | undefined, wink: stwing) => void,
+		pwivate weadonwy _wwapWinkHandwa: (handwa: (event: MouseEvent | undefined, wink: stwing) => void) => XtewmWinkMatchewHandwa,
+		pwivate weadonwy _toowtipCawwback: (wink: TewminawWink, viewpowtWange: IViewpowtWange, modifiewDownCawwback?: () => void, modifiewUpCawwback?: () => void) => void,
+		pwivate weadonwy _vawidationCawwback: (wink: stwing, cawwback: (wesuwt: { uwi: UWI, isDiwectowy: boowean } | undefined) => void) => void,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@ICommandSewvice pwivate weadonwy _commandSewvice: ICommandSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy _wowkspaceContextSewvice: IWowkspaceContextSewvice,
+		@IHostSewvice pwivate weadonwy _hostSewvice: IHostSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy _uwiIdentitySewvice: IUwiIdentitySewvice
 	) {
-		super();
+		supa();
 	}
 
-	protected async _provideLinks(y: number): Promise<TerminalLink[]> {
-		const result: TerminalLink[] = [];
-		let startLine = y - 1;
-		let endLine = startLine;
+	pwotected async _pwovideWinks(y: numba): Pwomise<TewminawWink[]> {
+		const wesuwt: TewminawWink[] = [];
+		wet stawtWine = y - 1;
+		wet endWine = stawtWine;
 
-		const lines: IBufferLine[] = [
-			this._xterm.buffer.active.getLine(startLine)!
+		const wines: IBuffewWine[] = [
+			this._xtewm.buffa.active.getWine(stawtWine)!
 		];
 
-		while (startLine >= 0 && this._xterm.buffer.active.getLine(startLine)?.isWrapped) {
-			lines.unshift(this._xterm.buffer.active.getLine(startLine - 1)!);
-			startLine--;
+		whiwe (stawtWine >= 0 && this._xtewm.buffa.active.getWine(stawtWine)?.isWwapped) {
+			wines.unshift(this._xtewm.buffa.active.getWine(stawtWine - 1)!);
+			stawtWine--;
 		}
 
-		while (endLine < this._xterm.buffer.active.length && this._xterm.buffer.active.getLine(endLine + 1)?.isWrapped) {
-			lines.push(this._xterm.buffer.active.getLine(endLine + 1)!);
-			endLine++;
+		whiwe (endWine < this._xtewm.buffa.active.wength && this._xtewm.buffa.active.getWine(endWine + 1)?.isWwapped) {
+			wines.push(this._xtewm.buffa.active.getWine(endWine + 1)!);
+			endWine++;
 		}
 
-		const text = getXtermLineContent(this._xterm.buffer.active, startLine, endLine, this._xterm.cols);
-		if (text.length > MAX_LENGTH) {
-			return [];
+		const text = getXtewmWineContent(this._xtewm.buffa.active, stawtWine, endWine, this._xtewm.cows);
+		if (text.wength > MAX_WENGTH) {
+			wetuwn [];
 		}
 
-		// clone regex to do a global search on text
-		const rex = new RegExp(this._localLinkRegex, 'g');
-		let match;
-		let stringIndex = -1;
-		while ((match = rex.exec(text)) !== null) {
-			// const link = match[typeof matcher.matchIndex !== 'number' ? 0 : matcher.matchIndex];
-			let link = match[0];
-			if (!link) {
-				// something matched but does not comply with the given matchIndex
-				// since this is most likely a bug the regex itself we simply do nothing here
-				// this._logService.debug('match found without corresponding matchIndex', match, matcher);
-				break;
+		// cwone wegex to do a gwobaw seawch on text
+		const wex = new WegExp(this._wocawWinkWegex, 'g');
+		wet match;
+		wet stwingIndex = -1;
+		whiwe ((match = wex.exec(text)) !== nuww) {
+			// const wink = match[typeof matcha.matchIndex !== 'numba' ? 0 : matcha.matchIndex];
+			wet wink = match[0];
+			if (!wink) {
+				// something matched but does not compwy with the given matchIndex
+				// since this is most wikewy a bug the wegex itsewf we simpwy do nothing hewe
+				// this._wogSewvice.debug('match found without cowwesponding matchIndex', match, matcha);
+				bweak;
 			}
 
-			// Get index, match.index is for the outer match which includes negated chars
-			// therefore we cannot use match.index directly, instead we search the position
-			// of the match group in text again
-			// also correct regex and string search offsets for the next loop run
-			stringIndex = text.indexOf(link, stringIndex + 1);
-			rex.lastIndex = stringIndex + link.length;
-			if (stringIndex < 0) {
-				// invalid stringIndex (should not have happened)
-				break;
+			// Get index, match.index is fow the outa match which incwudes negated chaws
+			// thewefowe we cannot use match.index diwectwy, instead we seawch the position
+			// of the match gwoup in text again
+			// awso cowwect wegex and stwing seawch offsets fow the next woop wun
+			stwingIndex = text.indexOf(wink, stwingIndex + 1);
+			wex.wastIndex = stwingIndex + wink.wength;
+			if (stwingIndex < 0) {
+				// invawid stwingIndex (shouwd not have happened)
+				bweak;
 			}
 
-			// Adjust the link range to exclude a/ and b/ if it looks like a git diff
+			// Adjust the wink wange to excwude a/ and b/ if it wooks wike a git diff
 			if (
-				// --- a/foo/bar
-				// +++ b/foo/bar
-				((text.startsWith('--- a/') || text.startsWith('+++ b/')) && stringIndex === 4) ||
-				// diff --git a/foo/bar b/foo/bar
-				(text.startsWith('diff --git') && (link.startsWith('a/') || link.startsWith('b/')))
+				// --- a/foo/baw
+				// +++ b/foo/baw
+				((text.stawtsWith('--- a/') || text.stawtsWith('+++ b/')) && stwingIndex === 4) ||
+				// diff --git a/foo/baw b/foo/baw
+				(text.stawtsWith('diff --git') && (wink.stawtsWith('a/') || wink.stawtsWith('b/')))
 			) {
-				link = link.substring(2);
-				stringIndex += 2;
+				wink = wink.substwing(2);
+				stwingIndex += 2;
 			}
 
-			// Convert the link text's string index into a wrapped buffer range
-			const bufferRange = convertLinkRangeToBuffer(lines, this._xterm.cols, {
-				startColumn: stringIndex + 1,
-				startLineNumber: 1,
-				endColumn: stringIndex + link.length + 1,
-				endLineNumber: 1
-			}, startLine);
+			// Convewt the wink text's stwing index into a wwapped buffa wange
+			const buffewWange = convewtWinkWangeToBuffa(wines, this._xtewm.cows, {
+				stawtCowumn: stwingIndex + 1,
+				stawtWineNumba: 1,
+				endCowumn: stwingIndex + wink.wength + 1,
+				endWineNumba: 1
+			}, stawtWine);
 
-			const validatedLink = await new Promise<TerminalLink | undefined>(r => {
-				this._validationCallback(link, (result) => {
-					if (result) {
-						const label = result.isDirectory
-							? (this._isDirectoryInsideWorkspace(result.uri) ? FOLDER_IN_WORKSPACE_LABEL : FOLDER_NOT_IN_WORKSPACE_LABEL)
-							: OPEN_FILE_LABEL;
-						const activateCallback = this._wrapLinkHandler((event: MouseEvent | undefined, text: string) => {
-							if (result.isDirectory) {
-								this._handleLocalFolderLink(result.uri);
-							} else {
-								this._activateFileCallback(event, text);
+			const vawidatedWink = await new Pwomise<TewminawWink | undefined>(w => {
+				this._vawidationCawwback(wink, (wesuwt) => {
+					if (wesuwt) {
+						const wabew = wesuwt.isDiwectowy
+							? (this._isDiwectowyInsideWowkspace(wesuwt.uwi) ? FOWDEW_IN_WOWKSPACE_WABEW : FOWDEW_NOT_IN_WOWKSPACE_WABEW)
+							: OPEN_FIWE_WABEW;
+						const activateCawwback = this._wwapWinkHandwa((event: MouseEvent | undefined, text: stwing) => {
+							if (wesuwt.isDiwectowy) {
+								this._handweWocawFowdewWink(wesuwt.uwi);
+							} ewse {
+								this._activateFiweCawwback(event, text);
 							}
 						});
-						r(this._instantiationService.createInstance(TerminalLink, this._xterm, bufferRange, link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, true, label));
-					} else {
-						r(undefined);
+						w(this._instantiationSewvice.cweateInstance(TewminawWink, this._xtewm, buffewWange, wink, this._xtewm.buffa.active.viewpowtY, activateCawwback, this._toowtipCawwback, twue, wabew));
+					} ewse {
+						w(undefined);
 					}
 				});
 			});
-			if (validatedLink) {
-				result.push(validatedLink);
+			if (vawidatedWink) {
+				wesuwt.push(vawidatedWink);
 			}
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	protected get _localLinkRegex(): RegExp {
-		const baseLocalLinkClause = this._processOperatingSystem === OperatingSystem.Windows ? winLocalLinkClause : unixLocalLinkClause;
-		// Append line and column number regex
-		return new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
+	pwotected get _wocawWinkWegex(): WegExp {
+		const baseWocawWinkCwause = this._pwocessOpewatingSystem === OpewatingSystem.Windows ? winWocawWinkCwause : unixWocawWinkCwause;
+		// Append wine and cowumn numba wegex
+		wetuwn new WegExp(`${baseWocawWinkCwause}(${wineAndCowumnCwause})`);
 	}
 
-	private async _handleLocalFolderLink(uri: URI): Promise<void> {
-		// If the folder is within one of the window's workspaces, focus it in the explorer
-		if (this._isDirectoryInsideWorkspace(uri)) {
-			await this._commandService.executeCommand('revealInExplorer', uri);
-			return;
+	pwivate async _handweWocawFowdewWink(uwi: UWI): Pwomise<void> {
+		// If the fowda is within one of the window's wowkspaces, focus it in the expwowa
+		if (this._isDiwectowyInsideWowkspace(uwi)) {
+			await this._commandSewvice.executeCommand('weveawInExpwowa', uwi);
+			wetuwn;
 		}
 
-		// Open a new window for the folder
-		this._hostService.openWindow([{ folderUri: uri }], { forceNewWindow: true });
+		// Open a new window fow the fowda
+		this._hostSewvice.openWindow([{ fowdewUwi: uwi }], { fowceNewWindow: twue });
 	}
 
-	private _isDirectoryInsideWorkspace(uri: URI) {
-		const folders = this._workspaceContextService.getWorkspace().folders;
-		for (let i = 0; i < folders.length; i++) {
-			if (this._uriIdentityService.extUri.isEqualOrParent(uri, folders[i].uri)) {
-				return true;
+	pwivate _isDiwectowyInsideWowkspace(uwi: UWI) {
+		const fowdews = this._wowkspaceContextSewvice.getWowkspace().fowdews;
+		fow (wet i = 0; i < fowdews.wength; i++) {
+			if (this._uwiIdentitySewvice.extUwi.isEquawOwPawent(uwi, fowdews[i].uwi)) {
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 }

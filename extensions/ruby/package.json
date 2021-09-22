@@ -1,74 +1,74 @@
 {
-  "name": "ruby",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "name": "wuby",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin textmate/ruby.tmbundle Syntaxes/Ruby.plist ./syntaxes/ruby.tmLanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin textmate/wuby.tmbundwe Syntaxes/Wuby.pwist ./syntaxes/wuby.tmWanguage.json"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
-        "id": "ruby",
+        "id": "wuby",
         "extensions": [
-          ".rb",
-          ".rbx",
-          ".rjs",
+          ".wb",
+          ".wbx",
+          ".wjs",
           ".gemspec",
-          ".rake",
-          ".ru",
-          ".erb",
+          ".wake",
+          ".wu",
+          ".ewb",
           ".podspec",
-          ".rbi"
+          ".wbi"
         ],
-        "filenames": [
-          "rakefile",
-          "gemfile",
-          "guardfile",
-          "podfile",
-          "capfile",
-          "cheffile",
-          "hobofile",
-          "vagrantfile",
-          "appraisals",
-          "rantfile",
-          "berksfile",
-          "berksfile.lock",
-          "thorfile",
-          "puppetfile",
-          "dangerfile",
-          "brewfile",
-          "fastfile",
-          "appfile",
-          "deliverfile",
-          "matchfile",
-          "scanfile",
-          "snapfile",
-          "gymfile"
+        "fiwenames": [
+          "wakefiwe",
+          "gemfiwe",
+          "guawdfiwe",
+          "podfiwe",
+          "capfiwe",
+          "cheffiwe",
+          "hobofiwe",
+          "vagwantfiwe",
+          "appwaisaws",
+          "wantfiwe",
+          "bewksfiwe",
+          "bewksfiwe.wock",
+          "thowfiwe",
+          "puppetfiwe",
+          "dangewfiwe",
+          "bwewfiwe",
+          "fastfiwe",
+          "appfiwe",
+          "dewivewfiwe",
+          "matchfiwe",
+          "scanfiwe",
+          "snapfiwe",
+          "gymfiwe"
         ],
-        "aliases": [
-          "Ruby",
-          "rb"
+        "awiases": [
+          "Wuby",
+          "wb"
         ],
-        "firstLine": "^#!\\s*/.*\\bruby\\b",
-        "configuration": "./language-configuration.json"
+        "fiwstWine": "^#!\\s*/.*\\bwuby\\b",
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "ruby",
-        "scopeName": "source.ruby",
-        "path": "./syntaxes/ruby.tmLanguage.json"
+        "wanguage": "wuby",
+        "scopeName": "souwce.wuby",
+        "path": "./syntaxes/wuby.tmWanguage.json"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

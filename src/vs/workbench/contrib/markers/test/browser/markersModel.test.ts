@@ -1,252 +1,252 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
-import { MarkersModel, Marker, ResourceMarkers, RelatedInformation } from 'vs/workbench/contrib/markers/browser/markersModel';
-import { groupBy } from 'vs/base/common/collections';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IMawka, MawkewSevewity, IWewatedInfowmation } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { MawkewsModew, Mawka, WesouwceMawkews, WewatedInfowmation } fwom 'vs/wowkbench/contwib/mawkews/bwowsa/mawkewsModew';
+impowt { gwoupBy } fwom 'vs/base/common/cowwections';
 
-class TestMarkersModel extends MarkersModel {
+cwass TestMawkewsModew extends MawkewsModew {
 
-	constructor(markers: IMarker[]) {
-		super();
+	constwuctow(mawkews: IMawka[]) {
+		supa();
 
-		const byResource = groupBy(markers, r => r.resource.toString());
+		const byWesouwce = gwoupBy(mawkews, w => w.wesouwce.toStwing());
 
-		Object.keys(byResource).forEach(key => {
-			const markers = byResource[key];
-			const resource = markers[0].resource;
+		Object.keys(byWesouwce).fowEach(key => {
+			const mawkews = byWesouwce[key];
+			const wesouwce = mawkews[0].wesouwce;
 
-			this.setResourceMarkers([[resource, markers]]);
+			this.setWesouwceMawkews([[wesouwce, mawkews]]);
 		});
 	}
 }
 
-suite('MarkersModel Test', () => {
+suite('MawkewsModew Test', () => {
 
-	test('marker ids are unique', function () {
-		const marker1 = anErrorWithRange(3);
-		const marker2 = anErrorWithRange(3);
-		const marker3 = aWarningWithRange(3);
-		const marker4 = aWarningWithRange(3);
+	test('mawka ids awe unique', function () {
+		const mawkew1 = anEwwowWithWange(3);
+		const mawkew2 = anEwwowWithWange(3);
+		const mawkew3 = aWawningWithWange(3);
+		const mawkew4 = aWawningWithWange(3);
 
-		const testObject = new TestMarkersModel([marker1, marker2, marker3, marker4]);
-		const actuals = testObject.resourceMarkers[0].markers;
+		const testObject = new TestMawkewsModew([mawkew1, mawkew2, mawkew3, mawkew4]);
+		const actuaws = testObject.wesouwceMawkews[0].mawkews;
 
-		assert.notStrictEqual(actuals[0].id, actuals[1].id);
-		assert.notStrictEqual(actuals[0].id, actuals[2].id);
-		assert.notStrictEqual(actuals[0].id, actuals[3].id);
-		assert.notStrictEqual(actuals[1].id, actuals[2].id);
-		assert.notStrictEqual(actuals[1].id, actuals[3].id);
-		assert.notStrictEqual(actuals[2].id, actuals[3].id);
+		assewt.notStwictEquaw(actuaws[0].id, actuaws[1].id);
+		assewt.notStwictEquaw(actuaws[0].id, actuaws[2].id);
+		assewt.notStwictEquaw(actuaws[0].id, actuaws[3].id);
+		assewt.notStwictEquaw(actuaws[1].id, actuaws[2].id);
+		assewt.notStwictEquaw(actuaws[1].id, actuaws[3].id);
+		assewt.notStwictEquaw(actuaws[2].id, actuaws[3].id);
 	});
 
-	test('sort palces resources with no errors at the end', function () {
-		const marker1 = aMarker('a/res1', MarkerSeverity.Warning);
-		const marker2 = aMarker('a/res2');
-		const marker3 = aMarker('res4');
-		const marker4 = aMarker('b/res3');
-		const marker5 = aMarker('res4');
-		const marker6 = aMarker('c/res2', MarkerSeverity.Info);
-		const testObject = new TestMarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
+	test('sowt pawces wesouwces with no ewwows at the end', function () {
+		const mawkew1 = aMawka('a/wes1', MawkewSevewity.Wawning);
+		const mawkew2 = aMawka('a/wes2');
+		const mawkew3 = aMawka('wes4');
+		const mawkew4 = aMawka('b/wes3');
+		const mawkew5 = aMawka('wes4');
+		const mawkew6 = aMawka('c/wes2', MawkewSevewity.Info);
+		const testObject = new TestMawkewsModew([mawkew1, mawkew2, mawkew3, mawkew4, mawkew5, mawkew6]);
 
-		const actuals = testObject.resourceMarkers;
+		const actuaws = testObject.wesouwceMawkews;
 
-		assert.strictEqual(5, actuals.length);
-		assert.ok(compareResource(actuals[0], 'a/res2'));
-		assert.ok(compareResource(actuals[1], 'b/res3'));
-		assert.ok(compareResource(actuals[2], 'res4'));
-		assert.ok(compareResource(actuals[3], 'a/res1'));
-		assert.ok(compareResource(actuals[4], 'c/res2'));
+		assewt.stwictEquaw(5, actuaws.wength);
+		assewt.ok(compaweWesouwce(actuaws[0], 'a/wes2'));
+		assewt.ok(compaweWesouwce(actuaws[1], 'b/wes3'));
+		assewt.ok(compaweWesouwce(actuaws[2], 'wes4'));
+		assewt.ok(compaweWesouwce(actuaws[3], 'a/wes1'));
+		assewt.ok(compaweWesouwce(actuaws[4], 'c/wes2'));
 	});
 
-	test('sort resources by file path', function () {
-		const marker1 = aMarker('a/res1');
-		const marker2 = aMarker('a/res2');
-		const marker3 = aMarker('res4');
-		const marker4 = aMarker('b/res3');
-		const marker5 = aMarker('res4');
-		const marker6 = aMarker('c/res2');
-		const testObject = new TestMarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
+	test('sowt wesouwces by fiwe path', function () {
+		const mawkew1 = aMawka('a/wes1');
+		const mawkew2 = aMawka('a/wes2');
+		const mawkew3 = aMawka('wes4');
+		const mawkew4 = aMawka('b/wes3');
+		const mawkew5 = aMawka('wes4');
+		const mawkew6 = aMawka('c/wes2');
+		const testObject = new TestMawkewsModew([mawkew1, mawkew2, mawkew3, mawkew4, mawkew5, mawkew6]);
 
-		const actuals = testObject.resourceMarkers;
+		const actuaws = testObject.wesouwceMawkews;
 
-		assert.strictEqual(5, actuals.length);
-		assert.ok(compareResource(actuals[0], 'a/res1'));
-		assert.ok(compareResource(actuals[1], 'a/res2'));
-		assert.ok(compareResource(actuals[2], 'b/res3'));
-		assert.ok(compareResource(actuals[3], 'c/res2'));
-		assert.ok(compareResource(actuals[4], 'res4'));
+		assewt.stwictEquaw(5, actuaws.wength);
+		assewt.ok(compaweWesouwce(actuaws[0], 'a/wes1'));
+		assewt.ok(compaweWesouwce(actuaws[1], 'a/wes2'));
+		assewt.ok(compaweWesouwce(actuaws[2], 'b/wes3'));
+		assewt.ok(compaweWesouwce(actuaws[3], 'c/wes2'));
+		assewt.ok(compaweWesouwce(actuaws[4], 'wes4'));
 	});
 
-	test('sort markers by severity, line and column', function () {
-		const marker1 = aWarningWithRange(8, 1, 9, 3);
-		const marker2 = aWarningWithRange(3);
-		const marker3 = anErrorWithRange(8, 1, 9, 3);
-		const marker4 = anIgnoreWithRange(5);
-		const marker5 = anInfoWithRange(8, 1, 8, 4, 'ab');
-		const marker6 = anErrorWithRange(3);
-		const marker7 = anErrorWithRange(5);
-		const marker8 = anInfoWithRange(5);
-		const marker9 = anErrorWithRange(8, 1, 8, 4, 'ab');
-		const marker10 = anErrorWithRange(10);
-		const marker11 = anErrorWithRange(8, 1, 8, 4, 'ba');
-		const marker12 = anIgnoreWithRange(3);
-		const marker13 = aWarningWithRange(5);
-		const marker14 = anErrorWithRange(4);
-		const marker15 = anErrorWithRange(8, 2, 8, 4);
-		const testObject = new TestMarkersModel([marker1, marker2, marker3, marker4, marker5, marker6, marker7, marker8, marker9, marker10, marker11, marker12, marker13, marker14, marker15]);
+	test('sowt mawkews by sevewity, wine and cowumn', function () {
+		const mawkew1 = aWawningWithWange(8, 1, 9, 3);
+		const mawkew2 = aWawningWithWange(3);
+		const mawkew3 = anEwwowWithWange(8, 1, 9, 3);
+		const mawkew4 = anIgnoweWithWange(5);
+		const mawkew5 = anInfoWithWange(8, 1, 8, 4, 'ab');
+		const mawkew6 = anEwwowWithWange(3);
+		const mawkew7 = anEwwowWithWange(5);
+		const mawkew8 = anInfoWithWange(5);
+		const mawkew9 = anEwwowWithWange(8, 1, 8, 4, 'ab');
+		const mawkew10 = anEwwowWithWange(10);
+		const mawkew11 = anEwwowWithWange(8, 1, 8, 4, 'ba');
+		const mawkew12 = anIgnoweWithWange(3);
+		const mawkew13 = aWawningWithWange(5);
+		const mawkew14 = anEwwowWithWange(4);
+		const mawkew15 = anEwwowWithWange(8, 2, 8, 4);
+		const testObject = new TestMawkewsModew([mawkew1, mawkew2, mawkew3, mawkew4, mawkew5, mawkew6, mawkew7, mawkew8, mawkew9, mawkew10, mawkew11, mawkew12, mawkew13, mawkew14, mawkew15]);
 
-		const actuals = testObject.resourceMarkers[0].markers;
+		const actuaws = testObject.wesouwceMawkews[0].mawkews;
 
-		assert.strictEqual(actuals[0].marker, marker6);
-		assert.strictEqual(actuals[1].marker, marker14);
-		assert.strictEqual(actuals[2].marker, marker7);
-		assert.strictEqual(actuals[3].marker, marker9);
-		assert.strictEqual(actuals[4].marker, marker11);
-		assert.strictEqual(actuals[5].marker, marker3);
-		assert.strictEqual(actuals[6].marker, marker15);
-		assert.strictEqual(actuals[7].marker, marker10);
-		assert.strictEqual(actuals[8].marker, marker2);
-		assert.strictEqual(actuals[9].marker, marker13);
-		assert.strictEqual(actuals[10].marker, marker1);
-		assert.strictEqual(actuals[11].marker, marker8);
-		assert.strictEqual(actuals[12].marker, marker5);
-		assert.strictEqual(actuals[13].marker, marker12);
-		assert.strictEqual(actuals[14].marker, marker4);
+		assewt.stwictEquaw(actuaws[0].mawka, mawkew6);
+		assewt.stwictEquaw(actuaws[1].mawka, mawkew14);
+		assewt.stwictEquaw(actuaws[2].mawka, mawkew7);
+		assewt.stwictEquaw(actuaws[3].mawka, mawkew9);
+		assewt.stwictEquaw(actuaws[4].mawka, mawkew11);
+		assewt.stwictEquaw(actuaws[5].mawka, mawkew3);
+		assewt.stwictEquaw(actuaws[6].mawka, mawkew15);
+		assewt.stwictEquaw(actuaws[7].mawka, mawkew10);
+		assewt.stwictEquaw(actuaws[8].mawka, mawkew2);
+		assewt.stwictEquaw(actuaws[9].mawka, mawkew13);
+		assewt.stwictEquaw(actuaws[10].mawka, mawkew1);
+		assewt.stwictEquaw(actuaws[11].mawka, mawkew8);
+		assewt.stwictEquaw(actuaws[12].mawka, mawkew5);
+		assewt.stwictEquaw(actuaws[13].mawka, mawkew12);
+		assewt.stwictEquaw(actuaws[14].mawka, mawkew4);
 	});
 
-	test('toString()', () => {
-		let marker = aMarker('a/res1');
-		marker.code = '1234';
-		assert.strictEqual(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), new Marker('1', marker).toString());
+	test('toStwing()', () => {
+		wet mawka = aMawka('a/wes1');
+		mawka.code = '1234';
+		assewt.stwictEquaw(JSON.stwingify({ ...mawka, wesouwce: mawka.wesouwce.path }, nuww, '\t'), new Mawka('1', mawka).toStwing());
 
-		marker = aMarker('a/res2', MarkerSeverity.Warning);
-		assert.strictEqual(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), new Marker('2', marker).toString());
+		mawka = aMawka('a/wes2', MawkewSevewity.Wawning);
+		assewt.stwictEquaw(JSON.stwingify({ ...mawka, wesouwce: mawka.wesouwce.path }, nuww, '\t'), new Mawka('2', mawka).toStwing());
 
-		marker = aMarker('a/res2', MarkerSeverity.Info, 1, 2, 1, 8, 'Info', '');
-		assert.strictEqual(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), new Marker('3', marker).toString());
+		mawka = aMawka('a/wes2', MawkewSevewity.Info, 1, 2, 1, 8, 'Info', '');
+		assewt.stwictEquaw(JSON.stwingify({ ...mawka, wesouwce: mawka.wesouwce.path }, nuww, '\t'), new Mawka('3', mawka).toStwing());
 
-		marker = aMarker('a/res2', MarkerSeverity.Hint, 1, 2, 1, 8, 'Ignore message', 'Ignore');
-		assert.strictEqual(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), new Marker('4', marker).toString());
+		mawka = aMawka('a/wes2', MawkewSevewity.Hint, 1, 2, 1, 8, 'Ignowe message', 'Ignowe');
+		assewt.stwictEquaw(JSON.stwingify({ ...mawka, wesouwce: mawka.wesouwce.path }, nuww, '\t'), new Mawka('4', mawka).toStwing());
 
-		marker = aMarker('a/res2', MarkerSeverity.Warning, 1, 2, 1, 8, 'Warning message', '', [{ startLineNumber: 2, startColumn: 5, endLineNumber: 2, endColumn: 10, message: 'some info', resource: URI.file('a/res3') }]);
-		const testObject = new Marker('5', marker, null!);
+		mawka = aMawka('a/wes2', MawkewSevewity.Wawning, 1, 2, 1, 8, 'Wawning message', '', [{ stawtWineNumba: 2, stawtCowumn: 5, endWineNumba: 2, endCowumn: 10, message: 'some info', wesouwce: UWI.fiwe('a/wes3') }]);
+		const testObject = new Mawka('5', mawka, nuww!);
 
 		// hack
-		(testObject as any).relatedInformation = marker.relatedInformation!.map(r => new RelatedInformation('6', marker, r));
-		assert.strictEqual(JSON.stringify({ ...marker, resource: marker.resource.path, relatedInformation: marker.relatedInformation!.map(r => ({ ...r, resource: r.resource.path })) }, null, '\t'), testObject.toString());
+		(testObject as any).wewatedInfowmation = mawka.wewatedInfowmation!.map(w => new WewatedInfowmation('6', mawka, w));
+		assewt.stwictEquaw(JSON.stwingify({ ...mawka, wesouwce: mawka.wesouwce.path, wewatedInfowmation: mawka.wewatedInfowmation!.map(w => ({ ...w, wesouwce: w.wesouwce.path })) }, nuww, '\t'), testObject.toStwing());
 	});
 
-	test('Markers for same-document but different fragment', function () {
-		const model = new TestMarkersModel([anErrorWithRange(1)]);
+	test('Mawkews fow same-document but diffewent fwagment', function () {
+		const modew = new TestMawkewsModew([anEwwowWithWange(1)]);
 
-		assert.strictEqual(model.total, 1);
+		assewt.stwictEquaw(modew.totaw, 1);
 
-		const document = URI.parse('foo://test/path/file');
-		const frag1 = URI.parse('foo://test/path/file#1');
-		const frag2 = URI.parse('foo://test/path/file#two');
+		const document = UWI.pawse('foo://test/path/fiwe');
+		const fwag1 = UWI.pawse('foo://test/path/fiwe#1');
+		const fwag2 = UWI.pawse('foo://test/path/fiwe#two');
 
-		model.setResourceMarkers([[document, [{ ...aMarker(), resource: frag1 }, { ...aMarker(), resource: frag2 }]]]);
+		modew.setWesouwceMawkews([[document, [{ ...aMawka(), wesouwce: fwag1 }, { ...aMawka(), wesouwce: fwag2 }]]]);
 
-		assert.strictEqual(model.total, 3);
-		let a = model.getResourceMarkers(document);
-		let b = model.getResourceMarkers(frag1);
-		let c = model.getResourceMarkers(frag2);
-		assert.ok(a === b);
-		assert.ok(a === c);
+		assewt.stwictEquaw(modew.totaw, 3);
+		wet a = modew.getWesouwceMawkews(document);
+		wet b = modew.getWesouwceMawkews(fwag1);
+		wet c = modew.getWesouwceMawkews(fwag2);
+		assewt.ok(a === b);
+		assewt.ok(a === c);
 
-		model.setResourceMarkers([[document, [{ ...aMarker(), resource: frag2 }]]]);
-		assert.strictEqual(model.total, 2);
+		modew.setWesouwceMawkews([[document, [{ ...aMawka(), wesouwce: fwag2 }]]]);
+		assewt.stwictEquaw(modew.totaw, 2);
 	});
 
-	test('Problems are no sorted correctly #99135', function () {
-		const model = new TestMarkersModel([]);
-		assert.strictEqual(model.total, 0);
+	test('Pwobwems awe no sowted cowwectwy #99135', function () {
+		const modew = new TestMawkewsModew([]);
+		assewt.stwictEquaw(modew.totaw, 0);
 
-		const document = URI.parse('foo://test/path/file');
-		const frag1 = URI.parse('foo://test/path/file#1');
-		const frag2 = URI.parse('foo://test/path/file#2');
+		const document = UWI.pawse('foo://test/path/fiwe');
+		const fwag1 = UWI.pawse('foo://test/path/fiwe#1');
+		const fwag2 = UWI.pawse('foo://test/path/fiwe#2');
 
-		model.setResourceMarkers([[frag1, [
-			{ ...aMarker(), resource: frag1 },
-			{ ...aMarker(undefined, MarkerSeverity.Warning), resource: frag1 },
+		modew.setWesouwceMawkews([[fwag1, [
+			{ ...aMawka(), wesouwce: fwag1 },
+			{ ...aMawka(undefined, MawkewSevewity.Wawning), wesouwce: fwag1 },
 		]]]);
 
-		model.setResourceMarkers([[frag2, [
-			{ ...aMarker(), resource: frag2 }
+		modew.setWesouwceMawkews([[fwag2, [
+			{ ...aMawka(), wesouwce: fwag2 }
 		]]]);
 
-		assert.strictEqual(model.total, 3);
-		const markers = model.getResourceMarkers(document)?.markers;
-		assert.deepStrictEqual(markers?.map(m => m.marker.severity), [MarkerSeverity.Error, MarkerSeverity.Error, MarkerSeverity.Warning]);
-		assert.deepStrictEqual(markers?.map(m => m.marker.resource.toString()), [frag1.toString(), frag2.toString(), frag1.toString()]);
+		assewt.stwictEquaw(modew.totaw, 3);
+		const mawkews = modew.getWesouwceMawkews(document)?.mawkews;
+		assewt.deepStwictEquaw(mawkews?.map(m => m.mawka.sevewity), [MawkewSevewity.Ewwow, MawkewSevewity.Ewwow, MawkewSevewity.Wawning]);
+		assewt.deepStwictEquaw(mawkews?.map(m => m.mawka.wesouwce.toStwing()), [fwag1.toStwing(), fwag2.toStwing(), fwag1.toStwing()]);
 	});
 
-	function compareResource(a: ResourceMarkers, b: string): boolean {
-		return a.resource.toString() === URI.file(b).toString();
+	function compaweWesouwce(a: WesouwceMawkews, b: stwing): boowean {
+		wetuwn a.wesouwce.toStwing() === UWI.fiwe(b).toStwing();
 	}
 
-	function anErrorWithRange(startLineNumber: number = 10,
-		startColumn: number = 5,
-		endLineNumber: number = startLineNumber + 1,
-		endColumn: number = startColumn + 5,
-		message: string = 'some message',
-	): IMarker {
-		return aMarker('some resource', MarkerSeverity.Error, startLineNumber, startColumn, endLineNumber, endColumn, message);
+	function anEwwowWithWange(stawtWineNumba: numba = 10,
+		stawtCowumn: numba = 5,
+		endWineNumba: numba = stawtWineNumba + 1,
+		endCowumn: numba = stawtCowumn + 5,
+		message: stwing = 'some message',
+	): IMawka {
+		wetuwn aMawka('some wesouwce', MawkewSevewity.Ewwow, stawtWineNumba, stawtCowumn, endWineNumba, endCowumn, message);
 	}
 
-	function aWarningWithRange(startLineNumber: number = 10,
-		startColumn: number = 5,
-		endLineNumber: number = startLineNumber + 1,
-		endColumn: number = startColumn + 5,
-		message: string = 'some message',
-	): IMarker {
-		return aMarker('some resource', MarkerSeverity.Warning, startLineNumber, startColumn, endLineNumber, endColumn, message);
+	function aWawningWithWange(stawtWineNumba: numba = 10,
+		stawtCowumn: numba = 5,
+		endWineNumba: numba = stawtWineNumba + 1,
+		endCowumn: numba = stawtCowumn + 5,
+		message: stwing = 'some message',
+	): IMawka {
+		wetuwn aMawka('some wesouwce', MawkewSevewity.Wawning, stawtWineNumba, stawtCowumn, endWineNumba, endCowumn, message);
 	}
 
-	function anInfoWithRange(startLineNumber: number = 10,
-		startColumn: number = 5,
-		endLineNumber: number = startLineNumber + 1,
-		endColumn: number = startColumn + 5,
-		message: string = 'some message',
-	): IMarker {
-		return aMarker('some resource', MarkerSeverity.Info, startLineNumber, startColumn, endLineNumber, endColumn, message);
+	function anInfoWithWange(stawtWineNumba: numba = 10,
+		stawtCowumn: numba = 5,
+		endWineNumba: numba = stawtWineNumba + 1,
+		endCowumn: numba = stawtCowumn + 5,
+		message: stwing = 'some message',
+	): IMawka {
+		wetuwn aMawka('some wesouwce', MawkewSevewity.Info, stawtWineNumba, stawtCowumn, endWineNumba, endCowumn, message);
 	}
 
-	function anIgnoreWithRange(startLineNumber: number = 10,
-		startColumn: number = 5,
-		endLineNumber: number = startLineNumber + 1,
-		endColumn: number = startColumn + 5,
-		message: string = 'some message',
-	): IMarker {
-		return aMarker('some resource', MarkerSeverity.Hint, startLineNumber, startColumn, endLineNumber, endColumn, message);
+	function anIgnoweWithWange(stawtWineNumba: numba = 10,
+		stawtCowumn: numba = 5,
+		endWineNumba: numba = stawtWineNumba + 1,
+		endCowumn: numba = stawtCowumn + 5,
+		message: stwing = 'some message',
+	): IMawka {
+		wetuwn aMawka('some wesouwce', MawkewSevewity.Hint, stawtWineNumba, stawtCowumn, endWineNumba, endCowumn, message);
 	}
 
-	function aMarker(resource: string = 'some resource',
-		severity: MarkerSeverity = MarkerSeverity.Error,
-		startLineNumber: number = 10,
-		startColumn: number = 5,
-		endLineNumber: number = startLineNumber + 1,
-		endColumn: number = startColumn + 5,
-		message: string = 'some message',
-		source: string = 'tslint',
-		relatedInformation?: IRelatedInformation[]
-	): IMarker {
-		return {
-			owner: 'someOwner',
-			resource: URI.file(resource),
-			severity,
+	function aMawka(wesouwce: stwing = 'some wesouwce',
+		sevewity: MawkewSevewity = MawkewSevewity.Ewwow,
+		stawtWineNumba: numba = 10,
+		stawtCowumn: numba = 5,
+		endWineNumba: numba = stawtWineNumba + 1,
+		endCowumn: numba = stawtCowumn + 5,
+		message: stwing = 'some message',
+		souwce: stwing = 'tswint',
+		wewatedInfowmation?: IWewatedInfowmation[]
+	): IMawka {
+		wetuwn {
+			owna: 'someOwna',
+			wesouwce: UWI.fiwe(wesouwce),
+			sevewity,
 			message,
-			startLineNumber,
-			startColumn,
-			endLineNumber,
-			endColumn,
-			source,
-			relatedInformation
+			stawtWineNumba,
+			stawtCowumn,
+			endWineNumba,
+			endCowumn,
+			souwce,
+			wewatedInfowmation
 		};
 	}
 });

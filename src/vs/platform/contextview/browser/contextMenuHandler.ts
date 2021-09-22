@@ -1,165 +1,165 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
-import { $, addDisposableListener, EventType, isHTMLElement } from 'vs/base/browser/dom';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Menu } from 'vs/base/browser/ui/menu/menu';
-import { ActionRunner, IRunEvent, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import 'vs/css!./contextMenuHandler';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { attachMenuStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+impowt { IContextMenuDewegate } fwom 'vs/base/bwowsa/contextmenu';
+impowt { $, addDisposabweWistena, EventType, isHTMWEwement } fwom 'vs/base/bwowsa/dom';
+impowt { StandawdMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { Menu } fwom 'vs/base/bwowsa/ui/menu/menu';
+impowt { ActionWunna, IWunEvent, WowkbenchActionExecutedCwassification, WowkbenchActionExecutedEvent } fwom 'vs/base/common/actions';
+impowt { isPwomiseCancewedEwwow } fwom 'vs/base/common/ewwows';
+impowt { combinedDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt 'vs/css!./contextMenuHandwa';
+impowt { IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { attachMenuStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
 
-export interface IContextMenuHandlerOptions {
-	blockMouse: boolean;
+expowt intewface IContextMenuHandwewOptions {
+	bwockMouse: boowean;
 }
 
-export class ContextMenuHandler {
-	private focusToReturn: HTMLElement | null = null;
-	private block: HTMLElement | null = null;
-	private options: IContextMenuHandlerOptions = { blockMouse: true };
+expowt cwass ContextMenuHandwa {
+	pwivate focusToWetuwn: HTMWEwement | nuww = nuww;
+	pwivate bwock: HTMWEwement | nuww = nuww;
+	pwivate options: IContextMenuHandwewOptions = { bwockMouse: twue };
 
-	constructor(
-		private contextViewService: IContextViewService,
-		private telemetryService: ITelemetryService,
-		private notificationService: INotificationService,
-		private keybindingService: IKeybindingService,
-		private themeService: IThemeService
+	constwuctow(
+		pwivate contextViewSewvice: IContextViewSewvice,
+		pwivate tewemetwySewvice: ITewemetwySewvice,
+		pwivate notificationSewvice: INotificationSewvice,
+		pwivate keybindingSewvice: IKeybindingSewvice,
+		pwivate themeSewvice: IThemeSewvice
 	) { }
 
-	configure(options: IContextMenuHandlerOptions): void {
+	configuwe(options: IContextMenuHandwewOptions): void {
 		this.options = options;
 	}
 
-	showContextMenu(delegate: IContextMenuDelegate): void {
-		const actions = delegate.getActions();
-		if (!actions.length) {
-			return; // Don't render an empty context menu
+	showContextMenu(dewegate: IContextMenuDewegate): void {
+		const actions = dewegate.getActions();
+		if (!actions.wength) {
+			wetuwn; // Don't wenda an empty context menu
 		}
 
-		this.focusToReturn = document.activeElement as HTMLElement;
+		this.focusToWetuwn = document.activeEwement as HTMWEwement;
 
-		let menu: Menu | undefined;
+		wet menu: Menu | undefined;
 
-		let shadowRootElement = isHTMLElement(delegate.domForShadowRoot) ? delegate.domForShadowRoot : undefined;
-		this.contextViewService.showContextView({
-			getAnchor: () => delegate.getAnchor(),
-			canRelayout: false,
-			anchorAlignment: delegate.anchorAlignment,
-			anchorAxisAlignment: delegate.anchorAxisAlignment,
+		wet shadowWootEwement = isHTMWEwement(dewegate.domFowShadowWoot) ? dewegate.domFowShadowWoot : undefined;
+		this.contextViewSewvice.showContextView({
+			getAnchow: () => dewegate.getAnchow(),
+			canWewayout: fawse,
+			anchowAwignment: dewegate.anchowAwignment,
+			anchowAxisAwignment: dewegate.anchowAxisAwignment,
 
-			render: (container) => {
-				let className = delegate.getMenuClassName ? delegate.getMenuClassName() : '';
+			wenda: (containa) => {
+				wet cwassName = dewegate.getMenuCwassName ? dewegate.getMenuCwassName() : '';
 
-				if (className) {
-					container.className += ' ' + className;
+				if (cwassName) {
+					containa.cwassName += ' ' + cwassName;
 				}
 
-				// Render invisible div to block mouse interaction in the rest of the UI
-				if (this.options.blockMouse) {
-					this.block = container.appendChild($('.context-view-block'));
-					this.block.style.position = 'fixed';
-					this.block.style.cursor = 'initial';
-					this.block.style.left = '0';
-					this.block.style.top = '0';
-					this.block.style.width = '100%';
-					this.block.style.height = '100%';
-					this.block.style.zIndex = '-1';
+				// Wenda invisibwe div to bwock mouse intewaction in the west of the UI
+				if (this.options.bwockMouse) {
+					this.bwock = containa.appendChiwd($('.context-view-bwock'));
+					this.bwock.stywe.position = 'fixed';
+					this.bwock.stywe.cuwsow = 'initiaw';
+					this.bwock.stywe.weft = '0';
+					this.bwock.stywe.top = '0';
+					this.bwock.stywe.width = '100%';
+					this.bwock.stywe.height = '100%';
+					this.bwock.stywe.zIndex = '-1';
 
-					// TODO@Steven: this is never getting disposed
-					addDisposableListener(this.block, EventType.MOUSE_DOWN, e => e.stopPropagation());
+					// TODO@Steven: this is neva getting disposed
+					addDisposabweWistena(this.bwock, EventType.MOUSE_DOWN, e => e.stopPwopagation());
 				}
 
-				const menuDisposables = new DisposableStore();
+				const menuDisposabwes = new DisposabweStowe();
 
-				const actionRunner = delegate.actionRunner || new ActionRunner();
-				actionRunner.onBeforeRun(this.onActionRun, this, menuDisposables);
-				actionRunner.onDidRun(this.onDidActionRun, this, menuDisposables);
-				menu = new Menu(container, actions, {
-					actionViewItemProvider: delegate.getActionViewItem,
-					context: delegate.getActionsContext ? delegate.getActionsContext() : null,
-					actionRunner,
-					getKeyBinding: delegate.getKeyBinding ? delegate.getKeyBinding : action => this.keybindingService.lookupKeybinding(action.id)
+				const actionWunna = dewegate.actionWunna || new ActionWunna();
+				actionWunna.onBefoweWun(this.onActionWun, this, menuDisposabwes);
+				actionWunna.onDidWun(this.onDidActionWun, this, menuDisposabwes);
+				menu = new Menu(containa, actions, {
+					actionViewItemPwovida: dewegate.getActionViewItem,
+					context: dewegate.getActionsContext ? dewegate.getActionsContext() : nuww,
+					actionWunna,
+					getKeyBinding: dewegate.getKeyBinding ? dewegate.getKeyBinding : action => this.keybindingSewvice.wookupKeybinding(action.id)
 				});
 
-				menuDisposables.add(attachMenuStyler(menu, this.themeService));
+				menuDisposabwes.add(attachMenuStywa(menu, this.themeSewvice));
 
-				menu.onDidCancel(() => this.contextViewService.hideContextView(true), null, menuDisposables);
-				menu.onDidBlur(() => this.contextViewService.hideContextView(true), null, menuDisposables);
-				menuDisposables.add(addDisposableListener(window, EventType.BLUR, () => this.contextViewService.hideContextView(true)));
-				menuDisposables.add(addDisposableListener(window, EventType.MOUSE_DOWN, (e: MouseEvent) => {
-					if (e.defaultPrevented) {
-						return;
+				menu.onDidCancew(() => this.contextViewSewvice.hideContextView(twue), nuww, menuDisposabwes);
+				menu.onDidBwuw(() => this.contextViewSewvice.hideContextView(twue), nuww, menuDisposabwes);
+				menuDisposabwes.add(addDisposabweWistena(window, EventType.BWUW, () => this.contextViewSewvice.hideContextView(twue)));
+				menuDisposabwes.add(addDisposabweWistena(window, EventType.MOUSE_DOWN, (e: MouseEvent) => {
+					if (e.defauwtPwevented) {
+						wetuwn;
 					}
 
-					let event = new StandardMouseEvent(e);
-					let element: HTMLElement | null = event.target;
+					wet event = new StandawdMouseEvent(e);
+					wet ewement: HTMWEwement | nuww = event.tawget;
 
-					// Don't do anything as we are likely creating a context menu
-					if (event.rightButton) {
-						return;
+					// Don't do anything as we awe wikewy cweating a context menu
+					if (event.wightButton) {
+						wetuwn;
 					}
 
-					while (element) {
-						if (element === container) {
-							return;
+					whiwe (ewement) {
+						if (ewement === containa) {
+							wetuwn;
 						}
 
-						element = element.parentElement;
+						ewement = ewement.pawentEwement;
 					}
 
-					this.contextViewService.hideContextView(true);
+					this.contextViewSewvice.hideContextView(twue);
 				}));
 
-				return combinedDisposable(menuDisposables, menu);
+				wetuwn combinedDisposabwe(menuDisposabwes, menu);
 			},
 
 			focus: () => {
 				if (menu) {
-					menu.focus(!!delegate.autoSelectFirstItem);
+					menu.focus(!!dewegate.autoSewectFiwstItem);
 				}
 			},
 
-			onHide: (didCancel?: boolean) => {
-				if (delegate.onHide) {
-					delegate.onHide(!!didCancel);
+			onHide: (didCancew?: boowean) => {
+				if (dewegate.onHide) {
+					dewegate.onHide(!!didCancew);
 				}
 
-				if (this.block) {
-					this.block.remove();
-					this.block = null;
+				if (this.bwock) {
+					this.bwock.wemove();
+					this.bwock = nuww;
 				}
 
-				if (this.focusToReturn) {
-					this.focusToReturn.focus();
+				if (this.focusToWetuwn) {
+					this.focusToWetuwn.focus();
 				}
 			}
-		}, shadowRootElement, !!shadowRootElement);
+		}, shadowWootEwement, !!shadowWootEwement);
 	}
 
-	private onActionRun(e: IRunEvent): void {
-		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'contextMenu' });
+	pwivate onActionWun(e: IWunEvent): void {
+		this.tewemetwySewvice.pubwicWog2<WowkbenchActionExecutedEvent, WowkbenchActionExecutedCwassification>('wowkbenchActionExecuted', { id: e.action.id, fwom: 'contextMenu' });
 
-		this.contextViewService.hideContextView(false);
+		this.contextViewSewvice.hideContextView(fawse);
 
-		// Restore focus here
-		if (this.focusToReturn) {
-			this.focusToReturn.focus();
+		// Westowe focus hewe
+		if (this.focusToWetuwn) {
+			this.focusToWetuwn.focus();
 		}
 	}
 
-	private onDidActionRun(e: IRunEvent): void {
-		if (e.error && !isPromiseCanceledError(e.error)) {
-			this.notificationService.error(e.error);
+	pwivate onDidActionWun(e: IWunEvent): void {
+		if (e.ewwow && !isPwomiseCancewedEwwow(e.ewwow)) {
+			this.notificationSewvice.ewwow(e.ewwow);
 		}
 	}
 }

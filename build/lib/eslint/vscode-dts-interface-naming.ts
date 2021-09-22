@@ -1,29 +1,29 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
-import { TSESTree } from '@typescript-eslint/experimental-utils';
+impowt * as eswint fwom 'eswint';
+impowt { TSESTwee } fwom '@typescwipt-eswint/expewimentaw-utiws';
 
-export = new class ApiInterfaceNaming implements eslint.Rule.RuleModule {
+expowt = new cwass ApiIntewfaceNaming impwements eswint.Wuwe.WuweModuwe {
 
-	private static _nameRegExp = /I[A-Z]/;
+	pwivate static _nameWegExp = /I[A-Z]/;
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	weadonwy meta: eswint.Wuwe.WuweMetaData = {
 		messages: {
-			naming: 'Interfaces must not be prefixed with uppercase `I`',
+			naming: 'Intewfaces must not be pwefixed with uppewcase `I`',
 		}
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	cweate(context: eswint.Wuwe.WuweContext): eswint.Wuwe.WuweWistena {
 
-		return {
-			['TSInterfaceDeclaration Identifier']: (node: any) => {
+		wetuwn {
+			['TSIntewfaceDecwawation Identifia']: (node: any) => {
 
-				const name = (<TSESTree.Identifier>node).name;
-				if (ApiInterfaceNaming._nameRegExp.test(name)) {
-					context.report({
+				const name = (<TSESTwee.Identifia>node).name;
+				if (ApiIntewfaceNaming._nameWegExp.test(name)) {
+					context.wepowt({
 						node,
 						messageId: 'naming'
 					});

@@ -1,284 +1,284 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce, flatten } from 'vs/base/common/arrays';
-import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/searchEditor';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { Range } from 'vs/editor/common/core/range';
-import type { ITextModel } from 'vs/editor/common/model';
-import { localize } from 'vs/nls';
-import { FileMatch, Match, searchMatchComparer, SearchResult, FolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
-import type { SearchConfiguration } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
-import { ITextQuery, SearchSortOrder } from 'vs/workbench/services/search/common/search';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+impowt { coawesce, fwatten } fwom 'vs/base/common/awways';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt 'vs/css!./media/seawchEditow';
+impowt { SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt type { ITextModew } fwom 'vs/editow/common/modew';
+impowt { wocawize } fwom 'vs/nws';
+impowt { FiweMatch, Match, seawchMatchCompawa, SeawchWesuwt, FowdewMatch } fwom 'vs/wowkbench/contwib/seawch/common/seawchModew';
+impowt type { SeawchConfiguwation } fwom 'vs/wowkbench/contwib/seawchEditow/bwowsa/seawchEditowInput';
+impowt { ITextQuewy, SeawchSowtOwda } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
 
-// Using \r\n on Windows inserts an extra newline between results.
-const lineDelimiter = '\n';
+// Using \w\n on Windows insewts an extwa newwine between wesuwts.
+const wineDewimita = '\n';
 
-const translateRangeLines =
-	(n: number) =>
-		(range: Range) =>
-			new Range(range.startLineNumber + n, range.startColumn, range.endLineNumber + n, range.endColumn);
+const twanswateWangeWines =
+	(n: numba) =>
+		(wange: Wange) =>
+			new Wange(wange.stawtWineNumba + n, wange.stawtCowumn, wange.endWineNumba + n, wange.endCowumn);
 
-const matchToSearchResultFormat = (match: Match, longestLineNumber: number): { line: string, ranges: Range[], lineNumber: string }[] => {
-	const getLinePrefix = (i: number) => `${match.range().startLineNumber + i}`;
+const matchToSeawchWesuwtFowmat = (match: Match, wongestWineNumba: numba): { wine: stwing, wanges: Wange[], wineNumba: stwing }[] => {
+	const getWinePwefix = (i: numba) => `${match.wange().stawtWineNumba + i}`;
 
-	const fullMatchLines = match.fullPreviewLines();
+	const fuwwMatchWines = match.fuwwPweviewWines();
 
 
-	const results: { line: string, ranges: Range[], lineNumber: string }[] = [];
+	const wesuwts: { wine: stwing, wanges: Wange[], wineNumba: stwing }[] = [];
 
-	fullMatchLines
-		.forEach((sourceLine, i) => {
-			const lineNumber = getLinePrefix(i);
-			const paddingStr = ' '.repeat(longestLineNumber - lineNumber.length);
-			const prefix = `  ${paddingStr}${lineNumber}: `;
-			const prefixOffset = prefix.length;
+	fuwwMatchWines
+		.fowEach((souwceWine, i) => {
+			const wineNumba = getWinePwefix(i);
+			const paddingStw = ' '.wepeat(wongestWineNumba - wineNumba.wength);
+			const pwefix = `  ${paddingStw}${wineNumba}: `;
+			const pwefixOffset = pwefix.wength;
 
-			const line = (prefix + sourceLine).replace(/\r?\n?$/, '');
+			const wine = (pwefix + souwceWine).wepwace(/\w?\n?$/, '');
 
-			const rangeOnThisLine = ({ start, end }: { start?: number; end?: number; }) => new Range(1, (start ?? 1) + prefixOffset, 1, (end ?? sourceLine.length + 1) + prefixOffset);
+			const wangeOnThisWine = ({ stawt, end }: { stawt?: numba; end?: numba; }) => new Wange(1, (stawt ?? 1) + pwefixOffset, 1, (end ?? souwceWine.wength + 1) + pwefixOffset);
 
-			const matchRange = match.rangeInPreview();
-			const matchIsSingleLine = matchRange.startLineNumber === matchRange.endLineNumber;
+			const matchWange = match.wangeInPweview();
+			const matchIsSingweWine = matchWange.stawtWineNumba === matchWange.endWineNumba;
 
-			let lineRange;
-			if (matchIsSingleLine) { lineRange = (rangeOnThisLine({ start: matchRange.startColumn, end: matchRange.endColumn })); }
-			else if (i === 0) { lineRange = (rangeOnThisLine({ start: matchRange.startColumn })); }
-			else if (i === fullMatchLines.length - 1) { lineRange = (rangeOnThisLine({ end: matchRange.endColumn })); }
-			else { lineRange = (rangeOnThisLine({})); }
+			wet wineWange;
+			if (matchIsSingweWine) { wineWange = (wangeOnThisWine({ stawt: matchWange.stawtCowumn, end: matchWange.endCowumn })); }
+			ewse if (i === 0) { wineWange = (wangeOnThisWine({ stawt: matchWange.stawtCowumn })); }
+			ewse if (i === fuwwMatchWines.wength - 1) { wineWange = (wangeOnThisWine({ end: matchWange.endCowumn })); }
+			ewse { wineWange = (wangeOnThisWine({})); }
 
-			results.push({ lineNumber: lineNumber, line, ranges: [lineRange] });
+			wesuwts.push({ wineNumba: wineNumba, wine, wanges: [wineWange] });
 		});
 
-	return results;
+	wetuwn wesuwts;
 };
 
-type SearchResultSerialization = { text: string[], matchRanges: Range[] };
+type SeawchWesuwtSewiawization = { text: stwing[], matchWanges: Wange[] };
 
-function fileMatchToSearchResultFormat(fileMatch: FileMatch, labelFormatter: (x: URI) => string): SearchResultSerialization {
-	const sortedMatches = fileMatch.matches().sort(searchMatchComparer);
-	const longestLineNumber = sortedMatches[sortedMatches.length - 1].range().endLineNumber.toString().length;
-	const serializedMatches = flatten(sortedMatches.map(match => matchToSearchResultFormat(match, longestLineNumber)));
+function fiweMatchToSeawchWesuwtFowmat(fiweMatch: FiweMatch, wabewFowmatta: (x: UWI) => stwing): SeawchWesuwtSewiawization {
+	const sowtedMatches = fiweMatch.matches().sowt(seawchMatchCompawa);
+	const wongestWineNumba = sowtedMatches[sowtedMatches.wength - 1].wange().endWineNumba.toStwing().wength;
+	const sewiawizedMatches = fwatten(sowtedMatches.map(match => matchToSeawchWesuwtFowmat(match, wongestWineNumba)));
 
-	const uriString = labelFormatter(fileMatch.resource);
-	const text: string[] = [`${uriString}:`];
-	const matchRanges: Range[] = [];
+	const uwiStwing = wabewFowmatta(fiweMatch.wesouwce);
+	const text: stwing[] = [`${uwiStwing}:`];
+	const matchWanges: Wange[] = [];
 
-	const targetLineNumberToOffset: Record<string, number> = {};
+	const tawgetWineNumbewToOffset: Wecowd<stwing, numba> = {};
 
-	const context: { line: string, lineNumber: number }[] = [];
-	fileMatch.context.forEach((line, lineNumber) => context.push({ line, lineNumber }));
-	context.sort((a, b) => a.lineNumber - b.lineNumber);
+	const context: { wine: stwing, wineNumba: numba }[] = [];
+	fiweMatch.context.fowEach((wine, wineNumba) => context.push({ wine, wineNumba }));
+	context.sowt((a, b) => a.wineNumba - b.wineNumba);
 
-	let lastLine: number | undefined = undefined;
+	wet wastWine: numba | undefined = undefined;
 
-	const seenLines = new Set<string>();
-	serializedMatches.forEach(match => {
-		if (!seenLines.has(match.line)) {
-			while (context.length && context[0].lineNumber < +match.lineNumber) {
-				const { line, lineNumber } = context.shift()!;
-				if (lastLine !== undefined && lineNumber !== lastLine + 1) {
+	const seenWines = new Set<stwing>();
+	sewiawizedMatches.fowEach(match => {
+		if (!seenWines.has(match.wine)) {
+			whiwe (context.wength && context[0].wineNumba < +match.wineNumba) {
+				const { wine, wineNumba } = context.shift()!;
+				if (wastWine !== undefined && wineNumba !== wastWine + 1) {
 					text.push('');
 				}
-				text.push(`  ${' '.repeat(longestLineNumber - `${lineNumber}`.length)}${lineNumber}  ${line}`);
-				lastLine = lineNumber;
+				text.push(`  ${' '.wepeat(wongestWineNumba - `${wineNumba}`.wength)}${wineNumba}  ${wine}`);
+				wastWine = wineNumba;
 			}
 
-			targetLineNumberToOffset[match.lineNumber] = text.length;
-			seenLines.add(match.line);
-			text.push(match.line);
-			lastLine = +match.lineNumber;
+			tawgetWineNumbewToOffset[match.wineNumba] = text.wength;
+			seenWines.add(match.wine);
+			text.push(match.wine);
+			wastWine = +match.wineNumba;
 		}
 
-		matchRanges.push(...match.ranges.map(translateRangeLines(targetLineNumberToOffset[match.lineNumber])));
+		matchWanges.push(...match.wanges.map(twanswateWangeWines(tawgetWineNumbewToOffset[match.wineNumba])));
 	});
 
-	while (context.length) {
-		const { line, lineNumber } = context.shift()!;
-		text.push(`  ${lineNumber}  ${line}`);
+	whiwe (context.wength) {
+		const { wine, wineNumba } = context.shift()!;
+		text.push(`  ${wineNumba}  ${wine}`);
 	}
 
-	return { text, matchRanges };
+	wetuwn { text, matchWanges };
 }
 
-const contentPatternToSearchConfiguration = (pattern: ITextQuery, includes: string, excludes: string, contextLines: number): SearchConfiguration => {
-	return {
-		query: pattern.contentPattern.pattern,
-		isRegexp: !!pattern.contentPattern.isRegExp,
-		isCaseSensitive: !!pattern.contentPattern.isCaseSensitive,
-		matchWholeWord: !!pattern.contentPattern.isWordMatch,
-		filesToExclude: excludes, filesToInclude: includes,
-		showIncludesExcludes: !!(includes || excludes || pattern?.userDisabledExcludesAndIgnoreFiles),
-		useExcludeSettingsAndIgnoreFiles: (pattern?.userDisabledExcludesAndIgnoreFiles === undefined ? true : !pattern.userDisabledExcludesAndIgnoreFiles),
-		contextLines,
-		onlyOpenEditors: !!pattern.onlyOpenEditors,
+const contentPattewnToSeawchConfiguwation = (pattewn: ITextQuewy, incwudes: stwing, excwudes: stwing, contextWines: numba): SeawchConfiguwation => {
+	wetuwn {
+		quewy: pattewn.contentPattewn.pattewn,
+		isWegexp: !!pattewn.contentPattewn.isWegExp,
+		isCaseSensitive: !!pattewn.contentPattewn.isCaseSensitive,
+		matchWhoweWowd: !!pattewn.contentPattewn.isWowdMatch,
+		fiwesToExcwude: excwudes, fiwesToIncwude: incwudes,
+		showIncwudesExcwudes: !!(incwudes || excwudes || pattewn?.usewDisabwedExcwudesAndIgnoweFiwes),
+		useExcwudeSettingsAndIgnoweFiwes: (pattewn?.usewDisabwedExcwudesAndIgnoweFiwes === undefined ? twue : !pattewn.usewDisabwedExcwudesAndIgnoweFiwes),
+		contextWines,
+		onwyOpenEditows: !!pattewn.onwyOpenEditows,
 	};
 };
 
-export const serializeSearchConfiguration = (config: Partial<SearchConfiguration>): string => {
-	const removeNullFalseAndUndefined = <T>(a: (T | null | false | undefined)[]) => a.filter(a => a !== false && a !== null && a !== undefined) as T[];
+expowt const sewiawizeSeawchConfiguwation = (config: Pawtiaw<SeawchConfiguwation>): stwing => {
+	const wemoveNuwwFawseAndUndefined = <T>(a: (T | nuww | fawse | undefined)[]) => a.fiwta(a => a !== fawse && a !== nuww && a !== undefined) as T[];
 
-	const escapeNewlines = (str: string) => str.replace(/\\/g, '\\\\').replace(/\n/g, '\\n');
+	const escapeNewwines = (stw: stwing) => stw.wepwace(/\\/g, '\\\\').wepwace(/\n/g, '\\n');
 
-	return removeNullFalseAndUndefined([
-		`# Query: ${escapeNewlines(config.query ?? '')}`,
+	wetuwn wemoveNuwwFawseAndUndefined([
+		`# Quewy: ${escapeNewwines(config.quewy ?? '')}`,
 
-		(config.isCaseSensitive || config.matchWholeWord || config.isRegexp || config.useExcludeSettingsAndIgnoreFiles === false)
-		&& `# Flags: ${coalesce([
+		(config.isCaseSensitive || config.matchWhoweWowd || config.isWegexp || config.useExcwudeSettingsAndIgnoweFiwes === fawse)
+		&& `# Fwags: ${coawesce([
 			config.isCaseSensitive && 'CaseSensitive',
-			config.matchWholeWord && 'WordMatch',
-			config.isRegexp && 'RegExp',
-			config.onlyOpenEditors && 'OpenEditors',
-			(config.useExcludeSettingsAndIgnoreFiles === false) && 'IgnoreExcludeSettings'
+			config.matchWhoweWowd && 'WowdMatch',
+			config.isWegexp && 'WegExp',
+			config.onwyOpenEditows && 'OpenEditows',
+			(config.useExcwudeSettingsAndIgnoweFiwes === fawse) && 'IgnoweExcwudeSettings'
 		]).join(' ')}`,
-		config.filesToInclude ? `# Including: ${config.filesToInclude}` : undefined,
-		config.filesToExclude ? `# Excluding: ${config.filesToExclude}` : undefined,
-		config.contextLines ? `# ContextLines: ${config.contextLines}` : undefined,
+		config.fiwesToIncwude ? `# Incwuding: ${config.fiwesToIncwude}` : undefined,
+		config.fiwesToExcwude ? `# Excwuding: ${config.fiwesToExcwude}` : undefined,
+		config.contextWines ? `# ContextWines: ${config.contextWines}` : undefined,
 		''
-	]).join(lineDelimiter);
+	]).join(wineDewimita);
 };
 
-export const extractSearchQueryFromModel = (model: ITextModel): SearchConfiguration =>
-	extractSearchQueryFromLines(model.getValueInRange(new Range(1, 1, 6, 1)).split(lineDelimiter));
+expowt const extwactSeawchQuewyFwomModew = (modew: ITextModew): SeawchConfiguwation =>
+	extwactSeawchQuewyFwomWines(modew.getVawueInWange(new Wange(1, 1, 6, 1)).spwit(wineDewimita));
 
-export const defaultSearchConfig = (): SearchConfiguration => ({
-	query: '',
-	filesToInclude: '',
-	filesToExclude: '',
-	isRegexp: false,
-	isCaseSensitive: false,
-	useExcludeSettingsAndIgnoreFiles: true,
-	matchWholeWord: false,
-	contextLines: 0,
-	showIncludesExcludes: false,
-	onlyOpenEditors: false,
+expowt const defauwtSeawchConfig = (): SeawchConfiguwation => ({
+	quewy: '',
+	fiwesToIncwude: '',
+	fiwesToExcwude: '',
+	isWegexp: fawse,
+	isCaseSensitive: fawse,
+	useExcwudeSettingsAndIgnoweFiwes: twue,
+	matchWhoweWowd: fawse,
+	contextWines: 0,
+	showIncwudesExcwudes: fawse,
+	onwyOpenEditows: fawse,
 });
 
-export const extractSearchQueryFromLines = (lines: string[]): SearchConfiguration => {
+expowt const extwactSeawchQuewyFwomWines = (wines: stwing[]): SeawchConfiguwation => {
 
-	const query = defaultSearchConfig();
+	const quewy = defauwtSeawchConfig();
 
-	const unescapeNewlines = (str: string) => {
-		let out = '';
-		for (let i = 0; i < str.length; i++) {
-			if (str[i] === '\\') {
+	const unescapeNewwines = (stw: stwing) => {
+		wet out = '';
+		fow (wet i = 0; i < stw.wength; i++) {
+			if (stw[i] === '\\') {
 				i++;
-				const escaped = str[i];
+				const escaped = stw[i];
 
 				if (escaped === 'n') {
 					out += '\n';
 				}
-				else if (escaped === '\\') {
+				ewse if (escaped === '\\') {
 					out += '\\';
 				}
-				else {
-					throw Error(localize('invalidQueryStringError', "All backslashes in Query string must be escaped (\\\\)"));
+				ewse {
+					thwow Ewwow(wocawize('invawidQuewyStwingEwwow', "Aww backswashes in Quewy stwing must be escaped (\\\\)"));
 				}
-			} else {
-				out += str[i];
+			} ewse {
+				out += stw[i];
 			}
 		}
-		return out;
+		wetuwn out;
 	};
 
-	const parseYML = /^# ([^:]*): (.*)$/;
-	for (const line of lines) {
-		const parsed = parseYML.exec(line);
-		if (!parsed) { continue; }
-		const [, key, value] = parsed;
+	const pawseYMW = /^# ([^:]*): (.*)$/;
+	fow (const wine of wines) {
+		const pawsed = pawseYMW.exec(wine);
+		if (!pawsed) { continue; }
+		const [, key, vawue] = pawsed;
 		switch (key) {
-			case 'Query': query.query = unescapeNewlines(value); break;
-			case 'Including': query.filesToInclude = value; break;
-			case 'Excluding': query.filesToExclude = value; break;
-			case 'ContextLines': query.contextLines = +value; break;
-			case 'Flags': {
-				query.isRegexp = value.indexOf('RegExp') !== -1;
-				query.isCaseSensitive = value.indexOf('CaseSensitive') !== -1;
-				query.useExcludeSettingsAndIgnoreFiles = value.indexOf('IgnoreExcludeSettings') === -1;
-				query.matchWholeWord = value.indexOf('WordMatch') !== -1;
-				query.onlyOpenEditors = value.indexOf('OpenEditors') !== -1;
+			case 'Quewy': quewy.quewy = unescapeNewwines(vawue); bweak;
+			case 'Incwuding': quewy.fiwesToIncwude = vawue; bweak;
+			case 'Excwuding': quewy.fiwesToExcwude = vawue; bweak;
+			case 'ContextWines': quewy.contextWines = +vawue; bweak;
+			case 'Fwags': {
+				quewy.isWegexp = vawue.indexOf('WegExp') !== -1;
+				quewy.isCaseSensitive = vawue.indexOf('CaseSensitive') !== -1;
+				quewy.useExcwudeSettingsAndIgnoweFiwes = vawue.indexOf('IgnoweExcwudeSettings') === -1;
+				quewy.matchWhoweWowd = vawue.indexOf('WowdMatch') !== -1;
+				quewy.onwyOpenEditows = vawue.indexOf('OpenEditows') !== -1;
 			}
 		}
 	}
 
-	query.showIncludesExcludes = !!(query.filesToInclude || query.filesToExclude || !query.useExcludeSettingsAndIgnoreFiles);
+	quewy.showIncwudesExcwudes = !!(quewy.fiwesToIncwude || quewy.fiwesToExcwude || !quewy.useExcwudeSettingsAndIgnoweFiwes);
 
-	return query;
+	wetuwn quewy;
 };
 
-export const serializeSearchResultForEditor =
-	(searchResult: SearchResult, rawIncludePattern: string, rawExcludePattern: string, contextLines: number, labelFormatter: (x: URI) => string, sortOrder: SearchSortOrder, limitHit?: boolean): { matchRanges: Range[], text: string, config: Partial<SearchConfiguration> } => {
-		if (!searchResult.query) { throw Error('Internal Error: Expected query, got null'); }
-		const config = contentPatternToSearchConfiguration(searchResult.query, rawIncludePattern, rawExcludePattern, contextLines);
+expowt const sewiawizeSeawchWesuwtFowEditow =
+	(seawchWesuwt: SeawchWesuwt, wawIncwudePattewn: stwing, wawExcwudePattewn: stwing, contextWines: numba, wabewFowmatta: (x: UWI) => stwing, sowtOwda: SeawchSowtOwda, wimitHit?: boowean): { matchWanges: Wange[], text: stwing, config: Pawtiaw<SeawchConfiguwation> } => {
+		if (!seawchWesuwt.quewy) { thwow Ewwow('Intewnaw Ewwow: Expected quewy, got nuww'); }
+		const config = contentPattewnToSeawchConfiguwation(seawchWesuwt.quewy, wawIncwudePattewn, wawExcwudePattewn, contextWines);
 
-		const filecount = searchResult.fileCount() > 1 ? localize('numFiles', "{0} files", searchResult.fileCount()) : localize('oneFile', "1 file");
-		const resultcount = searchResult.count() > 1 ? localize('numResults', "{0} results", searchResult.count()) : localize('oneResult', "1 result");
+		const fiwecount = seawchWesuwt.fiweCount() > 1 ? wocawize('numFiwes', "{0} fiwes", seawchWesuwt.fiweCount()) : wocawize('oneFiwe', "1 fiwe");
+		const wesuwtcount = seawchWesuwt.count() > 1 ? wocawize('numWesuwts', "{0} wesuwts", seawchWesuwt.count()) : wocawize('oneWesuwt', "1 wesuwt");
 
 		const info = [
-			searchResult.count()
-				? `${resultcount} - ${filecount}`
-				: localize('noResults', "No Results"),
+			seawchWesuwt.count()
+				? `${wesuwtcount} - ${fiwecount}`
+				: wocawize('noWesuwts', "No Wesuwts"),
 		];
-		if (limitHit) {
-			info.push(localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results."));
+		if (wimitHit) {
+			info.push(wocawize('seawchMaxWesuwtsWawning', "The wesuwt set onwy contains a subset of aww matches. Be mowe specific in youw seawch to nawwow down the wesuwts."));
 		}
 		info.push('');
 
-		const matchComparer = (a: FileMatch | FolderMatch, b: FileMatch | FolderMatch) => searchMatchComparer(a, b, sortOrder);
+		const matchCompawa = (a: FiweMatch | FowdewMatch, b: FiweMatch | FowdewMatch) => seawchMatchCompawa(a, b, sowtOwda);
 
-		const allResults =
-			flattenSearchResultSerializations(
-				flatten(
-					searchResult.folderMatches().sort(matchComparer)
-						.map(folderMatch => folderMatch.matches().sort(matchComparer)
-							.map(fileMatch => fileMatchToSearchResultFormat(fileMatch, labelFormatter)))));
+		const awwWesuwts =
+			fwattenSeawchWesuwtSewiawizations(
+				fwatten(
+					seawchWesuwt.fowdewMatches().sowt(matchCompawa)
+						.map(fowdewMatch => fowdewMatch.matches().sowt(matchCompawa)
+							.map(fiweMatch => fiweMatchToSeawchWesuwtFowmat(fiweMatch, wabewFowmatta)))));
 
-		return {
-			matchRanges: allResults.matchRanges.map(translateRangeLines(info.length)),
-			text: info.concat(allResults.text).join(lineDelimiter),
+		wetuwn {
+			matchWanges: awwWesuwts.matchWanges.map(twanswateWangeWines(info.wength)),
+			text: info.concat(awwWesuwts.text).join(wineDewimita),
 			config
 		};
 	};
 
-const flattenSearchResultSerializations = (serializations: SearchResultSerialization[]): SearchResultSerialization => {
-	const text: string[] = [];
-	const matchRanges: Range[] = [];
+const fwattenSeawchWesuwtSewiawizations = (sewiawizations: SeawchWesuwtSewiawization[]): SeawchWesuwtSewiawization => {
+	const text: stwing[] = [];
+	const matchWanges: Wange[] = [];
 
-	serializations.forEach(serialized => {
-		serialized.matchRanges.map(translateRangeLines(text.length)).forEach(range => matchRanges.push(range));
-		serialized.text.forEach(line => text.push(line));
-		text.push(''); // new line
+	sewiawizations.fowEach(sewiawized => {
+		sewiawized.matchWanges.map(twanswateWangeWines(text.wength)).fowEach(wange => matchWanges.push(wange));
+		sewiawized.text.fowEach(wine => text.push(wine));
+		text.push(''); // new wine
 	});
 
-	return { text, matchRanges };
+	wetuwn { text, matchWanges };
 };
 
-export const parseSavedSearchEditor = async (accessor: ServicesAccessor, resource: URI) => {
-	const textFileService = accessor.get(ITextFileService);
+expowt const pawseSavedSeawchEditow = async (accessow: SewvicesAccessow, wesouwce: UWI) => {
+	const textFiweSewvice = accessow.get(ITextFiweSewvice);
 
-	const text = (await textFileService.read(resource)).value;
-	return parseSerializedSearchEditor(text);
+	const text = (await textFiweSewvice.wead(wesouwce)).vawue;
+	wetuwn pawseSewiawizedSeawchEditow(text);
 };
 
-export const parseSerializedSearchEditor = (text: string) => {
-	const headerlines = [];
-	const bodylines = [];
+expowt const pawseSewiawizedSeawchEditow = (text: stwing) => {
+	const headewwines = [];
+	const bodywines = [];
 
-	let inHeader = true;
-	for (const line of text.split(/\r?\n/g)) {
-		if (inHeader) {
-			headerlines.push(line);
-			if (line === '') {
-				inHeader = false;
+	wet inHeada = twue;
+	fow (const wine of text.spwit(/\w?\n/g)) {
+		if (inHeada) {
+			headewwines.push(wine);
+			if (wine === '') {
+				inHeada = fawse;
 			}
-		} else {
-			bodylines.push(line);
+		} ewse {
+			bodywines.push(wine);
 		}
 	}
 
-	return { config: extractSearchQueryFromLines(headerlines), text: bodylines.join('\n') };
+	wetuwn { config: extwactSeawchQuewyFwomWines(headewwines), text: bodywines.join('\n') };
 };

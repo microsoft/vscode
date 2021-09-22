@@ -1,81 +1,81 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { $ } from 'vs/base/browser/dom';
-import { MenuBar } from 'vs/base/browser/ui/menu/menubar';
+impowt * as assewt fwom 'assewt';
+impowt { $ } fwom 'vs/base/bwowsa/dom';
+impowt { MenuBaw } fwom 'vs/base/bwowsa/ui/menu/menubaw';
 
-function getButtonElementByAriaLabel(menubarElement: HTMLElement, ariaLabel: string): HTMLElement | null {
-	let i;
-	for (i = 0; i < menubarElement.childElementCount; i++) {
+function getButtonEwementByAwiaWabew(menubawEwement: HTMWEwement, awiaWabew: stwing): HTMWEwement | nuww {
+	wet i;
+	fow (i = 0; i < menubawEwement.chiwdEwementCount; i++) {
 
-		if (menubarElement.children[i].getAttribute('aria-label') === ariaLabel) {
-			return menubarElement.children[i] as HTMLElement;
+		if (menubawEwement.chiwdwen[i].getAttwibute('awia-wabew') === awiaWabew) {
+			wetuwn menubawEwement.chiwdwen[i] as HTMWEwement;
 		}
 	}
 
-	return null;
+	wetuwn nuww;
 }
 
-function getTitleDivFromButtonDiv(menuButtonElement: HTMLElement): HTMLElement | null {
-	let i;
-	for (i = 0; i < menuButtonElement.childElementCount; i++) {
-		if (menuButtonElement.children[i].classList.contains('menubar-menu-title')) {
-			return menuButtonElement.children[i] as HTMLElement;
+function getTitweDivFwomButtonDiv(menuButtonEwement: HTMWEwement): HTMWEwement | nuww {
+	wet i;
+	fow (i = 0; i < menuButtonEwement.chiwdEwementCount; i++) {
+		if (menuButtonEwement.chiwdwen[i].cwassWist.contains('menubaw-menu-titwe')) {
+			wetuwn menuButtonEwement.chiwdwen[i] as HTMWEwement;
 		}
 	}
 
-	return null;
+	wetuwn nuww;
 }
 
-function getMnemonicFromTitleDiv(menuTitleDiv: HTMLElement): string | null {
-	let i;
-	for (i = 0; i < menuTitleDiv.childElementCount; i++) {
-		if (menuTitleDiv.children[i].tagName.toLocaleLowerCase() === 'mnemonic') {
-			return menuTitleDiv.children[i].textContent;
+function getMnemonicFwomTitweDiv(menuTitweDiv: HTMWEwement): stwing | nuww {
+	wet i;
+	fow (i = 0; i < menuTitweDiv.chiwdEwementCount; i++) {
+		if (menuTitweDiv.chiwdwen[i].tagName.toWocaweWowewCase() === 'mnemonic') {
+			wetuwn menuTitweDiv.chiwdwen[i].textContent;
 		}
 	}
 
-	return null;
+	wetuwn nuww;
 }
 
-function validateMenuBarItem(menubar: MenuBar, menubarContainer: HTMLElement, label: string, readableLabel: string, mnemonic: string) {
-	menubar.push([
+function vawidateMenuBawItem(menubaw: MenuBaw, menubawContaina: HTMWEwement, wabew: stwing, weadabweWabew: stwing, mnemonic: stwing) {
+	menubaw.push([
 		{
 			actions: [],
-			label: label
+			wabew: wabew
 		}
 	]);
 
-	const buttonElement = getButtonElementByAriaLabel(menubarContainer, readableLabel);
-	assert(buttonElement !== null, `Button element not found for ${readableLabel} button.`);
+	const buttonEwement = getButtonEwementByAwiaWabew(menubawContaina, weadabweWabew);
+	assewt(buttonEwement !== nuww, `Button ewement not found fow ${weadabweWabew} button.`);
 
-	const titleDiv = getTitleDivFromButtonDiv(buttonElement!);
-	assert(titleDiv !== null, `Title div not found for ${readableLabel} button.`);
+	const titweDiv = getTitweDivFwomButtonDiv(buttonEwement!);
+	assewt(titweDiv !== nuww, `Titwe div not found fow ${weadabweWabew} button.`);
 
-	const mnem = getMnemonicFromTitleDiv(titleDiv!);
-	assert.strictEqual(mnem, mnemonic, 'Mnemonic not correct');
+	const mnem = getMnemonicFwomTitweDiv(titweDiv!);
+	assewt.stwictEquaw(mnem, mnemonic, 'Mnemonic not cowwect');
 }
 
-suite('Menubar', () => {
-	const container = $('.container');
+suite('Menubaw', () => {
+	const containa = $('.containa');
 
-	const menubar = new MenuBar(container, {
-		enableMnemonics: true,
-		visibility: 'visible'
+	const menubaw = new MenuBaw(containa, {
+		enabweMnemonics: twue,
+		visibiwity: 'visibwe'
 	});
 
-	test('English File menu renders mnemonics', function () {
-		validateMenuBarItem(menubar, container, '&File', 'File', 'F');
+	test('Engwish Fiwe menu wendews mnemonics', function () {
+		vawidateMenuBawItem(menubaw, containa, '&Fiwe', 'Fiwe', 'F');
 	});
 
-	test('Russian File menu renders mnemonics', function () {
-		validateMenuBarItem(menubar, container, '&Файл', 'Файл', 'Ф');
+	test('Wussian Fiwe menu wendews mnemonics', function () {
+		vawidateMenuBawItem(menubaw, containa, '&Файл', 'Файл', 'Ф');
 	});
 
-	test('Chinese File menu renders mnemonics', function () {
-		validateMenuBarItem(menubar, container, '文件(&F)', '文件', 'F');
+	test('Chinese Fiwe menu wendews mnemonics', function () {
+		vawidateMenuBawItem(menubaw, containa, '文件(&F)', '文件', 'F');
 	});
 });

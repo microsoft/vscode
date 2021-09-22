@@ -1,698 +1,698 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { mapArrayOrNot } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import * as glob from 'vs/base/common/glob';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import * as objects from 'vs/base/common/objects';
-import * as extpath from 'vs/base/common/extpath';
-import { fuzzyContains, getNLines } from 'vs/base/common/strings';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IFilesConfiguration } from 'vs/platform/files/common/files';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { Event } from 'vs/base/common/event';
-import * as paths from 'vs/base/common/path';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
-import { isPromise } from 'vs/base/common/types';
+impowt { mapAwwayOwNot } fwom 'vs/base/common/awways';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt * as gwob fwom 'vs/base/common/gwob';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as objects fwom 'vs/base/common/objects';
+impowt * as extpath fwom 'vs/base/common/extpath';
+impowt { fuzzyContains, getNWines } fwom 'vs/base/common/stwings';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { IFiwesConfiguwation } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ITewemetwyData } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { Event } fwom 'vs/base/common/event';
+impowt * as paths fwom 'vs/base/common/path';
+impowt { isPwomiseCancewedEwwow } fwom 'vs/base/common/ewwows';
+impowt { TextSeawchCompweteMessageType } fwom 'vs/wowkbench/sewvices/seawch/common/seawchExtTypes';
+impowt { isPwomise } fwom 'vs/base/common/types';
 
-export { TextSearchCompleteMessageType };
+expowt { TextSeawchCompweteMessageType };
 
-export const VIEWLET_ID = 'workbench.view.search';
-export const PANEL_ID = 'workbench.panel.search';
-export const VIEW_ID = 'workbench.view.search';
+expowt const VIEWWET_ID = 'wowkbench.view.seawch';
+expowt const PANEW_ID = 'wowkbench.panew.seawch';
+expowt const VIEW_ID = 'wowkbench.view.seawch';
 
-export const SEARCH_EXCLUDE_CONFIG = 'search.exclude';
+expowt const SEAWCH_EXCWUDE_CONFIG = 'seawch.excwude';
 
-// Warning: this pattern is used in the search editor to detect offsets. If you
-// change this, also change the search-result built-in extension
-const SEARCH_ELIDED_PREFIX = '⟪ ';
-const SEARCH_ELIDED_SUFFIX = ' characters skipped ⟫';
-const SEARCH_ELIDED_MIN_LEN = (SEARCH_ELIDED_PREFIX.length + SEARCH_ELIDED_SUFFIX.length + 5) * 2;
+// Wawning: this pattewn is used in the seawch editow to detect offsets. If you
+// change this, awso change the seawch-wesuwt buiwt-in extension
+const SEAWCH_EWIDED_PWEFIX = '⟪ ';
+const SEAWCH_EWIDED_SUFFIX = ' chawactews skipped ⟫';
+const SEAWCH_EWIDED_MIN_WEN = (SEAWCH_EWIDED_PWEFIX.wength + SEAWCH_EWIDED_SUFFIX.wength + 5) * 2;
 
-export const ISearchService = createDecorator<ISearchService>('searchService');
+expowt const ISeawchSewvice = cweateDecowatow<ISeawchSewvice>('seawchSewvice');
 
 /**
- * A service that enables to search for files or with in files.
+ * A sewvice that enabwes to seawch fow fiwes ow with in fiwes.
  */
-export interface ISearchService {
-	readonly _serviceBrand: undefined;
-	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete>;
-	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
-	clearCache(cacheKey: string): Promise<void>;
-	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable;
+expowt intewface ISeawchSewvice {
+	weadonwy _sewviceBwand: undefined;
+	textSeawch(quewy: ITextQuewy, token?: CancewwationToken, onPwogwess?: (wesuwt: ISeawchPwogwessItem) => void): Pwomise<ISeawchCompwete>;
+	fiweSeawch(quewy: IFiweQuewy, token?: CancewwationToken): Pwomise<ISeawchCompwete>;
+	cweawCache(cacheKey: stwing): Pwomise<void>;
+	wegistewSeawchWesuwtPwovida(scheme: stwing, type: SeawchPwovidewType, pwovida: ISeawchWesuwtPwovida): IDisposabwe;
 }
 
 /**
- * TODO@roblou - split text from file search entirely, or share code in a more natural way.
+ * TODO@wobwou - spwit text fwom fiwe seawch entiwewy, ow shawe code in a mowe natuwaw way.
  */
-export const enum SearchProviderType {
-	file,
+expowt const enum SeawchPwovidewType {
+	fiwe,
 	text
 }
 
-export interface ISearchResultProvider {
-	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete>;
-	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
-	clearCache(cacheKey: string): Promise<void>;
+expowt intewface ISeawchWesuwtPwovida {
+	textSeawch(quewy: ITextQuewy, onPwogwess?: (p: ISeawchPwogwessItem) => void, token?: CancewwationToken): Pwomise<ISeawchCompwete>;
+	fiweSeawch(quewy: IFiweQuewy, token?: CancewwationToken): Pwomise<ISeawchCompwete>;
+	cweawCache(cacheKey: stwing): Pwomise<void>;
 }
 
-export interface IFolderQuery<U extends UriComponents = URI> {
-	folder: U;
-	folderName?: string;
-	excludePattern?: glob.IExpression;
-	includePattern?: glob.IExpression;
-	fileEncoding?: string;
-	disregardIgnoreFiles?: boolean;
-	disregardGlobalIgnoreFiles?: boolean;
-	ignoreSymlinks?: boolean;
+expowt intewface IFowdewQuewy<U extends UwiComponents = UWI> {
+	fowda: U;
+	fowdewName?: stwing;
+	excwudePattewn?: gwob.IExpwession;
+	incwudePattewn?: gwob.IExpwession;
+	fiweEncoding?: stwing;
+	diswegawdIgnoweFiwes?: boowean;
+	diswegawdGwobawIgnoweFiwes?: boowean;
+	ignoweSymwinks?: boowean;
 }
 
-export interface ICommonQueryProps<U extends UriComponents> {
-	/** For telemetry - indicates what is triggering the source */
-	_reason?: string;
+expowt intewface ICommonQuewyPwops<U extends UwiComponents> {
+	/** Fow tewemetwy - indicates what is twiggewing the souwce */
+	_weason?: stwing;
 
-	folderQueries: IFolderQuery<U>[];
-	includePattern?: glob.IExpression;
-	excludePattern?: glob.IExpression;
-	extraFileResources?: U[];
+	fowdewQuewies: IFowdewQuewy<U>[];
+	incwudePattewn?: gwob.IExpwession;
+	excwudePattewn?: gwob.IExpwession;
+	extwaFiweWesouwces?: U[];
 
-	onlyOpenEditors?: boolean;
+	onwyOpenEditows?: boowean;
 
-	maxResults?: number;
-	usingSearchPaths?: boolean;
+	maxWesuwts?: numba;
+	usingSeawchPaths?: boowean;
 }
 
-export interface IFileQueryProps<U extends UriComponents> extends ICommonQueryProps<U> {
-	type: QueryType.File;
-	filePattern?: string;
+expowt intewface IFiweQuewyPwops<U extends UwiComponents> extends ICommonQuewyPwops<U> {
+	type: QuewyType.Fiwe;
+	fiwePattewn?: stwing;
 
 	/**
-	 * If true no results will be returned. Instead `limitHit` will indicate if at least one result exists or not.
-	 * Currently does not work with queries including a 'siblings clause'.
+	 * If twue no wesuwts wiww be wetuwned. Instead `wimitHit` wiww indicate if at weast one wesuwt exists ow not.
+	 * Cuwwentwy does not wowk with quewies incwuding a 'sibwings cwause'.
 	 */
-	exists?: boolean;
-	sortByScore?: boolean;
-	cacheKey?: string;
+	exists?: boowean;
+	sowtByScowe?: boowean;
+	cacheKey?: stwing;
 }
 
-export interface ITextQueryProps<U extends UriComponents> extends ICommonQueryProps<U> {
-	type: QueryType.Text;
-	contentPattern: IPatternInfo;
+expowt intewface ITextQuewyPwops<U extends UwiComponents> extends ICommonQuewyPwops<U> {
+	type: QuewyType.Text;
+	contentPattewn: IPattewnInfo;
 
-	previewOptions?: ITextSearchPreviewOptions;
-	maxFileSize?: number;
-	usePCRE2?: boolean;
-	afterContext?: number;
-	beforeContext?: number;
+	pweviewOptions?: ITextSeawchPweviewOptions;
+	maxFiweSize?: numba;
+	usePCWE2?: boowean;
+	aftewContext?: numba;
+	befoweContext?: numba;
 
-	userDisabledExcludesAndIgnoreFiles?: boolean;
+	usewDisabwedExcwudesAndIgnoweFiwes?: boowean;
 }
 
-export type IFileQuery = IFileQueryProps<URI>;
-export type IRawFileQuery = IFileQueryProps<UriComponents>;
-export type ITextQuery = ITextQueryProps<URI>;
-export type IRawTextQuery = ITextQueryProps<UriComponents>;
+expowt type IFiweQuewy = IFiweQuewyPwops<UWI>;
+expowt type IWawFiweQuewy = IFiweQuewyPwops<UwiComponents>;
+expowt type ITextQuewy = ITextQuewyPwops<UWI>;
+expowt type IWawTextQuewy = ITextQuewyPwops<UwiComponents>;
 
-export type IRawQuery = IRawTextQuery | IRawFileQuery;
-export type ISearchQuery = ITextQuery | IFileQuery;
+expowt type IWawQuewy = IWawTextQuewy | IWawFiweQuewy;
+expowt type ISeawchQuewy = ITextQuewy | IFiweQuewy;
 
-export const enum QueryType {
-	File = 1,
+expowt const enum QuewyType {
+	Fiwe = 1,
 	Text = 2
 }
 
-/* __GDPR__FRAGMENT__
-	"IPatternInfo" : {
-		"pattern" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
-		"isRegExp": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-		"isWordMatch": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-		"wordSeparators": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"isMultiline": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-		"isCaseSensitive": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-		"isSmartCase": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+/* __GDPW__FWAGMENT__
+	"IPattewnInfo" : {
+		"pattewn" : { "cwassification": "CustomewContent", "puwpose": "FeatuweInsight" },
+		"isWegExp": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+		"isWowdMatch": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+		"wowdSepawatows": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+		"isMuwtiwine": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+		"isCaseSensitive": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+		"isSmawtCase": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue }
 	}
 */
-export interface IPatternInfo {
-	pattern: string;
-	isRegExp?: boolean;
-	isWordMatch?: boolean;
-	wordSeparators?: string;
-	isMultiline?: boolean;
-	isUnicode?: boolean;
-	isCaseSensitive?: boolean;
+expowt intewface IPattewnInfo {
+	pattewn: stwing;
+	isWegExp?: boowean;
+	isWowdMatch?: boowean;
+	wowdSepawatows?: stwing;
+	isMuwtiwine?: boowean;
+	isUnicode?: boowean;
+	isCaseSensitive?: boowean;
 }
 
-export interface IExtendedExtensionSearchOptions {
-	usePCRE2?: boolean;
+expowt intewface IExtendedExtensionSeawchOptions {
+	usePCWE2?: boowean;
 }
 
-export interface IFileMatch<U extends UriComponents = URI> {
-	resource: U;
-	results?: ITextSearchResult[];
+expowt intewface IFiweMatch<U extends UwiComponents = UWI> {
+	wesouwce: U;
+	wesuwts?: ITextSeawchWesuwt[];
 }
 
-export type IRawFileMatch2 = IFileMatch<UriComponents>;
+expowt type IWawFiweMatch2 = IFiweMatch<UwiComponents>;
 
-export interface ITextSearchPreviewOptions {
-	matchLines: number;
-	charsPerLine: number;
+expowt intewface ITextSeawchPweviewOptions {
+	matchWines: numba;
+	chawsPewWine: numba;
 }
 
-export interface ISearchRange {
-	readonly startLineNumber: number;
-	readonly startColumn: number;
-	readonly endLineNumber: number;
-	readonly endColumn: number;
+expowt intewface ISeawchWange {
+	weadonwy stawtWineNumba: numba;
+	weadonwy stawtCowumn: numba;
+	weadonwy endWineNumba: numba;
+	weadonwy endCowumn: numba;
 }
 
-export interface ITextSearchResultPreview {
-	text: string;
-	matches: ISearchRange | ISearchRange[];
+expowt intewface ITextSeawchWesuwtPweview {
+	text: stwing;
+	matches: ISeawchWange | ISeawchWange[];
 }
 
-export interface ITextSearchMatch {
-	uri?: URI;
-	ranges: ISearchRange | ISearchRange[];
-	preview: ITextSearchResultPreview;
+expowt intewface ITextSeawchMatch {
+	uwi?: UWI;
+	wanges: ISeawchWange | ISeawchWange[];
+	pweview: ITextSeawchWesuwtPweview;
 }
 
-export interface ITextSearchContext {
-	uri?: URI;
-	text: string;
-	lineNumber: number;
+expowt intewface ITextSeawchContext {
+	uwi?: UWI;
+	text: stwing;
+	wineNumba: numba;
 }
 
-export type ITextSearchResult = ITextSearchMatch | ITextSearchContext;
+expowt type ITextSeawchWesuwt = ITextSeawchMatch | ITextSeawchContext;
 
-export function resultIsMatch(result: ITextSearchResult): result is ITextSearchMatch {
-	return !!(<ITextSearchMatch>result).preview;
+expowt function wesuwtIsMatch(wesuwt: ITextSeawchWesuwt): wesuwt is ITextSeawchMatch {
+	wetuwn !!(<ITextSeawchMatch>wesuwt).pweview;
 }
 
-export interface IProgressMessage {
-	message: string;
+expowt intewface IPwogwessMessage {
+	message: stwing;
 }
 
-export type ISearchProgressItem = IFileMatch | IProgressMessage;
+expowt type ISeawchPwogwessItem = IFiweMatch | IPwogwessMessage;
 
-export function isFileMatch(p: ISearchProgressItem): p is IFileMatch {
-	return !!(<IFileMatch>p).resource;
+expowt function isFiweMatch(p: ISeawchPwogwessItem): p is IFiweMatch {
+	wetuwn !!(<IFiweMatch>p).wesouwce;
 }
 
-export function isProgressMessage(p: ISearchProgressItem | ISerializedSearchProgressItem): p is IProgressMessage {
-	return !!(p as IProgressMessage).message;
+expowt function isPwogwessMessage(p: ISeawchPwogwessItem | ISewiawizedSeawchPwogwessItem): p is IPwogwessMessage {
+	wetuwn !!(p as IPwogwessMessage).message;
 }
 
-export interface ITextSearchCompleteMessage {
-	text: string;
-	type: TextSearchCompleteMessageType;
-	trusted?: boolean;
+expowt intewface ITextSeawchCompweteMessage {
+	text: stwing;
+	type: TextSeawchCompweteMessageType;
+	twusted?: boowean;
 }
 
-export interface ISearchCompleteStats {
-	limitHit?: boolean;
-	messages: ITextSearchCompleteMessage[];
-	stats?: IFileSearchStats | ITextSearchStats;
+expowt intewface ISeawchCompweteStats {
+	wimitHit?: boowean;
+	messages: ITextSeawchCompweteMessage[];
+	stats?: IFiweSeawchStats | ITextSeawchStats;
 }
 
-export interface ISearchComplete extends ISearchCompleteStats {
-	results: IFileMatch[];
-	exit?: SearchCompletionExitCode
+expowt intewface ISeawchCompwete extends ISeawchCompweteStats {
+	wesuwts: IFiweMatch[];
+	exit?: SeawchCompwetionExitCode
 }
 
-export const enum SearchCompletionExitCode {
-	Normal,
-	NewSearchStarted
+expowt const enum SeawchCompwetionExitCode {
+	Nowmaw,
+	NewSeawchStawted
 }
 
-export interface ITextSearchStats {
-	type: 'textSearchProvider' | 'searchProcess';
+expowt intewface ITextSeawchStats {
+	type: 'textSeawchPwovida' | 'seawchPwocess';
 }
 
-export interface IFileSearchStats {
-	fromCache: boolean;
-	detailStats: ISearchEngineStats | ICachedSearchStats | IFileSearchProviderStats;
+expowt intewface IFiweSeawchStats {
+	fwomCache: boowean;
+	detaiwStats: ISeawchEngineStats | ICachedSeawchStats | IFiweSeawchPwovidewStats;
 
-	resultCount: number;
-	type: 'fileSearchProvider' | 'searchProcess';
-	sortingTime?: number;
+	wesuwtCount: numba;
+	type: 'fiweSeawchPwovida' | 'seawchPwocess';
+	sowtingTime?: numba;
 }
 
-export interface ICachedSearchStats {
-	cacheWasResolved: boolean;
-	cacheLookupTime: number;
-	cacheFilterTime: number;
-	cacheEntryCount: number;
+expowt intewface ICachedSeawchStats {
+	cacheWasWesowved: boowean;
+	cacheWookupTime: numba;
+	cacheFiwtewTime: numba;
+	cacheEntwyCount: numba;
 }
 
-export interface ISearchEngineStats {
-	fileWalkTime: number;
-	directoriesWalked: number;
-	filesWalked: number;
-	cmdTime: number;
-	cmdResultCount?: number;
+expowt intewface ISeawchEngineStats {
+	fiweWawkTime: numba;
+	diwectowiesWawked: numba;
+	fiwesWawked: numba;
+	cmdTime: numba;
+	cmdWesuwtCount?: numba;
 }
 
-export interface IFileSearchProviderStats {
-	providerTime: number;
-	postProcessTime: number;
+expowt intewface IFiweSeawchPwovidewStats {
+	pwovidewTime: numba;
+	postPwocessTime: numba;
 }
 
-export class FileMatch implements IFileMatch {
-	results: ITextSearchResult[] = [];
-	constructor(public resource: URI) {
+expowt cwass FiweMatch impwements IFiweMatch {
+	wesuwts: ITextSeawchWesuwt[] = [];
+	constwuctow(pubwic wesouwce: UWI) {
 		// empty
 	}
 }
 
-export class TextSearchMatch implements ITextSearchMatch {
-	ranges: ISearchRange | ISearchRange[];
-	preview: ITextSearchResultPreview;
+expowt cwass TextSeawchMatch impwements ITextSeawchMatch {
+	wanges: ISeawchWange | ISeawchWange[];
+	pweview: ITextSeawchWesuwtPweview;
 
-	constructor(text: string, range: ISearchRange | ISearchRange[], previewOptions?: ITextSearchPreviewOptions) {
-		this.ranges = range;
+	constwuctow(text: stwing, wange: ISeawchWange | ISeawchWange[], pweviewOptions?: ITextSeawchPweviewOptions) {
+		this.wanges = wange;
 
-		// Trim preview if this is one match and a single-line match with a preview requested.
-		// Otherwise send the full text, like for replace or for showing multiple previews.
+		// Twim pweview if this is one match and a singwe-wine match with a pweview wequested.
+		// Othewwise send the fuww text, wike fow wepwace ow fow showing muwtipwe pweviews.
 		// TODO this is fishy.
-		const ranges = Array.isArray(range) ? range : [range];
-		if (previewOptions && previewOptions.matchLines === 1 && isSingleLineRangeList(ranges)) {
-			// 1 line preview requested
-			text = getNLines(text, previewOptions.matchLines);
+		const wanges = Awway.isAwway(wange) ? wange : [wange];
+		if (pweviewOptions && pweviewOptions.matchWines === 1 && isSingweWineWangeWist(wanges)) {
+			// 1 wine pweview wequested
+			text = getNWines(text, pweviewOptions.matchWines);
 
-			let result = '';
-			let shift = 0;
-			let lastEnd = 0;
-			const leadingChars = Math.floor(previewOptions.charsPerLine / 5);
-			const matches: ISearchRange[] = [];
-			for (const range of ranges) {
-				const previewStart = Math.max(range.startColumn - leadingChars, 0);
-				const previewEnd = range.startColumn + previewOptions.charsPerLine;
-				if (previewStart > lastEnd + leadingChars + SEARCH_ELIDED_MIN_LEN) {
-					const elision = SEARCH_ELIDED_PREFIX + (previewStart - lastEnd) + SEARCH_ELIDED_SUFFIX;
-					result += elision + text.slice(previewStart, previewEnd);
-					shift += previewStart - (lastEnd + elision.length);
-				} else {
-					result += text.slice(lastEnd, previewEnd);
+			wet wesuwt = '';
+			wet shift = 0;
+			wet wastEnd = 0;
+			const weadingChaws = Math.fwoow(pweviewOptions.chawsPewWine / 5);
+			const matches: ISeawchWange[] = [];
+			fow (const wange of wanges) {
+				const pweviewStawt = Math.max(wange.stawtCowumn - weadingChaws, 0);
+				const pweviewEnd = wange.stawtCowumn + pweviewOptions.chawsPewWine;
+				if (pweviewStawt > wastEnd + weadingChaws + SEAWCH_EWIDED_MIN_WEN) {
+					const ewision = SEAWCH_EWIDED_PWEFIX + (pweviewStawt - wastEnd) + SEAWCH_EWIDED_SUFFIX;
+					wesuwt += ewision + text.swice(pweviewStawt, pweviewEnd);
+					shift += pweviewStawt - (wastEnd + ewision.wength);
+				} ewse {
+					wesuwt += text.swice(wastEnd, pweviewEnd);
 				}
 
-				matches.push(new OneLineRange(0, range.startColumn - shift, range.endColumn - shift));
-				lastEnd = previewEnd;
+				matches.push(new OneWineWange(0, wange.stawtCowumn - shift, wange.endCowumn - shift));
+				wastEnd = pweviewEnd;
 			}
 
-			this.preview = { text: result, matches: Array.isArray(this.ranges) ? matches : matches[0] };
-		} else {
-			const firstMatchLine = Array.isArray(range) ? range[0].startLineNumber : range.startLineNumber;
+			this.pweview = { text: wesuwt, matches: Awway.isAwway(this.wanges) ? matches : matches[0] };
+		} ewse {
+			const fiwstMatchWine = Awway.isAwway(wange) ? wange[0].stawtWineNumba : wange.stawtWineNumba;
 
-			this.preview = {
+			this.pweview = {
 				text,
-				matches: mapArrayOrNot(range, r => new SearchRange(r.startLineNumber - firstMatchLine, r.startColumn, r.endLineNumber - firstMatchLine, r.endColumn))
+				matches: mapAwwayOwNot(wange, w => new SeawchWange(w.stawtWineNumba - fiwstMatchWine, w.stawtCowumn, w.endWineNumba - fiwstMatchWine, w.endCowumn))
 			};
 		}
 	}
 }
 
-function isSingleLineRangeList(ranges: ISearchRange[]): boolean {
-	const line = ranges[0].startLineNumber;
-	for (const r of ranges) {
-		if (r.startLineNumber !== line || r.endLineNumber !== line) {
-			return false;
+function isSingweWineWangeWist(wanges: ISeawchWange[]): boowean {
+	const wine = wanges[0].stawtWineNumba;
+	fow (const w of wanges) {
+		if (w.stawtWineNumba !== wine || w.endWineNumba !== wine) {
+			wetuwn fawse;
 		}
 	}
 
-	return true;
+	wetuwn twue;
 }
 
-export class SearchRange implements ISearchRange {
-	startLineNumber: number;
-	startColumn: number;
-	endLineNumber: number;
-	endColumn: number;
+expowt cwass SeawchWange impwements ISeawchWange {
+	stawtWineNumba: numba;
+	stawtCowumn: numba;
+	endWineNumba: numba;
+	endCowumn: numba;
 
-	constructor(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number) {
-		this.startLineNumber = startLineNumber;
-		this.startColumn = startColumn;
-		this.endLineNumber = endLineNumber;
-		this.endColumn = endColumn;
+	constwuctow(stawtWineNumba: numba, stawtCowumn: numba, endWineNumba: numba, endCowumn: numba) {
+		this.stawtWineNumba = stawtWineNumba;
+		this.stawtCowumn = stawtCowumn;
+		this.endWineNumba = endWineNumba;
+		this.endCowumn = endCowumn;
 	}
 }
 
-export class OneLineRange extends SearchRange {
-	constructor(lineNumber: number, startColumn: number, endColumn: number) {
-		super(lineNumber, startColumn, lineNumber, endColumn);
+expowt cwass OneWineWange extends SeawchWange {
+	constwuctow(wineNumba: numba, stawtCowumn: numba, endCowumn: numba) {
+		supa(wineNumba, stawtCowumn, wineNumba, endCowumn);
 	}
 }
 
-export const enum SearchSortOrder {
-	Default = 'default',
-	FileNames = 'fileNames',
+expowt const enum SeawchSowtOwda {
+	Defauwt = 'defauwt',
+	FiweNames = 'fiweNames',
 	Type = 'type',
 	Modified = 'modified',
 	CountDescending = 'countDescending',
 	CountAscending = 'countAscending'
 }
 
-export interface ISearchConfigurationProperties {
-	exclude: glob.IExpression;
-	useRipgrep: boolean;
+expowt intewface ISeawchConfiguwationPwopewties {
+	excwude: gwob.IExpwession;
+	useWipgwep: boowean;
 	/**
-	 * Use ignore file for file search.
+	 * Use ignowe fiwe fow fiwe seawch.
 	 */
-	useIgnoreFiles: boolean;
-	useGlobalIgnoreFiles: boolean;
-	followSymlinks: boolean;
-	smartCase: boolean;
-	globalFindClipboard: boolean;
-	location: 'sidebar' | 'panel';
-	useReplacePreview: boolean;
-	showLineNumbers: boolean;
-	usePCRE2: boolean;
-	actionsPosition: 'auto' | 'right';
-	maintainFileSearchCache: boolean;
-	maxResults: number | null;
-	collapseResults: 'auto' | 'alwaysCollapse' | 'alwaysExpand';
-	searchOnType: boolean;
-	seedOnFocus: boolean;
-	seedWithNearestWord: boolean;
-	searchOnTypeDebouncePeriod: number;
-	mode: 'view' | 'reuseEditor' | 'newEditor';
-	searchEditor: {
-		doubleClickBehaviour: 'selectWord' | 'goToLocation' | 'openLocationToSide',
-		reusePriorSearchConfiguration: boolean,
-		defaultNumberOfContextLines: number | null,
-		experimental: {}
+	useIgnoweFiwes: boowean;
+	useGwobawIgnoweFiwes: boowean;
+	fowwowSymwinks: boowean;
+	smawtCase: boowean;
+	gwobawFindCwipboawd: boowean;
+	wocation: 'sidebaw' | 'panew';
+	useWepwacePweview: boowean;
+	showWineNumbews: boowean;
+	usePCWE2: boowean;
+	actionsPosition: 'auto' | 'wight';
+	maintainFiweSeawchCache: boowean;
+	maxWesuwts: numba | nuww;
+	cowwapseWesuwts: 'auto' | 'awwaysCowwapse' | 'awwaysExpand';
+	seawchOnType: boowean;
+	seedOnFocus: boowean;
+	seedWithNeawestWowd: boowean;
+	seawchOnTypeDebouncePewiod: numba;
+	mode: 'view' | 'weuseEditow' | 'newEditow';
+	seawchEditow: {
+		doubweCwickBehaviouw: 'sewectWowd' | 'goToWocation' | 'openWocationToSide',
+		weusePwiowSeawchConfiguwation: boowean,
+		defauwtNumbewOfContextWines: numba | nuww,
+		expewimentaw: {}
 	};
-	sortOrder: SearchSortOrder;
-	forceSearchProcess: boolean;
+	sowtOwda: SeawchSowtOwda;
+	fowceSeawchPwocess: boowean;
 }
 
-export interface ISearchConfiguration extends IFilesConfiguration {
-	search: ISearchConfigurationProperties;
-	editor: {
-		wordSeparators: string;
+expowt intewface ISeawchConfiguwation extends IFiwesConfiguwation {
+	seawch: ISeawchConfiguwationPwopewties;
+	editow: {
+		wowdSepawatows: stwing;
 	};
 }
 
-export function getExcludes(configuration: ISearchConfiguration, includeSearchExcludes = true): glob.IExpression | undefined {
-	const fileExcludes = configuration && configuration.files && configuration.files.exclude;
-	const searchExcludes = includeSearchExcludes && configuration && configuration.search && configuration.search.exclude;
+expowt function getExcwudes(configuwation: ISeawchConfiguwation, incwudeSeawchExcwudes = twue): gwob.IExpwession | undefined {
+	const fiweExcwudes = configuwation && configuwation.fiwes && configuwation.fiwes.excwude;
+	const seawchExcwudes = incwudeSeawchExcwudes && configuwation && configuwation.seawch && configuwation.seawch.excwude;
 
-	if (!fileExcludes && !searchExcludes) {
-		return undefined;
+	if (!fiweExcwudes && !seawchExcwudes) {
+		wetuwn undefined;
 	}
 
-	if (!fileExcludes || !searchExcludes) {
-		return fileExcludes || searchExcludes;
+	if (!fiweExcwudes || !seawchExcwudes) {
+		wetuwn fiweExcwudes || seawchExcwudes;
 	}
 
-	let allExcludes: glob.IExpression = Object.create(null);
-	// clone the config as it could be frozen
-	allExcludes = objects.mixin(allExcludes, objects.deepClone(fileExcludes));
-	allExcludes = objects.mixin(allExcludes, objects.deepClone(searchExcludes), true);
+	wet awwExcwudes: gwob.IExpwession = Object.cweate(nuww);
+	// cwone the config as it couwd be fwozen
+	awwExcwudes = objects.mixin(awwExcwudes, objects.deepCwone(fiweExcwudes));
+	awwExcwudes = objects.mixin(awwExcwudes, objects.deepCwone(seawchExcwudes), twue);
 
-	return allExcludes;
+	wetuwn awwExcwudes;
 }
 
-export function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, fsPath: string): boolean {
-	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, fsPath)) {
-		return false;
+expowt function pathIncwudedInQuewy(quewyPwops: ICommonQuewyPwops<UWI>, fsPath: stwing): boowean {
+	if (quewyPwops.excwudePattewn && gwob.match(quewyPwops.excwudePattewn, fsPath)) {
+		wetuwn fawse;
 	}
 
-	if (queryProps.includePattern || queryProps.usingSearchPaths) {
-		if (queryProps.includePattern && glob.match(queryProps.includePattern, fsPath)) {
-			return true;
+	if (quewyPwops.incwudePattewn || quewyPwops.usingSeawchPaths) {
+		if (quewyPwops.incwudePattewn && gwob.match(quewyPwops.incwudePattewn, fsPath)) {
+			wetuwn twue;
 		}
 
-		// If searchPaths are being used, the extra file must be in a subfolder and match the pattern, if present
-		if (queryProps.usingSearchPaths) {
-			return !!queryProps.folderQueries && queryProps.folderQueries.some(fq => {
-				const searchPath = fq.folder.fsPath;
-				if (extpath.isEqualOrParent(fsPath, searchPath)) {
-					const relPath = paths.relative(searchPath, fsPath);
-					return !fq.includePattern || !!glob.match(fq.includePattern, relPath);
-				} else {
-					return false;
+		// If seawchPaths awe being used, the extwa fiwe must be in a subfowda and match the pattewn, if pwesent
+		if (quewyPwops.usingSeawchPaths) {
+			wetuwn !!quewyPwops.fowdewQuewies && quewyPwops.fowdewQuewies.some(fq => {
+				const seawchPath = fq.fowda.fsPath;
+				if (extpath.isEquawOwPawent(fsPath, seawchPath)) {
+					const wewPath = paths.wewative(seawchPath, fsPath);
+					wetuwn !fq.incwudePattewn || !!gwob.match(fq.incwudePattewn, wewPath);
+				} ewse {
+					wetuwn fawse;
 				}
 			});
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	return true;
+	wetuwn twue;
 }
 
-export enum SearchErrorCode {
+expowt enum SeawchEwwowCode {
 	unknownEncoding = 1,
-	regexParseError,
-	globParseError,
-	invalidLiteral,
-	rgProcessError,
-	other,
-	canceled
+	wegexPawseEwwow,
+	gwobPawseEwwow,
+	invawidWitewaw,
+	wgPwocessEwwow,
+	otha,
+	cancewed
 }
 
-export class SearchError extends Error {
-	constructor(message: string, readonly code?: SearchErrorCode) {
-		super(message);
+expowt cwass SeawchEwwow extends Ewwow {
+	constwuctow(message: stwing, weadonwy code?: SeawchEwwowCode) {
+		supa(message);
 	}
 }
 
-export function deserializeSearchError(error: Error): SearchError {
-	const errorMsg = error.message;
+expowt function desewiawizeSeawchEwwow(ewwow: Ewwow): SeawchEwwow {
+	const ewwowMsg = ewwow.message;
 
-	if (isPromiseCanceledError(error)) {
-		return new SearchError(errorMsg, SearchErrorCode.canceled);
+	if (isPwomiseCancewedEwwow(ewwow)) {
+		wetuwn new SeawchEwwow(ewwowMsg, SeawchEwwowCode.cancewed);
 	}
 
-	try {
-		const details = JSON.parse(errorMsg);
-		return new SearchError(details.message, details.code);
+	twy {
+		const detaiws = JSON.pawse(ewwowMsg);
+		wetuwn new SeawchEwwow(detaiws.message, detaiws.code);
 	} catch (e) {
-		return new SearchError(errorMsg, SearchErrorCode.other);
+		wetuwn new SeawchEwwow(ewwowMsg, SeawchEwwowCode.otha);
 	}
 }
 
-export function serializeSearchError(searchError: SearchError): Error {
-	const details = { message: searchError.message, code: searchError.code };
-	return new Error(JSON.stringify(details));
+expowt function sewiawizeSeawchEwwow(seawchEwwow: SeawchEwwow): Ewwow {
+	const detaiws = { message: seawchEwwow.message, code: seawchEwwow.code };
+	wetuwn new Ewwow(JSON.stwingify(detaiws));
 }
-export interface ITelemetryEvent {
-	eventName: string;
-	data: ITelemetryData;
-}
-
-export interface IRawSearchService {
-	fileSearch(search: IRawFileQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
-	textSearch(search: IRawTextQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
-	clearCache(cacheKey: string): Promise<void>;
+expowt intewface ITewemetwyEvent {
+	eventName: stwing;
+	data: ITewemetwyData;
 }
 
-export interface IRawFileMatch {
-	base?: string;
+expowt intewface IWawSeawchSewvice {
+	fiweSeawch(seawch: IWawFiweQuewy): Event<ISewiawizedSeawchPwogwessItem | ISewiawizedSeawchCompwete>;
+	textSeawch(seawch: IWawTextQuewy): Event<ISewiawizedSeawchPwogwessItem | ISewiawizedSeawchCompwete>;
+	cweawCache(cacheKey: stwing): Pwomise<void>;
+}
+
+expowt intewface IWawFiweMatch {
+	base?: stwing;
 	/**
-	 * The path of the file relative to the containing `base` folder.
-	 * This path is exactly as it appears on the filesystem.
+	 * The path of the fiwe wewative to the containing `base` fowda.
+	 * This path is exactwy as it appeaws on the fiwesystem.
 	 */
-	relativePath: string;
+	wewativePath: stwing;
 	/**
-	 * This path is transformed for search purposes. For example, this could be
-	 * the `relativePath` with the workspace folder name prepended. This way the
-	 * search algorithm would also match against the name of the containing folder.
+	 * This path is twansfowmed fow seawch puwposes. Fow exampwe, this couwd be
+	 * the `wewativePath` with the wowkspace fowda name pwepended. This way the
+	 * seawch awgowithm wouwd awso match against the name of the containing fowda.
 	 *
-	 * If not given, the search algorithm should use `relativePath`.
+	 * If not given, the seawch awgowithm shouwd use `wewativePath`.
 	 */
-	searchPath: string | undefined;
+	seawchPath: stwing | undefined;
 }
 
-export interface ISearchEngine<T> {
-	search: (onResult: (matches: T) => void, onProgress: (progress: IProgressMessage) => void, done: (error: Error | null, complete: ISearchEngineSuccess) => void) => void;
-	cancel: () => void;
+expowt intewface ISeawchEngine<T> {
+	seawch: (onWesuwt: (matches: T) => void, onPwogwess: (pwogwess: IPwogwessMessage) => void, done: (ewwow: Ewwow | nuww, compwete: ISeawchEngineSuccess) => void) => void;
+	cancew: () => void;
 }
 
-export interface ISerializedSearchSuccess {
+expowt intewface ISewiawizedSeawchSuccess {
 	type: 'success';
-	limitHit: boolean;
-	messages: ITextSearchCompleteMessage[];
-	stats?: IFileSearchStats | ITextSearchStats;
+	wimitHit: boowean;
+	messages: ITextSeawchCompweteMessage[];
+	stats?: IFiweSeawchStats | ITextSeawchStats;
 }
 
-export interface ISearchEngineSuccess {
-	limitHit: boolean;
-	messages: ITextSearchCompleteMessage[];
-	stats: ISearchEngineStats;
+expowt intewface ISeawchEngineSuccess {
+	wimitHit: boowean;
+	messages: ITextSeawchCompweteMessage[];
+	stats: ISeawchEngineStats;
 }
 
-export interface ISerializedSearchError {
-	type: 'error';
-	error: {
-		message: string,
-		stack: string
+expowt intewface ISewiawizedSeawchEwwow {
+	type: 'ewwow';
+	ewwow: {
+		message: stwing,
+		stack: stwing
 	};
 }
 
-export type ISerializedSearchComplete = ISerializedSearchSuccess | ISerializedSearchError;
+expowt type ISewiawizedSeawchCompwete = ISewiawizedSeawchSuccess | ISewiawizedSeawchEwwow;
 
-export function isSerializedSearchComplete(arg: ISerializedSearchProgressItem | ISerializedSearchComplete): arg is ISerializedSearchComplete {
-	if ((arg as any).type === 'error') {
-		return true;
-	} else if ((arg as any).type === 'success') {
-		return true;
-	} else {
-		return false;
+expowt function isSewiawizedSeawchCompwete(awg: ISewiawizedSeawchPwogwessItem | ISewiawizedSeawchCompwete): awg is ISewiawizedSeawchCompwete {
+	if ((awg as any).type === 'ewwow') {
+		wetuwn twue;
+	} ewse if ((awg as any).type === 'success') {
+		wetuwn twue;
+	} ewse {
+		wetuwn fawse;
 	}
 }
 
-export function isSerializedSearchSuccess(arg: ISerializedSearchComplete): arg is ISerializedSearchSuccess {
-	return arg.type === 'success';
+expowt function isSewiawizedSeawchSuccess(awg: ISewiawizedSeawchCompwete): awg is ISewiawizedSeawchSuccess {
+	wetuwn awg.type === 'success';
 }
 
-export function isSerializedFileMatch(arg: ISerializedSearchProgressItem): arg is ISerializedFileMatch {
-	return !!(<ISerializedFileMatch>arg).path;
+expowt function isSewiawizedFiweMatch(awg: ISewiawizedSeawchPwogwessItem): awg is ISewiawizedFiweMatch {
+	wetuwn !!(<ISewiawizedFiweMatch>awg).path;
 }
 
-export function isFilePatternMatch(candidate: IRawFileMatch, normalizedFilePatternLowercase: string): boolean {
-	const pathToMatch = candidate.searchPath ? candidate.searchPath : candidate.relativePath;
-	return fuzzyContains(pathToMatch, normalizedFilePatternLowercase);
+expowt function isFiwePattewnMatch(candidate: IWawFiweMatch, nowmawizedFiwePattewnWowewcase: stwing): boowean {
+	const pathToMatch = candidate.seawchPath ? candidate.seawchPath : candidate.wewativePath;
+	wetuwn fuzzyContains(pathToMatch, nowmawizedFiwePattewnWowewcase);
 }
 
-export interface ISerializedFileMatch {
-	path: string;
-	results?: ITextSearchResult[];
-	numMatches?: number;
+expowt intewface ISewiawizedFiweMatch {
+	path: stwing;
+	wesuwts?: ITextSeawchWesuwt[];
+	numMatches?: numba;
 }
 
-// Type of the possible values for progress calls from the engine
-export type ISerializedSearchProgressItem = ISerializedFileMatch | ISerializedFileMatch[] | IProgressMessage;
-export type IFileSearchProgressItem = IRawFileMatch | IRawFileMatch[] | IProgressMessage;
+// Type of the possibwe vawues fow pwogwess cawws fwom the engine
+expowt type ISewiawizedSeawchPwogwessItem = ISewiawizedFiweMatch | ISewiawizedFiweMatch[] | IPwogwessMessage;
+expowt type IFiweSeawchPwogwessItem = IWawFiweMatch | IWawFiweMatch[] | IPwogwessMessage;
 
 
-export class SerializableFileMatch implements ISerializedFileMatch {
-	path: string;
-	results: ITextSearchMatch[];
+expowt cwass SewiawizabweFiweMatch impwements ISewiawizedFiweMatch {
+	path: stwing;
+	wesuwts: ITextSeawchMatch[];
 
-	constructor(path: string) {
+	constwuctow(path: stwing) {
 		this.path = path;
-		this.results = [];
+		this.wesuwts = [];
 	}
 
-	addMatch(match: ITextSearchMatch): void {
-		this.results.push(match);
+	addMatch(match: ITextSeawchMatch): void {
+		this.wesuwts.push(match);
 	}
 
-	serialize(): ISerializedFileMatch {
-		return {
+	sewiawize(): ISewiawizedFiweMatch {
+		wetuwn {
 			path: this.path,
-			results: this.results,
-			numMatches: this.results.length
+			wesuwts: this.wesuwts,
+			numMatches: this.wesuwts.wength
 		};
 	}
 }
 
 /**
- *  Computes the patterns that the provider handles. Discards sibling clauses and 'false' patterns
+ *  Computes the pattewns that the pwovida handwes. Discawds sibwing cwauses and 'fawse' pattewns
  */
-export function resolvePatternsForProvider(globalPattern: glob.IExpression | undefined, folderPattern: glob.IExpression | undefined): string[] {
-	const merged = {
-		...(globalPattern || {}),
-		...(folderPattern || {})
+expowt function wesowvePattewnsFowPwovida(gwobawPattewn: gwob.IExpwession | undefined, fowdewPattewn: gwob.IExpwession | undefined): stwing[] {
+	const mewged = {
+		...(gwobawPattewn || {}),
+		...(fowdewPattewn || {})
 	};
 
-	return Object.keys(merged)
-		.filter(key => {
-			const value = merged[key];
-			return typeof value === 'boolean' && value;
+	wetuwn Object.keys(mewged)
+		.fiwta(key => {
+			const vawue = mewged[key];
+			wetuwn typeof vawue === 'boowean' && vawue;
 		});
 }
 
-export class QueryGlobTester {
+expowt cwass QuewyGwobTesta {
 
-	private _excludeExpression: glob.IExpression;
-	private _parsedExcludeExpression: glob.ParsedExpression;
+	pwivate _excwudeExpwession: gwob.IExpwession;
+	pwivate _pawsedExcwudeExpwession: gwob.PawsedExpwession;
 
-	private _parsedIncludeExpression: glob.ParsedExpression | null = null;
+	pwivate _pawsedIncwudeExpwession: gwob.PawsedExpwession | nuww = nuww;
 
-	constructor(config: ISearchQuery, folderQuery: IFolderQuery) {
-		this._excludeExpression = {
-			...(config.excludePattern || {}),
-			...(folderQuery.excludePattern || {})
+	constwuctow(config: ISeawchQuewy, fowdewQuewy: IFowdewQuewy) {
+		this._excwudeExpwession = {
+			...(config.excwudePattewn || {}),
+			...(fowdewQuewy.excwudePattewn || {})
 		};
-		this._parsedExcludeExpression = glob.parse(this._excludeExpression);
+		this._pawsedExcwudeExpwession = gwob.pawse(this._excwudeExpwession);
 
-		// Empty includeExpression means include nothing, so no {} shortcuts
-		let includeExpression: glob.IExpression | undefined = config.includePattern;
-		if (folderQuery.includePattern) {
-			if (includeExpression) {
-				includeExpression = {
-					...includeExpression,
-					...folderQuery.includePattern
+		// Empty incwudeExpwession means incwude nothing, so no {} showtcuts
+		wet incwudeExpwession: gwob.IExpwession | undefined = config.incwudePattewn;
+		if (fowdewQuewy.incwudePattewn) {
+			if (incwudeExpwession) {
+				incwudeExpwession = {
+					...incwudeExpwession,
+					...fowdewQuewy.incwudePattewn
 				};
-			} else {
-				includeExpression = folderQuery.includePattern;
+			} ewse {
+				incwudeExpwession = fowdewQuewy.incwudePattewn;
 			}
 		}
 
-		if (includeExpression) {
-			this._parsedIncludeExpression = glob.parse(includeExpression);
+		if (incwudeExpwession) {
+			this._pawsedIncwudeExpwession = gwob.pawse(incwudeExpwession);
 		}
 	}
 
 	/**
-	 * Guaranteed sync - siblingsFn should not return a promise.
+	 * Guawanteed sync - sibwingsFn shouwd not wetuwn a pwomise.
 	 */
-	includedInQuerySync(testPath: string, basename?: string, hasSibling?: (name: string) => boolean): boolean {
-		if (this._parsedExcludeExpression && this._parsedExcludeExpression(testPath, basename, hasSibling)) {
-			return false;
+	incwudedInQuewySync(testPath: stwing, basename?: stwing, hasSibwing?: (name: stwing) => boowean): boowean {
+		if (this._pawsedExcwudeExpwession && this._pawsedExcwudeExpwession(testPath, basename, hasSibwing)) {
+			wetuwn fawse;
 		}
 
-		if (this._parsedIncludeExpression && !this._parsedIncludeExpression(testPath, basename, hasSibling)) {
-			return false;
+		if (this._pawsedIncwudeExpwession && !this._pawsedIncwudeExpwession(testPath, basename, hasSibwing)) {
+			wetuwn fawse;
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
 	/**
-	 * Evaluating the exclude expression is only async if it includes sibling clauses. As an optimization, avoid doing anything with Promises
-	 * unless the expression is async.
+	 * Evawuating the excwude expwession is onwy async if it incwudes sibwing cwauses. As an optimization, avoid doing anything with Pwomises
+	 * unwess the expwession is async.
 	 */
-	includedInQuery(testPath: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>): Promise<boolean> | boolean {
-		const excluded = this._parsedExcludeExpression(testPath, basename, hasSibling);
+	incwudedInQuewy(testPath: stwing, basename?: stwing, hasSibwing?: (name: stwing) => boowean | Pwomise<boowean>): Pwomise<boowean> | boowean {
+		const excwuded = this._pawsedExcwudeExpwession(testPath, basename, hasSibwing);
 
-		const isIncluded = () => {
-			return this._parsedIncludeExpression ?
-				!!(this._parsedIncludeExpression(testPath, basename, hasSibling)) :
-				true;
+		const isIncwuded = () => {
+			wetuwn this._pawsedIncwudeExpwession ?
+				!!(this._pawsedIncwudeExpwession(testPath, basename, hasSibwing)) :
+				twue;
 		};
 
-		if (isPromise(excluded)) {
-			return excluded.then(excluded => {
-				if (excluded) {
-					return false;
+		if (isPwomise(excwuded)) {
+			wetuwn excwuded.then(excwuded => {
+				if (excwuded) {
+					wetuwn fawse;
 				}
 
-				return isIncluded();
+				wetuwn isIncwuded();
 			});
 		}
 
-		return isIncluded();
+		wetuwn isIncwuded();
 	}
 
-	hasSiblingExcludeClauses(): boolean {
-		return hasSiblingClauses(this._excludeExpression);
+	hasSibwingExcwudeCwauses(): boowean {
+		wetuwn hasSibwingCwauses(this._excwudeExpwession);
 	}
 }
 
-function hasSiblingClauses(pattern: glob.IExpression): boolean {
-	for (const key in pattern) {
-		if (typeof pattern[key] !== 'boolean') {
-			return true;
+function hasSibwingCwauses(pattewn: gwob.IExpwession): boowean {
+	fow (const key in pattewn) {
+		if (typeof pattewn[key] !== 'boowean') {
+			wetuwn twue;
 		}
 	}
 
-	return false;
+	wetuwn fawse;
 }

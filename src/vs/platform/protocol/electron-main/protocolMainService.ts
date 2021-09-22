@@ -1,146 +1,146 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcMain, session } from 'electron';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/map';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { isLinux } from 'vs/base/common/platform';
-import { extname } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
+impowt { ipcMain, session } fwom 'ewectwon';
+impowt { Disposabwe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { TewnawySeawchTwee } fwom 'vs/base/common/map';
+impowt { FiweAccess, Schemas } fwom 'vs/base/common/netwowk';
+impowt { isWinux } fwom 'vs/base/common/pwatfowm';
+impowt { extname } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { INativeEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IIPCObjectUww, IPwotocowMainSewvice } fwom 'vs/pwatfowm/pwotocow/ewectwon-main/pwotocow';
 
-type ProtocolCallback = { (result: string | Electron.FilePathWithHeaders | { error: number }): void };
+type PwotocowCawwback = { (wesuwt: stwing | Ewectwon.FiwePathWithHeadews | { ewwow: numba }): void };
 
-export class ProtocolMainService extends Disposable implements IProtocolMainService {
+expowt cwass PwotocowMainSewvice extends Disposabwe impwements IPwotocowMainSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly validRoots = TernarySearchTree.forUris<boolean>(() => !isLinux);
-	private readonly validExtensions = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif', '.bmp']); // https://github.com/microsoft/vscode/issues/119384
+	pwivate weadonwy vawidWoots = TewnawySeawchTwee.fowUwis<boowean>(() => !isWinux);
+	pwivate weadonwy vawidExtensions = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif', '.bmp']); // https://github.com/micwosoft/vscode/issues/119384
 
-	constructor(
-		@INativeEnvironmentService environmentService: INativeEnvironmentService,
-		@ILogService private readonly logService: ILogService
+	constwuctow(
+		@INativeEnviwonmentSewvice enviwonmentSewvice: INativeEnviwonmentSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		super();
+		supa();
 
-		// Define an initial set of roots we allow loading from
-		// - appRoot	: all files installed as part of the app
-		// - extensions : all files shipped from extensions
-		// - storage    : all files in global and workspace storage (https://github.com/microsoft/vscode/issues/116735)
-		this.addValidFileRoot(URI.file(environmentService.appRoot));
-		this.addValidFileRoot(URI.file(environmentService.extensionsPath));
-		this.addValidFileRoot(environmentService.globalStorageHome);
-		this.addValidFileRoot(environmentService.workspaceStorageHome);
+		// Define an initiaw set of woots we awwow woading fwom
+		// - appWoot	: aww fiwes instawwed as pawt of the app
+		// - extensions : aww fiwes shipped fwom extensions
+		// - stowage    : aww fiwes in gwobaw and wowkspace stowage (https://github.com/micwosoft/vscode/issues/116735)
+		this.addVawidFiweWoot(UWI.fiwe(enviwonmentSewvice.appWoot));
+		this.addVawidFiweWoot(UWI.fiwe(enviwonmentSewvice.extensionsPath));
+		this.addVawidFiweWoot(enviwonmentSewvice.gwobawStowageHome);
+		this.addVawidFiweWoot(enviwonmentSewvice.wowkspaceStowageHome);
 
-		// Handle protocols
-		this.handleProtocols();
+		// Handwe pwotocows
+		this.handwePwotocows();
 	}
 
-	private handleProtocols(): void {
-		const { defaultSession } = session;
+	pwivate handwePwotocows(): void {
+		const { defauwtSession } = session;
 
-		// Register vscode-file:// handler
-		defaultSession.protocol.registerFileProtocol(Schemas.vscodeFileResource, (request, callback) => this.handleResourceRequest(request, callback));
+		// Wegista vscode-fiwe:// handwa
+		defauwtSession.pwotocow.wegistewFiwePwotocow(Schemas.vscodeFiweWesouwce, (wequest, cawwback) => this.handweWesouwceWequest(wequest, cawwback));
 
-		// Block any file:// access
-		defaultSession.protocol.interceptFileProtocol(Schemas.file, (request, callback) => this.handleFileRequest(request, callback));
+		// Bwock any fiwe:// access
+		defauwtSession.pwotocow.intewceptFiwePwotocow(Schemas.fiwe, (wequest, cawwback) => this.handweFiweWequest(wequest, cawwback));
 
-		// Cleanup
-		this._register(toDisposable(() => {
-			defaultSession.protocol.unregisterProtocol(Schemas.vscodeFileResource);
-			defaultSession.protocol.uninterceptProtocol(Schemas.file);
+		// Cweanup
+		this._wegista(toDisposabwe(() => {
+			defauwtSession.pwotocow.unwegistewPwotocow(Schemas.vscodeFiweWesouwce);
+			defauwtSession.pwotocow.unintewceptPwotocow(Schemas.fiwe);
 		}));
 	}
 
-	addValidFileRoot(root: URI): IDisposable {
-		if (!this.validRoots.get(root)) {
-			this.validRoots.set(root, true);
+	addVawidFiweWoot(woot: UWI): IDisposabwe {
+		if (!this.vawidWoots.get(woot)) {
+			this.vawidWoots.set(woot, twue);
 
-			return toDisposable(() => this.validRoots.delete(root));
+			wetuwn toDisposabwe(() => this.vawidWoots.dewete(woot));
 		}
 
-		return Disposable.None;
+		wetuwn Disposabwe.None;
 	}
 
-	//#region file://
+	//#wegion fiwe://
 
-	private handleFileRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback) {
-		const uri = URI.parse(request.url);
+	pwivate handweFiweWequest(wequest: Ewectwon.PwotocowWequest, cawwback: PwotocowCawwback) {
+		const uwi = UWI.pawse(wequest.uww);
 
-		this.logService.error(`Refused to load resource ${uri.fsPath} from ${Schemas.file}: protocol (original URL: ${request.url})`);
+		this.wogSewvice.ewwow(`Wefused to woad wesouwce ${uwi.fsPath} fwom ${Schemas.fiwe}: pwotocow (owiginaw UWW: ${wequest.uww})`);
 
-		return callback({ error: -3 /* ABORTED */ });
+		wetuwn cawwback({ ewwow: -3 /* ABOWTED */ });
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region vscode-file://
+	//#wegion vscode-fiwe://
 
-	private handleResourceRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback): void {
-		const uri = URI.parse(request.url);
+	pwivate handweWesouwceWequest(wequest: Ewectwon.PwotocowWequest, cawwback: PwotocowCawwback): void {
+		const uwi = UWI.pawse(wequest.uww);
 
-		// Restore the `vscode-file` URI to a `file` URI so that we can
-		// ensure the root is valid and properly tell Chrome where the
-		// resource is at.
-		const fileUri = FileAccess.asFileUri(uri);
+		// Westowe the `vscode-fiwe` UWI to a `fiwe` UWI so that we can
+		// ensuwe the woot is vawid and pwopewwy teww Chwome whewe the
+		// wesouwce is at.
+		const fiweUwi = FiweAccess.asFiweUwi(uwi);
 
-		// first check by validRoots
-		if (this.validRoots.findSubstr(fileUri)) {
-			return callback({
-				path: fileUri.fsPath
+		// fiwst check by vawidWoots
+		if (this.vawidWoots.findSubstw(fiweUwi)) {
+			wetuwn cawwback({
+				path: fiweUwi.fsPath
 			});
 		}
 
-		// then check by validExtensions
-		if (this.validExtensions.has(extname(fileUri))) {
-			return callback({
-				path: fileUri.fsPath
+		// then check by vawidExtensions
+		if (this.vawidExtensions.has(extname(fiweUwi))) {
+			wetuwn cawwback({
+				path: fiweUwi.fsPath
 			});
 		}
 
-		// finally block to load the resource
-		this.logService.error(`${Schemas.vscodeFileResource}: Refused to load resource ${fileUri.fsPath} from ${Schemas.vscodeFileResource}: protocol (original URL: ${request.url})`);
+		// finawwy bwock to woad the wesouwce
+		this.wogSewvice.ewwow(`${Schemas.vscodeFiweWesouwce}: Wefused to woad wesouwce ${fiweUwi.fsPath} fwom ${Schemas.vscodeFiweWesouwce}: pwotocow (owiginaw UWW: ${wequest.uww})`);
 
-		return callback({ error: -3 /* ABORTED */ });
+		wetuwn cawwback({ ewwow: -3 /* ABOWTED */ });
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region IPC Object URLs
+	//#wegion IPC Object UWWs
 
-	createIPCObjectUrl<T>(): IIPCObjectUrl<T> {
-		let obj: T | undefined = undefined;
+	cweateIPCObjectUww<T>(): IIPCObjectUww<T> {
+		wet obj: T | undefined = undefined;
 
-		// Create unique URI
-		const resource = URI.from({
-			scheme: 'vscode', // used for all our IPC communication (vscode:<channel>)
-			path: generateUuid()
+		// Cweate unique UWI
+		const wesouwce = UWI.fwom({
+			scheme: 'vscode', // used fow aww ouw IPC communication (vscode:<channew>)
+			path: genewateUuid()
 		});
 
-		// Install IPC handler
-		const channel = resource.toString();
-		const handler = async (): Promise<T | undefined> => obj;
-		ipcMain.handle(channel, handler);
+		// Instaww IPC handwa
+		const channew = wesouwce.toStwing();
+		const handwa = async (): Pwomise<T | undefined> => obj;
+		ipcMain.handwe(channew, handwa);
 
-		this.logService.trace(`IPC Object URL: Registered new channel ${channel}.`);
+		this.wogSewvice.twace(`IPC Object UWW: Wegistewed new channew ${channew}.`);
 
-		return {
-			resource,
+		wetuwn {
+			wesouwce,
 			update: updatedObj => obj = updatedObj,
 			dispose: () => {
-				this.logService.trace(`IPC Object URL: Removed channel ${channel}.`);
+				this.wogSewvice.twace(`IPC Object UWW: Wemoved channew ${channew}.`);
 
-				ipcMain.removeHandler(channel);
+				ipcMain.wemoveHandwa(channew);
 			}
 		};
 	}
 
-	//#endregion
+	//#endwegion
 }

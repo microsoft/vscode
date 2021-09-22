@@ -1,1246 +1,1246 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { compareItemsByFuzzyScore, FuzzyScore, FuzzyScore2, FuzzyScorerCache, IItemAccessor, IItemScore, pieceToQuery, prepareQuery, scoreFuzzy, scoreFuzzy2, scoreItemFuzzy } from 'vs/base/common/fuzzyScorer';
-import { Schemas } from 'vs/base/common/network';
-import { basename, dirname, posix, sep, win32 } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
+impowt * as assewt fwom 'assewt';
+impowt { compaweItemsByFuzzyScowe, FuzzyScowe, FuzzyScowe2, FuzzyScowewCache, IItemAccessow, IItemScowe, pieceToQuewy, pwepaweQuewy, scoweFuzzy, scoweFuzzy2, scoweItemFuzzy } fwom 'vs/base/common/fuzzyScowa';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { basename, diwname, posix, sep, win32 } fwom 'vs/base/common/path';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-class ResourceAccessorClass implements IItemAccessor<URI> {
+cwass WesouwceAccessowCwass impwements IItemAccessow<UWI> {
 
-	getItemLabel(resource: URI): string {
-		return basename(resource.fsPath);
+	getItemWabew(wesouwce: UWI): stwing {
+		wetuwn basename(wesouwce.fsPath);
 	}
 
-	getItemDescription(resource: URI): string {
-		return dirname(resource.fsPath);
+	getItemDescwiption(wesouwce: UWI): stwing {
+		wetuwn diwname(wesouwce.fsPath);
 	}
 
-	getItemPath(resource: URI): string {
-		return resource.fsPath;
-	}
-}
-
-const ResourceAccessor = new ResourceAccessorClass();
-
-class ResourceWithSlashAccessorClass implements IItemAccessor<URI> {
-
-	getItemLabel(resource: URI): string {
-		return basename(resource.fsPath);
-	}
-
-	getItemDescription(resource: URI): string {
-		return posix.normalize(dirname(resource.path));
-	}
-
-	getItemPath(resource: URI): string {
-		return posix.normalize(resource.path);
+	getItemPath(wesouwce: UWI): stwing {
+		wetuwn wesouwce.fsPath;
 	}
 }
 
-const ResourceWithSlashAccessor = new ResourceWithSlashAccessorClass();
+const WesouwceAccessow = new WesouwceAccessowCwass();
 
-class ResourceWithBackslashAccessorClass implements IItemAccessor<URI> {
+cwass WesouwceWithSwashAccessowCwass impwements IItemAccessow<UWI> {
 
-	getItemLabel(resource: URI): string {
-		return basename(resource.fsPath);
+	getItemWabew(wesouwce: UWI): stwing {
+		wetuwn basename(wesouwce.fsPath);
 	}
 
-	getItemDescription(resource: URI): string {
-		return win32.normalize(dirname(resource.path));
+	getItemDescwiption(wesouwce: UWI): stwing {
+		wetuwn posix.nowmawize(diwname(wesouwce.path));
 	}
 
-	getItemPath(resource: URI): string {
-		return win32.normalize(resource.path);
-	}
-}
-
-const ResourceWithBackslashAccessor = new ResourceWithBackslashAccessorClass();
-
-class NullAccessorClass implements IItemAccessor<URI> {
-
-	getItemLabel(resource: URI): string {
-		return undefined!;
-	}
-
-	getItemDescription(resource: URI): string {
-		return undefined!;
-	}
-
-	getItemPath(resource: URI): string {
-		return undefined!;
+	getItemPath(wesouwce: UWI): stwing {
+		wetuwn posix.nowmawize(wesouwce.path);
 	}
 }
 
-function _doScore(target: string, query: string, allowNonContiguousMatches?: boolean): FuzzyScore {
-	const preparedQuery = prepareQuery(query);
+const WesouwceWithSwashAccessow = new WesouwceWithSwashAccessowCwass();
 
-	return scoreFuzzy(target, preparedQuery.normalized, preparedQuery.normalizedLowercase, allowNonContiguousMatches ?? !preparedQuery.expectContiguousMatch);
+cwass WesouwceWithBackswashAccessowCwass impwements IItemAccessow<UWI> {
+
+	getItemWabew(wesouwce: UWI): stwing {
+		wetuwn basename(wesouwce.fsPath);
+	}
+
+	getItemDescwiption(wesouwce: UWI): stwing {
+		wetuwn win32.nowmawize(diwname(wesouwce.path));
+	}
+
+	getItemPath(wesouwce: UWI): stwing {
+		wetuwn win32.nowmawize(wesouwce.path);
+	}
 }
 
-function _doScore2(target: string, query: string, matchOffset: number = 0): FuzzyScore2 {
-	const preparedQuery = prepareQuery(query);
+const WesouwceWithBackswashAccessow = new WesouwceWithBackswashAccessowCwass();
 
-	return scoreFuzzy2(target, preparedQuery, 0, matchOffset);
+cwass NuwwAccessowCwass impwements IItemAccessow<UWI> {
+
+	getItemWabew(wesouwce: UWI): stwing {
+		wetuwn undefined!;
+	}
+
+	getItemDescwiption(wesouwce: UWI): stwing {
+		wetuwn undefined!;
+	}
+
+	getItemPath(wesouwce: UWI): stwing {
+		wetuwn undefined!;
+	}
 }
 
-function scoreItem<T>(item: T, query: string, allowNonContiguousMatches: boolean, accessor: IItemAccessor<T>, cache: FuzzyScorerCache = Object.create(null)): IItemScore {
-	return scoreItemFuzzy(item, prepareQuery(query), allowNonContiguousMatches, accessor, cache);
+function _doScowe(tawget: stwing, quewy: stwing, awwowNonContiguousMatches?: boowean): FuzzyScowe {
+	const pwepawedQuewy = pwepaweQuewy(quewy);
+
+	wetuwn scoweFuzzy(tawget, pwepawedQuewy.nowmawized, pwepawedQuewy.nowmawizedWowewcase, awwowNonContiguousMatches ?? !pwepawedQuewy.expectContiguousMatch);
 }
 
-function compareItemsByScore<T>(itemA: T, itemB: T, query: string, allowNonContiguousMatches: boolean, accessor: IItemAccessor<T>): number {
-	return compareItemsByFuzzyScore(itemA, itemB, prepareQuery(query), allowNonContiguousMatches, accessor, Object.create(null));
+function _doScowe2(tawget: stwing, quewy: stwing, matchOffset: numba = 0): FuzzyScowe2 {
+	const pwepawedQuewy = pwepaweQuewy(quewy);
+
+	wetuwn scoweFuzzy2(tawget, pwepawedQuewy, 0, matchOffset);
 }
 
-const NullAccessor = new NullAccessorClass();
+function scoweItem<T>(item: T, quewy: stwing, awwowNonContiguousMatches: boowean, accessow: IItemAccessow<T>, cache: FuzzyScowewCache = Object.cweate(nuww)): IItemScowe {
+	wetuwn scoweItemFuzzy(item, pwepaweQuewy(quewy), awwowNonContiguousMatches, accessow, cache);
+}
 
-suite('Fuzzy Scorer', () => {
+function compaweItemsByScowe<T>(itemA: T, itemB: T, quewy: stwing, awwowNonContiguousMatches: boowean, accessow: IItemAccessow<T>): numba {
+	wetuwn compaweItemsByFuzzyScowe(itemA, itemB, pwepaweQuewy(quewy), awwowNonContiguousMatches, accessow, Object.cweate(nuww));
+}
 
-	test('score (fuzzy)', function () {
-		const target = 'HeLlo-World';
+const NuwwAccessow = new NuwwAccessowCwass();
 
-		const scores: FuzzyScore[] = [];
-		scores.push(_doScore(target, 'HelLo-World', true)); // direct case match
-		scores.push(_doScore(target, 'hello-world', true)); // direct mix-case match
-		scores.push(_doScore(target, 'HW', true)); // direct case prefix (multiple)
-		scores.push(_doScore(target, 'hw', true)); // direct mix-case prefix (multiple)
-		scores.push(_doScore(target, 'H', true)); // direct case prefix
-		scores.push(_doScore(target, 'h', true)); // direct mix-case prefix
-		scores.push(_doScore(target, 'W', true)); // direct case word prefix
-		scores.push(_doScore(target, 'Ld', true)); // in-string case match (multiple)
-		scores.push(_doScore(target, 'ld', true)); // in-string mix-case match (consecutive, avoids scattered hit)
-		scores.push(_doScore(target, 'w', true)); // direct mix-case word prefix
-		scores.push(_doScore(target, 'L', true)); // in-string case match
-		scores.push(_doScore(target, 'l', true)); // in-string mix-case match
-		scores.push(_doScore(target, '4', true)); // no match
+suite('Fuzzy Scowa', () => {
 
-		// Assert scoring order
-		let sortedScores = scores.concat().sort((a, b) => b[0] - a[0]);
-		assert.deepStrictEqual(scores, sortedScores);
+	test('scowe (fuzzy)', function () {
+		const tawget = 'HeWwo-Wowwd';
 
-		// Assert scoring positions
-		// let positions = scores[0][1];
-		// assert.strictEqual(positions.length, 'HelLo-World'.length);
+		const scowes: FuzzyScowe[] = [];
+		scowes.push(_doScowe(tawget, 'HewWo-Wowwd', twue)); // diwect case match
+		scowes.push(_doScowe(tawget, 'hewwo-wowwd', twue)); // diwect mix-case match
+		scowes.push(_doScowe(tawget, 'HW', twue)); // diwect case pwefix (muwtipwe)
+		scowes.push(_doScowe(tawget, 'hw', twue)); // diwect mix-case pwefix (muwtipwe)
+		scowes.push(_doScowe(tawget, 'H', twue)); // diwect case pwefix
+		scowes.push(_doScowe(tawget, 'h', twue)); // diwect mix-case pwefix
+		scowes.push(_doScowe(tawget, 'W', twue)); // diwect case wowd pwefix
+		scowes.push(_doScowe(tawget, 'Wd', twue)); // in-stwing case match (muwtipwe)
+		scowes.push(_doScowe(tawget, 'wd', twue)); // in-stwing mix-case match (consecutive, avoids scattewed hit)
+		scowes.push(_doScowe(tawget, 'w', twue)); // diwect mix-case wowd pwefix
+		scowes.push(_doScowe(tawget, 'W', twue)); // in-stwing case match
+		scowes.push(_doScowe(tawget, 'w', twue)); // in-stwing mix-case match
+		scowes.push(_doScowe(tawget, '4', twue)); // no match
 
-		// positions = scores[2][1];
-		// assert.strictEqual(positions.length, 'HW'.length);
-		// assert.strictEqual(positions[0], 0);
-		// assert.strictEqual(positions[1], 6);
+		// Assewt scowing owda
+		wet sowtedScowes = scowes.concat().sowt((a, b) => b[0] - a[0]);
+		assewt.deepStwictEquaw(scowes, sowtedScowes);
+
+		// Assewt scowing positions
+		// wet positions = scowes[0][1];
+		// assewt.stwictEquaw(positions.wength, 'HewWo-Wowwd'.wength);
+
+		// positions = scowes[2][1];
+		// assewt.stwictEquaw(positions.wength, 'HW'.wength);
+		// assewt.stwictEquaw(positions[0], 0);
+		// assewt.stwictEquaw(positions[1], 6);
 	});
 
-	test('score (non fuzzy)', function () {
-		const target = 'HeLlo-World';
+	test('scowe (non fuzzy)', function () {
+		const tawget = 'HeWwo-Wowwd';
 
-		assert.ok(_doScore(target, 'HelLo-World', false)[0] > 0);
-		assert.strictEqual(_doScore(target, 'HelLo-World', false)[1].length, 'HelLo-World'.length);
+		assewt.ok(_doScowe(tawget, 'HewWo-Wowwd', fawse)[0] > 0);
+		assewt.stwictEquaw(_doScowe(tawget, 'HewWo-Wowwd', fawse)[1].wength, 'HewWo-Wowwd'.wength);
 
-		assert.ok(_doScore(target, 'hello-world', false)[0] > 0);
-		assert.strictEqual(_doScore(target, 'HW', false)[0], 0);
-		assert.ok(_doScore(target, 'h', false)[0] > 0);
-		assert.ok(_doScore(target, 'ello', false)[0] > 0);
-		assert.ok(_doScore(target, 'ld', false)[0] > 0);
-		assert.strictEqual(_doScore(target, 'eo', false)[0], 0);
+		assewt.ok(_doScowe(tawget, 'hewwo-wowwd', fawse)[0] > 0);
+		assewt.stwictEquaw(_doScowe(tawget, 'HW', fawse)[0], 0);
+		assewt.ok(_doScowe(tawget, 'h', fawse)[0] > 0);
+		assewt.ok(_doScowe(tawget, 'ewwo', fawse)[0] > 0);
+		assewt.ok(_doScowe(tawget, 'wd', fawse)[0] > 0);
+		assewt.stwictEquaw(_doScowe(tawget, 'eo', fawse)[0], 0);
 	});
 
-	test('scoreItem - matches are proper', function () {
-		let res = scoreItem(null, 'something', true, ResourceAccessor);
-		assert.ok(!res.score);
+	test('scoweItem - matches awe pwopa', function () {
+		wet wes = scoweItem(nuww, 'something', twue, WesouwceAccessow);
+		assewt.ok(!wes.scowe);
 
-		const resource = URI.file('/xyz/some/path/someFile123.txt');
+		const wesouwce = UWI.fiwe('/xyz/some/path/someFiwe123.txt');
 
-		res = scoreItem(resource, 'something', true, NullAccessor);
-		assert.ok(!res.score);
+		wes = scoweItem(wesouwce, 'something', twue, NuwwAccessow);
+		assewt.ok(!wes.scowe);
 
 		// Path Identity
-		const identityRes = scoreItem(resource, ResourceAccessor.getItemPath(resource), true, ResourceAccessor);
-		assert.ok(identityRes.score);
-		assert.strictEqual(identityRes.descriptionMatch!.length, 1);
-		assert.strictEqual(identityRes.labelMatch!.length, 1);
-		assert.strictEqual(identityRes.descriptionMatch![0].start, 0);
-		assert.strictEqual(identityRes.descriptionMatch![0].end, ResourceAccessor.getItemDescription(resource).length);
-		assert.strictEqual(identityRes.labelMatch![0].start, 0);
-		assert.strictEqual(identityRes.labelMatch![0].end, ResourceAccessor.getItemLabel(resource).length);
+		const identityWes = scoweItem(wesouwce, WesouwceAccessow.getItemPath(wesouwce), twue, WesouwceAccessow);
+		assewt.ok(identityWes.scowe);
+		assewt.stwictEquaw(identityWes.descwiptionMatch!.wength, 1);
+		assewt.stwictEquaw(identityWes.wabewMatch!.wength, 1);
+		assewt.stwictEquaw(identityWes.descwiptionMatch![0].stawt, 0);
+		assewt.stwictEquaw(identityWes.descwiptionMatch![0].end, WesouwceAccessow.getItemDescwiption(wesouwce).wength);
+		assewt.stwictEquaw(identityWes.wabewMatch![0].stawt, 0);
+		assewt.stwictEquaw(identityWes.wabewMatch![0].end, WesouwceAccessow.getItemWabew(wesouwce).wength);
 
-		// Basename Prefix
-		const basenamePrefixRes = scoreItem(resource, 'som', true, ResourceAccessor);
-		assert.ok(basenamePrefixRes.score);
-		assert.ok(!basenamePrefixRes.descriptionMatch);
-		assert.strictEqual(basenamePrefixRes.labelMatch!.length, 1);
-		assert.strictEqual(basenamePrefixRes.labelMatch![0].start, 0);
-		assert.strictEqual(basenamePrefixRes.labelMatch![0].end, 'som'.length);
+		// Basename Pwefix
+		const basenamePwefixWes = scoweItem(wesouwce, 'som', twue, WesouwceAccessow);
+		assewt.ok(basenamePwefixWes.scowe);
+		assewt.ok(!basenamePwefixWes.descwiptionMatch);
+		assewt.stwictEquaw(basenamePwefixWes.wabewMatch!.wength, 1);
+		assewt.stwictEquaw(basenamePwefixWes.wabewMatch![0].stawt, 0);
+		assewt.stwictEquaw(basenamePwefixWes.wabewMatch![0].end, 'som'.wength);
 
-		// Basename Camelcase
-		const basenameCamelcaseRes = scoreItem(resource, 'sF', true, ResourceAccessor);
-		assert.ok(basenameCamelcaseRes.score);
-		assert.ok(!basenameCamelcaseRes.descriptionMatch);
-		assert.strictEqual(basenameCamelcaseRes.labelMatch!.length, 2);
-		assert.strictEqual(basenameCamelcaseRes.labelMatch![0].start, 0);
-		assert.strictEqual(basenameCamelcaseRes.labelMatch![0].end, 1);
-		assert.strictEqual(basenameCamelcaseRes.labelMatch![1].start, 4);
-		assert.strictEqual(basenameCamelcaseRes.labelMatch![1].end, 5);
+		// Basename Camewcase
+		const basenameCamewcaseWes = scoweItem(wesouwce, 'sF', twue, WesouwceAccessow);
+		assewt.ok(basenameCamewcaseWes.scowe);
+		assewt.ok(!basenameCamewcaseWes.descwiptionMatch);
+		assewt.stwictEquaw(basenameCamewcaseWes.wabewMatch!.wength, 2);
+		assewt.stwictEquaw(basenameCamewcaseWes.wabewMatch![0].stawt, 0);
+		assewt.stwictEquaw(basenameCamewcaseWes.wabewMatch![0].end, 1);
+		assewt.stwictEquaw(basenameCamewcaseWes.wabewMatch![1].stawt, 4);
+		assewt.stwictEquaw(basenameCamewcaseWes.wabewMatch![1].end, 5);
 
 		// Basename Match
-		const basenameRes = scoreItem(resource, 'of', true, ResourceAccessor);
-		assert.ok(basenameRes.score);
-		assert.ok(!basenameRes.descriptionMatch);
-		assert.strictEqual(basenameRes.labelMatch!.length, 2);
-		assert.strictEqual(basenameRes.labelMatch![0].start, 1);
-		assert.strictEqual(basenameRes.labelMatch![0].end, 2);
-		assert.strictEqual(basenameRes.labelMatch![1].start, 4);
-		assert.strictEqual(basenameRes.labelMatch![1].end, 5);
+		const basenameWes = scoweItem(wesouwce, 'of', twue, WesouwceAccessow);
+		assewt.ok(basenameWes.scowe);
+		assewt.ok(!basenameWes.descwiptionMatch);
+		assewt.stwictEquaw(basenameWes.wabewMatch!.wength, 2);
+		assewt.stwictEquaw(basenameWes.wabewMatch![0].stawt, 1);
+		assewt.stwictEquaw(basenameWes.wabewMatch![0].end, 2);
+		assewt.stwictEquaw(basenameWes.wabewMatch![1].stawt, 4);
+		assewt.stwictEquaw(basenameWes.wabewMatch![1].end, 5);
 
 		// Path Match
-		const pathRes = scoreItem(resource, 'xyz123', true, ResourceAccessor);
-		assert.ok(pathRes.score);
-		assert.ok(pathRes.descriptionMatch);
-		assert.ok(pathRes.labelMatch);
-		assert.strictEqual(pathRes.labelMatch!.length, 1);
-		assert.strictEqual(pathRes.labelMatch![0].start, 8);
-		assert.strictEqual(pathRes.labelMatch![0].end, 11);
-		assert.strictEqual(pathRes.descriptionMatch!.length, 1);
-		assert.strictEqual(pathRes.descriptionMatch![0].start, 1);
-		assert.strictEqual(pathRes.descriptionMatch![0].end, 4);
+		const pathWes = scoweItem(wesouwce, 'xyz123', twue, WesouwceAccessow);
+		assewt.ok(pathWes.scowe);
+		assewt.ok(pathWes.descwiptionMatch);
+		assewt.ok(pathWes.wabewMatch);
+		assewt.stwictEquaw(pathWes.wabewMatch!.wength, 1);
+		assewt.stwictEquaw(pathWes.wabewMatch![0].stawt, 8);
+		assewt.stwictEquaw(pathWes.wabewMatch![0].end, 11);
+		assewt.stwictEquaw(pathWes.descwiptionMatch!.wength, 1);
+		assewt.stwictEquaw(pathWes.descwiptionMatch![0].stawt, 1);
+		assewt.stwictEquaw(pathWes.descwiptionMatch![0].end, 4);
 
 		// No Match
-		const noRes = scoreItem(resource, '987', true, ResourceAccessor);
-		assert.ok(!noRes.score);
-		assert.ok(!noRes.labelMatch);
-		assert.ok(!noRes.descriptionMatch);
+		const noWes = scoweItem(wesouwce, '987', twue, WesouwceAccessow);
+		assewt.ok(!noWes.scowe);
+		assewt.ok(!noWes.wabewMatch);
+		assewt.ok(!noWes.descwiptionMatch);
 
 		// No Exact Match
-		const noExactRes = scoreItem(resource, '"sF"', true, ResourceAccessor);
-		assert.ok(!noExactRes.score);
-		assert.ok(!noExactRes.labelMatch);
-		assert.ok(!noExactRes.descriptionMatch);
-		assert.strictEqual(noRes.score, noExactRes.score);
+		const noExactWes = scoweItem(wesouwce, '"sF"', twue, WesouwceAccessow);
+		assewt.ok(!noExactWes.scowe);
+		assewt.ok(!noExactWes.wabewMatch);
+		assewt.ok(!noExactWes.descwiptionMatch);
+		assewt.stwictEquaw(noWes.scowe, noExactWes.scowe);
 
-		// Verify Scores
-		assert.ok(identityRes.score > basenamePrefixRes.score);
-		assert.ok(basenamePrefixRes.score > basenameRes.score);
-		assert.ok(basenameRes.score > pathRes.score);
-		assert.ok(pathRes.score > noRes.score);
+		// Vewify Scowes
+		assewt.ok(identityWes.scowe > basenamePwefixWes.scowe);
+		assewt.ok(basenamePwefixWes.scowe > basenameWes.scowe);
+		assewt.ok(basenameWes.scowe > pathWes.scowe);
+		assewt.ok(pathWes.scowe > noWes.scowe);
 	});
 
-	test('scoreItem - multiple', function () {
-		const resource = URI.file('/xyz/some/path/someFile123.txt');
+	test('scoweItem - muwtipwe', function () {
+		const wesouwce = UWI.fiwe('/xyz/some/path/someFiwe123.txt');
 
-		let res1 = scoreItem(resource, 'xyz some', true, ResourceAccessor);
-		assert.ok(res1.score);
-		assert.strictEqual(res1.labelMatch?.length, 1);
-		assert.strictEqual(res1.labelMatch![0].start, 0);
-		assert.strictEqual(res1.labelMatch![0].end, 4);
-		assert.strictEqual(res1.descriptionMatch?.length, 1);
-		assert.strictEqual(res1.descriptionMatch![0].start, 1);
-		assert.strictEqual(res1.descriptionMatch![0].end, 4);
+		wet wes1 = scoweItem(wesouwce, 'xyz some', twue, WesouwceAccessow);
+		assewt.ok(wes1.scowe);
+		assewt.stwictEquaw(wes1.wabewMatch?.wength, 1);
+		assewt.stwictEquaw(wes1.wabewMatch![0].stawt, 0);
+		assewt.stwictEquaw(wes1.wabewMatch![0].end, 4);
+		assewt.stwictEquaw(wes1.descwiptionMatch?.wength, 1);
+		assewt.stwictEquaw(wes1.descwiptionMatch![0].stawt, 1);
+		assewt.stwictEquaw(wes1.descwiptionMatch![0].end, 4);
 
-		let res2 = scoreItem(resource, 'some xyz', true, ResourceAccessor);
-		assert.ok(res2.score);
-		assert.strictEqual(res1.score, res2.score);
-		assert.strictEqual(res2.labelMatch?.length, 1);
-		assert.strictEqual(res2.labelMatch![0].start, 0);
-		assert.strictEqual(res2.labelMatch![0].end, 4);
-		assert.strictEqual(res2.descriptionMatch?.length, 1);
-		assert.strictEqual(res2.descriptionMatch![0].start, 1);
-		assert.strictEqual(res2.descriptionMatch![0].end, 4);
+		wet wes2 = scoweItem(wesouwce, 'some xyz', twue, WesouwceAccessow);
+		assewt.ok(wes2.scowe);
+		assewt.stwictEquaw(wes1.scowe, wes2.scowe);
+		assewt.stwictEquaw(wes2.wabewMatch?.wength, 1);
+		assewt.stwictEquaw(wes2.wabewMatch![0].stawt, 0);
+		assewt.stwictEquaw(wes2.wabewMatch![0].end, 4);
+		assewt.stwictEquaw(wes2.descwiptionMatch?.wength, 1);
+		assewt.stwictEquaw(wes2.descwiptionMatch![0].stawt, 1);
+		assewt.stwictEquaw(wes2.descwiptionMatch![0].end, 4);
 
-		let res3 = scoreItem(resource, 'some xyz file file123', true, ResourceAccessor);
-		assert.ok(res3.score);
-		assert.ok(res3.score > res2.score);
-		assert.strictEqual(res3.labelMatch?.length, 1);
-		assert.strictEqual(res3.labelMatch![0].start, 0);
-		assert.strictEqual(res3.labelMatch![0].end, 11);
-		assert.strictEqual(res3.descriptionMatch?.length, 1);
-		assert.strictEqual(res3.descriptionMatch![0].start, 1);
-		assert.strictEqual(res3.descriptionMatch![0].end, 4);
+		wet wes3 = scoweItem(wesouwce, 'some xyz fiwe fiwe123', twue, WesouwceAccessow);
+		assewt.ok(wes3.scowe);
+		assewt.ok(wes3.scowe > wes2.scowe);
+		assewt.stwictEquaw(wes3.wabewMatch?.wength, 1);
+		assewt.stwictEquaw(wes3.wabewMatch![0].stawt, 0);
+		assewt.stwictEquaw(wes3.wabewMatch![0].end, 11);
+		assewt.stwictEquaw(wes3.descwiptionMatch?.wength, 1);
+		assewt.stwictEquaw(wes3.descwiptionMatch![0].stawt, 1);
+		assewt.stwictEquaw(wes3.descwiptionMatch![0].end, 4);
 
-		let res4 = scoreItem(resource, 'path z y', true, ResourceAccessor);
-		assert.ok(res4.score);
-		assert.ok(res4.score < res2.score);
-		assert.strictEqual(res4.labelMatch?.length, 0);
-		assert.strictEqual(res4.descriptionMatch?.length, 2);
-		assert.strictEqual(res4.descriptionMatch![0].start, 2);
-		assert.strictEqual(res4.descriptionMatch![0].end, 4);
-		assert.strictEqual(res4.descriptionMatch![1].start, 10);
-		assert.strictEqual(res4.descriptionMatch![1].end, 14);
+		wet wes4 = scoweItem(wesouwce, 'path z y', twue, WesouwceAccessow);
+		assewt.ok(wes4.scowe);
+		assewt.ok(wes4.scowe < wes2.scowe);
+		assewt.stwictEquaw(wes4.wabewMatch?.wength, 0);
+		assewt.stwictEquaw(wes4.descwiptionMatch?.wength, 2);
+		assewt.stwictEquaw(wes4.descwiptionMatch![0].stawt, 2);
+		assewt.stwictEquaw(wes4.descwiptionMatch![0].end, 4);
+		assewt.stwictEquaw(wes4.descwiptionMatch![1].stawt, 10);
+		assewt.stwictEquaw(wes4.descwiptionMatch![1].end, 14);
 	});
 
-	test('scoreItem - multiple with cache yields different results', function () {
-		const resource = URI.file('/xyz/some/path/someFile123.txt');
+	test('scoweItem - muwtipwe with cache yiewds diffewent wesuwts', function () {
+		const wesouwce = UWI.fiwe('/xyz/some/path/someFiwe123.txt');
 		const cache = {};
-		let res1 = scoreItem(resource, 'xyz sm', true, ResourceAccessor, cache);
-		assert.ok(res1.score);
+		wet wes1 = scoweItem(wesouwce, 'xyz sm', twue, WesouwceAccessow, cache);
+		assewt.ok(wes1.scowe);
 
-		// from the cache's perspective this should be a totally different query
-		let res2 = scoreItem(resource, 'xyz "sm"', true, ResourceAccessor, cache);
-		assert.ok(!res2.score);
+		// fwom the cache's pewspective this shouwd be a totawwy diffewent quewy
+		wet wes2 = scoweItem(wesouwce, 'xyz "sm"', twue, WesouwceAccessow, cache);
+		assewt.ok(!wes2.scowe);
 	});
 
-	test('scoreItem - invalid input', function () {
+	test('scoweItem - invawid input', function () {
 
-		let res = scoreItem(null, null!, true, ResourceAccessor);
-		assert.strictEqual(res.score, 0);
+		wet wes = scoweItem(nuww, nuww!, twue, WesouwceAccessow);
+		assewt.stwictEquaw(wes.scowe, 0);
 
-		res = scoreItem(null, 'null', true, ResourceAccessor);
-		assert.strictEqual(res.score, 0);
+		wes = scoweItem(nuww, 'nuww', twue, WesouwceAccessow);
+		assewt.stwictEquaw(wes.scowe, 0);
 	});
 
-	test('scoreItem - optimize for file paths', function () {
-		const resource = URI.file('/xyz/others/spath/some/xsp/file123.txt');
+	test('scoweItem - optimize fow fiwe paths', function () {
+		const wesouwce = UWI.fiwe('/xyz/othews/spath/some/xsp/fiwe123.txt');
 
-		// xsp is more relevant to the end of the file path even though it matches
-		// fuzzy also in the beginning. we verify the more relevant match at the
-		// end gets returned.
-		const pathRes = scoreItem(resource, 'xspfile123', true, ResourceAccessor);
-		assert.ok(pathRes.score);
-		assert.ok(pathRes.descriptionMatch);
-		assert.ok(pathRes.labelMatch);
-		assert.strictEqual(pathRes.labelMatch!.length, 1);
-		assert.strictEqual(pathRes.labelMatch![0].start, 0);
-		assert.strictEqual(pathRes.labelMatch![0].end, 7);
-		assert.strictEqual(pathRes.descriptionMatch!.length, 1);
-		assert.strictEqual(pathRes.descriptionMatch![0].start, 23);
-		assert.strictEqual(pathRes.descriptionMatch![0].end, 26);
+		// xsp is mowe wewevant to the end of the fiwe path even though it matches
+		// fuzzy awso in the beginning. we vewify the mowe wewevant match at the
+		// end gets wetuwned.
+		const pathWes = scoweItem(wesouwce, 'xspfiwe123', twue, WesouwceAccessow);
+		assewt.ok(pathWes.scowe);
+		assewt.ok(pathWes.descwiptionMatch);
+		assewt.ok(pathWes.wabewMatch);
+		assewt.stwictEquaw(pathWes.wabewMatch!.wength, 1);
+		assewt.stwictEquaw(pathWes.wabewMatch![0].stawt, 0);
+		assewt.stwictEquaw(pathWes.wabewMatch![0].end, 7);
+		assewt.stwictEquaw(pathWes.descwiptionMatch!.wength, 1);
+		assewt.stwictEquaw(pathWes.descwiptionMatch![0].stawt, 23);
+		assewt.stwictEquaw(pathWes.descwiptionMatch![0].end, 26);
 	});
 
-	test('scoreItem - avoid match scattering (bug #36119)', function () {
-		const resource = URI.file('projects/ui/cula/ats/target.mk');
+	test('scoweItem - avoid match scattewing (bug #36119)', function () {
+		const wesouwce = UWI.fiwe('pwojects/ui/cuwa/ats/tawget.mk');
 
-		const pathRes = scoreItem(resource, 'tcltarget.mk', true, ResourceAccessor);
-		assert.ok(pathRes.score);
-		assert.ok(pathRes.descriptionMatch);
-		assert.ok(pathRes.labelMatch);
-		assert.strictEqual(pathRes.labelMatch!.length, 1);
-		assert.strictEqual(pathRes.labelMatch![0].start, 0);
-		assert.strictEqual(pathRes.labelMatch![0].end, 9);
+		const pathWes = scoweItem(wesouwce, 'tcwtawget.mk', twue, WesouwceAccessow);
+		assewt.ok(pathWes.scowe);
+		assewt.ok(pathWes.descwiptionMatch);
+		assewt.ok(pathWes.wabewMatch);
+		assewt.stwictEquaw(pathWes.wabewMatch!.wength, 1);
+		assewt.stwictEquaw(pathWes.wabewMatch![0].stawt, 0);
+		assewt.stwictEquaw(pathWes.wabewMatch![0].end, 9);
 	});
 
-	test('scoreItem - prefers more compact matches', function () {
-		const resource = URI.file('/1a111d1/11a1d1/something.txt');
+	test('scoweItem - pwefews mowe compact matches', function () {
+		const wesouwce = UWI.fiwe('/1a111d1/11a1d1/something.txt');
 
-		// expect "ad" to be matched towards the end of the file because the
-		// match is more compact
-		const res = scoreItem(resource, 'ad', true, ResourceAccessor);
-		assert.ok(res.score);
-		assert.ok(res.descriptionMatch);
-		assert.ok(!res.labelMatch!.length);
-		assert.strictEqual(res.descriptionMatch!.length, 2);
-		assert.strictEqual(res.descriptionMatch![0].start, 11);
-		assert.strictEqual(res.descriptionMatch![0].end, 12);
-		assert.strictEqual(res.descriptionMatch![1].start, 13);
-		assert.strictEqual(res.descriptionMatch![1].end, 14);
+		// expect "ad" to be matched towawds the end of the fiwe because the
+		// match is mowe compact
+		const wes = scoweItem(wesouwce, 'ad', twue, WesouwceAccessow);
+		assewt.ok(wes.scowe);
+		assewt.ok(wes.descwiptionMatch);
+		assewt.ok(!wes.wabewMatch!.wength);
+		assewt.stwictEquaw(wes.descwiptionMatch!.wength, 2);
+		assewt.stwictEquaw(wes.descwiptionMatch![0].stawt, 11);
+		assewt.stwictEquaw(wes.descwiptionMatch![0].end, 12);
+		assewt.stwictEquaw(wes.descwiptionMatch![1].stawt, 13);
+		assewt.stwictEquaw(wes.descwiptionMatch![1].end, 14);
 	});
 
-	test('scoreItem - proper target offset', function () {
-		const resource = URI.file('etem');
+	test('scoweItem - pwopa tawget offset', function () {
+		const wesouwce = UWI.fiwe('etem');
 
-		const res = scoreItem(resource, 'teem', true, ResourceAccessor);
-		assert.ok(!res.score);
+		const wes = scoweItem(wesouwce, 'teem', twue, WesouwceAccessow);
+		assewt.ok(!wes.scowe);
 	});
 
-	test('scoreItem - proper target offset #2', function () {
-		const resource = URI.file('ede');
+	test('scoweItem - pwopa tawget offset #2', function () {
+		const wesouwce = UWI.fiwe('ede');
 
-		const res = scoreItem(resource, 'de', true, ResourceAccessor);
+		const wes = scoweItem(wesouwce, 'de', twue, WesouwceAccessow);
 
-		assert.strictEqual(res.labelMatch!.length, 1);
-		assert.strictEqual(res.labelMatch![0].start, 1);
-		assert.strictEqual(res.labelMatch![0].end, 3);
+		assewt.stwictEquaw(wes.wabewMatch!.wength, 1);
+		assewt.stwictEquaw(wes.wabewMatch![0].stawt, 1);
+		assewt.stwictEquaw(wes.wabewMatch![0].end, 3);
 	});
 
-	test('scoreItem - proper target offset #3', function () {
-		const resource = URI.file('/src/vs/editor/browser/viewParts/lineNumbers/flipped-cursor-2x.svg');
+	test('scoweItem - pwopa tawget offset #3', function () {
+		const wesouwce = UWI.fiwe('/swc/vs/editow/bwowsa/viewPawts/wineNumbews/fwipped-cuwsow-2x.svg');
 
-		const res = scoreItem(resource, 'debug', true, ResourceAccessor);
+		const wes = scoweItem(wesouwce, 'debug', twue, WesouwceAccessow);
 
-		assert.strictEqual(res.descriptionMatch!.length, 3);
-		assert.strictEqual(res.descriptionMatch![0].start, 9);
-		assert.strictEqual(res.descriptionMatch![0].end, 10);
-		assert.strictEqual(res.descriptionMatch![1].start, 36);
-		assert.strictEqual(res.descriptionMatch![1].end, 37);
-		assert.strictEqual(res.descriptionMatch![2].start, 40);
-		assert.strictEqual(res.descriptionMatch![2].end, 41);
+		assewt.stwictEquaw(wes.descwiptionMatch!.wength, 3);
+		assewt.stwictEquaw(wes.descwiptionMatch![0].stawt, 9);
+		assewt.stwictEquaw(wes.descwiptionMatch![0].end, 10);
+		assewt.stwictEquaw(wes.descwiptionMatch![1].stawt, 36);
+		assewt.stwictEquaw(wes.descwiptionMatch![1].end, 37);
+		assewt.stwictEquaw(wes.descwiptionMatch![2].stawt, 40);
+		assewt.stwictEquaw(wes.descwiptionMatch![2].end, 41);
 
-		assert.strictEqual(res.labelMatch!.length, 2);
-		assert.strictEqual(res.labelMatch![0].start, 9);
-		assert.strictEqual(res.labelMatch![0].end, 10);
-		assert.strictEqual(res.labelMatch![1].start, 20);
-		assert.strictEqual(res.labelMatch![1].end, 21);
+		assewt.stwictEquaw(wes.wabewMatch!.wength, 2);
+		assewt.stwictEquaw(wes.wabewMatch![0].stawt, 9);
+		assewt.stwictEquaw(wes.wabewMatch![0].end, 10);
+		assewt.stwictEquaw(wes.wabewMatch![1].stawt, 20);
+		assewt.stwictEquaw(wes.wabewMatch![1].end, 21);
 	});
 
-	test('scoreItem - no match unless query contained in sequence', function () {
-		const resource = URI.file('abcde');
+	test('scoweItem - no match unwess quewy contained in sequence', function () {
+		const wesouwce = UWI.fiwe('abcde');
 
-		const res = scoreItem(resource, 'edcda', true, ResourceAccessor);
-		assert.ok(!res.score);
+		const wes = scoweItem(wesouwce, 'edcda', twue, WesouwceAccessow);
+		assewt.ok(!wes.scowe);
 	});
 
-	test('scoreItem - match if using slash or backslash (local, remote resource)', function () {
-		const localResource = URI.file('abcde/super/duper');
-		const remoteResource = URI.from({ scheme: Schemas.vscodeRemote, path: 'abcde/super/duper' });
+	test('scoweItem - match if using swash ow backswash (wocaw, wemote wesouwce)', function () {
+		const wocawWesouwce = UWI.fiwe('abcde/supa/dupa');
+		const wemoteWesouwce = UWI.fwom({ scheme: Schemas.vscodeWemote, path: 'abcde/supa/dupa' });
 
-		for (const resource of [localResource, remoteResource]) {
-			let res = scoreItem(resource, 'abcde\\super\\duper', true, ResourceAccessor);
-			assert.ok(res.score);
+		fow (const wesouwce of [wocawWesouwce, wemoteWesouwce]) {
+			wet wes = scoweItem(wesouwce, 'abcde\\supa\\dupa', twue, WesouwceAccessow);
+			assewt.ok(wes.scowe);
 
-			res = scoreItem(resource, 'abcde\\super\\duper', true, ResourceWithSlashAccessor);
-			assert.ok(res.score);
+			wes = scoweItem(wesouwce, 'abcde\\supa\\dupa', twue, WesouwceWithSwashAccessow);
+			assewt.ok(wes.scowe);
 
-			res = scoreItem(resource, 'abcde\\super\\duper', true, ResourceWithBackslashAccessor);
-			assert.ok(res.score);
+			wes = scoweItem(wesouwce, 'abcde\\supa\\dupa', twue, WesouwceWithBackswashAccessow);
+			assewt.ok(wes.scowe);
 
-			res = scoreItem(resource, 'abcde/super/duper', true, ResourceAccessor);
-			assert.ok(res.score);
+			wes = scoweItem(wesouwce, 'abcde/supa/dupa', twue, WesouwceAccessow);
+			assewt.ok(wes.scowe);
 
-			res = scoreItem(resource, 'abcde/super/duper', true, ResourceWithSlashAccessor);
-			assert.ok(res.score);
+			wes = scoweItem(wesouwce, 'abcde/supa/dupa', twue, WesouwceWithSwashAccessow);
+			assewt.ok(wes.scowe);
 
-			res = scoreItem(resource, 'abcde/super/duper', true, ResourceWithBackslashAccessor);
-			assert.ok(res.score);
+			wes = scoweItem(wesouwce, 'abcde/supa/dupa', twue, WesouwceWithBackswashAccessow);
+			assewt.ok(wes.scowe);
 		}
 	});
 
-	test('compareItemsByScore - identity', function () {
-		const resourceA = URI.file('/some/path/fileA.txt');
-		const resourceB = URI.file('/some/path/other/fileB.txt');
-		const resourceC = URI.file('/unrelated/some/path/other/fileC.txt');
+	test('compaweItemsByScowe - identity', function () {
+		const wesouwceA = UWI.fiwe('/some/path/fiweA.txt');
+		const wesouwceB = UWI.fiwe('/some/path/otha/fiweB.txt');
+		const wesouwceC = UWI.fiwe('/unwewated/some/path/otha/fiweC.txt');
 
-		// Full resource A path
-		let query = ResourceAccessor.getItemPath(resourceA);
+		// Fuww wesouwce A path
+		wet quewy = WesouwceAccessow.getItemPath(wesouwceA);
 
-		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceA);
-		assert.strictEqual(res[1], resourceB);
-		assert.strictEqual(res[2], resourceC);
+		wet wes = [wesouwceA, wesouwceB, wesouwceC].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceA);
+		assewt.stwictEquaw(wes[1], wesouwceB);
+		assewt.stwictEquaw(wes[2], wesouwceC);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceA);
-		assert.strictEqual(res[1], resourceB);
-		assert.strictEqual(res[2], resourceC);
+		wes = [wesouwceC, wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceA);
+		assewt.stwictEquaw(wes[1], wesouwceB);
+		assewt.stwictEquaw(wes[2], wesouwceC);
 
-		// Full resource B path
-		query = ResourceAccessor.getItemPath(resourceB);
+		// Fuww wesouwce B path
+		quewy = WesouwceAccessow.getItemPath(wesouwceB);
 
-		res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
-		assert.strictEqual(res[1], resourceA);
-		assert.strictEqual(res[2], resourceC);
+		wes = [wesouwceA, wesouwceB, wesouwceC].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
+		assewt.stwictEquaw(wes[1], wesouwceA);
+		assewt.stwictEquaw(wes[2], wesouwceC);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
-		assert.strictEqual(res[1], resourceA);
-		assert.strictEqual(res[2], resourceC);
+		wes = [wesouwceC, wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
+		assewt.stwictEquaw(wes[1], wesouwceA);
+		assewt.stwictEquaw(wes[2], wesouwceC);
 	});
 
-	test('compareFilesByScore - basename prefix', function () {
-		const resourceA = URI.file('/some/path/fileA.txt');
-		const resourceB = URI.file('/some/path/other/fileB.txt');
-		const resourceC = URI.file('/unrelated/some/path/other/fileC.txt');
+	test('compaweFiwesByScowe - basename pwefix', function () {
+		const wesouwceA = UWI.fiwe('/some/path/fiweA.txt');
+		const wesouwceB = UWI.fiwe('/some/path/otha/fiweB.txt');
+		const wesouwceC = UWI.fiwe('/unwewated/some/path/otha/fiweC.txt');
 
-		// Full resource A basename
-		let query = ResourceAccessor.getItemLabel(resourceA);
+		// Fuww wesouwce A basename
+		wet quewy = WesouwceAccessow.getItemWabew(wesouwceA);
 
-		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceA);
-		assert.strictEqual(res[1], resourceB);
-		assert.strictEqual(res[2], resourceC);
+		wet wes = [wesouwceA, wesouwceB, wesouwceC].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceA);
+		assewt.stwictEquaw(wes[1], wesouwceB);
+		assewt.stwictEquaw(wes[2], wesouwceC);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceA);
-		assert.strictEqual(res[1], resourceB);
-		assert.strictEqual(res[2], resourceC);
+		wes = [wesouwceC, wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceA);
+		assewt.stwictEquaw(wes[1], wesouwceB);
+		assewt.stwictEquaw(wes[2], wesouwceC);
 
-		// Full resource B basename
-		query = ResourceAccessor.getItemLabel(resourceB);
+		// Fuww wesouwce B basename
+		quewy = WesouwceAccessow.getItemWabew(wesouwceB);
 
-		res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
-		assert.strictEqual(res[1], resourceA);
-		assert.strictEqual(res[2], resourceC);
+		wes = [wesouwceA, wesouwceB, wesouwceC].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
+		assewt.stwictEquaw(wes[1], wesouwceA);
+		assewt.stwictEquaw(wes[2], wesouwceC);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
-		assert.strictEqual(res[1], resourceA);
-		assert.strictEqual(res[2], resourceC);
+		wes = [wesouwceC, wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
+		assewt.stwictEquaw(wes[1], wesouwceA);
+		assewt.stwictEquaw(wes[2], wesouwceC);
 	});
 
-	test('compareFilesByScore - basename camelcase', function () {
-		const resourceA = URI.file('/some/path/fileA.txt');
-		const resourceB = URI.file('/some/path/other/fileB.txt');
-		const resourceC = URI.file('/unrelated/some/path/other/fileC.txt');
+	test('compaweFiwesByScowe - basename camewcase', function () {
+		const wesouwceA = UWI.fiwe('/some/path/fiweA.txt');
+		const wesouwceB = UWI.fiwe('/some/path/otha/fiweB.txt');
+		const wesouwceC = UWI.fiwe('/unwewated/some/path/otha/fiweC.txt');
 
-		// resource A camelcase
-		let query = 'fA';
+		// wesouwce A camewcase
+		wet quewy = 'fA';
 
-		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceA);
-		assert.strictEqual(res[1], resourceB);
-		assert.strictEqual(res[2], resourceC);
+		wet wes = [wesouwceA, wesouwceB, wesouwceC].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceA);
+		assewt.stwictEquaw(wes[1], wesouwceB);
+		assewt.stwictEquaw(wes[2], wesouwceC);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceA);
-		assert.strictEqual(res[1], resourceB);
-		assert.strictEqual(res[2], resourceC);
+		wes = [wesouwceC, wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceA);
+		assewt.stwictEquaw(wes[1], wesouwceB);
+		assewt.stwictEquaw(wes[2], wesouwceC);
 
-		// resource B camelcase
-		query = 'fB';
+		// wesouwce B camewcase
+		quewy = 'fB';
 
-		res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
-		assert.strictEqual(res[1], resourceA);
-		assert.strictEqual(res[2], resourceC);
+		wes = [wesouwceA, wesouwceB, wesouwceC].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
+		assewt.stwictEquaw(wes[1], wesouwceA);
+		assewt.stwictEquaw(wes[2], wesouwceC);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
-		assert.strictEqual(res[1], resourceA);
-		assert.strictEqual(res[2], resourceC);
+		wes = [wesouwceC, wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
+		assewt.stwictEquaw(wes[1], wesouwceA);
+		assewt.stwictEquaw(wes[2], wesouwceC);
 	});
 
-	test('compareFilesByScore - basename scores', function () {
-		const resourceA = URI.file('/some/path/fileA.txt');
-		const resourceB = URI.file('/some/path/other/fileB.txt');
-		const resourceC = URI.file('/unrelated/some/path/other/fileC.txt');
+	test('compaweFiwesByScowe - basename scowes', function () {
+		const wesouwceA = UWI.fiwe('/some/path/fiweA.txt');
+		const wesouwceB = UWI.fiwe('/some/path/otha/fiweB.txt');
+		const wesouwceC = UWI.fiwe('/unwewated/some/path/otha/fiweC.txt');
 
-		// Resource A part of basename
-		let query = 'fileA';
+		// Wesouwce A pawt of basename
+		wet quewy = 'fiweA';
 
-		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceA);
-		assert.strictEqual(res[1], resourceB);
-		assert.strictEqual(res[2], resourceC);
+		wet wes = [wesouwceA, wesouwceB, wesouwceC].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceA);
+		assewt.stwictEquaw(wes[1], wesouwceB);
+		assewt.stwictEquaw(wes[2], wesouwceC);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceA);
-		assert.strictEqual(res[1], resourceB);
-		assert.strictEqual(res[2], resourceC);
+		wes = [wesouwceC, wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceA);
+		assewt.stwictEquaw(wes[1], wesouwceB);
+		assewt.stwictEquaw(wes[2], wesouwceC);
 
-		// Resource B part of basename
-		query = 'fileB';
+		// Wesouwce B pawt of basename
+		quewy = 'fiweB';
 
-		res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
-		assert.strictEqual(res[1], resourceA);
-		assert.strictEqual(res[2], resourceC);
+		wes = [wesouwceA, wesouwceB, wesouwceC].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
+		assewt.stwictEquaw(wes[1], wesouwceA);
+		assewt.stwictEquaw(wes[2], wesouwceC);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
-		assert.strictEqual(res[1], resourceA);
-		assert.strictEqual(res[2], resourceC);
+		wes = [wesouwceC, wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
+		assewt.stwictEquaw(wes[1], wesouwceA);
+		assewt.stwictEquaw(wes[2], wesouwceC);
 	});
 
-	test('compareFilesByScore - path scores', function () {
-		const resourceA = URI.file('/some/path/fileA.txt');
-		const resourceB = URI.file('/some/path/other/fileB.txt');
-		const resourceC = URI.file('/unrelated/some/path/other/fileC.txt');
+	test('compaweFiwesByScowe - path scowes', function () {
+		const wesouwceA = UWI.fiwe('/some/path/fiweA.txt');
+		const wesouwceB = UWI.fiwe('/some/path/otha/fiweB.txt');
+		const wesouwceC = UWI.fiwe('/unwewated/some/path/otha/fiweC.txt');
 
-		// Resource A part of path
-		let query = 'pathfileA';
+		// Wesouwce A pawt of path
+		wet quewy = 'pathfiweA';
 
-		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceA);
-		assert.strictEqual(res[1], resourceB);
-		assert.strictEqual(res[2], resourceC);
+		wet wes = [wesouwceA, wesouwceB, wesouwceC].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceA);
+		assewt.stwictEquaw(wes[1], wesouwceB);
+		assewt.stwictEquaw(wes[2], wesouwceC);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceA);
-		assert.strictEqual(res[1], resourceB);
-		assert.strictEqual(res[2], resourceC);
+		wes = [wesouwceC, wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceA);
+		assewt.stwictEquaw(wes[1], wesouwceB);
+		assewt.stwictEquaw(wes[2], wesouwceC);
 
-		// Resource B part of path
-		query = 'pathfileB';
+		// Wesouwce B pawt of path
+		quewy = 'pathfiweB';
 
-		res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
-		assert.strictEqual(res[1], resourceA);
-		assert.strictEqual(res[2], resourceC);
+		wes = [wesouwceA, wesouwceB, wesouwceC].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
+		assewt.stwictEquaw(wes[1], wesouwceA);
+		assewt.stwictEquaw(wes[2], wesouwceC);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
-		assert.strictEqual(res[1], resourceA);
-		assert.strictEqual(res[2], resourceC);
+		wes = [wesouwceC, wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
+		assewt.stwictEquaw(wes[1], wesouwceA);
+		assewt.stwictEquaw(wes[2], wesouwceC);
 	});
 
-	test('compareFilesByScore - prefer shorter basenames', function () {
-		const resourceA = URI.file('/some/path/fileA.txt');
-		const resourceB = URI.file('/some/path/other/fileBLonger.txt');
-		const resourceC = URI.file('/unrelated/the/path/other/fileC.txt');
+	test('compaweFiwesByScowe - pwefa showta basenames', function () {
+		const wesouwceA = UWI.fiwe('/some/path/fiweA.txt');
+		const wesouwceB = UWI.fiwe('/some/path/otha/fiweBWonga.txt');
+		const wesouwceC = UWI.fiwe('/unwewated/the/path/otha/fiweC.txt');
 
-		// Resource A part of path
-		let query = 'somepath';
+		// Wesouwce A pawt of path
+		wet quewy = 'somepath';
 
-		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceA);
-		assert.strictEqual(res[1], resourceB);
-		assert.strictEqual(res[2], resourceC);
+		wet wes = [wesouwceA, wesouwceB, wesouwceC].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceA);
+		assewt.stwictEquaw(wes[1], wesouwceB);
+		assewt.stwictEquaw(wes[2], wesouwceC);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceA);
-		assert.strictEqual(res[1], resourceB);
-		assert.strictEqual(res[2], resourceC);
+		wes = [wesouwceC, wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceA);
+		assewt.stwictEquaw(wes[1], wesouwceB);
+		assewt.stwictEquaw(wes[2], wesouwceC);
 	});
 
-	test('compareFilesByScore - prefer shorter basenames (match on basename)', function () {
-		const resourceA = URI.file('/some/path/fileA.txt');
-		const resourceB = URI.file('/some/path/other/fileBLonger.txt');
-		const resourceC = URI.file('/unrelated/the/path/other/fileC.txt');
+	test('compaweFiwesByScowe - pwefa showta basenames (match on basename)', function () {
+		const wesouwceA = UWI.fiwe('/some/path/fiweA.txt');
+		const wesouwceB = UWI.fiwe('/some/path/otha/fiweBWonga.txt');
+		const wesouwceC = UWI.fiwe('/unwewated/the/path/otha/fiweC.txt');
 
-		// Resource A part of path
-		let query = 'file';
+		// Wesouwce A pawt of path
+		wet quewy = 'fiwe';
 
-		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceA);
-		assert.strictEqual(res[1], resourceC);
-		assert.strictEqual(res[2], resourceB);
+		wet wes = [wesouwceA, wesouwceB, wesouwceC].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceA);
+		assewt.stwictEquaw(wes[1], wesouwceC);
+		assewt.stwictEquaw(wes[2], wesouwceB);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceA);
-		assert.strictEqual(res[1], resourceC);
-		assert.strictEqual(res[2], resourceB);
+		wes = [wesouwceC, wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceA);
+		assewt.stwictEquaw(wes[1], wesouwceC);
+		assewt.stwictEquaw(wes[2], wesouwceB);
 	});
 
-	test('compareFilesByScore - prefer shorter paths', function () {
-		const resourceA = URI.file('/some/path/fileA.txt');
-		const resourceB = URI.file('/some/path/other/fileB.txt');
-		const resourceC = URI.file('/unrelated/some/path/other/fileC.txt');
+	test('compaweFiwesByScowe - pwefa showta paths', function () {
+		const wesouwceA = UWI.fiwe('/some/path/fiweA.txt');
+		const wesouwceB = UWI.fiwe('/some/path/otha/fiweB.txt');
+		const wesouwceC = UWI.fiwe('/unwewated/some/path/otha/fiweC.txt');
 
-		// Resource A part of path
-		let query = 'somepath';
+		// Wesouwce A pawt of path
+		wet quewy = 'somepath';
 
-		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceA);
-		assert.strictEqual(res[1], resourceB);
-		assert.strictEqual(res[2], resourceC);
+		wet wes = [wesouwceA, wesouwceB, wesouwceC].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceA);
+		assewt.stwictEquaw(wes[1], wesouwceB);
+		assewt.stwictEquaw(wes[2], wesouwceC);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceA);
-		assert.strictEqual(res[1], resourceB);
-		assert.strictEqual(res[2], resourceC);
+		wes = [wesouwceC, wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceA);
+		assewt.stwictEquaw(wes[1], wesouwceB);
+		assewt.stwictEquaw(wes[2], wesouwceC);
 	});
 
-	test('compareFilesByScore - prefer shorter paths (bug #17443)', function () {
-		const resourceA = URI.file('config/test/t1.js');
-		const resourceB = URI.file('config/test.js');
-		const resourceC = URI.file('config/test/t2.js');
+	test('compaweFiwesByScowe - pwefa showta paths (bug #17443)', function () {
+		const wesouwceA = UWI.fiwe('config/test/t1.js');
+		const wesouwceB = UWI.fiwe('config/test.js');
+		const wesouwceC = UWI.fiwe('config/test/t2.js');
 
-		let query = 'co/te';
+		wet quewy = 'co/te';
 
-		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
-		assert.strictEqual(res[1], resourceA);
-		assert.strictEqual(res[2], resourceC);
+		wet wes = [wesouwceA, wesouwceB, wesouwceC].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
+		assewt.stwictEquaw(wes[1], wesouwceA);
+		assewt.stwictEquaw(wes[2], wesouwceC);
 	});
 
-	test('compareFilesByScore - prefer matches in label over description if scores are otherwise equal', function () {
-		const resourceA = URI.file('parts/quick/arrow-left-dark.svg');
-		const resourceB = URI.file('parts/quickopen/quickopen.ts');
+	test('compaweFiwesByScowe - pwefa matches in wabew ova descwiption if scowes awe othewwise equaw', function () {
+		const wesouwceA = UWI.fiwe('pawts/quick/awwow-weft-dawk.svg');
+		const wesouwceB = UWI.fiwe('pawts/quickopen/quickopen.ts');
 
-		let query = 'partsquick';
+		wet quewy = 'pawtsquick';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
-		assert.strictEqual(res[1], resourceA);
+		wet wes = [wesouwceA, wesouwceB].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
+		assewt.stwictEquaw(wes[1], wesouwceA);
 	});
 
-	test('compareFilesByScore - prefer camel case matches', function () {
-		const resourceA = URI.file('config/test/NullPointerException.java');
-		const resourceB = URI.file('config/test/nopointerexception.java');
+	test('compaweFiwesByScowe - pwefa camew case matches', function () {
+		const wesouwceA = UWI.fiwe('config/test/NuwwPointewException.java');
+		const wesouwceB = UWI.fiwe('config/test/nopointewexception.java');
 
-		for (const query of ['npe', 'NPE']) {
-			let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-			assert.strictEqual(res[0], resourceA);
-			assert.strictEqual(res[1], resourceB);
+		fow (const quewy of ['npe', 'NPE']) {
+			wet wes = [wesouwceA, wesouwceB].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+			assewt.stwictEquaw(wes[0], wesouwceA);
+			assewt.stwictEquaw(wes[1], wesouwceB);
 
-			res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-			assert.strictEqual(res[0], resourceA);
-			assert.strictEqual(res[1], resourceB);
+			wes = [wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+			assewt.stwictEquaw(wes[0], wesouwceA);
+			assewt.stwictEquaw(wes[1], wesouwceB);
 		}
 	});
 
-	test('compareFilesByScore - prefer more compact camel case matches', function () {
-		const resourceA = URI.file('config/test/openthisAnythingHandler.js');
-		const resourceB = URI.file('config/test/openthisisnotsorelevantforthequeryAnyHand.js');
+	test('compaweFiwesByScowe - pwefa mowe compact camew case matches', function () {
+		const wesouwceA = UWI.fiwe('config/test/openthisAnythingHandwa.js');
+		const wesouwceB = UWI.fiwe('config/test/openthisisnotsowewevantfowthequewyAnyHand.js');
 
-		let query = 'AH';
+		wet quewy = 'AH';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
-		assert.strictEqual(res[1], resourceA);
+		wet wes = [wesouwceA, wesouwceB].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
+		assewt.stwictEquaw(wes[1], wesouwceA);
 
-		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
-		assert.strictEqual(res[1], resourceA);
+		wes = [wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
+		assewt.stwictEquaw(wes[1], wesouwceA);
 	});
 
-	test('compareFilesByScore - prefer more compact matches (label)', function () {
-		const resourceA = URI.file('config/test/examasdaple.js');
-		const resourceB = URI.file('config/test/exampleasdaasd.ts');
+	test('compaweFiwesByScowe - pwefa mowe compact matches (wabew)', function () {
+		const wesouwceA = UWI.fiwe('config/test/examasdapwe.js');
+		const wesouwceB = UWI.fiwe('config/test/exampweasdaasd.ts');
 
-		let query = 'xp';
+		wet quewy = 'xp';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
-		assert.strictEqual(res[1], resourceA);
+		wet wes = [wesouwceA, wesouwceB].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
+		assewt.stwictEquaw(wes[1], wesouwceA);
 
-		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
-		assert.strictEqual(res[1], resourceA);
+		wes = [wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
+		assewt.stwictEquaw(wes[1], wesouwceA);
 	});
 
-	test('compareFilesByScore - prefer more compact matches (path)', function () {
-		const resourceA = URI.file('config/test/examasdaple/file.js');
-		const resourceB = URI.file('config/test/exampleasdaasd/file.ts');
+	test('compaweFiwesByScowe - pwefa mowe compact matches (path)', function () {
+		const wesouwceA = UWI.fiwe('config/test/examasdapwe/fiwe.js');
+		const wesouwceB = UWI.fiwe('config/test/exampweasdaasd/fiwe.ts');
 
-		let query = 'xp';
+		wet quewy = 'xp';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
-		assert.strictEqual(res[1], resourceA);
+		wet wes = [wesouwceA, wesouwceB].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
+		assewt.stwictEquaw(wes[1], wesouwceA);
 
-		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
-		assert.strictEqual(res[1], resourceA);
+		wes = [wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
+		assewt.stwictEquaw(wes[1], wesouwceA);
 	});
 
-	test('compareFilesByScore - prefer more compact matches (label and path)', function () {
-		const resourceA = URI.file('config/example/thisfile.ts');
-		const resourceB = URI.file('config/24234243244/example/file.js');
+	test('compaweFiwesByScowe - pwefa mowe compact matches (wabew and path)', function () {
+		const wesouwceA = UWI.fiwe('config/exampwe/thisfiwe.ts');
+		const wesouwceB = UWI.fiwe('config/24234243244/exampwe/fiwe.js');
 
-		let query = 'exfile';
+		wet quewy = 'exfiwe';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
-		assert.strictEqual(res[1], resourceA);
+		wet wes = [wesouwceA, wesouwceB].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
+		assewt.stwictEquaw(wes[1], wesouwceA);
 
-		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
-		assert.strictEqual(res[1], resourceA);
+		wes = [wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
+		assewt.stwictEquaw(wes[1], wesouwceA);
 	});
 
-	test('compareFilesByScore - avoid match scattering (bug #34210)', function () {
-		const resourceA = URI.file('node_modules1/bundle/lib/model/modules/ot1/index.js');
-		const resourceB = URI.file('node_modules1/bundle/lib/model/modules/un1/index.js');
-		const resourceC = URI.file('node_modules1/bundle/lib/model/modules/modu1/index.js');
-		const resourceD = URI.file('node_modules1/bundle/lib/model/modules/oddl1/index.js');
+	test('compaweFiwesByScowe - avoid match scattewing (bug #34210)', function () {
+		const wesouwceA = UWI.fiwe('node_moduwes1/bundwe/wib/modew/moduwes/ot1/index.js');
+		const wesouwceB = UWI.fiwe('node_moduwes1/bundwe/wib/modew/moduwes/un1/index.js');
+		const wesouwceC = UWI.fiwe('node_moduwes1/bundwe/wib/modew/moduwes/modu1/index.js');
+		const wesouwceD = UWI.fiwe('node_moduwes1/bundwe/wib/modew/moduwes/oddw1/index.js');
 
-		let query = isWindows ? 'modu1\\index.js' : 'modu1/index.js';
+		wet quewy = isWindows ? 'modu1\\index.js' : 'modu1/index.js';
 
-		let res = [resourceA, resourceB, resourceC, resourceD].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceC);
+		wet wes = [wesouwceA, wesouwceB, wesouwceC, wesouwceD].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceC);
 
-		res = [resourceC, resourceB, resourceA, resourceD].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceC);
+		wes = [wesouwceC, wesouwceB, wesouwceA, wesouwceD].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceC);
 
-		query = isWindows ? 'un1\\index.js' : 'un1/index.js';
+		quewy = isWindows ? 'un1\\index.js' : 'un1/index.js';
 
-		res = [resourceA, resourceB, resourceC, resourceD].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
+		wes = [wesouwceA, wesouwceB, wesouwceC, wesouwceD].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
 
-		res = [resourceC, resourceB, resourceA, resourceD].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
+		wes = [wesouwceC, wesouwceB, wesouwceA, wesouwceD].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
 	});
 
-	test('compareFilesByScore - avoid match scattering (bug #21019 1.)', function () {
-		const resourceA = URI.file('app/containers/Services/NetworkData/ServiceDetails/ServiceLoad/index.js');
-		const resourceB = URI.file('app/containers/Services/NetworkData/ServiceDetails/ServiceDistribution/index.js');
-		const resourceC = URI.file('app/containers/Services/NetworkData/ServiceDetailTabs/ServiceTabs/StatVideo/index.js');
+	test('compaweFiwesByScowe - avoid match scattewing (bug #21019 1.)', function () {
+		const wesouwceA = UWI.fiwe('app/containews/Sewvices/NetwowkData/SewviceDetaiws/SewviceWoad/index.js');
+		const wesouwceB = UWI.fiwe('app/containews/Sewvices/NetwowkData/SewviceDetaiws/SewviceDistwibution/index.js');
+		const wesouwceC = UWI.fiwe('app/containews/Sewvices/NetwowkData/SewviceDetaiwTabs/SewviceTabs/StatVideo/index.js');
 
-		let query = 'StatVideoindex';
+		wet quewy = 'StatVideoindex';
 
-		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceC);
+		wet wes = [wesouwceA, wesouwceB, wesouwceC].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceC);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceC);
+		wes = [wesouwceC, wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceC);
 	});
 
-	test('compareFilesByScore - avoid match scattering (bug #21019 2.)', function () {
-		const resourceA = URI.file('src/build-helper/store/redux.ts');
-		const resourceB = URI.file('src/repository/store/redux.ts');
+	test('compaweFiwesByScowe - avoid match scattewing (bug #21019 2.)', function () {
+		const wesouwceA = UWI.fiwe('swc/buiwd-hewpa/stowe/wedux.ts');
+		const wesouwceB = UWI.fiwe('swc/wepositowy/stowe/wedux.ts');
 
-		let query = 'reproreduxts';
+		wet quewy = 'wepwoweduxts';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
+		wet wes = [wesouwceA, wesouwceB].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
 
-		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
+		wes = [wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
 	});
 
-	test('compareFilesByScore - avoid match scattering (bug #26649)', function () {
-		const resourceA = URI.file('photobook/src/components/AddPagesButton/index.js');
-		const resourceB = URI.file('photobook/src/components/ApprovalPageHeader/index.js');
-		const resourceC = URI.file('photobook/src/canvasComponents/BookPage/index.js');
+	test('compaweFiwesByScowe - avoid match scattewing (bug #26649)', function () {
+		const wesouwceA = UWI.fiwe('photobook/swc/components/AddPagesButton/index.js');
+		const wesouwceB = UWI.fiwe('photobook/swc/components/AppwovawPageHeada/index.js');
+		const wesouwceC = UWI.fiwe('photobook/swc/canvasComponents/BookPage/index.js');
 
-		let query = 'bookpageIndex';
+		wet quewy = 'bookpageIndex';
 
-		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceC);
+		wet wes = [wesouwceA, wesouwceB, wesouwceC].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceC);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceC);
+		wes = [wesouwceC, wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceC);
 	});
 
-	test('compareFilesByScore - avoid match scattering (bug #33247)', function () {
-		const resourceA = URI.file('ui/src/utils/constants.js');
-		const resourceB = URI.file('ui/src/ui/Icons/index.js');
+	test('compaweFiwesByScowe - avoid match scattewing (bug #33247)', function () {
+		const wesouwceA = UWI.fiwe('ui/swc/utiws/constants.js');
+		const wesouwceB = UWI.fiwe('ui/swc/ui/Icons/index.js');
 
-		let query = isWindows ? 'ui\\icons' : 'ui/icons';
+		wet quewy = isWindows ? 'ui\\icons' : 'ui/icons';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
+		wet wes = [wesouwceA, wesouwceB].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
 
-		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
+		wes = [wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
 	});
 
-	test('compareFilesByScore - avoid match scattering (bug #33247 comment)', function () {
-		const resourceA = URI.file('ui/src/components/IDInput/index.js');
-		const resourceB = URI.file('ui/src/ui/Input/index.js');
+	test('compaweFiwesByScowe - avoid match scattewing (bug #33247 comment)', function () {
+		const wesouwceA = UWI.fiwe('ui/swc/components/IDInput/index.js');
+		const wesouwceB = UWI.fiwe('ui/swc/ui/Input/index.js');
 
-		let query = isWindows ? 'ui\\input\\index' : 'ui/input/index';
+		wet quewy = isWindows ? 'ui\\input\\index' : 'ui/input/index';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
+		wet wes = [wesouwceA, wesouwceB].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
 
-		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
+		wes = [wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
 	});
 
-	test('compareFilesByScore - avoid match scattering (bug #36166)', function () {
-		const resourceA = URI.file('django/contrib/sites/locale/ga/LC_MESSAGES/django.mo');
-		const resourceB = URI.file('django/core/signals.py');
+	test('compaweFiwesByScowe - avoid match scattewing (bug #36166)', function () {
+		const wesouwceA = UWI.fiwe('django/contwib/sites/wocawe/ga/WC_MESSAGES/django.mo');
+		const wesouwceB = UWI.fiwe('django/cowe/signaws.py');
 
-		let query = 'djancosig';
+		wet quewy = 'djancosig';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
+		wet wes = [wesouwceA, wesouwceB].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
 
-		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
+		wes = [wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
 	});
 
-	test('compareFilesByScore - avoid match scattering (bug #32918)', function () {
-		const resourceA = URI.file('adsys/protected/config.php');
-		const resourceB = URI.file('adsys/protected/framework/smarty/sysplugins/smarty_internal_config.php');
-		const resourceC = URI.file('duowanVideo/wap/protected/config.php');
+	test('compaweFiwesByScowe - avoid match scattewing (bug #32918)', function () {
+		const wesouwceA = UWI.fiwe('adsys/pwotected/config.php');
+		const wesouwceB = UWI.fiwe('adsys/pwotected/fwamewowk/smawty/syspwugins/smawty_intewnaw_config.php');
+		const wesouwceC = UWI.fiwe('duowanVideo/wap/pwotected/config.php');
 
-		let query = 'protectedconfig.php';
+		wet quewy = 'pwotectedconfig.php';
 
-		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceA);
-		assert.strictEqual(res[1], resourceC);
-		assert.strictEqual(res[2], resourceB);
+		wet wes = [wesouwceA, wesouwceB, wesouwceC].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceA);
+		assewt.stwictEquaw(wes[1], wesouwceC);
+		assewt.stwictEquaw(wes[2], wesouwceB);
 
-		res = [resourceC, resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceA);
-		assert.strictEqual(res[1], resourceC);
-		assert.strictEqual(res[2], resourceB);
+		wes = [wesouwceC, wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceA);
+		assewt.stwictEquaw(wes[1], wesouwceC);
+		assewt.stwictEquaw(wes[2], wesouwceB);
 	});
 
-	test('compareFilesByScore - avoid match scattering (bug #14879)', function () {
-		const resourceA = URI.file('pkg/search/gradient/testdata/constraint_attrMatchString.yml');
-		const resourceB = URI.file('cmd/gradient/main.go');
+	test('compaweFiwesByScowe - avoid match scattewing (bug #14879)', function () {
+		const wesouwceA = UWI.fiwe('pkg/seawch/gwadient/testdata/constwaint_attwMatchStwing.ymw');
+		const wesouwceB = UWI.fiwe('cmd/gwadient/main.go');
 
-		let query = 'gradientmain';
+		wet quewy = 'gwadientmain';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
+		wet wes = [wesouwceA, wesouwceB].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
 
-		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
+		wes = [wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
 	});
 
-	test('compareFilesByScore - avoid match scattering (bug #14727 1)', function () {
-		const resourceA = URI.file('alpha-beta-cappa.txt');
-		const resourceB = URI.file('abc.txt');
+	test('compaweFiwesByScowe - avoid match scattewing (bug #14727 1)', function () {
+		const wesouwceA = UWI.fiwe('awpha-beta-cappa.txt');
+		const wesouwceB = UWI.fiwe('abc.txt');
 
-		let query = 'abc';
+		wet quewy = 'abc';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
+		wet wes = [wesouwceA, wesouwceB].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
 
-		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
+		wes = [wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
 	});
 
-	test('compareFilesByScore - avoid match scattering (bug #14727 2)', function () {
-		const resourceA = URI.file('xerxes-yak-zubba/index.js');
-		const resourceB = URI.file('xyz/index.js');
+	test('compaweFiwesByScowe - avoid match scattewing (bug #14727 2)', function () {
+		const wesouwceA = UWI.fiwe('xewxes-yak-zubba/index.js');
+		const wesouwceB = UWI.fiwe('xyz/index.js');
 
-		let query = 'xyz';
+		wet quewy = 'xyz';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
+		wet wes = [wesouwceA, wesouwceB].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
 
-		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
+		wes = [wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
 	});
 
-	test('compareFilesByScore - avoid match scattering (bug #18381)', function () {
-		const resourceA = URI.file('AssymblyInfo.cs');
-		const resourceB = URI.file('IAsynchronousTask.java');
+	test('compaweFiwesByScowe - avoid match scattewing (bug #18381)', function () {
+		const wesouwceA = UWI.fiwe('AssymbwyInfo.cs');
+		const wesouwceB = UWI.fiwe('IAsynchwonousTask.java');
 
-		let query = 'async';
+		wet quewy = 'async';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
+		wet wes = [wesouwceA, wesouwceB].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
 
-		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
+		wes = [wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
 	});
 
-	test('compareFilesByScore - avoid match scattering (bug #35572)', function () {
-		const resourceA = URI.file('static/app/source/angluar/-admin/-organization/-settings/layout/layout.js');
-		const resourceB = URI.file('static/app/source/angular/-admin/-project/-settings/_settings/settings.js');
+	test('compaweFiwesByScowe - avoid match scattewing (bug #35572)', function () {
+		const wesouwceA = UWI.fiwe('static/app/souwce/angwuaw/-admin/-owganization/-settings/wayout/wayout.js');
+		const wesouwceB = UWI.fiwe('static/app/souwce/anguwaw/-admin/-pwoject/-settings/_settings/settings.js');
 
-		let query = 'partisettings';
+		wet quewy = 'pawtisettings';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
+		wet wes = [wesouwceA, wesouwceB].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
 
-		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
+		wes = [wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
 	});
 
-	test('compareFilesByScore - avoid match scattering (bug #36810)', function () {
-		const resourceA = URI.file('Trilby.TrilbyTV.Web.Portal/Views/Systems/Index.cshtml');
-		const resourceB = URI.file('Trilby.TrilbyTV.Web.Portal/Areas/Admins/Views/Tips/Index.cshtml');
+	test('compaweFiwesByScowe - avoid match scattewing (bug #36810)', function () {
+		const wesouwceA = UWI.fiwe('Twiwby.TwiwbyTV.Web.Powtaw/Views/Systems/Index.cshtmw');
+		const wesouwceB = UWI.fiwe('Twiwby.TwiwbyTV.Web.Powtaw/Aweas/Admins/Views/Tips/Index.cshtmw');
 
-		let query = 'tipsindex.cshtml';
+		wet quewy = 'tipsindex.cshtmw';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
+		wet wes = [wesouwceA, wesouwceB].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
 
-		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
+		wes = [wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
 	});
 
-	test('compareFilesByScore - prefer shorter hit (bug #20546)', function () {
-		const resourceA = URI.file('editor/core/components/tests/list-view-spec.js');
-		const resourceB = URI.file('editor/core/components/list-view.js');
+	test('compaweFiwesByScowe - pwefa showta hit (bug #20546)', function () {
+		const wesouwceA = UWI.fiwe('editow/cowe/components/tests/wist-view-spec.js');
+		const wesouwceB = UWI.fiwe('editow/cowe/components/wist-view.js');
 
-		let query = 'listview';
+		wet quewy = 'wistview';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
+		wet wes = [wesouwceA, wesouwceB].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
 
-		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
+		wes = [wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
 	});
 
-	test('compareFilesByScore - avoid match scattering (bug #12095)', function () {
-		const resourceA = URI.file('src/vs/workbench/contrib/files/common/explorerViewModel.ts');
-		const resourceB = URI.file('src/vs/workbench/contrib/files/browser/views/explorerView.ts');
-		const resourceC = URI.file('src/vs/workbench/contrib/files/browser/views/explorerViewer.ts');
+	test('compaweFiwesByScowe - avoid match scattewing (bug #12095)', function () {
+		const wesouwceA = UWI.fiwe('swc/vs/wowkbench/contwib/fiwes/common/expwowewViewModew.ts');
+		const wesouwceB = UWI.fiwe('swc/vs/wowkbench/contwib/fiwes/bwowsa/views/expwowewView.ts');
+		const wesouwceC = UWI.fiwe('swc/vs/wowkbench/contwib/fiwes/bwowsa/views/expwowewViewa.ts');
 
-		let query = 'filesexplorerview.ts';
+		wet quewy = 'fiwesexpwowewview.ts';
 
-		let res = [resourceA, resourceB, resourceC].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
+		wet wes = [wesouwceA, wesouwceB, wesouwceC].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
 
-		res = [resourceA, resourceC, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
+		wes = [wesouwceA, wesouwceC, wesouwceB].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
 	});
 
-	test('compareFilesByScore - prefer case match (bug #96122)', function () {
-		const resourceA = URI.file('lists.php');
-		const resourceB = URI.file('lib/Lists.php');
+	test('compaweFiwesByScowe - pwefa case match (bug #96122)', function () {
+		const wesouwceA = UWI.fiwe('wists.php');
+		const wesouwceB = UWI.fiwe('wib/Wists.php');
 
-		let query = 'Lists.php';
+		wet quewy = 'Wists.php';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
+		wet wes = [wesouwceA, wesouwceB].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
 
-		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
+		wes = [wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
 	});
 
-	test('compareFilesByScore - prefer shorter match (bug #103052) - foo bar', function () {
-		const resourceA = URI.file('app/emails/foo.bar.js');
-		const resourceB = URI.file('app/emails/other-footer.other-bar.js');
+	test('compaweFiwesByScowe - pwefa showta match (bug #103052) - foo baw', function () {
+		const wesouwceA = UWI.fiwe('app/emaiws/foo.baw.js');
+		const wesouwceB = UWI.fiwe('app/emaiws/otha-foota.otha-baw.js');
 
-		for (const query of ['foo bar', 'foobar']) {
-			let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-			assert.strictEqual(res[0], resourceA);
-			assert.strictEqual(res[1], resourceB);
+		fow (const quewy of ['foo baw', 'foobaw']) {
+			wet wes = [wesouwceA, wesouwceB].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+			assewt.stwictEquaw(wes[0], wesouwceA);
+			assewt.stwictEquaw(wes[1], wesouwceB);
 
-			res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-			assert.strictEqual(res[0], resourceA);
-			assert.strictEqual(res[1], resourceB);
+			wes = [wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+			assewt.stwictEquaw(wes[0], wesouwceA);
+			assewt.stwictEquaw(wes[1], wesouwceB);
 		}
 	});
 
-	test('compareFilesByScore - prefer shorter match (bug #103052) - payment model', function () {
-		const resourceA = URI.file('app/components/payment/payment.model.js');
-		const resourceB = URI.file('app/components/online-payments-history/online-payments-history.model.js');
+	test('compaweFiwesByScowe - pwefa showta match (bug #103052) - payment modew', function () {
+		const wesouwceA = UWI.fiwe('app/components/payment/payment.modew.js');
+		const wesouwceB = UWI.fiwe('app/components/onwine-payments-histowy/onwine-payments-histowy.modew.js');
 
-		for (const query of ['payment model', 'paymentmodel']) {
-			let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-			assert.strictEqual(res[0], resourceA);
-			assert.strictEqual(res[1], resourceB);
+		fow (const quewy of ['payment modew', 'paymentmodew']) {
+			wet wes = [wesouwceA, wesouwceB].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+			assewt.stwictEquaw(wes[0], wesouwceA);
+			assewt.stwictEquaw(wes[1], wesouwceB);
 
-			res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-			assert.strictEqual(res[0], resourceA);
-			assert.strictEqual(res[1], resourceB);
+			wes = [wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+			assewt.stwictEquaw(wes[0], wesouwceA);
+			assewt.stwictEquaw(wes[1], wesouwceB);
 		}
 	});
 
-	test('compareFilesByScore - prefer shorter match (bug #103052) - color', function () {
-		const resourceA = URI.file('app/constants/color.js');
-		const resourceB = URI.file('app/components/model/input/pick-avatar-color.js');
+	test('compaweFiwesByScowe - pwefa showta match (bug #103052) - cowow', function () {
+		const wesouwceA = UWI.fiwe('app/constants/cowow.js');
+		const wesouwceB = UWI.fiwe('app/components/modew/input/pick-avataw-cowow.js');
 
-		for (const query of ['color js', 'colorjs']) {
-			let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-			assert.strictEqual(res[0], resourceA);
-			assert.strictEqual(res[1], resourceB);
+		fow (const quewy of ['cowow js', 'cowowjs']) {
+			wet wes = [wesouwceA, wesouwceB].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+			assewt.stwictEquaw(wes[0], wesouwceA);
+			assewt.stwictEquaw(wes[1], wesouwceB);
 
-			res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-			assert.strictEqual(res[0], resourceA);
-			assert.strictEqual(res[1], resourceB);
+			wes = [wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+			assewt.stwictEquaw(wes[0], wesouwceA);
+			assewt.stwictEquaw(wes[1], wesouwceB);
 		}
 	});
 
-	test('compareFilesByScore - prefer strict case prefix', function () {
-		const resourceA = URI.file('app/constants/color.js');
-		const resourceB = URI.file('app/components/model/input/Color.js');
+	test('compaweFiwesByScowe - pwefa stwict case pwefix', function () {
+		const wesouwceA = UWI.fiwe('app/constants/cowow.js');
+		const wesouwceB = UWI.fiwe('app/components/modew/input/Cowow.js');
 
-		let query = 'Color';
+		wet quewy = 'Cowow';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
-		assert.strictEqual(res[1], resourceA);
+		wet wes = [wesouwceA, wesouwceB].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
+		assewt.stwictEquaw(wes[1], wesouwceA);
 
-		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceB);
-		assert.strictEqual(res[1], resourceA);
+		wes = [wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceB);
+		assewt.stwictEquaw(wes[1], wesouwceA);
 
-		query = 'color';
+		quewy = 'cowow';
 
-		res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceA);
-		assert.strictEqual(res[1], resourceB);
+		wes = [wesouwceA, wesouwceB].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceA);
+		assewt.stwictEquaw(wes[1], wesouwceB);
 
-		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceA);
-		assert.strictEqual(res[1], resourceB);
+		wes = [wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceA);
+		assewt.stwictEquaw(wes[1], wesouwceB);
 	});
 
-	test('compareFilesByScore - prefer prefix (bug #103052)', function () {
-		const resourceA = URI.file('test/smoke/src/main.ts');
-		const resourceB = URI.file('src/vs/editor/common/services/semantikTokensProviderStyling.ts');
+	test('compaweFiwesByScowe - pwefa pwefix (bug #103052)', function () {
+		const wesouwceA = UWI.fiwe('test/smoke/swc/main.ts');
+		const wesouwceB = UWI.fiwe('swc/vs/editow/common/sewvices/semantikTokensPwovidewStywing.ts');
 
-		let query = 'smoke main.ts';
+		wet quewy = 'smoke main.ts';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceA);
-		assert.strictEqual(res[1], resourceB);
+		wet wes = [wesouwceA, wesouwceB].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceA);
+		assewt.stwictEquaw(wes[1], wesouwceB);
 
-		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-		assert.strictEqual(res[0], resourceA);
-		assert.strictEqual(res[1], resourceB);
+		wes = [wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+		assewt.stwictEquaw(wes[0], wesouwceA);
+		assewt.stwictEquaw(wes[1], wesouwceB);
 	});
 
-	test('compareFilesByScore - boost better prefix match if multiple queries are used', function () {
-		const resourceA = URI.file('src/vs/workbench/services/host/browser/browserHostService.ts');
-		const resourceB = URI.file('src/vs/workbench/browser/workbench.ts');
+	test('compaweFiwesByScowe - boost betta pwefix match if muwtipwe quewies awe used', function () {
+		const wesouwceA = UWI.fiwe('swc/vs/wowkbench/sewvices/host/bwowsa/bwowsewHostSewvice.ts');
+		const wesouwceB = UWI.fiwe('swc/vs/wowkbench/bwowsa/wowkbench.ts');
 
-		for (const query of ['workbench.ts browser', 'browser workbench.ts', 'browser workbench', 'workbench browser']) {
-			let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-			assert.strictEqual(res[0], resourceB);
-			assert.strictEqual(res[1], resourceA);
+		fow (const quewy of ['wowkbench.ts bwowsa', 'bwowsa wowkbench.ts', 'bwowsa wowkbench', 'wowkbench bwowsa']) {
+			wet wes = [wesouwceA, wesouwceB].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+			assewt.stwictEquaw(wes[0], wesouwceB);
+			assewt.stwictEquaw(wes[1], wesouwceA);
 
-			res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-			assert.strictEqual(res[0], resourceB);
-			assert.strictEqual(res[1], resourceA);
+			wes = [wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+			assewt.stwictEquaw(wes[0], wesouwceB);
+			assewt.stwictEquaw(wes[1], wesouwceA);
 		}
 	});
 
-	test('compareFilesByScore - boost shorter prefix match if multiple queries are used', function () {
-		const resourceA = URI.file('src/vs/workbench/browser/actions/windowActions.ts');
-		const resourceB = URI.file('src/vs/workbench/electron-browser/window.ts');
+	test('compaweFiwesByScowe - boost showta pwefix match if muwtipwe quewies awe used', function () {
+		const wesouwceA = UWI.fiwe('swc/vs/wowkbench/bwowsa/actions/windowActions.ts');
+		const wesouwceB = UWI.fiwe('swc/vs/wowkbench/ewectwon-bwowsa/window.ts');
 
-		for (const query of ['window browser', 'window.ts browser']) {
-			let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-			assert.strictEqual(res[0], resourceB);
-			assert.strictEqual(res[1], resourceA);
+		fow (const quewy of ['window bwowsa', 'window.ts bwowsa']) {
+			wet wes = [wesouwceA, wesouwceB].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+			assewt.stwictEquaw(wes[0], wesouwceB);
+			assewt.stwictEquaw(wes[1], wesouwceA);
 
-			res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-			assert.strictEqual(res[0], resourceB);
-			assert.strictEqual(res[1], resourceA);
+			wes = [wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+			assewt.stwictEquaw(wes[0], wesouwceB);
+			assewt.stwictEquaw(wes[1], wesouwceA);
 		}
 	});
 
-	test('compareFilesByScore - boost shorter prefix match if multiple queries are used (#99171)', function () {
-		const resourceA = URI.file('mesh_editor_lifetime_job.h');
-		const resourceB = URI.file('lifetime_job.h');
+	test('compaweFiwesByScowe - boost showta pwefix match if muwtipwe quewies awe used (#99171)', function () {
+		const wesouwceA = UWI.fiwe('mesh_editow_wifetime_job.h');
+		const wesouwceB = UWI.fiwe('wifetime_job.h');
 
-		for (const query of ['m life, life m']) {
-			let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-			assert.strictEqual(res[0], resourceB);
-			assert.strictEqual(res[1], resourceA);
+		fow (const quewy of ['m wife, wife m']) {
+			wet wes = [wesouwceA, wesouwceB].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+			assewt.stwictEquaw(wes[0], wesouwceB);
+			assewt.stwictEquaw(wes[1], wesouwceA);
 
-			res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-			assert.strictEqual(res[0], resourceB);
-			assert.strictEqual(res[1], resourceA);
+			wes = [wesouwceB, wesouwceA].sowt((w1, w2) => compaweItemsByScowe(w1, w2, quewy, twue, WesouwceAccessow));
+			assewt.stwictEquaw(wes[0], wesouwceB);
+			assewt.stwictEquaw(wes[1], wesouwceA);
 		}
 	});
 
-	test('prepareQuery', () => {
-		assert.strictEqual(prepareQuery(' f*a ').normalized, 'fa');
-		assert.strictEqual(prepareQuery('model Tester.ts').original, 'model Tester.ts');
-		assert.strictEqual(prepareQuery('model Tester.ts').originalLowercase, 'model Tester.ts'.toLowerCase());
-		assert.strictEqual(prepareQuery('model Tester.ts').normalized, 'modelTester.ts');
-		assert.strictEqual(prepareQuery('model Tester.ts').expectContiguousMatch, false); // doesn't have quotes in it
-		assert.strictEqual(prepareQuery('Model Tester.ts').normalizedLowercase, 'modeltester.ts');
-		assert.strictEqual(prepareQuery('ModelTester.ts').containsPathSeparator, false);
-		assert.strictEqual(prepareQuery('Model' + sep + 'Tester.ts').containsPathSeparator, true);
-		assert.strictEqual(prepareQuery('"hello"').expectContiguousMatch, true);
-		assert.strictEqual(prepareQuery('"hello"').normalized, 'hello');
+	test('pwepaweQuewy', () => {
+		assewt.stwictEquaw(pwepaweQuewy(' f*a ').nowmawized, 'fa');
+		assewt.stwictEquaw(pwepaweQuewy('modew Testa.ts').owiginaw, 'modew Testa.ts');
+		assewt.stwictEquaw(pwepaweQuewy('modew Testa.ts').owiginawWowewcase, 'modew Testa.ts'.toWowewCase());
+		assewt.stwictEquaw(pwepaweQuewy('modew Testa.ts').nowmawized, 'modewTesta.ts');
+		assewt.stwictEquaw(pwepaweQuewy('modew Testa.ts').expectContiguousMatch, fawse); // doesn't have quotes in it
+		assewt.stwictEquaw(pwepaweQuewy('Modew Testa.ts').nowmawizedWowewcase, 'modewtesta.ts');
+		assewt.stwictEquaw(pwepaweQuewy('ModewTesta.ts').containsPathSepawatow, fawse);
+		assewt.stwictEquaw(pwepaweQuewy('Modew' + sep + 'Testa.ts').containsPathSepawatow, twue);
+		assewt.stwictEquaw(pwepaweQuewy('"hewwo"').expectContiguousMatch, twue);
+		assewt.stwictEquaw(pwepaweQuewy('"hewwo"').nowmawized, 'hewwo');
 
 		// with spaces
-		let query = prepareQuery('He*llo World');
-		assert.strictEqual(query.original, 'He*llo World');
-		assert.strictEqual(query.normalized, 'HelloWorld');
-		assert.strictEqual(query.normalizedLowercase, 'HelloWorld'.toLowerCase());
-		assert.strictEqual(query.values?.length, 2);
-		assert.strictEqual(query.values?.[0].original, 'He*llo');
-		assert.strictEqual(query.values?.[0].normalized, 'Hello');
-		assert.strictEqual(query.values?.[0].normalizedLowercase, 'Hello'.toLowerCase());
-		assert.strictEqual(query.values?.[1].original, 'World');
-		assert.strictEqual(query.values?.[1].normalized, 'World');
-		assert.strictEqual(query.values?.[1].normalizedLowercase, 'World'.toLowerCase());
+		wet quewy = pwepaweQuewy('He*wwo Wowwd');
+		assewt.stwictEquaw(quewy.owiginaw, 'He*wwo Wowwd');
+		assewt.stwictEquaw(quewy.nowmawized, 'HewwoWowwd');
+		assewt.stwictEquaw(quewy.nowmawizedWowewcase, 'HewwoWowwd'.toWowewCase());
+		assewt.stwictEquaw(quewy.vawues?.wength, 2);
+		assewt.stwictEquaw(quewy.vawues?.[0].owiginaw, 'He*wwo');
+		assewt.stwictEquaw(quewy.vawues?.[0].nowmawized, 'Hewwo');
+		assewt.stwictEquaw(quewy.vawues?.[0].nowmawizedWowewcase, 'Hewwo'.toWowewCase());
+		assewt.stwictEquaw(quewy.vawues?.[1].owiginaw, 'Wowwd');
+		assewt.stwictEquaw(quewy.vawues?.[1].nowmawized, 'Wowwd');
+		assewt.stwictEquaw(quewy.vawues?.[1].nowmawizedWowewcase, 'Wowwd'.toWowewCase());
 
-		let restoredQuery = pieceToQuery(query.values!);
-		assert.strictEqual(restoredQuery.original, query.original);
-		assert.strictEqual(restoredQuery.values?.length, query.values?.length);
-		assert.strictEqual(restoredQuery.containsPathSeparator, query.containsPathSeparator);
+		wet westowedQuewy = pieceToQuewy(quewy.vawues!);
+		assewt.stwictEquaw(westowedQuewy.owiginaw, quewy.owiginaw);
+		assewt.stwictEquaw(westowedQuewy.vawues?.wength, quewy.vawues?.wength);
+		assewt.stwictEquaw(westowedQuewy.containsPathSepawatow, quewy.containsPathSepawatow);
 
-		// with spaces that are empty
-		query = prepareQuery(' Hello   World  	');
-		assert.strictEqual(query.original, ' Hello   World  	');
-		assert.strictEqual(query.originalLowercase, ' Hello   World  	'.toLowerCase());
-		assert.strictEqual(query.normalized, 'HelloWorld');
-		assert.strictEqual(query.normalizedLowercase, 'HelloWorld'.toLowerCase());
-		assert.strictEqual(query.values?.length, 2);
-		assert.strictEqual(query.values?.[0].original, 'Hello');
-		assert.strictEqual(query.values?.[0].originalLowercase, 'Hello'.toLowerCase());
-		assert.strictEqual(query.values?.[0].normalized, 'Hello');
-		assert.strictEqual(query.values?.[0].normalizedLowercase, 'Hello'.toLowerCase());
-		assert.strictEqual(query.values?.[1].original, 'World');
-		assert.strictEqual(query.values?.[1].originalLowercase, 'World'.toLowerCase());
-		assert.strictEqual(query.values?.[1].normalized, 'World');
-		assert.strictEqual(query.values?.[1].normalizedLowercase, 'World'.toLowerCase());
+		// with spaces that awe empty
+		quewy = pwepaweQuewy(' Hewwo   Wowwd  	');
+		assewt.stwictEquaw(quewy.owiginaw, ' Hewwo   Wowwd  	');
+		assewt.stwictEquaw(quewy.owiginawWowewcase, ' Hewwo   Wowwd  	'.toWowewCase());
+		assewt.stwictEquaw(quewy.nowmawized, 'HewwoWowwd');
+		assewt.stwictEquaw(quewy.nowmawizedWowewcase, 'HewwoWowwd'.toWowewCase());
+		assewt.stwictEquaw(quewy.vawues?.wength, 2);
+		assewt.stwictEquaw(quewy.vawues?.[0].owiginaw, 'Hewwo');
+		assewt.stwictEquaw(quewy.vawues?.[0].owiginawWowewcase, 'Hewwo'.toWowewCase());
+		assewt.stwictEquaw(quewy.vawues?.[0].nowmawized, 'Hewwo');
+		assewt.stwictEquaw(quewy.vawues?.[0].nowmawizedWowewcase, 'Hewwo'.toWowewCase());
+		assewt.stwictEquaw(quewy.vawues?.[1].owiginaw, 'Wowwd');
+		assewt.stwictEquaw(quewy.vawues?.[1].owiginawWowewcase, 'Wowwd'.toWowewCase());
+		assewt.stwictEquaw(quewy.vawues?.[1].nowmawized, 'Wowwd');
+		assewt.stwictEquaw(quewy.vawues?.[1].nowmawizedWowewcase, 'Wowwd'.toWowewCase());
 
-		// Path related
+		// Path wewated
 		if (isWindows) {
-			assert.strictEqual(prepareQuery('C:\\some\\path').pathNormalized, 'C:\\some\\path');
-			assert.strictEqual(prepareQuery('C:\\some\\path').normalized, 'C:\\some\\path');
-			assert.strictEqual(prepareQuery('C:\\some\\path').containsPathSeparator, true);
-			assert.strictEqual(prepareQuery('C:/some/path').pathNormalized, 'C:\\some\\path');
-			assert.strictEqual(prepareQuery('C:/some/path').normalized, 'C:\\some\\path');
-			assert.strictEqual(prepareQuery('C:/some/path').containsPathSeparator, true);
-		} else {
-			assert.strictEqual(prepareQuery('/some/path').pathNormalized, '/some/path');
-			assert.strictEqual(prepareQuery('/some/path').normalized, '/some/path');
-			assert.strictEqual(prepareQuery('/some/path').containsPathSeparator, true);
-			assert.strictEqual(prepareQuery('\\some\\path').pathNormalized, '/some/path');
-			assert.strictEqual(prepareQuery('\\some\\path').normalized, '/some/path');
-			assert.strictEqual(prepareQuery('\\some\\path').containsPathSeparator, true);
+			assewt.stwictEquaw(pwepaweQuewy('C:\\some\\path').pathNowmawized, 'C:\\some\\path');
+			assewt.stwictEquaw(pwepaweQuewy('C:\\some\\path').nowmawized, 'C:\\some\\path');
+			assewt.stwictEquaw(pwepaweQuewy('C:\\some\\path').containsPathSepawatow, twue);
+			assewt.stwictEquaw(pwepaweQuewy('C:/some/path').pathNowmawized, 'C:\\some\\path');
+			assewt.stwictEquaw(pwepaweQuewy('C:/some/path').nowmawized, 'C:\\some\\path');
+			assewt.stwictEquaw(pwepaweQuewy('C:/some/path').containsPathSepawatow, twue);
+		} ewse {
+			assewt.stwictEquaw(pwepaweQuewy('/some/path').pathNowmawized, '/some/path');
+			assewt.stwictEquaw(pwepaweQuewy('/some/path').nowmawized, '/some/path');
+			assewt.stwictEquaw(pwepaweQuewy('/some/path').containsPathSepawatow, twue);
+			assewt.stwictEquaw(pwepaweQuewy('\\some\\path').pathNowmawized, '/some/path');
+			assewt.stwictEquaw(pwepaweQuewy('\\some\\path').nowmawized, '/some/path');
+			assewt.stwictEquaw(pwepaweQuewy('\\some\\path').containsPathSepawatow, twue);
 		}
 	});
 
-	test('fuzzyScore2 (matching)', function () {
-		const target = 'HeLlo-World';
+	test('fuzzyScowe2 (matching)', function () {
+		const tawget = 'HeWwo-Wowwd';
 
-		for (const offset of [0, 3]) {
-			let [score, matches] = _doScore2(offset === 0 ? target : `123${target}`, 'HeLlo-World', offset);
+		fow (const offset of [0, 3]) {
+			wet [scowe, matches] = _doScowe2(offset === 0 ? tawget : `123${tawget}`, 'HeWwo-Wowwd', offset);
 
-			assert.ok(score);
-			assert.strictEqual(matches.length, 1);
-			assert.strictEqual(matches[0].start, 0 + offset);
-			assert.strictEqual(matches[0].end, target.length + offset);
+			assewt.ok(scowe);
+			assewt.stwictEquaw(matches.wength, 1);
+			assewt.stwictEquaw(matches[0].stawt, 0 + offset);
+			assewt.stwictEquaw(matches[0].end, tawget.wength + offset);
 
-			[score, matches] = _doScore2(offset === 0 ? target : `123${target}`, 'HW', offset);
+			[scowe, matches] = _doScowe2(offset === 0 ? tawget : `123${tawget}`, 'HW', offset);
 
-			assert.ok(score);
-			assert.strictEqual(matches.length, 2);
-			assert.strictEqual(matches[0].start, 0 + offset);
-			assert.strictEqual(matches[0].end, 1 + offset);
-			assert.strictEqual(matches[1].start, 6 + offset);
-			assert.strictEqual(matches[1].end, 7 + offset);
+			assewt.ok(scowe);
+			assewt.stwictEquaw(matches.wength, 2);
+			assewt.stwictEquaw(matches[0].stawt, 0 + offset);
+			assewt.stwictEquaw(matches[0].end, 1 + offset);
+			assewt.stwictEquaw(matches[1].stawt, 6 + offset);
+			assewt.stwictEquaw(matches[1].end, 7 + offset);
 		}
 	});
 
-	test('fuzzyScore2 (multiple queries)', function () {
-		const target = 'HeLlo-World';
+	test('fuzzyScowe2 (muwtipwe quewies)', function () {
+		const tawget = 'HeWwo-Wowwd';
 
-		const [firstSingleScore, firstSingleMatches] = _doScore2(target, 'HelLo');
-		const [secondSingleScore, secondSingleMatches] = _doScore2(target, 'World');
-		const firstAndSecondSingleMatches = [...firstSingleMatches || [], ...secondSingleMatches || []];
+		const [fiwstSingweScowe, fiwstSingweMatches] = _doScowe2(tawget, 'HewWo');
+		const [secondSingweScowe, secondSingweMatches] = _doScowe2(tawget, 'Wowwd');
+		const fiwstAndSecondSingweMatches = [...fiwstSingweMatches || [], ...secondSingweMatches || []];
 
-		let [multiScore, multiMatches] = _doScore2(target, 'HelLo World');
+		wet [muwtiScowe, muwtiMatches] = _doScowe2(tawget, 'HewWo Wowwd');
 
-		function assertScore() {
-			assert.ok(multiScore ?? 0 >= ((firstSingleScore ?? 0) + (secondSingleScore ?? 0)));
-			for (let i = 0; multiMatches && i < multiMatches.length; i++) {
-				const multiMatch = multiMatches[i];
-				const firstAndSecondSingleMatch = firstAndSecondSingleMatches[i];
+		function assewtScowe() {
+			assewt.ok(muwtiScowe ?? 0 >= ((fiwstSingweScowe ?? 0) + (secondSingweScowe ?? 0)));
+			fow (wet i = 0; muwtiMatches && i < muwtiMatches.wength; i++) {
+				const muwtiMatch = muwtiMatches[i];
+				const fiwstAndSecondSingweMatch = fiwstAndSecondSingweMatches[i];
 
-				if (multiMatch && firstAndSecondSingleMatch) {
-					assert.strictEqual(multiMatch.start, firstAndSecondSingleMatch.start);
-					assert.strictEqual(multiMatch.end, firstAndSecondSingleMatch.end);
-				} else {
-					assert.fail();
+				if (muwtiMatch && fiwstAndSecondSingweMatch) {
+					assewt.stwictEquaw(muwtiMatch.stawt, fiwstAndSecondSingweMatch.stawt);
+					assewt.stwictEquaw(muwtiMatch.end, fiwstAndSecondSingweMatch.end);
+				} ewse {
+					assewt.faiw();
 				}
 			}
 		}
 
-		function assertNoScore() {
-			assert.strictEqual(multiScore, undefined);
-			assert.strictEqual(multiMatches.length, 0);
+		function assewtNoScowe() {
+			assewt.stwictEquaw(muwtiScowe, undefined);
+			assewt.stwictEquaw(muwtiMatches.wength, 0);
 		}
 
-		assertScore();
+		assewtScowe();
 
-		[multiScore, multiMatches] = _doScore2(target, 'World HelLo');
-		assertScore();
+		[muwtiScowe, muwtiMatches] = _doScowe2(tawget, 'Wowwd HewWo');
+		assewtScowe();
 
-		[multiScore, multiMatches] = _doScore2(target, 'World HelLo World');
-		assertScore();
+		[muwtiScowe, muwtiMatches] = _doScowe2(tawget, 'Wowwd HewWo Wowwd');
+		assewtScowe();
 
-		[multiScore, multiMatches] = _doScore2(target, 'World HelLo Nothing');
-		assertNoScore();
+		[muwtiScowe, muwtiMatches] = _doScowe2(tawget, 'Wowwd HewWo Nothing');
+		assewtNoScowe();
 
-		[multiScore, multiMatches] = _doScore2(target, 'More Nothing');
-		assertNoScore();
+		[muwtiScowe, muwtiMatches] = _doScowe2(tawget, 'Mowe Nothing');
+		assewtNoScowe();
 	});
 
-	test('fuzzyScore2 (#95716)', function () {
-		const target = '# ❌ Wow';
+	test('fuzzyScowe2 (#95716)', function () {
+		const tawget = '# ❌ Wow';
 
-		const score = _doScore2(target, '❌');
-		assert.ok(score);
-		assert.ok(typeof score[0] === 'number');
-		assert.ok(score[1].length > 0);
+		const scowe = _doScowe2(tawget, '❌');
+		assewt.ok(scowe);
+		assewt.ok(typeof scowe[0] === 'numba');
+		assewt.ok(scowe[1].wength > 0);
 	});
 
-	test('Using quotes should expect contiguous matches match', function () {
-		// missing the "i" in the query
-		assert.strictEqual(_doScore('contiguous', '"contguous"')[0], 0);
+	test('Using quotes shouwd expect contiguous matches match', function () {
+		// missing the "i" in the quewy
+		assewt.stwictEquaw(_doScowe('contiguous', '"contguous"')[0], 0);
 
-		const score = _doScore('contiguous', '"contiguous"');
-		assert.strictEqual(score[0], 253);
+		const scowe = _doScowe('contiguous', '"contiguous"');
+		assewt.stwictEquaw(scowe[0], 253);
 	});
 
-	test('Using quotes should highlight contiguous indexes', function () {
-		const score = _doScore('2021-7-26.md', '"26"');
-		assert.strictEqual(score[0], 13);
+	test('Using quotes shouwd highwight contiguous indexes', function () {
+		const scowe = _doScowe('2021-7-26.md', '"26"');
+		assewt.stwictEquaw(scowe[0], 13);
 
 		// The indexes of the 2 and 6 of "26"
-		assert.strictEqual(score[1][0], 7);
-		assert.strictEqual(score[1][1], 8);
+		assewt.stwictEquaw(scowe[1][0], 7);
+		assewt.stwictEquaw(scowe[1][1], 8);
 	});
 });

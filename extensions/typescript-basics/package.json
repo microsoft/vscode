@@ -1,49 +1,49 @@
 {
-  "name": "typescript",
-  "description": "%description%",
-  "displayName": "%displayName%",
-  "version": "1.0.0",
-  "author": "vscode",
-  "publisher": "vscode",
-  "license": "MIT",
+  "name": "typescwipt",
+  "descwiption": "%descwiption%",
+  "dispwayName": "%dispwayName%",
+  "vewsion": "1.0.0",
+  "authow": "vscode",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "scripts": {
-    "update-grammar": "node ./build/update-grammars.js"
+  "scwipts": {
+    "update-gwammaw": "node ./buiwd/update-gwammaws.js"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
-        "id": "typescript",
-        "aliases": [
-          "TypeScript",
+        "id": "typescwipt",
+        "awiases": [
+          "TypeScwipt",
           "ts",
-          "typescript"
+          "typescwipt"
         ],
         "extensions": [
           ".ts"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       },
       {
-        "id": "typescriptreact",
-        "aliases": [
-          "TypeScript React",
+        "id": "typescwiptweact",
+        "awiases": [
+          "TypeScwipt Weact",
           "tsx"
         ],
         "extensions": [
           ".tsx"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       },
       {
         "id": "jsonc",
-        "filenames": [
+        "fiwenames": [
           "tsconfig.json",
           "jsconfig.json"
         ],
-        "filenamePatterns": [
+        "fiwenamePattewns": [
           "tsconfig.*.json",
           "jsconfig.*.json",
           "tsconfig-*.json",
@@ -51,127 +51,127 @@
         ]
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "typescript",
-        "scopeName": "source.ts",
-        "path": "./syntaxes/TypeScript.tmLanguage.json",
+        "wanguage": "typescwipt",
+        "scopeName": "souwce.ts",
+        "path": "./syntaxes/TypeScwipt.tmWanguage.json",
         "tokenTypes": {
-          "meta.template.expression": "other",
-          "entity.name.type.instance.jsdoc": "other",
-          "entity.name.function.tagged-template": "other",
-          "meta.import string.quoted": "other",
-          "variable.other.jsdoc": "other"
+          "meta.tempwate.expwession": "otha",
+          "entity.name.type.instance.jsdoc": "otha",
+          "entity.name.function.tagged-tempwate": "otha",
+          "meta.impowt stwing.quoted": "otha",
+          "vawiabwe.otha.jsdoc": "otha"
         }
       },
       {
-        "language": "typescriptreact",
-        "scopeName": "source.tsx",
-        "path": "./syntaxes/TypeScriptReact.tmLanguage.json",
-        "embeddedLanguages": {
+        "wanguage": "typescwiptweact",
+        "scopeName": "souwce.tsx",
+        "path": "./syntaxes/TypeScwiptWeact.tmWanguage.json",
+        "embeddedWanguages": {
           "meta.tag.tsx": "jsx-tags",
-          "meta.tag.without-attributes.tsx": "jsx-tags",
-          "meta.tag.attributes.tsx": "typescriptreact",
-          "meta.embedded.expression.tsx": "typescriptreact"
+          "meta.tag.without-attwibutes.tsx": "jsx-tags",
+          "meta.tag.attwibutes.tsx": "typescwiptweact",
+          "meta.embedded.expwession.tsx": "typescwiptweact"
         },
         "tokenTypes": {
-          "meta.template.expression": "other",
-          "entity.name.type.instance.jsdoc": "other",
-          "entity.name.function.tagged-template": "other",
-          "meta.import string.quoted": "other",
-          "variable.other.jsdoc": "other"
+          "meta.tempwate.expwession": "otha",
+          "entity.name.type.instance.jsdoc": "otha",
+          "entity.name.function.tagged-tempwate": "otha",
+          "meta.impowt stwing.quoted": "otha",
+          "vawiabwe.otha.jsdoc": "otha"
         }
       },
       {
         "scopeName": "documentation.injection.ts",
-        "path": "./syntaxes/jsdoc.ts.injection.tmLanguage.json",
+        "path": "./syntaxes/jsdoc.ts.injection.tmWanguage.json",
         "injectTo": [
-          "source.ts",
-          "source.tsx"
+          "souwce.ts",
+          "souwce.tsx"
         ]
       },
       {
         "scopeName": "documentation.injection.js.jsx",
-        "path": "./syntaxes/jsdoc.js.injection.tmLanguage.json",
+        "path": "./syntaxes/jsdoc.js.injection.tmWanguage.json",
         "injectTo": [
-          "source.js",
-          "source.js.jsx"
+          "souwce.js",
+          "souwce.js.jsx"
         ]
       }
     ],
     "semanticTokenScopes": [
       {
-        "language": "typescript",
+        "wanguage": "typescwipt",
         "scopes": {
-          "property": [
-            "variable.other.property.ts"
+          "pwopewty": [
+            "vawiabwe.otha.pwopewty.ts"
           ],
-          "property.readonly": [
-            "variable.other.constant.property.ts"
+          "pwopewty.weadonwy": [
+            "vawiabwe.otha.constant.pwopewty.ts"
           ],
-          "variable": [
-            "variable.other.readwrite.ts"
+          "vawiabwe": [
+            "vawiabwe.otha.weadwwite.ts"
           ],
-          "variable.readonly": [
-            "variable.other.constant.object.ts"
+          "vawiabwe.weadonwy": [
+            "vawiabwe.otha.constant.object.ts"
           ],
           "function": [
             "entity.name.function.ts"
           ],
           "namespace": [
-            "entity.name.type.module.ts"
+            "entity.name.type.moduwe.ts"
           ],
-          "variable.defaultLibrary": [
-            "support.variable.ts"
+          "vawiabwe.defauwtWibwawy": [
+            "suppowt.vawiabwe.ts"
           ],
-          "function.defaultLibrary": [
-            "support.function.ts"
+          "function.defauwtWibwawy": [
+            "suppowt.function.ts"
           ]
         }
       },
       {
-        "language": "typescriptreact",
+        "wanguage": "typescwiptweact",
         "scopes": {
-          "property": [
-            "variable.other.property.tsx"
+          "pwopewty": [
+            "vawiabwe.otha.pwopewty.tsx"
           ],
-          "property.readonly": [
-            "variable.other.constant.property.tsx"
+          "pwopewty.weadonwy": [
+            "vawiabwe.otha.constant.pwopewty.tsx"
           ],
-          "variable": [
-            "variable.other.readwrite.tsx"
+          "vawiabwe": [
+            "vawiabwe.otha.weadwwite.tsx"
           ],
-          "variable.readonly": [
-            "variable.other.constant.object.tsx"
+          "vawiabwe.weadonwy": [
+            "vawiabwe.otha.constant.object.tsx"
           ],
           "function": [
             "entity.name.function.tsx"
           ],
           "namespace": [
-            "entity.name.type.module.tsx"
+            "entity.name.type.moduwe.tsx"
           ],
-          "variable.defaultLibrary": [
-            "support.variable.tsx"
+          "vawiabwe.defauwtWibwawy": [
+            "suppowt.vawiabwe.tsx"
           ],
-          "function.defaultLibrary": [
-            "support.function.tsx"
+          "function.defauwtWibwawy": [
+            "suppowt.function.tsx"
           ]
         }
       }
     ],
     "snippets": [
       {
-        "language": "typescript",
-        "path": "./snippets/typescript.code-snippets"
+        "wanguage": "typescwipt",
+        "path": "./snippets/typescwipt.code-snippets"
       },
       {
-        "language": "typescriptreact",
-        "path": "./snippets/typescript.code-snippets"
+        "wanguage": "typescwiptweact",
+        "path": "./snippets/typescwipt.code-snippets"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

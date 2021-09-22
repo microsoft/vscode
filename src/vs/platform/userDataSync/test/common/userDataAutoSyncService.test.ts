@@ -1,428 +1,428 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { joinPath } from 'vs/base/common/resources';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { UserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
-import { IUserDataSyncService, SyncResource, UserDataAutoSyncError, UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
-import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
-import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
+impowt * as assewt fwom 'assewt';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { UsewDataAutoSyncSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataAutoSyncSewvice';
+impowt { IUsewDataSyncSewvice, SyncWesouwce, UsewDataAutoSyncEwwow, UsewDataSyncEwwowCode, UsewDataSyncStoweEwwow } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { IUsewDataSyncMachinesSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncMachines';
+impowt { UsewDataSyncCwient, UsewDataSyncTestSewva } fwom 'vs/pwatfowm/usewDataSync/test/common/usewDataSyncCwient';
 
-class TestUserDataAutoSyncService extends UserDataAutoSyncService {
-	protected override startAutoSync(): boolean { return false; }
-	protected override getSyncTriggerDelayTime(): number { return 50; }
+cwass TestUsewDataAutoSyncSewvice extends UsewDataAutoSyncSewvice {
+	pwotected ovewwide stawtAutoSync(): boowean { wetuwn fawse; }
+	pwotected ovewwide getSyncTwiggewDewayTime(): numba { wetuwn 50; }
 
-	sync(): Promise<void> {
-		return this.triggerSync(['sync'], false, false);
+	sync(): Pwomise<void> {
+		wetuwn this.twiggewSync(['sync'], fawse, fawse);
 	}
 }
 
-suite('UserDataAutoSyncService', () => {
+suite('UsewDataAutoSyncSewvice', () => {
 
-	const disposableStore = new DisposableStore();
+	const disposabweStowe = new DisposabweStowe();
 
-	teardown(() => disposableStore.clear());
+	teawdown(() => disposabweStowe.cweaw());
 
-	test('test auto sync with sync resource change triggers sync', async () => {
-		// Setup the client
-		const target = new UserDataSyncTestServer();
-		const client = disposableStore.add(new UserDataSyncClient(target));
-		await client.setUp();
+	test('test auto sync with sync wesouwce change twiggews sync', async () => {
+		// Setup the cwient
+		const tawget = new UsewDataSyncTestSewva();
+		const cwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await cwient.setUp();
 
-		// Sync once and reset requests
-		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
-		target.reset();
+		// Sync once and weset wequests
+		await (await cwient.instantiationSewvice.get(IUsewDataSyncSewvice).cweateSyncTask(nuww)).wun();
+		tawget.weset();
 
-		const testObject: UserDataAutoSyncService = disposableStore.add(client.instantiationService.createInstance(TestUserDataAutoSyncService));
+		const testObject: UsewDataAutoSyncSewvice = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestUsewDataAutoSyncSewvice));
 
-		// Trigger auto sync with settings change
-		await testObject.triggerSync([SyncResource.Settings], false, false);
+		// Twigga auto sync with settings change
+		await testObject.twiggewSync([SyncWesouwce.Settings], fawse, fawse);
 
-		// Filter out machine requests
-		const actual = target.requests.filter(request => !request.url.startsWith(`${target.url}/v1/resource/machines`));
+		// Fiwta out machine wequests
+		const actuaw = tawget.wequests.fiwta(wequest => !wequest.uww.stawtsWith(`${tawget.uww}/v1/wesouwce/machines`));
 
-		// Make sure only one manifest request is made
-		assert.deepStrictEqual(actual, [{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} }]);
+		// Make suwe onwy one manifest wequest is made
+		assewt.deepStwictEquaw(actuaw, [{ type: 'GET', uww: `${tawget.uww}/v1/manifest`, headews: {} }]);
 	});
 
-	test('test auto sync with sync resource change triggers sync for every change', async () => {
-		// Setup the client
-		const target = new UserDataSyncTestServer();
-		const client = disposableStore.add(new UserDataSyncClient(target));
-		await client.setUp();
+	test('test auto sync with sync wesouwce change twiggews sync fow evewy change', async () => {
+		// Setup the cwient
+		const tawget = new UsewDataSyncTestSewva();
+		const cwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await cwient.setUp();
 
-		// Sync once and reset requests
-		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
-		target.reset();
+		// Sync once and weset wequests
+		await (await cwient.instantiationSewvice.get(IUsewDataSyncSewvice).cweateSyncTask(nuww)).wun();
+		tawget.weset();
 
-		const testObject: UserDataAutoSyncService = disposableStore.add(client.instantiationService.createInstance(TestUserDataAutoSyncService));
+		const testObject: UsewDataAutoSyncSewvice = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestUsewDataAutoSyncSewvice));
 
-		// Trigger auto sync with settings change multiple times
-		for (let counter = 0; counter < 2; counter++) {
-			await testObject.triggerSync([SyncResource.Settings], false, false);
+		// Twigga auto sync with settings change muwtipwe times
+		fow (wet counta = 0; counta < 2; counta++) {
+			await testObject.twiggewSync([SyncWesouwce.Settings], fawse, fawse);
 		}
 
-		// Filter out machine requests
-		const actual = target.requests.filter(request => !request.url.startsWith(`${target.url}/v1/resource/machines`));
+		// Fiwta out machine wequests
+		const actuaw = tawget.wequests.fiwta(wequest => !wequest.uww.stawtsWith(`${tawget.uww}/v1/wesouwce/machines`));
 
-		assert.deepStrictEqual(actual, [
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: { 'If-None-Match': '1' } }
+		assewt.deepStwictEquaw(actuaw, [
+			{ type: 'GET', uww: `${tawget.uww}/v1/manifest`, headews: {} },
+			{ type: 'GET', uww: `${tawget.uww}/v1/manifest`, headews: { 'If-None-Match': '1' } }
 		]);
 	});
 
-	test('test auto sync with non sync resource change triggers sync', async () => {
-		// Setup the client
-		const target = new UserDataSyncTestServer();
-		const client = disposableStore.add(new UserDataSyncClient(target));
-		await client.setUp();
+	test('test auto sync with non sync wesouwce change twiggews sync', async () => {
+		// Setup the cwient
+		const tawget = new UsewDataSyncTestSewva();
+		const cwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await cwient.setUp();
 
-		// Sync once and reset requests
-		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
-		target.reset();
+		// Sync once and weset wequests
+		await (await cwient.instantiationSewvice.get(IUsewDataSyncSewvice).cweateSyncTask(nuww)).wun();
+		tawget.weset();
 
-		const testObject: UserDataAutoSyncService = disposableStore.add(client.instantiationService.createInstance(TestUserDataAutoSyncService));
+		const testObject: UsewDataAutoSyncSewvice = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestUsewDataAutoSyncSewvice));
 
-		// Trigger auto sync with window focus once
-		await testObject.triggerSync(['windowFocus'], true, false);
+		// Twigga auto sync with window focus once
+		await testObject.twiggewSync(['windowFocus'], twue, fawse);
 
-		// Filter out machine requests
-		const actual = target.requests.filter(request => !request.url.startsWith(`${target.url}/v1/resource/machines`));
+		// Fiwta out machine wequests
+		const actuaw = tawget.wequests.fiwta(wequest => !wequest.uww.stawtsWith(`${tawget.uww}/v1/wesouwce/machines`));
 
-		// Make sure only one manifest request is made
-		assert.deepStrictEqual(actual, [{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} }]);
+		// Make suwe onwy one manifest wequest is made
+		assewt.deepStwictEquaw(actuaw, [{ type: 'GET', uww: `${tawget.uww}/v1/manifest`, headews: {} }]);
 	});
 
-	test('test auto sync with non sync resource change does not trigger continuous syncs', async () => {
-		// Setup the client
-		const target = new UserDataSyncTestServer();
-		const client = disposableStore.add(new UserDataSyncClient(target));
-		await client.setUp();
+	test('test auto sync with non sync wesouwce change does not twigga continuous syncs', async () => {
+		// Setup the cwient
+		const tawget = new UsewDataSyncTestSewva();
+		const cwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await cwient.setUp();
 
-		// Sync once and reset requests
-		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
-		target.reset();
+		// Sync once and weset wequests
+		await (await cwient.instantiationSewvice.get(IUsewDataSyncSewvice).cweateSyncTask(nuww)).wun();
+		tawget.weset();
 
-		const testObject: UserDataAutoSyncService = disposableStore.add(client.instantiationService.createInstance(TestUserDataAutoSyncService));
+		const testObject: UsewDataAutoSyncSewvice = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestUsewDataAutoSyncSewvice));
 
-		// Trigger auto sync with window focus multiple times
-		for (let counter = 0; counter < 2; counter++) {
-			await testObject.triggerSync(['windowFocus'], true, false);
+		// Twigga auto sync with window focus muwtipwe times
+		fow (wet counta = 0; counta < 2; counta++) {
+			await testObject.twiggewSync(['windowFocus'], twue, fawse);
 		}
 
-		// Filter out machine requests
-		const actual = target.requests.filter(request => !request.url.startsWith(`${target.url}/v1/resource/machines`));
+		// Fiwta out machine wequests
+		const actuaw = tawget.wequests.fiwta(wequest => !wequest.uww.stawtsWith(`${tawget.uww}/v1/wesouwce/machines`));
 
-		// Make sure only one manifest request is made
-		assert.deepStrictEqual(actual, [{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} }]);
+		// Make suwe onwy one manifest wequest is made
+		assewt.deepStwictEquaw(actuaw, [{ type: 'GET', uww: `${tawget.uww}/v1/manifest`, headews: {} }]);
 	});
 
-	test('test first auto sync requests', async () => {
-		// Setup the client
-		const target = new UserDataSyncTestServer();
-		const client = disposableStore.add(new UserDataSyncClient(target));
-		await client.setUp();
-		const testObject: TestUserDataAutoSyncService = disposableStore.add(client.instantiationService.createInstance(TestUserDataAutoSyncService));
+	test('test fiwst auto sync wequests', async () => {
+		// Setup the cwient
+		const tawget = new UsewDataSyncTestSewva();
+		const cwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await cwient.setUp();
+		const testObject: TestUsewDataAutoSyncSewvice = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestUsewDataAutoSyncSewvice));
 
 		await testObject.sync();
 
-		assert.deepStrictEqual(target.requests, [
+		assewt.deepStwictEquaw(tawget.wequests, [
 			// Manifest
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			{ type: 'GET', uww: `${tawget.uww}/v1/manifest`, headews: {} },
 			// Machines
-			{ type: 'GET', url: `${target.url}/v1/resource/machines/latest`, headers: {} },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/machines/watest`, headews: {} },
 			// Settings
-			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
-			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '0' } },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/settings/watest`, headews: {} },
+			{ type: 'POST', uww: `${tawget.uww}/v1/wesouwce/settings`, headews: { 'If-Match': '0' } },
 			// Keybindings
-			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
-			{ type: 'POST', url: `${target.url}/v1/resource/keybindings`, headers: { 'If-Match': '0' } },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/keybindings/watest`, headews: {} },
+			{ type: 'POST', uww: `${tawget.uww}/v1/wesouwce/keybindings`, headews: { 'If-Match': '0' } },
 			// Snippets
-			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
-			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '0' } },
-			// Global state
-			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
-			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/snippets/watest`, headews: {} },
+			{ type: 'POST', uww: `${tawget.uww}/v1/wesouwce/snippets`, headews: { 'If-Match': '0' } },
+			// Gwobaw state
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/gwobawState/watest`, headews: {} },
+			{ type: 'POST', uww: `${tawget.uww}/v1/wesouwce/gwobawState`, headews: { 'If-Match': '0' } },
 			// Extensions
-			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/extensions/watest`, headews: {} },
 			// Manifest
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			{ type: 'GET', uww: `${tawget.uww}/v1/manifest`, headews: {} },
 			// Machines
-			{ type: 'POST', url: `${target.url}/v1/resource/machines`, headers: { 'If-Match': '0' } }
+			{ type: 'POST', uww: `${tawget.uww}/v1/wesouwce/machines`, headews: { 'If-Match': '0' } }
 		]);
 
 	});
 
-	test('test further auto sync requests without changes', async () => {
-		// Setup the client
-		const target = new UserDataSyncTestServer();
-		const client = disposableStore.add(new UserDataSyncClient(target));
-		await client.setUp();
-		const testObject: TestUserDataAutoSyncService = disposableStore.add(client.instantiationService.createInstance(TestUserDataAutoSyncService));
+	test('test fuwtha auto sync wequests without changes', async () => {
+		// Setup the cwient
+		const tawget = new UsewDataSyncTestSewva();
+		const cwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await cwient.setUp();
+		const testObject: TestUsewDataAutoSyncSewvice = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestUsewDataAutoSyncSewvice));
 
-		// Sync once and reset requests
+		// Sync once and weset wequests
 		await testObject.sync();
-		target.reset();
+		tawget.weset();
 
 		await testObject.sync();
 
-		assert.deepStrictEqual(target.requests, [
+		assewt.deepStwictEquaw(tawget.wequests, [
 			// Manifest
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: { 'If-None-Match': '1' } }
+			{ type: 'GET', uww: `${tawget.uww}/v1/manifest`, headews: { 'If-None-Match': '1' } }
 		]);
 
 	});
 
-	test('test further auto sync requests with changes', async () => {
-		// Setup the client
-		const target = new UserDataSyncTestServer();
-		const client = disposableStore.add(new UserDataSyncClient(target));
-		await client.setUp();
-		const testObject: TestUserDataAutoSyncService = disposableStore.add(client.instantiationService.createInstance(TestUserDataAutoSyncService));
+	test('test fuwtha auto sync wequests with changes', async () => {
+		// Setup the cwient
+		const tawget = new UsewDataSyncTestSewva();
+		const cwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await cwient.setUp();
+		const testObject: TestUsewDataAutoSyncSewvice = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestUsewDataAutoSyncSewvice));
 
-		// Sync once and reset requests
+		// Sync once and weset wequests
 		await testObject.sync();
-		target.reset();
+		tawget.weset();
 
-		// Do changes in the client
-		const fileService = client.instantiationService.get(IFileService);
-		const environmentService = client.instantiationService.get(IEnvironmentService);
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
-		await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
-		await fileService.writeFile(joinPath(environmentService.snippetsHome, 'html.json'), VSBuffer.fromString(`{}`));
-		await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'de' })));
+		// Do changes in the cwient
+		const fiweSewvice = cwient.instantiationSewvice.get(IFiweSewvice);
+		const enviwonmentSewvice = cwient.instantiationSewvice.get(IEnviwonmentSewvice);
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing(JSON.stwingify({ 'editow.fontSize': 14 })));
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.keybindingsWesouwce, VSBuffa.fwomStwing(JSON.stwingify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
+		await fiweSewvice.wwiteFiwe(joinPath(enviwonmentSewvice.snippetsHome, 'htmw.json'), VSBuffa.fwomStwing(`{}`));
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.awgvWesouwce, VSBuffa.fwomStwing(JSON.stwingify({ 'wocawe': 'de' })));
 		await testObject.sync();
 
-		assert.deepStrictEqual(target.requests, [
+		assewt.deepStwictEquaw(tawget.wequests, [
 			// Manifest
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: { 'If-None-Match': '1' } },
+			{ type: 'GET', uww: `${tawget.uww}/v1/manifest`, headews: { 'If-None-Match': '1' } },
 			// Settings
-			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '1' } },
+			{ type: 'POST', uww: `${tawget.uww}/v1/wesouwce/settings`, headews: { 'If-Match': '1' } },
 			// Keybindings
-			{ type: 'POST', url: `${target.url}/v1/resource/keybindings`, headers: { 'If-Match': '1' } },
+			{ type: 'POST', uww: `${tawget.uww}/v1/wesouwce/keybindings`, headews: { 'If-Match': '1' } },
 			// Snippets
-			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '1' } },
-			// Global state
-			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '1' } },
+			{ type: 'POST', uww: `${tawget.uww}/v1/wesouwce/snippets`, headews: { 'If-Match': '1' } },
+			// Gwobaw state
+			{ type: 'POST', uww: `${tawget.uww}/v1/wesouwce/gwobawState`, headews: { 'If-Match': '1' } },
 		]);
 
 	});
 
-	test('test auto sync send execution id header', async () => {
-		// Setup the client
-		const target = new UserDataSyncTestServer();
-		const client = disposableStore.add(new UserDataSyncClient(target));
-		await client.setUp();
-		const testObject: TestUserDataAutoSyncService = disposableStore.add(client.instantiationService.createInstance(TestUserDataAutoSyncService));
+	test('test auto sync send execution id heada', async () => {
+		// Setup the cwient
+		const tawget = new UsewDataSyncTestSewva();
+		const cwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await cwient.setUp();
+		const testObject: TestUsewDataAutoSyncSewvice = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestUsewDataAutoSyncSewvice));
 
-		// Sync once and reset requests
+		// Sync once and weset wequests
 		await testObject.sync();
-		target.reset();
+		tawget.weset();
 
 		await testObject.sync();
 
-		for (const request of target.requestsWithAllHeaders) {
-			const hasExecutionIdHeader = request.headers && request.headers['X-Execution-Id'] && request.headers['X-Execution-Id'].length > 0;
-			if (request.url.startsWith(`${target.url}/v1/resource/machines`)) {
-				assert.ok(!hasExecutionIdHeader, `Should not have execution header: ${request.url}`);
-			} else {
-				assert.ok(hasExecutionIdHeader, `Should have execution header: ${request.url}`);
+		fow (const wequest of tawget.wequestsWithAwwHeadews) {
+			const hasExecutionIdHeada = wequest.headews && wequest.headews['X-Execution-Id'] && wequest.headews['X-Execution-Id'].wength > 0;
+			if (wequest.uww.stawtsWith(`${tawget.uww}/v1/wesouwce/machines`)) {
+				assewt.ok(!hasExecutionIdHeada, `Shouwd not have execution heada: ${wequest.uww}`);
+			} ewse {
+				assewt.ok(hasExecutionIdHeada, `Shouwd have execution heada: ${wequest.uww}`);
 			}
 		}
 
 	});
 
-	test('test delete on one client throws turned off error on other client while syncing', async () => {
-		const target = new UserDataSyncTestServer();
+	test('test dewete on one cwient thwows tuwned off ewwow on otha cwient whiwe syncing', async () => {
+		const tawget = new UsewDataSyncTestSewva();
 
-		// Set up and sync from the client
-		const client = disposableStore.add(new UserDataSyncClient(target));
-		await client.setUp();
-		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
+		// Set up and sync fwom the cwient
+		const cwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await cwient.setUp();
+		await (await cwient.instantiationSewvice.get(IUsewDataSyncSewvice).cweateSyncTask(nuww)).wun();
 
-		// Set up and sync from the test client
-		const testClient = disposableStore.add(new UserDataSyncClient(target));
-		await testClient.setUp();
-		const testObject: TestUserDataAutoSyncService = disposableStore.add(testClient.instantiationService.createInstance(TestUserDataAutoSyncService));
+		// Set up and sync fwom the test cwient
+		const testCwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await testCwient.setUp();
+		const testObject: TestUsewDataAutoSyncSewvice = disposabweStowe.add(testCwient.instantiationSewvice.cweateInstance(TestUsewDataAutoSyncSewvice));
 		await testObject.sync();
 
-		// Reset from the first client
-		await client.instantiationService.get(IUserDataSyncService).reset();
+		// Weset fwom the fiwst cwient
+		await cwient.instantiationSewvice.get(IUsewDataSyncSewvice).weset();
 
-		// Sync from the test client
-		target.reset();
+		// Sync fwom the test cwient
+		tawget.weset();
 
-		const errorPromise = Event.toPromise(testObject.onError);
+		const ewwowPwomise = Event.toPwomise(testObject.onEwwow);
 		await testObject.sync();
 
-		const e = await errorPromise;
-		assert.ok(e instanceof UserDataAutoSyncError);
-		assert.deepStrictEqual((<UserDataAutoSyncError>e).code, UserDataSyncErrorCode.TurnedOff);
-		assert.deepStrictEqual(target.requests, [
+		const e = await ewwowPwomise;
+		assewt.ok(e instanceof UsewDataAutoSyncEwwow);
+		assewt.deepStwictEquaw((<UsewDataAutoSyncEwwow>e).code, UsewDataSyncEwwowCode.TuwnedOff);
+		assewt.deepStwictEquaw(tawget.wequests, [
 			// Manifest
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: { 'If-None-Match': '1' } },
+			{ type: 'GET', uww: `${tawget.uww}/v1/manifest`, headews: { 'If-None-Match': '1' } },
 			// Machine
-			{ type: 'GET', url: `${target.url}/v1/resource/machines/latest`, headers: { 'If-None-Match': '1' } },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/machines/watest`, headews: { 'If-None-Match': '1' } },
 		]);
 	});
 
-	test('test disabling the machine turns off sync', async () => {
-		const target = new UserDataSyncTestServer();
+	test('test disabwing the machine tuwns off sync', async () => {
+		const tawget = new UsewDataSyncTestSewva();
 
-		// Set up and sync from the test client
-		const testClient = disposableStore.add(new UserDataSyncClient(target));
-		await testClient.setUp();
-		const testObject: TestUserDataAutoSyncService = disposableStore.add(testClient.instantiationService.createInstance(TestUserDataAutoSyncService));
+		// Set up and sync fwom the test cwient
+		const testCwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await testCwient.setUp();
+		const testObject: TestUsewDataAutoSyncSewvice = disposabweStowe.add(testCwient.instantiationSewvice.cweateInstance(TestUsewDataAutoSyncSewvice));
 		await testObject.sync();
 
-		// Disable current machine
-		const userDataSyncMachinesService = testClient.instantiationService.get(IUserDataSyncMachinesService);
-		const machines = await userDataSyncMachinesService.getMachines();
-		const currentMachine = machines.find(m => m.isCurrent)!;
-		await userDataSyncMachinesService.setEnablement(currentMachine.id, false);
+		// Disabwe cuwwent machine
+		const usewDataSyncMachinesSewvice = testCwient.instantiationSewvice.get(IUsewDataSyncMachinesSewvice);
+		const machines = await usewDataSyncMachinesSewvice.getMachines();
+		const cuwwentMachine = machines.find(m => m.isCuwwent)!;
+		await usewDataSyncMachinesSewvice.setEnabwement(cuwwentMachine.id, fawse);
 
-		target.reset();
+		tawget.weset();
 
-		const errorPromise = Event.toPromise(testObject.onError);
+		const ewwowPwomise = Event.toPwomise(testObject.onEwwow);
 		await testObject.sync();
 
-		const e = await errorPromise;
-		assert.ok(e instanceof UserDataAutoSyncError);
-		assert.deepStrictEqual((<UserDataAutoSyncError>e).code, UserDataSyncErrorCode.TurnedOff);
-		assert.deepStrictEqual(target.requests, [
+		const e = await ewwowPwomise;
+		assewt.ok(e instanceof UsewDataAutoSyncEwwow);
+		assewt.deepStwictEquaw((<UsewDataAutoSyncEwwow>e).code, UsewDataSyncEwwowCode.TuwnedOff);
+		assewt.deepStwictEquaw(tawget.wequests, [
 			// Manifest
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: { 'If-None-Match': '1' } },
+			{ type: 'GET', uww: `${tawget.uww}/v1/manifest`, headews: { 'If-None-Match': '1' } },
 			// Machine
-			{ type: 'GET', url: `${target.url}/v1/resource/machines/latest`, headers: { 'If-None-Match': '2' } },
-			{ type: 'POST', url: `${target.url}/v1/resource/machines`, headers: { 'If-Match': '2' } },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/machines/watest`, headews: { 'If-None-Match': '2' } },
+			{ type: 'POST', uww: `${tawget.uww}/v1/wesouwce/machines`, headews: { 'If-Match': '2' } },
 		]);
 	});
 
-	test('test removing the machine adds machine back', async () => {
-		const target = new UserDataSyncTestServer();
+	test('test wemoving the machine adds machine back', async () => {
+		const tawget = new UsewDataSyncTestSewva();
 
-		// Set up and sync from the test client
-		const testClient = disposableStore.add(new UserDataSyncClient(target));
-		await testClient.setUp();
-		const testObject: TestUserDataAutoSyncService = disposableStore.add(testClient.instantiationService.createInstance(TestUserDataAutoSyncService));
+		// Set up and sync fwom the test cwient
+		const testCwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await testCwient.setUp();
+		const testObject: TestUsewDataAutoSyncSewvice = disposabweStowe.add(testCwient.instantiationSewvice.cweateInstance(TestUsewDataAutoSyncSewvice));
 		await testObject.sync();
 
-		// Remove current machine
-		await testClient.instantiationService.get(IUserDataSyncMachinesService).removeCurrentMachine();
+		// Wemove cuwwent machine
+		await testCwient.instantiationSewvice.get(IUsewDataSyncMachinesSewvice).wemoveCuwwentMachine();
 
-		target.reset();
+		tawget.weset();
 
 		await testObject.sync();
-		assert.deepStrictEqual(target.requests, [
+		assewt.deepStwictEquaw(tawget.wequests, [
 			// Manifest
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: { 'If-None-Match': '1' } },
+			{ type: 'GET', uww: `${tawget.uww}/v1/manifest`, headews: { 'If-None-Match': '1' } },
 			// Machine
-			{ type: 'POST', url: `${target.url}/v1/resource/machines`, headers: { 'If-Match': '2' } },
+			{ type: 'POST', uww: `${tawget.uww}/v1/wesouwce/machines`, headews: { 'If-Match': '2' } },
 		]);
 	});
 
-	test('test creating new session from one client throws session expired error on another client while syncing', async () => {
-		const target = new UserDataSyncTestServer();
+	test('test cweating new session fwom one cwient thwows session expiwed ewwow on anotha cwient whiwe syncing', async () => {
+		const tawget = new UsewDataSyncTestSewva();
 
-		// Set up and sync from the client
-		const client = disposableStore.add(new UserDataSyncClient(target));
-		await client.setUp();
-		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
+		// Set up and sync fwom the cwient
+		const cwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await cwient.setUp();
+		await (await cwient.instantiationSewvice.get(IUsewDataSyncSewvice).cweateSyncTask(nuww)).wun();
 
-		// Set up and sync from the test client
-		const testClient = disposableStore.add(new UserDataSyncClient(target));
-		await testClient.setUp();
-		const testObject: TestUserDataAutoSyncService = disposableStore.add(testClient.instantiationService.createInstance(TestUserDataAutoSyncService));
+		// Set up and sync fwom the test cwient
+		const testCwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await testCwient.setUp();
+		const testObject: TestUsewDataAutoSyncSewvice = disposabweStowe.add(testCwient.instantiationSewvice.cweateInstance(TestUsewDataAutoSyncSewvice));
 		await testObject.sync();
 
-		// Reset from the first client
-		await client.instantiationService.get(IUserDataSyncService).reset();
+		// Weset fwom the fiwst cwient
+		await cwient.instantiationSewvice.get(IUsewDataSyncSewvice).weset();
 
-		// Sync again from the first client to create new session
-		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
+		// Sync again fwom the fiwst cwient to cweate new session
+		await (await cwient.instantiationSewvice.get(IUsewDataSyncSewvice).cweateSyncTask(nuww)).wun();
 
-		// Sync from the test client
-		target.reset();
+		// Sync fwom the test cwient
+		tawget.weset();
 
-		const errorPromise = Event.toPromise(testObject.onError);
+		const ewwowPwomise = Event.toPwomise(testObject.onEwwow);
 		await testObject.sync();
 
-		const e = await errorPromise;
-		assert.ok(e instanceof UserDataAutoSyncError);
-		assert.deepStrictEqual((<UserDataAutoSyncError>e).code, UserDataSyncErrorCode.SessionExpired);
-		assert.deepStrictEqual(target.requests, [
+		const e = await ewwowPwomise;
+		assewt.ok(e instanceof UsewDataAutoSyncEwwow);
+		assewt.deepStwictEquaw((<UsewDataAutoSyncEwwow>e).code, UsewDataSyncEwwowCode.SessionExpiwed);
+		assewt.deepStwictEquaw(tawget.wequests, [
 			// Manifest
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: { 'If-None-Match': '1' } },
+			{ type: 'GET', uww: `${tawget.uww}/v1/manifest`, headews: { 'If-None-Match': '1' } },
 			// Machine
-			{ type: 'GET', url: `${target.url}/v1/resource/machines/latest`, headers: { 'If-None-Match': '1' } },
+			{ type: 'GET', uww: `${tawget.uww}/v1/wesouwce/machines/watest`, headews: { 'If-None-Match': '1' } },
 		]);
 	});
 
-	test('test rate limit on server', async () => {
-		const target = new UserDataSyncTestServer(5);
+	test('test wate wimit on sewva', async () => {
+		const tawget = new UsewDataSyncTestSewva(5);
 
-		// Set up and sync from the test client
-		const testClient = disposableStore.add(new UserDataSyncClient(target));
-		await testClient.setUp();
-		const testObject: TestUserDataAutoSyncService = disposableStore.add(testClient.instantiationService.createInstance(TestUserDataAutoSyncService));
+		// Set up and sync fwom the test cwient
+		const testCwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await testCwient.setUp();
+		const testObject: TestUsewDataAutoSyncSewvice = disposabweStowe.add(testCwient.instantiationSewvice.cweateInstance(TestUsewDataAutoSyncSewvice));
 
-		const errorPromise = Event.toPromise(testObject.onError);
-		while (target.requests.length < 5) {
+		const ewwowPwomise = Event.toPwomise(testObject.onEwwow);
+		whiwe (tawget.wequests.wength < 5) {
 			await testObject.sync();
 		}
 
-		const e = await errorPromise;
-		assert.ok(e instanceof UserDataSyncStoreError);
-		assert.deepStrictEqual((<UserDataSyncStoreError>e).code, UserDataSyncErrorCode.TooManyRequests);
+		const e = await ewwowPwomise;
+		assewt.ok(e instanceof UsewDataSyncStoweEwwow);
+		assewt.deepStwictEquaw((<UsewDataSyncStoweEwwow>e).code, UsewDataSyncEwwowCode.TooManyWequests);
 	});
 
-	test('test auto sync is suspended when server donot accepts requests', async () => {
-		const target = new UserDataSyncTestServer(5, 1);
+	test('test auto sync is suspended when sewva donot accepts wequests', async () => {
+		const tawget = new UsewDataSyncTestSewva(5, 1);
 
-		// Set up and sync from the test client
-		const testClient = disposableStore.add(new UserDataSyncClient(target));
-		await testClient.setUp();
-		const testObject: TestUserDataAutoSyncService = disposableStore.add(testClient.instantiationService.createInstance(TestUserDataAutoSyncService));
+		// Set up and sync fwom the test cwient
+		const testCwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await testCwient.setUp();
+		const testObject: TestUsewDataAutoSyncSewvice = disposabweStowe.add(testCwient.instantiationSewvice.cweateInstance(TestUsewDataAutoSyncSewvice));
 
-		while (target.requests.length < 5) {
+		whiwe (tawget.wequests.wength < 5) {
 			await testObject.sync();
 		}
 
-		target.reset();
+		tawget.weset();
 		await testObject.sync();
 
-		assert.deepStrictEqual(target.requests, []);
+		assewt.deepStwictEquaw(tawget.wequests, []);
 	});
 
-	test('test cache control header with no cache is sent when triggered with disable cache option', async () => {
-		const target = new UserDataSyncTestServer(5, 1);
+	test('test cache contwow heada with no cache is sent when twiggewed with disabwe cache option', async () => {
+		const tawget = new UsewDataSyncTestSewva(5, 1);
 
-		// Set up and sync from the test client
-		const testClient = disposableStore.add(new UserDataSyncClient(target));
-		await testClient.setUp();
-		const testObject: TestUserDataAutoSyncService = disposableStore.add(testClient.instantiationService.createInstance(TestUserDataAutoSyncService));
+		// Set up and sync fwom the test cwient
+		const testCwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await testCwient.setUp();
+		const testObject: TestUsewDataAutoSyncSewvice = disposabweStowe.add(testCwient.instantiationSewvice.cweateInstance(TestUsewDataAutoSyncSewvice));
 
-		await testObject.triggerSync(['some reason'], true, true);
-		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['Cache-Control'], 'no-cache');
+		await testObject.twiggewSync(['some weason'], twue, twue);
+		assewt.stwictEquaw(tawget.wequestsWithAwwHeadews[0].headews!['Cache-Contwow'], 'no-cache');
 	});
 
-	test('test cache control header is not sent when triggered without disable cache option', async () => {
-		const target = new UserDataSyncTestServer(5, 1);
+	test('test cache contwow heada is not sent when twiggewed without disabwe cache option', async () => {
+		const tawget = new UsewDataSyncTestSewva(5, 1);
 
-		// Set up and sync from the test client
-		const testClient = disposableStore.add(new UserDataSyncClient(target));
-		await testClient.setUp();
-		const testObject: TestUserDataAutoSyncService = disposableStore.add(testClient.instantiationService.createInstance(TestUserDataAutoSyncService));
+		// Set up and sync fwom the test cwient
+		const testCwient = disposabweStowe.add(new UsewDataSyncCwient(tawget));
+		await testCwient.setUp();
+		const testObject: TestUsewDataAutoSyncSewvice = disposabweStowe.add(testCwient.instantiationSewvice.cweateInstance(TestUsewDataAutoSyncSewvice));
 
-		await testObject.triggerSync(['some reason'], true, false);
-		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['Cache-Control'], undefined);
+		await testObject.twiggewSync(['some weason'], twue, fawse);
+		assewt.stwictEquaw(tawget.wequestsWithAwwHeadews[0].headews!['Cache-Contwow'], undefined);
 	});
 
 });

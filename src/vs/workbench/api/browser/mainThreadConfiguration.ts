@@ -1,92 +1,92 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, getScopes } from 'vs/platform/configuration/common/configurationRegistry';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { MainThreadConfigurationShape, MainContext, ExtHostContext, IExtHostContext, IConfigurationInitData } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ConfigurationTarget, IConfigurationService, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IConfiguwationWegistwy, Extensions as ConfiguwationExtensions, ConfiguwationScope, getScopes } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { MainThweadConfiguwationShape, MainContext, ExtHostContext, IExtHostContext, IConfiguwationInitData } fwom '../common/extHost.pwotocow';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { ConfiguwationTawget, IConfiguwationSewvice, IConfiguwationOvewwides } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
 
-@extHostNamedCustomer(MainContext.MainThreadConfiguration)
-export class MainThreadConfiguration implements MainThreadConfigurationShape {
+@extHostNamedCustoma(MainContext.MainThweadConfiguwation)
+expowt cwass MainThweadConfiguwation impwements MainThweadConfiguwationShape {
 
-	private readonly _configurationListener: IDisposable;
+	pwivate weadonwy _configuwationWistena: IDisposabwe;
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IWowkspaceContextSewvice pwivate weadonwy _wowkspaceContextSewvice: IWowkspaceContextSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IEnviwonmentSewvice pwivate weadonwy _enviwonmentSewvice: IEnviwonmentSewvice,
 	) {
-		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostConfiguration);
+		const pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostConfiguwation);
 
-		proxy.$initializeConfiguration(this._getConfigurationData());
-		this._configurationListener = configurationService.onDidChangeConfiguration(e => {
-			proxy.$acceptConfigurationChanged(this._getConfigurationData(), e.change);
+		pwoxy.$initiawizeConfiguwation(this._getConfiguwationData());
+		this._configuwationWistena = configuwationSewvice.onDidChangeConfiguwation(e => {
+			pwoxy.$acceptConfiguwationChanged(this._getConfiguwationData(), e.change);
 		});
 	}
 
-	private _getConfigurationData(): IConfigurationInitData {
-		const configurationData: IConfigurationInitData = { ...(this.configurationService.getConfigurationData()!), configurationScopes: [] };
-		// Send configurations scopes only in development mode.
-		if (!this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment) {
-			configurationData.configurationScopes = getScopes();
+	pwivate _getConfiguwationData(): IConfiguwationInitData {
+		const configuwationData: IConfiguwationInitData = { ...(this.configuwationSewvice.getConfiguwationData()!), configuwationScopes: [] };
+		// Send configuwations scopes onwy in devewopment mode.
+		if (!this._enviwonmentSewvice.isBuiwt || this._enviwonmentSewvice.isExtensionDevewopment) {
+			configuwationData.configuwationScopes = getScopes();
 		}
-		return configurationData;
+		wetuwn configuwationData;
 	}
 
-	public dispose(): void {
-		this._configurationListener.dispose();
+	pubwic dispose(): void {
+		this._configuwationWistena.dispose();
 	}
 
-	$updateConfigurationOption(target: ConfigurationTarget | null, key: string, value: any, overrides: IConfigurationOverrides | undefined, scopeToLanguage: boolean | undefined): Promise<void> {
-		overrides = { resource: overrides?.resource ? URI.revive(overrides.resource) : undefined, overrideIdentifier: overrides?.overrideIdentifier };
-		return this.writeConfiguration(target, key, value, overrides, scopeToLanguage);
+	$updateConfiguwationOption(tawget: ConfiguwationTawget | nuww, key: stwing, vawue: any, ovewwides: IConfiguwationOvewwides | undefined, scopeToWanguage: boowean | undefined): Pwomise<void> {
+		ovewwides = { wesouwce: ovewwides?.wesouwce ? UWI.wevive(ovewwides.wesouwce) : undefined, ovewwideIdentifia: ovewwides?.ovewwideIdentifia };
+		wetuwn this.wwiteConfiguwation(tawget, key, vawue, ovewwides, scopeToWanguage);
 	}
 
-	$removeConfigurationOption(target: ConfigurationTarget | null, key: string, overrides: IConfigurationOverrides | undefined, scopeToLanguage: boolean | undefined): Promise<void> {
-		overrides = { resource: overrides?.resource ? URI.revive(overrides.resource) : undefined, overrideIdentifier: overrides?.overrideIdentifier };
-		return this.writeConfiguration(target, key, undefined, overrides, scopeToLanguage);
+	$wemoveConfiguwationOption(tawget: ConfiguwationTawget | nuww, key: stwing, ovewwides: IConfiguwationOvewwides | undefined, scopeToWanguage: boowean | undefined): Pwomise<void> {
+		ovewwides = { wesouwce: ovewwides?.wesouwce ? UWI.wevive(ovewwides.wesouwce) : undefined, ovewwideIdentifia: ovewwides?.ovewwideIdentifia };
+		wetuwn this.wwiteConfiguwation(tawget, key, undefined, ovewwides, scopeToWanguage);
 	}
 
-	private writeConfiguration(target: ConfigurationTarget | null, key: string, value: any, overrides: IConfigurationOverrides, scopeToLanguage: boolean | undefined): Promise<void> {
-		target = target !== null && target !== undefined ? target : this.deriveConfigurationTarget(key, overrides);
-		const configurationValue = this.configurationService.inspect(key, overrides);
-		switch (target) {
-			case ConfigurationTarget.MEMORY:
-				return this._updateValue(key, value, target, configurationValue?.memory?.override, overrides, scopeToLanguage);
-			case ConfigurationTarget.WORKSPACE_FOLDER:
-				return this._updateValue(key, value, target, configurationValue?.workspaceFolder?.override, overrides, scopeToLanguage);
-			case ConfigurationTarget.WORKSPACE:
-				return this._updateValue(key, value, target, configurationValue?.workspace?.override, overrides, scopeToLanguage);
-			case ConfigurationTarget.USER_REMOTE:
-				return this._updateValue(key, value, target, configurationValue?.userRemote?.override, overrides, scopeToLanguage);
-			default:
-				return this._updateValue(key, value, target, configurationValue?.userLocal?.override, overrides, scopeToLanguage);
+	pwivate wwiteConfiguwation(tawget: ConfiguwationTawget | nuww, key: stwing, vawue: any, ovewwides: IConfiguwationOvewwides, scopeToWanguage: boowean | undefined): Pwomise<void> {
+		tawget = tawget !== nuww && tawget !== undefined ? tawget : this.dewiveConfiguwationTawget(key, ovewwides);
+		const configuwationVawue = this.configuwationSewvice.inspect(key, ovewwides);
+		switch (tawget) {
+			case ConfiguwationTawget.MEMOWY:
+				wetuwn this._updateVawue(key, vawue, tawget, configuwationVawue?.memowy?.ovewwide, ovewwides, scopeToWanguage);
+			case ConfiguwationTawget.WOWKSPACE_FOWDa:
+				wetuwn this._updateVawue(key, vawue, tawget, configuwationVawue?.wowkspaceFowda?.ovewwide, ovewwides, scopeToWanguage);
+			case ConfiguwationTawget.WOWKSPACE:
+				wetuwn this._updateVawue(key, vawue, tawget, configuwationVawue?.wowkspace?.ovewwide, ovewwides, scopeToWanguage);
+			case ConfiguwationTawget.USEW_WEMOTE:
+				wetuwn this._updateVawue(key, vawue, tawget, configuwationVawue?.usewWemote?.ovewwide, ovewwides, scopeToWanguage);
+			defauwt:
+				wetuwn this._updateVawue(key, vawue, tawget, configuwationVawue?.usewWocaw?.ovewwide, ovewwides, scopeToWanguage);
 		}
 	}
 
-	private _updateValue(key: string, value: any, configurationTarget: ConfigurationTarget, overriddenValue: any | undefined, overrides: IConfigurationOverrides, scopeToLanguage: boolean | undefined): Promise<void> {
-		overrides = scopeToLanguage === true ? overrides
-			: scopeToLanguage === false ? { resource: overrides.resource }
-				: overrides.overrideIdentifier && overriddenValue !== undefined ? overrides
-					: { resource: overrides.resource };
-		return this.configurationService.updateValue(key, value, overrides, configurationTarget, true);
+	pwivate _updateVawue(key: stwing, vawue: any, configuwationTawget: ConfiguwationTawget, ovewwiddenVawue: any | undefined, ovewwides: IConfiguwationOvewwides, scopeToWanguage: boowean | undefined): Pwomise<void> {
+		ovewwides = scopeToWanguage === twue ? ovewwides
+			: scopeToWanguage === fawse ? { wesouwce: ovewwides.wesouwce }
+				: ovewwides.ovewwideIdentifia && ovewwiddenVawue !== undefined ? ovewwides
+					: { wesouwce: ovewwides.wesouwce };
+		wetuwn this.configuwationSewvice.updateVawue(key, vawue, ovewwides, configuwationTawget, twue);
 	}
 
-	private deriveConfigurationTarget(key: string, overrides: IConfigurationOverrides): ConfigurationTarget {
-		if (overrides.resource && this._workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-			if (configurationProperties[key] && (configurationProperties[key].scope === ConfigurationScope.RESOURCE || configurationProperties[key].scope === ConfigurationScope.LANGUAGE_OVERRIDABLE)) {
-				return ConfigurationTarget.WORKSPACE_FOLDER;
+	pwivate dewiveConfiguwationTawget(key: stwing, ovewwides: IConfiguwationOvewwides): ConfiguwationTawget {
+		if (ovewwides.wesouwce && this._wowkspaceContextSewvice.getWowkbenchState() === WowkbenchState.WOWKSPACE) {
+			const configuwationPwopewties = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation).getConfiguwationPwopewties();
+			if (configuwationPwopewties[key] && (configuwationPwopewties[key].scope === ConfiguwationScope.WESOUWCE || configuwationPwopewties[key].scope === ConfiguwationScope.WANGUAGE_OVEWWIDABWE)) {
+				wetuwn ConfiguwationTawget.WOWKSPACE_FOWDa;
 			}
 		}
-		return ConfigurationTarget.WORKSPACE;
+		wetuwn ConfiguwationTawget.WOWKSPACE;
 	}
 }

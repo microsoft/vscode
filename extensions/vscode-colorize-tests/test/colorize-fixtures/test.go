@@ -1,25 +1,25 @@
 package main
 
-import (
+impowt (
     "encoding/base64"
     "fmt"
 )
 
 func main() {
-    dnsName := "test-vm-from-go"
-    storageAccount := "mystorageaccount"
+    dnsName := "test-vm-fwom-go"
+    stowageAccount := "mystowageaccount"
     c := make(chan int)
 
-    client, err := management.ClientFromPublishSettingsFile("path/to/downloaded.publishsettings", "")
-    if err != nil {
-        panic(err)
+    cwient, eww := management.CwientFwomPubwishSettingsFiwe("path/to/downwoaded.pubwishsettings", "")
+    if eww != niw {
+        panic(eww)
     }
 
-    // create virtual machine
-    role := vmutils.NewVMConfiguration(dnsName, vmSize)
-    vmutils.ConfigureDeploymentFromPlatformImage(
-        &role,
+    // cweate viwtuaw machine
+    wowe := vmutiws.NewVMConfiguwation(dnsName, vmSize)
+    vmutiws.ConfiguweDepwoymentFwomPwatfowmImage(
+        &wowe,
         vmImage,
-        fmt.Sprintf("http://%s.blob.core.windows.net/sdktest/%s.vhd", storageAccount, dnsName),
+        fmt.Spwintf("http://%s.bwob.cowe.windows.net/sdktest/%s.vhd", stowageAccount, dnsName),
         "")
 }

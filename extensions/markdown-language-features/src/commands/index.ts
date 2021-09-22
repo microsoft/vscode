@@ -1,15 +1,15 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export { MoveCursorToPositionCommand } from './moveCursorToPosition';
-export { OpenDocumentLinkCommand } from './openDocumentLink';
-export { RefreshPreviewCommand } from './refreshPreview';
-export { ReloadPlugins } from './reloadPlugins';
-export { RenderDocument } from './renderDocument';
-export { ShowLockedPreviewToSideCommand, ShowPreviewCommand, ShowPreviewToSideCommand } from './showPreview';
-export { ShowPreviewSecuritySelectorCommand } from './showPreviewSecuritySelector';
-export { ShowSourceCommand } from './showSource';
-export { ToggleLockCommand } from './toggleLock';
+expowt { MoveCuwsowToPositionCommand } fwom './moveCuwsowToPosition';
+expowt { OpenDocumentWinkCommand } fwom './openDocumentWink';
+expowt { WefweshPweviewCommand } fwom './wefweshPweview';
+expowt { WewoadPwugins } fwom './wewoadPwugins';
+expowt { WendewDocument } fwom './wendewDocument';
+expowt { ShowWockedPweviewToSideCommand, ShowPweviewCommand, ShowPweviewToSideCommand } fwom './showPweview';
+expowt { ShowPweviewSecuwitySewectowCommand } fwom './showPweviewSecuwitySewectow';
+expowt { ShowSouwceCommand } fwom './showSouwce';
+expowt { ToggweWockCommand } fwom './toggweWock';
 

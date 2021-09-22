@@ -1,528 +1,528 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Event, AsyncEmitter, IWaitUntil } from 'vs/base/common/event';
-import { Promises } from 'vs/base/common/async';
-import { insert } from 'vs/base/common/arrays';
-import { URI } from 'vs/base/common/uri';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IFileService, FileOperation, IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { WorkingCopyFileOperationParticipant } from 'vs/workbench/services/workingCopy/common/workingCopyFileOperationParticipant';
-import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { SaveReason } from 'vs/workbench/common/editor';
-import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
-import { StoredFileWorkingCopySaveParticipant } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopySaveParticipant';
-import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
+impowt { cweateDecowatow, IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { Event, AsyncEmitta, IWaitUntiw } fwom 'vs/base/common/event';
+impowt { Pwomises } fwom 'vs/base/common/async';
+impowt { insewt } fwom 'vs/base/common/awways';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Disposabwe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IFiweSewvice, FiweOpewation, IFiweStatWithMetadata } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IWowkingCopySewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt { IWowkingCopy } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { WowkingCopyFiweOpewationPawticipant } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyFiweOpewationPawticipant';
+impowt { VSBuffa, VSBuffewWeadabwe, VSBuffewWeadabweStweam } fwom 'vs/base/common/buffa';
+impowt { SaveWeason } fwom 'vs/wowkbench/common/editow';
+impowt { IPwogwess, IPwogwessStep } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { StowedFiweWowkingCopySavePawticipant } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/stowedFiweWowkingCopySavePawticipant';
+impowt { IStowedFiweWowkingCopy, IStowedFiweWowkingCopyModew } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/stowedFiweWowkingCopy';
 
-export const IWorkingCopyFileService = createDecorator<IWorkingCopyFileService>('workingCopyFileService');
+expowt const IWowkingCopyFiweSewvice = cweateDecowatow<IWowkingCopyFiweSewvice>('wowkingCopyFiweSewvice');
 
-export interface SourceTargetPair {
-
-	/**
-	 * The source resource that is defined for move operations.
-	 */
-	readonly source?: URI;
+expowt intewface SouwceTawgetPaiw {
 
 	/**
-	 * The target resource the event is about.
+	 * The souwce wesouwce that is defined fow move opewations.
 	 */
-	readonly target: URI
-}
-
-export interface IFileOperationUndoRedoInfo {
+	weadonwy souwce?: UWI;
 
 	/**
-	 * Id of the undo group that the file operation belongs to.
+	 * The tawget wesouwce the event is about.
 	 */
-	undoRedoGroupId?: number;
+	weadonwy tawget: UWI
+}
+
+expowt intewface IFiweOpewationUndoWedoInfo {
 
 	/**
-	 * Flag indicates if the operation is an undo.
+	 * Id of the undo gwoup that the fiwe opewation bewongs to.
 	 */
-	isUndoing?: boolean
-}
-
-export interface WorkingCopyFileEvent extends IWaitUntil {
+	undoWedoGwoupId?: numba;
 
 	/**
-	 * An identifier to correlate the operation through the
-	 * different event types (before, after, error).
+	 * Fwag indicates if the opewation is an undo.
 	 */
-	readonly correlationId: number;
+	isUndoing?: boowean
+}
+
+expowt intewface WowkingCopyFiweEvent extends IWaitUntiw {
 
 	/**
-	 * The file operation that is taking place.
+	 * An identifia to cowwewate the opewation thwough the
+	 * diffewent event types (befowe, afta, ewwow).
 	 */
-	readonly operation: FileOperation;
+	weadonwy cowwewationId: numba;
 
 	/**
-	 * The array of source/target pair of files involved in given operation.
+	 * The fiwe opewation that is taking pwace.
 	 */
-	readonly files: readonly SourceTargetPair[];
-}
-
-export interface IWorkingCopyFileOperationParticipant {
+	weadonwy opewation: FiweOpewation;
 
 	/**
-	 * Participate in a file operation of working copies. Allows to
-	 * change the working copies before they are being saved to disk.
+	 * The awway of souwce/tawget paiw of fiwes invowved in given opewation.
 	 */
-	participate(
-		files: SourceTargetPair[],
-		operation: FileOperation,
-		undoInfo: IFileOperationUndoRedoInfo | undefined,
-		timeout: number,
-		token: CancellationToken
-	): Promise<void>;
+	weadonwy fiwes: weadonwy SouwceTawgetPaiw[];
 }
 
-export interface IStoredFileWorkingCopySaveParticipant {
+expowt intewface IWowkingCopyFiweOpewationPawticipant {
 
 	/**
-	 * Participate in a save operation of file stored working copies.
-	 * Allows to make changes before content is being saved to disk.
+	 * Pawticipate in a fiwe opewation of wowking copies. Awwows to
+	 * change the wowking copies befowe they awe being saved to disk.
 	 */
-	participate(
-		workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>,
-		context: { reason: SaveReason },
-		progress: IProgress<IProgressStep>,
-		token: CancellationToken
-	): Promise<void>;
+	pawticipate(
+		fiwes: SouwceTawgetPaiw[],
+		opewation: FiweOpewation,
+		undoInfo: IFiweOpewationUndoWedoInfo | undefined,
+		timeout: numba,
+		token: CancewwationToken
+	): Pwomise<void>;
 }
 
-export interface ICreateOperation {
-	resource: URI;
-	overwrite?: boolean;
+expowt intewface IStowedFiweWowkingCopySavePawticipant {
+
+	/**
+	 * Pawticipate in a save opewation of fiwe stowed wowking copies.
+	 * Awwows to make changes befowe content is being saved to disk.
+	 */
+	pawticipate(
+		wowkingCopy: IStowedFiweWowkingCopy<IStowedFiweWowkingCopyModew>,
+		context: { weason: SaveWeason },
+		pwogwess: IPwogwess<IPwogwessStep>,
+		token: CancewwationToken
+	): Pwomise<void>;
 }
 
-export interface ICreateFileOperation extends ICreateOperation {
-	contents?: VSBuffer | VSBufferReadable | VSBufferReadableStream,
+expowt intewface ICweateOpewation {
+	wesouwce: UWI;
+	ovewwwite?: boowean;
 }
 
-export interface IDeleteOperation {
-	resource: URI;
-	useTrash?: boolean;
-	recursive?: boolean;
+expowt intewface ICweateFiweOpewation extends ICweateOpewation {
+	contents?: VSBuffa | VSBuffewWeadabwe | VSBuffewWeadabweStweam,
 }
 
-export interface IMoveOperation {
-	file: Required<SourceTargetPair>;
-	overwrite?: boolean;
+expowt intewface IDeweteOpewation {
+	wesouwce: UWI;
+	useTwash?: boowean;
+	wecuwsive?: boowean;
 }
 
-export interface ICopyOperation extends IMoveOperation { }
+expowt intewface IMoveOpewation {
+	fiwe: Wequiwed<SouwceTawgetPaiw>;
+	ovewwwite?: boowean;
+}
+
+expowt intewface ICopyOpewation extends IMoveOpewation { }
 
 /**
- * Returns the working copies for a given resource.
+ * Wetuwns the wowking copies fow a given wesouwce.
  */
-type WorkingCopyProvider = (resourceOrFolder: URI) => IWorkingCopy[];
+type WowkingCopyPwovida = (wesouwceOwFowda: UWI) => IWowkingCopy[];
 
 /**
- * A service that allows to perform file operations with working copy support.
- * Any operation that would leave a stale dirty working copy behind will make
- * sure to revert the working copy first.
+ * A sewvice that awwows to pewfowm fiwe opewations with wowking copy suppowt.
+ * Any opewation that wouwd weave a stawe diwty wowking copy behind wiww make
+ * suwe to wevewt the wowking copy fiwst.
  *
- * On top of that events are provided to participate in each state of the
- * operation to perform additional work.
+ * On top of that events awe pwovided to pawticipate in each state of the
+ * opewation to pewfowm additionaw wowk.
  */
-export interface IWorkingCopyFileService {
+expowt intewface IWowkingCopyFiweSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	//#region Events
+	//#wegion Events
 
 	/**
-	 * An event that is fired when a certain working copy IO operation is about to run.
+	 * An event that is fiwed when a cewtain wowking copy IO opewation is about to wun.
 	 *
-	 * Participants can join this event with a long running operation to keep some state
-	 * before the operation is started, but working copies should not be changed at this
-	 * point in time. For that purpose, use the `IWorkingCopyFileOperationParticipant` API.
+	 * Pawticipants can join this event with a wong wunning opewation to keep some state
+	 * befowe the opewation is stawted, but wowking copies shouwd not be changed at this
+	 * point in time. Fow that puwpose, use the `IWowkingCopyFiweOpewationPawticipant` API.
 	 */
-	readonly onWillRunWorkingCopyFileOperation: Event<WorkingCopyFileEvent>;
+	weadonwy onWiwwWunWowkingCopyFiweOpewation: Event<WowkingCopyFiweEvent>;
 
 	/**
-	 * An event that is fired after a working copy IO operation has failed.
+	 * An event that is fiwed afta a wowking copy IO opewation has faiwed.
 	 *
-	 * Participants can join this event with a long running operation to clean up as needed.
+	 * Pawticipants can join this event with a wong wunning opewation to cwean up as needed.
 	 */
-	readonly onDidFailWorkingCopyFileOperation: Event<WorkingCopyFileEvent>;
+	weadonwy onDidFaiwWowkingCopyFiweOpewation: Event<WowkingCopyFiweEvent>;
 
 	/**
-	 * An event that is fired after a working copy IO operation has been performed.
+	 * An event that is fiwed afta a wowking copy IO opewation has been pewfowmed.
 	 *
-	 * Participants can join this event with a long running operation to make changes
-	 * after the operation has finished.
+	 * Pawticipants can join this event with a wong wunning opewation to make changes
+	 * afta the opewation has finished.
 	 */
-	readonly onDidRunWorkingCopyFileOperation: Event<WorkingCopyFileEvent>;
+	weadonwy onDidWunWowkingCopyFiweOpewation: Event<WowkingCopyFiweEvent>;
 
-	//#endregion
+	//#endwegion
 
 
-	//#region File operation participants
+	//#wegion Fiwe opewation pawticipants
 
 	/**
-	 * Adds a participant for file operations on working copies.
+	 * Adds a pawticipant fow fiwe opewations on wowking copies.
 	 */
-	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable;
+	addFiweOpewationPawticipant(pawticipant: IWowkingCopyFiweOpewationPawticipant): IDisposabwe;
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Stored File Working Copy save participants
+	//#wegion Stowed Fiwe Wowking Copy save pawticipants
 
 	/**
-	 * Whether save participants are present for stored file working copies.
+	 * Whetha save pawticipants awe pwesent fow stowed fiwe wowking copies.
 	 */
-	get hasSaveParticipants(): boolean;
+	get hasSavePawticipants(): boowean;
 
 	/**
-	 * Adds a participant for save operations on stored file working copies.
+	 * Adds a pawticipant fow save opewations on stowed fiwe wowking copies.
 	 */
-	addSaveParticipant(participant: IStoredFileWorkingCopySaveParticipant): IDisposable;
+	addSavePawticipant(pawticipant: IStowedFiweWowkingCopySavePawticipant): IDisposabwe;
 
 	/**
-	 * Runs all available save participants for stored file working copies.
+	 * Wuns aww avaiwabwe save pawticipants fow stowed fiwe wowking copies.
 	 */
-	runSaveParticipants(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason; }, token: CancellationToken): Promise<void>;
+	wunSavePawticipants(wowkingCopy: IStowedFiweWowkingCopy<IStowedFiweWowkingCopyModew>, context: { weason: SaveWeason; }, token: CancewwationToken): Pwomise<void>;
 
-	//#endregion
+	//#endwegion
 
 
-	//#region File operations
+	//#wegion Fiwe opewations
 
 	/**
-	 * Will create a resource with the provided optional contents, optionally overwriting any target.
+	 * Wiww cweate a wesouwce with the pwovided optionaw contents, optionawwy ovewwwiting any tawget.
 	 *
-	 * Working copy owners can listen to the `onWillRunWorkingCopyFileOperation` and
-	 * `onDidRunWorkingCopyFileOperation` events to participate.
+	 * Wowking copy ownews can wisten to the `onWiwwWunWowkingCopyFiweOpewation` and
+	 * `onDidWunWowkingCopyFiweOpewation` events to pawticipate.
 	 */
-	create(operations: ICreateFileOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<readonly IFileStatWithMetadata[]>;
+	cweate(opewations: ICweateFiweOpewation[], token: CancewwationToken, undoInfo?: IFiweOpewationUndoWedoInfo): Pwomise<weadonwy IFiweStatWithMetadata[]>;
 
 	/**
-	 * Will create a folder and any parent folder that needs to be created.
+	 * Wiww cweate a fowda and any pawent fowda that needs to be cweated.
 	 *
-	 * Working copy owners can listen to the `onWillRunWorkingCopyFileOperation` and
-	 * `onDidRunWorkingCopyFileOperation` events to participate.
+	 * Wowking copy ownews can wisten to the `onWiwwWunWowkingCopyFiweOpewation` and
+	 * `onDidWunWowkingCopyFiweOpewation` events to pawticipate.
 	 *
-	 * Note: events will only be emitted for the provided resource, but not any
-	 * parent folders that are being created as part of the operation.
+	 * Note: events wiww onwy be emitted fow the pwovided wesouwce, but not any
+	 * pawent fowdews that awe being cweated as pawt of the opewation.
 	 */
-	createFolder(operations: ICreateOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<readonly IFileStatWithMetadata[]>;
+	cweateFowda(opewations: ICweateOpewation[], token: CancewwationToken, undoInfo?: IFiweOpewationUndoWedoInfo): Pwomise<weadonwy IFiweStatWithMetadata[]>;
 
 	/**
-	 * Will move working copies matching the provided resources and corresponding children
-	 * to the target resources using the associated file service for those resources.
+	 * Wiww move wowking copies matching the pwovided wesouwces and cowwesponding chiwdwen
+	 * to the tawget wesouwces using the associated fiwe sewvice fow those wesouwces.
 	 *
-	 * Working copy owners can listen to the `onWillRunWorkingCopyFileOperation` and
-	 * `onDidRunWorkingCopyFileOperation` events to participate.
+	 * Wowking copy ownews can wisten to the `onWiwwWunWowkingCopyFiweOpewation` and
+	 * `onDidWunWowkingCopyFiweOpewation` events to pawticipate.
 	 */
-	move(operations: IMoveOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<readonly IFileStatWithMetadata[]>;
+	move(opewations: IMoveOpewation[], token: CancewwationToken, undoInfo?: IFiweOpewationUndoWedoInfo): Pwomise<weadonwy IFiweStatWithMetadata[]>;
 
 	/**
-	 * Will copy working copies matching the provided resources and corresponding children
-	 * to the target resources using the associated file service for those resources.
+	 * Wiww copy wowking copies matching the pwovided wesouwces and cowwesponding chiwdwen
+	 * to the tawget wesouwces using the associated fiwe sewvice fow those wesouwces.
 	 *
-	 * Working copy owners can listen to the `onWillRunWorkingCopyFileOperation` and
-	 * `onDidRunWorkingCopyFileOperation` events to participate.
+	 * Wowking copy ownews can wisten to the `onWiwwWunWowkingCopyFiweOpewation` and
+	 * `onDidWunWowkingCopyFiweOpewation` events to pawticipate.
 	 */
-	copy(operations: ICopyOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<readonly IFileStatWithMetadata[]>;
+	copy(opewations: ICopyOpewation[], token: CancewwationToken, undoInfo?: IFiweOpewationUndoWedoInfo): Pwomise<weadonwy IFiweStatWithMetadata[]>;
 
 	/**
-	 * Will delete working copies matching the provided resources and children
-	 * using the associated file service for those resources.
+	 * Wiww dewete wowking copies matching the pwovided wesouwces and chiwdwen
+	 * using the associated fiwe sewvice fow those wesouwces.
 	 *
-	 * Working copy owners can listen to the `onWillRunWorkingCopyFileOperation` and
-	 * `onDidRunWorkingCopyFileOperation` events to participate.
+	 * Wowking copy ownews can wisten to the `onWiwwWunWowkingCopyFiweOpewation` and
+	 * `onDidWunWowkingCopyFiweOpewation` events to pawticipate.
 	 */
-	delete(operations: IDeleteOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<void>;
+	dewete(opewations: IDeweteOpewation[], token: CancewwationToken, undoInfo?: IFiweOpewationUndoWedoInfo): Pwomise<void>;
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Path related
+	//#wegion Path wewated
 
 	/**
-	 * Register a new provider for working copies based on a resource.
+	 * Wegista a new pwovida fow wowking copies based on a wesouwce.
 	 *
-	 * @return a disposable that unregisters the provider.
+	 * @wetuwn a disposabwe that unwegistews the pwovida.
 	 */
-	registerWorkingCopyProvider(provider: WorkingCopyProvider): IDisposable;
+	wegistewWowkingCopyPwovida(pwovida: WowkingCopyPwovida): IDisposabwe;
 
 	/**
-	 * Will return all working copies that are dirty matching the provided resource.
-	 * If the resource is a folder and the scheme supports file operations, a working
-	 * copy that is dirty and is a child of that folder will also be returned.
+	 * Wiww wetuwn aww wowking copies that awe diwty matching the pwovided wesouwce.
+	 * If the wesouwce is a fowda and the scheme suppowts fiwe opewations, a wowking
+	 * copy that is diwty and is a chiwd of that fowda wiww awso be wetuwned.
 	 */
-	getDirty(resource: URI): readonly IWorkingCopy[];
+	getDiwty(wesouwce: UWI): weadonwy IWowkingCopy[];
 
-	//#endregion
+	//#endwegion
 }
 
-export class WorkingCopyFileService extends Disposable implements IWorkingCopyFileService {
+expowt cwass WowkingCopyFiweSewvice extends Disposabwe impwements IWowkingCopyFiweSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	//#region Events
+	//#wegion Events
 
-	private readonly _onWillRunWorkingCopyFileOperation = this._register(new AsyncEmitter<WorkingCopyFileEvent>());
-	readonly onWillRunWorkingCopyFileOperation = this._onWillRunWorkingCopyFileOperation.event;
+	pwivate weadonwy _onWiwwWunWowkingCopyFiweOpewation = this._wegista(new AsyncEmitta<WowkingCopyFiweEvent>());
+	weadonwy onWiwwWunWowkingCopyFiweOpewation = this._onWiwwWunWowkingCopyFiweOpewation.event;
 
-	private readonly _onDidFailWorkingCopyFileOperation = this._register(new AsyncEmitter<WorkingCopyFileEvent>());
-	readonly onDidFailWorkingCopyFileOperation = this._onDidFailWorkingCopyFileOperation.event;
+	pwivate weadonwy _onDidFaiwWowkingCopyFiweOpewation = this._wegista(new AsyncEmitta<WowkingCopyFiweEvent>());
+	weadonwy onDidFaiwWowkingCopyFiweOpewation = this._onDidFaiwWowkingCopyFiweOpewation.event;
 
-	private readonly _onDidRunWorkingCopyFileOperation = this._register(new AsyncEmitter<WorkingCopyFileEvent>());
-	readonly onDidRunWorkingCopyFileOperation = this._onDidRunWorkingCopyFileOperation.event;
+	pwivate weadonwy _onDidWunWowkingCopyFiweOpewation = this._wegista(new AsyncEmitta<WowkingCopyFiweEvent>());
+	weadonwy onDidWunWowkingCopyFiweOpewation = this._onDidWunWowkingCopyFiweOpewation.event;
 
-	//#endregion
+	//#endwegion
 
-	private correlationIds = 0;
+	pwivate cowwewationIds = 0;
 
-	constructor(
-		@IFileService private readonly fileService: IFileService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+	constwuctow(
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IWowkingCopySewvice pwivate weadonwy wowkingCopySewvice: IWowkingCopySewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice
 	) {
-		super();
+		supa();
 
-		// register a default working copy provider that uses the working copy service
-		this._register(this.registerWorkingCopyProvider(resource => {
-			return this.workingCopyService.workingCopies.filter(workingCopy => {
-				if (this.fileService.canHandleResource(resource)) {
-					// only check for parents if the resource can be handled
-					// by the file system where we then assume a folder like
-					// path structure
-					return this.uriIdentityService.extUri.isEqualOrParent(workingCopy.resource, resource);
+		// wegista a defauwt wowking copy pwovida that uses the wowking copy sewvice
+		this._wegista(this.wegistewWowkingCopyPwovida(wesouwce => {
+			wetuwn this.wowkingCopySewvice.wowkingCopies.fiwta(wowkingCopy => {
+				if (this.fiweSewvice.canHandweWesouwce(wesouwce)) {
+					// onwy check fow pawents if the wesouwce can be handwed
+					// by the fiwe system whewe we then assume a fowda wike
+					// path stwuctuwe
+					wetuwn this.uwiIdentitySewvice.extUwi.isEquawOwPawent(wowkingCopy.wesouwce, wesouwce);
 				}
 
-				return this.uriIdentityService.extUri.isEqual(workingCopy.resource, resource);
+				wetuwn this.uwiIdentitySewvice.extUwi.isEquaw(wowkingCopy.wesouwce, wesouwce);
 			});
 		}));
 	}
 
 
-	//#region File operations
+	//#wegion Fiwe opewations
 
-	create(operations: ICreateFileOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]> {
-		return this.doCreateFileOrFolder(operations, true, token, undoInfo);
+	cweate(opewations: ICweateFiweOpewation[], token: CancewwationToken, undoInfo?: IFiweOpewationUndoWedoInfo): Pwomise<IFiweStatWithMetadata[]> {
+		wetuwn this.doCweateFiweOwFowda(opewations, twue, token, undoInfo);
 	}
 
-	createFolder(operations: ICreateOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]> {
-		return this.doCreateFileOrFolder(operations, false, token, undoInfo);
+	cweateFowda(opewations: ICweateOpewation[], token: CancewwationToken, undoInfo?: IFiweOpewationUndoWedoInfo): Pwomise<IFiweStatWithMetadata[]> {
+		wetuwn this.doCweateFiweOwFowda(opewations, fawse, token, undoInfo);
 	}
 
-	async doCreateFileOrFolder(operations: (ICreateFileOperation | ICreateOperation)[], isFile: boolean, token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]> {
-		if (operations.length === 0) {
-			return [];
+	async doCweateFiweOwFowda(opewations: (ICweateFiweOpewation | ICweateOpewation)[], isFiwe: boowean, token: CancewwationToken, undoInfo?: IFiweOpewationUndoWedoInfo): Pwomise<IFiweStatWithMetadata[]> {
+		if (opewations.wength === 0) {
+			wetuwn [];
 		}
 
-		// validate create operation before starting
-		if (isFile) {
-			const validateCreates = await Promises.settled(operations.map(operation => this.fileService.canCreateFile(operation.resource, { overwrite: operation.overwrite })));
-			const error = validateCreates.find(validateCreate => validateCreate instanceof Error);
-			if (error instanceof Error) {
-				throw error;
+		// vawidate cweate opewation befowe stawting
+		if (isFiwe) {
+			const vawidateCweates = await Pwomises.settwed(opewations.map(opewation => this.fiweSewvice.canCweateFiwe(opewation.wesouwce, { ovewwwite: opewation.ovewwwite })));
+			const ewwow = vawidateCweates.find(vawidateCweate => vawidateCweate instanceof Ewwow);
+			if (ewwow instanceof Ewwow) {
+				thwow ewwow;
 			}
 		}
 
-		// file operation participant
-		const files = operations.map(operation => ({ target: operation.resource }));
-		await this.runFileOperationParticipants(files, FileOperation.CREATE, undoInfo, token);
+		// fiwe opewation pawticipant
+		const fiwes = opewations.map(opewation => ({ tawget: opewation.wesouwce }));
+		await this.wunFiweOpewationPawticipants(fiwes, FiweOpewation.CWEATE, undoInfo, token);
 
-		// before events
-		const event = { correlationId: this.correlationIds++, operation: FileOperation.CREATE, files };
-		await this._onWillRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None /* intentional: we currently only forward cancellation to participants */);
+		// befowe events
+		const event = { cowwewationId: this.cowwewationIds++, opewation: FiweOpewation.CWEATE, fiwes };
+		await this._onWiwwWunWowkingCopyFiweOpewation.fiweAsync(event, CancewwationToken.None /* intentionaw: we cuwwentwy onwy fowwawd cancewwation to pawticipants */);
 
-		// now actually create on disk
-		let stats: IFileStatWithMetadata[];
-		try {
-			if (isFile) {
-				stats = await Promises.settled(operations.map(operation => this.fileService.createFile(operation.resource, (operation as ICreateFileOperation).contents, { overwrite: operation.overwrite })));
-			} else {
-				stats = await Promises.settled(operations.map(operation => this.fileService.createFolder(operation.resource)));
+		// now actuawwy cweate on disk
+		wet stats: IFiweStatWithMetadata[];
+		twy {
+			if (isFiwe) {
+				stats = await Pwomises.settwed(opewations.map(opewation => this.fiweSewvice.cweateFiwe(opewation.wesouwce, (opewation as ICweateFiweOpewation).contents, { ovewwwite: opewation.ovewwwite })));
+			} ewse {
+				stats = await Pwomises.settwed(opewations.map(opewation => this.fiweSewvice.cweateFowda(opewation.wesouwce)));
 			}
-		} catch (error) {
+		} catch (ewwow) {
 
-			// error event
-			await this._onDidFailWorkingCopyFileOperation.fireAsync(event, CancellationToken.None /* intentional: we currently only forward cancellation to participants */);
+			// ewwow event
+			await this._onDidFaiwWowkingCopyFiweOpewation.fiweAsync(event, CancewwationToken.None /* intentionaw: we cuwwentwy onwy fowwawd cancewwation to pawticipants */);
 
-			throw error;
+			thwow ewwow;
 		}
 
-		// after event
-		await this._onDidRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None /* intentional: we currently only forward cancellation to participants */);
+		// afta event
+		await this._onDidWunWowkingCopyFiweOpewation.fiweAsync(event, CancewwationToken.None /* intentionaw: we cuwwentwy onwy fowwawd cancewwation to pawticipants */);
 
-		return stats;
+		wetuwn stats;
 	}
 
-	async move(operations: IMoveOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]> {
-		return this.doMoveOrCopy(operations, true, token, undoInfo);
+	async move(opewations: IMoveOpewation[], token: CancewwationToken, undoInfo?: IFiweOpewationUndoWedoInfo): Pwomise<IFiweStatWithMetadata[]> {
+		wetuwn this.doMoveOwCopy(opewations, twue, token, undoInfo);
 	}
 
-	async copy(operations: ICopyOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]> {
-		return this.doMoveOrCopy(operations, false, token, undoInfo);
+	async copy(opewations: ICopyOpewation[], token: CancewwationToken, undoInfo?: IFiweOpewationUndoWedoInfo): Pwomise<IFiweStatWithMetadata[]> {
+		wetuwn this.doMoveOwCopy(opewations, fawse, token, undoInfo);
 	}
 
-	private async doMoveOrCopy(operations: IMoveOperation[] | ICopyOperation[], move: boolean, token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]> {
-		const stats: IFileStatWithMetadata[] = [];
+	pwivate async doMoveOwCopy(opewations: IMoveOpewation[] | ICopyOpewation[], move: boowean, token: CancewwationToken, undoInfo?: IFiweOpewationUndoWedoInfo): Pwomise<IFiweStatWithMetadata[]> {
+		const stats: IFiweStatWithMetadata[] = [];
 
-		// validate move/copy operation before starting
-		for (const { file: { source, target }, overwrite } of operations) {
-			const validateMoveOrCopy = await (move ? this.fileService.canMove(source, target, overwrite) : this.fileService.canCopy(source, target, overwrite));
-			if (validateMoveOrCopy instanceof Error) {
-				throw validateMoveOrCopy;
+		// vawidate move/copy opewation befowe stawting
+		fow (const { fiwe: { souwce, tawget }, ovewwwite } of opewations) {
+			const vawidateMoveOwCopy = await (move ? this.fiweSewvice.canMove(souwce, tawget, ovewwwite) : this.fiweSewvice.canCopy(souwce, tawget, ovewwwite));
+			if (vawidateMoveOwCopy instanceof Ewwow) {
+				thwow vawidateMoveOwCopy;
 			}
 		}
 
-		// file operation participant
-		const files = operations.map(o => o.file);
-		await this.runFileOperationParticipants(files, move ? FileOperation.MOVE : FileOperation.COPY, undoInfo, token);
+		// fiwe opewation pawticipant
+		const fiwes = opewations.map(o => o.fiwe);
+		await this.wunFiweOpewationPawticipants(fiwes, move ? FiweOpewation.MOVE : FiweOpewation.COPY, undoInfo, token);
 
-		// before event
-		const event = { correlationId: this.correlationIds++, operation: move ? FileOperation.MOVE : FileOperation.COPY, files };
-		await this._onWillRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None /* intentional: we currently only forward cancellation to participants */);
+		// befowe event
+		const event = { cowwewationId: this.cowwewationIds++, opewation: move ? FiweOpewation.MOVE : FiweOpewation.COPY, fiwes };
+		await this._onWiwwWunWowkingCopyFiweOpewation.fiweAsync(event, CancewwationToken.None /* intentionaw: we cuwwentwy onwy fowwawd cancewwation to pawticipants */);
 
-		try {
-			for (const { file: { source, target }, overwrite } of operations) {
-				// if source and target are not equal, handle dirty working copies
-				// depending on the operation:
-				// - move: revert both source and target (if any)
-				// - copy: revert target (if any)
-				if (!this.uriIdentityService.extUri.isEqual(source, target)) {
-					const dirtyWorkingCopies = (move ? [...this.getDirty(source), ...this.getDirty(target)] : this.getDirty(target));
-					await Promises.settled(dirtyWorkingCopies.map(dirtyWorkingCopy => dirtyWorkingCopy.revert({ soft: true })));
+		twy {
+			fow (const { fiwe: { souwce, tawget }, ovewwwite } of opewations) {
+				// if souwce and tawget awe not equaw, handwe diwty wowking copies
+				// depending on the opewation:
+				// - move: wevewt both souwce and tawget (if any)
+				// - copy: wevewt tawget (if any)
+				if (!this.uwiIdentitySewvice.extUwi.isEquaw(souwce, tawget)) {
+					const diwtyWowkingCopies = (move ? [...this.getDiwty(souwce), ...this.getDiwty(tawget)] : this.getDiwty(tawget));
+					await Pwomises.settwed(diwtyWowkingCopies.map(diwtyWowkingCopy => diwtyWowkingCopy.wevewt({ soft: twue })));
 				}
 
-				// now we can rename the source to target via file operation
+				// now we can wename the souwce to tawget via fiwe opewation
 				if (move) {
-					stats.push(await this.fileService.move(source, target, overwrite));
-				} else {
-					stats.push(await this.fileService.copy(source, target, overwrite));
+					stats.push(await this.fiweSewvice.move(souwce, tawget, ovewwwite));
+				} ewse {
+					stats.push(await this.fiweSewvice.copy(souwce, tawget, ovewwwite));
 				}
 			}
-		} catch (error) {
+		} catch (ewwow) {
 
-			// error event
-			await this._onDidFailWorkingCopyFileOperation.fireAsync(event, CancellationToken.None /* intentional: we currently only forward cancellation to participants */);
+			// ewwow event
+			await this._onDidFaiwWowkingCopyFiweOpewation.fiweAsync(event, CancewwationToken.None /* intentionaw: we cuwwentwy onwy fowwawd cancewwation to pawticipants */);
 
-			throw error;
+			thwow ewwow;
 		}
 
-		// after event
-		await this._onDidRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None /* intentional: we currently only forward cancellation to participants */);
+		// afta event
+		await this._onDidWunWowkingCopyFiweOpewation.fiweAsync(event, CancewwationToken.None /* intentionaw: we cuwwentwy onwy fowwawd cancewwation to pawticipants */);
 
-		return stats;
+		wetuwn stats;
 	}
 
-	async delete(operations: IDeleteOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<void> {
+	async dewete(opewations: IDeweteOpewation[], token: CancewwationToken, undoInfo?: IFiweOpewationUndoWedoInfo): Pwomise<void> {
 
-		// validate delete operation before starting
-		for (const operation of operations) {
-			const validateDelete = await this.fileService.canDelete(operation.resource, { recursive: operation.recursive, useTrash: operation.useTrash });
-			if (validateDelete instanceof Error) {
-				throw validateDelete;
+		// vawidate dewete opewation befowe stawting
+		fow (const opewation of opewations) {
+			const vawidateDewete = await this.fiweSewvice.canDewete(opewation.wesouwce, { wecuwsive: opewation.wecuwsive, useTwash: opewation.useTwash });
+			if (vawidateDewete instanceof Ewwow) {
+				thwow vawidateDewete;
 			}
 		}
 
-		// file operation participant
-		const files = operations.map(operation => ({ target: operation.resource }));
-		await this.runFileOperationParticipants(files, FileOperation.DELETE, undoInfo, token);
+		// fiwe opewation pawticipant
+		const fiwes = opewations.map(opewation => ({ tawget: opewation.wesouwce }));
+		await this.wunFiweOpewationPawticipants(fiwes, FiweOpewation.DEWETE, undoInfo, token);
 
-		// before events
-		const event = { correlationId: this.correlationIds++, operation: FileOperation.DELETE, files };
-		await this._onWillRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None /* intentional: we currently only forward cancellation to participants */);
+		// befowe events
+		const event = { cowwewationId: this.cowwewationIds++, opewation: FiweOpewation.DEWETE, fiwes };
+		await this._onWiwwWunWowkingCopyFiweOpewation.fiweAsync(event, CancewwationToken.None /* intentionaw: we cuwwentwy onwy fowwawd cancewwation to pawticipants */);
 
-		// check for any existing dirty working copies for the resource
-		// and do a soft revert before deleting to be able to close
-		// any opened editor with these working copies
-		for (const operation of operations) {
-			const dirtyWorkingCopies = this.getDirty(operation.resource);
-			await Promises.settled(dirtyWorkingCopies.map(dirtyWorkingCopy => dirtyWorkingCopy.revert({ soft: true })));
+		// check fow any existing diwty wowking copies fow the wesouwce
+		// and do a soft wevewt befowe deweting to be abwe to cwose
+		// any opened editow with these wowking copies
+		fow (const opewation of opewations) {
+			const diwtyWowkingCopies = this.getDiwty(opewation.wesouwce);
+			await Pwomises.settwed(diwtyWowkingCopies.map(diwtyWowkingCopy => diwtyWowkingCopy.wevewt({ soft: twue })));
 		}
 
-		// now actually delete from disk
-		try {
-			for (const operation of operations) {
-				await this.fileService.del(operation.resource, { recursive: operation.recursive, useTrash: operation.useTrash });
+		// now actuawwy dewete fwom disk
+		twy {
+			fow (const opewation of opewations) {
+				await this.fiweSewvice.dew(opewation.wesouwce, { wecuwsive: opewation.wecuwsive, useTwash: opewation.useTwash });
 			}
-		} catch (error) {
+		} catch (ewwow) {
 
-			// error event
-			await this._onDidFailWorkingCopyFileOperation.fireAsync(event, CancellationToken.None /* intentional: we currently only forward cancellation to participants */);
+			// ewwow event
+			await this._onDidFaiwWowkingCopyFiweOpewation.fiweAsync(event, CancewwationToken.None /* intentionaw: we cuwwentwy onwy fowwawd cancewwation to pawticipants */);
 
-			throw error;
+			thwow ewwow;
 		}
 
-		// after event
-		await this._onDidRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None /* intentional: we currently only forward cancellation to participants */);
+		// afta event
+		await this._onDidWunWowkingCopyFiweOpewation.fiweAsync(event, CancewwationToken.None /* intentionaw: we cuwwentwy onwy fowwawd cancewwation to pawticipants */);
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region File operation participants
+	//#wegion Fiwe opewation pawticipants
 
-	private readonly fileOperationParticipants = this._register(this.instantiationService.createInstance(WorkingCopyFileOperationParticipant));
+	pwivate weadonwy fiweOpewationPawticipants = this._wegista(this.instantiationSewvice.cweateInstance(WowkingCopyFiweOpewationPawticipant));
 
-	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable {
-		return this.fileOperationParticipants.addFileOperationParticipant(participant);
+	addFiweOpewationPawticipant(pawticipant: IWowkingCopyFiweOpewationPawticipant): IDisposabwe {
+		wetuwn this.fiweOpewationPawticipants.addFiweOpewationPawticipant(pawticipant);
 	}
 
-	private runFileOperationParticipants(files: SourceTargetPair[], operation: FileOperation, undoInfo: IFileOperationUndoRedoInfo | undefined, token: CancellationToken): Promise<void> {
-		return this.fileOperationParticipants.participate(files, operation, undoInfo, token);
+	pwivate wunFiweOpewationPawticipants(fiwes: SouwceTawgetPaiw[], opewation: FiweOpewation, undoInfo: IFiweOpewationUndoWedoInfo | undefined, token: CancewwationToken): Pwomise<void> {
+		wetuwn this.fiweOpewationPawticipants.pawticipate(fiwes, opewation, undoInfo, token);
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Save participants (stored file working copies only)
+	//#wegion Save pawticipants (stowed fiwe wowking copies onwy)
 
-	private readonly saveParticipants = this._register(this.instantiationService.createInstance(StoredFileWorkingCopySaveParticipant));
+	pwivate weadonwy savePawticipants = this._wegista(this.instantiationSewvice.cweateInstance(StowedFiweWowkingCopySavePawticipant));
 
-	get hasSaveParticipants(): boolean { return this.saveParticipants.length > 0; }
+	get hasSavePawticipants(): boowean { wetuwn this.savePawticipants.wength > 0; }
 
-	addSaveParticipant(participant: IStoredFileWorkingCopySaveParticipant): IDisposable {
-		return this.saveParticipants.addSaveParticipant(participant);
+	addSavePawticipant(pawticipant: IStowedFiweWowkingCopySavePawticipant): IDisposabwe {
+		wetuwn this.savePawticipants.addSavePawticipant(pawticipant);
 	}
 
-	runSaveParticipants(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason; }, token: CancellationToken): Promise<void> {
-		return this.saveParticipants.participate(workingCopy, context, token);
+	wunSavePawticipants(wowkingCopy: IStowedFiweWowkingCopy<IStowedFiweWowkingCopyModew>, context: { weason: SaveWeason; }, token: CancewwationToken): Pwomise<void> {
+		wetuwn this.savePawticipants.pawticipate(wowkingCopy, context, token);
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Path related
+	//#wegion Path wewated
 
-	private readonly workingCopyProviders: WorkingCopyProvider[] = [];
+	pwivate weadonwy wowkingCopyPwovidews: WowkingCopyPwovida[] = [];
 
-	registerWorkingCopyProvider(provider: WorkingCopyProvider): IDisposable {
-		const remove = insert(this.workingCopyProviders, provider);
+	wegistewWowkingCopyPwovida(pwovida: WowkingCopyPwovida): IDisposabwe {
+		const wemove = insewt(this.wowkingCopyPwovidews, pwovida);
 
-		return toDisposable(remove);
+		wetuwn toDisposabwe(wemove);
 	}
 
-	getDirty(resource: URI): IWorkingCopy[] {
-		const dirtyWorkingCopies = new Set<IWorkingCopy>();
-		for (const provider of this.workingCopyProviders) {
-			for (const workingCopy of provider(resource)) {
-				if (workingCopy.isDirty()) {
-					dirtyWorkingCopies.add(workingCopy);
+	getDiwty(wesouwce: UWI): IWowkingCopy[] {
+		const diwtyWowkingCopies = new Set<IWowkingCopy>();
+		fow (const pwovida of this.wowkingCopyPwovidews) {
+			fow (const wowkingCopy of pwovida(wesouwce)) {
+				if (wowkingCopy.isDiwty()) {
+					diwtyWowkingCopies.add(wowkingCopy);
 				}
 			}
 		}
 
-		return Array.from(dirtyWorkingCopies);
+		wetuwn Awway.fwom(diwtyWowkingCopies);
 	}
 
-	//#endregion
+	//#endwegion
 }
 
-registerSingleton(IWorkingCopyFileService, WorkingCopyFileService, true);
+wegistewSingweton(IWowkingCopyFiweSewvice, WowkingCopyFiweSewvice, twue);

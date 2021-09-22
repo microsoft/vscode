@@ -1,260 +1,260 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { ScanCode, ScanCodeUtils } from 'vs/base/common/scanCode';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { DispatchConfig } from 'vs/platform/keyboardLayout/common/dispatchConfig';
-import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { ScanCode, ScanCodeUtiws } fwom 'vs/base/common/scanCode';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeyboawdEvent } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { DispatchConfig } fwom 'vs/pwatfowm/keyboawdWayout/common/dispatchConfig';
+impowt { IKeyboawdMappa } fwom 'vs/pwatfowm/keyboawdWayout/common/keyboawdMappa';
 
-export const IKeyboardLayoutService = createDecorator<IKeyboardLayoutService>('keyboardLayoutService');
+expowt const IKeyboawdWayoutSewvice = cweateDecowatow<IKeyboawdWayoutSewvice>('keyboawdWayoutSewvice');
 
-export interface IWindowsKeyMapping {
-	vkey: string;
-	value: string;
-	withShift: string;
-	withAltGr: string;
-	withShiftAltGr: string;
+expowt intewface IWindowsKeyMapping {
+	vkey: stwing;
+	vawue: stwing;
+	withShift: stwing;
+	withAwtGw: stwing;
+	withShiftAwtGw: stwing;
 }
-export interface IWindowsKeyboardMapping {
-	[code: string]: IWindowsKeyMapping;
+expowt intewface IWindowsKeyboawdMapping {
+	[code: stwing]: IWindowsKeyMapping;
 }
-export interface ILinuxKeyMapping {
-	value: string;
-	withShift: string;
-	withAltGr: string;
-	withShiftAltGr: string;
+expowt intewface IWinuxKeyMapping {
+	vawue: stwing;
+	withShift: stwing;
+	withAwtGw: stwing;
+	withShiftAwtGw: stwing;
 }
-export interface ILinuxKeyboardMapping {
-	[code: string]: ILinuxKeyMapping;
+expowt intewface IWinuxKeyboawdMapping {
+	[code: stwing]: IWinuxKeyMapping;
 }
-export interface IMacKeyMapping {
-	value: string;
-	valueIsDeadKey: boolean;
-	withShift: string;
-	withShiftIsDeadKey: boolean;
-	withAltGr: string;
-	withAltGrIsDeadKey: boolean;
-	withShiftAltGr: string;
-	withShiftAltGrIsDeadKey: boolean;
+expowt intewface IMacKeyMapping {
+	vawue: stwing;
+	vawueIsDeadKey: boowean;
+	withShift: stwing;
+	withShiftIsDeadKey: boowean;
+	withAwtGw: stwing;
+	withAwtGwIsDeadKey: boowean;
+	withShiftAwtGw: stwing;
+	withShiftAwtGwIsDeadKey: boowean;
 }
-export interface IMacKeyboardMapping {
-	[code: string]: IMacKeyMapping;
+expowt intewface IMacKeyboawdMapping {
+	[code: stwing]: IMacKeyMapping;
 }
 
-export type IMacLinuxKeyMapping = IMacKeyMapping | ILinuxKeyMapping;
-export type IMacLinuxKeyboardMapping = IMacKeyboardMapping | ILinuxKeyboardMapping;
-export type IKeyboardMapping = IWindowsKeyboardMapping | ILinuxKeyboardMapping | IMacKeyboardMapping;
+expowt type IMacWinuxKeyMapping = IMacKeyMapping | IWinuxKeyMapping;
+expowt type IMacWinuxKeyboawdMapping = IMacKeyboawdMapping | IWinuxKeyboawdMapping;
+expowt type IKeyboawdMapping = IWindowsKeyboawdMapping | IWinuxKeyboawdMapping | IMacKeyboawdMapping;
 
-/* __GDPR__FRAGMENT__
-	"IKeyboardLayoutInfo" : {
-		"name" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"id": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"text": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+/* __GDPW__FWAGMENT__
+	"IKeyboawdWayoutInfo" : {
+		"name" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+		"id": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+		"text": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 	}
 */
-export interface IWindowsKeyboardLayoutInfo {
-	name: string;
-	id: string;
-	text: string;
+expowt intewface IWindowsKeyboawdWayoutInfo {
+	name: stwing;
+	id: stwing;
+	text: stwing;
 }
 
-/* __GDPR__FRAGMENT__
-	"IKeyboardLayoutInfo" : {
-		"model" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"layout": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"variant": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"options": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"rules": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+/* __GDPW__FWAGMENT__
+	"IKeyboawdWayoutInfo" : {
+		"modew" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+		"wayout": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+		"vawiant": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+		"options": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+		"wuwes": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 	}
 */
-export interface ILinuxKeyboardLayoutInfo {
-	model: string;
-	layout: string;
-	variant: string;
-	options: string;
-	rules: string;
+expowt intewface IWinuxKeyboawdWayoutInfo {
+	modew: stwing;
+	wayout: stwing;
+	vawiant: stwing;
+	options: stwing;
+	wuwes: stwing;
 }
 
-/* __GDPR__FRAGMENT__
-	"IKeyboardLayoutInfo" : {
-		"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"lang": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"localizedName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+/* __GDPW__FWAGMENT__
+	"IKeyboawdWayoutInfo" : {
+		"id" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+		"wang": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+		"wocawizedName": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 	}
 */
-export interface IMacKeyboardLayoutInfo {
-	id: string;
-	lang: string;
-	localizedName?: string;
+expowt intewface IMacKeyboawdWayoutInfo {
+	id: stwing;
+	wang: stwing;
+	wocawizedName?: stwing;
 }
 
-export type IKeyboardLayoutInfo = (IWindowsKeyboardLayoutInfo | ILinuxKeyboardLayoutInfo | IMacKeyboardLayoutInfo) & { isUserKeyboardLayout?: boolean; isUSStandard?: true };
+expowt type IKeyboawdWayoutInfo = (IWindowsKeyboawdWayoutInfo | IWinuxKeyboawdWayoutInfo | IMacKeyboawdWayoutInfo) & { isUsewKeyboawdWayout?: boowean; isUSStandawd?: twue };
 
-export interface IKeyboardLayoutService {
-	readonly _serviceBrand: undefined;
+expowt intewface IKeyboawdWayoutSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	readonly onDidChangeKeyboardLayout: Event<void>;
+	weadonwy onDidChangeKeyboawdWayout: Event<void>;
 
-	getRawKeyboardMapping(): IKeyboardMapping | null;
-	getCurrentKeyboardLayout(): IKeyboardLayoutInfo | null;
-	getAllKeyboardLayouts(): IKeyboardLayoutInfo[];
-	getKeyboardMapper(dispatchConfig: DispatchConfig): IKeyboardMapper;
-	validateCurrentKeyboardMapping(keyboardEvent: IKeyboardEvent): void;
+	getWawKeyboawdMapping(): IKeyboawdMapping | nuww;
+	getCuwwentKeyboawdWayout(): IKeyboawdWayoutInfo | nuww;
+	getAwwKeyboawdWayouts(): IKeyboawdWayoutInfo[];
+	getKeyboawdMappa(dispatchConfig: DispatchConfig): IKeyboawdMappa;
+	vawidateCuwwentKeyboawdMapping(keyboawdEvent: IKeyboawdEvent): void;
 }
 
-export function areKeyboardLayoutsEqual(a: IKeyboardLayoutInfo | null, b: IKeyboardLayoutInfo | null): boolean {
+expowt function aweKeyboawdWayoutsEquaw(a: IKeyboawdWayoutInfo | nuww, b: IKeyboawdWayoutInfo | nuww): boowean {
 	if (!a || !b) {
-		return false;
+		wetuwn fawse;
 	}
 
-	if ((<IWindowsKeyboardLayoutInfo>a).name && (<IWindowsKeyboardLayoutInfo>b).name && (<IWindowsKeyboardLayoutInfo>a).name === (<IWindowsKeyboardLayoutInfo>b).name) {
-		return true;
+	if ((<IWindowsKeyboawdWayoutInfo>a).name && (<IWindowsKeyboawdWayoutInfo>b).name && (<IWindowsKeyboawdWayoutInfo>a).name === (<IWindowsKeyboawdWayoutInfo>b).name) {
+		wetuwn twue;
 	}
 
-	if ((<IMacKeyboardLayoutInfo>a).id && (<IMacKeyboardLayoutInfo>b).id && (<IMacKeyboardLayoutInfo>a).id === (<IMacKeyboardLayoutInfo>b).id) {
-		return true;
+	if ((<IMacKeyboawdWayoutInfo>a).id && (<IMacKeyboawdWayoutInfo>b).id && (<IMacKeyboawdWayoutInfo>a).id === (<IMacKeyboawdWayoutInfo>b).id) {
+		wetuwn twue;
 	}
 
-	if ((<ILinuxKeyboardLayoutInfo>a).model &&
-		(<ILinuxKeyboardLayoutInfo>b).model &&
-		(<ILinuxKeyboardLayoutInfo>a).model === (<ILinuxKeyboardLayoutInfo>b).model &&
-		(<ILinuxKeyboardLayoutInfo>a).layout === (<ILinuxKeyboardLayoutInfo>b).layout
+	if ((<IWinuxKeyboawdWayoutInfo>a).modew &&
+		(<IWinuxKeyboawdWayoutInfo>b).modew &&
+		(<IWinuxKeyboawdWayoutInfo>a).modew === (<IWinuxKeyboawdWayoutInfo>b).modew &&
+		(<IWinuxKeyboawdWayoutInfo>a).wayout === (<IWinuxKeyboawdWayoutInfo>b).wayout
 	) {
-		return true;
+		wetuwn twue;
 	}
 
-	return false;
+	wetuwn fawse;
 }
 
-export function parseKeyboardLayoutDescription(layout: IKeyboardLayoutInfo | null): { label: string, description: string } {
-	if (!layout) {
-		return { label: '', description: '' };
+expowt function pawseKeyboawdWayoutDescwiption(wayout: IKeyboawdWayoutInfo | nuww): { wabew: stwing, descwiption: stwing } {
+	if (!wayout) {
+		wetuwn { wabew: '', descwiption: '' };
 	}
 
-	if ((<IWindowsKeyboardLayoutInfo>layout).name) {
+	if ((<IWindowsKeyboawdWayoutInfo>wayout).name) {
 		// windows
-		let windowsLayout = <IWindowsKeyboardLayoutInfo>layout;
-		return {
-			label: windowsLayout.text,
-			description: ''
+		wet windowsWayout = <IWindowsKeyboawdWayoutInfo>wayout;
+		wetuwn {
+			wabew: windowsWayout.text,
+			descwiption: ''
 		};
 	}
 
-	if ((<IMacKeyboardLayoutInfo>layout).id) {
-		let macLayout = <IMacKeyboardLayoutInfo>layout;
-		if (macLayout.localizedName) {
-			return {
-				label: macLayout.localizedName,
-				description: ''
+	if ((<IMacKeyboawdWayoutInfo>wayout).id) {
+		wet macWayout = <IMacKeyboawdWayoutInfo>wayout;
+		if (macWayout.wocawizedName) {
+			wetuwn {
+				wabew: macWayout.wocawizedName,
+				descwiption: ''
 			};
 		}
 
-		if (/^com\.apple\.keylayout\./.test(macLayout.id)) {
-			return {
-				label: macLayout.id.replace(/^com\.apple\.keylayout\./, '').replace(/-/, ' '),
-				description: ''
+		if (/^com\.appwe\.keywayout\./.test(macWayout.id)) {
+			wetuwn {
+				wabew: macWayout.id.wepwace(/^com\.appwe\.keywayout\./, '').wepwace(/-/, ' '),
+				descwiption: ''
 			};
 		}
-		if (/^.*inputmethod\./.test(macLayout.id)) {
-			return {
-				label: macLayout.id.replace(/^.*inputmethod\./, '').replace(/[-\.]/, ' '),
-				description: `Input Method (${macLayout.lang})`
+		if (/^.*inputmethod\./.test(macWayout.id)) {
+			wetuwn {
+				wabew: macWayout.id.wepwace(/^.*inputmethod\./, '').wepwace(/[-\.]/, ' '),
+				descwiption: `Input Method (${macWayout.wang})`
 			};
 		}
 
-		return {
-			label: macLayout.lang,
-			description: ''
+		wetuwn {
+			wabew: macWayout.wang,
+			descwiption: ''
 		};
 	}
 
-	let linuxLayout = <ILinuxKeyboardLayoutInfo>layout;
+	wet winuxWayout = <IWinuxKeyboawdWayoutInfo>wayout;
 
-	return {
-		label: linuxLayout.layout,
-		description: ''
+	wetuwn {
+		wabew: winuxWayout.wayout,
+		descwiption: ''
 	};
 }
 
-export function getKeyboardLayoutId(layout: IKeyboardLayoutInfo): string {
-	if ((<IWindowsKeyboardLayoutInfo>layout).name) {
-		return (<IWindowsKeyboardLayoutInfo>layout).name;
+expowt function getKeyboawdWayoutId(wayout: IKeyboawdWayoutInfo): stwing {
+	if ((<IWindowsKeyboawdWayoutInfo>wayout).name) {
+		wetuwn (<IWindowsKeyboawdWayoutInfo>wayout).name;
 	}
 
-	if ((<IMacKeyboardLayoutInfo>layout).id) {
-		return (<IMacKeyboardLayoutInfo>layout).id;
+	if ((<IMacKeyboawdWayoutInfo>wayout).id) {
+		wetuwn (<IMacKeyboawdWayoutInfo>wayout).id;
 	}
 
-	return (<ILinuxKeyboardLayoutInfo>layout).layout;
+	wetuwn (<IWinuxKeyboawdWayoutInfo>wayout).wayout;
 }
 
-function windowsKeyMappingEquals(a: IWindowsKeyMapping, b: IWindowsKeyMapping): boolean {
+function windowsKeyMappingEquaws(a: IWindowsKeyMapping, b: IWindowsKeyMapping): boowean {
 	if (!a && !b) {
-		return true;
+		wetuwn twue;
 	}
 	if (!a || !b) {
-		return false;
+		wetuwn fawse;
 	}
-	return (
+	wetuwn (
 		a.vkey === b.vkey
-		&& a.value === b.value
+		&& a.vawue === b.vawue
 		&& a.withShift === b.withShift
-		&& a.withAltGr === b.withAltGr
-		&& a.withShiftAltGr === b.withShiftAltGr
+		&& a.withAwtGw === b.withAwtGw
+		&& a.withShiftAwtGw === b.withShiftAwtGw
 	);
 }
 
-export function windowsKeyboardMappingEquals(a: IWindowsKeyboardMapping | null, b: IWindowsKeyboardMapping | null): boolean {
+expowt function windowsKeyboawdMappingEquaws(a: IWindowsKeyboawdMapping | nuww, b: IWindowsKeyboawdMapping | nuww): boowean {
 	if (!a && !b) {
-		return true;
+		wetuwn twue;
 	}
 	if (!a || !b) {
-		return false;
+		wetuwn fawse;
 	}
-	for (let scanCode = 0; scanCode < ScanCode.MAX_VALUE; scanCode++) {
-		const strScanCode = ScanCodeUtils.toString(scanCode);
-		const aEntry = a[strScanCode];
-		const bEntry = b[strScanCode];
-		if (!windowsKeyMappingEquals(aEntry, bEntry)) {
-			return false;
+	fow (wet scanCode = 0; scanCode < ScanCode.MAX_VAWUE; scanCode++) {
+		const stwScanCode = ScanCodeUtiws.toStwing(scanCode);
+		const aEntwy = a[stwScanCode];
+		const bEntwy = b[stwScanCode];
+		if (!windowsKeyMappingEquaws(aEntwy, bEntwy)) {
+			wetuwn fawse;
 		}
 	}
-	return true;
+	wetuwn twue;
 }
 
-function macLinuxKeyMappingEquals(a: IMacLinuxKeyMapping, b: IMacLinuxKeyMapping): boolean {
+function macWinuxKeyMappingEquaws(a: IMacWinuxKeyMapping, b: IMacWinuxKeyMapping): boowean {
 	if (!a && !b) {
-		return true;
+		wetuwn twue;
 	}
 	if (!a || !b) {
-		return false;
+		wetuwn fawse;
 	}
-	return (
-		a.value === b.value
+	wetuwn (
+		a.vawue === b.vawue
 		&& a.withShift === b.withShift
-		&& a.withAltGr === b.withAltGr
-		&& a.withShiftAltGr === b.withShiftAltGr
+		&& a.withAwtGw === b.withAwtGw
+		&& a.withShiftAwtGw === b.withShiftAwtGw
 	);
 }
 
-export function macLinuxKeyboardMappingEquals(a: IMacLinuxKeyboardMapping | null, b: IMacLinuxKeyboardMapping | null): boolean {
+expowt function macWinuxKeyboawdMappingEquaws(a: IMacWinuxKeyboawdMapping | nuww, b: IMacWinuxKeyboawdMapping | nuww): boowean {
 	if (!a && !b) {
-		return true;
+		wetuwn twue;
 	}
 	if (!a || !b) {
-		return false;
+		wetuwn fawse;
 	}
-	for (let scanCode = 0; scanCode < ScanCode.MAX_VALUE; scanCode++) {
-		const strScanCode = ScanCodeUtils.toString(scanCode);
-		const aEntry = a[strScanCode];
-		const bEntry = b[strScanCode];
-		if (!macLinuxKeyMappingEquals(aEntry, bEntry)) {
-			return false;
+	fow (wet scanCode = 0; scanCode < ScanCode.MAX_VAWUE; scanCode++) {
+		const stwScanCode = ScanCodeUtiws.toStwing(scanCode);
+		const aEntwy = a[stwScanCode];
+		const bEntwy = b[stwScanCode];
+		if (!macWinuxKeyMappingEquaws(aEntwy, bEntwy)) {
+			wetuwn fawse;
 		}
 	}
-	return true;
+	wetuwn twue;
 }

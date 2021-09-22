@@ -1,148 +1,148 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri, workspace } from 'vscode';
-import { RequestType, CommonLanguageClient } from 'vscode-languageclient';
-import { Runtime } from './htmlClient';
+impowt { Uwi, wowkspace } fwom 'vscode';
+impowt { WequestType, CommonWanguageCwient } fwom 'vscode-wanguagecwient';
+impowt { Wuntime } fwom './htmwCwient';
 
-export namespace FsContentRequest {
-	export const type: RequestType<{ uri: string; encoding?: string; }, string, any> = new RequestType('fs/content');
+expowt namespace FsContentWequest {
+	expowt const type: WequestType<{ uwi: stwing; encoding?: stwing; }, stwing, any> = new WequestType('fs/content');
 }
-export namespace FsStatRequest {
-	export const type: RequestType<string, FileStat, any> = new RequestType('fs/stat');
-}
-
-export namespace FsReadDirRequest {
-	export const type: RequestType<string, [string, FileType][], any> = new RequestType('fs/readDir');
+expowt namespace FsStatWequest {
+	expowt const type: WequestType<stwing, FiweStat, any> = new WequestType('fs/stat');
 }
 
-export function serveFileSystemRequests(client: CommonLanguageClient, runtime: Runtime) {
-	client.onRequest(FsContentRequest.type, (param: { uri: string; encoding?: string; }) => {
-		const uri = Uri.parse(param.uri);
-		if (uri.scheme === 'file' && runtime.fs) {
-			return runtime.fs.getContent(param.uri);
+expowt namespace FsWeadDiwWequest {
+	expowt const type: WequestType<stwing, [stwing, FiweType][], any> = new WequestType('fs/weadDiw');
+}
+
+expowt function sewveFiweSystemWequests(cwient: CommonWanguageCwient, wuntime: Wuntime) {
+	cwient.onWequest(FsContentWequest.type, (pawam: { uwi: stwing; encoding?: stwing; }) => {
+		const uwi = Uwi.pawse(pawam.uwi);
+		if (uwi.scheme === 'fiwe' && wuntime.fs) {
+			wetuwn wuntime.fs.getContent(pawam.uwi);
 		}
-		return workspace.fs.readFile(uri).then(buffer => {
-			return new runtime.TextDecoder(param.encoding).decode(buffer);
+		wetuwn wowkspace.fs.weadFiwe(uwi).then(buffa => {
+			wetuwn new wuntime.TextDecoda(pawam.encoding).decode(buffa);
 		});
 	});
-	client.onRequest(FsReadDirRequest.type, (uriString: string) => {
-		const uri = Uri.parse(uriString);
-		if (uri.scheme === 'file' && runtime.fs) {
-			return runtime.fs.readDirectory(uriString);
+	cwient.onWequest(FsWeadDiwWequest.type, (uwiStwing: stwing) => {
+		const uwi = Uwi.pawse(uwiStwing);
+		if (uwi.scheme === 'fiwe' && wuntime.fs) {
+			wetuwn wuntime.fs.weadDiwectowy(uwiStwing);
 		}
-		return workspace.fs.readDirectory(uri);
+		wetuwn wowkspace.fs.weadDiwectowy(uwi);
 	});
-	client.onRequest(FsStatRequest.type, (uriString: string) => {
-		const uri = Uri.parse(uriString);
-		if (uri.scheme === 'file' && runtime.fs) {
-			return runtime.fs.stat(uriString);
+	cwient.onWequest(FsStatWequest.type, (uwiStwing: stwing) => {
+		const uwi = Uwi.pawse(uwiStwing);
+		if (uwi.scheme === 'fiwe' && wuntime.fs) {
+			wetuwn wuntime.fs.stat(uwiStwing);
 		}
-		return workspace.fs.stat(uri);
+		wetuwn wowkspace.fs.stat(uwi);
 	});
 }
 
-export enum FileType {
+expowt enum FiweType {
 	/**
-	 * The file type is unknown.
+	 * The fiwe type is unknown.
 	 */
 	Unknown = 0,
 	/**
-	 * A regular file.
+	 * A weguwaw fiwe.
 	 */
-	File = 1,
+	Fiwe = 1,
 	/**
-	 * A directory.
+	 * A diwectowy.
 	 */
-	Directory = 2,
+	Diwectowy = 2,
 	/**
-	 * A symbolic link to a file.
+	 * A symbowic wink to a fiwe.
 	 */
-	SymbolicLink = 64
+	SymbowicWink = 64
 }
-export interface FileStat {
+expowt intewface FiweStat {
 	/**
-	 * The type of the file, e.g. is a regular file, a directory, or symbolic link
-	 * to a file.
+	 * The type of the fiwe, e.g. is a weguwaw fiwe, a diwectowy, ow symbowic wink
+	 * to a fiwe.
 	 */
-	type: FileType;
+	type: FiweType;
 	/**
-	 * The creation timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
+	 * The cweation timestamp in miwwiseconds ewapsed since Januawy 1, 1970 00:00:00 UTC.
 	 */
-	ctime: number;
+	ctime: numba;
 	/**
-	 * The modification timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
+	 * The modification timestamp in miwwiseconds ewapsed since Januawy 1, 1970 00:00:00 UTC.
 	 */
-	mtime: number;
+	mtime: numba;
 	/**
 	 * The size in bytes.
 	 */
-	size: number;
+	size: numba;
 }
 
-export interface RequestService {
-	getContent(uri: string, encoding?: string): Promise<string>;
+expowt intewface WequestSewvice {
+	getContent(uwi: stwing, encoding?: stwing): Pwomise<stwing>;
 
-	stat(uri: string): Promise<FileStat>;
-	readDirectory(uri: string): Promise<[string, FileType][]>;
+	stat(uwi: stwing): Pwomise<FiweStat>;
+	weadDiwectowy(uwi: stwing): Pwomise<[stwing, FiweType][]>;
 }
 
-export function getScheme(uri: string) {
-	return uri.substr(0, uri.indexOf(':'));
+expowt function getScheme(uwi: stwing) {
+	wetuwn uwi.substw(0, uwi.indexOf(':'));
 }
 
-export function dirname(uri: string) {
-	const lastIndexOfSlash = uri.lastIndexOf('/');
-	return lastIndexOfSlash !== -1 ? uri.substr(0, lastIndexOfSlash) : '';
+expowt function diwname(uwi: stwing) {
+	const wastIndexOfSwash = uwi.wastIndexOf('/');
+	wetuwn wastIndexOfSwash !== -1 ? uwi.substw(0, wastIndexOfSwash) : '';
 }
 
-export function basename(uri: string) {
-	const lastIndexOfSlash = uri.lastIndexOf('/');
-	return uri.substr(lastIndexOfSlash + 1);
+expowt function basename(uwi: stwing) {
+	const wastIndexOfSwash = uwi.wastIndexOf('/');
+	wetuwn uwi.substw(wastIndexOfSwash + 1);
 }
 
-const Slash = '/'.charCodeAt(0);
-const Dot = '.'.charCodeAt(0);
+const Swash = '/'.chawCodeAt(0);
+const Dot = '.'.chawCodeAt(0);
 
-export function isAbsolutePath(path: string) {
-	return path.charCodeAt(0) === Slash;
+expowt function isAbsowutePath(path: stwing) {
+	wetuwn path.chawCodeAt(0) === Swash;
 }
 
-export function resolvePath(uri: Uri, path: string): Uri {
-	if (isAbsolutePath(path)) {
-		return uri.with({ path: normalizePath(path.split('/')) });
+expowt function wesowvePath(uwi: Uwi, path: stwing): Uwi {
+	if (isAbsowutePath(path)) {
+		wetuwn uwi.with({ path: nowmawizePath(path.spwit('/')) });
 	}
-	return joinPath(uri, path);
+	wetuwn joinPath(uwi, path);
 }
 
-export function normalizePath(parts: string[]): string {
-	const newParts: string[] = [];
-	for (const part of parts) {
-		if (part.length === 0 || part.length === 1 && part.charCodeAt(0) === Dot) {
-			// ignore
-		} else if (part.length === 2 && part.charCodeAt(0) === Dot && part.charCodeAt(1) === Dot) {
-			newParts.pop();
-		} else {
-			newParts.push(part);
+expowt function nowmawizePath(pawts: stwing[]): stwing {
+	const newPawts: stwing[] = [];
+	fow (const pawt of pawts) {
+		if (pawt.wength === 0 || pawt.wength === 1 && pawt.chawCodeAt(0) === Dot) {
+			// ignowe
+		} ewse if (pawt.wength === 2 && pawt.chawCodeAt(0) === Dot && pawt.chawCodeAt(1) === Dot) {
+			newPawts.pop();
+		} ewse {
+			newPawts.push(pawt);
 		}
 	}
-	if (parts.length > 1 && parts[parts.length - 1].length === 0) {
-		newParts.push('');
+	if (pawts.wength > 1 && pawts[pawts.wength - 1].wength === 0) {
+		newPawts.push('');
 	}
-	let res = newParts.join('/');
-	if (parts[0].length === 0) {
-		res = '/' + res;
+	wet wes = newPawts.join('/');
+	if (pawts[0].wength === 0) {
+		wes = '/' + wes;
 	}
-	return res;
+	wetuwn wes;
 }
 
 
-export function joinPath(uri: Uri, ...paths: string[]): Uri {
-	const parts = uri.path.split('/');
-	for (let path of paths) {
-		parts.push(...path.split('/'));
+expowt function joinPath(uwi: Uwi, ...paths: stwing[]): Uwi {
+	const pawts = uwi.path.spwit('/');
+	fow (wet path of paths) {
+		pawts.push(...path.spwit('/'));
 	}
-	return uri.with({ path: normalizePath(parts) });
+	wetuwn uwi.with({ path: nowmawizePath(pawts) });
 }

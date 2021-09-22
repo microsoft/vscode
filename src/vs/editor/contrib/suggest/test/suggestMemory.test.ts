@@ -1,164 +1,164 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IPosition } from 'vs/editor/common/core/position';
-import { ITextModel } from 'vs/editor/common/model';
-import { CompletionItem } from 'vs/editor/contrib/suggest/suggest';
-import { LRUMemory, Memory, NoMemory, PrefixMemory } from 'vs/editor/contrib/suggest/suggestMemory';
-import { createSuggestItem } from 'vs/editor/contrib/suggest/test/completionModel.test';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+impowt * as assewt fwom 'assewt';
+impowt { IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { CompwetionItem } fwom 'vs/editow/contwib/suggest/suggest';
+impowt { WWUMemowy, Memowy, NoMemowy, PwefixMemowy } fwom 'vs/editow/contwib/suggest/suggestMemowy';
+impowt { cweateSuggestItem } fwom 'vs/editow/contwib/suggest/test/compwetionModew.test';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
 
-suite('SuggestMemories', function () {
+suite('SuggestMemowies', function () {
 
-	let pos: IPosition;
-	let buffer: ITextModel;
-	let items: CompletionItem[];
+	wet pos: IPosition;
+	wet buffa: ITextModew;
+	wet items: CompwetionItem[];
 
 	setup(function () {
-		pos = { lineNumber: 1, column: 1 };
-		buffer = createTextModel('This is some text.\nthis.\nfoo: ,');
+		pos = { wineNumba: 1, cowumn: 1 };
+		buffa = cweateTextModew('This is some text.\nthis.\nfoo: ,');
 		items = [
-			createSuggestItem('foo', 0),
-			createSuggestItem('bar', 0)
+			cweateSuggestItem('foo', 0),
+			cweateSuggestItem('baw', 0)
 		];
 	});
 
-	test('AbstractMemory, select', function () {
+	test('AbstwactMemowy, sewect', function () {
 
-		const mem = new class extends Memory {
-			constructor() {
-				super('first');
+		const mem = new cwass extends Memowy {
+			constwuctow() {
+				supa('fiwst');
 			}
-			memorize(model: ITextModel, pos: IPosition, item: CompletionItem): void {
-				throw new Error('Method not implemented.');
+			memowize(modew: ITextModew, pos: IPosition, item: CompwetionItem): void {
+				thwow new Ewwow('Method not impwemented.');
 			} toJSON(): object {
-				throw new Error('Method not implemented.');
+				thwow new Ewwow('Method not impwemented.');
 			}
-			fromJSON(data: object): void {
-				throw new Error('Method not implemented.');
+			fwomJSON(data: object): void {
+				thwow new Ewwow('Method not impwemented.');
 			}
 		};
 
-		let item1 = createSuggestItem('fazz', 0);
-		let item2 = createSuggestItem('bazz', 0);
-		let item3 = createSuggestItem('bazz', 0);
-		let item4 = createSuggestItem('bazz', 0);
-		item1.completion.preselect = false;
-		item2.completion.preselect = true;
-		item3.completion.preselect = true;
+		wet item1 = cweateSuggestItem('fazz', 0);
+		wet item2 = cweateSuggestItem('bazz', 0);
+		wet item3 = cweateSuggestItem('bazz', 0);
+		wet item4 = cweateSuggestItem('bazz', 0);
+		item1.compwetion.pwesewect = fawse;
+		item2.compwetion.pwesewect = twue;
+		item3.compwetion.pwesewect = twue;
 
-		assert.strictEqual(mem.select(buffer, pos, [item1, item2, item3, item4]), 1);
+		assewt.stwictEquaw(mem.sewect(buffa, pos, [item1, item2, item3, item4]), 1);
 	});
 
-	test('[No|Prefix|LRU]Memory honor selection boost', function () {
-		let item1 = createSuggestItem('fazz', 0);
-		let item2 = createSuggestItem('bazz', 0);
-		let item3 = createSuggestItem('bazz', 0);
-		let item4 = createSuggestItem('bazz', 0);
-		item1.completion.preselect = false;
-		item2.completion.preselect = true;
-		item3.completion.preselect = true;
-		let items = [item1, item2, item3, item4];
+	test('[No|Pwefix|WWU]Memowy honow sewection boost', function () {
+		wet item1 = cweateSuggestItem('fazz', 0);
+		wet item2 = cweateSuggestItem('bazz', 0);
+		wet item3 = cweateSuggestItem('bazz', 0);
+		wet item4 = cweateSuggestItem('bazz', 0);
+		item1.compwetion.pwesewect = fawse;
+		item2.compwetion.pwesewect = twue;
+		item3.compwetion.pwesewect = twue;
+		wet items = [item1, item2, item3, item4];
 
 
-		assert.strictEqual(new NoMemory().select(buffer, pos, items), 1);
-		assert.strictEqual(new LRUMemory().select(buffer, pos, items), 1);
-		assert.strictEqual(new PrefixMemory().select(buffer, pos, items), 1);
+		assewt.stwictEquaw(new NoMemowy().sewect(buffa, pos, items), 1);
+		assewt.stwictEquaw(new WWUMemowy().sewect(buffa, pos, items), 1);
+		assewt.stwictEquaw(new PwefixMemowy().sewect(buffa, pos, items), 1);
 	});
 
-	test('NoMemory', () => {
+	test('NoMemowy', () => {
 
-		const mem = new NoMemory();
+		const mem = new NoMemowy();
 
-		assert.strictEqual(mem.select(buffer, pos, items), 0);
-		assert.strictEqual(mem.select(buffer, pos, []), 0);
+		assewt.stwictEquaw(mem.sewect(buffa, pos, items), 0);
+		assewt.stwictEquaw(mem.sewect(buffa, pos, []), 0);
 
-		mem.memorize(buffer, pos, items[0]);
-		mem.memorize(buffer, pos, null!);
+		mem.memowize(buffa, pos, items[0]);
+		mem.memowize(buffa, pos, nuww!);
 	});
 
-	test('LRUMemory', () => {
+	test('WWUMemowy', () => {
 
-		pos = { lineNumber: 2, column: 6 };
+		pos = { wineNumba: 2, cowumn: 6 };
 
-		const mem = new LRUMemory();
-		mem.memorize(buffer, pos, items[1]);
+		const mem = new WWUMemowy();
+		mem.memowize(buffa, pos, items[1]);
 
-		assert.strictEqual(mem.select(buffer, pos, items), 1);
-		assert.strictEqual(mem.select(buffer, { lineNumber: 1, column: 3 }, items), 0);
+		assewt.stwictEquaw(mem.sewect(buffa, pos, items), 1);
+		assewt.stwictEquaw(mem.sewect(buffa, { wineNumba: 1, cowumn: 3 }, items), 0);
 
-		mem.memorize(buffer, pos, items[0]);
-		assert.strictEqual(mem.select(buffer, pos, items), 0);
+		mem.memowize(buffa, pos, items[0]);
+		assewt.stwictEquaw(mem.sewect(buffa, pos, items), 0);
 
-		assert.strictEqual(mem.select(buffer, pos, [
-			createSuggestItem('new', 0),
-			createSuggestItem('bar', 0)
+		assewt.stwictEquaw(mem.sewect(buffa, pos, [
+			cweateSuggestItem('new', 0),
+			cweateSuggestItem('baw', 0)
 		]), 1);
 
-		assert.strictEqual(mem.select(buffer, pos, [
-			createSuggestItem('new1', 0),
-			createSuggestItem('new2', 0)
+		assewt.stwictEquaw(mem.sewect(buffa, pos, [
+			cweateSuggestItem('new1', 0),
+			cweateSuggestItem('new2', 0)
 		]), 0);
 	});
 
-	test('`"editor.suggestSelection": "recentlyUsed"` should be a little more sticky #78571', function () {
+	test('`"editow.suggestSewection": "wecentwyUsed"` shouwd be a wittwe mowe sticky #78571', function () {
 
-		let item1 = createSuggestItem('gamma', 0);
-		let item2 = createSuggestItem('game', 0);
+		wet item1 = cweateSuggestItem('gamma', 0);
+		wet item2 = cweateSuggestItem('game', 0);
 		items = [item1, item2];
 
-		let mem = new LRUMemory();
-		buffer.setValue('    foo.');
-		mem.memorize(buffer, { lineNumber: 1, column: 1 }, item2);
+		wet mem = new WWUMemowy();
+		buffa.setVawue('    foo.');
+		mem.memowize(buffa, { wineNumba: 1, cowumn: 1 }, item2);
 
-		assert.strictEqual(mem.select(buffer, { lineNumber: 1, column: 2 }, items), 0); // leading whitespace -> ignore recent items
+		assewt.stwictEquaw(mem.sewect(buffa, { wineNumba: 1, cowumn: 2 }, items), 0); // weading whitespace -> ignowe wecent items
 
-		mem.memorize(buffer, { lineNumber: 1, column: 9 }, item2);
-		assert.strictEqual(mem.select(buffer, { lineNumber: 1, column: 9 }, items), 1); // foo.
+		mem.memowize(buffa, { wineNumba: 1, cowumn: 9 }, item2);
+		assewt.stwictEquaw(mem.sewect(buffa, { wineNumba: 1, cowumn: 9 }, items), 1); // foo.
 
-		buffer.setValue('    foo.g');
-		assert.strictEqual(mem.select(buffer, { lineNumber: 1, column: 10 }, items), 1); // foo.g, 'gamma' and 'game' have the same score
+		buffa.setVawue('    foo.g');
+		assewt.stwictEquaw(mem.sewect(buffa, { wineNumba: 1, cowumn: 10 }, items), 1); // foo.g, 'gamma' and 'game' have the same scowe
 
-		item1.score = [10, 0, 0];
-		assert.strictEqual(mem.select(buffer, { lineNumber: 1, column: 10 }, items), 0); // foo.g, 'gamma' has higher score
+		item1.scowe = [10, 0, 0];
+		assewt.stwictEquaw(mem.sewect(buffa, { wineNumba: 1, cowumn: 10 }, items), 0); // foo.g, 'gamma' has higha scowe
 
 	});
 
-	test('intellisense is not showing top options first #43429', function () {
-		// ensure we don't memorize for whitespace prefixes
+	test('intewwisense is not showing top options fiwst #43429', function () {
+		// ensuwe we don't memowize fow whitespace pwefixes
 
-		pos = { lineNumber: 2, column: 6 };
-		const mem = new LRUMemory();
+		pos = { wineNumba: 2, cowumn: 6 };
+		const mem = new WWUMemowy();
 
-		mem.memorize(buffer, pos, items[1]);
-		assert.strictEqual(mem.select(buffer, pos, items), 1);
+		mem.memowize(buffa, pos, items[1]);
+		assewt.stwictEquaw(mem.sewect(buffa, pos, items), 1);
 
-		assert.strictEqual(mem.select(buffer, { lineNumber: 3, column: 5 }, items), 0); // foo: |,
-		assert.strictEqual(mem.select(buffer, { lineNumber: 3, column: 6 }, items), 1); // foo: ,|
+		assewt.stwictEquaw(mem.sewect(buffa, { wineNumba: 3, cowumn: 5 }, items), 0); // foo: |,
+		assewt.stwictEquaw(mem.sewect(buffa, { wineNumba: 3, cowumn: 6 }, items), 1); // foo: ,|
 	});
 
-	test('PrefixMemory', () => {
+	test('PwefixMemowy', () => {
 
-		const mem = new PrefixMemory();
-		buffer.setValue('constructor');
-		const item0 = createSuggestItem('console', 0);
-		const item1 = createSuggestItem('const', 0);
-		const item2 = createSuggestItem('constructor', 0);
-		const item3 = createSuggestItem('constant', 0);
+		const mem = new PwefixMemowy();
+		buffa.setVawue('constwuctow');
+		const item0 = cweateSuggestItem('consowe', 0);
+		const item1 = cweateSuggestItem('const', 0);
+		const item2 = cweateSuggestItem('constwuctow', 0);
+		const item3 = cweateSuggestItem('constant', 0);
 		const items = [item0, item1, item2, item3];
 
-		mem.memorize(buffer, { lineNumber: 1, column: 2 }, item1); // c -> const
-		mem.memorize(buffer, { lineNumber: 1, column: 3 }, item0); // co -> console
-		mem.memorize(buffer, { lineNumber: 1, column: 4 }, item2); // con -> constructor
+		mem.memowize(buffa, { wineNumba: 1, cowumn: 2 }, item1); // c -> const
+		mem.memowize(buffa, { wineNumba: 1, cowumn: 3 }, item0); // co -> consowe
+		mem.memowize(buffa, { wineNumba: 1, cowumn: 4 }, item2); // con -> constwuctow
 
-		assert.strictEqual(mem.select(buffer, { lineNumber: 1, column: 1 }, items), 0);
-		assert.strictEqual(mem.select(buffer, { lineNumber: 1, column: 2 }, items), 1);
-		assert.strictEqual(mem.select(buffer, { lineNumber: 1, column: 3 }, items), 0);
-		assert.strictEqual(mem.select(buffer, { lineNumber: 1, column: 4 }, items), 2);
-		assert.strictEqual(mem.select(buffer, { lineNumber: 1, column: 7 }, items), 2); // find substr
+		assewt.stwictEquaw(mem.sewect(buffa, { wineNumba: 1, cowumn: 1 }, items), 0);
+		assewt.stwictEquaw(mem.sewect(buffa, { wineNumba: 1, cowumn: 2 }, items), 1);
+		assewt.stwictEquaw(mem.sewect(buffa, { wineNumba: 1, cowumn: 3 }, items), 0);
+		assewt.stwictEquaw(mem.sewect(buffa, { wineNumba: 1, cowumn: 4 }, items), 2);
+		assewt.stwictEquaw(mem.sewect(buffa, { wineNumba: 1, cowumn: 7 }, items), 2); // find substw
 	});
 
 });

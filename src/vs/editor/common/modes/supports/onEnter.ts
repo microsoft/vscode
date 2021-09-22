@@ -1,135 +1,135 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
-import * as strings from 'vs/base/common/strings';
-import { CharacterPair, EnterAction, IndentAction, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
-import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { ChawactewPaiw, EntewAction, IndentAction, OnEntewWuwe } fwom 'vs/editow/common/modes/wanguageConfiguwation';
+impowt { EditowAutoIndentStwategy } fwom 'vs/editow/common/config/editowOptions';
 
-export interface IOnEnterSupportOptions {
-	brackets?: CharacterPair[];
-	onEnterRules?: OnEnterRule[];
+expowt intewface IOnEntewSuppowtOptions {
+	bwackets?: ChawactewPaiw[];
+	onEntewWuwes?: OnEntewWuwe[];
 }
 
-interface IProcessedBracketPair {
-	open: string;
-	close: string;
-	openRegExp: RegExp;
-	closeRegExp: RegExp;
+intewface IPwocessedBwacketPaiw {
+	open: stwing;
+	cwose: stwing;
+	openWegExp: WegExp;
+	cwoseWegExp: WegExp;
 }
 
-export class OnEnterSupport {
+expowt cwass OnEntewSuppowt {
 
-	private readonly _brackets: IProcessedBracketPair[];
-	private readonly _regExpRules: OnEnterRule[];
+	pwivate weadonwy _bwackets: IPwocessedBwacketPaiw[];
+	pwivate weadonwy _wegExpWuwes: OnEntewWuwe[];
 
-	constructor(opts: IOnEnterSupportOptions) {
+	constwuctow(opts: IOnEntewSuppowtOptions) {
 		opts = opts || {};
-		opts.brackets = opts.brackets || [
+		opts.bwackets = opts.bwackets || [
 			['(', ')'],
 			['{', '}'],
 			['[', ']']
 		];
 
-		this._brackets = [];
-		opts.brackets.forEach((bracket) => {
-			const openRegExp = OnEnterSupport._createOpenBracketRegExp(bracket[0]);
-			const closeRegExp = OnEnterSupport._createCloseBracketRegExp(bracket[1]);
-			if (openRegExp && closeRegExp) {
-				this._brackets.push({
-					open: bracket[0],
-					openRegExp: openRegExp,
-					close: bracket[1],
-					closeRegExp: closeRegExp,
+		this._bwackets = [];
+		opts.bwackets.fowEach((bwacket) => {
+			const openWegExp = OnEntewSuppowt._cweateOpenBwacketWegExp(bwacket[0]);
+			const cwoseWegExp = OnEntewSuppowt._cweateCwoseBwacketWegExp(bwacket[1]);
+			if (openWegExp && cwoseWegExp) {
+				this._bwackets.push({
+					open: bwacket[0],
+					openWegExp: openWegExp,
+					cwose: bwacket[1],
+					cwoseWegExp: cwoseWegExp,
 				});
 			}
 		});
-		this._regExpRules = opts.onEnterRules || [];
+		this._wegExpWuwes = opts.onEntewWuwes || [];
 	}
 
-	public onEnter(autoIndent: EditorAutoIndentStrategy, previousLineText: string, beforeEnterText: string, afterEnterText: string): EnterAction | null {
-		// (1): `regExpRules`
-		if (autoIndent >= EditorAutoIndentStrategy.Advanced) {
-			for (let i = 0, len = this._regExpRules.length; i < len; i++) {
-				let rule = this._regExpRules[i];
-				const regResult = [{
-					reg: rule.beforeText,
-					text: beforeEnterText
+	pubwic onEnta(autoIndent: EditowAutoIndentStwategy, pweviousWineText: stwing, befoweEntewText: stwing, aftewEntewText: stwing): EntewAction | nuww {
+		// (1): `wegExpWuwes`
+		if (autoIndent >= EditowAutoIndentStwategy.Advanced) {
+			fow (wet i = 0, wen = this._wegExpWuwes.wength; i < wen; i++) {
+				wet wuwe = this._wegExpWuwes[i];
+				const wegWesuwt = [{
+					weg: wuwe.befoweText,
+					text: befoweEntewText
 				}, {
-					reg: rule.afterText,
-					text: afterEnterText
+					weg: wuwe.aftewText,
+					text: aftewEntewText
 				}, {
-					reg: rule.previousLineText,
-					text: previousLineText
-				}].every((obj): boolean => {
-					if (!obj.reg) {
-						return true;
+					weg: wuwe.pweviousWineText,
+					text: pweviousWineText
+				}].evewy((obj): boowean => {
+					if (!obj.weg) {
+						wetuwn twue;
 					}
 
-					obj.reg.lastIndex = 0; // To disable the effect of the "g" flag.
-					return obj.reg.test(obj.text);
+					obj.weg.wastIndex = 0; // To disabwe the effect of the "g" fwag.
+					wetuwn obj.weg.test(obj.text);
 				});
 
-				if (regResult) {
-					return rule.action;
+				if (wegWesuwt) {
+					wetuwn wuwe.action;
 				}
 			}
 		}
 
-		// (2): Special indent-outdent
-		if (autoIndent >= EditorAutoIndentStrategy.Brackets) {
-			if (beforeEnterText.length > 0 && afterEnterText.length > 0) {
-				for (let i = 0, len = this._brackets.length; i < len; i++) {
-					let bracket = this._brackets[i];
-					if (bracket.openRegExp.test(beforeEnterText) && bracket.closeRegExp.test(afterEnterText)) {
-						return { indentAction: IndentAction.IndentOutdent };
+		// (2): Speciaw indent-outdent
+		if (autoIndent >= EditowAutoIndentStwategy.Bwackets) {
+			if (befoweEntewText.wength > 0 && aftewEntewText.wength > 0) {
+				fow (wet i = 0, wen = this._bwackets.wength; i < wen; i++) {
+					wet bwacket = this._bwackets[i];
+					if (bwacket.openWegExp.test(befoweEntewText) && bwacket.cwoseWegExp.test(aftewEntewText)) {
+						wetuwn { indentAction: IndentAction.IndentOutdent };
 					}
 				}
 			}
 		}
 
 
-		// (4): Open bracket based logic
-		if (autoIndent >= EditorAutoIndentStrategy.Brackets) {
-			if (beforeEnterText.length > 0) {
-				for (let i = 0, len = this._brackets.length; i < len; i++) {
-					let bracket = this._brackets[i];
-					if (bracket.openRegExp.test(beforeEnterText)) {
-						return { indentAction: IndentAction.Indent };
+		// (4): Open bwacket based wogic
+		if (autoIndent >= EditowAutoIndentStwategy.Bwackets) {
+			if (befoweEntewText.wength > 0) {
+				fow (wet i = 0, wen = this._bwackets.wength; i < wen; i++) {
+					wet bwacket = this._bwackets[i];
+					if (bwacket.openWegExp.test(befoweEntewText)) {
+						wetuwn { indentAction: IndentAction.Indent };
 					}
 				}
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	private static _createOpenBracketRegExp(bracket: string): RegExp | null {
-		let str = strings.escapeRegExpCharacters(bracket);
-		if (!/\B/.test(str.charAt(0))) {
-			str = '\\b' + str;
+	pwivate static _cweateOpenBwacketWegExp(bwacket: stwing): WegExp | nuww {
+		wet stw = stwings.escapeWegExpChawactews(bwacket);
+		if (!/\B/.test(stw.chawAt(0))) {
+			stw = '\\b' + stw;
 		}
-		str += '\\s*$';
-		return OnEnterSupport._safeRegExp(str);
+		stw += '\\s*$';
+		wetuwn OnEntewSuppowt._safeWegExp(stw);
 	}
 
-	private static _createCloseBracketRegExp(bracket: string): RegExp | null {
-		let str = strings.escapeRegExpCharacters(bracket);
-		if (!/\B/.test(str.charAt(str.length - 1))) {
-			str = str + '\\b';
+	pwivate static _cweateCwoseBwacketWegExp(bwacket: stwing): WegExp | nuww {
+		wet stw = stwings.escapeWegExpChawactews(bwacket);
+		if (!/\B/.test(stw.chawAt(stw.wength - 1))) {
+			stw = stw + '\\b';
 		}
-		str = '^\\s*' + str;
-		return OnEnterSupport._safeRegExp(str);
+		stw = '^\\s*' + stw;
+		wetuwn OnEntewSuppowt._safeWegExp(stw);
 	}
 
-	private static _safeRegExp(def: string): RegExp | null {
-		try {
-			return new RegExp(def);
-		} catch (err) {
-			onUnexpectedError(err);
-			return null;
+	pwivate static _safeWegExp(def: stwing): WegExp | nuww {
+		twy {
+			wetuwn new WegExp(def);
+		} catch (eww) {
+			onUnexpectedEwwow(eww);
+			wetuwn nuww;
 		}
 	}
 }

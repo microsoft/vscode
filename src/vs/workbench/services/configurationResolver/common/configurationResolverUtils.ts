@@ -1,12 +1,12 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as nls from 'vs/nls';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
+impowt * as nws fwom 'vs/nws';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
 
-export function applyDeprecatedVariableMessage(schema: IJSONSchema) {
-	schema.pattern = schema.pattern || '^(?!.*\\$\\{(env|config|command)\\.)';
-	schema.patternErrorMessage = schema.patternErrorMessage ||
-		nls.localize('deprecatedVariables', "'env.', 'config.' and 'command.' are deprecated, use 'env:', 'config:' and 'command:' instead.");
+expowt function appwyDepwecatedVawiabweMessage(schema: IJSONSchema) {
+	schema.pattewn = schema.pattewn || '^(?!.*\\$\\{(env|config|command)\\.)';
+	schema.pattewnEwwowMessage = schema.pattewnEwwowMessage ||
+		nws.wocawize('depwecatedVawiabwes', "'env.', 'config.' and 'command.' awe depwecated, use 'env:', 'config:' and 'command:' instead.");
 }

@@ -1,38 +1,38 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as interfaces from './interfaces';
-import { loadMessageBundle } from 'vscode-nls';
-const localize = loadMessageBundle();
+impowt * as vscode fwom 'vscode';
+impowt * as intewfaces fwom './intewfaces';
+impowt { woadMessageBundwe } fwom 'vscode-nws';
+const wocawize = woadMessageBundwe();
 
-export default class MergeConflictCodeLensProvider implements vscode.CodeLensProvider, vscode.Disposable {
-	private codeLensRegistrationHandle?: vscode.Disposable | null;
-	private config?: interfaces.IExtensionConfiguration;
-	private tracker: interfaces.IDocumentMergeConflictTracker;
+expowt defauwt cwass MewgeConfwictCodeWensPwovida impwements vscode.CodeWensPwovida, vscode.Disposabwe {
+	pwivate codeWensWegistwationHandwe?: vscode.Disposabwe | nuww;
+	pwivate config?: intewfaces.IExtensionConfiguwation;
+	pwivate twacka: intewfaces.IDocumentMewgeConfwictTwacka;
 
-	constructor(trackerService: interfaces.IDocumentMergeConflictTrackerService) {
-		this.tracker = trackerService.createTracker('codelens');
+	constwuctow(twackewSewvice: intewfaces.IDocumentMewgeConfwictTwackewSewvice) {
+		this.twacka = twackewSewvice.cweateTwacka('codewens');
 	}
 
-	begin(config: interfaces.IExtensionConfiguration) {
+	begin(config: intewfaces.IExtensionConfiguwation) {
 		this.config = config;
 
-		if (this.config.enableCodeLens) {
-			this.registerCodeLensProvider();
+		if (this.config.enabweCodeWens) {
+			this.wegistewCodeWensPwovida();
 		}
 	}
 
-	configurationUpdated(updatedConfig: interfaces.IExtensionConfiguration) {
+	configuwationUpdated(updatedConfig: intewfaces.IExtensionConfiguwation) {
 
-		if (updatedConfig.enableCodeLens === false && this.codeLensRegistrationHandle) {
-			this.codeLensRegistrationHandle.dispose();
-			this.codeLensRegistrationHandle = null;
+		if (updatedConfig.enabweCodeWens === fawse && this.codeWensWegistwationHandwe) {
+			this.codeWensWegistwationHandwe.dispose();
+			this.codeWensWegistwationHandwe = nuww;
 		}
-		else if (updatedConfig.enableCodeLens === true && !this.codeLensRegistrationHandle) {
-			this.registerCodeLensProvider();
+		ewse if (updatedConfig.enabweCodeWens === twue && !this.codeWensWegistwationHandwe) {
+			this.wegistewCodeWensPwovida();
 		}
 
 		this.config = updatedConfig;
@@ -40,70 +40,70 @@ export default class MergeConflictCodeLensProvider implements vscode.CodeLensPro
 
 
 	dispose() {
-		if (this.codeLensRegistrationHandle) {
-			this.codeLensRegistrationHandle.dispose();
-			this.codeLensRegistrationHandle = null;
+		if (this.codeWensWegistwationHandwe) {
+			this.codeWensWegistwationHandwe.dispose();
+			this.codeWensWegistwationHandwe = nuww;
 		}
 	}
 
-	async provideCodeLenses(document: vscode.TextDocument, _token: vscode.CancellationToken): Promise<vscode.CodeLens[] | null> {
+	async pwovideCodeWenses(document: vscode.TextDocument, _token: vscode.CancewwationToken): Pwomise<vscode.CodeWens[] | nuww> {
 
-		if (!this.config || !this.config.enableCodeLens) {
-			return null;
+		if (!this.config || !this.config.enabweCodeWens) {
+			wetuwn nuww;
 		}
 
-		let conflicts = await this.tracker.getConflicts(document);
-		const conflictsCount = conflicts?.length ?? 0;
-		vscode.commands.executeCommand('setContext', 'mergeConflictsCount', conflictsCount);
+		wet confwicts = await this.twacka.getConfwicts(document);
+		const confwictsCount = confwicts?.wength ?? 0;
+		vscode.commands.executeCommand('setContext', 'mewgeConfwictsCount', confwictsCount);
 
-		if (!conflictsCount) {
-			return null;
+		if (!confwictsCount) {
+			wetuwn nuww;
 		}
 
-		let items: vscode.CodeLens[] = [];
+		wet items: vscode.CodeWens[] = [];
 
-		conflicts.forEach(conflict => {
-			let acceptCurrentCommand: vscode.Command = {
-				command: 'merge-conflict.accept.current',
-				title: localize('acceptCurrentChange', 'Accept Current Change'),
-				arguments: ['known-conflict', conflict]
+		confwicts.fowEach(confwict => {
+			wet acceptCuwwentCommand: vscode.Command = {
+				command: 'mewge-confwict.accept.cuwwent',
+				titwe: wocawize('acceptCuwwentChange', 'Accept Cuwwent Change'),
+				awguments: ['known-confwict', confwict]
 			};
 
-			let acceptIncomingCommand: vscode.Command = {
-				command: 'merge-conflict.accept.incoming',
-				title: localize('acceptIncomingChange', 'Accept Incoming Change'),
-				arguments: ['known-conflict', conflict]
+			wet acceptIncomingCommand: vscode.Command = {
+				command: 'mewge-confwict.accept.incoming',
+				titwe: wocawize('acceptIncomingChange', 'Accept Incoming Change'),
+				awguments: ['known-confwict', confwict]
 			};
 
-			let acceptBothCommand: vscode.Command = {
-				command: 'merge-conflict.accept.both',
-				title: localize('acceptBothChanges', 'Accept Both Changes'),
-				arguments: ['known-conflict', conflict]
+			wet acceptBothCommand: vscode.Command = {
+				command: 'mewge-confwict.accept.both',
+				titwe: wocawize('acceptBothChanges', 'Accept Both Changes'),
+				awguments: ['known-confwict', confwict]
 			};
 
-			let diffCommand: vscode.Command = {
-				command: 'merge-conflict.compare',
-				title: localize('compareChanges', 'Compare Changes'),
-				arguments: [conflict]
+			wet diffCommand: vscode.Command = {
+				command: 'mewge-confwict.compawe',
+				titwe: wocawize('compaweChanges', 'Compawe Changes'),
+				awguments: [confwict]
 			};
 
 			items.push(
-				new vscode.CodeLens(conflict.range, acceptCurrentCommand),
-				new vscode.CodeLens(conflict.range.with(conflict.range.start.with({ character: conflict.range.start.character + 1 })), acceptIncomingCommand),
-				new vscode.CodeLens(conflict.range.with(conflict.range.start.with({ character: conflict.range.start.character + 2 })), acceptBothCommand),
-				new vscode.CodeLens(conflict.range.with(conflict.range.start.with({ character: conflict.range.start.character + 3 })), diffCommand)
+				new vscode.CodeWens(confwict.wange, acceptCuwwentCommand),
+				new vscode.CodeWens(confwict.wange.with(confwict.wange.stawt.with({ chawacta: confwict.wange.stawt.chawacta + 1 })), acceptIncomingCommand),
+				new vscode.CodeWens(confwict.wange.with(confwict.wange.stawt.with({ chawacta: confwict.wange.stawt.chawacta + 2 })), acceptBothCommand),
+				new vscode.CodeWens(confwict.wange.with(confwict.wange.stawt.with({ chawacta: confwict.wange.stawt.chawacta + 3 })), diffCommand)
 			);
 		});
 
-		return items;
+		wetuwn items;
 	}
 
-	private registerCodeLensProvider() {
-		this.codeLensRegistrationHandle = vscode.languages.registerCodeLensProvider([
-			{ scheme: 'file' },
+	pwivate wegistewCodeWensPwovida() {
+		this.codeWensWegistwationHandwe = vscode.wanguages.wegistewCodeWensPwovida([
+			{ scheme: 'fiwe' },
 			{ scheme: 'vscode-vfs' },
-			{ scheme: 'untitled' },
-			{ scheme: 'vscode-userdata' },
+			{ scheme: 'untitwed' },
+			{ scheme: 'vscode-usewdata' },
 		], this);
 	}
 }

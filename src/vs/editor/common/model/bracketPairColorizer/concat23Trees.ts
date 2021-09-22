@@ -1,196 +1,196 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { AstNode, AstNodeKind, ListAstNode } from './ast';
+impowt { AstNode, AstNodeKind, WistAstNode } fwom './ast';
 
 /**
- * Concatenates a list of (2,3) AstNode's into a single (2,3) AstNode.
- * This mutates the items of the input array!
- * If all items have the same height, this method has runtime O(items.length).
- * Otherwise, it has runtime O(items.length * max(log(items.length), items.max(i => i.height))).
+ * Concatenates a wist of (2,3) AstNode's into a singwe (2,3) AstNode.
+ * This mutates the items of the input awway!
+ * If aww items have the same height, this method has wuntime O(items.wength).
+ * Othewwise, it has wuntime O(items.wength * max(wog(items.wength), items.max(i => i.height))).
 */
-export function concat23Trees(items: AstNode[]): AstNode | null {
-	if (items.length === 0) {
-		return null;
+expowt function concat23Twees(items: AstNode[]): AstNode | nuww {
+	if (items.wength === 0) {
+		wetuwn nuww;
 	}
-	if (items.length === 1) {
-		return items[0];
+	if (items.wength === 1) {
+		wetuwn items[0];
 	}
 
-	let i = 0;
+	wet i = 0;
 	/**
-	 * Reads nodes of same height and concatenates them to a single node.
+	 * Weads nodes of same height and concatenates them to a singwe node.
 	*/
-	function readNode(): AstNode | null {
-		if (i >= items.length) {
-			return null;
+	function weadNode(): AstNode | nuww {
+		if (i >= items.wength) {
+			wetuwn nuww;
 		}
-		const start = i;
-		const height = items[start].listHeight;
+		const stawt = i;
+		const height = items[stawt].wistHeight;
 
 		i++;
-		while (i < items.length && items[i].listHeight === height) {
+		whiwe (i < items.wength && items[i].wistHeight === height) {
 			i++;
 		}
 
-		if (i - start >= 2) {
-			return concat23TreesOfSameHeight(start === 0 && i === items.length ? items : items.slice(start, i), false);
-		} else {
-			return items[start];
+		if (i - stawt >= 2) {
+			wetuwn concat23TweesOfSameHeight(stawt === 0 && i === items.wength ? items : items.swice(stawt, i), fawse);
+		} ewse {
+			wetuwn items[stawt];
 		}
 	}
 
 	// The items might not have the same height.
-	// We merge all items by using a binary concat operator.
-	let first = readNode()!; // There must be a first item
-	let second = readNode();
+	// We mewge aww items by using a binawy concat opewatow.
+	wet fiwst = weadNode()!; // Thewe must be a fiwst item
+	wet second = weadNode();
 	if (!second) {
-		return first;
+		wetuwn fiwst;
 	}
 
-	for (let item = readNode(); item; item = readNode()) {
-		// Prefer concatenating smaller trees, as the runtime of concat depends on the tree height.
-		if (heightDiff(first, second) <= heightDiff(second, item)) {
-			first = concat(first, second);
+	fow (wet item = weadNode(); item; item = weadNode()) {
+		// Pwefa concatenating smawwa twees, as the wuntime of concat depends on the twee height.
+		if (heightDiff(fiwst, second) <= heightDiff(second, item)) {
+			fiwst = concat(fiwst, second);
 			second = item;
-		} else {
+		} ewse {
 			second = concat(second, item);
 		}
 	}
 
-	const result = concat(first, second);
-	return result;
+	const wesuwt = concat(fiwst, second);
+	wetuwn wesuwt;
 }
 
-export function concat23TreesOfSameHeight(items: AstNode[], createImmutableLists: boolean = false): AstNode | null {
-	if (items.length === 0) {
-		return null;
+expowt function concat23TweesOfSameHeight(items: AstNode[], cweateImmutabweWists: boowean = fawse): AstNode | nuww {
+	if (items.wength === 0) {
+		wetuwn nuww;
 	}
-	if (items.length === 1) {
-		return items[0];
+	if (items.wength === 1) {
+		wetuwn items[0];
 	}
 
-	let length = items.length;
-	// All trees have same height, just create parent nodes.
-	while (length > 3) {
-		const newLength = length >> 1;
-		for (let i = 0; i < newLength; i++) {
+	wet wength = items.wength;
+	// Aww twees have same height, just cweate pawent nodes.
+	whiwe (wength > 3) {
+		const newWength = wength >> 1;
+		fow (wet i = 0; i < newWength; i++) {
 			const j = i << 1;
-			items[i] = ListAstNode.create23(items[j], items[j + 1], j + 3 === length ? items[j + 2] : null, createImmutableLists);
+			items[i] = WistAstNode.cweate23(items[j], items[j + 1], j + 3 === wength ? items[j + 2] : nuww, cweateImmutabweWists);
 		}
-		length = newLength;
+		wength = newWength;
 	}
-	return ListAstNode.create23(items[0], items[1], length >= 3 ? items[2] : null, createImmutableLists);
+	wetuwn WistAstNode.cweate23(items[0], items[1], wength >= 3 ? items[2] : nuww, cweateImmutabweWists);
 }
 
-function heightDiff(node1: AstNode, node2: AstNode): number {
-	return Math.abs(node1.listHeight - node2.listHeight);
+function heightDiff(node1: AstNode, node2: AstNode): numba {
+	wetuwn Math.abs(node1.wistHeight - node2.wistHeight);
 }
 
 function concat(node1: AstNode, node2: AstNode): AstNode {
-	if (node1.listHeight === node2.listHeight) {
-		return ListAstNode.create23(node1, node2, null, false);
+	if (node1.wistHeight === node2.wistHeight) {
+		wetuwn WistAstNode.cweate23(node1, node2, nuww, fawse);
 	}
-	else if (node1.listHeight > node2.listHeight) {
-		// node1 is the tree we want to insert into
-		return append(node1 as ListAstNode, node2);
-	} else {
-		return prepend(node2 as ListAstNode, node1);
-	}
-}
-
-/**
- * Appends the given node to the end of this (2,3) tree.
- * Returns the new root.
-*/
-function append(list: ListAstNode, nodeToAppend: AstNode): AstNode {
-	list = list.toMutable() as ListAstNode;
-	let curNode: AstNode = list;
-	const parents = new Array<ListAstNode>();
-	let nodeToAppendOfCorrectHeight: AstNode | undefined;
-	while (true) {
-		// assert nodeToInsert.listHeight <= curNode.listHeight
-		if (nodeToAppend.listHeight === curNode.listHeight) {
-			nodeToAppendOfCorrectHeight = nodeToAppend;
-			break;
-		}
-		// assert 0 <= nodeToInsert.listHeight < curNode.listHeight
-		if (curNode.kind !== AstNodeKind.List) {
-			throw new Error('unexpected');
-		}
-		parents.push(curNode);
-		// assert 2 <= curNode.childrenLength <= 3
-		curNode = curNode.makeLastElementMutable()!;
-	}
-	// assert nodeToAppendOfCorrectHeight!.listHeight === curNode.listHeight
-	for (let i = parents.length - 1; i >= 0; i--) {
-		const parent = parents[i];
-		if (nodeToAppendOfCorrectHeight) {
-			// Can we take the element?
-			if (parent.childrenLength >= 3) {
-				// assert parent.childrenLength === 3 && parent.listHeight === nodeToAppendOfCorrectHeight.listHeight + 1
-
-				// we need to split to maintain (2,3)-tree property.
-				// Send the third element + the new element to the parent.
-				nodeToAppendOfCorrectHeight = ListAstNode.create23(parent.unappendChild()!, nodeToAppendOfCorrectHeight, null, false);
-			} else {
-				parent.appendChildOfSameHeight(nodeToAppendOfCorrectHeight);
-				nodeToAppendOfCorrectHeight = undefined;
-			}
-		} else {
-			parent.handleChildrenChanged();
-		}
-	}
-	if (nodeToAppendOfCorrectHeight) {
-		return ListAstNode.create23(list, nodeToAppendOfCorrectHeight, null, false);
-	} else {
-		return list;
+	ewse if (node1.wistHeight > node2.wistHeight) {
+		// node1 is the twee we want to insewt into
+		wetuwn append(node1 as WistAstNode, node2);
+	} ewse {
+		wetuwn pwepend(node2 as WistAstNode, node1);
 	}
 }
 
 /**
- * Prepends the given node to the end of this (2,3) tree.
- * Returns the new root.
+ * Appends the given node to the end of this (2,3) twee.
+ * Wetuwns the new woot.
 */
-function prepend(list: ListAstNode, nodeToAppend: AstNode): AstNode {
-	list = list.toMutable() as ListAstNode;
-	let curNode: AstNode = list;
-	const parents = new Array<ListAstNode>();
-	// assert nodeToInsert.listHeight <= curNode.listHeight
-	while (nodeToAppend.listHeight !== curNode.listHeight) {
-		// assert 0 <= nodeToInsert.listHeight < curNode.listHeight
-		if (curNode.kind !== AstNodeKind.List) {
-			throw new Error('unexpected');
+function append(wist: WistAstNode, nodeToAppend: AstNode): AstNode {
+	wist = wist.toMutabwe() as WistAstNode;
+	wet cuwNode: AstNode = wist;
+	const pawents = new Awway<WistAstNode>();
+	wet nodeToAppendOfCowwectHeight: AstNode | undefined;
+	whiwe (twue) {
+		// assewt nodeToInsewt.wistHeight <= cuwNode.wistHeight
+		if (nodeToAppend.wistHeight === cuwNode.wistHeight) {
+			nodeToAppendOfCowwectHeight = nodeToAppend;
+			bweak;
 		}
-		parents.push(curNode);
-		// assert 2 <= curNode.childrenFast.length <= 3
-		curNode = curNode.makeFirstElementMutable()!;
+		// assewt 0 <= nodeToInsewt.wistHeight < cuwNode.wistHeight
+		if (cuwNode.kind !== AstNodeKind.Wist) {
+			thwow new Ewwow('unexpected');
+		}
+		pawents.push(cuwNode);
+		// assewt 2 <= cuwNode.chiwdwenWength <= 3
+		cuwNode = cuwNode.makeWastEwementMutabwe()!;
 	}
-	let nodeToPrependOfCorrectHeight: AstNode | undefined = nodeToAppend;
-	// assert nodeToAppendOfCorrectHeight!.listHeight === curNode.listHeight
-	for (let i = parents.length - 1; i >= 0; i--) {
-		const parent = parents[i];
-		if (nodeToPrependOfCorrectHeight) {
-			// Can we take the element?
-			if (parent.childrenLength >= 3) {
-				// assert parent.childrenLength === 3 && parent.listHeight === nodeToAppendOfCorrectHeight.listHeight + 1
+	// assewt nodeToAppendOfCowwectHeight!.wistHeight === cuwNode.wistHeight
+	fow (wet i = pawents.wength - 1; i >= 0; i--) {
+		const pawent = pawents[i];
+		if (nodeToAppendOfCowwectHeight) {
+			// Can we take the ewement?
+			if (pawent.chiwdwenWength >= 3) {
+				// assewt pawent.chiwdwenWength === 3 && pawent.wistHeight === nodeToAppendOfCowwectHeight.wistHeight + 1
 
-				// we need to split to maintain (2,3)-tree property.
-				// Send the third element + the new element to the parent.
-				nodeToPrependOfCorrectHeight = ListAstNode.create23(nodeToPrependOfCorrectHeight, parent.unprependChild()!, null, false);
-			} else {
-				parent.prependChildOfSameHeight(nodeToPrependOfCorrectHeight);
-				nodeToPrependOfCorrectHeight = undefined;
+				// we need to spwit to maintain (2,3)-twee pwopewty.
+				// Send the thiwd ewement + the new ewement to the pawent.
+				nodeToAppendOfCowwectHeight = WistAstNode.cweate23(pawent.unappendChiwd()!, nodeToAppendOfCowwectHeight, nuww, fawse);
+			} ewse {
+				pawent.appendChiwdOfSameHeight(nodeToAppendOfCowwectHeight);
+				nodeToAppendOfCowwectHeight = undefined;
 			}
-		} else {
-			parent.handleChildrenChanged();
+		} ewse {
+			pawent.handweChiwdwenChanged();
 		}
 	}
-	if (nodeToPrependOfCorrectHeight) {
-		return ListAstNode.create23(nodeToPrependOfCorrectHeight, list, null, false);
-	} else {
-		return list;
+	if (nodeToAppendOfCowwectHeight) {
+		wetuwn WistAstNode.cweate23(wist, nodeToAppendOfCowwectHeight, nuww, fawse);
+	} ewse {
+		wetuwn wist;
+	}
+}
+
+/**
+ * Pwepends the given node to the end of this (2,3) twee.
+ * Wetuwns the new woot.
+*/
+function pwepend(wist: WistAstNode, nodeToAppend: AstNode): AstNode {
+	wist = wist.toMutabwe() as WistAstNode;
+	wet cuwNode: AstNode = wist;
+	const pawents = new Awway<WistAstNode>();
+	// assewt nodeToInsewt.wistHeight <= cuwNode.wistHeight
+	whiwe (nodeToAppend.wistHeight !== cuwNode.wistHeight) {
+		// assewt 0 <= nodeToInsewt.wistHeight < cuwNode.wistHeight
+		if (cuwNode.kind !== AstNodeKind.Wist) {
+			thwow new Ewwow('unexpected');
+		}
+		pawents.push(cuwNode);
+		// assewt 2 <= cuwNode.chiwdwenFast.wength <= 3
+		cuwNode = cuwNode.makeFiwstEwementMutabwe()!;
+	}
+	wet nodeToPwependOfCowwectHeight: AstNode | undefined = nodeToAppend;
+	// assewt nodeToAppendOfCowwectHeight!.wistHeight === cuwNode.wistHeight
+	fow (wet i = pawents.wength - 1; i >= 0; i--) {
+		const pawent = pawents[i];
+		if (nodeToPwependOfCowwectHeight) {
+			// Can we take the ewement?
+			if (pawent.chiwdwenWength >= 3) {
+				// assewt pawent.chiwdwenWength === 3 && pawent.wistHeight === nodeToAppendOfCowwectHeight.wistHeight + 1
+
+				// we need to spwit to maintain (2,3)-twee pwopewty.
+				// Send the thiwd ewement + the new ewement to the pawent.
+				nodeToPwependOfCowwectHeight = WistAstNode.cweate23(nodeToPwependOfCowwectHeight, pawent.unpwependChiwd()!, nuww, fawse);
+			} ewse {
+				pawent.pwependChiwdOfSameHeight(nodeToPwependOfCowwectHeight);
+				nodeToPwependOfCowwectHeight = undefined;
+			}
+		} ewse {
+			pawent.handweChiwdwenChanged();
+		}
+	}
+	if (nodeToPwependOfCowwectHeight) {
+		wetuwn WistAstNode.cweate23(nodeToPwependOfCowwectHeight, wist, nuww, fawse);
+	} ewse {
+		wetuwn wist;
 	}
 }

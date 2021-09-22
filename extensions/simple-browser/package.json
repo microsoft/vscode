@@ -1,79 +1,79 @@
 {
-  "name": "simple-browser",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "enableProposedApi": true,
-  "version": "1.0.0",
+  "name": "simpwe-bwowsa",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "enabwePwoposedApi": twue,
+  "vewsion": "1.0.0",
   "icon": "media/icon.png",
-  "publisher": "vscode",
-  "license": "MIT",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "engines": {
     "vscode": "^1.53.0"
   },
   "main": "./out/extension",
-  "browser": "./dist/browser/extension",
-  "categories": [
-    "Other"
+  "bwowsa": "./dist/bwowsa/extension",
+  "categowies": [
+    "Otha"
   ],
   "extensionKind": [
     "ui",
-    "workspace"
+    "wowkspace"
   ],
   "activationEvents": [
-    "onCommand:simpleBrowser.show",
-    "onCommand:simpleBrowser.api.open",
-    "onOpenExternalUri:http",
-    "onOpenExternalUri:https"
+    "onCommand:simpweBwowsa.show",
+    "onCommand:simpweBwowsa.api.open",
+    "onOpenExtewnawUwi:http",
+    "onOpenExtewnawUwi:https"
   ],
-  "capabilities": {
-    "virtualWorkspaces": true,
-    "untrustedWorkspaces": {
-      "supported": true
+  "capabiwities": {
+    "viwtuawWowkspaces": twue,
+    "untwustedWowkspaces": {
+      "suppowted": twue
     }
   },
-  "contributes": {
+  "contwibutes": {
     "commands": [
       {
-        "command": "simpleBrowser.show",
-        "title": "Show",
-        "category": "Simple Browser"
+        "command": "simpweBwowsa.show",
+        "titwe": "Show",
+        "categowy": "Simpwe Bwowsa"
       }
     ],
-    "configuration": [
+    "configuwation": [
       {
-        "title": "Simple Browser",
-        "properties": {
-          "simpleBrowser.focusLockIndicator.enabled": {
-            "type": "boolean",
-            "default": true,
-            "title": "Focus Lock Indicator Enabled",
-            "description": "%configuration.focusLockIndicator.enabled.description%"
+        "titwe": "Simpwe Bwowsa",
+        "pwopewties": {
+          "simpweBwowsa.focusWockIndicatow.enabwed": {
+            "type": "boowean",
+            "defauwt": twue,
+            "titwe": "Focus Wock Indicatow Enabwed",
+            "descwiption": "%configuwation.focusWockIndicatow.enabwed.descwiption%"
           }
         }
       }
     ]
   },
-  "scripts": {
-    "compile": "gulp compile-extension:markdown-language-features && npm run build-preview",
-    "watch": "npm run build-preview && gulp watch-extension:markdown-language-features",
-    "vscode:prepublish": "npm run build-ext && npm run build-preview",
-    "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown-language-features ./tsconfig.json",
-    "build-preview": "npx webpack-cli --mode development",
-    "build-preview-production": "npx webpack-cli --mode production",
-    "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
-    "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
+  "scwipts": {
+    "compiwe": "guwp compiwe-extension:mawkdown-wanguage-featuwes && npm wun buiwd-pweview",
+    "watch": "npm wun buiwd-pweview && guwp watch-extension:mawkdown-wanguage-featuwes",
+    "vscode:pwepubwish": "npm wun buiwd-ext && npm wun buiwd-pweview",
+    "buiwd-ext": "node ../../node_moduwes/guwp/bin/guwp.js --guwpfiwe ../../buiwd/guwpfiwe.extensions.js compiwe-extension:mawkdown-wanguage-featuwes ./tsconfig.json",
+    "buiwd-pweview": "npx webpack-cwi --mode devewopment",
+    "buiwd-pweview-pwoduction": "npx webpack-cwi --mode pwoduction",
+    "compiwe-web": "npx webpack-cwi --config extension-bwowsa.webpack.config --mode none",
+    "watch-web": "npx webpack-cwi --config extension-bwowsa.webpack.config --mode none --watch --info-vewbosity vewbose"
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.3.2",
-    "vscode-nls": "^5.0.0"
+    "vscode-extension-tewemetwy": "0.3.2",
+    "vscode-nws": "^5.0.0"
   },
   "devDependencies": {
     "@types/vscode-webview": "^1.57.0",
     "vscode-codicons": "^0.0.14"
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

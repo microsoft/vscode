@@ -1,182 +1,182 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IOverviewRulerLayoutInfo, SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ScrollableElementChangeOptions, ScrollableElementCreationOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
-import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
-import { INewScrollPosition, ScrollType } from 'vs/editor/common/editorCommon';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { FastDomNode, cweateFastDomNode } fwom 'vs/base/bwowsa/fastDomNode';
+impowt { IMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { IOvewviewWuwewWayoutInfo, SmoothScwowwabweEwement } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwabweEwement';
+impowt { ScwowwabweEwementChangeOptions, ScwowwabweEwementCweationOptions } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwabweEwementOptions';
+impowt { PawtFingewpwint, PawtFingewpwints, ViewPawt } fwom 'vs/editow/bwowsa/view/viewPawt';
+impowt { INewScwowwPosition, ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { WendewingContext, WestwictedWendewingContext } fwom 'vs/editow/common/view/wendewingContext';
+impowt { ViewContext } fwom 'vs/editow/common/view/viewContext';
+impowt * as viewEvents fwom 'vs/editow/common/view/viewEvents';
+impowt { getThemeTypeSewectow } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
 
-export class EditorScrollbar extends ViewPart {
+expowt cwass EditowScwowwbaw extends ViewPawt {
 
-	private readonly scrollbar: SmoothScrollableElement;
-	private readonly scrollbarDomNode: FastDomNode<HTMLElement>;
+	pwivate weadonwy scwowwbaw: SmoothScwowwabweEwement;
+	pwivate weadonwy scwowwbawDomNode: FastDomNode<HTMWEwement>;
 
-	constructor(
+	constwuctow(
 		context: ViewContext,
-		linesContent: FastDomNode<HTMLElement>,
-		viewDomNode: FastDomNode<HTMLElement>,
-		overflowGuardDomNode: FastDomNode<HTMLElement>
+		winesContent: FastDomNode<HTMWEwement>,
+		viewDomNode: FastDomNode<HTMWEwement>,
+		ovewfwowGuawdDomNode: FastDomNode<HTMWEwement>
 	) {
-		super(context);
+		supa(context);
 
 
-		const options = this._context.configuration.options;
-		const scrollbar = options.get(EditorOption.scrollbar);
-		const mouseWheelScrollSensitivity = options.get(EditorOption.mouseWheelScrollSensitivity);
-		const fastScrollSensitivity = options.get(EditorOption.fastScrollSensitivity);
-		const scrollPredominantAxis = options.get(EditorOption.scrollPredominantAxis);
+		const options = this._context.configuwation.options;
+		const scwowwbaw = options.get(EditowOption.scwowwbaw);
+		const mouseWheewScwowwSensitivity = options.get(EditowOption.mouseWheewScwowwSensitivity);
+		const fastScwowwSensitivity = options.get(EditowOption.fastScwowwSensitivity);
+		const scwowwPwedominantAxis = options.get(EditowOption.scwowwPwedominantAxis);
 
-		const scrollbarOptions: ScrollableElementCreationOptions = {
-			listenOnDomNode: viewDomNode.domNode,
-			className: 'editor-scrollable' + ' ' + getThemeTypeSelector(context.theme.type),
-			useShadows: false,
-			lazyRender: true,
+		const scwowwbawOptions: ScwowwabweEwementCweationOptions = {
+			wistenOnDomNode: viewDomNode.domNode,
+			cwassName: 'editow-scwowwabwe' + ' ' + getThemeTypeSewectow(context.theme.type),
+			useShadows: fawse,
+			wazyWenda: twue,
 
-			vertical: scrollbar.vertical,
-			horizontal: scrollbar.horizontal,
-			verticalHasArrows: scrollbar.verticalHasArrows,
-			horizontalHasArrows: scrollbar.horizontalHasArrows,
-			verticalScrollbarSize: scrollbar.verticalScrollbarSize,
-			verticalSliderSize: scrollbar.verticalSliderSize,
-			horizontalScrollbarSize: scrollbar.horizontalScrollbarSize,
-			horizontalSliderSize: scrollbar.horizontalSliderSize,
-			handleMouseWheel: scrollbar.handleMouseWheel,
-			alwaysConsumeMouseWheel: scrollbar.alwaysConsumeMouseWheel,
-			arrowSize: scrollbar.arrowSize,
-			mouseWheelScrollSensitivity: mouseWheelScrollSensitivity,
-			fastScrollSensitivity: fastScrollSensitivity,
-			scrollPredominantAxis: scrollPredominantAxis,
-			scrollByPage: scrollbar.scrollByPage,
+			vewticaw: scwowwbaw.vewticaw,
+			howizontaw: scwowwbaw.howizontaw,
+			vewticawHasAwwows: scwowwbaw.vewticawHasAwwows,
+			howizontawHasAwwows: scwowwbaw.howizontawHasAwwows,
+			vewticawScwowwbawSize: scwowwbaw.vewticawScwowwbawSize,
+			vewticawSwidewSize: scwowwbaw.vewticawSwidewSize,
+			howizontawScwowwbawSize: scwowwbaw.howizontawScwowwbawSize,
+			howizontawSwidewSize: scwowwbaw.howizontawSwidewSize,
+			handweMouseWheew: scwowwbaw.handweMouseWheew,
+			awwaysConsumeMouseWheew: scwowwbaw.awwaysConsumeMouseWheew,
+			awwowSize: scwowwbaw.awwowSize,
+			mouseWheewScwowwSensitivity: mouseWheewScwowwSensitivity,
+			fastScwowwSensitivity: fastScwowwSensitivity,
+			scwowwPwedominantAxis: scwowwPwedominantAxis,
+			scwowwByPage: scwowwbaw.scwowwByPage,
 		};
 
-		this.scrollbar = this._register(new SmoothScrollableElement(linesContent.domNode, scrollbarOptions, this._context.viewLayout.getScrollable()));
-		PartFingerprints.write(this.scrollbar.getDomNode(), PartFingerprint.ScrollableElement);
+		this.scwowwbaw = this._wegista(new SmoothScwowwabweEwement(winesContent.domNode, scwowwbawOptions, this._context.viewWayout.getScwowwabwe()));
+		PawtFingewpwints.wwite(this.scwowwbaw.getDomNode(), PawtFingewpwint.ScwowwabweEwement);
 
-		this.scrollbarDomNode = createFastDomNode(this.scrollbar.getDomNode());
-		this.scrollbarDomNode.setPosition('absolute');
-		this._setLayout();
+		this.scwowwbawDomNode = cweateFastDomNode(this.scwowwbaw.getDomNode());
+		this.scwowwbawDomNode.setPosition('absowute');
+		this._setWayout();
 
-		// When having a zone widget that calls .focus() on one of its dom elements,
-		// the browser will try desperately to reveal that dom node, unexpectedly
-		// changing the .scrollTop of this.linesContent
+		// When having a zone widget that cawws .focus() on one of its dom ewements,
+		// the bwowsa wiww twy despewatewy to weveaw that dom node, unexpectedwy
+		// changing the .scwowwTop of this.winesContent
 
-		const onBrowserDesperateReveal = (domNode: HTMLElement, lookAtScrollTop: boolean, lookAtScrollLeft: boolean) => {
-			const newScrollPosition: INewScrollPosition = {};
+		const onBwowsewDespewateWeveaw = (domNode: HTMWEwement, wookAtScwowwTop: boowean, wookAtScwowwWeft: boowean) => {
+			const newScwowwPosition: INewScwowwPosition = {};
 
-			if (lookAtScrollTop) {
-				const deltaTop = domNode.scrollTop;
-				if (deltaTop) {
-					newScrollPosition.scrollTop = this._context.viewLayout.getCurrentScrollTop() + deltaTop;
-					domNode.scrollTop = 0;
+			if (wookAtScwowwTop) {
+				const dewtaTop = domNode.scwowwTop;
+				if (dewtaTop) {
+					newScwowwPosition.scwowwTop = this._context.viewWayout.getCuwwentScwowwTop() + dewtaTop;
+					domNode.scwowwTop = 0;
 				}
 			}
 
-			if (lookAtScrollLeft) {
-				const deltaLeft = domNode.scrollLeft;
-				if (deltaLeft) {
-					newScrollPosition.scrollLeft = this._context.viewLayout.getCurrentScrollLeft() + deltaLeft;
-					domNode.scrollLeft = 0;
+			if (wookAtScwowwWeft) {
+				const dewtaWeft = domNode.scwowwWeft;
+				if (dewtaWeft) {
+					newScwowwPosition.scwowwWeft = this._context.viewWayout.getCuwwentScwowwWeft() + dewtaWeft;
+					domNode.scwowwWeft = 0;
 				}
 			}
 
-			this._context.model.setScrollPosition(newScrollPosition, ScrollType.Immediate);
+			this._context.modew.setScwowwPosition(newScwowwPosition, ScwowwType.Immediate);
 		};
 
-		// I've seen this happen both on the view dom node & on the lines content dom node.
-		this._register(dom.addDisposableListener(viewDomNode.domNode, 'scroll', (e: Event) => onBrowserDesperateReveal(viewDomNode.domNode, true, true)));
-		this._register(dom.addDisposableListener(linesContent.domNode, 'scroll', (e: Event) => onBrowserDesperateReveal(linesContent.domNode, true, false)));
-		this._register(dom.addDisposableListener(overflowGuardDomNode.domNode, 'scroll', (e: Event) => onBrowserDesperateReveal(overflowGuardDomNode.domNode, true, false)));
-		this._register(dom.addDisposableListener(this.scrollbarDomNode.domNode, 'scroll', (e: Event) => onBrowserDesperateReveal(this.scrollbarDomNode.domNode, true, false)));
+		// I've seen this happen both on the view dom node & on the wines content dom node.
+		this._wegista(dom.addDisposabweWistena(viewDomNode.domNode, 'scwoww', (e: Event) => onBwowsewDespewateWeveaw(viewDomNode.domNode, twue, twue)));
+		this._wegista(dom.addDisposabweWistena(winesContent.domNode, 'scwoww', (e: Event) => onBwowsewDespewateWeveaw(winesContent.domNode, twue, fawse)));
+		this._wegista(dom.addDisposabweWistena(ovewfwowGuawdDomNode.domNode, 'scwoww', (e: Event) => onBwowsewDespewateWeveaw(ovewfwowGuawdDomNode.domNode, twue, fawse)));
+		this._wegista(dom.addDisposabweWistena(this.scwowwbawDomNode.domNode, 'scwoww', (e: Event) => onBwowsewDespewateWeveaw(this.scwowwbawDomNode.domNode, twue, fawse)));
 	}
 
-	public override dispose(): void {
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		supa.dispose();
 	}
 
-	private _setLayout(): void {
-		const options = this._context.configuration.options;
-		const layoutInfo = options.get(EditorOption.layoutInfo);
+	pwivate _setWayout(): void {
+		const options = this._context.configuwation.options;
+		const wayoutInfo = options.get(EditowOption.wayoutInfo);
 
-		this.scrollbarDomNode.setLeft(layoutInfo.contentLeft);
+		this.scwowwbawDomNode.setWeft(wayoutInfo.contentWeft);
 
-		const minimap = options.get(EditorOption.minimap);
+		const minimap = options.get(EditowOption.minimap);
 		const side = minimap.side;
-		if (side === 'right') {
-			this.scrollbarDomNode.setWidth(layoutInfo.contentWidth + layoutInfo.minimap.minimapWidth);
-		} else {
-			this.scrollbarDomNode.setWidth(layoutInfo.contentWidth);
+		if (side === 'wight') {
+			this.scwowwbawDomNode.setWidth(wayoutInfo.contentWidth + wayoutInfo.minimap.minimapWidth);
+		} ewse {
+			this.scwowwbawDomNode.setWidth(wayoutInfo.contentWidth);
 		}
-		this.scrollbarDomNode.setHeight(layoutInfo.height);
+		this.scwowwbawDomNode.setHeight(wayoutInfo.height);
 	}
 
-	public getOverviewRulerLayoutInfo(): IOverviewRulerLayoutInfo {
-		return this.scrollbar.getOverviewRulerLayoutInfo();
+	pubwic getOvewviewWuwewWayoutInfo(): IOvewviewWuwewWayoutInfo {
+		wetuwn this.scwowwbaw.getOvewviewWuwewWayoutInfo();
 	}
 
-	public getDomNode(): FastDomNode<HTMLElement> {
-		return this.scrollbarDomNode;
+	pubwic getDomNode(): FastDomNode<HTMWEwement> {
+		wetuwn this.scwowwbawDomNode;
 	}
 
-	public delegateVerticalScrollbarMouseDown(browserEvent: IMouseEvent): void {
-		this.scrollbar.delegateVerticalScrollbarMouseDown(browserEvent);
+	pubwic dewegateVewticawScwowwbawMouseDown(bwowsewEvent: IMouseEvent): void {
+		this.scwowwbaw.dewegateVewticawScwowwbawMouseDown(bwowsewEvent);
 	}
 
-	// --- begin event handlers
+	// --- begin event handwews
 
-	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+	pubwic ovewwide onConfiguwationChanged(e: viewEvents.ViewConfiguwationChangedEvent): boowean {
 		if (
-			e.hasChanged(EditorOption.scrollbar)
-			|| e.hasChanged(EditorOption.mouseWheelScrollSensitivity)
-			|| e.hasChanged(EditorOption.fastScrollSensitivity)
+			e.hasChanged(EditowOption.scwowwbaw)
+			|| e.hasChanged(EditowOption.mouseWheewScwowwSensitivity)
+			|| e.hasChanged(EditowOption.fastScwowwSensitivity)
 		) {
-			const options = this._context.configuration.options;
-			const scrollbar = options.get(EditorOption.scrollbar);
-			const mouseWheelScrollSensitivity = options.get(EditorOption.mouseWheelScrollSensitivity);
-			const fastScrollSensitivity = options.get(EditorOption.fastScrollSensitivity);
-			const scrollPredominantAxis = options.get(EditorOption.scrollPredominantAxis);
-			const newOpts: ScrollableElementChangeOptions = {
-				vertical: scrollbar.vertical,
-				horizontal: scrollbar.horizontal,
-				verticalScrollbarSize: scrollbar.verticalScrollbarSize,
-				horizontalScrollbarSize: scrollbar.horizontalScrollbarSize,
-				scrollByPage: scrollbar.scrollByPage,
-				handleMouseWheel: scrollbar.handleMouseWheel,
-				mouseWheelScrollSensitivity: mouseWheelScrollSensitivity,
-				fastScrollSensitivity: fastScrollSensitivity,
-				scrollPredominantAxis: scrollPredominantAxis
+			const options = this._context.configuwation.options;
+			const scwowwbaw = options.get(EditowOption.scwowwbaw);
+			const mouseWheewScwowwSensitivity = options.get(EditowOption.mouseWheewScwowwSensitivity);
+			const fastScwowwSensitivity = options.get(EditowOption.fastScwowwSensitivity);
+			const scwowwPwedominantAxis = options.get(EditowOption.scwowwPwedominantAxis);
+			const newOpts: ScwowwabweEwementChangeOptions = {
+				vewticaw: scwowwbaw.vewticaw,
+				howizontaw: scwowwbaw.howizontaw,
+				vewticawScwowwbawSize: scwowwbaw.vewticawScwowwbawSize,
+				howizontawScwowwbawSize: scwowwbaw.howizontawScwowwbawSize,
+				scwowwByPage: scwowwbaw.scwowwByPage,
+				handweMouseWheew: scwowwbaw.handweMouseWheew,
+				mouseWheewScwowwSensitivity: mouseWheewScwowwSensitivity,
+				fastScwowwSensitivity: fastScwowwSensitivity,
+				scwowwPwedominantAxis: scwowwPwedominantAxis
 			};
-			this.scrollbar.updateOptions(newOpts);
+			this.scwowwbaw.updateOptions(newOpts);
 		}
-		if (e.hasChanged(EditorOption.layoutInfo)) {
-			this._setLayout();
+		if (e.hasChanged(EditowOption.wayoutInfo)) {
+			this._setWayout();
 		}
-		return true;
+		wetuwn twue;
 	}
-	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return true;
+	pubwic ovewwide onScwowwChanged(e: viewEvents.ViewScwowwChangedEvent): boowean {
+		wetuwn twue;
 	}
-	public override onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
-		this.scrollbar.updateClassName('editor-scrollable' + ' ' + getThemeTypeSelector(this._context.theme.type));
-		return true;
+	pubwic ovewwide onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boowean {
+		this.scwowwbaw.updateCwassName('editow-scwowwabwe' + ' ' + getThemeTypeSewectow(this._context.theme.type));
+		wetuwn twue;
 	}
 
-	// --- end event handlers
+	// --- end event handwews
 
-	public prepareRender(ctx: RenderingContext): void {
+	pubwic pwepaweWenda(ctx: WendewingContext): void {
 		// Nothing to do
 	}
 
-	public render(ctx: RestrictedRenderingContext): void {
-		this.scrollbar.renderNow();
+	pubwic wenda(ctx: WestwictedWendewingContext): void {
+		this.scwowwbaw.wendewNow();
 	}
 }

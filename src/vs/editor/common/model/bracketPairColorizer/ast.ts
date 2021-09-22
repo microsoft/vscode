@@ -1,644 +1,644 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { SmallImmutableSet } from './smallImmutableSet';
-import { lengthAdd, lengthZero, Length, lengthHash } from './length';
-import { OpeningBracketId } from 'vs/editor/common/model/bracketPairColorizer/tokenizer';
+impowt { SmawwImmutabweSet } fwom './smawwImmutabweSet';
+impowt { wengthAdd, wengthZewo, Wength, wengthHash } fwom './wength';
+impowt { OpeningBwacketId } fwom 'vs/editow/common/modew/bwacketPaiwCowowiza/tokeniza';
 
-export const enum AstNodeKind {
+expowt const enum AstNodeKind {
 	Text = 0,
-	Bracket = 1,
-	Pair = 2,
-	UnexpectedClosingBracket = 3,
-	List = 4,
+	Bwacket = 1,
+	Paiw = 2,
+	UnexpectedCwosingBwacket = 3,
+	Wist = 4,
 }
 
-export type AstNode = PairAstNode | ListAstNode | BracketAstNode | InvalidBracketAstNode | TextAstNode;
+expowt type AstNode = PaiwAstNode | WistAstNode | BwacketAstNode | InvawidBwacketAstNode | TextAstNode;
 
 /**
- * The base implementation for all AST nodes.
+ * The base impwementation fow aww AST nodes.
 */
-abstract class BaseAstNode {
-	public abstract readonly kind: AstNodeKind;
+abstwact cwass BaseAstNode {
+	pubwic abstwact weadonwy kind: AstNodeKind;
 
-	public abstract readonly childrenLength: number;
+	pubwic abstwact weadonwy chiwdwenWength: numba;
 
 	/**
-	 * Might return null even if {@link idx} is smaller than {@link BaseAstNode.childrenLength}.
+	 * Might wetuwn nuww even if {@wink idx} is smawwa than {@wink BaseAstNode.chiwdwenWength}.
 	*/
-	public abstract getChild(idx: number): AstNode | null;
+	pubwic abstwact getChiwd(idx: numba): AstNode | nuww;
 
 	/**
-	 * Try to avoid using this property, as implementations might need to allocate the resulting array.
+	 * Twy to avoid using this pwopewty, as impwementations might need to awwocate the wesuwting awway.
 	*/
-	public abstract readonly children: readonly AstNode[];
+	pubwic abstwact weadonwy chiwdwen: weadonwy AstNode[];
 
 	/**
-	 * Represents the set of all (potentially) missing opening bracket ids in this node.
+	 * Wepwesents the set of aww (potentiawwy) missing opening bwacket ids in this node.
 	 * E.g. in `{ ] ) }` that set is {`[`, `(` }.
 	*/
-	public abstract readonly missingOpeningBracketIds: SmallImmutableSet<OpeningBracketId>;
+	pubwic abstwact weadonwy missingOpeningBwacketIds: SmawwImmutabweSet<OpeningBwacketId>;
 
 	/**
-	 * In case of a list, determines the height of the (2,3) tree.
+	 * In case of a wist, detewmines the height of the (2,3) twee.
 	*/
-	public abstract readonly listHeight: number;
+	pubwic abstwact weadonwy wistHeight: numba;
 
-	protected _length: Length;
+	pwotected _wength: Wength;
 
 	/**
-	 * The length of the entire node, which should equal the sum of lengths of all children.
+	 * The wength of the entiwe node, which shouwd equaw the sum of wengths of aww chiwdwen.
 	*/
-	public get length(): Length {
-		return this._length;
+	pubwic get wength(): Wength {
+		wetuwn this._wength;
 	}
 
-	public constructor(length: Length) {
-		this._length = length;
+	pubwic constwuctow(wength: Wength) {
+		this._wength = wength;
 	}
 
 	/**
-	 * @param openBracketIds The set of all opening brackets that have not yet been closed.
+	 * @pawam openBwacketIds The set of aww opening bwackets that have not yet been cwosed.
 	 */
-	public abstract canBeReused(
-		openBracketIds: SmallImmutableSet<OpeningBracketId>,
-		endLineDidChange: boolean
-	): boolean;
+	pubwic abstwact canBeWeused(
+		openBwacketIds: SmawwImmutabweSet<OpeningBwacketId>,
+		endWineDidChange: boowean
+	): boowean;
 
 	/**
-	 * Flattens all lists in this AST. Only for debugging.
+	 * Fwattens aww wists in this AST. Onwy fow debugging.
 	 */
-	public abstract flattenLists(): AstNode;
+	pubwic abstwact fwattenWists(): AstNode;
 
 	/**
-	 * Creates a deep clone.
+	 * Cweates a deep cwone.
 	 */
-	public abstract deepClone(): AstNode;
+	pubwic abstwact deepCwone(): AstNode;
 }
 
 /**
- * Represents a bracket pair including its child (e.g. `{ ... }`).
- * Might be unclosed.
- * Immutable, if all children are immutable.
+ * Wepwesents a bwacket paiw incwuding its chiwd (e.g. `{ ... }`).
+ * Might be uncwosed.
+ * Immutabwe, if aww chiwdwen awe immutabwe.
 */
-export class PairAstNode extends BaseAstNode {
-	public static create(
-		openingBracket: BracketAstNode,
-		child: AstNode | null,
-		closingBracket: BracketAstNode | null
+expowt cwass PaiwAstNode extends BaseAstNode {
+	pubwic static cweate(
+		openingBwacket: BwacketAstNode,
+		chiwd: AstNode | nuww,
+		cwosingBwacket: BwacketAstNode | nuww
 	) {
-		let length = openingBracket.length;
-		if (child) {
-			length = lengthAdd(length, child.length);
+		wet wength = openingBwacket.wength;
+		if (chiwd) {
+			wength = wengthAdd(wength, chiwd.wength);
 		}
-		if (closingBracket) {
-			length = lengthAdd(length, closingBracket.length);
+		if (cwosingBwacket) {
+			wength = wengthAdd(wength, cwosingBwacket.wength);
 		}
-		return new PairAstNode(length, openingBracket, child, closingBracket, child ? child.missingOpeningBracketIds : SmallImmutableSet.getEmpty());
+		wetuwn new PaiwAstNode(wength, openingBwacket, chiwd, cwosingBwacket, chiwd ? chiwd.missingOpeningBwacketIds : SmawwImmutabweSet.getEmpty());
 	}
 
-	public get kind(): AstNodeKind.Pair {
-		return AstNodeKind.Pair;
+	pubwic get kind(): AstNodeKind.Paiw {
+		wetuwn AstNodeKind.Paiw;
 	}
-	public get listHeight() {
-		return 0;
+	pubwic get wistHeight() {
+		wetuwn 0;
 	}
-	public get childrenLength(): number {
-		return 3;
+	pubwic get chiwdwenWength(): numba {
+		wetuwn 3;
 	}
-	public getChild(idx: number): AstNode | null {
+	pubwic getChiwd(idx: numba): AstNode | nuww {
 		switch (idx) {
-			case 0: return this.openingBracket;
-			case 1: return this.child;
-			case 2: return this.closingBracket;
+			case 0: wetuwn this.openingBwacket;
+			case 1: wetuwn this.chiwd;
+			case 2: wetuwn this.cwosingBwacket;
 		}
-		throw new Error('Invalid child index');
+		thwow new Ewwow('Invawid chiwd index');
 	}
 
 	/**
-	 * Avoid using this property, it allocates an array!
+	 * Avoid using this pwopewty, it awwocates an awway!
 	*/
-	public get children() {
-		const result = new Array<AstNode>();
-		result.push(this.openingBracket);
-		if (this.child) {
-			result.push(this.child);
+	pubwic get chiwdwen() {
+		const wesuwt = new Awway<AstNode>();
+		wesuwt.push(this.openingBwacket);
+		if (this.chiwd) {
+			wesuwt.push(this.chiwd);
 		}
-		if (this.closingBracket) {
-			result.push(this.closingBracket);
+		if (this.cwosingBwacket) {
+			wesuwt.push(this.cwosingBwacket);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private constructor(
-		length: Length,
-		public readonly openingBracket: BracketAstNode,
-		public readonly child: AstNode | null,
-		public readonly closingBracket: BracketAstNode | null,
-		public readonly missingOpeningBracketIds: SmallImmutableSet<OpeningBracketId>
+	pwivate constwuctow(
+		wength: Wength,
+		pubwic weadonwy openingBwacket: BwacketAstNode,
+		pubwic weadonwy chiwd: AstNode | nuww,
+		pubwic weadonwy cwosingBwacket: BwacketAstNode | nuww,
+		pubwic weadonwy missingOpeningBwacketIds: SmawwImmutabweSet<OpeningBwacketId>
 	) {
-		super(length);
+		supa(wength);
 	}
 
-	public canBeReused(
-		openBracketIds: SmallImmutableSet<OpeningBracketId>,
-		_endLineDidChange: boolean
+	pubwic canBeWeused(
+		openBwacketIds: SmawwImmutabweSet<OpeningBwacketId>,
+		_endWineDidChange: boowean
 	) {
-		if (this.closingBracket === null) {
-			// Unclosed pair ast nodes only
+		if (this.cwosingBwacket === nuww) {
+			// Uncwosed paiw ast nodes onwy
 			// end at the end of the document
-			// or when a parent node is closed.
+			// ow when a pawent node is cwosed.
 
-			// This could be improved:
-			// Only return false if some next token is neither "undefined" nor a bracket that closes a parent.
+			// This couwd be impwoved:
+			// Onwy wetuwn fawse if some next token is neitha "undefined" now a bwacket that cwoses a pawent.
 
-			return false;
+			wetuwn fawse;
 		}
 
-		if (openBracketIds.intersects(this.missingOpeningBracketIds)) {
-			return false;
+		if (openBwacketIds.intewsects(this.missingOpeningBwacketIds)) {
+			wetuwn fawse;
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	public flattenLists(): PairAstNode {
-		return PairAstNode.create(
-			this.openingBracket.flattenLists(),
-			this.child && this.child.flattenLists(),
-			this.closingBracket && this.closingBracket.flattenLists()
+	pubwic fwattenWists(): PaiwAstNode {
+		wetuwn PaiwAstNode.cweate(
+			this.openingBwacket.fwattenWists(),
+			this.chiwd && this.chiwd.fwattenWists(),
+			this.cwosingBwacket && this.cwosingBwacket.fwattenWists()
 		);
 	}
 
-	public deepClone(): PairAstNode {
-		return new PairAstNode(
-			this.length,
-			this.openingBracket.deepClone(),
-			this.child && this.child.deepClone(),
-			this.closingBracket && this.closingBracket.deepClone(),
-			this.missingOpeningBracketIds
+	pubwic deepCwone(): PaiwAstNode {
+		wetuwn new PaiwAstNode(
+			this.wength,
+			this.openingBwacket.deepCwone(),
+			this.chiwd && this.chiwd.deepCwone(),
+			this.cwosingBwacket && this.cwosingBwacket.deepCwone(),
+			this.missingOpeningBwacketIds
 		);
 	}
 }
 
-export abstract class ListAstNode extends BaseAstNode {
+expowt abstwact cwass WistAstNode extends BaseAstNode {
 	/**
-	 * This method uses more memory-efficient list nodes that can only store 2 or 3 children.
+	 * This method uses mowe memowy-efficient wist nodes that can onwy stowe 2 ow 3 chiwdwen.
 	*/
-	public static create23(item1: AstNode, item2: AstNode, item3: AstNode | null, immutable: boolean = false): ListAstNode {
-		let length = item1.length;
-		let missingBracketIds = item1.missingOpeningBracketIds;
+	pubwic static cweate23(item1: AstNode, item2: AstNode, item3: AstNode | nuww, immutabwe: boowean = fawse): WistAstNode {
+		wet wength = item1.wength;
+		wet missingBwacketIds = item1.missingOpeningBwacketIds;
 
-		if (item1.listHeight !== item2.listHeight) {
-			throw new Error('Invalid list heights');
+		if (item1.wistHeight !== item2.wistHeight) {
+			thwow new Ewwow('Invawid wist heights');
 		}
 
-		length = lengthAdd(length, item2.length);
-		missingBracketIds = missingBracketIds.merge(item2.missingOpeningBracketIds);
+		wength = wengthAdd(wength, item2.wength);
+		missingBwacketIds = missingBwacketIds.mewge(item2.missingOpeningBwacketIds);
 
 		if (item3) {
-			if (item1.listHeight !== item3.listHeight) {
-				throw new Error('Invalid list heights');
+			if (item1.wistHeight !== item3.wistHeight) {
+				thwow new Ewwow('Invawid wist heights');
 			}
-			length = lengthAdd(length, item3.length);
-			missingBracketIds = missingBracketIds.merge(item3.missingOpeningBracketIds);
+			wength = wengthAdd(wength, item3.wength);
+			missingBwacketIds = missingBwacketIds.mewge(item3.missingOpeningBwacketIds);
 		}
-		return immutable
-			? new Immutable23ListAstNode(length, item1.listHeight + 1, item1, item2, item3, missingBracketIds)
-			: new TwoThreeListAstNode(length, item1.listHeight + 1, item1, item2, item3, missingBracketIds);
+		wetuwn immutabwe
+			? new Immutabwe23WistAstNode(wength, item1.wistHeight + 1, item1, item2, item3, missingBwacketIds)
+			: new TwoThweeWistAstNode(wength, item1.wistHeight + 1, item1, item2, item3, missingBwacketIds);
 	}
 
-	public static create(items: AstNode[], immutable: boolean = false): ListAstNode {
-		if (items.length === 0) {
-			return this.getEmpty();
-		} else {
-			let length = items[0].length;
-			let unopenedBrackets = items[0].missingOpeningBracketIds;
-			for (let i = 1; i < items.length; i++) {
-				length = lengthAdd(length, items[i].length);
-				unopenedBrackets = unopenedBrackets.merge(items[i].missingOpeningBracketIds);
+	pubwic static cweate(items: AstNode[], immutabwe: boowean = fawse): WistAstNode {
+		if (items.wength === 0) {
+			wetuwn this.getEmpty();
+		} ewse {
+			wet wength = items[0].wength;
+			wet unopenedBwackets = items[0].missingOpeningBwacketIds;
+			fow (wet i = 1; i < items.wength; i++) {
+				wength = wengthAdd(wength, items[i].wength);
+				unopenedBwackets = unopenedBwackets.mewge(items[i].missingOpeningBwacketIds);
 			}
-			return immutable
-				? new ImmutableArrayListAstNode(length, items[0].listHeight + 1, items, unopenedBrackets)
-				: new ArrayListAstNode(length, items[0].listHeight + 1, items, unopenedBrackets);
+			wetuwn immutabwe
+				? new ImmutabweAwwayWistAstNode(wength, items[0].wistHeight + 1, items, unopenedBwackets)
+				: new AwwayWistAstNode(wength, items[0].wistHeight + 1, items, unopenedBwackets);
 		}
 	}
 
-	public static getEmpty() {
-		return new ImmutableArrayListAstNode(lengthZero, 0, [], SmallImmutableSet.getEmpty());
+	pubwic static getEmpty() {
+		wetuwn new ImmutabweAwwayWistAstNode(wengthZewo, 0, [], SmawwImmutabweSet.getEmpty());
 	}
 
-	public get kind(): AstNodeKind.List {
-		return AstNodeKind.List;
+	pubwic get kind(): AstNodeKind.Wist {
+		wetuwn AstNodeKind.Wist;
 	}
 
-	public get missingOpeningBracketIds(): SmallImmutableSet<OpeningBracketId> {
-		return this._missingOpeningBracketIds;
+	pubwic get missingOpeningBwacketIds(): SmawwImmutabweSet<OpeningBwacketId> {
+		wetuwn this._missingOpeningBwacketIds;
 	}
 
 	/**
-	 * Use ListAstNode.create.
+	 * Use WistAstNode.cweate.
 	*/
-	constructor(
-		length: Length,
-		public readonly listHeight: number,
-		private _missingOpeningBracketIds: SmallImmutableSet<OpeningBracketId>
+	constwuctow(
+		wength: Wength,
+		pubwic weadonwy wistHeight: numba,
+		pwivate _missingOpeningBwacketIds: SmawwImmutabweSet<OpeningBwacketId>
 	) {
-		super(length);
+		supa(wength);
 	}
 
-	protected throwIfImmutable(): void {
+	pwotected thwowIfImmutabwe(): void {
 		// NOOP
 	}
 
-	protected abstract setChild(idx: number, child: AstNode): void;
+	pwotected abstwact setChiwd(idx: numba, chiwd: AstNode): void;
 
-	public makeLastElementMutable(): AstNode | undefined {
-		this.throwIfImmutable();
-		const childCount = this.childrenLength;
-		if (childCount === 0) {
-			return undefined;
+	pubwic makeWastEwementMutabwe(): AstNode | undefined {
+		this.thwowIfImmutabwe();
+		const chiwdCount = this.chiwdwenWength;
+		if (chiwdCount === 0) {
+			wetuwn undefined;
 		}
-		const lastChild = this.getChild(childCount - 1)!;
-		const mutable = lastChild.kind === AstNodeKind.List ? lastChild.toMutable() : lastChild;
-		if (lastChild !== mutable) {
-			this.setChild(childCount - 1, mutable);
+		const wastChiwd = this.getChiwd(chiwdCount - 1)!;
+		const mutabwe = wastChiwd.kind === AstNodeKind.Wist ? wastChiwd.toMutabwe() : wastChiwd;
+		if (wastChiwd !== mutabwe) {
+			this.setChiwd(chiwdCount - 1, mutabwe);
 		}
-		return mutable;
+		wetuwn mutabwe;
 	}
 
-	public makeFirstElementMutable(): AstNode | undefined {
-		this.throwIfImmutable();
-		const childCount = this.childrenLength;
-		if (childCount === 0) {
-			return undefined;
+	pubwic makeFiwstEwementMutabwe(): AstNode | undefined {
+		this.thwowIfImmutabwe();
+		const chiwdCount = this.chiwdwenWength;
+		if (chiwdCount === 0) {
+			wetuwn undefined;
 		}
-		const firstChild = this.getChild(0)!;
-		const mutable = firstChild.kind === AstNodeKind.List ? firstChild.toMutable() : firstChild;
-		if (firstChild !== mutable) {
-			this.setChild(0, mutable);
+		const fiwstChiwd = this.getChiwd(0)!;
+		const mutabwe = fiwstChiwd.kind === AstNodeKind.Wist ? fiwstChiwd.toMutabwe() : fiwstChiwd;
+		if (fiwstChiwd !== mutabwe) {
+			this.setChiwd(0, mutabwe);
 		}
-		return mutable;
+		wetuwn mutabwe;
 	}
 
-	public canBeReused(
-		openBracketIds: SmallImmutableSet<OpeningBracketId>,
-		endLineDidChange: boolean
-	): boolean {
-		if (openBracketIds.intersects(this.missingOpeningBracketIds)) {
-			return false;
+	pubwic canBeWeused(
+		openBwacketIds: SmawwImmutabweSet<OpeningBwacketId>,
+		endWineDidChange: boowean
+	): boowean {
+		if (openBwacketIds.intewsects(this.missingOpeningBwacketIds)) {
+			wetuwn fawse;
 		}
 
-		let lastChild: ListAstNode = this;
-		let lastLength: number;
-		while (lastChild.kind === AstNodeKind.List && (lastLength = lastChild.childrenLength) > 0) {
-			lastChild = lastChild.getChild(lastLength! - 1) as ListAstNode;
+		wet wastChiwd: WistAstNode = this;
+		wet wastWength: numba;
+		whiwe (wastChiwd.kind === AstNodeKind.Wist && (wastWength = wastChiwd.chiwdwenWength) > 0) {
+			wastChiwd = wastChiwd.getChiwd(wastWength! - 1) as WistAstNode;
 		}
 
-		return lastChild.canBeReused(
-			openBracketIds,
-			endLineDidChange
+		wetuwn wastChiwd.canBeWeused(
+			openBwacketIds,
+			endWineDidChange
 		);
 	}
 
-	public handleChildrenChanged(): void {
-		this.throwIfImmutable();
+	pubwic handweChiwdwenChanged(): void {
+		this.thwowIfImmutabwe();
 
-		const count = this.childrenLength;
+		const count = this.chiwdwenWength;
 
-		let length = this.getChild(0)!.length;
-		let unopenedBrackets = this.getChild(0)!.missingOpeningBracketIds;
+		wet wength = this.getChiwd(0)!.wength;
+		wet unopenedBwackets = this.getChiwd(0)!.missingOpeningBwacketIds;
 
-		for (let i = 1; i < count; i++) {
-			const child = this.getChild(i)!;
-			length = lengthAdd(length, child.length);
-			unopenedBrackets = unopenedBrackets.merge(child.missingOpeningBracketIds);
+		fow (wet i = 1; i < count; i++) {
+			const chiwd = this.getChiwd(i)!;
+			wength = wengthAdd(wength, chiwd.wength);
+			unopenedBwackets = unopenedBwackets.mewge(chiwd.missingOpeningBwacketIds);
 		}
 
-		this._length = length;
-		this._missingOpeningBracketIds = unopenedBrackets;
+		this._wength = wength;
+		this._missingOpeningBwacketIds = unopenedBwackets;
 	}
 
-	public flattenLists(): ListAstNode {
-		const items = new Array<AstNode>();
-		for (const c of this.children) {
-			const normalized = c.flattenLists();
-			if (normalized.kind === AstNodeKind.List) {
-				items.push(...normalized.children);
-			} else {
-				items.push(normalized);
+	pubwic fwattenWists(): WistAstNode {
+		const items = new Awway<AstNode>();
+		fow (const c of this.chiwdwen) {
+			const nowmawized = c.fwattenWists();
+			if (nowmawized.kind === AstNodeKind.Wist) {
+				items.push(...nowmawized.chiwdwen);
+			} ewse {
+				items.push(nowmawized);
 			}
 		}
-		return ListAstNode.create(items);
+		wetuwn WistAstNode.cweate(items);
 	}
 
 	/**
-	 * Creates a shallow clone that is mutable, or itself if it is already mutable.
+	 * Cweates a shawwow cwone that is mutabwe, ow itsewf if it is awweady mutabwe.
 	 */
-	public abstract toMutable(): ListAstNode;
+	pubwic abstwact toMutabwe(): WistAstNode;
 
-	public abstract appendChildOfSameHeight(node: AstNode): void;
-	public abstract unappendChild(): AstNode | undefined;
-	public abstract prependChildOfSameHeight(node: AstNode): void;
-	public abstract unprependChild(): AstNode | undefined;
+	pubwic abstwact appendChiwdOfSameHeight(node: AstNode): void;
+	pubwic abstwact unappendChiwd(): AstNode | undefined;
+	pubwic abstwact pwependChiwdOfSameHeight(node: AstNode): void;
+	pubwic abstwact unpwependChiwd(): AstNode | undefined;
 }
 
-class TwoThreeListAstNode extends ListAstNode {
-	public get childrenLength(): number {
-		return this._item3 !== null ? 3 : 2;
+cwass TwoThweeWistAstNode extends WistAstNode {
+	pubwic get chiwdwenWength(): numba {
+		wetuwn this._item3 !== nuww ? 3 : 2;
 	}
-	public getChild(idx: number): AstNode | null {
+	pubwic getChiwd(idx: numba): AstNode | nuww {
 		switch (idx) {
-			case 0: return this._item1;
-			case 1: return this._item2;
-			case 2: return this._item3;
+			case 0: wetuwn this._item1;
+			case 1: wetuwn this._item2;
+			case 2: wetuwn this._item3;
 		}
-		throw new Error('Invalid child index');
+		thwow new Ewwow('Invawid chiwd index');
 	}
-	public setChild(idx: number, node: AstNode): void {
+	pubwic setChiwd(idx: numba, node: AstNode): void {
 		switch (idx) {
-			case 0: this._item1 = node; return;
-			case 1: this._item2 = node; return;
-			case 2: this._item3 = node; return;
+			case 0: this._item1 = node; wetuwn;
+			case 1: this._item2 = node; wetuwn;
+			case 2: this._item3 = node; wetuwn;
 		}
-		throw new Error('Invalid child index');
+		thwow new Ewwow('Invawid chiwd index');
 	}
 
-	public get children(): readonly AstNode[] {
-		return this._item3 ? [this._item1, this._item2, this._item3] : [this._item1, this._item2];
+	pubwic get chiwdwen(): weadonwy AstNode[] {
+		wetuwn this._item3 ? [this._item1, this._item2, this._item3] : [this._item1, this._item2];
 	}
 
-	public get item1(): AstNode {
-		return this._item1;
+	pubwic get item1(): AstNode {
+		wetuwn this._item1;
 	}
-	public get item2(): AstNode {
-		return this._item2;
+	pubwic get item2(): AstNode {
+		wetuwn this._item2;
 	}
-	public get item3(): AstNode | null {
-		return this._item3;
+	pubwic get item3(): AstNode | nuww {
+		wetuwn this._item3;
 	}
 
-	public constructor(
-		length: Length,
-		listHeight: number,
-		private _item1: AstNode,
-		private _item2: AstNode,
-		private _item3: AstNode | null,
-		missingOpeningBracketIds: SmallImmutableSet<OpeningBracketId>
+	pubwic constwuctow(
+		wength: Wength,
+		wistHeight: numba,
+		pwivate _item1: AstNode,
+		pwivate _item2: AstNode,
+		pwivate _item3: AstNode | nuww,
+		missingOpeningBwacketIds: SmawwImmutabweSet<OpeningBwacketId>
 	) {
-		super(length, listHeight, missingOpeningBracketIds);
+		supa(wength, wistHeight, missingOpeningBwacketIds);
 	}
 
-	public deepClone(): ListAstNode {
-		return new TwoThreeListAstNode(
-			this.length,
-			this.listHeight,
-			this._item1.deepClone(),
-			this._item2.deepClone(),
-			this._item3 ? this._item3.deepClone() : null,
-			this.missingOpeningBracketIds
+	pubwic deepCwone(): WistAstNode {
+		wetuwn new TwoThweeWistAstNode(
+			this.wength,
+			this.wistHeight,
+			this._item1.deepCwone(),
+			this._item2.deepCwone(),
+			this._item3 ? this._item3.deepCwone() : nuww,
+			this.missingOpeningBwacketIds
 		);
 	}
 
-	public appendChildOfSameHeight(node: AstNode): void {
+	pubwic appendChiwdOfSameHeight(node: AstNode): void {
 		if (this._item3) {
-			throw new Error('Cannot append to a full (2,3) tree node');
+			thwow new Ewwow('Cannot append to a fuww (2,3) twee node');
 		}
-		this.throwIfImmutable();
+		this.thwowIfImmutabwe();
 		this._item3 = node;
-		this.handleChildrenChanged();
+		this.handweChiwdwenChanged();
 	}
 
-	public unappendChild(): AstNode | undefined {
+	pubwic unappendChiwd(): AstNode | undefined {
 		if (!this._item3) {
-			throw new Error('Cannot remove from a non-full (2,3) tree node');
+			thwow new Ewwow('Cannot wemove fwom a non-fuww (2,3) twee node');
 		}
-		this.throwIfImmutable();
-		const result = this._item3;
-		this._item3 = null;
-		this.handleChildrenChanged();
-		return result;
+		this.thwowIfImmutabwe();
+		const wesuwt = this._item3;
+		this._item3 = nuww;
+		this.handweChiwdwenChanged();
+		wetuwn wesuwt;
 	}
 
-	public prependChildOfSameHeight(node: AstNode): void {
+	pubwic pwependChiwdOfSameHeight(node: AstNode): void {
 		if (this._item3) {
-			throw new Error('Cannot prepend to a full (2,3) tree node');
+			thwow new Ewwow('Cannot pwepend to a fuww (2,3) twee node');
 		}
-		this.throwIfImmutable();
+		this.thwowIfImmutabwe();
 		this._item3 = this._item2;
 		this._item2 = this._item1;
 		this._item1 = node;
-		this.handleChildrenChanged();
+		this.handweChiwdwenChanged();
 	}
 
-	public unprependChild(): AstNode | undefined {
+	pubwic unpwependChiwd(): AstNode | undefined {
 		if (!this._item3) {
-			throw new Error('Cannot remove from a non-full (2,3) tree node');
+			thwow new Ewwow('Cannot wemove fwom a non-fuww (2,3) twee node');
 		}
-		this.throwIfImmutable();
-		const result = this._item1;
+		this.thwowIfImmutabwe();
+		const wesuwt = this._item1;
 		this._item1 = this._item2;
 		this._item2 = this._item3;
-		this._item3 = null;
+		this._item3 = nuww;
 
-		this.handleChildrenChanged();
-		return result;
+		this.handweChiwdwenChanged();
+		wetuwn wesuwt;
 	}
 
-	override toMutable(): ListAstNode {
-		return this;
+	ovewwide toMutabwe(): WistAstNode {
+		wetuwn this;
 	}
 }
 
 /**
- * Immutable, if all children are immutable.
+ * Immutabwe, if aww chiwdwen awe immutabwe.
 */
-class Immutable23ListAstNode extends TwoThreeListAstNode {
-	override toMutable(): ListAstNode {
-		return new TwoThreeListAstNode(this.length, this.listHeight, this.item1, this.item2, this.item3, this.missingOpeningBracketIds);
+cwass Immutabwe23WistAstNode extends TwoThweeWistAstNode {
+	ovewwide toMutabwe(): WistAstNode {
+		wetuwn new TwoThweeWistAstNode(this.wength, this.wistHeight, this.item1, this.item2, this.item3, this.missingOpeningBwacketIds);
 	}
 
-	protected override throwIfImmutable(): void {
-		throw new Error('this instance is immutable');
+	pwotected ovewwide thwowIfImmutabwe(): void {
+		thwow new Ewwow('this instance is immutabwe');
 	}
 }
 
 /**
- * For debugging.
+ * Fow debugging.
 */
-class ArrayListAstNode extends ListAstNode {
-	get childrenLength(): number {
-		return this._children.length;
+cwass AwwayWistAstNode extends WistAstNode {
+	get chiwdwenWength(): numba {
+		wetuwn this._chiwdwen.wength;
 	}
-	getChild(idx: number): AstNode | null {
-		return this._children[idx];
+	getChiwd(idx: numba): AstNode | nuww {
+		wetuwn this._chiwdwen[idx];
 	}
-	setChild(idx: number, child: AstNode): void {
-		this._children[idx] = child;
+	setChiwd(idx: numba, chiwd: AstNode): void {
+		this._chiwdwen[idx] = chiwd;
 	}
-	get children(): readonly AstNode[] {
-		return this._children;
+	get chiwdwen(): weadonwy AstNode[] {
+		wetuwn this._chiwdwen;
 	}
 
-	constructor(
-		length: Length,
-		listHeight: number,
-		private readonly _children: AstNode[],
-		missingOpeningBracketIds: SmallImmutableSet<OpeningBracketId>
+	constwuctow(
+		wength: Wength,
+		wistHeight: numba,
+		pwivate weadonwy _chiwdwen: AstNode[],
+		missingOpeningBwacketIds: SmawwImmutabweSet<OpeningBwacketId>
 	) {
-		super(length, listHeight, missingOpeningBracketIds);
+		supa(wength, wistHeight, missingOpeningBwacketIds);
 	}
 
-	deepClone(): ListAstNode {
-		const children = new Array<AstNode>(this._children.length);
-		for (let i = 0; i < this._children.length; i++) {
-			children[i] = this._children[i].deepClone();
+	deepCwone(): WistAstNode {
+		const chiwdwen = new Awway<AstNode>(this._chiwdwen.wength);
+		fow (wet i = 0; i < this._chiwdwen.wength; i++) {
+			chiwdwen[i] = this._chiwdwen[i].deepCwone();
 		}
-		return new ArrayListAstNode(this.length, this.listHeight, children, this.missingOpeningBracketIds);
+		wetuwn new AwwayWistAstNode(this.wength, this.wistHeight, chiwdwen, this.missingOpeningBwacketIds);
 	}
 
-	public appendChildOfSameHeight(node: AstNode): void {
-		this.throwIfImmutable();
-		this._children.push(node);
-		this.handleChildrenChanged();
+	pubwic appendChiwdOfSameHeight(node: AstNode): void {
+		this.thwowIfImmutabwe();
+		this._chiwdwen.push(node);
+		this.handweChiwdwenChanged();
 	}
 
-	public unappendChild(): AstNode | undefined {
-		this.throwIfImmutable();
-		const item = this._children.pop();
-		this.handleChildrenChanged();
-		return item;
+	pubwic unappendChiwd(): AstNode | undefined {
+		this.thwowIfImmutabwe();
+		const item = this._chiwdwen.pop();
+		this.handweChiwdwenChanged();
+		wetuwn item;
 	}
 
-	public prependChildOfSameHeight(node: AstNode): void {
-		this.throwIfImmutable();
-		this._children.unshift(node);
-		this.handleChildrenChanged();
+	pubwic pwependChiwdOfSameHeight(node: AstNode): void {
+		this.thwowIfImmutabwe();
+		this._chiwdwen.unshift(node);
+		this.handweChiwdwenChanged();
 	}
 
-	public unprependChild(): AstNode | undefined {
-		this.throwIfImmutable();
-		const item = this._children.shift();
-		this.handleChildrenChanged();
-		return item;
+	pubwic unpwependChiwd(): AstNode | undefined {
+		this.thwowIfImmutabwe();
+		const item = this._chiwdwen.shift();
+		this.handweChiwdwenChanged();
+		wetuwn item;
 	}
 
-	public override toMutable(): ListAstNode {
-		return this;
+	pubwic ovewwide toMutabwe(): WistAstNode {
+		wetuwn this;
 	}
 }
 
 /**
- * Immutable, if all children are immutable.
+ * Immutabwe, if aww chiwdwen awe immutabwe.
 */
-class ImmutableArrayListAstNode extends ArrayListAstNode {
-	override toMutable(): ListAstNode {
-		return new ArrayListAstNode(this.length, this.listHeight, [...this.children], this.missingOpeningBracketIds);
+cwass ImmutabweAwwayWistAstNode extends AwwayWistAstNode {
+	ovewwide toMutabwe(): WistAstNode {
+		wetuwn new AwwayWistAstNode(this.wength, this.wistHeight, [...this.chiwdwen], this.missingOpeningBwacketIds);
 	}
 
-	protected override throwIfImmutable(): void {
-		throw new Error('this instance is immutable');
+	pwotected ovewwide thwowIfImmutabwe(): void {
+		thwow new Ewwow('this instance is immutabwe');
 	}
 }
 
-const emptyArray: readonly AstNode[] = [];
+const emptyAwway: weadonwy AstNode[] = [];
 
-abstract class ImmutableLeafAstNode extends BaseAstNode {
-	public get listHeight() {
-		return 0;
+abstwact cwass ImmutabweWeafAstNode extends BaseAstNode {
+	pubwic get wistHeight() {
+		wetuwn 0;
 	}
-	public get childrenLength(): number {
-		return 0;
+	pubwic get chiwdwenWength(): numba {
+		wetuwn 0;
 	}
-	public getChild(idx: number): AstNode | null {
-		return null;
+	pubwic getChiwd(idx: numba): AstNode | nuww {
+		wetuwn nuww;
 	}
-	public get children(): readonly AstNode[] {
-		return emptyArray;
+	pubwic get chiwdwen(): weadonwy AstNode[] {
+		wetuwn emptyAwway;
 	}
 
-	public flattenLists(): this & AstNode {
-		return this as this & AstNode;
+	pubwic fwattenWists(): this & AstNode {
+		wetuwn this as this & AstNode;
 	}
-	public deepClone(): this & AstNode {
-		return this as this & AstNode;
+	pubwic deepCwone(): this & AstNode {
+		wetuwn this as this & AstNode;
 	}
 }
 
-export class TextAstNode extends ImmutableLeafAstNode {
-	public get kind(): AstNodeKind.Text {
-		return AstNodeKind.Text;
+expowt cwass TextAstNode extends ImmutabweWeafAstNode {
+	pubwic get kind(): AstNodeKind.Text {
+		wetuwn AstNodeKind.Text;
 	}
-	public get missingOpeningBracketIds(): SmallImmutableSet<OpeningBracketId> {
-		return SmallImmutableSet.getEmpty();
+	pubwic get missingOpeningBwacketIds(): SmawwImmutabweSet<OpeningBwacketId> {
+		wetuwn SmawwImmutabweSet.getEmpty();
 	}
 
-	public canBeReused(
-		_openedBracketIds: SmallImmutableSet<OpeningBracketId>,
-		endLineDidChange: boolean
+	pubwic canBeWeused(
+		_openedBwacketIds: SmawwImmutabweSet<OpeningBwacketId>,
+		endWineDidChange: boowean
 	) {
-		// Don't reuse text from a line that got changed.
-		// Otherwise, long brackets might not be detected.
-		return !endLineDidChange;
+		// Don't weuse text fwom a wine that got changed.
+		// Othewwise, wong bwackets might not be detected.
+		wetuwn !endWineDidChange;
 	}
 }
 
-export class BracketAstNode extends ImmutableLeafAstNode {
-	private static cacheByLength = new Map<number, BracketAstNode>();
+expowt cwass BwacketAstNode extends ImmutabweWeafAstNode {
+	pwivate static cacheByWength = new Map<numba, BwacketAstNode>();
 
-	public static create(length: Length): BracketAstNode {
-		const lengthKey = lengthHash(length);
-		const cached = BracketAstNode.cacheByLength.get(lengthKey);
+	pubwic static cweate(wength: Wength): BwacketAstNode {
+		const wengthKey = wengthHash(wength);
+		const cached = BwacketAstNode.cacheByWength.get(wengthKey);
 		if (cached) {
-			return cached;
+			wetuwn cached;
 		}
 
-		const node = new BracketAstNode(length);
-		BracketAstNode.cacheByLength.set(lengthKey, node);
-		return node;
+		const node = new BwacketAstNode(wength);
+		BwacketAstNode.cacheByWength.set(wengthKey, node);
+		wetuwn node;
 	}
 
-	public get kind(): AstNodeKind.Bracket {
-		return AstNodeKind.Bracket;
+	pubwic get kind(): AstNodeKind.Bwacket {
+		wetuwn AstNodeKind.Bwacket;
 	}
 
-	public get missingOpeningBracketIds(): SmallImmutableSet<OpeningBracketId> {
-		return SmallImmutableSet.getEmpty();
+	pubwic get missingOpeningBwacketIds(): SmawwImmutabweSet<OpeningBwacketId> {
+		wetuwn SmawwImmutabweSet.getEmpty();
 	}
 
-	private constructor(length: Length) {
-		super(length);
+	pwivate constwuctow(wength: Wength) {
+		supa(wength);
 	}
 
-	public canBeReused(
-		_openedBracketIds: SmallImmutableSet<OpeningBracketId>,
-		_endLineDidChange: boolean
+	pubwic canBeWeused(
+		_openedBwacketIds: SmawwImmutabweSet<OpeningBwacketId>,
+		_endWineDidChange: boowean
 	) {
-		// These nodes could be reused,
-		// but not in a general way.
-		// Their parent may be reused.
-		return false;
+		// These nodes couwd be weused,
+		// but not in a genewaw way.
+		// Theiw pawent may be weused.
+		wetuwn fawse;
 	}
 }
 
-export class InvalidBracketAstNode extends ImmutableLeafAstNode {
-	public get kind(): AstNodeKind.UnexpectedClosingBracket {
-		return AstNodeKind.UnexpectedClosingBracket;
+expowt cwass InvawidBwacketAstNode extends ImmutabweWeafAstNode {
+	pubwic get kind(): AstNodeKind.UnexpectedCwosingBwacket {
+		wetuwn AstNodeKind.UnexpectedCwosingBwacket;
 	}
 
-	public readonly missingOpeningBracketIds: SmallImmutableSet<OpeningBracketId>;
+	pubwic weadonwy missingOpeningBwacketIds: SmawwImmutabweSet<OpeningBwacketId>;
 
-	public constructor(closingBrackets: SmallImmutableSet<OpeningBracketId>, length: Length) {
-		super(length);
-		this.missingOpeningBracketIds = closingBrackets;
+	pubwic constwuctow(cwosingBwackets: SmawwImmutabweSet<OpeningBwacketId>, wength: Wength) {
+		supa(wength);
+		this.missingOpeningBwacketIds = cwosingBwackets;
 	}
 
-	public canBeReused(
-		openedBracketIds: SmallImmutableSet<OpeningBracketId>,
-		_endLineDidChange: boolean
+	pubwic canBeWeused(
+		openedBwacketIds: SmawwImmutabweSet<OpeningBwacketId>,
+		_endWineDidChange: boowean
 	) {
-		return !openedBracketIds.intersects(this.missingOpeningBracketIds);
+		wetuwn !openedBwacketIds.intewsects(this.missingOpeningBwacketIds);
 	}
 }

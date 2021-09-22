@@ -1,435 +1,435 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/titlecontrol';
-import { localize } from 'vs/nls';
-import { applyDragImage, DataTransfers } from 'vs/base/browser/dnd';
-import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, SubmenuAction, ActionRunner } from 'vs/base/common/actions';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
-import { createActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, registerThemingParticipant, Themable } from 'vs/platform/theme/common/themeService';
-import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillEditorsDragData, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
-import { BreadcrumbsControl, IBreadcrumbsControlOptions } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
-import { IEditorGroupsAccessor, IEditorGroupTitleHeight, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
-import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, ActiveEditorPinnedContext, ActiveEditorStickyContext, EditorsOrder, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, EditorInputCapabilities, SideBySideEditorActiveContext } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { IFileService } from 'vs/platform/files/common/files';
-import { withNullAsUndefined, withUndefinedAsNull, assertIsDefined } from 'vs/base/common/types';
-import { isFirefox } from 'vs/base/browser/browser';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
+impowt 'vs/css!./media/titwecontwow';
+impowt { wocawize } fwom 'vs/nws';
+impowt { appwyDwagImage, DataTwansfews } fwom 'vs/base/bwowsa/dnd';
+impowt { addDisposabweWistena, Dimension, EventType } fwom 'vs/base/bwowsa/dom';
+impowt { StandawdMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { ActionsOwientation, IActionViewItem, pwepaweActions } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { ToowBaw } fwom 'vs/base/bwowsa/ui/toowbaw/toowbaw';
+impowt { IAction, WowkbenchActionExecutedEvent, WowkbenchActionExecutedCwassification, SubmenuAction, ActionWunna } fwom 'vs/base/common/actions';
+impowt { WesowvedKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { dispose, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { cweateActionViewItem, cweateAndFiwwInActionBawActions, cweateAndFiwwInContextMenuActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { IMenu, IMenuSewvice, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKeySewvice, IContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { wistActiveSewectionBackgwound, wistActiveSewectionFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IThemeSewvice, wegistewThemingPawticipant, Themabwe } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { DwaggedEditowGwoupIdentifia, DwaggedEditowIdentifia, fiwwEditowsDwagData, WocawSewectionTwansfa } fwom 'vs/wowkbench/bwowsa/dnd';
+impowt { EditowPane } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPane';
+impowt { BweadcwumbsConfig } fwom 'vs/wowkbench/bwowsa/pawts/editow/bweadcwumbs';
+impowt { BweadcwumbsContwow, IBweadcwumbsContwowOptions } fwom 'vs/wowkbench/bwowsa/pawts/editow/bweadcwumbsContwow';
+impowt { IEditowGwoupsAccessow, IEditowGwoupTitweHeight, IEditowGwoupView } fwom 'vs/wowkbench/bwowsa/pawts/editow/editow';
+impowt { IEditowCommandsContext, EditowWesouwceAccessow, IEditowPawtOptions, SideBySideEditow, ActiveEditowPinnedContext, ActiveEditowStickyContext, EditowsOwda, ActiveEditowGwoupWockedContext, ActiveEditowCanSpwitInGwoupContext, EditowInputCapabiwities, SideBySideEditowActiveContext } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { WesouwceContextKey } fwom 'vs/wowkbench/common/wesouwces';
+impowt { AnchowAwignment } fwom 'vs/base/bwowsa/ui/contextview/contextview';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { withNuwwAsUndefined, withUndefinedAsNuww, assewtIsDefined } fwom 'vs/base/common/types';
+impowt { isFiwefox } fwom 'vs/base/bwowsa/bwowsa';
+impowt { isPwomiseCancewedEwwow } fwom 'vs/base/common/ewwows';
+impowt { SideBySideEditowInput } fwom 'vs/wowkbench/common/editow/sideBySideEditowInput';
 
-export interface IToolbarActions {
-	primary: IAction[];
-	secondary: IAction[];
+expowt intewface IToowbawActions {
+	pwimawy: IAction[];
+	secondawy: IAction[];
 }
 
-export interface ITitleControlDimensions {
+expowt intewface ITitweContwowDimensions {
 
 	/**
-	 * The size of the parent container the title control is layed out in.
+	 * The size of the pawent containa the titwe contwow is wayed out in.
 	 */
-	container: Dimension;
+	containa: Dimension;
 
 	/**
-	 * The maximum size the title control is allowed to consume based on
-	 * other controls that are positioned inside the container.
+	 * The maximum size the titwe contwow is awwowed to consume based on
+	 * otha contwows that awe positioned inside the containa.
 	 */
-	available: Dimension;
+	avaiwabwe: Dimension;
 }
 
-export class EditorCommandsContextActionRunner extends ActionRunner {
+expowt cwass EditowCommandsContextActionWunna extends ActionWunna {
 
-	constructor(
-		private context: IEditorCommandsContext
+	constwuctow(
+		pwivate context: IEditowCommandsContext
 	) {
-		super();
+		supa();
 	}
 
-	override run(action: IAction): Promise<void> {
-		return super.run(action, this.context);
+	ovewwide wun(action: IAction): Pwomise<void> {
+		wetuwn supa.wun(action, this.context);
 	}
 }
 
-export abstract class TitleControl extends Themable {
+expowt abstwact cwass TitweContwow extends Themabwe {
 
-	protected readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
-	protected readonly editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
+	pwotected weadonwy gwoupTwansfa = WocawSewectionTwansfa.getInstance<DwaggedEditowGwoupIdentifia>();
+	pwotected weadonwy editowTwansfa = WocawSewectionTwansfa.getInstance<DwaggedEditowIdentifia>();
 
-	protected breadcrumbsControl: BreadcrumbsControl | undefined = undefined;
+	pwotected bweadcwumbsContwow: BweadcwumbsContwow | undefined = undefined;
 
-	private editorActionsToolbar: ToolBar | undefined;
+	pwivate editowActionsToowbaw: ToowBaw | undefined;
 
-	private resourceContext: ResourceContextKey;
+	pwivate wesouwceContext: WesouwceContextKey;
 
-	private editorPinnedContext: IContextKey<boolean>;
-	private editorStickyContext: IContextKey<boolean>;
+	pwivate editowPinnedContext: IContextKey<boowean>;
+	pwivate editowStickyContext: IContextKey<boowean>;
 
-	private editorCanSplitInGroupContext: IContextKey<boolean>;
-	private sideBySideEditorContext: IContextKey<boolean>;
+	pwivate editowCanSpwitInGwoupContext: IContextKey<boowean>;
+	pwivate sideBySideEditowContext: IContextKey<boowean>;
 
-	private groupLockedContext: IContextKey<boolean>;
+	pwivate gwoupWockedContext: IContextKey<boowean>;
 
-	private readonly editorToolBarMenuDisposables = this._register(new DisposableStore());
+	pwivate weadonwy editowToowBawMenuDisposabwes = this._wegista(new DisposabweStowe());
 
-	private contextMenu: IMenu;
-	private renderDropdownAsChildElement: boolean;
+	pwivate contextMenu: IMenu;
+	pwivate wendewDwopdownAsChiwdEwement: boowean;
 
-	constructor(
-		parent: HTMLElement,
-		protected accessor: IEditorGroupsAccessor,
-		protected group: IEditorGroupView,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IMenuService private readonly menuService: IMenuService,
-		@IQuickInputService protected quickInputService: IQuickInputService,
-		@IThemeService themeService: IThemeService,
-		@IConfigurationService protected configurationService: IConfigurationService,
-		@IFileService private readonly fileService: IFileService
+	constwuctow(
+		pawent: HTMWEwement,
+		pwotected accessow: IEditowGwoupsAccessow,
+		pwotected gwoup: IEditowGwoupView,
+		@IContextMenuSewvice pwivate weadonwy contextMenuSewvice: IContextMenuSewvice,
+		@IInstantiationSewvice pwotected instantiationSewvice: IInstantiationSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IKeybindingSewvice pwivate weadonwy keybindingSewvice: IKeybindingSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IMenuSewvice pwivate weadonwy menuSewvice: IMenuSewvice,
+		@IQuickInputSewvice pwotected quickInputSewvice: IQuickInputSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IConfiguwationSewvice pwotected configuwationSewvice: IConfiguwationSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice
 	) {
-		super(themeService);
+		supa(themeSewvice);
 
-		this.resourceContext = this._register(instantiationService.createInstance(ResourceContextKey));
+		this.wesouwceContext = this._wegista(instantiationSewvice.cweateInstance(WesouwceContextKey));
 
-		this.editorPinnedContext = ActiveEditorPinnedContext.bindTo(contextKeyService);
-		this.editorStickyContext = ActiveEditorStickyContext.bindTo(contextKeyService);
+		this.editowPinnedContext = ActiveEditowPinnedContext.bindTo(contextKeySewvice);
+		this.editowStickyContext = ActiveEditowStickyContext.bindTo(contextKeySewvice);
 
-		this.editorCanSplitInGroupContext = ActiveEditorCanSplitInGroupContext.bindTo(contextKeyService);
-		this.sideBySideEditorContext = SideBySideEditorActiveContext.bindTo(contextKeyService);
+		this.editowCanSpwitInGwoupContext = ActiveEditowCanSpwitInGwoupContext.bindTo(contextKeySewvice);
+		this.sideBySideEditowContext = SideBySideEditowActiveContext.bindTo(contextKeySewvice);
 
-		this.groupLockedContext = ActiveEditorGroupLockedContext.bindTo(contextKeyService);
+		this.gwoupWockedContext = ActiveEditowGwoupWockedContext.bindTo(contextKeySewvice);
 
-		this.contextMenu = this._register(this.menuService.createMenu(MenuId.EditorTitleContext, this.contextKeyService));
-		this.renderDropdownAsChildElement = false;
+		this.contextMenu = this._wegista(this.menuSewvice.cweateMenu(MenuId.EditowTitweContext, this.contextKeySewvice));
+		this.wendewDwopdownAsChiwdEwement = fawse;
 
-		this.create(parent);
+		this.cweate(pawent);
 	}
 
-	protected abstract create(parent: HTMLElement): void;
+	pwotected abstwact cweate(pawent: HTMWEwement): void;
 
-	protected createBreadcrumbsControl(container: HTMLElement, options: IBreadcrumbsControlOptions): void {
-		const config = this._register(BreadcrumbsConfig.IsEnabled.bindTo(this.configurationService));
-		this._register(config.onDidChange(() => {
-			const value = config.getValue();
-			if (!value && this.breadcrumbsControl) {
-				this.breadcrumbsControl.dispose();
-				this.breadcrumbsControl = undefined;
-				this.handleBreadcrumbsEnablementChange();
-			} else if (value && !this.breadcrumbsControl) {
-				this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, options, this.group);
-				this.breadcrumbsControl.update();
-				this.handleBreadcrumbsEnablementChange();
+	pwotected cweateBweadcwumbsContwow(containa: HTMWEwement, options: IBweadcwumbsContwowOptions): void {
+		const config = this._wegista(BweadcwumbsConfig.IsEnabwed.bindTo(this.configuwationSewvice));
+		this._wegista(config.onDidChange(() => {
+			const vawue = config.getVawue();
+			if (!vawue && this.bweadcwumbsContwow) {
+				this.bweadcwumbsContwow.dispose();
+				this.bweadcwumbsContwow = undefined;
+				this.handweBweadcwumbsEnabwementChange();
+			} ewse if (vawue && !this.bweadcwumbsContwow) {
+				this.bweadcwumbsContwow = this.instantiationSewvice.cweateInstance(BweadcwumbsContwow, containa, options, this.gwoup);
+				this.bweadcwumbsContwow.update();
+				this.handweBweadcwumbsEnabwementChange();
 			}
 		}));
 
-		if (config.getValue()) {
-			this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, options, this.group);
+		if (config.getVawue()) {
+			this.bweadcwumbsContwow = this.instantiationSewvice.cweateInstance(BweadcwumbsContwow, containa, options, this.gwoup);
 		}
 
-		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(() => {
-			if (this.breadcrumbsControl?.update()) {
-				this.handleBreadcrumbsEnablementChange();
+		this._wegista(this.fiweSewvice.onDidChangeFiweSystemPwovidewWegistwations(() => {
+			if (this.bweadcwumbsContwow?.update()) {
+				this.handweBweadcwumbsEnabwementChange();
 			}
 		}));
 	}
 
-	protected abstract handleBreadcrumbsEnablementChange(): void;
+	pwotected abstwact handweBweadcwumbsEnabwementChange(): void;
 
-	protected createEditorActionsToolBar(container: HTMLElement): void {
-		const context: IEditorCommandsContext = { groupId: this.group.id };
+	pwotected cweateEditowActionsToowBaw(containa: HTMWEwement): void {
+		const context: IEditowCommandsContext = { gwoupId: this.gwoup.id };
 
-		// Toolbar Widget
-		this.editorActionsToolbar = this._register(new ToolBar(container, this.contextMenuService, {
-			actionViewItemProvider: action => this.actionViewItemProvider(action),
-			orientation: ActionsOrientation.HORIZONTAL,
-			ariaLabel: localize('ariaLabelEditorActions', "Editor actions"),
+		// Toowbaw Widget
+		this.editowActionsToowbaw = this._wegista(new ToowBaw(containa, this.contextMenuSewvice, {
+			actionViewItemPwovida: action => this.actionViewItemPwovida(action),
+			owientation: ActionsOwientation.HOWIZONTAW,
+			awiaWabew: wocawize('awiaWabewEditowActions', "Editow actions"),
 			getKeyBinding: action => this.getKeybinding(action),
-			actionRunner: this._register(new EditorCommandsContextActionRunner(context)),
-			anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
-			renderDropdownAsChildElement: this.renderDropdownAsChildElement
+			actionWunna: this._wegista(new EditowCommandsContextActionWunna(context)),
+			anchowAwignmentPwovida: () => AnchowAwignment.WIGHT,
+			wendewDwopdownAsChiwdEwement: this.wendewDwopdownAsChiwdEwement
 		}));
 
 		// Context
-		this.editorActionsToolbar.context = context;
+		this.editowActionsToowbaw.context = context;
 
-		// Action Run Handling
-		this._register(this.editorActionsToolbar.actionRunner.onDidRun(e => {
+		// Action Wun Handwing
+		this._wegista(this.editowActionsToowbaw.actionWunna.onDidWun(e => {
 
-			// Notify for Error
-			if (e.error && !isPromiseCanceledError(e.error)) {
-				this.notificationService.error(e.error);
+			// Notify fow Ewwow
+			if (e.ewwow && !isPwomiseCancewedEwwow(e.ewwow)) {
+				this.notificationSewvice.ewwow(e.ewwow);
 			}
 
-			// Log in telemetry
-			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'editorPart' });
+			// Wog in tewemetwy
+			this.tewemetwySewvice.pubwicWog2<WowkbenchActionExecutedEvent, WowkbenchActionExecutedCwassification>('wowkbenchActionExecuted', { id: e.action.id, fwom: 'editowPawt' });
 		}));
 	}
 
-	private actionViewItemProvider(action: IAction): IActionViewItem | undefined {
-		const activeEditorPane = this.group.activeEditorPane;
+	pwivate actionViewItemPwovida(action: IAction): IActionViewItem | undefined {
+		const activeEditowPane = this.gwoup.activeEditowPane;
 
-		// Check Active Editor
-		if (activeEditorPane instanceof EditorPane) {
-			const result = activeEditorPane.getActionViewItem(action);
+		// Check Active Editow
+		if (activeEditowPane instanceof EditowPane) {
+			const wesuwt = activeEditowPane.getActionViewItem(action);
 
-			if (result) {
-				return result;
+			if (wesuwt) {
+				wetuwn wesuwt;
 			}
 		}
 
 		// Check extensions
-		return createActionViewItem(this.instantiationService, action, { menuAsChild: this.renderDropdownAsChildElement });
+		wetuwn cweateActionViewItem(this.instantiationSewvice, action, { menuAsChiwd: this.wendewDwopdownAsChiwdEwement });
 	}
 
-	protected updateEditorActionsToolbar(): void {
-		const { primary, secondary } = this.prepareEditorActions(this.getEditorActions());
+	pwotected updateEditowActionsToowbaw(): void {
+		const { pwimawy, secondawy } = this.pwepaweEditowActions(this.getEditowActions());
 
-		const editorActionsToolbar = assertIsDefined(this.editorActionsToolbar);
-		editorActionsToolbar.setActions(prepareActions(primary), prepareActions(secondary));
+		const editowActionsToowbaw = assewtIsDefined(this.editowActionsToowbaw);
+		editowActionsToowbaw.setActions(pwepaweActions(pwimawy), pwepaweActions(secondawy));
 	}
 
-	protected abstract prepareEditorActions(editorActions: IToolbarActions): IToolbarActions;
+	pwotected abstwact pwepaweEditowActions(editowActions: IToowbawActions): IToowbawActions;
 
-	private getEditorActions(): IToolbarActions {
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
+	pwivate getEditowActions(): IToowbawActions {
+		const pwimawy: IAction[] = [];
+		const secondawy: IAction[] = [];
 
-		// Dispose previous listeners
-		this.editorToolBarMenuDisposables.clear();
+		// Dispose pwevious wistenews
+		this.editowToowBawMenuDisposabwes.cweaw();
 
 		// Update contexts
-		this.contextKeyService.bufferChangeEvents(() => {
-			this.resourceContext.set(withUndefinedAsNull(EditorResourceAccessor.getOriginalUri(this.group.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY })));
+		this.contextKeySewvice.buffewChangeEvents(() => {
+			this.wesouwceContext.set(withUndefinedAsNuww(EditowWesouwceAccessow.getOwiginawUwi(this.gwoup.activeEditow, { suppowtSideBySide: SideBySideEditow.PWIMAWY })));
 
-			this.editorPinnedContext.set(this.group.activeEditor ? this.group.isPinned(this.group.activeEditor) : false);
-			this.editorStickyContext.set(this.group.activeEditor ? this.group.isSticky(this.group.activeEditor) : false);
+			this.editowPinnedContext.set(this.gwoup.activeEditow ? this.gwoup.isPinned(this.gwoup.activeEditow) : fawse);
+			this.editowStickyContext.set(this.gwoup.activeEditow ? this.gwoup.isSticky(this.gwoup.activeEditow) : fawse);
 
-			this.editorCanSplitInGroupContext.set(this.group.activeEditor ? this.group.activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup) : false);
-			this.sideBySideEditorContext.set(this.group.activeEditor?.typeId === SideBySideEditorInput.ID);
+			this.editowCanSpwitInGwoupContext.set(this.gwoup.activeEditow ? this.gwoup.activeEditow.hasCapabiwity(EditowInputCapabiwities.CanSpwitInGwoup) : fawse);
+			this.sideBySideEditowContext.set(this.gwoup.activeEditow?.typeId === SideBySideEditowInput.ID);
 
-			this.groupLockedContext.set(this.group.isLocked);
+			this.gwoupWockedContext.set(this.gwoup.isWocked);
 		});
 
-		// Editor actions require the editor control to be there, so we retrieve it via service
-		const activeEditorPane = this.group.activeEditorPane;
-		if (activeEditorPane instanceof EditorPane) {
-			const scopedContextKeyService = activeEditorPane.scopedContextKeyService ?? this.contextKeyService;
-			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: 0 });
-			this.editorToolBarMenuDisposables.add(titleBarMenu);
-			this.editorToolBarMenuDisposables.add(titleBarMenu.onDidChange(() => {
-				this.updateEditorActionsToolbar(); // Update editor toolbar whenever contributed actions change
+		// Editow actions wequiwe the editow contwow to be thewe, so we wetwieve it via sewvice
+		const activeEditowPane = this.gwoup.activeEditowPane;
+		if (activeEditowPane instanceof EditowPane) {
+			const scopedContextKeySewvice = activeEditowPane.scopedContextKeySewvice ?? this.contextKeySewvice;
+			const titweBawMenu = this.menuSewvice.cweateMenu(MenuId.EditowTitwe, scopedContextKeySewvice, { emitEventsFowSubmenuChanges: twue, eventDebounceDeway: 0 });
+			this.editowToowBawMenuDisposabwes.add(titweBawMenu);
+			this.editowToowBawMenuDisposabwes.add(titweBawMenu.onDidChange(() => {
+				this.updateEditowActionsToowbaw(); // Update editow toowbaw wheneva contwibuted actions change
 			}));
 
-			const shouldInlineGroup = (action: SubmenuAction, group: string) => group === 'navigation' && action.actions.length <= 1;
+			const shouwdInwineGwoup = (action: SubmenuAction, gwoup: stwing) => gwoup === 'navigation' && action.actions.wength <= 1;
 
-			this.editorToolBarMenuDisposables.add(createAndFillInActionBarActions(
-				titleBarMenu,
-				{ arg: this.resourceContext.get(), shouldForwardArgs: true },
-				{ primary, secondary },
+			this.editowToowBawMenuDisposabwes.add(cweateAndFiwwInActionBawActions(
+				titweBawMenu,
+				{ awg: this.wesouwceContext.get(), shouwdFowwawdAwgs: twue },
+				{ pwimawy, secondawy },
 				'navigation',
 				9,
-				shouldInlineGroup
+				shouwdInwineGwoup
 			));
 		}
 
-		return { primary, secondary };
+		wetuwn { pwimawy, secondawy };
 	}
 
-	protected clearEditorActionsToolbar(): void {
-		this.editorActionsToolbar?.setActions([], []);
+	pwotected cweawEditowActionsToowbaw(): void {
+		this.editowActionsToowbaw?.setActions([], []);
 	}
 
-	protected enableGroupDragging(element: HTMLElement): void {
+	pwotected enabweGwoupDwagging(ewement: HTMWEwement): void {
 
-		// Drag start
-		this._register(addDisposableListener(element, EventType.DRAG_START, e => {
-			if (e.target !== element) {
-				return; // only if originating from tabs container
+		// Dwag stawt
+		this._wegista(addDisposabweWistena(ewement, EventType.DWAG_STAWT, e => {
+			if (e.tawget !== ewement) {
+				wetuwn; // onwy if owiginating fwom tabs containa
 			}
 
-			// Set editor group as transfer
-			this.groupTransfer.setData([new DraggedEditorGroupIdentifier(this.group.id)], DraggedEditorGroupIdentifier.prototype);
-			if (e.dataTransfer) {
-				e.dataTransfer.effectAllowed = 'copyMove';
+			// Set editow gwoup as twansfa
+			this.gwoupTwansfa.setData([new DwaggedEditowGwoupIdentifia(this.gwoup.id)], DwaggedEditowGwoupIdentifia.pwototype);
+			if (e.dataTwansfa) {
+				e.dataTwansfa.effectAwwowed = 'copyMove';
 			}
 
-			// Drag all tabs of the group if tabs are enabled
-			let hasDataTransfer = false;
-			if (this.accessor.partOptions.showTabs) {
-				hasDataTransfer = this.doFillResourceDataTransfers(this.group.getEditors(EditorsOrder.SEQUENTIAL), e);
+			// Dwag aww tabs of the gwoup if tabs awe enabwed
+			wet hasDataTwansfa = fawse;
+			if (this.accessow.pawtOptions.showTabs) {
+				hasDataTwansfa = this.doFiwwWesouwceDataTwansfews(this.gwoup.getEditows(EditowsOwda.SEQUENTIAW), e);
 			}
 
-			// Otherwise only drag the active editor
-			else {
-				if (this.group.activeEditor) {
-					hasDataTransfer = this.doFillResourceDataTransfers([this.group.activeEditor], e);
+			// Othewwise onwy dwag the active editow
+			ewse {
+				if (this.gwoup.activeEditow) {
+					hasDataTwansfa = this.doFiwwWesouwceDataTwansfews([this.gwoup.activeEditow], e);
 				}
 			}
 
-			// Firefox: requires to set a text data transfer to get going
-			if (!hasDataTransfer && isFirefox) {
-				e.dataTransfer?.setData(DataTransfers.TEXT, String(this.group.label));
+			// Fiwefox: wequiwes to set a text data twansfa to get going
+			if (!hasDataTwansfa && isFiwefox) {
+				e.dataTwansfa?.setData(DataTwansfews.TEXT, Stwing(this.gwoup.wabew));
 			}
 
-			// Drag Image
-			if (this.group.activeEditor) {
-				let label = this.group.activeEditor.getName();
-				if (this.accessor.partOptions.showTabs && this.group.count > 1) {
-					label = localize('draggedEditorGroup', "{0} (+{1})", label, this.group.count - 1);
+			// Dwag Image
+			if (this.gwoup.activeEditow) {
+				wet wabew = this.gwoup.activeEditow.getName();
+				if (this.accessow.pawtOptions.showTabs && this.gwoup.count > 1) {
+					wabew = wocawize('dwaggedEditowGwoup', "{0} (+{1})", wabew, this.gwoup.count - 1);
 				}
 
-				applyDragImage(e, label, 'monaco-editor-group-drag-image');
+				appwyDwagImage(e, wabew, 'monaco-editow-gwoup-dwag-image');
 			}
 		}));
 
-		// Drag end
-		this._register(addDisposableListener(element, EventType.DRAG_END, () => {
-			this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
+		// Dwag end
+		this._wegista(addDisposabweWistena(ewement, EventType.DWAG_END, () => {
+			this.gwoupTwansfa.cweawData(DwaggedEditowGwoupIdentifia.pwototype);
 		}));
 	}
 
-	protected doFillResourceDataTransfers(editors: readonly EditorInput[], e: DragEvent): boolean {
-		if (editors.length) {
-			this.instantiationService.invokeFunction(fillEditorsDragData, editors.map(editor => ({ editor, groupId: this.group.id })), e);
+	pwotected doFiwwWesouwceDataTwansfews(editows: weadonwy EditowInput[], e: DwagEvent): boowean {
+		if (editows.wength) {
+			this.instantiationSewvice.invokeFunction(fiwwEditowsDwagData, editows.map(editow => ({ editow, gwoupId: this.gwoup.id })), e);
 
-			return true;
+			wetuwn twue;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	protected onContextMenu(editor: EditorInput, e: Event, node: HTMLElement): void {
+	pwotected onContextMenu(editow: EditowInput, e: Event, node: HTMWEwement): void {
 
-		// Update contexts based on editor picked and remember previous to restore
-		const currentResourceContext = this.resourceContext.get();
-		this.resourceContext.set(withUndefinedAsNull(EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY })));
-		const currentPinnedContext = !!this.editorPinnedContext.get();
-		this.editorPinnedContext.set(this.group.isPinned(editor));
-		const currentStickyContext = !!this.editorStickyContext.get();
-		this.editorStickyContext.set(this.group.isSticky(editor));
-		const currentGroupLockedContext = !!this.groupLockedContext.get();
-		this.groupLockedContext.set(this.group.isLocked);
-		const currentEditorCanSplitContext = !!this.editorCanSplitInGroupContext.get();
-		this.editorCanSplitInGroupContext.set(editor.hasCapability(EditorInputCapabilities.CanSplitInGroup));
-		const currentSideBySideEditorContext = !!this.sideBySideEditorContext.get();
-		this.sideBySideEditorContext.set(editor.typeId === SideBySideEditorInput.ID);
+		// Update contexts based on editow picked and wememba pwevious to westowe
+		const cuwwentWesouwceContext = this.wesouwceContext.get();
+		this.wesouwceContext.set(withUndefinedAsNuww(EditowWesouwceAccessow.getOwiginawUwi(editow, { suppowtSideBySide: SideBySideEditow.PWIMAWY })));
+		const cuwwentPinnedContext = !!this.editowPinnedContext.get();
+		this.editowPinnedContext.set(this.gwoup.isPinned(editow));
+		const cuwwentStickyContext = !!this.editowStickyContext.get();
+		this.editowStickyContext.set(this.gwoup.isSticky(editow));
+		const cuwwentGwoupWockedContext = !!this.gwoupWockedContext.get();
+		this.gwoupWockedContext.set(this.gwoup.isWocked);
+		const cuwwentEditowCanSpwitContext = !!this.editowCanSpwitInGwoupContext.get();
+		this.editowCanSpwitInGwoupContext.set(editow.hasCapabiwity(EditowInputCapabiwities.CanSpwitInGwoup));
+		const cuwwentSideBySideEditowContext = !!this.sideBySideEditowContext.get();
+		this.sideBySideEditowContext.set(editow.typeId === SideBySideEditowInput.ID);
 
-		// Find target anchor
-		let anchor: HTMLElement | { x: number, y: number } = node;
+		// Find tawget anchow
+		wet anchow: HTMWEwement | { x: numba, y: numba } = node;
 		if (e instanceof MouseEvent) {
-			const event = new StandardMouseEvent(e);
-			anchor = { x: event.posx, y: event.posy };
+			const event = new StandawdMouseEvent(e);
+			anchow = { x: event.posx, y: event.posy };
 		}
 
-		// Fill in contributed actions
+		// Fiww in contwibuted actions
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true, arg: this.resourceContext.get() }, actions);
+		const actionsDisposabwe = cweateAndFiwwInContextMenuActions(this.contextMenu, { shouwdFowwawdAwgs: twue, awg: this.wesouwceContext.get() }, actions);
 
 		// Show it
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
+		this.contextMenuSewvice.showContextMenu({
+			getAnchow: () => anchow,
 			getActions: () => actions,
-			getActionsContext: () => ({ groupId: this.group.id, editorIndex: this.group.getIndexOfEditor(editor) }),
+			getActionsContext: () => ({ gwoupId: this.gwoup.id, editowIndex: this.gwoup.getIndexOfEditow(editow) }),
 			getKeyBinding: action => this.getKeybinding(action),
 			onHide: () => {
 
-				// restore previous contexts
-				this.resourceContext.set(currentResourceContext || null);
-				this.editorPinnedContext.set(currentPinnedContext);
-				this.editorStickyContext.set(currentStickyContext);
-				this.groupLockedContext.set(currentGroupLockedContext);
-				this.editorCanSplitInGroupContext.set(currentEditorCanSplitContext);
-				this.sideBySideEditorContext.set(currentSideBySideEditorContext);
+				// westowe pwevious contexts
+				this.wesouwceContext.set(cuwwentWesouwceContext || nuww);
+				this.editowPinnedContext.set(cuwwentPinnedContext);
+				this.editowStickyContext.set(cuwwentStickyContext);
+				this.gwoupWockedContext.set(cuwwentGwoupWockedContext);
+				this.editowCanSpwitInGwoupContext.set(cuwwentEditowCanSpwitContext);
+				this.sideBySideEditowContext.set(cuwwentSideBySideEditowContext);
 
-				// restore focus to active group
-				this.accessor.activeGroup.focus();
+				// westowe focus to active gwoup
+				this.accessow.activeGwoup.focus();
 
-				// Cleanup
-				dispose(actionsDisposable);
+				// Cweanup
+				dispose(actionsDisposabwe);
 			}
 		});
 	}
 
-	private getKeybinding(action: IAction): ResolvedKeybinding | undefined {
-		return this.keybindingService.lookupKeybinding(action.id);
+	pwivate getKeybinding(action: IAction): WesowvedKeybinding | undefined {
+		wetuwn this.keybindingSewvice.wookupKeybinding(action.id);
 	}
 
-	protected getKeybindingLabel(action: IAction): string | undefined {
+	pwotected getKeybindingWabew(action: IAction): stwing | undefined {
 		const keybinding = this.getKeybinding(action);
 
-		return keybinding ? withNullAsUndefined(keybinding.getLabel()) : undefined;
+		wetuwn keybinding ? withNuwwAsUndefined(keybinding.getWabew()) : undefined;
 	}
 
-	abstract openEditor(editor: EditorInput): void;
+	abstwact openEditow(editow: EditowInput): void;
 
-	abstract openEditors(editors: EditorInput[]): void;
+	abstwact openEditows(editows: EditowInput[]): void;
 
-	abstract closeEditor(editor: EditorInput, index: number | undefined): void;
+	abstwact cwoseEditow(editow: EditowInput, index: numba | undefined): void;
 
-	abstract closeEditors(editors: EditorInput[]): void;
+	abstwact cwoseEditows(editows: EditowInput[]): void;
 
-	abstract moveEditor(editor: EditorInput, fromIndex: number, targetIndex: number): void;
+	abstwact moveEditow(editow: EditowInput, fwomIndex: numba, tawgetIndex: numba): void;
 
-	abstract pinEditor(editor: EditorInput): void;
+	abstwact pinEditow(editow: EditowInput): void;
 
-	abstract stickEditor(editor: EditorInput): void;
+	abstwact stickEditow(editow: EditowInput): void;
 
-	abstract unstickEditor(editor: EditorInput): void;
+	abstwact unstickEditow(editow: EditowInput): void;
 
-	abstract setActive(isActive: boolean): void;
+	abstwact setActive(isActive: boowean): void;
 
-	abstract updateEditorLabel(editor: EditorInput): void;
+	abstwact updateEditowWabew(editow: EditowInput): void;
 
-	abstract updateEditorDirty(editor: EditorInput): void;
+	abstwact updateEditowDiwty(editow: EditowInput): void;
 
-	abstract updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void;
+	abstwact updateOptions(owdOptions: IEditowPawtOptions, newOptions: IEditowPawtOptions): void;
 
-	abstract layout(dimensions: ITitleControlDimensions): Dimension;
+	abstwact wayout(dimensions: ITitweContwowDimensions): Dimension;
 
-	abstract getHeight(): IEditorGroupTitleHeight;
+	abstwact getHeight(): IEditowGwoupTitweHeight;
 
-	override dispose(): void {
-		dispose(this.breadcrumbsControl);
-		this.breadcrumbsControl = undefined;
+	ovewwide dispose(): void {
+		dispose(this.bweadcwumbsContwow);
+		this.bweadcwumbsContwow = undefined;
 
-		super.dispose();
+		supa.dispose();
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
+wegistewThemingPawticipant((theme, cowwectow) => {
 
-	// Drag Feedback
-	const dragImageBackground = theme.getColor(listActiveSelectionBackground);
-	const dragImageForeground = theme.getColor(listActiveSelectionForeground);
-	collector.addRule(`
-		.monaco-editor-group-drag-image {
-			background: ${dragImageBackground};
-			color: ${dragImageForeground};
+	// Dwag Feedback
+	const dwagImageBackgwound = theme.getCowow(wistActiveSewectionBackgwound);
+	const dwagImageFowegwound = theme.getCowow(wistActiveSewectionFowegwound);
+	cowwectow.addWuwe(`
+		.monaco-editow-gwoup-dwag-image {
+			backgwound: ${dwagImageBackgwound};
+			cowow: ${dwagImageFowegwound};
 		}
 	`);
 });

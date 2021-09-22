@@ -1,120 +1,120 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener } from 'vs/base/browser/dom';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Mimes } from 'vs/base/common/mime';
+impowt { addDisposabweWistena } fwom 'vs/base/bwowsa/dom';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Mimes } fwom 'vs/base/common/mime';
 
 /**
- * A helper that will execute a provided function when the provided HTMLElement receives
- *  dragover event for 800ms. If the drag is aborted before, the callback will not be triggered.
+ * A hewpa that wiww execute a pwovided function when the pwovided HTMWEwement weceives
+ *  dwagova event fow 800ms. If the dwag is abowted befowe, the cawwback wiww not be twiggewed.
  */
-export class DelayedDragHandler extends Disposable {
-	private timeout: any;
+expowt cwass DewayedDwagHandwa extends Disposabwe {
+	pwivate timeout: any;
 
-	constructor(container: HTMLElement, callback: () => void) {
-		super();
+	constwuctow(containa: HTMWEwement, cawwback: () => void) {
+		supa();
 
-		this._register(addDisposableListener(container, 'dragover', e => {
-			e.preventDefault(); // needed so that the drop event fires (https://stackoverflow.com/questions/21339924/drop-event-not-firing-in-chrome)
+		this._wegista(addDisposabweWistena(containa, 'dwagova', e => {
+			e.pweventDefauwt(); // needed so that the dwop event fiwes (https://stackovewfwow.com/questions/21339924/dwop-event-not-fiwing-in-chwome)
 
 			if (!this.timeout) {
 				this.timeout = setTimeout(() => {
-					callback();
+					cawwback();
 
-					this.timeout = null;
+					this.timeout = nuww;
 				}, 800);
 			}
 		}));
 
-		['dragleave', 'drop', 'dragend'].forEach(type => {
-			this._register(addDisposableListener(container, type, () => {
-				this.clearDragTimeout();
+		['dwagweave', 'dwop', 'dwagend'].fowEach(type => {
+			this._wegista(addDisposabweWistena(containa, type, () => {
+				this.cweawDwagTimeout();
 			}));
 		});
 	}
 
-	private clearDragTimeout(): void {
+	pwivate cweawDwagTimeout(): void {
 		if (this.timeout) {
-			clearTimeout(this.timeout);
-			this.timeout = null;
+			cweawTimeout(this.timeout);
+			this.timeout = nuww;
 		}
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
-		this.clearDragTimeout();
+		this.cweawDwagTimeout();
 	}
 }
 
-// Common data transfers
-export const DataTransfers = {
+// Common data twansfews
+expowt const DataTwansfews = {
 
 	/**
-	 * Application specific resource transfer type
+	 * Appwication specific wesouwce twansfa type
 	 */
-	RESOURCES: 'ResourceURLs',
+	WESOUWCES: 'WesouwceUWWs',
 
 	/**
-	 * Browser specific transfer type to download
+	 * Bwowsa specific twansfa type to downwoad
 	 */
-	DOWNLOAD_URL: 'DownloadURL',
+	DOWNWOAD_UWW: 'DownwoadUWW',
 
 	/**
-	 * Browser specific transfer type for files
+	 * Bwowsa specific twansfa type fow fiwes
 	 */
-	FILES: 'Files',
+	FIWES: 'Fiwes',
 
 	/**
-	 * Typically transfer type for copy/paste transfers.
+	 * Typicawwy twansfa type fow copy/paste twansfews.
 	 */
 	TEXT: Mimes.text,
 
 	/**
-	 * Application specific terminal transfer type.
+	 * Appwication specific tewminaw twansfa type.
 	 */
-	TERMINALS: 'Terminals'
+	TEWMINAWS: 'Tewminaws'
 };
 
-export function applyDragImage(event: DragEvent, label: string | null, clazz: string): void {
-	const dragImage = document.createElement('div');
-	dragImage.className = clazz;
-	dragImage.textContent = label;
+expowt function appwyDwagImage(event: DwagEvent, wabew: stwing | nuww, cwazz: stwing): void {
+	const dwagImage = document.cweateEwement('div');
+	dwagImage.cwassName = cwazz;
+	dwagImage.textContent = wabew;
 
-	if (event.dataTransfer) {
-		document.body.appendChild(dragImage);
-		event.dataTransfer.setDragImage(dragImage, -10, -10);
+	if (event.dataTwansfa) {
+		document.body.appendChiwd(dwagImage);
+		event.dataTwansfa.setDwagImage(dwagImage, -10, -10);
 
-		// Removes the element when the DND operation is done
-		setTimeout(() => document.body.removeChild(dragImage), 0);
+		// Wemoves the ewement when the DND opewation is done
+		setTimeout(() => document.body.wemoveChiwd(dwagImage), 0);
 	}
 }
 
-export interface IDragAndDropData {
-	update(dataTransfer: DataTransfer): void;
+expowt intewface IDwagAndDwopData {
+	update(dataTwansfa: DataTwansfa): void;
 	getData(): unknown;
 }
 
-export class DragAndDropData<T> implements IDragAndDropData {
+expowt cwass DwagAndDwopData<T> impwements IDwagAndDwopData {
 
-	constructor(private data: T) { }
+	constwuctow(pwivate data: T) { }
 
 	update(): void {
 		// noop
 	}
 
 	getData(): T {
-		return this.data;
+		wetuwn this.data;
 	}
 }
 
-export interface IStaticDND {
-	CurrentDragAndDropData: IDragAndDropData | undefined;
+expowt intewface IStaticDND {
+	CuwwentDwagAndDwopData: IDwagAndDwopData | undefined;
 }
 
-export const StaticDND: IStaticDND = {
-	CurrentDragAndDropData: undefined
+expowt const StaticDND: IStaticDND = {
+	CuwwentDwagAndDwopData: undefined
 };

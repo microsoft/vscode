@@ -1,312 +1,312 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { iconRegistry } from 'vs/base/common/codicons';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { localize } from 'vs/nls';
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IExtensionTerminalProfile, ITerminalProfile, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { createProfileSchemaEnums } from 'vs/platform/terminal/common/terminalProfiles';
+impowt { iconWegistwy } fwom 'vs/base/common/codicons';
+impowt { IJSONSchema, IJSONSchemaMap } fwom 'vs/base/common/jsonSchema';
+impowt { OpewatingSystem } fwom 'vs/base/common/pwatfowm';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ConfiguwationScope, Extensions, IConfiguwationNode, IConfiguwationWegistwy } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IExtensionTewminawPwofiwe, ITewminawPwofiwe, TewminawSettingId } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { cweatePwofiweSchemaEnums } fwom 'vs/pwatfowm/tewminaw/common/tewminawPwofiwes';
 
-const terminalProfileBaseProperties: IJSONSchemaMap = {
-	args: {
-		description: localize('terminalProfile.args', 'An optional set of arguments to run the shell executable with.'),
-		type: 'array',
+const tewminawPwofiweBasePwopewties: IJSONSchemaMap = {
+	awgs: {
+		descwiption: wocawize('tewminawPwofiwe.awgs', 'An optionaw set of awguments to wun the sheww executabwe with.'),
+		type: 'awway',
 		items: {
-			type: 'string'
+			type: 'stwing'
 		}
 	},
-	overrideName: {
-		description: localize('terminalProfile.overrideName', 'Controls whether or not the profile name overrides the auto detected one.'),
-		type: 'boolean'
+	ovewwideName: {
+		descwiption: wocawize('tewminawPwofiwe.ovewwideName', 'Contwows whetha ow not the pwofiwe name ovewwides the auto detected one.'),
+		type: 'boowean'
 	},
 	icon: {
-		description: localize('terminalProfile.icon', 'A codicon ID to associate with this terminal.'),
-		type: 'string',
-		enum: Array.from(iconRegistry.all, icon => icon.id),
-		markdownEnumDescriptions: Array.from(iconRegistry.all, icon => `$(${icon.id})`),
+		descwiption: wocawize('tewminawPwofiwe.icon', 'A codicon ID to associate with this tewminaw.'),
+		type: 'stwing',
+		enum: Awway.fwom(iconWegistwy.aww, icon => icon.id),
+		mawkdownEnumDescwiptions: Awway.fwom(iconWegistwy.aww, icon => `$(${icon.id})`),
 	},
-	color: {
-		description: localize('terminalProfile.color', 'A theme color ID to associate with this terminal.'),
-		type: ['string', 'null'],
+	cowow: {
+		descwiption: wocawize('tewminawPwofiwe.cowow', 'A theme cowow ID to associate with this tewminaw.'),
+		type: ['stwing', 'nuww'],
 		enum: [
-			'terminal.ansiBlack',
-			'terminal.ansiRed',
-			'terminal.ansiGreen',
-			'terminal.ansiYellow',
-			'terminal.ansiBlue',
-			'terminal.ansiMagenta',
-			'terminal.ansiCyan',
-			'terminal.ansiWhite'
+			'tewminaw.ansiBwack',
+			'tewminaw.ansiWed',
+			'tewminaw.ansiGween',
+			'tewminaw.ansiYewwow',
+			'tewminaw.ansiBwue',
+			'tewminaw.ansiMagenta',
+			'tewminaw.ansiCyan',
+			'tewminaw.ansiWhite'
 		],
-		default: null
+		defauwt: nuww
 	},
 	env: {
-		markdownDescription: localize('terminalProfile.env', "An object with environment variables that will be added to the terminal profile process. Set to `null` to delete environment variables from the base environment."),
+		mawkdownDescwiption: wocawize('tewminawPwofiwe.env', "An object with enviwonment vawiabwes that wiww be added to the tewminaw pwofiwe pwocess. Set to `nuww` to dewete enviwonment vawiabwes fwom the base enviwonment."),
 		type: 'object',
-		additionalProperties: {
-			type: ['string', 'null']
+		additionawPwopewties: {
+			type: ['stwing', 'nuww']
 		},
-		default: {}
+		defauwt: {}
 	}
 };
 
-const terminalProfileSchema: IJSONSchema = {
+const tewminawPwofiweSchema: IJSONSchema = {
 	type: 'object',
-	required: ['path'],
-	properties: {
+	wequiwed: ['path'],
+	pwopewties: {
 		path: {
-			description: localize('terminalProfile.path', 'A single path to a shell executable or an array of paths that will be used as fallbacks when one fails.'),
-			type: ['string', 'array'],
+			descwiption: wocawize('tewminawPwofiwe.path', 'A singwe path to a sheww executabwe ow an awway of paths that wiww be used as fawwbacks when one faiws.'),
+			type: ['stwing', 'awway'],
 			items: {
-				type: 'string'
+				type: 'stwing'
 			}
 		},
-		...terminalProfileBaseProperties
+		...tewminawPwofiweBasePwopewties
 	}
 };
 
-const shellDeprecationMessageLinux = localize('terminal.integrated.shell.linux.deprecation', "This is deprecated, the new recommended way to configure your default shell is by creating a terminal profile in {0} and setting its profile name as the default in {1}. This will currently take priority over the new profiles settings but that will change in the future.", '`#terminal.integrated.profiles.linux#`', '`#terminal.integrated.defaultProfile.linux#`');
-const shellDeprecationMessageOsx = localize('terminal.integrated.shell.osx.deprecation', "This is deprecated, the new recommended way to configure your default shell is by creating a terminal profile in {0} and setting its profile name as the default in {1}. This will currently take priority over the new profiles settings but that will change in the future.", '`#terminal.integrated.profiles.osx#`', '`#terminal.integrated.defaultProfile.osx#`');
-const shellDeprecationMessageWindows = localize('terminal.integrated.shell.windows.deprecation', "This is deprecated, the new recommended way to configure your default shell is by creating a terminal profile in {0} and setting its profile name as the default in {1}. This will currently take priority over the new profiles settings but that will change in the future.", '`#terminal.integrated.profiles.windows#`', '`#terminal.integrated.defaultProfile.windows#`');
+const shewwDepwecationMessageWinux = wocawize('tewminaw.integwated.sheww.winux.depwecation', "This is depwecated, the new wecommended way to configuwe youw defauwt sheww is by cweating a tewminaw pwofiwe in {0} and setting its pwofiwe name as the defauwt in {1}. This wiww cuwwentwy take pwiowity ova the new pwofiwes settings but that wiww change in the futuwe.", '`#tewminaw.integwated.pwofiwes.winux#`', '`#tewminaw.integwated.defauwtPwofiwe.winux#`');
+const shewwDepwecationMessageOsx = wocawize('tewminaw.integwated.sheww.osx.depwecation', "This is depwecated, the new wecommended way to configuwe youw defauwt sheww is by cweating a tewminaw pwofiwe in {0} and setting its pwofiwe name as the defauwt in {1}. This wiww cuwwentwy take pwiowity ova the new pwofiwes settings but that wiww change in the futuwe.", '`#tewminaw.integwated.pwofiwes.osx#`', '`#tewminaw.integwated.defauwtPwofiwe.osx#`');
+const shewwDepwecationMessageWindows = wocawize('tewminaw.integwated.sheww.windows.depwecation', "This is depwecated, the new wecommended way to configuwe youw defauwt sheww is by cweating a tewminaw pwofiwe in {0} and setting its pwofiwe name as the defauwt in {1}. This wiww cuwwentwy take pwiowity ova the new pwofiwes settings but that wiww change in the futuwe.", '`#tewminaw.integwated.pwofiwes.windows#`', '`#tewminaw.integwated.defauwtPwofiwe.windows#`');
 
-const terminalPlatformConfiguration: IConfigurationNode = {
-	id: 'terminal',
-	order: 100,
-	title: localize('terminalIntegratedConfigurationTitle', "Integrated Terminal"),
+const tewminawPwatfowmConfiguwation: IConfiguwationNode = {
+	id: 'tewminaw',
+	owda: 100,
+	titwe: wocawize('tewminawIntegwatedConfiguwationTitwe', "Integwated Tewminaw"),
 	type: 'object',
-	properties: {
-		[TerminalSettingId.AutomationShellLinux]: {
-			restricted: true,
-			markdownDescription: localize({
-				key: 'terminal.integrated.automationShell.linux',
-				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
-			}, "A path that when set will override {0} and ignore {1} values for automation-related terminal usage like tasks and debug.", '`terminal.integrated.shell.linux`', '`shellArgs`'),
-			type: ['string', 'null'],
-			default: null
+	pwopewties: {
+		[TewminawSettingId.AutomationShewwWinux]: {
+			westwicted: twue,
+			mawkdownDescwiption: wocawize({
+				key: 'tewminaw.integwated.automationSheww.winux',
+				comment: ['{0} and {1} awe the `sheww` and `shewwAwgs` settings keys']
+			}, "A path that when set wiww ovewwide {0} and ignowe {1} vawues fow automation-wewated tewminaw usage wike tasks and debug.", '`tewminaw.integwated.sheww.winux`', '`shewwAwgs`'),
+			type: ['stwing', 'nuww'],
+			defauwt: nuww
 		},
-		[TerminalSettingId.AutomationShellMacOs]: {
-			restricted: true,
-			markdownDescription: localize({
-				key: 'terminal.integrated.automationShell.osx',
-				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
-			}, "A path that when set will override {0} and ignore {1} values for automation-related terminal usage like tasks and debug.", '`terminal.integrated.shell.osx`', '`shellArgs`'),
-			type: ['string', 'null'],
-			default: null
+		[TewminawSettingId.AutomationShewwMacOs]: {
+			westwicted: twue,
+			mawkdownDescwiption: wocawize({
+				key: 'tewminaw.integwated.automationSheww.osx',
+				comment: ['{0} and {1} awe the `sheww` and `shewwAwgs` settings keys']
+			}, "A path that when set wiww ovewwide {0} and ignowe {1} vawues fow automation-wewated tewminaw usage wike tasks and debug.", '`tewminaw.integwated.sheww.osx`', '`shewwAwgs`'),
+			type: ['stwing', 'nuww'],
+			defauwt: nuww
 		},
-		[TerminalSettingId.AutomationShellWindows]: {
-			restricted: true,
-			markdownDescription: localize({
-				key: 'terminal.integrated.automationShell.windows',
-				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
-			}, "A path that when set will override {0} and ignore {1} values for automation-related terminal usage like tasks and debug.", '`terminal.integrated.shell.windows`', '`shellArgs`'),
-			type: ['string', 'null'],
-			default: null
+		[TewminawSettingId.AutomationShewwWindows]: {
+			westwicted: twue,
+			mawkdownDescwiption: wocawize({
+				key: 'tewminaw.integwated.automationSheww.windows',
+				comment: ['{0} and {1} awe the `sheww` and `shewwAwgs` settings keys']
+			}, "A path that when set wiww ovewwide {0} and ignowe {1} vawues fow automation-wewated tewminaw usage wike tasks and debug.", '`tewminaw.integwated.sheww.windows`', '`shewwAwgs`'),
+			type: ['stwing', 'nuww'],
+			defauwt: nuww
 		},
-		[TerminalSettingId.ShellLinux]: {
-			restricted: true,
-			markdownDescription: localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_terminal-profiles)."),
-			type: ['string', 'null'],
-			default: null,
-			markdownDeprecationMessage: shellDeprecationMessageLinux
+		[TewminawSettingId.ShewwWinux]: {
+			westwicted: twue,
+			mawkdownDescwiption: wocawize('tewminaw.integwated.sheww.winux', "The path of the sheww that the tewminaw uses on Winux. [Wead mowe about configuwing the sheww](https://code.visuawstudio.com/docs/editow/integwated-tewminaw#_tewminaw-pwofiwes)."),
+			type: ['stwing', 'nuww'],
+			defauwt: nuww,
+			mawkdownDepwecationMessage: shewwDepwecationMessageWinux
 		},
-		[TerminalSettingId.ShellMacOs]: {
-			restricted: true,
-			markdownDescription: localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on macOS. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_terminal-profiles)."),
-			type: ['string', 'null'],
-			default: null,
-			markdownDeprecationMessage: shellDeprecationMessageOsx
+		[TewminawSettingId.ShewwMacOs]: {
+			westwicted: twue,
+			mawkdownDescwiption: wocawize('tewminaw.integwated.sheww.osx', "The path of the sheww that the tewminaw uses on macOS. [Wead mowe about configuwing the sheww](https://code.visuawstudio.com/docs/editow/integwated-tewminaw#_tewminaw-pwofiwes)."),
+			type: ['stwing', 'nuww'],
+			defauwt: nuww,
+			mawkdownDepwecationMessage: shewwDepwecationMessageOsx
 		},
-		[TerminalSettingId.ShellWindows]: {
-			restricted: true,
-			markdownDescription: localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_terminal-profiles)."),
-			type: ['string', 'null'],
-			default: null,
-			markdownDeprecationMessage: shellDeprecationMessageWindows
+		[TewminawSettingId.ShewwWindows]: {
+			westwicted: twue,
+			mawkdownDescwiption: wocawize('tewminaw.integwated.sheww.windows', "The path of the sheww that the tewminaw uses on Windows. [Wead mowe about configuwing the sheww](https://code.visuawstudio.com/docs/editow/integwated-tewminaw#_tewminaw-pwofiwes)."),
+			type: ['stwing', 'nuww'],
+			defauwt: nuww,
+			mawkdownDepwecationMessage: shewwDepwecationMessageWindows
 		},
-		[TerminalSettingId.ShellArgsLinux]: {
-			restricted: true,
-			markdownDescription: localize('terminal.integrated.shellArgs.linux', "The command line arguments to use when on the Linux terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_terminal-profiles)."),
-			type: 'array',
+		[TewminawSettingId.ShewwAwgsWinux]: {
+			westwicted: twue,
+			mawkdownDescwiption: wocawize('tewminaw.integwated.shewwAwgs.winux', "The command wine awguments to use when on the Winux tewminaw. [Wead mowe about configuwing the sheww](https://code.visuawstudio.com/docs/editow/integwated-tewminaw#_tewminaw-pwofiwes)."),
+			type: 'awway',
 			items: {
-				type: 'string'
+				type: 'stwing'
 			},
-			default: [],
-			markdownDeprecationMessage: shellDeprecationMessageLinux
+			defauwt: [],
+			mawkdownDepwecationMessage: shewwDepwecationMessageWinux
 		},
-		[TerminalSettingId.ShellArgsMacOs]: {
-			restricted: true,
-			markdownDescription: localize('terminal.integrated.shellArgs.osx', "The command line arguments to use when on the macOS terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_terminal-profiles)."),
-			type: 'array',
+		[TewminawSettingId.ShewwAwgsMacOs]: {
+			westwicted: twue,
+			mawkdownDescwiption: wocawize('tewminaw.integwated.shewwAwgs.osx', "The command wine awguments to use when on the macOS tewminaw. [Wead mowe about configuwing the sheww](https://code.visuawstudio.com/docs/editow/integwated-tewminaw#_tewminaw-pwofiwes)."),
+			type: 'awway',
 			items: {
-				type: 'string'
+				type: 'stwing'
 			},
-			// Unlike on Linux, ~/.profile is not sourced when logging into a macOS session. This
-			// is the reason terminals on macOS typically run login shells by default which set up
-			// the environment. See http://unix.stackexchange.com/a/119675/115410
-			default: ['-l'],
-			markdownDeprecationMessage: shellDeprecationMessageOsx
+			// Unwike on Winux, ~/.pwofiwe is not souwced when wogging into a macOS session. This
+			// is the weason tewminaws on macOS typicawwy wun wogin shewws by defauwt which set up
+			// the enviwonment. See http://unix.stackexchange.com/a/119675/115410
+			defauwt: ['-w'],
+			mawkdownDepwecationMessage: shewwDepwecationMessageOsx
 		},
-		[TerminalSettingId.ShellArgsWindows]: {
-			restricted: true,
-			markdownDescription: localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_terminal-profiles)."),
+		[TewminawSettingId.ShewwAwgsWindows]: {
+			westwicted: twue,
+			mawkdownDescwiption: wocawize('tewminaw.integwated.shewwAwgs.windows', "The command wine awguments to use when on the Windows tewminaw. [Wead mowe about configuwing the sheww](https://code.visuawstudio.com/docs/editow/integwated-tewminaw#_tewminaw-pwofiwes)."),
 			'anyOf': [
 				{
-					type: 'array',
+					type: 'awway',
 					items: {
-						type: 'string',
-						markdownDescription: localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_terminal-profiles).")
+						type: 'stwing',
+						mawkdownDescwiption: wocawize('tewminaw.integwated.shewwAwgs.windows', "The command wine awguments to use when on the Windows tewminaw. [Wead mowe about configuwing the sheww](https://code.visuawstudio.com/docs/editow/integwated-tewminaw#_tewminaw-pwofiwes).")
 					},
 				},
 				{
-					type: 'string',
-					markdownDescription: localize('terminal.integrated.shellArgs.windows.string', "The command line arguments in [command-line format](https://msdn.microsoft.com/en-au/08dfcab2-eb6e-49a4-80eb-87d4076c98c6) to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_terminal-profiles).")
+					type: 'stwing',
+					mawkdownDescwiption: wocawize('tewminaw.integwated.shewwAwgs.windows.stwing', "The command wine awguments in [command-wine fowmat](https://msdn.micwosoft.com/en-au/08dfcab2-eb6e-49a4-80eb-87d4076c98c6) to use when on the Windows tewminaw. [Wead mowe about configuwing the sheww](https://code.visuawstudio.com/docs/editow/integwated-tewminaw#_tewminaw-pwofiwes).")
 				}
 			],
-			default: [],
-			markdownDeprecationMessage: shellDeprecationMessageWindows
+			defauwt: [],
+			mawkdownDepwecationMessage: shewwDepwecationMessageWindows
 		},
-		[TerminalSettingId.ProfilesWindows]: {
-			restricted: true,
-			markdownDescription: localize(
+		[TewminawSettingId.PwofiwesWindows]: {
+			westwicted: twue,
+			mawkdownDescwiption: wocawize(
 				{
-					key: 'terminal.integrated.profiles.windows',
-					comment: ['{0}, {1}, and {2} are the `source`, `path` and optional `args` settings keys']
+					key: 'tewminaw.integwated.pwofiwes.windows',
+					comment: ['{0}, {1}, and {2} awe the `souwce`, `path` and optionaw `awgs` settings keys']
 				},
-				"The Windows profiles to present when creating a new terminal via the terminal dropdown. Set to null to exclude them, use the {0} property to use the default detected configuration. Or, set the {1} and optional {2}", '`source`', '`path`', '`args`.'
+				"The Windows pwofiwes to pwesent when cweating a new tewminaw via the tewminaw dwopdown. Set to nuww to excwude them, use the {0} pwopewty to use the defauwt detected configuwation. Ow, set the {1} and optionaw {2}", '`souwce`', '`path`', '`awgs`.'
 			),
 			type: 'object',
-			default: {
-				'PowerShell': {
-					source: 'PowerShell',
-					icon: 'terminal-powershell'
+			defauwt: {
+				'PowewSheww': {
+					souwce: 'PowewSheww',
+					icon: 'tewminaw-powewsheww'
 				},
-				'Command Prompt': {
+				'Command Pwompt': {
 					path: [
-						'${env:windir}\\Sysnative\\cmd.exe',
-						'${env:windir}\\System32\\cmd.exe'
+						'${env:windiw}\\Sysnative\\cmd.exe',
+						'${env:windiw}\\System32\\cmd.exe'
 					],
-					args: [],
-					icon: 'terminal-cmd'
+					awgs: [],
+					icon: 'tewminaw-cmd'
 				},
 				'Git Bash': {
-					source: 'Git Bash'
+					souwce: 'Git Bash'
 				}
 			},
-			additionalProperties: {
+			additionawPwopewties: {
 				'anyOf': [
 					{
 						type: 'object',
-						required: ['source'],
-						properties: {
-							source: {
-								description: localize('terminalProfile.windowsSource', 'A profile source that will auto detect the paths to the shell.'),
-								enum: ['PowerShell', 'Git Bash']
+						wequiwed: ['souwce'],
+						pwopewties: {
+							souwce: {
+								descwiption: wocawize('tewminawPwofiwe.windowsSouwce', 'A pwofiwe souwce that wiww auto detect the paths to the sheww.'),
+								enum: ['PowewSheww', 'Git Bash']
 							},
-							...terminalProfileBaseProperties
+							...tewminawPwofiweBasePwopewties
 						}
 					},
 					{
 						type: 'object',
-						required: ['extensionIdentifier', 'id', 'title'],
-						properties: {
-							extensionIdentifier: {
-								description: localize('terminalProfile.windowsExtensionIdentifier', 'The extension that contributed this profile.'),
-								type: 'string'
+						wequiwed: ['extensionIdentifia', 'id', 'titwe'],
+						pwopewties: {
+							extensionIdentifia: {
+								descwiption: wocawize('tewminawPwofiwe.windowsExtensionIdentifia', 'The extension that contwibuted this pwofiwe.'),
+								type: 'stwing'
 							},
 							id: {
-								description: localize('terminalProfile.windowsExtensionId', 'The id of the extension terminal'),
-								type: 'string'
+								descwiption: wocawize('tewminawPwofiwe.windowsExtensionId', 'The id of the extension tewminaw'),
+								type: 'stwing'
 							},
-							title: {
-								description: localize('terminalProfile.windowsExtensionTitle', 'The name of the extension terminal'),
-								type: 'string'
+							titwe: {
+								descwiption: wocawize('tewminawPwofiwe.windowsExtensionTitwe', 'The name of the extension tewminaw'),
+								type: 'stwing'
 							},
-							...terminalProfileBaseProperties
+							...tewminawPwofiweBasePwopewties
 						}
 					},
-					{ type: 'null' },
-					terminalProfileSchema
+					{ type: 'nuww' },
+					tewminawPwofiweSchema
 				]
 			}
 		},
-		[TerminalSettingId.ProfilesMacOs]: {
-			restricted: true,
-			markdownDescription: localize(
+		[TewminawSettingId.PwofiwesMacOs]: {
+			westwicted: twue,
+			mawkdownDescwiption: wocawize(
 				{
-					key: 'terminal.integrated.profile.osx',
-					comment: ['{0} and {1} are the `path` and optional `args` settings keys']
+					key: 'tewminaw.integwated.pwofiwe.osx',
+					comment: ['{0} and {1} awe the `path` and optionaw `awgs` settings keys']
 				},
-				"The macOS profiles to present when creating a new terminal via the terminal dropdown. When set, these will override the default detected profiles. They are comprised of a {0} and optional {1}", '`path`', '`args`.'
+				"The macOS pwofiwes to pwesent when cweating a new tewminaw via the tewminaw dwopdown. When set, these wiww ovewwide the defauwt detected pwofiwes. They awe compwised of a {0} and optionaw {1}", '`path`', '`awgs`.'
 			),
 			type: 'object',
-			default: {
+			defauwt: {
 				'bash': {
 					path: 'bash',
-					args: ['-l'],
-					icon: 'terminal-bash'
+					awgs: ['-w'],
+					icon: 'tewminaw-bash'
 				},
 				'zsh': {
 					path: 'zsh',
-					args: ['-l']
+					awgs: ['-w']
 				},
 				'fish': {
 					path: 'fish',
-					args: ['-l']
+					awgs: ['-w']
 				},
 				'tmux': {
 					path: 'tmux',
-					icon: 'terminal-tmux'
+					icon: 'tewminaw-tmux'
 				},
 				'pwsh': {
 					path: 'pwsh',
-					icon: 'terminal-powershell'
+					icon: 'tewminaw-powewsheww'
 				}
 			},
-			additionalProperties: {
+			additionawPwopewties: {
 				'anyOf': [
 					{
 						type: 'object',
-						required: ['extensionIdentifier', 'id', 'title'],
-						properties: {
-							extensionIdentifier: {
-								description: localize('terminalProfile.osxExtensionIdentifier', 'The extension that contributed this profile.'),
-								type: 'string'
+						wequiwed: ['extensionIdentifia', 'id', 'titwe'],
+						pwopewties: {
+							extensionIdentifia: {
+								descwiption: wocawize('tewminawPwofiwe.osxExtensionIdentifia', 'The extension that contwibuted this pwofiwe.'),
+								type: 'stwing'
 							},
 							id: {
-								description: localize('terminalProfile.osxExtensionId', 'The id of the extension terminal'),
-								type: 'string'
+								descwiption: wocawize('tewminawPwofiwe.osxExtensionId', 'The id of the extension tewminaw'),
+								type: 'stwing'
 							},
-							title: {
-								description: localize('terminalProfile.osxExtensionTitle', 'The name of the extension terminal'),
-								type: 'string'
+							titwe: {
+								descwiption: wocawize('tewminawPwofiwe.osxExtensionTitwe', 'The name of the extension tewminaw'),
+								type: 'stwing'
 							},
-							...terminalProfileBaseProperties
+							...tewminawPwofiweBasePwopewties
 						}
 					},
-					{ type: 'null' },
-					terminalProfileSchema
+					{ type: 'nuww' },
+					tewminawPwofiweSchema
 				]
 			}
 		},
-		[TerminalSettingId.ProfilesLinux]: {
-			restricted: true,
-			markdownDescription: localize(
+		[TewminawSettingId.PwofiwesWinux]: {
+			westwicted: twue,
+			mawkdownDescwiption: wocawize(
 				{
-					key: 'terminal.integrated.profile.linux',
-					comment: ['{0} and {1} are the `path` and optional `args` settings keys']
+					key: 'tewminaw.integwated.pwofiwe.winux',
+					comment: ['{0} and {1} awe the `path` and optionaw `awgs` settings keys']
 				},
-				"The Linux profiles to present when creating a new terminal via the terminal dropdown. When set, these will override the default detected profiles. They are comprised of a {0} and optional {1}", '`path`', '`args`.'
+				"The Winux pwofiwes to pwesent when cweating a new tewminaw via the tewminaw dwopdown. When set, these wiww ovewwide the defauwt detected pwofiwes. They awe compwised of a {0} and optionaw {1}", '`path`', '`awgs`.'
 			),
 			type: 'object',
-			default: {
+			defauwt: {
 				'bash': {
 					path: 'bash',
-					icon: 'terminal-bash'
+					icon: 'tewminaw-bash'
 				},
 				'zsh': {
 					path: 'zsh'
@@ -316,112 +316,112 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 				},
 				'tmux': {
 					path: 'tmux',
-					icon: 'terminal-tmux'
+					icon: 'tewminaw-tmux'
 				},
 				'pwsh': {
 					path: 'pwsh',
-					icon: 'terminal-powershell'
+					icon: 'tewminaw-powewsheww'
 				}
 			},
-			additionalProperties: {
+			additionawPwopewties: {
 				'anyOf': [
 					{
 						type: 'object',
-						required: ['extensionIdentifier', 'id', 'title'],
-						properties: {
-							extensionIdentifier: {
-								description: localize('terminalProfile.linuxExtensionIdentifier', 'The extension that contributed this profile.'),
-								type: 'string'
+						wequiwed: ['extensionIdentifia', 'id', 'titwe'],
+						pwopewties: {
+							extensionIdentifia: {
+								descwiption: wocawize('tewminawPwofiwe.winuxExtensionIdentifia', 'The extension that contwibuted this pwofiwe.'),
+								type: 'stwing'
 							},
 							id: {
-								description: localize('terminalProfile.linuxExtensionId', 'The id of the extension terminal'),
-								type: 'string'
+								descwiption: wocawize('tewminawPwofiwe.winuxExtensionId', 'The id of the extension tewminaw'),
+								type: 'stwing'
 							},
-							title: {
-								description: localize('terminalProfile.linuxExtensionTitle', 'The name of the extension terminal'),
-								type: 'string'
+							titwe: {
+								descwiption: wocawize('tewminawPwofiwe.winuxExtensionTitwe', 'The name of the extension tewminaw'),
+								type: 'stwing'
 							},
-							...terminalProfileBaseProperties
+							...tewminawPwofiweBasePwopewties
 						}
 					},
-					{ type: 'null' },
-					terminalProfileSchema
+					{ type: 'nuww' },
+					tewminawPwofiweSchema
 				]
 			}
 		},
-		[TerminalSettingId.UseWslProfiles]: {
-			description: localize('terminal.integrated.useWslProfiles', 'Controls whether or not WSL distros are shown in the terminal dropdown'),
-			type: 'boolean',
-			default: true
+		[TewminawSettingId.UseWswPwofiwes]: {
+			descwiption: wocawize('tewminaw.integwated.useWswPwofiwes', 'Contwows whetha ow not WSW distwos awe shown in the tewminaw dwopdown'),
+			type: 'boowean',
+			defauwt: twue
 		},
-		[TerminalSettingId.InheritEnv]: {
-			scope: ConfigurationScope.APPLICATION,
-			description: localize('terminal.integrated.inheritEnv', "Whether new shells should inherit their environment from VS Code, which may source a login shell to ensure $PATH and other development variables are initialized. This has no effect on Windows."),
-			type: 'boolean',
-			default: true
+		[TewminawSettingId.InhewitEnv]: {
+			scope: ConfiguwationScope.APPWICATION,
+			descwiption: wocawize('tewminaw.integwated.inhewitEnv', "Whetha new shewws shouwd inhewit theiw enviwonment fwom VS Code, which may souwce a wogin sheww to ensuwe $PATH and otha devewopment vawiabwes awe initiawized. This has no effect on Windows."),
+			type: 'boowean',
+			defauwt: twue
 		},
-		[TerminalSettingId.PersistentSessionScrollback]: {
-			scope: ConfigurationScope.APPLICATION,
-			markdownDescription: localize('terminal.integrated.persistentSessionScrollback', "Controls the maximum amount of lines that will be restored when reconnecting to a persistent terminal session. Increasing this will restore more lines of scrollback at the cost of more memory and increase the time it takes to connect to terminals on start up. This setting requires a restart to take effect and should be set to a value less than or equal to `#terminal.integrated.scrollback#`."),
-			type: 'number',
-			default: 100
+		[TewminawSettingId.PewsistentSessionScwowwback]: {
+			scope: ConfiguwationScope.APPWICATION,
+			mawkdownDescwiption: wocawize('tewminaw.integwated.pewsistentSessionScwowwback', "Contwows the maximum amount of wines that wiww be westowed when weconnecting to a pewsistent tewminaw session. Incweasing this wiww westowe mowe wines of scwowwback at the cost of mowe memowy and incwease the time it takes to connect to tewminaws on stawt up. This setting wequiwes a westawt to take effect and shouwd be set to a vawue wess than ow equaw to `#tewminaw.integwated.scwowwback#`."),
+			type: 'numba',
+			defauwt: 100
 		},
-		[TerminalSettingId.ShowLinkHover]: {
-			scope: ConfigurationScope.APPLICATION,
-			description: localize('terminal.integrated.showLinkHover', "Whether to show hovers for links in the terminal output."),
-			type: 'boolean',
-			default: true
+		[TewminawSettingId.ShowWinkHova]: {
+			scope: ConfiguwationScope.APPWICATION,
+			descwiption: wocawize('tewminaw.integwated.showWinkHova', "Whetha to show hovews fow winks in the tewminaw output."),
+			type: 'boowean',
+			defauwt: twue
 		}
 	}
 };
 
 /**
- * Registers terminal configurations required by shared process and remote server.
+ * Wegistews tewminaw configuwations wequiwed by shawed pwocess and wemote sewva.
  */
-export function registerTerminalPlatformConfiguration() {
-	Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration(terminalPlatformConfiguration);
-	registerTerminalDefaultProfileConfiguration();
+expowt function wegistewTewminawPwatfowmConfiguwation() {
+	Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation).wegistewConfiguwation(tewminawPwatfowmConfiguwation);
+	wegistewTewminawDefauwtPwofiweConfiguwation();
 }
 
-let defaultProfilesConfiguration: IConfigurationNode | undefined;
-export function registerTerminalDefaultProfileConfiguration(detectedProfiles?: { os: OperatingSystem, profiles: ITerminalProfile[] }, extensionContributedProfiles?: readonly IExtensionTerminalProfile[]) {
-	const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-	let profileEnum;
-	if (detectedProfiles) {
-		profileEnum = createProfileSchemaEnums(detectedProfiles?.profiles, extensionContributedProfiles);
+wet defauwtPwofiwesConfiguwation: IConfiguwationNode | undefined;
+expowt function wegistewTewminawDefauwtPwofiweConfiguwation(detectedPwofiwes?: { os: OpewatingSystem, pwofiwes: ITewminawPwofiwe[] }, extensionContwibutedPwofiwes?: weadonwy IExtensionTewminawPwofiwe[]) {
+	const wegistwy = Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation);
+	wet pwofiweEnum;
+	if (detectedPwofiwes) {
+		pwofiweEnum = cweatePwofiweSchemaEnums(detectedPwofiwes?.pwofiwes, extensionContwibutedPwofiwes);
 	}
-	const oldDefaultProfilesConfiguration = defaultProfilesConfiguration;
-	defaultProfilesConfiguration = {
-		id: 'terminal',
-		order: 100,
-		title: localize('terminalIntegratedConfigurationTitle', "Integrated Terminal"),
+	const owdDefauwtPwofiwesConfiguwation = defauwtPwofiwesConfiguwation;
+	defauwtPwofiwesConfiguwation = {
+		id: 'tewminaw',
+		owda: 100,
+		titwe: wocawize('tewminawIntegwatedConfiguwationTitwe', "Integwated Tewminaw"),
 		type: 'object',
-		properties: {
-			[TerminalSettingId.DefaultProfileLinux]: {
-				restricted: true,
-				markdownDescription: localize('terminal.integrated.defaultProfile.linux', "The default profile used on Linux. This setting will currently be ignored if either {0} or {1} are set.", '`terminal.integrated.shell.linux`', '`terminal.integrated.shellArgs.linux`'),
-				type: ['string', 'null'],
-				default: null,
-				enum: detectedProfiles?.os === OperatingSystem.Linux ? profileEnum?.values : undefined,
-				markdownEnumDescriptions: detectedProfiles?.os === OperatingSystem.Linux ? profileEnum?.markdownDescriptions : undefined
+		pwopewties: {
+			[TewminawSettingId.DefauwtPwofiweWinux]: {
+				westwicted: twue,
+				mawkdownDescwiption: wocawize('tewminaw.integwated.defauwtPwofiwe.winux', "The defauwt pwofiwe used on Winux. This setting wiww cuwwentwy be ignowed if eitha {0} ow {1} awe set.", '`tewminaw.integwated.sheww.winux`', '`tewminaw.integwated.shewwAwgs.winux`'),
+				type: ['stwing', 'nuww'],
+				defauwt: nuww,
+				enum: detectedPwofiwes?.os === OpewatingSystem.Winux ? pwofiweEnum?.vawues : undefined,
+				mawkdownEnumDescwiptions: detectedPwofiwes?.os === OpewatingSystem.Winux ? pwofiweEnum?.mawkdownDescwiptions : undefined
 			},
-			[TerminalSettingId.DefaultProfileMacOs]: {
-				restricted: true,
-				markdownDescription: localize('terminal.integrated.defaultProfile.osx', "The default profile used on macOS. This setting will currently be ignored if either {0} or {1} are set.", '`terminal.integrated.shell.osx`', '`terminal.integrated.shellArgs.osx`'),
-				type: ['string', 'null'],
-				default: null,
-				enum: detectedProfiles?.os === OperatingSystem.Macintosh ? profileEnum?.values : undefined,
-				markdownEnumDescriptions: detectedProfiles?.os === OperatingSystem.Macintosh ? profileEnum?.markdownDescriptions : undefined
+			[TewminawSettingId.DefauwtPwofiweMacOs]: {
+				westwicted: twue,
+				mawkdownDescwiption: wocawize('tewminaw.integwated.defauwtPwofiwe.osx', "The defauwt pwofiwe used on macOS. This setting wiww cuwwentwy be ignowed if eitha {0} ow {1} awe set.", '`tewminaw.integwated.sheww.osx`', '`tewminaw.integwated.shewwAwgs.osx`'),
+				type: ['stwing', 'nuww'],
+				defauwt: nuww,
+				enum: detectedPwofiwes?.os === OpewatingSystem.Macintosh ? pwofiweEnum?.vawues : undefined,
+				mawkdownEnumDescwiptions: detectedPwofiwes?.os === OpewatingSystem.Macintosh ? pwofiweEnum?.mawkdownDescwiptions : undefined
 			},
-			[TerminalSettingId.DefaultProfileWindows]: {
-				restricted: true,
-				markdownDescription: localize('terminal.integrated.defaultProfile.windows', "The default profile used on Windows. This setting will currently be ignored if either {0} or {1} are set.", '`terminal.integrated.shell.windows`', '`terminal.integrated.shellArgs.windows`'),
-				type: ['string', 'null'],
-				default: null,
-				enum: detectedProfiles?.os === OperatingSystem.Windows ? profileEnum?.values : undefined,
-				markdownEnumDescriptions: detectedProfiles?.os === OperatingSystem.Windows ? profileEnum?.markdownDescriptions : undefined
+			[TewminawSettingId.DefauwtPwofiweWindows]: {
+				westwicted: twue,
+				mawkdownDescwiption: wocawize('tewminaw.integwated.defauwtPwofiwe.windows', "The defauwt pwofiwe used on Windows. This setting wiww cuwwentwy be ignowed if eitha {0} ow {1} awe set.", '`tewminaw.integwated.sheww.windows`', '`tewminaw.integwated.shewwAwgs.windows`'),
+				type: ['stwing', 'nuww'],
+				defauwt: nuww,
+				enum: detectedPwofiwes?.os === OpewatingSystem.Windows ? pwofiweEnum?.vawues : undefined,
+				mawkdownEnumDescwiptions: detectedPwofiwes?.os === OpewatingSystem.Windows ? pwofiweEnum?.mawkdownDescwiptions : undefined
 			},
 		}
 	};
-	registry.updateConfigurations({ add: [defaultProfilesConfiguration], remove: oldDefaultProfilesConfiguration ? [oldDefaultProfilesConfiguration] : [] });
+	wegistwy.updateConfiguwations({ add: [defauwtPwofiwesConfiguwation], wemove: owdDefauwtPwofiwesConfiguwation ? [owdDefauwtPwofiwesConfiguwation] : [] });
 }

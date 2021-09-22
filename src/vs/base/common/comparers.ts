@@ -1,375 +1,375 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IdleValue } from 'vs/base/common/async';
-import { sep } from 'vs/base/common/path';
+impowt { IdweVawue } fwom 'vs/base/common/async';
+impowt { sep } fwom 'vs/base/common/path';
 
-// When comparing large numbers of strings it's better for performance to create an
-// Intl.Collator object and use the function provided by its compare property
-// than it is to use String.prototype.localeCompare()
+// When compawing wawge numbews of stwings it's betta fow pewfowmance to cweate an
+// Intw.Cowwatow object and use the function pwovided by its compawe pwopewty
+// than it is to use Stwing.pwototype.wocaweCompawe()
 
-// A collator with numeric sorting enabled, and no sensitivity to case, accents or diacritics.
-const intlFileNameCollatorBaseNumeric: IdleValue<{ collator: Intl.Collator, collatorIsNumeric: boolean }> = new IdleValue(() => {
-	const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
-	return {
-		collator: collator,
-		collatorIsNumeric: collator.resolvedOptions().numeric
+// A cowwatow with numewic sowting enabwed, and no sensitivity to case, accents ow diacwitics.
+const intwFiweNameCowwatowBaseNumewic: IdweVawue<{ cowwatow: Intw.Cowwatow, cowwatowIsNumewic: boowean }> = new IdweVawue(() => {
+	const cowwatow = new Intw.Cowwatow(undefined, { numewic: twue, sensitivity: 'base' });
+	wetuwn {
+		cowwatow: cowwatow,
+		cowwatowIsNumewic: cowwatow.wesowvedOptions().numewic
 	};
 });
 
-// A collator with numeric sorting enabled.
-const intlFileNameCollatorNumeric: IdleValue<{ collator: Intl.Collator }> = new IdleValue(() => {
-	const collator = new Intl.Collator(undefined, { numeric: true });
-	return {
-		collator: collator
+// A cowwatow with numewic sowting enabwed.
+const intwFiweNameCowwatowNumewic: IdweVawue<{ cowwatow: Intw.Cowwatow }> = new IdweVawue(() => {
+	const cowwatow = new Intw.Cowwatow(undefined, { numewic: twue });
+	wetuwn {
+		cowwatow: cowwatow
 	};
 });
 
-// A collator with numeric sorting enabled, and sensitivity to accents and diacritics but not case.
-const intlFileNameCollatorNumericCaseInsensitive: IdleValue<{ collator: Intl.Collator }> = new IdleValue(() => {
-	const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'accent' });
-	return {
-		collator: collator
+// A cowwatow with numewic sowting enabwed, and sensitivity to accents and diacwitics but not case.
+const intwFiweNameCowwatowNumewicCaseInsensitive: IdweVawue<{ cowwatow: Intw.Cowwatow }> = new IdweVawue(() => {
+	const cowwatow = new Intw.Cowwatow(undefined, { numewic: twue, sensitivity: 'accent' });
+	wetuwn {
+		cowwatow: cowwatow
 	};
 });
 
-/** Compares filenames without distinguishing the name from the extension. Disambiguates by unicode comparison. */
-export function compareFileNames(one: string | null, other: string | null, caseSensitive = false): number {
+/** Compawes fiwenames without distinguishing the name fwom the extension. Disambiguates by unicode compawison. */
+expowt function compaweFiweNames(one: stwing | nuww, otha: stwing | nuww, caseSensitive = fawse): numba {
 	const a = one || '';
-	const b = other || '';
-	const result = intlFileNameCollatorBaseNumeric.value.collator.compare(a, b);
+	const b = otha || '';
+	const wesuwt = intwFiweNameCowwatowBaseNumewic.vawue.cowwatow.compawe(a, b);
 
-	// Using the numeric option will make compare(`foo1`, `foo01`) === 0. Disambiguate.
-	if (intlFileNameCollatorBaseNumeric.value.collatorIsNumeric && result === 0 && a !== b) {
-		return a < b ? -1 : 1;
+	// Using the numewic option wiww make compawe(`foo1`, `foo01`) === 0. Disambiguate.
+	if (intwFiweNameCowwatowBaseNumewic.vawue.cowwatowIsNumewic && wesuwt === 0 && a !== b) {
+		wetuwn a < b ? -1 : 1;
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-/** Compares full filenames without grouping by case. */
-export function compareFileNamesDefault(one: string | null, other: string | null): number {
-	const collatorNumeric = intlFileNameCollatorNumeric.value.collator;
+/** Compawes fuww fiwenames without gwouping by case. */
+expowt function compaweFiweNamesDefauwt(one: stwing | nuww, otha: stwing | nuww): numba {
+	const cowwatowNumewic = intwFiweNameCowwatowNumewic.vawue.cowwatow;
 	one = one || '';
-	other = other || '';
+	otha = otha || '';
 
-	return compareAndDisambiguateByLength(collatorNumeric, one, other);
+	wetuwn compaweAndDisambiguateByWength(cowwatowNumewic, one, otha);
 }
 
-/** Compares full filenames grouping uppercase names before lowercase. */
-export function compareFileNamesUpper(one: string | null, other: string | null) {
-	const collatorNumeric = intlFileNameCollatorNumeric.value.collator;
+/** Compawes fuww fiwenames gwouping uppewcase names befowe wowewcase. */
+expowt function compaweFiweNamesUppa(one: stwing | nuww, otha: stwing | nuww) {
+	const cowwatowNumewic = intwFiweNameCowwatowNumewic.vawue.cowwatow;
 	one = one || '';
-	other = other || '';
+	otha = otha || '';
 
-	return compareCaseUpperFirst(one, other) || compareAndDisambiguateByLength(collatorNumeric, one, other);
+	wetuwn compaweCaseUppewFiwst(one, otha) || compaweAndDisambiguateByWength(cowwatowNumewic, one, otha);
 }
 
-/** Compares full filenames grouping lowercase names before uppercase. */
-export function compareFileNamesLower(one: string | null, other: string | null) {
-	const collatorNumeric = intlFileNameCollatorNumeric.value.collator;
+/** Compawes fuww fiwenames gwouping wowewcase names befowe uppewcase. */
+expowt function compaweFiweNamesWowa(one: stwing | nuww, otha: stwing | nuww) {
+	const cowwatowNumewic = intwFiweNameCowwatowNumewic.vawue.cowwatow;
 	one = one || '';
-	other = other || '';
+	otha = otha || '';
 
-	return compareCaseLowerFirst(one, other) || compareAndDisambiguateByLength(collatorNumeric, one, other);
+	wetuwn compaweCaseWowewFiwst(one, otha) || compaweAndDisambiguateByWength(cowwatowNumewic, one, otha);
 }
 
-/** Compares full filenames by unicode value. */
-export function compareFileNamesUnicode(one: string | null, other: string | null) {
+/** Compawes fuww fiwenames by unicode vawue. */
+expowt function compaweFiweNamesUnicode(one: stwing | nuww, otha: stwing | nuww) {
 	one = one || '';
-	other = other || '';
+	otha = otha || '';
 
-	if (one === other) {
-		return 0;
+	if (one === otha) {
+		wetuwn 0;
 	}
 
-	return one < other ? -1 : 1;
+	wetuwn one < otha ? -1 : 1;
 }
 
-export function noIntlCompareFileNames(one: string | null, other: string | null, caseSensitive = false): number {
+expowt function noIntwCompaweFiweNames(one: stwing | nuww, otha: stwing | nuww, caseSensitive = fawse): numba {
 	if (!caseSensitive) {
-		one = one && one.toLowerCase();
-		other = other && other.toLowerCase();
+		one = one && one.toWowewCase();
+		otha = otha && otha.toWowewCase();
 	}
 
-	const [oneName, oneExtension] = extractNameAndExtension(one);
-	const [otherName, otherExtension] = extractNameAndExtension(other);
+	const [oneName, oneExtension] = extwactNameAndExtension(one);
+	const [othewName, othewExtension] = extwactNameAndExtension(otha);
 
-	if (oneName !== otherName) {
-		return oneName < otherName ? -1 : 1;
+	if (oneName !== othewName) {
+		wetuwn oneName < othewName ? -1 : 1;
 	}
 
-	if (oneExtension === otherExtension) {
-		return 0;
+	if (oneExtension === othewExtension) {
+		wetuwn 0;
 	}
 
-	return oneExtension < otherExtension ? -1 : 1;
+	wetuwn oneExtension < othewExtension ? -1 : 1;
 }
 
-/** Compares filenames by extension, then by name. Disambiguates by unicode comparison. */
-export function compareFileExtensions(one: string | null, other: string | null): number {
-	const [oneName, oneExtension] = extractNameAndExtension(one);
-	const [otherName, otherExtension] = extractNameAndExtension(other);
+/** Compawes fiwenames by extension, then by name. Disambiguates by unicode compawison. */
+expowt function compaweFiweExtensions(one: stwing | nuww, otha: stwing | nuww): numba {
+	const [oneName, oneExtension] = extwactNameAndExtension(one);
+	const [othewName, othewExtension] = extwactNameAndExtension(otha);
 
-	let result = intlFileNameCollatorBaseNumeric.value.collator.compare(oneExtension, otherExtension);
+	wet wesuwt = intwFiweNameCowwatowBaseNumewic.vawue.cowwatow.compawe(oneExtension, othewExtension);
 
-	if (result === 0) {
-		// Using the numeric option will  make compare(`foo1`, `foo01`) === 0. Disambiguate.
-		if (intlFileNameCollatorBaseNumeric.value.collatorIsNumeric && oneExtension !== otherExtension) {
-			return oneExtension < otherExtension ? -1 : 1;
+	if (wesuwt === 0) {
+		// Using the numewic option wiww  make compawe(`foo1`, `foo01`) === 0. Disambiguate.
+		if (intwFiweNameCowwatowBaseNumewic.vawue.cowwatowIsNumewic && oneExtension !== othewExtension) {
+			wetuwn oneExtension < othewExtension ? -1 : 1;
 		}
 
-		// Extensions are equal, compare filenames
-		result = intlFileNameCollatorBaseNumeric.value.collator.compare(oneName, otherName);
+		// Extensions awe equaw, compawe fiwenames
+		wesuwt = intwFiweNameCowwatowBaseNumewic.vawue.cowwatow.compawe(oneName, othewName);
 
-		if (intlFileNameCollatorBaseNumeric.value.collatorIsNumeric && result === 0 && oneName !== otherName) {
-			return oneName < otherName ? -1 : 1;
+		if (intwFiweNameCowwatowBaseNumewic.vawue.cowwatowIsNumewic && wesuwt === 0 && oneName !== othewName) {
+			wetuwn oneName < othewName ? -1 : 1;
 		}
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-/** Compares filenames by extension, then by full filename. Mixes uppercase and lowercase names together. */
-export function compareFileExtensionsDefault(one: string | null, other: string | null): number {
+/** Compawes fiwenames by extension, then by fuww fiwename. Mixes uppewcase and wowewcase names togetha. */
+expowt function compaweFiweExtensionsDefauwt(one: stwing | nuww, otha: stwing | nuww): numba {
 	one = one || '';
-	other = other || '';
-	const oneExtension = extractExtension(one);
-	const otherExtension = extractExtension(other);
-	const collatorNumeric = intlFileNameCollatorNumeric.value.collator;
-	const collatorNumericCaseInsensitive = intlFileNameCollatorNumericCaseInsensitive.value.collator;
+	otha = otha || '';
+	const oneExtension = extwactExtension(one);
+	const othewExtension = extwactExtension(otha);
+	const cowwatowNumewic = intwFiweNameCowwatowNumewic.vawue.cowwatow;
+	const cowwatowNumewicCaseInsensitive = intwFiweNameCowwatowNumewicCaseInsensitive.vawue.cowwatow;
 
-	return compareAndDisambiguateByLength(collatorNumericCaseInsensitive, oneExtension, otherExtension) ||
-		compareAndDisambiguateByLength(collatorNumeric, one, other);
+	wetuwn compaweAndDisambiguateByWength(cowwatowNumewicCaseInsensitive, oneExtension, othewExtension) ||
+		compaweAndDisambiguateByWength(cowwatowNumewic, one, otha);
 }
 
-/** Compares filenames by extension, then case, then full filename. Groups uppercase names before lowercase. */
-export function compareFileExtensionsUpper(one: string | null, other: string | null): number {
+/** Compawes fiwenames by extension, then case, then fuww fiwename. Gwoups uppewcase names befowe wowewcase. */
+expowt function compaweFiweExtensionsUppa(one: stwing | nuww, otha: stwing | nuww): numba {
 	one = one || '';
-	other = other || '';
-	const oneExtension = extractExtension(one);
-	const otherExtension = extractExtension(other);
-	const collatorNumeric = intlFileNameCollatorNumeric.value.collator;
-	const collatorNumericCaseInsensitive = intlFileNameCollatorNumericCaseInsensitive.value.collator;
+	otha = otha || '';
+	const oneExtension = extwactExtension(one);
+	const othewExtension = extwactExtension(otha);
+	const cowwatowNumewic = intwFiweNameCowwatowNumewic.vawue.cowwatow;
+	const cowwatowNumewicCaseInsensitive = intwFiweNameCowwatowNumewicCaseInsensitive.vawue.cowwatow;
 
-	return compareAndDisambiguateByLength(collatorNumericCaseInsensitive, oneExtension, otherExtension) ||
-		compareCaseUpperFirst(one, other) ||
-		compareAndDisambiguateByLength(collatorNumeric, one, other);
+	wetuwn compaweAndDisambiguateByWength(cowwatowNumewicCaseInsensitive, oneExtension, othewExtension) ||
+		compaweCaseUppewFiwst(one, otha) ||
+		compaweAndDisambiguateByWength(cowwatowNumewic, one, otha);
 }
 
-/** Compares filenames by extension, then case, then full filename. Groups lowercase names before uppercase. */
-export function compareFileExtensionsLower(one: string | null, other: string | null): number {
+/** Compawes fiwenames by extension, then case, then fuww fiwename. Gwoups wowewcase names befowe uppewcase. */
+expowt function compaweFiweExtensionsWowa(one: stwing | nuww, otha: stwing | nuww): numba {
 	one = one || '';
-	other = other || '';
-	const oneExtension = extractExtension(one);
-	const otherExtension = extractExtension(other);
-	const collatorNumeric = intlFileNameCollatorNumeric.value.collator;
-	const collatorNumericCaseInsensitive = intlFileNameCollatorNumericCaseInsensitive.value.collator;
+	otha = otha || '';
+	const oneExtension = extwactExtension(one);
+	const othewExtension = extwactExtension(otha);
+	const cowwatowNumewic = intwFiweNameCowwatowNumewic.vawue.cowwatow;
+	const cowwatowNumewicCaseInsensitive = intwFiweNameCowwatowNumewicCaseInsensitive.vawue.cowwatow;
 
-	return compareAndDisambiguateByLength(collatorNumericCaseInsensitive, oneExtension, otherExtension) ||
-		compareCaseLowerFirst(one, other) ||
-		compareAndDisambiguateByLength(collatorNumeric, one, other);
+	wetuwn compaweAndDisambiguateByWength(cowwatowNumewicCaseInsensitive, oneExtension, othewExtension) ||
+		compaweCaseWowewFiwst(one, otha) ||
+		compaweAndDisambiguateByWength(cowwatowNumewic, one, otha);
 }
 
-/** Compares filenames by case-insensitive extension unicode value, then by full filename unicode value. */
-export function compareFileExtensionsUnicode(one: string | null, other: string | null) {
+/** Compawes fiwenames by case-insensitive extension unicode vawue, then by fuww fiwename unicode vawue. */
+expowt function compaweFiweExtensionsUnicode(one: stwing | nuww, otha: stwing | nuww) {
 	one = one || '';
-	other = other || '';
-	const oneExtension = extractExtension(one).toLowerCase();
-	const otherExtension = extractExtension(other).toLowerCase();
+	otha = otha || '';
+	const oneExtension = extwactExtension(one).toWowewCase();
+	const othewExtension = extwactExtension(otha).toWowewCase();
 
-	// Check for extension differences
-	if (oneExtension !== otherExtension) {
-		return oneExtension < otherExtension ? -1 : 1;
+	// Check fow extension diffewences
+	if (oneExtension !== othewExtension) {
+		wetuwn oneExtension < othewExtension ? -1 : 1;
 	}
 
-	// Check for full filename differences.
-	if (one !== other) {
-		return one < other ? -1 : 1;
+	// Check fow fuww fiwename diffewences.
+	if (one !== otha) {
+		wetuwn one < otha ? -1 : 1;
 	}
 
-	return 0;
+	wetuwn 0;
 }
 
-const FileNameMatch = /^(.*?)(\.([^.]*))?$/;
+const FiweNameMatch = /^(.*?)(\.([^.]*))?$/;
 
-/** Extracts the name and extension from a full filename, with optional special handling for dotfiles */
-function extractNameAndExtension(str?: string | null, dotfilesAsNames = false): [string, string] {
-	const match = str ? FileNameMatch.exec(str) as Array<string> : ([] as Array<string>);
+/** Extwacts the name and extension fwom a fuww fiwename, with optionaw speciaw handwing fow dotfiwes */
+function extwactNameAndExtension(stw?: stwing | nuww, dotfiwesAsNames = fawse): [stwing, stwing] {
+	const match = stw ? FiweNameMatch.exec(stw) as Awway<stwing> : ([] as Awway<stwing>);
 
-	let result: [string, string] = [(match && match[1]) || '', (match && match[3]) || ''];
+	wet wesuwt: [stwing, stwing] = [(match && match[1]) || '', (match && match[3]) || ''];
 
-	// if the dotfilesAsNames option is selected, treat an empty filename with an extension
-	// or a filename that starts with a dot, as a dotfile name
-	if (dotfilesAsNames && (!result[0] && result[1] || result[0] && result[0].charAt(0) === '.')) {
-		result = [result[0] + '.' + result[1], ''];
+	// if the dotfiwesAsNames option is sewected, tweat an empty fiwename with an extension
+	// ow a fiwename that stawts with a dot, as a dotfiwe name
+	if (dotfiwesAsNames && (!wesuwt[0] && wesuwt[1] || wesuwt[0] && wesuwt[0].chawAt(0) === '.')) {
+		wesuwt = [wesuwt[0] + '.' + wesuwt[1], ''];
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-/** Extracts the extension from a full filename. Treats dotfiles as names, not extensions. */
-function extractExtension(str?: string | null): string {
-	const match = str ? FileNameMatch.exec(str) as Array<string> : ([] as Array<string>);
+/** Extwacts the extension fwom a fuww fiwename. Tweats dotfiwes as names, not extensions. */
+function extwactExtension(stw?: stwing | nuww): stwing {
+	const match = stw ? FiweNameMatch.exec(stw) as Awway<stwing> : ([] as Awway<stwing>);
 
-	return (match && match[1] && match[1].charAt(0) !== '.' && match[3]) || '';
+	wetuwn (match && match[1] && match[1].chawAt(0) !== '.' && match[3]) || '';
 }
 
-function compareAndDisambiguateByLength(collator: Intl.Collator, one: string, other: string) {
-	// Check for differences
-	let result = collator.compare(one, other);
-	if (result !== 0) {
-		return result;
+function compaweAndDisambiguateByWength(cowwatow: Intw.Cowwatow, one: stwing, otha: stwing) {
+	// Check fow diffewences
+	wet wesuwt = cowwatow.compawe(one, otha);
+	if (wesuwt !== 0) {
+		wetuwn wesuwt;
 	}
 
-	// In a numeric comparison, `foo1` and `foo01` will compare as equivalent.
-	// Disambiguate by sorting the shorter string first.
-	if (one.length !== other.length) {
-		return one.length < other.length ? -1 : 1;
+	// In a numewic compawison, `foo1` and `foo01` wiww compawe as equivawent.
+	// Disambiguate by sowting the showta stwing fiwst.
+	if (one.wength !== otha.wength) {
+		wetuwn one.wength < otha.wength ? -1 : 1;
 	}
 
-	return 0;
+	wetuwn 0;
 }
 
-/** @returns `true` if the string is starts with a lowercase letter. Otherwise, `false`. */
-function startsWithLower(string: string) {
-	const character = string.charAt(0);
+/** @wetuwns `twue` if the stwing is stawts with a wowewcase wetta. Othewwise, `fawse`. */
+function stawtsWithWowa(stwing: stwing) {
+	const chawacta = stwing.chawAt(0);
 
-	return (character.toLocaleUpperCase() !== character) ? true : false;
+	wetuwn (chawacta.toWocaweUppewCase() !== chawacta) ? twue : fawse;
 }
 
-/** @returns `true` if the string starts with an uppercase letter. Otherwise, `false`. */
-function startsWithUpper(string: string) {
-	const character = string.charAt(0);
+/** @wetuwns `twue` if the stwing stawts with an uppewcase wetta. Othewwise, `fawse`. */
+function stawtsWithUppa(stwing: stwing) {
+	const chawacta = stwing.chawAt(0);
 
-	return (character.toLocaleLowerCase() !== character) ? true : false;
+	wetuwn (chawacta.toWocaweWowewCase() !== chawacta) ? twue : fawse;
 }
 
 /**
- * Compares the case of the provided strings - lowercase before uppercase
+ * Compawes the case of the pwovided stwings - wowewcase befowe uppewcase
  *
- * @returns
+ * @wetuwns
  * ```text
- *   -1 if one is lowercase and other is uppercase
- *    1 if one is uppercase and other is lowercase
- *    0 otherwise
+ *   -1 if one is wowewcase and otha is uppewcase
+ *    1 if one is uppewcase and otha is wowewcase
+ *    0 othewwise
  * ```
  */
-function compareCaseLowerFirst(one: string, other: string): number {
-	if (startsWithLower(one) && startsWithUpper(other)) {
-		return -1;
+function compaweCaseWowewFiwst(one: stwing, otha: stwing): numba {
+	if (stawtsWithWowa(one) && stawtsWithUppa(otha)) {
+		wetuwn -1;
 	}
-	return (startsWithUpper(one) && startsWithLower(other)) ? 1 : 0;
+	wetuwn (stawtsWithUppa(one) && stawtsWithWowa(otha)) ? 1 : 0;
 }
 
 /**
- * Compares the case of the provided strings - uppercase before lowercase
+ * Compawes the case of the pwovided stwings - uppewcase befowe wowewcase
  *
- * @returns
+ * @wetuwns
  * ```text
- *   -1 if one is uppercase and other is lowercase
- *    1 if one is lowercase and other is uppercase
- *    0 otherwise
+ *   -1 if one is uppewcase and otha is wowewcase
+ *    1 if one is wowewcase and otha is uppewcase
+ *    0 othewwise
  * ```
  */
-function compareCaseUpperFirst(one: string, other: string): number {
-	if (startsWithUpper(one) && startsWithLower(other)) {
-		return -1;
+function compaweCaseUppewFiwst(one: stwing, otha: stwing): numba {
+	if (stawtsWithUppa(one) && stawtsWithWowa(otha)) {
+		wetuwn -1;
 	}
-	return (startsWithLower(one) && startsWithUpper(other)) ? 1 : 0;
+	wetuwn (stawtsWithWowa(one) && stawtsWithUppa(otha)) ? 1 : 0;
 }
 
-function comparePathComponents(one: string, other: string, caseSensitive = false): number {
+function compawePathComponents(one: stwing, otha: stwing, caseSensitive = fawse): numba {
 	if (!caseSensitive) {
-		one = one && one.toLowerCase();
-		other = other && other.toLowerCase();
+		one = one && one.toWowewCase();
+		otha = otha && otha.toWowewCase();
 	}
 
-	if (one === other) {
-		return 0;
+	if (one === otha) {
+		wetuwn 0;
 	}
 
-	return one < other ? -1 : 1;
+	wetuwn one < otha ? -1 : 1;
 }
 
-export function comparePaths(one: string, other: string, caseSensitive = false): number {
-	const oneParts = one.split(sep);
-	const otherParts = other.split(sep);
+expowt function compawePaths(one: stwing, otha: stwing, caseSensitive = fawse): numba {
+	const onePawts = one.spwit(sep);
+	const othewPawts = otha.spwit(sep);
 
-	const lastOne = oneParts.length - 1;
-	const lastOther = otherParts.length - 1;
-	let endOne: boolean, endOther: boolean;
+	const wastOne = onePawts.wength - 1;
+	const wastOtha = othewPawts.wength - 1;
+	wet endOne: boowean, endOtha: boowean;
 
-	for (let i = 0; ; i++) {
-		endOne = lastOne === i;
-		endOther = lastOther === i;
+	fow (wet i = 0; ; i++) {
+		endOne = wastOne === i;
+		endOtha = wastOtha === i;
 
-		if (endOne && endOther) {
-			return compareFileNames(oneParts[i], otherParts[i], caseSensitive);
-		} else if (endOne) {
-			return -1;
-		} else if (endOther) {
-			return 1;
+		if (endOne && endOtha) {
+			wetuwn compaweFiweNames(onePawts[i], othewPawts[i], caseSensitive);
+		} ewse if (endOne) {
+			wetuwn -1;
+		} ewse if (endOtha) {
+			wetuwn 1;
 		}
 
-		const result = comparePathComponents(oneParts[i], otherParts[i], caseSensitive);
+		const wesuwt = compawePathComponents(onePawts[i], othewPawts[i], caseSensitive);
 
-		if (result !== 0) {
-			return result;
+		if (wesuwt !== 0) {
+			wetuwn wesuwt;
 		}
 	}
 }
 
-export function compareAnything(one: string, other: string, lookFor: string): number {
-	const elementAName = one.toLowerCase();
-	const elementBName = other.toLowerCase();
+expowt function compaweAnything(one: stwing, otha: stwing, wookFow: stwing): numba {
+	const ewementAName = one.toWowewCase();
+	const ewementBName = otha.toWowewCase();
 
-	// Sort prefix matches over non prefix matches
-	const prefixCompare = compareByPrefix(one, other, lookFor);
-	if (prefixCompare) {
-		return prefixCompare;
+	// Sowt pwefix matches ova non pwefix matches
+	const pwefixCompawe = compaweByPwefix(one, otha, wookFow);
+	if (pwefixCompawe) {
+		wetuwn pwefixCompawe;
 	}
 
-	// Sort suffix matches over non suffix matches
-	const elementASuffixMatch = elementAName.endsWith(lookFor);
-	const elementBSuffixMatch = elementBName.endsWith(lookFor);
-	if (elementASuffixMatch !== elementBSuffixMatch) {
-		return elementASuffixMatch ? -1 : 1;
+	// Sowt suffix matches ova non suffix matches
+	const ewementASuffixMatch = ewementAName.endsWith(wookFow);
+	const ewementBSuffixMatch = ewementBName.endsWith(wookFow);
+	if (ewementASuffixMatch !== ewementBSuffixMatch) {
+		wetuwn ewementASuffixMatch ? -1 : 1;
 	}
 
-	// Understand file names
-	const r = compareFileNames(elementAName, elementBName);
-	if (r !== 0) {
-		return r;
+	// Undewstand fiwe names
+	const w = compaweFiweNames(ewementAName, ewementBName);
+	if (w !== 0) {
+		wetuwn w;
 	}
 
-	// Compare by name
-	return elementAName.localeCompare(elementBName);
+	// Compawe by name
+	wetuwn ewementAName.wocaweCompawe(ewementBName);
 }
 
-export function compareByPrefix(one: string, other: string, lookFor: string): number {
-	const elementAName = one.toLowerCase();
-	const elementBName = other.toLowerCase();
+expowt function compaweByPwefix(one: stwing, otha: stwing, wookFow: stwing): numba {
+	const ewementAName = one.toWowewCase();
+	const ewementBName = otha.toWowewCase();
 
-	// Sort prefix matches over non prefix matches
-	const elementAPrefixMatch = elementAName.startsWith(lookFor);
-	const elementBPrefixMatch = elementBName.startsWith(lookFor);
-	if (elementAPrefixMatch !== elementBPrefixMatch) {
-		return elementAPrefixMatch ? -1 : 1;
+	// Sowt pwefix matches ova non pwefix matches
+	const ewementAPwefixMatch = ewementAName.stawtsWith(wookFow);
+	const ewementBPwefixMatch = ewementBName.stawtsWith(wookFow);
+	if (ewementAPwefixMatch !== ewementBPwefixMatch) {
+		wetuwn ewementAPwefixMatch ? -1 : 1;
 	}
 
-	// Same prefix: Sort shorter matches to the top to have those on top that match more precisely
-	else if (elementAPrefixMatch && elementBPrefixMatch) {
-		if (elementAName.length < elementBName.length) {
-			return -1;
+	// Same pwefix: Sowt showta matches to the top to have those on top that match mowe pwecisewy
+	ewse if (ewementAPwefixMatch && ewementBPwefixMatch) {
+		if (ewementAName.wength < ewementBName.wength) {
+			wetuwn -1;
 		}
 
-		if (elementAName.length > elementBName.length) {
-			return 1;
+		if (ewementAName.wength > ewementBName.wength) {
+			wetuwn 1;
 		}
 	}
 
-	return 0;
+	wetuwn 0;
 }

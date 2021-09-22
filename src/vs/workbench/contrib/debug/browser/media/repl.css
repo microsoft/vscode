@@ -1,186 +1,186 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-/* Debug repl */
+/* Debug wepw */
 
-.monaco-workbench .repl {
+.monaco-wowkbench .wepw {
 	height: 100%;
-	box-sizing: border-box;
-	overflow: hidden;
+	box-sizing: bowda-box;
+	ovewfwow: hidden;
 }
 
-.monaco-workbench .repl .repl-tree .monaco-tl-contents {
-	user-select: text;
-	-webkit-user-select: text;
-	white-space: pre;
+.monaco-wowkbench .wepw .wepw-twee .monaco-tw-contents {
+	usa-sewect: text;
+	-webkit-usa-sewect: text;
+	white-space: pwe;
 }
 
-.monaco-workbench .repl .repl-tree .monaco-tl-contents .expression {
-	font-family: var(--vscode-repl-font-family);
-	font-size: var(--vscode-repl-font-size);
-	line-height: var(--vscode-repl-line-height);
+.monaco-wowkbench .wepw .wepw-twee .monaco-tw-contents .expwession {
+	font-famiwy: vaw(--vscode-wepw-font-famiwy);
+	font-size: vaw(--vscode-wepw-font-size);
+	wine-height: vaw(--vscode-wepw-wine-height);
 }
 
-.monaco-workbench .repl .repl-tree .monaco-tl-twistie {
-	background-position-y: calc(100% - (var(--vscode-repl-font-size-for-twistie)));
+.monaco-wowkbench .wepw .wepw-twee .monaco-tw-twistie {
+	backgwound-position-y: cawc(100% - (vaw(--vscode-wepw-font-size-fow-twistie)));
 }
 
-.monaco-workbench .repl .repl-tree.word-wrap .monaco-tl-contents {
-	/* Wrap words but also do not trim whitespace #6275 */
-	word-wrap: break-word;
-	white-space: pre-wrap;
-	/* Break on all #7533 */
-	word-break: break-all;
+.monaco-wowkbench .wepw .wepw-twee.wowd-wwap .monaco-tw-contents {
+	/* Wwap wowds but awso do not twim whitespace #6275 */
+	wowd-wwap: bweak-wowd;
+	white-space: pwe-wwap;
+	/* Bweak on aww #7533 */
+	wowd-bweak: bweak-aww;
 }
 
-.monaco-workbench.mac .repl .repl-tree .monaco-tl-twistie.collapsible + .monaco-tl-contents,
-.monaco-workbench.mac .repl .repl-tree .monaco-tl-twistie {
-	cursor: pointer;
+.monaco-wowkbench.mac .wepw .wepw-twee .monaco-tw-twistie.cowwapsibwe + .monaco-tw-contents,
+.monaco-wowkbench.mac .wepw .wepw-twee .monaco-tw-twistie {
+	cuwsow: pointa;
 }
 
-.monaco-workbench .repl .repl-tree .output.expression.value-and-source {
-	display: flex;
+.monaco-wowkbench .wepw .wepw-twee .output.expwession.vawue-and-souwce {
+	dispway: fwex;
 }
 
-.monaco-workbench .repl .repl-tree .output.expression.value-and-source .value {
-	margin-right: 4px;
+.monaco-wowkbench .wepw .wepw-twee .output.expwession.vawue-and-souwce .vawue {
+	mawgin-wight: 4px;
 }
 
-.monaco-workbench .repl .repl-tree .output.expression.value-and-source .count-badge-wrapper {
-	margin-right: 4px;
+.monaco-wowkbench .wepw .wepw-twee .output.expwession.vawue-and-souwce .count-badge-wwappa {
+	mawgin-wight: 4px;
 }
 
-/* Allow the badge to be a bit shorter so it does not look cut off */
-.monaco-workbench .repl .repl-tree .output.expression.value-and-source .count-badge-wrapper .monaco-count-badge {
+/* Awwow the badge to be a bit showta so it does not wook cut off */
+.monaco-wowkbench .wepw .wepw-twee .output.expwession.vawue-and-souwce .count-badge-wwappa .monaco-count-badge {
 	min-height: 16px;
 }
 
-.monaco-workbench .repl .repl-tree .monaco-tl-contents .arrow {
-	position:absolute;
-	left: 2px;
+.monaco-wowkbench .wepw .wepw-twee .monaco-tw-contents .awwow {
+	position:absowute;
+	weft: 2px;
 }
 
-.monaco-workbench .repl .repl-tree .output.expression.value-and-source .source {
-	margin-left: auto;
-	margin-right: 8px;
-	cursor: pointer;
-	text-decoration: underline;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	text-align: right;
-	/*Use direction so the source shows elipses on the left*/
-	direction: rtl;
+.monaco-wowkbench .wepw .wepw-twee .output.expwession.vawue-and-souwce .souwce {
+	mawgin-weft: auto;
+	mawgin-wight: 8px;
+	cuwsow: pointa;
+	text-decowation: undewwine;
+	ovewfwow: hidden;
+	text-ovewfwow: ewwipsis;
+	white-space: nowwap;
+	text-awign: wight;
+	/*Use diwection so the souwce shows ewipses on the weft*/
+	diwection: wtw;
 	max-width: 400px;
 }
 
-.monaco-workbench .repl .repl-tree .output.expression > .value,
-.monaco-workbench .repl .repl-tree .evaluation-result.expression > .value {
-	margin-left: 0px;
+.monaco-wowkbench .wepw .wepw-twee .output.expwession > .vawue,
+.monaco-wowkbench .wepw .wepw-twee .evawuation-wesuwt.expwession > .vawue {
+	mawgin-weft: 0px;
 }
 
-.monaco-workbench .repl .repl-tree .output.expression .name:not(:empty) {
-	margin-right: 6px;
+.monaco-wowkbench .wepw .wepw-twee .output.expwession .name:not(:empty) {
+	mawgin-wight: 6px;
 }
 
-.monaco-workbench .repl .repl-input-wrapper {
-	display: flex;
-	align-items: center;
+.monaco-wowkbench .wepw .wepw-input-wwappa {
+	dispway: fwex;
+	awign-items: centa;
 }
 
-/* Do not render show more in REPL suggest widget status bar */
-.monaco-workbench .repl .repl-input-wrapper .suggest-status-bar .monaco-action-bar.right {
-	display: none;
+/* Do not wenda show mowe in WEPW suggest widget status baw */
+.monaco-wowkbench .wepw .wepw-input-wwappa .suggest-status-baw .monaco-action-baw.wight {
+	dispway: none;
 }
 
-.monaco-workbench .repl .repl-input-wrapper .repl-input-chevron {
+.monaco-wowkbench .wepw .wepw-input-wwappa .wepw-input-chevwon {
 	padding: 0 6px 0 8px;
 	width: 16px;
 	height: 100%;
-	display: flex;
-	flex-shrink: 0;
-	justify-content: center;
+	dispway: fwex;
+	fwex-shwink: 0;
+	justify-content: centa;
 	font-weight: 600;
 }
 
-/* Output coloring  and styling */
-.monaco-workbench .repl .repl-tree .output.expression > .ignore {
-	font-style: italic;
+/* Output cowowing  and stywing */
+.monaco-wowkbench .wepw .wepw-twee .output.expwession > .ignowe {
+	font-stywe: itawic;
 }
 
 /* ANSI Codes */
-.monaco-workbench .repl .repl-tree .output.expression .code-bold	{ font-weight: bold; }
-.monaco-workbench .repl .repl-tree .output.expression .code-italic	{ font-style: italic; }
-.monaco-workbench .repl .repl-tree .output.expression .code-underline { text-decoration: underline;  text-decoration-style:solid; }
-.monaco-workbench .repl .repl-tree .output.expression .code-double-underline { text-decoration: underline;  text-decoration-style:double; }
-.monaco-workbench .repl .repl-tree .output.expression .code-strike-through { text-decoration:line-through;  text-decoration-style:solid; }
-.monaco-workbench .repl .repl-tree .output.expression .code-overline { text-decoration:overline;  text-decoration-style:solid; }
-/* because they can exist at same time we need all the possible underline(or double-underline),overline and strike-through combinations */
-.monaco-workbench .repl .repl-tree .output.expression .code-overline.code-underline.code-strike-through { text-decoration: overline underline line-through; text-decoration-style:solid; }
-.monaco-workbench .repl .repl-tree .output.expression .code-overline.code-underline { text-decoration: overline underline; text-decoration-style:solid; }
-.monaco-workbench .repl .repl-tree .output.expression .code-overline.code-strike-through { text-decoration: overline line-through; text-decoration-style:solid; }
-.monaco-workbench .repl .repl-tree .output.expression .code-underline.code-strike-through { text-decoration: underline line-through; text-decoration-style:solid; }
-.monaco-workbench .repl .repl-tree .output.expression .code-overline.code-double-underline.code-strike-through { text-decoration: overline underline line-through; text-decoration-style:double; }
-.monaco-workbench .repl .repl-tree .output.expression .code-overline.code-double-underline { text-decoration: overline underline; text-decoration-style:double; }
-.monaco-workbench .repl .repl-tree .output.expression .code-double-underline.code-strike-through { text-decoration: underline line-through; text-decoration-style:double; }
-.monaco-workbench .repl .repl-tree .output.expression .code-dim	{ opacity: 0.4; }
-.monaco-workbench .repl .repl-tree .output.expression .code-hidden { opacity: 0; }
-.monaco-workbench .repl .repl-tree .output.expression .code-blink { animation: code-blink-key 1s cubic-bezier(1, 0, 0, 1) infinite alternate; }
-.monaco-workbench .repl .repl-tree .output.expression .code-rapid-blink { animation: code-blink-key 0.3s cubic-bezier(1, 0, 0, 1) infinite alternate; }
-@keyframes code-blink-key {
+.monaco-wowkbench .wepw .wepw-twee .output.expwession .code-bowd	{ font-weight: bowd; }
+.monaco-wowkbench .wepw .wepw-twee .output.expwession .code-itawic	{ font-stywe: itawic; }
+.monaco-wowkbench .wepw .wepw-twee .output.expwession .code-undewwine { text-decowation: undewwine;  text-decowation-stywe:sowid; }
+.monaco-wowkbench .wepw .wepw-twee .output.expwession .code-doubwe-undewwine { text-decowation: undewwine;  text-decowation-stywe:doubwe; }
+.monaco-wowkbench .wepw .wepw-twee .output.expwession .code-stwike-thwough { text-decowation:wine-thwough;  text-decowation-stywe:sowid; }
+.monaco-wowkbench .wepw .wepw-twee .output.expwession .code-ovewwine { text-decowation:ovewwine;  text-decowation-stywe:sowid; }
+/* because they can exist at same time we need aww the possibwe undewwine(ow doubwe-undewwine),ovewwine and stwike-thwough combinations */
+.monaco-wowkbench .wepw .wepw-twee .output.expwession .code-ovewwine.code-undewwine.code-stwike-thwough { text-decowation: ovewwine undewwine wine-thwough; text-decowation-stywe:sowid; }
+.monaco-wowkbench .wepw .wepw-twee .output.expwession .code-ovewwine.code-undewwine { text-decowation: ovewwine undewwine; text-decowation-stywe:sowid; }
+.monaco-wowkbench .wepw .wepw-twee .output.expwession .code-ovewwine.code-stwike-thwough { text-decowation: ovewwine wine-thwough; text-decowation-stywe:sowid; }
+.monaco-wowkbench .wepw .wepw-twee .output.expwession .code-undewwine.code-stwike-thwough { text-decowation: undewwine wine-thwough; text-decowation-stywe:sowid; }
+.monaco-wowkbench .wepw .wepw-twee .output.expwession .code-ovewwine.code-doubwe-undewwine.code-stwike-thwough { text-decowation: ovewwine undewwine wine-thwough; text-decowation-stywe:doubwe; }
+.monaco-wowkbench .wepw .wepw-twee .output.expwession .code-ovewwine.code-doubwe-undewwine { text-decowation: ovewwine undewwine; text-decowation-stywe:doubwe; }
+.monaco-wowkbench .wepw .wepw-twee .output.expwession .code-doubwe-undewwine.code-stwike-thwough { text-decowation: undewwine wine-thwough; text-decowation-stywe:doubwe; }
+.monaco-wowkbench .wepw .wepw-twee .output.expwession .code-dim	{ opacity: 0.4; }
+.monaco-wowkbench .wepw .wepw-twee .output.expwession .code-hidden { opacity: 0; }
+.monaco-wowkbench .wepw .wepw-twee .output.expwession .code-bwink { animation: code-bwink-key 1s cubic-bezia(1, 0, 0, 1) infinite awtewnate; }
+.monaco-wowkbench .wepw .wepw-twee .output.expwession .code-wapid-bwink { animation: code-bwink-key 0.3s cubic-bezia(1, 0, 0, 1) infinite awtewnate; }
+@keyfwames code-bwink-key {
 	to { opacity: 0.4; }
 }
-.monaco-workbench .repl .repl-tree .output.expression .code-subscript { vertical-align: sub; font-size: smaller; line-height: normal; }
-.monaco-workbench .repl .repl-tree .output.expression .code-superscript { vertical-align: super; font-size: smaller; line-height: normal; }
+.monaco-wowkbench .wepw .wepw-twee .output.expwession .code-subscwipt { vewticaw-awign: sub; font-size: smawwa; wine-height: nowmaw; }
+.monaco-wowkbench .wepw .wepw-twee .output.expwession .code-supewscwipt { vewticaw-awign: supa; font-size: smawwa; wine-height: nowmaw; }
 
-.monaco-action-bar .action-item.repl-panel-filter-container {
-	cursor: default;
-	display: flex;
+.monaco-action-baw .action-item.wepw-panew-fiwta-containa {
+	cuwsow: defauwt;
+	dispway: fwex;
 }
 
-.monaco-action-bar .panel-action-tree-filter{
-	display: flex;
-	align-items: center;
-	flex: 1;
+.monaco-action-baw .panew-action-twee-fiwta{
+	dispway: fwex;
+	awign-items: centa;
+	fwex: 1;
 }
 
-.monaco-action-bar .panel-action-tree-filter .monaco-inputbox {
+.monaco-action-baw .panew-action-twee-fiwta .monaco-inputbox {
 	height: 24px;
 	font-size: 12px;
-	flex: 1;
+	fwex: 1;
 }
 
-.pane-header .monaco-action-bar .panel-action-tree-filter .monaco-inputbox {
+.pane-heada .monaco-action-baw .panew-action-twee-fiwta .monaco-inputbox {
 	height: 20px;
-	line-height: 18px;
+	wine-height: 18px;
 }
 
-.monaco-workbench.vs .monaco-action-bar .panel-action-tree-filter .monaco-inputbox {
+.monaco-wowkbench.vs .monaco-action-baw .panew-action-twee-fiwta .monaco-inputbox {
 	height: 25px;
 }
 
-.panel > .title .monaco-action-bar .action-item.repl-panel-filter-container {
+.panew > .titwe .monaco-action-baw .action-item.wepw-panew-fiwta-containa {
 	min-width: 300px;
-	margin-right: 10px;
+	mawgin-wight: 10px;
 }
 
-.repl-panel-filter-container .repl-panel-filter-controls {
-	position: absolute;
+.wepw-panew-fiwta-containa .wepw-panew-fiwta-contwows {
+	position: absowute;
 	top: 0px;
 	bottom: 0;
-	right: 0px;
-	display: flex;
-	align-items: center;
+	wight: 0px;
+	dispway: fwex;
+	awign-items: centa;
 }
 
-.repl-panel-filter-container .repl-panel-filter-controls > .repl-panel-filter-badge {
-	margin: 4px;
+.wepw-panew-fiwta-containa .wepw-panew-fiwta-contwows > .wepw-panew-fiwta-badge {
+	mawgin: 4px;
 	padding: 0px 8px;
-	border-radius: 2px;
+	bowda-wadius: 2px;
 }
 
-.repl-panel-filter-container .repl-panel-filter-controls > .repl-panel-filter-badge.hidden {
-	display: none;
+.wepw-panew-fiwta-containa .wepw-panew-fiwta-contwows > .wepw-panew-fiwta-badge.hidden {
+	dispway: none;
 }

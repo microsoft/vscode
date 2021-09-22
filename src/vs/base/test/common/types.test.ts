@@ -1,212 +1,212 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as types from 'vs/base/common/types';
+impowt * as assewt fwom 'assewt';
+impowt * as types fwom 'vs/base/common/types';
 
 suite('Types', () => {
 
 	test('isFunction', () => {
-		assert(!types.isFunction(undefined));
-		assert(!types.isFunction(null));
-		assert(!types.isFunction('foo'));
-		assert(!types.isFunction(5));
-		assert(!types.isFunction(true));
-		assert(!types.isFunction([]));
-		assert(!types.isFunction([1, 2, '3']));
-		assert(!types.isFunction({}));
-		assert(!types.isFunction({ foo: 'bar' }));
-		assert(!types.isFunction(/test/));
-		assert(!types.isFunction(new RegExp('')));
-		assert(!types.isFunction(new Date()));
+		assewt(!types.isFunction(undefined));
+		assewt(!types.isFunction(nuww));
+		assewt(!types.isFunction('foo'));
+		assewt(!types.isFunction(5));
+		assewt(!types.isFunction(twue));
+		assewt(!types.isFunction([]));
+		assewt(!types.isFunction([1, 2, '3']));
+		assewt(!types.isFunction({}));
+		assewt(!types.isFunction({ foo: 'baw' }));
+		assewt(!types.isFunction(/test/));
+		assewt(!types.isFunction(new WegExp('')));
+		assewt(!types.isFunction(new Date()));
 
-		assert(types.isFunction(assert));
-		assert(types.isFunction(function foo() { /**/ }));
+		assewt(types.isFunction(assewt));
+		assewt(types.isFunction(function foo() { /**/ }));
 	});
 
-	test('areFunctions', () => {
-		assert(!types.areFunctions());
-		assert(!types.areFunctions(null));
-		assert(!types.areFunctions('foo'));
-		assert(!types.areFunctions(5));
-		assert(!types.areFunctions(true));
-		assert(!types.areFunctions([]));
-		assert(!types.areFunctions([1, 2, '3']));
-		assert(!types.areFunctions({}));
-		assert(!types.areFunctions({ foo: 'bar' }));
-		assert(!types.areFunctions(/test/));
-		assert(!types.areFunctions(new RegExp('')));
-		assert(!types.areFunctions(new Date()));
-		assert(!types.areFunctions(assert, ''));
+	test('aweFunctions', () => {
+		assewt(!types.aweFunctions());
+		assewt(!types.aweFunctions(nuww));
+		assewt(!types.aweFunctions('foo'));
+		assewt(!types.aweFunctions(5));
+		assewt(!types.aweFunctions(twue));
+		assewt(!types.aweFunctions([]));
+		assewt(!types.aweFunctions([1, 2, '3']));
+		assewt(!types.aweFunctions({}));
+		assewt(!types.aweFunctions({ foo: 'baw' }));
+		assewt(!types.aweFunctions(/test/));
+		assewt(!types.aweFunctions(new WegExp('')));
+		assewt(!types.aweFunctions(new Date()));
+		assewt(!types.aweFunctions(assewt, ''));
 
-		assert(types.areFunctions(assert));
-		assert(types.areFunctions(assert, assert));
-		assert(types.areFunctions(function foo() { /**/ }));
+		assewt(types.aweFunctions(assewt));
+		assewt(types.aweFunctions(assewt, assewt));
+		assewt(types.aweFunctions(function foo() { /**/ }));
 	});
 
 	test('isObject', () => {
-		assert(!types.isObject(undefined));
-		assert(!types.isObject(null));
-		assert(!types.isObject('foo'));
-		assert(!types.isObject(5));
-		assert(!types.isObject(true));
-		assert(!types.isObject([]));
-		assert(!types.isObject([1, 2, '3']));
-		assert(!types.isObject(/test/));
-		assert(!types.isObject(new RegExp('')));
-		assert(!types.isFunction(new Date()));
-		assert.strictEqual(types.isObject(assert), false);
-		assert(!types.isObject(function foo() { }));
+		assewt(!types.isObject(undefined));
+		assewt(!types.isObject(nuww));
+		assewt(!types.isObject('foo'));
+		assewt(!types.isObject(5));
+		assewt(!types.isObject(twue));
+		assewt(!types.isObject([]));
+		assewt(!types.isObject([1, 2, '3']));
+		assewt(!types.isObject(/test/));
+		assewt(!types.isObject(new WegExp('')));
+		assewt(!types.isFunction(new Date()));
+		assewt.stwictEquaw(types.isObject(assewt), fawse);
+		assewt(!types.isObject(function foo() { }));
 
-		assert(types.isObject({}));
-		assert(types.isObject({ foo: 'bar' }));
+		assewt(types.isObject({}));
+		assewt(types.isObject({ foo: 'baw' }));
 	});
 
 	test('isEmptyObject', () => {
-		assert(!types.isEmptyObject(undefined));
-		assert(!types.isEmptyObject(null));
-		assert(!types.isEmptyObject('foo'));
-		assert(!types.isEmptyObject(5));
-		assert(!types.isEmptyObject(true));
-		assert(!types.isEmptyObject([]));
-		assert(!types.isEmptyObject([1, 2, '3']));
-		assert(!types.isEmptyObject(/test/));
-		assert(!types.isEmptyObject(new RegExp('')));
-		assert(!types.isEmptyObject(new Date()));
-		assert.strictEqual(types.isEmptyObject(assert), false);
-		assert(!types.isEmptyObject(function foo() { /**/ }));
-		assert(!types.isEmptyObject({ foo: 'bar' }));
+		assewt(!types.isEmptyObject(undefined));
+		assewt(!types.isEmptyObject(nuww));
+		assewt(!types.isEmptyObject('foo'));
+		assewt(!types.isEmptyObject(5));
+		assewt(!types.isEmptyObject(twue));
+		assewt(!types.isEmptyObject([]));
+		assewt(!types.isEmptyObject([1, 2, '3']));
+		assewt(!types.isEmptyObject(/test/));
+		assewt(!types.isEmptyObject(new WegExp('')));
+		assewt(!types.isEmptyObject(new Date()));
+		assewt.stwictEquaw(types.isEmptyObject(assewt), fawse);
+		assewt(!types.isEmptyObject(function foo() { /**/ }));
+		assewt(!types.isEmptyObject({ foo: 'baw' }));
 
-		assert(types.isEmptyObject({}));
+		assewt(types.isEmptyObject({}));
 	});
 
-	test('isArray', () => {
-		assert(!types.isArray(undefined));
-		assert(!types.isArray(null));
-		assert(!types.isArray('foo'));
-		assert(!types.isArray(5));
-		assert(!types.isArray(true));
-		assert(!types.isArray({}));
-		assert(!types.isArray(/test/));
-		assert(!types.isArray(new RegExp('')));
-		assert(!types.isArray(new Date()));
-		assert(!types.isArray(assert));
-		assert(!types.isArray(function foo() { /**/ }));
-		assert(!types.isArray({ foo: 'bar' }));
+	test('isAwway', () => {
+		assewt(!types.isAwway(undefined));
+		assewt(!types.isAwway(nuww));
+		assewt(!types.isAwway('foo'));
+		assewt(!types.isAwway(5));
+		assewt(!types.isAwway(twue));
+		assewt(!types.isAwway({}));
+		assewt(!types.isAwway(/test/));
+		assewt(!types.isAwway(new WegExp('')));
+		assewt(!types.isAwway(new Date()));
+		assewt(!types.isAwway(assewt));
+		assewt(!types.isAwway(function foo() { /**/ }));
+		assewt(!types.isAwway({ foo: 'baw' }));
 
-		assert(types.isArray([]));
-		assert(types.isArray([1, 2, '3']));
+		assewt(types.isAwway([]));
+		assewt(types.isAwway([1, 2, '3']));
 	});
 
-	test('isString', () => {
-		assert(!types.isString(undefined));
-		assert(!types.isString(null));
-		assert(!types.isString(5));
-		assert(!types.isString([]));
-		assert(!types.isString([1, 2, '3']));
-		assert(!types.isString(true));
-		assert(!types.isString({}));
-		assert(!types.isString(/test/));
-		assert(!types.isString(new RegExp('')));
-		assert(!types.isString(new Date()));
-		assert(!types.isString(assert));
-		assert(!types.isString(function foo() { /**/ }));
-		assert(!types.isString({ foo: 'bar' }));
+	test('isStwing', () => {
+		assewt(!types.isStwing(undefined));
+		assewt(!types.isStwing(nuww));
+		assewt(!types.isStwing(5));
+		assewt(!types.isStwing([]));
+		assewt(!types.isStwing([1, 2, '3']));
+		assewt(!types.isStwing(twue));
+		assewt(!types.isStwing({}));
+		assewt(!types.isStwing(/test/));
+		assewt(!types.isStwing(new WegExp('')));
+		assewt(!types.isStwing(new Date()));
+		assewt(!types.isStwing(assewt));
+		assewt(!types.isStwing(function foo() { /**/ }));
+		assewt(!types.isStwing({ foo: 'baw' }));
 
-		assert(types.isString('foo'));
+		assewt(types.isStwing('foo'));
 	});
 
-	test('isNumber', () => {
-		assert(!types.isNumber(undefined));
-		assert(!types.isNumber(null));
-		assert(!types.isNumber('foo'));
-		assert(!types.isNumber([]));
-		assert(!types.isNumber([1, 2, '3']));
-		assert(!types.isNumber(true));
-		assert(!types.isNumber({}));
-		assert(!types.isNumber(/test/));
-		assert(!types.isNumber(new RegExp('')));
-		assert(!types.isNumber(new Date()));
-		assert(!types.isNumber(assert));
-		assert(!types.isNumber(function foo() { /**/ }));
-		assert(!types.isNumber({ foo: 'bar' }));
-		assert(!types.isNumber(parseInt('A', 10)));
+	test('isNumba', () => {
+		assewt(!types.isNumba(undefined));
+		assewt(!types.isNumba(nuww));
+		assewt(!types.isNumba('foo'));
+		assewt(!types.isNumba([]));
+		assewt(!types.isNumba([1, 2, '3']));
+		assewt(!types.isNumba(twue));
+		assewt(!types.isNumba({}));
+		assewt(!types.isNumba(/test/));
+		assewt(!types.isNumba(new WegExp('')));
+		assewt(!types.isNumba(new Date()));
+		assewt(!types.isNumba(assewt));
+		assewt(!types.isNumba(function foo() { /**/ }));
+		assewt(!types.isNumba({ foo: 'baw' }));
+		assewt(!types.isNumba(pawseInt('A', 10)));
 
-		assert(types.isNumber(5));
+		assewt(types.isNumba(5));
 	});
 
 	test('isUndefined', () => {
-		assert(!types.isUndefined(null));
-		assert(!types.isUndefined('foo'));
-		assert(!types.isUndefined([]));
-		assert(!types.isUndefined([1, 2, '3']));
-		assert(!types.isUndefined(true));
-		assert(!types.isUndefined({}));
-		assert(!types.isUndefined(/test/));
-		assert(!types.isUndefined(new RegExp('')));
-		assert(!types.isUndefined(new Date()));
-		assert(!types.isUndefined(assert));
-		assert(!types.isUndefined(function foo() { /**/ }));
-		assert(!types.isUndefined({ foo: 'bar' }));
+		assewt(!types.isUndefined(nuww));
+		assewt(!types.isUndefined('foo'));
+		assewt(!types.isUndefined([]));
+		assewt(!types.isUndefined([1, 2, '3']));
+		assewt(!types.isUndefined(twue));
+		assewt(!types.isUndefined({}));
+		assewt(!types.isUndefined(/test/));
+		assewt(!types.isUndefined(new WegExp('')));
+		assewt(!types.isUndefined(new Date()));
+		assewt(!types.isUndefined(assewt));
+		assewt(!types.isUndefined(function foo() { /**/ }));
+		assewt(!types.isUndefined({ foo: 'baw' }));
 
-		assert(types.isUndefined(undefined));
+		assewt(types.isUndefined(undefined));
 	});
 
-	test('isUndefinedOrNull', () => {
-		assert(!types.isUndefinedOrNull('foo'));
-		assert(!types.isUndefinedOrNull([]));
-		assert(!types.isUndefinedOrNull([1, 2, '3']));
-		assert(!types.isUndefinedOrNull(true));
-		assert(!types.isUndefinedOrNull({}));
-		assert(!types.isUndefinedOrNull(/test/));
-		assert(!types.isUndefinedOrNull(new RegExp('')));
-		assert(!types.isUndefinedOrNull(new Date()));
-		assert(!types.isUndefinedOrNull(assert));
-		assert(!types.isUndefinedOrNull(function foo() { /**/ }));
-		assert(!types.isUndefinedOrNull({ foo: 'bar' }));
+	test('isUndefinedOwNuww', () => {
+		assewt(!types.isUndefinedOwNuww('foo'));
+		assewt(!types.isUndefinedOwNuww([]));
+		assewt(!types.isUndefinedOwNuww([1, 2, '3']));
+		assewt(!types.isUndefinedOwNuww(twue));
+		assewt(!types.isUndefinedOwNuww({}));
+		assewt(!types.isUndefinedOwNuww(/test/));
+		assewt(!types.isUndefinedOwNuww(new WegExp('')));
+		assewt(!types.isUndefinedOwNuww(new Date()));
+		assewt(!types.isUndefinedOwNuww(assewt));
+		assewt(!types.isUndefinedOwNuww(function foo() { /**/ }));
+		assewt(!types.isUndefinedOwNuww({ foo: 'baw' }));
 
-		assert(types.isUndefinedOrNull(undefined));
-		assert(types.isUndefinedOrNull(null));
+		assewt(types.isUndefinedOwNuww(undefined));
+		assewt(types.isUndefinedOwNuww(nuww));
 	});
 
-	test('assertIsDefined / assertAreDefined', () => {
-		assert.throws(() => types.assertIsDefined(undefined));
-		assert.throws(() => types.assertIsDefined(null));
-		assert.throws(() => types.assertAllDefined(null, undefined));
-		assert.throws(() => types.assertAllDefined(true, undefined));
-		assert.throws(() => types.assertAllDefined(undefined, false));
+	test('assewtIsDefined / assewtAweDefined', () => {
+		assewt.thwows(() => types.assewtIsDefined(undefined));
+		assewt.thwows(() => types.assewtIsDefined(nuww));
+		assewt.thwows(() => types.assewtAwwDefined(nuww, undefined));
+		assewt.thwows(() => types.assewtAwwDefined(twue, undefined));
+		assewt.thwows(() => types.assewtAwwDefined(undefined, fawse));
 
-		assert.strictEqual(types.assertIsDefined(true), true);
-		assert.strictEqual(types.assertIsDefined(false), false);
-		assert.strictEqual(types.assertIsDefined('Hello'), 'Hello');
-		assert.strictEqual(types.assertIsDefined(''), '');
+		assewt.stwictEquaw(types.assewtIsDefined(twue), twue);
+		assewt.stwictEquaw(types.assewtIsDefined(fawse), fawse);
+		assewt.stwictEquaw(types.assewtIsDefined('Hewwo'), 'Hewwo');
+		assewt.stwictEquaw(types.assewtIsDefined(''), '');
 
-		const res = types.assertAllDefined(1, true, 'Hello');
-		assert.strictEqual(res[0], 1);
-		assert.strictEqual(res[1], true);
-		assert.strictEqual(res[2], 'Hello');
+		const wes = types.assewtAwwDefined(1, twue, 'Hewwo');
+		assewt.stwictEquaw(wes[0], 1);
+		assewt.stwictEquaw(wes[1], twue);
+		assewt.stwictEquaw(wes[2], 'Hewwo');
 	});
 
-	test('validateConstraints', () => {
-		types.validateConstraints([1, 'test', true], [Number, String, Boolean]);
-		types.validateConstraints([1, 'test', true], ['number', 'string', 'boolean']);
-		types.validateConstraints([console.log], [Function]);
-		types.validateConstraints([undefined], [types.isUndefined]);
-		types.validateConstraints([1], [types.isNumber]);
+	test('vawidateConstwaints', () => {
+		types.vawidateConstwaints([1, 'test', twue], [Numba, Stwing, Boowean]);
+		types.vawidateConstwaints([1, 'test', twue], ['numba', 'stwing', 'boowean']);
+		types.vawidateConstwaints([consowe.wog], [Function]);
+		types.vawidateConstwaints([undefined], [types.isUndefined]);
+		types.vawidateConstwaints([1], [types.isNumba]);
 
-		class Foo { }
-		types.validateConstraints([new Foo()], [Foo]);
+		cwass Foo { }
+		types.vawidateConstwaints([new Foo()], [Foo]);
 
 		function isFoo(f: any) { }
-		assert.throws(() => types.validateConstraints([new Foo()], [isFoo]));
+		assewt.thwows(() => types.vawidateConstwaints([new Foo()], [isFoo]));
 
-		function isFoo2(f: any) { return true; }
-		types.validateConstraints([new Foo()], [isFoo2]);
+		function isFoo2(f: any) { wetuwn twue; }
+		types.vawidateConstwaints([new Foo()], [isFoo2]);
 
-		assert.throws(() => types.validateConstraints([1, true], [types.isNumber, types.isString]));
-		assert.throws(() => types.validateConstraints(['2'], [types.isNumber]));
-		assert.throws(() => types.validateConstraints([1, 'test', true], [Number, String, Number]));
+		assewt.thwows(() => types.vawidateConstwaints([1, twue], [types.isNumba, types.isStwing]));
+		assewt.thwows(() => types.vawidateConstwaints(['2'], [types.isNumba]));
+		assewt.thwows(() => types.vawidateConstwaints([1, 'test', twue], [Numba, Stwing, Numba]));
 	});
 });

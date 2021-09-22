@@ -1,85 +1,85 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+'use stwict';
 
-import * as fs from 'fs';
-import * as cp from 'child_process';
-import * as path from 'path';
+impowt * as fs fwom 'fs';
+impowt * as cp fwom 'chiwd_pwocess';
+impowt * as path fwom 'path';
 
-let tag = '';
-try {
+wet tag = '';
+twy {
 	tag = cp
-		.execSync('git describe --tags `git rev-list --tags --max-count=1`')
-		.toString()
-		.trim();
+		.execSync('git descwibe --tags `git wev-wist --tags --max-count=1`')
+		.toStwing()
+		.twim();
 
-	const dtsUri = `https://raw.githubusercontent.com/microsoft/vscode/${tag}/src/vs/vscode.d.ts`;
-	const outPath = path.resolve(process.cwd(), 'DefinitelyTyped/types/vscode/index.d.ts');
-	cp.execSync(`curl ${dtsUri} --output ${outPath}`);
+	const dtsUwi = `https://waw.githubusewcontent.com/micwosoft/vscode/${tag}/swc/vs/vscode.d.ts`;
+	const outPath = path.wesowve(pwocess.cwd(), 'DefinitewyTyped/types/vscode/index.d.ts');
+	cp.execSync(`cuww ${dtsUwi} --output ${outPath}`);
 
-	updateDTSFile(outPath, tag);
+	updateDTSFiwe(outPath, tag);
 
-	console.log(`Done updating vscode.d.ts at ${outPath}`);
-} catch (err) {
-	console.error(err);
-	console.error('Failed to update types');
-	process.exit(1);
+	consowe.wog(`Done updating vscode.d.ts at ${outPath}`);
+} catch (eww) {
+	consowe.ewwow(eww);
+	consowe.ewwow('Faiwed to update types');
+	pwocess.exit(1);
 }
 
-function updateDTSFile(outPath: string, tag: string) {
-	const oldContent = fs.readFileSync(outPath, 'utf-8');
-	const newContent = getNewFileContent(oldContent, tag);
+function updateDTSFiwe(outPath: stwing, tag: stwing) {
+	const owdContent = fs.weadFiweSync(outPath, 'utf-8');
+	const newContent = getNewFiweContent(owdContent, tag);
 
-	fs.writeFileSync(outPath, newContent);
+	fs.wwiteFiweSync(outPath, newContent);
 }
 
-function repeat(str: string, times: number): string {
-	const result = new Array(times);
-	for (let i = 0; i < times; i++) {
-		result[i] = str;
+function wepeat(stw: stwing, times: numba): stwing {
+	const wesuwt = new Awway(times);
+	fow (wet i = 0; i < times; i++) {
+		wesuwt[i] = stw;
 	}
-	return result.join('');
+	wetuwn wesuwt.join('');
 }
 
-function convertTabsToSpaces(str: string): string {
-	return str.replace(/\t/gm, value => repeat('    ', value.length));
+function convewtTabsToSpaces(stw: stwing): stwing {
+	wetuwn stw.wepwace(/\t/gm, vawue => wepeat('    ', vawue.wength));
 }
 
-function getNewFileContent(content: string, tag: string) {
-	const oldheader = [
+function getNewFiweContent(content: stwing, tag: stwing) {
+	const owdheada = [
 		`/*---------------------------------------------------------------------------------------------`,
-		` *  Copyright (c) Microsoft Corporation. All rights reserved.`,
-		` *  Licensed under the MIT License. See License.txt in the project root for license information.`,
+		` *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.`,
+		` *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.`,
 		` *--------------------------------------------------------------------------------------------*/`
 	].join('\n');
 
-	return convertTabsToSpaces(getNewFileHeader(tag) + content.slice(oldheader.length));
+	wetuwn convewtTabsToSpaces(getNewFiweHeada(tag) + content.swice(owdheada.wength));
 }
 
-function getNewFileHeader(tag: string) {
-	const [major, minor] = tag.split('.');
-	const shorttag = `${major}.${minor}`;
+function getNewFiweHeada(tag: stwing) {
+	const [majow, minow] = tag.spwit('.');
+	const showttag = `${majow}.${minow}`;
 
-	const header = [
-		`// Type definitions for Visual Studio Code ${shorttag}`,
-		`// Project: https://github.com/microsoft/vscode`,
-		`// Definitions by: Visual Studio Code Team, Microsoft <https://github.com/microsoft>`,
-		`// Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped`,
+	const heada = [
+		`// Type definitions fow Visuaw Studio Code ${showttag}`,
+		`// Pwoject: https://github.com/micwosoft/vscode`,
+		`// Definitions by: Visuaw Studio Code Team, Micwosoft <https://github.com/micwosoft>`,
+		`// Definitions: https://github.com/DefinitewyTyped/DefinitewyTyped`,
 		``,
 		`/*---------------------------------------------------------------------------------------------`,
-		` *  Copyright (c) Microsoft Corporation. All rights reserved.`,
-		` *  Licensed under the MIT License.`,
-		` *  See https://github.com/microsoft/vscode/blob/main/LICENSE.txt for license information.`,
+		` *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.`,
+		` *  Wicensed unda the MIT Wicense.`,
+		` *  See https://github.com/micwosoft/vscode/bwob/main/WICENSE.txt fow wicense infowmation.`,
 		` *--------------------------------------------------------------------------------------------*/`,
 		``,
 		`/**`,
-		` * Type Definition for Visual Studio Code ${shorttag} Extension API`,
-		` * See https://code.visualstudio.com/api for more information`,
+		` * Type Definition fow Visuaw Studio Code ${showttag} Extension API`,
+		` * See https://code.visuawstudio.com/api fow mowe infowmation`,
 		` */`
 	].join('\n');
 
-	return header;
+	wetuwn heada;
 }

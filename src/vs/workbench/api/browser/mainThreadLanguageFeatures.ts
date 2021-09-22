@@ -1,896 +1,896 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ITextModel, ISingleEditOperation } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
-import * as search from 'vs/workbench/contrib/search/common/search';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Position as EditorPosition } from 'vs/editor/common/core/position';
-import { Range as EditorRange, IRange } from 'vs/editor/common/core/range';
-import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ILanguageConfigurationDto, IRegExpDto, IIndentationRuleDto, IOnEnterRuleDto, ILocationDto, IWorkspaceSymbolDto, reviveWorkspaceEditDto, IDocumentFilterDto, IDefinitionLinkDto, ISignatureHelpProviderMetadataDto, ILinkDto, ICallHierarchyItemDto, ISuggestDataDto, ICodeActionDto, ISuggestDataDtoField, ISuggestResultDtoField, ICodeActionProviderMetadataDto, ILanguageWordDefinitionDto, IdentifiableInlineCompletions, IdentifiableInlineCompletion, ITypeHierarchyItemDto } from '../common/extHost.protocol';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { URI } from 'vs/base/common/uri';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
-import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
-import { mixin } from 'vs/base/common/objects';
-import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { ITextModew, ISingweEditOpewation } fwom 'vs/editow/common/modew';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt * as seawch fwom 'vs/wowkbench/contwib/seawch/common/seawch';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Position as EditowPosition } fwom 'vs/editow/common/cowe/position';
+impowt { Wange as EditowWange, IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { ExtHostContext, MainThweadWanguageFeatuwesShape, ExtHostWanguageFeatuwesShape, MainContext, IExtHostContext, IWanguageConfiguwationDto, IWegExpDto, IIndentationWuweDto, IOnEntewWuweDto, IWocationDto, IWowkspaceSymbowDto, weviveWowkspaceEditDto, IDocumentFiwtewDto, IDefinitionWinkDto, ISignatuweHewpPwovidewMetadataDto, IWinkDto, ICawwHiewawchyItemDto, ISuggestDataDto, ICodeActionDto, ISuggestDataDtoFiewd, ISuggestWesuwtDtoFiewd, ICodeActionPwovidewMetadataDto, IWanguageWowdDefinitionDto, IdentifiabweInwineCompwetions, IdentifiabweInwineCompwetion, ITypeHiewawchyItemDto } fwom '../common/extHost.pwotocow';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { WanguageConfiguwation, IndentationWuwe, OnEntewWuwe } fwom 'vs/editow/common/modes/wanguageConfiguwation';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt * as cawwh fwom 'vs/wowkbench/contwib/cawwHiewawchy/common/cawwHiewawchy';
+impowt * as typeh fwom 'vs/wowkbench/contwib/typeHiewawchy/common/typeHiewawchy';
+impowt { mixin } fwom 'vs/base/common/objects';
+impowt { decodeSemanticTokensDto } fwom 'vs/editow/common/sewvices/semanticTokensDto';
 
-@extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
-export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
+@extHostNamedCustoma(MainContext.MainThweadWanguageFeatuwes)
+expowt cwass MainThweadWanguageFeatuwes impwements MainThweadWanguageFeatuwesShape {
 
-	private readonly _proxy: ExtHostLanguageFeaturesShape;
-	private readonly _modeService: IModeService;
-	private readonly _registrations = new Map<number, IDisposable>();
+	pwivate weadonwy _pwoxy: ExtHostWanguageFeatuwesShape;
+	pwivate weadonwy _modeSewvice: IModeSewvice;
+	pwivate weadonwy _wegistwations = new Map<numba, IDisposabwe>();
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@IModeService modeService: IModeService,
+		@IModeSewvice modeSewvice: IModeSewvice,
 	) {
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostLanguageFeatures);
-		this._modeService = modeService;
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostWanguageFeatuwes);
+		this._modeSewvice = modeSewvice;
 
-		if (this._modeService) {
-			const updateAllWordDefinitions = () => {
-				const langWordPairs = LanguageConfigurationRegistry.getWordDefinitions();
-				let wordDefinitionDtos: ILanguageWordDefinitionDto[] = [];
-				for (const [languageId, wordDefinition] of langWordPairs) {
-					const language = this._modeService.getLanguageIdentifier(languageId);
-					if (!language) {
+		if (this._modeSewvice) {
+			const updateAwwWowdDefinitions = () => {
+				const wangWowdPaiws = WanguageConfiguwationWegistwy.getWowdDefinitions();
+				wet wowdDefinitionDtos: IWanguageWowdDefinitionDto[] = [];
+				fow (const [wanguageId, wowdDefinition] of wangWowdPaiws) {
+					const wanguage = this._modeSewvice.getWanguageIdentifia(wanguageId);
+					if (!wanguage) {
 						continue;
 					}
-					wordDefinitionDtos.push({
-						languageId: language.language,
-						regexSource: wordDefinition.source,
-						regexFlags: wordDefinition.flags
+					wowdDefinitionDtos.push({
+						wanguageId: wanguage.wanguage,
+						wegexSouwce: wowdDefinition.souwce,
+						wegexFwags: wowdDefinition.fwags
 					});
 				}
-				this._proxy.$setWordDefinitions(wordDefinitionDtos);
+				this._pwoxy.$setWowdDefinitions(wowdDefinitionDtos);
 			};
-			LanguageConfigurationRegistry.onDidChange((e) => {
-				const wordDefinition = LanguageConfigurationRegistry.getWordDefinition(e.languageIdentifier.id);
-				this._proxy.$setWordDefinitions([{
-					languageId: e.languageIdentifier.language,
-					regexSource: wordDefinition.source,
-					regexFlags: wordDefinition.flags
+			WanguageConfiguwationWegistwy.onDidChange((e) => {
+				const wowdDefinition = WanguageConfiguwationWegistwy.getWowdDefinition(e.wanguageIdentifia.id);
+				this._pwoxy.$setWowdDefinitions([{
+					wanguageId: e.wanguageIdentifia.wanguage,
+					wegexSouwce: wowdDefinition.souwce,
+					wegexFwags: wowdDefinition.fwags
 				}]);
 			});
-			updateAllWordDefinitions();
+			updateAwwWowdDefinitions();
 		}
 	}
 
 	dispose(): void {
-		for (const registration of this._registrations.values()) {
-			registration.dispose();
+		fow (const wegistwation of this._wegistwations.vawues()) {
+			wegistwation.dispose();
 		}
-		this._registrations.clear();
+		this._wegistwations.cweaw();
 	}
 
-	$unregister(handle: number): void {
-		const registration = this._registrations.get(handle);
-		if (registration) {
-			registration.dispose();
-			this._registrations.delete(handle);
+	$unwegista(handwe: numba): void {
+		const wegistwation = this._wegistwations.get(handwe);
+		if (wegistwation) {
+			wegistwation.dispose();
+			this._wegistwations.dewete(handwe);
 		}
 	}
 
-	//#region --- revive functions
+	//#wegion --- wevive functions
 
-	private static _reviveLocationDto(data?: ILocationDto): modes.Location;
-	private static _reviveLocationDto(data?: ILocationDto[]): modes.Location[];
-	private static _reviveLocationDto(data: ILocationDto | ILocationDto[] | undefined): modes.Location | modes.Location[] | undefined {
+	pwivate static _weviveWocationDto(data?: IWocationDto): modes.Wocation;
+	pwivate static _weviveWocationDto(data?: IWocationDto[]): modes.Wocation[];
+	pwivate static _weviveWocationDto(data: IWocationDto | IWocationDto[] | undefined): modes.Wocation | modes.Wocation[] | undefined {
 		if (!data) {
-			return data;
-		} else if (Array.isArray(data)) {
-			data.forEach(l => MainThreadLanguageFeatures._reviveLocationDto(l));
-			return <modes.Location[]>data;
-		} else {
-			data.uri = URI.revive(data.uri);
-			return <modes.Location>data;
+			wetuwn data;
+		} ewse if (Awway.isAwway(data)) {
+			data.fowEach(w => MainThweadWanguageFeatuwes._weviveWocationDto(w));
+			wetuwn <modes.Wocation[]>data;
+		} ewse {
+			data.uwi = UWI.wevive(data.uwi);
+			wetuwn <modes.Wocation>data;
 		}
 	}
 
-	private static _reviveLocationLinkDto(data: IDefinitionLinkDto): modes.LocationLink;
-	private static _reviveLocationLinkDto(data: IDefinitionLinkDto[]): modes.LocationLink[];
-	private static _reviveLocationLinkDto(data: IDefinitionLinkDto | IDefinitionLinkDto[]): modes.LocationLink | modes.LocationLink[] {
+	pwivate static _weviveWocationWinkDto(data: IDefinitionWinkDto): modes.WocationWink;
+	pwivate static _weviveWocationWinkDto(data: IDefinitionWinkDto[]): modes.WocationWink[];
+	pwivate static _weviveWocationWinkDto(data: IDefinitionWinkDto | IDefinitionWinkDto[]): modes.WocationWink | modes.WocationWink[] {
 		if (!data) {
-			return <modes.LocationLink>data;
-		} else if (Array.isArray(data)) {
-			data.forEach(l => MainThreadLanguageFeatures._reviveLocationLinkDto(l));
-			return <modes.LocationLink[]>data;
-		} else {
-			data.uri = URI.revive(data.uri);
-			return <modes.LocationLink>data;
+			wetuwn <modes.WocationWink>data;
+		} ewse if (Awway.isAwway(data)) {
+			data.fowEach(w => MainThweadWanguageFeatuwes._weviveWocationWinkDto(w));
+			wetuwn <modes.WocationWink[]>data;
+		} ewse {
+			data.uwi = UWI.wevive(data.uwi);
+			wetuwn <modes.WocationWink>data;
 		}
 	}
 
-	private static _reviveWorkspaceSymbolDto(data: IWorkspaceSymbolDto): search.IWorkspaceSymbol;
-	private static _reviveWorkspaceSymbolDto(data: IWorkspaceSymbolDto[]): search.IWorkspaceSymbol[];
-	private static _reviveWorkspaceSymbolDto(data: undefined): undefined;
-	private static _reviveWorkspaceSymbolDto(data: IWorkspaceSymbolDto | IWorkspaceSymbolDto[] | undefined): search.IWorkspaceSymbol | search.IWorkspaceSymbol[] | undefined {
+	pwivate static _weviveWowkspaceSymbowDto(data: IWowkspaceSymbowDto): seawch.IWowkspaceSymbow;
+	pwivate static _weviveWowkspaceSymbowDto(data: IWowkspaceSymbowDto[]): seawch.IWowkspaceSymbow[];
+	pwivate static _weviveWowkspaceSymbowDto(data: undefined): undefined;
+	pwivate static _weviveWowkspaceSymbowDto(data: IWowkspaceSymbowDto | IWowkspaceSymbowDto[] | undefined): seawch.IWowkspaceSymbow | seawch.IWowkspaceSymbow[] | undefined {
 		if (!data) {
-			return <undefined>data;
-		} else if (Array.isArray(data)) {
-			data.forEach(MainThreadLanguageFeatures._reviveWorkspaceSymbolDto);
-			return <search.IWorkspaceSymbol[]>data;
-		} else {
-			data.location = MainThreadLanguageFeatures._reviveLocationDto(data.location);
-			return <search.IWorkspaceSymbol>data;
+			wetuwn <undefined>data;
+		} ewse if (Awway.isAwway(data)) {
+			data.fowEach(MainThweadWanguageFeatuwes._weviveWowkspaceSymbowDto);
+			wetuwn <seawch.IWowkspaceSymbow[]>data;
+		} ewse {
+			data.wocation = MainThweadWanguageFeatuwes._weviveWocationDto(data.wocation);
+			wetuwn <seawch.IWowkspaceSymbow>data;
 		}
 	}
 
-	private static _reviveCodeActionDto(data: ReadonlyArray<ICodeActionDto>): modes.CodeAction[] {
+	pwivate static _weviveCodeActionDto(data: WeadonwyAwway<ICodeActionDto>): modes.CodeAction[] {
 		if (data) {
-			data.forEach(code => reviveWorkspaceEditDto(code.edit));
+			data.fowEach(code => weviveWowkspaceEditDto(code.edit));
 		}
-		return <modes.CodeAction[]>data;
+		wetuwn <modes.CodeAction[]>data;
 	}
 
-	private static _reviveLinkDTO(data: ILinkDto): modes.ILink {
-		if (data.url && typeof data.url !== 'string') {
-			data.url = URI.revive(data.url);
+	pwivate static _weviveWinkDTO(data: IWinkDto): modes.IWink {
+		if (data.uww && typeof data.uww !== 'stwing') {
+			data.uww = UWI.wevive(data.uww);
 		}
-		return <modes.ILink>data;
+		wetuwn <modes.IWink>data;
 	}
 
-	private static _reviveCallHierarchyItemDto(data: ICallHierarchyItemDto | undefined): callh.CallHierarchyItem {
+	pwivate static _weviveCawwHiewawchyItemDto(data: ICawwHiewawchyItemDto | undefined): cawwh.CawwHiewawchyItem {
 		if (data) {
-			data.uri = URI.revive(data.uri);
+			data.uwi = UWI.wevive(data.uwi);
 		}
-		return data as callh.CallHierarchyItem;
+		wetuwn data as cawwh.CawwHiewawchyItem;
 	}
 
-	private static _reviveTypeHierarchyItemDto(data: ITypeHierarchyItemDto | undefined): typeh.TypeHierarchyItem {
+	pwivate static _weviveTypeHiewawchyItemDto(data: ITypeHiewawchyItemDto | undefined): typeh.TypeHiewawchyItem {
 		if (data) {
-			data.uri = URI.revive(data.uri);
+			data.uwi = UWI.wevive(data.uwi);
 		}
-		return data as typeh.TypeHierarchyItem;
+		wetuwn data as typeh.TypeHiewawchyItem;
 	}
 
-	//#endregion
+	//#endwegion
 
-	// --- outline
+	// --- outwine
 
-	$registerDocumentSymbolProvider(handle: number, selector: IDocumentFilterDto[], displayName: string): void {
-		this._registrations.set(handle, modes.DocumentSymbolProviderRegistry.register(selector, <modes.DocumentSymbolProvider>{
-			displayName,
-			provideDocumentSymbols: (model: ITextModel, token: CancellationToken): Promise<modes.DocumentSymbol[] | undefined> => {
-				return this._proxy.$provideDocumentSymbols(handle, model.uri, token);
+	$wegistewDocumentSymbowPwovida(handwe: numba, sewectow: IDocumentFiwtewDto[], dispwayName: stwing): void {
+		this._wegistwations.set(handwe, modes.DocumentSymbowPwovidewWegistwy.wegista(sewectow, <modes.DocumentSymbowPwovida>{
+			dispwayName,
+			pwovideDocumentSymbows: (modew: ITextModew, token: CancewwationToken): Pwomise<modes.DocumentSymbow[] | undefined> => {
+				wetuwn this._pwoxy.$pwovideDocumentSymbows(handwe, modew.uwi, token);
 			}
 		}));
 	}
 
-	// --- code lens
+	// --- code wens
 
-	$registerCodeLensSupport(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void {
+	$wegistewCodeWensSuppowt(handwe: numba, sewectow: IDocumentFiwtewDto[], eventHandwe: numba | undefined): void {
 
-		const provider = <modes.CodeLensProvider>{
-			provideCodeLenses: async (model: ITextModel, token: CancellationToken): Promise<modes.CodeLensList | undefined> => {
-				const listDto = await this._proxy.$provideCodeLenses(handle, model.uri, token);
-				if (!listDto) {
-					return undefined;
+		const pwovida = <modes.CodeWensPwovida>{
+			pwovideCodeWenses: async (modew: ITextModew, token: CancewwationToken): Pwomise<modes.CodeWensWist | undefined> => {
+				const wistDto = await this._pwoxy.$pwovideCodeWenses(handwe, modew.uwi, token);
+				if (!wistDto) {
+					wetuwn undefined;
 				}
-				return {
-					lenses: listDto.lenses,
-					dispose: () => listDto.cacheId && this._proxy.$releaseCodeLenses(handle, listDto.cacheId)
+				wetuwn {
+					wenses: wistDto.wenses,
+					dispose: () => wistDto.cacheId && this._pwoxy.$weweaseCodeWenses(handwe, wistDto.cacheId)
 				};
 			},
-			resolveCodeLens: (_model: ITextModel, codeLens: modes.CodeLens, token: CancellationToken): Promise<modes.CodeLens | undefined> => {
-				return this._proxy.$resolveCodeLens(handle, codeLens, token);
+			wesowveCodeWens: (_modew: ITextModew, codeWens: modes.CodeWens, token: CancewwationToken): Pwomise<modes.CodeWens | undefined> => {
+				wetuwn this._pwoxy.$wesowveCodeWens(handwe, codeWens, token);
 			}
 		};
 
-		if (typeof eventHandle === 'number') {
-			const emitter = new Emitter<modes.CodeLensProvider>();
-			this._registrations.set(eventHandle, emitter);
-			provider.onDidChange = emitter.event;
+		if (typeof eventHandwe === 'numba') {
+			const emitta = new Emitta<modes.CodeWensPwovida>();
+			this._wegistwations.set(eventHandwe, emitta);
+			pwovida.onDidChange = emitta.event;
 		}
 
-		this._registrations.set(handle, modes.CodeLensProviderRegistry.register(selector, provider));
+		this._wegistwations.set(handwe, modes.CodeWensPwovidewWegistwy.wegista(sewectow, pwovida));
 	}
 
-	$emitCodeLensEvent(eventHandle: number, event?: any): void {
-		const obj = this._registrations.get(eventHandle);
-		if (obj instanceof Emitter) {
-			obj.fire(event);
+	$emitCodeWensEvent(eventHandwe: numba, event?: any): void {
+		const obj = this._wegistwations.get(eventHandwe);
+		if (obj instanceof Emitta) {
+			obj.fiwe(event);
 		}
 	}
 
-	// --- declaration
+	// --- decwawation
 
-	$registerDefinitionSupport(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.DefinitionProviderRegistry.register(selector, <modes.DefinitionProvider>{
-			provideDefinition: (model, position, token): Promise<modes.LocationLink[]> => {
-				return this._proxy.$provideDefinition(handle, model.uri, position, token).then(MainThreadLanguageFeatures._reviveLocationLinkDto);
+	$wegistewDefinitionSuppowt(handwe: numba, sewectow: IDocumentFiwtewDto[]): void {
+		this._wegistwations.set(handwe, modes.DefinitionPwovidewWegistwy.wegista(sewectow, <modes.DefinitionPwovida>{
+			pwovideDefinition: (modew, position, token): Pwomise<modes.WocationWink[]> => {
+				wetuwn this._pwoxy.$pwovideDefinition(handwe, modew.uwi, position, token).then(MainThweadWanguageFeatuwes._weviveWocationWinkDto);
 			}
 		}));
 	}
 
-	$registerDeclarationSupport(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.DeclarationProviderRegistry.register(selector, <modes.DeclarationProvider>{
-			provideDeclaration: (model, position, token) => {
-				return this._proxy.$provideDeclaration(handle, model.uri, position, token).then(MainThreadLanguageFeatures._reviveLocationLinkDto);
+	$wegistewDecwawationSuppowt(handwe: numba, sewectow: IDocumentFiwtewDto[]): void {
+		this._wegistwations.set(handwe, modes.DecwawationPwovidewWegistwy.wegista(sewectow, <modes.DecwawationPwovida>{
+			pwovideDecwawation: (modew, position, token) => {
+				wetuwn this._pwoxy.$pwovideDecwawation(handwe, modew.uwi, position, token).then(MainThweadWanguageFeatuwes._weviveWocationWinkDto);
 			}
 		}));
 	}
 
-	$registerImplementationSupport(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.ImplementationProviderRegistry.register(selector, <modes.ImplementationProvider>{
-			provideImplementation: (model, position, token): Promise<modes.LocationLink[]> => {
-				return this._proxy.$provideImplementation(handle, model.uri, position, token).then(MainThreadLanguageFeatures._reviveLocationLinkDto);
+	$wegistewImpwementationSuppowt(handwe: numba, sewectow: IDocumentFiwtewDto[]): void {
+		this._wegistwations.set(handwe, modes.ImpwementationPwovidewWegistwy.wegista(sewectow, <modes.ImpwementationPwovida>{
+			pwovideImpwementation: (modew, position, token): Pwomise<modes.WocationWink[]> => {
+				wetuwn this._pwoxy.$pwovideImpwementation(handwe, modew.uwi, position, token).then(MainThweadWanguageFeatuwes._weviveWocationWinkDto);
 			}
 		}));
 	}
 
-	$registerTypeDefinitionSupport(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.TypeDefinitionProviderRegistry.register(selector, <modes.TypeDefinitionProvider>{
-			provideTypeDefinition: (model, position, token): Promise<modes.LocationLink[]> => {
-				return this._proxy.$provideTypeDefinition(handle, model.uri, position, token).then(MainThreadLanguageFeatures._reviveLocationLinkDto);
+	$wegistewTypeDefinitionSuppowt(handwe: numba, sewectow: IDocumentFiwtewDto[]): void {
+		this._wegistwations.set(handwe, modes.TypeDefinitionPwovidewWegistwy.wegista(sewectow, <modes.TypeDefinitionPwovida>{
+			pwovideTypeDefinition: (modew, position, token): Pwomise<modes.WocationWink[]> => {
+				wetuwn this._pwoxy.$pwovideTypeDefinition(handwe, modew.uwi, position, token).then(MainThweadWanguageFeatuwes._weviveWocationWinkDto);
 			}
 		}));
 	}
 
-	// --- extra info
+	// --- extwa info
 
-	$registerHoverProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.HoverProviderRegistry.register(selector, <modes.HoverProvider>{
-			provideHover: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.Hover | undefined> => {
-				return this._proxy.$provideHover(handle, model.uri, position, token);
+	$wegistewHovewPwovida(handwe: numba, sewectow: IDocumentFiwtewDto[]): void {
+		this._wegistwations.set(handwe, modes.HovewPwovidewWegistwy.wegista(sewectow, <modes.HovewPwovida>{
+			pwovideHova: (modew: ITextModew, position: EditowPosition, token: CancewwationToken): Pwomise<modes.Hova | undefined> => {
+				wetuwn this._pwoxy.$pwovideHova(handwe, modew.uwi, position, token);
 			}
 		}));
 	}
 
-	// --- debug hover
+	// --- debug hova
 
-	$registerEvaluatableExpressionProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.EvaluatableExpressionProviderRegistry.register(selector, <modes.EvaluatableExpressionProvider>{
-			provideEvaluatableExpression: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.EvaluatableExpression | undefined> => {
-				return this._proxy.$provideEvaluatableExpression(handle, model.uri, position, token);
+	$wegistewEvawuatabweExpwessionPwovida(handwe: numba, sewectow: IDocumentFiwtewDto[]): void {
+		this._wegistwations.set(handwe, modes.EvawuatabweExpwessionPwovidewWegistwy.wegista(sewectow, <modes.EvawuatabweExpwessionPwovida>{
+			pwovideEvawuatabweExpwession: (modew: ITextModew, position: EditowPosition, token: CancewwationToken): Pwomise<modes.EvawuatabweExpwession | undefined> => {
+				wetuwn this._pwoxy.$pwovideEvawuatabweExpwession(handwe, modew.uwi, position, token);
 			}
 		}));
 	}
 
-	// --- inline values
+	// --- inwine vawues
 
-	$registerInlineValuesProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void {
-		const provider = <modes.InlineValuesProvider>{
-			provideInlineValues: (model: ITextModel, viewPort: EditorRange, context: modes.InlineValueContext, token: CancellationToken): Promise<modes.InlineValue[] | undefined> => {
-				return this._proxy.$provideInlineValues(handle, model.uri, viewPort, context, token);
+	$wegistewInwineVawuesPwovida(handwe: numba, sewectow: IDocumentFiwtewDto[], eventHandwe: numba | undefined): void {
+		const pwovida = <modes.InwineVawuesPwovida>{
+			pwovideInwineVawues: (modew: ITextModew, viewPowt: EditowWange, context: modes.InwineVawueContext, token: CancewwationToken): Pwomise<modes.InwineVawue[] | undefined> => {
+				wetuwn this._pwoxy.$pwovideInwineVawues(handwe, modew.uwi, viewPowt, context, token);
 			}
 		};
 
-		if (typeof eventHandle === 'number') {
-			const emitter = new Emitter<void>();
-			this._registrations.set(eventHandle, emitter);
-			provider.onDidChangeInlineValues = emitter.event;
+		if (typeof eventHandwe === 'numba') {
+			const emitta = new Emitta<void>();
+			this._wegistwations.set(eventHandwe, emitta);
+			pwovida.onDidChangeInwineVawues = emitta.event;
 		}
 
-		this._registrations.set(handle, modes.InlineValuesProviderRegistry.register(selector, provider));
+		this._wegistwations.set(handwe, modes.InwineVawuesPwovidewWegistwy.wegista(sewectow, pwovida));
 	}
 
-	$emitInlineValuesEvent(eventHandle: number, event?: any): void {
-		const obj = this._registrations.get(eventHandle);
-		if (obj instanceof Emitter) {
-			obj.fire(event);
+	$emitInwineVawuesEvent(eventHandwe: numba, event?: any): void {
+		const obj = this._wegistwations.get(eventHandwe);
+		if (obj instanceof Emitta) {
+			obj.fiwe(event);
 		}
 	}
 
-	// --- occurrences
+	// --- occuwwences
 
-	$registerDocumentHighlightProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.DocumentHighlightProviderRegistry.register(selector, <modes.DocumentHighlightProvider>{
-			provideDocumentHighlights: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.DocumentHighlight[] | undefined> => {
-				return this._proxy.$provideDocumentHighlights(handle, model.uri, position, token);
+	$wegistewDocumentHighwightPwovida(handwe: numba, sewectow: IDocumentFiwtewDto[]): void {
+		this._wegistwations.set(handwe, modes.DocumentHighwightPwovidewWegistwy.wegista(sewectow, <modes.DocumentHighwightPwovida>{
+			pwovideDocumentHighwights: (modew: ITextModew, position: EditowPosition, token: CancewwationToken): Pwomise<modes.DocumentHighwight[] | undefined> => {
+				wetuwn this._pwoxy.$pwovideDocumentHighwights(handwe, modew.uwi, position, token);
 			}
 		}));
 	}
 
-	// --- linked editing
+	// --- winked editing
 
-	$registerLinkedEditingRangeProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.LinkedEditingRangeProviderRegistry.register(selector, <modes.LinkedEditingRangeProvider>{
-			provideLinkedEditingRanges: async (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.LinkedEditingRanges | undefined> => {
-				const res = await this._proxy.$provideLinkedEditingRanges(handle, model.uri, position, token);
-				if (res) {
-					return {
-						ranges: res.ranges,
-						wordPattern: res.wordPattern ? MainThreadLanguageFeatures._reviveRegExp(res.wordPattern) : undefined
+	$wegistewWinkedEditingWangePwovida(handwe: numba, sewectow: IDocumentFiwtewDto[]): void {
+		this._wegistwations.set(handwe, modes.WinkedEditingWangePwovidewWegistwy.wegista(sewectow, <modes.WinkedEditingWangePwovida>{
+			pwovideWinkedEditingWanges: async (modew: ITextModew, position: EditowPosition, token: CancewwationToken): Pwomise<modes.WinkedEditingWanges | undefined> => {
+				const wes = await this._pwoxy.$pwovideWinkedEditingWanges(handwe, modew.uwi, position, token);
+				if (wes) {
+					wetuwn {
+						wanges: wes.wanges,
+						wowdPattewn: wes.wowdPattewn ? MainThweadWanguageFeatuwes._weviveWegExp(wes.wowdPattewn) : undefined
 					};
 				}
-				return undefined;
+				wetuwn undefined;
 			}
 		}));
 	}
 
-	// --- references
+	// --- wefewences
 
-	$registerReferenceSupport(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.ReferenceProviderRegistry.register(selector, <modes.ReferenceProvider>{
-			provideReferences: (model: ITextModel, position: EditorPosition, context: modes.ReferenceContext, token: CancellationToken): Promise<modes.Location[]> => {
-				return this._proxy.$provideReferences(handle, model.uri, position, context, token).then(MainThreadLanguageFeatures._reviveLocationDto);
+	$wegistewWefewenceSuppowt(handwe: numba, sewectow: IDocumentFiwtewDto[]): void {
+		this._wegistwations.set(handwe, modes.WefewencePwovidewWegistwy.wegista(sewectow, <modes.WefewencePwovida>{
+			pwovideWefewences: (modew: ITextModew, position: EditowPosition, context: modes.WefewenceContext, token: CancewwationToken): Pwomise<modes.Wocation[]> => {
+				wetuwn this._pwoxy.$pwovideWefewences(handwe, modew.uwi, position, context, token).then(MainThweadWanguageFeatuwes._weviveWocationDto);
 			}
 		}));
 	}
 
 	// --- quick fix
 
-	$registerQuickFixSupport(handle: number, selector: IDocumentFilterDto[], metadata: ICodeActionProviderMetadataDto, displayName: string, supportsResolve: boolean): void {
-		const provider: modes.CodeActionProvider = {
-			provideCodeActions: async (model: ITextModel, rangeOrSelection: EditorRange | Selection, context: modes.CodeActionContext, token: CancellationToken): Promise<modes.CodeActionList | undefined> => {
-				const listDto = await this._proxy.$provideCodeActions(handle, model.uri, rangeOrSelection, context, token);
-				if (!listDto) {
-					return undefined;
+	$wegistewQuickFixSuppowt(handwe: numba, sewectow: IDocumentFiwtewDto[], metadata: ICodeActionPwovidewMetadataDto, dispwayName: stwing, suppowtsWesowve: boowean): void {
+		const pwovida: modes.CodeActionPwovida = {
+			pwovideCodeActions: async (modew: ITextModew, wangeOwSewection: EditowWange | Sewection, context: modes.CodeActionContext, token: CancewwationToken): Pwomise<modes.CodeActionWist | undefined> => {
+				const wistDto = await this._pwoxy.$pwovideCodeActions(handwe, modew.uwi, wangeOwSewection, context, token);
+				if (!wistDto) {
+					wetuwn undefined;
 				}
-				return <modes.CodeActionList>{
-					actions: MainThreadLanguageFeatures._reviveCodeActionDto(listDto.actions),
+				wetuwn <modes.CodeActionWist>{
+					actions: MainThweadWanguageFeatuwes._weviveCodeActionDto(wistDto.actions),
 					dispose: () => {
-						if (typeof listDto.cacheId === 'number') {
-							this._proxy.$releaseCodeActions(handle, listDto.cacheId);
+						if (typeof wistDto.cacheId === 'numba') {
+							this._pwoxy.$weweaseCodeActions(handwe, wistDto.cacheId);
 						}
 					}
 				};
 			},
-			providedCodeActionKinds: metadata.providedKinds,
+			pwovidedCodeActionKinds: metadata.pwovidedKinds,
 			documentation: metadata.documentation,
-			displayName
+			dispwayName
 		};
 
-		if (supportsResolve) {
-			provider.resolveCodeAction = async (codeAction: modes.CodeAction, token: CancellationToken): Promise<modes.CodeAction> => {
-				const data = await this._proxy.$resolveCodeAction(handle, (<ICodeActionDto>codeAction).cacheId!, token);
-				codeAction.edit = reviveWorkspaceEditDto(data);
-				return codeAction;
+		if (suppowtsWesowve) {
+			pwovida.wesowveCodeAction = async (codeAction: modes.CodeAction, token: CancewwationToken): Pwomise<modes.CodeAction> => {
+				const data = await this._pwoxy.$wesowveCodeAction(handwe, (<ICodeActionDto>codeAction).cacheId!, token);
+				codeAction.edit = weviveWowkspaceEditDto(data);
+				wetuwn codeAction;
 			};
 		}
 
-		this._registrations.set(handle, modes.CodeActionProviderRegistry.register(selector, provider));
+		this._wegistwations.set(handwe, modes.CodeActionPwovidewWegistwy.wegista(sewectow, pwovida));
 	}
 
-	// --- formatting
+	// --- fowmatting
 
-	$registerDocumentFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void {
-		this._registrations.set(handle, modes.DocumentFormattingEditProviderRegistry.register(selector, <modes.DocumentFormattingEditProvider>{
+	$wegistewDocumentFowmattingSuppowt(handwe: numba, sewectow: IDocumentFiwtewDto[], extensionId: ExtensionIdentifia, dispwayName: stwing): void {
+		this._wegistwations.set(handwe, modes.DocumentFowmattingEditPwovidewWegistwy.wegista(sewectow, <modes.DocumentFowmattingEditPwovida>{
 			extensionId,
-			displayName,
-			provideDocumentFormattingEdits: (model: ITextModel, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> => {
-				return this._proxy.$provideDocumentFormattingEdits(handle, model.uri, options, token);
+			dispwayName,
+			pwovideDocumentFowmattingEdits: (modew: ITextModew, options: modes.FowmattingOptions, token: CancewwationToken): Pwomise<ISingweEditOpewation[] | undefined> => {
+				wetuwn this._pwoxy.$pwovideDocumentFowmattingEdits(handwe, modew.uwi, options, token);
 			}
 		}));
 	}
 
-	$registerRangeFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void {
-		this._registrations.set(handle, modes.DocumentRangeFormattingEditProviderRegistry.register(selector, <modes.DocumentRangeFormattingEditProvider>{
+	$wegistewWangeFowmattingSuppowt(handwe: numba, sewectow: IDocumentFiwtewDto[], extensionId: ExtensionIdentifia, dispwayName: stwing): void {
+		this._wegistwations.set(handwe, modes.DocumentWangeFowmattingEditPwovidewWegistwy.wegista(sewectow, <modes.DocumentWangeFowmattingEditPwovida>{
 			extensionId,
-			displayName,
-			provideDocumentRangeFormattingEdits: (model: ITextModel, range: EditorRange, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> => {
-				return this._proxy.$provideDocumentRangeFormattingEdits(handle, model.uri, range, options, token);
+			dispwayName,
+			pwovideDocumentWangeFowmattingEdits: (modew: ITextModew, wange: EditowWange, options: modes.FowmattingOptions, token: CancewwationToken): Pwomise<ISingweEditOpewation[] | undefined> => {
+				wetuwn this._pwoxy.$pwovideDocumentWangeFowmattingEdits(handwe, modew.uwi, wange, options, token);
 			}
 		}));
 	}
 
-	$registerOnTypeFormattingSupport(handle: number, selector: IDocumentFilterDto[], autoFormatTriggerCharacters: string[], extensionId: ExtensionIdentifier): void {
-		this._registrations.set(handle, modes.OnTypeFormattingEditProviderRegistry.register(selector, <modes.OnTypeFormattingEditProvider>{
+	$wegistewOnTypeFowmattingSuppowt(handwe: numba, sewectow: IDocumentFiwtewDto[], autoFowmatTwiggewChawactews: stwing[], extensionId: ExtensionIdentifia): void {
+		this._wegistwations.set(handwe, modes.OnTypeFowmattingEditPwovidewWegistwy.wegista(sewectow, <modes.OnTypeFowmattingEditPwovida>{
 			extensionId,
-			autoFormatTriggerCharacters,
-			provideOnTypeFormattingEdits: (model: ITextModel, position: EditorPosition, ch: string, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> => {
-				return this._proxy.$provideOnTypeFormattingEdits(handle, model.uri, position, ch, options, token);
+			autoFowmatTwiggewChawactews,
+			pwovideOnTypeFowmattingEdits: (modew: ITextModew, position: EditowPosition, ch: stwing, options: modes.FowmattingOptions, token: CancewwationToken): Pwomise<ISingweEditOpewation[] | undefined> => {
+				wetuwn this._pwoxy.$pwovideOnTypeFowmattingEdits(handwe, modew.uwi, position, ch, options, token);
 			}
 		}));
 	}
 
 	// --- navigate type
 
-	$registerNavigateTypeSupport(handle: number): void {
-		let lastResultId: number | undefined;
-		this._registrations.set(handle, search.WorkspaceSymbolProviderRegistry.register(<search.IWorkspaceSymbolProvider>{
-			provideWorkspaceSymbols: (search: string, token: CancellationToken): Promise<search.IWorkspaceSymbol[]> => {
-				return this._proxy.$provideWorkspaceSymbols(handle, search, token).then(result => {
-					if (lastResultId !== undefined) {
-						this._proxy.$releaseWorkspaceSymbols(handle, lastResultId);
+	$wegistewNavigateTypeSuppowt(handwe: numba): void {
+		wet wastWesuwtId: numba | undefined;
+		this._wegistwations.set(handwe, seawch.WowkspaceSymbowPwovidewWegistwy.wegista(<seawch.IWowkspaceSymbowPwovida>{
+			pwovideWowkspaceSymbows: (seawch: stwing, token: CancewwationToken): Pwomise<seawch.IWowkspaceSymbow[]> => {
+				wetuwn this._pwoxy.$pwovideWowkspaceSymbows(handwe, seawch, token).then(wesuwt => {
+					if (wastWesuwtId !== undefined) {
+						this._pwoxy.$weweaseWowkspaceSymbows(handwe, wastWesuwtId);
 					}
-					lastResultId = result._id;
-					return MainThreadLanguageFeatures._reviveWorkspaceSymbolDto(result.symbols);
+					wastWesuwtId = wesuwt._id;
+					wetuwn MainThweadWanguageFeatuwes._weviveWowkspaceSymbowDto(wesuwt.symbows);
 				});
 			},
-			resolveWorkspaceSymbol: (item: search.IWorkspaceSymbol, token: CancellationToken): Promise<search.IWorkspaceSymbol | undefined> => {
-				return this._proxy.$resolveWorkspaceSymbol(handle, item, token).then(i => {
+			wesowveWowkspaceSymbow: (item: seawch.IWowkspaceSymbow, token: CancewwationToken): Pwomise<seawch.IWowkspaceSymbow | undefined> => {
+				wetuwn this._pwoxy.$wesowveWowkspaceSymbow(handwe, item, token).then(i => {
 					if (i) {
-						return MainThreadLanguageFeatures._reviveWorkspaceSymbolDto(i);
+						wetuwn MainThweadWanguageFeatuwes._weviveWowkspaceSymbowDto(i);
 					}
-					return undefined;
+					wetuwn undefined;
 				});
 			}
 		}));
 	}
 
-	// --- rename
+	// --- wename
 
-	$registerRenameSupport(handle: number, selector: IDocumentFilterDto[], supportResolveLocation: boolean): void {
-		this._registrations.set(handle, modes.RenameProviderRegistry.register(selector, <modes.RenameProvider>{
-			provideRenameEdits: (model: ITextModel, position: EditorPosition, newName: string, token: CancellationToken) => {
-				return this._proxy.$provideRenameEdits(handle, model.uri, position, newName, token).then(reviveWorkspaceEditDto);
+	$wegistewWenameSuppowt(handwe: numba, sewectow: IDocumentFiwtewDto[], suppowtWesowveWocation: boowean): void {
+		this._wegistwations.set(handwe, modes.WenamePwovidewWegistwy.wegista(sewectow, <modes.WenamePwovida>{
+			pwovideWenameEdits: (modew: ITextModew, position: EditowPosition, newName: stwing, token: CancewwationToken) => {
+				wetuwn this._pwoxy.$pwovideWenameEdits(handwe, modew.uwi, position, newName, token).then(weviveWowkspaceEditDto);
 			},
-			resolveRenameLocation: supportResolveLocation
-				? (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.RenameLocation | undefined> => this._proxy.$resolveRenameLocation(handle, model.uri, position, token)
+			wesowveWenameWocation: suppowtWesowveWocation
+				? (modew: ITextModew, position: EditowPosition, token: CancewwationToken): Pwomise<modes.WenameWocation | undefined> => this._pwoxy.$wesowveWenameWocation(handwe, modew.uwi, position, token)
 				: undefined
 		}));
 	}
 
 	// --- semantic tokens
 
-	$registerDocumentSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: modes.SemanticTokensLegend, eventHandle: number | undefined): void {
-		let event: Event<void> | undefined = undefined;
-		if (typeof eventHandle === 'number') {
-			const emitter = new Emitter<void>();
-			this._registrations.set(eventHandle, emitter);
-			event = emitter.event;
+	$wegistewDocumentSemanticTokensPwovida(handwe: numba, sewectow: IDocumentFiwtewDto[], wegend: modes.SemanticTokensWegend, eventHandwe: numba | undefined): void {
+		wet event: Event<void> | undefined = undefined;
+		if (typeof eventHandwe === 'numba') {
+			const emitta = new Emitta<void>();
+			this._wegistwations.set(eventHandwe, emitta);
+			event = emitta.event;
 		}
-		this._registrations.set(handle, modes.DocumentSemanticTokensProviderRegistry.register(selector, new MainThreadDocumentSemanticTokensProvider(this._proxy, handle, legend, event)));
+		this._wegistwations.set(handwe, modes.DocumentSemanticTokensPwovidewWegistwy.wegista(sewectow, new MainThweadDocumentSemanticTokensPwovida(this._pwoxy, handwe, wegend, event)));
 	}
 
-	$emitDocumentSemanticTokensEvent(eventHandle: number): void {
-		const obj = this._registrations.get(eventHandle);
-		if (obj instanceof Emitter) {
-			obj.fire(undefined);
+	$emitDocumentSemanticTokensEvent(eventHandwe: numba): void {
+		const obj = this._wegistwations.get(eventHandwe);
+		if (obj instanceof Emitta) {
+			obj.fiwe(undefined);
 		}
 	}
 
-	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: modes.SemanticTokensLegend): void {
-		this._registrations.set(handle, modes.DocumentRangeSemanticTokensProviderRegistry.register(selector, new MainThreadDocumentRangeSemanticTokensProvider(this._proxy, handle, legend)));
+	$wegistewDocumentWangeSemanticTokensPwovida(handwe: numba, sewectow: IDocumentFiwtewDto[], wegend: modes.SemanticTokensWegend): void {
+		this._wegistwations.set(handwe, modes.DocumentWangeSemanticTokensPwovidewWegistwy.wegista(sewectow, new MainThweadDocumentWangeSemanticTokensPwovida(this._pwoxy, handwe, wegend)));
 	}
 
 	// --- suggest
 
-	private static _inflateSuggestDto(defaultRange: IRange | { insert: IRange, replace: IRange }, data: ISuggestDataDto): modes.CompletionItem {
+	pwivate static _infwateSuggestDto(defauwtWange: IWange | { insewt: IWange, wepwace: IWange }, data: ISuggestDataDto): modes.CompwetionItem {
 
-		const label = data[ISuggestDataDtoField.label];
+		const wabew = data[ISuggestDataDtoFiewd.wabew];
 
-		return {
-			label,
-			kind: data[ISuggestDataDtoField.kind] ?? modes.CompletionItemKind.Property,
-			tags: data[ISuggestDataDtoField.kindModifier],
-			detail: data[ISuggestDataDtoField.detail],
-			documentation: data[ISuggestDataDtoField.documentation],
-			sortText: data[ISuggestDataDtoField.sortText],
-			filterText: data[ISuggestDataDtoField.filterText],
-			preselect: data[ISuggestDataDtoField.preselect],
-			insertText: data[ISuggestDataDtoField.insertText] ?? (typeof label === 'string' ? label : label.label),
-			range: data[ISuggestDataDtoField.range] ?? defaultRange,
-			insertTextRules: data[ISuggestDataDtoField.insertTextRules],
-			commitCharacters: data[ISuggestDataDtoField.commitCharacters],
-			additionalTextEdits: data[ISuggestDataDtoField.additionalTextEdits],
-			command: data[ISuggestDataDtoField.command],
-			// not-standard
+		wetuwn {
+			wabew,
+			kind: data[ISuggestDataDtoFiewd.kind] ?? modes.CompwetionItemKind.Pwopewty,
+			tags: data[ISuggestDataDtoFiewd.kindModifia],
+			detaiw: data[ISuggestDataDtoFiewd.detaiw],
+			documentation: data[ISuggestDataDtoFiewd.documentation],
+			sowtText: data[ISuggestDataDtoFiewd.sowtText],
+			fiwtewText: data[ISuggestDataDtoFiewd.fiwtewText],
+			pwesewect: data[ISuggestDataDtoFiewd.pwesewect],
+			insewtText: data[ISuggestDataDtoFiewd.insewtText] ?? (typeof wabew === 'stwing' ? wabew : wabew.wabew),
+			wange: data[ISuggestDataDtoFiewd.wange] ?? defauwtWange,
+			insewtTextWuwes: data[ISuggestDataDtoFiewd.insewtTextWuwes],
+			commitChawactews: data[ISuggestDataDtoFiewd.commitChawactews],
+			additionawTextEdits: data[ISuggestDataDtoFiewd.additionawTextEdits],
+			command: data[ISuggestDataDtoFiewd.command],
+			// not-standawd
 			_id: data.x,
 		};
 	}
 
-	$registerSuggestSupport(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, displayName: string): void {
-		const provider: modes.CompletionItemProvider = {
-			triggerCharacters,
-			_debugDisplayName: displayName,
-			provideCompletionItems: async (model: ITextModel, position: EditorPosition, context: modes.CompletionContext, token: CancellationToken): Promise<modes.CompletionList | undefined> => {
-				const result = await this._proxy.$provideCompletionItems(handle, model.uri, position, context, token);
-				if (!result) {
-					return result;
+	$wegistewSuggestSuppowt(handwe: numba, sewectow: IDocumentFiwtewDto[], twiggewChawactews: stwing[], suppowtsWesowveDetaiws: boowean, dispwayName: stwing): void {
+		const pwovida: modes.CompwetionItemPwovida = {
+			twiggewChawactews,
+			_debugDispwayName: dispwayName,
+			pwovideCompwetionItems: async (modew: ITextModew, position: EditowPosition, context: modes.CompwetionContext, token: CancewwationToken): Pwomise<modes.CompwetionWist | undefined> => {
+				const wesuwt = await this._pwoxy.$pwovideCompwetionItems(handwe, modew.uwi, position, context, token);
+				if (!wesuwt) {
+					wetuwn wesuwt;
 				}
-				return {
-					suggestions: result[ISuggestResultDtoField.completions].map(d => MainThreadLanguageFeatures._inflateSuggestDto(result[ISuggestResultDtoField.defaultRanges], d)),
-					incomplete: result[ISuggestResultDtoField.isIncomplete] || false,
-					duration: result[ISuggestResultDtoField.duration],
+				wetuwn {
+					suggestions: wesuwt[ISuggestWesuwtDtoFiewd.compwetions].map(d => MainThweadWanguageFeatuwes._infwateSuggestDto(wesuwt[ISuggestWesuwtDtoFiewd.defauwtWanges], d)),
+					incompwete: wesuwt[ISuggestWesuwtDtoFiewd.isIncompwete] || fawse,
+					duwation: wesuwt[ISuggestWesuwtDtoFiewd.duwation],
 					dispose: () => {
-						if (typeof result.x === 'number') {
-							this._proxy.$releaseCompletionItems(handle, result.x);
+						if (typeof wesuwt.x === 'numba') {
+							this._pwoxy.$weweaseCompwetionItems(handwe, wesuwt.x);
 						}
 					}
 				};
 			}
 		};
-		if (supportsResolveDetails) {
-			provider.resolveCompletionItem = (suggestion, token) => {
-				return this._proxy.$resolveCompletionItem(handle, suggestion._id!, token).then(result => {
-					if (!result) {
-						return suggestion;
+		if (suppowtsWesowveDetaiws) {
+			pwovida.wesowveCompwetionItem = (suggestion, token) => {
+				wetuwn this._pwoxy.$wesowveCompwetionItem(handwe, suggestion._id!, token).then(wesuwt => {
+					if (!wesuwt) {
+						wetuwn suggestion;
 					}
 
-					let newSuggestion = MainThreadLanguageFeatures._inflateSuggestDto(suggestion.range, result);
-					return mixin(suggestion, newSuggestion, true);
+					wet newSuggestion = MainThweadWanguageFeatuwes._infwateSuggestDto(suggestion.wange, wesuwt);
+					wetuwn mixin(suggestion, newSuggestion, twue);
 				});
 			};
 		}
-		this._registrations.set(handle, modes.CompletionProviderRegistry.register(selector, provider));
+		this._wegistwations.set(handwe, modes.CompwetionPwovidewWegistwy.wegista(sewectow, pwovida));
 	}
 
-	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[]): void {
-		const provider: modes.InlineCompletionsProvider<IdentifiableInlineCompletions> = {
-			provideInlineCompletions: async (model: ITextModel, position: EditorPosition, context: modes.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined> => {
-				return this._proxy.$provideInlineCompletions(handle, model.uri, position, context, token);
+	$wegistewInwineCompwetionsSuppowt(handwe: numba, sewectow: IDocumentFiwtewDto[]): void {
+		const pwovida: modes.InwineCompwetionsPwovida<IdentifiabweInwineCompwetions> = {
+			pwovideInwineCompwetions: async (modew: ITextModew, position: EditowPosition, context: modes.InwineCompwetionContext, token: CancewwationToken): Pwomise<IdentifiabweInwineCompwetions | undefined> => {
+				wetuwn this._pwoxy.$pwovideInwineCompwetions(handwe, modew.uwi, position, context, token);
 			},
-			handleItemDidShow: async (completions: IdentifiableInlineCompletions, item: IdentifiableInlineCompletion): Promise<void> => {
-				return this._proxy.$handleInlineCompletionDidShow(handle, completions.pid, item.idx);
+			handweItemDidShow: async (compwetions: IdentifiabweInwineCompwetions, item: IdentifiabweInwineCompwetion): Pwomise<void> => {
+				wetuwn this._pwoxy.$handweInwineCompwetionDidShow(handwe, compwetions.pid, item.idx);
 			},
-			freeInlineCompletions: (completions: IdentifiableInlineCompletions): void => {
-				this._proxy.$freeInlineCompletionsList(handle, completions.pid);
+			fweeInwineCompwetions: (compwetions: IdentifiabweInwineCompwetions): void => {
+				this._pwoxy.$fweeInwineCompwetionsWist(handwe, compwetions.pid);
 			}
 		};
-		this._registrations.set(handle, modes.InlineCompletionsProviderRegistry.register(selector, provider));
+		this._wegistwations.set(handwe, modes.InwineCompwetionsPwovidewWegistwy.wegista(sewectow, pwovida));
 	}
 
-	// --- parameter hints
+	// --- pawameta hints
 
-	$registerSignatureHelpProvider(handle: number, selector: IDocumentFilterDto[], metadata: ISignatureHelpProviderMetadataDto): void {
-		this._registrations.set(handle, modes.SignatureHelpProviderRegistry.register(selector, <modes.SignatureHelpProvider>{
+	$wegistewSignatuweHewpPwovida(handwe: numba, sewectow: IDocumentFiwtewDto[], metadata: ISignatuweHewpPwovidewMetadataDto): void {
+		this._wegistwations.set(handwe, modes.SignatuweHewpPwovidewWegistwy.wegista(sewectow, <modes.SignatuweHewpPwovida>{
 
-			signatureHelpTriggerCharacters: metadata.triggerCharacters,
-			signatureHelpRetriggerCharacters: metadata.retriggerCharacters,
+			signatuweHewpTwiggewChawactews: metadata.twiggewChawactews,
+			signatuweHewpWetwiggewChawactews: metadata.wetwiggewChawactews,
 
-			provideSignatureHelp: async (model: ITextModel, position: EditorPosition, token: CancellationToken, context: modes.SignatureHelpContext): Promise<modes.SignatureHelpResult | undefined> => {
-				const result = await this._proxy.$provideSignatureHelp(handle, model.uri, position, context, token);
-				if (!result) {
-					return undefined;
+			pwovideSignatuweHewp: async (modew: ITextModew, position: EditowPosition, token: CancewwationToken, context: modes.SignatuweHewpContext): Pwomise<modes.SignatuweHewpWesuwt | undefined> => {
+				const wesuwt = await this._pwoxy.$pwovideSignatuweHewp(handwe, modew.uwi, position, context, token);
+				if (!wesuwt) {
+					wetuwn undefined;
 				}
-				return {
-					value: result,
+				wetuwn {
+					vawue: wesuwt,
 					dispose: () => {
-						this._proxy.$releaseSignatureHelp(handle, result.id);
+						this._pwoxy.$weweaseSignatuweHewp(handwe, wesuwt.id);
 					}
 				};
 			}
 		}));
 	}
 
-	// --- inline hints
+	// --- inwine hints
 
-	$registerInlayHintsProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void {
-		const provider = <modes.InlayHintsProvider>{
-			provideInlayHints: async (model: ITextModel, range: EditorRange, token: CancellationToken): Promise<modes.InlayHint[] | undefined> => {
-				const result = await this._proxy.$provideInlayHints(handle, model.uri, range, token);
-				return result?.hints;
+	$wegistewInwayHintsPwovida(handwe: numba, sewectow: IDocumentFiwtewDto[], eventHandwe: numba | undefined): void {
+		const pwovida = <modes.InwayHintsPwovida>{
+			pwovideInwayHints: async (modew: ITextModew, wange: EditowWange, token: CancewwationToken): Pwomise<modes.InwayHint[] | undefined> => {
+				const wesuwt = await this._pwoxy.$pwovideInwayHints(handwe, modew.uwi, wange, token);
+				wetuwn wesuwt?.hints;
 			}
 		};
 
-		if (typeof eventHandle === 'number') {
-			const emitter = new Emitter<void>();
-			this._registrations.set(eventHandle, emitter);
-			provider.onDidChangeInlayHints = emitter.event;
+		if (typeof eventHandwe === 'numba') {
+			const emitta = new Emitta<void>();
+			this._wegistwations.set(eventHandwe, emitta);
+			pwovida.onDidChangeInwayHints = emitta.event;
 		}
 
-		this._registrations.set(handle, modes.InlayHintsProviderRegistry.register(selector, provider));
+		this._wegistwations.set(handwe, modes.InwayHintsPwovidewWegistwy.wegista(sewectow, pwovida));
 	}
 
-	$emitInlayHintsEvent(eventHandle: number, event?: any): void {
-		const obj = this._registrations.get(eventHandle);
-		if (obj instanceof Emitter) {
-			obj.fire(event);
+	$emitInwayHintsEvent(eventHandwe: numba, event?: any): void {
+		const obj = this._wegistwations.get(eventHandwe);
+		if (obj instanceof Emitta) {
+			obj.fiwe(event);
 		}
 	}
 
-	// --- links
+	// --- winks
 
-	$registerDocumentLinkProvider(handle: number, selector: IDocumentFilterDto[], supportsResolve: boolean): void {
-		const provider: modes.LinkProvider = {
-			provideLinks: (model, token) => {
-				return this._proxy.$provideDocumentLinks(handle, model.uri, token).then(dto => {
+	$wegistewDocumentWinkPwovida(handwe: numba, sewectow: IDocumentFiwtewDto[], suppowtsWesowve: boowean): void {
+		const pwovida: modes.WinkPwovida = {
+			pwovideWinks: (modew, token) => {
+				wetuwn this._pwoxy.$pwovideDocumentWinks(handwe, modew.uwi, token).then(dto => {
 					if (!dto) {
-						return undefined;
+						wetuwn undefined;
 					}
-					return {
-						links: dto.links.map(MainThreadLanguageFeatures._reviveLinkDTO),
+					wetuwn {
+						winks: dto.winks.map(MainThweadWanguageFeatuwes._weviveWinkDTO),
 						dispose: () => {
-							if (typeof dto.id === 'number') {
-								this._proxy.$releaseDocumentLinks(handle, dto.id);
+							if (typeof dto.id === 'numba') {
+								this._pwoxy.$weweaseDocumentWinks(handwe, dto.id);
 							}
 						}
 					};
 				});
 			}
 		};
-		if (supportsResolve) {
-			provider.resolveLink = (link, token) => {
-				const dto: ILinkDto = link;
+		if (suppowtsWesowve) {
+			pwovida.wesowveWink = (wink, token) => {
+				const dto: IWinkDto = wink;
 				if (!dto.cacheId) {
-					return link;
+					wetuwn wink;
 				}
-				return this._proxy.$resolveDocumentLink(handle, dto.cacheId, token).then(obj => {
-					return obj && MainThreadLanguageFeatures._reviveLinkDTO(obj);
+				wetuwn this._pwoxy.$wesowveDocumentWink(handwe, dto.cacheId, token).then(obj => {
+					wetuwn obj && MainThweadWanguageFeatuwes._weviveWinkDTO(obj);
 				});
 			};
 		}
-		this._registrations.set(handle, modes.LinkProviderRegistry.register(selector, provider));
+		this._wegistwations.set(handwe, modes.WinkPwovidewWegistwy.wegista(sewectow, pwovida));
 	}
 
-	// --- colors
+	// --- cowows
 
-	$registerDocumentColorProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		const proxy = this._proxy;
-		this._registrations.set(handle, modes.ColorProviderRegistry.register(selector, <modes.DocumentColorProvider>{
-			provideDocumentColors: (model, token) => {
-				return proxy.$provideDocumentColors(handle, model.uri, token)
-					.then(documentColors => {
-						return documentColors.map(documentColor => {
-							const [red, green, blue, alpha] = documentColor.color;
-							const color = {
-								red: red,
-								green: green,
-								blue: blue,
-								alpha
+	$wegistewDocumentCowowPwovida(handwe: numba, sewectow: IDocumentFiwtewDto[]): void {
+		const pwoxy = this._pwoxy;
+		this._wegistwations.set(handwe, modes.CowowPwovidewWegistwy.wegista(sewectow, <modes.DocumentCowowPwovida>{
+			pwovideDocumentCowows: (modew, token) => {
+				wetuwn pwoxy.$pwovideDocumentCowows(handwe, modew.uwi, token)
+					.then(documentCowows => {
+						wetuwn documentCowows.map(documentCowow => {
+							const [wed, gween, bwue, awpha] = documentCowow.cowow;
+							const cowow = {
+								wed: wed,
+								gween: gween,
+								bwue: bwue,
+								awpha
 							};
 
-							return {
-								color,
-								range: documentColor.range
+							wetuwn {
+								cowow,
+								wange: documentCowow.wange
 							};
 						});
 					});
 			},
 
-			provideColorPresentations: (model, colorInfo, token) => {
-				return proxy.$provideColorPresentations(handle, model.uri, {
-					color: [colorInfo.color.red, colorInfo.color.green, colorInfo.color.blue, colorInfo.color.alpha],
-					range: colorInfo.range
+			pwovideCowowPwesentations: (modew, cowowInfo, token) => {
+				wetuwn pwoxy.$pwovideCowowPwesentations(handwe, modew.uwi, {
+					cowow: [cowowInfo.cowow.wed, cowowInfo.cowow.gween, cowowInfo.cowow.bwue, cowowInfo.cowow.awpha],
+					wange: cowowInfo.wange
 				}, token);
 			}
 		}));
 	}
 
-	// --- folding
+	// --- fowding
 
-	$registerFoldingRangeProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void {
-		const provider = <modes.FoldingRangeProvider>{
-			provideFoldingRanges: (model, context, token) => {
-				return this._proxy.$provideFoldingRanges(handle, model.uri, context, token);
+	$wegistewFowdingWangePwovida(handwe: numba, sewectow: IDocumentFiwtewDto[], eventHandwe: numba | undefined): void {
+		const pwovida = <modes.FowdingWangePwovida>{
+			pwovideFowdingWanges: (modew, context, token) => {
+				wetuwn this._pwoxy.$pwovideFowdingWanges(handwe, modew.uwi, context, token);
 			}
 		};
 
-		if (typeof eventHandle === 'number') {
-			const emitter = new Emitter<modes.FoldingRangeProvider>();
-			this._registrations.set(eventHandle, emitter);
-			provider.onDidChange = emitter.event;
+		if (typeof eventHandwe === 'numba') {
+			const emitta = new Emitta<modes.FowdingWangePwovida>();
+			this._wegistwations.set(eventHandwe, emitta);
+			pwovida.onDidChange = emitta.event;
 		}
 
-		this._registrations.set(handle, modes.FoldingRangeProviderRegistry.register(selector, provider));
+		this._wegistwations.set(handwe, modes.FowdingWangePwovidewWegistwy.wegista(sewectow, pwovida));
 	}
 
-	$emitFoldingRangeEvent(eventHandle: number, event?: any): void {
-		const obj = this._registrations.get(eventHandle);
-		if (obj instanceof Emitter) {
-			obj.fire(event);
+	$emitFowdingWangeEvent(eventHandwe: numba, event?: any): void {
+		const obj = this._wegistwations.get(eventHandwe);
+		if (obj instanceof Emitta) {
+			obj.fiwe(event);
 		}
 	}
 
-	// -- smart select
+	// -- smawt sewect
 
-	$registerSelectionRangeProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.SelectionRangeRegistry.register(selector, {
-			provideSelectionRanges: (model, positions, token) => {
-				return this._proxy.$provideSelectionRanges(handle, model.uri, positions, token);
+	$wegistewSewectionWangePwovida(handwe: numba, sewectow: IDocumentFiwtewDto[]): void {
+		this._wegistwations.set(handwe, modes.SewectionWangeWegistwy.wegista(sewectow, {
+			pwovideSewectionWanges: (modew, positions, token) => {
+				wetuwn this._pwoxy.$pwovideSewectionWanges(handwe, modew.uwi, positions, token);
 			}
 		}));
 	}
 
-	// --- call hierarchy
+	// --- caww hiewawchy
 
-	$registerCallHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, callh.CallHierarchyProviderRegistry.register(selector, {
+	$wegistewCawwHiewawchyPwovida(handwe: numba, sewectow: IDocumentFiwtewDto[]): void {
+		this._wegistwations.set(handwe, cawwh.CawwHiewawchyPwovidewWegistwy.wegista(sewectow, {
 
-			prepareCallHierarchy: async (document, position, token) => {
-				const items = await this._proxy.$prepareCallHierarchy(handle, document.uri, position, token);
+			pwepaweCawwHiewawchy: async (document, position, token) => {
+				const items = await this._pwoxy.$pwepaweCawwHiewawchy(handwe, document.uwi, position, token);
 				if (!items) {
-					return undefined;
+					wetuwn undefined;
 				}
-				return {
+				wetuwn {
 					dispose: () => {
-						for (const item of items) {
-							this._proxy.$releaseCallHierarchy(handle, item._sessionId);
+						fow (const item of items) {
+							this._pwoxy.$weweaseCawwHiewawchy(handwe, item._sessionId);
 						}
 					},
-					roots: items.map(MainThreadLanguageFeatures._reviveCallHierarchyItemDto)
+					woots: items.map(MainThweadWanguageFeatuwes._weviveCawwHiewawchyItemDto)
 				};
 			},
 
-			provideOutgoingCalls: async (item, token) => {
-				const outgoing = await this._proxy.$provideCallHierarchyOutgoingCalls(handle, item._sessionId, item._itemId, token);
+			pwovideOutgoingCawws: async (item, token) => {
+				const outgoing = await this._pwoxy.$pwovideCawwHiewawchyOutgoingCawws(handwe, item._sessionId, item._itemId, token);
 				if (!outgoing) {
-					return outgoing;
+					wetuwn outgoing;
 				}
-				outgoing.forEach(value => {
-					value.to = MainThreadLanguageFeatures._reviveCallHierarchyItemDto(value.to);
+				outgoing.fowEach(vawue => {
+					vawue.to = MainThweadWanguageFeatuwes._weviveCawwHiewawchyItemDto(vawue.to);
 				});
-				return <any>outgoing;
+				wetuwn <any>outgoing;
 			},
-			provideIncomingCalls: async (item, token) => {
-				const incoming = await this._proxy.$provideCallHierarchyIncomingCalls(handle, item._sessionId, item._itemId, token);
+			pwovideIncomingCawws: async (item, token) => {
+				const incoming = await this._pwoxy.$pwovideCawwHiewawchyIncomingCawws(handwe, item._sessionId, item._itemId, token);
 				if (!incoming) {
-					return incoming;
+					wetuwn incoming;
 				}
-				incoming.forEach(value => {
-					value.from = MainThreadLanguageFeatures._reviveCallHierarchyItemDto(value.from);
+				incoming.fowEach(vawue => {
+					vawue.fwom = MainThweadWanguageFeatuwes._weviveCawwHiewawchyItemDto(vawue.fwom);
 				});
-				return <any>incoming;
+				wetuwn <any>incoming;
 			}
 		}));
 	}
 
-	// --- configuration
+	// --- configuwation
 
-	private static _reviveRegExp(regExp: IRegExpDto): RegExp {
-		return new RegExp(regExp.pattern, regExp.flags);
+	pwivate static _weviveWegExp(wegExp: IWegExpDto): WegExp {
+		wetuwn new WegExp(wegExp.pattewn, wegExp.fwags);
 	}
 
-	private static _reviveIndentationRule(indentationRule: IIndentationRuleDto): IndentationRule {
-		return {
-			decreaseIndentPattern: MainThreadLanguageFeatures._reviveRegExp(indentationRule.decreaseIndentPattern),
-			increaseIndentPattern: MainThreadLanguageFeatures._reviveRegExp(indentationRule.increaseIndentPattern),
-			indentNextLinePattern: indentationRule.indentNextLinePattern ? MainThreadLanguageFeatures._reviveRegExp(indentationRule.indentNextLinePattern) : undefined,
-			unIndentedLinePattern: indentationRule.unIndentedLinePattern ? MainThreadLanguageFeatures._reviveRegExp(indentationRule.unIndentedLinePattern) : undefined,
+	pwivate static _weviveIndentationWuwe(indentationWuwe: IIndentationWuweDto): IndentationWuwe {
+		wetuwn {
+			decweaseIndentPattewn: MainThweadWanguageFeatuwes._weviveWegExp(indentationWuwe.decweaseIndentPattewn),
+			incweaseIndentPattewn: MainThweadWanguageFeatuwes._weviveWegExp(indentationWuwe.incweaseIndentPattewn),
+			indentNextWinePattewn: indentationWuwe.indentNextWinePattewn ? MainThweadWanguageFeatuwes._weviveWegExp(indentationWuwe.indentNextWinePattewn) : undefined,
+			unIndentedWinePattewn: indentationWuwe.unIndentedWinePattewn ? MainThweadWanguageFeatuwes._weviveWegExp(indentationWuwe.unIndentedWinePattewn) : undefined,
 		};
 	}
 
-	private static _reviveOnEnterRule(onEnterRule: IOnEnterRuleDto): OnEnterRule {
-		return {
-			beforeText: MainThreadLanguageFeatures._reviveRegExp(onEnterRule.beforeText),
-			afterText: onEnterRule.afterText ? MainThreadLanguageFeatures._reviveRegExp(onEnterRule.afterText) : undefined,
-			previousLineText: onEnterRule.previousLineText ? MainThreadLanguageFeatures._reviveRegExp(onEnterRule.previousLineText) : undefined,
-			action: onEnterRule.action
+	pwivate static _weviveOnEntewWuwe(onEntewWuwe: IOnEntewWuweDto): OnEntewWuwe {
+		wetuwn {
+			befoweText: MainThweadWanguageFeatuwes._weviveWegExp(onEntewWuwe.befoweText),
+			aftewText: onEntewWuwe.aftewText ? MainThweadWanguageFeatuwes._weviveWegExp(onEntewWuwe.aftewText) : undefined,
+			pweviousWineText: onEntewWuwe.pweviousWineText ? MainThweadWanguageFeatuwes._weviveWegExp(onEntewWuwe.pweviousWineText) : undefined,
+			action: onEntewWuwe.action
 		};
 	}
 
-	private static _reviveOnEnterRules(onEnterRules: IOnEnterRuleDto[]): OnEnterRule[] {
-		return onEnterRules.map(MainThreadLanguageFeatures._reviveOnEnterRule);
+	pwivate static _weviveOnEntewWuwes(onEntewWuwes: IOnEntewWuweDto[]): OnEntewWuwe[] {
+		wetuwn onEntewWuwes.map(MainThweadWanguageFeatuwes._weviveOnEntewWuwe);
 	}
 
-	$setLanguageConfiguration(handle: number, languageId: string, _configuration: ILanguageConfigurationDto): void {
+	$setWanguageConfiguwation(handwe: numba, wanguageId: stwing, _configuwation: IWanguageConfiguwationDto): void {
 
-		const configuration: LanguageConfiguration = {
-			comments: _configuration.comments,
-			brackets: _configuration.brackets,
-			wordPattern: _configuration.wordPattern ? MainThreadLanguageFeatures._reviveRegExp(_configuration.wordPattern) : undefined,
-			indentationRules: _configuration.indentationRules ? MainThreadLanguageFeatures._reviveIndentationRule(_configuration.indentationRules) : undefined,
-			onEnterRules: _configuration.onEnterRules ? MainThreadLanguageFeatures._reviveOnEnterRules(_configuration.onEnterRules) : undefined,
+		const configuwation: WanguageConfiguwation = {
+			comments: _configuwation.comments,
+			bwackets: _configuwation.bwackets,
+			wowdPattewn: _configuwation.wowdPattewn ? MainThweadWanguageFeatuwes._weviveWegExp(_configuwation.wowdPattewn) : undefined,
+			indentationWuwes: _configuwation.indentationWuwes ? MainThweadWanguageFeatuwes._weviveIndentationWuwe(_configuwation.indentationWuwes) : undefined,
+			onEntewWuwes: _configuwation.onEntewWuwes ? MainThweadWanguageFeatuwes._weviveOnEntewWuwes(_configuwation.onEntewWuwes) : undefined,
 
-			autoClosingPairs: undefined,
-			surroundingPairs: undefined,
-			__electricCharacterSupport: undefined
+			autoCwosingPaiws: undefined,
+			suwwoundingPaiws: undefined,
+			__ewectwicChawactewSuppowt: undefined
 		};
 
-		if (_configuration.__characterPairSupport) {
-			// backwards compatibility
-			configuration.autoClosingPairs = _configuration.__characterPairSupport.autoClosingPairs;
+		if (_configuwation.__chawactewPaiwSuppowt) {
+			// backwawds compatibiwity
+			configuwation.autoCwosingPaiws = _configuwation.__chawactewPaiwSuppowt.autoCwosingPaiws;
 		}
 
-		if (_configuration.__electricCharacterSupport && _configuration.__electricCharacterSupport.docComment) {
-			configuration.__electricCharacterSupport = {
+		if (_configuwation.__ewectwicChawactewSuppowt && _configuwation.__ewectwicChawactewSuppowt.docComment) {
+			configuwation.__ewectwicChawactewSuppowt = {
 				docComment: {
-					open: _configuration.__electricCharacterSupport.docComment.open,
-					close: _configuration.__electricCharacterSupport.docComment.close
+					open: _configuwation.__ewectwicChawactewSuppowt.docComment.open,
+					cwose: _configuwation.__ewectwicChawactewSuppowt.docComment.cwose
 				}
 			};
 		}
 
-		const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
-		if (languageIdentifier) {
-			this._registrations.set(handle, LanguageConfigurationRegistry.register(languageIdentifier, configuration, 100));
+		const wanguageIdentifia = this._modeSewvice.getWanguageIdentifia(wanguageId);
+		if (wanguageIdentifia) {
+			this._wegistwations.set(handwe, WanguageConfiguwationWegistwy.wegista(wanguageIdentifia, configuwation, 100));
 		}
 	}
 
-	// --- type hierarchy
+	// --- type hiewawchy
 
-	$registerTypeHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, typeh.TypeHierarchyProviderRegistry.register(selector, {
+	$wegistewTypeHiewawchyPwovida(handwe: numba, sewectow: IDocumentFiwtewDto[]): void {
+		this._wegistwations.set(handwe, typeh.TypeHiewawchyPwovidewWegistwy.wegista(sewectow, {
 
-			prepareTypeHierarchy: async (document, position, token) => {
-				const items = await this._proxy.$prepareTypeHierarchy(handle, document.uri, position, token);
+			pwepaweTypeHiewawchy: async (document, position, token) => {
+				const items = await this._pwoxy.$pwepaweTypeHiewawchy(handwe, document.uwi, position, token);
 				if (!items) {
-					return undefined;
+					wetuwn undefined;
 				}
-				return {
+				wetuwn {
 					dispose: () => {
-						for (const item of items) {
-							this._proxy.$releaseTypeHierarchy(handle, item._sessionId);
+						fow (const item of items) {
+							this._pwoxy.$weweaseTypeHiewawchy(handwe, item._sessionId);
 						}
 					},
-					roots: items.map(MainThreadLanguageFeatures._reviveTypeHierarchyItemDto)
+					woots: items.map(MainThweadWanguageFeatuwes._weviveTypeHiewawchyItemDto)
 				};
 			},
 
-			provideSupertypes: async (item, token) => {
-				const supertypes = await this._proxy.$provideTypeHierarchySupertypes(handle, item._sessionId, item._itemId, token);
-				if (!supertypes) {
-					return supertypes;
+			pwovideSupewtypes: async (item, token) => {
+				const supewtypes = await this._pwoxy.$pwovideTypeHiewawchySupewtypes(handwe, item._sessionId, item._itemId, token);
+				if (!supewtypes) {
+					wetuwn supewtypes;
 				}
-				return supertypes.map(MainThreadLanguageFeatures._reviveTypeHierarchyItemDto);
+				wetuwn supewtypes.map(MainThweadWanguageFeatuwes._weviveTypeHiewawchyItemDto);
 			},
-			provideSubtypes: async (item, token) => {
-				const subtypes = await this._proxy.$provideTypeHierarchySubtypes(handle, item._sessionId, item._itemId, token);
+			pwovideSubtypes: async (item, token) => {
+				const subtypes = await this._pwoxy.$pwovideTypeHiewawchySubtypes(handwe, item._sessionId, item._itemId, token);
 				if (!subtypes) {
-					return subtypes;
+					wetuwn subtypes;
 				}
-				return subtypes.map(MainThreadLanguageFeatures._reviveTypeHierarchyItemDto);
+				wetuwn subtypes.map(MainThweadWanguageFeatuwes._weviveTypeHiewawchyItemDto);
 			}
 		}));
 	}
 
 }
 
-export class MainThreadDocumentSemanticTokensProvider implements modes.DocumentSemanticTokensProvider {
+expowt cwass MainThweadDocumentSemanticTokensPwovida impwements modes.DocumentSemanticTokensPwovida {
 
-	constructor(
-		private readonly _proxy: ExtHostLanguageFeaturesShape,
-		private readonly _handle: number,
-		private readonly _legend: modes.SemanticTokensLegend,
-		public readonly onDidChange: Event<void> | undefined,
+	constwuctow(
+		pwivate weadonwy _pwoxy: ExtHostWanguageFeatuwesShape,
+		pwivate weadonwy _handwe: numba,
+		pwivate weadonwy _wegend: modes.SemanticTokensWegend,
+		pubwic weadonwy onDidChange: Event<void> | undefined,
 	) {
 	}
 
-	public releaseDocumentSemanticTokens(resultId: string | undefined): void {
-		if (resultId) {
-			this._proxy.$releaseDocumentSemanticTokens(this._handle, parseInt(resultId, 10));
+	pubwic weweaseDocumentSemanticTokens(wesuwtId: stwing | undefined): void {
+		if (wesuwtId) {
+			this._pwoxy.$weweaseDocumentSemanticTokens(this._handwe, pawseInt(wesuwtId, 10));
 		}
 	}
 
-	public getLegend(): modes.SemanticTokensLegend {
-		return this._legend;
+	pubwic getWegend(): modes.SemanticTokensWegend {
+		wetuwn this._wegend;
 	}
 
-	async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<modes.SemanticTokens | modes.SemanticTokensEdits | null> {
-		const nLastResultId = lastResultId ? parseInt(lastResultId, 10) : 0;
-		const encodedDto = await this._proxy.$provideDocumentSemanticTokens(this._handle, model.uri, nLastResultId, token);
+	async pwovideDocumentSemanticTokens(modew: ITextModew, wastWesuwtId: stwing | nuww, token: CancewwationToken): Pwomise<modes.SemanticTokens | modes.SemanticTokensEdits | nuww> {
+		const nWastWesuwtId = wastWesuwtId ? pawseInt(wastWesuwtId, 10) : 0;
+		const encodedDto = await this._pwoxy.$pwovideDocumentSemanticTokens(this._handwe, modew.uwi, nWastWesuwtId, token);
 		if (!encodedDto) {
-			return null;
+			wetuwn nuww;
 		}
-		if (token.isCancellationRequested) {
-			return null;
+		if (token.isCancewwationWequested) {
+			wetuwn nuww;
 		}
 		const dto = decodeSemanticTokensDto(encodedDto);
-		if (dto.type === 'full') {
-			return {
-				resultId: String(dto.id),
+		if (dto.type === 'fuww') {
+			wetuwn {
+				wesuwtId: Stwing(dto.id),
 				data: dto.data
 			};
 		}
-		return {
-			resultId: String(dto.id),
-			edits: dto.deltas
+		wetuwn {
+			wesuwtId: Stwing(dto.id),
+			edits: dto.dewtas
 		};
 	}
 }
 
-export class MainThreadDocumentRangeSemanticTokensProvider implements modes.DocumentRangeSemanticTokensProvider {
+expowt cwass MainThweadDocumentWangeSemanticTokensPwovida impwements modes.DocumentWangeSemanticTokensPwovida {
 
-	constructor(
-		private readonly _proxy: ExtHostLanguageFeaturesShape,
-		private readonly _handle: number,
-		private readonly _legend: modes.SemanticTokensLegend,
+	constwuctow(
+		pwivate weadonwy _pwoxy: ExtHostWanguageFeatuwesShape,
+		pwivate weadonwy _handwe: numba,
+		pwivate weadonwy _wegend: modes.SemanticTokensWegend,
 	) {
 	}
 
-	public getLegend(): modes.SemanticTokensLegend {
-		return this._legend;
+	pubwic getWegend(): modes.SemanticTokensWegend {
+		wetuwn this._wegend;
 	}
 
-	async provideDocumentRangeSemanticTokens(model: ITextModel, range: EditorRange, token: CancellationToken): Promise<modes.SemanticTokens | null> {
-		const encodedDto = await this._proxy.$provideDocumentRangeSemanticTokens(this._handle, model.uri, range, token);
+	async pwovideDocumentWangeSemanticTokens(modew: ITextModew, wange: EditowWange, token: CancewwationToken): Pwomise<modes.SemanticTokens | nuww> {
+		const encodedDto = await this._pwoxy.$pwovideDocumentWangeSemanticTokens(this._handwe, modew.uwi, wange, token);
 		if (!encodedDto) {
-			return null;
+			wetuwn nuww;
 		}
-		if (token.isCancellationRequested) {
-			return null;
+		if (token.isCancewwationWequested) {
+			wetuwn nuww;
 		}
 		const dto = decodeSemanticTokensDto(encodedDto);
-		if (dto.type === 'full') {
-			return {
-				resultId: String(dto.id),
+		if (dto.type === 'fuww') {
+			wetuwn {
+				wesuwtId: Stwing(dto.id),
 				data: dto.data
 			};
 		}
-		throw new Error(`Unexpected`);
+		thwow new Ewwow(`Unexpected`);
 	}
 }

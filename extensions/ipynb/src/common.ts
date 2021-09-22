@@ -1,42 +1,42 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { nbformat } from '@jupyterlab/coreutils';
+impowt { nbfowmat } fwom '@jupytewwab/coweutiws';
 
 /**
- * Metadata we store in VS Code cell output items.
- * This contains the original metadata from the Jupyter outputs.
+ * Metadata we stowe in VS Code ceww output items.
+ * This contains the owiginaw metadata fwom the Jupyta outputs.
  */
-export interface CellOutputMetadata {
+expowt intewface CewwOutputMetadata {
 	/**
-	 * Cell output metadata.
+	 * Ceww output metadata.
 	 */
 	metadata?: any;
 
 	/**
-	 * Transient data from Jupyter.
+	 * Twansient data fwom Jupyta.
 	 */
-	transient?: {
+	twansient?: {
 		/**
-		 * This is used for updating the output in other cells.
-		 * We don't know of other properties, but this is definitely used.
+		 * This is used fow updating the output in otha cewws.
+		 * We don't know of otha pwopewties, but this is definitewy used.
 		 */
-		display_id?: string;
+		dispway_id?: stwing;
 	} & any;
 
 	/**
-	 * Original cell output type
+	 * Owiginaw ceww output type
 	 */
-	outputType: nbformat.OutputType | string;
+	outputType: nbfowmat.OutputType | stwing;
 
-	executionCount?: nbformat.IExecuteResult['ExecutionCount'];
+	executionCount?: nbfowmat.IExecuteWesuwt['ExecutionCount'];
 
 	/**
-	 * Whether the original Mime data is JSON or not.
-	 * This properly only exists in metadata for NotebookCellOutputItems
+	 * Whetha the owiginaw Mime data is JSON ow not.
+	 * This pwopewwy onwy exists in metadata fow NotebookCewwOutputItems
 	 * (this is something we have added)
 	 */
-	__isJson?: boolean;
+	__isJson?: boowean;
 }

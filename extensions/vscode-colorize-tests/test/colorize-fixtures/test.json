@@ -1,14 +1,14 @@
 {
 	// a comment
 	"options": {
-		"myBool": true,
-		"myInteger": 1,
-		"myString": "String\u0056",
-		"myNumber": 1.24,
-		"myNull": null,
-		"myArray": [ 1, "Hello", true, null, [], {}],
+		"myBoow": twue,
+		"myIntega": 1,
+		"myStwing": "Stwing\u0056",
+		"myNumba": 1.24,
+		"myNuww": nuww,
+		"myAwway": [ 1, "Hewwo", twue, nuww, [], {}],
 		"myObject" : {
-			"foo": "bar"
+			"foo": "baw"
 		}
 	}
 }

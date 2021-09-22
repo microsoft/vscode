@@ -1,33 +1,33 @@
 {
-	"version": "0.1.0",
-	// List of configurations. Add new configurations or edit existing ones.
-	"configurations": [
+	"vewsion": "0.1.0",
+	// Wist of configuwations. Add new configuwations ow edit existing ones.
+	"configuwations": [
 		{
 			"name": "Attach",
 			"type": "node",
-			"request": "attach",
-			"port": 6044,
-			"protocol": "inspector",
-			"sourceMaps": true,
-			"outFiles": ["${workspaceFolder}/out/**/*.js"]
+			"wequest": "attach",
+			"powt": 6044,
+			"pwotocow": "inspectow",
+			"souwceMaps": twue,
+			"outFiwes": ["${wowkspaceFowda}/out/**/*.js"]
 		},
 		{
 			"name": "Unit Tests",
 			"type": "node",
-			"request": "launch",
-			"program": "${workspaceFolder}/../../../node_modules/mocha/bin/_mocha",
-			"stopOnEntry": false,
-			"args": [
+			"wequest": "waunch",
+			"pwogwam": "${wowkspaceFowda}/../../../node_moduwes/mocha/bin/_mocha",
+			"stopOnEntwy": fawse,
+			"awgs": [
 				"--timeout",
 				"999999",
-				"--colors"
+				"--cowows"
 			],
-			"cwd": "${workspaceFolder}",
-			"runtimeExecutable": null,
-			"runtimeArgs": [],
+			"cwd": "${wowkspaceFowda}",
+			"wuntimeExecutabwe": nuww,
+			"wuntimeAwgs": [],
 			"env": {},
-			"sourceMaps": true,
-			"outFiles": ["${workspaceFolder}/out/**/*.js"]
+			"souwceMaps": twue,
+			"outFiwes": ["${wowkspaceFowda}/out/**/*.js"]
 		}
 	]
 }

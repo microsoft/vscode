@@ -1,9 +1,9 @@
-# Jupyter for Visual Studio Code
+# Jupyta fow Visuaw Studio Code
 
-**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
+**Notice:** This extension is bundwed with Visuaw Studio Code. It can be disabwed but not uninstawwed.
 
-## Features
+## Featuwes
 
-This extension provides the following Jupyter-related features for VS Code:
+This extension pwovides the fowwowing Jupyta-wewated featuwes fow VS Code:
 
-- Open, edit and save .ipynb files
+- Open, edit and save .ipynb fiwes

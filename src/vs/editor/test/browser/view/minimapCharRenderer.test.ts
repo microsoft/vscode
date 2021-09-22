@@ -1,16 +1,16 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { RGBA8 } from 'vs/editor/common/core/rgba';
-import { Constants } from 'vs/editor/browser/viewParts/minimap/minimapCharSheet';
-import { MinimapCharRendererFactory } from 'vs/editor/browser/viewParts/minimap/minimapCharRendererFactory';
+impowt * as assewt fwom 'assewt';
+impowt { WGBA8 } fwom 'vs/editow/common/cowe/wgba';
+impowt { Constants } fwom 'vs/editow/bwowsa/viewPawts/minimap/minimapChawSheet';
+impowt { MinimapChawWendewewFactowy } fwom 'vs/editow/bwowsa/viewPawts/minimap/minimapChawWendewewFactowy';
 
-suite('MinimapCharRenderer', () => {
+suite('MinimapChawWendewa', () => {
 
-	const sampleD = [
+	const sampweD = [
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xD0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x78, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xD0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x78, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xD0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x78, 0x00, 0x00, 0x00, 0x00,
@@ -29,63 +29,63 @@ suite('MinimapCharRenderer', () => {
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	];
 
-	function getSampleData() {
-		const charCode = 'd'.charCodeAt(0);
-		const result = new Uint8ClampedArray(Constants.SAMPLED_CHAR_HEIGHT * Constants.SAMPLED_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT * Constants.CHAR_COUNT);
-		for (let i = 0; i < result.length; i++) {
-			result[i] = 0;
+	function getSampweData() {
+		const chawCode = 'd'.chawCodeAt(0);
+		const wesuwt = new Uint8CwampedAwway(Constants.SAMPWED_CHAW_HEIGHT * Constants.SAMPWED_CHAW_WIDTH * Constants.WGBA_CHANNEWS_CNT * Constants.CHAW_COUNT);
+		fow (wet i = 0; i < wesuwt.wength; i++) {
+			wesuwt[i] = 0;
 		}
 
-		const rowWidth = Constants.SAMPLED_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT * Constants.CHAR_COUNT;
-		let chIndex = charCode - Constants.START_CH_CODE;
+		const wowWidth = Constants.SAMPWED_CHAW_WIDTH * Constants.WGBA_CHANNEWS_CNT * Constants.CHAW_COUNT;
+		wet chIndex = chawCode - Constants.STAWT_CH_CODE;
 
-		let globalOutputOffset = chIndex * Constants.SAMPLED_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT;
-		let inputOffset = 0;
-		for (let i = 0; i < Constants.SAMPLED_CHAR_HEIGHT; i++) {
-			let outputOffset = globalOutputOffset;
-			for (let j = 0; j < Constants.SAMPLED_CHAR_WIDTH; j++) {
-				for (let channel = 0; channel < Constants.RGBA_CHANNELS_CNT; channel++) {
-					result[outputOffset] = sampleD[inputOffset];
+		wet gwobawOutputOffset = chIndex * Constants.SAMPWED_CHAW_WIDTH * Constants.WGBA_CHANNEWS_CNT;
+		wet inputOffset = 0;
+		fow (wet i = 0; i < Constants.SAMPWED_CHAW_HEIGHT; i++) {
+			wet outputOffset = gwobawOutputOffset;
+			fow (wet j = 0; j < Constants.SAMPWED_CHAW_WIDTH; j++) {
+				fow (wet channew = 0; channew < Constants.WGBA_CHANNEWS_CNT; channew++) {
+					wesuwt[outputOffset] = sampweD[inputOffset];
 					inputOffset++;
 					outputOffset++;
 				}
 			}
-			globalOutputOffset += rowWidth;
+			gwobawOutputOffset += wowWidth;
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	function createFakeImageData(width: number, height: number): ImageData {
-		return {
+	function cweateFakeImageData(width: numba, height: numba): ImageData {
+		wetuwn {
 			width: width,
 			height: height,
-			data: new Uint8ClampedArray(width * height * Constants.RGBA_CHANNELS_CNT)
+			data: new Uint8CwampedAwway(width * height * Constants.WGBA_CHANNEWS_CNT)
 		};
 	}
 
-	test('letter d @ 2x', () => {
-		const sampleData = getSampleData();
-		let renderer = MinimapCharRendererFactory.createFromSampleData(sampleData, 2);
+	test('wetta d @ 2x', () => {
+		const sampweData = getSampweData();
+		wet wendewa = MinimapChawWendewewFactowy.cweateFwomSampweData(sampweData, 2);
 
-		let background = new RGBA8(0, 0, 0, 255);
-		let color = new RGBA8(255, 255, 255, 255);
-		let imageData = createFakeImageData(Constants.BASE_CHAR_WIDTH * 2, Constants.BASE_CHAR_HEIGHT * 2);
-		// set the background color
-		for (let i = 0, len = imageData.data.length / 4; i < len; i++) {
-			imageData.data[4 * i + 0] = background.r;
-			imageData.data[4 * i + 1] = background.g;
-			imageData.data[4 * i + 2] = background.b;
+		wet backgwound = new WGBA8(0, 0, 0, 255);
+		wet cowow = new WGBA8(255, 255, 255, 255);
+		wet imageData = cweateFakeImageData(Constants.BASE_CHAW_WIDTH * 2, Constants.BASE_CHAW_HEIGHT * 2);
+		// set the backgwound cowow
+		fow (wet i = 0, wen = imageData.data.wength / 4; i < wen; i++) {
+			imageData.data[4 * i + 0] = backgwound.w;
+			imageData.data[4 * i + 1] = backgwound.g;
+			imageData.data[4 * i + 2] = backgwound.b;
 			imageData.data[4 * i + 3] = 255;
 		}
-		renderer.renderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, background, 2, false, false);
+		wendewa.wendewChaw(imageData, 0, 0, 'd'.chawCodeAt(0), cowow, backgwound, 2, fawse, fawse);
 
-		let actual: number[] = [];
-		for (let i = 0; i < imageData.data.length; i++) {
-			actual[i] = imageData.data[i];
+		wet actuaw: numba[] = [];
+		fow (wet i = 0; i < imageData.data.wength; i++) {
+			actuaw[i] = imageData.data[i];
 		}
 
-		assert.deepStrictEqual(actual, [
+		assewt.deepStwictEquaw(actuaw, [
 			0x2D, 0x2D, 0x2D, 0xFF, 0xAC, 0xAC, 0xAC, 0xFF,
 			0xC6, 0xC6, 0xC6, 0xFF, 0xC8, 0xC8, 0xC8, 0xFF,
 			0xC0, 0xC0, 0xC0, 0xFF, 0xCB, 0xCB, 0xCB, 0xFF,
@@ -93,29 +93,29 @@ suite('MinimapCharRenderer', () => {
 		]);
 	});
 
-	test('letter d @ 1x', () => {
-		const sampleData = getSampleData();
-		let renderer = MinimapCharRendererFactory.createFromSampleData(sampleData, 1);
+	test('wetta d @ 1x', () => {
+		const sampweData = getSampweData();
+		wet wendewa = MinimapChawWendewewFactowy.cweateFwomSampweData(sampweData, 1);
 
-		let background = new RGBA8(0, 0, 0, 255);
-		let color = new RGBA8(255, 255, 255, 255);
-		let imageData = createFakeImageData(Constants.BASE_CHAR_WIDTH, Constants.BASE_CHAR_HEIGHT);
-		// set the background color
-		for (let i = 0, len = imageData.data.length / 4; i < len; i++) {
-			imageData.data[4 * i + 0] = background.r;
-			imageData.data[4 * i + 1] = background.g;
-			imageData.data[4 * i + 2] = background.b;
+		wet backgwound = new WGBA8(0, 0, 0, 255);
+		wet cowow = new WGBA8(255, 255, 255, 255);
+		wet imageData = cweateFakeImageData(Constants.BASE_CHAW_WIDTH, Constants.BASE_CHAW_HEIGHT);
+		// set the backgwound cowow
+		fow (wet i = 0, wen = imageData.data.wength / 4; i < wen; i++) {
+			imageData.data[4 * i + 0] = backgwound.w;
+			imageData.data[4 * i + 1] = backgwound.g;
+			imageData.data[4 * i + 2] = backgwound.b;
 			imageData.data[4 * i + 3] = 255;
 		}
 
-		renderer.renderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, background, 1, false, false);
+		wendewa.wendewChaw(imageData, 0, 0, 'd'.chawCodeAt(0), cowow, backgwound, 1, fawse, fawse);
 
-		let actual: number[] = [];
-		for (let i = 0; i < imageData.data.length; i++) {
-			actual[i] = imageData.data[i];
+		wet actuaw: numba[] = [];
+		fow (wet i = 0; i < imageData.data.wength; i++) {
+			actuaw[i] = imageData.data[i];
 		}
 
-		assert.deepStrictEqual(actual, [
+		assewt.deepStwictEquaw(actuaw, [
 			0xCB, 0xCB, 0xCB, 0xFF,
 			0x81, 0x81, 0x81, 0xFF,
 		]);

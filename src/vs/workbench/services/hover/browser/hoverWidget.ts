@@ -1,517 +1,517 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import * as dom from 'vs/base/browser/dom';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IHoverTarget, IHoverOptions } from 'vs/workbench/services/hover/browser/hover';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { HoverAction, HoverPosition, HoverWidget as BaseHoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { isMarkdownString } from 'vs/base/common/htmlContent';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IHovewTawget, IHovewOptions } fwom 'vs/wowkbench/sewvices/hova/bwowsa/hova';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { EDITOW_FONT_DEFAUWTS, IEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { HovewAction, HovewPosition, HovewWidget as BaseHovewWidget } fwom 'vs/base/bwowsa/ui/hova/hovewWidget';
+impowt { Widget } fwom 'vs/base/bwowsa/ui/widget';
+impowt { AnchowPosition } fwom 'vs/base/bwowsa/ui/contextview/contextview';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { MawkdownWendewa } fwom 'vs/editow/bwowsa/cowe/mawkdownWendewa';
+impowt { isMawkdownStwing } fwom 'vs/base/common/htmwContent';
 
 const $ = dom.$;
-type TargetRect = {
-	left: number,
-	right: number,
-	top: number,
-	bottom: number,
-	width: number,
-	height: number,
-	center: { x: number, y: number },
+type TawgetWect = {
+	weft: numba,
+	wight: numba,
+	top: numba,
+	bottom: numba,
+	width: numba,
+	height: numba,
+	centa: { x: numba, y: numba },
 };
 
 const enum Constants {
-	PointerSize = 3,
-	HoverBorderWidth = 2,
-	HoverWindowEdgeMargin = 2,
+	PointewSize = 3,
+	HovewBowdewWidth = 2,
+	HovewWindowEdgeMawgin = 2,
 }
 
-export class HoverWidget extends Widget {
-	private readonly _messageListeners = new DisposableStore();
-	private readonly _mouseTracker: CompositeMouseTracker;
+expowt cwass HovewWidget extends Widget {
+	pwivate weadonwy _messageWistenews = new DisposabweStowe();
+	pwivate weadonwy _mouseTwacka: CompositeMouseTwacka;
 
-	private readonly _hover: BaseHoverWidget;
-	private readonly _hoverPointer: HTMLElement | undefined;
-	private readonly _hoverContainer: HTMLElement;
-	private readonly _target: IHoverTarget;
-	private readonly _linkHandler: (url: string) => any;
+	pwivate weadonwy _hova: BaseHovewWidget;
+	pwivate weadonwy _hovewPointa: HTMWEwement | undefined;
+	pwivate weadonwy _hovewContaina: HTMWEwement;
+	pwivate weadonwy _tawget: IHovewTawget;
+	pwivate weadonwy _winkHandwa: (uww: stwing) => any;
 
-	private _isDisposed: boolean = false;
-	private _hoverPosition: HoverPosition;
-	private _forcePosition: boolean = false;
-	private _x: number = 0;
-	private _y: number = 0;
+	pwivate _isDisposed: boowean = fawse;
+	pwivate _hovewPosition: HovewPosition;
+	pwivate _fowcePosition: boowean = fawse;
+	pwivate _x: numba = 0;
+	pwivate _y: numba = 0;
 
-	get isDisposed(): boolean { return this._isDisposed; }
-	get domNode(): HTMLElement { return this._hover.containerDomNode; }
+	get isDisposed(): boowean { wetuwn this._isDisposed; }
+	get domNode(): HTMWEwement { wetuwn this._hova.containewDomNode; }
 
-	private readonly _onDispose = this._register(new Emitter<void>());
-	get onDispose(): Event<void> { return this._onDispose.event; }
-	private readonly _onRequestLayout = this._register(new Emitter<void>());
-	get onRequestLayout(): Event<void> { return this._onRequestLayout.event; }
+	pwivate weadonwy _onDispose = this._wegista(new Emitta<void>());
+	get onDispose(): Event<void> { wetuwn this._onDispose.event; }
+	pwivate weadonwy _onWequestWayout = this._wegista(new Emitta<void>());
+	get onWequestWayout(): Event<void> { wetuwn this._onWequestWayout.event; }
 
-	get anchor(): AnchorPosition { return this._hoverPosition === HoverPosition.BELOW ? AnchorPosition.BELOW : AnchorPosition.ABOVE; }
-	get x(): number { return this._x; }
-	get y(): number { return this._y; }
+	get anchow(): AnchowPosition { wetuwn this._hovewPosition === HovewPosition.BEWOW ? AnchowPosition.BEWOW : AnchowPosition.ABOVE; }
+	get x(): numba { wetuwn this._x; }
+	get y(): numba { wetuwn this._y; }
 
-	constructor(
-		options: IHoverOptions,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IOpenerService private readonly _openerService: IOpenerService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+	constwuctow(
+		options: IHovewOptions,
+		@IKeybindingSewvice pwivate weadonwy _keybindingSewvice: IKeybindingSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
+		@IOpenewSewvice pwivate weadonwy _openewSewvice: IOpenewSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
 	) {
-		super();
+		supa();
 
-		this._linkHandler = options.linkHandler || (url => this._openerService.open(url, { allowCommands: (isMarkdownString(options.content) && options.content.isTrusted) }));
+		this._winkHandwa = options.winkHandwa || (uww => this._openewSewvice.open(uww, { awwowCommands: (isMawkdownStwing(options.content) && options.content.isTwusted) }));
 
-		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
+		this._tawget = 'tawgetEwements' in options.tawget ? options.tawget : new EwementHovewTawget(options.tawget);
 
-		this._hoverPointer = options.showPointer ? $('div.workbench-hover-pointer') : undefined;
-		this._hover = this._register(new BaseHoverWidget());
-		this._hover.containerDomNode.classList.add('workbench-hover', 'fadeIn');
+		this._hovewPointa = options.showPointa ? $('div.wowkbench-hova-pointa') : undefined;
+		this._hova = this._wegista(new BaseHovewWidget());
+		this._hova.containewDomNode.cwassWist.add('wowkbench-hova', 'fadeIn');
 		if (options.compact) {
-			this._hover.containerDomNode.classList.add('workbench-hover', 'compact');
+			this._hova.containewDomNode.cwassWist.add('wowkbench-hova', 'compact');
 		}
 		if (options.skipFadeInAnimation) {
-			this._hover.containerDomNode.classList.add('skip-fade-in');
+			this._hova.containewDomNode.cwassWist.add('skip-fade-in');
 		}
-		if (options.additionalClasses) {
-			this._hover.containerDomNode.classList.add(...options.additionalClasses);
+		if (options.additionawCwasses) {
+			this._hova.containewDomNode.cwassWist.add(...options.additionawCwasses);
 		}
-		if (options.forcePosition) {
-			this._forcePosition = true;
+		if (options.fowcePosition) {
+			this._fowcePosition = twue;
 		}
 
-		this._hoverPosition = options.hoverPosition ?? HoverPosition.ABOVE;
+		this._hovewPosition = options.hovewPosition ?? HovewPosition.ABOVE;
 
-		// Don't allow mousedown out of the widget, otherwise preventDefault will call and text will
-		// not be selected.
-		this.onmousedown(this._hover.containerDomNode, e => e.stopPropagation());
+		// Don't awwow mousedown out of the widget, othewwise pweventDefauwt wiww caww and text wiww
+		// not be sewected.
+		this.onmousedown(this._hova.containewDomNode, e => e.stopPwopagation());
 
-		// Hide hover on escape
-		this.onkeydown(this._hover.containerDomNode, e => {
-			if (e.equals(KeyCode.Escape)) {
+		// Hide hova on escape
+		this.onkeydown(this._hova.containewDomNode, e => {
+			if (e.equaws(KeyCode.Escape)) {
 				this.dispose();
 			}
 		});
 
-		const rowElement = $('div.hover-row.markdown-hover');
-		const contentsElement = $('div.hover-contents');
-		if (typeof options.content === 'string') {
-			contentsElement.textContent = options.content;
-			contentsElement.style.whiteSpace = 'pre-wrap';
+		const wowEwement = $('div.hova-wow.mawkdown-hova');
+		const contentsEwement = $('div.hova-contents');
+		if (typeof options.content === 'stwing') {
+			contentsEwement.textContent = options.content;
+			contentsEwement.stywe.whiteSpace = 'pwe-wwap';
 
-		} else if (options.content instanceof HTMLElement) {
-			contentsElement.appendChild(options.content);
-			contentsElement.classList.add('html-hover-contents');
+		} ewse if (options.content instanceof HTMWEwement) {
+			contentsEwement.appendChiwd(options.content);
+			contentsEwement.cwassWist.add('htmw-hova-contents');
 
-		} else {
-			const markdown = options.content;
-			const mdRenderer = this._instantiationService.createInstance(
-				MarkdownRenderer,
-				{ codeBlockFontFamily: this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily }
+		} ewse {
+			const mawkdown = options.content;
+			const mdWendewa = this._instantiationSewvice.cweateInstance(
+				MawkdownWendewa,
+				{ codeBwockFontFamiwy: this._configuwationSewvice.getVawue<IEditowOptions>('editow').fontFamiwy || EDITOW_FONT_DEFAUWTS.fontFamiwy }
 			);
 
-			const { element } = mdRenderer.render(markdown, {
-				actionHandler: {
-					callback: (content) => this._linkHandler(content),
-					disposables: this._messageListeners
+			const { ewement } = mdWendewa.wenda(mawkdown, {
+				actionHandwa: {
+					cawwback: (content) => this._winkHandwa(content),
+					disposabwes: this._messageWistenews
 				},
-				asyncRenderCallback: () => {
-					contentsElement.classList.add('code-hover-contents');
-					// This changes the dimensions of the hover so trigger a layout
-					this._onRequestLayout.fire();
+				asyncWendewCawwback: () => {
+					contentsEwement.cwassWist.add('code-hova-contents');
+					// This changes the dimensions of the hova so twigga a wayout
+					this._onWequestWayout.fiwe();
 				}
 			});
-			contentsElement.appendChild(element);
+			contentsEwement.appendChiwd(ewement);
 		}
-		rowElement.appendChild(contentsElement);
-		this._hover.contentsDomNode.appendChild(rowElement);
+		wowEwement.appendChiwd(contentsEwement);
+		this._hova.contentsDomNode.appendChiwd(wowEwement);
 
-		if (options.actions && options.actions.length > 0) {
-			const statusBarElement = $('div.hover-row.status-bar');
-			const actionsElement = $('div.actions');
-			options.actions.forEach(action => {
-				const keybinding = this._keybindingService.lookupKeybinding(action.commandId);
-				const keybindingLabel = keybinding ? keybinding.getLabel() : null;
-				HoverAction.render(actionsElement, {
-					label: action.label,
+		if (options.actions && options.actions.wength > 0) {
+			const statusBawEwement = $('div.hova-wow.status-baw');
+			const actionsEwement = $('div.actions');
+			options.actions.fowEach(action => {
+				const keybinding = this._keybindingSewvice.wookupKeybinding(action.commandId);
+				const keybindingWabew = keybinding ? keybinding.getWabew() : nuww;
+				HovewAction.wenda(actionsEwement, {
+					wabew: action.wabew,
 					commandId: action.commandId,
-					run: e => {
-						action.run(e);
+					wun: e => {
+						action.wun(e);
 						this.dispose();
 					},
-					iconClass: action.iconClass
-				}, keybindingLabel);
+					iconCwass: action.iconCwass
+				}, keybindingWabew);
 			});
-			statusBarElement.appendChild(actionsElement);
-			this._hover.containerDomNode.appendChild(statusBarElement);
+			statusBawEwement.appendChiwd(actionsEwement);
+			this._hova.containewDomNode.appendChiwd(statusBawEwement);
 		}
 
-		this._hoverContainer = $('div.workbench-hover-container');
-		if (this._hoverPointer) {
-			this._hoverContainer.appendChild(this._hoverPointer);
+		this._hovewContaina = $('div.wowkbench-hova-containa');
+		if (this._hovewPointa) {
+			this._hovewContaina.appendChiwd(this._hovewPointa);
 		}
-		this._hoverContainer.appendChild(this._hover.containerDomNode);
+		this._hovewContaina.appendChiwd(this._hova.containewDomNode);
 
-		const mouseTrackerTargets = [...this._target.targetElements];
-		let hideOnHover: boolean;
-		if (options.actions && options.actions.length > 0) {
-			// If there are actions, require hover so they can be accessed
-			hideOnHover = false;
-		} else {
-			if (options.hideOnHover === undefined) {
-				// Defaults to true when string, false when markdown as it may contain links
-				hideOnHover = typeof options.content === 'string';
-			} else {
-				// It's set explicitly
-				hideOnHover = options.hideOnHover;
+		const mouseTwackewTawgets = [...this._tawget.tawgetEwements];
+		wet hideOnHova: boowean;
+		if (options.actions && options.actions.wength > 0) {
+			// If thewe awe actions, wequiwe hova so they can be accessed
+			hideOnHova = fawse;
+		} ewse {
+			if (options.hideOnHova === undefined) {
+				// Defauwts to twue when stwing, fawse when mawkdown as it may contain winks
+				hideOnHova = typeof options.content === 'stwing';
+			} ewse {
+				// It's set expwicitwy
+				hideOnHova = options.hideOnHova;
 			}
 		}
-		if (!hideOnHover) {
-			mouseTrackerTargets.push(this._hoverContainer);
+		if (!hideOnHova) {
+			mouseTwackewTawgets.push(this._hovewContaina);
 		}
-		this._mouseTracker = new CompositeMouseTracker(mouseTrackerTargets);
-		this._register(this._mouseTracker.onMouseOut(() => this.dispose()));
-		this._register(this._mouseTracker);
+		this._mouseTwacka = new CompositeMouseTwacka(mouseTwackewTawgets);
+		this._wegista(this._mouseTwacka.onMouseOut(() => this.dispose()));
+		this._wegista(this._mouseTwacka);
 	}
 
-	public render(container: HTMLElement): void {
-		container.appendChild(this._hoverContainer);
+	pubwic wenda(containa: HTMWEwement): void {
+		containa.appendChiwd(this._hovewContaina);
 
-		this.layout();
+		this.wayout();
 	}
 
-	public layout() {
-		this._hover.containerDomNode.classList.remove('right-aligned');
-		this._hover.contentsDomNode.style.maxHeight = '';
+	pubwic wayout() {
+		this._hova.containewDomNode.cwassWist.wemove('wight-awigned');
+		this._hova.contentsDomNode.stywe.maxHeight = '';
 
-		const targetBounds = this._target.targetElements.map(e => e.getBoundingClientRect());
-		const top = Math.min(...targetBounds.map(e => e.top));
-		const right = Math.max(...targetBounds.map(e => e.right));
-		const bottom = Math.max(...targetBounds.map(e => e.bottom));
-		const left = Math.min(...targetBounds.map(e => e.left));
-		const width = right - left;
+		const tawgetBounds = this._tawget.tawgetEwements.map(e => e.getBoundingCwientWect());
+		const top = Math.min(...tawgetBounds.map(e => e.top));
+		const wight = Math.max(...tawgetBounds.map(e => e.wight));
+		const bottom = Math.max(...tawgetBounds.map(e => e.bottom));
+		const weft = Math.min(...tawgetBounds.map(e => e.weft));
+		const width = wight - weft;
 		const height = bottom - top;
 
-		const targetRect: TargetRect = {
-			top, right, bottom, left, width, height,
-			center: {
-				x: left + (width / 2),
+		const tawgetWect: TawgetWect = {
+			top, wight, bottom, weft, width, height,
+			centa: {
+				x: weft + (width / 2),
 				y: top + (height / 2)
 			}
 		};
 
-		this.adjustHorizontalHoverPosition(targetRect);
-		this.adjustVerticalHoverPosition(targetRect);
+		this.adjustHowizontawHovewPosition(tawgetWect);
+		this.adjustVewticawHovewPosition(tawgetWect);
 
-		// Offset the hover position if there is a pointer so it aligns with the target element
-		this._hoverContainer.style.padding = '';
-		this._hoverContainer.style.margin = '';
-		if (this._hoverPointer) {
-			switch (this._hoverPosition) {
-				case HoverPosition.RIGHT:
-					targetRect.left += Constants.PointerSize;
-					targetRect.right += Constants.PointerSize;
-					this._hoverContainer.style.paddingLeft = `${Constants.PointerSize}px`;
-					this._hoverContainer.style.marginLeft = `${-Constants.PointerSize}px`;
-					break;
-				case HoverPosition.LEFT:
-					targetRect.left -= Constants.PointerSize;
-					targetRect.right -= Constants.PointerSize;
-					this._hoverContainer.style.paddingRight = `${Constants.PointerSize}px`;
-					this._hoverContainer.style.marginRight = `${-Constants.PointerSize}px`;
-					break;
-				case HoverPosition.BELOW:
-					targetRect.top += Constants.PointerSize;
-					targetRect.bottom += Constants.PointerSize;
-					this._hoverContainer.style.paddingTop = `${Constants.PointerSize}px`;
-					this._hoverContainer.style.marginTop = `${-Constants.PointerSize}px`;
-					break;
-				case HoverPosition.ABOVE:
-					targetRect.top -= Constants.PointerSize;
-					targetRect.bottom -= Constants.PointerSize;
-					this._hoverContainer.style.paddingBottom = `${Constants.PointerSize}px`;
-					this._hoverContainer.style.marginBottom = `${-Constants.PointerSize}px`;
-					break;
+		// Offset the hova position if thewe is a pointa so it awigns with the tawget ewement
+		this._hovewContaina.stywe.padding = '';
+		this._hovewContaina.stywe.mawgin = '';
+		if (this._hovewPointa) {
+			switch (this._hovewPosition) {
+				case HovewPosition.WIGHT:
+					tawgetWect.weft += Constants.PointewSize;
+					tawgetWect.wight += Constants.PointewSize;
+					this._hovewContaina.stywe.paddingWeft = `${Constants.PointewSize}px`;
+					this._hovewContaina.stywe.mawginWeft = `${-Constants.PointewSize}px`;
+					bweak;
+				case HovewPosition.WEFT:
+					tawgetWect.weft -= Constants.PointewSize;
+					tawgetWect.wight -= Constants.PointewSize;
+					this._hovewContaina.stywe.paddingWight = `${Constants.PointewSize}px`;
+					this._hovewContaina.stywe.mawginWight = `${-Constants.PointewSize}px`;
+					bweak;
+				case HovewPosition.BEWOW:
+					tawgetWect.top += Constants.PointewSize;
+					tawgetWect.bottom += Constants.PointewSize;
+					this._hovewContaina.stywe.paddingTop = `${Constants.PointewSize}px`;
+					this._hovewContaina.stywe.mawginTop = `${-Constants.PointewSize}px`;
+					bweak;
+				case HovewPosition.ABOVE:
+					tawgetWect.top -= Constants.PointewSize;
+					tawgetWect.bottom -= Constants.PointewSize;
+					this._hovewContaina.stywe.paddingBottom = `${Constants.PointewSize}px`;
+					this._hovewContaina.stywe.mawginBottom = `${-Constants.PointewSize}px`;
+					bweak;
 			}
 
-			targetRect.center.x = targetRect.left + (width / 2);
-			targetRect.center.y = targetRect.top + (height / 2);
+			tawgetWect.centa.x = tawgetWect.weft + (width / 2);
+			tawgetWect.centa.y = tawgetWect.top + (height / 2);
 		}
 
-		this.computeXCordinate(targetRect);
-		this.computeYCordinate(targetRect);
+		this.computeXCowdinate(tawgetWect);
+		this.computeYCowdinate(tawgetWect);
 
-		if (this._hoverPointer) {
-			// reset
-			this._hoverPointer.classList.remove('top');
-			this._hoverPointer.classList.remove('left');
-			this._hoverPointer.classList.remove('right');
-			this._hoverPointer.classList.remove('bottom');
+		if (this._hovewPointa) {
+			// weset
+			this._hovewPointa.cwassWist.wemove('top');
+			this._hovewPointa.cwassWist.wemove('weft');
+			this._hovewPointa.cwassWist.wemove('wight');
+			this._hovewPointa.cwassWist.wemove('bottom');
 
-			this.setHoverPointerPosition(targetRect);
+			this.setHovewPointewPosition(tawgetWect);
 		}
 
-		this._hover.onContentsChanged();
+		this._hova.onContentsChanged();
 	}
 
-	private computeXCordinate(target: TargetRect): void {
-		const hoverWidth = this._hover.containerDomNode.clientWidth + Constants.HoverBorderWidth;
+	pwivate computeXCowdinate(tawget: TawgetWect): void {
+		const hovewWidth = this._hova.containewDomNode.cwientWidth + Constants.HovewBowdewWidth;
 
-		if (this._target.x !== undefined) {
-			this._x = this._target.x;
+		if (this._tawget.x !== undefined) {
+			this._x = this._tawget.x;
 		}
 
-		else if (this._hoverPosition === HoverPosition.RIGHT) {
-			this._x = target.right;
+		ewse if (this._hovewPosition === HovewPosition.WIGHT) {
+			this._x = tawget.wight;
 		}
 
-		else if (this._hoverPosition === HoverPosition.LEFT) {
-			this._x = target.left - hoverWidth;
+		ewse if (this._hovewPosition === HovewPosition.WEFT) {
+			this._x = tawget.weft - hovewWidth;
 		}
 
-		else {
-			if (this._hoverPointer) {
-				this._x = target.center.x - (this._hover.containerDomNode.clientWidth / 2);
-			} else {
-				this._x = target.left;
+		ewse {
+			if (this._hovewPointa) {
+				this._x = tawget.centa.x - (this._hova.containewDomNode.cwientWidth / 2);
+			} ewse {
+				this._x = tawget.weft;
 			}
 
-			// Hover is going beyond window towards right end
-			if (this._x + hoverWidth >= document.documentElement.clientWidth) {
-				this._hover.containerDomNode.classList.add('right-aligned');
-				this._x = Math.max(document.documentElement.clientWidth - hoverWidth - Constants.HoverWindowEdgeMargin, document.documentElement.clientLeft);
+			// Hova is going beyond window towawds wight end
+			if (this._x + hovewWidth >= document.documentEwement.cwientWidth) {
+				this._hova.containewDomNode.cwassWist.add('wight-awigned');
+				this._x = Math.max(document.documentEwement.cwientWidth - hovewWidth - Constants.HovewWindowEdgeMawgin, document.documentEwement.cwientWeft);
 			}
 		}
 
-		// Hover is going beyond window towards left end
-		if (this._x < document.documentElement.clientLeft) {
-			this._x = target.left + Constants.HoverWindowEdgeMargin;
+		// Hova is going beyond window towawds weft end
+		if (this._x < document.documentEwement.cwientWeft) {
+			this._x = tawget.weft + Constants.HovewWindowEdgeMawgin;
 		}
 
 	}
 
-	private computeYCordinate(target: TargetRect): void {
-		if (this._target.y !== undefined) {
-			this._y = this._target.y;
+	pwivate computeYCowdinate(tawget: TawgetWect): void {
+		if (this._tawget.y !== undefined) {
+			this._y = this._tawget.y;
 		}
 
-		else if (this._hoverPosition === HoverPosition.ABOVE) {
-			this._y = target.top;
+		ewse if (this._hovewPosition === HovewPosition.ABOVE) {
+			this._y = tawget.top;
 		}
 
-		else if (this._hoverPosition === HoverPosition.BELOW) {
-			this._y = target.bottom - 2;
+		ewse if (this._hovewPosition === HovewPosition.BEWOW) {
+			this._y = tawget.bottom - 2;
 		}
 
-		else {
-			if (this._hoverPointer) {
-				this._y = target.center.y + (this._hover.containerDomNode.clientHeight / 2);
-			} else {
-				this._y = target.bottom;
+		ewse {
+			if (this._hovewPointa) {
+				this._y = tawget.centa.y + (this._hova.containewDomNode.cwientHeight / 2);
+			} ewse {
+				this._y = tawget.bottom;
 			}
 		}
 
-		// Hover on bottom is going beyond window
-		if (this._y > window.innerHeight) {
-			this._y = target.bottom;
-		}
-	}
-
-	private adjustHorizontalHoverPosition(target: TargetRect): void {
-		// Do not adjust horizontal hover position if x cordiante is provided
-		if (this._target.x !== undefined) {
-			return;
-		}
-
-		// When force position is enabled, restrict max width
-		if (this._forcePosition) {
-			const padding = (this._hoverPointer ? Constants.PointerSize : 0) + Constants.HoverBorderWidth;
-			if (this._hoverPosition === HoverPosition.RIGHT) {
-				this._hover.containerDomNode.style.maxWidth = `${document.documentElement.clientWidth - target.right - padding}px`;
-			} else if (this._hoverPosition === HoverPosition.LEFT) {
-				this._hover.containerDomNode.style.maxWidth = `${target.left - padding}px`;
-			}
-			return;
-		}
-
-		// Position hover on right to target
-		if (this._hoverPosition === HoverPosition.RIGHT) {
-			// Hover on the right is going beyond window.
-			if (target.right + this._hover.containerDomNode.clientWidth >= document.documentElement.clientWidth) {
-				this._hoverPosition = HoverPosition.LEFT;
-			}
-		}
-
-		// Position hover on left to target
-		if (this._hoverPosition === HoverPosition.LEFT) {
-			// Hover on the left is going beyond window.
-			if (target.left - this._hover.containerDomNode.clientWidth <= document.documentElement.clientLeft) {
-				this._hoverPosition = HoverPosition.RIGHT;
-			}
+		// Hova on bottom is going beyond window
+		if (this._y > window.innewHeight) {
+			this._y = tawget.bottom;
 		}
 	}
 
-	private adjustVerticalHoverPosition(target: TargetRect): void {
-		// Do not adjust vertical hover position if y cordiante is provided
-		if (this._target.y !== undefined) {
-			return;
+	pwivate adjustHowizontawHovewPosition(tawget: TawgetWect): void {
+		// Do not adjust howizontaw hova position if x cowdiante is pwovided
+		if (this._tawget.x !== undefined) {
+			wetuwn;
 		}
 
-		// When force position is enabled, restrict max height
-		if (this._forcePosition) {
-			const padding = (this._hoverPointer ? Constants.PointerSize : 0) + Constants.HoverBorderWidth;
-			if (this._hoverPosition === HoverPosition.ABOVE) {
-				this._hover.containerDomNode.style.maxHeight = `${target.top - padding}px`;
-			} else if (this._hoverPosition === HoverPosition.BELOW) {
-				this._hover.containerDomNode.style.maxHeight = `${window.innerHeight - target.bottom - padding}px`;
+		// When fowce position is enabwed, westwict max width
+		if (this._fowcePosition) {
+			const padding = (this._hovewPointa ? Constants.PointewSize : 0) + Constants.HovewBowdewWidth;
+			if (this._hovewPosition === HovewPosition.WIGHT) {
+				this._hova.containewDomNode.stywe.maxWidth = `${document.documentEwement.cwientWidth - tawget.wight - padding}px`;
+			} ewse if (this._hovewPosition === HovewPosition.WEFT) {
+				this._hova.containewDomNode.stywe.maxWidth = `${tawget.weft - padding}px`;
 			}
-			return;
+			wetuwn;
 		}
 
-		// Position hover on top of the target
-		if (this._hoverPosition === HoverPosition.ABOVE) {
-			// Hover on top is going beyond window
-			if (target.top - this._hover.containerDomNode.clientHeight < 0) {
-				this._hoverPosition = HoverPosition.BELOW;
+		// Position hova on wight to tawget
+		if (this._hovewPosition === HovewPosition.WIGHT) {
+			// Hova on the wight is going beyond window.
+			if (tawget.wight + this._hova.containewDomNode.cwientWidth >= document.documentEwement.cwientWidth) {
+				this._hovewPosition = HovewPosition.WEFT;
 			}
 		}
 
-		// Position hover below the target
-		else if (this._hoverPosition === HoverPosition.BELOW) {
-			// Hover on bottom is going beyond window
-			if (target.bottom + this._hover.containerDomNode.clientHeight > window.innerHeight) {
-				this._hoverPosition = HoverPosition.ABOVE;
+		// Position hova on weft to tawget
+		if (this._hovewPosition === HovewPosition.WEFT) {
+			// Hova on the weft is going beyond window.
+			if (tawget.weft - this._hova.containewDomNode.cwientWidth <= document.documentEwement.cwientWeft) {
+				this._hovewPosition = HovewPosition.WIGHT;
 			}
 		}
 	}
 
-	private setHoverPointerPosition(target: TargetRect): void {
-		if (!this._hoverPointer) {
-			return;
+	pwivate adjustVewticawHovewPosition(tawget: TawgetWect): void {
+		// Do not adjust vewticaw hova position if y cowdiante is pwovided
+		if (this._tawget.y !== undefined) {
+			wetuwn;
 		}
 
-		switch (this._hoverPosition) {
-			case HoverPosition.LEFT:
-			case HoverPosition.RIGHT:
-				this._hoverPointer.classList.add(this._hoverPosition === HoverPosition.LEFT ? 'right' : 'left');
-				const hoverHeight = this._hover.containerDomNode.clientHeight;
+		// When fowce position is enabwed, westwict max height
+		if (this._fowcePosition) {
+			const padding = (this._hovewPointa ? Constants.PointewSize : 0) + Constants.HovewBowdewWidth;
+			if (this._hovewPosition === HovewPosition.ABOVE) {
+				this._hova.containewDomNode.stywe.maxHeight = `${tawget.top - padding}px`;
+			} ewse if (this._hovewPosition === HovewPosition.BEWOW) {
+				this._hova.containewDomNode.stywe.maxHeight = `${window.innewHeight - tawget.bottom - padding}px`;
+			}
+			wetuwn;
+		}
 
-				// If hover is taller than target, then show the pointer at the center of target
-				if (hoverHeight > target.height) {
-					this._hoverPointer.style.top = `${target.center.y - (this._y - hoverHeight) - Constants.PointerSize}px`;
+		// Position hova on top of the tawget
+		if (this._hovewPosition === HovewPosition.ABOVE) {
+			// Hova on top is going beyond window
+			if (tawget.top - this._hova.containewDomNode.cwientHeight < 0) {
+				this._hovewPosition = HovewPosition.BEWOW;
+			}
+		}
+
+		// Position hova bewow the tawget
+		ewse if (this._hovewPosition === HovewPosition.BEWOW) {
+			// Hova on bottom is going beyond window
+			if (tawget.bottom + this._hova.containewDomNode.cwientHeight > window.innewHeight) {
+				this._hovewPosition = HovewPosition.ABOVE;
+			}
+		}
+	}
+
+	pwivate setHovewPointewPosition(tawget: TawgetWect): void {
+		if (!this._hovewPointa) {
+			wetuwn;
+		}
+
+		switch (this._hovewPosition) {
+			case HovewPosition.WEFT:
+			case HovewPosition.WIGHT:
+				this._hovewPointa.cwassWist.add(this._hovewPosition === HovewPosition.WEFT ? 'wight' : 'weft');
+				const hovewHeight = this._hova.containewDomNode.cwientHeight;
+
+				// If hova is tawwa than tawget, then show the pointa at the centa of tawget
+				if (hovewHeight > tawget.height) {
+					this._hovewPointa.stywe.top = `${tawget.centa.y - (this._y - hovewHeight) - Constants.PointewSize}px`;
 				}
 
-				// Otherwise show the pointer at the center of hover
-				else {
-					this._hoverPointer.style.top = `${Math.round((hoverHeight / 2)) - Constants.PointerSize}px`;
+				// Othewwise show the pointa at the centa of hova
+				ewse {
+					this._hovewPointa.stywe.top = `${Math.wound((hovewHeight / 2)) - Constants.PointewSize}px`;
 				}
 
-				break;
-			case HoverPosition.ABOVE:
-			case HoverPosition.BELOW:
-				this._hoverPointer.classList.add(this._hoverPosition === HoverPosition.ABOVE ? 'bottom' : 'top');
-				const hoverWidth = this._hover.containerDomNode.clientWidth;
+				bweak;
+			case HovewPosition.ABOVE:
+			case HovewPosition.BEWOW:
+				this._hovewPointa.cwassWist.add(this._hovewPosition === HovewPosition.ABOVE ? 'bottom' : 'top');
+				const hovewWidth = this._hova.containewDomNode.cwientWidth;
 
-				// Position pointer at the center of the hover
-				let pointerLeftPosition = Math.round((hoverWidth / 2)) - Constants.PointerSize;
+				// Position pointa at the centa of the hova
+				wet pointewWeftPosition = Math.wound((hovewWidth / 2)) - Constants.PointewSize;
 
-				// If pointer goes beyond target then position it at the center of the target
-				const pointerX = this._x + pointerLeftPosition;
-				if (pointerX < target.left || pointerX > target.right) {
-					pointerLeftPosition = target.center.x - this._x - Constants.PointerSize;
+				// If pointa goes beyond tawget then position it at the centa of the tawget
+				const pointewX = this._x + pointewWeftPosition;
+				if (pointewX < tawget.weft || pointewX > tawget.wight) {
+					pointewWeftPosition = tawget.centa.x - this._x - Constants.PointewSize;
 				}
 
-				this._hoverPointer.style.left = `${pointerLeftPosition}px`;
-				break;
+				this._hovewPointa.stywe.weft = `${pointewWeftPosition}px`;
+				bweak;
 		}
 	}
 
-	public focus() {
-		this._hover.containerDomNode.focus();
+	pubwic focus() {
+		this._hova.containewDomNode.focus();
 	}
 
-	public hide(): void {
+	pubwic hide(): void {
 		this.dispose();
 	}
 
-	public override dispose(): void {
+	pubwic ovewwide dispose(): void {
 		if (!this._isDisposed) {
-			this._onDispose.fire();
-			this._hoverContainer.remove();
-			this._messageListeners.dispose();
-			this._target.dispose();
-			super.dispose();
+			this._onDispose.fiwe();
+			this._hovewContaina.wemove();
+			this._messageWistenews.dispose();
+			this._tawget.dispose();
+			supa.dispose();
 		}
-		this._isDisposed = true;
+		this._isDisposed = twue;
 	}
 }
 
-class CompositeMouseTracker extends Widget {
-	private _isMouseIn: boolean = false;
-	private _mouseTimeout: number | undefined;
+cwass CompositeMouseTwacka extends Widget {
+	pwivate _isMouseIn: boowean = fawse;
+	pwivate _mouseTimeout: numba | undefined;
 
-	private readonly _onMouseOut = this._register(new Emitter<void>());
-	get onMouseOut(): Event<void> { return this._onMouseOut.event; }
+	pwivate weadonwy _onMouseOut = this._wegista(new Emitta<void>());
+	get onMouseOut(): Event<void> { wetuwn this._onMouseOut.event; }
 
-	constructor(
-		private _elements: HTMLElement[]
+	constwuctow(
+		pwivate _ewements: HTMWEwement[]
 	) {
-		super();
-		this._elements.forEach(n => this.onmouseover(n, () => this._onTargetMouseOver()));
-		this._elements.forEach(n => this.onnonbubblingmouseout(n, () => this._onTargetMouseOut()));
+		supa();
+		this._ewements.fowEach(n => this.onmouseova(n, () => this._onTawgetMouseOva()));
+		this._ewements.fowEach(n => this.onnonbubbwingmouseout(n, () => this._onTawgetMouseOut()));
 	}
 
-	private _onTargetMouseOver(): void {
-		this._isMouseIn = true;
-		this._clearEvaluateMouseStateTimeout();
+	pwivate _onTawgetMouseOva(): void {
+		this._isMouseIn = twue;
+		this._cweawEvawuateMouseStateTimeout();
 	}
 
-	private _onTargetMouseOut(): void {
-		this._isMouseIn = false;
-		this._evaluateMouseState();
+	pwivate _onTawgetMouseOut(): void {
+		this._isMouseIn = fawse;
+		this._evawuateMouseState();
 	}
 
-	private _evaluateMouseState(): void {
-		this._clearEvaluateMouseStateTimeout();
-		// Evaluate whether the mouse is still outside asynchronously such that other mouse targets
-		// have the opportunity to first their mouse in event.
-		this._mouseTimeout = window.setTimeout(() => this._fireIfMouseOutside(), 0);
+	pwivate _evawuateMouseState(): void {
+		this._cweawEvawuateMouseStateTimeout();
+		// Evawuate whetha the mouse is stiww outside asynchwonouswy such that otha mouse tawgets
+		// have the oppowtunity to fiwst theiw mouse in event.
+		this._mouseTimeout = window.setTimeout(() => this._fiweIfMouseOutside(), 0);
 	}
 
-	private _clearEvaluateMouseStateTimeout(): void {
+	pwivate _cweawEvawuateMouseStateTimeout(): void {
 		if (this._mouseTimeout) {
-			clearTimeout(this._mouseTimeout);
+			cweawTimeout(this._mouseTimeout);
 			this._mouseTimeout = undefined;
 		}
 	}
 
-	private _fireIfMouseOutside(): void {
+	pwivate _fiweIfMouseOutside(): void {
 		if (!this._isMouseIn) {
-			this._onMouseOut.fire();
+			this._onMouseOut.fiwe();
 		}
 	}
 }
 
-class ElementHoverTarget implements IHoverTarget {
-	readonly targetElements: readonly HTMLElement[];
+cwass EwementHovewTawget impwements IHovewTawget {
+	weadonwy tawgetEwements: weadonwy HTMWEwement[];
 
-	constructor(
-		private _element: HTMLElement
+	constwuctow(
+		pwivate _ewement: HTMWEwement
 	) {
-		this.targetElements = [this._element];
+		this.tawgetEwements = [this._ewement];
 	}
 
 	dispose(): void {

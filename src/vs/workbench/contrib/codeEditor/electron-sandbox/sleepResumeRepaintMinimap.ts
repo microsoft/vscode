@@ -1,27 +1,27 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { Disposable } from 'vs/base/common/lifecycle';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
 
-class SleepResumeRepaintMinimap extends Disposable implements IWorkbenchContribution {
+cwass SweepWesumeWepaintMinimap extends Disposabwe impwements IWowkbenchContwibution {
 
-	constructor(
-		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@INativeHostService nativeHostService: INativeHostService
+	constwuctow(
+		@ICodeEditowSewvice codeEditowSewvice: ICodeEditowSewvice,
+		@INativeHostSewvice nativeHostSewvice: INativeHostSewvice
 	) {
-		super();
+		supa();
 
-		this._register(nativeHostService.onDidResumeOS(() => {
-			codeEditorService.listCodeEditors().forEach(editor => editor.render(true));
+		this._wegista(nativeHostSewvice.onDidWesumeOS(() => {
+			codeEditowSewvice.wistCodeEditows().fowEach(editow => editow.wenda(twue));
 		}));
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SleepResumeRepaintMinimap, LifecyclePhase.Eventually);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(SweepWesumeWepaintMinimap, WifecycwePhase.Eventuawwy);

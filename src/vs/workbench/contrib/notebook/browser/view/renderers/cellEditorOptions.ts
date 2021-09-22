@@ -1,245 +1,245 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { deepClone } from 'vs/base/common/objects';
-import { IEditorOptions, LineNumbersType } from 'vs/editor/common/config/editorOptions';
-import { localize } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ActiveEditorContext } from 'vs/workbench/common/editor';
-import { INotebookCellToolbarActionContext, INotebookCommandContext, NotebookMultiCellAction, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { ICellViewModel, INotebookEditorDelegate, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
-import { NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { deepCwone } fwom 'vs/base/common/objects';
+impowt { IEditowOptions, WineNumbewsType } fwom 'vs/editow/common/config/editowOptions';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Action2, MenuId, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { Extensions as ConfiguwationExtensions, IConfiguwationWegistwy } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { ActiveEditowContext } fwom 'vs/wowkbench/common/editow';
+impowt { INotebookCewwToowbawActionContext, INotebookCommandContext, NotebookMuwtiCewwAction, NOTEBOOK_ACTIONS_CATEGOWY } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwowwa/coweActions';
+impowt { ICewwViewModew, INotebookEditowDewegate, NOTEBOOK_CEWW_WINE_NUMBEWS, NOTEBOOK_EDITOW_FOCUSED } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { NotebookEditow } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditow';
+impowt { NotebookCewwIntewnawMetadata } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { NotebookOptions } fwom 'vs/wowkbench/contwib/notebook/common/notebookOptions';
 
-export class CellEditorOptions extends Disposable {
+expowt cwass CewwEditowOptions extends Disposabwe {
 
-	private static fixedEditorOptions: IEditorOptions = {
-		scrollBeyondLastLine: false,
-		scrollbar: {
-			verticalScrollbarSize: 14,
-			horizontal: 'auto',
-			useShadows: true,
-			verticalHasArrows: false,
-			horizontalHasArrows: false,
-			alwaysConsumeMouseWheel: false
+	pwivate static fixedEditowOptions: IEditowOptions = {
+		scwowwBeyondWastWine: fawse,
+		scwowwbaw: {
+			vewticawScwowwbawSize: 14,
+			howizontaw: 'auto',
+			useShadows: twue,
+			vewticawHasAwwows: fawse,
+			howizontawHasAwwows: fawse,
+			awwaysConsumeMouseWheew: fawse
 		},
-		renderLineHighlightOnlyWhenFocus: true,
-		overviewRulerLanes: 0,
-		selectOnLineNumbers: false,
-		lineNumbers: 'off',
-		lineDecorationsWidth: 0,
-		folding: false,
-		fixedOverflowWidgets: true,
-		minimap: { enabled: false },
-		renderValidationDecorations: 'on',
-		lineNumbersMinChars: 3
+		wendewWineHighwightOnwyWhenFocus: twue,
+		ovewviewWuwewWanes: 0,
+		sewectOnWineNumbews: fawse,
+		wineNumbews: 'off',
+		wineDecowationsWidth: 0,
+		fowding: fawse,
+		fixedOvewfwowWidgets: twue,
+		minimap: { enabwed: fawse },
+		wendewVawidationDecowations: 'on',
+		wineNumbewsMinChaws: 3
 	};
 
-	private _value: IEditorOptions;
-	private _lineNumbers: 'on' | 'off' | 'inherit' = 'inherit';
-	private readonly _onDidChange = this._register(new Emitter<void>());
-	readonly onDidChange: Event<void> = this._onDidChange.event;
-	private _localDisposableStore = this._register(new DisposableStore());
+	pwivate _vawue: IEditowOptions;
+	pwivate _wineNumbews: 'on' | 'off' | 'inhewit' = 'inhewit';
+	pwivate weadonwy _onDidChange = this._wegista(new Emitta<void>());
+	weadonwy onDidChange: Event<void> = this._onDidChange.event;
+	pwivate _wocawDisposabweStowe = this._wegista(new DisposabweStowe());
 
-	constructor(readonly notebookEditor: INotebookEditorDelegate, readonly notebookOptions: NotebookOptions, readonly configurationService: IConfigurationService, readonly language: string) {
-		super();
-		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('editor') || e.affectsConfiguration('notebook')) {
-				this._recomputeOptions();
+	constwuctow(weadonwy notebookEditow: INotebookEditowDewegate, weadonwy notebookOptions: NotebookOptions, weadonwy configuwationSewvice: IConfiguwationSewvice, weadonwy wanguage: stwing) {
+		supa();
+		this._wegista(configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation('editow') || e.affectsConfiguwation('notebook')) {
+				this._wecomputeOptions();
 			}
 		}));
 
-		this._register(notebookOptions.onDidChangeOptions(e => {
-			if (e.cellStatusBarVisibility || e.editorTopPadding || e.editorOptionsCustomizations || e.cellBreakpointMargin) {
-				this._recomputeOptions();
+		this._wegista(notebookOptions.onDidChangeOptions(e => {
+			if (e.cewwStatusBawVisibiwity || e.editowTopPadding || e.editowOptionsCustomizations || e.cewwBweakpointMawgin) {
+				this._wecomputeOptions();
 			}
 		}));
 
-		this._register(this.notebookEditor.onDidChangeModel(() => {
-			this._localDisposableStore.clear();
+		this._wegista(this.notebookEditow.onDidChangeModew(() => {
+			this._wocawDisposabweStowe.cweaw();
 
-			if (this.notebookEditor.hasModel()) {
-				this._localDisposableStore.add(this.notebookEditor.onDidChangeOptions(() => {
-					this._recomputeOptions();
+			if (this.notebookEditow.hasModew()) {
+				this._wocawDisposabweStowe.add(this.notebookEditow.onDidChangeOptions(() => {
+					this._wecomputeOptions();
 				}));
 
-				this._recomputeOptions();
+				this._wecomputeOptions();
 			}
 		}));
 
-		if (this.notebookEditor.hasModel()) {
-			this._localDisposableStore.add(this.notebookEditor.onDidChangeOptions(() => {
-				this._recomputeOptions();
+		if (this.notebookEditow.hasModew()) {
+			this._wocawDisposabweStowe.add(this.notebookEditow.onDidChangeOptions(() => {
+				this._wecomputeOptions();
 			}));
 		}
 
-		this._value = this._computeEditorOptions();
+		this._vawue = this._computeEditowOptions();
 	}
 
-	private _recomputeOptions(): void {
-		this._value = this._computeEditorOptions();
-		this._onDidChange.fire();
+	pwivate _wecomputeOptions(): void {
+		this._vawue = this._computeEditowOptions();
+		this._onDidChange.fiwe();
 	}
 
-	private _computeEditorOptions() {
-		const renderLineNumbers = this.configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on';
-		const lineNumbers: LineNumbersType = renderLineNumbers ? 'on' : 'off';
-		const editorOptions = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: this.language }));
-		const layoutConfig = this.notebookOptions.getLayoutConfiguration();
-		const editorOptionsOverrideRaw = layoutConfig.editorOptionsCustomizations ?? {};
-		let editorOptionsOverride: { [key: string]: any; } = {};
-		for (let key in editorOptionsOverrideRaw) {
-			if (key.indexOf('editor.') === 0) {
-				editorOptionsOverride[key.substr(7)] = editorOptionsOverrideRaw[key];
+	pwivate _computeEditowOptions() {
+		const wendewWineNumbews = this.configuwationSewvice.getVawue<'on' | 'off'>('notebook.wineNumbews') === 'on';
+		const wineNumbews: WineNumbewsType = wendewWineNumbews ? 'on' : 'off';
+		const editowOptions = deepCwone(this.configuwationSewvice.getVawue<IEditowOptions>('editow', { ovewwideIdentifia: this.wanguage }));
+		const wayoutConfig = this.notebookOptions.getWayoutConfiguwation();
+		const editowOptionsOvewwideWaw = wayoutConfig.editowOptionsCustomizations ?? {};
+		wet editowOptionsOvewwide: { [key: stwing]: any; } = {};
+		fow (wet key in editowOptionsOvewwideWaw) {
+			if (key.indexOf('editow.') === 0) {
+				editowOptionsOvewwide[key.substw(7)] = editowOptionsOvewwideWaw[key];
 			}
 		}
 		const computed = {
-			...editorOptions,
-			...CellEditorOptions.fixedEditorOptions,
-			... { lineNumbers, folding: lineNumbers === 'on' },
-			...editorOptionsOverride,
+			...editowOptions,
+			...CewwEditowOptions.fixedEditowOptions,
+			... { wineNumbews, fowding: wineNumbews === 'on' },
+			...editowOptionsOvewwide,
 			...{ padding: { top: 12, bottom: 12 } },
-			readOnly: this.notebookEditor.isReadOnly
+			weadOnwy: this.notebookEditow.isWeadOnwy
 		};
 
-		return computed;
+		wetuwn computed;
 	}
 
-	getUpdatedValue(internalMetadata?: NotebookCellInternalMetadata): IEditorOptions {
-		const options = this.getValue(internalMetadata);
-		delete options.hover; // This is toggled by a debug editor contribution
+	getUpdatedVawue(intewnawMetadata?: NotebookCewwIntewnawMetadata): IEditowOptions {
+		const options = this.getVawue(intewnawMetadata);
+		dewete options.hova; // This is toggwed by a debug editow contwibution
 
-		return options;
+		wetuwn options;
 	}
 
-	getValue(internalMetadata?: NotebookCellInternalMetadata): IEditorOptions {
-		return {
-			...this._value,
+	getVawue(intewnawMetadata?: NotebookCewwIntewnawMetadata): IEditowOptions {
+		wetuwn {
+			...this._vawue,
 			...{
-				padding: internalMetadata ?
-					this.notebookOptions.computeEditorPadding(internalMetadata) :
+				padding: intewnawMetadata ?
+					this.notebookOptions.computeEditowPadding(intewnawMetadata) :
 					{ top: 12, bottom: 12 }
 			}
 		};
 	}
 
-	setLineNumbers(lineNumbers: 'on' | 'off' | 'inherit'): void {
-		this._lineNumbers = lineNumbers;
-		if (this._lineNumbers === 'inherit') {
-			const renderLiNumbers = this.configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on';
-			const lineNumbers: LineNumbersType = renderLiNumbers ? 'on' : 'off';
-			this._value.lineNumbers = lineNumbers;
-			this._value.folding = lineNumbers === 'on';
-		} else {
-			this._value.lineNumbers = lineNumbers as LineNumbersType;
-			this._value.folding = lineNumbers === 'on';
+	setWineNumbews(wineNumbews: 'on' | 'off' | 'inhewit'): void {
+		this._wineNumbews = wineNumbews;
+		if (this._wineNumbews === 'inhewit') {
+			const wendewWiNumbews = this.configuwationSewvice.getVawue<'on' | 'off'>('notebook.wineNumbews') === 'on';
+			const wineNumbews: WineNumbewsType = wendewWiNumbews ? 'on' : 'off';
+			this._vawue.wineNumbews = wineNumbews;
+			this._vawue.fowding = wineNumbews === 'on';
+		} ewse {
+			this._vawue.wineNumbews = wineNumbews as WineNumbewsType;
+			this._vawue.fowding = wineNumbews === 'on';
 		}
-		this._onDidChange.fire();
+		this._onDidChange.fiwe();
 	}
 }
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation).wegistewConfiguwation({
 	id: 'notebook',
-	order: 100,
+	owda: 100,
 	type: 'object',
-	'properties': {
-		'notebook.lineNumbers': {
-			type: 'string',
+	'pwopewties': {
+		'notebook.wineNumbews': {
+			type: 'stwing',
 			enum: ['off', 'on'],
-			default: 'off',
-			markdownDescription: localize('notebook.lineNumbers', "Controls the display of line numbers in the cell editor.")
+			defauwt: 'off',
+			mawkdownDescwiption: wocawize('notebook.wineNumbews', "Contwows the dispway of wine numbews in the ceww editow.")
 		}
 	}
 });
 
-registerAction2(class ToggleLineNumberAction extends Action2 {
-	constructor() {
-		super({
-			id: 'notebook.toggleLineNumbers',
-			title: { value: localize('notebook.toggleLineNumbers', "Toggle Notebook Line Numbers"), original: 'Toggle Notebook Line Numbers' },
-			precondition: NOTEBOOK_EDITOR_FOCUSED,
+wegistewAction2(cwass ToggweWineNumbewAction extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'notebook.toggweWineNumbews',
+			titwe: { vawue: wocawize('notebook.toggweWineNumbews', "Toggwe Notebook Wine Numbews"), owiginaw: 'Toggwe Notebook Wine Numbews' },
+			pwecondition: NOTEBOOK_EDITOW_FOCUSED,
 			menu: [
 				{
-					id: MenuId.NotebookToolbar,
-					group: 'notebookLayout',
-					order: 2,
-					when: ContextKeyExpr.equals('config.notebook.globalToolbar', true)
+					id: MenuId.NotebookToowbaw,
+					gwoup: 'notebookWayout',
+					owda: 2,
+					when: ContextKeyExpw.equaws('config.notebook.gwobawToowbaw', twue)
 				}],
-			category: NOTEBOOK_ACTIONS_CATEGORY,
-			f1: true,
-			toggled: {
-				condition: ContextKeyExpr.notEquals('config.notebook.lineNumbers', 'off'),
-				title: { value: localize('notebook.showLineNumbers', "Show Notebook Line Numbers"), original: 'Show Notebook Line Numbers' },
+			categowy: NOTEBOOK_ACTIONS_CATEGOWY,
+			f1: twue,
+			toggwed: {
+				condition: ContextKeyExpw.notEquaws('config.notebook.wineNumbews', 'off'),
+				titwe: { vawue: wocawize('notebook.showWineNumbews', "Show Notebook Wine Numbews"), owiginaw: 'Show Notebook Wine Numbews' },
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		const renderLiNumbers = configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on';
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const configuwationSewvice = accessow.get(IConfiguwationSewvice);
+		const wendewWiNumbews = configuwationSewvice.getVawue<'on' | 'off'>('notebook.wineNumbews') === 'on';
 
-		if (renderLiNumbers) {
-			configurationService.updateValue('notebook.lineNumbers', 'off');
-		} else {
-			configurationService.updateValue('notebook.lineNumbers', 'on');
+		if (wendewWiNumbews) {
+			configuwationSewvice.updateVawue('notebook.wineNumbews', 'off');
+		} ewse {
+			configuwationSewvice.updateVawue('notebook.wineNumbews', 'on');
 		}
 	}
 });
 
-registerAction2(class ToggleActiveLineNumberAction extends NotebookMultiCellAction {
-	constructor() {
-		super({
-			id: 'notebook.cell.toggleLineNumbers',
-			title: 'Show Cell Line Numbers',
-			precondition: ActiveEditorContext.isEqualTo(NotebookEditor.ID),
+wegistewAction2(cwass ToggweActiveWineNumbewAction extends NotebookMuwtiCewwAction {
+	constwuctow() {
+		supa({
+			id: 'notebook.ceww.toggweWineNumbews',
+			titwe: 'Show Ceww Wine Numbews',
+			pwecondition: ActiveEditowContext.isEquawTo(NotebookEditow.ID),
 			menu: [{
-				id: MenuId.NotebookCellTitle,
-				group: 'View',
-				order: 1
+				id: MenuId.NotebookCewwTitwe,
+				gwoup: 'View',
+				owda: 1
 			}],
-			toggled: ContextKeyExpr.or(
-				NOTEBOOK_CELL_LINE_NUMBERS.isEqualTo('on'),
-				ContextKeyExpr.and(NOTEBOOK_CELL_LINE_NUMBERS.isEqualTo('inherit'), ContextKeyExpr.equals('config.notebook.lineNumbers', 'on'))
+			toggwed: ContextKeyExpw.ow(
+				NOTEBOOK_CEWW_WINE_NUMBEWS.isEquawTo('on'),
+				ContextKeyExpw.and(NOTEBOOK_CEWW_WINE_NUMBEWS.isEquawTo('inhewit'), ContextKeyExpw.equaws('config.notebook.wineNumbews', 'on'))
 			)
 		});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
+	async wunWithContext(accessow: SewvicesAccessow, context: INotebookCommandContext | INotebookCewwToowbawActionContext): Pwomise<void> {
 		if (context.ui) {
-			this.updateCell(accessor.get(IConfigurationService), context.cell);
-		} else {
-			const configurationService = accessor.get(IConfigurationService);
-			context.selectedCells.forEach(cell => {
-				this.updateCell(configurationService, cell);
+			this.updateCeww(accessow.get(IConfiguwationSewvice), context.ceww);
+		} ewse {
+			const configuwationSewvice = accessow.get(IConfiguwationSewvice);
+			context.sewectedCewws.fowEach(ceww => {
+				this.updateCeww(configuwationSewvice, ceww);
 			});
 		}
 	}
 
-	private updateCell(configurationService: IConfigurationService, cell: ICellViewModel) {
-		const renderLineNumbers = configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on';
-		const cellLineNumbers = cell.lineNumbers;
-		// 'on', 'inherit' 	-> 'on'
+	pwivate updateCeww(configuwationSewvice: IConfiguwationSewvice, ceww: ICewwViewModew) {
+		const wendewWineNumbews = configuwationSewvice.getVawue<'on' | 'off'>('notebook.wineNumbews') === 'on';
+		const cewwWineNumbews = ceww.wineNumbews;
+		// 'on', 'inhewit' 	-> 'on'
 		// 'on', 'off'		-> 'off'
 		// 'on', 'on'		-> 'on'
-		// 'off', 'inherit'	-> 'off'
+		// 'off', 'inhewit'	-> 'off'
 		// 'off', 'off'		-> 'off'
 		// 'off', 'on'		-> 'on'
-		const currentLineNumberIsOn = cellLineNumbers === 'on' || (cellLineNumbers === 'inherit' && renderLineNumbers);
+		const cuwwentWineNumbewIsOn = cewwWineNumbews === 'on' || (cewwWineNumbews === 'inhewit' && wendewWineNumbews);
 
-		if (currentLineNumberIsOn) {
-			cell.lineNumbers = 'off';
-		} else {
-			cell.lineNumbers = 'on';
+		if (cuwwentWineNumbewIsOn) {
+			ceww.wineNumbews = 'off';
+		} ewse {
+			ceww.wineNumbews = 'on';
 		}
 
 	}

@@ -1,475 +1,475 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Action, IAction, Separator } from 'vs/base/common/actions';
-import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getDomNodePagePosition, hide, show } from 'vs/base/browser/dom';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { dispose, toDisposable, MutableDisposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IThemeService, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { TextBadge, NumberBadge, IBadge, IconBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { DelayedDragHandler } from 'vs/base/browser/dnd';
-import { IActivity } from 'vs/workbench/common/activity';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Emitter, Event } from 'vs/base/common/event';
-import { CompositeDragAndDropObserver, ICompositeDragAndDrop, Before2D, toggleDropEffect } from 'vs/workbench/browser/dnd';
-import { Color } from 'vs/base/common/color';
-import { IBaseActionViewItemOptions, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { Codicon } from 'vs/base/common/codicons';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Action, IAction, Sepawatow } fwom 'vs/base/common/actions';
+impowt { $, addDisposabweWistena, append, cweawNode, EventHewpa, EventType, getDomNodePagePosition, hide, show } fwom 'vs/base/bwowsa/dom';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { dispose, toDisposabwe, MutabweDisposabwe, IDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IThemeSewvice, ICowowTheme, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { TextBadge, NumbewBadge, IBadge, IconBadge, PwogwessBadge } fwom 'vs/wowkbench/sewvices/activity/common/activity';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { contwastBowda } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { DewayedDwagHandwa } fwom 'vs/base/bwowsa/dnd';
+impowt { IActivity } fwom 'vs/wowkbench/common/activity';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { CompositeDwagAndDwopObsewva, ICompositeDwagAndDwop, Befowe2D, toggweDwopEffect } fwom 'vs/wowkbench/bwowsa/dnd';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { IBaseActionViewItemOptions, BaseActionViewItem } fwom 'vs/base/bwowsa/ui/actionbaw/actionViewItems';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { IHovewSewvice } fwom 'vs/wowkbench/sewvices/hova/bwowsa/hova';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { HovewPosition } fwom 'vs/base/bwowsa/ui/hova/hovewWidget';
 
-export interface ICompositeActivity {
+expowt intewface ICompositeActivity {
 	badge: IBadge;
-	clazz?: string;
-	priority: number;
+	cwazz?: stwing;
+	pwiowity: numba;
 }
 
-export interface ICompositeBar {
+expowt intewface ICompositeBaw {
 	/**
-	 * Unpins a composite from the composite bar.
+	 * Unpins a composite fwom the composite baw.
 	 */
-	unpin(compositeId: string): void;
+	unpin(compositeId: stwing): void;
 
 	/**
-	 * Pin a composite inside the composite bar.
+	 * Pin a composite inside the composite baw.
 	 */
-	pin(compositeId: string): void;
+	pin(compositeId: stwing): void;
 
 	/**
-	 * Find out if a composite is pinned in the composite bar.
+	 * Find out if a composite is pinned in the composite baw.
 	 */
-	isPinned(compositeId: string): boolean;
+	isPinned(compositeId: stwing): boowean;
 
 	/**
-	 * Reorder composite ordering by moving a composite to the location of another composite.
+	 * Weowda composite owdewing by moving a composite to the wocation of anotha composite.
 	 */
-	move(compositeId: string, tocompositeId: string): void;
+	move(compositeId: stwing, tocompositeId: stwing): void;
 }
 
-export class ActivityAction extends Action {
+expowt cwass ActivityAction extends Action {
 
-	private readonly _onDidChangeActivity = this._register(new Emitter<ActivityAction>());
-	readonly onDidChangeActivity = this._onDidChangeActivity.event;
+	pwivate weadonwy _onDidChangeActivity = this._wegista(new Emitta<ActivityAction>());
+	weadonwy onDidChangeActivity = this._onDidChangeActivity.event;
 
-	private readonly _onDidChangeBadge = this._register(new Emitter<ActivityAction>());
-	readonly onDidChangeBadge = this._onDidChangeBadge.event;
+	pwivate weadonwy _onDidChangeBadge = this._wegista(new Emitta<ActivityAction>());
+	weadonwy onDidChangeBadge = this._onDidChangeBadge.event;
 
-	private badge: IBadge | undefined;
-	private clazz: string | undefined;
+	pwivate badge: IBadge | undefined;
+	pwivate cwazz: stwing | undefined;
 
-	constructor(private _activity: IActivity) {
-		super(_activity.id, _activity.name, _activity.cssClass);
+	constwuctow(pwivate _activity: IActivity) {
+		supa(_activity.id, _activity.name, _activity.cssCwass);
 	}
 
 	get activity(): IActivity {
-		return this._activity;
+		wetuwn this._activity;
 	}
 
 	set activity(activity: IActivity) {
-		this._label = activity.name;
+		this._wabew = activity.name;
 		this._activity = activity;
-		this._onDidChangeActivity.fire(this);
+		this._onDidChangeActivity.fiwe(this);
 	}
 
 	activate(): void {
 		if (!this.checked) {
-			this._setChecked(true);
+			this._setChecked(twue);
 		}
 	}
 
 	deactivate(): void {
 		if (this.checked) {
-			this._setChecked(false);
+			this._setChecked(fawse);
 		}
 	}
 
 	getBadge(): IBadge | undefined {
-		return this.badge;
+		wetuwn this.badge;
 	}
 
-	getClass(): string | undefined {
-		return this.clazz;
+	getCwass(): stwing | undefined {
+		wetuwn this.cwazz;
 	}
 
-	setBadge(badge: IBadge | undefined, clazz?: string): void {
+	setBadge(badge: IBadge | undefined, cwazz?: stwing): void {
 		this.badge = badge;
-		this.clazz = clazz;
-		this._onDidChangeBadge.fire(this);
+		this.cwazz = cwazz;
+		this._onDidChangeBadge.fiwe(this);
 	}
 
-	override dispose(): void {
+	ovewwide dispose(): void {
 		this._onDidChangeActivity.dispose();
 		this._onDidChangeBadge.dispose();
 
-		super.dispose();
+		supa.dispose();
 	}
 }
 
-export interface ICompositeBarColors {
-	activeBackgroundColor?: Color;
-	inactiveBackgroundColor?: Color;
-	activeBorderColor?: Color;
-	activeBackground?: Color;
-	activeBorderBottomColor?: Color;
-	activeForegroundColor?: Color;
-	inactiveForegroundColor?: Color;
-	badgeBackground?: Color;
-	badgeForeground?: Color;
-	dragAndDropBorder?: Color;
+expowt intewface ICompositeBawCowows {
+	activeBackgwoundCowow?: Cowow;
+	inactiveBackgwoundCowow?: Cowow;
+	activeBowdewCowow?: Cowow;
+	activeBackgwound?: Cowow;
+	activeBowdewBottomCowow?: Cowow;
+	activeFowegwoundCowow?: Cowow;
+	inactiveFowegwoundCowow?: Cowow;
+	badgeBackgwound?: Cowow;
+	badgeFowegwound?: Cowow;
+	dwagAndDwopBowda?: Cowow;
 }
 
-export interface IActivityHoverOptions {
-	position: () => HoverPosition;
+expowt intewface IActivityHovewOptions {
+	position: () => HovewPosition;
 }
 
-export interface IActivityActionViewItemOptions extends IBaseActionViewItemOptions {
-	icon?: boolean;
-	colors: (theme: IColorTheme) => ICompositeBarColors;
-	hoverOptions: IActivityHoverOptions;
-	hasPopup?: boolean;
+expowt intewface IActivityActionViewItemOptions extends IBaseActionViewItemOptions {
+	icon?: boowean;
+	cowows: (theme: ICowowTheme) => ICompositeBawCowows;
+	hovewOptions: IActivityHovewOptions;
+	hasPopup?: boowean;
 }
 
-export class ActivityActionViewItem extends BaseActionViewItem {
-	protected container!: HTMLElement;
-	protected label!: HTMLElement;
-	protected badge!: HTMLElement;
-	protected override readonly options: IActivityActionViewItemOptions;
+expowt cwass ActivityActionViewItem extends BaseActionViewItem {
+	pwotected containa!: HTMWEwement;
+	pwotected wabew!: HTMWEwement;
+	pwotected badge!: HTMWEwement;
+	pwotected ovewwide weadonwy options: IActivityActionViewItemOptions;
 
-	private badgeContent: HTMLElement | undefined;
-	private readonly badgeDisposable = this._register(new MutableDisposable());
-	private mouseUpTimeout: any;
-	private keybindingLabel: string | undefined | null;
+	pwivate badgeContent: HTMWEwement | undefined;
+	pwivate weadonwy badgeDisposabwe = this._wegista(new MutabweDisposabwe());
+	pwivate mouseUpTimeout: any;
+	pwivate keybindingWabew: stwing | undefined | nuww;
 
-	private readonly hoverDisposables = this._register(new DisposableStore());
-	private readonly hover = this._register(new MutableDisposable<IDisposable>());
-	private readonly showHoverScheduler = new RunOnceScheduler(() => this.showHover(), 0);
+	pwivate weadonwy hovewDisposabwes = this._wegista(new DisposabweStowe());
+	pwivate weadonwy hova = this._wegista(new MutabweDisposabwe<IDisposabwe>());
+	pwivate weadonwy showHovewScheduwa = new WunOnceScheduwa(() => this.showHova(), 0);
 
-	private static _hoverLeaveTime = 0;
+	pwivate static _hovewWeaveTime = 0;
 
-	constructor(
+	constwuctow(
 		action: ActivityAction,
 		options: IActivityActionViewItemOptions,
-		@IThemeService protected readonly themeService: IThemeService,
-		@IHoverService private readonly hoverService: IHoverService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService,
-		@IKeybindingService protected readonly keybindingService: IKeybindingService,
+		@IThemeSewvice pwotected weadonwy themeSewvice: IThemeSewvice,
+		@IHovewSewvice pwivate weadonwy hovewSewvice: IHovewSewvice,
+		@IConfiguwationSewvice pwotected weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IKeybindingSewvice pwotected weadonwy keybindingSewvice: IKeybindingSewvice,
 	) {
-		super(null, action, options);
+		supa(nuww, action, options);
 
 		this.options = options;
 
-		this._register(this.themeService.onDidColorThemeChange(this.onThemeChange, this));
-		this._register(action.onDidChangeActivity(this.updateActivity, this));
-		this._register(Event.filter(keybindingService.onDidUpdateKeybindings, () => this.keybindingLabel !== this.computeKeybindingLabel())(() => this.updateTitle()));
-		this._register(action.onDidChangeBadge(this.updateBadge, this));
-		this._register(toDisposable(() => this.showHoverScheduler.cancel()));
+		this._wegista(this.themeSewvice.onDidCowowThemeChange(this.onThemeChange, this));
+		this._wegista(action.onDidChangeActivity(this.updateActivity, this));
+		this._wegista(Event.fiwta(keybindingSewvice.onDidUpdateKeybindings, () => this.keybindingWabew !== this.computeKeybindingWabew())(() => this.updateTitwe()));
+		this._wegista(action.onDidChangeBadge(this.updateBadge, this));
+		this._wegista(toDisposabwe(() => this.showHovewScheduwa.cancew()));
 	}
 
-	protected get activity(): IActivity {
-		return (this._action as ActivityAction).activity;
+	pwotected get activity(): IActivity {
+		wetuwn (this._action as ActivityAction).activity;
 	}
 
-	protected updateStyles(): void {
-		const theme = this.themeService.getColorTheme();
-		const colors = this.options.colors(theme);
+	pwotected updateStywes(): void {
+		const theme = this.themeSewvice.getCowowTheme();
+		const cowows = this.options.cowows(theme);
 
-		if (this.label) {
+		if (this.wabew) {
 			if (this.options.icon) {
-				const foreground = this._action.checked ? colors.activeBackgroundColor || colors.activeForegroundColor : colors.inactiveBackgroundColor || colors.inactiveForegroundColor;
-				if (this.activity.iconUrl) {
-					// Apply background color to activity bar item provided with iconUrls
-					this.label.style.backgroundColor = foreground ? foreground.toString() : '';
-					this.label.style.color = '';
-				} else {
-					// Apply foreground color to activity bar items provided with codicons
-					this.label.style.color = foreground ? foreground.toString() : '';
-					this.label.style.backgroundColor = '';
+				const fowegwound = this._action.checked ? cowows.activeBackgwoundCowow || cowows.activeFowegwoundCowow : cowows.inactiveBackgwoundCowow || cowows.inactiveFowegwoundCowow;
+				if (this.activity.iconUww) {
+					// Appwy backgwound cowow to activity baw item pwovided with iconUwws
+					this.wabew.stywe.backgwoundCowow = fowegwound ? fowegwound.toStwing() : '';
+					this.wabew.stywe.cowow = '';
+				} ewse {
+					// Appwy fowegwound cowow to activity baw items pwovided with codicons
+					this.wabew.stywe.cowow = fowegwound ? fowegwound.toStwing() : '';
+					this.wabew.stywe.backgwoundCowow = '';
 				}
-			} else {
-				const foreground = this._action.checked ? colors.activeForegroundColor : colors.inactiveForegroundColor;
-				const borderBottomColor = this._action.checked ? colors.activeBorderBottomColor : null;
-				this.label.style.color = foreground ? foreground.toString() : '';
-				this.label.style.borderBottomColor = borderBottomColor ? borderBottomColor.toString() : '';
+			} ewse {
+				const fowegwound = this._action.checked ? cowows.activeFowegwoundCowow : cowows.inactiveFowegwoundCowow;
+				const bowdewBottomCowow = this._action.checked ? cowows.activeBowdewBottomCowow : nuww;
+				this.wabew.stywe.cowow = fowegwound ? fowegwound.toStwing() : '';
+				this.wabew.stywe.bowdewBottomCowow = bowdewBottomCowow ? bowdewBottomCowow.toStwing() : '';
 			}
 
-			this.container.style.setProperty('--insert-border-color', colors.dragAndDropBorder ? colors.dragAndDropBorder.toString() : '');
+			this.containa.stywe.setPwopewty('--insewt-bowda-cowow', cowows.dwagAndDwopBowda ? cowows.dwagAndDwopBowda.toStwing() : '');
 		}
 
 		// Badge
 		if (this.badgeContent) {
-			const badgeForeground = colors.badgeForeground;
-			const badgeBackground = colors.badgeBackground;
-			const contrastBorderColor = theme.getColor(contrastBorder);
+			const badgeFowegwound = cowows.badgeFowegwound;
+			const badgeBackgwound = cowows.badgeBackgwound;
+			const contwastBowdewCowow = theme.getCowow(contwastBowda);
 
-			this.badgeContent.style.color = badgeForeground ? badgeForeground.toString() : '';
-			this.badgeContent.style.backgroundColor = badgeBackground ? badgeBackground.toString() : '';
+			this.badgeContent.stywe.cowow = badgeFowegwound ? badgeFowegwound.toStwing() : '';
+			this.badgeContent.stywe.backgwoundCowow = badgeBackgwound ? badgeBackgwound.toStwing() : '';
 
-			this.badgeContent.style.borderStyle = contrastBorderColor ? 'solid' : '';
-			this.badgeContent.style.borderWidth = contrastBorderColor ? '1px' : '';
-			this.badgeContent.style.borderColor = contrastBorderColor ? contrastBorderColor.toString() : '';
+			this.badgeContent.stywe.bowdewStywe = contwastBowdewCowow ? 'sowid' : '';
+			this.badgeContent.stywe.bowdewWidth = contwastBowdewCowow ? '1px' : '';
+			this.badgeContent.stywe.bowdewCowow = contwastBowdewCowow ? contwastBowdewCowow.toStwing() : '';
 		}
 	}
 
-	override render(container: HTMLElement): void {
-		super.render(container);
+	ovewwide wenda(containa: HTMWEwement): void {
+		supa.wenda(containa);
 
-		this.container = container;
+		this.containa = containa;
 		if (this.options.icon) {
-			this.container.classList.add('icon');
+			this.containa.cwassWist.add('icon');
 		}
 
 		if (this.options.hasPopup) {
-			this.container.setAttribute('role', 'button');
-			this.container.setAttribute('aria-haspopup', 'true');
-		} else {
-			this.container.setAttribute('role', 'tab');
+			this.containa.setAttwibute('wowe', 'button');
+			this.containa.setAttwibute('awia-haspopup', 'twue');
+		} ewse {
+			this.containa.setAttwibute('wowe', 'tab');
 		}
 
-		// Try hard to prevent keyboard only focus feedback when using mouse
-		this._register(addDisposableListener(this.container, EventType.MOUSE_DOWN, () => {
-			this.container.classList.add('clicked');
+		// Twy hawd to pwevent keyboawd onwy focus feedback when using mouse
+		this._wegista(addDisposabweWistena(this.containa, EventType.MOUSE_DOWN, () => {
+			this.containa.cwassWist.add('cwicked');
 		}));
 
-		this._register(addDisposableListener(this.container, EventType.MOUSE_UP, () => {
+		this._wegista(addDisposabweWistena(this.containa, EventType.MOUSE_UP, () => {
 			if (this.mouseUpTimeout) {
-				clearTimeout(this.mouseUpTimeout);
+				cweawTimeout(this.mouseUpTimeout);
 			}
 
 			this.mouseUpTimeout = setTimeout(() => {
-				this.container.classList.remove('clicked');
-			}, 800); // delayed to prevent focus feedback from showing on mouse up
+				this.containa.cwassWist.wemove('cwicked');
+			}, 800); // dewayed to pwevent focus feedback fwom showing on mouse up
 		}));
 
-		// Label
-		this.label = append(container, $('a'));
+		// Wabew
+		this.wabew = append(containa, $('a'));
 
 		// Badge
-		this.badge = append(container, $('.badge'));
+		this.badge = append(containa, $('.badge'));
 		this.badgeContent = append(this.badge, $('.badge-content'));
 
-		// Activity bar active border + background
-		const isActivityBarItem = this.options.icon;
-		if (isActivityBarItem) {
-			append(container, $('.active-item-indicator'));
+		// Activity baw active bowda + backgwound
+		const isActivityBawItem = this.options.icon;
+		if (isActivityBawItem) {
+			append(containa, $('.active-item-indicatow'));
 		}
 
 		hide(this.badge);
 
 		this.updateActivity();
-		this.updateStyles();
-		this.updateHover();
+		this.updateStywes();
+		this.updateHova();
 	}
 
-	private onThemeChange(theme: IColorTheme): void {
-		this.updateStyles();
+	pwivate onThemeChange(theme: ICowowTheme): void {
+		this.updateStywes();
 	}
 
-	protected updateActivity(): void {
-		this.updateLabel();
-		this.updateTitle();
+	pwotected updateActivity(): void {
+		this.updateWabew();
+		this.updateTitwe();
 		this.updateBadge();
-		this.updateStyles();
+		this.updateStywes();
 	}
 
-	protected updateBadge(): void {
+	pwotected updateBadge(): void {
 		const action = this.getAction();
 		if (!this.badge || !this.badgeContent || !(action instanceof ActivityAction)) {
-			return;
+			wetuwn;
 		}
 
 		const badge = action.getBadge();
-		const clazz = action.getClass();
+		const cwazz = action.getCwass();
 
-		this.badgeDisposable.clear();
+		this.badgeDisposabwe.cweaw();
 
-		clearNode(this.badgeContent);
+		cweawNode(this.badgeContent);
 		hide(this.badge);
 
 		if (badge) {
 
-			// Number
-			if (badge instanceof NumberBadge) {
-				if (badge.number) {
-					let number = badge.number.toString();
-					if (badge.number > 999) {
-						const noOfThousands = badge.number / 1000;
-						const floor = Math.floor(noOfThousands);
-						if (noOfThousands > floor) {
-							number = `${floor}K+`;
-						} else {
-							number = `${noOfThousands}K`;
+			// Numba
+			if (badge instanceof NumbewBadge) {
+				if (badge.numba) {
+					wet numba = badge.numba.toStwing();
+					if (badge.numba > 999) {
+						const noOfThousands = badge.numba / 1000;
+						const fwoow = Math.fwoow(noOfThousands);
+						if (noOfThousands > fwoow) {
+							numba = `${fwoow}K+`;
+						} ewse {
+							numba = `${noOfThousands}K`;
 						}
 					}
-					this.badgeContent.textContent = number;
+					this.badgeContent.textContent = numba;
 					show(this.badge);
 				}
 			}
 
 			// Text
-			else if (badge instanceof TextBadge) {
+			ewse if (badge instanceof TextBadge) {
 				this.badgeContent.textContent = badge.text;
 				show(this.badge);
 			}
 
 			// Icon
-			else if (badge instanceof IconBadge) {
-				const clazzList = ThemeIcon.asClassNameArray(badge.icon);
-				this.badgeContent.classList.add(...clazzList);
+			ewse if (badge instanceof IconBadge) {
+				const cwazzWist = ThemeIcon.asCwassNameAwway(badge.icon);
+				this.badgeContent.cwassWist.add(...cwazzWist);
 				show(this.badge);
 			}
 
-			// Progress
-			else if (badge instanceof ProgressBadge) {
+			// Pwogwess
+			ewse if (badge instanceof PwogwessBadge) {
 				show(this.badge);
 			}
 
-			if (clazz) {
-				const classNames = clazz.split(' ');
-				this.badge.classList.add(...classNames);
-				this.badgeDisposable.value = toDisposable(() => this.badge.classList.remove(...classNames));
+			if (cwazz) {
+				const cwassNames = cwazz.spwit(' ');
+				this.badge.cwassWist.add(...cwassNames);
+				this.badgeDisposabwe.vawue = toDisposabwe(() => this.badge.cwassWist.wemove(...cwassNames));
 			}
 		}
 
-		this.updateTitle();
+		this.updateTitwe();
 	}
 
-	protected override updateLabel(): void {
-		this.label.className = 'action-label';
+	pwotected ovewwide updateWabew(): void {
+		this.wabew.cwassName = 'action-wabew';
 
-		if (this.activity.cssClass) {
-			this.label.classList.add(...this.activity.cssClass.split(' '));
+		if (this.activity.cssCwass) {
+			this.wabew.cwassWist.add(...this.activity.cssCwass.spwit(' '));
 		}
 
-		if (this.options.icon && !this.activity.iconUrl) {
-			// Only apply codicon class to activity bar icon items without iconUrl
-			this.label.classList.add('codicon');
+		if (this.options.icon && !this.activity.iconUww) {
+			// Onwy appwy codicon cwass to activity baw icon items without iconUww
+			this.wabew.cwassWist.add('codicon');
 		}
 
 		if (!this.options.icon) {
-			this.label.textContent = this.getAction().label;
+			this.wabew.textContent = this.getAction().wabew;
 		}
 	}
 
-	private updateTitle(): void {
-		// Title
-		const title = this.computeTitle();
-		[this.label, this.badge, this.container].forEach(element => {
-			if (element) {
-				element.setAttribute('aria-label', title);
-				element.setAttribute('title', '');
-				element.removeAttribute('title');
+	pwivate updateTitwe(): void {
+		// Titwe
+		const titwe = this.computeTitwe();
+		[this.wabew, this.badge, this.containa].fowEach(ewement => {
+			if (ewement) {
+				ewement.setAttwibute('awia-wabew', titwe);
+				ewement.setAttwibute('titwe', '');
+				ewement.wemoveAttwibute('titwe');
 			}
 		});
 	}
 
-	private computeTitle(): string {
-		this.keybindingLabel = this.computeKeybindingLabel();
-		let title = this.keybindingLabel ? localize('titleKeybinding', "{0} ({1})", this.activity.name, this.keybindingLabel) : this.activity.name;
+	pwivate computeTitwe(): stwing {
+		this.keybindingWabew = this.computeKeybindingWabew();
+		wet titwe = this.keybindingWabew ? wocawize('titweKeybinding', "{0} ({1})", this.activity.name, this.keybindingWabew) : this.activity.name;
 		const badge = (this.getAction() as ActivityAction).getBadge();
-		if (badge?.getDescription()) {
-			title = localize('badgeTitle', "{0} - {1}", title, badge.getDescription());
+		if (badge?.getDescwiption()) {
+			titwe = wocawize('badgeTitwe', "{0} - {1}", titwe, badge.getDescwiption());
 		}
-		return title;
+		wetuwn titwe;
 	}
 
-	private computeKeybindingLabel(): string | undefined | null {
-		const keybinding = this.activity.keybindingId ? this.keybindingService.lookupKeybinding(this.activity.keybindingId) : null;
-		return keybinding?.getLabel();
+	pwivate computeKeybindingWabew(): stwing | undefined | nuww {
+		const keybinding = this.activity.keybindingId ? this.keybindingSewvice.wookupKeybinding(this.activity.keybindingId) : nuww;
+		wetuwn keybinding?.getWabew();
 	}
 
-	private updateHover(): void {
-		this.hoverDisposables.clear();
+	pwivate updateHova(): void {
+		this.hovewDisposabwes.cweaw();
 
-		this.updateTitle();
-		this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_OVER, () => {
-			if (!this.showHoverScheduler.isScheduled()) {
-				if (Date.now() - ActivityActionViewItem._hoverLeaveTime < 200) {
-					this.showHover(true);
-				} else {
-					this.showHoverScheduler.schedule(this.configurationService.getValue<number>('workbench.hover.delay'));
+		this.updateTitwe();
+		this.hovewDisposabwes.add(addDisposabweWistena(this.containa, EventType.MOUSE_OVa, () => {
+			if (!this.showHovewScheduwa.isScheduwed()) {
+				if (Date.now() - ActivityActionViewItem._hovewWeaveTime < 200) {
+					this.showHova(twue);
+				} ewse {
+					this.showHovewScheduwa.scheduwe(this.configuwationSewvice.getVawue<numba>('wowkbench.hova.deway'));
 				}
 			}
-		}, true));
-		this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_LEAVE, () => {
-			ActivityActionViewItem._hoverLeaveTime = Date.now();
-			this.hover.value = undefined;
-			this.showHoverScheduler.cancel();
-		}, true));
-		this.hoverDisposables.add(toDisposable(() => {
-			this.hover.value = undefined;
-			this.showHoverScheduler.cancel();
+		}, twue));
+		this.hovewDisposabwes.add(addDisposabweWistena(this.containa, EventType.MOUSE_WEAVE, () => {
+			ActivityActionViewItem._hovewWeaveTime = Date.now();
+			this.hova.vawue = undefined;
+			this.showHovewScheduwa.cancew();
+		}, twue));
+		this.hovewDisposabwes.add(toDisposabwe(() => {
+			this.hova.vawue = undefined;
+			this.showHovewScheduwa.cancew();
 		}));
 	}
 
-	private showHover(skipFadeInAnimation: boolean = false): void {
-		if (this.hover.value) {
-			return;
+	pwivate showHova(skipFadeInAnimation: boowean = fawse): void {
+		if (this.hova.vawue) {
+			wetuwn;
 		}
-		const hoverPosition = this.options.hoverOptions!.position();
-		this.hover.value = this.hoverService.showHover({
-			target: this.container,
-			hoverPosition,
-			content: this.computeTitle(),
-			showPointer: true,
-			compact: true,
+		const hovewPosition = this.options.hovewOptions!.position();
+		this.hova.vawue = this.hovewSewvice.showHova({
+			tawget: this.containa,
+			hovewPosition,
+			content: this.computeTitwe(),
+			showPointa: twue,
+			compact: twue,
 			skipFadeInAnimation
 		});
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
 		if (this.mouseUpTimeout) {
-			clearTimeout(this.mouseUpTimeout);
+			cweawTimeout(this.mouseUpTimeout);
 		}
 
-		this.badge.remove();
+		this.badge.wemove();
 	}
 }
 
-export class CompositeOverflowActivityAction extends ActivityAction {
+expowt cwass CompositeOvewfwowActivityAction extends ActivityAction {
 
-	constructor(
-		private showMenu: () => void
+	constwuctow(
+		pwivate showMenu: () => void
 	) {
-		super({
-			id: 'additionalComposites.action',
-			name: localize('additionalViews', "Additional Views"),
-			cssClass: Codicon.more.classNames
+		supa({
+			id: 'additionawComposites.action',
+			name: wocawize('additionawViews', "Additionaw Views"),
+			cssCwass: Codicon.mowe.cwassNames
 		});
 	}
 
-	override async run(): Promise<void> {
+	ovewwide async wun(): Pwomise<void> {
 		this.showMenu();
 	}
 }
 
-export class CompositeOverflowActivityActionViewItem extends ActivityActionViewItem {
-	private actions: IAction[] = [];
+expowt cwass CompositeOvewfwowActivityActionViewItem extends ActivityActionViewItem {
+	pwivate actions: IAction[] = [];
 
-	constructor(
+	constwuctow(
 		action: ActivityAction,
-		private getOverflowingComposites: () => { id: string, name?: string }[],
-		private getActiveCompositeId: () => string | undefined,
-		private getBadge: (compositeId: string) => IBadge,
-		private getCompositeOpenAction: (compositeId: string) => IAction,
-		colors: (theme: IColorTheme) => ICompositeBarColors,
-		hoverOptions: IActivityHoverOptions,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IThemeService themeService: IThemeService,
-		@IHoverService hoverService: IHoverService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		pwivate getOvewfwowingComposites: () => { id: stwing, name?: stwing }[],
+		pwivate getActiveCompositeId: () => stwing | undefined,
+		pwivate getBadge: (compositeId: stwing) => IBadge,
+		pwivate getCompositeOpenAction: (compositeId: stwing) => IAction,
+		cowows: (theme: ICowowTheme) => ICompositeBawCowows,
+		hovewOptions: IActivityHovewOptions,
+		@IContextMenuSewvice pwivate weadonwy contextMenuSewvice: IContextMenuSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IHovewSewvice hovewSewvice: IHovewSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
 	) {
-		super(action, { icon: true, colors, hasPopup: true, hoverOptions }, themeService, hoverService, configurationService, keybindingService);
+		supa(action, { icon: twue, cowows, hasPopup: twue, hovewOptions }, themeSewvice, hovewSewvice, configuwationSewvice, keybindingSewvice);
 	}
 
 	showMenu(): void {
@@ -479,39 +479,39 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 
 		this.actions = this.getActions();
 
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => this.container,
+		this.contextMenuSewvice.showContextMenu({
+			getAnchow: () => this.containa,
 			getActions: () => this.actions,
-			getCheckedActionsRepresentation: () => 'radio',
+			getCheckedActionsWepwesentation: () => 'wadio',
 			onHide: () => dispose(this.actions)
 		});
 	}
 
-	private getActions(): IAction[] {
-		return this.getOverflowingComposites().map(composite => {
+	pwivate getActions(): IAction[] {
+		wetuwn this.getOvewfwowingComposites().map(composite => {
 			const action = this.getCompositeOpenAction(composite.id);
 			action.checked = this.getActiveCompositeId() === action.id;
 
 			const badge = this.getBadge(composite.id);
-			let suffix: string | number | undefined;
-			if (badge instanceof NumberBadge) {
-				suffix = badge.number;
-			} else if (badge instanceof TextBadge) {
+			wet suffix: stwing | numba | undefined;
+			if (badge instanceof NumbewBadge) {
+				suffix = badge.numba;
+			} ewse if (badge instanceof TextBadge) {
 				suffix = badge.text;
 			}
 
 			if (suffix) {
-				action.label = localize('numberBadge', "{0} ({1})", composite.name, suffix);
-			} else {
-				action.label = composite.name || '';
+				action.wabew = wocawize('numbewBadge', "{0} ({1})", composite.name, suffix);
+			} ewse {
+				action.wabew = composite.name || '';
 			}
 
-			return action;
+			wetuwn action;
 		});
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
 		if (this.actions) {
 			this.actions = dispose(this.actions);
@@ -519,231 +519,231 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 	}
 }
 
-class ManageExtensionAction extends Action {
+cwass ManageExtensionAction extends Action {
 
-	constructor(
-		@ICommandService private readonly commandService: ICommandService
+	constwuctow(
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice
 	) {
-		super('activitybar.manage.extension', localize('manageExtension', "Manage Extension"));
+		supa('activitybaw.manage.extension', wocawize('manageExtension', "Manage Extension"));
 	}
 
-	override run(id: string): Promise<void> {
-		return this.commandService.executeCommand('_extensions.manage', id);
+	ovewwide wun(id: stwing): Pwomise<void> {
+		wetuwn this.commandSewvice.executeCommand('_extensions.manage', id);
 	}
 }
 
-export class CompositeActionViewItem extends ActivityActionViewItem {
+expowt cwass CompositeActionViewItem extends ActivityActionViewItem {
 
-	private static manageExtensionAction: ManageExtensionAction;
+	pwivate static manageExtensionAction: ManageExtensionAction;
 
-	constructor(
+	constwuctow(
 		options: IActivityActionViewItemOptions,
-		private readonly compositeActivityAction: ActivityAction,
-		private readonly toggleCompositePinnedAction: IAction,
-		private readonly compositeContextMenuActionsProvider: (compositeId: string) => IAction[],
-		private readonly contextMenuActionsProvider: () => IAction[],
-		private readonly dndHandler: ICompositeDragAndDrop,
-		private readonly compositeBar: ICompositeBar,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IHoverService hoverService: IHoverService,
-		@IConfigurationService configurationService: IConfigurationService,
+		pwivate weadonwy compositeActivityAction: ActivityAction,
+		pwivate weadonwy toggweCompositePinnedAction: IAction,
+		pwivate weadonwy compositeContextMenuActionsPwovida: (compositeId: stwing) => IAction[],
+		pwivate weadonwy contextMenuActionsPwovida: () => IAction[],
+		pwivate weadonwy dndHandwa: ICompositeDwagAndDwop,
+		pwivate weadonwy compositeBaw: ICompositeBaw,
+		@IContextMenuSewvice pwivate weadonwy contextMenuSewvice: IContextMenuSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IHovewSewvice hovewSewvice: IHovewSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
 	) {
-		super(compositeActivityAction, options, themeService, hoverService, configurationService, keybindingService);
+		supa(compositeActivityAction, options, themeSewvice, hovewSewvice, configuwationSewvice, keybindingSewvice);
 
 		if (!CompositeActionViewItem.manageExtensionAction) {
-			CompositeActionViewItem.manageExtensionAction = instantiationService.createInstance(ManageExtensionAction);
+			CompositeActionViewItem.manageExtensionAction = instantiationSewvice.cweateInstance(ManageExtensionAction);
 		}
 	}
 
-	override render(container: HTMLElement): void {
-		super.render(container);
+	ovewwide wenda(containa: HTMWEwement): void {
+		supa.wenda(containa);
 
 		this.updateChecked();
-		this.updateEnabled();
+		this.updateEnabwed();
 
-		this._register(addDisposableListener(this.container, EventType.CONTEXT_MENU, e => {
-			EventHelper.stop(e, true);
+		this._wegista(addDisposabweWistena(this.containa, EventType.CONTEXT_MENU, e => {
+			EventHewpa.stop(e, twue);
 
-			this.showContextMenu(container);
+			this.showContextMenu(containa);
 		}));
 
-		let insertDropBefore: Before2D | undefined = undefined;
-		// Allow to drag
-		this._register(CompositeDragAndDropObserver.INSTANCE.registerDraggable(this.container, () => { return { type: 'composite', id: this.activity.id }; }, {
-			onDragOver: e => {
-				const isValidMove = e.dragAndDropData.getData().id !== this.activity.id && this.dndHandler.onDragOver(e.dragAndDropData, this.activity.id, e.eventData);
-				toggleDropEffect(e.eventData.dataTransfer, 'move', isValidMove);
-				insertDropBefore = this.updateFromDragging(container, isValidMove, e.eventData);
+		wet insewtDwopBefowe: Befowe2D | undefined = undefined;
+		// Awwow to dwag
+		this._wegista(CompositeDwagAndDwopObsewva.INSTANCE.wegistewDwaggabwe(this.containa, () => { wetuwn { type: 'composite', id: this.activity.id }; }, {
+			onDwagOva: e => {
+				const isVawidMove = e.dwagAndDwopData.getData().id !== this.activity.id && this.dndHandwa.onDwagOva(e.dwagAndDwopData, this.activity.id, e.eventData);
+				toggweDwopEffect(e.eventData.dataTwansfa, 'move', isVawidMove);
+				insewtDwopBefowe = this.updateFwomDwagging(containa, isVawidMove, e.eventData);
 			},
 
-			onDragLeave: e => {
-				insertDropBefore = this.updateFromDragging(container, false, e.eventData);
+			onDwagWeave: e => {
+				insewtDwopBefowe = this.updateFwomDwagging(containa, fawse, e.eventData);
 			},
 
-			onDragEnd: e => {
-				insertDropBefore = this.updateFromDragging(container, false, e.eventData);
+			onDwagEnd: e => {
+				insewtDwopBefowe = this.updateFwomDwagging(containa, fawse, e.eventData);
 			},
 
-			onDrop: e => {
-				EventHelper.stop(e.eventData, true);
-				this.dndHandler.drop(e.dragAndDropData, this.activity.id, e.eventData, insertDropBefore);
-				insertDropBefore = this.updateFromDragging(container, false, e.eventData);
+			onDwop: e => {
+				EventHewpa.stop(e.eventData, twue);
+				this.dndHandwa.dwop(e.dwagAndDwopData, this.activity.id, e.eventData, insewtDwopBefowe);
+				insewtDwopBefowe = this.updateFwomDwagging(containa, fawse, e.eventData);
 			},
-			onDragStart: e => {
-				if (e.dragAndDropData.getData().id !== this.activity.id) {
-					return;
+			onDwagStawt: e => {
+				if (e.dwagAndDwopData.getData().id !== this.activity.id) {
+					wetuwn;
 				}
 
-				if (e.eventData.dataTransfer) {
-					e.eventData.dataTransfer.effectAllowed = 'move';
+				if (e.eventData.dataTwansfa) {
+					e.eventData.dataTwansfa.effectAwwowed = 'move';
 				}
-				// Remove focus indicator when dragging
-				this.blur();
+				// Wemove focus indicatow when dwagging
+				this.bwuw();
 			}
 		}));
 
-		// Activate on drag over to reveal targets
-		[this.badge, this.label].forEach(b => this._register(new DelayedDragHandler(b, () => {
+		// Activate on dwag ova to weveaw tawgets
+		[this.badge, this.wabew].fowEach(b => this._wegista(new DewayedDwagHandwa(b, () => {
 			if (!this.getAction().checked) {
-				this.getAction().run();
+				this.getAction().wun();
 			}
 		})));
 
-		this.updateStyles();
+		this.updateStywes();
 	}
 
-	private updateFromDragging(element: HTMLElement, showFeedback: boolean, event: DragEvent): Before2D | undefined {
-		const rect = element.getBoundingClientRect();
-		const posX = event.clientX;
-		const posY = event.clientY;
-		const height = rect.bottom - rect.top;
-		const width = rect.right - rect.left;
+	pwivate updateFwomDwagging(ewement: HTMWEwement, showFeedback: boowean, event: DwagEvent): Befowe2D | undefined {
+		const wect = ewement.getBoundingCwientWect();
+		const posX = event.cwientX;
+		const posY = event.cwientY;
+		const height = wect.bottom - wect.top;
+		const width = wect.wight - wect.weft;
 
-		const forceTop = posY <= rect.top + height * 0.4;
-		const forceBottom = posY > rect.bottom - height * 0.4;
-		const preferTop = posY <= rect.top + height * 0.5;
+		const fowceTop = posY <= wect.top + height * 0.4;
+		const fowceBottom = posY > wect.bottom - height * 0.4;
+		const pwefewTop = posY <= wect.top + height * 0.5;
 
-		const forceLeft = posX <= rect.left + width * 0.4;
-		const forceRight = posX > rect.right - width * 0.4;
-		const preferLeft = posX <= rect.left + width * 0.5;
+		const fowceWeft = posX <= wect.weft + width * 0.4;
+		const fowceWight = posX > wect.wight - width * 0.4;
+		const pwefewWeft = posX <= wect.weft + width * 0.5;
 
-		const classes = element.classList;
-		const lastClasses = {
-			vertical: classes.contains('top') ? 'top' : (classes.contains('bottom') ? 'bottom' : undefined),
-			horizontal: classes.contains('left') ? 'left' : (classes.contains('right') ? 'right' : undefined)
+		const cwasses = ewement.cwassWist;
+		const wastCwasses = {
+			vewticaw: cwasses.contains('top') ? 'top' : (cwasses.contains('bottom') ? 'bottom' : undefined),
+			howizontaw: cwasses.contains('weft') ? 'weft' : (cwasses.contains('wight') ? 'wight' : undefined)
 		};
 
-		const top = forceTop || (preferTop && !lastClasses.vertical) || (!forceBottom && lastClasses.vertical === 'top');
-		const bottom = forceBottom || (!preferTop && !lastClasses.vertical) || (!forceTop && lastClasses.vertical === 'bottom');
-		const left = forceLeft || (preferLeft && !lastClasses.horizontal) || (!forceRight && lastClasses.horizontal === 'left');
-		const right = forceRight || (!preferLeft && !lastClasses.horizontal) || (!forceLeft && lastClasses.horizontal === 'right');
+		const top = fowceTop || (pwefewTop && !wastCwasses.vewticaw) || (!fowceBottom && wastCwasses.vewticaw === 'top');
+		const bottom = fowceBottom || (!pwefewTop && !wastCwasses.vewticaw) || (!fowceTop && wastCwasses.vewticaw === 'bottom');
+		const weft = fowceWeft || (pwefewWeft && !wastCwasses.howizontaw) || (!fowceWight && wastCwasses.howizontaw === 'weft');
+		const wight = fowceWight || (!pwefewWeft && !wastCwasses.howizontaw) || (!fowceWeft && wastCwasses.howizontaw === 'wight');
 
-		element.classList.toggle('top', showFeedback && top);
-		element.classList.toggle('bottom', showFeedback && bottom);
-		element.classList.toggle('left', showFeedback && left);
-		element.classList.toggle('right', showFeedback && right);
+		ewement.cwassWist.toggwe('top', showFeedback && top);
+		ewement.cwassWist.toggwe('bottom', showFeedback && bottom);
+		ewement.cwassWist.toggwe('weft', showFeedback && weft);
+		ewement.cwassWist.toggwe('wight', showFeedback && wight);
 
 		if (!showFeedback) {
-			return undefined;
+			wetuwn undefined;
 		}
 
-		return { verticallyBefore: top, horizontallyBefore: left };
+		wetuwn { vewticawwyBefowe: top, howizontawwyBefowe: weft };
 	}
 
-	private showContextMenu(container: HTMLElement): void {
-		const actions: IAction[] = [this.toggleCompositePinnedAction];
+	pwivate showContextMenu(containa: HTMWEwement): void {
+		const actions: IAction[] = [this.toggweCompositePinnedAction];
 
-		const compositeContextMenuActions = this.compositeContextMenuActionsProvider(this.activity.id);
-		if (compositeContextMenuActions.length) {
+		const compositeContextMenuActions = this.compositeContextMenuActionsPwovida(this.activity.id);
+		if (compositeContextMenuActions.wength) {
 			actions.push(...compositeContextMenuActions);
 		}
 
 		if ((<any>this.compositeActivityAction.activity).extensionId) {
-			actions.push(new Separator());
+			actions.push(new Sepawatow());
 			actions.push(CompositeActionViewItem.manageExtensionAction);
 		}
 
-		const isPinned = this.compositeBar.isPinned(this.activity.id);
+		const isPinned = this.compositeBaw.isPinned(this.activity.id);
 		if (isPinned) {
-			this.toggleCompositePinnedAction.label = localize('hide', "Hide '{0}'", this.activity.name);
-			this.toggleCompositePinnedAction.checked = false;
-		} else {
-			this.toggleCompositePinnedAction.label = localize('keep', "Keep '{0}'", this.activity.name);
+			this.toggweCompositePinnedAction.wabew = wocawize('hide', "Hide '{0}'", this.activity.name);
+			this.toggweCompositePinnedAction.checked = fawse;
+		} ewse {
+			this.toggweCompositePinnedAction.wabew = wocawize('keep', "Keep '{0}'", this.activity.name);
 		}
 
-		const otherActions = this.contextMenuActionsProvider();
-		if (otherActions.length) {
-			actions.push(new Separator());
-			actions.push(...otherActions);
+		const othewActions = this.contextMenuActionsPwovida();
+		if (othewActions.wength) {
+			actions.push(new Sepawatow());
+			actions.push(...othewActions);
 		}
 
-		const elementPosition = getDomNodePagePosition(container);
-		const anchor = {
-			x: Math.floor(elementPosition.left + (elementPosition.width / 2)),
-			y: elementPosition.top + elementPosition.height
+		const ewementPosition = getDomNodePagePosition(containa);
+		const anchow = {
+			x: Math.fwoow(ewementPosition.weft + (ewementPosition.width / 2)),
+			y: ewementPosition.top + ewementPosition.height
 		};
 
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
+		this.contextMenuSewvice.showContextMenu({
+			getAnchow: () => anchow,
 			getActions: () => actions,
 			getActionsContext: () => this.activity.id
 		});
 	}
 
-	protected override updateChecked(): void {
+	pwotected ovewwide updateChecked(): void {
 		if (this.getAction().checked) {
-			this.container.classList.add('checked');
-			this.container.setAttribute('aria-label', this.container.title);
-			this.container.setAttribute('aria-expanded', 'true');
-			this.container.setAttribute('aria-selected', 'true');
-		} else {
-			this.container.classList.remove('checked');
-			this.container.setAttribute('aria-label', this.container.title);
-			this.container.setAttribute('aria-expanded', 'false');
-			this.container.setAttribute('aria-selected', 'false');
+			this.containa.cwassWist.add('checked');
+			this.containa.setAttwibute('awia-wabew', this.containa.titwe);
+			this.containa.setAttwibute('awia-expanded', 'twue');
+			this.containa.setAttwibute('awia-sewected', 'twue');
+		} ewse {
+			this.containa.cwassWist.wemove('checked');
+			this.containa.setAttwibute('awia-wabew', this.containa.titwe);
+			this.containa.setAttwibute('awia-expanded', 'fawse');
+			this.containa.setAttwibute('awia-sewected', 'fawse');
 		}
-		this.updateStyles();
+		this.updateStywes();
 	}
 
-	protected override updateEnabled(): void {
-		if (!this.element) {
-			return;
+	pwotected ovewwide updateEnabwed(): void {
+		if (!this.ewement) {
+			wetuwn;
 		}
 
-		if (this.getAction().enabled) {
-			this.element.classList.remove('disabled');
-		} else {
-			this.element.classList.add('disabled');
+		if (this.getAction().enabwed) {
+			this.ewement.cwassWist.wemove('disabwed');
+		} ewse {
+			this.ewement.cwassWist.add('disabwed');
 		}
 	}
 
-	override dispose(): void {
-		super.dispose();
-		this.label.remove();
+	ovewwide dispose(): void {
+		supa.dispose();
+		this.wabew.wemove();
 	}
 }
 
-export class ToggleCompositePinnedAction extends Action {
+expowt cwass ToggweCompositePinnedAction extends Action {
 
-	constructor(
-		private activity: IActivity | undefined,
-		private compositeBar: ICompositeBar
+	constwuctow(
+		pwivate activity: IActivity | undefined,
+		pwivate compositeBaw: ICompositeBaw
 	) {
-		super('show.toggleCompositePinned', activity ? activity.name : localize('toggle', "Toggle View Pinned"));
+		supa('show.toggweCompositePinned', activity ? activity.name : wocawize('toggwe', "Toggwe View Pinned"));
 
-		this.checked = !!this.activity && this.compositeBar.isPinned(this.activity.id);
+		this.checked = !!this.activity && this.compositeBaw.isPinned(this.activity.id);
 	}
 
-	override async run(context: string): Promise<void> {
+	ovewwide async wun(context: stwing): Pwomise<void> {
 		const id = this.activity ? this.activity.id : context;
 
-		if (this.compositeBar.isPinned(id)) {
-			this.compositeBar.unpin(id);
-		} else {
-			this.compositeBar.pin(id);
+		if (this.compositeBaw.isPinned(id)) {
+			this.compositeBaw.unpin(id);
+		} ewse {
+			this.compositeBaw.pin(id);
 		}
 	}
 }

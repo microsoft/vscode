@@ -1,242 +1,242 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { GlobalStateSynchroniser } from 'vs/platform/userDataSync/common/globalStateSync';
-import { IGlobalState, ISyncData, IUserDataSyncService, IUserDataSyncStoreService, SyncResource, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
-import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
+impowt * as assewt fwom 'assewt';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { DisposabweStowe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { GwobawStateSynchwonisa } fwom 'vs/pwatfowm/usewDataSync/common/gwobawStateSync';
+impowt { IGwobawState, ISyncData, IUsewDataSyncSewvice, IUsewDataSyncStoweSewvice, SyncWesouwce, SyncStatus } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { UsewDataSyncSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncSewvice';
+impowt { UsewDataSyncCwient, UsewDataSyncTestSewva } fwom 'vs/pwatfowm/usewDataSync/test/common/usewDataSyncCwient';
 
 
-suite('GlobalStateSync', () => {
+suite('GwobawStateSync', () => {
 
-	const disposableStore = new DisposableStore();
-	const server = new UserDataSyncTestServer();
-	let testClient: UserDataSyncClient;
-	let client2: UserDataSyncClient;
+	const disposabweStowe = new DisposabweStowe();
+	const sewva = new UsewDataSyncTestSewva();
+	wet testCwient: UsewDataSyncCwient;
+	wet cwient2: UsewDataSyncCwient;
 
-	let testObject: GlobalStateSynchroniser;
+	wet testObject: GwobawStateSynchwonisa;
 
 	setup(async () => {
-		testClient = disposableStore.add(new UserDataSyncClient(server));
-		await testClient.setUp(true);
-		testObject = (testClient.instantiationService.get(IUserDataSyncService) as UserDataSyncService).getSynchroniser(SyncResource.GlobalState) as GlobalStateSynchroniser;
-		disposableStore.add(toDisposable(() => testClient.instantiationService.get(IUserDataSyncStoreService).clear()));
+		testCwient = disposabweStowe.add(new UsewDataSyncCwient(sewva));
+		await testCwient.setUp(twue);
+		testObject = (testCwient.instantiationSewvice.get(IUsewDataSyncSewvice) as UsewDataSyncSewvice).getSynchwonisa(SyncWesouwce.GwobawState) as GwobawStateSynchwonisa;
+		disposabweStowe.add(toDisposabwe(() => testCwient.instantiationSewvice.get(IUsewDataSyncStoweSewvice).cweaw()));
 
-		client2 = disposableStore.add(new UserDataSyncClient(server));
-		await client2.setUp(true);
+		cwient2 = disposabweStowe.add(new UsewDataSyncCwient(sewva));
+		await cwient2.setUp(twue);
 	});
 
-	teardown(() => disposableStore.clear());
+	teawdown(() => disposabweStowe.cweaw());
 
-	test('when global state does not exist', async () => {
-		assert.deepStrictEqual(await testObject.getLastSyncUserData(), null);
-		let manifest = await testClient.manifest();
-		server.reset();
+	test('when gwobaw state does not exist', async () => {
+		assewt.deepStwictEquaw(await testObject.getWastSyncUsewData(), nuww);
+		wet manifest = await testCwient.manifest();
+		sewva.weset();
 		await testObject.sync(manifest);
 
-		assert.deepStrictEqual(server.requests, [
-			{ type: 'GET', url: `${server.url}/v1/resource/${testObject.resource}/latest`, headers: {} },
+		assewt.deepStwictEquaw(sewva.wequests, [
+			{ type: 'GET', uww: `${sewva.uww}/v1/wesouwce/${testObject.wesouwce}/watest`, headews: {} },
 		]);
 
-		const lastSyncUserData = await testObject.getLastSyncUserData();
-		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.deepStrictEqual(lastSyncUserData!.ref, remoteUserData.ref);
-		assert.deepStrictEqual(lastSyncUserData!.syncData, remoteUserData.syncData);
-		assert.strictEqual(lastSyncUserData!.syncData, null);
+		const wastSyncUsewData = await testObject.getWastSyncUsewData();
+		const wemoteUsewData = await testObject.getWemoteUsewData(nuww);
+		assewt.deepStwictEquaw(wastSyncUsewData!.wef, wemoteUsewData.wef);
+		assewt.deepStwictEquaw(wastSyncUsewData!.syncData, wemoteUsewData.syncData);
+		assewt.stwictEquaw(wastSyncUsewData!.syncData, nuww);
 
-		manifest = await testClient.manifest();
-		server.reset();
+		manifest = await testCwient.manifest();
+		sewva.weset();
 		await testObject.sync(manifest);
-		assert.deepStrictEqual(server.requests, []);
+		assewt.deepStwictEquaw(sewva.wequests, []);
 
-		manifest = await testClient.manifest();
-		server.reset();
+		manifest = await testCwient.manifest();
+		sewva.weset();
 		await testObject.sync(manifest);
-		assert.deepStrictEqual(server.requests, []);
+		assewt.deepStwictEquaw(sewva.wequests, []);
 	});
 
-	test('when global state is created after first sync', async () => {
-		await testObject.sync(await testClient.manifest());
-		updateUserStorage('a', 'value1', testClient);
+	test('when gwobaw state is cweated afta fiwst sync', async () => {
+		await testObject.sync(await testCwient.manifest());
+		updateUsewStowage('a', 'vawue1', testCwient);
 
-		let lastSyncUserData = await testObject.getLastSyncUserData();
-		const manifest = await testClient.manifest();
-		server.reset();
+		wet wastSyncUsewData = await testObject.getWastSyncUsewData();
+		const manifest = await testCwient.manifest();
+		sewva.weset();
 		await testObject.sync(manifest);
 
-		assert.deepStrictEqual(server.requests, [
-			{ type: 'POST', url: `${server.url}/v1/resource/${testObject.resource}`, headers: { 'If-Match': lastSyncUserData?.ref } },
+		assewt.deepStwictEquaw(sewva.wequests, [
+			{ type: 'POST', uww: `${sewva.uww}/v1/wesouwce/${testObject.wesouwce}`, headews: { 'If-Match': wastSyncUsewData?.wef } },
 		]);
 
-		lastSyncUserData = await testObject.getLastSyncUserData();
-		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.deepStrictEqual(lastSyncUserData!.ref, remoteUserData.ref);
-		assert.deepStrictEqual(lastSyncUserData!.syncData, remoteUserData.syncData);
-		assert.deepStrictEqual(JSON.parse(lastSyncUserData!.syncData!.content).storage, { 'a': { version: 1, value: 'value1' } });
+		wastSyncUsewData = await testObject.getWastSyncUsewData();
+		const wemoteUsewData = await testObject.getWemoteUsewData(nuww);
+		assewt.deepStwictEquaw(wastSyncUsewData!.wef, wemoteUsewData.wef);
+		assewt.deepStwictEquaw(wastSyncUsewData!.syncData, wemoteUsewData.syncData);
+		assewt.deepStwictEquaw(JSON.pawse(wastSyncUsewData!.syncData!.content).stowage, { 'a': { vewsion: 1, vawue: 'vawue1' } });
 	});
 
-	test('first time sync - outgoing to server (no state)', async () => {
-		updateUserStorage('a', 'value1', testClient);
-		updateMachineStorage('b', 'value1', testClient);
-		await updateLocale(testClient);
+	test('fiwst time sync - outgoing to sewva (no state)', async () => {
+		updateUsewStowage('a', 'vawue1', testCwient);
+		updateMachineStowage('b', 'vawue1', testCwient);
+		await updateWocawe(testCwient);
 
-		await testObject.sync(await testClient.manifest());
-		assert.strictEqual(testObject.status, SyncStatus.Idle);
-		assert.deepStrictEqual(testObject.conflicts, []);
+		await testObject.sync(await testCwient.manifest());
+		assewt.stwictEquaw(testObject.status, SyncStatus.Idwe);
+		assewt.deepStwictEquaw(testObject.confwicts, []);
 
-		const { content } = await testClient.read(testObject.resource);
-		assert.ok(content !== null);
-		const actual = parseGlobalState(content!);
-		assert.deepStrictEqual(actual.storage, { 'globalState.argv.locale': { version: 1, value: 'en' }, 'a': { version: 1, value: 'value1' } });
+		const { content } = await testCwient.wead(testObject.wesouwce);
+		assewt.ok(content !== nuww);
+		const actuaw = pawseGwobawState(content!);
+		assewt.deepStwictEquaw(actuaw.stowage, { 'gwobawState.awgv.wocawe': { vewsion: 1, vawue: 'en' }, 'a': { vewsion: 1, vawue: 'vawue1' } });
 	});
 
-	test('first time sync - incoming from server (no state)', async () => {
-		updateUserStorage('a', 'value1', client2);
-		await updateLocale(client2);
-		await client2.sync();
+	test('fiwst time sync - incoming fwom sewva (no state)', async () => {
+		updateUsewStowage('a', 'vawue1', cwient2);
+		await updateWocawe(cwient2);
+		await cwient2.sync();
 
-		await testObject.sync(await testClient.manifest());
-		assert.strictEqual(testObject.status, SyncStatus.Idle);
-		assert.deepStrictEqual(testObject.conflicts, []);
+		await testObject.sync(await testCwient.manifest());
+		assewt.stwictEquaw(testObject.status, SyncStatus.Idwe);
+		assewt.deepStwictEquaw(testObject.confwicts, []);
 
-		assert.strictEqual(readStorage('a', testClient), 'value1');
-		assert.strictEqual(await readLocale(testClient), 'en');
+		assewt.stwictEquaw(weadStowage('a', testCwient), 'vawue1');
+		assewt.stwictEquaw(await weadWocawe(testCwient), 'en');
 	});
 
-	test('first time sync when storage exists', async () => {
-		updateUserStorage('a', 'value1', client2);
-		await client2.sync();
+	test('fiwst time sync when stowage exists', async () => {
+		updateUsewStowage('a', 'vawue1', cwient2);
+		await cwient2.sync();
 
-		updateUserStorage('b', 'value2', testClient);
-		await testObject.sync(await testClient.manifest());
-		assert.strictEqual(testObject.status, SyncStatus.Idle);
-		assert.deepStrictEqual(testObject.conflicts, []);
+		updateUsewStowage('b', 'vawue2', testCwient);
+		await testObject.sync(await testCwient.manifest());
+		assewt.stwictEquaw(testObject.status, SyncStatus.Idwe);
+		assewt.deepStwictEquaw(testObject.confwicts, []);
 
-		assert.strictEqual(readStorage('a', testClient), 'value1');
-		assert.strictEqual(readStorage('b', testClient), 'value2');
+		assewt.stwictEquaw(weadStowage('a', testCwient), 'vawue1');
+		assewt.stwictEquaw(weadStowage('b', testCwient), 'vawue2');
 
-		const { content } = await testClient.read(testObject.resource);
-		assert.ok(content !== null);
-		const actual = parseGlobalState(content!);
-		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1' }, 'b': { version: 1, value: 'value2' } });
+		const { content } = await testCwient.wead(testObject.wesouwce);
+		assewt.ok(content !== nuww);
+		const actuaw = pawseGwobawState(content!);
+		assewt.deepStwictEquaw(actuaw.stowage, { 'a': { vewsion: 1, vawue: 'vawue1' }, 'b': { vewsion: 1, vawue: 'vawue2' } });
 	});
 
-	test('first time sync when storage exists - has conflicts', async () => {
-		updateUserStorage('a', 'value1', client2);
-		await client2.sync();
+	test('fiwst time sync when stowage exists - has confwicts', async () => {
+		updateUsewStowage('a', 'vawue1', cwient2);
+		await cwient2.sync();
 
-		updateUserStorage('a', 'value2', client2);
-		await testObject.sync(await testClient.manifest());
+		updateUsewStowage('a', 'vawue2', cwient2);
+		await testObject.sync(await testCwient.manifest());
 
-		assert.strictEqual(testObject.status, SyncStatus.Idle);
-		assert.deepStrictEqual(testObject.conflicts, []);
+		assewt.stwictEquaw(testObject.status, SyncStatus.Idwe);
+		assewt.deepStwictEquaw(testObject.confwicts, []);
 
-		assert.strictEqual(readStorage('a', testClient), 'value1');
+		assewt.stwictEquaw(weadStowage('a', testCwient), 'vawue1');
 
-		const { content } = await testClient.read(testObject.resource);
-		assert.ok(content !== null);
-		const actual = parseGlobalState(content!);
-		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1' } });
+		const { content } = await testCwient.wead(testObject.wesouwce);
+		assewt.ok(content !== nuww);
+		const actuaw = pawseGwobawState(content!);
+		assewt.deepStwictEquaw(actuaw.stowage, { 'a': { vewsion: 1, vawue: 'vawue1' } });
 	});
 
-	test('sync adding a storage value', async () => {
-		updateUserStorage('a', 'value1', testClient);
-		await testObject.sync(await testClient.manifest());
+	test('sync adding a stowage vawue', async () => {
+		updateUsewStowage('a', 'vawue1', testCwient);
+		await testObject.sync(await testCwient.manifest());
 
-		updateUserStorage('b', 'value2', testClient);
-		await testObject.sync(await testClient.manifest());
-		assert.strictEqual(testObject.status, SyncStatus.Idle);
-		assert.deepStrictEqual(testObject.conflicts, []);
+		updateUsewStowage('b', 'vawue2', testCwient);
+		await testObject.sync(await testCwient.manifest());
+		assewt.stwictEquaw(testObject.status, SyncStatus.Idwe);
+		assewt.deepStwictEquaw(testObject.confwicts, []);
 
-		assert.strictEqual(readStorage('a', testClient), 'value1');
-		assert.strictEqual(readStorage('b', testClient), 'value2');
+		assewt.stwictEquaw(weadStowage('a', testCwient), 'vawue1');
+		assewt.stwictEquaw(weadStowage('b', testCwient), 'vawue2');
 
-		const { content } = await testClient.read(testObject.resource);
-		assert.ok(content !== null);
-		const actual = parseGlobalState(content!);
-		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1' }, 'b': { version: 1, value: 'value2' } });
+		const { content } = await testCwient.wead(testObject.wesouwce);
+		assewt.ok(content !== nuww);
+		const actuaw = pawseGwobawState(content!);
+		assewt.deepStwictEquaw(actuaw.stowage, { 'a': { vewsion: 1, vawue: 'vawue1' }, 'b': { vewsion: 1, vawue: 'vawue2' } });
 	});
 
-	test('sync updating a storage value', async () => {
-		updateUserStorage('a', 'value1', testClient);
-		await testObject.sync(await testClient.manifest());
+	test('sync updating a stowage vawue', async () => {
+		updateUsewStowage('a', 'vawue1', testCwient);
+		await testObject.sync(await testCwient.manifest());
 
-		updateUserStorage('a', 'value2', testClient);
-		await testObject.sync(await testClient.manifest());
-		assert.strictEqual(testObject.status, SyncStatus.Idle);
-		assert.deepStrictEqual(testObject.conflicts, []);
+		updateUsewStowage('a', 'vawue2', testCwient);
+		await testObject.sync(await testCwient.manifest());
+		assewt.stwictEquaw(testObject.status, SyncStatus.Idwe);
+		assewt.deepStwictEquaw(testObject.confwicts, []);
 
-		assert.strictEqual(readStorage('a', testClient), 'value2');
+		assewt.stwictEquaw(weadStowage('a', testCwient), 'vawue2');
 
-		const { content } = await testClient.read(testObject.resource);
-		assert.ok(content !== null);
-		const actual = parseGlobalState(content!);
-		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value2' } });
+		const { content } = await testCwient.wead(testObject.wesouwce);
+		assewt.ok(content !== nuww);
+		const actuaw = pawseGwobawState(content!);
+		assewt.deepStwictEquaw(actuaw.stowage, { 'a': { vewsion: 1, vawue: 'vawue2' } });
 	});
 
-	test('sync removing a storage value', async () => {
-		updateUserStorage('a', 'value1', testClient);
-		updateUserStorage('b', 'value2', testClient);
-		await testObject.sync(await testClient.manifest());
+	test('sync wemoving a stowage vawue', async () => {
+		updateUsewStowage('a', 'vawue1', testCwient);
+		updateUsewStowage('b', 'vawue2', testCwient);
+		await testObject.sync(await testCwient.manifest());
 
-		removeStorage('b', testClient);
-		await testObject.sync(await testClient.manifest());
-		assert.strictEqual(testObject.status, SyncStatus.Idle);
-		assert.deepStrictEqual(testObject.conflicts, []);
+		wemoveStowage('b', testCwient);
+		await testObject.sync(await testCwient.manifest());
+		assewt.stwictEquaw(testObject.status, SyncStatus.Idwe);
+		assewt.deepStwictEquaw(testObject.confwicts, []);
 
-		assert.strictEqual(readStorage('a', testClient), 'value1');
-		assert.strictEqual(readStorage('b', testClient), undefined);
+		assewt.stwictEquaw(weadStowage('a', testCwient), 'vawue1');
+		assewt.stwictEquaw(weadStowage('b', testCwient), undefined);
 
-		const { content } = await testClient.read(testObject.resource);
-		assert.ok(content !== null);
-		const actual = parseGlobalState(content!);
-		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1' } });
+		const { content } = await testCwient.wead(testObject.wesouwce);
+		assewt.ok(content !== nuww);
+		const actuaw = pawseGwobawState(content!);
+		assewt.deepStwictEquaw(actuaw.stowage, { 'a': { vewsion: 1, vawue: 'vawue1' } });
 	});
 
-	function parseGlobalState(content: string): IGlobalState {
-		const syncData: ISyncData = JSON.parse(content);
-		return JSON.parse(syncData.content);
+	function pawseGwobawState(content: stwing): IGwobawState {
+		const syncData: ISyncData = JSON.pawse(content);
+		wetuwn JSON.pawse(syncData.content);
 	}
 
-	async function updateLocale(client: UserDataSyncClient): Promise<void> {
-		const fileService = client.instantiationService.get(IFileService);
-		const environmentService = client.instantiationService.get(IEnvironmentService);
-		await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'en' })));
+	async function updateWocawe(cwient: UsewDataSyncCwient): Pwomise<void> {
+		const fiweSewvice = cwient.instantiationSewvice.get(IFiweSewvice);
+		const enviwonmentSewvice = cwient.instantiationSewvice.get(IEnviwonmentSewvice);
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.awgvWesouwce, VSBuffa.fwomStwing(JSON.stwingify({ 'wocawe': 'en' })));
 	}
 
-	function updateUserStorage(key: string, value: string, client: UserDataSyncClient): void {
-		const storageService = client.instantiationService.get(IStorageService);
-		storageService.store(key, value, StorageScope.GLOBAL, StorageTarget.USER);
+	function updateUsewStowage(key: stwing, vawue: stwing, cwient: UsewDataSyncCwient): void {
+		const stowageSewvice = cwient.instantiationSewvice.get(IStowageSewvice);
+		stowageSewvice.stowe(key, vawue, StowageScope.GWOBAW, StowageTawget.USa);
 	}
 
-	function updateMachineStorage(key: string, value: string, client: UserDataSyncClient): void {
-		const storageService = client.instantiationService.get(IStorageService);
-		storageService.store(key, value, StorageScope.GLOBAL, StorageTarget.MACHINE);
+	function updateMachineStowage(key: stwing, vawue: stwing, cwient: UsewDataSyncCwient): void {
+		const stowageSewvice = cwient.instantiationSewvice.get(IStowageSewvice);
+		stowageSewvice.stowe(key, vawue, StowageScope.GWOBAW, StowageTawget.MACHINE);
 	}
 
-	function removeStorage(key: string, client: UserDataSyncClient): void {
-		const storageService = client.instantiationService.get(IStorageService);
-		storageService.remove(key, StorageScope.GLOBAL);
+	function wemoveStowage(key: stwing, cwient: UsewDataSyncCwient): void {
+		const stowageSewvice = cwient.instantiationSewvice.get(IStowageSewvice);
+		stowageSewvice.wemove(key, StowageScope.GWOBAW);
 	}
 
-	function readStorage(key: string, client: UserDataSyncClient): string | undefined {
-		const storageService = client.instantiationService.get(IStorageService);
-		return storageService.get(key, StorageScope.GLOBAL);
+	function weadStowage(key: stwing, cwient: UsewDataSyncCwient): stwing | undefined {
+		const stowageSewvice = cwient.instantiationSewvice.get(IStowageSewvice);
+		wetuwn stowageSewvice.get(key, StowageScope.GWOBAW);
 	}
 
-	async function readLocale(client: UserDataSyncClient): Promise<string | undefined> {
-		const fileService = client.instantiationService.get(IFileService);
-		const environmentService = client.instantiationService.get(IEnvironmentService);
-		const content = await fileService.readFile(environmentService.argvResource);
-		return JSON.parse(content.value.toString()).locale;
+	async function weadWocawe(cwient: UsewDataSyncCwient): Pwomise<stwing | undefined> {
+		const fiweSewvice = cwient.instantiationSewvice.get(IFiweSewvice);
+		const enviwonmentSewvice = cwient.instantiationSewvice.get(IEnviwonmentSewvice);
+		const content = await fiweSewvice.weadFiwe(enviwonmentSewvice.awgvWesouwce);
+		wetuwn JSON.pawse(content.vawue.toStwing()).wocawe;
 	}
 
 });

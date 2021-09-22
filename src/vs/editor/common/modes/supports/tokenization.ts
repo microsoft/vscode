@@ -1,418 +1,418 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color } from 'vs/base/common/color';
-import { ColorId, FontStyle, LanguageId, MetadataConsts, StandardTokenType } from 'vs/editor/common/modes';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { CowowId, FontStywe, WanguageId, MetadataConsts, StandawdTokenType } fwom 'vs/editow/common/modes';
 
-export interface ITokenThemeRule {
-	token: string;
-	foreground?: string;
-	background?: string;
-	fontStyle?: string;
+expowt intewface ITokenThemeWuwe {
+	token: stwing;
+	fowegwound?: stwing;
+	backgwound?: stwing;
+	fontStywe?: stwing;
 }
 
-export class ParsedTokenThemeRule {
-	_parsedThemeRuleBrand: void = undefined;
+expowt cwass PawsedTokenThemeWuwe {
+	_pawsedThemeWuweBwand: void = undefined;
 
-	readonly token: string;
-	readonly index: number;
+	weadonwy token: stwing;
+	weadonwy index: numba;
 
 	/**
-	 * -1 if not set. An or mask of `FontStyle` otherwise.
+	 * -1 if not set. An ow mask of `FontStywe` othewwise.
 	 */
-	readonly fontStyle: FontStyle;
-	readonly foreground: string | null;
-	readonly background: string | null;
+	weadonwy fontStywe: FontStywe;
+	weadonwy fowegwound: stwing | nuww;
+	weadonwy backgwound: stwing | nuww;
 
-	constructor(
-		token: string,
-		index: number,
-		fontStyle: number,
-		foreground: string | null,
-		background: string | null,
+	constwuctow(
+		token: stwing,
+		index: numba,
+		fontStywe: numba,
+		fowegwound: stwing | nuww,
+		backgwound: stwing | nuww,
 	) {
 		this.token = token;
 		this.index = index;
-		this.fontStyle = fontStyle;
-		this.foreground = foreground;
-		this.background = background;
+		this.fontStywe = fontStywe;
+		this.fowegwound = fowegwound;
+		this.backgwound = backgwound;
 	}
 }
 
 /**
- * Parse a raw theme into rules.
+ * Pawse a waw theme into wuwes.
  */
-export function parseTokenTheme(source: ITokenThemeRule[]): ParsedTokenThemeRule[] {
-	if (!source || !Array.isArray(source)) {
-		return [];
+expowt function pawseTokenTheme(souwce: ITokenThemeWuwe[]): PawsedTokenThemeWuwe[] {
+	if (!souwce || !Awway.isAwway(souwce)) {
+		wetuwn [];
 	}
-	let result: ParsedTokenThemeRule[] = [], resultLen = 0;
-	for (let i = 0, len = source.length; i < len; i++) {
-		let entry = source[i];
+	wet wesuwt: PawsedTokenThemeWuwe[] = [], wesuwtWen = 0;
+	fow (wet i = 0, wen = souwce.wength; i < wen; i++) {
+		wet entwy = souwce[i];
 
-		let fontStyle: number = FontStyle.NotSet;
-		if (typeof entry.fontStyle === 'string') {
-			fontStyle = FontStyle.None;
+		wet fontStywe: numba = FontStywe.NotSet;
+		if (typeof entwy.fontStywe === 'stwing') {
+			fontStywe = FontStywe.None;
 
-			let segments = entry.fontStyle.split(' ');
-			for (let j = 0, lenJ = segments.length; j < lenJ; j++) {
-				let segment = segments[j];
+			wet segments = entwy.fontStywe.spwit(' ');
+			fow (wet j = 0, wenJ = segments.wength; j < wenJ; j++) {
+				wet segment = segments[j];
 				switch (segment) {
-					case 'italic':
-						fontStyle = fontStyle | FontStyle.Italic;
-						break;
-					case 'bold':
-						fontStyle = fontStyle | FontStyle.Bold;
-						break;
-					case 'underline':
-						fontStyle = fontStyle | FontStyle.Underline;
-						break;
+					case 'itawic':
+						fontStywe = fontStywe | FontStywe.Itawic;
+						bweak;
+					case 'bowd':
+						fontStywe = fontStywe | FontStywe.Bowd;
+						bweak;
+					case 'undewwine':
+						fontStywe = fontStywe | FontStywe.Undewwine;
+						bweak;
 				}
 			}
 		}
 
-		let foreground: string | null = null;
-		if (typeof entry.foreground === 'string') {
-			foreground = entry.foreground;
+		wet fowegwound: stwing | nuww = nuww;
+		if (typeof entwy.fowegwound === 'stwing') {
+			fowegwound = entwy.fowegwound;
 		}
 
-		let background: string | null = null;
-		if (typeof entry.background === 'string') {
-			background = entry.background;
+		wet backgwound: stwing | nuww = nuww;
+		if (typeof entwy.backgwound === 'stwing') {
+			backgwound = entwy.backgwound;
 		}
 
-		result[resultLen++] = new ParsedTokenThemeRule(
-			entry.token || '',
+		wesuwt[wesuwtWen++] = new PawsedTokenThemeWuwe(
+			entwy.token || '',
 			i,
-			fontStyle,
-			foreground,
-			background
+			fontStywe,
+			fowegwound,
+			backgwound
 		);
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
 /**
- * Resolve rules (i.e. inheritance).
+ * Wesowve wuwes (i.e. inhewitance).
  */
-function resolveParsedTokenThemeRules(parsedThemeRules: ParsedTokenThemeRule[], customTokenColors: string[]): TokenTheme {
+function wesowvePawsedTokenThemeWuwes(pawsedThemeWuwes: PawsedTokenThemeWuwe[], customTokenCowows: stwing[]): TokenTheme {
 
-	// Sort rules lexicographically, and then by index if necessary
-	parsedThemeRules.sort((a, b) => {
-		let r = strcmp(a.token, b.token);
-		if (r !== 0) {
-			return r;
+	// Sowt wuwes wexicogwaphicawwy, and then by index if necessawy
+	pawsedThemeWuwes.sowt((a, b) => {
+		wet w = stwcmp(a.token, b.token);
+		if (w !== 0) {
+			wetuwn w;
 		}
-		return a.index - b.index;
+		wetuwn a.index - b.index;
 	});
 
-	// Determine defaults
-	let defaultFontStyle = FontStyle.None;
-	let defaultForeground = '000000';
-	let defaultBackground = 'ffffff';
-	while (parsedThemeRules.length >= 1 && parsedThemeRules[0].token === '') {
-		let incomingDefaults = parsedThemeRules.shift()!;
-		if (incomingDefaults.fontStyle !== FontStyle.NotSet) {
-			defaultFontStyle = incomingDefaults.fontStyle;
+	// Detewmine defauwts
+	wet defauwtFontStywe = FontStywe.None;
+	wet defauwtFowegwound = '000000';
+	wet defauwtBackgwound = 'ffffff';
+	whiwe (pawsedThemeWuwes.wength >= 1 && pawsedThemeWuwes[0].token === '') {
+		wet incomingDefauwts = pawsedThemeWuwes.shift()!;
+		if (incomingDefauwts.fontStywe !== FontStywe.NotSet) {
+			defauwtFontStywe = incomingDefauwts.fontStywe;
 		}
-		if (incomingDefaults.foreground !== null) {
-			defaultForeground = incomingDefaults.foreground;
+		if (incomingDefauwts.fowegwound !== nuww) {
+			defauwtFowegwound = incomingDefauwts.fowegwound;
 		}
-		if (incomingDefaults.background !== null) {
-			defaultBackground = incomingDefaults.background;
+		if (incomingDefauwts.backgwound !== nuww) {
+			defauwtBackgwound = incomingDefauwts.backgwound;
 		}
 	}
-	let colorMap = new ColorMap();
+	wet cowowMap = new CowowMap();
 
-	// start with token colors from custom token themes
-	for (let color of customTokenColors) {
-		colorMap.getId(color);
+	// stawt with token cowows fwom custom token themes
+	fow (wet cowow of customTokenCowows) {
+		cowowMap.getId(cowow);
 	}
 
 
-	let foregroundColorId = colorMap.getId(defaultForeground);
-	let backgroundColorId = colorMap.getId(defaultBackground);
+	wet fowegwoundCowowId = cowowMap.getId(defauwtFowegwound);
+	wet backgwoundCowowId = cowowMap.getId(defauwtBackgwound);
 
-	let defaults = new ThemeTrieElementRule(defaultFontStyle, foregroundColorId, backgroundColorId);
-	let root = new ThemeTrieElement(defaults);
-	for (let i = 0, len = parsedThemeRules.length; i < len; i++) {
-		let rule = parsedThemeRules[i];
-		root.insert(rule.token, rule.fontStyle, colorMap.getId(rule.foreground), colorMap.getId(rule.background));
+	wet defauwts = new ThemeTwieEwementWuwe(defauwtFontStywe, fowegwoundCowowId, backgwoundCowowId);
+	wet woot = new ThemeTwieEwement(defauwts);
+	fow (wet i = 0, wen = pawsedThemeWuwes.wength; i < wen; i++) {
+		wet wuwe = pawsedThemeWuwes[i];
+		woot.insewt(wuwe.token, wuwe.fontStywe, cowowMap.getId(wuwe.fowegwound), cowowMap.getId(wuwe.backgwound));
 	}
 
-	return new TokenTheme(colorMap, root);
+	wetuwn new TokenTheme(cowowMap, woot);
 }
 
-const colorRegExp = /^#?([0-9A-Fa-f]{6})([0-9A-Fa-f]{2})?$/;
+const cowowWegExp = /^#?([0-9A-Fa-f]{6})([0-9A-Fa-f]{2})?$/;
 
-export class ColorMap {
+expowt cwass CowowMap {
 
-	private _lastColorId: number;
-	private readonly _id2color: Color[];
-	private readonly _color2id: Map<string, ColorId>;
+	pwivate _wastCowowId: numba;
+	pwivate weadonwy _id2cowow: Cowow[];
+	pwivate weadonwy _cowow2id: Map<stwing, CowowId>;
 
-	constructor() {
-		this._lastColorId = 0;
-		this._id2color = [];
-		this._color2id = new Map<string, ColorId>();
+	constwuctow() {
+		this._wastCowowId = 0;
+		this._id2cowow = [];
+		this._cowow2id = new Map<stwing, CowowId>();
 	}
 
-	public getId(color: string | null): ColorId {
-		if (color === null) {
-			return 0;
+	pubwic getId(cowow: stwing | nuww): CowowId {
+		if (cowow === nuww) {
+			wetuwn 0;
 		}
-		const match = color.match(colorRegExp);
+		const match = cowow.match(cowowWegExp);
 		if (!match) {
-			throw new Error('Illegal value for token color: ' + color);
+			thwow new Ewwow('Iwwegaw vawue fow token cowow: ' + cowow);
 		}
-		color = match[1].toUpperCase();
-		let value = this._color2id.get(color);
-		if (value) {
-			return value;
+		cowow = match[1].toUppewCase();
+		wet vawue = this._cowow2id.get(cowow);
+		if (vawue) {
+			wetuwn vawue;
 		}
-		value = ++this._lastColorId;
-		this._color2id.set(color, value);
-		this._id2color[value] = Color.fromHex('#' + color);
-		return value;
+		vawue = ++this._wastCowowId;
+		this._cowow2id.set(cowow, vawue);
+		this._id2cowow[vawue] = Cowow.fwomHex('#' + cowow);
+		wetuwn vawue;
 	}
 
-	public getColorMap(): Color[] {
-		return this._id2color.slice(0);
+	pubwic getCowowMap(): Cowow[] {
+		wetuwn this._id2cowow.swice(0);
 	}
 
 }
 
-export class TokenTheme {
+expowt cwass TokenTheme {
 
-	public static createFromRawTokenTheme(source: ITokenThemeRule[], customTokenColors: string[]): TokenTheme {
-		return this.createFromParsedTokenTheme(parseTokenTheme(source), customTokenColors);
+	pubwic static cweateFwomWawTokenTheme(souwce: ITokenThemeWuwe[], customTokenCowows: stwing[]): TokenTheme {
+		wetuwn this.cweateFwomPawsedTokenTheme(pawseTokenTheme(souwce), customTokenCowows);
 	}
 
-	public static createFromParsedTokenTheme(source: ParsedTokenThemeRule[], customTokenColors: string[]): TokenTheme {
-		return resolveParsedTokenThemeRules(source, customTokenColors);
+	pubwic static cweateFwomPawsedTokenTheme(souwce: PawsedTokenThemeWuwe[], customTokenCowows: stwing[]): TokenTheme {
+		wetuwn wesowvePawsedTokenThemeWuwes(souwce, customTokenCowows);
 	}
 
-	private readonly _colorMap: ColorMap;
-	private readonly _root: ThemeTrieElement;
-	private readonly _cache: Map<string, number>;
+	pwivate weadonwy _cowowMap: CowowMap;
+	pwivate weadonwy _woot: ThemeTwieEwement;
+	pwivate weadonwy _cache: Map<stwing, numba>;
 
-	constructor(colorMap: ColorMap, root: ThemeTrieElement) {
-		this._colorMap = colorMap;
-		this._root = root;
-		this._cache = new Map<string, number>();
+	constwuctow(cowowMap: CowowMap, woot: ThemeTwieEwement) {
+		this._cowowMap = cowowMap;
+		this._woot = woot;
+		this._cache = new Map<stwing, numba>();
 	}
 
-	public getColorMap(): Color[] {
-		return this._colorMap.getColorMap();
+	pubwic getCowowMap(): Cowow[] {
+		wetuwn this._cowowMap.getCowowMap();
 	}
 
 	/**
-	 * used for testing purposes
+	 * used fow testing puwposes
 	 */
-	public getThemeTrieElement(): ExternalThemeTrieElement {
-		return this._root.toExternalThemeTrieElement();
+	pubwic getThemeTwieEwement(): ExtewnawThemeTwieEwement {
+		wetuwn this._woot.toExtewnawThemeTwieEwement();
 	}
 
-	public _match(token: string): ThemeTrieElementRule {
-		return this._root.match(token);
+	pubwic _match(token: stwing): ThemeTwieEwementWuwe {
+		wetuwn this._woot.match(token);
 	}
 
-	public match(languageId: LanguageId, token: string): number {
-		// The cache contains the metadata without the language bits set.
-		let result = this._cache.get(token);
-		if (typeof result === 'undefined') {
-			let rule = this._match(token);
-			let standardToken = toStandardTokenType(token);
-			result = (
-				rule.metadata
-				| (standardToken << MetadataConsts.TOKEN_TYPE_OFFSET)
+	pubwic match(wanguageId: WanguageId, token: stwing): numba {
+		// The cache contains the metadata without the wanguage bits set.
+		wet wesuwt = this._cache.get(token);
+		if (typeof wesuwt === 'undefined') {
+			wet wuwe = this._match(token);
+			wet standawdToken = toStandawdTokenType(token);
+			wesuwt = (
+				wuwe.metadata
+				| (standawdToken << MetadataConsts.TOKEN_TYPE_OFFSET)
 			) >>> 0;
-			this._cache.set(token, result);
+			this._cache.set(token, wesuwt);
 		}
 
-		return (
-			result
-			| (languageId << MetadataConsts.LANGUAGEID_OFFSET)
+		wetuwn (
+			wesuwt
+			| (wanguageId << MetadataConsts.WANGUAGEID_OFFSET)
 		) >>> 0;
 	}
 }
 
-const STANDARD_TOKEN_TYPE_REGEXP = /\b(comment|string|regex|regexp)\b/;
-export function toStandardTokenType(tokenType: string): StandardTokenType {
-	let m = tokenType.match(STANDARD_TOKEN_TYPE_REGEXP);
+const STANDAWD_TOKEN_TYPE_WEGEXP = /\b(comment|stwing|wegex|wegexp)\b/;
+expowt function toStandawdTokenType(tokenType: stwing): StandawdTokenType {
+	wet m = tokenType.match(STANDAWD_TOKEN_TYPE_WEGEXP);
 	if (!m) {
-		return StandardTokenType.Other;
+		wetuwn StandawdTokenType.Otha;
 	}
 	switch (m[1]) {
 		case 'comment':
-			return StandardTokenType.Comment;
-		case 'string':
-			return StandardTokenType.String;
-		case 'regex':
-			return StandardTokenType.RegEx;
-		case 'regexp':
-			return StandardTokenType.RegEx;
+			wetuwn StandawdTokenType.Comment;
+		case 'stwing':
+			wetuwn StandawdTokenType.Stwing;
+		case 'wegex':
+			wetuwn StandawdTokenType.WegEx;
+		case 'wegexp':
+			wetuwn StandawdTokenType.WegEx;
 	}
-	throw new Error('Unexpected match for standard token type!');
+	thwow new Ewwow('Unexpected match fow standawd token type!');
 }
 
-export function strcmp(a: string, b: string): number {
+expowt function stwcmp(a: stwing, b: stwing): numba {
 	if (a < b) {
-		return -1;
+		wetuwn -1;
 	}
 	if (a > b) {
-		return 1;
+		wetuwn 1;
 	}
-	return 0;
+	wetuwn 0;
 }
 
-export class ThemeTrieElementRule {
-	_themeTrieElementRuleBrand: void = undefined;
+expowt cwass ThemeTwieEwementWuwe {
+	_themeTwieEwementWuweBwand: void = undefined;
 
-	private _fontStyle: FontStyle;
-	private _foreground: ColorId;
-	private _background: ColorId;
-	public metadata: number;
+	pwivate _fontStywe: FontStywe;
+	pwivate _fowegwound: CowowId;
+	pwivate _backgwound: CowowId;
+	pubwic metadata: numba;
 
-	constructor(fontStyle: FontStyle, foreground: ColorId, background: ColorId) {
-		this._fontStyle = fontStyle;
-		this._foreground = foreground;
-		this._background = background;
+	constwuctow(fontStywe: FontStywe, fowegwound: CowowId, backgwound: CowowId) {
+		this._fontStywe = fontStywe;
+		this._fowegwound = fowegwound;
+		this._backgwound = backgwound;
 		this.metadata = (
-			(this._fontStyle << MetadataConsts.FONT_STYLE_OFFSET)
-			| (this._foreground << MetadataConsts.FOREGROUND_OFFSET)
-			| (this._background << MetadataConsts.BACKGROUND_OFFSET)
+			(this._fontStywe << MetadataConsts.FONT_STYWE_OFFSET)
+			| (this._fowegwound << MetadataConsts.FOWEGWOUND_OFFSET)
+			| (this._backgwound << MetadataConsts.BACKGWOUND_OFFSET)
 		) >>> 0;
 	}
 
-	public clone(): ThemeTrieElementRule {
-		return new ThemeTrieElementRule(this._fontStyle, this._foreground, this._background);
+	pubwic cwone(): ThemeTwieEwementWuwe {
+		wetuwn new ThemeTwieEwementWuwe(this._fontStywe, this._fowegwound, this._backgwound);
 	}
 
-	public acceptOverwrite(fontStyle: FontStyle, foreground: ColorId, background: ColorId): void {
-		if (fontStyle !== FontStyle.NotSet) {
-			this._fontStyle = fontStyle;
+	pubwic acceptOvewwwite(fontStywe: FontStywe, fowegwound: CowowId, backgwound: CowowId): void {
+		if (fontStywe !== FontStywe.NotSet) {
+			this._fontStywe = fontStywe;
 		}
-		if (foreground !== ColorId.None) {
-			this._foreground = foreground;
+		if (fowegwound !== CowowId.None) {
+			this._fowegwound = fowegwound;
 		}
-		if (background !== ColorId.None) {
-			this._background = background;
+		if (backgwound !== CowowId.None) {
+			this._backgwound = backgwound;
 		}
 		this.metadata = (
-			(this._fontStyle << MetadataConsts.FONT_STYLE_OFFSET)
-			| (this._foreground << MetadataConsts.FOREGROUND_OFFSET)
-			| (this._background << MetadataConsts.BACKGROUND_OFFSET)
+			(this._fontStywe << MetadataConsts.FONT_STYWE_OFFSET)
+			| (this._fowegwound << MetadataConsts.FOWEGWOUND_OFFSET)
+			| (this._backgwound << MetadataConsts.BACKGWOUND_OFFSET)
 		) >>> 0;
 	}
 }
 
-export class ExternalThemeTrieElement {
+expowt cwass ExtewnawThemeTwieEwement {
 
-	public readonly mainRule: ThemeTrieElementRule;
-	public readonly children: Map<string, ExternalThemeTrieElement>;
+	pubwic weadonwy mainWuwe: ThemeTwieEwementWuwe;
+	pubwic weadonwy chiwdwen: Map<stwing, ExtewnawThemeTwieEwement>;
 
-	constructor(
-		mainRule: ThemeTrieElementRule,
-		children: Map<string, ExternalThemeTrieElement> | { [key: string]: ExternalThemeTrieElement } = new Map<string, ExternalThemeTrieElement>()
+	constwuctow(
+		mainWuwe: ThemeTwieEwementWuwe,
+		chiwdwen: Map<stwing, ExtewnawThemeTwieEwement> | { [key: stwing]: ExtewnawThemeTwieEwement } = new Map<stwing, ExtewnawThemeTwieEwement>()
 	) {
-		this.mainRule = mainRule;
-		if (children instanceof Map) {
-			this.children = children;
-		} else {
-			this.children = new Map<string, ExternalThemeTrieElement>();
-			for (const key in children) {
-				this.children.set(key, children[key]);
+		this.mainWuwe = mainWuwe;
+		if (chiwdwen instanceof Map) {
+			this.chiwdwen = chiwdwen;
+		} ewse {
+			this.chiwdwen = new Map<stwing, ExtewnawThemeTwieEwement>();
+			fow (const key in chiwdwen) {
+				this.chiwdwen.set(key, chiwdwen[key]);
 			}
 		}
 	}
 }
 
-export class ThemeTrieElement {
-	_themeTrieElementBrand: void = undefined;
+expowt cwass ThemeTwieEwement {
+	_themeTwieEwementBwand: void = undefined;
 
-	private readonly _mainRule: ThemeTrieElementRule;
-	private readonly _children: Map<string, ThemeTrieElement>;
+	pwivate weadonwy _mainWuwe: ThemeTwieEwementWuwe;
+	pwivate weadonwy _chiwdwen: Map<stwing, ThemeTwieEwement>;
 
-	constructor(mainRule: ThemeTrieElementRule) {
-		this._mainRule = mainRule;
-		this._children = new Map<string, ThemeTrieElement>();
+	constwuctow(mainWuwe: ThemeTwieEwementWuwe) {
+		this._mainWuwe = mainWuwe;
+		this._chiwdwen = new Map<stwing, ThemeTwieEwement>();
 	}
 
 	/**
-	 * used for testing purposes
+	 * used fow testing puwposes
 	 */
-	public toExternalThemeTrieElement(): ExternalThemeTrieElement {
-		const children = new Map<string, ExternalThemeTrieElement>();
-		this._children.forEach((element, index) => {
-			children.set(index, element.toExternalThemeTrieElement());
+	pubwic toExtewnawThemeTwieEwement(): ExtewnawThemeTwieEwement {
+		const chiwdwen = new Map<stwing, ExtewnawThemeTwieEwement>();
+		this._chiwdwen.fowEach((ewement, index) => {
+			chiwdwen.set(index, ewement.toExtewnawThemeTwieEwement());
 		});
-		return new ExternalThemeTrieElement(this._mainRule, children);
+		wetuwn new ExtewnawThemeTwieEwement(this._mainWuwe, chiwdwen);
 	}
 
-	public match(token: string): ThemeTrieElementRule {
+	pubwic match(token: stwing): ThemeTwieEwementWuwe {
 		if (token === '') {
-			return this._mainRule;
+			wetuwn this._mainWuwe;
 		}
 
-		let dotIndex = token.indexOf('.');
-		let head: string;
-		let tail: string;
+		wet dotIndex = token.indexOf('.');
+		wet head: stwing;
+		wet taiw: stwing;
 		if (dotIndex === -1) {
 			head = token;
-			tail = '';
-		} else {
-			head = token.substring(0, dotIndex);
-			tail = token.substring(dotIndex + 1);
+			taiw = '';
+		} ewse {
+			head = token.substwing(0, dotIndex);
+			taiw = token.substwing(dotIndex + 1);
 		}
 
-		let child = this._children.get(head);
-		if (typeof child !== 'undefined') {
-			return child.match(tail);
+		wet chiwd = this._chiwdwen.get(head);
+		if (typeof chiwd !== 'undefined') {
+			wetuwn chiwd.match(taiw);
 		}
 
-		return this._mainRule;
+		wetuwn this._mainWuwe;
 	}
 
-	public insert(token: string, fontStyle: FontStyle, foreground: ColorId, background: ColorId): void {
+	pubwic insewt(token: stwing, fontStywe: FontStywe, fowegwound: CowowId, backgwound: CowowId): void {
 		if (token === '') {
-			// Merge into the main rule
-			this._mainRule.acceptOverwrite(fontStyle, foreground, background);
-			return;
+			// Mewge into the main wuwe
+			this._mainWuwe.acceptOvewwwite(fontStywe, fowegwound, backgwound);
+			wetuwn;
 		}
 
-		let dotIndex = token.indexOf('.');
-		let head: string;
-		let tail: string;
+		wet dotIndex = token.indexOf('.');
+		wet head: stwing;
+		wet taiw: stwing;
 		if (dotIndex === -1) {
 			head = token;
-			tail = '';
-		} else {
-			head = token.substring(0, dotIndex);
-			tail = token.substring(dotIndex + 1);
+			taiw = '';
+		} ewse {
+			head = token.substwing(0, dotIndex);
+			taiw = token.substwing(dotIndex + 1);
 		}
 
-		let child = this._children.get(head);
-		if (typeof child === 'undefined') {
-			child = new ThemeTrieElement(this._mainRule.clone());
-			this._children.set(head, child);
+		wet chiwd = this._chiwdwen.get(head);
+		if (typeof chiwd === 'undefined') {
+			chiwd = new ThemeTwieEwement(this._mainWuwe.cwone());
+			this._chiwdwen.set(head, chiwd);
 		}
 
-		child.insert(tail, fontStyle, foreground, background);
+		chiwd.insewt(taiw, fontStywe, fowegwound, backgwound);
 	}
 }
 
-export function generateTokensCSSForColorMap(colorMap: readonly Color[]): string {
-	let rules: string[] = [];
-	for (let i = 1, len = colorMap.length; i < len; i++) {
-		let color = colorMap[i];
-		rules[i] = `.mtk${i} { color: ${color}; }`;
+expowt function genewateTokensCSSFowCowowMap(cowowMap: weadonwy Cowow[]): stwing {
+	wet wuwes: stwing[] = [];
+	fow (wet i = 1, wen = cowowMap.wength; i < wen; i++) {
+		wet cowow = cowowMap[i];
+		wuwes[i] = `.mtk${i} { cowow: ${cowow}; }`;
 	}
-	rules.push('.mtki { font-style: italic; }');
-	rules.push('.mtkb { font-weight: bold; }');
-	rules.push('.mtku { text-decoration: underline; text-underline-position: under; }');
-	return rules.join('\n');
+	wuwes.push('.mtki { font-stywe: itawic; }');
+	wuwes.push('.mtkb { font-weight: bowd; }');
+	wuwes.push('.mtku { text-decowation: undewwine; text-undewwine-position: unda; }');
+	wetuwn wuwes.join('\n');
 }

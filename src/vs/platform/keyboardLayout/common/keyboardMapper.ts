@@ -1,49 +1,49 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { ScanCodeBinding } from 'vs/base/common/scanCode';
-import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
+impowt { Keybinding, WesowvedKeybinding, SimpweKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { ScanCodeBinding } fwom 'vs/base/common/scanCode';
+impowt { IKeyboawdEvent } fwom 'vs/pwatfowm/keybinding/common/keybinding';
 
-export interface IKeyboardMapper {
-	dumpDebugInfo(): string;
-	resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[];
-	resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding;
-	resolveUserBinding(firstPart: (SimpleKeybinding | ScanCodeBinding)[]): ResolvedKeybinding[];
+expowt intewface IKeyboawdMappa {
+	dumpDebugInfo(): stwing;
+	wesowveKeybinding(keybinding: Keybinding): WesowvedKeybinding[];
+	wesowveKeyboawdEvent(keyboawdEvent: IKeyboawdEvent): WesowvedKeybinding;
+	wesowveUsewBinding(fiwstPawt: (SimpweKeybinding | ScanCodeBinding)[]): WesowvedKeybinding[];
 }
 
-export class CachedKeyboardMapper implements IKeyboardMapper {
+expowt cwass CachedKeyboawdMappa impwements IKeyboawdMappa {
 
-	private _actual: IKeyboardMapper;
-	private _cache: Map<string, ResolvedKeybinding[]>;
+	pwivate _actuaw: IKeyboawdMappa;
+	pwivate _cache: Map<stwing, WesowvedKeybinding[]>;
 
-	constructor(actual: IKeyboardMapper) {
-		this._actual = actual;
-		this._cache = new Map<string, ResolvedKeybinding[]>();
+	constwuctow(actuaw: IKeyboawdMappa) {
+		this._actuaw = actuaw;
+		this._cache = new Map<stwing, WesowvedKeybinding[]>();
 	}
 
-	public dumpDebugInfo(): string {
-		return this._actual.dumpDebugInfo();
+	pubwic dumpDebugInfo(): stwing {
+		wetuwn this._actuaw.dumpDebugInfo();
 	}
 
-	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[] {
+	pubwic wesowveKeybinding(keybinding: Keybinding): WesowvedKeybinding[] {
 		const hashCode = keybinding.getHashCode();
-		const resolved = this._cache.get(hashCode);
-		if (!resolved) {
-			const r = this._actual.resolveKeybinding(keybinding);
-			this._cache.set(hashCode, r);
-			return r;
+		const wesowved = this._cache.get(hashCode);
+		if (!wesowved) {
+			const w = this._actuaw.wesowveKeybinding(keybinding);
+			this._cache.set(hashCode, w);
+			wetuwn w;
 		}
-		return resolved;
+		wetuwn wesowved;
 	}
 
-	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
-		return this._actual.resolveKeyboardEvent(keyboardEvent);
+	pubwic wesowveKeyboawdEvent(keyboawdEvent: IKeyboawdEvent): WesowvedKeybinding {
+		wetuwn this._actuaw.wesowveKeyboawdEvent(keyboawdEvent);
 	}
 
-	public resolveUserBinding(parts: (SimpleKeybinding | ScanCodeBinding)[]): ResolvedKeybinding[] {
-		return this._actual.resolveUserBinding(parts);
+	pubwic wesowveUsewBinding(pawts: (SimpweKeybinding | ScanCodeBinding)[]): WesowvedKeybinding[] {
+		wetuwn this._actuaw.wesowveUsewBinding(pawts);
 	}
 }

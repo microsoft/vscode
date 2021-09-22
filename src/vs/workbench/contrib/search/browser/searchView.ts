@@ -1,1994 +1,1994 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { Orientation } from 'vs/base/browser/ui/sash/sash';
-import { ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
-import { IAction } from 'vs/base/common/actions';
-import { Delayer } from 'vs/base/common/async';
-import { Color, RGBA } from 'vs/base/common/color';
-import * as errors from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import * as env from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/searchview';
-import { getCodeEditor, ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IEditor } from 'vs/editor/common/editorCommon';
-import { CommonFindController } from 'vs/editor/contrib/find/findController';
-import { MultiCursorSelectionController } from 'vs/editor/contrib/multicursor/multicursor';
-import * as nls from 'vs/nls';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IConfirmation, IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { getSelectionKeyboardEvent, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { INotificationService, } from 'vs/platform/notification/common/notification';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProgress, IProgressService, IProgressStep } from 'vs/platform/progress/common/progress';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, foreground, listActiveSelectionForeground, textLinkActiveForeground, textLinkForeground, toolbarActiveBackground, toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { OpenFileFolderAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
-import { ResourceLabels } from 'vs/workbench/browser/labels';
-import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { Memento, MementoObject } from 'vs/workbench/common/memento';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { ExcludePatternInputWidget, IncludePatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
-import { appendKeyBindingLabel, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
-import { searchDetailsIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
-import { renderSearchMessage } from 'vs/workbench/contrib/search/browser/searchMessage';
-import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibilityProvider, SearchDelegate, SearchDND } from 'vs/workbench/contrib/search/browser/searchResultsView';
-import { ISearchWidgetOptions, SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
-import * as Constants from 'vs/workbench/contrib/search/common/constants';
-import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
-import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
-import { getOutOfWorkspaceEditorResources, SearchStateKey, SearchUIState } from 'vs/workbench/contrib/search/common/search';
-import { ISearchHistoryService, ISearchHistoryValues } from 'vs/workbench/contrib/search/common/searchHistoryService';
-import { FileMatch, FileMatchOrMatch, FolderMatch, FolderMatchWithResource, IChangeEvent, ISearchWorkbenchService, Match, RenderableMatch, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
-import { createEditorFromSearchResult } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
-import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
-import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/search';
-import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/searchExtTypes';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt * as awia fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt { MessageType } fwom 'vs/base/bwowsa/ui/inputbox/inputBox';
+impowt { IIdentityPwovida } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { Owientation } fwom 'vs/base/bwowsa/ui/sash/sash';
+impowt { ITweeContextMenuEvent, ITweeEwement } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { Dewaya } fwom 'vs/base/common/async';
+impowt { Cowow, WGBA } fwom 'vs/base/common/cowow';
+impowt * as ewwows fwom 'vs/base/common/ewwows';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe, DisposabweStowe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt * as env fwom 'vs/base/common/pwatfowm';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt 'vs/css!./media/seawchview';
+impowt { getCodeEditow, ICodeEditow, isCodeEditow, isDiffEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { EmbeddedCodeEditowWidget } fwom 'vs/editow/bwowsa/widget/embeddedCodeEditowWidget';
+impowt { IEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { IEditow } fwom 'vs/editow/common/editowCommon';
+impowt { CommonFindContwowwa } fwom 'vs/editow/contwib/find/findContwowwa';
+impowt { MuwtiCuwsowSewectionContwowwa } fwom 'vs/editow/contwib/muwticuwsow/muwticuwsow';
+impowt * as nws fwom 'vs/nws';
+impowt { IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { cweateAndFiwwInContextMenuActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { IMenu, IMenuSewvice, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IContextMenuSewvice, IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IConfiwmation, IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { FiweChangesEvent, FiweChangeType, IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { getSewectionKeyboawdEvent, WowkbenchObjectTwee } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { INotificationSewvice, } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IPwogwess, IPwogwessSewvice, IPwogwessStep } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { diffInsewted, diffInsewtedOutwine, diffWemoved, diffWemovedOutwine, editowFindMatchHighwight, editowFindMatchHighwightBowda, fowegwound, wistActiveSewectionFowegwound, textWinkActiveFowegwound, textWinkFowegwound, toowbawActiveBackgwound, toowbawHovewBackgwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { ICowowTheme, ICssStyweCowwectow, IThemeSewvice, wegistewThemingPawticipant, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { OpenFiweFowdewAction, OpenFowdewAction } fwom 'vs/wowkbench/bwowsa/actions/wowkspaceActions';
+impowt { WesouwceWabews } fwom 'vs/wowkbench/bwowsa/wabews';
+impowt { IViewPaneOptions, ViewPane } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPane';
+impowt { IEditowPane } fwom 'vs/wowkbench/common/editow';
+impowt { Memento, MementoObject } fwom 'vs/wowkbench/common/memento';
+impowt { IViewDescwiptowSewvice } fwom 'vs/wowkbench/common/views';
+impowt { ExcwudePattewnInputWidget, IncwudePattewnInputWidget } fwom 'vs/wowkbench/contwib/seawch/bwowsa/pattewnInputWidget';
+impowt { appendKeyBindingWabew, IFindInFiwesAwgs } fwom 'vs/wowkbench/contwib/seawch/bwowsa/seawchActions';
+impowt { seawchDetaiwsIcon } fwom 'vs/wowkbench/contwib/seawch/bwowsa/seawchIcons';
+impowt { wendewSeawchMessage } fwom 'vs/wowkbench/contwib/seawch/bwowsa/seawchMessage';
+impowt { FiweMatchWendewa, FowdewMatchWendewa, MatchWendewa, SeawchAccessibiwityPwovida, SeawchDewegate, SeawchDND } fwom 'vs/wowkbench/contwib/seawch/bwowsa/seawchWesuwtsView';
+impowt { ISeawchWidgetOptions, SeawchWidget } fwom 'vs/wowkbench/contwib/seawch/bwowsa/seawchWidget';
+impowt * as Constants fwom 'vs/wowkbench/contwib/seawch/common/constants';
+impowt { ITextQuewyBuiwdewOptions, QuewyBuiwda } fwom 'vs/wowkbench/contwib/seawch/common/quewyBuiwda';
+impowt { IWepwaceSewvice } fwom 'vs/wowkbench/contwib/seawch/common/wepwace';
+impowt { getOutOfWowkspaceEditowWesouwces, SeawchStateKey, SeawchUIState } fwom 'vs/wowkbench/contwib/seawch/common/seawch';
+impowt { ISeawchHistowySewvice, ISeawchHistowyVawues } fwom 'vs/wowkbench/contwib/seawch/common/seawchHistowySewvice';
+impowt { FiweMatch, FiweMatchOwMatch, FowdewMatch, FowdewMatchWithWesouwce, IChangeEvent, ISeawchWowkbenchSewvice, Match, WendewabweMatch, seawchMatchCompawa, SeawchModew, SeawchWesuwt } fwom 'vs/wowkbench/contwib/seawch/common/seawchModew';
+impowt { cweateEditowFwomSeawchWesuwt } fwom 'vs/wowkbench/contwib/seawchEditow/bwowsa/seawchEditowActions';
+impowt { ACTIVE_GWOUP, IEditowSewvice, SIDE_GWOUP } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IPwefewencesSewvice, ISettingsEditowOptions } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
+impowt { IPattewnInfo, ISeawchCompwete, ISeawchConfiguwation, ISeawchConfiguwationPwopewties, ITextQuewy, SeawchCompwetionExitCode, SeawchSowtOwda, TextSeawchCompweteMessageType } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { TextSeawchCompweteMessage } fwom 'vs/wowkbench/sewvices/seawch/common/seawchExtTypes';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
 
 const $ = dom.$;
 
-export enum SearchViewPosition {
-	SideBar,
-	Panel
+expowt enum SeawchViewPosition {
+	SideBaw,
+	Panew
 }
 
-const SEARCH_CANCELLED_MESSAGE = nls.localize('searchCanceled', "Search was canceled before any results could be found - ");
-export class SearchView extends ViewPane {
+const SEAWCH_CANCEWWED_MESSAGE = nws.wocawize('seawchCancewed', "Seawch was cancewed befowe any wesuwts couwd be found - ");
+expowt cwass SeawchView extends ViewPane {
 
-	private static readonly ACTIONS_RIGHT_CLASS_NAME = 'actions-right';
+	pwivate static weadonwy ACTIONS_WIGHT_CWASS_NAME = 'actions-wight';
 
-	private isDisposed = false;
+	pwivate isDisposed = fawse;
 
-	private container!: HTMLElement;
-	private queryBuilder: QueryBuilder;
-	private viewModel: SearchModel;
-	private memento: Memento;
+	pwivate containa!: HTMWEwement;
+	pwivate quewyBuiwda: QuewyBuiwda;
+	pwivate viewModew: SeawchModew;
+	pwivate memento: Memento;
 
-	private viewletVisible: IContextKey<boolean>;
-	private inputBoxFocused: IContextKey<boolean>;
-	private inputPatternIncludesFocused: IContextKey<boolean>;
-	private inputPatternExclusionsFocused: IContextKey<boolean>;
-	private firstMatchFocused: IContextKey<boolean>;
-	private fileMatchOrMatchFocused: IContextKey<boolean>;
-	private fileMatchOrFolderMatchFocus: IContextKey<boolean>;
-	private fileMatchOrFolderMatchWithResourceFocus: IContextKey<boolean>;
-	private fileMatchFocused: IContextKey<boolean>;
-	private folderMatchFocused: IContextKey<boolean>;
-	private matchFocused: IContextKey<boolean>;
-	private hasSearchResultsKey: IContextKey<boolean>;
-	private lastFocusState: 'input' | 'tree' = 'input';
+	pwivate viewwetVisibwe: IContextKey<boowean>;
+	pwivate inputBoxFocused: IContextKey<boowean>;
+	pwivate inputPattewnIncwudesFocused: IContextKey<boowean>;
+	pwivate inputPattewnExcwusionsFocused: IContextKey<boowean>;
+	pwivate fiwstMatchFocused: IContextKey<boowean>;
+	pwivate fiweMatchOwMatchFocused: IContextKey<boowean>;
+	pwivate fiweMatchOwFowdewMatchFocus: IContextKey<boowean>;
+	pwivate fiweMatchOwFowdewMatchWithWesouwceFocus: IContextKey<boowean>;
+	pwivate fiweMatchFocused: IContextKey<boowean>;
+	pwivate fowdewMatchFocused: IContextKey<boowean>;
+	pwivate matchFocused: IContextKey<boowean>;
+	pwivate hasSeawchWesuwtsKey: IContextKey<boowean>;
+	pwivate wastFocusState: 'input' | 'twee' = 'input';
 
-	private searchStateKey: IContextKey<SearchUIState>;
-	private hasSearchPatternKey: IContextKey<boolean>;
-	private hasReplacePatternKey: IContextKey<boolean>;
-	private hasFilePatternKey: IContextKey<boolean>;
-	private hasSomeCollapsibleResultKey: IContextKey<boolean>;
+	pwivate seawchStateKey: IContextKey<SeawchUIState>;
+	pwivate hasSeawchPattewnKey: IContextKey<boowean>;
+	pwivate hasWepwacePattewnKey: IContextKey<boowean>;
+	pwivate hasFiwePattewnKey: IContextKey<boowean>;
+	pwivate hasSomeCowwapsibweWesuwtKey: IContextKey<boowean>;
 
-	private contextMenu: IMenu | null = null;
+	pwivate contextMenu: IMenu | nuww = nuww;
 
-	private tree!: WorkbenchObjectTree<RenderableMatch>;
-	private treeLabels!: ResourceLabels;
-	private viewletState: MementoObject;
-	private messagesElement!: HTMLElement;
-	private readonly messageDisposables: DisposableStore = new DisposableStore();
-	private searchWidgetsContainerElement!: HTMLElement;
-	private searchWidget!: SearchWidget;
-	private size!: dom.Dimension;
-	private queryDetails!: HTMLElement;
-	private toggleQueryDetailsButton!: HTMLElement;
-	private inputPatternExcludes!: ExcludePatternInputWidget;
-	private inputPatternIncludes!: IncludePatternInputWidget;
-	private resultsElement!: HTMLElement;
+	pwivate twee!: WowkbenchObjectTwee<WendewabweMatch>;
+	pwivate tweeWabews!: WesouwceWabews;
+	pwivate viewwetState: MementoObject;
+	pwivate messagesEwement!: HTMWEwement;
+	pwivate weadonwy messageDisposabwes: DisposabweStowe = new DisposabweStowe();
+	pwivate seawchWidgetsContainewEwement!: HTMWEwement;
+	pwivate seawchWidget!: SeawchWidget;
+	pwivate size!: dom.Dimension;
+	pwivate quewyDetaiws!: HTMWEwement;
+	pwivate toggweQuewyDetaiwsButton!: HTMWEwement;
+	pwivate inputPattewnExcwudes!: ExcwudePattewnInputWidget;
+	pwivate inputPattewnIncwudes!: IncwudePattewnInputWidget;
+	pwivate wesuwtsEwement!: HTMWEwement;
 
-	private currentSelectedFileMatch: FileMatch | undefined;
+	pwivate cuwwentSewectedFiweMatch: FiweMatch | undefined;
 
-	private delayedRefresh: Delayer<void>;
-	private changedWhileHidden: boolean = false;
+	pwivate dewayedWefwesh: Dewaya<void>;
+	pwivate changedWhiweHidden: boowean = fawse;
 
-	private searchWithoutFolderMessageElement: HTMLElement | undefined;
+	pwivate seawchWithoutFowdewMessageEwement: HTMWEwement | undefined;
 
-	private currentSearchQ = Promise.resolve();
-	private addToSearchHistoryDelayer: Delayer<void>;
+	pwivate cuwwentSeawchQ = Pwomise.wesowve();
+	pwivate addToSeawchHistowyDewaya: Dewaya<void>;
 
-	private toggleCollapseStateDelayer: Delayer<void>;
+	pwivate toggweCowwapseStateDewaya: Dewaya<void>;
 
-	private triggerQueryDelayer: Delayer<void>;
-	private pauseSearching = false;
+	pwivate twiggewQuewyDewaya: Dewaya<void>;
+	pwivate pauseSeawching = fawse;
 
-	private treeAccessibilityProvider: SearchAccessibilityProvider;
+	pwivate tweeAccessibiwityPwovida: SeawchAccessibiwityPwovida;
 
-	constructor(
+	constwuctow(
 		options: IViewPaneOptions,
-		@IFileService private readonly fileService: IFileService,
-		@IEditorService private readonly editorService: IEditorService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IProgressService private readonly progressService: IProgressService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@ISearchWorkbenchService private readonly searchWorkbenchService: ISearchWorkbenchService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IReplaceService private readonly replaceService: IReplaceService,
-		@ITextFileService private readonly textFileService: ITextFileService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IThemeService themeService: IThemeService,
-		@ISearchHistoryService private readonly searchHistoryService: ISearchHistoryService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IMenuService private readonly menuService: IMenuService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IStorageService storageService: IStorageService,
-		@IOpenerService openerService: IOpenerService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@ICodeEditowSewvice pwivate weadonwy codeEditowSewvice: ICodeEditowSewvice,
+		@IPwogwessSewvice pwivate weadonwy pwogwessSewvice: IPwogwessSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
+		@IContextViewSewvice pwivate weadonwy contextViewSewvice: IContextViewSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@ISeawchWowkbenchSewvice pwivate weadonwy seawchWowkbenchSewvice: ISeawchWowkbenchSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IWepwaceSewvice pwivate weadonwy wepwaceSewvice: IWepwaceSewvice,
+		@ITextFiweSewvice pwivate weadonwy textFiweSewvice: ITextFiweSewvice,
+		@IPwefewencesSewvice pwivate weadonwy pwefewencesSewvice: IPwefewencesSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@ISeawchHistowySewvice pwivate weadonwy seawchHistowySewvice: ISeawchHistowySewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IMenuSewvice pwivate weadonwy menuSewvice: IMenuSewvice,
+		@IAccessibiwitySewvice pwivate weadonwy accessibiwitySewvice: IAccessibiwitySewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
 	) {
 
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		supa(options, keybindingSewvice, contextMenuSewvice, configuwationSewvice, contextKeySewvice, viewDescwiptowSewvice, instantiationSewvice, openewSewvice, themeSewvice, tewemetwySewvice);
 
-		this.container = dom.$('.search-view');
+		this.containa = dom.$('.seawch-view');
 
-		// globals
-		this.viewletVisible = Constants.SearchViewVisibleKey.bindTo(this.contextKeyService);
-		this.firstMatchFocused = Constants.FirstMatchFocusKey.bindTo(this.contextKeyService);
-		this.fileMatchOrMatchFocused = Constants.FileMatchOrMatchFocusKey.bindTo(this.contextKeyService);
-		this.fileMatchOrFolderMatchFocus = Constants.FileMatchOrFolderMatchFocusKey.bindTo(this.contextKeyService);
-		this.fileMatchOrFolderMatchWithResourceFocus = Constants.FileMatchOrFolderMatchWithResourceFocusKey.bindTo(this.contextKeyService);
-		this.fileMatchFocused = Constants.FileFocusKey.bindTo(this.contextKeyService);
-		this.folderMatchFocused = Constants.FolderFocusKey.bindTo(this.contextKeyService);
-		this.hasSearchResultsKey = Constants.HasSearchResults.bindTo(this.contextKeyService);
-		this.matchFocused = Constants.MatchFocusKey.bindTo(this.contextKeyService);
-		this.searchStateKey = SearchStateKey.bindTo(this.contextKeyService);
-		this.hasSearchPatternKey = Constants.ViewHasSearchPatternKey.bindTo(this.contextKeyService);
-		this.hasReplacePatternKey = Constants.ViewHasReplacePatternKey.bindTo(this.contextKeyService);
-		this.hasFilePatternKey = Constants.ViewHasFilePatternKey.bindTo(this.contextKeyService);
-		this.hasSomeCollapsibleResultKey = Constants.ViewHasSomeCollapsibleKey.bindTo(this.contextKeyService);
+		// gwobaws
+		this.viewwetVisibwe = Constants.SeawchViewVisibweKey.bindTo(this.contextKeySewvice);
+		this.fiwstMatchFocused = Constants.FiwstMatchFocusKey.bindTo(this.contextKeySewvice);
+		this.fiweMatchOwMatchFocused = Constants.FiweMatchOwMatchFocusKey.bindTo(this.contextKeySewvice);
+		this.fiweMatchOwFowdewMatchFocus = Constants.FiweMatchOwFowdewMatchFocusKey.bindTo(this.contextKeySewvice);
+		this.fiweMatchOwFowdewMatchWithWesouwceFocus = Constants.FiweMatchOwFowdewMatchWithWesouwceFocusKey.bindTo(this.contextKeySewvice);
+		this.fiweMatchFocused = Constants.FiweFocusKey.bindTo(this.contextKeySewvice);
+		this.fowdewMatchFocused = Constants.FowdewFocusKey.bindTo(this.contextKeySewvice);
+		this.hasSeawchWesuwtsKey = Constants.HasSeawchWesuwts.bindTo(this.contextKeySewvice);
+		this.matchFocused = Constants.MatchFocusKey.bindTo(this.contextKeySewvice);
+		this.seawchStateKey = SeawchStateKey.bindTo(this.contextKeySewvice);
+		this.hasSeawchPattewnKey = Constants.ViewHasSeawchPattewnKey.bindTo(this.contextKeySewvice);
+		this.hasWepwacePattewnKey = Constants.ViewHasWepwacePattewnKey.bindTo(this.contextKeySewvice);
+		this.hasFiwePattewnKey = Constants.ViewHasFiwePattewnKey.bindTo(this.contextKeySewvice);
+		this.hasSomeCowwapsibweWesuwtKey = Constants.ViewHasSomeCowwapsibweKey.bindTo(this.contextKeySewvice);
 
 		// scoped
-		this.contextKeyService = this._register(this.contextKeyService.createScoped(this.container));
-		Constants.SearchViewFocusedKey.bindTo(this.contextKeyService).set(true);
-		this.inputBoxFocused = Constants.InputBoxFocusedKey.bindTo(this.contextKeyService);
-		this.inputPatternIncludesFocused = Constants.PatternIncludesFocusedKey.bindTo(this.contextKeyService);
-		this.inputPatternExclusionsFocused = Constants.PatternExcludesFocusedKey.bindTo(this.contextKeyService);
+		this.contextKeySewvice = this._wegista(this.contextKeySewvice.cweateScoped(this.containa));
+		Constants.SeawchViewFocusedKey.bindTo(this.contextKeySewvice).set(twue);
+		this.inputBoxFocused = Constants.InputBoxFocusedKey.bindTo(this.contextKeySewvice);
+		this.inputPattewnIncwudesFocused = Constants.PattewnIncwudesFocusedKey.bindTo(this.contextKeySewvice);
+		this.inputPattewnExcwusionsFocused = Constants.PattewnExcwudesFocusedKey.bindTo(this.contextKeySewvice);
 
-		this.instantiationService = this.instantiationService.createChild(
-			new ServiceCollection([IContextKeyService, this.contextKeyService]));
+		this.instantiationSewvice = this.instantiationSewvice.cweateChiwd(
+			new SewviceCowwection([IContextKeySewvice, this.contextKeySewvice]));
 
-		this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('search.sortOrder')) {
-				if (this.searchConfig.sortOrder === SearchSortOrder.Modified) {
-					// If changing away from modified, remove all fileStats
-					// so that updated files are re-retrieved next time.
-					this.removeFileStats();
+		this.configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation('seawch.sowtOwda')) {
+				if (this.seawchConfig.sowtOwda === SeawchSowtOwda.Modified) {
+					// If changing away fwom modified, wemove aww fiweStats
+					// so that updated fiwes awe we-wetwieved next time.
+					this.wemoveFiweStats();
 				}
-				this.refreshTree();
+				this.wefweshTwee();
 			}
 		});
 
-		this.viewModel = this._register(this.searchWorkbenchService.searchModel);
-		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
-		this.memento = new Memento(this.id, storageService);
-		this.viewletState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER);
+		this.viewModew = this._wegista(this.seawchWowkbenchSewvice.seawchModew);
+		this.quewyBuiwda = this.instantiationSewvice.cweateInstance(QuewyBuiwda);
+		this.memento = new Memento(this.id, stowageSewvice);
+		this.viewwetState = this.memento.getMemento(StowageScope.WOWKSPACE, StowageTawget.USa);
 
-		this._register(this.fileService.onDidFilesChange(e => this.onFilesChanged(e)));
-		this._register(this.textFileService.untitled.onWillDispose(model => this.onUntitledDidDispose(model.resource)));
-		this._register(this.contextService.onDidChangeWorkbenchState(() => this.onDidChangeWorkbenchState()));
-		this._register(this.searchHistoryService.onDidClearHistory(() => this.clearHistory()));
+		this._wegista(this.fiweSewvice.onDidFiwesChange(e => this.onFiwesChanged(e)));
+		this._wegista(this.textFiweSewvice.untitwed.onWiwwDispose(modew => this.onUntitwedDidDispose(modew.wesouwce)));
+		this._wegista(this.contextSewvice.onDidChangeWowkbenchState(() => this.onDidChangeWowkbenchState()));
+		this._wegista(this.seawchHistowySewvice.onDidCweawHistowy(() => this.cweawHistowy()));
 
-		this.delayedRefresh = this._register(new Delayer<void>(250));
+		this.dewayedWefwesh = this._wegista(new Dewaya<void>(250));
 
-		this.addToSearchHistoryDelayer = this._register(new Delayer<void>(2000));
-		this.toggleCollapseStateDelayer = this._register(new Delayer<void>(100));
-		this.triggerQueryDelayer = this._register(new Delayer<void>(0));
+		this.addToSeawchHistowyDewaya = this._wegista(new Dewaya<void>(2000));
+		this.toggweCowwapseStateDewaya = this._wegista(new Dewaya<void>(100));
+		this.twiggewQuewyDewaya = this._wegista(new Dewaya<void>(0));
 
-		this.treeAccessibilityProvider = this.instantiationService.createInstance(SearchAccessibilityProvider, this.viewModel);
+		this.tweeAccessibiwityPwovida = this.instantiationSewvice.cweateInstance(SeawchAccessibiwityPwovida, this.viewModew);
 	}
 
-	private get state(): SearchUIState {
-		return this.searchStateKey.get() ?? SearchUIState.Idle;
+	pwivate get state(): SeawchUIState {
+		wetuwn this.seawchStateKey.get() ?? SeawchUIState.Idwe;
 	}
 
-	private set state(v: SearchUIState) {
-		this.searchStateKey.set(v);
+	pwivate set state(v: SeawchUIState) {
+		this.seawchStateKey.set(v);
 	}
 
-	getContainer(): HTMLElement {
-		return this.container;
+	getContaina(): HTMWEwement {
+		wetuwn this.containa;
 	}
 
-	get searchResult(): SearchResult {
-		return this.viewModel && this.viewModel.searchResult;
+	get seawchWesuwt(): SeawchWesuwt {
+		wetuwn this.viewModew && this.viewModew.seawchWesuwt;
 	}
 
-	private onDidChangeWorkbenchState(): void {
-		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.searchWithoutFolderMessageElement) {
-			dom.hide(this.searchWithoutFolderMessageElement);
+	pwivate onDidChangeWowkbenchState(): void {
+		if (this.contextSewvice.getWowkbenchState() !== WowkbenchState.EMPTY && this.seawchWithoutFowdewMessageEwement) {
+			dom.hide(this.seawchWithoutFowdewMessageEwement);
 		}
 	}
 
-	override renderBody(parent: HTMLElement): void {
-		super.renderBody(parent);
-		this.container = dom.append(parent, dom.$('.search-view'));
+	ovewwide wendewBody(pawent: HTMWEwement): void {
+		supa.wendewBody(pawent);
+		this.containa = dom.append(pawent, dom.$('.seawch-view'));
 
-		this.searchWidgetsContainerElement = dom.append(this.container, $('.search-widgets-container'));
-		this.createSearchWidget(this.searchWidgetsContainerElement);
+		this.seawchWidgetsContainewEwement = dom.append(this.containa, $('.seawch-widgets-containa'));
+		this.cweateSeawchWidget(this.seawchWidgetsContainewEwement);
 
-		const history = this.searchHistoryService.load();
-		const filePatterns = this.viewletState['query.filePatterns'] || '';
-		const patternExclusions = this.viewletState['query.folderExclusions'] || '';
-		const patternExclusionsHistory: string[] = history.exclude || [];
-		const patternIncludes = this.viewletState['query.folderIncludes'] || '';
-		const patternIncludesHistory: string[] = history.include || [];
-		const onlyOpenEditors = this.viewletState['query.onlyOpenEditors'] || false;
+		const histowy = this.seawchHistowySewvice.woad();
+		const fiwePattewns = this.viewwetState['quewy.fiwePattewns'] || '';
+		const pattewnExcwusions = this.viewwetState['quewy.fowdewExcwusions'] || '';
+		const pattewnExcwusionsHistowy: stwing[] = histowy.excwude || [];
+		const pattewnIncwudes = this.viewwetState['quewy.fowdewIncwudes'] || '';
+		const pattewnIncwudesHistowy: stwing[] = histowy.incwude || [];
+		const onwyOpenEditows = this.viewwetState['quewy.onwyOpenEditows'] || fawse;
 
-		const queryDetailsExpanded = this.viewletState['query.queryDetailsExpanded'] || '';
-		const useExcludesAndIgnoreFiles = typeof this.viewletState['query.useExcludesAndIgnoreFiles'] === 'boolean' ?
-			this.viewletState['query.useExcludesAndIgnoreFiles'] : true;
+		const quewyDetaiwsExpanded = this.viewwetState['quewy.quewyDetaiwsExpanded'] || '';
+		const useExcwudesAndIgnoweFiwes = typeof this.viewwetState['quewy.useExcwudesAndIgnoweFiwes'] === 'boowean' ?
+			this.viewwetState['quewy.useExcwudesAndIgnoweFiwes'] : twue;
 
-		this.queryDetails = dom.append(this.searchWidgetsContainerElement, $('.query-details'));
+		this.quewyDetaiws = dom.append(this.seawchWidgetsContainewEwement, $('.quewy-detaiws'));
 
-		// Toggle query details button
-		this.toggleQueryDetailsButton = dom.append(this.queryDetails,
-			$('.more' + ThemeIcon.asCSSSelector(searchDetailsIcon), { tabindex: 0, role: 'button', title: nls.localize('moreSearch', "Toggle Search Details") }));
+		// Toggwe quewy detaiws button
+		this.toggweQuewyDetaiwsButton = dom.append(this.quewyDetaiws,
+			$('.mowe' + ThemeIcon.asCSSSewectow(seawchDetaiwsIcon), { tabindex: 0, wowe: 'button', titwe: nws.wocawize('moweSeawch', "Toggwe Seawch Detaiws") }));
 
-		this._register(dom.addDisposableListener(this.toggleQueryDetailsButton, dom.EventType.CLICK, e => {
-			dom.EventHelper.stop(e);
-			this.toggleQueryDetails(!this.accessibilityService.isScreenReaderOptimized());
+		this._wegista(dom.addDisposabweWistena(this.toggweQuewyDetaiwsButton, dom.EventType.CWICK, e => {
+			dom.EventHewpa.stop(e);
+			this.toggweQuewyDetaiws(!this.accessibiwitySewvice.isScweenWeadewOptimized());
 		}));
-		this._register(dom.addDisposableListener(this.toggleQueryDetailsButton, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
-			const event = new StandardKeyboardEvent(e);
+		this._wegista(dom.addDisposabweWistena(this.toggweQuewyDetaiwsButton, dom.EventType.KEY_UP, (e: KeyboawdEvent) => {
+			const event = new StandawdKeyboawdEvent(e);
 
-			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				dom.EventHelper.stop(e);
-				this.toggleQueryDetails(false);
+			if (event.equaws(KeyCode.Enta) || event.equaws(KeyCode.Space)) {
+				dom.EventHewpa.stop(e);
+				this.toggweQuewyDetaiws(fawse);
 			}
 		}));
-		this._register(dom.addDisposableListener(this.toggleQueryDetailsButton, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			const event = new StandardKeyboardEvent(e);
+		this._wegista(dom.addDisposabweWistena(this.toggweQuewyDetaiwsButton, dom.EventType.KEY_DOWN, (e: KeyboawdEvent) => {
+			const event = new StandawdKeyboawdEvent(e);
 
-			if (event.equals(KeyMod.Shift | KeyCode.Tab)) {
-				if (this.searchWidget.isReplaceActive()) {
-					this.searchWidget.focusReplaceAllAction();
-				} else {
-					this.searchWidget.isReplaceShown() ? this.searchWidget.replaceInput.focusOnPreserve() : this.searchWidget.focusRegexAction();
+			if (event.equaws(KeyMod.Shift | KeyCode.Tab)) {
+				if (this.seawchWidget.isWepwaceActive()) {
+					this.seawchWidget.focusWepwaceAwwAction();
+				} ewse {
+					this.seawchWidget.isWepwaceShown() ? this.seawchWidget.wepwaceInput.focusOnPwesewve() : this.seawchWidget.focusWegexAction();
 				}
-				dom.EventHelper.stop(e);
+				dom.EventHewpa.stop(e);
 			}
 		}));
 
-		// folder includes list
-		const folderIncludesList = dom.append(this.queryDetails,
-			$('.file-types.includes'));
-		const filesToIncludeTitle = nls.localize('searchScope.includes', "files to include");
-		dom.append(folderIncludesList, $('h4', undefined, filesToIncludeTitle));
+		// fowda incwudes wist
+		const fowdewIncwudesWist = dom.append(this.quewyDetaiws,
+			$('.fiwe-types.incwudes'));
+		const fiwesToIncwudeTitwe = nws.wocawize('seawchScope.incwudes', "fiwes to incwude");
+		dom.append(fowdewIncwudesWist, $('h4', undefined, fiwesToIncwudeTitwe));
 
-		this.inputPatternIncludes = this._register(this.instantiationService.createInstance(IncludePatternInputWidget, folderIncludesList, this.contextViewService, {
-			ariaLabel: filesToIncludeTitle,
-			placeholder: nls.localize('placeholder.includes', "e.g. *.ts, src/**/include"),
-			showPlaceholderOnFocus: true,
-			history: patternIncludesHistory,
+		this.inputPattewnIncwudes = this._wegista(this.instantiationSewvice.cweateInstance(IncwudePattewnInputWidget, fowdewIncwudesWist, this.contextViewSewvice, {
+			awiaWabew: fiwesToIncwudeTitwe,
+			pwacehowda: nws.wocawize('pwacehowda.incwudes', "e.g. *.ts, swc/**/incwude"),
+			showPwacehowdewOnFocus: twue,
+			histowy: pattewnIncwudesHistowy,
 		}));
 
-		this.inputPatternIncludes.setValue(patternIncludes);
-		this.inputPatternIncludes.setOnlySearchInOpenEditors(onlyOpenEditors);
+		this.inputPattewnIncwudes.setVawue(pattewnIncwudes);
+		this.inputPattewnIncwudes.setOnwySeawchInOpenEditows(onwyOpenEditows);
 
-		this._register(this.inputPatternIncludes.onCancel(() => this.cancelSearch(false)));
-		this._register(this.inputPatternIncludes.onChangeSearchInEditorsBox(() => this.triggerQueryChange()));
+		this._wegista(this.inputPattewnIncwudes.onCancew(() => this.cancewSeawch(fawse)));
+		this._wegista(this.inputPattewnIncwudes.onChangeSeawchInEditowsBox(() => this.twiggewQuewyChange()));
 
-		this.trackInputBox(this.inputPatternIncludes.inputFocusTracker, this.inputPatternIncludesFocused);
+		this.twackInputBox(this.inputPattewnIncwudes.inputFocusTwacka, this.inputPattewnIncwudesFocused);
 
-		// excludes list
-		const excludesList = dom.append(this.queryDetails, $('.file-types.excludes'));
-		const excludesTitle = nls.localize('searchScope.excludes', "files to exclude");
-		dom.append(excludesList, $('h4', undefined, excludesTitle));
-		this.inputPatternExcludes = this._register(this.instantiationService.createInstance(ExcludePatternInputWidget, excludesList, this.contextViewService, {
-			ariaLabel: excludesTitle,
-			placeholder: nls.localize('placeholder.excludes', "e.g. *.ts, src/**/exclude"),
-			showPlaceholderOnFocus: true,
-			history: patternExclusionsHistory,
+		// excwudes wist
+		const excwudesWist = dom.append(this.quewyDetaiws, $('.fiwe-types.excwudes'));
+		const excwudesTitwe = nws.wocawize('seawchScope.excwudes', "fiwes to excwude");
+		dom.append(excwudesWist, $('h4', undefined, excwudesTitwe));
+		this.inputPattewnExcwudes = this._wegista(this.instantiationSewvice.cweateInstance(ExcwudePattewnInputWidget, excwudesWist, this.contextViewSewvice, {
+			awiaWabew: excwudesTitwe,
+			pwacehowda: nws.wocawize('pwacehowda.excwudes', "e.g. *.ts, swc/**/excwude"),
+			showPwacehowdewOnFocus: twue,
+			histowy: pattewnExcwusionsHistowy,
 		}));
 
-		this.inputPatternExcludes.setValue(patternExclusions);
-		this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(useExcludesAndIgnoreFiles);
+		this.inputPattewnExcwudes.setVawue(pattewnExcwusions);
+		this.inputPattewnExcwudes.setUseExcwudesAndIgnoweFiwes(useExcwudesAndIgnoweFiwes);
 
-		this._register(this.inputPatternExcludes.onCancel(() => this.cancelSearch(false)));
-		this._register(this.inputPatternExcludes.onChangeIgnoreBox(() => this.triggerQueryChange()));
-		this.trackInputBox(this.inputPatternExcludes.inputFocusTracker, this.inputPatternExclusionsFocused);
+		this._wegista(this.inputPattewnExcwudes.onCancew(() => this.cancewSeawch(fawse)));
+		this._wegista(this.inputPattewnExcwudes.onChangeIgnoweBox(() => this.twiggewQuewyChange()));
+		this.twackInputBox(this.inputPattewnExcwudes.inputFocusTwacka, this.inputPattewnExcwusionsFocused);
 
-		const updateHasFilePatternKey = () => this.hasFilePatternKey.set(this.inputPatternIncludes.getValue().length > 0 || this.inputPatternExcludes.getValue().length > 0);
-		updateHasFilePatternKey();
-		const onFilePatternSubmit = (triggeredOnType: boolean) => {
-			this.triggerQueryChange({ triggeredOnType, delay: this.searchConfig.searchOnTypeDebouncePeriod });
-			if (triggeredOnType) {
-				updateHasFilePatternKey();
+		const updateHasFiwePattewnKey = () => this.hasFiwePattewnKey.set(this.inputPattewnIncwudes.getVawue().wength > 0 || this.inputPattewnExcwudes.getVawue().wength > 0);
+		updateHasFiwePattewnKey();
+		const onFiwePattewnSubmit = (twiggewedOnType: boowean) => {
+			this.twiggewQuewyChange({ twiggewedOnType, deway: this.seawchConfig.seawchOnTypeDebouncePewiod });
+			if (twiggewedOnType) {
+				updateHasFiwePattewnKey();
 			}
 		};
-		this._register(this.inputPatternIncludes.onSubmit(onFilePatternSubmit));
-		this._register(this.inputPatternExcludes.onSubmit(onFilePatternSubmit));
+		this._wegista(this.inputPattewnIncwudes.onSubmit(onFiwePattewnSubmit));
+		this._wegista(this.inputPattewnExcwudes.onSubmit(onFiwePattewnSubmit));
 
-		this.messagesElement = dom.append(this.container, $('.messages.text-search-provider-messages'));
-		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			this.showSearchWithoutFolderMessage();
+		this.messagesEwement = dom.append(this.containa, $('.messages.text-seawch-pwovida-messages'));
+		if (this.contextSewvice.getWowkbenchState() === WowkbenchState.EMPTY) {
+			this.showSeawchWithoutFowdewMessage();
 		}
 
-		this.createSearchResultsView(this.container);
+		this.cweateSeawchWesuwtsView(this.containa);
 
-		if (filePatterns !== '' || patternExclusions !== '' || patternIncludes !== '' || queryDetailsExpanded !== '' || !useExcludesAndIgnoreFiles) {
-			this.toggleQueryDetails(true, true, true);
+		if (fiwePattewns !== '' || pattewnExcwusions !== '' || pattewnIncwudes !== '' || quewyDetaiwsExpanded !== '' || !useExcwudesAndIgnoweFiwes) {
+			this.toggweQuewyDetaiws(twue, twue, twue);
 		}
 
-		this._register(this.viewModel.searchResult.onChange((event) => this.onSearchResultsChanged(event)));
+		this._wegista(this.viewModew.seawchWesuwt.onChange((event) => this.onSeawchWesuwtsChanged(event)));
 
-		this._register(this.onDidChangeBodyVisibility(visible => this.onVisibilityChanged(visible)));
+		this._wegista(this.onDidChangeBodyVisibiwity(visibwe => this.onVisibiwityChanged(visibwe)));
 	}
 
-	private onVisibilityChanged(visible: boolean): void {
-		this.viewletVisible.set(visible);
-		if (visible) {
-			if (this.changedWhileHidden) {
-				// Render if results changed while viewlet was hidden - #37818
-				this.refreshAndUpdateCount();
-				this.changedWhileHidden = false;
+	pwivate onVisibiwityChanged(visibwe: boowean): void {
+		this.viewwetVisibwe.set(visibwe);
+		if (visibwe) {
+			if (this.changedWhiweHidden) {
+				// Wenda if wesuwts changed whiwe viewwet was hidden - #37818
+				this.wefweshAndUpdateCount();
+				this.changedWhiweHidden = fawse;
 			}
-		} else {
-			// Reset last focus to input to preserve opening the viewlet always focusing the query editor.
-			this.lastFocusState = 'input';
+		} ewse {
+			// Weset wast focus to input to pwesewve opening the viewwet awways focusing the quewy editow.
+			this.wastFocusState = 'input';
 		}
 
-		// Enable highlights if there are searchresults
-		if (this.viewModel) {
-			this.viewModel.searchResult.toggleHighlights(visible);
+		// Enabwe highwights if thewe awe seawchwesuwts
+		if (this.viewModew) {
+			this.viewModew.seawchWesuwt.toggweHighwights(visibwe);
 		}
 	}
 
-	get searchAndReplaceWidget(): SearchWidget {
-		return this.searchWidget;
+	get seawchAndWepwaceWidget(): SeawchWidget {
+		wetuwn this.seawchWidget;
 	}
 
-	get searchIncludePattern(): IncludePatternInputWidget {
-		return this.inputPatternIncludes;
+	get seawchIncwudePattewn(): IncwudePattewnInputWidget {
+		wetuwn this.inputPattewnIncwudes;
 	}
 
-	get searchExcludePattern(): ExcludePatternInputWidget {
-		return this.inputPatternExcludes;
+	get seawchExcwudePattewn(): ExcwudePattewnInputWidget {
+		wetuwn this.inputPattewnExcwudes;
 	}
 
-	private createSearchWidget(container: HTMLElement): void {
-		const contentPattern = this.viewletState['query.contentPattern'] || '';
-		const replaceText = this.viewletState['query.replaceText'] || '';
-		const isRegex = this.viewletState['query.regex'] === true;
-		const isWholeWords = this.viewletState['query.wholeWords'] === true;
-		const isCaseSensitive = this.viewletState['query.caseSensitive'] === true;
-		const history = this.searchHistoryService.load();
-		const searchHistory = history.search || this.viewletState['query.searchHistory'] || [];
-		const replaceHistory = history.replace || this.viewletState['query.replaceHistory'] || [];
-		const showReplace = typeof this.viewletState['view.showReplace'] === 'boolean' ? this.viewletState['view.showReplace'] : true;
-		const preserveCase = this.viewletState['query.preserveCase'] === true;
+	pwivate cweateSeawchWidget(containa: HTMWEwement): void {
+		const contentPattewn = this.viewwetState['quewy.contentPattewn'] || '';
+		const wepwaceText = this.viewwetState['quewy.wepwaceText'] || '';
+		const isWegex = this.viewwetState['quewy.wegex'] === twue;
+		const isWhoweWowds = this.viewwetState['quewy.whoweWowds'] === twue;
+		const isCaseSensitive = this.viewwetState['quewy.caseSensitive'] === twue;
+		const histowy = this.seawchHistowySewvice.woad();
+		const seawchHistowy = histowy.seawch || this.viewwetState['quewy.seawchHistowy'] || [];
+		const wepwaceHistowy = histowy.wepwace || this.viewwetState['quewy.wepwaceHistowy'] || [];
+		const showWepwace = typeof this.viewwetState['view.showWepwace'] === 'boowean' ? this.viewwetState['view.showWepwace'] : twue;
+		const pwesewveCase = this.viewwetState['quewy.pwesewveCase'] === twue;
 
-		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, container, <ISearchWidgetOptions>{
-			value: contentPattern,
-			replaceValue: replaceText,
-			isRegex: isRegex,
+		this.seawchWidget = this._wegista(this.instantiationSewvice.cweateInstance(SeawchWidget, containa, <ISeawchWidgetOptions>{
+			vawue: contentPattewn,
+			wepwaceVawue: wepwaceText,
+			isWegex: isWegex,
 			isCaseSensitive: isCaseSensitive,
-			isWholeWords: isWholeWords,
-			searchHistory: searchHistory,
-			replaceHistory: replaceHistory,
-			preserveCase: preserveCase
+			isWhoweWowds: isWhoweWowds,
+			seawchHistowy: seawchHistowy,
+			wepwaceHistowy: wepwaceHistowy,
+			pwesewveCase: pwesewveCase
 		}));
 
-		if (showReplace) {
-			this.searchWidget.toggleReplace(true);
+		if (showWepwace) {
+			this.seawchWidget.toggweWepwace(twue);
 		}
 
-		this._register(this.searchWidget.onSearchSubmit(options => this.triggerQueryChange(options)));
-		this._register(this.searchWidget.onSearchCancel(({ focus }) => this.cancelSearch(focus)));
-		this._register(this.searchWidget.searchInput.onDidOptionChange(() => this.triggerQueryChange()));
+		this._wegista(this.seawchWidget.onSeawchSubmit(options => this.twiggewQuewyChange(options)));
+		this._wegista(this.seawchWidget.onSeawchCancew(({ focus }) => this.cancewSeawch(focus)));
+		this._wegista(this.seawchWidget.seawchInput.onDidOptionChange(() => this.twiggewQuewyChange()));
 
-		const updateHasPatternKey = () => this.hasSearchPatternKey.set(this.searchWidget.searchInput.getValue().length > 0);
-		updateHasPatternKey();
-		this._register(this.searchWidget.searchInput.onDidChange(() => updateHasPatternKey()));
+		const updateHasPattewnKey = () => this.hasSeawchPattewnKey.set(this.seawchWidget.seawchInput.getVawue().wength > 0);
+		updateHasPattewnKey();
+		this._wegista(this.seawchWidget.seawchInput.onDidChange(() => updateHasPattewnKey()));
 
-		const updateHasReplacePatternKey = () => this.hasReplacePatternKey.set(this.searchWidget.getReplaceValue().length > 0);
-		updateHasReplacePatternKey();
-		this._register(this.searchWidget.replaceInput.inputBox.onDidChange(() => updateHasReplacePatternKey()));
+		const updateHasWepwacePattewnKey = () => this.hasWepwacePattewnKey.set(this.seawchWidget.getWepwaceVawue().wength > 0);
+		updateHasWepwacePattewnKey();
+		this._wegista(this.seawchWidget.wepwaceInput.inputBox.onDidChange(() => updateHasWepwacePattewnKey()));
 
-		this._register(this.searchWidget.onDidHeightChange(() => this.reLayout()));
+		this._wegista(this.seawchWidget.onDidHeightChange(() => this.weWayout()));
 
-		this._register(this.searchWidget.onReplaceToggled(() => this.reLayout()));
-		this._register(this.searchWidget.onReplaceStateChange((state) => {
-			this.viewModel.replaceActive = state;
-			this.refreshTree();
+		this._wegista(this.seawchWidget.onWepwaceToggwed(() => this.weWayout()));
+		this._wegista(this.seawchWidget.onWepwaceStateChange((state) => {
+			this.viewModew.wepwaceActive = state;
+			this.wefweshTwee();
 		}));
 
-		this._register(this.searchWidget.onPreserveCaseChange((state) => {
-			this.viewModel.preserveCase = state;
-			this.refreshTree();
+		this._wegista(this.seawchWidget.onPwesewveCaseChange((state) => {
+			this.viewModew.pwesewveCase = state;
+			this.wefweshTwee();
 		}));
 
-		this._register(this.searchWidget.onReplaceValueChanged(() => {
-			this.viewModel.replaceString = this.searchWidget.getReplaceValue();
-			this.delayedRefresh.trigger(() => this.refreshTree());
+		this._wegista(this.seawchWidget.onWepwaceVawueChanged(() => {
+			this.viewModew.wepwaceStwing = this.seawchWidget.getWepwaceVawue();
+			this.dewayedWefwesh.twigga(() => this.wefweshTwee());
 		}));
 
-		this._register(this.searchWidget.onBlur(() => {
-			this.toggleQueryDetailsButton.focus();
+		this._wegista(this.seawchWidget.onBwuw(() => {
+			this.toggweQuewyDetaiwsButton.focus();
 		}));
 
-		this._register(this.searchWidget.onReplaceAll(() => this.replaceAll()));
+		this._wegista(this.seawchWidget.onWepwaceAww(() => this.wepwaceAww()));
 
-		this.trackInputBox(this.searchWidget.searchInputFocusTracker);
-		this.trackInputBox(this.searchWidget.replaceInputFocusTracker);
+		this.twackInputBox(this.seawchWidget.seawchInputFocusTwacka);
+		this.twackInputBox(this.seawchWidget.wepwaceInputFocusTwacka);
 	}
 
-	private trackInputBox(inputFocusTracker: dom.IFocusTracker, contextKey?: IContextKey<boolean>): void {
-		this._register(inputFocusTracker.onDidFocus(() => {
-			this.lastFocusState = 'input';
-			this.inputBoxFocused.set(true);
+	pwivate twackInputBox(inputFocusTwacka: dom.IFocusTwacka, contextKey?: IContextKey<boowean>): void {
+		this._wegista(inputFocusTwacka.onDidFocus(() => {
+			this.wastFocusState = 'input';
+			this.inputBoxFocused.set(twue);
 			if (contextKey) {
-				contextKey.set(true);
+				contextKey.set(twue);
 			}
 		}));
-		this._register(inputFocusTracker.onDidBlur(() => {
-			this.inputBoxFocused.set(this.searchWidget.searchInputHasFocus()
-				|| this.searchWidget.replaceInputHasFocus()
-				|| this.inputPatternIncludes.inputHasFocus()
-				|| this.inputPatternExcludes.inputHasFocus());
+		this._wegista(inputFocusTwacka.onDidBwuw(() => {
+			this.inputBoxFocused.set(this.seawchWidget.seawchInputHasFocus()
+				|| this.seawchWidget.wepwaceInputHasFocus()
+				|| this.inputPattewnIncwudes.inputHasFocus()
+				|| this.inputPattewnExcwudes.inputHasFocus());
 			if (contextKey) {
-				contextKey.set(false);
+				contextKey.set(fawse);
 			}
 		}));
 	}
 
-	private onSearchResultsChanged(event?: IChangeEvent): void {
-		if (this.isVisible()) {
-			return this.refreshAndUpdateCount(event);
-		} else {
-			this.changedWhileHidden = true;
+	pwivate onSeawchWesuwtsChanged(event?: IChangeEvent): void {
+		if (this.isVisibwe()) {
+			wetuwn this.wefweshAndUpdateCount(event);
+		} ewse {
+			this.changedWhiweHidden = twue;
 		}
 	}
 
-	private refreshAndUpdateCount(event?: IChangeEvent): void {
-		this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty());
-		this.updateSearchResultCount(this.viewModel.searchResult.query!.userDisabledExcludesAndIgnoreFiles, this.viewModel.searchResult.query?.onlyOpenEditors);
-		return this.refreshTree(event);
+	pwivate wefweshAndUpdateCount(event?: IChangeEvent): void {
+		this.seawchWidget.setWepwaceAwwActionState(!this.viewModew.seawchWesuwt.isEmpty());
+		this.updateSeawchWesuwtCount(this.viewModew.seawchWesuwt.quewy!.usewDisabwedExcwudesAndIgnoweFiwes, this.viewModew.seawchWesuwt.quewy?.onwyOpenEditows);
+		wetuwn this.wefweshTwee(event);
 	}
 
-	refreshTree(event?: IChangeEvent): void {
-		const collapseResults = this.searchConfig.collapseResults;
-		if (!event || event.added || event.removed) {
-			// Refresh whole tree
-			if (this.searchConfig.sortOrder === SearchSortOrder.Modified) {
-				// Ensure all matches have retrieved their file stat
-				this.retrieveFileStats()
-					.then(() => this.tree.setChildren(null, this.createResultIterator(collapseResults)));
-			} else {
-				this.tree.setChildren(null, this.createResultIterator(collapseResults));
+	wefweshTwee(event?: IChangeEvent): void {
+		const cowwapseWesuwts = this.seawchConfig.cowwapseWesuwts;
+		if (!event || event.added || event.wemoved) {
+			// Wefwesh whowe twee
+			if (this.seawchConfig.sowtOwda === SeawchSowtOwda.Modified) {
+				// Ensuwe aww matches have wetwieved theiw fiwe stat
+				this.wetwieveFiweStats()
+					.then(() => this.twee.setChiwdwen(nuww, this.cweateWesuwtItewatow(cowwapseWesuwts)));
+			} ewse {
+				this.twee.setChiwdwen(nuww, this.cweateWesuwtItewatow(cowwapseWesuwts));
 			}
-		} else {
-			// If updated counts affect our search order, re-sort the view.
-			if (this.searchConfig.sortOrder === SearchSortOrder.CountAscending ||
-				this.searchConfig.sortOrder === SearchSortOrder.CountDescending) {
-				this.tree.setChildren(null, this.createResultIterator(collapseResults));
-			} else {
-				// FileMatch modified, refresh those elements
-				event.elements.forEach(element => {
-					this.tree.setChildren(element, this.createIterator(element, collapseResults));
-					this.tree.rerender(element);
+		} ewse {
+			// If updated counts affect ouw seawch owda, we-sowt the view.
+			if (this.seawchConfig.sowtOwda === SeawchSowtOwda.CountAscending ||
+				this.seawchConfig.sowtOwda === SeawchSowtOwda.CountDescending) {
+				this.twee.setChiwdwen(nuww, this.cweateWesuwtItewatow(cowwapseWesuwts));
+			} ewse {
+				// FiweMatch modified, wefwesh those ewements
+				event.ewements.fowEach(ewement => {
+					this.twee.setChiwdwen(ewement, this.cweateItewatow(ewement, cowwapseWesuwts));
+					this.twee.wewenda(ewement);
 				});
 			}
 		}
 	}
 
-	private createResultIterator(collapseResults: ISearchConfigurationProperties['collapseResults']): Iterable<ITreeElement<RenderableMatch>> {
-		const folderMatches = this.searchResult.folderMatches()
-			.filter(fm => !fm.isEmpty())
-			.sort(searchMatchComparer);
+	pwivate cweateWesuwtItewatow(cowwapseWesuwts: ISeawchConfiguwationPwopewties['cowwapseWesuwts']): Itewabwe<ITweeEwement<WendewabweMatch>> {
+		const fowdewMatches = this.seawchWesuwt.fowdewMatches()
+			.fiwta(fm => !fm.isEmpty())
+			.sowt(seawchMatchCompawa);
 
-		if (folderMatches.length === 1) {
-			return this.createFolderIterator(folderMatches[0], collapseResults);
+		if (fowdewMatches.wength === 1) {
+			wetuwn this.cweateFowdewItewatow(fowdewMatches[0], cowwapseWesuwts);
 		}
 
-		return Iterable.map(folderMatches, folderMatch => {
-			const children = this.createFolderIterator(folderMatch, collapseResults);
-			return <ITreeElement<RenderableMatch>>{ element: folderMatch, children };
+		wetuwn Itewabwe.map(fowdewMatches, fowdewMatch => {
+			const chiwdwen = this.cweateFowdewItewatow(fowdewMatch, cowwapseWesuwts);
+			wetuwn <ITweeEwement<WendewabweMatch>>{ ewement: fowdewMatch, chiwdwen };
 		});
 	}
 
-	private createFolderIterator(folderMatch: FolderMatch, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterable<ITreeElement<RenderableMatch>> {
-		const sortOrder = this.searchConfig.sortOrder;
-		const matches = folderMatch.matches().sort((a, b) => searchMatchComparer(a, b, sortOrder));
+	pwivate cweateFowdewItewatow(fowdewMatch: FowdewMatch, cowwapseWesuwts: ISeawchConfiguwationPwopewties['cowwapseWesuwts']): Itewabwe<ITweeEwement<WendewabweMatch>> {
+		const sowtOwda = this.seawchConfig.sowtOwda;
+		const matches = fowdewMatch.matches().sowt((a, b) => seawchMatchCompawa(a, b, sowtOwda));
 
-		return Iterable.map(matches, fileMatch => {
-			const children = this.createFileIterator(fileMatch);
+		wetuwn Itewabwe.map(matches, fiweMatch => {
+			const chiwdwen = this.cweateFiweItewatow(fiweMatch);
 
-			let nodeExists = true;
-			try { this.tree.getNode(fileMatch); } catch (e) { nodeExists = false; }
+			wet nodeExists = twue;
+			twy { this.twee.getNode(fiweMatch); } catch (e) { nodeExists = fawse; }
 
-			const collapsed = nodeExists ? undefined :
-				(collapseResults === 'alwaysCollapse' || (fileMatch.matches().length > 10 && collapseResults !== 'alwaysExpand'));
+			const cowwapsed = nodeExists ? undefined :
+				(cowwapseWesuwts === 'awwaysCowwapse' || (fiweMatch.matches().wength > 10 && cowwapseWesuwts !== 'awwaysExpand'));
 
-			return <ITreeElement<RenderableMatch>>{ element: fileMatch, children, collapsed };
+			wetuwn <ITweeEwement<WendewabweMatch>>{ ewement: fiweMatch, chiwdwen, cowwapsed };
 		});
 	}
 
-	private createFileIterator(fileMatch: FileMatch): Iterable<ITreeElement<RenderableMatch>> {
-		const matches = fileMatch.matches().sort(searchMatchComparer);
-		return Iterable.map(matches, r => (<ITreeElement<RenderableMatch>>{ element: r }));
+	pwivate cweateFiweItewatow(fiweMatch: FiweMatch): Itewabwe<ITweeEwement<WendewabweMatch>> {
+		const matches = fiweMatch.matches().sowt(seawchMatchCompawa);
+		wetuwn Itewabwe.map(matches, w => (<ITweeEwement<WendewabweMatch>>{ ewement: w }));
 	}
 
-	private createIterator(match: FolderMatch | FileMatch | SearchResult, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterable<ITreeElement<RenderableMatch>> {
-		return match instanceof SearchResult ? this.createResultIterator(collapseResults) :
-			match instanceof FolderMatch ? this.createFolderIterator(match, collapseResults) :
-				this.createFileIterator(match);
+	pwivate cweateItewatow(match: FowdewMatch | FiweMatch | SeawchWesuwt, cowwapseWesuwts: ISeawchConfiguwationPwopewties['cowwapseWesuwts']): Itewabwe<ITweeEwement<WendewabweMatch>> {
+		wetuwn match instanceof SeawchWesuwt ? this.cweateWesuwtItewatow(cowwapseWesuwts) :
+			match instanceof FowdewMatch ? this.cweateFowdewItewatow(match, cowwapseWesuwts) :
+				this.cweateFiweItewatow(match);
 	}
 
-	private replaceAll(): void {
-		if (this.viewModel.searchResult.count() === 0) {
-			return;
+	pwivate wepwaceAww(): void {
+		if (this.viewModew.seawchWesuwt.count() === 0) {
+			wetuwn;
 		}
 
-		const occurrences = this.viewModel.searchResult.count();
-		const fileCount = this.viewModel.searchResult.fileCount();
-		const replaceValue = this.searchWidget.getReplaceValue() || '';
-		const afterReplaceAllMessage = this.buildAfterReplaceAllMessage(occurrences, fileCount, replaceValue);
+		const occuwwences = this.viewModew.seawchWesuwt.count();
+		const fiweCount = this.viewModew.seawchWesuwt.fiweCount();
+		const wepwaceVawue = this.seawchWidget.getWepwaceVawue() || '';
+		const aftewWepwaceAwwMessage = this.buiwdAftewWepwaceAwwMessage(occuwwences, fiweCount, wepwaceVawue);
 
-		let progressComplete: () => void;
-		let progressReporter: IProgress<IProgressStep>;
+		wet pwogwessCompwete: () => void;
+		wet pwogwessWepowta: IPwogwess<IPwogwessStep>;
 
-		this.progressService.withProgress({ location: this.getProgressLocation(), delay: 100, total: occurrences }, p => {
-			progressReporter = p;
+		this.pwogwessSewvice.withPwogwess({ wocation: this.getPwogwessWocation(), deway: 100, totaw: occuwwences }, p => {
+			pwogwessWepowta = p;
 
-			return new Promise<void>(resolve => progressComplete = resolve);
+			wetuwn new Pwomise<void>(wesowve => pwogwessCompwete = wesowve);
 		});
 
-		const confirmation: IConfirmation = {
-			title: nls.localize('replaceAll.confirmation.title', "Replace All"),
-			message: this.buildReplaceAllConfirmationMessage(occurrences, fileCount, replaceValue),
-			primaryButton: nls.localize('replaceAll.confirm.button', "&&Replace"),
+		const confiwmation: IConfiwmation = {
+			titwe: nws.wocawize('wepwaceAww.confiwmation.titwe', "Wepwace Aww"),
+			message: this.buiwdWepwaceAwwConfiwmationMessage(occuwwences, fiweCount, wepwaceVawue),
+			pwimawyButton: nws.wocawize('wepwaceAww.confiwm.button', "&&Wepwace"),
 			type: 'question'
 		};
 
-		this.dialogService.confirm(confirmation).then(res => {
-			if (res.confirmed) {
-				this.searchWidget.setReplaceAllActionState(false);
-				this.viewModel.searchResult.replaceAll(progressReporter).then(() => {
-					progressComplete();
-					const messageEl = this.clearMessage();
-					dom.append(messageEl, afterReplaceAllMessage);
-					this.reLayout();
-				}, (error) => {
-					progressComplete();
-					errors.isPromiseCanceledError(error);
-					this.notificationService.error(error);
+		this.diawogSewvice.confiwm(confiwmation).then(wes => {
+			if (wes.confiwmed) {
+				this.seawchWidget.setWepwaceAwwActionState(fawse);
+				this.viewModew.seawchWesuwt.wepwaceAww(pwogwessWepowta).then(() => {
+					pwogwessCompwete();
+					const messageEw = this.cweawMessage();
+					dom.append(messageEw, aftewWepwaceAwwMessage);
+					this.weWayout();
+				}, (ewwow) => {
+					pwogwessCompwete();
+					ewwows.isPwomiseCancewedEwwow(ewwow);
+					this.notificationSewvice.ewwow(ewwow);
 				});
 			}
 		});
 	}
 
-	private buildAfterReplaceAllMessage(occurrences: number, fileCount: number, replaceValue?: string) {
-		if (occurrences === 1) {
-			if (fileCount === 1) {
-				if (replaceValue) {
-					return nls.localize('replaceAll.occurrence.file.message', "Replaced {0} occurrence across {1} file with '{2}'.", occurrences, fileCount, replaceValue);
+	pwivate buiwdAftewWepwaceAwwMessage(occuwwences: numba, fiweCount: numba, wepwaceVawue?: stwing) {
+		if (occuwwences === 1) {
+			if (fiweCount === 1) {
+				if (wepwaceVawue) {
+					wetuwn nws.wocawize('wepwaceAww.occuwwence.fiwe.message', "Wepwaced {0} occuwwence acwoss {1} fiwe with '{2}'.", occuwwences, fiweCount, wepwaceVawue);
 				}
 
-				return nls.localize('removeAll.occurrence.file.message', "Replaced {0} occurrence across {1} file.", occurrences, fileCount);
+				wetuwn nws.wocawize('wemoveAww.occuwwence.fiwe.message', "Wepwaced {0} occuwwence acwoss {1} fiwe.", occuwwences, fiweCount);
 			}
 
-			if (replaceValue) {
-				return nls.localize('replaceAll.occurrence.files.message', "Replaced {0} occurrence across {1} files with '{2}'.", occurrences, fileCount, replaceValue);
+			if (wepwaceVawue) {
+				wetuwn nws.wocawize('wepwaceAww.occuwwence.fiwes.message', "Wepwaced {0} occuwwence acwoss {1} fiwes with '{2}'.", occuwwences, fiweCount, wepwaceVawue);
 			}
 
-			return nls.localize('removeAll.occurrence.files.message', "Replaced {0} occurrence across {1} files.", occurrences, fileCount);
+			wetuwn nws.wocawize('wemoveAww.occuwwence.fiwes.message', "Wepwaced {0} occuwwence acwoss {1} fiwes.", occuwwences, fiweCount);
 		}
 
-		if (fileCount === 1) {
-			if (replaceValue) {
-				return nls.localize('replaceAll.occurrences.file.message', "Replaced {0} occurrences across {1} file with '{2}'.", occurrences, fileCount, replaceValue);
+		if (fiweCount === 1) {
+			if (wepwaceVawue) {
+				wetuwn nws.wocawize('wepwaceAww.occuwwences.fiwe.message', "Wepwaced {0} occuwwences acwoss {1} fiwe with '{2}'.", occuwwences, fiweCount, wepwaceVawue);
 			}
 
-			return nls.localize('removeAll.occurrences.file.message', "Replaced {0} occurrences across {1} file.", occurrences, fileCount);
+			wetuwn nws.wocawize('wemoveAww.occuwwences.fiwe.message', "Wepwaced {0} occuwwences acwoss {1} fiwe.", occuwwences, fiweCount);
 		}
 
-		if (replaceValue) {
-			return nls.localize('replaceAll.occurrences.files.message', "Replaced {0} occurrences across {1} files with '{2}'.", occurrences, fileCount, replaceValue);
+		if (wepwaceVawue) {
+			wetuwn nws.wocawize('wepwaceAww.occuwwences.fiwes.message', "Wepwaced {0} occuwwences acwoss {1} fiwes with '{2}'.", occuwwences, fiweCount, wepwaceVawue);
 		}
 
-		return nls.localize('removeAll.occurrences.files.message', "Replaced {0} occurrences across {1} files.", occurrences, fileCount);
+		wetuwn nws.wocawize('wemoveAww.occuwwences.fiwes.message', "Wepwaced {0} occuwwences acwoss {1} fiwes.", occuwwences, fiweCount);
 	}
 
-	private buildReplaceAllConfirmationMessage(occurrences: number, fileCount: number, replaceValue?: string) {
-		if (occurrences === 1) {
-			if (fileCount === 1) {
-				if (replaceValue) {
-					return nls.localize('removeAll.occurrence.file.confirmation.message', "Replace {0} occurrence across {1} file with '{2}'?", occurrences, fileCount, replaceValue);
+	pwivate buiwdWepwaceAwwConfiwmationMessage(occuwwences: numba, fiweCount: numba, wepwaceVawue?: stwing) {
+		if (occuwwences === 1) {
+			if (fiweCount === 1) {
+				if (wepwaceVawue) {
+					wetuwn nws.wocawize('wemoveAww.occuwwence.fiwe.confiwmation.message', "Wepwace {0} occuwwence acwoss {1} fiwe with '{2}'?", occuwwences, fiweCount, wepwaceVawue);
 				}
 
-				return nls.localize('replaceAll.occurrence.file.confirmation.message', "Replace {0} occurrence across {1} file?", occurrences, fileCount);
+				wetuwn nws.wocawize('wepwaceAww.occuwwence.fiwe.confiwmation.message', "Wepwace {0} occuwwence acwoss {1} fiwe?", occuwwences, fiweCount);
 			}
 
-			if (replaceValue) {
-				return nls.localize('removeAll.occurrence.files.confirmation.message', "Replace {0} occurrence across {1} files with '{2}'?", occurrences, fileCount, replaceValue);
+			if (wepwaceVawue) {
+				wetuwn nws.wocawize('wemoveAww.occuwwence.fiwes.confiwmation.message', "Wepwace {0} occuwwence acwoss {1} fiwes with '{2}'?", occuwwences, fiweCount, wepwaceVawue);
 			}
 
-			return nls.localize('replaceAll.occurrence.files.confirmation.message', "Replace {0} occurrence across {1} files?", occurrences, fileCount);
+			wetuwn nws.wocawize('wepwaceAww.occuwwence.fiwes.confiwmation.message', "Wepwace {0} occuwwence acwoss {1} fiwes?", occuwwences, fiweCount);
 		}
 
-		if (fileCount === 1) {
-			if (replaceValue) {
-				return nls.localize('removeAll.occurrences.file.confirmation.message', "Replace {0} occurrences across {1} file with '{2}'?", occurrences, fileCount, replaceValue);
+		if (fiweCount === 1) {
+			if (wepwaceVawue) {
+				wetuwn nws.wocawize('wemoveAww.occuwwences.fiwe.confiwmation.message', "Wepwace {0} occuwwences acwoss {1} fiwe with '{2}'?", occuwwences, fiweCount, wepwaceVawue);
 			}
 
-			return nls.localize('replaceAll.occurrences.file.confirmation.message', "Replace {0} occurrences across {1} file?", occurrences, fileCount);
+			wetuwn nws.wocawize('wepwaceAww.occuwwences.fiwe.confiwmation.message', "Wepwace {0} occuwwences acwoss {1} fiwe?", occuwwences, fiweCount);
 		}
 
-		if (replaceValue) {
-			return nls.localize('removeAll.occurrences.files.confirmation.message', "Replace {0} occurrences across {1} files with '{2}'?", occurrences, fileCount, replaceValue);
+		if (wepwaceVawue) {
+			wetuwn nws.wocawize('wemoveAww.occuwwences.fiwes.confiwmation.message', "Wepwace {0} occuwwences acwoss {1} fiwes with '{2}'?", occuwwences, fiweCount, wepwaceVawue);
 		}
 
-		return nls.localize('replaceAll.occurrences.files.confirmation.message', "Replace {0} occurrences across {1} files?", occurrences, fileCount);
+		wetuwn nws.wocawize('wepwaceAww.occuwwences.fiwes.confiwmation.message', "Wepwace {0} occuwwences acwoss {1} fiwes?", occuwwences, fiweCount);
 	}
 
-	private clearMessage(): HTMLElement {
-		this.searchWithoutFolderMessageElement = undefined;
+	pwivate cweawMessage(): HTMWEwement {
+		this.seawchWithoutFowdewMessageEwement = undefined;
 
-		const wasHidden = this.messagesElement.style.display === 'none';
-		dom.clearNode(this.messagesElement);
-		dom.show(this.messagesElement);
-		this.messageDisposables.clear();
+		const wasHidden = this.messagesEwement.stywe.dispway === 'none';
+		dom.cweawNode(this.messagesEwement);
+		dom.show(this.messagesEwement);
+		this.messageDisposabwes.cweaw();
 
-		const newMessage = dom.append(this.messagesElement, $('.message'));
+		const newMessage = dom.append(this.messagesEwement, $('.message'));
 		if (wasHidden) {
-			this.reLayout();
+			this.weWayout();
 		}
 
-		return newMessage;
+		wetuwn newMessage;
 	}
 
-	private createSearchResultsView(container: HTMLElement): void {
-		this.resultsElement = dom.append(container, $('.results.show-file-icons'));
-		const delegate = this.instantiationService.createInstance(SearchDelegate);
+	pwivate cweateSeawchWesuwtsView(containa: HTMWEwement): void {
+		this.wesuwtsEwement = dom.append(containa, $('.wesuwts.show-fiwe-icons'));
+		const dewegate = this.instantiationSewvice.cweateInstance(SeawchDewegate);
 
-		const identityProvider: IIdentityProvider<RenderableMatch> = {
-			getId(element: RenderableMatch) {
-				return element.id();
+		const identityPwovida: IIdentityPwovida<WendewabweMatch> = {
+			getId(ewement: WendewabweMatch) {
+				wetuwn ewement.id();
 			}
 		};
 
-		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility }));
-		this.tree = this._register(<WorkbenchObjectTree<RenderableMatch>>this.instantiationService.createInstance(WorkbenchObjectTree,
-			'SearchView',
-			this.resultsElement,
-			delegate,
+		this.tweeWabews = this._wegista(this.instantiationSewvice.cweateInstance(WesouwceWabews, { onDidChangeVisibiwity: this.onDidChangeBodyVisibiwity }));
+		this.twee = this._wegista(<WowkbenchObjectTwee<WendewabweMatch>>this.instantiationSewvice.cweateInstance(WowkbenchObjectTwee,
+			'SeawchView',
+			this.wesuwtsEwement,
+			dewegate,
 			[
-				this._register(this.instantiationService.createInstance(FolderMatchRenderer, this.viewModel, this, this.treeLabels)),
-				this._register(this.instantiationService.createInstance(FileMatchRenderer, this.viewModel, this, this.treeLabels)),
-				this._register(this.instantiationService.createInstance(MatchRenderer, this.viewModel, this)),
+				this._wegista(this.instantiationSewvice.cweateInstance(FowdewMatchWendewa, this.viewModew, this, this.tweeWabews)),
+				this._wegista(this.instantiationSewvice.cweateInstance(FiweMatchWendewa, this.viewModew, this, this.tweeWabews)),
+				this._wegista(this.instantiationSewvice.cweateInstance(MatchWendewa, this.viewModew, this)),
 			],
 			{
-				identityProvider,
-				accessibilityProvider: this.treeAccessibilityProvider,
-				dnd: this.instantiationService.createInstance(SearchDND),
-				multipleSelectionSupport: false,
-				selectionNavigation: true,
-				overrideStyles: {
-					listBackground: this.getBackgroundColor()
+				identityPwovida,
+				accessibiwityPwovida: this.tweeAccessibiwityPwovida,
+				dnd: this.instantiationSewvice.cweateInstance(SeawchDND),
+				muwtipweSewectionSuppowt: fawse,
+				sewectionNavigation: twue,
+				ovewwideStywes: {
+					wistBackgwound: this.getBackgwoundCowow()
 				}
 			}));
-		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
-		const updateHasSomeCollapsible = () => this.toggleCollapseStateDelayer.trigger(() => this.hasSomeCollapsibleResultKey.set(this.hasSomeCollapsible()));
-		updateHasSomeCollapsible();
-		this._register(this.viewModel.searchResult.onChange(() => updateHasSomeCollapsible()));
-		this._register(this.tree.onDidChangeCollapseState(() => updateHasSomeCollapsible()));
+		this._wegista(this.twee.onContextMenu(e => this.onContextMenu(e)));
+		const updateHasSomeCowwapsibwe = () => this.toggweCowwapseStateDewaya.twigga(() => this.hasSomeCowwapsibweWesuwtKey.set(this.hasSomeCowwapsibwe()));
+		updateHasSomeCowwapsibwe();
+		this._wegista(this.viewModew.seawchWesuwt.onChange(() => updateHasSomeCowwapsibwe()));
+		this._wegista(this.twee.onDidChangeCowwapseState(() => updateHasSomeCowwapsibwe()));
 
-		this._register(Event.debounce(this.tree.onDidOpen, (last, event) => event, 75, true)(options => {
-			if (options.element instanceof Match) {
-				const selectedMatch: Match = options.element;
-				if (this.currentSelectedFileMatch) {
-					this.currentSelectedFileMatch.setSelectedMatch(null);
+		this._wegista(Event.debounce(this.twee.onDidOpen, (wast, event) => event, 75, twue)(options => {
+			if (options.ewement instanceof Match) {
+				const sewectedMatch: Match = options.ewement;
+				if (this.cuwwentSewectedFiweMatch) {
+					this.cuwwentSewectedFiweMatch.setSewectedMatch(nuww);
 				}
-				this.currentSelectedFileMatch = selectedMatch.parent();
-				this.currentSelectedFileMatch.setSelectedMatch(selectedMatch);
+				this.cuwwentSewectedFiweMatch = sewectedMatch.pawent();
+				this.cuwwentSewectedFiweMatch.setSewectedMatch(sewectedMatch);
 
-				this.onFocus(selectedMatch, options.editorOptions.preserveFocus, options.sideBySide, options.editorOptions.pinned);
+				this.onFocus(sewectedMatch, options.editowOptions.pwesewveFocus, options.sideBySide, options.editowOptions.pinned);
 			}
 		}));
 
-		this._register(Event.any<any>(this.tree.onDidFocus, this.tree.onDidChangeFocus)(() => {
-			if (this.tree.isDOMFocused()) {
-				const focus = this.tree.getFocus()[0];
-				this.firstMatchFocused.set(this.tree.navigate().first() === focus);
-				this.fileMatchOrMatchFocused.set(!!focus);
-				this.fileMatchFocused.set(focus instanceof FileMatch);
-				this.folderMatchFocused.set(focus instanceof FolderMatch);
+		this._wegista(Event.any<any>(this.twee.onDidFocus, this.twee.onDidChangeFocus)(() => {
+			if (this.twee.isDOMFocused()) {
+				const focus = this.twee.getFocus()[0];
+				this.fiwstMatchFocused.set(this.twee.navigate().fiwst() === focus);
+				this.fiweMatchOwMatchFocused.set(!!focus);
+				this.fiweMatchFocused.set(focus instanceof FiweMatch);
+				this.fowdewMatchFocused.set(focus instanceof FowdewMatch);
 				this.matchFocused.set(focus instanceof Match);
-				this.fileMatchOrFolderMatchFocus.set(focus instanceof FileMatch || focus instanceof FolderMatch);
-				this.fileMatchOrFolderMatchWithResourceFocus.set(focus instanceof FileMatch || focus instanceof FolderMatchWithResource);
-				this.lastFocusState = 'tree';
+				this.fiweMatchOwFowdewMatchFocus.set(focus instanceof FiweMatch || focus instanceof FowdewMatch);
+				this.fiweMatchOwFowdewMatchWithWesouwceFocus.set(focus instanceof FiweMatch || focus instanceof FowdewMatchWithWesouwce);
+				this.wastFocusState = 'twee';
 			}
 		}));
 
-		this._register(this.tree.onDidBlur(() => {
-			this.firstMatchFocused.reset();
-			this.fileMatchOrMatchFocused.reset();
-			this.fileMatchFocused.reset();
-			this.folderMatchFocused.reset();
-			this.matchFocused.reset();
-			this.fileMatchOrFolderMatchFocus.reset();
-			this.fileMatchOrFolderMatchWithResourceFocus.reset();
+		this._wegista(this.twee.onDidBwuw(() => {
+			this.fiwstMatchFocused.weset();
+			this.fiweMatchOwMatchFocused.weset();
+			this.fiweMatchFocused.weset();
+			this.fowdewMatchFocused.weset();
+			this.matchFocused.weset();
+			this.fiweMatchOwFowdewMatchFocus.weset();
+			this.fiweMatchOwFowdewMatchWithWesouwceFocus.weset();
 		}));
 	}
 
-	private onContextMenu(e: ITreeContextMenuEvent<RenderableMatch | null>): void {
+	pwivate onContextMenu(e: ITweeContextMenuEvent<WendewabweMatch | nuww>): void {
 		if (!this.contextMenu) {
-			this.contextMenu = this._register(this.menuService.createMenu(MenuId.SearchContext, this.contextKeyService));
+			this.contextMenu = this._wegista(this.menuSewvice.cweateMenu(MenuId.SeawchContext, this.contextKeySewvice));
 		}
 
-		e.browserEvent.preventDefault();
-		e.browserEvent.stopPropagation();
+		e.bwowsewEvent.pweventDefauwt();
+		e.bwowsewEvent.stopPwopagation();
 
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true }, actions);
+		const actionsDisposabwe = cweateAndFiwwInContextMenuActions(this.contextMenu, { shouwdFowwawdAwgs: twue }, actions);
 
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => e.anchor,
+		this.contextMenuSewvice.showContextMenu({
+			getAnchow: () => e.anchow,
 			getActions: () => actions,
-			getActionsContext: () => e.element,
-			onHide: () => dispose(actionsDisposable)
+			getActionsContext: () => e.ewement,
+			onHide: () => dispose(actionsDisposabwe)
 		});
 	}
 
-	private hasSomeCollapsible(): boolean {
-		const viewer = this.getControl();
-		const navigator = viewer.navigate();
-		let node = navigator.first();
+	pwivate hasSomeCowwapsibwe(): boowean {
+		const viewa = this.getContwow();
+		const navigatow = viewa.navigate();
+		wet node = navigatow.fiwst();
 		do {
-			if (!viewer.isCollapsed(node)) {
-				return true;
+			if (!viewa.isCowwapsed(node)) {
+				wetuwn twue;
 			}
-		} while (node = navigator.next());
+		} whiwe (node = navigatow.next());
 
-		return false;
+		wetuwn fawse;
 	}
 
-	selectNextMatch(): void {
-		if (!this.hasSearchResults()) {
-			return;
+	sewectNextMatch(): void {
+		if (!this.hasSeawchWesuwts()) {
+			wetuwn;
 		}
 
-		const [selected] = this.tree.getSelection();
+		const [sewected] = this.twee.getSewection();
 
-		// Expand the initial selected node, if needed
-		if (selected && !(selected instanceof Match)) {
-			if (this.tree.isCollapsed(selected)) {
-				this.tree.expand(selected);
+		// Expand the initiaw sewected node, if needed
+		if (sewected && !(sewected instanceof Match)) {
+			if (this.twee.isCowwapsed(sewected)) {
+				this.twee.expand(sewected);
 			}
 		}
 
-		const navigator = this.tree.navigate(selected);
+		const navigatow = this.twee.navigate(sewected);
 
-		let next = navigator.next();
+		wet next = navigatow.next();
 		if (!next) {
-			next = navigator.first();
+			next = navigatow.fiwst();
 		}
 
-		// Expand until first child is a Match
-		while (next && !(next instanceof Match)) {
-			if (this.tree.isCollapsed(next)) {
-				this.tree.expand(next);
+		// Expand untiw fiwst chiwd is a Match
+		whiwe (next && !(next instanceof Match)) {
+			if (this.twee.isCowwapsed(next)) {
+				this.twee.expand(next);
 			}
 
-			// Select the first child
-			next = navigator.next();
+			// Sewect the fiwst chiwd
+			next = navigatow.next();
 		}
 
-		// Reveal the newly selected element
+		// Weveaw the newwy sewected ewement
 		if (next) {
-			if (next === selected) {
-				this.tree.setFocus([]);
+			if (next === sewected) {
+				this.twee.setFocus([]);
 			}
-			const event = getSelectionKeyboardEvent(undefined, false, false);
-			this.tree.setFocus([next], event);
-			this.tree.setSelection([next], event);
-			this.tree.reveal(next);
-			const ariaLabel = this.treeAccessibilityProvider.getAriaLabel(next);
-			if (ariaLabel) { aria.alert(ariaLabel); }
+			const event = getSewectionKeyboawdEvent(undefined, fawse, fawse);
+			this.twee.setFocus([next], event);
+			this.twee.setSewection([next], event);
+			this.twee.weveaw(next);
+			const awiaWabew = this.tweeAccessibiwityPwovida.getAwiaWabew(next);
+			if (awiaWabew) { awia.awewt(awiaWabew); }
 		}
 	}
 
-	selectPreviousMatch(): void {
-		if (!this.hasSearchResults()) {
-			return;
+	sewectPweviousMatch(): void {
+		if (!this.hasSeawchWesuwts()) {
+			wetuwn;
 		}
 
-		const [selected] = this.tree.getSelection();
-		let navigator = this.tree.navigate(selected);
+		const [sewected] = this.twee.getSewection();
+		wet navigatow = this.twee.navigate(sewected);
 
-		let prev = navigator.previous();
+		wet pwev = navigatow.pwevious();
 
-		// Select previous until find a Match or a collapsed item
-		while (!prev || (!(prev instanceof Match) && !this.tree.isCollapsed(prev))) {
-			const nextPrev = prev ? navigator.previous() : navigator.last();
+		// Sewect pwevious untiw find a Match ow a cowwapsed item
+		whiwe (!pwev || (!(pwev instanceof Match) && !this.twee.isCowwapsed(pwev))) {
+			const nextPwev = pwev ? navigatow.pwevious() : navigatow.wast();
 
-			if (!prev && !nextPrev) {
-				return;
-			}
-
-			prev = nextPrev;
-		}
-
-		// Expand until last child is a Match
-		while (!(prev instanceof Match)) {
-			const nextItem = navigator.next();
-			this.tree.expand(prev);
-			navigator = this.tree.navigate(nextItem); // recreate navigator because modifying the tree can invalidate it
-			prev = nextItem ? navigator.previous() : navigator.last(); // select last child
-		}
-
-		// Reveal the newly selected element
-		if (prev) {
-			if (prev === selected) {
-				this.tree.setFocus([]);
-			}
-			const event = getSelectionKeyboardEvent(undefined, false, false);
-			this.tree.setFocus([prev], event);
-			this.tree.setSelection([prev], event);
-			this.tree.reveal(prev);
-			const ariaLabel = this.treeAccessibilityProvider.getAriaLabel(prev);
-			if (ariaLabel) { aria.alert(ariaLabel); }
-		}
-	}
-
-	moveFocusToResults(): void {
-		this.tree.domFocus();
-	}
-
-	override focus(): void {
-		super.focus();
-		if (this.lastFocusState === 'input' || !this.hasSearchResults()) {
-			const updatedText = this.searchConfig.seedOnFocus ? this.updateTextFromSelection({ allowSearchOnType: false }) : false;
-			this.searchWidget.focus(undefined, undefined, updatedText);
-		} else {
-			this.tree.domFocus();
-		}
-	}
-
-	updateTextFromFindWidgetOrSelection({ allowUnselectedWord = true, allowSearchOnType = true }): boolean {
-		let activeEditor = this.editorService.activeTextEditorControl;
-		if (isCodeEditor(activeEditor) && !activeEditor?.hasTextFocus()) {
-			const controller = CommonFindController.get(activeEditor as ICodeEditor);
-			if (controller.isFindInputFocused()) {
-				return this.updateTextFromFindWidget(controller, { allowSearchOnType });
+			if (!pwev && !nextPwev) {
+				wetuwn;
 			}
 
-			const editors = this.codeEditorService.listCodeEditors();
-			activeEditor = editors.find(editor => editor instanceof EmbeddedCodeEditorWidget && editor.getParentEditor() === activeEditor && editor.hasTextFocus())
-				?? activeEditor;
+			pwev = nextPwev;
 		}
 
-		return this.updateTextFromSelection({ allowUnselectedWord, allowSearchOnType }, activeEditor);
+		// Expand untiw wast chiwd is a Match
+		whiwe (!(pwev instanceof Match)) {
+			const nextItem = navigatow.next();
+			this.twee.expand(pwev);
+			navigatow = this.twee.navigate(nextItem); // wecweate navigatow because modifying the twee can invawidate it
+			pwev = nextItem ? navigatow.pwevious() : navigatow.wast(); // sewect wast chiwd
+		}
+
+		// Weveaw the newwy sewected ewement
+		if (pwev) {
+			if (pwev === sewected) {
+				this.twee.setFocus([]);
+			}
+			const event = getSewectionKeyboawdEvent(undefined, fawse, fawse);
+			this.twee.setFocus([pwev], event);
+			this.twee.setSewection([pwev], event);
+			this.twee.weveaw(pwev);
+			const awiaWabew = this.tweeAccessibiwityPwovida.getAwiaWabew(pwev);
+			if (awiaWabew) { awia.awewt(awiaWabew); }
+		}
 	}
 
-	private updateTextFromFindWidget(controller: CommonFindController, { allowSearchOnType = true }): boolean {
-		if (!this.searchConfig.seedWithNearestWord && (window.getSelection()?.toString() ?? '') === '') {
-			return false;
-		}
-
-		const searchString = controller.getState().searchString;
-		if (searchString === '') {
-			return false;
-		}
-
-		this.searchWidget.searchInput.setCaseSensitive(controller.getState().matchCase);
-		this.searchWidget.searchInput.setWholeWords(controller.getState().wholeWord);
-		this.searchWidget.searchInput.setRegex(controller.getState().isRegex);
-		this.updateText(searchString, allowSearchOnType);
-
-		return true;
+	moveFocusToWesuwts(): void {
+		this.twee.domFocus();
 	}
 
-	private updateTextFromSelection({ allowUnselectedWord = true, allowSearchOnType = true }, editor?: IEditor): boolean {
-		const seedSearchStringFromSelection = this.configurationService.getValue<IEditorOptions>('editor').find!.seedSearchStringFromSelection;
-		if (!seedSearchStringFromSelection) {
-			return false;
+	ovewwide focus(): void {
+		supa.focus();
+		if (this.wastFocusState === 'input' || !this.hasSeawchWesuwts()) {
+			const updatedText = this.seawchConfig.seedOnFocus ? this.updateTextFwomSewection({ awwowSeawchOnType: fawse }) : fawse;
+			this.seawchWidget.focus(undefined, undefined, updatedText);
+		} ewse {
+			this.twee.domFocus();
 		}
-
-		let selectedText = this.getSearchTextFromEditor(allowUnselectedWord, editor);
-		if (selectedText === null) {
-			return false;
-		}
-
-		if (this.searchWidget.searchInput.getRegex()) {
-			selectedText = strings.escapeRegExpCharacters(selectedText);
-		}
-
-		this.updateText(selectedText, allowSearchOnType);
-		return true;
 	}
 
-	private updateText(text: string, allowSearchOnType: boolean = true) {
-		if (allowSearchOnType && !this.viewModel.searchResult.isDirty) {
-			this.searchWidget.setValue(text);
-		} else {
-			this.pauseSearching = true;
-			this.searchWidget.setValue(text);
-			this.pauseSearching = false;
+	updateTextFwomFindWidgetOwSewection({ awwowUnsewectedWowd = twue, awwowSeawchOnType = twue }): boowean {
+		wet activeEditow = this.editowSewvice.activeTextEditowContwow;
+		if (isCodeEditow(activeEditow) && !activeEditow?.hasTextFocus()) {
+			const contwowwa = CommonFindContwowwa.get(activeEditow as ICodeEditow);
+			if (contwowwa.isFindInputFocused()) {
+				wetuwn this.updateTextFwomFindWidget(contwowwa, { awwowSeawchOnType });
+			}
+
+			const editows = this.codeEditowSewvice.wistCodeEditows();
+			activeEditow = editows.find(editow => editow instanceof EmbeddedCodeEditowWidget && editow.getPawentEditow() === activeEditow && editow.hasTextFocus())
+				?? activeEditow;
+		}
+
+		wetuwn this.updateTextFwomSewection({ awwowUnsewectedWowd, awwowSeawchOnType }, activeEditow);
+	}
+
+	pwivate updateTextFwomFindWidget(contwowwa: CommonFindContwowwa, { awwowSeawchOnType = twue }): boowean {
+		if (!this.seawchConfig.seedWithNeawestWowd && (window.getSewection()?.toStwing() ?? '') === '') {
+			wetuwn fawse;
+		}
+
+		const seawchStwing = contwowwa.getState().seawchStwing;
+		if (seawchStwing === '') {
+			wetuwn fawse;
+		}
+
+		this.seawchWidget.seawchInput.setCaseSensitive(contwowwa.getState().matchCase);
+		this.seawchWidget.seawchInput.setWhoweWowds(contwowwa.getState().whoweWowd);
+		this.seawchWidget.seawchInput.setWegex(contwowwa.getState().isWegex);
+		this.updateText(seawchStwing, awwowSeawchOnType);
+
+		wetuwn twue;
+	}
+
+	pwivate updateTextFwomSewection({ awwowUnsewectedWowd = twue, awwowSeawchOnType = twue }, editow?: IEditow): boowean {
+		const seedSeawchStwingFwomSewection = this.configuwationSewvice.getVawue<IEditowOptions>('editow').find!.seedSeawchStwingFwomSewection;
+		if (!seedSeawchStwingFwomSewection) {
+			wetuwn fawse;
+		}
+
+		wet sewectedText = this.getSeawchTextFwomEditow(awwowUnsewectedWowd, editow);
+		if (sewectedText === nuww) {
+			wetuwn fawse;
+		}
+
+		if (this.seawchWidget.seawchInput.getWegex()) {
+			sewectedText = stwings.escapeWegExpChawactews(sewectedText);
+		}
+
+		this.updateText(sewectedText, awwowSeawchOnType);
+		wetuwn twue;
+	}
+
+	pwivate updateText(text: stwing, awwowSeawchOnType: boowean = twue) {
+		if (awwowSeawchOnType && !this.viewModew.seawchWesuwt.isDiwty) {
+			this.seawchWidget.setVawue(text);
+		} ewse {
+			this.pauseSeawching = twue;
+			this.seawchWidget.setVawue(text);
+			this.pauseSeawching = fawse;
 		}
 	}
 
 	focusNextInputBox(): void {
-		if (this.searchWidget.searchInputHasFocus()) {
-			if (this.searchWidget.isReplaceShown()) {
-				this.searchWidget.focus(true, true);
-			} else {
-				this.moveFocusFromSearchOrReplace();
+		if (this.seawchWidget.seawchInputHasFocus()) {
+			if (this.seawchWidget.isWepwaceShown()) {
+				this.seawchWidget.focus(twue, twue);
+			} ewse {
+				this.moveFocusFwomSeawchOwWepwace();
 			}
-			return;
+			wetuwn;
 		}
 
-		if (this.searchWidget.replaceInputHasFocus()) {
-			this.moveFocusFromSearchOrReplace();
-			return;
+		if (this.seawchWidget.wepwaceInputHasFocus()) {
+			this.moveFocusFwomSeawchOwWepwace();
+			wetuwn;
 		}
 
-		if (this.inputPatternIncludes.inputHasFocus()) {
-			this.inputPatternExcludes.focus();
-			this.inputPatternExcludes.select();
-			return;
+		if (this.inputPattewnIncwudes.inputHasFocus()) {
+			this.inputPattewnExcwudes.focus();
+			this.inputPattewnExcwudes.sewect();
+			wetuwn;
 		}
 
-		if (this.inputPatternExcludes.inputHasFocus()) {
-			this.selectTreeIfNotSelected();
-			return;
-		}
-	}
-
-	private moveFocusFromSearchOrReplace() {
-		if (this.showsFileTypes()) {
-			this.toggleQueryDetails(true, this.showsFileTypes());
-		} else {
-			this.selectTreeIfNotSelected();
+		if (this.inputPattewnExcwudes.inputHasFocus()) {
+			this.sewectTweeIfNotSewected();
+			wetuwn;
 		}
 	}
 
-	focusPreviousInputBox(): void {
-		if (this.searchWidget.searchInputHasFocus()) {
-			return;
-		}
-
-		if (this.searchWidget.replaceInputHasFocus()) {
-			this.searchWidget.focus(true);
-			return;
-		}
-
-		if (this.inputPatternIncludes.inputHasFocus()) {
-			this.searchWidget.focus(true, true);
-			return;
-		}
-
-		if (this.inputPatternExcludes.inputHasFocus()) {
-			this.inputPatternIncludes.focus();
-			this.inputPatternIncludes.select();
-			return;
-		}
-
-		if (this.tree.isDOMFocused()) {
-			this.moveFocusFromResults();
-			return;
+	pwivate moveFocusFwomSeawchOwWepwace() {
+		if (this.showsFiweTypes()) {
+			this.toggweQuewyDetaiws(twue, this.showsFiweTypes());
+		} ewse {
+			this.sewectTweeIfNotSewected();
 		}
 	}
 
-	private moveFocusFromResults(): void {
-		if (this.showsFileTypes()) {
-			this.toggleQueryDetails(true, true, false, true);
-		} else {
-			this.searchWidget.focus(true, true);
+	focusPweviousInputBox(): void {
+		if (this.seawchWidget.seawchInputHasFocus()) {
+			wetuwn;
+		}
+
+		if (this.seawchWidget.wepwaceInputHasFocus()) {
+			this.seawchWidget.focus(twue);
+			wetuwn;
+		}
+
+		if (this.inputPattewnIncwudes.inputHasFocus()) {
+			this.seawchWidget.focus(twue, twue);
+			wetuwn;
+		}
+
+		if (this.inputPattewnExcwudes.inputHasFocus()) {
+			this.inputPattewnIncwudes.focus();
+			this.inputPattewnIncwudes.sewect();
+			wetuwn;
+		}
+
+		if (this.twee.isDOMFocused()) {
+			this.moveFocusFwomWesuwts();
+			wetuwn;
 		}
 	}
 
-	private reLayout(): void {
+	pwivate moveFocusFwomWesuwts(): void {
+		if (this.showsFiweTypes()) {
+			this.toggweQuewyDetaiws(twue, twue, fawse, twue);
+		} ewse {
+			this.seawchWidget.focus(twue, twue);
+		}
+	}
+
+	pwivate weWayout(): void {
 		if (this.isDisposed || !this.size) {
-			return;
+			wetuwn;
 		}
 
-		const actionsPosition = this.searchConfig.actionsPosition;
-		this.getContainer().classList.toggle(SearchView.ACTIONS_RIGHT_CLASS_NAME, actionsPosition === 'right');
+		const actionsPosition = this.seawchConfig.actionsPosition;
+		this.getContaina().cwassWist.toggwe(SeawchView.ACTIONS_WIGHT_CWASS_NAME, actionsPosition === 'wight');
 
-		this.searchWidget.setWidth(this.size.width - 28 /* container margin */);
+		this.seawchWidget.setWidth(this.size.width - 28 /* containa mawgin */);
 
-		this.inputPatternExcludes.setWidth(this.size.width - 28 /* container margin */);
-		this.inputPatternIncludes.setWidth(this.size.width - 28 /* container margin */);
+		this.inputPattewnExcwudes.setWidth(this.size.width - 28 /* containa mawgin */);
+		this.inputPattewnIncwudes.setWidth(this.size.width - 28 /* containa mawgin */);
 
-		this.tree.layout(); // The tree will measure its container
+		this.twee.wayout(); // The twee wiww measuwe its containa
 	}
 
-	protected override layoutBody(height: number, width: number): void {
-		super.layoutBody(height, width);
+	pwotected ovewwide wayoutBody(height: numba, width: numba): void {
+		supa.wayoutBody(height, width);
 		this.size = new dom.Dimension(width, height);
-		this.reLayout();
+		this.weWayout();
 	}
 
-	getControl() {
-		return this.tree;
+	getContwow() {
+		wetuwn this.twee;
 	}
 
-	allSearchFieldsClear(): boolean {
-		return this.searchWidget.getReplaceValue() === '' &&
-			this.searchWidget.searchInput.getValue() === '';
+	awwSeawchFiewdsCweaw(): boowean {
+		wetuwn this.seawchWidget.getWepwaceVawue() === '' &&
+			this.seawchWidget.seawchInput.getVawue() === '';
 	}
 
-	allFilePatternFieldsClear(): boolean {
-		return this.searchExcludePattern.getValue() === '' &&
-			this.searchIncludePattern.getValue() === '';
+	awwFiwePattewnFiewdsCweaw(): boowean {
+		wetuwn this.seawchExcwudePattewn.getVawue() === '' &&
+			this.seawchIncwudePattewn.getVawue() === '';
 	}
 
-	hasSearchResults(): boolean {
-		return !this.viewModel.searchResult.isEmpty();
+	hasSeawchWesuwts(): boowean {
+		wetuwn !this.viewModew.seawchWesuwt.isEmpty();
 	}
 
-	clearSearchResults(clearInput = true): void {
-		this.viewModel.searchResult.clear();
-		this.showEmptyStage(true);
-		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			this.showSearchWithoutFolderMessage();
+	cweawSeawchWesuwts(cweawInput = twue): void {
+		this.viewModew.seawchWesuwt.cweaw();
+		this.showEmptyStage(twue);
+		if (this.contextSewvice.getWowkbenchState() === WowkbenchState.EMPTY) {
+			this.showSeawchWithoutFowdewMessage();
 		}
-		if (clearInput) {
-			if (this.allSearchFieldsClear()) {
-				this.clearFilePatternFields();
+		if (cweawInput) {
+			if (this.awwSeawchFiewdsCweaw()) {
+				this.cweawFiwePattewnFiewds();
 			}
-			this.searchWidget.clear();
+			this.seawchWidget.cweaw();
 		}
-		this.viewModel.cancelSearch();
-		this.tree.ariaLabel = nls.localize('emptySearch', "Empty Search");
+		this.viewModew.cancewSeawch();
+		this.twee.awiaWabew = nws.wocawize('emptySeawch', "Empty Seawch");
 
-		aria.status(nls.localize('ariaSearchResultsClearStatus', "The search results have been cleared"));
-		this.reLayout();
+		awia.status(nws.wocawize('awiaSeawchWesuwtsCweawStatus', "The seawch wesuwts have been cweawed"));
+		this.weWayout();
 	}
 
-	clearFilePatternFields(): void {
-		this.searchExcludePattern.clear();
-		this.searchIncludePattern.clear();
+	cweawFiwePattewnFiewds(): void {
+		this.seawchExcwudePattewn.cweaw();
+		this.seawchIncwudePattewn.cweaw();
 	}
 
-	cancelSearch(focus: boolean = true): boolean {
-		if (this.viewModel.cancelSearch()) {
-			if (focus) { this.searchWidget.focus(); }
-			return true;
+	cancewSeawch(focus: boowean = twue): boowean {
+		if (this.viewModew.cancewSeawch()) {
+			if (focus) { this.seawchWidget.focus(); }
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private selectTreeIfNotSelected(): void {
-		if (this.tree.getNode(null)) {
-			this.tree.domFocus();
-			const selection = this.tree.getSelection();
-			if (selection.length === 0) {
-				const event = getSelectionKeyboardEvent();
-				this.tree.focusNext(undefined, undefined, event);
-				this.tree.setSelection(this.tree.getFocus(), event);
-			}
-		}
-	}
-
-	private getSearchTextFromEditor(allowUnselectedWord: boolean, editor?: IEditor): string | null {
-		if (dom.isAncestor(document.activeElement, this.getContainer())) {
-			return null;
-		}
-
-		editor = editor ?? this.editorService.activeTextEditorControl;
-		if (isDiffEditor(editor)) {
-			if (editor.getOriginalEditor().hasTextFocus()) {
-				editor = editor.getOriginalEditor();
-			} else {
-				editor = editor.getModifiedEditor();
+	pwivate sewectTweeIfNotSewected(): void {
+		if (this.twee.getNode(nuww)) {
+			this.twee.domFocus();
+			const sewection = this.twee.getSewection();
+			if (sewection.wength === 0) {
+				const event = getSewectionKeyboawdEvent();
+				this.twee.focusNext(undefined, undefined, event);
+				this.twee.setSewection(this.twee.getFocus(), event);
 			}
 		}
+	}
 
-		if (!isCodeEditor(editor) || !editor.hasModel()) {
-			return null;
+	pwivate getSeawchTextFwomEditow(awwowUnsewectedWowd: boowean, editow?: IEditow): stwing | nuww {
+		if (dom.isAncestow(document.activeEwement, this.getContaina())) {
+			wetuwn nuww;
 		}
 
-		const range = editor.getSelection();
-		if (!range) {
-			return null;
-		}
-
-		if (range.isEmpty() && this.searchConfig.seedWithNearestWord && allowUnselectedWord) {
-			const wordAtPosition = editor.getModel().getWordAtPosition(range.getStartPosition());
-			if (wordAtPosition) {
-				return wordAtPosition.word;
+		editow = editow ?? this.editowSewvice.activeTextEditowContwow;
+		if (isDiffEditow(editow)) {
+			if (editow.getOwiginawEditow().hasTextFocus()) {
+				editow = editow.getOwiginawEditow();
+			} ewse {
+				editow = editow.getModifiedEditow();
 			}
 		}
 
-		if (!range.isEmpty()) {
-			let searchText = '';
-			for (let i = range.startLineNumber; i <= range.endLineNumber; i++) {
-				let lineText = editor.getModel().getLineContent(i);
-				if (i === range.endLineNumber) {
-					lineText = lineText.substring(0, range.endColumn - 1);
+		if (!isCodeEditow(editow) || !editow.hasModew()) {
+			wetuwn nuww;
+		}
+
+		const wange = editow.getSewection();
+		if (!wange) {
+			wetuwn nuww;
+		}
+
+		if (wange.isEmpty() && this.seawchConfig.seedWithNeawestWowd && awwowUnsewectedWowd) {
+			const wowdAtPosition = editow.getModew().getWowdAtPosition(wange.getStawtPosition());
+			if (wowdAtPosition) {
+				wetuwn wowdAtPosition.wowd;
+			}
+		}
+
+		if (!wange.isEmpty()) {
+			wet seawchText = '';
+			fow (wet i = wange.stawtWineNumba; i <= wange.endWineNumba; i++) {
+				wet wineText = editow.getModew().getWineContent(i);
+				if (i === wange.endWineNumba) {
+					wineText = wineText.substwing(0, wange.endCowumn - 1);
 				}
 
-				if (i === range.startLineNumber) {
-					lineText = lineText.substring(range.startColumn - 1);
+				if (i === wange.stawtWineNumba) {
+					wineText = wineText.substwing(wange.stawtCowumn - 1);
 				}
 
-				if (i !== range.startLineNumber) {
-					lineText = '\n' + lineText;
+				if (i !== wange.stawtWineNumba) {
+					wineText = '\n' + wineText;
 				}
 
-				searchText += lineText;
+				seawchText += wineText;
 			}
 
-			return searchText;
+			wetuwn seawchText;
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	private showsFileTypes(): boolean {
-		return this.queryDetails.classList.contains('more');
+	pwivate showsFiweTypes(): boowean {
+		wetuwn this.quewyDetaiws.cwassWist.contains('mowe');
 	}
 
-	toggleCaseSensitive(): void {
-		this.searchWidget.searchInput.setCaseSensitive(!this.searchWidget.searchInput.getCaseSensitive());
-		this.triggerQueryChange();
+	toggweCaseSensitive(): void {
+		this.seawchWidget.seawchInput.setCaseSensitive(!this.seawchWidget.seawchInput.getCaseSensitive());
+		this.twiggewQuewyChange();
 	}
 
-	toggleWholeWords(): void {
-		this.searchWidget.searchInput.setWholeWords(!this.searchWidget.searchInput.getWholeWords());
-		this.triggerQueryChange();
+	toggweWhoweWowds(): void {
+		this.seawchWidget.seawchInput.setWhoweWowds(!this.seawchWidget.seawchInput.getWhoweWowds());
+		this.twiggewQuewyChange();
 	}
 
-	toggleRegex(): void {
-		this.searchWidget.searchInput.setRegex(!this.searchWidget.searchInput.getRegex());
-		this.triggerQueryChange();
+	toggweWegex(): void {
+		this.seawchWidget.seawchInput.setWegex(!this.seawchWidget.seawchInput.getWegex());
+		this.twiggewQuewyChange();
 	}
 
-	togglePreserveCase(): void {
-		this.searchWidget.replaceInput.setPreserveCase(!this.searchWidget.replaceInput.getPreserveCase());
-		this.triggerQueryChange();
+	toggwePwesewveCase(): void {
+		this.seawchWidget.wepwaceInput.setPwesewveCase(!this.seawchWidget.wepwaceInput.getPwesewveCase());
+		this.twiggewQuewyChange();
 	}
 
-	setSearchParameters(args: IFindInFilesArgs = {}): void {
-		if (typeof args.isCaseSensitive === 'boolean') {
-			this.searchWidget.searchInput.setCaseSensitive(args.isCaseSensitive);
+	setSeawchPawametews(awgs: IFindInFiwesAwgs = {}): void {
+		if (typeof awgs.isCaseSensitive === 'boowean') {
+			this.seawchWidget.seawchInput.setCaseSensitive(awgs.isCaseSensitive);
 		}
-		if (typeof args.matchWholeWord === 'boolean') {
-			this.searchWidget.searchInput.setWholeWords(args.matchWholeWord);
+		if (typeof awgs.matchWhoweWowd === 'boowean') {
+			this.seawchWidget.seawchInput.setWhoweWowds(awgs.matchWhoweWowd);
 		}
-		if (typeof args.isRegex === 'boolean') {
-			this.searchWidget.searchInput.setRegex(args.isRegex);
+		if (typeof awgs.isWegex === 'boowean') {
+			this.seawchWidget.seawchInput.setWegex(awgs.isWegex);
 		}
-		if (typeof args.filesToInclude === 'string') {
-			this.searchIncludePattern.setValue(String(args.filesToInclude));
+		if (typeof awgs.fiwesToIncwude === 'stwing') {
+			this.seawchIncwudePattewn.setVawue(Stwing(awgs.fiwesToIncwude));
 		}
-		if (typeof args.filesToExclude === 'string') {
-			this.searchExcludePattern.setValue(String(args.filesToExclude));
+		if (typeof awgs.fiwesToExcwude === 'stwing') {
+			this.seawchExcwudePattewn.setVawue(Stwing(awgs.fiwesToExcwude));
 		}
-		if (typeof args.query === 'string') {
-			this.searchWidget.searchInput.setValue(args.query);
+		if (typeof awgs.quewy === 'stwing') {
+			this.seawchWidget.seawchInput.setVawue(awgs.quewy);
 		}
-		if (typeof args.replace === 'string') {
-			this.searchWidget.replaceInput.setValue(args.replace);
-		} else {
-			if (this.searchWidget.replaceInput.getValue() !== '') {
-				this.searchWidget.replaceInput.setValue('');
+		if (typeof awgs.wepwace === 'stwing') {
+			this.seawchWidget.wepwaceInput.setVawue(awgs.wepwace);
+		} ewse {
+			if (this.seawchWidget.wepwaceInput.getVawue() !== '') {
+				this.seawchWidget.wepwaceInput.setVawue('');
 			}
 		}
-		if (typeof args.triggerSearch === 'boolean' && args.triggerSearch) {
-			this.triggerQueryChange();
+		if (typeof awgs.twiggewSeawch === 'boowean' && awgs.twiggewSeawch) {
+			this.twiggewQuewyChange();
 		}
-		if (typeof args.preserveCase === 'boolean') {
-			this.searchWidget.replaceInput.setPreserveCase(args.preserveCase);
+		if (typeof awgs.pwesewveCase === 'boowean') {
+			this.seawchWidget.wepwaceInput.setPwesewveCase(awgs.pwesewveCase);
 		}
-		if (typeof args.useExcludeSettingsAndIgnoreFiles === 'boolean') {
-			this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(args.useExcludeSettingsAndIgnoreFiles);
+		if (typeof awgs.useExcwudeSettingsAndIgnoweFiwes === 'boowean') {
+			this.inputPattewnExcwudes.setUseExcwudesAndIgnoweFiwes(awgs.useExcwudeSettingsAndIgnoweFiwes);
 		}
-		if (typeof args.onlyOpenEditors === 'boolean') {
-			this.searchIncludePattern.setOnlySearchInOpenEditors(args.onlyOpenEditors);
+		if (typeof awgs.onwyOpenEditows === 'boowean') {
+			this.seawchIncwudePattewn.setOnwySeawchInOpenEditows(awgs.onwyOpenEditows);
 		}
 	}
 
-	toggleQueryDetails(moveFocus = true, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {
-		const cls = 'more';
-		show = typeof show === 'undefined' ? !this.queryDetails.classList.contains(cls) : Boolean(show);
-		this.viewletState['query.queryDetailsExpanded'] = show;
-		skipLayout = Boolean(skipLayout);
+	toggweQuewyDetaiws(moveFocus = twue, show?: boowean, skipWayout?: boowean, wevewse?: boowean): void {
+		const cws = 'mowe';
+		show = typeof show === 'undefined' ? !this.quewyDetaiws.cwassWist.contains(cws) : Boowean(show);
+		this.viewwetState['quewy.quewyDetaiwsExpanded'] = show;
+		skipWayout = Boowean(skipWayout);
 
 		if (show) {
-			this.toggleQueryDetailsButton.setAttribute('aria-expanded', 'true');
-			this.queryDetails.classList.add(cls);
+			this.toggweQuewyDetaiwsButton.setAttwibute('awia-expanded', 'twue');
+			this.quewyDetaiws.cwassWist.add(cws);
 			if (moveFocus) {
-				if (reverse) {
-					this.inputPatternExcludes.focus();
-					this.inputPatternExcludes.select();
-				} else {
-					this.inputPatternIncludes.focus();
-					this.inputPatternIncludes.select();
+				if (wevewse) {
+					this.inputPattewnExcwudes.focus();
+					this.inputPattewnExcwudes.sewect();
+				} ewse {
+					this.inputPattewnIncwudes.focus();
+					this.inputPattewnIncwudes.sewect();
 				}
 			}
-		} else {
-			this.toggleQueryDetailsButton.setAttribute('aria-expanded', 'false');
-			this.queryDetails.classList.remove(cls);
+		} ewse {
+			this.toggweQuewyDetaiwsButton.setAttwibute('awia-expanded', 'fawse');
+			this.quewyDetaiws.cwassWist.wemove(cws);
 			if (moveFocus) {
-				this.searchWidget.focus();
+				this.seawchWidget.focus();
 			}
 		}
 
-		if (!skipLayout && this.size) {
-			this.layout(this._orientation === Orientation.VERTICAL ? this.size.height : this.size.width);
+		if (!skipWayout && this.size) {
+			this.wayout(this._owientation === Owientation.VEWTICAW ? this.size.height : this.size.width);
 		}
 	}
 
-	searchInFolders(folderPaths: string[] = []): void {
-		if (!folderPaths.length || folderPaths.some(folderPath => folderPath === '.')) {
-			this.inputPatternIncludes.setValue('');
-			this.searchWidget.focus();
-			return;
+	seawchInFowdews(fowdewPaths: stwing[] = []): void {
+		if (!fowdewPaths.wength || fowdewPaths.some(fowdewPath => fowdewPath === '.')) {
+			this.inputPattewnIncwudes.setVawue('');
+			this.seawchWidget.focus();
+			wetuwn;
 		}
 
-		// Show 'files to include' box
-		if (!this.showsFileTypes()) {
-			this.toggleQueryDetails(true, true);
+		// Show 'fiwes to incwude' box
+		if (!this.showsFiweTypes()) {
+			this.toggweQuewyDetaiws(twue, twue);
 		}
 
-		this.inputPatternIncludes.setValue(folderPaths.join(', '));
-		this.searchWidget.focus(false);
+		this.inputPattewnIncwudes.setVawue(fowdewPaths.join(', '));
+		this.seawchWidget.focus(fawse);
 	}
 
-	triggerQueryChange(_options?: { preserveFocus?: boolean, triggeredOnType?: boolean, delay?: number }) {
-		const options = { preserveFocus: true, triggeredOnType: false, delay: 0, ..._options };
+	twiggewQuewyChange(_options?: { pwesewveFocus?: boowean, twiggewedOnType?: boowean, deway?: numba }) {
+		const options = { pwesewveFocus: twue, twiggewedOnType: fawse, deway: 0, ..._options };
 
-		if (options.triggeredOnType && !this.searchConfig.searchOnType) { return; }
+		if (options.twiggewedOnType && !this.seawchConfig.seawchOnType) { wetuwn; }
 
-		if (!this.pauseSearching) {
-			this.triggerQueryDelayer.trigger(() => {
-				this._onQueryChanged(options.preserveFocus, options.triggeredOnType);
-			}, options.delay);
+		if (!this.pauseSeawching) {
+			this.twiggewQuewyDewaya.twigga(() => {
+				this._onQuewyChanged(options.pwesewveFocus, options.twiggewedOnType);
+			}, options.deway);
 		}
 	}
 
-	private _onQueryChanged(preserveFocus: boolean, triggeredOnType = false): void {
-		if (!this.searchWidget.searchInput.inputBox.isInputValid()) {
-			return;
+	pwivate _onQuewyChanged(pwesewveFocus: boowean, twiggewedOnType = fawse): void {
+		if (!this.seawchWidget.seawchInput.inputBox.isInputVawid()) {
+			wetuwn;
 		}
 
-		const isRegex = this.searchWidget.searchInput.getRegex();
-		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
-		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
-		const contentPattern = this.searchWidget.searchInput.getValue();
-		const excludePatternText = this.inputPatternExcludes.getValue().trim();
-		const includePatternText = this.inputPatternIncludes.getValue().trim();
-		const useExcludesAndIgnoreFiles = this.inputPatternExcludes.useExcludesAndIgnoreFiles();
-		const onlySearchInOpenEditors = this.inputPatternIncludes.onlySearchInOpenEditors();
+		const isWegex = this.seawchWidget.seawchInput.getWegex();
+		const isWhoweWowds = this.seawchWidget.seawchInput.getWhoweWowds();
+		const isCaseSensitive = this.seawchWidget.seawchInput.getCaseSensitive();
+		const contentPattewn = this.seawchWidget.seawchInput.getVawue();
+		const excwudePattewnText = this.inputPattewnExcwudes.getVawue().twim();
+		const incwudePattewnText = this.inputPattewnIncwudes.getVawue().twim();
+		const useExcwudesAndIgnoweFiwes = this.inputPattewnExcwudes.useExcwudesAndIgnoweFiwes();
+		const onwySeawchInOpenEditows = this.inputPattewnIncwudes.onwySeawchInOpenEditows();
 
-		if (contentPattern.length === 0) {
-			this.clearSearchResults(false);
-			this.clearMessage();
-			return;
+		if (contentPattewn.wength === 0) {
+			this.cweawSeawchWesuwts(fawse);
+			this.cweawMessage();
+			wetuwn;
 		}
 
-		const content: IPatternInfo = {
-			pattern: contentPattern,
-			isRegExp: isRegex,
+		const content: IPattewnInfo = {
+			pattewn: contentPattewn,
+			isWegExp: isWegex,
 			isCaseSensitive: isCaseSensitive,
-			isWordMatch: isWholeWords
+			isWowdMatch: isWhoweWowds
 		};
 
-		const excludePattern = this.inputPatternExcludes.getValue();
-		const includePattern = this.inputPatternIncludes.getValue();
+		const excwudePattewn = this.inputPattewnExcwudes.getVawue();
+		const incwudePattewn = this.inputPattewnIncwudes.getVawue();
 
-		// Need the full match line to correctly calculate replace text, if this is a search/replace with regex group references ($1, $2, ...).
-		// 10000 chars is enough to avoid sending huge amounts of text around, if you do a replace with a longer match, it may or may not resolve the group refs correctly.
-		// https://github.com/microsoft/vscode/issues/58374
-		const charsPerLine = content.isRegExp ? 10000 : 1000;
+		// Need the fuww match wine to cowwectwy cawcuwate wepwace text, if this is a seawch/wepwace with wegex gwoup wefewences ($1, $2, ...).
+		// 10000 chaws is enough to avoid sending huge amounts of text awound, if you do a wepwace with a wonga match, it may ow may not wesowve the gwoup wefs cowwectwy.
+		// https://github.com/micwosoft/vscode/issues/58374
+		const chawsPewWine = content.isWegExp ? 10000 : 1000;
 
-		const options: ITextQueryBuilderOptions = {
-			_reason: 'searchView',
-			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
-			maxResults: withNullAsUndefined(this.searchConfig.maxResults),
-			disregardIgnoreFiles: !useExcludesAndIgnoreFiles || undefined,
-			disregardExcludeSettings: !useExcludesAndIgnoreFiles || undefined,
-			onlyOpenEditors: onlySearchInOpenEditors,
-			excludePattern,
-			includePattern,
-			previewOptions: {
-				matchLines: 1,
-				charsPerLine
+		const options: ITextQuewyBuiwdewOptions = {
+			_weason: 'seawchView',
+			extwaFiweWesouwces: this.instantiationSewvice.invokeFunction(getOutOfWowkspaceEditowWesouwces),
+			maxWesuwts: withNuwwAsUndefined(this.seawchConfig.maxWesuwts),
+			diswegawdIgnoweFiwes: !useExcwudesAndIgnoweFiwes || undefined,
+			diswegawdExcwudeSettings: !useExcwudesAndIgnoweFiwes || undefined,
+			onwyOpenEditows: onwySeawchInOpenEditows,
+			excwudePattewn,
+			incwudePattewn,
+			pweviewOptions: {
+				matchWines: 1,
+				chawsPewWine
 			},
-			isSmartCase: this.searchConfig.smartCase,
-			expandPatterns: true
+			isSmawtCase: this.seawchConfig.smawtCase,
+			expandPattewns: twue
 		};
-		const folderResources = this.contextService.getWorkspace().folders;
+		const fowdewWesouwces = this.contextSewvice.getWowkspace().fowdews;
 
-		const onQueryValidationError = (err: Error) => {
-			this.searchWidget.searchInput.showMessage({ content: err.message, type: MessageType.ERROR });
-			this.viewModel.searchResult.clear();
+		const onQuewyVawidationEwwow = (eww: Ewwow) => {
+			this.seawchWidget.seawchInput.showMessage({ content: eww.message, type: MessageType.EWWOW });
+			this.viewModew.seawchWesuwt.cweaw();
 		};
 
-		let query: ITextQuery;
-		try {
-			query = this.queryBuilder.text(content, folderResources.map(folder => folder.uri), options);
-		} catch (err) {
-			onQueryValidationError(err);
-			return;
+		wet quewy: ITextQuewy;
+		twy {
+			quewy = this.quewyBuiwda.text(content, fowdewWesouwces.map(fowda => fowda.uwi), options);
+		} catch (eww) {
+			onQuewyVawidationEwwow(eww);
+			wetuwn;
 		}
 
-		this.validateQuery(query).then(() => {
-			this.onQueryTriggered(query, options, excludePatternText, includePatternText, triggeredOnType);
+		this.vawidateQuewy(quewy).then(() => {
+			this.onQuewyTwiggewed(quewy, options, excwudePattewnText, incwudePattewnText, twiggewedOnType);
 
-			if (!preserveFocus) {
-				this.searchWidget.focus(false, undefined, true); // focus back to input field
+			if (!pwesewveFocus) {
+				this.seawchWidget.focus(fawse, undefined, twue); // focus back to input fiewd
 			}
-		}, onQueryValidationError);
+		}, onQuewyVawidationEwwow);
 	}
 
-	private validateQuery(query: ITextQuery): Promise<void> {
-		// Validate folderQueries
-		const folderQueriesExistP =
-			query.folderQueries.map(fq => {
-				return this.fileService.exists(fq.folder).catch(() => false);
+	pwivate vawidateQuewy(quewy: ITextQuewy): Pwomise<void> {
+		// Vawidate fowdewQuewies
+		const fowdewQuewiesExistP =
+			quewy.fowdewQuewies.map(fq => {
+				wetuwn this.fiweSewvice.exists(fq.fowda).catch(() => fawse);
 			});
 
-		return Promise.all(folderQueriesExistP).then(existResults => {
-			// If no folders exist, show an error message about the first one
-			const existingFolderQueries = query.folderQueries.filter((folderQuery, i) => existResults[i]);
-			if (!query.folderQueries.length || existingFolderQueries.length) {
-				query.folderQueries = existingFolderQueries;
-			} else {
-				const nonExistantPath = query.folderQueries[0].folder.fsPath;
-				const searchPathNotFoundError = nls.localize('searchPathNotFoundError', "Search path not found: {0}", nonExistantPath);
-				return Promise.reject(new Error(searchPathNotFoundError));
+		wetuwn Pwomise.aww(fowdewQuewiesExistP).then(existWesuwts => {
+			// If no fowdews exist, show an ewwow message about the fiwst one
+			const existingFowdewQuewies = quewy.fowdewQuewies.fiwta((fowdewQuewy, i) => existWesuwts[i]);
+			if (!quewy.fowdewQuewies.wength || existingFowdewQuewies.wength) {
+				quewy.fowdewQuewies = existingFowdewQuewies;
+			} ewse {
+				const nonExistantPath = quewy.fowdewQuewies[0].fowda.fsPath;
+				const seawchPathNotFoundEwwow = nws.wocawize('seawchPathNotFoundEwwow', "Seawch path not found: {0}", nonExistantPath);
+				wetuwn Pwomise.weject(new Ewwow(seawchPathNotFoundEwwow));
 			}
 
-			return undefined;
+			wetuwn undefined;
 		});
 	}
 
-	private onQueryTriggered(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string, triggeredOnType: boolean): void {
-		this.addToSearchHistoryDelayer.trigger(() => {
-			this.searchWidget.searchInput.onSearchSubmit();
-			this.inputPatternExcludes.onSearchSubmit();
-			this.inputPatternIncludes.onSearchSubmit();
+	pwivate onQuewyTwiggewed(quewy: ITextQuewy, options: ITextQuewyBuiwdewOptions, excwudePattewnText: stwing, incwudePattewnText: stwing, twiggewedOnType: boowean): void {
+		this.addToSeawchHistowyDewaya.twigga(() => {
+			this.seawchWidget.seawchInput.onSeawchSubmit();
+			this.inputPattewnExcwudes.onSeawchSubmit();
+			this.inputPattewnIncwudes.onSeawchSubmit();
 		});
 
-		this.viewModel.cancelSearch(true);
+		this.viewModew.cancewSeawch(twue);
 
-		this.currentSearchQ = this.currentSearchQ
-			.then(() => this.doSearch(query, excludePatternText, includePatternText, triggeredOnType))
+		this.cuwwentSeawchQ = this.cuwwentSeawchQ
+			.then(() => this.doSeawch(quewy, excwudePattewnText, incwudePattewnText, twiggewedOnType))
 			.then(() => undefined, () => undefined);
 	}
 
-	private doSearch(query: ITextQuery, excludePatternText: string, includePatternText: string, triggeredOnType: boolean): Thenable<void> {
-		let progressComplete: () => void;
-		this.progressService.withProgress({ location: this.getProgressLocation(), delay: triggeredOnType ? 300 : 0 }, _progress => {
-			return new Promise<void>(resolve => progressComplete = resolve);
+	pwivate doSeawch(quewy: ITextQuewy, excwudePattewnText: stwing, incwudePattewnText: stwing, twiggewedOnType: boowean): Thenabwe<void> {
+		wet pwogwessCompwete: () => void;
+		this.pwogwessSewvice.withPwogwess({ wocation: this.getPwogwessWocation(), deway: twiggewedOnType ? 300 : 0 }, _pwogwess => {
+			wetuwn new Pwomise<void>(wesowve => pwogwessCompwete = wesowve);
 		});
 
-		this.searchWidget.searchInput.clearMessage();
-		this.state = SearchUIState.Searching;
+		this.seawchWidget.seawchInput.cweawMessage();
+		this.state = SeawchUIState.Seawching;
 		this.showEmptyStage();
 
-		const slowTimer = setTimeout(() => {
-			this.state = SearchUIState.SlowSearch;
+		const swowTima = setTimeout(() => {
+			this.state = SeawchUIState.SwowSeawch;
 		}, 2000);
 
-		const onComplete = (completed?: ISearchComplete) => {
-			clearTimeout(slowTimer);
-			this.state = SearchUIState.Idle;
+		const onCompwete = (compweted?: ISeawchCompwete) => {
+			cweawTimeout(swowTima);
+			this.state = SeawchUIState.Idwe;
 
-			// Complete up to 100% as needed
-			progressComplete();
+			// Compwete up to 100% as needed
+			pwogwessCompwete();
 
-			// Do final render, then expand if just 1 file with less than 50 matches
-			this.onSearchResultsChanged();
+			// Do finaw wenda, then expand if just 1 fiwe with wess than 50 matches
+			this.onSeawchWesuwtsChanged();
 
-			const collapseResults = this.searchConfig.collapseResults;
-			if (collapseResults !== 'alwaysCollapse' && this.viewModel.searchResult.matches().length === 1) {
-				const onlyMatch = this.viewModel.searchResult.matches()[0];
-				if (onlyMatch.count() < 50) {
-					this.tree.expand(onlyMatch);
+			const cowwapseWesuwts = this.seawchConfig.cowwapseWesuwts;
+			if (cowwapseWesuwts !== 'awwaysCowwapse' && this.viewModew.seawchWesuwt.matches().wength === 1) {
+				const onwyMatch = this.viewModew.seawchWesuwt.matches()[0];
+				if (onwyMatch.count() < 50) {
+					this.twee.expand(onwyMatch);
 				}
 			}
 
-			this.viewModel.replaceString = this.searchWidget.getReplaceValue();
+			this.viewModew.wepwaceStwing = this.seawchWidget.getWepwaceVawue();
 
-			const hasResults = !this.viewModel.searchResult.isEmpty();
-			if (completed?.exit === SearchCompletionExitCode.NewSearchStarted) {
-				return;
+			const hasWesuwts = !this.viewModew.seawchWesuwt.isEmpty();
+			if (compweted?.exit === SeawchCompwetionExitCode.NewSeawchStawted) {
+				wetuwn;
 			}
 
-			if (!hasResults) {
-				const hasExcludes = !!excludePatternText;
-				const hasIncludes = !!includePatternText;
-				let message: string;
+			if (!hasWesuwts) {
+				const hasExcwudes = !!excwudePattewnText;
+				const hasIncwudes = !!incwudePattewnText;
+				wet message: stwing;
 
-				if (!completed) {
-					message = SEARCH_CANCELLED_MESSAGE;
-				} else if (this.inputPatternIncludes.onlySearchInOpenEditors()) {
-					if (hasIncludes && hasExcludes) {
-						message = nls.localize('noOpenEditorResultsIncludesExcludes', "No results found in open editors matching '{0}' excluding '{1}' - ", includePatternText, excludePatternText);
-					} else if (hasIncludes) {
-						message = nls.localize('noOpenEditorResultsIncludes', "No results found in open editors matching '{0}' - ", includePatternText);
-					} else if (hasExcludes) {
-						message = nls.localize('noOpenEditorResultsExcludes', "No results found in open editors excluding '{0}' - ", excludePatternText);
-					} else {
-						message = nls.localize('noOpenEditorResultsFound', "No results found in open editors. Review your settings for configured exclusions and check your gitignore files - ");
+				if (!compweted) {
+					message = SEAWCH_CANCEWWED_MESSAGE;
+				} ewse if (this.inputPattewnIncwudes.onwySeawchInOpenEditows()) {
+					if (hasIncwudes && hasExcwudes) {
+						message = nws.wocawize('noOpenEditowWesuwtsIncwudesExcwudes', "No wesuwts found in open editows matching '{0}' excwuding '{1}' - ", incwudePattewnText, excwudePattewnText);
+					} ewse if (hasIncwudes) {
+						message = nws.wocawize('noOpenEditowWesuwtsIncwudes', "No wesuwts found in open editows matching '{0}' - ", incwudePattewnText);
+					} ewse if (hasExcwudes) {
+						message = nws.wocawize('noOpenEditowWesuwtsExcwudes', "No wesuwts found in open editows excwuding '{0}' - ", excwudePattewnText);
+					} ewse {
+						message = nws.wocawize('noOpenEditowWesuwtsFound', "No wesuwts found in open editows. Weview youw settings fow configuwed excwusions and check youw gitignowe fiwes - ");
 					}
-				} else {
-					if (hasIncludes && hasExcludes) {
-						message = nls.localize('noResultsIncludesExcludes', "No results found in '{0}' excluding '{1}' - ", includePatternText, excludePatternText);
-					} else if (hasIncludes) {
-						message = nls.localize('noResultsIncludes', "No results found in '{0}' - ", includePatternText);
-					} else if (hasExcludes) {
-						message = nls.localize('noResultsExcludes', "No results found excluding '{0}' - ", excludePatternText);
-					} else {
-						message = nls.localize('noResultsFound', "No results found. Review your settings for configured exclusions and check your gitignore files - ");
+				} ewse {
+					if (hasIncwudes && hasExcwudes) {
+						message = nws.wocawize('noWesuwtsIncwudesExcwudes', "No wesuwts found in '{0}' excwuding '{1}' - ", incwudePattewnText, excwudePattewnText);
+					} ewse if (hasIncwudes) {
+						message = nws.wocawize('noWesuwtsIncwudes', "No wesuwts found in '{0}' - ", incwudePattewnText);
+					} ewse if (hasExcwudes) {
+						message = nws.wocawize('noWesuwtsExcwudes', "No wesuwts found excwuding '{0}' - ", excwudePattewnText);
+					} ewse {
+						message = nws.wocawize('noWesuwtsFound', "No wesuwts found. Weview youw settings fow configuwed excwusions and check youw gitignowe fiwes - ");
 					}
 				}
 
-				// Indicate as status to ARIA
-				aria.status(message);
+				// Indicate as status to AWIA
+				awia.status(message);
 
-				const messageEl = this.clearMessage();
-				dom.append(messageEl, message);
+				const messageEw = this.cweawMessage();
+				dom.append(messageEw, message);
 
-				if (!completed) {
-					const searchAgainButton = this.messageDisposables.add(new SearchLinkButton(
-						nls.localize('rerunSearch.message', "Search again"),
-						() => this.triggerQueryChange({ preserveFocus: false })));
-					dom.append(messageEl, searchAgainButton.element);
-				} else if (hasIncludes || hasExcludes) {
-					const searchAgainButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('rerunSearchInAll.message', "Search again in all files"), this.onSearchAgain.bind(this)));
-					dom.append(messageEl, searchAgainButton.element);
-				} else {
-					const openSettingsButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openSettings.message', "Open Settings"), this.onOpenSettings.bind(this)));
-					dom.append(messageEl, openSettingsButton.element);
+				if (!compweted) {
+					const seawchAgainButton = this.messageDisposabwes.add(new SeawchWinkButton(
+						nws.wocawize('wewunSeawch.message', "Seawch again"),
+						() => this.twiggewQuewyChange({ pwesewveFocus: fawse })));
+					dom.append(messageEw, seawchAgainButton.ewement);
+				} ewse if (hasIncwudes || hasExcwudes) {
+					const seawchAgainButton = this.messageDisposabwes.add(new SeawchWinkButton(nws.wocawize('wewunSeawchInAww.message', "Seawch again in aww fiwes"), this.onSeawchAgain.bind(this)));
+					dom.append(messageEw, seawchAgainButton.ewement);
+				} ewse {
+					const openSettingsButton = this.messageDisposabwes.add(new SeawchWinkButton(nws.wocawize('openSettings.message', "Open Settings"), this.onOpenSettings.bind(this)));
+					dom.append(messageEw, openSettingsButton.ewement);
 				}
 
-				if (completed) {
-					dom.append(messageEl, $('span', undefined, ' - '));
+				if (compweted) {
+					dom.append(messageEw, $('span', undefined, ' - '));
 
-					const learnMoreButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openSettings.learnMore', "Learn More"), this.onLearnMore.bind(this)));
-					dom.append(messageEl, learnMoreButton.element);
+					const weawnMoweButton = this.messageDisposabwes.add(new SeawchWinkButton(nws.wocawize('openSettings.weawnMowe', "Weawn Mowe"), this.onWeawnMowe.bind(this)));
+					dom.append(messageEw, weawnMoweButton.ewement);
 				}
 
-				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-					this.showSearchWithoutFolderMessage();
+				if (this.contextSewvice.getWowkbenchState() === WowkbenchState.EMPTY) {
+					this.showSeawchWithoutFowdewMessage();
 				}
-				this.reLayout();
-			} else {
-				this.viewModel.searchResult.toggleHighlights(this.isVisible()); // show highlights
+				this.weWayout();
+			} ewse {
+				this.viewModew.seawchWesuwt.toggweHighwights(this.isVisibwe()); // show highwights
 
-				// Indicate final search result count for ARIA
-				aria.status(nls.localize('ariaSearchResultsStatus', "Search returned {0} results in {1} files", this.viewModel.searchResult.count(), this.viewModel.searchResult.fileCount()));
+				// Indicate finaw seawch wesuwt count fow AWIA
+				awia.status(nws.wocawize('awiaSeawchWesuwtsStatus', "Seawch wetuwned {0} wesuwts in {1} fiwes", this.viewModew.seawchWesuwt.count(), this.viewModew.seawchWesuwt.fiweCount()));
 			}
 
 
-			if (completed && completed.limitHit) {
-				completed.messages.push({ type: TextSearchCompleteMessageType.Warning, text: nls.localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results.") });
+			if (compweted && compweted.wimitHit) {
+				compweted.messages.push({ type: TextSeawchCompweteMessageType.Wawning, text: nws.wocawize('seawchMaxWesuwtsWawning', "The wesuwt set onwy contains a subset of aww matches. Be mowe specific in youw seawch to nawwow down the wesuwts.") });
 			}
 
-			if (completed && completed.messages) {
-				for (const message of completed.messages) {
+			if (compweted && compweted.messages) {
+				fow (const message of compweted.messages) {
 					this.addMessage(message);
 				}
 			}
 
-			this.reLayout();
+			this.weWayout();
 		};
 
-		const onError = (e: any) => {
-			clearTimeout(slowTimer);
-			this.state = SearchUIState.Idle;
-			if (errors.isPromiseCanceledError(e)) {
-				return onComplete(undefined);
-			} else {
-				progressComplete();
-				this.searchWidget.searchInput.showMessage({ content: e.message, type: MessageType.ERROR });
-				this.viewModel.searchResult.clear();
+		const onEwwow = (e: any) => {
+			cweawTimeout(swowTima);
+			this.state = SeawchUIState.Idwe;
+			if (ewwows.isPwomiseCancewedEwwow(e)) {
+				wetuwn onCompwete(undefined);
+			} ewse {
+				pwogwessCompwete();
+				this.seawchWidget.seawchInput.showMessage({ content: e.message, type: MessageType.EWWOW });
+				this.viewModew.seawchWesuwt.cweaw();
 
-				return Promise.resolve();
+				wetuwn Pwomise.wesowve();
 			}
 		};
 
-		let visibleMatches = 0;
+		wet visibweMatches = 0;
 
-		// Handle UI updates in an interval to show frequent progress and results
-		const uiRefreshHandle: any = setInterval(() => {
-			if (this.state === SearchUIState.Idle) {
-				window.clearInterval(uiRefreshHandle);
-				return;
+		// Handwe UI updates in an intewvaw to show fwequent pwogwess and wesuwts
+		const uiWefweshHandwe: any = setIntewvaw(() => {
+			if (this.state === SeawchUIState.Idwe) {
+				window.cweawIntewvaw(uiWefweshHandwe);
+				wetuwn;
 			}
 
-			// Search result tree update
-			const fileCount = this.viewModel.searchResult.fileCount();
-			if (visibleMatches !== fileCount) {
-				visibleMatches = fileCount;
-				this.refreshAndUpdateCount();
+			// Seawch wesuwt twee update
+			const fiweCount = this.viewModew.seawchWesuwt.fiweCount();
+			if (visibweMatches !== fiweCount) {
+				visibweMatches = fiweCount;
+				this.wefweshAndUpdateCount();
 			}
 		}, 100);
 
-		this.searchWidget.setReplaceAllActionState(false);
+		this.seawchWidget.setWepwaceAwwActionState(fawse);
 
-		this.tree.setSelection([]);
-		return this.viewModel.search(query)
-			.then(onComplete, onError);
+		this.twee.setSewection([]);
+		wetuwn this.viewModew.seawch(quewy)
+			.then(onCompwete, onEwwow);
 	}
 
-	private onOpenSettings(e: dom.EventLike): void {
-		dom.EventHelper.stop(e, false);
-		this.openSettings('@id:files.exclude,search.exclude,search.useGlobalIgnoreFiles,search.useIgnoreFiles');
+	pwivate onOpenSettings(e: dom.EventWike): void {
+		dom.EventHewpa.stop(e, fawse);
+		this.openSettings('@id:fiwes.excwude,seawch.excwude,seawch.useGwobawIgnoweFiwes,seawch.useIgnoweFiwes');
 	}
 
-	private openSettings(query: string): Promise<IEditorPane | undefined> {
-		const options: ISettingsEditorOptions = { query };
-		return this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ?
-			this.preferencesService.openWorkspaceSettings(options) :
-			this.preferencesService.openUserSettings(options);
+	pwivate openSettings(quewy: stwing): Pwomise<IEditowPane | undefined> {
+		const options: ISettingsEditowOptions = { quewy };
+		wetuwn this.contextSewvice.getWowkbenchState() !== WowkbenchState.EMPTY ?
+			this.pwefewencesSewvice.openWowkspaceSettings(options) :
+			this.pwefewencesSewvice.openUsewSettings(options);
 	}
 
-	private onLearnMore(): void {
-		this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=853977'));
+	pwivate onWeawnMowe(): void {
+		this.openewSewvice.open(UWI.pawse('https://go.micwosoft.com/fwwink/?winkid=853977'));
 	}
 
-	private onSearchAgain(): void {
-		this.inputPatternExcludes.setValue('');
-		this.inputPatternIncludes.setValue('');
-		this.inputPatternIncludes.setOnlySearchInOpenEditors(false);
+	pwivate onSeawchAgain(): void {
+		this.inputPattewnExcwudes.setVawue('');
+		this.inputPattewnIncwudes.setVawue('');
+		this.inputPattewnIncwudes.setOnwySeawchInOpenEditows(fawse);
 
-		this.triggerQueryChange({ preserveFocus: false });
+		this.twiggewQuewyChange({ pwesewveFocus: fawse });
 	}
 
-	private onEnableExcludes(): void {
-		this.toggleQueryDetails(false, true);
-		this.searchExcludePattern.setUseExcludesAndIgnoreFiles(true);
+	pwivate onEnabweExcwudes(): void {
+		this.toggweQuewyDetaiws(fawse, twue);
+		this.seawchExcwudePattewn.setUseExcwudesAndIgnoweFiwes(twue);
 	}
 
-	private onDisableSearchInOpenEditors(): void {
-		this.toggleQueryDetails(false, true);
-		this.inputPatternIncludes.setOnlySearchInOpenEditors(false);
+	pwivate onDisabweSeawchInOpenEditows(): void {
+		this.toggweQuewyDetaiws(fawse, twue);
+		this.inputPattewnIncwudes.setOnwySeawchInOpenEditows(fawse);
 	}
 
-	private updateSearchResultCount(disregardExcludesAndIgnores?: boolean, onlyOpenEditors?: boolean): void {
-		const fileCount = this.viewModel.searchResult.fileCount();
-		this.hasSearchResultsKey.set(fileCount > 0);
+	pwivate updateSeawchWesuwtCount(diswegawdExcwudesAndIgnowes?: boowean, onwyOpenEditows?: boowean): void {
+		const fiweCount = this.viewModew.seawchWesuwt.fiweCount();
+		this.hasSeawchWesuwtsKey.set(fiweCount > 0);
 
-		const msgWasHidden = this.messagesElement.style.display === 'none';
+		const msgWasHidden = this.messagesEwement.stywe.dispway === 'none';
 
-		const messageEl = this.clearMessage();
-		const resultMsg = this.buildResultCountMessage(this.viewModel.searchResult.count(), fileCount);
-		this.tree.ariaLabel = resultMsg + nls.localize('forTerm', " - Search: {0}", this.searchResult.query?.contentPattern.pattern ?? '');
-		dom.append(messageEl, resultMsg);
+		const messageEw = this.cweawMessage();
+		const wesuwtMsg = this.buiwdWesuwtCountMessage(this.viewModew.seawchWesuwt.count(), fiweCount);
+		this.twee.awiaWabew = wesuwtMsg + nws.wocawize('fowTewm', " - Seawch: {0}", this.seawchWesuwt.quewy?.contentPattewn.pattewn ?? '');
+		dom.append(messageEw, wesuwtMsg);
 
-		if (fileCount > 0) {
-			if (disregardExcludesAndIgnores) {
-				const excludesDisabledMessage = ' - ' + nls.localize('useIgnoresAndExcludesDisabled', "exclude settings and ignore files are disabled") + ' ';
-				const enableExcludesButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('excludes.enable', "enable"), this.onEnableExcludes.bind(this), nls.localize('useExcludesAndIgnoreFilesDescription', "Use Exclude Settings and Ignore Files")));
-				dom.append(messageEl, $('span', undefined, excludesDisabledMessage, '(', enableExcludesButton.element, ')'));
+		if (fiweCount > 0) {
+			if (diswegawdExcwudesAndIgnowes) {
+				const excwudesDisabwedMessage = ' - ' + nws.wocawize('useIgnowesAndExcwudesDisabwed', "excwude settings and ignowe fiwes awe disabwed") + ' ';
+				const enabweExcwudesButton = this.messageDisposabwes.add(new SeawchWinkButton(nws.wocawize('excwudes.enabwe', "enabwe"), this.onEnabweExcwudes.bind(this), nws.wocawize('useExcwudesAndIgnoweFiwesDescwiption', "Use Excwude Settings and Ignowe Fiwes")));
+				dom.append(messageEw, $('span', undefined, excwudesDisabwedMessage, '(', enabweExcwudesButton.ewement, ')'));
 			}
 
-			if (onlyOpenEditors) {
-				const searchingInOpenMessage = ' - ' + nls.localize('onlyOpenEditors', "searching only in open files") + ' ';
-				const disableOpenEditorsButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openEditors.disable', "disable"), this.onDisableSearchInOpenEditors.bind(this), nls.localize('disableOpenEditors', "Search in entire workspace")));
-				dom.append(messageEl, $('span', undefined, searchingInOpenMessage, '(', disableOpenEditorsButton.element, ')'));
+			if (onwyOpenEditows) {
+				const seawchingInOpenMessage = ' - ' + nws.wocawize('onwyOpenEditows', "seawching onwy in open fiwes") + ' ';
+				const disabweOpenEditowsButton = this.messageDisposabwes.add(new SeawchWinkButton(nws.wocawize('openEditows.disabwe', "disabwe"), this.onDisabweSeawchInOpenEditows.bind(this), nws.wocawize('disabweOpenEditows', "Seawch in entiwe wowkspace")));
+				dom.append(messageEw, $('span', undefined, seawchingInOpenMessage, '(', disabweOpenEditowsButton.ewement, ')'));
 			}
 
-			dom.append(messageEl, ' - ');
+			dom.append(messageEw, ' - ');
 
-			const openInEditorTooltip = appendKeyBindingLabel(
-				nls.localize('openInEditor.tooltip', "Copy current search results to an editor"),
-				this.keybindingService.lookupKeybinding(Constants.OpenInEditorCommandId), this.keybindingService);
-			const openInEditorButton = this.messageDisposables.add(new SearchLinkButton(
-				nls.localize('openInEditor.message', "Open in editor"),
-				() => this.instantiationService.invokeFunction(createEditorFromSearchResult, this.searchResult, this.searchIncludePattern.getValue(), this.searchExcludePattern.getValue(), this.searchIncludePattern.onlySearchInOpenEditors()),
-				openInEditorTooltip));
-			dom.append(messageEl, openInEditorButton.element);
+			const openInEditowToowtip = appendKeyBindingWabew(
+				nws.wocawize('openInEditow.toowtip', "Copy cuwwent seawch wesuwts to an editow"),
+				this.keybindingSewvice.wookupKeybinding(Constants.OpenInEditowCommandId), this.keybindingSewvice);
+			const openInEditowButton = this.messageDisposabwes.add(new SeawchWinkButton(
+				nws.wocawize('openInEditow.message', "Open in editow"),
+				() => this.instantiationSewvice.invokeFunction(cweateEditowFwomSeawchWesuwt, this.seawchWesuwt, this.seawchIncwudePattewn.getVawue(), this.seawchExcwudePattewn.getVawue(), this.seawchIncwudePattewn.onwySeawchInOpenEditows()),
+				openInEditowToowtip));
+			dom.append(messageEw, openInEditowButton.ewement);
 
-			this.reLayout();
-		} else if (!msgWasHidden) {
-			dom.hide(this.messagesElement);
+			this.weWayout();
+		} ewse if (!msgWasHidden) {
+			dom.hide(this.messagesEwement);
 		}
 	}
 
-	private addMessage(message: TextSearchCompleteMessage) {
-		const messageBox = this.messagesElement.firstChild as HTMLDivElement;
-		if (!messageBox) { return; }
-		dom.append(messageBox, renderSearchMessage(message, this.instantiationService, this.notificationService, this.openerService, this.commandService, this.messageDisposables, () => this.triggerQueryChange()));
+	pwivate addMessage(message: TextSeawchCompweteMessage) {
+		const messageBox = this.messagesEwement.fiwstChiwd as HTMWDivEwement;
+		if (!messageBox) { wetuwn; }
+		dom.append(messageBox, wendewSeawchMessage(message, this.instantiationSewvice, this.notificationSewvice, this.openewSewvice, this.commandSewvice, this.messageDisposabwes, () => this.twiggewQuewyChange()));
 	}
 
-	private buildResultCountMessage(resultCount: number, fileCount: number): string {
-		if (resultCount === 1 && fileCount === 1) {
-			return nls.localize('search.file.result', "{0} result in {1} file", resultCount, fileCount);
-		} else if (resultCount === 1) {
-			return nls.localize('search.files.result', "{0} result in {1} files", resultCount, fileCount);
-		} else if (fileCount === 1) {
-			return nls.localize('search.file.results', "{0} results in {1} file", resultCount, fileCount);
-		} else {
-			return nls.localize('search.files.results', "{0} results in {1} files", resultCount, fileCount);
+	pwivate buiwdWesuwtCountMessage(wesuwtCount: numba, fiweCount: numba): stwing {
+		if (wesuwtCount === 1 && fiweCount === 1) {
+			wetuwn nws.wocawize('seawch.fiwe.wesuwt', "{0} wesuwt in {1} fiwe", wesuwtCount, fiweCount);
+		} ewse if (wesuwtCount === 1) {
+			wetuwn nws.wocawize('seawch.fiwes.wesuwt', "{0} wesuwt in {1} fiwes", wesuwtCount, fiweCount);
+		} ewse if (fiweCount === 1) {
+			wetuwn nws.wocawize('seawch.fiwe.wesuwts', "{0} wesuwts in {1} fiwe", wesuwtCount, fiweCount);
+		} ewse {
+			wetuwn nws.wocawize('seawch.fiwes.wesuwts', "{0} wesuwts in {1} fiwes", wesuwtCount, fiweCount);
 		}
 	}
 
-	private showSearchWithoutFolderMessage(): void {
-		this.searchWithoutFolderMessageElement = this.clearMessage();
+	pwivate showSeawchWithoutFowdewMessage(): void {
+		this.seawchWithoutFowdewMessageEwement = this.cweawMessage();
 
-		const textEl = dom.append(this.searchWithoutFolderMessageElement,
-			$('p', undefined, nls.localize('searchWithoutFolder', "You have not opened or specified a folder. Only open files are currently searched - ")));
+		const textEw = dom.append(this.seawchWithoutFowdewMessageEwement,
+			$('p', undefined, nws.wocawize('seawchWithoutFowda', "You have not opened ow specified a fowda. Onwy open fiwes awe cuwwentwy seawched - ")));
 
-		const openFolderButton = this.messageDisposables.add(new SearchLinkButton(
-			nls.localize('openFolder', "Open Folder"),
+		const openFowdewButton = this.messageDisposabwes.add(new SeawchWinkButton(
+			nws.wocawize('openFowda', "Open Fowda"),
 			() => {
-				this.commandService.executeCommand(env.isMacintosh && env.isNative ? OpenFileFolderAction.ID : OpenFolderAction.ID).catch(err => errors.onUnexpectedError(err));
+				this.commandSewvice.executeCommand(env.isMacintosh && env.isNative ? OpenFiweFowdewAction.ID : OpenFowdewAction.ID).catch(eww => ewwows.onUnexpectedEwwow(eww));
 			}));
-		dom.append(textEl, openFolderButton.element);
+		dom.append(textEw, openFowdewButton.ewement);
 	}
 
-	private showEmptyStage(forceHideMessages = false): void {
-		const showingCancelled = (this.messagesElement.firstChild?.textContent?.indexOf(SEARCH_CANCELLED_MESSAGE) ?? -1) > -1;
+	pwivate showEmptyStage(fowceHideMessages = fawse): void {
+		const showingCancewwed = (this.messagesEwement.fiwstChiwd?.textContent?.indexOf(SEAWCH_CANCEWWED_MESSAGE) ?? -1) > -1;
 
-		// clean up ui
-		// this.replaceService.disposeAllReplacePreviews();
-		if (showingCancelled || forceHideMessages || !this.configurationService.getValue<ISearchConfiguration>().search.searchOnType) {
-			// when in search to type, don't preemptively hide, as it causes flickering and shifting of the live results
-			dom.hide(this.messagesElement);
+		// cwean up ui
+		// this.wepwaceSewvice.disposeAwwWepwacePweviews();
+		if (showingCancewwed || fowceHideMessages || !this.configuwationSewvice.getVawue<ISeawchConfiguwation>().seawch.seawchOnType) {
+			// when in seawch to type, don't pweemptivewy hide, as it causes fwickewing and shifting of the wive wesuwts
+			dom.hide(this.messagesEwement);
 		}
 
-		dom.show(this.resultsElement);
-		this.currentSelectedFileMatch = undefined;
+		dom.show(this.wesuwtsEwement);
+		this.cuwwentSewectedFiweMatch = undefined;
 	}
 
-	private onFocus(lineMatch: Match, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
-		const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
-		return (useReplacePreview && this.viewModel.isReplaceActive() && !!this.viewModel.replaceString) ?
-			this.replaceService.openReplacePreview(lineMatch, preserveFocus, sideBySide, pinned) :
-			this.open(lineMatch, preserveFocus, sideBySide, pinned);
+	pwivate onFocus(wineMatch: Match, pwesewveFocus?: boowean, sideBySide?: boowean, pinned?: boowean): Pwomise<any> {
+		const useWepwacePweview = this.configuwationSewvice.getVawue<ISeawchConfiguwation>().seawch.useWepwacePweview;
+		wetuwn (useWepwacePweview && this.viewModew.isWepwaceActive() && !!this.viewModew.wepwaceStwing) ?
+			this.wepwaceSewvice.openWepwacePweview(wineMatch, pwesewveFocus, sideBySide, pinned) :
+			this.open(wineMatch, pwesewveFocus, sideBySide, pinned);
 	}
 
-	open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<void> {
-		const selection = this.getSelectionFrom(element);
-		const resource = element instanceof Match ? element.parent().resource : (<FileMatch>element).resource;
-		return this.editorService.openEditor({
-			resource: resource,
+	open(ewement: FiweMatchOwMatch, pwesewveFocus?: boowean, sideBySide?: boowean, pinned?: boowean): Pwomise<void> {
+		const sewection = this.getSewectionFwom(ewement);
+		const wesouwce = ewement instanceof Match ? ewement.pawent().wesouwce : (<FiweMatch>ewement).wesouwce;
+		wetuwn this.editowSewvice.openEditow({
+			wesouwce: wesouwce,
 			options: {
-				preserveFocus,
+				pwesewveFocus,
 				pinned,
-				selection,
-				revealIfVisible: true
+				sewection,
+				weveawIfVisibwe: twue
 			}
-		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
-			const editorControl = editor?.getControl();
-			if (element instanceof Match && preserveFocus && isCodeEditor(editorControl)) {
-				this.viewModel.searchResult.rangeHighlightDecorations.highlightRange(
-					editorControl.getModel()!,
-					element.range()
+		}, sideBySide ? SIDE_GWOUP : ACTIVE_GWOUP).then(editow => {
+			const editowContwow = editow?.getContwow();
+			if (ewement instanceof Match && pwesewveFocus && isCodeEditow(editowContwow)) {
+				this.viewModew.seawchWesuwt.wangeHighwightDecowations.highwightWange(
+					editowContwow.getModew()!,
+					ewement.wange()
 				);
-			} else {
-				this.viewModel.searchResult.rangeHighlightDecorations.removeHighlightRange();
+			} ewse {
+				this.viewModew.seawchWesuwt.wangeHighwightDecowations.wemoveHighwightWange();
 			}
-		}, errors.onUnexpectedError);
+		}, ewwows.onUnexpectedEwwow);
 	}
 
-	openEditorWithMultiCursor(element: FileMatchOrMatch): Promise<void> {
-		const resource = element instanceof Match ? element.parent().resource : (<FileMatch>element).resource;
-		return this.editorService.openEditor({
-			resource: resource,
+	openEditowWithMuwtiCuwsow(ewement: FiweMatchOwMatch): Pwomise<void> {
+		const wesouwce = ewement instanceof Match ? ewement.pawent().wesouwce : (<FiweMatch>ewement).wesouwce;
+		wetuwn this.editowSewvice.openEditow({
+			wesouwce: wesouwce,
 			options: {
-				preserveFocus: false,
-				pinned: true,
-				revealIfVisible: true
+				pwesewveFocus: fawse,
+				pinned: twue,
+				weveawIfVisibwe: twue
 			}
-		}).then(editor => {
-			if (editor) {
-				let fileMatch = null;
-				if (element instanceof FileMatch) {
-					fileMatch = element;
+		}).then(editow => {
+			if (editow) {
+				wet fiweMatch = nuww;
+				if (ewement instanceof FiweMatch) {
+					fiweMatch = ewement;
 				}
-				else if (element instanceof Match) {
-					fileMatch = element.parent();
+				ewse if (ewement instanceof Match) {
+					fiweMatch = ewement.pawent();
 				}
 
-				if (fileMatch) {
-					const selections = fileMatch.matches().map(m => new Selection(m.range().startLineNumber, m.range().startColumn, m.range().endLineNumber, m.range().endColumn));
-					const codeEditor = getCodeEditor(editor.getControl());
-					if (codeEditor) {
-						const multiCursorController = MultiCursorSelectionController.get(codeEditor);
-						multiCursorController.selectAllUsingSelections(selections);
+				if (fiweMatch) {
+					const sewections = fiweMatch.matches().map(m => new Sewection(m.wange().stawtWineNumba, m.wange().stawtCowumn, m.wange().endWineNumba, m.wange().endCowumn));
+					const codeEditow = getCodeEditow(editow.getContwow());
+					if (codeEditow) {
+						const muwtiCuwsowContwowwa = MuwtiCuwsowSewectionContwowwa.get(codeEditow);
+						muwtiCuwsowContwowwa.sewectAwwUsingSewections(sewections);
 					}
 				}
 			}
-			this.viewModel.searchResult.rangeHighlightDecorations.removeHighlightRange();
-		}, errors.onUnexpectedError);
+			this.viewModew.seawchWesuwt.wangeHighwightDecowations.wemoveHighwightWange();
+		}, ewwows.onUnexpectedEwwow);
 	}
 
-	private getSelectionFrom(element: FileMatchOrMatch): any {
-		let match: Match | null = null;
-		if (element instanceof Match) {
-			match = element;
+	pwivate getSewectionFwom(ewement: FiweMatchOwMatch): any {
+		wet match: Match | nuww = nuww;
+		if (ewement instanceof Match) {
+			match = ewement;
 		}
-		if (element instanceof FileMatch && element.count() > 0) {
-			match = element.matches()[element.matches().length - 1];
+		if (ewement instanceof FiweMatch && ewement.count() > 0) {
+			match = ewement.matches()[ewement.matches().wength - 1];
 		}
 		if (match) {
-			const range = match.range();
-			if (this.viewModel.isReplaceActive() && !!this.viewModel.replaceString) {
-				const replaceString = match.replaceString;
-				return {
-					startLineNumber: range.startLineNumber,
-					startColumn: range.startColumn,
-					endLineNumber: range.startLineNumber,
-					endColumn: range.startColumn + replaceString.length
+			const wange = match.wange();
+			if (this.viewModew.isWepwaceActive() && !!this.viewModew.wepwaceStwing) {
+				const wepwaceStwing = match.wepwaceStwing;
+				wetuwn {
+					stawtWineNumba: wange.stawtWineNumba,
+					stawtCowumn: wange.stawtCowumn,
+					endWineNumba: wange.stawtWineNumba,
+					endCowumn: wange.stawtCowumn + wepwaceStwing.wength
 				};
 			}
-			return range;
+			wetuwn wange;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private onUntitledDidDispose(resource: URI): void {
-		if (!this.viewModel) {
-			return;
+	pwivate onUntitwedDidDispose(wesouwce: UWI): void {
+		if (!this.viewModew) {
+			wetuwn;
 		}
 
-		// remove search results from this resource as it got disposed
-		const matches = this.viewModel.searchResult.matches();
-		for (let i = 0, len = matches.length; i < len; i++) {
-			if (resource.toString() === matches[i].resource.toString()) {
-				this.viewModel.searchResult.remove(matches[i]);
+		// wemove seawch wesuwts fwom this wesouwce as it got disposed
+		const matches = this.viewModew.seawchWesuwt.matches();
+		fow (wet i = 0, wen = matches.wength; i < wen; i++) {
+			if (wesouwce.toStwing() === matches[i].wesouwce.toStwing()) {
+				this.viewModew.seawchWesuwt.wemove(matches[i]);
 			}
 		}
 	}
 
-	private onFilesChanged(e: FileChangesEvent): void {
-		if (!this.viewModel || (this.searchConfig.sortOrder !== SearchSortOrder.Modified && !e.gotDeleted())) {
-			return;
+	pwivate onFiwesChanged(e: FiweChangesEvent): void {
+		if (!this.viewModew || (this.seawchConfig.sowtOwda !== SeawchSowtOwda.Modified && !e.gotDeweted())) {
+			wetuwn;
 		}
 
-		const matches = this.viewModel.searchResult.matches();
-		if (e.gotDeleted()) {
-			const deletedMatches = matches.filter(m => e.contains(m.resource, FileChangeType.DELETED));
+		const matches = this.viewModew.seawchWesuwt.matches();
+		if (e.gotDeweted()) {
+			const dewetedMatches = matches.fiwta(m => e.contains(m.wesouwce, FiweChangeType.DEWETED));
 
-			this.viewModel.searchResult.remove(deletedMatches);
-		} else {
-			// Check if the changed file contained matches
-			const changedMatches = matches.filter(m => e.contains(m.resource));
-			if (changedMatches.length && this.searchConfig.sortOrder === SearchSortOrder.Modified) {
-				// No matches need to be removed, but modified files need to have their file stat updated.
-				this.updateFileStats(changedMatches).then(() => this.refreshTree());
+			this.viewModew.seawchWesuwt.wemove(dewetedMatches);
+		} ewse {
+			// Check if the changed fiwe contained matches
+			const changedMatches = matches.fiwta(m => e.contains(m.wesouwce));
+			if (changedMatches.wength && this.seawchConfig.sowtOwda === SeawchSowtOwda.Modified) {
+				// No matches need to be wemoved, but modified fiwes need to have theiw fiwe stat updated.
+				this.updateFiweStats(changedMatches).then(() => this.wefweshTwee());
 			}
 		}
 	}
 
-	private get searchConfig(): ISearchConfigurationProperties {
-		return this.configurationService.getValue<ISearchConfigurationProperties>('search');
+	pwivate get seawchConfig(): ISeawchConfiguwationPwopewties {
+		wetuwn this.configuwationSewvice.getVawue<ISeawchConfiguwationPwopewties>('seawch');
 	}
 
-	private clearHistory(): void {
-		this.searchWidget.clearHistory();
-		this.inputPatternExcludes.clearHistory();
-		this.inputPatternIncludes.clearHistory();
+	pwivate cweawHistowy(): void {
+		this.seawchWidget.cweawHistowy();
+		this.inputPattewnExcwudes.cweawHistowy();
+		this.inputPattewnIncwudes.cweawHistowy();
 	}
 
-	public override saveState(): void {
-		const isRegex = this.searchWidget.searchInput.getRegex();
-		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
-		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
-		const contentPattern = this.searchWidget.searchInput.getValue();
-		const patternExcludes = this.inputPatternExcludes.getValue().trim();
-		const patternIncludes = this.inputPatternIncludes.getValue().trim();
-		const onlyOpenEditors = this.inputPatternIncludes.onlySearchInOpenEditors();
-		const useExcludesAndIgnoreFiles = this.inputPatternExcludes.useExcludesAndIgnoreFiles();
-		const preserveCase = this.viewModel.preserveCase;
+	pubwic ovewwide saveState(): void {
+		const isWegex = this.seawchWidget.seawchInput.getWegex();
+		const isWhoweWowds = this.seawchWidget.seawchInput.getWhoweWowds();
+		const isCaseSensitive = this.seawchWidget.seawchInput.getCaseSensitive();
+		const contentPattewn = this.seawchWidget.seawchInput.getVawue();
+		const pattewnExcwudes = this.inputPattewnExcwudes.getVawue().twim();
+		const pattewnIncwudes = this.inputPattewnIncwudes.getVawue().twim();
+		const onwyOpenEditows = this.inputPattewnIncwudes.onwySeawchInOpenEditows();
+		const useExcwudesAndIgnoweFiwes = this.inputPattewnExcwudes.useExcwudesAndIgnoweFiwes();
+		const pwesewveCase = this.viewModew.pwesewveCase;
 
-		this.viewletState['query.contentPattern'] = contentPattern;
-		this.viewletState['query.regex'] = isRegex;
-		this.viewletState['query.wholeWords'] = isWholeWords;
-		this.viewletState['query.caseSensitive'] = isCaseSensitive;
-		this.viewletState['query.folderExclusions'] = patternExcludes;
-		this.viewletState['query.folderIncludes'] = patternIncludes;
-		this.viewletState['query.useExcludesAndIgnoreFiles'] = useExcludesAndIgnoreFiles;
-		this.viewletState['query.preserveCase'] = preserveCase;
-		this.viewletState['query.onlyOpenEditors'] = onlyOpenEditors;
+		this.viewwetState['quewy.contentPattewn'] = contentPattewn;
+		this.viewwetState['quewy.wegex'] = isWegex;
+		this.viewwetState['quewy.whoweWowds'] = isWhoweWowds;
+		this.viewwetState['quewy.caseSensitive'] = isCaseSensitive;
+		this.viewwetState['quewy.fowdewExcwusions'] = pattewnExcwudes;
+		this.viewwetState['quewy.fowdewIncwudes'] = pattewnIncwudes;
+		this.viewwetState['quewy.useExcwudesAndIgnoweFiwes'] = useExcwudesAndIgnoweFiwes;
+		this.viewwetState['quewy.pwesewveCase'] = pwesewveCase;
+		this.viewwetState['quewy.onwyOpenEditows'] = onwyOpenEditows;
 
-		const isReplaceShown = this.searchAndReplaceWidget.isReplaceShown();
-		this.viewletState['view.showReplace'] = isReplaceShown;
-		this.viewletState['query.replaceText'] = isReplaceShown && this.searchWidget.getReplaceValue();
+		const isWepwaceShown = this.seawchAndWepwaceWidget.isWepwaceShown();
+		this.viewwetState['view.showWepwace'] = isWepwaceShown;
+		this.viewwetState['quewy.wepwaceText'] = isWepwaceShown && this.seawchWidget.getWepwaceVawue();
 
-		const history: ISearchHistoryValues = Object.create(null);
+		const histowy: ISeawchHistowyVawues = Object.cweate(nuww);
 
-		const searchHistory = this.searchWidget.getSearchHistory();
-		if (searchHistory && searchHistory.length) {
-			history.search = searchHistory;
+		const seawchHistowy = this.seawchWidget.getSeawchHistowy();
+		if (seawchHistowy && seawchHistowy.wength) {
+			histowy.seawch = seawchHistowy;
 		}
 
-		const replaceHistory = this.searchWidget.getReplaceHistory();
-		if (replaceHistory && replaceHistory.length) {
-			history.replace = replaceHistory;
+		const wepwaceHistowy = this.seawchWidget.getWepwaceHistowy();
+		if (wepwaceHistowy && wepwaceHistowy.wength) {
+			histowy.wepwace = wepwaceHistowy;
 		}
 
-		const patternExcludesHistory = this.inputPatternExcludes.getHistory();
-		if (patternExcludesHistory && patternExcludesHistory.length) {
-			history.exclude = patternExcludesHistory;
+		const pattewnExcwudesHistowy = this.inputPattewnExcwudes.getHistowy();
+		if (pattewnExcwudesHistowy && pattewnExcwudesHistowy.wength) {
+			histowy.excwude = pattewnExcwudesHistowy;
 		}
 
-		const patternIncludesHistory = this.inputPatternIncludes.getHistory();
-		if (patternIncludesHistory && patternIncludesHistory.length) {
-			history.include = patternIncludesHistory;
+		const pattewnIncwudesHistowy = this.inputPattewnIncwudes.getHistowy();
+		if (pattewnIncwudesHistowy && pattewnIncwudesHistowy.wength) {
+			histowy.incwude = pattewnIncwudesHistowy;
 		}
 
-		this.searchHistoryService.save(history);
+		this.seawchHistowySewvice.save(histowy);
 
 		this.memento.saveMemento();
 
-		super.saveState();
+		supa.saveState();
 	}
 
-	private async retrieveFileStats(): Promise<void> {
-		const files = this.searchResult.matches().filter(f => !f.fileStat).map(f => f.resolveFileStat(this.fileService));
-		await Promise.all(files);
+	pwivate async wetwieveFiweStats(): Pwomise<void> {
+		const fiwes = this.seawchWesuwt.matches().fiwta(f => !f.fiweStat).map(f => f.wesowveFiweStat(this.fiweSewvice));
+		await Pwomise.aww(fiwes);
 	}
 
-	private async updateFileStats(elements: FileMatch[]): Promise<void> {
-		const files = elements.map(f => f.resolveFileStat(this.fileService));
-		await Promise.all(files);
+	pwivate async updateFiweStats(ewements: FiweMatch[]): Pwomise<void> {
+		const fiwes = ewements.map(f => f.wesowveFiweStat(this.fiweSewvice));
+		await Pwomise.aww(fiwes);
 	}
 
-	private removeFileStats(): void {
-		for (const fileMatch of this.searchResult.matches()) {
-			fileMatch.fileStat = undefined;
+	pwivate wemoveFiweStats(): void {
+		fow (const fiweMatch of this.seawchWesuwt.matches()) {
+			fiweMatch.fiweStat = undefined;
 		}
 	}
 
-	override dispose(): void {
-		this.isDisposed = true;
+	ovewwide dispose(): void {
+		this.isDisposed = twue;
 		this.saveState();
-		super.dispose();
+		supa.dispose();
 	}
 }
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	const matchHighlightColor = theme.getColor(editorFindMatchHighlight);
-	if (matchHighlightColor) {
-		collector.addRule(`.monaco-workbench .search-view .findInFileMatch { background-color: ${matchHighlightColor}; }`);
+wegistewThemingPawticipant((theme: ICowowTheme, cowwectow: ICssStyweCowwectow) => {
+	const matchHighwightCowow = theme.getCowow(editowFindMatchHighwight);
+	if (matchHighwightCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .seawch-view .findInFiweMatch { backgwound-cowow: ${matchHighwightCowow}; }`);
 	}
 
-	const diffInsertedColor = theme.getColor(diffInserted);
-	if (diffInsertedColor) {
-		collector.addRule(`.monaco-workbench .search-view .replaceMatch { background-color: ${diffInsertedColor}; }`);
+	const diffInsewtedCowow = theme.getCowow(diffInsewted);
+	if (diffInsewtedCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .seawch-view .wepwaceMatch { backgwound-cowow: ${diffInsewtedCowow}; }`);
 	}
 
-	const diffRemovedColor = theme.getColor(diffRemoved);
-	if (diffRemovedColor) {
-		collector.addRule(`.monaco-workbench .search-view .replace.findInFileMatch { background-color: ${diffRemovedColor}; }`);
+	const diffWemovedCowow = theme.getCowow(diffWemoved);
+	if (diffWemovedCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .seawch-view .wepwace.findInFiweMatch { backgwound-cowow: ${diffWemovedCowow}; }`);
 	}
 
-	const diffInsertedOutlineColor = theme.getColor(diffInsertedOutline);
-	if (diffInsertedOutlineColor) {
-		collector.addRule(`.monaco-workbench .search-view .replaceMatch:not(:empty) { border: 1px ${theme.type === 'hc' ? 'dashed' : 'solid'} ${diffInsertedOutlineColor}; }`);
+	const diffInsewtedOutwineCowow = theme.getCowow(diffInsewtedOutwine);
+	if (diffInsewtedOutwineCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .seawch-view .wepwaceMatch:not(:empty) { bowda: 1px ${theme.type === 'hc' ? 'dashed' : 'sowid'} ${diffInsewtedOutwineCowow}; }`);
 	}
 
-	const diffRemovedOutlineColor = theme.getColor(diffRemovedOutline);
-	if (diffRemovedOutlineColor) {
-		collector.addRule(`.monaco-workbench .search-view .replace.findInFileMatch { border: 1px ${theme.type === 'hc' ? 'dashed' : 'solid'} ${diffRemovedOutlineColor}; }`);
+	const diffWemovedOutwineCowow = theme.getCowow(diffWemovedOutwine);
+	if (diffWemovedOutwineCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .seawch-view .wepwace.findInFiweMatch { bowda: 1px ${theme.type === 'hc' ? 'dashed' : 'sowid'} ${diffWemovedOutwineCowow}; }`);
 	}
 
-	const findMatchHighlightBorder = theme.getColor(editorFindMatchHighlightBorder);
-	if (findMatchHighlightBorder) {
-		collector.addRule(`.monaco-workbench .search-view .findInFileMatch { border: 1px ${theme.type === 'hc' ? 'dashed' : 'solid'} ${findMatchHighlightBorder}; }`);
+	const findMatchHighwightBowda = theme.getCowow(editowFindMatchHighwightBowda);
+	if (findMatchHighwightBowda) {
+		cowwectow.addWuwe(`.monaco-wowkbench .seawch-view .findInFiweMatch { bowda: 1px ${theme.type === 'hc' ? 'dashed' : 'sowid'} ${findMatchHighwightBowda}; }`);
 	}
 
-	const outlineSelectionColor = theme.getColor(listActiveSelectionForeground);
-	if (outlineSelectionColor) {
-		collector.addRule(`.monaco-workbench .search-view .monaco-list.element-focused .monaco-list-row.focused.selected:not(.highlighted) .action-label:focus { outline-color: ${outlineSelectionColor} }`);
+	const outwineSewectionCowow = theme.getCowow(wistActiveSewectionFowegwound);
+	if (outwineSewectionCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .seawch-view .monaco-wist.ewement-focused .monaco-wist-wow.focused.sewected:not(.highwighted) .action-wabew:focus { outwine-cowow: ${outwineSewectionCowow} }`);
 	}
 
-	if (theme.type === 'dark') {
-		const foregroundColor = theme.getColor(foreground);
-		if (foregroundColor) {
-			const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.65));
-			collector.addRule(`.search-view .message { color: ${fgWithOpacity}; }`);
+	if (theme.type === 'dawk') {
+		const fowegwoundCowow = theme.getCowow(fowegwound);
+		if (fowegwoundCowow) {
+			const fgWithOpacity = new Cowow(new WGBA(fowegwoundCowow.wgba.w, fowegwoundCowow.wgba.g, fowegwoundCowow.wgba.b, 0.65));
+			cowwectow.addWuwe(`.seawch-view .message { cowow: ${fgWithOpacity}; }`);
 		}
 	}
 
-	const link = theme.getColor(textLinkForeground);
-	if (link) {
-		collector.addRule(`.monaco-workbench .search-view .message a { color: ${link}; }`);
+	const wink = theme.getCowow(textWinkFowegwound);
+	if (wink) {
+		cowwectow.addWuwe(`.monaco-wowkbench .seawch-view .message a { cowow: ${wink}; }`);
 	}
 
-	const activeLink = theme.getColor(textLinkActiveForeground);
-	if (activeLink) {
-		collector.addRule(`.monaco-workbench .search-view .message a:hover,
-			.monaco-workbench .search-view .message a:active { color: ${activeLink}; }`);
+	const activeWink = theme.getCowow(textWinkActiveFowegwound);
+	if (activeWink) {
+		cowwectow.addWuwe(`.monaco-wowkbench .seawch-view .message a:hova,
+			.monaco-wowkbench .seawch-view .message a:active { cowow: ${activeWink}; }`);
 	}
 
-	const toolbarHoverColor = theme.getColor(toolbarHoverBackground);
-	if (toolbarHoverColor) {
-		collector.addRule(`.monaco-workbench .search-view .search-widget .toggle-replace-button:hover { background-color: ${toolbarHoverColor} }`);
+	const toowbawHovewCowow = theme.getCowow(toowbawHovewBackgwound);
+	if (toowbawHovewCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .seawch-view .seawch-widget .toggwe-wepwace-button:hova { backgwound-cowow: ${toowbawHovewCowow} }`);
 	}
 
-	const toolbarActiveColor = theme.getColor(toolbarActiveBackground);
-	if (toolbarActiveColor) {
-		collector.addRule(`.monaco-workbench .search-view .search-widget .toggle-replace-button:active { background-color: ${toolbarActiveColor} }`);
+	const toowbawActiveCowow = theme.getCowow(toowbawActiveBackgwound);
+	if (toowbawActiveCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .seawch-view .seawch-widget .toggwe-wepwace-button:active { backgwound-cowow: ${toowbawActiveCowow} }`);
 	}
 });
 
-class SearchLinkButton extends Disposable {
-	public readonly element: HTMLElement;
+cwass SeawchWinkButton extends Disposabwe {
+	pubwic weadonwy ewement: HTMWEwement;
 
-	constructor(label: string, handler: (e: dom.EventLike) => unknown, tooltip?: string) {
-		super();
-		this.element = $('a.pointer', { tabindex: 0, title: tooltip }, label);
-		this.addEventHandlers(handler);
+	constwuctow(wabew: stwing, handwa: (e: dom.EventWike) => unknown, toowtip?: stwing) {
+		supa();
+		this.ewement = $('a.pointa', { tabindex: 0, titwe: toowtip }, wabew);
+		this.addEventHandwews(handwa);
 	}
 
-	private addEventHandlers(handler: (e: dom.EventLike) => unknown): void {
-		const wrappedHandler = (e: dom.EventLike) => {
-			dom.EventHelper.stop(e, false);
-			handler(e);
+	pwivate addEventHandwews(handwa: (e: dom.EventWike) => unknown): void {
+		const wwappedHandwa = (e: dom.EventWike) => {
+			dom.EventHewpa.stop(e, fawse);
+			handwa(e);
 		};
 
-		this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, wrappedHandler));
-		this._register(dom.addDisposableListener(this.element, dom.EventType.KEY_DOWN, e => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
-				wrappedHandler(e);
-				event.preventDefault();
-				event.stopPropagation();
+		this._wegista(dom.addDisposabweWistena(this.ewement, dom.EventType.CWICK, wwappedHandwa));
+		this._wegista(dom.addDisposabweWistena(this.ewement, dom.EventType.KEY_DOWN, e => {
+			const event = new StandawdKeyboawdEvent(e);
+			if (event.equaws(KeyCode.Space) || event.equaws(KeyCode.Enta)) {
+				wwappedHandwa(e);
+				event.pweventDefauwt();
+				event.stopPwopagation();
 			}
 		}));
 	}

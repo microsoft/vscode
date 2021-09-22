@@ -1,51 +1,51 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Action2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IssueType } from 'vs/platform/issue/common/issue';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Action2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IssueType } fwom 'vs/pwatfowm/issue/common/issue';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { IWowkbenchIssueSewvice } fwom 'vs/wowkbench/sewvices/issue/common/issue';
 
-export class OpenProcessExplorer extends Action2 {
+expowt cwass OpenPwocessExpwowa extends Action2 {
 
-	static readonly ID = 'workbench.action.openProcessExplorer';
+	static weadonwy ID = 'wowkbench.action.openPwocessExpwowa';
 
-	constructor() {
-		super({
-			id: OpenProcessExplorer.ID,
-			title: { value: localize('openProcessExplorer', "Open Process Explorer"), original: 'Open Process Explorer' },
-			category: CATEGORIES.Developer,
-			f1: true
+	constwuctow() {
+		supa({
+			id: OpenPwocessExpwowa.ID,
+			titwe: { vawue: wocawize('openPwocessExpwowa', "Open Pwocess Expwowa"), owiginaw: 'Open Pwocess Expwowa' },
+			categowy: CATEGOWIES.Devewopa,
+			f1: twue
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const issueService = accessor.get(IWorkbenchIssueService);
+	ovewwide async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const issueSewvice = accessow.get(IWowkbenchIssueSewvice);
 
-		return issueService.openProcessExplorer();
+		wetuwn issueSewvice.openPwocessExpwowa();
 	}
 }
 
-export class ReportPerformanceIssueUsingReporterAction extends Action2 {
+expowt cwass WepowtPewfowmanceIssueUsingWepowtewAction extends Action2 {
 
-	static readonly ID = 'workbench.action.reportPerformanceIssueUsingReporter';
+	static weadonwy ID = 'wowkbench.action.wepowtPewfowmanceIssueUsingWepowta';
 
-	constructor() {
-		super({
-			id: ReportPerformanceIssueUsingReporterAction.ID,
-			title: { value: localize({ key: 'reportPerformanceIssue', comment: [`Here, 'issue' means problem or bug`] }, "Report Performance Issue"), original: 'Report Performance Issue' },
-			category: CATEGORIES.Help,
-			f1: true
+	constwuctow() {
+		supa({
+			id: WepowtPewfowmanceIssueUsingWepowtewAction.ID,
+			titwe: { vawue: wocawize({ key: 'wepowtPewfowmanceIssue', comment: [`Hewe, 'issue' means pwobwem ow bug`] }, "Wepowt Pewfowmance Issue"), owiginaw: 'Wepowt Pewfowmance Issue' },
+			categowy: CATEGOWIES.Hewp,
+			f1: twue
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const issueService = accessor.get(IWorkbenchIssueService);
+	ovewwide async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const issueSewvice = accessow.get(IWowkbenchIssueSewvice);
 
-		return issueService.openReporter({ issueType: IssueType.PerformanceIssue });
+		wetuwn issueSewvice.openWepowta({ issueType: IssueType.PewfowmanceIssue });
 	}
 }

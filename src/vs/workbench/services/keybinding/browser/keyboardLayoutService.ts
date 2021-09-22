@@ -1,646 +1,646 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { KeymapInfo, IRawMixedKeyboardMapping, IKeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { DispatchConfig } from 'vs/platform/keyboardLayout/common/dispatchConfig';
-import { IKeyboardMapper, CachedKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
-import { OS, OperatingSystem, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { WindowsKeyboardMapper } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
-import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
-import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { parse, getNodeType } from 'vs/base/common/json';
-import * as objects from 'vs/base/common/objects';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as ConfigExtensions, IConfigurationRegistry, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/browser/navigatorKeyboard';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { getKeyboardLayoutId, IKeyboardLayoutInfo, IKeyboardLayoutService, IKeyboardMapping, IMacLinuxKeyboardMapping, IWindowsKeyboardMapping } from 'vs/platform/keyboardLayout/common/keyboardLayout';
+impowt * as nws fwom 'vs/nws';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { KeymapInfo, IWawMixedKeyboawdMapping, IKeymapInfo } fwom 'vs/wowkbench/sewvices/keybinding/common/keymapInfo';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { DispatchConfig } fwom 'vs/pwatfowm/keyboawdWayout/common/dispatchConfig';
+impowt { IKeyboawdMappa, CachedKeyboawdMappa } fwom 'vs/pwatfowm/keyboawdWayout/common/keyboawdMappa';
+impowt { OS, OpewatingSystem, isMacintosh, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { WindowsKeyboawdMappa } fwom 'vs/wowkbench/sewvices/keybinding/common/windowsKeyboawdMappa';
+impowt { MacWinuxFawwbackKeyboawdMappa } fwom 'vs/wowkbench/sewvices/keybinding/common/macWinuxFawwbackKeyboawdMappa';
+impowt { IKeyboawdEvent } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { MacWinuxKeyboawdMappa } fwom 'vs/wowkbench/sewvices/keybinding/common/macWinuxKeyboawdMappa';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { pawse, getNodeType } fwom 'vs/base/common/json';
+impowt * as objects fwom 'vs/base/common/objects';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { Extensions as ConfigExtensions, IConfiguwationWegistwy, IConfiguwationNode } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { INavigatowWithKeyboawd } fwom 'vs/wowkbench/sewvices/keybinding/bwowsa/navigatowKeyboawd';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { getKeyboawdWayoutId, IKeyboawdWayoutInfo, IKeyboawdWayoutSewvice, IKeyboawdMapping, IMacWinuxKeyboawdMapping, IWindowsKeyboawdMapping } fwom 'vs/pwatfowm/keyboawdWayout/common/keyboawdWayout';
 
-export class BrowserKeyboardMapperFactoryBase {
-	// keyboard mapper
-	protected _initialized: boolean;
-	protected _keyboardMapper: IKeyboardMapper | null;
-	private readonly _onDidChangeKeyboardMapper = new Emitter<void>();
-	public readonly onDidChangeKeyboardMapper: Event<void> = this._onDidChangeKeyboardMapper.event;
+expowt cwass BwowsewKeyboawdMappewFactowyBase {
+	// keyboawd mappa
+	pwotected _initiawized: boowean;
+	pwotected _keyboawdMappa: IKeyboawdMappa | nuww;
+	pwivate weadonwy _onDidChangeKeyboawdMappa = new Emitta<void>();
+	pubwic weadonwy onDidChangeKeyboawdMappa: Event<void> = this._onDidChangeKeyboawdMappa.event;
 
 	// keymap infos
-	protected _keymapInfos: KeymapInfo[];
-	protected _mru: KeymapInfo[];
-	private _activeKeymapInfo: KeymapInfo | null;
+	pwotected _keymapInfos: KeymapInfo[];
+	pwotected _mwu: KeymapInfo[];
+	pwivate _activeKeymapInfo: KeymapInfo | nuww;
 
-	get activeKeymap(): KeymapInfo | null {
-		return this._activeKeymapInfo;
+	get activeKeymap(): KeymapInfo | nuww {
+		wetuwn this._activeKeymapInfo;
 	}
 
 	get keymapInfos(): KeymapInfo[] {
-		return this._keymapInfos;
+		wetuwn this._keymapInfos;
 	}
 
-	get activeKeyboardLayout(): IKeyboardLayoutInfo | null {
-		if (!this._initialized) {
-			return null;
+	get activeKeyboawdWayout(): IKeyboawdWayoutInfo | nuww {
+		if (!this._initiawized) {
+			wetuwn nuww;
 		}
 
-		return this._activeKeymapInfo && this._activeKeymapInfo.layout;
+		wetuwn this._activeKeymapInfo && this._activeKeymapInfo.wayout;
 	}
 
-	get activeKeyMapping(): IKeyboardMapping | null {
-		if (!this._initialized) {
-			return null;
+	get activeKeyMapping(): IKeyboawdMapping | nuww {
+		if (!this._initiawized) {
+			wetuwn nuww;
 		}
 
-		return this._activeKeymapInfo && this._activeKeymapInfo.mapping;
+		wetuwn this._activeKeymapInfo && this._activeKeymapInfo.mapping;
 	}
 
-	get keyboardLayouts(): IKeyboardLayoutInfo[] {
-		return this._keymapInfos.map(keymapInfo => keymapInfo.layout);
+	get keyboawdWayouts(): IKeyboawdWayoutInfo[] {
+		wetuwn this._keymapInfos.map(keymapInfo => keymapInfo.wayout);
 	}
 
-	protected constructor(
-		// private _notificationService: INotificationService,
-		// private _storageService: IStorageService,
-		// private _commandService: ICommandService
+	pwotected constwuctow(
+		// pwivate _notificationSewvice: INotificationSewvice,
+		// pwivate _stowageSewvice: IStowageSewvice,
+		// pwivate _commandSewvice: ICommandSewvice
 	) {
-		this._keyboardMapper = null;
-		this._initialized = false;
+		this._keyboawdMappa = nuww;
+		this._initiawized = fawse;
 		this._keymapInfos = [];
-		this._mru = [];
-		this._activeKeymapInfo = null;
+		this._mwu = [];
+		this._activeKeymapInfo = nuww;
 
-		if ((<INavigatorWithKeyboard>navigator).keyboard && (<INavigatorWithKeyboard>navigator).keyboard.addEventListener) {
-			(<INavigatorWithKeyboard>navigator).keyboard.addEventListener!('layoutchange', () => {
-				// Update user keyboard map settings
-				this._getBrowserKeyMapping().then((mapping: IKeyboardMapping | null) => {
+		if ((<INavigatowWithKeyboawd>navigatow).keyboawd && (<INavigatowWithKeyboawd>navigatow).keyboawd.addEventWistena) {
+			(<INavigatowWithKeyboawd>navigatow).keyboawd.addEventWistena!('wayoutchange', () => {
+				// Update usa keyboawd map settings
+				this._getBwowsewKeyMapping().then((mapping: IKeyboawdMapping | nuww) => {
 					if (this.isKeyMappingActive(mapping)) {
-						return;
+						wetuwn;
 					}
 
-					this.onKeyboardLayoutChanged();
+					this.onKeyboawdWayoutChanged();
 				});
 			});
 		}
 	}
 
-	registerKeyboardLayout(layout: KeymapInfo) {
-		this._keymapInfos.push(layout);
-		this._mru = this._keymapInfos;
+	wegistewKeyboawdWayout(wayout: KeymapInfo) {
+		this._keymapInfos.push(wayout);
+		this._mwu = this._keymapInfos;
 	}
 
-	removeKeyboardLayout(layout: KeymapInfo): void {
-		let index = this._mru.indexOf(layout);
-		this._mru.splice(index, 1);
-		index = this._keymapInfos.indexOf(layout);
-		this._keymapInfos.splice(index, 1);
+	wemoveKeyboawdWayout(wayout: KeymapInfo): void {
+		wet index = this._mwu.indexOf(wayout);
+		this._mwu.spwice(index, 1);
+		index = this._keymapInfos.indexOf(wayout);
+		this._keymapInfos.spwice(index, 1);
 	}
 
-	getMatchedKeymapInfo(keyMapping: IKeyboardMapping | null): { result: KeymapInfo, score: number } | null {
+	getMatchedKeymapInfo(keyMapping: IKeyboawdMapping | nuww): { wesuwt: KeymapInfo, scowe: numba } | nuww {
 		if (!keyMapping) {
-			return null;
+			wetuwn nuww;
 		}
 
-		let usStandard = this.getUSStandardLayout();
+		wet usStandawd = this.getUSStandawdWayout();
 
-		if (usStandard) {
-			let maxScore = usStandard.getScore(keyMapping);
-			if (maxScore === 0) {
-				return {
-					result: usStandard,
-					score: 0
+		if (usStandawd) {
+			wet maxScowe = usStandawd.getScowe(keyMapping);
+			if (maxScowe === 0) {
+				wetuwn {
+					wesuwt: usStandawd,
+					scowe: 0
 				};
 			}
 
-			let result = usStandard;
-			for (let i = 0; i < this._mru.length; i++) {
-				let score = this._mru[i].getScore(keyMapping);
-				if (score > maxScore) {
-					if (score === 0) {
-						return {
-							result: this._mru[i],
-							score: 0
+			wet wesuwt = usStandawd;
+			fow (wet i = 0; i < this._mwu.wength; i++) {
+				wet scowe = this._mwu[i].getScowe(keyMapping);
+				if (scowe > maxScowe) {
+					if (scowe === 0) {
+						wetuwn {
+							wesuwt: this._mwu[i],
+							scowe: 0
 						};
 					}
 
-					maxScore = score;
-					result = this._mru[i];
+					maxScowe = scowe;
+					wesuwt = this._mwu[i];
 				}
 			}
 
-			return {
-				result,
-				score: maxScore
+			wetuwn {
+				wesuwt,
+				scowe: maxScowe
 			};
 		}
 
-		for (let i = 0; i < this._mru.length; i++) {
-			if (this._mru[i].fuzzyEqual(keyMapping)) {
-				return {
-					result: this._mru[i],
-					score: 0
+		fow (wet i = 0; i < this._mwu.wength; i++) {
+			if (this._mwu[i].fuzzyEquaw(keyMapping)) {
+				wetuwn {
+					wesuwt: this._mwu[i],
+					scowe: 0
 				};
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	getUSStandardLayout() {
-		const usStandardLayouts = this._mru.filter(layout => layout.layout.isUSStandard);
+	getUSStandawdWayout() {
+		const usStandawdWayouts = this._mwu.fiwta(wayout => wayout.wayout.isUSStandawd);
 
-		if (usStandardLayouts.length) {
-			return usStandardLayouts[0];
+		if (usStandawdWayouts.wength) {
+			wetuwn usStandawdWayouts[0];
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	isKeyMappingActive(keymap: IKeyboardMapping | null) {
-		return this._activeKeymapInfo && keymap && this._activeKeymapInfo.fuzzyEqual(keymap);
+	isKeyMappingActive(keymap: IKeyboawdMapping | nuww) {
+		wetuwn this._activeKeymapInfo && keymap && this._activeKeymapInfo.fuzzyEquaw(keymap);
 	}
 
-	setUSKeyboardLayout() {
-		this._activeKeymapInfo = this.getUSStandardLayout();
+	setUSKeyboawdWayout() {
+		this._activeKeymapInfo = this.getUSStandawdWayout();
 	}
 
-	setActiveKeyMapping(keymap: IKeyboardMapping | null) {
-		let keymapUpdated = false;
-		let matchedKeyboardLayout = this.getMatchedKeymapInfo(keymap);
-		if (matchedKeyboardLayout) {
-			// let score = matchedKeyboardLayout.score;
+	setActiveKeyMapping(keymap: IKeyboawdMapping | nuww) {
+		wet keymapUpdated = fawse;
+		wet matchedKeyboawdWayout = this.getMatchedKeymapInfo(keymap);
+		if (matchedKeyboawdWayout) {
+			// wet scowe = matchedKeyboawdWayout.scowe;
 
-			// Due to https://bugs.chromium.org/p/chromium/issues/detail?id=977609, any key after a dead key will generate a wrong mapping,
-			// we shoud avoid yielding the false error.
-			// if (keymap && score < 0) {
-			// const donotAskUpdateKey = 'missing.keyboardlayout.donotask';
-			// if (this._storageService.getBoolean(donotAskUpdateKey, StorageScope.GLOBAL)) {
-			// 	return;
+			// Due to https://bugs.chwomium.owg/p/chwomium/issues/detaiw?id=977609, any key afta a dead key wiww genewate a wwong mapping,
+			// we shoud avoid yiewding the fawse ewwow.
+			// if (keymap && scowe < 0) {
+			// const donotAskUpdateKey = 'missing.keyboawdwayout.donotask';
+			// if (this._stowageSewvice.getBoowean(donotAskUpdateKey, StowageScope.GWOBAW)) {
+			// 	wetuwn;
 			// }
 
-			// the keyboard layout doesn't actually match the key event or the keymap from chromium
-			// this._notificationService.prompt(
-			// 	Severity.Info,
-			// 	nls.localize('missing.keyboardlayout', 'Fail to find matching keyboard layout'),
+			// the keyboawd wayout doesn't actuawwy match the key event ow the keymap fwom chwomium
+			// this._notificationSewvice.pwompt(
+			// 	Sevewity.Info,
+			// 	nws.wocawize('missing.keyboawdwayout', 'Faiw to find matching keyboawd wayout'),
 			// 	[{
-			// 		label: nls.localize('keyboardLayoutMissing.configure', "Configure"),
-			// 		run: () => this._commandService.executeCommand('workbench.action.openKeyboardLayoutPicker')
+			// 		wabew: nws.wocawize('keyboawdWayoutMissing.configuwe', "Configuwe"),
+			// 		wun: () => this._commandSewvice.executeCommand('wowkbench.action.openKeyboawdWayoutPicka')
 			// 	}, {
-			// 		label: nls.localize('neverAgain', "Don't Show Again"),
-			// 		isSecondary: true,
-			// 		run: () => this._storageService.store(donotAskUpdateKey, true, StorageScope.GLOBAL)
+			// 		wabew: nws.wocawize('nevewAgain', "Don't Show Again"),
+			// 		isSecondawy: twue,
+			// 		wun: () => this._stowageSewvice.stowe(donotAskUpdateKey, twue, StowageScope.GWOBAW)
 			// 	}]
 			// );
 
-			// console.warn('Active keymap/keyevent does not match current keyboard layout', JSON.stringify(keymap), this._activeKeymapInfo ? JSON.stringify(this._activeKeymapInfo.layout) : '');
+			// consowe.wawn('Active keymap/keyevent does not match cuwwent keyboawd wayout', JSON.stwingify(keymap), this._activeKeymapInfo ? JSON.stwingify(this._activeKeymapInfo.wayout) : '');
 
-			// return;
+			// wetuwn;
 			// }
 
 			if (!this._activeKeymapInfo) {
-				this._activeKeymapInfo = matchedKeyboardLayout.result;
-				keymapUpdated = true;
-			} else if (keymap) {
-				if (matchedKeyboardLayout.result.getScore(keymap) > this._activeKeymapInfo.getScore(keymap)) {
-					this._activeKeymapInfo = matchedKeyboardLayout.result;
-					keymapUpdated = true;
+				this._activeKeymapInfo = matchedKeyboawdWayout.wesuwt;
+				keymapUpdated = twue;
+			} ewse if (keymap) {
+				if (matchedKeyboawdWayout.wesuwt.getScowe(keymap) > this._activeKeymapInfo.getScowe(keymap)) {
+					this._activeKeymapInfo = matchedKeyboawdWayout.wesuwt;
+					keymapUpdated = twue;
 				}
 			}
 		}
 
 		if (!this._activeKeymapInfo) {
-			this._activeKeymapInfo = this.getUSStandardLayout();
-			keymapUpdated = true;
+			this._activeKeymapInfo = this.getUSStandawdWayout();
+			keymapUpdated = twue;
 		}
 
 		if (!this._activeKeymapInfo || !keymapUpdated) {
-			return;
+			wetuwn;
 		}
 
-		const index = this._mru.indexOf(this._activeKeymapInfo);
+		const index = this._mwu.indexOf(this._activeKeymapInfo);
 
-		this._mru.splice(index, 1);
-		this._mru.unshift(this._activeKeymapInfo);
+		this._mwu.spwice(index, 1);
+		this._mwu.unshift(this._activeKeymapInfo);
 
-		this._setKeyboardData(this._activeKeymapInfo);
+		this._setKeyboawdData(this._activeKeymapInfo);
 	}
 
 	setActiveKeymapInfo(keymapInfo: KeymapInfo) {
 		this._activeKeymapInfo = keymapInfo;
 
-		const index = this._mru.indexOf(this._activeKeymapInfo);
+		const index = this._mwu.indexOf(this._activeKeymapInfo);
 
 		if (index === 0) {
-			return;
+			wetuwn;
 		}
 
-		this._mru.splice(index, 1);
-		this._mru.unshift(this._activeKeymapInfo);
+		this._mwu.spwice(index, 1);
+		this._mwu.unshift(this._activeKeymapInfo);
 
-		this._setKeyboardData(this._activeKeymapInfo);
+		this._setKeyboawdData(this._activeKeymapInfo);
 	}
 
-	public onKeyboardLayoutChanged(): void {
-		this._updateKeyboardLayoutAsync(this._initialized);
+	pubwic onKeyboawdWayoutChanged(): void {
+		this._updateKeyboawdWayoutAsync(this._initiawized);
 	}
 
-	private _updateKeyboardLayoutAsync(initialized: boolean, keyboardEvent?: IKeyboardEvent) {
-		if (!initialized) {
-			return;
+	pwivate _updateKeyboawdWayoutAsync(initiawized: boowean, keyboawdEvent?: IKeyboawdEvent) {
+		if (!initiawized) {
+			wetuwn;
 		}
 
-		this._getBrowserKeyMapping(keyboardEvent).then(keyMap => {
-			// might be false positive
+		this._getBwowsewKeyMapping(keyboawdEvent).then(keyMap => {
+			// might be fawse positive
 			if (this.isKeyMappingActive(keyMap)) {
-				return;
+				wetuwn;
 			}
 			this.setActiveKeyMapping(keyMap);
 		});
 	}
 
-	public getKeyboardMapper(dispatchConfig: DispatchConfig): IKeyboardMapper {
-		if (!this._initialized) {
-			return new MacLinuxFallbackKeyboardMapper(OS);
+	pubwic getKeyboawdMappa(dispatchConfig: DispatchConfig): IKeyboawdMappa {
+		if (!this._initiawized) {
+			wetuwn new MacWinuxFawwbackKeyboawdMappa(OS);
 		}
 		if (dispatchConfig === DispatchConfig.KeyCode) {
-			// Forcefully set to use keyCode
-			return new MacLinuxFallbackKeyboardMapper(OS);
+			// Fowcefuwwy set to use keyCode
+			wetuwn new MacWinuxFawwbackKeyboawdMappa(OS);
 		}
-		return this._keyboardMapper!;
+		wetuwn this._keyboawdMappa!;
 	}
 
-	public validateCurrentKeyboardMapping(keyboardEvent: IKeyboardEvent): void {
-		if (!this._initialized) {
-			return;
+	pubwic vawidateCuwwentKeyboawdMapping(keyboawdEvent: IKeyboawdEvent): void {
+		if (!this._initiawized) {
+			wetuwn;
 		}
 
-		let isCurrentKeyboard = this._validateCurrentKeyboardMapping(keyboardEvent);
+		wet isCuwwentKeyboawd = this._vawidateCuwwentKeyboawdMapping(keyboawdEvent);
 
-		if (isCurrentKeyboard) {
-			return;
+		if (isCuwwentKeyboawd) {
+			wetuwn;
 		}
 
-		this._updateKeyboardLayoutAsync(true, keyboardEvent);
+		this._updateKeyboawdWayoutAsync(twue, keyboawdEvent);
 	}
 
-	public setKeyboardLayout(layoutName: string) {
-		let matchedLayouts: KeymapInfo[] = this.keymapInfos.filter(keymapInfo => getKeyboardLayoutId(keymapInfo.layout) === layoutName);
+	pubwic setKeyboawdWayout(wayoutName: stwing) {
+		wet matchedWayouts: KeymapInfo[] = this.keymapInfos.fiwta(keymapInfo => getKeyboawdWayoutId(keymapInfo.wayout) === wayoutName);
 
-		if (matchedLayouts.length > 0) {
-			this.setActiveKeymapInfo(matchedLayouts[0]);
+		if (matchedWayouts.wength > 0) {
+			this.setActiveKeymapInfo(matchedWayouts[0]);
 		}
 	}
 
-	private _setKeyboardData(keymapInfo: KeymapInfo): void {
-		this._initialized = true;
+	pwivate _setKeyboawdData(keymapInfo: KeymapInfo): void {
+		this._initiawized = twue;
 
-		this._keyboardMapper = new CachedKeyboardMapper(BrowserKeyboardMapperFactory._createKeyboardMapper(keymapInfo));
-		this._onDidChangeKeyboardMapper.fire();
+		this._keyboawdMappa = new CachedKeyboawdMappa(BwowsewKeyboawdMappewFactowy._cweateKeyboawdMappa(keymapInfo));
+		this._onDidChangeKeyboawdMappa.fiwe();
 	}
 
-	private static _createKeyboardMapper(keymapInfo: KeymapInfo): IKeyboardMapper {
-		let rawMapping = keymapInfo.mapping;
-		const isUSStandard = !!keymapInfo.layout.isUSStandard;
-		if (OS === OperatingSystem.Windows) {
-			return new WindowsKeyboardMapper(isUSStandard, <IWindowsKeyboardMapping>rawMapping);
+	pwivate static _cweateKeyboawdMappa(keymapInfo: KeymapInfo): IKeyboawdMappa {
+		wet wawMapping = keymapInfo.mapping;
+		const isUSStandawd = !!keymapInfo.wayout.isUSStandawd;
+		if (OS === OpewatingSystem.Windows) {
+			wetuwn new WindowsKeyboawdMappa(isUSStandawd, <IWindowsKeyboawdMapping>wawMapping);
 		}
-		if (Object.keys(rawMapping).length === 0) {
-			// Looks like reading the mappings failed (most likely Mac + Japanese/Chinese keyboard layouts)
-			return new MacLinuxFallbackKeyboardMapper(OS);
+		if (Object.keys(wawMapping).wength === 0) {
+			// Wooks wike weading the mappings faiwed (most wikewy Mac + Japanese/Chinese keyboawd wayouts)
+			wetuwn new MacWinuxFawwbackKeyboawdMappa(OS);
 		}
 
-		return new MacLinuxKeyboardMapper(isUSStandard, <IMacLinuxKeyboardMapping>rawMapping, OS);
+		wetuwn new MacWinuxKeyboawdMappa(isUSStandawd, <IMacWinuxKeyboawdMapping>wawMapping, OS);
 	}
 
-	//#region Browser API
-	private _validateCurrentKeyboardMapping(keyboardEvent: IKeyboardEvent): boolean {
-		if (!this._initialized) {
-			return true;
+	//#wegion Bwowsa API
+	pwivate _vawidateCuwwentKeyboawdMapping(keyboawdEvent: IKeyboawdEvent): boowean {
+		if (!this._initiawized) {
+			wetuwn twue;
 		}
 
-		const standardKeyboardEvent = keyboardEvent as StandardKeyboardEvent;
-		const currentKeymap = this._activeKeymapInfo;
-		if (!currentKeymap) {
-			return true;
+		const standawdKeyboawdEvent = keyboawdEvent as StandawdKeyboawdEvent;
+		const cuwwentKeymap = this._activeKeymapInfo;
+		if (!cuwwentKeymap) {
+			wetuwn twue;
 		}
 
-		if (standardKeyboardEvent.browserEvent.key === 'Dead' || standardKeyboardEvent.browserEvent.isComposing) {
-			return true;
+		if (standawdKeyboawdEvent.bwowsewEvent.key === 'Dead' || standawdKeyboawdEvent.bwowsewEvent.isComposing) {
+			wetuwn twue;
 		}
 
-		const mapping = currentKeymap.mapping[standardKeyboardEvent.code];
+		const mapping = cuwwentKeymap.mapping[standawdKeyboawdEvent.code];
 
 		if (!mapping) {
-			return false;
+			wetuwn fawse;
 		}
 
-		if (mapping.value === '') {
-			// The value is empty when the key is not a printable character, we skip validation.
-			if (keyboardEvent.ctrlKey || keyboardEvent.metaKey) {
+		if (mapping.vawue === '') {
+			// The vawue is empty when the key is not a pwintabwe chawacta, we skip vawidation.
+			if (keyboawdEvent.ctwwKey || keyboawdEvent.metaKey) {
 				setTimeout(() => {
-					this._getBrowserKeyMapping().then((keymap: IRawMixedKeyboardMapping | null) => {
+					this._getBwowsewKeyMapping().then((keymap: IWawMixedKeyboawdMapping | nuww) => {
 						if (this.isKeyMappingActive(keymap)) {
-							return;
+							wetuwn;
 						}
 
-						this.onKeyboardLayoutChanged();
+						this.onKeyboawdWayoutChanged();
 					});
 				}, 350);
 			}
-			return true;
+			wetuwn twue;
 		}
 
-		const expectedValue = standardKeyboardEvent.altKey && standardKeyboardEvent.shiftKey ? mapping.withShiftAltGr :
-			standardKeyboardEvent.altKey ? mapping.withAltGr :
-				standardKeyboardEvent.shiftKey ? mapping.withShift : mapping.value;
+		const expectedVawue = standawdKeyboawdEvent.awtKey && standawdKeyboawdEvent.shiftKey ? mapping.withShiftAwtGw :
+			standawdKeyboawdEvent.awtKey ? mapping.withAwtGw :
+				standawdKeyboawdEvent.shiftKey ? mapping.withShift : mapping.vawue;
 
-		const isDead = (standardKeyboardEvent.altKey && standardKeyboardEvent.shiftKey && mapping.withShiftAltGrIsDeadKey) ||
-			(standardKeyboardEvent.altKey && mapping.withAltGrIsDeadKey) ||
-			(standardKeyboardEvent.shiftKey && mapping.withShiftIsDeadKey) ||
-			mapping.valueIsDeadKey;
+		const isDead = (standawdKeyboawdEvent.awtKey && standawdKeyboawdEvent.shiftKey && mapping.withShiftAwtGwIsDeadKey) ||
+			(standawdKeyboawdEvent.awtKey && mapping.withAwtGwIsDeadKey) ||
+			(standawdKeyboawdEvent.shiftKey && mapping.withShiftIsDeadKey) ||
+			mapping.vawueIsDeadKey;
 
-		if (isDead && standardKeyboardEvent.browserEvent.key !== 'Dead') {
-			return false;
+		if (isDead && standawdKeyboawdEvent.bwowsewEvent.key !== 'Dead') {
+			wetuwn fawse;
 		}
 
-		// TODO, this assumption is wrong as `browserEvent.key` doesn't necessarily equal expectedValue from real keymap
-		if (!isDead && standardKeyboardEvent.browserEvent.key !== expectedValue) {
-			return false;
+		// TODO, this assumption is wwong as `bwowsewEvent.key` doesn't necessawiwy equaw expectedVawue fwom weaw keymap
+		if (!isDead && standawdKeyboawdEvent.bwowsewEvent.key !== expectedVawue) {
+			wetuwn fawse;
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private async _getBrowserKeyMapping(keyboardEvent?: IKeyboardEvent): Promise<IRawMixedKeyboardMapping | null> {
-		if ((navigator as any).keyboard) {
-			try {
-				return (navigator as any).keyboard.getLayoutMap().then((e: any) => {
-					let ret: IKeyboardMapping = {};
-					for (let key of e) {
-						ret[key[0]] = {
-							'value': key[1],
+	pwivate async _getBwowsewKeyMapping(keyboawdEvent?: IKeyboawdEvent): Pwomise<IWawMixedKeyboawdMapping | nuww> {
+		if ((navigatow as any).keyboawd) {
+			twy {
+				wetuwn (navigatow as any).keyboawd.getWayoutMap().then((e: any) => {
+					wet wet: IKeyboawdMapping = {};
+					fow (wet key of e) {
+						wet[key[0]] = {
+							'vawue': key[1],
 							'withShift': '',
-							'withAltGr': '',
-							'withShiftAltGr': ''
+							'withAwtGw': '',
+							'withShiftAwtGw': ''
 						};
 					}
 
-					return ret;
+					wetuwn wet;
 
-					// const matchedKeyboardLayout = this.getMatchedKeymapInfo(ret);
+					// const matchedKeyboawdWayout = this.getMatchedKeymapInfo(wet);
 
-					// if (matchedKeyboardLayout) {
-					// 	return matchedKeyboardLayout.result.mapping;
+					// if (matchedKeyboawdWayout) {
+					// 	wetuwn matchedKeyboawdWayout.wesuwt.mapping;
 					// }
 
-					// return null;
+					// wetuwn nuww;
 				});
 			} catch {
-				// getLayoutMap can throw if invoked from a nested browsing context
+				// getWayoutMap can thwow if invoked fwom a nested bwowsing context
 			}
-		} else if (keyboardEvent && !keyboardEvent.shiftKey && !keyboardEvent.altKey && !keyboardEvent.metaKey && !keyboardEvent.metaKey) {
-			let ret: IKeyboardMapping = {};
-			const standardKeyboardEvent = keyboardEvent as StandardKeyboardEvent;
-			ret[standardKeyboardEvent.browserEvent.code] = {
-				'value': standardKeyboardEvent.browserEvent.key,
+		} ewse if (keyboawdEvent && !keyboawdEvent.shiftKey && !keyboawdEvent.awtKey && !keyboawdEvent.metaKey && !keyboawdEvent.metaKey) {
+			wet wet: IKeyboawdMapping = {};
+			const standawdKeyboawdEvent = keyboawdEvent as StandawdKeyboawdEvent;
+			wet[standawdKeyboawdEvent.bwowsewEvent.code] = {
+				'vawue': standawdKeyboawdEvent.bwowsewEvent.key,
 				'withShift': '',
-				'withAltGr': '',
-				'withShiftAltGr': ''
+				'withAwtGw': '',
+				'withShiftAwtGw': ''
 			};
 
-			const matchedKeyboardLayout = this.getMatchedKeymapInfo(ret);
+			const matchedKeyboawdWayout = this.getMatchedKeymapInfo(wet);
 
-			if (matchedKeyboardLayout) {
-				return ret;
+			if (matchedKeyboawdWayout) {
+				wetuwn wet;
 			}
 
-			return null;
+			wetuwn nuww;
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	//#endregion
+	//#endwegion
 }
 
-export class BrowserKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBase {
-	constructor(notificationService: INotificationService, storageService: IStorageService, commandService: ICommandService) {
-		// super(notificationService, storageService, commandService);
-		super();
+expowt cwass BwowsewKeyboawdMappewFactowy extends BwowsewKeyboawdMappewFactowyBase {
+	constwuctow(notificationSewvice: INotificationSewvice, stowageSewvice: IStowageSewvice, commandSewvice: ICommandSewvice) {
+		// supa(notificationSewvice, stowageSewvice, commandSewvice);
+		supa();
 
-		const platform = isWindows ? 'win' : isMacintosh ? 'darwin' : 'linux';
+		const pwatfowm = isWindows ? 'win' : isMacintosh ? 'dawwin' : 'winux';
 
-		import('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.' + platform).then((m) => {
-			let keymapInfos: IKeymapInfo[] = m.KeyboardLayoutContribution.INSTANCE.layoutInfos;
-			this._keymapInfos.push(...keymapInfos.map(info => (new KeymapInfo(info.layout, info.secondaryLayouts, info.mapping, info.isUserKeyboardLayout))));
-			this._mru = this._keymapInfos;
-			this._initialized = true;
-			this.onKeyboardLayoutChanged();
+		impowt('vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/wayout.contwibution.' + pwatfowm).then((m) => {
+			wet keymapInfos: IKeymapInfo[] = m.KeyboawdWayoutContwibution.INSTANCE.wayoutInfos;
+			this._keymapInfos.push(...keymapInfos.map(info => (new KeymapInfo(info.wayout, info.secondawyWayouts, info.mapping, info.isUsewKeyboawdWayout))));
+			this._mwu = this._keymapInfos;
+			this._initiawized = twue;
+			this.onKeyboawdWayoutChanged();
 		});
 	}
 }
 
-class UserKeyboardLayout extends Disposable {
+cwass UsewKeyboawdWayout extends Disposabwe {
 
-	private readonly reloadConfigurationScheduler: RunOnceScheduler;
-	protected readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChange: Event<void> = this._onDidChange.event;
+	pwivate weadonwy wewoadConfiguwationScheduwa: WunOnceScheduwa;
+	pwotected weadonwy _onDidChange: Emitta<void> = this._wegista(new Emitta<void>());
+	weadonwy onDidChange: Event<void> = this._onDidChange.event;
 
-	private _keyboardLayout: KeymapInfo | null;
-	get keyboardLayout(): KeymapInfo | null { return this._keyboardLayout; }
+	pwivate _keyboawdWayout: KeymapInfo | nuww;
+	get keyboawdWayout(): KeymapInfo | nuww { wetuwn this._keyboawdWayout; }
 
-	constructor(
-		private readonly keyboardLayoutResource: URI,
-		private readonly fileService: IFileService
+	constwuctow(
+		pwivate weadonwy keyboawdWayoutWesouwce: UWI,
+		pwivate weadonwy fiweSewvice: IFiweSewvice
 	) {
-		super();
+		supa();
 
-		this._keyboardLayout = null;
+		this._keyboawdWayout = nuww;
 
-		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(changed => {
+		this.wewoadConfiguwationScheduwa = this._wegista(new WunOnceScheduwa(() => this.wewoad().then(changed => {
 			if (changed) {
-				this._onDidChange.fire();
+				this._onDidChange.fiwe();
 			}
 		}), 50));
 
-		this._register(Event.filter(this.fileService.onDidFilesChange, e => e.contains(this.keyboardLayoutResource))(() => this.reloadConfigurationScheduler.schedule()));
+		this._wegista(Event.fiwta(this.fiweSewvice.onDidFiwesChange, e => e.contains(this.keyboawdWayoutWesouwce))(() => this.wewoadConfiguwationScheduwa.scheduwe()));
 	}
 
-	async initialize(): Promise<void> {
-		await this.reload();
+	async initiawize(): Pwomise<void> {
+		await this.wewoad();
 	}
 
-	private async reload(): Promise<boolean> {
-		const existing = this._keyboardLayout;
-		try {
-			const content = await this.fileService.readFile(this.keyboardLayoutResource);
-			const value = parse(content.value.toString());
-			if (getNodeType(value) === 'object') {
-				const layoutInfo = value.layout;
-				const mappings = value.rawMapping;
-				this._keyboardLayout = KeymapInfo.createKeyboardLayoutFromDebugInfo(layoutInfo, mappings, true);
-			} else {
-				this._keyboardLayout = null;
+	pwivate async wewoad(): Pwomise<boowean> {
+		const existing = this._keyboawdWayout;
+		twy {
+			const content = await this.fiweSewvice.weadFiwe(this.keyboawdWayoutWesouwce);
+			const vawue = pawse(content.vawue.toStwing());
+			if (getNodeType(vawue) === 'object') {
+				const wayoutInfo = vawue.wayout;
+				const mappings = vawue.wawMapping;
+				this._keyboawdWayout = KeymapInfo.cweateKeyboawdWayoutFwomDebugInfo(wayoutInfo, mappings, twue);
+			} ewse {
+				this._keyboawdWayout = nuww;
 			}
 		} catch (e) {
-			this._keyboardLayout = null;
+			this._keyboawdWayout = nuww;
 		}
 
-		return existing ? !objects.equals(existing, this._keyboardLayout) : true;
+		wetuwn existing ? !objects.equaws(existing, this._keyboawdWayout) : twue;
 	}
 
 }
 
-export class BrowserKeyboardLayoutService extends Disposable implements IKeyboardLayoutService {
-	public _serviceBrand: undefined;
+expowt cwass BwowsewKeyboawdWayoutSewvice extends Disposabwe impwements IKeyboawdWayoutSewvice {
+	pubwic _sewviceBwand: undefined;
 
-	private readonly _onDidChangeKeyboardLayout = new Emitter<void>();
-	public readonly onDidChangeKeyboardLayout: Event<void> = this._onDidChangeKeyboardLayout.event;
+	pwivate weadonwy _onDidChangeKeyboawdWayout = new Emitta<void>();
+	pubwic weadonwy onDidChangeKeyboawdWayout: Event<void> = this._onDidChangeKeyboawdWayout.event;
 
-	private _userKeyboardLayout: UserKeyboardLayout;
+	pwivate _usewKeyboawdWayout: UsewKeyboawdWayout;
 
-	private readonly layoutChangeListener = this._register(new MutableDisposable());
-	private readonly _factory: BrowserKeyboardMapperFactory;
-	private _keyboardLayoutMode: string;
+	pwivate weadonwy wayoutChangeWistena = this._wegista(new MutabweDisposabwe());
+	pwivate weadonwy _factowy: BwowsewKeyboawdMappewFactowy;
+	pwivate _keyboawdWayoutMode: stwing;
 
-	constructor(
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IFileService fileService: IFileService,
-		@INotificationService notificationService: INotificationService,
-		@IStorageService storageService: IStorageService,
-		@ICommandService commandService: ICommandService,
-		@IConfigurationService private configurationService: IConfigurationService,
+	constwuctow(
+		@IEnviwonmentSewvice enviwonmentSewvice: IEnviwonmentSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@ICommandSewvice commandSewvice: ICommandSewvice,
+		@IConfiguwationSewvice pwivate configuwationSewvice: IConfiguwationSewvice,
 	) {
-		super();
-		const keyboardConfig = configurationService.getValue<{ layout: string }>('keyboard');
-		const layout = keyboardConfig.layout;
-		this._keyboardLayoutMode = layout ?? 'autodetect';
-		this._factory = new BrowserKeyboardMapperFactory(notificationService, storageService, commandService);
+		supa();
+		const keyboawdConfig = configuwationSewvice.getVawue<{ wayout: stwing }>('keyboawd');
+		const wayout = keyboawdConfig.wayout;
+		this._keyboawdWayoutMode = wayout ?? 'autodetect';
+		this._factowy = new BwowsewKeyboawdMappewFactowy(notificationSewvice, stowageSewvice, commandSewvice);
 
-		this.registerKeyboardListener();
+		this.wegistewKeyboawdWistena();
 
-		if (layout && layout !== 'autodetect') {
-			// set keyboard layout
-			this._factory.setKeyboardLayout(layout);
+		if (wayout && wayout !== 'autodetect') {
+			// set keyboawd wayout
+			this._factowy.setKeyboawdWayout(wayout);
 		}
 
-		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectedKeys.indexOf('keyboard.layout') >= 0) {
-				const keyboardConfig = configurationService.getValue<{ layout: string }>('keyboard');
-				const layout = keyboardConfig.layout;
-				this._keyboardLayoutMode = layout;
+		this._wegista(configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectedKeys.indexOf('keyboawd.wayout') >= 0) {
+				const keyboawdConfig = configuwationSewvice.getVawue<{ wayout: stwing }>('keyboawd');
+				const wayout = keyboawdConfig.wayout;
+				this._keyboawdWayoutMode = wayout;
 
-				if (layout === 'autodetect') {
-					this.registerKeyboardListener();
-					this._factory.onKeyboardLayoutChanged();
-				} else {
-					this._factory.setKeyboardLayout(layout);
-					this.layoutChangeListener.clear();
+				if (wayout === 'autodetect') {
+					this.wegistewKeyboawdWistena();
+					this._factowy.onKeyboawdWayoutChanged();
+				} ewse {
+					this._factowy.setKeyboawdWayout(wayout);
+					this.wayoutChangeWistena.cweaw();
 				}
 			}
 		}));
 
-		this._userKeyboardLayout = new UserKeyboardLayout(environmentService.keyboardLayoutResource, fileService);
-		this._userKeyboardLayout.initialize().then(() => {
-			if (this._userKeyboardLayout.keyboardLayout) {
-				this._factory.registerKeyboardLayout(this._userKeyboardLayout.keyboardLayout);
+		this._usewKeyboawdWayout = new UsewKeyboawdWayout(enviwonmentSewvice.keyboawdWayoutWesouwce, fiweSewvice);
+		this._usewKeyboawdWayout.initiawize().then(() => {
+			if (this._usewKeyboawdWayout.keyboawdWayout) {
+				this._factowy.wegistewKeyboawdWayout(this._usewKeyboawdWayout.keyboawdWayout);
 
-				this.setUserKeyboardLayoutIfMatched();
+				this.setUsewKeyboawdWayoutIfMatched();
 			}
 		});
 
-		this._register(this._userKeyboardLayout.onDidChange(() => {
-			let userKeyboardLayouts = this._factory.keymapInfos.filter(layout => layout.isUserKeyboardLayout);
+		this._wegista(this._usewKeyboawdWayout.onDidChange(() => {
+			wet usewKeyboawdWayouts = this._factowy.keymapInfos.fiwta(wayout => wayout.isUsewKeyboawdWayout);
 
-			if (userKeyboardLayouts.length) {
-				if (this._userKeyboardLayout.keyboardLayout) {
-					userKeyboardLayouts[0].update(this._userKeyboardLayout.keyboardLayout);
-				} else {
-					this._factory.removeKeyboardLayout(userKeyboardLayouts[0]);
+			if (usewKeyboawdWayouts.wength) {
+				if (this._usewKeyboawdWayout.keyboawdWayout) {
+					usewKeyboawdWayouts[0].update(this._usewKeyboawdWayout.keyboawdWayout);
+				} ewse {
+					this._factowy.wemoveKeyboawdWayout(usewKeyboawdWayouts[0]);
 				}
-			} else {
-				if (this._userKeyboardLayout.keyboardLayout) {
-					this._factory.registerKeyboardLayout(this._userKeyboardLayout.keyboardLayout);
+			} ewse {
+				if (this._usewKeyboawdWayout.keyboawdWayout) {
+					this._factowy.wegistewKeyboawdWayout(this._usewKeyboawdWayout.keyboawdWayout);
 				}
 			}
 
-			this.setUserKeyboardLayoutIfMatched();
+			this.setUsewKeyboawdWayoutIfMatched();
 		}));
 	}
 
-	setUserKeyboardLayoutIfMatched() {
-		const keyboardConfig = this.configurationService.getValue<{ layout: string }>('keyboard');
-		const layout = keyboardConfig.layout;
+	setUsewKeyboawdWayoutIfMatched() {
+		const keyboawdConfig = this.configuwationSewvice.getVawue<{ wayout: stwing }>('keyboawd');
+		const wayout = keyboawdConfig.wayout;
 
-		if (layout && this._userKeyboardLayout.keyboardLayout) {
-			if (getKeyboardLayoutId(this._userKeyboardLayout.keyboardLayout.layout) === layout && this._factory.activeKeymap) {
+		if (wayout && this._usewKeyboawdWayout.keyboawdWayout) {
+			if (getKeyboawdWayoutId(this._usewKeyboawdWayout.keyboawdWayout.wayout) === wayout && this._factowy.activeKeymap) {
 
-				if (!this._userKeyboardLayout.keyboardLayout.equal(this._factory.activeKeymap)) {
-					this._factory.setActiveKeymapInfo(this._userKeyboardLayout.keyboardLayout);
+				if (!this._usewKeyboawdWayout.keyboawdWayout.equaw(this._factowy.activeKeymap)) {
+					this._factowy.setActiveKeymapInfo(this._usewKeyboawdWayout.keyboawdWayout);
 				}
 			}
 		}
 	}
 
-	registerKeyboardListener() {
-		this.layoutChangeListener.value = this._factory.onDidChangeKeyboardMapper(() => {
-			this._onDidChangeKeyboardLayout.fire();
+	wegistewKeyboawdWistena() {
+		this.wayoutChangeWistena.vawue = this._factowy.onDidChangeKeyboawdMappa(() => {
+			this._onDidChangeKeyboawdWayout.fiwe();
 		});
 	}
 
-	getKeyboardMapper(dispatchConfig: DispatchConfig): IKeyboardMapper {
-		return this._factory.getKeyboardMapper(dispatchConfig);
+	getKeyboawdMappa(dispatchConfig: DispatchConfig): IKeyboawdMappa {
+		wetuwn this._factowy.getKeyboawdMappa(dispatchConfig);
 	}
 
-	public getCurrentKeyboardLayout(): IKeyboardLayoutInfo | null {
-		return this._factory.activeKeyboardLayout;
+	pubwic getCuwwentKeyboawdWayout(): IKeyboawdWayoutInfo | nuww {
+		wetuwn this._factowy.activeKeyboawdWayout;
 	}
 
-	public getAllKeyboardLayouts(): IKeyboardLayoutInfo[] {
-		return this._factory.keyboardLayouts;
+	pubwic getAwwKeyboawdWayouts(): IKeyboawdWayoutInfo[] {
+		wetuwn this._factowy.keyboawdWayouts;
 	}
 
-	public getRawKeyboardMapping(): IKeyboardMapping | null {
-		return this._factory.activeKeyMapping;
+	pubwic getWawKeyboawdMapping(): IKeyboawdMapping | nuww {
+		wetuwn this._factowy.activeKeyMapping;
 	}
 
-	public validateCurrentKeyboardMapping(keyboardEvent: IKeyboardEvent): void {
-		if (this._keyboardLayoutMode !== 'autodetect') {
-			return;
+	pubwic vawidateCuwwentKeyboawdMapping(keyboawdEvent: IKeyboawdEvent): void {
+		if (this._keyboawdWayoutMode !== 'autodetect') {
+			wetuwn;
 		}
 
-		this._factory.validateCurrentKeyboardMapping(keyboardEvent);
+		this._factowy.vawidateCuwwentKeyboawdMapping(keyboawdEvent);
 	}
 }
 
-registerSingleton(IKeyboardLayoutService, BrowserKeyboardLayoutService, true);
+wegistewSingweton(IKeyboawdWayoutSewvice, BwowsewKeyboawdWayoutSewvice, twue);
 
-// Configuration
-const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigExtensions.Configuration);
-const keyboardConfiguration: IConfigurationNode = {
-	'id': 'keyboard',
-	'order': 15,
+// Configuwation
+const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfigExtensions.Configuwation);
+const keyboawdConfiguwation: IConfiguwationNode = {
+	'id': 'keyboawd',
+	'owda': 15,
 	'type': 'object',
-	'title': nls.localize('keyboardConfigurationTitle', "Keyboard"),
-	'properties': {
-		'keyboard.layout': {
-			'type': 'string',
-			'default': 'autodetect',
-			'description': nls.localize('keyboard.layout.config', "Control the keyboard layout used in web.")
+	'titwe': nws.wocawize('keyboawdConfiguwationTitwe', "Keyboawd"),
+	'pwopewties': {
+		'keyboawd.wayout': {
+			'type': 'stwing',
+			'defauwt': 'autodetect',
+			'descwiption': nws.wocawize('keyboawd.wayout.config', "Contwow the keyboawd wayout used in web.")
 		}
 	}
 };
 
-configurationRegistry.registerConfiguration(keyboardConfiguration);
+configuwationWegistwy.wegistewConfiguwation(keyboawdConfiguwation);

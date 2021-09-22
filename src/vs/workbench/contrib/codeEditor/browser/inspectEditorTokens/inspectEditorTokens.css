@@ -1,67 +1,67 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 .token-inspect-widget {
 	z-index: 50;
-	user-select: text;
-	-webkit-user-select: text;
+	usa-sewect: text;
+	-webkit-usa-sewect: text;
 	padding: 10px;
 }
 
 .tiw-token {
-	font-family: var(--monaco-monospace-font);
+	font-famiwy: vaw(--monaco-monospace-font);
 }
 
-.tiw-metadata-separator {
+.tiw-metadata-sepawatow {
 	height: 1px;
-	border: 0;
+	bowda: 0;
 }
 
-.tiw-token-length {
-	font-weight: normal;
+.tiw-token-wength {
+	font-weight: nowmaw;
 	font-size: 60%;
-	float: right;
+	fwoat: wight;
 }
 
-.tiw-metadata-table {
+.tiw-metadata-tabwe {
 	width: 100%;
 }
 
-.tiw-metadata-value {
-	font-family: var(--monaco-monospace-font);
-	word-break: break-word;
+.tiw-metadata-vawue {
+	font-famiwy: vaw(--monaco-monospace-font);
+	wowd-bweak: bweak-wowd;
 }
 
-.tiw-metadata-values {
-	list-style: none;
+.tiw-metadata-vawues {
+	wist-stywe: none;
 	max-height: 300px;
-	overflow-y: auto;
-	margin-right: -10px;
-	padding-left: 0;
+	ovewfwow-y: auto;
+	mawgin-wight: -10px;
+	padding-weft: 0;
 }
 
-.tiw-metadata-values > .tiw-metadata-value {
-	margin-right: 10px;
+.tiw-metadata-vawues > .tiw-metadata-vawue {
+	mawgin-wight: 10px;
 }
 
 .tiw-metadata-key {
 	width: 1px;
 	min-width: 150px;
-	padding-right: 10px;
-	white-space: nowrap;
-	vertical-align: top;
+	padding-wight: 10px;
+	white-space: nowwap;
+	vewticaw-awign: top;
 }
 
 .tiw-metadata-semantic {
-	font-style: italic;
+	font-stywe: itawic;
 }
 
 .tiw-metadata-scopes {
-	line-height: normal;
+	wine-height: nowmaw;
 }
 
-.tiw-theme-selector {
-	font-family: var(--monaco-monospace-font);
+.tiw-theme-sewectow {
+	font-famiwy: vaw(--monaco-monospace-font);
 }

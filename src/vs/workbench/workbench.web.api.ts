@@ -1,771 +1,771 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/workbench/workbench.web.main';
-import { main } from 'vs/workbench/browser/web.main';
-import { UriComponents, URI } from 'vs/base/common/uri';
-import { IWebSocketFactory, IWebSocket } from 'vs/platform/remote/browser/browserSocketFactory';
-import { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
-import { LogLevel } from 'vs/platform/log/common/log';
-import { IUpdateProvider, IUpdate } from 'vs/workbench/services/update/browser/updateService';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IProductConfiguration } from 'vs/base/common/product';
-import { mark } from 'vs/base/common/performance';
-import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
-import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
+impowt 'vs/wowkbench/wowkbench.web.main';
+impowt { main } fwom 'vs/wowkbench/bwowsa/web.main';
+impowt { UwiComponents, UWI } fwom 'vs/base/common/uwi';
+impowt { IWebSocketFactowy, IWebSocket } fwom 'vs/pwatfowm/wemote/bwowsa/bwowsewSocketFactowy';
+impowt { IUWWCawwbackPwovida } fwom 'vs/wowkbench/sewvices/uww/bwowsa/uwwSewvice';
+impowt { WogWevew } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IUpdatePwovida, IUpdate } fwom 'vs/wowkbench/sewvices/update/bwowsa/updateSewvice';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWowkspacePwovida, IWowkspace } fwom 'vs/wowkbench/sewvices/host/bwowsa/bwowsewHostSewvice';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IPwoductConfiguwation } fwom 'vs/base/common/pwoduct';
+impowt { mawk } fwom 'vs/base/common/pewfowmance';
+impowt { ICwedentiawsPwovida } fwom 'vs/wowkbench/sewvices/cwedentiaws/common/cwedentiaws';
+impowt { TunnewPwovidewFeatuwes } fwom 'vs/pwatfowm/wemote/common/tunnew';
 
-interface IResourceUriProvider {
-	(uri: URI): URI;
+intewface IWesouwceUwiPwovida {
+	(uwi: UWI): UWI;
 }
 
 /**
- * The identifier of an extension in the format: `PUBLISHER.NAME`.
- * For example: `vscode.csharp`
+ * The identifia of an extension in the fowmat: `PUBWISHa.NAME`.
+ * Fow exampwe: `vscode.cshawp`
  */
-type ExtensionId = string;
+type ExtensionId = stwing;
 
-interface ICommonTelemetryPropertiesResolver {
-	(): { [key: string]: any };
+intewface ICommonTewemetwyPwopewtiesWesowva {
+	(): { [key: stwing]: any };
 }
 
-interface IExternalUriResolver {
-	(uri: URI): Promise<URI>;
+intewface IExtewnawUwiWesowva {
+	(uwi: UWI): Pwomise<UWI>;
 }
 
-interface ITunnelProvider {
+intewface ITunnewPwovida {
 
 	/**
-	 * Support for creating tunnels.
+	 * Suppowt fow cweating tunnews.
 	 */
-	tunnelFactory?: ITunnelFactory;
+	tunnewFactowy?: ITunnewFactowy;
 
 	/**
-	 * Support for filtering candidate ports.
+	 * Suppowt fow fiwtewing candidate powts.
 	 */
-	showPortCandidate?: IShowPortCandidate;
+	showPowtCandidate?: IShowPowtCandidate;
 
 	/**
-	 * The features that the tunnel provider supports.
+	 * The featuwes that the tunnew pwovida suppowts.
 	 */
-	features?: TunnelProviderFeatures;
+	featuwes?: TunnewPwovidewFeatuwes;
 }
 
-interface ITunnelFactory {
-	(tunnelOptions: ITunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<ITunnel> | undefined;
+intewface ITunnewFactowy {
+	(tunnewOptions: ITunnewOptions, tunnewCweationOptions: TunnewCweationOptions): Pwomise<ITunnew> | undefined;
 }
 
-interface ITunnelOptions {
+intewface ITunnewOptions {
 
-	remoteAddress: { port: number, host: string };
+	wemoteAddwess: { powt: numba, host: stwing };
 
 	/**
-	 * The desired local port. If this port can't be used, then another will be chosen.
+	 * The desiwed wocaw powt. If this powt can't be used, then anotha wiww be chosen.
 	 */
-	localAddressPort?: number;
+	wocawAddwessPowt?: numba;
 
-	label?: string;
+	wabew?: stwing;
 
-	public?: boolean;
+	pubwic?: boowean;
 
-	protocol?: string;
+	pwotocow?: stwing;
 }
 
-interface TunnelCreationOptions {
+intewface TunnewCweationOptions {
 
 	/**
-	 * True when the local operating system will require elevation to use the requested local port.
+	 * Twue when the wocaw opewating system wiww wequiwe ewevation to use the wequested wocaw powt.
 	 */
-	elevationRequired?: boolean;
+	ewevationWequiwed?: boowean;
 }
 
-interface ITunnel {
+intewface ITunnew {
 
-	remoteAddress: { port: number, host: string };
+	wemoteAddwess: { powt: numba, host: stwing };
 
 	/**
-	 * The complete local address(ex. localhost:1234)
+	 * The compwete wocaw addwess(ex. wocawhost:1234)
 	 */
-	localAddress: string;
+	wocawAddwess: stwing;
 
-	public?: boolean;
+	pubwic?: boowean;
 
 	/**
-	 * If protocol is not provided, it is assumed to be http, regardless of the localAddress
+	 * If pwotocow is not pwovided, it is assumed to be http, wegawdwess of the wocawAddwess
 	 */
-	protocol?: string;
+	pwotocow?: stwing;
 
 	/**
-	 * Implementers of Tunnel should fire onDidDispose when dispose is called.
+	 * Impwementews of Tunnew shouwd fiwe onDidDispose when dispose is cawwed.
 	 */
 	onDidDispose: Event<void>;
 
-	dispose(): Promise<void> | void;
+	dispose(): Pwomise<void> | void;
 }
 
-interface IShowPortCandidate {
-	(host: string, port: number, detail: string): Promise<boolean>;
+intewface IShowPowtCandidate {
+	(host: stwing, powt: numba, detaiw: stwing): Pwomise<boowean>;
 }
 
-interface ICommand {
+intewface ICommand {
 
 	/**
-	 * An identifier for the command. Commands can be executed from extensions
+	 * An identifia fow the command. Commands can be executed fwom extensions
 	 * using the `vscode.commands.executeCommand` API using that command ID.
 	 */
-	id: string,
+	id: stwing,
 
 	/**
-	 * A function that is being executed with any arguments passed over. The
-	 * return type will be send back to the caller.
+	 * A function that is being executed with any awguments passed ova. The
+	 * wetuwn type wiww be send back to the cawwa.
 	 *
-	 * Note: arguments and return type should be serializable so that they can
-	 * be exchanged across processes boundaries.
+	 * Note: awguments and wetuwn type shouwd be sewiawizabwe so that they can
+	 * be exchanged acwoss pwocesses boundawies.
 	 */
-	handler: (...args: any[]) => unknown;
+	handwa: (...awgs: any[]) => unknown;
 }
 
-interface IHomeIndicator {
+intewface IHomeIndicatow {
 
 	/**
-	 * The link to open when clicking the home indicator.
+	 * The wink to open when cwicking the home indicatow.
 	 */
-	href: string;
+	hwef: stwing;
 
 	/**
-	 * The icon name for the home indicator. This needs to be one of the existing
-	 * icons from our Codicon icon set. For example `code`.
+	 * The icon name fow the home indicatow. This needs to be one of the existing
+	 * icons fwom ouw Codicon icon set. Fow exampwe `code`.
 	 */
-	icon: string;
+	icon: stwing;
 
 	/**
-	 * A tooltip that will appear while hovering over the home indicator.
+	 * A toowtip that wiww appeaw whiwe hovewing ova the home indicatow.
 	 */
-	title: string;
+	titwe: stwing;
 }
 
-interface IWelcomeBanner {
+intewface IWewcomeBanna {
 
 	/**
-	 * Welcome banner message to appear as text.
+	 * Wewcome banna message to appeaw as text.
 	 */
-	message: string;
+	message: stwing;
 
 	/**
-	 * Optional icon for the banner. This is either the URL to an icon to use
-	 * or the name of one of the existing icons from our Codicon icon set.
+	 * Optionaw icon fow the banna. This is eitha the UWW to an icon to use
+	 * ow the name of one of the existing icons fwom ouw Codicon icon set.
 	 *
-	 * If not provided a default icon will be used.
+	 * If not pwovided a defauwt icon wiww be used.
 	 */
-	icon?: string | UriComponents;
+	icon?: stwing | UwiComponents;
 
 	/**
-	 * Optional actions to appear as links after the welcome banner message.
+	 * Optionaw actions to appeaw as winks afta the wewcome banna message.
 	 */
-	actions?: IWelcomeBannerAction[];
+	actions?: IWewcomeBannewAction[];
 }
 
-interface IWelcomeBannerAction {
+intewface IWewcomeBannewAction {
 
 	/**
-	 * The link to open when clicking. Supports command invocation when
-	 * using the `command:<commandId>` value.
+	 * The wink to open when cwicking. Suppowts command invocation when
+	 * using the `command:<commandId>` vawue.
 	 */
-	href: string;
+	hwef: stwing;
 
 	/**
-	 * The label to show for the action link.
+	 * The wabew to show fow the action wink.
 	 */
-	label: string;
+	wabew: stwing;
 
 	/**
-	 * A tooltip that will appear while hovering over the action link.
+	 * A toowtip that wiww appeaw whiwe hovewing ova the action wink.
 	 */
-	title?: string;
+	titwe?: stwing;
 }
 
-interface IWindowIndicator {
+intewface IWindowIndicatow {
 
 	/**
-	 * Triggering this event will cause the window indicator to update.
+	 * Twiggewing this event wiww cause the window indicatow to update.
 	 */
-	readonly onDidChange?: Event<void>;
+	weadonwy onDidChange?: Event<void>;
 
 	/**
-	 * Label of the window indicator may include octicons
-	 * e.g. `$(remote) label`
+	 * Wabew of the window indicatow may incwude octicons
+	 * e.g. `$(wemote) wabew`
 	 */
-	label: string;
+	wabew: stwing;
 
 	/**
-	 * Tooltip of the window indicator should not include
-	 * octicons and be descriptive.
+	 * Toowtip of the window indicatow shouwd not incwude
+	 * octicons and be descwiptive.
 	 */
-	tooltip: string;
+	toowtip: stwing;
 
 	/**
-	 * If provided, overrides the default command that
-	 * is executed when clicking on the window indicator.
+	 * If pwovided, ovewwides the defauwt command that
+	 * is executed when cwicking on the window indicatow.
 	 */
-	command?: string;
+	command?: stwing;
 }
 
-enum ColorScheme {
-	DARK = 'dark',
-	LIGHT = 'light',
-	HIGH_CONTRAST = 'hc'
+enum CowowScheme {
+	DAWK = 'dawk',
+	WIGHT = 'wight',
+	HIGH_CONTWAST = 'hc'
 }
 
-interface IInitialColorTheme {
+intewface IInitiawCowowTheme {
 
 	/**
-	 * Initial color theme type.
+	 * Initiaw cowow theme type.
 	 */
-	readonly themeType: ColorScheme;
+	weadonwy themeType: CowowScheme;
 
 	/**
-	 * A list of workbench colors to apply initially.
+	 * A wist of wowkbench cowows to appwy initiawwy.
 	 */
-	readonly colors?: { [colorId: string]: string };
+	weadonwy cowows?: { [cowowId: stwing]: stwing };
 }
 
-interface IDefaultView {
-	readonly id: string;
+intewface IDefauwtView {
+	weadonwy id: stwing;
 }
 
-interface IPosition {
-	readonly line: number;
-	readonly column: number;
+intewface IPosition {
+	weadonwy wine: numba;
+	weadonwy cowumn: numba;
 }
 
-interface IRange {
+intewface IWange {
 
 	/**
-	 * The start position. It is before or equal to end position.
+	 * The stawt position. It is befowe ow equaw to end position.
 	 */
-	readonly start: IPosition;
+	weadonwy stawt: IPosition;
 
 	/**
-	 * The end position. It is after or equal to start position.
+	 * The end position. It is afta ow equaw to stawt position.
 	 */
-	readonly end: IPosition;
+	weadonwy end: IPosition;
 }
 
-interface IDefaultEditor {
-	readonly uri: UriComponents;
-	readonly selection?: IRange;
-	readonly openOnlyIfExists?: boolean;
-	readonly openWith?: string;
+intewface IDefauwtEditow {
+	weadonwy uwi: UwiComponents;
+	weadonwy sewection?: IWange;
+	weadonwy openOnwyIfExists?: boowean;
+	weadonwy openWith?: stwing;
 }
 
-interface IDefaultLayout {
-	readonly views?: IDefaultView[];
-	readonly editors?: IDefaultEditor[];
+intewface IDefauwtWayout {
+	weadonwy views?: IDefauwtView[];
+	weadonwy editows?: IDefauwtEditow[];
 
 	/**
-	 * Forces this layout to be applied even if this isn't
-	 * the first time the workspace has been opened
+	 * Fowces this wayout to be appwied even if this isn't
+	 * the fiwst time the wowkspace has been opened
 	 */
-	readonly force?: boolean;
+	weadonwy fowce?: boowean;
 }
 
-interface IProductQualityChangeHandler {
+intewface IPwoductQuawityChangeHandwa {
 
 	/**
-	 * Handler is being called when the user wants to switch between
-	 * `insider` or `stable` product qualities.
+	 * Handwa is being cawwed when the usa wants to switch between
+	 * `insida` ow `stabwe` pwoduct quawities.
 	 */
-	(newQuality: 'insider' | 'stable'): void;
+	(newQuawity: 'insida' | 'stabwe'): void;
 }
 
 /**
  * Settings sync options
  */
-interface ISettingsSyncOptions {
+intewface ISettingsSyncOptions {
 
 	/**
-	 * Is settings sync enabled
+	 * Is settings sync enabwed
 	 */
-	readonly enabled: boolean;
+	weadonwy enabwed: boowean;
 
 	/**
-	 * Version of extensions sync state.
-	 * Extensions sync state will be reset if version is provided and different from previous version.
+	 * Vewsion of extensions sync state.
+	 * Extensions sync state wiww be weset if vewsion is pwovided and diffewent fwom pwevious vewsion.
 	 */
-	readonly extensionsSyncStateVersion?: string;
+	weadonwy extensionsSyncStateVewsion?: stwing;
 
 	/**
-	 * Handler is being called when the user changes Settings Sync enablement.
+	 * Handwa is being cawwed when the usa changes Settings Sync enabwement.
 	 */
-	enablementHandler?(enablement: boolean): void;
+	enabwementHandwa?(enabwement: boowean): void;
 }
 
-interface IWorkbenchConstructionOptions {
+intewface IWowkbenchConstwuctionOptions {
 
-	//#region Connection related configuration
-
-	/**
-	 * The remote authority is the IP:PORT from where the workbench is served
-	 * from. It is for example being used for the websocket connections as address.
-	 */
-	readonly remoteAuthority?: string;
+	//#wegion Connection wewated configuwation
 
 	/**
-	 * The connection token to send to the server.
+	 * The wemote authowity is the IP:POWT fwom whewe the wowkbench is sewved
+	 * fwom. It is fow exampwe being used fow the websocket connections as addwess.
 	 */
-	readonly connectionToken?: string;
+	weadonwy wemoteAuthowity?: stwing;
 
 	/**
-	 * An endpoint to serve iframe content ("webview") from. This is required
-	 * to provide full security isolation from the workbench host.
+	 * The connection token to send to the sewva.
 	 */
-	readonly webviewEndpoint?: string;
+	weadonwy connectionToken?: stwing;
 
 	/**
-	 * An URL pointing to the web worker extension host <iframe> src.
-	 * @deprecated. This will be removed soon.
+	 * An endpoint to sewve ifwame content ("webview") fwom. This is wequiwed
+	 * to pwovide fuww secuwity isowation fwom the wowkbench host.
 	 */
-	readonly webWorkerExtensionHostIframeSrc?: string;
+	weadonwy webviewEndpoint?: stwing;
 
 	/**
-	 * [TEMPORARY]: This will be removed soon.
-	 * Use an unique origin for the web worker extension host.
-	 * Defaults to false.
+	 * An UWW pointing to the web wowka extension host <ifwame> swc.
+	 * @depwecated. This wiww be wemoved soon.
 	 */
-	readonly __uniqueWebWorkerExtensionHostOrigin?: boolean;
+	weadonwy webWowkewExtensionHostIfwameSwc?: stwing;
 
 	/**
-	 * A factory for web sockets.
+	 * [TEMPOWAWY]: This wiww be wemoved soon.
+	 * Use an unique owigin fow the web wowka extension host.
+	 * Defauwts to fawse.
 	 */
-	readonly webSocketFactory?: IWebSocketFactory;
+	weadonwy __uniqueWebWowkewExtensionHostOwigin?: boowean;
 
 	/**
-	 * A provider for resource URIs.
+	 * A factowy fow web sockets.
 	 */
-	readonly resourceUriProvider?: IResourceUriProvider;
+	weadonwy webSocketFactowy?: IWebSocketFactowy;
 
 	/**
-	 * Resolves an external uri before it is opened.
+	 * A pwovida fow wesouwce UWIs.
 	 */
-	readonly resolveExternalUri?: IExternalUriResolver;
+	weadonwy wesouwceUwiPwovida?: IWesouwceUwiPwovida;
 
 	/**
-	 * A provider for supplying tunneling functionality,
-	 * such as creating tunnels and showing candidate ports to forward.
+	 * Wesowves an extewnaw uwi befowe it is opened.
 	 */
-	readonly tunnelProvider?: ITunnelProvider;
+	weadonwy wesowveExtewnawUwi?: IExtewnawUwiWesowva;
 
 	/**
-	 * Endpoints to be used for proxying authentication code exchange calls in the browser.
+	 * A pwovida fow suppwying tunnewing functionawity,
+	 * such as cweating tunnews and showing candidate powts to fowwawd.
 	 */
-	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string }
-
-	//#endregion
-
-
-	//#region Workbench configuration
+	weadonwy tunnewPwovida?: ITunnewPwovida;
 
 	/**
-	 * A handler for opening workspaces and providing the initial workspace.
+	 * Endpoints to be used fow pwoxying authentication code exchange cawws in the bwowsa.
 	 */
-	readonly workspaceProvider?: IWorkspaceProvider;
+	weadonwy codeExchangePwoxyEndpoints?: { [pwovidewId: stwing]: stwing }
+
+	//#endwegion
+
+
+	//#wegion Wowkbench configuwation
+
+	/**
+	 * A handwa fow opening wowkspaces and pwoviding the initiaw wowkspace.
+	 */
+	weadonwy wowkspacePwovida?: IWowkspacePwovida;
 
 	/**
 	 * Settings sync options
 	 */
-	readonly settingsSyncOptions?: ISettingsSyncOptions;
+	weadonwy settingsSyncOptions?: ISettingsSyncOptions;
 
 	/**
-	 * The credentials provider to store and retrieve secrets.
+	 * The cwedentiaws pwovida to stowe and wetwieve secwets.
 	 */
-	readonly credentialsProvider?: ICredentialsProvider;
+	weadonwy cwedentiawsPwovida?: ICwedentiawsPwovida;
 
 	/**
-	 * Additional builtin extensions that cannot be uninstalled but only be disabled.
-	 * It can be one of the following:
-	 * 	- `ExtensionId`: id of the extension that is available in Marketplace
-	 * 	- `UriComponents`: location of the extension where it is hosted.
+	 * Additionaw buiwtin extensions that cannot be uninstawwed but onwy be disabwed.
+	 * It can be one of the fowwowing:
+	 * 	- `ExtensionId`: id of the extension that is avaiwabwe in Mawketpwace
+	 * 	- `UwiComponents`: wocation of the extension whewe it is hosted.
 	 */
-	readonly additionalBuiltinExtensions?: readonly (ExtensionId | UriComponents)[];
+	weadonwy additionawBuiwtinExtensions?: weadonwy (ExtensionId | UwiComponents)[];
 
 	/**
-	 * List of extensions to be enabled if they are installed.
-	 * Note: This will not install extensions if not installed.
+	 * Wist of extensions to be enabwed if they awe instawwed.
+	 * Note: This wiww not instaww extensions if not instawwed.
 	 */
-	readonly enabledExtensions?: readonly ExtensionId[];
+	weadonwy enabwedExtensions?: weadonwy ExtensionId[];
 
 	/**
-	 * [TEMPORARY]: This will be removed soon.
-	 * Enable inlined extensions.
-	 * Defaults to true.
+	 * [TEMPOWAWY]: This wiww be wemoved soon.
+	 * Enabwe inwined extensions.
+	 * Defauwts to twue.
 	 */
-	readonly _enableBuiltinExtensions?: boolean;
+	weadonwy _enabweBuiwtinExtensions?: boowean;
 
 	/**
-	 * Additional domains allowed to open from the workbench without the
-	 * link protection popup.
+	 * Additionaw domains awwowed to open fwom the wowkbench without the
+	 * wink pwotection popup.
 	 */
-	readonly additionalTrustedDomains?: string[];
+	weadonwy additionawTwustedDomains?: stwing[];
 
 	/**
-	 * Support for URL callbacks.
+	 * Suppowt fow UWW cawwbacks.
 	 */
-	readonly urlCallbackProvider?: IURLCallbackProvider;
+	weadonwy uwwCawwbackPwovida?: IUWWCawwbackPwovida;
 
 	/**
-	 * Support adding additional properties to telemetry.
+	 * Suppowt adding additionaw pwopewties to tewemetwy.
 	 */
-	readonly resolveCommonTelemetryProperties?: ICommonTelemetryPropertiesResolver;
+	weadonwy wesowveCommonTewemetwyPwopewties?: ICommonTewemetwyPwopewtiesWesowva;
 
 	/**
-	 * A set of optional commands that should be registered with the commands
-	 * registry.
+	 * A set of optionaw commands that shouwd be wegistewed with the commands
+	 * wegistwy.
 	 *
-	 * Note: commands can be called from extensions if the identifier is known!
+	 * Note: commands can be cawwed fwom extensions if the identifia is known!
 	 */
-	readonly commands?: readonly ICommand[];
+	weadonwy commands?: weadonwy ICommand[];
 
 	/**
-	 * Optional default layout to apply on first time the workspace is opened (uness `force` is specified).
+	 * Optionaw defauwt wayout to appwy on fiwst time the wowkspace is opened (uness `fowce` is specified).
 	 */
-	readonly defaultLayout?: IDefaultLayout;
+	weadonwy defauwtWayout?: IDefauwtWayout;
 
 	/**
-	 * Optional configuration default overrides contributed to the workbench.
+	 * Optionaw configuwation defauwt ovewwides contwibuted to the wowkbench.
 	 */
-	readonly configurationDefaults?: Record<string, any>;
+	weadonwy configuwationDefauwts?: Wecowd<stwing, any>;
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Update/Quality related
+	//#wegion Update/Quawity wewated
 
 	/**
-	 * Support for update reporting
+	 * Suppowt fow update wepowting
 	 */
-	readonly updateProvider?: IUpdateProvider;
+	weadonwy updatePwovida?: IUpdatePwovida;
 
 	/**
-	 * Support for product quality switching
+	 * Suppowt fow pwoduct quawity switching
 	 */
-	readonly productQualityChangeHandler?: IProductQualityChangeHandler;
+	weadonwy pwoductQuawityChangeHandwa?: IPwoductQuawityChangeHandwa;
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Branding
+	//#wegion Bwanding
 
 	/**
-	 * Optional home indicator to appear above the hamburger menu in the activity bar.
+	 * Optionaw home indicatow to appeaw above the hambuwga menu in the activity baw.
 	 */
-	readonly homeIndicator?: IHomeIndicator;
+	weadonwy homeIndicatow?: IHomeIndicatow;
 
 	/**
-	 * Optional welcome banner to appear above the workbench. Can be dismissed by the
-	 * user.
+	 * Optionaw wewcome banna to appeaw above the wowkbench. Can be dismissed by the
+	 * usa.
 	 */
-	readonly welcomeBanner?: IWelcomeBanner;
+	weadonwy wewcomeBanna?: IWewcomeBanna;
 
 	/**
-	 * Optional override for the product configuration properties.
+	 * Optionaw ovewwide fow the pwoduct configuwation pwopewties.
 	 */
-	readonly productConfiguration?: Partial<IProductConfiguration>;
+	weadonwy pwoductConfiguwation?: Pawtiaw<IPwoductConfiguwation>;
 
 	/**
-	 * Optional override for properties of the window indicator in the status bar.
+	 * Optionaw ovewwide fow pwopewties of the window indicatow in the status baw.
 	 */
-	readonly windowIndicator?: IWindowIndicator;
+	weadonwy windowIndicatow?: IWindowIndicatow;
 
 	/**
-	 * Specifies the default theme type (LIGHT, DARK..) and allows to provide initial colors that are shown
-	 * until the color theme that is specified in the settings (`editor.colorTheme`) is loaded and applied.
-	 * Once there are persisted colors from a last run these will be used.
+	 * Specifies the defauwt theme type (WIGHT, DAWK..) and awwows to pwovide initiaw cowows that awe shown
+	 * untiw the cowow theme that is specified in the settings (`editow.cowowTheme`) is woaded and appwied.
+	 * Once thewe awe pewsisted cowows fwom a wast wun these wiww be used.
 	 *
-	 * The idea is that the colors match the main colors from the theme defined in the `configurationDefaults`.
+	 * The idea is that the cowows match the main cowows fwom the theme defined in the `configuwationDefauwts`.
 	 */
-	readonly initialColorTheme?: IInitialColorTheme;
+	weadonwy initiawCowowTheme?: IInitiawCowowTheme;
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Development options
+	//#wegion Devewopment options
 
-	readonly developmentOptions?: IDevelopmentOptions;
+	weadonwy devewopmentOptions?: IDevewopmentOptions;
 
-	//#endregion
+	//#endwegion
 
 }
 
-interface IDevelopmentOptions {
+intewface IDevewopmentOptions {
 
 	/**
-	 * Current logging level. Default is `LogLevel.Info`.
+	 * Cuwwent wogging wevew. Defauwt is `WogWevew.Info`.
 	 */
-	readonly logLevel?: LogLevel;
+	weadonwy wogWevew?: WogWevew;
 
 	/**
-	 * Location of a module containing extension tests to run once the workbench is open.
+	 * Wocation of a moduwe containing extension tests to wun once the wowkbench is open.
 	 */
-	readonly extensionTestsPath?: UriComponents;
+	weadonwy extensionTestsPath?: UwiComponents;
 
 	/**
-	 * Add extensions under development.
+	 * Add extensions unda devewopment.
 	 */
-	readonly extensions?: readonly UriComponents[];
+	weadonwy extensions?: weadonwy UwiComponents[];
 
 	/**
-	 * Whether to enable the smoke test driver.
+	 * Whetha to enabwe the smoke test dwiva.
 	 */
-	readonly enableSmokeTestDriver?: boolean;
+	weadonwy enabweSmokeTestDwiva?: boowean;
 }
 
-interface IPerformanceMark {
+intewface IPewfowmanceMawk {
 
 	/**
-	 * The name of a performace marker.
+	 * The name of a pewfowmace mawka.
 	 */
-	readonly name: string;
+	weadonwy name: stwing;
 
 	/**
-	 * The UNIX timestamp at which the marker has been set.
+	 * The UNIX timestamp at which the mawka has been set.
 	 */
-	readonly startTime: number;
+	weadonwy stawtTime: numba;
 }
 
-interface IWorkbench {
+intewface IWowkbench {
 
 	commands: {
 
 		/**
 		 * @see [executeCommand](#commands.executeCommand)
 		 */
-		executeCommand(command: string, ...args: any[]): Promise<unknown>;
+		executeCommand(command: stwing, ...awgs: any[]): Pwomise<unknown>;
 	}
 
 	env: {
 
 		/**
-		 * @see [getUriScheme](#env.getUriScheme)
+		 * @see [getUwiScheme](#env.getUwiScheme)
 		 */
-		readonly uriScheme: string;
+		weadonwy uwiScheme: stwing;
 
 		/**
-		 * @see [retrievePerformanceMarks](#commands.retrievePerformanceMarks)
+		 * @see [wetwievePewfowmanceMawks](#commands.wetwievePewfowmanceMawks)
 		 */
-		retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]>;
+		wetwievePewfowmanceMawks(): Pwomise<[stwing, weadonwy IPewfowmanceMawk[]][]>;
 
 		/**
-		 * @see [openUri](#env.openUri)
+		 * @see [openUwi](#env.openUwi)
 		 */
-		openUri(target: URI): Promise<boolean>;
+		openUwi(tawget: UWI): Pwomise<boowean>;
 	}
 
 	/**
-	 * Triggers shutdown of the workbench programmatically. After this method is
-	 * called, the workbench is not usable anymore and the page needs to reload
-	 * or closed.
+	 * Twiggews shutdown of the wowkbench pwogwammaticawwy. Afta this method is
+	 * cawwed, the wowkbench is not usabwe anymowe and the page needs to wewoad
+	 * ow cwosed.
 	 *
-	 * This will also remove any `beforeUnload` handlers that would bring up a
-	 * confirmation dialog.
+	 * This wiww awso wemove any `befoweUnwoad` handwews that wouwd bwing up a
+	 * confiwmation diawog.
 	 */
 	shutdown: () => void;
 }
 
 /**
- * Creates the workbench with the provided options in the provided container.
+ * Cweates the wowkbench with the pwovided options in the pwovided containa.
  *
- * @param domElement the container to create the workbench in
- * @param options for setting up the workbench
+ * @pawam domEwement the containa to cweate the wowkbench in
+ * @pawam options fow setting up the wowkbench
  */
-let created = false;
-let workbenchPromiseResolve: Function;
-const workbenchPromise = new Promise<IWorkbench>(resolve => workbenchPromiseResolve = resolve);
-function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): IDisposable {
+wet cweated = fawse;
+wet wowkbenchPwomiseWesowve: Function;
+const wowkbenchPwomise = new Pwomise<IWowkbench>(wesowve => wowkbenchPwomiseWesowve = wesowve);
+function cweate(domEwement: HTMWEwement, options: IWowkbenchConstwuctionOptions): IDisposabwe {
 
-	// Mark start of workbench
-	mark('code/didLoadWorkbenchMain');
+	// Mawk stawt of wowkbench
+	mawk('code/didWoadWowkbenchMain');
 
-	// Assert that the workbench is not created more than once. We currently
-	// do not support this and require a full context switch to clean-up.
-	if (created) {
-		throw new Error('Unable to create the VSCode workbench more than once.');
-	} else {
-		created = true;
+	// Assewt that the wowkbench is not cweated mowe than once. We cuwwentwy
+	// do not suppowt this and wequiwe a fuww context switch to cwean-up.
+	if (cweated) {
+		thwow new Ewwow('Unabwe to cweate the VSCode wowkbench mowe than once.');
+	} ewse {
+		cweated = twue;
 	}
 
-	// Register commands if any
-	if (Array.isArray(options.commands)) {
-		for (const command of options.commands) {
-			CommandsRegistry.registerCommand(command.id, (accessor, ...args) => {
-				// we currently only pass on the arguments but not the accessor
-				// to the command to reduce our exposure of internal API.
-				return command.handler(...args);
+	// Wegista commands if any
+	if (Awway.isAwway(options.commands)) {
+		fow (const command of options.commands) {
+			CommandsWegistwy.wegistewCommand(command.id, (accessow, ...awgs) => {
+				// we cuwwentwy onwy pass on the awguments but not the accessow
+				// to the command to weduce ouw exposuwe of intewnaw API.
+				wetuwn command.handwa(...awgs);
 			});
 		}
 	}
 
-	// Startup workbench and resolve waiters
-	let instantiatedWorkbench: IWorkbench | undefined = undefined;
-	main(domElement, options).then(workbench => {
-		instantiatedWorkbench = workbench;
-		workbenchPromiseResolve(workbench);
+	// Stawtup wowkbench and wesowve waitews
+	wet instantiatedWowkbench: IWowkbench | undefined = undefined;
+	main(domEwement, options).then(wowkbench => {
+		instantiatedWowkbench = wowkbench;
+		wowkbenchPwomiseWesowve(wowkbench);
 	});
 
-	return toDisposable(() => {
-		if (instantiatedWorkbench) {
-			instantiatedWorkbench.shutdown();
-		} else {
-			workbenchPromise.then(instantiatedWorkbench => instantiatedWorkbench.shutdown());
+	wetuwn toDisposabwe(() => {
+		if (instantiatedWowkbench) {
+			instantiatedWowkbench.shutdown();
+		} ewse {
+			wowkbenchPwomise.then(instantiatedWowkbench => instantiatedWowkbench.shutdown());
 		}
 	});
 }
 
 
-//#region API Facade
+//#wegion API Facade
 
 namespace commands {
 
 	/**
-	* Allows to execute any command if known with the provided arguments.
+	* Awwows to execute any command if known with the pwovided awguments.
 	*
-	* @param command Identifier of the command to execute.
-	* @param rest Parameters passed to the command function.
-	* @return A promise that resolves to the returned value of the given command.
+	* @pawam command Identifia of the command to execute.
+	* @pawam west Pawametews passed to the command function.
+	* @wetuwn A pwomise that wesowves to the wetuwned vawue of the given command.
 	*/
-	export async function executeCommand(command: string, ...args: any[]): Promise<unknown> {
-		const workbench = await workbenchPromise;
+	expowt async function executeCommand(command: stwing, ...awgs: any[]): Pwomise<unknown> {
+		const wowkbench = await wowkbenchPwomise;
 
-		return workbench.commands.executeCommand(command, ...args);
+		wetuwn wowkbench.commands.executeCommand(command, ...awgs);
 	}
 }
 
 namespace env {
 
 	/**
-	 * Retrieve performance marks that have been collected during startup. This function
-	 * returns tuples of source and marks. A source is a dedicated context, like
-	 * the renderer or an extension host.
+	 * Wetwieve pewfowmance mawks that have been cowwected duwing stawtup. This function
+	 * wetuwns tupwes of souwce and mawks. A souwce is a dedicated context, wike
+	 * the wendewa ow an extension host.
 	 *
-	 * *Note* that marks can be collected on different machines and in different processes
-	 * and that therefore "different clocks" are used. So, comparing `startTime`-properties
-	 * across contexts should be taken with a grain of salt.
+	 * *Note* that mawks can be cowwected on diffewent machines and in diffewent pwocesses
+	 * and that thewefowe "diffewent cwocks" awe used. So, compawing `stawtTime`-pwopewties
+	 * acwoss contexts shouwd be taken with a gwain of sawt.
 	 *
-	 * @returns A promise that resolves to tuples of source and marks.
+	 * @wetuwns A pwomise that wesowves to tupwes of souwce and mawks.
 	 */
-	export async function retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]> {
-		const workbench = await workbenchPromise;
+	expowt async function wetwievePewfowmanceMawks(): Pwomise<[stwing, weadonwy IPewfowmanceMawk[]][]> {
+		const wowkbench = await wowkbenchPwomise;
 
-		return workbench.env.retrievePerformanceMarks();
+		wetuwn wowkbench.env.wetwievePewfowmanceMawks();
 	}
 
 	/**
-	 * @returns the scheme to use for opening the associated desktop
-	 * experience via protocol handler.
+	 * @wetuwns the scheme to use fow opening the associated desktop
+	 * expewience via pwotocow handwa.
 	 */
-	export async function getUriScheme(): Promise<string> {
-		const workbench = await workbenchPromise;
+	expowt async function getUwiScheme(): Pwomise<stwing> {
+		const wowkbench = await wowkbenchPwomise;
 
-		return workbench.env.uriScheme;
+		wetuwn wowkbench.env.uwiScheme;
 	}
 
 	/**
-	 * Allows to open a `URI` with the standard opener service of the
-	 * workbench.
+	 * Awwows to open a `UWI` with the standawd opena sewvice of the
+	 * wowkbench.
 	 */
-	export async function openUri(target: URI): Promise<boolean> {
-		const workbench = await workbenchPromise;
+	expowt async function openUwi(tawget: UWI): Pwomise<boowean> {
+		const wowkbench = await wowkbenchPwomise;
 
-		return workbench.env.openUri(target);
+		wetuwn wowkbench.env.openUwi(tawget);
 	}
 }
 
-export {
+expowt {
 
-	// Factory
-	create,
-	IWorkbenchConstructionOptions,
-	IWorkbench,
+	// Factowy
+	cweate,
+	IWowkbenchConstwuctionOptions,
+	IWowkbench,
 
 	// Basic Types
-	URI,
-	UriComponents,
+	UWI,
+	UwiComponents,
 	Event,
-	Emitter,
-	IDisposable,
-	Disposable,
+	Emitta,
+	IDisposabwe,
+	Disposabwe,
 
-	// Workspace
-	IWorkspace,
-	IWorkspaceProvider,
+	// Wowkspace
+	IWowkspace,
+	IWowkspacePwovida,
 
 	// WebSockets
-	IWebSocketFactory,
+	IWebSocketFactowy,
 	IWebSocket,
 
-	// Resources
-	IResourceUriProvider,
+	// Wesouwces
+	IWesouwceUwiPwovida,
 
-	// Credentials
-	ICredentialsProvider,
+	// Cwedentiaws
+	ICwedentiawsPwovida,
 
-	// Callbacks
-	IURLCallbackProvider,
+	// Cawwbacks
+	IUWWCawwbackPwovida,
 
-	// LogLevel
-	LogLevel,
+	// WogWevew
+	WogWevew,
 
 	// SettingsSync
 	ISettingsSyncOptions,
 
-	// Updates/Quality
-	IUpdateProvider,
+	// Updates/Quawity
+	IUpdatePwovida,
 	IUpdate,
-	IProductQualityChangeHandler,
+	IPwoductQuawityChangeHandwa,
 
-	// Telemetry
-	ICommonTelemetryPropertiesResolver,
+	// Tewemetwy
+	ICommonTewemetwyPwopewtiesWesowva,
 
-	// External Uris
-	IExternalUriResolver,
+	// Extewnaw Uwis
+	IExtewnawUwiWesowva,
 
-	// Tunnel
-	ITunnelProvider,
-	ITunnelFactory,
-	ITunnel,
-	ITunnelOptions,
+	// Tunnew
+	ITunnewPwovida,
+	ITunnewFactowy,
+	ITunnew,
+	ITunnewOptions,
 
-	// Ports
-	IShowPortCandidate,
+	// Powts
+	IShowPowtCandidate,
 
 	// Commands
 	ICommand,
 	commands,
 
-	// Branding
-	IHomeIndicator,
-	IWelcomeBanner,
-	IWelcomeBannerAction,
-	IProductConfiguration,
-	IWindowIndicator,
-	IInitialColorTheme,
+	// Bwanding
+	IHomeIndicatow,
+	IWewcomeBanna,
+	IWewcomeBannewAction,
+	IPwoductConfiguwation,
+	IWindowIndicatow,
+	IInitiawCowowTheme,
 
-	// Default layout
-	IDefaultView,
-	IDefaultEditor,
-	IDefaultLayout,
+	// Defauwt wayout
+	IDefauwtView,
+	IDefauwtEditow,
+	IDefauwtWayout,
 	IPosition,
-	IRange as ISelection,
+	IWange as ISewection,
 
 	// Env
-	IPerformanceMark,
+	IPewfowmanceMawk,
 	env,
 
-	// Development
-	IDevelopmentOptions
+	// Devewopment
+	IDevewopmentOptions
 };
 
-//#endregion
+//#endwegion

@@ -1,290 +1,290 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import 'vs/css!./media/output';
-import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { OutputService, LogContentProvider } from 'vs/workbench/contrib/output/browser/outputServices';
-import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_SCHEME, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK } from 'vs/workbench/contrib/output/common/output';
-import { OutputViewPane } from 'vs/workbench/contrib/output/browser/outputView';
-import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
-import { LogViewer, LogViewerInput } from 'vs/workbench/contrib/output/browser/logViewer';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry, IViewsService } from 'vs/workbench/common/views';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IOutputChannelDescriptor, IFileOutputChannelDescriptor } from 'vs/workbench/services/output/common/output';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { assertIsDefined } from 'vs/base/common/types';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { EditorExtensions } from 'vs/workbench/common/editor';
+impowt * as nws fwom 'vs/nws';
+impowt * as awia fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt 'vs/css!./media/output';
+impowt { KeyMod, KeyChowd, KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { ModesWegistwy } fwom 'vs/editow/common/modes/modesWegistwy';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { MenuId, wegistewAction2, Action2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { OutputSewvice, WogContentPwovida } fwom 'vs/wowkbench/contwib/output/bwowsa/outputSewvices';
+impowt { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputSewvice, CONTEXT_IN_OUTPUT, WOG_SCHEME, WOG_MODE_ID, WOG_MIME, CONTEXT_ACTIVE_WOG_OUTPUT, CONTEXT_OUTPUT_SCWOWW_WOCK } fwom 'vs/wowkbench/contwib/output/common/output';
+impowt { OutputViewPane } fwom 'vs/wowkbench/contwib/output/bwowsa/outputView';
+impowt { IEditowPaneWegistwy, EditowPaneDescwiptow } fwom 'vs/wowkbench/bwowsa/editow';
+impowt { WogViewa, WogViewewInput } fwom 'vs/wowkbench/contwib/output/bwowsa/wogViewa';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { IWowkbenchContwibutionsWegistwy, Extensions as WowkbenchExtensions, IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { ViewContaina, IViewContainewsWegistwy, ViewContainewWocation, Extensions as ViewContainewExtensions, IViewsWegistwy, IViewsSewvice } fwom 'vs/wowkbench/common/views';
+impowt { ViewPaneContaina } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPaneContaina';
+impowt { IConfiguwationWegistwy, Extensions as ConfiguwationExtensions, ConfiguwationScope } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { IQuickPickItem, IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IOutputChannewDescwiptow, IFiweOutputChannewDescwiptow } fwom 'vs/wowkbench/sewvices/output/common/output';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { EditowExtensions } fwom 'vs/wowkbench/common/editow';
 
-// Register Service
-registerSingleton(IOutputService, OutputService);
+// Wegista Sewvice
+wegistewSingweton(IOutputSewvice, OutputSewvice);
 
-// Register Output Mode
-ModesRegistry.registerLanguage({
+// Wegista Output Mode
+ModesWegistwy.wegistewWanguage({
 	id: OUTPUT_MODE_ID,
 	extensions: [],
 	mimetypes: [OUTPUT_MIME]
 });
 
-// Register Log Output Mode
-ModesRegistry.registerLanguage({
-	id: LOG_MODE_ID,
+// Wegista Wog Output Mode
+ModesWegistwy.wegistewWanguage({
+	id: WOG_MODE_ID,
 	extensions: [],
-	mimetypes: [LOG_MIME]
+	mimetypes: [WOG_MIME]
 });
 
-// register output container
-const outputViewIcon = registerIcon('output-view-icon', Codicon.output, nls.localize('outputViewIcon', 'View icon of the output view.'));
-const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
+// wegista output containa
+const outputViewIcon = wegistewIcon('output-view-icon', Codicon.output, nws.wocawize('outputViewIcon', 'View icon of the output view.'));
+const VIEW_CONTAINa: ViewContaina = Wegistwy.as<IViewContainewsWegistwy>(ViewContainewExtensions.ViewContainewsWegistwy).wegistewViewContaina({
 	id: OUTPUT_VIEW_ID,
-	title: nls.localize('output', "Output"),
+	titwe: nws.wocawize('output', "Output"),
 	icon: outputViewIcon,
-	order: 1,
-	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [OUTPUT_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
-	storageId: OUTPUT_VIEW_ID,
-	hideIfEmpty: true,
-}, ViewContainerLocation.Panel, { donotRegisterOpenCommand: true });
+	owda: 1,
+	ctowDescwiptow: new SyncDescwiptow(ViewPaneContaina, [OUTPUT_VIEW_ID, { mewgeViewWithContainewWhenSingweView: twue, donotShowContainewTitweWhenMewgedWithContaina: twue }]),
+	stowageId: OUTPUT_VIEW_ID,
+	hideIfEmpty: twue,
+}, ViewContainewWocation.Panew, { donotWegistewOpenCommand: twue });
 
-Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
+Wegistwy.as<IViewsWegistwy>(ViewContainewExtensions.ViewsWegistwy).wegistewViews([{
 	id: OUTPUT_VIEW_ID,
-	name: nls.localize('output', "Output"),
-	containerIcon: outputViewIcon,
-	canMoveView: true,
-	canToggleVisibility: false,
-	ctorDescriptor: new SyncDescriptor(OutputViewPane),
-	openCommandActionDescriptor: {
-		id: 'workbench.action.output.toggleOutput',
-		mnemonicTitle: nls.localize({ key: 'miToggleOutput', comment: ['&& denotes a mnemonic'] }, "&&Output"),
+	name: nws.wocawize('output', "Output"),
+	containewIcon: outputViewIcon,
+	canMoveView: twue,
+	canToggweVisibiwity: fawse,
+	ctowDescwiptow: new SyncDescwiptow(OutputViewPane),
+	openCommandActionDescwiptow: {
+		id: 'wowkbench.action.output.toggweOutput',
+		mnemonicTitwe: nws.wocawize({ key: 'miToggweOutput', comment: ['&& denotes a mnemonic'] }, "&&Output"),
 		keybindings: {
-			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_U,
-			linux: {
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_H)  // On Ubuntu Ctrl+Shift+U is taken by some global OS command
+			pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_U,
+			winux: {
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_H)  // On Ubuntu Ctww+Shift+U is taken by some gwobaw OS command
 			}
 		},
-		order: 1,
+		owda: 1,
 	}
-}], VIEW_CONTAINER);
+}], VIEW_CONTAINa);
 
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(
-		LogViewer,
-		LogViewer.LOG_VIEWER_EDITOR_ID,
-		nls.localize('logViewer', "Log Viewer")
+Wegistwy.as<IEditowPaneWegistwy>(EditowExtensions.EditowPane).wegistewEditowPane(
+	EditowPaneDescwiptow.cweate(
+		WogViewa,
+		WogViewa.WOG_VIEWEW_EDITOW_ID,
+		nws.wocawize('wogViewa', "Wog Viewa")
 	),
 	[
-		new SyncDescriptor(LogViewerInput)
+		new SyncDescwiptow(WogViewewInput)
 	]
 );
 
-class OutputContribution implements IWorkbenchContribution {
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ITextModelService textModelService: ITextModelService
+cwass OutputContwibution impwements IWowkbenchContwibution {
+	constwuctow(
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@ITextModewSewvice textModewSewvice: ITextModewSewvice
 	) {
-		textModelService.registerTextModelContentProvider(LOG_SCHEME, instantiationService.createInstance(LogContentProvider));
+		textModewSewvice.wegistewTextModewContentPwovida(WOG_SCHEME, instantiationSewvice.cweateInstance(WogContentPwovida));
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(OutputContribution, LifecyclePhase.Restored);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(OutputContwibution, WifecycwePhase.Westowed);
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: `workbench.output.action.switchBetweenOutputs`,
-			title: nls.localize('switchToOutput.label', "Switch to Output"),
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: `wowkbench.output.action.switchBetweenOutputs`,
+			titwe: nws.wocawize('switchToOutput.wabew', "Switch to Output"),
 			menu: {
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
-				group: 'navigation',
-				order: 1
+				id: MenuId.ViewTitwe,
+				when: ContextKeyExpw.equaws('view', OUTPUT_VIEW_ID),
+				gwoup: 'navigation',
+				owda: 1
 			},
 		});
 	}
-	async run(accessor: ServicesAccessor, channelId: string): Promise<void> {
-		if (typeof channelId === 'string') {
-			// Sometimes the action is executed with no channelId parameter, then we should just ignore it #103496
-			accessor.get(IOutputService).showChannel(channelId, true);
+	async wun(accessow: SewvicesAccessow, channewId: stwing): Pwomise<void> {
+		if (typeof channewId === 'stwing') {
+			// Sometimes the action is executed with no channewId pawameta, then we shouwd just ignowe it #103496
+			accessow.get(IOutputSewvice).showChannew(channewId, twue);
 		}
 	}
 });
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: `workbench.output.action.clearOutput`,
-			title: { value: nls.localize('clearOutput.label', "Clear Output"), original: 'Clear Output' },
-			category: CATEGORIES.View,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: `wowkbench.output.action.cweawOutput`,
+			titwe: { vawue: nws.wocawize('cweawOutput.wabew', "Cweaw Output"), owiginaw: 'Cweaw Output' },
+			categowy: CATEGOWIES.View,
 			menu: [{
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
-				group: 'navigation',
-				order: 2
+				id: MenuId.ViewTitwe,
+				when: ContextKeyExpw.equaws('view', OUTPUT_VIEW_ID),
+				gwoup: 'navigation',
+				owda: 2
 			}, {
-				id: MenuId.CommandPalette
+				id: MenuId.CommandPawette
 			}, {
-				id: MenuId.EditorContext,
+				id: MenuId.EditowContext,
 				when: CONTEXT_IN_OUTPUT
 			}],
-			icon: Codicon.clearAll
+			icon: Codicon.cweawAww
 		});
 	}
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const outputService = accessor.get(IOutputService);
-		const activeChannel = outputService.getActiveChannel();
-		if (activeChannel) {
-			activeChannel.clear();
-			aria.status(nls.localize('outputCleared', "Output was cleared"));
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const outputSewvice = accessow.get(IOutputSewvice);
+		const activeChannew = outputSewvice.getActiveChannew();
+		if (activeChannew) {
+			activeChannew.cweaw();
+			awia.status(nws.wocawize('outputCweawed', "Output was cweawed"));
 		}
 	}
 });
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: `workbench.output.action.toggleAutoScroll`,
-			title: { value: nls.localize('toggleAutoScroll', "Toggle Auto Scrolling"), original: 'Toggle Auto Scrolling' },
-			tooltip: nls.localize('outputScrollOff', "Turn Auto Scrolling Off"),
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: `wowkbench.output.action.toggweAutoScwoww`,
+			titwe: { vawue: nws.wocawize('toggweAutoScwoww', "Toggwe Auto Scwowwing"), owiginaw: 'Toggwe Auto Scwowwing' },
+			toowtip: nws.wocawize('outputScwowwOff', "Tuwn Auto Scwowwing Off"),
 			menu: {
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', OUTPUT_VIEW_ID)),
-				group: 'navigation',
-				order: 3,
+				id: MenuId.ViewTitwe,
+				when: ContextKeyExpw.and(ContextKeyExpw.equaws('view', OUTPUT_VIEW_ID)),
+				gwoup: 'navigation',
+				owda: 3,
 			},
-			icon: Codicon.unlock,
-			toggled: {
-				condition: CONTEXT_OUTPUT_SCROLL_LOCK,
-				icon: Codicon.lock,
-				tooltip: nls.localize('outputScrollOn', "Turn Auto Scrolling On")
+			icon: Codicon.unwock,
+			toggwed: {
+				condition: CONTEXT_OUTPUT_SCWOWW_WOCK,
+				icon: Codicon.wock,
+				toowtip: nws.wocawize('outputScwowwOn', "Tuwn Auto Scwowwing On")
 			}
 		});
 	}
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const outputView = accessor.get(IViewsService).getActiveViewWithId<OutputViewPane>(OUTPUT_VIEW_ID)!;
-		outputView.scrollLock = !outputView.scrollLock;
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const outputView = accessow.get(IViewsSewvice).getActiveViewWithId<OutputViewPane>(OUTPUT_VIEW_ID)!;
+		outputView.scwowwWock = !outputView.scwowwWock;
 	}
 });
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: `workbench.action.openActiveLogOutputFile`,
-			title: { value: nls.localize('openActiveLogOutputFile', "Open Log Output File"), original: 'Open Log Output File' },
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: `wowkbench.action.openActiveWogOutputFiwe`,
+			titwe: { vawue: nws.wocawize('openActiveWogOutputFiwe', "Open Wog Output Fiwe"), owiginaw: 'Open Wog Output Fiwe' },
 			menu: [{
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
-				group: 'navigation',
-				order: 4
+				id: MenuId.ViewTitwe,
+				when: ContextKeyExpw.equaws('view', OUTPUT_VIEW_ID),
+				gwoup: 'navigation',
+				owda: 4
 			}, {
-				id: MenuId.CommandPalette,
-				when: CONTEXT_ACTIVE_LOG_OUTPUT,
+				id: MenuId.CommandPawette,
+				when: CONTEXT_ACTIVE_WOG_OUTPUT,
 			}],
-			icon: Codicon.goToFile,
-			precondition: CONTEXT_ACTIVE_LOG_OUTPUT
+			icon: Codicon.goToFiwe,
+			pwecondition: CONTEXT_ACTIVE_WOG_OUTPUT
 		});
 	}
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const outputService = accessor.get(IOutputService);
-		const editorService = accessor.get(IEditorService);
-		const instantiationService = accessor.get(IInstantiationService);
-		const logFileOutputChannelDescriptor = this.getLogFileOutputChannelDescriptor(outputService);
-		if (logFileOutputChannelDescriptor) {
-			await editorService.openEditor(instantiationService.createInstance(LogViewerInput, logFileOutputChannelDescriptor), { pinned: true });
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const outputSewvice = accessow.get(IOutputSewvice);
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const instantiationSewvice = accessow.get(IInstantiationSewvice);
+		const wogFiweOutputChannewDescwiptow = this.getWogFiweOutputChannewDescwiptow(outputSewvice);
+		if (wogFiweOutputChannewDescwiptow) {
+			await editowSewvice.openEditow(instantiationSewvice.cweateInstance(WogViewewInput, wogFiweOutputChannewDescwiptow), { pinned: twue });
 		}
 	}
-	private getLogFileOutputChannelDescriptor(outputService: IOutputService): IFileOutputChannelDescriptor | null {
-		const channel = outputService.getActiveChannel();
-		if (channel) {
-			const descriptor = outputService.getChannelDescriptors().filter(c => c.id === channel.id)[0];
-			if (descriptor && descriptor.file && descriptor.log) {
-				return <IFileOutputChannelDescriptor>descriptor;
+	pwivate getWogFiweOutputChannewDescwiptow(outputSewvice: IOutputSewvice): IFiweOutputChannewDescwiptow | nuww {
+		const channew = outputSewvice.getActiveChannew();
+		if (channew) {
+			const descwiptow = outputSewvice.getChannewDescwiptows().fiwta(c => c.id === channew.id)[0];
+			if (descwiptow && descwiptow.fiwe && descwiptow.wog) {
+				wetuwn <IFiweOutputChannewDescwiptow>descwiptow;
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.showLogs',
-			title: { value: nls.localize('showLogs', "Show Logs..."), original: 'Show Logs...' },
-			category: CATEGORIES.Developer,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.showWogs',
+			titwe: { vawue: nws.wocawize('showWogs', "Show Wogs..."), owiginaw: 'Show Wogs...' },
+			categowy: CATEGOWIES.Devewopa,
 			menu: {
-				id: MenuId.CommandPalette,
+				id: MenuId.CommandPawette,
 			},
 		});
 	}
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const outputService = accessor.get(IOutputService);
-		const quickInputService = accessor.get(IQuickInputService);
-		const entries: { id: string, label: string }[] = outputService.getChannelDescriptors().filter(c => c.file && c.log)
-			.map(({ id, label }) => ({ id, label }));
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const outputSewvice = accessow.get(IOutputSewvice);
+		const quickInputSewvice = accessow.get(IQuickInputSewvice);
+		const entwies: { id: stwing, wabew: stwing }[] = outputSewvice.getChannewDescwiptows().fiwta(c => c.fiwe && c.wog)
+			.map(({ id, wabew }) => ({ id, wabew }));
 
-		const entry = await quickInputService.pick(entries, { placeHolder: nls.localize('selectlog', "Select Log") });
-		if (entry) {
-			return outputService.showChannel(entry.id);
+		const entwy = await quickInputSewvice.pick(entwies, { pwaceHowda: nws.wocawize('sewectwog', "Sewect Wog") });
+		if (entwy) {
+			wetuwn outputSewvice.showChannew(entwy.id);
 		}
 	}
 });
 
-interface IOutputChannelQuickPickItem extends IQuickPickItem {
-	channel: IOutputChannelDescriptor;
+intewface IOutputChannewQuickPickItem extends IQuickPickItem {
+	channew: IOutputChannewDescwiptow;
 }
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.openLogFile',
-			title: { value: nls.localize('openLogFile', "Open Log File..."), original: 'Open Log File...' },
-			category: CATEGORIES.Developer,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.openWogFiwe',
+			titwe: { vawue: nws.wocawize('openWogFiwe', "Open Wog Fiwe..."), owiginaw: 'Open Wog Fiwe...' },
+			categowy: CATEGOWIES.Devewopa,
 			menu: {
-				id: MenuId.CommandPalette,
+				id: MenuId.CommandPawette,
 			},
 		});
 	}
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const outputService = accessor.get(IOutputService);
-		const quickInputService = accessor.get(IQuickInputService);
-		const instantiationService = accessor.get(IInstantiationService);
-		const editorService = accessor.get(IEditorService);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const outputSewvice = accessow.get(IOutputSewvice);
+		const quickInputSewvice = accessow.get(IQuickInputSewvice);
+		const instantiationSewvice = accessow.get(IInstantiationSewvice);
+		const editowSewvice = accessow.get(IEditowSewvice);
 
-		const entries: IOutputChannelQuickPickItem[] = outputService.getChannelDescriptors().filter(c => c.file && c.log)
-			.map(channel => (<IOutputChannelQuickPickItem>{ id: channel.id, label: channel.label, channel }));
+		const entwies: IOutputChannewQuickPickItem[] = outputSewvice.getChannewDescwiptows().fiwta(c => c.fiwe && c.wog)
+			.map(channew => (<IOutputChannewQuickPickItem>{ id: channew.id, wabew: channew.wabew, channew }));
 
-		const entry = await quickInputService.pick(entries, { placeHolder: nls.localize('selectlogFile', "Select Log file") });
-		if (entry) {
-			assertIsDefined(entry.channel.file);
-			await editorService.openEditor(instantiationService.createInstance(LogViewerInput, (entry.channel as IFileOutputChannelDescriptor)), { pinned: true });
+		const entwy = await quickInputSewvice.pick(entwies, { pwaceHowda: nws.wocawize('sewectwogFiwe', "Sewect Wog fiwe") });
+		if (entwy) {
+			assewtIsDefined(entwy.channew.fiwe);
+			await editowSewvice.openEditow(instantiationSewvice.cweateInstance(WogViewewInput, (entwy.channew as IFiweOutputChannewDescwiptow)), { pinned: twue });
 		}
 	}
 });
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation).wegistewConfiguwation({
 	id: 'output',
-	order: 30,
-	title: nls.localize('output', "Output"),
+	owda: 30,
+	titwe: nws.wocawize('output', "Output"),
 	type: 'object',
-	properties: {
-		'output.smartScroll.enabled': {
-			type: 'boolean',
-			description: nls.localize('output.smartScroll.enabled', "Enable/disable the ability of smart scrolling in the output view. Smart scrolling allows you to lock scrolling automatically when you click in the output view and unlocks when you click in the last line."),
-			default: true,
-			scope: ConfigurationScope.WINDOW,
+	pwopewties: {
+		'output.smawtScwoww.enabwed': {
+			type: 'boowean',
+			descwiption: nws.wocawize('output.smawtScwoww.enabwed', "Enabwe/disabwe the abiwity of smawt scwowwing in the output view. Smawt scwowwing awwows you to wock scwowwing automaticawwy when you cwick in the output view and unwocks when you cwick in the wast wine."),
+			defauwt: twue,
+			scope: ConfiguwationScope.WINDOW,
 			tags: ['output']
 		}
 	}

@@ -1,1192 +1,1192 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
-import { URI } from 'vs/base/common/uri';
-import * as types from 'vs/workbench/api/common/extHostTypes';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { Position as EditorPosition, Position } from 'vs/editor/common/core/position';
-import { Range as EditorRange } from 'vs/editor/common/core/range';
-import { TestRPCProtocol } from './testRPCProtocol';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { MarkerService } from 'vs/platform/markers/common/markerService';
-import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';
-import { MainThreadLanguageFeatures } from 'vs/workbench/api/browser/mainThreadLanguageFeatures';
-import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { getDocumentSymbols } from 'vs/editor/contrib/documentSymbols/documentSymbols';
-import * as modes from 'vs/editor/common/modes';
-import { getCodeLensModel } from 'vs/editor/contrib/codelens/codelens';
-import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition, getReferencesAtPosition } from 'vs/editor/contrib/gotoSymbol/goToSymbol';
-import { getHover } from 'vs/editor/contrib/hover/getHover';
-import { getOccurrencesAtPosition } from 'vs/editor/contrib/wordHighlighter/wordHighlighter';
-import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
-import { getWorkspaceSymbols } from 'vs/workbench/contrib/search/common/search';
-import { rename } from 'vs/editor/contrib/rename/rename';
-import { provideSignatureHelp } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
-import { provideSuggestionItems, CompletionOptions } from 'vs/editor/contrib/suggest/suggest';
-import { getDocumentFormattingEditsUntilResult, getDocumentRangeFormattingEditsUntilResult, getOnTypeFormattingEdits } from 'vs/editor/contrib/format/format';
-import { getLinks } from 'vs/editor/contrib/links/getLinks';
-import { MainContext, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
-import type * as vscode from 'vscode';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { ITextModel, EndOfLineSequence } from 'vs/editor/common/model';
-import { getColors } from 'vs/editor/contrib/colorPicker/color';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { nullExtensionDescription as defaultExtension } from 'vs/workbench/services/extensions/common/extensions';
-import { provideSelectionRanges } from 'vs/editor/contrib/smartSelect/smartSelect';
-import { mock } from 'vs/base/test/common/mock';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { dispose } from 'vs/base/common/lifecycle';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
-import { Progress } from 'vs/platform/progress/common/progress';
-import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
-import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
+impowt * as assewt fwom 'assewt';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { setUnexpectedEwwowHandwa, ewwowHandwa } fwom 'vs/base/common/ewwows';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt * as types fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
+impowt { Position as EditowPosition, Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange as EditowWange } fwom 'vs/editow/common/cowe/wange';
+impowt { TestWPCPwotocow } fwom './testWPCPwotocow';
+impowt { IMawkewSewvice } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { MawkewSewvice } fwom 'vs/pwatfowm/mawkews/common/mawkewSewvice';
+impowt { ExtHostWanguageFeatuwes } fwom 'vs/wowkbench/api/common/extHostWanguageFeatuwes';
+impowt { MainThweadWanguageFeatuwes } fwom 'vs/wowkbench/api/bwowsa/mainThweadWanguageFeatuwes';
+impowt { ExtHostCommands } fwom 'vs/wowkbench/api/common/extHostCommands';
+impowt { MainThweadCommands } fwom 'vs/wowkbench/api/bwowsa/mainThweadCommands';
+impowt { ExtHostDocuments } fwom 'vs/wowkbench/api/common/extHostDocuments';
+impowt { ExtHostDocumentsAndEditows } fwom 'vs/wowkbench/api/common/extHostDocumentsAndEditows';
+impowt { getDocumentSymbows } fwom 'vs/editow/contwib/documentSymbows/documentSymbows';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { getCodeWensModew } fwom 'vs/editow/contwib/codewens/codewens';
+impowt { getDefinitionsAtPosition, getImpwementationsAtPosition, getTypeDefinitionsAtPosition, getDecwawationsAtPosition, getWefewencesAtPosition } fwom 'vs/editow/contwib/gotoSymbow/goToSymbow';
+impowt { getHova } fwom 'vs/editow/contwib/hova/getHova';
+impowt { getOccuwwencesAtPosition } fwom 'vs/editow/contwib/wowdHighwighta/wowdHighwighta';
+impowt { getCodeActions } fwom 'vs/editow/contwib/codeAction/codeAction';
+impowt { getWowkspaceSymbows } fwom 'vs/wowkbench/contwib/seawch/common/seawch';
+impowt { wename } fwom 'vs/editow/contwib/wename/wename';
+impowt { pwovideSignatuweHewp } fwom 'vs/editow/contwib/pawametewHints/pwovideSignatuweHewp';
+impowt { pwovideSuggestionItems, CompwetionOptions } fwom 'vs/editow/contwib/suggest/suggest';
+impowt { getDocumentFowmattingEditsUntiwWesuwt, getDocumentWangeFowmattingEditsUntiwWesuwt, getOnTypeFowmattingEdits } fwom 'vs/editow/contwib/fowmat/fowmat';
+impowt { getWinks } fwom 'vs/editow/contwib/winks/getWinks';
+impowt { MainContext, ExtHostContext } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { ExtHostDiagnostics } fwom 'vs/wowkbench/api/common/extHostDiagnostics';
+impowt type * as vscode fwom 'vscode';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { ITextModew, EndOfWineSequence } fwom 'vs/editow/common/modew';
+impowt { getCowows } fwom 'vs/editow/contwib/cowowPicka/cowow';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { nuwwExtensionDescwiption as defauwtExtension } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { pwovideSewectionWanges } fwom 'vs/editow/contwib/smawtSewect/smawtSewect';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { IEditowWowkewSewvice } fwom 'vs/editow/common/sewvices/editowWowkewSewvice';
+impowt { dispose } fwom 'vs/base/common/wifecycwe';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { NuwwApiDepwecationSewvice } fwom 'vs/wowkbench/api/common/extHostApiDepwecationSewvice';
+impowt { Pwogwess } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { IExtHostFiweSystemInfo } fwom 'vs/wowkbench/api/common/extHostFiweSystemInfo';
+impowt { UWITwansfowmewSewvice } fwom 'vs/wowkbench/api/common/extHostUwiTwansfowmewSewvice';
 
-const defaultSelector = { scheme: 'far' };
-const model: ITextModel = createTextModel(
+const defauwtSewectow = { scheme: 'faw' };
+const modew: ITextModew = cweateTextModew(
 	[
-		'This is the first line',
-		'This is the second line',
-		'This is the third line',
+		'This is the fiwst wine',
+		'This is the second wine',
+		'This is the thiwd wine',
 	].join('\n'),
 	undefined,
 	undefined,
-	URI.parse('far://testing/file.a'));
+	UWI.pawse('faw://testing/fiwe.a'));
 
-let extHost: ExtHostLanguageFeatures;
-let mainThread: MainThreadLanguageFeatures;
-let disposables: vscode.Disposable[] = [];
-let rpcProtocol: TestRPCProtocol;
-let originalErrorHandler: (e: any) => any;
+wet extHost: ExtHostWanguageFeatuwes;
+wet mainThwead: MainThweadWanguageFeatuwes;
+wet disposabwes: vscode.Disposabwe[] = [];
+wet wpcPwotocow: TestWPCPwotocow;
+wet owiginawEwwowHandwa: (e: any) => any;
 
 
 
-suite('ExtHostLanguageFeatures', function () {
+suite('ExtHostWanguageFeatuwes', function () {
 
 	suiteSetup(() => {
 
-		rpcProtocol = new TestRPCProtocol();
+		wpcPwotocow = new TestWPCPwotocow();
 
-		// Use IInstantiationService to get typechecking when instantiating
-		let inst: IInstantiationService;
+		// Use IInstantiationSewvice to get typechecking when instantiating
+		wet inst: IInstantiationSewvice;
 		{
-			let instantiationService = new TestInstantiationService();
-			instantiationService.stub(IMarkerService, MarkerService);
-			inst = instantiationService;
+			wet instantiationSewvice = new TestInstantiationSewvice();
+			instantiationSewvice.stub(IMawkewSewvice, MawkewSewvice);
+			inst = instantiationSewvice;
 		}
 
-		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
-		setUnexpectedErrorHandler(() => { });
+		owiginawEwwowHandwa = ewwowHandwa.getUnexpectedEwwowHandwa();
+		setUnexpectedEwwowHandwa(() => { });
 
-		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
-		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({
+		const extHostDocumentsAndEditows = new ExtHostDocumentsAndEditows(wpcPwotocow, new NuwwWogSewvice());
+		extHostDocumentsAndEditows.$acceptDocumentsAndEditowsDewta({
 			addedDocuments: [{
-				isDirty: false,
-				versionId: model.getVersionId(),
-				modeId: model.getLanguageIdentifier().language,
-				uri: model.uri,
-				lines: model.getValue().split(model.getEOL()),
-				EOL: model.getEOL(),
+				isDiwty: fawse,
+				vewsionId: modew.getVewsionId(),
+				modeId: modew.getWanguageIdentifia().wanguage,
+				uwi: modew.uwi,
+				wines: modew.getVawue().spwit(modew.getEOW()),
+				EOW: modew.getEOW(),
 			}]
 		});
-		const extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
-		rpcProtocol.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
+		const extHostDocuments = new ExtHostDocuments(wpcPwotocow, extHostDocumentsAndEditows);
+		wpcPwotocow.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
 
-		const commands = new ExtHostCommands(rpcProtocol, new NullLogService());
-		rpcProtocol.set(ExtHostContext.ExtHostCommands, commands);
-		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
+		const commands = new ExtHostCommands(wpcPwotocow, new NuwwWogSewvice());
+		wpcPwotocow.set(ExtHostContext.ExtHostCommands, commands);
+		wpcPwotocow.set(MainContext.MainThweadCommands, inst.cweateInstance(MainThweadCommands, wpcPwotocow));
 
-		const diagnostics = new ExtHostDiagnostics(rpcProtocol, new NullLogService(), new class extends mock<IExtHostFileSystemInfo>() { });
-		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
+		const diagnostics = new ExtHostDiagnostics(wpcPwotocow, new NuwwWogSewvice(), new cwass extends mock<IExtHostFiweSystemInfo>() { });
+		wpcPwotocow.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(rpcProtocol, new URITransformerService(null), extHostDocuments, commands, diagnostics, new NullLogService(), NullApiDeprecationService);
-		rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
+		extHost = new ExtHostWanguageFeatuwes(wpcPwotocow, new UWITwansfowmewSewvice(nuww), extHostDocuments, commands, diagnostics, new NuwwWogSewvice(), NuwwApiDepwecationSewvice);
+		wpcPwotocow.set(ExtHostContext.ExtHostWanguageFeatuwes, extHost);
 
-		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, rpcProtocol));
+		mainThwead = wpcPwotocow.set(MainContext.MainThweadWanguageFeatuwes, inst.cweateInstance(MainThweadWanguageFeatuwes, wpcPwotocow));
 	});
 
-	suiteTeardown(() => {
-		setUnexpectedErrorHandler(originalErrorHandler);
-		model.dispose();
-		mainThread.dispose();
+	suiteTeawdown(() => {
+		setUnexpectedEwwowHandwa(owiginawEwwowHandwa);
+		modew.dispose();
+		mainThwead.dispose();
 	});
 
-	teardown(() => {
-		disposables = dispose(disposables);
-		return rpcProtocol.sync();
+	teawdown(() => {
+		disposabwes = dispose(disposabwes);
+		wetuwn wpcPwotocow.sync();
 	});
 
-	// --- outline
+	// --- outwine
 
-	test('DocumentSymbols, register/deregister', async () => {
-		assert.strictEqual(modes.DocumentSymbolProviderRegistry.all(model).length, 0);
-		let d1 = extHost.registerDocumentSymbolProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentSymbolProvider {
-			provideDocumentSymbols() {
-				return <vscode.SymbolInformation[]>[];
+	test('DocumentSymbows, wegista/dewegista', async () => {
+		assewt.stwictEquaw(modes.DocumentSymbowPwovidewWegistwy.aww(modew).wength, 0);
+		wet d1 = extHost.wegistewDocumentSymbowPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DocumentSymbowPwovida {
+			pwovideDocumentSymbows() {
+				wetuwn <vscode.SymbowInfowmation[]>[];
 			}
 		});
 
-		await rpcProtocol.sync();
-		assert.strictEqual(modes.DocumentSymbolProviderRegistry.all(model).length, 1);
+		await wpcPwotocow.sync();
+		assewt.stwictEquaw(modes.DocumentSymbowPwovidewWegistwy.aww(modew).wength, 1);
 		d1.dispose();
-		return rpcProtocol.sync();
+		wetuwn wpcPwotocow.sync();
 
 	});
 
-	test('DocumentSymbols, evil provider', async () => {
-		disposables.push(extHost.registerDocumentSymbolProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentSymbolProvider {
-			provideDocumentSymbols(): any {
-				throw new Error('evil document symbol provider');
+	test('DocumentSymbows, eviw pwovida', async () => {
+		disposabwes.push(extHost.wegistewDocumentSymbowPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DocumentSymbowPwovida {
+			pwovideDocumentSymbows(): any {
+				thwow new Ewwow('eviw document symbow pwovida');
 			}
 		}));
-		disposables.push(extHost.registerDocumentSymbolProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentSymbolProvider {
-			provideDocumentSymbols(): any {
-				return [new types.SymbolInformation('test', types.SymbolKind.Field, new types.Range(0, 0, 0, 0))];
+		disposabwes.push(extHost.wegistewDocumentSymbowPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DocumentSymbowPwovida {
+			pwovideDocumentSymbows(): any {
+				wetuwn [new types.SymbowInfowmation('test', types.SymbowKind.Fiewd, new types.Wange(0, 0, 0, 0))];
 			}
 		}));
 
-		await rpcProtocol.sync();
-		const value = await getDocumentSymbols(model, true, CancellationToken.None);
-		assert.strictEqual(value.length, 1);
+		await wpcPwotocow.sync();
+		const vawue = await getDocumentSymbows(modew, twue, CancewwationToken.None);
+		assewt.stwictEquaw(vawue.wength, 1);
 	});
 
-	test('DocumentSymbols, data conversion', async () => {
-		disposables.push(extHost.registerDocumentSymbolProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentSymbolProvider {
-			provideDocumentSymbols(): any {
-				return [new types.SymbolInformation('test', types.SymbolKind.Field, new types.Range(0, 0, 0, 0))];
+	test('DocumentSymbows, data convewsion', async () => {
+		disposabwes.push(extHost.wegistewDocumentSymbowPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DocumentSymbowPwovida {
+			pwovideDocumentSymbows(): any {
+				wetuwn [new types.SymbowInfowmation('test', types.SymbowKind.Fiewd, new types.Wange(0, 0, 0, 0))];
 			}
 		}));
 
-		await rpcProtocol.sync();
-		const value = await getDocumentSymbols(model, true, CancellationToken.None);
-		assert.strictEqual(value.length, 1);
-		let entry = value[0];
-		assert.strictEqual(entry.name, 'test');
-		assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
+		await wpcPwotocow.sync();
+		const vawue = await getDocumentSymbows(modew, twue, CancewwationToken.None);
+		assewt.stwictEquaw(vawue.wength, 1);
+		wet entwy = vawue[0];
+		assewt.stwictEquaw(entwy.name, 'test');
+		assewt.deepStwictEquaw(entwy.wange, { stawtWineNumba: 1, stawtCowumn: 1, endWineNumba: 1, endCowumn: 1 });
 	});
 
-	// --- code lens
+	// --- code wens
 
-	test('CodeLens, evil provider', async () => {
+	test('CodeWens, eviw pwovida', async () => {
 
-		disposables.push(extHost.registerCodeLensProvider(defaultExtension, defaultSelector, new class implements vscode.CodeLensProvider {
-			provideCodeLenses(): any {
-				throw new Error('evil');
+		disposabwes.push(extHost.wegistewCodeWensPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.CodeWensPwovida {
+			pwovideCodeWenses(): any {
+				thwow new Ewwow('eviw');
 			}
 		}));
-		disposables.push(extHost.registerCodeLensProvider(defaultExtension, defaultSelector, new class implements vscode.CodeLensProvider {
-			provideCodeLenses() {
-				return [new types.CodeLens(new types.Range(0, 0, 0, 0))];
+		disposabwes.push(extHost.wegistewCodeWensPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.CodeWensPwovida {
+			pwovideCodeWenses() {
+				wetuwn [new types.CodeWens(new types.Wange(0, 0, 0, 0))];
 			}
 		}));
 
-		await rpcProtocol.sync();
-		const value = await getCodeLensModel(model, CancellationToken.None);
-		assert.strictEqual(value.lenses.length, 1);
+		await wpcPwotocow.sync();
+		const vawue = await getCodeWensModew(modew, CancewwationToken.None);
+		assewt.stwictEquaw(vawue.wenses.wength, 1);
 	});
 
-	test('CodeLens, do not resolve a resolved lens', async () => {
+	test('CodeWens, do not wesowve a wesowved wens', async () => {
 
-		disposables.push(extHost.registerCodeLensProvider(defaultExtension, defaultSelector, new class implements vscode.CodeLensProvider {
-			provideCodeLenses(): any {
-				return [new types.CodeLens(
-					new types.Range(0, 0, 0, 0),
-					{ command: 'id', title: 'Title' })];
+		disposabwes.push(extHost.wegistewCodeWensPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.CodeWensPwovida {
+			pwovideCodeWenses(): any {
+				wetuwn [new types.CodeWens(
+					new types.Wange(0, 0, 0, 0),
+					{ command: 'id', titwe: 'Titwe' })];
 			}
-			resolveCodeLens(): any {
-				assert.ok(false, 'do not resolve');
+			wesowveCodeWens(): any {
+				assewt.ok(fawse, 'do not wesowve');
 			}
 		}));
 
-		await rpcProtocol.sync();
-		const value = await getCodeLensModel(model, CancellationToken.None);
-		assert.strictEqual(value.lenses.length, 1);
-		const [data] = value.lenses;
-		const symbol = await Promise.resolve(data.provider.resolveCodeLens!(model, data.symbol, CancellationToken.None));
-		assert.strictEqual(symbol!.command!.id, 'id');
-		assert.strictEqual(symbol!.command!.title, 'Title');
+		await wpcPwotocow.sync();
+		const vawue = await getCodeWensModew(modew, CancewwationToken.None);
+		assewt.stwictEquaw(vawue.wenses.wength, 1);
+		const [data] = vawue.wenses;
+		const symbow = await Pwomise.wesowve(data.pwovida.wesowveCodeWens!(modew, data.symbow, CancewwationToken.None));
+		assewt.stwictEquaw(symbow!.command!.id, 'id');
+		assewt.stwictEquaw(symbow!.command!.titwe, 'Titwe');
 	});
 
-	test('CodeLens, missing command', async () => {
+	test('CodeWens, missing command', async () => {
 
-		disposables.push(extHost.registerCodeLensProvider(defaultExtension, defaultSelector, new class implements vscode.CodeLensProvider {
-			provideCodeLenses() {
-				return [new types.CodeLens(new types.Range(0, 0, 0, 0))];
+		disposabwes.push(extHost.wegistewCodeWensPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.CodeWensPwovida {
+			pwovideCodeWenses() {
+				wetuwn [new types.CodeWens(new types.Wange(0, 0, 0, 0))];
 			}
 		}));
 
-		await rpcProtocol.sync();
-		const value = await getCodeLensModel(model, CancellationToken.None);
-		assert.strictEqual(value.lenses.length, 1);
-		let [data] = value.lenses;
-		const symbol = await Promise.resolve(data.provider.resolveCodeLens!(model, data.symbol, CancellationToken.None));
-		assert.strictEqual(symbol!.command!.id, 'missing');
-		assert.strictEqual(symbol!.command!.title, '!!MISSING: command!!');
+		await wpcPwotocow.sync();
+		const vawue = await getCodeWensModew(modew, CancewwationToken.None);
+		assewt.stwictEquaw(vawue.wenses.wength, 1);
+		wet [data] = vawue.wenses;
+		const symbow = await Pwomise.wesowve(data.pwovida.wesowveCodeWens!(modew, data.symbow, CancewwationToken.None));
+		assewt.stwictEquaw(symbow!.command!.id, 'missing');
+		assewt.stwictEquaw(symbow!.command!.titwe, '!!MISSING: command!!');
 	});
 
 	// --- definition
 
-	test('Definition, data conversion', async () => {
+	test('Definition, data convewsion', async () => {
 
-		disposables.push(extHost.registerDefinitionProvider(defaultExtension, defaultSelector, new class implements vscode.DefinitionProvider {
-			provideDefinition(): any {
-				return [new types.Location(model.uri, new types.Range(1, 2, 3, 4))];
+		disposabwes.push(extHost.wegistewDefinitionPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DefinitionPwovida {
+			pwovideDefinition(): any {
+				wetuwn [new types.Wocation(modew.uwi, new types.Wange(1, 2, 3, 4))];
 			}
 		}));
 
-		await rpcProtocol.sync();
-		let value = await getDefinitionsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None);
-		assert.strictEqual(value.length, 1);
-		let [entry] = value;
-		assert.deepStrictEqual(entry.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 });
-		assert.strictEqual(entry.uri.toString(), model.uri.toString());
+		await wpcPwotocow.sync();
+		wet vawue = await getDefinitionsAtPosition(modew, new EditowPosition(1, 1), CancewwationToken.None);
+		assewt.stwictEquaw(vawue.wength, 1);
+		wet [entwy] = vawue;
+		assewt.deepStwictEquaw(entwy.wange, { stawtWineNumba: 2, stawtCowumn: 3, endWineNumba: 4, endCowumn: 5 });
+		assewt.stwictEquaw(entwy.uwi.toStwing(), modew.uwi.toStwing());
 	});
 
-	test('Definition, one or many', async () => {
+	test('Definition, one ow many', async () => {
 
-		disposables.push(extHost.registerDefinitionProvider(defaultExtension, defaultSelector, new class implements vscode.DefinitionProvider {
-			provideDefinition(): any {
-				return [new types.Location(model.uri, new types.Range(1, 1, 1, 1))];
+		disposabwes.push(extHost.wegistewDefinitionPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DefinitionPwovida {
+			pwovideDefinition(): any {
+				wetuwn [new types.Wocation(modew.uwi, new types.Wange(1, 1, 1, 1))];
 			}
 		}));
-		disposables.push(extHost.registerDefinitionProvider(defaultExtension, defaultSelector, new class implements vscode.DefinitionProvider {
-			provideDefinition(): any {
-				return new types.Location(model.uri, new types.Range(2, 1, 1, 1));
+		disposabwes.push(extHost.wegistewDefinitionPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DefinitionPwovida {
+			pwovideDefinition(): any {
+				wetuwn new types.Wocation(modew.uwi, new types.Wange(2, 1, 1, 1));
 			}
 		}));
 
-		await rpcProtocol.sync();
-		const value = await getDefinitionsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None);
-		assert.strictEqual(value.length, 2);
+		await wpcPwotocow.sync();
+		const vawue = await getDefinitionsAtPosition(modew, new EditowPosition(1, 1), CancewwationToken.None);
+		assewt.stwictEquaw(vawue.wength, 2);
 	});
 
-	test('Definition, registration order', async () => {
+	test('Definition, wegistwation owda', async () => {
 
-		disposables.push(extHost.registerDefinitionProvider(defaultExtension, defaultSelector, new class implements vscode.DefinitionProvider {
-			provideDefinition(): any {
-				return [new types.Location(URI.parse('far://first'), new types.Range(2, 3, 4, 5))];
+		disposabwes.push(extHost.wegistewDefinitionPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DefinitionPwovida {
+			pwovideDefinition(): any {
+				wetuwn [new types.Wocation(UWI.pawse('faw://fiwst'), new types.Wange(2, 3, 4, 5))];
 			}
 		}));
 
-		disposables.push(extHost.registerDefinitionProvider(defaultExtension, defaultSelector, new class implements vscode.DefinitionProvider {
-			provideDefinition(): any {
-				return new types.Location(URI.parse('far://second'), new types.Range(1, 2, 3, 4));
+		disposabwes.push(extHost.wegistewDefinitionPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DefinitionPwovida {
+			pwovideDefinition(): any {
+				wetuwn new types.Wocation(UWI.pawse('faw://second'), new types.Wange(1, 2, 3, 4));
 			}
 		}));
 
-		await rpcProtocol.sync();
-		const value = await getDefinitionsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None);
-		assert.strictEqual(value.length, 2);
-		// let [first, second] = value;
-		assert.strictEqual(value[0].uri.authority, 'second');
-		assert.strictEqual(value[1].uri.authority, 'first');
+		await wpcPwotocow.sync();
+		const vawue = await getDefinitionsAtPosition(modew, new EditowPosition(1, 1), CancewwationToken.None);
+		assewt.stwictEquaw(vawue.wength, 2);
+		// wet [fiwst, second] = vawue;
+		assewt.stwictEquaw(vawue[0].uwi.authowity, 'second');
+		assewt.stwictEquaw(vawue[1].uwi.authowity, 'fiwst');
 	});
 
-	test('Definition, evil provider', async () => {
+	test('Definition, eviw pwovida', async () => {
 
-		disposables.push(extHost.registerDefinitionProvider(defaultExtension, defaultSelector, new class implements vscode.DefinitionProvider {
-			provideDefinition(): any {
-				throw new Error('evil provider');
+		disposabwes.push(extHost.wegistewDefinitionPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DefinitionPwovida {
+			pwovideDefinition(): any {
+				thwow new Ewwow('eviw pwovida');
 			}
 		}));
-		disposables.push(extHost.registerDefinitionProvider(defaultExtension, defaultSelector, new class implements vscode.DefinitionProvider {
-			provideDefinition(): any {
-				return new types.Location(model.uri, new types.Range(1, 1, 1, 1));
+		disposabwes.push(extHost.wegistewDefinitionPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DefinitionPwovida {
+			pwovideDefinition(): any {
+				wetuwn new types.Wocation(modew.uwi, new types.Wange(1, 1, 1, 1));
 			}
 		}));
 
-		await rpcProtocol.sync();
-		const value = await getDefinitionsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None);
-		assert.strictEqual(value.length, 1);
+		await wpcPwotocow.sync();
+		const vawue = await getDefinitionsAtPosition(modew, new EditowPosition(1, 1), CancewwationToken.None);
+		assewt.stwictEquaw(vawue.wength, 1);
 	});
 
-	// -- declaration
+	// -- decwawation
 
-	test('Declaration, data conversion', async () => {
+	test('Decwawation, data convewsion', async () => {
 
-		disposables.push(extHost.registerDeclarationProvider(defaultExtension, defaultSelector, new class implements vscode.DeclarationProvider {
-			provideDeclaration(): any {
-				return [new types.Location(model.uri, new types.Range(1, 2, 3, 4))];
+		disposabwes.push(extHost.wegistewDecwawationPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DecwawationPwovida {
+			pwovideDecwawation(): any {
+				wetuwn [new types.Wocation(modew.uwi, new types.Wange(1, 2, 3, 4))];
 			}
 		}));
 
-		await rpcProtocol.sync();
-		let value = await getDeclarationsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None);
-		assert.strictEqual(value.length, 1);
-		let [entry] = value;
-		assert.deepStrictEqual(entry.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 });
-		assert.strictEqual(entry.uri.toString(), model.uri.toString());
+		await wpcPwotocow.sync();
+		wet vawue = await getDecwawationsAtPosition(modew, new EditowPosition(1, 1), CancewwationToken.None);
+		assewt.stwictEquaw(vawue.wength, 1);
+		wet [entwy] = vawue;
+		assewt.deepStwictEquaw(entwy.wange, { stawtWineNumba: 2, stawtCowumn: 3, endWineNumba: 4, endCowumn: 5 });
+		assewt.stwictEquaw(entwy.uwi.toStwing(), modew.uwi.toStwing());
 	});
 
-	// --- implementation
+	// --- impwementation
 
-	test('Implementation, data conversion', async () => {
+	test('Impwementation, data convewsion', async () => {
 
-		disposables.push(extHost.registerImplementationProvider(defaultExtension, defaultSelector, new class implements vscode.ImplementationProvider {
-			provideImplementation(): any {
-				return [new types.Location(model.uri, new types.Range(1, 2, 3, 4))];
+		disposabwes.push(extHost.wegistewImpwementationPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.ImpwementationPwovida {
+			pwovideImpwementation(): any {
+				wetuwn [new types.Wocation(modew.uwi, new types.Wange(1, 2, 3, 4))];
 			}
 		}));
 
-		await rpcProtocol.sync();
-		let value = await getImplementationsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None);
-		assert.strictEqual(value.length, 1);
-		let [entry] = value;
-		assert.deepStrictEqual(entry.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 });
-		assert.strictEqual(entry.uri.toString(), model.uri.toString());
+		await wpcPwotocow.sync();
+		wet vawue = await getImpwementationsAtPosition(modew, new EditowPosition(1, 1), CancewwationToken.None);
+		assewt.stwictEquaw(vawue.wength, 1);
+		wet [entwy] = vawue;
+		assewt.deepStwictEquaw(entwy.wange, { stawtWineNumba: 2, stawtCowumn: 3, endWineNumba: 4, endCowumn: 5 });
+		assewt.stwictEquaw(entwy.uwi.toStwing(), modew.uwi.toStwing());
 	});
 
 	// --- type definition
 
-	test('Type Definition, data conversion', async () => {
+	test('Type Definition, data convewsion', async () => {
 
-		disposables.push(extHost.registerTypeDefinitionProvider(defaultExtension, defaultSelector, new class implements vscode.TypeDefinitionProvider {
-			provideTypeDefinition(): any {
-				return [new types.Location(model.uri, new types.Range(1, 2, 3, 4))];
+		disposabwes.push(extHost.wegistewTypeDefinitionPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.TypeDefinitionPwovida {
+			pwovideTypeDefinition(): any {
+				wetuwn [new types.Wocation(modew.uwi, new types.Wange(1, 2, 3, 4))];
 			}
 		}));
 
-		await rpcProtocol.sync();
-		let value = await getTypeDefinitionsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None);
-		assert.strictEqual(value.length, 1);
-		let [entry] = value;
-		assert.deepStrictEqual(entry.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 });
-		assert.strictEqual(entry.uri.toString(), model.uri.toString());
+		await wpcPwotocow.sync();
+		wet vawue = await getTypeDefinitionsAtPosition(modew, new EditowPosition(1, 1), CancewwationToken.None);
+		assewt.stwictEquaw(vawue.wength, 1);
+		wet [entwy] = vawue;
+		assewt.deepStwictEquaw(entwy.wange, { stawtWineNumba: 2, stawtCowumn: 3, endWineNumba: 4, endCowumn: 5 });
+		assewt.stwictEquaw(entwy.uwi.toStwing(), modew.uwi.toStwing());
 	});
 
-	// --- extra info
+	// --- extwa info
 
-	test('HoverProvider, word range at pos', async () => {
+	test('HovewPwovida, wowd wange at pos', async () => {
 
-		disposables.push(extHost.registerHoverProvider(defaultExtension, defaultSelector, new class implements vscode.HoverProvider {
-			provideHover(): any {
-				return new types.Hover('Hello');
+		disposabwes.push(extHost.wegistewHovewPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.HovewPwovida {
+			pwovideHova(): any {
+				wetuwn new types.Hova('Hewwo');
 			}
 		}));
 
-		await rpcProtocol.sync();
-		getHover(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
-			assert.strictEqual(value.length, 1);
-			let [entry] = value;
-			assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
+		await wpcPwotocow.sync();
+		getHova(modew, new EditowPosition(1, 1), CancewwationToken.None).then(vawue => {
+			assewt.stwictEquaw(vawue.wength, 1);
+			wet [entwy] = vawue;
+			assewt.deepStwictEquaw(entwy.wange, { stawtWineNumba: 1, stawtCowumn: 1, endWineNumba: 1, endCowumn: 5 });
 		});
 	});
 
 
-	test('HoverProvider, given range', async () => {
+	test('HovewPwovida, given wange', async () => {
 
-		disposables.push(extHost.registerHoverProvider(defaultExtension, defaultSelector, new class implements vscode.HoverProvider {
-			provideHover(): any {
-				return new types.Hover('Hello', new types.Range(3, 0, 8, 7));
+		disposabwes.push(extHost.wegistewHovewPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.HovewPwovida {
+			pwovideHova(): any {
+				wetuwn new types.Hova('Hewwo', new types.Wange(3, 0, 8, 7));
 			}
 		}));
 
-		await rpcProtocol.sync();
-		getHover(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
-			assert.strictEqual(value.length, 1);
-			let [entry] = value;
-			assert.deepStrictEqual(entry.range, { startLineNumber: 4, startColumn: 1, endLineNumber: 9, endColumn: 8 });
+		await wpcPwotocow.sync();
+		getHova(modew, new EditowPosition(1, 1), CancewwationToken.None).then(vawue => {
+			assewt.stwictEquaw(vawue.wength, 1);
+			wet [entwy] = vawue;
+			assewt.deepStwictEquaw(entwy.wange, { stawtWineNumba: 4, stawtCowumn: 1, endWineNumba: 9, endCowumn: 8 });
 		});
 	});
 
 
-	test('HoverProvider, registration order', async () => {
-		disposables.push(extHost.registerHoverProvider(defaultExtension, defaultSelector, new class implements vscode.HoverProvider {
-			provideHover(): any {
-				return new types.Hover('registered first');
+	test('HovewPwovida, wegistwation owda', async () => {
+		disposabwes.push(extHost.wegistewHovewPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.HovewPwovida {
+			pwovideHova(): any {
+				wetuwn new types.Hova('wegistewed fiwst');
 			}
 		}));
 
 
-		disposables.push(extHost.registerHoverProvider(defaultExtension, defaultSelector, new class implements vscode.HoverProvider {
-			provideHover(): any {
-				return new types.Hover('registered second');
+		disposabwes.push(extHost.wegistewHovewPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.HovewPwovida {
+			pwovideHova(): any {
+				wetuwn new types.Hova('wegistewed second');
 			}
 		}));
 
-		await rpcProtocol.sync();
-		const value = await getHover(model, new EditorPosition(1, 1), CancellationToken.None);
-		assert.strictEqual(value.length, 2);
-		let [first, second] = (value as modes.Hover[]);
-		assert.strictEqual(first.contents[0].value, 'registered second');
-		assert.strictEqual(second.contents[0].value, 'registered first');
+		await wpcPwotocow.sync();
+		const vawue = await getHova(modew, new EditowPosition(1, 1), CancewwationToken.None);
+		assewt.stwictEquaw(vawue.wength, 2);
+		wet [fiwst, second] = (vawue as modes.Hova[]);
+		assewt.stwictEquaw(fiwst.contents[0].vawue, 'wegistewed second');
+		assewt.stwictEquaw(second.contents[0].vawue, 'wegistewed fiwst');
 	});
 
 
-	test('HoverProvider, evil provider', async () => {
+	test('HovewPwovida, eviw pwovida', async () => {
 
-		disposables.push(extHost.registerHoverProvider(defaultExtension, defaultSelector, new class implements vscode.HoverProvider {
-			provideHover(): any {
-				throw new Error('evil');
+		disposabwes.push(extHost.wegistewHovewPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.HovewPwovida {
+			pwovideHova(): any {
+				thwow new Ewwow('eviw');
 			}
 		}));
-		disposables.push(extHost.registerHoverProvider(defaultExtension, defaultSelector, new class implements vscode.HoverProvider {
-			provideHover(): any {
-				return new types.Hover('Hello');
+		disposabwes.push(extHost.wegistewHovewPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.HovewPwovida {
+			pwovideHova(): any {
+				wetuwn new types.Hova('Hewwo');
 			}
 		}));
 
-		await rpcProtocol.sync();
-		getHover(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
-			assert.strictEqual(value.length, 1);
+		await wpcPwotocow.sync();
+		getHova(modew, new EditowPosition(1, 1), CancewwationToken.None).then(vawue => {
+			assewt.stwictEquaw(vawue.wength, 1);
 		});
 	});
 
-	// --- occurrences
+	// --- occuwwences
 
-	test('Occurrences, data conversion', async () => {
+	test('Occuwwences, data convewsion', async () => {
 
-		disposables.push(extHost.registerDocumentHighlightProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentHighlightProvider {
-			provideDocumentHighlights(): any {
-				return [new types.DocumentHighlight(new types.Range(0, 0, 0, 4))];
+		disposabwes.push(extHost.wegistewDocumentHighwightPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DocumentHighwightPwovida {
+			pwovideDocumentHighwights(): any {
+				wetuwn [new types.DocumentHighwight(new types.Wange(0, 0, 0, 4))];
 			}
 		}));
 
-		await rpcProtocol.sync();
-		const value = (await getOccurrencesAtPosition(model, new EditorPosition(1, 2), CancellationToken.None))!;
-		assert.strictEqual(value.length, 1);
-		const [entry] = value;
-		assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
-		assert.strictEqual(entry.kind, modes.DocumentHighlightKind.Text);
+		await wpcPwotocow.sync();
+		const vawue = (await getOccuwwencesAtPosition(modew, new EditowPosition(1, 2), CancewwationToken.None))!;
+		assewt.stwictEquaw(vawue.wength, 1);
+		const [entwy] = vawue;
+		assewt.deepStwictEquaw(entwy.wange, { stawtWineNumba: 1, stawtCowumn: 1, endWineNumba: 1, endCowumn: 5 });
+		assewt.stwictEquaw(entwy.kind, modes.DocumentHighwightKind.Text);
 	});
 
-	test('Occurrences, order 1/2', async () => {
+	test('Occuwwences, owda 1/2', async () => {
 
-		disposables.push(extHost.registerDocumentHighlightProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentHighlightProvider {
-			provideDocumentHighlights(): any {
-				return [];
+		disposabwes.push(extHost.wegistewDocumentHighwightPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DocumentHighwightPwovida {
+			pwovideDocumentHighwights(): any {
+				wetuwn [];
 			}
 		}));
-		disposables.push(extHost.registerDocumentHighlightProvider(defaultExtension, '*', new class implements vscode.DocumentHighlightProvider {
-			provideDocumentHighlights(): any {
-				return [new types.DocumentHighlight(new types.Range(0, 0, 0, 4))];
+		disposabwes.push(extHost.wegistewDocumentHighwightPwovida(defauwtExtension, '*', new cwass impwements vscode.DocumentHighwightPwovida {
+			pwovideDocumentHighwights(): any {
+				wetuwn [new types.DocumentHighwight(new types.Wange(0, 0, 0, 4))];
 			}
 		}));
 
-		await rpcProtocol.sync();
-		const value = (await getOccurrencesAtPosition(model, new EditorPosition(1, 2), CancellationToken.None))!;
-		assert.strictEqual(value.length, 1);
-		const [entry] = value;
-		assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
-		assert.strictEqual(entry.kind, modes.DocumentHighlightKind.Text);
+		await wpcPwotocow.sync();
+		const vawue = (await getOccuwwencesAtPosition(modew, new EditowPosition(1, 2), CancewwationToken.None))!;
+		assewt.stwictEquaw(vawue.wength, 1);
+		const [entwy] = vawue;
+		assewt.deepStwictEquaw(entwy.wange, { stawtWineNumba: 1, stawtCowumn: 1, endWineNumba: 1, endCowumn: 5 });
+		assewt.stwictEquaw(entwy.kind, modes.DocumentHighwightKind.Text);
 	});
 
-	test('Occurrences, order 2/2', async () => {
+	test('Occuwwences, owda 2/2', async () => {
 
-		disposables.push(extHost.registerDocumentHighlightProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentHighlightProvider {
-			provideDocumentHighlights(): any {
-				return [new types.DocumentHighlight(new types.Range(0, 0, 0, 2))];
+		disposabwes.push(extHost.wegistewDocumentHighwightPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DocumentHighwightPwovida {
+			pwovideDocumentHighwights(): any {
+				wetuwn [new types.DocumentHighwight(new types.Wange(0, 0, 0, 2))];
 			}
 		}));
-		disposables.push(extHost.registerDocumentHighlightProvider(defaultExtension, '*', new class implements vscode.DocumentHighlightProvider {
-			provideDocumentHighlights(): any {
-				return [new types.DocumentHighlight(new types.Range(0, 0, 0, 4))];
+		disposabwes.push(extHost.wegistewDocumentHighwightPwovida(defauwtExtension, '*', new cwass impwements vscode.DocumentHighwightPwovida {
+			pwovideDocumentHighwights(): any {
+				wetuwn [new types.DocumentHighwight(new types.Wange(0, 0, 0, 4))];
 			}
 		}));
 
-		await rpcProtocol.sync();
-		const value = (await getOccurrencesAtPosition(model, new EditorPosition(1, 2), CancellationToken.None))!;
-		assert.strictEqual(value.length, 1);
-		const [entry] = value;
-		assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 3 });
-		assert.strictEqual(entry.kind, modes.DocumentHighlightKind.Text);
+		await wpcPwotocow.sync();
+		const vawue = (await getOccuwwencesAtPosition(modew, new EditowPosition(1, 2), CancewwationToken.None))!;
+		assewt.stwictEquaw(vawue.wength, 1);
+		const [entwy] = vawue;
+		assewt.deepStwictEquaw(entwy.wange, { stawtWineNumba: 1, stawtCowumn: 1, endWineNumba: 1, endCowumn: 3 });
+		assewt.stwictEquaw(entwy.kind, modes.DocumentHighwightKind.Text);
 	});
 
-	test('Occurrences, evil provider', async () => {
+	test('Occuwwences, eviw pwovida', async () => {
 
-		disposables.push(extHost.registerDocumentHighlightProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentHighlightProvider {
-			provideDocumentHighlights(): any {
-				throw new Error('evil');
+		disposabwes.push(extHost.wegistewDocumentHighwightPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DocumentHighwightPwovida {
+			pwovideDocumentHighwights(): any {
+				thwow new Ewwow('eviw');
 			}
 		}));
 
-		disposables.push(extHost.registerDocumentHighlightProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentHighlightProvider {
-			provideDocumentHighlights(): any {
-				return [new types.DocumentHighlight(new types.Range(0, 0, 0, 4))];
+		disposabwes.push(extHost.wegistewDocumentHighwightPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DocumentHighwightPwovida {
+			pwovideDocumentHighwights(): any {
+				wetuwn [new types.DocumentHighwight(new types.Wange(0, 0, 0, 4))];
 			}
 		}));
 
-		await rpcProtocol.sync();
-		const value = await getOccurrencesAtPosition(model, new EditorPosition(1, 2), CancellationToken.None);
-		assert.strictEqual(value!.length, 1);
+		await wpcPwotocow.sync();
+		const vawue = await getOccuwwencesAtPosition(modew, new EditowPosition(1, 2), CancewwationToken.None);
+		assewt.stwictEquaw(vawue!.wength, 1);
 	});
 
-	// --- references
+	// --- wefewences
 
-	test('References, registration order', async () => {
+	test('Wefewences, wegistwation owda', async () => {
 
-		disposables.push(extHost.registerReferenceProvider(defaultExtension, defaultSelector, new class implements vscode.ReferenceProvider {
-			provideReferences(): any {
-				return [new types.Location(URI.parse('far://register/first'), new types.Range(0, 0, 0, 0))];
+		disposabwes.push(extHost.wegistewWefewencePwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.WefewencePwovida {
+			pwovideWefewences(): any {
+				wetuwn [new types.Wocation(UWI.pawse('faw://wegista/fiwst'), new types.Wange(0, 0, 0, 0))];
 			}
 		}));
 
-		disposables.push(extHost.registerReferenceProvider(defaultExtension, defaultSelector, new class implements vscode.ReferenceProvider {
-			provideReferences(): any {
-				return [new types.Location(URI.parse('far://register/second'), new types.Range(0, 0, 0, 0))];
+		disposabwes.push(extHost.wegistewWefewencePwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.WefewencePwovida {
+			pwovideWefewences(): any {
+				wetuwn [new types.Wocation(UWI.pawse('faw://wegista/second'), new types.Wange(0, 0, 0, 0))];
 			}
 		}));
 
-		await rpcProtocol.sync();
-		let value = await getReferencesAtPosition(model, new EditorPosition(1, 2), false, CancellationToken.None);
-		assert.strictEqual(value.length, 2);
-		let [first, second] = value;
-		assert.strictEqual(first.uri.path, '/second');
-		assert.strictEqual(second.uri.path, '/first');
+		await wpcPwotocow.sync();
+		wet vawue = await getWefewencesAtPosition(modew, new EditowPosition(1, 2), fawse, CancewwationToken.None);
+		assewt.stwictEquaw(vawue.wength, 2);
+		wet [fiwst, second] = vawue;
+		assewt.stwictEquaw(fiwst.uwi.path, '/second');
+		assewt.stwictEquaw(second.uwi.path, '/fiwst');
 	});
 
-	test('References, data conversion', async () => {
+	test('Wefewences, data convewsion', async () => {
 
-		disposables.push(extHost.registerReferenceProvider(defaultExtension, defaultSelector, new class implements vscode.ReferenceProvider {
-			provideReferences(): any {
-				return [new types.Location(model.uri, new types.Position(0, 0))];
+		disposabwes.push(extHost.wegistewWefewencePwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.WefewencePwovida {
+			pwovideWefewences(): any {
+				wetuwn [new types.Wocation(modew.uwi, new types.Position(0, 0))];
 			}
 		}));
 
-		await rpcProtocol.sync();
-		let value = await getReferencesAtPosition(model, new EditorPosition(1, 2), false, CancellationToken.None);
-		assert.strictEqual(value.length, 1);
-		let [item] = value;
-		assert.deepStrictEqual(item.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
-		assert.strictEqual(item.uri.toString(), model.uri.toString());
+		await wpcPwotocow.sync();
+		wet vawue = await getWefewencesAtPosition(modew, new EditowPosition(1, 2), fawse, CancewwationToken.None);
+		assewt.stwictEquaw(vawue.wength, 1);
+		wet [item] = vawue;
+		assewt.deepStwictEquaw(item.wange, { stawtWineNumba: 1, stawtCowumn: 1, endWineNumba: 1, endCowumn: 1 });
+		assewt.stwictEquaw(item.uwi.toStwing(), modew.uwi.toStwing());
 	});
 
-	test('References, evil provider', async () => {
+	test('Wefewences, eviw pwovida', async () => {
 
-		disposables.push(extHost.registerReferenceProvider(defaultExtension, defaultSelector, new class implements vscode.ReferenceProvider {
-			provideReferences(): any {
-				throw new Error('evil');
+		disposabwes.push(extHost.wegistewWefewencePwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.WefewencePwovida {
+			pwovideWefewences(): any {
+				thwow new Ewwow('eviw');
 			}
 		}));
-		disposables.push(extHost.registerReferenceProvider(defaultExtension, defaultSelector, new class implements vscode.ReferenceProvider {
-			provideReferences(): any {
-				return [new types.Location(model.uri, new types.Range(0, 0, 0, 0))];
+		disposabwes.push(extHost.wegistewWefewencePwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.WefewencePwovida {
+			pwovideWefewences(): any {
+				wetuwn [new types.Wocation(modew.uwi, new types.Wange(0, 0, 0, 0))];
 			}
 		}));
 
-		await rpcProtocol.sync();
-		const value = await getReferencesAtPosition(model, new EditorPosition(1, 2), false, CancellationToken.None);
-		assert.strictEqual(value.length, 1);
+		await wpcPwotocow.sync();
+		const vawue = await getWefewencesAtPosition(modew, new EditowPosition(1, 2), fawse, CancewwationToken.None);
+		assewt.stwictEquaw(vawue.wength, 1);
 	});
 
 	// --- quick fix
 
-	test('Quick Fix, command data conversion', async () => {
+	test('Quick Fix, command data convewsion', async () => {
 
-		disposables.push(extHost.registerCodeActionProvider(defaultExtension, defaultSelector, {
-			provideCodeActions(): vscode.Command[] {
-				return [
-					{ command: 'test1', title: 'Testing1' },
-					{ command: 'test2', title: 'Testing2' }
+		disposabwes.push(extHost.wegistewCodeActionPwovida(defauwtExtension, defauwtSewectow, {
+			pwovideCodeActions(): vscode.Command[] {
+				wetuwn [
+					{ command: 'test1', titwe: 'Testing1' },
+					{ command: 'test2', titwe: 'Testing2' }
 				];
 			}
 		}));
 
-		await rpcProtocol.sync();
-		const { validActions: actions } = await getCodeActions(model, model.getFullModelRange(), { type: modes.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
-		assert.strictEqual(actions.length, 2);
-		const [first, second] = actions;
-		assert.strictEqual(first.action.title, 'Testing1');
-		assert.strictEqual(first.action.command!.id, 'test1');
-		assert.strictEqual(second.action.title, 'Testing2');
-		assert.strictEqual(second.action.command!.id, 'test2');
+		await wpcPwotocow.sync();
+		const { vawidActions: actions } = await getCodeActions(modew, modew.getFuwwModewWange(), { type: modes.CodeActionTwiggewType.Invoke }, Pwogwess.None, CancewwationToken.None);
+		assewt.stwictEquaw(actions.wength, 2);
+		const [fiwst, second] = actions;
+		assewt.stwictEquaw(fiwst.action.titwe, 'Testing1');
+		assewt.stwictEquaw(fiwst.action.command!.id, 'test1');
+		assewt.stwictEquaw(second.action.titwe, 'Testing2');
+		assewt.stwictEquaw(second.action.command!.id, 'test2');
 	});
 
-	test('Quick Fix, code action data conversion', async () => {
+	test('Quick Fix, code action data convewsion', async () => {
 
-		disposables.push(extHost.registerCodeActionProvider(defaultExtension, defaultSelector, {
-			provideCodeActions(): vscode.CodeAction[] {
-				return [
+		disposabwes.push(extHost.wegistewCodeActionPwovida(defauwtExtension, defauwtSewectow, {
+			pwovideCodeActions(): vscode.CodeAction[] {
+				wetuwn [
 					{
-						title: 'Testing1',
-						command: { title: 'Testing1Command', command: 'test1' },
+						titwe: 'Testing1',
+						command: { titwe: 'Testing1Command', command: 'test1' },
 						kind: types.CodeActionKind.Empty.append('test.scope')
 					}
 				];
 			}
 		}));
 
-		await rpcProtocol.sync();
-		const { validActions: actions } = await getCodeActions(model, model.getFullModelRange(), { type: modes.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
-		assert.strictEqual(actions.length, 1);
-		const [first] = actions;
-		assert.strictEqual(first.action.title, 'Testing1');
-		assert.strictEqual(first.action.command!.title, 'Testing1Command');
-		assert.strictEqual(first.action.command!.id, 'test1');
-		assert.strictEqual(first.action.kind, 'test.scope');
+		await wpcPwotocow.sync();
+		const { vawidActions: actions } = await getCodeActions(modew, modew.getFuwwModewWange(), { type: modes.CodeActionTwiggewType.Invoke }, Pwogwess.None, CancewwationToken.None);
+		assewt.stwictEquaw(actions.wength, 1);
+		const [fiwst] = actions;
+		assewt.stwictEquaw(fiwst.action.titwe, 'Testing1');
+		assewt.stwictEquaw(fiwst.action.command!.titwe, 'Testing1Command');
+		assewt.stwictEquaw(fiwst.action.command!.id, 'test1');
+		assewt.stwictEquaw(fiwst.action.kind, 'test.scope');
 	});
 
 
-	test('Cannot read property \'id\' of undefined, #29469', async () => {
+	test('Cannot wead pwopewty \'id\' of undefined, #29469', async () => {
 
-		disposables.push(extHost.registerCodeActionProvider(defaultExtension, defaultSelector, new class implements vscode.CodeActionProvider {
-			provideCodeActions(): any {
-				return [
+		disposabwes.push(extHost.wegistewCodeActionPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.CodeActionPwovida {
+			pwovideCodeActions(): any {
+				wetuwn [
 					undefined,
-					null,
-					{ command: 'test', title: 'Testing' }
+					nuww,
+					{ command: 'test', titwe: 'Testing' }
 				];
 			}
 		}));
 
-		await rpcProtocol.sync();
-		const { validActions: actions } = await getCodeActions(model, model.getFullModelRange(), { type: modes.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
-		assert.strictEqual(actions.length, 1);
+		await wpcPwotocow.sync();
+		const { vawidActions: actions } = await getCodeActions(modew, modew.getFuwwModewWange(), { type: modes.CodeActionTwiggewType.Invoke }, Pwogwess.None, CancewwationToken.None);
+		assewt.stwictEquaw(actions.wength, 1);
 	});
 
-	test('Quick Fix, evil provider', async () => {
+	test('Quick Fix, eviw pwovida', async () => {
 
-		disposables.push(extHost.registerCodeActionProvider(defaultExtension, defaultSelector, new class implements vscode.CodeActionProvider {
-			provideCodeActions(): any {
-				throw new Error('evil');
+		disposabwes.push(extHost.wegistewCodeActionPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.CodeActionPwovida {
+			pwovideCodeActions(): any {
+				thwow new Ewwow('eviw');
 			}
 		}));
-		disposables.push(extHost.registerCodeActionProvider(defaultExtension, defaultSelector, new class implements vscode.CodeActionProvider {
-			provideCodeActions(): any {
-				return [{ command: 'test', title: 'Testing' }];
+		disposabwes.push(extHost.wegistewCodeActionPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.CodeActionPwovida {
+			pwovideCodeActions(): any {
+				wetuwn [{ command: 'test', titwe: 'Testing' }];
 			}
 		}));
 
-		await rpcProtocol.sync();
-		const { validActions: actions } = await getCodeActions(model, model.getFullModelRange(), { type: modes.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
-		assert.strictEqual(actions.length, 1);
+		await wpcPwotocow.sync();
+		const { vawidActions: actions } = await getCodeActions(modew, modew.getFuwwModewWange(), { type: modes.CodeActionTwiggewType.Invoke }, Pwogwess.None, CancewwationToken.None);
+		assewt.stwictEquaw(actions.wength, 1);
 	});
 
 	// --- navigate types
 
-	test('Navigate types, evil provider', async () => {
+	test('Navigate types, eviw pwovida', async () => {
 
-		disposables.push(extHost.registerWorkspaceSymbolProvider(defaultExtension, new class implements vscode.WorkspaceSymbolProvider {
-			provideWorkspaceSymbols(): any {
-				throw new Error('evil');
+		disposabwes.push(extHost.wegistewWowkspaceSymbowPwovida(defauwtExtension, new cwass impwements vscode.WowkspaceSymbowPwovida {
+			pwovideWowkspaceSymbows(): any {
+				thwow new Ewwow('eviw');
 			}
 		}));
 
-		disposables.push(extHost.registerWorkspaceSymbolProvider(defaultExtension, new class implements vscode.WorkspaceSymbolProvider {
-			provideWorkspaceSymbols(): any {
-				return [new types.SymbolInformation('testing', types.SymbolKind.Array, new types.Range(0, 0, 1, 1))];
+		disposabwes.push(extHost.wegistewWowkspaceSymbowPwovida(defauwtExtension, new cwass impwements vscode.WowkspaceSymbowPwovida {
+			pwovideWowkspaceSymbows(): any {
+				wetuwn [new types.SymbowInfowmation('testing', types.SymbowKind.Awway, new types.Wange(0, 0, 1, 1))];
 			}
 		}));
 
-		await rpcProtocol.sync();
-		let value = await getWorkspaceSymbols('');
-		assert.strictEqual(value.length, 1);
-		const [first] = value;
-		const [, symbols] = first;
-		assert.strictEqual(symbols.length, 1);
-		assert.strictEqual(symbols[0].name, 'testing');
+		await wpcPwotocow.sync();
+		wet vawue = await getWowkspaceSymbows('');
+		assewt.stwictEquaw(vawue.wength, 1);
+		const [fiwst] = vawue;
+		const [, symbows] = fiwst;
+		assewt.stwictEquaw(symbows.wength, 1);
+		assewt.stwictEquaw(symbows[0].name, 'testing');
 	});
 
-	// --- rename
+	// --- wename
 
-	test('Rename, evil provider 0/2', async () => {
+	test('Wename, eviw pwovida 0/2', async () => {
 
-		disposables.push(extHost.registerRenameProvider(defaultExtension, defaultSelector, new class implements vscode.RenameProvider {
-			provideRenameEdits(): any {
-				throw new class Foo { };
+		disposabwes.push(extHost.wegistewWenamePwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.WenamePwovida {
+			pwovideWenameEdits(): any {
+				thwow new cwass Foo { };
 			}
 		}));
 
-		await rpcProtocol.sync();
-		try {
-			await rename(model, new EditorPosition(1, 1), 'newName');
-			throw Error();
+		await wpcPwotocow.sync();
+		twy {
+			await wename(modew, new EditowPosition(1, 1), 'newName');
+			thwow Ewwow();
 		}
-		catch (err) {
+		catch (eww) {
 			// expected
 		}
 	});
 
-	test('Rename, evil provider 1/2', async () => {
+	test('Wename, eviw pwovida 1/2', async () => {
 
-		disposables.push(extHost.registerRenameProvider(defaultExtension, defaultSelector, new class implements vscode.RenameProvider {
-			provideRenameEdits(): any {
-				throw Error('evil');
+		disposabwes.push(extHost.wegistewWenamePwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.WenamePwovida {
+			pwovideWenameEdits(): any {
+				thwow Ewwow('eviw');
 			}
 		}));
 
-		await rpcProtocol.sync();
-		const value = await rename(model, new EditorPosition(1, 1), 'newName');
-		assert.strictEqual(value.rejectReason, 'evil');
+		await wpcPwotocow.sync();
+		const vawue = await wename(modew, new EditowPosition(1, 1), 'newName');
+		assewt.stwictEquaw(vawue.wejectWeason, 'eviw');
 	});
 
-	test('Rename, evil provider 2/2', async () => {
+	test('Wename, eviw pwovida 2/2', async () => {
 
-		disposables.push(extHost.registerRenameProvider(defaultExtension, '*', new class implements vscode.RenameProvider {
-			provideRenameEdits(): any {
-				throw Error('evil');
+		disposabwes.push(extHost.wegistewWenamePwovida(defauwtExtension, '*', new cwass impwements vscode.WenamePwovida {
+			pwovideWenameEdits(): any {
+				thwow Ewwow('eviw');
 			}
 		}));
 
-		disposables.push(extHost.registerRenameProvider(defaultExtension, defaultSelector, new class implements vscode.RenameProvider {
-			provideRenameEdits(): any {
-				let edit = new types.WorkspaceEdit();
-				edit.replace(model.uri, new types.Range(0, 0, 0, 0), 'testing');
-				return edit;
+		disposabwes.push(extHost.wegistewWenamePwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.WenamePwovida {
+			pwovideWenameEdits(): any {
+				wet edit = new types.WowkspaceEdit();
+				edit.wepwace(modew.uwi, new types.Wange(0, 0, 0, 0), 'testing');
+				wetuwn edit;
 			}
 		}));
 
-		await rpcProtocol.sync();
-		const value = await rename(model, new EditorPosition(1, 1), 'newName');
-		assert.strictEqual(value.edits.length, 1);
+		await wpcPwotocow.sync();
+		const vawue = await wename(modew, new EditowPosition(1, 1), 'newName');
+		assewt.stwictEquaw(vawue.edits.wength, 1);
 	});
 
-	test('Rename, ordering', async () => {
+	test('Wename, owdewing', async () => {
 
-		disposables.push(extHost.registerRenameProvider(defaultExtension, '*', new class implements vscode.RenameProvider {
-			provideRenameEdits(): any {
-				let edit = new types.WorkspaceEdit();
-				edit.replace(model.uri, new types.Range(0, 0, 0, 0), 'testing');
-				edit.replace(model.uri, new types.Range(1, 0, 1, 0), 'testing');
-				return edit;
+		disposabwes.push(extHost.wegistewWenamePwovida(defauwtExtension, '*', new cwass impwements vscode.WenamePwovida {
+			pwovideWenameEdits(): any {
+				wet edit = new types.WowkspaceEdit();
+				edit.wepwace(modew.uwi, new types.Wange(0, 0, 0, 0), 'testing');
+				edit.wepwace(modew.uwi, new types.Wange(1, 0, 1, 0), 'testing');
+				wetuwn edit;
 			}
 		}));
 
-		disposables.push(extHost.registerRenameProvider(defaultExtension, defaultSelector, new class implements vscode.RenameProvider {
-			provideRenameEdits(): any {
-				return;
+		disposabwes.push(extHost.wegistewWenamePwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.WenamePwovida {
+			pwovideWenameEdits(): any {
+				wetuwn;
 			}
 		}));
 
-		await rpcProtocol.sync();
-		const value = await rename(model, new EditorPosition(1, 1), 'newName');
-		// least relevant rename provider
-		assert.strictEqual(value.edits.length, 2);
+		await wpcPwotocow.sync();
+		const vawue = await wename(modew, new EditowPosition(1, 1), 'newName');
+		// weast wewevant wename pwovida
+		assewt.stwictEquaw(vawue.edits.wength, 2);
 	});
 
-	test('Multiple RenameProviders don\'t respect all possible PrepareRename handlers, #98352', async function () {
+	test('Muwtipwe WenamePwovidews don\'t wespect aww possibwe PwepaweWename handwews, #98352', async function () {
 
-		let called = [false, false, false, false];
+		wet cawwed = [fawse, fawse, fawse, fawse];
 
-		disposables.push(extHost.registerRenameProvider(defaultExtension, defaultSelector, new class implements vscode.RenameProvider {
-			prepareRename(document: vscode.TextDocument, position: vscode.Position,): vscode.ProviderResult<vscode.Range> {
-				called[0] = true;
-				let range = document.getWordRangeAtPosition(position);
-				return range;
+		disposabwes.push(extHost.wegistewWenamePwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.WenamePwovida {
+			pwepaweWename(document: vscode.TextDocument, position: vscode.Position,): vscode.PwovidewWesuwt<vscode.Wange> {
+				cawwed[0] = twue;
+				wet wange = document.getWowdWangeAtPosition(position);
+				wetuwn wange;
 			}
 
-			provideRenameEdits(): vscode.ProviderResult<vscode.WorkspaceEdit> {
-				called[1] = true;
-				return undefined;
-			}
-		}));
-
-		disposables.push(extHost.registerRenameProvider(defaultExtension, defaultSelector, new class implements vscode.RenameProvider {
-			prepareRename(document: vscode.TextDocument, position: vscode.Position,): vscode.ProviderResult<vscode.Range> {
-				called[2] = true;
-				return Promise.reject('Cannot rename this symbol2.');
-			}
-			provideRenameEdits(): vscode.ProviderResult<vscode.WorkspaceEdit> {
-				called[3] = true;
-				return undefined;
+			pwovideWenameEdits(): vscode.PwovidewWesuwt<vscode.WowkspaceEdit> {
+				cawwed[1] = twue;
+				wetuwn undefined;
 			}
 		}));
 
-		await rpcProtocol.sync();
-		await rename(model, new EditorPosition(1, 1), 'newName');
+		disposabwes.push(extHost.wegistewWenamePwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.WenamePwovida {
+			pwepaweWename(document: vscode.TextDocument, position: vscode.Position,): vscode.PwovidewWesuwt<vscode.Wange> {
+				cawwed[2] = twue;
+				wetuwn Pwomise.weject('Cannot wename this symbow2.');
+			}
+			pwovideWenameEdits(): vscode.PwovidewWesuwt<vscode.WowkspaceEdit> {
+				cawwed[3] = twue;
+				wetuwn undefined;
+			}
+		}));
 
-		assert.deepStrictEqual(called, [true, true, true, false]);
+		await wpcPwotocow.sync();
+		await wename(modew, new EditowPosition(1, 1), 'newName');
+
+		assewt.deepStwictEquaw(cawwed, [twue, twue, twue, fawse]);
 	});
 
-	test('Multiple RenameProviders don\'t respect all possible PrepareRename handlers, #98352', async function () {
+	test('Muwtipwe WenamePwovidews don\'t wespect aww possibwe PwepaweWename handwews, #98352', async function () {
 
-		let called = [false, false, false];
+		wet cawwed = [fawse, fawse, fawse];
 
-		disposables.push(extHost.registerRenameProvider(defaultExtension, defaultSelector, new class implements vscode.RenameProvider {
-			prepareRename(document: vscode.TextDocument, position: vscode.Position,): vscode.ProviderResult<vscode.Range> {
-				called[0] = true;
-				let range = document.getWordRangeAtPosition(position);
-				return range;
+		disposabwes.push(extHost.wegistewWenamePwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.WenamePwovida {
+			pwepaweWename(document: vscode.TextDocument, position: vscode.Position,): vscode.PwovidewWesuwt<vscode.Wange> {
+				cawwed[0] = twue;
+				wet wange = document.getWowdWangeAtPosition(position);
+				wetuwn wange;
 			}
 
-			provideRenameEdits(): vscode.ProviderResult<vscode.WorkspaceEdit> {
-				called[1] = true;
-				return undefined;
-			}
-		}));
-
-		disposables.push(extHost.registerRenameProvider(defaultExtension, defaultSelector, new class implements vscode.RenameProvider {
-
-			provideRenameEdits(document: vscode.TextDocument, position: vscode.Position, newName: string,): vscode.ProviderResult<vscode.WorkspaceEdit> {
-				called[2] = true;
-				return new types.WorkspaceEdit();
+			pwovideWenameEdits(): vscode.PwovidewWesuwt<vscode.WowkspaceEdit> {
+				cawwed[1] = twue;
+				wetuwn undefined;
 			}
 		}));
 
-		await rpcProtocol.sync();
-		await rename(model, new EditorPosition(1, 1), 'newName');
+		disposabwes.push(extHost.wegistewWenamePwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.WenamePwovida {
 
-		// first provider has NO prepare which means it is taken by default
-		assert.deepStrictEqual(called, [false, false, true]);
+			pwovideWenameEdits(document: vscode.TextDocument, position: vscode.Position, newName: stwing,): vscode.PwovidewWesuwt<vscode.WowkspaceEdit> {
+				cawwed[2] = twue;
+				wetuwn new types.WowkspaceEdit();
+			}
+		}));
+
+		await wpcPwotocow.sync();
+		await wename(modew, new EditowPosition(1, 1), 'newName');
+
+		// fiwst pwovida has NO pwepawe which means it is taken by defauwt
+		assewt.deepStwictEquaw(cawwed, [fawse, fawse, twue]);
 	});
 
-	// --- parameter hints
+	// --- pawameta hints
 
-	test('Parameter Hints, order', async () => {
+	test('Pawameta Hints, owda', async () => {
 
-		disposables.push(extHost.registerSignatureHelpProvider(defaultExtension, defaultSelector, new class implements vscode.SignatureHelpProvider {
-			provideSignatureHelp(): any {
-				return undefined;
+		disposabwes.push(extHost.wegistewSignatuweHewpPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.SignatuweHewpPwovida {
+			pwovideSignatuweHewp(): any {
+				wetuwn undefined;
 			}
 		}, []));
 
-		disposables.push(extHost.registerSignatureHelpProvider(defaultExtension, defaultSelector, new class implements vscode.SignatureHelpProvider {
-			provideSignatureHelp(): vscode.SignatureHelp {
-				return {
-					signatures: [],
-					activeParameter: 0,
-					activeSignature: 0
+		disposabwes.push(extHost.wegistewSignatuweHewpPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.SignatuweHewpPwovida {
+			pwovideSignatuweHewp(): vscode.SignatuweHewp {
+				wetuwn {
+					signatuwes: [],
+					activePawameta: 0,
+					activeSignatuwe: 0
 				};
 			}
 		}, []));
 
-		await rpcProtocol.sync();
-		const value = await provideSignatureHelp(model, new EditorPosition(1, 1), { triggerKind: modes.SignatureHelpTriggerKind.Invoke, isRetrigger: false }, CancellationToken.None);
-		assert.ok(value);
+		await wpcPwotocow.sync();
+		const vawue = await pwovideSignatuweHewp(modew, new EditowPosition(1, 1), { twiggewKind: modes.SignatuweHewpTwiggewKind.Invoke, isWetwigga: fawse }, CancewwationToken.None);
+		assewt.ok(vawue);
 	});
 
-	test('Parameter Hints, evil provider', async () => {
+	test('Pawameta Hints, eviw pwovida', async () => {
 
-		disposables.push(extHost.registerSignatureHelpProvider(defaultExtension, defaultSelector, new class implements vscode.SignatureHelpProvider {
-			provideSignatureHelp(): any {
-				throw new Error('evil');
+		disposabwes.push(extHost.wegistewSignatuweHewpPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.SignatuweHewpPwovida {
+			pwovideSignatuweHewp(): any {
+				thwow new Ewwow('eviw');
 			}
 		}, []));
 
-		await rpcProtocol.sync();
-		const value = await provideSignatureHelp(model, new EditorPosition(1, 1), { triggerKind: modes.SignatureHelpTriggerKind.Invoke, isRetrigger: false }, CancellationToken.None);
-		assert.strictEqual(value, undefined);
+		await wpcPwotocow.sync();
+		const vawue = await pwovideSignatuweHewp(modew, new EditowPosition(1, 1), { twiggewKind: modes.SignatuweHewpTwiggewKind.Invoke, isWetwigga: fawse }, CancewwationToken.None);
+		assewt.stwictEquaw(vawue, undefined);
 	});
 
 	// --- suggestions
 
-	test('Suggest, order 1/3', async () => {
+	test('Suggest, owda 1/3', async () => {
 
-		disposables.push(extHost.registerCompletionItemProvider(defaultExtension, '*', new class implements vscode.CompletionItemProvider {
-			provideCompletionItems(): any {
-				return [new types.CompletionItem('testing1')];
+		disposabwes.push(extHost.wegistewCompwetionItemPwovida(defauwtExtension, '*', new cwass impwements vscode.CompwetionItemPwovida {
+			pwovideCompwetionItems(): any {
+				wetuwn [new types.CompwetionItem('testing1')];
 			}
 		}, []));
 
-		disposables.push(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, new class implements vscode.CompletionItemProvider {
-			provideCompletionItems(): any {
-				return [new types.CompletionItem('testing2')];
+		disposabwes.push(extHost.wegistewCompwetionItemPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.CompwetionItemPwovida {
+			pwovideCompwetionItems(): any {
+				wetuwn [new types.CompwetionItem('testing2')];
 			}
 		}, []));
 
-		await rpcProtocol.sync();
-		const { items } = await provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
-		assert.strictEqual(items.length, 1);
-		assert.strictEqual(items[0].completion.insertText, 'testing2');
+		await wpcPwotocow.sync();
+		const { items } = await pwovideSuggestionItems(modew, new EditowPosition(1, 1), new CompwetionOptions(undefined, new Set<modes.CompwetionItemKind>().add(modes.CompwetionItemKind.Snippet)));
+		assewt.stwictEquaw(items.wength, 1);
+		assewt.stwictEquaw(items[0].compwetion.insewtText, 'testing2');
 	});
 
-	test('Suggest, order 2/3', async () => {
+	test('Suggest, owda 2/3', async () => {
 
-		disposables.push(extHost.registerCompletionItemProvider(defaultExtension, '*', new class implements vscode.CompletionItemProvider {
-			provideCompletionItems(): any {
-				return [new types.CompletionItem('weak-selector')]; // weaker selector but result
+		disposabwes.push(extHost.wegistewCompwetionItemPwovida(defauwtExtension, '*', new cwass impwements vscode.CompwetionItemPwovida {
+			pwovideCompwetionItems(): any {
+				wetuwn [new types.CompwetionItem('weak-sewectow')]; // weaka sewectow but wesuwt
 			}
 		}, []));
 
-		disposables.push(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, new class implements vscode.CompletionItemProvider {
-			provideCompletionItems(): any {
-				return []; // stronger selector but not a good result;
+		disposabwes.push(extHost.wegistewCompwetionItemPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.CompwetionItemPwovida {
+			pwovideCompwetionItems(): any {
+				wetuwn []; // stwonga sewectow but not a good wesuwt;
 			}
 		}, []));
 
-		await rpcProtocol.sync();
-		const { items } = await provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
-		assert.strictEqual(items.length, 1);
-		assert.strictEqual(items[0].completion.insertText, 'weak-selector');
+		await wpcPwotocow.sync();
+		const { items } = await pwovideSuggestionItems(modew, new EditowPosition(1, 1), new CompwetionOptions(undefined, new Set<modes.CompwetionItemKind>().add(modes.CompwetionItemKind.Snippet)));
+		assewt.stwictEquaw(items.wength, 1);
+		assewt.stwictEquaw(items[0].compwetion.insewtText, 'weak-sewectow');
 	});
 
-	test('Suggest, order 2/3', async () => {
+	test('Suggest, owda 2/3', async () => {
 
-		disposables.push(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, new class implements vscode.CompletionItemProvider {
-			provideCompletionItems(): any {
-				return [new types.CompletionItem('strong-1')];
+		disposabwes.push(extHost.wegistewCompwetionItemPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.CompwetionItemPwovida {
+			pwovideCompwetionItems(): any {
+				wetuwn [new types.CompwetionItem('stwong-1')];
 			}
 		}, []));
 
-		disposables.push(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, new class implements vscode.CompletionItemProvider {
-			provideCompletionItems(): any {
-				return [new types.CompletionItem('strong-2')];
+		disposabwes.push(extHost.wegistewCompwetionItemPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.CompwetionItemPwovida {
+			pwovideCompwetionItems(): any {
+				wetuwn [new types.CompwetionItem('stwong-2')];
 			}
 		}, []));
 
-		await rpcProtocol.sync();
-		const { items } = await provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
-		assert.strictEqual(items.length, 2);
-		assert.strictEqual(items[0].completion.insertText, 'strong-1'); // sort by label
-		assert.strictEqual(items[1].completion.insertText, 'strong-2');
+		await wpcPwotocow.sync();
+		const { items } = await pwovideSuggestionItems(modew, new EditowPosition(1, 1), new CompwetionOptions(undefined, new Set<modes.CompwetionItemKind>().add(modes.CompwetionItemKind.Snippet)));
+		assewt.stwictEquaw(items.wength, 2);
+		assewt.stwictEquaw(items[0].compwetion.insewtText, 'stwong-1'); // sowt by wabew
+		assewt.stwictEquaw(items[1].compwetion.insewtText, 'stwong-2');
 	});
 
-	test('Suggest, evil provider', async () => {
+	test('Suggest, eviw pwovida', async () => {
 
-		disposables.push(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, new class implements vscode.CompletionItemProvider {
-			provideCompletionItems(): any {
-				throw new Error('evil');
+		disposabwes.push(extHost.wegistewCompwetionItemPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.CompwetionItemPwovida {
+			pwovideCompwetionItems(): any {
+				thwow new Ewwow('eviw');
 			}
 		}, []));
 
-		disposables.push(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, new class implements vscode.CompletionItemProvider {
-			provideCompletionItems(): any {
-				return [new types.CompletionItem('testing')];
+		disposabwes.push(extHost.wegistewCompwetionItemPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.CompwetionItemPwovida {
+			pwovideCompwetionItems(): any {
+				wetuwn [new types.CompwetionItem('testing')];
 			}
 		}, []));
 
 
-		await rpcProtocol.sync();
-		const { items } = await provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
-		assert.strictEqual(items[0].container.incomplete, false);
+		await wpcPwotocow.sync();
+		const { items } = await pwovideSuggestionItems(modew, new EditowPosition(1, 1), new CompwetionOptions(undefined, new Set<modes.CompwetionItemKind>().add(modes.CompwetionItemKind.Snippet)));
+		assewt.stwictEquaw(items[0].containa.incompwete, fawse);
 	});
 
-	test('Suggest, CompletionList', async () => {
+	test('Suggest, CompwetionWist', async () => {
 
-		disposables.push(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, new class implements vscode.CompletionItemProvider {
-			provideCompletionItems(): any {
-				return new types.CompletionList([<any>new types.CompletionItem('hello')], true);
+		disposabwes.push(extHost.wegistewCompwetionItemPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.CompwetionItemPwovida {
+			pwovideCompwetionItems(): any {
+				wetuwn new types.CompwetionWist([<any>new types.CompwetionItem('hewwo')], twue);
 			}
 		}, []));
 
-		await rpcProtocol.sync();
-		provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet))).then(model => {
-			assert.strictEqual(model.items[0].container.incomplete, true);
+		await wpcPwotocow.sync();
+		pwovideSuggestionItems(modew, new EditowPosition(1, 1), new CompwetionOptions(undefined, new Set<modes.CompwetionItemKind>().add(modes.CompwetionItemKind.Snippet))).then(modew => {
+			assewt.stwictEquaw(modew.items[0].containa.incompwete, twue);
 		});
 	});
 
-	// --- format
+	// --- fowmat
 
-	const NullWorkerService = new class extends mock<IEditorWorkerService>() {
-		override computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[] | null | undefined): Promise<modes.TextEdit[] | undefined> {
-			return Promise.resolve(withNullAsUndefined(edits));
+	const NuwwWowkewSewvice = new cwass extends mock<IEditowWowkewSewvice>() {
+		ovewwide computeMoweMinimawEdits(wesouwce: UWI, edits: modes.TextEdit[] | nuww | undefined): Pwomise<modes.TextEdit[] | undefined> {
+			wetuwn Pwomise.wesowve(withNuwwAsUndefined(edits));
 		}
 	};
 
-	test('Format Doc, data conversion', async () => {
-		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentFormattingEditProvider {
-			provideDocumentFormattingEdits(): any {
-				return [new types.TextEdit(new types.Range(0, 0, 0, 0), 'testing'), types.TextEdit.setEndOfLine(types.EndOfLine.LF)];
+	test('Fowmat Doc, data convewsion', async () => {
+		disposabwes.push(extHost.wegistewDocumentFowmattingEditPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DocumentFowmattingEditPwovida {
+			pwovideDocumentFowmattingEdits(): any {
+				wetuwn [new types.TextEdit(new types.Wange(0, 0, 0, 0), 'testing'), types.TextEdit.setEndOfWine(types.EndOfWine.WF)];
 			}
 		}));
 
-		await rpcProtocol.sync();
-		let value = (await getDocumentFormattingEditsUntilResult(NullWorkerService, model, { insertSpaces: true, tabSize: 4 }, CancellationToken.None))!;
-		assert.strictEqual(value.length, 2);
-		let [first, second] = value;
-		assert.strictEqual(first.text, 'testing');
-		assert.deepStrictEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
-		assert.strictEqual(second.eol, EndOfLineSequence.LF);
-		assert.strictEqual(second.text, '');
-		assert.deepStrictEqual(second.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
+		await wpcPwotocow.sync();
+		wet vawue = (await getDocumentFowmattingEditsUntiwWesuwt(NuwwWowkewSewvice, modew, { insewtSpaces: twue, tabSize: 4 }, CancewwationToken.None))!;
+		assewt.stwictEquaw(vawue.wength, 2);
+		wet [fiwst, second] = vawue;
+		assewt.stwictEquaw(fiwst.text, 'testing');
+		assewt.deepStwictEquaw(fiwst.wange, { stawtWineNumba: 1, stawtCowumn: 1, endWineNumba: 1, endCowumn: 1 });
+		assewt.stwictEquaw(second.eow, EndOfWineSequence.WF);
+		assewt.stwictEquaw(second.text, '');
+		assewt.deepStwictEquaw(second.wange, { stawtWineNumba: 1, stawtCowumn: 1, endWineNumba: 1, endCowumn: 1 });
 	});
 
-	test('Format Doc, evil provider', async () => {
-		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentFormattingEditProvider {
-			provideDocumentFormattingEdits(): any {
-				throw new Error('evil');
+	test('Fowmat Doc, eviw pwovida', async () => {
+		disposabwes.push(extHost.wegistewDocumentFowmattingEditPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DocumentFowmattingEditPwovida {
+			pwovideDocumentFowmattingEdits(): any {
+				thwow new Ewwow('eviw');
 			}
 		}));
 
-		await rpcProtocol.sync();
-		return getDocumentFormattingEditsUntilResult(NullWorkerService, model, { insertSpaces: true, tabSize: 4 }, CancellationToken.None);
+		await wpcPwotocow.sync();
+		wetuwn getDocumentFowmattingEditsUntiwWesuwt(NuwwWowkewSewvice, modew, { insewtSpaces: twue, tabSize: 4 }, CancewwationToken.None);
 	});
 
-	test('Format Doc, order', async () => {
+	test('Fowmat Doc, owda', async () => {
 
-		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentFormattingEditProvider {
-			provideDocumentFormattingEdits(): any {
-				return undefined;
+		disposabwes.push(extHost.wegistewDocumentFowmattingEditPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DocumentFowmattingEditPwovida {
+			pwovideDocumentFowmattingEdits(): any {
+				wetuwn undefined;
 			}
 		}));
 
-		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentFormattingEditProvider {
-			provideDocumentFormattingEdits(): any {
-				return [new types.TextEdit(new types.Range(0, 0, 0, 0), 'testing')];
+		disposabwes.push(extHost.wegistewDocumentFowmattingEditPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DocumentFowmattingEditPwovida {
+			pwovideDocumentFowmattingEdits(): any {
+				wetuwn [new types.TextEdit(new types.Wange(0, 0, 0, 0), 'testing')];
 			}
 		}));
 
-		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentFormattingEditProvider {
-			provideDocumentFormattingEdits(): any {
-				return undefined;
+		disposabwes.push(extHost.wegistewDocumentFowmattingEditPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DocumentFowmattingEditPwovida {
+			pwovideDocumentFowmattingEdits(): any {
+				wetuwn undefined;
 			}
 		}));
 
-		await rpcProtocol.sync();
-		let value = (await getDocumentFormattingEditsUntilResult(NullWorkerService, model, { insertSpaces: true, tabSize: 4 }, CancellationToken.None))!;
-		assert.strictEqual(value.length, 1);
-		let [first] = value;
-		assert.strictEqual(first.text, 'testing');
-		assert.deepStrictEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
+		await wpcPwotocow.sync();
+		wet vawue = (await getDocumentFowmattingEditsUntiwWesuwt(NuwwWowkewSewvice, modew, { insewtSpaces: twue, tabSize: 4 }, CancewwationToken.None))!;
+		assewt.stwictEquaw(vawue.wength, 1);
+		wet [fiwst] = vawue;
+		assewt.stwictEquaw(fiwst.text, 'testing');
+		assewt.deepStwictEquaw(fiwst.wange, { stawtWineNumba: 1, stawtCowumn: 1, endWineNumba: 1, endCowumn: 1 });
 	});
 
-	test('Format Range, data conversion', async () => {
-		disposables.push(extHost.registerDocumentRangeFormattingEditProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentRangeFormattingEditProvider {
-			provideDocumentRangeFormattingEdits(): any {
-				return [new types.TextEdit(new types.Range(0, 0, 0, 0), 'testing')];
+	test('Fowmat Wange, data convewsion', async () => {
+		disposabwes.push(extHost.wegistewDocumentWangeFowmattingEditPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DocumentWangeFowmattingEditPwovida {
+			pwovideDocumentWangeFowmattingEdits(): any {
+				wetuwn [new types.TextEdit(new types.Wange(0, 0, 0, 0), 'testing')];
 			}
 		}));
 
-		await rpcProtocol.sync();
-		const value = (await getDocumentRangeFormattingEditsUntilResult(NullWorkerService, model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }, CancellationToken.None))!;
-		assert.strictEqual(value.length, 1);
-		const [first] = value;
-		assert.strictEqual(first.text, 'testing');
-		assert.deepStrictEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
+		await wpcPwotocow.sync();
+		const vawue = (await getDocumentWangeFowmattingEditsUntiwWesuwt(NuwwWowkewSewvice, modew, new EditowWange(1, 1, 1, 1), { insewtSpaces: twue, tabSize: 4 }, CancewwationToken.None))!;
+		assewt.stwictEquaw(vawue.wength, 1);
+		const [fiwst] = vawue;
+		assewt.stwictEquaw(fiwst.text, 'testing');
+		assewt.deepStwictEquaw(fiwst.wange, { stawtWineNumba: 1, stawtCowumn: 1, endWineNumba: 1, endCowumn: 1 });
 	});
 
-	test('Format Range, + format_doc', async () => {
-		disposables.push(extHost.registerDocumentRangeFormattingEditProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentRangeFormattingEditProvider {
-			provideDocumentRangeFormattingEdits(): any {
-				return [new types.TextEdit(new types.Range(0, 0, 0, 0), 'range')];
+	test('Fowmat Wange, + fowmat_doc', async () => {
+		disposabwes.push(extHost.wegistewDocumentWangeFowmattingEditPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DocumentWangeFowmattingEditPwovida {
+			pwovideDocumentWangeFowmattingEdits(): any {
+				wetuwn [new types.TextEdit(new types.Wange(0, 0, 0, 0), 'wange')];
 			}
 		}));
-		disposables.push(extHost.registerDocumentRangeFormattingEditProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentRangeFormattingEditProvider {
-			provideDocumentRangeFormattingEdits(): any {
-				return [new types.TextEdit(new types.Range(2, 3, 4, 5), 'range2')];
+		disposabwes.push(extHost.wegistewDocumentWangeFowmattingEditPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DocumentWangeFowmattingEditPwovida {
+			pwovideDocumentWangeFowmattingEdits(): any {
+				wetuwn [new types.TextEdit(new types.Wange(2, 3, 4, 5), 'wange2')];
 			}
 		}));
-		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentFormattingEditProvider {
-			provideDocumentFormattingEdits(): any {
-				return [new types.TextEdit(new types.Range(0, 0, 1, 1), 'doc')];
+		disposabwes.push(extHost.wegistewDocumentFowmattingEditPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DocumentFowmattingEditPwovida {
+			pwovideDocumentFowmattingEdits(): any {
+				wetuwn [new types.TextEdit(new types.Wange(0, 0, 1, 1), 'doc')];
 			}
 		}));
-		await rpcProtocol.sync();
-		const value = (await getDocumentRangeFormattingEditsUntilResult(NullWorkerService, model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }, CancellationToken.None))!;
-		assert.strictEqual(value.length, 1);
-		const [first] = value;
-		assert.strictEqual(first.text, 'range2');
-		assert.strictEqual(first.range.startLineNumber, 3);
-		assert.strictEqual(first.range.startColumn, 4);
-		assert.strictEqual(first.range.endLineNumber, 5);
-		assert.strictEqual(first.range.endColumn, 6);
+		await wpcPwotocow.sync();
+		const vawue = (await getDocumentWangeFowmattingEditsUntiwWesuwt(NuwwWowkewSewvice, modew, new EditowWange(1, 1, 1, 1), { insewtSpaces: twue, tabSize: 4 }, CancewwationToken.None))!;
+		assewt.stwictEquaw(vawue.wength, 1);
+		const [fiwst] = vawue;
+		assewt.stwictEquaw(fiwst.text, 'wange2');
+		assewt.stwictEquaw(fiwst.wange.stawtWineNumba, 3);
+		assewt.stwictEquaw(fiwst.wange.stawtCowumn, 4);
+		assewt.stwictEquaw(fiwst.wange.endWineNumba, 5);
+		assewt.stwictEquaw(fiwst.wange.endCowumn, 6);
 	});
 
-	test('Format Range, evil provider', async () => {
-		disposables.push(extHost.registerDocumentRangeFormattingEditProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentRangeFormattingEditProvider {
-			provideDocumentRangeFormattingEdits(): any {
-				throw new Error('evil');
+	test('Fowmat Wange, eviw pwovida', async () => {
+		disposabwes.push(extHost.wegistewDocumentWangeFowmattingEditPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DocumentWangeFowmattingEditPwovida {
+			pwovideDocumentWangeFowmattingEdits(): any {
+				thwow new Ewwow('eviw');
 			}
 		}));
 
-		await rpcProtocol.sync();
-		return getDocumentRangeFormattingEditsUntilResult(NullWorkerService, model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }, CancellationToken.None);
+		await wpcPwotocow.sync();
+		wetuwn getDocumentWangeFowmattingEditsUntiwWesuwt(NuwwWowkewSewvice, modew, new EditowWange(1, 1, 1, 1), { insewtSpaces: twue, tabSize: 4 }, CancewwationToken.None);
 	});
 
-	test('Format on Type, data conversion', async () => {
+	test('Fowmat on Type, data convewsion', async () => {
 
-		disposables.push(extHost.registerOnTypeFormattingEditProvider(defaultExtension, defaultSelector, new class implements vscode.OnTypeFormattingEditProvider {
-			provideOnTypeFormattingEdits(): any {
-				return [new types.TextEdit(new types.Range(0, 0, 0, 0), arguments[2])];
+		disposabwes.push(extHost.wegistewOnTypeFowmattingEditPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.OnTypeFowmattingEditPwovida {
+			pwovideOnTypeFowmattingEdits(): any {
+				wetuwn [new types.TextEdit(new types.Wange(0, 0, 0, 0), awguments[2])];
 			}
 		}, [';']));
 
-		await rpcProtocol.sync();
-		const value = (await getOnTypeFormattingEdits(NullWorkerService, model, new EditorPosition(1, 1), ';', { insertSpaces: true, tabSize: 2 }))!;
-		assert.strictEqual(value.length, 1);
-		const [first] = value;
-		assert.strictEqual(first.text, ';');
-		assert.deepStrictEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
+		await wpcPwotocow.sync();
+		const vawue = (await getOnTypeFowmattingEdits(NuwwWowkewSewvice, modew, new EditowPosition(1, 1), ';', { insewtSpaces: twue, tabSize: 2 }))!;
+		assewt.stwictEquaw(vawue.wength, 1);
+		const [fiwst] = vawue;
+		assewt.stwictEquaw(fiwst.text, ';');
+		assewt.deepStwictEquaw(fiwst.wange, { stawtWineNumba: 1, stawtCowumn: 1, endWineNumba: 1, endCowumn: 1 });
 	});
 
-	test('Links, data conversion', async () => {
+	test('Winks, data convewsion', async () => {
 
-		disposables.push(extHost.registerDocumentLinkProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentLinkProvider {
-			provideDocumentLinks() {
-				const link = new types.DocumentLink(new types.Range(0, 0, 1, 1), URI.parse('foo:bar#3'));
-				link.tooltip = 'tooltip';
-				return [link];
+		disposabwes.push(extHost.wegistewDocumentWinkPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DocumentWinkPwovida {
+			pwovideDocumentWinks() {
+				const wink = new types.DocumentWink(new types.Wange(0, 0, 1, 1), UWI.pawse('foo:baw#3'));
+				wink.toowtip = 'toowtip';
+				wetuwn [wink];
 			}
 		}));
 
-		await rpcProtocol.sync();
-		let { links } = await getLinks(model, CancellationToken.None);
-		assert.strictEqual(links.length, 1);
-		let [first] = links;
-		assert.strictEqual(first.url?.toString(), 'foo:bar#3');
-		assert.deepStrictEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 2, endColumn: 2 });
-		assert.strictEqual(first.tooltip, 'tooltip');
+		await wpcPwotocow.sync();
+		wet { winks } = await getWinks(modew, CancewwationToken.None);
+		assewt.stwictEquaw(winks.wength, 1);
+		wet [fiwst] = winks;
+		assewt.stwictEquaw(fiwst.uww?.toStwing(), 'foo:baw#3');
+		assewt.deepStwictEquaw(fiwst.wange, { stawtWineNumba: 1, stawtCowumn: 1, endWineNumba: 2, endCowumn: 2 });
+		assewt.stwictEquaw(fiwst.toowtip, 'toowtip');
 	});
 
-	test('Links, evil provider', async () => {
+	test('Winks, eviw pwovida', async () => {
 
-		disposables.push(extHost.registerDocumentLinkProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentLinkProvider {
-			provideDocumentLinks() {
-				return [new types.DocumentLink(new types.Range(0, 0, 1, 1), URI.parse('foo:bar#3'))];
+		disposabwes.push(extHost.wegistewDocumentWinkPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DocumentWinkPwovida {
+			pwovideDocumentWinks() {
+				wetuwn [new types.DocumentWink(new types.Wange(0, 0, 1, 1), UWI.pawse('foo:baw#3'))];
 			}
 		}));
 
-		disposables.push(extHost.registerDocumentLinkProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentLinkProvider {
-			provideDocumentLinks(): any {
-				throw new Error();
+		disposabwes.push(extHost.wegistewDocumentWinkPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DocumentWinkPwovida {
+			pwovideDocumentWinks(): any {
+				thwow new Ewwow();
 			}
 		}));
 
-		await rpcProtocol.sync();
-		let { links } = await getLinks(model, CancellationToken.None);
-		assert.strictEqual(links.length, 1);
-		let [first] = links;
-		assert.strictEqual(first.url?.toString(), 'foo:bar#3');
-		assert.deepStrictEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 2, endColumn: 2 });
+		await wpcPwotocow.sync();
+		wet { winks } = await getWinks(modew, CancewwationToken.None);
+		assewt.stwictEquaw(winks.wength, 1);
+		wet [fiwst] = winks;
+		assewt.stwictEquaw(fiwst.uww?.toStwing(), 'foo:baw#3');
+		assewt.deepStwictEquaw(fiwst.wange, { stawtWineNumba: 1, stawtCowumn: 1, endWineNumba: 2, endCowumn: 2 });
 	});
 
-	test('Document colors, data conversion', async () => {
+	test('Document cowows, data convewsion', async () => {
 
-		disposables.push(extHost.registerColorProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentColorProvider {
-			provideDocumentColors(): vscode.ColorInformation[] {
-				return [new types.ColorInformation(new types.Range(0, 0, 0, 20), new types.Color(0.1, 0.2, 0.3, 0.4))];
+		disposabwes.push(extHost.wegistewCowowPwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.DocumentCowowPwovida {
+			pwovideDocumentCowows(): vscode.CowowInfowmation[] {
+				wetuwn [new types.CowowInfowmation(new types.Wange(0, 0, 0, 20), new types.Cowow(0.1, 0.2, 0.3, 0.4))];
 			}
-			provideColorPresentations(color: vscode.Color, context: { range: vscode.Range, document: vscode.TextDocument }): vscode.ColorPresentation[] {
-				return [];
+			pwovideCowowPwesentations(cowow: vscode.Cowow, context: { wange: vscode.Wange, document: vscode.TextDocument }): vscode.CowowPwesentation[] {
+				wetuwn [];
 			}
 		}));
 
-		await rpcProtocol.sync();
-		let value = await getColors(model, CancellationToken.None);
-		assert.strictEqual(value.length, 1);
-		let [first] = value;
-		assert.deepStrictEqual(first.colorInfo.color, { red: 0.1, green: 0.2, blue: 0.3, alpha: 0.4 });
-		assert.deepStrictEqual(first.colorInfo.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 21 });
+		await wpcPwotocow.sync();
+		wet vawue = await getCowows(modew, CancewwationToken.None);
+		assewt.stwictEquaw(vawue.wength, 1);
+		wet [fiwst] = vawue;
+		assewt.deepStwictEquaw(fiwst.cowowInfo.cowow, { wed: 0.1, gween: 0.2, bwue: 0.3, awpha: 0.4 });
+		assewt.deepStwictEquaw(fiwst.cowowInfo.wange, { stawtWineNumba: 1, stawtCowumn: 1, endWineNumba: 1, endCowumn: 21 });
 	});
 
-	// -- selection ranges
+	// -- sewection wanges
 
-	test('Selection Ranges, data conversion', async () => {
-		disposables.push(extHost.registerSelectionRangeProvider(defaultExtension, defaultSelector, new class implements vscode.SelectionRangeProvider {
-			provideSelectionRanges() {
-				return [
-					new types.SelectionRange(new types.Range(0, 10, 0, 18), new types.SelectionRange(new types.Range(0, 2, 0, 20))),
+	test('Sewection Wanges, data convewsion', async () => {
+		disposabwes.push(extHost.wegistewSewectionWangePwovida(defauwtExtension, defauwtSewectow, new cwass impwements vscode.SewectionWangePwovida {
+			pwovideSewectionWanges() {
+				wetuwn [
+					new types.SewectionWange(new types.Wange(0, 10, 0, 18), new types.SewectionWange(new types.Wange(0, 2, 0, 20))),
 				];
 			}
 		}));
 
-		await rpcProtocol.sync();
+		await wpcPwotocow.sync();
 
-		provideSelectionRanges(model, [new Position(1, 17)], { selectLeadingAndTrailingWhitespace: true }, CancellationToken.None).then(ranges => {
-			assert.strictEqual(ranges.length, 1);
-			assert.ok(ranges[0].length >= 2);
+		pwovideSewectionWanges(modew, [new Position(1, 17)], { sewectWeadingAndTwaiwingWhitespace: twue }, CancewwationToken.None).then(wanges => {
+			assewt.stwictEquaw(wanges.wength, 1);
+			assewt.ok(wanges[0].wength >= 2);
 		});
 	});
 
-	test('Selection Ranges, bad data', async () => {
+	test('Sewection Wanges, bad data', async () => {
 
-		try {
-			let _a = new types.SelectionRange(new types.Range(0, 10, 0, 18),
-				new types.SelectionRange(new types.Range(0, 11, 0, 18))
+		twy {
+			wet _a = new types.SewectionWange(new types.Wange(0, 10, 0, 18),
+				new types.SewectionWange(new types.Wange(0, 11, 0, 18))
 			);
-			assert.ok(false, String(_a));
-		} catch (err) {
-			assert.ok(true);
+			assewt.ok(fawse, Stwing(_a));
+		} catch (eww) {
+			assewt.ok(twue);
 		}
 
 	});

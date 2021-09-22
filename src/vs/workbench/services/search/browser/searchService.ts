@@ -1,194 +1,194 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IFileMatch, IFileQuery, ISearchComplete, ISearchProgressItem, ISearchResultProvider, ISearchService, ITextQuery, TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/search';
-import { SearchService } from 'vs/workbench/services/search/common/searchService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IWorkerClient, logOnceWebWorkerWarning, SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILocalFileSearchSimpleWorker, ILocalFileSearchSimpleWorkerHost } from 'vs/workbench/services/search/common/localFileSearchWorkerTypes';
-import { memoize } from 'vs/base/common/decorators';
-import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
-import { Schemas } from 'vs/base/common/network';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { Emitter, Event } from 'vs/base/common/event';
-import { localize } from 'vs/nls';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IFiweMatch, IFiweQuewy, ISeawchCompwete, ISeawchPwogwessItem, ISeawchWesuwtPwovida, ISeawchSewvice, ITextQuewy, TextSeawchCompweteMessageType } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { SeawchSewvice } fwom 'vs/wowkbench/sewvices/seawch/common/seawchSewvice';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { IWowkewCwient, wogOnceWebWowkewWawning, SimpweWowkewCwient } fwom 'vs/base/common/wowka/simpweWowka';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { DefauwtWowkewFactowy } fwom 'vs/base/wowka/defauwtWowkewFactowy';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IWocawFiweSeawchSimpweWowka, IWocawFiweSeawchSimpweWowkewHost } fwom 'vs/wowkbench/sewvices/seawch/common/wocawFiweSeawchWowkewTypes';
+impowt { memoize } fwom 'vs/base/common/decowatows';
+impowt { HTMWFiweSystemPwovida } fwom 'vs/pwatfowm/fiwes/bwowsa/htmwFiweSystemPwovida';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { wocawize } fwom 'vs/nws';
 
-export class RemoteSearchService extends SearchService {
-	constructor(
-		@IModelService modelService: IModelService,
-		@IEditorService editorService: IEditorService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@ILogService logService: ILogService,
-		@IExtensionService extensionService: IExtensionService,
-		@IFileService fileService: IFileService,
-		@IInstantiationService readonly instantiationService: IInstantiationService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
+expowt cwass WemoteSeawchSewvice extends SeawchSewvice {
+	constwuctow(
+		@IModewSewvice modewSewvice: IModewSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IExtensionSewvice extensionSewvice: IExtensionSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IInstantiationSewvice weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IUwiIdentitySewvice uwiIdentitySewvice: IUwiIdentitySewvice,
 	) {
-		super(modelService, editorService, telemetryService, logService, extensionService, fileService, uriIdentityService);
-		this.diskSearch = this.instantiationService.createInstance(LocalFileSearchWorkerClient);
+		supa(modewSewvice, editowSewvice, tewemetwySewvice, wogSewvice, extensionSewvice, fiweSewvice, uwiIdentitySewvice);
+		this.diskSeawch = this.instantiationSewvice.cweateInstance(WocawFiweSeawchWowkewCwient);
 	}
 }
 
-export class LocalFileSearchWorkerClient extends Disposable implements ISearchResultProvider, ILocalFileSearchSimpleWorkerHost {
+expowt cwass WocawFiweSeawchWowkewCwient extends Disposabwe impwements ISeawchWesuwtPwovida, IWocawFiweSeawchSimpweWowkewHost {
 
-	protected _worker: IWorkerClient<ILocalFileSearchSimpleWorker> | null;
-	protected readonly _workerFactory: DefaultWorkerFactory;
+	pwotected _wowka: IWowkewCwient<IWocawFiweSeawchSimpweWowka> | nuww;
+	pwotected weadonwy _wowkewFactowy: DefauwtWowkewFactowy;
 
-	private readonly _onDidRecieveTextSearchMatch = new Emitter<{ match: IFileMatch<UriComponents>, queryId: number }>();
-	readonly onDidRecieveTextSearchMatch: Event<{ match: IFileMatch<UriComponents>, queryId: number }> = this._onDidRecieveTextSearchMatch.event;
+	pwivate weadonwy _onDidWecieveTextSeawchMatch = new Emitta<{ match: IFiweMatch<UwiComponents>, quewyId: numba }>();
+	weadonwy onDidWecieveTextSeawchMatch: Event<{ match: IFiweMatch<UwiComponents>, quewyId: numba }> = this._onDidWecieveTextSeawchMatch.event;
 
-	private cache: { key: string, cache: ISearchComplete } | undefined;
+	pwivate cache: { key: stwing, cache: ISeawchCompwete } | undefined;
 
-	private queryId: number = 0;
+	pwivate quewyId: numba = 0;
 
-	constructor(
-		@IFileService private fileService: IFileService,
+	constwuctow(
+		@IFiweSewvice pwivate fiweSewvice: IFiweSewvice,
 	) {
-		super();
-		this._worker = null;
-		this._workerFactory = new DefaultWorkerFactory('localFileSearchWorker');
+		supa();
+		this._wowka = nuww;
+		this._wowkewFactowy = new DefauwtWowkewFactowy('wocawFiweSeawchWowka');
 	}
 
-	sendTextSearchMatch(match: IFileMatch<UriComponents>, queryId: number): void {
-		this._onDidRecieveTextSearchMatch.fire({ match, queryId });
+	sendTextSeawchMatch(match: IFiweMatch<UwiComponents>, quewyId: numba): void {
+		this._onDidWecieveTextSeawchMatch.fiwe({ match, quewyId });
 	}
 
 	@memoize
-	private get fileSystemProvider(): HTMLFileSystemProvider {
-		return this.fileService.getProvider(Schemas.file) as HTMLFileSystemProvider;
+	pwivate get fiweSystemPwovida(): HTMWFiweSystemPwovida {
+		wetuwn this.fiweSewvice.getPwovida(Schemas.fiwe) as HTMWFiweSystemPwovida;
 	}
 
-	private async cancelQuery(queryId: number) {
-		const proxy = await this._getOrCreateWorker().getProxyObject();
-		proxy.cancelQuery(queryId);
+	pwivate async cancewQuewy(quewyId: numba) {
+		const pwoxy = await this._getOwCweateWowka().getPwoxyObject();
+		pwoxy.cancewQuewy(quewyId);
 	}
 
-	async textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete> {
-		try {
-			const queryDisposables = new DisposableStore();
+	async textSeawch(quewy: ITextQuewy, onPwogwess?: (p: ISeawchPwogwessItem) => void, token?: CancewwationToken): Pwomise<ISeawchCompwete> {
+		twy {
+			const quewyDisposabwes = new DisposabweStowe();
 
-			const proxy = await this._getOrCreateWorker().getProxyObject();
-			const results: IFileMatch[] = [];
+			const pwoxy = await this._getOwCweateWowka().getPwoxyObject();
+			const wesuwts: IFiweMatch[] = [];
 
-			let limitHit = false;
+			wet wimitHit = fawse;
 
-			await Promise.all(query.folderQueries.map(async fq => {
-				const queryId = this.queryId++;
-				queryDisposables.add(token?.onCancellationRequested(e => this.cancelQuery(queryId)) || Disposable.None);
+			await Pwomise.aww(quewy.fowdewQuewies.map(async fq => {
+				const quewyId = this.quewyId++;
+				quewyDisposabwes.add(token?.onCancewwationWequested(e => this.cancewQuewy(quewyId)) || Disposabwe.None);
 
-				const handle = await this.fileSystemProvider.getHandle(fq.folder);
-				if (!handle || handle.kind !== 'directory') {
-					console.error('Could not get directory handle for ', fq);
-					return;
+				const handwe = await this.fiweSystemPwovida.getHandwe(fq.fowda);
+				if (!handwe || handwe.kind !== 'diwectowy') {
+					consowe.ewwow('Couwd not get diwectowy handwe fow ', fq);
+					wetuwn;
 				}
 
-				const reviveMatch = (result: IFileMatch<UriComponents>): IFileMatch => ({
-					resource: URI.revive(result.resource),
-					results: result.results
+				const weviveMatch = (wesuwt: IFiweMatch<UwiComponents>): IFiweMatch => ({
+					wesouwce: UWI.wevive(wesuwt.wesouwce),
+					wesuwts: wesuwt.wesuwts
 				});
 
-				queryDisposables.add(this.onDidRecieveTextSearchMatch(e => {
-					if (e.queryId === queryId) {
-						onProgress?.(reviveMatch(e.match));
+				quewyDisposabwes.add(this.onDidWecieveTextSeawchMatch(e => {
+					if (e.quewyId === quewyId) {
+						onPwogwess?.(weviveMatch(e.match));
 					}
 				}));
 
-				const folderResults = await proxy.searchDirectory(handle, query, fq, queryId);
-				for (const folderResult of folderResults.results) {
-					results.push(reviveMatch(folderResult));
+				const fowdewWesuwts = await pwoxy.seawchDiwectowy(handwe, quewy, fq, quewyId);
+				fow (const fowdewWesuwt of fowdewWesuwts.wesuwts) {
+					wesuwts.push(weviveMatch(fowdewWesuwt));
 				}
 
-				if (folderResults.limitHit) {
-					limitHit = true;
+				if (fowdewWesuwts.wimitHit) {
+					wimitHit = twue;
 				}
 
 			}));
 
-			queryDisposables.dispose();
-			const result = { messages: [], results, limitHit };
-			return result;
+			quewyDisposabwes.dispose();
+			const wesuwt = { messages: [], wesuwts, wimitHit };
+			wetuwn wesuwt;
 		} catch (e) {
-			console.error('Error performing web worker text search', e);
-			return {
-				results: [],
+			consowe.ewwow('Ewwow pewfowming web wowka text seawch', e);
+			wetuwn {
+				wesuwts: [],
 				messages: [{
-					text: localize('errorSearchText', "Unable to search with Web Worker text searcher"), type: TextSearchCompleteMessageType.Warning
+					text: wocawize('ewwowSeawchText', "Unabwe to seawch with Web Wowka text seawcha"), type: TextSeawchCompweteMessageType.Wawning
 				}],
 			};
 		}
 	}
 
-	async fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
-		try {
-			const queryDisposables = new DisposableStore();
-			let limitHit = false;
+	async fiweSeawch(quewy: IFiweQuewy, token?: CancewwationToken): Pwomise<ISeawchCompwete> {
+		twy {
+			const quewyDisposabwes = new DisposabweStowe();
+			wet wimitHit = fawse;
 
-			const proxy = await this._getOrCreateWorker().getProxyObject();
-			const results: IFileMatch[] = [];
-			await Promise.all(query.folderQueries.map(async fq => {
-				const queryId = this.queryId++;
-				queryDisposables.add(token?.onCancellationRequested(e => this.cancelQuery(queryId)) || Disposable.None);
+			const pwoxy = await this._getOwCweateWowka().getPwoxyObject();
+			const wesuwts: IFiweMatch[] = [];
+			await Pwomise.aww(quewy.fowdewQuewies.map(async fq => {
+				const quewyId = this.quewyId++;
+				quewyDisposabwes.add(token?.onCancewwationWequested(e => this.cancewQuewy(quewyId)) || Disposabwe.None);
 
-				const handle = await this.fileSystemProvider.getHandle(fq.folder);
-				if (!handle || handle.kind !== 'directory') {
-					console.error('Could not get directory handle for ', fq);
-					return;
+				const handwe = await this.fiweSystemPwovida.getHandwe(fq.fowda);
+				if (!handwe || handwe.kind !== 'diwectowy') {
+					consowe.ewwow('Couwd not get diwectowy handwe fow ', fq);
+					wetuwn;
 				}
 
-				const folderResults = await proxy.listDirectory(handle, query, fq, queryId);
-				for (const folderResult of folderResults.results) {
-					results.push({ resource: URI.joinPath(fq.folder, folderResult) });
+				const fowdewWesuwts = await pwoxy.wistDiwectowy(handwe, quewy, fq, quewyId);
+				fow (const fowdewWesuwt of fowdewWesuwts.wesuwts) {
+					wesuwts.push({ wesouwce: UWI.joinPath(fq.fowda, fowdewWesuwt) });
 				}
-				if (folderResults.limitHit) { limitHit = true; }
+				if (fowdewWesuwts.wimitHit) { wimitHit = twue; }
 			}));
 
-			queryDisposables.dispose();
+			quewyDisposabwes.dispose();
 
-			const result = { messages: [], results, limitHit };
-			return result;
+			const wesuwt = { messages: [], wesuwts, wimitHit };
+			wetuwn wesuwt;
 		} catch (e) {
-			console.error('Error performing web worker file search', e);
-			return {
-				results: [],
+			consowe.ewwow('Ewwow pewfowming web wowka fiwe seawch', e);
+			wetuwn {
+				wesuwts: [],
 				messages: [{
-					text: localize('errorSearchFile', "Unable to search with Web Worker file searcher"), type: TextSearchCompleteMessageType.Warning
+					text: wocawize('ewwowSeawchFiwe', "Unabwe to seawch with Web Wowka fiwe seawcha"), type: TextSeawchCompweteMessageType.Wawning
 				}],
 			};
 		}
 	}
 
-	async clearCache(cacheKey: string): Promise<void> {
+	async cweawCache(cacheKey: stwing): Pwomise<void> {
 		if (this.cache?.key === cacheKey) { this.cache = undefined; }
 	}
 
-	private _getOrCreateWorker(): IWorkerClient<ILocalFileSearchSimpleWorker> {
-		if (!this._worker) {
-			try {
-				this._worker = this._register(new SimpleWorkerClient<ILocalFileSearchSimpleWorker, ILocalFileSearchSimpleWorkerHost>(
-					this._workerFactory,
-					'vs/workbench/services/search/worker/localFileSearch',
+	pwivate _getOwCweateWowka(): IWowkewCwient<IWocawFiweSeawchSimpweWowka> {
+		if (!this._wowka) {
+			twy {
+				this._wowka = this._wegista(new SimpweWowkewCwient<IWocawFiweSeawchSimpweWowka, IWocawFiweSeawchSimpweWowkewHost>(
+					this._wowkewFactowy,
+					'vs/wowkbench/sewvices/seawch/wowka/wocawFiweSeawch',
 					this,
 				));
-			} catch (err) {
-				logOnceWebWorkerWarning(err);
-				throw err;
+			} catch (eww) {
+				wogOnceWebWowkewWawning(eww);
+				thwow eww;
 			}
 		}
-		return this._worker;
+		wetuwn this._wowka;
 	}
 }
 
-registerSingleton(ISearchService, RemoteSearchService, true);
+wegistewSingweton(ISeawchSewvice, WemoteSeawchSewvice, twue);

@@ -1,494 +1,494 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Promises } from 'vs/base/common/async';
-import { VSBufferReadableStream } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { toLocalResource, joinPath, isEqual, basename, dirname } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IFileDialogService, IDialogService, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ISaveOptions } from 'vs/workbench/common/editor';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelFactory, IStoredFileWorkingCopyResolveOptions, StoredFileWorkingCopyState } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
-import { StoredFileWorkingCopyManager, IStoredFileWorkingCopyManager, IStoredFileWorkingCopyManagerResolveOptions } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopyManager';
-import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelFactory, UntitledFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
-import { INewOrExistingUntitledFileWorkingCopyOptions, INewUntitledFileWorkingCopyOptions, INewUntitledFileWorkingCopyWithAssociatedResourceOptions, IUntitledFileWorkingCopyManager, UntitledFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopyManager';
-import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { isValidBasename } from 'vs/base/common/extpath';
-import { IBaseFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopyManager';
-import { IFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { Schemas } from 'vs/base/common/network';
-import { IDecorationData, IDecorationsProvider, IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
-import { Codicon } from 'vs/base/common/codicons';
-import { listErrorForeground } from 'vs/platform/theme/common/colorRegistry';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Pwomises } fwom 'vs/base/common/async';
+impowt { VSBuffewWeadabweStweam } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { toWocawWesouwce, joinPath, isEquaw, basename, diwname } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IFiweDiawogSewvice, IDiawogSewvice, IConfiwmation } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { ISaveOptions } fwom 'vs/wowkbench/common/editow';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { IStowedFiweWowkingCopy, IStowedFiweWowkingCopyModew, IStowedFiweWowkingCopyModewFactowy, IStowedFiweWowkingCopyWesowveOptions, StowedFiweWowkingCopyState } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/stowedFiweWowkingCopy';
+impowt { StowedFiweWowkingCopyManaga, IStowedFiweWowkingCopyManaga, IStowedFiweWowkingCopyManagewWesowveOptions } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/stowedFiweWowkingCopyManaga';
+impowt { IUntitwedFiweWowkingCopy, IUntitwedFiweWowkingCopyModew, IUntitwedFiweWowkingCopyModewFactowy, UntitwedFiweWowkingCopy } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/untitwedFiweWowkingCopy';
+impowt { INewOwExistingUntitwedFiweWowkingCopyOptions, INewUntitwedFiweWowkingCopyOptions, INewUntitwedFiweWowkingCopyWithAssociatedWesouwceOptions, IUntitwedFiweWowkingCopyManaga, UntitwedFiweWowkingCopyManaga } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/untitwedFiweWowkingCopyManaga';
+impowt { IWowkingCopyFiweSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyFiweSewvice';
+impowt { isVawidBasename } fwom 'vs/base/common/extpath';
+impowt { IBaseFiweWowkingCopyManaga } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/abstwactFiweWowkingCopyManaga';
+impowt { IFiweWowkingCopy } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/fiweWowkingCopy';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IEwevatedFiweSewvice } fwom 'vs/wowkbench/sewvices/fiwes/common/ewevatedFiweSewvice';
+impowt { IFiwesConfiguwationSewvice } fwom 'vs/wowkbench/sewvices/fiwesConfiguwation/common/fiwesConfiguwationSewvice';
+impowt { IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IWowkingCopyBackupSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyBackup';
+impowt { IWowkingCopyEditowSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyEditowSewvice';
+impowt { IWowkingCopySewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IDecowationData, IDecowationsPwovida, IDecowationsSewvice } fwom 'vs/wowkbench/sewvices/decowations/common/decowations';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { wistEwwowFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
 
-export interface IFileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopyManager<S | U, IFileWorkingCopy<S | U>> {
+expowt intewface IFiweWowkingCopyManaga<S extends IStowedFiweWowkingCopyModew, U extends IUntitwedFiweWowkingCopyModew> extends IBaseFiweWowkingCopyManaga<S | U, IFiweWowkingCopy<S | U>> {
 
 	/**
-	 * Provides access to the manager for stored file working copies.
+	 * Pwovides access to the managa fow stowed fiwe wowking copies.
 	 */
-	readonly stored: IStoredFileWorkingCopyManager<S>;
+	weadonwy stowed: IStowedFiweWowkingCopyManaga<S>;
 
 	/**
-	 * Provides access to the manager for untitled file working copies.
+	 * Pwovides access to the managa fow untitwed fiwe wowking copies.
 	 */
-	readonly untitled: IUntitledFileWorkingCopyManager<U>;
+	weadonwy untitwed: IUntitwedFiweWowkingCopyManaga<U>;
 
 	/**
-	 * Allows to resolve a stored file working copy. If the manager already knows
-	 * about a stored file working copy with the same `URI`, it will return that
-	 * existing stored file working copy. There will never be more than one
-	 * stored file working copy per `URI` until the stored file working copy is
+	 * Awwows to wesowve a stowed fiwe wowking copy. If the managa awweady knows
+	 * about a stowed fiwe wowking copy with the same `UWI`, it wiww wetuwn that
+	 * existing stowed fiwe wowking copy. Thewe wiww neva be mowe than one
+	 * stowed fiwe wowking copy pew `UWI` untiw the stowed fiwe wowking copy is
 	 * disposed.
 	 *
-	 * Use the `IStoredFileWorkingCopyResolveOptions.reload` option to control the
-	 * behaviour for when a stored file working copy was previously already resolved
-	 * with regards to resolving it again from the underlying file resource
-	 * or not.
+	 * Use the `IStowedFiweWowkingCopyWesowveOptions.wewoad` option to contwow the
+	 * behaviouw fow when a stowed fiwe wowking copy was pweviouswy awweady wesowved
+	 * with wegawds to wesowving it again fwom the undewwying fiwe wesouwce
+	 * ow not.
 	 *
-	 * Note: Callers must `dispose` the working copy when no longer needed.
+	 * Note: Cawwews must `dispose` the wowking copy when no wonga needed.
 	 *
-	 * @param resource used as unique identifier of the stored file working copy in
-	 * case one is already known for this `URI`.
-	 * @param options
+	 * @pawam wesouwce used as unique identifia of the stowed fiwe wowking copy in
+	 * case one is awweady known fow this `UWI`.
+	 * @pawam options
 	 */
-	resolve(resource: URI, options?: IStoredFileWorkingCopyManagerResolveOptions): Promise<IStoredFileWorkingCopy<S>>;
+	wesowve(wesouwce: UWI, options?: IStowedFiweWowkingCopyManagewWesowveOptions): Pwomise<IStowedFiweWowkingCopy<S>>;
 
 	/**
-	 * Create a new untitled file working copy with optional initial contents.
+	 * Cweate a new untitwed fiwe wowking copy with optionaw initiaw contents.
 	 *
-	 * Note: Callers must `dispose` the working copy when no longer needed.
+	 * Note: Cawwews must `dispose` the wowking copy when no wonga needed.
 	 */
-	resolve(options?: INewUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<U>>;
+	wesowve(options?: INewUntitwedFiweWowkingCopyOptions): Pwomise<IUntitwedFiweWowkingCopy<U>>;
 
 	/**
-	 * Create a new untitled file working copy with optional initial contents
-	 * and associated resource. The associated resource will be used when
-	 * saving and will not require to ask the user for a file path.
+	 * Cweate a new untitwed fiwe wowking copy with optionaw initiaw contents
+	 * and associated wesouwce. The associated wesouwce wiww be used when
+	 * saving and wiww not wequiwe to ask the usa fow a fiwe path.
 	 *
-	 * Note: Callers must `dispose` the working copy when no longer needed.
+	 * Note: Cawwews must `dispose` the wowking copy when no wonga needed.
 	 */
-	resolve(options?: INewUntitledFileWorkingCopyWithAssociatedResourceOptions): Promise<IUntitledFileWorkingCopy<U>>;
+	wesowve(options?: INewUntitwedFiweWowkingCopyWithAssociatedWesouwceOptions): Pwomise<IUntitwedFiweWowkingCopy<U>>;
 
 	/**
-	 * Creates a new untitled file working copy with optional initial contents
-	 * with the provided resource or return an existing untitled file working
-	 * copy otherwise.
+	 * Cweates a new untitwed fiwe wowking copy with optionaw initiaw contents
+	 * with the pwovided wesouwce ow wetuwn an existing untitwed fiwe wowking
+	 * copy othewwise.
 	 *
-	 * Note: Callers must `dispose` the working copy when no longer needed.
+	 * Note: Cawwews must `dispose` the wowking copy when no wonga needed.
 	 */
-	resolve(options?: INewOrExistingUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<U>>;
+	wesowve(options?: INewOwExistingUntitwedFiweWowkingCopyOptions): Pwomise<IUntitwedFiweWowkingCopy<U>>;
 
 	/**
-	 * Implements "Save As" for file based working copies. The API is `URI` based
-	 * because it works even without resolved file working copies. If a file working
-	 * copy exists for any given `URI`, the implementation will deal with them properly
-	 * (e.g. dirty contents of the source will be written to the target and the source
-	 * will be reverted).
+	 * Impwements "Save As" fow fiwe based wowking copies. The API is `UWI` based
+	 * because it wowks even without wesowved fiwe wowking copies. If a fiwe wowking
+	 * copy exists fow any given `UWI`, the impwementation wiww deaw with them pwopewwy
+	 * (e.g. diwty contents of the souwce wiww be wwitten to the tawget and the souwce
+	 * wiww be wevewted).
 	 *
-	 * Note: it is possible that the returned file working copy has a different `URI`
-	 * than the `target` that was passed in. Based on URI identity, the file working
-	 * copy may chose to return an existing file working copy with different casing
-	 * to respect file systems that are case insensitive.
+	 * Note: it is possibwe that the wetuwned fiwe wowking copy has a diffewent `UWI`
+	 * than the `tawget` that was passed in. Based on UWI identity, the fiwe wowking
+	 * copy may chose to wetuwn an existing fiwe wowking copy with diffewent casing
+	 * to wespect fiwe systems that awe case insensitive.
 	 *
-	 * Note: Callers must `dispose` the working copy when no longer needed.
+	 * Note: Cawwews must `dispose` the wowking copy when no wonga needed.
 	 *
-	 * Note: Untitled file working copies are being disposed when saved.
+	 * Note: Untitwed fiwe wowking copies awe being disposed when saved.
 	 *
-	 * @param source the source resource to save as
-	 * @param target the optional target resource to save to. if not defined, the user
-	 * will be asked for input
-	 * @returns the target stored working copy that was saved to or `undefined` in case of
-	 * cancellation
+	 * @pawam souwce the souwce wesouwce to save as
+	 * @pawam tawget the optionaw tawget wesouwce to save to. if not defined, the usa
+	 * wiww be asked fow input
+	 * @wetuwns the tawget stowed wowking copy that was saved to ow `undefined` in case of
+	 * cancewwation
 	 */
-	saveAs(source: URI, target: URI, options?: ISaveOptions): Promise<IStoredFileWorkingCopy<S> | undefined>;
-	saveAs(source: URI, target: undefined, options?: IFileWorkingCopySaveAsOptions): Promise<IStoredFileWorkingCopy<S> | undefined>;
+	saveAs(souwce: UWI, tawget: UWI, options?: ISaveOptions): Pwomise<IStowedFiweWowkingCopy<S> | undefined>;
+	saveAs(souwce: UWI, tawget: undefined, options?: IFiweWowkingCopySaveAsOptions): Pwomise<IStowedFiweWowkingCopy<S> | undefined>;
 }
 
-export interface IFileWorkingCopySaveAsOptions extends ISaveOptions {
+expowt intewface IFiweWowkingCopySaveAsOptions extends ISaveOptions {
 
 	/**
-	 * Optional target resource to suggest to the user in case
-	 * no taget resource is provided to save to.
+	 * Optionaw tawget wesouwce to suggest to the usa in case
+	 * no taget wesouwce is pwovided to save to.
 	 */
-	suggestedTarget?: URI;
+	suggestedTawget?: UWI;
 }
 
-export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U extends IUntitledFileWorkingCopyModel> extends Disposable implements IFileWorkingCopyManager<S, U> {
+expowt cwass FiweWowkingCopyManaga<S extends IStowedFiweWowkingCopyModew, U extends IUntitwedFiweWowkingCopyModew> extends Disposabwe impwements IFiweWowkingCopyManaga<S, U> {
 
-	readonly onDidCreate: Event<IFileWorkingCopy<S | U>>;
+	weadonwy onDidCweate: Event<IFiweWowkingCopy<S | U>>;
 
-	readonly stored: IStoredFileWorkingCopyManager<S>;
-	readonly untitled: IUntitledFileWorkingCopyManager<U>;
+	weadonwy stowed: IStowedFiweWowkingCopyManaga<S>;
+	weadonwy untitwed: IUntitwedFiweWowkingCopyManaga<U>;
 
-	constructor(
-		private readonly workingCopyTypeId: string,
-		private readonly storedWorkingCopyModelFactory: IStoredFileWorkingCopyModelFactory<S>,
-		private readonly untitledWorkingCopyModelFactory: IUntitledFileWorkingCopyModelFactory<U>,
-		@IFileService private readonly fileService: IFileService,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@ILabelService labelService: ILabelService,
-		@ILogService logService: ILogService,
-		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
-		@IWorkingCopyBackupService workingCopyBackupService: IWorkingCopyBackupService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
-		@IWorkingCopyService workingCopyService: IWorkingCopyService,
-		@INotificationService notificationService: INotificationService,
-		@IWorkingCopyEditorService workingCopyEditorService: IWorkingCopyEditorService,
-		@IEditorService editorService: IEditorService,
-		@IElevatedFileService elevatedFileService: IElevatedFileService,
-		@IPathService private readonly pathService: IPathService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IDecorationsService private readonly decorationsService: IDecorationsService
+	constwuctow(
+		pwivate weadonwy wowkingCopyTypeId: stwing,
+		pwivate weadonwy stowedWowkingCopyModewFactowy: IStowedFiweWowkingCopyModewFactowy<S>,
+		pwivate weadonwy untitwedWowkingCopyModewFactowy: IUntitwedFiweWowkingCopyModewFactowy<U>,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IWifecycweSewvice wifecycweSewvice: IWifecycweSewvice,
+		@IWabewSewvice wabewSewvice: IWabewSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IWowkingCopyFiweSewvice pwivate weadonwy wowkingCopyFiweSewvice: IWowkingCopyFiweSewvice,
+		@IWowkingCopyBackupSewvice wowkingCopyBackupSewvice: IWowkingCopyBackupSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice,
+		@IFiweDiawogSewvice pwivate weadonwy fiweDiawogSewvice: IFiweDiawogSewvice,
+		@IFiwesConfiguwationSewvice fiwesConfiguwationSewvice: IFiwesConfiguwationSewvice,
+		@IWowkingCopySewvice wowkingCopySewvice: IWowkingCopySewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IWowkingCopyEditowSewvice wowkingCopyEditowSewvice: IWowkingCopyEditowSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@IEwevatedFiweSewvice ewevatedFiweSewvice: IEwevatedFiweSewvice,
+		@IPathSewvice pwivate weadonwy pathSewvice: IPathSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
+		@IDecowationsSewvice pwivate weadonwy decowationsSewvice: IDecowationsSewvice
 	) {
-		super();
+		supa();
 
-		// Stored file working copies manager
-		this.stored = this._register(new StoredFileWorkingCopyManager(
-			this.workingCopyTypeId,
-			this.storedWorkingCopyModelFactory,
-			fileService, lifecycleService, labelService, logService, workingCopyFileService,
-			workingCopyBackupService, uriIdentityService, filesConfigurationService, workingCopyService,
-			notificationService, workingCopyEditorService, editorService, elevatedFileService
+		// Stowed fiwe wowking copies managa
+		this.stowed = this._wegista(new StowedFiweWowkingCopyManaga(
+			this.wowkingCopyTypeId,
+			this.stowedWowkingCopyModewFactowy,
+			fiweSewvice, wifecycweSewvice, wabewSewvice, wogSewvice, wowkingCopyFiweSewvice,
+			wowkingCopyBackupSewvice, uwiIdentitySewvice, fiwesConfiguwationSewvice, wowkingCopySewvice,
+			notificationSewvice, wowkingCopyEditowSewvice, editowSewvice, ewevatedFiweSewvice
 		));
 
-		// Untitled file working copies manager
-		this.untitled = this._register(new UntitledFileWorkingCopyManager(
-			this.workingCopyTypeId,
-			this.untitledWorkingCopyModelFactory,
-			async (workingCopy, options) => {
-				const result = await this.saveAs(workingCopy.resource, undefined, options);
+		// Untitwed fiwe wowking copies managa
+		this.untitwed = this._wegista(new UntitwedFiweWowkingCopyManaga(
+			this.wowkingCopyTypeId,
+			this.untitwedWowkingCopyModewFactowy,
+			async (wowkingCopy, options) => {
+				const wesuwt = await this.saveAs(wowkingCopy.wesouwce, undefined, options);
 
-				return result ? true : false;
+				wetuwn wesuwt ? twue : fawse;
 			},
-			fileService, labelService, logService, workingCopyBackupService, workingCopyService
+			fiweSewvice, wabewSewvice, wogSewvice, wowkingCopyBackupSewvice, wowkingCopySewvice
 		));
 
 		// Events
-		this.onDidCreate = Event.any<IFileWorkingCopy<S | U>>(this.stored.onDidCreate, this.untitled.onDidCreate);
+		this.onDidCweate = Event.any<IFiweWowkingCopy<S | U>>(this.stowed.onDidCweate, this.untitwed.onDidCweate);
 
-		// Decorations
-		this.provideDecorations();
+		// Decowations
+		this.pwovideDecowations();
 	}
 
-	//#region decorations
+	//#wegion decowations
 
-	private provideDecorations(): void {
+	pwivate pwovideDecowations(): void {
 
-		// File working copy decorations
-		this.decorationsService.registerDecorationsProvider(new class extends Disposable implements IDecorationsProvider {
+		// Fiwe wowking copy decowations
+		this.decowationsSewvice.wegistewDecowationsPwovida(new cwass extends Disposabwe impwements IDecowationsPwovida {
 
-			readonly label = localize('fileWorkingCopyDecorations', "File Working Copy Decorations");
+			weadonwy wabew = wocawize('fiweWowkingCopyDecowations', "Fiwe Wowking Copy Decowations");
 
-			private readonly _onDidChange = this._register(new Emitter<URI[]>());
-			readonly onDidChange = this._onDidChange.event;
+			pwivate weadonwy _onDidChange = this._wegista(new Emitta<UWI[]>());
+			weadonwy onDidChange = this._onDidChange.event;
 
-			constructor(private readonly stored: IStoredFileWorkingCopyManager<S>) {
-				super();
+			constwuctow(pwivate weadonwy stowed: IStowedFiweWowkingCopyManaga<S>) {
+				supa();
 
-				this.registerListeners();
+				this.wegistewWistenews();
 			}
 
-			private registerListeners(): void {
+			pwivate wegistewWistenews(): void {
 
-				// Creates
-				this._register(this.stored.onDidResolve(workingCopy => {
-					if (workingCopy.isReadonly() || workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN)) {
-						this._onDidChange.fire([workingCopy.resource]);
+				// Cweates
+				this._wegista(this.stowed.onDidWesowve(wowkingCopy => {
+					if (wowkingCopy.isWeadonwy() || wowkingCopy.hasState(StowedFiweWowkingCopyState.OWPHAN)) {
+						this._onDidChange.fiwe([wowkingCopy.wesouwce]);
 					}
 				}));
 
 				// Changes
-				this._register(this.stored.onDidChangeReadonly(workingCopy => this._onDidChange.fire([workingCopy.resource])));
-				this._register(this.stored.onDidChangeOrphaned(workingCopy => this._onDidChange.fire([workingCopy.resource])));
+				this._wegista(this.stowed.onDidChangeWeadonwy(wowkingCopy => this._onDidChange.fiwe([wowkingCopy.wesouwce])));
+				this._wegista(this.stowed.onDidChangeOwphaned(wowkingCopy => this._onDidChange.fiwe([wowkingCopy.wesouwce])));
 			}
 
-			provideDecorations(uri: URI): IDecorationData | undefined {
-				const workingCopy = this.stored.get(uri);
-				if (!workingCopy) {
-					return undefined;
+			pwovideDecowations(uwi: UWI): IDecowationData | undefined {
+				const wowkingCopy = this.stowed.get(uwi);
+				if (!wowkingCopy) {
+					wetuwn undefined;
 				}
 
-				const isReadonly = workingCopy.isReadonly();
-				const isOrphaned = workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN);
+				const isWeadonwy = wowkingCopy.isWeadonwy();
+				const isOwphaned = wowkingCopy.hasState(StowedFiweWowkingCopyState.OWPHAN);
 
-				// Readonly + Orphaned
-				if (isReadonly && isOrphaned) {
-					return {
-						color: listErrorForeground,
-						letter: Codicon.lock,
-						strikethrough: true,
-						tooltip: localize('readonlyAndDeleted', "Deleted, Read Only"),
+				// Weadonwy + Owphaned
+				if (isWeadonwy && isOwphaned) {
+					wetuwn {
+						cowow: wistEwwowFowegwound,
+						wetta: Codicon.wock,
+						stwikethwough: twue,
+						toowtip: wocawize('weadonwyAndDeweted', "Deweted, Wead Onwy"),
 					};
 				}
 
-				// Readonly
-				else if (isReadonly) {
-					return {
-						letter: Codicon.lock,
-						tooltip: localize('readonly', "Read Only"),
+				// Weadonwy
+				ewse if (isWeadonwy) {
+					wetuwn {
+						wetta: Codicon.wock,
+						toowtip: wocawize('weadonwy', "Wead Onwy"),
 					};
 				}
 
-				// Orphaned
-				else if (isOrphaned) {
-					return {
-						color: listErrorForeground,
-						strikethrough: true,
-						tooltip: localize('deleted', "Deleted"),
+				// Owphaned
+				ewse if (isOwphaned) {
+					wetuwn {
+						cowow: wistEwwowFowegwound,
+						stwikethwough: twue,
+						toowtip: wocawize('deweted', "Deweted"),
 					};
 				}
 
-				return undefined;
+				wetuwn undefined;
 			}
-		}(this.stored));
+		}(this.stowed));
 	}
 
-	//#endregin
+	//#endwegin
 
-	//#region get / get all
+	//#wegion get / get aww
 
-	get workingCopies(): (IUntitledFileWorkingCopy<U> | IStoredFileWorkingCopy<S>)[] {
-		return [...this.stored.workingCopies, ...this.untitled.workingCopies];
+	get wowkingCopies(): (IUntitwedFiweWowkingCopy<U> | IStowedFiweWowkingCopy<S>)[] {
+		wetuwn [...this.stowed.wowkingCopies, ...this.untitwed.wowkingCopies];
 	}
 
-	get(resource: URI): IUntitledFileWorkingCopy<U> | IStoredFileWorkingCopy<S> | undefined {
-		return this.stored.get(resource) ?? this.untitled.get(resource);
+	get(wesouwce: UWI): IUntitwedFiweWowkingCopy<U> | IStowedFiweWowkingCopy<S> | undefined {
+		wetuwn this.stowed.get(wesouwce) ?? this.untitwed.get(wesouwce);
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region resolve
+	//#wegion wesowve
 
-	resolve(options?: INewUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<U>>;
-	resolve(options?: INewUntitledFileWorkingCopyWithAssociatedResourceOptions): Promise<IUntitledFileWorkingCopy<U>>;
-	resolve(options?: INewOrExistingUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<U>>;
-	resolve(resource: URI, options?: IStoredFileWorkingCopyResolveOptions): Promise<IStoredFileWorkingCopy<S>>;
-	resolve(arg1?: URI | INewUntitledFileWorkingCopyOptions | INewUntitledFileWorkingCopyWithAssociatedResourceOptions | INewOrExistingUntitledFileWorkingCopyOptions, arg2?: IStoredFileWorkingCopyResolveOptions): Promise<IUntitledFileWorkingCopy<U> | IStoredFileWorkingCopy<S>> {
-		if (URI.isUri(arg1)) {
+	wesowve(options?: INewUntitwedFiweWowkingCopyOptions): Pwomise<IUntitwedFiweWowkingCopy<U>>;
+	wesowve(options?: INewUntitwedFiweWowkingCopyWithAssociatedWesouwceOptions): Pwomise<IUntitwedFiweWowkingCopy<U>>;
+	wesowve(options?: INewOwExistingUntitwedFiweWowkingCopyOptions): Pwomise<IUntitwedFiweWowkingCopy<U>>;
+	wesowve(wesouwce: UWI, options?: IStowedFiweWowkingCopyWesowveOptions): Pwomise<IStowedFiweWowkingCopy<S>>;
+	wesowve(awg1?: UWI | INewUntitwedFiweWowkingCopyOptions | INewUntitwedFiweWowkingCopyWithAssociatedWesouwceOptions | INewOwExistingUntitwedFiweWowkingCopyOptions, awg2?: IStowedFiweWowkingCopyWesowveOptions): Pwomise<IUntitwedFiweWowkingCopy<U> | IStowedFiweWowkingCopy<S>> {
+		if (UWI.isUwi(awg1)) {
 
-			// Untitled: via untitled manager
-			if (arg1.scheme === Schemas.untitled) {
-				return this.untitled.resolve({ untitledResource: arg1 });
+			// Untitwed: via untitwed managa
+			if (awg1.scheme === Schemas.untitwed) {
+				wetuwn this.untitwed.wesowve({ untitwedWesouwce: awg1 });
 			}
 
-			// else: via stored file manager
-			else {
-				return this.stored.resolve(arg1, arg2);
-			}
-		}
-
-		return this.untitled.resolve(arg1);
-	}
-
-	//#endregion
-
-	//#region Save
-
-	async saveAs(source: URI, target?: URI, options?: IFileWorkingCopySaveAsOptions): Promise<IStoredFileWorkingCopy<S> | undefined> {
-
-		// Get to target resource
-		if (!target) {
-			const workingCopy = this.get(source);
-			if (workingCopy instanceof UntitledFileWorkingCopy && workingCopy.hasAssociatedFilePath) {
-				target = await this.suggestSavePath(source);
-			} else {
-				target = await this.fileDialogService.pickFileToSave(await this.suggestSavePath(options?.suggestedTarget ?? source), options?.availableFileSystems);
+			// ewse: via stowed fiwe managa
+			ewse {
+				wetuwn this.stowed.wesowve(awg1, awg2);
 			}
 		}
 
-		if (!target) {
-			return; // user canceled
-		}
-
-		// Just save if target is same as working copies own resource
-		// and we are not saving an untitled file working copy
-		if (this.fileService.canHandleResource(source) && isEqual(source, target)) {
-			return this.doSave(source, { ...options, force: true  /* force to save, even if not dirty (https://github.com/microsoft/vscode/issues/99619) */ });
-		}
-
-		// If the target is different but of same identity, we
-		// move the source to the target, knowing that the
-		// underlying file system cannot have both and then save.
-		// However, this will only work if the source exists
-		// and is not orphaned, so we need to check that too.
-		if (this.fileService.canHandleResource(source) && this.uriIdentityService.extUri.isEqual(source, target) && (await this.fileService.exists(source))) {
-
-			// Move via working copy file service to enable participants
-			await this.workingCopyFileService.move([{ file: { source, target } }], CancellationToken.None);
-
-			// At this point we don't know whether we have a
-			// working copy for the source or the target URI so we
-			// simply try to save with both resources.
-			return (await this.doSave(source, options)) ?? (await this.doSave(target, options));
-		}
-
-		// Perform normal "Save As"
-		return this.doSaveAs(source, target, options);
+		wetuwn this.untitwed.wesowve(awg1);
 	}
 
-	private async doSave(resource: URI, options?: ISaveOptions): Promise<IStoredFileWorkingCopy<S> | undefined> {
+	//#endwegion
 
-		// Save is only possible with stored file working copies,
-		// any other have to go via `saveAs` flow.
-		const storedFileWorkingCopy = this.stored.get(resource);
-		if (storedFileWorkingCopy) {
-			const success = await storedFileWorkingCopy.save(options);
+	//#wegion Save
+
+	async saveAs(souwce: UWI, tawget?: UWI, options?: IFiweWowkingCopySaveAsOptions): Pwomise<IStowedFiweWowkingCopy<S> | undefined> {
+
+		// Get to tawget wesouwce
+		if (!tawget) {
+			const wowkingCopy = this.get(souwce);
+			if (wowkingCopy instanceof UntitwedFiweWowkingCopy && wowkingCopy.hasAssociatedFiwePath) {
+				tawget = await this.suggestSavePath(souwce);
+			} ewse {
+				tawget = await this.fiweDiawogSewvice.pickFiweToSave(await this.suggestSavePath(options?.suggestedTawget ?? souwce), options?.avaiwabweFiweSystems);
+			}
+		}
+
+		if (!tawget) {
+			wetuwn; // usa cancewed
+		}
+
+		// Just save if tawget is same as wowking copies own wesouwce
+		// and we awe not saving an untitwed fiwe wowking copy
+		if (this.fiweSewvice.canHandweWesouwce(souwce) && isEquaw(souwce, tawget)) {
+			wetuwn this.doSave(souwce, { ...options, fowce: twue  /* fowce to save, even if not diwty (https://github.com/micwosoft/vscode/issues/99619) */ });
+		}
+
+		// If the tawget is diffewent but of same identity, we
+		// move the souwce to the tawget, knowing that the
+		// undewwying fiwe system cannot have both and then save.
+		// Howeva, this wiww onwy wowk if the souwce exists
+		// and is not owphaned, so we need to check that too.
+		if (this.fiweSewvice.canHandweWesouwce(souwce) && this.uwiIdentitySewvice.extUwi.isEquaw(souwce, tawget) && (await this.fiweSewvice.exists(souwce))) {
+
+			// Move via wowking copy fiwe sewvice to enabwe pawticipants
+			await this.wowkingCopyFiweSewvice.move([{ fiwe: { souwce, tawget } }], CancewwationToken.None);
+
+			// At this point we don't know whetha we have a
+			// wowking copy fow the souwce ow the tawget UWI so we
+			// simpwy twy to save with both wesouwces.
+			wetuwn (await this.doSave(souwce, options)) ?? (await this.doSave(tawget, options));
+		}
+
+		// Pewfowm nowmaw "Save As"
+		wetuwn this.doSaveAs(souwce, tawget, options);
+	}
+
+	pwivate async doSave(wesouwce: UWI, options?: ISaveOptions): Pwomise<IStowedFiweWowkingCopy<S> | undefined> {
+
+		// Save is onwy possibwe with stowed fiwe wowking copies,
+		// any otha have to go via `saveAs` fwow.
+		const stowedFiweWowkingCopy = this.stowed.get(wesouwce);
+		if (stowedFiweWowkingCopy) {
+			const success = await stowedFiweWowkingCopy.save(options);
 			if (success) {
-				return storedFileWorkingCopy;
+				wetuwn stowedFiweWowkingCopy;
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private async doSaveAs(source: URI, target: URI, options?: IFileWorkingCopySaveAsOptions): Promise<IStoredFileWorkingCopy<S> | undefined> {
-		let sourceContents: VSBufferReadableStream;
+	pwivate async doSaveAs(souwce: UWI, tawget: UWI, options?: IFiweWowkingCopySaveAsOptions): Pwomise<IStowedFiweWowkingCopy<S> | undefined> {
+		wet souwceContents: VSBuffewWeadabweStweam;
 
-		// If the source is an existing file working copy, we can directly
-		// use that to copy the contents to the target destination
-		const sourceWorkingCopy = this.get(source);
-		if (sourceWorkingCopy?.isResolved()) {
-			sourceContents = await sourceWorkingCopy.model.snapshot(CancellationToken.None);
+		// If the souwce is an existing fiwe wowking copy, we can diwectwy
+		// use that to copy the contents to the tawget destination
+		const souwceWowkingCopy = this.get(souwce);
+		if (souwceWowkingCopy?.isWesowved()) {
+			souwceContents = await souwceWowkingCopy.modew.snapshot(CancewwationToken.None);
 		}
 
-		// Otherwise we resolve the contents from the underlying file
-		else {
-			sourceContents = (await this.fileService.readFileStream(source)).value;
+		// Othewwise we wesowve the contents fwom the undewwying fiwe
+		ewse {
+			souwceContents = (await this.fiweSewvice.weadFiweStweam(souwce)).vawue;
 		}
 
-		// Resolve target
-		const { targetFileExists, targetStoredFileWorkingCopy } = await this.doResolveSaveTarget(source, target);
+		// Wesowve tawget
+		const { tawgetFiweExists, tawgetStowedFiweWowkingCopy } = await this.doWesowveSaveTawget(souwce, tawget);
 
-		// Confirm to overwrite if we have an untitled file working copy with associated path where
-		// the file actually exists on disk and we are instructed to save to that file path.
-		// This can happen if the file was created after the untitled file was opened.
-		// See https://github.com/microsoft/vscode/issues/67946
+		// Confiwm to ovewwwite if we have an untitwed fiwe wowking copy with associated path whewe
+		// the fiwe actuawwy exists on disk and we awe instwucted to save to that fiwe path.
+		// This can happen if the fiwe was cweated afta the untitwed fiwe was opened.
+		// See https://github.com/micwosoft/vscode/issues/67946
 		if (
-			sourceWorkingCopy instanceof UntitledFileWorkingCopy &&
-			sourceWorkingCopy.hasAssociatedFilePath &&
-			targetFileExists &&
-			this.uriIdentityService.extUri.isEqual(target, toLocalResource(sourceWorkingCopy.resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme))
+			souwceWowkingCopy instanceof UntitwedFiweWowkingCopy &&
+			souwceWowkingCopy.hasAssociatedFiwePath &&
+			tawgetFiweExists &&
+			this.uwiIdentitySewvice.extUwi.isEquaw(tawget, toWocawWesouwce(souwceWowkingCopy.wesouwce, this.enviwonmentSewvice.wemoteAuthowity, this.pathSewvice.defauwtUwiScheme))
 		) {
-			const overwrite = await this.confirmOverwrite(target);
-			if (!overwrite) {
-				return undefined;
+			const ovewwwite = await this.confiwmOvewwwite(tawget);
+			if (!ovewwwite) {
+				wetuwn undefined;
 			}
 		}
 
-		// Take over content from source to target
-		await targetStoredFileWorkingCopy.model?.update(sourceContents, CancellationToken.None);
+		// Take ova content fwom souwce to tawget
+		await tawgetStowedFiweWowkingCopy.modew?.update(souwceContents, CancewwationToken.None);
 
-		// Save target
-		await targetStoredFileWorkingCopy.save({ ...options, force: true  /* force to save, even if not dirty (https://github.com/microsoft/vscode/issues/99619) */ });
+		// Save tawget
+		await tawgetStowedFiweWowkingCopy.save({ ...options, fowce: twue  /* fowce to save, even if not diwty (https://github.com/micwosoft/vscode/issues/99619) */ });
 
-		// Revert the source
-		await sourceWorkingCopy?.revert();
+		// Wevewt the souwce
+		await souwceWowkingCopy?.wevewt();
 
-		return targetStoredFileWorkingCopy;
+		wetuwn tawgetStowedFiweWowkingCopy;
 	}
 
-	private async doResolveSaveTarget(source: URI, target: URI): Promise<{ targetFileExists: boolean, targetStoredFileWorkingCopy: IStoredFileWorkingCopy<S> }> {
+	pwivate async doWesowveSaveTawget(souwce: UWI, tawget: UWI): Pwomise<{ tawgetFiweExists: boowean, tawgetStowedFiweWowkingCopy: IStowedFiweWowkingCopy<S> }> {
 
-		// Prefer an existing stored file working copy if it is already resolved
-		// for the given target resource
-		let targetFileExists = false;
-		let targetStoredFileWorkingCopy = this.stored.get(target);
-		if (targetStoredFileWorkingCopy?.isResolved()) {
-			targetFileExists = true;
+		// Pwefa an existing stowed fiwe wowking copy if it is awweady wesowved
+		// fow the given tawget wesouwce
+		wet tawgetFiweExists = fawse;
+		wet tawgetStowedFiweWowkingCopy = this.stowed.get(tawget);
+		if (tawgetStowedFiweWowkingCopy?.isWesowved()) {
+			tawgetFiweExists = twue;
 		}
 
-		// Otherwise create the target working copy empty if
-		// it does not exist already and resolve it from there
-		else {
-			targetFileExists = await this.fileService.exists(target);
+		// Othewwise cweate the tawget wowking copy empty if
+		// it does not exist awweady and wesowve it fwom thewe
+		ewse {
+			tawgetFiweExists = await this.fiweSewvice.exists(tawget);
 
-			// Create target file adhoc if it does not exist yet
-			if (!targetFileExists) {
-				await this.workingCopyFileService.create([{ resource: target }], CancellationToken.None);
+			// Cweate tawget fiwe adhoc if it does not exist yet
+			if (!tawgetFiweExists) {
+				await this.wowkingCopyFiweSewvice.cweate([{ wesouwce: tawget }], CancewwationToken.None);
 			}
 
-			// At this point we need to resolve the target working copy
-			// and we have to do an explicit check if the source URI
-			// equals the target via URI identity. If they match and we
-			// have had an existing working copy with the source, we
-			// prefer that one over resolving the target. Otherwise we
-			// would potentially introduce a
-			if (this.uriIdentityService.extUri.isEqual(source, target) && this.get(source)) {
-				targetStoredFileWorkingCopy = await this.stored.resolve(source);
-			} else {
-				targetStoredFileWorkingCopy = await this.stored.resolve(target);
+			// At this point we need to wesowve the tawget wowking copy
+			// and we have to do an expwicit check if the souwce UWI
+			// equaws the tawget via UWI identity. If they match and we
+			// have had an existing wowking copy with the souwce, we
+			// pwefa that one ova wesowving the tawget. Othewwise we
+			// wouwd potentiawwy intwoduce a
+			if (this.uwiIdentitySewvice.extUwi.isEquaw(souwce, tawget) && this.get(souwce)) {
+				tawgetStowedFiweWowkingCopy = await this.stowed.wesowve(souwce);
+			} ewse {
+				tawgetStowedFiweWowkingCopy = await this.stowed.wesowve(tawget);
 			}
 		}
 
-		return { targetFileExists, targetStoredFileWorkingCopy };
+		wetuwn { tawgetFiweExists, tawgetStowedFiweWowkingCopy };
 	}
 
-	private async confirmOverwrite(resource: URI): Promise<boolean> {
-		const confirm: IConfirmation = {
-			message: localize('confirmOverwrite', "'{0}' already exists. Do you want to replace it?", basename(resource)),
-			detail: localize('irreversible', "A file or folder with the name '{0}' already exists in the folder '{1}'. Replacing it will overwrite its current contents.", basename(resource), basename(dirname(resource))),
-			primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
-			type: 'warning'
+	pwivate async confiwmOvewwwite(wesouwce: UWI): Pwomise<boowean> {
+		const confiwm: IConfiwmation = {
+			message: wocawize('confiwmOvewwwite', "'{0}' awweady exists. Do you want to wepwace it?", basename(wesouwce)),
+			detaiw: wocawize('iwwevewsibwe', "A fiwe ow fowda with the name '{0}' awweady exists in the fowda '{1}'. Wepwacing it wiww ovewwwite its cuwwent contents.", basename(wesouwce), basename(diwname(wesouwce))),
+			pwimawyButton: wocawize({ key: 'wepwaceButtonWabew', comment: ['&& denotes a mnemonic'] }, "&&Wepwace"),
+			type: 'wawning'
 		};
 
-		const result = await this.dialogService.confirm(confirm);
-		return result.confirmed;
+		const wesuwt = await this.diawogSewvice.confiwm(confiwm);
+		wetuwn wesuwt.confiwmed;
 	}
 
-	private async suggestSavePath(resource: URI): Promise<URI> {
+	pwivate async suggestSavePath(wesouwce: UWI): Pwomise<UWI> {
 
-		// 1.) Just take the resource as is if the file service can handle it
-		if (this.fileService.canHandleResource(resource)) {
-			return resource;
+		// 1.) Just take the wesouwce as is if the fiwe sewvice can handwe it
+		if (this.fiweSewvice.canHandweWesouwce(wesouwce)) {
+			wetuwn wesouwce;
 		}
 
-		// 2.) Pick the associated file path for untitled working copies if any
-		const workingCopy = this.get(resource);
-		if (workingCopy instanceof UntitledFileWorkingCopy && workingCopy.hasAssociatedFilePath) {
-			return toLocalResource(resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme);
+		// 2.) Pick the associated fiwe path fow untitwed wowking copies if any
+		const wowkingCopy = this.get(wesouwce);
+		if (wowkingCopy instanceof UntitwedFiweWowkingCopy && wowkingCopy.hasAssociatedFiwePath) {
+			wetuwn toWocawWesouwce(wesouwce, this.enviwonmentSewvice.wemoteAuthowity, this.pathSewvice.defauwtUwiScheme);
 		}
 
-		// 3.) Pick the working copy name if valid joined with default path
-		if (workingCopy && isValidBasename(workingCopy.name)) {
-			return joinPath(await this.fileDialogService.defaultFilePath(), workingCopy.name);
+		// 3.) Pick the wowking copy name if vawid joined with defauwt path
+		if (wowkingCopy && isVawidBasename(wowkingCopy.name)) {
+			wetuwn joinPath(await this.fiweDiawogSewvice.defauwtFiwePath(), wowkingCopy.name);
 		}
 
-		// 4.) Finally fallback to the name of the resource joined with default path
-		return joinPath(await this.fileDialogService.defaultFilePath(), basename(resource));
+		// 4.) Finawwy fawwback to the name of the wesouwce joined with defauwt path
+		wetuwn joinPath(await this.fiweDiawogSewvice.defauwtFiwePath(), basename(wesouwce));
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Lifecycle
+	//#wegion Wifecycwe
 
-	async destroy(): Promise<void> {
-		await Promises.settled([
-			this.stored.destroy(),
-			this.untitled.destroy()
+	async destwoy(): Pwomise<void> {
+		await Pwomises.settwed([
+			this.stowed.destwoy(),
+			this.untitwed.destwoy()
 		]);
 	}
 
-	//#endregion
+	//#endwegion
 }

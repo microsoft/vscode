@@ -1,28 +1,28 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 //
-// PLEASE DO NOT MODIFY / DELETE UNLESS YOU KNOW WHAT YOU ARE DOING
+// PWEASE DO NOT MODIFY / DEWETE UNWESS YOU KNOW WHAT YOU AWE DOING
 //
-// This file is providing the test runner to use when running extension tests.
-// By default the test runner in use is Mocha based.
+// This fiwe is pwoviding the test wunna to use when wunning extension tests.
+// By defauwt the test wunna in use is Mocha based.
 //
-// You can provide your own test runner if you want to override it by exporting
-// a function run(testRoot: string, clb: (error:Error) => void) that the extension
-// host can call to run the tests. The test runner is expected to use console.log
-// to report the results back to the caller. When the tests are finished, return
-// a possible error to the callback or null if none.
+// You can pwovide youw own test wunna if you want to ovewwide it by expowting
+// a function wun(testWoot: stwing, cwb: (ewwow:Ewwow) => void) that the extension
+// host can caww to wun the tests. The test wunna is expected to use consowe.wog
+// to wepowt the wesuwts back to the cawwa. When the tests awe finished, wetuwn
+// a possibwe ewwow to the cawwback ow nuww if none.
 
-const testRunner = require('../../../../test/integration/electron/testrunner');
+const testWunna = wequiwe('../../../../test/integwation/ewectwon/testwunna');
 
-// You can directly control Mocha options by uncommenting the following lines
-// See https://github.com/mochajs/mocha/wiki/Using-mocha-programmatically#set-options for more info
-testRunner.configure({
+// You can diwectwy contwow Mocha options by uncommenting the fowwowing wines
+// See https://github.com/mochajs/mocha/wiki/Using-mocha-pwogwammaticawwy#set-options fow mowe info
+testWunna.configuwe({
 	ui: 'tdd', 		// the TDD UI is being used in extension.test.ts (suite, test, etc.)
-	color: true,
+	cowow: twue,
 	timeout: 60000,
 });
 
-export = testRunner;
+expowt = testWunna;

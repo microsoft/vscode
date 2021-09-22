@@ -1,582 +1,582 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+'use stwict';
 
-const gulp = require('gulp');
-const fs = require('fs');
-const os = require('os');
-const cp = require('child_process');
-const path = require('path');
-const es = require('event-stream');
-const vfs = require('vinyl-fs');
-const rename = require('gulp-rename');
-const replace = require('gulp-replace');
-const filter = require('gulp-filter');
-const _ = require('underscore');
-const util = require('./lib/util');
-const task = require('./lib/task');
-const buildfile = require('../src/buildfile');
-const common = require('./lib/optimize');
-const root = path.dirname(__dirname);
-const commit = util.getVersion(root);
-const packageJson = require('../package.json');
-const product = require('../product.json');
-const crypto = require('crypto');
-const i18n = require('./lib/i18n');
-const { getProductionDependencies } = require('./lib/dependencies');
-const { config } = require('./lib/electron');
-const createAsar = require('./lib/asar').createAsar;
-const minimist = require('minimist');
-const { compileBuildTask } = require('./gulpfile.compile');
-const { compileExtensionsBuildTask } = require('./gulpfile.extensions');
+const guwp = wequiwe('guwp');
+const fs = wequiwe('fs');
+const os = wequiwe('os');
+const cp = wequiwe('chiwd_pwocess');
+const path = wequiwe('path');
+const es = wequiwe('event-stweam');
+const vfs = wequiwe('vinyw-fs');
+const wename = wequiwe('guwp-wename');
+const wepwace = wequiwe('guwp-wepwace');
+const fiwta = wequiwe('guwp-fiwta');
+const _ = wequiwe('undewscowe');
+const utiw = wequiwe('./wib/utiw');
+const task = wequiwe('./wib/task');
+const buiwdfiwe = wequiwe('../swc/buiwdfiwe');
+const common = wequiwe('./wib/optimize');
+const woot = path.diwname(__diwname);
+const commit = utiw.getVewsion(woot);
+const packageJson = wequiwe('../package.json');
+const pwoduct = wequiwe('../pwoduct.json');
+const cwypto = wequiwe('cwypto');
+const i18n = wequiwe('./wib/i18n');
+const { getPwoductionDependencies } = wequiwe('./wib/dependencies');
+const { config } = wequiwe('./wib/ewectwon');
+const cweateAsaw = wequiwe('./wib/asaw').cweateAsaw;
+const minimist = wequiwe('minimist');
+const { compiweBuiwdTask } = wequiwe('./guwpfiwe.compiwe');
+const { compiweExtensionsBuiwdTask } = wequiwe('./guwpfiwe.extensions');
 
-// Build
-const vscodeEntryPoints = _.flatten([
-	buildfile.entrypoint('vs/workbench/workbench.desktop.main'),
-	buildfile.base,
-	buildfile.workerExtensionHost,
-	buildfile.workerNotebook,
-	buildfile.workerLanguageDetection,
-	buildfile.workerLocalFileSearch,
-	buildfile.workbenchDesktop,
-	buildfile.code
+// Buiwd
+const vscodeEntwyPoints = _.fwatten([
+	buiwdfiwe.entwypoint('vs/wowkbench/wowkbench.desktop.main'),
+	buiwdfiwe.base,
+	buiwdfiwe.wowkewExtensionHost,
+	buiwdfiwe.wowkewNotebook,
+	buiwdfiwe.wowkewWanguageDetection,
+	buiwdfiwe.wowkewWocawFiweSeawch,
+	buiwdfiwe.wowkbenchDesktop,
+	buiwdfiwe.code
 ]);
 
-const vscodeResources = [
-	'out-build/main.js',
-	'out-build/cli.js',
-	'out-build/driver.js',
-	'out-build/bootstrap.js',
-	'out-build/bootstrap-fork.js',
-	'out-build/bootstrap-amd.js',
-	'out-build/bootstrap-node.js',
-	'out-build/bootstrap-window.js',
-	'out-build/vs/**/*.{svg,png,html,jpg}',
-	'!out-build/vs/code/browser/**/*.html',
-	'!out-build/vs/editor/standalone/**/*.svg',
-	'out-build/vs/base/common/performance.js',
-	'out-build/vs/base/node/languagePacks.js',
-	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh,cpuUsage.sh,ps.sh}',
-	'out-build/vs/base/browser/ui/codicons/codicon/**',
-	'out-build/vs/base/parts/sandbox/electron-browser/preload.js',
-	'out-build/vs/platform/environment/node/userDataPath.js',
-	'out-build/vs/workbench/browser/media/*-theme.css',
-	'out-build/vs/workbench/contrib/debug/**/*.json',
-	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
-	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
-	'out-build/vs/**/markdown.css',
-	'out-build/vs/workbench/contrib/tasks/**/*.json',
-	'out-build/vs/platform/files/**/*.exe',
-	'out-build/vs/platform/files/**/*.md',
-	'out-build/vs/code/electron-browser/workbench/**',
-	'out-build/vs/code/electron-browser/sharedProcess/sharedProcess.js',
-	'out-build/vs/code/electron-sandbox/issue/issueReporter.js',
-	'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.js',
+const vscodeWesouwces = [
+	'out-buiwd/main.js',
+	'out-buiwd/cwi.js',
+	'out-buiwd/dwiva.js',
+	'out-buiwd/bootstwap.js',
+	'out-buiwd/bootstwap-fowk.js',
+	'out-buiwd/bootstwap-amd.js',
+	'out-buiwd/bootstwap-node.js',
+	'out-buiwd/bootstwap-window.js',
+	'out-buiwd/vs/**/*.{svg,png,htmw,jpg}',
+	'!out-buiwd/vs/code/bwowsa/**/*.htmw',
+	'!out-buiwd/vs/editow/standawone/**/*.svg',
+	'out-buiwd/vs/base/common/pewfowmance.js',
+	'out-buiwd/vs/base/node/wanguagePacks.js',
+	'out-buiwd/vs/base/node/{stdFowkStawt.js,tewminatePwocess.sh,cpuUsage.sh,ps.sh}',
+	'out-buiwd/vs/base/bwowsa/ui/codicons/codicon/**',
+	'out-buiwd/vs/base/pawts/sandbox/ewectwon-bwowsa/pwewoad.js',
+	'out-buiwd/vs/pwatfowm/enviwonment/node/usewDataPath.js',
+	'out-buiwd/vs/wowkbench/bwowsa/media/*-theme.css',
+	'out-buiwd/vs/wowkbench/contwib/debug/**/*.json',
+	'out-buiwd/vs/wowkbench/contwib/extewnawTewminaw/**/*.scpt',
+	'out-buiwd/vs/wowkbench/contwib/webview/bwowsa/pwe/*.js',
+	'out-buiwd/vs/**/mawkdown.css',
+	'out-buiwd/vs/wowkbench/contwib/tasks/**/*.json',
+	'out-buiwd/vs/pwatfowm/fiwes/**/*.exe',
+	'out-buiwd/vs/pwatfowm/fiwes/**/*.md',
+	'out-buiwd/vs/code/ewectwon-bwowsa/wowkbench/**',
+	'out-buiwd/vs/code/ewectwon-bwowsa/shawedPwocess/shawedPwocess.js',
+	'out-buiwd/vs/code/ewectwon-sandbox/issue/issueWepowta.js',
+	'out-buiwd/vs/code/ewectwon-sandbox/pwocessExpwowa/pwocessExpwowa.js',
 	'!**/test/**'
 ];
 
-const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
-	util.rimraf('out-vscode'),
+const optimizeVSCodeTask = task.define('optimize-vscode', task.sewies(
+	utiw.wimwaf('out-vscode'),
 	common.optimizeTask({
-		src: 'out-build',
-		entryPoints: vscodeEntryPoints,
-		resources: vscodeResources,
-		loaderConfig: common.loaderConfig(),
+		swc: 'out-buiwd',
+		entwyPoints: vscodeEntwyPoints,
+		wesouwces: vscodeWesouwces,
+		woadewConfig: common.woadewConfig(),
 		out: 'out-vscode',
-		bundleInfo: undefined
+		bundweInfo: undefined
 	})
 ));
-gulp.task(optimizeVSCodeTask);
+guwp.task(optimizeVSCodeTask);
 
-const sourceMappingURLBase = `https://ticino.blob.core.windows.net/sourcemaps/${commit}`;
-const minifyVSCodeTask = task.define('minify-vscode', task.series(
+const souwceMappingUWWBase = `https://ticino.bwob.cowe.windows.net/souwcemaps/${commit}`;
+const minifyVSCodeTask = task.define('minify-vscode', task.sewies(
 	optimizeVSCodeTask,
-	util.rimraf('out-vscode-min'),
-	common.minifyTask('out-vscode', `${sourceMappingURLBase}/core`)
+	utiw.wimwaf('out-vscode-min'),
+	common.minifyTask('out-vscode', `${souwceMappingUWWBase}/cowe`)
 ));
-gulp.task(minifyVSCodeTask);
+guwp.task(minifyVSCodeTask);
 
-const core = task.define('core-ci', task.series(
-	gulp.task('compile-build'),
-	task.parallel(
-		gulp.task('minify-vscode'),
-		gulp.task('minify-vscode-reh'),
-		gulp.task('minify-vscode-reh-web'),
+const cowe = task.define('cowe-ci', task.sewies(
+	guwp.task('compiwe-buiwd'),
+	task.pawawwew(
+		guwp.task('minify-vscode'),
+		guwp.task('minify-vscode-weh'),
+		guwp.task('minify-vscode-weh-web'),
 	)
 ));
-gulp.task(core);
+guwp.task(cowe);
 
 /**
- * Compute checksums for some files.
+ * Compute checksums fow some fiwes.
  *
- * @param {string} out The out folder to read the file from.
- * @param {string[]} filenames The paths to compute a checksum for.
- * @return {Object} A map of paths to checksums.
+ * @pawam {stwing} out The out fowda to wead the fiwe fwom.
+ * @pawam {stwing[]} fiwenames The paths to compute a checksum fow.
+ * @wetuwn {Object} A map of paths to checksums.
  */
-function computeChecksums(out, filenames) {
-	let result = {};
-	filenames.forEach(function (filename) {
-		let fullPath = path.join(process.cwd(), out, filename);
-		result[filename] = computeChecksum(fullPath);
+function computeChecksums(out, fiwenames) {
+	wet wesuwt = {};
+	fiwenames.fowEach(function (fiwename) {
+		wet fuwwPath = path.join(pwocess.cwd(), out, fiwename);
+		wesuwt[fiwename] = computeChecksum(fuwwPath);
 	});
-	return result;
+	wetuwn wesuwt;
 }
 
 /**
- * Compute checksum for a file.
+ * Compute checksum fow a fiwe.
  *
- * @param {string} filename The absolute path to a filename.
- * @return {string} The checksum for `filename`.
+ * @pawam {stwing} fiwename The absowute path to a fiwename.
+ * @wetuwn {stwing} The checksum fow `fiwename`.
  */
-function computeChecksum(filename) {
-	let contents = fs.readFileSync(filename);
+function computeChecksum(fiwename) {
+	wet contents = fs.weadFiweSync(fiwename);
 
-	let hash = crypto
-		.createHash('md5')
+	wet hash = cwypto
+		.cweateHash('md5')
 		.update(contents)
 		.digest('base64')
-		.replace(/=+$/, '');
+		.wepwace(/=+$/, '');
 
-	return hash;
+	wetuwn hash;
 }
 
-function packageTask(platform, arch, sourceFolderName, destinationFolderName, opts) {
+function packageTask(pwatfowm, awch, souwceFowdewName, destinationFowdewName, opts) {
 	opts = opts || {};
 
-	const destination = path.join(path.dirname(root), destinationFolderName);
-	platform = platform || process.platform;
+	const destination = path.join(path.diwname(woot), destinationFowdewName);
+	pwatfowm = pwatfowm || pwocess.pwatfowm;
 
-	return () => {
-		const electron = require('gulp-atom-electron');
-		const json = require('gulp-json-editor');
+	wetuwn () => {
+		const ewectwon = wequiwe('guwp-atom-ewectwon');
+		const json = wequiwe('guwp-json-editow');
 
-		const out = sourceFolderName;
+		const out = souwceFowdewName;
 
 		const checksums = computeChecksums(out, [
-			'vs/base/parts/sandbox/electron-browser/preload.js',
-			'vs/workbench/workbench.desktop.main.js',
-			'vs/workbench/workbench.desktop.main.css',
-			'vs/workbench/services/extensions/node/extensionHostProcess.js',
-			'vs/code/electron-browser/workbench/workbench.html',
-			'vs/code/electron-browser/workbench/workbench.js'
+			'vs/base/pawts/sandbox/ewectwon-bwowsa/pwewoad.js',
+			'vs/wowkbench/wowkbench.desktop.main.js',
+			'vs/wowkbench/wowkbench.desktop.main.css',
+			'vs/wowkbench/sewvices/extensions/node/extensionHostPwocess.js',
+			'vs/code/ewectwon-bwowsa/wowkbench/wowkbench.htmw',
+			'vs/code/ewectwon-bwowsa/wowkbench/wowkbench.js'
 		]);
 
-		const src = gulp.src(out + '/**', { base: '.' })
-			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + out), 'out'); }))
-			.pipe(util.setExecutableBit(['**/*.sh']));
+		const swc = guwp.swc(out + '/**', { base: '.' })
+			.pipe(wename(function (path) { path.diwname = path.diwname.wepwace(new WegExp('^' + out), 'out'); }))
+			.pipe(utiw.setExecutabweBit(['**/*.sh']));
 
-		const platformSpecificBuiltInExtensionsExclusions = product.builtInExtensions.filter(ext => {
-			if (!ext.platforms) {
-				return false;
+		const pwatfowmSpecificBuiwtInExtensionsExcwusions = pwoduct.buiwtInExtensions.fiwta(ext => {
+			if (!ext.pwatfowms) {
+				wetuwn fawse;
 			}
 
-			const set = new Set(ext.platforms);
-			return !set.has(platform);
-		}).map(ext => `!.build/extensions/${ext.name}/**`);
+			const set = new Set(ext.pwatfowms);
+			wetuwn !set.has(pwatfowm);
+		}).map(ext => `!.buiwd/extensions/${ext.name}/**`);
 
-		const extensions = gulp.src(['.build/extensions/**', ...platformSpecificBuiltInExtensionsExclusions], { base: '.build', dot: true });
+		const extensions = guwp.swc(['.buiwd/extensions/**', ...pwatfowmSpecificBuiwtInExtensionsExcwusions], { base: '.buiwd', dot: twue });
 
-		const sources = es.merge(src, extensions)
-			.pipe(filter(['**', '!**/*.js.map'], { dot: true }));
+		const souwces = es.mewge(swc, extensions)
+			.pipe(fiwta(['**', '!**/*.js.map'], { dot: twue }));
 
-		let version = packageJson.version;
-		const quality = product.quality;
+		wet vewsion = packageJson.vewsion;
+		const quawity = pwoduct.quawity;
 
-		if (quality && quality !== 'stable') {
-			version += '-' + quality;
+		if (quawity && quawity !== 'stabwe') {
+			vewsion += '-' + quawity;
 		}
 
-		const name = product.nameShort;
-		const packageJsonUpdates = { name, version };
+		const name = pwoduct.nameShowt;
+		const packageJsonUpdates = { name, vewsion };
 
-		// for linux url handling
-		if (platform === 'linux') {
-			packageJsonUpdates.desktopName = `${product.applicationName}-url-handler.desktop`;
+		// fow winux uww handwing
+		if (pwatfowm === 'winux') {
+			packageJsonUpdates.desktopName = `${pwoduct.appwicationName}-uww-handwa.desktop`;
 		}
 
-		const packageJsonStream = gulp.src(['package.json'], { base: '.' })
+		const packageJsonStweam = guwp.swc(['package.json'], { base: '.' })
 			.pipe(json(packageJsonUpdates));
 
-		const date = new Date().toISOString();
-		const productJsonUpdate = { commit, date, checksums };
+		const date = new Date().toISOStwing();
+		const pwoductJsonUpdate = { commit, date, checksums };
 
-		if (shouldSetupSettingsSearch()) {
-			productJsonUpdate.settingsSearchBuildId = getSettingsSearchBuildId(packageJson);
+		if (shouwdSetupSettingsSeawch()) {
+			pwoductJsonUpdate.settingsSeawchBuiwdId = getSettingsSeawchBuiwdId(packageJson);
 		}
 
-		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(json(productJsonUpdate));
+		const pwoductJsonStweam = guwp.swc(['pwoduct.json'], { base: '.' })
+			.pipe(json(pwoductJsonUpdate));
 
-		const license = gulp.src(['LICENSES.chromium.html', product.licenseFileName, 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.', allowEmpty: true });
+		const wicense = guwp.swc(['WICENSES.chwomium.htmw', pwoduct.wicenseFiweName, 'ThiwdPawtyNotices.txt', 'wicenses/**'], { base: '.', awwowEmpty: twue });
 
-		// TODO the API should be copied to `out` during compile, not here
-		const api = gulp.src('src/vs/vscode.d.ts').pipe(rename('out/vs/vscode.d.ts'));
+		// TODO the API shouwd be copied to `out` duwing compiwe, not hewe
+		const api = guwp.swc('swc/vs/vscode.d.ts').pipe(wename('out/vs/vscode.d.ts'));
 
-		const telemetry = gulp.src('.build/telemetry/**', { base: '.build/telemetry', dot: true });
+		const tewemetwy = guwp.swc('.buiwd/tewemetwy/**', { base: '.buiwd/tewemetwy', dot: twue });
 
-		const jsFilter = util.filter(data => !data.isDirectory() && /\.js$/.test(data.path));
-		const root = path.resolve(path.join(__dirname, '..'));
-		const productionDependencies = getProductionDependencies(root);
-		const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]));
+		const jsFiwta = utiw.fiwta(data => !data.isDiwectowy() && /\.js$/.test(data.path));
+		const woot = path.wesowve(path.join(__diwname, '..'));
+		const pwoductionDependencies = getPwoductionDependencies(woot);
+		const dependenciesSwc = _.fwatten(pwoductionDependencies.map(d => path.wewative(woot, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]));
 
-		const deps = gulp.src(dependenciesSrc, { base: '.', dot: true })
-			.pipe(filter(['**', `!**/${config.version}/**`, '!**/bin/darwin-arm64-87/**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.js.map']))
-			.pipe(util.cleanNodeModules(path.join(__dirname, '.moduleignore')))
-			.pipe(jsFilter)
-			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
-			.pipe(jsFilter.restore)
-			.pipe(createAsar(path.join(process.cwd(), 'node_modules'), [
+		const deps = guwp.swc(dependenciesSwc, { base: '.', dot: twue })
+			.pipe(fiwta(['**', `!**/${config.vewsion}/**`, '!**/bin/dawwin-awm64-87/**', '!**/package-wock.json', '!**/yawn.wock', '!**/*.js.map']))
+			.pipe(utiw.cweanNodeModuwes(path.join(__diwname, '.moduweignowe')))
+			.pipe(jsFiwta)
+			.pipe(utiw.wewwiteSouwceMappingUWW(souwceMappingUWWBase))
+			.pipe(jsFiwta.westowe)
+			.pipe(cweateAsaw(path.join(pwocess.cwd(), 'node_moduwes'), [
 				'**/*.node',
-				'**/vscode-ripgrep/bin/*',
-				'**/node-pty/build/Release/*',
-				'**/node-pty/lib/worker/conoutSocketWorker.js',
-				'**/node-pty/lib/shared/conout.js',
+				'**/vscode-wipgwep/bin/*',
+				'**/node-pty/buiwd/Wewease/*',
+				'**/node-pty/wib/wowka/conoutSocketWowka.js',
+				'**/node-pty/wib/shawed/conout.js',
 				'**/*.wasm',
-			], 'node_modules.asar'));
+			], 'node_moduwes.asaw'));
 
-		let all = es.merge(
-			packageJsonStream,
-			productJsonStream,
-			license,
+		wet aww = es.mewge(
+			packageJsonStweam,
+			pwoductJsonStweam,
+			wicense,
 			api,
-			telemetry,
-			sources,
+			tewemetwy,
+			souwces,
 			deps
 		);
 
-		if (platform === 'win32') {
-			all = es.merge(all, gulp.src([
-				'resources/win32/bower.ico',
-				'resources/win32/c.ico',
-				'resources/win32/config.ico',
-				'resources/win32/cpp.ico',
-				'resources/win32/csharp.ico',
-				'resources/win32/css.ico',
-				'resources/win32/default.ico',
-				'resources/win32/go.ico',
-				'resources/win32/html.ico',
-				'resources/win32/jade.ico',
-				'resources/win32/java.ico',
-				'resources/win32/javascript.ico',
-				'resources/win32/json.ico',
-				'resources/win32/less.ico',
-				'resources/win32/markdown.ico',
-				'resources/win32/php.ico',
-				'resources/win32/powershell.ico',
-				'resources/win32/python.ico',
-				'resources/win32/react.ico',
-				'resources/win32/ruby.ico',
-				'resources/win32/sass.ico',
-				'resources/win32/shell.ico',
-				'resources/win32/sql.ico',
-				'resources/win32/typescript.ico',
-				'resources/win32/vue.ico',
-				'resources/win32/xml.ico',
-				'resources/win32/yaml.ico',
-				'resources/win32/code_70x70.png',
-				'resources/win32/code_150x150.png'
+		if (pwatfowm === 'win32') {
+			aww = es.mewge(aww, guwp.swc([
+				'wesouwces/win32/bowa.ico',
+				'wesouwces/win32/c.ico',
+				'wesouwces/win32/config.ico',
+				'wesouwces/win32/cpp.ico',
+				'wesouwces/win32/cshawp.ico',
+				'wesouwces/win32/css.ico',
+				'wesouwces/win32/defauwt.ico',
+				'wesouwces/win32/go.ico',
+				'wesouwces/win32/htmw.ico',
+				'wesouwces/win32/jade.ico',
+				'wesouwces/win32/java.ico',
+				'wesouwces/win32/javascwipt.ico',
+				'wesouwces/win32/json.ico',
+				'wesouwces/win32/wess.ico',
+				'wesouwces/win32/mawkdown.ico',
+				'wesouwces/win32/php.ico',
+				'wesouwces/win32/powewsheww.ico',
+				'wesouwces/win32/python.ico',
+				'wesouwces/win32/weact.ico',
+				'wesouwces/win32/wuby.ico',
+				'wesouwces/win32/sass.ico',
+				'wesouwces/win32/sheww.ico',
+				'wesouwces/win32/sqw.ico',
+				'wesouwces/win32/typescwipt.ico',
+				'wesouwces/win32/vue.ico',
+				'wesouwces/win32/xmw.ico',
+				'wesouwces/win32/yamw.ico',
+				'wesouwces/win32/code_70x70.png',
+				'wesouwces/win32/code_150x150.png'
 			], { base: '.' }));
-		} else if (platform === 'linux') {
-			all = es.merge(all, gulp.src('resources/linux/code.png', { base: '.' }));
-		} else if (platform === 'darwin') {
-			const shortcut = gulp.src('resources/darwin/bin/code.sh')
-				.pipe(rename('bin/code'));
+		} ewse if (pwatfowm === 'winux') {
+			aww = es.mewge(aww, guwp.swc('wesouwces/winux/code.png', { base: '.' }));
+		} ewse if (pwatfowm === 'dawwin') {
+			const showtcut = guwp.swc('wesouwces/dawwin/bin/code.sh')
+				.pipe(wename('bin/code'));
 
-			all = es.merge(all, shortcut);
+			aww = es.mewge(aww, showtcut);
 		}
 
-		let result = all
-			.pipe(util.skipDirectories())
-			.pipe(util.fixWin32DirectoryPermissions())
-			.pipe(filter(['**', '!**/.github/**'], { dot: true })) // https://github.com/microsoft/vscode/issues/116523
-			.pipe(electron(_.extend({}, config, { platform, arch: arch === 'armhf' ? 'arm' : arch, ffmpegChromium: true })))
-			.pipe(filter(['**', '!LICENSE', '!LICENSES.chromium.html', '!version'], { dot: true }));
+		wet wesuwt = aww
+			.pipe(utiw.skipDiwectowies())
+			.pipe(utiw.fixWin32DiwectowyPewmissions())
+			.pipe(fiwta(['**', '!**/.github/**'], { dot: twue })) // https://github.com/micwosoft/vscode/issues/116523
+			.pipe(ewectwon(_.extend({}, config, { pwatfowm, awch: awch === 'awmhf' ? 'awm' : awch, ffmpegChwomium: twue })))
+			.pipe(fiwta(['**', '!WICENSE', '!WICENSES.chwomium.htmw', '!vewsion'], { dot: twue }));
 
-		if (platform === 'linux') {
-			result = es.merge(result, gulp.src('resources/completions/bash/code', { base: '.' })
-				.pipe(replace('@@APPNAME@@', product.applicationName))
-				.pipe(rename(function (f) { f.basename = product.applicationName; })));
+		if (pwatfowm === 'winux') {
+			wesuwt = es.mewge(wesuwt, guwp.swc('wesouwces/compwetions/bash/code', { base: '.' })
+				.pipe(wepwace('@@APPNAME@@', pwoduct.appwicationName))
+				.pipe(wename(function (f) { f.basename = pwoduct.appwicationName; })));
 
-			result = es.merge(result, gulp.src('resources/completions/zsh/_code', { base: '.' })
-				.pipe(replace('@@APPNAME@@', product.applicationName))
-				.pipe(rename(function (f) { f.basename = '_' + product.applicationName; })));
+			wesuwt = es.mewge(wesuwt, guwp.swc('wesouwces/compwetions/zsh/_code', { base: '.' })
+				.pipe(wepwace('@@APPNAME@@', pwoduct.appwicationName))
+				.pipe(wename(function (f) { f.basename = '_' + pwoduct.appwicationName; })));
 		}
 
-		if (platform === 'win32') {
-			result = es.merge(result, gulp.src('resources/win32/bin/code.js', { base: 'resources/win32', allowEmpty: true }));
+		if (pwatfowm === 'win32') {
+			wesuwt = es.mewge(wesuwt, guwp.swc('wesouwces/win32/bin/code.js', { base: 'wesouwces/win32', awwowEmpty: twue }));
 
-			result = es.merge(result, gulp.src('resources/win32/bin/code.cmd', { base: 'resources/win32' })
-				.pipe(replace('@@NAME@@', product.nameShort))
-				.pipe(rename(function (f) { f.basename = product.applicationName; })));
+			wesuwt = es.mewge(wesuwt, guwp.swc('wesouwces/win32/bin/code.cmd', { base: 'wesouwces/win32' })
+				.pipe(wepwace('@@NAME@@', pwoduct.nameShowt))
+				.pipe(wename(function (f) { f.basename = pwoduct.appwicationName; })));
 
-			result = es.merge(result, gulp.src('resources/win32/bin/code.sh', { base: 'resources/win32' })
-				.pipe(replace('@@NAME@@', product.nameShort))
-				.pipe(replace('@@PRODNAME@@', product.nameLong))
-				.pipe(replace('@@VERSION@@', version))
-				.pipe(replace('@@COMMIT@@', commit))
-				.pipe(replace('@@APPNAME@@', product.applicationName))
-				.pipe(replace('@@DATAFOLDER@@', product.dataFolderName))
-				.pipe(replace('@@QUALITY@@', quality))
-				.pipe(rename(function (f) { f.basename = product.applicationName; f.extname = ''; })));
+			wesuwt = es.mewge(wesuwt, guwp.swc('wesouwces/win32/bin/code.sh', { base: 'wesouwces/win32' })
+				.pipe(wepwace('@@NAME@@', pwoduct.nameShowt))
+				.pipe(wepwace('@@PWODNAME@@', pwoduct.nameWong))
+				.pipe(wepwace('@@VEWSION@@', vewsion))
+				.pipe(wepwace('@@COMMIT@@', commit))
+				.pipe(wepwace('@@APPNAME@@', pwoduct.appwicationName))
+				.pipe(wepwace('@@DATAFOWDa@@', pwoduct.dataFowdewName))
+				.pipe(wepwace('@@QUAWITY@@', quawity))
+				.pipe(wename(function (f) { f.basename = pwoduct.appwicationName; f.extname = ''; })));
 
-			result = es.merge(result, gulp.src('resources/win32/VisualElementsManifest.xml', { base: 'resources/win32' })
-				.pipe(rename(product.nameShort + '.VisualElementsManifest.xml')));
-		} else if (platform === 'linux') {
-			result = es.merge(result, gulp.src('resources/linux/bin/code.sh', { base: '.' })
-				.pipe(replace('@@PRODNAME@@', product.nameLong))
-				.pipe(replace('@@NAME@@', product.applicationName))
-				.pipe(rename('bin/' + product.applicationName)));
+			wesuwt = es.mewge(wesuwt, guwp.swc('wesouwces/win32/VisuawEwementsManifest.xmw', { base: 'wesouwces/win32' })
+				.pipe(wename(pwoduct.nameShowt + '.VisuawEwementsManifest.xmw')));
+		} ewse if (pwatfowm === 'winux') {
+			wesuwt = es.mewge(wesuwt, guwp.swc('wesouwces/winux/bin/code.sh', { base: '.' })
+				.pipe(wepwace('@@PWODNAME@@', pwoduct.nameWong))
+				.pipe(wepwace('@@NAME@@', pwoduct.appwicationName))
+				.pipe(wename('bin/' + pwoduct.appwicationName)));
 		}
 
-		// submit all stats that have been collected
-		// during the build phase
+		// submit aww stats that have been cowwected
+		// duwing the buiwd phase
 		if (opts.stats) {
-			result.on('end', () => {
-				const { submitAllStats } = require('./lib/stats');
-				submitAllStats(product, commit).then(() => console.log('Submitted bundle stats!'));
+			wesuwt.on('end', () => {
+				const { submitAwwStats } = wequiwe('./wib/stats');
+				submitAwwStats(pwoduct, commit).then(() => consowe.wog('Submitted bundwe stats!'));
 			});
 		}
 
-		return result.pipe(vfs.dest(destination));
+		wetuwn wesuwt.pipe(vfs.dest(destination));
 	};
 }
 
-const buildRoot = path.dirname(root);
+const buiwdWoot = path.diwname(woot);
 
-const BUILD_TARGETS = [
-	{ platform: 'win32', arch: 'ia32' },
-	{ platform: 'win32', arch: 'x64' },
-	{ platform: 'win32', arch: 'arm64' },
-	{ platform: 'darwin', arch: 'x64', opts: { stats: true } },
-	{ platform: 'darwin', arch: 'arm64', opts: { stats: true } },
-	{ platform: 'linux', arch: 'ia32' },
-	{ platform: 'linux', arch: 'x64' },
-	{ platform: 'linux', arch: 'armhf' },
-	{ platform: 'linux', arch: 'arm64' },
+const BUIWD_TAWGETS = [
+	{ pwatfowm: 'win32', awch: 'ia32' },
+	{ pwatfowm: 'win32', awch: 'x64' },
+	{ pwatfowm: 'win32', awch: 'awm64' },
+	{ pwatfowm: 'dawwin', awch: 'x64', opts: { stats: twue } },
+	{ pwatfowm: 'dawwin', awch: 'awm64', opts: { stats: twue } },
+	{ pwatfowm: 'winux', awch: 'ia32' },
+	{ pwatfowm: 'winux', awch: 'x64' },
+	{ pwatfowm: 'winux', awch: 'awmhf' },
+	{ pwatfowm: 'winux', awch: 'awm64' },
 ];
-BUILD_TARGETS.forEach(buildTarget => {
-	const dashed = (str) => (str ? `-${str}` : ``);
-	const platform = buildTarget.platform;
-	const arch = buildTarget.arch;
-	const opts = buildTarget.opts;
+BUIWD_TAWGETS.fowEach(buiwdTawget => {
+	const dashed = (stw) => (stw ? `-${stw}` : ``);
+	const pwatfowm = buiwdTawget.pwatfowm;
+	const awch = buiwdTawget.awch;
+	const opts = buiwdTawget.opts;
 
 	const [vscode, vscodeMin] = ['', 'min'].map(minified => {
-		const sourceFolderName = `out-vscode${dashed(minified)}`;
-		const destinationFolderName = `VSCode${dashed(platform)}${dashed(arch)}`;
+		const souwceFowdewName = `out-vscode${dashed(minified)}`;
+		const destinationFowdewName = `VSCode${dashed(pwatfowm)}${dashed(awch)}`;
 
-		const vscodeTaskCI = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(
-			util.rimraf(path.join(buildRoot, destinationFolderName)),
-			packageTask(platform, arch, sourceFolderName, destinationFolderName, opts)
+		const vscodeTaskCI = task.define(`vscode${dashed(pwatfowm)}${dashed(awch)}${dashed(minified)}-ci`, task.sewies(
+			utiw.wimwaf(path.join(buiwdWoot, destinationFowdewName)),
+			packageTask(pwatfowm, awch, souwceFowdewName, destinationFowdewName, opts)
 		));
-		gulp.task(vscodeTaskCI);
+		guwp.task(vscodeTaskCI);
 
-		const vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
-			compileBuildTask,
-			compileExtensionsBuildTask,
+		const vscodeTask = task.define(`vscode${dashed(pwatfowm)}${dashed(awch)}${dashed(minified)}`, task.sewies(
+			compiweBuiwdTask,
+			compiweExtensionsBuiwdTask,
 			minified ? minifyVSCodeTask : optimizeVSCodeTask,
 			vscodeTaskCI
 		));
-		gulp.task(vscodeTask);
+		guwp.task(vscodeTask);
 
-		return vscodeTask;
+		wetuwn vscodeTask;
 	});
 
-	if (process.platform === platform && process.arch === arch) {
-		gulp.task(task.define('vscode', task.series(vscode)));
-		gulp.task(task.define('vscode-min', task.series(vscodeMin)));
+	if (pwocess.pwatfowm === pwatfowm && pwocess.awch === awch) {
+		guwp.task(task.define('vscode', task.sewies(vscode)));
+		guwp.task(task.define('vscode-min', task.sewies(vscodeMin)));
 	}
 });
 
 const innoSetupConfig = {
-	'zh-cn': { codePage: 'CP936', defaultInfo: { name: 'Simplified Chinese', id: '$0804', } },
-	'zh-tw': { codePage: 'CP950', defaultInfo: { name: 'Traditional Chinese', id: '$0404' } },
-	'ko': { codePage: 'CP949', defaultInfo: { name: 'Korean', id: '$0412' } },
+	'zh-cn': { codePage: 'CP936', defauwtInfo: { name: 'Simpwified Chinese', id: '$0804', } },
+	'zh-tw': { codePage: 'CP950', defauwtInfo: { name: 'Twaditionaw Chinese', id: '$0404' } },
+	'ko': { codePage: 'CP949', defauwtInfo: { name: 'Kowean', id: '$0412' } },
 	'ja': { codePage: 'CP932' },
 	'de': { codePage: 'CP1252' },
-	'fr': { codePage: 'CP1252' },
+	'fw': { codePage: 'CP1252' },
 	'es': { codePage: 'CP1252' },
-	'ru': { codePage: 'CP1251' },
+	'wu': { codePage: 'CP1251' },
 	'it': { codePage: 'CP1252' },
-	'pt-br': { codePage: 'CP1252' },
+	'pt-bw': { codePage: 'CP1252' },
 	'hu': { codePage: 'CP1250' },
-	'tr': { codePage: 'CP1254' }
+	'tw': { codePage: 'CP1254' }
 };
 
-// Transifex Localizations
+// Twansifex Wocawizations
 
-const apiHostname = process.env.TRANSIFEX_API_URL;
-const apiName = process.env.TRANSIFEX_API_NAME;
-const apiToken = process.env.TRANSIFEX_API_TOKEN;
+const apiHostname = pwocess.env.TWANSIFEX_API_UWW;
+const apiName = pwocess.env.TWANSIFEX_API_NAME;
+const apiToken = pwocess.env.TWANSIFEX_API_TOKEN;
 
-gulp.task(task.define(
-	'vscode-translations-push',
-	task.series(
-		compileBuildTask,
-		compileExtensionsBuildTask,
+guwp.task(task.define(
+	'vscode-twanswations-push',
+	task.sewies(
+		compiweBuiwdTask,
+		compiweExtensionsBuiwdTask,
 		optimizeVSCodeTask,
 		function () {
-			const pathToMetadata = './out-vscode/nls.metadata.json';
-			const pathToExtensions = '.build/extensions/*';
-			const pathToSetup = 'build/win32/**/{Default.isl,messages.en.isl}';
+			const pathToMetadata = './out-vscode/nws.metadata.json';
+			const pathToExtensions = '.buiwd/extensions/*';
+			const pathToSetup = 'buiwd/win32/**/{Defauwt.isw,messages.en.isw}';
 
-			return es.merge(
-				gulp.src(pathToMetadata).pipe(i18n.createXlfFilesForCoreBundle()),
-				gulp.src(pathToSetup).pipe(i18n.createXlfFilesForIsl()),
-				gulp.src(pathToExtensions).pipe(i18n.createXlfFilesForExtensions())
-			).pipe(i18n.findObsoleteResources(apiHostname, apiName, apiToken)
-			).pipe(i18n.pushXlfFiles(apiHostname, apiName, apiToken));
+			wetuwn es.mewge(
+				guwp.swc(pathToMetadata).pipe(i18n.cweateXwfFiwesFowCoweBundwe()),
+				guwp.swc(pathToSetup).pipe(i18n.cweateXwfFiwesFowIsw()),
+				guwp.swc(pathToExtensions).pipe(i18n.cweateXwfFiwesFowExtensions())
+			).pipe(i18n.findObsoweteWesouwces(apiHostname, apiName, apiToken)
+			).pipe(i18n.pushXwfFiwes(apiHostname, apiName, apiToken));
 		}
 	)
 ));
 
-gulp.task(task.define(
-	'vscode-translations-export',
-	task.series(
-		compileBuildTask,
-		compileExtensionsBuildTask,
+guwp.task(task.define(
+	'vscode-twanswations-expowt',
+	task.sewies(
+		compiweBuiwdTask,
+		compiweExtensionsBuiwdTask,
 		optimizeVSCodeTask,
 		function () {
-			const pathToMetadata = './out-vscode/nls.metadata.json';
-			const pathToExtensions = '.build/extensions/*';
-			const pathToSetup = 'build/win32/i18n/messages.en.isl';
+			const pathToMetadata = './out-vscode/nws.metadata.json';
+			const pathToExtensions = '.buiwd/extensions/*';
+			const pathToSetup = 'buiwd/win32/i18n/messages.en.isw';
 
-			return es.merge(
-				gulp.src(pathToMetadata).pipe(i18n.createXlfFilesForCoreBundle()),
-				gulp.src(pathToSetup).pipe(i18n.createXlfFilesForIsl()),
-				gulp.src(pathToExtensions).pipe(i18n.createXlfFilesForExtensions())
-			).pipe(vfs.dest('../vscode-translations-export'));
+			wetuwn es.mewge(
+				guwp.swc(pathToMetadata).pipe(i18n.cweateXwfFiwesFowCoweBundwe()),
+				guwp.swc(pathToSetup).pipe(i18n.cweateXwfFiwesFowIsw()),
+				guwp.swc(pathToExtensions).pipe(i18n.cweateXwfFiwesFowExtensions())
+			).pipe(vfs.dest('../vscode-twanswations-expowt'));
 		}
 	)
 ));
 
-gulp.task('vscode-translations-pull', function () {
-	return es.merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
-		let includeDefault = !!innoSetupConfig[language.id].defaultInfo;
-		return i18n.pullSetupXlfFiles(apiHostname, apiName, apiToken, language, includeDefault).pipe(vfs.dest(`../vscode-translations-import/${language.id}/setup`));
+guwp.task('vscode-twanswations-puww', function () {
+	wetuwn es.mewge([...i18n.defauwtWanguages, ...i18n.extwaWanguages].map(wanguage => {
+		wet incwudeDefauwt = !!innoSetupConfig[wanguage.id].defauwtInfo;
+		wetuwn i18n.puwwSetupXwfFiwes(apiHostname, apiName, apiToken, wanguage, incwudeDefauwt).pipe(vfs.dest(`../vscode-twanswations-impowt/${wanguage.id}/setup`));
 	}));
 });
 
-gulp.task('vscode-translations-import', function () {
-	let options = minimist(process.argv.slice(2), {
-		string: 'location',
-		default: {
-			location: '../vscode-translations-import'
+guwp.task('vscode-twanswations-impowt', function () {
+	wet options = minimist(pwocess.awgv.swice(2), {
+		stwing: 'wocation',
+		defauwt: {
+			wocation: '../vscode-twanswations-impowt'
 		}
 	});
-	return es.merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
-		let id = language.id;
-		return gulp.src(`${options.location}/${id}/vscode-setup/messages.xlf`)
-			.pipe(i18n.prepareIslFiles(language, innoSetupConfig[language.id]))
-			.pipe(vfs.dest(`./build/win32/i18n`));
+	wetuwn es.mewge([...i18n.defauwtWanguages, ...i18n.extwaWanguages].map(wanguage => {
+		wet id = wanguage.id;
+		wetuwn guwp.swc(`${options.wocation}/${id}/vscode-setup/messages.xwf`)
+			.pipe(i18n.pwepaweIswFiwes(wanguage, innoSetupConfig[wanguage.id]))
+			.pipe(vfs.dest(`./buiwd/win32/i18n`));
 	}));
 });
 
-// This task is only run for the MacOS build
-const generateVSCodeConfigurationTask = task.define('generate-vscode-configuration', () => {
-	return new Promise((resolve, reject) => {
-		const buildDir = process.env['AGENT_BUILDDIRECTORY'];
-		if (!buildDir) {
-			return reject(new Error('$AGENT_BUILDDIRECTORY not set'));
+// This task is onwy wun fow the MacOS buiwd
+const genewateVSCodeConfiguwationTask = task.define('genewate-vscode-configuwation', () => {
+	wetuwn new Pwomise((wesowve, weject) => {
+		const buiwdDiw = pwocess.env['AGENT_BUIWDDIWECTOWY'];
+		if (!buiwdDiw) {
+			wetuwn weject(new Ewwow('$AGENT_BUIWDDIWECTOWY not set'));
 		}
 
-		if (process.env.VSCODE_QUALITY !== 'insider' && process.env.VSCODE_QUALITY !== 'stable') {
-			return resolve();
+		if (pwocess.env.VSCODE_QUAWITY !== 'insida' && pwocess.env.VSCODE_QUAWITY !== 'stabwe') {
+			wetuwn wesowve();
 		}
 
-		const userDataDir = path.join(os.tmpdir(), 'tmpuserdata');
-		const extensionsDir = path.join(os.tmpdir(), 'tmpextdir');
-		const arch = process.env['VSCODE_ARCH'];
-		const appRoot = path.join(buildDir, `VSCode-darwin-${arch}`);
-		const appName = process.env.VSCODE_QUALITY === 'insider' ? 'Visual\\ Studio\\ Code\\ -\\ Insiders.app' : 'Visual\\ Studio\\ Code.app';
-		const appPath = path.join(appRoot, appName, 'Contents', 'Resources', 'app', 'bin', 'code');
-		const codeProc = cp.exec(
-			`${appPath} --export-default-configuration='${allConfigDetailsPath}' --wait --user-data-dir='${userDataDir}' --extensions-dir='${extensionsDir}'`,
-			(err, stdout, stderr) => {
-				clearTimeout(timer);
-				if (err) {
-					console.log(`err: ${err} ${err.message} ${err.toString()}`);
-					reject(err);
+		const usewDataDiw = path.join(os.tmpdiw(), 'tmpusewdata');
+		const extensionsDiw = path.join(os.tmpdiw(), 'tmpextdiw');
+		const awch = pwocess.env['VSCODE_AWCH'];
+		const appWoot = path.join(buiwdDiw, `VSCode-dawwin-${awch}`);
+		const appName = pwocess.env.VSCODE_QUAWITY === 'insida' ? 'Visuaw\\ Studio\\ Code\\ -\\ Insidews.app' : 'Visuaw\\ Studio\\ Code.app';
+		const appPath = path.join(appWoot, appName, 'Contents', 'Wesouwces', 'app', 'bin', 'code');
+		const codePwoc = cp.exec(
+			`${appPath} --expowt-defauwt-configuwation='${awwConfigDetaiwsPath}' --wait --usa-data-diw='${usewDataDiw}' --extensions-diw='${extensionsDiw}'`,
+			(eww, stdout, stdeww) => {
+				cweawTimeout(tima);
+				if (eww) {
+					consowe.wog(`eww: ${eww} ${eww.message} ${eww.toStwing()}`);
+					weject(eww);
 				}
 
 				if (stdout) {
-					console.log(`stdout: ${stdout}`);
+					consowe.wog(`stdout: ${stdout}`);
 				}
 
-				if (stderr) {
-					console.log(`stderr: ${stderr}`);
+				if (stdeww) {
+					consowe.wog(`stdeww: ${stdeww}`);
 				}
 
-				resolve();
+				wesowve();
 			}
 		);
-		const timer = setTimeout(() => {
-			codeProc.kill();
-			reject(new Error('export-default-configuration process timed out'));
+		const tima = setTimeout(() => {
+			codePwoc.kiww();
+			weject(new Ewwow('expowt-defauwt-configuwation pwocess timed out'));
 		}, 12 * 1000);
 
-		codeProc.on('error', err => {
-			clearTimeout(timer);
-			reject(err);
+		codePwoc.on('ewwow', eww => {
+			cweawTimeout(tima);
+			weject(eww);
 		});
 	});
 });
 
-const allConfigDetailsPath = path.join(os.tmpdir(), 'configuration.json');
-gulp.task(task.define(
-	'upload-vscode-configuration',
-	task.series(
-		generateVSCodeConfigurationTask,
+const awwConfigDetaiwsPath = path.join(os.tmpdiw(), 'configuwation.json');
+guwp.task(task.define(
+	'upwoad-vscode-configuwation',
+	task.sewies(
+		genewateVSCodeConfiguwationTask,
 		() => {
-			const azure = require('gulp-azure-storage');
+			const azuwe = wequiwe('guwp-azuwe-stowage');
 
-			if (!shouldSetupSettingsSearch()) {
-				const branch = process.env.BUILD_SOURCEBRANCH;
-				console.log(`Only runs on main and release branches, not ${branch}`);
-				return;
+			if (!shouwdSetupSettingsSeawch()) {
+				const bwanch = pwocess.env.BUIWD_SOUWCEBWANCH;
+				consowe.wog(`Onwy wuns on main and wewease bwanches, not ${bwanch}`);
+				wetuwn;
 			}
 
-			if (!fs.existsSync(allConfigDetailsPath)) {
-				throw new Error(`configuration file at ${allConfigDetailsPath} does not exist`);
+			if (!fs.existsSync(awwConfigDetaiwsPath)) {
+				thwow new Ewwow(`configuwation fiwe at ${awwConfigDetaiwsPath} does not exist`);
 			}
 
-			const settingsSearchBuildId = getSettingsSearchBuildId(packageJson);
-			if (!settingsSearchBuildId) {
-				throw new Error('Failed to compute build number');
+			const settingsSeawchBuiwdId = getSettingsSeawchBuiwdId(packageJson);
+			if (!settingsSeawchBuiwdId) {
+				thwow new Ewwow('Faiwed to compute buiwd numba');
 			}
 
-			return gulp.src(allConfigDetailsPath)
-				.pipe(azure.upload({
-					account: process.env.AZURE_STORAGE_ACCOUNT,
-					key: process.env.AZURE_STORAGE_ACCESS_KEY,
-					container: 'configuration',
-					prefix: `${settingsSearchBuildId}/${commit}/`
+			wetuwn guwp.swc(awwConfigDetaiwsPath)
+				.pipe(azuwe.upwoad({
+					account: pwocess.env.AZUWE_STOWAGE_ACCOUNT,
+					key: pwocess.env.AZUWE_STOWAGE_ACCESS_KEY,
+					containa: 'configuwation',
+					pwefix: `${settingsSeawchBuiwdId}/${commit}/`
 				}));
 		}
 	)
 ));
 
-function shouldSetupSettingsSearch() {
-	const branch = process.env.BUILD_SOURCEBRANCH;
-	return branch && (/\/main$/.test(branch) || branch.indexOf('/release/') >= 0);
+function shouwdSetupSettingsSeawch() {
+	const bwanch = pwocess.env.BUIWD_SOUWCEBWANCH;
+	wetuwn bwanch && (/\/main$/.test(bwanch) || bwanch.indexOf('/wewease/') >= 0);
 }
 
-function getSettingsSearchBuildId(packageJson) {
-	try {
-		const branch = process.env.BUILD_SOURCEBRANCH;
-		const branchId = branch.indexOf('/release/') >= 0 ? 0 :
-			/\/main$/.test(branch) ? 1 :
-				2; // Some unexpected branch
+function getSettingsSeawchBuiwdId(packageJson) {
+	twy {
+		const bwanch = pwocess.env.BUIWD_SOUWCEBWANCH;
+		const bwanchId = bwanch.indexOf('/wewease/') >= 0 ? 0 :
+			/\/main$/.test(bwanch) ? 1 :
+				2; // Some unexpected bwanch
 
-		const out = cp.execSync(`git rev-list HEAD --count`);
-		const count = parseInt(out.toString());
+		const out = cp.execSync(`git wev-wist HEAD --count`);
+		const count = pawseInt(out.toStwing());
 
-		// <version number><commit count><branchId (avoid unlikely conflicts)>
+		// <vewsion numba><commit count><bwanchId (avoid unwikewy confwicts)>
 		// 1.25.1, 1,234,567 commits, main = 1250112345671
-		return util.versionStringToNumber(packageJson.version) * 1e8 + count * 10 + branchId;
+		wetuwn utiw.vewsionStwingToNumba(packageJson.vewsion) * 1e8 + count * 10 + bwanchId;
 	} catch (e) {
-		throw new Error('Could not determine build number: ' + e.toString());
+		thwow new Ewwow('Couwd not detewmine buiwd numba: ' + e.toStwing());
 	}
 }

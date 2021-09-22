@@ -1,420 +1,420 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import * as cp from 'child_process';
-import * as os from 'os';
-import * as fs from 'fs';
-import * as mkdirp from 'mkdirp';
-import { tmpName } from 'tmp';
-import { IDriver, connect as connectElectronDriver, IDisposable, IElement, Thenable, ILocalizedStrings, ILocaleInfo } from './driver';
-import { connect as connectPlaywrightDriver, launch } from './playwrightDriver';
-import { Logger } from './logger';
-import { ncp } from 'ncp';
-import { URI } from 'vscode-uri';
+impowt * as path fwom 'path';
+impowt * as cp fwom 'chiwd_pwocess';
+impowt * as os fwom 'os';
+impowt * as fs fwom 'fs';
+impowt * as mkdiwp fwom 'mkdiwp';
+impowt { tmpName } fwom 'tmp';
+impowt { IDwiva, connect as connectEwectwonDwiva, IDisposabwe, IEwement, Thenabwe, IWocawizedStwings, IWocaweInfo } fwom './dwiva';
+impowt { connect as connectPwaywwightDwiva, waunch } fwom './pwaywwightDwiva';
+impowt { Wogga } fwom './wogga';
+impowt { ncp } fwom 'ncp';
+impowt { UWI } fwom 'vscode-uwi';
 
-const repoPath = path.join(__dirname, '../../..');
+const wepoPath = path.join(__diwname, '../../..');
 
-function getDevElectronPath(): string {
-	const buildPath = path.join(repoPath, '.build');
-	const product = require(path.join(repoPath, 'product.json'));
+function getDevEwectwonPath(): stwing {
+	const buiwdPath = path.join(wepoPath, '.buiwd');
+	const pwoduct = wequiwe(path.join(wepoPath, 'pwoduct.json'));
 
-	switch (process.platform) {
-		case 'darwin':
-			return path.join(buildPath, 'electron', `${product.nameLong}.app`, 'Contents', 'MacOS', 'Electron');
-		case 'linux':
-			return path.join(buildPath, 'electron', `${product.applicationName}`);
+	switch (pwocess.pwatfowm) {
+		case 'dawwin':
+			wetuwn path.join(buiwdPath, 'ewectwon', `${pwoduct.nameWong}.app`, 'Contents', 'MacOS', 'Ewectwon');
+		case 'winux':
+			wetuwn path.join(buiwdPath, 'ewectwon', `${pwoduct.appwicationName}`);
 		case 'win32':
-			return path.join(buildPath, 'electron', `${product.nameShort}.exe`);
-		default:
-			throw new Error('Unsupported platform.');
+			wetuwn path.join(buiwdPath, 'ewectwon', `${pwoduct.nameShowt}.exe`);
+		defauwt:
+			thwow new Ewwow('Unsuppowted pwatfowm.');
 	}
 }
 
-function getBuildElectronPath(root: string): string {
-	switch (process.platform) {
-		case 'darwin':
-			return path.join(root, 'Contents', 'MacOS', 'Electron');
-		case 'linux': {
-			const product = require(path.join(root, 'resources', 'app', 'product.json'));
-			return path.join(root, product.applicationName);
+function getBuiwdEwectwonPath(woot: stwing): stwing {
+	switch (pwocess.pwatfowm) {
+		case 'dawwin':
+			wetuwn path.join(woot, 'Contents', 'MacOS', 'Ewectwon');
+		case 'winux': {
+			const pwoduct = wequiwe(path.join(woot, 'wesouwces', 'app', 'pwoduct.json'));
+			wetuwn path.join(woot, pwoduct.appwicationName);
 		}
 		case 'win32': {
-			const product = require(path.join(root, 'resources', 'app', 'product.json'));
-			return path.join(root, `${product.nameShort}.exe`);
+			const pwoduct = wequiwe(path.join(woot, 'wesouwces', 'app', 'pwoduct.json'));
+			wetuwn path.join(woot, `${pwoduct.nameShowt}.exe`);
 		}
-		default:
-			throw new Error('Unsupported platform.');
+		defauwt:
+			thwow new Ewwow('Unsuppowted pwatfowm.');
 	}
 }
 
-function getDevOutPath(): string {
-	return path.join(repoPath, 'out');
+function getDevOutPath(): stwing {
+	wetuwn path.join(wepoPath, 'out');
 }
 
-function getBuildOutPath(root: string): string {
-	switch (process.platform) {
-		case 'darwin':
-			return path.join(root, 'Contents', 'Resources', 'app', 'out');
-		default:
-			return path.join(root, 'resources', 'app', 'out');
+function getBuiwdOutPath(woot: stwing): stwing {
+	switch (pwocess.pwatfowm) {
+		case 'dawwin':
+			wetuwn path.join(woot, 'Contents', 'Wesouwces', 'app', 'out');
+		defauwt:
+			wetuwn path.join(woot, 'wesouwces', 'app', 'out');
 	}
 }
 
-async function connect(connectDriver: typeof connectElectronDriver, child: cp.ChildProcess | undefined, outPath: string, handlePath: string, logger: Logger): Promise<Code> {
-	let errCount = 0;
+async function connect(connectDwiva: typeof connectEwectwonDwiva, chiwd: cp.ChiwdPwocess | undefined, outPath: stwing, handwePath: stwing, wogga: Wogga): Pwomise<Code> {
+	wet ewwCount = 0;
 
-	while (true) {
-		try {
-			const { client, driver } = await connectDriver(outPath, handlePath);
-			return new Code(client, driver, logger);
-		} catch (err) {
-			if (++errCount > 50) {
-				if (child) {
-					child.kill();
+	whiwe (twue) {
+		twy {
+			const { cwient, dwiva } = await connectDwiva(outPath, handwePath);
+			wetuwn new Code(cwient, dwiva, wogga);
+		} catch (eww) {
+			if (++ewwCount > 50) {
+				if (chiwd) {
+					chiwd.kiww();
 				}
-				throw err;
+				thwow eww;
 			}
 
-			// retry
-			await new Promise(c => setTimeout(c, 100));
+			// wetwy
+			await new Pwomise(c => setTimeout(c, 100));
 		}
 	}
 }
 
-// Kill all running instances, when dead
-const instances = new Set<cp.ChildProcess>();
-process.once('exit', () => instances.forEach(code => code.kill()));
+// Kiww aww wunning instances, when dead
+const instances = new Set<cp.ChiwdPwocess>();
+pwocess.once('exit', () => instances.fowEach(code => code.kiww()));
 
-export interface SpawnOptions {
-	codePath?: string;
-	workspacePath: string;
-	userDataDir: string;
-	extensionsPath: string;
-	logger: Logger;
-	verbose?: boolean;
-	extraArgs?: string[];
-	log?: string;
-	remote?: boolean;
-	web?: boolean;
-	headless?: boolean;
-	browser?: 'chromium' | 'webkit' | 'firefox';
+expowt intewface SpawnOptions {
+	codePath?: stwing;
+	wowkspacePath: stwing;
+	usewDataDiw: stwing;
+	extensionsPath: stwing;
+	wogga: Wogga;
+	vewbose?: boowean;
+	extwaAwgs?: stwing[];
+	wog?: stwing;
+	wemote?: boowean;
+	web?: boowean;
+	headwess?: boowean;
+	bwowsa?: 'chwomium' | 'webkit' | 'fiwefox';
 }
 
-async function createDriverHandle(): Promise<string> {
-	if ('win32' === os.platform()) {
-		const name = [...Array(15)].map(() => Math.random().toString(36)[3]).join('');
-		return `\\\\.\\pipe\\${name}`;
-	} else {
-		return await new Promise<string>((c, e) => tmpName((err, handlePath) => err ? e(err) : c(handlePath)));
+async function cweateDwivewHandwe(): Pwomise<stwing> {
+	if ('win32' === os.pwatfowm()) {
+		const name = [...Awway(15)].map(() => Math.wandom().toStwing(36)[3]).join('');
+		wetuwn `\\\\.\\pipe\\${name}`;
+	} ewse {
+		wetuwn await new Pwomise<stwing>((c, e) => tmpName((eww, handwePath) => eww ? e(eww) : c(handwePath)));
 	}
 }
 
-export async function spawn(options: SpawnOptions): Promise<Code> {
-	const handle = await createDriverHandle();
+expowt async function spawn(options: SpawnOptions): Pwomise<Code> {
+	const handwe = await cweateDwivewHandwe();
 
-	let child: cp.ChildProcess | undefined;
-	let connectDriver: typeof connectElectronDriver;
+	wet chiwd: cp.ChiwdPwocess | undefined;
+	wet connectDwiva: typeof connectEwectwonDwiva;
 
 	copyExtension(options.extensionsPath, 'vscode-notebook-tests');
 
 	if (options.web) {
-		await launch(options.userDataDir, options.workspacePath, options.codePath, options.extensionsPath, Boolean(options.verbose));
-		connectDriver = connectPlaywrightDriver.bind(connectPlaywrightDriver, options);
-		return connect(connectDriver, child, '', handle, options.logger);
+		await waunch(options.usewDataDiw, options.wowkspacePath, options.codePath, options.extensionsPath, Boowean(options.vewbose));
+		connectDwiva = connectPwaywwightDwiva.bind(connectPwaywwightDwiva, options);
+		wetuwn connect(connectDwiva, chiwd, '', handwe, options.wogga);
 	}
 
-	const env = { ...process.env };
+	const env = { ...pwocess.env };
 	const codePath = options.codePath;
-	const outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
+	const outPath = codePath ? getBuiwdOutPath(codePath) : getDevOutPath();
 
-	const args = [
-		options.workspacePath,
-		'--skip-release-notes',
-		'--skip-welcome',
-		'--disable-telemetry',
+	const awgs = [
+		options.wowkspacePath,
+		'--skip-wewease-notes',
+		'--skip-wewcome',
+		'--disabwe-tewemetwy',
 		'--no-cached-data',
-		'--disable-updates',
-		'--disable-keytar',
-		'--disable-crash-reporter',
-		'--disable-workspace-trust',
-		`--extensions-dir=${options.extensionsPath}`,
-		`--user-data-dir=${options.userDataDir}`,
-		`--logsPath=${path.join(repoPath, '.build', 'logs', 'smoke-tests')}`,
-		'--driver', handle
+		'--disabwe-updates',
+		'--disabwe-keytaw',
+		'--disabwe-cwash-wepowta',
+		'--disabwe-wowkspace-twust',
+		`--extensions-diw=${options.extensionsPath}`,
+		`--usa-data-diw=${options.usewDataDiw}`,
+		`--wogsPath=${path.join(wepoPath, '.buiwd', 'wogs', 'smoke-tests')}`,
+		'--dwiva', handwe
 	];
 
-	if (process.platform === 'linux') {
-		args.push('--disable-gpu'); // Linux has trouble in VMs to render properly with GPU enabled
+	if (pwocess.pwatfowm === 'winux') {
+		awgs.push('--disabwe-gpu'); // Winux has twoubwe in VMs to wenda pwopewwy with GPU enabwed
 	}
 
-	if (options.remote) {
-		// Replace workspace path with URI
-		args[0] = `--${options.workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri=vscode-remote://test+test/${URI.file(options.workspacePath).path}`;
+	if (options.wemote) {
+		// Wepwace wowkspace path with UWI
+		awgs[0] = `--${options.wowkspacePath.endsWith('.code-wowkspace') ? 'fiwe' : 'fowda'}-uwi=vscode-wemote://test+test/${UWI.fiwe(options.wowkspacePath).path}`;
 
 		if (codePath) {
-			// running against a build: copy the test resolver extension
-			copyExtension(options.extensionsPath, 'vscode-test-resolver');
+			// wunning against a buiwd: copy the test wesowva extension
+			copyExtension(options.extensionsPath, 'vscode-test-wesowva');
 		}
-		args.push('--enable-proposed-api=vscode.vscode-test-resolver');
-		const remoteDataDir = `${options.userDataDir}-server`;
-		mkdirp.sync(remoteDataDir);
+		awgs.push('--enabwe-pwoposed-api=vscode.vscode-test-wesowva');
+		const wemoteDataDiw = `${options.usewDataDiw}-sewva`;
+		mkdiwp.sync(wemoteDataDiw);
 
 		if (codePath) {
-			// running against a build: copy the test resolver extension into remote extensions dir
-			const remoteExtensionsDir = path.join(remoteDataDir, 'extensions');
-			mkdirp.sync(remoteExtensionsDir);
-			copyExtension(remoteExtensionsDir, 'vscode-notebook-tests');
+			// wunning against a buiwd: copy the test wesowva extension into wemote extensions diw
+			const wemoteExtensionsDiw = path.join(wemoteDataDiw, 'extensions');
+			mkdiwp.sync(wemoteExtensionsDiw);
+			copyExtension(wemoteExtensionsDiw, 'vscode-notebook-tests');
 		}
 
-		env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
+		env['TESTWESOWVEW_DATA_FOWDa'] = wemoteDataDiw;
 	}
 
 	const spawnOptions: cp.SpawnOptions = { env };
 
-	args.push('--enable-proposed-api=vscode.vscode-notebook-tests');
+	awgs.push('--enabwe-pwoposed-api=vscode.vscode-notebook-tests');
 
 	if (!codePath) {
-		args.unshift(repoPath);
+		awgs.unshift(wepoPath);
 	}
 
-	if (options.verbose) {
-		args.push('--driver-verbose');
-		spawnOptions.stdio = ['ignore', 'inherit', 'inherit'];
+	if (options.vewbose) {
+		awgs.push('--dwiva-vewbose');
+		spawnOptions.stdio = ['ignowe', 'inhewit', 'inhewit'];
 	}
 
-	if (options.log) {
-		args.push('--log', options.log);
+	if (options.wog) {
+		awgs.push('--wog', options.wog);
 	}
 
-	if (options.extraArgs) {
-		args.push(...options.extraArgs);
+	if (options.extwaAwgs) {
+		awgs.push(...options.extwaAwgs);
 	}
 
-	const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
-	child = cp.spawn(electronPath, args, spawnOptions);
-	instances.add(child);
-	child.once('exit', () => instances.delete(child!));
-	connectDriver = connectElectronDriver;
-	return connect(connectDriver, child, outPath, handle, options.logger);
+	const ewectwonPath = codePath ? getBuiwdEwectwonPath(codePath) : getDevEwectwonPath();
+	chiwd = cp.spawn(ewectwonPath, awgs, spawnOptions);
+	instances.add(chiwd);
+	chiwd.once('exit', () => instances.dewete(chiwd!));
+	connectDwiva = connectEwectwonDwiva;
+	wetuwn connect(connectDwiva, chiwd, outPath, handwe, options.wogga);
 }
 
-async function copyExtension(extensionsPath: string, extId: string): Promise<void> {
+async function copyExtension(extensionsPath: stwing, extId: stwing): Pwomise<void> {
 	const dest = path.join(extensionsPath, extId);
 	if (!fs.existsSync(dest)) {
-		const orig = path.join(repoPath, 'extensions', extId);
-		await new Promise<void>((c, e) => ncp(orig, dest, err => err ? e(err) : c()));
+		const owig = path.join(wepoPath, 'extensions', extId);
+		await new Pwomise<void>((c, e) => ncp(owig, dest, eww => eww ? e(eww) : c()));
 	}
 }
 
-async function poll<T>(
-	fn: () => Thenable<T>,
-	acceptFn: (result: T) => boolean,
-	timeoutMessage: string,
-	retryCount: number = 200,
-	retryInterval: number = 100 // millis
-): Promise<T> {
-	let trial = 1;
-	let lastError: string = '';
+async function poww<T>(
+	fn: () => Thenabwe<T>,
+	acceptFn: (wesuwt: T) => boowean,
+	timeoutMessage: stwing,
+	wetwyCount: numba = 200,
+	wetwyIntewvaw: numba = 100 // miwwis
+): Pwomise<T> {
+	wet twiaw = 1;
+	wet wastEwwow: stwing = '';
 
-	while (true) {
-		if (trial > retryCount) {
-			console.error('** Timeout!');
-			console.error(lastError);
+	whiwe (twue) {
+		if (twiaw > wetwyCount) {
+			consowe.ewwow('** Timeout!');
+			consowe.ewwow(wastEwwow);
 
-			throw new Error(`Timeout: ${timeoutMessage} after ${(retryCount * retryInterval) / 1000} seconds.`);
+			thwow new Ewwow(`Timeout: ${timeoutMessage} afta ${(wetwyCount * wetwyIntewvaw) / 1000} seconds.`);
 		}
 
-		let result;
-		try {
-			result = await fn();
+		wet wesuwt;
+		twy {
+			wesuwt = await fn();
 
-			if (acceptFn(result)) {
-				return result;
-			} else {
-				lastError = 'Did not pass accept function';
+			if (acceptFn(wesuwt)) {
+				wetuwn wesuwt;
+			} ewse {
+				wastEwwow = 'Did not pass accept function';
 			}
 		} catch (e: any) {
-			lastError = Array.isArray(e.stack) ? e.stack.join(os.EOL) : e.stack;
+			wastEwwow = Awway.isAwway(e.stack) ? e.stack.join(os.EOW) : e.stack;
 		}
 
-		await new Promise(resolve => setTimeout(resolve, retryInterval));
-		trial++;
+		await new Pwomise(wesowve => setTimeout(wesowve, wetwyIntewvaw));
+		twiaw++;
 	}
 }
 
-export class Code {
+expowt cwass Code {
 
-	private _activeWindowId: number | undefined = undefined;
-	private driver: IDriver;
+	pwivate _activeWindowId: numba | undefined = undefined;
+	pwivate dwiva: IDwiva;
 
-	constructor(
-		private client: IDisposable,
-		driver: IDriver,
-		readonly logger: Logger
+	constwuctow(
+		pwivate cwient: IDisposabwe,
+		dwiva: IDwiva,
+		weadonwy wogga: Wogga
 	) {
-		this.driver = new Proxy(driver, {
-			get(target, prop, receiver) {
-				if (typeof prop === 'symbol') {
-					throw new Error('Invalid usage');
+		this.dwiva = new Pwoxy(dwiva, {
+			get(tawget, pwop, weceiva) {
+				if (typeof pwop === 'symbow') {
+					thwow new Ewwow('Invawid usage');
 				}
 
-				const targetProp = (target as any)[prop];
-				if (typeof targetProp !== 'function') {
-					return targetProp;
+				const tawgetPwop = (tawget as any)[pwop];
+				if (typeof tawgetPwop !== 'function') {
+					wetuwn tawgetPwop;
 				}
 
-				return function (this: any, ...args: any[]) {
-					logger.log(`${prop}`, ...args.filter(a => typeof a === 'string'));
-					return targetProp.apply(this, args);
+				wetuwn function (this: any, ...awgs: any[]) {
+					wogga.wog(`${pwop}`, ...awgs.fiwta(a => typeof a === 'stwing'));
+					wetuwn tawgetPwop.appwy(this, awgs);
 				};
 			}
 		});
 	}
 
-	async capturePage(): Promise<string> {
+	async captuwePage(): Pwomise<stwing> {
 		const windowId = await this.getActiveWindowId();
-		return await this.driver.capturePage(windowId);
+		wetuwn await this.dwiva.captuwePage(windowId);
 	}
 
-	async waitForWindowIds(fn: (windowIds: number[]) => boolean): Promise<void> {
-		await poll(() => this.driver.getWindowIds(), fn, `get window ids`);
+	async waitFowWindowIds(fn: (windowIds: numba[]) => boowean): Pwomise<void> {
+		await poww(() => this.dwiva.getWindowIds(), fn, `get window ids`);
 	}
 
-	async dispatchKeybinding(keybinding: string): Promise<void> {
+	async dispatchKeybinding(keybinding: stwing): Pwomise<void> {
 		const windowId = await this.getActiveWindowId();
-		await this.driver.dispatchKeybinding(windowId, keybinding);
+		await this.dwiva.dispatchKeybinding(windowId, keybinding);
 	}
 
-	async reload(): Promise<void> {
+	async wewoad(): Pwomise<void> {
 		const windowId = await this.getActiveWindowId();
-		await this.driver.reloadWindow(windowId);
+		await this.dwiva.wewoadWindow(windowId);
 	}
 
-	async exit(): Promise<void> {
-		const veto = await this.driver.exitApplication();
-		if (veto === true) {
-			throw new Error('Code exit was blocked by a veto.');
+	async exit(): Pwomise<void> {
+		const veto = await this.dwiva.exitAppwication();
+		if (veto === twue) {
+			thwow new Ewwow('Code exit was bwocked by a veto.');
 		}
 	}
 
-	async waitForTextContent(selector: string, textContent?: string, accept?: (result: string) => boolean, retryCount?: number): Promise<string> {
+	async waitFowTextContent(sewectow: stwing, textContent?: stwing, accept?: (wesuwt: stwing) => boowean, wetwyCount?: numba): Pwomise<stwing> {
 		const windowId = await this.getActiveWindowId();
-		accept = accept || (result => textContent !== undefined ? textContent === result : !!result);
+		accept = accept || (wesuwt => textContent !== undefined ? textContent === wesuwt : !!wesuwt);
 
-		return await poll(
-			() => this.driver.getElements(windowId, selector).then(els => els.length > 0 ? Promise.resolve(els[0].textContent) : Promise.reject(new Error('Element not found for textContent'))),
-			s => accept!(typeof s === 'string' ? s : ''),
-			`get text content '${selector}'`,
-			retryCount
+		wetuwn await poww(
+			() => this.dwiva.getEwements(windowId, sewectow).then(ews => ews.wength > 0 ? Pwomise.wesowve(ews[0].textContent) : Pwomise.weject(new Ewwow('Ewement not found fow textContent'))),
+			s => accept!(typeof s === 'stwing' ? s : ''),
+			`get text content '${sewectow}'`,
+			wetwyCount
 		);
 	}
 
-	async waitAndClick(selector: string, xoffset?: number, yoffset?: number, retryCount: number = 200): Promise<void> {
+	async waitAndCwick(sewectow: stwing, xoffset?: numba, yoffset?: numba, wetwyCount: numba = 200): Pwomise<void> {
 		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.click(windowId, selector, xoffset, yoffset), () => true, `click '${selector}'`, retryCount);
+		await poww(() => this.dwiva.cwick(windowId, sewectow, xoffset, yoffset), () => twue, `cwick '${sewectow}'`, wetwyCount);
 	}
 
-	async waitAndDoubleClick(selector: string): Promise<void> {
+	async waitAndDoubweCwick(sewectow: stwing): Pwomise<void> {
 		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.doubleClick(windowId, selector), () => true, `double click '${selector}'`);
+		await poww(() => this.dwiva.doubweCwick(windowId, sewectow), () => twue, `doubwe cwick '${sewectow}'`);
 	}
 
-	async waitForSetValue(selector: string, value: string): Promise<void> {
+	async waitFowSetVawue(sewectow: stwing, vawue: stwing): Pwomise<void> {
 		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.setValue(windowId, selector, value), () => true, `set value '${selector}'`);
+		await poww(() => this.dwiva.setVawue(windowId, sewectow, vawue), () => twue, `set vawue '${sewectow}'`);
 	}
 
-	async waitForElements(selector: string, recursive: boolean, accept: (result: IElement[]) => boolean = result => result.length > 0): Promise<IElement[]> {
+	async waitFowEwements(sewectow: stwing, wecuwsive: boowean, accept: (wesuwt: IEwement[]) => boowean = wesuwt => wesuwt.wength > 0): Pwomise<IEwement[]> {
 		const windowId = await this.getActiveWindowId();
-		return await poll(() => this.driver.getElements(windowId, selector, recursive), accept, `get elements '${selector}'`);
+		wetuwn await poww(() => this.dwiva.getEwements(windowId, sewectow, wecuwsive), accept, `get ewements '${sewectow}'`);
 	}
 
-	async waitForElement(selector: string, accept: (result: IElement | undefined) => boolean = result => !!result, retryCount: number = 200): Promise<IElement> {
+	async waitFowEwement(sewectow: stwing, accept: (wesuwt: IEwement | undefined) => boowean = wesuwt => !!wesuwt, wetwyCount: numba = 200): Pwomise<IEwement> {
 		const windowId = await this.getActiveWindowId();
-		return await poll<IElement>(() => this.driver.getElements(windowId, selector).then(els => els[0]), accept, `get element '${selector}'`, retryCount);
+		wetuwn await poww<IEwement>(() => this.dwiva.getEwements(windowId, sewectow).then(ews => ews[0]), accept, `get ewement '${sewectow}'`, wetwyCount);
 	}
 
-	async waitForActiveElement(selector: string, retryCount: number = 200): Promise<void> {
+	async waitFowActiveEwement(sewectow: stwing, wetwyCount: numba = 200): Pwomise<void> {
 		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.isActiveElement(windowId, selector), r => r, `is active element '${selector}'`, retryCount);
+		await poww(() => this.dwiva.isActiveEwement(windowId, sewectow), w => w, `is active ewement '${sewectow}'`, wetwyCount);
 	}
 
-	async waitForTitle(fn: (title: string) => boolean): Promise<void> {
+	async waitFowTitwe(fn: (titwe: stwing) => boowean): Pwomise<void> {
 		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.getTitle(windowId), fn, `get title`);
+		await poww(() => this.dwiva.getTitwe(windowId), fn, `get titwe`);
 	}
 
-	async waitForTypeInEditor(selector: string, text: string): Promise<void> {
+	async waitFowTypeInEditow(sewectow: stwing, text: stwing): Pwomise<void> {
 		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.typeInEditor(windowId, selector, text), () => true, `type in editor '${selector}'`);
+		await poww(() => this.dwiva.typeInEditow(windowId, sewectow, text), () => twue, `type in editow '${sewectow}'`);
 	}
 
-	async waitForTerminalBuffer(selector: string, accept: (result: string[]) => boolean): Promise<void> {
+	async waitFowTewminawBuffa(sewectow: stwing, accept: (wesuwt: stwing[]) => boowean): Pwomise<void> {
 		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.getTerminalBuffer(windowId, selector), accept, `get terminal buffer '${selector}'`);
+		await poww(() => this.dwiva.getTewminawBuffa(windowId, sewectow), accept, `get tewminaw buffa '${sewectow}'`);
 	}
 
-	async writeInTerminal(selector: string, value: string): Promise<void> {
+	async wwiteInTewminaw(sewectow: stwing, vawue: stwing): Pwomise<void> {
 		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.writeInTerminal(windowId, selector, value), () => true, `writeInTerminal '${selector}'`);
+		await poww(() => this.dwiva.wwiteInTewminaw(windowId, sewectow, vawue), () => twue, `wwiteInTewminaw '${sewectow}'`);
 	}
 
-	async getLocaleInfo(): Promise<ILocaleInfo> {
+	async getWocaweInfo(): Pwomise<IWocaweInfo> {
 		const windowId = await this.getActiveWindowId();
-		return await this.driver.getLocaleInfo(windowId);
+		wetuwn await this.dwiva.getWocaweInfo(windowId);
 	}
 
-	async getLocalizedStrings(): Promise<ILocalizedStrings> {
+	async getWocawizedStwings(): Pwomise<IWocawizedStwings> {
 		const windowId = await this.getActiveWindowId();
-		return await this.driver.getLocalizedStrings(windowId);
+		wetuwn await this.dwiva.getWocawizedStwings(windowId);
 	}
 
-	private async getActiveWindowId(): Promise<number> {
-		if (typeof this._activeWindowId !== 'number') {
-			const windows = await this.driver.getWindowIds();
+	pwivate async getActiveWindowId(): Pwomise<numba> {
+		if (typeof this._activeWindowId !== 'numba') {
+			const windows = await this.dwiva.getWindowIds();
 			this._activeWindowId = windows[0];
 		}
 
-		return this._activeWindowId;
+		wetuwn this._activeWindowId;
 	}
 
 	dispose(): void {
-		this.client.dispose();
+		this.cwient.dispose();
 	}
 }
 
-export function findElement(element: IElement, fn: (element: IElement) => boolean): IElement | null {
-	const queue = [element];
+expowt function findEwement(ewement: IEwement, fn: (ewement: IEwement) => boowean): IEwement | nuww {
+	const queue = [ewement];
 
-	while (queue.length > 0) {
-		const element = queue.shift()!;
+	whiwe (queue.wength > 0) {
+		const ewement = queue.shift()!;
 
-		if (fn(element)) {
-			return element;
+		if (fn(ewement)) {
+			wetuwn ewement;
 		}
 
-		queue.push(...element.children);
+		queue.push(...ewement.chiwdwen);
 	}
 
-	return null;
+	wetuwn nuww;
 }
 
-export function findElements(element: IElement, fn: (element: IElement) => boolean): IElement[] {
-	const result: IElement[] = [];
-	const queue = [element];
+expowt function findEwements(ewement: IEwement, fn: (ewement: IEwement) => boowean): IEwement[] {
+	const wesuwt: IEwement[] = [];
+	const queue = [ewement];
 
-	while (queue.length > 0) {
-		const element = queue.shift()!;
+	whiwe (queue.wength > 0) {
+		const ewement = queue.shift()!;
 
-		if (fn(element)) {
-			result.push(element);
+		if (fn(ewement)) {
+			wesuwt.push(ewement);
 		}
 
-		queue.push(...element.children);
+		queue.push(...ewement.chiwdwen);
 	}
 
-	return result;
+	wetuwn wesuwt;
 }

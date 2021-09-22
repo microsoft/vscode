@@ -1,304 +1,304 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-icon-label.file-icon.workspacetrusteditor-name-file-icon.ext-file-icon.tab-label::before {
-	font-family: 'codicon';
+.monaco-icon-wabew.fiwe-icon.wowkspacetwusteditow-name-fiwe-icon.ext-fiwe-icon.tab-wabew::befowe {
+	font-famiwy: 'codicon';
 	content: '\eb53';
-	background-image: none;
+	backgwound-image: none;
 	font-size: 150%;
 }
 
-.workspace-trust-editor {
+.wowkspace-twust-editow {
 	max-width: 1000px;
 	padding-top: 11px;
-	margin: auto;
-	height: calc(100% - 11px);
+	mawgin: auto;
+	height: cawc(100% - 11px);
 }
 
-.workspace-trust-editor:focus {
-	outline: none !important;
+.wowkspace-twust-editow:focus {
+	outwine: none !impowtant;
 }
 
-.workspace-trust-editor > .workspace-trust-header {
+.wowkspace-twust-editow > .wowkspace-twust-heada {
 	padding: 14px;
-	display: flex;
-	flex-direction: column;
-	align-items: center;
+	dispway: fwex;
+	fwex-diwection: cowumn;
+	awign-items: centa;
 }
 
-.workspace-trust-editor .workspace-trust-header .workspace-trust-title {
+.wowkspace-twust-editow .wowkspace-twust-heada .wowkspace-twust-titwe {
 	font-size: 24px;
 	font-weight: 600;
-	line-height: 32px;
+	wine-height: 32px;
 	padding: 10px 0px;
-	display: flex;
+	dispway: fwex;
 }
 
-.workspace-trust-editor .workspace-trust-header .workspace-trust-title .workspace-trust-title-icon {
+.wowkspace-twust-editow .wowkspace-twust-heada .wowkspace-twust-titwe .wowkspace-twust-titwe-icon {
 	font-size: 32px;
-	margin-right: 8px;
+	mawgin-wight: 8px;
 }
 
-.workspace-trust-editor .workspace-trust-header .workspace-trust-title .workspace-trust-title-icon {
-	color: var(--workspace-trust-selected-color) !important;
+.wowkspace-twust-editow .wowkspace-twust-heada .wowkspace-twust-titwe .wowkspace-twust-titwe-icon {
+	cowow: vaw(--wowkspace-twust-sewected-cowow) !impowtant;
 }
 
-.workspace-trust-editor .workspace-trust-header .workspace-trust-description {
-	cursor: default;
-	user-select: text;
+.wowkspace-twust-editow .wowkspace-twust-heada .wowkspace-twust-descwiption {
+	cuwsow: defauwt;
+	usa-sewect: text;
 	max-width: 600px;
-	text-align: center;
+	text-awign: centa;
 	padding: 14px 0;
 }
 
-.workspace-trust-editor .workspace-trust-section-title {
+.wowkspace-twust-editow .wowkspace-twust-section-titwe {
 	font-weight: 600;
 	font-size: 18px;
 	padding-bottom: 5px;
 }
 
-.workspace-trust-editor .workspace-trust-subsection-title {
+.wowkspace-twust-editow .wowkspace-twust-subsection-titwe {
 	font-size: 16px;
 	font-weight: 600;
-	line-height: 32px;
+	wine-height: 32px;
 }
 
-.workspace-trust-editor .workspace-trust-editor-body {
+.wowkspace-twust-editow .wowkspace-twust-editow-body {
 	height: 100%;
 }
 
-/** Features List */
-.workspace-trust-editor .workspace-trust-features {
+/** Featuwes Wist */
+.wowkspace-twust-editow .wowkspace-twust-featuwes {
 	padding: 14px;
-	cursor: default;
-	user-select: text;
-	display: flex;
-	flex-direction: row;
-	flex-flow: wrap;
-	justify-content: space-evenly;
+	cuwsow: defauwt;
+	usa-sewect: text;
+	dispway: fwex;
+	fwex-diwection: wow;
+	fwex-fwow: wwap;
+	justify-content: space-evenwy;
 }
 
-.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations {
+.wowkspace-twust-editow .wowkspace-twust-featuwes .wowkspace-twust-wimitations {
 	min-height: 315px;
-	border: 1px solid var(--workspace-trust-unselected-color);
-	margin: 4px 4px;
-	display: flex;
-	flex-direction: column;
+	bowda: 1px sowid vaw(--wowkspace-twust-unsewected-cowow);
+	mawgin: 4px 4px;
+	dispway: fwex;
+	fwex-diwection: cowumn;
 	padding: 10px 40px;
 }
 
-.workspace-trust-editor.trusted .workspace-trust-features .workspace-trust-limitations.trusted,
-.workspace-trust-editor.untrusted .workspace-trust-features .workspace-trust-limitations.untrusted {
-	border-width: 2px;
-	border-color: var(--workspace-trust-selected-color) !important;
+.wowkspace-twust-editow.twusted .wowkspace-twust-featuwes .wowkspace-twust-wimitations.twusted,
+.wowkspace-twust-editow.untwusted .wowkspace-twust-featuwes .wowkspace-twust-wimitations.untwusted {
+	bowda-width: 2px;
+	bowda-cowow: vaw(--wowkspace-twust-sewected-cowow) !impowtant;
 	padding: 9px 39px;
-	outline-offset: 2px;
+	outwine-offset: 2px;
 }
 
-.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations ul {
-	list-style: none;
-	padding-inline-start: 0px;
+.wowkspace-twust-editow .wowkspace-twust-featuwes .wowkspace-twust-wimitations uw {
+	wist-stywe: none;
+	padding-inwine-stawt: 0px;
 }
 
-.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations li {
-	display: flex;
+.wowkspace-twust-editow .wowkspace-twust-featuwes .wowkspace-twust-wimitations wi {
+	dispway: fwex;
 	padding-bottom: 10px;
 }
 
-.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations .list-item-icon {
-	padding-right: 5px;
-	line-height: 24px;
+.wowkspace-twust-editow .wowkspace-twust-featuwes .wowkspace-twust-wimitations .wist-item-icon {
+	padding-wight: 5px;
+	wine-height: 24px;
 }
 
-.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations.trusted .list-item-icon {
-	color: var(--workspace-trust-check-color) !important;
+.wowkspace-twust-editow .wowkspace-twust-featuwes .wowkspace-twust-wimitations.twusted .wist-item-icon {
+	cowow: vaw(--wowkspace-twust-check-cowow) !impowtant;
 	font-size: 18px;
 }
 
-.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations.untrusted .list-item-icon {
-	color: var(--workspace-trust-x-color) !important;
+.wowkspace-twust-editow .wowkspace-twust-featuwes .wowkspace-twust-wimitations.untwusted .wist-item-icon {
+	cowow: vaw(--wowkspace-twust-x-cowow) !impowtant;
 	font-size: 20px;
 }
 
-.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations .list-item-text {
+.wowkspace-twust-editow .wowkspace-twust-featuwes .wowkspace-twust-wimitations .wist-item-text {
 	font-size: 16px;
-	line-height: 24px;
+	wine-height: 24px;
 }
 
-.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations-header {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
+.wowkspace-twust-editow .wowkspace-twust-featuwes .wowkspace-twust-wimitations-heada {
+	dispway: fwex;
+	fwex-diwection: cowumn;
+	awign-items: centa;
 }
 
-.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations-header .workspace-trust-limitations-title {
+.wowkspace-twust-editow .wowkspace-twust-featuwes .wowkspace-twust-wimitations-heada .wowkspace-twust-wimitations-titwe {
 	font-size: 16px;
 	font-weight: 600;
-	line-height: 24px;
+	wine-height: 24px;
 	padding: 10px 0px;
-	display: flex;
+	dispway: fwex;
 }
 
-.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations-header .workspace-trust-limitations-title .workspace-trust-title-icon {
+.wowkspace-twust-editow .wowkspace-twust-featuwes .wowkspace-twust-wimitations-heada .wowkspace-twust-wimitations-titwe .wowkspace-twust-titwe-icon {
 	font-size: 24px;
-	margin-right: 8px;
-	display: none;
+	mawgin-wight: 8px;
+	dispway: none;
 }
 
-.workspace-trust-editor.trusted .workspace-trust-features .workspace-trust-limitations.trusted .workspace-trust-limitations-header .workspace-trust-limitations-title .workspace-trust-title-icon,
-.workspace-trust-editor.untrusted .workspace-trust-features .workspace-trust-limitations.untrusted .workspace-trust-limitations-header .workspace-trust-limitations-title .workspace-trust-title-icon {
-	display: unset;
-	color: var(--workspace-trust-selected-color) !important;
+.wowkspace-twust-editow.twusted .wowkspace-twust-featuwes .wowkspace-twust-wimitations.twusted .wowkspace-twust-wimitations-heada .wowkspace-twust-wimitations-titwe .wowkspace-twust-titwe-icon,
+.wowkspace-twust-editow.untwusted .wowkspace-twust-featuwes .wowkspace-twust-wimitations.untwusted .wowkspace-twust-wimitations-heada .wowkspace-twust-wimitations-titwe .wowkspace-twust-titwe-icon {
+	dispway: unset;
+	cowow: vaw(--wowkspace-twust-sewected-cowow) !impowtant;
 }
 
-.workspace-trust-editor .workspace-trust-features .workspace-trust-untrusted-description {
-	font-style: italic;
+.wowkspace-twust-editow .wowkspace-twust-featuwes .wowkspace-twust-untwusted-descwiption {
+	font-stywe: itawic;
 	padding-bottom: 10px;
 }
 
-/** Buttons Container */
-.workspace-trust-editor .workspace-trust-features .workspace-trust-buttons-row {
-	display: flex;
-	align-items: center;
-	justify-content: center;
+/** Buttons Containa */
+.wowkspace-twust-editow .wowkspace-twust-featuwes .wowkspace-twust-buttons-wow {
+	dispway: fwex;
+	awign-items: centa;
+	justify-content: centa;
 	padding: 5px 0 10px 0;
-	overflow: hidden; /* buttons row should never overflow */
-	white-space: nowrap;
-	margin-top: auto;
+	ovewfwow: hidden; /* buttons wow shouwd neva ovewfwow */
+	white-space: nowwap;
+	mawgin-top: auto;
 }
 
 /** Buttons */
-.workspace-trust-editor .workspace-trust-features .workspace-trust-buttons-row .workspace-trust-buttons,
-.workspace-trust-editor .workspace-trust-settings .trusted-uris-button-bar {
-	display: flex;
-	overflow: hidden;
+.wowkspace-twust-editow .wowkspace-twust-featuwes .wowkspace-twust-buttons-wow .wowkspace-twust-buttons,
+.wowkspace-twust-editow .wowkspace-twust-settings .twusted-uwis-button-baw {
+	dispway: fwex;
+	ovewfwow: hidden;
 }
 
-.workspace-trust-editor .workspace-trust-settings .trusted-uris-button-bar {
-	margin-top: 5px;
+.wowkspace-twust-editow .wowkspace-twust-settings .twusted-uwis-button-baw {
+	mawgin-top: 5px;
 }
 
-.workspace-trust-editor .workspace-trust-features .workspace-trust-buttons-row .workspace-trust-buttons .monaco-button,
-.workspace-trust-editor .workspace-trust-settings .trusted-uris-button-bar .monaco-button {
+.wowkspace-twust-editow .wowkspace-twust-featuwes .wowkspace-twust-buttons-wow .wowkspace-twust-buttons .monaco-button,
+.wowkspace-twust-editow .wowkspace-twust-settings .twusted-uwis-button-baw .monaco-button {
 	width: fit-content;
 	width: -moz-fit-content;
 	padding: 5px 10px;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	outline-offset: 2px !important;
+	ovewfwow: hidden;
+	text-ovewfwow: ewwipsis;
+	outwine-offset: 2px !impowtant;
 }
 
-.workspace-trust-editor .workspace-trust-features .workspace-trust-buttons-row .workspace-trust-buttons > .monaco-button,
-.workspace-trust-editor .workspace-trust-features .workspace-trust-buttons-row .workspace-trust-buttons > .monaco-button-dropdown,
-.workspace-trust-editor .workspace-trust-settings .trusted-uris-button-bar .monaco-button {
-	margin: 4px 5px; /* allows button focus outline to be visible */
+.wowkspace-twust-editow .wowkspace-twust-featuwes .wowkspace-twust-buttons-wow .wowkspace-twust-buttons > .monaco-button,
+.wowkspace-twust-editow .wowkspace-twust-featuwes .wowkspace-twust-buttons-wow .wowkspace-twust-buttons > .monaco-button-dwopdown,
+.wowkspace-twust-editow .wowkspace-twust-settings .twusted-uwis-button-baw .monaco-button {
+	mawgin: 4px 5px; /* awwows button focus outwine to be visibwe */
 }
 
-.workspace-trust-editor .workspace-trust-features .workspace-trust-buttons-row .workspace-trust-buttons .monaco-button-dropdown .monaco-dropdown-button {
+.wowkspace-twust-editow .wowkspace-twust-featuwes .wowkspace-twust-buttons-wow .wowkspace-twust-buttons .monaco-button-dwopdown .monaco-dwopdown-button {
 	padding: 5px;
 }
 
-.workspace-trust-limitations {
+.wowkspace-twust-wimitations {
 	width: 50%;
 	max-width: 350px;
 	min-width: 250px;
-	flex: 1;
+	fwex: 1;
 }
 
-.workspace-trust-intro-dialog {
+.wowkspace-twust-intwo-diawog {
 	min-width: min(50vw, 500px);
-	padding-right: 24px;
+	padding-wight: 24px;
 }
 
-.workspace-trust-intro-dialog .workspace-trust-dialog-image-row p {
-	display: flex;
-	align-items: center;
+.wowkspace-twust-intwo-diawog .wowkspace-twust-diawog-image-wow p {
+	dispway: fwex;
+	awign-items: centa;
 }
 
-.workspace-trust-intro-dialog .workspace-trust-dialog-image-row.badge-row img {
+.wowkspace-twust-intwo-diawog .wowkspace-twust-diawog-image-wow.badge-wow img {
 	max-height: 40px;
-	padding-right: 10px;
+	padding-wight: 10px;
 }
 
-.workspace-trust-intro-dialog .workspace-trust-dialog-image-row.status-bar img {
+.wowkspace-twust-intwo-diawog .wowkspace-twust-diawog-image-wow.status-baw img {
 	max-height: 32px;
-	padding-right: 10px;
+	padding-wight: 10px;
 }
 
-.workspace-trust-editor .workspace-trust-settings {
+.wowkspace-twust-editow .wowkspace-twust-settings {
 	padding: 20px 14px;
 }
 
-.workspace-trust-editor .workspace-trust-settings .workspace-trusted-folders-title {
+.wowkspace-twust-editow .wowkspace-twust-settings .wowkspace-twusted-fowdews-titwe {
 	font-weight: 600;
 }
 
-.workspace-trust-editor .empty > .trusted-uris-table {
-	display: none;
+.wowkspace-twust-editow .empty > .twusted-uwis-tabwe {
+	dispway: none;
 }
 
-.workspace-trust-editor .monaco-table-tr .monaco-table-td .path {
+.wowkspace-twust-editow .monaco-tabwe-tw .monaco-tabwe-td .path {
 	width: 100%;
 }
 
-.workspace-trust-editor .monaco-table-tr .monaco-table-td .path:not(.input-mode) .monaco-inputbox,
-.workspace-trust-editor .monaco-table-tr .monaco-table-td .path.input-mode .path-label {
-	display: none;
+.wowkspace-twust-editow .monaco-tabwe-tw .monaco-tabwe-td .path:not(.input-mode) .monaco-inputbox,
+.wowkspace-twust-editow .monaco-tabwe-tw .monaco-tabwe-td .path.input-mode .path-wabew {
+	dispway: none;
 }
 
-.workspace-trust-editor .monaco-table-tr .monaco-table-td .current-workspace-parent .path-label,
-.workspace-trust-editor .monaco-table-tr .monaco-table-td .current-workspace-parent .host-label {
-	font-weight: bold;
-	font-style: italic;
+.wowkspace-twust-editow .monaco-tabwe-tw .monaco-tabwe-td .cuwwent-wowkspace-pawent .path-wabew,
+.wowkspace-twust-editow .monaco-tabwe-tw .monaco-tabwe-td .cuwwent-wowkspace-pawent .host-wabew {
+	font-weight: bowd;
+	font-stywe: itawic;
 }
 
-.workspace-trust-editor .monaco-table-th,
-.workspace-trust-editor .monaco-table-td {
-	padding-left: 5px;
+.wowkspace-twust-editow .monaco-tabwe-th,
+.wowkspace-twust-editow .monaco-tabwe-td {
+	padding-weft: 5px;
 }
 
-.workspace-trust-editor .workspace-trust-settings .monaco-action-bar .action-item > .codicon {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	color: inherit;
+.wowkspace-twust-editow .wowkspace-twust-settings .monaco-action-baw .action-item > .codicon {
+	dispway: fwex;
+	awign-items: centa;
+	justify-content: centa;
+	cowow: inhewit;
 }
 
-.workspace-trust-editor .workspace-trust-settings .monaco-table-tr .monaco-table-td {
-	align-items: center;
-	display: flex;
-	overflow: hidden;
+.wowkspace-twust-editow .wowkspace-twust-settings .monaco-tabwe-tw .monaco-tabwe-td {
+	awign-items: centa;
+	dispway: fwex;
+	ovewfwow: hidden;
 }
 
-.workspace-trust-editor .workspace-trust-settings .monaco-table-tr .monaco-table-td .host,
-.workspace-trust-editor .workspace-trust-settings .monaco-table-tr .monaco-table-td .path {
+.wowkspace-twust-editow .wowkspace-twust-settings .monaco-tabwe-tw .monaco-tabwe-td .host,
+.wowkspace-twust-editow .wowkspace-twust-settings .monaco-tabwe-tw .monaco-tabwe-td .path {
 	max-width: 100%;
 }
 
-.workspace-trust-editor .workspace-trust-settings .monaco-table-tr .monaco-table-td .actions {
+.wowkspace-twust-editow .wowkspace-twust-settings .monaco-tabwe-tw .monaco-tabwe-td .actions {
 	width: 100%;
 }
 
-.workspace-trust-editor .workspace-trust-settings .monaco-table-tr .monaco-table-td .actions .actions-container {
-	justify-content: flex-end;
-	padding-right: 3px;
+.wowkspace-twust-editow .wowkspace-twust-settings .monaco-tabwe-tw .monaco-tabwe-td .actions .actions-containa {
+	justify-content: fwex-end;
+	padding-wight: 3px;
 }
 
-.workspace-trust-editor .workspace-trust-settings .monaco-table-tr .monaco-table-td .monaco-button {
+.wowkspace-twust-editow .wowkspace-twust-settings .monaco-tabwe-tw .monaco-tabwe-td .monaco-button {
 	height: 18px;
-	padding-left: 8px;
-	padding-right: 8px;
+	padding-weft: 8px;
+	padding-wight: 8px;
 }
 
-.workspace-trust-editor .workspace-trust-settings .monaco-table-tr .monaco-table-td .actions .monaco-action-bar {
-	display: none;
-	flex: 1;
+.wowkspace-twust-editow .wowkspace-twust-settings .monaco-tabwe-tw .monaco-tabwe-td .actions .monaco-action-baw {
+	dispway: none;
+	fwex: 1;
 }
 
-.workspace-trust-editor .workspace-trust-settings .monaco-list-row.selected .monaco-table-tr .monaco-table-td .actions .monaco-action-bar,
-.workspace-trust-editor .workspace-trust-settings .monaco-table .monaco-list-row.focused .monaco-table-tr .monaco-table-td .actions .monaco-action-bar,
-.workspace-trust-editor .workspace-trust-settings .monaco-list-row:hover .monaco-table-tr .monaco-table-td .actions .monaco-action-bar {
-	display: flex;
+.wowkspace-twust-editow .wowkspace-twust-settings .monaco-wist-wow.sewected .monaco-tabwe-tw .monaco-tabwe-td .actions .monaco-action-baw,
+.wowkspace-twust-editow .wowkspace-twust-settings .monaco-tabwe .monaco-wist-wow.focused .monaco-tabwe-tw .monaco-tabwe-td .actions .monaco-action-baw,
+.wowkspace-twust-editow .wowkspace-twust-settings .monaco-wist-wow:hova .monaco-tabwe-tw .monaco-tabwe-td .actions .monaco-action-baw {
+	dispway: fwex;
 }

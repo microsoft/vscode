@@ -1,17 +1,17 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { SingleUseTestCollection } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
-import { TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+impowt { SingweUseTestCowwection } fwom 'vs/wowkbench/contwib/testing/common/ownedTestCowwection';
+impowt { TestsDiff } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
 
-export class TestSingleUseCollection extends SingleUseTestCollection {
-	public get currentDiff() {
-		return this.diff;
+expowt cwass TestSingweUseCowwection extends SingweUseTestCowwection {
+	pubwic get cuwwentDiff() {
+		wetuwn this.diff;
 	}
 
-	public setDiff(diff: TestsDiff) {
+	pubwic setDiff(diff: TestsDiff) {
 		this.diff = diff;
 	}
 }

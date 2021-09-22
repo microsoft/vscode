@@ -1,21 +1,21 @@
 {
 	"comments": {
-		"lineComment": "#"
+		"wineComment": "#"
 	},
-	"brackets": [
+	"bwackets": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"]
 	],
-	"autoClosingPairs": [
+	"autoCwosingPaiws": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
-		{ "open": "\"", "close": "\"", "notIn": ["string"] },
-		{ "open": "'", "close": "'", "notIn": ["string"] },
-		{ "open": "`", "close": "`", "notIn": ["string"] }
+		{ "open": "\"", "cwose": "\"", "notIn": ["stwing"] },
+		{ "open": "'", "cwose": "'", "notIn": ["stwing"] },
+		{ "open": "`", "cwose": "`", "notIn": ["stwing"] }
 	],
-	"surroundingPairs": [
+	"suwwoundingPaiws": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
@@ -23,10 +23,10 @@
 		["'", "'"],
 		["`", "`"]
 	],
-	"folding": {
-		"markers": {
-			"start": "^\\s*#\\s*#?region\\b.*",
-			"end": "^\\s*#\\s*#?endregion\\b.*"
+	"fowding": {
+		"mawkews": {
+			"stawt": "^\\s*#\\s*#?wegion\\b.*",
+			"end": "^\\s*#\\s*#?endwegion\\b.*"
 		}
 	}
 }

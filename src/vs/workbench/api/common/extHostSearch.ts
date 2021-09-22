@@ -1,133 +1,133 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import type * as vscode from 'vscode';
-import { ExtHostSearchShape, MainThreadSearchShape, MainContext } from '../common/extHost.protocol';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { FileSearchManager } from 'vs/workbench/services/search/common/fileSearchManager';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IRawFileQuery, ISearchCompleteStats, IFileQuery, IRawTextQuery, IRawQuery, ITextQuery, IFolderQuery } from 'vs/workbench/services/search/common/search';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { TextSearchManager } from 'vs/workbench/services/search/common/textSearchManager';
+impowt { IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt type * as vscode fwom 'vscode';
+impowt { ExtHostSeawchShape, MainThweadSeawchShape, MainContext } fwom '../common/extHost.pwotocow';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { FiweSeawchManaga } fwom 'vs/wowkbench/sewvices/seawch/common/fiweSeawchManaga';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt { IUWITwansfowmewSewvice } fwom 'vs/wowkbench/api/common/extHostUwiTwansfowmewSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IWawFiweQuewy, ISeawchCompweteStats, IFiweQuewy, IWawTextQuewy, IWawQuewy, ITextQuewy, IFowdewQuewy } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { TextSeawchManaga } fwom 'vs/wowkbench/sewvices/seawch/common/textSeawchManaga';
 
-export interface IExtHostSearch extends ExtHostSearchShape {
-	registerTextSearchProvider(scheme: string, provider: vscode.TextSearchProvider): IDisposable;
-	registerFileSearchProvider(scheme: string, provider: vscode.FileSearchProvider): IDisposable;
+expowt intewface IExtHostSeawch extends ExtHostSeawchShape {
+	wegistewTextSeawchPwovida(scheme: stwing, pwovida: vscode.TextSeawchPwovida): IDisposabwe;
+	wegistewFiweSeawchPwovida(scheme: stwing, pwovida: vscode.FiweSeawchPwovida): IDisposabwe;
 }
 
-export const IExtHostSearch = createDecorator<IExtHostSearch>('IExtHostSearch');
+expowt const IExtHostSeawch = cweateDecowatow<IExtHostSeawch>('IExtHostSeawch');
 
-export class ExtHostSearch implements ExtHostSearchShape {
+expowt cwass ExtHostSeawch impwements ExtHostSeawchShape {
 
-	protected readonly _proxy: MainThreadSearchShape = this.extHostRpc.getProxy(MainContext.MainThreadSearch);
-	protected _handlePool: number = 0;
+	pwotected weadonwy _pwoxy: MainThweadSeawchShape = this.extHostWpc.getPwoxy(MainContext.MainThweadSeawch);
+	pwotected _handwePoow: numba = 0;
 
-	private readonly _textSearchProvider = new Map<number, vscode.TextSearchProvider>();
-	private readonly _textSearchUsedSchemes = new Set<string>();
-	private readonly _fileSearchProvider = new Map<number, vscode.FileSearchProvider>();
-	private readonly _fileSearchUsedSchemes = new Set<string>();
+	pwivate weadonwy _textSeawchPwovida = new Map<numba, vscode.TextSeawchPwovida>();
+	pwivate weadonwy _textSeawchUsedSchemes = new Set<stwing>();
+	pwivate weadonwy _fiweSeawchPwovida = new Map<numba, vscode.FiweSeawchPwovida>();
+	pwivate weadonwy _fiweSeawchUsedSchemes = new Set<stwing>();
 
-	private readonly _fileSearchManager = new FileSearchManager();
+	pwivate weadonwy _fiweSeawchManaga = new FiweSeawchManaga();
 
-	constructor(
-		@IExtHostRpcService private extHostRpc: IExtHostRpcService,
-		@IURITransformerService protected _uriTransformer: IURITransformerService,
-		@ILogService protected _logService: ILogService
+	constwuctow(
+		@IExtHostWpcSewvice pwivate extHostWpc: IExtHostWpcSewvice,
+		@IUWITwansfowmewSewvice pwotected _uwiTwansfowma: IUWITwansfowmewSewvice,
+		@IWogSewvice pwotected _wogSewvice: IWogSewvice
 	) { }
 
-	protected _transformScheme(scheme: string): string {
-		return this._uriTransformer.transformOutgoingScheme(scheme);
+	pwotected _twansfowmScheme(scheme: stwing): stwing {
+		wetuwn this._uwiTwansfowma.twansfowmOutgoingScheme(scheme);
 	}
 
-	registerTextSearchProvider(scheme: string, provider: vscode.TextSearchProvider): IDisposable {
-		if (this._textSearchUsedSchemes.has(scheme)) {
-			throw new Error(`a text search provider for the scheme '${scheme}' is already registered`);
+	wegistewTextSeawchPwovida(scheme: stwing, pwovida: vscode.TextSeawchPwovida): IDisposabwe {
+		if (this._textSeawchUsedSchemes.has(scheme)) {
+			thwow new Ewwow(`a text seawch pwovida fow the scheme '${scheme}' is awweady wegistewed`);
 		}
 
-		this._textSearchUsedSchemes.add(scheme);
-		const handle = this._handlePool++;
-		this._textSearchProvider.set(handle, provider);
-		this._proxy.$registerTextSearchProvider(handle, this._transformScheme(scheme));
-		return toDisposable(() => {
-			this._textSearchUsedSchemes.delete(scheme);
-			this._textSearchProvider.delete(handle);
-			this._proxy.$unregisterProvider(handle);
+		this._textSeawchUsedSchemes.add(scheme);
+		const handwe = this._handwePoow++;
+		this._textSeawchPwovida.set(handwe, pwovida);
+		this._pwoxy.$wegistewTextSeawchPwovida(handwe, this._twansfowmScheme(scheme));
+		wetuwn toDisposabwe(() => {
+			this._textSeawchUsedSchemes.dewete(scheme);
+			this._textSeawchPwovida.dewete(handwe);
+			this._pwoxy.$unwegistewPwovida(handwe);
 		});
 	}
 
-	registerFileSearchProvider(scheme: string, provider: vscode.FileSearchProvider): IDisposable {
-		if (this._fileSearchUsedSchemes.has(scheme)) {
-			throw new Error(`a file search provider for the scheme '${scheme}' is already registered`);
+	wegistewFiweSeawchPwovida(scheme: stwing, pwovida: vscode.FiweSeawchPwovida): IDisposabwe {
+		if (this._fiweSeawchUsedSchemes.has(scheme)) {
+			thwow new Ewwow(`a fiwe seawch pwovida fow the scheme '${scheme}' is awweady wegistewed`);
 		}
 
-		this._fileSearchUsedSchemes.add(scheme);
-		const handle = this._handlePool++;
-		this._fileSearchProvider.set(handle, provider);
-		this._proxy.$registerFileSearchProvider(handle, this._transformScheme(scheme));
-		return toDisposable(() => {
-			this._fileSearchUsedSchemes.delete(scheme);
-			this._fileSearchProvider.delete(handle);
-			this._proxy.$unregisterProvider(handle);
+		this._fiweSeawchUsedSchemes.add(scheme);
+		const handwe = this._handwePoow++;
+		this._fiweSeawchPwovida.set(handwe, pwovida);
+		this._pwoxy.$wegistewFiweSeawchPwovida(handwe, this._twansfowmScheme(scheme));
+		wetuwn toDisposabwe(() => {
+			this._fiweSeawchUsedSchemes.dewete(scheme);
+			this._fiweSeawchPwovida.dewete(handwe);
+			this._pwoxy.$unwegistewPwovida(handwe);
 		});
 	}
 
-	$provideFileSearchResults(handle: number, session: number, rawQuery: IRawFileQuery, token: vscode.CancellationToken): Promise<ISearchCompleteStats> {
-		const query = reviveQuery(rawQuery);
-		const provider = this._fileSearchProvider.get(handle);
-		if (provider) {
-			return this._fileSearchManager.fileSearch(query, provider, batch => {
-				this._proxy.$handleFileMatch(handle, session, batch.map(p => p.resource));
+	$pwovideFiweSeawchWesuwts(handwe: numba, session: numba, wawQuewy: IWawFiweQuewy, token: vscode.CancewwationToken): Pwomise<ISeawchCompweteStats> {
+		const quewy = weviveQuewy(wawQuewy);
+		const pwovida = this._fiweSeawchPwovida.get(handwe);
+		if (pwovida) {
+			wetuwn this._fiweSeawchManaga.fiweSeawch(quewy, pwovida, batch => {
+				this._pwoxy.$handweFiweMatch(handwe, session, batch.map(p => p.wesouwce));
 			}, token);
-		} else {
-			throw new Error('unknown provider: ' + handle);
+		} ewse {
+			thwow new Ewwow('unknown pwovida: ' + handwe);
 		}
 	}
 
-	$clearCache(cacheKey: string): Promise<void> {
-		this._fileSearchManager.clearCache(cacheKey);
+	$cweawCache(cacheKey: stwing): Pwomise<void> {
+		this._fiweSeawchManaga.cweawCache(cacheKey);
 
-		return Promise.resolve(undefined);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	$provideTextSearchResults(handle: number, session: number, rawQuery: IRawTextQuery, token: vscode.CancellationToken): Promise<ISearchCompleteStats> {
-		const provider = this._textSearchProvider.get(handle);
-		if (!provider || !provider.provideTextSearchResults) {
-			throw new Error(`Unknown provider ${handle}`);
+	$pwovideTextSeawchWesuwts(handwe: numba, session: numba, wawQuewy: IWawTextQuewy, token: vscode.CancewwationToken): Pwomise<ISeawchCompweteStats> {
+		const pwovida = this._textSeawchPwovida.get(handwe);
+		if (!pwovida || !pwovida.pwovideTextSeawchWesuwts) {
+			thwow new Ewwow(`Unknown pwovida ${handwe}`);
 		}
 
-		const query = reviveQuery(rawQuery);
-		const engine = this.createTextSearchManager(query, provider);
-		return engine.search(progress => this._proxy.$handleTextMatch(handle, session, progress), token);
+		const quewy = weviveQuewy(wawQuewy);
+		const engine = this.cweateTextSeawchManaga(quewy, pwovida);
+		wetuwn engine.seawch(pwogwess => this._pwoxy.$handweTextMatch(handwe, session, pwogwess), token);
 	}
 
-	$enableExtensionHostSearch(): void { }
+	$enabweExtensionHostSeawch(): void { }
 
-	protected createTextSearchManager(query: ITextQuery, provider: vscode.TextSearchProvider): TextSearchManager {
-		return new TextSearchManager(query, provider, {
-			readdir: resource => Promise.resolve([]), // TODO@rob implement
-			toCanonicalName: encoding => encoding
-		}, 'textSearchProvider');
+	pwotected cweateTextSeawchManaga(quewy: ITextQuewy, pwovida: vscode.TextSeawchPwovida): TextSeawchManaga {
+		wetuwn new TextSeawchManaga(quewy, pwovida, {
+			weaddiw: wesouwce => Pwomise.wesowve([]), // TODO@wob impwement
+			toCanonicawName: encoding => encoding
+		}, 'textSeawchPwovida');
 	}
 }
 
-export function reviveQuery<U extends IRawQuery>(rawQuery: U): U extends IRawTextQuery ? ITextQuery : IFileQuery {
-	return {
-		...<any>rawQuery, // TODO@rob ???
+expowt function weviveQuewy<U extends IWawQuewy>(wawQuewy: U): U extends IWawTextQuewy ? ITextQuewy : IFiweQuewy {
+	wetuwn {
+		...<any>wawQuewy, // TODO@wob ???
 		...{
-			folderQueries: rawQuery.folderQueries && rawQuery.folderQueries.map(reviveFolderQuery),
-			extraFileResources: rawQuery.extraFileResources && rawQuery.extraFileResources.map(components => URI.revive(components))
+			fowdewQuewies: wawQuewy.fowdewQuewies && wawQuewy.fowdewQuewies.map(weviveFowdewQuewy),
+			extwaFiweWesouwces: wawQuewy.extwaFiweWesouwces && wawQuewy.extwaFiweWesouwces.map(components => UWI.wevive(components))
 		}
 	};
 }
 
-function reviveFolderQuery(rawFolderQuery: IFolderQuery<UriComponents>): IFolderQuery<URI> {
-	return {
-		...rawFolderQuery,
-		folder: URI.revive(rawFolderQuery.folder)
+function weviveFowdewQuewy(wawFowdewQuewy: IFowdewQuewy<UwiComponents>): IFowdewQuewy<UWI> {
+	wetuwn {
+		...wawFowdewQuewy,
+		fowda: UWI.wevive(wawFowdewQuewy.fowda)
 	};
 }

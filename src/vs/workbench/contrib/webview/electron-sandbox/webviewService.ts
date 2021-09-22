@@ -1,22 +1,22 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewService } from 'vs/workbench/contrib/webview/browser/webviewService';
-import { ElectronIframeWebview } from 'vs/workbench/contrib/webview/electron-sandbox/iframeWebviewElement';
+impowt { WebviewContentOptions, WebviewEwement, WebviewExtensionDescwiption, WebviewOptions } fwom 'vs/wowkbench/contwib/webview/bwowsa/webview';
+impowt { WebviewSewvice } fwom 'vs/wowkbench/contwib/webview/bwowsa/webviewSewvice';
+impowt { EwectwonIfwameWebview } fwom 'vs/wowkbench/contwib/webview/ewectwon-sandbox/ifwameWebviewEwement';
 
-export class ElectronWebviewService extends WebviewService {
+expowt cwass EwectwonWebviewSewvice extends WebviewSewvice {
 
-	override createWebviewElement(
-		id: string,
+	ovewwide cweateWebviewEwement(
+		id: stwing,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
-		extension: WebviewExtensionDescription | undefined,
-	): WebviewElement {
-		const webview = this._instantiationService.createInstance(ElectronIframeWebview, id, options, contentOptions, extension, this._webviewThemeDataProvider);
-		this.registerNewWebview(webview);
-		return webview;
+		extension: WebviewExtensionDescwiption | undefined,
+	): WebviewEwement {
+		const webview = this._instantiationSewvice.cweateInstance(EwectwonIfwameWebview, id, options, contentOptions, extension, this._webviewThemeDataPwovida);
+		this.wegistewNewWebview(webview);
+		wetuwn webview;
 	}
 }

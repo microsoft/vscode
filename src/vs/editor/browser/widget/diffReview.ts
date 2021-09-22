@@ -1,886 +1,886 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/diffReview';
-import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { Action } from 'vs/base/common/actions';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Configuration } from 'vs/editor/browser/config/configuration';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
-import { IComputedEditorOptions, EditorOption, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import { Position } from 'vs/editor/common/core/position';
-import { ILineChange, ScrollType } from 'vs/editor/common/editorCommon';
-import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
-import { editorLineNumbers } from 'vs/editor/common/view/editorColorRegistry';
-import { RenderLineInput, renderViewLine2 as renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { Constants } from 'vs/base/common/uint';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+impowt 'vs/css!./media/diffWeview';
+impowt * as nws fwom 'vs/nws';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { FastDomNode, cweateFastDomNode } fwom 'vs/base/bwowsa/fastDomNode';
+impowt { ActionBaw } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { DomScwowwabweEwement } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwabweEwement';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Configuwation } fwom 'vs/editow/bwowsa/config/configuwation';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, SewvicesAccessow, wegistewEditowAction } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { DiffEditowWidget } fwom 'vs/editow/bwowsa/widget/diffEditowWidget';
+impowt { IComputedEditowOptions, EditowOption, EditowFontWigatuwes } fwom 'vs/editow/common/config/editowOptions';
+impowt { WineTokens } fwom 'vs/editow/common/cowe/wineTokens';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { IWineChange, ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew, TextModewWesowvedOptions } fwom 'vs/editow/common/modew';
+impowt { editowWineNumbews } fwom 'vs/editow/common/view/editowCowowWegistwy';
+impowt { WendewWineInput, wendewViewWine2 as wendewViewWine } fwom 'vs/editow/common/viewWayout/viewWineWendewa';
+impowt { ViewWineWendewingData } fwom 'vs/editow/common/viewModew/viewModew';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { scwowwbawShadow } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wegistewThemingPawticipant, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { Constants } fwom 'vs/base/common/uint';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
 
-const DIFF_LINES_PADDING = 3;
+const DIFF_WINES_PADDING = 3;
 
-const enum DiffEntryType {
-	Equal = 0,
-	Insert = 1,
-	Delete = 2
+const enum DiffEntwyType {
+	Equaw = 0,
+	Insewt = 1,
+	Dewete = 2
 }
 
-class DiffEntry {
-	readonly originalLineStart: number;
-	readonly originalLineEnd: number;
-	readonly modifiedLineStart: number;
-	readonly modifiedLineEnd: number;
+cwass DiffEntwy {
+	weadonwy owiginawWineStawt: numba;
+	weadonwy owiginawWineEnd: numba;
+	weadonwy modifiedWineStawt: numba;
+	weadonwy modifiedWineEnd: numba;
 
-	constructor(originalLineStart: number, originalLineEnd: number, modifiedLineStart: number, modifiedLineEnd: number) {
-		this.originalLineStart = originalLineStart;
-		this.originalLineEnd = originalLineEnd;
-		this.modifiedLineStart = modifiedLineStart;
-		this.modifiedLineEnd = modifiedLineEnd;
+	constwuctow(owiginawWineStawt: numba, owiginawWineEnd: numba, modifiedWineStawt: numba, modifiedWineEnd: numba) {
+		this.owiginawWineStawt = owiginawWineStawt;
+		this.owiginawWineEnd = owiginawWineEnd;
+		this.modifiedWineStawt = modifiedWineStawt;
+		this.modifiedWineEnd = modifiedWineEnd;
 	}
 
-	public getType(): DiffEntryType {
-		if (this.originalLineStart === 0) {
-			return DiffEntryType.Insert;
+	pubwic getType(): DiffEntwyType {
+		if (this.owiginawWineStawt === 0) {
+			wetuwn DiffEntwyType.Insewt;
 		}
-		if (this.modifiedLineStart === 0) {
-			return DiffEntryType.Delete;
+		if (this.modifiedWineStawt === 0) {
+			wetuwn DiffEntwyType.Dewete;
 		}
-		return DiffEntryType.Equal;
+		wetuwn DiffEntwyType.Equaw;
 	}
 }
 
-class Diff {
-	readonly entries: DiffEntry[];
+cwass Diff {
+	weadonwy entwies: DiffEntwy[];
 
-	constructor(entries: DiffEntry[]) {
-		this.entries = entries;
+	constwuctow(entwies: DiffEntwy[]) {
+		this.entwies = entwies;
 	}
 }
 
-const diffReviewInsertIcon = registerIcon('diff-review-insert', Codicon.add, nls.localize('diffReviewInsertIcon', 'Icon for \'Insert\' in diff review.'));
-const diffReviewRemoveIcon = registerIcon('diff-review-remove', Codicon.remove, nls.localize('diffReviewRemoveIcon', 'Icon for \'Remove\' in diff review.'));
-const diffReviewCloseIcon = registerIcon('diff-review-close', Codicon.close, nls.localize('diffReviewCloseIcon', 'Icon for \'Close\' in diff review.'));
+const diffWeviewInsewtIcon = wegistewIcon('diff-weview-insewt', Codicon.add, nws.wocawize('diffWeviewInsewtIcon', 'Icon fow \'Insewt\' in diff weview.'));
+const diffWeviewWemoveIcon = wegistewIcon('diff-weview-wemove', Codicon.wemove, nws.wocawize('diffWeviewWemoveIcon', 'Icon fow \'Wemove\' in diff weview.'));
+const diffWeviewCwoseIcon = wegistewIcon('diff-weview-cwose', Codicon.cwose, nws.wocawize('diffWeviewCwoseIcon', 'Icon fow \'Cwose\' in diff weview.'));
 
-export class DiffReview extends Disposable {
+expowt cwass DiffWeview extends Disposabwe {
 
-	private static _ttPolicy = window.trustedTypes?.createPolicy('diffReview', { createHTML: value => value });
+	pwivate static _ttPowicy = window.twustedTypes?.cweatePowicy('diffWeview', { cweateHTMW: vawue => vawue });
 
-	private readonly _diffEditor: DiffEditorWidget;
-	private _isVisible: boolean;
-	public readonly shadow: FastDomNode<HTMLElement>;
-	private readonly _actionBar: ActionBar;
-	public readonly actionBarContainer: FastDomNode<HTMLElement>;
-	public readonly domNode: FastDomNode<HTMLElement>;
-	private readonly _content: FastDomNode<HTMLElement>;
-	private readonly scrollbar: DomScrollableElement;
-	private _diffs: Diff[];
-	private _currentDiff: Diff | null;
+	pwivate weadonwy _diffEditow: DiffEditowWidget;
+	pwivate _isVisibwe: boowean;
+	pubwic weadonwy shadow: FastDomNode<HTMWEwement>;
+	pwivate weadonwy _actionBaw: ActionBaw;
+	pubwic weadonwy actionBawContaina: FastDomNode<HTMWEwement>;
+	pubwic weadonwy domNode: FastDomNode<HTMWEwement>;
+	pwivate weadonwy _content: FastDomNode<HTMWEwement>;
+	pwivate weadonwy scwowwbaw: DomScwowwabweEwement;
+	pwivate _diffs: Diff[];
+	pwivate _cuwwentDiff: Diff | nuww;
 
-	constructor(diffEditor: DiffEditorWidget) {
-		super();
-		this._diffEditor = diffEditor;
-		this._isVisible = false;
+	constwuctow(diffEditow: DiffEditowWidget) {
+		supa();
+		this._diffEditow = diffEditow;
+		this._isVisibwe = fawse;
 
-		this.shadow = createFastDomNode(document.createElement('div'));
-		this.shadow.setClassName('diff-review-shadow');
+		this.shadow = cweateFastDomNode(document.cweateEwement('div'));
+		this.shadow.setCwassName('diff-weview-shadow');
 
-		this.actionBarContainer = createFastDomNode(document.createElement('div'));
-		this.actionBarContainer.setClassName('diff-review-actions');
-		this._actionBar = this._register(new ActionBar(
-			this.actionBarContainer.domNode
+		this.actionBawContaina = cweateFastDomNode(document.cweateEwement('div'));
+		this.actionBawContaina.setCwassName('diff-weview-actions');
+		this._actionBaw = this._wegista(new ActionBaw(
+			this.actionBawContaina.domNode
 		));
 
-		this._actionBar.push(new Action('diffreview.close', nls.localize('label.close', "Close"), 'close-diff-review ' + ThemeIcon.asClassName(diffReviewCloseIcon), true, async () => this.hide()), { label: false, icon: true });
+		this._actionBaw.push(new Action('diffweview.cwose', nws.wocawize('wabew.cwose', "Cwose"), 'cwose-diff-weview ' + ThemeIcon.asCwassName(diffWeviewCwoseIcon), twue, async () => this.hide()), { wabew: fawse, icon: twue });
 
-		this.domNode = createFastDomNode(document.createElement('div'));
-		this.domNode.setClassName('diff-review monaco-editor-background');
+		this.domNode = cweateFastDomNode(document.cweateEwement('div'));
+		this.domNode.setCwassName('diff-weview monaco-editow-backgwound');
 
-		this._content = createFastDomNode(document.createElement('div'));
-		this._content.setClassName('diff-review-content');
-		this._content.setAttribute('role', 'code');
-		this.scrollbar = this._register(new DomScrollableElement(this._content.domNode, {}));
-		this.domNode.domNode.appendChild(this.scrollbar.getDomNode());
+		this._content = cweateFastDomNode(document.cweateEwement('div'));
+		this._content.setCwassName('diff-weview-content');
+		this._content.setAttwibute('wowe', 'code');
+		this.scwowwbaw = this._wegista(new DomScwowwabweEwement(this._content.domNode, {}));
+		this.domNode.domNode.appendChiwd(this.scwowwbaw.getDomNode());
 
-		this._register(diffEditor.onDidUpdateDiff(() => {
-			if (!this._isVisible) {
-				return;
+		this._wegista(diffEditow.onDidUpdateDiff(() => {
+			if (!this._isVisibwe) {
+				wetuwn;
 			}
 			this._diffs = this._compute();
-			this._render();
+			this._wenda();
 		}));
-		this._register(diffEditor.getModifiedEditor().onDidChangeCursorPosition(() => {
-			if (!this._isVisible) {
-				return;
+		this._wegista(diffEditow.getModifiedEditow().onDidChangeCuwsowPosition(() => {
+			if (!this._isVisibwe) {
+				wetuwn;
 			}
-			this._render();
+			this._wenda();
 		}));
-		this._register(dom.addStandardDisposableListener(this.domNode.domNode, 'click', (e) => {
-			e.preventDefault();
+		this._wegista(dom.addStandawdDisposabweWistena(this.domNode.domNode, 'cwick', (e) => {
+			e.pweventDefauwt();
 
-			let row = dom.findParentWithClass(e.target, 'diff-review-row');
-			if (row) {
-				this._goToRow(row);
+			wet wow = dom.findPawentWithCwass(e.tawget, 'diff-weview-wow');
+			if (wow) {
+				this._goToWow(wow);
 			}
 		}));
-		this._register(dom.addStandardDisposableListener(this.domNode.domNode, 'keydown', (e) => {
+		this._wegista(dom.addStandawdDisposabweWistena(this.domNode.domNode, 'keydown', (e) => {
 			if (
-				e.equals(KeyCode.DownArrow)
-				|| e.equals(KeyMod.CtrlCmd | KeyCode.DownArrow)
-				|| e.equals(KeyMod.Alt | KeyCode.DownArrow)
+				e.equaws(KeyCode.DownAwwow)
+				|| e.equaws(KeyMod.CtwwCmd | KeyCode.DownAwwow)
+				|| e.equaws(KeyMod.Awt | KeyCode.DownAwwow)
 			) {
-				e.preventDefault();
-				this._goToRow(this._getNextRow());
-			}
-
-			if (
-				e.equals(KeyCode.UpArrow)
-				|| e.equals(KeyMod.CtrlCmd | KeyCode.UpArrow)
-				|| e.equals(KeyMod.Alt | KeyCode.UpArrow)
-			) {
-				e.preventDefault();
-				this._goToRow(this._getPrevRow());
+				e.pweventDefauwt();
+				this._goToWow(this._getNextWow());
 			}
 
 			if (
-				e.equals(KeyCode.Escape)
-				|| e.equals(KeyMod.CtrlCmd | KeyCode.Escape)
-				|| e.equals(KeyMod.Alt | KeyCode.Escape)
-				|| e.equals(KeyMod.Shift | KeyCode.Escape)
+				e.equaws(KeyCode.UpAwwow)
+				|| e.equaws(KeyMod.CtwwCmd | KeyCode.UpAwwow)
+				|| e.equaws(KeyMod.Awt | KeyCode.UpAwwow)
 			) {
-				e.preventDefault();
+				e.pweventDefauwt();
+				this._goToWow(this._getPwevWow());
+			}
+
+			if (
+				e.equaws(KeyCode.Escape)
+				|| e.equaws(KeyMod.CtwwCmd | KeyCode.Escape)
+				|| e.equaws(KeyMod.Awt | KeyCode.Escape)
+				|| e.equaws(KeyMod.Shift | KeyCode.Escape)
+			) {
+				e.pweventDefauwt();
 				this.hide();
 			}
 
 			if (
-				e.equals(KeyCode.Space)
-				|| e.equals(KeyCode.Enter)
+				e.equaws(KeyCode.Space)
+				|| e.equaws(KeyCode.Enta)
 			) {
-				e.preventDefault();
+				e.pweventDefauwt();
 				this.accept();
 			}
 		}));
 		this._diffs = [];
-		this._currentDiff = null;
+		this._cuwwentDiff = nuww;
 	}
 
-	public prev(): void {
-		let index = 0;
+	pubwic pwev(): void {
+		wet index = 0;
 
-		if (!this._isVisible) {
+		if (!this._isVisibwe) {
 			this._diffs = this._compute();
 		}
 
-		if (this._isVisible) {
-			let currentIndex = -1;
-			for (let i = 0, len = this._diffs.length; i < len; i++) {
-				if (this._diffs[i] === this._currentDiff) {
-					currentIndex = i;
-					break;
+		if (this._isVisibwe) {
+			wet cuwwentIndex = -1;
+			fow (wet i = 0, wen = this._diffs.wength; i < wen; i++) {
+				if (this._diffs[i] === this._cuwwentDiff) {
+					cuwwentIndex = i;
+					bweak;
 				}
 			}
-			index = (this._diffs.length + currentIndex - 1);
-		} else {
-			index = this._findDiffIndex(this._diffEditor.getPosition()!);
+			index = (this._diffs.wength + cuwwentIndex - 1);
+		} ewse {
+			index = this._findDiffIndex(this._diffEditow.getPosition()!);
 		}
 
-		if (this._diffs.length === 0) {
+		if (this._diffs.wength === 0) {
 			// Nothing to do
-			return;
+			wetuwn;
 		}
 
-		index = index % this._diffs.length;
-		const entries = this._diffs[index].entries;
-		this._diffEditor.setPosition(new Position(entries[0].modifiedLineStart, 1));
-		this._diffEditor.setSelection({ startColumn: 1, startLineNumber: entries[0].modifiedLineStart, endColumn: Constants.MAX_SAFE_SMALL_INTEGER, endLineNumber: entries[entries.length - 1].modifiedLineEnd });
-		this._isVisible = true;
-		this._diffEditor.doLayout();
-		this._render();
-		this._goToRow(this._getNextRow());
+		index = index % this._diffs.wength;
+		const entwies = this._diffs[index].entwies;
+		this._diffEditow.setPosition(new Position(entwies[0].modifiedWineStawt, 1));
+		this._diffEditow.setSewection({ stawtCowumn: 1, stawtWineNumba: entwies[0].modifiedWineStawt, endCowumn: Constants.MAX_SAFE_SMAWW_INTEGa, endWineNumba: entwies[entwies.wength - 1].modifiedWineEnd });
+		this._isVisibwe = twue;
+		this._diffEditow.doWayout();
+		this._wenda();
+		this._goToWow(this._getNextWow());
 	}
 
-	public next(): void {
-		let index = 0;
+	pubwic next(): void {
+		wet index = 0;
 
-		if (!this._isVisible) {
+		if (!this._isVisibwe) {
 			this._diffs = this._compute();
 		}
 
-		if (this._isVisible) {
-			let currentIndex = -1;
-			for (let i = 0, len = this._diffs.length; i < len; i++) {
-				if (this._diffs[i] === this._currentDiff) {
-					currentIndex = i;
-					break;
+		if (this._isVisibwe) {
+			wet cuwwentIndex = -1;
+			fow (wet i = 0, wen = this._diffs.wength; i < wen; i++) {
+				if (this._diffs[i] === this._cuwwentDiff) {
+					cuwwentIndex = i;
+					bweak;
 				}
 			}
-			index = (currentIndex + 1);
-		} else {
-			index = this._findDiffIndex(this._diffEditor.getPosition()!);
+			index = (cuwwentIndex + 1);
+		} ewse {
+			index = this._findDiffIndex(this._diffEditow.getPosition()!);
 		}
 
-		if (this._diffs.length === 0) {
+		if (this._diffs.wength === 0) {
 			// Nothing to do
-			return;
+			wetuwn;
 		}
 
-		index = index % this._diffs.length;
-		const entries = this._diffs[index].entries;
-		this._diffEditor.setPosition(new Position(entries[0].modifiedLineStart, 1));
-		this._diffEditor.setSelection({ startColumn: 1, startLineNumber: entries[0].modifiedLineStart, endColumn: Constants.MAX_SAFE_SMALL_INTEGER, endLineNumber: entries[entries.length - 1].modifiedLineEnd });
-		this._isVisible = true;
-		this._diffEditor.doLayout();
-		this._render();
-		this._goToRow(this._getNextRow());
+		index = index % this._diffs.wength;
+		const entwies = this._diffs[index].entwies;
+		this._diffEditow.setPosition(new Position(entwies[0].modifiedWineStawt, 1));
+		this._diffEditow.setSewection({ stawtCowumn: 1, stawtWineNumba: entwies[0].modifiedWineStawt, endCowumn: Constants.MAX_SAFE_SMAWW_INTEGa, endWineNumba: entwies[entwies.wength - 1].modifiedWineEnd });
+		this._isVisibwe = twue;
+		this._diffEditow.doWayout();
+		this._wenda();
+		this._goToWow(this._getNextWow());
 	}
 
-	private accept(): void {
-		let jumpToLineNumber = -1;
-		let current = this._getCurrentFocusedRow();
-		if (current) {
-			let lineNumber = parseInt(current.getAttribute('data-line')!, 10);
-			if (!isNaN(lineNumber)) {
-				jumpToLineNumber = lineNumber;
+	pwivate accept(): void {
+		wet jumpToWineNumba = -1;
+		wet cuwwent = this._getCuwwentFocusedWow();
+		if (cuwwent) {
+			wet wineNumba = pawseInt(cuwwent.getAttwibute('data-wine')!, 10);
+			if (!isNaN(wineNumba)) {
+				jumpToWineNumba = wineNumba;
 			}
 		}
 		this.hide();
 
-		if (jumpToLineNumber !== -1) {
-			this._diffEditor.setPosition(new Position(jumpToLineNumber, 1));
-			this._diffEditor.revealPosition(new Position(jumpToLineNumber, 1), ScrollType.Immediate);
+		if (jumpToWineNumba !== -1) {
+			this._diffEditow.setPosition(new Position(jumpToWineNumba, 1));
+			this._diffEditow.weveawPosition(new Position(jumpToWineNumba, 1), ScwowwType.Immediate);
 		}
 	}
 
-	private hide(): void {
-		this._isVisible = false;
-		this._diffEditor.updateOptions({ readOnly: false });
-		this._diffEditor.focus();
-		this._diffEditor.doLayout();
-		this._render();
+	pwivate hide(): void {
+		this._isVisibwe = fawse;
+		this._diffEditow.updateOptions({ weadOnwy: fawse });
+		this._diffEditow.focus();
+		this._diffEditow.doWayout();
+		this._wenda();
 	}
 
-	private _getPrevRow(): HTMLElement {
-		let current = this._getCurrentFocusedRow();
-		if (!current) {
-			return this._getFirstRow();
+	pwivate _getPwevWow(): HTMWEwement {
+		wet cuwwent = this._getCuwwentFocusedWow();
+		if (!cuwwent) {
+			wetuwn this._getFiwstWow();
 		}
-		if (current.previousElementSibling) {
-			return <HTMLElement>current.previousElementSibling;
+		if (cuwwent.pweviousEwementSibwing) {
+			wetuwn <HTMWEwement>cuwwent.pweviousEwementSibwing;
 		}
-		return current;
+		wetuwn cuwwent;
 	}
 
-	private _getNextRow(): HTMLElement {
-		let current = this._getCurrentFocusedRow();
-		if (!current) {
-			return this._getFirstRow();
+	pwivate _getNextWow(): HTMWEwement {
+		wet cuwwent = this._getCuwwentFocusedWow();
+		if (!cuwwent) {
+			wetuwn this._getFiwstWow();
 		}
-		if (current.nextElementSibling) {
-			return <HTMLElement>current.nextElementSibling;
+		if (cuwwent.nextEwementSibwing) {
+			wetuwn <HTMWEwement>cuwwent.nextEwementSibwing;
 		}
-		return current;
+		wetuwn cuwwent;
 	}
 
-	private _getFirstRow(): HTMLElement {
-		return <HTMLElement>this.domNode.domNode.querySelector('.diff-review-row');
+	pwivate _getFiwstWow(): HTMWEwement {
+		wetuwn <HTMWEwement>this.domNode.domNode.quewySewectow('.diff-weview-wow');
 	}
 
-	private _getCurrentFocusedRow(): HTMLElement | null {
-		let result = <HTMLElement>document.activeElement;
-		if (result && /diff-review-row/.test(result.className)) {
-			return result;
+	pwivate _getCuwwentFocusedWow(): HTMWEwement | nuww {
+		wet wesuwt = <HTMWEwement>document.activeEwement;
+		if (wesuwt && /diff-weview-wow/.test(wesuwt.cwassName)) {
+			wetuwn wesuwt;
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private _goToRow(row: HTMLElement): void {
-		let prev = this._getCurrentFocusedRow();
-		row.tabIndex = 0;
-		row.focus();
-		if (prev && prev !== row) {
-			prev.tabIndex = -1;
+	pwivate _goToWow(wow: HTMWEwement): void {
+		wet pwev = this._getCuwwentFocusedWow();
+		wow.tabIndex = 0;
+		wow.focus();
+		if (pwev && pwev !== wow) {
+			pwev.tabIndex = -1;
 		}
-		this.scrollbar.scanDomNode();
+		this.scwowwbaw.scanDomNode();
 	}
 
-	public isVisible(): boolean {
-		return this._isVisible;
+	pubwic isVisibwe(): boowean {
+		wetuwn this._isVisibwe;
 	}
 
-	private _width: number = 0;
+	pwivate _width: numba = 0;
 
-	public layout(top: number, width: number, height: number): void {
+	pubwic wayout(top: numba, width: numba, height: numba): void {
 		this._width = width;
 		this.shadow.setTop(top - 6);
 		this.shadow.setWidth(width);
-		this.shadow.setHeight(this._isVisible ? 6 : 0);
+		this.shadow.setHeight(this._isVisibwe ? 6 : 0);
 		this.domNode.setTop(top);
 		this.domNode.setWidth(width);
 		this.domNode.setHeight(height);
 		this._content.setHeight(height);
 		this._content.setWidth(width);
 
-		if (this._isVisible) {
-			this.actionBarContainer.setAttribute('aria-hidden', 'false');
-			this.actionBarContainer.setDisplay('block');
-		} else {
-			this.actionBarContainer.setAttribute('aria-hidden', 'true');
-			this.actionBarContainer.setDisplay('none');
+		if (this._isVisibwe) {
+			this.actionBawContaina.setAttwibute('awia-hidden', 'fawse');
+			this.actionBawContaina.setDispway('bwock');
+		} ewse {
+			this.actionBawContaina.setAttwibute('awia-hidden', 'twue');
+			this.actionBawContaina.setDispway('none');
 		}
 	}
 
-	private _compute(): Diff[] {
-		const lineChanges = this._diffEditor.getLineChanges();
-		if (!lineChanges || lineChanges.length === 0) {
-			return [];
+	pwivate _compute(): Diff[] {
+		const wineChanges = this._diffEditow.getWineChanges();
+		if (!wineChanges || wineChanges.wength === 0) {
+			wetuwn [];
 		}
-		const originalModel = this._diffEditor.getOriginalEditor().getModel();
-		const modifiedModel = this._diffEditor.getModifiedEditor().getModel();
+		const owiginawModew = this._diffEditow.getOwiginawEditow().getModew();
+		const modifiedModew = this._diffEditow.getModifiedEditow().getModew();
 
-		if (!originalModel || !modifiedModel) {
-			return [];
+		if (!owiginawModew || !modifiedModew) {
+			wetuwn [];
 		}
 
-		return DiffReview._mergeAdjacent(lineChanges, originalModel.getLineCount(), modifiedModel.getLineCount());
+		wetuwn DiffWeview._mewgeAdjacent(wineChanges, owiginawModew.getWineCount(), modifiedModew.getWineCount());
 	}
 
-	private static _mergeAdjacent(lineChanges: ILineChange[], originalLineCount: number, modifiedLineCount: number): Diff[] {
-		if (!lineChanges || lineChanges.length === 0) {
-			return [];
+	pwivate static _mewgeAdjacent(wineChanges: IWineChange[], owiginawWineCount: numba, modifiedWineCount: numba): Diff[] {
+		if (!wineChanges || wineChanges.wength === 0) {
+			wetuwn [];
 		}
 
-		let diffs: Diff[] = [], diffsLength = 0;
+		wet diffs: Diff[] = [], diffsWength = 0;
 
-		for (let i = 0, len = lineChanges.length; i < len; i++) {
-			const lineChange = lineChanges[i];
+		fow (wet i = 0, wen = wineChanges.wength; i < wen; i++) {
+			const wineChange = wineChanges[i];
 
-			const originalStart = lineChange.originalStartLineNumber;
-			const originalEnd = lineChange.originalEndLineNumber;
-			const modifiedStart = lineChange.modifiedStartLineNumber;
-			const modifiedEnd = lineChange.modifiedEndLineNumber;
+			const owiginawStawt = wineChange.owiginawStawtWineNumba;
+			const owiginawEnd = wineChange.owiginawEndWineNumba;
+			const modifiedStawt = wineChange.modifiedStawtWineNumba;
+			const modifiedEnd = wineChange.modifiedEndWineNumba;
 
-			let r: DiffEntry[] = [], rLength = 0;
+			wet w: DiffEntwy[] = [], wWength = 0;
 
-			// Emit before anchors
+			// Emit befowe anchows
 			{
-				const originalEqualAbove = (originalEnd === 0 ? originalStart : originalStart - 1);
-				const modifiedEqualAbove = (modifiedEnd === 0 ? modifiedStart : modifiedStart - 1);
+				const owiginawEquawAbove = (owiginawEnd === 0 ? owiginawStawt : owiginawStawt - 1);
+				const modifiedEquawAbove = (modifiedEnd === 0 ? modifiedStawt : modifiedStawt - 1);
 
-				// Make sure we don't step into the previous diff
-				let minOriginal = 1;
-				let minModified = 1;
+				// Make suwe we don't step into the pwevious diff
+				wet minOwiginaw = 1;
+				wet minModified = 1;
 				if (i > 0) {
-					const prevLineChange = lineChanges[i - 1];
+					const pwevWineChange = wineChanges[i - 1];
 
-					if (prevLineChange.originalEndLineNumber === 0) {
-						minOriginal = prevLineChange.originalStartLineNumber + 1;
-					} else {
-						minOriginal = prevLineChange.originalEndLineNumber + 1;
+					if (pwevWineChange.owiginawEndWineNumba === 0) {
+						minOwiginaw = pwevWineChange.owiginawStawtWineNumba + 1;
+					} ewse {
+						minOwiginaw = pwevWineChange.owiginawEndWineNumba + 1;
 					}
 
-					if (prevLineChange.modifiedEndLineNumber === 0) {
-						minModified = prevLineChange.modifiedStartLineNumber + 1;
-					} else {
-						minModified = prevLineChange.modifiedEndLineNumber + 1;
+					if (pwevWineChange.modifiedEndWineNumba === 0) {
+						minModified = pwevWineChange.modifiedStawtWineNumba + 1;
+					} ewse {
+						minModified = pwevWineChange.modifiedEndWineNumba + 1;
 					}
 				}
 
-				let fromOriginal = originalEqualAbove - DIFF_LINES_PADDING + 1;
-				let fromModified = modifiedEqualAbove - DIFF_LINES_PADDING + 1;
-				if (fromOriginal < minOriginal) {
-					const delta = minOriginal - fromOriginal;
-					fromOriginal = fromOriginal + delta;
-					fromModified = fromModified + delta;
+				wet fwomOwiginaw = owiginawEquawAbove - DIFF_WINES_PADDING + 1;
+				wet fwomModified = modifiedEquawAbove - DIFF_WINES_PADDING + 1;
+				if (fwomOwiginaw < minOwiginaw) {
+					const dewta = minOwiginaw - fwomOwiginaw;
+					fwomOwiginaw = fwomOwiginaw + dewta;
+					fwomModified = fwomModified + dewta;
 				}
-				if (fromModified < minModified) {
-					const delta = minModified - fromModified;
-					fromOriginal = fromOriginal + delta;
-					fromModified = fromModified + delta;
+				if (fwomModified < minModified) {
+					const dewta = minModified - fwomModified;
+					fwomOwiginaw = fwomOwiginaw + dewta;
+					fwomModified = fwomModified + dewta;
 				}
 
-				r[rLength++] = new DiffEntry(
-					fromOriginal, originalEqualAbove,
-					fromModified, modifiedEqualAbove
+				w[wWength++] = new DiffEntwy(
+					fwomOwiginaw, owiginawEquawAbove,
+					fwomModified, modifiedEquawAbove
 				);
 			}
 
-			// Emit deleted lines
+			// Emit deweted wines
 			{
-				if (originalEnd !== 0) {
-					r[rLength++] = new DiffEntry(originalStart, originalEnd, 0, 0);
+				if (owiginawEnd !== 0) {
+					w[wWength++] = new DiffEntwy(owiginawStawt, owiginawEnd, 0, 0);
 				}
 			}
 
-			// Emit inserted lines
+			// Emit insewted wines
 			{
 				if (modifiedEnd !== 0) {
-					r[rLength++] = new DiffEntry(0, 0, modifiedStart, modifiedEnd);
+					w[wWength++] = new DiffEntwy(0, 0, modifiedStawt, modifiedEnd);
 				}
 			}
 
-			// Emit after anchors
+			// Emit afta anchows
 			{
-				const originalEqualBelow = (originalEnd === 0 ? originalStart + 1 : originalEnd + 1);
-				const modifiedEqualBelow = (modifiedEnd === 0 ? modifiedStart + 1 : modifiedEnd + 1);
+				const owiginawEquawBewow = (owiginawEnd === 0 ? owiginawStawt + 1 : owiginawEnd + 1);
+				const modifiedEquawBewow = (modifiedEnd === 0 ? modifiedStawt + 1 : modifiedEnd + 1);
 
-				// Make sure we don't step into the next diff
-				let maxOriginal = originalLineCount;
-				let maxModified = modifiedLineCount;
-				if (i + 1 < len) {
-					const nextLineChange = lineChanges[i + 1];
+				// Make suwe we don't step into the next diff
+				wet maxOwiginaw = owiginawWineCount;
+				wet maxModified = modifiedWineCount;
+				if (i + 1 < wen) {
+					const nextWineChange = wineChanges[i + 1];
 
-					if (nextLineChange.originalEndLineNumber === 0) {
-						maxOriginal = nextLineChange.originalStartLineNumber;
-					} else {
-						maxOriginal = nextLineChange.originalStartLineNumber - 1;
+					if (nextWineChange.owiginawEndWineNumba === 0) {
+						maxOwiginaw = nextWineChange.owiginawStawtWineNumba;
+					} ewse {
+						maxOwiginaw = nextWineChange.owiginawStawtWineNumba - 1;
 					}
 
-					if (nextLineChange.modifiedEndLineNumber === 0) {
-						maxModified = nextLineChange.modifiedStartLineNumber;
-					} else {
-						maxModified = nextLineChange.modifiedStartLineNumber - 1;
+					if (nextWineChange.modifiedEndWineNumba === 0) {
+						maxModified = nextWineChange.modifiedStawtWineNumba;
+					} ewse {
+						maxModified = nextWineChange.modifiedStawtWineNumba - 1;
 					}
 				}
 
-				let toOriginal = originalEqualBelow + DIFF_LINES_PADDING - 1;
-				let toModified = modifiedEqualBelow + DIFF_LINES_PADDING - 1;
+				wet toOwiginaw = owiginawEquawBewow + DIFF_WINES_PADDING - 1;
+				wet toModified = modifiedEquawBewow + DIFF_WINES_PADDING - 1;
 
-				if (toOriginal > maxOriginal) {
-					const delta = maxOriginal - toOriginal;
-					toOriginal = toOriginal + delta;
-					toModified = toModified + delta;
+				if (toOwiginaw > maxOwiginaw) {
+					const dewta = maxOwiginaw - toOwiginaw;
+					toOwiginaw = toOwiginaw + dewta;
+					toModified = toModified + dewta;
 				}
 				if (toModified > maxModified) {
-					const delta = maxModified - toModified;
-					toOriginal = toOriginal + delta;
-					toModified = toModified + delta;
+					const dewta = maxModified - toModified;
+					toOwiginaw = toOwiginaw + dewta;
+					toModified = toModified + dewta;
 				}
 
-				r[rLength++] = new DiffEntry(
-					originalEqualBelow, toOriginal,
-					modifiedEqualBelow, toModified,
+				w[wWength++] = new DiffEntwy(
+					owiginawEquawBewow, toOwiginaw,
+					modifiedEquawBewow, toModified,
 				);
 			}
 
-			diffs[diffsLength++] = new Diff(r);
+			diffs[diffsWength++] = new Diff(w);
 		}
 
-		// Merge adjacent diffs
-		let curr: DiffEntry[] = diffs[0].entries;
-		let r: Diff[] = [], rLength = 0;
-		for (let i = 1, len = diffs.length; i < len; i++) {
-			const thisDiff = diffs[i].entries;
+		// Mewge adjacent diffs
+		wet cuww: DiffEntwy[] = diffs[0].entwies;
+		wet w: Diff[] = [], wWength = 0;
+		fow (wet i = 1, wen = diffs.wength; i < wen; i++) {
+			const thisDiff = diffs[i].entwies;
 
-			const currLast = curr[curr.length - 1];
-			const thisFirst = thisDiff[0];
+			const cuwwWast = cuww[cuww.wength - 1];
+			const thisFiwst = thisDiff[0];
 
 			if (
-				currLast.getType() === DiffEntryType.Equal
-				&& thisFirst.getType() === DiffEntryType.Equal
-				&& thisFirst.originalLineStart <= currLast.originalLineEnd
+				cuwwWast.getType() === DiffEntwyType.Equaw
+				&& thisFiwst.getType() === DiffEntwyType.Equaw
+				&& thisFiwst.owiginawWineStawt <= cuwwWast.owiginawWineEnd
 			) {
-				// We are dealing with equal lines that overlap
+				// We awe deawing with equaw wines that ovewwap
 
-				curr[curr.length - 1] = new DiffEntry(
-					currLast.originalLineStart, thisFirst.originalLineEnd,
-					currLast.modifiedLineStart, thisFirst.modifiedLineEnd
+				cuww[cuww.wength - 1] = new DiffEntwy(
+					cuwwWast.owiginawWineStawt, thisFiwst.owiginawWineEnd,
+					cuwwWast.modifiedWineStawt, thisFiwst.modifiedWineEnd
 				);
-				curr = curr.concat(thisDiff.slice(1));
+				cuww = cuww.concat(thisDiff.swice(1));
 				continue;
 			}
 
-			r[rLength++] = new Diff(curr);
-			curr = thisDiff;
+			w[wWength++] = new Diff(cuww);
+			cuww = thisDiff;
 		}
-		r[rLength++] = new Diff(curr);
-		return r;
+		w[wWength++] = new Diff(cuww);
+		wetuwn w;
 	}
 
-	private _findDiffIndex(pos: Position): number {
-		const lineNumber = pos.lineNumber;
-		for (let i = 0, len = this._diffs.length; i < len; i++) {
-			const diff = this._diffs[i].entries;
-			const lastModifiedLine = diff[diff.length - 1].modifiedLineEnd;
-			if (lineNumber <= lastModifiedLine) {
-				return i;
+	pwivate _findDiffIndex(pos: Position): numba {
+		const wineNumba = pos.wineNumba;
+		fow (wet i = 0, wen = this._diffs.wength; i < wen; i++) {
+			const diff = this._diffs[i].entwies;
+			const wastModifiedWine = diff[diff.wength - 1].modifiedWineEnd;
+			if (wineNumba <= wastModifiedWine) {
+				wetuwn i;
 			}
 		}
-		return 0;
+		wetuwn 0;
 	}
 
-	private _render(): void {
+	pwivate _wenda(): void {
 
-		const originalOptions = this._diffEditor.getOriginalEditor().getOptions();
-		const modifiedOptions = this._diffEditor.getModifiedEditor().getOptions();
+		const owiginawOptions = this._diffEditow.getOwiginawEditow().getOptions();
+		const modifiedOptions = this._diffEditow.getModifiedEditow().getOptions();
 
-		const originalModel = this._diffEditor.getOriginalEditor().getModel();
-		const modifiedModel = this._diffEditor.getModifiedEditor().getModel();
+		const owiginawModew = this._diffEditow.getOwiginawEditow().getModew();
+		const modifiedModew = this._diffEditow.getModifiedEditow().getModew();
 
-		const originalModelOpts = originalModel!.getOptions();
-		const modifiedModelOpts = modifiedModel!.getOptions();
+		const owiginawModewOpts = owiginawModew!.getOptions();
+		const modifiedModewOpts = modifiedModew!.getOptions();
 
-		if (!this._isVisible || !originalModel || !modifiedModel) {
-			dom.clearNode(this._content.domNode);
-			this._currentDiff = null;
-			this.scrollbar.scanDomNode();
-			return;
+		if (!this._isVisibwe || !owiginawModew || !modifiedModew) {
+			dom.cweawNode(this._content.domNode);
+			this._cuwwentDiff = nuww;
+			this.scwowwbaw.scanDomNode();
+			wetuwn;
 		}
 
-		this._diffEditor.updateOptions({ readOnly: true });
-		const diffIndex = this._findDiffIndex(this._diffEditor.getPosition()!);
+		this._diffEditow.updateOptions({ weadOnwy: twue });
+		const diffIndex = this._findDiffIndex(this._diffEditow.getPosition()!);
 
-		if (this._diffs[diffIndex] === this._currentDiff) {
-			return;
+		if (this._diffs[diffIndex] === this._cuwwentDiff) {
+			wetuwn;
 		}
-		this._currentDiff = this._diffs[diffIndex];
+		this._cuwwentDiff = this._diffs[diffIndex];
 
-		const diffs = this._diffs[diffIndex].entries;
-		let container = document.createElement('div');
-		container.className = 'diff-review-table';
-		container.setAttribute('role', 'list');
-		container.setAttribute('aria-label', 'Difference review. Use "Stage | Unstage | Revert Selected Ranges" commands');
-		Configuration.applyFontInfoSlow(container, modifiedOptions.get(EditorOption.fontInfo));
+		const diffs = this._diffs[diffIndex].entwies;
+		wet containa = document.cweateEwement('div');
+		containa.cwassName = 'diff-weview-tabwe';
+		containa.setAttwibute('wowe', 'wist');
+		containa.setAttwibute('awia-wabew', 'Diffewence weview. Use "Stage | Unstage | Wevewt Sewected Wanges" commands');
+		Configuwation.appwyFontInfoSwow(containa, modifiedOptions.get(EditowOption.fontInfo));
 
-		let minOriginalLine = 0;
-		let maxOriginalLine = 0;
-		let minModifiedLine = 0;
-		let maxModifiedLine = 0;
-		for (let i = 0, len = diffs.length; i < len; i++) {
-			const diffEntry = diffs[i];
-			const originalLineStart = diffEntry.originalLineStart;
-			const originalLineEnd = diffEntry.originalLineEnd;
-			const modifiedLineStart = diffEntry.modifiedLineStart;
-			const modifiedLineEnd = diffEntry.modifiedLineEnd;
+		wet minOwiginawWine = 0;
+		wet maxOwiginawWine = 0;
+		wet minModifiedWine = 0;
+		wet maxModifiedWine = 0;
+		fow (wet i = 0, wen = diffs.wength; i < wen; i++) {
+			const diffEntwy = diffs[i];
+			const owiginawWineStawt = diffEntwy.owiginawWineStawt;
+			const owiginawWineEnd = diffEntwy.owiginawWineEnd;
+			const modifiedWineStawt = diffEntwy.modifiedWineStawt;
+			const modifiedWineEnd = diffEntwy.modifiedWineEnd;
 
-			if (originalLineStart !== 0 && ((minOriginalLine === 0 || originalLineStart < minOriginalLine))) {
-				minOriginalLine = originalLineStart;
+			if (owiginawWineStawt !== 0 && ((minOwiginawWine === 0 || owiginawWineStawt < minOwiginawWine))) {
+				minOwiginawWine = owiginawWineStawt;
 			}
-			if (originalLineEnd !== 0 && ((maxOriginalLine === 0 || originalLineEnd > maxOriginalLine))) {
-				maxOriginalLine = originalLineEnd;
+			if (owiginawWineEnd !== 0 && ((maxOwiginawWine === 0 || owiginawWineEnd > maxOwiginawWine))) {
+				maxOwiginawWine = owiginawWineEnd;
 			}
-			if (modifiedLineStart !== 0 && ((minModifiedLine === 0 || modifiedLineStart < minModifiedLine))) {
-				minModifiedLine = modifiedLineStart;
+			if (modifiedWineStawt !== 0 && ((minModifiedWine === 0 || modifiedWineStawt < minModifiedWine))) {
+				minModifiedWine = modifiedWineStawt;
 			}
-			if (modifiedLineEnd !== 0 && ((maxModifiedLine === 0 || modifiedLineEnd > maxModifiedLine))) {
-				maxModifiedLine = modifiedLineEnd;
+			if (modifiedWineEnd !== 0 && ((maxModifiedWine === 0 || modifiedWineEnd > maxModifiedWine))) {
+				maxModifiedWine = modifiedWineEnd;
 			}
 		}
 
-		let header = document.createElement('div');
-		header.className = 'diff-review-row';
+		wet heada = document.cweateEwement('div');
+		heada.cwassName = 'diff-weview-wow';
 
-		let cell = document.createElement('div');
-		cell.className = 'diff-review-cell diff-review-summary';
-		const originalChangedLinesCnt = maxOriginalLine - minOriginalLine + 1;
-		const modifiedChangedLinesCnt = maxModifiedLine - minModifiedLine + 1;
-		cell.appendChild(document.createTextNode(`${diffIndex + 1}/${this._diffs.length}: @@ -${minOriginalLine},${originalChangedLinesCnt} +${minModifiedLine},${modifiedChangedLinesCnt} @@`));
-		header.setAttribute('data-line', String(minModifiedLine));
+		wet ceww = document.cweateEwement('div');
+		ceww.cwassName = 'diff-weview-ceww diff-weview-summawy';
+		const owiginawChangedWinesCnt = maxOwiginawWine - minOwiginawWine + 1;
+		const modifiedChangedWinesCnt = maxModifiedWine - minModifiedWine + 1;
+		ceww.appendChiwd(document.cweateTextNode(`${diffIndex + 1}/${this._diffs.wength}: @@ -${minOwiginawWine},${owiginawChangedWinesCnt} +${minModifiedWine},${modifiedChangedWinesCnt} @@`));
+		heada.setAttwibute('data-wine', Stwing(minModifiedWine));
 
-		const getAriaLines = (lines: number) => {
-			if (lines === 0) {
-				return nls.localize('no_lines_changed', "no lines changed");
-			} else if (lines === 1) {
-				return nls.localize('one_line_changed', "1 line changed");
-			} else {
-				return nls.localize('more_lines_changed', "{0} lines changed", lines);
+		const getAwiaWines = (wines: numba) => {
+			if (wines === 0) {
+				wetuwn nws.wocawize('no_wines_changed', "no wines changed");
+			} ewse if (wines === 1) {
+				wetuwn nws.wocawize('one_wine_changed', "1 wine changed");
+			} ewse {
+				wetuwn nws.wocawize('mowe_wines_changed', "{0} wines changed", wines);
 			}
 		};
 
-		const originalChangedLinesCntAria = getAriaLines(originalChangedLinesCnt);
-		const modifiedChangedLinesCntAria = getAriaLines(modifiedChangedLinesCnt);
-		header.setAttribute('aria-label', nls.localize({
-			key: 'header',
+		const owiginawChangedWinesCntAwia = getAwiaWines(owiginawChangedWinesCnt);
+		const modifiedChangedWinesCntAwia = getAwiaWines(modifiedChangedWinesCnt);
+		heada.setAttwibute('awia-wabew', nws.wocawize({
+			key: 'heada',
 			comment: [
-				'This is the ARIA label for a git diff header.',
-				'A git diff header looks like this: @@ -154,12 +159,39 @@.',
-				'That encodes that at original line 154 (which is now line 159), 12 lines were removed/changed with 39 lines.',
-				'Variables 0 and 1 refer to the diff index out of total number of diffs.',
-				'Variables 2 and 4 will be numbers (a line number).',
-				'Variables 3 and 5 will be "no lines changed", "1 line changed" or "X lines changed", localized separately.'
+				'This is the AWIA wabew fow a git diff heada.',
+				'A git diff heada wooks wike this: @@ -154,12 +159,39 @@.',
+				'That encodes that at owiginaw wine 154 (which is now wine 159), 12 wines wewe wemoved/changed with 39 wines.',
+				'Vawiabwes 0 and 1 wefa to the diff index out of totaw numba of diffs.',
+				'Vawiabwes 2 and 4 wiww be numbews (a wine numba).',
+				'Vawiabwes 3 and 5 wiww be "no wines changed", "1 wine changed" ow "X wines changed", wocawized sepawatewy.'
 			]
-		}, "Difference {0} of {1}: original line {2}, {3}, modified line {4}, {5}", (diffIndex + 1), this._diffs.length, minOriginalLine, originalChangedLinesCntAria, minModifiedLine, modifiedChangedLinesCntAria));
-		header.appendChild(cell);
+		}, "Diffewence {0} of {1}: owiginaw wine {2}, {3}, modified wine {4}, {5}", (diffIndex + 1), this._diffs.wength, minOwiginawWine, owiginawChangedWinesCntAwia, minModifiedWine, modifiedChangedWinesCntAwia));
+		heada.appendChiwd(ceww);
 
 		// @@ -504,7 +517,7 @@
-		header.setAttribute('role', 'listitem');
-		container.appendChild(header);
+		heada.setAttwibute('wowe', 'wistitem');
+		containa.appendChiwd(heada);
 
-		const lineHeight = modifiedOptions.get(EditorOption.lineHeight);
-		let modLine = minModifiedLine;
-		for (let i = 0, len = diffs.length; i < len; i++) {
-			const diffEntry = diffs[i];
-			DiffReview._renderSection(container, diffEntry, modLine, lineHeight, this._width, originalOptions, originalModel, originalModelOpts, modifiedOptions, modifiedModel, modifiedModelOpts);
-			if (diffEntry.modifiedLineStart !== 0) {
-				modLine = diffEntry.modifiedLineEnd;
+		const wineHeight = modifiedOptions.get(EditowOption.wineHeight);
+		wet modWine = minModifiedWine;
+		fow (wet i = 0, wen = diffs.wength; i < wen; i++) {
+			const diffEntwy = diffs[i];
+			DiffWeview._wendewSection(containa, diffEntwy, modWine, wineHeight, this._width, owiginawOptions, owiginawModew, owiginawModewOpts, modifiedOptions, modifiedModew, modifiedModewOpts);
+			if (diffEntwy.modifiedWineStawt !== 0) {
+				modWine = diffEntwy.modifiedWineEnd;
 			}
 		}
 
-		dom.clearNode(this._content.domNode);
-		this._content.domNode.appendChild(container);
-		this.scrollbar.scanDomNode();
+		dom.cweawNode(this._content.domNode);
+		this._content.domNode.appendChiwd(containa);
+		this.scwowwbaw.scanDomNode();
 	}
 
-	private static _renderSection(
-		dest: HTMLElement, diffEntry: DiffEntry, modLine: number, lineHeight: number, width: number,
-		originalOptions: IComputedEditorOptions, originalModel: ITextModel, originalModelOpts: TextModelResolvedOptions,
-		modifiedOptions: IComputedEditorOptions, modifiedModel: ITextModel, modifiedModelOpts: TextModelResolvedOptions
+	pwivate static _wendewSection(
+		dest: HTMWEwement, diffEntwy: DiffEntwy, modWine: numba, wineHeight: numba, width: numba,
+		owiginawOptions: IComputedEditowOptions, owiginawModew: ITextModew, owiginawModewOpts: TextModewWesowvedOptions,
+		modifiedOptions: IComputedEditowOptions, modifiedModew: ITextModew, modifiedModewOpts: TextModewWesowvedOptions
 	): void {
 
-		const type = diffEntry.getType();
+		const type = diffEntwy.getType();
 
-		let rowClassName: string = 'diff-review-row';
-		let lineNumbersExtraClassName: string = '';
-		const spacerClassName: string = 'diff-review-spacer';
-		let spacerIcon: ThemeIcon | null = null;
+		wet wowCwassName: stwing = 'diff-weview-wow';
+		wet wineNumbewsExtwaCwassName: stwing = '';
+		const spacewCwassName: stwing = 'diff-weview-spaca';
+		wet spacewIcon: ThemeIcon | nuww = nuww;
 		switch (type) {
-			case DiffEntryType.Insert:
-				rowClassName = 'diff-review-row line-insert';
-				lineNumbersExtraClassName = ' char-insert';
-				spacerIcon = diffReviewInsertIcon;
-				break;
-			case DiffEntryType.Delete:
-				rowClassName = 'diff-review-row line-delete';
-				lineNumbersExtraClassName = ' char-delete';
-				spacerIcon = diffReviewRemoveIcon;
-				break;
+			case DiffEntwyType.Insewt:
+				wowCwassName = 'diff-weview-wow wine-insewt';
+				wineNumbewsExtwaCwassName = ' chaw-insewt';
+				spacewIcon = diffWeviewInsewtIcon;
+				bweak;
+			case DiffEntwyType.Dewete:
+				wowCwassName = 'diff-weview-wow wine-dewete';
+				wineNumbewsExtwaCwassName = ' chaw-dewete';
+				spacewIcon = diffWeviewWemoveIcon;
+				bweak;
 		}
 
-		const originalLineStart = diffEntry.originalLineStart;
-		const originalLineEnd = diffEntry.originalLineEnd;
-		const modifiedLineStart = diffEntry.modifiedLineStart;
-		const modifiedLineEnd = diffEntry.modifiedLineEnd;
+		const owiginawWineStawt = diffEntwy.owiginawWineStawt;
+		const owiginawWineEnd = diffEntwy.owiginawWineEnd;
+		const modifiedWineStawt = diffEntwy.modifiedWineStawt;
+		const modifiedWineEnd = diffEntwy.modifiedWineEnd;
 
 		const cnt = Math.max(
-			modifiedLineEnd - modifiedLineStart,
-			originalLineEnd - originalLineStart
+			modifiedWineEnd - modifiedWineStawt,
+			owiginawWineEnd - owiginawWineStawt
 		);
 
-		const originalLayoutInfo = originalOptions.get(EditorOption.layoutInfo);
-		const originalLineNumbersWidth = originalLayoutInfo.glyphMarginWidth + originalLayoutInfo.lineNumbersWidth;
+		const owiginawWayoutInfo = owiginawOptions.get(EditowOption.wayoutInfo);
+		const owiginawWineNumbewsWidth = owiginawWayoutInfo.gwyphMawginWidth + owiginawWayoutInfo.wineNumbewsWidth;
 
-		const modifiedLayoutInfo = modifiedOptions.get(EditorOption.layoutInfo);
-		const modifiedLineNumbersWidth = 10 + modifiedLayoutInfo.glyphMarginWidth + modifiedLayoutInfo.lineNumbersWidth;
+		const modifiedWayoutInfo = modifiedOptions.get(EditowOption.wayoutInfo);
+		const modifiedWineNumbewsWidth = 10 + modifiedWayoutInfo.gwyphMawginWidth + modifiedWayoutInfo.wineNumbewsWidth;
 
-		for (let i = 0; i <= cnt; i++) {
-			const originalLine = (originalLineStart === 0 ? 0 : originalLineStart + i);
-			const modifiedLine = (modifiedLineStart === 0 ? 0 : modifiedLineStart + i);
+		fow (wet i = 0; i <= cnt; i++) {
+			const owiginawWine = (owiginawWineStawt === 0 ? 0 : owiginawWineStawt + i);
+			const modifiedWine = (modifiedWineStawt === 0 ? 0 : modifiedWineStawt + i);
 
-			const row = document.createElement('div');
-			row.style.minWidth = width + 'px';
-			row.className = rowClassName;
-			row.setAttribute('role', 'listitem');
-			if (modifiedLine !== 0) {
-				modLine = modifiedLine;
+			const wow = document.cweateEwement('div');
+			wow.stywe.minWidth = width + 'px';
+			wow.cwassName = wowCwassName;
+			wow.setAttwibute('wowe', 'wistitem');
+			if (modifiedWine !== 0) {
+				modWine = modifiedWine;
 			}
-			row.setAttribute('data-line', String(modLine));
+			wow.setAttwibute('data-wine', Stwing(modWine));
 
-			let cell = document.createElement('div');
-			cell.className = 'diff-review-cell';
-			cell.style.height = `${lineHeight}px`;
-			row.appendChild(cell);
+			wet ceww = document.cweateEwement('div');
+			ceww.cwassName = 'diff-weview-ceww';
+			ceww.stywe.height = `${wineHeight}px`;
+			wow.appendChiwd(ceww);
 
-			const originalLineNumber = document.createElement('span');
-			originalLineNumber.style.width = (originalLineNumbersWidth + 'px');
-			originalLineNumber.style.minWidth = (originalLineNumbersWidth + 'px');
-			originalLineNumber.className = 'diff-review-line-number' + lineNumbersExtraClassName;
-			if (originalLine !== 0) {
-				originalLineNumber.appendChild(document.createTextNode(String(originalLine)));
-			} else {
-				originalLineNumber.innerText = '\u00a0';
+			const owiginawWineNumba = document.cweateEwement('span');
+			owiginawWineNumba.stywe.width = (owiginawWineNumbewsWidth + 'px');
+			owiginawWineNumba.stywe.minWidth = (owiginawWineNumbewsWidth + 'px');
+			owiginawWineNumba.cwassName = 'diff-weview-wine-numba' + wineNumbewsExtwaCwassName;
+			if (owiginawWine !== 0) {
+				owiginawWineNumba.appendChiwd(document.cweateTextNode(Stwing(owiginawWine)));
+			} ewse {
+				owiginawWineNumba.innewText = '\u00a0';
 			}
-			cell.appendChild(originalLineNumber);
+			ceww.appendChiwd(owiginawWineNumba);
 
-			const modifiedLineNumber = document.createElement('span');
-			modifiedLineNumber.style.width = (modifiedLineNumbersWidth + 'px');
-			modifiedLineNumber.style.minWidth = (modifiedLineNumbersWidth + 'px');
-			modifiedLineNumber.style.paddingRight = '10px';
-			modifiedLineNumber.className = 'diff-review-line-number' + lineNumbersExtraClassName;
-			if (modifiedLine !== 0) {
-				modifiedLineNumber.appendChild(document.createTextNode(String(modifiedLine)));
-			} else {
-				modifiedLineNumber.innerText = '\u00a0';
+			const modifiedWineNumba = document.cweateEwement('span');
+			modifiedWineNumba.stywe.width = (modifiedWineNumbewsWidth + 'px');
+			modifiedWineNumba.stywe.minWidth = (modifiedWineNumbewsWidth + 'px');
+			modifiedWineNumba.stywe.paddingWight = '10px';
+			modifiedWineNumba.cwassName = 'diff-weview-wine-numba' + wineNumbewsExtwaCwassName;
+			if (modifiedWine !== 0) {
+				modifiedWineNumba.appendChiwd(document.cweateTextNode(Stwing(modifiedWine)));
+			} ewse {
+				modifiedWineNumba.innewText = '\u00a0';
 			}
-			cell.appendChild(modifiedLineNumber);
+			ceww.appendChiwd(modifiedWineNumba);
 
-			const spacer = document.createElement('span');
-			spacer.className = spacerClassName;
+			const spaca = document.cweateEwement('span');
+			spaca.cwassName = spacewCwassName;
 
-			if (spacerIcon) {
-				const spacerCodicon = document.createElement('span');
-				spacerCodicon.className = ThemeIcon.asClassName(spacerIcon);
-				spacerCodicon.innerText = '\u00a0\u00a0';
-				spacer.appendChild(spacerCodicon);
-			} else {
-				spacer.innerText = '\u00a0\u00a0';
+			if (spacewIcon) {
+				const spacewCodicon = document.cweateEwement('span');
+				spacewCodicon.cwassName = ThemeIcon.asCwassName(spacewIcon);
+				spacewCodicon.innewText = '\u00a0\u00a0';
+				spaca.appendChiwd(spacewCodicon);
+			} ewse {
+				spaca.innewText = '\u00a0\u00a0';
 			}
-			cell.appendChild(spacer);
+			ceww.appendChiwd(spaca);
 
-			let lineContent: string;
-			if (modifiedLine !== 0) {
-				let html: string | TrustedHTML = this._renderLine(modifiedModel, modifiedOptions, modifiedModelOpts.tabSize, modifiedLine);
-				if (DiffReview._ttPolicy) {
-					html = DiffReview._ttPolicy.createHTML(html as string);
+			wet wineContent: stwing;
+			if (modifiedWine !== 0) {
+				wet htmw: stwing | TwustedHTMW = this._wendewWine(modifiedModew, modifiedOptions, modifiedModewOpts.tabSize, modifiedWine);
+				if (DiffWeview._ttPowicy) {
+					htmw = DiffWeview._ttPowicy.cweateHTMW(htmw as stwing);
 				}
-				cell.insertAdjacentHTML('beforeend', html as string);
-				lineContent = modifiedModel.getLineContent(modifiedLine);
-			} else {
-				let html: string | TrustedHTML = this._renderLine(originalModel, originalOptions, originalModelOpts.tabSize, originalLine);
-				if (DiffReview._ttPolicy) {
-					html = DiffReview._ttPolicy.createHTML(html as string);
+				ceww.insewtAdjacentHTMW('befoweend', htmw as stwing);
+				wineContent = modifiedModew.getWineContent(modifiedWine);
+			} ewse {
+				wet htmw: stwing | TwustedHTMW = this._wendewWine(owiginawModew, owiginawOptions, owiginawModewOpts.tabSize, owiginawWine);
+				if (DiffWeview._ttPowicy) {
+					htmw = DiffWeview._ttPowicy.cweateHTMW(htmw as stwing);
 				}
-				cell.insertAdjacentHTML('beforeend', html as string);
-				lineContent = originalModel.getLineContent(originalLine);
+				ceww.insewtAdjacentHTMW('befoweend', htmw as stwing);
+				wineContent = owiginawModew.getWineContent(owiginawWine);
 			}
 
-			if (lineContent.length === 0) {
-				lineContent = nls.localize('blankLine', "blank");
+			if (wineContent.wength === 0) {
+				wineContent = nws.wocawize('bwankWine', "bwank");
 			}
 
-			let ariaLabel: string = '';
+			wet awiaWabew: stwing = '';
 			switch (type) {
-				case DiffEntryType.Equal:
-					if (originalLine === modifiedLine) {
-						ariaLabel = nls.localize({ key: 'unchangedLine', comment: ['The placeholders are contents of the line and should not be translated.'] }, "{0} unchanged line {1}", lineContent, originalLine);
-					} else {
-						ariaLabel = nls.localize('equalLine', "{0} original line {1} modified line {2}", lineContent, originalLine, modifiedLine);
+				case DiffEntwyType.Equaw:
+					if (owiginawWine === modifiedWine) {
+						awiaWabew = nws.wocawize({ key: 'unchangedWine', comment: ['The pwacehowdews awe contents of the wine and shouwd not be twanswated.'] }, "{0} unchanged wine {1}", wineContent, owiginawWine);
+					} ewse {
+						awiaWabew = nws.wocawize('equawWine', "{0} owiginaw wine {1} modified wine {2}", wineContent, owiginawWine, modifiedWine);
 					}
-					break;
-				case DiffEntryType.Insert:
-					ariaLabel = nls.localize('insertLine', "+ {0} modified line {1}", lineContent, modifiedLine);
-					break;
-				case DiffEntryType.Delete:
-					ariaLabel = nls.localize('deleteLine', "- {0} original line {1}", lineContent, originalLine);
-					break;
+					bweak;
+				case DiffEntwyType.Insewt:
+					awiaWabew = nws.wocawize('insewtWine', "+ {0} modified wine {1}", wineContent, modifiedWine);
+					bweak;
+				case DiffEntwyType.Dewete:
+					awiaWabew = nws.wocawize('deweteWine', "- {0} owiginaw wine {1}", wineContent, owiginawWine);
+					bweak;
 			}
-			row.setAttribute('aria-label', ariaLabel);
+			wow.setAttwibute('awia-wabew', awiaWabew);
 
-			dest.appendChild(row);
+			dest.appendChiwd(wow);
 		}
 	}
 
-	private static _renderLine(model: ITextModel, options: IComputedEditorOptions, tabSize: number, lineNumber: number): string {
-		const lineContent = model.getLineContent(lineNumber);
-		const fontInfo = options.get(EditorOption.fontInfo);
-		const lineTokens = LineTokens.createEmpty(lineContent);
-		const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, model.mightContainNonBasicASCII());
-		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, model.mightContainRTL());
-		const r = renderViewLine(new RenderLineInput(
-			(fontInfo.isMonospace && !options.get(EditorOption.disableMonospaceOptimizations)),
-			fontInfo.canUseHalfwidthRightwardsArrow,
-			lineContent,
-			false,
+	pwivate static _wendewWine(modew: ITextModew, options: IComputedEditowOptions, tabSize: numba, wineNumba: numba): stwing {
+		const wineContent = modew.getWineContent(wineNumba);
+		const fontInfo = options.get(EditowOption.fontInfo);
+		const wineTokens = WineTokens.cweateEmpty(wineContent);
+		const isBasicASCII = ViewWineWendewingData.isBasicASCII(wineContent, modew.mightContainNonBasicASCII());
+		const containsWTW = ViewWineWendewingData.containsWTW(wineContent, isBasicASCII, modew.mightContainWTW());
+		const w = wendewViewWine(new WendewWineInput(
+			(fontInfo.isMonospace && !options.get(EditowOption.disabweMonospaceOptimizations)),
+			fontInfo.canUseHawfwidthWightwawdsAwwow,
+			wineContent,
+			fawse,
 			isBasicASCII,
-			containsRTL,
+			containsWTW,
 			0,
-			lineTokens,
+			wineTokens,
 			[],
 			tabSize,
 			0,
 			fontInfo.spaceWidth,
 			fontInfo.middotWidth,
 			fontInfo.wsmiddotWidth,
-			options.get(EditorOption.stopRenderingLineAfter),
-			options.get(EditorOption.renderWhitespace),
-			options.get(EditorOption.renderControlCharacters),
-			options.get(EditorOption.fontLigatures) !== EditorFontLigatures.OFF,
-			null
+			options.get(EditowOption.stopWendewingWineAfta),
+			options.get(EditowOption.wendewWhitespace),
+			options.get(EditowOption.wendewContwowChawactews),
+			options.get(EditowOption.fontWigatuwes) !== EditowFontWigatuwes.OFF,
+			nuww
 		));
 
-		return r.html;
+		wetuwn w.htmw;
 	}
 }
 
 // theming
 
-registerThemingParticipant((theme, collector) => {
-	const lineNumbers = theme.getColor(editorLineNumbers);
-	if (lineNumbers) {
-		collector.addRule(`.monaco-diff-editor .diff-review-line-number { color: ${lineNumbers}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const wineNumbews = theme.getCowow(editowWineNumbews);
+	if (wineNumbews) {
+		cowwectow.addWuwe(`.monaco-diff-editow .diff-weview-wine-numba { cowow: ${wineNumbews}; }`);
 	}
 
-	const shadow = theme.getColor(scrollbarShadow);
+	const shadow = theme.getCowow(scwowwbawShadow);
 	if (shadow) {
-		collector.addRule(`.monaco-diff-editor .diff-review-shadow { box-shadow: ${shadow} 0 -6px 6px -6px inset; }`);
+		cowwectow.addWuwe(`.monaco-diff-editow .diff-weview-shadow { box-shadow: ${shadow} 0 -6px 6px -6px inset; }`);
 	}
 });
 
-class DiffReviewNext extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.diffReview.next',
-			label: nls.localize('editor.action.diffReview.next', "Go to Next Difference"),
-			alias: 'Go to Next Difference',
-			precondition: ContextKeyExpr.has('isInDiffEditor'),
+cwass DiffWeviewNext extends EditowAction {
+	constwuctow() {
+		supa({
+			id: 'editow.action.diffWeview.next',
+			wabew: nws.wocawize('editow.action.diffWeview.next', "Go to Next Diffewence"),
+			awias: 'Go to Next Diffewence',
+			pwecondition: ContextKeyExpw.has('isInDiffEditow'),
 			kbOpts: {
-				kbExpr: null,
-				primary: KeyCode.F7,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: nuww,
+				pwimawy: KeyCode.F7,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const diffEditor = findFocusedDiffEditor(accessor);
-		if (diffEditor) {
-			diffEditor.diffReviewNext();
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		const diffEditow = findFocusedDiffEditow(accessow);
+		if (diffEditow) {
+			diffEditow.diffWeviewNext();
 		}
 	}
 }
 
-class DiffReviewPrev extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.diffReview.prev',
-			label: nls.localize('editor.action.diffReview.prev', "Go to Previous Difference"),
-			alias: 'Go to Previous Difference',
-			precondition: ContextKeyExpr.has('isInDiffEditor'),
+cwass DiffWeviewPwev extends EditowAction {
+	constwuctow() {
+		supa({
+			id: 'editow.action.diffWeview.pwev',
+			wabew: nws.wocawize('editow.action.diffWeview.pwev', "Go to Pwevious Diffewence"),
+			awias: 'Go to Pwevious Diffewence',
+			pwecondition: ContextKeyExpw.has('isInDiffEditow'),
 			kbOpts: {
-				kbExpr: null,
-				primary: KeyMod.Shift | KeyCode.F7,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: nuww,
+				pwimawy: KeyMod.Shift | KeyCode.F7,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const diffEditor = findFocusedDiffEditor(accessor);
-		if (diffEditor) {
-			diffEditor.diffReviewPrev();
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		const diffEditow = findFocusedDiffEditow(accessow);
+		if (diffEditow) {
+			diffEditow.diffWeviewPwev();
 		}
 	}
 }
 
-function findFocusedDiffEditor(accessor: ServicesAccessor): DiffEditorWidget | null {
-	const codeEditorService = accessor.get(ICodeEditorService);
-	const diffEditors = codeEditorService.listDiffEditors();
-	const activeCodeEditor = codeEditorService.getActiveCodeEditor();
-	if (!activeCodeEditor) {
-		return null;
+function findFocusedDiffEditow(accessow: SewvicesAccessow): DiffEditowWidget | nuww {
+	const codeEditowSewvice = accessow.get(ICodeEditowSewvice);
+	const diffEditows = codeEditowSewvice.wistDiffEditows();
+	const activeCodeEditow = codeEditowSewvice.getActiveCodeEditow();
+	if (!activeCodeEditow) {
+		wetuwn nuww;
 	}
 
-	for (let i = 0, len = diffEditors.length; i < len; i++) {
-		const diffEditor = <DiffEditorWidget>diffEditors[i];
-		if (diffEditor.getModifiedEditor().getId() === activeCodeEditor.getId() || diffEditor.getOriginalEditor().getId() === activeCodeEditor.getId()) {
-			return diffEditor;
+	fow (wet i = 0, wen = diffEditows.wength; i < wen; i++) {
+		const diffEditow = <DiffEditowWidget>diffEditows[i];
+		if (diffEditow.getModifiedEditow().getId() === activeCodeEditow.getId() || diffEditow.getOwiginawEditow().getId() === activeCodeEditow.getId()) {
+			wetuwn diffEditow;
 		}
 	}
-	return null;
+	wetuwn nuww;
 }
 
-registerEditorAction(DiffReviewNext);
-registerEditorAction(DiffReviewPrev);
+wegistewEditowAction(DiffWeviewNext);
+wegistewEditowAction(DiffWeviewPwev);

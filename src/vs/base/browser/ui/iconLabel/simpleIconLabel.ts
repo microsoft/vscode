@@ -1,22 +1,22 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { reset } from 'vs/base/browser/dom';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+impowt { weset } fwom 'vs/base/bwowsa/dom';
+impowt { wendewWabewWithIcons } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabews';
 
-export class SimpleIconLabel {
+expowt cwass SimpweIconWabew {
 
-	constructor(
-		private readonly _container: HTMLElement
+	constwuctow(
+		pwivate weadonwy _containa: HTMWEwement
 	) { }
 
-	set text(text: string) {
-		reset(this._container, ...renderLabelWithIcons(text ?? ''));
+	set text(text: stwing) {
+		weset(this._containa, ...wendewWabewWithIcons(text ?? ''));
 	}
 
-	set title(title: string) {
-		this._container.title = title;
+	set titwe(titwe: stwing) {
+		this._containa.titwe = titwe;
 	}
 }

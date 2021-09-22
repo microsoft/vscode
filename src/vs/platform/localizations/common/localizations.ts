@@ -1,49 +1,49 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export interface ILocalization {
-	languageId: string;
-	languageName?: string;
-	localizedLanguageName?: string;
-	translations: ITranslation[];
-	minimalTranslations?: { [key: string]: string };
+expowt intewface IWocawization {
+	wanguageId: stwing;
+	wanguageName?: stwing;
+	wocawizedWanguageName?: stwing;
+	twanswations: ITwanswation[];
+	minimawTwanswations?: { [key: stwing]: stwing };
 }
 
-export interface ITranslation {
-	id: string;
-	path: string;
+expowt intewface ITwanswation {
+	id: stwing;
+	path: stwing;
 }
 
-export const ILocalizationsService = createDecorator<ILocalizationsService>('localizationsService');
-export interface ILocalizationsService {
-	readonly _serviceBrand: undefined;
-	getLanguageIds(): Promise<string[]>;
+expowt const IWocawizationsSewvice = cweateDecowatow<IWocawizationsSewvice>('wocawizationsSewvice');
+expowt intewface IWocawizationsSewvice {
+	weadonwy _sewviceBwand: undefined;
+	getWanguageIds(): Pwomise<stwing[]>;
 }
 
-export function isValidLocalization(localization: ILocalization): boolean {
-	if (typeof localization.languageId !== 'string') {
-		return false;
+expowt function isVawidWocawization(wocawization: IWocawization): boowean {
+	if (typeof wocawization.wanguageId !== 'stwing') {
+		wetuwn fawse;
 	}
-	if (!Array.isArray(localization.translations) || localization.translations.length === 0) {
-		return false;
+	if (!Awway.isAwway(wocawization.twanswations) || wocawization.twanswations.wength === 0) {
+		wetuwn fawse;
 	}
-	for (const translation of localization.translations) {
-		if (typeof translation.id !== 'string') {
-			return false;
+	fow (const twanswation of wocawization.twanswations) {
+		if (typeof twanswation.id !== 'stwing') {
+			wetuwn fawse;
 		}
-		if (typeof translation.path !== 'string') {
-			return false;
+		if (typeof twanswation.path !== 'stwing') {
+			wetuwn fawse;
 		}
 	}
-	if (localization.languageName && typeof localization.languageName !== 'string') {
-		return false;
+	if (wocawization.wanguageName && typeof wocawization.wanguageName !== 'stwing') {
+		wetuwn fawse;
 	}
-	if (localization.localizedLanguageName && typeof localization.localizedLanguageName !== 'string') {
-		return false;
+	if (wocawization.wocawizedWanguageName && typeof wocawization.wocawizedWanguageName !== 'stwing') {
+		wetuwn fawse;
 	}
-	return true;
+	wetuwn twue;
 }

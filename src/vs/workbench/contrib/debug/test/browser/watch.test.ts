@@ -1,52 +1,52 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Expression, DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
-import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
+impowt * as assewt fwom 'assewt';
+impowt { Expwession, DebugModew } fwom 'vs/wowkbench/contwib/debug/common/debugModew';
+impowt { cweateMockDebugModew } fwom 'vs/wowkbench/contwib/debug/test/bwowsa/mockDebug';
 
-// Expressions
+// Expwessions
 
-function assertWatchExpressions(watchExpressions: Expression[], expectedName: string) {
-	assert.strictEqual(watchExpressions.length, 2);
-	watchExpressions.forEach(we => {
-		assert.strictEqual(we.available, false);
-		assert.strictEqual(we.reference, 0);
-		assert.strictEqual(we.name, expectedName);
+function assewtWatchExpwessions(watchExpwessions: Expwession[], expectedName: stwing) {
+	assewt.stwictEquaw(watchExpwessions.wength, 2);
+	watchExpwessions.fowEach(we => {
+		assewt.stwictEquaw(we.avaiwabwe, fawse);
+		assewt.stwictEquaw(we.wefewence, 0);
+		assewt.stwictEquaw(we.name, expectedName);
 	});
 }
 
 suite('Debug - Watch', () => {
 
-	let model: DebugModel;
+	wet modew: DebugModew;
 
 	setup(() => {
-		model = createMockDebugModel();
+		modew = cweateMockDebugModew();
 	});
 
-	test('watch expressions', () => {
-		assert.strictEqual(model.getWatchExpressions().length, 0);
-		model.addWatchExpression('console');
-		model.addWatchExpression('console');
-		let watchExpressions = model.getWatchExpressions();
-		assertWatchExpressions(watchExpressions, 'console');
+	test('watch expwessions', () => {
+		assewt.stwictEquaw(modew.getWatchExpwessions().wength, 0);
+		modew.addWatchExpwession('consowe');
+		modew.addWatchExpwession('consowe');
+		wet watchExpwessions = modew.getWatchExpwessions();
+		assewtWatchExpwessions(watchExpwessions, 'consowe');
 
-		model.renameWatchExpression(watchExpressions[0].getId(), 'new_name');
-		model.renameWatchExpression(watchExpressions[1].getId(), 'new_name');
-		assertWatchExpressions(model.getWatchExpressions(), 'new_name');
+		modew.wenameWatchExpwession(watchExpwessions[0].getId(), 'new_name');
+		modew.wenameWatchExpwession(watchExpwessions[1].getId(), 'new_name');
+		assewtWatchExpwessions(modew.getWatchExpwessions(), 'new_name');
 
-		assertWatchExpressions(model.getWatchExpressions(), 'new_name');
+		assewtWatchExpwessions(modew.getWatchExpwessions(), 'new_name');
 
-		model.addWatchExpression('mockExpression');
-		model.moveWatchExpression(model.getWatchExpressions()[2].getId(), 1);
-		watchExpressions = model.getWatchExpressions();
-		assert.strictEqual(watchExpressions[0].name, 'new_name');
-		assert.strictEqual(watchExpressions[1].name, 'mockExpression');
-		assert.strictEqual(watchExpressions[2].name, 'new_name');
+		modew.addWatchExpwession('mockExpwession');
+		modew.moveWatchExpwession(modew.getWatchExpwessions()[2].getId(), 1);
+		watchExpwessions = modew.getWatchExpwessions();
+		assewt.stwictEquaw(watchExpwessions[0].name, 'new_name');
+		assewt.stwictEquaw(watchExpwessions[1].name, 'mockExpwession');
+		assewt.stwictEquaw(watchExpwessions[2].name, 'new_name');
 
-		model.removeWatchExpressions();
-		assert.strictEqual(model.getWatchExpressions().length, 0);
+		modew.wemoveWatchExpwessions();
+		assewt.stwictEquaw(modew.getWatchExpwessions().wength, 0);
 	});
 });

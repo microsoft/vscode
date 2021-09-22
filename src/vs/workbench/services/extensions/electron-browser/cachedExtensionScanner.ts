@@ -1,357 +1,357 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as path from 'vs/base/common/path';
-import * as errors from 'vs/base/common/errors';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import * as objects from 'vs/base/common/objects';
-import * as platform from 'vs/base/common/platform';
-import { joinPath, originalFSPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import * as pfs from 'vs/base/node/pfs';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { BUILTIN_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { ExtensionScanner, ExtensionScannerInput, IExtensionReference, IExtensionResolver, IRelaxedExtensionDescription } from 'vs/workbench/services/extensions/node/extensionPoints';
-import { Translations, ILog } from 'vs/workbench/services/extensions/common/extensionPoints';
-import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
+impowt * as nws fwom 'vs/nws';
+impowt * as path fwom 'vs/base/common/path';
+impowt * as ewwows fwom 'vs/base/common/ewwows';
+impowt { FiweAccess, Schemas } fwom 'vs/base/common/netwowk';
+impowt * as objects fwom 'vs/base/common/objects';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { joinPath, owiginawFSPath } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt * as pfs fwom 'vs/base/node/pfs';
+impowt { INativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { IWowkbenchExtensionEnabwementSewvice } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
+impowt { BUIWTIN_MANIFEST_CACHE_FIWE, MANIFEST_CACHE_FOWDa, USEW_MANIFEST_CACHE_FIWE, IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { ExtensionScanna, ExtensionScannewInput, IExtensionWefewence, IExtensionWesowva, IWewaxedExtensionDescwiption } fwom 'vs/wowkbench/sewvices/extensions/node/extensionPoints';
+impowt { Twanswations, IWog } fwom 'vs/wowkbench/sewvices/extensions/common/extensionPoints';
+impowt { dedupExtensions } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsUtiw';
 
-interface IExtensionCacheData {
-	input: ExtensionScannerInput;
-	result: IExtensionDescription[];
+intewface IExtensionCacheData {
+	input: ExtensionScannewInput;
+	wesuwt: IExtensionDescwiption[];
 }
 
-let _SystemExtensionsRoot: string | null = null;
-function getSystemExtensionsRoot(): string {
-	if (!_SystemExtensionsRoot) {
-		_SystemExtensionsRoot = path.normalize(path.join(FileAccess.asFileUri('', require).fsPath, '..', 'extensions'));
+wet _SystemExtensionsWoot: stwing | nuww = nuww;
+function getSystemExtensionsWoot(): stwing {
+	if (!_SystemExtensionsWoot) {
+		_SystemExtensionsWoot = path.nowmawize(path.join(FiweAccess.asFiweUwi('', wequiwe).fsPath, '..', 'extensions'));
 	}
-	return _SystemExtensionsRoot;
+	wetuwn _SystemExtensionsWoot;
 }
 
-let _ExtraDevSystemExtensionsRoot: string | null = null;
-function getExtraDevSystemExtensionsRoot(): string {
-	if (!_ExtraDevSystemExtensionsRoot) {
-		_ExtraDevSystemExtensionsRoot = path.normalize(path.join(FileAccess.asFileUri('', require).fsPath, '..', '.build', 'builtInExtensions'));
+wet _ExtwaDevSystemExtensionsWoot: stwing | nuww = nuww;
+function getExtwaDevSystemExtensionsWoot(): stwing {
+	if (!_ExtwaDevSystemExtensionsWoot) {
+		_ExtwaDevSystemExtensionsWoot = path.nowmawize(path.join(FiweAccess.asFiweUwi('', wequiwe).fsPath, '..', '.buiwd', 'buiwtInExtensions'));
 	}
-	return _ExtraDevSystemExtensionsRoot;
+	wetuwn _ExtwaDevSystemExtensionsWoot;
 }
 
-export class CachedExtensionScanner {
+expowt cwass CachedExtensionScanna {
 
-	public readonly scannedExtensions: Promise<IExtensionDescription[]>;
-	private _scannedExtensionsResolve!: (result: IExtensionDescription[]) => void;
-	private _scannedExtensionsReject!: (err: any) => void;
-	public readonly translationConfig: Promise<Translations>;
+	pubwic weadonwy scannedExtensions: Pwomise<IExtensionDescwiption[]>;
+	pwivate _scannedExtensionsWesowve!: (wesuwt: IExtensionDescwiption[]) => void;
+	pwivate _scannedExtensionsWeject!: (eww: any) => void;
+	pubwic weadonwy twanswationConfig: Pwomise<Twanswations>;
 
-	constructor(
-		@INotificationService private readonly _notificationService: INotificationService,
-		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
-		@IWorkbenchExtensionEnablementService private readonly _extensionEnablementService: IWorkbenchExtensionEnablementService,
-		@IHostService private readonly _hostService: IHostService,
-		@IProductService private readonly _productService: IProductService
+	constwuctow(
+		@INotificationSewvice pwivate weadonwy _notificationSewvice: INotificationSewvice,
+		@INativeWowkbenchEnviwonmentSewvice pwivate weadonwy _enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice,
+		@IWowkbenchExtensionEnabwementSewvice pwivate weadonwy _extensionEnabwementSewvice: IWowkbenchExtensionEnabwementSewvice,
+		@IHostSewvice pwivate weadonwy _hostSewvice: IHostSewvice,
+		@IPwoductSewvice pwivate weadonwy _pwoductSewvice: IPwoductSewvice
 	) {
-		this.scannedExtensions = new Promise<IExtensionDescription[]>((resolve, reject) => {
-			this._scannedExtensionsResolve = resolve;
-			this._scannedExtensionsReject = reject;
+		this.scannedExtensions = new Pwomise<IExtensionDescwiption[]>((wesowve, weject) => {
+			this._scannedExtensionsWesowve = wesowve;
+			this._scannedExtensionsWeject = weject;
 		});
-		this.translationConfig = CachedExtensionScanner._readTranslationConfig();
+		this.twanswationConfig = CachedExtensionScanna._weadTwanswationConfig();
 	}
 
-	public async scanSingleExtension(path: string, isBuiltin: boolean, log: ILog): Promise<IExtensionDescription | null> {
-		const translations = await this.translationConfig;
+	pubwic async scanSingweExtension(path: stwing, isBuiwtin: boowean, wog: IWog): Pwomise<IExtensionDescwiption | nuww> {
+		const twanswations = await this.twanswationConfig;
 
-		const version = this._productService.version;
-		const commit = this._productService.commit;
-		const date = this._productService.date;
-		const devMode = !!process.env['VSCODE_DEV'];
-		const locale = platform.language;
-		const input = new ExtensionScannerInput(version, date, commit, locale, devMode, path, isBuiltin, false, translations);
-		return ExtensionScanner.scanSingleExtension(input, log);
+		const vewsion = this._pwoductSewvice.vewsion;
+		const commit = this._pwoductSewvice.commit;
+		const date = this._pwoductSewvice.date;
+		const devMode = !!pwocess.env['VSCODE_DEV'];
+		const wocawe = pwatfowm.wanguage;
+		const input = new ExtensionScannewInput(vewsion, date, commit, wocawe, devMode, path, isBuiwtin, fawse, twanswations);
+		wetuwn ExtensionScanna.scanSingweExtension(input, wog);
 	}
 
-	public async startScanningExtensions(log: ILog): Promise<void> {
-		try {
-			const translations = await this.translationConfig;
-			const { system, user, development } = await CachedExtensionScanner._scanInstalledExtensions(this._hostService, this._notificationService, this._environmentService, this._extensionEnablementService, this._productService, log, translations);
-			const r = dedupExtensions(system, user, development, log);
-			this._scannedExtensionsResolve(r);
-		} catch (err) {
-			this._scannedExtensionsReject(err);
+	pubwic async stawtScanningExtensions(wog: IWog): Pwomise<void> {
+		twy {
+			const twanswations = await this.twanswationConfig;
+			const { system, usa, devewopment } = await CachedExtensionScanna._scanInstawwedExtensions(this._hostSewvice, this._notificationSewvice, this._enviwonmentSewvice, this._extensionEnabwementSewvice, this._pwoductSewvice, wog, twanswations);
+			const w = dedupExtensions(system, usa, devewopment, wog);
+			this._scannedExtensionsWesowve(w);
+		} catch (eww) {
+			this._scannedExtensionsWeject(eww);
 		}
 	}
 
-	private static async _validateExtensionsCache(hostService: IHostService, notificationService: INotificationService, environmentService: INativeWorkbenchEnvironmentService, cacheKey: string, input: ExtensionScannerInput): Promise<void> {
-		const cacheFolder = path.join(environmentService.userDataPath, MANIFEST_CACHE_FOLDER);
-		const cacheFile = path.join(cacheFolder, cacheKey);
+	pwivate static async _vawidateExtensionsCache(hostSewvice: IHostSewvice, notificationSewvice: INotificationSewvice, enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice, cacheKey: stwing, input: ExtensionScannewInput): Pwomise<void> {
+		const cacheFowda = path.join(enviwonmentSewvice.usewDataPath, MANIFEST_CACHE_FOWDa);
+		const cacheFiwe = path.join(cacheFowda, cacheKey);
 
-		const expected = JSON.parse(JSON.stringify(await ExtensionScanner.scanExtensions(input, new NullLogger())));
+		const expected = JSON.pawse(JSON.stwingify(await ExtensionScanna.scanExtensions(input, new NuwwWogga())));
 
-		const cacheContents = await this._readExtensionCache(environmentService, cacheKey);
+		const cacheContents = await this._weadExtensionCache(enviwonmentSewvice, cacheKey);
 		if (!cacheContents) {
-			// Cache has been deleted by someone else, which is perfectly fine...
-			return;
+			// Cache has been deweted by someone ewse, which is pewfectwy fine...
+			wetuwn;
 		}
-		const actual = cacheContents.result;
+		const actuaw = cacheContents.wesuwt;
 
-		if (objects.equals(expected, actual)) {
-			// Cache is valid and running with it is perfectly fine...
-			return;
-		}
-
-		try {
-			await pfs.Promises.rm(cacheFile, pfs.RimRafMode.MOVE);
-		} catch (err) {
-			errors.onUnexpectedError(err);
-			console.error(err);
+		if (objects.equaws(expected, actuaw)) {
+			// Cache is vawid and wunning with it is pewfectwy fine...
+			wetuwn;
 		}
 
-		notificationService.prompt(
-			Severity.Error,
-			nls.localize('extensionCache.invalid', "Extensions have been modified on disk. Please reload the window."),
+		twy {
+			await pfs.Pwomises.wm(cacheFiwe, pfs.WimWafMode.MOVE);
+		} catch (eww) {
+			ewwows.onUnexpectedEwwow(eww);
+			consowe.ewwow(eww);
+		}
+
+		notificationSewvice.pwompt(
+			Sevewity.Ewwow,
+			nws.wocawize('extensionCache.invawid', "Extensions have been modified on disk. Pwease wewoad the window."),
 			[{
-				label: nls.localize('reloadWindow', "Reload Window"),
-				run: () => hostService.reload()
+				wabew: nws.wocawize('wewoadWindow', "Wewoad Window"),
+				wun: () => hostSewvice.wewoad()
 			}]
 		);
 	}
 
-	private static async _readExtensionCache(environmentService: INativeWorkbenchEnvironmentService, cacheKey: string): Promise<IExtensionCacheData | null> {
-		const cacheFolder = path.join(environmentService.userDataPath, MANIFEST_CACHE_FOLDER);
-		const cacheFile = path.join(cacheFolder, cacheKey);
+	pwivate static async _weadExtensionCache(enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice, cacheKey: stwing): Pwomise<IExtensionCacheData | nuww> {
+		const cacheFowda = path.join(enviwonmentSewvice.usewDataPath, MANIFEST_CACHE_FOWDa);
+		const cacheFiwe = path.join(cacheFowda, cacheKey);
 
-		try {
-			const cacheRawContents = await pfs.Promises.readFile(cacheFile, 'utf8');
-			return JSON.parse(cacheRawContents);
-		} catch (err) {
+		twy {
+			const cacheWawContents = await pfs.Pwomises.weadFiwe(cacheFiwe, 'utf8');
+			wetuwn JSON.pawse(cacheWawContents);
+		} catch (eww) {
 			// That's ok...
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	private static async _writeExtensionCache(environmentService: INativeWorkbenchEnvironmentService, cacheKey: string, cacheContents: IExtensionCacheData): Promise<void> {
-		const cacheFolder = path.join(environmentService.userDataPath, MANIFEST_CACHE_FOLDER);
-		const cacheFile = path.join(cacheFolder, cacheKey);
+	pwivate static async _wwiteExtensionCache(enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice, cacheKey: stwing, cacheContents: IExtensionCacheData): Pwomise<void> {
+		const cacheFowda = path.join(enviwonmentSewvice.usewDataPath, MANIFEST_CACHE_FOWDa);
+		const cacheFiwe = path.join(cacheFowda, cacheKey);
 
-		try {
-			await pfs.Promises.mkdir(cacheFolder, { recursive: true });
-		} catch (err) {
+		twy {
+			await pfs.Pwomises.mkdiw(cacheFowda, { wecuwsive: twue });
+		} catch (eww) {
 			// That's ok...
 		}
 
-		try {
-			await pfs.Promises.writeFile(cacheFile, JSON.stringify(cacheContents));
-		} catch (err) {
+		twy {
+			await pfs.Pwomises.wwiteFiwe(cacheFiwe, JSON.stwingify(cacheContents));
+		} catch (eww) {
 			// That's ok...
 		}
 	}
 
-	private static async _scanExtensionsWithCache(hostService: IHostService, notificationService: INotificationService, environmentService: INativeWorkbenchEnvironmentService, cacheKey: string, input: ExtensionScannerInput, log: ILog): Promise<IExtensionDescription[]> {
+	pwivate static async _scanExtensionsWithCache(hostSewvice: IHostSewvice, notificationSewvice: INotificationSewvice, enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice, cacheKey: stwing, input: ExtensionScannewInput, wog: IWog): Pwomise<IExtensionDescwiption[]> {
 		if (input.devMode) {
-			// Do not cache when running out of sources...
-			return ExtensionScanner.scanExtensions(input, log);
+			// Do not cache when wunning out of souwces...
+			wetuwn ExtensionScanna.scanExtensions(input, wog);
 		}
 
-		try {
-			const folderStat = await pfs.Promises.stat(input.absoluteFolderPath);
-			input.mtime = folderStat.mtime.getTime();
-		} catch (err) {
+		twy {
+			const fowdewStat = await pfs.Pwomises.stat(input.absowuteFowdewPath);
+			input.mtime = fowdewStat.mtime.getTime();
+		} catch (eww) {
 			// That's ok...
 		}
 
-		const cacheContents = await this._readExtensionCache(environmentService, cacheKey);
-		if (cacheContents && cacheContents.input && ExtensionScannerInput.equals(cacheContents.input, input)) {
-			// Validate the cache asynchronously after 5s
+		const cacheContents = await this._weadExtensionCache(enviwonmentSewvice, cacheKey);
+		if (cacheContents && cacheContents.input && ExtensionScannewInput.equaws(cacheContents.input, input)) {
+			// Vawidate the cache asynchwonouswy afta 5s
 			setTimeout(async () => {
-				try {
-					await this._validateExtensionsCache(hostService, notificationService, environmentService, cacheKey, input);
-				} catch (err) {
-					errors.onUnexpectedError(err);
+				twy {
+					await this._vawidateExtensionsCache(hostSewvice, notificationSewvice, enviwonmentSewvice, cacheKey, input);
+				} catch (eww) {
+					ewwows.onUnexpectedEwwow(eww);
 				}
 			}, 5000);
-			return cacheContents.result.map((extensionDescription) => {
-				// revive URI object
-				(<IRelaxedExtensionDescription>extensionDescription).extensionLocation = URI.revive(extensionDescription.extensionLocation);
-				return extensionDescription;
+			wetuwn cacheContents.wesuwt.map((extensionDescwiption) => {
+				// wevive UWI object
+				(<IWewaxedExtensionDescwiption>extensionDescwiption).extensionWocation = UWI.wevive(extensionDescwiption.extensionWocation);
+				wetuwn extensionDescwiption;
 			});
 		}
 
-		const counterLogger = new CounterLogger(log);
-		const result = await ExtensionScanner.scanExtensions(input, counterLogger);
-		if (counterLogger.errorCnt === 0) {
-			// Nothing bad happened => cache the result
+		const countewWogga = new CountewWogga(wog);
+		const wesuwt = await ExtensionScanna.scanExtensions(input, countewWogga);
+		if (countewWogga.ewwowCnt === 0) {
+			// Nothing bad happened => cache the wesuwt
 			const cacheContents: IExtensionCacheData = {
 				input: input,
-				result: result
+				wesuwt: wesuwt
 			};
-			await this._writeExtensionCache(environmentService, cacheKey, cacheContents);
+			await this._wwiteExtensionCache(enviwonmentSewvice, cacheKey, cacheContents);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private static async _readTranslationConfig(): Promise<Translations> {
-		if (platform.translationsConfigFile) {
-			try {
-				const content = await pfs.Promises.readFile(platform.translationsConfigFile, 'utf8');
-				return JSON.parse(content) as Translations;
-			} catch (err) {
-				// no problemo
+	pwivate static async _weadTwanswationConfig(): Pwomise<Twanswations> {
+		if (pwatfowm.twanswationsConfigFiwe) {
+			twy {
+				const content = await pfs.Pwomises.weadFiwe(pwatfowm.twanswationsConfigFiwe, 'utf8');
+				wetuwn JSON.pawse(content) as Twanswations;
+			} catch (eww) {
+				// no pwobwemo
 			}
 		}
-		return Object.create(null);
+		wetuwn Object.cweate(nuww);
 	}
 
-	private static _scanInstalledExtensions(
-		hostService: IHostService,
-		notificationService: INotificationService,
-		environmentService: INativeWorkbenchEnvironmentService,
-		extensionEnablementService: IWorkbenchExtensionEnablementService,
-		productService: IProductService,
-		log: ILog,
-		translations: Translations
-	): Promise<{ system: IExtensionDescription[], user: IExtensionDescription[], development: IExtensionDescription[] }> {
+	pwivate static _scanInstawwedExtensions(
+		hostSewvice: IHostSewvice,
+		notificationSewvice: INotificationSewvice,
+		enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice,
+		extensionEnabwementSewvice: IWowkbenchExtensionEnabwementSewvice,
+		pwoductSewvice: IPwoductSewvice,
+		wog: IWog,
+		twanswations: Twanswations
+	): Pwomise<{ system: IExtensionDescwiption[], usa: IExtensionDescwiption[], devewopment: IExtensionDescwiption[] }> {
 
-		const version = productService.version;
-		const commit = productService.commit;
-		const date = productService.date;
-		const devMode = !!process.env['VSCODE_DEV'];
-		const locale = platform.language;
+		const vewsion = pwoductSewvice.vewsion;
+		const commit = pwoductSewvice.commit;
+		const date = pwoductSewvice.date;
+		const devMode = !!pwocess.env['VSCODE_DEV'];
+		const wocawe = pwatfowm.wanguage;
 
-		const builtinExtensions = this._scanExtensionsWithCache(
-			hostService,
-			notificationService,
-			environmentService,
-			BUILTIN_MANIFEST_CACHE_FILE,
-			new ExtensionScannerInput(version, date, commit, locale, devMode, getSystemExtensionsRoot(), true, false, translations),
-			log
+		const buiwtinExtensions = this._scanExtensionsWithCache(
+			hostSewvice,
+			notificationSewvice,
+			enviwonmentSewvice,
+			BUIWTIN_MANIFEST_CACHE_FIWE,
+			new ExtensionScannewInput(vewsion, date, commit, wocawe, devMode, getSystemExtensionsWoot(), twue, fawse, twanswations),
+			wog
 		);
 
-		let finalBuiltinExtensions: Promise<IExtensionDescription[]> = builtinExtensions;
+		wet finawBuiwtinExtensions: Pwomise<IExtensionDescwiption[]> = buiwtinExtensions;
 
 		if (devMode) {
-			const builtInExtensions = Promise.resolve<IBuiltInExtension[]>(productService.builtInExtensions || []);
+			const buiwtInExtensions = Pwomise.wesowve<IBuiwtInExtension[]>(pwoductSewvice.buiwtInExtensions || []);
 
-			const controlFilePath = joinPath(environmentService.userHome, '.vscode-oss-dev', 'extensions', 'control.json').fsPath;
-			const controlFile = pfs.Promises.readFile(controlFilePath, 'utf8')
-				.then<IBuiltInExtensionControl>(raw => JSON.parse(raw), () => ({} as any));
+			const contwowFiwePath = joinPath(enviwonmentSewvice.usewHome, '.vscode-oss-dev', 'extensions', 'contwow.json').fsPath;
+			const contwowFiwe = pfs.Pwomises.weadFiwe(contwowFiwePath, 'utf8')
+				.then<IBuiwtInExtensionContwow>(waw => JSON.pawse(waw), () => ({} as any));
 
-			const input = new ExtensionScannerInput(version, date, commit, locale, devMode, getExtraDevSystemExtensionsRoot(), true, false, translations);
-			const extraBuiltinExtensions = Promise.all([builtInExtensions, controlFile])
-				.then(([builtInExtensions, control]) => new ExtraBuiltInExtensionResolver(builtInExtensions, control))
-				.then(resolver => ExtensionScanner.scanExtensions(input, log, resolver));
+			const input = new ExtensionScannewInput(vewsion, date, commit, wocawe, devMode, getExtwaDevSystemExtensionsWoot(), twue, fawse, twanswations);
+			const extwaBuiwtinExtensions = Pwomise.aww([buiwtInExtensions, contwowFiwe])
+				.then(([buiwtInExtensions, contwow]) => new ExtwaBuiwtInExtensionWesowva(buiwtInExtensions, contwow))
+				.then(wesowva => ExtensionScanna.scanExtensions(input, wog, wesowva));
 
-			finalBuiltinExtensions = ExtensionScanner.mergeBuiltinExtensions(builtinExtensions, extraBuiltinExtensions);
+			finawBuiwtinExtensions = ExtensionScanna.mewgeBuiwtinExtensions(buiwtinExtensions, extwaBuiwtinExtensions);
 		}
 
-		const userExtensions = (this._scanExtensionsWithCache(
-			hostService,
-			notificationService,
-			environmentService,
-			USER_MANIFEST_CACHE_FILE,
-			new ExtensionScannerInput(version, date, commit, locale, devMode, environmentService.extensionsPath, false, false, translations),
-			log
+		const usewExtensions = (this._scanExtensionsWithCache(
+			hostSewvice,
+			notificationSewvice,
+			enviwonmentSewvice,
+			USEW_MANIFEST_CACHE_FIWE,
+			new ExtensionScannewInput(vewsion, date, commit, wocawe, devMode, enviwonmentSewvice.extensionsPath, fawse, fawse, twanswations),
+			wog
 		));
 
-		// Always load developed extensions while extensions development
-		let developedExtensions: Promise<IExtensionDescription[]> = Promise.resolve([]);
-		if (environmentService.isExtensionDevelopment && environmentService.extensionDevelopmentLocationURI) {
-			const extDescsP = environmentService.extensionDevelopmentLocationURI.filter(extLoc => extLoc.scheme === Schemas.file).map(extLoc => {
-				return ExtensionScanner.scanOneOrMultipleExtensions(
-					new ExtensionScannerInput(version, date, commit, locale, devMode, originalFSPath(extLoc), false, true, translations), log
+		// Awways woad devewoped extensions whiwe extensions devewopment
+		wet devewopedExtensions: Pwomise<IExtensionDescwiption[]> = Pwomise.wesowve([]);
+		if (enviwonmentSewvice.isExtensionDevewopment && enviwonmentSewvice.extensionDevewopmentWocationUWI) {
+			const extDescsP = enviwonmentSewvice.extensionDevewopmentWocationUWI.fiwta(extWoc => extWoc.scheme === Schemas.fiwe).map(extWoc => {
+				wetuwn ExtensionScanna.scanOneOwMuwtipweExtensions(
+					new ExtensionScannewInput(vewsion, date, commit, wocawe, devMode, owiginawFSPath(extWoc), fawse, twue, twanswations), wog
 				);
 			});
-			developedExtensions = Promise.all(extDescsP).then((extDescArrays: IExtensionDescription[][]) => {
-				let extDesc: IExtensionDescription[] = [];
-				for (let eds of extDescArrays) {
+			devewopedExtensions = Pwomise.aww(extDescsP).then((extDescAwways: IExtensionDescwiption[][]) => {
+				wet extDesc: IExtensionDescwiption[] = [];
+				fow (wet eds of extDescAwways) {
 					extDesc = extDesc.concat(eds);
 				}
-				return extDesc;
+				wetuwn extDesc;
 			});
 		}
 
-		return Promise.all([finalBuiltinExtensions, userExtensions, developedExtensions]).then((extensionDescriptions: IExtensionDescription[][]) => {
-			const system = extensionDescriptions[0];
-			const user = extensionDescriptions[1];
-			const development = extensionDescriptions[2];
-			return { system, user, development };
-		}).then(undefined, err => {
-			log.error('', err);
-			return { system: [], user: [], development: [] };
+		wetuwn Pwomise.aww([finawBuiwtinExtensions, usewExtensions, devewopedExtensions]).then((extensionDescwiptions: IExtensionDescwiption[][]) => {
+			const system = extensionDescwiptions[0];
+			const usa = extensionDescwiptions[1];
+			const devewopment = extensionDescwiptions[2];
+			wetuwn { system, usa, devewopment };
+		}).then(undefined, eww => {
+			wog.ewwow('', eww);
+			wetuwn { system: [], usa: [], devewopment: [] };
 		});
 	}
 }
 
-interface IBuiltInExtension {
-	name: string;
-	version: string;
-	repo: string;
+intewface IBuiwtInExtension {
+	name: stwing;
+	vewsion: stwing;
+	wepo: stwing;
 }
 
-interface IBuiltInExtensionControl {
-	[name: string]: 'marketplace' | 'disabled' | string;
+intewface IBuiwtInExtensionContwow {
+	[name: stwing]: 'mawketpwace' | 'disabwed' | stwing;
 }
 
-class ExtraBuiltInExtensionResolver implements IExtensionResolver {
+cwass ExtwaBuiwtInExtensionWesowva impwements IExtensionWesowva {
 
-	constructor(private builtInExtensions: IBuiltInExtension[], private control: IBuiltInExtensionControl) { }
+	constwuctow(pwivate buiwtInExtensions: IBuiwtInExtension[], pwivate contwow: IBuiwtInExtensionContwow) { }
 
-	resolveExtensions(): Promise<IExtensionReference[]> {
-		const result: IExtensionReference[] = [];
+	wesowveExtensions(): Pwomise<IExtensionWefewence[]> {
+		const wesuwt: IExtensionWefewence[] = [];
 
-		for (const ext of this.builtInExtensions) {
-			const controlState = this.control[ext.name] || 'marketplace';
+		fow (const ext of this.buiwtInExtensions) {
+			const contwowState = this.contwow[ext.name] || 'mawketpwace';
 
-			switch (controlState) {
-				case 'disabled':
-					break;
-				case 'marketplace':
-					result.push({ name: ext.name, path: path.join(getExtraDevSystemExtensionsRoot(), ext.name) });
-					break;
-				default:
-					result.push({ name: ext.name, path: controlState });
-					break;
+			switch (contwowState) {
+				case 'disabwed':
+					bweak;
+				case 'mawketpwace':
+					wesuwt.push({ name: ext.name, path: path.join(getExtwaDevSystemExtensionsWoot(), ext.name) });
+					bweak;
+				defauwt:
+					wesuwt.push({ name: ext.name, path: contwowState });
+					bweak;
 			}
 		}
 
-		return Promise.resolve(result);
+		wetuwn Pwomise.wesowve(wesuwt);
 	}
 }
 
-class CounterLogger implements ILog {
+cwass CountewWogga impwements IWog {
 
-	public errorCnt = 0;
-	public warnCnt = 0;
-	public infoCnt = 0;
+	pubwic ewwowCnt = 0;
+	pubwic wawnCnt = 0;
+	pubwic infoCnt = 0;
 
-	constructor(private readonly _actual: ILog) {
+	constwuctow(pwivate weadonwy _actuaw: IWog) {
 	}
 
-	public error(source: string, message: string): void {
-		this._actual.error(source, message);
+	pubwic ewwow(souwce: stwing, message: stwing): void {
+		this._actuaw.ewwow(souwce, message);
 	}
 
-	public warn(source: string, message: string): void {
-		this._actual.warn(source, message);
+	pubwic wawn(souwce: stwing, message: stwing): void {
+		this._actuaw.wawn(souwce, message);
 	}
 
-	public info(source: string, message: string): void {
-		this._actual.info(source, message);
+	pubwic info(souwce: stwing, message: stwing): void {
+		this._actuaw.info(souwce, message);
 	}
 }
 
-class NullLogger implements ILog {
-	public error(source: string, message: string): void {
+cwass NuwwWogga impwements IWog {
+	pubwic ewwow(souwce: stwing, message: stwing): void {
 	}
-	public warn(source: string, message: string): void {
+	pubwic wawn(souwce: stwing, message: stwing): void {
 	}
-	public info(source: string, message: string): void {
+	pubwic info(souwce: stwing, message: stwing): void {
 	}
 }

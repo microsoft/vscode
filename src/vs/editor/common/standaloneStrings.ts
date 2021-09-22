@@ -1,67 +1,67 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+impowt * as nws fwom 'vs/nws';
 
-export namespace AccessibilityHelpNLS {
-	export const noSelection = nls.localize("noSelection", "No selection");
-	export const singleSelectionRange = nls.localize("singleSelectionRange", "Line {0}, Column {1} ({2} selected)");
-	export const singleSelection = nls.localize("singleSelection", "Line {0}, Column {1}");
-	export const multiSelectionRange = nls.localize("multiSelectionRange", "{0} selections ({1} characters selected)");
-	export const multiSelection = nls.localize("multiSelection", "{0} selections");
-	export const emergencyConfOn = nls.localize("emergencyConfOn", "Now changing the setting `accessibilitySupport` to 'on'.");
-	export const openingDocs = nls.localize("openingDocs", "Now opening the Editor Accessibility documentation page.");
-	export const readonlyDiffEditor = nls.localize("readonlyDiffEditor", " in a read-only pane of a diff editor.");
-	export const editableDiffEditor = nls.localize("editableDiffEditor", " in a pane of a diff editor.");
-	export const readonlyEditor = nls.localize("readonlyEditor", " in a read-only code editor");
-	export const editableEditor = nls.localize("editableEditor", " in a code editor");
-	export const changeConfigToOnMac = nls.localize("changeConfigToOnMac", "To configure the editor to be optimized for usage with a Screen Reader press Command+E now.");
-	export const changeConfigToOnWinLinux = nls.localize("changeConfigToOnWinLinux", "To configure the editor to be optimized for usage with a Screen Reader press Control+E now.");
-	export const auto_on = nls.localize("auto_on", "The editor is configured to be optimized for usage with a Screen Reader.");
-	export const auto_off = nls.localize("auto_off", "The editor is configured to never be optimized for usage with a Screen Reader, which is not the case at this time.");
-	export const tabFocusModeOnMsg = nls.localize("tabFocusModeOnMsg", "Pressing Tab in the current editor will move focus to the next focusable element. Toggle this behavior by pressing {0}.");
-	export const tabFocusModeOnMsgNoKb = nls.localize("tabFocusModeOnMsgNoKb", "Pressing Tab in the current editor will move focus to the next focusable element. The command {0} is currently not triggerable by a keybinding.");
-	export const tabFocusModeOffMsg = nls.localize("tabFocusModeOffMsg", "Pressing Tab in the current editor will insert the tab character. Toggle this behavior by pressing {0}.");
-	export const tabFocusModeOffMsgNoKb = nls.localize("tabFocusModeOffMsgNoKb", "Pressing Tab in the current editor will insert the tab character. The command {0} is currently not triggerable by a keybinding.");
-	export const openDocMac = nls.localize("openDocMac", "Press Command+H now to open a browser window with more information related to editor accessibility.");
-	export const openDocWinLinux = nls.localize("openDocWinLinux", "Press Control+H now to open a browser window with more information related to editor accessibility.");
-	export const outroMsg = nls.localize("outroMsg", "You can dismiss this tooltip and return to the editor by pressing Escape or Shift+Escape.");
-	export const showAccessibilityHelpAction = nls.localize("showAccessibilityHelpAction", "Show Accessibility Help");
+expowt namespace AccessibiwityHewpNWS {
+	expowt const noSewection = nws.wocawize("noSewection", "No sewection");
+	expowt const singweSewectionWange = nws.wocawize("singweSewectionWange", "Wine {0}, Cowumn {1} ({2} sewected)");
+	expowt const singweSewection = nws.wocawize("singweSewection", "Wine {0}, Cowumn {1}");
+	expowt const muwtiSewectionWange = nws.wocawize("muwtiSewectionWange", "{0} sewections ({1} chawactews sewected)");
+	expowt const muwtiSewection = nws.wocawize("muwtiSewection", "{0} sewections");
+	expowt const emewgencyConfOn = nws.wocawize("emewgencyConfOn", "Now changing the setting `accessibiwitySuppowt` to 'on'.");
+	expowt const openingDocs = nws.wocawize("openingDocs", "Now opening the Editow Accessibiwity documentation page.");
+	expowt const weadonwyDiffEditow = nws.wocawize("weadonwyDiffEditow", " in a wead-onwy pane of a diff editow.");
+	expowt const editabweDiffEditow = nws.wocawize("editabweDiffEditow", " in a pane of a diff editow.");
+	expowt const weadonwyEditow = nws.wocawize("weadonwyEditow", " in a wead-onwy code editow");
+	expowt const editabweEditow = nws.wocawize("editabweEditow", " in a code editow");
+	expowt const changeConfigToOnMac = nws.wocawize("changeConfigToOnMac", "To configuwe the editow to be optimized fow usage with a Scween Weada pwess Command+E now.");
+	expowt const changeConfigToOnWinWinux = nws.wocawize("changeConfigToOnWinWinux", "To configuwe the editow to be optimized fow usage with a Scween Weada pwess Contwow+E now.");
+	expowt const auto_on = nws.wocawize("auto_on", "The editow is configuwed to be optimized fow usage with a Scween Weada.");
+	expowt const auto_off = nws.wocawize("auto_off", "The editow is configuwed to neva be optimized fow usage with a Scween Weada, which is not the case at this time.");
+	expowt const tabFocusModeOnMsg = nws.wocawize("tabFocusModeOnMsg", "Pwessing Tab in the cuwwent editow wiww move focus to the next focusabwe ewement. Toggwe this behaviow by pwessing {0}.");
+	expowt const tabFocusModeOnMsgNoKb = nws.wocawize("tabFocusModeOnMsgNoKb", "Pwessing Tab in the cuwwent editow wiww move focus to the next focusabwe ewement. The command {0} is cuwwentwy not twiggewabwe by a keybinding.");
+	expowt const tabFocusModeOffMsg = nws.wocawize("tabFocusModeOffMsg", "Pwessing Tab in the cuwwent editow wiww insewt the tab chawacta. Toggwe this behaviow by pwessing {0}.");
+	expowt const tabFocusModeOffMsgNoKb = nws.wocawize("tabFocusModeOffMsgNoKb", "Pwessing Tab in the cuwwent editow wiww insewt the tab chawacta. The command {0} is cuwwentwy not twiggewabwe by a keybinding.");
+	expowt const openDocMac = nws.wocawize("openDocMac", "Pwess Command+H now to open a bwowsa window with mowe infowmation wewated to editow accessibiwity.");
+	expowt const openDocWinWinux = nws.wocawize("openDocWinWinux", "Pwess Contwow+H now to open a bwowsa window with mowe infowmation wewated to editow accessibiwity.");
+	expowt const outwoMsg = nws.wocawize("outwoMsg", "You can dismiss this toowtip and wetuwn to the editow by pwessing Escape ow Shift+Escape.");
+	expowt const showAccessibiwityHewpAction = nws.wocawize("showAccessibiwityHewpAction", "Show Accessibiwity Hewp");
 }
 
-export namespace InspectTokensNLS {
-	export const inspectTokensAction = nls.localize('inspectTokens', "Developer: Inspect Tokens");
+expowt namespace InspectTokensNWS {
+	expowt const inspectTokensAction = nws.wocawize('inspectTokens', "Devewopa: Inspect Tokens");
 }
 
-export namespace GoToLineNLS {
-	export const gotoLineActionLabel = nls.localize('gotoLineActionLabel', "Go to Line/Column...");
+expowt namespace GoToWineNWS {
+	expowt const gotoWineActionWabew = nws.wocawize('gotoWineActionWabew', "Go to Wine/Cowumn...");
 }
 
-export namespace QuickHelpNLS {
-	export const helpQuickAccessActionLabel = nls.localize('helpQuickAccess', "Show all Quick Access Providers");
+expowt namespace QuickHewpNWS {
+	expowt const hewpQuickAccessActionWabew = nws.wocawize('hewpQuickAccess', "Show aww Quick Access Pwovidews");
 }
 
-export namespace QuickCommandNLS {
-	export const quickCommandActionLabel = nls.localize('quickCommandActionLabel', "Command Palette");
-	export const quickCommandHelp = nls.localize('quickCommandActionHelp', "Show And Run Commands");
+expowt namespace QuickCommandNWS {
+	expowt const quickCommandActionWabew = nws.wocawize('quickCommandActionWabew', "Command Pawette");
+	expowt const quickCommandHewp = nws.wocawize('quickCommandActionHewp', "Show And Wun Commands");
 }
 
-export namespace QuickOutlineNLS {
-	export const quickOutlineActionLabel = nls.localize('quickOutlineActionLabel', "Go to Symbol...");
-	export const quickOutlineByCategoryActionLabel = nls.localize('quickOutlineByCategoryActionLabel', "Go to Symbol by Category...");
+expowt namespace QuickOutwineNWS {
+	expowt const quickOutwineActionWabew = nws.wocawize('quickOutwineActionWabew', "Go to Symbow...");
+	expowt const quickOutwineByCategowyActionWabew = nws.wocawize('quickOutwineByCategowyActionWabew', "Go to Symbow by Categowy...");
 }
 
-export namespace StandaloneCodeEditorNLS {
-	export const editorViewAccessibleLabel = nls.localize('editorViewAccessibleLabel', "Editor content");
-	export const accessibilityHelpMessage = nls.localize('accessibilityHelpMessage', "Press Alt+F1 for Accessibility Options.");
+expowt namespace StandawoneCodeEditowNWS {
+	expowt const editowViewAccessibweWabew = nws.wocawize('editowViewAccessibweWabew', "Editow content");
+	expowt const accessibiwityHewpMessage = nws.wocawize('accessibiwityHewpMessage', "Pwess Awt+F1 fow Accessibiwity Options.");
 }
 
-export namespace ToggleHighContrastNLS {
-	export const toggleHighContrast = nls.localize('toggleHighContrast', "Toggle High Contrast Theme");
+expowt namespace ToggweHighContwastNWS {
+	expowt const toggweHighContwast = nws.wocawize('toggweHighContwast', "Toggwe High Contwast Theme");
 }
 
-export namespace SimpleServicesNLS {
-	export const bulkEditServiceSummary = nls.localize('bulkEditServiceSummary', "Made {0} edits in {1} files");
+expowt namespace SimpweSewvicesNWS {
+	expowt const buwkEditSewviceSummawy = nws.wocawize('buwkEditSewviceSummawy', "Made {0} edits in {1} fiwes");
 }

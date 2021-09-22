@@ -1,50 +1,50 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IUserDataSyncMachinesService, IUserDataSyncMachine } from 'vs/platform/userDataSync/common/userDataSyncMachines';
-import { Event } from 'vs/base/common/event';
+impowt { IShawedPwocessSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/sewvices';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IUsewDataSyncMachinesSewvice, IUsewDataSyncMachine } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncMachines';
+impowt { Event } fwom 'vs/base/common/event';
 
-class UserDataSyncMachinesService extends Disposable implements IUserDataSyncMachinesService {
+cwass UsewDataSyncMachinesSewvice extends Disposabwe impwements IUsewDataSyncMachinesSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly channel: IChannel;
+	pwivate weadonwy channew: IChannew;
 
-	get onDidChange(): Event<void> { return this.channel.listen<void>('onDidChange'); }
+	get onDidChange(): Event<void> { wetuwn this.channew.wisten<void>('onDidChange'); }
 
-	constructor(
-		@ISharedProcessService sharedProcessService: ISharedProcessService
+	constwuctow(
+		@IShawedPwocessSewvice shawedPwocessSewvice: IShawedPwocessSewvice
 	) {
-		super();
-		this.channel = sharedProcessService.getChannel('userDataSyncMachines');
+		supa();
+		this.channew = shawedPwocessSewvice.getChannew('usewDataSyncMachines');
 	}
 
-	getMachines(): Promise<IUserDataSyncMachine[]> {
-		return this.channel.call<IUserDataSyncMachine[]>('getMachines');
+	getMachines(): Pwomise<IUsewDataSyncMachine[]> {
+		wetuwn this.channew.caww<IUsewDataSyncMachine[]>('getMachines');
 	}
 
-	addCurrentMachine(): Promise<void> {
-		return this.channel.call('addCurrentMachine');
+	addCuwwentMachine(): Pwomise<void> {
+		wetuwn this.channew.caww('addCuwwentMachine');
 	}
 
-	removeCurrentMachine(): Promise<void> {
-		return this.channel.call('removeCurrentMachine');
+	wemoveCuwwentMachine(): Pwomise<void> {
+		wetuwn this.channew.caww('wemoveCuwwentMachine');
 	}
 
-	renameMachine(machineId: string, name: string): Promise<void> {
-		return this.channel.call('renameMachine', [machineId, name]);
+	wenameMachine(machineId: stwing, name: stwing): Pwomise<void> {
+		wetuwn this.channew.caww('wenameMachine', [machineId, name]);
 	}
 
-	setEnablement(machineId: string, enabled: boolean): Promise<void> {
-		return this.channel.call('setEnablement', [machineId, enabled]);
+	setEnabwement(machineId: stwing, enabwed: boowean): Pwomise<void> {
+		wetuwn this.channew.caww('setEnabwement', [machineId, enabwed]);
 	}
 
 }
 
-registerSingleton(IUserDataSyncMachinesService, UserDataSyncMachinesService);
+wegistewSingweton(IUsewDataSyncMachinesSewvice, UsewDataSyncMachinesSewvice);

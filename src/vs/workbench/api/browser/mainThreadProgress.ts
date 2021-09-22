@@ -1,80 +1,80 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProgress, IProgressService, IProgressStep, ProgressLocation, IProgressOptions, IProgressNotificationOptions } from 'vs/platform/progress/common/progress';
-import { MainThreadProgressShape, MainContext, IExtHostContext, ExtHostProgressShape, ExtHostContext } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { Action } from 'vs/base/common/actions';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { localize } from 'vs/nls';
+impowt { IPwogwess, IPwogwessSewvice, IPwogwessStep, PwogwessWocation, IPwogwessOptions, IPwogwessNotificationOptions } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { MainThweadPwogwessShape, MainContext, IExtHostContext, ExtHostPwogwessShape, ExtHostContext } fwom '../common/extHost.pwotocow';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { ExtensionIdentifia, IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { wocawize } fwom 'vs/nws';
 
-class ManageExtensionAction extends Action {
-	constructor(id: ExtensionIdentifier, label: string, commandService: ICommandService) {
-		super(id.value, label, undefined, true, () => {
-			return commandService.executeCommand('_extensions.manage', id.value);
+cwass ManageExtensionAction extends Action {
+	constwuctow(id: ExtensionIdentifia, wabew: stwing, commandSewvice: ICommandSewvice) {
+		supa(id.vawue, wabew, undefined, twue, () => {
+			wetuwn commandSewvice.executeCommand('_extensions.manage', id.vawue);
 		});
 	}
 }
 
-@extHostNamedCustomer(MainContext.MainThreadProgress)
-export class MainThreadProgress implements MainThreadProgressShape {
+@extHostNamedCustoma(MainContext.MainThweadPwogwess)
+expowt cwass MainThweadPwogwess impwements MainThweadPwogwessShape {
 
-	private readonly _progressService: IProgressService;
-	private _progress = new Map<number, { resolve: () => void, progress: IProgress<IProgressStep> }>();
-	private readonly _proxy: ExtHostProgressShape;
+	pwivate weadonwy _pwogwessSewvice: IPwogwessSewvice;
+	pwivate _pwogwess = new Map<numba, { wesowve: () => void, pwogwess: IPwogwess<IPwogwessStep> }>();
+	pwivate weadonwy _pwoxy: ExtHostPwogwessShape;
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@IProgressService progressService: IProgressService,
-		@ICommandService private readonly _commandService: ICommandService
+		@IPwogwessSewvice pwogwessSewvice: IPwogwessSewvice,
+		@ICommandSewvice pwivate weadonwy _commandSewvice: ICommandSewvice
 	) {
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostProgress);
-		this._progressService = progressService;
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostPwogwess);
+		this._pwogwessSewvice = pwogwessSewvice;
 	}
 
 	dispose(): void {
-		this._progress.forEach(handle => handle.resolve());
-		this._progress.clear();
+		this._pwogwess.fowEach(handwe => handwe.wesowve());
+		this._pwogwess.cweaw();
 	}
 
-	$startProgress(handle: number, options: IProgressOptions, extension?: IExtensionDescription): void {
-		const task = this._createTask(handle);
+	$stawtPwogwess(handwe: numba, options: IPwogwessOptions, extension?: IExtensionDescwiption): void {
+		const task = this._cweateTask(handwe);
 
-		if (options.location === ProgressLocation.Notification && extension && !extension.isUnderDevelopment) {
-			const notificationOptions: IProgressNotificationOptions = {
+		if (options.wocation === PwogwessWocation.Notification && extension && !extension.isUndewDevewopment) {
+			const notificationOptions: IPwogwessNotificationOptions = {
 				...options,
-				location: ProgressLocation.Notification,
-				secondaryActions: [new ManageExtensionAction(extension.identifier, localize('manageExtension', "Manage Extension"), this._commandService)]
+				wocation: PwogwessWocation.Notification,
+				secondawyActions: [new ManageExtensionAction(extension.identifia, wocawize('manageExtension', "Manage Extension"), this._commandSewvice)]
 			};
 
 			options = notificationOptions;
 		}
 
-		this._progressService.withProgress(options, task, () => this._proxy.$acceptProgressCanceled(handle));
+		this._pwogwessSewvice.withPwogwess(options, task, () => this._pwoxy.$acceptPwogwessCancewed(handwe));
 	}
 
-	$progressReport(handle: number, message: IProgressStep): void {
-		const entry = this._progress.get(handle);
-		if (entry) {
-			entry.progress.report(message);
+	$pwogwessWepowt(handwe: numba, message: IPwogwessStep): void {
+		const entwy = this._pwogwess.get(handwe);
+		if (entwy) {
+			entwy.pwogwess.wepowt(message);
 		}
 	}
 
-	$progressEnd(handle: number): void {
-		const entry = this._progress.get(handle);
-		if (entry) {
-			entry.resolve();
-			this._progress.delete(handle);
+	$pwogwessEnd(handwe: numba): void {
+		const entwy = this._pwogwess.get(handwe);
+		if (entwy) {
+			entwy.wesowve();
+			this._pwogwess.dewete(handwe);
 		}
 	}
 
-	private _createTask(handle: number) {
-		return (progress: IProgress<IProgressStep>) => {
-			return new Promise<void>(resolve => {
-				this._progress.set(handle, { resolve, progress });
+	pwivate _cweateTask(handwe: numba) {
+		wetuwn (pwogwess: IPwogwess<IPwogwessStep>) => {
+			wetuwn new Pwomise<void>(wesowve => {
+				this._pwogwess.set(handwe, { wesowve, pwogwess });
 			});
 		};
 	}

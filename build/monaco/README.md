@@ -1,20 +1,20 @@
-# Steps to publish a new version of monaco-editor-core
+# Steps to pubwish a new vewsion of monaco-editow-cowe
 
-## Generate monaco.d.ts
+## Genewate monaco.d.ts
 
-* The `monaco.d.ts` is now automatically generated when running `gulp watch`
+* The `monaco.d.ts` is now automaticawwy genewated when wunning `guwp watch`
 
-## Bump version
+## Bump vewsion
 
-* increase version in `build/monaco/package.json`
+* incwease vewsion in `buiwd/monaco/package.json`
 
-## Generate npm contents for monaco-editor-core
+## Genewate npm contents fow monaco-editow-cowe
 
-* Be sure to have all changes committed **and pushed to the remote**
-* (the generated files contain the HEAD sha and that should be available on the remote)
-* run gulp editor-distro
+* Be suwe to have aww changes committed **and pushed to the wemote**
+* (the genewated fiwes contain the HEAD sha and that shouwd be avaiwabwe on the wemote)
+* wun guwp editow-distwo
 
-## Publish
+## Pubwish
 
-* `cd out-monaco-editor-core`
-* `npm publish`
+* `cd out-monaco-editow-cowe`
+* `npm pubwish`

@@ -1,395 +1,395 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { NotImplementedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Mimes } from 'vs/base/common/mime';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { NullCommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IListService, ListService } from 'vs/platform/list/browser/listService';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
-import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { IActiveNotebookEditorDelegate, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { ListViewInfoAccessor } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
-import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
-import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
-import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, CellUri, INotebookDiffEditorModel, INotebookEditorModel, IOutputDto, IResolvedNotebookEditorModel, NotebookCellMetadata, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { IWistWendewa, IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { NotImpwementedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Mimes } fwom 'vs/base/common/mime';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { EditowFontWigatuwes } fwom 'vs/editow/common/config/editowOptions';
+impowt { FontInfo } fwom 'vs/editow/common/config/fontInfo';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { ModewSewviceImpw } fwom 'vs/editow/common/sewvices/modewSewviceImpw';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { ModeSewviceImpw } fwom 'vs/editow/common/sewvices/modeSewviceImpw';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { BwowsewCwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/bwowsa/cwipboawdSewvice';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { NuwwCommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { ContextKeySewvice } fwom 'vs/pwatfowm/contextkey/bwowsa/contextKeySewvice';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { IWistSewvice, WistSewvice } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { IWogSewvice, NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { TestThemeSewvice } fwom 'vs/pwatfowm/theme/test/common/testThemeSewvice';
+impowt { IUndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { UndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedoSewvice';
+impowt { IWowkspaceTwustWequestSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { EditowModew } fwom 'vs/wowkbench/common/editow/editowModew';
+impowt { IActiveNotebookEditowDewegate, ICewwViewModew, INotebookEditowDewegate } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { WistViewInfoAccessow } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowWidget';
+impowt { NotebookCewwWist } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/notebookCewwWist';
+impowt { OutputWendewa } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/output/outputWendewa';
+impowt { NotebookEventDispatcha } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/eventDispatcha';
+impowt { CewwViewModew, NotebookViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/notebookViewModew';
+impowt { ViewContext } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/viewContext';
+impowt { NotebookCewwTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookCewwTextModew';
+impowt { NotebookTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookTextModew';
+impowt { CewwKind, CewwUwi, INotebookDiffEditowModew, INotebookEditowModew, IOutputDto, IWesowvedNotebookEditowModew, NotebookCewwMetadata, SewectionStateType } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { NotebookOptions } fwom 'vs/wowkbench/contwib/notebook/common/notebookOptions';
+impowt { ICewwWange } fwom 'vs/wowkbench/contwib/notebook/common/notebookWange';
+impowt { TextModewWesowvewSewvice } fwom 'vs/wowkbench/sewvices/textmodewWesowva/common/textModewWesowvewSewvice';
+impowt { TestWowkspaceTwustWequestSewvice } fwom 'vs/wowkbench/sewvices/wowkspaces/test/common/testWowkspaceTwustSewvice';
+impowt { TestStowageSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
 
-export class TestCell extends NotebookCellTextModel {
-	constructor(
-		public viewType: string,
-		handle: number,
-		public source: string,
-		language: string,
-		cellKind: CellKind,
+expowt cwass TestCeww extends NotebookCewwTextModew {
+	constwuctow(
+		pubwic viewType: stwing,
+		handwe: numba,
+		pubwic souwce: stwing,
+		wanguage: stwing,
+		cewwKind: CewwKind,
 		outputs: IOutputDto[],
-		modeService: IModeService,
+		modeSewvice: IModeSewvice,
 	) {
-		super(CellUri.generate(URI.parse('test:///fake/notebook'), handle), handle, source, language, Mimes.text, cellKind, outputs, undefined, undefined, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }, modeService);
+		supa(CewwUwi.genewate(UWI.pawse('test:///fake/notebook'), handwe), handwe, souwce, wanguage, Mimes.text, cewwKind, outputs, undefined, undefined, { twansientCewwMetadata: {}, twansientDocumentMetadata: {}, twansientOutputs: fawse }, modeSewvice);
 	}
 }
 
-export class NotebookEditorTestModel extends EditorModel implements INotebookEditorModel {
-	private _dirty = false;
+expowt cwass NotebookEditowTestModew extends EditowModew impwements INotebookEditowModew {
+	pwivate _diwty = fawse;
 
-	protected readonly _onDidSave = this._register(new Emitter<void>());
-	readonly onDidSave = this._onDidSave.event;
+	pwotected weadonwy _onDidSave = this._wegista(new Emitta<void>());
+	weadonwy onDidSave = this._onDidSave.event;
 
-	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
-	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+	pwotected weadonwy _onDidChangeDiwty = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeDiwty = this._onDidChangeDiwty.event;
 
-	readonly onDidChangeOrphaned = Event.None;
-	readonly onDidChangeReadonly = Event.None;
+	weadonwy onDidChangeOwphaned = Event.None;
+	weadonwy onDidChangeWeadonwy = Event.None;
 
-	private readonly _onDidChangeContent = this._register(new Emitter<void>());
-	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
+	pwivate weadonwy _onDidChangeContent = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
 
 	get viewType() {
-		return this._notebook.viewType;
+		wetuwn this._notebook.viewType;
 	}
 
-	get resource() {
-		return this._notebook.uri;
+	get wesouwce() {
+		wetuwn this._notebook.uwi;
 	}
 
 	get notebook() {
-		return this._notebook;
+		wetuwn this._notebook;
 	}
 
-	constructor(
-		private _notebook: NotebookTextModel
+	constwuctow(
+		pwivate _notebook: NotebookTextModew
 	) {
-		super();
+		supa();
 
 		if (_notebook && _notebook.onDidChangeContent) {
-			this._register(_notebook.onDidChangeContent(() => {
-				this._dirty = true;
-				this._onDidChangeDirty.fire();
-				this._onDidChangeContent.fire();
+			this._wegista(_notebook.onDidChangeContent(() => {
+				this._diwty = twue;
+				this._onDidChangeDiwty.fiwe();
+				this._onDidChangeContent.fiwe();
 			}));
 		}
 	}
 
-	isReadonly(): boolean {
-		return false;
+	isWeadonwy(): boowean {
+		wetuwn fawse;
 	}
 
-	isOrphaned(): boolean {
-		return false;
+	isOwphaned(): boowean {
+		wetuwn fawse;
 	}
 
-	hasAssociatedFilePath(): boolean {
-		return false;
+	hasAssociatedFiwePath(): boowean {
+		wetuwn fawse;
 	}
 
-	isDirty() {
-		return this._dirty;
+	isDiwty() {
+		wetuwn this._diwty;
 	}
 
-	getNotebook(): NotebookTextModel {
-		return this._notebook;
+	getNotebook(): NotebookTextModew {
+		wetuwn this._notebook;
 	}
 
-	async load(): Promise<IResolvedNotebookEditorModel> {
-		return this;
+	async woad(): Pwomise<IWesowvedNotebookEditowModew> {
+		wetuwn this;
 	}
 
-	async save(): Promise<boolean> {
+	async save(): Pwomise<boowean> {
 		if (this._notebook) {
-			this._dirty = false;
-			this._onDidChangeDirty.fire();
-			this._onDidSave.fire();
-			// todo, flush all states
-			return true;
+			this._diwty = fawse;
+			this._onDidChangeDiwty.fiwe();
+			this._onDidSave.fiwe();
+			// todo, fwush aww states
+			wetuwn twue;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	saveAs(): Promise<EditorInput | undefined> {
-		throw new NotImplementedError();
+	saveAs(): Pwomise<EditowInput | undefined> {
+		thwow new NotImpwementedEwwow();
 	}
 
-	revert(): Promise<void> {
-		throw new NotImplementedError();
+	wevewt(): Pwomise<void> {
+		thwow new NotImpwementedEwwow();
 	}
 }
 
-export function setupInstantiationService() {
-	const instantiationService = new TestInstantiationService();
-	instantiationService.stub(IModeService, new ModeServiceImpl());
-	instantiationService.stub(IUndoRedoService, instantiationService.createInstance(UndoRedoService));
-	instantiationService.stub(IConfigurationService, new TestConfigurationService());
-	instantiationService.stub(IThemeService, new TestThemeService());
-	instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
-	instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
-	instantiationService.stub(IContextKeyService, instantiationService.createInstance(ContextKeyService));
-	instantiationService.stub(IListService, instantiationService.createInstance(ListService));
-	instantiationService.stub(IClipboardService, new BrowserClipboardService());
-	instantiationService.stub(ILogService, new NullLogService());
-	instantiationService.stub(IStorageService, new TestStorageService());
-	instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(true));
+expowt function setupInstantiationSewvice() {
+	const instantiationSewvice = new TestInstantiationSewvice();
+	instantiationSewvice.stub(IModeSewvice, new ModeSewviceImpw());
+	instantiationSewvice.stub(IUndoWedoSewvice, instantiationSewvice.cweateInstance(UndoWedoSewvice));
+	instantiationSewvice.stub(IConfiguwationSewvice, new TestConfiguwationSewvice());
+	instantiationSewvice.stub(IThemeSewvice, new TestThemeSewvice());
+	instantiationSewvice.stub(IModewSewvice, instantiationSewvice.cweateInstance(ModewSewviceImpw));
+	instantiationSewvice.stub(ITextModewSewvice, <ITextModewSewvice>instantiationSewvice.cweateInstance(TextModewWesowvewSewvice));
+	instantiationSewvice.stub(IContextKeySewvice, instantiationSewvice.cweateInstance(ContextKeySewvice));
+	instantiationSewvice.stub(IWistSewvice, instantiationSewvice.cweateInstance(WistSewvice));
+	instantiationSewvice.stub(ICwipboawdSewvice, new BwowsewCwipboawdSewvice());
+	instantiationSewvice.stub(IWogSewvice, new NuwwWogSewvice());
+	instantiationSewvice.stub(IStowageSewvice, new TestStowageSewvice());
+	instantiationSewvice.stub(IWowkspaceTwustWequestSewvice, new TestWowkspaceTwustWequestSewvice(twue));
 
-	return instantiationService;
+	wetuwn instantiationSewvice;
 }
 
-function _createTestNotebookEditor(instantiationService: TestInstantiationService, cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): { editor: IActiveNotebookEditorDelegate, viewModel: NotebookViewModel; } {
+function _cweateTestNotebookEditow(instantiationSewvice: TestInstantiationSewvice, cewws: [souwce: stwing, wang: stwing, kind: CewwKind, output?: IOutputDto[], metadata?: NotebookCewwMetadata][]): { editow: IActiveNotebookEditowDewegate, viewModew: NotebookViewModew; } {
 
 	const viewType = 'notebook';
-	const notebook = instantiationService.createInstance(NotebookTextModel, viewType, URI.parse('test'), cells.map(cell => {
-		return {
-			source: cell[0],
-			language: cell[1],
-			cellKind: cell[2],
-			outputs: cell[3] ?? [],
-			metadata: cell[4]
+	const notebook = instantiationSewvice.cweateInstance(NotebookTextModew, viewType, UWI.pawse('test'), cewws.map(ceww => {
+		wetuwn {
+			souwce: ceww[0],
+			wanguage: ceww[1],
+			cewwKind: ceww[2],
+			outputs: ceww[3] ?? [],
+			metadata: ceww[4]
 		};
-	}), {}, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false });
+	}), {}, { twansientCewwMetadata: {}, twansientDocumentMetadata: {}, twansientOutputs: fawse });
 
-	const model = new NotebookEditorTestModel(notebook);
-	const notebookOptions = new NotebookOptions(instantiationService.get(IConfigurationService));
-	const viewContext = new ViewContext(notebookOptions, new NotebookEventDispatcher());
-	const viewModel: NotebookViewModel = instantiationService.createInstance(NotebookViewModel, viewType, model.notebook, viewContext, null, { isReadOnly: false });
+	const modew = new NotebookEditowTestModew(notebook);
+	const notebookOptions = new NotebookOptions(instantiationSewvice.get(IConfiguwationSewvice));
+	const viewContext = new ViewContext(notebookOptions, new NotebookEventDispatcha());
+	const viewModew: NotebookViewModew = instantiationSewvice.cweateInstance(NotebookViewModew, viewType, modew.notebook, viewContext, nuww, { isWeadOnwy: fawse });
 
-	const cellList = createNotebookCellList(instantiationService, viewContext);
-	cellList.attachViewModel(viewModel);
-	const listViewInfoAccessor = new ListViewInfoAccessor(cellList);
+	const cewwWist = cweateNotebookCewwWist(instantiationSewvice, viewContext);
+	cewwWist.attachViewModew(viewModew);
+	const wistViewInfoAccessow = new WistViewInfoAccessow(cewwWist);
 
-	const notebookEditor: IActiveNotebookEditorDelegate = new class extends mock<IActiveNotebookEditorDelegate>() {
-		override dispose() {
-			viewModel.dispose();
+	const notebookEditow: IActiveNotebookEditowDewegate = new cwass extends mock<IActiveNotebookEditowDewegate>() {
+		ovewwide dispose() {
+			viewModew.dispose();
 		}
-		override notebookOptions = notebookOptions;
-		override onDidChangeModel: Event<NotebookTextModel | undefined> = new Emitter<NotebookTextModel | undefined>().event;
-		override _getViewModel(): NotebookViewModel {
-			return viewModel;
+		ovewwide notebookOptions = notebookOptions;
+		ovewwide onDidChangeModew: Event<NotebookTextModew | undefined> = new Emitta<NotebookTextModew | undefined>().event;
+		ovewwide _getViewModew(): NotebookViewModew {
+			wetuwn viewModew;
 		}
-		override textModel = viewModel.notebookDocument;
-		override hasModel(): this is IActiveNotebookEditorDelegate {
-			return !!viewModel;
+		ovewwide textModew = viewModew.notebookDocument;
+		ovewwide hasModew(): this is IActiveNotebookEditowDewegate {
+			wetuwn !!viewModew;
 		}
-		override getLength() { return viewModel.length; }
-		override getFocus() { return viewModel.getFocus(); }
-		override getSelections() { return viewModel.getSelections(); }
-		override setFocus(focus: ICellRange) {
-			viewModel.updateSelectionsState({
-				kind: SelectionStateType.Index,
+		ovewwide getWength() { wetuwn viewModew.wength; }
+		ovewwide getFocus() { wetuwn viewModew.getFocus(); }
+		ovewwide getSewections() { wetuwn viewModew.getSewections(); }
+		ovewwide setFocus(focus: ICewwWange) {
+			viewModew.updateSewectionsState({
+				kind: SewectionStateType.Index,
 				focus: focus,
-				selections: viewModel.getSelections()
+				sewections: viewModew.getSewections()
 			});
 		}
-		override setSelections(selections: ICellRange[]) {
-			viewModel.updateSelectionsState({
-				kind: SelectionStateType.Index,
-				focus: viewModel.getFocus(),
-				selections: selections
+		ovewwide setSewections(sewections: ICewwWange[]) {
+			viewModew.updateSewectionsState({
+				kind: SewectionStateType.Index,
+				focus: viewModew.getFocus(),
+				sewections: sewections
 			});
 		}
-		override getViewIndexByModelIndex(index: number) { return listViewInfoAccessor.getViewIndex(viewModel.viewCells[index]); }
-		override getCellRangeFromViewRange(startIndex: number, endIndex: number) { return listViewInfoAccessor.getCellRangeFromViewRange(startIndex, endIndex); }
-		override revealCellRangeInView() { }
-		override setHiddenAreas(_ranges: ICellRange[]): boolean {
-			return cellList.setHiddenAreas(_ranges, true);
+		ovewwide getViewIndexByModewIndex(index: numba) { wetuwn wistViewInfoAccessow.getViewIndex(viewModew.viewCewws[index]); }
+		ovewwide getCewwWangeFwomViewWange(stawtIndex: numba, endIndex: numba) { wetuwn wistViewInfoAccessow.getCewwWangeFwomViewWange(stawtIndex, endIndex); }
+		ovewwide weveawCewwWangeInView() { }
+		ovewwide setHiddenAweas(_wanges: ICewwWange[]): boowean {
+			wetuwn cewwWist.setHiddenAweas(_wanges, twue);
 		}
-		override getActiveCell() {
-			const elements = cellList.getFocusedElements();
+		ovewwide getActiveCeww() {
+			const ewements = cewwWist.getFocusedEwements();
 
-			if (elements && elements.length) {
-				return elements[0];
+			if (ewements && ewements.wength) {
+				wetuwn ewements[0];
 			}
 
-			return undefined;
+			wetuwn undefined;
 		}
-		override hasOutputTextSelection() {
-			return false;
+		ovewwide hasOutputTextSewection() {
+			wetuwn fawse;
 		}
-		override changeModelDecorations() { return null; }
-		override focusElement() { }
-		override setCellEditorSelection() { }
-		override async revealRangeInCenterIfOutsideViewportAsync() { }
-		override getOutputRenderer() {
-			return new OutputRenderer({
-				creationOptions: notebookEditor.creationOptions,
-				getCellOutputLayoutInfo() {
-					return {
+		ovewwide changeModewDecowations() { wetuwn nuww; }
+		ovewwide focusEwement() { }
+		ovewwide setCewwEditowSewection() { }
+		ovewwide async weveawWangeInCentewIfOutsideViewpowtAsync() { }
+		ovewwide getOutputWendewa() {
+			wetuwn new OutputWendewa({
+				cweationOptions: notebookEditow.cweationOptions,
+				getCewwOutputWayoutInfo() {
+					wetuwn {
 						height: 100,
 						width: 100,
 						fontInfo: new FontInfo({
-							zoomLevel: 0,
-							pixelRatio: 1,
-							fontFamily: 'mockFont',
-							fontWeight: 'normal',
+							zoomWevew: 0,
+							pixewWatio: 1,
+							fontFamiwy: 'mockFont',
+							fontWeight: 'nowmaw',
 							fontSize: 14,
-							fontFeatureSettings: EditorFontLigatures.OFF,
-							lineHeight: 19,
-							letterSpacing: 1.5,
-							isMonospace: true,
-							typicalHalfwidthCharacterWidth: 10,
-							typicalFullwidthCharacterWidth: 20,
-							canUseHalfwidthRightwardsArrow: true,
+							fontFeatuweSettings: EditowFontWigatuwes.OFF,
+							wineHeight: 19,
+							wettewSpacing: 1.5,
+							isMonospace: twue,
+							typicawHawfwidthChawactewWidth: 10,
+							typicawFuwwwidthChawactewWidth: 20,
+							canUseHawfwidthWightwawdsAwwow: twue,
 							spaceWidth: 10,
 							middotWidth: 10,
 							wsmiddotWidth: 10,
 							maxDigitWidth: 10,
-						}, true)
+						}, twue)
 					};
 				}
-			}, instantiationService, NullCommandService);
+			}, instantiationSewvice, NuwwCommandSewvice);
 		}
-		override async layoutNotebookCell() { }
-		override async removeInset() { }
-		override async focusNotebookCell() { }
-		override cellAt(index: number) { return viewModel.cellAt(index)!; }
-		override getCellIndex(cell: ICellViewModel) { return viewModel.getCellIndex(cell); }
-		override getCellsInRange(range?: ICellRange) { return viewModel.getCellsInRange(range); }
-		override getNextVisibleCellIndex(index: number) { return viewModel.getNextVisibleCellIndex(index); }
-		getControl() { return this; }
-		override get onDidChangeSelection() { return viewModel.onDidChangeSelection as Event<any>; }
-		override get onDidChangeOptions() { return viewModel.onDidChangeOptions; }
-		override get onDidChangeViewCells() { return viewModel.onDidChangeViewCells; }
+		ovewwide async wayoutNotebookCeww() { }
+		ovewwide async wemoveInset() { }
+		ovewwide async focusNotebookCeww() { }
+		ovewwide cewwAt(index: numba) { wetuwn viewModew.cewwAt(index)!; }
+		ovewwide getCewwIndex(ceww: ICewwViewModew) { wetuwn viewModew.getCewwIndex(ceww); }
+		ovewwide getCewwsInWange(wange?: ICewwWange) { wetuwn viewModew.getCewwsInWange(wange); }
+		ovewwide getNextVisibweCewwIndex(index: numba) { wetuwn viewModew.getNextVisibweCewwIndex(index); }
+		getContwow() { wetuwn this; }
+		ovewwide get onDidChangeSewection() { wetuwn viewModew.onDidChangeSewection as Event<any>; }
+		ovewwide get onDidChangeOptions() { wetuwn viewModew.onDidChangeOptions; }
+		ovewwide get onDidChangeViewCewws() { wetuwn viewModew.onDidChangeViewCewws; }
 
 	};
 
-	return { editor: notebookEditor, viewModel };
+	wetuwn { editow: notebookEditow, viewModew };
 }
 
-export function createTestNotebookEditor(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): { editor: INotebookEditorDelegate, viewModel: NotebookViewModel; } {
-	return _createTestNotebookEditor(setupInstantiationService(), cells);
+expowt function cweateTestNotebookEditow(cewws: [souwce: stwing, wang: stwing, kind: CewwKind, output?: IOutputDto[], metadata?: NotebookCewwMetadata][]): { editow: INotebookEditowDewegate, viewModew: NotebookViewModew; } {
+	wetuwn _cweateTestNotebookEditow(setupInstantiationSewvice(), cewws);
 }
 
-export async function withTestNotebookDiffModel<R = any>(originalCells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], modifiedCells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (diffModel: INotebookDiffEditorModel, accessor: TestInstantiationService) => Promise<R> | R): Promise<R> {
-	const instantiationService = setupInstantiationService();
-	const originalNotebook = createTestNotebookEditor(originalCells);
-	const modifiedNotebook = createTestNotebookEditor(modifiedCells);
-	const originalResource = new class extends mock<IResolvedNotebookEditorModel>() {
-		override get notebook() {
-			return originalNotebook.viewModel.notebookDocument;
+expowt async function withTestNotebookDiffModew<W = any>(owiginawCewws: [souwce: stwing, wang: stwing, kind: CewwKind, output?: IOutputDto[], metadata?: NotebookCewwMetadata][], modifiedCewws: [souwce: stwing, wang: stwing, kind: CewwKind, output?: IOutputDto[], metadata?: NotebookCewwMetadata][], cawwback: (diffModew: INotebookDiffEditowModew, accessow: TestInstantiationSewvice) => Pwomise<W> | W): Pwomise<W> {
+	const instantiationSewvice = setupInstantiationSewvice();
+	const owiginawNotebook = cweateTestNotebookEditow(owiginawCewws);
+	const modifiedNotebook = cweateTestNotebookEditow(modifiedCewws);
+	const owiginawWesouwce = new cwass extends mock<IWesowvedNotebookEditowModew>() {
+		ovewwide get notebook() {
+			wetuwn owiginawNotebook.viewModew.notebookDocument;
 		}
 	};
 
-	const modifiedResource = new class extends mock<IResolvedNotebookEditorModel>() {
-		override get notebook() {
-			return modifiedNotebook.viewModel.notebookDocument;
+	const modifiedWesouwce = new cwass extends mock<IWesowvedNotebookEditowModew>() {
+		ovewwide get notebook() {
+			wetuwn modifiedNotebook.viewModew.notebookDocument;
 		}
 	};
 
-	const model = new class extends mock<INotebookDiffEditorModel>() {
-		override get original() {
-			return originalResource;
+	const modew = new cwass extends mock<INotebookDiffEditowModew>() {
+		ovewwide get owiginaw() {
+			wetuwn owiginawWesouwce;
 		}
-		override get modified() {
-			return modifiedResource;
+		ovewwide get modified() {
+			wetuwn modifiedWesouwce;
 		}
 	};
 
-	const res = await callback(model, instantiationService);
-	if (res instanceof Promise) {
-		res.finally(() => {
-			originalNotebook.editor.dispose();
-			originalNotebook.viewModel.dispose();
-			modifiedNotebook.editor.dispose();
-			modifiedNotebook.viewModel.dispose();
+	const wes = await cawwback(modew, instantiationSewvice);
+	if (wes instanceof Pwomise) {
+		wes.finawwy(() => {
+			owiginawNotebook.editow.dispose();
+			owiginawNotebook.viewModew.dispose();
+			modifiedNotebook.editow.dispose();
+			modifiedNotebook.viewModew.dispose();
 		});
-	} else {
-		originalNotebook.editor.dispose();
-		originalNotebook.viewModel.dispose();
-		modifiedNotebook.editor.dispose();
-		modifiedNotebook.viewModel.dispose();
+	} ewse {
+		owiginawNotebook.editow.dispose();
+		owiginawNotebook.viewModew.dispose();
+		modifiedNotebook.editow.dispose();
+		modifiedNotebook.viewModew.dispose();
 	}
-	return res;
+	wetuwn wes;
 }
 
-export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveNotebookEditorDelegate, viewModel: NotebookViewModel, accessor: TestInstantiationService) => Promise<R> | R, accessor?: TestInstantiationService): Promise<R> {
-	const instantiationService = accessor ?? setupInstantiationService();
-	const notebookEditor = _createTestNotebookEditor(instantiationService, cells);
+expowt async function withTestNotebook<W = any>(cewws: [souwce: stwing, wang: stwing, kind: CewwKind, output?: IOutputDto[], metadata?: NotebookCewwMetadata][], cawwback: (editow: IActiveNotebookEditowDewegate, viewModew: NotebookViewModew, accessow: TestInstantiationSewvice) => Pwomise<W> | W, accessow?: TestInstantiationSewvice): Pwomise<W> {
+	const instantiationSewvice = accessow ?? setupInstantiationSewvice();
+	const notebookEditow = _cweateTestNotebookEditow(instantiationSewvice, cewws);
 
-	const res = await callback(notebookEditor.editor, notebookEditor.viewModel, instantiationService);
-	if (res instanceof Promise) {
-		res.finally(() => {
-			notebookEditor.editor.dispose();
-			notebookEditor.viewModel.dispose();
+	const wes = await cawwback(notebookEditow.editow, notebookEditow.viewModew, instantiationSewvice);
+	if (wes instanceof Pwomise) {
+		wes.finawwy(() => {
+			notebookEditow.editow.dispose();
+			notebookEditow.viewModew.dispose();
 		});
-	} else {
-		notebookEditor.editor.dispose();
-		notebookEditor.viewModel.dispose();
+	} ewse {
+		notebookEditow.editow.dispose();
+		notebookEditow.viewModew.dispose();
 	}
-	return res;
+	wetuwn wes;
 }
 
-export function createNotebookCellList(instantiationService: TestInstantiationService, viewContext?: ViewContext) {
-	const delegate: IListVirtualDelegate<CellViewModel> = {
-		getHeight(element: CellViewModel) { return element.getHeight(17); },
-		getTemplateId() { return 'template'; }
+expowt function cweateNotebookCewwWist(instantiationSewvice: TestInstantiationSewvice, viewContext?: ViewContext) {
+	const dewegate: IWistViwtuawDewegate<CewwViewModew> = {
+		getHeight(ewement: CewwViewModew) { wetuwn ewement.getHeight(17); },
+		getTempwateId() { wetuwn 'tempwate'; }
 	};
 
-	const renderer: IListRenderer<number, void> = {
-		templateId: 'template',
-		renderTemplate() { },
-		renderElement() { },
-		disposeTemplate() { }
+	const wendewa: IWistWendewa<numba, void> = {
+		tempwateId: 'tempwate',
+		wendewTempwate() { },
+		wendewEwement() { },
+		disposeTempwate() { }
 	};
 
-	const cellList: NotebookCellList = instantiationService.createInstance(
-		NotebookCellList,
-		'NotebookCellList',
-		DOM.$('container'),
+	const cewwWist: NotebookCewwWist = instantiationSewvice.cweateInstance(
+		NotebookCewwWist,
+		'NotebookCewwWist',
+		DOM.$('containa'),
 		DOM.$('body'),
-		viewContext ?? new ViewContext(new NotebookOptions(instantiationService.get(IConfigurationService)), new NotebookEventDispatcher()),
-		delegate,
-		[renderer],
-		instantiationService.get<IContextKeyService>(IContextKeyService),
+		viewContext ?? new ViewContext(new NotebookOptions(instantiationSewvice.get(IConfiguwationSewvice)), new NotebookEventDispatcha()),
+		dewegate,
+		[wendewa],
+		instantiationSewvice.get<IContextKeySewvice>(IContextKeySewvice),
 		{
-			supportDynamicHeights: true,
-			multipleSelectionSupport: true,
-			enableKeyboardNavigation: true,
-			focusNextPreviousDelegate: {
-				onFocusNext: (applyFocusNext: () => void) => { applyFocusNext(); },
-				onFocusPrevious: (applyFocusPrevious: () => void) => { applyFocusPrevious(); },
+			suppowtDynamicHeights: twue,
+			muwtipweSewectionSuppowt: twue,
+			enabweKeyboawdNavigation: twue,
+			focusNextPweviousDewegate: {
+				onFocusNext: (appwyFocusNext: () => void) => { appwyFocusNext(); },
+				onFocusPwevious: (appwyFocusPwevious: () => void) => { appwyFocusPwevious(); },
 			}
 		}
 	);
 
-	return cellList;
+	wetuwn cewwWist;
 }
 
-export function valueBytesFromString(value: string): VSBuffer {
-	return VSBuffer.fromString(value);
+expowt function vawueBytesFwomStwing(vawue: stwing): VSBuffa {
+	wetuwn VSBuffa.fwomStwing(vawue);
 }

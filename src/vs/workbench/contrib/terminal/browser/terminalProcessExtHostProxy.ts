@@ -1,168 +1,168 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, IProcessProperty, ProcessPropertyType, TerminalShellType, ProcessCapability, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IPwocessWeadyEvent, IShewwWaunchConfig, ITewminawChiwdPwocess, ITewminawDimensions, ITewminawDimensionsOvewwide, ITewminawWaunchEwwow, IPwocessPwopewty, PwocessPwopewtyType, TewminawShewwType, PwocessCapabiwity, IPwocessPwopewtyMap } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { ITewminawSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { ITewminawPwocessExtHostPwoxy } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
 
-export class TerminalProcessExtHostProxy extends Disposable implements ITerminalChildProcess, ITerminalProcessExtHostProxy {
-	readonly id = 0;
-	readonly shouldPersist = false;
-	private _capabilities: ProcessCapability[] = [];
-	get capabilities(): ProcessCapability[] { return this._capabilities; }
-	private readonly _onProcessData = this._register(new Emitter<string>());
-	readonly onProcessData: Event<string> = this._onProcessData.event;
-	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
-	readonly onProcessExit: Event<number | undefined> = this._onProcessExit.event;
-	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
-	get onProcessReady(): Event<IProcessReadyEvent> { return this._onProcessReady.event; }
-	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
-	readonly onProcessTitleChanged: Event<string> = this._onProcessTitleChanged.event;
-	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
-	get onProcessOverrideDimensions(): Event<ITerminalDimensionsOverride | undefined> { return this._onProcessOverrideDimensions.event; }
-	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
-	get onProcessResolvedShellLaunchConfig(): Event<IShellLaunchConfig> { return this._onProcessResolvedShellLaunchConfig.event; }
+expowt cwass TewminawPwocessExtHostPwoxy extends Disposabwe impwements ITewminawChiwdPwocess, ITewminawPwocessExtHostPwoxy {
+	weadonwy id = 0;
+	weadonwy shouwdPewsist = fawse;
+	pwivate _capabiwities: PwocessCapabiwity[] = [];
+	get capabiwities(): PwocessCapabiwity[] { wetuwn this._capabiwities; }
+	pwivate weadonwy _onPwocessData = this._wegista(new Emitta<stwing>());
+	weadonwy onPwocessData: Event<stwing> = this._onPwocessData.event;
+	pwivate weadonwy _onPwocessExit = this._wegista(new Emitta<numba | undefined>());
+	weadonwy onPwocessExit: Event<numba | undefined> = this._onPwocessExit.event;
+	pwivate weadonwy _onPwocessWeady = this._wegista(new Emitta<IPwocessWeadyEvent>());
+	get onPwocessWeady(): Event<IPwocessWeadyEvent> { wetuwn this._onPwocessWeady.event; }
+	pwivate weadonwy _onPwocessTitweChanged = this._wegista(new Emitta<stwing>());
+	weadonwy onPwocessTitweChanged: Event<stwing> = this._onPwocessTitweChanged.event;
+	pwivate weadonwy _onPwocessOvewwideDimensions = this._wegista(new Emitta<ITewminawDimensionsOvewwide | undefined>());
+	get onPwocessOvewwideDimensions(): Event<ITewminawDimensionsOvewwide | undefined> { wetuwn this._onPwocessOvewwideDimensions.event; }
+	pwivate weadonwy _onPwocessWesowvedShewwWaunchConfig = this._wegista(new Emitta<IShewwWaunchConfig>());
+	get onPwocessWesowvedShewwWaunchConfig(): Event<IShewwWaunchConfig> { wetuwn this._onPwocessWesowvedShewwWaunchConfig.event; }
 
-	private readonly _onStart = this._register(new Emitter<void>());
-	readonly onStart: Event<void> = this._onStart.event;
-	private readonly _onInput = this._register(new Emitter<string>());
-	readonly onInput: Event<string> = this._onInput.event;
-	private readonly _onBinary = this._register(new Emitter<string>());
-	readonly onBinary: Event<string> = this._onBinary.event;
-	private readonly _onResize: Emitter<{ cols: number, rows: number }> = this._register(new Emitter<{ cols: number, rows: number }>());
-	readonly onResize: Event<{ cols: number, rows: number }> = this._onResize.event;
-	private readonly _onAcknowledgeDataEvent = this._register(new Emitter<number>());
-	readonly onAcknowledgeDataEvent: Event<number> = this._onAcknowledgeDataEvent.event;
-	private readonly _onShutdown = this._register(new Emitter<boolean>());
-	readonly onShutdown: Event<boolean> = this._onShutdown.event;
-	private readonly _onRequestInitialCwd = this._register(new Emitter<void>());
-	readonly onRequestInitialCwd: Event<void> = this._onRequestInitialCwd.event;
-	private readonly _onRequestCwd = this._register(new Emitter<void>());
-	readonly onRequestCwd: Event<void> = this._onRequestCwd.event;
-	private readonly _onRequestLatency = this._register(new Emitter<void>());
-	readonly onRequestLatency: Event<void> = this._onRequestLatency.event;
-	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
-	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
-	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
-	readonly onDidChangeProperty = this._onDidChangeProperty.event;
+	pwivate weadonwy _onStawt = this._wegista(new Emitta<void>());
+	weadonwy onStawt: Event<void> = this._onStawt.event;
+	pwivate weadonwy _onInput = this._wegista(new Emitta<stwing>());
+	weadonwy onInput: Event<stwing> = this._onInput.event;
+	pwivate weadonwy _onBinawy = this._wegista(new Emitta<stwing>());
+	weadonwy onBinawy: Event<stwing> = this._onBinawy.event;
+	pwivate weadonwy _onWesize: Emitta<{ cows: numba, wows: numba }> = this._wegista(new Emitta<{ cows: numba, wows: numba }>());
+	weadonwy onWesize: Event<{ cows: numba, wows: numba }> = this._onWesize.event;
+	pwivate weadonwy _onAcknowwedgeDataEvent = this._wegista(new Emitta<numba>());
+	weadonwy onAcknowwedgeDataEvent: Event<numba> = this._onAcknowwedgeDataEvent.event;
+	pwivate weadonwy _onShutdown = this._wegista(new Emitta<boowean>());
+	weadonwy onShutdown: Event<boowean> = this._onShutdown.event;
+	pwivate weadonwy _onWequestInitiawCwd = this._wegista(new Emitta<void>());
+	weadonwy onWequestInitiawCwd: Event<void> = this._onWequestInitiawCwd.event;
+	pwivate weadonwy _onWequestCwd = this._wegista(new Emitta<void>());
+	weadonwy onWequestCwd: Event<void> = this._onWequestCwd.event;
+	pwivate weadonwy _onWequestWatency = this._wegista(new Emitta<void>());
+	weadonwy onWequestWatency: Event<void> = this._onWequestWatency.event;
+	pwivate weadonwy _onPwocessShewwTypeChanged = this._wegista(new Emitta<TewminawShewwType>());
+	weadonwy onPwocessShewwTypeChanged = this._onPwocessShewwTypeChanged.event;
+	pwivate weadonwy _onDidChangePwopewty = this._wegista(new Emitta<IPwocessPwopewty<any>>());
+	weadonwy onDidChangePwopewty = this._onDidChangePwopewty.event;
 
 
-	private _pendingInitialCwdRequests: ((value: string | PromiseLike<string>) => void)[] = [];
-	private _pendingCwdRequests: ((value: string | PromiseLike<string>) => void)[] = [];
-	private _pendingLatencyRequests: ((value: number | PromiseLike<number>) => void)[] = [];
+	pwivate _pendingInitiawCwdWequests: ((vawue: stwing | PwomiseWike<stwing>) => void)[] = [];
+	pwivate _pendingCwdWequests: ((vawue: stwing | PwomiseWike<stwing>) => void)[] = [];
+	pwivate _pendingWatencyWequests: ((vawue: numba | PwomiseWike<numba>) => void)[] = [];
 
-	constructor(
-		public instanceId: number,
-		private _cols: number,
-		private _rows: number,
-		@ITerminalService private readonly _terminalService: ITerminalService,
+	constwuctow(
+		pubwic instanceId: numba,
+		pwivate _cows: numba,
+		pwivate _wows: numba,
+		@ITewminawSewvice pwivate weadonwy _tewminawSewvice: ITewminawSewvice,
 	) {
-		super();
+		supa();
 	}
-	onDidChangeHasChildProcesses?: Event<boolean> | undefined;
+	onDidChangeHasChiwdPwocesses?: Event<boowean> | undefined;
 
-	emitData(data: string): void {
-		this._onProcessData.fire(data);
-	}
-
-	emitTitle(title: string): void {
-		this._onProcessTitleChanged.fire(title);
+	emitData(data: stwing): void {
+		this._onPwocessData.fiwe(data);
 	}
 
-	emitReady(pid: number, cwd: string): void {
-		this._onProcessReady.fire({ pid, cwd, capabilities: this.capabilities });
+	emitTitwe(titwe: stwing): void {
+		this._onPwocessTitweChanged.fiwe(titwe);
 	}
 
-	emitExit(exitCode: number | undefined): void {
-		this._onProcessExit.fire(exitCode);
+	emitWeady(pid: numba, cwd: stwing): void {
+		this._onPwocessWeady.fiwe({ pid, cwd, capabiwities: this.capabiwities });
+	}
+
+	emitExit(exitCode: numba | undefined): void {
+		this._onPwocessExit.fiwe(exitCode);
 		this.dispose();
 	}
 
-	emitOverrideDimensions(dimensions: ITerminalDimensions | undefined): void {
-		this._onProcessOverrideDimensions.fire(dimensions);
+	emitOvewwideDimensions(dimensions: ITewminawDimensions | undefined): void {
+		this._onPwocessOvewwideDimensions.fiwe(dimensions);
 	}
 
-	emitResolvedShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void {
-		this._onProcessResolvedShellLaunchConfig.fire(shellLaunchConfig);
+	emitWesowvedShewwWaunchConfig(shewwWaunchConfig: IShewwWaunchConfig): void {
+		this._onPwocessWesowvedShewwWaunchConfig.fiwe(shewwWaunchConfig);
 	}
 
-	emitInitialCwd(initialCwd: string): void {
-		while (this._pendingInitialCwdRequests.length > 0) {
-			this._pendingInitialCwdRequests.pop()!(initialCwd);
+	emitInitiawCwd(initiawCwd: stwing): void {
+		whiwe (this._pendingInitiawCwdWequests.wength > 0) {
+			this._pendingInitiawCwdWequests.pop()!(initiawCwd);
 		}
 	}
 
-	emitCwd(cwd: string): void {
-		while (this._pendingCwdRequests.length > 0) {
-			this._pendingCwdRequests.pop()!(cwd);
+	emitCwd(cwd: stwing): void {
+		whiwe (this._pendingCwdWequests.wength > 0) {
+			this._pendingCwdWequests.pop()!(cwd);
 		}
 	}
 
-	emitLatency(latency: number): void {
-		while (this._pendingLatencyRequests.length > 0) {
-			this._pendingLatencyRequests.pop()!(latency);
+	emitWatency(watency: numba): void {
+		whiwe (this._pendingWatencyWequests.wength > 0) {
+			this._pendingWatencyWequests.pop()!(watency);
 		}
 	}
 
-	async start(): Promise<ITerminalLaunchError | undefined> {
-		return this._terminalService.requestStartExtensionTerminal(this, this._cols, this._rows);
+	async stawt(): Pwomise<ITewminawWaunchEwwow | undefined> {
+		wetuwn this._tewminawSewvice.wequestStawtExtensionTewminaw(this, this._cows, this._wows);
 	}
 
-	shutdown(immediate: boolean): void {
-		this._onShutdown.fire(immediate);
+	shutdown(immediate: boowean): void {
+		this._onShutdown.fiwe(immediate);
 	}
 
-	input(data: string): void {
-		this._onInput.fire(data);
+	input(data: stwing): void {
+		this._onInput.fiwe(data);
 	}
 
-	resize(cols: number, rows: number): void {
-		this._onResize.fire({ cols, rows });
+	wesize(cows: numba, wows: numba): void {
+		this._onWesize.fiwe({ cows, wows });
 	}
 
-	acknowledgeDataEvent(): void {
-		// Flow control is disabled for extension terminals
+	acknowwedgeDataEvent(): void {
+		// Fwow contwow is disabwed fow extension tewminaws
 	}
 
-	async setUnicodeVersion(version: '6' | '11'): Promise<void> {
+	async setUnicodeVewsion(vewsion: '6' | '11'): Pwomise<void> {
 		// No-op
 	}
 
-	async processBinary(data: string): Promise<void> {
-		// Disabled for extension terminals
-		this._onBinary.fire(data);
+	async pwocessBinawy(data: stwing): Pwomise<void> {
+		// Disabwed fow extension tewminaws
+		this._onBinawy.fiwe(data);
 	}
 
-	getInitialCwd(): Promise<string> {
-		return new Promise<string>(resolve => {
-			this._onRequestInitialCwd.fire();
-			this._pendingInitialCwdRequests.push(resolve);
+	getInitiawCwd(): Pwomise<stwing> {
+		wetuwn new Pwomise<stwing>(wesowve => {
+			this._onWequestInitiawCwd.fiwe();
+			this._pendingInitiawCwdWequests.push(wesowve);
 		});
 	}
 
-	getCwd(): Promise<string> {
-		return new Promise<string>(resolve => {
-			this._onRequestCwd.fire();
-			this._pendingCwdRequests.push(resolve);
+	getCwd(): Pwomise<stwing> {
+		wetuwn new Pwomise<stwing>(wesowve => {
+			this._onWequestCwd.fiwe();
+			this._pendingCwdWequests.push(wesowve);
 		});
 	}
 
-	getLatency(): Promise<number> {
-		return new Promise<number>(resolve => {
-			this._onRequestLatency.fire();
-			this._pendingLatencyRequests.push(resolve);
+	getWatency(): Pwomise<numba> {
+		wetuwn new Pwomise<numba>(wesowve => {
+			this._onWequestWatency.fiwe();
+			this._pendingWatencyWequests.push(wesowve);
 		});
 	}
 
-	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
-		if (type === ProcessPropertyType.Cwd) {
-			return this.getCwd();
-		} else {
-			return this.getInitialCwd();
+	async wefweshPwopewty<T extends PwocessPwopewtyType>(type: PwocessPwopewtyType): Pwomise<IPwocessPwopewtyMap[T]> {
+		if (type === PwocessPwopewtyType.Cwd) {
+			wetuwn this.getCwd();
+		} ewse {
+			wetuwn this.getInitiawCwd();
 		}
 	}
 }

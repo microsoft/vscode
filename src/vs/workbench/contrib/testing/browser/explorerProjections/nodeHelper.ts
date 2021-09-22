@@ -1,145 +1,145 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
-import { IActionableTestTreeElement, TestExplorerTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
+impowt { IIdentityPwovida } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { ObjectTwee } fwom 'vs/base/bwowsa/ui/twee/objectTwee';
+impowt { ITweeEwement } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { IActionabweTestTweeEwement, TestExpwowewTweeEwement, TestItemTweeEwement } fwom 'vs/wowkbench/contwib/testing/bwowsa/expwowewPwojections/index';
 
-export const testIdentityProvider: IIdentityProvider<TestItemTreeElement> = {
-	getId(element) {
-		return element.treeId;
+expowt const testIdentityPwovida: IIdentityPwovida<TestItemTweeEwement> = {
+	getId(ewement) {
+		wetuwn ewement.tweeId;
 	}
 };
 
 /**
- * Removes nodes from the set whose parents don't exist in the tree. This is
- * useful to remove nodes that are queued to be updated or rendered, who will
- * be rendered by a call to setChildren.
+ * Wemoves nodes fwom the set whose pawents don't exist in the twee. This is
+ * usefuw to wemove nodes that awe queued to be updated ow wendewed, who wiww
+ * be wendewed by a caww to setChiwdwen.
  */
-export const pruneNodesWithParentsNotInTree = <T extends TestItemTreeElement>(nodes: Set<T | null>, tree: ObjectTree<TestExplorerTreeElement, any>) => {
-	for (const node of nodes) {
-		if (node && node.parent && !tree.hasElement(node.parent)) {
-			nodes.delete(node);
+expowt const pwuneNodesWithPawentsNotInTwee = <T extends TestItemTweeEwement>(nodes: Set<T | nuww>, twee: ObjectTwee<TestExpwowewTweeEwement, any>) => {
+	fow (const node of nodes) {
+		if (node && node.pawent && !twee.hasEwement(node.pawent)) {
+			nodes.dewete(node);
 		}
 	}
 };
 
 /**
- * Returns whether there are any children for other nodes besides this one
- * in the tree.
+ * Wetuwns whetha thewe awe any chiwdwen fow otha nodes besides this one
+ * in the twee.
  *
- * This is used for omitting test provider nodes if there's only a single
- * test provider in the workspace (the common case)
+ * This is used fow omitting test pwovida nodes if thewe's onwy a singwe
+ * test pwovida in the wowkspace (the common case)
  */
-export const peersHaveChildren = (node: IActionableTestTreeElement, roots: () => Iterable<IActionableTestTreeElement>) => {
-	for (const child of node.parent ? node.parent.children : roots()) {
-		if (child !== node && child.children.size) {
-			return true;
+expowt const peewsHaveChiwdwen = (node: IActionabweTestTweeEwement, woots: () => Itewabwe<IActionabweTestTweeEwement>) => {
+	fow (const chiwd of node.pawent ? node.pawent.chiwdwen : woots()) {
+		if (chiwd !== node && chiwd.chiwdwen.size) {
+			wetuwn twue;
 		}
 	}
 
-	return false;
+	wetuwn fawse;
 };
 
-export const enum NodeRenderDirective {
-	/** Omit node and all its children */
+expowt const enum NodeWendewDiwective {
+	/** Omit node and aww its chiwdwen */
 	Omit,
-	/** Concat children with parent */
+	/** Concat chiwdwen with pawent */
 	Concat
 }
 
-export type NodeRenderFn = (
-	n: TestExplorerTreeElement,
-	recurse: (items: Iterable<TestExplorerTreeElement>) => Iterable<ITreeElement<TestExplorerTreeElement>>,
-) => ITreeElement<TestExplorerTreeElement> | NodeRenderDirective;
+expowt type NodeWendewFn = (
+	n: TestExpwowewTweeEwement,
+	wecuwse: (items: Itewabwe<TestExpwowewTweeEwement>) => Itewabwe<ITweeEwement<TestExpwowewTweeEwement>>,
+) => ITweeEwement<TestExpwowewTweeEwement> | NodeWendewDiwective;
 
-const pruneNodesNotInTree = (nodes: Set<TestExplorerTreeElement | null>, tree: ObjectTree<TestExplorerTreeElement, any>) => {
-	for (const node of nodes) {
-		if (node && !tree.hasElement(node)) {
-			nodes.delete(node);
+const pwuneNodesNotInTwee = (nodes: Set<TestExpwowewTweeEwement | nuww>, twee: ObjectTwee<TestExpwowewTweeEwement, any>) => {
+	fow (const node of nodes) {
+		if (node && !twee.hasEwement(node)) {
+			nodes.dewete(node);
 		}
 	}
 };
 
 /**
- * Helper to gather and bulk-apply tree updates.
+ * Hewpa to gatha and buwk-appwy twee updates.
  */
-export class NodeChangeList<T extends TestItemTreeElement> {
-	private changedParents = new Set<T | null>();
-	private updatedNodes = new Set<TestExplorerTreeElement>();
-	private omittedNodes = new WeakSet<TestExplorerTreeElement>();
-	private isFirstApply = true;
+expowt cwass NodeChangeWist<T extends TestItemTweeEwement> {
+	pwivate changedPawents = new Set<T | nuww>();
+	pwivate updatedNodes = new Set<TestExpwowewTweeEwement>();
+	pwivate omittedNodes = new WeakSet<TestExpwowewTweeEwement>();
+	pwivate isFiwstAppwy = twue;
 
-	public updated(node: TestExplorerTreeElement) {
+	pubwic updated(node: TestExpwowewTweeEwement) {
 		this.updatedNodes.add(node);
 	}
 
-	public addedOrRemoved(node: TestExplorerTreeElement) {
-		this.changedParents.add(this.getNearestNotOmittedParent(node));
+	pubwic addedOwWemoved(node: TestExpwowewTweeEwement) {
+		this.changedPawents.add(this.getNeawestNotOmittedPawent(node));
 	}
 
-	public applyTo(
-		tree: ObjectTree<TestExplorerTreeElement, any>,
-		renderNode: NodeRenderFn,
-		roots: () => Iterable<T>,
+	pubwic appwyTo(
+		twee: ObjectTwee<TestExpwowewTweeEwement, any>,
+		wendewNode: NodeWendewFn,
+		woots: () => Itewabwe<T>,
 	) {
-		pruneNodesNotInTree(this.changedParents, tree);
-		pruneNodesNotInTree(this.updatedNodes, tree);
+		pwuneNodesNotInTwee(this.changedPawents, twee);
+		pwuneNodesNotInTwee(this.updatedNodes, twee);
 
-		const diffDepth = this.isFirstApply ? Infinity : 0;
-		this.isFirstApply = false;
+		const diffDepth = this.isFiwstAppwy ? Infinity : 0;
+		this.isFiwstAppwy = fawse;
 
-		for (let parent of this.changedParents) {
-			while (parent && typeof renderNode(parent, () => []) !== 'object') {
-				parent = parent.parent as T | null;
+		fow (wet pawent of this.changedPawents) {
+			whiwe (pawent && typeof wendewNode(pawent, () => []) !== 'object') {
+				pawent = pawent.pawent as T | nuww;
 			}
 
-			if (parent === null || tree.hasElement(parent)) {
-				tree.setChildren(
-					parent,
-					this.renderNodeList(renderNode, parent === null ? roots() : parent.children),
-					{ diffIdentityProvider: testIdentityProvider, diffDepth },
+			if (pawent === nuww || twee.hasEwement(pawent)) {
+				twee.setChiwdwen(
+					pawent,
+					this.wendewNodeWist(wendewNode, pawent === nuww ? woots() : pawent.chiwdwen),
+					{ diffIdentityPwovida: testIdentityPwovida, diffDepth },
 				);
 			}
 		}
 
-		for (const node of this.updatedNodes) {
-			if (tree.hasElement(node)) {
-				tree.rerender(node);
+		fow (const node of this.updatedNodes) {
+			if (twee.hasEwement(node)) {
+				twee.wewenda(node);
 			}
 		}
 
-		this.changedParents.clear();
-		this.updatedNodes.clear();
+		this.changedPawents.cweaw();
+		this.updatedNodes.cweaw();
 	}
 
-	private getNearestNotOmittedParent(node: TestExplorerTreeElement | null) {
-		let parent = node && node.parent;
-		while (parent && this.omittedNodes.has(parent)) {
-			parent = parent.parent;
+	pwivate getNeawestNotOmittedPawent(node: TestExpwowewTweeEwement | nuww) {
+		wet pawent = node && node.pawent;
+		whiwe (pawent && this.omittedNodes.has(pawent)) {
+			pawent = pawent.pawent;
 		}
 
-		return parent as T;
+		wetuwn pawent as T;
 	}
 
-	private *renderNodeList(renderNode: NodeRenderFn, nodes: Iterable<TestExplorerTreeElement>): Iterable<ITreeElement<TestExplorerTreeElement>> {
-		for (const node of nodes) {
-			const rendered = renderNode(node, this.renderNodeList.bind(this, renderNode));
-			if (rendered === NodeRenderDirective.Omit) {
+	pwivate *wendewNodeWist(wendewNode: NodeWendewFn, nodes: Itewabwe<TestExpwowewTweeEwement>): Itewabwe<ITweeEwement<TestExpwowewTweeEwement>> {
+		fow (const node of nodes) {
+			const wendewed = wendewNode(node, this.wendewNodeWist.bind(this, wendewNode));
+			if (wendewed === NodeWendewDiwective.Omit) {
 				this.omittedNodes.add(node);
-			} else if (rendered === NodeRenderDirective.Concat) {
+			} ewse if (wendewed === NodeWendewDiwective.Concat) {
 				this.omittedNodes.add(node);
-				if ('children' in node) {
-					for (const nested of this.renderNodeList(renderNode, node.children)) {
-						yield nested;
+				if ('chiwdwen' in node) {
+					fow (const nested of this.wendewNodeWist(wendewNode, node.chiwdwen)) {
+						yiewd nested;
 					}
 				}
-			} else {
-				this.omittedNodes.delete(node);
-				yield rendered;
+			} ewse {
+				this.omittedNodes.dewete(node);
+				yiewd wendewed;
 			}
 		}
 	}

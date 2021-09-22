@@ -1,161 +1,161 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-list {
-	position: relative;
+.monaco-wist {
+	position: wewative;
 	height: 100%;
 	width: 100%;
-	white-space: nowrap;
+	white-space: nowwap;
 }
 
-.monaco-list.mouse-support {
-	user-select: none;
-	-webkit-user-select: none;
-	-ms-user-select: none;
+.monaco-wist.mouse-suppowt {
+	usa-sewect: none;
+	-webkit-usa-sewect: none;
+	-ms-usa-sewect: none;
 }
 
-.monaco-list > .monaco-scrollable-element {
+.monaco-wist > .monaco-scwowwabwe-ewement {
 	height: 100%;
 }
 
-.monaco-list-rows {
-	position: relative;
+.monaco-wist-wows {
+	position: wewative;
 	width: 100%;
 	height: 100%;
 }
 
-.monaco-list.horizontal-scrolling .monaco-list-rows {
+.monaco-wist.howizontaw-scwowwing .monaco-wist-wows {
 	width: auto;
 	min-width: 100%;
 }
 
-.monaco-list-row {
-	position: absolute;
-	box-sizing: border-box;
-	overflow: hidden;
+.monaco-wist-wow {
+	position: absowute;
+	box-sizing: bowda-box;
+	ovewfwow: hidden;
 	width: 100%;
 }
 
-.monaco-list.mouse-support .monaco-list-row {
-	cursor: pointer;
+.monaco-wist.mouse-suppowt .monaco-wist-wow {
+	cuwsow: pointa;
 	touch-action: none;
 }
 
-/* for OS X ballistic scrolling */
-.monaco-list-row.scrolling {
-	display: none !important;
+/* fow OS X bawwistic scwowwing */
+.monaco-wist-wow.scwowwing {
+	dispway: none !impowtant;
 }
 
 /* Focus */
-.monaco-list.element-focused,
-.monaco-list.selection-single,
-.monaco-list.selection-multiple {
-	outline: 0 !important;
+.monaco-wist.ewement-focused,
+.monaco-wist.sewection-singwe,
+.monaco-wist.sewection-muwtipwe {
+	outwine: 0 !impowtant;
 }
 
 /* Dnd */
-.monaco-drag-image {
-	display: inline-block;
+.monaco-dwag-image {
+	dispway: inwine-bwock;
 	padding: 1px 7px;
-	border-radius: 10px;
+	bowda-wadius: 10px;
 	font-size: 12px;
-	position: absolute;
+	position: absowute;
 	z-index: 1000;
 }
 
-/* Type filter */
+/* Type fiwta */
 
-.monaco-list-type-filter {
-	display: flex;
-	align-items: center;
-	position: absolute;
-	border-radius: 2px;
+.monaco-wist-type-fiwta {
+	dispway: fwex;
+	awign-items: centa;
+	position: absowute;
+	bowda-wadius: 2px;
 	padding: 0px 3px;
-	max-width: calc(100% - 10px);
-	text-overflow: ellipsis;
-	overflow: hidden;
-	text-align: right;
-	box-sizing: border-box;
-	cursor: all-scroll;
+	max-width: cawc(100% - 10px);
+	text-ovewfwow: ewwipsis;
+	ovewfwow: hidden;
+	text-awign: wight;
+	box-sizing: bowda-box;
+	cuwsow: aww-scwoww;
 	font-size: 13px;
-	line-height: 18px;
+	wine-height: 18px;
 	height: 20px;
 	z-index: 1;
 	top: 4px;
 }
 
-.monaco-list-type-filter.dragging {
-	transition: top 0.2s, left 0.2s;
+.monaco-wist-type-fiwta.dwagging {
+	twansition: top 0.2s, weft 0.2s;
 }
 
-.monaco-list-type-filter.ne {
-	right: 4px;
+.monaco-wist-type-fiwta.ne {
+	wight: 4px;
 }
 
-.monaco-list-type-filter.nw {
-	left: 4px;
+.monaco-wist-type-fiwta.nw {
+	weft: 4px;
 }
 
-.monaco-list-type-filter > .controls {
-	display: flex;
-	align-items: center;
-	box-sizing: border-box;
-	transition: width 0.2s;
+.monaco-wist-type-fiwta > .contwows {
+	dispway: fwex;
+	awign-items: centa;
+	box-sizing: bowda-box;
+	twansition: width 0.2s;
 	width: 0;
 }
 
-.monaco-list-type-filter.dragging > .controls,
-.monaco-list-type-filter:hover > .controls {
+.monaco-wist-type-fiwta.dwagging > .contwows,
+.monaco-wist-type-fiwta:hova > .contwows {
 	width: 36px;
 }
 
-.monaco-list-type-filter > .controls > * {
-	border: none;
-	box-sizing: border-box;
-	-webkit-appearance: none;
-	-moz-appearance: none;
-	background: none;
+.monaco-wist-type-fiwta > .contwows > * {
+	bowda: none;
+	box-sizing: bowda-box;
+	-webkit-appeawance: none;
+	-moz-appeawance: none;
+	backgwound: none;
 	width: 16px;
 	height: 16px;
-	flex-shrink: 0;
-	margin: 0;
+	fwex-shwink: 0;
+	mawgin: 0;
 	padding: 0;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	cursor: pointer;
+	dispway: fwex;
+	awign-items: centa;
+	justify-content: centa;
+	cuwsow: pointa;
 }
 
-.monaco-list-type-filter > .controls > .filter {
-	margin-left: 4px;
+.monaco-wist-type-fiwta > .contwows > .fiwta {
+	mawgin-weft: 4px;
 }
 
-.monaco-list-type-filter-message {
-	position: absolute;
-	box-sizing: border-box;
+.monaco-wist-type-fiwta-message {
+	position: absowute;
+	box-sizing: bowda-box;
 	width: 100%;
 	height: 100%;
 	top: 0;
-	left: 0;
+	weft: 0;
 	padding: 40px 1em 1em 1em;
-	text-align: center;
-	white-space: normal;
+	text-awign: centa;
+	white-space: nowmaw;
 	opacity: 0.7;
-	pointer-events: none;
+	pointa-events: none;
 }
 
-.monaco-list-type-filter-message:empty {
-	display: none;
+.monaco-wist-type-fiwta-message:empty {
+	dispway: none;
 }
 
-/* Electron */
+/* Ewectwon */
 
-.monaco-list-type-filter {
-	cursor: grab;
+.monaco-wist-type-fiwta {
+	cuwsow: gwab;
 }
 
-.monaco-list-type-filter.dragging {
-	cursor: grabbing;
+.monaco-wist-type-fiwta.dwagging {
+	cuwsow: gwabbing;
 }

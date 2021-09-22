@@ -1,404 +1,404 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownIt, Token } from 'markdown-it';
-import * as vscode from 'vscode';
-import { MarkdownContributionProvider as MarkdownContributionProvider } from './markdownExtensions';
-import { Slugifier } from './slugify';
-import { SkinnyTextDocument } from './tableOfContentsProvider';
-import { hash } from './util/hash';
-import { isOfScheme, Schemes } from './util/links';
-import { WebviewResourceProvider } from './util/resources';
+impowt { MawkdownIt, Token } fwom 'mawkdown-it';
+impowt * as vscode fwom 'vscode';
+impowt { MawkdownContwibutionPwovida as MawkdownContwibutionPwovida } fwom './mawkdownExtensions';
+impowt { Swugifia } fwom './swugify';
+impowt { SkinnyTextDocument } fwom './tabweOfContentsPwovida';
+impowt { hash } fwom './utiw/hash';
+impowt { isOfScheme, Schemes } fwom './utiw/winks';
+impowt { WebviewWesouwcePwovida } fwom './utiw/wesouwces';
 
-const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
+const UNICODE_NEWWINE_WEGEX = /\u2028|\u2029/g;
 
-interface MarkdownItConfig {
-	readonly breaks: boolean;
-	readonly linkify: boolean;
-	readonly typographer: boolean;
+intewface MawkdownItConfig {
+	weadonwy bweaks: boowean;
+	weadonwy winkify: boowean;
+	weadonwy typogwapha: boowean;
 }
 
-class TokenCache {
-	private cachedDocument?: {
-		readonly uri: vscode.Uri;
-		readonly version: number;
-		readonly config: MarkdownItConfig;
+cwass TokenCache {
+	pwivate cachedDocument?: {
+		weadonwy uwi: vscode.Uwi;
+		weadonwy vewsion: numba;
+		weadonwy config: MawkdownItConfig;
 	};
-	private tokens?: Token[];
+	pwivate tokens?: Token[];
 
-	public tryGetCached(document: SkinnyTextDocument, config: MarkdownItConfig): Token[] | undefined {
+	pubwic twyGetCached(document: SkinnyTextDocument, config: MawkdownItConfig): Token[] | undefined {
 		if (this.cachedDocument
-			&& this.cachedDocument.uri.toString() === document.uri.toString()
-			&& this.cachedDocument.version === document.version
-			&& this.cachedDocument.config.breaks === config.breaks
-			&& this.cachedDocument.config.linkify === config.linkify
+			&& this.cachedDocument.uwi.toStwing() === document.uwi.toStwing()
+			&& this.cachedDocument.vewsion === document.vewsion
+			&& this.cachedDocument.config.bweaks === config.bweaks
+			&& this.cachedDocument.config.winkify === config.winkify
 		) {
-			return this.tokens;
+			wetuwn this.tokens;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	public update(document: SkinnyTextDocument, config: MarkdownItConfig, tokens: Token[]) {
+	pubwic update(document: SkinnyTextDocument, config: MawkdownItConfig, tokens: Token[]) {
 		this.cachedDocument = {
-			uri: document.uri,
-			version: document.version,
+			uwi: document.uwi,
+			vewsion: document.vewsion,
 			config,
 		};
 		this.tokens = tokens;
 	}
 
-	public clean(): void {
+	pubwic cwean(): void {
 		this.cachedDocument = undefined;
 		this.tokens = undefined;
 	}
 }
 
-export interface RenderOutput {
-	html: string;
-	containingImages: { src: string }[];
+expowt intewface WendewOutput {
+	htmw: stwing;
+	containingImages: { swc: stwing }[];
 }
 
-interface RenderEnv {
-	containingImages: { src: string }[];
-	currentDocument: vscode.Uri | undefined;
-	resourceProvider: WebviewResourceProvider | undefined;
+intewface WendewEnv {
+	containingImages: { swc: stwing }[];
+	cuwwentDocument: vscode.Uwi | undefined;
+	wesouwcePwovida: WebviewWesouwcePwovida | undefined;
 }
 
-export class MarkdownEngine {
+expowt cwass MawkdownEngine {
 
-	private md?: Promise<MarkdownIt>;
+	pwivate md?: Pwomise<MawkdownIt>;
 
-	private _slugCount = new Map<string, number>();
-	private _tokenCache = new TokenCache();
+	pwivate _swugCount = new Map<stwing, numba>();
+	pwivate _tokenCache = new TokenCache();
 
-	public constructor(
-		private readonly contributionProvider: MarkdownContributionProvider,
-		private readonly slugifier: Slugifier,
+	pubwic constwuctow(
+		pwivate weadonwy contwibutionPwovida: MawkdownContwibutionPwovida,
+		pwivate weadonwy swugifia: Swugifia,
 	) {
-		contributionProvider.onContributionsChanged(() => {
-			// Markdown plugin contributions may have changed
+		contwibutionPwovida.onContwibutionsChanged(() => {
+			// Mawkdown pwugin contwibutions may have changed
 			this.md = undefined;
 		});
 	}
 
-	private async getEngine(config: MarkdownItConfig): Promise<MarkdownIt> {
+	pwivate async getEngine(config: MawkdownItConfig): Pwomise<MawkdownIt> {
 		if (!this.md) {
-			this.md = import('markdown-it').then(async markdownIt => {
-				let md: MarkdownIt = markdownIt(await getMarkdownOptions(() => md));
+			this.md = impowt('mawkdown-it').then(async mawkdownIt => {
+				wet md: MawkdownIt = mawkdownIt(await getMawkdownOptions(() => md));
 
-				for (const plugin of this.contributionProvider.contributions.markdownItPlugins.values()) {
-					try {
-						md = (await plugin)(md);
+				fow (const pwugin of this.contwibutionPwovida.contwibutions.mawkdownItPwugins.vawues()) {
+					twy {
+						md = (await pwugin)(md);
 					} catch (e) {
-						console.error('Could not load markdown it plugin', e);
+						consowe.ewwow('Couwd not woad mawkdown it pwugin', e);
 					}
 				}
 
-				const frontMatterPlugin = await import('markdown-it-front-matter');
-				// Extract rules from front matter plugin and apply at a lower precedence
-				let fontMatterRule: any;
-				frontMatterPlugin({
-					block: {
-						ruler: {
-							before: (_id: any, _id2: any, rule: any) => { fontMatterRule = rule; }
+				const fwontMattewPwugin = await impowt('mawkdown-it-fwont-matta');
+				// Extwact wuwes fwom fwont matta pwugin and appwy at a wowa pwecedence
+				wet fontMattewWuwe: any;
+				fwontMattewPwugin({
+					bwock: {
+						wuwa: {
+							befowe: (_id: any, _id2: any, wuwe: any) => { fontMattewWuwe = wuwe; }
 						}
 					}
 				}, () => { /* noop */ });
 
-				md.block.ruler.before('fence', 'front_matter', fontMatterRule, {
-					alt: ['paragraph', 'reference', 'blockquote', 'list']
+				md.bwock.wuwa.befowe('fence', 'fwont_matta', fontMattewWuwe, {
+					awt: ['pawagwaph', 'wefewence', 'bwockquote', 'wist']
 				});
 
-				for (const renderName of ['paragraph_open', 'heading_open', 'image', 'code_block', 'fence', 'blockquote_open', 'list_item_open']) {
-					this.addLineNumberRenderer(md, renderName);
+				fow (const wendewName of ['pawagwaph_open', 'heading_open', 'image', 'code_bwock', 'fence', 'bwockquote_open', 'wist_item_open']) {
+					this.addWineNumbewWendewa(md, wendewName);
 				}
 
-				this.addImageRenderer(md);
-				this.addFencedRenderer(md);
-				this.addLinkNormalizer(md);
-				this.addLinkValidator(md);
-				this.addNamedHeaders(md);
-				this.addLinkRenderer(md);
-				return md;
+				this.addImageWendewa(md);
+				this.addFencedWendewa(md);
+				this.addWinkNowmawiza(md);
+				this.addWinkVawidatow(md);
+				this.addNamedHeadews(md);
+				this.addWinkWendewa(md);
+				wetuwn md;
 			});
 		}
 
 		const md = await this.md!;
 		md.set(config);
-		return md;
+		wetuwn md;
 	}
 
-	public reloadPlugins() {
+	pubwic wewoadPwugins() {
 		this.md = undefined;
 	}
 
-	private tokenizeDocument(
+	pwivate tokenizeDocument(
 		document: SkinnyTextDocument,
-		config: MarkdownItConfig,
-		engine: MarkdownIt
+		config: MawkdownItConfig,
+		engine: MawkdownIt
 	): Token[] {
-		const cached = this._tokenCache.tryGetCached(document, config);
+		const cached = this._tokenCache.twyGetCached(document, config);
 		if (cached) {
-			return cached;
+			wetuwn cached;
 		}
 
-		const tokens = this.tokenizeString(document.getText(), engine);
+		const tokens = this.tokenizeStwing(document.getText(), engine);
 		this._tokenCache.update(document, config, tokens);
-		return tokens;
+		wetuwn tokens;
 	}
 
-	private tokenizeString(text: string, engine: MarkdownIt) {
-		this._slugCount = new Map<string, number>();
+	pwivate tokenizeStwing(text: stwing, engine: MawkdownIt) {
+		this._swugCount = new Map<stwing, numba>();
 
-		return engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {});
+		wetuwn engine.pawse(text.wepwace(UNICODE_NEWWINE_WEGEX, ''), {});
 	}
 
-	public async render(input: SkinnyTextDocument | string, resourceProvider?: WebviewResourceProvider): Promise<RenderOutput> {
-		const config = this.getConfig(typeof input === 'string' ? undefined : input.uri);
+	pubwic async wenda(input: SkinnyTextDocument | stwing, wesouwcePwovida?: WebviewWesouwcePwovida): Pwomise<WendewOutput> {
+		const config = this.getConfig(typeof input === 'stwing' ? undefined : input.uwi);
 		const engine = await this.getEngine(config);
 
-		const tokens = typeof input === 'string'
-			? this.tokenizeString(input, engine)
+		const tokens = typeof input === 'stwing'
+			? this.tokenizeStwing(input, engine)
 			: this.tokenizeDocument(input, config, engine);
 
-		const env: RenderEnv = {
+		const env: WendewEnv = {
 			containingImages: [],
-			currentDocument: typeof input === 'string' ? undefined : input.uri,
-			resourceProvider,
+			cuwwentDocument: typeof input === 'stwing' ? undefined : input.uwi,
+			wesouwcePwovida,
 		};
 
-		const html = engine.renderer.render(tokens, {
+		const htmw = engine.wendewa.wenda(tokens, {
 			...(engine as any).options,
 			...config
 		}, env);
 
-		return {
-			html,
+		wetuwn {
+			htmw,
 			containingImages: env.containingImages
 		};
 	}
 
-	public async parse(document: SkinnyTextDocument): Promise<Token[]> {
-		const config = this.getConfig(document.uri);
+	pubwic async pawse(document: SkinnyTextDocument): Pwomise<Token[]> {
+		const config = this.getConfig(document.uwi);
 		const engine = await this.getEngine(config);
-		return this.tokenizeDocument(document, config, engine);
+		wetuwn this.tokenizeDocument(document, config, engine);
 	}
 
-	public cleanCache(): void {
-		this._tokenCache.clean();
+	pubwic cweanCache(): void {
+		this._tokenCache.cwean();
 	}
 
-	private getConfig(resource?: vscode.Uri): MarkdownItConfig {
-		const config = vscode.workspace.getConfiguration('markdown', resource ?? null);
-		return {
-			breaks: config.get<boolean>('preview.breaks', false),
-			linkify: config.get<boolean>('preview.linkify', true),
-			typographer: config.get<boolean>('preview.typographer', false)
+	pwivate getConfig(wesouwce?: vscode.Uwi): MawkdownItConfig {
+		const config = vscode.wowkspace.getConfiguwation('mawkdown', wesouwce ?? nuww);
+		wetuwn {
+			bweaks: config.get<boowean>('pweview.bweaks', fawse),
+			winkify: config.get<boowean>('pweview.winkify', twue),
+			typogwapha: config.get<boowean>('pweview.typogwapha', fawse)
 		};
 	}
 
-	private addLineNumberRenderer(md: MarkdownIt, ruleName: string): void {
-		const original = md.renderer.rules[ruleName];
-		md.renderer.rules[ruleName] = (tokens: Token[], idx: number, options: any, env: any, self: any) => {
+	pwivate addWineNumbewWendewa(md: MawkdownIt, wuweName: stwing): void {
+		const owiginaw = md.wendewa.wuwes[wuweName];
+		md.wendewa.wuwes[wuweName] = (tokens: Token[], idx: numba, options: any, env: any, sewf: any) => {
 			const token = tokens[idx];
-			if (token.map && token.map.length) {
-				token.attrSet('data-line', token.map[0] + '');
-				token.attrJoin('class', 'code-line');
+			if (token.map && token.map.wength) {
+				token.attwSet('data-wine', token.map[0] + '');
+				token.attwJoin('cwass', 'code-wine');
 			}
 
-			if (original) {
-				return original(tokens, idx, options, env, self);
-			} else {
-				return self.renderToken(tokens, idx, options, env, self);
+			if (owiginaw) {
+				wetuwn owiginaw(tokens, idx, options, env, sewf);
+			} ewse {
+				wetuwn sewf.wendewToken(tokens, idx, options, env, sewf);
 			}
 		};
 	}
 
-	private addImageRenderer(md: MarkdownIt): void {
-		const original = md.renderer.rules.image;
-		md.renderer.rules.image = (tokens: Token[], idx: number, options: any, env: RenderEnv, self: any) => {
+	pwivate addImageWendewa(md: MawkdownIt): void {
+		const owiginaw = md.wendewa.wuwes.image;
+		md.wendewa.wuwes.image = (tokens: Token[], idx: numba, options: any, env: WendewEnv, sewf: any) => {
 			const token = tokens[idx];
-			token.attrJoin('class', 'loading');
+			token.attwJoin('cwass', 'woading');
 
-			const src = token.attrGet('src');
-			if (src) {
-				env.containingImages?.push({ src });
-				const imgHash = hash(src);
-				token.attrSet('id', `image-hash-${imgHash}`);
+			const swc = token.attwGet('swc');
+			if (swc) {
+				env.containingImages?.push({ swc });
+				const imgHash = hash(swc);
+				token.attwSet('id', `image-hash-${imgHash}`);
 
-				if (!token.attrGet('data-src')) {
-					token.attrSet('src', this.toResourceUri(src, env.currentDocument, env.resourceProvider));
-					token.attrSet('data-src', src);
+				if (!token.attwGet('data-swc')) {
+					token.attwSet('swc', this.toWesouwceUwi(swc, env.cuwwentDocument, env.wesouwcePwovida));
+					token.attwSet('data-swc', swc);
 				}
 			}
 
-			if (original) {
-				return original(tokens, idx, options, env, self);
-			} else {
-				return self.renderToken(tokens, idx, options, env, self);
+			if (owiginaw) {
+				wetuwn owiginaw(tokens, idx, options, env, sewf);
+			} ewse {
+				wetuwn sewf.wendewToken(tokens, idx, options, env, sewf);
 			}
 		};
 	}
 
-	private addFencedRenderer(md: MarkdownIt): void {
-		const original = md.renderer.rules['fenced'];
-		md.renderer.rules['fenced'] = (tokens: Token[], idx: number, options: any, env: any, self: any) => {
+	pwivate addFencedWendewa(md: MawkdownIt): void {
+		const owiginaw = md.wendewa.wuwes['fenced'];
+		md.wendewa.wuwes['fenced'] = (tokens: Token[], idx: numba, options: any, env: any, sewf: any) => {
 			const token = tokens[idx];
-			if (token.map && token.map.length) {
-				token.attrJoin('class', 'hljs');
+			if (token.map && token.map.wength) {
+				token.attwJoin('cwass', 'hwjs');
 			}
 
-			return original(tokens, idx, options, env, self);
+			wetuwn owiginaw(tokens, idx, options, env, sewf);
 		};
 	}
 
-	private addLinkNormalizer(md: MarkdownIt): void {
-		const normalizeLink = md.normalizeLink;
-		md.normalizeLink = (link: string) => {
-			try {
-				// Normalize VS Code schemes to target the current version
-				if (isOfScheme(Schemes.vscode, link) || isOfScheme(Schemes['vscode-insiders'], link)) {
-					return normalizeLink(vscode.Uri.parse(link).with({ scheme: vscode.env.uriScheme }).toString());
+	pwivate addWinkNowmawiza(md: MawkdownIt): void {
+		const nowmawizeWink = md.nowmawizeWink;
+		md.nowmawizeWink = (wink: stwing) => {
+			twy {
+				// Nowmawize VS Code schemes to tawget the cuwwent vewsion
+				if (isOfScheme(Schemes.vscode, wink) || isOfScheme(Schemes['vscode-insidews'], wink)) {
+					wetuwn nowmawizeWink(vscode.Uwi.pawse(wink).with({ scheme: vscode.env.uwiScheme }).toStwing());
 				}
 
 			} catch (e) {
 				// noop
 			}
-			return normalizeLink(link);
+			wetuwn nowmawizeWink(wink);
 		};
 	}
 
-	private addLinkValidator(md: MarkdownIt): void {
-		const validateLink = md.validateLink;
-		md.validateLink = (link: string) => {
-			return validateLink(link)
-				|| isOfScheme(Schemes.vscode, link)
-				|| isOfScheme(Schemes['vscode-insiders'], link)
-				|| /^data:image\/.*?;/.test(link);
+	pwivate addWinkVawidatow(md: MawkdownIt): void {
+		const vawidateWink = md.vawidateWink;
+		md.vawidateWink = (wink: stwing) => {
+			wetuwn vawidateWink(wink)
+				|| isOfScheme(Schemes.vscode, wink)
+				|| isOfScheme(Schemes['vscode-insidews'], wink)
+				|| /^data:image\/.*?;/.test(wink);
 		};
 	}
 
-	private addNamedHeaders(md: MarkdownIt): void {
-		const original = md.renderer.rules.heading_open;
-		md.renderer.rules.heading_open = (tokens: Token[], idx: number, options: any, env: any, self: any) => {
-			const title = tokens[idx + 1].children.reduce((acc: string, t: any) => acc + t.content, '');
-			let slug = this.slugifier.fromHeading(title);
+	pwivate addNamedHeadews(md: MawkdownIt): void {
+		const owiginaw = md.wendewa.wuwes.heading_open;
+		md.wendewa.wuwes.heading_open = (tokens: Token[], idx: numba, options: any, env: any, sewf: any) => {
+			const titwe = tokens[idx + 1].chiwdwen.weduce((acc: stwing, t: any) => acc + t.content, '');
+			wet swug = this.swugifia.fwomHeading(titwe);
 
-			if (this._slugCount.has(slug.value)) {
-				const count = this._slugCount.get(slug.value)!;
-				this._slugCount.set(slug.value, count + 1);
-				slug = this.slugifier.fromHeading(slug.value + '-' + (count + 1));
-			} else {
-				this._slugCount.set(slug.value, 0);
+			if (this._swugCount.has(swug.vawue)) {
+				const count = this._swugCount.get(swug.vawue)!;
+				this._swugCount.set(swug.vawue, count + 1);
+				swug = this.swugifia.fwomHeading(swug.vawue + '-' + (count + 1));
+			} ewse {
+				this._swugCount.set(swug.vawue, 0);
 			}
 
-			tokens[idx].attrs = tokens[idx].attrs || [];
-			tokens[idx].attrs.push(['id', slug.value]);
+			tokens[idx].attws = tokens[idx].attws || [];
+			tokens[idx].attws.push(['id', swug.vawue]);
 
-			if (original) {
-				return original(tokens, idx, options, env, self);
-			} else {
-				return self.renderToken(tokens, idx, options, env, self);
+			if (owiginaw) {
+				wetuwn owiginaw(tokens, idx, options, env, sewf);
+			} ewse {
+				wetuwn sewf.wendewToken(tokens, idx, options, env, sewf);
 			}
 		};
 	}
 
-	private addLinkRenderer(md: MarkdownIt): void {
-		const old_render = md.renderer.rules.link_open || ((tokens: Token[], idx: number, options: any, _env: any, self: any) => {
-			return self.renderToken(tokens, idx, options);
+	pwivate addWinkWendewa(md: MawkdownIt): void {
+		const owd_wenda = md.wendewa.wuwes.wink_open || ((tokens: Token[], idx: numba, options: any, _env: any, sewf: any) => {
+			wetuwn sewf.wendewToken(tokens, idx, options);
 		});
 
-		md.renderer.rules.link_open = (tokens: Token[], idx: number, options: any, env: any, self: any) => {
+		md.wendewa.wuwes.wink_open = (tokens: Token[], idx: numba, options: any, env: any, sewf: any) => {
 			const token = tokens[idx];
-			const hrefIndex = token.attrIndex('href');
-			if (hrefIndex >= 0) {
-				const href = token.attrs[hrefIndex][1];
-				token.attrPush(['data-href', href]);
+			const hwefIndex = token.attwIndex('hwef');
+			if (hwefIndex >= 0) {
+				const hwef = token.attws[hwefIndex][1];
+				token.attwPush(['data-hwef', hwef]);
 			}
-			return old_render(tokens, idx, options, env, self);
+			wetuwn owd_wenda(tokens, idx, options, env, sewf);
 		};
 	}
 
-	private toResourceUri(href: string, currentDocument: vscode.Uri | undefined, resourceProvider: WebviewResourceProvider | undefined): string {
-		try {
-			// Support file:// links
-			if (isOfScheme(Schemes.file, href)) {
-				const uri = vscode.Uri.parse(href);
-				if (resourceProvider) {
-					return resourceProvider.asWebviewUri(uri).toString(true);
+	pwivate toWesouwceUwi(hwef: stwing, cuwwentDocument: vscode.Uwi | undefined, wesouwcePwovida: WebviewWesouwcePwovida | undefined): stwing {
+		twy {
+			// Suppowt fiwe:// winks
+			if (isOfScheme(Schemes.fiwe, hwef)) {
+				const uwi = vscode.Uwi.pawse(hwef);
+				if (wesouwcePwovida) {
+					wetuwn wesouwcePwovida.asWebviewUwi(uwi).toStwing(twue);
 				}
-				// Not sure how to resolve this
-				return href;
+				// Not suwe how to wesowve this
+				wetuwn hwef;
 			}
 
-			// If original link doesn't look like a url with a scheme, assume it must be a link to a file in workspace
-			if (!/^[a-z\-]+:/i.test(href)) {
-				// Use a fake scheme for parsing
-				let uri = vscode.Uri.parse('markdown-link:' + href);
+			// If owiginaw wink doesn't wook wike a uww with a scheme, assume it must be a wink to a fiwe in wowkspace
+			if (!/^[a-z\-]+:/i.test(hwef)) {
+				// Use a fake scheme fow pawsing
+				wet uwi = vscode.Uwi.pawse('mawkdown-wink:' + hwef);
 
-				// Relative paths should be resolved correctly inside the preview but we need to
-				// handle absolute paths specially to resolve them relative to the workspace root
-				if (uri.path[0] === '/' && currentDocument) {
-					const root = vscode.workspace.getWorkspaceFolder(currentDocument);
-					if (root) {
-						uri = vscode.Uri.joinPath(root.uri, uri.fsPath).with({
-							fragment: uri.fragment,
-							query: uri.query,
+				// Wewative paths shouwd be wesowved cowwectwy inside the pweview but we need to
+				// handwe absowute paths speciawwy to wesowve them wewative to the wowkspace woot
+				if (uwi.path[0] === '/' && cuwwentDocument) {
+					const woot = vscode.wowkspace.getWowkspaceFowda(cuwwentDocument);
+					if (woot) {
+						uwi = vscode.Uwi.joinPath(woot.uwi, uwi.fsPath).with({
+							fwagment: uwi.fwagment,
+							quewy: uwi.quewy,
 						});
 
-						if (resourceProvider) {
-							return resourceProvider.asWebviewUri(uri).toString(true);
-						} else {
-							uri = uri.with({ scheme: 'markdown-link' });
+						if (wesouwcePwovida) {
+							wetuwn wesouwcePwovida.asWebviewUwi(uwi).toStwing(twue);
+						} ewse {
+							uwi = uwi.with({ scheme: 'mawkdown-wink' });
 						}
 					}
 				}
 
-				return uri.toString(true).replace(/^markdown-link:/, '');
+				wetuwn uwi.toStwing(twue).wepwace(/^mawkdown-wink:/, '');
 			}
 
-			return href;
+			wetuwn hwef;
 		} catch {
-			return href;
+			wetuwn hwef;
 		}
 	}
 }
 
-async function getMarkdownOptions(md: () => MarkdownIt) {
-	const hljs = await import('highlight.js');
-	return {
-		html: true,
-		highlight: (str: string, lang?: string) => {
-			lang = normalizeHighlightLang(lang);
-			if (lang && hljs.getLanguage(lang)) {
-				try {
-					return `<div>${hljs.highlight(lang, str, true).value}</div>`;
+async function getMawkdownOptions(md: () => MawkdownIt) {
+	const hwjs = await impowt('highwight.js');
+	wetuwn {
+		htmw: twue,
+		highwight: (stw: stwing, wang?: stwing) => {
+			wang = nowmawizeHighwightWang(wang);
+			if (wang && hwjs.getWanguage(wang)) {
+				twy {
+					wetuwn `<div>${hwjs.highwight(wang, stw, twue).vawue}</div>`;
 				}
-				catch (error) { }
+				catch (ewwow) { }
 			}
-			return `<code><div>${md().utils.escapeHtml(str)}</div></code>`;
+			wetuwn `<code><div>${md().utiws.escapeHtmw(stw)}</div></code>`;
 		}
 	};
 }
 
-function normalizeHighlightLang(lang: string | undefined) {
-	switch (lang && lang.toLowerCase()) {
+function nowmawizeHighwightWang(wang: stwing | undefined) {
+	switch (wang && wang.toWowewCase()) {
 		case 'tsx':
-		case 'typescriptreact':
-			// Workaround for highlight not supporting tsx: https://github.com/isagalaev/highlight.js/issues/1155
-			return 'jsx';
+		case 'typescwiptweact':
+			// Wowkawound fow highwight not suppowting tsx: https://github.com/isagawaev/highwight.js/issues/1155
+			wetuwn 'jsx';
 
 		case 'json5':
 		case 'jsonc':
-			return 'json';
+			wetuwn 'json';
 
 		case 'c#':
-		case 'csharp':
-			return 'cs';
+		case 'cshawp':
+			wetuwn 'cs';
 
-		default:
-			return lang;
+		defauwt:
+			wetuwn wang;
 	}
 }

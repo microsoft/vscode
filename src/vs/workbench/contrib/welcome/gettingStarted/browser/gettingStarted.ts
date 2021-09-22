@@ -1,646 +1,646 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./gettingStarted';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorSerializer, IEditorOpenContext } from 'vs/workbench/common/editor';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { assertIsDefined } from 'vs/base/common/types';
-import { $, addDisposableListener, append, clearNode, Dimension, reset } from 'vs/base/browser/dom';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { hiddenEntriesConfigurationKey, IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
-import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground, welcomePageTileBackground, welcomePageTileHoverBackground, welcomePageTileShadow } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedColors';
-import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { firstSessionDateStorageKey, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { gettingStartedCheckedCodicon, gettingStartedUncheckedCodicon } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedIcons';
-import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
-import { URI } from 'vs/base/common/uri';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFolder, isRecentWorkspace, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IWindowOpenable } from 'vs/platform/windows/common/windows';
-import { splitName } from 'vs/base/common/labels';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { isMacintosh, locale } from 'vs/base/common/platform';
-import { Throttler } from 'vs/base/common/async';
-import { GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
-import { GroupDirection, GroupsOrder, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { ILink, LinkedText } from 'vs/base/common/linkedText';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { attachButtonStyler } from 'vs/platform/theme/common/styler';
-import { Link } from 'vs/platform/opener/browser/link';
-import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
-import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
-import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/browser/markdownDocumentRenderer';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { generateUuid } from 'vs/base/common/uuid';
-import { TokenizationRegistry } from 'vs/editor/common/modes';
-import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
-import { ResourceMap } from 'vs/base/common/map';
-import { IFileService } from 'vs/platform/files/common/files';
-import { joinPath } from 'vs/base/common/resources';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
-import { Schemas } from 'vs/base/common/network';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { coalesce, equals, flatten } from 'vs/base/common/arrays';
-import { ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from 'vs/workbench/common/theme';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { startEntries } from 'vs/workbench/contrib/welcome/gettingStarted/common/gettingStartedContent';
-import { GettingStartedIndexList } from './gettingStartedList';
-import product from 'vs/platform/product/common/product';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
+impowt 'vs/css!./gettingStawted';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IEditowSewiawiza, IEditowOpenContext } fwom 'vs/wowkbench/common/editow';
+impowt { DisposabweStowe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { $, addDisposabweWistena, append, cweawNode, Dimension, weset } fwom 'vs/base/bwowsa/dom';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { hiddenEntwiesConfiguwationKey, IWesowvedWawkthwough, IWesowvedWawkthwoughStep, IWawkthwoughsSewvice } fwom 'vs/wowkbench/contwib/wewcome/gettingStawted/bwowsa/gettingStawtedSewvice';
+impowt { IThemeSewvice, wegistewThemingPawticipant, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { wewcomePageBackgwound, wewcomePagePwogwessBackgwound, wewcomePagePwogwessFowegwound, wewcomePageTiweBackgwound, wewcomePageTiweHovewBackgwound, wewcomePageTiweShadow } fwom 'vs/wowkbench/contwib/wewcome/gettingStawted/bwowsa/gettingStawtedCowows';
+impowt { activeContwastBowda, buttonBackgwound, buttonFowegwound, buttonHovewBackgwound, contwastBowda, descwiptionFowegwound, focusBowda, fowegwound, textWinkActiveFowegwound, textWinkFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { fiwstSessionDateStowageKey, ITewemetwySewvice, TewemetwyWevew } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { DomScwowwabweEwement } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwabweEwement';
+impowt { gettingStawtedCheckedCodicon, gettingStawtedUncheckedCodicon } fwom 'vs/wowkbench/contwib/wewcome/gettingStawted/bwowsa/gettingStawtedIcons';
+impowt { IOpenewSewvice, matchesScheme } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { EditowPane } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPane';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { ConfiguwationTawget, IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ContextKeyExpw, ContextKeyExpwession, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IWecentFowda, IWecentwyOpened, IWecentWowkspace, isWecentFowda, isWecentWowkspace, IWowkspacesSewvice } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IWindowOpenabwe } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { spwitName } fwom 'vs/base/common/wabews';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { isMacintosh, wocawe } fwom 'vs/base/common/pwatfowm';
+impowt { Thwottwa } fwom 'vs/base/common/async';
+impowt { GettingStawtedInput } fwom 'vs/wowkbench/contwib/wewcome/gettingStawted/bwowsa/gettingStawtedInput';
+impowt { GwoupDiwection, GwoupsOwda, IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IWink, WinkedText } fwom 'vs/base/common/winkedText';
+impowt { Button } fwom 'vs/base/bwowsa/ui/button/button';
+impowt { attachButtonStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { Wink } fwom 'vs/pwatfowm/opena/bwowsa/wink';
+impowt { wendewFowmattedText } fwom 'vs/base/bwowsa/fowmattedTextWendewa';
+impowt { IWebviewSewvice } fwom 'vs/wowkbench/contwib/webview/bwowsa/webview';
+impowt { DEFAUWT_MAWKDOWN_STYWES, wendewMawkdownDocument } fwom 'vs/wowkbench/contwib/mawkdown/bwowsa/mawkdownDocumentWendewa';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { TokenizationWegistwy } fwom 'vs/editow/common/modes';
+impowt { genewateTokensCSSFowCowowMap } fwom 'vs/editow/common/modes/suppowts/tokenization';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { asWebviewUwi } fwom 'vs/wowkbench/api/common/shawed/webview';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { coawesce, equaws, fwatten } fwom 'vs/base/common/awways';
+impowt { ThemeSettings } fwom 'vs/wowkbench/sewvices/themes/common/wowkbenchThemeSewvice';
+impowt { ACTIVITY_BAW_BADGE_BACKGWOUND, ACTIVITY_BAW_BADGE_FOWEGWOUND } fwom 'vs/wowkbench/common/theme';
+impowt { MawkdownWendewa } fwom 'vs/editow/bwowsa/cowe/mawkdownWendewa';
+impowt { stawtEntwies } fwom 'vs/wowkbench/contwib/wewcome/gettingStawted/common/gettingStawtedContent';
+impowt { GettingStawtedIndexWist } fwom './gettingStawtedWist';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { getTewemetwyWevew } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
 
-const SLIDE_TRANSITION_TIME_MS = 250;
-const configurationKey = 'workbench.startupEditor';
+const SWIDE_TWANSITION_TIME_MS = 250;
+const configuwationKey = 'wowkbench.stawtupEditow';
 
-export const allWalkthroughsHiddenContext = new RawContextKey('allWalkthroughsHidden', false);
-export const inWelcomeContext = new RawContextKey('inWelcome', false);
+expowt const awwWawkthwoughsHiddenContext = new WawContextKey('awwWawkthwoughsHidden', fawse);
+expowt const inWewcomeContext = new WawContextKey('inWewcome', fawse);
 
-export interface IWelcomePageStartEntry {
-	id: string
-	title: string
-	description: string
-	command: string
-	order: number
+expowt intewface IWewcomePageStawtEntwy {
+	id: stwing
+	titwe: stwing
+	descwiption: stwing
+	command: stwing
+	owda: numba
 	icon: { type: 'icon', icon: ThemeIcon }
-	when: ContextKeyExpression
+	when: ContextKeyExpwession
 }
 
-const parsedStartEntries: IWelcomePageStartEntry[] = startEntries.map((e, i) => ({
+const pawsedStawtEntwies: IWewcomePageStawtEntwy[] = stawtEntwies.map((e, i) => ({
 	command: e.content.command,
-	description: e.description,
+	descwiption: e.descwiption,
 	icon: { type: 'icon', icon: e.icon },
 	id: e.id,
-	order: i,
-	title: e.title,
-	when: ContextKeyExpr.deserialize(e.when) ?? ContextKeyExpr.true()
+	owda: i,
+	titwe: e.titwe,
+	when: ContextKeyExpw.desewiawize(e.when) ?? ContextKeyExpw.twue()
 }));
 
-type GettingStartedActionClassification = {
-	command: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
-	argument: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+type GettingStawtedActionCwassification = {
+	command: { cwassification: 'PubwicNonPewsonawData', puwpose: 'FeatuweInsight' };
+	awgument: { cwassification: 'PubwicNonPewsonawData', puwpose: 'FeatuweInsight' };
 };
 
-type GettingStartedActionEvent = {
-	command: string;
-	argument: string | undefined;
+type GettingStawtedActionEvent = {
+	command: stwing;
+	awgument: stwing | undefined;
 };
 
-type RecentEntry = (IRecentFolder | IRecentWorkspace) & { id: string };
+type WecentEntwy = (IWecentFowda | IWecentWowkspace) & { id: stwing };
 
-const REDUCED_MOTION_KEY = 'workbench.welcomePage.preferReducedMotion';
-export class GettingStartedPage extends EditorPane {
+const WEDUCED_MOTION_KEY = 'wowkbench.wewcomePage.pwefewWeducedMotion';
+expowt cwass GettingStawtedPage extends EditowPane {
 
-	public static readonly ID = 'gettingStartedPage';
+	pubwic static weadonwy ID = 'gettingStawtedPage';
 
-	private editorInput!: GettingStartedInput;
-	private inProgressScroll = Promise.resolve();
+	pwivate editowInput!: GettingStawtedInput;
+	pwivate inPwogwessScwoww = Pwomise.wesowve();
 
-	private dispatchListeners: DisposableStore = new DisposableStore();
-	private stepDisposables: DisposableStore = new DisposableStore();
-	private detailsPageDisposables: DisposableStore = new DisposableStore();
+	pwivate dispatchWistenews: DisposabweStowe = new DisposabweStowe();
+	pwivate stepDisposabwes: DisposabweStowe = new DisposabweStowe();
+	pwivate detaiwsPageDisposabwes: DisposabweStowe = new DisposabweStowe();
 
-	private gettingStartedCategories: IResolvedWalkthrough[];
-	private currentWalkthrough: IResolvedWalkthrough | undefined;
+	pwivate gettingStawtedCategowies: IWesowvedWawkthwough[];
+	pwivate cuwwentWawkthwough: IWesowvedWawkthwough | undefined;
 
-	private categoriesPageScrollbar: DomScrollableElement | undefined;
-	private detailsPageScrollbar: DomScrollableElement | undefined;
+	pwivate categowiesPageScwowwbaw: DomScwowwabweEwement | undefined;
+	pwivate detaiwsPageScwowwbaw: DomScwowwabweEwement | undefined;
 
-	private detailsScrollbar: DomScrollableElement | undefined;
+	pwivate detaiwsScwowwbaw: DomScwowwabweEwement | undefined;
 
-	private buildSlideThrottle: Throttler = new Throttler();
+	pwivate buiwdSwideThwottwe: Thwottwa = new Thwottwa();
 
-	private container: HTMLElement;
+	pwivate containa: HTMWEwement;
 
-	private contextService: IContextKeyService;
+	pwivate contextSewvice: IContextKeySewvice;
 
-	private recentlyOpened: Promise<IRecentlyOpened>;
-	private hasScrolledToFirstCategory = false;
-	private recentlyOpenedList?: GettingStartedIndexList<RecentEntry>;
-	private startList?: GettingStartedIndexList<IWelcomePageStartEntry>;
-	private gettingStartedList?: GettingStartedIndexList<IResolvedWalkthrough>;
+	pwivate wecentwyOpened: Pwomise<IWecentwyOpened>;
+	pwivate hasScwowwedToFiwstCategowy = fawse;
+	pwivate wecentwyOpenedWist?: GettingStawtedIndexWist<WecentEntwy>;
+	pwivate stawtWist?: GettingStawtedIndexWist<IWewcomePageStawtEntwy>;
+	pwivate gettingStawtedWist?: GettingStawtedIndexWist<IWesowvedWawkthwough>;
 
-	private stepsSlide!: HTMLElement;
-	private categoriesSlide!: HTMLElement;
-	private stepsContent!: HTMLElement;
-	private stepMediaComponent!: HTMLElement;
+	pwivate stepsSwide!: HTMWEwement;
+	pwivate categowiesSwide!: HTMWEwement;
+	pwivate stepsContent!: HTMWEwement;
+	pwivate stepMediaComponent!: HTMWEwement;
 
-	private layoutMarkdown: (() => void) | undefined;
+	pwivate wayoutMawkdown: (() => void) | undefined;
 
-	private webviewID = generateUuid();
+	pwivate webviewID = genewateUuid();
 
-	constructor(
-		@ICommandService private readonly commandService: ICommandService,
-		@IProductService private readonly productService: IProductService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IWalkthroughsService private readonly gettingStartedService: IWalkthroughsService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IModeService private readonly modeService: IModeService,
-		@IFileService private readonly fileService: IFileService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IThemeService themeService: IThemeService,
-		@IStorageService private storageService: IStorageService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IEditorGroupsService private readonly groupsService: IEditorGroupsService,
-		@IContextKeyService contextService: IContextKeyService,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IWorkspacesService workspacesService: IWorkspacesService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IHostService private readonly hostService: IHostService,
-		@IWebviewService private readonly webviewService: IWebviewService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+	constwuctow(
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@IKeybindingSewvice pwivate weadonwy keybindingSewvice: IKeybindingSewvice,
+		@IWawkthwoughsSewvice pwivate weadonwy gettingStawtedSewvice: IWawkthwoughsSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IModeSewvice pwivate weadonwy modeSewvice: IModeSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IOpenewSewvice pwivate weadonwy openewSewvice: IOpenewSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IStowageSewvice pwivate stowageSewvice: IStowageSewvice,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy gwoupsSewvice: IEditowGwoupsSewvice,
+		@IContextKeySewvice contextSewvice: IContextKeySewvice,
+		@IQuickInputSewvice pwivate quickInputSewvice: IQuickInputSewvice,
+		@IWowkspacesSewvice wowkspacesSewvice: IWowkspacesSewvice,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@IHostSewvice pwivate weadonwy hostSewvice: IHostSewvice,
+		@IWebviewSewvice pwivate weadonwy webviewSewvice: IWebviewSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy wowkspaceContextSewvice: IWowkspaceContextSewvice,
 	) {
 
-		super(GettingStartedPage.ID, telemetryService, themeService, storageService);
+		supa(GettingStawtedPage.ID, tewemetwySewvice, themeSewvice, stowageSewvice);
 
-		this.container = $('.gettingStartedContainer',
+		this.containa = $('.gettingStawtedContaina',
 			{
-				role: 'document',
+				wowe: 'document',
 				tabindex: 0,
-				'aria-label': localize('welcomeAriaLabel', "Overview of how to get up to speed with your editor.")
+				'awia-wabew': wocawize('wewcomeAwiaWabew', "Ovewview of how to get up to speed with youw editow.")
 			});
-		this.stepMediaComponent = $('.getting-started-media');
-		this.stepMediaComponent.id = generateUuid();
+		this.stepMediaComponent = $('.getting-stawted-media');
+		this.stepMediaComponent.id = genewateUuid();
 
-		this.contextService = this._register(contextService.createScoped(this.container));
-		inWelcomeContext.bindTo(this.contextService).set(true);
+		this.contextSewvice = this._wegista(contextSewvice.cweateScoped(this.containa));
+		inWewcomeContext.bindTo(this.contextSewvice).set(twue);
 
-		this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
-		this._register(this.dispatchListeners);
-		this.buildSlideThrottle = new Throttler();
+		this.gettingStawtedCategowies = this.gettingStawtedSewvice.getWawkthwoughs();
+		this._wegista(this.dispatchWistenews);
+		this.buiwdSwideThwottwe = new Thwottwa();
 
-		const rerender = () => {
-			this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
-			if (this.currentWalkthrough) {
-				const existingSteps = this.currentWalkthrough.steps.map(step => step.id);
-				const newCategory = this.gettingStartedCategories.find(category => this.currentWalkthrough?.id === category.id);
-				if (newCategory) {
-					const newSteps = newCategory.steps.map(step => step.id);
-					if (!equals(newSteps, existingSteps)) {
-						this.buildSlideThrottle.queue(() => this.buildCategoriesSlide());
+		const wewenda = () => {
+			this.gettingStawtedCategowies = this.gettingStawtedSewvice.getWawkthwoughs();
+			if (this.cuwwentWawkthwough) {
+				const existingSteps = this.cuwwentWawkthwough.steps.map(step => step.id);
+				const newCategowy = this.gettingStawtedCategowies.find(categowy => this.cuwwentWawkthwough?.id === categowy.id);
+				if (newCategowy) {
+					const newSteps = newCategowy.steps.map(step => step.id);
+					if (!equaws(newSteps, existingSteps)) {
+						this.buiwdSwideThwottwe.queue(() => this.buiwdCategowiesSwide());
 					}
 				}
-			} else {
-				this.buildSlideThrottle.queue(() => this.buildCategoriesSlide());
+			} ewse {
+				this.buiwdSwideThwottwe.queue(() => this.buiwdCategowiesSwide());
 			}
 		};
 
-		this._register(this.gettingStartedService.onDidAddWalkthrough(rerender));
-		this._register(this.gettingStartedService.onDidRemoveWalkthrough(rerender));
+		this._wegista(this.gettingStawtedSewvice.onDidAddWawkthwough(wewenda));
+		this._wegista(this.gettingStawtedSewvice.onDidWemoveWawkthwough(wewenda));
 
-		this._register(this.gettingStartedService.onDidChangeWalkthrough(category => {
-			const ourCategory = this.gettingStartedCategories.find(c => c.id === category.id);
-			if (!ourCategory) { return; }
+		this._wegista(this.gettingStawtedSewvice.onDidChangeWawkthwough(categowy => {
+			const ouwCategowy = this.gettingStawtedCategowies.find(c => c.id === categowy.id);
+			if (!ouwCategowy) { wetuwn; }
 
-			ourCategory.title = category.title;
-			ourCategory.description = category.description;
+			ouwCategowy.titwe = categowy.titwe;
+			ouwCategowy.descwiption = categowy.descwiption;
 
-			this.container.querySelectorAll<HTMLDivElement>(`[x-category-title-for="${category.id}"]`).forEach(step => (step as HTMLDivElement).innerText = ourCategory.title);
-			this.container.querySelectorAll<HTMLDivElement>(`[x-category-description-for="${category.id}"]`).forEach(step => (step as HTMLDivElement).innerText = ourCategory.description);
+			this.containa.quewySewectowAww<HTMWDivEwement>(`[x-categowy-titwe-fow="${categowy.id}"]`).fowEach(step => (step as HTMWDivEwement).innewText = ouwCategowy.titwe);
+			this.containa.quewySewectowAww<HTMWDivEwement>(`[x-categowy-descwiption-fow="${categowy.id}"]`).fowEach(step => (step as HTMWDivEwement).innewText = ouwCategowy.descwiption);
 		}));
 
-		this._register(this.gettingStartedService.onDidProgressStep(step => {
-			const category = this.gettingStartedCategories.find(category => category.id === step.category);
-			if (!category) { throw Error('Could not find category with ID: ' + step.category); }
-			const ourStep = category.steps.find(_step => _step.id === step.id);
-			if (!ourStep) {
-				throw Error('Could not find step with ID: ' + step.id);
+		this._wegista(this.gettingStawtedSewvice.onDidPwogwessStep(step => {
+			const categowy = this.gettingStawtedCategowies.find(categowy => categowy.id === step.categowy);
+			if (!categowy) { thwow Ewwow('Couwd not find categowy with ID: ' + step.categowy); }
+			const ouwStep = categowy.steps.find(_step => _step.id === step.id);
+			if (!ouwStep) {
+				thwow Ewwow('Couwd not find step with ID: ' + step.id);
 			}
 
-			const stats = this.getWalkthroughCompletionStats(category);
-			if (!ourStep.done && stats.stepsComplete === stats.stepsTotal - 1) {
-				this.hideCategory(category.id);
+			const stats = this.getWawkthwoughCompwetionStats(categowy);
+			if (!ouwStep.done && stats.stepsCompwete === stats.stepsTotaw - 1) {
+				this.hideCategowy(categowy.id);
 			}
 
-			this._register(this.configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration(REDUCED_MOTION_KEY)) {
-					this.container.classList.toggle('animatable', this.shouldAnimate());
+			this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => {
+				if (e.affectsConfiguwation(WEDUCED_MOTION_KEY)) {
+					this.containa.cwassWist.toggwe('animatabwe', this.shouwdAnimate());
 				}
 			}));
 
-			ourStep.done = step.done;
+			ouwStep.done = step.done;
 
-			if (category.id === this.currentWalkthrough?.id) {
-				const badgeelements = assertIsDefined(document.querySelectorAll(`[data-done-step-id="${step.id}"]`));
-				badgeelements.forEach(badgeelement => {
+			if (categowy.id === this.cuwwentWawkthwough?.id) {
+				const badgeewements = assewtIsDefined(document.quewySewectowAww(`[data-done-step-id="${step.id}"]`));
+				badgeewements.fowEach(badgeewement => {
 					if (step.done) {
-						badgeelement.parentElement?.setAttribute('aria-checked', 'true');
-						badgeelement.classList.remove(...ThemeIcon.asClassNameArray(gettingStartedUncheckedCodicon));
-						badgeelement.classList.add('complete', ...ThemeIcon.asClassNameArray(gettingStartedCheckedCodicon));
+						badgeewement.pawentEwement?.setAttwibute('awia-checked', 'twue');
+						badgeewement.cwassWist.wemove(...ThemeIcon.asCwassNameAwway(gettingStawtedUncheckedCodicon));
+						badgeewement.cwassWist.add('compwete', ...ThemeIcon.asCwassNameAwway(gettingStawtedCheckedCodicon));
 					}
-					else {
-						badgeelement.parentElement?.setAttribute('aria-checked', 'false');
-						badgeelement.classList.remove('complete', ...ThemeIcon.asClassNameArray(gettingStartedCheckedCodicon));
-						badgeelement.classList.add(...ThemeIcon.asClassNameArray(gettingStartedUncheckedCodicon));
+					ewse {
+						badgeewement.pawentEwement?.setAttwibute('awia-checked', 'fawse');
+						badgeewement.cwassWist.wemove('compwete', ...ThemeIcon.asCwassNameAwway(gettingStawtedCheckedCodicon));
+						badgeewement.cwassWist.add(...ThemeIcon.asCwassNameAwway(gettingStawtedUncheckedCodicon));
 					}
 				});
 			}
-			this.updateCategoryProgress();
+			this.updateCategowyPwogwess();
 		}));
 
-		this.recentlyOpened = workspacesService.getRecentlyOpened();
+		this.wecentwyOpened = wowkspacesSewvice.getWecentwyOpened();
 	}
 
-	private shouldAnimate() {
-		return !this.configurationService.getValue(REDUCED_MOTION_KEY);
+	pwivate shouwdAnimate() {
+		wetuwn !this.configuwationSewvice.getVawue(WEDUCED_MOTION_KEY);
 	}
 
-	private getWalkthroughCompletionStats(walkthrough: IResolvedWalkthrough): { stepsComplete: number, stepsTotal: number } {
-		const activeSteps = walkthrough.steps.filter(s => this.contextService.contextMatchesRules(s.when));
-		return {
-			stepsComplete: activeSteps.filter(s => s.done).length,
-			stepsTotal: activeSteps.length,
+	pwivate getWawkthwoughCompwetionStats(wawkthwough: IWesowvedWawkthwough): { stepsCompwete: numba, stepsTotaw: numba } {
+		const activeSteps = wawkthwough.steps.fiwta(s => this.contextSewvice.contextMatchesWuwes(s.when));
+		wetuwn {
+			stepsCompwete: activeSteps.fiwta(s => s.done).wength,
+			stepsTotaw: activeSteps.wength,
 		};
 	}
 
-	override async setInput(newInput: GettingStartedInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
-		this.container.classList.remove('animatable');
-		this.editorInput = newInput;
-		await super.setInput(newInput, options, context, token);
-		await this.buildCategoriesSlide();
-		if (this.shouldAnimate()) {
-			setTimeout(() => this.container.classList.add('animatable'), 0);
+	ovewwide async setInput(newInput: GettingStawtedInput, options: IEditowOptions | undefined, context: IEditowOpenContext, token: CancewwationToken) {
+		this.containa.cwassWist.wemove('animatabwe');
+		this.editowInput = newInput;
+		await supa.setInput(newInput, options, context, token);
+		await this.buiwdCategowiesSwide();
+		if (this.shouwdAnimate()) {
+			setTimeout(() => this.containa.cwassWist.add('animatabwe'), 0);
 		}
 	}
 
-	async makeCategoryVisibleWhenAvailable(categoryID: string, stepId?: string) {
-		await this.gettingStartedService.installedExtensionsRegistered;
+	async makeCategowyVisibweWhenAvaiwabwe(categowyID: stwing, stepId?: stwing) {
+		await this.gettingStawtedSewvice.instawwedExtensionsWegistewed;
 
-		this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
-		const ourCategory = this.gettingStartedCategories.find(c => c.id === categoryID);
-		if (!ourCategory) {
-			throw Error('Could not find category with ID: ' + categoryID);
+		this.gettingStawtedCategowies = this.gettingStawtedSewvice.getWawkthwoughs();
+		const ouwCategowy = this.gettingStawtedCategowies.find(c => c.id === categowyID);
+		if (!ouwCategowy) {
+			thwow Ewwow('Couwd not find categowy with ID: ' + categowyID);
 		}
 
-		this.scrollToCategory(categoryID, stepId);
+		this.scwowwToCategowy(categowyID, stepId);
 	}
 
-	private registerDispatchListeners() {
-		this.dispatchListeners.clear();
+	pwivate wegistewDispatchWistenews() {
+		this.dispatchWistenews.cweaw();
 
-		this.container.querySelectorAll('[x-dispatch]').forEach(element => {
-			const [command, argument] = (element.getAttribute('x-dispatch') ?? '').split(':');
+		this.containa.quewySewectowAww('[x-dispatch]').fowEach(ewement => {
+			const [command, awgument] = (ewement.getAttwibute('x-dispatch') ?? '').spwit(':');
 			if (command) {
-				this.dispatchListeners.add(addDisposableListener(element, 'click', (e) => {
-					e.stopPropagation();
-					this.runDispatchCommand(command, argument);
+				this.dispatchWistenews.add(addDisposabweWistena(ewement, 'cwick', (e) => {
+					e.stopPwopagation();
+					this.wunDispatchCommand(command, awgument);
 				}));
 			}
 		});
 	}
 
-	private async runDispatchCommand(command: string, argument: string) {
-		this.commandService.executeCommand('workbench.action.keepEditor');
-		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command, argument });
+	pwivate async wunDispatchCommand(command: stwing, awgument: stwing) {
+		this.commandSewvice.executeCommand('wowkbench.action.keepEditow');
+		this.tewemetwySewvice.pubwicWog2<GettingStawtedActionEvent, GettingStawtedActionCwassification>('gettingStawted.ActionExecuted', { command, awgument });
 		switch (command) {
-			case 'scrollPrev': {
-				this.scrollPrev();
-				break;
+			case 'scwowwPwev': {
+				this.scwowwPwev();
+				bweak;
 			}
 			case 'skip': {
-				this.runSkip();
-				break;
+				this.wunSkip();
+				bweak;
 			}
-			case 'showMoreRecents': {
-				this.commandService.executeCommand('workbench.action.openRecent');
-				break;
+			case 'showMoweWecents': {
+				this.commandSewvice.executeCommand('wowkbench.action.openWecent');
+				bweak;
 			}
-			case 'seeAllWalkthroughs': {
-				await this.openWalkthroughSelector();
-				break;
+			case 'seeAwwWawkthwoughs': {
+				await this.openWawkthwoughSewectow();
+				bweak;
 			}
-			case 'openFolder': {
-				this.commandService.executeCommand(isMacintosh ? 'workbench.action.files.openFileFolder' : 'workbench.action.files.openFolder');
-				break;
+			case 'openFowda': {
+				this.commandSewvice.executeCommand(isMacintosh ? 'wowkbench.action.fiwes.openFiweFowda' : 'wowkbench.action.fiwes.openFowda');
+				bweak;
 			}
-			case 'selectCategory': {
-				const selectedCategory = this.gettingStartedCategories.find(category => category.id === argument);
-				if (!selectedCategory) { throw Error('Could not find category with ID ' + argument); }
+			case 'sewectCategowy': {
+				const sewectedCategowy = this.gettingStawtedCategowies.find(categowy => categowy.id === awgument);
+				if (!sewectedCategowy) { thwow Ewwow('Couwd not find categowy with ID ' + awgument); }
 
-				this.gettingStartedService.markWalkthroughOpened(argument);
-				this.gettingStartedList?.setEntries(this.gettingStartedService.getWalkthroughs());
-				this.scrollToCategory(argument);
-				break;
+				this.gettingStawtedSewvice.mawkWawkthwoughOpened(awgument);
+				this.gettingStawtedWist?.setEntwies(this.gettingStawtedSewvice.getWawkthwoughs());
+				this.scwowwToCategowy(awgument);
+				bweak;
 			}
-			case 'selectStartEntry': {
-				const selected = startEntries.find(e => e.id === argument);
-				if (selected) {
-					this.commandService.executeCommand(selected.content.command);
-				} else {
-					throw Error('could not find start entry with id: ' + argument);
+			case 'sewectStawtEntwy': {
+				const sewected = stawtEntwies.find(e => e.id === awgument);
+				if (sewected) {
+					this.commandSewvice.executeCommand(sewected.content.command);
+				} ewse {
+					thwow Ewwow('couwd not find stawt entwy with id: ' + awgument);
 				}
-				break;
+				bweak;
 			}
-			case 'hideCategory': {
-				this.hideCategory(argument);
-				break;
+			case 'hideCategowy': {
+				this.hideCategowy(awgument);
+				bweak;
 			}
-			// Use selectTask over selectStep to keep telemetry consistant:https://github.com/microsoft/vscode/issues/122256
-			case 'selectTask': {
-				this.selectStep(argument);
-				break;
+			// Use sewectTask ova sewectStep to keep tewemetwy consistant:https://github.com/micwosoft/vscode/issues/122256
+			case 'sewectTask': {
+				this.sewectStep(awgument);
+				bweak;
 			}
-			case 'toggleStepCompletion': {
-				this.toggleStepCompletion(argument);
-				break;
+			case 'toggweStepCompwetion': {
+				this.toggweStepCompwetion(awgument);
+				bweak;
 			}
-			case 'allDone': {
-				this.markAllStepsComplete();
-				break;
+			case 'awwDone': {
+				this.mawkAwwStepsCompwete();
+				bweak;
 			}
 			case 'nextSection': {
-				const next = this.currentWalkthrough?.next;
+				const next = this.cuwwentWawkthwough?.next;
 				if (next) {
-					this.scrollToCategory(next);
-				} else {
-					console.error('Error scrolling to next section of', this.currentWalkthrough);
+					this.scwowwToCategowy(next);
+				} ewse {
+					consowe.ewwow('Ewwow scwowwing to next section of', this.cuwwentWawkthwough);
 				}
-				break;
+				bweak;
 			}
-			default: {
-				console.error('Dispatch to', command, argument, 'not defined');
-				break;
+			defauwt: {
+				consowe.ewwow('Dispatch to', command, awgument, 'not defined');
+				bweak;
 			}
 		}
 	}
 
-	private hideCategory(categoryId: string) {
-		const selectedCategory = this.gettingStartedCategories.find(category => category.id === categoryId);
-		if (!selectedCategory) { throw Error('Could not find category with ID ' + categoryId); }
-		this.setHiddenCategories([...this.getHiddenCategories().add(categoryId)]);
-		this.gettingStartedList?.rerender();
+	pwivate hideCategowy(categowyId: stwing) {
+		const sewectedCategowy = this.gettingStawtedCategowies.find(categowy => categowy.id === categowyId);
+		if (!sewectedCategowy) { thwow Ewwow('Couwd not find categowy with ID ' + categowyId); }
+		this.setHiddenCategowies([...this.getHiddenCategowies().add(categowyId)]);
+		this.gettingStawtedWist?.wewenda();
 	}
 
-	private markAllStepsComplete() {
-		if (this.currentWalkthrough) {
-			this.currentWalkthrough?.steps.forEach(step => {
+	pwivate mawkAwwStepsCompwete() {
+		if (this.cuwwentWawkthwough) {
+			this.cuwwentWawkthwough?.steps.fowEach(step => {
 				if (!step.done) {
-					this.gettingStartedService.progressStep(step.id);
+					this.gettingStawtedSewvice.pwogwessStep(step.id);
 				}
 			});
-			this.hideCategory(this.currentWalkthrough?.id);
-			this.scrollPrev();
-		} else {
-			throw Error('No walkthrough opened');
+			this.hideCategowy(this.cuwwentWawkthwough?.id);
+			this.scwowwPwev();
+		} ewse {
+			thwow Ewwow('No wawkthwough opened');
 		}
 	}
 
-	private toggleStepCompletion(argument: string) {
-		const stepToggle = assertIsDefined(this.currentWalkthrough?.steps.find(step => step.id === argument));
-		if (stepToggle.done) {
-			this.gettingStartedService.deprogressStep(argument);
-		} else {
-			this.gettingStartedService.progressStep(argument);
+	pwivate toggweStepCompwetion(awgument: stwing) {
+		const stepToggwe = assewtIsDefined(this.cuwwentWawkthwough?.steps.find(step => step.id === awgument));
+		if (stepToggwe.done) {
+			this.gettingStawtedSewvice.depwogwessStep(awgument);
+		} ewse {
+			this.gettingStawtedSewvice.pwogwessStep(awgument);
 		}
 	}
 
-	private async openWalkthroughSelector() {
-		const selection = await this.quickInputService.pick(this.gettingStartedCategories.map(x => ({
+	pwivate async openWawkthwoughSewectow() {
+		const sewection = await this.quickInputSewvice.pick(this.gettingStawtedCategowies.map(x => ({
 			id: x.id,
-			label: x.title,
-			detail: x.description,
-			description: x.source,
-		})), { canPickMany: false, matchOnDescription: true, matchOnDetail: true, title: localize('pickWalkthroughs', "Open Walkthrough...") });
-		if (selection) {
-			this.runDispatchCommand('selectCategory', selection.id);
+			wabew: x.titwe,
+			detaiw: x.descwiption,
+			descwiption: x.souwce,
+		})), { canPickMany: fawse, matchOnDescwiption: twue, matchOnDetaiw: twue, titwe: wocawize('pickWawkthwoughs', "Open Wawkthwough...") });
+		if (sewection) {
+			this.wunDispatchCommand('sewectCategowy', sewection.id);
 		}
 	}
 
-	private svgCache = new ResourceMap<Promise<string>>();
-	private readAndCacheSVGFile(path: URI): Promise<string> {
+	pwivate svgCache = new WesouwceMap<Pwomise<stwing>>();
+	pwivate weadAndCacheSVGFiwe(path: UWI): Pwomise<stwing> {
 		if (!this.svgCache.has(path)) {
 			this.svgCache.set(path, (async () => {
-				try {
-					const bytes = await this.fileService.readFile(path);
-					return bytes.value.toString();
+				twy {
+					const bytes = await this.fiweSewvice.weadFiwe(path);
+					wetuwn bytes.vawue.toStwing();
 				} catch (e) {
-					this.notificationService.error('Error reading svg document at `' + path + '`: ' + e);
-					return '';
+					this.notificationSewvice.ewwow('Ewwow weading svg document at `' + path + '`: ' + e);
+					wetuwn '';
 				}
 			})());
 		}
-		return assertIsDefined(this.svgCache.get(path));
+		wetuwn assewtIsDefined(this.svgCache.get(path));
 	}
 
-	private mdCache = new ResourceMap<Promise<string>>();
-	private async readAndCacheStepMarkdown(path: URI): Promise<string> {
+	pwivate mdCache = new WesouwceMap<Pwomise<stwing>>();
+	pwivate async weadAndCacheStepMawkdown(path: UWI): Pwomise<stwing> {
 		if (!this.mdCache.has(path)) {
 			this.mdCache.set(path, (async () => {
-				try {
-					const moduleId = JSON.parse(path.query).moduleId;
-					if (moduleId) {
-						return new Promise<string>(resolve => {
-							require([moduleId], content => {
-								const markdown = content.default();
-								resolve(renderMarkdownDocument(markdown, this.extensionService, this.modeService));
+				twy {
+					const moduweId = JSON.pawse(path.quewy).moduweId;
+					if (moduweId) {
+						wetuwn new Pwomise<stwing>(wesowve => {
+							wequiwe([moduweId], content => {
+								const mawkdown = content.defauwt();
+								wesowve(wendewMawkdownDocument(mawkdown, this.extensionSewvice, this.modeSewvice));
 							});
 						});
 					}
 				} catch { }
-				try {
-					const localizedPath = path.with({ path: path.path.replace(/\.md$/, `.nls.${locale}.md`) });
+				twy {
+					const wocawizedPath = path.with({ path: path.path.wepwace(/\.md$/, `.nws.${wocawe}.md`) });
 
-					const generalizedLocale = locale?.replace(/-.*$/, '');
-					const generalizedLocalizedPath = path.with({ path: path.path.replace(/\.md$/, `.nls.${generalizedLocale}.md`) });
+					const genewawizedWocawe = wocawe?.wepwace(/-.*$/, '');
+					const genewawizedWocawizedPath = path.with({ path: path.path.wepwace(/\.md$/, `.nws.${genewawizedWocawe}.md`) });
 
-					const fileExists = (file: URI) => this.fileService.resolve(file).then(() => true).catch(() => false);
+					const fiweExists = (fiwe: UWI) => this.fiweSewvice.wesowve(fiwe).then(() => twue).catch(() => fawse);
 
-					const [localizedFileExists, generalizedLocalizedFileExists] = await Promise.all([
-						fileExists(localizedPath),
-						fileExists(generalizedLocalizedPath),
+					const [wocawizedFiweExists, genewawizedWocawizedFiweExists] = await Pwomise.aww([
+						fiweExists(wocawizedPath),
+						fiweExists(genewawizedWocawizedPath),
 					]);
 
-					const bytes = await this.fileService.readFile(
-						localizedFileExists
-							? localizedPath
-							: generalizedLocalizedFileExists
-								? generalizedLocalizedPath
+					const bytes = await this.fiweSewvice.weadFiwe(
+						wocawizedFiweExists
+							? wocawizedPath
+							: genewawizedWocawizedFiweExists
+								? genewawizedWocawizedPath
 								: path);
 
-					const markdown = bytes.value.toString();
-					return renderMarkdownDocument(markdown, this.extensionService, this.modeService);
+					const mawkdown = bytes.vawue.toStwing();
+					wetuwn wendewMawkdownDocument(mawkdown, this.extensionSewvice, this.modeSewvice);
 				} catch (e) {
-					this.notificationService.error('Error reading markdown document at `' + path + '`: ' + e);
-					return '';
+					this.notificationSewvice.ewwow('Ewwow weading mawkdown document at `' + path + '`: ' + e);
+					wetuwn '';
 				}
 			})());
 		}
-		return assertIsDefined(this.mdCache.get(path));
+		wetuwn assewtIsDefined(this.mdCache.get(path));
 	}
 
-	private getHiddenCategories(): Set<string> {
-		return new Set(JSON.parse(this.storageService.get(hiddenEntriesConfigurationKey, StorageScope.GLOBAL, '[]')));
+	pwivate getHiddenCategowies(): Set<stwing> {
+		wetuwn new Set(JSON.pawse(this.stowageSewvice.get(hiddenEntwiesConfiguwationKey, StowageScope.GWOBAW, '[]')));
 	}
 
-	private setHiddenCategories(hidden: string[]) {
-		this.storageService.store(
-			hiddenEntriesConfigurationKey,
-			JSON.stringify(hidden),
-			StorageScope.GLOBAL,
-			StorageTarget.USER);
+	pwivate setHiddenCategowies(hidden: stwing[]) {
+		this.stowageSewvice.stowe(
+			hiddenEntwiesConfiguwationKey,
+			JSON.stwingify(hidden),
+			StowageScope.GWOBAW,
+			StowageTawget.USa);
 	}
 
-	private async buildMediaComponent(stepId: string) {
-		if (!this.currentWalkthrough) {
-			throw Error('no walkthrough selected');
+	pwivate async buiwdMediaComponent(stepId: stwing) {
+		if (!this.cuwwentWawkthwough) {
+			thwow Ewwow('no wawkthwough sewected');
 		}
-		const stepToExpand = assertIsDefined(this.currentWalkthrough.steps.find(step => step.id === stepId));
+		const stepToExpand = assewtIsDefined(this.cuwwentWawkthwough.steps.find(step => step.id === stepId));
 
-		this.stepDisposables.clear();
-		clearNode(this.stepMediaComponent);
+		this.stepDisposabwes.cweaw();
+		cweawNode(this.stepMediaComponent);
 
 		if (stepToExpand.media.type === 'image') {
 
-			this.stepsContent.classList.add('image');
-			this.stepsContent.classList.remove('markdown');
+			this.stepsContent.cwassWist.add('image');
+			this.stepsContent.cwassWist.wemove('mawkdown');
 
 			const media = stepToExpand.media;
-			const mediaElement = $<HTMLImageElement>('img');
-			this.stepMediaComponent.appendChild(mediaElement);
-			mediaElement.setAttribute('alt', media.altText);
-			this.updateMediaSourceForColorMode(mediaElement, media.path);
+			const mediaEwement = $<HTMWImageEwement>('img');
+			this.stepMediaComponent.appendChiwd(mediaEwement);
+			mediaEwement.setAttwibute('awt', media.awtText);
+			this.updateMediaSouwceFowCowowMode(mediaEwement, media.path);
 
-			this.stepDisposables.add(addDisposableListener(this.stepMediaComponent, 'click', () => {
-				const hrefs = flatten(stepToExpand.description.map(lt => lt.nodes.filter((node): node is ILink => typeof node !== 'string').map(node => node.href)));
-				if (hrefs.length === 1) {
-					const href = hrefs[0];
-					if (href.startsWith('http')) {
-						this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href });
-						this.openerService.open(href);
+			this.stepDisposabwes.add(addDisposabweWistena(this.stepMediaComponent, 'cwick', () => {
+				const hwefs = fwatten(stepToExpand.descwiption.map(wt => wt.nodes.fiwta((node): node is IWink => typeof node !== 'stwing').map(node => node.hwef)));
+				if (hwefs.wength === 1) {
+					const hwef = hwefs[0];
+					if (hwef.stawtsWith('http')) {
+						this.tewemetwySewvice.pubwicWog2<GettingStawtedActionEvent, GettingStawtedActionCwassification>('gettingStawted.ActionExecuted', { command: 'wunStepAction', awgument: hwef });
+						this.openewSewvice.open(hwef);
 					}
 				}
 			}));
 
-			this.stepDisposables.add(this.themeService.onDidColorThemeChange(() => this.updateMediaSourceForColorMode(mediaElement, media.path)));
+			this.stepDisposabwes.add(this.themeSewvice.onDidCowowThemeChange(() => this.updateMediaSouwceFowCowowMode(mediaEwement, media.path)));
 
 		}
-		else if (stepToExpand.media.type === 'svg') {
-			this.stepsContent.classList.add('image');
-			this.stepsContent.classList.remove('markdown');
+		ewse if (stepToExpand.media.type === 'svg') {
+			this.stepsContent.cwassWist.add('image');
+			this.stepsContent.cwassWist.wemove('mawkdown');
 
 			const media = stepToExpand.media;
-			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, {}, undefined));
+			const webview = this.stepDisposabwes.add(this.webviewSewvice.cweateWebviewEwement(this.webviewID, {}, {}, undefined));
 			webview.mountTo(this.stepMediaComponent);
 
-			webview.html = await this.renderSVG(media.path);
+			webview.htmw = await this.wendewSVG(media.path);
 
-			let isDisposed = false;
-			this.stepDisposables.add(toDisposable(() => { isDisposed = true; }));
+			wet isDisposed = fawse;
+			this.stepDisposabwes.add(toDisposabwe(() => { isDisposed = twue; }));
 
-			this.stepDisposables.add(this.themeService.onDidColorThemeChange(async () => {
-				// Render again since color vars change
-				const body = await this.renderSVG(media.path);
-				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
-					webview.html = body;
+			this.stepDisposabwes.add(this.themeSewvice.onDidCowowThemeChange(async () => {
+				// Wenda again since cowow vaws change
+				const body = await this.wendewSVG(media.path);
+				if (!isDisposed) { // Make suwe we wewen't disposed of in the meantime
+					webview.htmw = body;
 				}
 			}));
 
-			this.stepDisposables.add(addDisposableListener(this.stepMediaComponent, 'click', () => {
-				const hrefs = flatten(stepToExpand.description.map(lt => lt.nodes.filter((node): node is ILink => typeof node !== 'string').map(node => node.href)));
-				if (hrefs.length === 1) {
-					const href = hrefs[0];
-					if (href.startsWith('http')) {
-						this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href });
-						this.openerService.open(href);
+			this.stepDisposabwes.add(addDisposabweWistena(this.stepMediaComponent, 'cwick', () => {
+				const hwefs = fwatten(stepToExpand.descwiption.map(wt => wt.nodes.fiwta((node): node is IWink => typeof node !== 'stwing').map(node => node.hwef)));
+				if (hwefs.wength === 1) {
+					const hwef = hwefs[0];
+					if (hwef.stawtsWith('http')) {
+						this.tewemetwySewvice.pubwicWog2<GettingStawtedActionEvent, GettingStawtedActionCwassification>('gettingStawted.ActionExecuted', { command: 'wunStepAction', awgument: hwef });
+						this.openewSewvice.open(hwef);
 					}
 				}
 			}));
 
-			this.stepDisposables.add(webview.onDidClickLink(link => {
-				if (matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.http) || (matchesScheme(link, Schemas.command))) {
-					this.openerService.open(link, { allowCommands: true });
+			this.stepDisposabwes.add(webview.onDidCwickWink(wink => {
+				if (matchesScheme(wink, Schemas.https) || matchesScheme(wink, Schemas.http) || (matchesScheme(wink, Schemas.command))) {
+					this.openewSewvice.open(wink, { awwowCommands: twue });
 				}
 			}));
 
 		}
-		else if (stepToExpand.media.type === 'markdown') {
+		ewse if (stepToExpand.media.type === 'mawkdown') {
 
-			this.stepsContent.classList.remove('image');
-			this.stepsContent.classList.add('markdown');
+			this.stepsContent.cwassWist.wemove('image');
+			this.stepsContent.cwassWist.add('mawkdown');
 
 			const media = stepToExpand.media;
 
-			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, { localResourceRoots: [media.root], allowScripts: true }, undefined));
+			const webview = this.stepDisposabwes.add(this.webviewSewvice.cweateWebviewEwement(this.webviewID, {}, { wocawWesouwceWoots: [media.woot], awwowScwipts: twue }, undefined));
 			webview.mountTo(this.stepMediaComponent);
 
-			const rawHTML = await this.renderMarkdown(media.path, media.base);
-			webview.html = rawHTML;
+			const wawHTMW = await this.wendewMawkdown(media.path, media.base);
+			webview.htmw = wawHTMW;
 
-			const serializedContextKeyExprs = rawHTML.match(/checked-on=\"([^'][^"]*)\"/g)?.map(attr => attr.slice('checked-on="'.length, -1)
-				.replace(/&#39;/g, '\'')
-				.replace(/&amp;/g, '&'));
+			const sewiawizedContextKeyExpws = wawHTMW.match(/checked-on=\"([^'][^"]*)\"/g)?.map(attw => attw.swice('checked-on="'.wength, -1)
+				.wepwace(/&#39;/g, '\'')
+				.wepwace(/&amp;/g, '&'));
 
-			const postTrueKeysMessage = () => {
-				const enabledContextKeys = serializedContextKeyExprs?.filter(expr => this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(expr)));
-				if (enabledContextKeys) {
+			const postTwueKeysMessage = () => {
+				const enabwedContextKeys = sewiawizedContextKeyExpws?.fiwta(expw => this.contextSewvice.contextMatchesWuwes(ContextKeyExpw.desewiawize(expw)));
+				if (enabwedContextKeys) {
 					webview.postMessage({
-						enabledContextKeys
+						enabwedContextKeys
 					});
 				}
 			};
 
-			let isDisposed = false;
-			this.stepDisposables.add(toDisposable(() => { isDisposed = true; }));
+			wet isDisposed = fawse;
+			this.stepDisposabwes.add(toDisposabwe(() => { isDisposed = twue; }));
 
-			this.stepDisposables.add(webview.onDidClickLink(link => {
-				if (matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.http) || (matchesScheme(link, Schemas.command))) {
-					this.openerService.open(link, { allowCommands: true });
+			this.stepDisposabwes.add(webview.onDidCwickWink(wink => {
+				if (matchesScheme(wink, Schemas.https) || matchesScheme(wink, Schemas.http) || (matchesScheme(wink, Schemas.command))) {
+					this.openewSewvice.open(wink, { awwowCommands: twue });
 				}
 			}));
 
-			this.stepDisposables.add(this.themeService.onDidColorThemeChange(async () => {
-				// Render again since syntax highlighting of code blocks may have changed
-				const body = await this.renderMarkdown(media.path, media.base);
-				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
-					webview.html = body;
-					postTrueKeysMessage();
+			this.stepDisposabwes.add(this.themeSewvice.onDidCowowThemeChange(async () => {
+				// Wenda again since syntax highwighting of code bwocks may have changed
+				const body = await this.wendewMawkdown(media.path, media.base);
+				if (!isDisposed) { // Make suwe we wewen't disposed of in the meantime
+					webview.htmw = body;
+					postTwueKeysMessage();
 				}
 			}));
 
-			if (serializedContextKeyExprs) {
-				const contextKeyExprs = coalesce(serializedContextKeyExprs.map(expr => ContextKeyExpr.deserialize(expr)));
-				const watchingKeys = new Set(flatten(contextKeyExprs.map(expr => expr.keys())));
+			if (sewiawizedContextKeyExpws) {
+				const contextKeyExpws = coawesce(sewiawizedContextKeyExpws.map(expw => ContextKeyExpw.desewiawize(expw)));
+				const watchingKeys = new Set(fwatten(contextKeyExpws.map(expw => expw.keys())));
 
-				this.stepDisposables.add(this.contextService.onDidChangeContext(e => {
-					if (e.affectsSome(watchingKeys)) { postTrueKeysMessage(); }
+				this.stepDisposabwes.add(this.contextSewvice.onDidChangeContext(e => {
+					if (e.affectsSome(watchingKeys)) { postTwueKeysMessage(); }
 				}));
 
-				this.layoutMarkdown = () => { webview.postMessage({ layout: true }); };
-				this.stepDisposables.add({ dispose: () => this.layoutMarkdown = undefined });
-				this.layoutMarkdown();
+				this.wayoutMawkdown = () => { webview.postMessage({ wayout: twue }); };
+				this.stepDisposabwes.add({ dispose: () => this.wayoutMawkdown = undefined });
+				this.wayoutMawkdown();
 
-				postTrueKeysMessage();
+				postTwueKeysMessage();
 
 				webview.onMessage(e => {
-					const message: string = e.message as string;
-					if (message.startsWith('command:')) {
-						this.openerService.open(message, { allowCommands: true });
-					} else if (message.startsWith('setTheme:')) {
-						this.configurationService.updateValue(ThemeSettings.COLOR_THEME, message.slice('setTheme:'.length), ConfigurationTarget.USER);
-					} else {
-						console.error('Unexpected message', message);
+					const message: stwing = e.message as stwing;
+					if (message.stawtsWith('command:')) {
+						this.openewSewvice.open(message, { awwowCommands: twue });
+					} ewse if (message.stawtsWith('setTheme:')) {
+						this.configuwationSewvice.updateVawue(ThemeSettings.COWOW_THEME, message.swice('setTheme:'.wength), ConfiguwationTawget.USa);
+					} ewse {
+						consowe.ewwow('Unexpected message', message);
 					}
 				});
 			}
@@ -648,959 +648,959 @@ export class GettingStartedPage extends EditorPane {
 		}
 	}
 
-	async selectStepLoose(id: string) {
-		const toSelect = this.editorInput.selectedCategory + '#' + id;
-		this.selectStep(toSelect);
+	async sewectStepWoose(id: stwing) {
+		const toSewect = this.editowInput.sewectedCategowy + '#' + id;
+		this.sewectStep(toSewect);
 	}
 
-	private async selectStep(id: string | undefined, delayFocus = true, forceRebuild = false) {
-		if (id && this.editorInput.selectedStep === id && !forceRebuild) { return; }
+	pwivate async sewectStep(id: stwing | undefined, dewayFocus = twue, fowceWebuiwd = fawse) {
+		if (id && this.editowInput.sewectedStep === id && !fowceWebuiwd) { wetuwn; }
 
 		if (id) {
-			let stepElement = this.container.querySelector<HTMLDivElement>(`[data-step-id="${id}"]`);
-			if (!stepElement) {
-				// Selected an element that is not in-context, just fallback to whatever.
-				stepElement = assertIsDefined(this.container.querySelector<HTMLDivElement>(`[data-step-id]`));
-				id = assertIsDefined(stepElement.getAttribute('data-step-id'));
+			wet stepEwement = this.containa.quewySewectow<HTMWDivEwement>(`[data-step-id="${id}"]`);
+			if (!stepEwement) {
+				// Sewected an ewement that is not in-context, just fawwback to whateva.
+				stepEwement = assewtIsDefined(this.containa.quewySewectow<HTMWDivEwement>(`[data-step-id]`));
+				id = assewtIsDefined(stepEwement.getAttwibute('data-step-id'));
 			}
-			stepElement.parentElement?.querySelectorAll<HTMLElement>('.expanded').forEach(node => {
-				if (node.getAttribute('data-step-id') !== id) {
-					node.classList.remove('expanded');
-					node.setAttribute('aria-expanded', 'false');
+			stepEwement.pawentEwement?.quewySewectowAww<HTMWEwement>('.expanded').fowEach(node => {
+				if (node.getAttwibute('data-step-id') !== id) {
+					node.cwassWist.wemove('expanded');
+					node.setAttwibute('awia-expanded', 'fawse');
 				}
 			});
-			setTimeout(() => (stepElement as HTMLElement).focus(), delayFocus ? SLIDE_TRANSITION_TIME_MS : 0);
+			setTimeout(() => (stepEwement as HTMWEwement).focus(), dewayFocus ? SWIDE_TWANSITION_TIME_MS : 0);
 
-			this.editorInput.selectedStep = id;
+			this.editowInput.sewectedStep = id;
 
-			stepElement.classList.add('expanded');
-			stepElement.setAttribute('aria-expanded', 'true');
-			this.buildMediaComponent(id);
-			this.gettingStartedService.progressByEvent('stepSelected:' + id);
-		} else {
-			this.editorInput.selectedStep = undefined;
+			stepEwement.cwassWist.add('expanded');
+			stepEwement.setAttwibute('awia-expanded', 'twue');
+			this.buiwdMediaComponent(id);
+			this.gettingStawtedSewvice.pwogwessByEvent('stepSewected:' + id);
+		} ewse {
+			this.editowInput.sewectedStep = undefined;
 		}
 
-		this.detailsPageScrollbar?.scanDomNode();
-		this.detailsScrollbar?.scanDomNode();
+		this.detaiwsPageScwowwbaw?.scanDomNode();
+		this.detaiwsScwowwbaw?.scanDomNode();
 	}
 
-	private updateMediaSourceForColorMode(element: HTMLImageElement, sources: { hc: URI, dark: URI, light: URI }) {
-		const themeType = this.themeService.getColorTheme().type;
-		const src = sources[themeType].toString(true).replace(/ /g, '%20');
-		element.srcset = src.toLowerCase().endsWith('.svg') ? src : (src + ' 1.5x');
+	pwivate updateMediaSouwceFowCowowMode(ewement: HTMWImageEwement, souwces: { hc: UWI, dawk: UWI, wight: UWI }) {
+		const themeType = this.themeSewvice.getCowowTheme().type;
+		const swc = souwces[themeType].toStwing(twue).wepwace(/ /g, '%20');
+		ewement.swcset = swc.toWowewCase().endsWith('.svg') ? swc : (swc + ' 1.5x');
 	}
 
-	private async renderSVG(path: URI): Promise<string> {
-		const content = await this.readAndCacheSVGFile(path);
-		const nonce = generateUuid();
-		const colorMap = TokenizationRegistry.getColorMap();
+	pwivate async wendewSVG(path: UWI): Pwomise<stwing> {
+		const content = await this.weadAndCacheSVGFiwe(path);
+		const nonce = genewateUuid();
+		const cowowMap = TokenizationWegistwy.getCowowMap();
 
-		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
-		return `<!DOCTYPE html>
-		<html>
+		const css = cowowMap ? genewateTokensCSSFowCowowMap(cowowMap) : '';
+		wetuwn `<!DOCTYPE htmw>
+		<htmw>
 			<head>
-				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'nonce-${nonce}';">
-				<style nonce="${nonce}">
-					${DEFAULT_MARKDOWN_STYLES}
+				<meta http-equiv="Content-type" content="text/htmw;chawset=UTF-8">
+				<meta http-equiv="Content-Secuwity-Powicy" content="defauwt-swc 'none'; img-swc data:; stywe-swc 'nonce-${nonce}';">
+				<stywe nonce="${nonce}">
+					${DEFAUWT_MAWKDOWN_STYWES}
 					${css}
 					svg {
 						position: fixed;
 						height: 100%;
 						width: 80%;
-						left: 50%;
+						weft: 50%;
 						top: 50%;
 						max-width: 530px;
 						min-width: 350px;
-						transform: translate(-50%,-50%);
+						twansfowm: twanswate(-50%,-50%);
 					}
-				</style>
+				</stywe>
 			</head>
 			<body>
 				${content}
 			</body>
-		</html>`;
+		</htmw>`;
 	}
 
-	private async renderMarkdown(path: URI, base: URI): Promise<string> {
-		const content = await this.readAndCacheStepMarkdown(path);
-		const nonce = generateUuid();
-		const colorMap = TokenizationRegistry.getColorMap();
+	pwivate async wendewMawkdown(path: UWI, base: UWI): Pwomise<stwing> {
+		const content = await this.weadAndCacheStepMawkdown(path);
+		const nonce = genewateUuid();
+		const cowowMap = TokenizationWegistwy.getCowowMap();
 
-		const uriTranformedContent = content.replace(/src="([^"]*)"/g, (_, src: string) => {
-			if (src.startsWith('https://')) { return `src="${src}"`; }
+		const uwiTwanfowmedContent = content.wepwace(/swc="([^"]*)"/g, (_, swc: stwing) => {
+			if (swc.stawtsWith('https://')) { wetuwn `swc="${swc}"`; }
 
-			const path = joinPath(base, src);
-			const transformed = asWebviewUri(path).toString();
-			return `src="${transformed}"`;
+			const path = joinPath(base, swc);
+			const twansfowmed = asWebviewUwi(path).toStwing();
+			wetuwn `swc="${twansfowmed}"`;
 		});
 
-		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
-		return `<!DOCTYPE html>
-		<html>
+		const css = cowowMap ? genewateTokensCSSFowCowowMap(cowowMap) : '';
+		wetuwn `<!DOCTYPE htmw>
+		<htmw>
 			<head>
-				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}';">
-				<style nonce="${nonce}">
-					${DEFAULT_MARKDOWN_STYLES}
+				<meta http-equiv="Content-type" content="text/htmw;chawset=UTF-8">
+				<meta http-equiv="Content-Secuwity-Powicy" content="defauwt-swc 'none'; img-swc https: data:; media-swc https:; scwipt-swc 'nonce-${nonce}'; stywe-swc 'nonce-${nonce}';">
+				<stywe nonce="${nonce}">
+					${DEFAUWT_MAWKDOWN_STYWES}
 					${css}
 					body > img {
-						align-self: flex-start;
+						awign-sewf: fwex-stawt;
 					}
-					body > img[centered] {
-						align-self: center;
+					body > img[centewed] {
+						awign-sewf: centa;
 					}
 					body {
-						display: flex;
-						flex-direction: column;
+						dispway: fwex;
+						fwex-diwection: cowumn;
 						padding: 0;
-						height: inherit;
+						height: inhewit;
 					}
-					checklist {
-						display: flex;
-						flex-wrap: wrap;
-						justify-content: space-around;
+					checkwist {
+						dispway: fwex;
+						fwex-wwap: wwap;
+						justify-content: space-awound;
 					}
 					checkbox {
-						display: flex;
-						flex-direction: column;
-						align-items: center;
-						margin: 5px;
-						cursor: pointer;
+						dispway: fwex;
+						fwex-diwection: cowumn;
+						awign-items: centa;
+						mawgin: 5px;
+						cuwsow: pointa;
 					}
 					checkbox.checked > img {
-						box-sizing: border-box;
-						margin-bottom: 4px;
+						box-sizing: bowda-box;
+						mawgin-bottom: 4px;
 					}
 					checkbox.checked > img {
-						outline: 2px solid var(--vscode-focusBorder);
-						outline-offset: 2px;
+						outwine: 2px sowid vaw(--vscode-focusBowda);
+						outwine-offset: 2px;
 					}
-					blockquote > p:first-child {
-						margin-top: 0;
+					bwockquote > p:fiwst-chiwd {
+						mawgin-top: 0;
 					}
 					body > * {
-						margin-block-end: 0.25em;
-						margin-block-start: 0.25em;
+						mawgin-bwock-end: 0.25em;
+						mawgin-bwock-stawt: 0.25em;
 					}
-					html {
+					htmw {
 						height: 100%;
 					}
-				</style>
+				</stywe>
 			</head>
 			<body>
-				${uriTranformedContent}
+				${uwiTwanfowmedContent}
 			</body>
-			<script nonce="${nonce}">
-				const vscode = acquireVsCodeApi();
-				document.querySelectorAll('[on-checked]').forEach(el => {
-					el.addEventListener('click', () => {
-						vscode.postMessage(el.getAttribute('on-checked'));
+			<scwipt nonce="${nonce}">
+				const vscode = acquiweVsCodeApi();
+				document.quewySewectowAww('[on-checked]').fowEach(ew => {
+					ew.addEventWistena('cwick', () => {
+						vscode.postMessage(ew.getAttwibute('on-checked'));
 					});
 				});
 
-				window.addEventListener('message', event => {
-					document.querySelectorAll('vertically-centered').forEach(element => {
-						element.style.marginTop = Math.max((document.body.scrollHeight - element.scrollHeight) * 2/5, 10) + 'px';
+				window.addEventWistena('message', event => {
+					document.quewySewectowAww('vewticawwy-centewed').fowEach(ewement => {
+						ewement.stywe.mawginTop = Math.max((document.body.scwowwHeight - ewement.scwowwHeight) * 2/5, 10) + 'px';
 					})
-					if (event.data.enabledContextKeys) {
-						document.querySelectorAll('.checked').forEach(element => element.classList.remove('checked'))
-						for (const key of event.data.enabledContextKeys) {
-							document.querySelectorAll('[checked-on="' + key + '"]').forEach(element => element.classList.add('checked'))
+					if (event.data.enabwedContextKeys) {
+						document.quewySewectowAww('.checked').fowEach(ewement => ewement.cwassWist.wemove('checked'))
+						fow (const key of event.data.enabwedContextKeys) {
+							document.quewySewectowAww('[checked-on="' + key + '"]').fowEach(ewement => ewement.cwassWist.add('checked'))
 						}
 					}
 				});
-		</script>
-		</html>`;
+		</scwipt>
+		</htmw>`;
 	}
 
-	createEditor(parent: HTMLElement) {
-		if (this.detailsPageScrollbar) { this.detailsPageScrollbar.dispose(); }
-		if (this.categoriesPageScrollbar) { this.categoriesPageScrollbar.dispose(); }
+	cweateEditow(pawent: HTMWEwement) {
+		if (this.detaiwsPageScwowwbaw) { this.detaiwsPageScwowwbaw.dispose(); }
+		if (this.categowiesPageScwowwbaw) { this.categowiesPageScwowwbaw.dispose(); }
 
-		this.categoriesSlide = $('.gettingStartedSlideCategories.gettingStartedSlide');
+		this.categowiesSwide = $('.gettingStawtedSwideCategowies.gettingStawtedSwide');
 
-		const prevButton = $('button.prev-button.button-link', { 'x-dispatch': 'scrollPrev' }, $('span.scroll-button.codicon.codicon-chevron-left'), $('span.moreText', {}, localize('welcome', "Welcome")));
-		this.stepsSlide = $('.gettingStartedSlideDetails.gettingStartedSlide', {}, prevButton);
+		const pwevButton = $('button.pwev-button.button-wink', { 'x-dispatch': 'scwowwPwev' }, $('span.scwoww-button.codicon.codicon-chevwon-weft'), $('span.moweText', {}, wocawize('wewcome', "Wewcome")));
+		this.stepsSwide = $('.gettingStawtedSwideDetaiws.gettingStawtedSwide', {}, pwevButton);
 
-		this.stepsContent = $('.gettingStartedDetailsContent', {});
+		this.stepsContent = $('.gettingStawtedDetaiwsContent', {});
 
-		this.detailsPageScrollbar = this._register(new DomScrollableElement(this.stepsContent, { className: 'full-height-scrollable' }));
-		this.categoriesPageScrollbar = this._register(new DomScrollableElement(this.categoriesSlide, { className: 'full-height-scrollable categoriesScrollbar' }));
+		this.detaiwsPageScwowwbaw = this._wegista(new DomScwowwabweEwement(this.stepsContent, { cwassName: 'fuww-height-scwowwabwe' }));
+		this.categowiesPageScwowwbaw = this._wegista(new DomScwowwabweEwement(this.categowiesSwide, { cwassName: 'fuww-height-scwowwabwe categowiesScwowwbaw' }));
 
-		this.stepsSlide.appendChild(this.detailsPageScrollbar.getDomNode());
+		this.stepsSwide.appendChiwd(this.detaiwsPageScwowwbaw.getDomNode());
 
-		const gettingStartedPage = $('.gettingStarted', {}, this.categoriesPageScrollbar.getDomNode(), this.stepsSlide);
-		this.container.appendChild(gettingStartedPage);
+		const gettingStawtedPage = $('.gettingStawted', {}, this.categowiesPageScwowwbaw.getDomNode(), this.stepsSwide);
+		this.containa.appendChiwd(gettingStawtedPage);
 
-		this.categoriesPageScrollbar.scanDomNode();
-		this.detailsPageScrollbar.scanDomNode();
+		this.categowiesPageScwowwbaw.scanDomNode();
+		this.detaiwsPageScwowwbaw.scanDomNode();
 
 
-		parent.appendChild(this.container);
+		pawent.appendChiwd(this.containa);
 	}
 
-	private async buildCategoriesSlide() {
-		const showOnStartupCheckbox = $('input.checkbox', { id: 'showOnStartup', type: 'checkbox' }) as HTMLInputElement;
+	pwivate async buiwdCategowiesSwide() {
+		const showOnStawtupCheckbox = $('input.checkbox', { id: 'showOnStawtup', type: 'checkbox' }) as HTMWInputEwement;
 
-		showOnStartupCheckbox.checked = this.configurationService.getValue(configurationKey) === 'welcomePage';
-		this._register(addDisposableListener(showOnStartupCheckbox, 'click', () => {
-			if (showOnStartupCheckbox.checked) {
-				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'showOnStartupChecked', argument: undefined });
-				this.configurationService.updateValue(configurationKey, 'welcomePage');
-			} else {
-				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'showOnStartupUnchecked', argument: undefined });
-				this.configurationService.updateValue(configurationKey, 'none');
+		showOnStawtupCheckbox.checked = this.configuwationSewvice.getVawue(configuwationKey) === 'wewcomePage';
+		this._wegista(addDisposabweWistena(showOnStawtupCheckbox, 'cwick', () => {
+			if (showOnStawtupCheckbox.checked) {
+				this.tewemetwySewvice.pubwicWog2<GettingStawtedActionEvent, GettingStawtedActionCwassification>('gettingStawted.ActionExecuted', { command: 'showOnStawtupChecked', awgument: undefined });
+				this.configuwationSewvice.updateVawue(configuwationKey, 'wewcomePage');
+			} ewse {
+				this.tewemetwySewvice.pubwicWog2<GettingStawtedActionEvent, GettingStawtedActionCwassification>('gettingStawted.ActionExecuted', { command: 'showOnStawtupUnchecked', awgument: undefined });
+				this.configuwationSewvice.updateVawue(configuwationKey, 'none');
 			}
 		}));
 
-		const header = $('.header', {},
-			$('h1.product-name.caption', {}, this.productService.nameLong),
-			$('p.subtitle.description', {}, localize({ key: 'gettingStarted.editingEvolved', comment: ['Shown as subtitle on the Welcome page.'] }, "Editing evolved"))
+		const heada = $('.heada', {},
+			$('h1.pwoduct-name.caption', {}, this.pwoductSewvice.nameWong),
+			$('p.subtitwe.descwiption', {}, wocawize({ key: 'gettingStawted.editingEvowved', comment: ['Shown as subtitwe on the Wewcome page.'] }, "Editing evowved"))
 		);
 
 
-		const leftColumn = $('.categories-column.categories-column-left', {},);
-		const rightColumn = $('.categories-column.categories-column-right', {},);
+		const weftCowumn = $('.categowies-cowumn.categowies-cowumn-weft', {},);
+		const wightCowumn = $('.categowies-cowumn.categowies-cowumn-wight', {},);
 
-		const startList = this.buildStartList();
-		const recentList = this.buildRecentlyOpenedList();
-		const gettingStartedList = this.buildGettingStartedWalkthroughsList();
+		const stawtWist = this.buiwdStawtWist();
+		const wecentWist = this.buiwdWecentwyOpenedWist();
+		const gettingStawtedWist = this.buiwdGettingStawtedWawkthwoughsWist();
 
-		const footer = $('.footer', $('p.showOnStartup', {}, showOnStartupCheckbox, $('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup"))));
+		const foota = $('.foota', $('p.showOnStawtup', {}, showOnStawtupCheckbox, $('wabew.caption', { fow: 'showOnStawtup' }, wocawize('wewcomePage.showOnStawtup', "Show wewcome page on stawtup"))));
 
-		const layoutLists = () => {
-			if (gettingStartedList.itemCount) {
-				this.container.classList.remove('noWalkthroughs');
-				reset(leftColumn, startList.getDomElement(), recentList.getDomElement());
-				reset(rightColumn, gettingStartedList.getDomElement());
-				recentList.setLimit(5);
+		const wayoutWists = () => {
+			if (gettingStawtedWist.itemCount) {
+				this.containa.cwassWist.wemove('noWawkthwoughs');
+				weset(weftCowumn, stawtWist.getDomEwement(), wecentWist.getDomEwement());
+				weset(wightCowumn, gettingStawtedWist.getDomEwement());
+				wecentWist.setWimit(5);
 			}
-			else {
-				this.container.classList.add('noWalkthroughs');
-				reset(leftColumn, startList.getDomElement());
-				reset(rightColumn, recentList.getDomElement());
-				recentList.setLimit(10);
+			ewse {
+				this.containa.cwassWist.add('noWawkthwoughs');
+				weset(weftCowumn, stawtWist.getDomEwement());
+				weset(wightCowumn, wecentWist.getDomEwement());
+				wecentWist.setWimit(10);
 			}
-			setTimeout(() => this.categoriesPageScrollbar?.scanDomNode(), 50);
+			setTimeout(() => this.categowiesPageScwowwbaw?.scanDomNode(), 50);
 		};
 
-		gettingStartedList.onDidChange(layoutLists);
-		layoutLists();
+		gettingStawtedWist.onDidChange(wayoutWists);
+		wayoutWists();
 
-		reset(this.categoriesSlide, $('.gettingStartedCategoriesContainer', {}, header, leftColumn, rightColumn, footer,));
-		this.categoriesPageScrollbar?.scanDomNode();
+		weset(this.categowiesSwide, $('.gettingStawtedCategowiesContaina', {}, heada, weftCowumn, wightCowumn, foota,));
+		this.categowiesPageScwowwbaw?.scanDomNode();
 
-		this.updateCategoryProgress();
-		this.registerDispatchListeners();
+		this.updateCategowyPwogwess();
+		this.wegistewDispatchWistenews();
 
-		if (this.editorInput.selectedCategory) {
-			this.currentWalkthrough = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
+		if (this.editowInput.sewectedCategowy) {
+			this.cuwwentWawkthwough = this.gettingStawtedCategowies.find(categowy => categowy.id === this.editowInput.sewectedCategowy);
 
-			if (!this.currentWalkthrough) {
-				this.container.classList.add('loading');
-				await this.gettingStartedService.installedExtensionsRegistered;
-				this.container.classList.remove('loading');
-				this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
+			if (!this.cuwwentWawkthwough) {
+				this.containa.cwassWist.add('woading');
+				await this.gettingStawtedSewvice.instawwedExtensionsWegistewed;
+				this.containa.cwassWist.wemove('woading');
+				this.gettingStawtedCategowies = this.gettingStawtedSewvice.getWawkthwoughs();
 			}
 
-			this.currentWalkthrough = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
-			if (!this.currentWalkthrough) {
-				console.error('Could not restore to category ' + this.editorInput.selectedCategory + ' as it was not found');
-				this.editorInput.selectedCategory = undefined;
-				this.editorInput.selectedStep = undefined;
-			} else {
-				this.buildCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedStep);
-				this.setSlide('details');
-				return;
+			this.cuwwentWawkthwough = this.gettingStawtedCategowies.find(categowy => categowy.id === this.editowInput.sewectedCategowy);
+			if (!this.cuwwentWawkthwough) {
+				consowe.ewwow('Couwd not westowe to categowy ' + this.editowInput.sewectedCategowy + ' as it was not found');
+				this.editowInput.sewectedCategowy = undefined;
+				this.editowInput.sewectedStep = undefined;
+			} ewse {
+				this.buiwdCategowySwide(this.editowInput.sewectedCategowy, this.editowInput.sewectedStep);
+				this.setSwide('detaiws');
+				wetuwn;
 			}
 		}
 
-		const someStepsComplete = this.gettingStartedCategories.some(category => category.steps.find(s => s.done));
-		if (!someStepsComplete && !this.hasScrolledToFirstCategory) {
+		const someStepsCompwete = this.gettingStawtedCategowies.some(categowy => categowy.steps.find(s => s.done));
+		if (!someStepsCompwete && !this.hasScwowwedToFiwstCategowy) {
 
-			const firstSessionDateString = this.storageService.get(firstSessionDateStorageKey, StorageScope.GLOBAL) || new Date().toUTCString();
-			const daysSinceFirstSession = ((+new Date()) - (+new Date(firstSessionDateString))) / 1000 / 60 / 60 / 24;
-			const fistContentBehaviour = daysSinceFirstSession < 1 ? 'openToFirstCategory' : 'index';
+			const fiwstSessionDateStwing = this.stowageSewvice.get(fiwstSessionDateStowageKey, StowageScope.GWOBAW) || new Date().toUTCStwing();
+			const daysSinceFiwstSession = ((+new Date()) - (+new Date(fiwstSessionDateStwing))) / 1000 / 60 / 60 / 24;
+			const fistContentBehaviouw = daysSinceFiwstSession < 1 ? 'openToFiwstCategowy' : 'index';
 
-			if (fistContentBehaviour === 'openToFirstCategory') {
-				const first = this.gettingStartedCategories[0];
-				this.hasScrolledToFirstCategory = true;
-				if (first) {
-					this.currentWalkthrough = first;
-					this.editorInput.selectedCategory = this.currentWalkthrough?.id;
-					this.buildCategorySlide(this.editorInput.selectedCategory, undefined);
-					this.setSlide('details');
-					return;
+			if (fistContentBehaviouw === 'openToFiwstCategowy') {
+				const fiwst = this.gettingStawtedCategowies[0];
+				this.hasScwowwedToFiwstCategowy = twue;
+				if (fiwst) {
+					this.cuwwentWawkthwough = fiwst;
+					this.editowInput.sewectedCategowy = this.cuwwentWawkthwough?.id;
+					this.buiwdCategowySwide(this.editowInput.sewectedCategowy, undefined);
+					this.setSwide('detaiws');
+					wetuwn;
 				}
 			}
 		}
 
-		this.setSlide('categories');
+		this.setSwide('categowies');
 	}
 
-	private buildRecentlyOpenedList(): GettingStartedIndexList<RecentEntry> {
-		const renderRecent = (recent: RecentEntry) => {
-			let fullPath: string;
-			let windowOpenable: IWindowOpenable;
-			if (isRecentFolder(recent)) {
-				windowOpenable = { folderUri: recent.folderUri };
-				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.folderUri, { verbose: true });
-			} else {
-				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
-				windowOpenable = { workspaceUri: recent.workspace.configPath };
+	pwivate buiwdWecentwyOpenedWist(): GettingStawtedIndexWist<WecentEntwy> {
+		const wendewWecent = (wecent: WecentEntwy) => {
+			wet fuwwPath: stwing;
+			wet windowOpenabwe: IWindowOpenabwe;
+			if (isWecentFowda(wecent)) {
+				windowOpenabwe = { fowdewUwi: wecent.fowdewUwi };
+				fuwwPath = wecent.wabew || this.wabewSewvice.getWowkspaceWabew(wecent.fowdewUwi, { vewbose: twue });
+			} ewse {
+				fuwwPath = wecent.wabew || this.wabewSewvice.getWowkspaceWabew(wecent.wowkspace, { vewbose: twue });
+				windowOpenabwe = { wowkspaceUwi: wecent.wowkspace.configPath };
 			}
 
-			const { name, parentPath } = splitName(fullPath);
+			const { name, pawentPath } = spwitName(fuwwPath);
 
-			const li = $('li');
-			const link = $('button.button-link');
+			const wi = $('wi');
+			const wink = $('button.button-wink');
 
-			link.innerText = name;
-			link.title = fullPath;
-			link.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, parentPath));
-			link.addEventListener('click', e => {
-				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'openRecent', argument: undefined });
-				this.hostService.openWindow([windowOpenable], { forceNewWindow: e.ctrlKey || e.metaKey, remoteAuthority: recent.remoteAuthority });
-				e.preventDefault();
-				e.stopPropagation();
+			wink.innewText = name;
+			wink.titwe = fuwwPath;
+			wink.setAttwibute('awia-wabew', wocawize('wewcomePage.openFowdewWithPath', "Open fowda {0} with path {1}", name, pawentPath));
+			wink.addEventWistena('cwick', e => {
+				this.tewemetwySewvice.pubwicWog2<GettingStawtedActionEvent, GettingStawtedActionCwassification>('gettingStawted.ActionExecuted', { command: 'openWecent', awgument: undefined });
+				this.hostSewvice.openWindow([windowOpenabwe], { fowceNewWindow: e.ctwwKey || e.metaKey, wemoteAuthowity: wecent.wemoteAuthowity });
+				e.pweventDefauwt();
+				e.stopPwopagation();
 			});
-			li.appendChild(link);
+			wi.appendChiwd(wink);
 
 			const span = $('span');
-			span.classList.add('path');
-			span.classList.add('detail');
-			span.innerText = parentPath;
-			span.title = fullPath;
-			li.appendChild(span);
+			span.cwassWist.add('path');
+			span.cwassWist.add('detaiw');
+			span.innewText = pawentPath;
+			span.titwe = fuwwPath;
+			wi.appendChiwd(span);
 
-			return li;
+			wetuwn wi;
 		};
 
-		if (this.recentlyOpenedList) { this.recentlyOpenedList.dispose(); }
+		if (this.wecentwyOpenedWist) { this.wecentwyOpenedWist.dispose(); }
 
-		const recentlyOpenedList = this.recentlyOpenedList = new GettingStartedIndexList(
+		const wecentwyOpenedWist = this.wecentwyOpenedWist = new GettingStawtedIndexWist(
 			{
-				title: localize('recent', "Recent"),
-				klass: 'recently-opened',
-				limit: 5,
-				empty: $('.empty-recent', {}, 'You have no recent folders,', $('button.button-link', { 'x-dispatch': 'openFolder' }, 'open a folder'), 'to start.'),
-				more: $('.more', {},
-					$('button.button-link',
+				titwe: wocawize('wecent', "Wecent"),
+				kwass: 'wecentwy-opened',
+				wimit: 5,
+				empty: $('.empty-wecent', {}, 'You have no wecent fowdews,', $('button.button-wink', { 'x-dispatch': 'openFowda' }, 'open a fowda'), 'to stawt.'),
+				mowe: $('.mowe', {},
+					$('button.button-wink',
 						{
-							'x-dispatch': 'showMoreRecents',
-							title: localize('show more recents', "Show All Recent Folders {0}", this.getKeybindingLabel('workbench.action.openRecent'))
-						}, 'More...')),
-				renderElement: renderRecent,
-				contextService: this.contextService
+							'x-dispatch': 'showMoweWecents',
+							titwe: wocawize('show mowe wecents', "Show Aww Wecent Fowdews {0}", this.getKeybindingWabew('wowkbench.action.openWecent'))
+						}, 'Mowe...')),
+				wendewEwement: wendewWecent,
+				contextSewvice: this.contextSewvice
 			});
 
-		recentlyOpenedList.onDidChange(() => this.registerDispatchListeners());
+		wecentwyOpenedWist.onDidChange(() => this.wegistewDispatchWistenews());
 
-		this.recentlyOpened.then(({ workspaces }) => {
-			// Filter out the current workspace
-			const workspacesWithID = workspaces
-				.filter(recent => !this.workspaceContextService.isCurrentWorkspace(isRecentWorkspace(recent) ? recent.workspace : recent.folderUri))
-				.map(recent => ({ ...recent, id: isRecentWorkspace(recent) ? recent.workspace.id : recent.folderUri.toString() }));
+		this.wecentwyOpened.then(({ wowkspaces }) => {
+			// Fiwta out the cuwwent wowkspace
+			const wowkspacesWithID = wowkspaces
+				.fiwta(wecent => !this.wowkspaceContextSewvice.isCuwwentWowkspace(isWecentWowkspace(wecent) ? wecent.wowkspace : wecent.fowdewUwi))
+				.map(wecent => ({ ...wecent, id: isWecentWowkspace(wecent) ? wecent.wowkspace.id : wecent.fowdewUwi.toStwing() }));
 
-			const updateEntries = () => { recentlyOpenedList.setEntries(workspacesWithID); };
+			const updateEntwies = () => { wecentwyOpenedWist.setEntwies(wowkspacesWithID); };
 
-			updateEntries();
+			updateEntwies();
 
-			recentlyOpenedList.register(this.labelService.onDidChangeFormatters(() => updateEntries()));
-		}).catch(onUnexpectedError);
+			wecentwyOpenedWist.wegista(this.wabewSewvice.onDidChangeFowmattews(() => updateEntwies()));
+		}).catch(onUnexpectedEwwow);
 
-		return recentlyOpenedList;
+		wetuwn wecentwyOpenedWist;
 	}
 
-	private buildStartList(): GettingStartedIndexList<IWelcomePageStartEntry> {
-		const renderStartEntry = (entry: IWelcomePageStartEntry): HTMLElement =>
-			$('li',
-				{}, $('button.button-link',
+	pwivate buiwdStawtWist(): GettingStawtedIndexWist<IWewcomePageStawtEntwy> {
+		const wendewStawtEntwy = (entwy: IWewcomePageStawtEntwy): HTMWEwement =>
+			$('wi',
+				{}, $('button.button-wink',
 					{
-						'x-dispatch': 'selectStartEntry:' + entry.id,
-						title: entry.description + ' ' + this.getKeybindingLabel(entry.command),
+						'x-dispatch': 'sewectStawtEntwy:' + entwy.id,
+						titwe: entwy.descwiption + ' ' + this.getKeybindingWabew(entwy.command),
 					},
-					this.iconWidgetFor(entry),
-					$('span', {}, entry.title)));
+					this.iconWidgetFow(entwy),
+					$('span', {}, entwy.titwe)));
 
-		if (this.startList) { this.startList.dispose(); }
+		if (this.stawtWist) { this.stawtWist.dispose(); }
 
-		const startList = this.startList = new GettingStartedIndexList(
+		const stawtWist = this.stawtWist = new GettingStawtedIndexWist(
 			{
-				title: localize('start', "Start"),
-				klass: 'start-container',
-				limit: 10,
-				renderElement: renderStartEntry,
-				rankElement: e => -e.order,
-				contextService: this.contextService
+				titwe: wocawize('stawt', "Stawt"),
+				kwass: 'stawt-containa',
+				wimit: 10,
+				wendewEwement: wendewStawtEntwy,
+				wankEwement: e => -e.owda,
+				contextSewvice: this.contextSewvice
 			});
 
-		startList.setEntries(parsedStartEntries);
-		startList.onDidChange(() => this.registerDispatchListeners());
-		return startList;
+		stawtWist.setEntwies(pawsedStawtEntwies);
+		stawtWist.onDidChange(() => this.wegistewDispatchWistenews());
+		wetuwn stawtWist;
 	}
 
-	private buildGettingStartedWalkthroughsList(): GettingStartedIndexList<IResolvedWalkthrough> {
+	pwivate buiwdGettingStawtedWawkthwoughsWist(): GettingStawtedIndexWist<IWesowvedWawkthwough> {
 
-		const renderGetttingStaredWalkthrough = (category: IResolvedWalkthrough): HTMLElement => {
+		const wendewGetttingStawedWawkthwough = (categowy: IWesowvedWawkthwough): HTMWEwement => {
 
-			const renderNewBadge = (category.newItems || category.newEntry) && !category.isFeatured;
+			const wendewNewBadge = (categowy.newItems || categowy.newEntwy) && !categowy.isFeatuwed;
 			const newBadge = $('.new-badge', {});
-			if (category.newEntry) {
-				reset(newBadge, $('.new-category', {}, localize('new', "New")));
-			} else if (category.newItems) {
-				reset(newBadge, $('.new-items', {}, localize('newItems', "New Items")));
+			if (categowy.newEntwy) {
+				weset(newBadge, $('.new-categowy', {}, wocawize('new', "New")));
+			} ewse if (categowy.newItems) {
+				weset(newBadge, $('.new-items', {}, wocawize('newItems', "New Items")));
 			}
 
-			const featuredBadge = $('.featured-badge', {});
-			const descriptionContent = $('.description-content', {},);
+			const featuwedBadge = $('.featuwed-badge', {});
+			const descwiptionContent = $('.descwiption-content', {},);
 
-			if (category.isFeatured) {
-				reset(featuredBadge, $('.featured', {}, $('span.featured-icon.codicon.codicon-star-empty')));
-				reset(descriptionContent, category.description);
+			if (categowy.isFeatuwed) {
+				weset(featuwedBadge, $('.featuwed', {}, $('span.featuwed-icon.codicon.codicon-staw-empty')));
+				weset(descwiptionContent, categowy.descwiption);
 			}
 
-			return $('button.getting-started-category' + (category.isFeatured ? '.featured' : ''),
+			wetuwn $('button.getting-stawted-categowy' + (categowy.isFeatuwed ? '.featuwed' : ''),
 				{
-					'x-dispatch': 'selectCategory:' + category.id,
-					'role': 'listitem',
-					'title': category.description
+					'x-dispatch': 'sewectCategowy:' + categowy.id,
+					'wowe': 'wistitem',
+					'titwe': categowy.descwiption
 				},
-				featuredBadge,
+				featuwedBadge,
 				$('.main-content', {},
-					this.iconWidgetFor(category),
-					$('h3.category-title.max-lines-3', { 'x-category-title-for': category.id }, category.title,),
-					renderNewBadge ? newBadge : $('.no-badge'),
-					$('a.codicon.codicon-close.hide-category-button', {
-						'x-dispatch': 'hideCategory:' + category.id,
-						'title': localize('close', "Hide"),
+					this.iconWidgetFow(categowy),
+					$('h3.categowy-titwe.max-wines-3', { 'x-categowy-titwe-fow': categowy.id }, categowy.titwe,),
+					wendewNewBadge ? newBadge : $('.no-badge'),
+					$('a.codicon.codicon-cwose.hide-categowy-button', {
+						'x-dispatch': 'hideCategowy:' + categowy.id,
+						'titwe': wocawize('cwose', "Hide"),
 					}),
 				),
-				descriptionContent,
-				$('.category-progress', { 'x-data-category-id': category.id, },
-					$('.progress-bar-outer', { 'role': 'progressbar' },
-						$('.progress-bar-inner'))));
+				descwiptionContent,
+				$('.categowy-pwogwess', { 'x-data-categowy-id': categowy.id, },
+					$('.pwogwess-baw-outa', { 'wowe': 'pwogwessbaw' },
+						$('.pwogwess-baw-inna'))));
 		};
 
-		if (this.gettingStartedList) { this.gettingStartedList.dispose(); }
+		if (this.gettingStawtedWist) { this.gettingStawtedWist.dispose(); }
 
-		const rankWalkthrough = (e: IResolvedWalkthrough) => {
-			let rank: number | null = e.order;
+		const wankWawkthwough = (e: IWesowvedWawkthwough) => {
+			wet wank: numba | nuww = e.owda;
 
-			if (e.isFeatured) { rank += 7; }
-			if (e.newEntry) { rank += 3; }
-			if (e.newItems) { rank += 2; }
-			if (e.recencyBonus) { rank += 4 * e.recencyBonus; }
+			if (e.isFeatuwed) { wank += 7; }
+			if (e.newEntwy) { wank += 3; }
+			if (e.newItems) { wank += 2; }
+			if (e.wecencyBonus) { wank += 4 * e.wecencyBonus; }
 
-			if (this.getHiddenCategories().has(e.id)) { rank = null; }
-			return rank;
+			if (this.getHiddenCategowies().has(e.id)) { wank = nuww; }
+			wetuwn wank;
 		};
 
-		const gettingStartedList = this.gettingStartedList = new GettingStartedIndexList(
+		const gettingStawtedWist = this.gettingStawtedWist = new GettingStawtedIndexWist(
 			{
-				title: localize('walkthroughs', "Walkthroughs"),
-				klass: 'getting-started',
-				limit: 5,
-				empty: undefined, more: undefined,
-				footer: $('span.button-link.see-all-walkthroughs', { 'x-dispatch': 'seeAllWalkthroughs' }, localize('showAll', "More...")),
-				renderElement: renderGetttingStaredWalkthrough,
-				rankElement: rankWalkthrough,
-				contextService: this.contextService,
+				titwe: wocawize('wawkthwoughs', "Wawkthwoughs"),
+				kwass: 'getting-stawted',
+				wimit: 5,
+				empty: undefined, mowe: undefined,
+				foota: $('span.button-wink.see-aww-wawkthwoughs', { 'x-dispatch': 'seeAwwWawkthwoughs' }, wocawize('showAww', "Mowe...")),
+				wendewEwement: wendewGetttingStawedWawkthwough,
+				wankEwement: wankWawkthwough,
+				contextSewvice: this.contextSewvice,
 			});
 
-		gettingStartedList.onDidChange(() => {
-			const hidden = this.getHiddenCategories();
-			const someWalkthroughsHidden = hidden.size || gettingStartedList.itemCount < this.gettingStartedCategories.filter(c => this.contextService.contextMatchesRules(c.when)).length;
-			this.container.classList.toggle('someWalkthroughsHidden', !!someWalkthroughsHidden);
-			this.registerDispatchListeners();
-			allWalkthroughsHiddenContext.bindTo(this.contextService).set(gettingStartedList.itemCount === 0);
-			this.updateCategoryProgress();
+		gettingStawtedWist.onDidChange(() => {
+			const hidden = this.getHiddenCategowies();
+			const someWawkthwoughsHidden = hidden.size || gettingStawtedWist.itemCount < this.gettingStawtedCategowies.fiwta(c => this.contextSewvice.contextMatchesWuwes(c.when)).wength;
+			this.containa.cwassWist.toggwe('someWawkthwoughsHidden', !!someWawkthwoughsHidden);
+			this.wegistewDispatchWistenews();
+			awwWawkthwoughsHiddenContext.bindTo(this.contextSewvice).set(gettingStawtedWist.itemCount === 0);
+			this.updateCategowyPwogwess();
 		});
 
-		gettingStartedList.setEntries(this.gettingStartedCategories);
-		allWalkthroughsHiddenContext.bindTo(this.contextService).set(gettingStartedList.itemCount === 0);
+		gettingStawtedWist.setEntwies(this.gettingStawtedCategowies);
+		awwWawkthwoughsHiddenContext.bindTo(this.contextSewvice).set(gettingStawtedWist.itemCount === 0);
 
 
-		return gettingStartedList;
+		wetuwn gettingStawtedWist;
 	}
 
-	layout(size: Dimension) {
-		this.detailsScrollbar?.scanDomNode();
+	wayout(size: Dimension) {
+		this.detaiwsScwowwbaw?.scanDomNode();
 
-		this.categoriesPageScrollbar?.scanDomNode();
-		this.detailsPageScrollbar?.scanDomNode();
+		this.categowiesPageScwowwbaw?.scanDomNode();
+		this.detaiwsPageScwowwbaw?.scanDomNode();
 
-		this.startList?.layout(size);
-		this.gettingStartedList?.layout(size);
-		this.recentlyOpenedList?.layout(size);
+		this.stawtWist?.wayout(size);
+		this.gettingStawtedWist?.wayout(size);
+		this.wecentwyOpenedWist?.wayout(size);
 
-		this.layoutMarkdown?.();
+		this.wayoutMawkdown?.();
 
-		this.container.classList[size.height <= 600 ? 'add' : 'remove']('height-constrained');
-		this.container.classList[size.width <= 400 ? 'add' : 'remove']('width-constrained');
-		this.container.classList[size.width <= 800 ? 'add' : 'remove']('width-semi-constrained');
+		this.containa.cwassWist[size.height <= 600 ? 'add' : 'wemove']('height-constwained');
+		this.containa.cwassWist[size.width <= 400 ? 'add' : 'wemove']('width-constwained');
+		this.containa.cwassWist[size.width <= 800 ? 'add' : 'wemove']('width-semi-constwained');
 	}
 
-	private updateCategoryProgress() {
-		document.querySelectorAll('.category-progress').forEach(element => {
-			const categoryID = element.getAttribute('x-data-category-id');
-			const category = this.gettingStartedCategories.find(category => category.id === categoryID);
-			if (!category) { throw Error('Could not find category with ID ' + categoryID); }
+	pwivate updateCategowyPwogwess() {
+		document.quewySewectowAww('.categowy-pwogwess').fowEach(ewement => {
+			const categowyID = ewement.getAttwibute('x-data-categowy-id');
+			const categowy = this.gettingStawtedCategowies.find(categowy => categowy.id === categowyID);
+			if (!categowy) { thwow Ewwow('Couwd not find categowy with ID ' + categowyID); }
 
-			const stats = this.getWalkthroughCompletionStats(category);
+			const stats = this.getWawkthwoughCompwetionStats(categowy);
 
-			const bar = assertIsDefined(element.querySelector('.progress-bar-inner')) as HTMLDivElement;
-			bar.setAttribute('aria-valuemin', '0');
-			bar.setAttribute('aria-valuenow', '' + stats.stepsComplete);
-			bar.setAttribute('aria-valuemax', '' + stats.stepsTotal);
-			const progress = (stats.stepsComplete / stats.stepsTotal) * 100;
-			bar.style.width = `${progress}%`;
+			const baw = assewtIsDefined(ewement.quewySewectow('.pwogwess-baw-inna')) as HTMWDivEwement;
+			baw.setAttwibute('awia-vawuemin', '0');
+			baw.setAttwibute('awia-vawuenow', '' + stats.stepsCompwete);
+			baw.setAttwibute('awia-vawuemax', '' + stats.stepsTotaw);
+			const pwogwess = (stats.stepsCompwete / stats.stepsTotaw) * 100;
+			baw.stywe.width = `${pwogwess}%`;
 
 
-			(element.parentElement as HTMLElement).classList[stats.stepsComplete === 0 ? 'add' : 'remove']('no-progress');
+			(ewement.pawentEwement as HTMWEwement).cwassWist[stats.stepsCompwete === 0 ? 'add' : 'wemove']('no-pwogwess');
 
-			if (stats.stepsTotal === stats.stepsComplete) {
-				bar.title = localize('gettingStarted.allStepsComplete', "All {0} steps complete!", stats.stepsComplete);
+			if (stats.stepsTotaw === stats.stepsCompwete) {
+				baw.titwe = wocawize('gettingStawted.awwStepsCompwete', "Aww {0} steps compwete!", stats.stepsCompwete);
 			}
-			else {
-				bar.title = localize('gettingStarted.someStepsComplete', "{0} of {1} steps complete", stats.stepsTotal, stats.stepsComplete);
+			ewse {
+				baw.titwe = wocawize('gettingStawted.someStepsCompwete', "{0} of {1} steps compwete", stats.stepsTotaw, stats.stepsCompwete);
 			}
 		});
 	}
 
-	private async scrollToCategory(categoryID: string, stepId?: string) {
-		this.inProgressScroll = this.inProgressScroll.then(async () => {
-			reset(this.stepsContent);
-			this.editorInput.selectedCategory = categoryID;
-			this.editorInput.selectedStep = stepId;
-			this.currentWalkthrough = this.gettingStartedCategories.find(category => category.id === categoryID);
-			this.buildCategorySlide(categoryID);
-			this.setSlide('details');
+	pwivate async scwowwToCategowy(categowyID: stwing, stepId?: stwing) {
+		this.inPwogwessScwoww = this.inPwogwessScwoww.then(async () => {
+			weset(this.stepsContent);
+			this.editowInput.sewectedCategowy = categowyID;
+			this.editowInput.sewectedStep = stepId;
+			this.cuwwentWawkthwough = this.gettingStawtedCategowies.find(categowy => categowy.id === categowyID);
+			this.buiwdCategowySwide(categowyID);
+			this.setSwide('detaiws');
 		});
 	}
 
-	private iconWidgetFor(category: IResolvedWalkthrough | { icon: { type: 'icon', icon: ThemeIcon } }) {
-		const widget = category.icon.type === 'icon' ? $(ThemeIcon.asCSSSelector(category.icon.icon)) : $('img.category-icon', { src: category.icon.path });
-		widget.classList.add('icon-widget');
-		return widget;
+	pwivate iconWidgetFow(categowy: IWesowvedWawkthwough | { icon: { type: 'icon', icon: ThemeIcon } }) {
+		const widget = categowy.icon.type === 'icon' ? $(ThemeIcon.asCSSSewectow(categowy.icon.icon)) : $('img.categowy-icon', { swc: categowy.icon.path });
+		widget.cwassWist.add('icon-widget');
+		wetuwn widget;
 	}
 
-	private runStepCommand(href: string) {
+	pwivate wunStepCommand(hwef: stwing) {
 
-		const isCommand = href.startsWith('command:');
-		const toSide = href.startsWith('command:toSide:');
-		const command = href.replace(/command:(toSide:)?/, 'command:');
+		const isCommand = hwef.stawtsWith('command:');
+		const toSide = hwef.stawtsWith('command:toSide:');
+		const command = hwef.wepwace(/command:(toSide:)?/, 'command:');
 
-		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href });
+		this.tewemetwySewvice.pubwicWog2<GettingStawtedActionEvent, GettingStawtedActionCwassification>('gettingStawted.ActionExecuted', { command: 'wunStepAction', awgument: hwef });
 
-		const fullSize = this.groupsService.contentDimension;
+		const fuwwSize = this.gwoupsSewvice.contentDimension;
 
-		if (toSide && fullSize.width > 700) {
-			if (this.groupsService.count === 1) {
-				this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.LEFT, { activate: true });
+		if (toSide && fuwwSize.width > 700) {
+			if (this.gwoupsSewvice.count === 1) {
+				this.gwoupsSewvice.addGwoup(this.gwoupsSewvice.gwoups[0], GwoupDiwection.WEFT, { activate: twue });
 
-				let gettingStartedSize: number;
-				if (fullSize.width > 1600) {
-					gettingStartedSize = 800;
-				} else if (fullSize.width > 800) {
-					gettingStartedSize = 400;
-				} else {
-					gettingStartedSize = 350;
+				wet gettingStawtedSize: numba;
+				if (fuwwSize.width > 1600) {
+					gettingStawtedSize = 800;
+				} ewse if (fuwwSize.width > 800) {
+					gettingStawtedSize = 400;
+				} ewse {
+					gettingStawtedSize = 350;
 				}
 
-				const gettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => (group.activeEditor instanceof GettingStartedInput));
-				this.groupsService.setSize(assertIsDefined(gettingStartedGroup), { width: gettingStartedSize, height: fullSize.height });
+				const gettingStawtedGwoup = this.gwoupsSewvice.getGwoups(GwoupsOwda.MOST_WECENTWY_ACTIVE).find(gwoup => (gwoup.activeEditow instanceof GettingStawtedInput));
+				this.gwoupsSewvice.setSize(assewtIsDefined(gettingStawtedGwoup), { width: gettingStawtedSize, height: fuwwSize.height });
 			}
 
-			const nonGettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => !(group.activeEditor instanceof GettingStartedInput));
-			if (nonGettingStartedGroup) {
-				this.groupsService.activateGroup(nonGettingStartedGroup);
-				nonGettingStartedGroup.focus();
+			const nonGettingStawtedGwoup = this.gwoupsSewvice.getGwoups(GwoupsOwda.MOST_WECENTWY_ACTIVE).find(gwoup => !(gwoup.activeEditow instanceof GettingStawtedInput));
+			if (nonGettingStawtedGwoup) {
+				this.gwoupsSewvice.activateGwoup(nonGettingStawtedGwoup);
+				nonGettingStawtedGwoup.focus();
 			}
 		}
-		this.openerService.open(command, { allowCommands: true });
+		this.openewSewvice.open(command, { awwowCommands: twue });
 
-		if (!isCommand && (href.startsWith('https://') || href.startsWith('http://'))) {
-			this.gettingStartedService.progressByEvent('onLink:' + href);
+		if (!isCommand && (hwef.stawtsWith('https://') || hwef.stawtsWith('http://'))) {
+			this.gettingStawtedSewvice.pwogwessByEvent('onWink:' + hwef);
 		}
 	}
 
-	private buildStepMarkdownDescription(container: HTMLElement, text: LinkedText[]) {
-		while (container.firstChild) { container.removeChild(container.firstChild); }
+	pwivate buiwdStepMawkdownDescwiption(containa: HTMWEwement, text: WinkedText[]) {
+		whiwe (containa.fiwstChiwd) { containa.wemoveChiwd(containa.fiwstChiwd); }
 
-		for (const linkedText of text) {
-			if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {
-				const node = linkedText.nodes[0];
-				const buttonContainer = append(container, $('.button-container'));
-				const button = new Button(buttonContainer, { title: node.title, supportIcons: true });
+		fow (const winkedText of text) {
+			if (winkedText.nodes.wength === 1 && typeof winkedText.nodes[0] !== 'stwing') {
+				const node = winkedText.nodes[0];
+				const buttonContaina = append(containa, $('.button-containa'));
+				const button = new Button(buttonContaina, { titwe: node.titwe, suppowtIcons: twue });
 
-				const isCommand = node.href.startsWith('command:');
-				const command = node.href.replace(/command:(toSide:)?/, 'command:');
+				const isCommand = node.hwef.stawtsWith('command:');
+				const command = node.hwef.wepwace(/command:(toSide:)?/, 'command:');
 
-				button.label = node.label;
-				button.onDidClick(e => {
-					e.stopPropagation();
-					e.preventDefault();
-					this.runStepCommand(node.href);
-				}, null, this.detailsPageDisposables);
+				button.wabew = node.wabew;
+				button.onDidCwick(e => {
+					e.stopPwopagation();
+					e.pweventDefauwt();
+					this.wunStepCommand(node.hwef);
+				}, nuww, this.detaiwsPageDisposabwes);
 
 				if (isCommand) {
-					const keybindingLabel = this.getKeybindingLabel(command);
-					if (keybindingLabel) {
-						container.appendChild($('span.shortcut-message', {}, 'Tip: Use keyboard shortcut ', $('span.keybinding', {}, keybindingLabel)));
+					const keybindingWabew = this.getKeybindingWabew(command);
+					if (keybindingWabew) {
+						containa.appendChiwd($('span.showtcut-message', {}, 'Tip: Use keyboawd showtcut ', $('span.keybinding', {}, keybindingWabew)));
 					}
 				}
 
-				this.detailsPageDisposables.add(button);
-				this.detailsPageDisposables.add(attachButtonStyler(button, this.themeService));
-			} else {
-				const p = append(container, $('p'));
-				for (const node of linkedText.nodes) {
-					if (typeof node === 'string') {
-						append(p, renderFormattedText(node, { inline: true, renderCodeSegments: true }));
-					} else {
-						const link = this.instantiationService.createInstance(Link, p, node, { opener: (href) => this.runStepCommand(href) });
-						this.detailsPageDisposables.add(link);
+				this.detaiwsPageDisposabwes.add(button);
+				this.detaiwsPageDisposabwes.add(attachButtonStywa(button, this.themeSewvice));
+			} ewse {
+				const p = append(containa, $('p'));
+				fow (const node of winkedText.nodes) {
+					if (typeof node === 'stwing') {
+						append(p, wendewFowmattedText(node, { inwine: twue, wendewCodeSegments: twue }));
+					} ewse {
+						const wink = this.instantiationSewvice.cweateInstance(Wink, p, node, { opena: (hwef) => this.wunStepCommand(hwef) });
+						this.detaiwsPageDisposabwes.add(wink);
 					}
 				}
 			}
 		}
-		return container;
+		wetuwn containa;
 	}
 
-	override clearInput() {
-		this.stepDisposables.clear();
-		super.clearInput();
+	ovewwide cweawInput() {
+		this.stepDisposabwes.cweaw();
+		supa.cweawInput();
 	}
 
-	private buildCategorySlide(categoryID: string, selectedStep?: string) {
-		if (this.detailsScrollbar) { this.detailsScrollbar.dispose(); }
+	pwivate buiwdCategowySwide(categowyID: stwing, sewectedStep?: stwing) {
+		if (this.detaiwsScwowwbaw) { this.detaiwsScwowwbaw.dispose(); }
 
-		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
-			// Remove internal extension id specifier from exposed id's
-			this.extensionService.activateByEvent(`onWalkthrough:${categoryID.replace(/[^#]+#/, '')}`);
+		this.extensionSewvice.whenInstawwedExtensionsWegistewed().then(() => {
+			// Wemove intewnaw extension id specifia fwom exposed id's
+			this.extensionSewvice.activateByEvent(`onWawkthwough:${categowyID.wepwace(/[^#]+#/, '')}`);
 		});
 
-		this.detailsPageDisposables.clear();
+		this.detaiwsPageDisposabwes.cweaw();
 
-		const category = this.gettingStartedCategories.find(category => category.id === categoryID);
-		if (!category) { throw Error('could not find category with ID ' + categoryID); }
+		const categowy = this.gettingStawtedCategowies.find(categowy => categowy.id === categowyID);
+		if (!categowy) { thwow Ewwow('couwd not find categowy with ID ' + categowyID); }
 
-		const categoryDescriptorComponent =
-			$('.getting-started-category',
+		const categowyDescwiptowComponent =
+			$('.getting-stawted-categowy',
 				{},
-				this.iconWidgetFor(category),
-				$('.category-description-container', {},
-					$('h2.category-title.max-lines-3', { 'x-category-title-for': category.id }, category.title),
-					$('.category-description.description.max-lines-3', { 'x-category-description-for': category.id }, category.description)));
+				this.iconWidgetFow(categowy),
+				$('.categowy-descwiption-containa', {},
+					$('h2.categowy-titwe.max-wines-3', { 'x-categowy-titwe-fow': categowy.id }, categowy.titwe),
+					$('.categowy-descwiption.descwiption.max-wines-3', { 'x-categowy-descwiption-fow': categowy.id }, categowy.descwiption)));
 
-		const stepListContainer = $('.step-list-container');
+		const stepWistContaina = $('.step-wist-containa');
 
-		this.detailsPageDisposables.add(addDisposableListener(stepListContainer, 'keydown', (e) => {
-			const event = new StandardKeyboardEvent(e);
-			const currentStepIndex = () =>
-				category.steps.findIndex(e => e.id === this.editorInput.selectedStep);
+		this.detaiwsPageDisposabwes.add(addDisposabweWistena(stepWistContaina, 'keydown', (e) => {
+			const event = new StandawdKeyboawdEvent(e);
+			const cuwwentStepIndex = () =>
+				categowy.steps.findIndex(e => e.id === this.editowInput.sewectedStep);
 
-			if (event.keyCode === KeyCode.UpArrow) {
-				const toExpand = category.steps.filter((step, index) => index < currentStepIndex() && this.contextService.contextMatchesRules(step.when));
-				if (toExpand.length) {
-					this.selectStep(toExpand[toExpand.length - 1].id, false, false);
+			if (event.keyCode === KeyCode.UpAwwow) {
+				const toExpand = categowy.steps.fiwta((step, index) => index < cuwwentStepIndex() && this.contextSewvice.contextMatchesWuwes(step.when));
+				if (toExpand.wength) {
+					this.sewectStep(toExpand[toExpand.wength - 1].id, fawse, fawse);
 				}
 			}
-			if (event.keyCode === KeyCode.DownArrow) {
-				const toExpand = category.steps.find((step, index) => index > currentStepIndex() && this.contextService.contextMatchesRules(step.when));
+			if (event.keyCode === KeyCode.DownAwwow) {
+				const toExpand = categowy.steps.find((step, index) => index > cuwwentStepIndex() && this.contextSewvice.contextMatchesWuwes(step.when));
 				if (toExpand) {
-					this.selectStep(toExpand.id, false, false);
+					this.sewectStep(toExpand.id, fawse, fawse);
 				}
 			}
 		}));
 
-		let renderedSteps: IResolvedWalkthroughStep[] | undefined = undefined;
+		wet wendewedSteps: IWesowvedWawkthwoughStep[] | undefined = undefined;
 
-		const contextKeysToWatch = new Set(category.steps.flatMap(step => step.when.keys()));
+		const contextKeysToWatch = new Set(categowy.steps.fwatMap(step => step.when.keys()));
 
-		const buildStepList = () => {
-			const toRender = category.steps
-				.filter(step => this.contextService.contextMatchesRules(step.when));
+		const buiwdStepWist = () => {
+			const toWenda = categowy.steps
+				.fiwta(step => this.contextSewvice.contextMatchesWuwes(step.when));
 
-			if (equals(renderedSteps, toRender, (a, b) => a.id === b.id)) {
-				return;
+			if (equaws(wendewedSteps, toWenda, (a, b) => a.id === b.id)) {
+				wetuwn;
 			}
 
-			renderedSteps = toRender;
+			wendewedSteps = toWenda;
 
-			reset(stepListContainer, ...renderedSteps
+			weset(stepWistContaina, ...wendewedSteps
 				.map(step => {
-					const codicon = $('.codicon' + (step.done ? '.complete' + ThemeIcon.asCSSSelector(gettingStartedCheckedCodicon) : ThemeIcon.asCSSSelector(gettingStartedUncheckedCodicon)),
+					const codicon = $('.codicon' + (step.done ? '.compwete' + ThemeIcon.asCSSSewectow(gettingStawtedCheckedCodicon) : ThemeIcon.asCSSSewectow(gettingStawtedUncheckedCodicon)),
 						{
 							'data-done-step-id': step.id,
-							'x-dispatch': 'toggleStepCompletion:' + step.id,
+							'x-dispatch': 'toggweStepCompwetion:' + step.id,
 						});
 
-					const container = $('.step-description-container', { 'x-step-description-for': step.id });
-					this.buildStepMarkdownDescription(container, step.description);
+					const containa = $('.step-descwiption-containa', { 'x-step-descwiption-fow': step.id });
+					this.buiwdStepMawkdownDescwiption(containa, step.descwiption);
 
-					const stepDescription = $('.step-container', {},
-						$('h3.step-title.max-lines-3', { 'x-step-title-for': step.id }, step.title),
-						container,
+					const stepDescwiption = $('.step-containa', {},
+						$('h3.step-titwe.max-wines-3', { 'x-step-titwe-fow': step.id }, step.titwe),
+						containa,
 					);
 
 					if (step.media.type === 'image') {
-						stepDescription.appendChild(
-							$('.image-description', { 'aria-label': localize('imageShowing', "Image showing {0}", step.media.altText) }),
+						stepDescwiption.appendChiwd(
+							$('.image-descwiption', { 'awia-wabew': wocawize('imageShowing', "Image showing {0}", step.media.awtText) }),
 						);
 					}
 
-					return $('button.getting-started-step',
+					wetuwn $('button.getting-stawted-step',
 						{
-							'x-dispatch': 'selectTask:' + step.id,
+							'x-dispatch': 'sewectTask:' + step.id,
 							'data-step-id': step.id,
-							'aria-expanded': 'false',
-							'aria-checked': '' + step.done,
-							'role': 'listitem',
+							'awia-expanded': 'fawse',
+							'awia-checked': '' + step.done,
+							'wowe': 'wistitem',
 						},
 						codicon,
-						stepDescription);
+						stepDescwiption);
 				}));
 		};
 
-		buildStepList();
+		buiwdStepWist();
 
-		this.detailsPageDisposables.add(this.contextService.onDidChangeContext(e => {
+		this.detaiwsPageDisposabwes.add(this.contextSewvice.onDidChangeContext(e => {
 			if (e.affectsSome(contextKeysToWatch)) {
-				buildStepList();
-				this.registerDispatchListeners();
-				this.selectStep(this.editorInput.selectedStep, false, true);
+				buiwdStepWist();
+				this.wegistewDispatchWistenews();
+				this.sewectStep(this.editowInput.sewectedStep, fawse, twue);
 			}
 		}));
 
-		const showNextCategory = this.gettingStartedCategories.find(_category => _category.id === category.next);
+		const showNextCategowy = this.gettingStawtedCategowies.find(_categowy => _categowy.id === categowy.next);
 
-		const stepsContainer = $(
-			'.getting-started-detail-container', { 'role': 'list' },
-			stepListContainer,
-			$('.done-next-container', {},
-				$('button.button-link.all-done', { 'x-dispatch': 'allDone' }, $('span.codicon.codicon-check-all'), localize('allDone', "Mark Done")),
-				...(showNextCategory
-					? [$('button.button-link.next', { 'x-dispatch': 'nextSection' }, localize('nextOne', "Next Section"), $('span.codicon.codicon-arrow-small-right'))]
+		const stepsContaina = $(
+			'.getting-stawted-detaiw-containa', { 'wowe': 'wist' },
+			stepWistContaina,
+			$('.done-next-containa', {},
+				$('button.button-wink.aww-done', { 'x-dispatch': 'awwDone' }, $('span.codicon.codicon-check-aww'), wocawize('awwDone', "Mawk Done")),
+				...(showNextCategowy
+					? [$('button.button-wink.next', { 'x-dispatch': 'nextSection' }, wocawize('nextOne', "Next Section"), $('span.codicon.codicon-awwow-smaww-wight'))]
 					: []),
 			)
 		);
-		this.detailsScrollbar = this._register(new DomScrollableElement(stepsContainer, { className: 'steps-container' }));
-		const stepListComponent = this.detailsScrollbar.getDomNode();
+		this.detaiwsScwowwbaw = this._wegista(new DomScwowwabweEwement(stepsContaina, { cwassName: 'steps-containa' }));
+		const stepWistComponent = this.detaiwsScwowwbaw.getDomNode();
 
-		const categoryFooter = $('.getting-started-footer');
-		if (this.editorInput.showTelemetryNotice && getTelemetryLevel(this.configurationService) !== TelemetryLevel.NONE && product.enableTelemetry) {
-			const mdRenderer = this._register(this.instantiationService.createInstance(MarkdownRenderer, {}));
+		const categowyFoota = $('.getting-stawted-foota');
+		if (this.editowInput.showTewemetwyNotice && getTewemetwyWevew(this.configuwationSewvice) !== TewemetwyWevew.NONE && pwoduct.enabweTewemetwy) {
+			const mdWendewa = this._wegista(this.instantiationSewvice.cweateInstance(MawkdownWendewa, {}));
 
-			const privacyStatementCopy = localize('privacy statement', "privacy statement");
-			const privacyStatementButton = `[${privacyStatementCopy}](command:workbench.action.openPrivacyStatementUrl)`;
+			const pwivacyStatementCopy = wocawize('pwivacy statement', "pwivacy statement");
+			const pwivacyStatementButton = `[${pwivacyStatementCopy}](command:wowkbench.action.openPwivacyStatementUww)`;
 
-			const optOutCopy = localize('optOut', "opt out");
-			const optOutButton = `[${optOutCopy}](command:settings.filterByTelemetry)`;
+			const optOutCopy = wocawize('optOut', "opt out");
+			const optOutButton = `[${optOutCopy}](command:settings.fiwtewByTewemetwy)`;
 
-			const text = localize({ key: 'footer', comment: ['fist substitution is "vs code", second is "privacy statement", third is "opt out".'] },
-				"{0} collects usage data. Read our {1} and learn how to {2}.", product.nameShort, privacyStatementButton, optOutButton);
+			const text = wocawize({ key: 'foota', comment: ['fist substitution is "vs code", second is "pwivacy statement", thiwd is "opt out".'] },
+				"{0} cowwects usage data. Wead ouw {1} and weawn how to {2}.", pwoduct.nameShowt, pwivacyStatementButton, optOutButton);
 
-			categoryFooter.append(mdRenderer.render({ value: text, isTrusted: true }).element);
+			categowyFoota.append(mdWendewa.wenda({ vawue: text, isTwusted: twue }).ewement);
 		}
 
-		reset(this.stepsContent, categoryDescriptorComponent, stepListComponent, this.stepMediaComponent, categoryFooter);
+		weset(this.stepsContent, categowyDescwiptowComponent, stepWistComponent, this.stepMediaComponent, categowyFoota);
 
-		const toExpand = category.steps.find(step => this.contextService.contextMatchesRules(step.when) && !step.done) ?? category.steps[0];
-		this.selectStep(selectedStep ?? toExpand.id, !selectedStep, true);
+		const toExpand = categowy.steps.find(step => this.contextSewvice.contextMatchesWuwes(step.when) && !step.done) ?? categowy.steps[0];
+		this.sewectStep(sewectedStep ?? toExpand.id, !sewectedStep, twue);
 
-		this.detailsScrollbar.scanDomNode();
-		this.detailsPageScrollbar?.scanDomNode();
+		this.detaiwsScwowwbaw.scanDomNode();
+		this.detaiwsPageScwowwbaw?.scanDomNode();
 
-		this.registerDispatchListeners();
+		this.wegistewDispatchWistenews();
 	}
 
-	private getKeybindingLabel(command: string) {
-		command = command.replace(/^command:/, '');
-		const label = this.keybindingService.lookupKeybinding(command)?.getLabel();
-		if (!label) { return ''; }
-		else {
-			return `(${label})`;
+	pwivate getKeybindingWabew(command: stwing) {
+		command = command.wepwace(/^command:/, '');
+		const wabew = this.keybindingSewvice.wookupKeybinding(command)?.getWabew();
+		if (!wabew) { wetuwn ''; }
+		ewse {
+			wetuwn `(${wabew})`;
 		}
 	}
 
-	private async scrollPrev() {
-		this.inProgressScroll = this.inProgressScroll.then(async () => {
-			this.currentWalkthrough = undefined;
-			this.editorInput.selectedCategory = undefined;
-			this.editorInput.selectedStep = undefined;
-			this.editorInput.showTelemetryNotice = false;
+	pwivate async scwowwPwev() {
+		this.inPwogwessScwoww = this.inPwogwessScwoww.then(async () => {
+			this.cuwwentWawkthwough = undefined;
+			this.editowInput.sewectedCategowy = undefined;
+			this.editowInput.sewectedStep = undefined;
+			this.editowInput.showTewemetwyNotice = fawse;
 
-			this.selectStep(undefined);
-			this.setSlide('categories');
-			this.container.focus();
+			this.sewectStep(undefined);
+			this.setSwide('categowies');
+			this.containa.focus();
 		});
 	}
 
-	private runSkip() {
-		this.commandService.executeCommand('workbench.action.closeActiveEditor');
+	pwivate wunSkip() {
+		this.commandSewvice.executeCommand('wowkbench.action.cwoseActiveEditow');
 	}
 
 	escape() {
-		if (this.editorInput.selectedCategory) {
-			this.scrollPrev();
-		} else {
-			this.runSkip();
+		if (this.editowInput.sewectedCategowy) {
+			this.scwowwPwev();
+		} ewse {
+			this.wunSkip();
 		}
 	}
 
-	private setSlide(toEnable: 'details' | 'categories') {
-		const slideManager = assertIsDefined(this.container.querySelector('.gettingStarted'));
-		if (toEnable === 'categories') {
-			slideManager.classList.remove('showDetails');
-			slideManager.classList.add('showCategories');
-			this.container.querySelector('.gettingStartedSlideDetails')!.querySelectorAll('button').forEach(button => button.disabled = true);
-			this.container.querySelector('.gettingStartedSlideCategories')!.querySelectorAll('button').forEach(button => button.disabled = false);
-			this.container.querySelector('.gettingStartedSlideCategories')!.querySelectorAll('input').forEach(button => button.disabled = false);
-		} else {
-			slideManager.classList.add('showDetails');
-			slideManager.classList.remove('showCategories');
-			this.container.querySelector('.gettingStartedSlideDetails')!.querySelectorAll('button').forEach(button => button.disabled = false);
-			this.container.querySelector('.gettingStartedSlideCategories')!.querySelectorAll('button').forEach(button => button.disabled = true);
-			this.container.querySelector('.gettingStartedSlideCategories')!.querySelectorAll('input').forEach(button => button.disabled = true);
+	pwivate setSwide(toEnabwe: 'detaiws' | 'categowies') {
+		const swideManaga = assewtIsDefined(this.containa.quewySewectow('.gettingStawted'));
+		if (toEnabwe === 'categowies') {
+			swideManaga.cwassWist.wemove('showDetaiws');
+			swideManaga.cwassWist.add('showCategowies');
+			this.containa.quewySewectow('.gettingStawtedSwideDetaiws')!.quewySewectowAww('button').fowEach(button => button.disabwed = twue);
+			this.containa.quewySewectow('.gettingStawtedSwideCategowies')!.quewySewectowAww('button').fowEach(button => button.disabwed = fawse);
+			this.containa.quewySewectow('.gettingStawtedSwideCategowies')!.quewySewectowAww('input').fowEach(button => button.disabwed = fawse);
+		} ewse {
+			swideManaga.cwassWist.add('showDetaiws');
+			swideManaga.cwassWist.wemove('showCategowies');
+			this.containa.quewySewectow('.gettingStawtedSwideDetaiws')!.quewySewectowAww('button').fowEach(button => button.disabwed = fawse);
+			this.containa.quewySewectow('.gettingStawtedSwideCategowies')!.quewySewectowAww('button').fowEach(button => button.disabwed = twue);
+			this.containa.quewySewectow('.gettingStawtedSwideCategowies')!.quewySewectowAww('input').fowEach(button => button.disabwed = twue);
 		}
 	}
 
-	override focus() {
-		this.container.focus();
+	ovewwide focus() {
+		this.containa.focus();
 	}
 }
 
-export class GettingStartedInputSerializer implements IEditorSerializer {
-	public canSerialize(editorInput: GettingStartedInput): boolean {
-		return true;
+expowt cwass GettingStawtedInputSewiawiza impwements IEditowSewiawiza {
+	pubwic canSewiawize(editowInput: GettingStawtedInput): boowean {
+		wetuwn twue;
 	}
 
-	public serialize(editorInput: GettingStartedInput): string {
-		return JSON.stringify({ selectedCategory: editorInput.selectedCategory, selectedStep: editorInput.selectedStep });
+	pubwic sewiawize(editowInput: GettingStawtedInput): stwing {
+		wetuwn JSON.stwingify({ sewectedCategowy: editowInput.sewectedCategowy, sewectedStep: editowInput.sewectedStep });
 	}
 
-	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): GettingStartedInput {
-		try {
-			const { selectedCategory, selectedStep } = JSON.parse(serializedEditorInput);
-			return new GettingStartedInput({ selectedCategory, selectedStep });
+	pubwic desewiawize(instantiationSewvice: IInstantiationSewvice, sewiawizedEditowInput: stwing): GettingStawtedInput {
+		twy {
+			const { sewectedCategowy, sewectedStep } = JSON.pawse(sewiawizedEditowInput);
+			wetuwn new GettingStawtedInput({ sewectedCategowy, sewectedStep });
 		} catch { }
-		return new GettingStartedInput({});
+		wetuwn new GettingStawtedInput({});
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
+wegistewThemingPawticipant((theme, cowwectow) => {
 
-	const backgroundColor = theme.getColor(welcomePageBackground);
-	if (backgroundColor) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer { background-color: ${backgroundColor}; }`);
-	}
-
-	const foregroundColor = theme.getColor(foreground);
-	if (foregroundColor) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer { color: ${foregroundColor}; }`);
+	const backgwoundCowow = theme.getCowow(wewcomePageBackgwound);
+	if (backgwoundCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina { backgwound-cowow: ${backgwoundCowow}; }`);
 	}
 
-	const descriptionColor = theme.getColor(descriptionForeground);
-	if (descriptionColor) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .description { color: ${descriptionColor}; }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .category-progress .message { color: ${descriptionColor}; }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-footer { color: ${descriptionColor}; }`);
+	const fowegwoundCowow = theme.getCowow(fowegwound);
+	if (fowegwoundCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina { cowow: ${fowegwoundCowow}; }`);
 	}
 
-	const iconColor = theme.getColor(textLinkForeground);
-	if (iconColor) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .getting-started-category .codicon:not(.codicon-close) { color: ${iconColor} }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .codicon.complete { color: ${iconColor} } `);
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step.expanded .codicon { color: ${iconColor} } `);
+	const descwiptionCowow = theme.getCowow(descwiptionFowegwound);
+	if (descwiptionCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina .descwiption { cowow: ${descwiptionCowow}; }`);
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina .categowy-pwogwess .message { cowow: ${descwiptionCowow}; }`);
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina .gettingStawtedSwideDetaiws .gettingStawtedDetaiwsContent > .getting-stawted-foota { cowow: ${descwiptionCowow}; }`);
 	}
 
-	const buttonColor = theme.getColor(welcomePageTileBackground);
-	if (buttonColor) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button { background: ${buttonColor}; }`);
+	const iconCowow = theme.getCowow(textWinkFowegwound);
+	if (iconCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina .getting-stawted-categowy .codicon:not(.codicon-cwose) { cowow: ${iconCowow} }`);
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina .gettingStawtedSwideDetaiws .getting-stawted-step .codicon.compwete { cowow: ${iconCowow} } `);
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina .gettingStawtedSwideDetaiws .getting-stawted-step.expanded .codicon { cowow: ${iconCowow} } `);
 	}
 
-	const shadowColor = theme.getColor(welcomePageTileShadow);
-	if (shadowColor) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .getting-started-category { filter: drop-shadow(2px 2px 2px ${buttonColor}); }`);
+	const buttonCowow = theme.getCowow(wewcomePageTiweBackgwound);
+	if (buttonCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina button { backgwound: ${buttonCowow}; }`);
 	}
 
-	const buttonHoverColor = theme.getColor(welcomePageTileHoverBackground);
-	if (buttonHoverColor) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button:hover { background: ${buttonHoverColor}; }`);
-	}
-	if (buttonColor && buttonHoverColor) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button.expanded:hover { background: ${buttonColor}; }`);
+	const shadowCowow = theme.getCowow(wewcomePageTiweShadow);
+	if (shadowCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina .gettingStawtedSwideCategowies .getting-stawted-categowy { fiwta: dwop-shadow(2px 2px 2px ${buttonCowow}); }`);
 	}
 
-	const emphasisButtonForeground = theme.getColor(buttonForeground);
-	if (emphasisButtonForeground) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button.emphasis { color: ${emphasisButtonForeground}; }`);
+	const buttonHovewCowow = theme.getCowow(wewcomePageTiweHovewBackgwound);
+	if (buttonHovewCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina button:hova { backgwound: ${buttonHovewCowow}; }`);
+	}
+	if (buttonCowow && buttonHovewCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina button.expanded:hova { backgwound: ${buttonCowow}; }`);
 	}
 
-	const emphasisButtonBackground = theme.getColor(buttonBackground);
-	if (emphasisButtonBackground) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button.emphasis { background: ${emphasisButtonBackground}; }`);
+	const emphasisButtonFowegwound = theme.getCowow(buttonFowegwound);
+	if (emphasisButtonFowegwound) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina button.emphasis { cowow: ${emphasisButtonFowegwound}; }`);
 	}
 
-	const pendingStepColor = theme.getColor(descriptionForeground);
-	if (pendingStepColor) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .codicon { color: ${pendingStepColor} } `);
+	const emphasisButtonBackgwound = theme.getCowow(buttonBackgwound);
+	if (emphasisButtonBackgwound) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina button.emphasis { backgwound: ${emphasisButtonBackgwound}; }`);
 	}
 
-	const emphasisButtonHoverBackground = theme.getColor(buttonHoverBackground);
-	if (emphasisButtonHoverBackground) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button.emphasis:hover { background: ${emphasisButtonHoverBackground}; }`);
+	const pendingStepCowow = theme.getCowow(descwiptionFowegwound);
+	if (pendingStepCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina .gettingStawtedSwideDetaiws .getting-stawted-step .codicon { cowow: ${pendingStepCowow} } `);
 	}
 
-	const link = theme.getColor(textLinkForeground);
-	if (link) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.hide-category-button) { color: ${link}; }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link { color: ${link}; }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link .codicon { color: ${link}; }`);
-	}
-	const activeLink = theme.getColor(textLinkActiveForeground);
-	if (activeLink) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.hide-category-button):hover { color: ${activeLink}; }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.hide-category-button):active { color: ${activeLink}; }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button.button-link:hover { color: ${activeLink}; }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button.button-link:hover .codicon { color: ${activeLink}; }`);
-	}
-	const focusColor = theme.getColor(focusBorder);
-	if (focusColor) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.codicon-close):focus { outline-color: ${focusColor}; }`);
-	}
-	const border = theme.getColor(contrastBorder);
-	if (border) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button { border: 1px solid ${border}; }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button.button-link { border: inherit; }`);
-	}
-	const activeBorder = theme.getColor(activeContrastBorder);
-	if (activeBorder) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button:hover { outline-color: ${activeBorder}; }`);
+	const emphasisButtonHovewBackgwound = theme.getCowow(buttonHovewBackgwound);
+	if (emphasisButtonHovewBackgwound) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina button.emphasis:hova { backgwound: ${emphasisButtonHovewBackgwound}; }`);
 	}
 
-	const progressBackground = theme.getColor(welcomePageProgressBackground);
-	if (progressBackground) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .progress-bar-outer { background-color: ${progressBackground}; }`);
+	const wink = theme.getCowow(textWinkFowegwound);
+	if (wink) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina a:not(.hide-categowy-button) { cowow: ${wink}; }`);
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina .button-wink { cowow: ${wink}; }`);
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina .button-wink .codicon { cowow: ${wink}; }`);
 	}
-	const progressForeground = theme.getColor(welcomePageProgressForeground);
-	if (progressForeground) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .progress-bar-inner { background-color: ${progressForeground}; }`);
+	const activeWink = theme.getCowow(textWinkActiveFowegwound);
+	if (activeWink) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina a:not(.hide-categowy-button):hova { cowow: ${activeWink}; }`);
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina a:not(.hide-categowy-button):active { cowow: ${activeWink}; }`);
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina button.button-wink:hova { cowow: ${activeWink}; }`);
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina button.button-wink:hova .codicon { cowow: ${activeWink}; }`);
+	}
+	const focusCowow = theme.getCowow(focusBowda);
+	if (focusCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina a:not(.codicon-cwose):focus { outwine-cowow: ${focusCowow}; }`);
+	}
+	const bowda = theme.getCowow(contwastBowda);
+	if (bowda) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina button { bowda: 1px sowid ${bowda}; }`);
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina button.button-wink { bowda: inhewit; }`);
+	}
+	const activeBowda = theme.getCowow(activeContwastBowda);
+	if (activeBowda) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina button:hova { outwine-cowow: ${activeBowda}; }`);
 	}
 
-	const newBadgeForeground = theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND);
-	if (newBadgeForeground) {
-		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .new-badge { color: ${newBadgeForeground}; }`);
-		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured .featured-icon { color: ${newBadgeForeground}; }`);
+	const pwogwessBackgwound = theme.getCowow(wewcomePagePwogwessBackgwound);
+	if (pwogwessBackgwound) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina .gettingStawtedSwideCategowies .pwogwess-baw-outa { backgwound-cowow: ${pwogwessBackgwound}; }`);
+	}
+	const pwogwessFowegwound = theme.getCowow(wewcomePagePwogwessFowegwound);
+	if (pwogwessFowegwound) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .gettingStawtedContaina .gettingStawtedSwideCategowies .pwogwess-baw-inna { backgwound-cowow: ${pwogwessFowegwound}; }`);
 	}
 
-	const newBadgeBackground = theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND);
-	if (newBadgeBackground) {
-		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .new-badge { background-color: ${newBadgeBackground}; }`);
-		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured { border-top-color: ${newBadgeBackground}; }`);
+	const newBadgeFowegwound = theme.getCowow(ACTIVITY_BAW_BADGE_FOWEGWOUND);
+	if (newBadgeFowegwound) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow>.content .gettingStawtedContaina .gettingStawtedSwide .getting-stawted-categowy .new-badge { cowow: ${newBadgeFowegwound}; }`);
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow>.content .gettingStawtedContaina .gettingStawtedSwide .getting-stawted-categowy .featuwed .featuwed-icon { cowow: ${newBadgeFowegwound}; }`);
+	}
+
+	const newBadgeBackgwound = theme.getCowow(ACTIVITY_BAW_BADGE_BACKGWOUND);
+	if (newBadgeBackgwound) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow>.content .gettingStawtedContaina .gettingStawtedSwide .getting-stawted-categowy .new-badge { backgwound-cowow: ${newBadgeBackgwound}; }`);
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow>.content .gettingStawtedContaina .gettingStawtedSwide .getting-stawted-categowy .featuwed { bowda-top-cowow: ${newBadgeBackgwound}; }`);
 	}
 });

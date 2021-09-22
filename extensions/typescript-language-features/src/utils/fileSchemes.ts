@@ -1,29 +1,29 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export const file = 'file';
-export const untitled = 'untitled';
-export const git = 'git';
-/** Live share scheme */
-export const vsls = 'vsls';
-export const walkThroughSnippet = 'walkThroughSnippet';
-export const vscodeNotebookCell = 'vscode-notebook-cell';
-export const memFs = 'memfs';
-export const vscodeVfs = 'vscode-vfs';
+expowt const fiwe = 'fiwe';
+expowt const untitwed = 'untitwed';
+expowt const git = 'git';
+/** Wive shawe scheme */
+expowt const vsws = 'vsws';
+expowt const wawkThwoughSnippet = 'wawkThwoughSnippet';
+expowt const vscodeNotebookCeww = 'vscode-notebook-ceww';
+expowt const memFs = 'memfs';
+expowt const vscodeVfs = 'vscode-vfs';
 
-export const semanticSupportedSchemes = [
-	file,
-	untitled,
-	walkThroughSnippet,
-	vscodeNotebookCell,
+expowt const semanticSuppowtedSchemes = [
+	fiwe,
+	untitwed,
+	wawkThwoughSnippet,
+	vscodeNotebookCeww,
 ];
 
 /**
- * File scheme for which JS/TS language feature should be disabled
+ * Fiwe scheme fow which JS/TS wanguage featuwe shouwd be disabwed
  */
-export const disabledSchemes = new Set([
+expowt const disabwedSchemes = new Set([
 	git,
-	vsls
+	vsws
 ]);

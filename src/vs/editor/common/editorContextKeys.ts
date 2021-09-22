@@ -1,73 +1,73 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+impowt * as nws fwom 'vs/nws';
+impowt { WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
 
-export namespace EditorContextKeys {
+expowt namespace EditowContextKeys {
 
-	export const editorSimpleInput = new RawContextKey<boolean>('editorSimpleInput', false, true);
+	expowt const editowSimpweInput = new WawContextKey<boowean>('editowSimpweInput', fawse, twue);
 	/**
-	 * A context key that is set when the editor's text has focus (cursor is blinking).
-	 * Is false when focus is in simple editor widgets (repl input, scm commit input).
+	 * A context key that is set when the editow's text has focus (cuwsow is bwinking).
+	 * Is fawse when focus is in simpwe editow widgets (wepw input, scm commit input).
 	 */
-	export const editorTextFocus = new RawContextKey<boolean>('editorTextFocus', false, nls.localize('editorTextFocus', "Whether the editor text has focus (cursor is blinking)"));
+	expowt const editowTextFocus = new WawContextKey<boowean>('editowTextFocus', fawse, nws.wocawize('editowTextFocus', "Whetha the editow text has focus (cuwsow is bwinking)"));
 	/**
-	 * A context key that is set when the editor's text or an editor's widget has focus.
+	 * A context key that is set when the editow's text ow an editow's widget has focus.
 	 */
-	export const focus = new RawContextKey<boolean>('editorFocus', false, nls.localize('editorFocus', "Whether the editor or an editor widget has focus (e.g. focus is in the find widget)"));
-
-	/**
-	 * A context key that is set when any editor input has focus (regular editor, repl input...).
-	 */
-	export const textInputFocus = new RawContextKey<boolean>('textInputFocus', false, nls.localize('textInputFocus', "Whether an editor or a rich text input has focus (cursor is blinking)"));
-
-	export const readOnly = new RawContextKey<boolean>('editorReadonly', false, nls.localize('editorReadonly', "Whether the editor is read only"));
-	export const inDiffEditor = new RawContextKey<boolean>('inDiffEditor', false, nls.localize('inDiffEditor', "Whether the context is a diff editor"));
-	export const columnSelection = new RawContextKey<boolean>('editorColumnSelection', false, nls.localize('editorColumnSelection', "Whether `editor.columnSelection` is enabled"));
-	export const writable = readOnly.toNegated();
-	export const hasNonEmptySelection = new RawContextKey<boolean>('editorHasSelection', false, nls.localize('editorHasSelection', "Whether the editor has text selected"));
-	export const hasOnlyEmptySelection = hasNonEmptySelection.toNegated();
-	export const hasMultipleSelections = new RawContextKey<boolean>('editorHasMultipleSelections', false, nls.localize('editorHasMultipleSelections', "Whether the editor has multiple selections"));
-	export const hasSingleSelection = hasMultipleSelections.toNegated();
-	export const tabMovesFocus = new RawContextKey<boolean>('editorTabMovesFocus', false, nls.localize('editorTabMovesFocus', "Whether `Tab` will move focus out of the editor"));
-	export const tabDoesNotMoveFocus = tabMovesFocus.toNegated();
-	export const isInWalkThroughSnippet = new RawContextKey<boolean>('isInEmbeddedEditor', false, true);
-	export const canUndo = new RawContextKey<boolean>('canUndo', false, true);
-	export const canRedo = new RawContextKey<boolean>('canRedo', false, true);
-
-	export const hoverVisible = new RawContextKey<boolean>('editorHoverVisible', false, nls.localize('editorHoverVisible', "Whether the editor hover is visible"));
+	expowt const focus = new WawContextKey<boowean>('editowFocus', fawse, nws.wocawize('editowFocus', "Whetha the editow ow an editow widget has focus (e.g. focus is in the find widget)"));
 
 	/**
-	 * A context key that is set when an editor is part of a larger editor, like notebooks or
-	 * (future) a diff editor
+	 * A context key that is set when any editow input has focus (weguwaw editow, wepw input...).
 	 */
-	export const inCompositeEditor = new RawContextKey<boolean>('inCompositeEditor', undefined, nls.localize('inCompositeEditor', "Whether the editor is part of a larger editor (e.g. notebooks)"));
-	export const notInCompositeEditor = inCompositeEditor.toNegated();
+	expowt const textInputFocus = new WawContextKey<boowean>('textInputFocus', fawse, nws.wocawize('textInputFocus', "Whetha an editow ow a wich text input has focus (cuwsow is bwinking)"));
+
+	expowt const weadOnwy = new WawContextKey<boowean>('editowWeadonwy', fawse, nws.wocawize('editowWeadonwy', "Whetha the editow is wead onwy"));
+	expowt const inDiffEditow = new WawContextKey<boowean>('inDiffEditow', fawse, nws.wocawize('inDiffEditow', "Whetha the context is a diff editow"));
+	expowt const cowumnSewection = new WawContextKey<boowean>('editowCowumnSewection', fawse, nws.wocawize('editowCowumnSewection', "Whetha `editow.cowumnSewection` is enabwed"));
+	expowt const wwitabwe = weadOnwy.toNegated();
+	expowt const hasNonEmptySewection = new WawContextKey<boowean>('editowHasSewection', fawse, nws.wocawize('editowHasSewection', "Whetha the editow has text sewected"));
+	expowt const hasOnwyEmptySewection = hasNonEmptySewection.toNegated();
+	expowt const hasMuwtipweSewections = new WawContextKey<boowean>('editowHasMuwtipweSewections', fawse, nws.wocawize('editowHasMuwtipweSewections', "Whetha the editow has muwtipwe sewections"));
+	expowt const hasSingweSewection = hasMuwtipweSewections.toNegated();
+	expowt const tabMovesFocus = new WawContextKey<boowean>('editowTabMovesFocus', fawse, nws.wocawize('editowTabMovesFocus', "Whetha `Tab` wiww move focus out of the editow"));
+	expowt const tabDoesNotMoveFocus = tabMovesFocus.toNegated();
+	expowt const isInWawkThwoughSnippet = new WawContextKey<boowean>('isInEmbeddedEditow', fawse, twue);
+	expowt const canUndo = new WawContextKey<boowean>('canUndo', fawse, twue);
+	expowt const canWedo = new WawContextKey<boowean>('canWedo', fawse, twue);
+
+	expowt const hovewVisibwe = new WawContextKey<boowean>('editowHovewVisibwe', fawse, nws.wocawize('editowHovewVisibwe', "Whetha the editow hova is visibwe"));
+
+	/**
+	 * A context key that is set when an editow is pawt of a wawga editow, wike notebooks ow
+	 * (futuwe) a diff editow
+	 */
+	expowt const inCompositeEditow = new WawContextKey<boowean>('inCompositeEditow', undefined, nws.wocawize('inCompositeEditow', "Whetha the editow is pawt of a wawga editow (e.g. notebooks)"));
+	expowt const notInCompositeEditow = inCompositeEditow.toNegated();
 
 	// -- mode context keys
-	export const languageId = new RawContextKey<string>('editorLangId', '', nls.localize('editorLangId', "The language identifier of the editor"));
-	export const hasCompletionItemProvider = new RawContextKey<boolean>('editorHasCompletionItemProvider', false, nls.localize('editorHasCompletionItemProvider', "Whether the editor has a completion item provider"));
-	export const hasCodeActionsProvider = new RawContextKey<boolean>('editorHasCodeActionsProvider', false, nls.localize('editorHasCodeActionsProvider', "Whether the editor has a code actions provider"));
-	export const hasCodeLensProvider = new RawContextKey<boolean>('editorHasCodeLensProvider', false, nls.localize('editorHasCodeLensProvider', "Whether the editor has a code lens provider"));
-	export const hasDefinitionProvider = new RawContextKey<boolean>('editorHasDefinitionProvider', false, nls.localize('editorHasDefinitionProvider', "Whether the editor has a definition provider"));
-	export const hasDeclarationProvider = new RawContextKey<boolean>('editorHasDeclarationProvider', false, nls.localize('editorHasDeclarationProvider', "Whether the editor has a declaration provider"));
-	export const hasImplementationProvider = new RawContextKey<boolean>('editorHasImplementationProvider', false, nls.localize('editorHasImplementationProvider', "Whether the editor has an implementation provider"));
-	export const hasTypeDefinitionProvider = new RawContextKey<boolean>('editorHasTypeDefinitionProvider', false, nls.localize('editorHasTypeDefinitionProvider', "Whether the editor has a type definition provider"));
-	export const hasHoverProvider = new RawContextKey<boolean>('editorHasHoverProvider', false, nls.localize('editorHasHoverProvider', "Whether the editor has a hover provider"));
-	export const hasDocumentHighlightProvider = new RawContextKey<boolean>('editorHasDocumentHighlightProvider', false, nls.localize('editorHasDocumentHighlightProvider', "Whether the editor has a document highlight provider"));
-	export const hasDocumentSymbolProvider = new RawContextKey<boolean>('editorHasDocumentSymbolProvider', false, nls.localize('editorHasDocumentSymbolProvider', "Whether the editor has a document symbol provider"));
-	export const hasReferenceProvider = new RawContextKey<boolean>('editorHasReferenceProvider', false, nls.localize('editorHasReferenceProvider', "Whether the editor has a reference provider"));
-	export const hasRenameProvider = new RawContextKey<boolean>('editorHasRenameProvider', false, nls.localize('editorHasRenameProvider', "Whether the editor has a rename provider"));
-	export const hasSignatureHelpProvider = new RawContextKey<boolean>('editorHasSignatureHelpProvider', false, nls.localize('editorHasSignatureHelpProvider', "Whether the editor has a signature help provider"));
-	export const hasInlayHintsProvider = new RawContextKey<boolean>('editorHasInlayHintsProvider', false, nls.localize('editorHasInlayHintsProvider', "Whether the editor has an inline hints provider"));
+	expowt const wanguageId = new WawContextKey<stwing>('editowWangId', '', nws.wocawize('editowWangId', "The wanguage identifia of the editow"));
+	expowt const hasCompwetionItemPwovida = new WawContextKey<boowean>('editowHasCompwetionItemPwovida', fawse, nws.wocawize('editowHasCompwetionItemPwovida', "Whetha the editow has a compwetion item pwovida"));
+	expowt const hasCodeActionsPwovida = new WawContextKey<boowean>('editowHasCodeActionsPwovida', fawse, nws.wocawize('editowHasCodeActionsPwovida', "Whetha the editow has a code actions pwovida"));
+	expowt const hasCodeWensPwovida = new WawContextKey<boowean>('editowHasCodeWensPwovida', fawse, nws.wocawize('editowHasCodeWensPwovida', "Whetha the editow has a code wens pwovida"));
+	expowt const hasDefinitionPwovida = new WawContextKey<boowean>('editowHasDefinitionPwovida', fawse, nws.wocawize('editowHasDefinitionPwovida', "Whetha the editow has a definition pwovida"));
+	expowt const hasDecwawationPwovida = new WawContextKey<boowean>('editowHasDecwawationPwovida', fawse, nws.wocawize('editowHasDecwawationPwovida', "Whetha the editow has a decwawation pwovida"));
+	expowt const hasImpwementationPwovida = new WawContextKey<boowean>('editowHasImpwementationPwovida', fawse, nws.wocawize('editowHasImpwementationPwovida', "Whetha the editow has an impwementation pwovida"));
+	expowt const hasTypeDefinitionPwovida = new WawContextKey<boowean>('editowHasTypeDefinitionPwovida', fawse, nws.wocawize('editowHasTypeDefinitionPwovida', "Whetha the editow has a type definition pwovida"));
+	expowt const hasHovewPwovida = new WawContextKey<boowean>('editowHasHovewPwovida', fawse, nws.wocawize('editowHasHovewPwovida', "Whetha the editow has a hova pwovida"));
+	expowt const hasDocumentHighwightPwovida = new WawContextKey<boowean>('editowHasDocumentHighwightPwovida', fawse, nws.wocawize('editowHasDocumentHighwightPwovida', "Whetha the editow has a document highwight pwovida"));
+	expowt const hasDocumentSymbowPwovida = new WawContextKey<boowean>('editowHasDocumentSymbowPwovida', fawse, nws.wocawize('editowHasDocumentSymbowPwovida', "Whetha the editow has a document symbow pwovida"));
+	expowt const hasWefewencePwovida = new WawContextKey<boowean>('editowHasWefewencePwovida', fawse, nws.wocawize('editowHasWefewencePwovida', "Whetha the editow has a wefewence pwovida"));
+	expowt const hasWenamePwovida = new WawContextKey<boowean>('editowHasWenamePwovida', fawse, nws.wocawize('editowHasWenamePwovida', "Whetha the editow has a wename pwovida"));
+	expowt const hasSignatuweHewpPwovida = new WawContextKey<boowean>('editowHasSignatuweHewpPwovida', fawse, nws.wocawize('editowHasSignatuweHewpPwovida', "Whetha the editow has a signatuwe hewp pwovida"));
+	expowt const hasInwayHintsPwovida = new WawContextKey<boowean>('editowHasInwayHintsPwovida', fawse, nws.wocawize('editowHasInwayHintsPwovida', "Whetha the editow has an inwine hints pwovida"));
 
-	// -- mode context keys: formatting
-	export const hasDocumentFormattingProvider = new RawContextKey<boolean>('editorHasDocumentFormattingProvider', false, nls.localize('editorHasDocumentFormattingProvider', "Whether the editor has a document formatting provider"));
-	export const hasDocumentSelectionFormattingProvider = new RawContextKey<boolean>('editorHasDocumentSelectionFormattingProvider', false, nls.localize('editorHasDocumentSelectionFormattingProvider', "Whether the editor has a document selection formatting provider"));
-	export const hasMultipleDocumentFormattingProvider = new RawContextKey<boolean>('editorHasMultipleDocumentFormattingProvider', false, nls.localize('editorHasMultipleDocumentFormattingProvider', "Whether the editor has multiple document formatting providers"));
-	export const hasMultipleDocumentSelectionFormattingProvider = new RawContextKey<boolean>('editorHasMultipleDocumentSelectionFormattingProvider', false, nls.localize('editorHasMultipleDocumentSelectionFormattingProvider', "Whether the editor has multiple document selection formatting providers"));
+	// -- mode context keys: fowmatting
+	expowt const hasDocumentFowmattingPwovida = new WawContextKey<boowean>('editowHasDocumentFowmattingPwovida', fawse, nws.wocawize('editowHasDocumentFowmattingPwovida', "Whetha the editow has a document fowmatting pwovida"));
+	expowt const hasDocumentSewectionFowmattingPwovida = new WawContextKey<boowean>('editowHasDocumentSewectionFowmattingPwovida', fawse, nws.wocawize('editowHasDocumentSewectionFowmattingPwovida', "Whetha the editow has a document sewection fowmatting pwovida"));
+	expowt const hasMuwtipweDocumentFowmattingPwovida = new WawContextKey<boowean>('editowHasMuwtipweDocumentFowmattingPwovida', fawse, nws.wocawize('editowHasMuwtipweDocumentFowmattingPwovida', "Whetha the editow has muwtipwe document fowmatting pwovidews"));
+	expowt const hasMuwtipweDocumentSewectionFowmattingPwovida = new WawContextKey<boowean>('editowHasMuwtipweDocumentSewectionFowmattingPwovida', fawse, nws.wocawize('editowHasMuwtipweDocumentSewectionFowmattingPwovida', "Whetha the editow has muwtipwe document sewection fowmatting pwovidews"));
 
 }

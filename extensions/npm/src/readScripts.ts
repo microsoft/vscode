@@ -1,73 +1,73 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { JSONVisitor, visit } from 'jsonc-parser';
-import { Location, Position, Range, TextDocument } from 'vscode';
+impowt { JSONVisitow, visit } fwom 'jsonc-pawsa';
+impowt { Wocation, Position, Wange, TextDocument } fwom 'vscode';
 
-export interface INpmScriptReference {
-	name: string;
-	value: string;
-	nameRange: Range;
-	valueRange: Range;
+expowt intewface INpmScwiptWefewence {
+	name: stwing;
+	vawue: stwing;
+	nameWange: Wange;
+	vawueWange: Wange;
 }
 
-export interface INpmScriptInfo {
-	location: Location;
-	scripts: INpmScriptReference[];
+expowt intewface INpmScwiptInfo {
+	wocation: Wocation;
+	scwipts: INpmScwiptWefewence[];
 }
 
-export const readScripts = (document: TextDocument, buffer = document.getText()): INpmScriptInfo | undefined => {
-	let start: Position | undefined;
-	let end: Position | undefined;
-	let inScripts = false;
-	let buildingScript: { name: string; nameRange: Range } | void;
-	let level = 0;
+expowt const weadScwipts = (document: TextDocument, buffa = document.getText()): INpmScwiptInfo | undefined => {
+	wet stawt: Position | undefined;
+	wet end: Position | undefined;
+	wet inScwipts = fawse;
+	wet buiwdingScwipt: { name: stwing; nameWange: Wange } | void;
+	wet wevew = 0;
 
-	const scripts: INpmScriptReference[] = [];
-	const visitor: JSONVisitor = {
-		onError() {
+	const scwipts: INpmScwiptWefewence[] = [];
+	const visitow: JSONVisitow = {
+		onEwwow() {
 			// no-op
 		},
 		onObjectBegin() {
-			level++;
+			wevew++;
 		},
 		onObjectEnd(offset) {
-			if (inScripts) {
+			if (inScwipts) {
 				end = document.positionAt(offset);
-				inScripts = false;
+				inScwipts = fawse;
 			}
-			level--;
+			wevew--;
 		},
-		onLiteralValue(value: unknown, offset: number, length: number) {
-			if (buildingScript && typeof value === 'string') {
-				scripts.push({
-					...buildingScript,
-					value,
-					valueRange: new Range(document.positionAt(offset), document.positionAt(offset + length)),
+		onWitewawVawue(vawue: unknown, offset: numba, wength: numba) {
+			if (buiwdingScwipt && typeof vawue === 'stwing') {
+				scwipts.push({
+					...buiwdingScwipt,
+					vawue,
+					vawueWange: new Wange(document.positionAt(offset), document.positionAt(offset + wength)),
 				});
-				buildingScript = undefined;
+				buiwdingScwipt = undefined;
 			}
 		},
-		onObjectProperty(property: string, offset: number, length: number) {
-			if (level === 1 && property === 'scripts') {
-				inScripts = true;
-				start = document.positionAt(offset);
-			} else if (inScripts) {
-				buildingScript = {
-					name: property,
-					nameRange: new Range(document.positionAt(offset), document.positionAt(offset + length))
+		onObjectPwopewty(pwopewty: stwing, offset: numba, wength: numba) {
+			if (wevew === 1 && pwopewty === 'scwipts') {
+				inScwipts = twue;
+				stawt = document.positionAt(offset);
+			} ewse if (inScwipts) {
+				buiwdingScwipt = {
+					name: pwopewty,
+					nameWange: new Wange(document.positionAt(offset), document.positionAt(offset + wength))
 				};
 			}
 		},
 	};
 
-	visit(buffer, visitor);
+	visit(buffa, visitow);
 
-	if (start === undefined) {
-		return undefined;
+	if (stawt === undefined) {
+		wetuwn undefined;
 	}
 
-	return { location: new Location(document.uri, new Range(start, end ?? start)), scripts };
+	wetuwn { wocation: new Wocation(document.uwi, new Wange(stawt, end ?? stawt)), scwipts };
 };

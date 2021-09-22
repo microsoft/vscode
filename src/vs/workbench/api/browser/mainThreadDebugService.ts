@@ -1,318 +1,318 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI as uri, UriComponents } from 'vs/base/common/uri';
-import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory, IDataBreakpoint, IDebugSessionOptions, IInstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
-import {
-	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
-	IExtHostContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto, IDataBreakpointDto, IStartDebuggingOptions, IDebugConfiguration
-} from 'vs/workbench/api/common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import severity from 'vs/base/common/severity';
-import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { convertToVSCPaths, convertToDAPaths } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI as uwi, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { IDebugSewvice, IConfig, IDebugConfiguwationPwovida, IBweakpoint, IFunctionBweakpoint, IBweakpointData, IDebugAdapta, IDebugAdaptewDescwiptowFactowy, IDebugSession, IDebugAdaptewFactowy, IDataBweakpoint, IDebugSessionOptions, IInstwuctionBweakpoint } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt {
+	ExtHostContext, ExtHostDebugSewviceShape, MainThweadDebugSewviceShape, DebugSessionUUID, MainContext,
+	IExtHostContext, IBweakpointsDewtaDto, ISouwceMuwtiBweakpointDto, ISouwceBweakpointDto, IFunctionBweakpointDto, IDebugSessionDto, IDataBweakpointDto, IStawtDebuggingOptions, IDebugConfiguwation
+} fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt sevewity fwom 'vs/base/common/sevewity';
+impowt { AbstwactDebugAdapta } fwom 'vs/wowkbench/contwib/debug/common/abstwactDebugAdapta';
+impowt { IWowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { convewtToVSCPaths, convewtToDAPaths } fwom 'vs/wowkbench/contwib/debug/common/debugUtiws';
+impowt { DebugConfiguwationPwovidewTwiggewKind } fwom 'vs/wowkbench/api/common/extHostTypes';
 
-@extHostNamedCustomer(MainContext.MainThreadDebugService)
-export class MainThreadDebugService implements MainThreadDebugServiceShape, IDebugAdapterFactory {
+@extHostNamedCustoma(MainContext.MainThweadDebugSewvice)
+expowt cwass MainThweadDebugSewvice impwements MainThweadDebugSewviceShape, IDebugAdaptewFactowy {
 
-	private readonly _proxy: ExtHostDebugServiceShape;
-	private readonly _toDispose = new DisposableStore();
-	private _breakpointEventsActive: boolean | undefined;
-	private readonly _debugAdapters: Map<number, ExtensionHostDebugAdapter>;
-	private _debugAdaptersHandleCounter = 1;
-	private readonly _debugConfigurationProviders: Map<number, IDebugConfigurationProvider>;
-	private readonly _debugAdapterDescriptorFactories: Map<number, IDebugAdapterDescriptorFactory>;
-	private readonly _sessions: Set<DebugSessionUUID>;
+	pwivate weadonwy _pwoxy: ExtHostDebugSewviceShape;
+	pwivate weadonwy _toDispose = new DisposabweStowe();
+	pwivate _bweakpointEventsActive: boowean | undefined;
+	pwivate weadonwy _debugAdaptews: Map<numba, ExtensionHostDebugAdapta>;
+	pwivate _debugAdaptewsHandweCounta = 1;
+	pwivate weadonwy _debugConfiguwationPwovidews: Map<numba, IDebugConfiguwationPwovida>;
+	pwivate weadonwy _debugAdaptewDescwiptowFactowies: Map<numba, IDebugAdaptewDescwiptowFactowy>;
+	pwivate weadonwy _sessions: Set<DebugSessionUUID>;
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@IDebugService private readonly debugService: IDebugService
+		@IDebugSewvice pwivate weadonwy debugSewvice: IDebugSewvice
 	) {
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDebugService);
-		this._toDispose.add(debugService.onDidNewSession(session => {
-			this._proxy.$acceptDebugSessionStarted(this.getSessionDto(session));
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostDebugSewvice);
+		this._toDispose.add(debugSewvice.onDidNewSession(session => {
+			this._pwoxy.$acceptDebugSessionStawted(this.getSessionDto(session));
 			this._toDispose.add(session.onDidChangeName(name => {
-				this._proxy.$acceptDebugSessionNameChanged(this.getSessionDto(session), name);
+				this._pwoxy.$acceptDebugSessionNameChanged(this.getSessionDto(session), name);
 			}));
 		}));
-		// Need to start listening early to new session events because a custom event can come while a session is initialising
-		this._toDispose.add(debugService.onWillNewSession(session => {
-			this._toDispose.add(session.onDidCustomEvent(event => this._proxy.$acceptDebugSessionCustomEvent(this.getSessionDto(session), event)));
+		// Need to stawt wistening eawwy to new session events because a custom event can come whiwe a session is initiawising
+		this._toDispose.add(debugSewvice.onWiwwNewSession(session => {
+			this._toDispose.add(session.onDidCustomEvent(event => this._pwoxy.$acceptDebugSessionCustomEvent(this.getSessionDto(session), event)));
 		}));
-		this._toDispose.add(debugService.onDidEndSession(session => {
-			this._proxy.$acceptDebugSessionTerminated(this.getSessionDto(session));
-			this._sessions.delete(session.getId());
+		this._toDispose.add(debugSewvice.onDidEndSession(session => {
+			this._pwoxy.$acceptDebugSessionTewminated(this.getSessionDto(session));
+			this._sessions.dewete(session.getId());
 		}));
-		this._toDispose.add(debugService.getViewModel().onDidFocusSession(session => {
-			this._proxy.$acceptDebugSessionActiveChanged(this.getSessionDto(session));
+		this._toDispose.add(debugSewvice.getViewModew().onDidFocusSession(session => {
+			this._pwoxy.$acceptDebugSessionActiveChanged(this.getSessionDto(session));
 		}));
 
-		this._debugAdapters = new Map();
-		this._debugConfigurationProviders = new Map();
-		this._debugAdapterDescriptorFactories = new Map();
+		this._debugAdaptews = new Map();
+		this._debugConfiguwationPwovidews = new Map();
+		this._debugAdaptewDescwiptowFactowies = new Map();
 		this._sessions = new Set();
 	}
 
-	public dispose(): void {
+	pubwic dispose(): void {
 		this._toDispose.dispose();
 	}
 
-	// interface IDebugAdapterProvider
+	// intewface IDebugAdaptewPwovida
 
-	createDebugAdapter(session: IDebugSession): IDebugAdapter {
-		const handle = this._debugAdaptersHandleCounter++;
-		const da = new ExtensionHostDebugAdapter(this, handle, this._proxy, session);
-		this._debugAdapters.set(handle, da);
-		return da;
+	cweateDebugAdapta(session: IDebugSession): IDebugAdapta {
+		const handwe = this._debugAdaptewsHandweCounta++;
+		const da = new ExtensionHostDebugAdapta(this, handwe, this._pwoxy, session);
+		this._debugAdaptews.set(handwe, da);
+		wetuwn da;
 	}
 
-	substituteVariables(folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig> {
-		return Promise.resolve(this._proxy.$substituteVariables(folder ? folder.uri : undefined, config));
+	substituteVawiabwes(fowda: IWowkspaceFowda | undefined, config: IConfig): Pwomise<IConfig> {
+		wetuwn Pwomise.wesowve(this._pwoxy.$substituteVawiabwes(fowda ? fowda.uwi : undefined, config));
 	}
 
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
-		return this._proxy.$runInTerminal(args, sessionId);
+	wunInTewminaw(awgs: DebugPwotocow.WunInTewminawWequestAwguments, sessionId: stwing): Pwomise<numba | undefined> {
+		wetuwn this._pwoxy.$wunInTewminaw(awgs, sessionId);
 	}
 
-	// RPC methods (MainThreadDebugServiceShape)
+	// WPC methods (MainThweadDebugSewviceShape)
 
-	public $registerDebugTypes(debugTypes: string[]) {
-		this._toDispose.add(this.debugService.getAdapterManager().registerDebugAdapterFactory(debugTypes, this));
+	pubwic $wegistewDebugTypes(debugTypes: stwing[]) {
+		this._toDispose.add(this.debugSewvice.getAdaptewManaga().wegistewDebugAdaptewFactowy(debugTypes, this));
 	}
 
-	public $startBreakpointEvents(): void {
+	pubwic $stawtBweakpointEvents(): void {
 
-		if (!this._breakpointEventsActive) {
-			this._breakpointEventsActive = true;
+		if (!this._bweakpointEventsActive) {
+			this._bweakpointEventsActive = twue;
 
-			// set up a handler to send more
-			this._toDispose.add(this.debugService.getModel().onDidChangeBreakpoints(e => {
-				// Ignore session only breakpoint events since they should only reflect in the UI
-				if (e && !e.sessionOnly) {
-					const delta: IBreakpointsDeltaDto = {};
+			// set up a handwa to send mowe
+			this._toDispose.add(this.debugSewvice.getModew().onDidChangeBweakpoints(e => {
+				// Ignowe session onwy bweakpoint events since they shouwd onwy wefwect in the UI
+				if (e && !e.sessionOnwy) {
+					const dewta: IBweakpointsDewtaDto = {};
 					if (e.added) {
-						delta.added = this.convertToDto(e.added);
+						dewta.added = this.convewtToDto(e.added);
 					}
-					if (e.removed) {
-						delta.removed = e.removed.map(x => x.getId());
+					if (e.wemoved) {
+						dewta.wemoved = e.wemoved.map(x => x.getId());
 					}
 					if (e.changed) {
-						delta.changed = this.convertToDto(e.changed);
+						dewta.changed = this.convewtToDto(e.changed);
 					}
 
-					if (delta.added || delta.removed || delta.changed) {
-						this._proxy.$acceptBreakpointsDelta(delta);
+					if (dewta.added || dewta.wemoved || dewta.changed) {
+						this._pwoxy.$acceptBweakpointsDewta(dewta);
 					}
 				}
 			}));
 
-			// send all breakpoints
-			const bps = this.debugService.getModel().getBreakpoints();
-			const fbps = this.debugService.getModel().getFunctionBreakpoints();
-			const dbps = this.debugService.getModel().getDataBreakpoints();
-			if (bps.length > 0 || fbps.length > 0) {
-				this._proxy.$acceptBreakpointsDelta({
-					added: this.convertToDto(bps).concat(this.convertToDto(fbps)).concat(this.convertToDto(dbps))
+			// send aww bweakpoints
+			const bps = this.debugSewvice.getModew().getBweakpoints();
+			const fbps = this.debugSewvice.getModew().getFunctionBweakpoints();
+			const dbps = this.debugSewvice.getModew().getDataBweakpoints();
+			if (bps.wength > 0 || fbps.wength > 0) {
+				this._pwoxy.$acceptBweakpointsDewta({
+					added: this.convewtToDto(bps).concat(this.convewtToDto(fbps)).concat(this.convewtToDto(dbps))
 				});
 			}
 		}
 	}
 
-	public $registerBreakpoints(DTOs: Array<ISourceMultiBreakpointDto | IFunctionBreakpointDto | IDataBreakpointDto>): Promise<void> {
+	pubwic $wegistewBweakpoints(DTOs: Awway<ISouwceMuwtiBweakpointDto | IFunctionBweakpointDto | IDataBweakpointDto>): Pwomise<void> {
 
-		for (let dto of DTOs) {
-			if (dto.type === 'sourceMulti') {
-				const rawbps = dto.lines.map(l =>
-					<IBreakpointData>{
-						id: l.id,
-						enabled: l.enabled,
-						lineNumber: l.line + 1,
-						column: l.character > 0 ? l.character + 1 : undefined, // a column value of 0 results in an omitted column attribute; see #46784
-						condition: l.condition,
-						hitCondition: l.hitCondition,
-						logMessage: l.logMessage
+		fow (wet dto of DTOs) {
+			if (dto.type === 'souwceMuwti') {
+				const wawbps = dto.wines.map(w =>
+					<IBweakpointData>{
+						id: w.id,
+						enabwed: w.enabwed,
+						wineNumba: w.wine + 1,
+						cowumn: w.chawacta > 0 ? w.chawacta + 1 : undefined, // a cowumn vawue of 0 wesuwts in an omitted cowumn attwibute; see #46784
+						condition: w.condition,
+						hitCondition: w.hitCondition,
+						wogMessage: w.wogMessage
 					}
 				);
-				this.debugService.addBreakpoints(uri.revive(dto.uri), rawbps);
-			} else if (dto.type === 'function') {
-				this.debugService.addFunctionBreakpoint(dto.functionName, dto.id);
-			} else if (dto.type === 'data') {
-				this.debugService.addDataBreakpoint(dto.label, dto.dataId, dto.canPersist, dto.accessTypes, dto.accessType);
+				this.debugSewvice.addBweakpoints(uwi.wevive(dto.uwi), wawbps);
+			} ewse if (dto.type === 'function') {
+				this.debugSewvice.addFunctionBweakpoint(dto.functionName, dto.id);
+			} ewse if (dto.type === 'data') {
+				this.debugSewvice.addDataBweakpoint(dto.wabew, dto.dataId, dto.canPewsist, dto.accessTypes, dto.accessType);
 			}
 		}
-		return Promise.resolve();
+		wetuwn Pwomise.wesowve();
 	}
 
-	public $unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[], dataBreakpointIds: string[]): Promise<void> {
-		breakpointIds.forEach(id => this.debugService.removeBreakpoints(id));
-		functionBreakpointIds.forEach(id => this.debugService.removeFunctionBreakpoints(id));
-		dataBreakpointIds.forEach(id => this.debugService.removeDataBreakpoints(id));
-		return Promise.resolve();
+	pubwic $unwegistewBweakpoints(bweakpointIds: stwing[], functionBweakpointIds: stwing[], dataBweakpointIds: stwing[]): Pwomise<void> {
+		bweakpointIds.fowEach(id => this.debugSewvice.wemoveBweakpoints(id));
+		functionBweakpointIds.fowEach(id => this.debugSewvice.wemoveFunctionBweakpoints(id));
+		dataBweakpointIds.fowEach(id => this.debugSewvice.wemoveDataBweakpoints(id));
+		wetuwn Pwomise.wesowve();
 	}
 
-	public $registerDebugConfigurationProvider(debugType: string, providerTriggerKind: DebugConfigurationProviderTriggerKind, hasProvide: boolean, hasResolve: boolean, hasResolve2: boolean, handle: number): Promise<void> {
+	pubwic $wegistewDebugConfiguwationPwovida(debugType: stwing, pwovidewTwiggewKind: DebugConfiguwationPwovidewTwiggewKind, hasPwovide: boowean, hasWesowve: boowean, hasWesowve2: boowean, handwe: numba): Pwomise<void> {
 
-		const provider = <IDebugConfigurationProvider>{
+		const pwovida = <IDebugConfiguwationPwovida>{
 			type: debugType,
-			triggerKind: providerTriggerKind
+			twiggewKind: pwovidewTwiggewKind
 		};
-		if (hasProvide) {
-			provider.provideDebugConfigurations = (folder, token) => {
-				return this._proxy.$provideDebugConfigurations(handle, folder, token);
+		if (hasPwovide) {
+			pwovida.pwovideDebugConfiguwations = (fowda, token) => {
+				wetuwn this._pwoxy.$pwovideDebugConfiguwations(handwe, fowda, token);
 			};
 		}
-		if (hasResolve) {
-			provider.resolveDebugConfiguration = (folder, config, token) => {
-				return this._proxy.$resolveDebugConfiguration(handle, folder, config, token);
+		if (hasWesowve) {
+			pwovida.wesowveDebugConfiguwation = (fowda, config, token) => {
+				wetuwn this._pwoxy.$wesowveDebugConfiguwation(handwe, fowda, config, token);
 			};
 		}
-		if (hasResolve2) {
-			provider.resolveDebugConfigurationWithSubstitutedVariables = (folder, config, token) => {
-				return this._proxy.$resolveDebugConfigurationWithSubstitutedVariables(handle, folder, config, token);
+		if (hasWesowve2) {
+			pwovida.wesowveDebugConfiguwationWithSubstitutedVawiabwes = (fowda, config, token) => {
+				wetuwn this._pwoxy.$wesowveDebugConfiguwationWithSubstitutedVawiabwes(handwe, fowda, config, token);
 			};
 		}
-		this._debugConfigurationProviders.set(handle, provider);
-		this._toDispose.add(this.debugService.getConfigurationManager().registerDebugConfigurationProvider(provider));
+		this._debugConfiguwationPwovidews.set(handwe, pwovida);
+		this._toDispose.add(this.debugSewvice.getConfiguwationManaga().wegistewDebugConfiguwationPwovida(pwovida));
 
-		return Promise.resolve(undefined);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	public $unregisterDebugConfigurationProvider(handle: number): void {
-		const provider = this._debugConfigurationProviders.get(handle);
-		if (provider) {
-			this._debugConfigurationProviders.delete(handle);
-			this.debugService.getConfigurationManager().unregisterDebugConfigurationProvider(provider);
+	pubwic $unwegistewDebugConfiguwationPwovida(handwe: numba): void {
+		const pwovida = this._debugConfiguwationPwovidews.get(handwe);
+		if (pwovida) {
+			this._debugConfiguwationPwovidews.dewete(handwe);
+			this.debugSewvice.getConfiguwationManaga().unwegistewDebugConfiguwationPwovida(pwovida);
 		}
 	}
 
-	public $registerDebugAdapterDescriptorFactory(debugType: string, handle: number): Promise<void> {
+	pubwic $wegistewDebugAdaptewDescwiptowFactowy(debugType: stwing, handwe: numba): Pwomise<void> {
 
-		const provider = <IDebugAdapterDescriptorFactory>{
+		const pwovida = <IDebugAdaptewDescwiptowFactowy>{
 			type: debugType,
-			createDebugAdapterDescriptor: session => {
-				return Promise.resolve(this._proxy.$provideDebugAdapter(handle, this.getSessionDto(session)));
+			cweateDebugAdaptewDescwiptow: session => {
+				wetuwn Pwomise.wesowve(this._pwoxy.$pwovideDebugAdapta(handwe, this.getSessionDto(session)));
 			}
 		};
-		this._debugAdapterDescriptorFactories.set(handle, provider);
-		this._toDispose.add(this.debugService.getAdapterManager().registerDebugAdapterDescriptorFactory(provider));
+		this._debugAdaptewDescwiptowFactowies.set(handwe, pwovida);
+		this._toDispose.add(this.debugSewvice.getAdaptewManaga().wegistewDebugAdaptewDescwiptowFactowy(pwovida));
 
-		return Promise.resolve(undefined);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	public $unregisterDebugAdapterDescriptorFactory(handle: number): void {
-		const provider = this._debugAdapterDescriptorFactories.get(handle);
-		if (provider) {
-			this._debugAdapterDescriptorFactories.delete(handle);
-			this.debugService.getAdapterManager().unregisterDebugAdapterDescriptorFactory(provider);
+	pubwic $unwegistewDebugAdaptewDescwiptowFactowy(handwe: numba): void {
+		const pwovida = this._debugAdaptewDescwiptowFactowies.get(handwe);
+		if (pwovida) {
+			this._debugAdaptewDescwiptowFactowies.dewete(handwe);
+			this.debugSewvice.getAdaptewManaga().unwegistewDebugAdaptewDescwiptowFactowy(pwovida);
 		}
 	}
 
-	private getSession(sessionId: DebugSessionUUID | undefined): IDebugSession | undefined {
+	pwivate getSession(sessionId: DebugSessionUUID | undefined): IDebugSession | undefined {
 		if (sessionId) {
-			return this.debugService.getModel().getSession(sessionId, true);
+			wetuwn this.debugSewvice.getModew().getSession(sessionId, twue);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	public async $startDebugging(folder: UriComponents | undefined, nameOrConfig: string | IDebugConfiguration, options: IStartDebuggingOptions): Promise<boolean> {
-		const folderUri = folder ? uri.revive(folder) : undefined;
-		const launch = this.debugService.getConfigurationManager().getLaunch(folderUri);
-		const parentSession = this.getSession(options.parentSessionID);
+	pubwic async $stawtDebugging(fowda: UwiComponents | undefined, nameOwConfig: stwing | IDebugConfiguwation, options: IStawtDebuggingOptions): Pwomise<boowean> {
+		const fowdewUwi = fowda ? uwi.wevive(fowda) : undefined;
+		const waunch = this.debugSewvice.getConfiguwationManaga().getWaunch(fowdewUwi);
+		const pawentSession = this.getSession(options.pawentSessionID);
 		const debugOptions: IDebugSessionOptions = {
 			noDebug: options.noDebug,
-			parentSession,
-			lifecycleManagedByParent: options.lifecycleManagedByParent,
-			repl: options.repl,
+			pawentSession,
+			wifecycweManagedByPawent: options.wifecycweManagedByPawent,
+			wepw: options.wepw,
 			compact: options.compact,
 			debugUI: options.debugUI,
-			compoundRoot: parentSession?.compoundRoot
+			compoundWoot: pawentSession?.compoundWoot
 		};
-		try {
-			const saveBeforeStart = typeof options.suppressSaveBeforeStart === 'boolean' ? !options.suppressSaveBeforeStart : undefined;
-			return this.debugService.startDebugging(launch, nameOrConfig, debugOptions, saveBeforeStart);
-		} catch (err) {
-			throw new Error(err && err.message ? err.message : 'cannot start debugging');
+		twy {
+			const saveBefoweStawt = typeof options.suppwessSaveBefoweStawt === 'boowean' ? !options.suppwessSaveBefoweStawt : undefined;
+			wetuwn this.debugSewvice.stawtDebugging(waunch, nameOwConfig, debugOptions, saveBefoweStawt);
+		} catch (eww) {
+			thwow new Ewwow(eww && eww.message ? eww.message : 'cannot stawt debugging');
 		}
 	}
 
-	public $setDebugSessionName(sessionId: DebugSessionUUID, name: string): void {
-		const session = this.debugService.getModel().getSession(sessionId);
+	pubwic $setDebugSessionName(sessionId: DebugSessionUUID, name: stwing): void {
+		const session = this.debugSewvice.getModew().getSession(sessionId);
 		if (session) {
 			session.setName(name);
 		}
 	}
 
-	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: any): Promise<any> {
-		const session = this.debugService.getModel().getSession(sessionId, true);
+	pubwic $customDebugAdaptewWequest(sessionId: DebugSessionUUID, wequest: stwing, awgs: any): Pwomise<any> {
+		const session = this.debugSewvice.getModew().getSession(sessionId, twue);
 		if (session) {
-			return session.customRequest(request, args).then(response => {
-				if (response && response.success) {
-					return response.body;
-				} else {
-					return Promise.reject(new Error(response ? response.message : 'custom request failed'));
+			wetuwn session.customWequest(wequest, awgs).then(wesponse => {
+				if (wesponse && wesponse.success) {
+					wetuwn wesponse.body;
+				} ewse {
+					wetuwn Pwomise.weject(new Ewwow(wesponse ? wesponse.message : 'custom wequest faiwed'));
 				}
 			});
 		}
-		return Promise.reject(new Error('debug session not found'));
+		wetuwn Pwomise.weject(new Ewwow('debug session not found'));
 	}
 
-	public $getDebugProtocolBreakpoint(sessionId: DebugSessionUUID, breakpoinId: string): Promise<DebugProtocol.Breakpoint | undefined> {
-		const session = this.debugService.getModel().getSession(sessionId, true);
+	pubwic $getDebugPwotocowBweakpoint(sessionId: DebugSessionUUID, bweakpoinId: stwing): Pwomise<DebugPwotocow.Bweakpoint | undefined> {
+		const session = this.debugSewvice.getModew().getSession(sessionId, twue);
 		if (session) {
-			return Promise.resolve(session.getDebugProtocolBreakpoint(breakpoinId));
+			wetuwn Pwomise.wesowve(session.getDebugPwotocowBweakpoint(bweakpoinId));
 		}
-		return Promise.reject(new Error('debug session not found'));
+		wetuwn Pwomise.weject(new Ewwow('debug session not found'));
 	}
 
-	public $stopDebugging(sessionId: DebugSessionUUID | undefined): Promise<void> {
+	pubwic $stopDebugging(sessionId: DebugSessionUUID | undefined): Pwomise<void> {
 		if (sessionId) {
-			const session = this.debugService.getModel().getSession(sessionId, true);
+			const session = this.debugSewvice.getModew().getSession(sessionId, twue);
 			if (session) {
-				return this.debugService.stopSession(session);
+				wetuwn this.debugSewvice.stopSession(session);
 			}
-		} else {	// stop all
-			return this.debugService.stopSession(undefined);
+		} ewse {	// stop aww
+			wetuwn this.debugSewvice.stopSession(undefined);
 		}
-		return Promise.reject(new Error('debug session not found'));
+		wetuwn Pwomise.weject(new Ewwow('debug session not found'));
 	}
 
-	public $appendDebugConsole(value: string): void {
-		// Use warning as severity to get the orange color for messages coming from the debug extension
-		const session = this.debugService.getViewModel().focusedSession;
+	pubwic $appendDebugConsowe(vawue: stwing): void {
+		// Use wawning as sevewity to get the owange cowow fow messages coming fwom the debug extension
+		const session = this.debugSewvice.getViewModew().focusedSession;
 		if (session) {
-			session.appendToRepl(value, severity.Warning);
+			session.appendToWepw(vawue, sevewity.Wawning);
 		}
 	}
 
-	public $acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage) {
-		this.getDebugAdapter(handle).acceptMessage(convertToVSCPaths(message, false));
+	pubwic $acceptDAMessage(handwe: numba, message: DebugPwotocow.PwotocowMessage) {
+		this.getDebugAdapta(handwe).acceptMessage(convewtToVSCPaths(message, fawse));
 	}
 
-	public $acceptDAError(handle: number, name: string, message: string, stack: string) {
-		this.getDebugAdapter(handle).fireError(handle, new Error(`${name}: ${message}\n${stack}`));
+	pubwic $acceptDAEwwow(handwe: numba, name: stwing, message: stwing, stack: stwing) {
+		this.getDebugAdapta(handwe).fiweEwwow(handwe, new Ewwow(`${name}: ${message}\n${stack}`));
 	}
 
-	public $acceptDAExit(handle: number, code: number, signal: string) {
-		this.getDebugAdapter(handle).fireExit(handle, code, signal);
+	pubwic $acceptDAExit(handwe: numba, code: numba, signaw: stwing) {
+		this.getDebugAdapta(handwe).fiweExit(handwe, code, signaw);
 	}
 
-	private getDebugAdapter(handle: number): ExtensionHostDebugAdapter {
-		const adapter = this._debugAdapters.get(handle);
-		if (!adapter) {
-			throw new Error('Invalid debug adapter');
+	pwivate getDebugAdapta(handwe: numba): ExtensionHostDebugAdapta {
+		const adapta = this._debugAdaptews.get(handwe);
+		if (!adapta) {
+			thwow new Ewwow('Invawid debug adapta');
 		}
-		return adapter;
+		wetuwn adapta;
 	}
 
-	// dto helpers
+	// dto hewpews
 
-	public $sessionCached(sessionID: string) {
-		// remember that the EH has cached the session and we do not have to send it again
+	pubwic $sessionCached(sessionID: stwing) {
+		// wememba that the EH has cached the session and we do not have to send it again
 		this._sessions.add(sessionID);
 	}
 
@@ -324,60 +324,60 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		if (session) {
 			const sessionID = <DebugSessionUUID>session.getId();
 			if (this._sessions.has(sessionID)) {
-				return sessionID;
-			} else {
+				wetuwn sessionID;
+			} ewse {
 				// this._sessions.add(sessionID); 	// #69534: see $sessionCached above
-				return {
+				wetuwn {
 					id: sessionID,
-					type: session.configuration.type,
+					type: session.configuwation.type,
 					name: session.name,
-					folderUri: session.root ? session.root.uri : undefined,
-					configuration: session.configuration,
-					parent: session.parentSession?.getId(),
+					fowdewUwi: session.woot ? session.woot.uwi : undefined,
+					configuwation: session.configuwation,
+					pawent: session.pawentSession?.getId(),
 				};
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private convertToDto(bps: (ReadonlyArray<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint | IInstructionBreakpoint>)): Array<ISourceBreakpointDto | IFunctionBreakpointDto | IDataBreakpointDto> {
-		return bps.map(bp => {
+	pwivate convewtToDto(bps: (WeadonwyAwway<IBweakpoint | IFunctionBweakpoint | IDataBweakpoint | IInstwuctionBweakpoint>)): Awway<ISouwceBweakpointDto | IFunctionBweakpointDto | IDataBweakpointDto> {
+		wetuwn bps.map(bp => {
 			if ('name' in bp) {
-				const fbp = <IFunctionBreakpoint>bp;
-				return <IFunctionBreakpointDto>{
+				const fbp = <IFunctionBweakpoint>bp;
+				wetuwn <IFunctionBweakpointDto>{
 					type: 'function',
 					id: fbp.getId(),
-					enabled: fbp.enabled,
+					enabwed: fbp.enabwed,
 					condition: fbp.condition,
 					hitCondition: fbp.hitCondition,
-					logMessage: fbp.logMessage,
+					wogMessage: fbp.wogMessage,
 					functionName: fbp.name
 				};
-			} else if ('dataId' in bp) {
-				const dbp = <IDataBreakpoint>bp;
-				return <IDataBreakpointDto>{
+			} ewse if ('dataId' in bp) {
+				const dbp = <IDataBweakpoint>bp;
+				wetuwn <IDataBweakpointDto>{
 					type: 'data',
 					id: dbp.getId(),
 					dataId: dbp.dataId,
-					enabled: dbp.enabled,
+					enabwed: dbp.enabwed,
 					condition: dbp.condition,
 					hitCondition: dbp.hitCondition,
-					logMessage: dbp.logMessage,
-					label: dbp.description,
-					canPersist: dbp.canPersist
+					wogMessage: dbp.wogMessage,
+					wabew: dbp.descwiption,
+					canPewsist: dbp.canPewsist
 				};
-			} else {
-				const sbp = <IBreakpoint>bp;
-				return <ISourceBreakpointDto>{
-					type: 'source',
+			} ewse {
+				const sbp = <IBweakpoint>bp;
+				wetuwn <ISouwceBweakpointDto>{
+					type: 'souwce',
 					id: sbp.getId(),
-					enabled: sbp.enabled,
+					enabwed: sbp.enabwed,
 					condition: sbp.condition,
 					hitCondition: sbp.hitCondition,
-					logMessage: sbp.logMessage,
-					uri: sbp.uri,
-					line: sbp.lineNumber > 0 ? sbp.lineNumber - 1 : 0,
-					character: (typeof sbp.column === 'number' && sbp.column > 0) ? sbp.column - 1 : 0,
+					wogMessage: sbp.wogMessage,
+					uwi: sbp.uwi,
+					wine: sbp.wineNumba > 0 ? sbp.wineNumba - 1 : 0,
+					chawacta: (typeof sbp.cowumn === 'numba' && sbp.cowumn > 0) ? sbp.cowumn - 1 : 0,
 				};
 			}
 		});
@@ -385,32 +385,32 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 }
 
 /**
- * DebugAdapter that communicates via extension protocol with another debug adapter.
+ * DebugAdapta that communicates via extension pwotocow with anotha debug adapta.
  */
-class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
+cwass ExtensionHostDebugAdapta extends AbstwactDebugAdapta {
 
-	constructor(private readonly _ds: MainThreadDebugService, private _handle: number, private _proxy: ExtHostDebugServiceShape, private _session: IDebugSession) {
-		super();
+	constwuctow(pwivate weadonwy _ds: MainThweadDebugSewvice, pwivate _handwe: numba, pwivate _pwoxy: ExtHostDebugSewviceShape, pwivate _session: IDebugSession) {
+		supa();
 	}
 
-	fireError(handle: number, err: Error) {
-		this._onError.fire(err);
+	fiweEwwow(handwe: numba, eww: Ewwow) {
+		this._onEwwow.fiwe(eww);
 	}
 
-	fireExit(handle: number, code: number, signal: string) {
-		this._onExit.fire(code);
+	fiweExit(handwe: numba, code: numba, signaw: stwing) {
+		this._onExit.fiwe(code);
 	}
 
-	startSession(): Promise<void> {
-		return Promise.resolve(this._proxy.$startDASession(this._handle, this._ds.getSessionDto(this._session)));
+	stawtSession(): Pwomise<void> {
+		wetuwn Pwomise.wesowve(this._pwoxy.$stawtDASession(this._handwe, this._ds.getSessionDto(this._session)));
 	}
 
-	sendMessage(message: DebugProtocol.ProtocolMessage): void {
-		this._proxy.$sendDAMessage(this._handle, convertToDAPaths(message, true));
+	sendMessage(message: DebugPwotocow.PwotocowMessage): void {
+		this._pwoxy.$sendDAMessage(this._handwe, convewtToDAPaths(message, twue));
 	}
 
-	async stopSession(): Promise<void> {
-		await this.cancelPendingRequests();
-		return Promise.resolve(this._proxy.$stopDASession(this._handle));
+	async stopSession(): Pwomise<void> {
+		await this.cancewPendingWequests();
+		wetuwn Pwomise.wesowve(this._pwoxy.$stopDASession(this._handwe));
 	}
 }

@@ -1,40 +1,40 @@
 ## Setup
 
-- Clone [microsoft/vscode](https://github.com/microsoft/vscode)
-- Run `yarn` at `/`, this will install
-	- Dependencies for `/extension/html-language-features/`
-	- Dependencies for `/extension/html-language-features/server/`
-	- devDependencies such as `gulp`
-- Open `/extensions/html-language-features/` as the workspace in VS Code
-- In `/extensions/html-language-features/` run `yarn compile`(or `yarn watch`) to build the client and server
-- Run the [`Launch Extension`](https://github.com/microsoft/vscode/blob/master/extensions/html-language-features/.vscode/launch.json) debug target in the Debug View. This will:
-	- Launch a new VS Code instance with the `html-language-features` extension loaded
-- Open a `.html` file to activate the extension. The extension will start the HTML language server process.
-- Add `"html.trace.server": "verbose"` to the settings to observe the communication between client and server in the `HTML Language Server` output.
-- Debug the extension and the language server client by setting breakpoints in`html-language-features/client/`
-- Debug the language server process by using `Attach to Node Process` command in the  VS Code window opened on `html-language-features`.
-  - Pick the process that contains `htmlServerMain` in the command line. Hover over `code-insiders` resp `code` processes to see the full process command line.
-  - Set breakpoints in `html-language-features/server/`
-- Run `Reload Window` command in the launched instance to reload the extension
+- Cwone [micwosoft/vscode](https://github.com/micwosoft/vscode)
+- Wun `yawn` at `/`, this wiww instaww
+	- Dependencies fow `/extension/htmw-wanguage-featuwes/`
+	- Dependencies fow `/extension/htmw-wanguage-featuwes/sewva/`
+	- devDependencies such as `guwp`
+- Open `/extensions/htmw-wanguage-featuwes/` as the wowkspace in VS Code
+- In `/extensions/htmw-wanguage-featuwes/` wun `yawn compiwe`(ow `yawn watch`) to buiwd the cwient and sewva
+- Wun the [`Waunch Extension`](https://github.com/micwosoft/vscode/bwob/masta/extensions/htmw-wanguage-featuwes/.vscode/waunch.json) debug tawget in the Debug View. This wiww:
+	- Waunch a new VS Code instance with the `htmw-wanguage-featuwes` extension woaded
+- Open a `.htmw` fiwe to activate the extension. The extension wiww stawt the HTMW wanguage sewva pwocess.
+- Add `"htmw.twace.sewva": "vewbose"` to the settings to obsewve the communication between cwient and sewva in the `HTMW Wanguage Sewva` output.
+- Debug the extension and the wanguage sewva cwient by setting bweakpoints in`htmw-wanguage-featuwes/cwient/`
+- Debug the wanguage sewva pwocess by using `Attach to Node Pwocess` command in the  VS Code window opened on `htmw-wanguage-featuwes`.
+  - Pick the pwocess that contains `htmwSewvewMain` in the command wine. Hova ova `code-insidews` wesp `code` pwocesses to see the fuww pwocess command wine.
+  - Set bweakpoints in `htmw-wanguage-featuwes/sewva/`
+- Wun `Wewoad Window` command in the waunched instance to wewoad the extension
 
-### Contribute to vscode-html-languageservice
+### Contwibute to vscode-htmw-wanguagesewvice
 
-[microsoft/vscode-html-languageservice](https://github.com/microsoft/vscode-html-languageservice) contains the language smarts for html.
-This extension wraps the html language service into a Language Server for VS Code.
-If you want to fix html issues or make improvements, you should make changes at [microsoft/vscode-html-languageservice](https://github.com/microsoft/vscode-html-languageservice).
+[micwosoft/vscode-htmw-wanguagesewvice](https://github.com/micwosoft/vscode-htmw-wanguagesewvice) contains the wanguage smawts fow htmw.
+This extension wwaps the htmw wanguage sewvice into a Wanguage Sewva fow VS Code.
+If you want to fix htmw issues ow make impwovements, you shouwd make changes at [micwosoft/vscode-htmw-wanguagesewvice](https://github.com/micwosoft/vscode-htmw-wanguagesewvice).
 
-However, within this extension, you can run a development version of `vscode-html-languageservice` to debug code or test language features interactively:
+Howeva, within this extension, you can wun a devewopment vewsion of `vscode-htmw-wanguagesewvice` to debug code ow test wanguage featuwes intewactivewy:
 
-#### Linking `vscode-html-languageservice` in `html-language-features/server/`
+#### Winking `vscode-htmw-wanguagesewvice` in `htmw-wanguage-featuwes/sewva/`
 
-- Clone [microsoft/vscode-html-languageservice](https://github.com/microsoft/vscode-html-languageservice)
-- Run `yarn` in `vscode-html-languageservice`
-- Run `yarn link` in `vscode-html-languageservice`. This will compile and link `vscode-html-languageservice`
-- In `html-language-features/server/`, run `npm link vscode-html-languageservice`
+- Cwone [micwosoft/vscode-htmw-wanguagesewvice](https://github.com/micwosoft/vscode-htmw-wanguagesewvice)
+- Wun `yawn` in `vscode-htmw-wanguagesewvice`
+- Wun `yawn wink` in `vscode-htmw-wanguagesewvice`. This wiww compiwe and wink `vscode-htmw-wanguagesewvice`
+- In `htmw-wanguage-featuwes/sewva/`, wun `npm wink vscode-htmw-wanguagesewvice`
 
-#### Testing the development version of `vscode-html-languageservice`
+#### Testing the devewopment vewsion of `vscode-htmw-wanguagesewvice`
 
-- Open both `vscode-html-languageservice` and this extension in two windows or with a single window with the[multi-root workspace](https://code.visualstudio.com/docs/editor/multi-root-workspaces) feature
-- Run `yarn watch` at `html-languagefeatures/server/` to recompile this extension with the linked version of `vscode-html-languageservice`
-- Make some changes in `vscode-html-languageservice`
-- Now when you run `Launch Extension` debug target, the launched instance will use your development version of `vscode-html-languageservice`. You can interactively test the language features.
+- Open both `vscode-htmw-wanguagesewvice` and this extension in two windows ow with a singwe window with the[muwti-woot wowkspace](https://code.visuawstudio.com/docs/editow/muwti-woot-wowkspaces) featuwe
+- Wun `yawn watch` at `htmw-wanguagefeatuwes/sewva/` to wecompiwe this extension with the winked vewsion of `vscode-htmw-wanguagesewvice`
+- Make some changes in `vscode-htmw-wanguagesewvice`
+- Now when you wun `Waunch Extension` debug tawget, the waunched instance wiww use youw devewopment vewsion of `vscode-htmw-wanguagesewvice`. You can intewactivewy test the wanguage featuwes.

@@ -1,343 +1,343 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import * as dom from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Keybinding, ResolvedKeybinding, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
-import { IDisposable, IReference, ImmortalReference, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
-import { OS, isLinux, isMacintosh } from 'vs/base/common/platform';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor, IDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditOptions, IBulkEditResult, IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { isDiffEditorConfigurationKey, isEditorConfigurationKey } from 'vs/editor/common/config/commonEditorConfig';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { IPosition, Position as Pos } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditor } from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ITextResourceConfigurationService, ITextResourcePropertiesService, ITextResourceConfigurationChangeEvent } from 'vs/editor/common/services/textResourceConfigurationService';
-import { CommandsRegistry, ICommandEvent, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationModel, IConfigurationValue, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { Configuration, ConfigurationModel, DefaultConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
-import { IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInputResult, IShowResult } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { IKeybindingEvent, IKeyboardEvent, KeybindingSource, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IKeybindingItem, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { ILabelService, ResourceLabelFormatter, IFormatterChangeEvent } from 'vs/platform/label/common/label';
-import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions, NotificationsFilter } from 'vs/platform/notification/common/notification';
-import { IProgressRunner, IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { ITelemetryInfo, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { SimpleServicesNLS } from 'vs/editor/common/standaloneStrings';
-import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
-import { basename } from 'vs/base/common/resources';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ILogService } from 'vs/platform/log/common/log';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Keybinding, WesowvedKeybinding, SimpweKeybinding, cweateKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { IDisposabwe, IWefewence, ImmowtawWefewence, toDisposabwe, DisposabweStowe, Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { OS, isWinux, isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ICodeEditow, IDiffEditow, isCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IBuwkEditOptions, IBuwkEditWesuwt, IBuwkEditSewvice, WesouwceEdit, WesouwceTextEdit } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
+impowt { isDiffEditowConfiguwationKey, isEditowConfiguwationKey } fwom 'vs/editow/common/config/commonEditowConfig';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { IPosition, Position as Pos } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IEditow } fwom 'vs/editow/common/editowCommon';
+impowt { IIdentifiedSingweEditOpewation, ITextModew, ITextSnapshot } fwom 'vs/editow/common/modew';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IWesowvedTextEditowModew, ITextModewContentPwovida, ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { ITextWesouwceConfiguwationSewvice, ITextWesouwcePwopewtiesSewvice, ITextWesouwceConfiguwationChangeEvent } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { CommandsWegistwy, ICommandEvent, ICommandHandwa, ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IConfiguwationChangeEvent, IConfiguwationData, IConfiguwationOvewwides, IConfiguwationSewvice, IConfiguwationModew, IConfiguwationVawue, ConfiguwationTawget } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { Configuwation, ConfiguwationModew, DefauwtConfiguwationModew, ConfiguwationChangeEvent } fwom 'vs/pwatfowm/configuwation/common/configuwationModews';
+impowt { IContextKeySewvice, ContextKeyExpwession } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IConfiwmation, IConfiwmationWesuwt, IDiawogOptions, IDiawogSewvice, IInputWesuwt, IShowWesuwt } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { AbstwactKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/abstwactKeybindingSewvice';
+impowt { IKeybindingEvent, IKeyboawdEvent, KeybindingSouwce, KeybindingsSchemaContwibution } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { KeybindingWesowva } fwom 'vs/pwatfowm/keybinding/common/keybindingWesowva';
+impowt { IKeybindingItem, KeybindingsWegistwy } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { WesowvedKeybindingItem } fwom 'vs/pwatfowm/keybinding/common/wesowvedKeybindingItem';
+impowt { USWayoutWesowvedKeybinding } fwom 'vs/pwatfowm/keybinding/common/usWayoutWesowvedKeybinding';
+impowt { IWabewSewvice, WesouwceWabewFowmatta, IFowmattewChangeEvent } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { INotification, INotificationHandwe, INotificationSewvice, IPwomptChoice, IPwomptOptions, NoOpNotification, IStatusMessageOptions, NotificationsFiwta } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IPwogwessWunna, IEditowPwogwessSewvice } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { ITewemetwyInfo, ITewemetwySewvice, TewemetwyWevew } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IWowkspace, IWowkspaceContextSewvice, IWowkspaceFowda, IWowkspaceFowdewsChangeEvent, IWowkspaceFowdewsWiwwChangeEvent, WowkbenchState, WowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { ISingweFowdewWowkspaceIdentifia, IWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { IWayoutSewvice } fwom 'vs/pwatfowm/wayout/bwowsa/wayoutSewvice';
+impowt { SimpweSewvicesNWS } fwom 'vs/editow/common/standawoneStwings';
+impowt { CwassifiedEvent, StwictPwopewtyCheck, GDPWCwassification } fwom 'vs/pwatfowm/tewemetwy/common/gdpwTypings';
+impowt { basename } fwom 'vs/base/common/wesouwces';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-export class SimpleModel implements IResolvedTextEditorModel {
+expowt cwass SimpweModew impwements IWesowvedTextEditowModew {
 
-	private readonly model: ITextModel;
-	private readonly _onWillDispose: Emitter<void>;
+	pwivate weadonwy modew: ITextModew;
+	pwivate weadonwy _onWiwwDispose: Emitta<void>;
 
-	constructor(model: ITextModel) {
-		this.model = model;
-		this._onWillDispose = new Emitter<void>();
+	constwuctow(modew: ITextModew) {
+		this.modew = modew;
+		this._onWiwwDispose = new Emitta<void>();
 	}
 
-	public get onWillDispose(): Event<void> {
-		return this._onWillDispose.event;
+	pubwic get onWiwwDispose(): Event<void> {
+		wetuwn this._onWiwwDispose.event;
 	}
 
-	public resolve(): Promise<void> {
-		return Promise.resolve();
+	pubwic wesowve(): Pwomise<void> {
+		wetuwn Pwomise.wesowve();
 	}
 
-	public get textEditorModel(): ITextModel {
-		return this.model;
+	pubwic get textEditowModew(): ITextModew {
+		wetuwn this.modew;
 	}
 
-	public createSnapshot(): ITextSnapshot {
-		return this.model.createSnapshot();
+	pubwic cweateSnapshot(): ITextSnapshot {
+		wetuwn this.modew.cweateSnapshot();
 	}
 
-	public isReadonly(): boolean {
-		return false;
+	pubwic isWeadonwy(): boowean {
+		wetuwn fawse;
 	}
 
-	private disposed = false;
-	public dispose(): void {
-		this.disposed = true;
+	pwivate disposed = fawse;
+	pubwic dispose(): void {
+		this.disposed = twue;
 
-		this._onWillDispose.fire();
+		this._onWiwwDispose.fiwe();
 	}
 
-	public isDisposed(): boolean {
-		return this.disposed;
+	pubwic isDisposed(): boowean {
+		wetuwn this.disposed;
 	}
 
-	public isResolved(): boolean {
-		return true;
+	pubwic isWesowved(): boowean {
+		wetuwn twue;
 	}
 
-	public getMode(): string | undefined {
-		return this.model.getModeId();
-	}
-}
-
-export interface IOpenEditorDelegate {
-	(url: string): boolean;
-}
-
-function withTypedEditor<T>(widget: IEditor, codeEditorCallback: (editor: ICodeEditor) => T, diffEditorCallback: (editor: IDiffEditor) => T): T {
-	if (isCodeEditor(widget)) {
-		// Single Editor
-		return codeEditorCallback(<ICodeEditor>widget);
-	} else {
-		// Diff Editor
-		return diffEditorCallback(<IDiffEditor>widget);
+	pubwic getMode(): stwing | undefined {
+		wetuwn this.modew.getModeId();
 	}
 }
 
-export class SimpleEditorModelResolverService implements ITextModelService {
-	public _serviceBrand: undefined;
+expowt intewface IOpenEditowDewegate {
+	(uww: stwing): boowean;
+}
 
-	private editor?: IEditor;
+function withTypedEditow<T>(widget: IEditow, codeEditowCawwback: (editow: ICodeEditow) => T, diffEditowCawwback: (editow: IDiffEditow) => T): T {
+	if (isCodeEditow(widget)) {
+		// Singwe Editow
+		wetuwn codeEditowCawwback(<ICodeEditow>widget);
+	} ewse {
+		// Diff Editow
+		wetuwn diffEditowCawwback(<IDiffEditow>widget);
+	}
+}
 
-	constructor(
-		@IModelService private readonly modelService: IModelService
+expowt cwass SimpweEditowModewWesowvewSewvice impwements ITextModewSewvice {
+	pubwic _sewviceBwand: undefined;
+
+	pwivate editow?: IEditow;
+
+	constwuctow(
+		@IModewSewvice pwivate weadonwy modewSewvice: IModewSewvice
 	) { }
 
-	public setEditor(editor: IEditor): void {
-		this.editor = editor;
+	pubwic setEditow(editow: IEditow): void {
+		this.editow = editow;
 	}
 
-	public createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
-		let model: ITextModel | null = null;
-		if (this.editor) {
-			model = withTypedEditor(this.editor,
-				(editor) => this.findModel(editor, resource),
-				(diffEditor) => this.findModel(diffEditor.getOriginalEditor(), resource) || this.findModel(diffEditor.getModifiedEditor(), resource)
+	pubwic cweateModewWefewence(wesouwce: UWI): Pwomise<IWefewence<IWesowvedTextEditowModew>> {
+		wet modew: ITextModew | nuww = nuww;
+		if (this.editow) {
+			modew = withTypedEditow(this.editow,
+				(editow) => this.findModew(editow, wesouwce),
+				(diffEditow) => this.findModew(diffEditow.getOwiginawEditow(), wesouwce) || this.findModew(diffEditow.getModifiedEditow(), wesouwce)
 			);
 		}
 
-		if (!model) {
-			return Promise.reject(new Error(`Model not found`));
+		if (!modew) {
+			wetuwn Pwomise.weject(new Ewwow(`Modew not found`));
 		}
 
-		return Promise.resolve(new ImmortalReference(new SimpleModel(model)));
+		wetuwn Pwomise.wesowve(new ImmowtawWefewence(new SimpweModew(modew)));
 	}
 
-	public registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {
-		return {
+	pubwic wegistewTextModewContentPwovida(scheme: stwing, pwovida: ITextModewContentPwovida): IDisposabwe {
+		wetuwn {
 			dispose: function () { /* no op */ }
 		};
 	}
 
-	public canHandleResource(resource: URI): boolean {
-		return false;
+	pubwic canHandweWesouwce(wesouwce: UWI): boowean {
+		wetuwn fawse;
 	}
 
-	private findModel(editor: ICodeEditor, resource: URI): ITextModel | null {
-		let model = this.modelService.getModel(resource);
-		if (model && model.uri.toString() !== resource.toString()) {
-			return null;
+	pwivate findModew(editow: ICodeEditow, wesouwce: UWI): ITextModew | nuww {
+		wet modew = this.modewSewvice.getModew(wesouwce);
+		if (modew && modew.uwi.toStwing() !== wesouwce.toStwing()) {
+			wetuwn nuww;
 		}
 
-		return model;
+		wetuwn modew;
 	}
 }
 
-export class SimpleEditorProgressService implements IEditorProgressService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass SimpweEditowPwogwessSewvice impwements IEditowPwogwessSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private static NULL_PROGRESS_RUNNER: IProgressRunner = {
+	pwivate static NUWW_PWOGWESS_WUNNa: IPwogwessWunna = {
 		done: () => { },
-		total: () => { },
-		worked: () => { }
+		totaw: () => { },
+		wowked: () => { }
 	};
 
-	show(infinite: true, delay?: number): IProgressRunner;
-	show(total: number, delay?: number): IProgressRunner;
-	show(): IProgressRunner {
-		return SimpleEditorProgressService.NULL_PROGRESS_RUNNER;
+	show(infinite: twue, deway?: numba): IPwogwessWunna;
+	show(totaw: numba, deway?: numba): IPwogwessWunna;
+	show(): IPwogwessWunna {
+		wetuwn SimpweEditowPwogwessSewvice.NUWW_PWOGWESS_WUNNa;
 	}
 
-	async showWhile(promise: Promise<any>, delay?: number): Promise<void> {
-		await promise;
+	async showWhiwe(pwomise: Pwomise<any>, deway?: numba): Pwomise<void> {
+		await pwomise;
 	}
 }
 
-export class SimpleDialogService implements IDialogService {
+expowt cwass SimpweDiawogSewvice impwements IDiawogSewvice {
 
-	public _serviceBrand: undefined;
+	pubwic _sewviceBwand: undefined;
 
-	public confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
-		return this.doConfirm(confirmation).then(confirmed => {
-			return {
-				confirmed,
-				checkboxChecked: false // unsupported
-			} as IConfirmationResult;
+	pubwic confiwm(confiwmation: IConfiwmation): Pwomise<IConfiwmationWesuwt> {
+		wetuwn this.doConfiwm(confiwmation).then(confiwmed => {
+			wetuwn {
+				confiwmed,
+				checkboxChecked: fawse // unsuppowted
+			} as IConfiwmationWesuwt;
 		});
 	}
 
-	private doConfirm(confirmation: IConfirmation): Promise<boolean> {
-		let messageText = confirmation.message;
-		if (confirmation.detail) {
-			messageText = messageText + '\n\n' + confirmation.detail;
+	pwivate doConfiwm(confiwmation: IConfiwmation): Pwomise<boowean> {
+		wet messageText = confiwmation.message;
+		if (confiwmation.detaiw) {
+			messageText = messageText + '\n\n' + confiwmation.detaiw;
 		}
 
-		return Promise.resolve(window.confirm(messageText));
+		wetuwn Pwomise.wesowve(window.confiwm(messageText));
 	}
 
-	public show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult> {
-		return Promise.resolve({ choice: 0 });
+	pubwic show(sevewity: Sevewity, message: stwing, buttons: stwing[], options?: IDiawogOptions): Pwomise<IShowWesuwt> {
+		wetuwn Pwomise.wesowve({ choice: 0 });
 	}
 
-	public input(): Promise<IInputResult> {
-		return Promise.resolve({ choice: 0 }); // unsupported
+	pubwic input(): Pwomise<IInputWesuwt> {
+		wetuwn Pwomise.wesowve({ choice: 0 }); // unsuppowted
 	}
 
-	public about(): Promise<void> {
-		return Promise.resolve(undefined);
+	pubwic about(): Pwomise<void> {
+		wetuwn Pwomise.wesowve(undefined);
 	}
 }
 
-export class SimpleNotificationService implements INotificationService {
+expowt cwass SimpweNotificationSewvice impwements INotificationSewvice {
 
-	readonly onDidAddNotification: Event<INotification> = Event.None;
+	weadonwy onDidAddNotification: Event<INotification> = Event.None;
 
-	readonly onDidRemoveNotification: Event<INotification> = Event.None;
+	weadonwy onDidWemoveNotification: Event<INotification> = Event.None;
 
-	public _serviceBrand: undefined;
+	pubwic _sewviceBwand: undefined;
 
-	private static readonly NO_OP: INotificationHandle = new NoOpNotification();
+	pwivate static weadonwy NO_OP: INotificationHandwe = new NoOpNotification();
 
-	public info(message: string): INotificationHandle {
-		return this.notify({ severity: Severity.Info, message });
+	pubwic info(message: stwing): INotificationHandwe {
+		wetuwn this.notify({ sevewity: Sevewity.Info, message });
 	}
 
-	public warn(message: string): INotificationHandle {
-		return this.notify({ severity: Severity.Warning, message });
+	pubwic wawn(message: stwing): INotificationHandwe {
+		wetuwn this.notify({ sevewity: Sevewity.Wawning, message });
 	}
 
-	public error(error: string | Error): INotificationHandle {
-		return this.notify({ severity: Severity.Error, message: error });
+	pubwic ewwow(ewwow: stwing | Ewwow): INotificationHandwe {
+		wetuwn this.notify({ sevewity: Sevewity.Ewwow, message: ewwow });
 	}
 
-	public notify(notification: INotification): INotificationHandle {
-		switch (notification.severity) {
-			case Severity.Error:
-				console.error(notification.message);
-				break;
-			case Severity.Warning:
-				console.warn(notification.message);
-				break;
-			default:
-				console.log(notification.message);
-				break;
+	pubwic notify(notification: INotification): INotificationHandwe {
+		switch (notification.sevewity) {
+			case Sevewity.Ewwow:
+				consowe.ewwow(notification.message);
+				bweak;
+			case Sevewity.Wawning:
+				consowe.wawn(notification.message);
+				bweak;
+			defauwt:
+				consowe.wog(notification.message);
+				bweak;
 		}
 
-		return SimpleNotificationService.NO_OP;
+		wetuwn SimpweNotificationSewvice.NO_OP;
 	}
 
-	public prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
-		return SimpleNotificationService.NO_OP;
+	pubwic pwompt(sevewity: Sevewity, message: stwing, choices: IPwomptChoice[], options?: IPwomptOptions): INotificationHandwe {
+		wetuwn SimpweNotificationSewvice.NO_OP;
 	}
 
-	public status(message: string | Error, options?: IStatusMessageOptions): IDisposable {
-		return Disposable.None;
+	pubwic status(message: stwing | Ewwow, options?: IStatusMessageOptions): IDisposabwe {
+		wetuwn Disposabwe.None;
 	}
 
-	public setFilter(filter: NotificationsFilter): void { }
+	pubwic setFiwta(fiwta: NotificationsFiwta): void { }
 }
 
-export class StandaloneCommandService implements ICommandService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass StandawoneCommandSewvice impwements ICommandSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _instantiationService: IInstantiationService;
+	pwivate weadonwy _instantiationSewvice: IInstantiationSewvice;
 
-	private readonly _onWillExecuteCommand = new Emitter<ICommandEvent>();
-	private readonly _onDidExecuteCommand = new Emitter<ICommandEvent>();
-	public readonly onWillExecuteCommand: Event<ICommandEvent> = this._onWillExecuteCommand.event;
-	public readonly onDidExecuteCommand: Event<ICommandEvent> = this._onDidExecuteCommand.event;
+	pwivate weadonwy _onWiwwExecuteCommand = new Emitta<ICommandEvent>();
+	pwivate weadonwy _onDidExecuteCommand = new Emitta<ICommandEvent>();
+	pubwic weadonwy onWiwwExecuteCommand: Event<ICommandEvent> = this._onWiwwExecuteCommand.event;
+	pubwic weadonwy onDidExecuteCommand: Event<ICommandEvent> = this._onDidExecuteCommand.event;
 
-	constructor(instantiationService: IInstantiationService) {
-		this._instantiationService = instantiationService;
+	constwuctow(instantiationSewvice: IInstantiationSewvice) {
+		this._instantiationSewvice = instantiationSewvice;
 	}
 
-	public executeCommand<T>(id: string, ...args: any[]): Promise<T> {
-		const command = CommandsRegistry.getCommand(id);
+	pubwic executeCommand<T>(id: stwing, ...awgs: any[]): Pwomise<T> {
+		const command = CommandsWegistwy.getCommand(id);
 		if (!command) {
-			return Promise.reject(new Error(`command '${id}' not found`));
+			wetuwn Pwomise.weject(new Ewwow(`command '${id}' not found`));
 		}
 
-		try {
-			this._onWillExecuteCommand.fire({ commandId: id, args });
-			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler, ...args]) as T;
+		twy {
+			this._onWiwwExecuteCommand.fiwe({ commandId: id, awgs });
+			const wesuwt = this._instantiationSewvice.invokeFunction.appwy(this._instantiationSewvice, [command.handwa, ...awgs]) as T;
 
-			this._onDidExecuteCommand.fire({ commandId: id, args });
-			return Promise.resolve(result);
-		} catch (err) {
-			return Promise.reject(err);
+			this._onDidExecuteCommand.fiwe({ commandId: id, awgs });
+			wetuwn Pwomise.wesowve(wesuwt);
+		} catch (eww) {
+			wetuwn Pwomise.weject(eww);
 		}
 	}
 }
 
-export class StandaloneKeybindingService extends AbstractKeybindingService {
-	private _cachedResolver: KeybindingResolver | null;
-	private readonly _dynamicKeybindings: IKeybindingItem[];
+expowt cwass StandawoneKeybindingSewvice extends AbstwactKeybindingSewvice {
+	pwivate _cachedWesowva: KeybindingWesowva | nuww;
+	pwivate weadonwy _dynamicKeybindings: IKeybindingItem[];
 
-	constructor(
-		contextKeyService: IContextKeyService,
-		commandService: ICommandService,
-		telemetryService: ITelemetryService,
-		notificationService: INotificationService,
-		logService: ILogService,
-		domNode: HTMLElement
+	constwuctow(
+		contextKeySewvice: IContextKeySewvice,
+		commandSewvice: ICommandSewvice,
+		tewemetwySewvice: ITewemetwySewvice,
+		notificationSewvice: INotificationSewvice,
+		wogSewvice: IWogSewvice,
+		domNode: HTMWEwement
 	) {
-		super(contextKeyService, commandService, telemetryService, notificationService, logService);
+		supa(contextKeySewvice, commandSewvice, tewemetwySewvice, notificationSewvice, wogSewvice);
 
-		this._cachedResolver = null;
+		this._cachedWesowva = nuww;
 		this._dynamicKeybindings = [];
 
-		// for standard keybindings
-		this._register(dom.addDisposableListener(domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			const keyEvent = new StandardKeyboardEvent(e);
-			const shouldPreventDefault = this._dispatch(keyEvent, keyEvent.target);
-			if (shouldPreventDefault) {
-				keyEvent.preventDefault();
-				keyEvent.stopPropagation();
+		// fow standawd keybindings
+		this._wegista(dom.addDisposabweWistena(domNode, dom.EventType.KEY_DOWN, (e: KeyboawdEvent) => {
+			const keyEvent = new StandawdKeyboawdEvent(e);
+			const shouwdPweventDefauwt = this._dispatch(keyEvent, keyEvent.tawget);
+			if (shouwdPweventDefauwt) {
+				keyEvent.pweventDefauwt();
+				keyEvent.stopPwopagation();
 			}
 		}));
 
-		// for single modifier chord keybindings (e.g. shift shift)
-		this._register(dom.addDisposableListener(window, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
-			const keyEvent = new StandardKeyboardEvent(e);
-			const shouldPreventDefault = this._singleModifierDispatch(keyEvent, keyEvent.target);
-			if (shouldPreventDefault) {
-				keyEvent.preventDefault();
+		// fow singwe modifia chowd keybindings (e.g. shift shift)
+		this._wegista(dom.addDisposabweWistena(window, dom.EventType.KEY_UP, (e: KeyboawdEvent) => {
+			const keyEvent = new StandawdKeyboawdEvent(e);
+			const shouwdPweventDefauwt = this._singweModifiewDispatch(keyEvent, keyEvent.tawget);
+			if (shouwdPweventDefauwt) {
+				keyEvent.pweventDefauwt();
 			}
 		}));
 	}
 
-	public addDynamicKeybinding(commandId: string, _keybinding: number, handler: ICommandHandler, when: ContextKeyExpression | undefined): IDisposable {
-		const keybinding = createKeybinding(_keybinding, OS);
+	pubwic addDynamicKeybinding(commandId: stwing, _keybinding: numba, handwa: ICommandHandwa, when: ContextKeyExpwession | undefined): IDisposabwe {
+		const keybinding = cweateKeybinding(_keybinding, OS);
 
-		const toDispose = new DisposableStore();
+		const toDispose = new DisposabweStowe();
 
 		if (keybinding) {
 			this._dynamicKeybindings.push({
@@ -346,455 +346,455 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 				when: when,
 				weight1: 1000,
 				weight2: 0,
-				extensionId: null,
-				isBuiltinExtension: false
+				extensionId: nuww,
+				isBuiwtinExtension: fawse
 			});
 
-			toDispose.add(toDisposable(() => {
-				for (let i = 0; i < this._dynamicKeybindings.length; i++) {
-					let kb = this._dynamicKeybindings[i];
+			toDispose.add(toDisposabwe(() => {
+				fow (wet i = 0; i < this._dynamicKeybindings.wength; i++) {
+					wet kb = this._dynamicKeybindings[i];
 					if (kb.command === commandId) {
-						this._dynamicKeybindings.splice(i, 1);
-						this.updateResolver({ source: KeybindingSource.Default });
-						return;
+						this._dynamicKeybindings.spwice(i, 1);
+						this.updateWesowva({ souwce: KeybindingSouwce.Defauwt });
+						wetuwn;
 					}
 				}
 			}));
 		}
 
-		toDispose.add(CommandsRegistry.registerCommand(commandId, handler));
+		toDispose.add(CommandsWegistwy.wegistewCommand(commandId, handwa));
 
-		this.updateResolver({ source: KeybindingSource.Default });
+		this.updateWesowva({ souwce: KeybindingSouwce.Defauwt });
 
-		return toDispose;
+		wetuwn toDispose;
 	}
 
-	private updateResolver(event: IKeybindingEvent): void {
-		this._cachedResolver = null;
-		this._onDidUpdateKeybindings.fire(event);
+	pwivate updateWesowva(event: IKeybindingEvent): void {
+		this._cachedWesowva = nuww;
+		this._onDidUpdateKeybindings.fiwe(event);
 	}
 
-	protected _getResolver(): KeybindingResolver {
-		if (!this._cachedResolver) {
-			const defaults = this._toNormalizedKeybindingItems(KeybindingsRegistry.getDefaultKeybindings(), true);
-			const overrides = this._toNormalizedKeybindingItems(this._dynamicKeybindings, false);
-			this._cachedResolver = new KeybindingResolver(defaults, overrides, (str) => this._log(str));
+	pwotected _getWesowva(): KeybindingWesowva {
+		if (!this._cachedWesowva) {
+			const defauwts = this._toNowmawizedKeybindingItems(KeybindingsWegistwy.getDefauwtKeybindings(), twue);
+			const ovewwides = this._toNowmawizedKeybindingItems(this._dynamicKeybindings, fawse);
+			this._cachedWesowva = new KeybindingWesowva(defauwts, ovewwides, (stw) => this._wog(stw));
 		}
-		return this._cachedResolver;
+		wetuwn this._cachedWesowva;
 	}
 
-	protected _documentHasFocus(): boolean {
-		return document.hasFocus();
+	pwotected _documentHasFocus(): boowean {
+		wetuwn document.hasFocus();
 	}
 
-	private _toNormalizedKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
-		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
-		for (const item of items) {
+	pwivate _toNowmawizedKeybindingItems(items: IKeybindingItem[], isDefauwt: boowean): WesowvedKeybindingItem[] {
+		wet wesuwt: WesowvedKeybindingItem[] = [], wesuwtWen = 0;
+		fow (const item of items) {
 			const when = item.when || undefined;
 			const keybinding = item.keybinding;
 
 			if (!keybinding) {
-				// This might be a removal keybinding item in user settings => accept it
-				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, isDefault, null, false);
-			} else {
-				const resolvedKeybindings = this.resolveKeybinding(keybinding);
-				for (const resolvedKeybinding of resolvedKeybindings) {
-					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault, null, false);
+				// This might be a wemovaw keybinding item in usa settings => accept it
+				wesuwt[wesuwtWen++] = new WesowvedKeybindingItem(undefined, item.command, item.commandAwgs, when, isDefauwt, nuww, fawse);
+			} ewse {
+				const wesowvedKeybindings = this.wesowveKeybinding(keybinding);
+				fow (const wesowvedKeybinding of wesowvedKeybindings) {
+					wesuwt[wesuwtWen++] = new WesowvedKeybindingItem(wesowvedKeybinding, item.command, item.commandAwgs, when, isDefauwt, nuww, fawse);
 				}
 			}
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[] {
-		return [new USLayoutResolvedKeybinding(keybinding, OS)];
+	pubwic wesowveKeybinding(keybinding: Keybinding): WesowvedKeybinding[] {
+		wetuwn [new USWayoutWesowvedKeybinding(keybinding, OS)];
 	}
 
-	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
-		let keybinding = new SimpleKeybinding(
-			keyboardEvent.ctrlKey,
-			keyboardEvent.shiftKey,
-			keyboardEvent.altKey,
-			keyboardEvent.metaKey,
-			keyboardEvent.keyCode
-		).toChord();
-		return new USLayoutResolvedKeybinding(keybinding, OS);
+	pubwic wesowveKeyboawdEvent(keyboawdEvent: IKeyboawdEvent): WesowvedKeybinding {
+		wet keybinding = new SimpweKeybinding(
+			keyboawdEvent.ctwwKey,
+			keyboawdEvent.shiftKey,
+			keyboawdEvent.awtKey,
+			keyboawdEvent.metaKey,
+			keyboawdEvent.keyCode
+		).toChowd();
+		wetuwn new USWayoutWesowvedKeybinding(keybinding, OS);
 	}
 
-	public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {
-		return [];
+	pubwic wesowveUsewBinding(usewBinding: stwing): WesowvedKeybinding[] {
+		wetuwn [];
 	}
 
-	public _dumpDebugInfo(): string {
-		return '';
+	pubwic _dumpDebugInfo(): stwing {
+		wetuwn '';
 	}
 
-	public _dumpDebugInfoJSON(): string {
-		return '';
+	pubwic _dumpDebugInfoJSON(): stwing {
+		wetuwn '';
 	}
 
-	public registerSchemaContribution(contribution: KeybindingsSchemaContribution): void {
+	pubwic wegistewSchemaContwibution(contwibution: KeybindingsSchemaContwibution): void {
 		// noop
 	}
 }
 
-function isConfigurationOverrides(thing: any): thing is IConfigurationOverrides {
-	return thing
+function isConfiguwationOvewwides(thing: any): thing is IConfiguwationOvewwides {
+	wetuwn thing
 		&& typeof thing === 'object'
-		&& (!thing.overrideIdentifier || typeof thing.overrideIdentifier === 'string')
-		&& (!thing.resource || thing.resource instanceof URI);
+		&& (!thing.ovewwideIdentifia || typeof thing.ovewwideIdentifia === 'stwing')
+		&& (!thing.wesouwce || thing.wesouwce instanceof UWI);
 }
 
-export class SimpleConfigurationService implements IConfigurationService {
+expowt cwass SimpweConfiguwationSewvice impwements IConfiguwationSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _onDidChangeConfiguration = new Emitter<IConfigurationChangeEvent>();
-	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
+	pwivate weadonwy _onDidChangeConfiguwation = new Emitta<IConfiguwationChangeEvent>();
+	pubwic weadonwy onDidChangeConfiguwation: Event<IConfiguwationChangeEvent> = this._onDidChangeConfiguwation.event;
 
-	private readonly _configuration: Configuration;
+	pwivate weadonwy _configuwation: Configuwation;
 
-	constructor() {
-		this._configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel());
+	constwuctow() {
+		this._configuwation = new Configuwation(new DefauwtConfiguwationModew(), new ConfiguwationModew());
 	}
 
-	getValue<T>(): T;
-	getValue<T>(section: string): T;
-	getValue<T>(overrides: IConfigurationOverrides): T;
-	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
-	getValue(arg1?: any, arg2?: any): any {
-		const section = typeof arg1 === 'string' ? arg1 : undefined;
-		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : {};
-		return this._configuration.getValue(section, overrides, undefined);
+	getVawue<T>(): T;
+	getVawue<T>(section: stwing): T;
+	getVawue<T>(ovewwides: IConfiguwationOvewwides): T;
+	getVawue<T>(section: stwing, ovewwides: IConfiguwationOvewwides): T;
+	getVawue(awg1?: any, awg2?: any): any {
+		const section = typeof awg1 === 'stwing' ? awg1 : undefined;
+		const ovewwides = isConfiguwationOvewwides(awg1) ? awg1 : isConfiguwationOvewwides(awg2) ? awg2 : {};
+		wetuwn this._configuwation.getVawue(section, ovewwides, undefined);
 	}
 
-	public updateValues(values: [string, any][]): Promise<void> {
-		const previous = { data: this._configuration.toData() };
+	pubwic updateVawues(vawues: [stwing, any][]): Pwomise<void> {
+		const pwevious = { data: this._configuwation.toData() };
 
-		let changedKeys: string[] = [];
+		wet changedKeys: stwing[] = [];
 
-		for (const entry of values) {
-			const [key, value] = entry;
-			if (this.getValue(key) === value) {
+		fow (const entwy of vawues) {
+			const [key, vawue] = entwy;
+			if (this.getVawue(key) === vawue) {
 				continue;
 			}
-			this._configuration.updateValue(key, value);
+			this._configuwation.updateVawue(key, vawue);
 			changedKeys.push(key);
 		}
 
-		if (changedKeys.length > 0) {
-			const configurationChangeEvent = new ConfigurationChangeEvent({ keys: changedKeys, overrides: [] }, previous, this._configuration);
-			configurationChangeEvent.source = ConfigurationTarget.MEMORY;
-			configurationChangeEvent.sourceConfig = null;
-			this._onDidChangeConfiguration.fire(configurationChangeEvent);
+		if (changedKeys.wength > 0) {
+			const configuwationChangeEvent = new ConfiguwationChangeEvent({ keys: changedKeys, ovewwides: [] }, pwevious, this._configuwation);
+			configuwationChangeEvent.souwce = ConfiguwationTawget.MEMOWY;
+			configuwationChangeEvent.souwceConfig = nuww;
+			this._onDidChangeConfiguwation.fiwe(configuwationChangeEvent);
 		}
 
-		return Promise.resolve();
+		wetuwn Pwomise.wesowve();
 	}
 
-	public updateValue(key: string, value: any, arg3?: any, arg4?: any): Promise<void> {
-		return this.updateValues([[key, value]]);
+	pubwic updateVawue(key: stwing, vawue: any, awg3?: any, awg4?: any): Pwomise<void> {
+		wetuwn this.updateVawues([[key, vawue]]);
 	}
 
-	public inspect<C>(key: string, options: IConfigurationOverrides = {}): IConfigurationValue<C> {
-		return this._configuration.inspect<C>(key, options, undefined);
+	pubwic inspect<C>(key: stwing, options: IConfiguwationOvewwides = {}): IConfiguwationVawue<C> {
+		wetuwn this._configuwation.inspect<C>(key, options, undefined);
 	}
 
-	public keys() {
-		return this._configuration.keys(undefined);
+	pubwic keys() {
+		wetuwn this._configuwation.keys(undefined);
 	}
 
-	public reloadConfiguration(): Promise<void> {
-		return Promise.resolve(undefined);
+	pubwic wewoadConfiguwation(): Pwomise<void> {
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	public getConfigurationData(): IConfigurationData | null {
-		const emptyModel: IConfigurationModel = {
+	pubwic getConfiguwationData(): IConfiguwationData | nuww {
+		const emptyModew: IConfiguwationModew = {
 			contents: {},
 			keys: [],
-			overrides: []
+			ovewwides: []
 		};
-		return {
-			defaults: emptyModel,
-			user: emptyModel,
-			workspace: emptyModel,
-			folders: []
+		wetuwn {
+			defauwts: emptyModew,
+			usa: emptyModew,
+			wowkspace: emptyModew,
+			fowdews: []
 		};
 	}
 }
 
-export class SimpleResourceConfigurationService implements ITextResourceConfigurationService {
+expowt cwass SimpweWesouwceConfiguwationSewvice impwements ITextWesouwceConfiguwationSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _onDidChangeConfiguration = new Emitter<ITextResourceConfigurationChangeEvent>();
-	public readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
+	pwivate weadonwy _onDidChangeConfiguwation = new Emitta<ITextWesouwceConfiguwationChangeEvent>();
+	pubwic weadonwy onDidChangeConfiguwation = this._onDidChangeConfiguwation.event;
 
-	constructor(private readonly configurationService: SimpleConfigurationService) {
-		this.configurationService.onDidChangeConfiguration((e) => {
-			this._onDidChangeConfiguration.fire({ affectedKeys: e.affectedKeys, affectsConfiguration: (resource: URI, configuration: string) => e.affectsConfiguration(configuration) });
+	constwuctow(pwivate weadonwy configuwationSewvice: SimpweConfiguwationSewvice) {
+		this.configuwationSewvice.onDidChangeConfiguwation((e) => {
+			this._onDidChangeConfiguwation.fiwe({ affectedKeys: e.affectedKeys, affectsConfiguwation: (wesouwce: UWI, configuwation: stwing) => e.affectsConfiguwation(configuwation) });
 		});
 	}
 
-	getValue<T>(resource: URI, section?: string): T;
-	getValue<T>(resource: URI, position?: IPosition, section?: string): T;
-	getValue<T>(resource: any, arg2?: any, arg3?: any) {
-		const position: IPosition | null = Pos.isIPosition(arg2) ? arg2 : null;
-		const section: string | undefined = position ? (typeof arg3 === 'string' ? arg3 : undefined) : (typeof arg2 === 'string' ? arg2 : undefined);
+	getVawue<T>(wesouwce: UWI, section?: stwing): T;
+	getVawue<T>(wesouwce: UWI, position?: IPosition, section?: stwing): T;
+	getVawue<T>(wesouwce: any, awg2?: any, awg3?: any) {
+		const position: IPosition | nuww = Pos.isIPosition(awg2) ? awg2 : nuww;
+		const section: stwing | undefined = position ? (typeof awg3 === 'stwing' ? awg3 : undefined) : (typeof awg2 === 'stwing' ? awg2 : undefined);
 		if (typeof section === 'undefined') {
-			return this.configurationService.getValue<T>();
+			wetuwn this.configuwationSewvice.getVawue<T>();
 		}
-		return this.configurationService.getValue<T>(section);
+		wetuwn this.configuwationSewvice.getVawue<T>(section);
 	}
 
-	updateValue(resource: URI, key: string, value: any, configurationTarget?: ConfigurationTarget): Promise<void> {
-		return this.configurationService.updateValue(key, value, { resource }, configurationTarget);
+	updateVawue(wesouwce: UWI, key: stwing, vawue: any, configuwationTawget?: ConfiguwationTawget): Pwomise<void> {
+		wetuwn this.configuwationSewvice.updateVawue(key, vawue, { wesouwce }, configuwationTawget);
 	}
 }
 
-export class SimpleResourcePropertiesService implements ITextResourcePropertiesService {
+expowt cwass SimpweWesouwcePwopewtiesSewvice impwements ITextWesouwcePwopewtiesSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+	constwuctow(
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
 	) {
 	}
 
-	getEOL(resource: URI, language?: string): string {
-		const eol = this.configurationService.getValue('files.eol', { overrideIdentifier: language, resource });
-		if (eol && typeof eol === 'string' && eol !== 'auto') {
-			return eol;
+	getEOW(wesouwce: UWI, wanguage?: stwing): stwing {
+		const eow = this.configuwationSewvice.getVawue('fiwes.eow', { ovewwideIdentifia: wanguage, wesouwce });
+		if (eow && typeof eow === 'stwing' && eow !== 'auto') {
+			wetuwn eow;
 		}
-		return (isLinux || isMacintosh) ? '\n' : '\r\n';
+		wetuwn (isWinux || isMacintosh) ? '\n' : '\w\n';
 	}
 }
 
-export class StandaloneTelemetryService implements ITelemetryService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass StandawoneTewemetwySewvice impwements ITewemetwySewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	public telemetryLevel = TelemetryLevel.NONE;
-	public sendErrorTelemetry = false;
+	pubwic tewemetwyWevew = TewemetwyWevew.NONE;
+	pubwic sendEwwowTewemetwy = fawse;
 
-	public setEnabled(value: boolean): void {
+	pubwic setEnabwed(vawue: boowean): void {
 	}
 
-	public setExperimentProperty(name: string, value: string): void {
+	pubwic setExpewimentPwopewty(name: stwing, vawue: stwing): void {
 	}
 
-	public publicLog(eventName: string, data?: any): Promise<void> {
-		return Promise.resolve(undefined);
+	pubwic pubwicWog(eventName: stwing, data?: any): Pwomise<void> {
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
-		return this.publicLog(eventName, data as any);
+	pubwicWog2<E extends CwassifiedEvent<T> = neva, T extends GDPWCwassification<T> = neva>(eventName: stwing, data?: StwictPwopewtyCheck<T, E>) {
+		wetuwn this.pubwicWog(eventName, data as any);
 	}
 
-	public publicLogError(eventName: string, data?: any): Promise<void> {
-		return Promise.resolve(undefined);
+	pubwic pubwicWogEwwow(eventName: stwing, data?: any): Pwomise<void> {
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
-		return this.publicLogError(eventName, data as any);
+	pubwicWogEwwow2<E extends CwassifiedEvent<T> = neva, T extends GDPWCwassification<T> = neva>(eventName: stwing, data?: StwictPwopewtyCheck<T, E>) {
+		wetuwn this.pubwicWogEwwow(eventName, data as any);
 	}
 
-	public getTelemetryInfo(): Promise<ITelemetryInfo> {
-		throw new Error(`Not available`);
+	pubwic getTewemetwyInfo(): Pwomise<ITewemetwyInfo> {
+		thwow new Ewwow(`Not avaiwabwe`);
 	}
 }
 
-export class SimpleWorkspaceContextService implements IWorkspaceContextService {
+expowt cwass SimpweWowkspaceContextSewvice impwements IWowkspaceContextSewvice {
 
-	public _serviceBrand: undefined;
+	pubwic _sewviceBwand: undefined;
 
-	private static readonly SCHEME = 'inmemory';
+	pwivate static weadonwy SCHEME = 'inmemowy';
 
-	private readonly _onDidChangeWorkspaceName = new Emitter<void>();
-	public readonly onDidChangeWorkspaceName: Event<void> = this._onDidChangeWorkspaceName.event;
+	pwivate weadonwy _onDidChangeWowkspaceName = new Emitta<void>();
+	pubwic weadonwy onDidChangeWowkspaceName: Event<void> = this._onDidChangeWowkspaceName.event;
 
-	private readonly _onWillChangeWorkspaceFolders = new Emitter<IWorkspaceFoldersWillChangeEvent>();
-	public readonly onWillChangeWorkspaceFolders: Event<IWorkspaceFoldersWillChangeEvent> = this._onWillChangeWorkspaceFolders.event;
+	pwivate weadonwy _onWiwwChangeWowkspaceFowdews = new Emitta<IWowkspaceFowdewsWiwwChangeEvent>();
+	pubwic weadonwy onWiwwChangeWowkspaceFowdews: Event<IWowkspaceFowdewsWiwwChangeEvent> = this._onWiwwChangeWowkspaceFowdews.event;
 
-	private readonly _onDidChangeWorkspaceFolders = new Emitter<IWorkspaceFoldersChangeEvent>();
-	public readonly onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent> = this._onDidChangeWorkspaceFolders.event;
+	pwivate weadonwy _onDidChangeWowkspaceFowdews = new Emitta<IWowkspaceFowdewsChangeEvent>();
+	pubwic weadonwy onDidChangeWowkspaceFowdews: Event<IWowkspaceFowdewsChangeEvent> = this._onDidChangeWowkspaceFowdews.event;
 
-	private readonly _onDidChangeWorkbenchState = new Emitter<WorkbenchState>();
-	public readonly onDidChangeWorkbenchState: Event<WorkbenchState> = this._onDidChangeWorkbenchState.event;
+	pwivate weadonwy _onDidChangeWowkbenchState = new Emitta<WowkbenchState>();
+	pubwic weadonwy onDidChangeWowkbenchState: Event<WowkbenchState> = this._onDidChangeWowkbenchState.event;
 
-	private readonly workspace: IWorkspace;
+	pwivate weadonwy wowkspace: IWowkspace;
 
-	constructor() {
-		const resource = URI.from({ scheme: SimpleWorkspaceContextService.SCHEME, authority: 'model', path: '/' });
-		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', folders: [new WorkspaceFolder({ uri: resource, name: '', index: 0 })] };
+	constwuctow() {
+		const wesouwce = UWI.fwom({ scheme: SimpweWowkspaceContextSewvice.SCHEME, authowity: 'modew', path: '/' });
+		this.wowkspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', fowdews: [new WowkspaceFowda({ uwi: wesouwce, name: '', index: 0 })] };
 	}
 
-	getCompleteWorkspace(): Promise<IWorkspace> {
-		return Promise.resolve(this.getWorkspace());
+	getCompweteWowkspace(): Pwomise<IWowkspace> {
+		wetuwn Pwomise.wesowve(this.getWowkspace());
 	}
 
-	public getWorkspace(): IWorkspace {
-		return this.workspace;
+	pubwic getWowkspace(): IWowkspace {
+		wetuwn this.wowkspace;
 	}
 
-	public getWorkbenchState(): WorkbenchState {
-		if (this.workspace) {
-			if (this.workspace.configuration) {
-				return WorkbenchState.WORKSPACE;
+	pubwic getWowkbenchState(): WowkbenchState {
+		if (this.wowkspace) {
+			if (this.wowkspace.configuwation) {
+				wetuwn WowkbenchState.WOWKSPACE;
 			}
-			return WorkbenchState.FOLDER;
+			wetuwn WowkbenchState.FOWDa;
 		}
-		return WorkbenchState.EMPTY;
+		wetuwn WowkbenchState.EMPTY;
 	}
 
-	public getWorkspaceFolder(resource: URI): IWorkspaceFolder | null {
-		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME ? this.workspace.folders[0] : null;
+	pubwic getWowkspaceFowda(wesouwce: UWI): IWowkspaceFowda | nuww {
+		wetuwn wesouwce && wesouwce.scheme === SimpweWowkspaceContextSewvice.SCHEME ? this.wowkspace.fowdews[0] : nuww;
 	}
 
-	public isInsideWorkspace(resource: URI): boolean {
-		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME;
+	pubwic isInsideWowkspace(wesouwce: UWI): boowean {
+		wetuwn wesouwce && wesouwce.scheme === SimpweWowkspaceContextSewvice.SCHEME;
 	}
 
-	public isCurrentWorkspace(workspaceIdOrFolder: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI): boolean {
-		return true;
+	pubwic isCuwwentWowkspace(wowkspaceIdOwFowda: IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia | UWI): boowean {
+		wetuwn twue;
 	}
 }
 
-export function updateConfigurationService(configurationService: IConfigurationService, source: any, isDiffEditor: boolean): void {
-	if (!source) {
-		return;
+expowt function updateConfiguwationSewvice(configuwationSewvice: IConfiguwationSewvice, souwce: any, isDiffEditow: boowean): void {
+	if (!souwce) {
+		wetuwn;
 	}
-	if (!(configurationService instanceof SimpleConfigurationService)) {
-		return;
+	if (!(configuwationSewvice instanceof SimpweConfiguwationSewvice)) {
+		wetuwn;
 	}
-	let toUpdate: [string, any][] = [];
-	Object.keys(source).forEach((key) => {
-		if (isEditorConfigurationKey(key)) {
-			toUpdate.push([`editor.${key}`, source[key]]);
+	wet toUpdate: [stwing, any][] = [];
+	Object.keys(souwce).fowEach((key) => {
+		if (isEditowConfiguwationKey(key)) {
+			toUpdate.push([`editow.${key}`, souwce[key]]);
 		}
-		if (isDiffEditor && isDiffEditorConfigurationKey(key)) {
-			toUpdate.push([`diffEditor.${key}`, source[key]]);
+		if (isDiffEditow && isDiffEditowConfiguwationKey(key)) {
+			toUpdate.push([`diffEditow.${key}`, souwce[key]]);
 		}
 	});
-	if (toUpdate.length > 0) {
-		configurationService.updateValues(toUpdate);
+	if (toUpdate.wength > 0) {
+		configuwationSewvice.updateVawues(toUpdate);
 	}
 }
 
-export class SimpleBulkEditService implements IBulkEditService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass SimpweBuwkEditSewvice impwements IBuwkEditSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(private readonly _modelService: IModelService) {
+	constwuctow(pwivate weadonwy _modewSewvice: IModewSewvice) {
 		//
 	}
 
-	hasPreviewHandler(): false {
-		return false;
+	hasPweviewHandwa(): fawse {
+		wetuwn fawse;
 	}
 
-	setPreviewHandler(): IDisposable {
-		return Disposable.None;
+	setPweviewHandwa(): IDisposabwe {
+		wetuwn Disposabwe.None;
 	}
 
-	async apply(edits: ResourceEdit[], _options?: IBulkEditOptions): Promise<IBulkEditResult> {
+	async appwy(edits: WesouwceEdit[], _options?: IBuwkEditOptions): Pwomise<IBuwkEditWesuwt> {
 
-		const textEdits = new Map<ITextModel, IIdentifiedSingleEditOperation[]>();
+		const textEdits = new Map<ITextModew, IIdentifiedSingweEditOpewation[]>();
 
-		for (let edit of edits) {
-			if (!(edit instanceof ResourceTextEdit)) {
-				throw new Error('bad edit - only text edits are supported');
+		fow (wet edit of edits) {
+			if (!(edit instanceof WesouwceTextEdit)) {
+				thwow new Ewwow('bad edit - onwy text edits awe suppowted');
 			}
-			const model = this._modelService.getModel(edit.resource);
-			if (!model) {
-				throw new Error('bad edit - model not found');
+			const modew = this._modewSewvice.getModew(edit.wesouwce);
+			if (!modew) {
+				thwow new Ewwow('bad edit - modew not found');
 			}
-			if (typeof edit.versionId === 'number' && model.getVersionId() !== edit.versionId) {
-				throw new Error('bad state - model changed in the meantime');
+			if (typeof edit.vewsionId === 'numba' && modew.getVewsionId() !== edit.vewsionId) {
+				thwow new Ewwow('bad state - modew changed in the meantime');
 			}
-			let array = textEdits.get(model);
-			if (!array) {
-				array = [];
-				textEdits.set(model, array);
+			wet awway = textEdits.get(modew);
+			if (!awway) {
+				awway = [];
+				textEdits.set(modew, awway);
 			}
-			array.push(EditOperation.replaceMove(Range.lift(edit.textEdit.range), edit.textEdit.text));
+			awway.push(EditOpewation.wepwaceMove(Wange.wift(edit.textEdit.wange), edit.textEdit.text));
 		}
 
 
-		let totalEdits = 0;
-		let totalFiles = 0;
-		for (const [model, edits] of textEdits) {
-			model.pushStackElement();
-			model.pushEditOperations([], edits, () => []);
-			model.pushStackElement();
-			totalFiles += 1;
-			totalEdits += edits.length;
+		wet totawEdits = 0;
+		wet totawFiwes = 0;
+		fow (const [modew, edits] of textEdits) {
+			modew.pushStackEwement();
+			modew.pushEditOpewations([], edits, () => []);
+			modew.pushStackEwement();
+			totawFiwes += 1;
+			totawEdits += edits.wength;
 		}
 
-		return {
-			ariaSummary: strings.format(SimpleServicesNLS.bulkEditServiceSummary, totalEdits, totalFiles)
+		wetuwn {
+			awiaSummawy: stwings.fowmat(SimpweSewvicesNWS.buwkEditSewviceSummawy, totawEdits, totawFiwes)
 		};
 	}
 }
 
-export class SimpleUriLabelService implements ILabelService {
+expowt cwass SimpweUwiWabewSewvice impwements IWabewSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	public readonly onDidChangeFormatters: Event<IFormatterChangeEvent> = Event.None;
+	pubwic weadonwy onDidChangeFowmattews: Event<IFowmattewChangeEvent> = Event.None;
 
-	public getUriLabel(resource: URI, options?: { relative?: boolean, forceNoTildify?: boolean }): string {
-		if (resource.scheme === 'file') {
-			return resource.fsPath;
+	pubwic getUwiWabew(wesouwce: UWI, options?: { wewative?: boowean, fowceNoTiwdify?: boowean }): stwing {
+		if (wesouwce.scheme === 'fiwe') {
+			wetuwn wesouwce.fsPath;
 		}
-		return resource.path;
+		wetuwn wesouwce.path;
 	}
 
-	getUriBasenameLabel(resource: URI): string {
-		return basename(resource);
+	getUwiBasenameWabew(wesouwce: UWI): stwing {
+		wetuwn basename(wesouwce);
 	}
 
-	public getWorkspaceLabel(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace, options?: { verbose: boolean; }): string {
-		return '';
+	pubwic getWowkspaceWabew(wowkspace: IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia | UWI | IWowkspace, options?: { vewbose: boowean; }): stwing {
+		wetuwn '';
 	}
 
-	public getSeparator(scheme: string, authority?: string): '/' | '\\' {
-		return '/';
+	pubwic getSepawatow(scheme: stwing, authowity?: stwing): '/' | '\\' {
+		wetuwn '/';
 	}
 
-	public registerFormatter(formatter: ResourceLabelFormatter): IDisposable {
-		throw new Error('Not implemented');
+	pubwic wegistewFowmatta(fowmatta: WesouwceWabewFowmatta): IDisposabwe {
+		thwow new Ewwow('Not impwemented');
 	}
 
-	public getHostLabel(): string {
-		return '';
+	pubwic getHostWabew(): stwing {
+		wetuwn '';
 	}
 
-	public getHostTooltip(): string | undefined {
-		return undefined;
+	pubwic getHostToowtip(): stwing | undefined {
+		wetuwn undefined;
 	}
 }
 
-export class SimpleLayoutService implements ILayoutService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass SimpweWayoutSewvice impwements IWayoutSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	public onDidLayout = Event.None;
+	pubwic onDidWayout = Event.None;
 
-	private _dimension?: dom.IDimension;
+	pwivate _dimension?: dom.IDimension;
 	get dimension(): dom.IDimension {
 		if (!this._dimension) {
-			this._dimension = dom.getClientArea(window.document.body);
+			this._dimension = dom.getCwientAwea(window.document.body);
 		}
 
-		return this._dimension;
+		wetuwn this._dimension;
 	}
 
-	get container(): HTMLElement {
-		return this._container;
+	get containa(): HTMWEwement {
+		wetuwn this._containa;
 	}
 
 	focus(): void {
-		this._codeEditorService.getFocusedCodeEditor()?.focus();
+		this._codeEditowSewvice.getFocusedCodeEditow()?.focus();
 	}
 
-	constructor(private _codeEditorService: ICodeEditorService, private _container: HTMLElement) { }
+	constwuctow(pwivate _codeEditowSewvice: ICodeEditowSewvice, pwivate _containa: HTMWEwement) { }
 }

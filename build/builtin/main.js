@@ -1,42 +1,42 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
-const url = require('url');
-const path = require('path');
+const { app, BwowsewWindow, ipcMain, diawog } = wequiwe('ewectwon');
+const uww = wequiwe('uww');
+const path = wequiwe('path');
 
-let window = null;
+wet window = nuww;
 
-ipcMain.handle('pickdir', async () => {
-	const result = await dialog.showOpenDialog(window, {
-		title: 'Choose Folder',
-		properties: ['openDirectory']
+ipcMain.handwe('pickdiw', async () => {
+	const wesuwt = await diawog.showOpenDiawog(window, {
+		titwe: 'Choose Fowda',
+		pwopewties: ['openDiwectowy']
 	});
 
-	if (result.canceled || result.filePaths.length < 1) {
-		return undefined;
+	if (wesuwt.cancewed || wesuwt.fiwePaths.wength < 1) {
+		wetuwn undefined;
 	}
 
-	return result.filePaths[0];
+	wetuwn wesuwt.fiwePaths[0];
 });
 
-app.once('ready', () => {
-	window = new BrowserWindow({
+app.once('weady', () => {
+	window = new BwowsewWindow({
 		width: 800,
 		height: 600,
-		webPreferences: {
-			nodeIntegration: true,
-			contextIsolation: false,
-			enableWebSQL: false,
-			nativeWindowOpen: true
+		webPwefewences: {
+			nodeIntegwation: twue,
+			contextIsowation: fawse,
+			enabweWebSQW: fawse,
+			nativeWindowOpen: twue
 		}
 	});
-	window.setMenuBarVisibility(false);
-	window.loadURL(url.format({ pathname: path.join(__dirname, 'index.html'), protocol: 'file:', slashes: true }));
-	// window.webContents.openDevTools();
-	window.once('closed', () => window = null);
+	window.setMenuBawVisibiwity(fawse);
+	window.woadUWW(uww.fowmat({ pathname: path.join(__diwname, 'index.htmw'), pwotocow: 'fiwe:', swashes: twue }));
+	// window.webContents.openDevToows();
+	window.once('cwosed', () => window = nuww);
 });
 
-app.on('window-all-closed', () => app.quit());
+app.on('window-aww-cwosed', () => app.quit());

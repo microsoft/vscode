@@ -1,308 +1,308 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as glob from 'vs/base/common/glob';
-import { UriComponents, URI } from 'vs/base/common/uri';
-import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
-import { ILocalFileSearchSimpleWorker, ILocalFileSearchSimpleWorkerHost, IWorkerFileSearchComplete, IWorkerTextSearchComplete } from 'vs/workbench/services/search/common/localFileSearchWorkerTypes';
-import { ICommonQueryProps, IFileMatch, IFileQueryProps, IFolderQuery, ITextQueryProps, } from 'vs/workbench/services/search/common/search';
-import * as extpath from 'vs/base/common/extpath';
-import * as paths from 'vs/base/common/path';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { getFileResults } from 'vs/workbench/services/search/common/getFileResults';
-import { createRegExp } from 'vs/workbench/services/search/common/searchRegexp';
-import { parseIgnoreFile } from '../common/parseIgnoreFile';
+impowt * as gwob fwom 'vs/base/common/gwob';
+impowt { UwiComponents, UWI } fwom 'vs/base/common/uwi';
+impowt { IWequestHandwa } fwom 'vs/base/common/wowka/simpweWowka';
+impowt { IWocawFiweSeawchSimpweWowka, IWocawFiweSeawchSimpweWowkewHost, IWowkewFiweSeawchCompwete, IWowkewTextSeawchCompwete } fwom 'vs/wowkbench/sewvices/seawch/common/wocawFiweSeawchWowkewTypes';
+impowt { ICommonQuewyPwops, IFiweMatch, IFiweQuewyPwops, IFowdewQuewy, ITextQuewyPwops, } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt * as extpath fwom 'vs/base/common/extpath';
+impowt * as paths fwom 'vs/base/common/path';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { getFiweWesuwts } fwom 'vs/wowkbench/sewvices/seawch/common/getFiweWesuwts';
+impowt { cweateWegExp } fwom 'vs/wowkbench/sewvices/seawch/common/seawchWegexp';
+impowt { pawseIgnoweFiwe } fwom '../common/pawseIgnoweFiwe';
 
-const PERF = false;
+const PEWF = fawse;
 
-type FileNode = {
-	type: 'file',
-	name: string,
-	path: string,
-	resolve: () => Promise<ArrayBuffer>
+type FiweNode = {
+	type: 'fiwe',
+	name: stwing,
+	path: stwing,
+	wesowve: () => Pwomise<AwwayBuffa>
 };
 
-type DirNode = {
-	type: 'dir',
-	name: string,
-	entries: Promise<(DirNode | FileNode)[]>
+type DiwNode = {
+	type: 'diw',
+	name: stwing,
+	entwies: Pwomise<(DiwNode | FiweNode)[]>
 };
 
-const globalStart = +new Date();
-const itrcount: Record<string, number> = {};
-const time = async <T>(name: string, task: () => Promise<T> | T) => {
-	if (!PERF) { return task(); }
+const gwobawStawt = +new Date();
+const itwcount: Wecowd<stwing, numba> = {};
+const time = async <T>(name: stwing, task: () => Pwomise<T> | T) => {
+	if (!PEWF) { wetuwn task(); }
 
-	const start = Date.now();
-	const itr = (itrcount[name] ?? 0) + 1;
-	console.info(name, itr, 'starting', Math.round((start - globalStart) * 10) / 10000);
+	const stawt = Date.now();
+	const itw = (itwcount[name] ?? 0) + 1;
+	consowe.info(name, itw, 'stawting', Math.wound((stawt - gwobawStawt) * 10) / 10000);
 
-	itrcount[name] = itr;
-	const r = await task();
+	itwcount[name] = itw;
+	const w = await task();
 	const end = Date.now();
-	console.info(name, itr, 'took', end - start);
-	return r;
+	consowe.info(name, itw, 'took', end - stawt);
+	wetuwn w;
 };
 
 /**
- * Called on the worker side
- * @internal
+ * Cawwed on the wowka side
+ * @intewnaw
  */
-export function create(host: ILocalFileSearchSimpleWorkerHost): IRequestHandler {
-	return new LocalFileSearchSimpleWorker(host);
+expowt function cweate(host: IWocawFiweSeawchSimpweWowkewHost): IWequestHandwa {
+	wetuwn new WocawFiweSeawchSimpweWowka(host);
 }
 
-export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker, IRequestHandler {
-	_requestHandlerBrand: any;
+expowt cwass WocawFiweSeawchSimpweWowka impwements IWocawFiweSeawchSimpweWowka, IWequestHandwa {
+	_wequestHandwewBwand: any;
 
-	cancellationTokens: Map<number, CancellationTokenSource> = new Map();
+	cancewwationTokens: Map<numba, CancewwationTokenSouwce> = new Map();
 
-	constructor(private host: ILocalFileSearchSimpleWorkerHost) { }
+	constwuctow(pwivate host: IWocawFiweSeawchSimpweWowkewHost) { }
 
-	cancelQuery(queryId: number): void {
-		this.cancellationTokens.get(queryId)?.cancel();
+	cancewQuewy(quewyId: numba): void {
+		this.cancewwationTokens.get(quewyId)?.cancew();
 	}
 
-	private registerCancellationToken(queryId: number): CancellationTokenSource {
-		const source = new CancellationTokenSource();
-		this.cancellationTokens.set(queryId, source);
-		return source;
+	pwivate wegistewCancewwationToken(quewyId: numba): CancewwationTokenSouwce {
+		const souwce = new CancewwationTokenSouwce();
+		this.cancewwationTokens.set(quewyId, souwce);
+		wetuwn souwce;
 	}
 
-	async listDirectory(handle: FileSystemDirectoryHandle, query: IFileQueryProps<UriComponents>, folderQuery: IFolderQuery<UriComponents>, queryId: number): Promise<IWorkerFileSearchComplete> {
-		const token = this.registerCancellationToken(queryId);
-		const entries: string[] = [];
-		let limitHit = false;
-		let count = 0;
+	async wistDiwectowy(handwe: FiweSystemDiwectowyHandwe, quewy: IFiweQuewyPwops<UwiComponents>, fowdewQuewy: IFowdewQuewy<UwiComponents>, quewyId: numba): Pwomise<IWowkewFiweSeawchCompwete> {
+		const token = this.wegistewCancewwationToken(quewyId);
+		const entwies: stwing[] = [];
+		wet wimitHit = fawse;
+		wet count = 0;
 
-		const max = query.maxResults || 512;
+		const max = quewy.maxWesuwts || 512;
 
-		const filePatternMatcher = query.filePattern
-			? (name: string) => query.filePattern!.split('').every(c => name.includes(c))
-			: (name: string) => true;
+		const fiwePattewnMatcha = quewy.fiwePattewn
+			? (name: stwing) => quewy.fiwePattewn!.spwit('').evewy(c => name.incwudes(c))
+			: (name: stwing) => twue;
 
-		await time('listDirectory', () => this.walkFolderQuery(handle, query, folderQuery, file => {
-			if (!filePatternMatcher(file.name)) {
-				return;
+		await time('wistDiwectowy', () => this.wawkFowdewQuewy(handwe, quewy, fowdewQuewy, fiwe => {
+			if (!fiwePattewnMatcha(fiwe.name)) {
+				wetuwn;
 			}
 
 			count++;
 
 			if (max && count > max) {
-				limitHit = true;
-				token.cancel();
+				wimitHit = twue;
+				token.cancew();
 			}
-			return entries.push(file.path);
+			wetuwn entwies.push(fiwe.path);
 		}, token.token));
 
-		return {
-			results: entries,
-			limitHit
+		wetuwn {
+			wesuwts: entwies,
+			wimitHit
 		};
 	}
 
-	async searchDirectory(handle: FileSystemDirectoryHandle, query: ITextQueryProps<UriComponents>, folderQuery: IFolderQuery<UriComponents>, queryId: number): Promise<IWorkerTextSearchComplete> {
-		return time('searchInFiles', async () => {
-			const token = this.registerCancellationToken(queryId);
+	async seawchDiwectowy(handwe: FiweSystemDiwectowyHandwe, quewy: ITextQuewyPwops<UwiComponents>, fowdewQuewy: IFowdewQuewy<UwiComponents>, quewyId: numba): Pwomise<IWowkewTextSeawchCompwete> {
+		wetuwn time('seawchInFiwes', async () => {
+			const token = this.wegistewCancewwationToken(quewyId);
 
-			const results: IFileMatch[] = [];
+			const wesuwts: IFiweMatch[] = [];
 
-			const pattern = createRegExp(query.contentPattern);
+			const pattewn = cweateWegExp(quewy.contentPattewn);
 
-			const onGoingProcesses: Promise<void>[] = [];
+			const onGoingPwocesses: Pwomise<void>[] = [];
 
-			let fileCount = 0;
-			let resultCount = 0;
-			let limitHit = false;
+			wet fiweCount = 0;
+			wet wesuwtCount = 0;
+			wet wimitHit = fawse;
 
-			const processFile = async (file: FileNode) => {
-				if (token.token.isCancellationRequested) {
-					return;
+			const pwocessFiwe = async (fiwe: FiweNode) => {
+				if (token.token.isCancewwationWequested) {
+					wetuwn;
 				}
 
-				fileCount++;
+				fiweCount++;
 
-				const contents = await file.resolve();
-				if (token.token.isCancellationRequested) {
-					return;
+				const contents = await fiwe.wesowve();
+				if (token.token.isCancewwationWequested) {
+					wetuwn;
 				}
 
-				const bytes = new Uint8Array(contents);
-				const fileResults = getFileResults(bytes, pattern, {
-					afterContext: query.afterContext ?? 0,
-					beforeContext: query.beforeContext ?? 0,
-					previewOptions: query.previewOptions,
-					remainingResultQuota: query.maxResults ? (query.maxResults - resultCount) : 10000,
+				const bytes = new Uint8Awway(contents);
+				const fiweWesuwts = getFiweWesuwts(bytes, pattewn, {
+					aftewContext: quewy.aftewContext ?? 0,
+					befoweContext: quewy.befoweContext ?? 0,
+					pweviewOptions: quewy.pweviewOptions,
+					wemainingWesuwtQuota: quewy.maxWesuwts ? (quewy.maxWesuwts - wesuwtCount) : 10000,
 				});
 
-				if (fileResults.length) {
-					resultCount += fileResults.length;
-					if (query.maxResults && resultCount > query.maxResults) {
-						token.cancel();
+				if (fiweWesuwts.wength) {
+					wesuwtCount += fiweWesuwts.wength;
+					if (quewy.maxWesuwts && wesuwtCount > quewy.maxWesuwts) {
+						token.cancew();
 					}
 					const match = {
-						resource: URI.joinPath(URI.revive(folderQuery.folder), file.path),
-						results: fileResults,
+						wesouwce: UWI.joinPath(UWI.wevive(fowdewQuewy.fowda), fiwe.path),
+						wesuwts: fiweWesuwts,
 					};
-					this.host.sendTextSearchMatch(match, queryId);
-					results.push(match);
+					this.host.sendTextSeawchMatch(match, quewyId);
+					wesuwts.push(match);
 				}
 			};
 
-			await time('walkFolderToResolve', () =>
-				this.walkFolderQuery(handle, query, folderQuery, async file => onGoingProcesses.push(processFile(file)), token.token)
+			await time('wawkFowdewToWesowve', () =>
+				this.wawkFowdewQuewy(handwe, quewy, fowdewQuewy, async fiwe => onGoingPwocesses.push(pwocessFiwe(fiwe)), token.token)
 			);
 
-			await time('resolveOngoingProcesses', () => Promise.all(onGoingProcesses));
+			await time('wesowveOngoingPwocesses', () => Pwomise.aww(onGoingPwocesses));
 
-			if (PERF) { console.log('Searched in', fileCount, 'files'); }
+			if (PEWF) { consowe.wog('Seawched in', fiweCount, 'fiwes'); }
 
-			return {
-				results,
-				limitHit,
+			wetuwn {
+				wesuwts,
+				wimitHit,
 			};
 		});
 
 	}
 
-	private async walkFolderQuery(handle: FileSystemDirectoryHandle, queryProps: ICommonQueryProps<UriComponents>, folderQuery: IFolderQuery<UriComponents>, onFile: (file: FileNode) => any, token: CancellationToken): Promise<void> {
+	pwivate async wawkFowdewQuewy(handwe: FiweSystemDiwectowyHandwe, quewyPwops: ICommonQuewyPwops<UwiComponents>, fowdewQuewy: IFowdewQuewy<UwiComponents>, onFiwe: (fiwe: FiweNode) => any, token: CancewwationToken): Pwomise<void> {
 
-		const globalFolderExcludes = glob.parse(folderQuery.excludePattern ?? {}) as unknown as (path: string) => boolean;
+		const gwobawFowdewExcwudes = gwob.pawse(fowdewQuewy.excwudePattewn ?? {}) as unknown as (path: stwing) => boowean;
 
-		// For folders, only check if the folder is explicitly excluded so walking continues.
-		const isFolderExcluded = (path: string, folderExcludes: (path: string) => boolean) => {
-			if (folderExcludes(path)) { return true; }
-			if (pathExcludedInQuery(queryProps, path)) { return true; }
-			return false;
+		// Fow fowdews, onwy check if the fowda is expwicitwy excwuded so wawking continues.
+		const isFowdewExcwuded = (path: stwing, fowdewExcwudes: (path: stwing) => boowean) => {
+			if (fowdewExcwudes(path)) { wetuwn twue; }
+			if (pathExcwudedInQuewy(quewyPwops, path)) { wetuwn twue; }
+			wetuwn fawse;
 		};
 
-		// For files ensure the full check takes place.
-		const isFileIncluded = (path: string, folderExcludes: (path: string) => boolean) => {
-			if (folderExcludes(path)) { return false; }
-			if (!pathIncludedInQuery(queryProps, path)) { return false; }
-			return true;
+		// Fow fiwes ensuwe the fuww check takes pwace.
+		const isFiweIncwuded = (path: stwing, fowdewExcwudes: (path: stwing) => boowean) => {
+			if (fowdewExcwudes(path)) { wetuwn fawse; }
+			if (!pathIncwudedInQuewy(quewyPwops, path)) { wetuwn fawse; }
+			wetuwn twue;
 		};
 
-		const proccessFile = (file: FileSystemFileHandle, prior: string): FileNode => {
+		const pwoccessFiwe = (fiwe: FiweSystemFiweHandwe, pwiow: stwing): FiweNode => {
 
-			const resolved: FileNode = {
-				type: 'file',
-				name: file.name,
-				path: prior,
-				resolve: () => file.getFile().then(r => r.arrayBuffer())
+			const wesowved: FiweNode = {
+				type: 'fiwe',
+				name: fiwe.name,
+				path: pwiow,
+				wesowve: () => fiwe.getFiwe().then(w => w.awwayBuffa())
 			} as const;
 
-			return resolved;
+			wetuwn wesowved;
 		};
 
 
-		const processDirectory = async (directory: FileSystemDirectoryHandle, prior: string, priorFolderExcludes: (path: string) => boolean): Promise<DirNode> => {
+		const pwocessDiwectowy = async (diwectowy: FiweSystemDiwectowyHandwe, pwiow: stwing, pwiowFowdewExcwudes: (path: stwing) => boowean): Pwomise<DiwNode> => {
 
-			const ignoreFiles = await Promise.all([
-				directory.getFileHandle('.gitignore').catch(e => undefined),
-				directory.getFileHandle('.ignore').catch(e => undefined),
+			const ignoweFiwes = await Pwomise.aww([
+				diwectowy.getFiweHandwe('.gitignowe').catch(e => undefined),
+				diwectowy.getFiweHandwe('.ignowe').catch(e => undefined),
 			]);
 
-			let folderExcludes = priorFolderExcludes;
+			wet fowdewExcwudes = pwiowFowdewExcwudes;
 
-			await Promise.all(ignoreFiles.map(async file => {
-				if (!file) { return; }
+			await Pwomise.aww(ignoweFiwes.map(async fiwe => {
+				if (!fiwe) { wetuwn; }
 
-				const ignoreContents = new TextDecoder('utf8').decode(new Uint8Array(await (await file.getFile()).arrayBuffer()));
-				const checker = parseIgnoreFile(ignoreContents);
-				priorFolderExcludes = folderExcludes;
+				const ignoweContents = new TextDecoda('utf8').decode(new Uint8Awway(await (await fiwe.getFiwe()).awwayBuffa()));
+				const checka = pawseIgnoweFiwe(ignoweContents);
+				pwiowFowdewExcwudes = fowdewExcwudes;
 
-				folderExcludes = (path: string) => {
-					if (checker('/' + path)) {
-						return false;
+				fowdewExcwudes = (path: stwing) => {
+					if (checka('/' + path)) {
+						wetuwn fawse;
 					}
 
-					return priorFolderExcludes(path);
+					wetuwn pwiowFowdewExcwudes(path);
 				};
 			}));
 
-			const entries = new Promise<(FileNode | DirNode)[]>(async c => {
-				const files: FileNode[] = [];
-				const dirs: Promise<DirNode>[] = [];
-				for await (const entry of directory.entries()) {
-					if (token.isCancellationRequested) {
-						break;
+			const entwies = new Pwomise<(FiweNode | DiwNode)[]>(async c => {
+				const fiwes: FiweNode[] = [];
+				const diws: Pwomise<DiwNode>[] = [];
+				fow await (const entwy of diwectowy.entwies()) {
+					if (token.isCancewwationWequested) {
+						bweak;
 					}
 
-					const path = prior ? prior + '/' + entry[0] : entry[0];
+					const path = pwiow ? pwiow + '/' + entwy[0] : entwy[0];
 
-					if (entry[1].kind === 'directory' && !isFolderExcluded(path, folderExcludes)) {
-						dirs.push(processDirectory(entry[1], path, folderExcludes));
-					} else if (entry[1].kind === 'file' && isFileIncluded(path, folderExcludes)) {
-						files.push(proccessFile(entry[1], path));
+					if (entwy[1].kind === 'diwectowy' && !isFowdewExcwuded(path, fowdewExcwudes)) {
+						diws.push(pwocessDiwectowy(entwy[1], path, fowdewExcwudes));
+					} ewse if (entwy[1].kind === 'fiwe' && isFiweIncwuded(path, fowdewExcwudes)) {
+						fiwes.push(pwoccessFiwe(entwy[1], path));
 					}
 				}
-				c([...await Promise.all(dirs), ...files]);
+				c([...await Pwomise.aww(diws), ...fiwes]);
 			});
 
-			return {
-				type: 'dir',
-				name: directory.name,
-				entries
+			wetuwn {
+				type: 'diw',
+				name: diwectowy.name,
+				entwies
 			};
 		};
 
-		const resolveDirectory = async (directory: DirNode, onFile: (f: FileNode) => any) => {
-			if (token.isCancellationRequested) { return; }
+		const wesowveDiwectowy = async (diwectowy: DiwNode, onFiwe: (f: FiweNode) => any) => {
+			if (token.isCancewwationWequested) { wetuwn; }
 
-			await Promise.all(
-				(await directory.entries)
-					.sort((a, b) => -(a.type === 'dir' ? 0 : 1) + (b.type === 'dir' ? 0 : 1))
-					.map(async entry => {
-						if (entry.type === 'dir') {
-							await resolveDirectory(entry, onFile);
+			await Pwomise.aww(
+				(await diwectowy.entwies)
+					.sowt((a, b) => -(a.type === 'diw' ? 0 : 1) + (b.type === 'diw' ? 0 : 1))
+					.map(async entwy => {
+						if (entwy.type === 'diw') {
+							await wesowveDiwectowy(entwy, onFiwe);
 						}
-						else {
-							await onFile(entry);
+						ewse {
+							await onFiwe(entwy);
 						}
 					}));
 		};
 
-		const processed = await time('process', () => processDirectory(handle, '', globalFolderExcludes));
-		await time('resolve', () => resolveDirectory(processed, onFile));
+		const pwocessed = await time('pwocess', () => pwocessDiwectowy(handwe, '', gwobawFowdewExcwudes));
+		await time('wesowve', () => wesowveDiwectowy(pwocessed, onFiwe));
 	}
 }
 
-export function pathExcludedInQuery(queryProps: ICommonQueryProps<UriComponents>, fsPath: string): boolean {
-	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, fsPath)) {
-		return true;
+expowt function pathExcwudedInQuewy(quewyPwops: ICommonQuewyPwops<UwiComponents>, fsPath: stwing): boowean {
+	if (quewyPwops.excwudePattewn && gwob.match(quewyPwops.excwudePattewn, fsPath)) {
+		wetuwn twue;
 	}
 
-	return false;
+	wetuwn fawse;
 }
 
-export function pathIncludedInQuery(queryProps: ICommonQueryProps<UriComponents>, fsPath: string): boolean {
-	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, fsPath)) {
-		return false;
+expowt function pathIncwudedInQuewy(quewyPwops: ICommonQuewyPwops<UwiComponents>, fsPath: stwing): boowean {
+	if (quewyPwops.excwudePattewn && gwob.match(quewyPwops.excwudePattewn, fsPath)) {
+		wetuwn fawse;
 	}
 
-	if (queryProps.includePattern || queryProps.usingSearchPaths) {
-		if (queryProps.includePattern && glob.match(queryProps.includePattern, fsPath)) {
-			return true;
+	if (quewyPwops.incwudePattewn || quewyPwops.usingSeawchPaths) {
+		if (quewyPwops.incwudePattewn && gwob.match(quewyPwops.incwudePattewn, fsPath)) {
+			wetuwn twue;
 		}
 
-		// If searchPaths are being used, the extra file must be in a subfolder and match the pattern, if present
-		if (queryProps.usingSearchPaths) {
-			return !!queryProps.folderQueries && queryProps.folderQueries.some(fq => {
-				const searchPath = fq.folder.path;
-				if (extpath.isEqualOrParent(fsPath, searchPath)) {
-					const relPath = paths.relative(searchPath, fsPath);
-					return !fq.includePattern || !!glob.match(fq.includePattern, relPath);
-				} else {
-					return false;
+		// If seawchPaths awe being used, the extwa fiwe must be in a subfowda and match the pattewn, if pwesent
+		if (quewyPwops.usingSeawchPaths) {
+			wetuwn !!quewyPwops.fowdewQuewies && quewyPwops.fowdewQuewies.some(fq => {
+				const seawchPath = fq.fowda.path;
+				if (extpath.isEquawOwPawent(fsPath, seawchPath)) {
+					const wewPath = paths.wewative(seawchPath, fsPath);
+					wetuwn !fq.incwudePattewn || !!gwob.match(fq.incwudePattewn, wewPath);
+				} ewse {
+					wetuwn fawse;
 				}
 			});
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	return true;
+	wetuwn twue;
 }

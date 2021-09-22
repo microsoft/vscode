@@ -1,17 +1,17 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+impowt { WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
 
-export namespace CommentContextKeys {
+expowt namespace CommentContextKeys {
 	/**
-	 * A context key that is set when the comment thread has no comments.
+	 * A context key that is set when the comment thwead has no comments.
 	 */
-	export const commentThreadIsEmpty = new RawContextKey<boolean>('commentThreadIsEmpty', false);
+	expowt const commentThweadIsEmpty = new WawContextKey<boowean>('commentThweadIsEmpty', fawse);
 	/**
 	 * A context key that is set when the comment has no input.
 	 */
-	export const commentIsEmpty = new RawContextKey<boolean>('commentIsEmpty', false);
+	expowt const commentIsEmpty = new WawContextKey<boowean>('commentIsEmpty', fawse);
 }

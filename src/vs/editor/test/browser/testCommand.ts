@@ -1,76 +1,76 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IRange } from 'vs/editor/common/core/range';
-import { Selection, ISelection } from 'vs/editor/common/core/selection';
-import { ICommand, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+impowt * as assewt fwom 'assewt';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection, ISewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ICommand, IEditOpewationBuiwda } fwom 'vs/editow/common/editowCommon';
+impowt { IIdentifiedSingweEditOpewation, ITextModew } fwom 'vs/editow/common/modew';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
+impowt { WanguageIdentifia } fwom 'vs/editow/common/modes';
+impowt { withTestCodeEditow } fwom 'vs/editow/test/bwowsa/testCodeEditow';
 
-export function testCommand(
-	lines: string[],
-	languageIdentifier: LanguageIdentifier | null,
-	selection: Selection,
-	commandFactory: (selection: Selection) => ICommand,
-	expectedLines: string[],
-	expectedSelection: Selection,
-	forceTokenization?: boolean
+expowt function testCommand(
+	wines: stwing[],
+	wanguageIdentifia: WanguageIdentifia | nuww,
+	sewection: Sewection,
+	commandFactowy: (sewection: Sewection) => ICommand,
+	expectedWines: stwing[],
+	expectedSewection: Sewection,
+	fowceTokenization?: boowean
 ): void {
-	let model = createTextModel(lines.join('\n'), undefined, languageIdentifier);
-	withTestCodeEditor('', { model: model }, (_editor, cursor) => {
-		if (!cursor) {
-			return;
+	wet modew = cweateTextModew(wines.join('\n'), undefined, wanguageIdentifia);
+	withTestCodeEditow('', { modew: modew }, (_editow, cuwsow) => {
+		if (!cuwsow) {
+			wetuwn;
 		}
 
-		if (forceTokenization) {
-			model.forceTokenization(model.getLineCount());
+		if (fowceTokenization) {
+			modew.fowceTokenization(modew.getWineCount());
 		}
 
-		cursor.setSelections('tests', [selection]);
+		cuwsow.setSewections('tests', [sewection]);
 
-		cursor.executeCommand(commandFactory(cursor.getSelection()), 'tests');
+		cuwsow.executeCommand(commandFactowy(cuwsow.getSewection()), 'tests');
 
-		assert.deepStrictEqual(model.getLinesContent(), expectedLines);
+		assewt.deepStwictEquaw(modew.getWinesContent(), expectedWines);
 
-		let actualSelection = cursor.getSelection();
-		assert.deepStrictEqual(actualSelection.toString(), expectedSelection.toString());
+		wet actuawSewection = cuwsow.getSewection();
+		assewt.deepStwictEquaw(actuawSewection.toStwing(), expectedSewection.toStwing());
 
 	});
-	model.dispose();
+	modew.dispose();
 }
 
 /**
- * Extract edit operations if command `command` were to execute on model `model`
+ * Extwact edit opewations if command `command` wewe to execute on modew `modew`
  */
-export function getEditOperation(model: ITextModel, command: ICommand): IIdentifiedSingleEditOperation[] {
-	let operations: IIdentifiedSingleEditOperation[] = [];
-	let editOperationBuilder: IEditOperationBuilder = {
-		addEditOperation: (range: IRange, text: string, forceMoveMarkers: boolean = false) => {
-			operations.push({
-				range: range,
+expowt function getEditOpewation(modew: ITextModew, command: ICommand): IIdentifiedSingweEditOpewation[] {
+	wet opewations: IIdentifiedSingweEditOpewation[] = [];
+	wet editOpewationBuiwda: IEditOpewationBuiwda = {
+		addEditOpewation: (wange: IWange, text: stwing, fowceMoveMawkews: boowean = fawse) => {
+			opewations.push({
+				wange: wange,
 				text: text,
-				forceMoveMarkers: forceMoveMarkers
+				fowceMoveMawkews: fowceMoveMawkews
 			});
 		},
 
-		addTrackedEditOperation: (range: IRange, text: string, forceMoveMarkers: boolean = false) => {
-			operations.push({
-				range: range,
+		addTwackedEditOpewation: (wange: IWange, text: stwing, fowceMoveMawkews: boowean = fawse) => {
+			opewations.push({
+				wange: wange,
 				text: text,
-				forceMoveMarkers: forceMoveMarkers
+				fowceMoveMawkews: fowceMoveMawkews
 			});
 		},
 
 
-		trackSelection: (selection: ISelection) => {
-			return '';
+		twackSewection: (sewection: ISewection) => {
+			wetuwn '';
 		}
 	};
-	command.getEditOperations(model, editOperationBuilder);
-	return operations;
+	command.getEditOpewations(modew, editOpewationBuiwda);
+	wetuwn opewations;
 }

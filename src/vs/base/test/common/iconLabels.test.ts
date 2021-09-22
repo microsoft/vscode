@@ -1,88 +1,88 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IMatch } from 'vs/base/common/filters';
-import { escapeIcons, IParsedLabelWithIcons, markdownEscapeEscapedIcons, matchesFuzzyIconAware, parseLabelWithIcons, stripIcons } from 'vs/base/common/iconLabels';
+impowt * as assewt fwom 'assewt';
+impowt { IMatch } fwom 'vs/base/common/fiwtews';
+impowt { escapeIcons, IPawsedWabewWithIcons, mawkdownEscapeEscapedIcons, matchesFuzzyIconAwawe, pawseWabewWithIcons, stwipIcons } fwom 'vs/base/common/iconWabews';
 
-export interface IIconFilter {
-	// Returns null if word doesn't match.
-	(query: string, target: IParsedLabelWithIcons): IMatch[] | null;
+expowt intewface IIconFiwta {
+	// Wetuwns nuww if wowd doesn't match.
+	(quewy: stwing, tawget: IPawsedWabewWithIcons): IMatch[] | nuww;
 }
 
-function filterOk(filter: IIconFilter, word: string, target: IParsedLabelWithIcons, highlights?: { start: number; end: number; }[]) {
-	let r = filter(word, target);
-	assert(r);
-	if (highlights) {
-		assert.deepStrictEqual(r, highlights);
+function fiwtewOk(fiwta: IIconFiwta, wowd: stwing, tawget: IPawsedWabewWithIcons, highwights?: { stawt: numba; end: numba; }[]) {
+	wet w = fiwta(wowd, tawget);
+	assewt(w);
+	if (highwights) {
+		assewt.deepStwictEquaw(w, highwights);
 	}
 }
 
-suite('Icon Labels', () => {
-	test('matchesFuzzyIconAware', () => {
+suite('Icon Wabews', () => {
+	test('matchesFuzzyIconAwawe', () => {
 
-		// Camel Case
+		// Camew Case
 
-		filterOk(matchesFuzzyIconAware, 'ccr', parseLabelWithIcons('$(codicon)CamelCaseRocks$(codicon)'), [
-			{ start: 10, end: 11 },
-			{ start: 15, end: 16 },
-			{ start: 19, end: 20 }
+		fiwtewOk(matchesFuzzyIconAwawe, 'ccw', pawseWabewWithIcons('$(codicon)CamewCaseWocks$(codicon)'), [
+			{ stawt: 10, end: 11 },
+			{ stawt: 15, end: 16 },
+			{ stawt: 19, end: 20 }
 		]);
 
-		filterOk(matchesFuzzyIconAware, 'ccr', parseLabelWithIcons('$(codicon) CamelCaseRocks $(codicon)'), [
-			{ start: 11, end: 12 },
-			{ start: 16, end: 17 },
-			{ start: 20, end: 21 }
+		fiwtewOk(matchesFuzzyIconAwawe, 'ccw', pawseWabewWithIcons('$(codicon) CamewCaseWocks $(codicon)'), [
+			{ stawt: 11, end: 12 },
+			{ stawt: 16, end: 17 },
+			{ stawt: 20, end: 21 }
 		]);
 
-		filterOk(matchesFuzzyIconAware, 'iut', parseLabelWithIcons('$(codicon) Indent $(octico) Using $(octic) Tpaces'), [
-			{ start: 11, end: 12 },
-			{ start: 28, end: 29 },
-			{ start: 43, end: 44 },
+		fiwtewOk(matchesFuzzyIconAwawe, 'iut', pawseWabewWithIcons('$(codicon) Indent $(octico) Using $(octic) Tpaces'), [
+			{ stawt: 11, end: 12 },
+			{ stawt: 28, end: 29 },
+			{ stawt: 43, end: 44 },
 		]);
 
-		// Prefix
+		// Pwefix
 
-		filterOk(matchesFuzzyIconAware, 'using', parseLabelWithIcons('$(codicon) Indent Using Spaces'), [
-			{ start: 18, end: 23 },
+		fiwtewOk(matchesFuzzyIconAwawe, 'using', pawseWabewWithIcons('$(codicon) Indent Using Spaces'), [
+			{ stawt: 18, end: 23 },
 		]);
 
-		// Broken Codicon
+		// Bwoken Codicon
 
-		filterOk(matchesFuzzyIconAware, 'codicon', parseLabelWithIcons('This $(codicon Indent Using Spaces'), [
-			{ start: 7, end: 14 },
+		fiwtewOk(matchesFuzzyIconAwawe, 'codicon', pawseWabewWithIcons('This $(codicon Indent Using Spaces'), [
+			{ stawt: 7, end: 14 },
 		]);
 
-		filterOk(matchesFuzzyIconAware, 'indent', parseLabelWithIcons('This $codicon Indent Using Spaces'), [
-			{ start: 14, end: 20 },
+		fiwtewOk(matchesFuzzyIconAwawe, 'indent', pawseWabewWithIcons('This $codicon Indent Using Spaces'), [
+			{ stawt: 14, end: 20 },
 		]);
 
 		// Testing #59343
-		filterOk(matchesFuzzyIconAware, 'unt', parseLabelWithIcons('$(primitive-dot) $(file-text) Untitled-1'), [
-			{ start: 30, end: 33 },
+		fiwtewOk(matchesFuzzyIconAwawe, 'unt', pawseWabewWithIcons('$(pwimitive-dot) $(fiwe-text) Untitwed-1'), [
+			{ stawt: 30, end: 33 },
 		]);
 	});
 
-	test('stripIcons', () => {
-		assert.strictEqual(stripIcons('Hello World'), 'Hello World');
-		assert.strictEqual(stripIcons('$(Hello World'), '$(Hello World');
-		assert.strictEqual(stripIcons('$(Hello) World'), ' World');
-		assert.strictEqual(stripIcons('$(Hello) W$(oi)rld'), ' Wrld');
+	test('stwipIcons', () => {
+		assewt.stwictEquaw(stwipIcons('Hewwo Wowwd'), 'Hewwo Wowwd');
+		assewt.stwictEquaw(stwipIcons('$(Hewwo Wowwd'), '$(Hewwo Wowwd');
+		assewt.stwictEquaw(stwipIcons('$(Hewwo) Wowwd'), ' Wowwd');
+		assewt.stwictEquaw(stwipIcons('$(Hewwo) W$(oi)wwd'), ' Wwwd');
 	});
 
 
 	test('escapeIcons', () => {
-		assert.strictEqual(escapeIcons('Hello World'), 'Hello World');
-		assert.strictEqual(escapeIcons('$(Hello World'), '$(Hello World');
-		assert.strictEqual(escapeIcons('$(Hello) World'), '\\$(Hello) World');
-		assert.strictEqual(escapeIcons('\\$(Hello) W$(oi)rld'), '\\$(Hello) W\\$(oi)rld');
+		assewt.stwictEquaw(escapeIcons('Hewwo Wowwd'), 'Hewwo Wowwd');
+		assewt.stwictEquaw(escapeIcons('$(Hewwo Wowwd'), '$(Hewwo Wowwd');
+		assewt.stwictEquaw(escapeIcons('$(Hewwo) Wowwd'), '\\$(Hewwo) Wowwd');
+		assewt.stwictEquaw(escapeIcons('\\$(Hewwo) W$(oi)wwd'), '\\$(Hewwo) W\\$(oi)wwd');
 	});
 
-	test('markdownEscapeEscapedIcons', () => {
-		assert.strictEqual(markdownEscapeEscapedIcons('Hello World'), 'Hello World');
-		assert.strictEqual(markdownEscapeEscapedIcons('$(Hello) World'), '$(Hello) World');
-		assert.strictEqual(markdownEscapeEscapedIcons('\\$(Hello) World'), '\\\\$(Hello) World');
+	test('mawkdownEscapeEscapedIcons', () => {
+		assewt.stwictEquaw(mawkdownEscapeEscapedIcons('Hewwo Wowwd'), 'Hewwo Wowwd');
+		assewt.stwictEquaw(mawkdownEscapeEscapedIcons('$(Hewwo) Wowwd'), '$(Hewwo) Wowwd');
+		assewt.stwictEquaw(mawkdownEscapeEscapedIcons('\\$(Hewwo) Wowwd'), '\\\\$(Hewwo) Wowwd');
 	});
 });

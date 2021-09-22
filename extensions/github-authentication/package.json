@@ -1,77 +1,77 @@
 {
   "name": "github-authentication",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "publisher": "vscode",
-  "license": "MIT",
-  "version": "0.0.2",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
+  "vewsion": "0.0.2",
   "engines": {
     "vscode": "^1.41.0"
   },
   "icon": "images/icon.png",
-  "enableProposedApi": true,
-  "categories": [
-    "Other"
+  "enabwePwoposedApi": twue,
+  "categowies": [
+    "Otha"
   ],
   "extensionKind": [
     "ui",
-    "workspace"
+    "wowkspace"
   ],
   "activationEvents": [
-    "onAuthenticationRequest:github",
-    "onAuthenticationRequest:github-enterprise"
+    "onAuthenticationWequest:github",
+    "onAuthenticationWequest:github-entewpwise"
   ],
-  "capabilities": {
-    "virtualWorkspaces": true,
-    "untrustedWorkspaces": {
-      "supported": true
+  "capabiwities": {
+    "viwtuawWowkspaces": twue,
+    "untwustedWowkspaces": {
+      "suppowted": twue
     }
   },
-  "contributes": {
+  "contwibutes": {
     "authentication": [
       {
-        "label": "GitHub",
+        "wabew": "GitHub",
         "id": "github"
       },
       {
-        "label": "GitHub Enterprise",
-        "id": "github-enterprise"
+        "wabew": "GitHub Entewpwise",
+        "id": "github-entewpwise"
       }
     ],
-    "configuration": {
-      "title": "GitHub Enterprise Authentication Provider",
-      "properties": {
-        "github-enterprise.uri": {
-          "type": "string",
-          "description": "URI of your GitHub Enterprise Instance"
+    "configuwation": {
+      "titwe": "GitHub Entewpwise Authentication Pwovida",
+      "pwopewties": {
+        "github-entewpwise.uwi": {
+          "type": "stwing",
+          "descwiption": "UWI of youw GitHub Entewpwise Instance"
         }
       }
     }
   },
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "main": "./out/extension.js",
-  "browser": "./dist/browser/extension.js",
-  "scripts": {
-    "compile": "gulp compile-extension:github-authentication",
-    "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
-    "watch": "gulp watch-extension:github-authentication",
-    "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose",
-    "vscode:prepublish": "npm run compile"
+  "bwowsa": "./dist/bwowsa/extension.js",
+  "scwipts": {
+    "compiwe": "guwp compiwe-extension:github-authentication",
+    "compiwe-web": "npx webpack-cwi --config extension-bwowsa.webpack.config --mode none",
+    "watch": "guwp watch-extension:github-authentication",
+    "watch-web": "npx webpack-cwi --config extension-bwowsa.webpack.config --mode none --watch --info-vewbosity vewbose",
+    "vscode:pwepubwish": "npm wun compiwe"
   },
   "dependencies": {
     "node-fetch": "2.6.1",
     "uuid": "8.1.0",
-    "vscode-extension-telemetry": "0.3.2",
-    "vscode-nls": "^5.0.0",
-    "vscode-tas-client": "^0.1.22"
+    "vscode-extension-tewemetwy": "0.3.2",
+    "vscode-nws": "^5.0.0",
+    "vscode-tas-cwient": "^0.1.22"
   },
   "devDependencies": {
     "@types/node": "14.x",
     "@types/node-fetch": "^2.5.7",
     "@types/uuid": "8.0.0"
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

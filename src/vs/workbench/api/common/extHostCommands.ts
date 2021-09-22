@@ -1,96 +1,96 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { validateConstraint } from 'vs/base/common/types';
-import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
-import { cloneAndChange } from 'vs/base/common/objects';
-import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ObjectIdentifier, ICommandDto } from './extHost.protocol';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import * as modes from 'vs/editor/common/modes';
-import type * as vscode from 'vscode';
-import { ILogService } from 'vs/platform/log/common/log';
-import { revive } from 'vs/base/common/marshalling';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { URI } from 'vs/base/common/uri';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { ISelection } from 'vs/editor/common/core/selection';
-import { TestItemImpl } from 'vs/workbench/api/common/extHostTestingPrivateApi';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+impowt { vawidateConstwaint } fwom 'vs/base/common/types';
+impowt { ICommandHandwewDescwiption } fwom 'vs/pwatfowm/commands/common/commands';
+impowt * as extHostTypes fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt * as extHostTypeConvewta fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+impowt { cwoneAndChange } fwom 'vs/base/common/objects';
+impowt { MainContext, MainThweadCommandsShape, ExtHostCommandsShape, ObjectIdentifia, ICommandDto } fwom './extHost.pwotocow';
+impowt { isNonEmptyAwway } fwom 'vs/base/common/awways';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt type * as vscode fwom 'vscode';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { wevive } fwom 'vs/base/common/mawshawwing';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IPosition, Position } fwom 'vs/editow/common/cowe/position';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { DisposabweStowe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt { ISewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { TestItemImpw } fwom 'vs/wowkbench/api/common/extHostTestingPwivateApi';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { SewiawizabweObjectWithBuffews } fwom 'vs/wowkbench/sewvices/extensions/common/pwoxyIdentifia';
 
-interface CommandHandler {
-	callback: Function;
-	thisArg: any;
-	description?: ICommandHandlerDescription;
+intewface CommandHandwa {
+	cawwback: Function;
+	thisAwg: any;
+	descwiption?: ICommandHandwewDescwiption;
 }
 
-export interface ArgumentProcessor {
-	processArgument(arg: any): any;
+expowt intewface AwgumentPwocessow {
+	pwocessAwgument(awg: any): any;
 }
 
-export class ExtHostCommands implements ExtHostCommandsShape {
+expowt cwass ExtHostCommands impwements ExtHostCommandsShape {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	private readonly _commands = new Map<string, CommandHandler>();
-	private readonly _apiCommands = new Map<string, ApiCommand>();
+	pwivate weadonwy _commands = new Map<stwing, CommandHandwa>();
+	pwivate weadonwy _apiCommands = new Map<stwing, ApiCommand>();
 
-	private readonly _proxy: MainThreadCommandsShape;
-	private readonly _logService: ILogService;
-	private readonly _argumentProcessors: ArgumentProcessor[];
+	pwivate weadonwy _pwoxy: MainThweadCommandsShape;
+	pwivate weadonwy _wogSewvice: IWogSewvice;
+	pwivate weadonwy _awgumentPwocessows: AwgumentPwocessow[];
 
-	readonly converter: CommandsConverter;
+	weadonwy convewta: CommandsConvewta;
 
-	constructor(
-		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@ILogService logService: ILogService
+	constwuctow(
+		@IExtHostWpcSewvice extHostWpc: IExtHostWpcSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice
 	) {
-		this._proxy = extHostRpc.getProxy(MainContext.MainThreadCommands);
-		this._logService = logService;
-		this.converter = new CommandsConverter(
+		this._pwoxy = extHostWpc.getPwoxy(MainContext.MainThweadCommands);
+		this._wogSewvice = wogSewvice;
+		this.convewta = new CommandsConvewta(
 			this,
 			id => {
-				// API commands that have no return type (void) can be
-				// converted to their internal command and don't need
-				// any indirection commands
+				// API commands that have no wetuwn type (void) can be
+				// convewted to theiw intewnaw command and don't need
+				// any indiwection commands
 				const candidate = this._apiCommands.get(id);
-				return candidate?.result === ApiCommandResult.Void
+				wetuwn candidate?.wesuwt === ApiCommandWesuwt.Void
 					? candidate : undefined;
 			},
-			logService
+			wogSewvice
 		);
-		this._argumentProcessors = [
+		this._awgumentPwocessows = [
 			{
-				processArgument(a) {
-					// URI, Regex
-					return revive(a);
+				pwocessAwgument(a) {
+					// UWI, Wegex
+					wetuwn wevive(a);
 				}
 			},
 			{
-				processArgument(arg) {
-					return cloneAndChange(arg, function (obj) {
-						// Reverse of https://github.com/microsoft/vscode/blob/1f28c5fc681f4c01226460b6d1c7e91b8acb4a5b/src/vs/workbench/api/node/extHostCommands.ts#L112-L127
-						if (Range.isIRange(obj)) {
-							return extHostTypeConverter.Range.to(obj);
+				pwocessAwgument(awg) {
+					wetuwn cwoneAndChange(awg, function (obj) {
+						// Wevewse of https://github.com/micwosoft/vscode/bwob/1f28c5fc681f4c01226460b6d1c7e91b8acb4a5b/swc/vs/wowkbench/api/node/extHostCommands.ts#W112-W127
+						if (Wange.isIWange(obj)) {
+							wetuwn extHostTypeConvewta.Wange.to(obj);
 						}
 						if (Position.isIPosition(obj)) {
-							return extHostTypeConverter.Position.to(obj);
+							wetuwn extHostTypeConvewta.Position.to(obj);
 						}
-						if (Range.isIRange((obj as modes.Location).range) && URI.isUri((obj as modes.Location).uri)) {
-							return extHostTypeConverter.location.to(obj);
+						if (Wange.isIWange((obj as modes.Wocation).wange) && UWI.isUwi((obj as modes.Wocation).uwi)) {
+							wetuwn extHostTypeConvewta.wocation.to(obj);
 						}
-						if (obj instanceof VSBuffer) {
-							return obj.buffer.buffer;
+						if (obj instanceof VSBuffa) {
+							wetuwn obj.buffa.buffa;
 						}
-						if (!Array.isArray(obj)) {
-							return obj;
+						if (!Awway.isAwway(obj)) {
+							wetuwn obj;
 						}
 					});
 				}
@@ -98,331 +98,331 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		];
 	}
 
-	registerArgumentProcessor(processor: ArgumentProcessor): void {
-		this._argumentProcessors.push(processor);
+	wegistewAwgumentPwocessow(pwocessow: AwgumentPwocessow): void {
+		this._awgumentPwocessows.push(pwocessow);
 	}
 
-	registerApiCommand(apiCommand: ApiCommand): extHostTypes.Disposable {
+	wegistewApiCommand(apiCommand: ApiCommand): extHostTypes.Disposabwe {
 
 
-		const registration = this.registerCommand(false, apiCommand.id, async (...apiArgs) => {
+		const wegistwation = this.wegistewCommand(fawse, apiCommand.id, async (...apiAwgs) => {
 
-			const internalArgs = apiCommand.args.map((arg, i) => {
-				if (!arg.validate(apiArgs[i])) {
-					throw new Error(`Invalid argument '${arg.name}' when running '${apiCommand.id}', received: ${apiArgs[i]}`);
+			const intewnawAwgs = apiCommand.awgs.map((awg, i) => {
+				if (!awg.vawidate(apiAwgs[i])) {
+					thwow new Ewwow(`Invawid awgument '${awg.name}' when wunning '${apiCommand.id}', weceived: ${apiAwgs[i]}`);
 				}
-				return arg.convert(apiArgs[i]);
+				wetuwn awg.convewt(apiAwgs[i]);
 			});
 
-			const internalResult = await this.executeCommand(apiCommand.internalId, ...internalArgs);
-			return apiCommand.result.convert(internalResult, apiArgs, this.converter);
+			const intewnawWesuwt = await this.executeCommand(apiCommand.intewnawId, ...intewnawAwgs);
+			wetuwn apiCommand.wesuwt.convewt(intewnawWesuwt, apiAwgs, this.convewta);
 		}, undefined, {
-			description: apiCommand.description,
-			args: apiCommand.args,
-			returns: apiCommand.result.description
+			descwiption: apiCommand.descwiption,
+			awgs: apiCommand.awgs,
+			wetuwns: apiCommand.wesuwt.descwiption
 		});
 
 		this._apiCommands.set(apiCommand.id, apiCommand);
 
-		return new extHostTypes.Disposable(() => {
-			registration.dispose();
-			this._apiCommands.delete(apiCommand.id);
+		wetuwn new extHostTypes.Disposabwe(() => {
+			wegistwation.dispose();
+			this._apiCommands.dewete(apiCommand.id);
 		});
 	}
 
-	registerCommand(global: boolean, id: string, callback: <T>(...args: any[]) => T | Thenable<T>, thisArg?: any, description?: ICommandHandlerDescription): extHostTypes.Disposable {
-		this._logService.trace('ExtHostCommands#registerCommand', id);
+	wegistewCommand(gwobaw: boowean, id: stwing, cawwback: <T>(...awgs: any[]) => T | Thenabwe<T>, thisAwg?: any, descwiption?: ICommandHandwewDescwiption): extHostTypes.Disposabwe {
+		this._wogSewvice.twace('ExtHostCommands#wegistewCommand', id);
 
-		if (!id.trim().length) {
-			throw new Error('invalid id');
+		if (!id.twim().wength) {
+			thwow new Ewwow('invawid id');
 		}
 
 		if (this._commands.has(id)) {
-			throw new Error(`command '${id}' already exists`);
+			thwow new Ewwow(`command '${id}' awweady exists`);
 		}
 
-		this._commands.set(id, { callback, thisArg, description });
-		if (global) {
-			this._proxy.$registerCommand(id);
+		this._commands.set(id, { cawwback, thisAwg, descwiption });
+		if (gwobaw) {
+			this._pwoxy.$wegistewCommand(id);
 		}
 
-		return new extHostTypes.Disposable(() => {
-			if (this._commands.delete(id)) {
-				if (global) {
-					this._proxy.$unregisterCommand(id);
+		wetuwn new extHostTypes.Disposabwe(() => {
+			if (this._commands.dewete(id)) {
+				if (gwobaw) {
+					this._pwoxy.$unwegistewCommand(id);
 				}
 			}
 		});
 	}
 
-	executeCommand<T>(id: string, ...args: any[]): Promise<T> {
-		this._logService.trace('ExtHostCommands#executeCommand', id);
-		return this._doExecuteCommand(id, args, true);
+	executeCommand<T>(id: stwing, ...awgs: any[]): Pwomise<T> {
+		this._wogSewvice.twace('ExtHostCommands#executeCommand', id);
+		wetuwn this._doExecuteCommand(id, awgs, twue);
 	}
 
-	private async _doExecuteCommand<T>(id: string, args: any[], retry: boolean): Promise<T> {
+	pwivate async _doExecuteCommand<T>(id: stwing, awgs: any[], wetwy: boowean): Pwomise<T> {
 
 		if (this._commands.has(id)) {
-			// we stay inside the extension host and support
-			// to pass any kind of parameters around
-			return this._executeContributedCommand<T>(id, args);
+			// we stay inside the extension host and suppowt
+			// to pass any kind of pawametews awound
+			wetuwn this._executeContwibutedCommand<T>(id, awgs);
 
-		} else {
-			// automagically convert some argument types
-			let hasBuffers = false;
-			const toArgs = cloneAndChange(args, function (value) {
-				if (value instanceof extHostTypes.Position) {
-					return extHostTypeConverter.Position.from(value);
-				} else if (value instanceof extHostTypes.Range) {
-					return extHostTypeConverter.Range.from(value);
-				} else if (value instanceof extHostTypes.Location) {
-					return extHostTypeConverter.location.from(value);
-				} else if (extHostTypes.NotebookRange.isNotebookRange(value)) {
-					return extHostTypeConverter.NotebookRange.from(value);
-				} else if (value instanceof ArrayBuffer) {
-					hasBuffers = true;
-					return VSBuffer.wrap(new Uint8Array(value));
-				} else if (value instanceof Uint8Array) {
-					hasBuffers = true;
-					return VSBuffer.wrap(value);
+		} ewse {
+			// automagicawwy convewt some awgument types
+			wet hasBuffews = fawse;
+			const toAwgs = cwoneAndChange(awgs, function (vawue) {
+				if (vawue instanceof extHostTypes.Position) {
+					wetuwn extHostTypeConvewta.Position.fwom(vawue);
+				} ewse if (vawue instanceof extHostTypes.Wange) {
+					wetuwn extHostTypeConvewta.Wange.fwom(vawue);
+				} ewse if (vawue instanceof extHostTypes.Wocation) {
+					wetuwn extHostTypeConvewta.wocation.fwom(vawue);
+				} ewse if (extHostTypes.NotebookWange.isNotebookWange(vawue)) {
+					wetuwn extHostTypeConvewta.NotebookWange.fwom(vawue);
+				} ewse if (vawue instanceof AwwayBuffa) {
+					hasBuffews = twue;
+					wetuwn VSBuffa.wwap(new Uint8Awway(vawue));
+				} ewse if (vawue instanceof Uint8Awway) {
+					hasBuffews = twue;
+					wetuwn VSBuffa.wwap(vawue);
 				}
-				if (!Array.isArray(value)) {
-					return value;
+				if (!Awway.isAwway(vawue)) {
+					wetuwn vawue;
 				}
 			});
 
-			try {
-				const result = await this._proxy.$executeCommand<T>(id, hasBuffers ? new SerializableObjectWithBuffers(toArgs) : toArgs, retry);
-				return revive<any>(result);
+			twy {
+				const wesuwt = await this._pwoxy.$executeCommand<T>(id, hasBuffews ? new SewiawizabweObjectWithBuffews(toAwgs) : toAwgs, wetwy);
+				wetuwn wevive<any>(wesuwt);
 			} catch (e) {
-				// Rerun the command when it wasn't known, had arguments, and when retry
-				// is enabled. We do this because the command might be registered inside
-				// the extension host now and can therfore accept the arguments as-is.
-				if (e instanceof Error && e.message === '$executeCommand:retry') {
-					return this._doExecuteCommand(id, args, false);
-				} else {
-					throw e;
+				// Wewun the command when it wasn't known, had awguments, and when wetwy
+				// is enabwed. We do this because the command might be wegistewed inside
+				// the extension host now and can thewfowe accept the awguments as-is.
+				if (e instanceof Ewwow && e.message === '$executeCommand:wetwy') {
+					wetuwn this._doExecuteCommand(id, awgs, fawse);
+				} ewse {
+					thwow e;
 				}
 			}
 		}
 	}
 
-	private async _executeContributedCommand<T>(id: string, args: any[]): Promise<T> {
+	pwivate async _executeContwibutedCommand<T>(id: stwing, awgs: any[]): Pwomise<T> {
 		const command = this._commands.get(id);
 		if (!command) {
-			throw new Error('Unknown command');
+			thwow new Ewwow('Unknown command');
 		}
-		let { callback, thisArg, description } = command;
-		if (description) {
-			for (let i = 0; i < description.args.length; i++) {
-				try {
-					validateConstraint(args[i], description.args[i].constraint);
-				} catch (err) {
-					throw new Error(`Running the contributed command: '${id}' failed. Illegal argument '${description.args[i].name}' - ${description.args[i].description}`);
+		wet { cawwback, thisAwg, descwiption } = command;
+		if (descwiption) {
+			fow (wet i = 0; i < descwiption.awgs.wength; i++) {
+				twy {
+					vawidateConstwaint(awgs[i], descwiption.awgs[i].constwaint);
+				} catch (eww) {
+					thwow new Ewwow(`Wunning the contwibuted command: '${id}' faiwed. Iwwegaw awgument '${descwiption.awgs[i].name}' - ${descwiption.awgs[i].descwiption}`);
 				}
 			}
 		}
 
-		try {
-			return await callback.apply(thisArg, args);
-		} catch (err) {
-			// The indirection-command from the converter can fail when invoking the actual
-			// command and in that case it is better to blame the correct command
-			if (id === this.converter.delegatingCommandId) {
-				const actual = this.converter.getActualCommand(...args);
-				if (actual) {
-					id = actual.command;
+		twy {
+			wetuwn await cawwback.appwy(thisAwg, awgs);
+		} catch (eww) {
+			// The indiwection-command fwom the convewta can faiw when invoking the actuaw
+			// command and in that case it is betta to bwame the cowwect command
+			if (id === this.convewta.dewegatingCommandId) {
+				const actuaw = this.convewta.getActuawCommand(...awgs);
+				if (actuaw) {
+					id = actuaw.command;
 				}
 			}
-			this._logService.error(err, id);
-			throw new Error(`Running the contributed command: '${id}' failed.`);
+			this._wogSewvice.ewwow(eww, id);
+			thwow new Ewwow(`Wunning the contwibuted command: '${id}' faiwed.`);
 		}
 	}
 
-	$executeContributedCommand<T>(id: string, ...args: any[]): Promise<T> {
-		this._logService.trace('ExtHostCommands#$executeContributedCommand', id);
+	$executeContwibutedCommand<T>(id: stwing, ...awgs: any[]): Pwomise<T> {
+		this._wogSewvice.twace('ExtHostCommands#$executeContwibutedCommand', id);
 
 		if (!this._commands.has(id)) {
-			return Promise.reject(new Error(`Contributed command '${id}' does not exist.`));
-		} else {
-			args = args.map(arg => this._argumentProcessors.reduce((r, p) => p.processArgument(r), arg));
-			return this._executeContributedCommand(id, args);
+			wetuwn Pwomise.weject(new Ewwow(`Contwibuted command '${id}' does not exist.`));
+		} ewse {
+			awgs = awgs.map(awg => this._awgumentPwocessows.weduce((w, p) => p.pwocessAwgument(w), awg));
+			wetuwn this._executeContwibutedCommand(id, awgs);
 		}
 	}
 
-	getCommands(filterUnderscoreCommands: boolean = false): Promise<string[]> {
-		this._logService.trace('ExtHostCommands#getCommands', filterUnderscoreCommands);
+	getCommands(fiwtewUndewscoweCommands: boowean = fawse): Pwomise<stwing[]> {
+		this._wogSewvice.twace('ExtHostCommands#getCommands', fiwtewUndewscoweCommands);
 
-		return this._proxy.$getCommands().then(result => {
-			if (filterUnderscoreCommands) {
-				result = result.filter(command => command[0] !== '_');
+		wetuwn this._pwoxy.$getCommands().then(wesuwt => {
+			if (fiwtewUndewscoweCommands) {
+				wesuwt = wesuwt.fiwta(command => command[0] !== '_');
 			}
-			return result;
+			wetuwn wesuwt;
 		});
 	}
 
-	$getContributedCommandHandlerDescriptions(): Promise<{ [id: string]: string | ICommandHandlerDescription }> {
-		const result: { [id: string]: string | ICommandHandlerDescription } = Object.create(null);
-		for (let [id, command] of this._commands) {
-			let { description } = command;
-			if (description) {
-				result[id] = description;
+	$getContwibutedCommandHandwewDescwiptions(): Pwomise<{ [id: stwing]: stwing | ICommandHandwewDescwiption }> {
+		const wesuwt: { [id: stwing]: stwing | ICommandHandwewDescwiption } = Object.cweate(nuww);
+		fow (wet [id, command] of this._commands) {
+			wet { descwiption } = command;
+			if (descwiption) {
+				wesuwt[id] = descwiption;
 			}
 		}
-		return Promise.resolve(result);
+		wetuwn Pwomise.wesowve(wesuwt);
 	}
 }
 
-export interface IExtHostCommands extends ExtHostCommands { }
-export const IExtHostCommands = createDecorator<IExtHostCommands>('IExtHostCommands');
+expowt intewface IExtHostCommands extends ExtHostCommands { }
+expowt const IExtHostCommands = cweateDecowatow<IExtHostCommands>('IExtHostCommands');
 
-export class CommandsConverter {
+expowt cwass CommandsConvewta {
 
-	readonly delegatingCommandId: string = `_vscode_delegate_cmd_${Date.now().toString(36)}`;
-	private readonly _cache = new Map<number, vscode.Command>();
-	private _cachIdPool = 0;
+	weadonwy dewegatingCommandId: stwing = `_vscode_dewegate_cmd_${Date.now().toStwing(36)}`;
+	pwivate weadonwy _cache = new Map<numba, vscode.Command>();
+	pwivate _cachIdPoow = 0;
 
-	// --- conversion between internal and api commands
-	constructor(
-		private readonly _commands: ExtHostCommands,
-		private readonly _lookupApiCommand: (id: string) => ApiCommand | undefined,
-		private readonly _logService: ILogService
+	// --- convewsion between intewnaw and api commands
+	constwuctow(
+		pwivate weadonwy _commands: ExtHostCommands,
+		pwivate weadonwy _wookupApiCommand: (id: stwing) => ApiCommand | undefined,
+		pwivate weadonwy _wogSewvice: IWogSewvice
 	) {
-		this._commands.registerCommand(true, this.delegatingCommandId, this._executeConvertedCommand, this);
+		this._commands.wegistewCommand(twue, this.dewegatingCommandId, this._executeConvewtedCommand, this);
 	}
 
-	toInternal(command: vscode.Command, disposables: DisposableStore): ICommandDto;
-	toInternal(command: vscode.Command | undefined, disposables: DisposableStore): ICommandDto | undefined;
-	toInternal(command: vscode.Command | undefined, disposables: DisposableStore): ICommandDto | undefined {
+	toIntewnaw(command: vscode.Command, disposabwes: DisposabweStowe): ICommandDto;
+	toIntewnaw(command: vscode.Command | undefined, disposabwes: DisposabweStowe): ICommandDto | undefined;
+	toIntewnaw(command: vscode.Command | undefined, disposabwes: DisposabweStowe): ICommandDto | undefined {
 
 		if (!command) {
-			return undefined;
+			wetuwn undefined;
 		}
 
-		const result: ICommandDto = {
+		const wesuwt: ICommandDto = {
 			$ident: undefined,
 			id: command.command,
-			title: command.title,
-			tooltip: command.tooltip
+			titwe: command.titwe,
+			toowtip: command.toowtip
 		};
 
 		if (!command.command) {
-			// falsy command id -> return converted command but don't attempt any
-			// argument or API-command dance since this command won't run anyways
-			return result;
+			// fawsy command id -> wetuwn convewted command but don't attempt any
+			// awgument ow API-command dance since this command won't wun anyways
+			wetuwn wesuwt;
 		}
 
-		const apiCommand = this._lookupApiCommand(command.command);
+		const apiCommand = this._wookupApiCommand(command.command);
 		if (apiCommand) {
-			// API command with return-value can be converted inplace
-			result.id = apiCommand.internalId;
-			result.arguments = apiCommand.args.map((arg, i) => arg.convert(command.arguments && command.arguments[i]));
+			// API command with wetuwn-vawue can be convewted inpwace
+			wesuwt.id = apiCommand.intewnawId;
+			wesuwt.awguments = apiCommand.awgs.map((awg, i) => awg.convewt(command.awguments && command.awguments[i]));
 
 
-		} else if (isNonEmptyArray(command.arguments)) {
-			// we have a contributed command with arguments. that
-			// means we don't want to send the arguments around
+		} ewse if (isNonEmptyAwway(command.awguments)) {
+			// we have a contwibuted command with awguments. that
+			// means we don't want to send the awguments awound
 
-			const id = ++this._cachIdPool;
+			const id = ++this._cachIdPoow;
 			this._cache.set(id, command);
-			disposables.add(toDisposable(() => {
-				this._cache.delete(id);
-				this._logService.trace('CommandsConverter#DISPOSE', id);
+			disposabwes.add(toDisposabwe(() => {
+				this._cache.dewete(id);
+				this._wogSewvice.twace('CommandsConvewta#DISPOSE', id);
 			}));
-			result.$ident = id;
+			wesuwt.$ident = id;
 
-			result.id = this.delegatingCommandId;
-			result.arguments = [id];
+			wesuwt.id = this.dewegatingCommandId;
+			wesuwt.awguments = [id];
 
-			this._logService.trace('CommandsConverter#CREATE', command.command, id);
+			this._wogSewvice.twace('CommandsConvewta#CWEATE', command.command, id);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	fromInternal(command: modes.Command): vscode.Command | undefined {
+	fwomIntewnaw(command: modes.Command): vscode.Command | undefined {
 
-		const id = ObjectIdentifier.of(command);
-		if (typeof id === 'number') {
-			return this._cache.get(id);
+		const id = ObjectIdentifia.of(command);
+		if (typeof id === 'numba') {
+			wetuwn this._cache.get(id);
 
-		} else {
-			return {
+		} ewse {
+			wetuwn {
 				command: command.id,
-				title: command.title,
-				arguments: command.arguments
+				titwe: command.titwe,
+				awguments: command.awguments
 			};
 		}
 	}
 
 
-	getActualCommand(...args: any[]): vscode.Command | undefined {
-		return this._cache.get(args[0]);
+	getActuawCommand(...awgs: any[]): vscode.Command | undefined {
+		wetuwn this._cache.get(awgs[0]);
 	}
 
-	private _executeConvertedCommand<R>(...args: any[]): Promise<R> {
-		const actualCmd = this.getActualCommand(...args);
-		this._logService.trace('CommandsConverter#EXECUTE', args[0], actualCmd ? actualCmd.command : 'MISSING');
+	pwivate _executeConvewtedCommand<W>(...awgs: any[]): Pwomise<W> {
+		const actuawCmd = this.getActuawCommand(...awgs);
+		this._wogSewvice.twace('CommandsConvewta#EXECUTE', awgs[0], actuawCmd ? actuawCmd.command : 'MISSING');
 
-		if (!actualCmd) {
-			return Promise.reject('actual command NOT FOUND');
+		if (!actuawCmd) {
+			wetuwn Pwomise.weject('actuaw command NOT FOUND');
 		}
-		return this._commands.executeCommand(actualCmd.command, ...(actualCmd.arguments || []));
+		wetuwn this._commands.executeCommand(actuawCmd.command, ...(actuawCmd.awguments || []));
 	}
 
 }
 
 
-export class ApiCommandArgument<V, O = V> {
+expowt cwass ApiCommandAwgument<V, O = V> {
 
-	static readonly Uri = new ApiCommandArgument<URI>('uri', 'Uri of a text document', v => URI.isUri(v), v => v);
-	static readonly Position = new ApiCommandArgument<extHostTypes.Position, IPosition>('position', 'A position in a text document', v => extHostTypes.Position.isPosition(v), extHostTypeConverter.Position.from);
-	static readonly Range = new ApiCommandArgument<extHostTypes.Range, IRange>('range', 'A range in a text document', v => extHostTypes.Range.isRange(v), extHostTypeConverter.Range.from);
-	static readonly Selection = new ApiCommandArgument<extHostTypes.Selection, ISelection>('selection', 'A selection in a text document', v => extHostTypes.Selection.isSelection(v), extHostTypeConverter.Selection.from);
-	static readonly Number = new ApiCommandArgument<number>('number', '', v => typeof v === 'number', v => v);
-	static readonly String = new ApiCommandArgument<string>('string', '', v => typeof v === 'string', v => v);
+	static weadonwy Uwi = new ApiCommandAwgument<UWI>('uwi', 'Uwi of a text document', v => UWI.isUwi(v), v => v);
+	static weadonwy Position = new ApiCommandAwgument<extHostTypes.Position, IPosition>('position', 'A position in a text document', v => extHostTypes.Position.isPosition(v), extHostTypeConvewta.Position.fwom);
+	static weadonwy Wange = new ApiCommandAwgument<extHostTypes.Wange, IWange>('wange', 'A wange in a text document', v => extHostTypes.Wange.isWange(v), extHostTypeConvewta.Wange.fwom);
+	static weadonwy Sewection = new ApiCommandAwgument<extHostTypes.Sewection, ISewection>('sewection', 'A sewection in a text document', v => extHostTypes.Sewection.isSewection(v), extHostTypeConvewta.Sewection.fwom);
+	static weadonwy Numba = new ApiCommandAwgument<numba>('numba', '', v => typeof v === 'numba', v => v);
+	static weadonwy Stwing = new ApiCommandAwgument<stwing>('stwing', '', v => typeof v === 'stwing', v => v);
 
-	static readonly CallHierarchyItem = new ApiCommandArgument('item', 'A call hierarchy item', v => v instanceof extHostTypes.CallHierarchyItem, extHostTypeConverter.CallHierarchyItem.from);
-	static readonly TypeHierarchyItem = new ApiCommandArgument('item', 'A type hierarchy item', v => v instanceof extHostTypes.TypeHierarchyItem, extHostTypeConverter.TypeHierarchyItem.from);
-	static readonly TestItem = new ApiCommandArgument('testItem', 'A VS Code TestItem', v => v instanceof TestItemImpl, extHostTypeConverter.TestItem.from);
+	static weadonwy CawwHiewawchyItem = new ApiCommandAwgument('item', 'A caww hiewawchy item', v => v instanceof extHostTypes.CawwHiewawchyItem, extHostTypeConvewta.CawwHiewawchyItem.fwom);
+	static weadonwy TypeHiewawchyItem = new ApiCommandAwgument('item', 'A type hiewawchy item', v => v instanceof extHostTypes.TypeHiewawchyItem, extHostTypeConvewta.TypeHiewawchyItem.fwom);
+	static weadonwy TestItem = new ApiCommandAwgument('testItem', 'A VS Code TestItem', v => v instanceof TestItemImpw, extHostTypeConvewta.TestItem.fwom);
 
-	constructor(
-		readonly name: string,
-		readonly description: string,
-		readonly validate: (v: V) => boolean,
-		readonly convert: (v: V) => O
+	constwuctow(
+		weadonwy name: stwing,
+		weadonwy descwiption: stwing,
+		weadonwy vawidate: (v: V) => boowean,
+		weadonwy convewt: (v: V) => O
 	) { }
 
-	optional(): ApiCommandArgument<V | undefined | null, O | undefined | null> {
-		return new ApiCommandArgument(
-			this.name, `(optional) ${this.description}`,
-			value => value === undefined || value === null || this.validate(value),
-			value => value === undefined ? undefined : value === null ? null : this.convert(value)
+	optionaw(): ApiCommandAwgument<V | undefined | nuww, O | undefined | nuww> {
+		wetuwn new ApiCommandAwgument(
+			this.name, `(optionaw) ${this.descwiption}`,
+			vawue => vawue === undefined || vawue === nuww || this.vawidate(vawue),
+			vawue => vawue === undefined ? undefined : vawue === nuww ? nuww : this.convewt(vawue)
 		);
 	}
 
-	with(name: string | undefined, description: string | undefined): ApiCommandArgument<V, O> {
-		return new ApiCommandArgument(name ?? this.name, description ?? this.description, this.validate, this.convert);
+	with(name: stwing | undefined, descwiption: stwing | undefined): ApiCommandAwgument<V, O> {
+		wetuwn new ApiCommandAwgument(name ?? this.name, descwiption ?? this.descwiption, this.vawidate, this.convewt);
 	}
 }
 
-export class ApiCommandResult<V, O = V> {
+expowt cwass ApiCommandWesuwt<V, O = V> {
 
-	static readonly Void = new ApiCommandResult<void, void>('no result', v => v);
+	static weadonwy Void = new ApiCommandWesuwt<void, void>('no wesuwt', v => v);
 
-	constructor(
-		readonly description: string,
-		readonly convert: (v: V, apiArgs: any[], cmdConverter: CommandsConverter) => O
+	constwuctow(
+		weadonwy descwiption: stwing,
+		weadonwy convewt: (v: V, apiAwgs: any[], cmdConvewta: CommandsConvewta) => O
 	) { }
 }
 
-export class ApiCommand {
+expowt cwass ApiCommand {
 
-	constructor(
-		readonly id: string,
-		readonly internalId: string,
-		readonly description: string,
-		readonly args: ApiCommandArgument<any, any>[],
-		readonly result: ApiCommandResult<any, any>
+	constwuctow(
+		weadonwy id: stwing,
+		weadonwy intewnawId: stwing,
+		weadonwy descwiption: stwing,
+		weadonwy awgs: ApiCommandAwgument<any, any>[],
+		weadonwy wesuwt: ApiCommandWesuwt<any, any>
 	) { }
 }

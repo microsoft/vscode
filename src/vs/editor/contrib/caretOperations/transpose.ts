@@ -1,84 +1,84 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
-import { MoveOperations } from 'vs/editor/common/controller/cursorMoveOperations';
-import { Range } from 'vs/editor/common/core/range';
-import { ICommand } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import * as nls from 'vs/nls';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, wegistewEditowAction, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { WepwaceCommand } fwom 'vs/editow/common/commands/wepwaceCommand';
+impowt { MoveOpewations } fwom 'vs/editow/common/contwowwa/cuwsowMoveOpewations';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ICommand } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt * as nws fwom 'vs/nws';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
 
-class TransposeLettersAction extends EditorAction {
+cwass TwansposeWettewsAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.transposeLetters',
-			label: nls.localize('transposeLetters.label', "Transpose Letters"),
-			alias: 'Transpose Letters',
-			precondition: EditorContextKeys.writable,
+	constwuctow() {
+		supa({
+			id: 'editow.action.twansposeWettews',
+			wabew: nws.wocawize('twansposeWettews.wabew', "Twanspose Wettews"),
+			awias: 'Twanspose Wettews',
+			pwecondition: EditowContextKeys.wwitabwe,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
-				primary: 0,
+				kbExpw: EditowContextKeys.textInputFocus,
+				pwimawy: 0,
 				mac: {
-					primary: KeyMod.WinCtrl | KeyCode.KEY_T
+					pwimawy: KeyMod.WinCtww | KeyCode.KEY_T
 				},
-				weight: KeybindingWeight.EditorContrib
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		if (!editor.hasModel()) {
-			return;
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		if (!editow.hasModew()) {
+			wetuwn;
 		}
 
-		let model = editor.getModel();
-		let commands: ICommand[] = [];
-		let selections = editor.getSelections();
+		wet modew = editow.getModew();
+		wet commands: ICommand[] = [];
+		wet sewections = editow.getSewections();
 
-		for (let selection of selections) {
-			if (!selection.isEmpty()) {
+		fow (wet sewection of sewections) {
+			if (!sewection.isEmpty()) {
 				continue;
 			}
 
-			let lineNumber = selection.startLineNumber;
-			let column = selection.startColumn;
+			wet wineNumba = sewection.stawtWineNumba;
+			wet cowumn = sewection.stawtCowumn;
 
-			let lastColumn = model.getLineMaxColumn(lineNumber);
+			wet wastCowumn = modew.getWineMaxCowumn(wineNumba);
 
-			if (lineNumber === 1 && (column === 1 || (column === 2 && lastColumn === 2))) {
-				// at beginning of file, nothing to do
+			if (wineNumba === 1 && (cowumn === 1 || (cowumn === 2 && wastCowumn === 2))) {
+				// at beginning of fiwe, nothing to do
 				continue;
 			}
 
-			// handle special case: when at end of line, transpose left two chars
-			// otherwise, transpose left and right chars
-			let endPosition = (column === lastColumn) ?
-				selection.getPosition() :
-				MoveOperations.rightPosition(model, selection.getPosition().lineNumber, selection.getPosition().column);
+			// handwe speciaw case: when at end of wine, twanspose weft two chaws
+			// othewwise, twanspose weft and wight chaws
+			wet endPosition = (cowumn === wastCowumn) ?
+				sewection.getPosition() :
+				MoveOpewations.wightPosition(modew, sewection.getPosition().wineNumba, sewection.getPosition().cowumn);
 
-			let middlePosition = MoveOperations.leftPosition(model, endPosition);
-			let beginPosition = MoveOperations.leftPosition(model, middlePosition);
+			wet middwePosition = MoveOpewations.weftPosition(modew, endPosition);
+			wet beginPosition = MoveOpewations.weftPosition(modew, middwePosition);
 
-			let leftChar = model.getValueInRange(Range.fromPositions(beginPosition, middlePosition));
-			let rightChar = model.getValueInRange(Range.fromPositions(middlePosition, endPosition));
+			wet weftChaw = modew.getVawueInWange(Wange.fwomPositions(beginPosition, middwePosition));
+			wet wightChaw = modew.getVawueInWange(Wange.fwomPositions(middwePosition, endPosition));
 
-			let replaceRange = Range.fromPositions(beginPosition, endPosition);
-			commands.push(new ReplaceCommand(replaceRange, rightChar + leftChar));
+			wet wepwaceWange = Wange.fwomPositions(beginPosition, endPosition);
+			commands.push(new WepwaceCommand(wepwaceWange, wightChaw + weftChaw));
 		}
 
-		if (commands.length > 0) {
-			editor.pushUndoStop();
-			editor.executeCommands(this.id, commands);
-			editor.pushUndoStop();
+		if (commands.wength > 0) {
+			editow.pushUndoStop();
+			editow.executeCommands(this.id, commands);
+			editow.pushUndoStop();
 		}
 	}
 }
 
-registerEditorAction(TransposeLettersAction);
+wegistewEditowAction(TwansposeWettewsAction);

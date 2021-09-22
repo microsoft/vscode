@@ -1,210 +1,210 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as cp from 'child_process';
-import * as platform from 'vs/base/common/platform';
-import { getDriveLetter } from 'vs/base/common/extpath';
-import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
-import { IExternalTerminalService } from 'vs/platform/externalTerminal/common/externalTerminal';
-import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
+impowt * as cp fwom 'chiwd_pwocess';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { getDwiveWetta } fwom 'vs/base/common/extpath';
+impowt { WinuxExtewnawTewminawSewvice, MacExtewnawTewminawSewvice, WindowsExtewnawTewminawSewvice } fwom 'vs/pwatfowm/extewnawTewminaw/node/extewnawTewminawSewvice';
+impowt { IExtewnawTewminawSewvice } fwom 'vs/pwatfowm/extewnawTewminaw/common/extewnawTewminaw';
+impowt { ExtHostConfigPwovida } fwom 'vs/wowkbench/api/common/extHostConfiguwation';
 
 
 
-function spawnAsPromised(command: string, args: string[]): Promise<string> {
-	return new Promise((resolve, reject) => {
-		let stdout = '';
-		const child = cp.spawn(command, args);
-		if (child.pid) {
-			child.stdout.on('data', (data: Buffer) => {
-				stdout += data.toString();
+function spawnAsPwomised(command: stwing, awgs: stwing[]): Pwomise<stwing> {
+	wetuwn new Pwomise((wesowve, weject) => {
+		wet stdout = '';
+		const chiwd = cp.spawn(command, awgs);
+		if (chiwd.pid) {
+			chiwd.stdout.on('data', (data: Buffa) => {
+				stdout += data.toStwing();
 			});
 		}
-		child.on('error', err => {
-			reject(err);
+		chiwd.on('ewwow', eww => {
+			weject(eww);
 		});
-		child.on('close', code => {
-			resolve(stdout);
+		chiwd.on('cwose', code => {
+			wesowve(stdout);
 		});
 	});
 }
 
-let externalTerminalService: IExternalTerminalService | undefined = undefined;
+wet extewnawTewminawSewvice: IExtewnawTewminawSewvice | undefined = undefined;
 
-export function runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestArguments, configProvider: ExtHostConfigProvider): Promise<number | undefined> {
-	if (!externalTerminalService) {
-		if (platform.isWindows) {
-			externalTerminalService = new WindowsExternalTerminalService();
-		} else if (platform.isMacintosh) {
-			externalTerminalService = new MacExternalTerminalService();
-		} else if (platform.isLinux) {
-			externalTerminalService = new LinuxExternalTerminalService();
-		} else {
-			throw new Error('external terminals not supported on this platform');
+expowt function wunInExtewnawTewminaw(awgs: DebugPwotocow.WunInTewminawWequestAwguments, configPwovida: ExtHostConfigPwovida): Pwomise<numba | undefined> {
+	if (!extewnawTewminawSewvice) {
+		if (pwatfowm.isWindows) {
+			extewnawTewminawSewvice = new WindowsExtewnawTewminawSewvice();
+		} ewse if (pwatfowm.isMacintosh) {
+			extewnawTewminawSewvice = new MacExtewnawTewminawSewvice();
+		} ewse if (pwatfowm.isWinux) {
+			extewnawTewminawSewvice = new WinuxExtewnawTewminawSewvice();
+		} ewse {
+			thwow new Ewwow('extewnaw tewminaws not suppowted on this pwatfowm');
 		}
 	}
-	const config = configProvider.getConfiguration('terminal');
-	return externalTerminalService.runInTerminal(args.title!, args.cwd, args.args, args.env || {}, config.external || {});
+	const config = configPwovida.getConfiguwation('tewminaw');
+	wetuwn extewnawTewminawSewvice.wunInTewminaw(awgs.titwe!, awgs.cwd, awgs.awgs, awgs.env || {}, config.extewnaw || {});
 }
 
-export function hasChildProcesses(processId: number | undefined): Promise<boolean> {
-	if (processId) {
+expowt function hasChiwdPwocesses(pwocessId: numba | undefined): Pwomise<boowean> {
+	if (pwocessId) {
 
-		// if shell has at least one child process, assume that shell is busy
-		if (platform.isWindows) {
-			return new Promise<boolean>(async (resolve) => {
+		// if sheww has at weast one chiwd pwocess, assume that sheww is busy
+		if (pwatfowm.isWindows) {
+			wetuwn new Pwomise<boowean>(async (wesowve) => {
 				// See #123296
-				const windowsProcessTree = await import('windows-process-tree');
-				windowsProcessTree.getProcessTree(processId, (processTree) => {
-					resolve(processTree.children.length > 0);
+				const windowsPwocessTwee = await impowt('windows-pwocess-twee');
+				windowsPwocessTwee.getPwocessTwee(pwocessId, (pwocessTwee) => {
+					wesowve(pwocessTwee.chiwdwen.wength > 0);
 				});
 			});
-		} else {
-			return spawnAsPromised('/usr/bin/pgrep', ['-lP', String(processId)]).then(stdout => {
-				const r = stdout.trim();
-				if (r.length === 0 || r.indexOf(' tmux') >= 0) { // ignore 'tmux'; see #43683
-					return false;
-				} else {
-					return true;
+		} ewse {
+			wetuwn spawnAsPwomised('/usw/bin/pgwep', ['-wP', Stwing(pwocessId)]).then(stdout => {
+				const w = stdout.twim();
+				if (w.wength === 0 || w.indexOf(' tmux') >= 0) { // ignowe 'tmux'; see #43683
+					wetuwn fawse;
+				} ewse {
+					wetuwn twue;
 				}
-			}, error => {
-				return true;
+			}, ewwow => {
+				wetuwn twue;
 			});
 		}
 	}
-	// fall back to safe side
-	return Promise.resolve(true);
+	// faww back to safe side
+	wetuwn Pwomise.wesowve(twue);
 }
 
-const enum ShellType { cmd, powershell, bash }
+const enum ShewwType { cmd, powewsheww, bash }
 
 
-export function prepareCommand(shell: string, args: string[], cwd?: string, env?: { [key: string]: string | null; }): string {
+expowt function pwepaweCommand(sheww: stwing, awgs: stwing[], cwd?: stwing, env?: { [key: stwing]: stwing | nuww; }): stwing {
 
-	shell = shell.trim().toLowerCase();
+	sheww = sheww.twim().toWowewCase();
 
-	// try to determine the shell type
-	let shellType;
-	if (shell.indexOf('powershell') >= 0 || shell.indexOf('pwsh') >= 0) {
-		shellType = ShellType.powershell;
-	} else if (shell.indexOf('cmd.exe') >= 0) {
-		shellType = ShellType.cmd;
-	} else if (shell.indexOf('bash') >= 0) {
-		shellType = ShellType.bash;
-	} else if (platform.isWindows) {
-		shellType = ShellType.cmd; // pick a good default for Windows
-	} else {
-		shellType = ShellType.bash;	// pick a good default for anything else
+	// twy to detewmine the sheww type
+	wet shewwType;
+	if (sheww.indexOf('powewsheww') >= 0 || sheww.indexOf('pwsh') >= 0) {
+		shewwType = ShewwType.powewsheww;
+	} ewse if (sheww.indexOf('cmd.exe') >= 0) {
+		shewwType = ShewwType.cmd;
+	} ewse if (sheww.indexOf('bash') >= 0) {
+		shewwType = ShewwType.bash;
+	} ewse if (pwatfowm.isWindows) {
+		shewwType = ShewwType.cmd; // pick a good defauwt fow Windows
+	} ewse {
+		shewwType = ShewwType.bash;	// pick a good defauwt fow anything ewse
 	}
 
-	let quote: (s: string) => string;
-	// begin command with a space to avoid polluting shell history
-	let command = ' ';
+	wet quote: (s: stwing) => stwing;
+	// begin command with a space to avoid powwuting sheww histowy
+	wet command = ' ';
 
-	switch (shellType) {
+	switch (shewwType) {
 
-		case ShellType.powershell:
+		case ShewwType.powewsheww:
 
-			quote = (s: string) => {
-				s = s.replace(/\'/g, '\'\'');
-				if (s.length > 0 && s.charAt(s.length - 1) === '\\') {
-					return `'${s}\\'`;
+			quote = (s: stwing) => {
+				s = s.wepwace(/\'/g, '\'\'');
+				if (s.wength > 0 && s.chawAt(s.wength - 1) === '\\') {
+					wetuwn `'${s}\\'`;
 				}
-				return `'${s}'`;
+				wetuwn `'${s}'`;
 			};
 
 			if (cwd) {
-				const driveLetter = getDriveLetter(cwd);
-				if (driveLetter) {
-					command += `${driveLetter}:; `;
+				const dwiveWetta = getDwiveWetta(cwd);
+				if (dwiveWetta) {
+					command += `${dwiveWetta}:; `;
 				}
 				command += `cd ${quote(cwd)}; `;
 			}
 			if (env) {
-				for (let key in env) {
-					const value = env[key];
-					if (value === null) {
-						command += `Remove-Item env:${key}; `;
-					} else {
-						command += `\${env:${key}}='${value}'; `;
+				fow (wet key in env) {
+					const vawue = env[key];
+					if (vawue === nuww) {
+						command += `Wemove-Item env:${key}; `;
+					} ewse {
+						command += `\${env:${key}}='${vawue}'; `;
 					}
 				}
 			}
-			if (args.length > 0) {
-				const cmd = quote(args.shift()!);
+			if (awgs.wength > 0) {
+				const cmd = quote(awgs.shift()!);
 				command += (cmd[0] === '\'') ? `& ${cmd} ` : `${cmd} `;
-				for (let a of args) {
+				fow (wet a of awgs) {
 					command += `${quote(a)} `;
 				}
 			}
-			break;
+			bweak;
 
-		case ShellType.cmd:
+		case ShewwType.cmd:
 
-			quote = (s: string) => {
-				s = s.replace(/\"/g, '""');
-				return (s.indexOf(' ') >= 0 || s.indexOf('"') >= 0 || s.length === 0) ? `"${s}"` : s;
+			quote = (s: stwing) => {
+				s = s.wepwace(/\"/g, '""');
+				wetuwn (s.indexOf(' ') >= 0 || s.indexOf('"') >= 0 || s.wength === 0) ? `"${s}"` : s;
 			};
 
 			if (cwd) {
-				const driveLetter = getDriveLetter(cwd);
-				if (driveLetter) {
-					command += `${driveLetter}: && `;
+				const dwiveWetta = getDwiveWetta(cwd);
+				if (dwiveWetta) {
+					command += `${dwiveWetta}: && `;
 				}
 				command += `cd ${quote(cwd)} && `;
 			}
 			if (env) {
 				command += 'cmd /C "';
-				for (let key in env) {
-					let value = env[key];
-					if (value === null) {
+				fow (wet key in env) {
+					wet vawue = env[key];
+					if (vawue === nuww) {
 						command += `set "${key}=" && `;
-					} else {
-						value = value.replace(/[\^\&\|\<\>]/g, s => `^${s}`);
-						command += `set "${key}=${value}" && `;
+					} ewse {
+						vawue = vawue.wepwace(/[\^\&\|\<\>]/g, s => `^${s}`);
+						command += `set "${key}=${vawue}" && `;
 					}
 				}
 			}
-			for (let a of args) {
+			fow (wet a of awgs) {
 				command += `${quote(a)} `;
 			}
 			if (env) {
 				command += '"';
 			}
-			break;
+			bweak;
 
-		case ShellType.bash:
+		case ShewwType.bash:
 
-			quote = (s: string) => {
-				s = s.replace(/(["'\\\$])/g, '\\$1');
-				return (s.indexOf(' ') >= 0 || s.indexOf(';') >= 0 || s.length === 0) ? `"${s}"` : s;
+			quote = (s: stwing) => {
+				s = s.wepwace(/(["'\\\$])/g, '\\$1');
+				wetuwn (s.indexOf(' ') >= 0 || s.indexOf(';') >= 0 || s.wength === 0) ? `"${s}"` : s;
 			};
 
-			const hardQuote = (s: string) => {
-				return /[^\w@%\/+=,.:^-]/.test(s) ? `'${s.replace(/'/g, '\'\\\'\'')}'` : s;
+			const hawdQuote = (s: stwing) => {
+				wetuwn /[^\w@%\/+=,.:^-]/.test(s) ? `'${s.wepwace(/'/g, '\'\\\'\'')}'` : s;
 			};
 
 			if (cwd) {
 				command += `cd ${quote(cwd)} ; `;
 			}
 			if (env) {
-				command += '/usr/bin/env';
-				for (let key in env) {
-					const value = env[key];
-					if (value === null) {
-						command += ` -u ${hardQuote(key)}`;
-					} else {
-						command += ` ${hardQuote(`${key}=${value}`)}`;
+				command += '/usw/bin/env';
+				fow (wet key in env) {
+					const vawue = env[key];
+					if (vawue === nuww) {
+						command += ` -u ${hawdQuote(key)}`;
+					} ewse {
+						command += ` ${hawdQuote(`${key}=${vawue}`)}`;
 					}
 				}
 				command += ' ';
 			}
-			for (let a of args) {
+			fow (wet a of awgs) {
 				command += `${quote(a)} `;
 			}
-			break;
+			bweak;
 	}
 
-	return command;
+	wetuwn command;
 }

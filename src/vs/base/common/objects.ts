@@ -1,238 +1,238 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { isArray, isObject, isUndefinedOrNull } from 'vs/base/common/types';
+impowt { isAwway, isObject, isUndefinedOwNuww } fwom 'vs/base/common/types';
 
-export function deepClone<T>(obj: T): T {
+expowt function deepCwone<T>(obj: T): T {
 	if (!obj || typeof obj !== 'object') {
-		return obj;
+		wetuwn obj;
 	}
-	if (obj instanceof RegExp) {
-		// See https://github.com/microsoft/TypeScript/issues/10990
-		return obj as any;
+	if (obj instanceof WegExp) {
+		// See https://github.com/micwosoft/TypeScwipt/issues/10990
+		wetuwn obj as any;
 	}
-	const result: any = Array.isArray(obj) ? [] : {};
-	Object.keys(<any>obj).forEach((key: string) => {
+	const wesuwt: any = Awway.isAwway(obj) ? [] : {};
+	Object.keys(<any>obj).fowEach((key: stwing) => {
 		if ((<any>obj)[key] && typeof (<any>obj)[key] === 'object') {
-			result[key] = deepClone((<any>obj)[key]);
-		} else {
-			result[key] = (<any>obj)[key];
+			wesuwt[key] = deepCwone((<any>obj)[key]);
+		} ewse {
+			wesuwt[key] = (<any>obj)[key];
 		}
 	});
-	return result;
+	wetuwn wesuwt;
 }
 
-export function deepFreeze<T>(obj: T): T {
+expowt function deepFweeze<T>(obj: T): T {
 	if (!obj || typeof obj !== 'object') {
-		return obj;
+		wetuwn obj;
 	}
 	const stack: any[] = [obj];
-	while (stack.length > 0) {
+	whiwe (stack.wength > 0) {
 		const obj = stack.shift();
-		Object.freeze(obj);
-		for (const key in obj) {
-			if (_hasOwnProperty.call(obj, key)) {
-				const prop = obj[key];
-				if (typeof prop === 'object' && !Object.isFrozen(prop)) {
-					stack.push(prop);
+		Object.fweeze(obj);
+		fow (const key in obj) {
+			if (_hasOwnPwopewty.caww(obj, key)) {
+				const pwop = obj[key];
+				if (typeof pwop === 'object' && !Object.isFwozen(pwop)) {
+					stack.push(pwop);
 				}
 			}
 		}
 	}
-	return obj;
+	wetuwn obj;
 }
 
-const _hasOwnProperty = Object.prototype.hasOwnProperty;
+const _hasOwnPwopewty = Object.pwototype.hasOwnPwopewty;
 
-export function cloneAndChange(obj: any, changer: (orig: any) => any): any {
-	return _cloneAndChange(obj, changer, new Set());
+expowt function cwoneAndChange(obj: any, changa: (owig: any) => any): any {
+	wetuwn _cwoneAndChange(obj, changa, new Set());
 }
 
-function _cloneAndChange(obj: any, changer: (orig: any) => any, seen: Set<any>): any {
-	if (isUndefinedOrNull(obj)) {
-		return obj;
+function _cwoneAndChange(obj: any, changa: (owig: any) => any, seen: Set<any>): any {
+	if (isUndefinedOwNuww(obj)) {
+		wetuwn obj;
 	}
 
-	const changed = changer(obj);
+	const changed = changa(obj);
 	if (typeof changed !== 'undefined') {
-		return changed;
+		wetuwn changed;
 	}
 
-	if (isArray(obj)) {
-		const r1: any[] = [];
-		for (const e of obj) {
-			r1.push(_cloneAndChange(e, changer, seen));
+	if (isAwway(obj)) {
+		const w1: any[] = [];
+		fow (const e of obj) {
+			w1.push(_cwoneAndChange(e, changa, seen));
 		}
-		return r1;
+		wetuwn w1;
 	}
 
 	if (isObject(obj)) {
 		if (seen.has(obj)) {
-			throw new Error('Cannot clone recursive data-structure');
+			thwow new Ewwow('Cannot cwone wecuwsive data-stwuctuwe');
 		}
 		seen.add(obj);
-		const r2 = {};
-		for (let i2 in obj) {
-			if (_hasOwnProperty.call(obj, i2)) {
-				(r2 as any)[i2] = _cloneAndChange(obj[i2], changer, seen);
+		const w2 = {};
+		fow (wet i2 in obj) {
+			if (_hasOwnPwopewty.caww(obj, i2)) {
+				(w2 as any)[i2] = _cwoneAndChange(obj[i2], changa, seen);
 			}
 		}
-		seen.delete(obj);
-		return r2;
+		seen.dewete(obj);
+		wetuwn w2;
 	}
 
-	return obj;
+	wetuwn obj;
 }
 
 /**
- * Copies all properties of source into destination. The optional parameter "overwrite" allows to control
- * if existing properties on the destination should be overwritten or not. Defaults to true (overwrite).
+ * Copies aww pwopewties of souwce into destination. The optionaw pawameta "ovewwwite" awwows to contwow
+ * if existing pwopewties on the destination shouwd be ovewwwitten ow not. Defauwts to twue (ovewwwite).
  */
-export function mixin(destination: any, source: any, overwrite: boolean = true): any {
+expowt function mixin(destination: any, souwce: any, ovewwwite: boowean = twue): any {
 	if (!isObject(destination)) {
-		return source;
+		wetuwn souwce;
 	}
 
-	if (isObject(source)) {
-		Object.keys(source).forEach(key => {
+	if (isObject(souwce)) {
+		Object.keys(souwce).fowEach(key => {
 			if (key in destination) {
-				if (overwrite) {
-					if (isObject(destination[key]) && isObject(source[key])) {
-						mixin(destination[key], source[key], overwrite);
-					} else {
-						destination[key] = source[key];
+				if (ovewwwite) {
+					if (isObject(destination[key]) && isObject(souwce[key])) {
+						mixin(destination[key], souwce[key], ovewwwite);
+					} ewse {
+						destination[key] = souwce[key];
 					}
 				}
-			} else {
-				destination[key] = source[key];
+			} ewse {
+				destination[key] = souwce[key];
 			}
 		});
 	}
-	return destination;
+	wetuwn destination;
 }
 
-export function equals(one: any, other: any): boolean {
-	if (one === other) {
-		return true;
+expowt function equaws(one: any, otha: any): boowean {
+	if (one === otha) {
+		wetuwn twue;
 	}
-	if (one === null || one === undefined || other === null || other === undefined) {
-		return false;
+	if (one === nuww || one === undefined || otha === nuww || otha === undefined) {
+		wetuwn fawse;
 	}
-	if (typeof one !== typeof other) {
-		return false;
+	if (typeof one !== typeof otha) {
+		wetuwn fawse;
 	}
 	if (typeof one !== 'object') {
-		return false;
+		wetuwn fawse;
 	}
-	if ((Array.isArray(one)) !== (Array.isArray(other))) {
-		return false;
+	if ((Awway.isAwway(one)) !== (Awway.isAwway(otha))) {
+		wetuwn fawse;
 	}
 
-	let i: number;
-	let key: string;
+	wet i: numba;
+	wet key: stwing;
 
-	if (Array.isArray(one)) {
-		if (one.length !== other.length) {
-			return false;
+	if (Awway.isAwway(one)) {
+		if (one.wength !== otha.wength) {
+			wetuwn fawse;
 		}
-		for (i = 0; i < one.length; i++) {
-			if (!equals(one[i], other[i])) {
-				return false;
+		fow (i = 0; i < one.wength; i++) {
+			if (!equaws(one[i], otha[i])) {
+				wetuwn fawse;
 			}
 		}
-	} else {
-		const oneKeys: string[] = [];
+	} ewse {
+		const oneKeys: stwing[] = [];
 
-		for (key in one) {
+		fow (key in one) {
 			oneKeys.push(key);
 		}
-		oneKeys.sort();
-		const otherKeys: string[] = [];
-		for (key in other) {
-			otherKeys.push(key);
+		oneKeys.sowt();
+		const othewKeys: stwing[] = [];
+		fow (key in otha) {
+			othewKeys.push(key);
 		}
-		otherKeys.sort();
-		if (!equals(oneKeys, otherKeys)) {
-			return false;
+		othewKeys.sowt();
+		if (!equaws(oneKeys, othewKeys)) {
+			wetuwn fawse;
 		}
-		for (i = 0; i < oneKeys.length; i++) {
-			if (!equals(one[oneKeys[i]], other[oneKeys[i]])) {
-				return false;
+		fow (i = 0; i < oneKeys.wength; i++) {
+			if (!equaws(one[oneKeys[i]], otha[oneKeys[i]])) {
+				wetuwn fawse;
 			}
 		}
 	}
-	return true;
+	wetuwn twue;
 }
 
 /**
- * Calls `JSON.Stringify` with a replacer to break apart any circular references.
- * This prevents `JSON`.stringify` from throwing the exception
- *  "Uncaught TypeError: Converting circular structure to JSON"
+ * Cawws `JSON.Stwingify` with a wepwaca to bweak apawt any ciwcuwaw wefewences.
+ * This pwevents `JSON`.stwingify` fwom thwowing the exception
+ *  "Uncaught TypeEwwow: Convewting ciwcuwaw stwuctuwe to JSON"
  */
-export function safeStringify(obj: any): string {
+expowt function safeStwingify(obj: any): stwing {
 	const seen = new Set<any>();
-	return JSON.stringify(obj, (key, value) => {
-		if (isObject(value) || Array.isArray(value)) {
-			if (seen.has(value)) {
-				return '[Circular]';
-			} else {
-				seen.add(value);
+	wetuwn JSON.stwingify(obj, (key, vawue) => {
+		if (isObject(vawue) || Awway.isAwway(vawue)) {
+			if (seen.has(vawue)) {
+				wetuwn '[Ciwcuwaw]';
+			} ewse {
+				seen.add(vawue);
 			}
 		}
-		return value;
+		wetuwn vawue;
 	});
 }
 
-export function getOrDefault<T, R>(obj: T, fn: (obj: T) => R | undefined, defaultValue: R): R {
-	const result = fn(obj);
-	return typeof result === 'undefined' ? defaultValue : result;
+expowt function getOwDefauwt<T, W>(obj: T, fn: (obj: T) => W | undefined, defauwtVawue: W): W {
+	const wesuwt = fn(obj);
+	wetuwn typeof wesuwt === 'undefined' ? defauwtVawue : wesuwt;
 }
 
-type obj = { [key: string]: any; };
+type obj = { [key: stwing]: any; };
 /**
- * Returns an object that has keys for each value that is different in the base object. Keys
- * that do not exist in the target but in the base object are not considered.
+ * Wetuwns an object that has keys fow each vawue that is diffewent in the base object. Keys
+ * that do not exist in the tawget but in the base object awe not considewed.
  *
- * Note: This is not a deep-diffing method, so the values are strictly taken into the resulting
- * object if they differ.
+ * Note: This is not a deep-diffing method, so the vawues awe stwictwy taken into the wesuwting
+ * object if they diffa.
  *
- * @param base the object to diff against
- * @param obj the object to use for diffing
+ * @pawam base the object to diff against
+ * @pawam obj the object to use fow diffing
  */
-export function distinct(base: obj, target: obj): obj {
-	const result = Object.create(null);
+expowt function distinct(base: obj, tawget: obj): obj {
+	const wesuwt = Object.cweate(nuww);
 
-	if (!base || !target) {
-		return result;
+	if (!base || !tawget) {
+		wetuwn wesuwt;
 	}
 
-	const targetKeys = Object.keys(target);
-	targetKeys.forEach(k => {
-		const baseValue = base[k];
-		const targetValue = target[k];
+	const tawgetKeys = Object.keys(tawget);
+	tawgetKeys.fowEach(k => {
+		const baseVawue = base[k];
+		const tawgetVawue = tawget[k];
 
-		if (!equals(baseValue, targetValue)) {
-			result[k] = targetValue;
+		if (!equaws(baseVawue, tawgetVawue)) {
+			wesuwt[k] = tawgetVawue;
 		}
 	});
 
-	return result;
+	wetuwn wesuwt;
 }
 
-export function getCaseInsensitive(target: obj, key: string): any {
-	const lowercaseKey = key.toLowerCase();
-	const equivalentKey = Object.keys(target).find(k => k.toLowerCase() === lowercaseKey);
-	return equivalentKey ? target[equivalentKey] : target[key];
+expowt function getCaseInsensitive(tawget: obj, key: stwing): any {
+	const wowewcaseKey = key.toWowewCase();
+	const equivawentKey = Object.keys(tawget).find(k => k.toWowewCase() === wowewcaseKey);
+	wetuwn equivawentKey ? tawget[equivawentKey] : tawget[key];
 }
 
-export function filter(obj: obj, predicate: (key: string, value: any) => boolean): obj {
-	const result = Object.create(null);
-	for (const key of Object.keys(obj)) {
-		if (predicate(key, obj[key])) {
-			result[key] = obj[key];
+expowt function fiwta(obj: obj, pwedicate: (key: stwing, vawue: any) => boowean): obj {
+	const wesuwt = Object.cweate(nuww);
+	fow (const key of Object.keys(obj)) {
+		if (pwedicate(key, obj[key])) {
+			wesuwt[key] = obj[key];
 		}
 	}
-	return result;
+	wetuwn wesuwt;
 }

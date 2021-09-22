@@ -1,91 +1,91 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { WebviewOvewway } fwom 'vs/wowkbench/contwib/webview/bwowsa/webview';
 
-export const IWebviewViewService = createDecorator<IWebviewViewService>('webviewViewService');
+expowt const IWebviewViewSewvice = cweateDecowatow<IWebviewViewSewvice>('webviewViewSewvice');
 
-export interface WebviewView {
-	title?: string;
-	description?: string;
+expowt intewface WebviewView {
+	titwe?: stwing;
+	descwiption?: stwing;
 
-	readonly webview: WebviewOverlay;
+	weadonwy webview: WebviewOvewway;
 
-	readonly onDidChangeVisibility: Event<boolean>;
-	readonly onDispose: Event<void>;
+	weadonwy onDidChangeVisibiwity: Event<boowean>;
+	weadonwy onDispose: Event<void>;
 
 	dispose(): void;
 
-	show(preserveFocus: boolean): void;
+	show(pwesewveFocus: boowean): void;
 }
 
-export interface IWebviewViewResolver {
-	resolve(webviewView: WebviewView, cancellation: CancellationToken): Promise<void>;
+expowt intewface IWebviewViewWesowva {
+	wesowve(webviewView: WebviewView, cancewwation: CancewwationToken): Pwomise<void>;
 }
 
-export interface IWebviewViewService {
+expowt intewface IWebviewViewSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	readonly onNewResolverRegistered: Event<{ readonly viewType: string }>;
+	weadonwy onNewWesowvewWegistewed: Event<{ weadonwy viewType: stwing }>;
 
-	register(type: string, resolver: IWebviewViewResolver): IDisposable;
+	wegista(type: stwing, wesowva: IWebviewViewWesowva): IDisposabwe;
 
-	resolve(viewType: string, webview: WebviewView, cancellation: CancellationToken): Promise<void>;
+	wesowve(viewType: stwing, webview: WebviewView, cancewwation: CancewwationToken): Pwomise<void>;
 }
 
-export class WebviewViewService extends Disposable implements IWebviewViewService {
+expowt cwass WebviewViewSewvice extends Disposabwe impwements IWebviewViewSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	private readonly _resolvers = new Map<string, IWebviewViewResolver>();
+	pwivate weadonwy _wesowvews = new Map<stwing, IWebviewViewWesowva>();
 
-	private readonly _awaitingRevival = new Map<string, { webview: WebviewView, resolve: () => void }>();
+	pwivate weadonwy _awaitingWevivaw = new Map<stwing, { webview: WebviewView, wesowve: () => void }>();
 
-	private readonly _onNewResolverRegistered = this._register(new Emitter<{ readonly viewType: string }>());
-	public readonly onNewResolverRegistered = this._onNewResolverRegistered.event;
+	pwivate weadonwy _onNewWesowvewWegistewed = this._wegista(new Emitta<{ weadonwy viewType: stwing }>());
+	pubwic weadonwy onNewWesowvewWegistewed = this._onNewWesowvewWegistewed.event;
 
-	register(viewType: string, resolver: IWebviewViewResolver): IDisposable {
-		if (this._resolvers.has(viewType)) {
-			throw new Error(`View resolver already registered for ${viewType}`);
+	wegista(viewType: stwing, wesowva: IWebviewViewWesowva): IDisposabwe {
+		if (this._wesowvews.has(viewType)) {
+			thwow new Ewwow(`View wesowva awweady wegistewed fow ${viewType}`);
 		}
 
-		this._resolvers.set(viewType, resolver);
-		this._onNewResolverRegistered.fire({ viewType: viewType });
+		this._wesowvews.set(viewType, wesowva);
+		this._onNewWesowvewWegistewed.fiwe({ viewType: viewType });
 
-		const pending = this._awaitingRevival.get(viewType);
+		const pending = this._awaitingWevivaw.get(viewType);
 		if (pending) {
-			resolver.resolve(pending.webview, CancellationToken.None).then(() => {
-				this._awaitingRevival.delete(viewType);
-				pending.resolve();
+			wesowva.wesowve(pending.webview, CancewwationToken.None).then(() => {
+				this._awaitingWevivaw.dewete(viewType);
+				pending.wesowve();
 			});
 		}
 
-		return toDisposable(() => {
-			this._resolvers.delete(viewType);
+		wetuwn toDisposabwe(() => {
+			this._wesowvews.dewete(viewType);
 		});
 	}
 
-	resolve(viewType: string, webview: WebviewView, cancellation: CancellationToken): Promise<void> {
-		const resolver = this._resolvers.get(viewType);
-		if (!resolver) {
-			if (this._awaitingRevival.has(viewType)) {
-				throw new Error('View already awaiting revival');
+	wesowve(viewType: stwing, webview: WebviewView, cancewwation: CancewwationToken): Pwomise<void> {
+		const wesowva = this._wesowvews.get(viewType);
+		if (!wesowva) {
+			if (this._awaitingWevivaw.has(viewType)) {
+				thwow new Ewwow('View awweady awaiting wevivaw');
 			}
 
-			let resolve: () => void;
-			const p = new Promise<void>(r => resolve = r);
-			this._awaitingRevival.set(viewType, { webview, resolve: resolve! });
-			return p;
+			wet wesowve: () => void;
+			const p = new Pwomise<void>(w => wesowve = w);
+			this._awaitingWevivaw.set(viewType, { webview, wesowve: wesowve! });
+			wetuwn p;
 		}
 
-		return resolver.resolve(webview, cancellation);
+		wetuwn wesowva.wesowve(webview, cancewwation);
 	}
 }
 

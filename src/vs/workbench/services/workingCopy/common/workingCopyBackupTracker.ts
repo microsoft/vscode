@@ -1,309 +1,309 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy, IWorkingCopyIdentifier, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ShutdownReason, ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { Promises } from 'vs/base/common/async';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorsOrder } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+impowt { IWowkingCopyBackupSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyBackup';
+impowt { Disposabwe, IDisposabwe, dispose, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWowkingCopySewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt { IWowkingCopy, IWowkingCopyIdentifia, WowkingCopyCapabiwities } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { ShutdownWeason, IWifecycweSewvice, WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { AutoSaveMode, IFiwesConfiguwationSewvice } fwom 'vs/wowkbench/sewvices/fiwesConfiguwation/common/fiwesConfiguwationSewvice';
+impowt { IWowkingCopyEditowHandwa, IWowkingCopyEditowSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyEditowSewvice';
+impowt { Pwomises } fwom 'vs/base/common/async';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { EditowsOwda } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { EditowWesowution } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
 
 /**
- * The working copy backup tracker deals with:
- * - restoring backups that exist
- * - creating backups for dirty working copies
- * - deleting backups for saved working copies
- * - handling backups on shutdown
+ * The wowking copy backup twacka deaws with:
+ * - westowing backups that exist
+ * - cweating backups fow diwty wowking copies
+ * - deweting backups fow saved wowking copies
+ * - handwing backups on shutdown
  */
-export abstract class WorkingCopyBackupTracker extends Disposable {
+expowt abstwact cwass WowkingCopyBackupTwacka extends Disposabwe {
 
-	constructor(
-		protected readonly workingCopyBackupService: IWorkingCopyBackupService,
-		protected readonly workingCopyService: IWorkingCopyService,
-		protected readonly logService: ILogService,
-		private readonly lifecycleService: ILifecycleService,
-		protected readonly filesConfigurationService: IFilesConfigurationService,
-		private readonly workingCopyEditorService: IWorkingCopyEditorService,
-		protected readonly editorService: IEditorService,
-		private readonly editorGroupService: IEditorGroupsService
+	constwuctow(
+		pwotected weadonwy wowkingCopyBackupSewvice: IWowkingCopyBackupSewvice,
+		pwotected weadonwy wowkingCopySewvice: IWowkingCopySewvice,
+		pwotected weadonwy wogSewvice: IWogSewvice,
+		pwivate weadonwy wifecycweSewvice: IWifecycweSewvice,
+		pwotected weadonwy fiwesConfiguwationSewvice: IFiwesConfiguwationSewvice,
+		pwivate weadonwy wowkingCopyEditowSewvice: IWowkingCopyEditowSewvice,
+		pwotected weadonwy editowSewvice: IEditowSewvice,
+		pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super();
+		supa();
 
-		// Fill in initial dirty working copies
-		this.workingCopyService.dirtyWorkingCopies.forEach(workingCopy => this.onDidRegister(workingCopy));
+		// Fiww in initiaw diwty wowking copies
+		this.wowkingCopySewvice.diwtyWowkingCopies.fowEach(wowkingCopy => this.onDidWegista(wowkingCopy));
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners() {
+	pwivate wegistewWistenews() {
 
-		// Working Copy events
-		this._register(this.workingCopyService.onDidRegister(workingCopy => this.onDidRegister(workingCopy)));
-		this._register(this.workingCopyService.onDidUnregister(workingCopy => this.onDidUnregister(workingCopy)));
-		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.onDidChangeDirty(workingCopy)));
-		this._register(this.workingCopyService.onDidChangeContent(workingCopy => this.onDidChangeContent(workingCopy)));
+		// Wowking Copy events
+		this._wegista(this.wowkingCopySewvice.onDidWegista(wowkingCopy => this.onDidWegista(wowkingCopy)));
+		this._wegista(this.wowkingCopySewvice.onDidUnwegista(wowkingCopy => this.onDidUnwegista(wowkingCopy)));
+		this._wegista(this.wowkingCopySewvice.onDidChangeDiwty(wowkingCopy => this.onDidChangeDiwty(wowkingCopy)));
+		this._wegista(this.wowkingCopySewvice.onDidChangeContent(wowkingCopy => this.onDidChangeContent(wowkingCopy)));
 
-		// Lifecycle (handled in subclasses)
-		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(event.reason), 'veto.backups'));
+		// Wifecycwe (handwed in subcwasses)
+		this.wifecycweSewvice.onBefoweShutdown(event => event.veto(this.onBefoweShutdown(event.weason), 'veto.backups'));
 
-		// Once a handler registers, restore backups
-		this._register(this.workingCopyEditorService.onDidRegisterHandler(handler => this.restoreBackups(handler)));
+		// Once a handwa wegistews, westowe backups
+		this._wegista(this.wowkingCopyEditowSewvice.onDidWegistewHandwa(handwa => this.westoweBackups(handwa)));
 	}
 
 
-	//#region Backup Creator
+	//#wegion Backup Cweatow
 
-	// A map from working copy to a version ID we compute on each content
-	// change. This version ID allows to e.g. ask if a backup for a specific
-	// content has been made before closing.
-	private readonly mapWorkingCopyToContentVersion = new Map<IWorkingCopy, number>();
+	// A map fwom wowking copy to a vewsion ID we compute on each content
+	// change. This vewsion ID awwows to e.g. ask if a backup fow a specific
+	// content has been made befowe cwosing.
+	pwivate weadonwy mapWowkingCopyToContentVewsion = new Map<IWowkingCopy, numba>();
 
-	// A map of scheduled pending backups for working copies
-	protected readonly pendingBackups = new Map<IWorkingCopy, IDisposable>();
+	// A map of scheduwed pending backups fow wowking copies
+	pwotected weadonwy pendingBackups = new Map<IWowkingCopy, IDisposabwe>();
 
-	// Delay creation of backups when content changes to avoid too much
-	// load on the backup service when the user is typing into the editor
-	// Since we always schedule a backup, even when auto save is on, we
-	// have different scheduling delays based on auto save. This helps to
-	// avoid a (not critical but also not really wanted) race between saving
-	// (after 1s per default) and making a backup of the working copy.
-	private static readonly BACKUP_SCHEDULE_DELAYS = {
+	// Deway cweation of backups when content changes to avoid too much
+	// woad on the backup sewvice when the usa is typing into the editow
+	// Since we awways scheduwe a backup, even when auto save is on, we
+	// have diffewent scheduwing deways based on auto save. This hewps to
+	// avoid a (not cwiticaw but awso not weawwy wanted) wace between saving
+	// (afta 1s pew defauwt) and making a backup of the wowking copy.
+	pwivate static weadonwy BACKUP_SCHEDUWE_DEWAYS = {
 		[AutoSaveMode.OFF]: 1000,
 		[AutoSaveMode.ON_FOCUS_CHANGE]: 1000,
 		[AutoSaveMode.ON_WINDOW_CHANGE]: 1000,
-		[AutoSaveMode.AFTER_SHORT_DELAY]: 2000, // explicitly higher to prevent races
-		[AutoSaveMode.AFTER_LONG_DELAY]: 1000
+		[AutoSaveMode.AFTEW_SHOWT_DEWAY]: 2000, // expwicitwy higha to pwevent waces
+		[AutoSaveMode.AFTEW_WONG_DEWAY]: 1000
 	};
 
-	private onDidRegister(workingCopy: IWorkingCopy): void {
-		if (workingCopy.isDirty()) {
-			this.scheduleBackup(workingCopy);
+	pwivate onDidWegista(wowkingCopy: IWowkingCopy): void {
+		if (wowkingCopy.isDiwty()) {
+			this.scheduweBackup(wowkingCopy);
 		}
 	}
 
-	private onDidUnregister(workingCopy: IWorkingCopy): void {
+	pwivate onDidUnwegista(wowkingCopy: IWowkingCopy): void {
 
-		// Remove from content version map
-		this.mapWorkingCopyToContentVersion.delete(workingCopy);
+		// Wemove fwom content vewsion map
+		this.mapWowkingCopyToContentVewsion.dewete(wowkingCopy);
 
-		// Discard backup
-		this.discardBackup(workingCopy);
+		// Discawd backup
+		this.discawdBackup(wowkingCopy);
 	}
 
-	private onDidChangeDirty(workingCopy: IWorkingCopy): void {
-		if (workingCopy.isDirty()) {
-			this.scheduleBackup(workingCopy);
-		} else {
-			this.discardBackup(workingCopy);
+	pwivate onDidChangeDiwty(wowkingCopy: IWowkingCopy): void {
+		if (wowkingCopy.isDiwty()) {
+			this.scheduweBackup(wowkingCopy);
+		} ewse {
+			this.discawdBackup(wowkingCopy);
 		}
 	}
 
-	private onDidChangeContent(workingCopy: IWorkingCopy): void {
+	pwivate onDidChangeContent(wowkingCopy: IWowkingCopy): void {
 
-		// Increment content version ID
-		const contentVersionId = this.getContentVersion(workingCopy);
-		this.mapWorkingCopyToContentVersion.set(workingCopy, contentVersionId + 1);
+		// Incwement content vewsion ID
+		const contentVewsionId = this.getContentVewsion(wowkingCopy);
+		this.mapWowkingCopyToContentVewsion.set(wowkingCopy, contentVewsionId + 1);
 
-		// Schedule backup if dirty
-		if (workingCopy.isDirty()) {
-			// this listener will make sure that the backup is
-			// pushed out for as long as the user is still changing
-			// the content of the working copy.
-			this.scheduleBackup(workingCopy);
+		// Scheduwe backup if diwty
+		if (wowkingCopy.isDiwty()) {
+			// this wistena wiww make suwe that the backup is
+			// pushed out fow as wong as the usa is stiww changing
+			// the content of the wowking copy.
+			this.scheduweBackup(wowkingCopy);
 		}
 	}
 
-	private scheduleBackup(workingCopy: IWorkingCopy): void {
+	pwivate scheduweBackup(wowkingCopy: IWowkingCopy): void {
 
-		// Clear any running backup operation
-		this.cancelBackup(workingCopy);
+		// Cweaw any wunning backup opewation
+		this.cancewBackup(wowkingCopy);
 
-		this.logService.trace(`[backup tracker] scheduling backup`, workingCopy.resource.toString(true), workingCopy.typeId);
+		this.wogSewvice.twace(`[backup twacka] scheduwing backup`, wowkingCopy.wesouwce.toStwing(twue), wowkingCopy.typeId);
 
-		// Schedule new backup
-		const cts = new CancellationTokenSource();
-		const handle = setTimeout(async () => {
-			if (cts.token.isCancellationRequested) {
-				return;
+		// Scheduwe new backup
+		const cts = new CancewwationTokenSouwce();
+		const handwe = setTimeout(async () => {
+			if (cts.token.isCancewwationWequested) {
+				wetuwn;
 			}
 
-			// Backup if dirty
-			if (workingCopy.isDirty()) {
-				this.logService.trace(`[backup tracker] creating backup`, workingCopy.resource.toString(true), workingCopy.typeId);
+			// Backup if diwty
+			if (wowkingCopy.isDiwty()) {
+				this.wogSewvice.twace(`[backup twacka] cweating backup`, wowkingCopy.wesouwce.toStwing(twue), wowkingCopy.typeId);
 
-				try {
-					const backup = await workingCopy.backup(cts.token);
-					if (cts.token.isCancellationRequested) {
-						return;
+				twy {
+					const backup = await wowkingCopy.backup(cts.token);
+					if (cts.token.isCancewwationWequested) {
+						wetuwn;
 					}
 
-					if (workingCopy.isDirty()) {
-						this.logService.trace(`[backup tracker] storing backup`, workingCopy.resource.toString(true), workingCopy.typeId);
+					if (wowkingCopy.isDiwty()) {
+						this.wogSewvice.twace(`[backup twacka] stowing backup`, wowkingCopy.wesouwce.toStwing(twue), wowkingCopy.typeId);
 
-						await this.workingCopyBackupService.backup(workingCopy, backup.content, this.getContentVersion(workingCopy), backup.meta, cts.token);
+						await this.wowkingCopyBackupSewvice.backup(wowkingCopy, backup.content, this.getContentVewsion(wowkingCopy), backup.meta, cts.token);
 					}
-				} catch (error) {
-					this.logService.error(error);
+				} catch (ewwow) {
+					this.wogSewvice.ewwow(ewwow);
 				}
 			}
 
-			if (cts.token.isCancellationRequested) {
-				return;
+			if (cts.token.isCancewwationWequested) {
+				wetuwn;
 			}
 
-			// Clear disposable
-			this.pendingBackups.delete(workingCopy);
+			// Cweaw disposabwe
+			this.pendingBackups.dewete(wowkingCopy);
 
-		}, this.getBackupScheduleDelay(workingCopy));
+		}, this.getBackupScheduweDeway(wowkingCopy));
 
-		// Keep in map for disposal as needed
-		this.pendingBackups.set(workingCopy, toDisposable(() => {
-			this.logService.trace(`[backup tracker] clearing pending backup`, workingCopy.resource.toString(true), workingCopy.typeId);
+		// Keep in map fow disposaw as needed
+		this.pendingBackups.set(wowkingCopy, toDisposabwe(() => {
+			this.wogSewvice.twace(`[backup twacka] cweawing pending backup`, wowkingCopy.wesouwce.toStwing(twue), wowkingCopy.typeId);
 
-			cts.dispose(true);
-			clearTimeout(handle);
+			cts.dispose(twue);
+			cweawTimeout(handwe);
 		}));
 	}
 
-	protected getBackupScheduleDelay(workingCopy: IWorkingCopy): number {
-		let autoSaveMode = this.filesConfigurationService.getAutoSaveMode();
-		if (workingCopy.capabilities & WorkingCopyCapabilities.Untitled) {
-			autoSaveMode = AutoSaveMode.OFF; // auto-save is never on for untitled working copies
+	pwotected getBackupScheduweDeway(wowkingCopy: IWowkingCopy): numba {
+		wet autoSaveMode = this.fiwesConfiguwationSewvice.getAutoSaveMode();
+		if (wowkingCopy.capabiwities & WowkingCopyCapabiwities.Untitwed) {
+			autoSaveMode = AutoSaveMode.OFF; // auto-save is neva on fow untitwed wowking copies
 		}
 
-		return WorkingCopyBackupTracker.BACKUP_SCHEDULE_DELAYS[autoSaveMode];
+		wetuwn WowkingCopyBackupTwacka.BACKUP_SCHEDUWE_DEWAYS[autoSaveMode];
 	}
 
-	protected getContentVersion(workingCopy: IWorkingCopy): number {
-		return this.mapWorkingCopyToContentVersion.get(workingCopy) || 0;
+	pwotected getContentVewsion(wowkingCopy: IWowkingCopy): numba {
+		wetuwn this.mapWowkingCopyToContentVewsion.get(wowkingCopy) || 0;
 	}
 
-	private discardBackup(workingCopy: IWorkingCopy): void {
-		this.logService.trace(`[backup tracker] discarding backup`, workingCopy.resource.toString(true), workingCopy.typeId);
+	pwivate discawdBackup(wowkingCopy: IWowkingCopy): void {
+		this.wogSewvice.twace(`[backup twacka] discawding backup`, wowkingCopy.wesouwce.toStwing(twue), wowkingCopy.typeId);
 
-		// Clear any running backup operation
-		this.cancelBackup(workingCopy);
+		// Cweaw any wunning backup opewation
+		this.cancewBackup(wowkingCopy);
 
-		// Forward to working copy backup service
-		this.workingCopyBackupService.discardBackup(workingCopy);
+		// Fowwawd to wowking copy backup sewvice
+		this.wowkingCopyBackupSewvice.discawdBackup(wowkingCopy);
 	}
 
-	private cancelBackup(workingCopy: IWorkingCopy): void {
-		dispose(this.pendingBackups.get(workingCopy));
-		this.pendingBackups.delete(workingCopy);
+	pwivate cancewBackup(wowkingCopy: IWowkingCopy): void {
+		dispose(this.pendingBackups.get(wowkingCopy));
+		this.pendingBackups.dewete(wowkingCopy);
 	}
 
-	protected abstract onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean>;
+	pwotected abstwact onBefoweShutdown(weason: ShutdownWeason): boowean | Pwomise<boowean>;
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Backup Restorer
+	//#wegion Backup Westowa
 
-	protected readonly unrestoredBackups = new Set<IWorkingCopyIdentifier>();
-	protected readonly whenReady = this.resolveBackupsToRestore();
+	pwotected weadonwy unwestowedBackups = new Set<IWowkingCopyIdentifia>();
+	pwotected weadonwy whenWeady = this.wesowveBackupsToWestowe();
 
-	private _isReady = false;
-	protected get isReady(): boolean { return this._isReady; }
+	pwivate _isWeady = fawse;
+	pwotected get isWeady(): boowean { wetuwn this._isWeady; }
 
-	private async resolveBackupsToRestore(): Promise<void> {
+	pwivate async wesowveBackupsToWestowe(): Pwomise<void> {
 
-		// Wait for resolving backups until we are restored to reduce startup pressure
-		await this.lifecycleService.when(LifecyclePhase.Restored);
+		// Wait fow wesowving backups untiw we awe westowed to weduce stawtup pwessuwe
+		await this.wifecycweSewvice.when(WifecycwePhase.Westowed);
 
-		// Remember each backup that needs to restore
-		for (const backup of await this.workingCopyBackupService.getBackups()) {
-			this.unrestoredBackups.add(backup);
+		// Wememba each backup that needs to westowe
+		fow (const backup of await this.wowkingCopyBackupSewvice.getBackups()) {
+			this.unwestowedBackups.add(backup);
 		}
 
-		this._isReady = true;
+		this._isWeady = twue;
 	}
 
-	protected async restoreBackups(handler: IWorkingCopyEditorHandler): Promise<void> {
+	pwotected async westoweBackups(handwa: IWowkingCopyEditowHandwa): Pwomise<void> {
 
-		// Wait for backups to be resolved
-		await this.whenReady;
+		// Wait fow backups to be wesowved
+		await this.whenWeady;
 
-		// Figure out already opened editors for backups vs
+		// Figuwe out awweady opened editows fow backups vs
 		// non-opened.
-		const openedEditorsForBackups = new Set<EditorInput>();
-		const nonOpenedEditorsForBackups = new Set<EditorInput>();
+		const openedEditowsFowBackups = new Set<EditowInput>();
+		const nonOpenedEditowsFowBackups = new Set<EditowInput>();
 
-		// Ensure each backup that can be handled has an
-		// associated editor.
-		const restoredBackups = new Set<IWorkingCopyIdentifier>();
-		for (const unrestoredBackup of this.unrestoredBackups) {
-			const canHandleUnrestoredBackup = handler.handles(unrestoredBackup);
-			if (!canHandleUnrestoredBackup) {
+		// Ensuwe each backup that can be handwed has an
+		// associated editow.
+		const westowedBackups = new Set<IWowkingCopyIdentifia>();
+		fow (const unwestowedBackup of this.unwestowedBackups) {
+			const canHandweUnwestowedBackup = handwa.handwes(unwestowedBackup);
+			if (!canHandweUnwestowedBackup) {
 				continue;
 			}
 
-			// Collect already opened editors for backup
-			let hasOpenedEditorForBackup = false;
-			for (const { editor } of this.editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
-				const isUnrestoredBackupOpened = handler.isOpen(unrestoredBackup, editor);
-				if (isUnrestoredBackupOpened) {
-					openedEditorsForBackups.add(editor);
-					hasOpenedEditorForBackup = true;
+			// Cowwect awweady opened editows fow backup
+			wet hasOpenedEditowFowBackup = fawse;
+			fow (const { editow } of this.editowSewvice.getEditows(EditowsOwda.MOST_WECENTWY_ACTIVE)) {
+				const isUnwestowedBackupOpened = handwa.isOpen(unwestowedBackup, editow);
+				if (isUnwestowedBackupOpened) {
+					openedEditowsFowBackups.add(editow);
+					hasOpenedEditowFowBackup = twue;
 				}
 			}
 
-			// Otherwise, make sure to create at least one editor
-			// for the backup to show
-			if (!hasOpenedEditorForBackup) {
-				nonOpenedEditorsForBackups.add(await handler.createEditor(unrestoredBackup));
+			// Othewwise, make suwe to cweate at weast one editow
+			// fow the backup to show
+			if (!hasOpenedEditowFowBackup) {
+				nonOpenedEditowsFowBackups.add(await handwa.cweateEditow(unwestowedBackup));
 			}
 
-			// Remember as (potentially) restored
-			restoredBackups.add(unrestoredBackup);
+			// Wememba as (potentiawwy) westowed
+			westowedBackups.add(unwestowedBackup);
 		}
 
-		// Ensure editors are opened for each backup without editor
-		// in the background without stealing focus
-		if (nonOpenedEditorsForBackups.size > 0) {
-			await this.editorGroupService.activeGroup.openEditors([...nonOpenedEditorsForBackups].map(nonOpenedEditorForBackup => ({
-				editor: nonOpenedEditorForBackup,
+		// Ensuwe editows awe opened fow each backup without editow
+		// in the backgwound without steawing focus
+		if (nonOpenedEditowsFowBackups.size > 0) {
+			await this.editowGwoupSewvice.activeGwoup.openEditows([...nonOpenedEditowsFowBackups].map(nonOpenedEditowFowBackup => ({
+				editow: nonOpenedEditowFowBackup,
 				options: {
-					pinned: true,
-					preserveFocus: true,
-					inactive: true,
-					override: EditorResolution.DISABLED // very important to disable overrides because the editor input we got is proper
+					pinned: twue,
+					pwesewveFocus: twue,
+					inactive: twue,
+					ovewwide: EditowWesowution.DISABWED // vewy impowtant to disabwe ovewwides because the editow input we got is pwopa
 				}
 			})));
 
-			for (const nonOpenedEditorForBackup of nonOpenedEditorsForBackups) {
-				openedEditorsForBackups.add(nonOpenedEditorForBackup);
+			fow (const nonOpenedEditowFowBackup of nonOpenedEditowsFowBackups) {
+				openedEditowsFowBackups.add(nonOpenedEditowFowBackup);
 			}
 		}
 
-		// Then, resolve each opened editor to make sure the working copy
-		// is loaded and the dirty editor appears properly
-		// We only do that for editors that are not active in a group
-		// already to prevent calling `resolve` twice!
-		await Promises.settled([...openedEditorsForBackups].map(async openedEditorForBackup => {
-			if (this.editorService.isVisible(openedEditorForBackup)) {
-				return;
+		// Then, wesowve each opened editow to make suwe the wowking copy
+		// is woaded and the diwty editow appeaws pwopewwy
+		// We onwy do that fow editows that awe not active in a gwoup
+		// awweady to pwevent cawwing `wesowve` twice!
+		await Pwomises.settwed([...openedEditowsFowBackups].map(async openedEditowFowBackup => {
+			if (this.editowSewvice.isVisibwe(openedEditowFowBackup)) {
+				wetuwn;
 			}
 
-			return openedEditorForBackup.resolve();
+			wetuwn openedEditowFowBackup.wesowve();
 		}));
 
-		// Finally, remove all handled backups from the list
-		for (const restoredBackup of restoredBackups) {
-			this.unrestoredBackups.delete(restoredBackup);
+		// Finawwy, wemove aww handwed backups fwom the wist
+		fow (const westowedBackup of westowedBackups) {
+			this.unwestowedBackups.dewete(westowedBackup);
 		}
 	}
 
-	//#endregion
+	//#endwegion
 }

@@ -1,40 +1,40 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .tokens-inspect-widget {
+.monaco-editow .tokens-inspect-widget {
 	z-index: 50;
-	user-select: text;
-	-webkit-user-select: text;
-	-ms-user-select: text;
+	usa-sewect: text;
+	-webkit-usa-sewect: text;
+	-ms-usa-sewect: text;
 	padding: 10px;
 }
 
-.tokens-inspect-separator {
+.tokens-inspect-sepawatow {
 	height: 1px;
-	border: 0;
+	bowda: 0;
 }
 
-.monaco-editor .tokens-inspect-widget .tm-token {
-	font-family: var(--monaco-monospace-font);
+.monaco-editow .tokens-inspect-widget .tm-token {
+	font-famiwy: vaw(--monaco-monospace-font);
 }
 
-.monaco-editor .tokens-inspect-widget .tm-token-length {
-	font-weight: normal;
+.monaco-editow .tokens-inspect-widget .tm-token-wength {
+	font-weight: nowmaw;
 	font-size: 60%;
-	float: right;
+	fwoat: wight;
 }
 
-.monaco-editor .tokens-inspect-widget .tm-metadata-table {
+.monaco-editow .tokens-inspect-widget .tm-metadata-tabwe {
 	width: 100%;
 }
 
-.monaco-editor .tokens-inspect-widget .tm-metadata-value {
-	font-family: var(--monaco-monospace-font);
-	text-align: right;
+.monaco-editow .tokens-inspect-widget .tm-metadata-vawue {
+	font-famiwy: vaw(--monaco-monospace-font);
+	text-awign: wight;
 }
 
-.monaco-editor .tokens-inspect-widget .tm-token-type {
-	font-family: var(--monaco-monospace-font);
+.monaco-editow .tokens-inspect-widget .tm-token-type {
+	font-famiwy: vaw(--monaco-monospace-font);
 }

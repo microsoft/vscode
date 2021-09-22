@@ -1,451 +1,451 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/feedback';
-import * as nls from 'vs/nls';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Dropdown } from 'vs/base/browser/ui/dropdown/dropdown';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import * as dom from 'vs/base/browser/dom';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
-import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { editorWidgetBackground, editorWidgetForeground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, textLinkForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
-import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Codicon } from 'vs/base/common/codicons';
+impowt 'vs/css!./media/feedback';
+impowt * as nws fwom 'vs/nws';
+impowt { IDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { Dwopdown } fwom 'vs/base/bwowsa/ui/dwopdown/dwopdown';
+impowt { IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IIntegwitySewvice } fwom 'vs/wowkbench/sewvices/integwity/common/integwity';
+impowt { IThemeSewvice, wegistewThemingPawticipant, ICowowTheme, ICssStyweCowwectow } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { attachButtonStywa, attachStywewCawwback } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { editowWidgetBackgwound, editowWidgetFowegwound, widgetShadow, inputBowda, inputFowegwound, inputBackgwound, inputActiveOptionBowda, editowBackgwound, textWinkFowegwound, contwastBowda } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IAnchow } fwom 'vs/base/bwowsa/ui/contextview/contextview';
+impowt { Button } fwom 'vs/base/bwowsa/ui/button/button';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { WowkbenchActionExecutedEvent, WowkbenchActionExecutedCwassification } fwom 'vs/base/common/actions';
+impowt { IStatusbawSewvice } fwom 'vs/wowkbench/sewvices/statusbaw/bwowsa/statusbaw';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { Codicon } fwom 'vs/base/common/codicons';
 
-export interface IFeedback {
-	feedback: string;
-	sentiment: number;
+expowt intewface IFeedback {
+	feedback: stwing;
+	sentiment: numba;
 }
 
-export interface IFeedbackDelegate {
-	submitFeedback(feedback: IFeedback, openerService: IOpenerService): void;
-	getCharacterLimit(sentiment: number): number;
+expowt intewface IFeedbackDewegate {
+	submitFeedback(feedback: IFeedback, openewSewvice: IOpenewSewvice): void;
+	getChawactewWimit(sentiment: numba): numba;
 }
 
-export interface IFeedbackWidgetOptions {
-	contextViewProvider: IContextViewService;
-	feedbackService: IFeedbackDelegate;
-	onFeedbackVisibilityChange?: (visible: boolean) => void;
+expowt intewface IFeedbackWidgetOptions {
+	contextViewPwovida: IContextViewSewvice;
+	feedbackSewvice: IFeedbackDewegate;
+	onFeedbackVisibiwityChange?: (visibwe: boowean) => void;
 }
 
-export class FeedbackWidget extends Dropdown {
-	private maxFeedbackCharacters: number;
+expowt cwass FeedbackWidget extends Dwopdown {
+	pwivate maxFeedbackChawactews: numba;
 
-	private feedback: string = '';
-	private sentiment: number = 1;
-	private autoHideTimeout?: number;
+	pwivate feedback: stwing = '';
+	pwivate sentiment: numba = 1;
+	pwivate autoHideTimeout?: numba;
 
-	private readonly feedbackDelegate: IFeedbackDelegate;
+	pwivate weadonwy feedbackDewegate: IFeedbackDewegate;
 
-	private feedbackForm: HTMLFormElement | undefined = undefined;
-	private feedbackDescriptionInput: HTMLTextAreaElement | undefined = undefined;
-	private smileyInput: HTMLElement | undefined = undefined;
-	private frownyInput: HTMLElement | undefined = undefined;
-	private sendButton: Button | undefined = undefined;
-	private hideButton: HTMLInputElement | undefined = undefined;
-	private remainingCharacterCount: HTMLElement | undefined = undefined;
+	pwivate feedbackFowm: HTMWFowmEwement | undefined = undefined;
+	pwivate feedbackDescwiptionInput: HTMWTextAweaEwement | undefined = undefined;
+	pwivate smiweyInput: HTMWEwement | undefined = undefined;
+	pwivate fwownyInput: HTMWEwement | undefined = undefined;
+	pwivate sendButton: Button | undefined = undefined;
+	pwivate hideButton: HTMWInputEwement | undefined = undefined;
+	pwivate wemainingChawactewCount: HTMWEwement | undefined = undefined;
 
-	private requestFeatureLink: string | undefined;
+	pwivate wequestFeatuweWink: stwing | undefined;
 
-	private isPure: boolean = true;
+	pwivate isPuwe: boowean = twue;
 
-	constructor(
-		container: HTMLElement,
-		private options: IFeedbackWidgetOptions,
-		@ICommandService private readonly commandService: ICommandService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IIntegrityService private readonly integrityService: IIntegrityService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IProductService productService: IProductService,
-		@IOpenerService private readonly openerService: IOpenerService
+	constwuctow(
+		containa: HTMWEwement,
+		pwivate options: IFeedbackWidgetOptions,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IIntegwitySewvice pwivate weadonwy integwitySewvice: IIntegwitySewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
+		@IStatusbawSewvice pwivate weadonwy statusbawSewvice: IStatusbawSewvice,
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice,
+		@IOpenewSewvice pwivate weadonwy openewSewvice: IOpenewSewvice
 	) {
-		super(container, options);
+		supa(containa, options);
 
-		this.feedbackDelegate = options.feedbackService;
-		this.maxFeedbackCharacters = this.feedbackDelegate.getCharacterLimit(this.sentiment);
+		this.feedbackDewegate = options.feedbackSewvice;
+		this.maxFeedbackChawactews = this.feedbackDewegate.getChawactewWimit(this.sentiment);
 
-		if (productService.sendASmile) {
-			this.requestFeatureLink = productService.sendASmile.requestFeatureUrl;
+		if (pwoductSewvice.sendASmiwe) {
+			this.wequestFeatuweWink = pwoductSewvice.sendASmiwe.wequestFeatuweUww;
 		}
 
-		this.integrityService.isPure().then(result => {
-			if (!result.isPure) {
-				this.isPure = false;
+		this.integwitySewvice.isPuwe().then(wesuwt => {
+			if (!wesuwt.isPuwe) {
+				this.isPuwe = fawse;
 			}
 		});
 
-		this.element.classList.add('send-feedback');
-		this.element.title = nls.localize('sendFeedback', "Tweet Feedback");
+		this.ewement.cwassWist.add('send-feedback');
+		this.ewement.titwe = nws.wocawize('sendFeedback', "Tweet Feedback");
 	}
 
-	protected override getAnchor(): HTMLElement | IAnchor {
-		const position = dom.getDomNodePagePosition(this.element);
+	pwotected ovewwide getAnchow(): HTMWEwement | IAnchow {
+		const position = dom.getDomNodePagePosition(this.ewement);
 
-		return {
-			x: position.left + position.width, // center above the container
-			y: position.top - 26, // above status bar and beak
+		wetuwn {
+			x: position.weft + position.width, // centa above the containa
+			y: position.top - 26, // above status baw and beak
 			width: position.width,
 			height: position.height
 		};
 	}
 
-	protected override renderContents(container: HTMLElement): IDisposable {
-		const disposables = new DisposableStore();
+	pwotected ovewwide wendewContents(containa: HTMWEwement): IDisposabwe {
+		const disposabwes = new DisposabweStowe();
 
-		container.classList.add('monaco-menu-container');
+		containa.cwassWist.add('monaco-menu-containa');
 
-		// Form
-		this.feedbackForm = dom.append<HTMLFormElement>(container, dom.$('form.feedback-form'));
-		this.feedbackForm.setAttribute('action', 'javascript:void(0);');
+		// Fowm
+		this.feedbackFowm = dom.append<HTMWFowmEwement>(containa, dom.$('fowm.feedback-fowm'));
+		this.feedbackFowm.setAttwibute('action', 'javascwipt:void(0);');
 
-		// Title
-		dom.append(this.feedbackForm, dom.$('h2.title')).textContent = nls.localize("label.sendASmile", "Tweet us your feedback.");
+		// Titwe
+		dom.append(this.feedbackFowm, dom.$('h2.titwe')).textContent = nws.wocawize("wabew.sendASmiwe", "Tweet us youw feedback.");
 
-		// Close Button (top right)
-		const closeBtn = dom.append(this.feedbackForm, dom.$('div.cancel' + Codicon.close.cssSelector));
-		closeBtn.tabIndex = 0;
-		closeBtn.setAttribute('role', 'button');
-		closeBtn.title = nls.localize('close', "Close");
+		// Cwose Button (top wight)
+		const cwoseBtn = dom.append(this.feedbackFowm, dom.$('div.cancew' + Codicon.cwose.cssSewectow));
+		cwoseBtn.tabIndex = 0;
+		cwoseBtn.setAttwibute('wowe', 'button');
+		cwoseBtn.titwe = nws.wocawize('cwose', "Cwose");
 
-		disposables.add(dom.addDisposableListener(container, dom.EventType.KEY_DOWN, keyboardEvent => {
-			const standardKeyboardEvent = new StandardKeyboardEvent(keyboardEvent);
-			if (standardKeyboardEvent.keyCode === KeyCode.Escape) {
+		disposabwes.add(dom.addDisposabweWistena(containa, dom.EventType.KEY_DOWN, keyboawdEvent => {
+			const standawdKeyboawdEvent = new StandawdKeyboawdEvent(keyboawdEvent);
+			if (standawdKeyboawdEvent.keyCode === KeyCode.Escape) {
 				this.hide();
 			}
 		}));
-		disposables.add(dom.addDisposableListener(closeBtn, dom.EventType.MOUSE_OVER, () => {
-			const theme = this.themeService.getColorTheme();
-			let darkenFactor: number | undefined;
+		disposabwes.add(dom.addDisposabweWistena(cwoseBtn, dom.EventType.MOUSE_OVa, () => {
+			const theme = this.themeSewvice.getCowowTheme();
+			wet dawkenFactow: numba | undefined;
 			switch (theme.type) {
-				case 'light':
-					darkenFactor = 0.1;
-					break;
-				case 'dark':
-					darkenFactor = 0.2;
-					break;
+				case 'wight':
+					dawkenFactow = 0.1;
+					bweak;
+				case 'dawk':
+					dawkenFactow = 0.2;
+					bweak;
 			}
 
-			if (darkenFactor) {
-				const backgroundBaseColor = theme.getColor(editorWidgetBackground);
-				if (backgroundBaseColor) {
-					const backgroundColor = backgroundBaseColor.darken(darkenFactor);
-					if (backgroundColor) {
-						closeBtn.style.backgroundColor = backgroundColor.toString();
+			if (dawkenFactow) {
+				const backgwoundBaseCowow = theme.getCowow(editowWidgetBackgwound);
+				if (backgwoundBaseCowow) {
+					const backgwoundCowow = backgwoundBaseCowow.dawken(dawkenFactow);
+					if (backgwoundCowow) {
+						cwoseBtn.stywe.backgwoundCowow = backgwoundCowow.toStwing();
 					}
 				}
 			}
 		}));
 
-		disposables.add(dom.addDisposableListener(closeBtn, dom.EventType.MOUSE_OUT, () => {
-			closeBtn.style.backgroundColor = '';
+		disposabwes.add(dom.addDisposabweWistena(cwoseBtn, dom.EventType.MOUSE_OUT, () => {
+			cwoseBtn.stywe.backgwoundCowow = '';
 		}));
 
-		this.invoke(closeBtn, disposables, () => this.hide());
+		this.invoke(cwoseBtn, disposabwes, () => this.hide());
 
 		// Content
-		const content = dom.append(this.feedbackForm, dom.$('div.content'));
+		const content = dom.append(this.feedbackFowm, dom.$('div.content'));
 
 		// Sentiment Buttons
-		const sentimentContainer = dom.append(content, dom.$('div'));
+		const sentimentContaina = dom.append(content, dom.$('div'));
 
-		if (!this.isPure) {
-			dom.append(sentimentContainer, dom.$('span')).textContent = nls.localize("patchedVersion1", "Your installation is corrupt.");
-			sentimentContainer.appendChild(document.createElement('br'));
-			dom.append(sentimentContainer, dom.$('span')).textContent = nls.localize("patchedVersion2", "Please specify this if you submit a bug.");
-			sentimentContainer.appendChild(document.createElement('br'));
+		if (!this.isPuwe) {
+			dom.append(sentimentContaina, dom.$('span')).textContent = nws.wocawize("patchedVewsion1", "Youw instawwation is cowwupt.");
+			sentimentContaina.appendChiwd(document.cweateEwement('bw'));
+			dom.append(sentimentContaina, dom.$('span')).textContent = nws.wocawize("patchedVewsion2", "Pwease specify this if you submit a bug.");
+			sentimentContaina.appendChiwd(document.cweateEwement('bw'));
 		}
 
-		dom.append(sentimentContainer, dom.$('span')).textContent = nls.localize("sentiment", "How was your experience?");
+		dom.append(sentimentContaina, dom.$('span')).textContent = nws.wocawize("sentiment", "How was youw expewience?");
 
-		const feedbackSentiment = dom.append(sentimentContainer, dom.$('div.feedback-sentiment'));
+		const feedbackSentiment = dom.append(sentimentContaina, dom.$('div.feedback-sentiment'));
 
-		// Sentiment: Smiley
-		this.smileyInput = dom.append(feedbackSentiment, dom.$('div.sentiment'));
-		this.smileyInput.classList.add('smile');
-		this.smileyInput.setAttribute('aria-checked', 'false');
-		this.smileyInput.setAttribute('aria-label', nls.localize('smileCaption', "Happy Feedback Sentiment"));
-		this.smileyInput.setAttribute('role', 'checkbox');
-		this.smileyInput.title = nls.localize('smileCaption', "Happy Feedback Sentiment");
-		this.smileyInput.tabIndex = 0;
+		// Sentiment: Smiwey
+		this.smiweyInput = dom.append(feedbackSentiment, dom.$('div.sentiment'));
+		this.smiweyInput.cwassWist.add('smiwe');
+		this.smiweyInput.setAttwibute('awia-checked', 'fawse');
+		this.smiweyInput.setAttwibute('awia-wabew', nws.wocawize('smiweCaption', "Happy Feedback Sentiment"));
+		this.smiweyInput.setAttwibute('wowe', 'checkbox');
+		this.smiweyInput.titwe = nws.wocawize('smiweCaption', "Happy Feedback Sentiment");
+		this.smiweyInput.tabIndex = 0;
 
-		this.invoke(this.smileyInput, disposables, () => this.setSentiment(true));
+		this.invoke(this.smiweyInput, disposabwes, () => this.setSentiment(twue));
 
-		// Sentiment: Frowny
-		this.frownyInput = dom.append(feedbackSentiment, dom.$('div.sentiment'));
-		this.frownyInput.classList.add('frown');
-		this.frownyInput.setAttribute('aria-checked', 'false');
-		this.frownyInput.setAttribute('aria-label', nls.localize('frownCaption', "Sad Feedback Sentiment"));
-		this.frownyInput.setAttribute('role', 'checkbox');
-		this.frownyInput.title = nls.localize('frownCaption', "Sad Feedback Sentiment");
-		this.frownyInput.tabIndex = 0;
+		// Sentiment: Fwowny
+		this.fwownyInput = dom.append(feedbackSentiment, dom.$('div.sentiment'));
+		this.fwownyInput.cwassWist.add('fwown');
+		this.fwownyInput.setAttwibute('awia-checked', 'fawse');
+		this.fwownyInput.setAttwibute('awia-wabew', nws.wocawize('fwownCaption', "Sad Feedback Sentiment"));
+		this.fwownyInput.setAttwibute('wowe', 'checkbox');
+		this.fwownyInput.titwe = nws.wocawize('fwownCaption', "Sad Feedback Sentiment");
+		this.fwownyInput.tabIndex = 0;
 
-		this.invoke(this.frownyInput, disposables, () => this.setSentiment(false));
+		this.invoke(this.fwownyInput, disposabwes, () => this.setSentiment(fawse));
 
 		if (this.sentiment === 1) {
-			this.smileyInput.classList.add('checked');
-			this.smileyInput.setAttribute('aria-checked', 'true');
-		} else {
-			this.frownyInput.classList.add('checked');
-			this.frownyInput.setAttribute('aria-checked', 'true');
+			this.smiweyInput.cwassWist.add('checked');
+			this.smiweyInput.setAttwibute('awia-checked', 'twue');
+		} ewse {
+			this.fwownyInput.cwassWist.add('checked');
+			this.fwownyInput.setAttwibute('awia-checked', 'twue');
 		}
 
 		// Contact Us Box
-		const contactUsContainer = dom.append(content, dom.$('div.contactus'));
+		const contactUsContaina = dom.append(content, dom.$('div.contactus'));
 
-		dom.append(contactUsContainer, dom.$('span')).textContent = nls.localize("other ways to contact us", "Other ways to contact us");
+		dom.append(contactUsContaina, dom.$('span')).textContent = nws.wocawize("otha ways to contact us", "Otha ways to contact us");
 
-		const channelsContainer = dom.append(contactUsContainer, dom.$('div.channels'));
+		const channewsContaina = dom.append(contactUsContaina, dom.$('div.channews'));
 
 		// Contact: Submit a Bug
-		const submitBugLinkContainer = dom.append(channelsContainer, dom.$('div'));
+		const submitBugWinkContaina = dom.append(channewsContaina, dom.$('div'));
 
-		const submitBugLink = dom.append(submitBugLinkContainer, dom.$('a'));
-		submitBugLink.setAttribute('target', '_blank');
-		submitBugLink.setAttribute('href', '#');
-		submitBugLink.textContent = nls.localize("submit a bug", "Submit a bug");
-		submitBugLink.tabIndex = 0;
+		const submitBugWink = dom.append(submitBugWinkContaina, dom.$('a'));
+		submitBugWink.setAttwibute('tawget', '_bwank');
+		submitBugWink.setAttwibute('hwef', '#');
+		submitBugWink.textContent = nws.wocawize("submit a bug", "Submit a bug");
+		submitBugWink.tabIndex = 0;
 
-		disposables.add(dom.addDisposableListener(submitBugLink, 'click', e => {
-			dom.EventHelper.stop(e);
-			const actionId = 'workbench.action.openIssueReporter';
-			this.commandService.executeCommand(actionId);
+		disposabwes.add(dom.addDisposabweWistena(submitBugWink, 'cwick', e => {
+			dom.EventHewpa.stop(e);
+			const actionId = 'wowkbench.action.openIssueWepowta';
+			this.commandSewvice.executeCommand(actionId);
 			this.hide();
-			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: actionId, from: 'feedback' });
+			this.tewemetwySewvice.pubwicWog2<WowkbenchActionExecutedEvent, WowkbenchActionExecutedCwassification>('wowkbenchActionExecuted', { id: actionId, fwom: 'feedback' });
 		}));
 
-		// Contact: Request a Feature
-		if (!!this.requestFeatureLink) {
-			const requestFeatureLinkContainer = dom.append(channelsContainer, dom.$('div'));
+		// Contact: Wequest a Featuwe
+		if (!!this.wequestFeatuweWink) {
+			const wequestFeatuweWinkContaina = dom.append(channewsContaina, dom.$('div'));
 
-			const requestFeatureLink = dom.append(requestFeatureLinkContainer, dom.$('a'));
-			requestFeatureLink.setAttribute('target', '_blank');
-			requestFeatureLink.setAttribute('href', this.requestFeatureLink);
-			requestFeatureLink.textContent = nls.localize("request a missing feature", "Request a missing feature");
-			requestFeatureLink.tabIndex = 0;
+			const wequestFeatuweWink = dom.append(wequestFeatuweWinkContaina, dom.$('a'));
+			wequestFeatuweWink.setAttwibute('tawget', '_bwank');
+			wequestFeatuweWink.setAttwibute('hwef', this.wequestFeatuweWink);
+			wequestFeatuweWink.textContent = nws.wocawize("wequest a missing featuwe", "Wequest a missing featuwe");
+			wequestFeatuweWink.tabIndex = 0;
 
-			disposables.add(dom.addDisposableListener(requestFeatureLink, 'click', e => this.hide()));
+			disposabwes.add(dom.addDisposabweWistena(wequestFeatuweWink, 'cwick', e => this.hide()));
 		}
 
-		// Remaining Characters
-		const remainingCharacterCountContainer = dom.append(this.feedbackForm, dom.$('h3'));
-		remainingCharacterCountContainer.textContent = nls.localize("tell us why", "Tell us why?");
+		// Wemaining Chawactews
+		const wemainingChawactewCountContaina = dom.append(this.feedbackFowm, dom.$('h3'));
+		wemainingChawactewCountContaina.textContent = nws.wocawize("teww us why", "Teww us why?");
 
-		this.remainingCharacterCount = dom.append(remainingCharacterCountContainer, dom.$('span.char-counter'));
-		this.remainingCharacterCount.textContent = this.getCharCountText(0);
+		this.wemainingChawactewCount = dom.append(wemainingChawactewCountContaina, dom.$('span.chaw-counta'));
+		this.wemainingChawactewCount.textContent = this.getChawCountText(0);
 
-		// Feedback Input Form
-		this.feedbackDescriptionInput = dom.append<HTMLTextAreaElement>(this.feedbackForm, dom.$('textarea.feedback-description'));
-		this.feedbackDescriptionInput.rows = 3;
-		this.feedbackDescriptionInput.maxLength = this.maxFeedbackCharacters;
-		this.feedbackDescriptionInput.textContent = this.feedback;
-		this.feedbackDescriptionInput.required = true;
-		this.feedbackDescriptionInput.setAttribute('aria-label', nls.localize("feedbackTextInput", "Tell us your feedback"));
-		this.feedbackDescriptionInput.focus();
+		// Feedback Input Fowm
+		this.feedbackDescwiptionInput = dom.append<HTMWTextAweaEwement>(this.feedbackFowm, dom.$('textawea.feedback-descwiption'));
+		this.feedbackDescwiptionInput.wows = 3;
+		this.feedbackDescwiptionInput.maxWength = this.maxFeedbackChawactews;
+		this.feedbackDescwiptionInput.textContent = this.feedback;
+		this.feedbackDescwiptionInput.wequiwed = twue;
+		this.feedbackDescwiptionInput.setAttwibute('awia-wabew', nws.wocawize("feedbackTextInput", "Teww us youw feedback"));
+		this.feedbackDescwiptionInput.focus();
 
-		disposables.add(dom.addDisposableListener(this.feedbackDescriptionInput, 'keyup', () => this.updateCharCountText()));
+		disposabwes.add(dom.addDisposabweWistena(this.feedbackDescwiptionInput, 'keyup', () => this.updateChawCountText()));
 
-		// Feedback Input Form Buttons Container
-		const buttonsContainer = dom.append(this.feedbackForm, dom.$('div.form-buttons'));
+		// Feedback Input Fowm Buttons Containa
+		const buttonsContaina = dom.append(this.feedbackFowm, dom.$('div.fowm-buttons'));
 
-		// Checkbox: Hide Feedback Smiley
-		const hideButtonContainer = dom.append(buttonsContainer, dom.$('div.hide-button-container'));
+		// Checkbox: Hide Feedback Smiwey
+		const hideButtonContaina = dom.append(buttonsContaina, dom.$('div.hide-button-containa'));
 
-		this.hideButton = dom.append(hideButtonContainer, dom.$('input.hide-button')) as HTMLInputElement;
+		this.hideButton = dom.append(hideButtonContaina, dom.$('input.hide-button')) as HTMWInputEwement;
 		this.hideButton.type = 'checkbox';
-		this.hideButton.checked = true;
+		this.hideButton.checked = twue;
 		this.hideButton.id = 'hide-button';
 
-		const hideButtonLabel = dom.append(hideButtonContainer, dom.$('label'));
-		hideButtonLabel.setAttribute('for', 'hide-button');
-		hideButtonLabel.textContent = nls.localize('showFeedback', "Show Feedback Icon in Status Bar");
+		const hideButtonWabew = dom.append(hideButtonContaina, dom.$('wabew'));
+		hideButtonWabew.setAttwibute('fow', 'hide-button');
+		hideButtonWabew.textContent = nws.wocawize('showFeedback', "Show Feedback Icon in Status Baw");
 
 		// Button: Send Feedback
-		this.sendButton = new Button(buttonsContainer);
-		this.sendButton.enabled = false;
-		this.sendButton.label = nls.localize('tweet', "Tweet");
-		dom.prepend(this.sendButton.element, dom.$('span' + Codicon.twitter.cssSelector));
-		this.sendButton.element.classList.add('send');
-		this.sendButton.element.title = nls.localize('tweetFeedback', "Tweet Feedback");
-		disposables.add(attachButtonStyler(this.sendButton, this.themeService));
+		this.sendButton = new Button(buttonsContaina);
+		this.sendButton.enabwed = fawse;
+		this.sendButton.wabew = nws.wocawize('tweet', "Tweet");
+		dom.pwepend(this.sendButton.ewement, dom.$('span' + Codicon.twitta.cssSewectow));
+		this.sendButton.ewement.cwassWist.add('send');
+		this.sendButton.ewement.titwe = nws.wocawize('tweetFeedback', "Tweet Feedback");
+		disposabwes.add(attachButtonStywa(this.sendButton, this.themeSewvice));
 
-		this.sendButton.onDidClick(() => this.onSubmit());
+		this.sendButton.onDidCwick(() => this.onSubmit());
 
-		disposables.add(attachStylerCallback(this.themeService, { widgetShadow, editorWidgetBackground, editorWidgetForeground, inputBackground, inputForeground, inputBorder, editorBackground, contrastBorder }, colors => {
-			if (this.feedbackForm) {
-				this.feedbackForm.style.backgroundColor = colors.editorWidgetBackground ? colors.editorWidgetBackground.toString() : '';
-				this.feedbackForm.style.color = colors.editorWidgetForeground ? colors.editorWidgetForeground.toString() : '';
-				this.feedbackForm.style.boxShadow = colors.widgetShadow ? `0 0 8px 2px ${colors.widgetShadow}` : '';
+		disposabwes.add(attachStywewCawwback(this.themeSewvice, { widgetShadow, editowWidgetBackgwound, editowWidgetFowegwound, inputBackgwound, inputFowegwound, inputBowda, editowBackgwound, contwastBowda }, cowows => {
+			if (this.feedbackFowm) {
+				this.feedbackFowm.stywe.backgwoundCowow = cowows.editowWidgetBackgwound ? cowows.editowWidgetBackgwound.toStwing() : '';
+				this.feedbackFowm.stywe.cowow = cowows.editowWidgetFowegwound ? cowows.editowWidgetFowegwound.toStwing() : '';
+				this.feedbackFowm.stywe.boxShadow = cowows.widgetShadow ? `0 0 8px 2px ${cowows.widgetShadow}` : '';
 			}
-			if (this.feedbackDescriptionInput) {
-				this.feedbackDescriptionInput.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : '';
-				this.feedbackDescriptionInput.style.color = colors.inputForeground ? colors.inputForeground.toString() : '';
-				this.feedbackDescriptionInput.style.border = `1px solid ${colors.inputBorder || 'transparent'}`;
+			if (this.feedbackDescwiptionInput) {
+				this.feedbackDescwiptionInput.stywe.backgwoundCowow = cowows.inputBackgwound ? cowows.inputBackgwound.toStwing() : '';
+				this.feedbackDescwiptionInput.stywe.cowow = cowows.inputFowegwound ? cowows.inputFowegwound.toStwing() : '';
+				this.feedbackDescwiptionInput.stywe.bowda = `1px sowid ${cowows.inputBowda || 'twanspawent'}`;
 			}
 
-			contactUsContainer.style.backgroundColor = colors.editorBackground ? colors.editorBackground.toString() : '';
-			contactUsContainer.style.border = `1px solid ${colors.contrastBorder || 'transparent'}`;
+			contactUsContaina.stywe.backgwoundCowow = cowows.editowBackgwound ? cowows.editowBackgwound.toStwing() : '';
+			contactUsContaina.stywe.bowda = `1px sowid ${cowows.contwastBowda || 'twanspawent'}`;
 		}));
 
-		return {
+		wetuwn {
 			dispose: () => {
-				this.feedbackForm = undefined;
-				this.feedbackDescriptionInput = undefined;
-				this.smileyInput = undefined;
-				this.frownyInput = undefined;
+				this.feedbackFowm = undefined;
+				this.feedbackDescwiptionInput = undefined;
+				this.smiweyInput = undefined;
+				this.fwownyInput = undefined;
 
-				disposables.dispose();
+				disposabwes.dispose();
 			}
 		};
 	}
 
-	private updateFeedbackDescription() {
-		if (this.feedbackDescriptionInput && this.feedbackDescriptionInput.textLength > this.maxFeedbackCharacters) {
-			this.feedbackDescriptionInput.value = this.feedbackDescriptionInput.value.substring(0, this.maxFeedbackCharacters);
+	pwivate updateFeedbackDescwiption() {
+		if (this.feedbackDescwiptionInput && this.feedbackDescwiptionInput.textWength > this.maxFeedbackChawactews) {
+			this.feedbackDescwiptionInput.vawue = this.feedbackDescwiptionInput.vawue.substwing(0, this.maxFeedbackChawactews);
 		}
 	}
 
-	private getCharCountText(charCount: number): string {
-		const remaining = this.maxFeedbackCharacters - charCount;
-		const text = (remaining === 1)
-			? nls.localize("character left", "character left")
-			: nls.localize("characters left", "characters left");
+	pwivate getChawCountText(chawCount: numba): stwing {
+		const wemaining = this.maxFeedbackChawactews - chawCount;
+		const text = (wemaining === 1)
+			? nws.wocawize("chawacta weft", "chawacta weft")
+			: nws.wocawize("chawactews weft", "chawactews weft");
 
-		return `(${remaining} ${text})`;
+		wetuwn `(${wemaining} ${text})`;
 	}
 
-	private updateCharCountText(): void {
-		if (this.feedbackDescriptionInput && this.remainingCharacterCount && this.sendButton) {
-			this.remainingCharacterCount.innerText = this.getCharCountText(this.feedbackDescriptionInput.value.length);
-			this.sendButton.enabled = this.feedbackDescriptionInput.value.length > 0;
+	pwivate updateChawCountText(): void {
+		if (this.feedbackDescwiptionInput && this.wemainingChawactewCount && this.sendButton) {
+			this.wemainingChawactewCount.innewText = this.getChawCountText(this.feedbackDescwiptionInput.vawue.wength);
+			this.sendButton.enabwed = this.feedbackDescwiptionInput.vawue.wength > 0;
 		}
 	}
 
-	private setSentiment(smile: boolean): void {
-		if (smile) {
-			if (this.smileyInput) {
-				this.smileyInput.classList.add('checked');
-				this.smileyInput.setAttribute('aria-checked', 'true');
+	pwivate setSentiment(smiwe: boowean): void {
+		if (smiwe) {
+			if (this.smiweyInput) {
+				this.smiweyInput.cwassWist.add('checked');
+				this.smiweyInput.setAttwibute('awia-checked', 'twue');
 			}
-			if (this.frownyInput) {
-				this.frownyInput.classList.remove('checked');
-				this.frownyInput.setAttribute('aria-checked', 'false');
+			if (this.fwownyInput) {
+				this.fwownyInput.cwassWist.wemove('checked');
+				this.fwownyInput.setAttwibute('awia-checked', 'fawse');
 			}
-		} else {
-			if (this.frownyInput) {
-				this.frownyInput.classList.add('checked');
-				this.frownyInput.setAttribute('aria-checked', 'true');
+		} ewse {
+			if (this.fwownyInput) {
+				this.fwownyInput.cwassWist.add('checked');
+				this.fwownyInput.setAttwibute('awia-checked', 'twue');
 			}
-			if (this.smileyInput) {
-				this.smileyInput.classList.remove('checked');
-				this.smileyInput.setAttribute('aria-checked', 'false');
+			if (this.smiweyInput) {
+				this.smiweyInput.cwassWist.wemove('checked');
+				this.smiweyInput.setAttwibute('awia-checked', 'fawse');
 			}
 		}
 
-		this.sentiment = smile ? 1 : 0;
-		this.maxFeedbackCharacters = this.feedbackDelegate.getCharacterLimit(this.sentiment);
-		this.updateFeedbackDescription();
-		this.updateCharCountText();
-		if (this.feedbackDescriptionInput) {
-			this.feedbackDescriptionInput.maxLength = this.maxFeedbackCharacters;
+		this.sentiment = smiwe ? 1 : 0;
+		this.maxFeedbackChawactews = this.feedbackDewegate.getChawactewWimit(this.sentiment);
+		this.updateFeedbackDescwiption();
+		this.updateChawCountText();
+		if (this.feedbackDescwiptionInput) {
+			this.feedbackDescwiptionInput.maxWength = this.maxFeedbackChawactews;
 		}
 	}
 
-	private invoke(element: HTMLElement, disposables: DisposableStore, callback: () => void): HTMLElement {
-		disposables.add(dom.addDisposableListener(element, 'click', callback));
+	pwivate invoke(ewement: HTMWEwement, disposabwes: DisposabweStowe, cawwback: () => void): HTMWEwement {
+		disposabwes.add(dom.addDisposabweWistena(ewement, 'cwick', cawwback));
 
-		disposables.add(dom.addDisposableListener(element, 'keypress', e => {
-			if (e instanceof KeyboardEvent) {
-				const keyboardEvent = <KeyboardEvent>e;
-				if (keyboardEvent.keyCode === 13 || keyboardEvent.keyCode === 32) { // Enter or Spacebar
-					callback();
+		disposabwes.add(dom.addDisposabweWistena(ewement, 'keypwess', e => {
+			if (e instanceof KeyboawdEvent) {
+				const keyboawdEvent = <KeyboawdEvent>e;
+				if (keyboawdEvent.keyCode === 13 || keyboawdEvent.keyCode === 32) { // Enta ow Spacebaw
+					cawwback();
 				}
 			}
 		}));
 
-		return element;
+		wetuwn ewement;
 	}
 
-	override show(): void {
-		super.show();
+	ovewwide show(): void {
+		supa.show();
 
-		if (this.options.onFeedbackVisibilityChange) {
-			this.options.onFeedbackVisibilityChange(true);
+		if (this.options.onFeedbackVisibiwityChange) {
+			this.options.onFeedbackVisibiwityChange(twue);
 		}
 
-		this.updateCharCountText();
+		this.updateChawCountText();
 	}
 
-	protected override onHide(): void {
-		if (this.options.onFeedbackVisibilityChange) {
-			this.options.onFeedbackVisibilityChange(false);
+	pwotected ovewwide onHide(): void {
+		if (this.options.onFeedbackVisibiwityChange) {
+			this.options.onFeedbackVisibiwityChange(fawse);
 		}
 	}
 
-	override hide(): void {
-		if (this.feedbackDescriptionInput) {
-			this.feedback = this.feedbackDescriptionInput.value;
+	ovewwide hide(): void {
+		if (this.feedbackDescwiptionInput) {
+			this.feedback = this.feedbackDescwiptionInput.vawue;
 		}
 
 		if (this.autoHideTimeout) {
-			clearTimeout(this.autoHideTimeout);
+			cweawTimeout(this.autoHideTimeout);
 			this.autoHideTimeout = undefined;
 		}
 
 		if (this.hideButton && !this.hideButton.checked) {
-			this.statusbarService.updateEntryVisibility('status.feedback', false);
+			this.statusbawSewvice.updateEntwyVisibiwity('status.feedback', fawse);
 		}
 
-		super.hide();
+		supa.hide();
 	}
 
-	override onEvent(e: Event, activeElement: HTMLElement): void {
-		if (e instanceof KeyboardEvent) {
-			const keyboardEvent = <KeyboardEvent>e;
-			if (keyboardEvent.keyCode === 27) { // Escape
+	ovewwide onEvent(e: Event, activeEwement: HTMWEwement): void {
+		if (e instanceof KeyboawdEvent) {
+			const keyboawdEvent = <KeyboawdEvent>e;
+			if (keyboawdEvent.keyCode === 27) { // Escape
 				this.hide();
 			}
 		}
 	}
 
-	private onSubmit(): void {
-		if (!this.feedbackForm || !this.feedbackDescriptionInput || (this.feedbackForm.checkValidity && !this.feedbackForm.checkValidity())) {
-			return;
+	pwivate onSubmit(): void {
+		if (!this.feedbackFowm || !this.feedbackDescwiptionInput || (this.feedbackFowm.checkVawidity && !this.feedbackFowm.checkVawidity())) {
+			wetuwn;
 		}
 
-		this.feedbackDelegate.submitFeedback({
-			feedback: this.feedbackDescriptionInput.value,
+		this.feedbackDewegate.submitFeedback({
+			feedback: this.feedbackDescwiptionInput.vawue,
 			sentiment: this.sentiment
-		}, this.openerService);
+		}, this.openewSewvice);
 
 		this.hide();
 	}
 }
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+wegistewThemingPawticipant((theme: ICowowTheme, cowwectow: ICssStyweCowwectow) => {
 
 	// Sentiment Buttons
-	const inputActiveOptionBorderColor = theme.getColor(inputActiveOptionBorder);
-	if (inputActiveOptionBorderColor) {
-		collector.addRule(`.monaco-workbench .feedback-form .sentiment.checked { border: 1px solid ${inputActiveOptionBorderColor}; }`);
+	const inputActiveOptionBowdewCowow = theme.getCowow(inputActiveOptionBowda);
+	if (inputActiveOptionBowdewCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .feedback-fowm .sentiment.checked { bowda: 1px sowid ${inputActiveOptionBowdewCowow}; }`);
 	}
 
-	// Links
-	const linkColor = theme.getColor(textLinkForeground) || theme.getColor(contrastBorder);
-	if (linkColor) {
-		collector.addRule(`.monaco-workbench .feedback-form .content .channels a { color: ${linkColor}; }`);
+	// Winks
+	const winkCowow = theme.getCowow(textWinkFowegwound) || theme.getCowow(contwastBowda);
+	if (winkCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .feedback-fowm .content .channews a { cowow: ${winkCowow}; }`);
 	}
 });

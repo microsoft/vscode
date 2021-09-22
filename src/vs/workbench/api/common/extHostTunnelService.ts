@@ -1,89 +1,89 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtHostTunnelServiceShape } from 'vs/workbench/api/common/extHost.protocol';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import * as vscode from 'vscode';
-import { ProvidedPortAttributes, RemoteTunnel, TunnelCreationOptions, TunnelOptions } from 'vs/platform/remote/common/tunnel';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Emitter } from 'vs/base/common/event';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
+impowt { ExtHostTunnewSewviceShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt * as vscode fwom 'vscode';
+impowt { PwovidedPowtAttwibutes, WemoteTunnew, TunnewCweationOptions, TunnewOptions } fwom 'vs/pwatfowm/wemote/common/tunnew';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { CandidatePowt } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteExpwowewSewvice';
 
-export interface TunnelDto {
-	remoteAddress: { port: number, host: string };
-	localAddress: { port: number, host: string } | string;
-	public: boolean;
-	protocol: string | undefined;
+expowt intewface TunnewDto {
+	wemoteAddwess: { powt: numba, host: stwing };
+	wocawAddwess: { powt: numba, host: stwing } | stwing;
+	pubwic: boowean;
+	pwotocow: stwing | undefined;
 }
 
-export namespace TunnelDto {
-	export function fromApiTunnel(tunnel: vscode.Tunnel): TunnelDto {
-		return { remoteAddress: tunnel.remoteAddress, localAddress: tunnel.localAddress, public: !!tunnel.public, protocol: tunnel.protocol };
+expowt namespace TunnewDto {
+	expowt function fwomApiTunnew(tunnew: vscode.Tunnew): TunnewDto {
+		wetuwn { wemoteAddwess: tunnew.wemoteAddwess, wocawAddwess: tunnew.wocawAddwess, pubwic: !!tunnew.pubwic, pwotocow: tunnew.pwotocow };
 	}
-	export function fromServiceTunnel(tunnel: RemoteTunnel): TunnelDto {
-		return {
-			remoteAddress: {
-				host: tunnel.tunnelRemoteHost,
-				port: tunnel.tunnelRemotePort
+	expowt function fwomSewviceTunnew(tunnew: WemoteTunnew): TunnewDto {
+		wetuwn {
+			wemoteAddwess: {
+				host: tunnew.tunnewWemoteHost,
+				powt: tunnew.tunnewWemotePowt
 			},
-			localAddress: tunnel.localAddress,
-			public: tunnel.public,
-			protocol: tunnel.protocol
+			wocawAddwess: tunnew.wocawAddwess,
+			pubwic: tunnew.pubwic,
+			pwotocow: tunnew.pwotocow
 		};
 	}
 }
 
-export interface Tunnel extends vscode.Disposable {
-	remote: { port: number, host: string };
-	localAddress: string;
+expowt intewface Tunnew extends vscode.Disposabwe {
+	wemote: { powt: numba, host: stwing };
+	wocawAddwess: stwing;
 }
 
-export interface IExtHostTunnelService extends ExtHostTunnelServiceShape {
-	readonly _serviceBrand: undefined;
-	openTunnel(extension: IExtensionDescription, forward: TunnelOptions): Promise<vscode.Tunnel | undefined>;
-	getTunnels(): Promise<vscode.TunnelDescription[]>;
-	onDidChangeTunnels: vscode.Event<void>;
-	setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable>;
-	registerPortsAttributesProvider(portSelector: { pid?: number, portRange?: [number, number], commandMatcher?: RegExp }, provider: vscode.PortAttributesProvider): IDisposable;
+expowt intewface IExtHostTunnewSewvice extends ExtHostTunnewSewviceShape {
+	weadonwy _sewviceBwand: undefined;
+	openTunnew(extension: IExtensionDescwiption, fowwawd: TunnewOptions): Pwomise<vscode.Tunnew | undefined>;
+	getTunnews(): Pwomise<vscode.TunnewDescwiption[]>;
+	onDidChangeTunnews: vscode.Event<void>;
+	setTunnewExtensionFunctions(pwovida: vscode.WemoteAuthowityWesowva | undefined): Pwomise<IDisposabwe>;
+	wegistewPowtsAttwibutesPwovida(powtSewectow: { pid?: numba, powtWange?: [numba, numba], commandMatcha?: WegExp }, pwovida: vscode.PowtAttwibutesPwovida): IDisposabwe;
 }
 
-export const IExtHostTunnelService = createDecorator<IExtHostTunnelService>('IExtHostTunnelService');
+expowt const IExtHostTunnewSewvice = cweateDecowatow<IExtHostTunnewSewvice>('IExtHostTunnewSewvice');
 
-export class ExtHostTunnelService implements IExtHostTunnelService {
-	declare readonly _serviceBrand: undefined;
-	onDidChangeTunnels: vscode.Event<void> = (new Emitter<void>()).event;
+expowt cwass ExtHostTunnewSewvice impwements IExtHostTunnewSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
+	onDidChangeTunnews: vscode.Event<void> = (new Emitta<void>()).event;
 
-	constructor(
-		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+	constwuctow(
+		@IExtHostWpcSewvice extHostWpc: IExtHostWpcSewvice,
 	) {
 	}
-	async $applyCandidateFilter(candidates: CandidatePort[]): Promise<CandidatePort[]> {
-		return candidates;
+	async $appwyCandidateFiwta(candidates: CandidatePowt[]): Pwomise<CandidatePowt[]> {
+		wetuwn candidates;
 	}
 
-	async openTunnel(extension: IExtensionDescription, forward: TunnelOptions): Promise<vscode.Tunnel | undefined> {
-		return undefined;
+	async openTunnew(extension: IExtensionDescwiption, fowwawd: TunnewOptions): Pwomise<vscode.Tunnew | undefined> {
+		wetuwn undefined;
 	}
-	async getTunnels(): Promise<vscode.TunnelDescription[]> {
-		return [];
+	async getTunnews(): Pwomise<vscode.TunnewDescwiption[]> {
+		wetuwn [];
 	}
-	async setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> {
-		return { dispose: () => { } };
+	async setTunnewExtensionFunctions(pwovida: vscode.WemoteAuthowityWesowva | undefined): Pwomise<IDisposabwe> {
+		wetuwn { dispose: () => { } };
 	}
-	registerPortsAttributesProvider(portSelector: { pid?: number, portRange?: [number, number] }, provider: vscode.PortAttributesProvider) {
-		return { dispose: () => { } };
-	}
-
-	async $providePortAttributes(handles: number[], ports: number[], pid: number | undefined, commandline: string | undefined, cancellationToken: vscode.CancellationToken): Promise<ProvidedPortAttributes[]> {
-		return [];
+	wegistewPowtsAttwibutesPwovida(powtSewectow: { pid?: numba, powtWange?: [numba, numba] }, pwovida: vscode.PowtAttwibutesPwovida) {
+		wetuwn { dispose: () => { } };
 	}
 
-	async $forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<TunnelDto | undefined> { return undefined; }
-	async $closeTunnel(remote: { host: string, port: number }): Promise<void> { }
-	async $onDidTunnelsChange(): Promise<void> { }
-	async $registerCandidateFinder(): Promise<void> { }
+	async $pwovidePowtAttwibutes(handwes: numba[], powts: numba[], pid: numba | undefined, commandwine: stwing | undefined, cancewwationToken: vscode.CancewwationToken): Pwomise<PwovidedPowtAttwibutes[]> {
+		wetuwn [];
+	}
+
+	async $fowwawdPowt(tunnewOptions: TunnewOptions, tunnewCweationOptions: TunnewCweationOptions): Pwomise<TunnewDto | undefined> { wetuwn undefined; }
+	async $cwoseTunnew(wemote: { host: stwing, powt: numba }): Pwomise<void> { }
+	async $onDidTunnewsChange(): Pwomise<void> { }
+	async $wegistewCandidateFinda(): Pwomise<void> { }
 }

@@ -1,93 +1,93 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { AbstractRemoteAgentService } from 'vs/workbench/services/remote/common/abstractRemoteAgentService';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IWebSocketFactory, BrowserSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
-import { ISignService } from 'vs/platform/sign/common/sign';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Severity } from 'vs/platform/notification/common/notification';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
+impowt * as nws fwom 'vs/nws';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { IWemoteAuthowityWesowvewSewvice, WemoteAuthowityWesowvewEwwow } fwom 'vs/pwatfowm/wemote/common/wemoteAuthowityWesowva';
+impowt { AbstwactWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/abstwactWemoteAgentSewvice';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IWebSocketFactowy, BwowsewSocketFactowy } fwom 'vs/pwatfowm/wemote/bwowsa/bwowsewSocketFactowy';
+impowt { ISignSewvice } fwom 'vs/pwatfowm/sign/common/sign';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy, Extensions } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { getWemoteName } fwom 'vs/pwatfowm/wemote/common/wemoteHosts';
 
-export class RemoteAgentService extends AbstractRemoteAgentService implements IRemoteAgentService {
+expowt cwass WemoteAgentSewvice extends AbstwactWemoteAgentSewvice impwements IWemoteAgentSewvice {
 
-	constructor(
-		webSocketFactory: IWebSocketFactory | null | undefined,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IProductService productService: IProductService,
-		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@ISignService signService: ISignService,
-		@ILogService logService: ILogService
+	constwuctow(
+		webSocketFactowy: IWebSocketFactowy | nuww | undefined,
+		@IWowkbenchEnviwonmentSewvice enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice,
+		@IWemoteAuthowityWesowvewSewvice wemoteAuthowityWesowvewSewvice: IWemoteAuthowityWesowvewSewvice,
+		@ISignSewvice signSewvice: ISignSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice
 	) {
-		super(new BrowserSocketFactory(webSocketFactory), environmentService, productService, remoteAuthorityResolverService, signService, logService);
+		supa(new BwowsewSocketFactowy(webSocketFactowy), enviwonmentSewvice, pwoductSewvice, wemoteAuthowityWesowvewSewvice, signSewvice, wogSewvice);
 	}
 }
 
-class RemoteConnectionFailureNotificationContribution implements IWorkbenchContribution {
+cwass WemoteConnectionFaiwuweNotificationContwibution impwements IWowkbenchContwibution {
 
-	constructor(
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IDialogService private readonly _dialogService: IDialogService,
-		@IHostService private readonly _hostService: IHostService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+	constwuctow(
+		@IWemoteAgentSewvice wemoteAgentSewvice: IWemoteAgentSewvice,
+		@IDiawogSewvice pwivate weadonwy _diawogSewvice: IDiawogSewvice,
+		@IHostSewvice pwivate weadonwy _hostSewvice: IHostSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy _enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@ITewemetwySewvice pwivate weadonwy _tewemetwySewvice: ITewemetwySewvice,
 	) {
-		// Let's cover the case where connecting to fetch the remote extension info fails
-		remoteAgentService.getRawEnvironment()
-			.then(undefined, (err) => {
+		// Wet's cova the case whewe connecting to fetch the wemote extension info faiws
+		wemoteAgentSewvice.getWawEnviwonment()
+			.then(undefined, (eww) => {
 
-				type RemoteConnectionFailureClassification = {
-					web: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-					remoteName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-					message: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				type WemoteConnectionFaiwuweCwassification = {
+					web: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+					wemoteName: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+					message: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
 				};
-				type RemoteConnectionFailureEvent = {
-					web: boolean;
-					remoteName: string | undefined;
-					message: string;
+				type WemoteConnectionFaiwuweEvent = {
+					web: boowean;
+					wemoteName: stwing | undefined;
+					message: stwing;
 				};
-				this._telemetryService.publicLog2<RemoteConnectionFailureEvent, RemoteConnectionFailureClassification>('remoteConnectionFailure', {
-					web: true,
-					remoteName: getRemoteName(this._environmentService.remoteAuthority),
-					message: err ? err.message : ''
+				this._tewemetwySewvice.pubwicWog2<WemoteConnectionFaiwuweEvent, WemoteConnectionFaiwuweCwassification>('wemoteConnectionFaiwuwe', {
+					web: twue,
+					wemoteName: getWemoteName(this._enviwonmentSewvice.wemoteAuthowity),
+					message: eww ? eww.message : ''
 				});
 
-				if (!RemoteAuthorityResolverError.isHandled(err)) {
-					this._presentConnectionError(err);
+				if (!WemoteAuthowityWesowvewEwwow.isHandwed(eww)) {
+					this._pwesentConnectionEwwow(eww);
 				}
 			});
 	}
 
-	private async _presentConnectionError(err: any): Promise<void> {
-		const res = await this._dialogService.show(
-			Severity.Error,
-			nls.localize('connectionError', "An unexpected error occurred that requires a reload of this page."),
+	pwivate async _pwesentConnectionEwwow(eww: any): Pwomise<void> {
+		const wes = await this._diawogSewvice.show(
+			Sevewity.Ewwow,
+			nws.wocawize('connectionEwwow', "An unexpected ewwow occuwwed that wequiwes a wewoad of this page."),
 			[
-				nls.localize('reload', "Reload")
+				nws.wocawize('wewoad', "Wewoad")
 			],
 			{
-				detail: nls.localize('connectionErrorDetail', "The workbench failed to connect to the server (Error: {0})", err ? err.message : '')
+				detaiw: nws.wocawize('connectionEwwowDetaiw', "The wowkbench faiwed to connect to the sewva (Ewwow: {0})", eww ? eww.message : '')
 			}
 		);
 
-		if (res.choice === 0) {
-			this._hostService.reload();
+		if (wes.choice === 0) {
+			this._hostSewvice.wewoad();
 		}
 	}
 
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(RemoteConnectionFailureNotificationContribution, LifecyclePhase.Ready);
+const wowkbenchWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(Extensions.Wowkbench);
+wowkbenchWegistwy.wegistewWowkbenchContwibution(WemoteConnectionFaiwuweNotificationContwibution, WifecycwePhase.Weady);

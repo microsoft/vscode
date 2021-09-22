@@ -1,1139 +1,1139 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { DiffChange } from 'vs/base/common/diff/diffChange';
-import { stringHash } from 'vs/base/common/hash';
-import { Constants } from 'vs/base/common/uint';
+impowt { DiffChange } fwom 'vs/base/common/diff/diffChange';
+impowt { stwingHash } fwom 'vs/base/common/hash';
+impowt { Constants } fwom 'vs/base/common/uint';
 
-export class StringDiffSequence implements ISequence {
+expowt cwass StwingDiffSequence impwements ISequence {
 
-	constructor(private source: string) { }
+	constwuctow(pwivate souwce: stwing) { }
 
-	getElements(): Int32Array | number[] | string[] {
-		const source = this.source;
-		const characters = new Int32Array(source.length);
-		for (let i = 0, len = source.length; i < len; i++) {
-			characters[i] = source.charCodeAt(i);
+	getEwements(): Int32Awway | numba[] | stwing[] {
+		const souwce = this.souwce;
+		const chawactews = new Int32Awway(souwce.wength);
+		fow (wet i = 0, wen = souwce.wength; i < wen; i++) {
+			chawactews[i] = souwce.chawCodeAt(i);
 		}
-		return characters;
+		wetuwn chawactews;
 	}
 }
 
-export function stringDiff(original: string, modified: string, pretty: boolean): IDiffChange[] {
-	return new LcsDiff(new StringDiffSequence(original), new StringDiffSequence(modified)).ComputeDiff(pretty).changes;
+expowt function stwingDiff(owiginaw: stwing, modified: stwing, pwetty: boowean): IDiffChange[] {
+	wetuwn new WcsDiff(new StwingDiffSequence(owiginaw), new StwingDiffSequence(modified)).ComputeDiff(pwetty).changes;
 }
 
-export interface ISequence {
-	getElements(): Int32Array | number[] | string[];
-	getStrictElement?(index: number): string;
+expowt intewface ISequence {
+	getEwements(): Int32Awway | numba[] | stwing[];
+	getStwictEwement?(index: numba): stwing;
 }
 
-export interface IDiffChange {
+expowt intewface IDiffChange {
 	/**
-	 * The position of the first element in the original sequence which
+	 * The position of the fiwst ewement in the owiginaw sequence which
 	 * this change affects.
 	 */
-	originalStart: number;
+	owiginawStawt: numba;
 
 	/**
-	 * The number of elements from the original sequence which were
+	 * The numba of ewements fwom the owiginaw sequence which wewe
 	 * affected.
 	 */
-	originalLength: number;
+	owiginawWength: numba;
 
 	/**
-	 * The position of the first element in the modified sequence which
+	 * The position of the fiwst ewement in the modified sequence which
 	 * this change affects.
 	 */
-	modifiedStart: number;
+	modifiedStawt: numba;
 
 	/**
-	 * The number of elements from the modified sequence which were
+	 * The numba of ewements fwom the modified sequence which wewe
 	 * affected (added).
 	 */
-	modifiedLength: number;
+	modifiedWength: numba;
 }
 
-export interface IContinueProcessingPredicate {
-	(furthestOriginalIndex: number, matchLengthOfLongest: number): boolean;
+expowt intewface IContinuePwocessingPwedicate {
+	(fuwthestOwiginawIndex: numba, matchWengthOfWongest: numba): boowean;
 }
 
-export interface IDiffResult {
-	quitEarly: boolean;
+expowt intewface IDiffWesuwt {
+	quitEawwy: boowean;
 	changes: IDiffChange[];
 }
 
 //
-// The code below has been ported from a C# implementation in VS
+// The code bewow has been powted fwom a C# impwementation in VS
 //
 
-export class Debug {
+expowt cwass Debug {
 
-	public static Assert(condition: boolean, message: string): void {
+	pubwic static Assewt(condition: boowean, message: stwing): void {
 		if (!condition) {
-			throw new Error(message);
+			thwow new Ewwow(message);
 		}
 	}
 }
 
-export class MyArray {
+expowt cwass MyAwway {
 	/**
-	 * Copies a range of elements from an Array starting at the specified source index and pastes
-	 * them to another Array starting at the specified destination index. The length and the indexes
-	 * are specified as 64-bit integers.
-	 * sourceArray:
-	 *		The Array that contains the data to copy.
-	 * sourceIndex:
-	 *		A 64-bit integer that represents the index in the sourceArray at which copying begins.
-	 * destinationArray:
-	 *		The Array that receives the data.
+	 * Copies a wange of ewements fwom an Awway stawting at the specified souwce index and pastes
+	 * them to anotha Awway stawting at the specified destination index. The wength and the indexes
+	 * awe specified as 64-bit integews.
+	 * souwceAwway:
+	 *		The Awway that contains the data to copy.
+	 * souwceIndex:
+	 *		A 64-bit intega that wepwesents the index in the souwceAwway at which copying begins.
+	 * destinationAwway:
+	 *		The Awway that weceives the data.
 	 * destinationIndex:
-	 *		A 64-bit integer that represents the index in the destinationArray at which storing begins.
-	 * length:
-	 *		A 64-bit integer that represents the number of elements to copy.
+	 *		A 64-bit intega that wepwesents the index in the destinationAwway at which stowing begins.
+	 * wength:
+	 *		A 64-bit intega that wepwesents the numba of ewements to copy.
 	 */
-	public static Copy(sourceArray: any[], sourceIndex: number, destinationArray: any[], destinationIndex: number, length: number) {
-		for (let i = 0; i < length; i++) {
-			destinationArray[destinationIndex + i] = sourceArray[sourceIndex + i];
+	pubwic static Copy(souwceAwway: any[], souwceIndex: numba, destinationAwway: any[], destinationIndex: numba, wength: numba) {
+		fow (wet i = 0; i < wength; i++) {
+			destinationAwway[destinationIndex + i] = souwceAwway[souwceIndex + i];
 		}
 	}
-	public static Copy2(sourceArray: Int32Array, sourceIndex: number, destinationArray: Int32Array, destinationIndex: number, length: number) {
-		for (let i = 0; i < length; i++) {
-			destinationArray[destinationIndex + i] = sourceArray[sourceIndex + i];
+	pubwic static Copy2(souwceAwway: Int32Awway, souwceIndex: numba, destinationAwway: Int32Awway, destinationIndex: numba, wength: numba) {
+		fow (wet i = 0; i < wength; i++) {
+			destinationAwway[destinationIndex + i] = souwceAwway[souwceIndex + i];
 		}
 	}
 }
 
 //*****************************************************************************
-// LcsDiff.cs
+// WcsDiff.cs
 //
-// An implementation of the difference algorithm described in
-// "An O(ND) Difference Algorithm and its variations" by Eugene W. Myers
+// An impwementation of the diffewence awgowithm descwibed in
+// "An O(ND) Diffewence Awgowithm and its vawiations" by Eugene W. Myews
 //
-// Copyright (C) 2008 Microsoft Corporation @minifier_do_not_preserve
+// Copywight (C) 2008 Micwosoft Cowpowation @minifiew_do_not_pwesewve
 //*****************************************************************************
 
-// Our total memory usage for storing history is (worst-case):
-// 2 * [(MaxDifferencesHistory + 1) * (MaxDifferencesHistory + 1) - 1] * sizeof(int)
+// Ouw totaw memowy usage fow stowing histowy is (wowst-case):
+// 2 * [(MaxDiffewencesHistowy + 1) * (MaxDiffewencesHistowy + 1) - 1] * sizeof(int)
 // 2 * [1448*1448 - 1] * 4 = 16773624 = 16MB
-const enum LocalConstants {
-	MaxDifferencesHistory = 1447
+const enum WocawConstants {
+	MaxDiffewencesHistowy = 1447
 }
 
 /**
- * A utility class which helps to create the set of DiffChanges from
- * a difference operation. This class accepts original DiffElements and
- * modified DiffElements that are involved in a particular change. The
- * MarkNextChange() method can be called to mark the separation between
- * distinct changes. At the end, the Changes property can be called to retrieve
- * the constructed changes.
+ * A utiwity cwass which hewps to cweate the set of DiffChanges fwom
+ * a diffewence opewation. This cwass accepts owiginaw DiffEwements and
+ * modified DiffEwements that awe invowved in a pawticuwaw change. The
+ * MawkNextChange() method can be cawwed to mawk the sepawation between
+ * distinct changes. At the end, the Changes pwopewty can be cawwed to wetwieve
+ * the constwucted changes.
  */
-class DiffChangeHelper {
+cwass DiffChangeHewpa {
 
-	private m_changes: DiffChange[];
-	private m_originalStart: number;
-	private m_modifiedStart: number;
-	private m_originalCount: number;
-	private m_modifiedCount: number;
+	pwivate m_changes: DiffChange[];
+	pwivate m_owiginawStawt: numba;
+	pwivate m_modifiedStawt: numba;
+	pwivate m_owiginawCount: numba;
+	pwivate m_modifiedCount: numba;
 
 	/**
-	 * Constructs a new DiffChangeHelper for the given DiffSequences.
+	 * Constwucts a new DiffChangeHewpa fow the given DiffSequences.
 	 */
-	constructor() {
+	constwuctow() {
 		this.m_changes = [];
-		this.m_originalStart = Constants.MAX_SAFE_SMALL_INTEGER;
-		this.m_modifiedStart = Constants.MAX_SAFE_SMALL_INTEGER;
-		this.m_originalCount = 0;
+		this.m_owiginawStawt = Constants.MAX_SAFE_SMAWW_INTEGa;
+		this.m_modifiedStawt = Constants.MAX_SAFE_SMAWW_INTEGa;
+		this.m_owiginawCount = 0;
 		this.m_modifiedCount = 0;
 	}
 
 	/**
-	 * Marks the beginning of the next change in the set of differences.
+	 * Mawks the beginning of the next change in the set of diffewences.
 	 */
-	public MarkNextChange(): void {
-		// Only add to the list if there is something to add
-		if (this.m_originalCount > 0 || this.m_modifiedCount > 0) {
-			// Add the new change to our list
-			this.m_changes.push(new DiffChange(this.m_originalStart, this.m_originalCount,
-				this.m_modifiedStart, this.m_modifiedCount));
+	pubwic MawkNextChange(): void {
+		// Onwy add to the wist if thewe is something to add
+		if (this.m_owiginawCount > 0 || this.m_modifiedCount > 0) {
+			// Add the new change to ouw wist
+			this.m_changes.push(new DiffChange(this.m_owiginawStawt, this.m_owiginawCount,
+				this.m_modifiedStawt, this.m_modifiedCount));
 		}
 
-		// Reset for the next change
-		this.m_originalCount = 0;
+		// Weset fow the next change
+		this.m_owiginawCount = 0;
 		this.m_modifiedCount = 0;
-		this.m_originalStart = Constants.MAX_SAFE_SMALL_INTEGER;
-		this.m_modifiedStart = Constants.MAX_SAFE_SMALL_INTEGER;
+		this.m_owiginawStawt = Constants.MAX_SAFE_SMAWW_INTEGa;
+		this.m_modifiedStawt = Constants.MAX_SAFE_SMAWW_INTEGa;
 	}
 
 	/**
-	 * Adds the original element at the given position to the elements
-	 * affected by the current change. The modified index gives context
-	 * to the change position with respect to the original sequence.
-	 * @param originalIndex The index of the original element to add.
-	 * @param modifiedIndex The index of the modified element that provides corresponding position in the modified sequence.
+	 * Adds the owiginaw ewement at the given position to the ewements
+	 * affected by the cuwwent change. The modified index gives context
+	 * to the change position with wespect to the owiginaw sequence.
+	 * @pawam owiginawIndex The index of the owiginaw ewement to add.
+	 * @pawam modifiedIndex The index of the modified ewement that pwovides cowwesponding position in the modified sequence.
 	 */
-	public AddOriginalElement(originalIndex: number, modifiedIndex: number) {
-		// The 'true' start index is the smallest of the ones we've seen
-		this.m_originalStart = Math.min(this.m_originalStart, originalIndex);
-		this.m_modifiedStart = Math.min(this.m_modifiedStart, modifiedIndex);
+	pubwic AddOwiginawEwement(owiginawIndex: numba, modifiedIndex: numba) {
+		// The 'twue' stawt index is the smawwest of the ones we've seen
+		this.m_owiginawStawt = Math.min(this.m_owiginawStawt, owiginawIndex);
+		this.m_modifiedStawt = Math.min(this.m_modifiedStawt, modifiedIndex);
 
-		this.m_originalCount++;
+		this.m_owiginawCount++;
 	}
 
 	/**
-	 * Adds the modified element at the given position to the elements
-	 * affected by the current change. The original index gives context
-	 * to the change position with respect to the modified sequence.
-	 * @param originalIndex The index of the original element that provides corresponding position in the original sequence.
-	 * @param modifiedIndex The index of the modified element to add.
+	 * Adds the modified ewement at the given position to the ewements
+	 * affected by the cuwwent change. The owiginaw index gives context
+	 * to the change position with wespect to the modified sequence.
+	 * @pawam owiginawIndex The index of the owiginaw ewement that pwovides cowwesponding position in the owiginaw sequence.
+	 * @pawam modifiedIndex The index of the modified ewement to add.
 	 */
-	public AddModifiedElement(originalIndex: number, modifiedIndex: number): void {
-		// The 'true' start index is the smallest of the ones we've seen
-		this.m_originalStart = Math.min(this.m_originalStart, originalIndex);
-		this.m_modifiedStart = Math.min(this.m_modifiedStart, modifiedIndex);
+	pubwic AddModifiedEwement(owiginawIndex: numba, modifiedIndex: numba): void {
+		// The 'twue' stawt index is the smawwest of the ones we've seen
+		this.m_owiginawStawt = Math.min(this.m_owiginawStawt, owiginawIndex);
+		this.m_modifiedStawt = Math.min(this.m_modifiedStawt, modifiedIndex);
 
 		this.m_modifiedCount++;
 	}
 
 	/**
-	 * Retrieves all of the changes marked by the class.
+	 * Wetwieves aww of the changes mawked by the cwass.
 	 */
-	public getChanges(): DiffChange[] {
-		if (this.m_originalCount > 0 || this.m_modifiedCount > 0) {
-			// Finish up on whatever is left
-			this.MarkNextChange();
+	pubwic getChanges(): DiffChange[] {
+		if (this.m_owiginawCount > 0 || this.m_modifiedCount > 0) {
+			// Finish up on whateva is weft
+			this.MawkNextChange();
 		}
 
-		return this.m_changes;
+		wetuwn this.m_changes;
 	}
 
 	/**
-	 * Retrieves all of the changes marked by the class in the reverse order
+	 * Wetwieves aww of the changes mawked by the cwass in the wevewse owda
 	 */
-	public getReverseChanges(): DiffChange[] {
-		if (this.m_originalCount > 0 || this.m_modifiedCount > 0) {
-			// Finish up on whatever is left
-			this.MarkNextChange();
+	pubwic getWevewseChanges(): DiffChange[] {
+		if (this.m_owiginawCount > 0 || this.m_modifiedCount > 0) {
+			// Finish up on whateva is weft
+			this.MawkNextChange();
 		}
 
-		this.m_changes.reverse();
-		return this.m_changes;
+		this.m_changes.wevewse();
+		wetuwn this.m_changes;
 	}
 
 }
 
 /**
- * An implementation of the difference algorithm described in
- * "An O(ND) Difference Algorithm and its variations" by Eugene W. Myers
+ * An impwementation of the diffewence awgowithm descwibed in
+ * "An O(ND) Diffewence Awgowithm and its vawiations" by Eugene W. Myews
  */
-export class LcsDiff {
+expowt cwass WcsDiff {
 
-	private readonly ContinueProcessingPredicate: IContinueProcessingPredicate | null;
+	pwivate weadonwy ContinuePwocessingPwedicate: IContinuePwocessingPwedicate | nuww;
 
-	private readonly _originalSequence: ISequence;
-	private readonly _modifiedSequence: ISequence;
-	private readonly _hasStrings: boolean;
-	private readonly _originalStringElements: string[];
-	private readonly _originalElementsOrHash: Int32Array;
-	private readonly _modifiedStringElements: string[];
-	private readonly _modifiedElementsOrHash: Int32Array;
+	pwivate weadonwy _owiginawSequence: ISequence;
+	pwivate weadonwy _modifiedSequence: ISequence;
+	pwivate weadonwy _hasStwings: boowean;
+	pwivate weadonwy _owiginawStwingEwements: stwing[];
+	pwivate weadonwy _owiginawEwementsOwHash: Int32Awway;
+	pwivate weadonwy _modifiedStwingEwements: stwing[];
+	pwivate weadonwy _modifiedEwementsOwHash: Int32Awway;
 
-	private m_forwardHistory: Int32Array[];
-	private m_reverseHistory: Int32Array[];
+	pwivate m_fowwawdHistowy: Int32Awway[];
+	pwivate m_wevewseHistowy: Int32Awway[];
 
 	/**
-	 * Constructs the DiffFinder
+	 * Constwucts the DiffFinda
 	 */
-	constructor(originalSequence: ISequence, modifiedSequence: ISequence, continueProcessingPredicate: IContinueProcessingPredicate | null = null) {
-		this.ContinueProcessingPredicate = continueProcessingPredicate;
+	constwuctow(owiginawSequence: ISequence, modifiedSequence: ISequence, continuePwocessingPwedicate: IContinuePwocessingPwedicate | nuww = nuww) {
+		this.ContinuePwocessingPwedicate = continuePwocessingPwedicate;
 
-		this._originalSequence = originalSequence;
+		this._owiginawSequence = owiginawSequence;
 		this._modifiedSequence = modifiedSequence;
 
-		const [originalStringElements, originalElementsOrHash, originalHasStrings] = LcsDiff._getElements(originalSequence);
-		const [modifiedStringElements, modifiedElementsOrHash, modifiedHasStrings] = LcsDiff._getElements(modifiedSequence);
+		const [owiginawStwingEwements, owiginawEwementsOwHash, owiginawHasStwings] = WcsDiff._getEwements(owiginawSequence);
+		const [modifiedStwingEwements, modifiedEwementsOwHash, modifiedHasStwings] = WcsDiff._getEwements(modifiedSequence);
 
-		this._hasStrings = (originalHasStrings && modifiedHasStrings);
-		this._originalStringElements = originalStringElements;
-		this._originalElementsOrHash = originalElementsOrHash;
-		this._modifiedStringElements = modifiedStringElements;
-		this._modifiedElementsOrHash = modifiedElementsOrHash;
+		this._hasStwings = (owiginawHasStwings && modifiedHasStwings);
+		this._owiginawStwingEwements = owiginawStwingEwements;
+		this._owiginawEwementsOwHash = owiginawEwementsOwHash;
+		this._modifiedStwingEwements = modifiedStwingEwements;
+		this._modifiedEwementsOwHash = modifiedEwementsOwHash;
 
-		this.m_forwardHistory = [];
-		this.m_reverseHistory = [];
+		this.m_fowwawdHistowy = [];
+		this.m_wevewseHistowy = [];
 	}
 
-	private static _isStringArray(arr: Int32Array | number[] | string[]): arr is string[] {
-		return (arr.length > 0 && typeof arr[0] === 'string');
+	pwivate static _isStwingAwway(aww: Int32Awway | numba[] | stwing[]): aww is stwing[] {
+		wetuwn (aww.wength > 0 && typeof aww[0] === 'stwing');
 	}
 
-	private static _getElements(sequence: ISequence): [string[], Int32Array, boolean] {
-		const elements = sequence.getElements();
+	pwivate static _getEwements(sequence: ISequence): [stwing[], Int32Awway, boowean] {
+		const ewements = sequence.getEwements();
 
-		if (LcsDiff._isStringArray(elements)) {
-			const hashes = new Int32Array(elements.length);
-			for (let i = 0, len = elements.length; i < len; i++) {
-				hashes[i] = stringHash(elements[i], 0);
+		if (WcsDiff._isStwingAwway(ewements)) {
+			const hashes = new Int32Awway(ewements.wength);
+			fow (wet i = 0, wen = ewements.wength; i < wen; i++) {
+				hashes[i] = stwingHash(ewements[i], 0);
 			}
-			return [elements, hashes, true];
+			wetuwn [ewements, hashes, twue];
 		}
 
-		if (elements instanceof Int32Array) {
-			return [[], elements, false];
+		if (ewements instanceof Int32Awway) {
+			wetuwn [[], ewements, fawse];
 		}
 
-		return [[], new Int32Array(elements), false];
+		wetuwn [[], new Int32Awway(ewements), fawse];
 	}
 
-	private ElementsAreEqual(originalIndex: number, newIndex: number): boolean {
-		if (this._originalElementsOrHash[originalIndex] !== this._modifiedElementsOrHash[newIndex]) {
-			return false;
+	pwivate EwementsAweEquaw(owiginawIndex: numba, newIndex: numba): boowean {
+		if (this._owiginawEwementsOwHash[owiginawIndex] !== this._modifiedEwementsOwHash[newIndex]) {
+			wetuwn fawse;
 		}
-		return (this._hasStrings ? this._originalStringElements[originalIndex] === this._modifiedStringElements[newIndex] : true);
+		wetuwn (this._hasStwings ? this._owiginawStwingEwements[owiginawIndex] === this._modifiedStwingEwements[newIndex] : twue);
 	}
 
-	private ElementsAreStrictEqual(originalIndex: number, newIndex: number): boolean {
-		if (!this.ElementsAreEqual(originalIndex, newIndex)) {
-			return false;
+	pwivate EwementsAweStwictEquaw(owiginawIndex: numba, newIndex: numba): boowean {
+		if (!this.EwementsAweEquaw(owiginawIndex, newIndex)) {
+			wetuwn fawse;
 		}
-		const originalElement = LcsDiff._getStrictElement(this._originalSequence, originalIndex);
-		const modifiedElement = LcsDiff._getStrictElement(this._modifiedSequence, newIndex);
-		return (originalElement === modifiedElement);
+		const owiginawEwement = WcsDiff._getStwictEwement(this._owiginawSequence, owiginawIndex);
+		const modifiedEwement = WcsDiff._getStwictEwement(this._modifiedSequence, newIndex);
+		wetuwn (owiginawEwement === modifiedEwement);
 	}
 
-	private static _getStrictElement(sequence: ISequence, index: number): string | null {
-		if (typeof sequence.getStrictElement === 'function') {
-			return sequence.getStrictElement(index);
+	pwivate static _getStwictEwement(sequence: ISequence, index: numba): stwing | nuww {
+		if (typeof sequence.getStwictEwement === 'function') {
+			wetuwn sequence.getStwictEwement(index);
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private OriginalElementsAreEqual(index1: number, index2: number): boolean {
-		if (this._originalElementsOrHash[index1] !== this._originalElementsOrHash[index2]) {
-			return false;
+	pwivate OwiginawEwementsAweEquaw(index1: numba, index2: numba): boowean {
+		if (this._owiginawEwementsOwHash[index1] !== this._owiginawEwementsOwHash[index2]) {
+			wetuwn fawse;
 		}
-		return (this._hasStrings ? this._originalStringElements[index1] === this._originalStringElements[index2] : true);
+		wetuwn (this._hasStwings ? this._owiginawStwingEwements[index1] === this._owiginawStwingEwements[index2] : twue);
 	}
 
-	private ModifiedElementsAreEqual(index1: number, index2: number): boolean {
-		if (this._modifiedElementsOrHash[index1] !== this._modifiedElementsOrHash[index2]) {
-			return false;
+	pwivate ModifiedEwementsAweEquaw(index1: numba, index2: numba): boowean {
+		if (this._modifiedEwementsOwHash[index1] !== this._modifiedEwementsOwHash[index2]) {
+			wetuwn fawse;
 		}
-		return (this._hasStrings ? this._modifiedStringElements[index1] === this._modifiedStringElements[index2] : true);
+		wetuwn (this._hasStwings ? this._modifiedStwingEwements[index1] === this._modifiedStwingEwements[index2] : twue);
 	}
 
-	public ComputeDiff(pretty: boolean): IDiffResult {
-		return this._ComputeDiff(0, this._originalElementsOrHash.length - 1, 0, this._modifiedElementsOrHash.length - 1, pretty);
+	pubwic ComputeDiff(pwetty: boowean): IDiffWesuwt {
+		wetuwn this._ComputeDiff(0, this._owiginawEwementsOwHash.wength - 1, 0, this._modifiedEwementsOwHash.wength - 1, pwetty);
 	}
 
 	/**
-	 * Computes the differences between the original and modified input
-	 * sequences on the bounded range.
-	 * @returns An array of the differences between the two input sequences.
+	 * Computes the diffewences between the owiginaw and modified input
+	 * sequences on the bounded wange.
+	 * @wetuwns An awway of the diffewences between the two input sequences.
 	 */
-	private _ComputeDiff(originalStart: number, originalEnd: number, modifiedStart: number, modifiedEnd: number, pretty: boolean): IDiffResult {
-		const quitEarlyArr = [false];
-		let changes = this.ComputeDiffRecursive(originalStart, originalEnd, modifiedStart, modifiedEnd, quitEarlyArr);
+	pwivate _ComputeDiff(owiginawStawt: numba, owiginawEnd: numba, modifiedStawt: numba, modifiedEnd: numba, pwetty: boowean): IDiffWesuwt {
+		const quitEawwyAww = [fawse];
+		wet changes = this.ComputeDiffWecuwsive(owiginawStawt, owiginawEnd, modifiedStawt, modifiedEnd, quitEawwyAww);
 
-		if (pretty) {
-			// We have to clean up the computed diff to be more intuitive
-			// but it turns out this cannot be done correctly until the entire set
+		if (pwetty) {
+			// We have to cwean up the computed diff to be mowe intuitive
+			// but it tuwns out this cannot be done cowwectwy untiw the entiwe set
 			// of diffs have been computed
-			changes = this.PrettifyChanges(changes);
+			changes = this.PwettifyChanges(changes);
 		}
 
-		return {
-			quitEarly: quitEarlyArr[0],
+		wetuwn {
+			quitEawwy: quitEawwyAww[0],
 			changes: changes
 		};
 	}
 
 	/**
-	 * Private helper method which computes the differences on the bounded range
-	 * recursively.
-	 * @returns An array of the differences between the two input sequences.
+	 * Pwivate hewpa method which computes the diffewences on the bounded wange
+	 * wecuwsivewy.
+	 * @wetuwns An awway of the diffewences between the two input sequences.
 	 */
-	private ComputeDiffRecursive(originalStart: number, originalEnd: number, modifiedStart: number, modifiedEnd: number, quitEarlyArr: boolean[]): DiffChange[] {
-		quitEarlyArr[0] = false;
+	pwivate ComputeDiffWecuwsive(owiginawStawt: numba, owiginawEnd: numba, modifiedStawt: numba, modifiedEnd: numba, quitEawwyAww: boowean[]): DiffChange[] {
+		quitEawwyAww[0] = fawse;
 
-		// Find the start of the differences
-		while (originalStart <= originalEnd && modifiedStart <= modifiedEnd && this.ElementsAreEqual(originalStart, modifiedStart)) {
-			originalStart++;
-			modifiedStart++;
+		// Find the stawt of the diffewences
+		whiwe (owiginawStawt <= owiginawEnd && modifiedStawt <= modifiedEnd && this.EwementsAweEquaw(owiginawStawt, modifiedStawt)) {
+			owiginawStawt++;
+			modifiedStawt++;
 		}
 
-		// Find the end of the differences
-		while (originalEnd >= originalStart && modifiedEnd >= modifiedStart && this.ElementsAreEqual(originalEnd, modifiedEnd)) {
-			originalEnd--;
+		// Find the end of the diffewences
+		whiwe (owiginawEnd >= owiginawStawt && modifiedEnd >= modifiedStawt && this.EwementsAweEquaw(owiginawEnd, modifiedEnd)) {
+			owiginawEnd--;
 			modifiedEnd--;
 		}
 
-		// In the special case where we either have all insertions or all deletions or the sequences are identical
-		if (originalStart > originalEnd || modifiedStart > modifiedEnd) {
-			let changes: DiffChange[];
+		// In the speciaw case whewe we eitha have aww insewtions ow aww dewetions ow the sequences awe identicaw
+		if (owiginawStawt > owiginawEnd || modifiedStawt > modifiedEnd) {
+			wet changes: DiffChange[];
 
-			if (modifiedStart <= modifiedEnd) {
-				Debug.Assert(originalStart === originalEnd + 1, 'originalStart should only be one more than originalEnd');
+			if (modifiedStawt <= modifiedEnd) {
+				Debug.Assewt(owiginawStawt === owiginawEnd + 1, 'owiginawStawt shouwd onwy be one mowe than owiginawEnd');
 
-				// All insertions
+				// Aww insewtions
 				changes = [
-					new DiffChange(originalStart, 0, modifiedStart, modifiedEnd - modifiedStart + 1)
+					new DiffChange(owiginawStawt, 0, modifiedStawt, modifiedEnd - modifiedStawt + 1)
 				];
-			} else if (originalStart <= originalEnd) {
-				Debug.Assert(modifiedStart === modifiedEnd + 1, 'modifiedStart should only be one more than modifiedEnd');
+			} ewse if (owiginawStawt <= owiginawEnd) {
+				Debug.Assewt(modifiedStawt === modifiedEnd + 1, 'modifiedStawt shouwd onwy be one mowe than modifiedEnd');
 
-				// All deletions
+				// Aww dewetions
 				changes = [
-					new DiffChange(originalStart, originalEnd - originalStart + 1, modifiedStart, 0)
+					new DiffChange(owiginawStawt, owiginawEnd - owiginawStawt + 1, modifiedStawt, 0)
 				];
-			} else {
-				Debug.Assert(originalStart === originalEnd + 1, 'originalStart should only be one more than originalEnd');
-				Debug.Assert(modifiedStart === modifiedEnd + 1, 'modifiedStart should only be one more than modifiedEnd');
+			} ewse {
+				Debug.Assewt(owiginawStawt === owiginawEnd + 1, 'owiginawStawt shouwd onwy be one mowe than owiginawEnd');
+				Debug.Assewt(modifiedStawt === modifiedEnd + 1, 'modifiedStawt shouwd onwy be one mowe than modifiedEnd');
 
-				// Identical sequences - No differences
+				// Identicaw sequences - No diffewences
 				changes = [];
 			}
 
-			return changes;
+			wetuwn changes;
 		}
 
-		// This problem can be solved using the Divide-And-Conquer technique.
-		const midOriginalArr = [0];
-		const midModifiedArr = [0];
-		const result = this.ComputeRecursionPoint(originalStart, originalEnd, modifiedStart, modifiedEnd, midOriginalArr, midModifiedArr, quitEarlyArr);
+		// This pwobwem can be sowved using the Divide-And-Conqua technique.
+		const midOwiginawAww = [0];
+		const midModifiedAww = [0];
+		const wesuwt = this.ComputeWecuwsionPoint(owiginawStawt, owiginawEnd, modifiedStawt, modifiedEnd, midOwiginawAww, midModifiedAww, quitEawwyAww);
 
-		const midOriginal = midOriginalArr[0];
-		const midModified = midModifiedArr[0];
+		const midOwiginaw = midOwiginawAww[0];
+		const midModified = midModifiedAww[0];
 
-		if (result !== null) {
-			// Result is not-null when there was enough memory to compute the changes while
-			// searching for the recursion point
-			return result;
-		} else if (!quitEarlyArr[0]) {
-			// We can break the problem down recursively by finding the changes in the
-			// First Half:   (originalStart, modifiedStart) to (midOriginal, midModified)
-			// Second Half:  (midOriginal + 1, minModified + 1) to (originalEnd, modifiedEnd)
-			// NOTE: ComputeDiff() is inclusive, therefore the second range starts on the next point
+		if (wesuwt !== nuww) {
+			// Wesuwt is not-nuww when thewe was enough memowy to compute the changes whiwe
+			// seawching fow the wecuwsion point
+			wetuwn wesuwt;
+		} ewse if (!quitEawwyAww[0]) {
+			// We can bweak the pwobwem down wecuwsivewy by finding the changes in the
+			// Fiwst Hawf:   (owiginawStawt, modifiedStawt) to (midOwiginaw, midModified)
+			// Second Hawf:  (midOwiginaw + 1, minModified + 1) to (owiginawEnd, modifiedEnd)
+			// NOTE: ComputeDiff() is incwusive, thewefowe the second wange stawts on the next point
 
-			const leftChanges = this.ComputeDiffRecursive(originalStart, midOriginal, modifiedStart, midModified, quitEarlyArr);
-			let rightChanges: DiffChange[] = [];
+			const weftChanges = this.ComputeDiffWecuwsive(owiginawStawt, midOwiginaw, modifiedStawt, midModified, quitEawwyAww);
+			wet wightChanges: DiffChange[] = [];
 
-			if (!quitEarlyArr[0]) {
-				rightChanges = this.ComputeDiffRecursive(midOriginal + 1, originalEnd, midModified + 1, modifiedEnd, quitEarlyArr);
-			} else {
-				// We didn't have time to finish the first half, so we don't have time to compute this half.
-				// Consider the entire rest of the sequence different.
-				rightChanges = [
-					new DiffChange(midOriginal + 1, originalEnd - (midOriginal + 1) + 1, midModified + 1, modifiedEnd - (midModified + 1) + 1)
+			if (!quitEawwyAww[0]) {
+				wightChanges = this.ComputeDiffWecuwsive(midOwiginaw + 1, owiginawEnd, midModified + 1, modifiedEnd, quitEawwyAww);
+			} ewse {
+				// We didn't have time to finish the fiwst hawf, so we don't have time to compute this hawf.
+				// Consida the entiwe west of the sequence diffewent.
+				wightChanges = [
+					new DiffChange(midOwiginaw + 1, owiginawEnd - (midOwiginaw + 1) + 1, midModified + 1, modifiedEnd - (midModified + 1) + 1)
 				];
 			}
 
-			return this.ConcatenateChanges(leftChanges, rightChanges);
+			wetuwn this.ConcatenateChanges(weftChanges, wightChanges);
 		}
 
-		// If we hit here, we quit early, and so can't return anything meaningful
-		return [
-			new DiffChange(originalStart, originalEnd - originalStart + 1, modifiedStart, modifiedEnd - modifiedStart + 1)
+		// If we hit hewe, we quit eawwy, and so can't wetuwn anything meaningfuw
+		wetuwn [
+			new DiffChange(owiginawStawt, owiginawEnd - owiginawStawt + 1, modifiedStawt, modifiedEnd - modifiedStawt + 1)
 		];
 	}
 
-	private WALKTRACE(diagonalForwardBase: number, diagonalForwardStart: number, diagonalForwardEnd: number, diagonalForwardOffset: number,
-		diagonalReverseBase: number, diagonalReverseStart: number, diagonalReverseEnd: number, diagonalReverseOffset: number,
-		forwardPoints: Int32Array, reversePoints: Int32Array,
-		originalIndex: number, originalEnd: number, midOriginalArr: number[],
-		modifiedIndex: number, modifiedEnd: number, midModifiedArr: number[],
-		deltaIsEven: boolean, quitEarlyArr: boolean[]
+	pwivate WAWKTWACE(diagonawFowwawdBase: numba, diagonawFowwawdStawt: numba, diagonawFowwawdEnd: numba, diagonawFowwawdOffset: numba,
+		diagonawWevewseBase: numba, diagonawWevewseStawt: numba, diagonawWevewseEnd: numba, diagonawWevewseOffset: numba,
+		fowwawdPoints: Int32Awway, wevewsePoints: Int32Awway,
+		owiginawIndex: numba, owiginawEnd: numba, midOwiginawAww: numba[],
+		modifiedIndex: numba, modifiedEnd: numba, midModifiedAww: numba[],
+		dewtaIsEven: boowean, quitEawwyAww: boowean[]
 	): DiffChange[] {
-		let forwardChanges: DiffChange[] | null = null;
-		let reverseChanges: DiffChange[] | null = null;
+		wet fowwawdChanges: DiffChange[] | nuww = nuww;
+		wet wevewseChanges: DiffChange[] | nuww = nuww;
 
-		// First, walk backward through the forward diagonals history
-		let changeHelper = new DiffChangeHelper();
-		let diagonalMin = diagonalForwardStart;
-		let diagonalMax = diagonalForwardEnd;
-		let diagonalRelative = (midOriginalArr[0] - midModifiedArr[0]) - diagonalForwardOffset;
-		let lastOriginalIndex = Constants.MIN_SAFE_SMALL_INTEGER;
-		let historyIndex = this.m_forwardHistory.length - 1;
+		// Fiwst, wawk backwawd thwough the fowwawd diagonaws histowy
+		wet changeHewpa = new DiffChangeHewpa();
+		wet diagonawMin = diagonawFowwawdStawt;
+		wet diagonawMax = diagonawFowwawdEnd;
+		wet diagonawWewative = (midOwiginawAww[0] - midModifiedAww[0]) - diagonawFowwawdOffset;
+		wet wastOwiginawIndex = Constants.MIN_SAFE_SMAWW_INTEGa;
+		wet histowyIndex = this.m_fowwawdHistowy.wength - 1;
 
 		do {
-			// Get the diagonal index from the relative diagonal number
-			const diagonal = diagonalRelative + diagonalForwardBase;
+			// Get the diagonaw index fwom the wewative diagonaw numba
+			const diagonaw = diagonawWewative + diagonawFowwawdBase;
 
-			// Figure out where we came from
-			if (diagonal === diagonalMin || (diagonal < diagonalMax && forwardPoints[diagonal - 1] < forwardPoints[diagonal + 1])) {
-				// Vertical line (the element is an insert)
-				originalIndex = forwardPoints[diagonal + 1];
-				modifiedIndex = originalIndex - diagonalRelative - diagonalForwardOffset;
-				if (originalIndex < lastOriginalIndex) {
-					changeHelper.MarkNextChange();
+			// Figuwe out whewe we came fwom
+			if (diagonaw === diagonawMin || (diagonaw < diagonawMax && fowwawdPoints[diagonaw - 1] < fowwawdPoints[diagonaw + 1])) {
+				// Vewticaw wine (the ewement is an insewt)
+				owiginawIndex = fowwawdPoints[diagonaw + 1];
+				modifiedIndex = owiginawIndex - diagonawWewative - diagonawFowwawdOffset;
+				if (owiginawIndex < wastOwiginawIndex) {
+					changeHewpa.MawkNextChange();
 				}
-				lastOriginalIndex = originalIndex;
-				changeHelper.AddModifiedElement(originalIndex + 1, modifiedIndex);
-				diagonalRelative = (diagonal + 1) - diagonalForwardBase; //Setup for the next iteration
-			} else {
-				// Horizontal line (the element is a deletion)
-				originalIndex = forwardPoints[diagonal - 1] + 1;
-				modifiedIndex = originalIndex - diagonalRelative - diagonalForwardOffset;
-				if (originalIndex < lastOriginalIndex) {
-					changeHelper.MarkNextChange();
+				wastOwiginawIndex = owiginawIndex;
+				changeHewpa.AddModifiedEwement(owiginawIndex + 1, modifiedIndex);
+				diagonawWewative = (diagonaw + 1) - diagonawFowwawdBase; //Setup fow the next itewation
+			} ewse {
+				// Howizontaw wine (the ewement is a dewetion)
+				owiginawIndex = fowwawdPoints[diagonaw - 1] + 1;
+				modifiedIndex = owiginawIndex - diagonawWewative - diagonawFowwawdOffset;
+				if (owiginawIndex < wastOwiginawIndex) {
+					changeHewpa.MawkNextChange();
 				}
-				lastOriginalIndex = originalIndex - 1;
-				changeHelper.AddOriginalElement(originalIndex, modifiedIndex + 1);
-				diagonalRelative = (diagonal - 1) - diagonalForwardBase; //Setup for the next iteration
+				wastOwiginawIndex = owiginawIndex - 1;
+				changeHewpa.AddOwiginawEwement(owiginawIndex, modifiedIndex + 1);
+				diagonawWewative = (diagonaw - 1) - diagonawFowwawdBase; //Setup fow the next itewation
 			}
 
-			if (historyIndex >= 0) {
-				forwardPoints = this.m_forwardHistory[historyIndex];
-				diagonalForwardBase = forwardPoints[0]; //We stored this in the first spot
-				diagonalMin = 1;
-				diagonalMax = forwardPoints.length - 1;
+			if (histowyIndex >= 0) {
+				fowwawdPoints = this.m_fowwawdHistowy[histowyIndex];
+				diagonawFowwawdBase = fowwawdPoints[0]; //We stowed this in the fiwst spot
+				diagonawMin = 1;
+				diagonawMax = fowwawdPoints.wength - 1;
 			}
-		} while (--historyIndex >= -1);
+		} whiwe (--histowyIndex >= -1);
 
-		// Ironically, we get the forward changes as the reverse of the
-		// order we added them since we technically added them backwards
-		forwardChanges = changeHelper.getReverseChanges();
+		// Iwonicawwy, we get the fowwawd changes as the wevewse of the
+		// owda we added them since we technicawwy added them backwawds
+		fowwawdChanges = changeHewpa.getWevewseChanges();
 
-		if (quitEarlyArr[0]) {
-			// TODO: Calculate a partial from the reverse diagonals.
-			//       For now, just assume everything after the midOriginal/midModified point is a diff
+		if (quitEawwyAww[0]) {
+			// TODO: Cawcuwate a pawtiaw fwom the wevewse diagonaws.
+			//       Fow now, just assume evewything afta the midOwiginaw/midModified point is a diff
 
-			let originalStartPoint = midOriginalArr[0] + 1;
-			let modifiedStartPoint = midModifiedArr[0] + 1;
+			wet owiginawStawtPoint = midOwiginawAww[0] + 1;
+			wet modifiedStawtPoint = midModifiedAww[0] + 1;
 
-			if (forwardChanges !== null && forwardChanges.length > 0) {
-				const lastForwardChange = forwardChanges[forwardChanges.length - 1];
-				originalStartPoint = Math.max(originalStartPoint, lastForwardChange.getOriginalEnd());
-				modifiedStartPoint = Math.max(modifiedStartPoint, lastForwardChange.getModifiedEnd());
+			if (fowwawdChanges !== nuww && fowwawdChanges.wength > 0) {
+				const wastFowwawdChange = fowwawdChanges[fowwawdChanges.wength - 1];
+				owiginawStawtPoint = Math.max(owiginawStawtPoint, wastFowwawdChange.getOwiginawEnd());
+				modifiedStawtPoint = Math.max(modifiedStawtPoint, wastFowwawdChange.getModifiedEnd());
 			}
 
-			reverseChanges = [
-				new DiffChange(originalStartPoint, originalEnd - originalStartPoint + 1,
-					modifiedStartPoint, modifiedEnd - modifiedStartPoint + 1)
+			wevewseChanges = [
+				new DiffChange(owiginawStawtPoint, owiginawEnd - owiginawStawtPoint + 1,
+					modifiedStawtPoint, modifiedEnd - modifiedStawtPoint + 1)
 			];
-		} else {
-			// Now walk backward through the reverse diagonals history
-			changeHelper = new DiffChangeHelper();
-			diagonalMin = diagonalReverseStart;
-			diagonalMax = diagonalReverseEnd;
-			diagonalRelative = (midOriginalArr[0] - midModifiedArr[0]) - diagonalReverseOffset;
-			lastOriginalIndex = Constants.MAX_SAFE_SMALL_INTEGER;
-			historyIndex = (deltaIsEven) ? this.m_reverseHistory.length - 1 : this.m_reverseHistory.length - 2;
+		} ewse {
+			// Now wawk backwawd thwough the wevewse diagonaws histowy
+			changeHewpa = new DiffChangeHewpa();
+			diagonawMin = diagonawWevewseStawt;
+			diagonawMax = diagonawWevewseEnd;
+			diagonawWewative = (midOwiginawAww[0] - midModifiedAww[0]) - diagonawWevewseOffset;
+			wastOwiginawIndex = Constants.MAX_SAFE_SMAWW_INTEGa;
+			histowyIndex = (dewtaIsEven) ? this.m_wevewseHistowy.wength - 1 : this.m_wevewseHistowy.wength - 2;
 
 			do {
-				// Get the diagonal index from the relative diagonal number
-				const diagonal = diagonalRelative + diagonalReverseBase;
+				// Get the diagonaw index fwom the wewative diagonaw numba
+				const diagonaw = diagonawWewative + diagonawWevewseBase;
 
-				// Figure out where we came from
-				if (diagonal === diagonalMin || (diagonal < diagonalMax && reversePoints[diagonal - 1] >= reversePoints[diagonal + 1])) {
-					// Horizontal line (the element is a deletion))
-					originalIndex = reversePoints[diagonal + 1] - 1;
-					modifiedIndex = originalIndex - diagonalRelative - diagonalReverseOffset;
-					if (originalIndex > lastOriginalIndex) {
-						changeHelper.MarkNextChange();
+				// Figuwe out whewe we came fwom
+				if (diagonaw === diagonawMin || (diagonaw < diagonawMax && wevewsePoints[diagonaw - 1] >= wevewsePoints[diagonaw + 1])) {
+					// Howizontaw wine (the ewement is a dewetion))
+					owiginawIndex = wevewsePoints[diagonaw + 1] - 1;
+					modifiedIndex = owiginawIndex - diagonawWewative - diagonawWevewseOffset;
+					if (owiginawIndex > wastOwiginawIndex) {
+						changeHewpa.MawkNextChange();
 					}
-					lastOriginalIndex = originalIndex + 1;
-					changeHelper.AddOriginalElement(originalIndex + 1, modifiedIndex + 1);
-					diagonalRelative = (diagonal + 1) - diagonalReverseBase; //Setup for the next iteration
-				} else {
-					// Vertical line (the element is an insertion)
-					originalIndex = reversePoints[diagonal - 1];
-					modifiedIndex = originalIndex - diagonalRelative - diagonalReverseOffset;
-					if (originalIndex > lastOriginalIndex) {
-						changeHelper.MarkNextChange();
+					wastOwiginawIndex = owiginawIndex + 1;
+					changeHewpa.AddOwiginawEwement(owiginawIndex + 1, modifiedIndex + 1);
+					diagonawWewative = (diagonaw + 1) - diagonawWevewseBase; //Setup fow the next itewation
+				} ewse {
+					// Vewticaw wine (the ewement is an insewtion)
+					owiginawIndex = wevewsePoints[diagonaw - 1];
+					modifiedIndex = owiginawIndex - diagonawWewative - diagonawWevewseOffset;
+					if (owiginawIndex > wastOwiginawIndex) {
+						changeHewpa.MawkNextChange();
 					}
-					lastOriginalIndex = originalIndex;
-					changeHelper.AddModifiedElement(originalIndex + 1, modifiedIndex + 1);
-					diagonalRelative = (diagonal - 1) - diagonalReverseBase; //Setup for the next iteration
+					wastOwiginawIndex = owiginawIndex;
+					changeHewpa.AddModifiedEwement(owiginawIndex + 1, modifiedIndex + 1);
+					diagonawWewative = (diagonaw - 1) - diagonawWevewseBase; //Setup fow the next itewation
 				}
 
-				if (historyIndex >= 0) {
-					reversePoints = this.m_reverseHistory[historyIndex];
-					diagonalReverseBase = reversePoints[0]; //We stored this in the first spot
-					diagonalMin = 1;
-					diagonalMax = reversePoints.length - 1;
+				if (histowyIndex >= 0) {
+					wevewsePoints = this.m_wevewseHistowy[histowyIndex];
+					diagonawWevewseBase = wevewsePoints[0]; //We stowed this in the fiwst spot
+					diagonawMin = 1;
+					diagonawMax = wevewsePoints.wength - 1;
 				}
-			} while (--historyIndex >= -1);
+			} whiwe (--histowyIndex >= -1);
 
-			// There are cases where the reverse history will find diffs that
-			// are correct, but not intuitive, so we need shift them.
-			reverseChanges = changeHelper.getChanges();
+			// Thewe awe cases whewe the wevewse histowy wiww find diffs that
+			// awe cowwect, but not intuitive, so we need shift them.
+			wevewseChanges = changeHewpa.getChanges();
 		}
 
-		return this.ConcatenateChanges(forwardChanges, reverseChanges);
+		wetuwn this.ConcatenateChanges(fowwawdChanges, wevewseChanges);
 	}
 
 	/**
-	 * Given the range to compute the diff on, this method finds the point:
-	 * (midOriginal, midModified)
-	 * that exists in the middle of the LCS of the two sequences and
-	 * is the point at which the LCS problem may be broken down recursively.
-	 * This method will try to keep the LCS trace in memory. If the LCS recursion
-	 * point is calculated and the full trace is available in memory, then this method
-	 * will return the change list.
-	 * @param originalStart The start bound of the original sequence range
-	 * @param originalEnd The end bound of the original sequence range
-	 * @param modifiedStart The start bound of the modified sequence range
-	 * @param modifiedEnd The end bound of the modified sequence range
-	 * @param midOriginal The middle point of the original sequence range
-	 * @param midModified The middle point of the modified sequence range
-	 * @returns The diff changes, if available, otherwise null
+	 * Given the wange to compute the diff on, this method finds the point:
+	 * (midOwiginaw, midModified)
+	 * that exists in the middwe of the WCS of the two sequences and
+	 * is the point at which the WCS pwobwem may be bwoken down wecuwsivewy.
+	 * This method wiww twy to keep the WCS twace in memowy. If the WCS wecuwsion
+	 * point is cawcuwated and the fuww twace is avaiwabwe in memowy, then this method
+	 * wiww wetuwn the change wist.
+	 * @pawam owiginawStawt The stawt bound of the owiginaw sequence wange
+	 * @pawam owiginawEnd The end bound of the owiginaw sequence wange
+	 * @pawam modifiedStawt The stawt bound of the modified sequence wange
+	 * @pawam modifiedEnd The end bound of the modified sequence wange
+	 * @pawam midOwiginaw The middwe point of the owiginaw sequence wange
+	 * @pawam midModified The middwe point of the modified sequence wange
+	 * @wetuwns The diff changes, if avaiwabwe, othewwise nuww
 	 */
-	private ComputeRecursionPoint(originalStart: number, originalEnd: number, modifiedStart: number, modifiedEnd: number, midOriginalArr: number[], midModifiedArr: number[], quitEarlyArr: boolean[]) {
-		let originalIndex = 0, modifiedIndex = 0;
-		let diagonalForwardStart = 0, diagonalForwardEnd = 0;
-		let diagonalReverseStart = 0, diagonalReverseEnd = 0;
+	pwivate ComputeWecuwsionPoint(owiginawStawt: numba, owiginawEnd: numba, modifiedStawt: numba, modifiedEnd: numba, midOwiginawAww: numba[], midModifiedAww: numba[], quitEawwyAww: boowean[]) {
+		wet owiginawIndex = 0, modifiedIndex = 0;
+		wet diagonawFowwawdStawt = 0, diagonawFowwawdEnd = 0;
+		wet diagonawWevewseStawt = 0, diagonawWevewseEnd = 0;
 
-		// To traverse the edit graph and produce the proper LCS, our actual
-		// start position is just outside the given boundary
-		originalStart--;
-		modifiedStart--;
+		// To twavewse the edit gwaph and pwoduce the pwopa WCS, ouw actuaw
+		// stawt position is just outside the given boundawy
+		owiginawStawt--;
+		modifiedStawt--;
 
-		// We set these up to make the compiler happy, but they will
-		// be replaced before we return with the actual recursion point
-		midOriginalArr[0] = 0;
-		midModifiedArr[0] = 0;
+		// We set these up to make the compiwa happy, but they wiww
+		// be wepwaced befowe we wetuwn with the actuaw wecuwsion point
+		midOwiginawAww[0] = 0;
+		midModifiedAww[0] = 0;
 
-		// Clear out the history
-		this.m_forwardHistory = [];
-		this.m_reverseHistory = [];
+		// Cweaw out the histowy
+		this.m_fowwawdHistowy = [];
+		this.m_wevewseHistowy = [];
 
-		// Each cell in the two arrays corresponds to a diagonal in the edit graph.
-		// The integer value in the cell represents the originalIndex of the furthest
-		// reaching point found so far that ends in that diagonal.
-		// The modifiedIndex can be computed mathematically from the originalIndex and the diagonal number.
-		const maxDifferences = (originalEnd - originalStart) + (modifiedEnd - modifiedStart);
-		const numDiagonals = maxDifferences + 1;
-		const forwardPoints = new Int32Array(numDiagonals);
-		const reversePoints = new Int32Array(numDiagonals);
-		// diagonalForwardBase: Index into forwardPoints of the diagonal which passes through (originalStart, modifiedStart)
-		// diagonalReverseBase: Index into reversePoints of the diagonal which passes through (originalEnd, modifiedEnd)
-		const diagonalForwardBase = (modifiedEnd - modifiedStart);
-		const diagonalReverseBase = (originalEnd - originalStart);
-		// diagonalForwardOffset: Geometric offset which allows modifiedIndex to be computed from originalIndex and the
-		//    diagonal number (relative to diagonalForwardBase)
-		// diagonalReverseOffset: Geometric offset which allows modifiedIndex to be computed from originalIndex and the
-		//    diagonal number (relative to diagonalReverseBase)
-		const diagonalForwardOffset = (originalStart - modifiedStart);
-		const diagonalReverseOffset = (originalEnd - modifiedEnd);
+		// Each ceww in the two awways cowwesponds to a diagonaw in the edit gwaph.
+		// The intega vawue in the ceww wepwesents the owiginawIndex of the fuwthest
+		// weaching point found so faw that ends in that diagonaw.
+		// The modifiedIndex can be computed mathematicawwy fwom the owiginawIndex and the diagonaw numba.
+		const maxDiffewences = (owiginawEnd - owiginawStawt) + (modifiedEnd - modifiedStawt);
+		const numDiagonaws = maxDiffewences + 1;
+		const fowwawdPoints = new Int32Awway(numDiagonaws);
+		const wevewsePoints = new Int32Awway(numDiagonaws);
+		// diagonawFowwawdBase: Index into fowwawdPoints of the diagonaw which passes thwough (owiginawStawt, modifiedStawt)
+		// diagonawWevewseBase: Index into wevewsePoints of the diagonaw which passes thwough (owiginawEnd, modifiedEnd)
+		const diagonawFowwawdBase = (modifiedEnd - modifiedStawt);
+		const diagonawWevewseBase = (owiginawEnd - owiginawStawt);
+		// diagonawFowwawdOffset: Geometwic offset which awwows modifiedIndex to be computed fwom owiginawIndex and the
+		//    diagonaw numba (wewative to diagonawFowwawdBase)
+		// diagonawWevewseOffset: Geometwic offset which awwows modifiedIndex to be computed fwom owiginawIndex and the
+		//    diagonaw numba (wewative to diagonawWevewseBase)
+		const diagonawFowwawdOffset = (owiginawStawt - modifiedStawt);
+		const diagonawWevewseOffset = (owiginawEnd - modifiedEnd);
 
-		// delta: The difference between the end diagonal and the start diagonal. This is used to relate diagonal numbers
-		//   relative to the start diagonal with diagonal numbers relative to the end diagonal.
-		// The Even/Oddn-ness of this delta is important for determining when we should check for overlap
-		const delta = diagonalReverseBase - diagonalForwardBase;
-		const deltaIsEven = (delta % 2 === 0);
+		// dewta: The diffewence between the end diagonaw and the stawt diagonaw. This is used to wewate diagonaw numbews
+		//   wewative to the stawt diagonaw with diagonaw numbews wewative to the end diagonaw.
+		// The Even/Oddn-ness of this dewta is impowtant fow detewmining when we shouwd check fow ovewwap
+		const dewta = diagonawWevewseBase - diagonawFowwawdBase;
+		const dewtaIsEven = (dewta % 2 === 0);
 
-		// Here we set up the start and end points as the furthest points found so far
-		// in both the forward and reverse directions, respectively
-		forwardPoints[diagonalForwardBase] = originalStart;
-		reversePoints[diagonalReverseBase] = originalEnd;
+		// Hewe we set up the stawt and end points as the fuwthest points found so faw
+		// in both the fowwawd and wevewse diwections, wespectivewy
+		fowwawdPoints[diagonawFowwawdBase] = owiginawStawt;
+		wevewsePoints[diagonawWevewseBase] = owiginawEnd;
 
-		// Remember if we quit early, and thus need to do a best-effort result instead of a real result.
-		quitEarlyArr[0] = false;
+		// Wememba if we quit eawwy, and thus need to do a best-effowt wesuwt instead of a weaw wesuwt.
+		quitEawwyAww[0] = fawse;
 
 
 
-		// A couple of points:
-		// --With this method, we iterate on the number of differences between the two sequences.
-		//   The more differences there actually are, the longer this will take.
-		// --Also, as the number of differences increases, we have to search on diagonals further
-		//   away from the reference diagonal (which is diagonalForwardBase for forward, diagonalReverseBase for reverse).
-		// --We extend on even diagonals (relative to the reference diagonal) only when numDifferences
-		//   is even and odd diagonals only when numDifferences is odd.
-		for (let numDifferences = 1; numDifferences <= (maxDifferences / 2) + 1; numDifferences++) {
-			let furthestOriginalIndex = 0;
-			let furthestModifiedIndex = 0;
+		// A coupwe of points:
+		// --With this method, we itewate on the numba of diffewences between the two sequences.
+		//   The mowe diffewences thewe actuawwy awe, the wonga this wiww take.
+		// --Awso, as the numba of diffewences incweases, we have to seawch on diagonaws fuwtha
+		//   away fwom the wefewence diagonaw (which is diagonawFowwawdBase fow fowwawd, diagonawWevewseBase fow wevewse).
+		// --We extend on even diagonaws (wewative to the wefewence diagonaw) onwy when numDiffewences
+		//   is even and odd diagonaws onwy when numDiffewences is odd.
+		fow (wet numDiffewences = 1; numDiffewences <= (maxDiffewences / 2) + 1; numDiffewences++) {
+			wet fuwthestOwiginawIndex = 0;
+			wet fuwthestModifiedIndex = 0;
 
-			// Run the algorithm in the forward direction
-			diagonalForwardStart = this.ClipDiagonalBound(diagonalForwardBase - numDifferences, numDifferences, diagonalForwardBase, numDiagonals);
-			diagonalForwardEnd = this.ClipDiagonalBound(diagonalForwardBase + numDifferences, numDifferences, diagonalForwardBase, numDiagonals);
-			for (let diagonal = diagonalForwardStart; diagonal <= diagonalForwardEnd; diagonal += 2) {
-				// STEP 1: We extend the furthest reaching point in the present diagonal
-				// by looking at the diagonals above and below and picking the one whose point
-				// is further away from the start point (originalStart, modifiedStart)
-				if (diagonal === diagonalForwardStart || (diagonal < diagonalForwardEnd && forwardPoints[diagonal - 1] < forwardPoints[diagonal + 1])) {
-					originalIndex = forwardPoints[diagonal + 1];
-				} else {
-					originalIndex = forwardPoints[diagonal - 1] + 1;
+			// Wun the awgowithm in the fowwawd diwection
+			diagonawFowwawdStawt = this.CwipDiagonawBound(diagonawFowwawdBase - numDiffewences, numDiffewences, diagonawFowwawdBase, numDiagonaws);
+			diagonawFowwawdEnd = this.CwipDiagonawBound(diagonawFowwawdBase + numDiffewences, numDiffewences, diagonawFowwawdBase, numDiagonaws);
+			fow (wet diagonaw = diagonawFowwawdStawt; diagonaw <= diagonawFowwawdEnd; diagonaw += 2) {
+				// STEP 1: We extend the fuwthest weaching point in the pwesent diagonaw
+				// by wooking at the diagonaws above and bewow and picking the one whose point
+				// is fuwtha away fwom the stawt point (owiginawStawt, modifiedStawt)
+				if (diagonaw === diagonawFowwawdStawt || (diagonaw < diagonawFowwawdEnd && fowwawdPoints[diagonaw - 1] < fowwawdPoints[diagonaw + 1])) {
+					owiginawIndex = fowwawdPoints[diagonaw + 1];
+				} ewse {
+					owiginawIndex = fowwawdPoints[diagonaw - 1] + 1;
 				}
-				modifiedIndex = originalIndex - (diagonal - diagonalForwardBase) - diagonalForwardOffset;
+				modifiedIndex = owiginawIndex - (diagonaw - diagonawFowwawdBase) - diagonawFowwawdOffset;
 
-				// Save the current originalIndex so we can test for false overlap in step 3
-				const tempOriginalIndex = originalIndex;
+				// Save the cuwwent owiginawIndex so we can test fow fawse ovewwap in step 3
+				const tempOwiginawIndex = owiginawIndex;
 
-				// STEP 2: We can continue to extend the furthest reaching point in the present diagonal
-				// so long as the elements are equal.
-				while (originalIndex < originalEnd && modifiedIndex < modifiedEnd && this.ElementsAreEqual(originalIndex + 1, modifiedIndex + 1)) {
-					originalIndex++;
+				// STEP 2: We can continue to extend the fuwthest weaching point in the pwesent diagonaw
+				// so wong as the ewements awe equaw.
+				whiwe (owiginawIndex < owiginawEnd && modifiedIndex < modifiedEnd && this.EwementsAweEquaw(owiginawIndex + 1, modifiedIndex + 1)) {
+					owiginawIndex++;
 					modifiedIndex++;
 				}
-				forwardPoints[diagonal] = originalIndex;
+				fowwawdPoints[diagonaw] = owiginawIndex;
 
-				if (originalIndex + modifiedIndex > furthestOriginalIndex + furthestModifiedIndex) {
-					furthestOriginalIndex = originalIndex;
-					furthestModifiedIndex = modifiedIndex;
+				if (owiginawIndex + modifiedIndex > fuwthestOwiginawIndex + fuwthestModifiedIndex) {
+					fuwthestOwiginawIndex = owiginawIndex;
+					fuwthestModifiedIndex = modifiedIndex;
 				}
 
-				// STEP 3: If delta is odd (overlap first happens on forward when delta is odd)
-				// and diagonal is in the range of reverse diagonals computed for numDifferences-1
-				// (the previous iteration; we haven't computed reverse diagonals for numDifferences yet)
-				// then check for overlap.
-				if (!deltaIsEven && Math.abs(diagonal - diagonalReverseBase) <= (numDifferences - 1)) {
-					if (originalIndex >= reversePoints[diagonal]) {
-						midOriginalArr[0] = originalIndex;
-						midModifiedArr[0] = modifiedIndex;
+				// STEP 3: If dewta is odd (ovewwap fiwst happens on fowwawd when dewta is odd)
+				// and diagonaw is in the wange of wevewse diagonaws computed fow numDiffewences-1
+				// (the pwevious itewation; we haven't computed wevewse diagonaws fow numDiffewences yet)
+				// then check fow ovewwap.
+				if (!dewtaIsEven && Math.abs(diagonaw - diagonawWevewseBase) <= (numDiffewences - 1)) {
+					if (owiginawIndex >= wevewsePoints[diagonaw]) {
+						midOwiginawAww[0] = owiginawIndex;
+						midModifiedAww[0] = modifiedIndex;
 
-						if (tempOriginalIndex <= reversePoints[diagonal] && LocalConstants.MaxDifferencesHistory > 0 && numDifferences <= (LocalConstants.MaxDifferencesHistory + 1)) {
-							// BINGO! We overlapped, and we have the full trace in memory!
-							return this.WALKTRACE(diagonalForwardBase, diagonalForwardStart, diagonalForwardEnd, diagonalForwardOffset,
-								diagonalReverseBase, diagonalReverseStart, diagonalReverseEnd, diagonalReverseOffset,
-								forwardPoints, reversePoints,
-								originalIndex, originalEnd, midOriginalArr,
-								modifiedIndex, modifiedEnd, midModifiedArr,
-								deltaIsEven, quitEarlyArr
+						if (tempOwiginawIndex <= wevewsePoints[diagonaw] && WocawConstants.MaxDiffewencesHistowy > 0 && numDiffewences <= (WocawConstants.MaxDiffewencesHistowy + 1)) {
+							// BINGO! We ovewwapped, and we have the fuww twace in memowy!
+							wetuwn this.WAWKTWACE(diagonawFowwawdBase, diagonawFowwawdStawt, diagonawFowwawdEnd, diagonawFowwawdOffset,
+								diagonawWevewseBase, diagonawWevewseStawt, diagonawWevewseEnd, diagonawWevewseOffset,
+								fowwawdPoints, wevewsePoints,
+								owiginawIndex, owiginawEnd, midOwiginawAww,
+								modifiedIndex, modifiedEnd, midModifiedAww,
+								dewtaIsEven, quitEawwyAww
 							);
-						} else {
-							// Either false overlap, or we didn't have enough memory for the full trace
-							// Just return the recursion point
-							return null;
+						} ewse {
+							// Eitha fawse ovewwap, ow we didn't have enough memowy fow the fuww twace
+							// Just wetuwn the wecuwsion point
+							wetuwn nuww;
 						}
 					}
 				}
 			}
 
-			// Check to see if we should be quitting early, before moving on to the next iteration.
-			const matchLengthOfLongest = ((furthestOriginalIndex - originalStart) + (furthestModifiedIndex - modifiedStart) - numDifferences) / 2;
+			// Check to see if we shouwd be quitting eawwy, befowe moving on to the next itewation.
+			const matchWengthOfWongest = ((fuwthestOwiginawIndex - owiginawStawt) + (fuwthestModifiedIndex - modifiedStawt) - numDiffewences) / 2;
 
-			if (this.ContinueProcessingPredicate !== null && !this.ContinueProcessingPredicate(furthestOriginalIndex, matchLengthOfLongest)) {
-				// We can't finish, so skip ahead to generating a result from what we have.
-				quitEarlyArr[0] = true;
+			if (this.ContinuePwocessingPwedicate !== nuww && !this.ContinuePwocessingPwedicate(fuwthestOwiginawIndex, matchWengthOfWongest)) {
+				// We can't finish, so skip ahead to genewating a wesuwt fwom what we have.
+				quitEawwyAww[0] = twue;
 
-				// Use the furthest distance we got in the forward direction.
-				midOriginalArr[0] = furthestOriginalIndex;
-				midModifiedArr[0] = furthestModifiedIndex;
+				// Use the fuwthest distance we got in the fowwawd diwection.
+				midOwiginawAww[0] = fuwthestOwiginawIndex;
+				midModifiedAww[0] = fuwthestModifiedIndex;
 
-				if (matchLengthOfLongest > 0 && LocalConstants.MaxDifferencesHistory > 0 && numDifferences <= (LocalConstants.MaxDifferencesHistory + 1)) {
-					// Enough of the history is in memory to walk it backwards
-					return this.WALKTRACE(diagonalForwardBase, diagonalForwardStart, diagonalForwardEnd, diagonalForwardOffset,
-						diagonalReverseBase, diagonalReverseStart, diagonalReverseEnd, diagonalReverseOffset,
-						forwardPoints, reversePoints,
-						originalIndex, originalEnd, midOriginalArr,
-						modifiedIndex, modifiedEnd, midModifiedArr,
-						deltaIsEven, quitEarlyArr
+				if (matchWengthOfWongest > 0 && WocawConstants.MaxDiffewencesHistowy > 0 && numDiffewences <= (WocawConstants.MaxDiffewencesHistowy + 1)) {
+					// Enough of the histowy is in memowy to wawk it backwawds
+					wetuwn this.WAWKTWACE(diagonawFowwawdBase, diagonawFowwawdStawt, diagonawFowwawdEnd, diagonawFowwawdOffset,
+						diagonawWevewseBase, diagonawWevewseStawt, diagonawWevewseEnd, diagonawWevewseOffset,
+						fowwawdPoints, wevewsePoints,
+						owiginawIndex, owiginawEnd, midOwiginawAww,
+						modifiedIndex, modifiedEnd, midModifiedAww,
+						dewtaIsEven, quitEawwyAww
 					);
-				} else {
-					// We didn't actually remember enough of the history.
+				} ewse {
+					// We didn't actuawwy wememba enough of the histowy.
 
-					//Since we are quitting the diff early, we need to shift back the originalStart and modified start
-					//back into the boundary limits since we decremented their value above beyond the boundary limit.
-					originalStart++;
-					modifiedStart++;
+					//Since we awe quitting the diff eawwy, we need to shift back the owiginawStawt and modified stawt
+					//back into the boundawy wimits since we decwemented theiw vawue above beyond the boundawy wimit.
+					owiginawStawt++;
+					modifiedStawt++;
 
-					return [
-						new DiffChange(originalStart, originalEnd - originalStart + 1,
-							modifiedStart, modifiedEnd - modifiedStart + 1)
+					wetuwn [
+						new DiffChange(owiginawStawt, owiginawEnd - owiginawStawt + 1,
+							modifiedStawt, modifiedEnd - modifiedStawt + 1)
 					];
 				}
 			}
 
-			// Run the algorithm in the reverse direction
-			diagonalReverseStart = this.ClipDiagonalBound(diagonalReverseBase - numDifferences, numDifferences, diagonalReverseBase, numDiagonals);
-			diagonalReverseEnd = this.ClipDiagonalBound(diagonalReverseBase + numDifferences, numDifferences, diagonalReverseBase, numDiagonals);
-			for (let diagonal = diagonalReverseStart; diagonal <= diagonalReverseEnd; diagonal += 2) {
-				// STEP 1: We extend the furthest reaching point in the present diagonal
-				// by looking at the diagonals above and below and picking the one whose point
-				// is further away from the start point (originalEnd, modifiedEnd)
-				if (diagonal === diagonalReverseStart || (diagonal < diagonalReverseEnd && reversePoints[diagonal - 1] >= reversePoints[diagonal + 1])) {
-					originalIndex = reversePoints[diagonal + 1] - 1;
-				} else {
-					originalIndex = reversePoints[diagonal - 1];
+			// Wun the awgowithm in the wevewse diwection
+			diagonawWevewseStawt = this.CwipDiagonawBound(diagonawWevewseBase - numDiffewences, numDiffewences, diagonawWevewseBase, numDiagonaws);
+			diagonawWevewseEnd = this.CwipDiagonawBound(diagonawWevewseBase + numDiffewences, numDiffewences, diagonawWevewseBase, numDiagonaws);
+			fow (wet diagonaw = diagonawWevewseStawt; diagonaw <= diagonawWevewseEnd; diagonaw += 2) {
+				// STEP 1: We extend the fuwthest weaching point in the pwesent diagonaw
+				// by wooking at the diagonaws above and bewow and picking the one whose point
+				// is fuwtha away fwom the stawt point (owiginawEnd, modifiedEnd)
+				if (diagonaw === diagonawWevewseStawt || (diagonaw < diagonawWevewseEnd && wevewsePoints[diagonaw - 1] >= wevewsePoints[diagonaw + 1])) {
+					owiginawIndex = wevewsePoints[diagonaw + 1] - 1;
+				} ewse {
+					owiginawIndex = wevewsePoints[diagonaw - 1];
 				}
-				modifiedIndex = originalIndex - (diagonal - diagonalReverseBase) - diagonalReverseOffset;
+				modifiedIndex = owiginawIndex - (diagonaw - diagonawWevewseBase) - diagonawWevewseOffset;
 
-				// Save the current originalIndex so we can test for false overlap
-				const tempOriginalIndex = originalIndex;
+				// Save the cuwwent owiginawIndex so we can test fow fawse ovewwap
+				const tempOwiginawIndex = owiginawIndex;
 
-				// STEP 2: We can continue to extend the furthest reaching point in the present diagonal
-				// as long as the elements are equal.
-				while (originalIndex > originalStart && modifiedIndex > modifiedStart && this.ElementsAreEqual(originalIndex, modifiedIndex)) {
-					originalIndex--;
+				// STEP 2: We can continue to extend the fuwthest weaching point in the pwesent diagonaw
+				// as wong as the ewements awe equaw.
+				whiwe (owiginawIndex > owiginawStawt && modifiedIndex > modifiedStawt && this.EwementsAweEquaw(owiginawIndex, modifiedIndex)) {
+					owiginawIndex--;
 					modifiedIndex--;
 				}
-				reversePoints[diagonal] = originalIndex;
+				wevewsePoints[diagonaw] = owiginawIndex;
 
-				// STEP 4: If delta is even (overlap first happens on reverse when delta is even)
-				// and diagonal is in the range of forward diagonals computed for numDifferences
-				// then check for overlap.
-				if (deltaIsEven && Math.abs(diagonal - diagonalForwardBase) <= numDifferences) {
-					if (originalIndex <= forwardPoints[diagonal]) {
-						midOriginalArr[0] = originalIndex;
-						midModifiedArr[0] = modifiedIndex;
+				// STEP 4: If dewta is even (ovewwap fiwst happens on wevewse when dewta is even)
+				// and diagonaw is in the wange of fowwawd diagonaws computed fow numDiffewences
+				// then check fow ovewwap.
+				if (dewtaIsEven && Math.abs(diagonaw - diagonawFowwawdBase) <= numDiffewences) {
+					if (owiginawIndex <= fowwawdPoints[diagonaw]) {
+						midOwiginawAww[0] = owiginawIndex;
+						midModifiedAww[0] = modifiedIndex;
 
-						if (tempOriginalIndex >= forwardPoints[diagonal] && LocalConstants.MaxDifferencesHistory > 0 && numDifferences <= (LocalConstants.MaxDifferencesHistory + 1)) {
-							// BINGO! We overlapped, and we have the full trace in memory!
-							return this.WALKTRACE(diagonalForwardBase, diagonalForwardStart, diagonalForwardEnd, diagonalForwardOffset,
-								diagonalReverseBase, diagonalReverseStart, diagonalReverseEnd, diagonalReverseOffset,
-								forwardPoints, reversePoints,
-								originalIndex, originalEnd, midOriginalArr,
-								modifiedIndex, modifiedEnd, midModifiedArr,
-								deltaIsEven, quitEarlyArr
+						if (tempOwiginawIndex >= fowwawdPoints[diagonaw] && WocawConstants.MaxDiffewencesHistowy > 0 && numDiffewences <= (WocawConstants.MaxDiffewencesHistowy + 1)) {
+							// BINGO! We ovewwapped, and we have the fuww twace in memowy!
+							wetuwn this.WAWKTWACE(diagonawFowwawdBase, diagonawFowwawdStawt, diagonawFowwawdEnd, diagonawFowwawdOffset,
+								diagonawWevewseBase, diagonawWevewseStawt, diagonawWevewseEnd, diagonawWevewseOffset,
+								fowwawdPoints, wevewsePoints,
+								owiginawIndex, owiginawEnd, midOwiginawAww,
+								modifiedIndex, modifiedEnd, midModifiedAww,
+								dewtaIsEven, quitEawwyAww
 							);
-						} else {
-							// Either false overlap, or we didn't have enough memory for the full trace
-							// Just return the recursion point
-							return null;
+						} ewse {
+							// Eitha fawse ovewwap, ow we didn't have enough memowy fow the fuww twace
+							// Just wetuwn the wecuwsion point
+							wetuwn nuww;
 						}
 					}
 				}
 			}
 
-			// Save current vectors to history before the next iteration
-			if (numDifferences <= LocalConstants.MaxDifferencesHistory) {
-				// We are allocating space for one extra int, which we fill with
-				// the index of the diagonal base index
-				let temp = new Int32Array(diagonalForwardEnd - diagonalForwardStart + 2);
-				temp[0] = diagonalForwardBase - diagonalForwardStart + 1;
-				MyArray.Copy2(forwardPoints, diagonalForwardStart, temp, 1, diagonalForwardEnd - diagonalForwardStart + 1);
-				this.m_forwardHistory.push(temp);
+			// Save cuwwent vectows to histowy befowe the next itewation
+			if (numDiffewences <= WocawConstants.MaxDiffewencesHistowy) {
+				// We awe awwocating space fow one extwa int, which we fiww with
+				// the index of the diagonaw base index
+				wet temp = new Int32Awway(diagonawFowwawdEnd - diagonawFowwawdStawt + 2);
+				temp[0] = diagonawFowwawdBase - diagonawFowwawdStawt + 1;
+				MyAwway.Copy2(fowwawdPoints, diagonawFowwawdStawt, temp, 1, diagonawFowwawdEnd - diagonawFowwawdStawt + 1);
+				this.m_fowwawdHistowy.push(temp);
 
-				temp = new Int32Array(diagonalReverseEnd - diagonalReverseStart + 2);
-				temp[0] = diagonalReverseBase - diagonalReverseStart + 1;
-				MyArray.Copy2(reversePoints, diagonalReverseStart, temp, 1, diagonalReverseEnd - diagonalReverseStart + 1);
-				this.m_reverseHistory.push(temp);
+				temp = new Int32Awway(diagonawWevewseEnd - diagonawWevewseStawt + 2);
+				temp[0] = diagonawWevewseBase - diagonawWevewseStawt + 1;
+				MyAwway.Copy2(wevewsePoints, diagonawWevewseStawt, temp, 1, diagonawWevewseEnd - diagonawWevewseStawt + 1);
+				this.m_wevewseHistowy.push(temp);
 			}
 
 		}
 
-		// If we got here, then we have the full trace in history. We just have to convert it to a change list
-		// NOTE: This part is a bit messy
-		return this.WALKTRACE(diagonalForwardBase, diagonalForwardStart, diagonalForwardEnd, diagonalForwardOffset,
-			diagonalReverseBase, diagonalReverseStart, diagonalReverseEnd, diagonalReverseOffset,
-			forwardPoints, reversePoints,
-			originalIndex, originalEnd, midOriginalArr,
-			modifiedIndex, modifiedEnd, midModifiedArr,
-			deltaIsEven, quitEarlyArr
+		// If we got hewe, then we have the fuww twace in histowy. We just have to convewt it to a change wist
+		// NOTE: This pawt is a bit messy
+		wetuwn this.WAWKTWACE(diagonawFowwawdBase, diagonawFowwawdStawt, diagonawFowwawdEnd, diagonawFowwawdOffset,
+			diagonawWevewseBase, diagonawWevewseStawt, diagonawWevewseEnd, diagonawWevewseOffset,
+			fowwawdPoints, wevewsePoints,
+			owiginawIndex, owiginawEnd, midOwiginawAww,
+			modifiedIndex, modifiedEnd, midModifiedAww,
+			dewtaIsEven, quitEawwyAww
 		);
 	}
 
 	/**
-	 * Shifts the given changes to provide a more intuitive diff.
-	 * While the first element in a diff matches the first element after the diff,
+	 * Shifts the given changes to pwovide a mowe intuitive diff.
+	 * Whiwe the fiwst ewement in a diff matches the fiwst ewement afta the diff,
 	 * we shift the diff down.
 	 *
-	 * @param changes The list of changes to shift
-	 * @returns The shifted changes
+	 * @pawam changes The wist of changes to shift
+	 * @wetuwns The shifted changes
 	 */
-	private PrettifyChanges(changes: DiffChange[]): DiffChange[] {
+	pwivate PwettifyChanges(changes: DiffChange[]): DiffChange[] {
 
-		// Shift all the changes down first
-		for (let i = 0; i < changes.length; i++) {
+		// Shift aww the changes down fiwst
+		fow (wet i = 0; i < changes.wength; i++) {
 			const change = changes[i];
-			const originalStop = (i < changes.length - 1) ? changes[i + 1].originalStart : this._originalElementsOrHash.length;
-			const modifiedStop = (i < changes.length - 1) ? changes[i + 1].modifiedStart : this._modifiedElementsOrHash.length;
-			const checkOriginal = change.originalLength > 0;
-			const checkModified = change.modifiedLength > 0;
+			const owiginawStop = (i < changes.wength - 1) ? changes[i + 1].owiginawStawt : this._owiginawEwementsOwHash.wength;
+			const modifiedStop = (i < changes.wength - 1) ? changes[i + 1].modifiedStawt : this._modifiedEwementsOwHash.wength;
+			const checkOwiginaw = change.owiginawWength > 0;
+			const checkModified = change.modifiedWength > 0;
 
-			while (
-				change.originalStart + change.originalLength < originalStop
-				&& change.modifiedStart + change.modifiedLength < modifiedStop
-				&& (!checkOriginal || this.OriginalElementsAreEqual(change.originalStart, change.originalStart + change.originalLength))
-				&& (!checkModified || this.ModifiedElementsAreEqual(change.modifiedStart, change.modifiedStart + change.modifiedLength))
+			whiwe (
+				change.owiginawStawt + change.owiginawWength < owiginawStop
+				&& change.modifiedStawt + change.modifiedWength < modifiedStop
+				&& (!checkOwiginaw || this.OwiginawEwementsAweEquaw(change.owiginawStawt, change.owiginawStawt + change.owiginawWength))
+				&& (!checkModified || this.ModifiedEwementsAweEquaw(change.modifiedStawt, change.modifiedStawt + change.modifiedWength))
 			) {
-				const startStrictEqual = this.ElementsAreStrictEqual(change.originalStart, change.modifiedStart);
-				const endStrictEqual = this.ElementsAreStrictEqual(change.originalStart + change.originalLength, change.modifiedStart + change.modifiedLength);
-				if (endStrictEqual && !startStrictEqual) {
-					// moving the change down would create an equal change, but the elements are not strict equal
-					break;
+				const stawtStwictEquaw = this.EwementsAweStwictEquaw(change.owiginawStawt, change.modifiedStawt);
+				const endStwictEquaw = this.EwementsAweStwictEquaw(change.owiginawStawt + change.owiginawWength, change.modifiedStawt + change.modifiedWength);
+				if (endStwictEquaw && !stawtStwictEquaw) {
+					// moving the change down wouwd cweate an equaw change, but the ewements awe not stwict equaw
+					bweak;
 				}
-				change.originalStart++;
-				change.modifiedStart++;
+				change.owiginawStawt++;
+				change.modifiedStawt++;
 			}
 
-			let mergedChangeArr: Array<DiffChange | null> = [null];
-			if (i < changes.length - 1 && this.ChangesOverlap(changes[i], changes[i + 1], mergedChangeArr)) {
-				changes[i] = mergedChangeArr[0]!;
-				changes.splice(i + 1, 1);
+			wet mewgedChangeAww: Awway<DiffChange | nuww> = [nuww];
+			if (i < changes.wength - 1 && this.ChangesOvewwap(changes[i], changes[i + 1], mewgedChangeAww)) {
+				changes[i] = mewgedChangeAww[0]!;
+				changes.spwice(i + 1, 1);
 				i--;
 				continue;
 			}
 		}
 
-		// Shift changes back up until we hit empty or whitespace-only lines
-		for (let i = changes.length - 1; i >= 0; i--) {
+		// Shift changes back up untiw we hit empty ow whitespace-onwy wines
+		fow (wet i = changes.wength - 1; i >= 0; i--) {
 			const change = changes[i];
 
-			let originalStop = 0;
-			let modifiedStop = 0;
+			wet owiginawStop = 0;
+			wet modifiedStop = 0;
 			if (i > 0) {
-				const prevChange = changes[i - 1];
-				originalStop = prevChange.originalStart + prevChange.originalLength;
-				modifiedStop = prevChange.modifiedStart + prevChange.modifiedLength;
+				const pwevChange = changes[i - 1];
+				owiginawStop = pwevChange.owiginawStawt + pwevChange.owiginawWength;
+				modifiedStop = pwevChange.modifiedStawt + pwevChange.modifiedWength;
 			}
 
-			const checkOriginal = change.originalLength > 0;
-			const checkModified = change.modifiedLength > 0;
+			const checkOwiginaw = change.owiginawWength > 0;
+			const checkModified = change.modifiedWength > 0;
 
-			let bestDelta = 0;
-			let bestScore = this._boundaryScore(change.originalStart, change.originalLength, change.modifiedStart, change.modifiedLength);
+			wet bestDewta = 0;
+			wet bestScowe = this._boundawyScowe(change.owiginawStawt, change.owiginawWength, change.modifiedStawt, change.modifiedWength);
 
-			for (let delta = 1; ; delta++) {
-				const originalStart = change.originalStart - delta;
-				const modifiedStart = change.modifiedStart - delta;
+			fow (wet dewta = 1; ; dewta++) {
+				const owiginawStawt = change.owiginawStawt - dewta;
+				const modifiedStawt = change.modifiedStawt - dewta;
 
-				if (originalStart < originalStop || modifiedStart < modifiedStop) {
-					break;
+				if (owiginawStawt < owiginawStop || modifiedStawt < modifiedStop) {
+					bweak;
 				}
 
-				if (checkOriginal && !this.OriginalElementsAreEqual(originalStart, originalStart + change.originalLength)) {
-					break;
+				if (checkOwiginaw && !this.OwiginawEwementsAweEquaw(owiginawStawt, owiginawStawt + change.owiginawWength)) {
+					bweak;
 				}
 
-				if (checkModified && !this.ModifiedElementsAreEqual(modifiedStart, modifiedStart + change.modifiedLength)) {
-					break;
+				if (checkModified && !this.ModifiedEwementsAweEquaw(modifiedStawt, modifiedStawt + change.modifiedWength)) {
+					bweak;
 				}
 
-				const touchingPreviousChange = (originalStart === originalStop && modifiedStart === modifiedStop);
-				const score = (
-					(touchingPreviousChange ? 5 : 0)
-					+ this._boundaryScore(originalStart, change.originalLength, modifiedStart, change.modifiedLength)
+				const touchingPweviousChange = (owiginawStawt === owiginawStop && modifiedStawt === modifiedStop);
+				const scowe = (
+					(touchingPweviousChange ? 5 : 0)
+					+ this._boundawyScowe(owiginawStawt, change.owiginawWength, modifiedStawt, change.modifiedWength)
 				);
 
-				if (score > bestScore) {
-					bestScore = score;
-					bestDelta = delta;
+				if (scowe > bestScowe) {
+					bestScowe = scowe;
+					bestDewta = dewta;
 				}
 			}
 
-			change.originalStart -= bestDelta;
-			change.modifiedStart -= bestDelta;
+			change.owiginawStawt -= bestDewta;
+			change.modifiedStawt -= bestDewta;
 
-			const mergedChangeArr: Array<DiffChange | null> = [null];
-			if (i > 0 && this.ChangesOverlap(changes[i - 1], changes[i], mergedChangeArr)) {
-				changes[i - 1] = mergedChangeArr[0]!;
-				changes.splice(i, 1);
+			const mewgedChangeAww: Awway<DiffChange | nuww> = [nuww];
+			if (i > 0 && this.ChangesOvewwap(changes[i - 1], changes[i], mewgedChangeAww)) {
+				changes[i - 1] = mewgedChangeAww[0]!;
+				changes.spwice(i, 1);
 				i++;
 				continue;
 			}
 		}
 
-		// There could be multiple longest common substrings.
-		// Give preference to the ones containing longer lines
-		if (this._hasStrings) {
-			for (let i = 1, len = changes.length; i < len; i++) {
+		// Thewe couwd be muwtipwe wongest common substwings.
+		// Give pwefewence to the ones containing wonga wines
+		if (this._hasStwings) {
+			fow (wet i = 1, wen = changes.wength; i < wen; i++) {
 				const aChange = changes[i - 1];
 				const bChange = changes[i];
-				const matchedLength = bChange.originalStart - aChange.originalStart - aChange.originalLength;
-				const aOriginalStart = aChange.originalStart;
-				const bOriginalEnd = bChange.originalStart + bChange.originalLength;
-				const abOriginalLength = bOriginalEnd - aOriginalStart;
-				const aModifiedStart = aChange.modifiedStart;
-				const bModifiedEnd = bChange.modifiedStart + bChange.modifiedLength;
-				const abModifiedLength = bModifiedEnd - aModifiedStart;
-				// Avoid wasting a lot of time with these searches
-				if (matchedLength < 5 && abOriginalLength < 20 && abModifiedLength < 20) {
-					const t = this._findBetterContiguousSequence(
-						aOriginalStart, abOriginalLength,
-						aModifiedStart, abModifiedLength,
-						matchedLength
+				const matchedWength = bChange.owiginawStawt - aChange.owiginawStawt - aChange.owiginawWength;
+				const aOwiginawStawt = aChange.owiginawStawt;
+				const bOwiginawEnd = bChange.owiginawStawt + bChange.owiginawWength;
+				const abOwiginawWength = bOwiginawEnd - aOwiginawStawt;
+				const aModifiedStawt = aChange.modifiedStawt;
+				const bModifiedEnd = bChange.modifiedStawt + bChange.modifiedWength;
+				const abModifiedWength = bModifiedEnd - aModifiedStawt;
+				// Avoid wasting a wot of time with these seawches
+				if (matchedWength < 5 && abOwiginawWength < 20 && abModifiedWength < 20) {
+					const t = this._findBettewContiguousSequence(
+						aOwiginawStawt, abOwiginawWength,
+						aModifiedStawt, abModifiedWength,
+						matchedWength
 					);
 					if (t) {
-						const [originalMatchStart, modifiedMatchStart] = t;
-						if (originalMatchStart !== aChange.originalStart + aChange.originalLength || modifiedMatchStart !== aChange.modifiedStart + aChange.modifiedLength) {
-							// switch to another sequence that has a better score
-							aChange.originalLength = originalMatchStart - aChange.originalStart;
-							aChange.modifiedLength = modifiedMatchStart - aChange.modifiedStart;
-							bChange.originalStart = originalMatchStart + matchedLength;
-							bChange.modifiedStart = modifiedMatchStart + matchedLength;
-							bChange.originalLength = bOriginalEnd - bChange.originalStart;
-							bChange.modifiedLength = bModifiedEnd - bChange.modifiedStart;
+						const [owiginawMatchStawt, modifiedMatchStawt] = t;
+						if (owiginawMatchStawt !== aChange.owiginawStawt + aChange.owiginawWength || modifiedMatchStawt !== aChange.modifiedStawt + aChange.modifiedWength) {
+							// switch to anotha sequence that has a betta scowe
+							aChange.owiginawWength = owiginawMatchStawt - aChange.owiginawStawt;
+							aChange.modifiedWength = modifiedMatchStawt - aChange.modifiedStawt;
+							bChange.owiginawStawt = owiginawMatchStawt + matchedWength;
+							bChange.modifiedStawt = modifiedMatchStawt + matchedWength;
+							bChange.owiginawWength = bOwiginawEnd - bChange.owiginawStawt;
+							bChange.modifiedWength = bModifiedEnd - bChange.modifiedStawt;
 						}
 					}
 				}
 			}
 		}
 
-		return changes;
+		wetuwn changes;
 	}
 
-	private _findBetterContiguousSequence(originalStart: number, originalLength: number, modifiedStart: number, modifiedLength: number, desiredLength: number): [number, number] | null {
-		if (originalLength < desiredLength || modifiedLength < desiredLength) {
-			return null;
+	pwivate _findBettewContiguousSequence(owiginawStawt: numba, owiginawWength: numba, modifiedStawt: numba, modifiedWength: numba, desiwedWength: numba): [numba, numba] | nuww {
+		if (owiginawWength < desiwedWength || modifiedWength < desiwedWength) {
+			wetuwn nuww;
 		}
-		const originalMax = originalStart + originalLength - desiredLength + 1;
-		const modifiedMax = modifiedStart + modifiedLength - desiredLength + 1;
-		let bestScore = 0;
-		let bestOriginalStart = 0;
-		let bestModifiedStart = 0;
-		for (let i = originalStart; i < originalMax; i++) {
-			for (let j = modifiedStart; j < modifiedMax; j++) {
-				const score = this._contiguousSequenceScore(i, j, desiredLength);
-				if (score > 0 && score > bestScore) {
-					bestScore = score;
-					bestOriginalStart = i;
-					bestModifiedStart = j;
+		const owiginawMax = owiginawStawt + owiginawWength - desiwedWength + 1;
+		const modifiedMax = modifiedStawt + modifiedWength - desiwedWength + 1;
+		wet bestScowe = 0;
+		wet bestOwiginawStawt = 0;
+		wet bestModifiedStawt = 0;
+		fow (wet i = owiginawStawt; i < owiginawMax; i++) {
+			fow (wet j = modifiedStawt; j < modifiedMax; j++) {
+				const scowe = this._contiguousSequenceScowe(i, j, desiwedWength);
+				if (scowe > 0 && scowe > bestScowe) {
+					bestScowe = scowe;
+					bestOwiginawStawt = i;
+					bestModifiedStawt = j;
 				}
 			}
 		}
-		if (bestScore > 0) {
-			return [bestOriginalStart, bestModifiedStart];
+		if (bestScowe > 0) {
+			wetuwn [bestOwiginawStawt, bestModifiedStawt];
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private _contiguousSequenceScore(originalStart: number, modifiedStart: number, length: number): number {
-		let score = 0;
-		for (let l = 0; l < length; l++) {
-			if (!this.ElementsAreEqual(originalStart + l, modifiedStart + l)) {
-				return 0;
+	pwivate _contiguousSequenceScowe(owiginawStawt: numba, modifiedStawt: numba, wength: numba): numba {
+		wet scowe = 0;
+		fow (wet w = 0; w < wength; w++) {
+			if (!this.EwementsAweEquaw(owiginawStawt + w, modifiedStawt + w)) {
+				wetuwn 0;
 			}
-			score += this._originalStringElements[originalStart + l].length;
+			scowe += this._owiginawStwingEwements[owiginawStawt + w].wength;
 		}
-		return score;
+		wetuwn scowe;
 	}
 
-	private _OriginalIsBoundary(index: number): boolean {
-		if (index <= 0 || index >= this._originalElementsOrHash.length - 1) {
-			return true;
+	pwivate _OwiginawIsBoundawy(index: numba): boowean {
+		if (index <= 0 || index >= this._owiginawEwementsOwHash.wength - 1) {
+			wetuwn twue;
 		}
-		return (this._hasStrings && /^\s*$/.test(this._originalStringElements[index]));
+		wetuwn (this._hasStwings && /^\s*$/.test(this._owiginawStwingEwements[index]));
 	}
 
-	private _OriginalRegionIsBoundary(originalStart: number, originalLength: number): boolean {
-		if (this._OriginalIsBoundary(originalStart) || this._OriginalIsBoundary(originalStart - 1)) {
-			return true;
+	pwivate _OwiginawWegionIsBoundawy(owiginawStawt: numba, owiginawWength: numba): boowean {
+		if (this._OwiginawIsBoundawy(owiginawStawt) || this._OwiginawIsBoundawy(owiginawStawt - 1)) {
+			wetuwn twue;
 		}
-		if (originalLength > 0) {
-			const originalEnd = originalStart + originalLength;
-			if (this._OriginalIsBoundary(originalEnd - 1) || this._OriginalIsBoundary(originalEnd)) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	private _ModifiedIsBoundary(index: number): boolean {
-		if (index <= 0 || index >= this._modifiedElementsOrHash.length - 1) {
-			return true;
-		}
-		return (this._hasStrings && /^\s*$/.test(this._modifiedStringElements[index]));
-	}
-
-	private _ModifiedRegionIsBoundary(modifiedStart: number, modifiedLength: number): boolean {
-		if (this._ModifiedIsBoundary(modifiedStart) || this._ModifiedIsBoundary(modifiedStart - 1)) {
-			return true;
-		}
-		if (modifiedLength > 0) {
-			const modifiedEnd = modifiedStart + modifiedLength;
-			if (this._ModifiedIsBoundary(modifiedEnd - 1) || this._ModifiedIsBoundary(modifiedEnd)) {
-				return true;
+		if (owiginawWength > 0) {
+			const owiginawEnd = owiginawStawt + owiginawWength;
+			if (this._OwiginawIsBoundawy(owiginawEnd - 1) || this._OwiginawIsBoundawy(owiginawEnd)) {
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private _boundaryScore(originalStart: number, originalLength: number, modifiedStart: number, modifiedLength: number): number {
-		const originalScore = (this._OriginalRegionIsBoundary(originalStart, originalLength) ? 1 : 0);
-		const modifiedScore = (this._ModifiedRegionIsBoundary(modifiedStart, modifiedLength) ? 1 : 0);
-		return (originalScore + modifiedScore);
+	pwivate _ModifiedIsBoundawy(index: numba): boowean {
+		if (index <= 0 || index >= this._modifiedEwementsOwHash.wength - 1) {
+			wetuwn twue;
+		}
+		wetuwn (this._hasStwings && /^\s*$/.test(this._modifiedStwingEwements[index]));
+	}
+
+	pwivate _ModifiedWegionIsBoundawy(modifiedStawt: numba, modifiedWength: numba): boowean {
+		if (this._ModifiedIsBoundawy(modifiedStawt) || this._ModifiedIsBoundawy(modifiedStawt - 1)) {
+			wetuwn twue;
+		}
+		if (modifiedWength > 0) {
+			const modifiedEnd = modifiedStawt + modifiedWength;
+			if (this._ModifiedIsBoundawy(modifiedEnd - 1) || this._ModifiedIsBoundawy(modifiedEnd)) {
+				wetuwn twue;
+			}
+		}
+		wetuwn fawse;
+	}
+
+	pwivate _boundawyScowe(owiginawStawt: numba, owiginawWength: numba, modifiedStawt: numba, modifiedWength: numba): numba {
+		const owiginawScowe = (this._OwiginawWegionIsBoundawy(owiginawStawt, owiginawWength) ? 1 : 0);
+		const modifiedScowe = (this._ModifiedWegionIsBoundawy(modifiedStawt, modifiedWength) ? 1 : 0);
+		wetuwn (owiginawScowe + modifiedScowe);
 	}
 
 	/**
-	 * Concatenates the two input DiffChange lists and returns the resulting
-	 * list.
-	 * @param The left changes
-	 * @param The right changes
-	 * @returns The concatenated list
+	 * Concatenates the two input DiffChange wists and wetuwns the wesuwting
+	 * wist.
+	 * @pawam The weft changes
+	 * @pawam The wight changes
+	 * @wetuwns The concatenated wist
 	 */
-	private ConcatenateChanges(left: DiffChange[], right: DiffChange[]): DiffChange[] {
-		let mergedChangeArr: DiffChange[] = [];
+	pwivate ConcatenateChanges(weft: DiffChange[], wight: DiffChange[]): DiffChange[] {
+		wet mewgedChangeAww: DiffChange[] = [];
 
-		if (left.length === 0 || right.length === 0) {
-			return (right.length > 0) ? right : left;
-		} else if (this.ChangesOverlap(left[left.length - 1], right[0], mergedChangeArr)) {
-			// Since we break the problem down recursively, it is possible that we
-			// might recurse in the middle of a change thereby splitting it into
-			// two changes. Here in the combining stage, we detect and fuse those
-			// changes back together
-			const result = new Array<DiffChange>(left.length + right.length - 1);
-			MyArray.Copy(left, 0, result, 0, left.length - 1);
-			result[left.length - 1] = mergedChangeArr[0];
-			MyArray.Copy(right, 1, result, left.length, right.length - 1);
+		if (weft.wength === 0 || wight.wength === 0) {
+			wetuwn (wight.wength > 0) ? wight : weft;
+		} ewse if (this.ChangesOvewwap(weft[weft.wength - 1], wight[0], mewgedChangeAww)) {
+			// Since we bweak the pwobwem down wecuwsivewy, it is possibwe that we
+			// might wecuwse in the middwe of a change theweby spwitting it into
+			// two changes. Hewe in the combining stage, we detect and fuse those
+			// changes back togetha
+			const wesuwt = new Awway<DiffChange>(weft.wength + wight.wength - 1);
+			MyAwway.Copy(weft, 0, wesuwt, 0, weft.wength - 1);
+			wesuwt[weft.wength - 1] = mewgedChangeAww[0];
+			MyAwway.Copy(wight, 1, wesuwt, weft.wength, wight.wength - 1);
 
-			return result;
-		} else {
-			const result = new Array<DiffChange>(left.length + right.length);
-			MyArray.Copy(left, 0, result, 0, left.length);
-			MyArray.Copy(right, 0, result, left.length, right.length);
+			wetuwn wesuwt;
+		} ewse {
+			const wesuwt = new Awway<DiffChange>(weft.wength + wight.wength);
+			MyAwway.Copy(weft, 0, wesuwt, 0, weft.wength);
+			MyAwway.Copy(wight, 0, wesuwt, weft.wength, wight.wength);
 
-			return result;
+			wetuwn wesuwt;
 		}
 	}
 
 	/**
-	 * Returns true if the two changes overlap and can be merged into a single
+	 * Wetuwns twue if the two changes ovewwap and can be mewged into a singwe
 	 * change
-	 * @param left The left change
-	 * @param right The right change
-	 * @param mergedChange The merged change if the two overlap, null otherwise
-	 * @returns True if the two changes overlap
+	 * @pawam weft The weft change
+	 * @pawam wight The wight change
+	 * @pawam mewgedChange The mewged change if the two ovewwap, nuww othewwise
+	 * @wetuwns Twue if the two changes ovewwap
 	 */
-	private ChangesOverlap(left: DiffChange, right: DiffChange, mergedChangeArr: Array<DiffChange | null>): boolean {
-		Debug.Assert(left.originalStart <= right.originalStart, 'Left change is not less than or equal to right change');
-		Debug.Assert(left.modifiedStart <= right.modifiedStart, 'Left change is not less than or equal to right change');
+	pwivate ChangesOvewwap(weft: DiffChange, wight: DiffChange, mewgedChangeAww: Awway<DiffChange | nuww>): boowean {
+		Debug.Assewt(weft.owiginawStawt <= wight.owiginawStawt, 'Weft change is not wess than ow equaw to wight change');
+		Debug.Assewt(weft.modifiedStawt <= wight.modifiedStawt, 'Weft change is not wess than ow equaw to wight change');
 
-		if (left.originalStart + left.originalLength >= right.originalStart || left.modifiedStart + left.modifiedLength >= right.modifiedStart) {
-			const originalStart = left.originalStart;
-			let originalLength = left.originalLength;
-			const modifiedStart = left.modifiedStart;
-			let modifiedLength = left.modifiedLength;
+		if (weft.owiginawStawt + weft.owiginawWength >= wight.owiginawStawt || weft.modifiedStawt + weft.modifiedWength >= wight.modifiedStawt) {
+			const owiginawStawt = weft.owiginawStawt;
+			wet owiginawWength = weft.owiginawWength;
+			const modifiedStawt = weft.modifiedStawt;
+			wet modifiedWength = weft.modifiedWength;
 
-			if (left.originalStart + left.originalLength >= right.originalStart) {
-				originalLength = right.originalStart + right.originalLength - left.originalStart;
+			if (weft.owiginawStawt + weft.owiginawWength >= wight.owiginawStawt) {
+				owiginawWength = wight.owiginawStawt + wight.owiginawWength - weft.owiginawStawt;
 			}
-			if (left.modifiedStart + left.modifiedLength >= right.modifiedStart) {
-				modifiedLength = right.modifiedStart + right.modifiedLength - left.modifiedStart;
+			if (weft.modifiedStawt + weft.modifiedWength >= wight.modifiedStawt) {
+				modifiedWength = wight.modifiedStawt + wight.modifiedWength - weft.modifiedStawt;
 			}
 
-			mergedChangeArr[0] = new DiffChange(originalStart, originalLength, modifiedStart, modifiedLength);
-			return true;
-		} else {
-			mergedChangeArr[0] = null;
-			return false;
+			mewgedChangeAww[0] = new DiffChange(owiginawStawt, owiginawWength, modifiedStawt, modifiedWength);
+			wetuwn twue;
+		} ewse {
+			mewgedChangeAww[0] = nuww;
+			wetuwn fawse;
 		}
 	}
 
 	/**
-	 * Helper method used to clip a diagonal index to the range of valid
-	 * diagonals. This also decides whether or not the diagonal index,
-	 * if it exceeds the boundary, should be clipped to the boundary or clipped
-	 * one inside the boundary depending on the Even/Odd status of the boundary
-	 * and numDifferences.
-	 * @param diagonal The index of the diagonal to clip.
-	 * @param numDifferences The current number of differences being iterated upon.
-	 * @param diagonalBaseIndex The base reference diagonal.
-	 * @param numDiagonals The total number of diagonals.
-	 * @returns The clipped diagonal index.
+	 * Hewpa method used to cwip a diagonaw index to the wange of vawid
+	 * diagonaws. This awso decides whetha ow not the diagonaw index,
+	 * if it exceeds the boundawy, shouwd be cwipped to the boundawy ow cwipped
+	 * one inside the boundawy depending on the Even/Odd status of the boundawy
+	 * and numDiffewences.
+	 * @pawam diagonaw The index of the diagonaw to cwip.
+	 * @pawam numDiffewences The cuwwent numba of diffewences being itewated upon.
+	 * @pawam diagonawBaseIndex The base wefewence diagonaw.
+	 * @pawam numDiagonaws The totaw numba of diagonaws.
+	 * @wetuwns The cwipped diagonaw index.
 	 */
-	private ClipDiagonalBound(diagonal: number, numDifferences: number, diagonalBaseIndex: number, numDiagonals: number): number {
-		if (diagonal >= 0 && diagonal < numDiagonals) {
-			// Nothing to clip, its in range
-			return diagonal;
+	pwivate CwipDiagonawBound(diagonaw: numba, numDiffewences: numba, diagonawBaseIndex: numba, numDiagonaws: numba): numba {
+		if (diagonaw >= 0 && diagonaw < numDiagonaws) {
+			// Nothing to cwip, its in wange
+			wetuwn diagonaw;
 		}
 
-		// diagonalsBelow: The number of diagonals below the reference diagonal
-		// diagonalsAbove: The number of diagonals above the reference diagonal
-		const diagonalsBelow = diagonalBaseIndex;
-		const diagonalsAbove = numDiagonals - diagonalBaseIndex - 1;
-		const diffEven = (numDifferences % 2 === 0);
+		// diagonawsBewow: The numba of diagonaws bewow the wefewence diagonaw
+		// diagonawsAbove: The numba of diagonaws above the wefewence diagonaw
+		const diagonawsBewow = diagonawBaseIndex;
+		const diagonawsAbove = numDiagonaws - diagonawBaseIndex - 1;
+		const diffEven = (numDiffewences % 2 === 0);
 
-		if (diagonal < 0) {
-			const lowerBoundEven = (diagonalsBelow % 2 === 0);
-			return (diffEven === lowerBoundEven) ? 0 : 1;
-		} else {
-			const upperBoundEven = (diagonalsAbove % 2 === 0);
-			return (diffEven === upperBoundEven) ? numDiagonals - 1 : numDiagonals - 2;
+		if (diagonaw < 0) {
+			const wowewBoundEven = (diagonawsBewow % 2 === 0);
+			wetuwn (diffEven === wowewBoundEven) ? 0 : 1;
+		} ewse {
+			const uppewBoundEven = (diagonawsAbove % 2 === 0);
+			wetuwn (diffEven === uppewBoundEven) ? numDiagonaws - 1 : numDiagonaws - 2;
 		}
 	}
 }

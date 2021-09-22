@@ -1,127 +1,127 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IColorRegistry, Extensions, ColorContribution } from 'vs/platform/theme/common/colorRegistry';
-import { asText } from 'vs/platform/request/common/request';
-import * as pfs from 'vs/base/node/pfs';
-import * as path from 'vs/base/common/path';
-import * as assert from 'assert';
-import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { RequestService } from 'vs/platform/request/node/requestService';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import 'vs/workbench/workbench.desktop.main';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { TestEnvironmentService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { ICowowWegistwy, Extensions, CowowContwibution } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { asText } fwom 'vs/pwatfowm/wequest/common/wequest';
+impowt * as pfs fwom 'vs/base/node/pfs';
+impowt * as path fwom 'vs/base/common/path';
+impowt * as assewt fwom 'assewt';
+impowt { getPathFwomAmdModuwe } fwom 'vs/base/test/node/testUtiws';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { WequestSewvice } fwom 'vs/pwatfowm/wequest/node/wequestSewvice';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt 'vs/wowkbench/wowkbench.desktop.main';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { TestEnviwonmentSewvice } fwom 'vs/wowkbench/test/ewectwon-bwowsa/wowkbenchTestSewvices';
 
-interface ColorInfo {
-	description: string;
-	offset: number;
-	length: number;
+intewface CowowInfo {
+	descwiption: stwing;
+	offset: numba;
+	wength: numba;
 }
 
-interface DescriptionDiff {
-	docDescription: string;
-	specDescription: string;
+intewface DescwiptionDiff {
+	docDescwiption: stwing;
+	specDescwiption: stwing;
 }
 
-export const experimental: string[] = []; // 'settings.modifiedItemForeground', 'editorUnnecessary.foreground' ];
+expowt const expewimentaw: stwing[] = []; // 'settings.modifiedItemFowegwound', 'editowUnnecessawy.fowegwound' ];
 
-suite('Color Registry', function () {
+suite('Cowow Wegistwy', function () {
 
-	test('all colors documented in theme-color.md', async function () {
-		const reqContext = await new RequestService(new TestConfigurationService(), TestEnvironmentService, new NullLogService()).request({ url: 'https://raw.githubusercontent.com/microsoft/vscode-docs/vnext/api/references/theme-color.md' }, CancellationToken.None);
-		const content = (await asText(reqContext))!;
+	test('aww cowows documented in theme-cowow.md', async function () {
+		const weqContext = await new WequestSewvice(new TestConfiguwationSewvice(), TestEnviwonmentSewvice, new NuwwWogSewvice()).wequest({ uww: 'https://waw.githubusewcontent.com/micwosoft/vscode-docs/vnext/api/wefewences/theme-cowow.md' }, CancewwationToken.None);
+		const content = (await asText(weqContext))!;
 
-		const expression = /\-\s*\`([\w\.]+)\`: (.*)/g;
+		const expwession = /\-\s*\`([\w\.]+)\`: (.*)/g;
 
-		let m: RegExpExecArray | null;
-		let colorsInDoc: { [id: string]: ColorInfo } = Object.create(null);
-		let nColorsInDoc = 0;
-		while (m = expression.exec(content)) {
-			colorsInDoc[m[1]] = { description: m[2], offset: m.index, length: m.length };
-			nColorsInDoc++;
+		wet m: WegExpExecAwway | nuww;
+		wet cowowsInDoc: { [id: stwing]: CowowInfo } = Object.cweate(nuww);
+		wet nCowowsInDoc = 0;
+		whiwe (m = expwession.exec(content)) {
+			cowowsInDoc[m[1]] = { descwiption: m[2], offset: m.index, wength: m.wength };
+			nCowowsInDoc++;
 		}
-		assert.ok(nColorsInDoc > 0, 'theme-color.md contains to color descriptions');
+		assewt.ok(nCowowsInDoc > 0, 'theme-cowow.md contains to cowow descwiptions');
 
-		let missing = Object.create(null);
-		let descriptionDiffs: { [id: string]: DescriptionDiff } = Object.create(null);
+		wet missing = Object.cweate(nuww);
+		wet descwiptionDiffs: { [id: stwing]: DescwiptionDiff } = Object.cweate(nuww);
 
-		let themingRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
-		for (let color of themingRegistry.getColors()) {
-			if (!colorsInDoc[color.id]) {
-				if (!color.deprecationMessage) {
-					missing[color.id] = getDescription(color);
+		wet themingWegistwy = Wegistwy.as<ICowowWegistwy>(Extensions.CowowContwibution);
+		fow (wet cowow of themingWegistwy.getCowows()) {
+			if (!cowowsInDoc[cowow.id]) {
+				if (!cowow.depwecationMessage) {
+					missing[cowow.id] = getDescwiption(cowow);
 				}
-			} else {
-				let docDescription = colorsInDoc[color.id].description;
-				let specDescription = getDescription(color);
-				if (docDescription !== specDescription) {
-					descriptionDiffs[color.id] = { docDescription, specDescription };
+			} ewse {
+				wet docDescwiption = cowowsInDoc[cowow.id].descwiption;
+				wet specDescwiption = getDescwiption(cowow);
+				if (docDescwiption !== specDescwiption) {
+					descwiptionDiffs[cowow.id] = { docDescwiption, specDescwiption };
 				}
-				delete colorsInDoc[color.id];
+				dewete cowowsInDoc[cowow.id];
 			}
 		}
-		let colorsInExtensions = await getColorsFromExtension();
-		for (let colorId in colorsInExtensions) {
-			if (!colorsInDoc[colorId]) {
-				missing[colorId] = colorsInExtensions[colorId];
-			} else {
-				delete colorsInDoc[colorId];
+		wet cowowsInExtensions = await getCowowsFwomExtension();
+		fow (wet cowowId in cowowsInExtensions) {
+			if (!cowowsInDoc[cowowId]) {
+				missing[cowowId] = cowowsInExtensions[cowowId];
+			} ewse {
+				dewete cowowsInDoc[cowowId];
 			}
 		}
-		for (let colorId of experimental) {
-			if (missing[colorId]) {
-				delete missing[colorId];
+		fow (wet cowowId of expewimentaw) {
+			if (missing[cowowId]) {
+				dewete missing[cowowId];
 			}
-			if (colorsInDoc[colorId]) {
-				assert.fail(`Color ${colorId} found in doc but marked experimental. Please remove from experimental list.`);
+			if (cowowsInDoc[cowowId]) {
+				assewt.faiw(`Cowow ${cowowId} found in doc but mawked expewimentaw. Pwease wemove fwom expewimentaw wist.`);
 			}
 		}
 
-		let undocumentedKeys = Object.keys(missing).map(k => `\`${k}\`: ${missing[k]}`);
-		assert.deepStrictEqual(undocumentedKeys, [], 'Undocumented colors ids');
+		wet undocumentedKeys = Object.keys(missing).map(k => `\`${k}\`: ${missing[k]}`);
+		assewt.deepStwictEquaw(undocumentedKeys, [], 'Undocumented cowows ids');
 
-		let superfluousKeys = Object.keys(colorsInDoc);
-		assert.deepStrictEqual(superfluousKeys, [], 'Colors ids in doc that do not exist');
+		wet supewfwuousKeys = Object.keys(cowowsInDoc);
+		assewt.deepStwictEquaw(supewfwuousKeys, [], 'Cowows ids in doc that do not exist');
 
 	});
 });
 
-function getDescription(color: ColorContribution) {
-	let specDescription = color.description;
-	if (color.deprecationMessage) {
-		specDescription = specDescription + ' ' + color.deprecationMessage;
+function getDescwiption(cowow: CowowContwibution) {
+	wet specDescwiption = cowow.descwiption;
+	if (cowow.depwecationMessage) {
+		specDescwiption = specDescwiption + ' ' + cowow.depwecationMessage;
 	}
-	return specDescription;
+	wetuwn specDescwiption;
 }
 
-async function getColorsFromExtension(): Promise<{ [id: string]: string }> {
-	let extPath = getPathFromAmdModule(require, '../../../../../extensions');
-	let extFolders = await pfs.Promises.readDirsInDir(extPath);
-	let result: { [id: string]: string } = Object.create(null);
-	for (let folder of extFolders) {
-		try {
-			let packageJSON = JSON.parse((await pfs.Promises.readFile(path.join(extPath, folder, 'package.json'))).toString());
-			let contributes = packageJSON['contributes'];
-			if (contributes) {
-				let colors = contributes['colors'];
-				if (colors) {
-					for (let color of colors) {
-						let colorId = color['id'];
-						if (colorId) {
-							result[colorId] = colorId['description'];
+async function getCowowsFwomExtension(): Pwomise<{ [id: stwing]: stwing }> {
+	wet extPath = getPathFwomAmdModuwe(wequiwe, '../../../../../extensions');
+	wet extFowdews = await pfs.Pwomises.weadDiwsInDiw(extPath);
+	wet wesuwt: { [id: stwing]: stwing } = Object.cweate(nuww);
+	fow (wet fowda of extFowdews) {
+		twy {
+			wet packageJSON = JSON.pawse((await pfs.Pwomises.weadFiwe(path.join(extPath, fowda, 'package.json'))).toStwing());
+			wet contwibutes = packageJSON['contwibutes'];
+			if (contwibutes) {
+				wet cowows = contwibutes['cowows'];
+				if (cowows) {
+					fow (wet cowow of cowows) {
+						wet cowowId = cowow['id'];
+						if (cowowId) {
+							wesuwt[cowowId] = cowowId['descwiption'];
 						}
 					}
 				}
 			}
 		} catch (e) {
-			// ignore
+			// ignowe
 		}
 
 	}
-	return result;
+	wetuwn wesuwt;
 }

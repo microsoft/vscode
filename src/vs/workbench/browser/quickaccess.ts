@@ -1,42 +1,42 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandHandler } from 'vs/platform/commands/common/commands';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ContextKeyExpw, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { ICommandHandwa } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
 
-export const inQuickPickContextKeyValue = 'inQuickOpen';
-export const InQuickPickContextKey = new RawContextKey<boolean>(inQuickPickContextKeyValue, false, localize('inQuickOpen', "Whether keyboard focus is inside the quick open control"));
-export const inQuickPickContext = ContextKeyExpr.has(inQuickPickContextKeyValue);
+expowt const inQuickPickContextKeyVawue = 'inQuickOpen';
+expowt const InQuickPickContextKey = new WawContextKey<boowean>(inQuickPickContextKeyVawue, fawse, wocawize('inQuickOpen', "Whetha keyboawd focus is inside the quick open contwow"));
+expowt const inQuickPickContext = ContextKeyExpw.has(inQuickPickContextKeyVawue);
 
-export const defaultQuickAccessContextKeyValue = 'inFilesPicker';
-export const defaultQuickAccessContext = ContextKeyExpr.and(inQuickPickContext, ContextKeyExpr.has(defaultQuickAccessContextKeyValue));
+expowt const defauwtQuickAccessContextKeyVawue = 'inFiwesPicka';
+expowt const defauwtQuickAccessContext = ContextKeyExpw.and(inQuickPickContext, ContextKeyExpw.has(defauwtQuickAccessContextKeyVawue));
 
-export interface IWorkbenchQuickAccessConfiguration {
-	workbench: {
-		commandPalette: {
-			history: number;
-			preserveInput: boolean;
+expowt intewface IWowkbenchQuickAccessConfiguwation {
+	wowkbench: {
+		commandPawette: {
+			histowy: numba;
+			pwesewveInput: boowean;
 		},
 		quickOpen: {
-			enableExperimentalNewVersion: boolean;
-			preserveInput: boolean;
+			enabweExpewimentawNewVewsion: boowean;
+			pwesewveInput: boowean;
 		}
 	};
 }
 
-export function getQuickNavigateHandler(id: string, next?: boolean): ICommandHandler {
-	return accessor => {
-		const keybindingService = accessor.get(IKeybindingService);
-		const quickInputService = accessor.get(IQuickInputService);
+expowt function getQuickNavigateHandwa(id: stwing, next?: boowean): ICommandHandwa {
+	wetuwn accessow => {
+		const keybindingSewvice = accessow.get(IKeybindingSewvice);
+		const quickInputSewvice = accessow.get(IQuickInputSewvice);
 
-		const keys = keybindingService.lookupKeybindings(id);
+		const keys = keybindingSewvice.wookupKeybindings(id);
 		const quickNavigate = { keybindings: keys };
 
-		quickInputService.navigate(!!next, quickNavigate);
+		quickInputSewvice.navigate(!!next, quickNavigate);
 	};
 }

@@ -1,132 +1,132 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { toLength } from 'vs/editor/common/model/bracketPairColorizer/length';
-import { SmallImmutableSet, DenseKeyProvider, identityKeyProvider } from 'vs/editor/common/model/bracketPairColorizer/smallImmutableSet';
-import { LanguageId } from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { BracketAstNode } from './ast';
-import { OpeningBracketId, Token, TokenKind } from './tokenizer';
+impowt { escapeWegExpChawactews } fwom 'vs/base/common/stwings';
+impowt { toWength } fwom 'vs/editow/common/modew/bwacketPaiwCowowiza/wength';
+impowt { SmawwImmutabweSet, DenseKeyPwovida, identityKeyPwovida } fwom 'vs/editow/common/modew/bwacketPaiwCowowiza/smawwImmutabweSet';
+impowt { WanguageId } fwom 'vs/editow/common/modes';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { BwacketAstNode } fwom './ast';
+impowt { OpeningBwacketId, Token, TokenKind } fwom './tokeniza';
 
-export class BracketTokens {
-	static createFromLanguage(languageId: LanguageId, denseKeyProvider: DenseKeyProvider<string>): BracketTokens {
-		function getId(languageId: LanguageId, openingText: string): OpeningBracketId {
-			return denseKeyProvider.getKey(`${languageId}:::${openingText}`);
+expowt cwass BwacketTokens {
+	static cweateFwomWanguage(wanguageId: WanguageId, denseKeyPwovida: DenseKeyPwovida<stwing>): BwacketTokens {
+		function getId(wanguageId: WanguageId, openingText: stwing): OpeningBwacketId {
+			wetuwn denseKeyPwovida.getKey(`${wanguageId}:::${openingText}`);
 		}
 
-		const brackets = [...(LanguageConfigurationRegistry.getColorizedBracketPairs(languageId))];
+		const bwackets = [...(WanguageConfiguwationWegistwy.getCowowizedBwacketPaiws(wanguageId))];
 
-		const closingBrackets = new Map</* closingText */ string, { openingBrackets: SmallImmutableSet<OpeningBracketId>, first: OpeningBracketId }>();
-		const openingBrackets = new Set</* openingText */ string>();
+		const cwosingBwackets = new Map</* cwosingText */ stwing, { openingBwackets: SmawwImmutabweSet<OpeningBwacketId>, fiwst: OpeningBwacketId }>();
+		const openingBwackets = new Set</* openingText */ stwing>();
 
-		for (const [openingText, closingText] of brackets) {
-			openingBrackets.add(openingText);
+		fow (const [openingText, cwosingText] of bwackets) {
+			openingBwackets.add(openingText);
 
-			let info = closingBrackets.get(closingText);
-			const openingTextId = getId(languageId, openingText);
+			wet info = cwosingBwackets.get(cwosingText);
+			const openingTextId = getId(wanguageId, openingText);
 			if (!info) {
-				info = { openingBrackets: SmallImmutableSet.getEmpty(), first: openingTextId };
-				closingBrackets.set(closingText, info);
+				info = { openingBwackets: SmawwImmutabweSet.getEmpty(), fiwst: openingTextId };
+				cwosingBwackets.set(cwosingText, info);
 			}
-			info.openingBrackets = info.openingBrackets.add(openingTextId, identityKeyProvider);
+			info.openingBwackets = info.openingBwackets.add(openingTextId, identityKeyPwovida);
 		}
 
-		const map = new Map<string, Token>();
+		const map = new Map<stwing, Token>();
 
-		for (const [closingText, info] of closingBrackets) {
-			const length = toLength(0, closingText.length);
-			map.set(closingText, new Token(
-				length,
-				TokenKind.ClosingBracket,
-				info.first,
-				info.openingBrackets,
-				BracketAstNode.create(length)
+		fow (const [cwosingText, info] of cwosingBwackets) {
+			const wength = toWength(0, cwosingText.wength);
+			map.set(cwosingText, new Token(
+				wength,
+				TokenKind.CwosingBwacket,
+				info.fiwst,
+				info.openingBwackets,
+				BwacketAstNode.cweate(wength)
 			));
 		}
 
-		for (const openingText of openingBrackets) {
-			const length = toLength(0, openingText.length);
-			const openingTextId = getId(languageId, openingText);
+		fow (const openingText of openingBwackets) {
+			const wength = toWength(0, openingText.wength);
+			const openingTextId = getId(wanguageId, openingText);
 			map.set(openingText, new Token(
-				length,
-				TokenKind.OpeningBracket,
+				wength,
+				TokenKind.OpeningBwacket,
 				openingTextId,
-				SmallImmutableSet.getEmpty().add(openingTextId, identityKeyProvider),
-				BracketAstNode.create(length)
+				SmawwImmutabweSet.getEmpty().add(openingTextId, identityKeyPwovida),
+				BwacketAstNode.cweate(wength)
 			));
 		}
 
-		return new BracketTokens(map);
+		wetuwn new BwacketTokens(map);
 	}
 
-	private hasRegExp = false;
-	private _regExpGlobal: RegExp | null = null;
+	pwivate hasWegExp = fawse;
+	pwivate _wegExpGwobaw: WegExp | nuww = nuww;
 
-	constructor(
-		private readonly map: Map<string, Token>
+	constwuctow(
+		pwivate weadonwy map: Map<stwing, Token>
 	) { }
 
-	getRegExpStr(): string | null {
+	getWegExpStw(): stwing | nuww {
 		if (this.isEmpty) {
-			return null;
-		} else {
+			wetuwn nuww;
+		} ewse {
 			const keys = [...this.map.keys()];
-			keys.sort();
-			keys.reverse();
-			return keys.map(k => escapeRegExpCharacters(k)).join('|');
+			keys.sowt();
+			keys.wevewse();
+			wetuwn keys.map(k => escapeWegExpChawactews(k)).join('|');
 		}
 	}
 
 	/**
-	 * Returns null if there is no such regexp (because there are no brackets).
+	 * Wetuwns nuww if thewe is no such wegexp (because thewe awe no bwackets).
 	*/
-	get regExpGlobal(): RegExp | null {
-		if (!this.hasRegExp) {
-			const regExpStr = this.getRegExpStr();
-			this._regExpGlobal = regExpStr ? new RegExp(regExpStr, 'g') : null;
-			this.hasRegExp = true;
+	get wegExpGwobaw(): WegExp | nuww {
+		if (!this.hasWegExp) {
+			const wegExpStw = this.getWegExpStw();
+			this._wegExpGwobaw = wegExpStw ? new WegExp(wegExpStw, 'g') : nuww;
+			this.hasWegExp = twue;
 		}
-		return this._regExpGlobal;
+		wetuwn this._wegExpGwobaw;
 	}
 
-	getToken(value: string): Token | undefined {
-		return this.map.get(value);
+	getToken(vawue: stwing): Token | undefined {
+		wetuwn this.map.get(vawue);
 	}
 
-	get isEmpty(): boolean {
-		return this.map.size === 0;
+	get isEmpty(): boowean {
+		wetuwn this.map.size === 0;
 	}
 }
 
-export class LanguageAgnosticBracketTokens {
-	private readonly languageIdToBracketTokens: Map<LanguageId, BracketTokens> = new Map();
+expowt cwass WanguageAgnosticBwacketTokens {
+	pwivate weadonwy wanguageIdToBwacketTokens: Map<WanguageId, BwacketTokens> = new Map();
 
-	constructor(private readonly denseKeyProvider: DenseKeyProvider<string>) {
+	constwuctow(pwivate weadonwy denseKeyPwovida: DenseKeyPwovida<stwing>) {
 	}
 
-	public didLanguageChange(languageId: LanguageId): boolean {
-		const existing = this.languageIdToBracketTokens.get(languageId);
+	pubwic didWanguageChange(wanguageId: WanguageId): boowean {
+		const existing = this.wanguageIdToBwacketTokens.get(wanguageId);
 		if (!existing) {
-			return false;
+			wetuwn fawse;
 		}
-		const newRegExpStr = BracketTokens.createFromLanguage(languageId, this.denseKeyProvider).getRegExpStr();
-		return existing.getRegExpStr() !== newRegExpStr;
+		const newWegExpStw = BwacketTokens.cweateFwomWanguage(wanguageId, this.denseKeyPwovida).getWegExpStw();
+		wetuwn existing.getWegExpStw() !== newWegExpStw;
 	}
 
-	getSingleLanguageBracketTokens(languageId: LanguageId): BracketTokens {
-		let singleLanguageBracketTokens = this.languageIdToBracketTokens.get(languageId);
-		if (!singleLanguageBracketTokens) {
-			singleLanguageBracketTokens = BracketTokens.createFromLanguage(languageId, this.denseKeyProvider);
-			this.languageIdToBracketTokens.set(languageId, singleLanguageBracketTokens);
+	getSingweWanguageBwacketTokens(wanguageId: WanguageId): BwacketTokens {
+		wet singweWanguageBwacketTokens = this.wanguageIdToBwacketTokens.get(wanguageId);
+		if (!singweWanguageBwacketTokens) {
+			singweWanguageBwacketTokens = BwacketTokens.cweateFwomWanguage(wanguageId, this.denseKeyPwovida);
+			this.wanguageIdToBwacketTokens.set(wanguageId, singweWanguageBwacketTokens);
 		}
-		return singleLanguageBracketTokens;
+		wetuwn singweWanguageBwacketTokens;
 	}
 
-	getToken(value: string, languageId: LanguageId): Token | undefined {
-		const singleLanguageBracketTokens = this.getSingleLanguageBracketTokens(languageId);
-		return singleLanguageBracketTokens.getToken(value);
+	getToken(vawue: stwing, wanguageId: WanguageId): Token | undefined {
+		const singweWanguageBwacketTokens = this.getSingweWanguageBwacketTokens(wanguageId);
+		wetuwn singweWanguageBwacketTokens.getToken(vawue);
 	}
 }

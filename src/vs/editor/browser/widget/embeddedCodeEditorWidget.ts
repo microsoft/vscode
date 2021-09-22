@@ -1,109 +1,109 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as objects from 'vs/base/common/objects';
-import { ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
-import { ConfigurationChangedEvent, IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IEditorProgressService } from 'vs/platform/progress/common/progress';
+impowt * as objects fwom 'vs/base/common/objects';
+impowt { ICodeEditow, IDiffEditowConstwuctionOptions } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { CodeEditowWidget } fwom 'vs/editow/bwowsa/widget/codeEditowWidget';
+impowt { DiffEditowWidget } fwom 'vs/editow/bwowsa/widget/diffEditowWidget';
+impowt { ConfiguwationChangedEvent, IDiffEditowOptions, IEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { IEditowWowkewSewvice } fwom 'vs/editow/common/sewvices/editowWowkewSewvice';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { IEditowPwogwessSewvice } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
 
-export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
+expowt cwass EmbeddedCodeEditowWidget extends CodeEditowWidget {
 
-	private readonly _parentEditor: ICodeEditor;
-	private readonly _overwriteOptions: IEditorOptions;
+	pwivate weadonwy _pawentEditow: ICodeEditow;
+	pwivate weadonwy _ovewwwiteOptions: IEditowOptions;
 
-	constructor(
-		domElement: HTMLElement,
-		options: IEditorOptions,
-		parentEditor: ICodeEditor,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@ICommandService commandService: ICommandService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService,
-		@INotificationService notificationService: INotificationService,
-		@IAccessibilityService accessibilityService: IAccessibilityService
+	constwuctow(
+		domEwement: HTMWEwement,
+		options: IEditowOptions,
+		pawentEditow: ICodeEditow,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@ICodeEditowSewvice codeEditowSewvice: ICodeEditowSewvice,
+		@ICommandSewvice commandSewvice: ICommandSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IAccessibiwitySewvice accessibiwitySewvice: IAccessibiwitySewvice
 	) {
-		super(domElement, { ...parentEditor.getRawOptions(), overflowWidgetsDomNode: parentEditor.getOverflowWidgetsDomNode() }, {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService);
+		supa(domEwement, { ...pawentEditow.getWawOptions(), ovewfwowWidgetsDomNode: pawentEditow.getOvewfwowWidgetsDomNode() }, {}, instantiationSewvice, codeEditowSewvice, commandSewvice, contextKeySewvice, themeSewvice, notificationSewvice, accessibiwitySewvice);
 
-		this._parentEditor = parentEditor;
-		this._overwriteOptions = options;
+		this._pawentEditow = pawentEditow;
+		this._ovewwwiteOptions = options;
 
-		// Overwrite parent's options
-		super.updateOptions(this._overwriteOptions);
+		// Ovewwwite pawent's options
+		supa.updateOptions(this._ovewwwiteOptions);
 
-		this._register(parentEditor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => this._onParentConfigurationChanged(e)));
+		this._wegista(pawentEditow.onDidChangeConfiguwation((e: ConfiguwationChangedEvent) => this._onPawentConfiguwationChanged(e)));
 	}
 
-	getParentEditor(): ICodeEditor {
-		return this._parentEditor;
+	getPawentEditow(): ICodeEditow {
+		wetuwn this._pawentEditow;
 	}
 
-	private _onParentConfigurationChanged(e: ConfigurationChangedEvent): void {
-		super.updateOptions(this._parentEditor.getRawOptions());
-		super.updateOptions(this._overwriteOptions);
+	pwivate _onPawentConfiguwationChanged(e: ConfiguwationChangedEvent): void {
+		supa.updateOptions(this._pawentEditow.getWawOptions());
+		supa.updateOptions(this._ovewwwiteOptions);
 	}
 
-	override updateOptions(newOptions: IEditorOptions): void {
-		objects.mixin(this._overwriteOptions, newOptions, true);
-		super.updateOptions(this._overwriteOptions);
+	ovewwide updateOptions(newOptions: IEditowOptions): void {
+		objects.mixin(this._ovewwwiteOptions, newOptions, twue);
+		supa.updateOptions(this._ovewwwiteOptions);
 	}
 }
 
-export class EmbeddedDiffEditorWidget extends DiffEditorWidget {
+expowt cwass EmbeddedDiffEditowWidget extends DiffEditowWidget {
 
-	private readonly _parentEditor: ICodeEditor;
-	private readonly _overwriteOptions: IDiffEditorOptions;
+	pwivate weadonwy _pawentEditow: ICodeEditow;
+	pwivate weadonwy _ovewwwiteOptions: IDiffEditowOptions;
 
-	constructor(
-		domElement: HTMLElement,
-		options: Readonly<IDiffEditorConstructionOptions>,
-		parentEditor: ICodeEditor,
-		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IThemeService themeService: IThemeService,
-		@INotificationService notificationService: INotificationService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IClipboardService clipboardService: IClipboardService,
-		@IEditorProgressService editorProgressService: IEditorProgressService,
+	constwuctow(
+		domEwement: HTMWEwement,
+		options: Weadonwy<IDiffEditowConstwuctionOptions>,
+		pawentEditow: ICodeEditow,
+		@IEditowWowkewSewvice editowWowkewSewvice: IEditowWowkewSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@ICodeEditowSewvice codeEditowSewvice: ICodeEditowSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@ICwipboawdSewvice cwipboawdSewvice: ICwipboawdSewvice,
+		@IEditowPwogwessSewvice editowPwogwessSewvice: IEditowPwogwessSewvice,
 	) {
-		super(domElement, parentEditor.getRawOptions(), {}, clipboardService, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
+		supa(domEwement, pawentEditow.getWawOptions(), {}, cwipboawdSewvice, editowWowkewSewvice, contextKeySewvice, instantiationSewvice, codeEditowSewvice, themeSewvice, notificationSewvice, contextMenuSewvice, editowPwogwessSewvice);
 
-		this._parentEditor = parentEditor;
-		this._overwriteOptions = options;
+		this._pawentEditow = pawentEditow;
+		this._ovewwwiteOptions = options;
 
-		// Overwrite parent's options
-		super.updateOptions(this._overwriteOptions);
+		// Ovewwwite pawent's options
+		supa.updateOptions(this._ovewwwiteOptions);
 
-		this._register(parentEditor.onDidChangeConfiguration(e => this._onParentConfigurationChanged(e)));
+		this._wegista(pawentEditow.onDidChangeConfiguwation(e => this._onPawentConfiguwationChanged(e)));
 	}
 
-	getParentEditor(): ICodeEditor {
-		return this._parentEditor;
+	getPawentEditow(): ICodeEditow {
+		wetuwn this._pawentEditow;
 	}
 
-	private _onParentConfigurationChanged(e: ConfigurationChangedEvent): void {
-		super.updateOptions(this._parentEditor.getRawOptions());
-		super.updateOptions(this._overwriteOptions);
+	pwivate _onPawentConfiguwationChanged(e: ConfiguwationChangedEvent): void {
+		supa.updateOptions(this._pawentEditow.getWawOptions());
+		supa.updateOptions(this._ovewwwiteOptions);
 	}
 
-	override updateOptions(newOptions: IEditorOptions): void {
-		objects.mixin(this._overwriteOptions, newOptions, true);
-		super.updateOptions(this._overwriteOptions);
+	ovewwide updateOptions(newOptions: IEditowOptions): void {
+		objects.mixin(this._ovewwwiteOptions, newOptions, twue);
+		supa.updateOptions(this._ovewwwiteOptions);
 	}
 }

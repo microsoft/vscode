@@ -1,775 +1,775 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { ITreeNavigator } from 'vs/base/browser/ui/tree/tree';
-import { Action } from 'vs/base/common/actions';
-import { createKeybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { isWindows, OS } from 'vs/base/common/platform';
-import * as nls from 'vs/nls';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { getSelectionKeyboardEvent, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IViewsService } from 'vs/workbench/common/views';
-import { searchRemoveIcon, searchReplaceAllIcon, searchReplaceIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
-import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
-import * as Constants from 'vs/workbench/contrib/search/common/constants';
-import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
-import { ISearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
-import { FileMatch, FolderMatch, FolderMatchWithResource, Match, RenderableMatch, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
-import { OpenEditorCommandId } from 'vs/workbench/contrib/searchEditor/browser/constants';
-import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
-import { OpenSearchEditorArgs } from 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';
-import { SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ISearchConfiguration, VIEW_ID } from 'vs/workbench/services/search/common/search';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { ITweeNavigatow } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { cweateKeybinding, WesowvedKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { isWindows, OS } fwom 'vs/base/common/pwatfowm';
+impowt * as nws fwom 'vs/nws';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { ICommandHandwa, ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { getSewectionKeyboawdEvent, WowkbenchObjectTwee } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IViewsSewvice } fwom 'vs/wowkbench/common/views';
+impowt { seawchWemoveIcon, seawchWepwaceAwwIcon, seawchWepwaceIcon } fwom 'vs/wowkbench/contwib/seawch/bwowsa/seawchIcons';
+impowt { SeawchView } fwom 'vs/wowkbench/contwib/seawch/bwowsa/seawchView';
+impowt * as Constants fwom 'vs/wowkbench/contwib/seawch/common/constants';
+impowt { IWepwaceSewvice } fwom 'vs/wowkbench/contwib/seawch/common/wepwace';
+impowt { ISeawchHistowySewvice } fwom 'vs/wowkbench/contwib/seawch/common/seawchHistowySewvice';
+impowt { FiweMatch, FowdewMatch, FowdewMatchWithWesouwce, Match, WendewabweMatch, seawchMatchCompawa, SeawchWesuwt } fwom 'vs/wowkbench/contwib/seawch/common/seawchModew';
+impowt { OpenEditowCommandId } fwom 'vs/wowkbench/contwib/seawchEditow/bwowsa/constants';
+impowt { SeawchEditow } fwom 'vs/wowkbench/contwib/seawchEditow/bwowsa/seawchEditow';
+impowt { OpenSeawchEditowAwgs } fwom 'vs/wowkbench/contwib/seawchEditow/bwowsa/seawchEditow.contwibution';
+impowt { SeawchEditowInput } fwom 'vs/wowkbench/contwib/seawchEditow/bwowsa/seawchEditowInput';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { ISeawchConfiguwation, VIEW_ID } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
 
-export function isSearchViewFocused(viewsService: IViewsService): boolean {
-	const searchView = getSearchView(viewsService);
-	const activeElement = document.activeElement;
-	return !!(searchView && activeElement && DOM.isAncestor(activeElement, searchView.getContainer()));
+expowt function isSeawchViewFocused(viewsSewvice: IViewsSewvice): boowean {
+	const seawchView = getSeawchView(viewsSewvice);
+	const activeEwement = document.activeEwement;
+	wetuwn !!(seawchView && activeEwement && DOM.isAncestow(activeEwement, seawchView.getContaina()));
 }
 
-export function appendKeyBindingLabel(label: string, inputKeyBinding: number | ResolvedKeybinding | undefined, keyBindingService2: IKeybindingService): string {
-	if (typeof inputKeyBinding === 'number') {
-		const keybinding = createKeybinding(inputKeyBinding, OS);
+expowt function appendKeyBindingWabew(wabew: stwing, inputKeyBinding: numba | WesowvedKeybinding | undefined, keyBindingSewvice2: IKeybindingSewvice): stwing {
+	if (typeof inputKeyBinding === 'numba') {
+		const keybinding = cweateKeybinding(inputKeyBinding, OS);
 		if (keybinding) {
-			const resolvedKeybindings = keyBindingService2.resolveKeybinding(keybinding);
-			return doAppendKeyBindingLabel(label, resolvedKeybindings.length > 0 ? resolvedKeybindings[0] : undefined);
+			const wesowvedKeybindings = keyBindingSewvice2.wesowveKeybinding(keybinding);
+			wetuwn doAppendKeyBindingWabew(wabew, wesowvedKeybindings.wength > 0 ? wesowvedKeybindings[0] : undefined);
 		}
-		return doAppendKeyBindingLabel(label, undefined);
-	} else {
-		return doAppendKeyBindingLabel(label, inputKeyBinding);
+		wetuwn doAppendKeyBindingWabew(wabew, undefined);
+	} ewse {
+		wetuwn doAppendKeyBindingWabew(wabew, inputKeyBinding);
 	}
 }
 
-export function openSearchView(viewsService: IViewsService, focus?: boolean): Promise<SearchView | undefined> {
-	return viewsService.openView(VIEW_ID, focus).then(view => (view as SearchView ?? undefined));
+expowt function openSeawchView(viewsSewvice: IViewsSewvice, focus?: boowean): Pwomise<SeawchView | undefined> {
+	wetuwn viewsSewvice.openView(VIEW_ID, focus).then(view => (view as SeawchView ?? undefined));
 }
 
-export function getSearchView(viewsService: IViewsService): SearchView | undefined {
-	return viewsService.getActiveViewWithId(VIEW_ID) as SearchView ?? undefined;
+expowt function getSeawchView(viewsSewvice: IViewsSewvice): SeawchView | undefined {
+	wetuwn viewsSewvice.getActiveViewWithId(VIEW_ID) as SeawchView ?? undefined;
 }
 
-function doAppendKeyBindingLabel(label: string, keyBinding: ResolvedKeybinding | undefined): string {
-	return keyBinding ? label + ' (' + keyBinding.getLabel() + ')' : label;
+function doAppendKeyBindingWabew(wabew: stwing, keyBinding: WesowvedKeybinding | undefined): stwing {
+	wetuwn keyBinding ? wabew + ' (' + keyBinding.getWabew() + ')' : wabew;
 }
 
-export const toggleCaseSensitiveCommand = (accessor: ServicesAccessor) => {
-	const searchView = getSearchView(accessor.get(IViewsService));
-	if (searchView) {
-		searchView.toggleCaseSensitive();
+expowt const toggweCaseSensitiveCommand = (accessow: SewvicesAccessow) => {
+	const seawchView = getSeawchView(accessow.get(IViewsSewvice));
+	if (seawchView) {
+		seawchView.toggweCaseSensitive();
 	}
 };
 
-export const toggleWholeWordCommand = (accessor: ServicesAccessor) => {
-	const searchView = getSearchView(accessor.get(IViewsService));
-	if (searchView) {
-		searchView.toggleWholeWords();
+expowt const toggweWhoweWowdCommand = (accessow: SewvicesAccessow) => {
+	const seawchView = getSeawchView(accessow.get(IViewsSewvice));
+	if (seawchView) {
+		seawchView.toggweWhoweWowds();
 	}
 };
 
-export const toggleRegexCommand = (accessor: ServicesAccessor) => {
-	const searchView = getSearchView(accessor.get(IViewsService));
-	if (searchView) {
-		searchView.toggleRegex();
+expowt const toggweWegexCommand = (accessow: SewvicesAccessow) => {
+	const seawchView = getSeawchView(accessow.get(IViewsSewvice));
+	if (seawchView) {
+		seawchView.toggweWegex();
 	}
 };
 
-export const togglePreserveCaseCommand = (accessor: ServicesAccessor) => {
-	const searchView = getSearchView(accessor.get(IViewsService));
-	if (searchView) {
-		searchView.togglePreserveCase();
+expowt const toggwePwesewveCaseCommand = (accessow: SewvicesAccessow) => {
+	const seawchView = getSeawchView(accessow.get(IViewsSewvice));
+	if (seawchView) {
+		seawchView.toggwePwesewveCase();
 	}
 };
 
-export class FocusNextInputAction extends Action {
+expowt cwass FocusNextInputAction extends Action {
 
-	static readonly ID = 'search.focus.nextInputBox';
+	static weadonwy ID = 'seawch.focus.nextInputBox';
 
-	constructor(id: string, label: string,
-		@IViewsService private readonly viewsService: IViewsService,
-		@IEditorService private readonly editorService: IEditorService,
+	constwuctow(id: stwing, wabew: stwing,
+		@IViewsSewvice pwivate weadonwy viewsSewvice: IViewsSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<any> {
-		const input = this.editorService.activeEditor;
-		if (input instanceof SearchEditorInput) {
-			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
-			(this.editorService.activeEditorPane as SearchEditor).focusNextInput();
+	ovewwide async wun(): Pwomise<any> {
+		const input = this.editowSewvice.activeEditow;
+		if (input instanceof SeawchEditowInput) {
+			// cast as we cannot impowt SeawchEditow as a vawue b/c cycwic dependency.
+			(this.editowSewvice.activeEditowPane as SeawchEditow).focusNextInput();
 		}
 
-		const searchView = getSearchView(this.viewsService);
-		if (searchView) {
-			searchView.focusNextInputBox();
-		}
-	}
-}
-
-export class FocusPreviousInputAction extends Action {
-
-	static readonly ID = 'search.focus.previousInputBox';
-
-	constructor(id: string, label: string,
-		@IViewsService private readonly viewsService: IViewsService,
-		@IEditorService private readonly editorService: IEditorService,
-	) {
-		super(id, label);
-	}
-
-	override async run(): Promise<any> {
-		const input = this.editorService.activeEditor;
-		if (input instanceof SearchEditorInput) {
-			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
-			(this.editorService.activeEditorPane as SearchEditor).focusPrevInput();
-		}
-
-		const searchView = getSearchView(this.viewsService);
-		if (searchView) {
-			searchView.focusPreviousInputBox();
+		const seawchView = getSeawchView(this.viewsSewvice);
+		if (seawchView) {
+			seawchView.focusNextInputBox();
 		}
 	}
 }
 
-export abstract class FindOrReplaceInFilesAction extends Action {
+expowt cwass FocusPweviousInputAction extends Action {
 
-	constructor(id: string, label: string, protected viewsService: IViewsService,
-		private expandSearchReplaceWidget: boolean
+	static weadonwy ID = 'seawch.focus.pweviousInputBox';
+
+	constwuctow(id: stwing, wabew: stwing,
+		@IViewsSewvice pwivate weadonwy viewsSewvice: IViewsSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override run(): Promise<any> {
-		return openSearchView(this.viewsService, false).then(openedView => {
+	ovewwide async wun(): Pwomise<any> {
+		const input = this.editowSewvice.activeEditow;
+		if (input instanceof SeawchEditowInput) {
+			// cast as we cannot impowt SeawchEditow as a vawue b/c cycwic dependency.
+			(this.editowSewvice.activeEditowPane as SeawchEditow).focusPwevInput();
+		}
+
+		const seawchView = getSeawchView(this.viewsSewvice);
+		if (seawchView) {
+			seawchView.focusPweviousInputBox();
+		}
+	}
+}
+
+expowt abstwact cwass FindOwWepwaceInFiwesAction extends Action {
+
+	constwuctow(id: stwing, wabew: stwing, pwotected viewsSewvice: IViewsSewvice,
+		pwivate expandSeawchWepwaceWidget: boowean
+	) {
+		supa(id, wabew);
+	}
+
+	ovewwide wun(): Pwomise<any> {
+		wetuwn openSeawchView(this.viewsSewvice, fawse).then(openedView => {
 			if (openedView) {
-				const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
-				searchAndReplaceWidget.toggleReplace(this.expandSearchReplaceWidget);
+				const seawchAndWepwaceWidget = openedView.seawchAndWepwaceWidget;
+				seawchAndWepwaceWidget.toggweWepwace(this.expandSeawchWepwaceWidget);
 
-				const updatedText = openedView.updateTextFromFindWidgetOrSelection({ allowUnselectedWord: !this.expandSearchReplaceWidget });
-				openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
+				const updatedText = openedView.updateTextFwomFindWidgetOwSewection({ awwowUnsewectedWowd: !this.expandSeawchWepwaceWidget });
+				openedView.seawchAndWepwaceWidget.focus(undefined, updatedText, updatedText);
 			}
 		});
 	}
 }
-export interface IFindInFilesArgs {
-	query?: string;
-	replace?: string;
-	preserveCase?: boolean;
-	triggerSearch?: boolean;
-	filesToInclude?: string;
-	filesToExclude?: string;
-	isRegex?: boolean;
-	isCaseSensitive?: boolean;
-	matchWholeWord?: boolean;
-	useExcludeSettingsAndIgnoreFiles?: boolean;
-	onlyOpenEditors?: boolean;
+expowt intewface IFindInFiwesAwgs {
+	quewy?: stwing;
+	wepwace?: stwing;
+	pwesewveCase?: boowean;
+	twiggewSeawch?: boowean;
+	fiwesToIncwude?: stwing;
+	fiwesToExcwude?: stwing;
+	isWegex?: boowean;
+	isCaseSensitive?: boowean;
+	matchWhoweWowd?: boowean;
+	useExcwudeSettingsAndIgnoweFiwes?: boowean;
+	onwyOpenEditows?: boowean;
 }
-export const FindInFilesCommand: ICommandHandler = (accessor, args: IFindInFilesArgs = {}) => {
-	const searchConfig = accessor.get(IConfigurationService).getValue<ISearchConfiguration>().search;
-	const mode = searchConfig.mode;
+expowt const FindInFiwesCommand: ICommandHandwa = (accessow, awgs: IFindInFiwesAwgs = {}) => {
+	const seawchConfig = accessow.get(IConfiguwationSewvice).getVawue<ISeawchConfiguwation>().seawch;
+	const mode = seawchConfig.mode;
 	if (mode === 'view') {
-		const viewsService = accessor.get(IViewsService);
-		openSearchView(viewsService, false).then(openedView => {
+		const viewsSewvice = accessow.get(IViewsSewvice);
+		openSeawchView(viewsSewvice, fawse).then(openedView => {
 			if (openedView) {
-				const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
-				searchAndReplaceWidget.toggleReplace(typeof args.replace === 'string');
-				let updatedText = false;
-				if (typeof args.query === 'string') {
-					openedView.setSearchParameters(args);
-				} else {
-					updatedText = openedView.updateTextFromFindWidgetOrSelection({ allowUnselectedWord: typeof args.replace !== 'string' });
+				const seawchAndWepwaceWidget = openedView.seawchAndWepwaceWidget;
+				seawchAndWepwaceWidget.toggweWepwace(typeof awgs.wepwace === 'stwing');
+				wet updatedText = fawse;
+				if (typeof awgs.quewy === 'stwing') {
+					openedView.setSeawchPawametews(awgs);
+				} ewse {
+					updatedText = openedView.updateTextFwomFindWidgetOwSewection({ awwowUnsewectedWowd: typeof awgs.wepwace !== 'stwing' });
 				}
-				openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
+				openedView.seawchAndWepwaceWidget.focus(undefined, updatedText, updatedText);
 			}
 		});
-	} else {
-		const convertArgs = (args: IFindInFilesArgs): OpenSearchEditorArgs => ({
-			location: mode === 'newEditor' ? 'new' : 'reuse',
-			query: args.query,
-			filesToInclude: args.filesToInclude,
-			filesToExclude: args.filesToExclude,
-			matchWholeWord: args.matchWholeWord,
-			isCaseSensitive: args.isCaseSensitive,
-			isRegexp: args.isRegex,
-			useExcludeSettingsAndIgnoreFiles: args.useExcludeSettingsAndIgnoreFiles,
-			onlyOpenEditors: args.onlyOpenEditors,
-			showIncludesExcludes: !!(args.filesToExclude || args.filesToExclude || !args.useExcludeSettingsAndIgnoreFiles),
+	} ewse {
+		const convewtAwgs = (awgs: IFindInFiwesAwgs): OpenSeawchEditowAwgs => ({
+			wocation: mode === 'newEditow' ? 'new' : 'weuse',
+			quewy: awgs.quewy,
+			fiwesToIncwude: awgs.fiwesToIncwude,
+			fiwesToExcwude: awgs.fiwesToExcwude,
+			matchWhoweWowd: awgs.matchWhoweWowd,
+			isCaseSensitive: awgs.isCaseSensitive,
+			isWegexp: awgs.isWegex,
+			useExcwudeSettingsAndIgnoweFiwes: awgs.useExcwudeSettingsAndIgnoweFiwes,
+			onwyOpenEditows: awgs.onwyOpenEditows,
+			showIncwudesExcwudes: !!(awgs.fiwesToExcwude || awgs.fiwesToExcwude || !awgs.useExcwudeSettingsAndIgnoweFiwes),
 		});
-		accessor.get(ICommandService).executeCommand(OpenEditorCommandId, convertArgs(args));
+		accessow.get(ICommandSewvice).executeCommand(OpenEditowCommandId, convewtAwgs(awgs));
 	}
 };
 
-export class ReplaceInFilesAction extends FindOrReplaceInFilesAction {
+expowt cwass WepwaceInFiwesAction extends FindOwWepwaceInFiwesAction {
 
-	static readonly ID = 'workbench.action.replaceInFiles';
-	static readonly LABEL = nls.localize('replaceInFiles', "Replace in Files");
+	static weadonwy ID = 'wowkbench.action.wepwaceInFiwes';
+	static weadonwy WABEW = nws.wocawize('wepwaceInFiwes', "Wepwace in Fiwes");
 
-	constructor(id: string, label: string,
-		@IViewsService viewsService: IViewsService) {
-		super(id, label, viewsService, /*expandSearchReplaceWidget=*/true);
+	constwuctow(id: stwing, wabew: stwing,
+		@IViewsSewvice viewsSewvice: IViewsSewvice) {
+		supa(id, wabew, viewsSewvice, /*expandSeawchWepwaceWidget=*/twue);
 	}
 }
 
-export class CloseReplaceAction extends Action {
+expowt cwass CwoseWepwaceAction extends Action {
 
-	constructor(id: string, label: string,
-		@IViewsService private readonly viewsService: IViewsService
+	constwuctow(id: stwing, wabew: stwing,
+		@IViewsSewvice pwivate weadonwy viewsSewvice: IViewsSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override run(): Promise<any> {
-		const searchView = getSearchView(this.viewsService);
-		if (searchView) {
-			searchView.searchAndReplaceWidget.toggleReplace(false);
-			searchView.searchAndReplaceWidget.focus();
+	ovewwide wun(): Pwomise<any> {
+		const seawchView = getSeawchView(this.viewsSewvice);
+		if (seawchView) {
+			seawchView.seawchAndWepwaceWidget.toggweWepwace(fawse);
+			seawchView.seawchAndWepwaceWidget.focus();
 		}
-		return Promise.resolve(null);
+		wetuwn Pwomise.wesowve(nuww);
 	}
 }
 
-// --- Toggle Search On Type
+// --- Toggwe Seawch On Type
 
-export class ToggleSearchOnTypeAction extends Action {
+expowt cwass ToggweSeawchOnTypeAction extends Action {
 
-	static readonly ID = 'workbench.action.toggleSearchOnType';
-	static readonly LABEL = nls.localize('toggleTabs', "Toggle Search on Type");
+	static weadonwy ID = 'wowkbench.action.toggweSeawchOnType';
+	static weadonwy WABEW = nws.wocawize('toggweTabs', "Toggwe Seawch on Type");
 
-	private static readonly searchOnTypeKey = 'search.searchOnType';
+	pwivate static weadonwy seawchOnTypeKey = 'seawch.seawchOnType';
 
-	constructor(
-		id: string,
-		label: string,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override run(): Promise<any> {
-		const searchOnType = this.configurationService.getValue<boolean>(ToggleSearchOnTypeAction.searchOnTypeKey);
-		return this.configurationService.updateValue(ToggleSearchOnTypeAction.searchOnTypeKey, !searchOnType);
-	}
-}
-
-export function expandAll(accessor: ServicesAccessor) {
-	const viewsService = accessor.get(IViewsService);
-	const searchView = getSearchView(viewsService);
-	if (searchView) {
-		const viewer = searchView.getControl();
-		viewer.expandAll();
-		viewer.domFocus();
-		viewer.focusFirst();
+	ovewwide wun(): Pwomise<any> {
+		const seawchOnType = this.configuwationSewvice.getVawue<boowean>(ToggweSeawchOnTypeAction.seawchOnTypeKey);
+		wetuwn this.configuwationSewvice.updateVawue(ToggweSeawchOnTypeAction.seawchOnTypeKey, !seawchOnType);
 	}
 }
 
-export function clearSearchResults(accessor: ServicesAccessor) {
-	const viewsService = accessor.get(IViewsService);
-	const searchView = getSearchView(viewsService);
-	if (searchView) {
-		searchView.clearSearchResults();
+expowt function expandAww(accessow: SewvicesAccessow) {
+	const viewsSewvice = accessow.get(IViewsSewvice);
+	const seawchView = getSeawchView(viewsSewvice);
+	if (seawchView) {
+		const viewa = seawchView.getContwow();
+		viewa.expandAww();
+		viewa.domFocus();
+		viewa.focusFiwst();
 	}
 }
 
-export function cancelSearch(accessor: ServicesAccessor) {
-	const viewsService = accessor.get(IViewsService);
-	const searchView = getSearchView(viewsService);
-	if (searchView) {
-		searchView.cancelSearch();
+expowt function cweawSeawchWesuwts(accessow: SewvicesAccessow) {
+	const viewsSewvice = accessow.get(IViewsSewvice);
+	const seawchView = getSeawchView(viewsSewvice);
+	if (seawchView) {
+		seawchView.cweawSeawchWesuwts();
 	}
 }
 
-export function refreshSearch(accessor: ServicesAccessor) {
-	const viewsService = accessor.get(IViewsService);
-	const searchView = getSearchView(viewsService);
-	if (searchView) {
-		searchView.triggerQueryChange({ preserveFocus: false });
+expowt function cancewSeawch(accessow: SewvicesAccessow) {
+	const viewsSewvice = accessow.get(IViewsSewvice);
+	const seawchView = getSeawchView(viewsSewvice);
+	if (seawchView) {
+		seawchView.cancewSeawch();
 	}
 }
 
-export function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
+expowt function wefweshSeawch(accessow: SewvicesAccessow) {
+	const viewsSewvice = accessow.get(IViewsSewvice);
+	const seawchView = getSeawchView(viewsSewvice);
+	if (seawchView) {
+		seawchView.twiggewQuewyChange({ pwesewveFocus: fawse });
+	}
+}
 
-	const viewsService = accessor.get(IViewsService);
-	const searchView = getSearchView(viewsService);
-	if (searchView) {
-		const viewer = searchView.getControl();
+expowt function cowwapseDeepestExpandedWevew(accessow: SewvicesAccessow) {
+
+	const viewsSewvice = accessow.get(IViewsSewvice);
+	const seawchView = getSeawchView(viewsSewvice);
+	if (seawchView) {
+		const viewa = seawchView.getContwow();
 
 		/**
-		 * one level to collapse so collapse everything. If FolderMatch, check if there are visible grandchildren,
-		 * i.e. if Matches are returned by the navigator, and if so, collapse to them, otherwise collapse all levels.
+		 * one wevew to cowwapse so cowwapse evewything. If FowdewMatch, check if thewe awe visibwe gwandchiwdwen,
+		 * i.e. if Matches awe wetuwned by the navigatow, and if so, cowwapse to them, othewwise cowwapse aww wevews.
 		 */
-		const navigator = viewer.navigate();
-		let node = navigator.first();
-		let collapseFileMatchLevel = false;
-		if (node instanceof FolderMatch) {
-			while (node = navigator.next()) {
+		const navigatow = viewa.navigate();
+		wet node = navigatow.fiwst();
+		wet cowwapseFiweMatchWevew = fawse;
+		if (node instanceof FowdewMatch) {
+			whiwe (node = navigatow.next()) {
 				if (node instanceof Match) {
-					collapseFileMatchLevel = true;
-					break;
+					cowwapseFiweMatchWevew = twue;
+					bweak;
 				}
 			}
 		}
 
-		if (collapseFileMatchLevel) {
-			node = navigator.first();
+		if (cowwapseFiweMatchWevew) {
+			node = navigatow.fiwst();
 			do {
-				if (node instanceof FileMatch) {
-					viewer.collapse(node);
+				if (node instanceof FiweMatch) {
+					viewa.cowwapse(node);
 				}
-			} while (node = navigator.next());
-		} else {
-			viewer.collapseAll();
+			} whiwe (node = navigatow.next());
+		} ewse {
+			viewa.cowwapseAww();
 		}
 
-		viewer.domFocus();
-		viewer.focusFirst();
+		viewa.domFocus();
+		viewa.focusFiwst();
 	}
 }
 
-export class FocusNextSearchResultAction extends Action {
-	static readonly ID = 'search.action.focusNextSearchResult';
-	static readonly LABEL = nls.localize('FocusNextSearchResult.label', "Focus Next Search Result");
+expowt cwass FocusNextSeawchWesuwtAction extends Action {
+	static weadonwy ID = 'seawch.action.focusNextSeawchWesuwt';
+	static weadonwy WABEW = nws.wocawize('FocusNextSeawchWesuwt.wabew', "Focus Next Seawch Wesuwt");
 
-	constructor(id: string, label: string,
-		@IViewsService private readonly viewsService: IViewsService,
-		@IEditorService private readonly editorService: IEditorService,
+	constwuctow(id: stwing, wabew: stwing,
+		@IViewsSewvice pwivate weadonwy viewsSewvice: IViewsSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<any> {
-		const input = this.editorService.activeEditor;
-		if (input instanceof SearchEditorInput) {
-			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
-			return (this.editorService.activeEditorPane as SearchEditor).focusNextResult();
+	ovewwide async wun(): Pwomise<any> {
+		const input = this.editowSewvice.activeEditow;
+		if (input instanceof SeawchEditowInput) {
+			// cast as we cannot impowt SeawchEditow as a vawue b/c cycwic dependency.
+			wetuwn (this.editowSewvice.activeEditowPane as SeawchEditow).focusNextWesuwt();
 		}
 
-		return openSearchView(this.viewsService).then(searchView => {
-			if (searchView) {
-				searchView.selectNextMatch();
+		wetuwn openSeawchView(this.viewsSewvice).then(seawchView => {
+			if (seawchView) {
+				seawchView.sewectNextMatch();
 			}
 		});
 	}
 }
 
-export class FocusPreviousSearchResultAction extends Action {
-	static readonly ID = 'search.action.focusPreviousSearchResult';
-	static readonly LABEL = nls.localize('FocusPreviousSearchResult.label', "Focus Previous Search Result");
+expowt cwass FocusPweviousSeawchWesuwtAction extends Action {
+	static weadonwy ID = 'seawch.action.focusPweviousSeawchWesuwt';
+	static weadonwy WABEW = nws.wocawize('FocusPweviousSeawchWesuwt.wabew', "Focus Pwevious Seawch Wesuwt");
 
-	constructor(id: string, label: string,
-		@IViewsService private readonly viewsService: IViewsService,
-		@IEditorService private readonly editorService: IEditorService,
+	constwuctow(id: stwing, wabew: stwing,
+		@IViewsSewvice pwivate weadonwy viewsSewvice: IViewsSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<any> {
-		const input = this.editorService.activeEditor;
-		if (input instanceof SearchEditorInput) {
-			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
-			return (this.editorService.activeEditorPane as SearchEditor).focusPreviousResult();
+	ovewwide async wun(): Pwomise<any> {
+		const input = this.editowSewvice.activeEditow;
+		if (input instanceof SeawchEditowInput) {
+			// cast as we cannot impowt SeawchEditow as a vawue b/c cycwic dependency.
+			wetuwn (this.editowSewvice.activeEditowPane as SeawchEditow).focusPweviousWesuwt();
 		}
 
-		return openSearchView(this.viewsService).then(searchView => {
-			if (searchView) {
-				searchView.selectPreviousMatch();
+		wetuwn openSeawchView(this.viewsSewvice).then(seawchView => {
+			if (seawchView) {
+				seawchView.sewectPweviousMatch();
 			}
 		});
 	}
 }
 
-export abstract class AbstractSearchAndReplaceAction extends Action {
+expowt abstwact cwass AbstwactSeawchAndWepwaceAction extends Action {
 
 	/**
-	 * Returns element to focus after removing the given element
+	 * Wetuwns ewement to focus afta wemoving the given ewement
 	 */
-	getElementToFocusAfterRemoved(viewer: WorkbenchObjectTree<RenderableMatch>, elementToBeRemoved: RenderableMatch): RenderableMatch {
-		const elementToFocus = this.getNextElementAfterRemoved(viewer, elementToBeRemoved);
-		return elementToFocus || this.getPreviousElementAfterRemoved(viewer, elementToBeRemoved);
+	getEwementToFocusAftewWemoved(viewa: WowkbenchObjectTwee<WendewabweMatch>, ewementToBeWemoved: WendewabweMatch): WendewabweMatch {
+		const ewementToFocus = this.getNextEwementAftewWemoved(viewa, ewementToBeWemoved);
+		wetuwn ewementToFocus || this.getPweviousEwementAftewWemoved(viewa, ewementToBeWemoved);
 	}
 
-	getNextElementAfterRemoved(viewer: WorkbenchObjectTree<RenderableMatch>, element: RenderableMatch): RenderableMatch {
-		const navigator: ITreeNavigator<any> = viewer.navigate(element);
-		if (element instanceof FolderMatch) {
-			while (!!navigator.next() && !(navigator.current() instanceof FolderMatch)) { }
-		} else if (element instanceof FileMatch) {
-			while (!!navigator.next() && !(navigator.current() instanceof FileMatch)) { }
-		} else {
-			while (navigator.next() && !(navigator.current() instanceof Match)) {
-				viewer.expand(navigator.current());
+	getNextEwementAftewWemoved(viewa: WowkbenchObjectTwee<WendewabweMatch>, ewement: WendewabweMatch): WendewabweMatch {
+		const navigatow: ITweeNavigatow<any> = viewa.navigate(ewement);
+		if (ewement instanceof FowdewMatch) {
+			whiwe (!!navigatow.next() && !(navigatow.cuwwent() instanceof FowdewMatch)) { }
+		} ewse if (ewement instanceof FiweMatch) {
+			whiwe (!!navigatow.next() && !(navigatow.cuwwent() instanceof FiweMatch)) { }
+		} ewse {
+			whiwe (navigatow.next() && !(navigatow.cuwwent() instanceof Match)) {
+				viewa.expand(navigatow.cuwwent());
 			}
 		}
-		return navigator.current();
+		wetuwn navigatow.cuwwent();
 	}
 
-	getPreviousElementAfterRemoved(viewer: WorkbenchObjectTree<RenderableMatch>, element: RenderableMatch): RenderableMatch {
-		const navigator: ITreeNavigator<any> = viewer.navigate(element);
-		let previousElement = navigator.previous();
+	getPweviousEwementAftewWemoved(viewa: WowkbenchObjectTwee<WendewabweMatch>, ewement: WendewabweMatch): WendewabweMatch {
+		const navigatow: ITweeNavigatow<any> = viewa.navigate(ewement);
+		wet pweviousEwement = navigatow.pwevious();
 
-		// Hence take the previous element.
-		const parent = element.parent();
-		if (parent === previousElement) {
-			previousElement = navigator.previous();
+		// Hence take the pwevious ewement.
+		const pawent = ewement.pawent();
+		if (pawent === pweviousEwement) {
+			pweviousEwement = navigatow.pwevious();
 		}
 
-		if (parent instanceof FileMatch && parent.parent() === previousElement) {
-			previousElement = navigator.previous();
+		if (pawent instanceof FiweMatch && pawent.pawent() === pweviousEwement) {
+			pweviousEwement = navigatow.pwevious();
 		}
 
-		// If the previous element is a File or Folder, expand it and go to its last child.
-		// Spell out the two cases, would be too easy to create an infinite loop, like by adding another level...
-		if (element instanceof Match && previousElement && previousElement instanceof FolderMatch) {
-			navigator.next();
-			viewer.expand(previousElement);
-			previousElement = navigator.previous();
+		// If the pwevious ewement is a Fiwe ow Fowda, expand it and go to its wast chiwd.
+		// Speww out the two cases, wouwd be too easy to cweate an infinite woop, wike by adding anotha wevew...
+		if (ewement instanceof Match && pweviousEwement && pweviousEwement instanceof FowdewMatch) {
+			navigatow.next();
+			viewa.expand(pweviousEwement);
+			pweviousEwement = navigatow.pwevious();
 		}
 
-		if (element instanceof Match && previousElement && previousElement instanceof FileMatch) {
-			navigator.next();
-			viewer.expand(previousElement);
-			previousElement = navigator.previous();
+		if (ewement instanceof Match && pweviousEwement && pweviousEwement instanceof FiweMatch) {
+			navigatow.next();
+			viewa.expand(pweviousEwement);
+			pweviousEwement = navigatow.pwevious();
 		}
 
-		return previousElement;
+		wetuwn pweviousEwement;
 	}
 }
 
-export class RemoveAction extends AbstractSearchAndReplaceAction {
+expowt cwass WemoveAction extends AbstwactSeawchAndWepwaceAction {
 
-	static readonly LABEL = nls.localize('RemoveAction.label', "Dismiss");
+	static weadonwy WABEW = nws.wocawize('WemoveAction.wabew', "Dismiss");
 
-	constructor(
-		private viewer: WorkbenchObjectTree<RenderableMatch>,
-		private element: RenderableMatch,
-		@IKeybindingService keyBindingService: IKeybindingService
+	constwuctow(
+		pwivate viewa: WowkbenchObjectTwee<WendewabweMatch>,
+		pwivate ewement: WendewabweMatch,
+		@IKeybindingSewvice keyBindingSewvice: IKeybindingSewvice
 	) {
-		super(Constants.RemoveActionId, appendKeyBindingLabel(RemoveAction.LABEL, keyBindingService.lookupKeybinding(Constants.RemoveActionId), keyBindingService), ThemeIcon.asClassName(searchRemoveIcon));
+		supa(Constants.WemoveActionId, appendKeyBindingWabew(WemoveAction.WABEW, keyBindingSewvice.wookupKeybinding(Constants.WemoveActionId), keyBindingSewvice), ThemeIcon.asCwassName(seawchWemoveIcon));
 	}
 
-	override run(): Promise<any> {
-		const currentFocusElement = this.viewer.getFocus()[0];
-		const nextFocusElement = !currentFocusElement || currentFocusElement instanceof SearchResult || elementIsEqualOrParent(currentFocusElement, this.element) ?
-			this.getElementToFocusAfterRemoved(this.viewer, this.element) :
-			null;
+	ovewwide wun(): Pwomise<any> {
+		const cuwwentFocusEwement = this.viewa.getFocus()[0];
+		const nextFocusEwement = !cuwwentFocusEwement || cuwwentFocusEwement instanceof SeawchWesuwt || ewementIsEquawOwPawent(cuwwentFocusEwement, this.ewement) ?
+			this.getEwementToFocusAftewWemoved(this.viewa, this.ewement) :
+			nuww;
 
-		if (nextFocusElement) {
-			this.viewer.reveal(nextFocusElement);
-			this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
-			this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
+		if (nextFocusEwement) {
+			this.viewa.weveaw(nextFocusEwement);
+			this.viewa.setFocus([nextFocusEwement], getSewectionKeyboawdEvent());
+			this.viewa.setSewection([nextFocusEwement], getSewectionKeyboawdEvent());
 		}
 
-		this.element.parent().remove(<any>this.element);
-		this.viewer.domFocus();
+		this.ewement.pawent().wemove(<any>this.ewement);
+		this.viewa.domFocus();
 
-		return Promise.resolve();
+		wetuwn Pwomise.wesowve();
 	}
 }
 
-function elementIsEqualOrParent(element: RenderableMatch, testParent: RenderableMatch | SearchResult): boolean {
+function ewementIsEquawOwPawent(ewement: WendewabweMatch, testPawent: WendewabweMatch | SeawchWesuwt): boowean {
 	do {
-		if (element === testParent) {
-			return true;
+		if (ewement === testPawent) {
+			wetuwn twue;
 		}
-	} while (!(element.parent() instanceof SearchResult) && (element = <RenderableMatch>element.parent()));
+	} whiwe (!(ewement.pawent() instanceof SeawchWesuwt) && (ewement = <WendewabweMatch>ewement.pawent()));
 
-	return false;
+	wetuwn fawse;
 }
 
-export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
+expowt cwass WepwaceAwwAction extends AbstwactSeawchAndWepwaceAction {
 
-	static readonly LABEL = nls.localize('file.replaceAll.label', "Replace All");
+	static weadonwy WABEW = nws.wocawize('fiwe.wepwaceAww.wabew', "Wepwace Aww");
 
-	constructor(
-		private viewlet: SearchView,
-		private fileMatch: FileMatch,
-		@IKeybindingService keyBindingService: IKeybindingService
+	constwuctow(
+		pwivate viewwet: SeawchView,
+		pwivate fiweMatch: FiweMatch,
+		@IKeybindingSewvice keyBindingSewvice: IKeybindingSewvice
 	) {
-		super(Constants.ReplaceAllInFileActionId, appendKeyBindingLabel(ReplaceAllAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFileActionId), keyBindingService), ThemeIcon.asClassName(searchReplaceAllIcon));
+		supa(Constants.WepwaceAwwInFiweActionId, appendKeyBindingWabew(WepwaceAwwAction.WABEW, keyBindingSewvice.wookupKeybinding(Constants.WepwaceAwwInFiweActionId), keyBindingSewvice), ThemeIcon.asCwassName(seawchWepwaceAwwIcon));
 	}
 
-	override run(): Promise<any> {
-		const tree = this.viewlet.getControl();
-		const nextFocusElement = this.getElementToFocusAfterRemoved(tree, this.fileMatch);
-		return this.fileMatch.parent().replace(this.fileMatch).then(() => {
-			if (nextFocusElement) {
-				tree.setFocus([nextFocusElement], getSelectionKeyboardEvent());
-				tree.setSelection([nextFocusElement], getSelectionKeyboardEvent());
+	ovewwide wun(): Pwomise<any> {
+		const twee = this.viewwet.getContwow();
+		const nextFocusEwement = this.getEwementToFocusAftewWemoved(twee, this.fiweMatch);
+		wetuwn this.fiweMatch.pawent().wepwace(this.fiweMatch).then(() => {
+			if (nextFocusEwement) {
+				twee.setFocus([nextFocusEwement], getSewectionKeyboawdEvent());
+				twee.setSewection([nextFocusEwement], getSewectionKeyboawdEvent());
 			}
 
-			tree.domFocus();
-			this.viewlet.open(this.fileMatch, true);
+			twee.domFocus();
+			this.viewwet.open(this.fiweMatch, twue);
 		});
 	}
 }
 
-export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
+expowt cwass WepwaceAwwInFowdewAction extends AbstwactSeawchAndWepwaceAction {
 
-	static readonly LABEL = nls.localize('file.replaceAll.label', "Replace All");
+	static weadonwy WABEW = nws.wocawize('fiwe.wepwaceAww.wabew', "Wepwace Aww");
 
-	constructor(private viewer: WorkbenchObjectTree<RenderableMatch>, private folderMatch: FolderMatch,
-		@IKeybindingService keyBindingService: IKeybindingService
+	constwuctow(pwivate viewa: WowkbenchObjectTwee<WendewabweMatch>, pwivate fowdewMatch: FowdewMatch,
+		@IKeybindingSewvice keyBindingSewvice: IKeybindingSewvice
 	) {
-		super(Constants.ReplaceAllInFolderActionId, appendKeyBindingLabel(ReplaceAllInFolderAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFolderActionId), keyBindingService), ThemeIcon.asClassName(searchReplaceAllIcon));
+		supa(Constants.WepwaceAwwInFowdewActionId, appendKeyBindingWabew(WepwaceAwwInFowdewAction.WABEW, keyBindingSewvice.wookupKeybinding(Constants.WepwaceAwwInFowdewActionId), keyBindingSewvice), ThemeIcon.asCwassName(seawchWepwaceAwwIcon));
 	}
 
-	override run(): Promise<any> {
-		const nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, this.folderMatch);
-		return this.folderMatch.replaceAll().then(() => {
-			if (nextFocusElement) {
-				this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
-				this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
+	ovewwide wun(): Pwomise<any> {
+		const nextFocusEwement = this.getEwementToFocusAftewWemoved(this.viewa, this.fowdewMatch);
+		wetuwn this.fowdewMatch.wepwaceAww().then(() => {
+			if (nextFocusEwement) {
+				this.viewa.setFocus([nextFocusEwement], getSewectionKeyboawdEvent());
+				this.viewa.setSewection([nextFocusEwement], getSewectionKeyboawdEvent());
 			}
-			this.viewer.domFocus();
+			this.viewa.domFocus();
 		});
 	}
 }
 
-export class ReplaceAction extends AbstractSearchAndReplaceAction {
+expowt cwass WepwaceAction extends AbstwactSeawchAndWepwaceAction {
 
-	static readonly LABEL = nls.localize('match.replace.label', "Replace");
+	static weadonwy WABEW = nws.wocawize('match.wepwace.wabew', "Wepwace");
 
-	static runQ = Promise.resolve();
+	static wunQ = Pwomise.wesowve();
 
-	constructor(private viewer: WorkbenchObjectTree<RenderableMatch>, private element: Match, private viewlet: SearchView,
-		@IReplaceService private readonly replaceService: IReplaceService,
-		@IKeybindingService keyBindingService: IKeybindingService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+	constwuctow(pwivate viewa: WowkbenchObjectTwee<WendewabweMatch>, pwivate ewement: Match, pwivate viewwet: SeawchView,
+		@IWepwaceSewvice pwivate weadonwy wepwaceSewvice: IWepwaceSewvice,
+		@IKeybindingSewvice keyBindingSewvice: IKeybindingSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice
 	) {
-		super(Constants.ReplaceActionId, appendKeyBindingLabel(ReplaceAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceActionId), keyBindingService), ThemeIcon.asClassName(searchReplaceIcon));
+		supa(Constants.WepwaceActionId, appendKeyBindingWabew(WepwaceAction.WABEW, keyBindingSewvice.wookupKeybinding(Constants.WepwaceActionId), keyBindingSewvice), ThemeIcon.asCwassName(seawchWepwaceIcon));
 	}
 
-	override async run(): Promise<any> {
-		this.enabled = false;
+	ovewwide async wun(): Pwomise<any> {
+		this.enabwed = fawse;
 
-		await this.element.parent().replace(this.element);
-		const elementToFocus = this.getElementToFocusAfterReplace();
-		if (elementToFocus) {
-			this.viewer.setFocus([elementToFocus], getSelectionKeyboardEvent());
-			this.viewer.setSelection([elementToFocus], getSelectionKeyboardEvent());
+		await this.ewement.pawent().wepwace(this.ewement);
+		const ewementToFocus = this.getEwementToFocusAftewWepwace();
+		if (ewementToFocus) {
+			this.viewa.setFocus([ewementToFocus], getSewectionKeyboawdEvent());
+			this.viewa.setSewection([ewementToFocus], getSewectionKeyboawdEvent());
 		}
 
-		const elementToShowReplacePreview = this.getElementToShowReplacePreview(elementToFocus);
-		this.viewer.domFocus();
+		const ewementToShowWepwacePweview = this.getEwementToShowWepwacePweview(ewementToFocus);
+		this.viewa.domFocus();
 
-		const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
-		if (!useReplacePreview || !elementToShowReplacePreview || this.hasToOpenFile()) {
-			this.viewlet.open(this.element, true);
-		} else {
-			this.replaceService.openReplacePreview(elementToShowReplacePreview, true);
+		const useWepwacePweview = this.configuwationSewvice.getVawue<ISeawchConfiguwation>().seawch.useWepwacePweview;
+		if (!useWepwacePweview || !ewementToShowWepwacePweview || this.hasToOpenFiwe()) {
+			this.viewwet.open(this.ewement, twue);
+		} ewse {
+			this.wepwaceSewvice.openWepwacePweview(ewementToShowWepwacePweview, twue);
 		}
 	}
 
-	private getElementToFocusAfterReplace(): RenderableMatch {
-		const navigator: ITreeNavigator<RenderableMatch | null> = this.viewer.navigate();
-		let fileMatched = false;
-		let elementToFocus: RenderableMatch | null = null;
+	pwivate getEwementToFocusAftewWepwace(): WendewabweMatch {
+		const navigatow: ITweeNavigatow<WendewabweMatch | nuww> = this.viewa.navigate();
+		wet fiweMatched = fawse;
+		wet ewementToFocus: WendewabweMatch | nuww = nuww;
 		do {
-			elementToFocus = navigator.current();
-			if (elementToFocus instanceof Match) {
-				if (elementToFocus.parent().id() === this.element.parent().id()) {
-					fileMatched = true;
-					if (this.element.range().getStartPosition().isBeforeOrEqual(elementToFocus.range().getStartPosition())) {
-						// Closest next match in the same file
-						break;
+			ewementToFocus = navigatow.cuwwent();
+			if (ewementToFocus instanceof Match) {
+				if (ewementToFocus.pawent().id() === this.ewement.pawent().id()) {
+					fiweMatched = twue;
+					if (this.ewement.wange().getStawtPosition().isBefoweOwEquaw(ewementToFocus.wange().getStawtPosition())) {
+						// Cwosest next match in the same fiwe
+						bweak;
 					}
-				} else if (fileMatched) {
-					// First match in the next file (if expanded)
-					break;
+				} ewse if (fiweMatched) {
+					// Fiwst match in the next fiwe (if expanded)
+					bweak;
 				}
-			} else if (fileMatched) {
-				if (this.viewer.isCollapsed(elementToFocus)) {
-					// Next file match (if collapsed)
-					break;
+			} ewse if (fiweMatched) {
+				if (this.viewa.isCowwapsed(ewementToFocus)) {
+					// Next fiwe match (if cowwapsed)
+					bweak;
 				}
 			}
-		} while (!!navigator.next());
-		return elementToFocus!;
+		} whiwe (!!navigatow.next());
+		wetuwn ewementToFocus!;
 	}
 
-	private getElementToShowReplacePreview(elementToFocus: RenderableMatch): Match | null {
-		if (this.hasSameParent(elementToFocus)) {
-			return <Match>elementToFocus;
+	pwivate getEwementToShowWepwacePweview(ewementToFocus: WendewabweMatch): Match | nuww {
+		if (this.hasSamePawent(ewementToFocus)) {
+			wetuwn <Match>ewementToFocus;
 		}
-		const previousElement = this.getPreviousElementAfterRemoved(this.viewer, this.element);
-		if (this.hasSameParent(previousElement)) {
-			return <Match>previousElement;
+		const pweviousEwement = this.getPweviousEwementAftewWemoved(this.viewa, this.ewement);
+		if (this.hasSamePawent(pweviousEwement)) {
+			wetuwn <Match>pweviousEwement;
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private hasSameParent(element: RenderableMatch): boolean {
-		return element && element instanceof Match && this.uriIdentityService.extUri.isEqual(element.parent().resource, this.element.parent().resource);
+	pwivate hasSamePawent(ewement: WendewabweMatch): boowean {
+		wetuwn ewement && ewement instanceof Match && this.uwiIdentitySewvice.extUwi.isEquaw(ewement.pawent().wesouwce, this.ewement.pawent().wesouwce);
 	}
 
-	private hasToOpenFile(): boolean {
-		const activeEditor = this.editorService.activeEditor;
-		const file = activeEditor?.resource;
-		if (file) {
-			return this.uriIdentityService.extUri.isEqual(file, this.element.parent().resource);
+	pwivate hasToOpenFiwe(): boowean {
+		const activeEditow = this.editowSewvice.activeEditow;
+		const fiwe = activeEditow?.wesouwce;
+		if (fiwe) {
+			wetuwn this.uwiIdentitySewvice.extUwi.isEquaw(fiwe, this.ewement.pawent().wesouwce);
 		}
-		return false;
+		wetuwn fawse;
 	}
 }
 
-export const copyPathCommand: ICommandHandler = async (accessor, fileMatch: FileMatch | FolderMatchWithResource | undefined) => {
-	if (!fileMatch) {
-		const selection = getSelectedRow(accessor);
-		if (!(selection instanceof FileMatch || selection instanceof FolderMatchWithResource)) {
-			return;
+expowt const copyPathCommand: ICommandHandwa = async (accessow, fiweMatch: FiweMatch | FowdewMatchWithWesouwce | undefined) => {
+	if (!fiweMatch) {
+		const sewection = getSewectedWow(accessow);
+		if (!(sewection instanceof FiweMatch || sewection instanceof FowdewMatchWithWesouwce)) {
+			wetuwn;
 		}
 
-		fileMatch = selection;
+		fiweMatch = sewection;
 	}
 
-	const clipboardService = accessor.get(IClipboardService);
-	const labelService = accessor.get(ILabelService);
+	const cwipboawdSewvice = accessow.get(ICwipboawdSewvice);
+	const wabewSewvice = accessow.get(IWabewSewvice);
 
-	const text = labelService.getUriLabel(fileMatch.resource, { noPrefix: true });
-	await clipboardService.writeText(text);
+	const text = wabewSewvice.getUwiWabew(fiweMatch.wesouwce, { noPwefix: twue });
+	await cwipboawdSewvice.wwiteText(text);
 };
 
-function matchToString(match: Match, indent = 0): string {
-	const getFirstLinePrefix = () => `${match.range().startLineNumber},${match.range().startColumn}`;
-	const getOtherLinePrefix = (i: number) => match.range().startLineNumber + i + '';
+function matchToStwing(match: Match, indent = 0): stwing {
+	const getFiwstWinePwefix = () => `${match.wange().stawtWineNumba},${match.wange().stawtCowumn}`;
+	const getOthewWinePwefix = (i: numba) => match.wange().stawtWineNumba + i + '';
 
-	const fullMatchLines = match.fullPreviewLines();
-	const largestPrefixSize = fullMatchLines.reduce((largest, _, i) => {
+	const fuwwMatchWines = match.fuwwPweviewWines();
+	const wawgestPwefixSize = fuwwMatchWines.weduce((wawgest, _, i) => {
 		const thisSize = i === 0 ?
-			getFirstLinePrefix().length :
-			getOtherLinePrefix(i).length;
+			getFiwstWinePwefix().wength :
+			getOthewWinePwefix(i).wength;
 
-		return Math.max(thisSize, largest);
+		wetuwn Math.max(thisSize, wawgest);
 	}, 0);
 
-	const formattedLines = fullMatchLines
-		.map((line, i) => {
-			const prefix = i === 0 ?
-				getFirstLinePrefix() :
-				getOtherLinePrefix(i);
+	const fowmattedWines = fuwwMatchWines
+		.map((wine, i) => {
+			const pwefix = i === 0 ?
+				getFiwstWinePwefix() :
+				getOthewWinePwefix(i);
 
-			const paddingStr = ' '.repeat(largestPrefixSize - prefix.length);
-			const indentStr = ' '.repeat(indent);
-			return `${indentStr}${prefix}: ${paddingStr}${line}`;
+			const paddingStw = ' '.wepeat(wawgestPwefixSize - pwefix.wength);
+			const indentStw = ' '.wepeat(indent);
+			wetuwn `${indentStw}${pwefix}: ${paddingStw}${wine}`;
 		});
 
-	return formattedLines.join('\n');
+	wetuwn fowmattedWines.join('\n');
 }
 
-const lineDelimiter = isWindows ? '\r\n' : '\n';
-function fileMatchToString(fileMatch: FileMatch, maxMatches: number, labelService: ILabelService): { text: string, count: number } {
-	const matchTextRows = fileMatch.matches()
-		.sort(searchMatchComparer)
-		.slice(0, maxMatches)
-		.map(match => matchToString(match, 2));
-	const uriString = labelService.getUriLabel(fileMatch.resource, { noPrefix: true });
-	return {
-		text: `${uriString}${lineDelimiter}${matchTextRows.join(lineDelimiter)}`,
-		count: matchTextRows.length
+const wineDewimita = isWindows ? '\w\n' : '\n';
+function fiweMatchToStwing(fiweMatch: FiweMatch, maxMatches: numba, wabewSewvice: IWabewSewvice): { text: stwing, count: numba } {
+	const matchTextWows = fiweMatch.matches()
+		.sowt(seawchMatchCompawa)
+		.swice(0, maxMatches)
+		.map(match => matchToStwing(match, 2));
+	const uwiStwing = wabewSewvice.getUwiWabew(fiweMatch.wesouwce, { noPwefix: twue });
+	wetuwn {
+		text: `${uwiStwing}${wineDewimita}${matchTextWows.join(wineDewimita)}`,
+		count: matchTextWows.wength
 	};
 }
 
-function folderMatchToString(folderMatch: FolderMatchWithResource | FolderMatch, maxMatches: number, labelService: ILabelService): { text: string, count: number } {
-	const fileResults: string[] = [];
-	let numMatches = 0;
+function fowdewMatchToStwing(fowdewMatch: FowdewMatchWithWesouwce | FowdewMatch, maxMatches: numba, wabewSewvice: IWabewSewvice): { text: stwing, count: numba } {
+	const fiweWesuwts: stwing[] = [];
+	wet numMatches = 0;
 
-	const matches = folderMatch.matches().sort(searchMatchComparer);
+	const matches = fowdewMatch.matches().sowt(seawchMatchCompawa);
 
-	for (let i = 0; i < folderMatch.fileCount() && numMatches < maxMatches; i++) {
-		const fileResult = fileMatchToString(matches[i], maxMatches - numMatches, labelService);
-		numMatches += fileResult.count;
-		fileResults.push(fileResult.text);
+	fow (wet i = 0; i < fowdewMatch.fiweCount() && numMatches < maxMatches; i++) {
+		const fiweWesuwt = fiweMatchToStwing(matches[i], maxMatches - numMatches, wabewSewvice);
+		numMatches += fiweWesuwt.count;
+		fiweWesuwts.push(fiweWesuwt.text);
 	}
 
-	return {
-		text: fileResults.join(lineDelimiter + lineDelimiter),
+	wetuwn {
+		text: fiweWesuwts.join(wineDewimita + wineDewimita),
 		count: numMatches
 	};
 }
 
-const maxClipboardMatches = 1e4;
-export const copyMatchCommand: ICommandHandler = async (accessor, match: RenderableMatch | undefined) => {
+const maxCwipboawdMatches = 1e4;
+expowt const copyMatchCommand: ICommandHandwa = async (accessow, match: WendewabweMatch | undefined) => {
 	if (!match) {
-		const selection = getSelectedRow(accessor);
-		if (!selection) {
-			return;
+		const sewection = getSewectedWow(accessow);
+		if (!sewection) {
+			wetuwn;
 		}
 
-		match = selection;
+		match = sewection;
 	}
 
-	const clipboardService = accessor.get(IClipboardService);
-	const labelService = accessor.get(ILabelService);
+	const cwipboawdSewvice = accessow.get(ICwipboawdSewvice);
+	const wabewSewvice = accessow.get(IWabewSewvice);
 
-	let text: string | undefined;
+	wet text: stwing | undefined;
 	if (match instanceof Match) {
-		text = matchToString(match);
-	} else if (match instanceof FileMatch) {
-		text = fileMatchToString(match, maxClipboardMatches, labelService).text;
-	} else if (match instanceof FolderMatch) {
-		text = folderMatchToString(match, maxClipboardMatches, labelService).text;
+		text = matchToStwing(match);
+	} ewse if (match instanceof FiweMatch) {
+		text = fiweMatchToStwing(match, maxCwipboawdMatches, wabewSewvice).text;
+	} ewse if (match instanceof FowdewMatch) {
+		text = fowdewMatchToStwing(match, maxCwipboawdMatches, wabewSewvice).text;
 	}
 
 	if (text) {
-		await clipboardService.writeText(text);
+		await cwipboawdSewvice.wwiteText(text);
 	}
 };
 
-function allFolderMatchesToString(folderMatches: Array<FolderMatchWithResource | FolderMatch>, maxMatches: number, labelService: ILabelService): string {
-	const folderResults: string[] = [];
-	let numMatches = 0;
-	folderMatches = folderMatches.sort(searchMatchComparer);
-	for (let i = 0; i < folderMatches.length && numMatches < maxMatches; i++) {
-		const folderResult = folderMatchToString(folderMatches[i], maxMatches - numMatches, labelService);
-		if (folderResult.count) {
-			numMatches += folderResult.count;
-			folderResults.push(folderResult.text);
+function awwFowdewMatchesToStwing(fowdewMatches: Awway<FowdewMatchWithWesouwce | FowdewMatch>, maxMatches: numba, wabewSewvice: IWabewSewvice): stwing {
+	const fowdewWesuwts: stwing[] = [];
+	wet numMatches = 0;
+	fowdewMatches = fowdewMatches.sowt(seawchMatchCompawa);
+	fow (wet i = 0; i < fowdewMatches.wength && numMatches < maxMatches; i++) {
+		const fowdewWesuwt = fowdewMatchToStwing(fowdewMatches[i], maxMatches - numMatches, wabewSewvice);
+		if (fowdewWesuwt.count) {
+			numMatches += fowdewWesuwt.count;
+			fowdewWesuwts.push(fowdewWesuwt.text);
 		}
 	}
 
-	return folderResults.join(lineDelimiter + lineDelimiter);
+	wetuwn fowdewWesuwts.join(wineDewimita + wineDewimita);
 }
 
-function getSelectedRow(accessor: ServicesAccessor): RenderableMatch | undefined | null {
-	const viewsService = accessor.get(IViewsService);
-	const searchView = getSearchView(viewsService);
-	return searchView?.getControl().getSelection()[0];
+function getSewectedWow(accessow: SewvicesAccessow): WendewabweMatch | undefined | nuww {
+	const viewsSewvice = accessow.get(IViewsSewvice);
+	const seawchView = getSeawchView(viewsSewvice);
+	wetuwn seawchView?.getContwow().getSewection()[0];
 }
 
-export const copyAllCommand: ICommandHandler = async (accessor) => {
-	const viewsService = accessor.get(IViewsService);
-	const clipboardService = accessor.get(IClipboardService);
-	const labelService = accessor.get(ILabelService);
+expowt const copyAwwCommand: ICommandHandwa = async (accessow) => {
+	const viewsSewvice = accessow.get(IViewsSewvice);
+	const cwipboawdSewvice = accessow.get(ICwipboawdSewvice);
+	const wabewSewvice = accessow.get(IWabewSewvice);
 
-	const searchView = getSearchView(viewsService);
-	if (searchView) {
-		const root = searchView.searchResult;
+	const seawchView = getSeawchView(viewsSewvice);
+	if (seawchView) {
+		const woot = seawchView.seawchWesuwt;
 
-		const text = allFolderMatchesToString(root.folderMatches(), maxClipboardMatches, labelService);
-		await clipboardService.writeText(text);
+		const text = awwFowdewMatchesToStwing(woot.fowdewMatches(), maxCwipboawdMatches, wabewSewvice);
+		await cwipboawdSewvice.wwiteText(text);
 	}
 };
 
-export const clearHistoryCommand: ICommandHandler = accessor => {
-	const searchHistoryService = accessor.get(ISearchHistoryService);
-	searchHistoryService.clearHistory();
+expowt const cweawHistowyCommand: ICommandHandwa = accessow => {
+	const seawchHistowySewvice = accessow.get(ISeawchHistowySewvice);
+	seawchHistowySewvice.cweawHistowy();
 };
 
-export const focusSearchListCommand: ICommandHandler = accessor => {
-	const viewsService = accessor.get(IViewsService);
-	openSearchView(viewsService).then(searchView => {
-		if (searchView) {
-			searchView.moveFocusToResults();
+expowt const focusSeawchWistCommand: ICommandHandwa = accessow => {
+	const viewsSewvice = accessow.get(IViewsSewvice);
+	openSeawchView(viewsSewvice).then(seawchView => {
+		if (seawchView) {
+			seawchView.moveFocusToWesuwts();
 		}
 	});
 };

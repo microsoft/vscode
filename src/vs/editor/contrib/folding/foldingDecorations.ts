@@ -1,82 +1,82 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IDecorationProvider } from 'vs/editor/contrib/folding/foldingModel';
-import { localize } from 'vs/nls';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IModewDecowationsChangeAccessow, IModewDewtaDecowation, TwackedWangeStickiness } fwom 'vs/editow/common/modew';
+impowt { ModewDecowationOptions } fwom 'vs/editow/common/modew/textModew';
+impowt { IDecowationPwovida } fwom 'vs/editow/contwib/fowding/fowdingModew';
+impowt { wocawize } fwom 'vs/nws';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export const foldingExpandedIcon = registerIcon('folding-expanded', Codicon.chevronDown, localize('foldingExpandedIcon', 'Icon for expanded ranges in the editor glyph margin.'));
-export const foldingCollapsedIcon = registerIcon('folding-collapsed', Codicon.chevronRight, localize('foldingCollapsedIcon', 'Icon for collapsed ranges in the editor glyph margin.'));
-export class FoldingDecorationProvider implements IDecorationProvider {
+expowt const fowdingExpandedIcon = wegistewIcon('fowding-expanded', Codicon.chevwonDown, wocawize('fowdingExpandedIcon', 'Icon fow expanded wanges in the editow gwyph mawgin.'));
+expowt const fowdingCowwapsedIcon = wegistewIcon('fowding-cowwapsed', Codicon.chevwonWight, wocawize('fowdingCowwapsedIcon', 'Icon fow cowwapsed wanges in the editow gwyph mawgin.'));
+expowt cwass FowdingDecowationPwovida impwements IDecowationPwovida {
 
-	private static readonly COLLAPSED_VISUAL_DECORATION = ModelDecorationOptions.register({
-		description: 'folding-collapsed-visual-decoration',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		afterContentClassName: 'inline-folded',
-		isWholeLine: true,
-		firstLineDecorationClassName: ThemeIcon.asClassName(foldingCollapsedIcon)
+	pwivate static weadonwy COWWAPSED_VISUAW_DECOWATION = ModewDecowationOptions.wegista({
+		descwiption: 'fowding-cowwapsed-visuaw-decowation',
+		stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
+		aftewContentCwassName: 'inwine-fowded',
+		isWhoweWine: twue,
+		fiwstWineDecowationCwassName: ThemeIcon.asCwassName(fowdingCowwapsedIcon)
 	});
 
-	private static readonly COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION = ModelDecorationOptions.register({
-		description: 'folding-collapsed-highlighted-visual-decoration',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		afterContentClassName: 'inline-folded',
-		className: 'folded-background',
-		isWholeLine: true,
-		firstLineDecorationClassName: ThemeIcon.asClassName(foldingCollapsedIcon)
+	pwivate static weadonwy COWWAPSED_HIGHWIGHTED_VISUAW_DECOWATION = ModewDecowationOptions.wegista({
+		descwiption: 'fowding-cowwapsed-highwighted-visuaw-decowation',
+		stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
+		aftewContentCwassName: 'inwine-fowded',
+		cwassName: 'fowded-backgwound',
+		isWhoweWine: twue,
+		fiwstWineDecowationCwassName: ThemeIcon.asCwassName(fowdingCowwapsedIcon)
 	});
 
-	private static readonly EXPANDED_AUTO_HIDE_VISUAL_DECORATION = ModelDecorationOptions.register({
-		description: 'folding-expanded-auto-hide-visual-decoration',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		isWholeLine: true,
-		firstLineDecorationClassName: ThemeIcon.asClassName(foldingExpandedIcon)
+	pwivate static weadonwy EXPANDED_AUTO_HIDE_VISUAW_DECOWATION = ModewDecowationOptions.wegista({
+		descwiption: 'fowding-expanded-auto-hide-visuaw-decowation',
+		stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
+		isWhoweWine: twue,
+		fiwstWineDecowationCwassName: ThemeIcon.asCwassName(fowdingExpandedIcon)
 	});
 
-	private static readonly EXPANDED_VISUAL_DECORATION = ModelDecorationOptions.register({
-		description: 'folding-expanded-visual-decoration',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		isWholeLine: true,
-		firstLineDecorationClassName: 'alwaysShowFoldIcons ' + ThemeIcon.asClassName(foldingExpandedIcon)
+	pwivate static weadonwy EXPANDED_VISUAW_DECOWATION = ModewDecowationOptions.wegista({
+		descwiption: 'fowding-expanded-visuaw-decowation',
+		stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
+		isWhoweWine: twue,
+		fiwstWineDecowationCwassName: 'awwaysShowFowdIcons ' + ThemeIcon.asCwassName(fowdingExpandedIcon)
 	});
 
-	private static readonly HIDDEN_RANGE_DECORATION = ModelDecorationOptions.register({
-		description: 'folding-hidden-range-decoration',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+	pwivate static weadonwy HIDDEN_WANGE_DECOWATION = ModewDecowationOptions.wegista({
+		descwiption: 'fowding-hidden-wange-decowation',
+		stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges
 	});
 
-	public autoHideFoldingControls: boolean = true;
+	pubwic autoHideFowdingContwows: boowean = twue;
 
-	public showFoldingHighlights: boolean = true;
+	pubwic showFowdingHighwights: boowean = twue;
 
-	constructor(private readonly editor: ICodeEditor) {
+	constwuctow(pwivate weadonwy editow: ICodeEditow) {
 	}
 
-	getDecorationOption(isCollapsed: boolean, isHidden: boolean): ModelDecorationOptions {
+	getDecowationOption(isCowwapsed: boowean, isHidden: boowean): ModewDecowationOptions {
 		if (isHidden) {
-			return FoldingDecorationProvider.HIDDEN_RANGE_DECORATION;
+			wetuwn FowdingDecowationPwovida.HIDDEN_WANGE_DECOWATION;
 		}
-		if (isCollapsed) {
-			return this.showFoldingHighlights ? FoldingDecorationProvider.COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION : FoldingDecorationProvider.COLLAPSED_VISUAL_DECORATION;
-		} else if (this.autoHideFoldingControls) {
-			return FoldingDecorationProvider.EXPANDED_AUTO_HIDE_VISUAL_DECORATION;
-		} else {
-			return FoldingDecorationProvider.EXPANDED_VISUAL_DECORATION;
+		if (isCowwapsed) {
+			wetuwn this.showFowdingHighwights ? FowdingDecowationPwovida.COWWAPSED_HIGHWIGHTED_VISUAW_DECOWATION : FowdingDecowationPwovida.COWWAPSED_VISUAW_DECOWATION;
+		} ewse if (this.autoHideFowdingContwows) {
+			wetuwn FowdingDecowationPwovida.EXPANDED_AUTO_HIDE_VISUAW_DECOWATION;
+		} ewse {
+			wetuwn FowdingDecowationPwovida.EXPANDED_VISUAW_DECOWATION;
 		}
 	}
 
-	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[] {
-		return this.editor.deltaDecorations(oldDecorations, newDecorations);
+	dewtaDecowations(owdDecowations: stwing[], newDecowations: IModewDewtaDecowation[]): stwing[] {
+		wetuwn this.editow.dewtaDecowations(owdDecowations, newDecowations);
 	}
 
-	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T {
-		return this.editor.changeDecorations(callback);
+	changeDecowations<T>(cawwback: (changeAccessow: IModewDecowationsChangeAccessow) => T): T {
+		wetuwn this.editow.changeDecowations(cawwback);
 	}
 }

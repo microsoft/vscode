@@ -1,9 +1,9 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSharedProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
-import { ICustomEndpointTelemetryService } from 'vs/platform/telemetry/common/telemetry';
+impowt { wegistewShawedPwocessWemoteSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/sewvices';
+impowt { ICustomEndpointTewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
 
-registerSharedProcessRemoteService(ICustomEndpointTelemetryService, 'customEndpointTelemetry', { supportsDelayedInstantiation: true });
+wegistewShawedPwocessWemoteSewvice(ICustomEndpointTewemetwySewvice, 'customEndpointTewemetwy', { suppowtsDewayedInstantiation: twue });

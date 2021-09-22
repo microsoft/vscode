@@ -1,150 +1,150 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/en.darwin';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/de.darwin';
-import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
-import { BrowserKeyboardMapperFactoryBase } from 'vs/workbench/services/keybinding/browser/keyboardLayoutService';
-import { KeymapInfo, IKeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+impowt * as assewt fwom 'assewt';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/en.dawwin';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/de.dawwin';
+impowt { KeyboawdWayoutContwibution } fwom 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/_.contwibution';
+impowt { BwowsewKeyboawdMappewFactowyBase } fwom 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayoutSewvice';
+impowt { KeymapInfo, IKeymapInfo } fwom 'vs/wowkbench/sewvices/keybinding/common/keymapInfo';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { TestNotificationSewvice } fwom 'vs/pwatfowm/notification/test/common/testNotificationSewvice';
+impowt { TestStowageSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
 
-class TestKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBase {
-	constructor(notificationService: INotificationService, storageService: IStorageService, commandService: ICommandService) {
-		// super(notificationService, storageService, commandService);
-		super();
+cwass TestKeyboawdMappewFactowy extends BwowsewKeyboawdMappewFactowyBase {
+	constwuctow(notificationSewvice: INotificationSewvice, stowageSewvice: IStowageSewvice, commandSewvice: ICommandSewvice) {
+		// supa(notificationSewvice, stowageSewvice, commandSewvice);
+		supa();
 
-		const keymapInfos: IKeymapInfo[] = KeyboardLayoutContribution.INSTANCE.layoutInfos;
-		this._keymapInfos.push(...keymapInfos.map(info => (new KeymapInfo(info.layout, info.secondaryLayouts, info.mapping, info.isUserKeyboardLayout))));
-		this._mru = this._keymapInfos;
-		this._initialized = true;
-		this.onKeyboardLayoutChanged();
-		const usLayout = this.getUSStandardLayout();
-		if (usLayout) {
-			this.setActiveKeyMapping(usLayout.mapping);
+		const keymapInfos: IKeymapInfo[] = KeyboawdWayoutContwibution.INSTANCE.wayoutInfos;
+		this._keymapInfos.push(...keymapInfos.map(info => (new KeymapInfo(info.wayout, info.secondawyWayouts, info.mapping, info.isUsewKeyboawdWayout))));
+		this._mwu = this._keymapInfos;
+		this._initiawized = twue;
+		this.onKeyboawdWayoutChanged();
+		const usWayout = this.getUSStandawdWayout();
+		if (usWayout) {
+			this.setActiveKeyMapping(usWayout.mapping);
 		}
 	}
 }
 
-suite('keyboard layout loader', () => {
-	let instantiationService: TestInstantiationService = new TestInstantiationService();
-	let notitifcationService = instantiationService.stub(INotificationService, new TestNotificationService());
-	let storageService = instantiationService.stub(IStorageService, new TestStorageService());
+suite('keyboawd wayout woada', () => {
+	wet instantiationSewvice: TestInstantiationSewvice = new TestInstantiationSewvice();
+	wet notitifcationSewvice = instantiationSewvice.stub(INotificationSewvice, new TestNotificationSewvice());
+	wet stowageSewvice = instantiationSewvice.stub(IStowageSewvice, new TestStowageSewvice());
 
-	let commandService = instantiationService.stub(ICommandService, {});
-	let instance = new TestKeyboardMapperFactory(notitifcationService, storageService, commandService);
+	wet commandSewvice = instantiationSewvice.stub(ICommandSewvice, {});
+	wet instance = new TestKeyboawdMappewFactowy(notitifcationSewvice, stowageSewvice, commandSewvice);
 
-	test('load default US keyboard layout', () => {
-		assert.notStrictEqual(instance.activeKeyboardLayout, null);
+	test('woad defauwt US keyboawd wayout', () => {
+		assewt.notStwictEquaw(instance.activeKeyboawdWayout, nuww);
 	});
 
 	test('isKeyMappingActive', () => {
-		instance.setUSKeyboardLayout();
-		assert.strictEqual(instance.isKeyMappingActive({
+		instance.setUSKeyboawdWayout();
+		assewt.stwictEquaw(instance.isKeyMappingActive({
 			KeyA: {
-				value: 'a',
-				valueIsDeadKey: false,
+				vawue: 'a',
+				vawueIsDeadKey: fawse,
 				withShift: 'A',
-				withShiftIsDeadKey: false,
-				withAltGr: 'å',
-				withAltGrIsDeadKey: false,
-				withShiftAltGr: 'Å',
-				withShiftAltGrIsDeadKey: false
+				withShiftIsDeadKey: fawse,
+				withAwtGw: 'å',
+				withAwtGwIsDeadKey: fawse,
+				withShiftAwtGw: 'Å',
+				withShiftAwtGwIsDeadKey: fawse
 			}
-		}), true);
+		}), twue);
 
-		assert.strictEqual(instance.isKeyMappingActive({
+		assewt.stwictEquaw(instance.isKeyMappingActive({
 			KeyA: {
-				value: 'a',
-				valueIsDeadKey: false,
+				vawue: 'a',
+				vawueIsDeadKey: fawse,
 				withShift: 'A',
-				withShiftIsDeadKey: false,
-				withAltGr: 'å',
-				withAltGrIsDeadKey: false,
-				withShiftAltGr: 'Å',
-				withShiftAltGrIsDeadKey: false
+				withShiftIsDeadKey: fawse,
+				withAwtGw: 'å',
+				withAwtGwIsDeadKey: fawse,
+				withShiftAwtGw: 'Å',
+				withShiftAwtGwIsDeadKey: fawse
 			},
 			KeyZ: {
-				value: 'z',
-				valueIsDeadKey: false,
+				vawue: 'z',
+				vawueIsDeadKey: fawse,
 				withShift: 'Z',
-				withShiftIsDeadKey: false,
-				withAltGr: 'Ω',
-				withAltGrIsDeadKey: false,
-				withShiftAltGr: '¸',
-				withShiftAltGrIsDeadKey: false
+				withShiftIsDeadKey: fawse,
+				withAwtGw: 'Ω',
+				withAwtGwIsDeadKey: fawse,
+				withShiftAwtGw: '¸',
+				withShiftAwtGwIsDeadKey: fawse
 			}
-		}), true);
+		}), twue);
 
-		assert.strictEqual(instance.isKeyMappingActive({
+		assewt.stwictEquaw(instance.isKeyMappingActive({
 			KeyZ: {
-				value: 'y',
-				valueIsDeadKey: false,
+				vawue: 'y',
+				vawueIsDeadKey: fawse,
 				withShift: 'Y',
-				withShiftIsDeadKey: false,
-				withAltGr: '¥',
-				withAltGrIsDeadKey: false,
-				withShiftAltGr: 'Ÿ',
-				withShiftAltGrIsDeadKey: false
+				withShiftIsDeadKey: fawse,
+				withAwtGw: '¥',
+				withAwtGwIsDeadKey: fawse,
+				withShiftAwtGw: 'Ÿ',
+				withShiftAwtGwIsDeadKey: fawse
 			},
-		}), false);
+		}), fawse);
 
 	});
 
 	test('Switch keymapping', () => {
 		instance.setActiveKeyMapping({
 			KeyZ: {
-				value: 'y',
-				valueIsDeadKey: false,
+				vawue: 'y',
+				vawueIsDeadKey: fawse,
 				withShift: 'Y',
-				withShiftIsDeadKey: false,
-				withAltGr: '¥',
-				withAltGrIsDeadKey: false,
-				withShiftAltGr: 'Ÿ',
-				withShiftAltGrIsDeadKey: false
+				withShiftIsDeadKey: fawse,
+				withAwtGw: '¥',
+				withAwtGwIsDeadKey: fawse,
+				withShiftAwtGw: 'Ÿ',
+				withShiftAwtGwIsDeadKey: fawse
 			}
 		});
-		assert.strictEqual(!!instance.activeKeyboardLayout!.isUSStandard, false);
-		assert.strictEqual(instance.isKeyMappingActive({
+		assewt.stwictEquaw(!!instance.activeKeyboawdWayout!.isUSStandawd, fawse);
+		assewt.stwictEquaw(instance.isKeyMappingActive({
 			KeyZ: {
-				value: 'y',
-				valueIsDeadKey: false,
+				vawue: 'y',
+				vawueIsDeadKey: fawse,
 				withShift: 'Y',
-				withShiftIsDeadKey: false,
-				withAltGr: '¥',
-				withAltGrIsDeadKey: false,
-				withShiftAltGr: 'Ÿ',
-				withShiftAltGrIsDeadKey: false
+				withShiftIsDeadKey: fawse,
+				withAwtGw: '¥',
+				withAwtGwIsDeadKey: fawse,
+				withShiftAwtGw: 'Ÿ',
+				withShiftAwtGwIsDeadKey: fawse
 			},
-		}), true);
+		}), twue);
 
-		instance.setUSKeyboardLayout();
-		assert.strictEqual(instance.activeKeyboardLayout!.isUSStandard, true);
+		instance.setUSKeyboawdWayout();
+		assewt.stwictEquaw(instance.activeKeyboawdWayout!.isUSStandawd, twue);
 	});
 
-	test('Switch keyboard layout info', () => {
-		instance.setKeyboardLayout('com.apple.keylayout.German');
-		assert.strictEqual(!!instance.activeKeyboardLayout!.isUSStandard, false);
-		assert.strictEqual(instance.isKeyMappingActive({
+	test('Switch keyboawd wayout info', () => {
+		instance.setKeyboawdWayout('com.appwe.keywayout.Gewman');
+		assewt.stwictEquaw(!!instance.activeKeyboawdWayout!.isUSStandawd, fawse);
+		assewt.stwictEquaw(instance.isKeyMappingActive({
 			KeyZ: {
-				value: 'y',
-				valueIsDeadKey: false,
+				vawue: 'y',
+				vawueIsDeadKey: fawse,
 				withShift: 'Y',
-				withShiftIsDeadKey: false,
-				withAltGr: '¥',
-				withAltGrIsDeadKey: false,
-				withShiftAltGr: 'Ÿ',
-				withShiftAltGrIsDeadKey: false
+				withShiftIsDeadKey: fawse,
+				withAwtGw: '¥',
+				withAwtGwIsDeadKey: fawse,
+				withShiftAwtGw: 'Ÿ',
+				withShiftAwtGwIsDeadKey: fawse
 			},
-		}), true);
+		}), twue);
 
-		instance.setUSKeyboardLayout();
-		assert.strictEqual(instance.activeKeyboardLayout!.isUSStandard, true);
+		instance.setUSKeyboawdWayout();
+		assewt.stwictEquaw(instance.activeKeyboawdWayout!.isUSStandawd, twue);
 	});
 });

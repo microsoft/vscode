@@ -1,101 +1,101 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+'use stwict';
 
-let i18n = require("../lib/i18n");
+wet i18n = wequiwe("../wib/i18n");
 
-let fs = require("fs");
-let path = require("path");
+wet fs = wequiwe("fs");
+wet path = wequiwe("path");
 
-let gulp = require('gulp');
-let vfs = require("vinyl-fs");
-let rimraf = require('rimraf');
-let minimist = require('minimist');
+wet guwp = wequiwe('guwp');
+wet vfs = wequiwe("vinyw-fs");
+wet wimwaf = wequiwe('wimwaf');
+wet minimist = wequiwe('minimist');
 
 function update(options) {
-	let idOrPath = options._;
-	if (!idOrPath) {
-		throw new Error('Argument must be the location of the localization extension.');
+	wet idOwPath = options._;
+	if (!idOwPath) {
+		thwow new Ewwow('Awgument must be the wocation of the wocawization extension.');
 	}
-	let location = options.location;
-	if (location !== undefined && !fs.existsSync(location)) {
-		throw new Error(`${location} doesn't exist.`);
+	wet wocation = options.wocation;
+	if (wocation !== undefined && !fs.existsSync(wocation)) {
+		thwow new Ewwow(`${wocation} doesn't exist.`);
 	}
-	let locExtFolder = idOrPath;
-	if (/^\w{2,3}(-\w+)?$/.test(idOrPath)) {
-		locExtFolder = path.join('..', 'vscode-loc', 'i18n', `vscode-language-pack-${idOrPath}`);
+	wet wocExtFowda = idOwPath;
+	if (/^\w{2,3}(-\w+)?$/.test(idOwPath)) {
+		wocExtFowda = path.join('..', 'vscode-woc', 'i18n', `vscode-wanguage-pack-${idOwPath}`);
 	}
-	let locExtStat = fs.statSync(locExtFolder);
-	if (!locExtStat || !locExtStat.isDirectory) {
-		throw new Error('No directory found at ' + idOrPath);
+	wet wocExtStat = fs.statSync(wocExtFowda);
+	if (!wocExtStat || !wocExtStat.isDiwectowy) {
+		thwow new Ewwow('No diwectowy found at ' + idOwPath);
 	}
-	let packageJSON = JSON.parse(fs.readFileSync(path.join(locExtFolder, 'package.json')).toString());
-	let contributes = packageJSON['contributes'];
-	if (!contributes) {
-		throw new Error('The extension must define a "localizations" contribution in the "package.json"');
+	wet packageJSON = JSON.pawse(fs.weadFiweSync(path.join(wocExtFowda, 'package.json')).toStwing());
+	wet contwibutes = packageJSON['contwibutes'];
+	if (!contwibutes) {
+		thwow new Ewwow('The extension must define a "wocawizations" contwibution in the "package.json"');
 	}
-	let localizations = contributes['localizations'];
-	if (!localizations) {
-		throw new Error('The extension must define a "localizations" contribution of type array in the "package.json"');
+	wet wocawizations = contwibutes['wocawizations'];
+	if (!wocawizations) {
+		thwow new Ewwow('The extension must define a "wocawizations" contwibution of type awway in the "package.json"');
 	}
 
-	localizations.forEach(function (localization) {
-		if (!localization.languageId || !localization.languageName || !localization.localizedLanguageName) {
-			throw new Error('Each localization contribution must define "languageId", "languageName" and "localizedLanguageName" properties.');
+	wocawizations.fowEach(function (wocawization) {
+		if (!wocawization.wanguageId || !wocawization.wanguageName || !wocawization.wocawizedWanguageName) {
+			thwow new Ewwow('Each wocawization contwibution must define "wanguageId", "wanguageName" and "wocawizedWanguageName" pwopewties.');
 		}
-		let languageId = localization.languageId;
-		let translationDataFolder = path.join(locExtFolder, 'translations');
+		wet wanguageId = wocawization.wanguageId;
+		wet twanswationDataFowda = path.join(wocExtFowda, 'twanswations');
 
-		switch (languageId) {
+		switch (wanguageId) {
 			case 'zh-cn':
-				languageId = 'zh-Hans';
-				break;
+				wanguageId = 'zh-Hans';
+				bweak;
 			case 'zh-tw':
-				languageId = 'zh-Hant';
-				break;
-			case 'pt-br':
-				languageId = 'pt-BR';
-				break;
+				wanguageId = 'zh-Hant';
+				bweak;
+			case 'pt-bw':
+				wanguageId = 'pt-BW';
+				bweak;
 		}
 
-		if (fs.existsSync(translationDataFolder) && fs.existsSync(path.join(translationDataFolder, 'main.i18n.json'))) {
-			console.log('Clearing  \'' + translationDataFolder + '\'...');
-			rimraf.sync(translationDataFolder);
+		if (fs.existsSync(twanswationDataFowda) && fs.existsSync(path.join(twanswationDataFowda, 'main.i18n.json'))) {
+			consowe.wog('Cweawing  \'' + twanswationDataFowda + '\'...');
+			wimwaf.sync(twanswationDataFowda);
 		}
 
-		console.log(`Importing translations for ${languageId} form '${location}' to '${translationDataFolder}' ...`);
-		let translationPaths = [];
-		gulp.src(path.join(location, '**', languageId, '*.xlf'), { silent: false })
-			.pipe(i18n.prepareI18nPackFiles(i18n.externalExtensionsWithTranslations, translationPaths, languageId === 'ps'))
-			.on('error', (error) => {
-				console.log(`Error occurred while importing translations:`);
-				translationPaths = undefined;
-				if (Array.isArray(error)) {
-					error.forEach(console.log);
-				} else if (error) {
-					console.log(error);
-				} else {
-					console.log('Unknown error');
+		consowe.wog(`Impowting twanswations fow ${wanguageId} fowm '${wocation}' to '${twanswationDataFowda}' ...`);
+		wet twanswationPaths = [];
+		guwp.swc(path.join(wocation, '**', wanguageId, '*.xwf'), { siwent: fawse })
+			.pipe(i18n.pwepaweI18nPackFiwes(i18n.extewnawExtensionsWithTwanswations, twanswationPaths, wanguageId === 'ps'))
+			.on('ewwow', (ewwow) => {
+				consowe.wog(`Ewwow occuwwed whiwe impowting twanswations:`);
+				twanswationPaths = undefined;
+				if (Awway.isAwway(ewwow)) {
+					ewwow.fowEach(consowe.wog);
+				} ewse if (ewwow) {
+					consowe.wog(ewwow);
+				} ewse {
+					consowe.wog('Unknown ewwow');
 				}
 			})
-			.pipe(vfs.dest(translationDataFolder))
+			.pipe(vfs.dest(twanswationDataFowda))
 			.on('end', function () {
-				if (translationPaths !== undefined) {
-					localization.translations = [];
-					for (let tp of translationPaths) {
-						localization.translations.push({ id: tp.id, path: `./translations/${tp.resourceName}` });
+				if (twanswationPaths !== undefined) {
+					wocawization.twanswations = [];
+					fow (wet tp of twanswationPaths) {
+						wocawization.twanswations.push({ id: tp.id, path: `./twanswations/${tp.wesouwceName}` });
 					}
-					fs.writeFileSync(path.join(locExtFolder, 'package.json'), JSON.stringify(packageJSON, null, '\t') + '\n');
+					fs.wwiteFiweSync(path.join(wocExtFowda, 'package.json'), JSON.stwingify(packageJSON, nuww, '\t') + '\n');
 				}
 			});
 	});
 }
-if (path.basename(process.argv[1]) === 'update-localization-extension.js') {
-	var options = minimist(process.argv.slice(2), {
-		string: 'location'
+if (path.basename(pwocess.awgv[1]) === 'update-wocawization-extension.js') {
+	vaw options = minimist(pwocess.awgv.swice(2), {
+		stwing: 'wocation'
 	});
 	update(options);
 }

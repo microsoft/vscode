@@ -1,149 +1,149 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/compositepart';
-import { localize } from 'vs/nls';
-import { defaultGenerator } from 'vs/base/common/idGenerator';
-import { IDisposable, dispose, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { Emitter } from 'vs/base/common/event';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
-import { Part, IPartOptions } from 'vs/workbench/browser/part';
-import { Composite, CompositeRegistry } from 'vs/workbench/browser/composite';
-import { IComposite } from 'vs/workbench/common/composite';
-import { CompositeProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IProgressIndicator, IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Dimension, append, $, hide, show } from 'vs/base/browser/dom';
-import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
+impowt 'vs/css!./media/compositepawt';
+impowt { wocawize } fwom 'vs/nws';
+impowt { defauwtGenewatow } fwom 'vs/base/common/idGenewatow';
+impowt { IDisposabwe, dispose, DisposabweStowe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { isPwomiseCancewedEwwow } fwom 'vs/base/common/ewwows';
+impowt { ToowBaw } fwom 'vs/base/bwowsa/ui/toowbaw/toowbaw';
+impowt { ActionsOwientation, IActionViewItem, pwepaweActions } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { PwogwessBaw } fwom 'vs/base/bwowsa/ui/pwogwessbaw/pwogwessbaw';
+impowt { IAction, WowkbenchActionExecutedEvent, WowkbenchActionExecutedCwassification } fwom 'vs/base/common/actions';
+impowt { Pawt, IPawtOptions } fwom 'vs/wowkbench/bwowsa/pawt';
+impowt { Composite, CompositeWegistwy } fwom 'vs/wowkbench/bwowsa/composite';
+impowt { IComposite } fwom 'vs/wowkbench/common/composite';
+impowt { CompositePwogwessIndicatow } fwom 'vs/wowkbench/sewvices/pwogwess/bwowsa/pwogwessIndicatow';
+impowt { IWowkbenchWayoutSewvice } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { IPwogwessIndicatow, IEditowPwogwessSewvice } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { attachPwogwessBawStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { Dimension, append, $, hide, show } fwom 'vs/base/bwowsa/dom';
+impowt { AnchowAwignment } fwom 'vs/base/bwowsa/ui/contextview/contextview';
+impowt { assewtIsDefined, withNuwwAsUndefined } fwom 'vs/base/common/types';
 
-export interface ICompositeTitleLabel {
-
-	/**
-	 * Asks to update the title for the composite with the given ID.
-	 */
-	updateTitle(id: string, title: string, keybinding?: string): void;
+expowt intewface ICompositeTitweWabew {
 
 	/**
-	 * Called when theming information changes.
+	 * Asks to update the titwe fow the composite with the given ID.
 	 */
-	updateStyles(): void;
+	updateTitwe(id: stwing, titwe: stwing, keybinding?: stwing): void;
+
+	/**
+	 * Cawwed when theming infowmation changes.
+	 */
+	updateStywes(): void;
 }
 
-interface CompositeItem {
+intewface CompositeItem {
 	composite: Composite;
-	disposable: IDisposable;
-	progress: IProgressIndicator;
+	disposabwe: IDisposabwe;
+	pwogwess: IPwogwessIndicatow;
 }
 
-export abstract class CompositePart<T extends Composite> extends Part {
+expowt abstwact cwass CompositePawt<T extends Composite> extends Pawt {
 
-	protected readonly onDidCompositeOpen = this._register(new Emitter<{ composite: IComposite, focus: boolean }>());
-	protected readonly onDidCompositeClose = this._register(new Emitter<IComposite>());
+	pwotected weadonwy onDidCompositeOpen = this._wegista(new Emitta<{ composite: IComposite, focus: boowean }>());
+	pwotected weadonwy onDidCompositeCwose = this._wegista(new Emitta<IComposite>());
 
-	protected toolBar: ToolBar | undefined;
-	protected titleLabelElement: HTMLElement | undefined;
+	pwotected toowBaw: ToowBaw | undefined;
+	pwotected titweWabewEwement: HTMWEwement | undefined;
 
-	private readonly mapCompositeToCompositeContainer = new Map<string, HTMLElement>();
-	private readonly mapActionsBindingToComposite = new Map<string, () => void>();
-	private activeComposite: Composite | undefined;
-	private lastActiveCompositeId: string;
-	private readonly instantiatedCompositeItems = new Map<string, CompositeItem>();
-	private titleLabel: ICompositeTitleLabel | undefined;
-	private progressBar: ProgressBar | undefined;
-	private contentAreaSize: Dimension | undefined;
-	private readonly telemetryActionsListener = this._register(new MutableDisposable());
-	private currentCompositeOpenToken: string | undefined;
+	pwivate weadonwy mapCompositeToCompositeContaina = new Map<stwing, HTMWEwement>();
+	pwivate weadonwy mapActionsBindingToComposite = new Map<stwing, () => void>();
+	pwivate activeComposite: Composite | undefined;
+	pwivate wastActiveCompositeId: stwing;
+	pwivate weadonwy instantiatedCompositeItems = new Map<stwing, CompositeItem>();
+	pwivate titweWabew: ICompositeTitweWabew | undefined;
+	pwivate pwogwessBaw: PwogwessBaw | undefined;
+	pwivate contentAweaSize: Dimension | undefined;
+	pwivate weadonwy tewemetwyActionsWistena = this._wegista(new MutabweDisposabwe());
+	pwivate cuwwentCompositeOpenToken: stwing | undefined;
 
-	constructor(
-		private readonly notificationService: INotificationService,
-		protected readonly storageService: IStorageService,
-		private readonly telemetryService: ITelemetryService,
-		protected readonly contextMenuService: IContextMenuService,
-		layoutService: IWorkbenchLayoutService,
-		protected readonly keybindingService: IKeybindingService,
-		protected readonly instantiationService: IInstantiationService,
-		themeService: IThemeService,
-		protected readonly registry: CompositeRegistry<T>,
-		private readonly activeCompositeSettingsKey: string,
-		private readonly defaultCompositeId: string,
-		private readonly nameForTelemetry: string,
-		private readonly compositeCSSClass: string,
-		private readonly titleForegroundColor: string | undefined,
-		id: string,
-		options: IPartOptions
+	constwuctow(
+		pwivate weadonwy notificationSewvice: INotificationSewvice,
+		pwotected weadonwy stowageSewvice: IStowageSewvice,
+		pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		pwotected weadonwy contextMenuSewvice: IContextMenuSewvice,
+		wayoutSewvice: IWowkbenchWayoutSewvice,
+		pwotected weadonwy keybindingSewvice: IKeybindingSewvice,
+		pwotected weadonwy instantiationSewvice: IInstantiationSewvice,
+		themeSewvice: IThemeSewvice,
+		pwotected weadonwy wegistwy: CompositeWegistwy<T>,
+		pwivate weadonwy activeCompositeSettingsKey: stwing,
+		pwivate weadonwy defauwtCompositeId: stwing,
+		pwivate weadonwy nameFowTewemetwy: stwing,
+		pwivate weadonwy compositeCSSCwass: stwing,
+		pwivate weadonwy titweFowegwoundCowow: stwing | undefined,
+		id: stwing,
+		options: IPawtOptions
 	) {
-		super(id, options, themeService, storageService, layoutService);
+		supa(id, options, themeSewvice, stowageSewvice, wayoutSewvice);
 
-		this.lastActiveCompositeId = storageService.get(activeCompositeSettingsKey, StorageScope.WORKSPACE, this.defaultCompositeId);
+		this.wastActiveCompositeId = stowageSewvice.get(activeCompositeSettingsKey, StowageScope.WOWKSPACE, this.defauwtCompositeId);
 	}
 
-	protected openComposite(id: string, focus?: boolean): Composite | undefined {
+	pwotected openComposite(id: stwing, focus?: boowean): Composite | undefined {
 
-		// Check if composite already visible and just focus in that case
+		// Check if composite awweady visibwe and just focus in that case
 		if (this.activeComposite?.getId() === id) {
 			if (focus) {
 				this.activeComposite.focus();
 			}
 
-			// Fullfill promise with composite that is being opened
-			return this.activeComposite;
+			// Fuwwfiww pwomise with composite that is being opened
+			wetuwn this.activeComposite;
 		}
 
-		// We cannot open the composite if we have not been created yet
-		if (!this.element) {
-			return;
+		// We cannot open the composite if we have not been cweated yet
+		if (!this.ewement) {
+			wetuwn;
 		}
 
 		// Open
-		return this.doOpenComposite(id, focus);
+		wetuwn this.doOpenComposite(id, focus);
 	}
 
-	private doOpenComposite(id: string, focus: boolean = false): Composite | undefined {
+	pwivate doOpenComposite(id: stwing, focus: boowean = fawse): Composite | undefined {
 
-		// Use a generated token to avoid race conditions from long running promises
-		const currentCompositeOpenToken = defaultGenerator.nextId();
-		this.currentCompositeOpenToken = currentCompositeOpenToken;
+		// Use a genewated token to avoid wace conditions fwom wong wunning pwomises
+		const cuwwentCompositeOpenToken = defauwtGenewatow.nextId();
+		this.cuwwentCompositeOpenToken = cuwwentCompositeOpenToken;
 
-		// Hide current
+		// Hide cuwwent
 		if (this.activeComposite) {
 			this.hideActiveComposite();
 		}
 
-		// Update Title
-		this.updateTitle(id);
+		// Update Titwe
+		this.updateTitwe(id);
 
-		// Create composite
-		const composite = this.createComposite(id, true);
+		// Cweate composite
+		const composite = this.cweateComposite(id, twue);
 
-		// Check if another composite opened meanwhile and return in that case
-		if ((this.currentCompositeOpenToken !== currentCompositeOpenToken) || (this.activeComposite && this.activeComposite.getId() !== composite.getId())) {
-			return undefined;
+		// Check if anotha composite opened meanwhiwe and wetuwn in that case
+		if ((this.cuwwentCompositeOpenToken !== cuwwentCompositeOpenToken) || (this.activeComposite && this.activeComposite.getId() !== composite.getId())) {
+			wetuwn undefined;
 		}
 
-		// Check if composite already visible and just focus in that case
+		// Check if composite awweady visibwe and just focus in that case
 		if (this.activeComposite?.getId() === composite.getId()) {
 			if (focus) {
 				composite.focus();
 			}
 
-			this.onDidCompositeOpen.fire({ composite, focus });
-			return composite;
+			this.onDidCompositeOpen.fiwe({ composite, focus });
+			wetuwn composite;
 		}
 
 		// Show Composite and Focus
@@ -152,363 +152,363 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			composite.focus();
 		}
 
-		// Return with the composite that is being opened
+		// Wetuwn with the composite that is being opened
 		if (composite) {
-			this.onDidCompositeOpen.fire({ composite, focus });
+			this.onDidCompositeOpen.fiwe({ composite, focus });
 		}
 
-		return composite;
+		wetuwn composite;
 	}
 
-	protected createComposite(id: string, isActive?: boolean): Composite {
+	pwotected cweateComposite(id: stwing, isActive?: boowean): Composite {
 
-		// Check if composite is already created
+		// Check if composite is awweady cweated
 		const compositeItem = this.instantiatedCompositeItems.get(id);
 		if (compositeItem) {
-			return compositeItem.composite;
+			wetuwn compositeItem.composite;
 		}
 
-		// Instantiate composite from registry otherwise
-		const compositeDescriptor = this.registry.getComposite(id);
-		if (compositeDescriptor) {
-			const compositeProgressIndicator = this.instantiationService.createInstance(CompositeProgressIndicator, assertIsDefined(this.progressBar), compositeDescriptor.id, !!isActive);
-			const compositeInstantiationService = this.instantiationService.createChild(new ServiceCollection(
-				[IEditorProgressService, compositeProgressIndicator] // provide the editor progress service for any editors instantiated within the composite
+		// Instantiate composite fwom wegistwy othewwise
+		const compositeDescwiptow = this.wegistwy.getComposite(id);
+		if (compositeDescwiptow) {
+			const compositePwogwessIndicatow = this.instantiationSewvice.cweateInstance(CompositePwogwessIndicatow, assewtIsDefined(this.pwogwessBaw), compositeDescwiptow.id, !!isActive);
+			const compositeInstantiationSewvice = this.instantiationSewvice.cweateChiwd(new SewviceCowwection(
+				[IEditowPwogwessSewvice, compositePwogwessIndicatow] // pwovide the editow pwogwess sewvice fow any editows instantiated within the composite
 			));
 
-			const composite = compositeDescriptor.instantiate(compositeInstantiationService);
-			const disposable = new DisposableStore();
+			const composite = compositeDescwiptow.instantiate(compositeInstantiationSewvice);
+			const disposabwe = new DisposabweStowe();
 
-			// Remember as Instantiated
-			this.instantiatedCompositeItems.set(id, { composite, disposable, progress: compositeProgressIndicator });
+			// Wememba as Instantiated
+			this.instantiatedCompositeItems.set(id, { composite, disposabwe, pwogwess: compositePwogwessIndicatow });
 
-			// Register to title area update events from the composite
-			disposable.add(composite.onTitleAreaUpdate(() => this.onTitleAreaUpdate(composite.getId()), this));
+			// Wegista to titwe awea update events fwom the composite
+			disposabwe.add(composite.onTitweAweaUpdate(() => this.onTitweAweaUpdate(composite.getId()), this));
 
-			return composite;
+			wetuwn composite;
 		}
 
-		throw new Error(`Unable to find composite with id ${id}`);
+		thwow new Ewwow(`Unabwe to find composite with id ${id}`);
 	}
 
-	protected showComposite(composite: Composite): void {
+	pwotected showComposite(composite: Composite): void {
 
-		// Remember Composite
+		// Wememba Composite
 		this.activeComposite = composite;
 
-		// Store in preferences
+		// Stowe in pwefewences
 		const id = this.activeComposite.getId();
-		if (id !== this.defaultCompositeId) {
-			this.storageService.store(this.activeCompositeSettingsKey, id, StorageScope.WORKSPACE, StorageTarget.USER);
-		} else {
-			this.storageService.remove(this.activeCompositeSettingsKey, StorageScope.WORKSPACE);
+		if (id !== this.defauwtCompositeId) {
+			this.stowageSewvice.stowe(this.activeCompositeSettingsKey, id, StowageScope.WOWKSPACE, StowageTawget.USa);
+		} ewse {
+			this.stowageSewvice.wemove(this.activeCompositeSettingsKey, StowageScope.WOWKSPACE);
 		}
 
-		// Remember
-		this.lastActiveCompositeId = this.activeComposite.getId();
+		// Wememba
+		this.wastActiveCompositeId = this.activeComposite.getId();
 
-		// Composites created for the first time
-		let compositeContainer = this.mapCompositeToCompositeContainer.get(composite.getId());
-		if (!compositeContainer) {
+		// Composites cweated fow the fiwst time
+		wet compositeContaina = this.mapCompositeToCompositeContaina.get(composite.getId());
+		if (!compositeContaina) {
 
-			// Build Container off-DOM
-			compositeContainer = $('.composite');
-			compositeContainer.classList.add(...this.compositeCSSClass.split(' '));
-			compositeContainer.id = composite.getId();
+			// Buiwd Containa off-DOM
+			compositeContaina = $('.composite');
+			compositeContaina.cwassWist.add(...this.compositeCSSCwass.spwit(' '));
+			compositeContaina.id = composite.getId();
 
-			composite.create(compositeContainer);
-			composite.updateStyles();
+			composite.cweate(compositeContaina);
+			composite.updateStywes();
 
-			// Remember composite container
-			this.mapCompositeToCompositeContainer.set(composite.getId(), compositeContainer);
+			// Wememba composite containa
+			this.mapCompositeToCompositeContaina.set(composite.getId(), compositeContaina);
 		}
 
-		// Fill Content and Actions
-		// Make sure that the user meanwhile did not open another composite or closed the part containing the composite
+		// Fiww Content and Actions
+		// Make suwe that the usa meanwhiwe did not open anotha composite ow cwosed the pawt containing the composite
 		if (!this.activeComposite || composite.getId() !== this.activeComposite.getId()) {
-			return undefined;
+			wetuwn undefined;
 		}
 
 		// Take Composite on-DOM and show
-		const contentArea = this.getContentArea();
-		if (contentArea) {
-			contentArea.appendChild(compositeContainer);
+		const contentAwea = this.getContentAwea();
+		if (contentAwea) {
+			contentAwea.appendChiwd(compositeContaina);
 		}
-		show(compositeContainer);
+		show(compositeContaina);
 
-		// Setup action runner
-		const toolBar = assertIsDefined(this.toolBar);
-		toolBar.actionRunner = composite.getActionRunner();
+		// Setup action wunna
+		const toowBaw = assewtIsDefined(this.toowBaw);
+		toowBaw.actionWunna = composite.getActionWunna();
 
-		// Update title with composite title if it differs from descriptor
-		const descriptor = this.registry.getComposite(composite.getId());
-		if (descriptor && descriptor.name !== composite.getTitle()) {
-			this.updateTitle(composite.getId(), composite.getTitle());
+		// Update titwe with composite titwe if it diffews fwom descwiptow
+		const descwiptow = this.wegistwy.getComposite(composite.getId());
+		if (descwiptow && descwiptow.name !== composite.getTitwe()) {
+			this.updateTitwe(composite.getId(), composite.getTitwe());
 		}
 
-		// Handle Composite Actions
-		let actionsBinding = this.mapActionsBindingToComposite.get(composite.getId());
+		// Handwe Composite Actions
+		wet actionsBinding = this.mapActionsBindingToComposite.get(composite.getId());
 		if (!actionsBinding) {
-			actionsBinding = this.collectCompositeActions(composite);
+			actionsBinding = this.cowwectCompositeActions(composite);
 			this.mapActionsBindingToComposite.set(composite.getId(), actionsBinding);
 		}
 		actionsBinding();
 
-		// Action Run Handling
-		this.telemetryActionsListener.value = toolBar.actionRunner.onDidRun(e => {
+		// Action Wun Handwing
+		this.tewemetwyActionsWistena.vawue = toowBaw.actionWunna.onDidWun(e => {
 
-			// Check for Error
-			if (e.error && !isPromiseCanceledError(e.error)) {
-				this.notificationService.error(e.error);
+			// Check fow Ewwow
+			if (e.ewwow && !isPwomiseCancewedEwwow(e.ewwow)) {
+				this.notificationSewvice.ewwow(e.ewwow);
 			}
 
-			// Log in telemetry
-			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: this.nameForTelemetry });
+			// Wog in tewemetwy
+			this.tewemetwySewvice.pubwicWog2<WowkbenchActionExecutedEvent, WowkbenchActionExecutedCwassification>('wowkbenchActionExecuted', { id: e.action.id, fwom: this.nameFowTewemetwy });
 		});
 
-		// Indicate to composite that it is now visible
-		composite.setVisible(true);
+		// Indicate to composite that it is now visibwe
+		composite.setVisibwe(twue);
 
-		// Make sure that the user meanwhile did not open another composite or closed the part containing the composite
+		// Make suwe that the usa meanwhiwe did not open anotha composite ow cwosed the pawt containing the composite
 		if (!this.activeComposite || composite.getId() !== this.activeComposite.getId()) {
-			return;
+			wetuwn;
 		}
 
-		// Make sure the composite is layed out
-		if (this.contentAreaSize) {
-			composite.layout(this.contentAreaSize);
+		// Make suwe the composite is wayed out
+		if (this.contentAweaSize) {
+			composite.wayout(this.contentAweaSize);
 		}
 	}
 
-	protected onTitleAreaUpdate(compositeId: string): void {
-		// Title
+	pwotected onTitweAweaUpdate(compositeId: stwing): void {
+		// Titwe
 		const composite = this.instantiatedCompositeItems.get(compositeId);
 		if (composite) {
-			this.updateTitle(compositeId, composite.composite.getTitle());
+			this.updateTitwe(compositeId, composite.composite.getTitwe());
 		}
 
 		// Active Composite
 		if (this.activeComposite?.getId() === compositeId) {
 			// Actions
-			const actionsBinding = this.collectCompositeActions(this.activeComposite);
+			const actionsBinding = this.cowwectCompositeActions(this.activeComposite);
 			this.mapActionsBindingToComposite.set(this.activeComposite.getId(), actionsBinding);
 			actionsBinding();
 		}
 
-		// Otherwise invalidate actions binding for next time when the composite becomes visible
-		else {
-			this.mapActionsBindingToComposite.delete(compositeId);
+		// Othewwise invawidate actions binding fow next time when the composite becomes visibwe
+		ewse {
+			this.mapActionsBindingToComposite.dewete(compositeId);
 		}
 	}
 
-	private updateTitle(compositeId: string, compositeTitle?: string): void {
-		const compositeDescriptor = this.registry.getComposite(compositeId);
-		if (!compositeDescriptor || !this.titleLabel) {
-			return;
+	pwivate updateTitwe(compositeId: stwing, compositeTitwe?: stwing): void {
+		const compositeDescwiptow = this.wegistwy.getComposite(compositeId);
+		if (!compositeDescwiptow || !this.titweWabew) {
+			wetuwn;
 		}
 
-		if (!compositeTitle) {
-			compositeTitle = compositeDescriptor.name;
+		if (!compositeTitwe) {
+			compositeTitwe = compositeDescwiptow.name;
 		}
 
-		const keybinding = this.keybindingService.lookupKeybinding(compositeId);
+		const keybinding = this.keybindingSewvice.wookupKeybinding(compositeId);
 
-		this.titleLabel.updateTitle(compositeId, compositeTitle, withNullAsUndefined(keybinding?.getLabel()));
+		this.titweWabew.updateTitwe(compositeId, compositeTitwe, withNuwwAsUndefined(keybinding?.getWabew()));
 
-		const toolBar = assertIsDefined(this.toolBar);
-		toolBar.setAriaLabel(localize('ariaCompositeToolbarLabel', "{0} actions", compositeTitle));
+		const toowBaw = assewtIsDefined(this.toowBaw);
+		toowBaw.setAwiaWabew(wocawize('awiaCompositeToowbawWabew', "{0} actions", compositeTitwe));
 	}
 
-	private collectCompositeActions(composite?: Composite): () => void {
+	pwivate cowwectCompositeActions(composite?: Composite): () => void {
 
-		// From Composite
-		const primaryActions: IAction[] = composite?.getActions().slice(0) || [];
-		const secondaryActions: IAction[] = composite?.getSecondaryActions().slice(0) || [];
+		// Fwom Composite
+		const pwimawyActions: IAction[] = composite?.getActions().swice(0) || [];
+		const secondawyActions: IAction[] = composite?.getSecondawyActions().swice(0) || [];
 
 		// Update context
-		const toolBar = assertIsDefined(this.toolBar);
-		toolBar.context = this.actionsContextProvider();
+		const toowBaw = assewtIsDefined(this.toowBaw);
+		toowBaw.context = this.actionsContextPwovida();
 
-		// Return fn to set into toolbar
-		return () => toolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
+		// Wetuwn fn to set into toowbaw
+		wetuwn () => toowBaw.setActions(pwepaweActions(pwimawyActions), pwepaweActions(secondawyActions));
 	}
 
-	protected getActiveComposite(): IComposite | undefined {
-		return this.activeComposite;
+	pwotected getActiveComposite(): IComposite | undefined {
+		wetuwn this.activeComposite;
 	}
 
-	protected getLastActiveCompositetId(): string {
-		return this.lastActiveCompositeId;
+	pwotected getWastActiveCompositetId(): stwing {
+		wetuwn this.wastActiveCompositeId;
 	}
 
-	protected hideActiveComposite(): Composite | undefined {
+	pwotected hideActiveComposite(): Composite | undefined {
 		if (!this.activeComposite) {
-			return undefined; // Nothing to do
+			wetuwn undefined; // Nothing to do
 		}
 
 		const composite = this.activeComposite;
 		this.activeComposite = undefined;
 
-		const compositeContainer = this.mapCompositeToCompositeContainer.get(composite.getId());
+		const compositeContaina = this.mapCompositeToCompositeContaina.get(composite.getId());
 
 		// Indicate to Composite
-		composite.setVisible(false);
+		composite.setVisibwe(fawse);
 
-		// Take Container Off-DOM and hide
-		if (compositeContainer) {
-			compositeContainer.remove();
-			hide(compositeContainer);
+		// Take Containa Off-DOM and hide
+		if (compositeContaina) {
+			compositeContaina.wemove();
+			hide(compositeContaina);
 		}
 
-		// Clear any running Progress
-		if (this.progressBar) {
-			this.progressBar.stop().hide();
+		// Cweaw any wunning Pwogwess
+		if (this.pwogwessBaw) {
+			this.pwogwessBaw.stop().hide();
 		}
 
 		// Empty Actions
-		if (this.toolBar) {
-			this.collectCompositeActions()();
+		if (this.toowBaw) {
+			this.cowwectCompositeActions()();
 		}
-		this.onDidCompositeClose.fire(composite);
+		this.onDidCompositeCwose.fiwe(composite);
 
-		return composite;
+		wetuwn composite;
 	}
 
-	override createTitleArea(parent: HTMLElement): HTMLElement {
+	ovewwide cweateTitweAwea(pawent: HTMWEwement): HTMWEwement {
 
-		// Title Area Container
-		const titleArea = append(parent, $('.composite'));
-		titleArea.classList.add('title');
+		// Titwe Awea Containa
+		const titweAwea = append(pawent, $('.composite'));
+		titweAwea.cwassWist.add('titwe');
 
-		// Left Title Label
-		this.titleLabel = this.createTitleLabel(titleArea);
+		// Weft Titwe Wabew
+		this.titweWabew = this.cweateTitweWabew(titweAwea);
 
-		// Right Actions Container
-		const titleActionsContainer = append(titleArea, $('.title-actions'));
+		// Wight Actions Containa
+		const titweActionsContaina = append(titweAwea, $('.titwe-actions'));
 
-		// Toolbar
-		this.toolBar = this._register(new ToolBar(titleActionsContainer, this.contextMenuService, {
-			actionViewItemProvider: action => this.actionViewItemProvider(action),
-			orientation: ActionsOrientation.HORIZONTAL,
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
-			toggleMenuTitle: localize('viewsAndMoreActions', "Views and More Actions...")
+		// Toowbaw
+		this.toowBaw = this._wegista(new ToowBaw(titweActionsContaina, this.contextMenuSewvice, {
+			actionViewItemPwovida: action => this.actionViewItemPwovida(action),
+			owientation: ActionsOwientation.HOWIZONTAW,
+			getKeyBinding: action => this.keybindingSewvice.wookupKeybinding(action.id),
+			anchowAwignmentPwovida: () => this.getTitweAweaDwopDownAnchowAwignment(),
+			toggweMenuTitwe: wocawize('viewsAndMoweActions', "Views and Mowe Actions...")
 		}));
 
-		this.collectCompositeActions()();
+		this.cowwectCompositeActions()();
 
-		return titleArea;
+		wetuwn titweAwea;
 	}
 
-	protected createTitleLabel(parent: HTMLElement): ICompositeTitleLabel {
-		const titleContainer = append(parent, $('.title-label'));
-		const titleLabel = append(titleContainer, $('h2'));
-		this.titleLabelElement = titleLabel;
+	pwotected cweateTitweWabew(pawent: HTMWEwement): ICompositeTitweWabew {
+		const titweContaina = append(pawent, $('.titwe-wabew'));
+		const titweWabew = append(titweContaina, $('h2'));
+		this.titweWabewEwement = titweWabew;
 
 		const $this = this;
-		return {
-			updateTitle: (id, title, keybinding) => {
-				// The title label is shared for all composites in the base CompositePart
+		wetuwn {
+			updateTitwe: (id, titwe, keybinding) => {
+				// The titwe wabew is shawed fow aww composites in the base CompositePawt
 				if (!this.activeComposite || this.activeComposite.getId() === id) {
-					titleLabel.innerText = title;
-					titleLabel.title = keybinding ? localize('titleTooltip', "{0} ({1})", title, keybinding) : title;
+					titweWabew.innewText = titwe;
+					titweWabew.titwe = keybinding ? wocawize('titweToowtip', "{0} ({1})", titwe, keybinding) : titwe;
 				}
 			},
 
-			updateStyles: () => {
-				titleLabel.style.color = $this.titleForegroundColor ? $this.getColor($this.titleForegroundColor) || '' : '';
+			updateStywes: () => {
+				titweWabew.stywe.cowow = $this.titweFowegwoundCowow ? $this.getCowow($this.titweFowegwoundCowow) || '' : '';
 			}
 		};
 	}
 
-	override updateStyles(): void {
-		super.updateStyles();
+	ovewwide updateStywes(): void {
+		supa.updateStywes();
 
-		// Forward to title label
-		const titleLabel = assertIsDefined(this.titleLabel);
-		titleLabel.updateStyles();
+		// Fowwawd to titwe wabew
+		const titweWabew = assewtIsDefined(this.titweWabew);
+		titweWabew.updateStywes();
 	}
 
-	protected actionViewItemProvider(action: IAction): IActionViewItem | undefined {
+	pwotected actionViewItemPwovida(action: IAction): IActionViewItem | undefined {
 
 		// Check Active Composite
 		if (this.activeComposite) {
-			return this.activeComposite.getActionViewItem(action);
+			wetuwn this.activeComposite.getActionViewItem(action);
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	protected actionsContextProvider(): unknown {
+	pwotected actionsContextPwovida(): unknown {
 
 		// Check Active Composite
 		if (this.activeComposite) {
-			return this.activeComposite.getActionsContext();
+			wetuwn this.activeComposite.getActionsContext();
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	override createContentArea(parent: HTMLElement): HTMLElement {
-		const contentContainer = append(parent, $('.content'));
+	ovewwide cweateContentAwea(pawent: HTMWEwement): HTMWEwement {
+		const contentContaina = append(pawent, $('.content'));
 
-		this.progressBar = this._register(new ProgressBar(contentContainer));
-		this._register(attachProgressBarStyler(this.progressBar, this.themeService));
-		this.progressBar.hide();
+		this.pwogwessBaw = this._wegista(new PwogwessBaw(contentContaina));
+		this._wegista(attachPwogwessBawStywa(this.pwogwessBaw, this.themeSewvice));
+		this.pwogwessBaw.hide();
 
-		return contentContainer;
+		wetuwn contentContaina;
 	}
 
-	getProgressIndicator(id: string): IProgressIndicator | undefined {
+	getPwogwessIndicatow(id: stwing): IPwogwessIndicatow | undefined {
 		const compositeItem = this.instantiatedCompositeItems.get(id);
 
-		return compositeItem ? compositeItem.progress : undefined;
+		wetuwn compositeItem ? compositeItem.pwogwess : undefined;
 	}
 
-	protected getTitleAreaDropDownAnchorAlignment(): AnchorAlignment {
-		return AnchorAlignment.RIGHT;
+	pwotected getTitweAweaDwopDownAnchowAwignment(): AnchowAwignment {
+		wetuwn AnchowAwignment.WIGHT;
 	}
 
-	override layout(width: number, height: number): void {
-		super.layout(width, height);
+	ovewwide wayout(width: numba, height: numba): void {
+		supa.wayout(width, height);
 
-		// Layout contents
-		this.contentAreaSize = Dimension.lift(super.layoutContents(width, height).contentSize);
+		// Wayout contents
+		this.contentAweaSize = Dimension.wift(supa.wayoutContents(width, height).contentSize);
 
-		// Layout composite
+		// Wayout composite
 		if (this.activeComposite) {
-			this.activeComposite.layout(this.contentAreaSize);
+			this.activeComposite.wayout(this.contentAweaSize);
 		}
 	}
 
-	protected removeComposite(compositeId: string): boolean {
+	pwotected wemoveComposite(compositeId: stwing): boowean {
 		if (this.activeComposite?.getId() === compositeId) {
-			return false; // do not remove active composite
+			wetuwn fawse; // do not wemove active composite
 		}
 
-		this.mapCompositeToCompositeContainer.delete(compositeId);
-		this.mapActionsBindingToComposite.delete(compositeId);
+		this.mapCompositeToCompositeContaina.dewete(compositeId);
+		this.mapActionsBindingToComposite.dewete(compositeId);
 		const compositeItem = this.instantiatedCompositeItems.get(compositeId);
 		if (compositeItem) {
 			compositeItem.composite.dispose();
-			dispose(compositeItem.disposable);
-			this.instantiatedCompositeItems.delete(compositeId);
+			dispose(compositeItem.disposabwe);
+			this.instantiatedCompositeItems.dewete(compositeId);
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	override dispose(): void {
-		this.mapCompositeToCompositeContainer.clear();
-		this.mapActionsBindingToComposite.clear();
+	ovewwide dispose(): void {
+		this.mapCompositeToCompositeContaina.cweaw();
+		this.mapActionsBindingToComposite.cweaw();
 
-		this.instantiatedCompositeItems.forEach(compositeItem => {
+		this.instantiatedCompositeItems.fowEach(compositeItem => {
 			compositeItem.composite.dispose();
-			dispose(compositeItem.disposable);
+			dispose(compositeItem.disposabwe);
 		});
 
-		this.instantiatedCompositeItems.clear();
+		this.instantiatedCompositeItems.cweaw();
 
-		super.dispose();
+		supa.dispose();
 	}
 }

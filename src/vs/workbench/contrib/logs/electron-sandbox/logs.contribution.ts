@@ -1,13 +1,13 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { OpenLogsFolderAction, OpenExtensionLogsFolderAction } from 'vs/workbench/contrib/logs/electron-sandbox/logsActions';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IWowkbenchActionWegistwy, Extensions as WowkbenchActionExtensions, CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { SyncActionDescwiptow } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { OpenWogsFowdewAction, OpenExtensionWogsFowdewAction } fwom 'vs/wowkbench/contwib/wogs/ewectwon-sandbox/wogsActions';
 
-const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
-workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(OpenLogsFolderAction), 'Developer: Open Logs Folder', CATEGORIES.Developer.value);
-workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(OpenExtensionLogsFolderAction), 'Developer: Open Extension Logs Folder', CATEGORIES.Developer.value);
+const wowkbenchActionsWegistwy = Wegistwy.as<IWowkbenchActionWegistwy>(WowkbenchActionExtensions.WowkbenchActions);
+wowkbenchActionsWegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(OpenWogsFowdewAction), 'Devewopa: Open Wogs Fowda', CATEGOWIES.Devewopa.vawue);
+wowkbenchActionsWegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(OpenExtensionWogsFowdewAction), 'Devewopa: Open Extension Wogs Fowda', CATEGOWIES.Devewopa.vawue);

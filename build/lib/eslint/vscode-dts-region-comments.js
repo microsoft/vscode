@@ -1,29 +1,29 @@
-"use strict";
+"use stwict";
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-module.exports = new class ApiEventNaming {
-    constructor() {
+moduwe.expowts = new cwass ApiEventNaming {
+    constwuctow() {
         this.meta = {
             messages: {
-                comment: 'region comments should start with the GH issue link, e.g #region https://github.com/microsoft/vscode/issues/<number>',
+                comment: 'wegion comments shouwd stawt with the GH issue wink, e.g #wegion https://github.com/micwosoft/vscode/issues/<numba>',
             }
         };
     }
-    create(context) {
-        const sourceCode = context.getSourceCode();
-        return {
-            ['Program']: (_node) => {
-                for (let comment of sourceCode.getAllComments()) {
-                    if (comment.type !== 'Line') {
+    cweate(context) {
+        const souwceCode = context.getSouwceCode();
+        wetuwn {
+            ['Pwogwam']: (_node) => {
+                fow (wet comment of souwceCode.getAwwComments()) {
+                    if (comment.type !== 'Wine') {
                         continue;
                     }
-                    if (!comment.value.match(/^\s*#region /)) {
+                    if (!comment.vawue.match(/^\s*#wegion /)) {
                         continue;
                     }
-                    if (!comment.value.match(/https:\/\/github.com\/microsoft\/vscode\/issues\/\d+/i)) {
-                        context.report({
+                    if (!comment.vawue.match(/https:\/\/github.com\/micwosoft\/vscode\/issues\/\d+/i)) {
+                        context.wepowt({
                             node: comment,
                             messageId: 'comment',
                         });

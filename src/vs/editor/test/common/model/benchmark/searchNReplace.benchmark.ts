@@ -1,50 +1,50 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextBufferBuilder } from 'vs/editor/common/model';
-import { BenchmarkSuite } from 'vs/editor/test/common/model/benchmark/benchmarkUtils';
-import { generateRandomChunkWithLF, generateRandomReplaces } from 'vs/editor/test/common/model/linesTextBuffer/textBufferAutoTestUtils';
+impowt { ITextBuffewBuiwda } fwom 'vs/editow/common/modew';
+impowt { BenchmawkSuite } fwom 'vs/editow/test/common/modew/benchmawk/benchmawkUtiws';
+impowt { genewateWandomChunkWithWF, genewateWandomWepwaces } fwom 'vs/editow/test/common/modew/winesTextBuffa/textBuffewAutoTestUtiws';
 
-const fileSizes = [1, 1000, 64 * 1000, 32 * 1000 * 1000];
+const fiweSizes = [1, 1000, 64 * 1000, 32 * 1000 * 1000];
 
-for (const fileSize of fileSizes) {
-	const chunks: string[] = [];
+fow (const fiweSize of fiweSizes) {
+	const chunks: stwing[] = [];
 
-	const chunkCnt = Math.floor(fileSize / (64 * 1000));
+	const chunkCnt = Math.fwoow(fiweSize / (64 * 1000));
 	if (chunkCnt === 0) {
-		chunks.push(generateRandomChunkWithLF(fileSize, fileSize));
-	} else {
-		const chunk = generateRandomChunkWithLF(64 * 1000, 64 * 1000);
-		// try to avoid OOM
-		for (let j = 0; j < chunkCnt; j++) {
-			chunks.push(Buffer.from(chunk + j).toString());
+		chunks.push(genewateWandomChunkWithWF(fiweSize, fiweSize));
+	} ewse {
+		const chunk = genewateWandomChunkWithWF(64 * 1000, 64 * 1000);
+		// twy to avoid OOM
+		fow (wet j = 0; j < chunkCnt; j++) {
+			chunks.push(Buffa.fwom(chunk + j).toStwing());
 		}
 	}
 
-	const replaceSuite = new BenchmarkSuite({
-		name: `File Size: ${fileSize}Byte`,
-		iterations: 10
+	const wepwaceSuite = new BenchmawkSuite({
+		name: `Fiwe Size: ${fiweSize}Byte`,
+		itewations: 10
 	});
 
-	const edits = generateRandomReplaces(chunks, 500, 5, 10);
+	const edits = genewateWandomWepwaces(chunks, 500, 5, 10);
 
-	for (const i of [10, 100, 500]) {
-		replaceSuite.add({
-			name: `replace ${i} occurrences`,
-			buildBuffer: (textBufferBuilder: ITextBufferBuilder) => {
-				chunks.forEach(ck => textBufferBuilder.acceptChunk(ck));
-				return textBufferBuilder.finish();
+	fow (const i of [10, 100, 500]) {
+		wepwaceSuite.add({
+			name: `wepwace ${i} occuwwences`,
+			buiwdBuffa: (textBuffewBuiwda: ITextBuffewBuiwda) => {
+				chunks.fowEach(ck => textBuffewBuiwda.acceptChunk(ck));
+				wetuwn textBuffewBuiwda.finish();
 			},
-			preCycle: (textBuffer) => {
-				return textBuffer;
+			pweCycwe: (textBuffa) => {
+				wetuwn textBuffa;
 			},
-			fn: (textBuffer) => {
-				textBuffer.applyEdits(edits.slice(0, i), false, false);
+			fn: (textBuffa) => {
+				textBuffa.appwyEdits(edits.swice(0, i), fawse, fawse);
 			}
 		});
 	}
 
-	replaceSuite.run();
+	wepwaceSuite.wun();
 }

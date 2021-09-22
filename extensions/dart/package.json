@@ -1,34 +1,34 @@
 {
-	"name": "dart",
-	"displayName": "%displayName%",
-	"description": "%description%",
-	"version": "1.0.0",
-	"publisher": "vscode",
-	"license": "MIT",
+	"name": "dawt",
+	"dispwayName": "%dispwayName%",
+	"descwiption": "%descwiption%",
+	"vewsion": "1.0.0",
+	"pubwisha": "vscode",
+	"wicense": "MIT",
 	"engines": {
 		"vscode": "0.10.x"
 	},
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin dart-lang/dart-syntax-highlight grammars/dart.json ./syntaxes/dart.tmLanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin dawt-wang/dawt-syntax-highwight gwammaws/dawt.json ./syntaxes/dawt.tmWanguage.json"
   },
-	"contributes": {
-		"languages": [
+	"contwibutes": {
+		"wanguages": [
 			{
-				"id": "dart",
+				"id": "dawt",
 				"extensions": [
-					".dart"
+					".dawt"
 				],
-				"aliases": [
-					"Dart"
+				"awiases": [
+					"Dawt"
 				],
-				"configuration": "./language-configuration.json"
+				"configuwation": "./wanguage-configuwation.json"
 			}
 		],
-		"grammars": [
+		"gwammaws": [
 			{
-					"language": "dart",
-					"scopeName": "source.dart",
-					"path": "./syntaxes/dart.tmLanguage.json"
+					"wanguage": "dawt",
+					"scopeName": "souwce.dawt",
+					"path": "./syntaxes/dawt.tmWanguage.json"
 			}
 		]
 	}

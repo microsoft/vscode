@@ -1,117 +1,117 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IPickerQuickAccessItem, PickerQuickAccessProvider } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { localize } from 'vs/nls';
-import { VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IExtensionGalleryService, IExtensionManagementService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ILogService } from 'vs/platform/log/common/log';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
+impowt { IQuickPickSepawatow } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IPickewQuickAccessItem, PickewQuickAccessPwovida } fwom 'vs/pwatfowm/quickinput/bwowsa/pickewQuickAccess';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { wocawize } fwom 'vs/nws';
+impowt { VIEWWET_ID, IExtensionsViewPaneContaina } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { IExtensionGawwewySewvice, IExtensionManagementSewvice, IGawwewyExtension } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
+impowt { ViewContainewWocation } fwom 'vs/wowkbench/common/views';
 
-export class InstallExtensionQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
+expowt cwass InstawwExtensionQuickAccessPwovida extends PickewQuickAccessPwovida<IPickewQuickAccessItem> {
 
-	static PREFIX = 'ext install ';
+	static PWEFIX = 'ext instaww ';
 
-	constructor(
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
-		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
-		@IExtensionManagementService private readonly extensionsService: IExtensionManagementService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@ILogService private readonly logService: ILogService
+	constwuctow(
+		@IPaneCompositePawtSewvice pwivate weadonwy paneCompositeSewvice: IPaneCompositePawtSewvice,
+		@IExtensionGawwewySewvice pwivate weadonwy gawwewySewvice: IExtensionGawwewySewvice,
+		@IExtensionManagementSewvice pwivate weadonwy extensionsSewvice: IExtensionManagementSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		super(InstallExtensionQuickAccessProvider.PREFIX);
+		supa(InstawwExtensionQuickAccessPwovida.PWEFIX);
 	}
 
-	protected _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Array<IPickerQuickAccessItem | IQuickPickSeparator> | Promise<Array<IPickerQuickAccessItem | IQuickPickSeparator>> {
+	pwotected _getPicks(fiwta: stwing, disposabwes: DisposabweStowe, token: CancewwationToken): Awway<IPickewQuickAccessItem | IQuickPickSepawatow> | Pwomise<Awway<IPickewQuickAccessItem | IQuickPickSepawatow>> {
 
 		// Nothing typed
-		if (!filter) {
-			return [{
-				label: localize('type', "Type an extension name to install or search.")
+		if (!fiwta) {
+			wetuwn [{
+				wabew: wocawize('type', "Type an extension name to instaww ow seawch.")
 			}];
 		}
 
-		const genericSearchPickItem: IPickerQuickAccessItem = {
-			label: localize('searchFor', "Press Enter to search for extension '{0}'.", filter),
-			accept: () => this.searchExtension(filter)
+		const genewicSeawchPickItem: IPickewQuickAccessItem = {
+			wabew: wocawize('seawchFow', "Pwess Enta to seawch fow extension '{0}'.", fiwta),
+			accept: () => this.seawchExtension(fiwta)
 		};
 
-		// Extension ID typed: try to find it
-		if (/\./.test(filter)) {
-			return this.getPicksForExtensionId(filter, genericSearchPickItem, token);
+		// Extension ID typed: twy to find it
+		if (/\./.test(fiwta)) {
+			wetuwn this.getPicksFowExtensionId(fiwta, genewicSeawchPickItem, token);
 		}
 
-		// Extension name typed: offer to search it
-		return [genericSearchPickItem];
+		// Extension name typed: offa to seawch it
+		wetuwn [genewicSeawchPickItem];
 	}
 
-	private async getPicksForExtensionId(filter: string, fallback: IPickerQuickAccessItem, token: CancellationToken): Promise<Array<IPickerQuickAccessItem | IQuickPickSeparator>> {
-		try {
-			const galleryResult = await this.galleryService.query({ names: [filter], pageSize: 1 }, token);
-			if (token.isCancellationRequested) {
-				return []; // return early if canceled
+	pwivate async getPicksFowExtensionId(fiwta: stwing, fawwback: IPickewQuickAccessItem, token: CancewwationToken): Pwomise<Awway<IPickewQuickAccessItem | IQuickPickSepawatow>> {
+		twy {
+			const gawwewyWesuwt = await this.gawwewySewvice.quewy({ names: [fiwta], pageSize: 1 }, token);
+			if (token.isCancewwationWequested) {
+				wetuwn []; // wetuwn eawwy if cancewed
 			}
 
-			const galleryExtension = galleryResult.firstPage[0];
-			if (!galleryExtension) {
-				return [fallback];
+			const gawwewyExtension = gawwewyWesuwt.fiwstPage[0];
+			if (!gawwewyExtension) {
+				wetuwn [fawwback];
 			}
 
-			return [{
-				label: localize('install', "Press Enter to install extension '{0}'.", filter),
-				accept: () => this.installExtension(galleryExtension, filter)
+			wetuwn [{
+				wabew: wocawize('instaww', "Pwess Enta to instaww extension '{0}'.", fiwta),
+				accept: () => this.instawwExtension(gawwewyExtension, fiwta)
 			}];
-		} catch (error) {
-			if (token.isCancellationRequested) {
-				return []; // expected error
+		} catch (ewwow) {
+			if (token.isCancewwationWequested) {
+				wetuwn []; // expected ewwow
 			}
 
-			this.logService.error(error);
+			this.wogSewvice.ewwow(ewwow);
 
-			return [fallback];
+			wetuwn [fawwback];
 		}
 	}
 
-	private async installExtension(extension: IGalleryExtension, name: string): Promise<void> {
-		try {
-			await openExtensionsViewlet(this.paneCompositeService, `@id:${name}`);
-			await this.extensionsService.installFromGallery(extension);
-		} catch (error) {
-			this.notificationService.error(error);
+	pwivate async instawwExtension(extension: IGawwewyExtension, name: stwing): Pwomise<void> {
+		twy {
+			await openExtensionsViewwet(this.paneCompositeSewvice, `@id:${name}`);
+			await this.extensionsSewvice.instawwFwomGawwewy(extension);
+		} catch (ewwow) {
+			this.notificationSewvice.ewwow(ewwow);
 		}
 	}
 
-	private async searchExtension(name: string): Promise<void> {
-		openExtensionsViewlet(this.paneCompositeService, name);
+	pwivate async seawchExtension(name: stwing): Pwomise<void> {
+		openExtensionsViewwet(this.paneCompositeSewvice, name);
 	}
 }
 
-export class ManageExtensionsQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
+expowt cwass ManageExtensionsQuickAccessPwovida extends PickewQuickAccessPwovida<IPickewQuickAccessItem> {
 
-	static PREFIX = 'ext ';
+	static PWEFIX = 'ext ';
 
-	constructor(@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService) {
-		super(ManageExtensionsQuickAccessProvider.PREFIX);
+	constwuctow(@IPaneCompositePawtSewvice pwivate weadonwy paneCompositeSewvice: IPaneCompositePawtSewvice) {
+		supa(ManageExtensionsQuickAccessPwovida.PWEFIX);
 	}
 
-	protected _getPicks(): Array<IPickerQuickAccessItem | IQuickPickSeparator> {
-		return [{
-			label: localize('manage', "Press Enter to manage your extensions."),
-			accept: () => openExtensionsViewlet(this.paneCompositeService)
+	pwotected _getPicks(): Awway<IPickewQuickAccessItem | IQuickPickSepawatow> {
+		wetuwn [{
+			wabew: wocawize('manage', "Pwess Enta to manage youw extensions."),
+			accept: () => openExtensionsViewwet(this.paneCompositeSewvice)
 		}];
 	}
 }
 
-async function openExtensionsViewlet(paneCompositeService: IPaneCompositePartService, search = ''): Promise<void> {
-	const viewlet = await paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
-	const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
-	view?.search(search);
+async function openExtensionsViewwet(paneCompositeSewvice: IPaneCompositePawtSewvice, seawch = ''): Pwomise<void> {
+	const viewwet = await paneCompositeSewvice.openPaneComposite(VIEWWET_ID, ViewContainewWocation.Sidebaw, twue);
+	const view = viewwet?.getViewPaneContaina() as IExtensionsViewPaneContaina | undefined;
+	view?.seawch(seawch);
 	view?.focus();
 }

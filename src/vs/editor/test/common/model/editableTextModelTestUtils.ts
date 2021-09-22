@@ -1,123 +1,123 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Position } from 'vs/editor/common/core/position';
-import { EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
-import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+impowt * as assewt fwom 'assewt';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { EndOfWinePwefewence, EndOfWineSequence, IIdentifiedSingweEditOpewation } fwom 'vs/editow/common/modew';
+impowt { MiwwowTextModew } fwom 'vs/editow/common/modew/miwwowTextModew';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt { IModewContentChangedEvent } fwom 'vs/editow/common/modew/textModewEvents';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
 
-export function testApplyEditsWithSyncedModels(original: string[], edits: IIdentifiedSingleEditOperation[], expected: string[], inputEditsAreInvalid: boolean = false): void {
-	let originalStr = original.join('\n');
-	let expectedStr = expected.join('\n');
+expowt function testAppwyEditsWithSyncedModews(owiginaw: stwing[], edits: IIdentifiedSingweEditOpewation[], expected: stwing[], inputEditsAweInvawid: boowean = fawse): void {
+	wet owiginawStw = owiginaw.join('\n');
+	wet expectedStw = expected.join('\n');
 
-	assertSyncedModels(originalStr, (model, assertMirrorModels) => {
-		// Apply edits & collect inverse edits
-		let inverseEdits = model.applyEdits(edits, true);
+	assewtSyncedModews(owiginawStw, (modew, assewtMiwwowModews) => {
+		// Appwy edits & cowwect invewse edits
+		wet invewseEdits = modew.appwyEdits(edits, twue);
 
-		// Assert edits produced expected result
-		assert.deepStrictEqual(model.getValue(EndOfLinePreference.LF), expectedStr);
+		// Assewt edits pwoduced expected wesuwt
+		assewt.deepStwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), expectedStw);
 
-		assertMirrorModels();
+		assewtMiwwowModews();
 
-		// Apply the inverse edits
-		let inverseInverseEdits = model.applyEdits(inverseEdits, true);
+		// Appwy the invewse edits
+		wet invewseInvewseEdits = modew.appwyEdits(invewseEdits, twue);
 
-		// Assert the inverse edits brought back model to original state
-		assert.deepStrictEqual(model.getValue(EndOfLinePreference.LF), originalStr);
+		// Assewt the invewse edits bwought back modew to owiginaw state
+		assewt.deepStwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), owiginawStw);
 
-		if (!inputEditsAreInvalid) {
-			const simplifyEdit = (edit: IIdentifiedSingleEditOperation) => {
-				return {
-					identifier: edit.identifier,
-					range: edit.range,
+		if (!inputEditsAweInvawid) {
+			const simpwifyEdit = (edit: IIdentifiedSingweEditOpewation) => {
+				wetuwn {
+					identifia: edit.identifia,
+					wange: edit.wange,
 					text: edit.text,
-					forceMoveMarkers: edit.forceMoveMarkers || false,
-					isAutoWhitespaceEdit: edit.isAutoWhitespaceEdit || false
+					fowceMoveMawkews: edit.fowceMoveMawkews || fawse,
+					isAutoWhitespaceEdit: edit.isAutoWhitespaceEdit || fawse
 				};
 			};
-			// Assert the inverse of the inverse edits are the original edits
-			assert.deepStrictEqual(inverseInverseEdits.map(simplifyEdit), edits.map(simplifyEdit));
+			// Assewt the invewse of the invewse edits awe the owiginaw edits
+			assewt.deepStwictEquaw(invewseInvewseEdits.map(simpwifyEdit), edits.map(simpwifyEdit));
 		}
 
-		assertMirrorModels();
+		assewtMiwwowModews();
 	});
 }
 
-const enum AssertDocumentLineMappingDirection {
+const enum AssewtDocumentWineMappingDiwection {
 	OffsetToPosition,
 	PositionToOffset
 }
 
-function assertOneDirectionLineMapping(model: TextModel, direction: AssertDocumentLineMappingDirection, msg: string): void {
-	let allText = model.getValue();
+function assewtOneDiwectionWineMapping(modew: TextModew, diwection: AssewtDocumentWineMappingDiwection, msg: stwing): void {
+	wet awwText = modew.getVawue();
 
-	let line = 1, column = 1, previousIsCarriageReturn = false;
-	for (let offset = 0; offset <= allText.length; offset++) {
-		// The position coordinate system cannot express the position between \r and \n
-		let position: Position = new Position(line, column + (previousIsCarriageReturn ? -1 : 0));
+	wet wine = 1, cowumn = 1, pweviousIsCawwiageWetuwn = fawse;
+	fow (wet offset = 0; offset <= awwText.wength; offset++) {
+		// The position coowdinate system cannot expwess the position between \w and \n
+		wet position: Position = new Position(wine, cowumn + (pweviousIsCawwiageWetuwn ? -1 : 0));
 
-		if (direction === AssertDocumentLineMappingDirection.OffsetToPosition) {
-			let actualPosition = model.getPositionAt(offset);
-			assert.strictEqual(actualPosition.toString(), position.toString(), msg + ' - getPositionAt mismatch for offset ' + offset);
-		} else {
-			// The position coordinate system cannot express the position between \r and \n
-			let expectedOffset: number = offset + (previousIsCarriageReturn ? -1 : 0);
-			let actualOffset = model.getOffsetAt(position);
-			assert.strictEqual(actualOffset, expectedOffset, msg + ' - getOffsetAt mismatch for position ' + position.toString());
+		if (diwection === AssewtDocumentWineMappingDiwection.OffsetToPosition) {
+			wet actuawPosition = modew.getPositionAt(offset);
+			assewt.stwictEquaw(actuawPosition.toStwing(), position.toStwing(), msg + ' - getPositionAt mismatch fow offset ' + offset);
+		} ewse {
+			// The position coowdinate system cannot expwess the position between \w and \n
+			wet expectedOffset: numba = offset + (pweviousIsCawwiageWetuwn ? -1 : 0);
+			wet actuawOffset = modew.getOffsetAt(position);
+			assewt.stwictEquaw(actuawOffset, expectedOffset, msg + ' - getOffsetAt mismatch fow position ' + position.toStwing());
 		}
 
-		if (allText.charAt(offset) === '\n') {
-			line++;
-			column = 1;
-		} else {
-			column++;
+		if (awwText.chawAt(offset) === '\n') {
+			wine++;
+			cowumn = 1;
+		} ewse {
+			cowumn++;
 		}
 
-		previousIsCarriageReturn = (allText.charAt(offset) === '\r');
+		pweviousIsCawwiageWetuwn = (awwText.chawAt(offset) === '\w');
 	}
 }
 
-function assertLineMapping(model: TextModel, msg: string): void {
-	assertOneDirectionLineMapping(model, AssertDocumentLineMappingDirection.PositionToOffset, msg);
-	assertOneDirectionLineMapping(model, AssertDocumentLineMappingDirection.OffsetToPosition, msg);
+function assewtWineMapping(modew: TextModew, msg: stwing): void {
+	assewtOneDiwectionWineMapping(modew, AssewtDocumentWineMappingDiwection.PositionToOffset, msg);
+	assewtOneDiwectionWineMapping(modew, AssewtDocumentWineMappingDiwection.OffsetToPosition, msg);
 }
 
 
-export function assertSyncedModels(text: string, callback: (model: TextModel, assertMirrorModels: () => void) => void, setup: ((model: TextModel) => void) | null = null): void {
-	let model = createTextModel(text, TextModel.DEFAULT_CREATION_OPTIONS, null);
-	model.setEOL(EndOfLineSequence.LF);
-	assertLineMapping(model, 'model');
+expowt function assewtSyncedModews(text: stwing, cawwback: (modew: TextModew, assewtMiwwowModews: () => void) => void, setup: ((modew: TextModew) => void) | nuww = nuww): void {
+	wet modew = cweateTextModew(text, TextModew.DEFAUWT_CWEATION_OPTIONS, nuww);
+	modew.setEOW(EndOfWineSequence.WF);
+	assewtWineMapping(modew, 'modew');
 
 	if (setup) {
-		setup(model);
-		assertLineMapping(model, 'model');
+		setup(modew);
+		assewtWineMapping(modew, 'modew');
 	}
 
-	let mirrorModel2 = new MirrorTextModel(null!, model.getLinesContent(), model.getEOL(), model.getVersionId());
-	let mirrorModel2PrevVersionId = model.getVersionId();
+	wet miwwowModew2 = new MiwwowTextModew(nuww!, modew.getWinesContent(), modew.getEOW(), modew.getVewsionId());
+	wet miwwowModew2PwevVewsionId = modew.getVewsionId();
 
-	model.onDidChangeContent((e: IModelContentChangedEvent) => {
-		let versionId = e.versionId;
-		if (versionId < mirrorModel2PrevVersionId) {
-			console.warn('Model version id did not advance between edits (2)');
+	modew.onDidChangeContent((e: IModewContentChangedEvent) => {
+		wet vewsionId = e.vewsionId;
+		if (vewsionId < miwwowModew2PwevVewsionId) {
+			consowe.wawn('Modew vewsion id did not advance between edits (2)');
 		}
-		mirrorModel2PrevVersionId = versionId;
-		mirrorModel2.onEvents(e);
+		miwwowModew2PwevVewsionId = vewsionId;
+		miwwowModew2.onEvents(e);
 	});
 
-	let assertMirrorModels = () => {
-		assertLineMapping(model, 'model');
-		assert.strictEqual(mirrorModel2.getText(), model.getValue(), 'mirror model 2 text OK');
-		assert.strictEqual(mirrorModel2.version, model.getVersionId(), 'mirror model 2 version OK');
+	wet assewtMiwwowModews = () => {
+		assewtWineMapping(modew, 'modew');
+		assewt.stwictEquaw(miwwowModew2.getText(), modew.getVawue(), 'miwwow modew 2 text OK');
+		assewt.stwictEquaw(miwwowModew2.vewsion, modew.getVewsionId(), 'miwwow modew 2 vewsion OK');
 	};
 
-	callback(model, assertMirrorModels);
+	cawwback(modew, assewtMiwwowModews);
 
-	model.dispose();
-	mirrorModel2.dispose();
+	modew.dispose();
+	miwwowModew2.dispose();
 }

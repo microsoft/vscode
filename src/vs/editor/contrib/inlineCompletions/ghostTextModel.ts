@@ -1,164 +1,164 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { InlineCompletionTriggerKind } from 'vs/editor/common/modes';
-import { GhostText, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/ghostText';
-import { InlineCompletionsModel, LiveInlineCompletions, SynchronizedInlineCompletionsCache } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsModel';
-import { SuggestWidgetPreviewModel } from 'vs/editor/contrib/inlineCompletions/suggestWidgetPreviewModel';
-import { createDisposableRef } from 'vs/editor/contrib/inlineCompletions/utils';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe, IWefewence, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IActiveCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { InwineCompwetionTwiggewKind } fwom 'vs/editow/common/modes';
+impowt { GhostText, GhostTextWidgetModew } fwom 'vs/editow/contwib/inwineCompwetions/ghostText';
+impowt { InwineCompwetionsModew, WiveInwineCompwetions, SynchwonizedInwineCompwetionsCache } fwom 'vs/editow/contwib/inwineCompwetions/inwineCompwetionsModew';
+impowt { SuggestWidgetPweviewModew } fwom 'vs/editow/contwib/inwineCompwetions/suggestWidgetPweviewModew';
+impowt { cweateDisposabweWef } fwom 'vs/editow/contwib/inwineCompwetions/utiws';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
 
-export abstract class DelegatingModel extends Disposable implements GhostTextWidgetModel {
-	private readonly onDidChangeEmitter = new Emitter<void>();
-	public readonly onDidChange = this.onDidChangeEmitter.event;
+expowt abstwact cwass DewegatingModew extends Disposabwe impwements GhostTextWidgetModew {
+	pwivate weadonwy onDidChangeEmitta = new Emitta<void>();
+	pubwic weadonwy onDidChange = this.onDidChangeEmitta.event;
 
-	private hasCachedGhostText = false;
-	private cachedGhostText: GhostText | undefined;
+	pwivate hasCachedGhostText = fawse;
+	pwivate cachedGhostText: GhostText | undefined;
 
-	private readonly currentModelRef = this._register(new MutableDisposable<IReference<GhostTextWidgetModel>>());
-	protected get targetModel(): GhostTextWidgetModel | undefined {
-		return this.currentModelRef.value?.object;
+	pwivate weadonwy cuwwentModewWef = this._wegista(new MutabweDisposabwe<IWefewence<GhostTextWidgetModew>>());
+	pwotected get tawgetModew(): GhostTextWidgetModew | undefined {
+		wetuwn this.cuwwentModewWef.vawue?.object;
 	}
 
-	protected setTargetModel(model: GhostTextWidgetModel | undefined): void {
-		if (this.currentModelRef.value?.object === model) {
-			return;
+	pwotected setTawgetModew(modew: GhostTextWidgetModew | undefined): void {
+		if (this.cuwwentModewWef.vawue?.object === modew) {
+			wetuwn;
 		}
-		this.currentModelRef.clear();
-		this.currentModelRef.value = model ? createDisposableRef(model, model.onDidChange(() => {
-			this.hasCachedGhostText = false;
-			this.onDidChangeEmitter.fire();
+		this.cuwwentModewWef.cweaw();
+		this.cuwwentModewWef.vawue = modew ? cweateDisposabweWef(modew, modew.onDidChange(() => {
+			this.hasCachedGhostText = fawse;
+			this.onDidChangeEmitta.fiwe();
 		})) : undefined;
 
-		this.hasCachedGhostText = false;
-		this.onDidChangeEmitter.fire();
+		this.hasCachedGhostText = fawse;
+		this.onDidChangeEmitta.fiwe();
 	}
 
-	public get ghostText(): GhostText | undefined {
+	pubwic get ghostText(): GhostText | undefined {
 		if (!this.hasCachedGhostText) {
-			this.cachedGhostText = this.currentModelRef.value?.object?.ghostText;
-			this.hasCachedGhostText = true;
+			this.cachedGhostText = this.cuwwentModewWef.vawue?.object?.ghostText;
+			this.hasCachedGhostText = twue;
 		}
-		return this.cachedGhostText;
+		wetuwn this.cachedGhostText;
 	}
 
-	public setExpanded(expanded: boolean): void {
-		this.targetModel?.setExpanded(expanded);
+	pubwic setExpanded(expanded: boowean): void {
+		this.tawgetModew?.setExpanded(expanded);
 	}
 
-	public get expanded(): boolean {
-		return this.targetModel ? this.targetModel.expanded : false;
+	pubwic get expanded(): boowean {
+		wetuwn this.tawgetModew ? this.tawgetModew.expanded : fawse;
 	}
 
-	public get minReservedLineCount(): number {
-		return this.targetModel ? this.targetModel.minReservedLineCount : 0;
+	pubwic get minWesewvedWineCount(): numba {
+		wetuwn this.tawgetModew ? this.tawgetModew.minWesewvedWineCount : 0;
 	}
 }
 
 /**
- * A ghost text model that is both driven by inline completions and the suggest widget.
+ * A ghost text modew that is both dwiven by inwine compwetions and the suggest widget.
 */
-export class GhostTextModel extends DelegatingModel implements GhostTextWidgetModel {
-	public readonly sharedCache = this._register(new SharedInlineCompletionCache());
-	public readonly suggestWidgetAdapterModel = this._register(new SuggestWidgetPreviewModel(this.editor, this.sharedCache));
-	public readonly inlineCompletionsModel = this._register(new InlineCompletionsModel(this.editor, this.sharedCache, this.commandService));
+expowt cwass GhostTextModew extends DewegatingModew impwements GhostTextWidgetModew {
+	pubwic weadonwy shawedCache = this._wegista(new ShawedInwineCompwetionCache());
+	pubwic weadonwy suggestWidgetAdaptewModew = this._wegista(new SuggestWidgetPweviewModew(this.editow, this.shawedCache));
+	pubwic weadonwy inwineCompwetionsModew = this._wegista(new InwineCompwetionsModew(this.editow, this.shawedCache, this.commandSewvice));
 
-	public get activeInlineCompletionsModel(): InlineCompletionsModel | undefined {
-		if (this.targetModel === this.inlineCompletionsModel) {
-			return this.inlineCompletionsModel;
+	pubwic get activeInwineCompwetionsModew(): InwineCompwetionsModew | undefined {
+		if (this.tawgetModew === this.inwineCompwetionsModew) {
+			wetuwn this.inwineCompwetionsModew;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	constructor(
-		private readonly editor: IActiveCodeEditor,
-		@ICommandService private readonly commandService: ICommandService
+	constwuctow(
+		pwivate weadonwy editow: IActiveCodeEditow,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice
 	) {
-		super();
+		supa();
 
-		this._register(this.suggestWidgetAdapterModel.onDidChange(() => {
-			this.updateModel();
+		this._wegista(this.suggestWidgetAdaptewModew.onDidChange(() => {
+			this.updateModew();
 		}));
-		this.updateModel();
+		this.updateModew();
 	}
 
-	private updateModel(): void {
-		this.setTargetModel(
-			this.suggestWidgetAdapterModel.isActive
-				? this.suggestWidgetAdapterModel
-				: this.inlineCompletionsModel
+	pwivate updateModew(): void {
+		this.setTawgetModew(
+			this.suggestWidgetAdaptewModew.isActive
+				? this.suggestWidgetAdaptewModew
+				: this.inwineCompwetionsModew
 		);
-		this.inlineCompletionsModel.setActive(this.targetModel === this.inlineCompletionsModel);
+		this.inwineCompwetionsModew.setActive(this.tawgetModew === this.inwineCompwetionsModew);
 	}
 
-	public shouldShowHoverAt(hoverRange: Range): boolean {
-		const ghostText = this.activeInlineCompletionsModel?.ghostText;
+	pubwic shouwdShowHovewAt(hovewWange: Wange): boowean {
+		const ghostText = this.activeInwineCompwetionsModew?.ghostText;
 		if (ghostText) {
-			return ghostText.parts.some(p => hoverRange.containsPosition(new Position(ghostText.lineNumber, p.column)));
+			wetuwn ghostText.pawts.some(p => hovewWange.containsPosition(new Position(ghostText.wineNumba, p.cowumn)));
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public triggerInlineCompletion(): void {
-		this.activeInlineCompletionsModel?.trigger(InlineCompletionTriggerKind.Explicit);
+	pubwic twiggewInwineCompwetion(): void {
+		this.activeInwineCompwetionsModew?.twigga(InwineCompwetionTwiggewKind.Expwicit);
 	}
 
-	public commitInlineCompletion(): void {
-		this.activeInlineCompletionsModel?.commitCurrentSuggestion();
+	pubwic commitInwineCompwetion(): void {
+		this.activeInwineCompwetionsModew?.commitCuwwentSuggestion();
 	}
 
-	public hideInlineCompletion(): void {
-		this.activeInlineCompletionsModel?.hide();
+	pubwic hideInwineCompwetion(): void {
+		this.activeInwineCompwetionsModew?.hide();
 	}
 
-	public showNextInlineCompletion(): void {
-		this.activeInlineCompletionsModel?.showNext();
+	pubwic showNextInwineCompwetion(): void {
+		this.activeInwineCompwetionsModew?.showNext();
 	}
 
-	public showPreviousInlineCompletion(): void {
-		this.activeInlineCompletionsModel?.showPrevious();
+	pubwic showPweviousInwineCompwetion(): void {
+		this.activeInwineCompwetionsModew?.showPwevious();
 	}
 
-	public async hasMultipleInlineCompletions(): Promise<boolean> {
-		const result = await this.activeInlineCompletionsModel?.hasMultipleInlineCompletions();
-		return result !== undefined ? result : false;
+	pubwic async hasMuwtipweInwineCompwetions(): Pwomise<boowean> {
+		const wesuwt = await this.activeInwineCompwetionsModew?.hasMuwtipweInwineCompwetions();
+		wetuwn wesuwt !== undefined ? wesuwt : fawse;
 	}
 }
 
-export class SharedInlineCompletionCache extends Disposable {
-	private readonly onDidChangeEmitter = new Emitter<void>();
-	public readonly onDidChange = this.onDidChangeEmitter.event;
+expowt cwass ShawedInwineCompwetionCache extends Disposabwe {
+	pwivate weadonwy onDidChangeEmitta = new Emitta<void>();
+	pubwic weadonwy onDidChange = this.onDidChangeEmitta.event;
 
-	private readonly cache = this._register(new MutableDisposable<SynchronizedInlineCompletionsCache>());
+	pwivate weadonwy cache = this._wegista(new MutabweDisposabwe<SynchwonizedInwineCompwetionsCache>());
 
-	public get value(): SynchronizedInlineCompletionsCache | undefined {
-		return this.cache.value;
+	pubwic get vawue(): SynchwonizedInwineCompwetionsCache | undefined {
+		wetuwn this.cache.vawue;
 	}
 
-	public setValue(editor: IActiveCodeEditor,
-		completionsSource: LiveInlineCompletions,
-		triggerKind: InlineCompletionTriggerKind
+	pubwic setVawue(editow: IActiveCodeEditow,
+		compwetionsSouwce: WiveInwineCompwetions,
+		twiggewKind: InwineCompwetionTwiggewKind
 	) {
-		this.cache.value = new SynchronizedInlineCompletionsCache(
-			editor,
-			completionsSource,
-			() => this.onDidChangeEmitter.fire(),
-			triggerKind
+		this.cache.vawue = new SynchwonizedInwineCompwetionsCache(
+			editow,
+			compwetionsSouwce,
+			() => this.onDidChangeEmitta.fiwe(),
+			twiggewKind
 		);
 	}
 
-	public clearAndLeak(): SynchronizedInlineCompletionsCache | undefined {
-		return this.cache.clearAndLeak();
+	pubwic cweawAndWeak(): SynchwonizedInwineCompwetionsCache | undefined {
+		wetuwn this.cache.cweawAndWeak();
 	}
 
-	public clear() {
-		this.cache.clear();
+	pubwic cweaw() {
+		this.cache.cweaw();
 	}
 }

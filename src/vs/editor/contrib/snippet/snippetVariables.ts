@@ -1,357 +1,357 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { normalizeDriveLetter } from 'vs/base/common/labels';
-import * as path from 'vs/base/common/path';
-import { dirname } from 'vs/base/common/resources';
-import { commonPrefixLength, getLeadingWhitespace, isFalsyOrWhitespace, splitLines } from 'vs/base/common/strings';
-import { generateUuid } from 'vs/base/common/uuid';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ITextModel } from 'vs/editor/common/model';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { Text, Variable, VariableResolver } from 'vs/editor/contrib/snippet/snippetParser';
-import { OvertypingCapturer } from 'vs/editor/contrib/suggest/suggestOvertypingCapturer';
-import * as nls from 'vs/nls';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
+impowt { nowmawizeDwiveWetta } fwom 'vs/base/common/wabews';
+impowt * as path fwom 'vs/base/common/path';
+impowt { diwname } fwom 'vs/base/common/wesouwces';
+impowt { commonPwefixWength, getWeadingWhitespace, isFawsyOwWhitespace, spwitWines } fwom 'vs/base/common/stwings';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { Text, Vawiabwe, VawiabweWesowva } fwom 'vs/editow/contwib/snippet/snippetPawsa';
+impowt { OvewtypingCaptuwa } fwom 'vs/editow/contwib/suggest/suggestOvewtypingCaptuwa';
+impowt * as nws fwom 'vs/nws';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { ISingweFowdewWowkspaceIdentifia, isSingweFowdewWowkspaceIdentifia, IWowkspaceIdentifia, toWowkspaceIdentifia, WOWKSPACE_EXTENSION } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
 
-export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze({
-	'CURRENT_YEAR': true,
-	'CURRENT_YEAR_SHORT': true,
-	'CURRENT_MONTH': true,
-	'CURRENT_DATE': true,
-	'CURRENT_HOUR': true,
-	'CURRENT_MINUTE': true,
-	'CURRENT_SECOND': true,
-	'CURRENT_DAY_NAME': true,
-	'CURRENT_DAY_NAME_SHORT': true,
-	'CURRENT_MONTH_NAME': true,
-	'CURRENT_MONTH_NAME_SHORT': true,
-	'CURRENT_SECONDS_UNIX': true,
-	'SELECTION': true,
-	'CLIPBOARD': true,
-	'TM_SELECTED_TEXT': true,
-	'TM_CURRENT_LINE': true,
-	'TM_CURRENT_WORD': true,
-	'TM_LINE_INDEX': true,
-	'TM_LINE_NUMBER': true,
-	'TM_FILENAME': true,
-	'TM_FILENAME_BASE': true,
-	'TM_DIRECTORY': true,
-	'TM_FILEPATH': true,
-	'RELATIVE_FILEPATH': true,
-	'BLOCK_COMMENT_START': true,
-	'BLOCK_COMMENT_END': true,
-	'LINE_COMMENT': true,
-	'WORKSPACE_NAME': true,
-	'WORKSPACE_FOLDER': true,
-	'RANDOM': true,
-	'RANDOM_HEX': true,
-	'UUID': true
+expowt const KnownSnippetVawiabweNames: { [key: stwing]: twue } = Object.fweeze({
+	'CUWWENT_YEAW': twue,
+	'CUWWENT_YEAW_SHOWT': twue,
+	'CUWWENT_MONTH': twue,
+	'CUWWENT_DATE': twue,
+	'CUWWENT_HOUW': twue,
+	'CUWWENT_MINUTE': twue,
+	'CUWWENT_SECOND': twue,
+	'CUWWENT_DAY_NAME': twue,
+	'CUWWENT_DAY_NAME_SHOWT': twue,
+	'CUWWENT_MONTH_NAME': twue,
+	'CUWWENT_MONTH_NAME_SHOWT': twue,
+	'CUWWENT_SECONDS_UNIX': twue,
+	'SEWECTION': twue,
+	'CWIPBOAWD': twue,
+	'TM_SEWECTED_TEXT': twue,
+	'TM_CUWWENT_WINE': twue,
+	'TM_CUWWENT_WOWD': twue,
+	'TM_WINE_INDEX': twue,
+	'TM_WINE_NUMBa': twue,
+	'TM_FIWENAME': twue,
+	'TM_FIWENAME_BASE': twue,
+	'TM_DIWECTOWY': twue,
+	'TM_FIWEPATH': twue,
+	'WEWATIVE_FIWEPATH': twue,
+	'BWOCK_COMMENT_STAWT': twue,
+	'BWOCK_COMMENT_END': twue,
+	'WINE_COMMENT': twue,
+	'WOWKSPACE_NAME': twue,
+	'WOWKSPACE_FOWDa': twue,
+	'WANDOM': twue,
+	'WANDOM_HEX': twue,
+	'UUID': twue
 });
 
-export class CompositeSnippetVariableResolver implements VariableResolver {
+expowt cwass CompositeSnippetVawiabweWesowva impwements VawiabweWesowva {
 
-	constructor(private readonly _delegates: VariableResolver[]) {
+	constwuctow(pwivate weadonwy _dewegates: VawiabweWesowva[]) {
 		//
 	}
 
-	resolve(variable: Variable): string | undefined {
-		for (const delegate of this._delegates) {
-			let value = delegate.resolve(variable);
-			if (value !== undefined) {
-				return value;
+	wesowve(vawiabwe: Vawiabwe): stwing | undefined {
+		fow (const dewegate of this._dewegates) {
+			wet vawue = dewegate.wesowve(vawiabwe);
+			if (vawue !== undefined) {
+				wetuwn vawue;
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-export class SelectionBasedVariableResolver implements VariableResolver {
+expowt cwass SewectionBasedVawiabweWesowva impwements VawiabweWesowva {
 
-	constructor(
-		private readonly _model: ITextModel,
-		private readonly _selection: Selection,
-		private readonly _selectionIdx: number,
-		private readonly _overtypingCapturer: OvertypingCapturer | undefined
+	constwuctow(
+		pwivate weadonwy _modew: ITextModew,
+		pwivate weadonwy _sewection: Sewection,
+		pwivate weadonwy _sewectionIdx: numba,
+		pwivate weadonwy _ovewtypingCaptuwa: OvewtypingCaptuwa | undefined
 	) {
 		//
 	}
 
-	resolve(variable: Variable): string | undefined {
+	wesowve(vawiabwe: Vawiabwe): stwing | undefined {
 
-		const { name } = variable;
+		const { name } = vawiabwe;
 
-		if (name === 'SELECTION' || name === 'TM_SELECTED_TEXT') {
-			let value = this._model.getValueInRange(this._selection) || undefined;
-			let isMultiline = this._selection.startLineNumber !== this._selection.endLineNumber;
+		if (name === 'SEWECTION' || name === 'TM_SEWECTED_TEXT') {
+			wet vawue = this._modew.getVawueInWange(this._sewection) || undefined;
+			wet isMuwtiwine = this._sewection.stawtWineNumba !== this._sewection.endWineNumba;
 
-			// If there was no selected text, try to get last overtyped text
-			if (!value && this._overtypingCapturer) {
-				const info = this._overtypingCapturer.getLastOvertypedInfo(this._selectionIdx);
+			// If thewe was no sewected text, twy to get wast ovewtyped text
+			if (!vawue && this._ovewtypingCaptuwa) {
+				const info = this._ovewtypingCaptuwa.getWastOvewtypedInfo(this._sewectionIdx);
 				if (info) {
-					value = info.value;
-					isMultiline = info.multiline;
+					vawue = info.vawue;
+					isMuwtiwine = info.muwtiwine;
 				}
 			}
 
-			if (value && isMultiline && variable.snippet) {
-				// Selection is a multiline string which we indentation we now
-				// need to adjust. We compare the indentation of this variable
-				// with the indentation at the editor position and add potential
-				// extra indentation to the value
+			if (vawue && isMuwtiwine && vawiabwe.snippet) {
+				// Sewection is a muwtiwine stwing which we indentation we now
+				// need to adjust. We compawe the indentation of this vawiabwe
+				// with the indentation at the editow position and add potentiaw
+				// extwa indentation to the vawue
 
-				const line = this._model.getLineContent(this._selection.startLineNumber);
-				const lineLeadingWhitespace = getLeadingWhitespace(line, 0, this._selection.startColumn - 1);
+				const wine = this._modew.getWineContent(this._sewection.stawtWineNumba);
+				const wineWeadingWhitespace = getWeadingWhitespace(wine, 0, this._sewection.stawtCowumn - 1);
 
-				let varLeadingWhitespace = lineLeadingWhitespace;
-				variable.snippet.walk(marker => {
-					if (marker === variable) {
-						return false;
+				wet vawWeadingWhitespace = wineWeadingWhitespace;
+				vawiabwe.snippet.wawk(mawka => {
+					if (mawka === vawiabwe) {
+						wetuwn fawse;
 					}
-					if (marker instanceof Text) {
-						varLeadingWhitespace = getLeadingWhitespace(splitLines(marker.value).pop()!);
+					if (mawka instanceof Text) {
+						vawWeadingWhitespace = getWeadingWhitespace(spwitWines(mawka.vawue).pop()!);
 					}
-					return true;
+					wetuwn twue;
 				});
-				const whitespaceCommonLength = commonPrefixLength(varLeadingWhitespace, lineLeadingWhitespace);
+				const whitespaceCommonWength = commonPwefixWength(vawWeadingWhitespace, wineWeadingWhitespace);
 
-				value = value.replace(
-					/(\r\n|\r|\n)(.*)/g,
-					(m, newline, rest) => `${newline}${varLeadingWhitespace.substr(whitespaceCommonLength)}${rest}`
+				vawue = vawue.wepwace(
+					/(\w\n|\w|\n)(.*)/g,
+					(m, newwine, west) => `${newwine}${vawWeadingWhitespace.substw(whitespaceCommonWength)}${west}`
 				);
 			}
-			return value;
+			wetuwn vawue;
 
-		} else if (name === 'TM_CURRENT_LINE') {
-			return this._model.getLineContent(this._selection.positionLineNumber);
+		} ewse if (name === 'TM_CUWWENT_WINE') {
+			wetuwn this._modew.getWineContent(this._sewection.positionWineNumba);
 
-		} else if (name === 'TM_CURRENT_WORD') {
-			const info = this._model.getWordAtPosition({
-				lineNumber: this._selection.positionLineNumber,
-				column: this._selection.positionColumn
+		} ewse if (name === 'TM_CUWWENT_WOWD') {
+			const info = this._modew.getWowdAtPosition({
+				wineNumba: this._sewection.positionWineNumba,
+				cowumn: this._sewection.positionCowumn
 			});
-			return info && info.word || undefined;
+			wetuwn info && info.wowd || undefined;
 
-		} else if (name === 'TM_LINE_INDEX') {
-			return String(this._selection.positionLineNumber - 1);
+		} ewse if (name === 'TM_WINE_INDEX') {
+			wetuwn Stwing(this._sewection.positionWineNumba - 1);
 
-		} else if (name === 'TM_LINE_NUMBER') {
-			return String(this._selection.positionLineNumber);
+		} ewse if (name === 'TM_WINE_NUMBa') {
+			wetuwn Stwing(this._sewection.positionWineNumba);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-export class ModelBasedVariableResolver implements VariableResolver {
+expowt cwass ModewBasedVawiabweWesowva impwements VawiabweWesowva {
 
-	constructor(
-		private readonly _labelService: ILabelService,
-		private readonly _model: ITextModel
+	constwuctow(
+		pwivate weadonwy _wabewSewvice: IWabewSewvice,
+		pwivate weadonwy _modew: ITextModew
 	) {
 		//
 	}
 
-	resolve(variable: Variable): string | undefined {
+	wesowve(vawiabwe: Vawiabwe): stwing | undefined {
 
-		const { name } = variable;
+		const { name } = vawiabwe;
 
-		if (name === 'TM_FILENAME') {
-			return path.basename(this._model.uri.fsPath);
+		if (name === 'TM_FIWENAME') {
+			wetuwn path.basename(this._modew.uwi.fsPath);
 
-		} else if (name === 'TM_FILENAME_BASE') {
-			const name = path.basename(this._model.uri.fsPath);
-			const idx = name.lastIndexOf('.');
+		} ewse if (name === 'TM_FIWENAME_BASE') {
+			const name = path.basename(this._modew.uwi.fsPath);
+			const idx = name.wastIndexOf('.');
 			if (idx <= 0) {
-				return name;
-			} else {
-				return name.slice(0, idx);
+				wetuwn name;
+			} ewse {
+				wetuwn name.swice(0, idx);
 			}
 
-		} else if (name === 'TM_DIRECTORY') {
-			if (path.dirname(this._model.uri.fsPath) === '.') {
-				return '';
+		} ewse if (name === 'TM_DIWECTOWY') {
+			if (path.diwname(this._modew.uwi.fsPath) === '.') {
+				wetuwn '';
 			}
-			return this._labelService.getUriLabel(dirname(this._model.uri));
+			wetuwn this._wabewSewvice.getUwiWabew(diwname(this._modew.uwi));
 
-		} else if (name === 'TM_FILEPATH') {
-			return this._labelService.getUriLabel(this._model.uri);
-		} else if (name === 'RELATIVE_FILEPATH') {
-			return this._labelService.getUriLabel(this._model.uri, { relative: true, noPrefix: true });
+		} ewse if (name === 'TM_FIWEPATH') {
+			wetuwn this._wabewSewvice.getUwiWabew(this._modew.uwi);
+		} ewse if (name === 'WEWATIVE_FIWEPATH') {
+			wetuwn this._wabewSewvice.getUwiWabew(this._modew.uwi, { wewative: twue, noPwefix: twue });
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-export interface IReadClipboardText {
-	(): string | undefined;
+expowt intewface IWeadCwipboawdText {
+	(): stwing | undefined;
 }
 
-export class ClipboardBasedVariableResolver implements VariableResolver {
+expowt cwass CwipboawdBasedVawiabweWesowva impwements VawiabweWesowva {
 
-	constructor(
-		private readonly _readClipboardText: IReadClipboardText,
-		private readonly _selectionIdx: number,
-		private readonly _selectionCount: number,
-		private readonly _spread: boolean
+	constwuctow(
+		pwivate weadonwy _weadCwipboawdText: IWeadCwipboawdText,
+		pwivate weadonwy _sewectionIdx: numba,
+		pwivate weadonwy _sewectionCount: numba,
+		pwivate weadonwy _spwead: boowean
 	) {
 		//
 	}
 
-	resolve(variable: Variable): string | undefined {
-		if (variable.name !== 'CLIPBOARD') {
-			return undefined;
+	wesowve(vawiabwe: Vawiabwe): stwing | undefined {
+		if (vawiabwe.name !== 'CWIPBOAWD') {
+			wetuwn undefined;
 		}
 
-		const clipboardText = this._readClipboardText();
-		if (!clipboardText) {
-			return undefined;
+		const cwipboawdText = this._weadCwipboawdText();
+		if (!cwipboawdText) {
+			wetuwn undefined;
 		}
 
-		// `spread` is assigning each cursor a line of the clipboard
-		// text whenever there the line count equals the cursor count
-		// and when enabled
-		if (this._spread) {
-			const lines = clipboardText.split(/\r\n|\n|\r/).filter(s => !isFalsyOrWhitespace(s));
-			if (lines.length === this._selectionCount) {
-				return lines[this._selectionIdx];
+		// `spwead` is assigning each cuwsow a wine of the cwipboawd
+		// text wheneva thewe the wine count equaws the cuwsow count
+		// and when enabwed
+		if (this._spwead) {
+			const wines = cwipboawdText.spwit(/\w\n|\n|\w/).fiwta(s => !isFawsyOwWhitespace(s));
+			if (wines.wength === this._sewectionCount) {
+				wetuwn wines[this._sewectionIdx];
 			}
 		}
-		return clipboardText;
+		wetuwn cwipboawdText;
 	}
 }
-export class CommentBasedVariableResolver implements VariableResolver {
-	constructor(
-		private readonly _model: ITextModel,
-		private readonly _selection: Selection
+expowt cwass CommentBasedVawiabweWesowva impwements VawiabweWesowva {
+	constwuctow(
+		pwivate weadonwy _modew: ITextModew,
+		pwivate weadonwy _sewection: Sewection
 	) {
 		//
 	}
-	resolve(variable: Variable): string | undefined {
-		const { name } = variable;
-		const langId = this._model.getLanguageIdAtPosition(this._selection.selectionStartLineNumber, this._selection.selectionStartColumn);
-		const config = LanguageConfigurationRegistry.getComments(langId);
+	wesowve(vawiabwe: Vawiabwe): stwing | undefined {
+		const { name } = vawiabwe;
+		const wangId = this._modew.getWanguageIdAtPosition(this._sewection.sewectionStawtWineNumba, this._sewection.sewectionStawtCowumn);
+		const config = WanguageConfiguwationWegistwy.getComments(wangId);
 		if (!config) {
-			return undefined;
+			wetuwn undefined;
 		}
-		if (name === 'LINE_COMMENT') {
-			return config.lineCommentToken || undefined;
-		} else if (name === 'BLOCK_COMMENT_START') {
-			return config.blockCommentStartToken || undefined;
-		} else if (name === 'BLOCK_COMMENT_END') {
-			return config.blockCommentEndToken || undefined;
+		if (name === 'WINE_COMMENT') {
+			wetuwn config.wineCommentToken || undefined;
+		} ewse if (name === 'BWOCK_COMMENT_STAWT') {
+			wetuwn config.bwockCommentStawtToken || undefined;
+		} ewse if (name === 'BWOCK_COMMENT_END') {
+			wetuwn config.bwockCommentEndToken || undefined;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }
-export class TimeBasedVariableResolver implements VariableResolver {
+expowt cwass TimeBasedVawiabweWesowva impwements VawiabweWesowva {
 
-	private static readonly dayNames = [nls.localize('Sunday', "Sunday"), nls.localize('Monday', "Monday"), nls.localize('Tuesday', "Tuesday"), nls.localize('Wednesday', "Wednesday"), nls.localize('Thursday', "Thursday"), nls.localize('Friday', "Friday"), nls.localize('Saturday', "Saturday")];
-	private static readonly dayNamesShort = [nls.localize('SundayShort', "Sun"), nls.localize('MondayShort', "Mon"), nls.localize('TuesdayShort', "Tue"), nls.localize('WednesdayShort', "Wed"), nls.localize('ThursdayShort', "Thu"), nls.localize('FridayShort', "Fri"), nls.localize('SaturdayShort', "Sat")];
-	private static readonly monthNames = [nls.localize('January', "January"), nls.localize('February', "February"), nls.localize('March', "March"), nls.localize('April', "April"), nls.localize('May', "May"), nls.localize('June', "June"), nls.localize('July', "July"), nls.localize('August', "August"), nls.localize('September', "September"), nls.localize('October', "October"), nls.localize('November', "November"), nls.localize('December', "December")];
-	private static readonly monthNamesShort = [nls.localize('JanuaryShort', "Jan"), nls.localize('FebruaryShort', "Feb"), nls.localize('MarchShort', "Mar"), nls.localize('AprilShort', "Apr"), nls.localize('MayShort', "May"), nls.localize('JuneShort', "Jun"), nls.localize('JulyShort', "Jul"), nls.localize('AugustShort', "Aug"), nls.localize('SeptemberShort', "Sep"), nls.localize('OctoberShort', "Oct"), nls.localize('NovemberShort', "Nov"), nls.localize('DecemberShort', "Dec")];
+	pwivate static weadonwy dayNames = [nws.wocawize('Sunday', "Sunday"), nws.wocawize('Monday', "Monday"), nws.wocawize('Tuesday', "Tuesday"), nws.wocawize('Wednesday', "Wednesday"), nws.wocawize('Thuwsday', "Thuwsday"), nws.wocawize('Fwiday', "Fwiday"), nws.wocawize('Satuwday', "Satuwday")];
+	pwivate static weadonwy dayNamesShowt = [nws.wocawize('SundayShowt', "Sun"), nws.wocawize('MondayShowt', "Mon"), nws.wocawize('TuesdayShowt', "Tue"), nws.wocawize('WednesdayShowt', "Wed"), nws.wocawize('ThuwsdayShowt', "Thu"), nws.wocawize('FwidayShowt', "Fwi"), nws.wocawize('SatuwdayShowt', "Sat")];
+	pwivate static weadonwy monthNames = [nws.wocawize('Januawy', "Januawy"), nws.wocawize('Febwuawy', "Febwuawy"), nws.wocawize('Mawch', "Mawch"), nws.wocawize('Apwiw', "Apwiw"), nws.wocawize('May', "May"), nws.wocawize('June', "June"), nws.wocawize('Juwy', "Juwy"), nws.wocawize('August', "August"), nws.wocawize('Septemba', "Septemba"), nws.wocawize('Octoba', "Octoba"), nws.wocawize('Novemba', "Novemba"), nws.wocawize('Decemba', "Decemba")];
+	pwivate static weadonwy monthNamesShowt = [nws.wocawize('JanuawyShowt', "Jan"), nws.wocawize('FebwuawyShowt', "Feb"), nws.wocawize('MawchShowt', "Maw"), nws.wocawize('ApwiwShowt', "Apw"), nws.wocawize('MayShowt', "May"), nws.wocawize('JuneShowt', "Jun"), nws.wocawize('JuwyShowt', "Juw"), nws.wocawize('AugustShowt', "Aug"), nws.wocawize('SeptembewShowt', "Sep"), nws.wocawize('OctobewShowt', "Oct"), nws.wocawize('NovembewShowt', "Nov"), nws.wocawize('DecembewShowt', "Dec")];
 
-	private readonly _date = new Date();
+	pwivate weadonwy _date = new Date();
 
-	resolve(variable: Variable): string | undefined {
-		const { name } = variable;
+	wesowve(vawiabwe: Vawiabwe): stwing | undefined {
+		const { name } = vawiabwe;
 
-		if (name === 'CURRENT_YEAR') {
-			return String(this._date.getFullYear());
-		} else if (name === 'CURRENT_YEAR_SHORT') {
-			return String(this._date.getFullYear()).slice(-2);
-		} else if (name === 'CURRENT_MONTH') {
-			return String(this._date.getMonth().valueOf() + 1).padStart(2, '0');
-		} else if (name === 'CURRENT_DATE') {
-			return String(this._date.getDate().valueOf()).padStart(2, '0');
-		} else if (name === 'CURRENT_HOUR') {
-			return String(this._date.getHours().valueOf()).padStart(2, '0');
-		} else if (name === 'CURRENT_MINUTE') {
-			return String(this._date.getMinutes().valueOf()).padStart(2, '0');
-		} else if (name === 'CURRENT_SECOND') {
-			return String(this._date.getSeconds().valueOf()).padStart(2, '0');
-		} else if (name === 'CURRENT_DAY_NAME') {
-			return TimeBasedVariableResolver.dayNames[this._date.getDay()];
-		} else if (name === 'CURRENT_DAY_NAME_SHORT') {
-			return TimeBasedVariableResolver.dayNamesShort[this._date.getDay()];
-		} else if (name === 'CURRENT_MONTH_NAME') {
-			return TimeBasedVariableResolver.monthNames[this._date.getMonth()];
-		} else if (name === 'CURRENT_MONTH_NAME_SHORT') {
-			return TimeBasedVariableResolver.monthNamesShort[this._date.getMonth()];
-		} else if (name === 'CURRENT_SECONDS_UNIX') {
-			return String(Math.floor(this._date.getTime() / 1000));
+		if (name === 'CUWWENT_YEAW') {
+			wetuwn Stwing(this._date.getFuwwYeaw());
+		} ewse if (name === 'CUWWENT_YEAW_SHOWT') {
+			wetuwn Stwing(this._date.getFuwwYeaw()).swice(-2);
+		} ewse if (name === 'CUWWENT_MONTH') {
+			wetuwn Stwing(this._date.getMonth().vawueOf() + 1).padStawt(2, '0');
+		} ewse if (name === 'CUWWENT_DATE') {
+			wetuwn Stwing(this._date.getDate().vawueOf()).padStawt(2, '0');
+		} ewse if (name === 'CUWWENT_HOUW') {
+			wetuwn Stwing(this._date.getHouws().vawueOf()).padStawt(2, '0');
+		} ewse if (name === 'CUWWENT_MINUTE') {
+			wetuwn Stwing(this._date.getMinutes().vawueOf()).padStawt(2, '0');
+		} ewse if (name === 'CUWWENT_SECOND') {
+			wetuwn Stwing(this._date.getSeconds().vawueOf()).padStawt(2, '0');
+		} ewse if (name === 'CUWWENT_DAY_NAME') {
+			wetuwn TimeBasedVawiabweWesowva.dayNames[this._date.getDay()];
+		} ewse if (name === 'CUWWENT_DAY_NAME_SHOWT') {
+			wetuwn TimeBasedVawiabweWesowva.dayNamesShowt[this._date.getDay()];
+		} ewse if (name === 'CUWWENT_MONTH_NAME') {
+			wetuwn TimeBasedVawiabweWesowva.monthNames[this._date.getMonth()];
+		} ewse if (name === 'CUWWENT_MONTH_NAME_SHOWT') {
+			wetuwn TimeBasedVawiabweWesowva.monthNamesShowt[this._date.getMonth()];
+		} ewse if (name === 'CUWWENT_SECONDS_UNIX') {
+			wetuwn Stwing(Math.fwoow(this._date.getTime() / 1000));
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-export class WorkspaceBasedVariableResolver implements VariableResolver {
-	constructor(
-		private readonly _workspaceService: IWorkspaceContextService | undefined,
+expowt cwass WowkspaceBasedVawiabweWesowva impwements VawiabweWesowva {
+	constwuctow(
+		pwivate weadonwy _wowkspaceSewvice: IWowkspaceContextSewvice | undefined,
 	) {
 		//
 	}
 
-	resolve(variable: Variable): string | undefined {
-		if (!this._workspaceService) {
-			return undefined;
+	wesowve(vawiabwe: Vawiabwe): stwing | undefined {
+		if (!this._wowkspaceSewvice) {
+			wetuwn undefined;
 		}
 
-		const workspaceIdentifier = toWorkspaceIdentifier(this._workspaceService.getWorkspace());
-		if (!workspaceIdentifier) {
-			return undefined;
+		const wowkspaceIdentifia = toWowkspaceIdentifia(this._wowkspaceSewvice.getWowkspace());
+		if (!wowkspaceIdentifia) {
+			wetuwn undefined;
 		}
 
-		if (variable.name === 'WORKSPACE_NAME') {
-			return this._resolveWorkspaceName(workspaceIdentifier);
-		} else if (variable.name === 'WORKSPACE_FOLDER') {
-			return this._resoveWorkspacePath(workspaceIdentifier);
+		if (vawiabwe.name === 'WOWKSPACE_NAME') {
+			wetuwn this._wesowveWowkspaceName(wowkspaceIdentifia);
+		} ewse if (vawiabwe.name === 'WOWKSPACE_FOWDa') {
+			wetuwn this._wesoveWowkspacePath(wowkspaceIdentifia);
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
-	private _resolveWorkspaceName(workspaceIdentifier: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): string | undefined {
-		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
-			return path.basename(workspaceIdentifier.uri.path);
+	pwivate _wesowveWowkspaceName(wowkspaceIdentifia: IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia): stwing | undefined {
+		if (isSingweFowdewWowkspaceIdentifia(wowkspaceIdentifia)) {
+			wetuwn path.basename(wowkspaceIdentifia.uwi.path);
 		}
 
-		let filename = path.basename(workspaceIdentifier.configPath.path);
-		if (filename.endsWith(WORKSPACE_EXTENSION)) {
-			filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
+		wet fiwename = path.basename(wowkspaceIdentifia.configPath.path);
+		if (fiwename.endsWith(WOWKSPACE_EXTENSION)) {
+			fiwename = fiwename.substw(0, fiwename.wength - WOWKSPACE_EXTENSION.wength - 1);
 		}
-		return filename;
+		wetuwn fiwename;
 	}
-	private _resoveWorkspacePath(workspaceIdentifier: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): string | undefined {
-		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
-			return normalizeDriveLetter(workspaceIdentifier.uri.fsPath);
+	pwivate _wesoveWowkspacePath(wowkspaceIdentifia: IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia): stwing | undefined {
+		if (isSingweFowdewWowkspaceIdentifia(wowkspaceIdentifia)) {
+			wetuwn nowmawizeDwiveWetta(wowkspaceIdentifia.uwi.fsPath);
 		}
 
-		let filename = path.basename(workspaceIdentifier.configPath.path);
-		let folderpath = workspaceIdentifier.configPath.fsPath;
-		if (folderpath.endsWith(filename)) {
-			folderpath = folderpath.substr(0, folderpath.length - filename.length - 1);
+		wet fiwename = path.basename(wowkspaceIdentifia.configPath.path);
+		wet fowdewpath = wowkspaceIdentifia.configPath.fsPath;
+		if (fowdewpath.endsWith(fiwename)) {
+			fowdewpath = fowdewpath.substw(0, fowdewpath.wength - fiwename.wength - 1);
 		}
-		return (folderpath ? normalizeDriveLetter(folderpath) : '/');
+		wetuwn (fowdewpath ? nowmawizeDwiveWetta(fowdewpath) : '/');
 	}
 }
 
-export class RandomBasedVariableResolver implements VariableResolver {
-	resolve(variable: Variable): string | undefined {
-		const { name } = variable;
+expowt cwass WandomBasedVawiabweWesowva impwements VawiabweWesowva {
+	wesowve(vawiabwe: Vawiabwe): stwing | undefined {
+		const { name } = vawiabwe;
 
-		if (name === 'RANDOM') {
-			return Math.random().toString().slice(-6);
-		} else if (name === 'RANDOM_HEX') {
-			return Math.random().toString(16).slice(-6);
-		} else if (name === 'UUID') {
-			return generateUuid();
+		if (name === 'WANDOM') {
+			wetuwn Math.wandom().toStwing().swice(-6);
+		} ewse if (name === 'WANDOM_HEX') {
+			wetuwn Math.wandom().toStwing(16).swice(-6);
+		} ewse if (name === 'UUID') {
+			wetuwn genewateUuid();
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 }

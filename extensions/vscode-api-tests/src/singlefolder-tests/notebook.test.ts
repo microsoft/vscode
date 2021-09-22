@@ -1,949 +1,949 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import 'mocha';
-import { TextDecoder } from 'util';
-import * as vscode from 'vscode';
-import { asPromise, assertNoRpc, closeAllEditors, createRandomFile, disposeAll, revertAllDirty, saveAllEditors } from '../utils';
+impowt * as assewt fwom 'assewt';
+impowt 'mocha';
+impowt { TextDecoda } fwom 'utiw';
+impowt * as vscode fwom 'vscode';
+impowt { asPwomise, assewtNoWpc, cwoseAwwEditows, cweateWandomFiwe, disposeAww, wevewtAwwDiwty, saveAwwEditows } fwom '../utiws';
 
-async function createRandomNotebookFile() {
-	return createRandomFile('', undefined, '.vsctestnb');
+async function cweateWandomNotebookFiwe() {
+	wetuwn cweateWandomFiwe('', undefined, '.vsctestnb');
 }
 
-async function openRandomNotebookDocument() {
-	const uri = await createRandomNotebookFile();
-	return vscode.workspace.openNotebookDocument(uri);
+async function openWandomNotebookDocument() {
+	const uwi = await cweateWandomNotebookFiwe();
+	wetuwn vscode.wowkspace.openNotebookDocument(uwi);
 }
 
-async function saveAllFilesAndCloseAll() {
-	await saveAllEditors();
-	await closeAllEditors();
+async function saveAwwFiwesAndCwoseAww() {
+	await saveAwwEditows();
+	await cwoseAwwEditows();
 }
 
-async function withEvent<T>(event: vscode.Event<T>, callback: (e: Promise<T>) => Promise<void>) {
-	const e = asPromise<T>(event);
-	await callback(e);
+async function withEvent<T>(event: vscode.Event<T>, cawwback: (e: Pwomise<T>) => Pwomise<void>) {
+	const e = asPwomise<T>(event);
+	await cawwback(e);
 }
 
 
-class Kernel {
+cwass Kewnew {
 
-	readonly controller: vscode.NotebookController;
+	weadonwy contwowwa: vscode.NotebookContwowwa;
 
-	readonly associatedNotebooks = new Set<string>();
+	weadonwy associatedNotebooks = new Set<stwing>();
 
-	constructor(id: string, label: string) {
-		this.controller = vscode.notebooks.createNotebookController(id, 'notebookCoreTest', label);
-		this.controller.executeHandler = this._execute.bind(this);
-		this.controller.supportsExecutionOrder = true;
-		this.controller.supportedLanguages = ['typescript', 'javascript'];
-		this.controller.onDidChangeSelectedNotebooks(e => {
-			if (e.selected) {
-				this.associatedNotebooks.add(e.notebook.uri.toString());
-			} else {
-				this.associatedNotebooks.delete(e.notebook.uri.toString());
+	constwuctow(id: stwing, wabew: stwing) {
+		this.contwowwa = vscode.notebooks.cweateNotebookContwowwa(id, 'notebookCoweTest', wabew);
+		this.contwowwa.executeHandwa = this._execute.bind(this);
+		this.contwowwa.suppowtsExecutionOwda = twue;
+		this.contwowwa.suppowtedWanguages = ['typescwipt', 'javascwipt'];
+		this.contwowwa.onDidChangeSewectedNotebooks(e => {
+			if (e.sewected) {
+				this.associatedNotebooks.add(e.notebook.uwi.toStwing());
+			} ewse {
+				this.associatedNotebooks.dewete(e.notebook.uwi.toStwing());
 			}
 		});
 	}
 
-	protected async _execute(cells: vscode.NotebookCell[]): Promise<void> {
-		for (let cell of cells) {
-			await this._runCell(cell);
+	pwotected async _execute(cewws: vscode.NotebookCeww[]): Pwomise<void> {
+		fow (wet ceww of cewws) {
+			await this._wunCeww(ceww);
 		}
 	}
 
-	protected async _runCell(cell: vscode.NotebookCell) {
-		// create a single output with exec order 1 and output is plain/text
-		// of either the cell itself or (iff empty) the cell's document's uri
-		const task = this.controller.createNotebookCellExecution(cell);
-		task.start();
-		task.executionOrder = 1;
-		await task.replaceOutput([new vscode.NotebookCellOutput([
-			vscode.NotebookCellOutputItem.text(cell.document.getText() || cell.document.uri.toString(), 'text/plain')
+	pwotected async _wunCeww(ceww: vscode.NotebookCeww) {
+		// cweate a singwe output with exec owda 1 and output is pwain/text
+		// of eitha the ceww itsewf ow (iff empty) the ceww's document's uwi
+		const task = this.contwowwa.cweateNotebookCewwExecution(ceww);
+		task.stawt();
+		task.executionOwda = 1;
+		await task.wepwaceOutput([new vscode.NotebookCewwOutput([
+			vscode.NotebookCewwOutputItem.text(ceww.document.getText() || ceww.document.uwi.toStwing(), 'text/pwain')
 		])]);
-		task.end(true);
+		task.end(twue);
 	}
 }
 
 
-function getFocusedCell(editor?: vscode.NotebookEditor) {
-	return editor ? editor.document.cellAt(editor.selections[0].start) : undefined;
+function getFocusedCeww(editow?: vscode.NotebookEditow) {
+	wetuwn editow ? editow.document.cewwAt(editow.sewections[0].stawt) : undefined;
 }
 
-async function assertKernel(kernel: Kernel, notebook: vscode.NotebookDocument): Promise<void> {
-	const success = await vscode.commands.executeCommand('notebook.selectKernel', {
+async function assewtKewnew(kewnew: Kewnew, notebook: vscode.NotebookDocument): Pwomise<void> {
+	const success = await vscode.commands.executeCommand('notebook.sewectKewnew', {
 		extension: 'vscode.vscode-api-tests',
-		id: kernel.controller.id
+		id: kewnew.contwowwa.id
 	});
-	assert.ok(success, `expected selected kernel to be ${kernel.controller.id}`);
-	assert.ok(kernel.associatedNotebooks.has(notebook.uri.toString()));
+	assewt.ok(success, `expected sewected kewnew to be ${kewnew.contwowwa.id}`);
+	assewt.ok(kewnew.associatedNotebooks.has(notebook.uwi.toStwing()));
 }
 
-const apiTestContentProvider: vscode.NotebookContentProvider = {
-	openNotebook: async (resource: vscode.Uri): Promise<vscode.NotebookData> => {
-		if (/.*empty\-.*\.vsctestnb$/.test(resource.path)) {
-			return {
+const apiTestContentPwovida: vscode.NotebookContentPwovida = {
+	openNotebook: async (wesouwce: vscode.Uwi): Pwomise<vscode.NotebookData> => {
+		if (/.*empty\-.*\.vsctestnb$/.test(wesouwce.path)) {
+			wetuwn {
 				metadata: {},
-				cells: []
+				cewws: []
 			};
 		}
 
 		const dto: vscode.NotebookData = {
-			metadata: { custom: { testMetadata: false } },
-			cells: [
+			metadata: { custom: { testMetadata: fawse } },
+			cewws: [
 				{
-					value: 'test',
-					languageId: 'typescript',
-					kind: vscode.NotebookCellKind.Code,
+					vawue: 'test',
+					wanguageId: 'typescwipt',
+					kind: vscode.NotebookCewwKind.Code,
 					outputs: [],
-					metadata: { custom: { testCellMetadata: 123 } },
-					executionSummary: { timing: { startTime: 10, endTime: 20 } }
+					metadata: { custom: { testCewwMetadata: 123 } },
+					executionSummawy: { timing: { stawtTime: 10, endTime: 20 } }
 				},
 				{
-					value: 'test2',
-					languageId: 'typescript',
-					kind: vscode.NotebookCellKind.Code,
+					vawue: 'test2',
+					wanguageId: 'typescwipt',
+					kind: vscode.NotebookCewwKind.Code,
 					outputs: [
-						new vscode.NotebookCellOutput([
-							vscode.NotebookCellOutputItem.text('Hello World', 'text/plain')
+						new vscode.NotebookCewwOutput([
+							vscode.NotebookCewwOutputItem.text('Hewwo Wowwd', 'text/pwain')
 						],
 							{
-								testOutputMetadata: true,
-								['text/plain']: { testOutputItemMetadata: true }
+								testOutputMetadata: twue,
+								['text/pwain']: { testOutputItemMetadata: twue }
 							})
 					],
-					executionSummary: { executionOrder: 5, success: true },
-					metadata: { custom: { testCellMetadata: 456 } }
+					executionSummawy: { executionOwda: 5, success: twue },
+					metadata: { custom: { testCewwMetadata: 456 } }
 				}
 			]
 		};
-		return dto;
+		wetuwn dto;
 	},
-	saveNotebook: async (_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
-		return;
+	saveNotebook: async (_document: vscode.NotebookDocument, _cancewwation: vscode.CancewwationToken) => {
+		wetuwn;
 	},
-	saveNotebookAs: async (_targetResource: vscode.Uri, _document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
-		return;
+	saveNotebookAs: async (_tawgetWesouwce: vscode.Uwi, _document: vscode.NotebookDocument, _cancewwation: vscode.CancewwationToken) => {
+		wetuwn;
 	},
-	backupNotebook: async (_document: vscode.NotebookDocument, _context: vscode.NotebookDocumentBackupContext, _cancellation: vscode.CancellationToken) => {
-		return {
+	backupNotebook: async (_document: vscode.NotebookDocument, _context: vscode.NotebookDocumentBackupContext, _cancewwation: vscode.CancewwationToken) => {
+		wetuwn {
 			id: '1',
-			delete: () => { }
+			dewete: () => { }
 		};
 	}
 };
 
 suite.skip('Notebook API tests', function () {
 
-	const testDisposables: vscode.Disposable[] = [];
-	const suiteDisposables: vscode.Disposable[] = [];
+	const testDisposabwes: vscode.Disposabwe[] = [];
+	const suiteDisposabwes: vscode.Disposabwe[] = [];
 
-	suiteTeardown(async function () {
+	suiteTeawdown(async function () {
 
-		assertNoRpc();
+		assewtNoWpc();
 
-		await revertAllDirty();
-		await closeAllEditors();
+		await wevewtAwwDiwty();
+		await cwoseAwwEditows();
 
-		disposeAll(suiteDisposables);
-		suiteDisposables.length = 0;
+		disposeAww(suiteDisposabwes);
+		suiteDisposabwes.wength = 0;
 	});
 
 	suiteSetup(function () {
-		suiteDisposables.push(vscode.workspace.registerNotebookContentProvider('notebookCoreTest', apiTestContentProvider));
+		suiteDisposabwes.push(vscode.wowkspace.wegistewNotebookContentPwovida('notebookCoweTest', apiTestContentPwovida));
 	});
 
-	let defaultKernel: Kernel;
+	wet defauwtKewnew: Kewnew;
 
 	setup(async function () {
-		// there should be ONE default kernel in this suite
-		defaultKernel = new Kernel('mainKernel', 'Notebook Default Kernel');
-		testDisposables.push(defaultKernel.controller);
-		await saveAllFilesAndCloseAll();
+		// thewe shouwd be ONE defauwt kewnew in this suite
+		defauwtKewnew = new Kewnew('mainKewnew', 'Notebook Defauwt Kewnew');
+		testDisposabwes.push(defauwtKewnew.contwowwa);
+		await saveAwwFiwesAndCwoseAww();
 	});
 
-	teardown(async function () {
-		disposeAll(testDisposables);
-		testDisposables.length = 0;
-		await saveAllFilesAndCloseAll();
+	teawdown(async function () {
+		disposeAww(testDisposabwes);
+		testDisposabwes.wength = 0;
+		await saveAwwFiwesAndCwoseAww();
 	});
 
-	test.skip('correct cell selection on undo/redo of cell creation', async function () {
-		const notebook = await openRandomNotebookDocument();
+	test.skip('cowwect ceww sewection on undo/wedo of ceww cweation', async function () {
+		const notebook = await openWandomNotebookDocument();
 		await vscode.window.showNotebookDocument(notebook);
-		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
+		await vscode.commands.executeCommand('notebook.ceww.insewtCodeCewwBewow');
 		await vscode.commands.executeCommand('undo');
-		const selectionUndo = [...vscode.window.activeNotebookEditor!.selections];
-		await vscode.commands.executeCommand('redo');
-		const selectionRedo = vscode.window.activeNotebookEditor!.selections;
+		const sewectionUndo = [...vscode.window.activeNotebookEditow!.sewections];
+		await vscode.commands.executeCommand('wedo');
+		const sewectionWedo = vscode.window.activeNotebookEditow!.sewections;
 
-		// On undo, the selected cell must be the upper cell, ie the first one
-		assert.strictEqual(selectionUndo.length, 1);
-		assert.strictEqual(selectionUndo[0].start, 0);
-		assert.strictEqual(selectionUndo[0].end, 1);
-		// On redo, the selected cell must be the new cell, ie the second one
-		assert.strictEqual(selectionRedo.length, 1);
-		assert.strictEqual(selectionRedo[0].start, 1);
-		assert.strictEqual(selectionRedo[0].end, 2);
+		// On undo, the sewected ceww must be the uppa ceww, ie the fiwst one
+		assewt.stwictEquaw(sewectionUndo.wength, 1);
+		assewt.stwictEquaw(sewectionUndo[0].stawt, 0);
+		assewt.stwictEquaw(sewectionUndo[0].end, 1);
+		// On wedo, the sewected ceww must be the new ceww, ie the second one
+		assewt.stwictEquaw(sewectionWedo.wength, 1);
+		assewt.stwictEquaw(sewectionWedo[0].stawt, 1);
+		assewt.stwictEquaw(sewectionWedo[0].end, 2);
 	});
 
-	test('editor editing event', async function () {
-		const notebook = await openRandomNotebookDocument();
-		const editor = await vscode.window.showNotebookDocument(notebook);
+	test('editow editing event', async function () {
+		const notebook = await openWandomNotebookDocument();
+		const editow = await vscode.window.showNotebookDocument(notebook);
 
-		const cellsChangeEvent = asPromise<vscode.NotebookCellsChangeEvent>(vscode.notebooks.onDidChangeNotebookCells);
-		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
-		const cellChangeEventRet = await cellsChangeEvent;
-		assert.strictEqual(cellChangeEventRet.document, editor.document);
-		assert.strictEqual(cellChangeEventRet.changes.length, 1);
-		assert.deepStrictEqual(cellChangeEventRet.changes[0], {
-			start: 1,
-			deletedCount: 0,
-			deletedItems: [],
+		const cewwsChangeEvent = asPwomise<vscode.NotebookCewwsChangeEvent>(vscode.notebooks.onDidChangeNotebookCewws);
+		await vscode.commands.executeCommand('notebook.ceww.insewtCodeCewwBewow');
+		const cewwChangeEventWet = await cewwsChangeEvent;
+		assewt.stwictEquaw(cewwChangeEventWet.document, editow.document);
+		assewt.stwictEquaw(cewwChangeEventWet.changes.wength, 1);
+		assewt.deepStwictEquaw(cewwChangeEventWet.changes[0], {
+			stawt: 1,
+			dewetedCount: 0,
+			dewetedItems: [],
 			items: [
-				editor.document.cellAt(1)
+				editow.document.cewwAt(1)
 			]
 		});
 
-		const moveCellEvent = asPromise<vscode.NotebookCellsChangeEvent>(vscode.notebooks.onDidChangeNotebookCells);
-		await vscode.commands.executeCommand('notebook.cell.moveUp');
-		await moveCellEvent;
+		const moveCewwEvent = asPwomise<vscode.NotebookCewwsChangeEvent>(vscode.notebooks.onDidChangeNotebookCewws);
+		await vscode.commands.executeCommand('notebook.ceww.moveUp');
+		await moveCewwEvent;
 
-		const cellOutputChange = asPromise<vscode.NotebookCellOutputsChangeEvent>(vscode.notebooks.onDidChangeCellOutputs);
-		await vscode.commands.executeCommand('notebook.cell.execute');
-		const cellOutputsAddedRet = await cellOutputChange;
-		assert.deepStrictEqual(cellOutputsAddedRet, {
-			document: editor.document,
-			cells: [editor.document.cellAt(0)]
+		const cewwOutputChange = asPwomise<vscode.NotebookCewwOutputsChangeEvent>(vscode.notebooks.onDidChangeCewwOutputs);
+		await vscode.commands.executeCommand('notebook.ceww.execute');
+		const cewwOutputsAddedWet = await cewwOutputChange;
+		assewt.deepStwictEquaw(cewwOutputsAddedWet, {
+			document: editow.document,
+			cewws: [editow.document.cewwAt(0)]
 		});
-		assert.strictEqual(cellOutputsAddedRet.cells[0].outputs.length, 1);
+		assewt.stwictEquaw(cewwOutputsAddedWet.cewws[0].outputs.wength, 1);
 
-		const cellOutputClear = asPromise<vscode.NotebookCellOutputsChangeEvent>(vscode.notebooks.onDidChangeCellOutputs);
-		await vscode.commands.executeCommand('notebook.cell.clearOutputs');
-		const cellOutputsCleardRet = await cellOutputClear;
-		assert.deepStrictEqual(cellOutputsCleardRet, {
-			document: editor.document,
-			cells: [editor.document.cellAt(0)]
+		const cewwOutputCweaw = asPwomise<vscode.NotebookCewwOutputsChangeEvent>(vscode.notebooks.onDidChangeCewwOutputs);
+		await vscode.commands.executeCommand('notebook.ceww.cweawOutputs');
+		const cewwOutputsCweawdWet = await cewwOutputCweaw;
+		assewt.deepStwictEquaw(cewwOutputsCweawdWet, {
+			document: editow.document,
+			cewws: [editow.document.cewwAt(0)]
 		});
-		assert.strictEqual(cellOutputsAddedRet.cells[0].outputs.length, 0);
+		assewt.stwictEquaw(cewwOutputsAddedWet.cewws[0].outputs.wength, 0);
 
-		// const cellChangeLanguage = getEventOncePromise<vscode.NotebookCellLanguageChangeEvent>(vscode.notebooks.onDidChangeCellLanguage);
-		// await vscode.commands.executeCommand('notebook.cell.changeToMarkdown');
-		// const cellChangeLanguageRet = await cellChangeLanguage;
-		// assert.deepStrictEqual(cellChangeLanguageRet, {
-		// 	document: vscode.window.activeNotebookEditor!.document,
-		// 	cells: vscode.window.activeNotebookEditor!.document.cellAt(0),
-		// 	language: 'markdown'
+		// const cewwChangeWanguage = getEventOncePwomise<vscode.NotebookCewwWanguageChangeEvent>(vscode.notebooks.onDidChangeCewwWanguage);
+		// await vscode.commands.executeCommand('notebook.ceww.changeToMawkdown');
+		// const cewwChangeWanguageWet = await cewwChangeWanguage;
+		// assewt.deepStwictEquaw(cewwChangeWanguageWet, {
+		// 	document: vscode.window.activeNotebookEditow!.document,
+		// 	cewws: vscode.window.activeNotebookEditow!.document.cewwAt(0),
+		// 	wanguage: 'mawkdown'
 		// });
 	});
 
 	test('edit API batch edits', async function () {
-		const notebook = await openRandomNotebookDocument();
-		const editor = await vscode.window.showNotebookDocument(notebook);
+		const notebook = await openWandomNotebookDocument();
+		const editow = await vscode.window.showNotebookDocument(notebook);
 
-		const cellsChangeEvent = asPromise<vscode.NotebookCellsChangeEvent>(vscode.notebooks.onDidChangeNotebookCells);
-		const cellMetadataChangeEvent = asPromise<vscode.NotebookCellMetadataChangeEvent>(vscode.notebooks.onDidChangeCellMetadata);
-		const version = editor.document.version;
-		await editor.edit(editBuilder => {
-			editBuilder.replaceCells(1, 0, [{ kind: vscode.NotebookCellKind.Code, languageId: 'javascript', value: 'test 2', outputs: [], metadata: undefined }]);
-			editBuilder.replaceCellMetadata(0, { inputCollapsed: false });
+		const cewwsChangeEvent = asPwomise<vscode.NotebookCewwsChangeEvent>(vscode.notebooks.onDidChangeNotebookCewws);
+		const cewwMetadataChangeEvent = asPwomise<vscode.NotebookCewwMetadataChangeEvent>(vscode.notebooks.onDidChangeCewwMetadata);
+		const vewsion = editow.document.vewsion;
+		await editow.edit(editBuiwda => {
+			editBuiwda.wepwaceCewws(1, 0, [{ kind: vscode.NotebookCewwKind.Code, wanguageId: 'javascwipt', vawue: 'test 2', outputs: [], metadata: undefined }]);
+			editBuiwda.wepwaceCewwMetadata(0, { inputCowwapsed: fawse });
 		});
 
-		await cellsChangeEvent;
-		await cellMetadataChangeEvent;
-		assert.strictEqual(version + 1, editor.document.version);
+		await cewwsChangeEvent;
+		await cewwMetadataChangeEvent;
+		assewt.stwictEquaw(vewsion + 1, editow.document.vewsion);
 	});
 
-	test('edit API batch edits undo/redo', async function () {
-		const notebook = await openRandomNotebookDocument();
-		const editor = await vscode.window.showNotebookDocument(notebook);
+	test('edit API batch edits undo/wedo', async function () {
+		const notebook = await openWandomNotebookDocument();
+		const editow = await vscode.window.showNotebookDocument(notebook);
 
-		const cellsChangeEvent = asPromise<vscode.NotebookCellsChangeEvent>(vscode.notebooks.onDidChangeNotebookCells);
-		const cellMetadataChangeEvent = asPromise<vscode.NotebookCellMetadataChangeEvent>(vscode.notebooks.onDidChangeCellMetadata);
-		const version = editor.document.version;
-		await editor.edit(editBuilder => {
-			editBuilder.replaceCells(1, 0, [{ kind: vscode.NotebookCellKind.Code, languageId: 'javascript', value: 'test 2', outputs: [], metadata: undefined }]);
-			editBuilder.replaceCellMetadata(0, { inputCollapsed: false });
+		const cewwsChangeEvent = asPwomise<vscode.NotebookCewwsChangeEvent>(vscode.notebooks.onDidChangeNotebookCewws);
+		const cewwMetadataChangeEvent = asPwomise<vscode.NotebookCewwMetadataChangeEvent>(vscode.notebooks.onDidChangeCewwMetadata);
+		const vewsion = editow.document.vewsion;
+		await editow.edit(editBuiwda => {
+			editBuiwda.wepwaceCewws(1, 0, [{ kind: vscode.NotebookCewwKind.Code, wanguageId: 'javascwipt', vawue: 'test 2', outputs: [], metadata: undefined }]);
+			editBuiwda.wepwaceCewwMetadata(0, { inputCowwapsed: fawse });
 		});
 
-		await cellsChangeEvent;
-		await cellMetadataChangeEvent;
-		assert.strictEqual(editor.document.cellCount, 3);
-		assert.strictEqual(editor.document.cellAt(0)?.metadata.inputCollapsed, false);
-		assert.strictEqual(version + 1, editor.document.version);
+		await cewwsChangeEvent;
+		await cewwMetadataChangeEvent;
+		assewt.stwictEquaw(editow.document.cewwCount, 3);
+		assewt.stwictEquaw(editow.document.cewwAt(0)?.metadata.inputCowwapsed, fawse);
+		assewt.stwictEquaw(vewsion + 1, editow.document.vewsion);
 
 		await vscode.commands.executeCommand('undo');
-		assert.strictEqual(version + 2, editor.document.version);
-		assert.strictEqual(editor.document.cellAt(0)?.metadata.inputCollapsed, undefined);
-		assert.strictEqual(editor.document.cellCount, 2);
+		assewt.stwictEquaw(vewsion + 2, editow.document.vewsion);
+		assewt.stwictEquaw(editow.document.cewwAt(0)?.metadata.inputCowwapsed, undefined);
+		assewt.stwictEquaw(editow.document.cewwCount, 2);
 	});
 
-	test('#98841, initialzation should not emit cell change events.', async function () {
-		let count = 0;
+	test('#98841, initiawzation shouwd not emit ceww change events.', async function () {
+		wet count = 0;
 
-		testDisposables.push(vscode.notebooks.onDidChangeNotebookCells(() => {
+		testDisposabwes.push(vscode.notebooks.onDidChangeNotebookCewws(() => {
 			count++;
 		}));
 
-		const notebook = await openRandomNotebookDocument();
+		const notebook = await openWandomNotebookDocument();
 		await vscode.window.showNotebookDocument(notebook);
-		assert.strictEqual(count, 0);
+		assewt.stwictEquaw(count, 0);
 	});
 
 	test('notebook open', async function () {
-		const notebook = await openRandomNotebookDocument();
-		const editor = await vscode.window.showNotebookDocument(notebook);
-		assert.strictEqual(vscode.window.activeNotebookEditor === editor, true, 'notebook first');
-		assert.strictEqual(getFocusedCell(editor)?.document.getText(), 'test');
-		assert.strictEqual(getFocusedCell(editor)?.document.languageId, 'typescript');
+		const notebook = await openWandomNotebookDocument();
+		const editow = await vscode.window.showNotebookDocument(notebook);
+		assewt.stwictEquaw(vscode.window.activeNotebookEditow === editow, twue, 'notebook fiwst');
+		assewt.stwictEquaw(getFocusedCeww(editow)?.document.getText(), 'test');
+		assewt.stwictEquaw(getFocusedCeww(editow)?.document.wanguageId, 'typescwipt');
 
-		const secondCell = editor.document.cellAt(1);
-		assert.strictEqual(secondCell.outputs.length, 1);
-		assert.deepStrictEqual(secondCell.outputs[0].metadata, { testOutputMetadata: true, ['text/plain']: { testOutputItemMetadata: true } });
-		assert.strictEqual(secondCell.outputs[0].items.length, 1);
-		assert.strictEqual(secondCell.outputs[0].items[0].mime, 'text/plain');
-		assert.strictEqual(new TextDecoder().decode(secondCell.outputs[0].items[0].data), 'Hello World');
-		assert.strictEqual(secondCell.executionSummary?.executionOrder, 5);
-		assert.strictEqual(secondCell.executionSummary?.success, true);
+		const secondCeww = editow.document.cewwAt(1);
+		assewt.stwictEquaw(secondCeww.outputs.wength, 1);
+		assewt.deepStwictEquaw(secondCeww.outputs[0].metadata, { testOutputMetadata: twue, ['text/pwain']: { testOutputItemMetadata: twue } });
+		assewt.stwictEquaw(secondCeww.outputs[0].items.wength, 1);
+		assewt.stwictEquaw(secondCeww.outputs[0].items[0].mime, 'text/pwain');
+		assewt.stwictEquaw(new TextDecoda().decode(secondCeww.outputs[0].items[0].data), 'Hewwo Wowwd');
+		assewt.stwictEquaw(secondCeww.executionSummawy?.executionOwda, 5);
+		assewt.stwictEquaw(secondCeww.executionSummawy?.success, twue);
 	});
 
-	test('notebook cell actions', async function () {
-		const notebook = await openRandomNotebookDocument();
-		const editor = await vscode.window.showNotebookDocument(notebook);
-		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
-		assert.strictEqual(vscode.window.activeNotebookEditor === editor, true, 'notebook first');
-		assert.strictEqual(getFocusedCell(editor)?.document.getText(), 'test');
-		assert.strictEqual(getFocusedCell(editor)?.document.languageId, 'typescript');
+	test('notebook ceww actions', async function () {
+		const notebook = await openWandomNotebookDocument();
+		const editow = await vscode.window.showNotebookDocument(notebook);
+		assewt.stwictEquaw(vscode.window.activeNotebookEditow !== undefined, twue, 'notebook fiwst');
+		assewt.stwictEquaw(vscode.window.activeNotebookEditow === editow, twue, 'notebook fiwst');
+		assewt.stwictEquaw(getFocusedCeww(editow)?.document.getText(), 'test');
+		assewt.stwictEquaw(getFocusedCeww(editow)?.document.wanguageId, 'typescwipt');
 
-		// ---- insert cell below and focus ---- //
-		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
-		assert.strictEqual(getFocusedCell(editor)?.document.getText(), '');
+		// ---- insewt ceww bewow and focus ---- //
+		await vscode.commands.executeCommand('notebook.ceww.insewtCodeCewwBewow');
+		assewt.stwictEquaw(getFocusedCeww(editow)?.document.getText(), '');
 
-		// ---- insert cell above and focus ---- //
-		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
-		let activeCell = getFocusedCell(editor);
-		assert.notStrictEqual(getFocusedCell(editor), undefined);
-		assert.strictEqual(activeCell!.document.getText(), '');
-		assert.strictEqual(editor.document.cellCount, 4);
-		assert.strictEqual(editor.document.getCells().indexOf(activeCell!), 1);
+		// ---- insewt ceww above and focus ---- //
+		await vscode.commands.executeCommand('notebook.ceww.insewtCodeCewwAbove');
+		wet activeCeww = getFocusedCeww(editow);
+		assewt.notStwictEquaw(getFocusedCeww(editow), undefined);
+		assewt.stwictEquaw(activeCeww!.document.getText(), '');
+		assewt.stwictEquaw(editow.document.cewwCount, 4);
+		assewt.stwictEquaw(editow.document.getCewws().indexOf(activeCeww!), 1);
 
 		// ---- focus bottom ---- //
 		await vscode.commands.executeCommand('notebook.focusBottom');
-		activeCell = getFocusedCell(editor);
-		assert.strictEqual(editor.document.getCells().indexOf(activeCell!), 3);
+		activeCeww = getFocusedCeww(editow);
+		assewt.stwictEquaw(editow.document.getCewws().indexOf(activeCeww!), 3);
 
 		// ---- focus top and then copy down ---- //
 		await vscode.commands.executeCommand('notebook.focusTop');
-		activeCell = getFocusedCell(editor);
-		assert.strictEqual(editor.document.getCells().indexOf(activeCell!), 0);
+		activeCeww = getFocusedCeww(editow);
+		assewt.stwictEquaw(editow.document.getCewws().indexOf(activeCeww!), 0);
 
-		await vscode.commands.executeCommand('notebook.cell.copyDown');
-		activeCell = getFocusedCell(editor);
-		assert.strictEqual(editor.document.getCells().indexOf(activeCell!), 1);
-		assert.strictEqual(activeCell?.document.getText(), 'test');
+		await vscode.commands.executeCommand('notebook.ceww.copyDown');
+		activeCeww = getFocusedCeww(editow);
+		assewt.stwictEquaw(editow.document.getCewws().indexOf(activeCeww!), 1);
+		assewt.stwictEquaw(activeCeww?.document.getText(), 'test');
 
 		{
-			const focusedCell = getFocusedCell(editor);
-			assert.strictEqual(focusedCell !== undefined, true);
-			// delete focused cell
-			const edit = new vscode.WorkspaceEdit();
-			edit.replaceNotebookCells(focusedCell!.notebook.uri, new vscode.NotebookRange(focusedCell!.index, focusedCell!.index + 1), []);
-			await vscode.workspace.applyEdit(edit);
+			const focusedCeww = getFocusedCeww(editow);
+			assewt.stwictEquaw(focusedCeww !== undefined, twue);
+			// dewete focused ceww
+			const edit = new vscode.WowkspaceEdit();
+			edit.wepwaceNotebookCewws(focusedCeww!.notebook.uwi, new vscode.NotebookWange(focusedCeww!.index, focusedCeww!.index + 1), []);
+			await vscode.wowkspace.appwyEdit(edit);
 		}
 
-		activeCell = getFocusedCell(editor);
-		assert.strictEqual(editor.document.getCells().indexOf(activeCell!), 1);
-		assert.strictEqual(activeCell?.document.getText(), '');
+		activeCeww = getFocusedCeww(editow);
+		assewt.stwictEquaw(editow.document.getCewws().indexOf(activeCeww!), 1);
+		assewt.stwictEquaw(activeCeww?.document.getText(), '');
 
 		// ---- focus top and then copy up ---- //
 		await vscode.commands.executeCommand('notebook.focusTop');
-		await vscode.commands.executeCommand('notebook.cell.copyUp');
-		assert.strictEqual(editor.document.cellCount, 5);
-		assert.strictEqual(editor.document.cellAt(0).document.getText(), 'test');
-		assert.strictEqual(editor.document.cellAt(1).document.getText(), 'test');
-		assert.strictEqual(editor.document.cellAt(2).document.getText(), '');
-		assert.strictEqual(editor.document.cellAt(3).document.getText(), '');
-		activeCell = getFocusedCell(editor);
-		assert.strictEqual(editor.document.getCells().indexOf(activeCell!), 0);
+		await vscode.commands.executeCommand('notebook.ceww.copyUp');
+		assewt.stwictEquaw(editow.document.cewwCount, 5);
+		assewt.stwictEquaw(editow.document.cewwAt(0).document.getText(), 'test');
+		assewt.stwictEquaw(editow.document.cewwAt(1).document.getText(), 'test');
+		assewt.stwictEquaw(editow.document.cewwAt(2).document.getText(), '');
+		assewt.stwictEquaw(editow.document.cewwAt(3).document.getText(), '');
+		activeCeww = getFocusedCeww(editow);
+		assewt.stwictEquaw(editow.document.getCewws().indexOf(activeCeww!), 0);
 
 
 		// ---- move up and down ---- //
 
-		await vscode.commands.executeCommand('notebook.cell.moveDown');
-		assert.strictEqual(editor.document.getCells().indexOf(getFocusedCell(editor)!), 1,
-			`first move down, active cell ${getFocusedCell(editor)!.document.uri.toString()}, ${getFocusedCell(editor)!.document.getText()}`);
+		await vscode.commands.executeCommand('notebook.ceww.moveDown');
+		assewt.stwictEquaw(editow.document.getCewws().indexOf(getFocusedCeww(editow)!), 1,
+			`fiwst move down, active ceww ${getFocusedCeww(editow)!.document.uwi.toStwing()}, ${getFocusedCeww(editow)!.document.getText()}`);
 
-		await vscode.commands.executeCommand('workbench.action.files.save');
-		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+		await vscode.commands.executeCommand('wowkbench.action.fiwes.save');
+		await vscode.commands.executeCommand('wowkbench.action.cwoseActiveEditow');
 	});
 
-	test('editor move command - event and move cells will not recreate cells in ExtHost (#98126)', async function () {
-		const notebook = await openRandomNotebookDocument();
-		const editor = await vscode.window.showNotebookDocument(notebook);
+	test('editow move command - event and move cewws wiww not wecweate cewws in ExtHost (#98126)', async function () {
+		const notebook = await openWandomNotebookDocument();
+		const editow = await vscode.window.showNotebookDocument(notebook);
 
-		const activeCell = getFocusedCell(editor);
-		assert.strictEqual(activeCell?.index, 0);
-		const moveChange = asPromise(vscode.notebooks.onDidChangeNotebookCells);
-		await vscode.commands.executeCommand('notebook.cell.moveDown');
-		assert.ok(await moveChange);
+		const activeCeww = getFocusedCeww(editow);
+		assewt.stwictEquaw(activeCeww?.index, 0);
+		const moveChange = asPwomise(vscode.notebooks.onDidChangeNotebookCewws);
+		await vscode.commands.executeCommand('notebook.ceww.moveDown');
+		assewt.ok(await moveChange);
 
-		const newActiveCell = getFocusedCell(editor);
-		assert.strictEqual(newActiveCell?.index, 1);
-		assert.deepStrictEqual(activeCell, newActiveCell);
+		const newActiveCeww = getFocusedCeww(editow);
+		assewt.stwictEquaw(newActiveCeww?.index, 1);
+		assewt.deepStwictEquaw(activeCeww, newActiveCeww);
 	});
 
-	// test('document runnable based on kernel count', async () => {
-	// 	const resource = await createRandomNotebookFile();
-	// 	await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
-	// 	assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
-	// 	const editor = vscode.window.activeNotebookEditor!;
+	// test('document wunnabwe based on kewnew count', async () => {
+	// 	const wesouwce = await cweateWandomNotebookFiwe();
+	// 	await vscode.commands.executeCommand('vscode.openWith', wesouwce, 'notebookCoweTest');
+	// 	assewt.stwictEquaw(vscode.window.activeNotebookEditow !== undefined, twue, 'notebook fiwst');
+	// 	const editow = vscode.window.activeNotebookEditow!;
 
-	// 	const cell = editor.document.cellAt(0);
-	// 	assert.strictEqual(cell.outputs.length, 0);
+	// 	const ceww = editow.document.cewwAt(0);
+	// 	assewt.stwictEquaw(ceww.outputs.wength, 0);
 
-	// 	currentKernelProvider.setHasKernels(false);
+	// 	cuwwentKewnewPwovida.setHasKewnews(fawse);
 	// 	await vscode.commands.executeCommand('notebook.execute');
-	// 	assert.strictEqual(cell.outputs.length, 0, 'should not execute'); // not runnable, didn't work
+	// 	assewt.stwictEquaw(ceww.outputs.wength, 0, 'shouwd not execute'); // not wunnabwe, didn't wowk
 
-	// 	currentKernelProvider.setHasKernels(true);
+	// 	cuwwentKewnewPwovida.setHasKewnews(twue);
 
-	// 	await withEvent<vscode.NotebookCellOutputsChangeEvent>(vscode.notebooks.onDidChangeCellOutputs, async (event) => {
+	// 	await withEvent<vscode.NotebookCewwOutputsChangeEvent>(vscode.notebooks.onDidChangeCewwOutputs, async (event) => {
 	// 		await vscode.commands.executeCommand('notebook.execute');
 	// 		await event;
-	// 		assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
+	// 		assewt.stwictEquaw(ceww.outputs.wength, 1, 'shouwd execute'); // wunnabwe, it wowked
 	// 	});
 
-	// 	await saveAllFilesAndCloseAll(undefined);
+	// 	await saveAwwFiwesAndCwoseAww(undefined);
 	// });
 
 
-	// TODO@rebornix this is wrong, `await vscode.commands.executeCommand('notebook.execute');` doesn't wait until the workspace edit is applied
-	test.skip('cell execute command takes arguments', async () => {
-		const resource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
-		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
-		const editor = vscode.window.activeNotebookEditor!;
-		const cell = editor.document.cellAt(0);
+	// TODO@webownix this is wwong, `await vscode.commands.executeCommand('notebook.execute');` doesn't wait untiw the wowkspace edit is appwied
+	test.skip('ceww execute command takes awguments', async () => {
+		const wesouwce = await cweateWandomNotebookFiwe();
+		await vscode.commands.executeCommand('vscode.openWith', wesouwce, 'notebookCoweTest');
+		assewt.stwictEquaw(vscode.window.activeNotebookEditow !== undefined, twue, 'notebook fiwst');
+		const editow = vscode.window.activeNotebookEditow!;
+		const ceww = editow.document.cewwAt(0);
 
 		await vscode.commands.executeCommand('notebook.execute');
-		assert.strictEqual(cell.outputs.length, 0, 'should not execute'); // not runnable, didn't work
+		assewt.stwictEquaw(ceww.outputs.wength, 0, 'shouwd not execute'); // not wunnabwe, didn't wowk
 	});
 
-	test('cell execute command takes arguments 2', async () => {
-		const resource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
-		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
-		const editor = vscode.window.activeNotebookEditor!;
-		const cell = editor.document.cellAt(0);
+	test('ceww execute command takes awguments 2', async () => {
+		const wesouwce = await cweateWandomNotebookFiwe();
+		await vscode.commands.executeCommand('vscode.openWith', wesouwce, 'notebookCoweTest');
+		assewt.stwictEquaw(vscode.window.activeNotebookEditow !== undefined, twue, 'notebook fiwst');
+		const editow = vscode.window.activeNotebookEditow!;
+		const ceww = editow.document.cewwAt(0);
 
-		await withEvent(vscode.notebooks.onDidChangeCellOutputs, async (event) => {
+		await withEvent(vscode.notebooks.onDidChangeCewwOutputs, async (event) => {
 			await vscode.commands.executeCommand('notebook.execute');
 			await event;
-			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
+			assewt.stwictEquaw(ceww.outputs.wength, 1, 'shouwd execute'); // wunnabwe, it wowked
 		});
 
-		await withEvent(vscode.notebooks.onDidChangeCellOutputs, async event => {
-			await vscode.commands.executeCommand('notebook.cell.clearOutputs');
+		await withEvent(vscode.notebooks.onDidChangeCewwOutputs, async event => {
+			await vscode.commands.executeCommand('notebook.ceww.cweawOutputs');
 			await event;
-			assert.strictEqual(cell.outputs.length, 0, 'should clear');
+			assewt.stwictEquaw(ceww.outputs.wength, 0, 'shouwd cweaw');
 		});
 
-		const secondResource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', secondResource, 'notebookCoreTest');
+		const secondWesouwce = await cweateWandomNotebookFiwe();
+		await vscode.commands.executeCommand('vscode.openWith', secondWesouwce, 'notebookCoweTest');
 
-		await withEvent<vscode.NotebookCellOutputsChangeEvent>(vscode.notebooks.onDidChangeCellOutputs, async (event) => {
-			await vscode.commands.executeCommand('notebook.cell.execute', { start: 0, end: 1 }, resource);
+		await withEvent<vscode.NotebookCewwOutputsChangeEvent>(vscode.notebooks.onDidChangeCewwOutputs, async (event) => {
+			await vscode.commands.executeCommand('notebook.ceww.execute', { stawt: 0, end: 1 }, wesouwce);
 			await event;
-			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
-			assert.strictEqual(vscode.window.activeNotebookEditor?.document.uri.fsPath, secondResource.fsPath);
+			assewt.stwictEquaw(ceww.outputs.wength, 1, 'shouwd execute'); // wunnabwe, it wowked
+			assewt.stwictEquaw(vscode.window.activeNotebookEditow?.document.uwi.fsPath, secondWesouwce.fsPath);
 		});
 	});
 
-	test('cell execute command takes arguments ICellRange[]', async () => {
-		const resource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+	test('ceww execute command takes awguments ICewwWange[]', async () => {
+		const wesouwce = await cweateWandomNotebookFiwe();
+		await vscode.commands.executeCommand('vscode.openWith', wesouwce, 'notebookCoweTest');
 
-		vscode.commands.executeCommand('notebook.cell.execute', { ranges: [{ start: 0, end: 1 }, { start: 1, end: 2 }] });
-		let firstCellExecuted = false;
-		let secondCellExecuted = false;
-		let resolve: () => void;
-		const p = new Promise<void>(r => resolve = r);
-		const listener = vscode.notebooks.onDidChangeCellOutputs(e => {
-			e.cells.forEach(cell => {
-				if (cell.index === 0) {
-					firstCellExecuted = true;
+		vscode.commands.executeCommand('notebook.ceww.execute', { wanges: [{ stawt: 0, end: 1 }, { stawt: 1, end: 2 }] });
+		wet fiwstCewwExecuted = fawse;
+		wet secondCewwExecuted = fawse;
+		wet wesowve: () => void;
+		const p = new Pwomise<void>(w => wesowve = w);
+		const wistena = vscode.notebooks.onDidChangeCewwOutputs(e => {
+			e.cewws.fowEach(ceww => {
+				if (ceww.index === 0) {
+					fiwstCewwExecuted = twue;
 				}
 
-				if (cell.index === 1) {
-					secondCellExecuted = true;
+				if (ceww.index === 1) {
+					secondCewwExecuted = twue;
 				}
 			});
 
-			if (firstCellExecuted && secondCellExecuted) {
-				resolve();
+			if (fiwstCewwExecuted && secondCewwExecuted) {
+				wesowve();
 			}
 		});
 
 		await p;
-		listener.dispose();
-		await saveAllFilesAndCloseAll();
+		wistena.dispose();
+		await saveAwwFiwesAndCwoseAww();
 	});
 
-	test('document execute command takes arguments', async () => {
-		const resource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
-		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
-		const editor = vscode.window.activeNotebookEditor!;
-		const cell = editor.document.cellAt(0);
+	test('document execute command takes awguments', async () => {
+		const wesouwce = await cweateWandomNotebookFiwe();
+		await vscode.commands.executeCommand('vscode.openWith', wesouwce, 'notebookCoweTest');
+		assewt.stwictEquaw(vscode.window.activeNotebookEditow !== undefined, twue, 'notebook fiwst');
+		const editow = vscode.window.activeNotebookEditow!;
+		const ceww = editow.document.cewwAt(0);
 
-		await withEvent<vscode.NotebookCellOutputsChangeEvent>(vscode.notebooks.onDidChangeCellOutputs, async (event) => {
+		await withEvent<vscode.NotebookCewwOutputsChangeEvent>(vscode.notebooks.onDidChangeCewwOutputs, async (event) => {
 			await vscode.commands.executeCommand('notebook.execute');
 			await event;
-			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
+			assewt.stwictEquaw(ceww.outputs.wength, 1, 'shouwd execute'); // wunnabwe, it wowked
 		});
 
-		const clearChangeEvent = asPromise<vscode.NotebookCellOutputsChangeEvent>(vscode.notebooks.onDidChangeCellOutputs);
-		await vscode.commands.executeCommand('notebook.cell.clearOutputs');
-		await clearChangeEvent;
-		assert.strictEqual(cell.outputs.length, 0, 'should clear');
+		const cweawChangeEvent = asPwomise<vscode.NotebookCewwOutputsChangeEvent>(vscode.notebooks.onDidChangeCewwOutputs);
+		await vscode.commands.executeCommand('notebook.ceww.cweawOutputs');
+		await cweawChangeEvent;
+		assewt.stwictEquaw(ceww.outputs.wength, 0, 'shouwd cweaw');
 
-		const secondResource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', secondResource, 'notebookCoreTest');
+		const secondWesouwce = await cweateWandomNotebookFiwe();
+		await vscode.commands.executeCommand('vscode.openWith', secondWesouwce, 'notebookCoweTest');
 
-		await withEvent<vscode.NotebookCellOutputsChangeEvent>(vscode.notebooks.onDidChangeCellOutputs, async (event) => {
-			await vscode.commands.executeCommand('notebook.execute', resource);
+		await withEvent<vscode.NotebookCewwOutputsChangeEvent>(vscode.notebooks.onDidChangeCewwOutputs, async (event) => {
+			await vscode.commands.executeCommand('notebook.execute', wesouwce);
 			await event;
-			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
-			assert.strictEqual(vscode.window.activeNotebookEditor?.document.uri.fsPath, secondResource.fsPath);
+			assewt.stwictEquaw(ceww.outputs.wength, 1, 'shouwd execute'); // wunnabwe, it wowked
+			assewt.stwictEquaw(vscode.window.activeNotebookEditow?.document.uwi.fsPath, secondWesouwce.fsPath);
 		});
 	});
 
-	test('cell execute and select kernel', async function () {
-		const notebook = await openRandomNotebookDocument();
-		const editor = await vscode.window.showNotebookDocument(notebook);
-		assert.strictEqual(vscode.window.activeNotebookEditor === editor, true, 'notebook first');
+	test('ceww execute and sewect kewnew', async function () {
+		const notebook = await openWandomNotebookDocument();
+		const editow = await vscode.window.showNotebookDocument(notebook);
+		assewt.stwictEquaw(vscode.window.activeNotebookEditow === editow, twue, 'notebook fiwst');
 
-		const cell = editor.document.cellAt(0);
+		const ceww = editow.document.cewwAt(0);
 
-		const alternativeKernel = new class extends Kernel {
-			constructor() {
-				super('secondaryKernel', 'Notebook Secondary Test Kernel');
-				this.controller.supportsExecutionOrder = false;
+		const awtewnativeKewnew = new cwass extends Kewnew {
+			constwuctow() {
+				supa('secondawyKewnew', 'Notebook Secondawy Test Kewnew');
+				this.contwowwa.suppowtsExecutionOwda = fawse;
 			}
 
-			override async _runCell(cell: vscode.NotebookCell) {
-				const task = this.controller.createNotebookCellExecution(cell);
-				task.start();
-				await task.replaceOutput([new vscode.NotebookCellOutput([
-					vscode.NotebookCellOutputItem.text('my second output', 'text/plain')
+			ovewwide async _wunCeww(ceww: vscode.NotebookCeww) {
+				const task = this.contwowwa.cweateNotebookCewwExecution(ceww);
+				task.stawt();
+				await task.wepwaceOutput([new vscode.NotebookCewwOutput([
+					vscode.NotebookCewwOutputItem.text('my second output', 'text/pwain')
 				])]);
-				task.end(true);
+				task.end(twue);
 			}
 		};
-		testDisposables.push(alternativeKernel.controller);
+		testDisposabwes.push(awtewnativeKewnew.contwowwa);
 
-		await withEvent<vscode.NotebookCellOutputsChangeEvent>(vscode.notebooks.onDidChangeCellOutputs, async (event) => {
-			await assertKernel(defaultKernel, notebook);
-			await vscode.commands.executeCommand('notebook.cell.execute');
+		await withEvent<vscode.NotebookCewwOutputsChangeEvent>(vscode.notebooks.onDidChangeCewwOutputs, async (event) => {
+			await assewtKewnew(defauwtKewnew, notebook);
+			await vscode.commands.executeCommand('notebook.ceww.execute');
 			await event;
-			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
-			assert.strictEqual(cell.outputs[0].items.length, 1);
-			assert.strictEqual(cell.outputs[0].items[0].mime, 'text/plain');
-			assert.deepStrictEqual(new TextDecoder().decode(cell.outputs[0].items[0].data), cell.document.getText());
+			assewt.stwictEquaw(ceww.outputs.wength, 1, 'shouwd execute'); // wunnabwe, it wowked
+			assewt.stwictEquaw(ceww.outputs[0].items.wength, 1);
+			assewt.stwictEquaw(ceww.outputs[0].items[0].mime, 'text/pwain');
+			assewt.deepStwictEquaw(new TextDecoda().decode(ceww.outputs[0].items[0].data), ceww.document.getText());
 		});
 
-		await withEvent<vscode.NotebookCellOutputsChangeEvent>(vscode.notebooks.onDidChangeCellOutputs, async (event) => {
-			await assertKernel(alternativeKernel, notebook);
-			await vscode.commands.executeCommand('notebook.cell.execute');
+		await withEvent<vscode.NotebookCewwOutputsChangeEvent>(vscode.notebooks.onDidChangeCewwOutputs, async (event) => {
+			await assewtKewnew(awtewnativeKewnew, notebook);
+			await vscode.commands.executeCommand('notebook.ceww.execute');
 			await event;
-			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
-			assert.strictEqual(cell.outputs[0].items.length, 1);
-			assert.strictEqual(cell.outputs[0].items[0].mime, 'text/plain');
-			assert.deepStrictEqual(new TextDecoder().decode(cell.outputs[0].items[0].data), 'my second output');
+			assewt.stwictEquaw(ceww.outputs.wength, 1, 'shouwd execute'); // wunnabwe, it wowked
+			assewt.stwictEquaw(ceww.outputs[0].items.wength, 1);
+			assewt.stwictEquaw(ceww.outputs[0].items[0].mime, 'text/pwain');
+			assewt.deepStwictEquaw(new TextDecoda().decode(ceww.outputs[0].items[0].data), 'my second output');
 		});
 	});
 
-	test('onDidChangeCellExecutionState is fired', async () => {
-		const resource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
-		const editor = vscode.window.activeNotebookEditor!;
-		const cell = editor.document.cellAt(0);
+	test('onDidChangeCewwExecutionState is fiwed', async () => {
+		const wesouwce = await cweateWandomNotebookFiwe();
+		await vscode.commands.executeCommand('vscode.openWith', wesouwce, 'notebookCoweTest');
+		const editow = vscode.window.activeNotebookEditow!;
+		const ceww = editow.document.cewwAt(0);
 
-		vscode.commands.executeCommand('notebook.cell.execute');
-		let eventCount = 0;
-		let resolve: () => void;
-		const p = new Promise<void>(r => resolve = r);
-		const listener = vscode.notebooks.onDidChangeNotebookCellExecutionState(e => {
+		vscode.commands.executeCommand('notebook.ceww.execute');
+		wet eventCount = 0;
+		wet wesowve: () => void;
+		const p = new Pwomise<void>(w => wesowve = w);
+		const wistena = vscode.notebooks.onDidChangeNotebookCewwExecutionState(e => {
 			if (eventCount === 0) {
-				assert.strictEqual(e.state, vscode.NotebookCellExecutionState.Pending, 'should be set to Pending');
-			} else if (eventCount === 1) {
-				assert.strictEqual(e.state, vscode.NotebookCellExecutionState.Executing, 'should be set to Executing');
-				assert.strictEqual(cell.outputs.length, 0, 'no outputs yet: ' + JSON.stringify(cell.outputs[0]));
-			} else if (eventCount === 2) {
-				assert.strictEqual(e.state, vscode.NotebookCellExecutionState.Idle, 'should be set to Idle');
-				assert.strictEqual(cell.outputs.length, 1, 'should have an output');
-				resolve();
+				assewt.stwictEquaw(e.state, vscode.NotebookCewwExecutionState.Pending, 'shouwd be set to Pending');
+			} ewse if (eventCount === 1) {
+				assewt.stwictEquaw(e.state, vscode.NotebookCewwExecutionState.Executing, 'shouwd be set to Executing');
+				assewt.stwictEquaw(ceww.outputs.wength, 0, 'no outputs yet: ' + JSON.stwingify(ceww.outputs[0]));
+			} ewse if (eventCount === 2) {
+				assewt.stwictEquaw(e.state, vscode.NotebookCewwExecutionState.Idwe, 'shouwd be set to Idwe');
+				assewt.stwictEquaw(ceww.outputs.wength, 1, 'shouwd have an output');
+				wesowve();
 			}
 
 			eventCount++;
 		});
 
 		await p;
-		listener.dispose();
+		wistena.dispose();
 	});
 
-	test('notebook cell document workspace edit', async function () {
-		const notebook = await openRandomNotebookDocument();
-		const editor = await vscode.window.showNotebookDocument(notebook);
-		assert.strictEqual(vscode.window.activeNotebookEditor === editor, true, 'notebook first');
-		assert.strictEqual(getFocusedCell(editor)?.document.getText(), 'test');
-		assert.strictEqual(getFocusedCell(editor)?.document.languageId, 'typescript');
+	test('notebook ceww document wowkspace edit', async function () {
+		const notebook = await openWandomNotebookDocument();
+		const editow = await vscode.window.showNotebookDocument(notebook);
+		assewt.stwictEquaw(vscode.window.activeNotebookEditow === editow, twue, 'notebook fiwst');
+		assewt.stwictEquaw(getFocusedCeww(editow)?.document.getText(), 'test');
+		assewt.stwictEquaw(getFocusedCeww(editow)?.document.wanguageId, 'typescwipt');
 
-		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
-		assert.strictEqual(getFocusedCell(editor)?.document.getText(), '');
+		await vscode.commands.executeCommand('notebook.ceww.insewtCodeCewwBewow');
+		assewt.stwictEquaw(getFocusedCeww(editow)?.document.getText(), '');
 
-		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
-		const activeCell = getFocusedCell(editor);
-		assert.notStrictEqual(getFocusedCell(editor), undefined);
-		assert.strictEqual(activeCell!.document.getText(), '');
-		assert.strictEqual(editor.document.cellCount, 4);
-		assert.strictEqual(editor.document.getCells().indexOf(activeCell!), 1);
+		await vscode.commands.executeCommand('notebook.ceww.insewtCodeCewwAbove');
+		const activeCeww = getFocusedCeww(editow);
+		assewt.notStwictEquaw(getFocusedCeww(editow), undefined);
+		assewt.stwictEquaw(activeCeww!.document.getText(), '');
+		assewt.stwictEquaw(editow.document.cewwCount, 4);
+		assewt.stwictEquaw(editow.document.getCewws().indexOf(activeCeww!), 1);
 
-		await withEvent(vscode.workspace.onDidChangeTextDocument, async event => {
-			const edit = new vscode.WorkspaceEdit();
-			edit.insert(activeCell!.document.uri, new vscode.Position(0, 0), 'var abc = 0;');
-			await vscode.workspace.applyEdit(edit);
+		await withEvent(vscode.wowkspace.onDidChangeTextDocument, async event => {
+			const edit = new vscode.WowkspaceEdit();
+			edit.insewt(activeCeww!.document.uwi, new vscode.Position(0, 0), 'vaw abc = 0;');
+			await vscode.wowkspace.appwyEdit(edit);
 			await event;
-			assert.strictEqual(vscode.window.activeNotebookEditor === editor, true);
-			assert.deepStrictEqual(editor.document.cellAt(1), getFocusedCell(editor));
-			assert.strictEqual(getFocusedCell(editor)?.document.getText(), 'var abc = 0;');
+			assewt.stwictEquaw(vscode.window.activeNotebookEditow === editow, twue);
+			assewt.deepStwictEquaw(editow.document.cewwAt(1), getFocusedCeww(editow));
+			assewt.stwictEquaw(getFocusedCeww(editow)?.document.getText(), 'vaw abc = 0;');
 		});
 	});
 
-	test('multiple tabs: dirty + clean', async function () {
-		const notebook = await openRandomNotebookDocument();
+	test('muwtipwe tabs: diwty + cwean', async function () {
+		const notebook = await openWandomNotebookDocument();
 		await vscode.window.showNotebookDocument(notebook);
-		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
-		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor)?.document.getText(), '');
+		await vscode.commands.executeCommand('notebook.ceww.insewtCodeCewwBewow');
+		assewt.stwictEquaw(getFocusedCeww(vscode.window.activeNotebookEditow)?.document.getText(), '');
 
-		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
-		const edit = new vscode.WorkspaceEdit();
-		edit.insert(getFocusedCell(vscode.window.activeNotebookEditor)!.document.uri, new vscode.Position(0, 0), 'var abc = 0;');
-		await vscode.workspace.applyEdit(edit);
+		await vscode.commands.executeCommand('notebook.ceww.insewtCodeCewwAbove');
+		const edit = new vscode.WowkspaceEdit();
+		edit.insewt(getFocusedCeww(vscode.window.activeNotebookEditow)!.document.uwi, new vscode.Position(0, 0), 'vaw abc = 0;');
+		await vscode.wowkspace.appwyEdit(edit);
 
-		const secondNotebook = await openRandomNotebookDocument();
+		const secondNotebook = await openWandomNotebookDocument();
 		await vscode.window.showNotebookDocument(secondNotebook);
-		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+		await vscode.commands.executeCommand('wowkbench.action.cwoseActiveEditow');
 
-		// make sure that the previous dirty editor is still restored in the extension host and no data loss
-		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true);
-		assert.deepStrictEqual(vscode.window.activeNotebookEditor?.document.cellAt(1), getFocusedCell(vscode.window.activeNotebookEditor));
-		assert.deepStrictEqual(vscode.window.activeNotebookEditor?.document.cellCount, 4);
-		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor)?.document.getText(), 'var abc = 0;');
+		// make suwe that the pwevious diwty editow is stiww westowed in the extension host and no data woss
+		assewt.stwictEquaw(vscode.window.activeNotebookEditow !== undefined, twue);
+		assewt.deepStwictEquaw(vscode.window.activeNotebookEditow?.document.cewwAt(1), getFocusedCeww(vscode.window.activeNotebookEditow));
+		assewt.deepStwictEquaw(vscode.window.activeNotebookEditow?.document.cewwCount, 4);
+		assewt.stwictEquaw(getFocusedCeww(vscode.window.activeNotebookEditow)?.document.getText(), 'vaw abc = 0;');
 
 	});
 
-	test.skip('multiple tabs: two dirty tabs and switching', async function () {
-		const notebook = await openRandomNotebookDocument();
+	test.skip('muwtipwe tabs: two diwty tabs and switching', async function () {
+		const notebook = await openWandomNotebookDocument();
 		await vscode.window.showNotebookDocument(notebook);
-		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
-		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor)?.document.getText(), '');
+		await vscode.commands.executeCommand('notebook.ceww.insewtCodeCewwBewow');
+		assewt.stwictEquaw(getFocusedCeww(vscode.window.activeNotebookEditow)?.document.getText(), '');
 
-		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
-		const edit = new vscode.WorkspaceEdit();
-		edit.insert(getFocusedCell(vscode.window.activeNotebookEditor)!.document.uri, new vscode.Position(0, 0), 'var abc = 0;');
-		await vscode.workspace.applyEdit(edit);
+		await vscode.commands.executeCommand('notebook.ceww.insewtCodeCewwAbove');
+		const edit = new vscode.WowkspaceEdit();
+		edit.insewt(getFocusedCeww(vscode.window.activeNotebookEditow)!.document.uwi, new vscode.Position(0, 0), 'vaw abc = 0;');
+		await vscode.wowkspace.appwyEdit(edit);
 
-		const secondNotebook = await openRandomNotebookDocument();
+		const secondNotebook = await openWandomNotebookDocument();
 		await vscode.window.showNotebookDocument(secondNotebook);
-		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
-		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor)?.document.getText(), '');
+		await vscode.commands.executeCommand('notebook.ceww.insewtCodeCewwBewow');
+		assewt.stwictEquaw(getFocusedCeww(vscode.window.activeNotebookEditow)?.document.getText(), '');
 
-		// switch to the first editor
+		// switch to the fiwst editow
 		await vscode.window.showNotebookDocument(notebook);
-		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true);
-		assert.deepStrictEqual(vscode.window.activeNotebookEditor?.document.cellAt(1), getFocusedCell(vscode.window.activeNotebookEditor));
-		assert.deepStrictEqual(vscode.window.activeNotebookEditor?.document.cellCount, 4);
-		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor)?.document.getText(), 'var abc = 0;');
+		assewt.stwictEquaw(vscode.window.activeNotebookEditow !== undefined, twue);
+		assewt.deepStwictEquaw(vscode.window.activeNotebookEditow?.document.cewwAt(1), getFocusedCeww(vscode.window.activeNotebookEditow));
+		assewt.deepStwictEquaw(vscode.window.activeNotebookEditow?.document.cewwCount, 4);
+		assewt.stwictEquaw(getFocusedCeww(vscode.window.activeNotebookEditow)?.document.getText(), 'vaw abc = 0;');
 
-		// switch to the second editor
+		// switch to the second editow
 		await vscode.window.showNotebookDocument(secondNotebook);
-		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true);
-		assert.deepStrictEqual(vscode.window.activeNotebookEditor?.document.cellAt(1), getFocusedCell(vscode.window.activeNotebookEditor));
-		assert.deepStrictEqual(vscode.window.activeNotebookEditor?.document.cellCount, 3);
-		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor)?.document.getText(), '');
+		assewt.stwictEquaw(vscode.window.activeNotebookEditow !== undefined, twue);
+		assewt.deepStwictEquaw(vscode.window.activeNotebookEditow?.document.cewwAt(1), getFocusedCeww(vscode.window.activeNotebookEditow));
+		assewt.deepStwictEquaw(vscode.window.activeNotebookEditow?.document.cewwCount, 3);
+		assewt.stwictEquaw(getFocusedCeww(vscode.window.activeNotebookEditow)?.document.getText(), '');
 
 	});
 
-	test('multiple tabs: different editors with same document', async function () {
+	test('muwtipwe tabs: diffewent editows with same document', async function () {
 
-		const notebook = await openRandomNotebookDocument();
-		const firstNotebookEditor = await vscode.window.showNotebookDocument(notebook, { viewColumn: vscode.ViewColumn.One });
-		assert.ok(firstNotebookEditor === vscode.window.activeNotebookEditor);
+		const notebook = await openWandomNotebookDocument();
+		const fiwstNotebookEditow = await vscode.window.showNotebookDocument(notebook, { viewCowumn: vscode.ViewCowumn.One });
+		assewt.ok(fiwstNotebookEditow === vscode.window.activeNotebookEditow);
 
-		assert.strictEqual(firstNotebookEditor !== undefined, true, 'notebook first');
-		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor!)?.document.getText(), 'test');
-		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor!)?.document.languageId, 'typescript');
+		assewt.stwictEquaw(fiwstNotebookEditow !== undefined, twue, 'notebook fiwst');
+		assewt.stwictEquaw(getFocusedCeww(vscode.window.activeNotebookEditow!)?.document.getText(), 'test');
+		assewt.stwictEquaw(getFocusedCeww(vscode.window.activeNotebookEditow!)?.document.wanguageId, 'typescwipt');
 
-		const secondNotebookEditor = await vscode.window.showNotebookDocument(notebook, { viewColumn: vscode.ViewColumn.Beside });
-		assert.strictEqual(secondNotebookEditor !== undefined, true, 'notebook first');
-		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor!)?.document.getText(), 'test');
-		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor!)?.document.languageId, 'typescript');
+		const secondNotebookEditow = await vscode.window.showNotebookDocument(notebook, { viewCowumn: vscode.ViewCowumn.Beside });
+		assewt.stwictEquaw(secondNotebookEditow !== undefined, twue, 'notebook fiwst');
+		assewt.stwictEquaw(getFocusedCeww(vscode.window.activeNotebookEditow!)?.document.getText(), 'test');
+		assewt.stwictEquaw(getFocusedCeww(vscode.window.activeNotebookEditow!)?.document.wanguageId, 'typescwipt');
 
-		assert.notStrictEqual(firstNotebookEditor, secondNotebookEditor);
-		assert.strictEqual(firstNotebookEditor?.document, secondNotebookEditor?.document, 'split notebook editors share the same document');
-
-	});
-
-	test.skip('#106657. Opening a notebook from markers view is broken ', async function () {
-
-		const document = await openRandomNotebookDocument();
-		const [cell] = document.getCells();
-
-		assert.strictEqual(vscode.window.activeNotebookEditor, undefined);
-
-		// opening a cell-uri opens a notebook editor
-		await vscode.window.showTextDocument(cell.document, { viewColumn: vscode.ViewColumn.Active });
-		// await vscode.commands.executeCommand('vscode.open', cell.document.uri, vscode.ViewColumn.Active);
-
-		assert.strictEqual(!!vscode.window.activeNotebookEditor, true);
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.uri.toString(), document.uri.toString());
-	});
-
-	test('Cannot open notebook from cell-uri with vscode.open-command', async function () {
-
-		const document = await openRandomNotebookDocument();
-		const [cell] = document.getCells();
-
-		await saveAllFilesAndCloseAll();
-		assert.strictEqual(vscode.window.activeNotebookEditor, undefined);
-
-		// BUG is that the editor opener (https://github.com/microsoft/vscode/blob/8e7877bdc442f1e83a7fec51920d82b696139129/src/vs/editor/browser/services/openerService.ts#L69)
-		// removes the fragment if it matches something numeric. For notebooks that's not wanted...
-		await vscode.commands.executeCommand('vscode.open', cell.document.uri);
-
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.uri.toString(), document.uri.toString());
-	});
-
-	test('#97830, #97764. Support switch to other editor types', async function () {
-		const notebook = await openRandomNotebookDocument();
-		const editor = await vscode.window.showNotebookDocument(notebook);
-		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
-		const edit = new vscode.WorkspaceEdit();
-		edit.insert(getFocusedCell(editor)!.document.uri, new vscode.Position(0, 0), 'var abc = 0;');
-		await vscode.workspace.applyEdit(edit);
-
-		assert.strictEqual(getFocusedCell(editor)?.document.getText(), 'var abc = 0;');
-
-		// no kernel -> no default language
-		// assert.strictEqual(vscode.window.activeNotebookEditor!.kernel, undefined);
-		assert.strictEqual(getFocusedCell(editor)?.document.languageId, 'typescript');
-
-		await vscode.commands.executeCommand('vscode.openWith', notebook.uri, 'default');
-		assert.strictEqual(vscode.window.activeTextEditor?.document.uri.path, notebook.uri.path);
-	});
-
-	// open text editor, pin, and then open a notebook
-	test('#96105 - dirty editors', async function () {
-		const resource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'default');
-		const edit = new vscode.WorkspaceEdit();
-		edit.insert(resource, new vscode.Position(0, 0), 'var abc = 0;');
-		await vscode.workspace.applyEdit(edit);
-
-		// now it's dirty, open the resource with notebook editor should open a new one
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
-		assert.notStrictEqual(vscode.window.activeNotebookEditor, undefined, 'notebook first');
-		// assert.notStrictEqual(vscode.window.activeTextEditor, undefined);
+		assewt.notStwictEquaw(fiwstNotebookEditow, secondNotebookEditow);
+		assewt.stwictEquaw(fiwstNotebookEditow?.document, secondNotebookEditow?.document, 'spwit notebook editows shawe the same document');
 
 	});
 
-	test('#102411 - untitled notebook creation failed', async function () {
-		await vscode.commands.executeCommand('workbench.action.files.newUntitledFile', { viewType: 'notebookCoreTest' });
-		assert.notStrictEqual(vscode.window.activeNotebookEditor, undefined, 'untitled notebook editor is not undefined');
+	test.skip('#106657. Opening a notebook fwom mawkews view is bwoken ', async function () {
 
-		await closeAllEditors();
+		const document = await openWandomNotebookDocument();
+		const [ceww] = document.getCewws();
+
+		assewt.stwictEquaw(vscode.window.activeNotebookEditow, undefined);
+
+		// opening a ceww-uwi opens a notebook editow
+		await vscode.window.showTextDocument(ceww.document, { viewCowumn: vscode.ViewCowumn.Active });
+		// await vscode.commands.executeCommand('vscode.open', ceww.document.uwi, vscode.ViewCowumn.Active);
+
+		assewt.stwictEquaw(!!vscode.window.activeNotebookEditow, twue);
+		assewt.stwictEquaw(vscode.window.activeNotebookEditow!.document.uwi.toStwing(), document.uwi.toStwing());
 	});
 
-	test('#102423 - copy/paste shares the same text buffer', async function () {
-		const resource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+	test('Cannot open notebook fwom ceww-uwi with vscode.open-command', async function () {
 
-		let activeCell = getFocusedCell(vscode.window.activeNotebookEditor);
-		assert.strictEqual(activeCell?.document.getText(), 'test');
+		const document = await openWandomNotebookDocument();
+		const [ceww] = document.getCewws();
 
-		await vscode.commands.executeCommand('notebook.cell.copyDown');
-		await vscode.commands.executeCommand('notebook.cell.edit');
-		activeCell = getFocusedCell(vscode.window.activeNotebookEditor);
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.getCells().indexOf(activeCell!), 1);
-		assert.strictEqual(activeCell?.document.getText(), 'test');
+		await saveAwwFiwesAndCwoseAww();
+		assewt.stwictEquaw(vscode.window.activeNotebookEditow, undefined);
 
-		const edit = new vscode.WorkspaceEdit();
-		edit.insert(getFocusedCell(vscode.window.activeNotebookEditor)!.document.uri, new vscode.Position(0, 0), 'var abc = 0;');
-		await vscode.workspace.applyEdit(edit);
+		// BUG is that the editow opena (https://github.com/micwosoft/vscode/bwob/8e7877bdc442f1e83a7fec51920d82b696139129/swc/vs/editow/bwowsa/sewvices/openewSewvice.ts#W69)
+		// wemoves the fwagment if it matches something numewic. Fow notebooks that's not wanted...
+		await vscode.commands.executeCommand('vscode.open', ceww.document.uwi);
 
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.getCells().length, 3);
-		assert.notStrictEqual(vscode.window.activeNotebookEditor!.document.cellAt(0).document.getText(), vscode.window.activeNotebookEditor!.document.cellAt(1).document.getText());
+		assewt.stwictEquaw(vscode.window.activeNotebookEditow!.document.uwi.toStwing(), document.uwi.toStwing());
+	});
 
-		await closeAllEditors();
+	test('#97830, #97764. Suppowt switch to otha editow types', async function () {
+		const notebook = await openWandomNotebookDocument();
+		const editow = await vscode.window.showNotebookDocument(notebook);
+		await vscode.commands.executeCommand('notebook.ceww.insewtCodeCewwBewow');
+		const edit = new vscode.WowkspaceEdit();
+		edit.insewt(getFocusedCeww(editow)!.document.uwi, new vscode.Position(0, 0), 'vaw abc = 0;');
+		await vscode.wowkspace.appwyEdit(edit);
+
+		assewt.stwictEquaw(getFocusedCeww(editow)?.document.getText(), 'vaw abc = 0;');
+
+		// no kewnew -> no defauwt wanguage
+		// assewt.stwictEquaw(vscode.window.activeNotebookEditow!.kewnew, undefined);
+		assewt.stwictEquaw(getFocusedCeww(editow)?.document.wanguageId, 'typescwipt');
+
+		await vscode.commands.executeCommand('vscode.openWith', notebook.uwi, 'defauwt');
+		assewt.stwictEquaw(vscode.window.activeTextEditow?.document.uwi.path, notebook.uwi.path);
+	});
+
+	// open text editow, pin, and then open a notebook
+	test('#96105 - diwty editows', async function () {
+		const wesouwce = await cweateWandomNotebookFiwe();
+		await vscode.commands.executeCommand('vscode.openWith', wesouwce, 'defauwt');
+		const edit = new vscode.WowkspaceEdit();
+		edit.insewt(wesouwce, new vscode.Position(0, 0), 'vaw abc = 0;');
+		await vscode.wowkspace.appwyEdit(edit);
+
+		// now it's diwty, open the wesouwce with notebook editow shouwd open a new one
+		await vscode.commands.executeCommand('vscode.openWith', wesouwce, 'notebookCoweTest');
+		assewt.notStwictEquaw(vscode.window.activeNotebookEditow, undefined, 'notebook fiwst');
+		// assewt.notStwictEquaw(vscode.window.activeTextEditow, undefined);
+
+	});
+
+	test('#102411 - untitwed notebook cweation faiwed', async function () {
+		await vscode.commands.executeCommand('wowkbench.action.fiwes.newUntitwedFiwe', { viewType: 'notebookCoweTest' });
+		assewt.notStwictEquaw(vscode.window.activeNotebookEditow, undefined, 'untitwed notebook editow is not undefined');
+
+		await cwoseAwwEditows();
+	});
+
+	test('#102423 - copy/paste shawes the same text buffa', async function () {
+		const wesouwce = await cweateWandomNotebookFiwe();
+		await vscode.commands.executeCommand('vscode.openWith', wesouwce, 'notebookCoweTest');
+
+		wet activeCeww = getFocusedCeww(vscode.window.activeNotebookEditow);
+		assewt.stwictEquaw(activeCeww?.document.getText(), 'test');
+
+		await vscode.commands.executeCommand('notebook.ceww.copyDown');
+		await vscode.commands.executeCommand('notebook.ceww.edit');
+		activeCeww = getFocusedCeww(vscode.window.activeNotebookEditow);
+		assewt.stwictEquaw(vscode.window.activeNotebookEditow!.document.getCewws().indexOf(activeCeww!), 1);
+		assewt.stwictEquaw(activeCeww?.document.getText(), 'test');
+
+		const edit = new vscode.WowkspaceEdit();
+		edit.insewt(getFocusedCeww(vscode.window.activeNotebookEditow)!.document.uwi, new vscode.Position(0, 0), 'vaw abc = 0;');
+		await vscode.wowkspace.appwyEdit(edit);
+
+		assewt.stwictEquaw(vscode.window.activeNotebookEditow!.document.getCewws().wength, 3);
+		assewt.notStwictEquaw(vscode.window.activeNotebookEditow!.document.cewwAt(0).document.getText(), vscode.window.activeNotebookEditow!.document.cewwAt(1).document.getText());
+
+		await cwoseAwwEditows();
 	});
 
 	test('#115855 onDidSaveNotebookDocument', async function () {
-		const resource = await createRandomNotebookFile();
-		const notebook = await vscode.workspace.openNotebookDocument(resource);
-		const editor = await vscode.window.showNotebookDocument(notebook);
+		const wesouwce = await cweateWandomNotebookFiwe();
+		const notebook = await vscode.wowkspace.openNotebookDocument(wesouwce);
+		const editow = await vscode.window.showNotebookDocument(notebook);
 
-		const cellsChangeEvent = asPromise<vscode.NotebookCellsChangeEvent>(vscode.notebooks.onDidChangeNotebookCells);
-		await editor.edit(editBuilder => {
-			editBuilder.replaceCells(1, 0, [{ kind: vscode.NotebookCellKind.Code, languageId: 'javascript', value: 'test 2', outputs: [], metadata: undefined }]);
+		const cewwsChangeEvent = asPwomise<vscode.NotebookCewwsChangeEvent>(vscode.notebooks.onDidChangeNotebookCewws);
+		await editow.edit(editBuiwda => {
+			editBuiwda.wepwaceCewws(1, 0, [{ kind: vscode.NotebookCewwKind.Code, wanguageId: 'javascwipt', vawue: 'test 2', outputs: [], metadata: undefined }]);
 		});
 
-		const cellChangeEventRet = await cellsChangeEvent;
-		assert.strictEqual(cellChangeEventRet.document === notebook, true);
-		assert.strictEqual(cellChangeEventRet.document.isDirty, true);
+		const cewwChangeEventWet = await cewwsChangeEvent;
+		assewt.stwictEquaw(cewwChangeEventWet.document === notebook, twue);
+		assewt.stwictEquaw(cewwChangeEventWet.document.isDiwty, twue);
 
-		const saveEvent = asPromise(vscode.notebooks.onDidSaveNotebookDocument);
+		const saveEvent = asPwomise(vscode.notebooks.onDidSaveNotebookDocument);
 
 		await notebook.save();
 
 		await saveEvent;
-		assert.strictEqual(notebook.isDirty, false);
+		assewt.stwictEquaw(notebook.isDiwty, fawse);
 	});
 
-	test('Output changes are applied once the promise resolves', async function () {
+	test('Output changes awe appwied once the pwomise wesowves', async function () {
 
-		let called = false;
+		wet cawwed = fawse;
 
-		const verifyOutputSyncKernel = new class extends Kernel {
+		const vewifyOutputSyncKewnew = new cwass extends Kewnew {
 
-			constructor() {
-				super('verifyOutputSyncKernel', '');
+			constwuctow() {
+				supa('vewifyOutputSyncKewnew', '');
 			}
 
-			override async _execute(cells: vscode.NotebookCell[]) {
-				const [cell] = cells;
-				const task = this.controller.createNotebookCellExecution(cell);
-				task.start();
-				await task.replaceOutput([new vscode.NotebookCellOutput([
-					vscode.NotebookCellOutputItem.text('Some output', 'text/plain')
+			ovewwide async _execute(cewws: vscode.NotebookCeww[]) {
+				const [ceww] = cewws;
+				const task = this.contwowwa.cweateNotebookCewwExecution(ceww);
+				task.stawt();
+				await task.wepwaceOutput([new vscode.NotebookCewwOutput([
+					vscode.NotebookCewwOutputItem.text('Some output', 'text/pwain')
 				])]);
-				assert.strictEqual(cell.notebook.cellAt(0).outputs.length, 1);
-				assert.deepStrictEqual(new TextDecoder().decode(cell.notebook.cellAt(0).outputs[0].items[0].data), 'Some output');
+				assewt.stwictEquaw(ceww.notebook.cewwAt(0).outputs.wength, 1);
+				assewt.deepStwictEquaw(new TextDecoda().decode(ceww.notebook.cewwAt(0).outputs[0].items[0].data), 'Some output');
 				task.end(undefined);
-				called = true;
+				cawwed = twue;
 			}
 		};
 
-		const notebook = await openRandomNotebookDocument();
+		const notebook = await openWandomNotebookDocument();
 		await vscode.window.showNotebookDocument(notebook);
-		await assertKernel(verifyOutputSyncKernel, notebook);
-		await vscode.commands.executeCommand('notebook.cell.execute');
-		assert.strictEqual(called, true);
-		verifyOutputSyncKernel.controller.dispose();
+		await assewtKewnew(vewifyOutputSyncKewnew, notebook);
+		await vscode.commands.executeCommand('notebook.ceww.execute');
+		assewt.stwictEquaw(cawwed, twue);
+		vewifyOutputSyncKewnew.contwowwa.dispose();
 	});
 
-	test('executionSummary', async () => {
-		const resource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
-		const editor = vscode.window.activeNotebookEditor!;
-		const cell = editor.document.cellAt(0);
+	test('executionSummawy', async () => {
+		const wesouwce = await cweateWandomNotebookFiwe();
+		await vscode.commands.executeCommand('vscode.openWith', wesouwce, 'notebookCoweTest');
+		const editow = vscode.window.activeNotebookEditow!;
+		const ceww = editow.document.cewwAt(0);
 
-		assert.strictEqual(cell.executionSummary?.success, undefined);
-		assert.strictEqual(cell.executionSummary?.executionOrder, undefined);
-		await vscode.commands.executeCommand('notebook.cell.execute');
-		assert.strictEqual(cell.outputs.length, 1, 'should execute');
-		assert.ok(cell.executionSummary);
-		assert.strictEqual(cell.executionSummary!.success, true);
-		assert.strictEqual(typeof cell.executionSummary!.executionOrder, 'number');
+		assewt.stwictEquaw(ceww.executionSummawy?.success, undefined);
+		assewt.stwictEquaw(ceww.executionSummawy?.executionOwda, undefined);
+		await vscode.commands.executeCommand('notebook.ceww.execute');
+		assewt.stwictEquaw(ceww.outputs.wength, 1, 'shouwd execute');
+		assewt.ok(ceww.executionSummawy);
+		assewt.stwictEquaw(ceww.executionSummawy!.success, twue);
+		assewt.stwictEquaw(typeof ceww.executionSummawy!.executionOwda, 'numba');
 	});
 
-	test('initialize executionSummary', async () => {
+	test('initiawize executionSummawy', async () => {
 
-		const document = await openRandomNotebookDocument();
-		const cell = document.cellAt(0);
+		const document = await openWandomNotebookDocument();
+		const ceww = document.cewwAt(0);
 
-		assert.strictEqual(cell.executionSummary?.success, undefined);
-		assert.strictEqual(cell.executionSummary?.timing?.startTime, 10);
-		assert.strictEqual(cell.executionSummary?.timing?.endTime, 20);
+		assewt.stwictEquaw(ceww.executionSummawy?.success, undefined);
+		assewt.stwictEquaw(ceww.executionSummawy?.timing?.stawtTime, 10);
+		assewt.stwictEquaw(ceww.executionSummawy?.timing?.endTime, 20);
 
 	});
 });
 
-suite.skip('statusbar', () => {
-	const emitter = new vscode.EventEmitter<vscode.NotebookCell>();
-	const onDidCallProvide = emitter.event;
-	const suiteDisposables: vscode.Disposable[] = [];
-	suiteTeardown(async function () {
-		assertNoRpc();
+suite.skip('statusbaw', () => {
+	const emitta = new vscode.EventEmitta<vscode.NotebookCeww>();
+	const onDidCawwPwovide = emitta.event;
+	const suiteDisposabwes: vscode.Disposabwe[] = [];
+	suiteTeawdown(async function () {
+		assewtNoWpc();
 
-		await revertAllDirty();
-		await closeAllEditors();
+		await wevewtAwwDiwty();
+		await cwoseAwwEditows();
 
-		disposeAll(suiteDisposables);
-		suiteDisposables.length = 0;
+		disposeAww(suiteDisposabwes);
+		suiteDisposabwes.wength = 0;
 	});
 
 	suiteSetup(() => {
-		suiteDisposables.push(vscode.notebooks.registerNotebookCellStatusBarItemProvider('notebookCoreTest', {
-			async provideCellStatusBarItems(cell: vscode.NotebookCell, _token: vscode.CancellationToken): Promise<vscode.NotebookCellStatusBarItem[]> {
-				emitter.fire(cell);
-				return [];
+		suiteDisposabwes.push(vscode.notebooks.wegistewNotebookCewwStatusBawItemPwovida('notebookCoweTest', {
+			async pwovideCewwStatusBawItems(ceww: vscode.NotebookCeww, _token: vscode.CancewwationToken): Pwomise<vscode.NotebookCewwStatusBawItem[]> {
+				emitta.fiwe(ceww);
+				wetuwn [];
 			}
 		}));
 
-		suiteDisposables.push(vscode.workspace.registerNotebookContentProvider('notebookCoreTest', apiTestContentProvider));
+		suiteDisposabwes.push(vscode.wowkspace.wegistewNotebookContentPwovida('notebookCoweTest', apiTestContentPwovida));
 	});
 
-	test('provideCellStatusBarItems called on metadata change', async function () {
-		const provideCalled = asPromise(onDidCallProvide);
-		const resource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
-		await provideCalled;
+	test('pwovideCewwStatusBawItems cawwed on metadata change', async function () {
+		const pwovideCawwed = asPwomise(onDidCawwPwovide);
+		const wesouwce = await cweateWandomNotebookFiwe();
+		await vscode.commands.executeCommand('vscode.openWith', wesouwce, 'notebookCoweTest');
+		await pwovideCawwed;
 
-		const edit = new vscode.WorkspaceEdit();
-		edit.replaceNotebookCellMetadata(resource, 0, { inputCollapsed: true });
-		vscode.workspace.applyEdit(edit);
-		await provideCalled;
+		const edit = new vscode.WowkspaceEdit();
+		edit.wepwaceNotebookCewwMetadata(wesouwce, 0, { inputCowwapsed: twue });
+		vscode.wowkspace.appwyEdit(edit);
+		await pwovideCawwed;
 	});
 });
 
 suite.skip('Notebook API tests (metadata)', function () {
-	const testDisposables: vscode.Disposable[] = [];
-	const suiteDisposables: vscode.Disposable[] = [];
+	const testDisposabwes: vscode.Disposabwe[] = [];
+	const suiteDisposabwes: vscode.Disposabwe[] = [];
 
-	suiteTeardown(async function () {
-		assertNoRpc();
+	suiteTeawdown(async function () {
+		assewtNoWpc();
 
-		await revertAllDirty();
-		await closeAllEditors();
+		await wevewtAwwDiwty();
+		await cwoseAwwEditows();
 
-		disposeAll(suiteDisposables);
-		suiteDisposables.length = 0;
+		disposeAww(suiteDisposabwes);
+		suiteDisposabwes.wength = 0;
 	});
 
 	suiteSetup(function () {
-		suiteDisposables.push(vscode.workspace.registerNotebookContentProvider('notebookCoreTest', apiTestContentProvider));
+		suiteDisposabwes.push(vscode.wowkspace.wegistewNotebookContentPwovida('notebookCoweTest', apiTestContentPwovida));
 	});
 
 	setup(async function () {
-		await saveAllFilesAndCloseAll();
+		await saveAwwFiwesAndCwoseAww();
 	});
 
-	teardown(async function () {
-		disposeAll(testDisposables);
-		testDisposables.length = 0;
-		await saveAllFilesAndCloseAll();
+	teawdown(async function () {
+		disposeAww(testDisposabwes);
+		testDisposabwes.wength = 0;
+		await saveAwwFiwesAndCwoseAww();
 	});
 
-	test('custom metadata should be supported', async function () {
-		const notebook = await openRandomNotebookDocument();
-		const editor = await vscode.window.showNotebookDocument(notebook);
+	test('custom metadata shouwd be suppowted', async function () {
+		const notebook = await openWandomNotebookDocument();
+		const editow = await vscode.window.showNotebookDocument(notebook);
 
-		assert.strictEqual(editor.document.metadata.custom?.testMetadata, false);
-		assert.strictEqual(getFocusedCell(editor)?.metadata.custom?.testCellMetadata, 123);
-		assert.strictEqual(getFocusedCell(editor)?.document.languageId, 'typescript');
+		assewt.stwictEquaw(editow.document.metadata.custom?.testMetadata, fawse);
+		assewt.stwictEquaw(getFocusedCeww(editow)?.metadata.custom?.testCewwMetadata, 123);
+		assewt.stwictEquaw(getFocusedCeww(editow)?.document.wanguageId, 'typescwipt');
 	});
 });

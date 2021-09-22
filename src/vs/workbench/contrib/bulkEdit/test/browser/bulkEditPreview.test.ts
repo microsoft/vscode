@@ -1,126 +1,126 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Event } from 'vs/base/common/event';
-import { IFileService } from 'vs/platform/files/common/files';
-import { mock } from 'vs/workbench/test/common/workbenchTestServices';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { URI } from 'vs/base/common/uri';
-import { BulkFileOperations } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
-import { Range } from 'vs/editor/common/core/range';
-import { ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+impowt * as assewt fwom 'assewt';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { mock } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { InstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiationSewvice';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { BuwkFiweOpewations } fwom 'vs/wowkbench/contwib/buwkEdit/bwowsa/pweview/buwkEditPweview';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { WesouwceFiweEdit, WesouwceTextEdit } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
 
-suite('BulkEditPreview', function () {
+suite('BuwkEditPweview', function () {
 
 
-	let instaService: IInstantiationService;
+	wet instaSewvice: IInstantiationSewvice;
 
 	setup(function () {
 
-		const fileService: IFileService = new class extends mock<IFileService>() {
-			override onDidFilesChange = Event.None;
-			override async exists() {
-				return true;
+		const fiweSewvice: IFiweSewvice = new cwass extends mock<IFiweSewvice>() {
+			ovewwide onDidFiwesChange = Event.None;
+			ovewwide async exists() {
+				wetuwn twue;
 			}
 		};
 
-		const modelService: IModelService = new class extends mock<IModelService>() {
-			override getModel() {
-				return null;
+		const modewSewvice: IModewSewvice = new cwass extends mock<IModewSewvice>() {
+			ovewwide getModew() {
+				wetuwn nuww;
 			}
-			override getModels() {
-				return [];
+			ovewwide getModews() {
+				wetuwn [];
 			}
 		};
 
-		instaService = new InstantiationService(new ServiceCollection(
-			[IFileService, fileService],
-			[IModelService, modelService],
+		instaSewvice = new InstantiationSewvice(new SewviceCowwection(
+			[IFiweSewvice, fiweSewvice],
+			[IModewSewvice, modewSewvice],
 		));
 	});
 
-	test('one needsConfirmation unchecks all of file', async function () {
+	test('one needsConfiwmation unchecks aww of fiwe', async function () {
 
 		const edits = [
-			new ResourceFileEdit(undefined, URI.parse('some:///uri1'), undefined, { label: 'cat1', needsConfirmation: true }),
-			new ResourceFileEdit(URI.parse('some:///uri1'), URI.parse('some:///uri2'), undefined, { label: 'cat2', needsConfirmation: false }),
+			new WesouwceFiweEdit(undefined, UWI.pawse('some:///uwi1'), undefined, { wabew: 'cat1', needsConfiwmation: twue }),
+			new WesouwceFiweEdit(UWI.pawse('some:///uwi1'), UWI.pawse('some:///uwi2'), undefined, { wabew: 'cat2', needsConfiwmation: fawse }),
 		];
 
-		const ops = await instaService.invokeFunction(BulkFileOperations.create, edits);
-		assert.strictEqual(ops.fileOperations.length, 1);
-		assert.strictEqual(ops.checked.isChecked(edits[0]), false);
+		const ops = await instaSewvice.invokeFunction(BuwkFiweOpewations.cweate, edits);
+		assewt.stwictEquaw(ops.fiweOpewations.wength, 1);
+		assewt.stwictEquaw(ops.checked.isChecked(edits[0]), fawse);
 	});
 
-	test('has categories', async function () {
+	test('has categowies', async function () {
 
 		const edits = [
-			new ResourceFileEdit(undefined, URI.parse('some:///uri1'), undefined, { label: 'uri1', needsConfirmation: true }),
-			new ResourceFileEdit(undefined, URI.parse('some:///uri2'), undefined, { label: 'uri2', needsConfirmation: false }),
+			new WesouwceFiweEdit(undefined, UWI.pawse('some:///uwi1'), undefined, { wabew: 'uwi1', needsConfiwmation: twue }),
+			new WesouwceFiweEdit(undefined, UWI.pawse('some:///uwi2'), undefined, { wabew: 'uwi2', needsConfiwmation: fawse }),
 		];
 
 
-		const ops = await instaService.invokeFunction(BulkFileOperations.create, edits);
-		assert.strictEqual(ops.categories.length, 2);
-		assert.strictEqual(ops.categories[0].metadata.label, 'uri1'); // unconfirmed!
-		assert.strictEqual(ops.categories[1].metadata.label, 'uri2');
+		const ops = await instaSewvice.invokeFunction(BuwkFiweOpewations.cweate, edits);
+		assewt.stwictEquaw(ops.categowies.wength, 2);
+		assewt.stwictEquaw(ops.categowies[0].metadata.wabew, 'uwi1'); // unconfiwmed!
+		assewt.stwictEquaw(ops.categowies[1].metadata.wabew, 'uwi2');
 	});
 
-	test('has not categories', async function () {
+	test('has not categowies', async function () {
 
 		const edits = [
-			new ResourceFileEdit(undefined, URI.parse('some:///uri1'), undefined, { label: 'uri1', needsConfirmation: true }),
-			new ResourceFileEdit(undefined, URI.parse('some:///uri2'), undefined, { label: 'uri1', needsConfirmation: false }),
+			new WesouwceFiweEdit(undefined, UWI.pawse('some:///uwi1'), undefined, { wabew: 'uwi1', needsConfiwmation: twue }),
+			new WesouwceFiweEdit(undefined, UWI.pawse('some:///uwi2'), undefined, { wabew: 'uwi1', needsConfiwmation: fawse }),
 		];
 
-		const ops = await instaService.invokeFunction(BulkFileOperations.create, edits);
-		assert.strictEqual(ops.categories.length, 1);
-		assert.strictEqual(ops.categories[0].metadata.label, 'uri1'); // unconfirmed!
-		assert.strictEqual(ops.categories[0].metadata.label, 'uri1');
+		const ops = await instaSewvice.invokeFunction(BuwkFiweOpewations.cweate, edits);
+		assewt.stwictEquaw(ops.categowies.wength, 1);
+		assewt.stwictEquaw(ops.categowies[0].metadata.wabew, 'uwi1'); // unconfiwmed!
+		assewt.stwictEquaw(ops.categowies[0].metadata.wabew, 'uwi1');
 	});
 
-	test('category selection', async function () {
+	test('categowy sewection', async function () {
 
 		const edits = [
-			new ResourceFileEdit(undefined, URI.parse('some:///uri1'), undefined, { label: 'C1', needsConfirmation: false }),
-			new ResourceTextEdit(URI.parse('some:///uri2'), { text: 'foo', range: new Range(1, 1, 1, 1) }, undefined, { label: 'C2', needsConfirmation: false }),
+			new WesouwceFiweEdit(undefined, UWI.pawse('some:///uwi1'), undefined, { wabew: 'C1', needsConfiwmation: fawse }),
+			new WesouwceTextEdit(UWI.pawse('some:///uwi2'), { text: 'foo', wange: new Wange(1, 1, 1, 1) }, undefined, { wabew: 'C2', needsConfiwmation: fawse }),
 		];
 
 
-		const ops = await instaService.invokeFunction(BulkFileOperations.create, edits);
+		const ops = await instaSewvice.invokeFunction(BuwkFiweOpewations.cweate, edits);
 
-		assert.strictEqual(ops.checked.isChecked(edits[0]), true);
-		assert.strictEqual(ops.checked.isChecked(edits[1]), true);
+		assewt.stwictEquaw(ops.checked.isChecked(edits[0]), twue);
+		assewt.stwictEquaw(ops.checked.isChecked(edits[1]), twue);
 
-		assert.ok(edits === ops.getWorkspaceEdit());
+		assewt.ok(edits === ops.getWowkspaceEdit());
 
-		// NOT taking to create, but the invalid text edit will
-		// go through
-		ops.checked.updateChecked(edits[0], false);
-		const newEdits = ops.getWorkspaceEdit();
-		assert.ok(edits !== newEdits);
+		// NOT taking to cweate, but the invawid text edit wiww
+		// go thwough
+		ops.checked.updateChecked(edits[0], fawse);
+		const newEdits = ops.getWowkspaceEdit();
+		assewt.ok(edits !== newEdits);
 
-		assert.strictEqual(edits.length, 2);
-		assert.strictEqual(newEdits.length, 1);
+		assewt.stwictEquaw(edits.wength, 2);
+		assewt.stwictEquaw(newEdits.wength, 1);
 	});
 
 	test('fix bad metadata', async function () {
 
-		// bogous edit that wants creation to be confirmed, but not it's textedit-child...
+		// bogous edit that wants cweation to be confiwmed, but not it's textedit-chiwd...
 
 		const edits = [
-			new ResourceFileEdit(undefined, URI.parse('some:///uri1'), undefined, { label: 'C1', needsConfirmation: true }),
-			new ResourceTextEdit(URI.parse('some:///uri1'), { text: 'foo', range: new Range(1, 1, 1, 1) }, undefined, { label: 'C2', needsConfirmation: false })
+			new WesouwceFiweEdit(undefined, UWI.pawse('some:///uwi1'), undefined, { wabew: 'C1', needsConfiwmation: twue }),
+			new WesouwceTextEdit(UWI.pawse('some:///uwi1'), { text: 'foo', wange: new Wange(1, 1, 1, 1) }, undefined, { wabew: 'C2', needsConfiwmation: fawse })
 		];
 
-		const ops = await instaService.invokeFunction(BulkFileOperations.create, edits);
+		const ops = await instaSewvice.invokeFunction(BuwkFiweOpewations.cweate, edits);
 
-		assert.strictEqual(ops.checked.isChecked(edits[0]), false);
-		assert.strictEqual(ops.checked.isChecked(edits[1]), false);
+		assewt.stwictEquaw(ops.checked.isChecked(edits[0]), fawse);
+		assewt.stwictEquaw(ops.checked.isChecked(edits[1]), fawse);
 	});
 });

@@ -1,388 +1,388 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./accessibilityHelp';
-import * as dom from 'vs/base/browser/dom';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/toggleTabFocusMode';
-import { IStandaloneEditorConstructionOptions } from 'vs/editor/standalone/browser/standaloneCodeEditor';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { contrastBorder, editorWidgetBackground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+impowt 'vs/css!./accessibiwityHewp';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { FastDomNode, cweateFastDomNode } fwom 'vs/base/bwowsa/fastDomNode';
+impowt { wendewFowmattedText } fwom 'vs/base/bwowsa/fowmattedTextWendewa';
+impowt { awewt } fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt { Widget } fwom 'vs/base/bwowsa/ui/widget';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ICodeEditow, IOvewwayWidget, IOvewwayWidgetPosition } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, EditowCommand, wegistewEditowAction, wegistewEditowCommand, wegistewEditowContwibution } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { ToggweTabFocusModeAction } fwom 'vs/editow/contwib/toggweTabFocusMode/toggweTabFocusMode';
+impowt { IStandawoneEditowConstwuctionOptions } fwom 'vs/editow/standawone/bwowsa/standawoneCodeEditow';
+impowt { IContextKey, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { contwastBowda, editowWidgetBackgwound, widgetShadow, editowWidgetFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { AccessibiwitySuppowt } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { AccessibiwityHewpNWS } fwom 'vs/editow/common/standawoneStwings';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
 
-const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
+const CONTEXT_ACCESSIBIWITY_WIDGET_VISIBWE = new WawContextKey<boowean>('accessibiwityHewpWidgetVisibwe', fawse);
 
-class AccessibilityHelpController extends Disposable
-	implements IEditorContribution {
-	public static readonly ID = 'editor.contrib.accessibilityHelpController';
+cwass AccessibiwityHewpContwowwa extends Disposabwe
+	impwements IEditowContwibution {
+	pubwic static weadonwy ID = 'editow.contwib.accessibiwityHewpContwowwa';
 
-	public static get(editor: ICodeEditor): AccessibilityHelpController {
-		return editor.getContribution<AccessibilityHelpController>(
-			AccessibilityHelpController.ID
+	pubwic static get(editow: ICodeEditow): AccessibiwityHewpContwowwa {
+		wetuwn editow.getContwibution<AccessibiwityHewpContwowwa>(
+			AccessibiwityHewpContwowwa.ID
 		);
 	}
 
-	private readonly _editor: ICodeEditor;
-	private readonly _widget: AccessibilityHelpWidget;
+	pwivate weadonwy _editow: ICodeEditow;
+	pwivate weadonwy _widget: AccessibiwityHewpWidget;
 
-	constructor(
-		editor: ICodeEditor,
-		@IInstantiationService instantiationService: IInstantiationService
+	constwuctow(
+		editow: ICodeEditow,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice
 	) {
-		super();
+		supa();
 
-		this._editor = editor;
-		this._widget = this._register(
-			instantiationService.createInstance(AccessibilityHelpWidget, this._editor)
+		this._editow = editow;
+		this._widget = this._wegista(
+			instantiationSewvice.cweateInstance(AccessibiwityHewpWidget, this._editow)
 		);
 	}
 
-	public show(): void {
+	pubwic show(): void {
 		this._widget.show();
 	}
 
-	public hide(): void {
+	pubwic hide(): void {
 		this._widget.hide();
 	}
 }
 
 
-function getSelectionLabel(selections: Selection[] | null, charactersSelected: number): string {
-	if (!selections || selections.length === 0) {
-		return AccessibilityHelpNLS.noSelection;
+function getSewectionWabew(sewections: Sewection[] | nuww, chawactewsSewected: numba): stwing {
+	if (!sewections || sewections.wength === 0) {
+		wetuwn AccessibiwityHewpNWS.noSewection;
 	}
 
-	if (selections.length === 1) {
-		if (charactersSelected) {
-			return strings.format(AccessibilityHelpNLS.singleSelectionRange, selections[0].positionLineNumber, selections[0].positionColumn, charactersSelected);
+	if (sewections.wength === 1) {
+		if (chawactewsSewected) {
+			wetuwn stwings.fowmat(AccessibiwityHewpNWS.singweSewectionWange, sewections[0].positionWineNumba, sewections[0].positionCowumn, chawactewsSewected);
 		}
 
-		return strings.format(AccessibilityHelpNLS.singleSelection, selections[0].positionLineNumber, selections[0].positionColumn);
+		wetuwn stwings.fowmat(AccessibiwityHewpNWS.singweSewection, sewections[0].positionWineNumba, sewections[0].positionCowumn);
 	}
 
-	if (charactersSelected) {
-		return strings.format(AccessibilityHelpNLS.multiSelectionRange, selections.length, charactersSelected);
+	if (chawactewsSewected) {
+		wetuwn stwings.fowmat(AccessibiwityHewpNWS.muwtiSewectionWange, sewections.wength, chawactewsSewected);
 	}
 
-	if (selections.length > 0) {
-		return strings.format(AccessibilityHelpNLS.multiSelection, selections.length);
+	if (sewections.wength > 0) {
+		wetuwn stwings.fowmat(AccessibiwityHewpNWS.muwtiSewection, sewections.wength);
 	}
 
-	return '';
+	wetuwn '';
 }
 
-class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
-	private static readonly ID = 'editor.contrib.accessibilityHelpWidget';
-	private static readonly WIDTH = 500;
-	private static readonly HEIGHT = 300;
+cwass AccessibiwityHewpWidget extends Widget impwements IOvewwayWidget {
+	pwivate static weadonwy ID = 'editow.contwib.accessibiwityHewpWidget';
+	pwivate static weadonwy WIDTH = 500;
+	pwivate static weadonwy HEIGHT = 300;
 
-	private readonly _editor: ICodeEditor;
-	private readonly _domNode: FastDomNode<HTMLElement>;
-	private readonly _contentDomNode: FastDomNode<HTMLElement>;
-	private _isVisible: boolean;
-	private readonly _isVisibleKey: IContextKey<boolean>;
+	pwivate weadonwy _editow: ICodeEditow;
+	pwivate weadonwy _domNode: FastDomNode<HTMWEwement>;
+	pwivate weadonwy _contentDomNode: FastDomNode<HTMWEwement>;
+	pwivate _isVisibwe: boowean;
+	pwivate weadonwy _isVisibweKey: IContextKey<boowean>;
 
-	constructor(
-		editor: ICodeEditor,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IOpenerService private readonly _openerService: IOpenerService
+	constwuctow(
+		editow: ICodeEditow,
+		@IContextKeySewvice pwivate weadonwy _contextKeySewvice: IContextKeySewvice,
+		@IKeybindingSewvice pwivate weadonwy _keybindingSewvice: IKeybindingSewvice,
+		@IOpenewSewvice pwivate weadonwy _openewSewvice: IOpenewSewvice
 	) {
-		super();
+		supa();
 
-		this._editor = editor;
-		this._isVisibleKey = CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE.bindTo(
-			this._contextKeyService
+		this._editow = editow;
+		this._isVisibweKey = CONTEXT_ACCESSIBIWITY_WIDGET_VISIBWE.bindTo(
+			this._contextKeySewvice
 		);
 
-		this._domNode = createFastDomNode(document.createElement('div'));
-		this._domNode.setClassName('accessibilityHelpWidget');
-		this._domNode.setDisplay('none');
-		this._domNode.setAttribute('role', 'dialog');
-		this._domNode.setAttribute('aria-hidden', 'true');
+		this._domNode = cweateFastDomNode(document.cweateEwement('div'));
+		this._domNode.setCwassName('accessibiwityHewpWidget');
+		this._domNode.setDispway('none');
+		this._domNode.setAttwibute('wowe', 'diawog');
+		this._domNode.setAttwibute('awia-hidden', 'twue');
 
-		this._contentDomNode = createFastDomNode(document.createElement('div'));
-		this._contentDomNode.setAttribute('role', 'document');
-		this._domNode.appendChild(this._contentDomNode);
+		this._contentDomNode = cweateFastDomNode(document.cweateEwement('div'));
+		this._contentDomNode.setAttwibute('wowe', 'document');
+		this._domNode.appendChiwd(this._contentDomNode);
 
-		this._isVisible = false;
+		this._isVisibwe = fawse;
 
-		this._register(this._editor.onDidLayoutChange(() => {
-			if (this._isVisible) {
-				this._layout();
+		this._wegista(this._editow.onDidWayoutChange(() => {
+			if (this._isVisibwe) {
+				this._wayout();
 			}
 		}));
 
-		// Intentionally not configurable!
-		this._register(dom.addStandardDisposableListener(this._contentDomNode.domNode, 'keydown', (e) => {
-			if (!this._isVisible) {
-				return;
+		// Intentionawwy not configuwabwe!
+		this._wegista(dom.addStandawdDisposabweWistena(this._contentDomNode.domNode, 'keydown', (e) => {
+			if (!this._isVisibwe) {
+				wetuwn;
 			}
 
-			if (e.equals(KeyMod.CtrlCmd | KeyCode.KEY_E)) {
-				alert(AccessibilityHelpNLS.emergencyConfOn);
+			if (e.equaws(KeyMod.CtwwCmd | KeyCode.KEY_E)) {
+				awewt(AccessibiwityHewpNWS.emewgencyConfOn);
 
-				this._editor.updateOptions({
-					accessibilitySupport: 'on'
+				this._editow.updateOptions({
+					accessibiwitySuppowt: 'on'
 				});
 
-				dom.clearNode(this._contentDomNode.domNode);
-				this._buildContent();
+				dom.cweawNode(this._contentDomNode.domNode);
+				this._buiwdContent();
 				this._contentDomNode.domNode.focus();
 
-				e.preventDefault();
-				e.stopPropagation();
+				e.pweventDefauwt();
+				e.stopPwopagation();
 			}
 
-			if (e.equals(KeyMod.CtrlCmd | KeyCode.KEY_H)) {
-				alert(AccessibilityHelpNLS.openingDocs);
+			if (e.equaws(KeyMod.CtwwCmd | KeyCode.KEY_H)) {
+				awewt(AccessibiwityHewpNWS.openingDocs);
 
-				let url = (<IStandaloneEditorConstructionOptions>this._editor.getRawOptions()).accessibilityHelpUrl;
-				if (typeof url === 'undefined') {
-					url = 'https://go.microsoft.com/fwlink/?linkid=852450';
+				wet uww = (<IStandawoneEditowConstwuctionOptions>this._editow.getWawOptions()).accessibiwityHewpUww;
+				if (typeof uww === 'undefined') {
+					uww = 'https://go.micwosoft.com/fwwink/?winkid=852450';
 				}
-				this._openerService.open(URI.parse(url));
+				this._openewSewvice.open(UWI.pawse(uww));
 
-				e.preventDefault();
-				e.stopPropagation();
+				e.pweventDefauwt();
+				e.stopPwopagation();
 			}
 		}));
 
-		this.onblur(this._contentDomNode.domNode, () => {
+		this.onbwuw(this._contentDomNode.domNode, () => {
 			this.hide();
 		});
 
-		this._editor.addOverlayWidget(this);
+		this._editow.addOvewwayWidget(this);
 	}
 
-	public override dispose(): void {
-		this._editor.removeOverlayWidget(this);
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		this._editow.wemoveOvewwayWidget(this);
+		supa.dispose();
 	}
 
-	public getId(): string {
-		return AccessibilityHelpWidget.ID;
+	pubwic getId(): stwing {
+		wetuwn AccessibiwityHewpWidget.ID;
 	}
 
-	public getDomNode(): HTMLElement {
-		return this._domNode.domNode;
+	pubwic getDomNode(): HTMWEwement {
+		wetuwn this._domNode.domNode;
 	}
 
-	public getPosition(): IOverlayWidgetPosition {
-		return {
-			preference: null
+	pubwic getPosition(): IOvewwayWidgetPosition {
+		wetuwn {
+			pwefewence: nuww
 		};
 	}
 
-	public show(): void {
-		if (this._isVisible) {
-			return;
+	pubwic show(): void {
+		if (this._isVisibwe) {
+			wetuwn;
 		}
-		this._isVisible = true;
-		this._isVisibleKey.set(true);
-		this._layout();
-		this._domNode.setDisplay('block');
-		this._domNode.setAttribute('aria-hidden', 'false');
+		this._isVisibwe = twue;
+		this._isVisibweKey.set(twue);
+		this._wayout();
+		this._domNode.setDispway('bwock');
+		this._domNode.setAttwibute('awia-hidden', 'fawse');
 		this._contentDomNode.domNode.tabIndex = 0;
-		this._buildContent();
+		this._buiwdContent();
 		this._contentDomNode.domNode.focus();
 	}
 
-	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
-		let kb = this._keybindingService.lookupKeybinding(commandId);
+	pwivate _descwiptionFowCommand(commandId: stwing, msg: stwing, noKbMsg: stwing): stwing {
+		wet kb = this._keybindingSewvice.wookupKeybinding(commandId);
 		if (kb) {
-			return strings.format(msg, kb.getAriaLabel());
+			wetuwn stwings.fowmat(msg, kb.getAwiaWabew());
 		}
-		return strings.format(noKbMsg, commandId);
+		wetuwn stwings.fowmat(noKbMsg, commandId);
 	}
 
-	private _buildContent() {
-		const options = this._editor.getOptions();
+	pwivate _buiwdContent() {
+		const options = this._editow.getOptions();
 
-		const selections = this._editor.getSelections();
-		let charactersSelected = 0;
+		const sewections = this._editow.getSewections();
+		wet chawactewsSewected = 0;
 
-		if (selections) {
-			const model = this._editor.getModel();
-			if (model) {
-				selections.forEach((selection) => {
-					charactersSelected += model.getValueLengthInRange(selection);
+		if (sewections) {
+			const modew = this._editow.getModew();
+			if (modew) {
+				sewections.fowEach((sewection) => {
+					chawactewsSewected += modew.getVawueWengthInWange(sewection);
 				});
 			}
 		}
 
-		let text = getSelectionLabel(selections, charactersSelected);
+		wet text = getSewectionWabew(sewections, chawactewsSewected);
 
-		if (options.get(EditorOption.inDiffEditor)) {
-			if (options.get(EditorOption.readOnly)) {
-				text += AccessibilityHelpNLS.readonlyDiffEditor;
-			} else {
-				text += AccessibilityHelpNLS.editableDiffEditor;
+		if (options.get(EditowOption.inDiffEditow)) {
+			if (options.get(EditowOption.weadOnwy)) {
+				text += AccessibiwityHewpNWS.weadonwyDiffEditow;
+			} ewse {
+				text += AccessibiwityHewpNWS.editabweDiffEditow;
 			}
-		} else {
-			if (options.get(EditorOption.readOnly)) {
-				text += AccessibilityHelpNLS.readonlyEditor;
-			} else {
-				text += AccessibilityHelpNLS.editableEditor;
+		} ewse {
+			if (options.get(EditowOption.weadOnwy)) {
+				text += AccessibiwityHewpNWS.weadonwyEditow;
+			} ewse {
+				text += AccessibiwityHewpNWS.editabweEditow;
 			}
 		}
 
-		const turnOnMessage = (
-			platform.isMacintosh
-				? AccessibilityHelpNLS.changeConfigToOnMac
-				: AccessibilityHelpNLS.changeConfigToOnWinLinux
+		const tuwnOnMessage = (
+			pwatfowm.isMacintosh
+				? AccessibiwityHewpNWS.changeConfigToOnMac
+				: AccessibiwityHewpNWS.changeConfigToOnWinWinux
 		);
-		switch (options.get(EditorOption.accessibilitySupport)) {
-			case AccessibilitySupport.Unknown:
-				text += '\n\n - ' + turnOnMessage;
-				break;
-			case AccessibilitySupport.Enabled:
-				text += '\n\n - ' + AccessibilityHelpNLS.auto_on;
-				break;
-			case AccessibilitySupport.Disabled:
-				text += '\n\n - ' + AccessibilityHelpNLS.auto_off;
-				text += ' ' + turnOnMessage;
-				break;
+		switch (options.get(EditowOption.accessibiwitySuppowt)) {
+			case AccessibiwitySuppowt.Unknown:
+				text += '\n\n - ' + tuwnOnMessage;
+				bweak;
+			case AccessibiwitySuppowt.Enabwed:
+				text += '\n\n - ' + AccessibiwityHewpNWS.auto_on;
+				bweak;
+			case AccessibiwitySuppowt.Disabwed:
+				text += '\n\n - ' + AccessibiwityHewpNWS.auto_off;
+				text += ' ' + tuwnOnMessage;
+				bweak;
 		}
 
 
-		if (options.get(EditorOption.tabFocusMode)) {
-			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOnMsg, AccessibilityHelpNLS.tabFocusModeOnMsgNoKb);
-		} else {
-			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOffMsg, AccessibilityHelpNLS.tabFocusModeOffMsgNoKb);
+		if (options.get(EditowOption.tabFocusMode)) {
+			text += '\n\n - ' + this._descwiptionFowCommand(ToggweTabFocusModeAction.ID, AccessibiwityHewpNWS.tabFocusModeOnMsg, AccessibiwityHewpNWS.tabFocusModeOnMsgNoKb);
+		} ewse {
+			text += '\n\n - ' + this._descwiptionFowCommand(ToggweTabFocusModeAction.ID, AccessibiwityHewpNWS.tabFocusModeOffMsg, AccessibiwityHewpNWS.tabFocusModeOffMsgNoKb);
 		}
 
 		const openDocMessage = (
-			platform.isMacintosh
-				? AccessibilityHelpNLS.openDocMac
-				: AccessibilityHelpNLS.openDocWinLinux
+			pwatfowm.isMacintosh
+				? AccessibiwityHewpNWS.openDocMac
+				: AccessibiwityHewpNWS.openDocWinWinux
 		);
 
 		text += '\n\n - ' + openDocMessage;
 
-		text += '\n\n' + AccessibilityHelpNLS.outroMsg;
+		text += '\n\n' + AccessibiwityHewpNWS.outwoMsg;
 
-		this._contentDomNode.domNode.appendChild(renderFormattedText(text));
-		// Per https://www.w3.org/TR/wai-aria/roles#document, Authors SHOULD provide a title or label for documents
-		this._contentDomNode.domNode.setAttribute('aria-label', text);
+		this._contentDomNode.domNode.appendChiwd(wendewFowmattedText(text));
+		// Pew https://www.w3.owg/TW/wai-awia/wowes#document, Authows SHOUWD pwovide a titwe ow wabew fow documents
+		this._contentDomNode.domNode.setAttwibute('awia-wabew', text);
 	}
 
-	public hide(): void {
-		if (!this._isVisible) {
-			return;
+	pubwic hide(): void {
+		if (!this._isVisibwe) {
+			wetuwn;
 		}
-		this._isVisible = false;
-		this._isVisibleKey.reset();
-		this._domNode.setDisplay('none');
-		this._domNode.setAttribute('aria-hidden', 'true');
+		this._isVisibwe = fawse;
+		this._isVisibweKey.weset();
+		this._domNode.setDispway('none');
+		this._domNode.setAttwibute('awia-hidden', 'twue');
 		this._contentDomNode.domNode.tabIndex = -1;
-		dom.clearNode(this._contentDomNode.domNode);
+		dom.cweawNode(this._contentDomNode.domNode);
 
-		this._editor.focus();
+		this._editow.focus();
 	}
 
-	private _layout(): void {
-		let editorLayout = this._editor.getLayoutInfo();
+	pwivate _wayout(): void {
+		wet editowWayout = this._editow.getWayoutInfo();
 
-		let w = Math.max(5, Math.min(AccessibilityHelpWidget.WIDTH, editorLayout.width - 40));
-		let h = Math.max(5, Math.min(AccessibilityHelpWidget.HEIGHT, editorLayout.height - 40));
+		wet w = Math.max(5, Math.min(AccessibiwityHewpWidget.WIDTH, editowWayout.width - 40));
+		wet h = Math.max(5, Math.min(AccessibiwityHewpWidget.HEIGHT, editowWayout.height - 40));
 
 		this._domNode.setWidth(w);
 		this._domNode.setHeight(h);
 
-		let top = Math.round((editorLayout.height - h) / 2);
+		wet top = Math.wound((editowWayout.height - h) / 2);
 		this._domNode.setTop(top);
 
-		let left = Math.round((editorLayout.width - w) / 2);
-		this._domNode.setLeft(left);
+		wet weft = Math.wound((editowWayout.width - w) / 2);
+		this._domNode.setWeft(weft);
 	}
 }
 
-class ShowAccessibilityHelpAction extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.showAccessibilityHelp',
-			label: AccessibilityHelpNLS.showAccessibilityHelpAction,
-			alias: 'Show Accessibility Help',
-			precondition: undefined,
+cwass ShowAccessibiwityHewpAction extends EditowAction {
+	constwuctow() {
+		supa({
+			id: 'editow.action.showAccessibiwityHewp',
+			wabew: AccessibiwityHewpNWS.showAccessibiwityHewpAction,
+			awias: 'Show Accessibiwity Hewp',
+			pwecondition: undefined,
 			kbOpts: {
-				primary: KeyMod.Alt | KeyCode.F1,
-				weight: KeybindingWeight.EditorContrib,
-				linux: {
-					primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
-					secondary: [KeyMod.Alt | KeyCode.F1]
+				pwimawy: KeyMod.Awt | KeyCode.F1,
+				weight: KeybindingWeight.EditowContwib,
+				winux: {
+					pwimawy: KeyMod.Awt | KeyMod.Shift | KeyCode.F1,
+					secondawy: [KeyMod.Awt | KeyCode.F1]
 				}
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let controller = AccessibilityHelpController.get(editor);
-		if (controller) {
-			controller.show();
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		wet contwowwa = AccessibiwityHewpContwowwa.get(editow);
+		if (contwowwa) {
+			contwowwa.show();
 		}
 	}
 }
 
-registerEditorContribution(AccessibilityHelpController.ID, AccessibilityHelpController);
-registerEditorAction(ShowAccessibilityHelpAction);
+wegistewEditowContwibution(AccessibiwityHewpContwowwa.ID, AccessibiwityHewpContwowwa);
+wegistewEditowAction(ShowAccessibiwityHewpAction);
 
-const AccessibilityHelpCommand = EditorCommand.bindToContribution<AccessibilityHelpController>(AccessibilityHelpController.get);
+const AccessibiwityHewpCommand = EditowCommand.bindToContwibution<AccessibiwityHewpContwowwa>(AccessibiwityHewpContwowwa.get);
 
-registerEditorCommand(
-	new AccessibilityHelpCommand({
-		id: 'closeAccessibilityHelp',
-		precondition: CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE,
-		handler: x => x.hide(),
+wegistewEditowCommand(
+	new AccessibiwityHewpCommand({
+		id: 'cwoseAccessibiwityHewp',
+		pwecondition: CONTEXT_ACCESSIBIWITY_WIDGET_VISIBWE,
+		handwa: x => x.hide(),
 		kbOpts: {
-			weight: KeybindingWeight.EditorContrib + 100,
-			kbExpr: EditorContextKeys.focus,
-			primary: KeyCode.Escape,
-			secondary: [KeyMod.Shift | KeyCode.Escape]
+			weight: KeybindingWeight.EditowContwib + 100,
+			kbExpw: EditowContextKeys.focus,
+			pwimawy: KeyCode.Escape,
+			secondawy: [KeyMod.Shift | KeyCode.Escape]
 		}
 	})
 );
 
-registerThemingParticipant((theme, collector) => {
-	const widgetBackground = theme.getColor(editorWidgetBackground);
-	if (widgetBackground) {
-		collector.addRule(`.monaco-editor .accessibilityHelpWidget { background-color: ${widgetBackground}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const widgetBackgwound = theme.getCowow(editowWidgetBackgwound);
+	if (widgetBackgwound) {
+		cowwectow.addWuwe(`.monaco-editow .accessibiwityHewpWidget { backgwound-cowow: ${widgetBackgwound}; }`);
 	}
-	const widgetForeground = theme.getColor(editorWidgetForeground);
-	if (widgetForeground) {
-		collector.addRule(`.monaco-editor .accessibilityHelpWidget { color: ${widgetForeground}; }`);
-	}
-
-
-	const widgetShadowColor = theme.getColor(widgetShadow);
-	if (widgetShadowColor) {
-		collector.addRule(`.monaco-editor .accessibilityHelpWidget { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
+	const widgetFowegwound = theme.getCowow(editowWidgetFowegwound);
+	if (widgetFowegwound) {
+		cowwectow.addWuwe(`.monaco-editow .accessibiwityHewpWidget { cowow: ${widgetFowegwound}; }`);
 	}
 
-	const hcBorder = theme.getColor(contrastBorder);
-	if (hcBorder) {
-		collector.addRule(`.monaco-editor .accessibilityHelpWidget { border: 2px solid ${hcBorder}; }`);
+
+	const widgetShadowCowow = theme.getCowow(widgetShadow);
+	if (widgetShadowCowow) {
+		cowwectow.addWuwe(`.monaco-editow .accessibiwityHewpWidget { box-shadow: 0 2px 8px ${widgetShadowCowow}; }`);
+	}
+
+	const hcBowda = theme.getCowow(contwastBowda);
+	if (hcBowda) {
+		cowwectow.addWuwe(`.monaco-editow .accessibiwityHewpWidget { bowda: 2px sowid ${hcBowda}; }`);
 	}
 });

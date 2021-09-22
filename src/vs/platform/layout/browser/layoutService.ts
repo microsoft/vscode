@@ -1,41 +1,41 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDimension } from 'vs/base/browser/dom';
-import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { IDimension } fwom 'vs/base/bwowsa/dom';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const ILayoutService = createDecorator<ILayoutService>('layoutService');
+expowt const IWayoutSewvice = cweateDecowatow<IWayoutSewvice>('wayoutSewvice');
 
-export interface ILayoutService {
+expowt intewface IWayoutSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * The dimensions of the container.
+	 * The dimensions of the containa.
 	 */
-	readonly dimension: IDimension;
+	weadonwy dimension: IDimension;
 
 	/**
-	 * Container of the application.
+	 * Containa of the appwication.
 	 */
-	readonly container: HTMLElement;
+	weadonwy containa: HTMWEwement;
 
 	/**
-	 * An offset to use for positioning elements inside the container.
+	 * An offset to use fow positioning ewements inside the containa.
 	 */
-	readonly offset?: { top: number };
+	weadonwy offset?: { top: numba };
 
 	/**
-	 * An event that is emitted when the container is layed out. The
-	 * event carries the dimensions of the container as part of it.
+	 * An event that is emitted when the containa is wayed out. The
+	 * event cawwies the dimensions of the containa as pawt of it.
 	 */
-	readonly onDidLayout: Event<IDimension>;
+	weadonwy onDidWayout: Event<IDimension>;
 
 	/**
-	 * Focus the primary component of the container.
+	 * Focus the pwimawy component of the containa.
 	 */
 	focus(): void;
 }

@@ -1,809 +1,809 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
-import { Event } from 'vs/base/common/event';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
-import { setImmediate } from 'vs/base/common/platform';
-import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IRange } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { editorCodeLensForeground, overviewRulerError, overviewRulerInfo } from 'vs/editor/common/view/editorColorRegistry';
-import { localize } from 'vs/nls';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { registerThemingParticipant, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution } from 'vs/workbench/contrib/debug/common/debug';
-import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
-import { testingRunAllIcon, testingRunIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
-import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
-import { testMessageSeverityColors } from 'vs/workbench/contrib/testing/browser/theme';
-import { DefaultGutterClickAction, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
-import { labelForTestInState } from 'vs/workbench/contrib/testing/common/constants';
-import { IncrementalTestCollectionItem, InternalTestItem, IRichLocation, ITestMessage, ITestRunProfile, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
-import { isFailedState, maxPriority } from 'vs/workbench/contrib/testing/common/testingStates';
-import { buildTestUri, parseTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
-import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
-import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
-import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { getContextForTestItem, ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { wendewStwingAsPwaintext } fwom 'vs/base/bwowsa/mawkdownWendewa';
+impowt { Action, IAction, Sepawatow, SubmenuAction } fwom 'vs/base/common/actions';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { MawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { Disposabwe, DisposabweStowe, IDisposabwe, IWefewence, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { setImmediate } fwom 'vs/base/common/pwatfowm';
+impowt { wemoveAnsiEscapeCodes } fwom 'vs/base/common/stwings';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { ContentWidgetPositionPwefewence, ICodeEditow, IContentWidgetPosition, IEditowMouseEvent, MouseTawgetType } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { IModewDewtaDecowation, OvewviewWuwewWane, TwackedWangeStickiness } fwom 'vs/editow/common/modew';
+impowt { editowCodeWensFowegwound, ovewviewWuwewEwwow, ovewviewWuwewInfo } fwom 'vs/editow/common/view/editowCowowWegistwy';
+impowt { wocawize } fwom 'vs/nws';
+impowt { cweateAndFiwwInContextMenuActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { IMenuSewvice, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { wegistewThemingPawticipant, themeCowowFwomId, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { BWEAKPOINT_EDITOW_CONTWIBUTION_ID, IBweakpointEditowContwibution } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { getTestItemContextOvewway } fwom 'vs/wowkbench/contwib/testing/bwowsa/expwowewPwojections/testItemContextOvewway';
+impowt { testingWunAwwIcon, testingWunIcon, testingStatesToIcons } fwom 'vs/wowkbench/contwib/testing/bwowsa/icons';
+impowt { TestingOutputPeekContwowwa } fwom 'vs/wowkbench/contwib/testing/bwowsa/testingOutputPeek';
+impowt { testMessageSevewityCowows } fwom 'vs/wowkbench/contwib/testing/bwowsa/theme';
+impowt { DefauwtGuttewCwickAction, getTestingConfiguwation, TestingConfigKeys } fwom 'vs/wowkbench/contwib/testing/common/configuwation';
+impowt { wabewFowTestInState } fwom 'vs/wowkbench/contwib/testing/common/constants';
+impowt { IncwementawTestCowwectionItem, IntewnawTestItem, IWichWocation, ITestMessage, ITestWunPwofiwe, TestMessageType, TestWesuwtItem, TestWesuwtState, TestWunPwofiweBitset } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
+impowt { isFaiwedState, maxPwiowity } fwom 'vs/wowkbench/contwib/testing/common/testingStates';
+impowt { buiwdTestUwi, pawseTestUwi, TestUwiType } fwom 'vs/wowkbench/contwib/testing/common/testingUwi';
+impowt { ITestPwofiweSewvice } fwom 'vs/wowkbench/contwib/testing/common/testPwofiweSewvice';
+impowt { WiveTestWesuwt } fwom 'vs/wowkbench/contwib/testing/common/testWesuwt';
+impowt { ITestWesuwtSewvice } fwom 'vs/wowkbench/contwib/testing/common/testWesuwtSewvice';
+impowt { getContextFowTestItem, ITestSewvice, testsInFiwe } fwom 'vs/wowkbench/contwib/testing/common/testSewvice';
 
-function isOriginalInDiffEditor(codeEditorService: ICodeEditorService, codeEditor: ICodeEditor): boolean {
-	const diffEditors = codeEditorService.listDiffEditors();
+function isOwiginawInDiffEditow(codeEditowSewvice: ICodeEditowSewvice, codeEditow: ICodeEditow): boowean {
+	const diffEditows = codeEditowSewvice.wistDiffEditows();
 
-	for (const diffEditor of diffEditors) {
-		if (diffEditor.getOriginalEditor() === codeEditor) {
-			return true;
+	fow (const diffEditow of diffEditows) {
+		if (diffEditow.getOwiginawEditow() === codeEditow) {
+			wetuwn twue;
 		}
 	}
 
-	return false;
+	wetuwn fawse;
 }
 
-export class TestingDecorations extends Disposable implements IEditorContribution {
-	private currentUri?: URI;
-	private lastDecorations: ITestDecoration[] = [];
-	private readonly expectedWidget = new MutableDisposable<ExpectedLensContentWidget>();
-	private readonly actualWidget = new MutableDisposable<ActualLensContentWidget>();
+expowt cwass TestingDecowations extends Disposabwe impwements IEditowContwibution {
+	pwivate cuwwentUwi?: UWI;
+	pwivate wastDecowations: ITestDecowation[] = [];
+	pwivate weadonwy expectedWidget = new MutabweDisposabwe<ExpectedWensContentWidget>();
+	pwivate weadonwy actuawWidget = new MutabweDisposabwe<ActuawWensContentWidget>();
 
 	/**
-	 * List of messages that should be hidden because an editor changed their
-	 * underlying ranges. I think this is good enough, because:
-	 *  - Message decorations are never shown across reloads; this does not
-	 *    need to persist
-	 *  - Message instances are stable for any completed test results for
-	 *    the duration of the session.
+	 * Wist of messages that shouwd be hidden because an editow changed theiw
+	 * undewwying wanges. I think this is good enough, because:
+	 *  - Message decowations awe neva shown acwoss wewoads; this does not
+	 *    need to pewsist
+	 *  - Message instances awe stabwe fow any compweted test wesuwts fow
+	 *    the duwation of the session.
 	 */
-	private invalidatedMessages = new WeakSet<ITestMessage>();
+	pwivate invawidatedMessages = new WeakSet<ITestMessage>();
 
-	constructor(
-		private readonly editor: ICodeEditor,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITestService private readonly testService: ITestService,
-		@ITestResultService private readonly results: ITestResultService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	constwuctow(
+		pwivate weadonwy editow: ICodeEditow,
+		@ICodeEditowSewvice pwivate weadonwy codeEditowSewvice: ICodeEditowSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@ITestSewvice pwivate weadonwy testSewvice: ITestSewvice,
+		@ITestWesuwtSewvice pwivate weadonwy wesuwts: ITestWesuwtSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
 	) {
-		super();
-		this.attachModel(editor.getModel()?.uri);
-		this._register(this.editor.onDidChangeModel(e => this.attachModel(e.newModelUrl || undefined)));
-		this._register(this.editor.onMouseDown(e => {
-			for (const decoration of this.lastDecorations) {
-				if (decoration.click(e)) {
-					e.event.stopPropagation();
-					return;
+		supa();
+		this.attachModew(editow.getModew()?.uwi);
+		this._wegista(this.editow.onDidChangeModew(e => this.attachModew(e.newModewUww || undefined)));
+		this._wegista(this.editow.onMouseDown(e => {
+			fow (const decowation of this.wastDecowations) {
+				if (decowation.cwick(e)) {
+					e.event.stopPwopagation();
+					wetuwn;
 				}
 			}
 		}));
-		this._register(this.editor.onDidChangeModelContent(e => {
-			if (!this.currentUri) {
-				return;
+		this._wegista(this.editow.onDidChangeModewContent(e => {
+			if (!this.cuwwentUwi) {
+				wetuwn;
 			}
 
-			let update = false;
-			for (const change of e.changes) {
-				for (const deco of this.lastDecorations) {
-					if (deco instanceof TestMessageDecoration
-						&& deco.location.range.startLineNumber >= change.range.startLineNumber
-						&& deco.location.range.endLineNumber <= change.range.endLineNumber
+			wet update = fawse;
+			fow (const change of e.changes) {
+				fow (const deco of this.wastDecowations) {
+					if (deco instanceof TestMessageDecowation
+						&& deco.wocation.wange.stawtWineNumba >= change.wange.stawtWineNumba
+						&& deco.wocation.wange.endWineNumba <= change.wange.endWineNumba
 					) {
-						this.invalidatedMessages.add(deco.testMessage);
-						update = true;
+						this.invawidatedMessages.add(deco.testMessage);
+						update = twue;
 					}
 				}
 			}
 
 			if (update) {
-				this.setDecorations(this.currentUri);
+				this.setDecowations(this.cuwwentUwi);
 			}
 		}));
 
-		const updateFontFamilyVar = () => {
-			this.editor.getContainerDomNode().style.setProperty('--testMessageDecorationFontFamily', editor.getOption(EditorOption.fontFamily));
-			this.editor.getContainerDomNode().style.setProperty('--testMessageDecorationFontSize', `${editor.getOption(EditorOption.fontSize)}px`);
+		const updateFontFamiwyVaw = () => {
+			this.editow.getContainewDomNode().stywe.setPwopewty('--testMessageDecowationFontFamiwy', editow.getOption(EditowOption.fontFamiwy));
+			this.editow.getContainewDomNode().stywe.setPwopewty('--testMessageDecowationFontSize', `${editow.getOption(EditowOption.fontSize)}px`);
 		};
-		this._register(this.editor.onDidChangeConfiguration((e) => {
-			if (e.hasChanged(EditorOption.fontFamily)) {
-				updateFontFamilyVar();
+		this._wegista(this.editow.onDidChangeConfiguwation((e) => {
+			if (e.hasChanged(EditowOption.fontFamiwy)) {
+				updateFontFamiwyVaw();
 			}
 		}));
-		updateFontFamilyVar();
+		updateFontFamiwyVaw();
 
-		this._register(this.results.onTestChanged(({ item: result }) => {
-			if (this.currentUri && result.item.uri && result.item.uri.toString() === this.currentUri.toString()) {
-				this.setDecorations(this.currentUri);
-			}
-		}));
-
-		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TestingConfigKeys.GutterEnabled)) {
-				this.setDecorations(this.currentUri);
+		this._wegista(this.wesuwts.onTestChanged(({ item: wesuwt }) => {
+			if (this.cuwwentUwi && wesuwt.item.uwi && wesuwt.item.uwi.toStwing() === this.cuwwentUwi.toStwing()) {
+				this.setDecowations(this.cuwwentUwi);
 			}
 		}));
 
-		this._register(Event.any(
-			this.results.onResultsChanged,
-			this.testService.excluded.onTestExclusionsChanged,
-			this.testService.showInlineOutput.onDidChange,
-			this.testService.onDidProcessDiff,
-		)(() => this.setDecorations(this.currentUri)));
+		this._wegista(configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation(TestingConfigKeys.GuttewEnabwed)) {
+				this.setDecowations(this.cuwwentUwi);
+			}
+		}));
+
+		this._wegista(Event.any(
+			this.wesuwts.onWesuwtsChanged,
+			this.testSewvice.excwuded.onTestExcwusionsChanged,
+			this.testSewvice.showInwineOutput.onDidChange,
+			this.testSewvice.onDidPwocessDiff,
+		)(() => this.setDecowations(this.cuwwentUwi)));
 	}
 
-	private attachModel(uri?: URI) {
-		switch (uri && parseTestUri(uri)?.type) {
-			case TestUriType.ResultExpectedOutput:
-				this.expectedWidget.value = new ExpectedLensContentWidget(this.editor);
-				this.actualWidget.clear();
-				break;
-			case TestUriType.ResultActualOutput:
-				this.expectedWidget.clear();
-				this.actualWidget.value = new ActualLensContentWidget(this.editor);
-				break;
-			default:
-				this.expectedWidget.clear();
-				this.actualWidget.clear();
+	pwivate attachModew(uwi?: UWI) {
+		switch (uwi && pawseTestUwi(uwi)?.type) {
+			case TestUwiType.WesuwtExpectedOutput:
+				this.expectedWidget.vawue = new ExpectedWensContentWidget(this.editow);
+				this.actuawWidget.cweaw();
+				bweak;
+			case TestUwiType.WesuwtActuawOutput:
+				this.expectedWidget.cweaw();
+				this.actuawWidget.vawue = new ActuawWensContentWidget(this.editow);
+				bweak;
+			defauwt:
+				this.expectedWidget.cweaw();
+				this.actuawWidget.cweaw();
 		}
 
-		if (isOriginalInDiffEditor(this.codeEditorService, this.editor)) {
-			uri = undefined;
+		if (isOwiginawInDiffEditow(this.codeEditowSewvice, this.editow)) {
+			uwi = undefined;
 		}
 
-		this.currentUri = uri;
+		this.cuwwentUwi = uwi;
 
-		if (!uri) {
-			this.clearDecorations();
-			return;
+		if (!uwi) {
+			this.cweawDecowations();
+			wetuwn;
 		}
 
 		(async () => {
-			for await (const _test of testsInFile(this.testService.collection, uri)) {
-				// consume the iterator so that all tests in the file get expanded. Or
-				// at least until the URI changes. If new items are requested, changes
-				// will be trigged in the `onDidProcessDiff` callback.
-				if (this.currentUri !== uri) {
-					break;
+			fow await (const _test of testsInFiwe(this.testSewvice.cowwection, uwi)) {
+				// consume the itewatow so that aww tests in the fiwe get expanded. Ow
+				// at weast untiw the UWI changes. If new items awe wequested, changes
+				// wiww be twigged in the `onDidPwocessDiff` cawwback.
+				if (this.cuwwentUwi !== uwi) {
+					bweak;
 				}
 			}
 		})();
 
-		this.setDecorations(uri);
+		this.setDecowations(uwi);
 	}
 
-	private setDecorations(uri: URI | undefined): void {
-		if (!uri) {
-			this.clearDecorations();
-			return;
+	pwivate setDecowations(uwi: UWI | undefined): void {
+		if (!uwi) {
+			this.cweawDecowations();
+			wetuwn;
 		}
 
-		const gutterEnabled = getTestingConfiguration(this.configurationService, TestingConfigKeys.GutterEnabled);
+		const guttewEnabwed = getTestingConfiguwation(this.configuwationSewvice, TestingConfigKeys.GuttewEnabwed);
 
-		this.editor.changeDecorations(accessor => {
-			const newDecorations: ITestDecoration[] = [];
-			if (gutterEnabled) {
-				for (const test of this.testService.collection.all) {
-					if (!test.item.range || test.item.uri?.toString() !== uri.toString()) {
+		this.editow.changeDecowations(accessow => {
+			const newDecowations: ITestDecowation[] = [];
+			if (guttewEnabwed) {
+				fow (const test of this.testSewvice.cowwection.aww) {
+					if (!test.item.wange || test.item.uwi?.toStwing() !== uwi.toStwing()) {
 						continue;
 					}
 
-					const stateLookup = this.results.getStateById(test.item.extId);
-					const line = test.item.range.startLineNumber;
-					const resultItem = stateLookup?.[1];
-					const existing = newDecorations.findIndex(d => d instanceof RunTestDecoration && d.line === line);
+					const stateWookup = this.wesuwts.getStateById(test.item.extId);
+					const wine = test.item.wange.stawtWineNumba;
+					const wesuwtItem = stateWookup?.[1];
+					const existing = newDecowations.findIndex(d => d instanceof WunTestDecowation && d.wine === wine);
 					if (existing !== -1) {
-						newDecorations[existing] = (newDecorations[existing] as RunTestDecoration).merge(test, resultItem);
-					} else {
-						newDecorations.push(this.instantiationService.createInstance(RunSingleTestDecoration, test, this.editor, stateLookup?.[1]));
+						newDecowations[existing] = (newDecowations[existing] as WunTestDecowation).mewge(test, wesuwtItem);
+					} ewse {
+						newDecowations.push(this.instantiationSewvice.cweateInstance(WunSingweTestDecowation, test, this.editow, stateWookup?.[1]));
 					}
 				}
 			}
 
-			const lastResult = this.results.results[0];
-			if (this.testService.showInlineOutput.value && lastResult instanceof LiveTestResult) {
-				for (const task of lastResult.tasks) {
-					for (const m of task.otherMessages) {
-						if (!this.invalidatedMessages.has(m) && hasValidLocation(uri, m)) {
-							newDecorations.push(this.instantiationService.createInstance(TestMessageDecoration, m, uri, m.location, this.editor));
+			const wastWesuwt = this.wesuwts.wesuwts[0];
+			if (this.testSewvice.showInwineOutput.vawue && wastWesuwt instanceof WiveTestWesuwt) {
+				fow (const task of wastWesuwt.tasks) {
+					fow (const m of task.othewMessages) {
+						if (!this.invawidatedMessages.has(m) && hasVawidWocation(uwi, m)) {
+							newDecowations.push(this.instantiationSewvice.cweateInstance(TestMessageDecowation, m, uwi, m.wocation, this.editow));
 						}
 					}
 				}
 
-				for (const test of lastResult.tests) {
-					for (let taskId = 0; taskId < test.tasks.length; taskId++) {
+				fow (const test of wastWesuwt.tests) {
+					fow (wet taskId = 0; taskId < test.tasks.wength; taskId++) {
 						const state = test.tasks[taskId];
-						for (let i = 0; i < state.messages.length; i++) {
+						fow (wet i = 0; i < state.messages.wength; i++) {
 							const m = state.messages[i];
-							if (!this.invalidatedMessages.has(m) && hasValidLocation(uri, m)) {
-								const uri = m.type === TestMessageType.Info ? undefined : buildTestUri({
-									type: TestUriType.ResultActualOutput,
+							if (!this.invawidatedMessages.has(m) && hasVawidWocation(uwi, m)) {
+								const uwi = m.type === TestMessageType.Info ? undefined : buiwdTestUwi({
+									type: TestUwiType.WesuwtActuawOutput,
 									messageIndex: i,
 									taskIndex: taskId,
-									resultId: lastResult.id,
+									wesuwtId: wastWesuwt.id,
 									testExtId: test.item.extId,
 								});
 
-								newDecorations.push(this.instantiationService.createInstance(TestMessageDecoration, m, uri, m.location, this.editor));
+								newDecowations.push(this.instantiationSewvice.cweateInstance(TestMessageDecowation, m, uwi, m.wocation, this.editow));
 							}
 						}
 					}
 				}
 			}
 
-			accessor
-				.deltaDecorations(this.lastDecorations.map(d => d.id), newDecorations.map(d => d.editorDecoration))
-				.forEach((id, i) => newDecorations[i].id = id);
+			accessow
+				.dewtaDecowations(this.wastDecowations.map(d => d.id), newDecowations.map(d => d.editowDecowation))
+				.fowEach((id, i) => newDecowations[i].id = id);
 
-			this.lastDecorations = newDecorations;
+			this.wastDecowations = newDecowations;
 		});
 	}
 
-	private clearDecorations(): void {
-		if (!this.lastDecorations.length) {
-			return;
+	pwivate cweawDecowations(): void {
+		if (!this.wastDecowations.wength) {
+			wetuwn;
 		}
 
-		this.editor.changeDecorations(accessor => {
-			for (const decoration of this.lastDecorations) {
-				accessor.removeDecoration(decoration.id);
+		this.editow.changeDecowations(accessow => {
+			fow (const decowation of this.wastDecowations) {
+				accessow.wemoveDecowation(decowation.id);
 			}
 
-			this.lastDecorations = [];
+			this.wastDecowations = [];
 		});
 	}
 }
 
-interface ITestDecoration extends IDisposable {
+intewface ITestDecowation extends IDisposabwe {
 	/**
-	 * ID of the decoration after being added to the editor, set after the
-	 * decoration is applied.
+	 * ID of the decowation afta being added to the editow, set afta the
+	 * decowation is appwied.
 	 */
-	id: string;
+	id: stwing;
 
-	readonly editorDecoration: IModelDeltaDecoration;
+	weadonwy editowDecowation: IModewDewtaDecowation;
 
 	/**
-	 * Handles a click event, returns true if it was handled.
+	 * Handwes a cwick event, wetuwns twue if it was handwed.
 	 */
-	click(e: IEditorMouseEvent): boolean;
+	cwick(e: IEditowMouseEvent): boowean;
 }
 
-const hasValidLocation = <T extends { location?: IRichLocation }>(editorUri: URI, t: T): t is T & { location: IRichLocation } =>
-	t.location?.uri.toString() === editorUri.toString();
+const hasVawidWocation = <T extends { wocation?: IWichWocation }>(editowUwi: UWI, t: T): t is T & { wocation: IWichWocation } =>
+	t.wocation?.uwi.toStwing() === editowUwi.toStwing();
 
-const firstLineRange = (originalRange: IRange) => ({
-	startLineNumber: originalRange.startLineNumber,
-	endLineNumber: originalRange.startLineNumber,
-	startColumn: 0,
-	endColumn: 1,
+const fiwstWineWange = (owiginawWange: IWange) => ({
+	stawtWineNumba: owiginawWange.stawtWineNumba,
+	endWineNumba: owiginawWange.stawtWineNumba,
+	stawtCowumn: 0,
+	endCowumn: 1,
 });
 
-const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[], states: readonly (TestResultItem | undefined)[]): IModelDeltaDecoration => {
-	const range = tests[0]?.item.range;
-	if (!range) {
-		throw new Error('Test decorations can only be created for tests with a range');
+const cweateWunTestDecowation = (tests: weadonwy IncwementawTestCowwectionItem[], states: weadonwy (TestWesuwtItem | undefined)[]): IModewDewtaDecowation => {
+	const wange = tests[0]?.item.wange;
+	if (!wange) {
+		thwow new Ewwow('Test decowations can onwy be cweated fow tests with a wange');
 	}
 
-	let computedState = TestResultState.Unset;
-	let hoverMessageParts: string[] = [];
-	let testIdWithMessages: string | undefined;
-	let retired = false;
-	for (let i = 0; i < tests.length; i++) {
+	wet computedState = TestWesuwtState.Unset;
+	wet hovewMessagePawts: stwing[] = [];
+	wet testIdWithMessages: stwing | undefined;
+	wet wetiwed = fawse;
+	fow (wet i = 0; i < tests.wength; i++) {
 		const test = tests[i];
-		const resultItem = states[i];
-		const state = resultItem?.computedState ?? TestResultState.Unset;
-		if (hoverMessageParts.length < 10) {
-			hoverMessageParts.push(labelForTestInState(test.item.label, state));
+		const wesuwtItem = states[i];
+		const state = wesuwtItem?.computedState ?? TestWesuwtState.Unset;
+		if (hovewMessagePawts.wength < 10) {
+			hovewMessagePawts.push(wabewFowTestInState(test.item.wabew, state));
 		}
-		computedState = maxPriority(computedState, state);
-		retired = retired || !!resultItem?.retired;
-		if (!testIdWithMessages && resultItem?.tasks.some(t => t.messages.length)) {
+		computedState = maxPwiowity(computedState, state);
+		wetiwed = wetiwed || !!wesuwtItem?.wetiwed;
+		if (!testIdWithMessages && wesuwtItem?.tasks.some(t => t.messages.wength)) {
 			testIdWithMessages = test.item.extId;
 		}
 	}
 
-	const hasMultipleTests = tests.length > 1 || tests[0].children.size > 0;
-	const icon = computedState === TestResultState.Unset
-		? (hasMultipleTests ? testingRunAllIcon : testingRunIcon)
+	const hasMuwtipweTests = tests.wength > 1 || tests[0].chiwdwen.size > 0;
+	const icon = computedState === TestWesuwtState.Unset
+		? (hasMuwtipweTests ? testingWunAwwIcon : testingWunIcon)
 		: testingStatesToIcons.get(computedState)!;
 
-	const hoverMessage = new MarkdownString('', true).appendText(hoverMessageParts.join(', ') + '.');
+	const hovewMessage = new MawkdownStwing('', twue).appendText(hovewMessagePawts.join(', ') + '.');
 	if (testIdWithMessages) {
-		const args = encodeURIComponent(JSON.stringify([testIdWithMessages]));
-		hoverMessage.appendMarkdown(`[${localize('peekTestOutout', 'Peek Test Output')}](command:vscode.peekTestError?${args})`);
+		const awgs = encodeUWIComponent(JSON.stwingify([testIdWithMessages]));
+		hovewMessage.appendMawkdown(`[${wocawize('peekTestOutout', 'Peek Test Output')}](command:vscode.peekTestEwwow?${awgs})`);
 	}
 
-	let glyphMarginClassName = ThemeIcon.asClassName(icon) + ' testing-run-glyph';
-	if (retired) {
-		glyphMarginClassName += ' retired';
+	wet gwyphMawginCwassName = ThemeIcon.asCwassName(icon) + ' testing-wun-gwyph';
+	if (wetiwed) {
+		gwyphMawginCwassName += ' wetiwed';
 	}
 
-	return {
-		range: firstLineRange(range),
+	wetuwn {
+		wange: fiwstWineWange(wange),
 		options: {
-			description: 'run-test-decoration',
-			isWholeLine: true,
-			hoverMessage,
-			glyphMarginClassName,
-			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+			descwiption: 'wun-test-decowation',
+			isWhoweWine: twue,
+			hovewMessage,
+			gwyphMawginCwassName,
+			stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
 		}
 	};
 };
 
-const enum LensContentWidgetVars {
-	FontFamily = 'testingDiffLensFontFamily',
-	FontFeatures = 'testingDiffLensFontFeatures',
+const enum WensContentWidgetVaws {
+	FontFamiwy = 'testingDiffWensFontFamiwy',
+	FontFeatuwes = 'testingDiffWensFontFeatuwes',
 }
 
-abstract class TitleLensContentWidget {
-	/** @inheritdoc */
-	public readonly allowEditorOverflow = false;
-	/** @inheritdoc */
-	public readonly suppressMouseDown = true;
+abstwact cwass TitweWensContentWidget {
+	/** @inhewitdoc */
+	pubwic weadonwy awwowEditowOvewfwow = fawse;
+	/** @inhewitdoc */
+	pubwic weadonwy suppwessMouseDown = twue;
 
-	private readonly _domNode = dom.$('span');
-	private viewZoneId?: string;
+	pwivate weadonwy _domNode = dom.$('span');
+	pwivate viewZoneId?: stwing;
 
-	constructor(private readonly editor: ICodeEditor) {
+	constwuctow(pwivate weadonwy editow: ICodeEditow) {
 		setImmediate(() => {
-			this.applyStyling();
-			this.editor.addContentWidget(this);
+			this.appwyStywing();
+			this.editow.addContentWidget(this);
 		});
 	}
 
-	private applyStyling() {
-		let fontSize = this.editor.getOption(EditorOption.codeLensFontSize);
-		let height: number;
+	pwivate appwyStywing() {
+		wet fontSize = this.editow.getOption(EditowOption.codeWensFontSize);
+		wet height: numba;
 		if (!fontSize || fontSize < 5) {
-			fontSize = (this.editor.getOption(EditorOption.fontSize) * .9) | 0;
-			height = this.editor.getOption(EditorOption.lineHeight);
-		} else {
-			height = (fontSize * Math.max(1.3, this.editor.getOption(EditorOption.lineHeight) / this.editor.getOption(EditorOption.fontSize))) | 0;
+			fontSize = (this.editow.getOption(EditowOption.fontSize) * .9) | 0;
+			height = this.editow.getOption(EditowOption.wineHeight);
+		} ewse {
+			height = (fontSize * Math.max(1.3, this.editow.getOption(EditowOption.wineHeight) / this.editow.getOption(EditowOption.fontSize))) | 0;
 		}
 
-		const editorFontInfo = this.editor.getOption(EditorOption.fontInfo);
+		const editowFontInfo = this.editow.getOption(EditowOption.fontInfo);
 		const node = this._domNode;
-		node.classList.add('testing-diff-lens-widget');
+		node.cwassWist.add('testing-diff-wens-widget');
 		node.textContent = this.getText();
-		node.style.lineHeight = `${height}px`;
-		node.style.fontSize = `${fontSize}px`;
-		node.style.fontFamily = `var(--${LensContentWidgetVars.FontFamily})`;
-		node.style.fontFeatureSettings = `var(--${LensContentWidgetVars.FontFeatures})`;
+		node.stywe.wineHeight = `${height}px`;
+		node.stywe.fontSize = `${fontSize}px`;
+		node.stywe.fontFamiwy = `vaw(--${WensContentWidgetVaws.FontFamiwy})`;
+		node.stywe.fontFeatuweSettings = `vaw(--${WensContentWidgetVaws.FontFeatuwes})`;
 
-		const containerStyle = this.editor.getContainerDomNode().style;
-		containerStyle.setProperty(LensContentWidgetVars.FontFamily, this.editor.getOption(EditorOption.codeLensFontFamily) ?? 'inherit');
-		containerStyle.setProperty(LensContentWidgetVars.FontFeatures, editorFontInfo.fontFeatureSettings);
+		const containewStywe = this.editow.getContainewDomNode().stywe;
+		containewStywe.setPwopewty(WensContentWidgetVaws.FontFamiwy, this.editow.getOption(EditowOption.codeWensFontFamiwy) ?? 'inhewit');
+		containewStywe.setPwopewty(WensContentWidgetVaws.FontFeatuwes, editowFontInfo.fontFeatuweSettings);
 
-		this.editor.changeViewZones(accessor => {
+		this.editow.changeViewZones(accessow => {
 			if (this.viewZoneId) {
-				accessor.removeZone(this.viewZoneId);
+				accessow.wemoveZone(this.viewZoneId);
 			}
 
-			this.viewZoneId = accessor.addZone({
-				afterLineNumber: 0,
-				domNode: document.createElement('div'),
+			this.viewZoneId = accessow.addZone({
+				aftewWineNumba: 0,
+				domNode: document.cweateEwement('div'),
 				heightInPx: 20,
 			});
 		});
 	}
 
-	/** @inheritdoc */
-	public abstract getId(): string;
+	/** @inhewitdoc */
+	pubwic abstwact getId(): stwing;
 
-	/** @inheritdoc */
-	public getDomNode() {
-		return this._domNode;
+	/** @inhewitdoc */
+	pubwic getDomNode() {
+		wetuwn this._domNode;
 	}
 
-	/** @inheritdoc */
-	public dispose() {
-		this.editor.changeViewZones(accessor => {
+	/** @inhewitdoc */
+	pubwic dispose() {
+		this.editow.changeViewZones(accessow => {
 			if (this.viewZoneId) {
-				accessor.removeZone(this.viewZoneId);
+				accessow.wemoveZone(this.viewZoneId);
 			}
 		});
 
-		this.editor.removeContentWidget(this);
+		this.editow.wemoveContentWidget(this);
 	}
 
-	/** @inheritdoc */
-	public getPosition(): IContentWidgetPosition {
-		return {
-			position: { column: 0, lineNumber: 0 },
-			preference: [ContentWidgetPositionPreference.ABOVE],
+	/** @inhewitdoc */
+	pubwic getPosition(): IContentWidgetPosition {
+		wetuwn {
+			position: { cowumn: 0, wineNumba: 0 },
+			pwefewence: [ContentWidgetPositionPwefewence.ABOVE],
 		};
 	}
 
-	protected abstract getText(): string;
+	pwotected abstwact getText(): stwing;
 }
 
-class ExpectedLensContentWidget extends TitleLensContentWidget {
-	public getId() {
-		return 'expectedTestingLens';
+cwass ExpectedWensContentWidget extends TitweWensContentWidget {
+	pubwic getId() {
+		wetuwn 'expectedTestingWens';
 	}
 
-	protected override getText() {
-		return localize('expected.title', 'Expected');
-	}
-}
-
-
-class ActualLensContentWidget extends TitleLensContentWidget {
-	public getId() {
-		return 'actualTestingLens';
-	}
-
-	protected override getText() {
-		return localize('actual.title', 'Actual');
+	pwotected ovewwide getText() {
+		wetuwn wocawize('expected.titwe', 'Expected');
 	}
 }
 
-abstract class RunTestDecoration extends Disposable {
-	/** @inheritdoc */
-	public id = '';
 
-	public get line() {
-		return this.editorDecoration.range.startLineNumber;
+cwass ActuawWensContentWidget extends TitweWensContentWidget {
+	pubwic getId() {
+		wetuwn 'actuawTestingWens';
 	}
 
-	constructor(
-		public editorDecoration: IModelDeltaDecoration,
-		protected readonly editor: ICodeEditor,
-		@ITestService protected readonly testService: ITestService,
-		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
-		@ICommandService protected readonly commandService: ICommandService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService,
-		@ITestProfileService protected readonly testProfileService: ITestProfileService,
-		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
-		@IMenuService protected readonly menuService: IMenuService,
+	pwotected ovewwide getText() {
+		wetuwn wocawize('actuaw.titwe', 'Actuaw');
+	}
+}
+
+abstwact cwass WunTestDecowation extends Disposabwe {
+	/** @inhewitdoc */
+	pubwic id = '';
+
+	pubwic get wine() {
+		wetuwn this.editowDecowation.wange.stawtWineNumba;
+	}
+
+	constwuctow(
+		pubwic editowDecowation: IModewDewtaDecowation,
+		pwotected weadonwy editow: ICodeEditow,
+		@ITestSewvice pwotected weadonwy testSewvice: ITestSewvice,
+		@IContextMenuSewvice pwotected weadonwy contextMenuSewvice: IContextMenuSewvice,
+		@ICommandSewvice pwotected weadonwy commandSewvice: ICommandSewvice,
+		@IConfiguwationSewvice pwotected weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@ITestPwofiweSewvice pwotected weadonwy testPwofiweSewvice: ITestPwofiweSewvice,
+		@IContextKeySewvice pwotected weadonwy contextKeySewvice: IContextKeySewvice,
+		@IMenuSewvice pwotected weadonwy menuSewvice: IMenuSewvice,
 	) {
-		super();
-		editorDecoration.options.glyphMarginHoverMessage = new MarkdownString().appendText(this.getGutterLabel());
+		supa();
+		editowDecowation.options.gwyphMawginHovewMessage = new MawkdownStwing().appendText(this.getGuttewWabew());
 	}
 
-	/** @inheritdoc */
-	public click(e: IEditorMouseEvent): boolean {
-		if (e.target.position?.lineNumber !== this.line || e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN) {
-			return false;
+	/** @inhewitdoc */
+	pubwic cwick(e: IEditowMouseEvent): boowean {
+		if (e.tawget.position?.wineNumba !== this.wine || e.tawget.type !== MouseTawgetType.GUTTEW_GWYPH_MAWGIN) {
+			wetuwn fawse;
 		}
 
-		if (e.event.rightButton) {
+		if (e.event.wightButton) {
 			this.showContextMenu(e);
-			return true;
+			wetuwn twue;
 		}
 
-		switch (getTestingConfiguration(this.configurationService, TestingConfigKeys.DefaultGutterClickAction)) {
-			case DefaultGutterClickAction.ContextMenu:
+		switch (getTestingConfiguwation(this.configuwationSewvice, TestingConfigKeys.DefauwtGuttewCwickAction)) {
+			case DefauwtGuttewCwickAction.ContextMenu:
 				this.showContextMenu(e);
-				break;
-			case DefaultGutterClickAction.Debug:
-				this.defaultDebug();
-				break;
-			case DefaultGutterClickAction.Run:
-			default:
-				this.defaultRun();
-				break;
+				bweak;
+			case DefauwtGuttewCwickAction.Debug:
+				this.defauwtDebug();
+				bweak;
+			case DefauwtGuttewCwickAction.Wun:
+			defauwt:
+				this.defauwtWun();
+				bweak;
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
 	/**
-	 * Adds the test to this decoration.
+	 * Adds the test to this decowation.
 	 */
-	public abstract merge(other: IncrementalTestCollectionItem, resultItem: TestResultItem | undefined): RunTestDecoration;
+	pubwic abstwact mewge(otha: IncwementawTestCowwectionItem, wesuwtItem: TestWesuwtItem | undefined): WunTestDecowation;
 
 	/**
-	 * Called when the decoration is clicked on.
+	 * Cawwed when the decowation is cwicked on.
 	 */
-	protected abstract getContextMenuActions(e: IEditorMouseEvent): IReference<IAction[]>;
+	pwotected abstwact getContextMenuActions(e: IEditowMouseEvent): IWefewence<IAction[]>;
 
 	/**
-	 * Default run action.
+	 * Defauwt wun action.
 	 */
-	protected abstract defaultRun(): void;
+	pwotected abstwact defauwtWun(): void;
 
 	/**
-	 * Default debug action.
+	 * Defauwt debug action.
 	 */
-	protected abstract defaultDebug(): void;
+	pwotected abstwact defauwtDebug(): void;
 
-	private showContextMenu(e: IEditorMouseEvent) {
-		let actions = this.getContextMenuActions(e);
+	pwivate showContextMenu(e: IEditowMouseEvent) {
+		wet actions = this.getContextMenuActions(e);
 
-		const model = this.editor.getModel();
-		if (model) {
+		const modew = this.editow.getModew();
+		if (modew) {
 			actions = {
 				dispose: actions.dispose,
-				object: Separator.join(
+				object: Sepawatow.join(
 					actions.object,
-					this.editor
-						.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID)
-						.getContextMenuActionsAtPosition(this.line, model)
+					this.editow
+						.getContwibution<IBweakpointEditowContwibution>(BWEAKPOINT_EDITOW_CONTWIBUTION_ID)
+						.getContextMenuActionsAtPosition(this.wine, modew)
 				)
 			};
 		}
 
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => ({ x: e.event.posx, y: e.event.posy }),
+		this.contextMenuSewvice.showContextMenu({
+			getAnchow: () => ({ x: e.event.posx, y: e.event.posy }),
 			getActions: () => actions.object,
 			onHide: () => actions.dispose,
 		});
 	}
 
-	private getGutterLabel() {
-		switch (getTestingConfiguration(this.configurationService, TestingConfigKeys.DefaultGutterClickAction)) {
-			case DefaultGutterClickAction.ContextMenu:
-				return localize('testing.gutterMsg.contextMenu', 'Click for test options');
-			case DefaultGutterClickAction.Debug:
-				return localize('testing.gutterMsg.debug', 'Click to debug tests, right click for more options');
-			case DefaultGutterClickAction.Run:
-			default:
-				return localize('testing.gutterMsg.run', 'Click to run tests, right click for more options');
+	pwivate getGuttewWabew() {
+		switch (getTestingConfiguwation(this.configuwationSewvice, TestingConfigKeys.DefauwtGuttewCwickAction)) {
+			case DefauwtGuttewCwickAction.ContextMenu:
+				wetuwn wocawize('testing.guttewMsg.contextMenu', 'Cwick fow test options');
+			case DefauwtGuttewCwickAction.Debug:
+				wetuwn wocawize('testing.guttewMsg.debug', 'Cwick to debug tests, wight cwick fow mowe options');
+			case DefauwtGuttewCwickAction.Wun:
+			defauwt:
+				wetuwn wocawize('testing.guttewMsg.wun', 'Cwick to wun tests, wight cwick fow mowe options');
 		}
 	}
 
 	/**
-	 * Gets context menu actions relevant for a singel test.
+	 * Gets context menu actions wewevant fow a singew test.
 	 */
-	protected getTestContextMenuActions(test: InternalTestItem, resultItem?: TestResultItem): IReference<IAction[]> {
+	pwotected getTestContextMenuActions(test: IntewnawTestItem, wesuwtItem?: TestWesuwtItem): IWefewence<IAction[]> {
 		const testActions: IAction[] = [];
-		const capabilities = this.testProfileService.capabilitiesForTest(test);
-		if (capabilities & TestRunProfileBitset.Run) {
-			testActions.push(new Action('testing.gutter.run', localize('run test', 'Run Test'), undefined, undefined, () => this.testService.runTests({
-				group: TestRunProfileBitset.Run,
+		const capabiwities = this.testPwofiweSewvice.capabiwitiesFowTest(test);
+		if (capabiwities & TestWunPwofiweBitset.Wun) {
+			testActions.push(new Action('testing.gutta.wun', wocawize('wun test', 'Wun Test'), undefined, undefined, () => this.testSewvice.wunTests({
+				gwoup: TestWunPwofiweBitset.Wun,
 				tests: [test],
 			})));
 		}
 
-		if (capabilities & TestRunProfileBitset.Debug) {
-			testActions.push(new Action('testing.gutter.debug', localize('debug test', 'Debug Test'), undefined, undefined, () => this.testService.runTests({
-				group: TestRunProfileBitset.Debug,
+		if (capabiwities & TestWunPwofiweBitset.Debug) {
+			testActions.push(new Action('testing.gutta.debug', wocawize('debug test', 'Debug Test'), undefined, undefined, () => this.testSewvice.wunTests({
+				gwoup: TestWunPwofiweBitset.Debug,
 				tests: [test],
 			})));
 		}
 
-		if (capabilities & TestRunProfileBitset.HasNonDefaultProfile) {
-			testActions.push(new Action('testing.runUsing', localize('testing.runUsing', 'Execute Using Profile...'), undefined, undefined, async () => {
-				const profile: ITestRunProfile | undefined = await this.commandService.executeCommand('vscode.pickTestProfile', { onlyForTest: test });
-				if (!profile) {
-					return;
+		if (capabiwities & TestWunPwofiweBitset.HasNonDefauwtPwofiwe) {
+			testActions.push(new Action('testing.wunUsing', wocawize('testing.wunUsing', 'Execute Using Pwofiwe...'), undefined, undefined, async () => {
+				const pwofiwe: ITestWunPwofiwe | undefined = await this.commandSewvice.executeCommand('vscode.pickTestPwofiwe', { onwyFowTest: test });
+				if (!pwofiwe) {
+					wetuwn;
 				}
 
-				this.testService.runResolvedTests({
-					targets: [{
-						profileGroup: profile.group,
-						profileId: profile.profileId,
-						controllerId: profile.controllerId,
+				this.testSewvice.wunWesowvedTests({
+					tawgets: [{
+						pwofiweGwoup: pwofiwe.gwoup,
+						pwofiweId: pwofiwe.pwofiweId,
+						contwowwewId: pwofiwe.contwowwewId,
 						testIds: [test.item.extId]
 					}]
 				});
 			}));
 		}
 
-		if (resultItem && isFailedState(resultItem.computedState)) {
-			testActions.push(new Action('testing.gutter.peekFailure', localize('peek failure', 'Peek Error'), undefined, undefined,
-				() => this.commandService.executeCommand('vscode.peekTestError', test.item.extId)));
+		if (wesuwtItem && isFaiwedState(wesuwtItem.computedState)) {
+			testActions.push(new Action('testing.gutta.peekFaiwuwe', wocawize('peek faiwuwe', 'Peek Ewwow'), undefined, undefined,
+				() => this.commandSewvice.executeCommand('vscode.peekTestEwwow', test.item.extId)));
 		}
 
-		testActions.push(new Action('testing.gutter.reveal', localize('reveal test', 'Reveal in Test Explorer'), undefined, undefined,
-			() => this.commandService.executeCommand('_revealTestInExplorer', test.item.extId)));
+		testActions.push(new Action('testing.gutta.weveaw', wocawize('weveaw test', 'Weveaw in Test Expwowa'), undefined, undefined,
+			() => this.commandSewvice.executeCommand('_weveawTestInExpwowa', test.item.extId)));
 
-		const contributed = this.getContributedTestActions(test, capabilities);
-		return { object: Separator.join(testActions, contributed.object), dispose: contributed.dispose };
+		const contwibuted = this.getContwibutedTestActions(test, capabiwities);
+		wetuwn { object: Sepawatow.join(testActions, contwibuted.object), dispose: contwibuted.dispose };
 	}
 
-	private getContributedTestActions(test: InternalTestItem, capabilities: number): IReference<IAction[]> {
-		const contextOverlay = this.contextKeyService.createOverlay(getTestItemContextOverlay(test, capabilities));
-		const menu = this.menuService.createMenu(MenuId.TestItemGutter, contextOverlay);
+	pwivate getContwibutedTestActions(test: IntewnawTestItem, capabiwities: numba): IWefewence<IAction[]> {
+		const contextOvewway = this.contextKeySewvice.cweateOvewway(getTestItemContextOvewway(test, capabiwities));
+		const menu = this.menuSewvice.cweateMenu(MenuId.TestItemGutta, contextOvewway);
 
-		try {
-			const target: IAction[] = [];
-			const arg = getContextForTestItem(this.testService.collection, test.item.extId);
-			const actionsDisposable = createAndFillInContextMenuActions(menu, { shouldForwardArgs: true, arg }, target);
-			return { object: target, dispose: () => actionsDisposable.dispose };
-		} finally {
+		twy {
+			const tawget: IAction[] = [];
+			const awg = getContextFowTestItem(this.testSewvice.cowwection, test.item.extId);
+			const actionsDisposabwe = cweateAndFiwwInContextMenuActions(menu, { shouwdFowwawdAwgs: twue, awg }, tawget);
+			wetuwn { object: tawget, dispose: () => actionsDisposabwe.dispose };
+		} finawwy {
 			menu.dispose();
 		}
 	}
 }
 
-class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoration {
-	constructor(
-		private readonly tests: {
-			test: IncrementalTestCollectionItem,
-			resultItem: TestResultItem | undefined,
+cwass MuwtiWunTestDecowation extends WunTestDecowation impwements ITestDecowation {
+	constwuctow(
+		pwivate weadonwy tests: {
+			test: IncwementawTestCowwectionItem,
+			wesuwtItem: TestWesuwtItem | undefined,
 		}[],
-		editor: ICodeEditor,
-		@ITestService testService: ITestService,
-		@ICommandService commandService: ICommandService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ITestProfileService testProfiles: ITestProfileService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService menuService: IMenuService,
+		editow: ICodeEditow,
+		@ITestSewvice testSewvice: ITestSewvice,
+		@ICommandSewvice commandSewvice: ICommandSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@ITestPwofiweSewvice testPwofiwes: ITestPwofiweSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IMenuSewvice menuSewvice: IMenuSewvice,
 	) {
-		super(createRunTestDecoration(tests.map(t => t.test), tests.map(t => t.resultItem)), editor, testService, contextMenuService, commandService, configurationService, testProfiles, contextKeyService, menuService);
+		supa(cweateWunTestDecowation(tests.map(t => t.test), tests.map(t => t.wesuwtItem)), editow, testSewvice, contextMenuSewvice, commandSewvice, configuwationSewvice, testPwofiwes, contextKeySewvice, menuSewvice);
 	}
 
-	public override merge(test: IncrementalTestCollectionItem, resultItem: TestResultItem | undefined): RunTestDecoration {
-		this.tests.push({ test, resultItem });
-		this.editorDecoration = createRunTestDecoration(this.tests.map(t => t.test), this.tests.map(t => t.resultItem));
-		return this;
+	pubwic ovewwide mewge(test: IncwementawTestCowwectionItem, wesuwtItem: TestWesuwtItem | undefined): WunTestDecowation {
+		this.tests.push({ test, wesuwtItem });
+		this.editowDecowation = cweateWunTestDecowation(this.tests.map(t => t.test), this.tests.map(t => t.wesuwtItem));
+		wetuwn this;
 	}
 
-	protected override getContextMenuActions() {
-		const allActions: IAction[] = [];
-		if (this.tests.some(({ test }) => this.testProfileService.capabilitiesForTest(test) & TestRunProfileBitset.Run)) {
-			allActions.push(new Action('testing.gutter.runAll', localize('run all test', 'Run All Tests'), undefined, undefined, () => this.defaultRun()));
+	pwotected ovewwide getContextMenuActions() {
+		const awwActions: IAction[] = [];
+		if (this.tests.some(({ test }) => this.testPwofiweSewvice.capabiwitiesFowTest(test) & TestWunPwofiweBitset.Wun)) {
+			awwActions.push(new Action('testing.gutta.wunAww', wocawize('wun aww test', 'Wun Aww Tests'), undefined, undefined, () => this.defauwtWun()));
 		}
 
-		if (this.tests.some(({ test }) => this.testProfileService.capabilitiesForTest(test) & TestRunProfileBitset.Debug)) {
-			allActions.push(new Action('testing.gutter.debugAll', localize('debug all test', 'Debug All Tests'), undefined, undefined, () => this.defaultDebug()));
+		if (this.tests.some(({ test }) => this.testPwofiweSewvice.capabiwitiesFowTest(test) & TestWunPwofiweBitset.Debug)) {
+			awwActions.push(new Action('testing.gutta.debugAww', wocawize('debug aww test', 'Debug Aww Tests'), undefined, undefined, () => this.defauwtDebug()));
 		}
 
-		const disposable = new DisposableStore();
-		const testSubmenus = this.tests.map(({ test, resultItem }) => {
-			const actions = this.getTestContextMenuActions(test, resultItem);
-			disposable.add(actions);
-			return new SubmenuAction(test.item.extId, test.item.label, actions.object);
+		const disposabwe = new DisposabweStowe();
+		const testSubmenus = this.tests.map(({ test, wesuwtItem }) => {
+			const actions = this.getTestContextMenuActions(test, wesuwtItem);
+			disposabwe.add(actions);
+			wetuwn new SubmenuAction(test.item.extId, test.item.wabew, actions.object);
 		});
 
-		return { object: Separator.join(allActions, testSubmenus), dispose: () => disposable.dispose() };
+		wetuwn { object: Sepawatow.join(awwActions, testSubmenus), dispose: () => disposabwe.dispose() };
 	}
 
-	protected override defaultRun() {
-		return this.testService.runTests({
+	pwotected ovewwide defauwtWun() {
+		wetuwn this.testSewvice.wunTests({
 			tests: this.tests.map(({ test }) => test),
-			group: TestRunProfileBitset.Run,
+			gwoup: TestWunPwofiweBitset.Wun,
 		});
 	}
 
-	protected override defaultDebug() {
-		return this.testService.runTests({
+	pwotected ovewwide defauwtDebug() {
+		wetuwn this.testSewvice.wunTests({
 			tests: this.tests.map(({ test }) => test),
-			group: TestRunProfileBitset.Run,
+			gwoup: TestWunPwofiweBitset.Wun,
 		});
 	}
 }
 
-class RunSingleTestDecoration extends RunTestDecoration implements ITestDecoration {
-	constructor(
-		private readonly test: IncrementalTestCollectionItem,
-		editor: ICodeEditor,
-		private readonly resultItem: TestResultItem | undefined,
-		@ITestService testService: ITestService,
-		@ICommandService commandService: ICommandService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ITestProfileService testProfiles: ITestProfileService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService menuService: IMenuService,
+cwass WunSingweTestDecowation extends WunTestDecowation impwements ITestDecowation {
+	constwuctow(
+		pwivate weadonwy test: IncwementawTestCowwectionItem,
+		editow: ICodeEditow,
+		pwivate weadonwy wesuwtItem: TestWesuwtItem | undefined,
+		@ITestSewvice testSewvice: ITestSewvice,
+		@ICommandSewvice commandSewvice: ICommandSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@ITestPwofiweSewvice testPwofiwes: ITestPwofiweSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IMenuSewvice menuSewvice: IMenuSewvice,
 	) {
-		super(createRunTestDecoration([test], [resultItem]), editor, testService, contextMenuService, commandService, configurationService, testProfiles, contextKeyService, menuService);
+		supa(cweateWunTestDecowation([test], [wesuwtItem]), editow, testSewvice, contextMenuSewvice, commandSewvice, configuwationSewvice, testPwofiwes, contextKeySewvice, menuSewvice);
 	}
 
-	public override merge(test: IncrementalTestCollectionItem, resultItem: TestResultItem | undefined): RunTestDecoration {
-		return new MultiRunTestDecoration([
-			{ test: this.test, resultItem: this.resultItem },
-			{ test, resultItem },
-		], this.editor, this.testService, this.commandService, this.contextMenuService, this.configurationService, this.testProfileService, this.contextKeyService, this.menuService);
+	pubwic ovewwide mewge(test: IncwementawTestCowwectionItem, wesuwtItem: TestWesuwtItem | undefined): WunTestDecowation {
+		wetuwn new MuwtiWunTestDecowation([
+			{ test: this.test, wesuwtItem: this.wesuwtItem },
+			{ test, wesuwtItem },
+		], this.editow, this.testSewvice, this.commandSewvice, this.contextMenuSewvice, this.configuwationSewvice, this.testPwofiweSewvice, this.contextKeySewvice, this.menuSewvice);
 	}
 
-	protected override getContextMenuActions(e: IEditorMouseEvent) {
-		return this.getTestContextMenuActions(this.test, this.resultItem);
+	pwotected ovewwide getContextMenuActions(e: IEditowMouseEvent) {
+		wetuwn this.getTestContextMenuActions(this.test, this.wesuwtItem);
 	}
 
-	protected override defaultRun() {
-		return this.testService.runTests({
+	pwotected ovewwide defauwtWun() {
+		wetuwn this.testSewvice.wunTests({
 			tests: [this.test],
-			group: TestRunProfileBitset.Run,
+			gwoup: TestWunPwofiweBitset.Wun,
 		});
 	}
 
-	protected override defaultDebug() {
-		return this.testService.runTests({
+	pwotected ovewwide defauwtDebug() {
+		wetuwn this.testSewvice.wunTests({
 			tests: [this.test],
-			group: TestRunProfileBitset.Debug,
+			gwoup: TestWunPwofiweBitset.Debug,
 		});
 	}
 }
 
-class TestMessageDecoration implements ITestDecoration {
-	public static readonly inlineClassName = 'test-message-inline-content';
+cwass TestMessageDecowation impwements ITestDecowation {
+	pubwic static weadonwy inwineCwassName = 'test-message-inwine-content';
 
-	public id = '';
+	pubwic id = '';
 
-	public readonly editorDecoration: IModelDeltaDecoration;
-	private readonly decorationId = `testmessage-${generateUuid()}`;
-	private readonly contentIdClass = `test-message-inline-content-id${this.decorationId}`;
+	pubwic weadonwy editowDecowation: IModewDewtaDecowation;
+	pwivate weadonwy decowationId = `testmessage-${genewateUuid()}`;
+	pwivate weadonwy contentIdCwass = `test-message-inwine-content-id${this.decowationId}`;
 
-	constructor(
-		public readonly testMessage: ITestMessage,
-		private readonly messageUri: URI | undefined,
-		public readonly location: IRichLocation,
-		private readonly editor: ICodeEditor,
-		@ICodeEditorService private readonly editorService: ICodeEditorService,
+	constwuctow(
+		pubwic weadonwy testMessage: ITestMessage,
+		pwivate weadonwy messageUwi: UWI | undefined,
+		pubwic weadonwy wocation: IWichWocation,
+		pwivate weadonwy editow: ICodeEditow,
+		@ICodeEditowSewvice pwivate weadonwy editowSewvice: ICodeEditowSewvice,
 	) {
-		const severity = testMessage.type;
-		const message = typeof testMessage.message === 'string' ? removeAnsiEscapeCodes(testMessage.message) : testMessage.message;
-		editorService.registerDecorationType('test-message-decoration', this.decorationId, {}, undefined, editor);
+		const sevewity = testMessage.type;
+		const message = typeof testMessage.message === 'stwing' ? wemoveAnsiEscapeCodes(testMessage.message) : testMessage.message;
+		editowSewvice.wegistewDecowationType('test-message-decowation', this.decowationId, {}, undefined, editow);
 
-		const options = editorService.resolveDecorationOptions(this.decorationId, true);
-		options.hoverMessage = typeof message === 'string' ? new MarkdownString().appendText(message) : message;
-		options.zIndex = 10; // todo: in spite of the z-index, this appears behind gitlens
-		options.className = `testing-inline-message-severity-${severity}`;
-		options.isWholeLine = true;
-		options.stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
-		options.collapseOnReplaceEdit = true;
-		options.after = {
-			content: renderStringAsPlaintext(message),
-			inlineClassName: `test-message-inline-content test-message-inline-content-s${severity} ${this.contentIdClass}`
+		const options = editowSewvice.wesowveDecowationOptions(this.decowationId, twue);
+		options.hovewMessage = typeof message === 'stwing' ? new MawkdownStwing().appendText(message) : message;
+		options.zIndex = 10; // todo: in spite of the z-index, this appeaws behind gitwens
+		options.cwassName = `testing-inwine-message-sevewity-${sevewity}`;
+		options.isWhoweWine = twue;
+		options.stickiness = TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges;
+		options.cowwapseOnWepwaceEdit = twue;
+		options.afta = {
+			content: wendewStwingAsPwaintext(message),
+			inwineCwassName: `test-message-inwine-content test-message-inwine-content-s${sevewity} ${this.contentIdCwass}`
 		};
 
-		const rulerColor = severity === TestMessageType.Error
-			? overviewRulerError
-			: overviewRulerInfo;
+		const wuwewCowow = sevewity === TestMessageType.Ewwow
+			? ovewviewWuwewEwwow
+			: ovewviewWuwewInfo;
 
-		if (rulerColor) {
-			options.overviewRuler = { color: themeColorFromId(rulerColor), position: OverviewRulerLane.Right };
+		if (wuwewCowow) {
+			options.ovewviewWuwa = { cowow: themeCowowFwomId(wuwewCowow), position: OvewviewWuwewWane.Wight };
 		}
 
-		const lineLength = editor.getModel()?.getLineLength(location.range.startLineNumber);
-		const column = lineLength ? (lineLength + 1) : location.range.endColumn;
-		this.editorDecoration = {
+		const wineWength = editow.getModew()?.getWineWength(wocation.wange.stawtWineNumba);
+		const cowumn = wineWength ? (wineWength + 1) : wocation.wange.endCowumn;
+		this.editowDecowation = {
 			options,
-			range: {
-				startLineNumber: location.range.startLineNumber,
-				startColumn: column,
-				endColumn: column,
-				endLineNumber: location.range.startLineNumber,
+			wange: {
+				stawtWineNumba: wocation.wange.stawtWineNumba,
+				stawtCowumn: cowumn,
+				endCowumn: cowumn,
+				endWineNumba: wocation.wange.stawtWineNumba,
 			}
 		};
 	}
 
-	click(e: IEditorMouseEvent): boolean {
-		if (e.event.rightButton) {
-			return false;
+	cwick(e: IEditowMouseEvent): boowean {
+		if (e.event.wightButton) {
+			wetuwn fawse;
 		}
 
-		if (!this.messageUri) {
-			return false;
+		if (!this.messageUwi) {
+			wetuwn fawse;
 		}
 
-		if (e.target.element?.className.includes(this.contentIdClass)) {
-			TestingOutputPeekController.get(this.editor).toggle(this.messageUri);
+		if (e.tawget.ewement?.cwassName.incwudes(this.contentIdCwass)) {
+			TestingOutputPeekContwowwa.get(this.editow).toggwe(this.messageUwi);
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
 	dispose(): void {
-		this.editorService.removeDecorationType(this.decorationId);
+		this.editowSewvice.wemoveDecowationType(this.decowationId);
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const codeLensForeground = theme.getColor(editorCodeLensForeground);
-	if (codeLensForeground) {
-		collector.addRule(`.testing-diff-lens-widget { color: ${codeLensForeground}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const codeWensFowegwound = theme.getCowow(editowCodeWensFowegwound);
+	if (codeWensFowegwound) {
+		cowwectow.addWuwe(`.testing-diff-wens-widget { cowow: ${codeWensFowegwound}; }`);
 	}
 
-	for (const [severity, { decorationForeground }] of Object.entries(testMessageSeverityColors)) {
-		collector.addRule(`.test-message-inline-content-s${severity} { color: ${theme.getColor(decorationForeground)} !important }`);
+	fow (const [sevewity, { decowationFowegwound }] of Object.entwies(testMessageSevewityCowows)) {
+		cowwectow.addWuwe(`.test-message-inwine-content-s${sevewity} { cowow: ${theme.getCowow(decowationFowegwound)} !impowtant }`);
 	}
 });

@@ -1,102 +1,102 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./iPadShowKeyboard';
-import * as dom from 'vs/base/browser/dom';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { isIOS } from 'vs/base/common/platform';
+impowt 'vs/css!./iPadShowKeyboawd';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ICodeEditow, IOvewwayWidget, IOvewwayWidgetPosition, OvewwayWidgetPositionPwefewence } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { wegistewEditowContwibution } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { isIOS } fwom 'vs/base/common/pwatfowm';
 
-export class IPadShowKeyboard extends Disposable implements IEditorContribution {
+expowt cwass IPadShowKeyboawd extends Disposabwe impwements IEditowContwibution {
 
-	public static readonly ID = 'editor.contrib.iPadShowKeyboard';
+	pubwic static weadonwy ID = 'editow.contwib.iPadShowKeyboawd';
 
-	private readonly editor: ICodeEditor;
-	private widget: ShowKeyboardWidget | null;
+	pwivate weadonwy editow: ICodeEditow;
+	pwivate widget: ShowKeyboawdWidget | nuww;
 
-	constructor(editor: ICodeEditor) {
-		super();
-		this.editor = editor;
-		this.widget = null;
+	constwuctow(editow: ICodeEditow) {
+		supa();
+		this.editow = editow;
+		this.widget = nuww;
 		if (isIOS) {
-			this._register(editor.onDidChangeConfiguration(() => this.update()));
+			this._wegista(editow.onDidChangeConfiguwation(() => this.update()));
 			this.update();
 		}
 	}
 
-	private update(): void {
-		const shouldHaveWidget = (!this.editor.getOption(EditorOption.readOnly));
+	pwivate update(): void {
+		const shouwdHaveWidget = (!this.editow.getOption(EditowOption.weadOnwy));
 
-		if (!this.widget && shouldHaveWidget) {
+		if (!this.widget && shouwdHaveWidget) {
 
-			this.widget = new ShowKeyboardWidget(this.editor);
+			this.widget = new ShowKeyboawdWidget(this.editow);
 
-		} else if (this.widget && !shouldHaveWidget) {
+		} ewse if (this.widget && !shouwdHaveWidget) {
 
 			this.widget.dispose();
-			this.widget = null;
+			this.widget = nuww;
 
 		}
 	}
 
-	public override dispose(): void {
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		supa.dispose();
 		if (this.widget) {
 			this.widget.dispose();
-			this.widget = null;
+			this.widget = nuww;
 		}
 	}
 }
 
-class ShowKeyboardWidget extends Disposable implements IOverlayWidget {
+cwass ShowKeyboawdWidget extends Disposabwe impwements IOvewwayWidget {
 
-	private static readonly ID = 'editor.contrib.ShowKeyboardWidget';
+	pwivate static weadonwy ID = 'editow.contwib.ShowKeyboawdWidget';
 
-	private readonly editor: ICodeEditor;
+	pwivate weadonwy editow: ICodeEditow;
 
-	private readonly _domNode: HTMLElement;
+	pwivate weadonwy _domNode: HTMWEwement;
 
-	constructor(editor: ICodeEditor) {
-		super();
-		this.editor = editor;
-		this._domNode = document.createElement('textarea');
-		this._domNode.className = 'iPadShowKeyboard';
+	constwuctow(editow: ICodeEditow) {
+		supa();
+		this.editow = editow;
+		this._domNode = document.cweateEwement('textawea');
+		this._domNode.cwassName = 'iPadShowKeyboawd';
 
-		this._register(dom.addDisposableListener(this._domNode, 'touchstart', (e) => {
-			this.editor.focus();
+		this._wegista(dom.addDisposabweWistena(this._domNode, 'touchstawt', (e) => {
+			this.editow.focus();
 		}));
-		this._register(dom.addDisposableListener(this._domNode, 'focus', (e) => {
-			this.editor.focus();
+		this._wegista(dom.addDisposabweWistena(this._domNode, 'focus', (e) => {
+			this.editow.focus();
 		}));
 
-		this.editor.addOverlayWidget(this);
+		this.editow.addOvewwayWidget(this);
 	}
 
-	public override dispose(): void {
-		this.editor.removeOverlayWidget(this);
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		this.editow.wemoveOvewwayWidget(this);
+		supa.dispose();
 	}
 
-	// ----- IOverlayWidget API
+	// ----- IOvewwayWidget API
 
-	public getId(): string {
-		return ShowKeyboardWidget.ID;
+	pubwic getId(): stwing {
+		wetuwn ShowKeyboawdWidget.ID;
 	}
 
-	public getDomNode(): HTMLElement {
-		return this._domNode;
+	pubwic getDomNode(): HTMWEwement {
+		wetuwn this._domNode;
 	}
 
-	public getPosition(): IOverlayWidgetPosition {
-		return {
-			preference: OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER
+	pubwic getPosition(): IOvewwayWidgetPosition {
+		wetuwn {
+			pwefewence: OvewwayWidgetPositionPwefewence.BOTTOM_WIGHT_COWNa
 		};
 	}
 }
 
-registerEditorContribution(IPadShowKeyboard.ID, IPadShowKeyboard);
+wegistewEditowContwibution(IPadShowKeyboawd.ID, IPadShowKeyboawd);

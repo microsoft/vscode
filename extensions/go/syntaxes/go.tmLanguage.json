@@ -1,123 +1,123 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/jeff-hykin/better-go-syntax/blob/master/export/generated.tmLanguage.json",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/jeff-hykin/betta-go-syntax/bwob/masta/expowt/genewated.tmWanguage.json",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/jeff-hykin/better-go-syntax/commit/6175663a7a0e23d58ccf9aab95054cb6e5c92aff",
+	"vewsion": "https://github.com/jeff-hykin/betta-go-syntax/commit/6175663a7a0e23d58ccf9aab95054cb6e5c92aff",
 	"name": "Go",
-	"scopeName": "source.go",
-	"patterns": [
+	"scopeName": "souwce.go",
+	"pattewns": [
 		{
-			"include": "#comments"
+			"incwude": "#comments"
 		},
 		{
-			"include": "#comments"
+			"incwude": "#comments"
 		},
 		{
-			"comment": "Interpreted string literals",
+			"comment": "Intewpweted stwing witewaws",
 			"begin": "\"",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.go"
+					"name": "punctuation.definition.stwing.begin.go"
 				}
 			},
 			"end": "\"",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.go"
+					"name": "punctuation.definition.stwing.end.go"
 				}
 			},
-			"name": "string.quoted.double.go",
-			"patterns": [
+			"name": "stwing.quoted.doubwe.go",
+			"pattewns": [
 				{
-					"include": "#string_escaped_char"
+					"incwude": "#stwing_escaped_chaw"
 				},
 				{
-					"include": "#string_placeholder"
+					"incwude": "#stwing_pwacehowda"
 				}
 			]
 		},
 		{
-			"comment": "Raw string literals",
+			"comment": "Waw stwing witewaws",
 			"begin": "`",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.go"
+					"name": "punctuation.definition.stwing.begin.go"
 				}
 			},
 			"end": "`",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.go"
+					"name": "punctuation.definition.stwing.end.go"
 				}
 			},
-			"name": "string.quoted.raw.go",
-			"patterns": [
+			"name": "stwing.quoted.waw.go",
+			"pattewns": [
 				{
-					"include": "#string_placeholder"
+					"incwude": "#stwing_pwacehowda"
 				}
 			]
 		},
 		{
-			"comment": "Syntax error receiving channels",
+			"comment": "Syntax ewwow weceiving channews",
 			"match": "<\\-([\\t ]+)chan\\b",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "invalid.illegal.receive-channel.go"
+					"name": "invawid.iwwegaw.weceive-channew.go"
 				}
 			}
 		},
 		{
-			"comment": "Syntax error sending channels",
+			"comment": "Syntax ewwow sending channews",
 			"match": "\\bchan([\\t ]+)<-",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "invalid.illegal.send-channel.go"
+					"name": "invawid.iwwegaw.send-channew.go"
 				}
 			}
 		},
 		{
-			"comment": "Syntax error using slices",
+			"comment": "Syntax ewwow using swices",
 			"match": "\\[\\](\\s+)",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "invalid.illegal.slice.go"
+					"name": "invawid.iwwegaw.swice.go"
 				}
 			}
 		},
 		{
-			"comment": "Syntax error numeric literals",
+			"comment": "Syntax ewwow numewic witewaws",
 			"match": "\\b0[0-7]*[89]\\d*\\b",
-			"name": "invalid.illegal.numeric.go"
+			"name": "invawid.iwwegaw.numewic.go"
 		},
 		{
-			"comment": "Built-in functions",
-			"match": "\\b(append|cap|close|complex|copy|delete|imag|len|make|new|panic|print|println|real|recover)\\b(?=\\()",
-			"name": "support.function.builtin.go"
+			"comment": "Buiwt-in functions",
+			"match": "\\b(append|cap|cwose|compwex|copy|dewete|imag|wen|make|new|panic|pwint|pwintwn|weaw|wecova)\\b(?=\\()",
+			"name": "suppowt.function.buiwtin.go"
 		},
 		{
-			"comment": "Function declarations",
+			"comment": "Function decwawations",
 			"match": "^(\\bfunc\\b)(?:\\s+(\\([^\\)]+\\)\\s+)?(\\w+)(?=\\())?",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "keyword.function.go"
+					"name": "keywowd.function.go"
 				},
 				"2": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#brackets"
+							"incwude": "#bwackets"
 						},
 						{
-							"include": "#operators"
+							"incwude": "#opewatows"
 						}
 					]
 				},
 				"3": {
-					"patterns": [
+					"pattewns": [
 						{
 							"match": "\\d\\w*",
-							"name": "invalid.illegal.identifier.go"
+							"name": "invawid.iwwegaw.identifia.go"
 						},
 						{
 							"match": "\\w+",
@@ -130,44 +130,44 @@
 		{
 			"comment": "Functions",
 			"match": "(\\bfunc\\b)|(\\w+)(?=\\()",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "keyword.function.go"
+					"name": "keywowd.function.go"
 				},
 				"2": {
-					"patterns": [
+					"pattewns": [
 						{
 							"match": "\\d\\w*",
-							"name": "invalid.illegal.identifier.go"
+							"name": "invawid.iwwegaw.identifia.go"
 						},
 						{
 							"match": "\\w+",
-							"name": "support.function.go"
+							"name": "suppowt.function.go"
 						}
 					]
 				}
 			}
 		},
 		{
-			"include": "#numeric_literals"
+			"incwude": "#numewic_witewaws"
 		},
 		{
-			"comment": "Language constants",
-			"match": "\\b(true|false|nil|iota)\\b",
-			"name": "constant.language.go"
+			"comment": "Wanguage constants",
+			"match": "\\b(twue|fawse|niw|iota)\\b",
+			"name": "constant.wanguage.go"
 		},
 		{
 			"begin": "\\b(package)\\s+",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.package.go"
+					"name": "keywowd.package.go"
 				}
 			},
 			"end": "(?!\\G)",
-			"patterns": [
+			"pattewns": [
 				{
 					"match": "\\d\\w*",
-					"name": "invalid.illegal.identifier.go"
+					"name": "invawid.iwwegaw.identifia.go"
 				},
 				{
 					"match": "\\w+",
@@ -177,16 +177,16 @@
 		},
 		{
 			"begin": "\\b(type)\\s+",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.type.go"
+					"name": "keywowd.type.go"
 				}
 			},
 			"end": "(?!\\G)",
-			"patterns": [
+			"pattewns": [
 				{
 					"match": "\\d\\w*",
-					"name": "invalid.illegal.identifier.go"
+					"name": "invawid.iwwegaw.identifia.go"
 				},
 				{
 					"match": "\\w+",
@@ -195,57 +195,57 @@
 			]
 		},
 		{
-			"begin": "\\b(import)\\s+",
-			"beginCaptures": {
+			"begin": "\\b(impowt)\\s+",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.import.go"
+					"name": "keywowd.impowt.go"
 				}
 			},
 			"end": "(?!\\G)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#imports"
+					"incwude": "#impowts"
 				}
 			]
 		},
 		{
-			"begin": "\\b(var)\\s+",
-			"beginCaptures": {
+			"begin": "\\b(vaw)\\s+",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.var.go"
+					"name": "keywowd.vaw.go"
 				}
 			},
 			"end": "(?!\\G)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#variables"
+					"incwude": "#vawiabwes"
 				}
 			]
 		},
 		{
-			"match": "(?<!var)\\s*(\\w+(?:\\.\\w+)*(?>,\\s*\\w+(?:\\.\\w+)*)*)(?=\\s*=(?!=))",
-			"captures": {
+			"match": "(?<!vaw)\\s*(\\w+(?:\\.\\w+)*(?>,\\s*\\w+(?:\\.\\w+)*)*)(?=\\s*=(?!=))",
+			"captuwes": {
 				"1": {
-					"patterns": [
+					"pattewns": [
 						{
 							"match": "\\d\\w*",
-							"name": "invalid.illegal.identifier.go"
+							"name": "invawid.iwwegaw.identifia.go"
 						},
 						{
 							"match": "\\w+(?:\\.\\w+)*",
-							"name": "variable.other.assignment.go",
-							"captures": {
+							"name": "vawiabwe.otha.assignment.go",
+							"captuwes": {
 								"0": {
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#delimiters"
+											"incwude": "#dewimitews"
 										}
 									]
 								}
 							}
 						},
 						{
-							"include": "#delimiters"
+							"incwude": "#dewimitews"
 						}
 					]
 				}
@@ -253,116 +253,116 @@
 		},
 		{
 			"match": "\\b\\w+(?:,\\s*\\w+)*(?=\\s*:=)",
-			"captures": {
+			"captuwes": {
 				"0": {
-					"patterns": [
+					"pattewns": [
 						{
 							"match": "\\d\\w*",
-							"name": "invalid.illegal.identifier.go"
+							"name": "invawid.iwwegaw.identifia.go"
 						},
 						{
 							"match": "\\w+",
-							"name": "variable.other.assignment.go"
+							"name": "vawiabwe.otha.assignment.go"
 						},
 						{
-							"include": "#delimiters"
+							"incwude": "#dewimitews"
 						}
 					]
 				}
 			}
 		},
 		{
-			"comment": "Terminators",
+			"comment": "Tewminatows",
 			"match": ";",
-			"name": "punctuation.terminator.go"
+			"name": "punctuation.tewminatow.go"
 		},
 		{
-			"include": "#brackets"
+			"incwude": "#bwackets"
 		},
 		{
-			"include": "#delimiters"
+			"incwude": "#dewimitews"
 		},
 		{
-			"include": "#keywords"
+			"incwude": "#keywowds"
 		},
 		{
-			"include": "#operators"
+			"incwude": "#opewatows"
 		},
 		{
-			"include": "#runes"
+			"incwude": "#wunes"
 		},
 		{
-			"include": "#storage_types"
+			"incwude": "#stowage_types"
 		}
 	],
-	"repository": {
-		"brackets": {
-			"patterns": [
+	"wepositowy": {
+		"bwackets": {
+			"pattewns": [
 				{
 					"begin": "{",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.begin.bracket.curly.go"
+							"name": "punctuation.definition.begin.bwacket.cuwwy.go"
 						}
 					},
 					"end": "}",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.end.bracket.curly.go"
+							"name": "punctuation.definition.end.bwacket.cuwwy.go"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "$self"
+							"incwude": "$sewf"
 						}
 					]
 				},
 				{
 					"begin": "\\(",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.begin.bracket.round.go"
+							"name": "punctuation.definition.begin.bwacket.wound.go"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.end.bracket.round.go"
+							"name": "punctuation.definition.end.bwacket.wound.go"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "$self"
+							"incwude": "$sewf"
 						}
 					]
 				},
 				{
 					"match": "\\[|\\]",
-					"name": "punctuation.definition.bracket.square.go"
+					"name": "punctuation.definition.bwacket.squawe.go"
 				}
 			]
 		},
 		"comments": {
-			"patterns": [
+			"pattewns": [
 				{
-					"name": "comment.block.go",
+					"name": "comment.bwock.go",
 					"begin": "(\\/\\*)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
 							"name": "punctuation.definition.comment.go"
 						}
 					},
 					"end": "(\\*\\/)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
 							"name": "punctuation.definition.comment.go"
 						}
 					}
 				},
 				{
-					"name": "comment.line.double-slash.go",
+					"name": "comment.wine.doubwe-swash.go",
 					"begin": "(\\/\\/)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
 							"name": "punctuation.definition.comment.go"
 						}
@@ -371,251 +371,251 @@
 				}
 			]
 		},
-		"delimiters": {
-			"patterns": [
+		"dewimitews": {
+			"pattewns": [
 				{
 					"match": ",",
-					"name": "punctuation.other.comma.go"
+					"name": "punctuation.otha.comma.go"
 				},
 				{
 					"match": "\\.(?!\\.\\.)",
-					"name": "punctuation.other.period.go"
+					"name": "punctuation.otha.pewiod.go"
 				},
 				{
 					"match": ":(?!=)",
-					"name": "punctuation.other.colon.go"
+					"name": "punctuation.otha.cowon.go"
 				}
 			]
 		},
-		"imports": {
-			"patterns": [
+		"impowts": {
+			"pattewns": [
 				{
 					"match": "((?!\\s+\")[^\\s]*)?\\s*((\")([^\"]*)(\"))",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "entity.alias.import.go"
+							"name": "entity.awias.impowt.go"
 						},
 						"2": {
-							"name": "string.quoted.double.go"
+							"name": "stwing.quoted.doubwe.go"
 						},
 						"3": {
-							"name": "punctuation.definition.string.begin.go"
+							"name": "punctuation.definition.stwing.begin.go"
 						},
 						"4": {
-							"name": "entity.name.import.go"
+							"name": "entity.name.impowt.go"
 						},
 						"5": {
-							"name": "punctuation.definition.string.end.go"
+							"name": "punctuation.definition.stwing.end.go"
 						}
 					}
 				},
 				{
 					"begin": "\\(",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.imports.begin.bracket.round.go"
+							"name": "punctuation.definition.impowts.begin.bwacket.wound.go"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.imports.end.bracket.round.go"
+							"name": "punctuation.definition.impowts.end.bwacket.wound.go"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						},
 						{
-							"include": "#imports"
+							"incwude": "#impowts"
 						}
 					]
 				}
 			]
 		},
-		"keywords": {
-			"patterns": [
+		"keywowds": {
+			"pattewns": [
 				{
-					"comment": "Flow control keywords",
-					"match": "\\b(break|case|continue|default|defer|else|fallthrough|for|go|goto|if|range|return|select|switch)\\b",
-					"name": "keyword.control.go"
+					"comment": "Fwow contwow keywowds",
+					"match": "\\b(bweak|case|continue|defauwt|defa|ewse|fawwthwough|fow|go|goto|if|wange|wetuwn|sewect|switch)\\b",
+					"name": "keywowd.contwow.go"
 				},
 				{
 					"match": "\\bchan\\b",
-					"name": "keyword.channel.go"
+					"name": "keywowd.channew.go"
 				},
 				{
 					"match": "\\bconst\\b",
-					"name": "keyword.const.go"
+					"name": "keywowd.const.go"
 				},
 				{
 					"match": "\\bfunc\\b",
-					"name": "keyword.function.go"
+					"name": "keywowd.function.go"
 				},
 				{
-					"match": "\\binterface\\b",
-					"name": "keyword.interface.go"
+					"match": "\\bintewface\\b",
+					"name": "keywowd.intewface.go"
 				},
 				{
 					"match": "\\bmap\\b",
-					"name": "keyword.map.go"
+					"name": "keywowd.map.go"
 				},
 				{
-					"match": "\\bstruct\\b",
-					"name": "keyword.struct.go"
+					"match": "\\bstwuct\\b",
+					"name": "keywowd.stwuct.go"
 				}
 			]
 		},
-		"operators": {
-			"comment": "Note that the order here is very important!",
-			"patterns": [
+		"opewatows": {
+			"comment": "Note that the owda hewe is vewy impowtant!",
+			"pattewns": [
 				{
 					"match": "(\\*|&)(?=\\w)",
-					"name": "keyword.operator.address.go"
+					"name": "keywowd.opewatow.addwess.go"
 				},
 				{
 					"match": "<\\-",
-					"name": "keyword.operator.channel.go"
+					"name": "keywowd.opewatow.channew.go"
 				},
 				{
 					"match": "\\-\\-",
-					"name": "keyword.operator.decrement.go"
+					"name": "keywowd.opewatow.decwement.go"
 				},
 				{
 					"match": "\\+\\+",
-					"name": "keyword.operator.increment.go"
+					"name": "keywowd.opewatow.incwement.go"
 				},
 				{
 					"match": "(==|!=|<=|>=|<(?!<)|>(?!>))",
-					"name": "keyword.operator.comparison.go"
+					"name": "keywowd.opewatow.compawison.go"
 				},
 				{
 					"match": "(&&|\\|\\||!)",
-					"name": "keyword.operator.logical.go"
+					"name": "keywowd.opewatow.wogicaw.go"
 				},
 				{
 					"match": "(=|\\+=|\\-=|\\|=|\\^=|\\*=|/=|:=|%=|<<=|>>=|&\\^=|&=)",
-					"name": "keyword.operator.assignment.go"
+					"name": "keywowd.opewatow.assignment.go"
 				},
 				{
 					"match": "(\\+|\\-|\\*|/|%)",
-					"name": "keyword.operator.arithmetic.go"
+					"name": "keywowd.opewatow.awithmetic.go"
 				},
 				{
 					"match": "(&(?!\\^)|\\||\\^|&\\^|<<|>>)",
-					"name": "keyword.operator.arithmetic.bitwise.go"
+					"name": "keywowd.opewatow.awithmetic.bitwise.go"
 				},
 				{
 					"match": "\\.\\.\\.",
-					"name": "keyword.operator.ellipsis.go"
+					"name": "keywowd.opewatow.ewwipsis.go"
 				}
 			]
 		},
-		"runes": {
-			"patterns": [
+		"wunes": {
+			"pattewns": [
 				{
 					"begin": "'",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.begin.go"
+							"name": "punctuation.definition.stwing.begin.go"
 						}
 					},
 					"end": "'",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.end.go"
+							"name": "punctuation.definition.stwing.end.go"
 						}
 					},
-					"name": "string.quoted.rune.go",
-					"patterns": [
+					"name": "stwing.quoted.wune.go",
+					"pattewns": [
 						{
-							"match": "\\G(\\\\([0-7]{3}|[abfnrtv\\\\'\"]|x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8})|.)(?=')",
-							"name": "constant.other.rune.go"
+							"match": "\\G(\\\\([0-7]{3}|[abfnwtv\\\\'\"]|x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8})|.)(?=')",
+							"name": "constant.otha.wune.go"
 						},
 						{
 							"match": "[^']+",
-							"name": "invalid.illegal.unknown-rune.go"
+							"name": "invawid.iwwegaw.unknown-wune.go"
 						}
 					]
 				}
 			]
 		},
-		"storage_types": {
-			"patterns": [
+		"stowage_types": {
+			"pattewns": [
 				{
-					"match": "\\bbool\\b",
-					"name": "storage.type.boolean.go"
+					"match": "\\bboow\\b",
+					"name": "stowage.type.boowean.go"
 				},
 				{
 					"match": "\\bbyte\\b",
-					"name": "storage.type.byte.go"
+					"name": "stowage.type.byte.go"
 				},
 				{
-					"match": "\\berror\\b",
-					"name": "storage.type.error.go"
+					"match": "\\bewwow\\b",
+					"name": "stowage.type.ewwow.go"
 				},
 				{
-					"match": "\\b(complex(64|128)|float(32|64)|u?int(8|16|32|64)?)\\b",
-					"name": "storage.type.numeric.go"
+					"match": "\\b(compwex(64|128)|fwoat(32|64)|u?int(8|16|32|64)?)\\b",
+					"name": "stowage.type.numewic.go"
 				},
 				{
-					"match": "\\brune\\b",
-					"name": "storage.type.rune.go"
+					"match": "\\bwune\\b",
+					"name": "stowage.type.wune.go"
 				},
 				{
-					"match": "\\bstring\\b",
-					"name": "storage.type.string.go"
+					"match": "\\bstwing\\b",
+					"name": "stowage.type.stwing.go"
 				},
 				{
-					"match": "\\buintptr\\b",
-					"name": "storage.type.uintptr.go"
+					"match": "\\buintptw\\b",
+					"name": "stowage.type.uintptw.go"
 				}
 			]
 		},
-		"string_escaped_char": {
-			"patterns": [
+		"stwing_escaped_chaw": {
+			"pattewns": [
 				{
-					"match": "\\\\([0-7]{3}|[abfnrtv\\\\'\"]|x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8})",
-					"name": "constant.character.escape.go"
+					"match": "\\\\([0-7]{3}|[abfnwtv\\\\'\"]|x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8})",
+					"name": "constant.chawacta.escape.go"
 				},
 				{
-					"match": "\\\\[^0-7xuUabfnrtv\\'\"]",
-					"name": "invalid.illegal.unknown-escape.go"
+					"match": "\\\\[^0-7xuUabfnwtv\\'\"]",
+					"name": "invawid.iwwegaw.unknown-escape.go"
 				}
 			]
 		},
-		"string_placeholder": {
-			"patterns": [
+		"stwing_pwacehowda": {
+			"pattewns": [
 				{
 					"match": "%(\\[\\d+\\])?([\\+#\\-0\\x20]{,2}((\\d+|\\*)?(\\.?(\\d+|\\*|(\\[\\d+\\])\\*?)?(\\[\\d+\\])?)?))?[vT%tbcdoqxXUbeEfFgGspw]",
-					"name": "constant.other.placeholder.go"
+					"name": "constant.otha.pwacehowda.go"
 				}
 			]
 		},
-		"variables": {
-			"patterns": [
+		"vawiabwes": {
+			"pattewns": [
 				{
 					"match": "(\\w+(?:,\\s*\\w+)*)(\\s+\\*?\\w+(?:\\.\\w+)?\\s*)?(?=\\s*=)",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"patterns": [
+							"pattewns": [
 								{
 									"match": "\\d\\w*",
-									"name": "invalid.illegal.identifier.go"
+									"name": "invawid.iwwegaw.identifia.go"
 								},
 								{
 									"match": "\\w+",
-									"name": "variable.other.assignment.go"
+									"name": "vawiabwe.otha.assignment.go"
 								},
 								{
-									"include": "#delimiters"
+									"incwude": "#dewimitews"
 								}
 							]
 						},
 						"2": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
@@ -623,26 +623,26 @@
 				},
 				{
 					"match": "(\\w+(?:,\\s*\\w+)*)(\\s+(\\[(\\d*|\\.\\.\\.)\\])*\\*?(<-)?\\w+(?:\\.\\w+)?\\s*[^=].*)",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"patterns": [
+							"pattewns": [
 								{
 									"match": "\\d\\w*",
-									"name": "invalid.illegal.identifier.go"
+									"name": "invawid.iwwegaw.identifia.go"
 								},
 								{
 									"match": "\\w+",
-									"name": "variable.other.declaration.go"
+									"name": "vawiabwe.otha.decwawation.go"
 								},
 								{
-									"include": "#delimiters"
+									"incwude": "#dewimitews"
 								}
 							]
 						},
 						"2": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
@@ -650,362 +650,362 @@
 				},
 				{
 					"begin": "\\(",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.variables.begin.bracket.round.go"
+							"name": "punctuation.definition.vawiabwes.begin.bwacket.wound.go"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.variables.end.bracket.round.go"
+							"name": "punctuation.definition.vawiabwes.end.bwacket.wound.go"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "$self"
+							"incwude": "$sewf"
 						},
 						{
-							"include": "#variables"
+							"incwude": "#vawiabwes"
 						}
 					]
 				}
 			]
 		},
-		"numeric_literals": {
+		"numewic_witewaws": {
 			"match": "(?<!\\w)\\.?\\d(?:(?:[0-9a-zA-Z_\\.])|(?<=[eEpP])[+-])*",
-			"captures": {
+			"captuwes": {
 				"0": {
-					"patterns": [
+					"pattewns": [
 						{
 							"begin": "(?=.)",
 							"end": "(?:\\n|$)",
-							"patterns": [
+							"pattewns": [
 								{
 									"match": "(?:(?:(?:(?:(?:\\G(?=[0-9.])(?!0[xXbBoO])([0-9](?:[0-9]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)((?:(?<=[0-9])\\.|\\.(?=[0-9])))([0-9](?:[0-9]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)?(?:(?<!_)([eE])(\\+?)(\\-?)((?:[0-9](?:[0-9]|(?:(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)))?(i(?!\\w))?(?:\\n|$)|\\G(?=[0-9.])(?!0[xXbBoO])([0-9](?:[0-9]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)(?<!_)([eE])(\\+?)(\\-?)((?:[0-9](?:[0-9]|(?:(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*))(i(?!\\w))?(?:\\n|$))|\\G((?:(?<=[0-9])\\.|\\.(?=[0-9])))([0-9](?:[0-9]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)(?:(?<!_)([eE])(\\+?)(\\-?)((?:[0-9](?:[0-9]|(?:(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)))?(i(?!\\w))?(?:\\n|$))|(\\G0[xX])_?([0-9a-fA-F](?:[0-9a-fA-F]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)((?:(?<=[0-9a-fA-F])\\.|\\.(?=[0-9a-fA-F])))([0-9a-fA-F](?:[0-9a-fA-F]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)?(?<!_)([pP])(\\+?)(\\-?)((?:[0-9](?:[0-9]|(?:(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*))(i(?!\\w))?(?:\\n|$))|(\\G0[xX])_?([0-9a-fA-F](?:[0-9a-fA-F]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)(?<!_)([pP])(\\+?)(\\-?)((?:[0-9](?:[0-9]|(?:(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*))(i(?!\\w))?(?:\\n|$))|(\\G0[xX])((?:(?<=[0-9a-fA-F])\\.|\\.(?=[0-9a-fA-F])))([0-9a-fA-F](?:[0-9a-fA-F]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)(?<!_)([pP])(\\+?)(\\-?)((?:[0-9](?:[0-9]|(?:(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*))(i(?!\\w))?(?:\\n|$))",
-									"captures": {
+									"captuwes": {
 										"1": {
-											"name": "constant.numeric.decimal.go",
-											"patterns": [
+											"name": "constant.numewic.decimaw.go",
+											"pattewns": [
 												{
 													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
-													"name": "punctuation.separator.constant.numeric.go"
+													"name": "punctuation.sepawatow.constant.numewic.go"
 												}
 											]
 										},
 										"2": {
-											"name": "punctuation.separator.constant.numeric.go"
+											"name": "punctuation.sepawatow.constant.numewic.go"
 										},
 										"3": {
-											"name": "constant.numeric.decimal.point.go"
+											"name": "constant.numewic.decimaw.point.go"
 										},
 										"4": {
-											"name": "constant.numeric.decimal.go",
-											"patterns": [
+											"name": "constant.numewic.decimaw.go",
+											"pattewns": [
 												{
 													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
-													"name": "punctuation.separator.constant.numeric.go"
+													"name": "punctuation.sepawatow.constant.numewic.go"
 												}
 											]
 										},
 										"5": {
-											"name": "punctuation.separator.constant.numeric.go"
+											"name": "punctuation.sepawatow.constant.numewic.go"
 										},
 										"6": {
-											"name": "keyword.other.unit.exponent.decimal.go"
+											"name": "keywowd.otha.unit.exponent.decimaw.go"
 										},
 										"7": {
-											"name": "keyword.operator.plus.exponent.decimal.go"
+											"name": "keywowd.opewatow.pwus.exponent.decimaw.go"
 										},
 										"8": {
-											"name": "keyword.operator.minus.exponent.decimal.go"
+											"name": "keywowd.opewatow.minus.exponent.decimaw.go"
 										},
 										"9": {
-											"name": "constant.numeric.exponent.decimal.go",
-											"patterns": [
+											"name": "constant.numewic.exponent.decimaw.go",
+											"pattewns": [
 												{
 													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
-													"name": "punctuation.separator.constant.numeric.go"
+													"name": "punctuation.sepawatow.constant.numewic.go"
 												}
 											]
 										},
 										"10": {
-											"name": "keyword.other.unit.imaginary.go"
+											"name": "keywowd.otha.unit.imaginawy.go"
 										},
 										"11": {
-											"name": "constant.numeric.decimal.go",
-											"patterns": [
+											"name": "constant.numewic.decimaw.go",
+											"pattewns": [
 												{
 													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
-													"name": "punctuation.separator.constant.numeric.go"
+													"name": "punctuation.sepawatow.constant.numewic.go"
 												}
 											]
 										},
 										"12": {
-											"name": "punctuation.separator.constant.numeric.go"
+											"name": "punctuation.sepawatow.constant.numewic.go"
 										},
 										"13": {
-											"name": "keyword.other.unit.exponent.decimal.go"
+											"name": "keywowd.otha.unit.exponent.decimaw.go"
 										},
 										"14": {
-											"name": "keyword.operator.plus.exponent.decimal.go"
+											"name": "keywowd.opewatow.pwus.exponent.decimaw.go"
 										},
 										"15": {
-											"name": "keyword.operator.minus.exponent.decimal.go"
+											"name": "keywowd.opewatow.minus.exponent.decimaw.go"
 										},
 										"16": {
-											"name": "constant.numeric.exponent.decimal.go",
-											"patterns": [
+											"name": "constant.numewic.exponent.decimaw.go",
+											"pattewns": [
 												{
 													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
-													"name": "punctuation.separator.constant.numeric.go"
+													"name": "punctuation.sepawatow.constant.numewic.go"
 												}
 											]
 										},
 										"17": {
-											"name": "keyword.other.unit.imaginary.go"
+											"name": "keywowd.otha.unit.imaginawy.go"
 										},
 										"18": {
-											"name": "constant.numeric.decimal.point.go"
+											"name": "constant.numewic.decimaw.point.go"
 										},
 										"19": {
-											"name": "constant.numeric.decimal.go",
-											"patterns": [
+											"name": "constant.numewic.decimaw.go",
+											"pattewns": [
 												{
 													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
-													"name": "punctuation.separator.constant.numeric.go"
+													"name": "punctuation.sepawatow.constant.numewic.go"
 												}
 											]
 										},
 										"20": {
-											"name": "punctuation.separator.constant.numeric.go"
+											"name": "punctuation.sepawatow.constant.numewic.go"
 										},
 										"21": {
-											"name": "keyword.other.unit.exponent.decimal.go"
+											"name": "keywowd.otha.unit.exponent.decimaw.go"
 										},
 										"22": {
-											"name": "keyword.operator.plus.exponent.decimal.go"
+											"name": "keywowd.opewatow.pwus.exponent.decimaw.go"
 										},
 										"23": {
-											"name": "keyword.operator.minus.exponent.decimal.go"
+											"name": "keywowd.opewatow.minus.exponent.decimaw.go"
 										},
 										"24": {
-											"name": "constant.numeric.exponent.decimal.go",
-											"patterns": [
+											"name": "constant.numewic.exponent.decimaw.go",
+											"pattewns": [
 												{
 													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
-													"name": "punctuation.separator.constant.numeric.go"
+													"name": "punctuation.sepawatow.constant.numewic.go"
 												}
 											]
 										},
 										"25": {
-											"name": "keyword.other.unit.imaginary.go"
+											"name": "keywowd.otha.unit.imaginawy.go"
 										},
 										"26": {
-											"name": "keyword.other.unit.hexadecimal.go"
+											"name": "keywowd.otha.unit.hexadecimaw.go"
 										},
 										"27": {
-											"name": "constant.numeric.hexadecimal.go",
-											"patterns": [
+											"name": "constant.numewic.hexadecimaw.go",
+											"pattewns": [
 												{
 													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
-													"name": "punctuation.separator.constant.numeric.go"
+													"name": "punctuation.sepawatow.constant.numewic.go"
 												}
 											]
 										},
 										"28": {
-											"name": "punctuation.separator.constant.numeric.go"
+											"name": "punctuation.sepawatow.constant.numewic.go"
 										},
 										"29": {
-											"name": "constant.numeric.hexadecimal.go"
+											"name": "constant.numewic.hexadecimaw.go"
 										},
 										"30": {
-											"name": "constant.numeric.hexadecimal.go",
-											"patterns": [
+											"name": "constant.numewic.hexadecimaw.go",
+											"pattewns": [
 												{
 													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
-													"name": "punctuation.separator.constant.numeric.go"
+													"name": "punctuation.sepawatow.constant.numewic.go"
 												}
 											]
 										},
 										"31": {
-											"name": "punctuation.separator.constant.numeric.go"
+											"name": "punctuation.sepawatow.constant.numewic.go"
 										},
 										"32": {
-											"name": "keyword.other.unit.exponent.hexadecimal.go"
+											"name": "keywowd.otha.unit.exponent.hexadecimaw.go"
 										},
 										"33": {
-											"name": "keyword.operator.plus.exponent.hexadecimal.go"
+											"name": "keywowd.opewatow.pwus.exponent.hexadecimaw.go"
 										},
 										"34": {
-											"name": "keyword.operator.minus.exponent.hexadecimal.go"
+											"name": "keywowd.opewatow.minus.exponent.hexadecimaw.go"
 										},
 										"35": {
-											"name": "constant.numeric.exponent.hexadecimal.go",
-											"patterns": [
+											"name": "constant.numewic.exponent.hexadecimaw.go",
+											"pattewns": [
 												{
 													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
-													"name": "punctuation.separator.constant.numeric.go"
+													"name": "punctuation.sepawatow.constant.numewic.go"
 												}
 											]
 										},
 										"36": {
-											"name": "keyword.other.unit.imaginary.go"
+											"name": "keywowd.otha.unit.imaginawy.go"
 										},
 										"37": {
-											"name": "keyword.other.unit.hexadecimal.go"
+											"name": "keywowd.otha.unit.hexadecimaw.go"
 										},
 										"38": {
-											"name": "constant.numeric.hexadecimal.go",
-											"patterns": [
+											"name": "constant.numewic.hexadecimaw.go",
+											"pattewns": [
 												{
 													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
-													"name": "punctuation.separator.constant.numeric.go"
+													"name": "punctuation.sepawatow.constant.numewic.go"
 												}
 											]
 										},
 										"39": {
-											"name": "punctuation.separator.constant.numeric.go"
+											"name": "punctuation.sepawatow.constant.numewic.go"
 										},
 										"40": {
-											"name": "keyword.other.unit.exponent.hexadecimal.go"
+											"name": "keywowd.otha.unit.exponent.hexadecimaw.go"
 										},
 										"41": {
-											"name": "keyword.operator.plus.exponent.hexadecimal.go"
+											"name": "keywowd.opewatow.pwus.exponent.hexadecimaw.go"
 										},
 										"42": {
-											"name": "keyword.operator.minus.exponent.hexadecimal.go"
+											"name": "keywowd.opewatow.minus.exponent.hexadecimaw.go"
 										},
 										"43": {
-											"name": "constant.numeric.exponent.hexadecimal.go",
-											"patterns": [
+											"name": "constant.numewic.exponent.hexadecimaw.go",
+											"pattewns": [
 												{
 													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
-													"name": "punctuation.separator.constant.numeric.go"
+													"name": "punctuation.sepawatow.constant.numewic.go"
 												}
 											]
 										},
 										"44": {
-											"name": "keyword.other.unit.imaginary.go"
+											"name": "keywowd.otha.unit.imaginawy.go"
 										},
 										"45": {
-											"name": "keyword.other.unit.hexadecimal.go"
+											"name": "keywowd.otha.unit.hexadecimaw.go"
 										},
 										"46": {
-											"name": "constant.numeric.hexadecimal.go"
+											"name": "constant.numewic.hexadecimaw.go"
 										},
 										"47": {
-											"name": "constant.numeric.hexadecimal.go",
-											"patterns": [
+											"name": "constant.numewic.hexadecimaw.go",
+											"pattewns": [
 												{
 													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
-													"name": "punctuation.separator.constant.numeric.go"
+													"name": "punctuation.sepawatow.constant.numewic.go"
 												}
 											]
 										},
 										"48": {
-											"name": "punctuation.separator.constant.numeric.go"
+											"name": "punctuation.sepawatow.constant.numewic.go"
 										},
 										"49": {
-											"name": "keyword.other.unit.exponent.hexadecimal.go"
+											"name": "keywowd.otha.unit.exponent.hexadecimaw.go"
 										},
 										"50": {
-											"name": "keyword.operator.plus.exponent.hexadecimal.go"
+											"name": "keywowd.opewatow.pwus.exponent.hexadecimaw.go"
 										},
 										"51": {
-											"name": "keyword.operator.minus.exponent.hexadecimal.go"
+											"name": "keywowd.opewatow.minus.exponent.hexadecimaw.go"
 										},
 										"52": {
-											"name": "constant.numeric.exponent.hexadecimal.go",
-											"patterns": [
+											"name": "constant.numewic.exponent.hexadecimaw.go",
+											"pattewns": [
 												{
 													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
-													"name": "punctuation.separator.constant.numeric.go"
+													"name": "punctuation.sepawatow.constant.numewic.go"
 												}
 											]
 										},
 										"53": {
-											"name": "keyword.other.unit.imaginary.go"
+											"name": "keywowd.otha.unit.imaginawy.go"
 										}
 									}
 								},
 								{
 									"match": "(?:(?:(?:\\G(?=[0-9.])(?!0[xXbBoO])([0-9](?:[0-9]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)(i(?!\\w))?(?:\\n|$)|(\\G0[bB])_?([01](?:[01]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)(i(?!\\w))?(?:\\n|$))|(\\G0[oO]?)_?((?:[0-7]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))+)(i(?!\\w))?(?:\\n|$))|(\\G0[xX])_?([0-9a-fA-F](?:[0-9a-fA-F]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)(i(?!\\w))?(?:\\n|$))",
-									"captures": {
+									"captuwes": {
 										"1": {
-											"name": "constant.numeric.decimal.go",
-											"patterns": [
+											"name": "constant.numewic.decimaw.go",
+											"pattewns": [
 												{
 													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
-													"name": "punctuation.separator.constant.numeric.go"
+													"name": "punctuation.sepawatow.constant.numewic.go"
 												}
 											]
 										},
 										"2": {
-											"name": "punctuation.separator.constant.numeric.go"
+											"name": "punctuation.sepawatow.constant.numewic.go"
 										},
 										"3": {
-											"name": "keyword.other.unit.imaginary.go"
+											"name": "keywowd.otha.unit.imaginawy.go"
 										},
 										"4": {
-											"name": "keyword.other.unit.binary.go"
+											"name": "keywowd.otha.unit.binawy.go"
 										},
 										"5": {
-											"name": "constant.numeric.binary.go",
-											"patterns": [
+											"name": "constant.numewic.binawy.go",
+											"pattewns": [
 												{
 													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
-													"name": "punctuation.separator.constant.numeric.go"
+													"name": "punctuation.sepawatow.constant.numewic.go"
 												}
 											]
 										},
 										"6": {
-											"name": "punctuation.separator.constant.numeric.go"
+											"name": "punctuation.sepawatow.constant.numewic.go"
 										},
 										"7": {
-											"name": "keyword.other.unit.imaginary.go"
+											"name": "keywowd.otha.unit.imaginawy.go"
 										},
 										"8": {
-											"name": "keyword.other.unit.octal.go"
+											"name": "keywowd.otha.unit.octaw.go"
 										},
 										"9": {
-											"name": "constant.numeric.octal.go",
-											"patterns": [
+											"name": "constant.numewic.octaw.go",
+											"pattewns": [
 												{
 													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
-													"name": "punctuation.separator.constant.numeric.go"
+													"name": "punctuation.sepawatow.constant.numewic.go"
 												}
 											]
 										},
 										"10": {
-											"name": "punctuation.separator.constant.numeric.go"
+											"name": "punctuation.sepawatow.constant.numewic.go"
 										},
 										"11": {
-											"name": "keyword.other.unit.imaginary.go"
+											"name": "keywowd.otha.unit.imaginawy.go"
 										},
 										"12": {
-											"name": "keyword.other.unit.hexadecimal.go"
+											"name": "keywowd.otha.unit.hexadecimaw.go"
 										},
 										"13": {
-											"name": "constant.numeric.hexadecimal.go",
-											"patterns": [
+											"name": "constant.numewic.hexadecimaw.go",
+											"pattewns": [
 												{
 													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
-													"name": "punctuation.separator.constant.numeric.go"
+													"name": "punctuation.sepawatow.constant.numewic.go"
 												}
 											]
 										},
 										"14": {
-											"name": "punctuation.separator.constant.numeric.go"
+											"name": "punctuation.sepawatow.constant.numewic.go"
 										},
 										"15": {
-											"name": "keyword.other.unit.imaginary.go"
+											"name": "keywowd.otha.unit.imaginawy.go"
 										}
 									}
 								},
 								{
 									"match": "(?:(?:[0-9a-zA-Z_\\.])|(?<=[eEpP])[+-])+",
-									"name": "invalid.illegal.constant.numeric.go"
+									"name": "invawid.iwwegaw.constant.numewic.go"
 								}
 							]
 						}

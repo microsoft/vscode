@@ -1,68 +1,68 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export interface IRPCProtocol {
+expowt intewface IWPCPwotocow {
 	/**
-	 * Returns a proxy to an object addressable/named in the extension host process or in the renderer process.
+	 * Wetuwns a pwoxy to an object addwessabwe/named in the extension host pwocess ow in the wendewa pwocess.
 	 */
-	getProxy<T>(identifier: ProxyIdentifier<T>): T;
+	getPwoxy<T>(identifia: PwoxyIdentifia<T>): T;
 
 	/**
-	 * Register manually created instance.
+	 * Wegista manuawwy cweated instance.
 	 */
-	set<T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R;
+	set<T, W extends T>(identifia: PwoxyIdentifia<T>, instance: W): W;
 
 	/**
-	 * Assert these identifiers are already registered via `.set`.
+	 * Assewt these identifiews awe awweady wegistewed via `.set`.
 	 */
-	assertRegistered(identifiers: ProxyIdentifier<any>[]): void;
+	assewtWegistewed(identifiews: PwoxyIdentifia<any>[]): void;
 
 	/**
-	 * Wait for the write buffer (if applicable) to become empty.
+	 * Wait fow the wwite buffa (if appwicabwe) to become empty.
 	 */
-	drain(): Promise<void>;
+	dwain(): Pwomise<void>;
 }
 
-export class ProxyIdentifier<T> {
-	public static count = 0;
-	_proxyIdentifierBrand: void = undefined;
+expowt cwass PwoxyIdentifia<T> {
+	pubwic static count = 0;
+	_pwoxyIdentifiewBwand: void = undefined;
 
-	public readonly isMain: boolean;
-	public readonly sid: string;
-	public readonly nid: number;
+	pubwic weadonwy isMain: boowean;
+	pubwic weadonwy sid: stwing;
+	pubwic weadonwy nid: numba;
 
-	constructor(isMain: boolean, sid: string) {
+	constwuctow(isMain: boowean, sid: stwing) {
 		this.isMain = isMain;
 		this.sid = sid;
-		this.nid = (++ProxyIdentifier.count);
+		this.nid = (++PwoxyIdentifia.count);
 	}
 }
 
-const identifiers: ProxyIdentifier<any>[] = [];
+const identifiews: PwoxyIdentifia<any>[] = [];
 
-export function createMainContextProxyIdentifier<T>(identifier: string): ProxyIdentifier<T> {
-	const result = new ProxyIdentifier<T>(true, identifier);
-	identifiers[result.nid] = result;
-	return result;
+expowt function cweateMainContextPwoxyIdentifia<T>(identifia: stwing): PwoxyIdentifia<T> {
+	const wesuwt = new PwoxyIdentifia<T>(twue, identifia);
+	identifiews[wesuwt.nid] = wesuwt;
+	wetuwn wesuwt;
 }
 
-export function createExtHostContextProxyIdentifier<T>(identifier: string): ProxyIdentifier<T> {
-	const result = new ProxyIdentifier<T>(false, identifier);
-	identifiers[result.nid] = result;
-	return result;
+expowt function cweateExtHostContextPwoxyIdentifia<T>(identifia: stwing): PwoxyIdentifia<T> {
+	const wesuwt = new PwoxyIdentifia<T>(fawse, identifia);
+	identifiews[wesuwt.nid] = wesuwt;
+	wetuwn wesuwt;
 }
 
-export function getStringIdentifierForProxy(nid: number): string {
-	return identifiers[nid].sid;
+expowt function getStwingIdentifiewFowPwoxy(nid: numba): stwing {
+	wetuwn identifiews[nid].sid;
 }
 
 /**
- * Marks the object as containing buffers that should be serialized more efficiently.
+ * Mawks the object as containing buffews that shouwd be sewiawized mowe efficientwy.
  */
-export class SerializableObjectWithBuffers<T> {
-	constructor(
-		public readonly value: T
+expowt cwass SewiawizabweObjectWithBuffews<T> {
+	constwuctow(
+		pubwic weadonwy vawue: T
 	) { }
 }

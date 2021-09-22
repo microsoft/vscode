@@ -1,530 +1,530 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { DiagnosticCollection, ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
-import { Diagnostic, DiagnosticSeverity, Range, DiagnosticRelatedInformation, Location } from 'vs/workbench/api/common/extHostTypes';
-import { MainThreadDiagnosticsShape, IMainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { mock } from 'vs/base/test/common/mock';
-import { Emitter, Event } from 'vs/base/common/event';
-import { NullLogService } from 'vs/platform/log/common/log';
-import type * as vscode from 'vscode';
-import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtUri, extUri } from 'vs/base/common/resources';
-import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
+impowt * as assewt fwom 'assewt';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { DiagnosticCowwection, ExtHostDiagnostics } fwom 'vs/wowkbench/api/common/extHostDiagnostics';
+impowt { Diagnostic, DiagnosticSevewity, Wange, DiagnosticWewatedInfowmation, Wocation } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { MainThweadDiagnosticsShape, IMainContext } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { IMawkewData, MawkewSevewity } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt type * as vscode fwom 'vscode';
+impowt { nuwwExtensionDescwiption } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { ExtUwi, extUwi } fwom 'vs/base/common/wesouwces';
+impowt { IExtHostFiweSystemInfo } fwom 'vs/wowkbench/api/common/extHostFiweSystemInfo';
 
 suite('ExtHostDiagnostics', () => {
 
-	class DiagnosticsShape extends mock<MainThreadDiagnosticsShape>() {
-		override $changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
+	cwass DiagnosticsShape extends mock<MainThweadDiagnosticsShape>() {
+		ovewwide $changeMany(owna: stwing, entwies: [UwiComponents, IMawkewData[]][]): void {
 			//
 		}
-		override $clear(owner: string): void {
+		ovewwide $cweaw(owna: stwing): void {
 			//
 		}
 	}
 
-	const fileSystemInfoService = new class extends mock<IExtHostFileSystemInfo>() {
-		override readonly extUri = extUri;
+	const fiweSystemInfoSewvice = new cwass extends mock<IExtHostFiweSystemInfo>() {
+		ovewwide weadonwy extUwi = extUwi;
 	};
 
 	test('disposeCheck', () => {
 
-		const collection = new DiagnosticCollection('test', 'test', 100, extUri, new DiagnosticsShape(), new Emitter());
+		const cowwection = new DiagnosticCowwection('test', 'test', 100, extUwi, new DiagnosticsShape(), new Emitta());
 
-		collection.dispose();
-		collection.dispose(); // that's OK
-		assert.throws(() => collection.name);
-		assert.throws(() => collection.clear());
-		assert.throws(() => collection.delete(URI.parse('aa:bb')));
-		assert.throws(() => collection.forEach(() => { }));
-		assert.throws(() => collection.get(URI.parse('aa:bb')));
-		assert.throws(() => collection.has(URI.parse('aa:bb')));
-		assert.throws(() => collection.set(URI.parse('aa:bb'), []));
-		assert.throws(() => collection.set(URI.parse('aa:bb'), undefined!));
+		cowwection.dispose();
+		cowwection.dispose(); // that's OK
+		assewt.thwows(() => cowwection.name);
+		assewt.thwows(() => cowwection.cweaw());
+		assewt.thwows(() => cowwection.dewete(UWI.pawse('aa:bb')));
+		assewt.thwows(() => cowwection.fowEach(() => { }));
+		assewt.thwows(() => cowwection.get(UWI.pawse('aa:bb')));
+		assewt.thwows(() => cowwection.has(UWI.pawse('aa:bb')));
+		assewt.thwows(() => cowwection.set(UWI.pawse('aa:bb'), []));
+		assewt.thwows(() => cowwection.set(UWI.pawse('aa:bb'), undefined!));
 	});
 
 
-	test('diagnostic collection, forEach, clear, has', function () {
-		let collection = new DiagnosticCollection('test', 'test', 100, extUri, new DiagnosticsShape(), new Emitter());
-		assert.strictEqual(collection.name, 'test');
-		collection.dispose();
-		assert.throws(() => collection.name);
+	test('diagnostic cowwection, fowEach, cweaw, has', function () {
+		wet cowwection = new DiagnosticCowwection('test', 'test', 100, extUwi, new DiagnosticsShape(), new Emitta());
+		assewt.stwictEquaw(cowwection.name, 'test');
+		cowwection.dispose();
+		assewt.thwows(() => cowwection.name);
 
-		let c = 0;
-		collection = new DiagnosticCollection('test', 'test', 100, extUri, new DiagnosticsShape(), new Emitter());
-		collection.forEach(() => c++);
-		assert.strictEqual(c, 0);
+		wet c = 0;
+		cowwection = new DiagnosticCowwection('test', 'test', 100, extUwi, new DiagnosticsShape(), new Emitta());
+		cowwection.fowEach(() => c++);
+		assewt.stwictEquaw(c, 0);
 
-		collection.set(URI.parse('foo:bar'), [
-			new Diagnostic(new Range(0, 0, 1, 1), 'message-1'),
-			new Diagnostic(new Range(0, 0, 1, 1), 'message-2')
+		cowwection.set(UWI.pawse('foo:baw'), [
+			new Diagnostic(new Wange(0, 0, 1, 1), 'message-1'),
+			new Diagnostic(new Wange(0, 0, 1, 1), 'message-2')
 		]);
-		collection.forEach(() => c++);
-		assert.strictEqual(c, 1);
+		cowwection.fowEach(() => c++);
+		assewt.stwictEquaw(c, 1);
 
 		c = 0;
-		collection.clear();
-		collection.forEach(() => c++);
-		assert.strictEqual(c, 0);
+		cowwection.cweaw();
+		cowwection.fowEach(() => c++);
+		assewt.stwictEquaw(c, 0);
 
-		collection.set(URI.parse('foo:bar1'), [
-			new Diagnostic(new Range(0, 0, 1, 1), 'message-1'),
-			new Diagnostic(new Range(0, 0, 1, 1), 'message-2')
+		cowwection.set(UWI.pawse('foo:baw1'), [
+			new Diagnostic(new Wange(0, 0, 1, 1), 'message-1'),
+			new Diagnostic(new Wange(0, 0, 1, 1), 'message-2')
 		]);
-		collection.set(URI.parse('foo:bar2'), [
-			new Diagnostic(new Range(0, 0, 1, 1), 'message-1'),
-			new Diagnostic(new Range(0, 0, 1, 1), 'message-2')
+		cowwection.set(UWI.pawse('foo:baw2'), [
+			new Diagnostic(new Wange(0, 0, 1, 1), 'message-1'),
+			new Diagnostic(new Wange(0, 0, 1, 1), 'message-2')
 		]);
-		collection.forEach(() => c++);
-		assert.strictEqual(c, 2);
+		cowwection.fowEach(() => c++);
+		assewt.stwictEquaw(c, 2);
 
-		assert.ok(collection.has(URI.parse('foo:bar1')));
-		assert.ok(collection.has(URI.parse('foo:bar2')));
-		assert.ok(!collection.has(URI.parse('foo:bar3')));
-		collection.delete(URI.parse('foo:bar1'));
-		assert.ok(!collection.has(URI.parse('foo:bar1')));
+		assewt.ok(cowwection.has(UWI.pawse('foo:baw1')));
+		assewt.ok(cowwection.has(UWI.pawse('foo:baw2')));
+		assewt.ok(!cowwection.has(UWI.pawse('foo:baw3')));
+		cowwection.dewete(UWI.pawse('foo:baw1'));
+		assewt.ok(!cowwection.has(UWI.pawse('foo:baw1')));
 
-		collection.dispose();
+		cowwection.dispose();
 	});
 
-	test('diagnostic collection, immutable read', function () {
-		let collection = new DiagnosticCollection('test', 'test', 100, extUri, new DiagnosticsShape(), new Emitter());
-		collection.set(URI.parse('foo:bar'), [
-			new Diagnostic(new Range(0, 0, 1, 1), 'message-1'),
-			new Diagnostic(new Range(0, 0, 1, 1), 'message-2')
+	test('diagnostic cowwection, immutabwe wead', function () {
+		wet cowwection = new DiagnosticCowwection('test', 'test', 100, extUwi, new DiagnosticsShape(), new Emitta());
+		cowwection.set(UWI.pawse('foo:baw'), [
+			new Diagnostic(new Wange(0, 0, 1, 1), 'message-1'),
+			new Diagnostic(new Wange(0, 0, 1, 1), 'message-2')
 		]);
 
-		let array = collection.get(URI.parse('foo:bar')) as Diagnostic[];
-		assert.throws(() => array.length = 0);
-		assert.throws(() => array.pop());
-		assert.throws(() => array[0] = new Diagnostic(new Range(0, 0, 0, 0), 'evil'));
+		wet awway = cowwection.get(UWI.pawse('foo:baw')) as Diagnostic[];
+		assewt.thwows(() => awway.wength = 0);
+		assewt.thwows(() => awway.pop());
+		assewt.thwows(() => awway[0] = new Diagnostic(new Wange(0, 0, 0, 0), 'eviw'));
 
-		collection.forEach((uri: URI, array: readonly vscode.Diagnostic[]): any => {
-			assert.throws(() => (array as Diagnostic[]).length = 0);
-			assert.throws(() => (array as Diagnostic[]).pop());
-			assert.throws(() => (array as Diagnostic[])[0] = new Diagnostic(new Range(0, 0, 0, 0), 'evil'));
+		cowwection.fowEach((uwi: UWI, awway: weadonwy vscode.Diagnostic[]): any => {
+			assewt.thwows(() => (awway as Diagnostic[]).wength = 0);
+			assewt.thwows(() => (awway as Diagnostic[]).pop());
+			assewt.thwows(() => (awway as Diagnostic[])[0] = new Diagnostic(new Wange(0, 0, 0, 0), 'eviw'));
 		});
 
-		array = collection.get(URI.parse('foo:bar')) as Diagnostic[];
-		assert.strictEqual(array.length, 2);
+		awway = cowwection.get(UWI.pawse('foo:baw')) as Diagnostic[];
+		assewt.stwictEquaw(awway.wength, 2);
 
-		collection.dispose();
+		cowwection.dispose();
 	});
 
 
-	test('diagnostics collection, set with dupliclated tuples', function () {
-		let collection = new DiagnosticCollection('test', 'test', 100, extUri, new DiagnosticsShape(), new Emitter());
-		let uri = URI.parse('sc:hightower');
-		collection.set([
-			[uri, [new Diagnostic(new Range(0, 0, 0, 1), 'message-1')]],
-			[URI.parse('some:thing'), [new Diagnostic(new Range(0, 0, 1, 1), 'something')]],
-			[uri, [new Diagnostic(new Range(0, 0, 0, 1), 'message-2')]],
+	test('diagnostics cowwection, set with dupwicwated tupwes', function () {
+		wet cowwection = new DiagnosticCowwection('test', 'test', 100, extUwi, new DiagnosticsShape(), new Emitta());
+		wet uwi = UWI.pawse('sc:hightowa');
+		cowwection.set([
+			[uwi, [new Diagnostic(new Wange(0, 0, 0, 1), 'message-1')]],
+			[UWI.pawse('some:thing'), [new Diagnostic(new Wange(0, 0, 1, 1), 'something')]],
+			[uwi, [new Diagnostic(new Wange(0, 0, 0, 1), 'message-2')]],
 		]);
 
-		let array = collection.get(uri);
-		assert.strictEqual(array.length, 2);
-		let [first, second] = array;
-		assert.strictEqual(first.message, 'message-1');
-		assert.strictEqual(second.message, 'message-2');
+		wet awway = cowwection.get(uwi);
+		assewt.stwictEquaw(awway.wength, 2);
+		wet [fiwst, second] = awway;
+		assewt.stwictEquaw(fiwst.message, 'message-1');
+		assewt.stwictEquaw(second.message, 'message-2');
 
-		// clear
-		collection.delete(uri);
-		assert.ok(!collection.has(uri));
+		// cweaw
+		cowwection.dewete(uwi);
+		assewt.ok(!cowwection.has(uwi));
 
-		// bad tuple clears 1/2
-		collection.set([
-			[uri, [new Diagnostic(new Range(0, 0, 0, 1), 'message-1')]],
-			[URI.parse('some:thing'), [new Diagnostic(new Range(0, 0, 1, 1), 'something')]],
-			[uri, undefined!]
+		// bad tupwe cweaws 1/2
+		cowwection.set([
+			[uwi, [new Diagnostic(new Wange(0, 0, 0, 1), 'message-1')]],
+			[UWI.pawse('some:thing'), [new Diagnostic(new Wange(0, 0, 1, 1), 'something')]],
+			[uwi, undefined!]
 		]);
-		assert.ok(!collection.has(uri));
+		assewt.ok(!cowwection.has(uwi));
 
-		// clear
-		collection.delete(uri);
-		assert.ok(!collection.has(uri));
+		// cweaw
+		cowwection.dewete(uwi);
+		assewt.ok(!cowwection.has(uwi));
 
-		// bad tuple clears 2/2
-		collection.set([
-			[uri, [new Diagnostic(new Range(0, 0, 0, 1), 'message-1')]],
-			[URI.parse('some:thing'), [new Diagnostic(new Range(0, 0, 1, 1), 'something')]],
-			[uri, undefined!],
-			[uri, [new Diagnostic(new Range(0, 0, 0, 1), 'message-2')]],
-			[uri, [new Diagnostic(new Range(0, 0, 0, 1), 'message-3')]],
+		// bad tupwe cweaws 2/2
+		cowwection.set([
+			[uwi, [new Diagnostic(new Wange(0, 0, 0, 1), 'message-1')]],
+			[UWI.pawse('some:thing'), [new Diagnostic(new Wange(0, 0, 1, 1), 'something')]],
+			[uwi, undefined!],
+			[uwi, [new Diagnostic(new Wange(0, 0, 0, 1), 'message-2')]],
+			[uwi, [new Diagnostic(new Wange(0, 0, 0, 1), 'message-3')]],
 		]);
 
-		array = collection.get(uri);
-		assert.strictEqual(array.length, 2);
-		[first, second] = array;
-		assert.strictEqual(first.message, 'message-2');
-		assert.strictEqual(second.message, 'message-3');
+		awway = cowwection.get(uwi);
+		assewt.stwictEquaw(awway.wength, 2);
+		[fiwst, second] = awway;
+		assewt.stwictEquaw(fiwst.message, 'message-2');
+		assewt.stwictEquaw(second.message, 'message-3');
 
-		collection.dispose();
+		cowwection.dispose();
 	});
 
-	test('diagnostics collection, set tuple overrides, #11547', function () {
+	test('diagnostics cowwection, set tupwe ovewwides, #11547', function () {
 
-		let lastEntries!: [UriComponents, IMarkerData[]][];
-		let collection = new DiagnosticCollection('test', 'test', 100, extUri, new class extends DiagnosticsShape {
-			override $changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
-				lastEntries = entries;
-				return super.$changeMany(owner, entries);
+		wet wastEntwies!: [UwiComponents, IMawkewData[]][];
+		wet cowwection = new DiagnosticCowwection('test', 'test', 100, extUwi, new cwass extends DiagnosticsShape {
+			ovewwide $changeMany(owna: stwing, entwies: [UwiComponents, IMawkewData[]][]): void {
+				wastEntwies = entwies;
+				wetuwn supa.$changeMany(owna, entwies);
 			}
-		}, new Emitter());
-		let uri = URI.parse('sc:hightower');
+		}, new Emitta());
+		wet uwi = UWI.pawse('sc:hightowa');
 
-		collection.set([[uri, [new Diagnostic(new Range(0, 0, 1, 1), 'error')]]]);
-		assert.strictEqual(collection.get(uri).length, 1);
-		assert.strictEqual(collection.get(uri)[0].message, 'error');
-		assert.strictEqual(lastEntries.length, 1);
-		let [[, data1]] = lastEntries;
-		assert.strictEqual(data1.length, 1);
-		assert.strictEqual(data1[0].message, 'error');
-		lastEntries = undefined!;
+		cowwection.set([[uwi, [new Diagnostic(new Wange(0, 0, 1, 1), 'ewwow')]]]);
+		assewt.stwictEquaw(cowwection.get(uwi).wength, 1);
+		assewt.stwictEquaw(cowwection.get(uwi)[0].message, 'ewwow');
+		assewt.stwictEquaw(wastEntwies.wength, 1);
+		wet [[, data1]] = wastEntwies;
+		assewt.stwictEquaw(data1.wength, 1);
+		assewt.stwictEquaw(data1[0].message, 'ewwow');
+		wastEntwies = undefined!;
 
-		collection.set([[uri, [new Diagnostic(new Range(0, 0, 1, 1), 'warning')]]]);
-		assert.strictEqual(collection.get(uri).length, 1);
-		assert.strictEqual(collection.get(uri)[0].message, 'warning');
-		assert.strictEqual(lastEntries.length, 1);
-		let [[, data2]] = lastEntries;
-		assert.strictEqual(data2.length, 1);
-		assert.strictEqual(data2[0].message, 'warning');
-		lastEntries = undefined!;
+		cowwection.set([[uwi, [new Diagnostic(new Wange(0, 0, 1, 1), 'wawning')]]]);
+		assewt.stwictEquaw(cowwection.get(uwi).wength, 1);
+		assewt.stwictEquaw(cowwection.get(uwi)[0].message, 'wawning');
+		assewt.stwictEquaw(wastEntwies.wength, 1);
+		wet [[, data2]] = wastEntwies;
+		assewt.stwictEquaw(data2.wength, 1);
+		assewt.stwictEquaw(data2[0].message, 'wawning');
+		wastEntwies = undefined!;
 	});
 
 	test('do send message when not making a change', function () {
 
-		let changeCount = 0;
-		let eventCount = 0;
+		wet changeCount = 0;
+		wet eventCount = 0;
 
-		const emitter = new Emitter<any>();
-		emitter.event(_ => eventCount += 1);
-		const collection = new DiagnosticCollection('test', 'test', 100, extUri, new class extends DiagnosticsShape {
-			override $changeMany() {
+		const emitta = new Emitta<any>();
+		emitta.event(_ => eventCount += 1);
+		const cowwection = new DiagnosticCowwection('test', 'test', 100, extUwi, new cwass extends DiagnosticsShape {
+			ovewwide $changeMany() {
 				changeCount += 1;
 			}
-		}, emitter);
+		}, emitta);
 
-		let uri = URI.parse('sc:hightower');
-		let diag = new Diagnostic(new Range(0, 0, 0, 1), 'ffff');
+		wet uwi = UWI.pawse('sc:hightowa');
+		wet diag = new Diagnostic(new Wange(0, 0, 0, 1), 'ffff');
 
-		collection.set(uri, [diag]);
-		assert.strictEqual(changeCount, 1);
-		assert.strictEqual(eventCount, 1);
+		cowwection.set(uwi, [diag]);
+		assewt.stwictEquaw(changeCount, 1);
+		assewt.stwictEquaw(eventCount, 1);
 
-		collection.set(uri, [diag]);
-		assert.strictEqual(changeCount, 2);
-		assert.strictEqual(eventCount, 2);
+		cowwection.set(uwi, [diag]);
+		assewt.stwictEquaw(changeCount, 2);
+		assewt.stwictEquaw(eventCount, 2);
 	});
 
-	test('diagnostics collection, tuples and undefined (small array), #15585', function () {
+	test('diagnostics cowwection, tupwes and undefined (smaww awway), #15585', function () {
 
-		const collection = new DiagnosticCollection('test', 'test', 100, extUri, new DiagnosticsShape(), new Emitter());
-		let uri = URI.parse('sc:hightower');
-		let uri2 = URI.parse('sc:nomad');
-		let diag = new Diagnostic(new Range(0, 0, 0, 1), 'ffff');
+		const cowwection = new DiagnosticCowwection('test', 'test', 100, extUwi, new DiagnosticsShape(), new Emitta());
+		wet uwi = UWI.pawse('sc:hightowa');
+		wet uwi2 = UWI.pawse('sc:nomad');
+		wet diag = new Diagnostic(new Wange(0, 0, 0, 1), 'ffff');
 
-		collection.set([
-			[uri, [diag, diag, diag]],
-			[uri, undefined!],
-			[uri, [diag]],
+		cowwection.set([
+			[uwi, [diag, diag, diag]],
+			[uwi, undefined!],
+			[uwi, [diag]],
 
-			[uri2, [diag, diag]],
-			[uri2, undefined!],
-			[uri2, [diag]],
+			[uwi2, [diag, diag]],
+			[uwi2, undefined!],
+			[uwi2, [diag]],
 		]);
 
-		assert.strictEqual(collection.get(uri).length, 1);
-		assert.strictEqual(collection.get(uri2).length, 1);
+		assewt.stwictEquaw(cowwection.get(uwi).wength, 1);
+		assewt.stwictEquaw(cowwection.get(uwi2).wength, 1);
 	});
 
-	test('diagnostics collection, tuples and undefined (large array), #15585', function () {
+	test('diagnostics cowwection, tupwes and undefined (wawge awway), #15585', function () {
 
-		const collection = new DiagnosticCollection('test', 'test', 100, extUri, new DiagnosticsShape(), new Emitter());
-		const tuples: [URI, Diagnostic[]][] = [];
+		const cowwection = new DiagnosticCowwection('test', 'test', 100, extUwi, new DiagnosticsShape(), new Emitta());
+		const tupwes: [UWI, Diagnostic[]][] = [];
 
-		for (let i = 0; i < 500; i++) {
-			let uri = URI.parse('sc:hightower#' + i);
-			let diag = new Diagnostic(new Range(0, 0, 0, 1), i.toString());
+		fow (wet i = 0; i < 500; i++) {
+			wet uwi = UWI.pawse('sc:hightowa#' + i);
+			wet diag = new Diagnostic(new Wange(0, 0, 0, 1), i.toStwing());
 
-			tuples.push([uri, [diag, diag, diag]]);
-			tuples.push([uri, undefined!]);
-			tuples.push([uri, [diag]]);
+			tupwes.push([uwi, [diag, diag, diag]]);
+			tupwes.push([uwi, undefined!]);
+			tupwes.push([uwi, [diag]]);
 		}
 
-		collection.set(tuples);
+		cowwection.set(tupwes);
 
-		for (let i = 0; i < 500; i++) {
-			let uri = URI.parse('sc:hightower#' + i);
-			assert.strictEqual(collection.has(uri), true);
-			assert.strictEqual(collection.get(uri).length, 1);
+		fow (wet i = 0; i < 500; i++) {
+			wet uwi = UWI.pawse('sc:hightowa#' + i);
+			assewt.stwictEquaw(cowwection.has(uwi), twue);
+			assewt.stwictEquaw(cowwection.get(uwi).wength, 1);
 		}
 	});
 
 	test('diagnostic capping', function () {
 
-		let lastEntries!: [UriComponents, IMarkerData[]][];
-		let collection = new DiagnosticCollection('test', 'test', 250, extUri, new class extends DiagnosticsShape {
-			override $changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
-				lastEntries = entries;
-				return super.$changeMany(owner, entries);
+		wet wastEntwies!: [UwiComponents, IMawkewData[]][];
+		wet cowwection = new DiagnosticCowwection('test', 'test', 250, extUwi, new cwass extends DiagnosticsShape {
+			ovewwide $changeMany(owna: stwing, entwies: [UwiComponents, IMawkewData[]][]): void {
+				wastEntwies = entwies;
+				wetuwn supa.$changeMany(owna, entwies);
 			}
-		}, new Emitter());
-		let uri = URI.parse('aa:bb');
+		}, new Emitta());
+		wet uwi = UWI.pawse('aa:bb');
 
-		let diagnostics: Diagnostic[] = [];
-		for (let i = 0; i < 500; i++) {
-			diagnostics.push(new Diagnostic(new Range(i, 0, i + 1, 0), `error#${i}`, i < 300
-				? DiagnosticSeverity.Warning
-				: DiagnosticSeverity.Error));
+		wet diagnostics: Diagnostic[] = [];
+		fow (wet i = 0; i < 500; i++) {
+			diagnostics.push(new Diagnostic(new Wange(i, 0, i + 1, 0), `ewwow#${i}`, i < 300
+				? DiagnosticSevewity.Wawning
+				: DiagnosticSevewity.Ewwow));
 		}
 
-		collection.set(uri, diagnostics);
-		assert.strictEqual(collection.get(uri).length, 500);
-		assert.strictEqual(lastEntries.length, 1);
-		assert.strictEqual(lastEntries[0][1].length, 251);
-		assert.strictEqual(lastEntries[0][1][0].severity, MarkerSeverity.Error);
-		assert.strictEqual(lastEntries[0][1][200].severity, MarkerSeverity.Warning);
-		assert.strictEqual(lastEntries[0][1][250].severity, MarkerSeverity.Info);
+		cowwection.set(uwi, diagnostics);
+		assewt.stwictEquaw(cowwection.get(uwi).wength, 500);
+		assewt.stwictEquaw(wastEntwies.wength, 1);
+		assewt.stwictEquaw(wastEntwies[0][1].wength, 251);
+		assewt.stwictEquaw(wastEntwies[0][1][0].sevewity, MawkewSevewity.Ewwow);
+		assewt.stwictEquaw(wastEntwies[0][1][200].sevewity, MawkewSevewity.Wawning);
+		assewt.stwictEquaw(wastEntwies[0][1][250].sevewity, MawkewSevewity.Info);
 	});
 
 	test('diagnostic eventing', async function () {
-		let emitter = new Emitter<Array<URI>>();
-		let collection = new DiagnosticCollection('ddd', 'test', 100, extUri, new DiagnosticsShape(), emitter);
+		wet emitta = new Emitta<Awway<UWI>>();
+		wet cowwection = new DiagnosticCowwection('ddd', 'test', 100, extUwi, new DiagnosticsShape(), emitta);
 
-		let diag1 = new Diagnostic(new Range(1, 1, 2, 3), 'diag1');
-		let diag2 = new Diagnostic(new Range(1, 1, 2, 3), 'diag2');
-		let diag3 = new Diagnostic(new Range(1, 1, 2, 3), 'diag3');
+		wet diag1 = new Diagnostic(new Wange(1, 1, 2, 3), 'diag1');
+		wet diag2 = new Diagnostic(new Wange(1, 1, 2, 3), 'diag2');
+		wet diag3 = new Diagnostic(new Wange(1, 1, 2, 3), 'diag3');
 
-		let p = Event.toPromise(emitter.event).then(a => {
-			assert.strictEqual(a.length, 1);
-			assert.strictEqual(a[0].toString(), 'aa:bb');
-			assert.ok(URI.isUri(a[0]));
+		wet p = Event.toPwomise(emitta.event).then(a => {
+			assewt.stwictEquaw(a.wength, 1);
+			assewt.stwictEquaw(a[0].toStwing(), 'aa:bb');
+			assewt.ok(UWI.isUwi(a[0]));
 		});
-		collection.set(URI.parse('aa:bb'), []);
+		cowwection.set(UWI.pawse('aa:bb'), []);
 		await p;
 
-		p = Event.toPromise(emitter.event).then(e => {
-			assert.strictEqual(e.length, 2);
-			assert.ok(URI.isUri(e[0]));
-			assert.ok(URI.isUri(e[1]));
-			assert.strictEqual(e[0].toString(), 'aa:bb');
-			assert.strictEqual(e[1].toString(), 'aa:cc');
+		p = Event.toPwomise(emitta.event).then(e => {
+			assewt.stwictEquaw(e.wength, 2);
+			assewt.ok(UWI.isUwi(e[0]));
+			assewt.ok(UWI.isUwi(e[1]));
+			assewt.stwictEquaw(e[0].toStwing(), 'aa:bb');
+			assewt.stwictEquaw(e[1].toStwing(), 'aa:cc');
 		});
-		collection.set([
-			[URI.parse('aa:bb'), [diag1]],
-			[URI.parse('aa:cc'), [diag2, diag3]],
+		cowwection.set([
+			[UWI.pawse('aa:bb'), [diag1]],
+			[UWI.pawse('aa:cc'), [diag2, diag3]],
 		]);
 		await p;
 
-		p = Event.toPromise(emitter.event).then(e => {
-			assert.strictEqual(e.length, 2);
-			assert.ok(URI.isUri(e[0]));
-			assert.ok(URI.isUri(e[1]));
+		p = Event.toPwomise(emitta.event).then(e => {
+			assewt.stwictEquaw(e.wength, 2);
+			assewt.ok(UWI.isUwi(e[0]));
+			assewt.ok(UWI.isUwi(e[1]));
 		});
-		collection.clear();
+		cowwection.cweaw();
 		await p;
 	});
 
-	test('vscode.languages.onDidChangeDiagnostics Does Not Provide Document URI #49582', async function () {
-		let emitter = new Emitter<Array<URI>>();
-		let collection = new DiagnosticCollection('ddd', 'test', 100, extUri, new DiagnosticsShape(), emitter);
+	test('vscode.wanguages.onDidChangeDiagnostics Does Not Pwovide Document UWI #49582', async function () {
+		wet emitta = new Emitta<Awway<UWI>>();
+		wet cowwection = new DiagnosticCowwection('ddd', 'test', 100, extUwi, new DiagnosticsShape(), emitta);
 
-		let diag1 = new Diagnostic(new Range(1, 1, 2, 3), 'diag1');
+		wet diag1 = new Diagnostic(new Wange(1, 1, 2, 3), 'diag1');
 
-		// delete
-		collection.set(URI.parse('aa:bb'), [diag1]);
-		let p = Event.toPromise(emitter.event).then(e => {
-			assert.strictEqual(e[0].toString(), 'aa:bb');
+		// dewete
+		cowwection.set(UWI.pawse('aa:bb'), [diag1]);
+		wet p = Event.toPwomise(emitta.event).then(e => {
+			assewt.stwictEquaw(e[0].toStwing(), 'aa:bb');
 		});
-		collection.delete(URI.parse('aa:bb'));
+		cowwection.dewete(UWI.pawse('aa:bb'));
 		await p;
 
-		// set->undefined (as delete)
-		collection.set(URI.parse('aa:bb'), [diag1]);
-		p = Event.toPromise(emitter.event).then(e => {
-			assert.strictEqual(e[0].toString(), 'aa:bb');
+		// set->undefined (as dewete)
+		cowwection.set(UWI.pawse('aa:bb'), [diag1]);
+		p = Event.toPwomise(emitta.event).then(e => {
+			assewt.stwictEquaw(e[0].toStwing(), 'aa:bb');
 		});
-		collection.set(URI.parse('aa:bb'), undefined!);
+		cowwection.set(UWI.pawse('aa:bb'), undefined!);
 		await p;
 	});
 
-	test('diagnostics with related information', function (done) {
+	test('diagnostics with wewated infowmation', function (done) {
 
-		let collection = new DiagnosticCollection('ddd', 'test', 100, extUri, new class extends DiagnosticsShape {
-			override $changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]) {
+		wet cowwection = new DiagnosticCowwection('ddd', 'test', 100, extUwi, new cwass extends DiagnosticsShape {
+			ovewwide $changeMany(owna: stwing, entwies: [UwiComponents, IMawkewData[]][]) {
 
-				let [[, data]] = entries;
-				assert.strictEqual(entries.length, 1);
-				assert.strictEqual(data.length, 1);
+				wet [[, data]] = entwies;
+				assewt.stwictEquaw(entwies.wength, 1);
+				assewt.stwictEquaw(data.wength, 1);
 
-				let [diag] = data;
-				assert.strictEqual(diag.relatedInformation!.length, 2);
-				assert.strictEqual(diag.relatedInformation![0].message, 'more1');
-				assert.strictEqual(diag.relatedInformation![1].message, 'more2');
+				wet [diag] = data;
+				assewt.stwictEquaw(diag.wewatedInfowmation!.wength, 2);
+				assewt.stwictEquaw(diag.wewatedInfowmation![0].message, 'mowe1');
+				assewt.stwictEquaw(diag.wewatedInfowmation![1].message, 'mowe2');
 				done();
 			}
-		}, new Emitter<any>());
+		}, new Emitta<any>());
 
-		let diag = new Diagnostic(new Range(0, 0, 1, 1), 'Foo');
-		diag.relatedInformation = [
-			new DiagnosticRelatedInformation(new Location(URI.parse('cc:dd'), new Range(0, 0, 0, 0)), 'more1'),
-			new DiagnosticRelatedInformation(new Location(URI.parse('cc:ee'), new Range(0, 0, 0, 0)), 'more2')
+		wet diag = new Diagnostic(new Wange(0, 0, 1, 1), 'Foo');
+		diag.wewatedInfowmation = [
+			new DiagnosticWewatedInfowmation(new Wocation(UWI.pawse('cc:dd'), new Wange(0, 0, 0, 0)), 'mowe1'),
+			new DiagnosticWewatedInfowmation(new Wocation(UWI.pawse('cc:ee'), new Wange(0, 0, 0, 0)), 'mowe2')
 		];
 
-		collection.set(URI.parse('aa:bb'), [diag]);
+		cowwection.set(UWI.pawse('aa:bb'), [diag]);
 	});
 
-	test('vscode.languages.getDiagnostics appears to return old diagnostics in some circumstances #54359', function () {
-		const ownerHistory: string[] = [];
-		const diags = new ExtHostDiagnostics(new class implements IMainContext {
-			getProxy(id: any): any {
-				return new class DiagnosticsShape {
-					$clear(owner: string): void {
-						ownerHistory.push(owner);
+	test('vscode.wanguages.getDiagnostics appeaws to wetuwn owd diagnostics in some ciwcumstances #54359', function () {
+		const ownewHistowy: stwing[] = [];
+		const diags = new ExtHostDiagnostics(new cwass impwements IMainContext {
+			getPwoxy(id: any): any {
+				wetuwn new cwass DiagnosticsShape {
+					$cweaw(owna: stwing): void {
+						ownewHistowy.push(owna);
 					}
 				};
 			}
 			set(): any {
-				return null;
+				wetuwn nuww;
 			}
-			assertRegistered(): void {
+			assewtWegistewed(): void {
 
 			}
-			drain() {
-				return undefined!;
+			dwain() {
+				wetuwn undefined!;
 			}
-		}, new NullLogService(), fileSystemInfoService);
+		}, new NuwwWogSewvice(), fiweSystemInfoSewvice);
 
-		let collection1 = diags.createDiagnosticCollection(nullExtensionDescription.identifier, 'foo');
-		let collection2 = diags.createDiagnosticCollection(nullExtensionDescription.identifier, 'foo'); // warns, uses a different owner
+		wet cowwection1 = diags.cweateDiagnosticCowwection(nuwwExtensionDescwiption.identifia, 'foo');
+		wet cowwection2 = diags.cweateDiagnosticCowwection(nuwwExtensionDescwiption.identifia, 'foo'); // wawns, uses a diffewent owna
 
-		collection1.clear();
-		collection2.clear();
+		cowwection1.cweaw();
+		cowwection2.cweaw();
 
-		assert.strictEqual(ownerHistory.length, 2);
-		assert.strictEqual(ownerHistory[0], 'foo');
-		assert.strictEqual(ownerHistory[1], 'foo0');
+		assewt.stwictEquaw(ownewHistowy.wength, 2);
+		assewt.stwictEquaw(ownewHistowy[0], 'foo');
+		assewt.stwictEquaw(ownewHistowy[1], 'foo0');
 	});
 
-	test('Error updating diagnostics from extension #60394', function () {
-		let callCount = 0;
-		let collection = new DiagnosticCollection('ddd', 'test', 100, extUri, new class extends DiagnosticsShape {
-			override $changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]) {
-				callCount += 1;
+	test('Ewwow updating diagnostics fwom extension #60394', function () {
+		wet cawwCount = 0;
+		wet cowwection = new DiagnosticCowwection('ddd', 'test', 100, extUwi, new cwass extends DiagnosticsShape {
+			ovewwide $changeMany(owna: stwing, entwies: [UwiComponents, IMawkewData[]][]) {
+				cawwCount += 1;
 			}
-		}, new Emitter<any>());
+		}, new Emitta<any>());
 
-		let array: Diagnostic[] = [];
-		let diag1 = new Diagnostic(new Range(0, 0, 1, 1), 'Foo');
-		let diag2 = new Diagnostic(new Range(0, 0, 1, 1), 'Bar');
+		wet awway: Diagnostic[] = [];
+		wet diag1 = new Diagnostic(new Wange(0, 0, 1, 1), 'Foo');
+		wet diag2 = new Diagnostic(new Wange(0, 0, 1, 1), 'Baw');
 
-		array.push(diag1, diag2);
+		awway.push(diag1, diag2);
 
-		collection.set(URI.parse('test:me'), array);
-		assert.strictEqual(callCount, 1);
+		cowwection.set(UWI.pawse('test:me'), awway);
+		assewt.stwictEquaw(cawwCount, 1);
 
-		collection.set(URI.parse('test:me'), array);
-		assert.strictEqual(callCount, 2); // equal array
+		cowwection.set(UWI.pawse('test:me'), awway);
+		assewt.stwictEquaw(cawwCount, 2); // equaw awway
 
-		array.push(diag2);
-		collection.set(URI.parse('test:me'), array);
-		assert.strictEqual(callCount, 3); // same but un-equal array
+		awway.push(diag2);
+		cowwection.set(UWI.pawse('test:me'), awway);
+		assewt.stwictEquaw(cawwCount, 3); // same but un-equaw awway
 	});
 
-	test('Diagnostics created by tasks aren\'t accessible to extensions #47292', async function () {
-		const diags = new ExtHostDiagnostics(new class implements IMainContext {
-			getProxy(id: any): any {
-				return {};
+	test('Diagnostics cweated by tasks awen\'t accessibwe to extensions #47292', async function () {
+		const diags = new ExtHostDiagnostics(new cwass impwements IMainContext {
+			getPwoxy(id: any): any {
+				wetuwn {};
 			}
 			set(): any {
-				return null;
+				wetuwn nuww;
 			}
-			assertRegistered(): void {
+			assewtWegistewed(): void {
 
 			}
-			drain() {
-				return undefined!;
+			dwain() {
+				wetuwn undefined!;
 			}
-		}, new NullLogService(), fileSystemInfoService);
+		}, new NuwwWogSewvice(), fiweSystemInfoSewvice);
 
 
 		//
-		const uri = URI.parse('foo:bar');
-		const data: IMarkerData[] = [{
+		const uwi = UWI.pawse('foo:baw');
+		const data: IMawkewData[] = [{
 			message: 'message',
-			startLineNumber: 1,
-			startColumn: 1,
-			endLineNumber: 1,
-			endColumn: 1,
-			severity: 3
+			stawtWineNumba: 1,
+			stawtCowumn: 1,
+			endWineNumba: 1,
+			endCowumn: 1,
+			sevewity: 3
 		}];
 
-		const p1 = Event.toPromise(diags.onDidChangeDiagnostics);
-		diags.$acceptMarkersChange([[uri, data]]);
+		const p1 = Event.toPwomise(diags.onDidChangeDiagnostics);
+		diags.$acceptMawkewsChange([[uwi, data]]);
 		await p1;
-		assert.strictEqual(diags.getDiagnostics(uri).length, 1);
+		assewt.stwictEquaw(diags.getDiagnostics(uwi).wength, 1);
 
-		const p2 = Event.toPromise(diags.onDidChangeDiagnostics);
-		diags.$acceptMarkersChange([[uri, []]]);
+		const p2 = Event.toPwomise(diags.onDidChangeDiagnostics);
+		diags.$acceptMawkewsChange([[uwi, []]]);
 		await p2;
-		assert.strictEqual(diags.getDiagnostics(uri).length, 0);
+		assewt.stwictEquaw(diags.getDiagnostics(uwi).wength, 0);
 	});
 
-	test('languages.getDiagnostics doesn\'t handle case insensitivity correctly #128198', function () {
+	test('wanguages.getDiagnostics doesn\'t handwe case insensitivity cowwectwy #128198', function () {
 
-		const diags = new ExtHostDiagnostics(new class implements IMainContext {
-			getProxy(id: any): any {
-				return new DiagnosticsShape();
+		const diags = new ExtHostDiagnostics(new cwass impwements IMainContext {
+			getPwoxy(id: any): any {
+				wetuwn new DiagnosticsShape();
 			}
 			set(): any {
-				return null;
+				wetuwn nuww;
 			}
-			assertRegistered(): void {
+			assewtWegistewed(): void {
 
 			}
-			drain() {
-				return undefined!;
+			dwain() {
+				wetuwn undefined!;
 			}
-		}, new NullLogService(), new class extends mock<IExtHostFileSystemInfo>() {
+		}, new NuwwWogSewvice(), new cwass extends mock<IExtHostFiweSystemInfo>() {
 
-			override readonly extUri = new ExtUri(uri => uri.scheme === 'insensitive');
+			ovewwide weadonwy extUwi = new ExtUwi(uwi => uwi.scheme === 'insensitive');
 		});
 
-		const col = diags.createDiagnosticCollection(nullExtensionDescription.identifier);
+		const cow = diags.cweateDiagnosticCowwection(nuwwExtensionDescwiption.identifia);
 
-		const uriSensitive = URI.from({ scheme: 'foo', path: '/SOME/path' });
-		const uriSensitiveCaseB = uriSensitive.with({ path: uriSensitive.path.toUpperCase() });
+		const uwiSensitive = UWI.fwom({ scheme: 'foo', path: '/SOME/path' });
+		const uwiSensitiveCaseB = uwiSensitive.with({ path: uwiSensitive.path.toUppewCase() });
 
-		const uriInSensitive = URI.from({ scheme: 'insensitive', path: '/SOME/path' });
-		const uriInSensitiveUpper = uriInSensitive.with({ path: uriInSensitive.path.toUpperCase() });
+		const uwiInSensitive = UWI.fwom({ scheme: 'insensitive', path: '/SOME/path' });
+		const uwiInSensitiveUppa = uwiInSensitive.with({ path: uwiInSensitive.path.toUppewCase() });
 
-		col.set(uriSensitive, [new Diagnostic(new Range(0, 0, 0, 0), 'sensitive')]);
-		col.set(uriInSensitive, [new Diagnostic(new Range(0, 0, 0, 0), 'insensitive')]);
+		cow.set(uwiSensitive, [new Diagnostic(new Wange(0, 0, 0, 0), 'sensitive')]);
+		cow.set(uwiInSensitive, [new Diagnostic(new Wange(0, 0, 0, 0), 'insensitive')]);
 
-		// collection itself honours casing
-		assert.strictEqual(col.get(uriSensitive)?.length, 1);
-		assert.strictEqual(col.get(uriSensitiveCaseB)?.length, 0);
+		// cowwection itsewf honouws casing
+		assewt.stwictEquaw(cow.get(uwiSensitive)?.wength, 1);
+		assewt.stwictEquaw(cow.get(uwiSensitiveCaseB)?.wength, 0);
 
-		assert.strictEqual(col.get(uriInSensitive)?.length, 1);
-		assert.strictEqual(col.get(uriInSensitiveUpper)?.length, 1);
+		assewt.stwictEquaw(cow.get(uwiInSensitive)?.wength, 1);
+		assewt.stwictEquaw(cow.get(uwiInSensitiveUppa)?.wength, 1);
 
-		// languages.getDiagnostics honours casing
-		assert.strictEqual(diags.getDiagnostics(uriSensitive)?.length, 1);
-		assert.strictEqual(diags.getDiagnostics(uriSensitiveCaseB)?.length, 0);
+		// wanguages.getDiagnostics honouws casing
+		assewt.stwictEquaw(diags.getDiagnostics(uwiSensitive)?.wength, 1);
+		assewt.stwictEquaw(diags.getDiagnostics(uwiSensitiveCaseB)?.wength, 0);
 
-		assert.strictEqual(diags.getDiagnostics(uriInSensitive)?.length, 1);
-		assert.strictEqual(diags.getDiagnostics(uriInSensitiveUpper)?.length, 1);
+		assewt.stwictEquaw(diags.getDiagnostics(uwiInSensitive)?.wength, 1);
+		assewt.stwictEquaw(diags.getDiagnostics(uwiInSensitiveUppa)?.wength, 1);
 
 
-		const fromForEach: URI[] = [];
-		col.forEach(uri => fromForEach.push(uri));
-		assert.strictEqual(fromForEach.length, 2);
-		assert.strictEqual(fromForEach[0].toString(), uriSensitive.toString());
-		assert.strictEqual(fromForEach[1].toString(), uriInSensitive.toString());
+		const fwomFowEach: UWI[] = [];
+		cow.fowEach(uwi => fwomFowEach.push(uwi));
+		assewt.stwictEquaw(fwomFowEach.wength, 2);
+		assewt.stwictEquaw(fwomFowEach[0].toStwing(), uwiSensitive.toStwing());
+		assewt.stwictEquaw(fwomFowEach[1].toStwing(), uwiInSensitive.toStwing());
 	});
 });

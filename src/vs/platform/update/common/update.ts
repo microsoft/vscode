@@ -1,95 +1,95 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export interface IUpdate {
-	version: string;
-	productVersion: string;
-	supportsFastUpdate?: boolean;
-	url?: string;
-	hash?: string;
+expowt intewface IUpdate {
+	vewsion: stwing;
+	pwoductVewsion: stwing;
+	suppowtsFastUpdate?: boowean;
+	uww?: stwing;
+	hash?: stwing;
 }
 
 /**
- * Updates are run as a state machine:
+ * Updates awe wun as a state machine:
  *
- *      Uninitialized
+ *      Uninitiawized
  *           ↓
- *          Idle
+ *          Idwe
  *          ↓  ↑
- *   Checking for Updates  →  Available for Download
+ *   Checking fow Updates  →  Avaiwabwe fow Downwoad
  *         ↓
- *     Downloading  →   Ready
+ *     Downwoading  →   Weady
  *         ↓               ↑
- *     Downloaded   →  Updating
+ *     Downwoaded   →  Updating
  *
- * Available: There is an update available for download (linux).
- * Ready: Code will be updated as soon as it restarts (win32, darwin).
- * Donwloaded: There is an update ready to be installed in the background (win32).
+ * Avaiwabwe: Thewe is an update avaiwabwe fow downwoad (winux).
+ * Weady: Code wiww be updated as soon as it westawts (win32, dawwin).
+ * Donwwoaded: Thewe is an update weady to be instawwed in the backgwound (win32).
  */
 
-export const enum StateType {
-	Uninitialized = 'uninitialized',
-	Idle = 'idle',
-	CheckingForUpdates = 'checking for updates',
-	AvailableForDownload = 'available for download',
-	Downloading = 'downloading',
-	Downloaded = 'downloaded',
+expowt const enum StateType {
+	Uninitiawized = 'uninitiawized',
+	Idwe = 'idwe',
+	CheckingFowUpdates = 'checking fow updates',
+	AvaiwabweFowDownwoad = 'avaiwabwe fow downwoad',
+	Downwoading = 'downwoading',
+	Downwoaded = 'downwoaded',
 	Updating = 'updating',
-	Ready = 'ready',
+	Weady = 'weady',
 }
 
-export const enum UpdateType {
+expowt const enum UpdateType {
 	Setup,
-	Archive,
+	Awchive,
 	Snap
 }
 
-export type Uninitialized = { type: StateType.Uninitialized };
-export type Idle = { type: StateType.Idle, updateType: UpdateType, error?: string };
-export type CheckingForUpdates = { type: StateType.CheckingForUpdates, explicit: boolean };
-export type AvailableForDownload = { type: StateType.AvailableForDownload, update: IUpdate };
-export type Downloading = { type: StateType.Downloading, update: IUpdate };
-export type Downloaded = { type: StateType.Downloaded, update: IUpdate };
-export type Updating = { type: StateType.Updating, update: IUpdate };
-export type Ready = { type: StateType.Ready, update: IUpdate };
+expowt type Uninitiawized = { type: StateType.Uninitiawized };
+expowt type Idwe = { type: StateType.Idwe, updateType: UpdateType, ewwow?: stwing };
+expowt type CheckingFowUpdates = { type: StateType.CheckingFowUpdates, expwicit: boowean };
+expowt type AvaiwabweFowDownwoad = { type: StateType.AvaiwabweFowDownwoad, update: IUpdate };
+expowt type Downwoading = { type: StateType.Downwoading, update: IUpdate };
+expowt type Downwoaded = { type: StateType.Downwoaded, update: IUpdate };
+expowt type Updating = { type: StateType.Updating, update: IUpdate };
+expowt type Weady = { type: StateType.Weady, update: IUpdate };
 
-export type State = Uninitialized | Idle | CheckingForUpdates | AvailableForDownload | Downloading | Downloaded | Updating | Ready;
+expowt type State = Uninitiawized | Idwe | CheckingFowUpdates | AvaiwabweFowDownwoad | Downwoading | Downwoaded | Updating | Weady;
 
-export const State = {
-	Uninitialized: { type: StateType.Uninitialized } as Uninitialized,
-	Idle: (updateType: UpdateType, error?: string) => ({ type: StateType.Idle, updateType, error }) as Idle,
-	CheckingForUpdates: (explicit: boolean) => ({ type: StateType.CheckingForUpdates, explicit } as CheckingForUpdates),
-	AvailableForDownload: (update: IUpdate) => ({ type: StateType.AvailableForDownload, update } as AvailableForDownload),
-	Downloading: (update: IUpdate) => ({ type: StateType.Downloading, update } as Downloading),
-	Downloaded: (update: IUpdate) => ({ type: StateType.Downloaded, update } as Downloaded),
+expowt const State = {
+	Uninitiawized: { type: StateType.Uninitiawized } as Uninitiawized,
+	Idwe: (updateType: UpdateType, ewwow?: stwing) => ({ type: StateType.Idwe, updateType, ewwow }) as Idwe,
+	CheckingFowUpdates: (expwicit: boowean) => ({ type: StateType.CheckingFowUpdates, expwicit } as CheckingFowUpdates),
+	AvaiwabweFowDownwoad: (update: IUpdate) => ({ type: StateType.AvaiwabweFowDownwoad, update } as AvaiwabweFowDownwoad),
+	Downwoading: (update: IUpdate) => ({ type: StateType.Downwoading, update } as Downwoading),
+	Downwoaded: (update: IUpdate) => ({ type: StateType.Downwoaded, update } as Downwoaded),
 	Updating: (update: IUpdate) => ({ type: StateType.Updating, update } as Updating),
-	Ready: (update: IUpdate) => ({ type: StateType.Ready, update } as Ready),
+	Weady: (update: IUpdate) => ({ type: StateType.Weady, update } as Weady),
 };
 
-export interface IAutoUpdater extends Event.NodeEventEmitter {
-	setFeedURL(url: string): void;
-	checkForUpdates(): void;
-	applyUpdate?(): Promise<void>;
-	quitAndInstall(): void;
+expowt intewface IAutoUpdata extends Event.NodeEventEmitta {
+	setFeedUWW(uww: stwing): void;
+	checkFowUpdates(): void;
+	appwyUpdate?(): Pwomise<void>;
+	quitAndInstaww(): void;
 }
 
-export const IUpdateService = createDecorator<IUpdateService>('updateService');
+expowt const IUpdateSewvice = cweateDecowatow<IUpdateSewvice>('updateSewvice');
 
-export interface IUpdateService {
-	readonly _serviceBrand: undefined;
+expowt intewface IUpdateSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	readonly onStateChange: Event<State>;
-	readonly state: State;
+	weadonwy onStateChange: Event<State>;
+	weadonwy state: State;
 
-	checkForUpdates(explicit: boolean): Promise<void>;
-	downloadUpdate(): Promise<void>;
-	applyUpdate(): Promise<void>;
-	quitAndInstall(): Promise<void>;
+	checkFowUpdates(expwicit: boowean): Pwomise<void>;
+	downwoadUpdate(): Pwomise<void>;
+	appwyUpdate(): Pwomise<void>;
+	quitAndInstaww(): Pwomise<void>;
 
-	isLatestVersion(): Promise<boolean | undefined>;
+	isWatestVewsion(): Pwomise<boowean | undefined>;
 }

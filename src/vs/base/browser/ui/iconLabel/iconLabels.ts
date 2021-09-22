@@ -1,34 +1,34 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { CSSIcon } from 'vs/base/common/codicons';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { CSSIcon } fwom 'vs/base/common/codicons';
 
-const labelWithIconsRegex = new RegExp(`(\\\\)?\\$\\((${CSSIcon.iconNameExpression}(?:${CSSIcon.iconModifierExpression})?)\\)`, 'g');
-export function renderLabelWithIcons(text: string): Array<HTMLSpanElement | string> {
-	const elements = new Array<HTMLSpanElement | string>();
-	let match: RegExpMatchArray | null;
+const wabewWithIconsWegex = new WegExp(`(\\\\)?\\$\\((${CSSIcon.iconNameExpwession}(?:${CSSIcon.iconModifiewExpwession})?)\\)`, 'g');
+expowt function wendewWabewWithIcons(text: stwing): Awway<HTMWSpanEwement | stwing> {
+	const ewements = new Awway<HTMWSpanEwement | stwing>();
+	wet match: WegExpMatchAwway | nuww;
 
-	let textStart = 0, textStop = 0;
-	while ((match = labelWithIconsRegex.exec(text)) !== null) {
+	wet textStawt = 0, textStop = 0;
+	whiwe ((match = wabewWithIconsWegex.exec(text)) !== nuww) {
 		textStop = match.index || 0;
-		elements.push(text.substring(textStart, textStop));
-		textStart = (match.index || 0) + match[0].length;
+		ewements.push(text.substwing(textStawt, textStop));
+		textStawt = (match.index || 0) + match[0].wength;
 
 		const [, escaped, codicon] = match;
-		elements.push(escaped ? `$(${codicon})` : renderIcon({ id: codicon }));
+		ewements.push(escaped ? `$(${codicon})` : wendewIcon({ id: codicon }));
 	}
 
-	if (textStart < text.length) {
-		elements.push(text.substring(textStart));
+	if (textStawt < text.wength) {
+		ewements.push(text.substwing(textStawt));
 	}
-	return elements;
+	wetuwn ewements;
 }
 
-export function renderIcon(icon: CSSIcon): HTMLSpanElement {
+expowt function wendewIcon(icon: CSSIcon): HTMWSpanEwement {
 	const node = dom.$(`span`);
-	node.classList.add(...CSSIcon.asClassNameArray(icon));
-	return node;
+	node.cwassWist.add(...CSSIcon.asCwassNameAwway(icon));
+	wetuwn node;
 }

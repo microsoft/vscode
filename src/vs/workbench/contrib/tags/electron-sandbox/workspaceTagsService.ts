@@ -1,812 +1,812 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { sha1Hex } from 'vs/base/browser/hash';
-import { IFileService, IResolveFileResult, IFileStat } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ITextFileService, ITextFileContent } from 'vs/workbench/services/textfile/common/textfiles';
-import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/workspaceTags';
-import { getHashedRemotesFromConfig } from 'vs/workbench/contrib/tags/electron-sandbox/workspaceTags';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { splitLines } from 'vs/base/common/strings';
-import { MavenArtifactIdRegex, MavenDependenciesRegex, MavenDependencyRegex, GradleDependencyCompactRegex, GradleDependencyLooseRegex, MavenGroupIdRegex, JavaLibrariesToLookFor } from 'vs/workbench/contrib/tags/common/javaWorkspaceTags';
+impowt { sha1Hex } fwom 'vs/base/bwowsa/hash';
+impowt { IFiweSewvice, IWesowveFiweWesuwt, IFiweStat } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWowkspaceContextSewvice, WowkbenchState, IWowkspace } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { ITextFiweSewvice, ITextFiweContent } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IWowkspaceTagsSewvice, Tags } fwom 'vs/wowkbench/contwib/tags/common/wowkspaceTags';
+impowt { getHashedWemotesFwomConfig } fwom 'vs/wowkbench/contwib/tags/ewectwon-sandbox/wowkspaceTags';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { spwitWines } fwom 'vs/base/common/stwings';
+impowt { MavenAwtifactIdWegex, MavenDependenciesWegex, MavenDependencyWegex, GwadweDependencyCompactWegex, GwadweDependencyWooseWegex, MavenGwoupIdWegex, JavaWibwawiesToWookFow } fwom 'vs/wowkbench/contwib/tags/common/javaWowkspaceTags';
 
-const MetaModulesToLookFor = [
-	// Azure packages
-	'@azure',
-	'@azure/ai',
-	'@azure/core',
-	'@azure/cosmos',
-	'@azure/event',
-	'@azure/identity',
-	'@azure/keyvault',
-	'@azure/search',
-	'@azure/storage'
+const MetaModuwesToWookFow = [
+	// Azuwe packages
+	'@azuwe',
+	'@azuwe/ai',
+	'@azuwe/cowe',
+	'@azuwe/cosmos',
+	'@azuwe/event',
+	'@azuwe/identity',
+	'@azuwe/keyvauwt',
+	'@azuwe/seawch',
+	'@azuwe/stowage'
 ];
 
-const ModulesToLookFor = [
-	// Packages that suggest a node server
-	'express',
-	'sails',
+const ModuwesToWookFow = [
+	// Packages that suggest a node sewva
+	'expwess',
+	'saiws',
 	'koa',
 	'hapi',
 	'socket.io',
-	'restify',
-	// JS frameworks
-	'react',
-	'react-native',
-	'react-native-macos',
-	'react-native-windows',
-	'rnpm-plugin-windows',
-	'@angular/core',
+	'westify',
+	// JS fwamewowks
+	'weact',
+	'weact-native',
+	'weact-native-macos',
+	'weact-native-windows',
+	'wnpm-pwugin-windows',
+	'@anguwaw/cowe',
 	'@ionic',
 	'vue',
-	'tns-core-modules',
-	'electron',
-	// Other interesting packages
+	'tns-cowe-moduwes',
+	'ewectwon',
+	// Otha intewesting packages
 	'aws-sdk',
-	'aws-amplify',
-	'azure',
-	'azure-storage',
-	'firebase',
-	'@google-cloud/common',
-	'heroku-cli',
-	// Office and Sharepoint packages
-	'@microsoft/teams-js',
-	'@microsoft/office-js',
-	'@microsoft/office-js-helpers',
+	'aws-ampwify',
+	'azuwe',
+	'azuwe-stowage',
+	'fiwebase',
+	'@googwe-cwoud/common',
+	'hewoku-cwi',
+	// Office and Shawepoint packages
+	'@micwosoft/teams-js',
+	'@micwosoft/office-js',
+	'@micwosoft/office-js-hewpews',
 	'@types/office-js',
-	'@types/office-runtime',
-	'office-ui-fabric-react',
-	'@uifabric/icons',
-	'@uifabric/merge-styles',
-	'@uifabric/styling',
-	'@uifabric/experiments',
-	'@uifabric/utilities',
-	'@microsoft/rush',
-	'lerna',
+	'@types/office-wuntime',
+	'office-ui-fabwic-weact',
+	'@uifabwic/icons',
+	'@uifabwic/mewge-stywes',
+	'@uifabwic/stywing',
+	'@uifabwic/expewiments',
+	'@uifabwic/utiwities',
+	'@micwosoft/wush',
+	'wewna',
 	'just-task',
-	'beachball',
-	// Playwright packages
-	'playwright',
-	'playwright-cli',
-	'@playwright/test',
-	'playwright-core',
-	'playwright-chromium',
-	'playwright-firefox',
-	'playwright-webkit',
-	// AzureSDK packages
-	'@azure/app-configuration',
-	'@azure/cosmos-sign',
-	'@azure/cosmos-language-service',
-	'@azure/synapse-spark',
-	'@azure/synapse-monitoring',
-	'@azure/synapse-managed-private-endpoints',
-	'@azure/synapse-artifacts',
-	'@azure/synapse-access-control',
-	'@azure/ai-metrics-advisor',
-	'@azure/service-bus',
-	'@azure/keyvault-secrets',
-	'@azure/keyvault-keys',
-	'@azure/keyvault-certificates',
-	'@azure/keyvault-admin',
-	'@azure/digital-twins-core',
-	'@azure/cognitiveservices-anomalydetector',
-	'@azure/ai-anomaly-detector',
-	'@azure/core-xml',
-	'@azure/core-tracing',
-	'@azure/core-paging',
-	'@azure/core-https',
-	'@azure/core-client',
-	'@azure/core-asynciterator-polyfill',
-	'@azure/core-arm',
-	'@azure/amqp-common',
-	'@azure/core-lro',
-	'@azure/logger',
-	'@azure/core-http',
-	'@azure/core-auth',
-	'@azure/core-amqp',
-	'@azure/abort-controller',
-	'@azure/eventgrid',
-	'@azure/storage-file-datalake',
-	'@azure/search-documents',
-	'@azure/storage-file',
-	'@azure/storage-datalake',
-	'@azure/storage-queue',
-	'@azure/storage-file-share',
-	'@azure/storage-blob-changefeed',
-	'@azure/storage-blob',
-	'@azure/cognitiveservices-formrecognizer',
-	'@azure/ai-form-recognizer',
-	'@azure/cognitiveservices-textanalytics',
-	'@azure/ai-text-analytics',
-	'@azure/event-processor-host',
-	'@azure/schema-registry-avro',
-	'@azure/schema-registry',
-	'@azure/eventhubs-checkpointstore-blob',
-	'@azure/event-hubs',
-	'@azure/communication-signaling',
-	'@azure/communication-calling',
-	'@azure/communication-sms',
-	'@azure/communication-common',
-	'@azure/communication-chat',
-	'@azure/communication-administration',
-	'@azure/attestation',
-	'@azure/data-tables'
+	'beachbaww',
+	// Pwaywwight packages
+	'pwaywwight',
+	'pwaywwight-cwi',
+	'@pwaywwight/test',
+	'pwaywwight-cowe',
+	'pwaywwight-chwomium',
+	'pwaywwight-fiwefox',
+	'pwaywwight-webkit',
+	// AzuweSDK packages
+	'@azuwe/app-configuwation',
+	'@azuwe/cosmos-sign',
+	'@azuwe/cosmos-wanguage-sewvice',
+	'@azuwe/synapse-spawk',
+	'@azuwe/synapse-monitowing',
+	'@azuwe/synapse-managed-pwivate-endpoints',
+	'@azuwe/synapse-awtifacts',
+	'@azuwe/synapse-access-contwow',
+	'@azuwe/ai-metwics-advisow',
+	'@azuwe/sewvice-bus',
+	'@azuwe/keyvauwt-secwets',
+	'@azuwe/keyvauwt-keys',
+	'@azuwe/keyvauwt-cewtificates',
+	'@azuwe/keyvauwt-admin',
+	'@azuwe/digitaw-twins-cowe',
+	'@azuwe/cognitivesewvices-anomawydetectow',
+	'@azuwe/ai-anomawy-detectow',
+	'@azuwe/cowe-xmw',
+	'@azuwe/cowe-twacing',
+	'@azuwe/cowe-paging',
+	'@azuwe/cowe-https',
+	'@azuwe/cowe-cwient',
+	'@azuwe/cowe-asyncitewatow-powyfiww',
+	'@azuwe/cowe-awm',
+	'@azuwe/amqp-common',
+	'@azuwe/cowe-wwo',
+	'@azuwe/wogga',
+	'@azuwe/cowe-http',
+	'@azuwe/cowe-auth',
+	'@azuwe/cowe-amqp',
+	'@azuwe/abowt-contwowwa',
+	'@azuwe/eventgwid',
+	'@azuwe/stowage-fiwe-datawake',
+	'@azuwe/seawch-documents',
+	'@azuwe/stowage-fiwe',
+	'@azuwe/stowage-datawake',
+	'@azuwe/stowage-queue',
+	'@azuwe/stowage-fiwe-shawe',
+	'@azuwe/stowage-bwob-changefeed',
+	'@azuwe/stowage-bwob',
+	'@azuwe/cognitivesewvices-fowmwecogniza',
+	'@azuwe/ai-fowm-wecogniza',
+	'@azuwe/cognitivesewvices-textanawytics',
+	'@azuwe/ai-text-anawytics',
+	'@azuwe/event-pwocessow-host',
+	'@azuwe/schema-wegistwy-avwo',
+	'@azuwe/schema-wegistwy',
+	'@azuwe/eventhubs-checkpointstowe-bwob',
+	'@azuwe/event-hubs',
+	'@azuwe/communication-signawing',
+	'@azuwe/communication-cawwing',
+	'@azuwe/communication-sms',
+	'@azuwe/communication-common',
+	'@azuwe/communication-chat',
+	'@azuwe/communication-administwation',
+	'@azuwe/attestation',
+	'@azuwe/data-tabwes'
 ];
 
-const PyMetaModulesToLookFor = [
-	'azure-ai',
-	'azure-cognitiveservices',
-	'azure-core',
-	'azure-cosmos',
-	'azure-event',
-	'azure-identity',
-	'azure-keyvault',
-	'azure-mgmt',
-	'azure-ml',
-	'azure-search',
-	'azure-storage'
+const PyMetaModuwesToWookFow = [
+	'azuwe-ai',
+	'azuwe-cognitivesewvices',
+	'azuwe-cowe',
+	'azuwe-cosmos',
+	'azuwe-event',
+	'azuwe-identity',
+	'azuwe-keyvauwt',
+	'azuwe-mgmt',
+	'azuwe-mw',
+	'azuwe-seawch',
+	'azuwe-stowage'
 ];
 
-const PyModulesToLookFor = [
-	'azure',
-	'azure-appconfiguration',
-	'azure-loganalytics',
-	'azure-synapse-nspkg',
-	'azure-synapse-spark',
-	'azure-synapse-artifacts',
-	'azure-synapse-accesscontrol',
-	'azure-synapse',
-	'azure-cognitiveservices-vision-nspkg',
-	'azure-cognitiveservices-search-nspkg',
-	'azure-cognitiveservices-nspkg',
-	'azure-cognitiveservices-language-nspkg',
-	'azure-cognitiveservices-knowledge-nspkg',
-	'azure-monitor',
-	'azure-ai-metricsadvisor',
-	'azure-servicebus',
-	'azureml-sdk',
-	'azure-keyvault-nspkg',
-	'azure-keyvault-secrets',
-	'azure-keyvault-keys',
-	'azure-keyvault-certificates',
-	'azure-keyvault-administration',
-	'azure-digitaltwins-nspkg',
-	'azure-digitaltwins-core',
-	'azure-cognitiveservices-anomalydetector',
-	'azure-ai-anomalydetector',
-	'azure-applicationinsights',
-	'azure-core-tracing-opentelemetry',
-	'azure-core-tracing-opencensus',
-	'azure-nspkg',
-	'azure-common',
-	'azure-eventgrid',
-	'azure-storage-file-datalake',
-	'azure-search-nspkg',
-	'azure-search-documents',
-	'azure-storage-nspkg',
-	'azure-storage-file',
-	'azure-storage-common',
-	'azure-storage-queue',
-	'azure-storage-file-share',
-	'azure-storage-blob-changefeed',
-	'azure-storage-blob',
-	'azure-cognitiveservices-formrecognizer',
-	'azure-ai-formrecognizer',
-	'azure-ai-nspkg',
-	'azure-cognitiveservices-language-textanalytics',
-	'azure-ai-textanalytics',
-	'azure-schemaregistry-avroserializer',
-	'azure-schemaregistry',
-	'azure-eventhub-checkpointstoreblob-aio',
-	'azure-eventhub-checkpointstoreblob',
-	'azure-eventhub',
-	'azure-servicefabric',
-	'azure-communication-nspkg',
-	'azure-communication-sms',
-	'azure-communication-chat',
-	'azure-communication-administration',
-	'azure-security-attestation',
-	'azure-data-nspkg',
-	'azure-data-tables',
-	'azure-devtools',
-	'azure-elasticluster',
-	'azure-functions',
-	'azure-graphrbac',
-	'azure-iothub-device-client',
-	'azure-shell',
-	'azure-translator',
-	'adal',
+const PyModuwesToWookFow = [
+	'azuwe',
+	'azuwe-appconfiguwation',
+	'azuwe-woganawytics',
+	'azuwe-synapse-nspkg',
+	'azuwe-synapse-spawk',
+	'azuwe-synapse-awtifacts',
+	'azuwe-synapse-accesscontwow',
+	'azuwe-synapse',
+	'azuwe-cognitivesewvices-vision-nspkg',
+	'azuwe-cognitivesewvices-seawch-nspkg',
+	'azuwe-cognitivesewvices-nspkg',
+	'azuwe-cognitivesewvices-wanguage-nspkg',
+	'azuwe-cognitivesewvices-knowwedge-nspkg',
+	'azuwe-monitow',
+	'azuwe-ai-metwicsadvisow',
+	'azuwe-sewvicebus',
+	'azuwemw-sdk',
+	'azuwe-keyvauwt-nspkg',
+	'azuwe-keyvauwt-secwets',
+	'azuwe-keyvauwt-keys',
+	'azuwe-keyvauwt-cewtificates',
+	'azuwe-keyvauwt-administwation',
+	'azuwe-digitawtwins-nspkg',
+	'azuwe-digitawtwins-cowe',
+	'azuwe-cognitivesewvices-anomawydetectow',
+	'azuwe-ai-anomawydetectow',
+	'azuwe-appwicationinsights',
+	'azuwe-cowe-twacing-opentewemetwy',
+	'azuwe-cowe-twacing-opencensus',
+	'azuwe-nspkg',
+	'azuwe-common',
+	'azuwe-eventgwid',
+	'azuwe-stowage-fiwe-datawake',
+	'azuwe-seawch-nspkg',
+	'azuwe-seawch-documents',
+	'azuwe-stowage-nspkg',
+	'azuwe-stowage-fiwe',
+	'azuwe-stowage-common',
+	'azuwe-stowage-queue',
+	'azuwe-stowage-fiwe-shawe',
+	'azuwe-stowage-bwob-changefeed',
+	'azuwe-stowage-bwob',
+	'azuwe-cognitivesewvices-fowmwecogniza',
+	'azuwe-ai-fowmwecogniza',
+	'azuwe-ai-nspkg',
+	'azuwe-cognitivesewvices-wanguage-textanawytics',
+	'azuwe-ai-textanawytics',
+	'azuwe-schemawegistwy-avwosewiawiza',
+	'azuwe-schemawegistwy',
+	'azuwe-eventhub-checkpointstowebwob-aio',
+	'azuwe-eventhub-checkpointstowebwob',
+	'azuwe-eventhub',
+	'azuwe-sewvicefabwic',
+	'azuwe-communication-nspkg',
+	'azuwe-communication-sms',
+	'azuwe-communication-chat',
+	'azuwe-communication-administwation',
+	'azuwe-secuwity-attestation',
+	'azuwe-data-nspkg',
+	'azuwe-data-tabwes',
+	'azuwe-devtoows',
+	'azuwe-ewasticwusta',
+	'azuwe-functions',
+	'azuwe-gwaphwbac',
+	'azuwe-iothub-device-cwient',
+	'azuwe-sheww',
+	'azuwe-twanswatow',
+	'adaw',
 	'pydocumentdb',
-	'botbuilder-core',
-	'botbuilder-schema',
-	'botframework-connector',
-	'playwright'
+	'botbuiwda-cowe',
+	'botbuiwda-schema',
+	'botfwamewowk-connectow',
+	'pwaywwight'
 ];
 
-export class WorkspaceTagsService implements IWorkspaceTagsService {
-	declare readonly _serviceBrand: undefined;
-	private _tags: Tags | undefined;
+expowt cwass WowkspaceTagsSewvice impwements IWowkspaceTagsSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
+	pwivate _tags: Tags | undefined;
 
-	constructor(
-		@IFileService private readonly fileService: IFileService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IProductService private readonly productService: IProductService,
-		@ITextFileService private readonly textFileService: ITextFileService
+	constwuctow(
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@ITextFiweSewvice pwivate weadonwy textFiweSewvice: ITextFiweSewvice
 	) { }
 
-	async getTags(): Promise<Tags> {
+	async getTags(): Pwomise<Tags> {
 		if (!this._tags) {
-			this._tags = await this.resolveWorkspaceTags();
+			this._tags = await this.wesowveWowkspaceTags();
 		}
 
-		return this._tags;
+		wetuwn this._tags;
 	}
 
-	async getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): Promise<string | undefined> {
-		function createHash(uri: URI): Promise<string> {
-			return sha1Hex(uri.scheme === Schemas.file ? uri.fsPath : uri.toString());
+	async getTewemetwyWowkspaceId(wowkspace: IWowkspace, state: WowkbenchState): Pwomise<stwing | undefined> {
+		function cweateHash(uwi: UWI): Pwomise<stwing> {
+			wetuwn sha1Hex(uwi.scheme === Schemas.fiwe ? uwi.fsPath : uwi.toStwing());
 		}
 
-		let workspaceId: string | undefined;
+		wet wowkspaceId: stwing | undefined;
 		switch (state) {
-			case WorkbenchState.EMPTY:
-				workspaceId = undefined;
-				break;
-			case WorkbenchState.FOLDER:
-				workspaceId = await createHash(workspace.folders[0].uri);
-				break;
-			case WorkbenchState.WORKSPACE:
-				if (workspace.configuration) {
-					workspaceId = await createHash(workspace.configuration);
+			case WowkbenchState.EMPTY:
+				wowkspaceId = undefined;
+				bweak;
+			case WowkbenchState.FOWDa:
+				wowkspaceId = await cweateHash(wowkspace.fowdews[0].uwi);
+				bweak;
+			case WowkbenchState.WOWKSPACE:
+				if (wowkspace.configuwation) {
+					wowkspaceId = await cweateHash(wowkspace.configuwation);
 				}
 		}
 
-		return workspaceId;
+		wetuwn wowkspaceId;
 	}
 
-	getHashedRemotesFromUri(workspaceUri: URI, stripEndingDotGit: boolean = false): Promise<string[]> {
-		const path = workspaceUri.path;
-		const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
-		return this.fileService.exists(uri).then(exists => {
+	getHashedWemotesFwomUwi(wowkspaceUwi: UWI, stwipEndingDotGit: boowean = fawse): Pwomise<stwing[]> {
+		const path = wowkspaceUwi.path;
+		const uwi = wowkspaceUwi.with({ path: `${path !== '/' ? path : ''}/.git/config` });
+		wetuwn this.fiweSewvice.exists(uwi).then(exists => {
 			if (!exists) {
-				return [];
+				wetuwn [];
 			}
-			return this.textFileService.read(uri, { acceptTextOnly: true }).then(
-				content => getHashedRemotesFromConfig(content.value, stripEndingDotGit),
-				err => [] // ignore missing or binary file
+			wetuwn this.textFiweSewvice.wead(uwi, { acceptTextOnwy: twue }).then(
+				content => getHashedWemotesFwomConfig(content.vawue, stwipEndingDotGit),
+				eww => [] // ignowe missing ow binawy fiwe
 			);
 		});
 	}
 
-	/* __GDPR__FRAGMENT__
-		"WorkspaceTags" : {
-			"workbench.filesToOpenOrCreate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workbench.filesToDiff" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"workspace.roots" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.empty" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.grunt" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.gulp" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.jake" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.tsconfig" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.jsconfig" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.config.xml" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.vsc.extension" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.asp<NUMBER>" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.sln" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.unity" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.express" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.sails" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.koa" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.hapi" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.socket.io" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.restify" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.rnpm-plugin-windows" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.react" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@angular/core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.vue" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.aws-sdk" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.aws-amplify-sdk" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/ai" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/cosmos" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/event" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/identity" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/keyvault" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/search" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/storage" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.azure-storage" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@google-cloud/common" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.firebase" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.heroku-cli" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@microsoft/teams-js" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@microsoft/office-js" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@microsoft/office-js-helpers" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@types/office-js" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@types/office-runtime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.office-ui-fabric-react" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@uifabric/icons" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@uifabric/merge-styles" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@uifabric/styling" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@uifabric/experiments" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@uifabric/utilities" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@microsoft/rush" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.lerna" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.just-task" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.beachball" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.electron" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.playwright" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.playwright-cli" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@playwright/test" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.playwright-core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.playwright-chromium" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.playwright-firefox" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.playwright-webkit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/app-configuration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/cosmos-sign" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/cosmos-language-service" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/synapse-spark" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/synapse-monitoring" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/synapse-managed-private-endpoints" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/synapse-artifacts" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/synapse-access-control" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/ai-metrics-advisor" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/service-bus" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/keyvault-secrets" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/keyvault-keys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/keyvault-certificates" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/keyvault-admin" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/digital-twins-core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/cognitiveservices-anomalydetector" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/ai-anomaly-detector" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/core-xml" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/core-tracing" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/core-paging" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/core-https" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/core-client" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/core-asynciterator-polyfill" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/core-arm" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/amqp-common" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/core-lro" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/logger" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/core-http" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/core-auth" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/core-amqp" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/abort-controller" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/eventgrid" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/storage-file-datalake" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/search-documents" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/storage-file" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/storage-datalake" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/storage-queue" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/storage-file-share" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/storage-blob-changefeed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/storage-blob" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/cognitiveservices-formrecognizer" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/ai-form-recognizer" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/cognitiveservices-textanalytics" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/ai-text-analytics" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/event-processor-host" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/schema-registry-avro" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/schema-registry" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/eventhubs-checkpointstore-blob" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/event-hubs" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/communication-signaling" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/communication-calling" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/communication-sms" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/communication-common" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/communication-chat" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/communication-administration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/attestation" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/data-tables" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.react-native-macos" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.react-native-windows" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.bower" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.yeoman.code.ext" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.cordova.high" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.cordova.low" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.xamarin.android" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.xamarin.ios" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.android.cpp" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.reactNative" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.ionic" : { "classification" : "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": "true" },
-			"workspace.nativeScript" : { "classification" : "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": "true" },
-			"workspace.java.pom" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.java.gradle" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.java.android" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.gradle.azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.gradle.javaee" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.gradle.jdbc" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.gradle.jpa" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.gradle.lombok" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.gradle.mockito" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.gradle.redis" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.gradle.springboot" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.gradle.sql" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.gradle.unittest" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.pom.azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.pom.javaee" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.pom.jdbc" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.pom.jpa" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.pom.lombok" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.pom.mockito" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.pom.redis" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.pom.springboot" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.pom.sql" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.pom.unittest" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.requirements" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.requirements.star" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.Pipfile" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.conda" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.any-azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.pulumi-azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-ai" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-cognitiveservices" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-cosmos" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-devtools" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-elasticluster" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-event" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-eventgrid" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-functions" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-graphrbac" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-identity" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-iothub-device-client" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-keyvault" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-loganalytics" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-mgmt" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-ml" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-monitor" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-search" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-servicebus" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-servicefabric" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-shell" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-storage" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-translator" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.adal" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.pydocumentdb" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.botbuilder-core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.botbuilder-schema" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.botframework-connector" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.playwright" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-synapse-nspkg" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-synapse-spark" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-synapse-artifacts" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-synapse-accesscontrol" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-synapse" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-cognitiveservices-vision-nspkg" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-cognitiveservices-search-nspkg" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-cognitiveservices-nspkg" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-cognitiveservices-language-nspkg" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-cognitiveservices-knowledge-nspkg" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-ai-metricsadvisor" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azureml-sdk" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-keyvault-nspkg" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-keyvault-secrets" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-keyvault-keys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-keyvault-certificates" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-keyvault-administration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-digitaltwins-nspkg" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-digitaltwins-core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-cognitiveservices-anomalydetector" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-ai-anomalydetector" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-applicationinsights" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-core-tracing-opentelemetry" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-core-tracing-opencensus" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-nspkg" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-common" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-eventgrid" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-storage-file-datalake" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-search-nspkg" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-search-documents" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-storage-nspkg" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-storage-file" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-storage-common" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-storage-queue" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-storage-file-share" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-storage-blob-changefeed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-storage-blob" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-cognitiveservices-formrecognizer" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-ai-formrecognizer" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-ai-nspkg" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-cognitiveservices-language-textanalytics" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-ai-textanalytics" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-schemaregistry-avroserializer" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-schemaregistry" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-eventhub-checkpointstoreblob-aio" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-eventhub-checkpointstoreblob" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-eventhub" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-communication-nspkg" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-communication-sms" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-communication-chat" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-communication-administration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-security-attestation" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-data-nspkg" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-data-tables" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+	/* __GDPW__FWAGMENT__
+		"WowkspaceTags" : {
+			"wowkbench.fiwesToOpenOwCweate" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkbench.fiwesToDiff" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.id" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+			"wowkspace.woots" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.empty" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.gwunt" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.guwp" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.jake" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.tsconfig" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.jsconfig" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.config.xmw" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.vsc.extension" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.asp<NUMBa>" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.swn" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.unity" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.expwess" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.saiws" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.koa" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.hapi" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.socket.io" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.westify" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.wnpm-pwugin-windows" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.weact" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@anguwaw/cowe" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.vue" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.aws-sdk" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.aws-ampwify-sdk" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/ai" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/cowe" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/cosmos" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/event" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/identity" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/keyvauwt" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/seawch" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/stowage" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.azuwe" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.azuwe-stowage" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@googwe-cwoud/common" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.fiwebase" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.hewoku-cwi" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@micwosoft/teams-js" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@micwosoft/office-js" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@micwosoft/office-js-hewpews" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@types/office-js" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@types/office-wuntime" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.office-ui-fabwic-weact" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@uifabwic/icons" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@uifabwic/mewge-stywes" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@uifabwic/stywing" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@uifabwic/expewiments" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@uifabwic/utiwities" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@micwosoft/wush" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.wewna" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.just-task" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.beachbaww" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.ewectwon" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.pwaywwight" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.pwaywwight-cwi" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@pwaywwight/test" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.pwaywwight-cowe" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.pwaywwight-chwomium" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.pwaywwight-fiwefox" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.pwaywwight-webkit" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/app-configuwation" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/cosmos-sign" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/cosmos-wanguage-sewvice" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/synapse-spawk" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/synapse-monitowing" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/synapse-managed-pwivate-endpoints" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/synapse-awtifacts" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/synapse-access-contwow" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/ai-metwics-advisow" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/sewvice-bus" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/keyvauwt-secwets" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/keyvauwt-keys" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/keyvauwt-cewtificates" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/keyvauwt-admin" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/digitaw-twins-cowe" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/cognitivesewvices-anomawydetectow" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/ai-anomawy-detectow" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/cowe-xmw" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/cowe-twacing" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/cowe-paging" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/cowe-https" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/cowe-cwient" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/cowe-asyncitewatow-powyfiww" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/cowe-awm" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/amqp-common" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/cowe-wwo" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/wogga" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/cowe-http" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/cowe-auth" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/cowe-amqp" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/abowt-contwowwa" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/eventgwid" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/stowage-fiwe-datawake" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/seawch-documents" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/stowage-fiwe" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/stowage-datawake" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/stowage-queue" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/stowage-fiwe-shawe" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/stowage-bwob-changefeed" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/stowage-bwob" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/cognitivesewvices-fowmwecogniza" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/ai-fowm-wecogniza" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/cognitivesewvices-textanawytics" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/ai-text-anawytics" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/event-pwocessow-host" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/schema-wegistwy-avwo" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/schema-wegistwy" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/eventhubs-checkpointstowe-bwob" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/event-hubs" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/communication-signawing" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/communication-cawwing" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/communication-sms" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/communication-common" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/communication-chat" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/communication-administwation" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/attestation" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.@azuwe/data-tabwes" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.weact-native-macos" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.npm.weact-native-windows" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.bowa" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.yeoman.code.ext" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.cowdova.high" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.cowdova.wow" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.xamawin.andwoid" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.xamawin.ios" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.andwoid.cpp" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.weactNative" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.ionic" : { "cwassification" : "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": "twue" },
+			"wowkspace.nativeScwipt" : { "cwassification" : "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": "twue" },
+			"wowkspace.java.pom" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.java.gwadwe" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.java.andwoid" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.gwadwe.azuwe" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.gwadwe.javaee" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.gwadwe.jdbc" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.gwadwe.jpa" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.gwadwe.wombok" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.gwadwe.mockito" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.gwadwe.wedis" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.gwadwe.spwingboot" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.gwadwe.sqw" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.gwadwe.unittest" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.pom.azuwe" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.pom.javaee" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.pom.jdbc" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.pom.jpa" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.pom.wombok" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.pom.mockito" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.pom.wedis" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.pom.spwingboot" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.pom.sqw" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.pom.unittest" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.wequiwements" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.wequiwements.staw" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.Pipfiwe" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.conda" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.any-azuwe" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.puwumi-azuwe" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-ai" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-cognitivesewvices" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-cowe" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-cosmos" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-devtoows" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-ewasticwusta" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-event" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-eventgwid" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-functions" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-gwaphwbac" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-identity" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-iothub-device-cwient" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-keyvauwt" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-woganawytics" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-mgmt" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-mw" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-monitow" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-seawch" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-sewvicebus" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-sewvicefabwic" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-sheww" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-stowage" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-twanswatow" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.adaw" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.pydocumentdb" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.botbuiwda-cowe" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.botbuiwda-schema" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.botfwamewowk-connectow" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.pwaywwight" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-synapse-nspkg" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-synapse-spawk" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-synapse-awtifacts" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-synapse-accesscontwow" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-synapse" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-cognitivesewvices-vision-nspkg" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-cognitivesewvices-seawch-nspkg" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-cognitivesewvices-nspkg" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-cognitivesewvices-wanguage-nspkg" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-cognitivesewvices-knowwedge-nspkg" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-ai-metwicsadvisow" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwemw-sdk" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-keyvauwt-nspkg" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-keyvauwt-secwets" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-keyvauwt-keys" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-keyvauwt-cewtificates" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-keyvauwt-administwation" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-digitawtwins-nspkg" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-digitawtwins-cowe" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-cognitivesewvices-anomawydetectow" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-ai-anomawydetectow" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-appwicationinsights" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-cowe-twacing-opentewemetwy" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-cowe-twacing-opencensus" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-nspkg" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-common" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-eventgwid" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-stowage-fiwe-datawake" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-seawch-nspkg" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-seawch-documents" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-stowage-nspkg" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-stowage-fiwe" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-stowage-common" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-stowage-queue" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-stowage-fiwe-shawe" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-stowage-bwob-changefeed" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-stowage-bwob" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-cognitivesewvices-fowmwecogniza" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-ai-fowmwecogniza" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-ai-nspkg" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-cognitivesewvices-wanguage-textanawytics" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-ai-textanawytics" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-schemawegistwy-avwosewiawiza" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-schemawegistwy" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-eventhub-checkpointstowebwob-aio" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-eventhub-checkpointstowebwob" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-eventhub" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-communication-nspkg" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-communication-sms" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-communication-chat" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-communication-administwation" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-secuwity-attestation" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-data-nspkg" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"wowkspace.py.azuwe-data-tabwes" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue }
 		}
 	*/
-	private async resolveWorkspaceTags(): Promise<Tags> {
-		const tags: Tags = Object.create(null);
+	pwivate async wesowveWowkspaceTags(): Pwomise<Tags> {
+		const tags: Tags = Object.cweate(nuww);
 
-		const state = this.contextService.getWorkbenchState();
-		const workspace = this.contextService.getWorkspace();
+		const state = this.contextSewvice.getWowkbenchState();
+		const wowkspace = this.contextSewvice.getWowkspace();
 
-		tags['workspace.id'] = await this.getTelemetryWorkspaceId(workspace, state);
+		tags['wowkspace.id'] = await this.getTewemetwyWowkspaceId(wowkspace, state);
 
-		const { filesToOpenOrCreate, filesToDiff } = this.environmentService.configuration;
-		tags['workbench.filesToOpenOrCreate'] = filesToOpenOrCreate && filesToOpenOrCreate.length || 0;
-		tags['workbench.filesToDiff'] = filesToDiff && filesToDiff.length || 0;
+		const { fiwesToOpenOwCweate, fiwesToDiff } = this.enviwonmentSewvice.configuwation;
+		tags['wowkbench.fiwesToOpenOwCweate'] = fiwesToOpenOwCweate && fiwesToOpenOwCweate.wength || 0;
+		tags['wowkbench.fiwesToDiff'] = fiwesToDiff && fiwesToDiff.wength || 0;
 
-		const isEmpty = state === WorkbenchState.EMPTY;
-		tags['workspace.roots'] = isEmpty ? 0 : workspace.folders.length;
-		tags['workspace.empty'] = isEmpty;
+		const isEmpty = state === WowkbenchState.EMPTY;
+		tags['wowkspace.woots'] = isEmpty ? 0 : wowkspace.fowdews.wength;
+		tags['wowkspace.empty'] = isEmpty;
 
-		const folders = !isEmpty ? workspace.folders.map(folder => folder.uri) : this.productService.quality !== 'stable' && this.findFolders();
-		if (!folders || !folders.length) {
-			return Promise.resolve(tags);
+		const fowdews = !isEmpty ? wowkspace.fowdews.map(fowda => fowda.uwi) : this.pwoductSewvice.quawity !== 'stabwe' && this.findFowdews();
+		if (!fowdews || !fowdews.wength) {
+			wetuwn Pwomise.wesowve(tags);
 		}
 
-		return this.fileService.resolveAll(folders.map(resource => ({ resource }))).then((files: IResolveFileResult[]) => {
-			const names = (<IFileStat[]>[]).concat(...files.map(result => result.success ? (result.stat!.children || []) : [])).map(c => c.name);
-			const nameSet = names.reduce((s, n) => s.add(n.toLowerCase()), new Set());
+		wetuwn this.fiweSewvice.wesowveAww(fowdews.map(wesouwce => ({ wesouwce }))).then((fiwes: IWesowveFiweWesuwt[]) => {
+			const names = (<IFiweStat[]>[]).concat(...fiwes.map(wesuwt => wesuwt.success ? (wesuwt.stat!.chiwdwen || []) : [])).map(c => c.name);
+			const nameSet = names.weduce((s, n) => s.add(n.toWowewCase()), new Set());
 
-			tags['workspace.grunt'] = nameSet.has('gruntfile.js');
-			tags['workspace.gulp'] = nameSet.has('gulpfile.js');
-			tags['workspace.jake'] = nameSet.has('jakefile.js');
+			tags['wowkspace.gwunt'] = nameSet.has('gwuntfiwe.js');
+			tags['wowkspace.guwp'] = nameSet.has('guwpfiwe.js');
+			tags['wowkspace.jake'] = nameSet.has('jakefiwe.js');
 
-			tags['workspace.tsconfig'] = nameSet.has('tsconfig.json');
-			tags['workspace.jsconfig'] = nameSet.has('jsconfig.json');
-			tags['workspace.config.xml'] = nameSet.has('config.xml');
-			tags['workspace.vsc.extension'] = nameSet.has('vsc-extension-quickstart.md');
+			tags['wowkspace.tsconfig'] = nameSet.has('tsconfig.json');
+			tags['wowkspace.jsconfig'] = nameSet.has('jsconfig.json');
+			tags['wowkspace.config.xmw'] = nameSet.has('config.xmw');
+			tags['wowkspace.vsc.extension'] = nameSet.has('vsc-extension-quickstawt.md');
 
-			tags['workspace.ASP5'] = nameSet.has('project.json') && this.searchArray(names, /^.+\.cs$/i);
-			tags['workspace.sln'] = this.searchArray(names, /^.+\.sln$|^.+\.csproj$/i);
-			tags['workspace.unity'] = nameSet.has('assets') && nameSet.has('library') && nameSet.has('projectsettings');
-			tags['workspace.npm'] = nameSet.has('package.json') || nameSet.has('node_modules');
-			tags['workspace.bower'] = nameSet.has('bower.json') || nameSet.has('bower_components');
+			tags['wowkspace.ASP5'] = nameSet.has('pwoject.json') && this.seawchAwway(names, /^.+\.cs$/i);
+			tags['wowkspace.swn'] = this.seawchAwway(names, /^.+\.swn$|^.+\.cspwoj$/i);
+			tags['wowkspace.unity'] = nameSet.has('assets') && nameSet.has('wibwawy') && nameSet.has('pwojectsettings');
+			tags['wowkspace.npm'] = nameSet.has('package.json') || nameSet.has('node_moduwes');
+			tags['wowkspace.bowa'] = nameSet.has('bowa.json') || nameSet.has('bowew_components');
 
-			tags['workspace.java.pom'] = nameSet.has('pom.xml');
-			tags['workspace.java.gradle'] = nameSet.has('build.gradle') || nameSet.has('settings.gradle');
+			tags['wowkspace.java.pom'] = nameSet.has('pom.xmw');
+			tags['wowkspace.java.gwadwe'] = nameSet.has('buiwd.gwadwe') || nameSet.has('settings.gwadwe');
 
-			tags['workspace.yeoman.code.ext'] = nameSet.has('vsc-extension-quickstart.md');
+			tags['wowkspace.yeoman.code.ext'] = nameSet.has('vsc-extension-quickstawt.md');
 
-			tags['workspace.py.requirements'] = nameSet.has('requirements.txt');
-			tags['workspace.py.requirements.star'] = this.searchArray(names, /^(.*)requirements(.*)\.txt$/i);
-			tags['workspace.py.Pipfile'] = nameSet.has('pipfile');
-			tags['workspace.py.conda'] = this.searchArray(names, /^environment(\.yml$|\.yaml$)/i);
+			tags['wowkspace.py.wequiwements'] = nameSet.has('wequiwements.txt');
+			tags['wowkspace.py.wequiwements.staw'] = this.seawchAwway(names, /^(.*)wequiwements(.*)\.txt$/i);
+			tags['wowkspace.py.Pipfiwe'] = nameSet.has('pipfiwe');
+			tags['wowkspace.py.conda'] = this.seawchAwway(names, /^enviwonment(\.ymw$|\.yamw$)/i);
 
 			const mainActivity = nameSet.has('mainactivity.cs') || nameSet.has('mainactivity.fs');
-			const appDelegate = nameSet.has('appdelegate.cs') || nameSet.has('appdelegate.fs');
-			const androidManifest = nameSet.has('androidmanifest.xml');
+			const appDewegate = nameSet.has('appdewegate.cs') || nameSet.has('appdewegate.fs');
+			const andwoidManifest = nameSet.has('andwoidmanifest.xmw');
 
-			const platforms = nameSet.has('platforms');
-			const plugins = nameSet.has('plugins');
+			const pwatfowms = nameSet.has('pwatfowms');
+			const pwugins = nameSet.has('pwugins');
 			const www = nameSet.has('www');
-			const properties = nameSet.has('properties');
-			const resources = nameSet.has('resources');
+			const pwopewties = nameSet.has('pwopewties');
+			const wesouwces = nameSet.has('wesouwces');
 			const jni = nameSet.has('jni');
 
-			if (tags['workspace.config.xml'] &&
-				!tags['workspace.language.cs'] && !tags['workspace.language.vb'] && !tags['workspace.language.aspx']) {
-				if (platforms && plugins && www) {
-					tags['workspace.cordova.high'] = true;
-				} else {
-					tags['workspace.cordova.low'] = true;
+			if (tags['wowkspace.config.xmw'] &&
+				!tags['wowkspace.wanguage.cs'] && !tags['wowkspace.wanguage.vb'] && !tags['wowkspace.wanguage.aspx']) {
+				if (pwatfowms && pwugins && www) {
+					tags['wowkspace.cowdova.high'] = twue;
+				} ewse {
+					tags['wowkspace.cowdova.wow'] = twue;
 				}
 			}
 
-			if (tags['workspace.config.xml'] &&
-				!tags['workspace.language.cs'] && !tags['workspace.language.vb'] && !tags['workspace.language.aspx']) {
+			if (tags['wowkspace.config.xmw'] &&
+				!tags['wowkspace.wanguage.cs'] && !tags['wowkspace.wanguage.vb'] && !tags['wowkspace.wanguage.aspx']) {
 
 				if (nameSet.has('ionic.config.json')) {
-					tags['workspace.ionic'] = true;
+					tags['wowkspace.ionic'] = twue;
 				}
 			}
 
-			if (mainActivity && properties && resources) {
-				tags['workspace.xamarin.android'] = true;
+			if (mainActivity && pwopewties && wesouwces) {
+				tags['wowkspace.xamawin.andwoid'] = twue;
 			}
 
-			if (appDelegate && resources) {
-				tags['workspace.xamarin.ios'] = true;
+			if (appDewegate && wesouwces) {
+				tags['wowkspace.xamawin.ios'] = twue;
 			}
 
-			if (androidManifest && jni) {
-				tags['workspace.android.cpp'] = true;
+			if (andwoidManifest && jni) {
+				tags['wowkspace.andwoid.cpp'] = twue;
 			}
 
-			function getFilePromises(filename: string, fileService: IFileService, textFileService: ITextFileService, contentHandler: (content: ITextFileContent) => void): Promise<void>[] {
-				return !nameSet.has(filename) ? [] : (folders as URI[]).map(workspaceUri => {
-					const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/${filename}` });
-					return fileService.exists(uri).then(exists => {
+			function getFiwePwomises(fiwename: stwing, fiweSewvice: IFiweSewvice, textFiweSewvice: ITextFiweSewvice, contentHandwa: (content: ITextFiweContent) => void): Pwomise<void>[] {
+				wetuwn !nameSet.has(fiwename) ? [] : (fowdews as UWI[]).map(wowkspaceUwi => {
+					const uwi = wowkspaceUwi.with({ path: `${wowkspaceUwi.path !== '/' ? wowkspaceUwi.path : ''}/${fiwename}` });
+					wetuwn fiweSewvice.exists(uwi).then(exists => {
 						if (!exists) {
-							return undefined;
+							wetuwn undefined;
 						}
 
-						return textFileService.read(uri, { acceptTextOnly: true }).then(contentHandler);
-					}, err => {
-						// Ignore missing file
+						wetuwn textFiweSewvice.wead(uwi, { acceptTextOnwy: twue }).then(contentHandwa);
+					}, eww => {
+						// Ignowe missing fiwe
 					});
 				});
 			}
 
-			function addPythonTags(packageName: string): void {
-				if (PyModulesToLookFor.indexOf(packageName) > -1) {
-					tags['workspace.py.' + packageName] = true;
+			function addPythonTags(packageName: stwing): void {
+				if (PyModuwesToWookFow.indexOf(packageName) > -1) {
+					tags['wowkspace.py.' + packageName] = twue;
 				}
 
-				for (const metaModule of PyMetaModulesToLookFor) {
-					if (packageName.startsWith(metaModule)) {
-						tags['workspace.py.' + metaModule] = true;
+				fow (const metaModuwe of PyMetaModuwesToWookFow) {
+					if (packageName.stawtsWith(metaModuwe)) {
+						tags['wowkspace.py.' + metaModuwe] = twue;
 					}
 				}
 
-				if (!tags['workspace.py.any-azure']) {
-					tags['workspace.py.any-azure'] = /azure/i.test(packageName);
+				if (!tags['wowkspace.py.any-azuwe']) {
+					tags['wowkspace.py.any-azuwe'] = /azuwe/i.test(packageName);
 				}
 			}
 
-			const requirementsTxtPromises = getFilePromises('requirements.txt', this.fileService, this.textFileService, content => {
-				const dependencies: string[] = splitLines(content.value);
-				for (let dependency of dependencies) {
-					// Dependencies in requirements.txt can have 3 formats: `foo==3.1, foo>=3.1, foo`
-					const format1 = dependency.split('==');
-					const format2 = dependency.split('>=');
-					const packageName = (format1.length === 2 ? format1[0] : format2[0]).trim();
+			const wequiwementsTxtPwomises = getFiwePwomises('wequiwements.txt', this.fiweSewvice, this.textFiweSewvice, content => {
+				const dependencies: stwing[] = spwitWines(content.vawue);
+				fow (wet dependency of dependencies) {
+					// Dependencies in wequiwements.txt can have 3 fowmats: `foo==3.1, foo>=3.1, foo`
+					const fowmat1 = dependency.spwit('==');
+					const fowmat2 = dependency.spwit('>=');
+					const packageName = (fowmat1.wength === 2 ? fowmat1[0] : fowmat2[0]).twim();
 					addPythonTags(packageName);
 				}
 			});
 
-			const pipfilePromises = getFilePromises('pipfile', this.fileService, this.textFileService, content => {
-				let dependencies: string[] = splitLines(content.value);
+			const pipfiwePwomises = getFiwePwomises('pipfiwe', this.fiweSewvice, this.textFiweSewvice, content => {
+				wet dependencies: stwing[] = spwitWines(content.vawue);
 
-				// We're only interested in the '[packages]' section of the Pipfile
-				dependencies = dependencies.slice(dependencies.indexOf('[packages]') + 1);
+				// We'we onwy intewested in the '[packages]' section of the Pipfiwe
+				dependencies = dependencies.swice(dependencies.indexOf('[packages]') + 1);
 
-				for (let dependency of dependencies) {
-					if (dependency.trim().indexOf('[') > -1) {
-						break;
+				fow (wet dependency of dependencies) {
+					if (dependency.twim().indexOf('[') > -1) {
+						bweak;
 					}
-					// All dependencies in Pipfiles follow the format: `<package> = <version, or git repo, or something else>`
+					// Aww dependencies in Pipfiwes fowwow the fowmat: `<package> = <vewsion, ow git wepo, ow something ewse>`
 					if (dependency.indexOf('=') === -1) {
 						continue;
 					}
-					const packageName = dependency.split('=')[0].trim();
+					const packageName = dependency.spwit('=')[0].twim();
 					addPythonTags(packageName);
 				}
 
 			});
 
-			const packageJsonPromises = getFilePromises('package.json', this.fileService, this.textFileService, content => {
-				try {
-					const packageJsonContents = JSON.parse(content.value);
-					let dependencies = Object.keys(packageJsonContents['dependencies'] || {}).concat(Object.keys(packageJsonContents['devDependencies'] || {}));
+			const packageJsonPwomises = getFiwePwomises('package.json', this.fiweSewvice, this.textFiweSewvice, content => {
+				twy {
+					const packageJsonContents = JSON.pawse(content.vawue);
+					wet dependencies = Object.keys(packageJsonContents['dependencies'] || {}).concat(Object.keys(packageJsonContents['devDependencies'] || {}));
 
-					for (let dependency of dependencies) {
-						if ('react-native' === dependency) {
-							tags['workspace.reactNative'] = true;
-						} else if ('tns-core-modules' === dependency) {
-							tags['workspace.nativescript'] = true;
-						} else if (ModulesToLookFor.indexOf(dependency) > -1) {
-							tags['workspace.npm.' + dependency] = true;
-						} else {
-							for (const metaModule of MetaModulesToLookFor) {
-								if (dependency.startsWith(metaModule)) {
-									tags['workspace.npm.' + metaModule] = true;
+					fow (wet dependency of dependencies) {
+						if ('weact-native' === dependency) {
+							tags['wowkspace.weactNative'] = twue;
+						} ewse if ('tns-cowe-moduwes' === dependency) {
+							tags['wowkspace.nativescwipt'] = twue;
+						} ewse if (ModuwesToWookFow.indexOf(dependency) > -1) {
+							tags['wowkspace.npm.' + dependency] = twue;
+						} ewse {
+							fow (const metaModuwe of MetaModuwesToWookFow) {
+								if (dependency.stawtsWith(metaModuwe)) {
+									tags['wowkspace.npm.' + metaModuwe] = twue;
 								}
 							}
 						}
 					}
 				}
 				catch (e) {
-					// Ignore errors when resolving file or parsing file contents
+					// Ignowe ewwows when wesowving fiwe ow pawsing fiwe contents
 				}
 			});
 
-			const pomPromises = getFilePromises('pom.xml', this.fileService, this.textFileService, content => {
-				try {
-					let dependenciesContent;
-					while (dependenciesContent = MavenDependenciesRegex.exec(content.value)) {
-						let dependencyContent;
-						while (dependencyContent = MavenDependencyRegex.exec(dependenciesContent[1])) {
-							const groupIdContent = MavenGroupIdRegex.exec(dependencyContent[1]);
-							const artifactIdContent = MavenArtifactIdRegex.exec(dependencyContent[1]);
-							if (groupIdContent && artifactIdContent) {
-								this.tagJavaDependency(groupIdContent[1], artifactIdContent[1], 'workspace.pom.', tags);
+			const pomPwomises = getFiwePwomises('pom.xmw', this.fiweSewvice, this.textFiweSewvice, content => {
+				twy {
+					wet dependenciesContent;
+					whiwe (dependenciesContent = MavenDependenciesWegex.exec(content.vawue)) {
+						wet dependencyContent;
+						whiwe (dependencyContent = MavenDependencyWegex.exec(dependenciesContent[1])) {
+							const gwoupIdContent = MavenGwoupIdWegex.exec(dependencyContent[1]);
+							const awtifactIdContent = MavenAwtifactIdWegex.exec(dependencyContent[1]);
+							if (gwoupIdContent && awtifactIdContent) {
+								this.tagJavaDependency(gwoupIdContent[1], awtifactIdContent[1], 'wowkspace.pom.', tags);
 							}
 						}
 					}
 				}
 				catch (e) {
-					// Ignore errors when resolving maven dependencies
+					// Ignowe ewwows when wesowving maven dependencies
 				}
 			});
 
-			const gradlePromises = getFilePromises('build.gradle', this.fileService, this.textFileService, content => {
-				try {
-					this.processGradleDependencies(content.value, GradleDependencyLooseRegex, tags);
-					this.processGradleDependencies(content.value, GradleDependencyCompactRegex, tags);
+			const gwadwePwomises = getFiwePwomises('buiwd.gwadwe', this.fiweSewvice, this.textFiweSewvice, content => {
+				twy {
+					this.pwocessGwadweDependencies(content.vawue, GwadweDependencyWooseWegex, tags);
+					this.pwocessGwadweDependencies(content.vawue, GwadweDependencyCompactWegex, tags);
 				}
 				catch (e) {
-					// Ignore errors when resolving gradle dependencies
+					// Ignowe ewwows when wesowving gwadwe dependencies
 				}
 			});
 
-			const androidPromises = folders.map(workspaceUri => {
-				const manifest = URI.joinPath(workspaceUri, '/app/src/main/AndroidManifest.xml');
-				return this.fileService.exists(manifest).then(result => {
-					if (result) {
-						tags['workspace.java.android'] = true;
+			const andwoidPwomises = fowdews.map(wowkspaceUwi => {
+				const manifest = UWI.joinPath(wowkspaceUwi, '/app/swc/main/AndwoidManifest.xmw');
+				wetuwn this.fiweSewvice.exists(manifest).then(wesuwt => {
+					if (wesuwt) {
+						tags['wowkspace.java.andwoid'] = twue;
 					}
-				}, err => {
-					// Ignore errors when resolving android
+				}, eww => {
+					// Ignowe ewwows when wesowving andwoid
 				});
 			});
-			return Promise.all([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises, ...pomPromises, ...gradlePromises, ...androidPromises]).then(() => tags);
+			wetuwn Pwomise.aww([...packageJsonPwomises, ...wequiwementsTxtPwomises, ...pipfiwePwomises, ...pomPwomises, ...gwadwePwomises, ...andwoidPwomises]).then(() => tags);
 		});
 	}
 
-	private processGradleDependencies(content: string, regex: RegExp, tags: Tags): void {
-		let dependencyContent;
-		while (dependencyContent = regex.exec(content)) {
-			const groupId = dependencyContent[1];
-			const artifactId = dependencyContent[2];
-			if (groupId && artifactId) {
-				this.tagJavaDependency(groupId, artifactId, 'workspace.gradle.', tags);
+	pwivate pwocessGwadweDependencies(content: stwing, wegex: WegExp, tags: Tags): void {
+		wet dependencyContent;
+		whiwe (dependencyContent = wegex.exec(content)) {
+			const gwoupId = dependencyContent[1];
+			const awtifactId = dependencyContent[2];
+			if (gwoupId && awtifactId) {
+				this.tagJavaDependency(gwoupId, awtifactId, 'wowkspace.gwadwe.', tags);
 			}
 		}
 	}
 
-	private tagJavaDependency(groupId: string, artifactId: string, prefix: string, tags: Tags): void {
-		for (const javaLibrary of JavaLibrariesToLookFor) {
-			if ((groupId === javaLibrary.groupId || new RegExp(javaLibrary.groupId).test(groupId)) &&
-				(artifactId === javaLibrary.artifactId || new RegExp(javaLibrary.artifactId).test(artifactId))) {
-				tags[prefix + javaLibrary.tag] = true;
-				return;
+	pwivate tagJavaDependency(gwoupId: stwing, awtifactId: stwing, pwefix: stwing, tags: Tags): void {
+		fow (const javaWibwawy of JavaWibwawiesToWookFow) {
+			if ((gwoupId === javaWibwawy.gwoupId || new WegExp(javaWibwawy.gwoupId).test(gwoupId)) &&
+				(awtifactId === javaWibwawy.awtifactId || new WegExp(javaWibwawy.awtifactId).test(awtifactId))) {
+				tags[pwefix + javaWibwawy.tag] = twue;
+				wetuwn;
 			}
 		}
 	}
 
-	private findFolders(): URI[] | undefined {
-		const folder = this.findFolder();
-		return folder && [folder];
+	pwivate findFowdews(): UWI[] | undefined {
+		const fowda = this.findFowda();
+		wetuwn fowda && [fowda];
 	}
 
-	private findFolder(): URI | undefined {
-		const { filesToOpenOrCreate, filesToDiff } = this.environmentService.configuration;
-		if (filesToOpenOrCreate && filesToOpenOrCreate.length) {
-			return this.parentURI(filesToOpenOrCreate[0].fileUri);
-		} else if (filesToDiff && filesToDiff.length) {
-			return this.parentURI(filesToDiff[0].fileUri);
+	pwivate findFowda(): UWI | undefined {
+		const { fiwesToOpenOwCweate, fiwesToDiff } = this.enviwonmentSewvice.configuwation;
+		if (fiwesToOpenOwCweate && fiwesToOpenOwCweate.wength) {
+			wetuwn this.pawentUWI(fiwesToOpenOwCweate[0].fiweUwi);
+		} ewse if (fiwesToDiff && fiwesToDiff.wength) {
+			wetuwn this.pawentUWI(fiwesToDiff[0].fiweUwi);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private parentURI(uri: URI | undefined): URI | undefined {
-		if (!uri) {
-			return undefined;
+	pwivate pawentUWI(uwi: UWI | undefined): UWI | undefined {
+		if (!uwi) {
+			wetuwn undefined;
 		}
-		const path = uri.path;
-		const i = path.lastIndexOf('/');
-		return i !== -1 ? uri.with({ path: path.substr(0, i) }) : undefined;
+		const path = uwi.path;
+		const i = path.wastIndexOf('/');
+		wetuwn i !== -1 ? uwi.with({ path: path.substw(0, i) }) : undefined;
 	}
 
-	private searchArray(arr: string[], regEx: RegExp): boolean | undefined {
-		return arr.some(v => v.search(regEx) > -1) || undefined;
+	pwivate seawchAwway(aww: stwing[], wegEx: WegExp): boowean | undefined {
+		wetuwn aww.some(v => v.seawch(wegEx) > -1) || undefined;
 	}
 }
 
-registerSingleton(IWorkspaceTagsService, WorkspaceTagsService, true);
+wegistewSingweton(IWowkspaceTagsSewvice, WowkspaceTagsSewvice, twue);

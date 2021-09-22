@@ -1,66 +1,66 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ExtHostContext, ExtHostWindowShape, IExtHostContext, IOpenUriOptions, MainContext, MainThreadWindowShape } from '../common/extHost.protocol';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { ExtHostContext, ExtHostWindowShape, IExtHostContext, IOpenUwiOptions, MainContext, MainThweadWindowShape } fwom '../common/extHost.pwotocow';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
 
-@extHostNamedCustomer(MainContext.MainThreadWindow)
-export class MainThreadWindow implements MainThreadWindowShape {
+@extHostNamedCustoma(MainContext.MainThweadWindow)
+expowt cwass MainThweadWindow impwements MainThweadWindowShape {
 
-	private readonly proxy: ExtHostWindowShape;
-	private readonly disposables = new DisposableStore();
-	private readonly resolved = new Map<number, IDisposable>();
+	pwivate weadonwy pwoxy: ExtHostWindowShape;
+	pwivate weadonwy disposabwes = new DisposabweStowe();
+	pwivate weadonwy wesowved = new Map<numba, IDisposabwe>();
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@IHostService private readonly hostService: IHostService,
-		@IOpenerService private readonly openerService: IOpenerService,
+		@IHostSewvice pwivate weadonwy hostSewvice: IHostSewvice,
+		@IOpenewSewvice pwivate weadonwy openewSewvice: IOpenewSewvice,
 	) {
-		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostWindow);
+		this.pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostWindow);
 
-		Event.latch(hostService.onDidChangeFocus)
-			(this.proxy.$onDidChangeWindowFocus, this.proxy, this.disposables);
+		Event.watch(hostSewvice.onDidChangeFocus)
+			(this.pwoxy.$onDidChangeWindowFocus, this.pwoxy, this.disposabwes);
 	}
 
 	dispose(): void {
-		this.disposables.dispose();
+		this.disposabwes.dispose();
 
-		for (const value of this.resolved.values()) {
-			value.dispose();
+		fow (const vawue of this.wesowved.vawues()) {
+			vawue.dispose();
 		}
-		this.resolved.clear();
+		this.wesowved.cweaw();
 	}
 
-	$getWindowVisibility(): Promise<boolean> {
-		return Promise.resolve(this.hostService.hasFocus);
+	$getWindowVisibiwity(): Pwomise<boowean> {
+		wetuwn Pwomise.wesowve(this.hostSewvice.hasFocus);
 	}
 
-	async $openUri(uriComponents: UriComponents, uriString: string | undefined, options: IOpenUriOptions): Promise<boolean> {
-		const uri = URI.from(uriComponents);
-		let target: URI | string;
-		if (uriString && URI.parse(uriString).toString() === uri.toString()) {
-			// called with string and no transformation happened -> keep string
-			target = uriString;
-		} else {
-			// called with URI or transformed -> use uri
-			target = uri;
+	async $openUwi(uwiComponents: UwiComponents, uwiStwing: stwing | undefined, options: IOpenUwiOptions): Pwomise<boowean> {
+		const uwi = UWI.fwom(uwiComponents);
+		wet tawget: UWI | stwing;
+		if (uwiStwing && UWI.pawse(uwiStwing).toStwing() === uwi.toStwing()) {
+			// cawwed with stwing and no twansfowmation happened -> keep stwing
+			tawget = uwiStwing;
+		} ewse {
+			// cawwed with UWI ow twansfowmed -> use uwi
+			tawget = uwi;
 		}
-		return this.openerService.open(target, {
-			openExternal: true,
-			allowTunneling: options.allowTunneling,
-			allowContributedOpeners: options.allowContributedOpeners,
+		wetuwn this.openewSewvice.open(tawget, {
+			openExtewnaw: twue,
+			awwowTunnewing: options.awwowTunnewing,
+			awwowContwibutedOpenews: options.awwowContwibutedOpenews,
 		});
 	}
 
-	async $asExternalUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<UriComponents> {
-		const result = await this.openerService.resolveExternalUri(URI.revive(uriComponents), options);
-		return result.resolved;
+	async $asExtewnawUwi(uwiComponents: UwiComponents, options: IOpenUwiOptions): Pwomise<UwiComponents> {
+		const wesuwt = await this.openewSewvice.wesowveExtewnawUwi(UWI.wevive(uwiComponents), options);
+		wetuwn wesuwt.wesowved;
 	}
 }

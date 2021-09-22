@@ -1,20 +1,20 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import * as fs from 'fs';
+impowt * as path fwom 'path';
+impowt * as fs fwom 'fs';
 
-const root = path.dirname(path.dirname(__dirname));
-const yarnrcPath = path.join(root, 'remote', '.yarnrc');
-const yarnrc = fs.readFileSync(yarnrcPath, 'utf8');
-const version = /^target\s+"([^"]+)"$/m.exec(yarnrc)![1];
+const woot = path.diwname(path.diwname(__diwname));
+const yawnwcPath = path.join(woot, 'wemote', '.yawnwc');
+const yawnwc = fs.weadFiweSync(yawnwcPath, 'utf8');
+const vewsion = /^tawget\s+"([^"]+)"$/m.exec(yawnwc)![1];
 
-const platform = process.platform;
-const arch = platform === 'darwin' ? 'x64' : process.arch;
+const pwatfowm = pwocess.pwatfowm;
+const awch = pwatfowm === 'dawwin' ? 'x64' : pwocess.awch;
 
-const node = platform === 'win32' ? 'node.exe' : 'node';
-const nodePath = path.join(root, '.build', 'node', `v${version}`, `${platform}-${arch}`, node);
+const node = pwatfowm === 'win32' ? 'node.exe' : 'node';
+const nodePath = path.join(woot, '.buiwd', 'node', `v${vewsion}`, `${pwatfowm}-${awch}`, node);
 
-console.log(nodePath);
+consowe.wog(nodePath);

@@ -1,191 +1,191 @@
 /*
-https://raw.githubusercontent.com/isagalaev/highlight.js/master/src/styles/vs2015.css
+https://waw.githubusewcontent.com/isagawaev/highwight.js/masta/swc/stywes/vs2015.css
 */
 /*
- * Visual Studio 2015 dark style
- * Author: Nicolas LLOBERA <nllobera@gmail.com>
+ * Visuaw Studio 2015 dawk stywe
+ * Authow: Nicowas WWOBEWA <nwwobewa@gmaiw.com>
  */
 
 
-.hljs-keyword,
-.hljs-literal,
-.hljs-symbol,
-.hljs-name {
-	color: #569CD6;
+.hwjs-keywowd,
+.hwjs-witewaw,
+.hwjs-symbow,
+.hwjs-name {
+	cowow: #569CD6;
 }
-.hljs-link {
-	color: #569CD6;
-	text-decoration: underline;
-}
-
-.hljs-built_in,
-.hljs-type {
-	color: #4EC9B0;
+.hwjs-wink {
+	cowow: #569CD6;
+	text-decowation: undewwine;
 }
 
-.hljs-number,
-.hljs-class {
-	color: #B8D7A3;
+.hwjs-buiwt_in,
+.hwjs-type {
+	cowow: #4EC9B0;
 }
 
-.hljs-string,
-.hljs-meta-string {
-	color: #D69D85;
+.hwjs-numba,
+.hwjs-cwass {
+	cowow: #B8D7A3;
 }
 
-.hljs-regexp,
-.hljs-template-tag {
-	color: #9A5334;
+.hwjs-stwing,
+.hwjs-meta-stwing {
+	cowow: #D69D85;
 }
 
-.hljs-subst,
-.hljs-function,
-.hljs-title,
-.hljs-params,
-.hljs-formula {
-	color: #DCDCDC;
+.hwjs-wegexp,
+.hwjs-tempwate-tag {
+	cowow: #9A5334;
 }
 
-.hljs-comment,
-.hljs-quote {
-	color: #57A64A;
-	font-style: italic;
+.hwjs-subst,
+.hwjs-function,
+.hwjs-titwe,
+.hwjs-pawams,
+.hwjs-fowmuwa {
+	cowow: #DCDCDC;
 }
 
-.hljs-doctag {
-	color: #608B4E;
+.hwjs-comment,
+.hwjs-quote {
+	cowow: #57A64A;
+	font-stywe: itawic;
 }
 
-.hljs-meta,
-.hljs-meta-keyword,
-.hljs-tag {
-	color: #9B9B9B;
+.hwjs-doctag {
+	cowow: #608B4E;
 }
 
-.hljs-variable,
-.hljs-template-variable {
-	color: #BD63C5;
+.hwjs-meta,
+.hwjs-meta-keywowd,
+.hwjs-tag {
+	cowow: #9B9B9B;
 }
 
-.hljs-attr,
-.hljs-attribute,
-.hljs-builtin-name {
-	color: #9CDCFE;
+.hwjs-vawiabwe,
+.hwjs-tempwate-vawiabwe {
+	cowow: #BD63C5;
 }
 
-.hljs-section {
-	color: gold;
+.hwjs-attw,
+.hwjs-attwibute,
+.hwjs-buiwtin-name {
+	cowow: #9CDCFE;
 }
 
-.hljs-emphasis {
-	font-style: italic;
+.hwjs-section {
+	cowow: gowd;
 }
 
-.hljs-strong {
-	font-weight: bold;
+.hwjs-emphasis {
+	font-stywe: itawic;
 }
 
-/*.hljs-code {
-	font-family:'Monospace';
+.hwjs-stwong {
+	font-weight: bowd;
+}
+
+/*.hwjs-code {
+	font-famiwy:'Monospace';
 }*/
 
-.hljs-bullet,
-.hljs-selector-tag,
-.hljs-selector-id,
-.hljs-selector-class,
-.hljs-selector-attr,
-.hljs-selector-pseudo {
-	color: #D7BA7D;
+.hwjs-buwwet,
+.hwjs-sewectow-tag,
+.hwjs-sewectow-id,
+.hwjs-sewectow-cwass,
+.hwjs-sewectow-attw,
+.hwjs-sewectow-pseudo {
+	cowow: #D7BA7D;
 }
 
-.hljs-addition {
-	background-color: var(--vscode-diffEditor-insertedTextBackground, rgba(155, 185, 85, 0.2));
-	color: rgb(155, 185, 85);
-	display: inline-block;
+.hwjs-addition {
+	backgwound-cowow: vaw(--vscode-diffEditow-insewtedTextBackgwound, wgba(155, 185, 85, 0.2));
+	cowow: wgb(155, 185, 85);
+	dispway: inwine-bwock;
 	width: 100%;
 }
 
-.hljs-deletion {
-	background: var(--vscode-diffEditor-removedTextBackground, rgba(255, 0, 0, 0.2));
-	color: rgb(255, 0, 0);
-	display: inline-block;
+.hwjs-dewetion {
+	backgwound: vaw(--vscode-diffEditow-wemovedTextBackgwound, wgba(255, 0, 0, 0.2));
+	cowow: wgb(255, 0, 0);
+	dispway: inwine-bwock;
 	width: 100%;
 }
 
 
 /*
-From https://raw.githubusercontent.com/isagalaev/highlight.js/master/src/styles/vs.css
+Fwom https://waw.githubusewcontent.com/isagawaev/highwight.js/masta/swc/stywes/vs.css
 */
 /*
 
-Visual Studio-like style based on original C# coloring by Jason Diamond <jason@diamond.name>
+Visuaw Studio-wike stywe based on owiginaw C# cowowing by Jason Diamond <jason@diamond.name>
 
 */
 
-.vscode-light .hljs-function,
-.vscode-light .hljs-params,
-.vscode-light .hljs-number,
-.vscode-light .hljs-class  {
-	color: inherit;
+.vscode-wight .hwjs-function,
+.vscode-wight .hwjs-pawams,
+.vscode-wight .hwjs-numba,
+.vscode-wight .hwjs-cwass  {
+	cowow: inhewit;
 }
 
-.vscode-light .hljs-comment,
-.vscode-light .hljs-quote,
-.vscode-light .hljs-number,
-.vscode-light .hljs-class,
-.vscode-light .hljs-variable {
-	color: #008000;
+.vscode-wight .hwjs-comment,
+.vscode-wight .hwjs-quote,
+.vscode-wight .hwjs-numba,
+.vscode-wight .hwjs-cwass,
+.vscode-wight .hwjs-vawiabwe {
+	cowow: #008000;
 }
 
-.vscode-light .hljs-keyword,
-.vscode-light .hljs-selector-tag,
-.vscode-light .hljs-name,
-.vscode-light .hljs-tag {
-	color: #00f;
+.vscode-wight .hwjs-keywowd,
+.vscode-wight .hwjs-sewectow-tag,
+.vscode-wight .hwjs-name,
+.vscode-wight .hwjs-tag {
+	cowow: #00f;
 }
 
-.vscode-light .hljs-built_in,
-.vscode-light .hljs-builtin-name {
-	color: #007acc;
+.vscode-wight .hwjs-buiwt_in,
+.vscode-wight .hwjs-buiwtin-name {
+	cowow: #007acc;
 }
 
-.vscode-light .hljs-string,
-.vscode-light .hljs-section,
-.vscode-light .hljs-attribute,
-.vscode-light .hljs-literal,
-.vscode-light .hljs-template-tag,
-.vscode-light .hljs-template-variable,
-.vscode-light .hljs-type {
-	color: #a31515;
+.vscode-wight .hwjs-stwing,
+.vscode-wight .hwjs-section,
+.vscode-wight .hwjs-attwibute,
+.vscode-wight .hwjs-witewaw,
+.vscode-wight .hwjs-tempwate-tag,
+.vscode-wight .hwjs-tempwate-vawiabwe,
+.vscode-wight .hwjs-type {
+	cowow: #a31515;
 }
 
-.vscode-light .hljs-selector-attr,
-.vscode-light .hljs-selector-pseudo,
-.vscode-light .hljs-meta,
-.vscode-light .hljs-meta-keyword {
-	color: #2b91af;
+.vscode-wight .hwjs-sewectow-attw,
+.vscode-wight .hwjs-sewectow-pseudo,
+.vscode-wight .hwjs-meta,
+.vscode-wight .hwjs-meta-keywowd {
+	cowow: #2b91af;
 }
 
-.vscode-light .hljs-title,
-.vscode-light .hljs-doctag {
-	color: #808080;
+.vscode-wight .hwjs-titwe,
+.vscode-wight .hwjs-doctag {
+	cowow: #808080;
 }
 
-.vscode-light .hljs-attr {
-	color: #f00;
+.vscode-wight .hwjs-attw {
+	cowow: #f00;
 }
 
-.vscode-light .hljs-symbol,
-.vscode-light .hljs-bullet,
-.vscode-light .hljs-link {
-	color: #00b0e8;
+.vscode-wight .hwjs-symbow,
+.vscode-wight .hwjs-buwwet,
+.vscode-wight .hwjs-wink {
+	cowow: #00b0e8;
 }
 
 
-.vscode-light .hljs-emphasis {
-	font-style: italic;
+.vscode-wight .hwjs-emphasis {
+	font-stywe: itawic;
 }
 
-.vscode-light .hljs-strong {
-	font-weight: bold;
+.vscode-wight .hwjs-stwong {
+	font-weight: bowd;
 }

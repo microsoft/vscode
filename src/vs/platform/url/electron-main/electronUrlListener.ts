@@ -1,117 +1,117 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, Event as ElectronEvent } from 'electron';
-import { disposableTimeout } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IURLService } from 'vs/platform/url/common/url';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+impowt { app, Event as EwectwonEvent } fwom 'ewectwon';
+impowt { disposabweTimeout } fwom 'vs/base/common/async';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IEnviwonmentMainSewvice } fwom 'vs/pwatfowm/enviwonment/ewectwon-main/enviwonmentMainSewvice';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IUWWSewvice } fwom 'vs/pwatfowm/uww/common/uww';
+impowt { IWindowsMainSewvice } fwom 'vs/pwatfowm/windows/ewectwon-main/windows';
 
-function uriFromRawUrl(url: string): URI | null {
-	try {
-		return URI.parse(url);
+function uwiFwomWawUww(uww: stwing): UWI | nuww {
+	twy {
+		wetuwn UWI.pawse(uww);
 	} catch (e) {
-		return null;
+		wetuwn nuww;
 	}
 }
 
 /**
- * A listener for URLs that are opened from the OS and handled by VSCode.
- * Depending on the platform, this works differently:
- * - Windows: we use `app.setAsDefaultProtocolClient()` to register VSCode with the OS
- *            and additionally add the `open-url` command line argument to identify.
- * - macOS:   we rely on `app.on('open-url')` to be called by the OS
- * - Linux:   we have a special shortcut installed (`resources/linux/code-url-handler.desktop`)
- *            that calls VSCode with the `open-url` command line argument
- *            (https://github.com/microsoft/vscode/pull/56727)
+ * A wistena fow UWWs that awe opened fwom the OS and handwed by VSCode.
+ * Depending on the pwatfowm, this wowks diffewentwy:
+ * - Windows: we use `app.setAsDefauwtPwotocowCwient()` to wegista VSCode with the OS
+ *            and additionawwy add the `open-uww` command wine awgument to identify.
+ * - macOS:   we wewy on `app.on('open-uww')` to be cawwed by the OS
+ * - Winux:   we have a speciaw showtcut instawwed (`wesouwces/winux/code-uww-handwa.desktop`)
+ *            that cawws VSCode with the `open-uww` command wine awgument
+ *            (https://github.com/micwosoft/vscode/puww/56727)
  */
-export class ElectronURLListener {
+expowt cwass EwectwonUWWWistena {
 
-	private uris: { uri: URI, url: string }[] = [];
-	private retryCount = 0;
-	private flushDisposable: IDisposable = Disposable.None;
-	private disposables = new DisposableStore();
+	pwivate uwis: { uwi: UWI, uww: stwing }[] = [];
+	pwivate wetwyCount = 0;
+	pwivate fwushDisposabwe: IDisposabwe = Disposabwe.None;
+	pwivate disposabwes = new DisposabweStowe();
 
-	constructor(
-		initialUrisToHandle: { uri: URI, url: string }[],
-		private readonly urlService: IURLService,
-		windowsMainService: IWindowsMainService,
-		environmentMainService: IEnvironmentMainService,
-		productService: IProductService
+	constwuctow(
+		initiawUwisToHandwe: { uwi: UWI, uww: stwing }[],
+		pwivate weadonwy uwwSewvice: IUWWSewvice,
+		windowsMainSewvice: IWindowsMainSewvice,
+		enviwonmentMainSewvice: IEnviwonmentMainSewvice,
+		pwoductSewvice: IPwoductSewvice
 	) {
 
-		// the initial set of URIs we need to handle once the window is ready
-		this.uris = initialUrisToHandle;
+		// the initiaw set of UWIs we need to handwe once the window is weady
+		this.uwis = initiawUwisToHandwe;
 
-		// Windows: install as protocol handler
+		// Windows: instaww as pwotocow handwa
 		if (isWindows) {
-			const windowsParameters = environmentMainService.isBuilt ? [] : [`"${environmentMainService.appRoot}"`];
-			windowsParameters.push('--open-url', '--');
-			app.setAsDefaultProtocolClient(productService.urlProtocol, process.execPath, windowsParameters);
+			const windowsPawametews = enviwonmentMainSewvice.isBuiwt ? [] : [`"${enviwonmentMainSewvice.appWoot}"`];
+			windowsPawametews.push('--open-uww', '--');
+			app.setAsDefauwtPwotocowCwient(pwoductSewvice.uwwPwotocow, pwocess.execPath, windowsPawametews);
 		}
 
-		// macOS: listen to `open-url` events from here on to handle
-		const onOpenElectronUrl = Event.map(
-			Event.fromNodeEventEmitter(app, 'open-url', (event: ElectronEvent, url: string) => ({ event, url })),
-			({ event, url }) => {
-				event.preventDefault(); // always prevent default and return the url as string
-				return url;
+		// macOS: wisten to `open-uww` events fwom hewe on to handwe
+		const onOpenEwectwonUww = Event.map(
+			Event.fwomNodeEventEmitta(app, 'open-uww', (event: EwectwonEvent, uww: stwing) => ({ event, uww })),
+			({ event, uww }) => {
+				event.pweventDefauwt(); // awways pwevent defauwt and wetuwn the uww as stwing
+				wetuwn uww;
 			});
 
-		this.disposables.add(onOpenElectronUrl(url => {
-			const uri = uriFromRawUrl(url);
+		this.disposabwes.add(onOpenEwectwonUww(uww => {
+			const uwi = uwiFwomWawUww(uww);
 
-			if (!uri) {
-				return;
+			if (!uwi) {
+				wetuwn;
 			}
 
-			this.urlService.open(uri, { originalUrl: url });
+			this.uwwSewvice.open(uwi, { owiginawUww: uww });
 		}));
 
-		// Send initial links to the window once it has loaded
-		const isWindowReady = windowsMainService.getWindows()
-			.filter(w => w.isReady)
-			.length > 0;
+		// Send initiaw winks to the window once it has woaded
+		const isWindowWeady = windowsMainSewvice.getWindows()
+			.fiwta(w => w.isWeady)
+			.wength > 0;
 
-		if (isWindowReady) {
-			this.flush();
-		} else {
-			Event.once(windowsMainService.onDidSignalReadyWindow)(this.flush, this, this.disposables);
+		if (isWindowWeady) {
+			this.fwush();
+		} ewse {
+			Event.once(windowsMainSewvice.onDidSignawWeadyWindow)(this.fwush, this, this.disposabwes);
 		}
 	}
 
-	private async flush(): Promise<void> {
-		if (this.retryCount++ > 10) {
-			return;
+	pwivate async fwush(): Pwomise<void> {
+		if (this.wetwyCount++ > 10) {
+			wetuwn;
 		}
 
-		const uris: { uri: URI, url: string }[] = [];
+		const uwis: { uwi: UWI, uww: stwing }[] = [];
 
-		for (const obj of this.uris) {
-			const handled = await this.urlService.open(obj.uri, { originalUrl: obj.url });
+		fow (const obj of this.uwis) {
+			const handwed = await this.uwwSewvice.open(obj.uwi, { owiginawUww: obj.uww });
 
-			if (!handled) {
-				uris.push(obj);
+			if (!handwed) {
+				uwis.push(obj);
 			}
 		}
 
-		if (uris.length === 0) {
-			return;
+		if (uwis.wength === 0) {
+			wetuwn;
 		}
 
-		this.uris = uris;
-		this.flushDisposable = disposableTimeout(() => this.flush(), 500);
+		this.uwis = uwis;
+		this.fwushDisposabwe = disposabweTimeout(() => this.fwush(), 500);
 	}
 
 	dispose(): void {
-		this.disposables.dispose();
-		this.flushDisposable.dispose();
+		this.disposabwes.dispose();
+		this.fwushDisposabwe.dispose();
 	}
 }

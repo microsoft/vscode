@@ -1,91 +1,91 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as arrays from './arrays';
-import { Disposable } from './dispose';
+impowt * as vscode fwom 'vscode';
+impowt * as awways fwom './awways';
+impowt { Disposabwe } fwom './dispose';
 
-export interface TypeScriptServerPlugin {
-	readonly path: string;
-	readonly name: string;
-	readonly enableForWorkspaceTypeScriptVersions: boolean;
-	readonly languages: ReadonlyArray<string>;
-	readonly configNamespace?: string
+expowt intewface TypeScwiptSewvewPwugin {
+	weadonwy path: stwing;
+	weadonwy name: stwing;
+	weadonwy enabweFowWowkspaceTypeScwiptVewsions: boowean;
+	weadonwy wanguages: WeadonwyAwway<stwing>;
+	weadonwy configNamespace?: stwing
 }
 
-namespace TypeScriptServerPlugin {
-	export function equals(a: TypeScriptServerPlugin, b: TypeScriptServerPlugin): boolean {
-		return a.path === b.path
+namespace TypeScwiptSewvewPwugin {
+	expowt function equaws(a: TypeScwiptSewvewPwugin, b: TypeScwiptSewvewPwugin): boowean {
+		wetuwn a.path === b.path
 			&& a.name === b.name
-			&& a.enableForWorkspaceTypeScriptVersions === b.enableForWorkspaceTypeScriptVersions
-			&& arrays.equals(a.languages, b.languages);
+			&& a.enabweFowWowkspaceTypeScwiptVewsions === b.enabweFowWowkspaceTypeScwiptVewsions
+			&& awways.equaws(a.wanguages, b.wanguages);
 	}
 }
 
-export class PluginManager extends Disposable {
-	private readonly _pluginConfigurations = new Map<string, {}>();
+expowt cwass PwuginManaga extends Disposabwe {
+	pwivate weadonwy _pwuginConfiguwations = new Map<stwing, {}>();
 
-	private _plugins: Map<string, ReadonlyArray<TypeScriptServerPlugin>> | undefined;
+	pwivate _pwugins: Map<stwing, WeadonwyAwway<TypeScwiptSewvewPwugin>> | undefined;
 
-	constructor() {
-		super();
+	constwuctow() {
+		supa();
 
 		vscode.extensions.onDidChange(() => {
-			if (!this._plugins) {
-				return;
+			if (!this._pwugins) {
+				wetuwn;
 			}
-			const newPlugins = this.readPlugins();
-			if (!arrays.equals(arrays.flatten(Array.from(this._plugins.values())), arrays.flatten(Array.from(newPlugins.values())), TypeScriptServerPlugin.equals)) {
-				this._plugins = newPlugins;
-				this._onDidUpdatePlugins.fire(this);
+			const newPwugins = this.weadPwugins();
+			if (!awways.equaws(awways.fwatten(Awway.fwom(this._pwugins.vawues())), awways.fwatten(Awway.fwom(newPwugins.vawues())), TypeScwiptSewvewPwugin.equaws)) {
+				this._pwugins = newPwugins;
+				this._onDidUpdatePwugins.fiwe(this);
 			}
-		}, undefined, this._disposables);
+		}, undefined, this._disposabwes);
 	}
 
-	public get plugins(): ReadonlyArray<TypeScriptServerPlugin> {
-		if (!this._plugins) {
-			this._plugins = this.readPlugins();
+	pubwic get pwugins(): WeadonwyAwway<TypeScwiptSewvewPwugin> {
+		if (!this._pwugins) {
+			this._pwugins = this.weadPwugins();
 		}
-		return arrays.flatten(Array.from(this._plugins.values()));
+		wetuwn awways.fwatten(Awway.fwom(this._pwugins.vawues()));
 	}
 
-	private readonly _onDidUpdatePlugins = this._register(new vscode.EventEmitter<this>());
-	public readonly onDidChangePlugins = this._onDidUpdatePlugins.event;
+	pwivate weadonwy _onDidUpdatePwugins = this._wegista(new vscode.EventEmitta<this>());
+	pubwic weadonwy onDidChangePwugins = this._onDidUpdatePwugins.event;
 
-	private readonly _onDidUpdateConfig = this._register(new vscode.EventEmitter<{ pluginId: string, config: {} }>());
-	public readonly onDidUpdateConfig = this._onDidUpdateConfig.event;
+	pwivate weadonwy _onDidUpdateConfig = this._wegista(new vscode.EventEmitta<{ pwuginId: stwing, config: {} }>());
+	pubwic weadonwy onDidUpdateConfig = this._onDidUpdateConfig.event;
 
-	public setConfiguration(pluginId: string, config: {}) {
-		this._pluginConfigurations.set(pluginId, config);
-		this._onDidUpdateConfig.fire({ pluginId, config });
+	pubwic setConfiguwation(pwuginId: stwing, config: {}) {
+		this._pwuginConfiguwations.set(pwuginId, config);
+		this._onDidUpdateConfig.fiwe({ pwuginId, config });
 	}
 
-	public configurations(): IterableIterator<[string, {}]> {
-		return this._pluginConfigurations.entries();
+	pubwic configuwations(): ItewabweItewatow<[stwing, {}]> {
+		wetuwn this._pwuginConfiguwations.entwies();
 	}
 
-	private readPlugins() {
-		const pluginMap = new Map<string, ReadonlyArray<TypeScriptServerPlugin>>();
-		for (const extension of vscode.extensions.all) {
+	pwivate weadPwugins() {
+		const pwuginMap = new Map<stwing, WeadonwyAwway<TypeScwiptSewvewPwugin>>();
+		fow (const extension of vscode.extensions.aww) {
 			const pack = extension.packageJSON;
-			if (pack.contributes && Array.isArray(pack.contributes.typescriptServerPlugins)) {
-				const plugins: TypeScriptServerPlugin[] = [];
-				for (const plugin of pack.contributes.typescriptServerPlugins) {
-					plugins.push({
-						name: plugin.name,
-						enableForWorkspaceTypeScriptVersions: !!plugin.enableForWorkspaceTypeScriptVersions,
+			if (pack.contwibutes && Awway.isAwway(pack.contwibutes.typescwiptSewvewPwugins)) {
+				const pwugins: TypeScwiptSewvewPwugin[] = [];
+				fow (const pwugin of pack.contwibutes.typescwiptSewvewPwugins) {
+					pwugins.push({
+						name: pwugin.name,
+						enabweFowWowkspaceTypeScwiptVewsions: !!pwugin.enabweFowWowkspaceTypeScwiptVewsions,
 						path: extension.extensionPath,
-						languages: Array.isArray(plugin.languages) ? plugin.languages : [],
-						configNamespace: plugin.configNamespace,
+						wanguages: Awway.isAwway(pwugin.wanguages) ? pwugin.wanguages : [],
+						configNamespace: pwugin.configNamespace,
 					});
 				}
-				if (plugins.length) {
-					pluginMap.set(extension.id, plugins);
+				if (pwugins.wength) {
+					pwuginMap.set(extension.id, pwugins);
 				}
 			}
 		}
-		return pluginMap;
+		wetuwn pwuginMap;
 	}
 }

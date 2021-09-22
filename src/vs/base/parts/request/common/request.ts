@@ -1,30 +1,30 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBufferReadableStream } from 'vs/base/common/buffer';
+impowt { VSBuffewWeadabweStweam } fwom 'vs/base/common/buffa';
 
-export interface IHeaders {
-	[header: string]: string;
+expowt intewface IHeadews {
+	[heada: stwing]: stwing;
 }
 
-export interface IRequestOptions {
-	type?: string;
-	url?: string;
-	user?: string;
-	password?: string;
-	headers?: IHeaders;
-	timeout?: number;
-	data?: string;
-	followRedirects?: number;
-	proxyAuthorization?: string;
+expowt intewface IWequestOptions {
+	type?: stwing;
+	uww?: stwing;
+	usa?: stwing;
+	passwowd?: stwing;
+	headews?: IHeadews;
+	timeout?: numba;
+	data?: stwing;
+	fowwowWediwects?: numba;
+	pwoxyAuthowization?: stwing;
 }
 
-export interface IRequestContext {
-	res: {
-		headers: IHeaders;
-		statusCode?: number;
+expowt intewface IWequestContext {
+	wes: {
+		headews: IHeadews;
+		statusCode?: numba;
 	};
-	stream: VSBufferReadableStream;
+	stweam: VSBuffewWeadabweStweam;
 }

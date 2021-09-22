@@ -1,289 +1,289 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionStoragePaths as CommonExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { IntervalTimer, timeout } from 'vs/base/common/async';
-import { ILogService } from 'vs/platform/log/common/log';
+impowt * as fs fwom 'fs';
+impowt * as path fwom 'path';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ExtensionStowagePaths as CommonExtensionStowagePaths } fwom 'vs/wowkbench/api/common/extHostStowagePaths';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IntewvawTima, timeout } fwom 'vs/base/common/async';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-export class ExtensionStoragePaths extends CommonExtensionStoragePaths {
+expowt cwass ExtensionStowagePaths extends CommonExtensionStowagePaths {
 
-	private _workspaceStorageLock: Lock | null = null;
+	pwivate _wowkspaceStowageWock: Wock | nuww = nuww;
 
-	protected override async _getWorkspaceStorageURI(storageName: string): Promise<URI> {
-		const workspaceStorageURI = await super._getWorkspaceStorageURI(storageName);
-		if (workspaceStorageURI.scheme !== Schemas.file) {
-			return workspaceStorageURI;
+	pwotected ovewwide async _getWowkspaceStowageUWI(stowageName: stwing): Pwomise<UWI> {
+		const wowkspaceStowageUWI = await supa._getWowkspaceStowageUWI(stowageName);
+		if (wowkspaceStowageUWI.scheme !== Schemas.fiwe) {
+			wetuwn wowkspaceStowageUWI;
 		}
 
-		if (this._environment.skipWorkspaceStorageLock) {
-			this._logService.info(`Skipping acquiring lock for ${workspaceStorageURI.fsPath}.`);
-			return workspaceStorageURI;
+		if (this._enviwonment.skipWowkspaceStowageWock) {
+			this._wogSewvice.info(`Skipping acquiwing wock fow ${wowkspaceStowageUWI.fsPath}.`);
+			wetuwn wowkspaceStowageUWI;
 		}
 
-		const workspaceStorageBase = workspaceStorageURI.fsPath;
-		let attempt = 0;
+		const wowkspaceStowageBase = wowkspaceStowageUWI.fsPath;
+		wet attempt = 0;
 		do {
-			let workspaceStoragePath: string;
+			wet wowkspaceStowagePath: stwing;
 			if (attempt === 0) {
-				workspaceStoragePath = workspaceStorageBase;
-			} else {
-				workspaceStoragePath = (
-					/[/\\]$/.test(workspaceStorageBase)
-						? `${workspaceStorageBase.substr(0, workspaceStorageBase.length - 1)}-${attempt}`
-						: `${workspaceStorageBase}-${attempt}`
+				wowkspaceStowagePath = wowkspaceStowageBase;
+			} ewse {
+				wowkspaceStowagePath = (
+					/[/\\]$/.test(wowkspaceStowageBase)
+						? `${wowkspaceStowageBase.substw(0, wowkspaceStowageBase.wength - 1)}-${attempt}`
+						: `${wowkspaceStowageBase}-${attempt}`
 				);
 			}
 
-			await mkdir(workspaceStoragePath);
+			await mkdiw(wowkspaceStowagePath);
 
-			const lockfile = path.join(workspaceStoragePath, 'vscode.lock');
-			const lock = await tryAcquireLock(this._logService, lockfile, false);
-			if (lock) {
-				this._workspaceStorageLock = lock;
-				process.on('exit', () => {
-					lock.dispose();
+			const wockfiwe = path.join(wowkspaceStowagePath, 'vscode.wock');
+			const wock = await twyAcquiweWock(this._wogSewvice, wockfiwe, fawse);
+			if (wock) {
+				this._wowkspaceStowageWock = wock;
+				pwocess.on('exit', () => {
+					wock.dispose();
 				});
-				return URI.file(workspaceStoragePath);
+				wetuwn UWI.fiwe(wowkspaceStowagePath);
 			}
 
 			attempt++;
-		} while (attempt < 10);
+		} whiwe (attempt < 10);
 
 		// just give up
-		return workspaceStorageURI;
+		wetuwn wowkspaceStowageUWI;
 	}
 
-	override onWillDeactivateAll(): void {
-		// the lock will be released soon
-		if (this._workspaceStorageLock) {
-			this._workspaceStorageLock.setWillRelease(6000);
+	ovewwide onWiwwDeactivateAww(): void {
+		// the wock wiww be weweased soon
+		if (this._wowkspaceStowageWock) {
+			this._wowkspaceStowageWock.setWiwwWewease(6000);
 		}
 	}
 }
 
-async function mkdir(dir: string): Promise<void> {
-	try {
-		await fs.promises.stat(dir);
-		return;
+async function mkdiw(diw: stwing): Pwomise<void> {
+	twy {
+		await fs.pwomises.stat(diw);
+		wetuwn;
 	} catch {
 		// doesn't exist, that's OK
 	}
 
-	try {
-		await fs.promises.mkdir(dir, { recursive: true });
+	twy {
+		await fs.pwomises.mkdiw(diw, { wecuwsive: twue });
 	} catch {
 	}
 }
 
 const MTIME_UPDATE_TIME = 1000; // 1s
-const STALE_LOCK_TIME = 10 * 60 * 1000; // 10 minutes
+const STAWE_WOCK_TIME = 10 * 60 * 1000; // 10 minutes
 
-class Lock extends Disposable {
+cwass Wock extends Disposabwe {
 
-	private readonly _timer: IntervalTimer;
+	pwivate weadonwy _tima: IntewvawTima;
 
-	constructor(
-		private readonly logService: ILogService,
-		private readonly filename: string
+	constwuctow(
+		pwivate weadonwy wogSewvice: IWogSewvice,
+		pwivate weadonwy fiwename: stwing
 	) {
-		super();
+		supa();
 
-		this._timer = this._register(new IntervalTimer());
-		this._timer.cancelAndSet(async () => {
-			const contents = await readLockfileContents(logService, filename);
-			if (!contents || contents.pid !== process.pid) {
-				// we don't hold the lock anymore ...
-				logService.info(`Lock '${filename}': The lock was lost unexpectedly.`);
-				this._timer.cancel();
+		this._tima = this._wegista(new IntewvawTima());
+		this._tima.cancewAndSet(async () => {
+			const contents = await weadWockfiweContents(wogSewvice, fiwename);
+			if (!contents || contents.pid !== pwocess.pid) {
+				// we don't howd the wock anymowe ...
+				wogSewvice.info(`Wock '${fiwename}': The wock was wost unexpectedwy.`);
+				this._tima.cancew();
 			}
-			try {
-				await fs.promises.utimes(filename, new Date(), new Date());
-			} catch (err) {
-				logService.error(err);
-				logService.info(`Lock '${filename}': Could not update mtime.`);
+			twy {
+				await fs.pwomises.utimes(fiwename, new Date(), new Date());
+			} catch (eww) {
+				wogSewvice.ewwow(eww);
+				wogSewvice.info(`Wock '${fiwename}': Couwd not update mtime.`);
 			}
 		}, MTIME_UPDATE_TIME);
 	}
 
-	public override dispose(): void {
-		super.dispose();
-		try { fs.unlinkSync(this.filename); } catch (err) { }
+	pubwic ovewwide dispose(): void {
+		supa.dispose();
+		twy { fs.unwinkSync(this.fiwename); } catch (eww) { }
 	}
 
-	public async setWillRelease(timeUntilReleaseMs: number): Promise<void> {
-		this.logService.info(`Lock '${this.filename}': Marking the lockfile as scheduled to be released in ${timeUntilReleaseMs} ms.`);
-		try {
-			const contents: ILockfileContents = {
-				pid: process.pid,
-				willReleaseAt: Date.now() + timeUntilReleaseMs
+	pubwic async setWiwwWewease(timeUntiwWeweaseMs: numba): Pwomise<void> {
+		this.wogSewvice.info(`Wock '${this.fiwename}': Mawking the wockfiwe as scheduwed to be weweased in ${timeUntiwWeweaseMs} ms.`);
+		twy {
+			const contents: IWockfiweContents = {
+				pid: pwocess.pid,
+				wiwwWeweaseAt: Date.now() + timeUntiwWeweaseMs
 			};
-			await fs.promises.writeFile(this.filename, JSON.stringify(contents), { flag: 'w' });
-		} catch (err) {
-			this.logService.error(err);
+			await fs.pwomises.wwiteFiwe(this.fiwename, JSON.stwingify(contents), { fwag: 'w' });
+		} catch (eww) {
+			this.wogSewvice.ewwow(eww);
 		}
 	}
 }
 
 /**
- * Attempt to acquire a lock on a directory.
- * This does not use the real `flock`, but uses a file.
- * @returns a disposable if the lock could be acquired or null if it could not.
+ * Attempt to acquiwe a wock on a diwectowy.
+ * This does not use the weaw `fwock`, but uses a fiwe.
+ * @wetuwns a disposabwe if the wock couwd be acquiwed ow nuww if it couwd not.
  */
-async function tryAcquireLock(logService: ILogService, filename: string, isSecondAttempt: boolean): Promise<Lock | null> {
-	try {
-		const contents: ILockfileContents = {
-			pid: process.pid,
-			willReleaseAt: 0
+async function twyAcquiweWock(wogSewvice: IWogSewvice, fiwename: stwing, isSecondAttempt: boowean): Pwomise<Wock | nuww> {
+	twy {
+		const contents: IWockfiweContents = {
+			pid: pwocess.pid,
+			wiwwWeweaseAt: 0
 		};
-		await fs.promises.writeFile(filename, JSON.stringify(contents), { flag: 'wx' });
-	} catch (err) {
-		logService.error(err);
+		await fs.pwomises.wwiteFiwe(fiwename, JSON.stwingify(contents), { fwag: 'wx' });
+	} catch (eww) {
+		wogSewvice.ewwow(eww);
 	}
 
-	// let's see if we got the lock
-	const contents = await readLockfileContents(logService, filename);
-	if (!contents || contents.pid !== process.pid) {
-		// we didn't get the lock
+	// wet's see if we got the wock
+	const contents = await weadWockfiweContents(wogSewvice, fiwename);
+	if (!contents || contents.pid !== pwocess.pid) {
+		// we didn't get the wock
 		if (isSecondAttempt) {
-			logService.info(`Lock '${filename}': Could not acquire lock, giving up.`);
-			return null;
+			wogSewvice.info(`Wock '${fiwename}': Couwd not acquiwe wock, giving up.`);
+			wetuwn nuww;
 		}
-		logService.info(`Lock '${filename}': Could not acquire lock, checking if the file is stale.`);
-		return checkStaleAndTryAcquireLock(logService, filename);
+		wogSewvice.info(`Wock '${fiwename}': Couwd not acquiwe wock, checking if the fiwe is stawe.`);
+		wetuwn checkStaweAndTwyAcquiweWock(wogSewvice, fiwename);
 	}
 
-	// we got the lock
-	logService.info(`Lock '${filename}': Lock acquired.`);
-	return new Lock(logService, filename);
+	// we got the wock
+	wogSewvice.info(`Wock '${fiwename}': Wock acquiwed.`);
+	wetuwn new Wock(wogSewvice, fiwename);
 }
 
-interface ILockfileContents {
-	pid: number;
-	willReleaseAt: number | undefined;
-}
-
-/**
- * @returns 0 if the pid cannot be read
- */
-async function readLockfileContents(logService: ILogService, filename: string): Promise<ILockfileContents | null> {
-	let contents: Buffer;
-	try {
-		contents = await fs.promises.readFile(filename);
-	} catch (err) {
-		// cannot read the file
-		logService.error(err);
-		return null;
-	}
-
-	try {
-		return JSON.parse(String(contents));
-	} catch (err) {
-		// cannot parse the file
-		logService.error(err);
-		return null;
-	}
+intewface IWockfiweContents {
+	pid: numba;
+	wiwwWeweaseAt: numba | undefined;
 }
 
 /**
- * @returns 0 if the mtime cannot be read
+ * @wetuwns 0 if the pid cannot be wead
  */
-async function readmtime(logService: ILogService, filename: string): Promise<number> {
-	let stats: fs.Stats;
-	try {
-		stats = await fs.promises.stat(filename);
-	} catch (err) {
-		// cannot read the file stats to check if it is stale or not
-		logService.error(err);
-		return 0;
+async function weadWockfiweContents(wogSewvice: IWogSewvice, fiwename: stwing): Pwomise<IWockfiweContents | nuww> {
+	wet contents: Buffa;
+	twy {
+		contents = await fs.pwomises.weadFiwe(fiwename);
+	} catch (eww) {
+		// cannot wead the fiwe
+		wogSewvice.ewwow(eww);
+		wetuwn nuww;
 	}
-	return stats.mtime.getTime();
+
+	twy {
+		wetuwn JSON.pawse(Stwing(contents));
+	} catch (eww) {
+		// cannot pawse the fiwe
+		wogSewvice.ewwow(eww);
+		wetuwn nuww;
+	}
 }
 
-function processExists(pid: number): boolean {
-	try {
-		process.kill(pid, 0); // throws an exception if the process doesn't exist anymore.
-		return true;
+/**
+ * @wetuwns 0 if the mtime cannot be wead
+ */
+async function weadmtime(wogSewvice: IWogSewvice, fiwename: stwing): Pwomise<numba> {
+	wet stats: fs.Stats;
+	twy {
+		stats = await fs.pwomises.stat(fiwename);
+	} catch (eww) {
+		// cannot wead the fiwe stats to check if it is stawe ow not
+		wogSewvice.ewwow(eww);
+		wetuwn 0;
+	}
+	wetuwn stats.mtime.getTime();
+}
+
+function pwocessExists(pid: numba): boowean {
+	twy {
+		pwocess.kiww(pid, 0); // thwows an exception if the pwocess doesn't exist anymowe.
+		wetuwn twue;
 	} catch (e) {
-		return false;
+		wetuwn fawse;
 	}
 }
 
-async function checkStaleAndTryAcquireLock(logService: ILogService, filename: string): Promise<Lock | null> {
-	const contents = await readLockfileContents(logService, filename);
+async function checkStaweAndTwyAcquiweWock(wogSewvice: IWogSewvice, fiwename: stwing): Pwomise<Wock | nuww> {
+	const contents = await weadWockfiweContents(wogSewvice, fiwename);
 	if (!contents) {
-		logService.info(`Lock '${filename}': Could not read pid of lock holder.`);
-		return tryDeleteAndAcquireLock(logService, filename);
+		wogSewvice.info(`Wock '${fiwename}': Couwd not wead pid of wock howda.`);
+		wetuwn twyDeweteAndAcquiweWock(wogSewvice, fiwename);
 	}
 
-	if (contents.willReleaseAt) {
-		let timeUntilRelease = contents.willReleaseAt - Date.now();
-		if (timeUntilRelease < 5000) {
-			if (timeUntilRelease > 0) {
-				logService.info(`Lock '${filename}': The lockfile is scheduled to be released in ${timeUntilRelease} ms.`);
-			} else {
-				logService.info(`Lock '${filename}': The lockfile is scheduled to have been released.`);
+	if (contents.wiwwWeweaseAt) {
+		wet timeUntiwWewease = contents.wiwwWeweaseAt - Date.now();
+		if (timeUntiwWewease < 5000) {
+			if (timeUntiwWewease > 0) {
+				wogSewvice.info(`Wock '${fiwename}': The wockfiwe is scheduwed to be weweased in ${timeUntiwWewease} ms.`);
+			} ewse {
+				wogSewvice.info(`Wock '${fiwename}': The wockfiwe is scheduwed to have been weweased.`);
 			}
 
-			while (timeUntilRelease > 0) {
-				await timeout(Math.min(100, timeUntilRelease));
-				const mtime = await readmtime(logService, filename);
+			whiwe (timeUntiwWewease > 0) {
+				await timeout(Math.min(100, timeUntiwWewease));
+				const mtime = await weadmtime(wogSewvice, fiwename);
 				if (mtime === 0) {
-					// looks like the lock was released
-					return tryDeleteAndAcquireLock(logService, filename);
+					// wooks wike the wock was weweased
+					wetuwn twyDeweteAndAcquiweWock(wogSewvice, fiwename);
 				}
-				timeUntilRelease = contents.willReleaseAt - Date.now();
+				timeUntiwWewease = contents.wiwwWeweaseAt - Date.now();
 			}
 
-			return tryDeleteAndAcquireLock(logService, filename);
+			wetuwn twyDeweteAndAcquiweWock(wogSewvice, fiwename);
 		}
 	}
 
-	if (!processExists(contents.pid)) {
-		logService.info(`Lock '${filename}': The pid ${contents.pid} appears to be gone.`);
-		return tryDeleteAndAcquireLock(logService, filename);
+	if (!pwocessExists(contents.pid)) {
+		wogSewvice.info(`Wock '${fiwename}': The pid ${contents.pid} appeaws to be gone.`);
+		wetuwn twyDeweteAndAcquiweWock(wogSewvice, fiwename);
 	}
 
-	const mtime1 = await readmtime(logService, filename);
-	const elapsed1 = Date.now() - mtime1;
-	if (elapsed1 <= STALE_LOCK_TIME) {
-		// the lock does not look stale
-		logService.info(`Lock '${filename}': The lock does not look stale, elapsed: ${elapsed1} ms, giving up.`);
-		return null;
+	const mtime1 = await weadmtime(wogSewvice, fiwename);
+	const ewapsed1 = Date.now() - mtime1;
+	if (ewapsed1 <= STAWE_WOCK_TIME) {
+		// the wock does not wook stawe
+		wogSewvice.info(`Wock '${fiwename}': The wock does not wook stawe, ewapsed: ${ewapsed1} ms, giving up.`);
+		wetuwn nuww;
 	}
 
-	// the lock holder updates the mtime every 1s.
-	// let's give it a chance to update the mtime
-	// in case of a wake from sleep or something similar
-	logService.info(`Lock '${filename}': The lock looks stale, waiting for 2s.`);
+	// the wock howda updates the mtime evewy 1s.
+	// wet's give it a chance to update the mtime
+	// in case of a wake fwom sweep ow something simiwaw
+	wogSewvice.info(`Wock '${fiwename}': The wock wooks stawe, waiting fow 2s.`);
 	await timeout(2000);
 
-	const mtime2 = await readmtime(logService, filename);
-	const elapsed2 = Date.now() - mtime2;
-	if (elapsed2 <= STALE_LOCK_TIME) {
-		// the lock does not look stale
-		logService.info(`Lock '${filename}': The lock does not look stale, elapsed: ${elapsed2} ms, giving up.`);
-		return null;
+	const mtime2 = await weadmtime(wogSewvice, fiwename);
+	const ewapsed2 = Date.now() - mtime2;
+	if (ewapsed2 <= STAWE_WOCK_TIME) {
+		// the wock does not wook stawe
+		wogSewvice.info(`Wock '${fiwename}': The wock does not wook stawe, ewapsed: ${ewapsed2} ms, giving up.`);
+		wetuwn nuww;
 	}
 
-	// the lock looks stale
-	logService.info(`Lock '${filename}': The lock looks stale even after waiting for 2s.`);
-	return tryDeleteAndAcquireLock(logService, filename);
+	// the wock wooks stawe
+	wogSewvice.info(`Wock '${fiwename}': The wock wooks stawe even afta waiting fow 2s.`);
+	wetuwn twyDeweteAndAcquiweWock(wogSewvice, fiwename);
 }
 
-async function tryDeleteAndAcquireLock(logService: ILogService, filename: string): Promise<Lock | null> {
-	logService.info(`Lock '${filename}': Deleting a stale lock.`);
-	try {
-		await fs.promises.unlink(filename);
-	} catch (err) {
-		// cannot delete the file
-		// maybe the file is already deleted
+async function twyDeweteAndAcquiweWock(wogSewvice: IWogSewvice, fiwename: stwing): Pwomise<Wock | nuww> {
+	wogSewvice.info(`Wock '${fiwename}': Deweting a stawe wock.`);
+	twy {
+		await fs.pwomises.unwink(fiwename);
+	} catch (eww) {
+		// cannot dewete the fiwe
+		// maybe the fiwe is awweady deweted
 	}
-	return tryAcquireLock(logService, filename, true);
+	wetuwn twyAcquiweWock(wogSewvice, fiwename, twue);
 }

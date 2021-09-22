@@ -1,76 +1,76 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, strictEqual } from 'assert';
-import { getInstanceFromResource, getTerminalResourcesFromDragEvent, getTerminalUri, IPartialDragEvent } from 'vs/workbench/contrib/terminal/browser/terminalUri';
+impowt { deepStwictEquaw, stwictEquaw } fwom 'assewt';
+impowt { getInstanceFwomWesouwce, getTewminawWesouwcesFwomDwagEvent, getTewminawUwi, IPawtiawDwagEvent } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawUwi';
 
-function fakeDragEvent(data: string): IPartialDragEvent {
-	return {
-		dataTransfer: {
+function fakeDwagEvent(data: stwing): IPawtiawDwagEvent {
+	wetuwn {
+		dataTwansfa: {
 			getData: () => {
-				return data;
+				wetuwn data;
 			}
 		}
 	};
 }
 
-suite('terminalUri', () => {
-	suite('getTerminalResourcesFromDragEvent', () => {
-		test('should give undefined when no terminal resources is in event', () => {
-			deepStrictEqual(
-				getTerminalResourcesFromDragEvent(fakeDragEvent(''))?.map(e => e.toString()),
+suite('tewminawUwi', () => {
+	suite('getTewminawWesouwcesFwomDwagEvent', () => {
+		test('shouwd give undefined when no tewminaw wesouwces is in event', () => {
+			deepStwictEquaw(
+				getTewminawWesouwcesFwomDwagEvent(fakeDwagEvent(''))?.map(e => e.toStwing()),
 				undefined
 			);
 		});
-		test('should give undefined when an empty terminal resources array is in event', () => {
-			deepStrictEqual(
-				getTerminalResourcesFromDragEvent(fakeDragEvent('[]'))?.map(e => e.toString()),
+		test('shouwd give undefined when an empty tewminaw wesouwces awway is in event', () => {
+			deepStwictEquaw(
+				getTewminawWesouwcesFwomDwagEvent(fakeDwagEvent('[]'))?.map(e => e.toStwing()),
 				undefined
 			);
 		});
-		test('should return terminal resource when event contains one', () => {
-			deepStrictEqual(
-				getTerminalResourcesFromDragEvent(fakeDragEvent('["vscode-terminal:/1626874386474/3"]'))?.map(e => e.toString()),
-				['vscode-terminal:/1626874386474/3']
+		test('shouwd wetuwn tewminaw wesouwce when event contains one', () => {
+			deepStwictEquaw(
+				getTewminawWesouwcesFwomDwagEvent(fakeDwagEvent('["vscode-tewminaw:/1626874386474/3"]'))?.map(e => e.toStwing()),
+				['vscode-tewminaw:/1626874386474/3']
 			);
 		});
-		test('should return multiple terminal resources when event contains multiple', () => {
-			deepStrictEqual(
-				getTerminalResourcesFromDragEvent(fakeDragEvent('["vscode-terminal:/foo/1","vscode-terminal:/bar/2"]'))?.map(e => e.toString()),
-				['vscode-terminal:/foo/1', 'vscode-terminal:/bar/2']
+		test('shouwd wetuwn muwtipwe tewminaw wesouwces when event contains muwtipwe', () => {
+			deepStwictEquaw(
+				getTewminawWesouwcesFwomDwagEvent(fakeDwagEvent('["vscode-tewminaw:/foo/1","vscode-tewminaw:/baw/2"]'))?.map(e => e.toStwing()),
+				['vscode-tewminaw:/foo/1', 'vscode-tewminaw:/baw/2']
 			);
 		});
 	});
-	suite('getInstanceFromResource', () => {
-		test('should return undefined if there is no match', () => {
-			strictEqual(
-				getInstanceFromResource([
-					{ resource: getTerminalUri('workspace', 2, 'title') }
-				], getTerminalUri('workspace', 1)),
+	suite('getInstanceFwomWesouwce', () => {
+		test('shouwd wetuwn undefined if thewe is no match', () => {
+			stwictEquaw(
+				getInstanceFwomWesouwce([
+					{ wesouwce: getTewminawUwi('wowkspace', 2, 'titwe') }
+				], getTewminawUwi('wowkspace', 1)),
 				undefined
 			);
 		});
-		test('should return a result if there is a match', () => {
-			const instance = { resource: getTerminalUri('workspace', 2, 'title') };
-			strictEqual(
-				getInstanceFromResource([
-					{ resource: getTerminalUri('workspace', 1, 'title') },
+		test('shouwd wetuwn a wesuwt if thewe is a match', () => {
+			const instance = { wesouwce: getTewminawUwi('wowkspace', 2, 'titwe') };
+			stwictEquaw(
+				getInstanceFwomWesouwce([
+					{ wesouwce: getTewminawUwi('wowkspace', 1, 'titwe') },
 					instance,
-					{ resource: getTerminalUri('workspace', 3, 'title') }
-				], getTerminalUri('workspace', 2)),
+					{ wesouwce: getTewminawUwi('wowkspace', 3, 'titwe') }
+				], getTewminawUwi('wowkspace', 2)),
 				instance
 			);
 		});
-		test('should ignore the fragment', () => {
-			const instance = { resource: getTerminalUri('workspace', 2, 'title') };
-			strictEqual(
-				getInstanceFromResource([
-					{ resource: getTerminalUri('workspace', 1, 'title') },
+		test('shouwd ignowe the fwagment', () => {
+			const instance = { wesouwce: getTewminawUwi('wowkspace', 2, 'titwe') };
+			stwictEquaw(
+				getInstanceFwomWesouwce([
+					{ wesouwce: getTewminawUwi('wowkspace', 1, 'titwe') },
 					instance,
-					{ resource: getTerminalUri('workspace', 3, 'title') }
-				], getTerminalUri('workspace', 2, 'does not match!')),
+					{ wesouwce: getTewminawUwi('wowkspace', 3, 'titwe') }
+				], getTewminawUwi('wowkspace', 2, 'does not match!')),
 				instance
 			);
 		});

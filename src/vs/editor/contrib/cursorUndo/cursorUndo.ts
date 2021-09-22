@@ -1,165 +1,165 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import * as nls from 'vs/nls';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, wegistewEditowAction, wegistewEditowContwibution, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt * as nws fwom 'vs/nws';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
 
-class CursorState {
-	readonly selections: readonly Selection[];
+cwass CuwsowState {
+	weadonwy sewections: weadonwy Sewection[];
 
-	constructor(selections: readonly Selection[]) {
-		this.selections = selections;
+	constwuctow(sewections: weadonwy Sewection[]) {
+		this.sewections = sewections;
 	}
 
-	public equals(other: CursorState): boolean {
-		const thisLen = this.selections.length;
-		const otherLen = other.selections.length;
-		if (thisLen !== otherLen) {
-			return false;
+	pubwic equaws(otha: CuwsowState): boowean {
+		const thisWen = this.sewections.wength;
+		const othewWen = otha.sewections.wength;
+		if (thisWen !== othewWen) {
+			wetuwn fawse;
 		}
-		for (let i = 0; i < thisLen; i++) {
-			if (!this.selections[i].equalsSelection(other.selections[i])) {
-				return false;
+		fow (wet i = 0; i < thisWen; i++) {
+			if (!this.sewections[i].equawsSewection(otha.sewections[i])) {
+				wetuwn fawse;
 			}
 		}
-		return true;
+		wetuwn twue;
 	}
 }
 
-class StackElement {
-	constructor(
-		public readonly cursorState: CursorState,
-		public readonly scrollTop: number,
-		public readonly scrollLeft: number
+cwass StackEwement {
+	constwuctow(
+		pubwic weadonwy cuwsowState: CuwsowState,
+		pubwic weadonwy scwowwTop: numba,
+		pubwic weadonwy scwowwWeft: numba
 	) { }
 }
 
-export class CursorUndoRedoController extends Disposable implements IEditorContribution {
+expowt cwass CuwsowUndoWedoContwowwa extends Disposabwe impwements IEditowContwibution {
 
-	public static readonly ID = 'editor.contrib.cursorUndoRedoController';
+	pubwic static weadonwy ID = 'editow.contwib.cuwsowUndoWedoContwowwa';
 
-	public static get(editor: ICodeEditor): CursorUndoRedoController {
-		return editor.getContribution<CursorUndoRedoController>(CursorUndoRedoController.ID);
+	pubwic static get(editow: ICodeEditow): CuwsowUndoWedoContwowwa {
+		wetuwn editow.getContwibution<CuwsowUndoWedoContwowwa>(CuwsowUndoWedoContwowwa.ID);
 	}
 
-	private readonly _editor: ICodeEditor;
-	private _isCursorUndoRedo: boolean;
+	pwivate weadonwy _editow: ICodeEditow;
+	pwivate _isCuwsowUndoWedo: boowean;
 
-	private _undoStack: StackElement[];
-	private _redoStack: StackElement[];
+	pwivate _undoStack: StackEwement[];
+	pwivate _wedoStack: StackEwement[];
 
-	constructor(editor: ICodeEditor) {
-		super();
-		this._editor = editor;
-		this._isCursorUndoRedo = false;
+	constwuctow(editow: ICodeEditow) {
+		supa();
+		this._editow = editow;
+		this._isCuwsowUndoWedo = fawse;
 
 		this._undoStack = [];
-		this._redoStack = [];
+		this._wedoStack = [];
 
-		this._register(editor.onDidChangeModel((e) => {
+		this._wegista(editow.onDidChangeModew((e) => {
 			this._undoStack = [];
-			this._redoStack = [];
+			this._wedoStack = [];
 		}));
-		this._register(editor.onDidChangeModelContent((e) => {
+		this._wegista(editow.onDidChangeModewContent((e) => {
 			this._undoStack = [];
-			this._redoStack = [];
+			this._wedoStack = [];
 		}));
-		this._register(editor.onDidChangeCursorSelection((e) => {
-			if (this._isCursorUndoRedo) {
-				return;
+		this._wegista(editow.onDidChangeCuwsowSewection((e) => {
+			if (this._isCuwsowUndoWedo) {
+				wetuwn;
 			}
-			if (!e.oldSelections) {
-				return;
+			if (!e.owdSewections) {
+				wetuwn;
 			}
-			if (e.oldModelVersionId !== e.modelVersionId) {
-				return;
+			if (e.owdModewVewsionId !== e.modewVewsionId) {
+				wetuwn;
 			}
-			const prevState = new CursorState(e.oldSelections);
-			const isEqualToLastUndoStack = (this._undoStack.length > 0 && this._undoStack[this._undoStack.length - 1].cursorState.equals(prevState));
-			if (!isEqualToLastUndoStack) {
-				this._undoStack.push(new StackElement(prevState, editor.getScrollTop(), editor.getScrollLeft()));
-				this._redoStack = [];
-				if (this._undoStack.length > 50) {
-					// keep the cursor undo stack bounded
+			const pwevState = new CuwsowState(e.owdSewections);
+			const isEquawToWastUndoStack = (this._undoStack.wength > 0 && this._undoStack[this._undoStack.wength - 1].cuwsowState.equaws(pwevState));
+			if (!isEquawToWastUndoStack) {
+				this._undoStack.push(new StackEwement(pwevState, editow.getScwowwTop(), editow.getScwowwWeft()));
+				this._wedoStack = [];
+				if (this._undoStack.wength > 50) {
+					// keep the cuwsow undo stack bounded
 					this._undoStack.shift();
 				}
 			}
 		}));
 	}
 
-	public cursorUndo(): void {
-		if (!this._editor.hasModel() || this._undoStack.length === 0) {
-			return;
+	pubwic cuwsowUndo(): void {
+		if (!this._editow.hasModew() || this._undoStack.wength === 0) {
+			wetuwn;
 		}
 
-		this._redoStack.push(new StackElement(new CursorState(this._editor.getSelections()), this._editor.getScrollTop(), this._editor.getScrollLeft()));
-		this._applyState(this._undoStack.pop()!);
+		this._wedoStack.push(new StackEwement(new CuwsowState(this._editow.getSewections()), this._editow.getScwowwTop(), this._editow.getScwowwWeft()));
+		this._appwyState(this._undoStack.pop()!);
 	}
 
-	public cursorRedo(): void {
-		if (!this._editor.hasModel() || this._redoStack.length === 0) {
-			return;
+	pubwic cuwsowWedo(): void {
+		if (!this._editow.hasModew() || this._wedoStack.wength === 0) {
+			wetuwn;
 		}
 
-		this._undoStack.push(new StackElement(new CursorState(this._editor.getSelections()), this._editor.getScrollTop(), this._editor.getScrollLeft()));
-		this._applyState(this._redoStack.pop()!);
+		this._undoStack.push(new StackEwement(new CuwsowState(this._editow.getSewections()), this._editow.getScwowwTop(), this._editow.getScwowwWeft()));
+		this._appwyState(this._wedoStack.pop()!);
 	}
 
-	private _applyState(stackElement: StackElement): void {
-		this._isCursorUndoRedo = true;
-		this._editor.setSelections(stackElement.cursorState.selections);
-		this._editor.setScrollPosition({
-			scrollTop: stackElement.scrollTop,
-			scrollLeft: stackElement.scrollLeft
+	pwivate _appwyState(stackEwement: StackEwement): void {
+		this._isCuwsowUndoWedo = twue;
+		this._editow.setSewections(stackEwement.cuwsowState.sewections);
+		this._editow.setScwowwPosition({
+			scwowwTop: stackEwement.scwowwTop,
+			scwowwWeft: stackEwement.scwowwWeft
 		});
-		this._isCursorUndoRedo = false;
+		this._isCuwsowUndoWedo = fawse;
 	}
 }
 
-export class CursorUndo extends EditorAction {
-	constructor() {
-		super({
-			id: 'cursorUndo',
-			label: nls.localize('cursor.undo', "Cursor Undo"),
-			alias: 'Cursor Undo',
-			precondition: undefined,
+expowt cwass CuwsowUndo extends EditowAction {
+	constwuctow() {
+		supa({
+			id: 'cuwsowUndo',
+			wabew: nws.wocawize('cuwsow.undo', "Cuwsow Undo"),
+			awias: 'Cuwsow Undo',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_U,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.textInputFocus,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_U,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		CursorUndoRedoController.get(editor).cursorUndo();
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow, awgs: any): void {
+		CuwsowUndoWedoContwowwa.get(editow).cuwsowUndo();
 	}
 }
 
-export class CursorRedo extends EditorAction {
-	constructor() {
-		super({
-			id: 'cursorRedo',
-			label: nls.localize('cursor.redo', "Cursor Redo"),
-			alias: 'Cursor Redo',
-			precondition: undefined
+expowt cwass CuwsowWedo extends EditowAction {
+	constwuctow() {
+		supa({
+			id: 'cuwsowWedo',
+			wabew: nws.wocawize('cuwsow.wedo', "Cuwsow Wedo"),
+			awias: 'Cuwsow Wedo',
+			pwecondition: undefined
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		CursorUndoRedoController.get(editor).cursorRedo();
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow, awgs: any): void {
+		CuwsowUndoWedoContwowwa.get(editow).cuwsowWedo();
 	}
 }
 
-registerEditorContribution(CursorUndoRedoController.ID, CursorUndoRedoController);
-registerEditorAction(CursorUndo);
-registerEditorAction(CursorRedo);
+wegistewEditowContwibution(CuwsowUndoWedoContwowwa.ID, CuwsowUndoWedoContwowwa);
+wegistewEditowAction(CuwsowUndo);
+wegistewEditowAction(CuwsowWedo);

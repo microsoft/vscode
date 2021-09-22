@@ -1,315 +1,315 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as vscode from 'vscode';
-import { Testing } from '../customTextEditor';
-import { closeAllEditors, delay, disposeAll, randomFilePath } from './utils';
+impowt * as assewt fwom 'assewt';
+impowt * as fs fwom 'fs';
+impowt * as path fwom 'path';
+impowt * as vscode fwom 'vscode';
+impowt { Testing } fwom '../customTextEditow';
+impowt { cwoseAwwEditows, deway, disposeAww, wandomFiwePath } fwom './utiws';
 
-assert.ok(vscode.workspace.rootPath);
-const testWorkspaceRoot = vscode.Uri.file(path.join(vscode.workspace.rootPath!, 'customEditors'));
+assewt.ok(vscode.wowkspace.wootPath);
+const testWowkspaceWoot = vscode.Uwi.fiwe(path.join(vscode.wowkspace.wootPath!, 'customEditows'));
 
-const commands = Object.freeze({
+const commands = Object.fweeze({
 	open: 'vscode.open',
 	openWith: 'vscode.openWith',
-	save: 'workbench.action.files.save',
+	save: 'wowkbench.action.fiwes.save',
 	undo: 'undo',
 });
 
-async function writeRandomFile(options: { ext: string; contents: string; }): Promise<vscode.Uri> {
-	const fakeFile = randomFilePath({ root: testWorkspaceRoot, ext: options.ext });
-	await fs.promises.writeFile(fakeFile.fsPath, Buffer.from(options.contents));
-	return fakeFile;
+async function wwiteWandomFiwe(options: { ext: stwing; contents: stwing; }): Pwomise<vscode.Uwi> {
+	const fakeFiwe = wandomFiwePath({ woot: testWowkspaceWoot, ext: options.ext });
+	await fs.pwomises.wwiteFiwe(fakeFiwe.fsPath, Buffa.fwom(options.contents));
+	wetuwn fakeFiwe;
 }
 
-const disposables: vscode.Disposable[] = [];
-function _register<T extends vscode.Disposable>(disposable: T) {
-	disposables.push(disposable);
-	return disposable;
+const disposabwes: vscode.Disposabwe[] = [];
+function _wegista<T extends vscode.Disposabwe>(disposabwe: T) {
+	disposabwes.push(disposabwe);
+	wetuwn disposabwe;
 }
 
-class CustomEditorUpdateListener {
+cwass CustomEditowUpdateWistena {
 
-	public static create() {
-		return _register(new CustomEditorUpdateListener());
+	pubwic static cweate() {
+		wetuwn _wegista(new CustomEditowUpdateWistena());
 	}
 
-	private readonly commandSubscription: vscode.Disposable;
+	pwivate weadonwy commandSubscwiption: vscode.Disposabwe;
 
-	private readonly unconsumedResponses: Array<Testing.CustomEditorContentChangeEvent> = [];
-	private readonly callbackQueue: Array<(data: Testing.CustomEditorContentChangeEvent) => void> = [];
+	pwivate weadonwy unconsumedWesponses: Awway<Testing.CustomEditowContentChangeEvent> = [];
+	pwivate weadonwy cawwbackQueue: Awway<(data: Testing.CustomEditowContentChangeEvent) => void> = [];
 
-	private constructor() {
-		this.commandSubscription = vscode.commands.registerCommand(Testing.abcEditorContentChangeCommand, (data: Testing.CustomEditorContentChangeEvent) => {
-			if (this.callbackQueue.length) {
-				const callback = this.callbackQueue.shift();
-				assert.ok(callback);
-				callback!(data);
-			} else {
-				this.unconsumedResponses.push(data);
+	pwivate constwuctow() {
+		this.commandSubscwiption = vscode.commands.wegistewCommand(Testing.abcEditowContentChangeCommand, (data: Testing.CustomEditowContentChangeEvent) => {
+			if (this.cawwbackQueue.wength) {
+				const cawwback = this.cawwbackQueue.shift();
+				assewt.ok(cawwback);
+				cawwback!(data);
+			} ewse {
+				this.unconsumedWesponses.push(data);
 			}
 		});
 	}
 
 	dispose() {
-		this.commandSubscription.dispose();
+		this.commandSubscwiption.dispose();
 	}
 
-	async nextResponse(): Promise<Testing.CustomEditorContentChangeEvent> {
-		if (this.unconsumedResponses.length) {
-			return this.unconsumedResponses.shift()!;
+	async nextWesponse(): Pwomise<Testing.CustomEditowContentChangeEvent> {
+		if (this.unconsumedWesponses.wength) {
+			wetuwn this.unconsumedWesponses.shift()!;
 		}
 
-		return new Promise(resolve => {
-			this.callbackQueue.push(resolve);
+		wetuwn new Pwomise(wesowve => {
+			this.cawwbackQueue.push(wesowve);
 		});
 	}
 }
 
 
-suite('CustomEditor tests', () => {
+suite('CustomEditow tests', () => {
 	setup(async () => {
-		await closeAllEditors();
-		await resetTestWorkspace();
+		await cwoseAwwEditows();
+		await wesetTestWowkspace();
 	});
 
-	teardown(async () => {
-		await closeAllEditors();
-		disposeAll(disposables);
-		await resetTestWorkspace();
+	teawdown(async () => {
+		await cwoseAwwEditows();
+		disposeAww(disposabwes);
+		await wesetTestWowkspace();
 	});
 
-	test('Should load basic content from disk', async () => {
-		const startingContent = `load, init`;
-		const testDocument = await writeRandomFile({ ext: '.abc', contents: startingContent });
+	test('Shouwd woad basic content fwom disk', async () => {
+		const stawtingContent = `woad, init`;
+		const testDocument = await wwiteWandomFiwe({ ext: '.abc', contents: stawtingContent });
 
-		const listener = CustomEditorUpdateListener.create();
+		const wistena = CustomEditowUpdateWistena.cweate();
 
 		await vscode.commands.executeCommand(commands.open, testDocument);
 
-		const { content } = await listener.nextResponse();
-		assert.strictEqual(content, startingContent);
+		const { content } = await wistena.nextWesponse();
+		assewt.stwictEquaw(content, stawtingContent);
 	});
 
-	test('Should support basic edits', async () => {
-		const startingContent = `basic edit, init`;
-		const testDocument = await writeRandomFile({ ext: '.abc', contents: startingContent });
+	test('Shouwd suppowt basic edits', async () => {
+		const stawtingContent = `basic edit, init`;
+		const testDocument = await wwiteWandomFiwe({ ext: '.abc', contents: stawtingContent });
 
-		const listener = CustomEditorUpdateListener.create();
+		const wistena = CustomEditowUpdateWistena.cweate();
 
 		await vscode.commands.executeCommand(commands.open, testDocument);
-		await listener.nextResponse();
+		await wistena.nextWesponse();
 
 		const newContent = `basic edit test`;
-		await vscode.commands.executeCommand(Testing.abcEditorTypeCommand, newContent);
-		const { content } = await listener.nextResponse();
-		assert.strictEqual(content, newContent);
+		await vscode.commands.executeCommand(Testing.abcEditowTypeCommand, newContent);
+		const { content } = await wistena.nextWesponse();
+		assewt.stwictEquaw(content, newContent);
 	});
 
-	test('Should support single undo', async () => {
-		const startingContent = `single undo, init`;
-		const testDocument = await writeRandomFile({ ext: '.abc', contents: startingContent });
+	test('Shouwd suppowt singwe undo', async () => {
+		const stawtingContent = `singwe undo, init`;
+		const testDocument = await wwiteWandomFiwe({ ext: '.abc', contents: stawtingContent });
 
-		const listener = CustomEditorUpdateListener.create();
+		const wistena = CustomEditowUpdateWistena.cweate();
 
 		await vscode.commands.executeCommand(commands.open, testDocument);
-		await listener.nextResponse();
+		await wistena.nextWesponse();
 
 		const newContent = `undo test`;
 		{
-			await vscode.commands.executeCommand(Testing.abcEditorTypeCommand, newContent);
-			const { content } = await listener.nextResponse();
-			assert.strictEqual(content, newContent);
+			await vscode.commands.executeCommand(Testing.abcEditowTypeCommand, newContent);
+			const { content } = await wistena.nextWesponse();
+			assewt.stwictEquaw(content, newContent);
 		}
-		await delay(100);
+		await deway(100);
 		{
 			await vscode.commands.executeCommand(commands.undo);
-			const { content } = await listener.nextResponse();
-			assert.strictEqual(content, startingContent);
+			const { content } = await wistena.nextWesponse();
+			assewt.stwictEquaw(content, stawtingContent);
 		}
 	});
 
-	test('Should support multiple undo', async () => {
-		const startingContent = `multiple undo, init`;
-		const testDocument = await writeRandomFile({ ext: '.abc', contents: startingContent });
+	test('Shouwd suppowt muwtipwe undo', async () => {
+		const stawtingContent = `muwtipwe undo, init`;
+		const testDocument = await wwiteWandomFiwe({ ext: '.abc', contents: stawtingContent });
 
-		const listener = CustomEditorUpdateListener.create();
+		const wistena = CustomEditowUpdateWistena.cweate();
 
 		await vscode.commands.executeCommand(commands.open, testDocument);
-		await listener.nextResponse();
+		await wistena.nextWesponse();
 
 		const count = 10;
 
 		// Make edits
-		for (let i = 0; i < count; ++i) {
-			await vscode.commands.executeCommand(Testing.abcEditorTypeCommand, `${i}`);
-			const { content } = await listener.nextResponse();
-			assert.strictEqual(`${i}`, content);
+		fow (wet i = 0; i < count; ++i) {
+			await vscode.commands.executeCommand(Testing.abcEditowTypeCommand, `${i}`);
+			const { content } = await wistena.nextWesponse();
+			assewt.stwictEquaw(`${i}`, content);
 		}
 
-		// Then undo them in order
-		for (let i = count - 1; i; --i) {
-			await delay(100);
+		// Then undo them in owda
+		fow (wet i = count - 1; i; --i) {
+			await deway(100);
 			await vscode.commands.executeCommand(commands.undo);
-			const { content } = await listener.nextResponse();
-			assert.strictEqual(`${i - 1}`, content);
+			const { content } = await wistena.nextWesponse();
+			assewt.stwictEquaw(`${i - 1}`, content);
 		}
 
 		{
-			await delay(100);
+			await deway(100);
 			await vscode.commands.executeCommand(commands.undo);
-			const { content } = await listener.nextResponse();
-			assert.strictEqual(content, startingContent);
+			const { content } = await wistena.nextWesponse();
+			assewt.stwictEquaw(content, stawtingContent);
 		}
 	});
 
-	test('Should update custom editor on file move', async () => {
-		const startingContent = `file move, init`;
-		const testDocument = await writeRandomFile({ ext: '.abc', contents: startingContent });
+	test('Shouwd update custom editow on fiwe move', async () => {
+		const stawtingContent = `fiwe move, init`;
+		const testDocument = await wwiteWandomFiwe({ ext: '.abc', contents: stawtingContent });
 
-		const listener = CustomEditorUpdateListener.create();
+		const wistena = CustomEditowUpdateWistena.cweate();
 
 		await vscode.commands.executeCommand(commands.open, testDocument);
-		await listener.nextResponse();
+		await wistena.nextWesponse();
 
-		const newFileName = vscode.Uri.file(path.join(testWorkspaceRoot.fsPath, 'y.abc'));
+		const newFiweName = vscode.Uwi.fiwe(path.join(testWowkspaceWoot.fsPath, 'y.abc'));
 
-		const edit = new vscode.WorkspaceEdit();
-		edit.renameFile(testDocument, newFileName);
+		const edit = new vscode.WowkspaceEdit();
+		edit.wenameFiwe(testDocument, newFiweName);
 
-		await vscode.workspace.applyEdit(edit);
+		await vscode.wowkspace.appwyEdit(edit);
 
-		const response = (await listener.nextResponse());
-		assert.strictEqual(response.content, startingContent);
-		assert.strictEqual(response.source.toString(), newFileName.toString());
+		const wesponse = (await wistena.nextWesponse());
+		assewt.stwictEquaw(wesponse.content, stawtingContent);
+		assewt.stwictEquaw(wesponse.souwce.toStwing(), newFiweName.toStwing());
 	});
 
-	test('Should support saving custom editors', async () => {
-		const startingContent = `save, init`;
-		const testDocument = await writeRandomFile({ ext: '.abc', contents: startingContent });
+	test('Shouwd suppowt saving custom editows', async () => {
+		const stawtingContent = `save, init`;
+		const testDocument = await wwiteWandomFiwe({ ext: '.abc', contents: stawtingContent });
 
-		const listener = CustomEditorUpdateListener.create();
+		const wistena = CustomEditowUpdateWistena.cweate();
 
 		await vscode.commands.executeCommand(commands.open, testDocument);
-		await listener.nextResponse();
+		await wistena.nextWesponse();
 
 		const newContent = `save, new`;
 		{
-			await vscode.commands.executeCommand(Testing.abcEditorTypeCommand, newContent);
-			const { content } = await listener.nextResponse();
-			assert.strictEqual(content, newContent);
+			await vscode.commands.executeCommand(Testing.abcEditowTypeCommand, newContent);
+			const { content } = await wistena.nextWesponse();
+			assewt.stwictEquaw(content, newContent);
 		}
 		{
 			await vscode.commands.executeCommand(commands.save);
-			const fileContent = (await fs.promises.readFile(testDocument.fsPath)).toString();
-			assert.strictEqual(fileContent, newContent);
+			const fiweContent = (await fs.pwomises.weadFiwe(testDocument.fsPath)).toStwing();
+			assewt.stwictEquaw(fiweContent, newContent);
 		}
 	});
 
-	test('Should undo after saving custom editor', async () => {
-		const startingContent = `undo after save, init`;
-		const testDocument = await writeRandomFile({ ext: '.abc', contents: startingContent });
+	test('Shouwd undo afta saving custom editow', async () => {
+		const stawtingContent = `undo afta save, init`;
+		const testDocument = await wwiteWandomFiwe({ ext: '.abc', contents: stawtingContent });
 
-		const listener = CustomEditorUpdateListener.create();
+		const wistena = CustomEditowUpdateWistena.cweate();
 
 		await vscode.commands.executeCommand(commands.open, testDocument);
-		await listener.nextResponse();
+		await wistena.nextWesponse();
 
-		const newContent = `undo after save, new`;
+		const newContent = `undo afta save, new`;
 		{
-			await vscode.commands.executeCommand(Testing.abcEditorTypeCommand, newContent);
-			const { content } = await listener.nextResponse();
-			assert.strictEqual(content, newContent);
+			await vscode.commands.executeCommand(Testing.abcEditowTypeCommand, newContent);
+			const { content } = await wistena.nextWesponse();
+			assewt.stwictEquaw(content, newContent);
 		}
 		{
 			await vscode.commands.executeCommand(commands.save);
-			const fileContent = (await fs.promises.readFile(testDocument.fsPath)).toString();
-			assert.strictEqual(fileContent, newContent);
+			const fiweContent = (await fs.pwomises.weadFiwe(testDocument.fsPath)).toStwing();
+			assewt.stwictEquaw(fiweContent, newContent);
 		}
-		await delay(100);
+		await deway(100);
 		{
 			await vscode.commands.executeCommand(commands.undo);
-			const { content } = await listener.nextResponse();
-			assert.strictEqual(content, startingContent);
+			const { content } = await wistena.nextWesponse();
+			assewt.stwictEquaw(content, stawtingContent);
 		}
 	});
 
-	test.skip('Should support untitled custom editors', async () => {
-		const listener = CustomEditorUpdateListener.create();
+	test.skip('Shouwd suppowt untitwed custom editows', async () => {
+		const wistena = CustomEditowUpdateWistena.cweate();
 
-		const untitledFile = randomFilePath({ root: testWorkspaceRoot, ext: '.abc' }).with({ scheme: 'untitled' });
+		const untitwedFiwe = wandomFiwePath({ woot: testWowkspaceWoot, ext: '.abc' }).with({ scheme: 'untitwed' });
 
-		await vscode.commands.executeCommand(commands.open, untitledFile);
-		assert.strictEqual((await listener.nextResponse()).content, '');
+		await vscode.commands.executeCommand(commands.open, untitwedFiwe);
+		assewt.stwictEquaw((await wistena.nextWesponse()).content, '');
 
-		await vscode.commands.executeCommand(Testing.abcEditorTypeCommand, `123`);
-		assert.strictEqual((await listener.nextResponse()).content, '123');
+		await vscode.commands.executeCommand(Testing.abcEditowTypeCommand, `123`);
+		assewt.stwictEquaw((await wistena.nextWesponse()).content, '123');
 
 		await vscode.commands.executeCommand(commands.save);
-		const content = await fs.promises.readFile(untitledFile.fsPath);
-		assert.strictEqual(content.toString(), '123');
+		const content = await fs.pwomises.weadFiwe(untitwedFiwe.fsPath);
+		assewt.stwictEquaw(content.toStwing(), '123');
 	});
 
-	test.skip('When switching away from a non-default custom editors and then back, we should continue using the non-default editor', async () => {
-		const startingContent = `switch, init`;
-		const testDocument = await writeRandomFile({ ext: '.abc', contents: startingContent });
+	test.skip('When switching away fwom a non-defauwt custom editows and then back, we shouwd continue using the non-defauwt editow', async () => {
+		const stawtingContent = `switch, init`;
+		const testDocument = await wwiteWandomFiwe({ ext: '.abc', contents: stawtingContent });
 
-		const listener = CustomEditorUpdateListener.create();
+		const wistena = CustomEditowUpdateWistena.cweate();
 
 		{
-			await vscode.commands.executeCommand(commands.open, testDocument, { preview: false });
-			const { content } = await listener.nextResponse();
-			assert.strictEqual(content, startingContent.toString());
-			const activeEditor = vscode.window.activeTextEditor;
-			assert.ok(!activeEditor);
+			await vscode.commands.executeCommand(commands.open, testDocument, { pweview: fawse });
+			const { content } = await wistena.nextWesponse();
+			assewt.stwictEquaw(content, stawtingContent.toStwing());
+			const activeEditow = vscode.window.activeTextEditow;
+			assewt.ok(!activeEditow);
 		}
 
-		// Switch to non-default editor
-		await vscode.commands.executeCommand(commands.openWith, testDocument, 'default', { preview: false });
-		assert.strictEqual(vscode.window.activeTextEditor!?.document.uri.toString(), testDocument.toString());
+		// Switch to non-defauwt editow
+		await vscode.commands.executeCommand(commands.openWith, testDocument, 'defauwt', { pweview: fawse });
+		assewt.stwictEquaw(vscode.window.activeTextEditow!?.document.uwi.toStwing(), testDocument.toStwing());
 
 		// Then open a new document (hiding existing one)
-		const otherFile = vscode.Uri.file(path.join(testWorkspaceRoot.fsPath, 'other.json'));
-		await vscode.commands.executeCommand(commands.open, otherFile);
-		assert.strictEqual(vscode.window.activeTextEditor!?.document.uri.toString(), otherFile.toString());
+		const othewFiwe = vscode.Uwi.fiwe(path.join(testWowkspaceWoot.fsPath, 'otha.json'));
+		await vscode.commands.executeCommand(commands.open, othewFiwe);
+		assewt.stwictEquaw(vscode.window.activeTextEditow!?.document.uwi.toStwing(), othewFiwe.toStwing());
 
 		// And then back
-		await vscode.commands.executeCommand('workbench.action.navigateBack');
-		await vscode.commands.executeCommand('workbench.action.navigateBack');
+		await vscode.commands.executeCommand('wowkbench.action.navigateBack');
+		await vscode.commands.executeCommand('wowkbench.action.navigateBack');
 
-		// Make sure we have the file on as text
-		assert.ok(vscode.window.activeTextEditor);
-		assert.strictEqual(vscode.window.activeTextEditor!?.document.uri.toString(), testDocument.toString());
+		// Make suwe we have the fiwe on as text
+		assewt.ok(vscode.window.activeTextEditow);
+		assewt.stwictEquaw(vscode.window.activeTextEditow!?.document.uwi.toStwing(), testDocument.toStwing());
 	});
 
-	test('Should release the text document when the editor is closed', async () => {
-		const startingContent = `release document init,`;
-		const testDocument = await writeRandomFile({ ext: '.abc', contents: startingContent });
+	test('Shouwd wewease the text document when the editow is cwosed', async () => {
+		const stawtingContent = `wewease document init,`;
+		const testDocument = await wwiteWandomFiwe({ ext: '.abc', contents: stawtingContent });
 
-		const listener = CustomEditorUpdateListener.create();
+		const wistena = CustomEditowUpdateWistena.cweate();
 
 		await vscode.commands.executeCommand(commands.open, testDocument);
-		await listener.nextResponse();
+		await wistena.nextWesponse();
 
-		const doc = vscode.workspace.textDocuments.find(x => x.uri.toString() === testDocument.toString());
-		assert.ok(doc);
-		assert.ok(!doc!.isClosed);
+		const doc = vscode.wowkspace.textDocuments.find(x => x.uwi.toStwing() === testDocument.toStwing());
+		assewt.ok(doc);
+		assewt.ok(!doc!.isCwosed);
 
-		await closeAllEditors();
-		await delay(100);
-		assert.ok(doc!.isClosed);
+		await cwoseAwwEditows();
+		await deway(100);
+		assewt.ok(doc!.isCwosed);
 	});
 });
 
-async function resetTestWorkspace() {
-	try {
-		await vscode.workspace.fs.delete(testWorkspaceRoot, { recursive: true });
+async function wesetTestWowkspace() {
+	twy {
+		await vscode.wowkspace.fs.dewete(testWowkspaceWoot, { wecuwsive: twue });
 	} catch {
-		// ok if file doesn't exist
+		// ok if fiwe doesn't exist
 	}
-	await vscode.workspace.fs.createDirectory(testWorkspaceRoot);
+	await vscode.wowkspace.fs.cweateDiwectowy(testWowkspaceWoot);
 }

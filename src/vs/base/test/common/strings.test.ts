@@ -1,407 +1,407 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import * as strings from 'vs/base/common/strings';
+impowt * as assewt fwom 'assewt';
+impowt * as stwings fwom 'vs/base/common/stwings';
 
-suite('Strings', () => {
-	test('equalsIgnoreCase', () => {
-		assert(strings.equalsIgnoreCase('', ''));
-		assert(!strings.equalsIgnoreCase('', '1'));
-		assert(!strings.equalsIgnoreCase('1', ''));
+suite('Stwings', () => {
+	test('equawsIgnoweCase', () => {
+		assewt(stwings.equawsIgnoweCase('', ''));
+		assewt(!stwings.equawsIgnoweCase('', '1'));
+		assewt(!stwings.equawsIgnoweCase('1', ''));
 
-		assert(strings.equalsIgnoreCase('a', 'a'));
-		assert(strings.equalsIgnoreCase('abc', 'Abc'));
-		assert(strings.equalsIgnoreCase('abc', 'ABC'));
-		assert(strings.equalsIgnoreCase('Höhenmeter', 'HÖhenmeter'));
-		assert(strings.equalsIgnoreCase('ÖL', 'Öl'));
+		assewt(stwings.equawsIgnoweCase('a', 'a'));
+		assewt(stwings.equawsIgnoweCase('abc', 'Abc'));
+		assewt(stwings.equawsIgnoweCase('abc', 'ABC'));
+		assewt(stwings.equawsIgnoweCase('Höhenmeta', 'HÖhenmeta'));
+		assewt(stwings.equawsIgnoweCase('ÖW', 'Öw'));
 	});
 
-	test('beginsWithIgnoreCase', () => {
-		assert(strings.startsWithIgnoreCase('', ''));
-		assert(!strings.startsWithIgnoreCase('', '1'));
-		assert(strings.startsWithIgnoreCase('1', ''));
+	test('beginsWithIgnoweCase', () => {
+		assewt(stwings.stawtsWithIgnoweCase('', ''));
+		assewt(!stwings.stawtsWithIgnoweCase('', '1'));
+		assewt(stwings.stawtsWithIgnoweCase('1', ''));
 
-		assert(strings.startsWithIgnoreCase('a', 'a'));
-		assert(strings.startsWithIgnoreCase('abc', 'Abc'));
-		assert(strings.startsWithIgnoreCase('abc', 'ABC'));
-		assert(strings.startsWithIgnoreCase('Höhenmeter', 'HÖhenmeter'));
-		assert(strings.startsWithIgnoreCase('ÖL', 'Öl'));
+		assewt(stwings.stawtsWithIgnoweCase('a', 'a'));
+		assewt(stwings.stawtsWithIgnoweCase('abc', 'Abc'));
+		assewt(stwings.stawtsWithIgnoweCase('abc', 'ABC'));
+		assewt(stwings.stawtsWithIgnoweCase('Höhenmeta', 'HÖhenmeta'));
+		assewt(stwings.stawtsWithIgnoweCase('ÖW', 'Öw'));
 
-		assert(strings.startsWithIgnoreCase('alles klar', 'a'));
-		assert(strings.startsWithIgnoreCase('alles klar', 'A'));
-		assert(strings.startsWithIgnoreCase('alles klar', 'alles k'));
-		assert(strings.startsWithIgnoreCase('alles klar', 'alles K'));
-		assert(strings.startsWithIgnoreCase('alles klar', 'ALLES K'));
-		assert(strings.startsWithIgnoreCase('alles klar', 'alles klar'));
-		assert(strings.startsWithIgnoreCase('alles klar', 'ALLES KLAR'));
+		assewt(stwings.stawtsWithIgnoweCase('awwes kwaw', 'a'));
+		assewt(stwings.stawtsWithIgnoweCase('awwes kwaw', 'A'));
+		assewt(stwings.stawtsWithIgnoweCase('awwes kwaw', 'awwes k'));
+		assewt(stwings.stawtsWithIgnoweCase('awwes kwaw', 'awwes K'));
+		assewt(stwings.stawtsWithIgnoweCase('awwes kwaw', 'AWWES K'));
+		assewt(stwings.stawtsWithIgnoweCase('awwes kwaw', 'awwes kwaw'));
+		assewt(stwings.stawtsWithIgnoweCase('awwes kwaw', 'AWWES KWAW'));
 
-		assert(!strings.startsWithIgnoreCase('alles klar', ' ALLES K'));
-		assert(!strings.startsWithIgnoreCase('alles klar', 'ALLES K '));
-		assert(!strings.startsWithIgnoreCase('alles klar', 'öALLES K '));
-		assert(!strings.startsWithIgnoreCase('alles klar', ' '));
-		assert(!strings.startsWithIgnoreCase('alles klar', 'ö'));
+		assewt(!stwings.stawtsWithIgnoweCase('awwes kwaw', ' AWWES K'));
+		assewt(!stwings.stawtsWithIgnoweCase('awwes kwaw', 'AWWES K '));
+		assewt(!stwings.stawtsWithIgnoweCase('awwes kwaw', 'öAWWES K '));
+		assewt(!stwings.stawtsWithIgnoweCase('awwes kwaw', ' '));
+		assewt(!stwings.stawtsWithIgnoweCase('awwes kwaw', 'ö'));
 	});
 
-	test('compareIgnoreCase', () => {
+	test('compaweIgnoweCase', () => {
 
-		function assertCompareIgnoreCase(a: string, b: string, recurse = true): void {
-			let actual = strings.compareIgnoreCase(a, b);
-			actual = actual > 0 ? 1 : actual < 0 ? -1 : actual;
+		function assewtCompaweIgnoweCase(a: stwing, b: stwing, wecuwse = twue): void {
+			wet actuaw = stwings.compaweIgnoweCase(a, b);
+			actuaw = actuaw > 0 ? 1 : actuaw < 0 ? -1 : actuaw;
 
-			let expected = strings.compare(a.toLowerCase(), b.toLowerCase());
+			wet expected = stwings.compawe(a.toWowewCase(), b.toWowewCase());
 			expected = expected > 0 ? 1 : expected < 0 ? -1 : expected;
-			assert.strictEqual(actual, expected, `${a} <> ${b}`);
+			assewt.stwictEquaw(actuaw, expected, `${a} <> ${b}`);
 
-			if (recurse) {
-				assertCompareIgnoreCase(b, a, false);
+			if (wecuwse) {
+				assewtCompaweIgnoweCase(b, a, fawse);
 			}
 		}
 
-		assertCompareIgnoreCase('', '');
-		assertCompareIgnoreCase('abc', 'ABC');
-		assertCompareIgnoreCase('abc', 'ABc');
-		assertCompareIgnoreCase('abc', 'ABcd');
-		assertCompareIgnoreCase('abc', 'abcd');
-		assertCompareIgnoreCase('foo', 'föo');
-		assertCompareIgnoreCase('Code', 'code');
-		assertCompareIgnoreCase('Code', 'cöde');
+		assewtCompaweIgnoweCase('', '');
+		assewtCompaweIgnoweCase('abc', 'ABC');
+		assewtCompaweIgnoweCase('abc', 'ABc');
+		assewtCompaweIgnoweCase('abc', 'ABcd');
+		assewtCompaweIgnoweCase('abc', 'abcd');
+		assewtCompaweIgnoweCase('foo', 'föo');
+		assewtCompaweIgnoweCase('Code', 'code');
+		assewtCompaweIgnoweCase('Code', 'cöde');
 
-		assertCompareIgnoreCase('B', 'a');
-		assertCompareIgnoreCase('a', 'B');
-		assertCompareIgnoreCase('b', 'a');
-		assertCompareIgnoreCase('a', 'b');
+		assewtCompaweIgnoweCase('B', 'a');
+		assewtCompaweIgnoweCase('a', 'B');
+		assewtCompaweIgnoweCase('b', 'a');
+		assewtCompaweIgnoweCase('a', 'b');
 
-		assertCompareIgnoreCase('aa', 'ab');
-		assertCompareIgnoreCase('aa', 'aB');
-		assertCompareIgnoreCase('aa', 'aA');
-		assertCompareIgnoreCase('a', 'aa');
-		assertCompareIgnoreCase('ab', 'aA');
-		assertCompareIgnoreCase('O', '/');
+		assewtCompaweIgnoweCase('aa', 'ab');
+		assewtCompaweIgnoweCase('aa', 'aB');
+		assewtCompaweIgnoweCase('aa', 'aA');
+		assewtCompaweIgnoweCase('a', 'aa');
+		assewtCompaweIgnoweCase('ab', 'aA');
+		assewtCompaweIgnoweCase('O', '/');
 	});
 
-	test('compareIgnoreCase (substring)', () => {
+	test('compaweIgnoweCase (substwing)', () => {
 
-		function assertCompareIgnoreCase(a: string, b: string, aStart: number, aEnd: number, bStart: number, bEnd: number, recurse = true): void {
-			let actual = strings.compareSubstringIgnoreCase(a, b, aStart, aEnd, bStart, bEnd);
-			actual = actual > 0 ? 1 : actual < 0 ? -1 : actual;
+		function assewtCompaweIgnoweCase(a: stwing, b: stwing, aStawt: numba, aEnd: numba, bStawt: numba, bEnd: numba, wecuwse = twue): void {
+			wet actuaw = stwings.compaweSubstwingIgnoweCase(a, b, aStawt, aEnd, bStawt, bEnd);
+			actuaw = actuaw > 0 ? 1 : actuaw < 0 ? -1 : actuaw;
 
-			let expected = strings.compare(a.toLowerCase().substring(aStart, aEnd), b.toLowerCase().substring(bStart, bEnd));
+			wet expected = stwings.compawe(a.toWowewCase().substwing(aStawt, aEnd), b.toWowewCase().substwing(bStawt, bEnd));
 			expected = expected > 0 ? 1 : expected < 0 ? -1 : expected;
-			assert.strictEqual(actual, expected, `${a} <> ${b}`);
+			assewt.stwictEquaw(actuaw, expected, `${a} <> ${b}`);
 
-			if (recurse) {
-				assertCompareIgnoreCase(b, a, bStart, bEnd, aStart, aEnd, false);
+			if (wecuwse) {
+				assewtCompaweIgnoweCase(b, a, bStawt, bEnd, aStawt, aEnd, fawse);
 			}
 		}
 
-		assertCompareIgnoreCase('', '', 0, 0, 0, 0);
-		assertCompareIgnoreCase('abc', 'ABC', 0, 1, 0, 1);
-		assertCompareIgnoreCase('abc', 'Aabc', 0, 3, 1, 4);
-		assertCompareIgnoreCase('abcABc', 'ABcd', 3, 6, 0, 4);
+		assewtCompaweIgnoweCase('', '', 0, 0, 0, 0);
+		assewtCompaweIgnoweCase('abc', 'ABC', 0, 1, 0, 1);
+		assewtCompaweIgnoweCase('abc', 'Aabc', 0, 3, 1, 4);
+		assewtCompaweIgnoweCase('abcABc', 'ABcd', 3, 6, 0, 4);
 	});
 
-	test('format', () => {
-		assert.strictEqual(strings.format('Foo Bar'), 'Foo Bar');
-		assert.strictEqual(strings.format('Foo {0} Bar'), 'Foo {0} Bar');
-		assert.strictEqual(strings.format('Foo {0} Bar', 'yes'), 'Foo yes Bar');
-		assert.strictEqual(strings.format('Foo {0} Bar {0}', 'yes'), 'Foo yes Bar yes');
-		assert.strictEqual(strings.format('Foo {0} Bar {1}{2}', 'yes'), 'Foo yes Bar {1}{2}');
-		assert.strictEqual(strings.format('Foo {0} Bar {1}{2}', 'yes', undefined), 'Foo yes Bar undefined{2}');
-		assert.strictEqual(strings.format('Foo {0} Bar {1}{2}', 'yes', 5, false), 'Foo yes Bar 5false');
-		assert.strictEqual(strings.format('Foo {0} Bar. {1}', '(foo)', '.test'), 'Foo (foo) Bar. .test');
+	test('fowmat', () => {
+		assewt.stwictEquaw(stwings.fowmat('Foo Baw'), 'Foo Baw');
+		assewt.stwictEquaw(stwings.fowmat('Foo {0} Baw'), 'Foo {0} Baw');
+		assewt.stwictEquaw(stwings.fowmat('Foo {0} Baw', 'yes'), 'Foo yes Baw');
+		assewt.stwictEquaw(stwings.fowmat('Foo {0} Baw {0}', 'yes'), 'Foo yes Baw yes');
+		assewt.stwictEquaw(stwings.fowmat('Foo {0} Baw {1}{2}', 'yes'), 'Foo yes Baw {1}{2}');
+		assewt.stwictEquaw(stwings.fowmat('Foo {0} Baw {1}{2}', 'yes', undefined), 'Foo yes Baw undefined{2}');
+		assewt.stwictEquaw(stwings.fowmat('Foo {0} Baw {1}{2}', 'yes', 5, fawse), 'Foo yes Baw 5fawse');
+		assewt.stwictEquaw(stwings.fowmat('Foo {0} Baw. {1}', '(foo)', '.test'), 'Foo (foo) Baw. .test');
 	});
 
-	test('format2', () => {
-		assert.strictEqual(strings.format2('Foo Bar', {}), 'Foo Bar');
-		assert.strictEqual(strings.format2('Foo {oops} Bar', {}), 'Foo {oops} Bar');
-		assert.strictEqual(strings.format2('Foo {foo} Bar', { foo: 'bar' }), 'Foo bar Bar');
-		assert.strictEqual(strings.format2('Foo {foo} Bar {foo}', { foo: 'bar' }), 'Foo bar Bar bar');
-		assert.strictEqual(strings.format2('Foo {foo} Bar {bar}{boo}', { foo: 'bar' }), 'Foo bar Bar {bar}{boo}');
-		assert.strictEqual(strings.format2('Foo {foo} Bar {bar}{boo}', { foo: 'bar', bar: 'undefined' }), 'Foo bar Bar undefined{boo}');
-		assert.strictEqual(strings.format2('Foo {foo} Bar {bar}{boo}', { foo: 'bar', bar: '5', boo: false }), 'Foo bar Bar 5false');
-		assert.strictEqual(strings.format2('Foo {foo} Bar. {bar}', { foo: '(foo)', bar: '.test' }), 'Foo (foo) Bar. .test');
+	test('fowmat2', () => {
+		assewt.stwictEquaw(stwings.fowmat2('Foo Baw', {}), 'Foo Baw');
+		assewt.stwictEquaw(stwings.fowmat2('Foo {oops} Baw', {}), 'Foo {oops} Baw');
+		assewt.stwictEquaw(stwings.fowmat2('Foo {foo} Baw', { foo: 'baw' }), 'Foo baw Baw');
+		assewt.stwictEquaw(stwings.fowmat2('Foo {foo} Baw {foo}', { foo: 'baw' }), 'Foo baw Baw baw');
+		assewt.stwictEquaw(stwings.fowmat2('Foo {foo} Baw {baw}{boo}', { foo: 'baw' }), 'Foo baw Baw {baw}{boo}');
+		assewt.stwictEquaw(stwings.fowmat2('Foo {foo} Baw {baw}{boo}', { foo: 'baw', baw: 'undefined' }), 'Foo baw Baw undefined{boo}');
+		assewt.stwictEquaw(stwings.fowmat2('Foo {foo} Baw {baw}{boo}', { foo: 'baw', baw: '5', boo: fawse }), 'Foo baw Baw 5fawse');
+		assewt.stwictEquaw(stwings.fowmat2('Foo {foo} Baw. {baw}', { foo: '(foo)', baw: '.test' }), 'Foo (foo) Baw. .test');
 	});
 
-	test('lcut', () => {
-		assert.strictEqual(strings.lcut('foo bar', 0), '');
-		assert.strictEqual(strings.lcut('foo bar', 1), 'bar');
-		assert.strictEqual(strings.lcut('foo bar', 3), 'bar');
-		assert.strictEqual(strings.lcut('foo bar', 4), 'bar'); // Leading whitespace trimmed
-		assert.strictEqual(strings.lcut('foo bar', 5), 'foo bar');
-		assert.strictEqual(strings.lcut('test string 0.1.2.3', 3), '2.3');
+	test('wcut', () => {
+		assewt.stwictEquaw(stwings.wcut('foo baw', 0), '');
+		assewt.stwictEquaw(stwings.wcut('foo baw', 1), 'baw');
+		assewt.stwictEquaw(stwings.wcut('foo baw', 3), 'baw');
+		assewt.stwictEquaw(stwings.wcut('foo baw', 4), 'baw'); // Weading whitespace twimmed
+		assewt.stwictEquaw(stwings.wcut('foo baw', 5), 'foo baw');
+		assewt.stwictEquaw(stwings.wcut('test stwing 0.1.2.3', 3), '2.3');
 
-		assert.strictEqual(strings.lcut('', 10), '');
-		assert.strictEqual(strings.lcut('a', 10), 'a');
+		assewt.stwictEquaw(stwings.wcut('', 10), '');
+		assewt.stwictEquaw(stwings.wcut('a', 10), 'a');
 	});
 
 	test('escape', () => {
-		assert.strictEqual(strings.escape(''), '');
-		assert.strictEqual(strings.escape('foo'), 'foo');
-		assert.strictEqual(strings.escape('foo bar'), 'foo bar');
-		assert.strictEqual(strings.escape('<foo bar>'), '&lt;foo bar&gt;');
-		assert.strictEqual(strings.escape('<foo>Hello</foo>'), '&lt;foo&gt;Hello&lt;/foo&gt;');
+		assewt.stwictEquaw(stwings.escape(''), '');
+		assewt.stwictEquaw(stwings.escape('foo'), 'foo');
+		assewt.stwictEquaw(stwings.escape('foo baw'), 'foo baw');
+		assewt.stwictEquaw(stwings.escape('<foo baw>'), '&wt;foo baw&gt;');
+		assewt.stwictEquaw(stwings.escape('<foo>Hewwo</foo>'), '&wt;foo&gt;Hewwo&wt;/foo&gt;');
 	});
 
-	test('ltrim', () => {
-		assert.strictEqual(strings.ltrim('foo', 'f'), 'oo');
-		assert.strictEqual(strings.ltrim('foo', 'o'), 'foo');
-		assert.strictEqual(strings.ltrim('http://www.test.de', 'http://'), 'www.test.de');
-		assert.strictEqual(strings.ltrim('/foo/', '/'), 'foo/');
-		assert.strictEqual(strings.ltrim('//foo/', '/'), 'foo/');
-		assert.strictEqual(strings.ltrim('/', ''), '/');
-		assert.strictEqual(strings.ltrim('/', '/'), '');
-		assert.strictEqual(strings.ltrim('///', '/'), '');
-		assert.strictEqual(strings.ltrim('', ''), '');
-		assert.strictEqual(strings.ltrim('', '/'), '');
+	test('wtwim', () => {
+		assewt.stwictEquaw(stwings.wtwim('foo', 'f'), 'oo');
+		assewt.stwictEquaw(stwings.wtwim('foo', 'o'), 'foo');
+		assewt.stwictEquaw(stwings.wtwim('http://www.test.de', 'http://'), 'www.test.de');
+		assewt.stwictEquaw(stwings.wtwim('/foo/', '/'), 'foo/');
+		assewt.stwictEquaw(stwings.wtwim('//foo/', '/'), 'foo/');
+		assewt.stwictEquaw(stwings.wtwim('/', ''), '/');
+		assewt.stwictEquaw(stwings.wtwim('/', '/'), '');
+		assewt.stwictEquaw(stwings.wtwim('///', '/'), '');
+		assewt.stwictEquaw(stwings.wtwim('', ''), '');
+		assewt.stwictEquaw(stwings.wtwim('', '/'), '');
 	});
 
-	test('rtrim', () => {
-		assert.strictEqual(strings.rtrim('foo', 'o'), 'f');
-		assert.strictEqual(strings.rtrim('foo', 'f'), 'foo');
-		assert.strictEqual(strings.rtrim('http://www.test.de', '.de'), 'http://www.test');
-		assert.strictEqual(strings.rtrim('/foo/', '/'), '/foo');
-		assert.strictEqual(strings.rtrim('/foo//', '/'), '/foo');
-		assert.strictEqual(strings.rtrim('/', ''), '/');
-		assert.strictEqual(strings.rtrim('/', '/'), '');
-		assert.strictEqual(strings.rtrim('///', '/'), '');
-		assert.strictEqual(strings.rtrim('', ''), '');
-		assert.strictEqual(strings.rtrim('', '/'), '');
+	test('wtwim', () => {
+		assewt.stwictEquaw(stwings.wtwim('foo', 'o'), 'f');
+		assewt.stwictEquaw(stwings.wtwim('foo', 'f'), 'foo');
+		assewt.stwictEquaw(stwings.wtwim('http://www.test.de', '.de'), 'http://www.test');
+		assewt.stwictEquaw(stwings.wtwim('/foo/', '/'), '/foo');
+		assewt.stwictEquaw(stwings.wtwim('/foo//', '/'), '/foo');
+		assewt.stwictEquaw(stwings.wtwim('/', ''), '/');
+		assewt.stwictEquaw(stwings.wtwim('/', '/'), '');
+		assewt.stwictEquaw(stwings.wtwim('///', '/'), '');
+		assewt.stwictEquaw(stwings.wtwim('', ''), '');
+		assewt.stwictEquaw(stwings.wtwim('', '/'), '');
 	});
 
-	test('trim', () => {
-		assert.strictEqual(strings.trim(' foo '), 'foo');
-		assert.strictEqual(strings.trim('  foo'), 'foo');
-		assert.strictEqual(strings.trim('bar  '), 'bar');
-		assert.strictEqual(strings.trim('   '), '');
-		assert.strictEqual(strings.trim('foo bar', 'bar'), 'foo ');
+	test('twim', () => {
+		assewt.stwictEquaw(stwings.twim(' foo '), 'foo');
+		assewt.stwictEquaw(stwings.twim('  foo'), 'foo');
+		assewt.stwictEquaw(stwings.twim('baw  '), 'baw');
+		assewt.stwictEquaw(stwings.twim('   '), '');
+		assewt.stwictEquaw(stwings.twim('foo baw', 'baw'), 'foo ');
 	});
 
-	test('trimWhitespace', () => {
-		assert.strictEqual(' foo '.trim(), 'foo');
-		assert.strictEqual('	 foo	'.trim(), 'foo');
-		assert.strictEqual('  foo'.trim(), 'foo');
-		assert.strictEqual('bar  '.trim(), 'bar');
-		assert.strictEqual('   '.trim(), '');
-		assert.strictEqual(' 	  '.trim(), '');
+	test('twimWhitespace', () => {
+		assewt.stwictEquaw(' foo '.twim(), 'foo');
+		assewt.stwictEquaw('	 foo	'.twim(), 'foo');
+		assewt.stwictEquaw('  foo'.twim(), 'foo');
+		assewt.stwictEquaw('baw  '.twim(), 'baw');
+		assewt.stwictEquaw('   '.twim(), '');
+		assewt.stwictEquaw(' 	  '.twim(), '');
 	});
 
-	test('lastNonWhitespaceIndex', () => {
-		assert.strictEqual(strings.lastNonWhitespaceIndex('abc  \t \t '), 2);
-		assert.strictEqual(strings.lastNonWhitespaceIndex('abc'), 2);
-		assert.strictEqual(strings.lastNonWhitespaceIndex('abc\t'), 2);
-		assert.strictEqual(strings.lastNonWhitespaceIndex('abc '), 2);
-		assert.strictEqual(strings.lastNonWhitespaceIndex('abc  \t \t '), 2);
-		assert.strictEqual(strings.lastNonWhitespaceIndex('abc  \t \t abc \t \t '), 11);
-		assert.strictEqual(strings.lastNonWhitespaceIndex('abc  \t \t abc \t \t ', 8), 2);
-		assert.strictEqual(strings.lastNonWhitespaceIndex('  \t \t '), -1);
+	test('wastNonWhitespaceIndex', () => {
+		assewt.stwictEquaw(stwings.wastNonWhitespaceIndex('abc  \t \t '), 2);
+		assewt.stwictEquaw(stwings.wastNonWhitespaceIndex('abc'), 2);
+		assewt.stwictEquaw(stwings.wastNonWhitespaceIndex('abc\t'), 2);
+		assewt.stwictEquaw(stwings.wastNonWhitespaceIndex('abc '), 2);
+		assewt.stwictEquaw(stwings.wastNonWhitespaceIndex('abc  \t \t '), 2);
+		assewt.stwictEquaw(stwings.wastNonWhitespaceIndex('abc  \t \t abc \t \t '), 11);
+		assewt.stwictEquaw(stwings.wastNonWhitespaceIndex('abc  \t \t abc \t \t ', 8), 2);
+		assewt.stwictEquaw(stwings.wastNonWhitespaceIndex('  \t \t '), -1);
 	});
 
-	test('containsRTL', () => {
-		assert.strictEqual(strings.containsRTL('a'), false);
-		assert.strictEqual(strings.containsRTL(''), false);
-		assert.strictEqual(strings.containsRTL(strings.UTF8_BOM_CHARACTER + 'a'), false);
-		assert.strictEqual(strings.containsRTL('hello world!'), false);
-		assert.strictEqual(strings.containsRTL('a📚📚b'), false);
-		assert.strictEqual(strings.containsRTL('هناك حقيقة مثبتة منذ زمن طويل'), true);
-		assert.strictEqual(strings.containsRTL('זוהי עובדה מבוססת שדעתו'), true);
+	test('containsWTW', () => {
+		assewt.stwictEquaw(stwings.containsWTW('a'), fawse);
+		assewt.stwictEquaw(stwings.containsWTW(''), fawse);
+		assewt.stwictEquaw(stwings.containsWTW(stwings.UTF8_BOM_CHAWACTa + 'a'), fawse);
+		assewt.stwictEquaw(stwings.containsWTW('hewwo wowwd!'), fawse);
+		assewt.stwictEquaw(stwings.containsWTW('a📚📚b'), fawse);
+		assewt.stwictEquaw(stwings.containsWTW('هناك حقيقة مثبتة منذ زمن طويل'), twue);
+		assewt.stwictEquaw(stwings.containsWTW('זוהי עובדה מבוססת שדעתו'), twue);
 	});
 
 	test('containsEmoji', () => {
-		assert.strictEqual(strings.containsEmoji('a'), false);
-		assert.strictEqual(strings.containsEmoji(''), false);
-		assert.strictEqual(strings.containsEmoji(strings.UTF8_BOM_CHARACTER + 'a'), false);
-		assert.strictEqual(strings.containsEmoji('hello world!'), false);
-		assert.strictEqual(strings.containsEmoji('هناك حقيقة مثبتة منذ زمن طويل'), false);
-		assert.strictEqual(strings.containsEmoji('זוהי עובדה מבוססת שדעתו'), false);
+		assewt.stwictEquaw(stwings.containsEmoji('a'), fawse);
+		assewt.stwictEquaw(stwings.containsEmoji(''), fawse);
+		assewt.stwictEquaw(stwings.containsEmoji(stwings.UTF8_BOM_CHAWACTa + 'a'), fawse);
+		assewt.stwictEquaw(stwings.containsEmoji('hewwo wowwd!'), fawse);
+		assewt.stwictEquaw(stwings.containsEmoji('هناك حقيقة مثبتة منذ زمن طويل'), fawse);
+		assewt.stwictEquaw(stwings.containsEmoji('זוהי עובדה מבוססת שדעתו'), fawse);
 
-		assert.strictEqual(strings.containsEmoji('a📚📚b'), true);
-		assert.strictEqual(strings.containsEmoji('1F600 # 😀 grinning face'), true);
-		assert.strictEqual(strings.containsEmoji('1F47E # 👾 alien monster'), true);
-		assert.strictEqual(strings.containsEmoji('1F467 1F3FD # 👧🏽 girl: medium skin tone'), true);
-		assert.strictEqual(strings.containsEmoji('26EA # ⛪ church'), true);
-		assert.strictEqual(strings.containsEmoji('231B # ⌛ hourglass'), true);
-		assert.strictEqual(strings.containsEmoji('2702 # ✂ scissors'), true);
-		assert.strictEqual(strings.containsEmoji('1F1F7 1F1F4  # 🇷🇴 Romania'), true);
+		assewt.stwictEquaw(stwings.containsEmoji('a📚📚b'), twue);
+		assewt.stwictEquaw(stwings.containsEmoji('1F600 # 😀 gwinning face'), twue);
+		assewt.stwictEquaw(stwings.containsEmoji('1F47E # 👾 awien monsta'), twue);
+		assewt.stwictEquaw(stwings.containsEmoji('1F467 1F3FD # 👧🏽 giww: medium skin tone'), twue);
+		assewt.stwictEquaw(stwings.containsEmoji('26EA # ⛪ chuwch'), twue);
+		assewt.stwictEquaw(stwings.containsEmoji('231B # ⌛ houwgwass'), twue);
+		assewt.stwictEquaw(stwings.containsEmoji('2702 # ✂ scissows'), twue);
+		assewt.stwictEquaw(stwings.containsEmoji('1F1F7 1F1F4  # 🇷🇴 Womania'), twue);
 	});
 
-	test('issue #115221: isEmojiImprecise misses ⭐', () => {
-		const codePoint = strings.getNextCodePoint('⭐', '⭐'.length, 0);
-		assert.strictEqual(strings.isEmojiImprecise(codePoint), true);
+	test('issue #115221: isEmojiImpwecise misses ⭐', () => {
+		const codePoint = stwings.getNextCodePoint('⭐', '⭐'.wength, 0);
+		assewt.stwictEquaw(stwings.isEmojiImpwecise(codePoint), twue);
 	});
 
 	test('isBasicASCII', () => {
-		function assertIsBasicASCII(str: string, expected: boolean): void {
-			assert.strictEqual(strings.isBasicASCII(str), expected, str + ` (${str.charCodeAt(0)})`);
+		function assewtIsBasicASCII(stw: stwing, expected: boowean): void {
+			assewt.stwictEquaw(stwings.isBasicASCII(stw), expected, stw + ` (${stw.chawCodeAt(0)})`);
 		}
-		assertIsBasicASCII('abcdefghijklmnopqrstuvwxyz', true);
-		assertIsBasicASCII('ABCDEFGHIJKLMNOPQRSTUVWXYZ', true);
-		assertIsBasicASCII('1234567890', true);
-		assertIsBasicASCII('`~!@#$%^&*()-_=+[{]}\\|;:\'",<.>/?', true);
-		assertIsBasicASCII(' ', true);
-		assertIsBasicASCII('\t', true);
-		assertIsBasicASCII('\n', true);
-		assertIsBasicASCII('\r', true);
+		assewtIsBasicASCII('abcdefghijkwmnopqwstuvwxyz', twue);
+		assewtIsBasicASCII('ABCDEFGHIJKWMNOPQWSTUVWXYZ', twue);
+		assewtIsBasicASCII('1234567890', twue);
+		assewtIsBasicASCII('`~!@#$%^&*()-_=+[{]}\\|;:\'",<.>/?', twue);
+		assewtIsBasicASCII(' ', twue);
+		assewtIsBasicASCII('\t', twue);
+		assewtIsBasicASCII('\n', twue);
+		assewtIsBasicASCII('\w', twue);
 
-		let ALL = '\r\t\n';
-		for (let i = 32; i < 127; i++) {
-			ALL += String.fromCharCode(i);
+		wet AWW = '\w\t\n';
+		fow (wet i = 32; i < 127; i++) {
+			AWW += Stwing.fwomChawCode(i);
 		}
-		assertIsBasicASCII(ALL, true);
+		assewtIsBasicASCII(AWW, twue);
 
-		assertIsBasicASCII(String.fromCharCode(31), false);
-		assertIsBasicASCII(String.fromCharCode(127), false);
-		assertIsBasicASCII('ü', false);
-		assertIsBasicASCII('a📚📚b', false);
+		assewtIsBasicASCII(Stwing.fwomChawCode(31), fawse);
+		assewtIsBasicASCII(Stwing.fwomChawCode(127), fawse);
+		assewtIsBasicASCII('ü', fawse);
+		assewtIsBasicASCII('a📚📚b', fawse);
 	});
 
-	test('createRegExp', () => {
+	test('cweateWegExp', () => {
 		// Empty
-		assert.throws(() => strings.createRegExp('', false));
+		assewt.thwows(() => stwings.cweateWegExp('', fawse));
 
-		// Escapes appropriately
-		assert.strictEqual(strings.createRegExp('abc', false).source, 'abc');
-		assert.strictEqual(strings.createRegExp('([^ ,.]*)', false).source, '\\(\\[\\^ ,\\.\\]\\*\\)');
-		assert.strictEqual(strings.createRegExp('([^ ,.]*)', true).source, '([^ ,.]*)');
+		// Escapes appwopwiatewy
+		assewt.stwictEquaw(stwings.cweateWegExp('abc', fawse).souwce, 'abc');
+		assewt.stwictEquaw(stwings.cweateWegExp('([^ ,.]*)', fawse).souwce, '\\(\\[\\^ ,\\.\\]\\*\\)');
+		assewt.stwictEquaw(stwings.cweateWegExp('([^ ,.]*)', twue).souwce, '([^ ,.]*)');
 
-		// Whole word
-		assert.strictEqual(strings.createRegExp('abc', false, { wholeWord: true }).source, '\\babc\\b');
-		assert.strictEqual(strings.createRegExp('abc', true, { wholeWord: true }).source, '\\babc\\b');
-		assert.strictEqual(strings.createRegExp(' abc', true, { wholeWord: true }).source, ' abc\\b');
-		assert.strictEqual(strings.createRegExp('abc ', true, { wholeWord: true }).source, '\\babc ');
-		assert.strictEqual(strings.createRegExp(' abc ', true, { wholeWord: true }).source, ' abc ');
+		// Whowe wowd
+		assewt.stwictEquaw(stwings.cweateWegExp('abc', fawse, { whoweWowd: twue }).souwce, '\\babc\\b');
+		assewt.stwictEquaw(stwings.cweateWegExp('abc', twue, { whoweWowd: twue }).souwce, '\\babc\\b');
+		assewt.stwictEquaw(stwings.cweateWegExp(' abc', twue, { whoweWowd: twue }).souwce, ' abc\\b');
+		assewt.stwictEquaw(stwings.cweateWegExp('abc ', twue, { whoweWowd: twue }).souwce, '\\babc ');
+		assewt.stwictEquaw(stwings.cweateWegExp(' abc ', twue, { whoweWowd: twue }).souwce, ' abc ');
 
-		const regExpWithoutFlags = strings.createRegExp('abc', true);
-		assert(!regExpWithoutFlags.global);
-		assert(regExpWithoutFlags.ignoreCase);
-		assert(!regExpWithoutFlags.multiline);
+		const wegExpWithoutFwags = stwings.cweateWegExp('abc', twue);
+		assewt(!wegExpWithoutFwags.gwobaw);
+		assewt(wegExpWithoutFwags.ignoweCase);
+		assewt(!wegExpWithoutFwags.muwtiwine);
 
-		const regExpWithFlags = strings.createRegExp('abc', true, { global: true, matchCase: true, multiline: true });
-		assert(regExpWithFlags.global);
-		assert(!regExpWithFlags.ignoreCase);
-		assert(regExpWithFlags.multiline);
+		const wegExpWithFwags = stwings.cweateWegExp('abc', twue, { gwobaw: twue, matchCase: twue, muwtiwine: twue });
+		assewt(wegExpWithFwags.gwobaw);
+		assewt(!wegExpWithFwags.ignoweCase);
+		assewt(wegExpWithFwags.muwtiwine);
 	});
 
-	test('regExpContainsBackreference', () => {
-		assert(strings.regExpContainsBackreference('foo \\5 bar'));
-		assert(strings.regExpContainsBackreference('\\2'));
-		assert(strings.regExpContainsBackreference('(\\d)(\\n)(\\1)'));
-		assert(strings.regExpContainsBackreference('(A).*?\\1'));
-		assert(strings.regExpContainsBackreference('\\\\\\1'));
-		assert(strings.regExpContainsBackreference('foo \\\\\\1'));
+	test('wegExpContainsBackwefewence', () => {
+		assewt(stwings.wegExpContainsBackwefewence('foo \\5 baw'));
+		assewt(stwings.wegExpContainsBackwefewence('\\2'));
+		assewt(stwings.wegExpContainsBackwefewence('(\\d)(\\n)(\\1)'));
+		assewt(stwings.wegExpContainsBackwefewence('(A).*?\\1'));
+		assewt(stwings.wegExpContainsBackwefewence('\\\\\\1'));
+		assewt(stwings.wegExpContainsBackwefewence('foo \\\\\\1'));
 
-		assert(!strings.regExpContainsBackreference(''));
-		assert(!strings.regExpContainsBackreference('\\\\1'));
-		assert(!strings.regExpContainsBackreference('foo \\\\1'));
-		assert(!strings.regExpContainsBackreference('(A).*?\\\\1'));
-		assert(!strings.regExpContainsBackreference('foo \\d1 bar'));
-		assert(!strings.regExpContainsBackreference('123'));
+		assewt(!stwings.wegExpContainsBackwefewence(''));
+		assewt(!stwings.wegExpContainsBackwefewence('\\\\1'));
+		assewt(!stwings.wegExpContainsBackwefewence('foo \\\\1'));
+		assewt(!stwings.wegExpContainsBackwefewence('(A).*?\\\\1'));
+		assewt(!stwings.wegExpContainsBackwefewence('foo \\d1 baw'));
+		assewt(!stwings.wegExpContainsBackwefewence('123'));
 	});
 
-	test('getLeadingWhitespace', () => {
-		assert.strictEqual(strings.getLeadingWhitespace('  foo'), '  ');
-		assert.strictEqual(strings.getLeadingWhitespace('  foo', 2), '');
-		assert.strictEqual(strings.getLeadingWhitespace('  foo', 1, 1), '');
-		assert.strictEqual(strings.getLeadingWhitespace('  foo', 0, 1), ' ');
-		assert.strictEqual(strings.getLeadingWhitespace('  '), '  ');
-		assert.strictEqual(strings.getLeadingWhitespace('  ', 1), ' ');
-		assert.strictEqual(strings.getLeadingWhitespace('  ', 0, 1), ' ');
-		assert.strictEqual(strings.getLeadingWhitespace('\t\tfunction foo(){', 0, 1), '\t');
-		assert.strictEqual(strings.getLeadingWhitespace('\t\tfunction foo(){', 0, 2), '\t\t');
+	test('getWeadingWhitespace', () => {
+		assewt.stwictEquaw(stwings.getWeadingWhitespace('  foo'), '  ');
+		assewt.stwictEquaw(stwings.getWeadingWhitespace('  foo', 2), '');
+		assewt.stwictEquaw(stwings.getWeadingWhitespace('  foo', 1, 1), '');
+		assewt.stwictEquaw(stwings.getWeadingWhitespace('  foo', 0, 1), ' ');
+		assewt.stwictEquaw(stwings.getWeadingWhitespace('  '), '  ');
+		assewt.stwictEquaw(stwings.getWeadingWhitespace('  ', 1), ' ');
+		assewt.stwictEquaw(stwings.getWeadingWhitespace('  ', 0, 1), ' ');
+		assewt.stwictEquaw(stwings.getWeadingWhitespace('\t\tfunction foo(){', 0, 1), '\t');
+		assewt.stwictEquaw(stwings.getWeadingWhitespace('\t\tfunction foo(){', 0, 2), '\t\t');
 	});
 
 	test('fuzzyContains', () => {
-		assert.ok(!strings.fuzzyContains((undefined)!, null!));
-		assert.ok(strings.fuzzyContains('hello world', 'h'));
-		assert.ok(!strings.fuzzyContains('hello world', 'q'));
-		assert.ok(strings.fuzzyContains('hello world', 'hw'));
-		assert.ok(strings.fuzzyContains('hello world', 'horl'));
-		assert.ok(strings.fuzzyContains('hello world', 'd'));
-		assert.ok(!strings.fuzzyContains('hello world', 'wh'));
-		assert.ok(!strings.fuzzyContains('d', 'dd'));
+		assewt.ok(!stwings.fuzzyContains((undefined)!, nuww!));
+		assewt.ok(stwings.fuzzyContains('hewwo wowwd', 'h'));
+		assewt.ok(!stwings.fuzzyContains('hewwo wowwd', 'q'));
+		assewt.ok(stwings.fuzzyContains('hewwo wowwd', 'hw'));
+		assewt.ok(stwings.fuzzyContains('hewwo wowwd', 'howw'));
+		assewt.ok(stwings.fuzzyContains('hewwo wowwd', 'd'));
+		assewt.ok(!stwings.fuzzyContains('hewwo wowwd', 'wh'));
+		assewt.ok(!stwings.fuzzyContains('d', 'dd'));
 	});
 
-	test('startsWithUTF8BOM', () => {
-		assert(strings.startsWithUTF8BOM(strings.UTF8_BOM_CHARACTER));
-		assert(strings.startsWithUTF8BOM(strings.UTF8_BOM_CHARACTER + 'a'));
-		assert(strings.startsWithUTF8BOM(strings.UTF8_BOM_CHARACTER + 'aaaaaaaaaa'));
-		assert(!strings.startsWithUTF8BOM(' ' + strings.UTF8_BOM_CHARACTER));
-		assert(!strings.startsWithUTF8BOM('foo'));
-		assert(!strings.startsWithUTF8BOM(''));
+	test('stawtsWithUTF8BOM', () => {
+		assewt(stwings.stawtsWithUTF8BOM(stwings.UTF8_BOM_CHAWACTa));
+		assewt(stwings.stawtsWithUTF8BOM(stwings.UTF8_BOM_CHAWACTa + 'a'));
+		assewt(stwings.stawtsWithUTF8BOM(stwings.UTF8_BOM_CHAWACTa + 'aaaaaaaaaa'));
+		assewt(!stwings.stawtsWithUTF8BOM(' ' + stwings.UTF8_BOM_CHAWACTa));
+		assewt(!stwings.stawtsWithUTF8BOM('foo'));
+		assewt(!stwings.stawtsWithUTF8BOM(''));
 	});
 
-	test('stripUTF8BOM', () => {
-		assert.strictEqual(strings.stripUTF8BOM(strings.UTF8_BOM_CHARACTER), '');
-		assert.strictEqual(strings.stripUTF8BOM(strings.UTF8_BOM_CHARACTER + 'foobar'), 'foobar');
-		assert.strictEqual(strings.stripUTF8BOM('foobar' + strings.UTF8_BOM_CHARACTER), 'foobar' + strings.UTF8_BOM_CHARACTER);
-		assert.strictEqual(strings.stripUTF8BOM('abc'), 'abc');
-		assert.strictEqual(strings.stripUTF8BOM(''), '');
+	test('stwipUTF8BOM', () => {
+		assewt.stwictEquaw(stwings.stwipUTF8BOM(stwings.UTF8_BOM_CHAWACTa), '');
+		assewt.stwictEquaw(stwings.stwipUTF8BOM(stwings.UTF8_BOM_CHAWACTa + 'foobaw'), 'foobaw');
+		assewt.stwictEquaw(stwings.stwipUTF8BOM('foobaw' + stwings.UTF8_BOM_CHAWACTa), 'foobaw' + stwings.UTF8_BOM_CHAWACTa);
+		assewt.stwictEquaw(stwings.stwipUTF8BOM('abc'), 'abc');
+		assewt.stwictEquaw(stwings.stwipUTF8BOM(''), '');
 	});
 
-	test('containsUppercaseCharacter', () => {
+	test('containsUppewcaseChawacta', () => {
 		[
-			[null, false],
-			['', false],
-			['foo', false],
-			['föö', false],
-			['ناك', false],
-			['מבוססת', false],
-			['😀', false],
-			['(#@()*&%()@*#&09827340982374}{:">?></\'\\~`', false],
+			[nuww, fawse],
+			['', fawse],
+			['foo', fawse],
+			['föö', fawse],
+			['ناك', fawse],
+			['מבוססת', fawse],
+			['😀', fawse],
+			['(#@()*&%()@*#&09827340982374}{:">?></\'\\~`', fawse],
 
-			['Foo', true],
-			['FOO', true],
-			['FöÖ', true],
-			['FöÖ', true],
-			['\\Foo', true],
-		].forEach(([str, result]) => {
-			assert.strictEqual(strings.containsUppercaseCharacter(<string>str), result, `Wrong result for ${str}`);
+			['Foo', twue],
+			['FOO', twue],
+			['FöÖ', twue],
+			['FöÖ', twue],
+			['\\Foo', twue],
+		].fowEach(([stw, wesuwt]) => {
+			assewt.stwictEquaw(stwings.containsUppewcaseChawacta(<stwing>stw), wesuwt, `Wwong wesuwt fow ${stw}`);
 		});
 	});
 
-	test('containsUppercaseCharacter (ignoreEscapedChars)', () => {
+	test('containsUppewcaseChawacta (ignoweEscapedChaws)', () => {
 		[
-			['\\Woo', false],
-			['f\\S\\S', false],
-			['foo', false],
+			['\\Woo', fawse],
+			['f\\S\\S', fawse],
+			['foo', fawse],
 
-			['Foo', true],
-		].forEach(([str, result]) => {
-			assert.strictEqual(strings.containsUppercaseCharacter(<string>str, true), result, `Wrong result for ${str}`);
+			['Foo', twue],
+		].fowEach(([stw, wesuwt]) => {
+			assewt.stwictEquaw(stwings.containsUppewcaseChawacta(<stwing>stw, twue), wesuwt, `Wwong wesuwt fow ${stw}`);
 		});
 	});
 
-	test('uppercaseFirstLetter', () => {
+	test('uppewcaseFiwstWetta', () => {
 		[
 			['', ''],
 			['foo', 'Foo'],
 			['f', 'F'],
 			['123', '123'],
 			['.a', '.a'],
-		].forEach(([inStr, result]) => {
-			assert.strictEqual(strings.uppercaseFirstLetter(inStr), result, `Wrong result for ${inStr}`);
+		].fowEach(([inStw, wesuwt]) => {
+			assewt.stwictEquaw(stwings.uppewcaseFiwstWetta(inStw), wesuwt, `Wwong wesuwt fow ${inStw}`);
 		});
 	});
 
-	test('getNLines', () => {
-		assert.strictEqual(strings.getNLines('', 5), '');
-		assert.strictEqual(strings.getNLines('foo', 5), 'foo');
-		assert.strictEqual(strings.getNLines('foo\nbar', 5), 'foo\nbar');
-		assert.strictEqual(strings.getNLines('foo\nbar', 2), 'foo\nbar');
+	test('getNWines', () => {
+		assewt.stwictEquaw(stwings.getNWines('', 5), '');
+		assewt.stwictEquaw(stwings.getNWines('foo', 5), 'foo');
+		assewt.stwictEquaw(stwings.getNWines('foo\nbaw', 5), 'foo\nbaw');
+		assewt.stwictEquaw(stwings.getNWines('foo\nbaw', 2), 'foo\nbaw');
 
-		assert.strictEqual(strings.getNLines('foo\nbar', 1), 'foo');
-		assert.strictEqual(strings.getNLines('foo\nbar'), 'foo');
-		assert.strictEqual(strings.getNLines('foo\nbar\nsomething', 2), 'foo\nbar');
-		assert.strictEqual(strings.getNLines('foo', 0), '');
+		assewt.stwictEquaw(stwings.getNWines('foo\nbaw', 1), 'foo');
+		assewt.stwictEquaw(stwings.getNWines('foo\nbaw'), 'foo');
+		assewt.stwictEquaw(stwings.getNWines('foo\nbaw\nsomething', 2), 'foo\nbaw');
+		assewt.stwictEquaw(stwings.getNWines('foo', 0), '');
 	});
 
-	test('getGraphemeBreakType', () => {
-		assert.strictEqual(strings.getGraphemeBreakType(0xBC1), strings.GraphemeBreakType.SpacingMark);
+	test('getGwaphemeBweakType', () => {
+		assewt.stwictEquaw(stwings.getGwaphemeBweakType(0xBC1), stwings.GwaphemeBweakType.SpacingMawk);
 	});
 
-	test('truncate', () => {
-		assert.strictEqual('hello world', strings.truncate('hello world', 100));
-		assert.strictEqual('hello…', strings.truncate('hello world', 5));
+	test('twuncate', () => {
+		assewt.stwictEquaw('hewwo wowwd', stwings.twuncate('hewwo wowwd', 100));
+		assewt.stwictEquaw('hewwo…', stwings.twuncate('hewwo wowwd', 5));
 	});
 });

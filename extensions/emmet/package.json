@@ -1,474 +1,474 @@
 {
   "name": "emmet",
-  "displayName": "Emmet",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "dispwayName": "Emmet",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "^1.13.0"
   },
   "icon": "images/icon.png",
-  "categories": [
-    "Other"
+  "categowies": [
+    "Otha"
   ],
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   },
   "activationEvents": [
-    "onStartupFinished",
-    "onCommand:emmet.expandAbbreviation",
-    "onLanguage:html",
-    "onLanguage:css",
-    "onLanguage:scss",
-    "onLanguage:less"
+    "onStawtupFinished",
+    "onCommand:emmet.expandAbbweviation",
+    "onWanguage:htmw",
+    "onWanguage:css",
+    "onWanguage:scss",
+    "onWanguage:wess"
   ],
   "main": "./out/node/emmetNodeMain",
-  "browser": "./dist/browser/emmetBrowserMain",
-  "contributes": {
-    "configuration": {
+  "bwowsa": "./dist/bwowsa/emmetBwowsewMain",
+  "contwibutes": {
+    "configuwation": {
       "type": "object",
-      "title": "Emmet",
-      "properties": {
-        "emmet.showExpandedAbbreviation": {
+      "titwe": "Emmet",
+      "pwopewties": {
+        "emmet.showExpandedAbbweviation": {
           "type": [
-            "string"
+            "stwing"
           ],
           "enum": [
-            "never",
-            "always",
-            "inMarkupAndStylesheetFilesOnly"
+            "neva",
+            "awways",
+            "inMawkupAndStywesheetFiwesOnwy"
           ],
-          "default": "always",
-          "markdownDescription": "%emmetShowExpandedAbbreviation%"
+          "defauwt": "awways",
+          "mawkdownDescwiption": "%emmetShowExpandedAbbweviation%"
         },
-        "emmet.showAbbreviationSuggestions": {
-          "type": "boolean",
-          "default": true,
-          "markdownDescription": "%emmetShowAbbreviationSuggestions%"
+        "emmet.showAbbweviationSuggestions": {
+          "type": "boowean",
+          "defauwt": twue,
+          "mawkdownDescwiption": "%emmetShowAbbweviationSuggestions%"
         },
-        "emmet.includeLanguages": {
+        "emmet.incwudeWanguages": {
           "type": "object",
-          "additionalProperties": {
-            "type": "string"
+          "additionawPwopewties": {
+            "type": "stwing"
           },
-          "default": {},
-          "markdownDescription": "%emmetIncludeLanguages%"
+          "defauwt": {},
+          "mawkdownDescwiption": "%emmetIncwudeWanguages%"
         },
-        "emmet.variables": {
+        "emmet.vawiabwes": {
           "type": "object",
-          "properties": {
-            "lang": {
-              "type": "string",
-              "default": "en"
+          "pwopewties": {
+            "wang": {
+              "type": "stwing",
+              "defauwt": "en"
             },
-            "charset": {
-              "type": "string",
-              "default": "UTF-8"
+            "chawset": {
+              "type": "stwing",
+              "defauwt": "UTF-8"
             }
           },
-          "additionalProperties": {
-            "type": "string"
+          "additionawPwopewties": {
+            "type": "stwing"
           },
-          "default": {},
-          "markdownDescription": "%emmetVariables%"
+          "defauwt": {},
+          "mawkdownDescwiption": "%emmetVawiabwes%"
         },
-        "emmet.syntaxProfiles": {
+        "emmet.syntaxPwofiwes": {
           "type": "object",
-          "default": {},
-          "markdownDescription": "%emmetSyntaxProfiles%"
+          "defauwt": {},
+          "mawkdownDescwiption": "%emmetSyntaxPwofiwes%"
         },
-        "emmet.excludeLanguages": {
-          "type": "array",
+        "emmet.excwudeWanguages": {
+          "type": "awway",
           "items": {
-            "type": "string"
+            "type": "stwing"
           },
-          "default": [
-            "markdown"
+          "defauwt": [
+            "mawkdown"
           ],
-          "markdownDescription": "%emmetExclude%"
+          "mawkdownDescwiption": "%emmetExcwude%"
         },
         "emmet.extensionsPath": {
-          "type": "array",
+          "type": "awway",
           "items": {
-            "type": "string",
-            "markdownDescription": "%emmetExtensionsPathItem%"
+            "type": "stwing",
+            "mawkdownDescwiption": "%emmetExtensionsPathItem%"
           },
-          "default": [],
-          "markdownDescription": "%emmetExtensionsPath%"
+          "defauwt": [],
+          "mawkdownDescwiption": "%emmetExtensionsPath%"
         },
-        "emmet.triggerExpansionOnTab": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "%emmetTriggerExpansionOnTab%"
+        "emmet.twiggewExpansionOnTab": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "mawkdownDescwiption": "%emmetTwiggewExpansionOnTab%"
         },
-        "emmet.preferences": {
+        "emmet.pwefewences": {
           "type": "object",
-          "default": {},
-          "markdownDescription": "%emmetPreferences%",
-          "properties": {
+          "defauwt": {},
+          "mawkdownDescwiption": "%emmetPwefewences%",
+          "pwopewties": {
             "css.intUnit": {
-              "type": "string",
-              "default": "px",
-              "markdownDescription": "%emmetPreferencesIntUnit%"
+              "type": "stwing",
+              "defauwt": "px",
+              "mawkdownDescwiption": "%emmetPwefewencesIntUnit%"
             },
-            "css.floatUnit": {
-              "type": "string",
-              "default": "em",
-              "markdownDescription": "%emmetPreferencesFloatUnit%"
+            "css.fwoatUnit": {
+              "type": "stwing",
+              "defauwt": "em",
+              "mawkdownDescwiption": "%emmetPwefewencesFwoatUnit%"
             },
-            "css.propertyEnd": {
-              "type": "string",
-              "default": ";",
-              "markdownDescription": "%emmetPreferencesCssAfter%"
+            "css.pwopewtyEnd": {
+              "type": "stwing",
+              "defauwt": ";",
+              "mawkdownDescwiption": "%emmetPwefewencesCssAfta%"
             },
-            "sass.propertyEnd": {
-              "type": "string",
-              "default": "",
-              "markdownDescription": "%emmetPreferencesSassAfter%"
+            "sass.pwopewtyEnd": {
+              "type": "stwing",
+              "defauwt": "",
+              "mawkdownDescwiption": "%emmetPwefewencesSassAfta%"
             },
-            "stylus.propertyEnd": {
-              "type": "string",
-              "default": "",
-              "markdownDescription": "%emmetPreferencesStylusAfter%"
+            "stywus.pwopewtyEnd": {
+              "type": "stwing",
+              "defauwt": "",
+              "mawkdownDescwiption": "%emmetPwefewencesStywusAfta%"
             },
-            "css.valueSeparator": {
-              "type": "string",
-              "default": ": ",
-              "markdownDescription": "%emmetPreferencesCssBetween%"
+            "css.vawueSepawatow": {
+              "type": "stwing",
+              "defauwt": ": ",
+              "mawkdownDescwiption": "%emmetPwefewencesCssBetween%"
             },
-            "sass.valueSeparator": {
-              "type": "string",
-              "default": ": ",
-              "markdownDescription": "%emmetPreferencesSassBetween%"
+            "sass.vawueSepawatow": {
+              "type": "stwing",
+              "defauwt": ": ",
+              "mawkdownDescwiption": "%emmetPwefewencesSassBetween%"
             },
-            "stylus.valueSeparator": {
-              "type": "string",
-              "default": " ",
-              "markdownDescription": "%emmetPreferencesStylusBetween%"
+            "stywus.vawueSepawatow": {
+              "type": "stwing",
+              "defauwt": " ",
+              "mawkdownDescwiption": "%emmetPwefewencesStywusBetween%"
             },
-            "bem.elementSeparator": {
-              "type": "string",
-              "default": "__",
-              "markdownDescription": "%emmetPreferencesBemElementSeparator%"
+            "bem.ewementSepawatow": {
+              "type": "stwing",
+              "defauwt": "__",
+              "mawkdownDescwiption": "%emmetPwefewencesBemEwementSepawatow%"
             },
-            "bem.modifierSeparator": {
-              "type": "string",
-              "default": "_",
-              "markdownDescription": "%emmetPreferencesBemModifierSeparator%"
+            "bem.modifiewSepawatow": {
+              "type": "stwing",
+              "defauwt": "_",
+              "mawkdownDescwiption": "%emmetPwefewencesBemModifiewSepawatow%"
             },
-            "filter.commentBefore": {
-              "type": "string",
-              "default": "",
-              "markdownDescription": "%emmetPreferencesFilterCommentBefore%"
+            "fiwta.commentBefowe": {
+              "type": "stwing",
+              "defauwt": "",
+              "mawkdownDescwiption": "%emmetPwefewencesFiwtewCommentBefowe%"
             },
-            "filter.commentAfter": {
-              "type": "string",
-              "default": "\n<!-- /[#ID][.CLASS] -->",
-              "markdownDescription": "%emmetPreferencesFilterCommentAfter%"
+            "fiwta.commentAfta": {
+              "type": "stwing",
+              "defauwt": "\n<!-- /[#ID][.CWASS] -->",
+              "mawkdownDescwiption": "%emmetPwefewencesFiwtewCommentAfta%"
             },
-            "filter.commentTrigger": {
-              "type": "array",
-              "default": [
+            "fiwta.commentTwigga": {
+              "type": "awway",
+              "defauwt": [
                 "id",
-                "class"
+                "cwass"
               ],
-              "markdownDescription": "%emmetPreferencesFilterCommentTrigger%"
+              "mawkdownDescwiption": "%emmetPwefewencesFiwtewCommentTwigga%"
             },
-            "format.noIndentTags": {
-              "type": "array",
-              "default": [
-                "html"
+            "fowmat.noIndentTags": {
+              "type": "awway",
+              "defauwt": [
+                "htmw"
               ],
-              "markdownDescription": "%emmetPreferencesFormatNoIndentTags%"
+              "mawkdownDescwiption": "%emmetPwefewencesFowmatNoIndentTags%"
             },
-            "format.forceIndentationForTags": {
-              "type": "array",
-              "default": [
+            "fowmat.fowceIndentationFowTags": {
+              "type": "awway",
+              "defauwt": [
                 "body"
               ],
-              "markdownDescription": "%emmetPreferencesFormatForceIndentTags%"
+              "mawkdownDescwiption": "%emmetPwefewencesFowmatFowceIndentTags%"
             },
-            "profile.allowCompactBoolean": {
-              "type": "boolean",
-              "default": false,
-              "markdownDescription": "%emmetPreferencesAllowCompactBoolean%"
+            "pwofiwe.awwowCompactBoowean": {
+              "type": "boowean",
+              "defauwt": fawse,
+              "mawkdownDescwiption": "%emmetPwefewencesAwwowCompactBoowean%"
             },
-            "css.webkitProperties": {
-              "type": "string",
-              "default": null,
-              "markdownDescription": "%emmetPreferencesCssWebkitProperties%"
+            "css.webkitPwopewties": {
+              "type": "stwing",
+              "defauwt": nuww,
+              "mawkdownDescwiption": "%emmetPwefewencesCssWebkitPwopewties%"
             },
-            "css.mozProperties": {
-              "type": "string",
-              "default": null,
-              "markdownDescription": "%emmetPreferencesCssMozProperties%"
+            "css.mozPwopewties": {
+              "type": "stwing",
+              "defauwt": nuww,
+              "mawkdownDescwiption": "%emmetPwefewencesCssMozPwopewties%"
             },
-            "css.oProperties": {
-              "type": "string",
-              "default": null,
-              "markdownDescription": "%emmetPreferencesCssOProperties%"
+            "css.oPwopewties": {
+              "type": "stwing",
+              "defauwt": nuww,
+              "mawkdownDescwiption": "%emmetPwefewencesCssOPwopewties%"
             },
-            "css.msProperties": {
-              "type": "string",
-              "default": null,
-              "markdownDescription": "%emmetPreferencesCssMsProperties%"
+            "css.msPwopewties": {
+              "type": "stwing",
+              "defauwt": nuww,
+              "mawkdownDescwiption": "%emmetPwefewencesCssMsPwopewties%"
             },
-            "css.fuzzySearchMinScore": {
-              "type": "number",
-              "default": 0.3,
-              "markdownDescription": "%emmetPreferencesCssFuzzySearchMinScore%"
+            "css.fuzzySeawchMinScowe": {
+              "type": "numba",
+              "defauwt": 0.3,
+              "mawkdownDescwiption": "%emmetPwefewencesCssFuzzySeawchMinScowe%"
             },
-            "output.inlineBreak": {
-              "type": "number",
-              "default": 0,
-              "markdownDescription": "%emmetPreferencesOutputInlineBreak%"
+            "output.inwineBweak": {
+              "type": "numba",
+              "defauwt": 0,
+              "mawkdownDescwiption": "%emmetPwefewencesOutputInwineBweak%"
             },
-            "output.reverseAttributes": {
-              "type": "boolean",
-              "default": false,
-              "markdownDescription": "%emmetPreferencesOutputReverseAttributes%"
+            "output.wevewseAttwibutes": {
+              "type": "boowean",
+              "defauwt": fawse,
+              "mawkdownDescwiption": "%emmetPwefewencesOutputWevewseAttwibutes%"
             },
-            "output.selfClosingStyle": {
-              "type": "string",
+            "output.sewfCwosingStywe": {
+              "type": "stwing",
               "enum": [
-                "html",
-                "xhtml",
-                "xml"
+                "htmw",
+                "xhtmw",
+                "xmw"
               ],
-              "default": "html",
-              "markdownDescription": "%emmetPreferencesOutputSelfClosingStyle%"
+              "defauwt": "htmw",
+              "mawkdownDescwiption": "%emmetPwefewencesOutputSewfCwosingStywe%"
             },
-            "css.color.short": {
-              "type": "boolean",
-              "default": true,
-              "markdownDescription": "%emmetPreferencesCssColorShort%"
+            "css.cowow.showt": {
+              "type": "boowean",
+              "defauwt": twue,
+              "mawkdownDescwiption": "%emmetPwefewencesCssCowowShowt%"
             }
           }
         },
         "emmet.showSuggestionsAsSnippets": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "%emmetShowSuggestionsAsSnippets%"
+          "type": "boowean",
+          "defauwt": fawse,
+          "mawkdownDescwiption": "%emmetShowSuggestionsAsSnippets%"
         },
-        "emmet.optimizeStylesheetParsing": {
-          "type": "boolean",
-          "default": true,
-          "markdownDescription": "%emmetOptimizeStylesheetParsing%"
+        "emmet.optimizeStywesheetPawsing": {
+          "type": "boowean",
+          "defauwt": twue,
+          "mawkdownDescwiption": "%emmetOptimizeStywesheetPawsing%"
         }
       }
     },
     "commands": [
       {
-        "command": "editor.emmet.action.wrapWithAbbreviation",
-        "title": "%command.wrapWithAbbreviation%",
-        "category": "Emmet"
+        "command": "editow.emmet.action.wwapWithAbbweviation",
+        "titwe": "%command.wwapWithAbbweviation%",
+        "categowy": "Emmet"
       },
       {
-        "command": "editor.emmet.action.removeTag",
-        "title": "%command.removeTag%",
-        "category": "Emmet"
+        "command": "editow.emmet.action.wemoveTag",
+        "titwe": "%command.wemoveTag%",
+        "categowy": "Emmet"
       },
       {
-        "command": "editor.emmet.action.updateTag",
-        "title": "%command.updateTag%",
-        "category": "Emmet"
+        "command": "editow.emmet.action.updateTag",
+        "titwe": "%command.updateTag%",
+        "categowy": "Emmet"
       },
       {
-        "command": "editor.emmet.action.matchTag",
-        "title": "%command.matchTag%",
-        "category": "Emmet"
+        "command": "editow.emmet.action.matchTag",
+        "titwe": "%command.matchTag%",
+        "categowy": "Emmet"
       },
       {
-        "command": "editor.emmet.action.balanceIn",
-        "title": "%command.balanceIn%",
-        "category": "Emmet"
+        "command": "editow.emmet.action.bawanceIn",
+        "titwe": "%command.bawanceIn%",
+        "categowy": "Emmet"
       },
       {
-        "command": "editor.emmet.action.balanceOut",
-        "title": "%command.balanceOut%",
-        "category": "Emmet"
+        "command": "editow.emmet.action.bawanceOut",
+        "titwe": "%command.bawanceOut%",
+        "categowy": "Emmet"
       },
       {
-        "command": "editor.emmet.action.prevEditPoint",
-        "title": "%command.prevEditPoint%",
-        "category": "Emmet"
+        "command": "editow.emmet.action.pwevEditPoint",
+        "titwe": "%command.pwevEditPoint%",
+        "categowy": "Emmet"
       },
       {
-        "command": "editor.emmet.action.nextEditPoint",
-        "title": "%command.nextEditPoint%",
-        "category": "Emmet"
+        "command": "editow.emmet.action.nextEditPoint",
+        "titwe": "%command.nextEditPoint%",
+        "categowy": "Emmet"
       },
       {
-        "command": "editor.emmet.action.mergeLines",
-        "title": "%command.mergeLines%",
-        "category": "Emmet"
+        "command": "editow.emmet.action.mewgeWines",
+        "titwe": "%command.mewgeWines%",
+        "categowy": "Emmet"
       },
       {
-        "command": "editor.emmet.action.selectPrevItem",
-        "title": "%command.selectPrevItem%",
-        "category": "Emmet"
+        "command": "editow.emmet.action.sewectPwevItem",
+        "titwe": "%command.sewectPwevItem%",
+        "categowy": "Emmet"
       },
       {
-        "command": "editor.emmet.action.selectNextItem",
-        "title": "%command.selectNextItem%",
-        "category": "Emmet"
+        "command": "editow.emmet.action.sewectNextItem",
+        "titwe": "%command.sewectNextItem%",
+        "categowy": "Emmet"
       },
       {
-        "command": "editor.emmet.action.splitJoinTag",
-        "title": "%command.splitJoinTag%",
-        "category": "Emmet"
+        "command": "editow.emmet.action.spwitJoinTag",
+        "titwe": "%command.spwitJoinTag%",
+        "categowy": "Emmet"
       },
       {
-        "command": "editor.emmet.action.toggleComment",
-        "title": "%command.toggleComment%",
-        "category": "Emmet"
+        "command": "editow.emmet.action.toggweComment",
+        "titwe": "%command.toggweComment%",
+        "categowy": "Emmet"
       },
       {
-        "command": "editor.emmet.action.evaluateMathExpression",
-        "title": "%command.evaluateMathExpression%",
-        "category": "Emmet"
+        "command": "editow.emmet.action.evawuateMathExpwession",
+        "titwe": "%command.evawuateMathExpwession%",
+        "categowy": "Emmet"
       },
       {
-        "command": "editor.emmet.action.updateImageSize",
-        "title": "%command.updateImageSize%",
-        "category": "Emmet"
+        "command": "editow.emmet.action.updateImageSize",
+        "titwe": "%command.updateImageSize%",
+        "categowy": "Emmet"
       },
       {
-        "command": "editor.emmet.action.incrementNumberByOneTenth",
-        "title": "%command.incrementNumberByOneTenth%",
-        "category": "Emmet"
+        "command": "editow.emmet.action.incwementNumbewByOneTenth",
+        "titwe": "%command.incwementNumbewByOneTenth%",
+        "categowy": "Emmet"
       },
       {
-        "command": "editor.emmet.action.incrementNumberByOne",
-        "title": "%command.incrementNumberByOne%",
-        "category": "Emmet"
+        "command": "editow.emmet.action.incwementNumbewByOne",
+        "titwe": "%command.incwementNumbewByOne%",
+        "categowy": "Emmet"
       },
       {
-        "command": "editor.emmet.action.incrementNumberByTen",
-        "title": "%command.incrementNumberByTen%",
-        "category": "Emmet"
+        "command": "editow.emmet.action.incwementNumbewByTen",
+        "titwe": "%command.incwementNumbewByTen%",
+        "categowy": "Emmet"
       },
       {
-        "command": "editor.emmet.action.decrementNumberByOneTenth",
-        "title": "%command.decrementNumberByOneTenth%",
-        "category": "Emmet"
+        "command": "editow.emmet.action.decwementNumbewByOneTenth",
+        "titwe": "%command.decwementNumbewByOneTenth%",
+        "categowy": "Emmet"
       },
       {
-        "command": "editor.emmet.action.decrementNumberByOne",
-        "title": "%command.decrementNumberByOne%",
-        "category": "Emmet"
+        "command": "editow.emmet.action.decwementNumbewByOne",
+        "titwe": "%command.decwementNumbewByOne%",
+        "categowy": "Emmet"
       },
       {
-        "command": "editor.emmet.action.decrementNumberByTen",
-        "title": "%command.decrementNumberByTen%",
-        "category": "Emmet"
+        "command": "editow.emmet.action.decwementNumbewByTen",
+        "titwe": "%command.decwementNumbewByTen%",
+        "categowy": "Emmet"
       },
       {
-        "command": "editor.emmet.action.reflectCSSValue",
-        "title": "%command.reflectCSSValue%",
-        "category": "Emmet"
+        "command": "editow.emmet.action.wefwectCSSVawue",
+        "titwe": "%command.wefwectCSSVawue%",
+        "categowy": "Emmet"
       },
       {
-        "command": "workbench.action.showEmmetCommands",
-        "title": "%command.showEmmetCommands%",
-        "category": ""
+        "command": "wowkbench.action.showEmmetCommands",
+        "titwe": "%command.showEmmetCommands%",
+        "categowy": ""
       }
     ],
     "menus": {
-      "commandPalette": [
+      "commandPawette": [
         {
-          "command": "editor.emmet.action.wrapWithAbbreviation"
+          "command": "editow.emmet.action.wwapWithAbbweviation"
         },
         {
-          "command": "editor.emmet.action.removeTag"
+          "command": "editow.emmet.action.wemoveTag"
         },
         {
-          "command": "editor.emmet.action.updateTag"
+          "command": "editow.emmet.action.updateTag"
         },
         {
-          "command": "editor.emmet.action.matchTag"
+          "command": "editow.emmet.action.matchTag"
         },
         {
-          "command": "editor.emmet.action.balanceIn"
+          "command": "editow.emmet.action.bawanceIn"
         },
         {
-          "command": "editor.emmet.action.balanceOut"
+          "command": "editow.emmet.action.bawanceOut"
         },
         {
-          "command": "editor.emmet.action.prevEditPoint"
+          "command": "editow.emmet.action.pwevEditPoint"
         },
         {
-          "command": "editor.emmet.action.nextEditPoint"
+          "command": "editow.emmet.action.nextEditPoint"
         },
         {
-          "command": "editor.emmet.action.mergeLines"
+          "command": "editow.emmet.action.mewgeWines"
         },
         {
-          "command": "editor.emmet.action.selectPrevItem"
+          "command": "editow.emmet.action.sewectPwevItem"
         },
         {
-          "command": "editor.emmet.action.selectNextItem"
+          "command": "editow.emmet.action.sewectNextItem"
         },
         {
-          "command": "editor.emmet.action.splitJoinTag"
+          "command": "editow.emmet.action.spwitJoinTag"
         },
         {
-          "command": "editor.emmet.action.toggleComment"
+          "command": "editow.emmet.action.toggweComment"
         },
         {
-          "command": "editor.emmet.action.evaluateMathExpression"
+          "command": "editow.emmet.action.evawuateMathExpwession"
         },
         {
-          "command": "editor.emmet.action.updateImageSize",
-          "when": "resourceScheme =~ /^file$/"
+          "command": "editow.emmet.action.updateImageSize",
+          "when": "wesouwceScheme =~ /^fiwe$/"
         },
         {
-          "command": "editor.emmet.action.incrementNumberByOneTenth"
+          "command": "editow.emmet.action.incwementNumbewByOneTenth"
         },
         {
-          "command": "editor.emmet.action.incrementNumberByOne"
+          "command": "editow.emmet.action.incwementNumbewByOne"
         },
         {
-          "command": "editor.emmet.action.incrementNumberByTen"
+          "command": "editow.emmet.action.incwementNumbewByTen"
         },
         {
-          "command": "editor.emmet.action.decrementNumberByOneTenth"
+          "command": "editow.emmet.action.decwementNumbewByOneTenth"
         },
         {
-          "command": "editor.emmet.action.decrementNumberByOne"
+          "command": "editow.emmet.action.decwementNumbewByOne"
         },
         {
-          "command": "editor.emmet.action.decrementNumberByTen"
+          "command": "editow.emmet.action.decwementNumbewByTen"
         },
         {
-          "command": "editor.emmet.action.reflectCSSValue"
+          "command": "editow.emmet.action.wefwectCSSVawue"
         }
       ]
     }
   },
-  "scripts": {
-    "watch": "gulp watch-extension:emmet",
-    "compile": "gulp compile-extension:emmet",
-    "deps": "yarn add vscode-emmet-helper"
+  "scwipts": {
+    "watch": "guwp watch-extension:emmet",
+    "compiwe": "guwp compiwe-extension:emmet",
+    "deps": "yawn add vscode-emmet-hewpa"
   },
   "devDependencies": {
     "@types/node": "14.x"
   },
   "dependencies": {
-    "@emmetio/abbreviation": "^2.2.0",
-    "@emmetio/css-parser": "ramya-rao-a/css-parser#vscode",
-    "@emmetio/html-matcher": "^0.3.3",
-    "@emmetio/math-expression": "^1.0.4",
+    "@emmetio/abbweviation": "^2.2.0",
+    "@emmetio/css-pawsa": "wamya-wao-a/css-pawsa#vscode",
+    "@emmetio/htmw-matcha": "^0.3.3",
+    "@emmetio/math-expwession": "^1.0.4",
     "image-size": "^0.5.2",
-    "vscode-emmet-helper": "^2.3.0",
-    "vscode-languageserver-textdocument": "^1.0.1"
+    "vscode-emmet-hewpa": "^2.3.0",
+    "vscode-wanguagesewva-textdocument": "^1.0.1"
   },
-  "capabilities": {
-    "virtualWorkspaces": true,
-    "untrustedWorkspaces": {
-      "supported": true
+  "capabiwities": {
+    "viwtuawWowkspaces": twue,
+    "untwustedWowkspaces": {
+      "suppowted": twue
     }
   }
 }

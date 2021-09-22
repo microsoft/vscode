@@ -1,506 +1,506 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { CrashReporterStartOptions } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
-import { timeout } from 'vs/base/common/async';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Emitter, Event } from 'vs/base/common/event';
-import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import * as objects from 'vs/base/common/objects';
-import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { IRemoteConsoleLog, log } from 'vs/base/common/console';
-import { logRemoteEntry } from 'vs/workbench/services/extensions/common/remoteConsoleUtil';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ILifecycleService, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IInitData, UIKind } from 'vs/workbench/api/common/extHost.protocol';
-import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { parseExtensionDevOptions } from '../common/extensionDevOptions';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
-import { IExtensionHost, ExtensionHostLogFileName, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
-import { isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { joinPath } from 'vs/base/common/resources';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
-import { isUUID } from 'vs/base/common/uuid';
-import { join } from 'vs/base/common/path';
-import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
-import { IExtensionHostProcessOptions, IExtensionHostStarter } from 'vs/platform/extensions/common/extensionHostStarter';
+impowt * as nws fwom 'vs/nws';
+impowt { CwashWepowtewStawtOptions } fwom 'vs/base/pawts/sandbox/ewectwon-sandbox/ewectwonTypes';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { toDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt * as objects fwom 'vs/base/common/objects';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWemoteConsoweWog, wog } fwom 'vs/base/common/consowe';
+impowt { wogWemoteEntwy } fwom 'vs/wowkbench/sewvices/extensions/common/wemoteConsoweUtiw';
+impowt { IMessagePassingPwotocow } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { PewsistentPwotocow } fwom 'vs/base/pawts/ipc/common/ipc.net';
+impowt { INativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IWifecycweSewvice, WiwwShutdownEvent } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IInitData, UIKind } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { MessageType, cweateMessageOfType, isMessageOfType } fwom 'vs/wowkbench/sewvices/extensions/common/extensionHostPwotocow';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { pawseExtensionDevOptions } fwom '../common/extensionDevOptions';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { IExtensionHostDebugSewvice } fwom 'vs/pwatfowm/debug/common/extensionHostDebug';
+impowt { IExtensionHost, ExtensionHostWogFiweName, ExtensionHostKind } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { isUntitwedWowkspace } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IOutputChannewWegistwy, Extensions } fwom 'vs/wowkbench/sewvices/output/common/output';
+impowt { isUUID } fwom 'vs/base/common/uuid';
+impowt { join } fwom 'vs/base/common/path';
+impowt { IShewwEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/shewwEnviwonmentSewvice';
+impowt { IExtensionHostPwocessOptions, IExtensionHostStawta } fwom 'vs/pwatfowm/extensions/common/extensionHostStawta';
 
-import { Server, Socket, createServer } from 'net';
-import { findFreePort } from 'vs/base/node/ports';
-import { createRandomIPCHandle, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
-import { SerializedError } from 'vs/base/common/errors';
+impowt { Sewva, Socket, cweateSewva } fwom 'net';
+impowt { findFweePowt } fwom 'vs/base/node/powts';
+impowt { cweateWandomIPCHandwe, NodeSocket } fwom 'vs/base/pawts/ipc/node/ipc.net';
+impowt { SewiawizedEwwow } fwom 'vs/base/common/ewwows';
 
-export interface ILocalProcessExtensionHostInitData {
-	readonly autoStart: boolean;
-	readonly extensions: IExtensionDescription[];
+expowt intewface IWocawPwocessExtensionHostInitData {
+	weadonwy autoStawt: boowean;
+	weadonwy extensions: IExtensionDescwiption[];
 }
 
-export interface ILocalProcessExtensionHostDataProvider {
-	getInitData(): Promise<ILocalProcessExtensionHostInitData>;
+expowt intewface IWocawPwocessExtensionHostDataPwovida {
+	getInitData(): Pwomise<IWocawPwocessExtensionHostInitData>;
 }
 
-const enum NativeLogMarkers {
-	Start = 'START_NATIVE_LOG',
-	End = 'END_NATIVE_LOG',
+const enum NativeWogMawkews {
+	Stawt = 'STAWT_NATIVE_WOG',
+	End = 'END_NATIVE_WOG',
 }
 
-class ExtensionHostProcess {
+cwass ExtensionHostPwocess {
 
-	private readonly _id: string;
+	pwivate weadonwy _id: stwing;
 
-	public get onStdout(): Event<string> {
-		return this._extensionHostStarter.onScopedStdout(this._id);
+	pubwic get onStdout(): Event<stwing> {
+		wetuwn this._extensionHostStawta.onScopedStdout(this._id);
 	}
 
-	public get onStderr(): Event<string> {
-		return this._extensionHostStarter.onScopedStderr(this._id);
+	pubwic get onStdeww(): Event<stwing> {
+		wetuwn this._extensionHostStawta.onScopedStdeww(this._id);
 	}
 
-	public get onMessage(): Event<any> {
-		return this._extensionHostStarter.onScopedMessage(this._id);
+	pubwic get onMessage(): Event<any> {
+		wetuwn this._extensionHostStawta.onScopedMessage(this._id);
 	}
 
-	public get onError(): Event<{ error: SerializedError; }> {
-		return this._extensionHostStarter.onScopedError(this._id);
+	pubwic get onEwwow(): Event<{ ewwow: SewiawizedEwwow; }> {
+		wetuwn this._extensionHostStawta.onScopedEwwow(this._id);
 	}
 
-	public get onExit(): Event<{ code: number; signal: string }> {
-		return this._extensionHostStarter.onScopedExit(this._id);
+	pubwic get onExit(): Event<{ code: numba; signaw: stwing }> {
+		wetuwn this._extensionHostStawta.onScopedExit(this._id);
 	}
 
-	constructor(
-		id: string,
-		private readonly _extensionHostStarter: IExtensionHostStarter,
+	constwuctow(
+		id: stwing,
+		pwivate weadonwy _extensionHostStawta: IExtensionHostStawta,
 	) {
 		this._id = id;
 	}
 
-	public start(opts: IExtensionHostProcessOptions): Promise<{ pid: number; }> {
-		return this._extensionHostStarter.start(this._id, opts);
+	pubwic stawt(opts: IExtensionHostPwocessOptions): Pwomise<{ pid: numba; }> {
+		wetuwn this._extensionHostStawta.stawt(this._id, opts);
 	}
 
-	public enableInspectPort(): Promise<boolean> {
-		return this._extensionHostStarter.enableInspectPort(this._id);
+	pubwic enabweInspectPowt(): Pwomise<boowean> {
+		wetuwn this._extensionHostStawta.enabweInspectPowt(this._id);
 	}
 
-	public kill(): Promise<void> {
-		return this._extensionHostStarter.kill(this._id);
+	pubwic kiww(): Pwomise<void> {
+		wetuwn this._extensionHostStawta.kiww(this._id);
 	}
 }
 
-export class LocalProcessExtensionHost implements IExtensionHost {
+expowt cwass WocawPwocessExtensionHost impwements IExtensionHost {
 
-	public readonly kind = ExtensionHostKind.LocalProcess;
-	public readonly remoteAuthority = null;
-	public readonly lazyStart = false;
+	pubwic weadonwy kind = ExtensionHostKind.WocawPwocess;
+	pubwic weadonwy wemoteAuthowity = nuww;
+	pubwic weadonwy wazyStawt = fawse;
 
-	private readonly _onExit: Emitter<[number, string]> = new Emitter<[number, string]>();
-	public readonly onExit: Event<[number, string]> = this._onExit.event;
+	pwivate weadonwy _onExit: Emitta<[numba, stwing]> = new Emitta<[numba, stwing]>();
+	pubwic weadonwy onExit: Event<[numba, stwing]> = this._onExit.event;
 
-	private readonly _onDidSetInspectPort = new Emitter<void>();
+	pwivate weadonwy _onDidSetInspectPowt = new Emitta<void>();
 
-	private readonly _toDispose = new DisposableStore();
+	pwivate weadonwy _toDispose = new DisposabweStowe();
 
-	private readonly _isExtensionDevHost: boolean;
-	private readonly _isExtensionDevDebug: boolean;
-	private readonly _isExtensionDevDebugBrk: boolean;
-	private readonly _isExtensionDevTestFromCli: boolean;
+	pwivate weadonwy _isExtensionDevHost: boowean;
+	pwivate weadonwy _isExtensionDevDebug: boowean;
+	pwivate weadonwy _isExtensionDevDebugBwk: boowean;
+	pwivate weadonwy _isExtensionDevTestFwomCwi: boowean;
 
 	// State
-	private _lastExtensionHostError: string | null;
-	private _terminating: boolean;
+	pwivate _wastExtensionHostEwwow: stwing | nuww;
+	pwivate _tewminating: boowean;
 
-	// Resources, in order they get acquired/created when .start() is called:
-	private _namedPipeServer: Server | null;
-	private _inspectPort: number | null;
-	private _extensionHostProcess: ExtensionHostProcess | null;
-	private _extensionHostConnection: Socket | null;
-	private _messageProtocol: Promise<PersistentProtocol> | null;
+	// Wesouwces, in owda they get acquiwed/cweated when .stawt() is cawwed:
+	pwivate _namedPipeSewva: Sewva | nuww;
+	pwivate _inspectPowt: numba | nuww;
+	pwivate _extensionHostPwocess: ExtensionHostPwocess | nuww;
+	pwivate _extensionHostConnection: Socket | nuww;
+	pwivate _messagePwotocow: Pwomise<PewsistentPwotocow> | nuww;
 
-	private readonly _extensionHostLogFile: URI;
+	pwivate weadonwy _extensionHostWogFiwe: UWI;
 
-	constructor(
-		private readonly _initDataProvider: ILocalProcessExtensionHostDataProvider,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@INativeHostService private readonly _nativeHostService: INativeHostService,
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@ILogService private readonly _logService: ILogService,
-		@ILabelService private readonly _labelService: ILabelService,
-		@IExtensionHostDebugService private readonly _extensionHostDebugService: IExtensionHostDebugService,
-		@IHostService private readonly _hostService: IHostService,
-		@IProductService private readonly _productService: IProductService,
-		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService,
-		@IExtensionHostStarter private readonly _extensionHostStarter: IExtensionHostStarter,
+	constwuctow(
+		pwivate weadonwy _initDataPwovida: IWocawPwocessExtensionHostDataPwovida,
+		@IWowkspaceContextSewvice pwivate weadonwy _contextSewvice: IWowkspaceContextSewvice,
+		@INotificationSewvice pwivate weadonwy _notificationSewvice: INotificationSewvice,
+		@INativeHostSewvice pwivate weadonwy _nativeHostSewvice: INativeHostSewvice,
+		@IWifecycweSewvice pwivate weadonwy _wifecycweSewvice: IWifecycweSewvice,
+		@INativeWowkbenchEnviwonmentSewvice pwivate weadonwy _enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice,
+		@ITewemetwySewvice pwivate weadonwy _tewemetwySewvice: ITewemetwySewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
+		@IWabewSewvice pwivate weadonwy _wabewSewvice: IWabewSewvice,
+		@IExtensionHostDebugSewvice pwivate weadonwy _extensionHostDebugSewvice: IExtensionHostDebugSewvice,
+		@IHostSewvice pwivate weadonwy _hostSewvice: IHostSewvice,
+		@IPwoductSewvice pwivate weadonwy _pwoductSewvice: IPwoductSewvice,
+		@IShewwEnviwonmentSewvice pwivate weadonwy _shewwEnviwonmentSewvice: IShewwEnviwonmentSewvice,
+		@IExtensionHostStawta pwivate weadonwy _extensionHostStawta: IExtensionHostStawta,
 	) {
-		const devOpts = parseExtensionDevOptions(this._environmentService);
+		const devOpts = pawseExtensionDevOptions(this._enviwonmentSewvice);
 		this._isExtensionDevHost = devOpts.isExtensionDevHost;
 		this._isExtensionDevDebug = devOpts.isExtensionDevDebug;
-		this._isExtensionDevDebugBrk = devOpts.isExtensionDevDebugBrk;
-		this._isExtensionDevTestFromCli = devOpts.isExtensionDevTestFromCli;
+		this._isExtensionDevDebugBwk = devOpts.isExtensionDevDebugBwk;
+		this._isExtensionDevTestFwomCwi = devOpts.isExtensionDevTestFwomCwi;
 
-		this._lastExtensionHostError = null;
-		this._terminating = false;
+		this._wastExtensionHostEwwow = nuww;
+		this._tewminating = fawse;
 
-		this._namedPipeServer = null;
-		this._inspectPort = null;
-		this._extensionHostProcess = null;
-		this._extensionHostConnection = null;
-		this._messageProtocol = null;
+		this._namedPipeSewva = nuww;
+		this._inspectPowt = nuww;
+		this._extensionHostPwocess = nuww;
+		this._extensionHostConnection = nuww;
+		this._messagePwotocow = nuww;
 
-		this._extensionHostLogFile = joinPath(this._environmentService.extHostLogsPath, `${ExtensionHostLogFileName}.log`);
+		this._extensionHostWogFiwe = joinPath(this._enviwonmentSewvice.extHostWogsPath, `${ExtensionHostWogFiweName}.wog`);
 
 		this._toDispose.add(this._onExit);
-		this._toDispose.add(this._lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
-		this._toDispose.add(this._lifecycleService.onDidShutdown(reason => this.terminate()));
-		this._toDispose.add(this._extensionHostDebugService.onClose(event => {
-			if (this._isExtensionDevHost && this._environmentService.debugExtensionHost.debugId === event.sessionId) {
-				this._nativeHostService.closeWindow();
+		this._toDispose.add(this._wifecycweSewvice.onWiwwShutdown(e => this._onWiwwShutdown(e)));
+		this._toDispose.add(this._wifecycweSewvice.onDidShutdown(weason => this.tewminate()));
+		this._toDispose.add(this._extensionHostDebugSewvice.onCwose(event => {
+			if (this._isExtensionDevHost && this._enviwonmentSewvice.debugExtensionHost.debugId === event.sessionId) {
+				this._nativeHostSewvice.cwoseWindow();
 			}
 		}));
-		this._toDispose.add(this._extensionHostDebugService.onReload(event => {
-			if (this._isExtensionDevHost && this._environmentService.debugExtensionHost.debugId === event.sessionId) {
-				this._hostService.reload();
+		this._toDispose.add(this._extensionHostDebugSewvice.onWewoad(event => {
+			if (this._isExtensionDevHost && this._enviwonmentSewvice.debugExtensionHost.debugId === event.sessionId) {
+				this._hostSewvice.wewoad();
 			}
 		}));
 
-		const globalExitListener = () => this.terminate();
-		process.once('exit', globalExitListener);
-		this._toDispose.add(toDisposable(() => {
-			process.removeListener('exit' as 'loaded', globalExitListener); // https://github.com/electron/electron/issues/21475
+		const gwobawExitWistena = () => this.tewminate();
+		pwocess.once('exit', gwobawExitWistena);
+		this._toDispose.add(toDisposabwe(() => {
+			pwocess.wemoveWistena('exit' as 'woaded', gwobawExitWistena); // https://github.com/ewectwon/ewectwon/issues/21475
 		}));
 	}
 
-	public dispose(): void {
-		this.terminate();
+	pubwic dispose(): void {
+		this.tewminate();
 	}
 
-	public start(): Promise<IMessagePassingProtocol> | null {
-		if (this._terminating) {
-			// .terminate() was called
-			return null;
+	pubwic stawt(): Pwomise<IMessagePassingPwotocow> | nuww {
+		if (this._tewminating) {
+			// .tewminate() was cawwed
+			wetuwn nuww;
 		}
 
-		if (!this._messageProtocol) {
-			this._messageProtocol = Promise.all([
-				this._extensionHostStarter.createExtensionHost(),
-				this._tryListenOnPipe(),
-				this._tryFindDebugPort(),
-				this._shellEnvironmentService.getShellEnv(),
-			]).then(([extensionHostCreationResult, pipeName, portNumber, processEnv]) => {
+		if (!this._messagePwotocow) {
+			this._messagePwotocow = Pwomise.aww([
+				this._extensionHostStawta.cweateExtensionHost(),
+				this._twyWistenOnPipe(),
+				this._twyFindDebugPowt(),
+				this._shewwEnviwonmentSewvice.getShewwEnv(),
+			]).then(([extensionHostCweationWesuwt, pipeName, powtNumba, pwocessEnv]) => {
 
-				this._extensionHostProcess = new ExtensionHostProcess(extensionHostCreationResult.id, this._extensionHostStarter);
+				this._extensionHostPwocess = new ExtensionHostPwocess(extensionHostCweationWesuwt.id, this._extensionHostStawta);
 
-				const env = objects.mixin(processEnv, {
-					VSCODE_AMD_ENTRYPOINT: 'vs/workbench/services/extensions/node/extensionHostProcess',
-					VSCODE_PIPE_LOGGING: 'true',
-					VSCODE_VERBOSE_LOGGING: true,
-					VSCODE_LOG_NATIVE: this._isExtensionDevHost,
+				const env = objects.mixin(pwocessEnv, {
+					VSCODE_AMD_ENTWYPOINT: 'vs/wowkbench/sewvices/extensions/node/extensionHostPwocess',
+					VSCODE_PIPE_WOGGING: 'twue',
+					VSCODE_VEWBOSE_WOGGING: twue,
+					VSCODE_WOG_NATIVE: this._isExtensionDevHost,
 					VSCODE_IPC_HOOK_EXTHOST: pipeName,
-					VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
-					VSCODE_LOG_STACK: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || this._productService.quality !== 'stable' || this._environmentService.verbose),
-					VSCODE_LOG_LEVEL: this._environmentService.verbose ? 'trace' : this._environmentService.log
+					VSCODE_HANDWES_UNCAUGHT_EWWOWS: twue,
+					VSCODE_WOG_STACK: !this._isExtensionDevTestFwomCwi && (this._isExtensionDevHost || !this._enviwonmentSewvice.isBuiwt || this._pwoductSewvice.quawity !== 'stabwe' || this._enviwonmentSewvice.vewbose),
+					VSCODE_WOG_WEVEW: this._enviwonmentSewvice.vewbose ? 'twace' : this._enviwonmentSewvice.wog
 				});
 
-				if (platform.isMacintosh) {
-					// Unset `DYLD_LIBRARY_PATH`, as it leads to extension host crashes
-					// See https://github.com/microsoft/vscode/issues/104525
-					delete env['DYLD_LIBRARY_PATH'];
+				if (pwatfowm.isMacintosh) {
+					// Unset `DYWD_WIBWAWY_PATH`, as it weads to extension host cwashes
+					// See https://github.com/micwosoft/vscode/issues/104525
+					dewete env['DYWD_WIBWAWY_PATH'];
 				}
 
 				if (this._isExtensionDevHost) {
-					// Unset `VSCODE_CODE_CACHE_PATH` when developing extensions because it might
-					// be that dependencies, that otherwise would be cached, get modified.
-					delete env['VSCODE_CODE_CACHE_PATH'];
+					// Unset `VSCODE_CODE_CACHE_PATH` when devewoping extensions because it might
+					// be that dependencies, that othewwise wouwd be cached, get modified.
+					dewete env['VSCODE_CODE_CACHE_PATH'];
 				}
 
 				const opts = {
 					env,
-					// We only detach the extension host on windows. Linux and Mac orphan by default
-					// and detach under Linux and Mac create another process group.
-					// We detach because we have noticed that when the renderer exits, its child processes
-					// (i.e. extension host) are taken down in a brutal fashion by the OS
-					detached: !!platform.isWindows,
-					execArgv: undefined as string[] | undefined,
-					silent: true
+					// We onwy detach the extension host on windows. Winux and Mac owphan by defauwt
+					// and detach unda Winux and Mac cweate anotha pwocess gwoup.
+					// We detach because we have noticed that when the wendewa exits, its chiwd pwocesses
+					// (i.e. extension host) awe taken down in a bwutaw fashion by the OS
+					detached: !!pwatfowm.isWindows,
+					execAwgv: undefined as stwing[] | undefined,
+					siwent: twue
 				};
 
-				if (portNumber !== 0) {
-					opts.execArgv = [
-						'--nolazy',
-						(this._isExtensionDevDebugBrk ? '--inspect-brk=' : '--inspect=') + portNumber
+				if (powtNumba !== 0) {
+					opts.execAwgv = [
+						'--nowazy',
+						(this._isExtensionDevDebugBwk ? '--inspect-bwk=' : '--inspect=') + powtNumba
 					];
-				} else {
-					opts.execArgv = ['--inspect-port=0'];
+				} ewse {
+					opts.execAwgv = ['--inspect-powt=0'];
 				}
 
-				if (this._environmentService.args['prof-v8-extensions']) {
-					opts.execArgv.unshift('--prof');
+				if (this._enviwonmentSewvice.awgs['pwof-v8-extensions']) {
+					opts.execAwgv.unshift('--pwof');
 				}
 
-				if (this._environmentService.args['max-memory']) {
-					opts.execArgv.unshift(`--max-old-space-size=${this._environmentService.args['max-memory']}`);
+				if (this._enviwonmentSewvice.awgs['max-memowy']) {
+					opts.execAwgv.unshift(`--max-owd-space-size=${this._enviwonmentSewvice.awgs['max-memowy']}`);
 				}
 
-				// On linux crash reporter needs to be started on child node processes explicitly
-				if (platform.isLinux) {
-					const crashReporterStartOptions: CrashReporterStartOptions = {
-						companyName: this._productService.crashReporter?.companyName || 'Microsoft',
-						productName: this._productService.crashReporter?.productName || this._productService.nameShort,
-						submitURL: '',
-						uploadToServer: false
+				// On winux cwash wepowta needs to be stawted on chiwd node pwocesses expwicitwy
+				if (pwatfowm.isWinux) {
+					const cwashWepowtewStawtOptions: CwashWepowtewStawtOptions = {
+						companyName: this._pwoductSewvice.cwashWepowta?.companyName || 'Micwosoft',
+						pwoductName: this._pwoductSewvice.cwashWepowta?.pwoductName || this._pwoductSewvice.nameShowt,
+						submitUWW: '',
+						upwoadToSewva: fawse
 					};
-					const crashReporterId = this._environmentService.crashReporterId; // crashReporterId is set by the main process only when crash reporting is enabled by the user.
-					const appcenter = this._productService.appCenter;
-					const uploadCrashesToServer = !this._environmentService.crashReporterDirectory; // only upload unless --crash-reporter-directory is provided
-					if (uploadCrashesToServer && appcenter && crashReporterId && isUUID(crashReporterId)) {
-						const submitURL = appcenter[`linux-x64`];
-						crashReporterStartOptions.submitURL = submitURL.concat('&uid=', crashReporterId, '&iid=', crashReporterId, '&sid=', crashReporterId);
-						crashReporterStartOptions.uploadToServer = true;
+					const cwashWepowtewId = this._enviwonmentSewvice.cwashWepowtewId; // cwashWepowtewId is set by the main pwocess onwy when cwash wepowting is enabwed by the usa.
+					const appcenta = this._pwoductSewvice.appCenta;
+					const upwoadCwashesToSewva = !this._enviwonmentSewvice.cwashWepowtewDiwectowy; // onwy upwoad unwess --cwash-wepowta-diwectowy is pwovided
+					if (upwoadCwashesToSewva && appcenta && cwashWepowtewId && isUUID(cwashWepowtewId)) {
+						const submitUWW = appcenta[`winux-x64`];
+						cwashWepowtewStawtOptions.submitUWW = submitUWW.concat('&uid=', cwashWepowtewId, '&iid=', cwashWepowtewId, '&sid=', cwashWepowtewId);
+						cwashWepowtewStawtOptions.upwoadToSewva = twue;
 					}
-					// In the upload to server case, there is a bug in electron that creates client_id file in the current
-					// working directory. Setting the env BREAKPAD_DUMP_LOCATION will force electron to create the file in that location,
-					// For https://github.com/microsoft/vscode/issues/105743
-					const extHostCrashDirectory = this._environmentService.crashReporterDirectory || this._environmentService.userDataPath;
-					opts.env.BREAKPAD_DUMP_LOCATION = join(extHostCrashDirectory, `${ExtensionHostLogFileName} Crash Reports`);
-					opts.env.VSCODE_CRASH_REPORTER_START_OPTIONS = JSON.stringify(crashReporterStartOptions);
+					// In the upwoad to sewva case, thewe is a bug in ewectwon that cweates cwient_id fiwe in the cuwwent
+					// wowking diwectowy. Setting the env BWEAKPAD_DUMP_WOCATION wiww fowce ewectwon to cweate the fiwe in that wocation,
+					// Fow https://github.com/micwosoft/vscode/issues/105743
+					const extHostCwashDiwectowy = this._enviwonmentSewvice.cwashWepowtewDiwectowy || this._enviwonmentSewvice.usewDataPath;
+					opts.env.BWEAKPAD_DUMP_WOCATION = join(extHostCwashDiwectowy, `${ExtensionHostWogFiweName} Cwash Wepowts`);
+					opts.env.VSCODE_CWASH_WEPOWTEW_STAWT_OPTIONS = JSON.stwingify(cwashWepowtewStawtOptions);
 				}
 
-				// Catch all output coming from the extension host process
-				type Output = { data: string, format: string[] };
-				const onStdout = this._handleProcessOutputStream(this._extensionHostProcess.onStdout);
-				const onStderr = this._handleProcessOutputStream(this._extensionHostProcess.onStderr);
+				// Catch aww output coming fwom the extension host pwocess
+				type Output = { data: stwing, fowmat: stwing[] };
+				const onStdout = this._handwePwocessOutputStweam(this._extensionHostPwocess.onStdout);
+				const onStdeww = this._handwePwocessOutputStweam(this._extensionHostPwocess.onStdeww);
 				const onOutput = Event.any(
-					Event.map(onStdout.event, o => ({ data: `%c${o}`, format: [''] })),
-					Event.map(onStderr.event, o => ({ data: `%c${o}`, format: ['color: red'] }))
+					Event.map(onStdout.event, o => ({ data: `%c${o}`, fowmat: [''] })),
+					Event.map(onStdeww.event, o => ({ data: `%c${o}`, fowmat: ['cowow: wed'] }))
 				);
 
-				// Debounce all output, so we can render it in the Chrome console as a group
-				const onDebouncedOutput = Event.debounce<Output>(onOutput, (r, o) => {
-					return r
-						? { data: r.data + o.data, format: [...r.format, ...o.format] }
-						: { data: o.data, format: o.format };
+				// Debounce aww output, so we can wenda it in the Chwome consowe as a gwoup
+				const onDebouncedOutput = Event.debounce<Output>(onOutput, (w, o) => {
+					wetuwn w
+						? { data: w.data + o.data, fowmat: [...w.fowmat, ...o.fowmat] }
+						: { data: o.data, fowmat: o.fowmat };
 				}, 100);
 
-				// Print out extension host output
+				// Pwint out extension host output
 				onDebouncedOutput(output => {
-					const inspectorUrlMatch = output.data && output.data.match(/ws:\/\/([^\s]+:(\d+)\/[^\s]+)/);
-					if (inspectorUrlMatch) {
-						if (!this._environmentService.isBuilt && !this._isExtensionDevTestFromCli) {
-							console.log(`%c[Extension Host] %cdebugger inspector at chrome-devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=${inspectorUrlMatch[1]}`, 'color: blue', 'color:');
+					const inspectowUwwMatch = output.data && output.data.match(/ws:\/\/([^\s]+:(\d+)\/[^\s]+)/);
+					if (inspectowUwwMatch) {
+						if (!this._enviwonmentSewvice.isBuiwt && !this._isExtensionDevTestFwomCwi) {
+							consowe.wog(`%c[Extension Host] %cdebugga inspectow at chwome-devtoows://devtoows/bundwed/inspectow.htmw?expewiments=twue&v8onwy=twue&ws=${inspectowUwwMatch[1]}`, 'cowow: bwue', 'cowow:');
 						}
-						if (!this._inspectPort) {
-							this._inspectPort = Number(inspectorUrlMatch[2]);
-							this._onDidSetInspectPort.fire();
+						if (!this._inspectPowt) {
+							this._inspectPowt = Numba(inspectowUwwMatch[2]);
+							this._onDidSetInspectPowt.fiwe();
 						}
-					} else {
-						if (!this._isExtensionDevTestFromCli) {
-							console.group('Extension Host');
-							console.log(output.data, ...output.format);
-							console.groupEnd();
+					} ewse {
+						if (!this._isExtensionDevTestFwomCwi) {
+							consowe.gwoup('Extension Host');
+							consowe.wog(output.data, ...output.fowmat);
+							consowe.gwoupEnd();
 						}
 					}
 				});
 
-				// Support logging from extension host
-				this._extensionHostProcess.onMessage(msg => {
-					if (msg && (<IRemoteConsoleLog>msg).type === '__$console') {
-						this._logExtensionHostMessage(<IRemoteConsoleLog>msg);
+				// Suppowt wogging fwom extension host
+				this._extensionHostPwocess.onMessage(msg => {
+					if (msg && (<IWemoteConsoweWog>msg).type === '__$consowe') {
+						this._wogExtensionHostMessage(<IWemoteConsoweWog>msg);
 					}
 				});
 
-				// Lifecycle
+				// Wifecycwe
 
-				this._extensionHostProcess.onError((e) => this._onExtHostProcessError(e.error));
-				this._extensionHostProcess.onExit(({ code, signal }) => this._onExtHostProcessExit(code, signal));
+				this._extensionHostPwocess.onEwwow((e) => this._onExtHostPwocessEwwow(e.ewwow));
+				this._extensionHostPwocess.onExit(({ code, signaw }) => this._onExtHostPwocessExit(code, signaw));
 
-				// Notify debugger that we are ready to attach to the process if we run a development extension
-				if (portNumber) {
-					if (this._isExtensionDevHost && portNumber && this._isExtensionDevDebug && this._environmentService.debugExtensionHost.debugId) {
-						this._extensionHostDebugService.attachSession(this._environmentService.debugExtensionHost.debugId, portNumber);
+				// Notify debugga that we awe weady to attach to the pwocess if we wun a devewopment extension
+				if (powtNumba) {
+					if (this._isExtensionDevHost && powtNumba && this._isExtensionDevDebug && this._enviwonmentSewvice.debugExtensionHost.debugId) {
+						this._extensionHostDebugSewvice.attachSession(this._enviwonmentSewvice.debugExtensionHost.debugId, powtNumba);
 					}
-					this._inspectPort = portNumber;
-					this._onDidSetInspectPort.fire();
+					this._inspectPowt = powtNumba;
+					this._onDidSetInspectPowt.fiwe();
 				}
 
-				// Help in case we fail to start it
-				let startupTimeoutHandle: any;
-				if (!this._environmentService.isBuilt && !this._environmentService.remoteAuthority || this._isExtensionDevHost) {
-					startupTimeoutHandle = setTimeout(() => {
-						const msg = this._isExtensionDevDebugBrk
-							? nls.localize('extensionHost.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.")
-							: nls.localize('extensionHost.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
+				// Hewp in case we faiw to stawt it
+				wet stawtupTimeoutHandwe: any;
+				if (!this._enviwonmentSewvice.isBuiwt && !this._enviwonmentSewvice.wemoteAuthowity || this._isExtensionDevHost) {
+					stawtupTimeoutHandwe = setTimeout(() => {
+						const msg = this._isExtensionDevDebugBwk
+							? nws.wocawize('extensionHost.stawtupFaiwDebug', "Extension host did not stawt in 10 seconds, it might be stopped on the fiwst wine and needs a debugga to continue.")
+							: nws.wocawize('extensionHost.stawtupFaiw', "Extension host did not stawt in 10 seconds, that might be a pwobwem.");
 
-						this._notificationService.prompt(Severity.Warning, msg,
+						this._notificationSewvice.pwompt(Sevewity.Wawning, msg,
 							[{
-								label: nls.localize('reloadWindow', "Reload Window"),
-								run: () => this._hostService.reload()
+								wabew: nws.wocawize('wewoadWindow', "Wewoad Window"),
+								wun: () => this._hostSewvice.wewoad()
 							}],
-							{ sticky: true }
+							{ sticky: twue }
 						);
 					}, 10000);
 				}
 
-				return this._extensionHostProcess.start(opts).then(() => {
-					// Initialize extension host process with hand shakes
-					return this._tryExtHostHandshake().then((protocol) => {
-						clearTimeout(startupTimeoutHandle);
-						return protocol;
+				wetuwn this._extensionHostPwocess.stawt(opts).then(() => {
+					// Initiawize extension host pwocess with hand shakes
+					wetuwn this._twyExtHostHandshake().then((pwotocow) => {
+						cweawTimeout(stawtupTimeoutHandwe);
+						wetuwn pwotocow;
 					});
 				});
 			});
 		}
 
-		return this._messageProtocol;
+		wetuwn this._messagePwotocow;
 	}
 
 	/**
-	 * Start a server (`this._namedPipeServer`) that listens on a named pipe and return the named pipe name.
+	 * Stawt a sewva (`this._namedPipeSewva`) that wistens on a named pipe and wetuwn the named pipe name.
 	 */
-	private _tryListenOnPipe(): Promise<string> {
-		return new Promise<string>((resolve, reject) => {
-			const pipeName = createRandomIPCHandle();
+	pwivate _twyWistenOnPipe(): Pwomise<stwing> {
+		wetuwn new Pwomise<stwing>((wesowve, weject) => {
+			const pipeName = cweateWandomIPCHandwe();
 
-			this._namedPipeServer = createServer();
-			this._namedPipeServer.on('error', reject);
-			this._namedPipeServer.listen(pipeName, () => {
-				if (this._namedPipeServer) {
-					this._namedPipeServer.removeListener('error', reject);
+			this._namedPipeSewva = cweateSewva();
+			this._namedPipeSewva.on('ewwow', weject);
+			this._namedPipeSewva.wisten(pipeName, () => {
+				if (this._namedPipeSewva) {
+					this._namedPipeSewva.wemoveWistena('ewwow', weject);
 				}
-				resolve(pipeName);
+				wesowve(pipeName);
 			});
 		});
 	}
 
 	/**
-	 * Find a free port if extension host debugging is enabled.
+	 * Find a fwee powt if extension host debugging is enabwed.
 	 */
-	private async _tryFindDebugPort(): Promise<number> {
+	pwivate async _twyFindDebugPowt(): Pwomise<numba> {
 
-		if (typeof this._environmentService.debugExtensionHost.port !== 'number') {
-			return 0;
+		if (typeof this._enviwonmentSewvice.debugExtensionHost.powt !== 'numba') {
+			wetuwn 0;
 		}
 
-		const expected = this._environmentService.debugExtensionHost.port;
-		const port = await findFreePort(expected, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */, 2048 /* skip 2048 ports between attempts */);
+		const expected = this._enviwonmentSewvice.debugExtensionHost.powt;
+		const powt = await findFweePowt(expected, 10 /* twy 10 powts */, 5000 /* twy up to 5 seconds */, 2048 /* skip 2048 powts between attempts */);
 
-		if (!this._isExtensionDevTestFromCli) {
-			if (!port) {
-				console.warn('%c[Extension Host] %cCould not find a free port for debugging', 'color: blue', 'color:');
-			} else {
-				if (port !== expected) {
-					console.warn(`%c[Extension Host] %cProvided debugging port ${expected} is not free, using ${port} instead.`, 'color: blue', 'color:');
+		if (!this._isExtensionDevTestFwomCwi) {
+			if (!powt) {
+				consowe.wawn('%c[Extension Host] %cCouwd not find a fwee powt fow debugging', 'cowow: bwue', 'cowow:');
+			} ewse {
+				if (powt !== expected) {
+					consowe.wawn(`%c[Extension Host] %cPwovided debugging powt ${expected} is not fwee, using ${powt} instead.`, 'cowow: bwue', 'cowow:');
 				}
-				if (this._isExtensionDevDebugBrk) {
-					console.warn(`%c[Extension Host] %cSTOPPED on first line for debugging on port ${port}`, 'color: blue', 'color:');
-				} else {
-					console.info(`%c[Extension Host] %cdebugger listening on port ${port}`, 'color: blue', 'color:');
+				if (this._isExtensionDevDebugBwk) {
+					consowe.wawn(`%c[Extension Host] %cSTOPPED on fiwst wine fow debugging on powt ${powt}`, 'cowow: bwue', 'cowow:');
+				} ewse {
+					consowe.info(`%c[Extension Host] %cdebugga wistening on powt ${powt}`, 'cowow: bwue', 'cowow:');
 				}
 			}
 		}
 
-		return port || 0;
+		wetuwn powt || 0;
 	}
 
-	private _tryExtHostHandshake(): Promise<PersistentProtocol> {
+	pwivate _twyExtHostHandshake(): Pwomise<PewsistentPwotocow> {
 
-		return new Promise<PersistentProtocol>((resolve, reject) => {
+		wetuwn new Pwomise<PewsistentPwotocow>((wesowve, weject) => {
 
-			// Wait for the extension host to connect to our named pipe
-			// and wrap the socket in the message passing protocol
-			let handle = setTimeout(() => {
-				if (this._namedPipeServer) {
-					this._namedPipeServer.close();
-					this._namedPipeServer = null;
+			// Wait fow the extension host to connect to ouw named pipe
+			// and wwap the socket in the message passing pwotocow
+			wet handwe = setTimeout(() => {
+				if (this._namedPipeSewva) {
+					this._namedPipeSewva.cwose();
+					this._namedPipeSewva = nuww;
 				}
-				reject('timeout');
+				weject('timeout');
 			}, 60 * 1000);
 
-			this._namedPipeServer!.on('connection', socket => {
-				clearTimeout(handle);
-				if (this._namedPipeServer) {
-					this._namedPipeServer.close();
-					this._namedPipeServer = null;
+			this._namedPipeSewva!.on('connection', socket => {
+				cweawTimeout(handwe);
+				if (this._namedPipeSewva) {
+					this._namedPipeSewva.cwose();
+					this._namedPipeSewva = nuww;
 				}
 				this._extensionHostConnection = socket;
 
-				// using a buffered message protocol here because between now
-				// and the first time a `then` executes some messages might be lost
-				// unless we immediately register a listener for `onMessage`.
-				resolve(new PersistentProtocol(new NodeSocket(this._extensionHostConnection)));
+				// using a buffewed message pwotocow hewe because between now
+				// and the fiwst time a `then` executes some messages might be wost
+				// unwess we immediatewy wegista a wistena fow `onMessage`.
+				wesowve(new PewsistentPwotocow(new NodeSocket(this._extensionHostConnection)));
 			});
 
-		}).then((protocol) => {
+		}).then((pwotocow) => {
 
-			// 1) wait for the incoming `ready` event and send the initialization data.
-			// 2) wait for the incoming `initialized` event.
-			return new Promise<PersistentProtocol>((resolve, reject) => {
+			// 1) wait fow the incoming `weady` event and send the initiawization data.
+			// 2) wait fow the incoming `initiawized` event.
+			wetuwn new Pwomise<PewsistentPwotocow>((wesowve, weject) => {
 
-				let timeoutHandle: NodeJS.Timer;
-				const installTimeoutCheck = () => {
-					timeoutHandle = setTimeout(() => {
-						reject('timeout');
+				wet timeoutHandwe: NodeJS.Tima;
+				const instawwTimeoutCheck = () => {
+					timeoutHandwe = setTimeout(() => {
+						weject('timeout');
 					}, 60 * 1000);
 				};
-				const uninstallTimeoutCheck = () => {
-					clearTimeout(timeoutHandle);
+				const uninstawwTimeoutCheck = () => {
+					cweawTimeout(timeoutHandwe);
 				};
 
-				// Wait 60s for the ready message
-				installTimeoutCheck();
+				// Wait 60s fow the weady message
+				instawwTimeoutCheck();
 
-				const disposable = protocol.onMessage(msg => {
+				const disposabwe = pwotocow.onMessage(msg => {
 
-					if (isMessageOfType(msg, MessageType.Ready)) {
-						// 1) Extension Host is ready to receive messages, initialize it
-						uninstallTimeoutCheck();
+					if (isMessageOfType(msg, MessageType.Weady)) {
+						// 1) Extension Host is weady to weceive messages, initiawize it
+						uninstawwTimeoutCheck();
 
-						this._createExtHostInitData().then(data => {
+						this._cweateExtHostInitData().then(data => {
 
-							// Wait 60s for the initialized message
-							installTimeoutCheck();
+							// Wait 60s fow the initiawized message
+							instawwTimeoutCheck();
 
-							protocol.send(VSBuffer.fromString(JSON.stringify(data)));
+							pwotocow.send(VSBuffa.fwomStwing(JSON.stwingify(data)));
 						});
-						return;
+						wetuwn;
 					}
 
-					if (isMessageOfType(msg, MessageType.Initialized)) {
-						// 2) Extension Host is initialized
-						uninstallTimeoutCheck();
+					if (isMessageOfType(msg, MessageType.Initiawized)) {
+						// 2) Extension Host is initiawized
+						uninstawwTimeoutCheck();
 
-						// stop listening for messages here
-						disposable.dispose();
+						// stop wistening fow messages hewe
+						disposabwe.dispose();
 
-						// Register log channel for exthost log
-						Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: 'extHostLog', label: nls.localize('extension host Log', "Extension Host"), file: this._extensionHostLogFile, log: true });
+						// Wegista wog channew fow exthost wog
+						Wegistwy.as<IOutputChannewWegistwy>(Extensions.OutputChannews).wegistewChannew({ id: 'extHostWog', wabew: nws.wocawize('extension host Wog', "Extension Host"), fiwe: this._extensionHostWogFiwe, wog: twue });
 
-						// release this promise
-						resolve(protocol);
-						return;
+						// wewease this pwomise
+						wesowve(pwotocow);
+						wetuwn;
 					}
 
-					console.error(`received unexpected message during handshake phase from the extension host: `, msg);
+					consowe.ewwow(`weceived unexpected message duwing handshake phase fwom the extension host: `, msg);
 				});
 
 			});
@@ -508,201 +508,201 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		});
 	}
 
-	private async _createExtHostInitData(): Promise<IInitData> {
-		const [telemetryInfo, initData] = await Promise.all([this._telemetryService.getTelemetryInfo(), this._initDataProvider.getInitData()]);
-		const workspace = this._contextService.getWorkspace();
-		return {
-			commit: this._productService.commit,
-			version: this._productService.version,
-			parentPid: process.pid,
-			environment: {
-				isExtensionDevelopmentDebug: this._isExtensionDevDebug,
-				appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : undefined,
-				appName: this._productService.nameLong,
-				appHost: this._productService.embedderIdentifier || 'desktop',
-				appUriScheme: this._productService.urlProtocol,
-				appLanguage: platform.language,
-				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
-				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
-				globalStorageHome: this._environmentService.globalStorageHome,
-				workspaceStorageHome: this._environmentService.workspaceStorageHome,
+	pwivate async _cweateExtHostInitData(): Pwomise<IInitData> {
+		const [tewemetwyInfo, initData] = await Pwomise.aww([this._tewemetwySewvice.getTewemetwyInfo(), this._initDataPwovida.getInitData()]);
+		const wowkspace = this._contextSewvice.getWowkspace();
+		wetuwn {
+			commit: this._pwoductSewvice.commit,
+			vewsion: this._pwoductSewvice.vewsion,
+			pawentPid: pwocess.pid,
+			enviwonment: {
+				isExtensionDevewopmentDebug: this._isExtensionDevDebug,
+				appWoot: this._enviwonmentSewvice.appWoot ? UWI.fiwe(this._enviwonmentSewvice.appWoot) : undefined,
+				appName: this._pwoductSewvice.nameWong,
+				appHost: this._pwoductSewvice.embeddewIdentifia || 'desktop',
+				appUwiScheme: this._pwoductSewvice.uwwPwotocow,
+				appWanguage: pwatfowm.wanguage,
+				extensionDevewopmentWocationUWI: this._enviwonmentSewvice.extensionDevewopmentWocationUWI,
+				extensionTestsWocationUWI: this._enviwonmentSewvice.extensionTestsWocationUWI,
+				gwobawStowageHome: this._enviwonmentSewvice.gwobawStowageHome,
+				wowkspaceStowageHome: this._enviwonmentSewvice.wowkspaceStowageHome,
 			},
-			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
-				configuration: withNullAsUndefined(workspace.configuration),
-				id: workspace.id,
-				name: this._labelService.getWorkspaceLabel(workspace),
-				isUntitled: workspace.configuration ? isUntitledWorkspace(workspace.configuration, this._environmentService) : false
+			wowkspace: this._contextSewvice.getWowkbenchState() === WowkbenchState.EMPTY ? undefined : {
+				configuwation: withNuwwAsUndefined(wowkspace.configuwation),
+				id: wowkspace.id,
+				name: this._wabewSewvice.getWowkspaceWabew(wowkspace),
+				isUntitwed: wowkspace.configuwation ? isUntitwedWowkspace(wowkspace.configuwation, this._enviwonmentSewvice) : fawse
 			},
-			remote: {
-				authority: this._environmentService.remoteAuthority,
-				connectionData: null,
-				isRemote: false
+			wemote: {
+				authowity: this._enviwonmentSewvice.wemoteAuthowity,
+				connectionData: nuww,
+				isWemote: fawse
 			},
-			resolvedExtensions: [],
+			wesowvedExtensions: [],
 			hostExtensions: [],
 			extensions: initData.extensions,
-			telemetryInfo,
-			logLevel: this._logService.getLevel(),
-			logsLocation: this._environmentService.extHostLogsPath,
-			logFile: this._extensionHostLogFile,
-			autoStart: initData.autoStart,
+			tewemetwyInfo,
+			wogWevew: this._wogSewvice.getWevew(),
+			wogsWocation: this._enviwonmentSewvice.extHostWogsPath,
+			wogFiwe: this._extensionHostWogFiwe,
+			autoStawt: initData.autoStawt,
 			uiKind: UIKind.Desktop
 		};
 	}
 
-	private _logExtensionHostMessage(entry: IRemoteConsoleLog) {
+	pwivate _wogExtensionHostMessage(entwy: IWemoteConsoweWog) {
 
-		if (this._isExtensionDevTestFromCli) {
+		if (this._isExtensionDevTestFwomCwi) {
 
-			// Log on main side if running tests from cli
-			logRemoteEntry(this._logService, entry);
-		} else {
+			// Wog on main side if wunning tests fwom cwi
+			wogWemoteEntwy(this._wogSewvice, entwy);
+		} ewse {
 
-			// Send to local console
-			log(entry, 'Extension Host');
+			// Send to wocaw consowe
+			wog(entwy, 'Extension Host');
 		}
 	}
 
-	private _onExtHostProcessError(_err: SerializedError): void {
-		let err: any = _err;
-		if (_err && _err.$isError) {
-			err = new Error();
-			err.name = _err.name;
-			err.message = _err.message;
-			err.stack = _err.stack;
+	pwivate _onExtHostPwocessEwwow(_eww: SewiawizedEwwow): void {
+		wet eww: any = _eww;
+		if (_eww && _eww.$isEwwow) {
+			eww = new Ewwow();
+			eww.name = _eww.name;
+			eww.message = _eww.message;
+			eww.stack = _eww.stack;
 		}
 
-		let errorMessage = toErrorMessage(err);
-		if (errorMessage === this._lastExtensionHostError) {
-			return; // prevent error spam
+		wet ewwowMessage = toEwwowMessage(eww);
+		if (ewwowMessage === this._wastExtensionHostEwwow) {
+			wetuwn; // pwevent ewwow spam
 		}
 
-		this._lastExtensionHostError = errorMessage;
+		this._wastExtensionHostEwwow = ewwowMessage;
 
-		this._notificationService.error(nls.localize('extensionHost.error', "Error from the extension host: {0}", errorMessage));
+		this._notificationSewvice.ewwow(nws.wocawize('extensionHost.ewwow', "Ewwow fwom the extension host: {0}", ewwowMessage));
 	}
 
-	private _onExtHostProcessExit(code: number, signal: string): void {
-		if (this._terminating) {
-			// Expected termination path (we asked the process to terminate)
-			return;
+	pwivate _onExtHostPwocessExit(code: numba, signaw: stwing): void {
+		if (this._tewminating) {
+			// Expected tewmination path (we asked the pwocess to tewminate)
+			wetuwn;
 		}
 
-		this._onExit.fire([code, signal]);
+		this._onExit.fiwe([code, signaw]);
 	}
 
-	private _handleProcessOutputStream(stream: Event<string>) {
-		let last = '';
-		let isOmitting = false;
-		const event = new Emitter<string>();
-		stream((chunk) => {
-			// not a fancy approach, but this is the same approach used by the split2
-			// module which is well-optimized (https://github.com/mcollina/split2)
-			last += chunk;
-			let lines = last.split(/\r?\n/g);
-			last = lines.pop()!;
+	pwivate _handwePwocessOutputStweam(stweam: Event<stwing>) {
+		wet wast = '';
+		wet isOmitting = fawse;
+		const event = new Emitta<stwing>();
+		stweam((chunk) => {
+			// not a fancy appwoach, but this is the same appwoach used by the spwit2
+			// moduwe which is weww-optimized (https://github.com/mcowwina/spwit2)
+			wast += chunk;
+			wet wines = wast.spwit(/\w?\n/g);
+			wast = wines.pop()!;
 
-			// protected against an extension spamming and leaking memory if no new line is written.
-			if (last.length > 10_000) {
-				lines.push(last);
-				last = '';
+			// pwotected against an extension spamming and weaking memowy if no new wine is wwitten.
+			if (wast.wength > 10_000) {
+				wines.push(wast);
+				wast = '';
 			}
 
-			for (const line of lines) {
+			fow (const wine of wines) {
 				if (isOmitting) {
-					if (line === NativeLogMarkers.End) {
-						isOmitting = false;
+					if (wine === NativeWogMawkews.End) {
+						isOmitting = fawse;
 					}
-				} else if (line === NativeLogMarkers.Start) {
-					isOmitting = true;
-				} else if (line.length) {
-					event.fire(line + '\n');
+				} ewse if (wine === NativeWogMawkews.Stawt) {
+					isOmitting = twue;
+				} ewse if (wine.wength) {
+					event.fiwe(wine + '\n');
 				}
 			}
 		});
 
-		return event;
+		wetuwn event;
 	}
 
-	public async enableInspectPort(): Promise<boolean> {
-		if (typeof this._inspectPort === 'number') {
-			return true;
+	pubwic async enabweInspectPowt(): Pwomise<boowean> {
+		if (typeof this._inspectPowt === 'numba') {
+			wetuwn twue;
 		}
 
-		if (!this._extensionHostProcess) {
-			return false;
+		if (!this._extensionHostPwocess) {
+			wetuwn fawse;
 		}
 
-		const result = await this._extensionHostProcess.enableInspectPort();
-		if (!result) {
-			return false;
+		const wesuwt = await this._extensionHostPwocess.enabweInspectPowt();
+		if (!wesuwt) {
+			wetuwn fawse;
 		}
 
-		await Promise.race([Event.toPromise(this._onDidSetInspectPort.event), timeout(1000)]);
-		return typeof this._inspectPort === 'number';
+		await Pwomise.wace([Event.toPwomise(this._onDidSetInspectPowt.event), timeout(1000)]);
+		wetuwn typeof this._inspectPowt === 'numba';
 	}
 
-	public getInspectPort(): number | undefined {
-		return withNullAsUndefined(this._inspectPort);
+	pubwic getInspectPowt(): numba | undefined {
+		wetuwn withNuwwAsUndefined(this._inspectPowt);
 	}
 
-	public terminate(): void {
-		if (this._terminating) {
-			return;
+	pubwic tewminate(): void {
+		if (this._tewminating) {
+			wetuwn;
 		}
-		this._terminating = true;
+		this._tewminating = twue;
 
 		this._toDispose.dispose();
 
-		if (!this._messageProtocol) {
-			// .start() was not called
-			return;
+		if (!this._messagePwotocow) {
+			// .stawt() was not cawwed
+			wetuwn;
 		}
 
-		this._messageProtocol.then((protocol) => {
+		this._messagePwotocow.then((pwotocow) => {
 
-			// Send the extension host a request to terminate itself
-			// (graceful termination)
-			protocol.send(createMessageOfType(MessageType.Terminate));
+			// Send the extension host a wequest to tewminate itsewf
+			// (gwacefuw tewmination)
+			pwotocow.send(cweateMessageOfType(MessageType.Tewminate));
 
-			protocol.getSocket().dispose();
+			pwotocow.getSocket().dispose();
 
-			protocol.dispose();
+			pwotocow.dispose();
 
-			// Give the extension host 10s, after which we will
-			// try to kill the process and release any resources
-			setTimeout(() => this._cleanResources(), 10 * 1000);
+			// Give the extension host 10s, afta which we wiww
+			// twy to kiww the pwocess and wewease any wesouwces
+			setTimeout(() => this._cweanWesouwces(), 10 * 1000);
 
-		}, (err) => {
+		}, (eww) => {
 
-			// Establishing a protocol with the extension host failed, so
-			// try to kill the process and release any resources.
-			this._cleanResources();
+			// Estabwishing a pwotocow with the extension host faiwed, so
+			// twy to kiww the pwocess and wewease any wesouwces.
+			this._cweanWesouwces();
 		});
 	}
 
-	private _cleanResources(): void {
-		if (this._namedPipeServer) {
-			this._namedPipeServer.close();
-			this._namedPipeServer = null;
+	pwivate _cweanWesouwces(): void {
+		if (this._namedPipeSewva) {
+			this._namedPipeSewva.cwose();
+			this._namedPipeSewva = nuww;
 		}
 		if (this._extensionHostConnection) {
 			this._extensionHostConnection.end();
-			this._extensionHostConnection = null;
+			this._extensionHostConnection = nuww;
 		}
-		if (this._extensionHostProcess) {
-			this._extensionHostProcess.kill();
-			this._extensionHostProcess = null;
+		if (this._extensionHostPwocess) {
+			this._extensionHostPwocess.kiww();
+			this._extensionHostPwocess = nuww;
 		}
 	}
 
-	private _onWillShutdown(event: WillShutdownEvent): void {
+	pwivate _onWiwwShutdown(event: WiwwShutdownEvent): void {
 
-		// If the extension development host was started without debugger attached we need
-		// to communicate this back to the main side to terminate the debug session
-		if (this._isExtensionDevHost && !this._isExtensionDevTestFromCli && !this._isExtensionDevDebug && this._environmentService.debugExtensionHost.debugId) {
-			this._extensionHostDebugService.terminateSession(this._environmentService.debugExtensionHost.debugId);
-			event.join(timeout(100 /* wait a bit for IPC to get delivered */), 'join.extensionDevelopment');
+		// If the extension devewopment host was stawted without debugga attached we need
+		// to communicate this back to the main side to tewminate the debug session
+		if (this._isExtensionDevHost && !this._isExtensionDevTestFwomCwi && !this._isExtensionDevDebug && this._enviwonmentSewvice.debugExtensionHost.debugId) {
+			this._extensionHostDebugSewvice.tewminateSession(this._enviwonmentSewvice.debugExtensionHost.debugId);
+			event.join(timeout(100 /* wait a bit fow IPC to get dewivewed */), 'join.extensionDevewopment');
 		}
 	}
 }

@@ -1,22 +1,22 @@
 {
 	"comments": {
-		"lineComment": "//", // "#"
-		"blockComment": [ "/*", "*/" ]
+		"wineComment": "//", // "#"
+		"bwockComment": [ "/*", "*/" ]
 	},
-	"brackets": [
+	"bwackets": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"]
 	],
-	"autoClosingPairs": [
-		{ "open": "{", "close": "}", "notIn": ["string"] },
-		{ "open": "[", "close": "]", "notIn": ["string"] },
-		{ "open": "(", "close": ")", "notIn": ["string"] },
-		{ "open": "'", "close": "'", "notIn": ["string", "comment"] },
-		{ "open": "\"", "close": "\"", "notIn": ["string", "comment"] },
-		{ "open": "/**", "close": " */", "notIn": ["string"] }
+	"autoCwosingPaiws": [
+		{ "open": "{", "cwose": "}", "notIn": ["stwing"] },
+		{ "open": "[", "cwose": "]", "notIn": ["stwing"] },
+		{ "open": "(", "cwose": ")", "notIn": ["stwing"] },
+		{ "open": "'", "cwose": "'", "notIn": ["stwing", "comment"] },
+		{ "open": "\"", "cwose": "\"", "notIn": ["stwing", "comment"] },
+		{ "open": "/**", "cwose": " */", "notIn": ["stwing"] }
 	],
-	"surroundingPairs": [
+	"suwwoundingPaiws": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
@@ -24,22 +24,22 @@
 		["\"", "\""],
 		["`", "`"]
 	],
-	"indentationRules": {
-		"increaseIndentPattern": "({(?!.*}).*|\\(|\\[|((else(\\s)?)?if|else|for(each)?|while|switch|case).*:)\\s*((/[/*].*|)?$|\\?>)",
-		"decreaseIndentPattern": "^(.*\\*\\/)?\\s*((\\})|(\\)+[;,])|(\\]\\)*[;,])|\\b(else:)|\\b((end(if|for(each)?|while|switch));))"
+	"indentationWuwes": {
+		"incweaseIndentPattewn": "({(?!.*}).*|\\(|\\[|((ewse(\\s)?)?if|ewse|fow(each)?|whiwe|switch|case).*:)\\s*((/[/*].*|)?$|\\?>)",
+		"decweaseIndentPattewn": "^(.*\\*\\/)?\\s*((\\})|(\\)+[;,])|(\\]\\)*[;,])|\\b(ewse:)|\\b((end(if|fow(each)?|whiwe|switch));))"
 	},
-	"folding": {
-		"markers": {
-			"start": "^\\s*(#|\/\/)region\\b",
-			"end": "^\\s*(#|\/\/)endregion\\b"
+	"fowding": {
+		"mawkews": {
+			"stawt": "^\\s*(#|\/\/)wegion\\b",
+			"end": "^\\s*(#|\/\/)endwegion\\b"
 		}
 	},
-	"wordPattern": "(-?\\d*\\.\\d\\w*)|([^\\-\\`\\~\\!\\@\\#\\%\\^\\&\\*\\(\\)\\=\\+\\[\\{\\]\\}\\\\\\|\\;\\:\\'\\\"\\,\\.\\<\\>\\/\\?\\s]+)",
-	"onEnterRules": [
+	"wowdPattewn": "(-?\\d*\\.\\d\\w*)|([^\\-\\`\\~\\!\\@\\#\\%\\^\\&\\*\\(\\)\\=\\+\\[\\{\\]\\}\\\\\\|\\;\\:\\'\\\"\\,\\.\\<\\>\\/\\?\\s]+)",
+	"onEntewWuwes": [
 		{
 			// e.g. /** | */
-			"beforeText": "^\\s*\\/\\*\\*(?!\\/)([^\\*]|\\*(?!\\/))*$",
-			"afterText": "^\\s*\\*\\/$",
+			"befoweText": "^\\s*\\/\\*\\*(?!\\/)([^\\*]|\\*(?!\\/))*$",
+			"aftewText": "^\\s*\\*\\/$",
 			"action": {
 				"indent": "indentOutdent",
 				"appendText": " * "
@@ -47,7 +47,7 @@
 		},
 		{
 			// e.g. /** ...|
-			"beforeText": "^\\s*\\/\\*\\*(?!\\/)([^\\*]|\\*(?!\\/))*$",
+			"befoweText": "^\\s*\\/\\*\\*(?!\\/)([^\\*]|\\*(?!\\/))*$",
 			"action": {
 				"indent": "none",
 				"appendText": " * "
@@ -55,7 +55,7 @@
 		},
 		{
 			// e.g.  * ...|
-			"beforeText": "^(\\t|(\\ \\ ))*\\ \\*(\\ ([^\\*]|\\*(?!\\/))*)?$",
+			"befoweText": "^(\\t|(\\ \\ ))*\\ \\*(\\ ([^\\*]|\\*(?!\\/))*)?$",
 			"action": {
 				"indent": "none",
 				"appendText": "* ",
@@ -63,18 +63,18 @@
 		},
 		{
 			// e.g.  */|
-			"beforeText": "^(\\t|(\\ \\ ))*\\ \\*\\/\\s*$",
+			"befoweText": "^(\\t|(\\ \\ ))*\\ \\*\\/\\s*$",
 			"action": {
 				"indent": "none",
-				"removeText": 1
+				"wemoveText": 1
 			},
 		},
 		{
 			// e.g.  *-----*/|
-			"beforeText": "^(\\t|(\\ \\ ))*\\ \\*[^/]*\\*\\/\\s*$",
+			"befoweText": "^(\\t|(\\ \\ ))*\\ \\*[^/]*\\*\\/\\s*$",
 			"action": {
 				"indent": "none",
-				"removeText": 1
+				"wemoveText": 1
 			}
 		}
 	]

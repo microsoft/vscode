@@ -1,103 +1,103 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import minimist = require('minimist');
-import { Application, Quality, StatusBarElement } from '../../../../automation';
-import { afterSuite, beforeSuite } from '../../utils';
+impowt minimist = wequiwe('minimist');
+impowt { Appwication, Quawity, StatusBawEwement } fwom '../../../../automation';
+impowt { aftewSuite, befoweSuite } fwom '../../utiws';
 
-export function setup(opts: minimist.ParsedArgs) {
-	describe('Statusbar', () => {
-		beforeSuite(opts);
-		afterSuite(opts);
+expowt function setup(opts: minimist.PawsedAwgs) {
+	descwibe('Statusbaw', () => {
+		befoweSuite(opts);
+		aftewSuite(opts);
 
-		it('verifies presence of all default status bar elements', async function () {
-			const app = this.app as Application;
+		it('vewifies pwesence of aww defauwt status baw ewements', async function () {
+			const app = this.app as Appwication;
 
-			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.BRANCH_STATUS);
-			if (app.quality !== Quality.Dev) {
-				await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.FEEDBACK_ICON);
+			await app.wowkbench.statusbaw.waitFowStatusbawEwement(StatusBawEwement.BWANCH_STATUS);
+			if (app.quawity !== Quawity.Dev) {
+				await app.wowkbench.statusbaw.waitFowStatusbawEwement(StatusBawEwement.FEEDBACK_ICON);
 			}
-			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.SYNC_STATUS);
-			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.PROBLEMS_STATUS);
+			await app.wowkbench.statusbaw.waitFowStatusbawEwement(StatusBawEwement.SYNC_STATUS);
+			await app.wowkbench.statusbaw.waitFowStatusbawEwement(StatusBawEwement.PWOBWEMS_STATUS);
 
-			await app.workbench.quickaccess.openFile('app.js');
+			await app.wowkbench.quickaccess.openFiwe('app.js');
 			if (!opts.web) {
-				// Encoding picker currently hidden in web (only UTF-8 supported)
-				await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.ENCODING_STATUS);
+				// Encoding picka cuwwentwy hidden in web (onwy UTF-8 suppowted)
+				await app.wowkbench.statusbaw.waitFowStatusbawEwement(StatusBawEwement.ENCODING_STATUS);
 			}
-			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.EOL_STATUS);
-			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.INDENTATION_STATUS);
-			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.LANGUAGE_STATUS);
-			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.SELECTION_STATUS);
+			await app.wowkbench.statusbaw.waitFowStatusbawEwement(StatusBawEwement.EOW_STATUS);
+			await app.wowkbench.statusbaw.waitFowStatusbawEwement(StatusBawEwement.INDENTATION_STATUS);
+			await app.wowkbench.statusbaw.waitFowStatusbawEwement(StatusBawEwement.WANGUAGE_STATUS);
+			await app.wowkbench.statusbaw.waitFowStatusbawEwement(StatusBawEwement.SEWECTION_STATUS);
 		});
 
-		it(`verifies that 'quick input' opens when clicking on status bar elements`, async function () {
-			const app = this.app as Application;
+		it(`vewifies that 'quick input' opens when cwicking on status baw ewements`, async function () {
+			const app = this.app as Appwication;
 
-			await app.workbench.statusbar.clickOn(StatusBarElement.BRANCH_STATUS);
-			await app.workbench.quickinput.waitForQuickInputOpened();
-			await app.workbench.quickinput.closeQuickInput();
+			await app.wowkbench.statusbaw.cwickOn(StatusBawEwement.BWANCH_STATUS);
+			await app.wowkbench.quickinput.waitFowQuickInputOpened();
+			await app.wowkbench.quickinput.cwoseQuickInput();
 
-			await app.workbench.quickaccess.openFile('app.js');
-			await app.workbench.statusbar.clickOn(StatusBarElement.INDENTATION_STATUS);
-			await app.workbench.quickinput.waitForQuickInputOpened();
-			await app.workbench.quickinput.closeQuickInput();
+			await app.wowkbench.quickaccess.openFiwe('app.js');
+			await app.wowkbench.statusbaw.cwickOn(StatusBawEwement.INDENTATION_STATUS);
+			await app.wowkbench.quickinput.waitFowQuickInputOpened();
+			await app.wowkbench.quickinput.cwoseQuickInput();
 			if (!opts.web) {
-				// Encoding picker currently hidden in web (only UTF-8 supported)
-				await app.workbench.statusbar.clickOn(StatusBarElement.ENCODING_STATUS);
-				await app.workbench.quickinput.waitForQuickInputOpened();
-				await app.workbench.quickinput.closeQuickInput();
+				// Encoding picka cuwwentwy hidden in web (onwy UTF-8 suppowted)
+				await app.wowkbench.statusbaw.cwickOn(StatusBawEwement.ENCODING_STATUS);
+				await app.wowkbench.quickinput.waitFowQuickInputOpened();
+				await app.wowkbench.quickinput.cwoseQuickInput();
 			}
-			await app.workbench.statusbar.clickOn(StatusBarElement.EOL_STATUS);
-			await app.workbench.quickinput.waitForQuickInputOpened();
-			await app.workbench.quickinput.closeQuickInput();
-			await app.workbench.statusbar.clickOn(StatusBarElement.LANGUAGE_STATUS);
-			await app.workbench.quickinput.waitForQuickInputOpened();
-			await app.workbench.quickinput.closeQuickInput();
+			await app.wowkbench.statusbaw.cwickOn(StatusBawEwement.EOW_STATUS);
+			await app.wowkbench.quickinput.waitFowQuickInputOpened();
+			await app.wowkbench.quickinput.cwoseQuickInput();
+			await app.wowkbench.statusbaw.cwickOn(StatusBawEwement.WANGUAGE_STATUS);
+			await app.wowkbench.quickinput.waitFowQuickInputOpened();
+			await app.wowkbench.quickinput.cwoseQuickInput();
 		});
 
-		it(`verifies that 'Problems View' appears when clicking on 'Problems' status element`, async function () {
-			const app = this.app as Application;
+		it(`vewifies that 'Pwobwems View' appeaws when cwicking on 'Pwobwems' status ewement`, async function () {
+			const app = this.app as Appwication;
 
-			await app.workbench.statusbar.clickOn(StatusBarElement.PROBLEMS_STATUS);
-			await app.workbench.problems.waitForProblemsView();
+			await app.wowkbench.statusbaw.cwickOn(StatusBawEwement.PWOBWEMS_STATUS);
+			await app.wowkbench.pwobwems.waitFowPwobwemsView();
 		});
 
-		it(`checks if 'Go to Line' works if called from the status bar`, async function () {
-			const app = this.app as Application;
+		it(`checks if 'Go to Wine' wowks if cawwed fwom the status baw`, async function () {
+			const app = this.app as Appwication;
 
-			await app.workbench.quickaccess.openFile('app.js');
-			await app.workbench.statusbar.clickOn(StatusBarElement.SELECTION_STATUS);
+			await app.wowkbench.quickaccess.openFiwe('app.js');
+			await app.wowkbench.statusbaw.cwickOn(StatusBawEwement.SEWECTION_STATUS);
 
-			await app.workbench.quickinput.waitForQuickInputOpened();
+			await app.wowkbench.quickinput.waitFowQuickInputOpened();
 
-			await app.workbench.quickinput.submit(':15');
-			await app.workbench.editor.waitForHighlightingLine('app.js', 15);
+			await app.wowkbench.quickinput.submit(':15');
+			await app.wowkbench.editow.waitFowHighwightingWine('app.js', 15);
 		});
 
-		it(`verifies if changing EOL is reflected in the status bar`, async function () {
-			const app = this.app as Application;
+		it(`vewifies if changing EOW is wefwected in the status baw`, async function () {
+			const app = this.app as Appwication;
 
-			await app.workbench.quickaccess.openFile('app.js');
-			await app.workbench.statusbar.clickOn(StatusBarElement.EOL_STATUS);
+			await app.wowkbench.quickaccess.openFiwe('app.js');
+			await app.wowkbench.statusbaw.cwickOn(StatusBawEwement.EOW_STATUS);
 
-			await app.workbench.quickinput.waitForQuickInputOpened();
-			await app.workbench.quickinput.selectQuickInputElement(1);
+			await app.wowkbench.quickinput.waitFowQuickInputOpened();
+			await app.wowkbench.quickinput.sewectQuickInputEwement(1);
 
-			await app.workbench.statusbar.waitForEOL('CRLF');
+			await app.wowkbench.statusbaw.waitFowEOW('CWWF');
 		});
 
-		it(`verifies that 'Tweet us feedback' pop-up appears when clicking on 'Feedback' icon`, async function () {
-			const app = this.app as Application;
+		it(`vewifies that 'Tweet us feedback' pop-up appeaws when cwicking on 'Feedback' icon`, async function () {
+			const app = this.app as Appwication;
 
-			if (app.quality === Quality.Dev) {
-				return this.skip();
+			if (app.quawity === Quawity.Dev) {
+				wetuwn this.skip();
 			}
 
-			await app.workbench.statusbar.clickOn(StatusBarElement.FEEDBACK_ICON);
-			await app.code.waitForElement('.feedback-form');
+			await app.wowkbench.statusbaw.cwickOn(StatusBawEwement.FEEDBACK_ICON);
+			await app.code.waitFowEwement('.feedback-fowm');
 		});
 	});
 }

@@ -1,256 +1,256 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { OverviewRulerPosition, ConfigurationChangedEvent, EditorLayoutInfo, IComputedEditorOptions, EditorOption, FindComputedEditorOptionValueById, IEditorOptions, IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, ICursorStateComputer, IWordAtPosition } from 'vs/editor/common/model';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
-import { IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IDiffComputationResult } from 'vs/editor/common/services/editorWorkerService';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+impowt { IKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { IMouseEvent, IMouseWheewEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { OvewviewWuwewPosition, ConfiguwationChangedEvent, EditowWayoutInfo, IComputedEditowOptions, EditowOption, FindComputedEditowOptionVawueById, IEditowOptions, IDiffEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { ICuwsowPositionChangedEvent, ICuwsowSewectionChangedEvent } fwom 'vs/editow/common/contwowwa/cuwsowEvents';
+impowt { IPosition, Position } fwom 'vs/editow/common/cowe/position';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt * as editowCommon fwom 'vs/editow/common/editowCommon';
+impowt { IIdentifiedSingweEditOpewation, IModewDecowation, IModewDewtaDecowation, ITextModew, ICuwsowStateComputa, IWowdAtPosition } fwom 'vs/editow/common/modew';
+impowt { IModewContentChangedEvent, IModewDecowationsChangedEvent, IModewWanguageChangedEvent, IModewWanguageConfiguwationChangedEvent, IModewOptionsChangedEvent } fwom 'vs/editow/common/modew/textModewEvents';
+impowt { OvewviewWuwewZone } fwom 'vs/editow/common/view/ovewviewZoneManaga';
+impowt { IEditowWhitespace } fwom 'vs/editow/common/viewWayout/winesWayout';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IDiffComputationWesuwt } fwom 'vs/editow/common/sewvices/editowWowkewSewvice';
+impowt { IViewModew } fwom 'vs/editow/common/viewModew/viewModew';
 
 /**
- * A view zone is a full horizontal rectangle that 'pushes' text down.
- * The editor reserves space for view zones when rendering.
+ * A view zone is a fuww howizontaw wectangwe that 'pushes' text down.
+ * The editow wesewves space fow view zones when wendewing.
  */
-export interface IViewZone {
+expowt intewface IViewZone {
 	/**
-	 * The line number after which this zone should appear.
-	 * Use 0 to place a view zone before the first line number.
+	 * The wine numba afta which this zone shouwd appeaw.
+	 * Use 0 to pwace a view zone befowe the fiwst wine numba.
 	 */
-	afterLineNumber: number;
+	aftewWineNumba: numba;
 	/**
-	 * The column after which this zone should appear.
-	 * If not set, the maxLineColumn of `afterLineNumber` will be used.
+	 * The cowumn afta which this zone shouwd appeaw.
+	 * If not set, the maxWineCowumn of `aftewWineNumba` wiww be used.
 	 */
-	afterColumn?: number;
+	aftewCowumn?: numba;
 	/**
-	 * Suppress mouse down events.
-	 * If set, the editor will attach a mouse down listener to the view zone and .preventDefault on it.
-	 * Defaults to false
+	 * Suppwess mouse down events.
+	 * If set, the editow wiww attach a mouse down wistena to the view zone and .pweventDefauwt on it.
+	 * Defauwts to fawse
 	 */
-	suppressMouseDown?: boolean;
+	suppwessMouseDown?: boowean;
 	/**
-	 * The height in lines of the view zone.
-	 * If specified, `heightInPx` will be used instead of this.
-	 * If neither `heightInPx` nor `heightInLines` is specified, a default of `heightInLines` = 1 will be chosen.
+	 * The height in wines of the view zone.
+	 * If specified, `heightInPx` wiww be used instead of this.
+	 * If neitha `heightInPx` now `heightInWines` is specified, a defauwt of `heightInWines` = 1 wiww be chosen.
 	 */
-	heightInLines?: number;
+	heightInWines?: numba;
 	/**
 	 * The height in px of the view zone.
-	 * If this is set, the editor will give preference to it rather than `heightInLines` above.
-	 * If neither `heightInPx` nor `heightInLines` is specified, a default of `heightInLines` = 1 will be chosen.
+	 * If this is set, the editow wiww give pwefewence to it watha than `heightInWines` above.
+	 * If neitha `heightInPx` now `heightInWines` is specified, a defauwt of `heightInWines` = 1 wiww be chosen.
 	 */
-	heightInPx?: number;
+	heightInPx?: numba;
 	/**
 	 * The minimum width in px of the view zone.
-	 * If this is set, the editor will ensure that the scroll width is >= than this value.
+	 * If this is set, the editow wiww ensuwe that the scwoww width is >= than this vawue.
 	 */
-	minWidthInPx?: number;
+	minWidthInPx?: numba;
 	/**
 	 * The dom node of the view zone
 	 */
-	domNode: HTMLElement;
+	domNode: HTMWEwement;
 	/**
-	 * An optional dom node for the view zone that will be placed in the margin area.
+	 * An optionaw dom node fow the view zone that wiww be pwaced in the mawgin awea.
 	 */
-	marginDomNode?: HTMLElement | null;
+	mawginDomNode?: HTMWEwement | nuww;
 	/**
-	 * Callback which gives the relative top of the view zone as it appears (taking scrolling into account).
+	 * Cawwback which gives the wewative top of the view zone as it appeaws (taking scwowwing into account).
 	 */
-	onDomNodeTop?: (top: number) => void;
+	onDomNodeTop?: (top: numba) => void;
 	/**
-	 * Callback which gives the height in pixels of the view zone.
+	 * Cawwback which gives the height in pixews of the view zone.
 	 */
-	onComputedHeight?: (height: number) => void;
+	onComputedHeight?: (height: numba) => void;
 }
 /**
- * An accessor that allows for zones to be added or removed.
+ * An accessow that awwows fow zones to be added ow wemoved.
  */
-export interface IViewZoneChangeAccessor {
+expowt intewface IViewZoneChangeAccessow {
 	/**
-	 * Create a new view zone.
-	 * @param zone Zone to create
-	 * @return A unique identifier to the view zone.
+	 * Cweate a new view zone.
+	 * @pawam zone Zone to cweate
+	 * @wetuwn A unique identifia to the view zone.
 	 */
-	addZone(zone: IViewZone): string;
+	addZone(zone: IViewZone): stwing;
 	/**
-	 * Remove a zone
-	 * @param id A unique identifier to the view zone, as returned by the `addZone` call.
+	 * Wemove a zone
+	 * @pawam id A unique identifia to the view zone, as wetuwned by the `addZone` caww.
 	 */
-	removeZone(id: string): void;
+	wemoveZone(id: stwing): void;
 	/**
 	 * Change a zone's position.
-	 * The editor will rescan the `afterLineNumber` and `afterColumn` properties of a view zone.
+	 * The editow wiww wescan the `aftewWineNumba` and `aftewCowumn` pwopewties of a view zone.
 	 */
-	layoutZone(id: string): void;
+	wayoutZone(id: stwing): void;
 }
 
 /**
- * A positioning preference for rendering content widgets.
+ * A positioning pwefewence fow wendewing content widgets.
  */
-export const enum ContentWidgetPositionPreference {
+expowt const enum ContentWidgetPositionPwefewence {
 	/**
-	 * Place the content widget exactly at a position
+	 * Pwace the content widget exactwy at a position
 	 */
 	EXACT,
 	/**
-	 * Place the content widget above a position
+	 * Pwace the content widget above a position
 	 */
 	ABOVE,
 	/**
-	 * Place the content widget below a position
+	 * Pwace the content widget bewow a position
 	 */
-	BELOW
+	BEWOW
 }
 /**
- * A position for rendering content widgets.
+ * A position fow wendewing content widgets.
  */
-export interface IContentWidgetPosition {
+expowt intewface IContentWidgetPosition {
 	/**
-	 * Desired position for the content widget.
-	 * `preference` will also affect the placement.
+	 * Desiwed position fow the content widget.
+	 * `pwefewence` wiww awso affect the pwacement.
 	 */
-	position: IPosition | null;
+	position: IPosition | nuww;
 	/**
-	 * Optionally, a range can be provided to further
+	 * Optionawwy, a wange can be pwovided to fuwtha
 	 * define the position of the content widget.
 	 */
-	range?: IRange | null;
+	wange?: IWange | nuww;
 	/**
-	 * Placement preference for position, in order of preference.
+	 * Pwacement pwefewence fow position, in owda of pwefewence.
 	 */
-	preference: ContentWidgetPositionPreference[];
+	pwefewence: ContentWidgetPositionPwefewence[];
 }
 /**
- * A content widget renders inline with the text and can be easily placed 'near' an editor position.
+ * A content widget wendews inwine with the text and can be easiwy pwaced 'neaw' an editow position.
  */
-export interface IContentWidget {
+expowt intewface IContentWidget {
 	/**
-	 * Render this content widget in a location where it could overflow the editor's view dom node.
+	 * Wenda this content widget in a wocation whewe it couwd ovewfwow the editow's view dom node.
 	 */
-	allowEditorOverflow?: boolean;
+	awwowEditowOvewfwow?: boowean;
 
-	suppressMouseDown?: boolean;
+	suppwessMouseDown?: boowean;
 	/**
-	 * Get a unique identifier of the content widget.
+	 * Get a unique identifia of the content widget.
 	 */
-	getId(): string;
+	getId(): stwing;
 	/**
 	 * Get the dom node of the content widget.
 	 */
-	getDomNode(): HTMLElement;
+	getDomNode(): HTMWEwement;
 	/**
-	 * Get the placement of the content widget.
-	 * If null is returned, the content widget will be placed off screen.
+	 * Get the pwacement of the content widget.
+	 * If nuww is wetuwned, the content widget wiww be pwaced off scween.
 	 */
-	getPosition(): IContentWidgetPosition | null;
+	getPosition(): IContentWidgetPosition | nuww;
 	/**
-	 * Optional function that is invoked before rendering
-	 * the content widget. If a dimension is returned the editor will
+	 * Optionaw function that is invoked befowe wendewing
+	 * the content widget. If a dimension is wetuwned the editow wiww
 	 * attempt to use it.
 	 */
-	beforeRender?(): editorCommon.IDimension | null;
+	befoweWenda?(): editowCommon.IDimension | nuww;
 	/**
-	 * Optional function that is invoked after rendering the content
-	 * widget. Is being invoked with the selected position preference
-	 * or `null` if not rendered.
+	 * Optionaw function that is invoked afta wendewing the content
+	 * widget. Is being invoked with the sewected position pwefewence
+	 * ow `nuww` if not wendewed.
 	 */
-	afterRender?(position: ContentWidgetPositionPreference | null): void;
+	aftewWenda?(position: ContentWidgetPositionPwefewence | nuww): void;
 }
 
 /**
- * A positioning preference for rendering overlay widgets.
+ * A positioning pwefewence fow wendewing ovewway widgets.
  */
-export const enum OverlayWidgetPositionPreference {
+expowt const enum OvewwayWidgetPositionPwefewence {
 	/**
-	 * Position the overlay widget in the top right corner
+	 * Position the ovewway widget in the top wight cowna
 	 */
-	TOP_RIGHT_CORNER,
+	TOP_WIGHT_COWNa,
 
 	/**
-	 * Position the overlay widget in the bottom right corner
+	 * Position the ovewway widget in the bottom wight cowna
 	 */
-	BOTTOM_RIGHT_CORNER,
+	BOTTOM_WIGHT_COWNa,
 
 	/**
-	 * Position the overlay widget in the top center
+	 * Position the ovewway widget in the top centa
 	 */
-	TOP_CENTER
+	TOP_CENTa
 }
 /**
- * A position for rendering overlay widgets.
+ * A position fow wendewing ovewway widgets.
  */
-export interface IOverlayWidgetPosition {
+expowt intewface IOvewwayWidgetPosition {
 	/**
-	 * The position preference for the overlay widget.
+	 * The position pwefewence fow the ovewway widget.
 	 */
-	preference: OverlayWidgetPositionPreference | null;
+	pwefewence: OvewwayWidgetPositionPwefewence | nuww;
 }
 /**
- * An overlay widgets renders on top of the text.
+ * An ovewway widgets wendews on top of the text.
  */
-export interface IOverlayWidget {
+expowt intewface IOvewwayWidget {
 	/**
-	 * Get a unique identifier of the overlay widget.
+	 * Get a unique identifia of the ovewway widget.
 	 */
-	getId(): string;
+	getId(): stwing;
 	/**
-	 * Get the dom node of the overlay widget.
+	 * Get the dom node of the ovewway widget.
 	 */
-	getDomNode(): HTMLElement;
+	getDomNode(): HTMWEwement;
 	/**
-	 * Get the placement of the overlay widget.
-	 * If null is returned, the overlay widget is responsible to place itself.
+	 * Get the pwacement of the ovewway widget.
+	 * If nuww is wetuwned, the ovewway widget is wesponsibwe to pwace itsewf.
 	 */
-	getPosition(): IOverlayWidgetPosition | null;
+	getPosition(): IOvewwayWidgetPosition | nuww;
 }
 
 /**
- * Type of hit element with the mouse in the editor.
+ * Type of hit ewement with the mouse in the editow.
  */
-export const enum MouseTargetType {
+expowt const enum MouseTawgetType {
 	/**
-	 * Mouse is on top of an unknown element.
+	 * Mouse is on top of an unknown ewement.
 	 */
 	UNKNOWN,
 	/**
-	 * Mouse is on top of the textarea used for input.
+	 * Mouse is on top of the textawea used fow input.
 	 */
-	TEXTAREA,
+	TEXTAWEA,
 	/**
-	 * Mouse is on top of the glyph margin
+	 * Mouse is on top of the gwyph mawgin
 	 */
-	GUTTER_GLYPH_MARGIN,
+	GUTTEW_GWYPH_MAWGIN,
 	/**
-	 * Mouse is on top of the line numbers
+	 * Mouse is on top of the wine numbews
 	 */
-	GUTTER_LINE_NUMBERS,
+	GUTTEW_WINE_NUMBEWS,
 	/**
-	 * Mouse is on top of the line decorations
+	 * Mouse is on top of the wine decowations
 	 */
-	GUTTER_LINE_DECORATIONS,
+	GUTTEW_WINE_DECOWATIONS,
 	/**
-	 * Mouse is on top of the whitespace left in the gutter by a view zone.
+	 * Mouse is on top of the whitespace weft in the gutta by a view zone.
 	 */
-	GUTTER_VIEW_ZONE,
+	GUTTEW_VIEW_ZONE,
 	/**
 	 * Mouse is on top of text in the content.
 	 */
 	CONTENT_TEXT,
 	/**
-	 * Mouse is on top of empty space in the content (e.g. after line text or below last line)
+	 * Mouse is on top of empty space in the content (e.g. afta wine text ow bewow wast wine)
 	 */
 	CONTENT_EMPTY,
 	/**
@@ -262,853 +262,853 @@ export const enum MouseTargetType {
 	 */
 	CONTENT_WIDGET,
 	/**
-	 * Mouse is on top of the decorations overview ruler.
+	 * Mouse is on top of the decowations ovewview wuwa.
 	 */
-	OVERVIEW_RULER,
+	OVEWVIEW_WUWa,
 	/**
-	 * Mouse is on top of a scrollbar.
+	 * Mouse is on top of a scwowwbaw.
 	 */
-	SCROLLBAR,
+	SCWOWWBAW,
 	/**
-	 * Mouse is on top of an overlay widget.
+	 * Mouse is on top of an ovewway widget.
 	 */
-	OVERLAY_WIDGET,
+	OVEWWAY_WIDGET,
 	/**
-	 * Mouse is outside of the editor.
+	 * Mouse is outside of the editow.
 	 */
-	OUTSIDE_EDITOR,
+	OUTSIDE_EDITOW,
 }
 
 /**
- * Target hit with the mouse in the editor.
+ * Tawget hit with the mouse in the editow.
  */
-export interface IMouseTarget {
+expowt intewface IMouseTawget {
 	/**
-	 * The target element
+	 * The tawget ewement
 	 */
-	readonly element: Element | null;
+	weadonwy ewement: Ewement | nuww;
 	/**
-	 * The target type
+	 * The tawget type
 	 */
-	readonly type: MouseTargetType;
+	weadonwy type: MouseTawgetType;
 	/**
-	 * The 'approximate' editor position
+	 * The 'appwoximate' editow position
 	 */
-	readonly position: Position | null;
+	weadonwy position: Position | nuww;
 	/**
-	 * Desired mouse column (e.g. when position.column gets clamped to text length -- clicking after text on a line).
+	 * Desiwed mouse cowumn (e.g. when position.cowumn gets cwamped to text wength -- cwicking afta text on a wine).
 	 */
-	readonly mouseColumn: number;
+	weadonwy mouseCowumn: numba;
 	/**
-	 * The 'approximate' editor range
+	 * The 'appwoximate' editow wange
 	 */
-	readonly range: Range | null;
+	weadonwy wange: Wange | nuww;
 	/**
-	 * Some extra detail.
+	 * Some extwa detaiw.
 	 */
-	readonly detail: any;
+	weadonwy detaiw: any;
 }
 /**
- * A mouse event originating from the editor.
+ * A mouse event owiginating fwom the editow.
  */
-export interface IEditorMouseEvent {
-	readonly event: IMouseEvent;
-	readonly target: IMouseTarget;
+expowt intewface IEditowMouseEvent {
+	weadonwy event: IMouseEvent;
+	weadonwy tawget: IMouseTawget;
 }
-export interface IPartialEditorMouseEvent {
-	readonly event: IMouseEvent;
-	readonly target: IMouseTarget | null;
+expowt intewface IPawtiawEditowMouseEvent {
+	weadonwy event: IMouseEvent;
+	weadonwy tawget: IMouseTawget | nuww;
 }
 
 /**
- * A paste event originating from the editor.
+ * A paste event owiginating fwom the editow.
  */
-export interface IPasteEvent {
-	readonly range: Range;
-	readonly mode: string | null;
+expowt intewface IPasteEvent {
+	weadonwy wange: Wange;
+	weadonwy mode: stwing | nuww;
 }
 
 /**
- * An overview ruler
- * @internal
+ * An ovewview wuwa
+ * @intewnaw
  */
-export interface IOverviewRuler {
-	getDomNode(): HTMLElement;
+expowt intewface IOvewviewWuwa {
+	getDomNode(): HTMWEwement;
 	dispose(): void;
-	setZones(zones: OverviewRulerZone[]): void;
-	setLayout(position: OverviewRulerPosition): void;
+	setZones(zones: OvewviewWuwewZone[]): void;
+	setWayout(position: OvewviewWuwewPosition): void;
 }
 
 /**
- * Editor aria options.
- * @internal
+ * Editow awia options.
+ * @intewnaw
  */
-export interface IEditorAriaOptions {
-	activeDescendant: string | undefined;
-	role?: string;
+expowt intewface IEditowAwiaOptions {
+	activeDescendant: stwing | undefined;
+	wowe?: stwing;
 }
 
-export interface IEditorConstructionOptions extends IEditorOptions {
+expowt intewface IEditowConstwuctionOptions extends IEditowOptions {
 	/**
-	 * The initial editor dimension (to avoid measuring the container).
+	 * The initiaw editow dimension (to avoid measuwing the containa).
 	 */
-	dimension?: editorCommon.IDimension;
+	dimension?: editowCommon.IDimension;
 	/**
-	 * Place overflow widgets inside an external DOM node.
-	 * Defaults to an internal DOM node.
+	 * Pwace ovewfwow widgets inside an extewnaw DOM node.
+	 * Defauwts to an intewnaw DOM node.
 	 */
-	overflowWidgetsDomNode?: HTMLElement;
+	ovewfwowWidgetsDomNode?: HTMWEwement;
 }
 
-export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
+expowt intewface IDiffEditowConstwuctionOptions extends IDiffEditowOptions {
 	/**
-	 * The initial editor dimension (to avoid measuring the container).
+	 * The initiaw editow dimension (to avoid measuwing the containa).
 	 */
-	dimension?: editorCommon.IDimension;
+	dimension?: editowCommon.IDimension;
 
 	/**
-	 * Place overflow widgets inside an external DOM node.
-	 * Defaults to an internal DOM node.
+	 * Pwace ovewfwow widgets inside an extewnaw DOM node.
+	 * Defauwts to an intewnaw DOM node.
 	 */
-	overflowWidgetsDomNode?: HTMLElement;
+	ovewfwowWidgetsDomNode?: HTMWEwement;
 
 	/**
-	 * Aria label for original editor.
+	 * Awia wabew fow owiginaw editow.
 	 */
-	originalAriaLabel?: string;
+	owiginawAwiaWabew?: stwing;
 
 	/**
-	 * Aria label for modified editor.
+	 * Awia wabew fow modified editow.
 	 */
-	modifiedAriaLabel?: string;
+	modifiedAwiaWabew?: stwing;
 
 	/**
-	 * Is the diff editor inside another editor
-	 * Defaults to false
+	 * Is the diff editow inside anotha editow
+	 * Defauwts to fawse
 	 */
-	isInEmbeddedEditor?: boolean;
+	isInEmbeddedEditow?: boowean;
 }
 
 /**
- * A rich code editor.
+ * A wich code editow.
  */
-export interface ICodeEditor extends editorCommon.IEditor {
+expowt intewface ICodeEditow extends editowCommon.IEditow {
 	/**
-	 * This editor is used as an alternative to an <input> box, i.e. as a simple widget.
-	 * @internal
+	 * This editow is used as an awtewnative to an <input> box, i.e. as a simpwe widget.
+	 * @intewnaw
 	 */
-	readonly isSimpleWidget: boolean;
+	weadonwy isSimpweWidget: boowean;
 	/**
-	 * An event emitted when the content of the current model has changed.
+	 * An event emitted when the content of the cuwwent modew has changed.
 	 * @event
 	 */
-	onDidChangeModelContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
+	onDidChangeModewContent(wistena: (e: IModewContentChangedEvent) => void): IDisposabwe;
 	/**
-	 * An event emitted when the language of the current model has changed.
+	 * An event emitted when the wanguage of the cuwwent modew has changed.
 	 * @event
 	 */
-	onDidChangeModelLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
+	onDidChangeModewWanguage(wistena: (e: IModewWanguageChangedEvent) => void): IDisposabwe;
 	/**
-	 * An event emitted when the language configuration of the current model has changed.
+	 * An event emitted when the wanguage configuwation of the cuwwent modew has changed.
 	 * @event
 	 */
-	onDidChangeModelLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
+	onDidChangeModewWanguageConfiguwation(wistena: (e: IModewWanguageConfiguwationChangedEvent) => void): IDisposabwe;
 	/**
-	 * An event emitted when the options of the current model has changed.
+	 * An event emitted when the options of the cuwwent modew has changed.
 	 * @event
 	 */
-	onDidChangeModelOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable;
+	onDidChangeModewOptions(wistena: (e: IModewOptionsChangedEvent) => void): IDisposabwe;
 	/**
-	 * An event emitted when the configuration of the editor has changed. (e.g. `editor.updateOptions()`)
+	 * An event emitted when the configuwation of the editow has changed. (e.g. `editow.updateOptions()`)
 	 * @event
 	 */
-	onDidChangeConfiguration(listener: (e: ConfigurationChangedEvent) => void): IDisposable;
+	onDidChangeConfiguwation(wistena: (e: ConfiguwationChangedEvent) => void): IDisposabwe;
 	/**
-	 * An event emitted when the cursor position has changed.
+	 * An event emitted when the cuwsow position has changed.
 	 * @event
 	 */
-	onDidChangeCursorPosition(listener: (e: ICursorPositionChangedEvent) => void): IDisposable;
+	onDidChangeCuwsowPosition(wistena: (e: ICuwsowPositionChangedEvent) => void): IDisposabwe;
 	/**
-	 * An event emitted when the cursor selection has changed.
+	 * An event emitted when the cuwsow sewection has changed.
 	 * @event
 	 */
-	onDidChangeCursorSelection(listener: (e: ICursorSelectionChangedEvent) => void): IDisposable;
+	onDidChangeCuwsowSewection(wistena: (e: ICuwsowSewectionChangedEvent) => void): IDisposabwe;
 	/**
-	 * An event emitted when the model of this editor has changed (e.g. `editor.setModel()`).
+	 * An event emitted when the modew of this editow has changed (e.g. `editow.setModew()`).
 	 * @event
 	 */
-	onDidChangeModel(listener: (e: editorCommon.IModelChangedEvent) => void): IDisposable;
+	onDidChangeModew(wistena: (e: editowCommon.IModewChangedEvent) => void): IDisposabwe;
 	/**
-	 * An event emitted when the decorations of the current model have changed.
+	 * An event emitted when the decowations of the cuwwent modew have changed.
 	 * @event
 	 */
-	onDidChangeModelDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable;
+	onDidChangeModewDecowations(wistena: (e: IModewDecowationsChangedEvent) => void): IDisposabwe;
 	/**
-	 * An event emitted when the text inside this editor gained focus (i.e. cursor starts blinking).
+	 * An event emitted when the text inside this editow gained focus (i.e. cuwsow stawts bwinking).
 	 * @event
 	 */
-	onDidFocusEditorText(listener: () => void): IDisposable;
+	onDidFocusEditowText(wistena: () => void): IDisposabwe;
 	/**
-	 * An event emitted when the text inside this editor lost focus (i.e. cursor stops blinking).
+	 * An event emitted when the text inside this editow wost focus (i.e. cuwsow stops bwinking).
 	 * @event
 	 */
-	onDidBlurEditorText(listener: () => void): IDisposable;
+	onDidBwuwEditowText(wistena: () => void): IDisposabwe;
 	/**
-	 * An event emitted when the text inside this editor or an editor widget gained focus.
+	 * An event emitted when the text inside this editow ow an editow widget gained focus.
 	 * @event
 	 */
-	onDidFocusEditorWidget(listener: () => void): IDisposable;
+	onDidFocusEditowWidget(wistena: () => void): IDisposabwe;
 	/**
-	 * An event emitted when the text inside this editor or an editor widget lost focus.
+	 * An event emitted when the text inside this editow ow an editow widget wost focus.
 	 * @event
 	 */
-	onDidBlurEditorWidget(listener: () => void): IDisposable;
+	onDidBwuwEditowWidget(wistena: () => void): IDisposabwe;
 	/**
-	 * An event emitted before interpreting typed characters (on the keyboard).
+	 * An event emitted befowe intewpweting typed chawactews (on the keyboawd).
 	 * @event
-	 * @internal
+	 * @intewnaw
 	 */
-	onWillType(listener: (text: string) => void): IDisposable;
+	onWiwwType(wistena: (text: stwing) => void): IDisposabwe;
 	/**
-	 * An event emitted after interpreting typed characters (on the keyboard).
+	 * An event emitted afta intewpweting typed chawactews (on the keyboawd).
 	 * @event
-	 * @internal
+	 * @intewnaw
 	 */
-	onDidType(listener: (text: string) => void): IDisposable;
+	onDidType(wistena: (text: stwing) => void): IDisposabwe;
 	/**
-	 * An event emitted after composition has started.
+	 * An event emitted afta composition has stawted.
 	 */
-	onDidCompositionStart(listener: () => void): IDisposable;
+	onDidCompositionStawt(wistena: () => void): IDisposabwe;
 	/**
-	 * An event emitted after composition has ended.
+	 * An event emitted afta composition has ended.
 	 */
-	onDidCompositionEnd(listener: () => void): IDisposable;
+	onDidCompositionEnd(wistena: () => void): IDisposabwe;
 	/**
-	 * An event emitted when editing failed because the editor is read-only.
-	 * @event
-	 */
-	onDidAttemptReadOnlyEdit(listener: () => void): IDisposable;
-	/**
-	 * An event emitted when users paste text in the editor.
+	 * An event emitted when editing faiwed because the editow is wead-onwy.
 	 * @event
 	 */
-	onDidPaste(listener: (e: IPasteEvent) => void): IDisposable;
+	onDidAttemptWeadOnwyEdit(wistena: () => void): IDisposabwe;
+	/**
+	 * An event emitted when usews paste text in the editow.
+	 * @event
+	 */
+	onDidPaste(wistena: (e: IPasteEvent) => void): IDisposabwe;
 	/**
 	 * An event emitted on a "mouseup".
 	 * @event
 	 */
-	onMouseUp(listener: (e: IEditorMouseEvent) => void): IDisposable;
+	onMouseUp(wistena: (e: IEditowMouseEvent) => void): IDisposabwe;
 	/**
 	 * An event emitted on a "mousedown".
 	 * @event
 	 */
-	onMouseDown(listener: (e: IEditorMouseEvent) => void): IDisposable;
+	onMouseDown(wistena: (e: IEditowMouseEvent) => void): IDisposabwe;
 	/**
-	 * An event emitted on a "mousedrag".
-	 * @internal
+	 * An event emitted on a "mousedwag".
+	 * @intewnaw
 	 * @event
 	 */
-	onMouseDrag(listener: (e: IEditorMouseEvent) => void): IDisposable;
+	onMouseDwag(wistena: (e: IEditowMouseEvent) => void): IDisposabwe;
 	/**
-	 * An event emitted on a "mousedrop".
-	 * @internal
+	 * An event emitted on a "mousedwop".
+	 * @intewnaw
 	 * @event
 	 */
-	onMouseDrop(listener: (e: IPartialEditorMouseEvent) => void): IDisposable;
+	onMouseDwop(wistena: (e: IPawtiawEditowMouseEvent) => void): IDisposabwe;
 	/**
-	 * An event emitted on a "mousedropcanceled".
-	 * @internal
+	 * An event emitted on a "mousedwopcancewed".
+	 * @intewnaw
 	 * @event
 	 */
-	onMouseDropCanceled(listener: () => void): IDisposable;
+	onMouseDwopCancewed(wistena: () => void): IDisposabwe;
 	/**
 	 * An event emitted on a "contextmenu".
 	 * @event
 	 */
-	onContextMenu(listener: (e: IEditorMouseEvent) => void): IDisposable;
+	onContextMenu(wistena: (e: IEditowMouseEvent) => void): IDisposabwe;
 	/**
 	 * An event emitted on a "mousemove".
 	 * @event
 	 */
-	onMouseMove(listener: (e: IEditorMouseEvent) => void): IDisposable;
+	onMouseMove(wistena: (e: IEditowMouseEvent) => void): IDisposabwe;
 	/**
-	 * An event emitted on a "mouseleave".
+	 * An event emitted on a "mouseweave".
 	 * @event
 	 */
-	onMouseLeave(listener: (e: IPartialEditorMouseEvent) => void): IDisposable;
+	onMouseWeave(wistena: (e: IPawtiawEditowMouseEvent) => void): IDisposabwe;
 	/**
-	 * An event emitted on a "mousewheel"
+	 * An event emitted on a "mousewheew"
 	 * @event
-	 * @internal
+	 * @intewnaw
 	 */
-	onMouseWheel(listener: (e: IMouseWheelEvent) => void): IDisposable;
+	onMouseWheew(wistena: (e: IMouseWheewEvent) => void): IDisposabwe;
 	/**
 	 * An event emitted on a "keyup".
 	 * @event
 	 */
-	onKeyUp(listener: (e: IKeyboardEvent) => void): IDisposable;
+	onKeyUp(wistena: (e: IKeyboawdEvent) => void): IDisposabwe;
 	/**
 	 * An event emitted on a "keydown".
 	 * @event
 	 */
-	onKeyDown(listener: (e: IKeyboardEvent) => void): IDisposable;
+	onKeyDown(wistena: (e: IKeyboawdEvent) => void): IDisposabwe;
 	/**
-	 * An event emitted when the layout of the editor has changed.
+	 * An event emitted when the wayout of the editow has changed.
 	 * @event
 	 */
-	onDidLayoutChange(listener: (e: EditorLayoutInfo) => void): IDisposable;
+	onDidWayoutChange(wistena: (e: EditowWayoutInfo) => void): IDisposabwe;
 	/**
-	 * An event emitted when the content width or content height in the editor has changed.
+	 * An event emitted when the content width ow content height in the editow has changed.
 	 * @event
 	 */
-	onDidContentSizeChange(listener: (e: editorCommon.IContentSizeChangedEvent) => void): IDisposable;
+	onDidContentSizeChange(wistena: (e: editowCommon.IContentSizeChangedEvent) => void): IDisposabwe;
 	/**
-	 * An event emitted when the scroll in the editor has changed.
+	 * An event emitted when the scwoww in the editow has changed.
 	 * @event
 	 */
-	onDidScrollChange(listener: (e: editorCommon.IScrollEvent) => void): IDisposable;
+	onDidScwowwChange(wistena: (e: editowCommon.IScwowwEvent) => void): IDisposabwe;
 
 	/**
-	 * Saves current view state of the editor in a serializable object.
+	 * Saves cuwwent view state of the editow in a sewiawizabwe object.
 	 */
-	saveViewState(): editorCommon.ICodeEditorViewState | null;
+	saveViewState(): editowCommon.ICodeEditowViewState | nuww;
 
 	/**
-	 * Restores the view state of the editor from a serializable object generated by `saveViewState`.
+	 * Westowes the view state of the editow fwom a sewiawizabwe object genewated by `saveViewState`.
 	 */
-	restoreViewState(state: editorCommon.ICodeEditorViewState): void;
+	westoweViewState(state: editowCommon.ICodeEditowViewState): void;
 
 	/**
-	 * Returns true if the text inside this editor or an editor widget has focus.
+	 * Wetuwns twue if the text inside this editow ow an editow widget has focus.
 	 */
-	hasWidgetFocus(): boolean;
+	hasWidgetFocus(): boowean;
 
 	/**
-	 * Get a contribution of this editor.
-	 * @id Unique identifier of the contribution.
-	 * @return The contribution or null if contribution not found.
+	 * Get a contwibution of this editow.
+	 * @id Unique identifia of the contwibution.
+	 * @wetuwn The contwibution ow nuww if contwibution not found.
 	 */
-	getContribution<T extends editorCommon.IEditorContribution>(id: string): T;
+	getContwibution<T extends editowCommon.IEditowContwibution>(id: stwing): T;
 
 	/**
-	 * Execute `fn` with the editor's services.
-	 * @internal
+	 * Execute `fn` with the editow's sewvices.
+	 * @intewnaw
 	 */
-	invokeWithinContext<T>(fn: (accessor: ServicesAccessor) => T): T;
+	invokeWithinContext<T>(fn: (accessow: SewvicesAccessow) => T): T;
 
 	/**
-	 * Type the getModel() of IEditor.
+	 * Type the getModew() of IEditow.
 	 */
-	getModel(): ITextModel | null;
+	getModew(): ITextModew | nuww;
 
 	/**
-	 * Sets the current model attached to this editor.
-	 * If the previous model was created by the editor via the value key in the options
-	 * literal object, it will be destroyed. Otherwise, if the previous model was set
-	 * via setModel, or the model key in the options literal object, the previous model
-	 * will not be destroyed.
-	 * It is safe to call setModel(null) to simply detach the current model from the editor.
+	 * Sets the cuwwent modew attached to this editow.
+	 * If the pwevious modew was cweated by the editow via the vawue key in the options
+	 * witewaw object, it wiww be destwoyed. Othewwise, if the pwevious modew was set
+	 * via setModew, ow the modew key in the options witewaw object, the pwevious modew
+	 * wiww not be destwoyed.
+	 * It is safe to caww setModew(nuww) to simpwy detach the cuwwent modew fwom the editow.
 	 */
-	setModel(model: ITextModel | null): void;
+	setModew(modew: ITextModew | nuww): void;
 
 	/**
-	 * Gets all the editor computed options.
+	 * Gets aww the editow computed options.
 	 */
-	getOptions(): IComputedEditorOptions;
+	getOptions(): IComputedEditowOptions;
 
 	/**
-	 * Gets a specific editor option.
+	 * Gets a specific editow option.
 	 */
-	getOption<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T>;
+	getOption<T extends EditowOption>(id: T): FindComputedEditowOptionVawueById<T>;
 
 	/**
-	 * Returns the editor's configuration (without any validation or defaults).
+	 * Wetuwns the editow's configuwation (without any vawidation ow defauwts).
 	 */
-	getRawOptions(): IEditorOptions;
+	getWawOptions(): IEditowOptions;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	getOverflowWidgetsDomNode(): HTMLElement | undefined;
+	getOvewfwowWidgetsDomNode(): HTMWEwement | undefined;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	getConfiguredWordAtPosition(position: Position): IWordAtPosition | null;
+	getConfiguwedWowdAtPosition(position: Position): IWowdAtPosition | nuww;
 
 	/**
-	 * Get value of the current model attached to this editor.
-	 * @see {@link ITextModel.getValue}
+	 * Get vawue of the cuwwent modew attached to this editow.
+	 * @see {@wink ITextModew.getVawue}
 	 */
-	getValue(options?: { preserveBOM: boolean; lineEnding: string; }): string;
+	getVawue(options?: { pwesewveBOM: boowean; wineEnding: stwing; }): stwing;
 
 	/**
-	 * Set the value of the current model attached to this editor.
-	 * @see {@link ITextModel.setValue}
+	 * Set the vawue of the cuwwent modew attached to this editow.
+	 * @see {@wink ITextModew.setVawue}
 	 */
-	setValue(newValue: string): void;
+	setVawue(newVawue: stwing): void;
 
 	/**
-	 * Get the width of the editor's content.
-	 * This is information that is "erased" when computing `scrollWidth = Math.max(contentWidth, width)`
+	 * Get the width of the editow's content.
+	 * This is infowmation that is "ewased" when computing `scwowwWidth = Math.max(contentWidth, width)`
 	 */
-	getContentWidth(): number;
+	getContentWidth(): numba;
 	/**
-	 * Get the scrollWidth of the editor's viewport.
+	 * Get the scwowwWidth of the editow's viewpowt.
 	 */
-	getScrollWidth(): number;
+	getScwowwWidth(): numba;
 	/**
-	 * Get the scrollLeft of the editor's viewport.
+	 * Get the scwowwWeft of the editow's viewpowt.
 	 */
-	getScrollLeft(): number;
+	getScwowwWeft(): numba;
 
 	/**
-	 * Get the height of the editor's content.
-	 * This is information that is "erased" when computing `scrollHeight = Math.max(contentHeight, height)`
+	 * Get the height of the editow's content.
+	 * This is infowmation that is "ewased" when computing `scwowwHeight = Math.max(contentHeight, height)`
 	 */
-	getContentHeight(): number;
+	getContentHeight(): numba;
 	/**
-	 * Get the scrollHeight of the editor's viewport.
+	 * Get the scwowwHeight of the editow's viewpowt.
 	 */
-	getScrollHeight(): number;
+	getScwowwHeight(): numba;
 	/**
-	 * Get the scrollTop of the editor's viewport.
+	 * Get the scwowwTop of the editow's viewpowt.
 	 */
-	getScrollTop(): number;
+	getScwowwTop(): numba;
 
 	/**
-	 * Change the scrollLeft of the editor's viewport.
+	 * Change the scwowwWeft of the editow's viewpowt.
 	 */
-	setScrollLeft(newScrollLeft: number, scrollType?: editorCommon.ScrollType): void;
+	setScwowwWeft(newScwowwWeft: numba, scwowwType?: editowCommon.ScwowwType): void;
 	/**
-	 * Change the scrollTop of the editor's viewport.
+	 * Change the scwowwTop of the editow's viewpowt.
 	 */
-	setScrollTop(newScrollTop: number, scrollType?: editorCommon.ScrollType): void;
+	setScwowwTop(newScwowwTop: numba, scwowwType?: editowCommon.ScwowwType): void;
 	/**
-	 * Change the scroll position of the editor's viewport.
+	 * Change the scwoww position of the editow's viewpowt.
 	 */
-	setScrollPosition(position: editorCommon.INewScrollPosition, scrollType?: editorCommon.ScrollType): void;
+	setScwowwPosition(position: editowCommon.INewScwowwPosition, scwowwType?: editowCommon.ScwowwType): void;
 
 	/**
-	 * Get an action that is a contribution to this editor.
-	 * @id Unique identifier of the contribution.
-	 * @return The action or null if action not found.
+	 * Get an action that is a contwibution to this editow.
+	 * @id Unique identifia of the contwibution.
+	 * @wetuwn The action ow nuww if action not found.
 	 */
-	getAction(id: string): editorCommon.IEditorAction;
+	getAction(id: stwing): editowCommon.IEditowAction;
 
 	/**
-	 * Execute a command on the editor.
-	 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
-	 * @param source The source of the call.
-	 * @param command The command to execute
+	 * Execute a command on the editow.
+	 * The edits wiww wand on the undo-wedo stack, but no "undo stop" wiww be pushed.
+	 * @pawam souwce The souwce of the caww.
+	 * @pawam command The command to execute
 	 */
-	executeCommand(source: string | null | undefined, command: editorCommon.ICommand): void;
+	executeCommand(souwce: stwing | nuww | undefined, command: editowCommon.ICommand): void;
 
 	/**
-	 * Create an "undo stop" in the undo-redo stack.
+	 * Cweate an "undo stop" in the undo-wedo stack.
 	 */
-	pushUndoStop(): boolean;
+	pushUndoStop(): boowean;
 
 	/**
-	 * Remove the "undo stop" in the undo-redo stack.
+	 * Wemove the "undo stop" in the undo-wedo stack.
 	 */
-	popUndoStop(): boolean;
+	popUndoStop(): boowean;
 
 	/**
-	 * Execute edits on the editor.
-	 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
-	 * @param source The source of the call.
-	 * @param edits The edits to execute.
-	 * @param endCursorState Cursor state after the edits were applied.
+	 * Execute edits on the editow.
+	 * The edits wiww wand on the undo-wedo stack, but no "undo stop" wiww be pushed.
+	 * @pawam souwce The souwce of the caww.
+	 * @pawam edits The edits to execute.
+	 * @pawam endCuwsowState Cuwsow state afta the edits wewe appwied.
 	 */
-	executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean;
+	executeEdits(souwce: stwing | nuww | undefined, edits: IIdentifiedSingweEditOpewation[], endCuwsowState?: ICuwsowStateComputa | Sewection[]): boowean;
 
 	/**
-	 * Execute multiple (concomitant) commands on the editor.
-	 * @param source The source of the call.
-	 * @param command The commands to execute
+	 * Execute muwtipwe (concomitant) commands on the editow.
+	 * @pawam souwce The souwce of the caww.
+	 * @pawam command The commands to execute
 	 */
-	executeCommands(source: string | null | undefined, commands: (editorCommon.ICommand | null)[]): void;
+	executeCommands(souwce: stwing | nuww | undefined, commands: (editowCommon.ICommand | nuww)[]): void;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	_getViewModel(): IViewModel | null;
+	_getViewModew(): IViewModew | nuww;
 
 	/**
-	 * Get all the decorations on a line (filtering out decorations from other editors).
+	 * Get aww the decowations on a wine (fiwtewing out decowations fwom otha editows).
 	 */
-	getLineDecorations(lineNumber: number): IModelDecoration[] | null;
+	getWineDecowations(wineNumba: numba): IModewDecowation[] | nuww;
 
 	/**
-	 * All decorations added through this call will get the ownerId of this editor.
-	 * @see {@link ITextModel.deltaDecorations}
+	 * Aww decowations added thwough this caww wiww get the ownewId of this editow.
+	 * @see {@wink ITextModew.dewtaDecowations}
 	 */
-	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
+	dewtaDecowations(owdDecowations: stwing[], newDecowations: IModewDewtaDecowation[]): stwing[];
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	setDecorations(description: string, decorationTypeKey: string, ranges: editorCommon.IDecorationOptions[]): void;
+	setDecowations(descwiption: stwing, decowationTypeKey: stwing, wanges: editowCommon.IDecowationOptions[]): void;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	setDecorationsFast(decorationTypeKey: string, ranges: IRange[]): void;
+	setDecowationsFast(decowationTypeKey: stwing, wanges: IWange[]): void;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	removeDecorations(decorationTypeKey: string): void;
+	wemoveDecowations(decowationTypeKey: stwing): void;
 
 	/**
-	 * Get the layout info for the editor.
+	 * Get the wayout info fow the editow.
 	 */
-	getLayoutInfo(): EditorLayoutInfo;
+	getWayoutInfo(): EditowWayoutInfo;
 
 	/**
-	 * Returns the ranges that are currently visible.
-	 * Does not account for horizontal scrolling.
+	 * Wetuwns the wanges that awe cuwwentwy visibwe.
+	 * Does not account fow howizontaw scwowwing.
 	 */
-	getVisibleRanges(): Range[];
+	getVisibweWanges(): Wange[];
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	getVisibleRangesPlusViewportAboveBelow(): Range[];
+	getVisibweWangesPwusViewpowtAboveBewow(): Wange[];
 
 	/**
 	 * Get the view zones.
-	 * @internal
+	 * @intewnaw
 	 */
-	getWhitespaces(): IEditorWhitespace[];
+	getWhitespaces(): IEditowWhitespace[];
 
 	/**
-	 * Get the vertical position (top offset) for the line w.r.t. to the first line.
+	 * Get the vewticaw position (top offset) fow the wine w.w.t. to the fiwst wine.
 	 */
-	getTopForLineNumber(lineNumber: number): number;
+	getTopFowWineNumba(wineNumba: numba): numba;
 
 	/**
-	 * Get the vertical position (top offset) for the position w.r.t. to the first line.
+	 * Get the vewticaw position (top offset) fow the position w.w.t. to the fiwst wine.
 	 */
-	getTopForPosition(lineNumber: number, column: number): number;
+	getTopFowPosition(wineNumba: numba, cowumn: numba): numba;
 
 	/**
-	 * Set the model ranges that will be hidden in the view.
-	 * @internal
+	 * Set the modew wanges that wiww be hidden in the view.
+	 * @intewnaw
 	 */
-	setHiddenAreas(ranges: IRange[]): void;
+	setHiddenAweas(wanges: IWange[]): void;
 
 	/**
-	 * Sets the editor aria options, primarily the active descendent.
-	 * @internal
+	 * Sets the editow awia options, pwimawiwy the active descendent.
+	 * @intewnaw
 	 */
-	setAriaOptions(options: IEditorAriaOptions): void;
+	setAwiaOptions(options: IEditowAwiaOptions): void;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	getTelemetryData(): { [key: string]: any } | undefined;
+	getTewemetwyData(): { [key: stwing]: any } | undefined;
 
 	/**
-	 * Returns the editor's container dom node
+	 * Wetuwns the editow's containa dom node
 	 */
-	getContainerDomNode(): HTMLElement;
+	getContainewDomNode(): HTMWEwement;
 
 	/**
-	 * Returns the editor's dom node
+	 * Wetuwns the editow's dom node
 	 */
-	getDomNode(): HTMLElement | null;
+	getDomNode(): HTMWEwement | nuww;
 
 	/**
-	 * Add a content widget. Widgets must have unique ids, otherwise they will be overwritten.
+	 * Add a content widget. Widgets must have unique ids, othewwise they wiww be ovewwwitten.
 	 */
 	addContentWidget(widget: IContentWidget): void;
 	/**
-	 * Layout/Reposition a content widget. This is a ping to the editor to call widget.getPosition()
-	 * and update appropriately.
+	 * Wayout/Weposition a content widget. This is a ping to the editow to caww widget.getPosition()
+	 * and update appwopwiatewy.
 	 */
-	layoutContentWidget(widget: IContentWidget): void;
+	wayoutContentWidget(widget: IContentWidget): void;
 	/**
-	 * Remove a content widget.
+	 * Wemove a content widget.
 	 */
-	removeContentWidget(widget: IContentWidget): void;
+	wemoveContentWidget(widget: IContentWidget): void;
 
 	/**
-	 * Add an overlay widget. Widgets must have unique ids, otherwise they will be overwritten.
+	 * Add an ovewway widget. Widgets must have unique ids, othewwise they wiww be ovewwwitten.
 	 */
-	addOverlayWidget(widget: IOverlayWidget): void;
+	addOvewwayWidget(widget: IOvewwayWidget): void;
 	/**
-	 * Layout/Reposition an overlay widget. This is a ping to the editor to call widget.getPosition()
-	 * and update appropriately.
+	 * Wayout/Weposition an ovewway widget. This is a ping to the editow to caww widget.getPosition()
+	 * and update appwopwiatewy.
 	 */
-	layoutOverlayWidget(widget: IOverlayWidget): void;
+	wayoutOvewwayWidget(widget: IOvewwayWidget): void;
 	/**
-	 * Remove an overlay widget.
+	 * Wemove an ovewway widget.
 	 */
-	removeOverlayWidget(widget: IOverlayWidget): void;
+	wemoveOvewwayWidget(widget: IOvewwayWidget): void;
 
 	/**
-	 * Change the view zones. View zones are lost when a new model is attached to the editor.
+	 * Change the view zones. View zones awe wost when a new modew is attached to the editow.
 	 */
-	changeViewZones(callback: (accessor: IViewZoneChangeAccessor) => void): void;
+	changeViewZones(cawwback: (accessow: IViewZoneChangeAccessow) => void): void;
 
 	/**
-	 * Get the horizontal position (left offset) for the column w.r.t to the beginning of the line.
-	 * This method works only if the line `lineNumber` is currently rendered (in the editor's viewport).
+	 * Get the howizontaw position (weft offset) fow the cowumn w.w.t to the beginning of the wine.
+	 * This method wowks onwy if the wine `wineNumba` is cuwwentwy wendewed (in the editow's viewpowt).
 	 * Use this method with caution.
 	 */
-	getOffsetForColumn(lineNumber: number, column: number): number;
+	getOffsetFowCowumn(wineNumba: numba, cowumn: numba): numba;
 
 	/**
-	 * Force an editor render now.
+	 * Fowce an editow wenda now.
 	 */
-	render(forceRedraw?: boolean): void;
+	wenda(fowceWedwaw?: boowean): void;
 
 	/**
-	 * Get the hit test target at coordinates `clientX` and `clientY`.
-	 * The coordinates are relative to the top-left of the viewport.
+	 * Get the hit test tawget at coowdinates `cwientX` and `cwientY`.
+	 * The coowdinates awe wewative to the top-weft of the viewpowt.
 	 *
-	 * @returns Hit test target or null if the coordinates fall outside the editor or the editor has no model.
+	 * @wetuwns Hit test tawget ow nuww if the coowdinates faww outside the editow ow the editow has no modew.
 	 */
-	getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget | null;
+	getTawgetAtCwientPoint(cwientX: numba, cwientY: numba): IMouseTawget | nuww;
 
 	/**
-	 * Get the visible position for `position`.
-	 * The result position takes scrolling into account and is relative to the top left corner of the editor.
-	 * Explanation 1: the results of this method will change for the same `position` if the user scrolls the editor.
-	 * Explanation 2: the results of this method will not change if the container of the editor gets repositioned.
-	 * Warning: the results of this method are inaccurate for positions that are outside the current editor viewport.
+	 * Get the visibwe position fow `position`.
+	 * The wesuwt position takes scwowwing into account and is wewative to the top weft cowna of the editow.
+	 * Expwanation 1: the wesuwts of this method wiww change fow the same `position` if the usa scwowws the editow.
+	 * Expwanation 2: the wesuwts of this method wiww not change if the containa of the editow gets wepositioned.
+	 * Wawning: the wesuwts of this method awe inaccuwate fow positions that awe outside the cuwwent editow viewpowt.
 	 */
-	getScrolledVisiblePosition(position: IPosition): { top: number; left: number; height: number; } | null;
+	getScwowwedVisibwePosition(position: IPosition): { top: numba; weft: numba; height: numba; } | nuww;
 
 	/**
-	 * Apply the same font settings as the editor to `target`.
+	 * Appwy the same font settings as the editow to `tawget`.
 	 */
-	applyFontInfo(target: HTMLElement): void;
+	appwyFontInfo(tawget: HTMWEwement): void;
 
 	/**
-	 * Check if the current instance has a model attached.
-	 * @internal
+	 * Check if the cuwwent instance has a modew attached.
+	 * @intewnaw
 	 */
-	hasModel(): this is IActiveCodeEditor;
+	hasModew(): this is IActiveCodeEditow;
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface IActiveCodeEditor extends ICodeEditor {
+expowt intewface IActiveCodeEditow extends ICodeEditow {
 	/**
-	 * Returns the primary position of the cursor.
+	 * Wetuwns the pwimawy position of the cuwsow.
 	 */
 	getPosition(): Position;
 
 	/**
-	 * Returns the primary selection of the editor.
+	 * Wetuwns the pwimawy sewection of the editow.
 	 */
-	getSelection(): Selection;
+	getSewection(): Sewection;
 
 	/**
-	 * Returns all the selections of the editor.
+	 * Wetuwns aww the sewections of the editow.
 	 */
-	getSelections(): Selection[];
+	getSewections(): Sewection[];
 
 	/**
-	 * Saves current view state of the editor in a serializable object.
+	 * Saves cuwwent view state of the editow in a sewiawizabwe object.
 	 */
-	saveViewState(): editorCommon.ICodeEditorViewState;
+	saveViewState(): editowCommon.ICodeEditowViewState;
 
 	/**
-	 * Type the getModel() of IEditor.
+	 * Type the getModew() of IEditow.
 	 */
-	getModel(): ITextModel;
+	getModew(): ITextModew;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	_getViewModel(): IViewModel;
+	_getViewModew(): IViewModew;
 
 	/**
-	 * Get all the decorations on a line (filtering out decorations from other editors).
+	 * Get aww the decowations on a wine (fiwtewing out decowations fwom otha editows).
 	 */
-	getLineDecorations(lineNumber: number): IModelDecoration[];
+	getWineDecowations(wineNumba: numba): IModewDecowation[];
 
 	/**
-	 * Returns the editor's dom node
+	 * Wetuwns the editow's dom node
 	 */
-	getDomNode(): HTMLElement;
+	getDomNode(): HTMWEwement;
 
 	/**
-	 * Get the visible position for `position`.
-	 * The result position takes scrolling into account and is relative to the top left corner of the editor.
-	 * Explanation 1: the results of this method will change for the same `position` if the user scrolls the editor.
-	 * Explanation 2: the results of this method will not change if the container of the editor gets repositioned.
-	 * Warning: the results of this method are inaccurate for positions that are outside the current editor viewport.
+	 * Get the visibwe position fow `position`.
+	 * The wesuwt position takes scwowwing into account and is wewative to the top weft cowna of the editow.
+	 * Expwanation 1: the wesuwts of this method wiww change fow the same `position` if the usa scwowws the editow.
+	 * Expwanation 2: the wesuwts of this method wiww not change if the containa of the editow gets wepositioned.
+	 * Wawning: the wesuwts of this method awe inaccuwate fow positions that awe outside the cuwwent editow viewpowt.
 	 */
-	getScrolledVisiblePosition(position: IPosition): { top: number; left: number; height: number; };
+	getScwowwedVisibwePosition(position: IPosition): { top: numba; weft: numba; height: numba; };
 }
 
 /**
- * Information about a line in the diff editor
+ * Infowmation about a wine in the diff editow
  */
-export interface IDiffLineInformation {
-	readonly equivalentLineNumber: number;
+expowt intewface IDiffWineInfowmation {
+	weadonwy equivawentWineNumba: numba;
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export const enum DiffEditorState {
-	Idle,
+expowt const enum DiffEditowState {
+	Idwe,
 	ComputingDiff,
 	DiffComputed
 }
 
 /**
- * A rich diff editor.
+ * A wich diff editow.
  */
-export interface IDiffEditor extends editorCommon.IEditor {
+expowt intewface IDiffEditow extends editowCommon.IEditow {
 
 	/**
-	 * Returns whether the diff editor is ignoring trim whitespace or not.
-	 * @internal
+	 * Wetuwns whetha the diff editow is ignowing twim whitespace ow not.
+	 * @intewnaw
 	 */
-	readonly ignoreTrimWhitespace: boolean;
+	weadonwy ignoweTwimWhitespace: boowean;
 	/**
-	 * Timeout in milliseconds after which diff computation is cancelled.
-	 * @internal
+	 * Timeout in miwwiseconds afta which diff computation is cancewwed.
+	 * @intewnaw
 	 */
-	readonly maxComputationTime: number;
+	weadonwy maxComputationTime: numba;
 
 	/**
-	 * @see {@link ICodeEditor.getDomNode}
+	 * @see {@wink ICodeEditow.getDomNode}
 	 */
-	getDomNode(): HTMLElement;
+	getDomNode(): HTMWEwement;
 
 	/**
-	 * An event emitted when the diff information computed by this diff editor has been updated.
+	 * An event emitted when the diff infowmation computed by this diff editow has been updated.
 	 * @event
 	 */
-	onDidUpdateDiff(listener: () => void): IDisposable;
+	onDidUpdateDiff(wistena: () => void): IDisposabwe;
 
 	/**
-	 * Saves current view state of the editor in a serializable object.
+	 * Saves cuwwent view state of the editow in a sewiawizabwe object.
 	 */
-	saveViewState(): editorCommon.IDiffEditorViewState | null;
+	saveViewState(): editowCommon.IDiffEditowViewState | nuww;
 
 	/**
-	 * Restores the view state of the editor from a serializable object generated by `saveViewState`.
+	 * Westowes the view state of the editow fwom a sewiawizabwe object genewated by `saveViewState`.
 	 */
-	restoreViewState(state: editorCommon.IDiffEditorViewState): void;
+	westoweViewState(state: editowCommon.IDiffEditowViewState): void;
 
 	/**
-	 * Type the getModel() of IEditor.
+	 * Type the getModew() of IEditow.
 	 */
-	getModel(): editorCommon.IDiffEditorModel | null;
+	getModew(): editowCommon.IDiffEditowModew | nuww;
 
 	/**
-	 * Sets the current model attached to this editor.
-	 * If the previous model was created by the editor via the value key in the options
-	 * literal object, it will be destroyed. Otherwise, if the previous model was set
-	 * via setModel, or the model key in the options literal object, the previous model
-	 * will not be destroyed.
-	 * It is safe to call setModel(null) to simply detach the current model from the editor.
+	 * Sets the cuwwent modew attached to this editow.
+	 * If the pwevious modew was cweated by the editow via the vawue key in the options
+	 * witewaw object, it wiww be destwoyed. Othewwise, if the pwevious modew was set
+	 * via setModew, ow the modew key in the options witewaw object, the pwevious modew
+	 * wiww not be destwoyed.
+	 * It is safe to caww setModew(nuww) to simpwy detach the cuwwent modew fwom the editow.
 	 */
-	setModel(model: editorCommon.IDiffEditorModel | null): void;
+	setModew(modew: editowCommon.IDiffEditowModew | nuww): void;
 
 	/**
-	 * Get the `original` editor.
+	 * Get the `owiginaw` editow.
 	 */
-	getOriginalEditor(): ICodeEditor;
+	getOwiginawEditow(): ICodeEditow;
 
 	/**
-	 * Get the `modified` editor.
+	 * Get the `modified` editow.
 	 */
-	getModifiedEditor(): ICodeEditor;
+	getModifiedEditow(): ICodeEditow;
 
 	/**
-	 * Get the computed diff information.
+	 * Get the computed diff infowmation.
 	 */
-	getLineChanges(): editorCommon.ILineChange[] | null;
+	getWineChanges(): editowCommon.IWineChange[] | nuww;
 
 	/**
-	 * Get the computed diff information.
-	 * @internal
+	 * Get the computed diff infowmation.
+	 * @intewnaw
 	 */
-	getDiffComputationResult(): IDiffComputationResult | null;
+	getDiffComputationWesuwt(): IDiffComputationWesuwt | nuww;
 
 	/**
-	 * Get information based on computed diff about a line number from the original model.
-	 * If the diff computation is not finished or the model is missing, will return null.
+	 * Get infowmation based on computed diff about a wine numba fwom the owiginaw modew.
+	 * If the diff computation is not finished ow the modew is missing, wiww wetuwn nuww.
 	 */
-	getDiffLineInformationForOriginal(lineNumber: number): IDiffLineInformation | null;
+	getDiffWineInfowmationFowOwiginaw(wineNumba: numba): IDiffWineInfowmation | nuww;
 
 	/**
-	 * Get information based on computed diff about a line number from the modified model.
-	 * If the diff computation is not finished or the model is missing, will return null.
+	 * Get infowmation based on computed diff about a wine numba fwom the modified modew.
+	 * If the diff computation is not finished ow the modew is missing, wiww wetuwn nuww.
 	 */
-	getDiffLineInformationForModified(lineNumber: number): IDiffLineInformation | null;
+	getDiffWineInfowmationFowModified(wineNumba: numba): IDiffWineInfowmation | nuww;
 
 	/**
-	 * Update the editor's options after the editor has been created.
+	 * Update the editow's options afta the editow has been cweated.
 	 */
-	updateOptions(newOptions: IDiffEditorOptions): void;
+	updateOptions(newOptions: IDiffEditowOptions): void;
 }
 
 /**
- *@internal
+ *@intewnaw
  */
-export function isCodeEditor(thing: unknown): thing is ICodeEditor {
-	if (thing && typeof (<ICodeEditor>thing).getEditorType === 'function') {
-		return (<ICodeEditor>thing).getEditorType() === editorCommon.EditorType.ICodeEditor;
-	} else {
-		return false;
+expowt function isCodeEditow(thing: unknown): thing is ICodeEditow {
+	if (thing && typeof (<ICodeEditow>thing).getEditowType === 'function') {
+		wetuwn (<ICodeEditow>thing).getEditowType() === editowCommon.EditowType.ICodeEditow;
+	} ewse {
+		wetuwn fawse;
 	}
 }
 
 /**
- *@internal
+ *@intewnaw
  */
-export function isDiffEditor(thing: unknown): thing is IDiffEditor {
-	if (thing && typeof (<IDiffEditor>thing).getEditorType === 'function') {
-		return (<IDiffEditor>thing).getEditorType() === editorCommon.EditorType.IDiffEditor;
-	} else {
-		return false;
+expowt function isDiffEditow(thing: unknown): thing is IDiffEditow {
+	if (thing && typeof (<IDiffEditow>thing).getEditowType === 'function') {
+		wetuwn (<IDiffEditow>thing).getEditowType() === editowCommon.EditowType.IDiffEditow;
+	} ewse {
+		wetuwn fawse;
 	}
 }
 
 /**
- *@internal
+ *@intewnaw
  */
-export function isCompositeEditor(thing: unknown): thing is editorCommon.ICompositeCodeEditor {
-	return !!thing
+expowt function isCompositeEditow(thing: unknown): thing is editowCommon.ICompositeCodeEditow {
+	wetuwn !!thing
 		&& typeof thing === 'object'
-		&& typeof (<editorCommon.ICompositeCodeEditor>thing).onDidChangeActiveEditor === 'function';
+		&& typeof (<editowCommon.ICompositeCodeEditow>thing).onDidChangeActiveEditow === 'function';
 
 }
 
 /**
- *@internal
+ *@intewnaw
  */
-export function getCodeEditor(thing: unknown): ICodeEditor | null {
-	if (isCodeEditor(thing)) {
-		return thing;
+expowt function getCodeEditow(thing: unknown): ICodeEditow | nuww {
+	if (isCodeEditow(thing)) {
+		wetuwn thing;
 	}
 
-	if (isDiffEditor(thing)) {
-		return thing.getModifiedEditor();
+	if (isDiffEditow(thing)) {
+		wetuwn thing.getModifiedEditow();
 	}
 
-	return null;
+	wetuwn nuww;
 }
 
 /**
- *@internal
+ *@intewnaw
  */
-export function getIEditor(thing: any): editorCommon.IEditor | null {
-	if (isCodeEditor(thing) || isDiffEditor(thing)) {
-		return thing;
+expowt function getIEditow(thing: any): editowCommon.IEditow | nuww {
+	if (isCodeEditow(thing) || isDiffEditow(thing)) {
+		wetuwn thing;
 	}
 
-	return null;
+	wetuwn nuww;
 }

@@ -1,126 +1,126 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IHistoryNavigationWidget } from 'vs/base/browser/history';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { FindInput, IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
-import { IReplaceInputOptions, ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';
-import { HistoryInputBox, IHistoryInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ContextKeyExpr, IContextKey, IContextKeyService, IContextKeyServiceTarget, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
+impowt { IHistowyNavigationWidget } fwom 'vs/base/bwowsa/histowy';
+impowt { IContextViewPwovida } fwom 'vs/base/bwowsa/ui/contextview/contextview';
+impowt { FindInput, IFindInputOptions } fwom 'vs/base/bwowsa/ui/findinput/findInput';
+impowt { IWepwaceInputOptions, WepwaceInput } fwom 'vs/base/bwowsa/ui/findinput/wepwaceInput';
+impowt { HistowyInputBox, IHistowyInputOptions } fwom 'vs/base/bwowsa/ui/inputbox/inputBox';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { ContextKeyExpw, IContextKey, IContextKeySewvice, IContextKeySewviceTawget, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { Context as SuggestContext } fwom 'vs/editow/contwib/suggest/suggest';
 
-export const HistoryNavigationWidgetContext = 'historyNavigationWidget';
-const HistoryNavigationForwardsEnablementContext = 'historyNavigationForwardsEnabled';
-const HistoryNavigationBackwardsEnablementContext = 'historyNavigationBackwardsEnabled';
+expowt const HistowyNavigationWidgetContext = 'histowyNavigationWidget';
+const HistowyNavigationFowwawdsEnabwementContext = 'histowyNavigationFowwawdsEnabwed';
+const HistowyNavigationBackwawdsEnabwementContext = 'histowyNavigationBackwawdsEnabwed';
 
-function bindContextScopedWidget(contextKeyService: IContextKeyService, widget: IContextScopedWidget, contextKey: string): void {
-	new RawContextKey<IContextScopedWidget>(contextKey, widget).bindTo(contextKeyService);
+function bindContextScopedWidget(contextKeySewvice: IContextKeySewvice, widget: IContextScopedWidget, contextKey: stwing): void {
+	new WawContextKey<IContextScopedWidget>(contextKey, widget).bindTo(contextKeySewvice);
 }
 
-function createWidgetScopedContextKeyService(contextKeyService: IContextKeyService, widget: IContextScopedWidget): IContextKeyService {
-	return contextKeyService.createScoped(widget.target);
+function cweateWidgetScopedContextKeySewvice(contextKeySewvice: IContextKeySewvice, widget: IContextScopedWidget): IContextKeySewvice {
+	wetuwn contextKeySewvice.cweateScoped(widget.tawget);
 }
 
-function getContextScopedWidget<T extends IContextScopedWidget>(contextKeyService: IContextKeyService, contextKey: string): T | undefined {
-	return contextKeyService.getContext(document.activeElement).getValue(contextKey);
+function getContextScopedWidget<T extends IContextScopedWidget>(contextKeySewvice: IContextKeySewvice, contextKey: stwing): T | undefined {
+	wetuwn contextKeySewvice.getContext(document.activeEwement).getVawue(contextKey);
 }
 
-interface IContextScopedWidget {
-	readonly target: IContextKeyServiceTarget;
+intewface IContextScopedWidget {
+	weadonwy tawget: IContextKeySewviceTawget;
 }
 
-interface IContextScopedHistoryNavigationWidget extends IContextScopedWidget {
-	historyNavigator: IHistoryNavigationWidget;
+intewface IContextScopedHistowyNavigationWidget extends IContextScopedWidget {
+	histowyNavigatow: IHistowyNavigationWidget;
 }
 
-export interface IHistoryNavigationContext {
-	scopedContextKeyService: IContextKeyService,
-	historyNavigationForwardsEnablement: IContextKey<boolean>,
-	historyNavigationBackwardsEnablement: IContextKey<boolean>,
+expowt intewface IHistowyNavigationContext {
+	scopedContextKeySewvice: IContextKeySewvice,
+	histowyNavigationFowwawdsEnabwement: IContextKey<boowean>,
+	histowyNavigationBackwawdsEnabwement: IContextKey<boowean>,
 }
 
-export function createAndBindHistoryNavigationWidgetScopedContextKeyService(contextKeyService: IContextKeyService, widget: IContextScopedHistoryNavigationWidget): IHistoryNavigationContext {
-	const scopedContextKeyService = createWidgetScopedContextKeyService(contextKeyService, widget);
-	bindContextScopedWidget(scopedContextKeyService, widget, HistoryNavigationWidgetContext);
-	const historyNavigationForwardsEnablement = new RawContextKey<boolean>(HistoryNavigationForwardsEnablementContext, true).bindTo(scopedContextKeyService);
-	const historyNavigationBackwardsEnablement = new RawContextKey<boolean>(HistoryNavigationBackwardsEnablementContext, true).bindTo(scopedContextKeyService);
-	return {
-		scopedContextKeyService,
-		historyNavigationForwardsEnablement,
-		historyNavigationBackwardsEnablement,
+expowt function cweateAndBindHistowyNavigationWidgetScopedContextKeySewvice(contextKeySewvice: IContextKeySewvice, widget: IContextScopedHistowyNavigationWidget): IHistowyNavigationContext {
+	const scopedContextKeySewvice = cweateWidgetScopedContextKeySewvice(contextKeySewvice, widget);
+	bindContextScopedWidget(scopedContextKeySewvice, widget, HistowyNavigationWidgetContext);
+	const histowyNavigationFowwawdsEnabwement = new WawContextKey<boowean>(HistowyNavigationFowwawdsEnabwementContext, twue).bindTo(scopedContextKeySewvice);
+	const histowyNavigationBackwawdsEnabwement = new WawContextKey<boowean>(HistowyNavigationBackwawdsEnabwementContext, twue).bindTo(scopedContextKeySewvice);
+	wetuwn {
+		scopedContextKeySewvice,
+		histowyNavigationFowwawdsEnabwement,
+		histowyNavigationBackwawdsEnabwement,
 	};
 }
 
-export class ContextScopedHistoryInputBox extends HistoryInputBox {
+expowt cwass ContextScopedHistowyInputBox extends HistowyInputBox {
 
-	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider | undefined, options: IHistoryInputOptions,
-		@IContextKeyService contextKeyService: IContextKeyService
+	constwuctow(containa: HTMWEwement, contextViewPwovida: IContextViewPwovida | undefined, options: IHistowyInputOptions,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice
 	) {
-		super(container, contextViewProvider, options);
-		this._register(createAndBindHistoryNavigationWidgetScopedContextKeyService(contextKeyService, <IContextScopedHistoryNavigationWidget>{ target: this.element, historyNavigator: this }).scopedContextKeyService);
+		supa(containa, contextViewPwovida, options);
+		this._wegista(cweateAndBindHistowyNavigationWidgetScopedContextKeySewvice(contextKeySewvice, <IContextScopedHistowyNavigationWidget>{ tawget: this.ewement, histowyNavigatow: this }).scopedContextKeySewvice);
 	}
 
 }
 
-export class ContextScopedFindInput extends FindInput {
+expowt cwass ContextScopedFindInput extends FindInput {
 
-	constructor(container: HTMLElement | null, contextViewProvider: IContextViewProvider, options: IFindInputOptions,
-		@IContextKeyService contextKeyService: IContextKeyService, showFindOptions: boolean = false
+	constwuctow(containa: HTMWEwement | nuww, contextViewPwovida: IContextViewPwovida, options: IFindInputOptions,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice, showFindOptions: boowean = fawse
 	) {
-		super(container, contextViewProvider, showFindOptions, options);
-		this._register(createAndBindHistoryNavigationWidgetScopedContextKeyService(contextKeyService, <IContextScopedHistoryNavigationWidget>{ target: this.inputBox.element, historyNavigator: this.inputBox }).scopedContextKeyService);
+		supa(containa, contextViewPwovida, showFindOptions, options);
+		this._wegista(cweateAndBindHistowyNavigationWidgetScopedContextKeySewvice(contextKeySewvice, <IContextScopedHistowyNavigationWidget>{ tawget: this.inputBox.ewement, histowyNavigatow: this.inputBox }).scopedContextKeySewvice);
 	}
 }
 
-export class ContextScopedReplaceInput extends ReplaceInput {
+expowt cwass ContextScopedWepwaceInput extends WepwaceInput {
 
-	constructor(container: HTMLElement | null, contextViewProvider: IContextViewProvider | undefined, options: IReplaceInputOptions,
-		@IContextKeyService contextKeyService: IContextKeyService, showReplaceOptions: boolean = false
+	constwuctow(containa: HTMWEwement | nuww, contextViewPwovida: IContextViewPwovida | undefined, options: IWepwaceInputOptions,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice, showWepwaceOptions: boowean = fawse
 	) {
-		super(container, contextViewProvider, showReplaceOptions, options);
-		this._register(createAndBindHistoryNavigationWidgetScopedContextKeyService(contextKeyService, <IContextScopedHistoryNavigationWidget>{ target: this.inputBox.element, historyNavigator: this.inputBox }).scopedContextKeyService);
+		supa(containa, contextViewPwovida, showWepwaceOptions, options);
+		this._wegista(cweateAndBindHistowyNavigationWidgetScopedContextKeySewvice(contextKeySewvice, <IContextScopedHistowyNavigationWidget>{ tawget: this.inputBox.ewement, histowyNavigatow: this.inputBox }).scopedContextKeySewvice);
 	}
 
 }
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'history.showPrevious',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(
-		ContextKeyExpr.has(HistoryNavigationWidgetContext),
-		ContextKeyExpr.equals(HistoryNavigationBackwardsEnablementContext, true),
-		SuggestContext.Visible.isEqualTo(false),
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'histowy.showPwevious',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: ContextKeyExpw.and(
+		ContextKeyExpw.has(HistowyNavigationWidgetContext),
+		ContextKeyExpw.equaws(HistowyNavigationBackwawdsEnabwementContext, twue),
+		SuggestContext.Visibwe.isEquawTo(fawse),
 	),
-	primary: KeyCode.UpArrow,
-	secondary: [KeyMod.Alt | KeyCode.UpArrow],
-	handler: (accessor) => {
-		const widget = getContextScopedWidget<IContextScopedHistoryNavigationWidget>(accessor.get(IContextKeyService), HistoryNavigationWidgetContext);
+	pwimawy: KeyCode.UpAwwow,
+	secondawy: [KeyMod.Awt | KeyCode.UpAwwow],
+	handwa: (accessow) => {
+		const widget = getContextScopedWidget<IContextScopedHistowyNavigationWidget>(accessow.get(IContextKeySewvice), HistowyNavigationWidgetContext);
 		if (widget) {
-			const historyInputBox: IHistoryNavigationWidget = widget.historyNavigator;
-			historyInputBox.showPreviousValue();
+			const histowyInputBox: IHistowyNavigationWidget = widget.histowyNavigatow;
+			histowyInputBox.showPweviousVawue();
 		}
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'history.showNext',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(
-		ContextKeyExpr.has(HistoryNavigationWidgetContext),
-		ContextKeyExpr.equals(HistoryNavigationForwardsEnablementContext, true),
-		SuggestContext.Visible.isEqualTo(false),
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'histowy.showNext',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: ContextKeyExpw.and(
+		ContextKeyExpw.has(HistowyNavigationWidgetContext),
+		ContextKeyExpw.equaws(HistowyNavigationFowwawdsEnabwementContext, twue),
+		SuggestContext.Visibwe.isEquawTo(fawse),
 	),
-	primary: KeyCode.DownArrow,
-	secondary: [KeyMod.Alt | KeyCode.DownArrow],
-	handler: (accessor) => {
-		const widget = getContextScopedWidget<IContextScopedHistoryNavigationWidget>(accessor.get(IContextKeyService), HistoryNavigationWidgetContext);
+	pwimawy: KeyCode.DownAwwow,
+	secondawy: [KeyMod.Awt | KeyCode.DownAwwow],
+	handwa: (accessow) => {
+		const widget = getContextScopedWidget<IContextScopedHistowyNavigationWidget>(accessow.get(IContextKeySewvice), HistowyNavigationWidgetContext);
 		if (widget) {
-			const historyInputBox: IHistoryNavigationWidget = widget.historyNavigator;
-			historyInputBox.showNextValue();
+			const histowyInputBox: IHistowyNavigationWidget = widget.histowyNavigatow;
+			histowyInputBox.showNextVawue();
 		}
 	}
 });

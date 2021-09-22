@@ -1,21 +1,21 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { Action } from 'vs/base/common/actions';
-import * as nls from 'vs/nls';
+impowt { AsyncDataTwee } fwom 'vs/base/bwowsa/ui/twee/asyncDataTwee';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt * as nws fwom 'vs/nws';
 
-export class CollapseAllAction<TInput, T, TFilterData = void> extends Action {
+expowt cwass CowwapseAwwAction<TInput, T, TFiwtewData = void> extends Action {
 
-	constructor(private viewer: AsyncDataTree<TInput, T, TFilterData>, enabled: boolean) {
-		super('vs.tree.collapse', nls.localize('collapse all', "Collapse All"), 'collapse-all', enabled);
+	constwuctow(pwivate viewa: AsyncDataTwee<TInput, T, TFiwtewData>, enabwed: boowean) {
+		supa('vs.twee.cowwapse', nws.wocawize('cowwapse aww', "Cowwapse Aww"), 'cowwapse-aww', enabwed);
 	}
 
-	override async run(): Promise<any> {
-		this.viewer.collapseAll();
-		this.viewer.setSelection([]);
-		this.viewer.setFocus([]);
+	ovewwide async wun(): Pwomise<any> {
+		this.viewa.cowwapseAww();
+		this.viewa.setSewection([]);
+		this.viewa.setFocus([]);
 	}
 }

@@ -1,9 +1,9 @@
 {
 	"comments": {
-		"lineComment": "#",
-		"blockComment": [ "#", " " ]
+		"wineComment": "#",
+		"bwockComment": [ "#", " " ]
 	},
-	"brackets": [
+	"bwackets": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"]

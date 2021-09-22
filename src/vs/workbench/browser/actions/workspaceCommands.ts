@@ -1,285 +1,285 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { dirname, removeTrailingPathSeparator } from 'vs/base/common/resources';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { FileKind } from 'vs/platform/files/common/files';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IFileDialogService, IPickAndOpenOptions } from 'vs/platform/dialogs/common/dialogs';
-import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs/platform/windows/common/windows';
-import { hasWorkspaceFileExtension, IRecent, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { ILocalizedString } from 'vs/platform/actions/common/actions';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IWowkspaceEditingSewvice } fwom 'vs/wowkbench/sewvices/wowkspaces/common/wowkspaceEditing';
+impowt { diwname, wemoveTwaiwingPathSepawatow } fwom 'vs/base/common/wesouwces';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { mnemonicButtonWabew } fwom 'vs/base/common/wabews';
+impowt { CommandsWegistwy, ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { FiweKind } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IQuickInputSewvice, IPickOptions, IQuickPickItem } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { getIconCwasses } fwom 'vs/editow/common/sewvices/getIconCwasses';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IFiweDiawogSewvice, IPickAndOpenOptions } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenabwe } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { hasWowkspaceFiweExtension, IWecent, IWowkspacesSewvice } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
+impowt { IWocawizedStwing } fwom 'vs/pwatfowm/actions/common/actions';
 
-export const ADD_ROOT_FOLDER_COMMAND_ID = 'addRootFolder';
-export const ADD_ROOT_FOLDER_LABEL: ILocalizedString = { value: localize('addFolderToWorkspace', "Add Folder to Workspace..."), original: 'Add Folder to Workspace...' };
+expowt const ADD_WOOT_FOWDEW_COMMAND_ID = 'addWootFowda';
+expowt const ADD_WOOT_FOWDEW_WABEW: IWocawizedStwing = { vawue: wocawize('addFowdewToWowkspace', "Add Fowda to Wowkspace..."), owiginaw: 'Add Fowda to Wowkspace...' };
 
-export const PICK_WORKSPACE_FOLDER_COMMAND_ID = '_workbench.pickWorkspaceFolder';
+expowt const PICK_WOWKSPACE_FOWDEW_COMMAND_ID = '_wowkbench.pickWowkspaceFowda';
 
-// Command registration
+// Command wegistwation
 
-CommandsRegistry.registerCommand({
-	id: 'workbench.action.files.openFileFolderInNewWindow',
-	handler: (accessor: ServicesAccessor) => accessor.get(IFileDialogService).pickFileFolderAndOpen({ forceNewWindow: true })
+CommandsWegistwy.wegistewCommand({
+	id: 'wowkbench.action.fiwes.openFiweFowdewInNewWindow',
+	handwa: (accessow: SewvicesAccessow) => accessow.get(IFiweDiawogSewvice).pickFiweFowdewAndOpen({ fowceNewWindow: twue })
 });
 
-CommandsRegistry.registerCommand({
-	id: '_files.pickFolderAndOpen',
-	handler: (accessor: ServicesAccessor, options: { forceNewWindow: boolean }) => accessor.get(IFileDialogService).pickFolderAndOpen(options)
+CommandsWegistwy.wegistewCommand({
+	id: '_fiwes.pickFowdewAndOpen',
+	handwa: (accessow: SewvicesAccessow, options: { fowceNewWindow: boowean }) => accessow.get(IFiweDiawogSewvice).pickFowdewAndOpen(options)
 });
 
-CommandsRegistry.registerCommand({
-	id: 'workbench.action.files.openFolderInNewWindow',
-	handler: (accessor: ServicesAccessor) => accessor.get(IFileDialogService).pickFolderAndOpen({ forceNewWindow: true })
+CommandsWegistwy.wegistewCommand({
+	id: 'wowkbench.action.fiwes.openFowdewInNewWindow',
+	handwa: (accessow: SewvicesAccessow) => accessow.get(IFiweDiawogSewvice).pickFowdewAndOpen({ fowceNewWindow: twue })
 });
 
-CommandsRegistry.registerCommand({
-	id: 'workbench.action.files.openFileInNewWindow',
-	handler: (accessor: ServicesAccessor) => accessor.get(IFileDialogService).pickFileAndOpen({ forceNewWindow: true })
+CommandsWegistwy.wegistewCommand({
+	id: 'wowkbench.action.fiwes.openFiweInNewWindow',
+	handwa: (accessow: SewvicesAccessow) => accessow.get(IFiweDiawogSewvice).pickFiweAndOpen({ fowceNewWindow: twue })
 });
 
-CommandsRegistry.registerCommand({
-	id: 'workbench.action.openWorkspaceInNewWindow',
-	handler: (accessor: ServicesAccessor) => accessor.get(IFileDialogService).pickWorkspaceAndOpen({ forceNewWindow: true })
+CommandsWegistwy.wegistewCommand({
+	id: 'wowkbench.action.openWowkspaceInNewWindow',
+	handwa: (accessow: SewvicesAccessow) => accessow.get(IFiweDiawogSewvice).pickWowkspaceAndOpen({ fowceNewWindow: twue })
 });
 
-CommandsRegistry.registerCommand({
-	id: ADD_ROOT_FOLDER_COMMAND_ID,
-	handler: async (accessor) => {
-		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
-		const dialogsService = accessor.get(IFileDialogService);
-		const pathService = accessor.get(IPathService);
+CommandsWegistwy.wegistewCommand({
+	id: ADD_WOOT_FOWDEW_COMMAND_ID,
+	handwa: async (accessow) => {
+		const wowkspaceEditingSewvice = accessow.get(IWowkspaceEditingSewvice);
+		const diawogsSewvice = accessow.get(IFiweDiawogSewvice);
+		const pathSewvice = accessow.get(IPathSewvice);
 
-		const folders = await dialogsService.showOpenDialog({
-			openLabel: mnemonicButtonLabel(localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")),
-			title: localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"),
-			canSelectFolders: true,
-			canSelectMany: true,
-			defaultUri: await dialogsService.defaultFolderPath(),
-			availableFileSystems: [pathService.defaultUriScheme]
+		const fowdews = await diawogsSewvice.showOpenDiawog({
+			openWabew: mnemonicButtonWabew(wocawize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")),
+			titwe: wocawize('addFowdewToWowkspaceTitwe', "Add Fowda to Wowkspace"),
+			canSewectFowdews: twue,
+			canSewectMany: twue,
+			defauwtUwi: await diawogsSewvice.defauwtFowdewPath(),
+			avaiwabweFiweSystems: [pathSewvice.defauwtUwiScheme]
 		});
 
-		if (!folders || !folders.length) {
-			return;
+		if (!fowdews || !fowdews.wength) {
+			wetuwn;
 		}
 
-		await workspaceEditingService.addFolders(folders.map(folder => ({ uri: removeTrailingPathSeparator(folder) })));
+		await wowkspaceEditingSewvice.addFowdews(fowdews.map(fowda => ({ uwi: wemoveTwaiwingPathSepawatow(fowda) })));
 	}
 });
 
-CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, async function (accessor, args?: [IPickOptions<IQuickPickItem>, CancellationToken]) {
-	const quickInputService = accessor.get(IQuickInputService);
-	const labelService = accessor.get(ILabelService);
-	const contextService = accessor.get(IWorkspaceContextService);
-	const modelService = accessor.get(IModelService);
-	const modeService = accessor.get(IModeService);
+CommandsWegistwy.wegistewCommand(PICK_WOWKSPACE_FOWDEW_COMMAND_ID, async function (accessow, awgs?: [IPickOptions<IQuickPickItem>, CancewwationToken]) {
+	const quickInputSewvice = accessow.get(IQuickInputSewvice);
+	const wabewSewvice = accessow.get(IWabewSewvice);
+	const contextSewvice = accessow.get(IWowkspaceContextSewvice);
+	const modewSewvice = accessow.get(IModewSewvice);
+	const modeSewvice = accessow.get(IModeSewvice);
 
-	const folders = contextService.getWorkspace().folders;
-	if (!folders.length) {
-		return;
+	const fowdews = contextSewvice.getWowkspace().fowdews;
+	if (!fowdews.wength) {
+		wetuwn;
 	}
 
-	const folderPicks: IQuickPickItem[] = folders.map(folder => {
-		return {
-			label: folder.name,
-			description: labelService.getUriLabel(dirname(folder.uri), { relative: true }),
-			folder,
-			iconClasses: getIconClasses(modelService, modeService, folder.uri, FileKind.ROOT_FOLDER)
+	const fowdewPicks: IQuickPickItem[] = fowdews.map(fowda => {
+		wetuwn {
+			wabew: fowda.name,
+			descwiption: wabewSewvice.getUwiWabew(diwname(fowda.uwi), { wewative: twue }),
+			fowda,
+			iconCwasses: getIconCwasses(modewSewvice, modeSewvice, fowda.uwi, FiweKind.WOOT_FOWDa)
 		};
 	});
 
-	const options: IPickOptions<IQuickPickItem> = (args ? args[0] : undefined) || Object.create(null);
+	const options: IPickOptions<IQuickPickItem> = (awgs ? awgs[0] : undefined) || Object.cweate(nuww);
 
 	if (!options.activeItem) {
-		options.activeItem = folderPicks[0];
+		options.activeItem = fowdewPicks[0];
 	}
 
-	if (!options.placeHolder) {
-		options.placeHolder = localize('workspaceFolderPickerPlaceholder', "Select workspace folder");
+	if (!options.pwaceHowda) {
+		options.pwaceHowda = wocawize('wowkspaceFowdewPickewPwacehowda', "Sewect wowkspace fowda");
 	}
 
-	if (typeof options.matchOnDescription !== 'boolean') {
-		options.matchOnDescription = true;
+	if (typeof options.matchOnDescwiption !== 'boowean') {
+		options.matchOnDescwiption = twue;
 	}
 
-	const token: CancellationToken = (args ? args[1] : undefined) || CancellationToken.None;
-	const pick = await quickInputService.pick(folderPicks, options, token);
+	const token: CancewwationToken = (awgs ? awgs[1] : undefined) || CancewwationToken.None;
+	const pick = await quickInputSewvice.pick(fowdewPicks, options, token);
 	if (pick) {
-		return folders[folderPicks.indexOf(pick)];
+		wetuwn fowdews[fowdewPicks.indexOf(pick)];
 	}
 
-	return;
+	wetuwn;
 });
 
-// API Command registration
+// API Command wegistwation
 
-interface IOpenFolderAPICommandOptions {
-	forceNewWindow?: boolean;
-	forceReuseWindow?: boolean;
-	noRecentEntry?: boolean;
-	forceLocalWindow?: boolean;
+intewface IOpenFowdewAPICommandOptions {
+	fowceNewWindow?: boowean;
+	fowceWeuseWindow?: boowean;
+	noWecentEntwy?: boowean;
+	fowceWocawWindow?: boowean;
 }
 
-CommandsRegistry.registerCommand({
-	id: 'vscode.openFolder',
-	handler: (accessor: ServicesAccessor, uri?: URI, arg?: boolean | IOpenFolderAPICommandOptions) => {
-		const commandService = accessor.get(ICommandService);
+CommandsWegistwy.wegistewCommand({
+	id: 'vscode.openFowda',
+	handwa: (accessow: SewvicesAccessow, uwi?: UWI, awg?: boowean | IOpenFowdewAPICommandOptions) => {
+		const commandSewvice = accessow.get(ICommandSewvice);
 
-		// Be compatible to previous args by converting to options
-		if (typeof arg === 'boolean') {
-			arg = { forceNewWindow: arg };
+		// Be compatibwe to pwevious awgs by convewting to options
+		if (typeof awg === 'boowean') {
+			awg = { fowceNewWindow: awg };
 		}
 
-		// Without URI, ask to pick a folder or workspace to open
-		if (!uri) {
+		// Without UWI, ask to pick a fowda ow wowkspace to open
+		if (!uwi) {
 			const options: IPickAndOpenOptions = {
-				forceNewWindow: arg?.forceNewWindow
+				fowceNewWindow: awg?.fowceNewWindow
 			};
 
-			if (arg?.forceLocalWindow) {
-				options.remoteAuthority = null;
-				options.availableFileSystems = ['file'];
+			if (awg?.fowceWocawWindow) {
+				options.wemoteAuthowity = nuww;
+				options.avaiwabweFiweSystems = ['fiwe'];
 			}
 
-			return commandService.executeCommand('_files.pickFolderAndOpen', options);
+			wetuwn commandSewvice.executeCommand('_fiwes.pickFowdewAndOpen', options);
 		}
 
-		uri = URI.revive(uri);
+		uwi = UWI.wevive(uwi);
 
 		const options: IOpenWindowOptions = {
-			forceNewWindow: arg?.forceNewWindow,
-			forceReuseWindow: arg?.forceReuseWindow,
-			noRecentEntry: arg?.noRecentEntry,
-			remoteAuthority: arg?.forceLocalWindow ? null : undefined
+			fowceNewWindow: awg?.fowceNewWindow,
+			fowceWeuseWindow: awg?.fowceWeuseWindow,
+			noWecentEntwy: awg?.noWecentEntwy,
+			wemoteAuthowity: awg?.fowceWocawWindow ? nuww : undefined
 		};
 
-		const uriToOpen: IWindowOpenable = (hasWorkspaceFileExtension(uri) || uri.scheme === Schemas.untitled) ? { workspaceUri: uri } : { folderUri: uri };
-		return commandService.executeCommand('_files.windowOpen', [uriToOpen], options);
+		const uwiToOpen: IWindowOpenabwe = (hasWowkspaceFiweExtension(uwi) || uwi.scheme === Schemas.untitwed) ? { wowkspaceUwi: uwi } : { fowdewUwi: uwi };
+		wetuwn commandSewvice.executeCommand('_fiwes.windowOpen', [uwiToOpen], options);
 	},
-	description: {
-		description: 'Open a folder or workspace in the current window or new window depending on the newWindow argument. Note that opening in the same window will shutdown the current extension host process and start a new one on the given folder/workspace unless the newWindow parameter is set to true.',
-		args: [
+	descwiption: {
+		descwiption: 'Open a fowda ow wowkspace in the cuwwent window ow new window depending on the newWindow awgument. Note that opening in the same window wiww shutdown the cuwwent extension host pwocess and stawt a new one on the given fowda/wowkspace unwess the newWindow pawameta is set to twue.',
+		awgs: [
 			{
-				name: 'uri', description: '(optional) Uri of the folder or workspace file to open. If not provided, a native dialog will ask the user for the folder',
-				constraint: (value: any) => value === undefined || value === null || value instanceof URI
+				name: 'uwi', descwiption: '(optionaw) Uwi of the fowda ow wowkspace fiwe to open. If not pwovided, a native diawog wiww ask the usa fow the fowda',
+				constwaint: (vawue: any) => vawue === undefined || vawue === nuww || vawue instanceof UWI
 			},
 			{
 				name: 'options',
-				description: '(optional) Options. Object with the following properties: ' +
-					'`forceNewWindow`: Whether to open the folder/workspace in a new window or the same. Defaults to opening in the same window. ' +
-					'`forceReuseWindow`: Whether to force opening the folder/workspace in the same window.  Defaults to false. ' +
-					'`noRecentEntry`: Whether the opened URI will appear in the \'Open Recent\' list. Defaults to false. ' +
-					'Note, for backward compatibility, options can also be of type boolean, representing the `forceNewWindow` setting.',
-				constraint: (value: any) => value === undefined || typeof value === 'object' || typeof value === 'boolean'
+				descwiption: '(optionaw) Options. Object with the fowwowing pwopewties: ' +
+					'`fowceNewWindow`: Whetha to open the fowda/wowkspace in a new window ow the same. Defauwts to opening in the same window. ' +
+					'`fowceWeuseWindow`: Whetha to fowce opening the fowda/wowkspace in the same window.  Defauwts to fawse. ' +
+					'`noWecentEntwy`: Whetha the opened UWI wiww appeaw in the \'Open Wecent\' wist. Defauwts to fawse. ' +
+					'Note, fow backwawd compatibiwity, options can awso be of type boowean, wepwesenting the `fowceNewWindow` setting.',
+				constwaint: (vawue: any) => vawue === undefined || typeof vawue === 'object' || typeof vawue === 'boowean'
 			}
 		]
 	}
 });
 
-interface INewWindowAPICommandOptions {
-	reuseWindow?: boolean;
+intewface INewWindowAPICommandOptions {
+	weuseWindow?: boowean;
 	/**
-	 * If set, defines the remoteAuthority of the new window. `null` will open a local window.
-	 * If not set, defaults to remoteAuthority of the current window.
+	 * If set, defines the wemoteAuthowity of the new window. `nuww` wiww open a wocaw window.
+	 * If not set, defauwts to wemoteAuthowity of the cuwwent window.
 	 */
-	remoteAuthority?: string | null;
+	wemoteAuthowity?: stwing | nuww;
 }
 
-CommandsRegistry.registerCommand({
+CommandsWegistwy.wegistewCommand({
 	id: 'vscode.newWindow',
-	handler: (accessor: ServicesAccessor, options?: INewWindowAPICommandOptions) => {
-		const commandService = accessor.get(ICommandService);
+	handwa: (accessow: SewvicesAccessow, options?: INewWindowAPICommandOptions) => {
+		const commandSewvice = accessow.get(ICommandSewvice);
 
 		const commandOptions: IOpenEmptyWindowOptions = {
-			forceReuseWindow: options && options.reuseWindow,
-			remoteAuthority: options && options.remoteAuthority
+			fowceWeuseWindow: options && options.weuseWindow,
+			wemoteAuthowity: options && options.wemoteAuthowity
 		};
 
-		return commandService.executeCommand('_files.newWindow', commandOptions);
+		wetuwn commandSewvice.executeCommand('_fiwes.newWindow', commandOptions);
 	},
-	description: {
-		description: 'Opens an new window depending on the newWindow argument.',
-		args: [
+	descwiption: {
+		descwiption: 'Opens an new window depending on the newWindow awgument.',
+		awgs: [
 			{
 				name: 'options',
-				description: '(optional) Options. Object with the following properties: ' +
-					'`reuseWindow`: Whether to open a new window or the same. Defaults to opening in a new window. ',
-				constraint: (value: any) => value === undefined || typeof value === 'object'
+				descwiption: '(optionaw) Options. Object with the fowwowing pwopewties: ' +
+					'`weuseWindow`: Whetha to open a new window ow the same. Defauwts to opening in a new window. ',
+				constwaint: (vawue: any) => vawue === undefined || typeof vawue === 'object'
 			}
 		]
 	}
 });
 
-// recent history commands
+// wecent histowy commands
 
-CommandsRegistry.registerCommand('_workbench.removeFromRecentlyOpened', function (accessor: ServicesAccessor, uri: URI) {
-	const workspacesService = accessor.get(IWorkspacesService);
-	return workspacesService.removeRecentlyOpened([uri]);
+CommandsWegistwy.wegistewCommand('_wowkbench.wemoveFwomWecentwyOpened', function (accessow: SewvicesAccessow, uwi: UWI) {
+	const wowkspacesSewvice = accessow.get(IWowkspacesSewvice);
+	wetuwn wowkspacesSewvice.wemoveWecentwyOpened([uwi]);
 });
 
-CommandsRegistry.registerCommand({
-	id: 'vscode.removeFromRecentlyOpened',
-	handler: (accessor: ServicesAccessor, path: string | URI): Promise<any> => {
-		const workspacesService = accessor.get(IWorkspacesService);
+CommandsWegistwy.wegistewCommand({
+	id: 'vscode.wemoveFwomWecentwyOpened',
+	handwa: (accessow: SewvicesAccessow, path: stwing | UWI): Pwomise<any> => {
+		const wowkspacesSewvice = accessow.get(IWowkspacesSewvice);
 
-		if (typeof path === 'string') {
-			path = path.match(/^[^:/?#]+:\/\//) ? URI.parse(path) : URI.file(path);
-		} else {
-			path = URI.revive(path); // called from extension host
+		if (typeof path === 'stwing') {
+			path = path.match(/^[^:/?#]+:\/\//) ? UWI.pawse(path) : UWI.fiwe(path);
+		} ewse {
+			path = UWI.wevive(path); // cawwed fwom extension host
 		}
 
-		return workspacesService.removeRecentlyOpened([path]);
+		wetuwn wowkspacesSewvice.wemoveWecentwyOpened([path]);
 	},
-	description: {
-		description: 'Removes an entry with the given path from the recently opened list.',
-		args: [
-			{ name: 'path', description: 'URI or URI string to remove from recently opened.', constraint: (value: any) => typeof value === 'string' || value instanceof URI }
+	descwiption: {
+		descwiption: 'Wemoves an entwy with the given path fwom the wecentwy opened wist.',
+		awgs: [
+			{ name: 'path', descwiption: 'UWI ow UWI stwing to wemove fwom wecentwy opened.', constwaint: (vawue: any) => typeof vawue === 'stwing' || vawue instanceof UWI }
 		]
 	}
 });
 
-interface RecentEntry {
-	uri: URI;
-	type: 'workspace' | 'folder' | 'file';
-	label?: string;
-	remoteAuthority?: string;
+intewface WecentEntwy {
+	uwi: UWI;
+	type: 'wowkspace' | 'fowda' | 'fiwe';
+	wabew?: stwing;
+	wemoteAuthowity?: stwing;
 }
 
-CommandsRegistry.registerCommand('_workbench.addToRecentlyOpened', async function (accessor: ServicesAccessor, recentEntry: RecentEntry) {
-	const workspacesService = accessor.get(IWorkspacesService);
-	const uri = recentEntry.uri;
-	const label = recentEntry.label;
-	const remoteAuthority = recentEntry.remoteAuthority;
+CommandsWegistwy.wegistewCommand('_wowkbench.addToWecentwyOpened', async function (accessow: SewvicesAccessow, wecentEntwy: WecentEntwy) {
+	const wowkspacesSewvice = accessow.get(IWowkspacesSewvice);
+	const uwi = wecentEntwy.uwi;
+	const wabew = wecentEntwy.wabew;
+	const wemoteAuthowity = wecentEntwy.wemoteAuthowity;
 
-	let recent: IRecent | undefined = undefined;
-	if (recentEntry.type === 'workspace') {
-		const workspace = await workspacesService.getWorkspaceIdentifier(uri);
-		recent = { workspace, label, remoteAuthority };
-	} else if (recentEntry.type === 'folder') {
-		recent = { folderUri: uri, label, remoteAuthority };
-	} else {
-		recent = { fileUri: uri, label, remoteAuthority };
+	wet wecent: IWecent | undefined = undefined;
+	if (wecentEntwy.type === 'wowkspace') {
+		const wowkspace = await wowkspacesSewvice.getWowkspaceIdentifia(uwi);
+		wecent = { wowkspace, wabew, wemoteAuthowity };
+	} ewse if (wecentEntwy.type === 'fowda') {
+		wecent = { fowdewUwi: uwi, wabew, wemoteAuthowity };
+	} ewse {
+		wecent = { fiweUwi: uwi, wabew, wemoteAuthowity };
 	}
 
-	return workspacesService.addRecentlyOpened([recent]);
+	wetuwn wowkspacesSewvice.addWecentwyOpened([wecent]);
 });
 
-CommandsRegistry.registerCommand('_workbench.getRecentlyOpened', async function (accessor: ServicesAccessor) {
-	const workspacesService = accessor.get(IWorkspacesService);
+CommandsWegistwy.wegistewCommand('_wowkbench.getWecentwyOpened', async function (accessow: SewvicesAccessow) {
+	const wowkspacesSewvice = accessow.get(IWowkspacesSewvice);
 
-	return workspacesService.getRecentlyOpened();
+	wetuwn wowkspacesSewvice.getWecentwyOpened();
 });

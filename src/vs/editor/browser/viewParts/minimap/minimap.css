@@ -1,32 +1,32 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-/* START cover the case that slider is visible on mouseover */
-.monaco-editor .minimap.slider-mouseover .minimap-slider {
+/* STAWT cova the case that swida is visibwe on mouseova */
+.monaco-editow .minimap.swida-mouseova .minimap-swida {
 	opacity: 0;
-	transition: opacity 100ms linear;
+	twansition: opacity 100ms wineaw;
 }
-.monaco-editor .minimap.slider-mouseover:hover .minimap-slider {
+.monaco-editow .minimap.swida-mouseova:hova .minimap-swida {
 	opacity: 1;
 }
-.monaco-editor .minimap.slider-mouseover .minimap-slider.active {
+.monaco-editow .minimap.swida-mouseova .minimap-swida.active {
 	opacity: 1;
 }
-/* END cover the case that slider is visible on mouseover */
+/* END cova the case that swida is visibwe on mouseova */
 
-.monaco-editor .minimap-shadow-hidden {
-	position: absolute;
+.monaco-editow .minimap-shadow-hidden {
+	position: absowute;
 	width: 0;
 }
-.monaco-editor .minimap-shadow-visible {
-	position: absolute;
-	left: -6px;
+.monaco-editow .minimap-shadow-visibwe {
+	position: absowute;
+	weft: -6px;
 	width: 6px;
 }
-.monaco-editor.no-minimap-shadow .minimap-shadow-visible {
-	position: absolute;
-	left: -1px;
+.monaco-editow.no-minimap-shadow .minimap-shadow-visibwe {
+	position: absowute;
+	weft: -1px;
 	width: 1px;
 }

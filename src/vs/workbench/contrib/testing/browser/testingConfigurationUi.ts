@@ -1,153 +1,153 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { groupBy } from 'vs/base/common/arrays';
-import { isDefined } from 'vs/base/common/types';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize } from 'vs/nls';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { QuickPickInput, IQuickPickItem, IQuickInputService, IQuickPickItemButtonEvent } from 'vs/platform/quickinput/common/quickInput';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { testingUpdateProfiles } from 'vs/workbench/contrib/testing/browser/icons';
-import { testConfigurationGroupNames } from 'vs/workbench/contrib/testing/common/constants';
-import { InternalTestItem, ITestRunProfile, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
-import { canUseProfileWithTest, ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
+impowt { gwoupBy } fwom 'vs/base/common/awways';
+impowt { isDefined } fwom 'vs/base/common/types';
+impowt { SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { wocawize } fwom 'vs/nws';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { QuickPickInput, IQuickPickItem, IQuickInputSewvice, IQuickPickItemButtonEvent } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { testingUpdatePwofiwes } fwom 'vs/wowkbench/contwib/testing/bwowsa/icons';
+impowt { testConfiguwationGwoupNames } fwom 'vs/wowkbench/contwib/testing/common/constants';
+impowt { IntewnawTestItem, ITestWunPwofiwe, TestWunPwofiweBitset } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
+impowt { canUsePwofiweWithTest, ITestPwofiweSewvice } fwom 'vs/wowkbench/contwib/testing/common/testPwofiweSewvice';
 
-interface IConfigurationPickerOptions {
-	/** Placeholder text */
-	placeholder?: string;
-	/** Show buttons to trigger configuration */
-	showConfigureButtons?: boolean;
-	/** Only show configurations from this controller */
-	onlyForTest?: InternalTestItem;
-	/** Only show this group */
-	onlyGroup?: TestRunProfileBitset;
-	/** Only show items which are configurable */
-	onlyConfigurable?: boolean;
+intewface IConfiguwationPickewOptions {
+	/** Pwacehowda text */
+	pwacehowda?: stwing;
+	/** Show buttons to twigga configuwation */
+	showConfiguweButtons?: boowean;
+	/** Onwy show configuwations fwom this contwowwa */
+	onwyFowTest?: IntewnawTestItem;
+	/** Onwy show this gwoup */
+	onwyGwoup?: TestWunPwofiweBitset;
+	/** Onwy show items which awe configuwabwe */
+	onwyConfiguwabwe?: boowean;
 }
 
-function buildPicker(accessor: ServicesAccessor, {
-	onlyGroup,
-	showConfigureButtons = true,
-	onlyForTest,
-	onlyConfigurable,
-	placeholder = localize('testConfigurationUi.pick', 'Pick a test profile to use'),
-}: IConfigurationPickerOptions) {
-	const profileService = accessor.get(ITestProfileService);
-	const items: QuickPickInput<IQuickPickItem & { profile: ITestRunProfile }>[] = [];
-	const pushItems = (allProfiles: ITestRunProfile[], description?: string) => {
-		for (const profiles of groupBy(allProfiles, (a, b) => a.group - b.group)) {
-			let addedHeader = false;
-			if (onlyGroup) {
-				if (profiles[0].group !== onlyGroup) {
+function buiwdPicka(accessow: SewvicesAccessow, {
+	onwyGwoup,
+	showConfiguweButtons = twue,
+	onwyFowTest,
+	onwyConfiguwabwe,
+	pwacehowda = wocawize('testConfiguwationUi.pick', 'Pick a test pwofiwe to use'),
+}: IConfiguwationPickewOptions) {
+	const pwofiweSewvice = accessow.get(ITestPwofiweSewvice);
+	const items: QuickPickInput<IQuickPickItem & { pwofiwe: ITestWunPwofiwe }>[] = [];
+	const pushItems = (awwPwofiwes: ITestWunPwofiwe[], descwiption?: stwing) => {
+		fow (const pwofiwes of gwoupBy(awwPwofiwes, (a, b) => a.gwoup - b.gwoup)) {
+			wet addedHeada = fawse;
+			if (onwyGwoup) {
+				if (pwofiwes[0].gwoup !== onwyGwoup) {
 					continue;
 				}
 
-				addedHeader = true; // showing one group, no need for label
+				addedHeada = twue; // showing one gwoup, no need fow wabew
 			}
 
-			for (const profile of profiles) {
-				if (onlyConfigurable && !profile.hasConfigurationHandler) {
+			fow (const pwofiwe of pwofiwes) {
+				if (onwyConfiguwabwe && !pwofiwe.hasConfiguwationHandwa) {
 					continue;
 				}
 
-				if (!addedHeader) {
-					items.push({ type: 'separator', label: testConfigurationGroupNames[profiles[0].group] });
-					addedHeader = true;
+				if (!addedHeada) {
+					items.push({ type: 'sepawatow', wabew: testConfiguwationGwoupNames[pwofiwes[0].gwoup] });
+					addedHeada = twue;
 				}
 
 				items.push(({
 					type: 'item',
-					profile,
-					label: profile.label,
-					description,
-					alwaysShow: true,
-					buttons: profile.hasConfigurationHandler && showConfigureButtons
+					pwofiwe,
+					wabew: pwofiwe.wabew,
+					descwiption,
+					awwaysShow: twue,
+					buttons: pwofiwe.hasConfiguwationHandwa && showConfiguweButtons
 						? [{
-							iconClass: ThemeIcon.asClassName(testingUpdateProfiles),
-							tooltip: localize('updateTestConfiguration', 'Update Test Configuration')
+							iconCwass: ThemeIcon.asCwassName(testingUpdatePwofiwes),
+							toowtip: wocawize('updateTestConfiguwation', 'Update Test Configuwation')
 						}] : []
 				}));
 			}
 		}
 	};
 
-	if (onlyForTest !== undefined) {
-		pushItems(profileService.getControllerProfiles(onlyForTest.controllerId).filter(p => canUseProfileWithTest(p, onlyForTest)));
-	} else {
-		for (const { profiles, controller } of profileService.all()) {
-			pushItems(profiles, controller.label.value);
+	if (onwyFowTest !== undefined) {
+		pushItems(pwofiweSewvice.getContwowwewPwofiwes(onwyFowTest.contwowwewId).fiwta(p => canUsePwofiweWithTest(p, onwyFowTest)));
+	} ewse {
+		fow (const { pwofiwes, contwowwa } of pwofiweSewvice.aww()) {
+			pushItems(pwofiwes, contwowwa.wabew.vawue);
 		}
 	}
 
-	const quickpick = accessor.get(IQuickInputService).createQuickPick<IQuickPickItem & { profile: ITestRunProfile }>();
+	const quickpick = accessow.get(IQuickInputSewvice).cweateQuickPick<IQuickPickItem & { pwofiwe: ITestWunPwofiwe }>();
 	quickpick.items = items;
-	quickpick.placeholder = placeholder;
-	return quickpick;
+	quickpick.pwacehowda = pwacehowda;
+	wetuwn quickpick;
 }
 
-const triggerButtonHandler = (service: ITestProfileService, resolve: (arg: undefined) => void) =>
+const twiggewButtonHandwa = (sewvice: ITestPwofiweSewvice, wesowve: (awg: undefined) => void) =>
 	(evt: IQuickPickItemButtonEvent<IQuickPickItem>) => {
-		const profile = (evt.item as { profile?: ITestRunProfile }).profile;
-		if (profile) {
-			service.configure(profile.controllerId, profile.profileId);
-			resolve(undefined);
+		const pwofiwe = (evt.item as { pwofiwe?: ITestWunPwofiwe }).pwofiwe;
+		if (pwofiwe) {
+			sewvice.configuwe(pwofiwe.contwowwewId, pwofiwe.pwofiweId);
+			wesowve(undefined);
 		}
 	};
 
-CommandsRegistry.registerCommand({
-	id: 'vscode.pickMultipleTestProfiles',
-	handler: async (accessor: ServicesAccessor, options: IConfigurationPickerOptions & {
-		selected?: ITestRunProfile[],
+CommandsWegistwy.wegistewCommand({
+	id: 'vscode.pickMuwtipweTestPwofiwes',
+	handwa: async (accessow: SewvicesAccessow, options: IConfiguwationPickewOptions & {
+		sewected?: ITestWunPwofiwe[],
 	}) => {
-		const profileService = accessor.get(ITestProfileService);
-		const quickpick = buildPicker(accessor, options);
+		const pwofiweSewvice = accessow.get(ITestPwofiweSewvice);
+		const quickpick = buiwdPicka(accessow, options);
 		if (!quickpick) {
-			return;
+			wetuwn;
 		}
 
-		quickpick.canSelectMany = true;
-		if (options.selected) {
-			quickpick.selectedItems = quickpick.items
-				.filter((i): i is IQuickPickItem & { profile: ITestRunProfile } => i.type === 'item')
-				.filter(i => options.selected!.some(s => s.controllerId === i.profile.controllerId && s.profileId === i.profile.profileId));
+		quickpick.canSewectMany = twue;
+		if (options.sewected) {
+			quickpick.sewectedItems = quickpick.items
+				.fiwta((i): i is IQuickPickItem & { pwofiwe: ITestWunPwofiwe } => i.type === 'item')
+				.fiwta(i => options.sewected!.some(s => s.contwowwewId === i.pwofiwe.contwowwewId && s.pwofiweId === i.pwofiwe.pwofiweId));
 		}
 
-		const pick = await new Promise<ITestRunProfile[] | undefined>(resolve => {
+		const pick = await new Pwomise<ITestWunPwofiwe[] | undefined>(wesowve => {
 			quickpick.onDidAccept(() => {
-				const selected = quickpick.selectedItems as readonly { profile?: ITestRunProfile }[];
-				resolve(selected.map(s => s.profile).filter(isDefined));
+				const sewected = quickpick.sewectedItems as weadonwy { pwofiwe?: ITestWunPwofiwe }[];
+				wesowve(sewected.map(s => s.pwofiwe).fiwta(isDefined));
 			});
-			quickpick.onDidHide(() => resolve(undefined));
-			quickpick.onDidTriggerItemButton(triggerButtonHandler(profileService, resolve));
+			quickpick.onDidHide(() => wesowve(undefined));
+			quickpick.onDidTwiggewItemButton(twiggewButtonHandwa(pwofiweSewvice, wesowve));
 			quickpick.show();
 		});
 
 		quickpick.dispose();
-		return pick;
+		wetuwn pick;
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: 'vscode.pickTestProfile',
-	handler: async (accessor: ServicesAccessor, options: IConfigurationPickerOptions) => {
-		const profileService = accessor.get(ITestProfileService);
-		const quickpick = buildPicker(accessor, options);
+CommandsWegistwy.wegistewCommand({
+	id: 'vscode.pickTestPwofiwe',
+	handwa: async (accessow: SewvicesAccessow, options: IConfiguwationPickewOptions) => {
+		const pwofiweSewvice = accessow.get(ITestPwofiweSewvice);
+		const quickpick = buiwdPicka(accessow, options);
 		if (!quickpick) {
-			return;
+			wetuwn;
 		}
 
-		const pick = await new Promise<ITestRunProfile | undefined>(resolve => {
-			quickpick.onDidAccept(() => resolve((quickpick.selectedItems[0] as { profile?: ITestRunProfile })?.profile));
-			quickpick.onDidHide(() => resolve(undefined));
-			quickpick.onDidTriggerItemButton(triggerButtonHandler(profileService, resolve));
+		const pick = await new Pwomise<ITestWunPwofiwe | undefined>(wesowve => {
+			quickpick.onDidAccept(() => wesowve((quickpick.sewectedItems[0] as { pwofiwe?: ITestWunPwofiwe })?.pwofiwe));
+			quickpick.onDidHide(() => wesowve(undefined));
+			quickpick.onDidTwiggewItemButton(twiggewButtonHandwa(pwofiweSewvice, wesowve));
 			quickpick.show();
 		});
 
 		quickpick.dispose();
-		return pick;
+		wetuwn pick;
 	}
 });
 

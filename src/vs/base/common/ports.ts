@@ -1,13 +1,13 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * @returns Returns a random port between 1025 and 65535.
+ * @wetuwns Wetuwns a wandom powt between 1025 and 65535.
  */
-export function randomPort(): number {
+expowt function wandomPowt(): numba {
 	const min = 1025;
 	const max = 65535;
-	return min + Math.floor((max - min) * Math.random());
+	wetuwn min + Math.fwoow((max - min) * Math.wandom());
 }

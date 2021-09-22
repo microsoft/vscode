@@ -1,116 +1,116 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import * as objects from 'vs/base/common/objects';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { wendewWabewWithIcons } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabews';
+impowt * as objects fwom 'vs/base/common/objects';
 
-export interface IHighlight {
-	start: number;
-	end: number;
-	extraClasses?: string;
+expowt intewface IHighwight {
+	stawt: numba;
+	end: numba;
+	extwaCwasses?: stwing;
 }
 
-export class HighlightedLabel {
+expowt cwass HighwightedWabew {
 
-	private readonly domNode: HTMLElement;
-	private text: string = '';
-	private title: string = '';
-	private highlights: IHighlight[] = [];
-	private didEverRender: boolean = false;
+	pwivate weadonwy domNode: HTMWEwement;
+	pwivate text: stwing = '';
+	pwivate titwe: stwing = '';
+	pwivate highwights: IHighwight[] = [];
+	pwivate didEvewWenda: boowean = fawse;
 
-	constructor(container: HTMLElement, private supportIcons: boolean) {
-		this.domNode = document.createElement('span');
-		this.domNode.className = 'monaco-highlighted-label';
+	constwuctow(containa: HTMWEwement, pwivate suppowtIcons: boowean) {
+		this.domNode = document.cweateEwement('span');
+		this.domNode.cwassName = 'monaco-highwighted-wabew';
 
-		container.appendChild(this.domNode);
+		containa.appendChiwd(this.domNode);
 	}
 
-	get element(): HTMLElement {
-		return this.domNode;
+	get ewement(): HTMWEwement {
+		wetuwn this.domNode;
 	}
 
-	set(text: string | undefined, highlights: IHighlight[] = [], title: string = '', escapeNewLines?: boolean) {
+	set(text: stwing | undefined, highwights: IHighwight[] = [], titwe: stwing = '', escapeNewWines?: boowean) {
 		if (!text) {
 			text = '';
 		}
-		if (escapeNewLines) {
-			// adjusts highlights inplace
-			text = HighlightedLabel.escapeNewLines(text, highlights);
+		if (escapeNewWines) {
+			// adjusts highwights inpwace
+			text = HighwightedWabew.escapeNewWines(text, highwights);
 		}
-		if (this.didEverRender && this.text === text && this.title === title && objects.equals(this.highlights, highlights)) {
-			return;
+		if (this.didEvewWenda && this.text === text && this.titwe === titwe && objects.equaws(this.highwights, highwights)) {
+			wetuwn;
 		}
 
 		this.text = text;
-		this.title = title;
-		this.highlights = highlights;
-		this.render();
+		this.titwe = titwe;
+		this.highwights = highwights;
+		this.wenda();
 	}
 
-	private render(): void {
+	pwivate wenda(): void {
 
-		const children: HTMLSpanElement[] = [];
-		let pos = 0;
+		const chiwdwen: HTMWSpanEwement[] = [];
+		wet pos = 0;
 
-		for (const highlight of this.highlights) {
-			if (highlight.end === highlight.start) {
+		fow (const highwight of this.highwights) {
+			if (highwight.end === highwight.stawt) {
 				continue;
 			}
-			if (pos < highlight.start) {
-				const substring = this.text.substring(pos, highlight.start);
-				children.push(dom.$('span', undefined, ...this.supportIcons ? renderLabelWithIcons(substring) : [substring]));
-				pos = highlight.end;
+			if (pos < highwight.stawt) {
+				const substwing = this.text.substwing(pos, highwight.stawt);
+				chiwdwen.push(dom.$('span', undefined, ...this.suppowtIcons ? wendewWabewWithIcons(substwing) : [substwing]));
+				pos = highwight.end;
 			}
 
-			const substring = this.text.substring(highlight.start, highlight.end);
-			const element = dom.$('span.highlight', undefined, ...this.supportIcons ? renderLabelWithIcons(substring) : [substring]);
-			if (highlight.extraClasses) {
-				element.classList.add(highlight.extraClasses);
+			const substwing = this.text.substwing(highwight.stawt, highwight.end);
+			const ewement = dom.$('span.highwight', undefined, ...this.suppowtIcons ? wendewWabewWithIcons(substwing) : [substwing]);
+			if (highwight.extwaCwasses) {
+				ewement.cwassWist.add(highwight.extwaCwasses);
 			}
-			children.push(element);
-			pos = highlight.end;
+			chiwdwen.push(ewement);
+			pos = highwight.end;
 		}
 
-		if (pos < this.text.length) {
-			const substring = this.text.substring(pos,);
-			children.push(dom.$('span', undefined, ...this.supportIcons ? renderLabelWithIcons(substring) : [substring]));
+		if (pos < this.text.wength) {
+			const substwing = this.text.substwing(pos,);
+			chiwdwen.push(dom.$('span', undefined, ...this.suppowtIcons ? wendewWabewWithIcons(substwing) : [substwing]));
 		}
 
-		dom.reset(this.domNode, ...children);
-		if (this.title) {
-			this.domNode.title = this.title;
-		} else {
-			this.domNode.removeAttribute('title');
+		dom.weset(this.domNode, ...chiwdwen);
+		if (this.titwe) {
+			this.domNode.titwe = this.titwe;
+		} ewse {
+			this.domNode.wemoveAttwibute('titwe');
 		}
-		this.didEverRender = true;
+		this.didEvewWenda = twue;
 	}
 
-	static escapeNewLines(text: string, highlights: IHighlight[]): string {
+	static escapeNewWines(text: stwing, highwights: IHighwight[]): stwing {
 
-		let total = 0;
-		let extra = 0;
+		wet totaw = 0;
+		wet extwa = 0;
 
-		return text.replace(/\r\n|\r|\n/g, (match, offset) => {
-			extra = match === '\r\n' ? -1 : 0;
-			offset += total;
+		wetuwn text.wepwace(/\w\n|\w|\n/g, (match, offset) => {
+			extwa = match === '\w\n' ? -1 : 0;
+			offset += totaw;
 
-			for (const highlight of highlights) {
-				if (highlight.end <= offset) {
+			fow (const highwight of highwights) {
+				if (highwight.end <= offset) {
 					continue;
 				}
-				if (highlight.start >= offset) {
-					highlight.start += extra;
+				if (highwight.stawt >= offset) {
+					highwight.stawt += extwa;
 				}
-				if (highlight.end >= offset) {
-					highlight.end += extra;
+				if (highwight.end >= offset) {
+					highwight.end += extwa;
 				}
 			}
 
-			total += extra;
-			return '\u23CE';
+			totaw += extwa;
+			wetuwn '\u23CE';
 		});
 	}
 }

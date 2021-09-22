@@ -1,168 +1,168 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Event } from 'vs/base/common/event';
-import { FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IUserDataAutoSyncService, IUserDataSyncStore, IUserDataSyncStoreManagementService, IUserDataSyncUtilService, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
-import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
-import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { FowmattingOptions } fwom 'vs/base/common/jsonFowmatta';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IChannew, ISewvewChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { IUsewDataAutoSyncSewvice, IUsewDataSyncStowe, IUsewDataSyncStoweManagementSewvice, IUsewDataSyncUtiwSewvice, UsewDataSyncStoweType } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { IUsewDataSyncAccountSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncAccount';
+impowt { IUsewDataSyncMachinesSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncMachines';
 
-export class UserDataAutoSyncChannel implements IServerChannel {
+expowt cwass UsewDataAutoSyncChannew impwements ISewvewChannew {
 
-	constructor(private readonly service: IUserDataAutoSyncService) { }
+	constwuctow(pwivate weadonwy sewvice: IUsewDataAutoSyncSewvice) { }
 
-	listen(_: unknown, event: string): Event<any> {
+	wisten(_: unknown, event: stwing): Event<any> {
 		switch (event) {
-			case 'onError': return this.service.onError;
+			case 'onEwwow': wetuwn this.sewvice.onEwwow;
 		}
-		throw new Error(`Event not found: ${event}`);
+		thwow new Ewwow(`Event not found: ${event}`);
 	}
 
-	call(context: any, command: string, args?: any): Promise<any> {
+	caww(context: any, command: stwing, awgs?: any): Pwomise<any> {
 		switch (command) {
-			case 'triggerSync': return this.service.triggerSync(args[0], args[1], args[2]);
-			case 'turnOn': return this.service.turnOn();
-			case 'turnOff': return this.service.turnOff(args[0]);
+			case 'twiggewSync': wetuwn this.sewvice.twiggewSync(awgs[0], awgs[1], awgs[2]);
+			case 'tuwnOn': wetuwn this.sewvice.tuwnOn();
+			case 'tuwnOff': wetuwn this.sewvice.tuwnOff(awgs[0]);
 		}
-		throw new Error('Invalid call');
+		thwow new Ewwow('Invawid caww');
 	}
 }
 
-export class UserDataSycnUtilServiceChannel implements IServerChannel {
+expowt cwass UsewDataSycnUtiwSewviceChannew impwements ISewvewChannew {
 
-	constructor(private readonly service: IUserDataSyncUtilService) { }
+	constwuctow(pwivate weadonwy sewvice: IUsewDataSyncUtiwSewvice) { }
 
-	listen(_: unknown, event: string): Event<any> {
-		throw new Error(`Event not found: ${event}`);
+	wisten(_: unknown, event: stwing): Event<any> {
+		thwow new Ewwow(`Event not found: ${event}`);
 	}
 
-	call(context: any, command: string, args?: any): Promise<any> {
+	caww(context: any, command: stwing, awgs?: any): Pwomise<any> {
 		switch (command) {
-			case 'resolveDefaultIgnoredSettings': return this.service.resolveDefaultIgnoredSettings();
-			case 'resolveUserKeybindings': return this.service.resolveUserBindings(args[0]);
-			case 'resolveFormattingOptions': return this.service.resolveFormattingOptions(URI.revive(args[0]));
+			case 'wesowveDefauwtIgnowedSettings': wetuwn this.sewvice.wesowveDefauwtIgnowedSettings();
+			case 'wesowveUsewKeybindings': wetuwn this.sewvice.wesowveUsewBindings(awgs[0]);
+			case 'wesowveFowmattingOptions': wetuwn this.sewvice.wesowveFowmattingOptions(UWI.wevive(awgs[0]));
 		}
-		throw new Error('Invalid call');
+		thwow new Ewwow('Invawid caww');
 	}
 }
 
-export class UserDataSyncUtilServiceClient implements IUserDataSyncUtilService {
+expowt cwass UsewDataSyncUtiwSewviceCwient impwements IUsewDataSyncUtiwSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(private readonly channel: IChannel) {
+	constwuctow(pwivate weadonwy channew: IChannew) {
 	}
 
-	async resolveDefaultIgnoredSettings(): Promise<string[]> {
-		return this.channel.call('resolveDefaultIgnoredSettings');
+	async wesowveDefauwtIgnowedSettings(): Pwomise<stwing[]> {
+		wetuwn this.channew.caww('wesowveDefauwtIgnowedSettings');
 	}
 
-	async resolveUserBindings(userbindings: string[]): Promise<IStringDictionary<string>> {
-		return this.channel.call('resolveUserKeybindings', [userbindings]);
+	async wesowveUsewBindings(usewbindings: stwing[]): Pwomise<IStwingDictionawy<stwing>> {
+		wetuwn this.channew.caww('wesowveUsewKeybindings', [usewbindings]);
 	}
 
-	async resolveFormattingOptions(file: URI): Promise<FormattingOptions> {
-		return this.channel.call('resolveFormattingOptions', [file]);
+	async wesowveFowmattingOptions(fiwe: UWI): Pwomise<FowmattingOptions> {
+		wetuwn this.channew.caww('wesowveFowmattingOptions', [fiwe]);
 	}
 
 }
 
-export class UserDataSyncMachinesServiceChannel implements IServerChannel {
+expowt cwass UsewDataSyncMachinesSewviceChannew impwements ISewvewChannew {
 
-	constructor(private readonly service: IUserDataSyncMachinesService) { }
+	constwuctow(pwivate weadonwy sewvice: IUsewDataSyncMachinesSewvice) { }
 
-	listen(_: unknown, event: string): Event<any> {
+	wisten(_: unknown, event: stwing): Event<any> {
 		switch (event) {
-			case 'onDidChange': return this.service.onDidChange;
+			case 'onDidChange': wetuwn this.sewvice.onDidChange;
 		}
-		throw new Error(`Event not found: ${event}`);
+		thwow new Ewwow(`Event not found: ${event}`);
 	}
 
-	async call(context: any, command: string, args?: any): Promise<any> {
+	async caww(context: any, command: stwing, awgs?: any): Pwomise<any> {
 		switch (command) {
-			case 'getMachines': return this.service.getMachines();
-			case 'addCurrentMachine': return this.service.addCurrentMachine();
-			case 'removeCurrentMachine': return this.service.removeCurrentMachine();
-			case 'renameMachine': return this.service.renameMachine(args[0], args[1]);
-			case 'setEnablement': return this.service.setEnablement(args[0], args[1]);
+			case 'getMachines': wetuwn this.sewvice.getMachines();
+			case 'addCuwwentMachine': wetuwn this.sewvice.addCuwwentMachine();
+			case 'wemoveCuwwentMachine': wetuwn this.sewvice.wemoveCuwwentMachine();
+			case 'wenameMachine': wetuwn this.sewvice.wenameMachine(awgs[0], awgs[1]);
+			case 'setEnabwement': wetuwn this.sewvice.setEnabwement(awgs[0], awgs[1]);
 		}
-		throw new Error('Invalid call');
+		thwow new Ewwow('Invawid caww');
 	}
 
 }
 
-export class UserDataSyncAccountServiceChannel implements IServerChannel {
-	constructor(private readonly service: IUserDataSyncAccountService) { }
+expowt cwass UsewDataSyncAccountSewviceChannew impwements ISewvewChannew {
+	constwuctow(pwivate weadonwy sewvice: IUsewDataSyncAccountSewvice) { }
 
-	listen(_: unknown, event: string): Event<any> {
+	wisten(_: unknown, event: stwing): Event<any> {
 		switch (event) {
-			case 'onDidChangeAccount': return this.service.onDidChangeAccount;
-			case 'onTokenFailed': return this.service.onTokenFailed;
+			case 'onDidChangeAccount': wetuwn this.sewvice.onDidChangeAccount;
+			case 'onTokenFaiwed': wetuwn this.sewvice.onTokenFaiwed;
 		}
-		throw new Error(`Event not found: ${event}`);
+		thwow new Ewwow(`Event not found: ${event}`);
 	}
 
-	call(context: any, command: string, args?: any): Promise<any> {
+	caww(context: any, command: stwing, awgs?: any): Pwomise<any> {
 		switch (command) {
-			case '_getInitialData': return Promise.resolve(this.service.account);
-			case 'updateAccount': return this.service.updateAccount(args);
+			case '_getInitiawData': wetuwn Pwomise.wesowve(this.sewvice.account);
+			case 'updateAccount': wetuwn this.sewvice.updateAccount(awgs);
 		}
-		throw new Error('Invalid call');
+		thwow new Ewwow('Invawid caww');
 	}
 }
 
-export class UserDataSyncStoreManagementServiceChannel implements IServerChannel {
-	constructor(private readonly service: IUserDataSyncStoreManagementService) { }
+expowt cwass UsewDataSyncStoweManagementSewviceChannew impwements ISewvewChannew {
+	constwuctow(pwivate weadonwy sewvice: IUsewDataSyncStoweManagementSewvice) { }
 
-	listen(_: unknown, event: string): Event<any> {
+	wisten(_: unknown, event: stwing): Event<any> {
 		switch (event) {
-			case 'onDidChangeUserDataSyncStore': return this.service.onDidChangeUserDataSyncStore;
+			case 'onDidChangeUsewDataSyncStowe': wetuwn this.sewvice.onDidChangeUsewDataSyncStowe;
 		}
-		throw new Error(`Event not found: ${event}`);
+		thwow new Ewwow(`Event not found: ${event}`);
 	}
 
-	call(context: any, command: string, args?: any): Promise<any> {
+	caww(context: any, command: stwing, awgs?: any): Pwomise<any> {
 		switch (command) {
-			case 'switch': return this.service.switch(args[0]);
-			case 'getPreviousUserDataSyncStore': return this.service.getPreviousUserDataSyncStore();
+			case 'switch': wetuwn this.sewvice.switch(awgs[0]);
+			case 'getPweviousUsewDataSyncStowe': wetuwn this.sewvice.getPweviousUsewDataSyncStowe();
 		}
-		throw new Error('Invalid call');
+		thwow new Ewwow('Invawid caww');
 	}
 }
 
-export class UserDataSyncStoreManagementServiceChannelClient extends Disposable {
+expowt cwass UsewDataSyncStoweManagementSewviceChannewCwient extends Disposabwe {
 
-	readonly onDidChangeUserDataSyncStore: Event<void>;
+	weadonwy onDidChangeUsewDataSyncStowe: Event<void>;
 
-	constructor(private readonly channel: IChannel) {
-		super();
-		this.onDidChangeUserDataSyncStore = this.channel.listen<void>('onDidChangeUserDataSyncStore');
+	constwuctow(pwivate weadonwy channew: IChannew) {
+		supa();
+		this.onDidChangeUsewDataSyncStowe = this.channew.wisten<void>('onDidChangeUsewDataSyncStowe');
 	}
 
-	async switch(type: UserDataSyncStoreType): Promise<void> {
-		return this.channel.call('switch', [type]);
+	async switch(type: UsewDataSyncStoweType): Pwomise<void> {
+		wetuwn this.channew.caww('switch', [type]);
 	}
 
-	async getPreviousUserDataSyncStore(): Promise<IUserDataSyncStore> {
-		const userDataSyncStore = await this.channel.call<IUserDataSyncStore>('getPreviousUserDataSyncStore');
-		return this.revive(userDataSyncStore);
+	async getPweviousUsewDataSyncStowe(): Pwomise<IUsewDataSyncStowe> {
+		const usewDataSyncStowe = await this.channew.caww<IUsewDataSyncStowe>('getPweviousUsewDataSyncStowe');
+		wetuwn this.wevive(usewDataSyncStowe);
 	}
 
-	private revive(userDataSyncStore: IUserDataSyncStore): IUserDataSyncStore {
-		return {
-			url: URI.revive(userDataSyncStore.url),
-			type: userDataSyncStore.type,
-			defaultUrl: URI.revive(userDataSyncStore.defaultUrl),
-			insidersUrl: URI.revive(userDataSyncStore.insidersUrl),
-			stableUrl: URI.revive(userDataSyncStore.stableUrl),
-			canSwitch: userDataSyncStore.canSwitch,
-			authenticationProviders: userDataSyncStore.authenticationProviders,
+	pwivate wevive(usewDataSyncStowe: IUsewDataSyncStowe): IUsewDataSyncStowe {
+		wetuwn {
+			uww: UWI.wevive(usewDataSyncStowe.uww),
+			type: usewDataSyncStowe.type,
+			defauwtUww: UWI.wevive(usewDataSyncStowe.defauwtUww),
+			insidewsUww: UWI.wevive(usewDataSyncStowe.insidewsUww),
+			stabweUww: UWI.wevive(usewDataSyncStowe.stabweUww),
+			canSwitch: usewDataSyncStowe.canSwitch,
+			authenticationPwovidews: usewDataSyncStowe.authenticationPwovidews,
 		};
 	}
 }

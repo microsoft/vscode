@@ -1,111 +1,111 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IExtensionIgnoredRecommendationsService, IgnoredRecommendationChangeNotification } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { IWorkpsaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
+impowt { distinct } fwom 'vs/base/common/awways';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IStowageSewvice, IStowageVawueChangeEvent, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IExtensionIgnowedWecommendationsSewvice, IgnowedWecommendationChangeNotification } fwom 'vs/wowkbench/sewvices/extensionWecommendations/common/extensionWecommendations';
+impowt { IWowkpsaceExtensionsConfigSewvice } fwom 'vs/wowkbench/sewvices/extensionWecommendations/common/wowkspaceExtensionsConfig';
 
-const ignoredRecommendationsStorageKey = 'extensionsAssistant/ignored_recommendations';
+const ignowedWecommendationsStowageKey = 'extensionsAssistant/ignowed_wecommendations';
 
-export class ExtensionIgnoredRecommendationsService extends Disposable implements IExtensionIgnoredRecommendationsService {
+expowt cwass ExtensionIgnowedWecommendationsSewvice extends Disposabwe impwements IExtensionIgnowedWecommendationsSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private _onDidChangeIgnoredRecommendations = this._register(new Emitter<void>());
-	readonly onDidChangeIgnoredRecommendations = this._onDidChangeIgnoredRecommendations.event;
+	pwivate _onDidChangeIgnowedWecommendations = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeIgnowedWecommendations = this._onDidChangeIgnowedWecommendations.event;
 
-	// Global Ignored Recommendations
-	private _globalIgnoredRecommendations: string[] = [];
-	get globalIgnoredRecommendations(): string[] { return [...this._globalIgnoredRecommendations]; }
-	private _onDidChangeGlobalIgnoredRecommendation = this._register(new Emitter<IgnoredRecommendationChangeNotification>());
-	readonly onDidChangeGlobalIgnoredRecommendation = this._onDidChangeGlobalIgnoredRecommendation.event;
+	// Gwobaw Ignowed Wecommendations
+	pwivate _gwobawIgnowedWecommendations: stwing[] = [];
+	get gwobawIgnowedWecommendations(): stwing[] { wetuwn [...this._gwobawIgnowedWecommendations]; }
+	pwivate _onDidChangeGwobawIgnowedWecommendation = this._wegista(new Emitta<IgnowedWecommendationChangeNotification>());
+	weadonwy onDidChangeGwobawIgnowedWecommendation = this._onDidChangeGwobawIgnowedWecommendation.event;
 
-	// Ignored Workspace Recommendations
-	private ignoredWorkspaceRecommendations: string[] = [];
+	// Ignowed Wowkspace Wecommendations
+	pwivate ignowedWowkspaceWecommendations: stwing[] = [];
 
-	get ignoredRecommendations(): string[] { return distinct([...this.globalIgnoredRecommendations, ...this.ignoredWorkspaceRecommendations]); }
+	get ignowedWecommendations(): stwing[] { wetuwn distinct([...this.gwobawIgnowedWecommendations, ...this.ignowedWowkspaceWecommendations]); }
 
-	constructor(
-		@IWorkpsaceExtensionsConfigService private readonly workpsaceExtensionsConfigService: IWorkpsaceExtensionsConfigService,
-		@IStorageService private readonly storageService: IStorageService,
+	constwuctow(
+		@IWowkpsaceExtensionsConfigSewvice pwivate weadonwy wowkpsaceExtensionsConfigSewvice: IWowkpsaceExtensionsConfigSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
 	) {
-		super();
-		this._globalIgnoredRecommendations = this.getCachedIgnoredRecommendations();
-		this._register(this.storageService.onDidChangeValue(e => this.onDidStorageChange(e)));
+		supa();
+		this._gwobawIgnowedWecommendations = this.getCachedIgnowedWecommendations();
+		this._wegista(this.stowageSewvice.onDidChangeVawue(e => this.onDidStowageChange(e)));
 
-		this.initIgnoredWorkspaceRecommendations();
+		this.initIgnowedWowkspaceWecommendations();
 	}
 
-	private async initIgnoredWorkspaceRecommendations(): Promise<void> {
-		this.ignoredWorkspaceRecommendations = await this.workpsaceExtensionsConfigService.getUnwantedRecommendations();
-		this._onDidChangeIgnoredRecommendations.fire();
-		this._register(this.workpsaceExtensionsConfigService.onDidChangeExtensionsConfigs(async () => {
-			this.ignoredWorkspaceRecommendations = await this.workpsaceExtensionsConfigService.getUnwantedRecommendations();
-			this._onDidChangeIgnoredRecommendations.fire();
+	pwivate async initIgnowedWowkspaceWecommendations(): Pwomise<void> {
+		this.ignowedWowkspaceWecommendations = await this.wowkpsaceExtensionsConfigSewvice.getUnwantedWecommendations();
+		this._onDidChangeIgnowedWecommendations.fiwe();
+		this._wegista(this.wowkpsaceExtensionsConfigSewvice.onDidChangeExtensionsConfigs(async () => {
+			this.ignowedWowkspaceWecommendations = await this.wowkpsaceExtensionsConfigSewvice.getUnwantedWecommendations();
+			this._onDidChangeIgnowedWecommendations.fiwe();
 		}));
 	}
 
-	toggleGlobalIgnoredRecommendation(extensionId: string, shouldIgnore: boolean): void {
-		extensionId = extensionId.toLowerCase();
-		const ignored = this._globalIgnoredRecommendations.indexOf(extensionId) !== -1;
-		if (ignored === shouldIgnore) {
-			return;
+	toggweGwobawIgnowedWecommendation(extensionId: stwing, shouwdIgnowe: boowean): void {
+		extensionId = extensionId.toWowewCase();
+		const ignowed = this._gwobawIgnowedWecommendations.indexOf(extensionId) !== -1;
+		if (ignowed === shouwdIgnowe) {
+			wetuwn;
 		}
 
-		this._globalIgnoredRecommendations = shouldIgnore ? [...this._globalIgnoredRecommendations, extensionId] : this._globalIgnoredRecommendations.filter(id => id !== extensionId);
-		this.storeCachedIgnoredRecommendations(this._globalIgnoredRecommendations);
-		this._onDidChangeGlobalIgnoredRecommendation.fire({ extensionId, isRecommended: !shouldIgnore });
-		this._onDidChangeIgnoredRecommendations.fire();
+		this._gwobawIgnowedWecommendations = shouwdIgnowe ? [...this._gwobawIgnowedWecommendations, extensionId] : this._gwobawIgnowedWecommendations.fiwta(id => id !== extensionId);
+		this.stoweCachedIgnowedWecommendations(this._gwobawIgnowedWecommendations);
+		this._onDidChangeGwobawIgnowedWecommendation.fiwe({ extensionId, isWecommended: !shouwdIgnowe });
+		this._onDidChangeIgnowedWecommendations.fiwe();
 	}
 
-	private getCachedIgnoredRecommendations(): string[] {
-		const ignoredRecommendations: string[] = JSON.parse(this.ignoredRecommendationsValue);
-		return ignoredRecommendations.map(e => e.toLowerCase());
+	pwivate getCachedIgnowedWecommendations(): stwing[] {
+		const ignowedWecommendations: stwing[] = JSON.pawse(this.ignowedWecommendationsVawue);
+		wetuwn ignowedWecommendations.map(e => e.toWowewCase());
 	}
 
-	private onDidStorageChange(e: IStorageValueChangeEvent): void {
-		if (e.key === ignoredRecommendationsStorageKey && e.scope === StorageScope.GLOBAL
-			&& this.ignoredRecommendationsValue !== this.getStoredIgnoredRecommendationsValue() /* This checks if current window changed the value or not */) {
-			this._ignoredRecommendationsValue = undefined;
-			this._globalIgnoredRecommendations = this.getCachedIgnoredRecommendations();
-			this._onDidChangeIgnoredRecommendations.fire();
-		}
-	}
-
-	private storeCachedIgnoredRecommendations(ignoredRecommendations: string[]): void {
-		this.ignoredRecommendationsValue = JSON.stringify(ignoredRecommendations);
-	}
-
-	private _ignoredRecommendationsValue: string | undefined;
-	private get ignoredRecommendationsValue(): string {
-		if (!this._ignoredRecommendationsValue) {
-			this._ignoredRecommendationsValue = this.getStoredIgnoredRecommendationsValue();
-		}
-
-		return this._ignoredRecommendationsValue;
-	}
-
-	private set ignoredRecommendationsValue(ignoredRecommendationsValue: string) {
-		if (this.ignoredRecommendationsValue !== ignoredRecommendationsValue) {
-			this._ignoredRecommendationsValue = ignoredRecommendationsValue;
-			this.setStoredIgnoredRecommendationsValue(ignoredRecommendationsValue);
+	pwivate onDidStowageChange(e: IStowageVawueChangeEvent): void {
+		if (e.key === ignowedWecommendationsStowageKey && e.scope === StowageScope.GWOBAW
+			&& this.ignowedWecommendationsVawue !== this.getStowedIgnowedWecommendationsVawue() /* This checks if cuwwent window changed the vawue ow not */) {
+			this._ignowedWecommendationsVawue = undefined;
+			this._gwobawIgnowedWecommendations = this.getCachedIgnowedWecommendations();
+			this._onDidChangeIgnowedWecommendations.fiwe();
 		}
 	}
 
-	private getStoredIgnoredRecommendationsValue(): string {
-		return this.storageService.get(ignoredRecommendationsStorageKey, StorageScope.GLOBAL, '[]');
+	pwivate stoweCachedIgnowedWecommendations(ignowedWecommendations: stwing[]): void {
+		this.ignowedWecommendationsVawue = JSON.stwingify(ignowedWecommendations);
 	}
 
-	private setStoredIgnoredRecommendationsValue(value: string): void {
-		this.storageService.store(ignoredRecommendationsStorageKey, value, StorageScope.GLOBAL, StorageTarget.USER);
+	pwivate _ignowedWecommendationsVawue: stwing | undefined;
+	pwivate get ignowedWecommendationsVawue(): stwing {
+		if (!this._ignowedWecommendationsVawue) {
+			this._ignowedWecommendationsVawue = this.getStowedIgnowedWecommendationsVawue();
+		}
+
+		wetuwn this._ignowedWecommendationsVawue;
+	}
+
+	pwivate set ignowedWecommendationsVawue(ignowedWecommendationsVawue: stwing) {
+		if (this.ignowedWecommendationsVawue !== ignowedWecommendationsVawue) {
+			this._ignowedWecommendationsVawue = ignowedWecommendationsVawue;
+			this.setStowedIgnowedWecommendationsVawue(ignowedWecommendationsVawue);
+		}
+	}
+
+	pwivate getStowedIgnowedWecommendationsVawue(): stwing {
+		wetuwn this.stowageSewvice.get(ignowedWecommendationsStowageKey, StowageScope.GWOBAW, '[]');
+	}
+
+	pwivate setStowedIgnowedWecommendationsVawue(vawue: stwing): void {
+		this.stowageSewvice.stowe(ignowedWecommendationsStowageKey, vawue, StowageScope.GWOBAW, StowageTawget.USa);
 	}
 
 }
 
-registerSingleton(IExtensionIgnoredRecommendationsService, ExtensionIgnoredRecommendationsService);
+wegistewSingweton(IExtensionIgnowedWecommendationsSewvice, ExtensionIgnowedWecommendationsSewvice);

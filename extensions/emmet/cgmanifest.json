@@ -1,17 +1,17 @@
 {
-	"registrations": [
+	"wegistwations": [
 		{
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "expand-abbreviation",
-					"repositoryUrl": "https://github.com/emmetio/expand-abbreviation",
+					"name": "expand-abbweviation",
+					"wepositowyUww": "https://github.com/emmetio/expand-abbweviation",
 					"commitHash": "ef943f2056572fe43ce9eebf72929d3c825f3995"
 				}
 			},
-			"license": "MIT",
-			"version": "0.5.8"
+			"wicense": "MIT",
+			"vewsion": "0.5.8"
 		}
 	],
-	"version": 1
+	"vewsion": 1
 }

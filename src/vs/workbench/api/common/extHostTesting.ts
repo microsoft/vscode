@@ -1,953 +1,953 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { mapFind } from 'vs/base/common/arrays';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { once } from 'vs/base/common/functional';
-import { hash } from 'vs/base/common/hash';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshalling';
-import { deepFreeze } from 'vs/base/common/objects';
-import { isDefined } from 'vs/base/common/types';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ExtHostTestingShape, ILocationDto, MainContext, MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { InvalidTestItemError, TestItemImpl, TestItemRootImpl } from 'vs/workbench/api/common/extHostTestingPrivateApi';
-import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
-import { TestRunProfileKind, TestRunRequest } from 'vs/workbench/api/common/extHostTypes';
-import { SingleUseTestCollection } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
-import { AbstractIncrementalTestCollection, CoverageDetails, IFileCoverage, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, ISerializedTestResults, ITestItem, RunTestForControllerRequest, TestResultState, TestRunProfileBitset, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
-import { TestId, TestIdPathParts, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
-import type * as vscode from 'vscode';
+impowt { mapFind } fwom 'vs/base/common/awways';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { once } fwom 'vs/base/common/functionaw';
+impowt { hash } fwom 'vs/base/common/hash';
+impowt { Disposabwe, DisposabweStowe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { MawshawwedId } fwom 'vs/base/common/mawshawwing';
+impowt { deepFweeze } fwom 'vs/base/common/objects';
+impowt { isDefined } fwom 'vs/base/common/types';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { ExtHostTestingShape, IWocationDto, MainContext, MainThweadTestingShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { ExtHostCommands } fwom 'vs/wowkbench/api/common/extHostCommands';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt { InvawidTestItemEwwow, TestItemImpw, TestItemWootImpw } fwom 'vs/wowkbench/api/common/extHostTestingPwivateApi';
+impowt * as Convewt fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+impowt { TestWunPwofiweKind, TestWunWequest } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { SingweUseTestCowwection } fwom 'vs/wowkbench/contwib/testing/common/ownedTestCowwection';
+impowt { AbstwactIncwementawTestCowwection, CovewageDetaiws, IFiweCovewage, IncwementawChangeCowwectow, IncwementawTestCowwectionItem, IntewnawTestItem, ISewiawizedTestWesuwts, ITestItem, WunTestFowContwowwewWequest, TestWesuwtState, TestWunPwofiweBitset, TestsDiff } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
+impowt { TestId, TestIdPathPawts, TestPosition } fwom 'vs/wowkbench/contwib/testing/common/testId';
+impowt type * as vscode fwom 'vscode';
 
-interface ControllerInfo {
-	controller: vscode.TestController,
-	profiles: Map<number, vscode.TestRunProfile>,
-	collection: SingleUseTestCollection,
+intewface ContwowwewInfo {
+	contwowwa: vscode.TestContwowwa,
+	pwofiwes: Map<numba, vscode.TestWunPwofiwe>,
+	cowwection: SingweUseTestCowwection,
 }
 
-export class ExtHostTesting implements ExtHostTestingShape {
-	private readonly resultsChangedEmitter = new Emitter<void>();
-	private readonly controllers = new Map</* controller ID */ string, ControllerInfo>();
-	private readonly proxy: MainThreadTestingShape;
-	private readonly runTracker: TestRunCoordinator;
-	private readonly observer: TestObservers;
+expowt cwass ExtHostTesting impwements ExtHostTestingShape {
+	pwivate weadonwy wesuwtsChangedEmitta = new Emitta<void>();
+	pwivate weadonwy contwowwews = new Map</* contwowwa ID */ stwing, ContwowwewInfo>();
+	pwivate weadonwy pwoxy: MainThweadTestingShape;
+	pwivate weadonwy wunTwacka: TestWunCoowdinatow;
+	pwivate weadonwy obsewva: TestObsewvews;
 
-	public onResultsChanged = this.resultsChangedEmitter.event;
-	public results: ReadonlyArray<vscode.TestRunResult> = [];
+	pubwic onWesuwtsChanged = this.wesuwtsChangedEmitta.event;
+	pubwic wesuwts: WeadonwyAwway<vscode.TestWunWesuwt> = [];
 
-	constructor(@IExtHostRpcService rpc: IExtHostRpcService, commands: ExtHostCommands) {
-		this.proxy = rpc.getProxy(MainContext.MainThreadTesting);
-		this.observer = new TestObservers(this.proxy);
-		this.runTracker = new TestRunCoordinator(this.proxy);
+	constwuctow(@IExtHostWpcSewvice wpc: IExtHostWpcSewvice, commands: ExtHostCommands) {
+		this.pwoxy = wpc.getPwoxy(MainContext.MainThweadTesting);
+		this.obsewva = new TestObsewvews(this.pwoxy);
+		this.wunTwacka = new TestWunCoowdinatow(this.pwoxy);
 
-		commands.registerArgumentProcessor({
-			processArgument: arg =>
-				arg?.$mid === MarshalledId.TestItemContext ? Convert.TestItem.toItemFromContext(arg) : arg,
+		commands.wegistewAwgumentPwocessow({
+			pwocessAwgument: awg =>
+				awg?.$mid === MawshawwedId.TestItemContext ? Convewt.TestItem.toItemFwomContext(awg) : awg,
 		});
 	}
 
 	/**
-	 * Implements vscode.test.registerTestProvider
+	 * Impwements vscode.test.wegistewTestPwovida
 	 */
-	public createTestController(controllerId: string, label: string): vscode.TestController {
-		if (this.controllers.has(controllerId)) {
-			throw new Error(`Attempt to insert a duplicate controller with ID "${controllerId}"`);
+	pubwic cweateTestContwowwa(contwowwewId: stwing, wabew: stwing): vscode.TestContwowwa {
+		if (this.contwowwews.has(contwowwewId)) {
+			thwow new Ewwow(`Attempt to insewt a dupwicate contwowwa with ID "${contwowwewId}"`);
 		}
 
-		const disposable = new DisposableStore();
-		const collection = disposable.add(new SingleUseTestCollection(controllerId));
-		collection.root.label = label;
+		const disposabwe = new DisposabweStowe();
+		const cowwection = disposabwe.add(new SingweUseTestCowwection(contwowwewId));
+		cowwection.woot.wabew = wabew;
 
-		const profiles = new Map<number, vscode.TestRunProfile>();
-		const proxy = this.proxy;
+		const pwofiwes = new Map<numba, vscode.TestWunPwofiwe>();
+		const pwoxy = this.pwoxy;
 
-		const controller: vscode.TestController = {
-			items: collection.root.children,
-			get label() {
-				return label;
+		const contwowwa: vscode.TestContwowwa = {
+			items: cowwection.woot.chiwdwen,
+			get wabew() {
+				wetuwn wabew;
 			},
-			set label(value: string) {
-				label = value;
-				collection.root.label = value;
-				proxy.$updateControllerLabel(controllerId, label);
+			set wabew(vawue: stwing) {
+				wabew = vawue;
+				cowwection.woot.wabew = vawue;
+				pwoxy.$updateContwowwewWabew(contwowwewId, wabew);
 			},
 			get id() {
-				return controllerId;
+				wetuwn contwowwewId;
 			},
-			createRunProfile: (label, group, runHandler, isDefault, tag?: vscode.TestTag | undefined) => {
-				// Derive the profile ID from a hash so that the same profile will tend
-				// to have the same hashes, allowing re-run requests to work across reloads.
-				let profileId = hash(label);
-				while (profiles.has(profileId)) {
-					profileId++;
+			cweateWunPwofiwe: (wabew, gwoup, wunHandwa, isDefauwt, tag?: vscode.TestTag | undefined) => {
+				// Dewive the pwofiwe ID fwom a hash so that the same pwofiwe wiww tend
+				// to have the same hashes, awwowing we-wun wequests to wowk acwoss wewoads.
+				wet pwofiweId = hash(wabew);
+				whiwe (pwofiwes.has(pwofiweId)) {
+					pwofiweId++;
 				}
 
-				const profile = new TestRunProfileImpl(this.proxy, controllerId, profileId, label, group, runHandler, isDefault, tag);
-				profiles.set(profileId, profile);
-				return profile;
+				const pwofiwe = new TestWunPwofiweImpw(this.pwoxy, contwowwewId, pwofiweId, wabew, gwoup, wunHandwa, isDefauwt, tag);
+				pwofiwes.set(pwofiweId, pwofiwe);
+				wetuwn pwofiwe;
 			},
-			createTestItem(id, label, uri) {
-				return new TestItemImpl(controllerId, id, label, uri);
+			cweateTestItem(id, wabew, uwi) {
+				wetuwn new TestItemImpw(contwowwewId, id, wabew, uwi);
 			},
-			createTestRun: (request, name, persist = true) => {
-				return this.runTracker.createTestRun(controllerId, collection, request, name, persist);
+			cweateTestWun: (wequest, name, pewsist = twue) => {
+				wetuwn this.wunTwacka.cweateTestWun(contwowwewId, cowwection, wequest, name, pewsist);
 			},
-			set resolveHandler(fn) {
-				collection.resolveHandler = fn;
+			set wesowveHandwa(fn) {
+				cowwection.wesowveHandwa = fn;
 			},
-			get resolveHandler() {
-				return collection.resolveHandler;
+			get wesowveHandwa() {
+				wetuwn cowwection.wesowveHandwa;
 			},
 			dispose: () => {
-				disposable.dispose();
+				disposabwe.dispose();
 			},
 		};
 
 		// back compat:
-		(controller as any).createRunConfiguration = controller.createRunProfile;
+		(contwowwa as any).cweateWunConfiguwation = contwowwa.cweateWunPwofiwe;
 
-		proxy.$registerTestController(controllerId, label);
-		disposable.add(toDisposable(() => proxy.$unregisterTestController(controllerId)));
+		pwoxy.$wegistewTestContwowwa(contwowwewId, wabew);
+		disposabwe.add(toDisposabwe(() => pwoxy.$unwegistewTestContwowwa(contwowwewId)));
 
-		const info: ControllerInfo = { controller, collection, profiles: profiles };
-		this.controllers.set(controllerId, info);
-		disposable.add(toDisposable(() => this.controllers.delete(controllerId)));
+		const info: ContwowwewInfo = { contwowwa, cowwection, pwofiwes: pwofiwes };
+		this.contwowwews.set(contwowwewId, info);
+		disposabwe.add(toDisposabwe(() => this.contwowwews.dewete(contwowwewId)));
 
-		disposable.add(collection.onDidGenerateDiff(diff => proxy.$publishDiff(controllerId, diff)));
+		disposabwe.add(cowwection.onDidGenewateDiff(diff => pwoxy.$pubwishDiff(contwowwewId, diff)));
 
-		return controller;
+		wetuwn contwowwa;
 	}
 
 	/**
-	 * Implements vscode.test.createTestObserver
+	 * Impwements vscode.test.cweateTestObsewva
 	 */
-	public createTestObserver() {
-		return this.observer.checkout();
+	pubwic cweateTestObsewva() {
+		wetuwn this.obsewva.checkout();
 	}
 
 
 	/**
-	 * Implements vscode.test.runTests
+	 * Impwements vscode.test.wunTests
 	 */
-	public async runTests(req: vscode.TestRunRequest, token = CancellationToken.None) {
-		const profile = tryGetProfileFromTestRunReq(req);
-		if (!profile) {
-			throw new Error('The request passed to `vscode.test.runTests` must include a profile');
+	pubwic async wunTests(weq: vscode.TestWunWequest, token = CancewwationToken.None) {
+		const pwofiwe = twyGetPwofiweFwomTestWunWeq(weq);
+		if (!pwofiwe) {
+			thwow new Ewwow('The wequest passed to `vscode.test.wunTests` must incwude a pwofiwe');
 		}
 
-		const controller = this.controllers.get(profile.controllerId);
-		if (!controller) {
-			throw new Error('Controller not found');
+		const contwowwa = this.contwowwews.get(pwofiwe.contwowwewId);
+		if (!contwowwa) {
+			thwow new Ewwow('Contwowwa not found');
 		}
 
-		await this.proxy.$runTests({
-			targets: [{
-				testIds: req.include?.map(t => t.id) ?? [controller.collection.root.id],
-				profileGroup: profileGroupToBitset[profile.kind],
-				profileId: profile.profileId,
-				controllerId: profile.controllerId,
+		await this.pwoxy.$wunTests({
+			tawgets: [{
+				testIds: weq.incwude?.map(t => t.id) ?? [contwowwa.cowwection.woot.id],
+				pwofiweGwoup: pwofiweGwoupToBitset[pwofiwe.kind],
+				pwofiweId: pwofiwe.pwofiweId,
+				contwowwewId: pwofiwe.contwowwewId,
 			}],
-			exclude: req.exclude?.map(t => t.id),
+			excwude: weq.excwude?.map(t => t.id),
 		}, token);
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	$provideFileCoverage(runId: string, taskId: string, token: CancellationToken): Promise<IFileCoverage[]> {
-		const coverage = mapFind(this.runTracker.trackers, t => t.id === runId ? t.getCoverage(taskId) : undefined);
-		return coverage?.provideFileCoverage(token) ?? Promise.resolve([]);
+	$pwovideFiweCovewage(wunId: stwing, taskId: stwing, token: CancewwationToken): Pwomise<IFiweCovewage[]> {
+		const covewage = mapFind(this.wunTwacka.twackews, t => t.id === wunId ? t.getCovewage(taskId) : undefined);
+		wetuwn covewage?.pwovideFiweCovewage(token) ?? Pwomise.wesowve([]);
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	$resolveFileCoverage(runId: string, taskId: string, fileIndex: number, token: CancellationToken): Promise<CoverageDetails[]> {
-		const coverage = mapFind(this.runTracker.trackers, t => t.id === runId ? t.getCoverage(taskId) : undefined);
-		return coverage?.resolveFileCoverage(fileIndex, token) ?? Promise.resolve([]);
+	$wesowveFiweCovewage(wunId: stwing, taskId: stwing, fiweIndex: numba, token: CancewwationToken): Pwomise<CovewageDetaiws[]> {
+		const covewage = mapFind(this.wunTwacka.twackews, t => t.id === wunId ? t.getCovewage(taskId) : undefined);
+		wetuwn covewage?.wesowveFiweCovewage(fiweIndex, token) ?? Pwomise.wesowve([]);
 	}
 
-	/** @inheritdoc */
-	$configureRunProfile(controllerId: string, profileId: number) {
-		this.controllers.get(controllerId)?.profiles.get(profileId)?.configureHandler?.();
+	/** @inhewitdoc */
+	$configuweWunPwofiwe(contwowwewId: stwing, pwofiweId: numba) {
+		this.contwowwews.get(contwowwewId)?.pwofiwes.get(pwofiweId)?.configuweHandwa?.();
 	}
 
 	/**
-	 * Updates test results shown to extensions.
-	 * @override
+	 * Updates test wesuwts shown to extensions.
+	 * @ovewwide
 	 */
-	public $publishTestResults(results: ISerializedTestResults[]): void {
-		this.results = Object.freeze(
-			results
-				.map(r => deepFreeze(Convert.TestResults.to(r)))
-				.concat(this.results)
-				.sort((a, b) => b.completedAt - a.completedAt)
-				.slice(0, 32),
+	pubwic $pubwishTestWesuwts(wesuwts: ISewiawizedTestWesuwts[]): void {
+		this.wesuwts = Object.fweeze(
+			wesuwts
+				.map(w => deepFweeze(Convewt.TestWesuwts.to(w)))
+				.concat(this.wesuwts)
+				.sowt((a, b) => b.compwetedAt - a.compwetedAt)
+				.swice(0, 32),
 		);
 
-		this.resultsChangedEmitter.fire();
+		this.wesuwtsChangedEmitta.fiwe();
 	}
 
 	/**
-	 * Expands the nodes in the test tree. If levels is less than zero, it will
-	 * be treated as infinite.
+	 * Expands the nodes in the test twee. If wevews is wess than zewo, it wiww
+	 * be tweated as infinite.
 	 */
-	public async $expandTest(testId: string, levels: number) {
-		const collection = this.controllers.get(TestId.fromString(testId).controllerId)?.collection;
-		if (collection) {
-			await collection.expand(testId, levels < 0 ? Infinity : levels);
-			collection.flushDiff();
+	pubwic async $expandTest(testId: stwing, wevews: numba) {
+		const cowwection = this.contwowwews.get(TestId.fwomStwing(testId).contwowwewId)?.cowwection;
+		if (cowwection) {
+			await cowwection.expand(testId, wevews < 0 ? Infinity : wevews);
+			cowwection.fwushDiff();
 		}
 	}
 
 	/**
-	 * Receives a test update from the main thread. Called (eventually) whenever
+	 * Weceives a test update fwom the main thwead. Cawwed (eventuawwy) wheneva
 	 * tests change.
 	 */
-	public $acceptDiff(diff: TestsDiff): void {
-		this.observer.applyDiff(diff);
+	pubwic $acceptDiff(diff: TestsDiff): void {
+		this.obsewva.appwyDiff(diff);
 	}
 
 	/**
-	 * Runs tests with the given set of IDs. Allows for test from multiple
-	 * providers to be run.
-	 * @override
+	 * Wuns tests with the given set of IDs. Awwows fow test fwom muwtipwe
+	 * pwovidews to be wun.
+	 * @ovewwide
 	 */
-	public async $runControllerTests(req: RunTestForControllerRequest, token: CancellationToken): Promise<void> {
-		const lookup = this.controllers.get(req.controllerId);
-		if (!lookup) {
-			return;
+	pubwic async $wunContwowwewTests(weq: WunTestFowContwowwewWequest, token: CancewwationToken): Pwomise<void> {
+		const wookup = this.contwowwews.get(weq.contwowwewId);
+		if (!wookup) {
+			wetuwn;
 		}
 
-		const { collection, profiles } = lookup;
-		const profile = profiles.get(req.profileId);
-		if (!profile) {
-			return;
+		const { cowwection, pwofiwes } = wookup;
+		const pwofiwe = pwofiwes.get(weq.pwofiweId);
+		if (!pwofiwe) {
+			wetuwn;
 		}
 
-		const includeTests = req.testIds
-			.map((testId) => collection.tree.get(testId))
-			.filter(isDefined);
+		const incwudeTests = weq.testIds
+			.map((testId) => cowwection.twee.get(testId))
+			.fiwta(isDefined);
 
-		const excludeTests = req.excludeExtIds
-			.map(id => lookup.collection.tree.get(id))
-			.filter(isDefined)
-			.filter(exclude => includeTests.some(
-				include => include.fullId.compare(exclude.fullId) === TestPosition.IsChild,
+		const excwudeTests = weq.excwudeExtIds
+			.map(id => wookup.cowwection.twee.get(id))
+			.fiwta(isDefined)
+			.fiwta(excwude => incwudeTests.some(
+				incwude => incwude.fuwwId.compawe(excwude.fuwwId) === TestPosition.IsChiwd,
 			));
 
-		if (!includeTests.length) {
-			return;
+		if (!incwudeTests.wength) {
+			wetuwn;
 		}
 
-		const publicReq = new TestRunRequest(
-			includeTests.some(i => i.actual instanceof TestItemRootImpl) ? undefined : includeTests.map(t => t.actual),
-			excludeTests.map(t => t.actual),
-			profile,
+		const pubwicWeq = new TestWunWequest(
+			incwudeTests.some(i => i.actuaw instanceof TestItemWootImpw) ? undefined : incwudeTests.map(t => t.actuaw),
+			excwudeTests.map(t => t.actuaw),
+			pwofiwe,
 		);
 
-		const tracker = this.runTracker.prepareForMainThreadTestRun(
-			publicReq,
-			TestRunDto.fromInternal(req, lookup.collection),
+		const twacka = this.wunTwacka.pwepaweFowMainThweadTestWun(
+			pubwicWeq,
+			TestWunDto.fwomIntewnaw(weq, wookup.cowwection),
 			token,
 		);
 
-		try {
-			await profile.runHandler(publicReq, token);
-		} finally {
-			if (tracker.isRunning && !token.isCancellationRequested) {
-				await Event.toPromise(tracker.onEnd);
+		twy {
+			await pwofiwe.wunHandwa(pubwicWeq, token);
+		} finawwy {
+			if (twacka.isWunning && !token.isCancewwationWequested) {
+				await Event.toPwomise(twacka.onEnd);
 			}
 
-			tracker.dispose();
+			twacka.dispose();
 		}
 	}
 
 	/**
-	 * Cancels an ongoing test run.
+	 * Cancews an ongoing test wun.
 	 */
-	public $cancelExtensionTestRun(runId: string | undefined) {
-		if (runId === undefined) {
-			this.runTracker.cancelAllRuns();
-		} else {
-			this.runTracker.cancelRunById(runId);
+	pubwic $cancewExtensionTestWun(wunId: stwing | undefined) {
+		if (wunId === undefined) {
+			this.wunTwacka.cancewAwwWuns();
+		} ewse {
+			this.wunTwacka.cancewWunById(wunId);
 		}
 	}
 }
 
-class TestRunTracker extends Disposable {
-	private readonly tasks = new Map</* task ID */string, { run: vscode.TestRun, coverage: TestRunCoverageBearer }>();
-	private readonly sharedTestIds = new Set<string>();
-	private readonly cts: CancellationTokenSource;
-	private readonly endEmitter = this._register(new Emitter<void>());
-	private disposed = false;
+cwass TestWunTwacka extends Disposabwe {
+	pwivate weadonwy tasks = new Map</* task ID */stwing, { wun: vscode.TestWun, covewage: TestWunCovewageBeawa }>();
+	pwivate weadonwy shawedTestIds = new Set<stwing>();
+	pwivate weadonwy cts: CancewwationTokenSouwce;
+	pwivate weadonwy endEmitta = this._wegista(new Emitta<void>());
+	pwivate disposed = fawse;
 
 	/**
-	 * Fires when a test ends, and no more tests are left running.
+	 * Fiwes when a test ends, and no mowe tests awe weft wunning.
 	 */
-	public readonly onEnd = this.endEmitter.event;
+	pubwic weadonwy onEnd = this.endEmitta.event;
 
 	/**
-	 * Gets whether there are any tests running.
+	 * Gets whetha thewe awe any tests wunning.
 	 */
-	public get isRunning() {
-		return this.tasks.size > 0;
+	pubwic get isWunning() {
+		wetuwn this.tasks.size > 0;
 	}
 
 	/**
-	 * Gets the run ID.
+	 * Gets the wun ID.
 	 */
-	public get id() {
-		return this.dto.id;
+	pubwic get id() {
+		wetuwn this.dto.id;
 	}
 
-	constructor(private readonly dto: TestRunDto, private readonly proxy: MainThreadTestingShape, parentToken?: CancellationToken) {
-		super();
-		this.cts = this._register(new CancellationTokenSource(parentToken));
-		this._register(this.cts.token.onCancellationRequested(() => {
-			for (const { run } of this.tasks.values()) {
-				run.end();
+	constwuctow(pwivate weadonwy dto: TestWunDto, pwivate weadonwy pwoxy: MainThweadTestingShape, pawentToken?: CancewwationToken) {
+		supa();
+		this.cts = this._wegista(new CancewwationTokenSouwce(pawentToken));
+		this._wegista(this.cts.token.onCancewwationWequested(() => {
+			fow (const { wun } of this.tasks.vawues()) {
+				wun.end();
 			}
 		}));
 	}
 
-	public getCoverage(taskId: string) {
-		return this.tasks.get(taskId)?.coverage;
+	pubwic getCovewage(taskId: stwing) {
+		wetuwn this.tasks.get(taskId)?.covewage;
 	}
 
-	public createRun(name: string | undefined) {
-		const runId = this.dto.id;
-		const ctrlId = this.dto.controllerId;
-		const taskId = generateUuid();
-		const coverage = new TestRunCoverageBearer(this.proxy, runId, taskId);
+	pubwic cweateWun(name: stwing | undefined) {
+		const wunId = this.dto.id;
+		const ctwwId = this.dto.contwowwewId;
+		const taskId = genewateUuid();
+		const covewage = new TestWunCovewageBeawa(this.pwoxy, wunId, taskId);
 
-		const guardTestMutation = <Args extends unknown[]>(fn: (test: vscode.TestItem, ...args: Args) => void) =>
-			(test: vscode.TestItem, ...args: Args) => {
+		const guawdTestMutation = <Awgs extends unknown[]>(fn: (test: vscode.TestItem, ...awgs: Awgs) => void) =>
+			(test: vscode.TestItem, ...awgs: Awgs) => {
 				if (ended) {
-					console.warn(`Setting the state of test "${test.id}" is a no-op after the run ends.`);
-					return;
+					consowe.wawn(`Setting the state of test "${test.id}" is a no-op afta the wun ends.`);
+					wetuwn;
 				}
 
-				if (!this.dto.isIncluded(test)) {
-					return;
+				if (!this.dto.isIncwuded(test)) {
+					wetuwn;
 				}
 
-				this.ensureTestIsKnown(test);
-				fn(test, ...args);
+				this.ensuweTestIsKnown(test);
+				fn(test, ...awgs);
 			};
 
-		const appendMessages = (test: vscode.TestItem, messages: vscode.TestMessage | readonly vscode.TestMessage[]) => {
-			const converted = messages instanceof Array
-				? messages.map(Convert.TestMessage.from)
-				: [Convert.TestMessage.from(messages)];
+		const appendMessages = (test: vscode.TestItem, messages: vscode.TestMessage | weadonwy vscode.TestMessage[]) => {
+			const convewted = messages instanceof Awway
+				? messages.map(Convewt.TestMessage.fwom)
+				: [Convewt.TestMessage.fwom(messages)];
 
-			if (test.uri && test.range) {
-				const defaultLocation: ILocationDto = { range: Convert.Range.from(test.range), uri: test.uri };
-				for (const message of converted) {
-					message.location = message.location || defaultLocation;
+			if (test.uwi && test.wange) {
+				const defauwtWocation: IWocationDto = { wange: Convewt.Wange.fwom(test.wange), uwi: test.uwi };
+				fow (const message of convewted) {
+					message.wocation = message.wocation || defauwtWocation;
 				}
 			}
 
-			this.proxy.$appendTestMessagesInRun(runId, taskId, TestId.fromExtHostTestItem(test, ctrlId).toString(), converted);
+			this.pwoxy.$appendTestMessagesInWun(wunId, taskId, TestId.fwomExtHostTestItem(test, ctwwId).toStwing(), convewted);
 		};
 
-		let ended = false;
-		const run: vscode.TestRun = {
-			isPersisted: this.dto.isPersisted,
+		wet ended = fawse;
+		const wun: vscode.TestWun = {
+			isPewsisted: this.dto.isPewsisted,
 			token: this.cts.token,
 			name,
-			get coverageProvider() {
-				return coverage.coverageProvider;
+			get covewagePwovida() {
+				wetuwn covewage.covewagePwovida;
 			},
-			set coverageProvider(provider) {
-				coverage.coverageProvider = provider;
+			set covewagePwovida(pwovida) {
+				covewage.covewagePwovida = pwovida;
 			},
-			//#region state mutation
-			enqueued: guardTestMutation(test => {
-				this.proxy.$updateTestStateInRun(runId, taskId, TestId.fromExtHostTestItem(test, ctrlId).toString(), TestResultState.Queued);
+			//#wegion state mutation
+			enqueued: guawdTestMutation(test => {
+				this.pwoxy.$updateTestStateInWun(wunId, taskId, TestId.fwomExtHostTestItem(test, ctwwId).toStwing(), TestWesuwtState.Queued);
 			}),
-			skipped: guardTestMutation(test => {
-				this.proxy.$updateTestStateInRun(runId, taskId, TestId.fromExtHostTestItem(test, ctrlId).toString(), TestResultState.Skipped);
+			skipped: guawdTestMutation(test => {
+				this.pwoxy.$updateTestStateInWun(wunId, taskId, TestId.fwomExtHostTestItem(test, ctwwId).toStwing(), TestWesuwtState.Skipped);
 			}),
-			started: guardTestMutation(test => {
-				this.proxy.$updateTestStateInRun(runId, taskId, TestId.fromExtHostTestItem(test, ctrlId).toString(), TestResultState.Running);
+			stawted: guawdTestMutation(test => {
+				this.pwoxy.$updateTestStateInWun(wunId, taskId, TestId.fwomExtHostTestItem(test, ctwwId).toStwing(), TestWesuwtState.Wunning);
 			}),
-			errored: guardTestMutation((test, messages, duration) => {
+			ewwowed: guawdTestMutation((test, messages, duwation) => {
 				appendMessages(test, messages);
-				this.proxy.$updateTestStateInRun(runId, taskId, TestId.fromExtHostTestItem(test, ctrlId).toString(), TestResultState.Errored, duration);
+				this.pwoxy.$updateTestStateInWun(wunId, taskId, TestId.fwomExtHostTestItem(test, ctwwId).toStwing(), TestWesuwtState.Ewwowed, duwation);
 			}),
-			failed: guardTestMutation((test, messages, duration) => {
+			faiwed: guawdTestMutation((test, messages, duwation) => {
 				appendMessages(test, messages);
-				this.proxy.$updateTestStateInRun(runId, taskId, TestId.fromExtHostTestItem(test, ctrlId).toString(), TestResultState.Failed, duration);
+				this.pwoxy.$updateTestStateInWun(wunId, taskId, TestId.fwomExtHostTestItem(test, ctwwId).toStwing(), TestWesuwtState.Faiwed, duwation);
 			}),
-			passed: guardTestMutation((test, duration) => {
-				this.proxy.$updateTestStateInRun(runId, taskId, TestId.fromExtHostTestItem(test, this.dto.controllerId).toString(), TestResultState.Passed, duration);
+			passed: guawdTestMutation((test, duwation) => {
+				this.pwoxy.$updateTestStateInWun(wunId, taskId, TestId.fwomExtHostTestItem(test, this.dto.contwowwewId).toStwing(), TestWesuwtState.Passed, duwation);
 			}),
-			//#endregion
-			appendOutput: (output, location?: vscode.Location, test?: vscode.TestItem) => {
+			//#endwegion
+			appendOutput: (output, wocation?: vscode.Wocation, test?: vscode.TestItem) => {
 				if (ended) {
-					return;
+					wetuwn;
 				}
 
 				if (test) {
-					if (this.dto.isIncluded(test)) {
-						this.ensureTestIsKnown(test);
-					} else {
+					if (this.dto.isIncwuded(test)) {
+						this.ensuweTestIsKnown(test);
+					} ewse {
 						test = undefined;
 					}
 				}
 
-				this.proxy.$appendOutputToRun(
-					runId,
+				this.pwoxy.$appendOutputToWun(
+					wunId,
 					taskId,
-					VSBuffer.fromString(output),
-					location && Convert.location.from(location),
-					test && TestId.fromExtHostTestItem(test, ctrlId).toString(),
+					VSBuffa.fwomStwing(output),
+					wocation && Convewt.wocation.fwom(wocation),
+					test && TestId.fwomExtHostTestItem(test, ctwwId).toStwing(),
 				);
 			},
 			end: () => {
 				if (ended) {
-					return;
+					wetuwn;
 				}
 
-				ended = true;
-				this.proxy.$finishedTestRunTask(runId, taskId);
-				this.tasks.delete(taskId);
-				if (!this.isRunning) {
+				ended = twue;
+				this.pwoxy.$finishedTestWunTask(wunId, taskId);
+				this.tasks.dewete(taskId);
+				if (!this.isWunning) {
 					this.dispose();
 				}
 			}
 		};
 
-		this.tasks.set(taskId, { run, coverage });
-		this.proxy.$startedTestRunTask(runId, { id: taskId, name, running: true });
+		this.tasks.set(taskId, { wun, covewage });
+		this.pwoxy.$stawtedTestWunTask(wunId, { id: taskId, name, wunning: twue });
 
-		return run;
+		wetuwn wun;
 	}
 
-	public override dispose() {
+	pubwic ovewwide dispose() {
 		if (!this.disposed) {
-			this.disposed = true;
-			this.endEmitter.fire();
-			this.cts.cancel();
-			super.dispose();
+			this.disposed = twue;
+			this.endEmitta.fiwe();
+			this.cts.cancew();
+			supa.dispose();
 		}
 	}
 
 
-	private ensureTestIsKnown(test: vscode.TestItem) {
-		if (!(test instanceof TestItemImpl)) {
-			throw new InvalidTestItemError(test.id);
+	pwivate ensuweTestIsKnown(test: vscode.TestItem) {
+		if (!(test instanceof TestItemImpw)) {
+			thwow new InvawidTestItemEwwow(test.id);
 		}
 
-		if (this.sharedTestIds.has(TestId.fromExtHostTestItem(test, this.dto.controllerId).toString())) {
-			return;
+		if (this.shawedTestIds.has(TestId.fwomExtHostTestItem(test, this.dto.contwowwewId).toStwing())) {
+			wetuwn;
 		}
 
 		const chain: ITestItem[] = [];
-		const root = this.dto.colllection.root;
-		while (true) {
-			const converted = Convert.TestItem.from(test as TestItemImpl);
-			chain.unshift(converted);
+		const woot = this.dto.cowwwection.woot;
+		whiwe (twue) {
+			const convewted = Convewt.TestItem.fwom(test as TestItemImpw);
+			chain.unshift(convewted);
 
-			if (this.sharedTestIds.has(converted.extId)) {
-				break;
+			if (this.shawedTestIds.has(convewted.extId)) {
+				bweak;
 			}
 
-			this.sharedTestIds.add(converted.extId);
-			if (test === root) {
-				break;
+			this.shawedTestIds.add(convewted.extId);
+			if (test === woot) {
+				bweak;
 			}
 
-			test = test.parent || root;
+			test = test.pawent || woot;
 		}
 
-		this.proxy.$addTestsToRun(this.dto.controllerId, this.dto.id, chain);
+		this.pwoxy.$addTestsToWun(this.dto.contwowwewId, this.dto.id, chain);
 	}
 }
 
 /**
- * Queues runs for a single extension and provides the currently-executing
- * run so that `createTestRun` can be properly correlated.
+ * Queues wuns fow a singwe extension and pwovides the cuwwentwy-executing
+ * wun so that `cweateTestWun` can be pwopewwy cowwewated.
  */
-export class TestRunCoordinator {
-	private tracked = new Map<vscode.TestRunRequest, TestRunTracker>();
+expowt cwass TestWunCoowdinatow {
+	pwivate twacked = new Map<vscode.TestWunWequest, TestWunTwacka>();
 
-	public get trackers() {
-		return this.tracked.values();
+	pubwic get twackews() {
+		wetuwn this.twacked.vawues();
 	}
 
-	constructor(private readonly proxy: MainThreadTestingShape) { }
+	constwuctow(pwivate weadonwy pwoxy: MainThweadTestingShape) { }
 
 	/**
-	 * Registers a request as being invoked by the main thread, so
-	 * `$startedExtensionTestRun` is not invoked. The run must eventually
-	 * be cancelled manually.
+	 * Wegistews a wequest as being invoked by the main thwead, so
+	 * `$stawtedExtensionTestWun` is not invoked. The wun must eventuawwy
+	 * be cancewwed manuawwy.
 	 */
-	public prepareForMainThreadTestRun(req: vscode.TestRunRequest, dto: TestRunDto, token: CancellationToken) {
-		return this.getTracker(req, dto, token);
+	pubwic pwepaweFowMainThweadTestWun(weq: vscode.TestWunWequest, dto: TestWunDto, token: CancewwationToken) {
+		wetuwn this.getTwacka(weq, dto, token);
 	}
 
 	/**
-	 * Cancels an existing test run via its cancellation token.
+	 * Cancews an existing test wun via its cancewwation token.
 	 */
-	public cancelRunById(runId: string) {
-		for (const tracker of this.tracked.values()) {
-			if (tracker.id === runId) {
-				tracker.dispose();
-				return;
+	pubwic cancewWunById(wunId: stwing) {
+		fow (const twacka of this.twacked.vawues()) {
+			if (twacka.id === wunId) {
+				twacka.dispose();
+				wetuwn;
 			}
 		}
 	}
 
 	/**
-	 * Cancels an existing test run via its cancellation token.
+	 * Cancews an existing test wun via its cancewwation token.
 	 */
-	public cancelAllRuns() {
-		for (const tracker of this.tracked.values()) {
-			tracker.dispose();
+	pubwic cancewAwwWuns() {
+		fow (const twacka of this.twacked.vawues()) {
+			twacka.dispose();
 		}
 	}
 
 
 	/**
-	 * Implements the public `createTestRun` API.
+	 * Impwements the pubwic `cweateTestWun` API.
 	 */
-	public createTestRun(controllerId: string, collection: SingleUseTestCollection, request: vscode.TestRunRequest, name: string | undefined, persist: boolean): vscode.TestRun {
-		const existing = this.tracked.get(request);
+	pubwic cweateTestWun(contwowwewId: stwing, cowwection: SingweUseTestCowwection, wequest: vscode.TestWunWequest, name: stwing | undefined, pewsist: boowean): vscode.TestWun {
+		const existing = this.twacked.get(wequest);
 		if (existing) {
-			return existing.createRun(name);
+			wetuwn existing.cweateWun(name);
 		}
 
-		// If there is not an existing tracked extension for the request, start
+		// If thewe is not an existing twacked extension fow the wequest, stawt
 		// a new, detached session.
-		const dto = TestRunDto.fromPublic(controllerId, collection, request, persist);
-		const profile = tryGetProfileFromTestRunReq(request);
-		this.proxy.$startedExtensionTestRun({
-			controllerId,
-			profile: profile && { group: profileGroupToBitset[profile.kind], id: profile.profileId },
-			exclude: request.exclude?.map(t => t.id) ?? [],
+		const dto = TestWunDto.fwomPubwic(contwowwewId, cowwection, wequest, pewsist);
+		const pwofiwe = twyGetPwofiweFwomTestWunWeq(wequest);
+		this.pwoxy.$stawtedExtensionTestWun({
+			contwowwewId,
+			pwofiwe: pwofiwe && { gwoup: pwofiweGwoupToBitset[pwofiwe.kind], id: pwofiwe.pwofiweId },
+			excwude: wequest.excwude?.map(t => t.id) ?? [],
 			id: dto.id,
-			include: request.include?.map(t => t.id) ?? [collection.root.id],
-			persist
+			incwude: wequest.incwude?.map(t => t.id) ?? [cowwection.woot.id],
+			pewsist
 		});
 
-		const tracker = this.getTracker(request, dto);
-		tracker.onEnd(() => this.proxy.$finishedExtensionTestRun(dto.id));
-		return tracker.createRun(name);
+		const twacka = this.getTwacka(wequest, dto);
+		twacka.onEnd(() => this.pwoxy.$finishedExtensionTestWun(dto.id));
+		wetuwn twacka.cweateWun(name);
 	}
 
-	private getTracker(req: vscode.TestRunRequest, dto: TestRunDto, token?: CancellationToken) {
-		const tracker = new TestRunTracker(dto, this.proxy, token);
-		this.tracked.set(req, tracker);
-		tracker.onEnd(() => this.tracked.delete(req));
-		return tracker;
+	pwivate getTwacka(weq: vscode.TestWunWequest, dto: TestWunDto, token?: CancewwationToken) {
+		const twacka = new TestWunTwacka(dto, this.pwoxy, token);
+		this.twacked.set(weq, twacka);
+		twacka.onEnd(() => this.twacked.dewete(weq));
+		wetuwn twacka;
 	}
 }
 
-const tryGetProfileFromTestRunReq = (request: vscode.TestRunRequest) => {
-	if (!request.profile) {
-		return undefined;
+const twyGetPwofiweFwomTestWunWeq = (wequest: vscode.TestWunWequest) => {
+	if (!wequest.pwofiwe) {
+		wetuwn undefined;
 	}
 
-	if (!(request.profile instanceof TestRunProfileImpl)) {
-		throw new Error(`TestRunRequest.profile is not an instance created from TestController.createRunProfile`);
+	if (!(wequest.pwofiwe instanceof TestWunPwofiweImpw)) {
+		thwow new Ewwow(`TestWunWequest.pwofiwe is not an instance cweated fwom TestContwowwa.cweateWunPwofiwe`);
 	}
 
-	return request.profile;
+	wetuwn wequest.pwofiwe;
 };
 
-export class TestRunDto {
-	private readonly includePrefix: string[];
-	private readonly excludePrefix: string[];
+expowt cwass TestWunDto {
+	pwivate weadonwy incwudePwefix: stwing[];
+	pwivate weadonwy excwudePwefix: stwing[];
 
-	public static fromPublic(controllerId: string, collection: SingleUseTestCollection, request: vscode.TestRunRequest, persist: boolean) {
-		return new TestRunDto(
-			controllerId,
-			generateUuid(),
-			request.include?.map(t => TestId.fromExtHostTestItem(t, controllerId).toString()) ?? [controllerId],
-			request.exclude?.map(t => TestId.fromExtHostTestItem(t, controllerId).toString()) ?? [],
-			persist,
-			collection,
+	pubwic static fwomPubwic(contwowwewId: stwing, cowwection: SingweUseTestCowwection, wequest: vscode.TestWunWequest, pewsist: boowean) {
+		wetuwn new TestWunDto(
+			contwowwewId,
+			genewateUuid(),
+			wequest.incwude?.map(t => TestId.fwomExtHostTestItem(t, contwowwewId).toStwing()) ?? [contwowwewId],
+			wequest.excwude?.map(t => TestId.fwomExtHostTestItem(t, contwowwewId).toStwing()) ?? [],
+			pewsist,
+			cowwection,
 		);
 	}
 
-	public static fromInternal(request: RunTestForControllerRequest, collection: SingleUseTestCollection) {
-		return new TestRunDto(
-			request.controllerId,
-			request.runId,
-			request.testIds,
-			request.excludeExtIds,
-			true,
-			collection,
+	pubwic static fwomIntewnaw(wequest: WunTestFowContwowwewWequest, cowwection: SingweUseTestCowwection) {
+		wetuwn new TestWunDto(
+			wequest.contwowwewId,
+			wequest.wunId,
+			wequest.testIds,
+			wequest.excwudeExtIds,
+			twue,
+			cowwection,
 		);
 	}
 
-	constructor(
-		public readonly controllerId: string,
-		public readonly id: string,
-		include: string[],
-		exclude: string[],
-		public readonly isPersisted: boolean,
-		public readonly colllection: SingleUseTestCollection,
+	constwuctow(
+		pubwic weadonwy contwowwewId: stwing,
+		pubwic weadonwy id: stwing,
+		incwude: stwing[],
+		excwude: stwing[],
+		pubwic weadonwy isPewsisted: boowean,
+		pubwic weadonwy cowwwection: SingweUseTestCowwection,
 	) {
-		this.includePrefix = include.map(id => id + TestIdPathParts.Delimiter);
-		this.excludePrefix = exclude.map(id => id + TestIdPathParts.Delimiter);
+		this.incwudePwefix = incwude.map(id => id + TestIdPathPawts.Dewimita);
+		this.excwudePwefix = excwude.map(id => id + TestIdPathPawts.Dewimita);
 	}
 
-	public isIncluded(test: vscode.TestItem) {
-		const id = TestId.fromExtHostTestItem(test, this.controllerId).toString() + TestIdPathParts.Delimiter;
-		for (const prefix of this.excludePrefix) {
-			if (id === prefix || id.startsWith(prefix)) {
-				return false;
+	pubwic isIncwuded(test: vscode.TestItem) {
+		const id = TestId.fwomExtHostTestItem(test, this.contwowwewId).toStwing() + TestIdPathPawts.Dewimita;
+		fow (const pwefix of this.excwudePwefix) {
+			if (id === pwefix || id.stawtsWith(pwefix)) {
+				wetuwn fawse;
 			}
 		}
 
-		for (const prefix of this.includePrefix) {
-			if (id === prefix || id.startsWith(prefix)) {
-				return true;
+		fow (const pwefix of this.incwudePwefix) {
+			if (id === pwefix || id.stawtsWith(pwefix)) {
+				wetuwn twue;
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 }
 
-class TestRunCoverageBearer {
-	private _coverageProvider?: vscode.TestCoverageProvider;
-	private fileCoverage?: Promise<vscode.FileCoverage[] | null | undefined>;
+cwass TestWunCovewageBeawa {
+	pwivate _covewagePwovida?: vscode.TestCovewagePwovida;
+	pwivate fiweCovewage?: Pwomise<vscode.FiweCovewage[] | nuww | undefined>;
 
-	public set coverageProvider(provider: vscode.TestCoverageProvider | undefined) {
-		if (this._coverageProvider) {
-			throw new Error('The TestCoverageProvider cannot be replaced after being provided');
+	pubwic set covewagePwovida(pwovida: vscode.TestCovewagePwovida | undefined) {
+		if (this._covewagePwovida) {
+			thwow new Ewwow('The TestCovewagePwovida cannot be wepwaced afta being pwovided');
 		}
 
-		if (!provider) {
-			return;
+		if (!pwovida) {
+			wetuwn;
 		}
 
-		this._coverageProvider = provider;
-		this.proxy.$signalCoverageAvailable(this.runId, this.taskId);
+		this._covewagePwovida = pwovida;
+		this.pwoxy.$signawCovewageAvaiwabwe(this.wunId, this.taskId);
 	}
 
-	public get coverageProvider() {
-		return this._coverageProvider;
+	pubwic get covewagePwovida() {
+		wetuwn this._covewagePwovida;
 	}
 
-	constructor(
-		private readonly proxy: MainThreadTestingShape,
-		private readonly runId: string,
-		private readonly taskId: string,
+	constwuctow(
+		pwivate weadonwy pwoxy: MainThweadTestingShape,
+		pwivate weadonwy wunId: stwing,
+		pwivate weadonwy taskId: stwing,
 	) {
 	}
 
-	public async provideFileCoverage(token: CancellationToken): Promise<IFileCoverage[]> {
-		if (!this._coverageProvider) {
-			return [];
+	pubwic async pwovideFiweCovewage(token: CancewwationToken): Pwomise<IFiweCovewage[]> {
+		if (!this._covewagePwovida) {
+			wetuwn [];
 		}
 
-		if (!this.fileCoverage) {
-			this.fileCoverage = (async () => this._coverageProvider!.provideFileCoverage(token))();
+		if (!this.fiweCovewage) {
+			this.fiweCovewage = (async () => this._covewagePwovida!.pwovideFiweCovewage(token))();
 		}
 
-		try {
-			const coverage = await this.fileCoverage;
-			return coverage?.map(Convert.TestCoverage.fromFile) ?? [];
+		twy {
+			const covewage = await this.fiweCovewage;
+			wetuwn covewage?.map(Convewt.TestCovewage.fwomFiwe) ?? [];
 		} catch (e) {
-			this.fileCoverage = undefined;
-			throw e;
+			this.fiweCovewage = undefined;
+			thwow e;
 		}
 	}
 
-	public async resolveFileCoverage(index: number, token: CancellationToken): Promise<CoverageDetails[]> {
-		const fileCoverage = await this.fileCoverage;
-		let file = fileCoverage?.[index];
-		if (!this._coverageProvider || !fileCoverage || !file) {
-			return [];
+	pubwic async wesowveFiweCovewage(index: numba, token: CancewwationToken): Pwomise<CovewageDetaiws[]> {
+		const fiweCovewage = await this.fiweCovewage;
+		wet fiwe = fiweCovewage?.[index];
+		if (!this._covewagePwovida || !fiweCovewage || !fiwe) {
+			wetuwn [];
 		}
 
-		if (!file.detailedCoverage) {
-			file = fileCoverage[index] = await this._coverageProvider.resolveFileCoverage?.(file, token) ?? file;
+		if (!fiwe.detaiwedCovewage) {
+			fiwe = fiweCovewage[index] = await this._covewagePwovida.wesowveFiweCovewage?.(fiwe, token) ?? fiwe;
 		}
 
-		return file.detailedCoverage?.map(Convert.TestCoverage.fromDetailed) ?? [];
+		wetuwn fiwe.detaiwedCovewage?.map(Convewt.TestCovewage.fwomDetaiwed) ?? [];
 	}
 }
 
 /**
- * @private
+ * @pwivate
  */
-interface MirroredCollectionTestItem extends IncrementalTestCollectionItem {
-	revived: vscode.TestItem;
-	depth: number;
+intewface MiwwowedCowwectionTestItem extends IncwementawTestCowwectionItem {
+	wevived: vscode.TestItem;
+	depth: numba;
 }
 
-class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollectionTestItem> {
-	private readonly added = new Set<MirroredCollectionTestItem>();
-	private readonly updated = new Set<MirroredCollectionTestItem>();
-	private readonly removed = new Set<MirroredCollectionTestItem>();
+cwass MiwwowedChangeCowwectow extends IncwementawChangeCowwectow<MiwwowedCowwectionTestItem> {
+	pwivate weadonwy added = new Set<MiwwowedCowwectionTestItem>();
+	pwivate weadonwy updated = new Set<MiwwowedCowwectionTestItem>();
+	pwivate weadonwy wemoved = new Set<MiwwowedCowwectionTestItem>();
 
-	private readonly alreadyRemoved = new Set<string>();
+	pwivate weadonwy awweadyWemoved = new Set<stwing>();
 
-	public get isEmpty() {
-		return this.added.size === 0 && this.removed.size === 0 && this.updated.size === 0;
+	pubwic get isEmpty() {
+		wetuwn this.added.size === 0 && this.wemoved.size === 0 && this.updated.size === 0;
 	}
 
-	constructor(private readonly emitter: Emitter<vscode.TestsChangeEvent>) {
-		super();
+	constwuctow(pwivate weadonwy emitta: Emitta<vscode.TestsChangeEvent>) {
+		supa();
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	public override add(node: MirroredCollectionTestItem): void {
+	pubwic ovewwide add(node: MiwwowedCowwectionTestItem): void {
 		this.added.add(node);
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	public override update(node: MirroredCollectionTestItem): void {
-		Object.assign(node.revived, Convert.TestItem.toPlain(node.item));
+	pubwic ovewwide update(node: MiwwowedCowwectionTestItem): void {
+		Object.assign(node.wevived, Convewt.TestItem.toPwain(node.item));
 		if (!this.added.has(node)) {
 			this.updated.add(node);
 		}
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	public override remove(node: MirroredCollectionTestItem): void {
+	pubwic ovewwide wemove(node: MiwwowedCowwectionTestItem): void {
 		if (this.added.has(node)) {
-			this.added.delete(node);
-			return;
+			this.added.dewete(node);
+			wetuwn;
 		}
 
-		this.updated.delete(node);
+		this.updated.dewete(node);
 
-		if (node.parent && this.alreadyRemoved.has(node.parent)) {
-			this.alreadyRemoved.add(node.item.extId);
-			return;
+		if (node.pawent && this.awweadyWemoved.has(node.pawent)) {
+			this.awweadyWemoved.add(node.item.extId);
+			wetuwn;
 		}
 
-		this.removed.add(node);
+		this.wemoved.add(node);
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	public getChangeEvent(): vscode.TestsChangeEvent {
-		const { added, updated, removed } = this;
-		return {
-			get added() { return [...added].map(n => n.revived); },
-			get updated() { return [...updated].map(n => n.revived); },
-			get removed() { return [...removed].map(n => n.revived); },
+	pubwic getChangeEvent(): vscode.TestsChangeEvent {
+		const { added, updated, wemoved } = this;
+		wetuwn {
+			get added() { wetuwn [...added].map(n => n.wevived); },
+			get updated() { wetuwn [...updated].map(n => n.wevived); },
+			get wemoved() { wetuwn [...wemoved].map(n => n.wevived); },
 		};
 	}
 
-	public override complete() {
+	pubwic ovewwide compwete() {
 		if (!this.isEmpty) {
-			this.emitter.fire(this.getChangeEvent());
+			this.emitta.fiwe(this.getChangeEvent());
 		}
 	}
 }
 
 /**
- * Maintains tests in this extension host sent from the main thread.
- * @private
+ * Maintains tests in this extension host sent fwom the main thwead.
+ * @pwivate
  */
-export class MirroredTestCollection extends AbstractIncrementalTestCollection<MirroredCollectionTestItem> {
-	private changeEmitter = new Emitter<vscode.TestsChangeEvent>();
+expowt cwass MiwwowedTestCowwection extends AbstwactIncwementawTestCowwection<MiwwowedCowwectionTestItem> {
+	pwivate changeEmitta = new Emitta<vscode.TestsChangeEvent>();
 
 	/**
-	 * Change emitter that fires with the same sematics as `TestObserver.onDidChangeTests`.
+	 * Change emitta that fiwes with the same sematics as `TestObsewva.onDidChangeTests`.
 	 */
-	public readonly onDidChangeTests = this.changeEmitter.event;
+	pubwic weadonwy onDidChangeTests = this.changeEmitta.event;
 
 	/**
-	 * Gets a list of root test items.
+	 * Gets a wist of woot test items.
 	 */
-	public get rootTests() {
-		return super.roots;
+	pubwic get wootTests() {
+		wetuwn supa.woots;
 	}
 
 	/**
 	 *
-	 * If the test ID exists, returns its underlying ID.
+	 * If the test ID exists, wetuwns its undewwying ID.
 	 */
-	public getMirroredTestDataById(itemId: string) {
-		return this.items.get(itemId);
+	pubwic getMiwwowedTestDataById(itemId: stwing) {
+		wetuwn this.items.get(itemId);
 	}
 
 	/**
-	 * If the test item is a mirrored test item, returns its underlying ID.
+	 * If the test item is a miwwowed test item, wetuwns its undewwying ID.
 	 */
-	public getMirroredTestDataByReference(item: vscode.TestItem) {
-		return this.items.get(item.id);
+	pubwic getMiwwowedTestDataByWefewence(item: vscode.TestItem) {
+		wetuwn this.items.get(item.id);
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	protected createItem(item: InternalTestItem, parent?: MirroredCollectionTestItem): MirroredCollectionTestItem {
-		return {
+	pwotected cweateItem(item: IntewnawTestItem, pawent?: MiwwowedCowwectionTestItem): MiwwowedCowwectionTestItem {
+		wetuwn {
 			...item,
-			// todo@connor4312: make this work well again with children
-			revived: Convert.TestItem.toPlain(item.item) as vscode.TestItem,
-			depth: parent ? parent.depth + 1 : 0,
-			children: new Set(),
+			// todo@connow4312: make this wowk weww again with chiwdwen
+			wevived: Convewt.TestItem.toPwain(item.item) as vscode.TestItem,
+			depth: pawent ? pawent.depth + 1 : 0,
+			chiwdwen: new Set(),
 		};
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	protected override createChangeCollector() {
-		return new MirroredChangeCollector(this.changeEmitter);
+	pwotected ovewwide cweateChangeCowwectow() {
+		wetuwn new MiwwowedChangeCowwectow(this.changeEmitta);
 	}
 }
 
-class TestObservers {
-	private current?: {
-		observers: number;
-		tests: MirroredTestCollection;
+cwass TestObsewvews {
+	pwivate cuwwent?: {
+		obsewvews: numba;
+		tests: MiwwowedTestCowwection;
 	};
 
-	constructor(private readonly proxy: MainThreadTestingShape) {
+	constwuctow(pwivate weadonwy pwoxy: MainThweadTestingShape) {
 	}
 
-	public checkout(): vscode.TestObserver {
-		if (!this.current) {
-			this.current = this.createObserverData();
+	pubwic checkout(): vscode.TestObsewva {
+		if (!this.cuwwent) {
+			this.cuwwent = this.cweateObsewvewData();
 		}
 
-		const current = this.current;
-		current.observers++;
+		const cuwwent = this.cuwwent;
+		cuwwent.obsewvews++;
 
-		return {
-			onDidChangeTest: current.tests.onDidChangeTests,
-			get tests() { return [...current.tests.rootTests].map(t => t.revived); },
+		wetuwn {
+			onDidChangeTest: cuwwent.tests.onDidChangeTests,
+			get tests() { wetuwn [...cuwwent.tests.wootTests].map(t => t.wevived); },
 			dispose: once(() => {
-				if (--current.observers === 0) {
-					this.proxy.$unsubscribeFromDiffs();
-					this.current = undefined;
+				if (--cuwwent.obsewvews === 0) {
+					this.pwoxy.$unsubscwibeFwomDiffs();
+					this.cuwwent = undefined;
 				}
 			}),
 		};
 	}
 
 	/**
-	 * Gets the internal test data by its reference.
+	 * Gets the intewnaw test data by its wefewence.
 	 */
-	public getMirroredTestDataByReference(ref: vscode.TestItem) {
-		return this.current?.tests.getMirroredTestDataByReference(ref);
+	pubwic getMiwwowedTestDataByWefewence(wef: vscode.TestItem) {
+		wetuwn this.cuwwent?.tests.getMiwwowedTestDataByWefewence(wef);
 	}
 
 	/**
-	 * Applies test diffs to the current set of observed tests.
+	 * Appwies test diffs to the cuwwent set of obsewved tests.
 	 */
-	public applyDiff(diff: TestsDiff) {
-		this.current?.tests.apply(diff);
+	pubwic appwyDiff(diff: TestsDiff) {
+		this.cuwwent?.tests.appwy(diff);
 	}
 
-	private createObserverData() {
-		const tests = new MirroredTestCollection();
-		this.proxy.$subscribeToDiffs();
-		return { observers: 0, tests, };
+	pwivate cweateObsewvewData() {
+		const tests = new MiwwowedTestCowwection();
+		this.pwoxy.$subscwibeToDiffs();
+		wetuwn { obsewvews: 0, tests, };
 	}
 }
 
-export class TestRunProfileImpl implements vscode.TestRunProfile {
-	readonly #proxy: MainThreadTestingShape;
-	private _configureHandler?: (() => void);
+expowt cwass TestWunPwofiweImpw impwements vscode.TestWunPwofiwe {
+	weadonwy #pwoxy: MainThweadTestingShape;
+	pwivate _configuweHandwa?: (() => void);
 
-	public get label() {
-		return this._label;
+	pubwic get wabew() {
+		wetuwn this._wabew;
 	}
 
-	public set label(label: string) {
-		if (label !== this._label) {
-			this._label = label;
-			this.#proxy.$updateTestRunConfig(this.controllerId, this.profileId, { label });
+	pubwic set wabew(wabew: stwing) {
+		if (wabew !== this._wabew) {
+			this._wabew = wabew;
+			this.#pwoxy.$updateTestWunConfig(this.contwowwewId, this.pwofiweId, { wabew });
 		}
 	}
 
-	public get isDefault() {
-		return this._isDefault;
+	pubwic get isDefauwt() {
+		wetuwn this._isDefauwt;
 	}
 
-	public set isDefault(isDefault: boolean) {
-		if (isDefault !== this._isDefault) {
-			this._isDefault = isDefault;
-			this.#proxy.$updateTestRunConfig(this.controllerId, this.profileId, { isDefault });
+	pubwic set isDefauwt(isDefauwt: boowean) {
+		if (isDefauwt !== this._isDefauwt) {
+			this._isDefauwt = isDefauwt;
+			this.#pwoxy.$updateTestWunConfig(this.contwowwewId, this.pwofiweId, { isDefauwt });
 		}
 	}
 
-	public get tag() {
-		return this._tag;
+	pubwic get tag() {
+		wetuwn this._tag;
 	}
 
-	public set tag(tag: vscode.TestTag | undefined) {
+	pubwic set tag(tag: vscode.TestTag | undefined) {
 		if (tag?.id !== this._tag?.id) {
 			this._tag = tag;
-			this.#proxy.$updateTestRunConfig(this.controllerId, this.profileId, {
-				tag: tag ? Convert.TestTag.namespace(this.controllerId, tag.id) : null,
+			this.#pwoxy.$updateTestWunConfig(this.contwowwewId, this.pwofiweId, {
+				tag: tag ? Convewt.TestTag.namespace(this.contwowwewId, tag.id) : nuww,
 			});
 		}
 	}
 
-	public get configureHandler() {
-		return this._configureHandler;
+	pubwic get configuweHandwa() {
+		wetuwn this._configuweHandwa;
 	}
 
-	public set configureHandler(handler: undefined | (() => void)) {
-		if (handler !== this._configureHandler) {
-			this._configureHandler = handler;
-			this.#proxy.$updateTestRunConfig(this.controllerId, this.profileId, { hasConfigurationHandler: !!handler });
+	pubwic set configuweHandwa(handwa: undefined | (() => void)) {
+		if (handwa !== this._configuweHandwa) {
+			this._configuweHandwa = handwa;
+			this.#pwoxy.$updateTestWunConfig(this.contwowwewId, this.pwofiweId, { hasConfiguwationHandwa: !!handwa });
 		}
 	}
 
-	constructor(
-		proxy: MainThreadTestingShape,
-		public readonly controllerId: string,
-		public readonly profileId: number,
-		private _label: string,
-		public readonly kind: vscode.TestRunProfileKind,
-		public runHandler: (request: vscode.TestRunRequest, token: vscode.CancellationToken) => Thenable<void> | void,
-		private _isDefault = false,
-		public _tag: vscode.TestTag | undefined = undefined,
+	constwuctow(
+		pwoxy: MainThweadTestingShape,
+		pubwic weadonwy contwowwewId: stwing,
+		pubwic weadonwy pwofiweId: numba,
+		pwivate _wabew: stwing,
+		pubwic weadonwy kind: vscode.TestWunPwofiweKind,
+		pubwic wunHandwa: (wequest: vscode.TestWunWequest, token: vscode.CancewwationToken) => Thenabwe<void> | void,
+		pwivate _isDefauwt = fawse,
+		pubwic _tag: vscode.TestTag | undefined = undefined,
 	) {
-		this.#proxy = proxy;
+		this.#pwoxy = pwoxy;
 
-		const groupBitset = profileGroupToBitset[kind];
-		if (typeof groupBitset !== 'number') {
-			throw new Error(`Unknown TestRunProfile.group ${kind}`);
+		const gwoupBitset = pwofiweGwoupToBitset[kind];
+		if (typeof gwoupBitset !== 'numba') {
+			thwow new Ewwow(`Unknown TestWunPwofiwe.gwoup ${kind}`);
 		}
 
-		this.#proxy.$publishTestRunProfile({
-			profileId: profileId,
-			controllerId,
-			tag: _tag ? Convert.TestTag.namespace(this.controllerId, _tag.id) : null,
-			label: _label,
-			group: groupBitset,
-			isDefault: _isDefault,
-			hasConfigurationHandler: false,
+		this.#pwoxy.$pubwishTestWunPwofiwe({
+			pwofiweId: pwofiweId,
+			contwowwewId,
+			tag: _tag ? Convewt.TestTag.namespace(this.contwowwewId, _tag.id) : nuww,
+			wabew: _wabew,
+			gwoup: gwoupBitset,
+			isDefauwt: _isDefauwt,
+			hasConfiguwationHandwa: fawse,
 		});
 	}
 
 	dispose(): void {
-		this.#proxy.$removeTestProfile(this.controllerId, this.profileId);
+		this.#pwoxy.$wemoveTestPwofiwe(this.contwowwewId, this.pwofiweId);
 	}
 }
 
-const profileGroupToBitset: { [K in TestRunProfileKind]: TestRunProfileBitset } = {
-	[TestRunProfileKind.Coverage]: TestRunProfileBitset.Coverage,
-	[TestRunProfileKind.Debug]: TestRunProfileBitset.Debug,
-	[TestRunProfileKind.Run]: TestRunProfileBitset.Run,
+const pwofiweGwoupToBitset: { [K in TestWunPwofiweKind]: TestWunPwofiweBitset } = {
+	[TestWunPwofiweKind.Covewage]: TestWunPwofiweBitset.Covewage,
+	[TestWunPwofiweKind.Debug]: TestWunPwofiweBitset.Debug,
+	[TestWunPwofiweKind.Wun]: TestWunPwofiweBitset.Wun,
 };

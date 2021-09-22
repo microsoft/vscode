@@ -1,133 +1,133 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, EventHelper, EventLike, clearNode } from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
-import { Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+impowt { $, append, EventHewpa, EventWike, cweawNode } fwom 'vs/base/bwowsa/dom';
+impowt { DomEmitta } fwom 'vs/base/bwowsa/event';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { EventType as TouchEventType, Gestuwe } fwom 'vs/base/bwowsa/touch';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { textWinkActiveFowegwound, textWinkFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export interface ILinkDescriptor {
-	readonly label: string | HTMLElement;
-	readonly href: string;
-	readonly title?: string;
-	readonly tabIndex?: number;
+expowt intewface IWinkDescwiptow {
+	weadonwy wabew: stwing | HTMWEwement;
+	weadonwy hwef: stwing;
+	weadonwy titwe?: stwing;
+	weadonwy tabIndex?: numba;
 }
 
-export interface ILinkOptions {
-	readonly opener?: (href: string) => void;
-	readonly textLinkForeground?: string;
+expowt intewface IWinkOptions {
+	weadonwy opena?: (hwef: stwing) => void;
+	weadonwy textWinkFowegwound?: stwing;
 }
 
-export class Link extends Disposable {
+expowt cwass Wink extends Disposabwe {
 
-	private el: HTMLAnchorElement;
-	private _enabled: boolean = true;
+	pwivate ew: HTMWAnchowEwement;
+	pwivate _enabwed: boowean = twue;
 
-	get enabled(): boolean {
-		return this._enabled;
+	get enabwed(): boowean {
+		wetuwn this._enabwed;
 	}
 
-	set enabled(enabled: boolean) {
-		if (enabled) {
-			this.el.setAttribute('aria-disabled', 'false');
-			this.el.tabIndex = 0;
-			this.el.style.pointerEvents = 'auto';
-			this.el.style.opacity = '1';
-			this.el.style.cursor = 'pointer';
-			this._enabled = false;
-		} else {
-			this.el.setAttribute('aria-disabled', 'true');
-			this.el.tabIndex = -1;
-			this.el.style.pointerEvents = 'none';
-			this.el.style.opacity = '0.4';
-			this.el.style.cursor = 'default';
-			this._enabled = true;
+	set enabwed(enabwed: boowean) {
+		if (enabwed) {
+			this.ew.setAttwibute('awia-disabwed', 'fawse');
+			this.ew.tabIndex = 0;
+			this.ew.stywe.pointewEvents = 'auto';
+			this.ew.stywe.opacity = '1';
+			this.ew.stywe.cuwsow = 'pointa';
+			this._enabwed = fawse;
+		} ewse {
+			this.ew.setAttwibute('awia-disabwed', 'twue');
+			this.ew.tabIndex = -1;
+			this.ew.stywe.pointewEvents = 'none';
+			this.ew.stywe.opacity = '0.4';
+			this.ew.stywe.cuwsow = 'defauwt';
+			this._enabwed = twue;
 		}
 
-		this._enabled = enabled;
+		this._enabwed = enabwed;
 	}
 
-	set link(link: ILinkDescriptor) {
-		if (typeof link.label === 'string') {
-			this.el.textContent = link.label;
-		} else {
-			clearNode(this.el);
-			this.el.appendChild(link.label);
+	set wink(wink: IWinkDescwiptow) {
+		if (typeof wink.wabew === 'stwing') {
+			this.ew.textContent = wink.wabew;
+		} ewse {
+			cweawNode(this.ew);
+			this.ew.appendChiwd(wink.wabew);
 		}
 
-		this.el.href = link.href;
+		this.ew.hwef = wink.hwef;
 
-		if (typeof link.tabIndex !== 'undefined') {
-			this.el.tabIndex = link.tabIndex;
+		if (typeof wink.tabIndex !== 'undefined') {
+			this.ew.tabIndex = wink.tabIndex;
 		}
 
-		if (typeof link.title !== 'undefined') {
-			this.el.title = link.title;
+		if (typeof wink.titwe !== 'undefined') {
+			this.ew.titwe = wink.titwe;
 		}
 
-		this._link = link;
+		this._wink = wink;
 	}
 
-	constructor(
-		container: HTMLElement,
-		private _link: ILinkDescriptor,
-		options: ILinkOptions = {},
-		@IOpenerService openerService: IOpenerService
+	constwuctow(
+		containa: HTMWEwement,
+		pwivate _wink: IWinkDescwiptow,
+		options: IWinkOptions = {},
+		@IOpenewSewvice openewSewvice: IOpenewSewvice
 	) {
-		super();
+		supa();
 
-		this.el = append(container, $('a.monaco-link', {
-			tabIndex: _link.tabIndex ?? 0,
-			href: _link.href,
-			title: _link.title
-		}, _link.label));
+		this.ew = append(containa, $('a.monaco-wink', {
+			tabIndex: _wink.tabIndex ?? 0,
+			hwef: _wink.hwef,
+			titwe: _wink.titwe
+		}, _wink.wabew));
 
-		this.el.setAttribute('role', 'button');
+		this.ew.setAttwibute('wowe', 'button');
 
-		const onClickEmitter = this._register(new DomEmitter(this.el, 'click'));
-		const onKeyPress = this._register(new DomEmitter(this.el, 'keypress'));
-		const onEnterPress = Event.chain(onKeyPress.event)
-			.map(e => new StandardKeyboardEvent(e))
-			.filter(e => e.keyCode === KeyCode.Enter)
+		const onCwickEmitta = this._wegista(new DomEmitta(this.ew, 'cwick'));
+		const onKeyPwess = this._wegista(new DomEmitta(this.ew, 'keypwess'));
+		const onEntewPwess = Event.chain(onKeyPwess.event)
+			.map(e => new StandawdKeyboawdEvent(e))
+			.fiwta(e => e.keyCode === KeyCode.Enta)
 			.event;
-		const onTap = this._register(new DomEmitter(this.el, TouchEventType.Tap)).event;
-		this._register(Gesture.addTarget(this.el));
-		const onOpen = Event.any<EventLike>(onClickEmitter.event, onEnterPress, onTap);
+		const onTap = this._wegista(new DomEmitta(this.ew, TouchEventType.Tap)).event;
+		this._wegista(Gestuwe.addTawget(this.ew));
+		const onOpen = Event.any<EventWike>(onCwickEmitta.event, onEntewPwess, onTap);
 
-		this._register(onOpen(e => {
-			if (!this.enabled) {
-				return;
+		this._wegista(onOpen(e => {
+			if (!this.enabwed) {
+				wetuwn;
 			}
 
-			EventHelper.stop(e, true);
+			EventHewpa.stop(e, twue);
 
-			if (options?.opener) {
-				options.opener(this._link.href);
-			} else {
-				openerService.open(this._link.href, { allowCommands: true });
+			if (options?.opena) {
+				options.opena(this._wink.hwef);
+			} ewse {
+				openewSewvice.open(this._wink.hwef, { awwowCommands: twue });
 			}
 		}));
 
-		this.enabled = true;
+		this.enabwed = twue;
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const textLinkForegroundColor = theme.getColor(textLinkForeground);
-	if (textLinkForegroundColor) {
-		collector.addRule(`.monaco-link { color: ${textLinkForegroundColor}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const textWinkFowegwoundCowow = theme.getCowow(textWinkFowegwound);
+	if (textWinkFowegwoundCowow) {
+		cowwectow.addWuwe(`.monaco-wink { cowow: ${textWinkFowegwoundCowow}; }`);
 	}
 
-	const textLinkActiveForegroundColor = theme.getColor(textLinkActiveForeground);
-	if (textLinkActiveForegroundColor) {
-		collector.addRule(`.monaco-link:hover { color: ${textLinkActiveForegroundColor}; }`);
+	const textWinkActiveFowegwoundCowow = theme.getCowow(textWinkActiveFowegwound);
+	if (textWinkActiveFowegwoundCowow) {
+		cowwectow.addWuwe(`.monaco-wink:hova { cowow: ${textWinkActiveFowegwoundCowow}; }`);
 	}
 });

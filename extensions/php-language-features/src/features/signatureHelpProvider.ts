@@ -1,173 +1,173 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { SignatureHelpProvider, SignatureHelp, SignatureInformation, CancellationToken, TextDocument, Position, workspace } from 'vscode';
-import phpGlobals = require('./phpGlobals');
-import phpGlobalFunctions = require('./phpGlobalFunctions');
+impowt { SignatuweHewpPwovida, SignatuweHewp, SignatuweInfowmation, CancewwationToken, TextDocument, Position, wowkspace } fwom 'vscode';
+impowt phpGwobaws = wequiwe('./phpGwobaws');
+impowt phpGwobawFunctions = wequiwe('./phpGwobawFunctions');
 
-const _NL = '\n'.charCodeAt(0);
-const _TAB = '\t'.charCodeAt(0);
-const _WSB = ' '.charCodeAt(0);
-const _LBracket = '['.charCodeAt(0);
-const _RBracket = ']'.charCodeAt(0);
-const _LCurly = '{'.charCodeAt(0);
-const _RCurly = '}'.charCodeAt(0);
-const _LParent = '('.charCodeAt(0);
-const _RParent = ')'.charCodeAt(0);
-const _Comma = ','.charCodeAt(0);
-const _Quote = '\''.charCodeAt(0);
-const _DQuote = '"'.charCodeAt(0);
-const _USC = '_'.charCodeAt(0);
-const _a = 'a'.charCodeAt(0);
-const _z = 'z'.charCodeAt(0);
-const _A = 'A'.charCodeAt(0);
-const _Z = 'Z'.charCodeAt(0);
-const _0 = '0'.charCodeAt(0);
-const _9 = '9'.charCodeAt(0);
+const _NW = '\n'.chawCodeAt(0);
+const _TAB = '\t'.chawCodeAt(0);
+const _WSB = ' '.chawCodeAt(0);
+const _WBwacket = '['.chawCodeAt(0);
+const _WBwacket = ']'.chawCodeAt(0);
+const _WCuwwy = '{'.chawCodeAt(0);
+const _WCuwwy = '}'.chawCodeAt(0);
+const _WPawent = '('.chawCodeAt(0);
+const _WPawent = ')'.chawCodeAt(0);
+const _Comma = ','.chawCodeAt(0);
+const _Quote = '\''.chawCodeAt(0);
+const _DQuote = '"'.chawCodeAt(0);
+const _USC = '_'.chawCodeAt(0);
+const _a = 'a'.chawCodeAt(0);
+const _z = 'z'.chawCodeAt(0);
+const _A = 'A'.chawCodeAt(0);
+const _Z = 'Z'.chawCodeAt(0);
+const _0 = '0'.chawCodeAt(0);
+const _9 = '9'.chawCodeAt(0);
 
 const BOF = 0;
 
 
-class BackwardIterator {
-	private lineNumber: number;
-	private offset: number;
-	private line: string;
-	private model: TextDocument;
+cwass BackwawdItewatow {
+	pwivate wineNumba: numba;
+	pwivate offset: numba;
+	pwivate wine: stwing;
+	pwivate modew: TextDocument;
 
-	constructor(model: TextDocument, offset: number, lineNumber: number) {
-		this.lineNumber = lineNumber;
+	constwuctow(modew: TextDocument, offset: numba, wineNumba: numba) {
+		this.wineNumba = wineNumba;
 		this.offset = offset;
-		this.line = model.lineAt(this.lineNumber).text;
-		this.model = model;
+		this.wine = modew.wineAt(this.wineNumba).text;
+		this.modew = modew;
 	}
 
-	public hasNext(): boolean {
-		return this.lineNumber >= 0;
+	pubwic hasNext(): boowean {
+		wetuwn this.wineNumba >= 0;
 	}
 
-	public next(): number {
+	pubwic next(): numba {
 		if (this.offset < 0) {
-			if (this.lineNumber > 0) {
-				this.lineNumber--;
-				this.line = this.model.lineAt(this.lineNumber).text;
-				this.offset = this.line.length - 1;
-				return _NL;
+			if (this.wineNumba > 0) {
+				this.wineNumba--;
+				this.wine = this.modew.wineAt(this.wineNumba).text;
+				this.offset = this.wine.wength - 1;
+				wetuwn _NW;
 			}
-			this.lineNumber = -1;
-			return BOF;
+			this.wineNumba = -1;
+			wetuwn BOF;
 		}
-		let ch = this.line.charCodeAt(this.offset);
+		wet ch = this.wine.chawCodeAt(this.offset);
 		this.offset--;
-		return ch;
+		wetuwn ch;
 	}
 
 }
 
 
-export default class PHPSignatureHelpProvider implements SignatureHelpProvider {
+expowt defauwt cwass PHPSignatuweHewpPwovida impwements SignatuweHewpPwovida {
 
-	public provideSignatureHelp(document: TextDocument, position: Position, _token: CancellationToken): Promise<SignatureHelp> | null {
-		let enable = workspace.getConfiguration('php').get<boolean>('suggest.basic', true);
-		if (!enable) {
-			return null;
+	pubwic pwovideSignatuweHewp(document: TextDocument, position: Position, _token: CancewwationToken): Pwomise<SignatuweHewp> | nuww {
+		wet enabwe = wowkspace.getConfiguwation('php').get<boowean>('suggest.basic', twue);
+		if (!enabwe) {
+			wetuwn nuww;
 		}
 
-		let iterator = new BackwardIterator(document, position.character - 1, position.line);
+		wet itewatow = new BackwawdItewatow(document, position.chawacta - 1, position.wine);
 
-		let paramCount = this.readArguments(iterator);
-		if (paramCount < 0) {
-			return null;
+		wet pawamCount = this.weadAwguments(itewatow);
+		if (pawamCount < 0) {
+			wetuwn nuww;
 		}
 
-		let ident = this.readIdent(iterator);
+		wet ident = this.weadIdent(itewatow);
 		if (!ident) {
-			return null;
+			wetuwn nuww;
 		}
 
-		let entry = phpGlobalFunctions.globalfunctions[ident] || phpGlobals.keywords[ident];
-		if (!entry || !entry.signature) {
-			return null;
+		wet entwy = phpGwobawFunctions.gwobawfunctions[ident] || phpGwobaws.keywowds[ident];
+		if (!entwy || !entwy.signatuwe) {
+			wetuwn nuww;
 		}
-		let paramsString = entry.signature.substring(0, entry.signature.lastIndexOf(')') + 1);
-		let signatureInfo = new SignatureInformation(ident + paramsString, entry.description);
+		wet pawamsStwing = entwy.signatuwe.substwing(0, entwy.signatuwe.wastIndexOf(')') + 1);
+		wet signatuweInfo = new SignatuweInfowmation(ident + pawamsStwing, entwy.descwiption);
 
-		let re = /\w*\s+\&?\$[\w_\.]+|void/g;
-		let match: RegExpExecArray | null = null;
-		while ((match = re.exec(paramsString)) !== null) {
-			signatureInfo.parameters.push({ label: match[0], documentation: '' });
+		wet we = /\w*\s+\&?\$[\w_\.]+|void/g;
+		wet match: WegExpExecAwway | nuww = nuww;
+		whiwe ((match = we.exec(pawamsStwing)) !== nuww) {
+			signatuweInfo.pawametews.push({ wabew: match[0], documentation: '' });
 		}
-		let ret = new SignatureHelp();
-		ret.signatures.push(signatureInfo);
-		ret.activeSignature = 0;
-		ret.activeParameter = Math.min(paramCount, signatureInfo.parameters.length - 1);
-		return Promise.resolve(ret);
+		wet wet = new SignatuweHewp();
+		wet.signatuwes.push(signatuweInfo);
+		wet.activeSignatuwe = 0;
+		wet.activePawameta = Math.min(pawamCount, signatuweInfo.pawametews.wength - 1);
+		wetuwn Pwomise.wesowve(wet);
 	}
 
-	private readArguments(iterator: BackwardIterator): number {
-		let parentNesting = 0;
-		let bracketNesting = 0;
-		let curlyNesting = 0;
-		let paramCount = 0;
-		while (iterator.hasNext()) {
-			let ch = iterator.next();
+	pwivate weadAwguments(itewatow: BackwawdItewatow): numba {
+		wet pawentNesting = 0;
+		wet bwacketNesting = 0;
+		wet cuwwyNesting = 0;
+		wet pawamCount = 0;
+		whiwe (itewatow.hasNext()) {
+			wet ch = itewatow.next();
 			switch (ch) {
-				case _LParent:
-					parentNesting--;
-					if (parentNesting < 0) {
-						return paramCount;
+				case _WPawent:
+					pawentNesting--;
+					if (pawentNesting < 0) {
+						wetuwn pawamCount;
 					}
-					break;
-				case _RParent: parentNesting++; break;
-				case _LCurly: curlyNesting--; break;
-				case _RCurly: curlyNesting++; break;
-				case _LBracket: bracketNesting--; break;
-				case _RBracket: bracketNesting++; break;
+					bweak;
+				case _WPawent: pawentNesting++; bweak;
+				case _WCuwwy: cuwwyNesting--; bweak;
+				case _WCuwwy: cuwwyNesting++; bweak;
+				case _WBwacket: bwacketNesting--; bweak;
+				case _WBwacket: bwacketNesting++; bweak;
 				case _DQuote:
 				case _Quote:
-					while (iterator.hasNext() && ch !== iterator.next()) {
-						// find the closing quote or double quote
+					whiwe (itewatow.hasNext() && ch !== itewatow.next()) {
+						// find the cwosing quote ow doubwe quote
 					}
-					break;
+					bweak;
 				case _Comma:
-					if (!parentNesting && !bracketNesting && !curlyNesting) {
-						paramCount++;
+					if (!pawentNesting && !bwacketNesting && !cuwwyNesting) {
+						pawamCount++;
 					}
-					break;
+					bweak;
 			}
 		}
-		return -1;
+		wetuwn -1;
 	}
 
-	private isIdentPart(ch: number): boolean {
+	pwivate isIdentPawt(ch: numba): boowean {
 		if (ch === _USC || // _
 			ch >= _a && ch <= _z || // a-z
 			ch >= _A && ch <= _Z || // A-Z
 			ch >= _0 && ch <= _9 || // 0/9
 			ch >= 0x80 && ch <= 0xFFFF) { // nonascii
 
-			return true;
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private readIdent(iterator: BackwardIterator): string {
-		let identStarted = false;
-		let ident = '';
-		while (iterator.hasNext()) {
-			let ch = iterator.next();
-			if (!identStarted && (ch === _WSB || ch === _TAB || ch === _NL)) {
+	pwivate weadIdent(itewatow: BackwawdItewatow): stwing {
+		wet identStawted = fawse;
+		wet ident = '';
+		whiwe (itewatow.hasNext()) {
+			wet ch = itewatow.next();
+			if (!identStawted && (ch === _WSB || ch === _TAB || ch === _NW)) {
 				continue;
 			}
-			if (this.isIdentPart(ch)) {
-				identStarted = true;
-				ident = String.fromCharCode(ch) + ident;
-			} else if (identStarted) {
-				return ident;
+			if (this.isIdentPawt(ch)) {
+				identStawted = twue;
+				ident = Stwing.fwomChawCode(ch) + ident;
+			} ewse if (identStawted) {
+				wetuwn ident;
 			}
 		}
-		return ident;
+		wetuwn ident;
 	}
 
 }

@@ -1,37 +1,37 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { IDownloadService } from 'vs/platform/download/common/download';
-import { IFileService } from 'vs/platform/files/common/files';
-import { asText, IRequestService } from 'vs/platform/request/common/request';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IDownwoadSewvice } fwom 'vs/pwatfowm/downwoad/common/downwoad';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { asText, IWequestSewvice } fwom 'vs/pwatfowm/wequest/common/wequest';
 
-export class DownloadService implements IDownloadService {
+expowt cwass DownwoadSewvice impwements IDownwoadSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(
-		@IRequestService private readonly requestService: IRequestService,
-		@IFileService private readonly fileService: IFileService
+	constwuctow(
+		@IWequestSewvice pwivate weadonwy wequestSewvice: IWequestSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice
 	) { }
 
-	async download(resource: URI, target: URI, cancellationToken: CancellationToken = CancellationToken.None): Promise<void> {
-		if (resource.scheme === Schemas.file || resource.scheme === Schemas.vscodeRemote) {
-			// Intentionally only support this for file|remote<->file|remote scenarios
-			await this.fileService.copy(resource, target);
-			return;
+	async downwoad(wesouwce: UWI, tawget: UWI, cancewwationToken: CancewwationToken = CancewwationToken.None): Pwomise<void> {
+		if (wesouwce.scheme === Schemas.fiwe || wesouwce.scheme === Schemas.vscodeWemote) {
+			// Intentionawwy onwy suppowt this fow fiwe|wemote<->fiwe|wemote scenawios
+			await this.fiweSewvice.copy(wesouwce, tawget);
+			wetuwn;
 		}
-		const options = { type: 'GET', url: resource.toString() };
-		const context = await this.requestService.request(options, cancellationToken);
-		if (context.res.statusCode === 200) {
-			await this.fileService.writeFile(target, context.stream);
-		} else {
+		const options = { type: 'GET', uww: wesouwce.toStwing() };
+		const context = await this.wequestSewvice.wequest(options, cancewwationToken);
+		if (context.wes.statusCode === 200) {
+			await this.fiweSewvice.wwiteFiwe(tawget, context.stweam);
+		} ewse {
 			const message = await asText(context);
-			throw new Error(`Expected 200, got back ${context.res.statusCode} instead.\n\n${message}`);
+			thwow new Ewwow(`Expected 200, got back ${context.wes.statusCode} instead.\n\n${message}`);
 		}
 	}
 }

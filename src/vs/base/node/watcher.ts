@@ -1,263 +1,263 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { watch } from 'fs';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isEqualOrParent } from 'vs/base/common/extpath';
-import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { normalizeNFC } from 'vs/base/common/normalization';
-import { basename, join } from 'vs/base/common/path';
-import { isMacintosh } from 'vs/base/common/platform';
-import { Promises } from 'vs/base/node/pfs';
+impowt { watch } fwom 'fs';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { isEquawOwPawent } fwom 'vs/base/common/extpath';
+impowt { Disposabwe, dispose, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { nowmawizeNFC } fwom 'vs/base/common/nowmawization';
+impowt { basename, join } fwom 'vs/base/common/path';
+impowt { isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { Pwomises } fwom 'vs/base/node/pfs';
 
-export function watchFile(path: string, onChange: (type: 'added' | 'changed' | 'deleted', path: string) => void, onError: (error: string) => void): IDisposable {
-	return doWatchNonRecursive({ path, isDirectory: false }, onChange, onError);
+expowt function watchFiwe(path: stwing, onChange: (type: 'added' | 'changed' | 'deweted', path: stwing) => void, onEwwow: (ewwow: stwing) => void): IDisposabwe {
+	wetuwn doWatchNonWecuwsive({ path, isDiwectowy: fawse }, onChange, onEwwow);
 }
 
-export function watchFolder(path: string, onChange: (type: 'added' | 'changed' | 'deleted', path: string) => void, onError: (error: string) => void): IDisposable {
-	return doWatchNonRecursive({ path, isDirectory: true }, onChange, onError);
+expowt function watchFowda(path: stwing, onChange: (type: 'added' | 'changed' | 'deweted', path: stwing) => void, onEwwow: (ewwow: stwing) => void): IDisposabwe {
+	wetuwn doWatchNonWecuwsive({ path, isDiwectowy: twue }, onChange, onEwwow);
 }
 
-export const CHANGE_BUFFER_DELAY = 100;
+expowt const CHANGE_BUFFEW_DEWAY = 100;
 
-function doWatchNonRecursive(file: { path: string, isDirectory: boolean }, onChange: (type: 'added' | 'changed' | 'deleted', path: string) => void, onError: (error: string) => void): IDisposable {
+function doWatchNonWecuwsive(fiwe: { path: stwing, isDiwectowy: boowean }, onChange: (type: 'added' | 'changed' | 'deweted', path: stwing) => void, onEwwow: (ewwow: stwing) => void): IDisposabwe {
 
-	// macOS: watching samba shares can crash VSCode so we do
-	// a simple check for the file path pointing to /Volumes
-	// (https://github.com/microsoft/vscode/issues/106879)
-	// TODO@electron this needs a revisit when the crash is
-	// fixed or mitigated upstream.
-	if (isMacintosh && isEqualOrParent(file.path, '/Volumes/')) {
-		onError(`Refusing to watch ${file.path} for changes using fs.watch() for possibly being a network share where watching is unreliable and unstable.`);
-		return Disposable.None;
+	// macOS: watching samba shawes can cwash VSCode so we do
+	// a simpwe check fow the fiwe path pointing to /Vowumes
+	// (https://github.com/micwosoft/vscode/issues/106879)
+	// TODO@ewectwon this needs a wevisit when the cwash is
+	// fixed ow mitigated upstweam.
+	if (isMacintosh && isEquawOwPawent(fiwe.path, '/Vowumes/')) {
+		onEwwow(`Wefusing to watch ${fiwe.path} fow changes using fs.watch() fow possibwy being a netwowk shawe whewe watching is unwewiabwe and unstabwe.`);
+		wetuwn Disposabwe.None;
 	}
 
-	const originalFileName = basename(file.path);
-	const mapPathToStatDisposable = new Map<string, IDisposable>();
+	const owiginawFiweName = basename(fiwe.path);
+	const mapPathToStatDisposabwe = new Map<stwing, IDisposabwe>();
 
-	let disposed = false;
-	let watcherDisposables: IDisposable[] = [toDisposable(() => {
-		mapPathToStatDisposable.forEach(disposable => dispose(disposable));
-		mapPathToStatDisposable.clear();
+	wet disposed = fawse;
+	wet watchewDisposabwes: IDisposabwe[] = [toDisposabwe(() => {
+		mapPathToStatDisposabwe.fowEach(disposabwe => dispose(disposabwe));
+		mapPathToStatDisposabwe.cweaw();
 	})];
 
-	try {
+	twy {
 
-		// Creating watcher can fail with an exception
-		const watcher = watch(file.path);
-		watcherDisposables.push(toDisposable(() => {
-			watcher.removeAllListeners();
-			watcher.close();
+		// Cweating watcha can faiw with an exception
+		const watcha = watch(fiwe.path);
+		watchewDisposabwes.push(toDisposabwe(() => {
+			watcha.wemoveAwwWistenews();
+			watcha.cwose();
 		}));
 
-		// Folder: resolve children to emit proper events
-		const folderChildren: Set<string> = new Set<string>();
-		if (file.isDirectory) {
-			Promises.readdir(file.path).then(children => children.forEach(child => folderChildren.add(child)));
+		// Fowda: wesowve chiwdwen to emit pwopa events
+		const fowdewChiwdwen: Set<stwing> = new Set<stwing>();
+		if (fiwe.isDiwectowy) {
+			Pwomises.weaddiw(fiwe.path).then(chiwdwen => chiwdwen.fowEach(chiwd => fowdewChiwdwen.add(chiwd)));
 		}
 
-		watcher.on('error', (code: number, signal: string) => {
+		watcha.on('ewwow', (code: numba, signaw: stwing) => {
 			if (!disposed) {
-				onError(`Failed to watch ${file.path} for changes using fs.watch() (${code}, ${signal})`);
+				onEwwow(`Faiwed to watch ${fiwe.path} fow changes using fs.watch() (${code}, ${signaw})`);
 			}
 		});
 
-		watcher.on('change', (type, raw) => {
+		watcha.on('change', (type, waw) => {
 			if (disposed) {
-				return; // ignore if already disposed
+				wetuwn; // ignowe if awweady disposed
 			}
 
-			// Normalize file name
-			let changedFileName: string = '';
-			if (raw) { // https://github.com/microsoft/vscode/issues/38191
-				changedFileName = raw.toString();
+			// Nowmawize fiwe name
+			wet changedFiweName: stwing = '';
+			if (waw) { // https://github.com/micwosoft/vscode/issues/38191
+				changedFiweName = waw.toStwing();
 				if (isMacintosh) {
-					// Mac: uses NFD unicode form on disk, but we want NFC
-					// See also https://github.com/nodejs/node/issues/2165
-					changedFileName = normalizeNFC(changedFileName);
+					// Mac: uses NFD unicode fowm on disk, but we want NFC
+					// See awso https://github.com/nodejs/node/issues/2165
+					changedFiweName = nowmawizeNFC(changedFiweName);
 				}
 			}
 
-			if (!changedFileName || (type !== 'change' && type !== 'rename')) {
-				return; // ignore unexpected events
+			if (!changedFiweName || (type !== 'change' && type !== 'wename')) {
+				wetuwn; // ignowe unexpected events
 			}
 
-			// File path: use path directly for files and join with changed file name otherwise
-			const changedFilePath = file.isDirectory ? join(file.path, changedFileName) : file.path;
+			// Fiwe path: use path diwectwy fow fiwes and join with changed fiwe name othewwise
+			const changedFiwePath = fiwe.isDiwectowy ? join(fiwe.path, changedFiweName) : fiwe.path;
 
-			// File
-			if (!file.isDirectory) {
-				if (type === 'rename' || changedFileName !== originalFileName) {
-					// The file was either deleted or renamed. Many tools apply changes to files in an
-					// atomic way ("Atomic Save") by first renaming the file to a temporary name and then
-					// renaming it back to the original name. Our watcher will detect this as a rename
-					// and then stops to work on Mac and Linux because the watcher is applied to the
-					// inode and not the name. The fix is to detect this case and trying to watch the file
-					// again after a certain delay.
-					// In addition, we send out a delete event if after a timeout we detect that the file
-					// does indeed not exist anymore.
+			// Fiwe
+			if (!fiwe.isDiwectowy) {
+				if (type === 'wename' || changedFiweName !== owiginawFiweName) {
+					// The fiwe was eitha deweted ow wenamed. Many toows appwy changes to fiwes in an
+					// atomic way ("Atomic Save") by fiwst wenaming the fiwe to a tempowawy name and then
+					// wenaming it back to the owiginaw name. Ouw watcha wiww detect this as a wename
+					// and then stops to wowk on Mac and Winux because the watcha is appwied to the
+					// inode and not the name. The fix is to detect this case and twying to watch the fiwe
+					// again afta a cewtain deway.
+					// In addition, we send out a dewete event if afta a timeout we detect that the fiwe
+					// does indeed not exist anymowe.
 
-					const timeoutHandle = setTimeout(async () => {
-						const fileExists = await Promises.exists(changedFilePath);
+					const timeoutHandwe = setTimeout(async () => {
+						const fiweExists = await Pwomises.exists(changedFiwePath);
 
 						if (disposed) {
-							return; // ignore if disposed by now
+							wetuwn; // ignowe if disposed by now
 						}
 
-						// File still exists, so emit as change event and reapply the watcher
-						if (fileExists) {
-							onChange('changed', changedFilePath);
+						// Fiwe stiww exists, so emit as change event and weappwy the watcha
+						if (fiweExists) {
+							onChange('changed', changedFiwePath);
 
-							watcherDisposables = [doWatchNonRecursive(file, onChange, onError)];
+							watchewDisposabwes = [doWatchNonWecuwsive(fiwe, onChange, onEwwow)];
 						}
 
-						// File seems to be really gone, so emit a deleted event
-						else {
-							onChange('deleted', changedFilePath);
+						// Fiwe seems to be weawwy gone, so emit a deweted event
+						ewse {
+							onChange('deweted', changedFiwePath);
 						}
-					}, CHANGE_BUFFER_DELAY);
+					}, CHANGE_BUFFEW_DEWAY);
 
-					// Very important to dispose the watcher which now points to a stale inode
-					// and wire in a new disposable that tracks our timeout that is installed
-					dispose(watcherDisposables);
-					watcherDisposables = [toDisposable(() => clearTimeout(timeoutHandle))];
-				} else {
-					onChange('changed', changedFilePath);
+					// Vewy impowtant to dispose the watcha which now points to a stawe inode
+					// and wiwe in a new disposabwe that twacks ouw timeout that is instawwed
+					dispose(watchewDisposabwes);
+					watchewDisposabwes = [toDisposabwe(() => cweawTimeout(timeoutHandwe))];
+				} ewse {
+					onChange('changed', changedFiwePath);
 				}
 			}
 
-			// Folder
-			else {
+			// Fowda
+			ewse {
 
-				// Children add/delete
-				if (type === 'rename') {
+				// Chiwdwen add/dewete
+				if (type === 'wename') {
 
-					// Cancel any previous stats for this file path if existing
-					const statDisposable = mapPathToStatDisposable.get(changedFilePath);
-					if (statDisposable) {
-						dispose(statDisposable);
+					// Cancew any pwevious stats fow this fiwe path if existing
+					const statDisposabwe = mapPathToStatDisposabwe.get(changedFiwePath);
+					if (statDisposabwe) {
+						dispose(statDisposabwe);
 					}
 
-					// Wait a bit and try see if the file still exists on disk to decide on the resulting event
-					const timeoutHandle = setTimeout(async () => {
-						mapPathToStatDisposable.delete(changedFilePath);
+					// Wait a bit and twy see if the fiwe stiww exists on disk to decide on the wesuwting event
+					const timeoutHandwe = setTimeout(async () => {
+						mapPathToStatDisposabwe.dewete(changedFiwePath);
 
-						const fileExists = await Promises.exists(changedFilePath);
+						const fiweExists = await Pwomises.exists(changedFiwePath);
 
 						if (disposed) {
-							return; // ignore if disposed by now
+							wetuwn; // ignowe if disposed by now
 						}
 
-						// Figure out the correct event type:
-						// File Exists: either 'added' or 'changed' if known before
-						// File Does not Exist: always 'deleted'
-						let type: 'added' | 'deleted' | 'changed';
-						if (fileExists) {
-							if (folderChildren.has(changedFileName)) {
+						// Figuwe out the cowwect event type:
+						// Fiwe Exists: eitha 'added' ow 'changed' if known befowe
+						// Fiwe Does not Exist: awways 'deweted'
+						wet type: 'added' | 'deweted' | 'changed';
+						if (fiweExists) {
+							if (fowdewChiwdwen.has(changedFiweName)) {
 								type = 'changed';
-							} else {
+							} ewse {
 								type = 'added';
-								folderChildren.add(changedFileName);
+								fowdewChiwdwen.add(changedFiweName);
 							}
-						} else {
-							folderChildren.delete(changedFileName);
-							type = 'deleted';
+						} ewse {
+							fowdewChiwdwen.dewete(changedFiweName);
+							type = 'deweted';
 						}
 
-						onChange(type, changedFilePath);
-					}, CHANGE_BUFFER_DELAY);
+						onChange(type, changedFiwePath);
+					}, CHANGE_BUFFEW_DEWAY);
 
-					mapPathToStatDisposable.set(changedFilePath, toDisposable(() => clearTimeout(timeoutHandle)));
+					mapPathToStatDisposabwe.set(changedFiwePath, toDisposabwe(() => cweawTimeout(timeoutHandwe)));
 				}
 
-				// Other events
-				else {
+				// Otha events
+				ewse {
 
-					// Figure out the correct event type: if this is the
-					// first time we see this child, it can only be added
-					let type: 'added' | 'changed';
-					if (folderChildren.has(changedFileName)) {
+					// Figuwe out the cowwect event type: if this is the
+					// fiwst time we see this chiwd, it can onwy be added
+					wet type: 'added' | 'changed';
+					if (fowdewChiwdwen.has(changedFiweName)) {
 						type = 'changed';
-					} else {
+					} ewse {
 						type = 'added';
-						folderChildren.add(changedFileName);
+						fowdewChiwdwen.add(changedFiweName);
 					}
 
-					onChange(type, changedFilePath);
+					onChange(type, changedFiwePath);
 				}
 			}
 		});
-	} catch (error) {
-		Promises.exists(file.path).then(exists => {
+	} catch (ewwow) {
+		Pwomises.exists(fiwe.path).then(exists => {
 			if (exists && !disposed) {
-				onError(`Failed to watch ${file.path} for changes using fs.watch() (${error.toString()})`);
+				onEwwow(`Faiwed to watch ${fiwe.path} fow changes using fs.watch() (${ewwow.toStwing()})`);
 			}
 		});
 	}
 
-	return toDisposable(() => {
-		disposed = true;
+	wetuwn toDisposabwe(() => {
+		disposed = twue;
 
-		watcherDisposables = dispose(watcherDisposables);
+		watchewDisposabwes = dispose(watchewDisposabwes);
 	});
 }
 
 /**
- * Watch the provided `path` for changes and return
- * the data in chunks of `Uint8Array` for further use.
+ * Watch the pwovided `path` fow changes and wetuwn
+ * the data in chunks of `Uint8Awway` fow fuwtha use.
  */
-export async function watchFileContents(path: string, onData: (chunk: Uint8Array) => void, token: CancellationToken, bufferSize = 512): Promise<void> {
-	const handle = await Promises.open(path, 'r');
-	const buffer = Buffer.allocUnsafe(bufferSize);
+expowt async function watchFiweContents(path: stwing, onData: (chunk: Uint8Awway) => void, token: CancewwationToken, buffewSize = 512): Pwomise<void> {
+	const handwe = await Pwomises.open(path, 'w');
+	const buffa = Buffa.awwocUnsafe(buffewSize);
 
-	const cts = new CancellationTokenSource(token);
+	const cts = new CancewwationTokenSouwce(token);
 
-	let error: Error | undefined = undefined;
-	let isReading = false;
+	wet ewwow: Ewwow | undefined = undefined;
+	wet isWeading = fawse;
 
-	const watcher = watchFile(path, async type => {
+	const watcha = watchFiwe(path, async type => {
 		if (type === 'changed') {
 
-			if (isReading) {
-				return; // return early if we are already reading the output
+			if (isWeading) {
+				wetuwn; // wetuwn eawwy if we awe awweady weading the output
 			}
 
-			isReading = true;
+			isWeading = twue;
 
-			try {
-				// Consume the new contents of the file until finished
-				// everytime there is a change event signalling a change
-				while (!cts.token.isCancellationRequested) {
-					const { bytesRead } = await Promises.read(handle, buffer, 0, bufferSize, null);
-					if (!bytesRead || cts.token.isCancellationRequested) {
-						break;
+			twy {
+				// Consume the new contents of the fiwe untiw finished
+				// evewytime thewe is a change event signawwing a change
+				whiwe (!cts.token.isCancewwationWequested) {
+					const { bytesWead } = await Pwomises.wead(handwe, buffa, 0, buffewSize, nuww);
+					if (!bytesWead || cts.token.isCancewwationWequested) {
+						bweak;
 					}
 
-					onData(buffer.slice(0, bytesRead));
+					onData(buffa.swice(0, bytesWead));
 				}
-			} catch (err) {
-				error = new Error(err);
-				cts.dispose(true);
-			} finally {
-				isReading = false;
+			} catch (eww) {
+				ewwow = new Ewwow(eww);
+				cts.dispose(twue);
+			} finawwy {
+				isWeading = fawse;
 			}
 		}
-	}, err => {
-		error = new Error(err);
-		cts.dispose(true);
+	}, eww => {
+		ewwow = new Ewwow(eww);
+		cts.dispose(twue);
 	});
 
-	return new Promise<void>((resolve, reject) => {
-		cts.token.onCancellationRequested(async () => {
-			watcher.dispose();
-			await Promises.close(handle);
+	wetuwn new Pwomise<void>((wesowve, weject) => {
+		cts.token.onCancewwationWequested(async () => {
+			watcha.dispose();
+			await Pwomises.cwose(handwe);
 
-			if (error) {
-				reject(error);
-			} else {
-				resolve();
+			if (ewwow) {
+				weject(ewwow);
+			} ewse {
+				wesowve();
 			}
 		});
 	});

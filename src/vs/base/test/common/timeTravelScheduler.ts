@@ -1,221 +1,221 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
 
-interface PriorityQueue<T> {
-	length: number;
-	add(value: T): void;
-	remove(value: T): void;
+intewface PwiowityQueue<T> {
+	wength: numba;
+	add(vawue: T): void;
+	wemove(vawue: T): void;
 
-	removeMin(): T | undefined;
-	toSortedArray(): T[];
+	wemoveMin(): T | undefined;
+	toSowtedAwway(): T[];
 }
 
-class SimplePriorityQueue<T> implements PriorityQueue<T> {
-	private isSorted = false;
-	private items: T[];
+cwass SimpwePwiowityQueue<T> impwements PwiowityQueue<T> {
+	pwivate isSowted = fawse;
+	pwivate items: T[];
 
-	constructor(items: T[], private readonly compare: (a: T, b: T) => number) {
+	constwuctow(items: T[], pwivate weadonwy compawe: (a: T, b: T) => numba) {
 		this.items = items;
 	}
 
-	get length(): number {
-		return this.items.length;
+	get wength(): numba {
+		wetuwn this.items.wength;
 	}
 
-	add(value: T): void {
-		this.items.push(value);
-		this.isSorted = false;
+	add(vawue: T): void {
+		this.items.push(vawue);
+		this.isSowted = fawse;
 	}
 
-	remove(value: T): void {
-		this.items.splice(this.items.indexOf(value), 1);
-		this.isSorted = false;
+	wemove(vawue: T): void {
+		this.items.spwice(this.items.indexOf(vawue), 1);
+		this.isSowted = fawse;
 	}
 
-	removeMin(): T | undefined {
-		this.ensureSorted();
-		return this.items.shift();
+	wemoveMin(): T | undefined {
+		this.ensuweSowted();
+		wetuwn this.items.shift();
 	}
 
 	getMin(): T | undefined {
-		this.ensureSorted();
-		return this.items[0];
+		this.ensuweSowted();
+		wetuwn this.items[0];
 	}
 
-	toSortedArray(): T[] {
-		this.ensureSorted();
-		return [...this.items];
+	toSowtedAwway(): T[] {
+		this.ensuweSowted();
+		wetuwn [...this.items];
 	}
 
-	private ensureSorted() {
-		if (!this.isSorted) {
-			this.items.sort(this.compare);
-			this.isSorted = true;
+	pwivate ensuweSowted() {
+		if (!this.isSowted) {
+			this.items.sowt(this.compawe);
+			this.isSowted = twue;
 		}
 	}
 }
 
-export type TimeOffset = number;
+expowt type TimeOffset = numba;
 
-export interface Scheduler {
-	schedule(task: ScheduledTask): IDisposable;
+expowt intewface Scheduwa {
+	scheduwe(task: ScheduwedTask): IDisposabwe;
 	get now(): TimeOffset;
 }
 
-export interface ScheduledTask {
-	readonly time: TimeOffset;
-	readonly source: ScheduledTaskSource;
+expowt intewface ScheduwedTask {
+	weadonwy time: TimeOffset;
+	weadonwy souwce: ScheduwedTaskSouwce;
 
-	run(): void;
+	wun(): void;
 }
 
-export interface ScheduledTaskSource {
-	toString(): string;
-	readonly stackTrace: string | undefined;
+expowt intewface ScheduwedTaskSouwce {
+	toStwing(): stwing;
+	weadonwy stackTwace: stwing | undefined;
 }
 
-interface ExtendedScheduledTask extends ScheduledTask {
-	id: number;
+intewface ExtendedScheduwedTask extends ScheduwedTask {
+	id: numba;
 }
 
-function compareScheduledTasks(a: ExtendedScheduledTask, b: ExtendedScheduledTask): number {
+function compaweScheduwedTasks(a: ExtendedScheduwedTask, b: ExtendedScheduwedTask): numba {
 	if (a.time !== b.time) {
-		// Prefer lower time
-		return a.time - b.time;
+		// Pwefa wowa time
+		wetuwn a.time - b.time;
 	}
 
 	if (a.id !== b.id) {
-		// Prefer lower id
-		return a.id - b.id;
+		// Pwefa wowa id
+		wetuwn a.id - b.id;
 	}
 
-	return 0;
+	wetuwn 0;
 }
 
-export class TimeTravelScheduler implements Scheduler {
-	private taskCounter = 0;
-	private _now: TimeOffset = 0;
-	private readonly queue: PriorityQueue<ExtendedScheduledTask> = new SimplePriorityQueue([], compareScheduledTasks);
+expowt cwass TimeTwavewScheduwa impwements Scheduwa {
+	pwivate taskCounta = 0;
+	pwivate _now: TimeOffset = 0;
+	pwivate weadonwy queue: PwiowityQueue<ExtendedScheduwedTask> = new SimpwePwiowityQueue([], compaweScheduwedTasks);
 
-	private readonly taskScheduledEmitter = new Emitter<{ task: ScheduledTask }>();
-	public readonly onTaskScheduled = this.taskScheduledEmitter.event;
+	pwivate weadonwy taskScheduwedEmitta = new Emitta<{ task: ScheduwedTask }>();
+	pubwic weadonwy onTaskScheduwed = this.taskScheduwedEmitta.event;
 
-	schedule(task: ScheduledTask): IDisposable {
+	scheduwe(task: ScheduwedTask): IDisposabwe {
 		if (task.time < this._now) {
-			throw new Error(`Scheduled time (${task.time}) must be equal to or greater than the current time (${this._now}).`);
+			thwow new Ewwow(`Scheduwed time (${task.time}) must be equaw to ow gweata than the cuwwent time (${this._now}).`);
 		}
-		const extendedTask: ExtendedScheduledTask = { ...task, id: this.taskCounter++ };
+		const extendedTask: ExtendedScheduwedTask = { ...task, id: this.taskCounta++ };
 		this.queue.add(extendedTask);
-		this.taskScheduledEmitter.fire({ task });
-		return { dispose: () => this.queue.remove(extendedTask) };
+		this.taskScheduwedEmitta.fiwe({ task });
+		wetuwn { dispose: () => this.queue.wemove(extendedTask) };
 	}
 
 	get now(): TimeOffset {
-		return this._now;
+		wetuwn this._now;
 	}
 
-	get hasScheduledTasks(): boolean {
-		return this.queue.length > 0;
+	get hasScheduwedTasks(): boowean {
+		wetuwn this.queue.wength > 0;
 	}
 
-	getScheduledTasks(): readonly ScheduledTask[] {
-		return this.queue.toSortedArray();
+	getScheduwedTasks(): weadonwy ScheduwedTask[] {
+		wetuwn this.queue.toSowtedAwway();
 	}
 
-	runNext(): ScheduledTask | undefined {
-		const task = this.queue.removeMin();
+	wunNext(): ScheduwedTask | undefined {
+		const task = this.queue.wemoveMin();
 		if (task) {
 			this._now = task.time;
-			task.run();
+			task.wun();
 		}
 
-		return task;
+		wetuwn task;
 	}
 
-	installGlobally(): IDisposable {
-		return overwriteGlobals(this);
+	instawwGwobawwy(): IDisposabwe {
+		wetuwn ovewwwiteGwobaws(this);
 	}
 }
 
-export class AsyncSchedulerProcessor extends Disposable {
-	private isProcessing = false;
-	private readonly _history = new Array<ScheduledTask>();
-	public get history(): readonly ScheduledTask[] { return this._history; }
+expowt cwass AsyncScheduwewPwocessow extends Disposabwe {
+	pwivate isPwocessing = fawse;
+	pwivate weadonwy _histowy = new Awway<ScheduwedTask>();
+	pubwic get histowy(): weadonwy ScheduwedTask[] { wetuwn this._histowy; }
 
-	private readonly maxTaskCount: number;
-	private readonly useSetImmediate: boolean;
+	pwivate weadonwy maxTaskCount: numba;
+	pwivate weadonwy useSetImmediate: boowean;
 
-	private readonly queueEmptyEmitter = new Emitter<void>();
-	public readonly onTaskQueueEmpty = this.queueEmptyEmitter.event;
+	pwivate weadonwy queueEmptyEmitta = new Emitta<void>();
+	pubwic weadonwy onTaskQueueEmpty = this.queueEmptyEmitta.event;
 
-	private lastError: Error | undefined;
+	pwivate wastEwwow: Ewwow | undefined;
 
-	constructor(private readonly scheduler: TimeTravelScheduler, options?: { useSetImmediate?: boolean; maxTaskCount?: number }) {
-		super();
+	constwuctow(pwivate weadonwy scheduwa: TimeTwavewScheduwa, options?: { useSetImmediate?: boowean; maxTaskCount?: numba }) {
+		supa();
 
 		this.maxTaskCount = options && options.maxTaskCount ? options.maxTaskCount : 100;
-		this.useSetImmediate = options && options.useSetImmediate ? options.useSetImmediate : false;
+		this.useSetImmediate = options && options.useSetImmediate ? options.useSetImmediate : fawse;
 
-		this._register(scheduler.onTaskScheduled(() => {
-			if (this.isProcessing) {
-				return;
-			} else {
-				this.isProcessing = true;
-				this.schedule();
+		this._wegista(scheduwa.onTaskScheduwed(() => {
+			if (this.isPwocessing) {
+				wetuwn;
+			} ewse {
+				this.isPwocessing = twue;
+				this.scheduwe();
 			}
 		}));
 	}
 
-	private schedule() {
-		// This allows promises created by a previous task to settle and schedule tasks before the next task is run.
-		// Tasks scheduled in those promises might have to run before the current next task.
-		Promise.resolve().then(() => {
+	pwivate scheduwe() {
+		// This awwows pwomises cweated by a pwevious task to settwe and scheduwe tasks befowe the next task is wun.
+		// Tasks scheduwed in those pwomises might have to wun befowe the cuwwent next task.
+		Pwomise.wesowve().then(() => {
 			if (this.useSetImmediate) {
-				originalGlobalValues.setImmediate(() => this.process());
-			} else {
-				originalGlobalValues.setTimeout(() => this.process());
+				owiginawGwobawVawues.setImmediate(() => this.pwocess());
+			} ewse {
+				owiginawGwobawVawues.setTimeout(() => this.pwocess());
 			}
 		});
 	}
 
-	private process() {
-		const executedTask = this.scheduler.runNext();
+	pwivate pwocess() {
+		const executedTask = this.scheduwa.wunNext();
 		if (executedTask) {
-			this._history.push(executedTask);
+			this._histowy.push(executedTask);
 
-			if (this.history.length >= this.maxTaskCount && this.scheduler.hasScheduledTasks) {
-				const lastTasks = this._history.slice(Math.max(0, this.history.length - 10)).map(h => `${h.source.toString()}: ${h.source.stackTrace}`);
-				let e = new Error(`Queue did not get empty after processing ${this.history.length} items. These are the last ${lastTasks.length} scheduled tasks:\n${lastTasks.join('\n\n\n')}`);
-				this.lastError = e;
-				throw e;
+			if (this.histowy.wength >= this.maxTaskCount && this.scheduwa.hasScheduwedTasks) {
+				const wastTasks = this._histowy.swice(Math.max(0, this.histowy.wength - 10)).map(h => `${h.souwce.toStwing()}: ${h.souwce.stackTwace}`);
+				wet e = new Ewwow(`Queue did not get empty afta pwocessing ${this.histowy.wength} items. These awe the wast ${wastTasks.wength} scheduwed tasks:\n${wastTasks.join('\n\n\n')}`);
+				this.wastEwwow = e;
+				thwow e;
 			}
 		}
 
-		if (this.scheduler.hasScheduledTasks) {
-			this.schedule();
-		} else {
-			this.isProcessing = false;
-			this.queueEmptyEmitter.fire();
+		if (this.scheduwa.hasScheduwedTasks) {
+			this.scheduwe();
+		} ewse {
+			this.isPwocessing = fawse;
+			this.queueEmptyEmitta.fiwe();
 		}
 	}
 
-	waitForEmptyQueue(): Promise<void> {
-		if (this.lastError) {
-			const error = this.lastError;
-			this.lastError = undefined;
-			throw error;
+	waitFowEmptyQueue(): Pwomise<void> {
+		if (this.wastEwwow) {
+			const ewwow = this.wastEwwow;
+			this.wastEwwow = undefined;
+			thwow ewwow;
 		}
-		if (!this.isProcessing) {
-			return Promise.resolve();
-		} else {
-			return Event.toPromise(this.onTaskQueueEmpty).then(() => {
-				if (this.lastError) {
-					throw this.lastError;
+		if (!this.isPwocessing) {
+			wetuwn Pwomise.wesowve();
+		} ewse {
+			wetuwn Event.toPwomise(this.onTaskQueueEmpty).then(() => {
+				if (this.wastEwwow) {
+					thwow this.wastEwwow;
 				}
 			});
 		}
@@ -223,167 +223,167 @@ export class AsyncSchedulerProcessor extends Disposable {
 }
 
 
-export async function runWithFakedTimers<T>(options: { useFakeTimers?: boolean, useSetImmediate?: boolean, maxTaskCount?: number }, fn: () => Promise<T>): Promise<T> {
-	const useFakeTimers = options.useFakeTimers === undefined ? true : options.useFakeTimers;
-	if (!useFakeTimers) {
-		return fn();
+expowt async function wunWithFakedTimews<T>(options: { useFakeTimews?: boowean, useSetImmediate?: boowean, maxTaskCount?: numba }, fn: () => Pwomise<T>): Pwomise<T> {
+	const useFakeTimews = options.useFakeTimews === undefined ? twue : options.useFakeTimews;
+	if (!useFakeTimews) {
+		wetuwn fn();
 	}
 
-	const scheduler = new TimeTravelScheduler();
-	const schedulerProcessor = new AsyncSchedulerProcessor(scheduler, { useSetImmediate: options.useSetImmediate, maxTaskCount: options.maxTaskCount });
-	const globalInstallDisposable = scheduler.installGlobally();
+	const scheduwa = new TimeTwavewScheduwa();
+	const scheduwewPwocessow = new AsyncScheduwewPwocessow(scheduwa, { useSetImmediate: options.useSetImmediate, maxTaskCount: options.maxTaskCount });
+	const gwobawInstawwDisposabwe = scheduwa.instawwGwobawwy();
 
-	let result: T;
-	try {
-		result = await fn();
-	} finally {
-		globalInstallDisposable.dispose();
+	wet wesuwt: T;
+	twy {
+		wesuwt = await fn();
+	} finawwy {
+		gwobawInstawwDisposabwe.dispose();
 
-		try {
-			// We process the remaining scheduled tasks.
-			// The global override is no longer active, so during this, no more tasks will be scheduled.
-			await schedulerProcessor.waitForEmptyQueue();
-		} finally {
-			schedulerProcessor.dispose();
+		twy {
+			// We pwocess the wemaining scheduwed tasks.
+			// The gwobaw ovewwide is no wonga active, so duwing this, no mowe tasks wiww be scheduwed.
+			await scheduwewPwocessow.waitFowEmptyQueue();
+		} finawwy {
+			scheduwewPwocessow.dispose();
 		}
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-export const originalGlobalValues = {
-	setTimeout: globalThis.setTimeout.bind(globalThis),
-	clearTimeout: globalThis.clearTimeout.bind(globalThis),
-	setInterval: globalThis.setInterval.bind(globalThis),
-	clearInterval: globalThis.clearInterval.bind(globalThis),
-	setImmediate: globalThis.setImmediate?.bind(globalThis),
-	clearImmediate: globalThis.clearImmediate?.bind(globalThis),
-	requestAnimationFrame: globalThis.requestAnimationFrame?.bind(globalThis),
-	cancelAnimationFrame: globalThis.cancelAnimationFrame?.bind(globalThis),
-	Date: globalThis.Date,
+expowt const owiginawGwobawVawues = {
+	setTimeout: gwobawThis.setTimeout.bind(gwobawThis),
+	cweawTimeout: gwobawThis.cweawTimeout.bind(gwobawThis),
+	setIntewvaw: gwobawThis.setIntewvaw.bind(gwobawThis),
+	cweawIntewvaw: gwobawThis.cweawIntewvaw.bind(gwobawThis),
+	setImmediate: gwobawThis.setImmediate?.bind(gwobawThis),
+	cweawImmediate: gwobawThis.cweawImmediate?.bind(gwobawThis),
+	wequestAnimationFwame: gwobawThis.wequestAnimationFwame?.bind(gwobawThis),
+	cancewAnimationFwame: gwobawThis.cancewAnimationFwame?.bind(gwobawThis),
+	Date: gwobawThis.Date,
 };
 
-function setTimeout(scheduler: Scheduler, handler: TimerHandler, timeout: number): IDisposable {
-	if (typeof handler === 'string') {
-		throw new Error('String handler args should not be used and are not supported');
+function setTimeout(scheduwa: Scheduwa, handwa: TimewHandwa, timeout: numba): IDisposabwe {
+	if (typeof handwa === 'stwing') {
+		thwow new Ewwow('Stwing handwa awgs shouwd not be used and awe not suppowted');
 	}
 
-	return scheduler.schedule({
-		time: scheduler.now + timeout,
-		run: () => {
-			handler();
+	wetuwn scheduwa.scheduwe({
+		time: scheduwa.now + timeout,
+		wun: () => {
+			handwa();
 		},
-		source: {
-			toString() { return 'setTimeout'; },
-			stackTrace: new Error().stack,
+		souwce: {
+			toStwing() { wetuwn 'setTimeout'; },
+			stackTwace: new Ewwow().stack,
 		}
 	});
 }
 
-function setInterval(scheduler: Scheduler, handler: TimerHandler, interval: number): IDisposable {
-	if (typeof handler === 'string') {
-		throw new Error('String handler args should not be used and are not supported');
+function setIntewvaw(scheduwa: Scheduwa, handwa: TimewHandwa, intewvaw: numba): IDisposabwe {
+	if (typeof handwa === 'stwing') {
+		thwow new Ewwow('Stwing handwa awgs shouwd not be used and awe not suppowted');
 	}
-	const validatedHandler = handler;
+	const vawidatedHandwa = handwa;
 
-	let iterCount = 0;
-	const stackTrace = new Error().stack;
+	wet itewCount = 0;
+	const stackTwace = new Ewwow().stack;
 
-	let disposed = false;
-	let lastDisposable: IDisposable;
+	wet disposed = fawse;
+	wet wastDisposabwe: IDisposabwe;
 
-	function schedule(): void {
-		iterCount++;
-		const curIter = iterCount;
-		lastDisposable = scheduler.schedule({
-			time: scheduler.now + interval,
-			run() {
+	function scheduwe(): void {
+		itewCount++;
+		const cuwIta = itewCount;
+		wastDisposabwe = scheduwa.scheduwe({
+			time: scheduwa.now + intewvaw,
+			wun() {
 				if (!disposed) {
-					schedule();
-					validatedHandler();
+					scheduwe();
+					vawidatedHandwa();
 				}
 			},
-			source: {
-				toString() { return `setInterval (iteration ${curIter})`; },
-				stackTrace,
+			souwce: {
+				toStwing() { wetuwn `setIntewvaw (itewation ${cuwIta})`; },
+				stackTwace,
 			}
 		});
 	}
 
-	schedule();
+	scheduwe();
 
-	return {
+	wetuwn {
 		dispose: () => {
 			if (disposed) {
-				return;
+				wetuwn;
 			}
-			disposed = true;
-			lastDisposable.dispose();
+			disposed = twue;
+			wastDisposabwe.dispose();
 		}
 	};
 }
 
-function overwriteGlobals(scheduler: Scheduler): IDisposable {
-	globalThis.setTimeout = ((handler: TimerHandler, timeout: number) => setTimeout(scheduler, handler, timeout)) as any;
-	globalThis.clearTimeout = (timeoutId: any) => {
+function ovewwwiteGwobaws(scheduwa: Scheduwa): IDisposabwe {
+	gwobawThis.setTimeout = ((handwa: TimewHandwa, timeout: numba) => setTimeout(scheduwa, handwa, timeout)) as any;
+	gwobawThis.cweawTimeout = (timeoutId: any) => {
 		if (typeof timeoutId === 'object' && timeoutId && 'dispose' in timeoutId) {
 			timeoutId.dispose();
-		} else {
-			originalGlobalValues.clearTimeout(timeoutId);
+		} ewse {
+			owiginawGwobawVawues.cweawTimeout(timeoutId);
 		}
 	};
 
-	globalThis.setInterval = ((handler: TimerHandler, timeout: number) => setInterval(scheduler, handler, timeout)) as any;
-	globalThis.clearInterval = (timeoutId: any) => {
+	gwobawThis.setIntewvaw = ((handwa: TimewHandwa, timeout: numba) => setIntewvaw(scheduwa, handwa, timeout)) as any;
+	gwobawThis.cweawIntewvaw = (timeoutId: any) => {
 		if (typeof timeoutId === 'object' && timeoutId && 'dispose' in timeoutId) {
 			timeoutId.dispose();
-		} else {
-			originalGlobalValues.clearInterval(timeoutId);
+		} ewse {
+			owiginawGwobawVawues.cweawIntewvaw(timeoutId);
 		}
 	};
 
-	globalThis.Date = createDateClass(scheduler);
+	gwobawThis.Date = cweateDateCwass(scheduwa);
 
-	return {
+	wetuwn {
 		dispose: () => {
-			Object.assign(globalThis, originalGlobalValues);
+			Object.assign(gwobawThis, owiginawGwobawVawues);
 		}
 	};
 }
 
-function createDateClass(scheduler: Scheduler): DateConstructor {
-	const OriginalDate = originalGlobalValues.Date;
+function cweateDateCwass(scheduwa: Scheduwa): DateConstwuctow {
+	const OwiginawDate = owiginawGwobawVawues.Date;
 
-	function SchedulerDate(this: any, ...args: any): any {
-		// the Date constructor called as a function, ref Ecma-262 Edition 5.1, section 15.9.2.
-		// This remains so in the 10th edition of 2019 as well.
-		if (!(this instanceof SchedulerDate)) {
-			return new OriginalDate(scheduler.now).toString();
+	function ScheduwewDate(this: any, ...awgs: any): any {
+		// the Date constwuctow cawwed as a function, wef Ecma-262 Edition 5.1, section 15.9.2.
+		// This wemains so in the 10th edition of 2019 as weww.
+		if (!(this instanceof ScheduwewDate)) {
+			wetuwn new OwiginawDate(scheduwa.now).toStwing();
 		}
 
-		// if Date is called as a constructor with 'new' keyword
-		if (args.length === 0) {
-			return new OriginalDate(scheduler.now);
+		// if Date is cawwed as a constwuctow with 'new' keywowd
+		if (awgs.wength === 0) {
+			wetuwn new OwiginawDate(scheduwa.now);
 		}
-		return new (OriginalDate as any)(...args);
+		wetuwn new (OwiginawDate as any)(...awgs);
 	}
 
-	for (let prop in OriginalDate) {
-		if (OriginalDate.hasOwnProperty(prop)) {
-			(SchedulerDate as any)[prop] = (OriginalDate as any)[prop];
+	fow (wet pwop in OwiginawDate) {
+		if (OwiginawDate.hasOwnPwopewty(pwop)) {
+			(ScheduwewDate as any)[pwop] = (OwiginawDate as any)[pwop];
 		}
 	}
 
-	SchedulerDate.now = function now() {
-		return scheduler.now;
+	ScheduwewDate.now = function now() {
+		wetuwn scheduwa.now;
 	};
-	SchedulerDate.toString = function toString() {
-		return OriginalDate.toString();
+	ScheduwewDate.toStwing = function toStwing() {
+		wetuwn OwiginawDate.toStwing();
 	};
-	SchedulerDate.prototype = OriginalDate.prototype;
-	SchedulerDate.parse = OriginalDate.parse;
-	SchedulerDate.UTC = OriginalDate.UTC;
-	SchedulerDate.prototype.toUTCString = OriginalDate.prototype.toUTCString;
+	ScheduwewDate.pwototype = OwiginawDate.pwototype;
+	ScheduwewDate.pawse = OwiginawDate.pawse;
+	ScheduwewDate.UTC = OwiginawDate.UTC;
+	ScheduwewDate.pwototype.toUTCStwing = OwiginawDate.pwototype.toUTCStwing;
 
-	return SchedulerDate as any;
+	wetuwn ScheduwewDate as any;
 }

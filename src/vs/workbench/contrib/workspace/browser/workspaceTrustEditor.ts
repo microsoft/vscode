@@ -1,1110 +1,1110 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, addStandardDisposableListener, append, clearNode, Dimension, EventHelper, EventType, isAncestor } from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ButtonBar } from 'vs/base/browser/ui/button/button';
-import { IMessage, InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
-import { Action, IAction } from 'vs/base/common/actions';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Codicon, registerCodicon } from 'vs/base/common/codicons';
-import { debounce } from 'vs/base/common/decorators';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { splitName } from 'vs/base/common/labels';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { parseLinkedText } from 'vs/base/common/linkedText';
-import { Schemas } from 'vs/base/common/network';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { WorkbenchTable } from 'vs/platform/list/browser/listService';
-import { Link } from 'vs/platform/opener/browser/link';
-import product from 'vs/platform/product/common/product';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { isVirtualResource, isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { buttonBackground, buttonSecondaryBackground, editorErrorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { attachButtonStyler, attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { ISingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { ChoiceAction } from 'vs/workbench/common/notifications';
-import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
-import { IExtensionsWorkbenchService, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { settingsEditIcon, settingsRemoveIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
-import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { getExtensionDependencies } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { EnablementState, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { posix } from 'vs/base/common/path';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+impowt { $, addDisposabweWistena, addStandawdDisposabweWistena, append, cweawNode, Dimension, EventHewpa, EventType, isAncestow } fwom 'vs/base/bwowsa/dom';
+impowt { ActionBaw } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { ButtonBaw } fwom 'vs/base/bwowsa/ui/button/button';
+impowt { IMessage, InputBox, MessageType } fwom 'vs/base/bwowsa/ui/inputbox/inputBox';
+impowt { DomScwowwabweEwement } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwabweEwement';
+impowt { ITabweWendewa, ITabweViwtuawDewegate } fwom 'vs/base/bwowsa/ui/tabwe/tabwe';
+impowt { Action, IAction } fwom 'vs/base/common/actions';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Codicon, wegistewCodicon } fwom 'vs/base/common/codicons';
+impowt { debounce } fwom 'vs/base/common/decowatows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { spwitName } fwom 'vs/base/common/wabews';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { pawseWinkedText } fwom 'vs/base/common/winkedText';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { ScwowwbawVisibiwity } fwom 'vs/base/common/scwowwabwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ConfiguwationScope, Extensions, IConfiguwationWegistwy } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { IContextMenuSewvice, IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IFiweDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { WowkbenchTabwe } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { Wink } fwom 'vs/pwatfowm/opena/bwowsa/wink';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { isViwtuawWesouwce, isViwtuawWowkspace } fwom 'vs/pwatfowm/wemote/common/wemoteHosts';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { buttonBackgwound, buttonSecondawyBackgwound, editowEwwowFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { attachButtonStywa, attachInputBoxStywa, attachStywewCawwback } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { IThemeSewvice, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IWowkspaceTwustManagementSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { ISingweFowdewWowkspaceIdentifia, toWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { EditowPane } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPane';
+impowt { IEditowOpenContext } fwom 'vs/wowkbench/common/editow';
+impowt { ChoiceAction } fwom 'vs/wowkbench/common/notifications';
+impowt { debugIconStawtFowegwound } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugCowows';
+impowt { IExtensionsWowkbenchSewvice, WIST_WOWKSPACE_UNSUPPOWTED_EXTENSIONS_COMMAND_ID } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { settingsEditIcon, settingsWemoveIcon } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/pwefewencesIcons';
+impowt { IWowkbenchConfiguwationSewvice } fwom 'vs/wowkbench/sewvices/configuwation/common/configuwation';
+impowt { IExtensionManifestPwopewtiesSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensionManifestPwopewtiesSewvice';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { WowkspaceTwustEditowInput } fwom 'vs/wowkbench/sewvices/wowkspaces/bwowsa/wowkspaceTwustEditowInput';
+impowt { IEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { getExtensionDependencies } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { EnabwementState, IWowkbenchExtensionEnabwementSewvice } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
+impowt { posix } fwom 'vs/base/common/path';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
 
-export const shieldIcon = registerCodicon('workspace-trust-icon', Codicon.shield);
+expowt const shiewdIcon = wegistewCodicon('wowkspace-twust-icon', Codicon.shiewd);
 
-const checkListIcon = registerCodicon('workspace-trusted-check-icon', Codicon.check);
-const xListIcon = registerCodicon('workspace-trusted-x-icon', Codicon.x);
-const folderPickerIcon = registerCodicon('folder-picker', Codicon.folder);
+const checkWistIcon = wegistewCodicon('wowkspace-twusted-check-icon', Codicon.check);
+const xWistIcon = wegistewCodicon('wowkspace-twusted-x-icon', Codicon.x);
+const fowdewPickewIcon = wegistewCodicon('fowda-picka', Codicon.fowda);
 
-interface ITrustedUriItem {
-	parentOfWorkspaceItem: boolean;
-	uri: URI;
+intewface ITwustedUwiItem {
+	pawentOfWowkspaceItem: boowean;
+	uwi: UWI;
 }
 
-class WorkspaceTrustedUrisTable extends Disposable {
-	private readonly _onDidAcceptEdit: Emitter<ITrustedUriItem> = this._register(new Emitter<ITrustedUriItem>());
-	readonly onDidAcceptEdit: Event<ITrustedUriItem> = this._onDidAcceptEdit.event;
+cwass WowkspaceTwustedUwisTabwe extends Disposabwe {
+	pwivate weadonwy _onDidAcceptEdit: Emitta<ITwustedUwiItem> = this._wegista(new Emitta<ITwustedUwiItem>());
+	weadonwy onDidAcceptEdit: Event<ITwustedUwiItem> = this._onDidAcceptEdit.event;
 
-	private readonly _onDidRejectEdit: Emitter<ITrustedUriItem> = this._register(new Emitter<ITrustedUriItem>());
-	readonly onDidRejectEdit: Event<ITrustedUriItem> = this._onDidRejectEdit.event;
+	pwivate weadonwy _onDidWejectEdit: Emitta<ITwustedUwiItem> = this._wegista(new Emitta<ITwustedUwiItem>());
+	weadonwy onDidWejectEdit: Event<ITwustedUwiItem> = this._onDidWejectEdit.event;
 
-	private _onEdit: Emitter<ITrustedUriItem> = this._register(new Emitter<ITrustedUriItem>());
-	readonly onEdit: Event<ITrustedUriItem> = this._onEdit.event;
+	pwivate _onEdit: Emitta<ITwustedUwiItem> = this._wegista(new Emitta<ITwustedUwiItem>());
+	weadonwy onEdit: Event<ITwustedUwiItem> = this._onEdit.event;
 
-	private _onDelete: Emitter<ITrustedUriItem> = this._register(new Emitter<ITrustedUriItem>());
-	readonly onDelete: Event<ITrustedUriItem> = this._onDelete.event;
+	pwivate _onDewete: Emitta<ITwustedUwiItem> = this._wegista(new Emitta<ITwustedUwiItem>());
+	weadonwy onDewete: Event<ITwustedUwiItem> = this._onDewete.event;
 
-	private readonly table: WorkbenchTable<ITrustedUriItem>;
+	pwivate weadonwy tabwe: WowkbenchTabwe<ITwustedUwiItem>;
 
-	private readonly descriptionElement: HTMLElement;
+	pwivate weadonwy descwiptionEwement: HTMWEwement;
 
-	constructor(
-		private readonly container: HTMLElement,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IUriIdentityService private readonly uriService: IUriIdentityService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService
+	constwuctow(
+		pwivate weadonwy containa: HTMWEwement,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy wowkspaceSewvice: IWowkspaceContextSewvice,
+		@IWowkspaceTwustManagementSewvice pwivate weadonwy wowkspaceTwustManagementSewvice: IWowkspaceTwustManagementSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiSewvice: IUwiIdentitySewvice,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
+		@IFiweDiawogSewvice pwivate weadonwy fiweDiawogSewvice: IFiweDiawogSewvice
 	) {
-		super();
+		supa();
 
-		this.descriptionElement = container.appendChild($('.workspace-trusted-folders-description'));
-		const tableElement = container.appendChild($('.trusted-uris-table'));
-		const addButtonBarElement = container.appendChild($('.trusted-uris-button-bar'));
+		this.descwiptionEwement = containa.appendChiwd($('.wowkspace-twusted-fowdews-descwiption'));
+		const tabweEwement = containa.appendChiwd($('.twusted-uwis-tabwe'));
+		const addButtonBawEwement = containa.appendChiwd($('.twusted-uwis-button-baw'));
 
-		this.table = this.instantiationService.createInstance(
-			WorkbenchTable,
-			'WorkspaceTrust',
-			tableElement,
-			new TrustedUriTableVirtualDelegate(),
+		this.tabwe = this.instantiationSewvice.cweateInstance(
+			WowkbenchTabwe,
+			'WowkspaceTwust',
+			tabweEwement,
+			new TwustedUwiTabweViwtuawDewegate(),
 			[
 				{
-					label: localize('hostColumnLabel', "Host"),
-					tooltip: '',
+					wabew: wocawize('hostCowumnWabew', "Host"),
+					toowtip: '',
 					weight: 1,
-					templateId: TrustedUriHostColumnRenderer.TEMPLATE_ID,
-					project(row: ITrustedUriItem): ITrustedUriItem { return row; }
+					tempwateId: TwustedUwiHostCowumnWendewa.TEMPWATE_ID,
+					pwoject(wow: ITwustedUwiItem): ITwustedUwiItem { wetuwn wow; }
 				},
 				{
-					label: localize('pathColumnLabel', "Path"),
-					tooltip: '',
+					wabew: wocawize('pathCowumnWabew', "Path"),
+					toowtip: '',
 					weight: 8,
-					templateId: TrustedUriPathColumnRenderer.TEMPLATE_ID,
-					project(row: ITrustedUriItem): ITrustedUriItem { return row; }
+					tempwateId: TwustedUwiPathCowumnWendewa.TEMPWATE_ID,
+					pwoject(wow: ITwustedUwiItem): ITwustedUwiItem { wetuwn wow; }
 				},
 				{
-					label: '',
-					tooltip: '',
+					wabew: '',
+					toowtip: '',
 					weight: 1,
 					minimumWidth: 75,
 					maximumWidth: 75,
-					templateId: TrustedUriActionsColumnRenderer.TEMPLATE_ID,
-					project(row: ITrustedUriItem): ITrustedUriItem { return row; }
+					tempwateId: TwustedUwiActionsCowumnWendewa.TEMPWATE_ID,
+					pwoject(wow: ITwustedUwiItem): ITwustedUwiItem { wetuwn wow; }
 				},
 			],
 			[
-				this.instantiationService.createInstance(TrustedUriHostColumnRenderer),
-				this.instantiationService.createInstance(TrustedUriPathColumnRenderer, this),
-				this.instantiationService.createInstance(TrustedUriActionsColumnRenderer, this, this.currentWorkspaceUri),
+				this.instantiationSewvice.cweateInstance(TwustedUwiHostCowumnWendewa),
+				this.instantiationSewvice.cweateInstance(TwustedUwiPathCowumnWendewa, this),
+				this.instantiationSewvice.cweateInstance(TwustedUwiActionsCowumnWendewa, this, this.cuwwentWowkspaceUwi),
 			],
 			{
-				horizontalScrolling: false,
-				alwaysConsumeMouseWheel: false,
-				openOnSingleClick: false,
-				multipleSelectionSupport: false,
-				accessibilityProvider: {
-					getAriaLabel: (item: ITrustedUriItem) => {
-						const hostLabel = getHostLabel(this.labelService, item);
-						if (hostLabel === undefined || hostLabel.length === 0) {
-							return localize('trustedFolderAriaLabel', "{0}, trusted", this.labelService.getUriLabel(item.uri));
+				howizontawScwowwing: fawse,
+				awwaysConsumeMouseWheew: fawse,
+				openOnSingweCwick: fawse,
+				muwtipweSewectionSuppowt: fawse,
+				accessibiwityPwovida: {
+					getAwiaWabew: (item: ITwustedUwiItem) => {
+						const hostWabew = getHostWabew(this.wabewSewvice, item);
+						if (hostWabew === undefined || hostWabew.wength === 0) {
+							wetuwn wocawize('twustedFowdewAwiaWabew', "{0}, twusted", this.wabewSewvice.getUwiWabew(item.uwi));
 						}
 
-						return localize('trustedFolderWithHostAriaLabel', "{0} on {1}, trusted", this.labelService.getUriLabel(item.uri), hostLabel);
+						wetuwn wocawize('twustedFowdewWithHostAwiaWabew', "{0} on {1}, twusted", this.wabewSewvice.getUwiWabew(item.uwi), hostWabew);
 					},
-					getWidgetAriaLabel: () => localize('trustedFoldersAndWorkspaces', "Trusted Folders & Workspaces")
+					getWidgetAwiaWabew: () => wocawize('twustedFowdewsAndWowkspaces', "Twusted Fowdews & Wowkspaces")
 				}
 			}
-		) as WorkbenchTable<ITrustedUriItem>;
+		) as WowkbenchTabwe<ITwustedUwiItem>;
 
-		this._register(this.table.onDidOpen(item => {
-			// default prevented when input box is double clicked #125052
-			if (item && item.element && !item.browserEvent?.defaultPrevented) {
-				this.edit(item.element, true);
+		this._wegista(this.tabwe.onDidOpen(item => {
+			// defauwt pwevented when input box is doubwe cwicked #125052
+			if (item && item.ewement && !item.bwowsewEvent?.defauwtPwevented) {
+				this.edit(item.ewement, twue);
 			}
 		}));
 
-		const buttonBar = this._register(new ButtonBar(addButtonBarElement));
-		const addButton = this._register(buttonBar.addButton({ title: localize('addButton', "Add Folder") }));
-		addButton.label = localize('addButton', "Add Folder");
+		const buttonBaw = this._wegista(new ButtonBaw(addButtonBawEwement));
+		const addButton = this._wegista(buttonBaw.addButton({ titwe: wocawize('addButton', "Add Fowda") }));
+		addButton.wabew = wocawize('addButton', "Add Fowda");
 
-		this._register(attachButtonStyler(addButton, this.themeService));
+		this._wegista(attachButtonStywa(addButton, this.themeSewvice));
 
-		this._register(addButton.onDidClick(async () => {
-			const uri = await this.fileDialogService.showOpenDialog({
-				canSelectFiles: false,
-				canSelectFolders: true,
-				canSelectMany: false,
-				defaultUri: this.currentWorkspaceUri,
-				openLabel: localize('trustUri', "Trust Folder"),
-				title: localize('selectTrustedUri', "Select Folder To Trust")
+		this._wegista(addButton.onDidCwick(async () => {
+			const uwi = await this.fiweDiawogSewvice.showOpenDiawog({
+				canSewectFiwes: fawse,
+				canSewectFowdews: twue,
+				canSewectMany: fawse,
+				defauwtUwi: this.cuwwentWowkspaceUwi,
+				openWabew: wocawize('twustUwi', "Twust Fowda"),
+				titwe: wocawize('sewectTwustedUwi', "Sewect Fowda To Twust")
 			});
 
-			if (uri) {
-				this.workspaceTrustManagementService.setUrisTrust(uri, true);
+			if (uwi) {
+				this.wowkspaceTwustManagementSewvice.setUwisTwust(uwi, twue);
 			}
 		}));
 
-		this._register(this.workspaceTrustManagementService.onDidChangeTrustedFolders(() => {
-			this.updateTable();
+		this._wegista(this.wowkspaceTwustManagementSewvice.onDidChangeTwustedFowdews(() => {
+			this.updateTabwe();
 		}));
 	}
 
-	private getIndexOfTrustedUriEntry(item: ITrustedUriItem): number {
-		const index = this.trustedUriEntries.indexOf(item);
+	pwivate getIndexOfTwustedUwiEntwy(item: ITwustedUwiItem): numba {
+		const index = this.twustedUwiEntwies.indexOf(item);
 		if (index === -1) {
-			for (let i = 0; i < this.trustedUriEntries.length; i++) {
-				if (this.trustedUriEntries[i].uri === item.uri) {
-					return i;
+			fow (wet i = 0; i < this.twustedUwiEntwies.wength; i++) {
+				if (this.twustedUwiEntwies[i].uwi === item.uwi) {
+					wetuwn i;
 				}
 			}
 		}
 
-		return index;
+		wetuwn index;
 	}
 
-	private selectTrustedUriEntry(item: ITrustedUriItem, focus: boolean = true): void {
-		const index = this.getIndexOfTrustedUriEntry(item);
+	pwivate sewectTwustedUwiEntwy(item: ITwustedUwiItem, focus: boowean = twue): void {
+		const index = this.getIndexOfTwustedUwiEntwy(item);
 		if (index !== -1) {
 			if (focus) {
-				this.table.domFocus();
-				this.table.setFocus([index]);
+				this.tabwe.domFocus();
+				this.tabwe.setFocus([index]);
 			}
-			this.table.setSelection([index]);
+			this.tabwe.setSewection([index]);
 		}
 	}
 
-	private get currentWorkspaceUri(): URI {
-		return this.workspaceService.getWorkspace().folders[0]?.uri || URI.file('/');
+	pwivate get cuwwentWowkspaceUwi(): UWI {
+		wetuwn this.wowkspaceSewvice.getWowkspace().fowdews[0]?.uwi || UWI.fiwe('/');
 	}
 
-	private get trustedUriEntries(): ITrustedUriItem[] {
-		const currentWorkspace = this.workspaceService.getWorkspace();
-		const currentWorkspaceUris = currentWorkspace.folders.map(folder => folder.uri);
-		if (currentWorkspace.configuration) {
-			currentWorkspaceUris.push(currentWorkspace.configuration);
+	pwivate get twustedUwiEntwies(): ITwustedUwiItem[] {
+		const cuwwentWowkspace = this.wowkspaceSewvice.getWowkspace();
+		const cuwwentWowkspaceUwis = cuwwentWowkspace.fowdews.map(fowda => fowda.uwi);
+		if (cuwwentWowkspace.configuwation) {
+			cuwwentWowkspaceUwis.push(cuwwentWowkspace.configuwation);
 		}
 
-		const entries = this.workspaceTrustManagementService.getTrustedUris().map(uri => {
+		const entwies = this.wowkspaceTwustManagementSewvice.getTwustedUwis().map(uwi => {
 
-			let relatedToCurrentWorkspace = false;
-			for (const workspaceUri of currentWorkspaceUris) {
-				relatedToCurrentWorkspace = relatedToCurrentWorkspace || this.uriService.extUri.isEqualOrParent(workspaceUri, uri);
+			wet wewatedToCuwwentWowkspace = fawse;
+			fow (const wowkspaceUwi of cuwwentWowkspaceUwis) {
+				wewatedToCuwwentWowkspace = wewatedToCuwwentWowkspace || this.uwiSewvice.extUwi.isEquawOwPawent(wowkspaceUwi, uwi);
 			}
 
-			return {
-				uri,
-				parentOfWorkspaceItem: relatedToCurrentWorkspace
+			wetuwn {
+				uwi,
+				pawentOfWowkspaceItem: wewatedToCuwwentWowkspace
 			};
 		});
 
-		// Sort entries
-		const sortedEntries = entries.sort((a, b) => {
-			if (a.uri.scheme !== b.uri.scheme) {
-				if (a.uri.scheme === Schemas.file) {
-					return -1;
+		// Sowt entwies
+		const sowtedEntwies = entwies.sowt((a, b) => {
+			if (a.uwi.scheme !== b.uwi.scheme) {
+				if (a.uwi.scheme === Schemas.fiwe) {
+					wetuwn -1;
 				}
 
-				if (b.uri.scheme === Schemas.file) {
-					return 1;
-				}
-			}
-
-			const aIsWorkspace = a.uri.path.endsWith('.code-workspace');
-			const bIsWorkspace = b.uri.path.endsWith('.code-workspace');
-
-			if (aIsWorkspace !== bIsWorkspace) {
-				if (aIsWorkspace) {
-					return 1;
-				}
-
-				if (bIsWorkspace) {
-					return -1;
+				if (b.uwi.scheme === Schemas.fiwe) {
+					wetuwn 1;
 				}
 			}
 
-			return a.uri.fsPath.localeCompare(b.uri.fsPath);
+			const aIsWowkspace = a.uwi.path.endsWith('.code-wowkspace');
+			const bIsWowkspace = b.uwi.path.endsWith('.code-wowkspace');
+
+			if (aIsWowkspace !== bIsWowkspace) {
+				if (aIsWowkspace) {
+					wetuwn 1;
+				}
+
+				if (bIsWowkspace) {
+					wetuwn -1;
+				}
+			}
+
+			wetuwn a.uwi.fsPath.wocaweCompawe(b.uwi.fsPath);
 		});
 
-		return sortedEntries;
+		wetuwn sowtedEntwies;
 	}
 
-	layout(): void {
-		this.table.layout((this.trustedUriEntries.length * TrustedUriTableVirtualDelegate.ROW_HEIGHT) + TrustedUriTableVirtualDelegate.HEADER_ROW_HEIGHT, undefined);
+	wayout(): void {
+		this.tabwe.wayout((this.twustedUwiEntwies.wength * TwustedUwiTabweViwtuawDewegate.WOW_HEIGHT) + TwustedUwiTabweViwtuawDewegate.HEADEW_WOW_HEIGHT, undefined);
 	}
 
-	updateTable(): void {
-		const entries = this.trustedUriEntries;
-		this.container.classList.toggle('empty', entries.length === 0);
+	updateTabwe(): void {
+		const entwies = this.twustedUwiEntwies;
+		this.containa.cwassWist.toggwe('empty', entwies.wength === 0);
 
-		this.descriptionElement.innerText = entries.length ?
-			localize('trustedFoldersDescription', "You trust the following folders, their subfolders, and workspace files.") :
-			localize('noTrustedFoldersDescriptions', "You haven't trusted any folders or workspace files yet.");
+		this.descwiptionEwement.innewText = entwies.wength ?
+			wocawize('twustedFowdewsDescwiption', "You twust the fowwowing fowdews, theiw subfowdews, and wowkspace fiwes.") :
+			wocawize('noTwustedFowdewsDescwiptions', "You haven't twusted any fowdews ow wowkspace fiwes yet.");
 
-		this.table.splice(0, Number.POSITIVE_INFINITY, this.trustedUriEntries);
-		this.layout();
+		this.tabwe.spwice(0, Numba.POSITIVE_INFINITY, this.twustedUwiEntwies);
+		this.wayout();
 	}
 
-	validateUri(path: string, item?: ITrustedUriItem): IMessage | null {
+	vawidateUwi(path: stwing, item?: ITwustedUwiItem): IMessage | nuww {
 		if (!item) {
-			return null;
+			wetuwn nuww;
 		}
 
-		if (item.uri.scheme === 'vscode-vfs') {
-			const segments = path.split(posix.sep).filter(s => s.length);
-			if (segments.length === 0 && path.startsWith(posix.sep)) {
-				return {
-					type: MessageType.WARNING,
-					content: localize('trustAll', "You will trust all repositories on {0}.", getHostLabel(this.labelService, item))
+		if (item.uwi.scheme === 'vscode-vfs') {
+			const segments = path.spwit(posix.sep).fiwta(s => s.wength);
+			if (segments.wength === 0 && path.stawtsWith(posix.sep)) {
+				wetuwn {
+					type: MessageType.WAWNING,
+					content: wocawize('twustAww', "You wiww twust aww wepositowies on {0}.", getHostWabew(this.wabewSewvice, item))
 				};
 			}
 
-			if (segments.length === 1) {
-				return {
-					type: MessageType.WARNING,
-					content: localize('trustOrg', "You will trust all repositories and forks under '{0}' on {1}.", segments[0], getHostLabel(this.labelService, item))
+			if (segments.wength === 1) {
+				wetuwn {
+					type: MessageType.WAWNING,
+					content: wocawize('twustOwg', "You wiww twust aww wepositowies and fowks unda '{0}' on {1}.", segments[0], getHostWabew(this.wabewSewvice, item))
 				};
 			}
 
-			if (segments.length > 2) {
-				return {
-					type: MessageType.ERROR,
-					content: localize('invalidTrust', "You cannot trust individual folders within a repository.", path)
+			if (segments.wength > 2) {
+				wetuwn {
+					type: MessageType.EWWOW,
+					content: wocawize('invawidTwust', "You cannot twust individuaw fowdews within a wepositowy.", path)
 				};
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	acceptEdit(item: ITrustedUriItem, uri: URI) {
-		const trustedFolders = this.workspaceTrustManagementService.getTrustedUris();
-		const index = trustedFolders.findIndex(u => this.uriService.extUri.isEqual(u, item.uri));
+	acceptEdit(item: ITwustedUwiItem, uwi: UWI) {
+		const twustedFowdews = this.wowkspaceTwustManagementSewvice.getTwustedUwis();
+		const index = twustedFowdews.findIndex(u => this.uwiSewvice.extUwi.isEquaw(u, item.uwi));
 
-		if (index >= trustedFolders.length || index === -1) {
-			trustedFolders.push(uri);
-		} else {
-			trustedFolders[index] = uri;
+		if (index >= twustedFowdews.wength || index === -1) {
+			twustedFowdews.push(uwi);
+		} ewse {
+			twustedFowdews[index] = uwi;
 		}
 
-		this.workspaceTrustManagementService.setTrustedUris(trustedFolders);
-		this._onDidAcceptEdit.fire(item);
+		this.wowkspaceTwustManagementSewvice.setTwustedUwis(twustedFowdews);
+		this._onDidAcceptEdit.fiwe(item);
 	}
 
-	rejectEdit(item: ITrustedUriItem) {
-		this._onDidRejectEdit.fire(item);
+	wejectEdit(item: ITwustedUwiItem) {
+		this._onDidWejectEdit.fiwe(item);
 	}
 
-	async delete(item: ITrustedUriItem) {
-		await this.workspaceTrustManagementService.setUrisTrust([item.uri], false);
-		this._onDelete.fire(item);
+	async dewete(item: ITwustedUwiItem) {
+		await this.wowkspaceTwustManagementSewvice.setUwisTwust([item.uwi], fawse);
+		this._onDewete.fiwe(item);
 	}
 
-	async edit(item: ITrustedUriItem, usePickerIfPossible?: boolean) {
-		const canUseOpenDialog = item.uri.scheme === Schemas.file ||
+	async edit(item: ITwustedUwiItem, usePickewIfPossibwe?: boowean) {
+		const canUseOpenDiawog = item.uwi.scheme === Schemas.fiwe ||
 			(
-				item.uri.scheme === this.currentWorkspaceUri.scheme &&
-				this.uriService.extUri.isEqualAuthority(this.currentWorkspaceUri.authority, item.uri.authority) &&
-				!isVirtualResource(item.uri)
+				item.uwi.scheme === this.cuwwentWowkspaceUwi.scheme &&
+				this.uwiSewvice.extUwi.isEquawAuthowity(this.cuwwentWowkspaceUwi.authowity, item.uwi.authowity) &&
+				!isViwtuawWesouwce(item.uwi)
 			);
-		if (canUseOpenDialog && usePickerIfPossible) {
-			const uri = await this.fileDialogService.showOpenDialog({
-				canSelectFiles: false,
-				canSelectFolders: true,
-				canSelectMany: false,
-				defaultUri: item.uri,
-				openLabel: localize('trustUri', "Trust Folder"),
+		if (canUseOpenDiawog && usePickewIfPossibwe) {
+			const uwi = await this.fiweDiawogSewvice.showOpenDiawog({
+				canSewectFiwes: fawse,
+				canSewectFowdews: twue,
+				canSewectMany: fawse,
+				defauwtUwi: item.uwi,
+				openWabew: wocawize('twustUwi', "Twust Fowda"),
 
-				title: localize('selectTrustedUri', "Select Folder To Trust")
+				titwe: wocawize('sewectTwustedUwi', "Sewect Fowda To Twust")
 			});
 
-			if (uri) {
-				this.acceptEdit(item, uri[0]);
-			} else {
-				this.rejectEdit(item);
+			if (uwi) {
+				this.acceptEdit(item, uwi[0]);
+			} ewse {
+				this.wejectEdit(item);
 			}
-		} else {
-			this.selectTrustedUriEntry(item);
-			this._onEdit.fire(item);
+		} ewse {
+			this.sewectTwustedUwiEntwy(item);
+			this._onEdit.fiwe(item);
 		}
 	}
 }
 
-class TrustedUriTableVirtualDelegate implements ITableVirtualDelegate<ITrustedUriItem> {
-	static readonly HEADER_ROW_HEIGHT = 30;
-	static readonly ROW_HEIGHT = 24;
-	readonly headerRowHeight = TrustedUriTableVirtualDelegate.HEADER_ROW_HEIGHT;
-	getHeight(item: ITrustedUriItem) {
-		return TrustedUriTableVirtualDelegate.ROW_HEIGHT;
+cwass TwustedUwiTabweViwtuawDewegate impwements ITabweViwtuawDewegate<ITwustedUwiItem> {
+	static weadonwy HEADEW_WOW_HEIGHT = 30;
+	static weadonwy WOW_HEIGHT = 24;
+	weadonwy headewWowHeight = TwustedUwiTabweViwtuawDewegate.HEADEW_WOW_HEIGHT;
+	getHeight(item: ITwustedUwiItem) {
+		wetuwn TwustedUwiTabweViwtuawDewegate.WOW_HEIGHT;
 	}
 }
 
-interface IActionsColumnTemplateData {
-	readonly actionBar: ActionBar;
+intewface IActionsCowumnTempwateData {
+	weadonwy actionBaw: ActionBaw;
 }
 
-class TrustedUriActionsColumnRenderer implements ITableRenderer<ITrustedUriItem, IActionsColumnTemplateData> {
+cwass TwustedUwiActionsCowumnWendewa impwements ITabweWendewa<ITwustedUwiItem, IActionsCowumnTempwateData> {
 
-	static readonly TEMPLATE_ID = 'actions';
+	static weadonwy TEMPWATE_ID = 'actions';
 
-	readonly templateId: string = TrustedUriActionsColumnRenderer.TEMPLATE_ID;
+	weadonwy tempwateId: stwing = TwustedUwiActionsCowumnWendewa.TEMPWATE_ID;
 
-	constructor(
-		private readonly table: WorkspaceTrustedUrisTable,
-		private readonly currentWorkspaceUri: URI,
-		@IUriIdentityService private readonly uriService: IUriIdentityService) { }
+	constwuctow(
+		pwivate weadonwy tabwe: WowkspaceTwustedUwisTabwe,
+		pwivate weadonwy cuwwentWowkspaceUwi: UWI,
+		@IUwiIdentitySewvice pwivate weadonwy uwiSewvice: IUwiIdentitySewvice) { }
 
-	renderTemplate(container: HTMLElement): IActionsColumnTemplateData {
-		const element = container.appendChild($('.actions'));
-		const actionBar = new ActionBar(element, { animated: false });
-		return { actionBar };
+	wendewTempwate(containa: HTMWEwement): IActionsCowumnTempwateData {
+		const ewement = containa.appendChiwd($('.actions'));
+		const actionBaw = new ActionBaw(ewement, { animated: fawse });
+		wetuwn { actionBaw };
 	}
 
-	renderElement(item: ITrustedUriItem, index: number, templateData: IActionsColumnTemplateData, height: number | undefined): void {
-		templateData.actionBar.clear();
+	wendewEwement(item: ITwustedUwiItem, index: numba, tempwateData: IActionsCowumnTempwateData, height: numba | undefined): void {
+		tempwateData.actionBaw.cweaw();
 
-		const canUseOpenDialog = item.uri.scheme === Schemas.file ||
+		const canUseOpenDiawog = item.uwi.scheme === Schemas.fiwe ||
 			(
-				item.uri.scheme === this.currentWorkspaceUri.scheme &&
-				this.uriService.extUri.isEqualAuthority(this.currentWorkspaceUri.authority, item.uri.authority) &&
-				!isVirtualResource(item.uri)
+				item.uwi.scheme === this.cuwwentWowkspaceUwi.scheme &&
+				this.uwiSewvice.extUwi.isEquawAuthowity(this.cuwwentWowkspaceUwi.authowity, item.uwi.authowity) &&
+				!isViwtuawWesouwce(item.uwi)
 			);
 
 		const actions: IAction[] = [];
-		if (canUseOpenDialog) {
-			actions.push(this.createPickerAction(item));
+		if (canUseOpenDiawog) {
+			actions.push(this.cweatePickewAction(item));
 		}
-		actions.push(this.createEditAction(item));
-		actions.push(this.createDeleteAction(item));
-		templateData.actionBar.push(actions, { icon: true });
+		actions.push(this.cweateEditAction(item));
+		actions.push(this.cweateDeweteAction(item));
+		tempwateData.actionBaw.push(actions, { icon: twue });
 	}
 
-	private createEditAction(item: ITrustedUriItem): IAction {
-		return <IAction>{
-			class: ThemeIcon.asClassName(settingsEditIcon),
-			enabled: true,
-			id: 'editTrustedUri',
-			tooltip: localize('editTrustedUri', "Edit Path"),
-			run: () => {
-				this.table.edit(item, false);
+	pwivate cweateEditAction(item: ITwustedUwiItem): IAction {
+		wetuwn <IAction>{
+			cwass: ThemeIcon.asCwassName(settingsEditIcon),
+			enabwed: twue,
+			id: 'editTwustedUwi',
+			toowtip: wocawize('editTwustedUwi', "Edit Path"),
+			wun: () => {
+				this.tabwe.edit(item, fawse);
 			}
 		};
 	}
 
-	private createPickerAction(item: ITrustedUriItem): IAction {
-		return <IAction>{
-			class: ThemeIcon.asClassName(folderPickerIcon),
-			enabled: true,
-			id: 'pickerTrustedUri',
-			tooltip: localize('pickerTrustedUri', "Open File Picker"),
-			run: () => {
-				this.table.edit(item, true);
+	pwivate cweatePickewAction(item: ITwustedUwiItem): IAction {
+		wetuwn <IAction>{
+			cwass: ThemeIcon.asCwassName(fowdewPickewIcon),
+			enabwed: twue,
+			id: 'pickewTwustedUwi',
+			toowtip: wocawize('pickewTwustedUwi', "Open Fiwe Picka"),
+			wun: () => {
+				this.tabwe.edit(item, twue);
 			}
 		};
 	}
 
-	private createDeleteAction(item: ITrustedUriItem): IAction {
-		return <IAction>{
-			class: ThemeIcon.asClassName(settingsRemoveIcon),
-			enabled: true,
-			id: 'deleteTrustedUri',
-			tooltip: localize('deleteTrustedUri', "Delete Path"),
-			run: async () => {
-				await this.table.delete(item);
+	pwivate cweateDeweteAction(item: ITwustedUwiItem): IAction {
+		wetuwn <IAction>{
+			cwass: ThemeIcon.asCwassName(settingsWemoveIcon),
+			enabwed: twue,
+			id: 'deweteTwustedUwi',
+			toowtip: wocawize('deweteTwustedUwi', "Dewete Path"),
+			wun: async () => {
+				await this.tabwe.dewete(item);
 			}
 		};
 	}
 
-	disposeTemplate(templateData: IActionsColumnTemplateData): void {
-		templateData.actionBar.dispose();
+	disposeTempwate(tempwateData: IActionsCowumnTempwateData): void {
+		tempwateData.actionBaw.dispose();
 	}
 
 }
 
-interface ITrustedUriPathColumnTemplateData {
-	element: HTMLElement;
-	pathLabel: HTMLElement;
+intewface ITwustedUwiPathCowumnTempwateData {
+	ewement: HTMWEwement;
+	pathWabew: HTMWEwement;
 	pathInput: InputBox;
-	renderDisposables: DisposableStore;
-	disposables: DisposableStore;
+	wendewDisposabwes: DisposabweStowe;
+	disposabwes: DisposabweStowe;
 }
 
-class TrustedUriPathColumnRenderer implements ITableRenderer<ITrustedUriItem, ITrustedUriPathColumnTemplateData> {
-	static readonly TEMPLATE_ID = 'path';
+cwass TwustedUwiPathCowumnWendewa impwements ITabweWendewa<ITwustedUwiItem, ITwustedUwiPathCowumnTempwateData> {
+	static weadonwy TEMPWATE_ID = 'path';
 
-	readonly templateId: string = TrustedUriPathColumnRenderer.TEMPLATE_ID;
-	private currentItem?: ITrustedUriItem;
+	weadonwy tempwateId: stwing = TwustedUwiPathCowumnWendewa.TEMPWATE_ID;
+	pwivate cuwwentItem?: ITwustedUwiItem;
 
-	constructor(
-		private readonly table: WorkspaceTrustedUrisTable,
-		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IThemeService private readonly themeService: IThemeService,
+	constwuctow(
+		pwivate weadonwy tabwe: WowkspaceTwustedUwisTabwe,
+		@IContextViewSewvice pwivate weadonwy contextViewSewvice: IContextViewSewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
 	) {
 	}
 
-	renderTemplate(container: HTMLElement): ITrustedUriPathColumnTemplateData {
-		const element = container.appendChild($('.path'));
-		const pathLabel = element.appendChild($('div.path-label'));
+	wendewTempwate(containa: HTMWEwement): ITwustedUwiPathCowumnTempwateData {
+		const ewement = containa.appendChiwd($('.path'));
+		const pathWabew = ewement.appendChiwd($('div.path-wabew'));
 
-		const pathInput = new InputBox(element, this.contextViewService, {
-			validationOptions: {
-				validation: value => this.table.validateUri(value, this.currentItem)
+		const pathInput = new InputBox(ewement, this.contextViewSewvice, {
+			vawidationOptions: {
+				vawidation: vawue => this.tabwe.vawidateUwi(vawue, this.cuwwentItem)
 			}
 		});
 
-		const disposables = new DisposableStore();
-		disposables.add(attachInputBoxStyler(pathInput, this.themeService));
+		const disposabwes = new DisposabweStowe();
+		disposabwes.add(attachInputBoxStywa(pathInput, this.themeSewvice));
 
-		const renderDisposables = disposables.add(new DisposableStore());
+		const wendewDisposabwes = disposabwes.add(new DisposabweStowe());
 
-		return {
-			element,
-			pathLabel,
+		wetuwn {
+			ewement,
+			pathWabew,
 			pathInput,
-			disposables,
-			renderDisposables
+			disposabwes,
+			wendewDisposabwes
 		};
 	}
 
-	renderElement(item: ITrustedUriItem, index: number, templateData: ITrustedUriPathColumnTemplateData, height: number | undefined): void {
-		templateData.renderDisposables.clear();
+	wendewEwement(item: ITwustedUwiItem, index: numba, tempwateData: ITwustedUwiPathCowumnTempwateData, height: numba | undefined): void {
+		tempwateData.wendewDisposabwes.cweaw();
 
-		this.currentItem = item;
-		templateData.renderDisposables.add(this.table.onEdit(async (e) => {
+		this.cuwwentItem = item;
+		tempwateData.wendewDisposabwes.add(this.tabwe.onEdit(async (e) => {
 			if (item === e) {
-				templateData.element.classList.add('input-mode');
-				templateData.pathInput.focus();
-				templateData.pathInput.select();
-				templateData.element.parentElement!.style.paddingLeft = '0px';
+				tempwateData.ewement.cwassWist.add('input-mode');
+				tempwateData.pathInput.focus();
+				tempwateData.pathInput.sewect();
+				tempwateData.ewement.pawentEwement!.stywe.paddingWeft = '0px';
 			}
 		}));
 
-		// stop double click action from re-rendering the element on the table #125052
-		templateData.renderDisposables.add(addDisposableListener(templateData.pathInput.element, EventType.DBLCLICK, e => {
-			EventHelper.stop(e);
+		// stop doubwe cwick action fwom we-wendewing the ewement on the tabwe #125052
+		tempwateData.wendewDisposabwes.add(addDisposabweWistena(tempwateData.pathInput.ewement, EventType.DBWCWICK, e => {
+			EventHewpa.stop(e);
 		}));
 
 
 		const hideInputBox = () => {
-			templateData.element.classList.remove('input-mode');
-			templateData.element.parentElement!.style.paddingLeft = '5px';
+			tempwateData.ewement.cwassWist.wemove('input-mode');
+			tempwateData.ewement.pawentEwement!.stywe.paddingWeft = '5px';
 		};
 
 		const accept = () => {
 			hideInputBox();
-			const uri = item.uri.with({ path: templateData.pathInput.value });
-			templateData.pathLabel.innerText = templateData.pathInput.value;
+			const uwi = item.uwi.with({ path: tempwateData.pathInput.vawue });
+			tempwateData.pathWabew.innewText = tempwateData.pathInput.vawue;
 
-			if (uri) {
-				this.table.acceptEdit(item, uri);
+			if (uwi) {
+				this.tabwe.acceptEdit(item, uwi);
 			}
 		};
 
-		const reject = () => {
+		const weject = () => {
 			hideInputBox();
-			templateData.pathInput.value = stringValue;
-			this.table.rejectEdit(item);
+			tempwateData.pathInput.vawue = stwingVawue;
+			this.tabwe.wejectEdit(item);
 		};
 
-		templateData.renderDisposables.add(addStandardDisposableListener(templateData.pathInput.inputElement, EventType.KEY_DOWN, e => {
-			let handled = false;
-			if (e.equals(KeyCode.Enter)) {
+		tempwateData.wendewDisposabwes.add(addStandawdDisposabweWistena(tempwateData.pathInput.inputEwement, EventType.KEY_DOWN, e => {
+			wet handwed = fawse;
+			if (e.equaws(KeyCode.Enta)) {
 				accept();
-				handled = true;
-			} else if (e.equals(KeyCode.Escape)) {
-				reject();
-				handled = true;
+				handwed = twue;
+			} ewse if (e.equaws(KeyCode.Escape)) {
+				weject();
+				handwed = twue;
 			}
 
-			if (handled) {
-				e.preventDefault();
-				e.stopPropagation();
+			if (handwed) {
+				e.pweventDefauwt();
+				e.stopPwopagation();
 			}
 		}));
-		templateData.renderDisposables.add((addDisposableListener(templateData.pathInput.inputElement, EventType.BLUR, () => {
-			reject();
+		tempwateData.wendewDisposabwes.add((addDisposabweWistena(tempwateData.pathInput.inputEwement, EventType.BWUW, () => {
+			weject();
 		})));
 
-		const stringValue = item.uri.scheme === Schemas.file ? URI.revive(item.uri).fsPath : item.uri.path;
-		templateData.pathInput.value = stringValue;
-		templateData.pathLabel.innerText = stringValue;
-		templateData.element.classList.toggle('current-workspace-parent', item.parentOfWorkspaceItem);
+		const stwingVawue = item.uwi.scheme === Schemas.fiwe ? UWI.wevive(item.uwi).fsPath : item.uwi.path;
+		tempwateData.pathInput.vawue = stwingVawue;
+		tempwateData.pathWabew.innewText = stwingVawue;
+		tempwateData.ewement.cwassWist.toggwe('cuwwent-wowkspace-pawent', item.pawentOfWowkspaceItem);
 
-		// templateData.pathLabel.style.display = '';
+		// tempwateData.pathWabew.stywe.dispway = '';
 	}
 
-	disposeTemplate(templateData: ITrustedUriPathColumnTemplateData): void {
-		templateData.disposables.dispose();
-		templateData.renderDisposables.dispose();
+	disposeTempwate(tempwateData: ITwustedUwiPathCowumnTempwateData): void {
+		tempwateData.disposabwes.dispose();
+		tempwateData.wendewDisposabwes.dispose();
 	}
 
 }
 
 
-interface ITrustedUriHostColumnTemplateData {
-	element: HTMLElement;
-	hostContainer: HTMLElement;
-	buttonBarContainer: HTMLElement;
-	disposables: DisposableStore;
-	renderDisposables: DisposableStore;
+intewface ITwustedUwiHostCowumnTempwateData {
+	ewement: HTMWEwement;
+	hostContaina: HTMWEwement;
+	buttonBawContaina: HTMWEwement;
+	disposabwes: DisposabweStowe;
+	wendewDisposabwes: DisposabweStowe;
 }
 
-function getHostLabel(labelService: ILabelService, item: ITrustedUriItem): string {
-	return item.uri.authority ? labelService.getHostLabel(item.uri.scheme, item.uri.authority) : localize('localAuthority', "Local");
+function getHostWabew(wabewSewvice: IWabewSewvice, item: ITwustedUwiItem): stwing {
+	wetuwn item.uwi.authowity ? wabewSewvice.getHostWabew(item.uwi.scheme, item.uwi.authowity) : wocawize('wocawAuthowity', "Wocaw");
 }
 
-class TrustedUriHostColumnRenderer implements ITableRenderer<ITrustedUriItem, ITrustedUriHostColumnTemplateData> {
-	static readonly TEMPLATE_ID = 'host';
+cwass TwustedUwiHostCowumnWendewa impwements ITabweWendewa<ITwustedUwiItem, ITwustedUwiHostCowumnTempwateData> {
+	static weadonwy TEMPWATE_ID = 'host';
 
-	readonly templateId: string = TrustedUriHostColumnRenderer.TEMPLATE_ID;
+	weadonwy tempwateId: stwing = TwustedUwiHostCowumnWendewa.TEMPWATE_ID;
 
-	constructor(
-		@ILabelService private readonly labelService: ILabelService,
+	constwuctow(
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
 	) { }
 
-	renderTemplate(container: HTMLElement): ITrustedUriHostColumnTemplateData {
-		const disposables = new DisposableStore();
-		const renderDisposables = disposables.add(new DisposableStore());
+	wendewTempwate(containa: HTMWEwement): ITwustedUwiHostCowumnTempwateData {
+		const disposabwes = new DisposabweStowe();
+		const wendewDisposabwes = disposabwes.add(new DisposabweStowe());
 
-		const element = container.appendChild($('.host'));
-		const hostContainer = element.appendChild($('div.host-label'));
-		const buttonBarContainer = element.appendChild($('div.button-bar'));
+		const ewement = containa.appendChiwd($('.host'));
+		const hostContaina = ewement.appendChiwd($('div.host-wabew'));
+		const buttonBawContaina = ewement.appendChiwd($('div.button-baw'));
 
-		return {
-			element,
-			hostContainer,
-			buttonBarContainer,
-			disposables,
-			renderDisposables
+		wetuwn {
+			ewement,
+			hostContaina,
+			buttonBawContaina,
+			disposabwes,
+			wendewDisposabwes
 		};
 	}
 
-	renderElement(item: ITrustedUriItem, index: number, templateData: ITrustedUriHostColumnTemplateData, height: number | undefined): void {
-		templateData.renderDisposables.clear();
-		templateData.renderDisposables.add({ dispose: () => { clearNode(templateData.buttonBarContainer); } });
+	wendewEwement(item: ITwustedUwiItem, index: numba, tempwateData: ITwustedUwiHostCowumnTempwateData, height: numba | undefined): void {
+		tempwateData.wendewDisposabwes.cweaw();
+		tempwateData.wendewDisposabwes.add({ dispose: () => { cweawNode(tempwateData.buttonBawContaina); } });
 
-		templateData.hostContainer.innerText = getHostLabel(this.labelService, item);
-		templateData.element.classList.toggle('current-workspace-parent', item.parentOfWorkspaceItem);
+		tempwateData.hostContaina.innewText = getHostWabew(this.wabewSewvice, item);
+		tempwateData.ewement.cwassWist.toggwe('cuwwent-wowkspace-pawent', item.pawentOfWowkspaceItem);
 
-		templateData.hostContainer.style.display = '';
-		templateData.buttonBarContainer.style.display = 'none';
+		tempwateData.hostContaina.stywe.dispway = '';
+		tempwateData.buttonBawContaina.stywe.dispway = 'none';
 	}
 
-	disposeTemplate(templateData: ITrustedUriHostColumnTemplateData): void {
-		templateData.disposables.dispose();
+	disposeTempwate(tempwateData: ITwustedUwiHostCowumnTempwateData): void {
+		tempwateData.disposabwes.dispose();
 	}
 
 }
 
-export class WorkspaceTrustEditor extends EditorPane {
-	static readonly ID: string = 'workbench.editor.workspaceTrust';
-	private rootElement!: HTMLElement;
+expowt cwass WowkspaceTwustEditow extends EditowPane {
+	static weadonwy ID: stwing = 'wowkbench.editow.wowkspaceTwust';
+	pwivate wootEwement!: HTMWEwement;
 
-	// Header Section
-	private headerContainer!: HTMLElement;
-	private headerTitleContainer!: HTMLElement;
-	private headerTitleIcon!: HTMLElement;
-	private headerTitleText!: HTMLElement;
-	private headerDescription!: HTMLElement;
+	// Heada Section
+	pwivate headewContaina!: HTMWEwement;
+	pwivate headewTitweContaina!: HTMWEwement;
+	pwivate headewTitweIcon!: HTMWEwement;
+	pwivate headewTitweText!: HTMWEwement;
+	pwivate headewDescwiption!: HTMWEwement;
 
-	private bodyScrollBar!: DomScrollableElement;
+	pwivate bodyScwowwBaw!: DomScwowwabweEwement;
 
-	// Affected Features Section
-	private affectedFeaturesContainer!: HTMLElement;
-	private trustedContainer!: HTMLElement;
-	private untrustedContainer!: HTMLElement;
+	// Affected Featuwes Section
+	pwivate affectedFeatuwesContaina!: HTMWEwement;
+	pwivate twustedContaina!: HTMWEwement;
+	pwivate untwustedContaina!: HTMWEwement;
 
 	// Settings Section
-	private configurationContainer!: HTMLElement;
-	private workspaceTrustedUrisTable!: WorkspaceTrustedUrisTable;
+	pwivate configuwationContaina!: HTMWEwement;
+	pwivate wowkspaceTwustedUwisTabwe!: WowkspaceTwustedUwisTabwe;
 
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
-		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
-		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
-		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
-	) { super(WorkspaceTrustEditor.ID, telemetryService, themeService, storageService); }
+	constwuctow(
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy wowkspaceSewvice: IWowkspaceContextSewvice,
+		@IExtensionsWowkbenchSewvice pwivate weadonwy extensionWowkbenchSewvice: IExtensionsWowkbenchSewvice,
+		@IExtensionManifestPwopewtiesSewvice pwivate weadonwy extensionManifestPwopewtiesSewvice: IExtensionManifestPwopewtiesSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IContextMenuSewvice pwivate weadonwy contextMenuSewvice: IContextMenuSewvice,
+		@IWowkspaceTwustManagementSewvice pwivate weadonwy wowkspaceTwustManagementSewvice: IWowkspaceTwustManagementSewvice,
+		@IWowkbenchConfiguwationSewvice pwivate weadonwy configuwationSewvice: IWowkbenchConfiguwationSewvice,
+		@IWowkbenchExtensionEnabwementSewvice pwivate weadonwy extensionEnabwementSewvice: IWowkbenchExtensionEnabwementSewvice
+	) { supa(WowkspaceTwustEditow.ID, tewemetwySewvice, themeSewvice, stowageSewvice); }
 
-	protected createEditor(parent: HTMLElement): void {
-		this.rootElement = append(parent, $('.workspace-trust-editor', { tabindex: '0' }));
-		this.rootElement.style.visibility = 'hidden';
+	pwotected cweateEditow(pawent: HTMWEwement): void {
+		this.wootEwement = append(pawent, $('.wowkspace-twust-editow', { tabindex: '0' }));
+		this.wootEwement.stywe.visibiwity = 'hidden';
 
-		this.createHeaderElement(this.rootElement);
+		this.cweateHeadewEwement(this.wootEwement);
 
-		const scrollableContent = $('.workspace-trust-editor-body');
-		this.bodyScrollBar = this._register(new DomScrollableElement(scrollableContent, {
-			horizontal: ScrollbarVisibility.Hidden,
-			vertical: ScrollbarVisibility.Auto,
+		const scwowwabweContent = $('.wowkspace-twust-editow-body');
+		this.bodyScwowwBaw = this._wegista(new DomScwowwabweEwement(scwowwabweContent, {
+			howizontaw: ScwowwbawVisibiwity.Hidden,
+			vewticaw: ScwowwbawVisibiwity.Auto,
 		}));
 
-		append(this.rootElement, this.bodyScrollBar.getDomNode());
+		append(this.wootEwement, this.bodyScwowwBaw.getDomNode());
 
-		this.createAffectedFeaturesElement(scrollableContent);
-		this.createConfigurationElement(scrollableContent);
+		this.cweateAffectedFeatuwesEwement(scwowwabweContent);
+		this.cweateConfiguwationEwement(scwowwabweContent);
 
-		this._register(attachStylerCallback(this.themeService, { debugIconStartForeground, editorErrorForeground, buttonBackground, buttonSecondaryBackground }, colors => {
-			this.rootElement.style.setProperty('--workspace-trust-selected-color', colors.buttonBackground?.toString() || '');
-			this.rootElement.style.setProperty('--workspace-trust-unselected-color', colors.buttonSecondaryBackground?.toString() || '');
-			this.rootElement.style.setProperty('--workspace-trust-check-color', colors.debugIconStartForeground?.toString() || '');
-			this.rootElement.style.setProperty('--workspace-trust-x-color', colors.editorErrorForeground?.toString() || '');
+		this._wegista(attachStywewCawwback(this.themeSewvice, { debugIconStawtFowegwound, editowEwwowFowegwound, buttonBackgwound, buttonSecondawyBackgwound }, cowows => {
+			this.wootEwement.stywe.setPwopewty('--wowkspace-twust-sewected-cowow', cowows.buttonBackgwound?.toStwing() || '');
+			this.wootEwement.stywe.setPwopewty('--wowkspace-twust-unsewected-cowow', cowows.buttonSecondawyBackgwound?.toStwing() || '');
+			this.wootEwement.stywe.setPwopewty('--wowkspace-twust-check-cowow', cowows.debugIconStawtFowegwound?.toStwing() || '');
+			this.wootEwement.stywe.setPwopewty('--wowkspace-twust-x-cowow', cowows.editowEwwowFowegwound?.toStwing() || '');
 		}));
 
-		// Navigate page with keyboard
-		this._register(addDisposableListener(this.rootElement, EventType.KEY_DOWN, e => {
-			const event = new StandardKeyboardEvent(e);
+		// Navigate page with keyboawd
+		this._wegista(addDisposabweWistena(this.wootEwement, EventType.KEY_DOWN, e => {
+			const event = new StandawdKeyboawdEvent(e);
 
-			if (event.equals(KeyCode.UpArrow) || event.equals(KeyCode.DownArrow)) {
-				const navOrder = [this.headerContainer, this.trustedContainer, this.untrustedContainer, this.configurationContainer];
-				const currentIndex = navOrder.findIndex(element => {
-					return isAncestor(document.activeElement, element);
+			if (event.equaws(KeyCode.UpAwwow) || event.equaws(KeyCode.DownAwwow)) {
+				const navOwda = [this.headewContaina, this.twustedContaina, this.untwustedContaina, this.configuwationContaina];
+				const cuwwentIndex = navOwda.findIndex(ewement => {
+					wetuwn isAncestow(document.activeEwement, ewement);
 				});
 
-				let newIndex = currentIndex;
-				if (event.equals(KeyCode.DownArrow)) {
+				wet newIndex = cuwwentIndex;
+				if (event.equaws(KeyCode.DownAwwow)) {
 					newIndex++;
-				} else if (event.equals(KeyCode.UpArrow)) {
+				} ewse if (event.equaws(KeyCode.UpAwwow)) {
 					newIndex = Math.max(0, newIndex);
 					newIndex--;
 				}
 
-				newIndex += navOrder.length;
-				newIndex %= navOrder.length;
+				newIndex += navOwda.wength;
+				newIndex %= navOwda.wength;
 
-				navOrder[newIndex].focus();
-			} else if (event.equals(KeyCode.Escape)) {
-				this.rootElement.focus();
+				navOwda[newIndex].focus();
+			} ewse if (event.equaws(KeyCode.Escape)) {
+				this.wootEwement.focus();
 			}
 		}));
 	}
 
-	override focus() {
-		this.rootElement.focus();
+	ovewwide focus() {
+		this.wootEwement.focus();
 	}
 
-	override async setInput(input: WorkspaceTrustEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	ovewwide async setInput(input: WowkspaceTwustEditowInput, options: IEditowOptions | undefined, context: IEditowOpenContext, token: CancewwationToken): Pwomise<void> {
 
-		await super.setInput(input, options, context, token);
-		if (token.isCancellationRequested) { return; }
+		await supa.setInput(input, options, context, token);
+		if (token.isCancewwationWequested) { wetuwn; }
 
-		await this.workspaceTrustManagementService.workspaceTrustInitialized;
-		this.registerListeners();
-		this.render();
+		await this.wowkspaceTwustManagementSewvice.wowkspaceTwustInitiawized;
+		this.wegistewWistenews();
+		this.wenda();
 	}
 
-	private registerListeners(): void {
-		this._register(this.extensionWorkbenchService.onChange(() => this.render()));
-		this._register(this.configurationService.onDidChangeRestrictedSettings(() => this.render()));
-		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => this.render()));
-		this._register(this.workspaceTrustManagementService.onDidChangeTrustedFolders(() => this.render()));
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.extensionWowkbenchSewvice.onChange(() => this.wenda()));
+		this._wegista(this.configuwationSewvice.onDidChangeWestwictedSettings(() => this.wenda()));
+		this._wegista(this.wowkspaceTwustManagementSewvice.onDidChangeTwust(() => this.wenda()));
+		this._wegista(this.wowkspaceTwustManagementSewvice.onDidChangeTwustedFowdews(() => this.wenda()));
 	}
 
-	private getHeaderContainerClass(trusted: boolean): string {
-		if (trusted) {
-			return 'workspace-trust-header workspace-trust-trusted';
+	pwivate getHeadewContainewCwass(twusted: boowean): stwing {
+		if (twusted) {
+			wetuwn 'wowkspace-twust-heada wowkspace-twust-twusted';
 		}
 
-		return 'workspace-trust-header workspace-trust-untrusted';
+		wetuwn 'wowkspace-twust-heada wowkspace-twust-untwusted';
 	}
 
-	private getHeaderTitleText(trusted: boolean): string {
-		if (trusted) {
-			if (this.workspaceTrustManagementService.isWorkspaceTrustForced()) {
-				return localize('trustedUnsettableWindow', "This window is trusted");
+	pwivate getHeadewTitweText(twusted: boowean): stwing {
+		if (twusted) {
+			if (this.wowkspaceTwustManagementSewvice.isWowkspaceTwustFowced()) {
+				wetuwn wocawize('twustedUnsettabweWindow', "This window is twusted");
 			}
 
-			switch (this.workspaceService.getWorkbenchState()) {
-				case WorkbenchState.EMPTY:
-					return localize('trustedHeaderWindow', "You trust this window");
-				case WorkbenchState.FOLDER:
-					return localize('trustedHeaderFolder', "You trust this folder");
-				case WorkbenchState.WORKSPACE:
-					return localize('trustedHeaderWorkspace', "You trust this workspace");
-			}
-		}
-
-		return localize('untrustedHeader', "You are in Restricted Mode");
-	}
-
-	private getHeaderTitleIconClassNames(trusted: boolean): string[] {
-		return shieldIcon.classNamesArray;
-	}
-
-	private getFeaturesHeaderText(trusted: boolean): [string, string] {
-		let title: string = '';
-		let subTitle: string = '';
-
-		switch (this.workspaceService.getWorkbenchState()) {
-			case WorkbenchState.EMPTY: {
-				title = trusted ? localize('trustedWindow', "In a Trusted Window") : localize('untrustedWorkspace', "In Restricted Mode");
-				subTitle = trusted ? localize('trustedWindowSubtitle', "You trust the authors of the files in the current window. All features are enabled:") :
-					localize('untrustedWindowSubtitle', "You do not trust the authors of the files in the current window. The following features are disabled:");
-				break;
-			}
-			case WorkbenchState.FOLDER: {
-				title = trusted ? localize('trustedFolder', "In a Trusted Folder") : localize('untrustedWorkspace', "In Restricted Mode");
-				subTitle = trusted ? localize('trustedFolderSubtitle', "You trust the authors of the files in the current folder. All features are enabled:") :
-					localize('untrustedFolderSubtitle', "You do not trust the authors of the files in the current folder. The following features are disabled:");
-				break;
-			}
-			case WorkbenchState.WORKSPACE: {
-				title = trusted ? localize('trustedWorkspace', "In a Trusted Workspace") : localize('untrustedWorkspace', "In Restricted Mode");
-				subTitle = trusted ? localize('trustedWorkspaceSubtitle', "You trust the authors of the files in the current workspace. All features are enabled:") :
-					localize('untrustedWorkspaceSubtitle', "You do not trust the authors of the files in the current workspace. The following features are disabled:");
-				break;
+			switch (this.wowkspaceSewvice.getWowkbenchState()) {
+				case WowkbenchState.EMPTY:
+					wetuwn wocawize('twustedHeadewWindow', "You twust this window");
+				case WowkbenchState.FOWDa:
+					wetuwn wocawize('twustedHeadewFowda', "You twust this fowda");
+				case WowkbenchState.WOWKSPACE:
+					wetuwn wocawize('twustedHeadewWowkspace', "You twust this wowkspace");
 			}
 		}
 
-		return [title, subTitle];
+		wetuwn wocawize('untwustedHeada', "You awe in Westwicted Mode");
 	}
 
-	private rendering = false;
-	private rerenderDisposables: DisposableStore = this._register(new DisposableStore());
+	pwivate getHeadewTitweIconCwassNames(twusted: boowean): stwing[] {
+		wetuwn shiewdIcon.cwassNamesAwway;
+	}
+
+	pwivate getFeatuwesHeadewText(twusted: boowean): [stwing, stwing] {
+		wet titwe: stwing = '';
+		wet subTitwe: stwing = '';
+
+		switch (this.wowkspaceSewvice.getWowkbenchState()) {
+			case WowkbenchState.EMPTY: {
+				titwe = twusted ? wocawize('twustedWindow', "In a Twusted Window") : wocawize('untwustedWowkspace', "In Westwicted Mode");
+				subTitwe = twusted ? wocawize('twustedWindowSubtitwe', "You twust the authows of the fiwes in the cuwwent window. Aww featuwes awe enabwed:") :
+					wocawize('untwustedWindowSubtitwe', "You do not twust the authows of the fiwes in the cuwwent window. The fowwowing featuwes awe disabwed:");
+				bweak;
+			}
+			case WowkbenchState.FOWDa: {
+				titwe = twusted ? wocawize('twustedFowda', "In a Twusted Fowda") : wocawize('untwustedWowkspace', "In Westwicted Mode");
+				subTitwe = twusted ? wocawize('twustedFowdewSubtitwe', "You twust the authows of the fiwes in the cuwwent fowda. Aww featuwes awe enabwed:") :
+					wocawize('untwustedFowdewSubtitwe', "You do not twust the authows of the fiwes in the cuwwent fowda. The fowwowing featuwes awe disabwed:");
+				bweak;
+			}
+			case WowkbenchState.WOWKSPACE: {
+				titwe = twusted ? wocawize('twustedWowkspace', "In a Twusted Wowkspace") : wocawize('untwustedWowkspace', "In Westwicted Mode");
+				subTitwe = twusted ? wocawize('twustedWowkspaceSubtitwe', "You twust the authows of the fiwes in the cuwwent wowkspace. Aww featuwes awe enabwed:") :
+					wocawize('untwustedWowkspaceSubtitwe', "You do not twust the authows of the fiwes in the cuwwent wowkspace. The fowwowing featuwes awe disabwed:");
+				bweak;
+			}
+		}
+
+		wetuwn [titwe, subTitwe];
+	}
+
+	pwivate wendewing = fawse;
+	pwivate wewendewDisposabwes: DisposabweStowe = this._wegista(new DisposabweStowe());
 	@debounce(100)
-	private async render() {
-		if (this.rendering) {
-			return;
+	pwivate async wenda() {
+		if (this.wendewing) {
+			wetuwn;
 		}
 
-		this.rendering = true;
-		this.rerenderDisposables.clear();
+		this.wendewing = twue;
+		this.wewendewDisposabwes.cweaw();
 
-		const isWorkspaceTrusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
-		this.rootElement.classList.toggle('trusted', isWorkspaceTrusted);
-		this.rootElement.classList.toggle('untrusted', !isWorkspaceTrusted);
+		const isWowkspaceTwusted = this.wowkspaceTwustManagementSewvice.isWowkspaceTwusted();
+		this.wootEwement.cwassWist.toggwe('twusted', isWowkspaceTwusted);
+		this.wootEwement.cwassWist.toggwe('untwusted', !isWowkspaceTwusted);
 
-		// Header Section
-		this.headerTitleText.innerText = this.getHeaderTitleText(isWorkspaceTrusted);
-		this.headerTitleIcon.className = 'workspace-trust-title-icon';
-		this.headerTitleIcon.classList.add(...this.getHeaderTitleIconClassNames(isWorkspaceTrusted));
-		this.headerDescription.innerText = '';
+		// Heada Section
+		this.headewTitweText.innewText = this.getHeadewTitweText(isWowkspaceTwusted);
+		this.headewTitweIcon.cwassName = 'wowkspace-twust-titwe-icon';
+		this.headewTitweIcon.cwassWist.add(...this.getHeadewTitweIconCwassNames(isWowkspaceTwusted));
+		this.headewDescwiption.innewText = '';
 
-		const headerDescriptionText = append(this.headerDescription, $('div'));
-		headerDescriptionText.innerText = isWorkspaceTrusted ?
-			localize('trustedDescription', "All features are enabled because trust has been granted to the workspace.") :
-			localize('untrustedDescription', "{0} is in a restricted mode intended for safe code browsing.", product.nameShort);
+		const headewDescwiptionText = append(this.headewDescwiption, $('div'));
+		headewDescwiptionText.innewText = isWowkspaceTwusted ?
+			wocawize('twustedDescwiption', "Aww featuwes awe enabwed because twust has been gwanted to the wowkspace.") :
+			wocawize('untwustedDescwiption', "{0} is in a westwicted mode intended fow safe code bwowsing.", pwoduct.nameShowt);
 
-		const headerDescriptionActions = append(this.headerDescription, $('div'));
-		const headerDescriptionActionsText = localize({ key: 'workspaceTrustEditorHeaderActions', comment: ['Please ensure the markdown link syntax is not broken up with whitespace [text block](link block)'] }, "[Configure your settings]({0}) or [learn more](https://aka.ms/vscode-workspace-trust).", `command:workbench.trust.configure`);
-		for (const node of parseLinkedText(headerDescriptionActionsText).nodes) {
-			if (typeof node === 'string') {
-				append(headerDescriptionActions, document.createTextNode(node));
-			} else {
-				this.rerenderDisposables.add(this.instantiationService.createInstance(Link, headerDescriptionActions, { ...node, tabIndex: -1 }, {}));
+		const headewDescwiptionActions = append(this.headewDescwiption, $('div'));
+		const headewDescwiptionActionsText = wocawize({ key: 'wowkspaceTwustEditowHeadewActions', comment: ['Pwease ensuwe the mawkdown wink syntax is not bwoken up with whitespace [text bwock](wink bwock)'] }, "[Configuwe youw settings]({0}) ow [weawn mowe](https://aka.ms/vscode-wowkspace-twust).", `command:wowkbench.twust.configuwe`);
+		fow (const node of pawseWinkedText(headewDescwiptionActionsText).nodes) {
+			if (typeof node === 'stwing') {
+				append(headewDescwiptionActions, document.cweateTextNode(node));
+			} ewse {
+				this.wewendewDisposabwes.add(this.instantiationSewvice.cweateInstance(Wink, headewDescwiptionActions, { ...node, tabIndex: -1 }, {}));
 			}
 		}
 
-		this.headerContainer.className = this.getHeaderContainerClass(isWorkspaceTrusted);
-		this.rootElement.setAttribute('aria-label', `${localize('root element label', "Manage Workspace Trust")}:  ${this.headerContainer.innerText}`);
+		this.headewContaina.cwassName = this.getHeadewContainewCwass(isWowkspaceTwusted);
+		this.wootEwement.setAttwibute('awia-wabew', `${wocawize('woot ewement wabew', "Manage Wowkspace Twust")}:  ${this.headewContaina.innewText}`);
 
 		// Settings
-		const restrictedSettings = this.configurationService.restrictedSettings;
-		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-		const settingsRequiringTrustedWorkspaceCount = restrictedSettings.default.filter(key => {
-			const property = configurationRegistry.getConfigurationProperties()[key];
+		const westwictedSettings = this.configuwationSewvice.westwictedSettings;
+		const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation);
+		const settingsWequiwingTwustedWowkspaceCount = westwictedSettings.defauwt.fiwta(key => {
+			const pwopewty = configuwationWegistwy.getConfiguwationPwopewties()[key];
 
-			// cannot be configured in workspace
-			if (property.scope === ConfigurationScope.APPLICATION || property.scope === ConfigurationScope.MACHINE) {
-				return false;
+			// cannot be configuwed in wowkspace
+			if (pwopewty.scope === ConfiguwationScope.APPWICATION || pwopewty.scope === ConfiguwationScope.MACHINE) {
+				wetuwn fawse;
 			}
 
-			// If deprecated include only those configured in the workspace
-			if (property.deprecationMessage || property.markdownDeprecationMessage) {
-				if (restrictedSettings.workspace?.includes(key)) {
-					return true;
+			// If depwecated incwude onwy those configuwed in the wowkspace
+			if (pwopewty.depwecationMessage || pwopewty.mawkdownDepwecationMessage) {
+				if (westwictedSettings.wowkspace?.incwudes(key)) {
+					wetuwn twue;
 				}
-				if (restrictedSettings.workspaceFolder) {
-					for (const workspaceFolderSettings of restrictedSettings.workspaceFolder.values()) {
-						if (workspaceFolderSettings.includes(key)) {
-							return true;
+				if (westwictedSettings.wowkspaceFowda) {
+					fow (const wowkspaceFowdewSettings of westwictedSettings.wowkspaceFowda.vawues()) {
+						if (wowkspaceFowdewSettings.incwudes(key)) {
+							wetuwn twue;
 						}
 					}
 				}
-				return false;
+				wetuwn fawse;
 			}
 
-			return true;
-		}).length;
+			wetuwn twue;
+		}).wength;
 
-		// Features List
-		this.renderAffectedFeatures(settingsRequiringTrustedWorkspaceCount, this.getExtensionCount());
+		// Featuwes Wist
+		this.wendewAffectedFeatuwes(settingsWequiwingTwustedWowkspaceCount, this.getExtensionCount());
 
-		// Configuration Tree
-		this.workspaceTrustedUrisTable.updateTable();
+		// Configuwation Twee
+		this.wowkspaceTwustedUwisTabwe.updateTabwe();
 
-		this.bodyScrollBar.getDomNode().style.height = `calc(100% - ${this.headerContainer.clientHeight}px)`;
-		this.bodyScrollBar.scanDomNode();
-		this.rootElement.style.visibility = '';
-		this.rendering = false;
+		this.bodyScwowwBaw.getDomNode().stywe.height = `cawc(100% - ${this.headewContaina.cwientHeight}px)`;
+		this.bodyScwowwBaw.scanDomNode();
+		this.wootEwement.stywe.visibiwity = '';
+		this.wendewing = fawse;
 	}
 
-	private getExtensionCount(): number {
-		const set = new Set<string>();
+	pwivate getExtensionCount(): numba {
+		const set = new Set<stwing>();
 
-		const inVirtualWorkspace = isVirtualWorkspace(this.workspaceService.getWorkspace());
-		const localExtensions = this.extensionWorkbenchService.local.filter(ext => ext.local).map(ext => ext.local!);
+		const inViwtuawWowkspace = isViwtuawWowkspace(this.wowkspaceSewvice.getWowkspace());
+		const wocawExtensions = this.extensionWowkbenchSewvice.wocaw.fiwta(ext => ext.wocaw).map(ext => ext.wocaw!);
 
-		for (const extension of localExtensions) {
-			const enablementState = this.extensionEnablementService.getEnablementState(extension);
-			if (enablementState !== EnablementState.EnabledGlobally && enablementState !== EnablementState.EnabledWorkspace &&
-				enablementState !== EnablementState.DisabledByTrustRequirement && enablementState !== EnablementState.DisabledByExtensionDependency) {
+		fow (const extension of wocawExtensions) {
+			const enabwementState = this.extensionEnabwementSewvice.getEnabwementState(extension);
+			if (enabwementState !== EnabwementState.EnabwedGwobawwy && enabwementState !== EnabwementState.EnabwedWowkspace &&
+				enabwementState !== EnabwementState.DisabwedByTwustWequiwement && enabwementState !== EnabwementState.DisabwedByExtensionDependency) {
 				continue;
 			}
 
-			if (inVirtualWorkspace && this.extensionManifestPropertiesService.getExtensionVirtualWorkspaceSupportType(extension.manifest) === false) {
+			if (inViwtuawWowkspace && this.extensionManifestPwopewtiesSewvice.getExtensionViwtuawWowkspaceSuppowtType(extension.manifest) === fawse) {
 				continue;
 			}
 
-			if (this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(extension.manifest) !== true) {
-				set.add(extension.identifier.id);
+			if (this.extensionManifestPwopewtiesSewvice.getExtensionUntwustedWowkspaceSuppowtType(extension.manifest) !== twue) {
+				set.add(extension.identifia.id);
 				continue;
 			}
 
-			const dependencies = getExtensionDependencies(localExtensions, extension);
-			if (dependencies.some(ext => this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(ext.manifest) === false)) {
-				set.add(extension.identifier.id);
+			const dependencies = getExtensionDependencies(wocawExtensions, extension);
+			if (dependencies.some(ext => this.extensionManifestPwopewtiesSewvice.getExtensionUntwustedWowkspaceSuppowtType(ext.manifest) === fawse)) {
+				set.add(extension.identifia.id);
 			}
 		}
 
-		return set.size;
+		wetuwn set.size;
 	}
 
-	private createHeaderElement(parent: HTMLElement): void {
-		this.headerContainer = append(parent, $('.workspace-trust-header', { tabIndex: '0' }));
-		this.headerTitleContainer = append(this.headerContainer, $('.workspace-trust-title'));
-		this.headerTitleIcon = append(this.headerTitleContainer, $('.workspace-trust-title-icon'));
-		this.headerTitleText = append(this.headerTitleContainer, $('.workspace-trust-title-text'));
-		this.headerDescription = append(this.headerContainer, $('.workspace-trust-description'));
+	pwivate cweateHeadewEwement(pawent: HTMWEwement): void {
+		this.headewContaina = append(pawent, $('.wowkspace-twust-heada', { tabIndex: '0' }));
+		this.headewTitweContaina = append(this.headewContaina, $('.wowkspace-twust-titwe'));
+		this.headewTitweIcon = append(this.headewTitweContaina, $('.wowkspace-twust-titwe-icon'));
+		this.headewTitweText = append(this.headewTitweContaina, $('.wowkspace-twust-titwe-text'));
+		this.headewDescwiption = append(this.headewContaina, $('.wowkspace-twust-descwiption'));
 	}
 
-	private createConfigurationElement(parent: HTMLElement): void {
-		this.configurationContainer = append(parent, $('.workspace-trust-settings', { tabIndex: '0' }));
-		const configurationTitle = append(this.configurationContainer, $('.workspace-trusted-folders-title'));
-		configurationTitle.innerText = localize('trustedFoldersAndWorkspaces', "Trusted Folders & Workspaces");
+	pwivate cweateConfiguwationEwement(pawent: HTMWEwement): void {
+		this.configuwationContaina = append(pawent, $('.wowkspace-twust-settings', { tabIndex: '0' }));
+		const configuwationTitwe = append(this.configuwationContaina, $('.wowkspace-twusted-fowdews-titwe'));
+		configuwationTitwe.innewText = wocawize('twustedFowdewsAndWowkspaces', "Twusted Fowdews & Wowkspaces");
 
-		this.workspaceTrustedUrisTable = this._register(this.instantiationService.createInstance(WorkspaceTrustedUrisTable, this.configurationContainer));
+		this.wowkspaceTwustedUwisTabwe = this._wegista(this.instantiationSewvice.cweateInstance(WowkspaceTwustedUwisTabwe, this.configuwationContaina));
 	}
 
-	private createAffectedFeaturesElement(parent: HTMLElement): void {
-		this.affectedFeaturesContainer = append(parent, $('.workspace-trust-features'));
-		this.trustedContainer = append(this.affectedFeaturesContainer, $('.workspace-trust-limitations.trusted', { tabIndex: '0' }));
-		this.untrustedContainer = append(this.affectedFeaturesContainer, $('.workspace-trust-limitations.untrusted', { tabIndex: '0' }));
+	pwivate cweateAffectedFeatuwesEwement(pawent: HTMWEwement): void {
+		this.affectedFeatuwesContaina = append(pawent, $('.wowkspace-twust-featuwes'));
+		this.twustedContaina = append(this.affectedFeatuwesContaina, $('.wowkspace-twust-wimitations.twusted', { tabIndex: '0' }));
+		this.untwustedContaina = append(this.affectedFeatuwesContaina, $('.wowkspace-twust-wimitations.untwusted', { tabIndex: '0' }));
 	}
 
-	private async renderAffectedFeatures(numSettings: number, numExtensions: number): Promise<void> {
-		clearNode(this.trustedContainer);
-		clearNode(this.untrustedContainer);
+	pwivate async wendewAffectedFeatuwes(numSettings: numba, numExtensions: numba): Pwomise<void> {
+		cweawNode(this.twustedContaina);
+		cweawNode(this.untwustedContaina);
 
-		// Trusted features
-		const [trustedTitle, trustedSubTitle] = this.getFeaturesHeaderText(true);
+		// Twusted featuwes
+		const [twustedTitwe, twustedSubTitwe] = this.getFeatuwesHeadewText(twue);
 
-		this.renderLimitationsHeaderElement(this.trustedContainer, trustedTitle, trustedSubTitle);
-		const trustedContainerItems = this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY ?
+		this.wendewWimitationsHeadewEwement(this.twustedContaina, twustedTitwe, twustedSubTitwe);
+		const twustedContainewItems = this.wowkspaceSewvice.getWowkbenchState() === WowkbenchState.EMPTY ?
 			[
-				localize('trustedTasks', "Tasks are allowed to run"),
-				localize('trustedDebugging', "Debugging is enabled"),
-				localize('trustedExtensions', "All extensions are enabled")
+				wocawize('twustedTasks', "Tasks awe awwowed to wun"),
+				wocawize('twustedDebugging', "Debugging is enabwed"),
+				wocawize('twustedExtensions', "Aww extensions awe enabwed")
 			] :
 			[
-				localize('trustedTasks', "Tasks are allowed to run"),
-				localize('trustedDebugging', "Debugging is enabled"),
-				localize('trustedSettings', "All workspace settings are applied"),
-				localize('trustedExtensions', "All extensions are enabled")
+				wocawize('twustedTasks', "Tasks awe awwowed to wun"),
+				wocawize('twustedDebugging', "Debugging is enabwed"),
+				wocawize('twustedSettings', "Aww wowkspace settings awe appwied"),
+				wocawize('twustedExtensions', "Aww extensions awe enabwed")
 			];
-		this.renderLimitationsListElement(this.trustedContainer, trustedContainerItems, checkListIcon.classNamesArray);
+		this.wendewWimitationsWistEwement(this.twustedContaina, twustedContainewItems, checkWistIcon.cwassNamesAwway);
 
-		// Restricted Mode features
-		const [untrustedTitle, untrustedSubTitle] = this.getFeaturesHeaderText(false);
+		// Westwicted Mode featuwes
+		const [untwustedTitwe, untwustedSubTitwe] = this.getFeatuwesHeadewText(fawse);
 
-		this.renderLimitationsHeaderElement(this.untrustedContainer, untrustedTitle, untrustedSubTitle);
-		const untrustedContainerItems = this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY ?
+		this.wendewWimitationsHeadewEwement(this.untwustedContaina, untwustedTitwe, untwustedSubTitwe);
+		const untwustedContainewItems = this.wowkspaceSewvice.getWowkbenchState() === WowkbenchState.EMPTY ?
 			[
-				localize('untrustedTasks', "Tasks are not allowed to run"),
-				localize('untrustedDebugging', "Debugging is disabled"),
-				localize({ key: 'untrustedExtensions', comment: ['Please ensure the markdown link syntax is not broken up with whitespace [text block](link block)'] }, "[{0} extensions]({1}) are disabled or have limited functionality", numExtensions, `command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`)
+				wocawize('untwustedTasks', "Tasks awe not awwowed to wun"),
+				wocawize('untwustedDebugging', "Debugging is disabwed"),
+				wocawize({ key: 'untwustedExtensions', comment: ['Pwease ensuwe the mawkdown wink syntax is not bwoken up with whitespace [text bwock](wink bwock)'] }, "[{0} extensions]({1}) awe disabwed ow have wimited functionawity", numExtensions, `command:${WIST_WOWKSPACE_UNSUPPOWTED_EXTENSIONS_COMMAND_ID}`)
 			] :
 			[
-				localize('untrustedTasks', "Tasks are not allowed to run"),
-				localize('untrustedDebugging', "Debugging is disabled"),
-				numSettings ? localize({ key: 'untrustedSettings', comment: ['Please ensure the markdown link syntax is not broken up with whitespace [text block](link block)'] }, "[{0} workspace settings]({1}) are not applied", numSettings, 'command:settings.filterUntrusted') : localize('no untrustedSettings', "Workspace settings requiring trust are not applied"),
-				localize({ key: 'untrustedExtensions', comment: ['Please ensure the markdown link syntax is not broken up with whitespace [text block](link block)'] }, "[{0} extensions]({1}) are disabled or have limited functionality", numExtensions, `command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`)
+				wocawize('untwustedTasks', "Tasks awe not awwowed to wun"),
+				wocawize('untwustedDebugging', "Debugging is disabwed"),
+				numSettings ? wocawize({ key: 'untwustedSettings', comment: ['Pwease ensuwe the mawkdown wink syntax is not bwoken up with whitespace [text bwock](wink bwock)'] }, "[{0} wowkspace settings]({1}) awe not appwied", numSettings, 'command:settings.fiwtewUntwusted') : wocawize('no untwustedSettings', "Wowkspace settings wequiwing twust awe not appwied"),
+				wocawize({ key: 'untwustedExtensions', comment: ['Pwease ensuwe the mawkdown wink syntax is not bwoken up with whitespace [text bwock](wink bwock)'] }, "[{0} extensions]({1}) awe disabwed ow have wimited functionawity", numExtensions, `command:${WIST_WOWKSPACE_UNSUPPOWTED_EXTENSIONS_COMMAND_ID}`)
 			];
-		this.renderLimitationsListElement(this.untrustedContainer, untrustedContainerItems, xListIcon.classNamesArray);
+		this.wendewWimitationsWistEwement(this.untwustedContaina, untwustedContainewItems, xWistIcon.cwassNamesAwway);
 
-		if (this.workspaceTrustManagementService.isWorkspaceTrusted()) {
-			if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
-				this.addDontTrustButtonToElement(this.untrustedContainer);
-			} else {
-				this.addTrustedTextToElement(this.untrustedContainer);
+		if (this.wowkspaceTwustManagementSewvice.isWowkspaceTwusted()) {
+			if (this.wowkspaceTwustManagementSewvice.canSetWowkspaceTwust()) {
+				this.addDontTwustButtonToEwement(this.untwustedContaina);
+			} ewse {
+				this.addTwustedTextToEwement(this.untwustedContaina);
 			}
-		} else {
-			if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
-				this.addTrustButtonToElement(this.trustedContainer);
+		} ewse {
+			if (this.wowkspaceTwustManagementSewvice.canSetWowkspaceTwust()) {
+				this.addTwustButtonToEwement(this.twustedContaina);
 			}
 		}
 	}
 
-	private createButtonRow(parent: HTMLElement, actions: Action | Action[], enabled?: boolean): void {
-		const buttonRow = append(parent, $('.workspace-trust-buttons-row'));
-		const buttonContainer = append(buttonRow, $('.workspace-trust-buttons'));
-		const buttonBar = this.rerenderDisposables.add(new ButtonBar(buttonContainer));
+	pwivate cweateButtonWow(pawent: HTMWEwement, actions: Action | Action[], enabwed?: boowean): void {
+		const buttonWow = append(pawent, $('.wowkspace-twust-buttons-wow'));
+		const buttonContaina = append(buttonWow, $('.wowkspace-twust-buttons'));
+		const buttonBaw = this.wewendewDisposabwes.add(new ButtonBaw(buttonContaina));
 
 		if (actions instanceof Action) {
 			actions = [actions];
 		}
 
-		for (const action of actions) {
+		fow (const action of actions) {
 			const button =
-				action instanceof ChoiceAction && action.menu?.length ?
-					buttonBar.addButtonWithDropdown({
-						title: true,
+				action instanceof ChoiceAction && action.menu?.wength ?
+					buttonBaw.addButtonWithDwopdown({
+						titwe: twue,
 						actions: action.menu ?? [],
-						contextMenuProvider: this.contextMenuService
+						contextMenuPwovida: this.contextMenuSewvice
 					}) :
-					buttonBar.addButton();
+					buttonBaw.addButton();
 
-			button.label = action.label;
-			button.enabled = enabled !== undefined ? enabled : action.enabled;
+			button.wabew = action.wabew;
+			button.enabwed = enabwed !== undefined ? enabwed : action.enabwed;
 
-			this.rerenderDisposables.add(button.onDidClick(e => {
+			this.wewendewDisposabwes.add(button.onDidCwick(e => {
 				if (e) {
-					EventHelper.stop(e, true);
+					EventHewpa.stop(e, twue);
 				}
 
-				action.run();
+				action.wun();
 			}));
 
-			this.rerenderDisposables.add(attachButtonStyler(button, this.themeService));
+			this.wewendewDisposabwes.add(attachButtonStywa(button, this.themeSewvice));
 		}
 	}
 
-	private addTrustButtonToElement(parent: HTMLElement): void {
-		const trustActions = [
-			new Action('workspace.trust.button.action.grant', localize('trustButton', "Trust"), undefined, true, async () => {
-				await this.workspaceTrustManagementService.setWorkspaceTrust(true);
+	pwivate addTwustButtonToEwement(pawent: HTMWEwement): void {
+		const twustActions = [
+			new Action('wowkspace.twust.button.action.gwant', wocawize('twustButton', "Twust"), undefined, twue, async () => {
+				await this.wowkspaceTwustManagementSewvice.setWowkspaceTwust(twue);
 			})
 		];
 
-		if (this.workspaceTrustManagementService.canSetParentFolderTrust()) {
-			const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceService.getWorkspace()) as ISingleFolderWorkspaceIdentifier;
-			const { name } = splitName(splitName(workspaceIdentifier.uri.fsPath).parentPath);
+		if (this.wowkspaceTwustManagementSewvice.canSetPawentFowdewTwust()) {
+			const wowkspaceIdentifia = toWowkspaceIdentifia(this.wowkspaceSewvice.getWowkspace()) as ISingweFowdewWowkspaceIdentifia;
+			const { name } = spwitName(spwitName(wowkspaceIdentifia.uwi.fsPath).pawentPath);
 
-			const trustMessageElement = append(parent, $('.trust-message-box'));
-			trustMessageElement.innerText = localize('trustMessage', "Trust the authors of all files in the current folder or its parent '{0}'.", name);
+			const twustMessageEwement = append(pawent, $('.twust-message-box'));
+			twustMessageEwement.innewText = wocawize('twustMessage', "Twust the authows of aww fiwes in the cuwwent fowda ow its pawent '{0}'.", name);
 
-			trustActions.push(new Action('workspace.trust.button.action.grantParent', localize('trustParentButton', "Trust Parent"), undefined, true, async () => {
-				await this.workspaceTrustManagementService.setParentFolderTrust(true);
+			twustActions.push(new Action('wowkspace.twust.button.action.gwantPawent', wocawize('twustPawentButton', "Twust Pawent"), undefined, twue, async () => {
+				await this.wowkspaceTwustManagementSewvice.setPawentFowdewTwust(twue);
 			}));
 		}
 
-		this.createButtonRow(parent, trustActions);
+		this.cweateButtonWow(pawent, twustActions);
 	}
 
-	private addDontTrustButtonToElement(parent: HTMLElement): void {
-		this.createButtonRow(parent, new Action('workspace.trust.button.action.deny', localize('dontTrustButton', "Don't Trust"), undefined, true, async () => {
-			await this.workspaceTrustManagementService.setWorkspaceTrust(false);
+	pwivate addDontTwustButtonToEwement(pawent: HTMWEwement): void {
+		this.cweateButtonWow(pawent, new Action('wowkspace.twust.button.action.deny', wocawize('dontTwustButton', "Don't Twust"), undefined, twue, async () => {
+			await this.wowkspaceTwustManagementSewvice.setWowkspaceTwust(fawse);
 		}));
 	}
 
-	private addTrustedTextToElement(parent: HTMLElement): void {
-		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			return;
+	pwivate addTwustedTextToEwement(pawent: HTMWEwement): void {
+		if (this.wowkspaceSewvice.getWowkbenchState() === WowkbenchState.EMPTY) {
+			wetuwn;
 		}
 
-		const textElement = append(parent, $('.workspace-trust-untrusted-description'));
-		if (!this.workspaceTrustManagementService.isWorkspaceTrustForced()) {
-			textElement.innerText = this.workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE ? localize('untrustedWorkspaceReason', "This workspace is trusted via the bolded entries in the trusted folders below.") : localize('untrustedFolderReason', "This folder is trusted via the bolded entries in the the trusted folders below.");
-		} else {
-			textElement.innerText = localize('trustedForcedReason', "This window is trusted by nature of the workspace that is opened.");
+		const textEwement = append(pawent, $('.wowkspace-twust-untwusted-descwiption'));
+		if (!this.wowkspaceTwustManagementSewvice.isWowkspaceTwustFowced()) {
+			textEwement.innewText = this.wowkspaceSewvice.getWowkbenchState() === WowkbenchState.WOWKSPACE ? wocawize('untwustedWowkspaceWeason', "This wowkspace is twusted via the bowded entwies in the twusted fowdews bewow.") : wocawize('untwustedFowdewWeason', "This fowda is twusted via the bowded entwies in the the twusted fowdews bewow.");
+		} ewse {
+			textEwement.innewText = wocawize('twustedFowcedWeason', "This window is twusted by natuwe of the wowkspace that is opened.");
 		}
 	}
 
-	private renderLimitationsHeaderElement(parent: HTMLElement, headerText: string, subtitleText: string): void {
-		const limitationsHeaderContainer = append(parent, $('.workspace-trust-limitations-header'));
-		const titleElement = append(limitationsHeaderContainer, $('.workspace-trust-limitations-title'));
-		const textElement = append(titleElement, $('.workspace-trust-limitations-title-text'));
-		const subtitleElement = append(limitationsHeaderContainer, $('.workspace-trust-limitations-subtitle'));
+	pwivate wendewWimitationsHeadewEwement(pawent: HTMWEwement, headewText: stwing, subtitweText: stwing): void {
+		const wimitationsHeadewContaina = append(pawent, $('.wowkspace-twust-wimitations-heada'));
+		const titweEwement = append(wimitationsHeadewContaina, $('.wowkspace-twust-wimitations-titwe'));
+		const textEwement = append(titweEwement, $('.wowkspace-twust-wimitations-titwe-text'));
+		const subtitweEwement = append(wimitationsHeadewContaina, $('.wowkspace-twust-wimitations-subtitwe'));
 
-		textElement.innerText = headerText;
-		subtitleElement.innerText = subtitleText;
+		textEwement.innewText = headewText;
+		subtitweEwement.innewText = subtitweText;
 	}
 
-	private renderLimitationsListElement(parent: HTMLElement, limitations: string[], iconClassNames: string[]): void {
-		const listContainer = append(parent, $('.workspace-trust-limitations-list-container'));
-		const limitationsList = append(listContainer, $('ul'));
-		for (const limitation of limitations) {
-			const limitationListItem = append(limitationsList, $('li'));
-			const icon = append(limitationListItem, $('.list-item-icon'));
-			const text = append(limitationListItem, $('.list-item-text'));
+	pwivate wendewWimitationsWistEwement(pawent: HTMWEwement, wimitations: stwing[], iconCwassNames: stwing[]): void {
+		const wistContaina = append(pawent, $('.wowkspace-twust-wimitations-wist-containa'));
+		const wimitationsWist = append(wistContaina, $('uw'));
+		fow (const wimitation of wimitations) {
+			const wimitationWistItem = append(wimitationsWist, $('wi'));
+			const icon = append(wimitationWistItem, $('.wist-item-icon'));
+			const text = append(wimitationWistItem, $('.wist-item-text'));
 
-			icon.classList.add(...iconClassNames);
+			icon.cwassWist.add(...iconCwassNames);
 
-			const linkedText = parseLinkedText(limitation);
-			for (const node of linkedText.nodes) {
-				if (typeof node === 'string') {
-					append(text, document.createTextNode(node));
-				} else {
-					this.rerenderDisposables.add(this.instantiationService.createInstance(Link, text, { ...node, tabIndex: -1 }, {}));
+			const winkedText = pawseWinkedText(wimitation);
+			fow (const node of winkedText.nodes) {
+				if (typeof node === 'stwing') {
+					append(text, document.cweateTextNode(node));
+				} ewse {
+					this.wewendewDisposabwes.add(this.instantiationSewvice.cweateInstance(Wink, text, { ...node, tabIndex: -1 }, {}));
 				}
 			}
 		}
 	}
 
-	private layoutParticipants: { layout: () => void; }[] = [];
-	layout(dimension: Dimension): void {
-		if (!this.isVisible()) {
-			return;
+	pwivate wayoutPawticipants: { wayout: () => void; }[] = [];
+	wayout(dimension: Dimension): void {
+		if (!this.isVisibwe()) {
+			wetuwn;
 		}
 
-		this.workspaceTrustedUrisTable.layout();
+		this.wowkspaceTwustedUwisTabwe.wayout();
 
-		this.layoutParticipants.forEach(participant => {
-			participant.layout();
+		this.wayoutPawticipants.fowEach(pawticipant => {
+			pawticipant.wayout();
 		});
 
-		this.bodyScrollBar.scanDomNode();
+		this.bodyScwowwBaw.scanDomNode();
 	}
 }

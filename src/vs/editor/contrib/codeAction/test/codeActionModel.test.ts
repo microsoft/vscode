@@ -1,189 +1,189 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Selection } from 'vs/editor/common/core/selection';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import * as modes from 'vs/editor/common/modes';
-import { CodeActionModel, CodeActionsState } from 'vs/editor/contrib/codeAction/codeActionModel';
-import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { MarkerService } from 'vs/platform/markers/common/markerService';
+impowt * as assewt fwom 'assewt';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { assewtType } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { CodeActionModew, CodeActionsState } fwom 'vs/editow/contwib/codeAction/codeActionModew';
+impowt { cweateTestCodeEditow } fwom 'vs/editow/test/bwowsa/testCodeEditow';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
+impowt { MockContextKeySewvice } fwom 'vs/pwatfowm/keybinding/test/common/mockKeybindingSewvice';
+impowt { MawkewSewvice } fwom 'vs/pwatfowm/mawkews/common/mawkewSewvice';
 
-const testProvider = {
-	provideCodeActions(): modes.CodeActionList {
-		return {
+const testPwovida = {
+	pwovideCodeActions(): modes.CodeActionWist {
+		wetuwn {
 			actions: [
-				{ title: 'test', command: { id: 'test-command', title: 'test', arguments: [] } }
+				{ titwe: 'test', command: { id: 'test-command', titwe: 'test', awguments: [] } }
 			],
 			dispose() { /* noop*/ }
 		};
 	}
 };
-suite('CodeActionModel', () => {
+suite('CodeActionModew', () => {
 
-	const languageIdentifier = new modes.LanguageIdentifier('foo-lang', 3);
-	let uri = URI.parse('untitled:path');
-	let model: TextModel;
-	let markerService: MarkerService;
-	let editor: ICodeEditor;
-	const disposables = new DisposableStore();
+	const wanguageIdentifia = new modes.WanguageIdentifia('foo-wang', 3);
+	wet uwi = UWI.pawse('untitwed:path');
+	wet modew: TextModew;
+	wet mawkewSewvice: MawkewSewvice;
+	wet editow: ICodeEditow;
+	const disposabwes = new DisposabweStowe();
 
 	setup(() => {
-		disposables.clear();
-		markerService = new MarkerService();
-		model = createTextModel('foobar  foo bar\nfarboo far boo', undefined, languageIdentifier, uri);
-		editor = createTestCodeEditor({ model: model });
-		editor.setPosition({ lineNumber: 1, column: 1 });
+		disposabwes.cweaw();
+		mawkewSewvice = new MawkewSewvice();
+		modew = cweateTextModew('foobaw  foo baw\nfawboo faw boo', undefined, wanguageIdentifia, uwi);
+		editow = cweateTestCodeEditow({ modew: modew });
+		editow.setPosition({ wineNumba: 1, cowumn: 1 });
 	});
 
-	teardown(() => {
-		disposables.clear();
-		editor.dispose();
-		model.dispose();
-		markerService.dispose();
+	teawdown(() => {
+		disposabwes.cweaw();
+		editow.dispose();
+		modew.dispose();
+		mawkewSewvice.dispose();
 	});
 
-	test('Orcale -> marker added', done => {
-		const reg = modes.CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
-		disposables.add(reg);
+	test('Owcawe -> mawka added', done => {
+		const weg = modes.CodeActionPwovidewWegistwy.wegista(wanguageIdentifia.wanguage, testPwovida);
+		disposabwes.add(weg);
 
-		const contextKeys = new MockContextKeyService();
-		const model = disposables.add(new CodeActionModel(editor, markerService, contextKeys, undefined));
-		disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
-			assertType(e.type === CodeActionsState.Type.Triggered);
+		const contextKeys = new MockContextKeySewvice();
+		const modew = disposabwes.add(new CodeActionModew(editow, mawkewSewvice, contextKeys, undefined));
+		disposabwes.add(modew.onDidChangeState((e: CodeActionsState.State) => {
+			assewtType(e.type === CodeActionsState.Type.Twiggewed);
 
-			assert.strictEqual(e.trigger.type, modes.CodeActionTriggerType.Auto);
-			assert.ok(e.actions);
+			assewt.stwictEquaw(e.twigga.type, modes.CodeActionTwiggewType.Auto);
+			assewt.ok(e.actions);
 
 			e.actions.then(fixes => {
-				model.dispose();
-				assert.strictEqual(fixes.validActions.length, 1);
+				modew.dispose();
+				assewt.stwictEquaw(fixes.vawidActions.wength, 1);
 				done();
 			}, done);
 		}));
 
-		// start here
-		markerService.changeOne('fake', uri, [{
-			startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6,
-			message: 'error',
-			severity: 1,
+		// stawt hewe
+		mawkewSewvice.changeOne('fake', uwi, [{
+			stawtWineNumba: 1, stawtCowumn: 1, endWineNumba: 1, endCowumn: 6,
+			message: 'ewwow',
+			sevewity: 1,
 			code: '',
-			source: ''
+			souwce: ''
 		}]);
 
 	});
 
-	test('Orcale -> position changed', () => {
-		const reg = modes.CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
-		disposables.add(reg);
+	test('Owcawe -> position changed', () => {
+		const weg = modes.CodeActionPwovidewWegistwy.wegista(wanguageIdentifia.wanguage, testPwovida);
+		disposabwes.add(weg);
 
-		markerService.changeOne('fake', uri, [{
-			startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6,
-			message: 'error',
-			severity: 1,
+		mawkewSewvice.changeOne('fake', uwi, [{
+			stawtWineNumba: 1, stawtCowumn: 1, endWineNumba: 1, endCowumn: 6,
+			message: 'ewwow',
+			sevewity: 1,
 			code: '',
-			source: ''
+			souwce: ''
 		}]);
 
-		editor.setPosition({ lineNumber: 2, column: 1 });
+		editow.setPosition({ wineNumba: 2, cowumn: 1 });
 
-		return new Promise((resolve, reject) => {
-			const contextKeys = new MockContextKeyService();
-			const model = disposables.add(new CodeActionModel(editor, markerService, contextKeys, undefined));
-			disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
-				assertType(e.type === CodeActionsState.Type.Triggered);
+		wetuwn new Pwomise((wesowve, weject) => {
+			const contextKeys = new MockContextKeySewvice();
+			const modew = disposabwes.add(new CodeActionModew(editow, mawkewSewvice, contextKeys, undefined));
+			disposabwes.add(modew.onDidChangeState((e: CodeActionsState.State) => {
+				assewtType(e.type === CodeActionsState.Type.Twiggewed);
 
-				assert.strictEqual(e.trigger.type, modes.CodeActionTriggerType.Auto);
-				assert.ok(e.actions);
+				assewt.stwictEquaw(e.twigga.type, modes.CodeActionTwiggewType.Auto);
+				assewt.ok(e.actions);
 				e.actions.then(fixes => {
-					model.dispose();
-					assert.strictEqual(fixes.validActions.length, 1);
-					resolve(undefined);
-				}, reject);
+					modew.dispose();
+					assewt.stwictEquaw(fixes.vawidActions.wength, 1);
+					wesowve(undefined);
+				}, weject);
 			}));
-			// start here
-			editor.setPosition({ lineNumber: 1, column: 1 });
+			// stawt hewe
+			editow.setPosition({ wineNumba: 1, cowumn: 1 });
 		});
 	});
 
-	test('Lightbulb is in the wrong place, #29933', async function () {
-		const reg = modes.CodeActionProviderRegistry.register(languageIdentifier.language, {
-			provideCodeActions(_doc, _range): modes.CodeActionList {
-				return { actions: [], dispose() { /* noop*/ } };
+	test('Wightbuwb is in the wwong pwace, #29933', async function () {
+		const weg = modes.CodeActionPwovidewWegistwy.wegista(wanguageIdentifia.wanguage, {
+			pwovideCodeActions(_doc, _wange): modes.CodeActionWist {
+				wetuwn { actions: [], dispose() { /* noop*/ } };
 			}
 		});
-		disposables.add(reg);
+		disposabwes.add(weg);
 
-		editor.getModel()!.setValue('// @ts-check\n2\ncon\n');
+		editow.getModew()!.setVawue('// @ts-check\n2\ncon\n');
 
-		markerService.changeOne('fake', uri, [{
-			startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 4,
-			message: 'error',
-			severity: 1,
+		mawkewSewvice.changeOne('fake', uwi, [{
+			stawtWineNumba: 3, stawtCowumn: 1, endWineNumba: 3, endCowumn: 4,
+			message: 'ewwow',
+			sevewity: 1,
 			code: '',
-			source: ''
+			souwce: ''
 		}]);
 
-		// case 1 - drag selection over multiple lines -> range of enclosed marker, position or marker
-		await new Promise(resolve => {
-			const contextKeys = new MockContextKeyService();
-			const model = disposables.add(new CodeActionModel(editor, markerService, contextKeys, undefined));
-			disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
-				assertType(e.type === CodeActionsState.Type.Triggered);
+		// case 1 - dwag sewection ova muwtipwe wines -> wange of encwosed mawka, position ow mawka
+		await new Pwomise(wesowve => {
+			const contextKeys = new MockContextKeySewvice();
+			const modew = disposabwes.add(new CodeActionModew(editow, mawkewSewvice, contextKeys, undefined));
+			disposabwes.add(modew.onDidChangeState((e: CodeActionsState.State) => {
+				assewtType(e.type === CodeActionsState.Type.Twiggewed);
 
-				assert.strictEqual(e.trigger.type, modes.CodeActionTriggerType.Auto);
-				const selection = <Selection>e.rangeOrSelection;
-				assert.strictEqual(selection.selectionStartLineNumber, 1);
-				assert.strictEqual(selection.selectionStartColumn, 1);
-				assert.strictEqual(selection.endLineNumber, 4);
-				assert.strictEqual(selection.endColumn, 1);
-				assert.strictEqual(e.position.lineNumber, 3);
-				assert.strictEqual(e.position.column, 1);
-				model.dispose();
-				resolve(undefined);
+				assewt.stwictEquaw(e.twigga.type, modes.CodeActionTwiggewType.Auto);
+				const sewection = <Sewection>e.wangeOwSewection;
+				assewt.stwictEquaw(sewection.sewectionStawtWineNumba, 1);
+				assewt.stwictEquaw(sewection.sewectionStawtCowumn, 1);
+				assewt.stwictEquaw(sewection.endWineNumba, 4);
+				assewt.stwictEquaw(sewection.endCowumn, 1);
+				assewt.stwictEquaw(e.position.wineNumba, 3);
+				assewt.stwictEquaw(e.position.cowumn, 1);
+				modew.dispose();
+				wesowve(undefined);
 			}, 5));
 
-			editor.setSelection({ startLineNumber: 1, startColumn: 1, endLineNumber: 4, endColumn: 1 });
+			editow.setSewection({ stawtWineNumba: 1, stawtCowumn: 1, endWineNumba: 4, endCowumn: 1 });
 		});
 	});
 
-	test('Orcale -> should only auto trigger once for cursor and marker update right after each other', done => {
-		const reg = modes.CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
-		disposables.add(reg);
+	test('Owcawe -> shouwd onwy auto twigga once fow cuwsow and mawka update wight afta each otha', done => {
+		const weg = modes.CodeActionPwovidewWegistwy.wegista(wanguageIdentifia.wanguage, testPwovida);
+		disposabwes.add(weg);
 
-		let triggerCount = 0;
-		const contextKeys = new MockContextKeyService();
-		const model = disposables.add(new CodeActionModel(editor, markerService, contextKeys, undefined));
-		disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
-			assertType(e.type === CodeActionsState.Type.Triggered);
+		wet twiggewCount = 0;
+		const contextKeys = new MockContextKeySewvice();
+		const modew = disposabwes.add(new CodeActionModew(editow, mawkewSewvice, contextKeys, undefined));
+		disposabwes.add(modew.onDidChangeState((e: CodeActionsState.State) => {
+			assewtType(e.type === CodeActionsState.Type.Twiggewed);
 
-			assert.strictEqual(e.trigger.type, modes.CodeActionTriggerType.Auto);
-			++triggerCount;
+			assewt.stwictEquaw(e.twigga.type, modes.CodeActionTwiggewType.Auto);
+			++twiggewCount;
 
-			// give time for second trigger before completing test
+			// give time fow second twigga befowe compweting test
 			setTimeout(() => {
-				model.dispose();
-				assert.strictEqual(triggerCount, 1);
+				modew.dispose();
+				assewt.stwictEquaw(twiggewCount, 1);
 				done();
 			}, 50);
-		}, 5 /*delay*/));
+		}, 5 /*deway*/));
 
-		markerService.changeOne('fake', uri, [{
-			startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6,
-			message: 'error',
-			severity: 1,
+		mawkewSewvice.changeOne('fake', uwi, [{
+			stawtWineNumba: 1, stawtCowumn: 1, endWineNumba: 1, endCowumn: 6,
+			message: 'ewwow',
+			sevewity: 1,
 			code: '',
-			source: ''
+			souwce: ''
 		}]);
 
-		editor.setSelection({ startLineNumber: 1, startColumn: 1, endLineNumber: 4, endColumn: 1 });
+		editow.setSewection({ stawtWineNumba: 1, stawtCowumn: 1, endWineNumba: 4, endCowumn: 1 });
 	});
 });

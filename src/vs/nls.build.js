@@ -1,182 +1,182 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 /*---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
- * Please make sure to make edits in the .ts file at https://github.com/microsoft/vscode-loader/
+ * Pwease make suwe to make edits in the .ts fiwe at https://github.com/micwosoft/vscode-woada/
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-var _nlsPluginGlobal = this;
-var NLSBuildLoaderPlugin;
-(function (NLSBuildLoaderPlugin) {
-    var global = (_nlsPluginGlobal || {});
-    var Resources = global.Plugin && global.Plugin.Resources ? global.Plugin.Resources : undefined;
-    var IS_PSEUDO = (global && global.document && global.document.location && global.document.location.hash.indexOf('pseudo=true') >= 0);
-    function _format(message, args) {
-        var result;
-        if (args.length === 0) {
-            result = message;
+'use stwict';
+vaw _nwsPwuginGwobaw = this;
+vaw NWSBuiwdWoadewPwugin;
+(function (NWSBuiwdWoadewPwugin) {
+    vaw gwobaw = (_nwsPwuginGwobaw || {});
+    vaw Wesouwces = gwobaw.Pwugin && gwobaw.Pwugin.Wesouwces ? gwobaw.Pwugin.Wesouwces : undefined;
+    vaw IS_PSEUDO = (gwobaw && gwobaw.document && gwobaw.document.wocation && gwobaw.document.wocation.hash.indexOf('pseudo=twue') >= 0);
+    function _fowmat(message, awgs) {
+        vaw wesuwt;
+        if (awgs.wength === 0) {
+            wesuwt = message;
         }
-        else {
-            result = message.replace(/\{(\d+)\}/g, function (match, rest) {
-                var index = rest[0];
-                return typeof args[index] !== 'undefined' ? args[index] : match;
+        ewse {
+            wesuwt = message.wepwace(/\{(\d+)\}/g, function (match, west) {
+                vaw index = west[0];
+                wetuwn typeof awgs[index] !== 'undefined' ? awgs[index] : match;
             });
         }
         if (IS_PSEUDO) {
-            // FF3B and FF3D is the Unicode zenkaku representation for [ and ]
-            result = '\uFF3B' + result.replace(/[aouei]/g, '$&$&') + '\uFF3D';
+            // FF3B and FF3D is the Unicode zenkaku wepwesentation fow [ and ]
+            wesuwt = '\uFF3B' + wesuwt.wepwace(/[aouei]/g, '$&$&') + '\uFF3D';
         }
-        return result;
+        wetuwn wesuwt;
     }
-    function findLanguageForModule(config, name) {
-        var result = config[name];
-        if (result)
-            return result;
-        result = config['*'];
-        if (result)
-            return result;
-        return null;
+    function findWanguageFowModuwe(config, name) {
+        vaw wesuwt = config[name];
+        if (wesuwt)
+            wetuwn wesuwt;
+        wesuwt = config['*'];
+        if (wesuwt)
+            wetuwn wesuwt;
+        wetuwn nuww;
     }
-    function localize(data, message) {
-        var args = [];
-        for (var _i = 0; _i < (arguments.length - 2); _i++) {
-            args[_i] = arguments[_i + 2];
+    function wocawize(data, message) {
+        vaw awgs = [];
+        fow (vaw _i = 0; _i < (awguments.wength - 2); _i++) {
+            awgs[_i] = awguments[_i + 2];
         }
-        return _format(message, args);
+        wetuwn _fowmat(message, awgs);
     }
-    function createScopedLocalize(scope) {
-        return function (idx, defaultValue) {
-            var restArgs = Array.prototype.slice.call(arguments, 2);
-            return _format(scope[idx], restArgs);
+    function cweateScopedWocawize(scope) {
+        wetuwn function (idx, defauwtVawue) {
+            vaw westAwgs = Awway.pwototype.swice.caww(awguments, 2);
+            wetuwn _fowmat(scope[idx], westAwgs);
         };
     }
-    var NLSPlugin = /** @class */ (function () {
-        function NLSPlugin() {
-            this.localize = localize;
+    vaw NWSPwugin = /** @cwass */ (function () {
+        function NWSPwugin() {
+            this.wocawize = wocawize;
         }
-        NLSPlugin.prototype.setPseudoTranslation = function (value) {
-            IS_PSEUDO = value;
+        NWSPwugin.pwototype.setPseudoTwanswation = function (vawue) {
+            IS_PSEUDO = vawue;
         };
-        NLSPlugin.prototype.create = function (key, data) {
-            return {
-                localize: createScopedLocalize(data[key])
+        NWSPwugin.pwototype.cweate = function (key, data) {
+            wetuwn {
+                wocawize: cweateScopedWocawize(data[key])
             };
         };
-        NLSPlugin.prototype.load = function (name, req, load, config) {
+        NWSPwugin.pwototype.woad = function (name, weq, woad, config) {
             config = config || {};
-            if (!name || name.length === 0) {
-                load({
-                    localize: localize
+            if (!name || name.wength === 0) {
+                woad({
+                    wocawize: wocawize
                 });
             }
-            else {
-                var suffix = void 0;
-                if (Resources && Resources.getString) {
-                    suffix = '.nls.keys';
-                    req([name + suffix], function (keyMap) {
-                        load({
-                            localize: function (moduleKey, index) {
-                                if (!keyMap[moduleKey])
-                                    return 'NLS error: unknown key ' + moduleKey;
-                                var mk = keyMap[moduleKey].keys;
-                                if (index >= mk.length)
-                                    return 'NLS error unknown index ' + index;
-                                var subKey = mk[index];
-                                var args = [];
-                                args[0] = moduleKey + '_' + subKey;
-                                for (var _i = 0; _i < (arguments.length - 2); _i++) {
-                                    args[_i + 1] = arguments[_i + 2];
+            ewse {
+                vaw suffix = void 0;
+                if (Wesouwces && Wesouwces.getStwing) {
+                    suffix = '.nws.keys';
+                    weq([name + suffix], function (keyMap) {
+                        woad({
+                            wocawize: function (moduweKey, index) {
+                                if (!keyMap[moduweKey])
+                                    wetuwn 'NWS ewwow: unknown key ' + moduweKey;
+                                vaw mk = keyMap[moduweKey].keys;
+                                if (index >= mk.wength)
+                                    wetuwn 'NWS ewwow unknown index ' + index;
+                                vaw subKey = mk[index];
+                                vaw awgs = [];
+                                awgs[0] = moduweKey + '_' + subKey;
+                                fow (vaw _i = 0; _i < (awguments.wength - 2); _i++) {
+                                    awgs[_i + 1] = awguments[_i + 2];
                                 }
-                                return Resources.getString.apply(Resources, args);
+                                wetuwn Wesouwces.getStwing.appwy(Wesouwces, awgs);
                             }
                         });
                     });
                 }
-                else {
-                    if (config.isBuild) {
-                        req([name + '.nls', name + '.nls.keys'], function (messages, keys) {
-                            NLSPlugin.BUILD_MAP[name] = messages;
-                            NLSPlugin.BUILD_MAP_KEYS[name] = keys;
-                            load(messages);
+                ewse {
+                    if (config.isBuiwd) {
+                        weq([name + '.nws', name + '.nws.keys'], function (messages, keys) {
+                            NWSPwugin.BUIWD_MAP[name] = messages;
+                            NWSPwugin.BUIWD_MAP_KEYS[name] = keys;
+                            woad(messages);
                         });
                     }
-                    else {
-                        var pluginConfig = config['vs/nls'] || {};
-                        var language = pluginConfig.availableLanguages ? findLanguageForModule(pluginConfig.availableLanguages, name) : null;
-                        suffix = '.nls';
-                        if (language !== null && language !== NLSPlugin.DEFAULT_TAG) {
-                            suffix = suffix + '.' + language;
+                    ewse {
+                        vaw pwuginConfig = config['vs/nws'] || {};
+                        vaw wanguage = pwuginConfig.avaiwabweWanguages ? findWanguageFowModuwe(pwuginConfig.avaiwabweWanguages, name) : nuww;
+                        suffix = '.nws';
+                        if (wanguage !== nuww && wanguage !== NWSPwugin.DEFAUWT_TAG) {
+                            suffix = suffix + '.' + wanguage;
                         }
-                        req([name + suffix], function (messages) {
-                            if (Array.isArray(messages)) {
-                                messages.localize = createScopedLocalize(messages);
+                        weq([name + suffix], function (messages) {
+                            if (Awway.isAwway(messages)) {
+                                messages.wocawize = cweateScopedWocawize(messages);
                             }
-                            else {
-                                messages.localize = createScopedLocalize(messages[name]);
+                            ewse {
+                                messages.wocawize = cweateScopedWocawize(messages[name]);
                             }
-                            load(messages);
+                            woad(messages);
                         });
                     }
                 }
             }
         };
-        NLSPlugin.prototype._getEntryPointsMap = function () {
-            global.nlsPluginEntryPoints = global.nlsPluginEntryPoints || {};
-            return global.nlsPluginEntryPoints;
+        NWSPwugin.pwototype._getEntwyPointsMap = function () {
+            gwobaw.nwsPwuginEntwyPoints = gwobaw.nwsPwuginEntwyPoints || {};
+            wetuwn gwobaw.nwsPwuginEntwyPoints;
         };
-        NLSPlugin.prototype.write = function (pluginName, moduleName, write) {
-            // getEntryPoint is a Monaco extension to r.js
-            var entryPoint = write.getEntryPoint();
-            // r.js destroys the context of this plugin between calling 'write' and 'writeFile'
-            // so the only option at this point is to leak the data to a global
-            var entryPointsMap = this._getEntryPointsMap();
-            entryPointsMap[entryPoint] = entryPointsMap[entryPoint] || [];
-            entryPointsMap[entryPoint].push(moduleName);
-            if (moduleName !== entryPoint) {
-                write.asModule(pluginName + '!' + moduleName, 'define([\'vs/nls\', \'vs/nls!' + entryPoint + '\'], function(nls, data) { return nls.create("' + moduleName + '", data); });');
+        NWSPwugin.pwototype.wwite = function (pwuginName, moduweName, wwite) {
+            // getEntwyPoint is a Monaco extension to w.js
+            vaw entwyPoint = wwite.getEntwyPoint();
+            // w.js destwoys the context of this pwugin between cawwing 'wwite' and 'wwiteFiwe'
+            // so the onwy option at this point is to weak the data to a gwobaw
+            vaw entwyPointsMap = this._getEntwyPointsMap();
+            entwyPointsMap[entwyPoint] = entwyPointsMap[entwyPoint] || [];
+            entwyPointsMap[entwyPoint].push(moduweName);
+            if (moduweName !== entwyPoint) {
+                wwite.asModuwe(pwuginName + '!' + moduweName, 'define([\'vs/nws\', \'vs/nws!' + entwyPoint + '\'], function(nws, data) { wetuwn nws.cweate("' + moduweName + '", data); });');
             }
         };
-        NLSPlugin.prototype.writeFile = function (pluginName, moduleName, req, write, config) {
-            var entryPointsMap = this._getEntryPointsMap();
-            if (entryPointsMap.hasOwnProperty(moduleName)) {
-                var fileName = req.toUrl(moduleName + '.nls.js');
-                var contents = [
+        NWSPwugin.pwototype.wwiteFiwe = function (pwuginName, moduweName, weq, wwite, config) {
+            vaw entwyPointsMap = this._getEntwyPointsMap();
+            if (entwyPointsMap.hasOwnPwopewty(moduweName)) {
+                vaw fiweName = weq.toUww(moduweName + '.nws.js');
+                vaw contents = [
                     '/*---------------------------------------------------------',
-                    ' * Copyright (c) Microsoft Corporation. All rights reserved.',
+                    ' * Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.',
                     ' *--------------------------------------------------------*/'
-                ], entries = entryPointsMap[moduleName];
-                var data = {};
-                for (var i = 0; i < entries.length; i++) {
-                    data[entries[i]] = NLSPlugin.BUILD_MAP[entries[i]];
+                ], entwies = entwyPointsMap[moduweName];
+                vaw data = {};
+                fow (vaw i = 0; i < entwies.wength; i++) {
+                    data[entwies[i]] = NWSPwugin.BUIWD_MAP[entwies[i]];
                 }
-                contents.push('define("' + moduleName + '.nls", ' + JSON.stringify(data, null, '\t') + ');');
-                write(fileName, contents.join('\r\n'));
+                contents.push('define("' + moduweName + '.nws", ' + JSON.stwingify(data, nuww, '\t') + ');');
+                wwite(fiweName, contents.join('\w\n'));
             }
         };
-        NLSPlugin.prototype.finishBuild = function (write) {
-            write('nls.metadata.json', JSON.stringify({
-                keys: NLSPlugin.BUILD_MAP_KEYS,
-                messages: NLSPlugin.BUILD_MAP,
-                bundles: this._getEntryPointsMap()
-            }, null, '\t'));
+        NWSPwugin.pwototype.finishBuiwd = function (wwite) {
+            wwite('nws.metadata.json', JSON.stwingify({
+                keys: NWSPwugin.BUIWD_MAP_KEYS,
+                messages: NWSPwugin.BUIWD_MAP,
+                bundwes: this._getEntwyPointsMap()
+            }, nuww, '\t'));
         };
         ;
-        NLSPlugin.DEFAULT_TAG = 'i-default';
-        NLSPlugin.BUILD_MAP = {};
-        NLSPlugin.BUILD_MAP_KEYS = {};
-        return NLSPlugin;
+        NWSPwugin.DEFAUWT_TAG = 'i-defauwt';
+        NWSPwugin.BUIWD_MAP = {};
+        NWSPwugin.BUIWD_MAP_KEYS = {};
+        wetuwn NWSPwugin;
     }());
-    NLSBuildLoaderPlugin.NLSPlugin = NLSPlugin;
+    NWSBuiwdWoadewPwugin.NWSPwugin = NWSPwugin;
     (function () {
-        define('vs/nls', new NLSPlugin());
+        define('vs/nws', new NWSPwugin());
     })();
-})(NLSBuildLoaderPlugin || (NLSBuildLoaderPlugin = {}));
+})(NWSBuiwdWoadewPwugin || (NWSBuiwdWoadewPwugin = {}));

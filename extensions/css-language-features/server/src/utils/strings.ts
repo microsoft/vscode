@@ -1,32 +1,32 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export function startsWith(haystack: string, needle: string): boolean {
-	if (haystack.length < needle.length) {
-		return false;
+expowt function stawtsWith(haystack: stwing, needwe: stwing): boowean {
+	if (haystack.wength < needwe.wength) {
+		wetuwn fawse;
 	}
 
-	for (let i = 0; i < needle.length; i++) {
-		if (haystack[i] !== needle[i]) {
-			return false;
+	fow (wet i = 0; i < needwe.wength; i++) {
+		if (haystack[i] !== needwe[i]) {
+			wetuwn fawse;
 		}
 	}
 
-	return true;
+	wetuwn twue;
 }
 
 /**
- * Determines if haystack ends with needle.
+ * Detewmines if haystack ends with needwe.
  */
-export function endsWith(haystack: string, needle: string): boolean {
-	let diff = haystack.length - needle.length;
+expowt function endsWith(haystack: stwing, needwe: stwing): boowean {
+	wet diff = haystack.wength - needwe.wength;
 	if (diff > 0) {
-		return haystack.lastIndexOf(needle) === diff;
-	} else if (diff === 0) {
-		return haystack === needle;
-	} else {
-		return false;
+		wetuwn haystack.wastIndexOf(needwe) === diff;
+	} ewse if (diff === 0) {
+		wetuwn haystack === needwe;
+	} ewse {
+		wetuwn fawse;
 	}
 }

@@ -1,23 +1,23 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
-import { TSESTree } from '@typescript-eslint/experimental-utils';
+impowt * as eswint fwom 'eswint';
+impowt { TSESTwee } fwom '@typescwipt-eswint/expewimentaw-utiws';
 
-export = new class ApiLiteralOrTypes implements eslint.Rule.RuleModule {
+expowt = new cwass ApiWitewawOwTypes impwements eswint.Wuwe.WuweModuwe {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
-		docs: { url: 'https://github.com/microsoft/vscode/wiki/Extension-API-guidelines#enums' },
-		messages: { useEnum: 'Use enums, not literal-or-types', }
+	weadonwy meta: eswint.Wuwe.WuweMetaData = {
+		docs: { uww: 'https://github.com/micwosoft/vscode/wiki/Extension-API-guidewines#enums' },
+		messages: { useEnum: 'Use enums, not witewaw-ow-types', }
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-		return {
+	cweate(context: eswint.Wuwe.WuweContext): eswint.Wuwe.WuweWistena {
+		wetuwn {
 			['TSTypeAnnotation TSUnionType']: (node: any) => {
-				if ((<TSESTree.TSUnionType>node).types.every(value => value.type === 'TSLiteralType')) {
-					context.report({
+				if ((<TSESTwee.TSUnionType>node).types.evewy(vawue => vawue.type === 'TSWitewawType')) {
+					context.wepowt({
 						node: node,
 						messageId: 'useEnum'
 					});

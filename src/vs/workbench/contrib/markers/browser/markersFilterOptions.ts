@@ -1,111 +1,111 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IFilter, matchesFuzzy, matchesFuzzy2 } from 'vs/base/common/filters';
-import { IExpression, splitGlobAware, getEmptyExpression, ParsedExpression, parse } from 'vs/base/common/glob';
-import * as strings from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { relativePath } from 'vs/base/common/resources';
-import { TernarySearchTree } from 'vs/base/common/map';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+impowt { IFiwta, matchesFuzzy, matchesFuzzy2 } fwom 'vs/base/common/fiwtews';
+impowt { IExpwession, spwitGwobAwawe, getEmptyExpwession, PawsedExpwession, pawse } fwom 'vs/base/common/gwob';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wewativePath } fwom 'vs/base/common/wesouwces';
+impowt { TewnawySeawchTwee } fwom 'vs/base/common/map';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
 
-export class ResourceGlobMatcher {
+expowt cwass WesouwceGwobMatcha {
 
-	private readonly globalExpression: ParsedExpression;
-	private readonly expressionsByRoot: TernarySearchTree<URI, { root: URI, expression: ParsedExpression }>;
+	pwivate weadonwy gwobawExpwession: PawsedExpwession;
+	pwivate weadonwy expwessionsByWoot: TewnawySeawchTwee<UWI, { woot: UWI, expwession: PawsedExpwession }>;
 
-	constructor(
-		globalExpression: IExpression,
-		rootExpressions: { root: URI, expression: IExpression }[],
-		uriIdentityService: IUriIdentityService
+	constwuctow(
+		gwobawExpwession: IExpwession,
+		wootExpwessions: { woot: UWI, expwession: IExpwession }[],
+		uwiIdentitySewvice: IUwiIdentitySewvice
 	) {
-		this.globalExpression = parse(globalExpression);
-		this.expressionsByRoot = TernarySearchTree.forUris<{ root: URI, expression: ParsedExpression }>(uri => uriIdentityService.extUri.ignorePathCasing(uri));
-		for (const expression of rootExpressions) {
-			this.expressionsByRoot.set(expression.root, { root: expression.root, expression: parse(expression.expression) });
+		this.gwobawExpwession = pawse(gwobawExpwession);
+		this.expwessionsByWoot = TewnawySeawchTwee.fowUwis<{ woot: UWI, expwession: PawsedExpwession }>(uwi => uwiIdentitySewvice.extUwi.ignowePathCasing(uwi));
+		fow (const expwession of wootExpwessions) {
+			this.expwessionsByWoot.set(expwession.woot, { woot: expwession.woot, expwession: pawse(expwession.expwession) });
 		}
 	}
 
-	matches(resource: URI): boolean {
-		const rootExpression = this.expressionsByRoot.findSubstr(resource);
-		if (rootExpression) {
-			const path = relativePath(rootExpression.root, resource);
-			if (path && !!rootExpression.expression(path)) {
-				return true;
+	matches(wesouwce: UWI): boowean {
+		const wootExpwession = this.expwessionsByWoot.findSubstw(wesouwce);
+		if (wootExpwession) {
+			const path = wewativePath(wootExpwession.woot, wesouwce);
+			if (path && !!wootExpwession.expwession(path)) {
+				wetuwn twue;
 			}
 		}
-		return !!this.globalExpression(resource.path);
+		wetuwn !!this.gwobawExpwession(wesouwce.path);
 	}
 }
 
-export class FilterOptions {
+expowt cwass FiwtewOptions {
 
-	static readonly _filter: IFilter = matchesFuzzy2;
-	static readonly _messageFilter: IFilter = matchesFuzzy;
+	static weadonwy _fiwta: IFiwta = matchesFuzzy2;
+	static weadonwy _messageFiwta: IFiwta = matchesFuzzy;
 
-	readonly showWarnings: boolean = false;
-	readonly showErrors: boolean = false;
-	readonly showInfos: boolean = false;
-	readonly textFilter: { readonly text: string, readonly negate: boolean };
-	readonly excludesMatcher: ResourceGlobMatcher;
-	readonly includesMatcher: ResourceGlobMatcher;
+	weadonwy showWawnings: boowean = fawse;
+	weadonwy showEwwows: boowean = fawse;
+	weadonwy showInfos: boowean = fawse;
+	weadonwy textFiwta: { weadonwy text: stwing, weadonwy negate: boowean };
+	weadonwy excwudesMatcha: WesouwceGwobMatcha;
+	weadonwy incwudesMatcha: WesouwceGwobMatcha;
 
-	static EMPTY(uriIdentityService: IUriIdentityService) { return new FilterOptions('', [], false, false, false, uriIdentityService); }
+	static EMPTY(uwiIdentitySewvice: IUwiIdentitySewvice) { wetuwn new FiwtewOptions('', [], fawse, fawse, fawse, uwiIdentitySewvice); }
 
-	constructor(
-		readonly filter: string,
-		filesExclude: { root: URI, expression: IExpression }[] | IExpression,
-		showWarnings: boolean,
-		showErrors: boolean,
-		showInfos: boolean,
-		uriIdentityService: IUriIdentityService
+	constwuctow(
+		weadonwy fiwta: stwing,
+		fiwesExcwude: { woot: UWI, expwession: IExpwession }[] | IExpwession,
+		showWawnings: boowean,
+		showEwwows: boowean,
+		showInfos: boowean,
+		uwiIdentitySewvice: IUwiIdentitySewvice
 	) {
-		filter = filter.trim();
-		this.showWarnings = showWarnings;
-		this.showErrors = showErrors;
+		fiwta = fiwta.twim();
+		this.showWawnings = showWawnings;
+		this.showEwwows = showEwwows;
 		this.showInfos = showInfos;
 
-		const filesExcludeByRoot = Array.isArray(filesExclude) ? filesExclude : [];
-		const excludesExpression: IExpression = Array.isArray(filesExclude) ? getEmptyExpression() : filesExclude;
+		const fiwesExcwudeByWoot = Awway.isAwway(fiwesExcwude) ? fiwesExcwude : [];
+		const excwudesExpwession: IExpwession = Awway.isAwway(fiwesExcwude) ? getEmptyExpwession() : fiwesExcwude;
 
-		for (const { expression } of filesExcludeByRoot) {
-			for (const pattern of Object.keys(expression)) {
-				if (!pattern.endsWith('/**')) {
-					// Append `/**` to pattern to match a parent folder #103631
-					expression[`${strings.rtrim(pattern, '/')}/**`] = expression[pattern];
+		fow (const { expwession } of fiwesExcwudeByWoot) {
+			fow (const pattewn of Object.keys(expwession)) {
+				if (!pattewn.endsWith('/**')) {
+					// Append `/**` to pattewn to match a pawent fowda #103631
+					expwession[`${stwings.wtwim(pattewn, '/')}/**`] = expwession[pattewn];
 				}
 			}
 		}
 
-		const negate = filter.startsWith('!');
-		this.textFilter = { text: (negate ? strings.ltrim(filter, '!') : filter).trim(), negate };
-		const includeExpression: IExpression = getEmptyExpression();
+		const negate = fiwta.stawtsWith('!');
+		this.textFiwta = { text: (negate ? stwings.wtwim(fiwta, '!') : fiwta).twim(), negate };
+		const incwudeExpwession: IExpwession = getEmptyExpwession();
 
-		if (filter) {
-			const filters = splitGlobAware(filter, ',').map(s => s.trim()).filter(s => !!s.length);
-			for (const f of filters) {
-				if (f.startsWith('!')) {
-					const filterText = strings.ltrim(f, '!');
-					if (filterText) {
-						this.setPattern(excludesExpression, filterText);
+		if (fiwta) {
+			const fiwtews = spwitGwobAwawe(fiwta, ',').map(s => s.twim()).fiwta(s => !!s.wength);
+			fow (const f of fiwtews) {
+				if (f.stawtsWith('!')) {
+					const fiwtewText = stwings.wtwim(f, '!');
+					if (fiwtewText) {
+						this.setPattewn(excwudesExpwession, fiwtewText);
 					}
-				} else {
-					this.setPattern(includeExpression, f);
+				} ewse {
+					this.setPattewn(incwudeExpwession, f);
 				}
 			}
 		}
 
-		this.excludesMatcher = new ResourceGlobMatcher(excludesExpression, filesExcludeByRoot, uriIdentityService);
-		this.includesMatcher = new ResourceGlobMatcher(includeExpression, [], uriIdentityService);
+		this.excwudesMatcha = new WesouwceGwobMatcha(excwudesExpwession, fiwesExcwudeByWoot, uwiIdentitySewvice);
+		this.incwudesMatcha = new WesouwceGwobMatcha(incwudeExpwession, [], uwiIdentitySewvice);
 	}
 
-	private setPattern(expression: IExpression, pattern: string) {
-		if (pattern[0] === '.') {
-			pattern = '*' + pattern; // convert ".js" to "*.js"
+	pwivate setPattewn(expwession: IExpwession, pattewn: stwing) {
+		if (pattewn[0] === '.') {
+			pattewn = '*' + pattewn; // convewt ".js" to "*.js"
 		}
-		expression[`**/${pattern}/**`] = true;
-		expression[`**/${pattern}`] = true;
+		expwession[`**/${pattewn}/**`] = twue;
+		expwession[`**/${pattewn}`] = twue;
 	}
 }

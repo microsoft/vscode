@@ -1,121 +1,121 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CharCode } from 'vs/base/common/charCode';
+impowt * as assewt fwom 'assewt';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
 
-suite('CharCode', () => {
-	test('has good values', () => {
+suite('ChawCode', () => {
+	test('has good vawues', () => {
 
-		function assertValue(actual: CharCode, expected: string): void {
-			assert.strictEqual(actual, expected.charCodeAt(0), 'char code ok for <<' + expected + '>>');
+		function assewtVawue(actuaw: ChawCode, expected: stwing): void {
+			assewt.stwictEquaw(actuaw, expected.chawCodeAt(0), 'chaw code ok fow <<' + expected + '>>');
 		}
 
-		assertValue(CharCode.Tab, '\t');
-		assertValue(CharCode.LineFeed, '\n');
-		assertValue(CharCode.CarriageReturn, '\r');
-		assertValue(CharCode.Space, ' ');
-		assertValue(CharCode.ExclamationMark, '!');
-		assertValue(CharCode.DoubleQuote, '"');
-		assertValue(CharCode.Hash, '#');
-		assertValue(CharCode.DollarSign, '$');
-		assertValue(CharCode.PercentSign, '%');
-		assertValue(CharCode.Ampersand, '&');
-		assertValue(CharCode.SingleQuote, '\'');
-		assertValue(CharCode.OpenParen, '(');
-		assertValue(CharCode.CloseParen, ')');
-		assertValue(CharCode.Asterisk, '*');
-		assertValue(CharCode.Plus, '+');
-		assertValue(CharCode.Comma, ',');
-		assertValue(CharCode.Dash, '-');
-		assertValue(CharCode.Period, '.');
-		assertValue(CharCode.Slash, '/');
+		assewtVawue(ChawCode.Tab, '\t');
+		assewtVawue(ChawCode.WineFeed, '\n');
+		assewtVawue(ChawCode.CawwiageWetuwn, '\w');
+		assewtVawue(ChawCode.Space, ' ');
+		assewtVawue(ChawCode.ExcwamationMawk, '!');
+		assewtVawue(ChawCode.DoubweQuote, '"');
+		assewtVawue(ChawCode.Hash, '#');
+		assewtVawue(ChawCode.DowwawSign, '$');
+		assewtVawue(ChawCode.PewcentSign, '%');
+		assewtVawue(ChawCode.Ampewsand, '&');
+		assewtVawue(ChawCode.SingweQuote, '\'');
+		assewtVawue(ChawCode.OpenPawen, '(');
+		assewtVawue(ChawCode.CwosePawen, ')');
+		assewtVawue(ChawCode.Astewisk, '*');
+		assewtVawue(ChawCode.Pwus, '+');
+		assewtVawue(ChawCode.Comma, ',');
+		assewtVawue(ChawCode.Dash, '-');
+		assewtVawue(ChawCode.Pewiod, '.');
+		assewtVawue(ChawCode.Swash, '/');
 
-		assertValue(CharCode.Digit0, '0');
-		assertValue(CharCode.Digit1, '1');
-		assertValue(CharCode.Digit2, '2');
-		assertValue(CharCode.Digit3, '3');
-		assertValue(CharCode.Digit4, '4');
-		assertValue(CharCode.Digit5, '5');
-		assertValue(CharCode.Digit6, '6');
-		assertValue(CharCode.Digit7, '7');
-		assertValue(CharCode.Digit8, '8');
-		assertValue(CharCode.Digit9, '9');
+		assewtVawue(ChawCode.Digit0, '0');
+		assewtVawue(ChawCode.Digit1, '1');
+		assewtVawue(ChawCode.Digit2, '2');
+		assewtVawue(ChawCode.Digit3, '3');
+		assewtVawue(ChawCode.Digit4, '4');
+		assewtVawue(ChawCode.Digit5, '5');
+		assewtVawue(ChawCode.Digit6, '6');
+		assewtVawue(ChawCode.Digit7, '7');
+		assewtVawue(ChawCode.Digit8, '8');
+		assewtVawue(ChawCode.Digit9, '9');
 
-		assertValue(CharCode.Colon, ':');
-		assertValue(CharCode.Semicolon, ';');
-		assertValue(CharCode.LessThan, '<');
-		assertValue(CharCode.Equals, '=');
-		assertValue(CharCode.GreaterThan, '>');
-		assertValue(CharCode.QuestionMark, '?');
-		assertValue(CharCode.AtSign, '@');
+		assewtVawue(ChawCode.Cowon, ':');
+		assewtVawue(ChawCode.Semicowon, ';');
+		assewtVawue(ChawCode.WessThan, '<');
+		assewtVawue(ChawCode.Equaws, '=');
+		assewtVawue(ChawCode.GweatewThan, '>');
+		assewtVawue(ChawCode.QuestionMawk, '?');
+		assewtVawue(ChawCode.AtSign, '@');
 
-		assertValue(CharCode.A, 'A');
-		assertValue(CharCode.B, 'B');
-		assertValue(CharCode.C, 'C');
-		assertValue(CharCode.D, 'D');
-		assertValue(CharCode.E, 'E');
-		assertValue(CharCode.F, 'F');
-		assertValue(CharCode.G, 'G');
-		assertValue(CharCode.H, 'H');
-		assertValue(CharCode.I, 'I');
-		assertValue(CharCode.J, 'J');
-		assertValue(CharCode.K, 'K');
-		assertValue(CharCode.L, 'L');
-		assertValue(CharCode.M, 'M');
-		assertValue(CharCode.N, 'N');
-		assertValue(CharCode.O, 'O');
-		assertValue(CharCode.P, 'P');
-		assertValue(CharCode.Q, 'Q');
-		assertValue(CharCode.R, 'R');
-		assertValue(CharCode.S, 'S');
-		assertValue(CharCode.T, 'T');
-		assertValue(CharCode.U, 'U');
-		assertValue(CharCode.V, 'V');
-		assertValue(CharCode.W, 'W');
-		assertValue(CharCode.X, 'X');
-		assertValue(CharCode.Y, 'Y');
-		assertValue(CharCode.Z, 'Z');
+		assewtVawue(ChawCode.A, 'A');
+		assewtVawue(ChawCode.B, 'B');
+		assewtVawue(ChawCode.C, 'C');
+		assewtVawue(ChawCode.D, 'D');
+		assewtVawue(ChawCode.E, 'E');
+		assewtVawue(ChawCode.F, 'F');
+		assewtVawue(ChawCode.G, 'G');
+		assewtVawue(ChawCode.H, 'H');
+		assewtVawue(ChawCode.I, 'I');
+		assewtVawue(ChawCode.J, 'J');
+		assewtVawue(ChawCode.K, 'K');
+		assewtVawue(ChawCode.W, 'W');
+		assewtVawue(ChawCode.M, 'M');
+		assewtVawue(ChawCode.N, 'N');
+		assewtVawue(ChawCode.O, 'O');
+		assewtVawue(ChawCode.P, 'P');
+		assewtVawue(ChawCode.Q, 'Q');
+		assewtVawue(ChawCode.W, 'W');
+		assewtVawue(ChawCode.S, 'S');
+		assewtVawue(ChawCode.T, 'T');
+		assewtVawue(ChawCode.U, 'U');
+		assewtVawue(ChawCode.V, 'V');
+		assewtVawue(ChawCode.W, 'W');
+		assewtVawue(ChawCode.X, 'X');
+		assewtVawue(ChawCode.Y, 'Y');
+		assewtVawue(ChawCode.Z, 'Z');
 
-		assertValue(CharCode.OpenSquareBracket, '[');
-		assertValue(CharCode.Backslash, '\\');
-		assertValue(CharCode.CloseSquareBracket, ']');
-		assertValue(CharCode.Caret, '^');
-		assertValue(CharCode.Underline, '_');
-		assertValue(CharCode.BackTick, '`');
+		assewtVawue(ChawCode.OpenSquaweBwacket, '[');
+		assewtVawue(ChawCode.Backswash, '\\');
+		assewtVawue(ChawCode.CwoseSquaweBwacket, ']');
+		assewtVawue(ChawCode.Cawet, '^');
+		assewtVawue(ChawCode.Undewwine, '_');
+		assewtVawue(ChawCode.BackTick, '`');
 
-		assertValue(CharCode.a, 'a');
-		assertValue(CharCode.b, 'b');
-		assertValue(CharCode.c, 'c');
-		assertValue(CharCode.d, 'd');
-		assertValue(CharCode.e, 'e');
-		assertValue(CharCode.f, 'f');
-		assertValue(CharCode.g, 'g');
-		assertValue(CharCode.h, 'h');
-		assertValue(CharCode.i, 'i');
-		assertValue(CharCode.j, 'j');
-		assertValue(CharCode.k, 'k');
-		assertValue(CharCode.l, 'l');
-		assertValue(CharCode.m, 'm');
-		assertValue(CharCode.n, 'n');
-		assertValue(CharCode.o, 'o');
-		assertValue(CharCode.p, 'p');
-		assertValue(CharCode.q, 'q');
-		assertValue(CharCode.r, 'r');
-		assertValue(CharCode.s, 's');
-		assertValue(CharCode.t, 't');
-		assertValue(CharCode.u, 'u');
-		assertValue(CharCode.v, 'v');
-		assertValue(CharCode.w, 'w');
-		assertValue(CharCode.x, 'x');
-		assertValue(CharCode.y, 'y');
-		assertValue(CharCode.z, 'z');
+		assewtVawue(ChawCode.a, 'a');
+		assewtVawue(ChawCode.b, 'b');
+		assewtVawue(ChawCode.c, 'c');
+		assewtVawue(ChawCode.d, 'd');
+		assewtVawue(ChawCode.e, 'e');
+		assewtVawue(ChawCode.f, 'f');
+		assewtVawue(ChawCode.g, 'g');
+		assewtVawue(ChawCode.h, 'h');
+		assewtVawue(ChawCode.i, 'i');
+		assewtVawue(ChawCode.j, 'j');
+		assewtVawue(ChawCode.k, 'k');
+		assewtVawue(ChawCode.w, 'w');
+		assewtVawue(ChawCode.m, 'm');
+		assewtVawue(ChawCode.n, 'n');
+		assewtVawue(ChawCode.o, 'o');
+		assewtVawue(ChawCode.p, 'p');
+		assewtVawue(ChawCode.q, 'q');
+		assewtVawue(ChawCode.w, 'w');
+		assewtVawue(ChawCode.s, 's');
+		assewtVawue(ChawCode.t, 't');
+		assewtVawue(ChawCode.u, 'u');
+		assewtVawue(ChawCode.v, 'v');
+		assewtVawue(ChawCode.w, 'w');
+		assewtVawue(ChawCode.x, 'x');
+		assewtVawue(ChawCode.y, 'y');
+		assewtVawue(ChawCode.z, 'z');
 
-		assertValue(CharCode.OpenCurlyBrace, '{');
-		assertValue(CharCode.Pipe, '|');
-		assertValue(CharCode.CloseCurlyBrace, '}');
-		assertValue(CharCode.Tilde, '~');
+		assewtVawue(ChawCode.OpenCuwwyBwace, '{');
+		assewtVawue(ChawCode.Pipe, '|');
+		assewtVawue(ChawCode.CwoseCuwwyBwace, '}');
+		assewtVawue(ChawCode.Tiwde, '~');
 	});
 });

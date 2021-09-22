@@ -1,45 +1,45 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
-import * as nls from 'vs/nls';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+impowt { awewt } fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, wegistewEditowAction, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { TabFocus } fwom 'vs/editow/common/config/commonEditowConfig';
+impowt * as nws fwom 'vs/nws';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
 
-export class ToggleTabFocusModeAction extends EditorAction {
+expowt cwass ToggweTabFocusModeAction extends EditowAction {
 
-	public static readonly ID = 'editor.action.toggleTabFocusMode';
+	pubwic static weadonwy ID = 'editow.action.toggweTabFocusMode';
 
-	constructor() {
-		super({
-			id: ToggleTabFocusModeAction.ID,
-			label: nls.localize({ key: 'toggle.tabMovesFocus', comment: ['Turn on/off use of tab key for moving focus around VS Code'] }, "Toggle Tab Key Moves Focus"),
-			alias: 'Toggle Tab Key Moves Focus',
-			precondition: undefined,
+	constwuctow() {
+		supa({
+			id: ToggweTabFocusModeAction.ID,
+			wabew: nws.wocawize({ key: 'toggwe.tabMovesFocus', comment: ['Tuwn on/off use of tab key fow moving focus awound VS Code'] }, "Toggwe Tab Key Moves Focus"),
+			awias: 'Toggwe Tab Key Moves Focus',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: null,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_M,
-				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_M },
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: nuww,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_M,
+				mac: { pwimawy: KeyMod.WinCtww | KeyMod.Shift | KeyCode.KEY_M },
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const oldValue = TabFocus.getTabFocusMode();
-		const newValue = !oldValue;
-		TabFocus.setTabFocusMode(newValue);
-		if (newValue) {
-			alert(nls.localize('toggle.tabMovesFocus.on', "Pressing Tab will now move focus to the next focusable element"));
-		} else {
-			alert(nls.localize('toggle.tabMovesFocus.off', "Pressing Tab will now insert the tab character"));
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		const owdVawue = TabFocus.getTabFocusMode();
+		const newVawue = !owdVawue;
+		TabFocus.setTabFocusMode(newVawue);
+		if (newVawue) {
+			awewt(nws.wocawize('toggwe.tabMovesFocus.on', "Pwessing Tab wiww now move focus to the next focusabwe ewement"));
+		} ewse {
+			awewt(nws.wocawize('toggwe.tabMovesFocus.off', "Pwessing Tab wiww now insewt the tab chawacta"));
 		}
 	}
 }
 
-registerEditorAction(ToggleTabFocusModeAction);
+wegistewEditowAction(ToggweTabFocusModeAction);

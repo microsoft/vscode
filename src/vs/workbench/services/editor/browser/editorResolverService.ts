@@ -1,767 +1,767 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as glob from 'vs/base/common/glob';
-import { distinct, firstOrDefault, flatten, insert } from 'vs/base/common/arrays';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { basename, extname, isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EditorActivation, EditorResolution, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, IEditorInputWithOptions, IResourceSideBySideEditorInput, isEditorInputWithOptions, isEditorInputWithOptionsAndGroup, isResourceDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput, IUntypedEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { Schemas } from 'vs/base/common/network';
-import { RegisteredEditorInfo, RegisteredEditorPriority, RegisteredEditorOptions, DiffEditorInputFactoryFunction, EditorAssociation, EditorAssociations, EditorInputFactoryFunction, editorsAssociationsSettingId, globMatchesResource, IEditorResolverService, priorityToRank, ResolvedEditor, ResolvedStatus, UntitledEditorInputFactoryFunction } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IKeyMods, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { localize } from 'vs/nls';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { PreferredGroup } from 'vs/workbench/services/editor/common/editorService';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { Emitter } from 'vs/base/common/event';
+impowt * as gwob fwom 'vs/base/common/gwob';
+impowt { distinct, fiwstOwDefauwt, fwatten, insewt } fwom 'vs/base/common/awways';
+impowt { Disposabwe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { basename, extname, isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { EditowActivation, EditowWesowution, IEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { DEFAUWT_EDITOW_ASSOCIATION, EditowWesouwceAccessow, IEditowInputWithOptions, IWesouwceSideBySideEditowInput, isEditowInputWithOptions, isEditowInputWithOptionsAndGwoup, isWesouwceDiffEditowInput, isWesouwceSideBySideEditowInput, isUntitwedWesouwceEditowInput, IUntypedEditowInput, SideBySideEditow } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { IEditowGwoup, IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { WegistewedEditowInfo, WegistewedEditowPwiowity, WegistewedEditowOptions, DiffEditowInputFactowyFunction, EditowAssociation, EditowAssociations, EditowInputFactowyFunction, editowsAssociationsSettingId, gwobMatchesWesouwce, IEditowWesowvewSewvice, pwiowityToWank, WesowvedEditow, WesowvedStatus, UntitwedEditowInputFactowyFunction } fwom 'vs/wowkbench/sewvices/editow/common/editowWesowvewSewvice';
+impowt { IKeyMods, IQuickInputSewvice, IQuickPickItem, IQuickPickSepawatow } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { wocawize } fwom 'vs/nws';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { findGwoup } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupFinda';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { PwefewwedGwoup } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { SideBySideEditowInput } fwom 'vs/wowkbench/common/editow/sideBySideEditowInput';
+impowt { Emitta } fwom 'vs/base/common/event';
 
-interface RegisteredEditor {
-	globPattern: string | glob.IRelativePattern,
-	editorInfo: RegisteredEditorInfo,
-	options?: RegisteredEditorOptions,
-	createEditorInput: EditorInputFactoryFunction,
-	createUntitledEditorInput?: UntitledEditorInputFactoryFunction | undefined,
-	createDiffEditorInput?: DiffEditorInputFactoryFunction
+intewface WegistewedEditow {
+	gwobPattewn: stwing | gwob.IWewativePattewn,
+	editowInfo: WegistewedEditowInfo,
+	options?: WegistewedEditowOptions,
+	cweateEditowInput: EditowInputFactowyFunction,
+	cweateUntitwedEditowInput?: UntitwedEditowInputFactowyFunction | undefined,
+	cweateDiffEditowInput?: DiffEditowInputFactowyFunction
 }
 
-type RegisteredEditors = Array<RegisteredEditor>;
+type WegistewedEditows = Awway<WegistewedEditow>;
 
-export class EditorResolverService extends Disposable implements IEditorResolverService {
-	readonly _serviceBrand: undefined;
+expowt cwass EditowWesowvewSewvice extends Disposabwe impwements IEditowWesowvewSewvice {
+	weadonwy _sewviceBwand: undefined;
 
 	// Events
-	private readonly _onDidChangeEditorRegistrations = this._register(new Emitter<void>());
-	readonly onDidChangeEditorRegistrations = this._onDidChangeEditorRegistrations.event;
+	pwivate weadonwy _onDidChangeEditowWegistwations = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeEditowWegistwations = this._onDidChangeEditowWegistwations.event;
 
 	// Constants
-	private static readonly configureDefaultID = 'promptOpenWith.configureDefault';
-	private static readonly cacheStorageID = 'editorOverrideService.cache';
-	private static readonly conflictingDefaultsStorageID = 'editorOverrideService.conflictingDefaults';
+	pwivate static weadonwy configuweDefauwtID = 'pwomptOpenWith.configuweDefauwt';
+	pwivate static weadonwy cacheStowageID = 'editowOvewwideSewvice.cache';
+	pwivate static weadonwy confwictingDefauwtsStowageID = 'editowOvewwideSewvice.confwictingDefauwts';
 
-	// Data Stores
-	private _editors: Map<string | glob.IRelativePattern, RegisteredEditors> = new Map<string | glob.IRelativePattern, RegisteredEditors>();
-	private cache: Set<string> | undefined;
+	// Data Stowes
+	pwivate _editows: Map<stwing | gwob.IWewativePattewn, WegistewedEditows> = new Map<stwing | gwob.IWewativePattewn, WegistewedEditows>();
+	pwivate cache: Set<stwing> | undefined;
 
-	constructor(
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@ILogService private readonly logService: ILogService
+	constwuctow(
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		super();
-		// Read in the cache on statup
-		this.cache = new Set<string>(JSON.parse(this.storageService.get(EditorResolverService.cacheStorageID, StorageScope.GLOBAL, JSON.stringify([]))));
-		this.storageService.remove(EditorResolverService.cacheStorageID, StorageScope.GLOBAL);
-		this.convertOldAssociationFormat();
+		supa();
+		// Wead in the cache on statup
+		this.cache = new Set<stwing>(JSON.pawse(this.stowageSewvice.get(EditowWesowvewSewvice.cacheStowageID, StowageScope.GWOBAW, JSON.stwingify([]))));
+		this.stowageSewvice.wemove(EditowWesowvewSewvice.cacheStowageID, StowageScope.GWOBAW);
+		this.convewtOwdAssociationFowmat();
 
-		this._register(this.storageService.onWillSaveState(() => {
-			// We want to store the glob patterns we would activate on, this allows us to know if we need to await the ext host on startup for opening a resource
-			this.cacheEditors();
+		this._wegista(this.stowageSewvice.onWiwwSaveState(() => {
+			// We want to stowe the gwob pattewns we wouwd activate on, this awwows us to know if we need to await the ext host on stawtup fow opening a wesouwce
+			this.cacheEditows();
 		}));
 
-		// When extensions have registered we no longer need the cache
-		this.extensionService.onDidRegisterExtensions(() => {
+		// When extensions have wegistewed we no wonga need the cache
+		this.extensionSewvice.onDidWegistewExtensions(() => {
 			this.cache = undefined;
 		});
 
-		// When the setting changes we want to ensure that it is properly converted
-		this._register(this.configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration(editorsAssociationsSettingId)) {
-				this.convertOldAssociationFormat();
+		// When the setting changes we want to ensuwe that it is pwopewwy convewted
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation((e) => {
+			if (e.affectsConfiguwation(editowsAssociationsSettingId)) {
+				this.convewtOwdAssociationFowmat();
 			}
 		}));
 	}
 
-	private resolveUntypedInputAndGroup(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): [IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined {
-		let untypedEditor: IUntypedEditorInput | undefined = undefined;
+	pwivate wesowveUntypedInputAndGwoup(editow: IEditowInputWithOptions | IUntypedEditowInput, pwefewwedGwoup: PwefewwedGwoup | undefined): [IUntypedEditowInput, IEditowGwoup, EditowActivation | undefined] | undefined {
+		wet untypedEditow: IUntypedEditowInput | undefined = undefined;
 
-		// Typed: convert to untyped to be able to resolve the editor as the service only uses untyped
-		if (isEditorInputWithOptions(editor)) {
-			untypedEditor = editor.editor.toUntyped();
+		// Typed: convewt to untyped to be abwe to wesowve the editow as the sewvice onwy uses untyped
+		if (isEditowInputWithOptions(editow)) {
+			untypedEditow = editow.editow.toUntyped();
 
-			if (untypedEditor) {
-				// Preserve original options: specifically it is
-				// possible that a `override` was defined from
-				// the outside and we do not want to lose it.
-				untypedEditor.options = { ...untypedEditor.options, ...editor.options };
+			if (untypedEditow) {
+				// Pwesewve owiginaw options: specificawwy it is
+				// possibwe that a `ovewwide` was defined fwom
+				// the outside and we do not want to wose it.
+				untypedEditow.options = { ...untypedEditow.options, ...editow.options };
 			}
 		}
 
 		// Untyped: take as is
-		else {
-			untypedEditor = editor;
+		ewse {
+			untypedEditow = editow;
 		}
 
-		// Typed editors that cannot convert to untyped will be returned as undefined
-		if (!untypedEditor) {
-			return undefined;
+		// Typed editows that cannot convewt to untyped wiww be wetuwned as undefined
+		if (!untypedEditow) {
+			wetuwn undefined;
 		}
-		// Use the untyped editor to find a group
-		const [group, activation] = this.instantiationService.invokeFunction(findGroup, untypedEditor, preferredGroup);
+		// Use the untyped editow to find a gwoup
+		const [gwoup, activation] = this.instantiationSewvice.invokeFunction(findGwoup, untypedEditow, pwefewwedGwoup);
 
-		return [untypedEditor, group, activation];
+		wetuwn [untypedEditow, gwoup, activation];
 	}
 
-	async resolveEditor(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ResolvedEditor> {
-		// Special case: side by side editors requires us to
-		// independently resolve both sides and then build
-		// a side by side editor with the result
-		if (isResourceSideBySideEditorInput(editor)) {
-			return this.doResolveSideBySideEditor(editor, preferredGroup);
+	async wesowveEditow(editow: IEditowInputWithOptions | IUntypedEditowInput, pwefewwedGwoup: PwefewwedGwoup | undefined): Pwomise<WesowvedEditow> {
+		// Speciaw case: side by side editows wequiwes us to
+		// independentwy wesowve both sides and then buiwd
+		// a side by side editow with the wesuwt
+		if (isWesouwceSideBySideEditowInput(editow)) {
+			wetuwn this.doWesowveSideBySideEditow(editow, pwefewwedGwoup);
 		}
 
-		const resolvedUntypedAndGroup = this.resolveUntypedInputAndGroup(editor, preferredGroup);
-		if (!resolvedUntypedAndGroup) {
-			return ResolvedStatus.NONE;
+		const wesowvedUntypedAndGwoup = this.wesowveUntypedInputAndGwoup(editow, pwefewwedGwoup);
+		if (!wesowvedUntypedAndGwoup) {
+			wetuwn WesowvedStatus.NONE;
 		}
-		// Get the resolved untyped editor, group, and activation
-		const [untypedEditor, group, activation] = resolvedUntypedAndGroup;
+		// Get the wesowved untyped editow, gwoup, and activation
+		const [untypedEditow, gwoup, activation] = wesowvedUntypedAndGwoup;
 		if (activation) {
-			untypedEditor.options = { ...untypedEditor.options, activation };
+			untypedEditow.options = { ...untypedEditow.options, activation };
 		}
 
-		let resource = EditorResourceAccessor.getCanonicalUri(untypedEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		let options = untypedEditor.options;
+		wet wesouwce = EditowWesouwceAccessow.getCanonicawUwi(untypedEditow, { suppowtSideBySide: SideBySideEditow.PWIMAWY });
+		wet options = untypedEditow.options;
 
-		// If it was resolved before we await for the extensions to activate and then proceed with resolution or else the backing extensions won't be registered
-		if (this.cache && resource && this.resourceMatchesCache(resource)) {
-			await this.extensionService.whenInstalledExtensionsRegistered();
+		// If it was wesowved befowe we await fow the extensions to activate and then pwoceed with wesowution ow ewse the backing extensions won't be wegistewed
+		if (this.cache && wesouwce && this.wesouwceMatchesCache(wesouwce)) {
+			await this.extensionSewvice.whenInstawwedExtensionsWegistewed();
 		}
 
-		if (resource === undefined) {
-			resource = URI.from({ scheme: Schemas.untitled });
+		if (wesouwce === undefined) {
+			wesouwce = UWI.fwom({ scheme: Schemas.untitwed });
 		}
 
-		if (untypedEditor.options?.override === EditorResolution.DISABLED) {
-			throw new Error(`Calling resolve editor when resolution is explicitly disabled!`);
+		if (untypedEditow.options?.ovewwide === EditowWesowution.DISABWED) {
+			thwow new Ewwow(`Cawwing wesowve editow when wesowution is expwicitwy disabwed!`);
 		}
 
-		if (untypedEditor.options?.override === EditorResolution.PICK) {
-			const picked = await this.doPickEditor(untypedEditor);
-			// If the picker was cancelled we will stop resolving the editor
+		if (untypedEditow.options?.ovewwide === EditowWesowution.PICK) {
+			const picked = await this.doPickEditow(untypedEditow);
+			// If the picka was cancewwed we wiww stop wesowving the editow
 			if (!picked) {
-				return ResolvedStatus.ABORT;
+				wetuwn WesowvedStatus.ABOWT;
 			}
-			// Populate the options with the new ones
-			untypedEditor.options = picked;
+			// Popuwate the options with the new ones
+			untypedEditow.options = picked;
 		}
 
-		// Resolved the editor ID as much as possible, now find a given editor (cast here is ok because we resolve down to a string above)
-		let { editor: selectedEditor, conflictingDefault } = this.getEditor(resource, untypedEditor.options?.override as (string | EditorResolution.EXCLUSIVE_ONLY | undefined));
-		if (!selectedEditor) {
-			return ResolvedStatus.NONE;
+		// Wesowved the editow ID as much as possibwe, now find a given editow (cast hewe is ok because we wesowve down to a stwing above)
+		wet { editow: sewectedEditow, confwictingDefauwt } = this.getEditow(wesouwce, untypedEditow.options?.ovewwide as (stwing | EditowWesowution.EXCWUSIVE_ONWY | undefined));
+		if (!sewectedEditow) {
+			wetuwn WesowvedStatus.NONE;
 		}
 
-		// In the special case of diff editors we do some more work to determine the correct editor for both sides
-		if (isResourceDiffEditorInput(untypedEditor) && untypedEditor.options?.override === undefined) {
-			let resource2 = EditorResourceAccessor.getCanonicalUri(untypedEditor, { supportSideBySide: SideBySideEditor.SECONDARY });
-			if (!resource2) {
-				resource2 = URI.from({ scheme: Schemas.untitled });
+		// In the speciaw case of diff editows we do some mowe wowk to detewmine the cowwect editow fow both sides
+		if (isWesouwceDiffEditowInput(untypedEditow) && untypedEditow.options?.ovewwide === undefined) {
+			wet wesouwce2 = EditowWesouwceAccessow.getCanonicawUwi(untypedEditow, { suppowtSideBySide: SideBySideEditow.SECONDAWY });
+			if (!wesouwce2) {
+				wesouwce2 = UWI.fwom({ scheme: Schemas.untitwed });
 			}
-			const { editor: selectedEditor2 } = this.getEditor(resource2, undefined);
-			if (!selectedEditor2 || selectedEditor.editorInfo.id !== selectedEditor2.editorInfo.id) {
-				const { editor: selectedDiff, conflictingDefault: conflictingDefaultDiff } = this.getEditor(resource, DEFAULT_EDITOR_ASSOCIATION.id);
-				selectedEditor = selectedDiff;
-				conflictingDefault = conflictingDefaultDiff;
+			const { editow: sewectedEditow2 } = this.getEditow(wesouwce2, undefined);
+			if (!sewectedEditow2 || sewectedEditow.editowInfo.id !== sewectedEditow2.editowInfo.id) {
+				const { editow: sewectedDiff, confwictingDefauwt: confwictingDefauwtDiff } = this.getEditow(wesouwce, DEFAUWT_EDITOW_ASSOCIATION.id);
+				sewectedEditow = sewectedDiff;
+				confwictingDefauwt = confwictingDefauwtDiff;
 			}
-			if (!selectedEditor) {
-				return ResolvedStatus.NONE;
+			if (!sewectedEditow) {
+				wetuwn WesowvedStatus.NONE;
 			}
 		}
 
-		// If no override we take the selected editor id so that matches works with the isActive check
-		untypedEditor.options = { override: selectedEditor.editorInfo.id, ...untypedEditor.options };
+		// If no ovewwide we take the sewected editow id so that matches wowks with the isActive check
+		untypedEditow.options = { ovewwide: sewectedEditow.editowInfo.id, ...untypedEditow.options };
 
-		let handlesDiff = typeof selectedEditor.options?.canHandleDiff === 'function' ? selectedEditor.options.canHandleDiff() : selectedEditor.options?.canHandleDiff;
-		// Also check that it has a factory function or else it doesn't matter
-		handlesDiff = handlesDiff && selectedEditor.createDiffEditorInput !== undefined;
-		if (handlesDiff === false && isResourceDiffEditorInput(untypedEditor)) {
-			return ResolvedStatus.NONE;
+		wet handwesDiff = typeof sewectedEditow.options?.canHandweDiff === 'function' ? sewectedEditow.options.canHandweDiff() : sewectedEditow.options?.canHandweDiff;
+		// Awso check that it has a factowy function ow ewse it doesn't matta
+		handwesDiff = handwesDiff && sewectedEditow.cweateDiffEditowInput !== undefined;
+		if (handwesDiff === fawse && isWesouwceDiffEditowInput(untypedEditow)) {
+			wetuwn WesowvedStatus.NONE;
 		}
 
-		// If it's the currently active editor we shouldn't do anything
-		const activeEditor = group.activeEditor;
-		const isActive = activeEditor ? activeEditor.matches(untypedEditor) : false;
-		if (activeEditor && isActive) {
-			return { editor: activeEditor, options, group };
+		// If it's the cuwwentwy active editow we shouwdn't do anything
+		const activeEditow = gwoup.activeEditow;
+		const isActive = activeEditow ? activeEditow.matches(untypedEditow) : fawse;
+		if (activeEditow && isActive) {
+			wetuwn { editow: activeEditow, options, gwoup };
 		}
-		const input = await this.doResolveEditor(untypedEditor, group, selectedEditor);
-		if (conflictingDefault && input) {
-			// Show the conflicting default dialog
-			await this.doHandleConflictingDefaults(resource, selectedEditor.editorInfo.label, untypedEditor, input.editor, group);
+		const input = await this.doWesowveEditow(untypedEditow, gwoup, sewectedEditow);
+		if (confwictingDefauwt && input) {
+			// Show the confwicting defauwt diawog
+			await this.doHandweConfwictingDefauwts(wesouwce, sewectedEditow.editowInfo.wabew, untypedEditow, input.editow, gwoup);
 		}
 
 		if (input) {
-			this.sendEditorResolutionTelemetry(input.editor);
-			return { ...input, group };
+			this.sendEditowWesowutionTewemetwy(input.editow);
+			wetuwn { ...input, gwoup };
 		}
-		return ResolvedStatus.ABORT;
+		wetuwn WesowvedStatus.ABOWT;
 	}
 
-	private async doResolveSideBySideEditor(editor: IResourceSideBySideEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ResolvedEditor> {
-		const primaryResolvedEditor = await this.resolveEditor(editor.primary, preferredGroup);
-		if (!isEditorInputWithOptionsAndGroup(primaryResolvedEditor)) {
-			return ResolvedStatus.NONE;
+	pwivate async doWesowveSideBySideEditow(editow: IWesouwceSideBySideEditowInput, pwefewwedGwoup: PwefewwedGwoup | undefined): Pwomise<WesowvedEditow> {
+		const pwimawyWesowvedEditow = await this.wesowveEditow(editow.pwimawy, pwefewwedGwoup);
+		if (!isEditowInputWithOptionsAndGwoup(pwimawyWesowvedEditow)) {
+			wetuwn WesowvedStatus.NONE;
 		}
-		const secondaryResolvedEditor = await this.resolveEditor(editor.secondary, primaryResolvedEditor.group ?? preferredGroup);
-		if (!isEditorInputWithOptionsAndGroup(secondaryResolvedEditor)) {
-			return ResolvedStatus.NONE;
+		const secondawyWesowvedEditow = await this.wesowveEditow(editow.secondawy, pwimawyWesowvedEditow.gwoup ?? pwefewwedGwoup);
+		if (!isEditowInputWithOptionsAndGwoup(secondawyWesowvedEditow)) {
+			wetuwn WesowvedStatus.NONE;
 		}
-		return {
-			group: primaryResolvedEditor.group ?? secondaryResolvedEditor.group,
-			editor: this.instantiationService.createInstance(SideBySideEditorInput, editor.label, editor.description, secondaryResolvedEditor.editor, primaryResolvedEditor.editor),
-			options: editor.options
+		wetuwn {
+			gwoup: pwimawyWesowvedEditow.gwoup ?? secondawyWesowvedEditow.gwoup,
+			editow: this.instantiationSewvice.cweateInstance(SideBySideEditowInput, editow.wabew, editow.descwiption, secondawyWesowvedEditow.editow, pwimawyWesowvedEditow.editow),
+			options: editow.options
 		};
 	}
 
-	registerEditor(
-		globPattern: string | glob.IRelativePattern,
-		editorInfo: RegisteredEditorInfo,
-		options: RegisteredEditorOptions,
-		createEditorInput: EditorInputFactoryFunction,
-		createUntitledEditorInput?: UntitledEditorInputFactoryFunction | undefined,
-		createDiffEditorInput?: DiffEditorInputFactoryFunction
-	): IDisposable {
-		let registeredEditor = this._editors.get(globPattern);
-		if (registeredEditor === undefined) {
-			registeredEditor = [];
-			this._editors.set(globPattern, registeredEditor);
+	wegistewEditow(
+		gwobPattewn: stwing | gwob.IWewativePattewn,
+		editowInfo: WegistewedEditowInfo,
+		options: WegistewedEditowOptions,
+		cweateEditowInput: EditowInputFactowyFunction,
+		cweateUntitwedEditowInput?: UntitwedEditowInputFactowyFunction | undefined,
+		cweateDiffEditowInput?: DiffEditowInputFactowyFunction
+	): IDisposabwe {
+		wet wegistewedEditow = this._editows.get(gwobPattewn);
+		if (wegistewedEditow === undefined) {
+			wegistewedEditow = [];
+			this._editows.set(gwobPattewn, wegistewedEditow);
 		}
-		const remove = insert(registeredEditor, {
-			globPattern,
-			editorInfo,
+		const wemove = insewt(wegistewedEditow, {
+			gwobPattewn,
+			editowInfo,
 			options,
-			createEditorInput,
-			createUntitledEditorInput,
-			createDiffEditorInput
+			cweateEditowInput,
+			cweateUntitwedEditowInput,
+			cweateDiffEditowInput
 		});
-		this._onDidChangeEditorRegistrations.fire();
-		return toDisposable(() => {
-			remove();
-			this._onDidChangeEditorRegistrations.fire();
+		this._onDidChangeEditowWegistwations.fiwe();
+		wetuwn toDisposabwe(() => {
+			wemove();
+			this._onDidChangeEditowWegistwations.fiwe();
 		});
 	}
 
-	getAssociationsForResource(resource: URI): EditorAssociations {
-		const associations = this.getAllUserAssociations();
-		const matchingAssociations = associations.filter(association => association.filenamePattern && globMatchesResource(association.filenamePattern, resource));
-		const allEditors: RegisteredEditors = this._registeredEditors;
-		// Ensure that the settings are valid editors
-		return matchingAssociations.filter(association => allEditors.find(c => c.editorInfo.id === association.viewType));
+	getAssociationsFowWesouwce(wesouwce: UWI): EditowAssociations {
+		const associations = this.getAwwUsewAssociations();
+		const matchingAssociations = associations.fiwta(association => association.fiwenamePattewn && gwobMatchesWesouwce(association.fiwenamePattewn, wesouwce));
+		const awwEditows: WegistewedEditows = this._wegistewedEditows;
+		// Ensuwe that the settings awe vawid editows
+		wetuwn matchingAssociations.fiwta(association => awwEditows.find(c => c.editowInfo.id === association.viewType));
 	}
 
-	private convertOldAssociationFormat(): void {
-		const rawAssociations = this.configurationService.getValue<EditorAssociations | { [fileNamePattern: string]: string }>(editorsAssociationsSettingId) || [];
-		// If it's not an array, then it's the new format
-		if (!Array.isArray(rawAssociations)) {
-			return;
+	pwivate convewtOwdAssociationFowmat(): void {
+		const wawAssociations = this.configuwationSewvice.getVawue<EditowAssociations | { [fiweNamePattewn: stwing]: stwing }>(editowsAssociationsSettingId) || [];
+		// If it's not an awway, then it's the new fowmat
+		if (!Awway.isAwway(wawAssociations)) {
+			wetuwn;
 		}
-		let newSettingObject = Object.create(null);
-		// Make the correctly formatted object from the array and then set that object
-		for (const association of rawAssociations) {
-			if (association.filenamePattern) {
-				newSettingObject[association.filenamePattern] = association.viewType;
+		wet newSettingObject = Object.cweate(nuww);
+		// Make the cowwectwy fowmatted object fwom the awway and then set that object
+		fow (const association of wawAssociations) {
+			if (association.fiwenamePattewn) {
+				newSettingObject[association.fiwenamePattewn] = association.viewType;
 			}
 		}
-		this.logService.info(`Migrating ${editorsAssociationsSettingId}`);
-		this.configurationService.updateValue(editorsAssociationsSettingId, newSettingObject);
+		this.wogSewvice.info(`Migwating ${editowsAssociationsSettingId}`);
+		this.configuwationSewvice.updateVawue(editowsAssociationsSettingId, newSettingObject);
 	}
 
-	private getAllUserAssociations(): EditorAssociations {
-		const rawAssociations = this.configurationService.getValue<{ [fileNamePattern: string]: string }>(editorsAssociationsSettingId) || {};
-		let associations = [];
-		for (const [key, value] of Object.entries(rawAssociations)) {
-			const association: EditorAssociation = {
-				filenamePattern: key,
-				viewType: value
+	pwivate getAwwUsewAssociations(): EditowAssociations {
+		const wawAssociations = this.configuwationSewvice.getVawue<{ [fiweNamePattewn: stwing]: stwing }>(editowsAssociationsSettingId) || {};
+		wet associations = [];
+		fow (const [key, vawue] of Object.entwies(wawAssociations)) {
+			const association: EditowAssociation = {
+				fiwenamePattewn: key,
+				viewType: vawue
 			};
 			associations.push(association);
 		}
-		return associations;
+		wetuwn associations;
 	}
 
 	/**
-	 * Returns all editors as an array. Possible to contain duplicates
+	 * Wetuwns aww editows as an awway. Possibwe to contain dupwicates
 	 */
-	private get _registeredEditors(): RegisteredEditors {
-		return flatten(Array.from(this._editors.values()));
+	pwivate get _wegistewedEditows(): WegistewedEditows {
+		wetuwn fwatten(Awway.fwom(this._editows.vawues()));
 	}
 
-	updateUserAssociations(globPattern: string, editorID: string): void {
-		const newAssociation: EditorAssociation = { viewType: editorID, filenamePattern: globPattern };
-		const currentAssociations = this.getAllUserAssociations();
-		const newSettingObject = Object.create(null);
-		// Form the new setting object including the newest associations
-		for (const association of [...currentAssociations, newAssociation]) {
-			if (association.filenamePattern) {
-				newSettingObject[association.filenamePattern] = association.viewType;
+	updateUsewAssociations(gwobPattewn: stwing, editowID: stwing): void {
+		const newAssociation: EditowAssociation = { viewType: editowID, fiwenamePattewn: gwobPattewn };
+		const cuwwentAssociations = this.getAwwUsewAssociations();
+		const newSettingObject = Object.cweate(nuww);
+		// Fowm the new setting object incwuding the newest associations
+		fow (const association of [...cuwwentAssociations, newAssociation]) {
+			if (association.fiwenamePattewn) {
+				newSettingObject[association.fiwenamePattewn] = association.viewType;
 			}
 		}
-		this.configurationService.updateValue(editorsAssociationsSettingId, newSettingObject);
+		this.configuwationSewvice.updateVawue(editowsAssociationsSettingId, newSettingObject);
 	}
 
-	private findMatchingEditors(resource: URI): RegisteredEditor[] {
-		// The user setting should be respected even if the editor doesn't specify that resource in package.json
-		const userSettings = this.getAssociationsForResource(resource);
-		let matchingEditors: RegisteredEditor[] = [];
-		// Then all glob patterns
-		for (const [key, editors] of this._editors) {
-			for (const editor of editors) {
-				const foundInSettings = userSettings.find(setting => setting.viewType === editor.editorInfo.id);
-				if ((foundInSettings && editor.editorInfo.priority !== RegisteredEditorPriority.exclusive) || globMatchesResource(key, resource)) {
-					matchingEditors.push(editor);
+	pwivate findMatchingEditows(wesouwce: UWI): WegistewedEditow[] {
+		// The usa setting shouwd be wespected even if the editow doesn't specify that wesouwce in package.json
+		const usewSettings = this.getAssociationsFowWesouwce(wesouwce);
+		wet matchingEditows: WegistewedEditow[] = [];
+		// Then aww gwob pattewns
+		fow (const [key, editows] of this._editows) {
+			fow (const editow of editows) {
+				const foundInSettings = usewSettings.find(setting => setting.viewType === editow.editowInfo.id);
+				if ((foundInSettings && editow.editowInfo.pwiowity !== WegistewedEditowPwiowity.excwusive) || gwobMatchesWesouwce(key, wesouwce)) {
+					matchingEditows.push(editow);
 				}
 			}
 		}
-		// Return the editors sorted by their priority
-		return matchingEditors.sort((a, b) => {
-			// Very crude if priorities match longer glob wins as longer globs are normally more specific
-			if (priorityToRank(b.editorInfo.priority) === priorityToRank(a.editorInfo.priority) && typeof b.globPattern === 'string' && typeof a.globPattern === 'string') {
-				return b.globPattern.length - a.globPattern.length;
+		// Wetuwn the editows sowted by theiw pwiowity
+		wetuwn matchingEditows.sowt((a, b) => {
+			// Vewy cwude if pwiowities match wonga gwob wins as wonga gwobs awe nowmawwy mowe specific
+			if (pwiowityToWank(b.editowInfo.pwiowity) === pwiowityToWank(a.editowInfo.pwiowity) && typeof b.gwobPattewn === 'stwing' && typeof a.gwobPattewn === 'stwing') {
+				wetuwn b.gwobPattewn.wength - a.gwobPattewn.wength;
 			}
-			return priorityToRank(b.editorInfo.priority) - priorityToRank(a.editorInfo.priority);
+			wetuwn pwiowityToWank(b.editowInfo.pwiowity) - pwiowityToWank(a.editowInfo.pwiowity);
 		});
 	}
 
-	public getEditors(resource?: URI): RegisteredEditorInfo[] {
+	pubwic getEditows(wesouwce?: UWI): WegistewedEditowInfo[] {
 
-		// By resource
-		if (URI.isUri(resource)) {
-			const editors = this.findMatchingEditors(resource);
-			if (editors.find(e => e.editorInfo.priority === RegisteredEditorPriority.exclusive)) {
-				return [];
+		// By wesouwce
+		if (UWI.isUwi(wesouwce)) {
+			const editows = this.findMatchingEditows(wesouwce);
+			if (editows.find(e => e.editowInfo.pwiowity === WegistewedEditowPwiowity.excwusive)) {
+				wetuwn [];
 			}
-			return editors.map(editor => editor.editorInfo);
+			wetuwn editows.map(editow => editow.editowInfo);
 		}
 
-		// All
-		return distinct(this._registeredEditors.map(editor => editor.editorInfo), editor => editor.id);
+		// Aww
+		wetuwn distinct(this._wegistewedEditows.map(editow => editow.editowInfo), editow => editow.id);
 	}
 
 	/**
-	 * Given a resource and an editorId selects the best possible editor
-	 * @returns The editor and whether there was another default which conflicted with it
+	 * Given a wesouwce and an editowId sewects the best possibwe editow
+	 * @wetuwns The editow and whetha thewe was anotha defauwt which confwicted with it
 	 */
-	private getEditor(resource: URI, editorId: string | EditorResolution.EXCLUSIVE_ONLY | undefined): { editor: RegisteredEditor | undefined, conflictingDefault: boolean } {
+	pwivate getEditow(wesouwce: UWI, editowId: stwing | EditowWesowution.EXCWUSIVE_ONWY | undefined): { editow: WegistewedEditow | undefined, confwictingDefauwt: boowean } {
 
-		const findMatchingEditor = (editors: RegisteredEditors, viewType: string) => {
-			return editors.find((editor) => {
-				if (editor.options && editor.options.canSupportResource !== undefined) {
-					return editor.editorInfo.id === viewType && editor.options.canSupportResource(resource);
+		const findMatchingEditow = (editows: WegistewedEditows, viewType: stwing) => {
+			wetuwn editows.find((editow) => {
+				if (editow.options && editow.options.canSuppowtWesouwce !== undefined) {
+					wetuwn editow.editowInfo.id === viewType && editow.options.canSuppowtWesouwce(wesouwce);
 				}
-				return editor.editorInfo.id === viewType;
+				wetuwn editow.editowInfo.id === viewType;
 			});
 		};
 
-		if (editorId && editorId !== EditorResolution.EXCLUSIVE_ONLY) {
-			// Specific id passed in doesn't have to match the resource, it can be anything
-			const registeredEditors = this._registeredEditors;
-			return {
-				editor: findMatchingEditor(registeredEditors, editorId),
-				conflictingDefault: false
+		if (editowId && editowId !== EditowWesowution.EXCWUSIVE_ONWY) {
+			// Specific id passed in doesn't have to match the wesouwce, it can be anything
+			const wegistewedEditows = this._wegistewedEditows;
+			wetuwn {
+				editow: findMatchingEditow(wegistewedEditows, editowId),
+				confwictingDefauwt: fawse
 			};
 		}
 
-		let editors = this.findMatchingEditors(resource);
+		wet editows = this.findMatchingEditows(wesouwce);
 
-		const associationsFromSetting = this.getAssociationsForResource(resource);
-		// We only want minPriority+ if no user defined setting is found, else we won't resolve an editor
-		const minPriority = editorId === EditorResolution.EXCLUSIVE_ONLY ? RegisteredEditorPriority.exclusive : RegisteredEditorPriority.builtin;
-		const possibleEditors = editors.filter(editor => priorityToRank(editor.editorInfo.priority) >= priorityToRank(minPriority) && editor.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
-		if (possibleEditors.length === 0) {
-			return {
-				editor: associationsFromSetting[0] && minPriority !== RegisteredEditorPriority.exclusive ? findMatchingEditor(editors, associationsFromSetting[0].viewType) : undefined,
-				conflictingDefault: false
+		const associationsFwomSetting = this.getAssociationsFowWesouwce(wesouwce);
+		// We onwy want minPwiowity+ if no usa defined setting is found, ewse we won't wesowve an editow
+		const minPwiowity = editowId === EditowWesowution.EXCWUSIVE_ONWY ? WegistewedEditowPwiowity.excwusive : WegistewedEditowPwiowity.buiwtin;
+		const possibweEditows = editows.fiwta(editow => pwiowityToWank(editow.editowInfo.pwiowity) >= pwiowityToWank(minPwiowity) && editow.editowInfo.id !== DEFAUWT_EDITOW_ASSOCIATION.id);
+		if (possibweEditows.wength === 0) {
+			wetuwn {
+				editow: associationsFwomSetting[0] && minPwiowity !== WegistewedEditowPwiowity.excwusive ? findMatchingEditow(editows, associationsFwomSetting[0].viewType) : undefined,
+				confwictingDefauwt: fawse
 			};
 		}
-		// If the editor is exclusive we use that, else use the user setting, else use the built-in+ editor
-		const selectedViewType = possibleEditors[0].editorInfo.priority === RegisteredEditorPriority.exclusive ?
-			possibleEditors[0].editorInfo.id :
-			associationsFromSetting[0]?.viewType || possibleEditors[0].editorInfo.id;
+		// If the editow is excwusive we use that, ewse use the usa setting, ewse use the buiwt-in+ editow
+		const sewectedViewType = possibweEditows[0].editowInfo.pwiowity === WegistewedEditowPwiowity.excwusive ?
+			possibweEditows[0].editowInfo.id :
+			associationsFwomSetting[0]?.viewType || possibweEditows[0].editowInfo.id;
 
-		let conflictingDefault = false;
-		if (associationsFromSetting.length === 0 && possibleEditors.length > 1) {
-			conflictingDefault = true;
+		wet confwictingDefauwt = fawse;
+		if (associationsFwomSetting.wength === 0 && possibweEditows.wength > 1) {
+			confwictingDefauwt = twue;
 		}
 
-		return {
-			editor: findMatchingEditor(editors, selectedViewType),
-			conflictingDefault
+		wetuwn {
+			editow: findMatchingEditow(editows, sewectedViewType),
+			confwictingDefauwt
 		};
 	}
 
-	private async doResolveEditor(editor: IUntypedEditorInput, group: IEditorGroup, selectedEditor: RegisteredEditor): Promise<IEditorInputWithOptions | undefined> {
-		let options = editor.options;
-		const resource = EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		// If no activation option is provided, populate it.
+	pwivate async doWesowveEditow(editow: IUntypedEditowInput, gwoup: IEditowGwoup, sewectedEditow: WegistewedEditow): Pwomise<IEditowInputWithOptions | undefined> {
+		wet options = editow.options;
+		const wesouwce = EditowWesouwceAccessow.getCanonicawUwi(editow, { suppowtSideBySide: SideBySideEditow.PWIMAWY });
+		// If no activation option is pwovided, popuwate it.
 		if (options && typeof options.activation === 'undefined') {
-			options = { ...options, activation: options.preserveFocus ? EditorActivation.RESTORE : undefined };
+			options = { ...options, activation: options.pwesewveFocus ? EditowActivation.WESTOWE : undefined };
 		}
 
-		// If it's a diff editor we trigger the create diff editor input
-		if (isResourceDiffEditorInput(editor)) {
-			if (!selectedEditor.createDiffEditorInput) {
-				return;
+		// If it's a diff editow we twigga the cweate diff editow input
+		if (isWesouwceDiffEditowInput(editow)) {
+			if (!sewectedEditow.cweateDiffEditowInput) {
+				wetuwn;
 			}
-			const inputWithOptions = await selectedEditor.createDiffEditorInput(editor, group);
-			return { editor: inputWithOptions.editor, options: inputWithOptions.options ?? options };
+			const inputWithOptions = await sewectedEditow.cweateDiffEditowInput(editow, gwoup);
+			wetuwn { editow: inputWithOptions.editow, options: inputWithOptions.options ?? options };
 		}
 
-		if (isResourceSideBySideEditorInput(editor)) {
-			throw new Error(`Untyped side by side editor input not supported here.`);
+		if (isWesouwceSideBySideEditowInput(editow)) {
+			thwow new Ewwow(`Untyped side by side editow input not suppowted hewe.`);
 		}
 
-		if (isUntitledResourceEditorInput(editor)) {
-			if (!selectedEditor.createUntitledEditorInput) {
-				return;
+		if (isUntitwedWesouwceEditowInput(editow)) {
+			if (!sewectedEditow.cweateUntitwedEditowInput) {
+				wetuwn;
 			}
-			const inputWithOptions = await selectedEditor.createUntitledEditorInput(editor, group);
-			return { editor: inputWithOptions.editor, options: inputWithOptions.options ?? options };
+			const inputWithOptions = await sewectedEditow.cweateUntitwedEditowInput(editow, gwoup);
+			wetuwn { editow: inputWithOptions.editow, options: inputWithOptions.options ?? options };
 		}
 
-		// Should no longer have an undefined resource so lets throw an error if that's somehow the case
-		if (resource === undefined) {
-			throw new Error(`Undefined resource on non untitled editor input.`);
+		// Shouwd no wonga have an undefined wesouwce so wets thwow an ewwow if that's somehow the case
+		if (wesouwce === undefined) {
+			thwow new Ewwow(`Undefined wesouwce on non untitwed editow input.`);
 		}
 
-		// Respect options passed back
-		const inputWithOptions = await selectedEditor.createEditorInput(editor, group);
+		// Wespect options passed back
+		const inputWithOptions = await sewectedEditow.cweateEditowInput(editow, gwoup);
 		options = inputWithOptions.options ?? options;
-		const input = inputWithOptions.editor;
+		const input = inputWithOptions.editow;
 
-		// If the editor states it can only be opened once per resource we must close all existing ones first
-		const singleEditorPerResource = typeof selectedEditor.options?.singlePerResource === 'function' ? selectedEditor.options.singlePerResource() : selectedEditor.options?.singlePerResource;
-		if (singleEditorPerResource) {
-			this.closeExistingEditorsForResource(resource, selectedEditor.editorInfo.id, group);
+		// If the editow states it can onwy be opened once pew wesouwce we must cwose aww existing ones fiwst
+		const singweEditowPewWesouwce = typeof sewectedEditow.options?.singwePewWesouwce === 'function' ? sewectedEditow.options.singwePewWesouwce() : sewectedEditow.options?.singwePewWesouwce;
+		if (singweEditowPewWesouwce) {
+			this.cwoseExistingEditowsFowWesouwce(wesouwce, sewectedEditow.editowInfo.id, gwoup);
 		}
 
-		return { editor: input, options };
+		wetuwn { editow: input, options };
 	}
 
-	private closeExistingEditorsForResource(
-		resource: URI,
-		viewType: string,
-		targetGroup: IEditorGroup,
+	pwivate cwoseExistingEditowsFowWesouwce(
+		wesouwce: UWI,
+		viewType: stwing,
+		tawgetGwoup: IEditowGwoup,
 	): void {
-		const editorInfoForResource = this.findExistingEditorsForResource(resource, viewType);
-		if (!editorInfoForResource.length) {
-			return;
+		const editowInfoFowWesouwce = this.findExistingEditowsFowWesouwce(wesouwce, viewType);
+		if (!editowInfoFowWesouwce.wength) {
+			wetuwn;
 		}
 
-		const editorToUse = editorInfoForResource[0];
+		const editowToUse = editowInfoFowWesouwce[0];
 
-		// Replace all other editors
-		for (const { editor, group } of editorInfoForResource) {
-			if (editor !== editorToUse.editor) {
-				group.closeEditor(editor);
+		// Wepwace aww otha editows
+		fow (const { editow, gwoup } of editowInfoFowWesouwce) {
+			if (editow !== editowToUse.editow) {
+				gwoup.cwoseEditow(editow);
 			}
 		}
 
-		if (targetGroup.id !== editorToUse.group.id) {
-			editorToUse.group.closeEditor(editorToUse.editor);
+		if (tawgetGwoup.id !== editowToUse.gwoup.id) {
+			editowToUse.gwoup.cwoseEditow(editowToUse.editow);
 		}
-		return;
+		wetuwn;
 	}
 
 	/**
-	 * Given a resource and an editorId, returns all editors open for that resouce and editorId.
-	 * @param resource The resource specified
-	 * @param editorId The editorID
-	 * @returns A list of editors
+	 * Given a wesouwce and an editowId, wetuwns aww editows open fow that wesouce and editowId.
+	 * @pawam wesouwce The wesouwce specified
+	 * @pawam editowId The editowID
+	 * @wetuwns A wist of editows
 	 */
-	private findExistingEditorsForResource(
-		resource: URI,
-		editorId: string,
-	): Array<{ editor: EditorInput, group: IEditorGroup }> {
-		const out: Array<{ editor: EditorInput, group: IEditorGroup }> = [];
-		const orderedGroups = distinct([
-			...this.editorGroupService.groups,
+	pwivate findExistingEditowsFowWesouwce(
+		wesouwce: UWI,
+		editowId: stwing,
+	): Awway<{ editow: EditowInput, gwoup: IEditowGwoup }> {
+		const out: Awway<{ editow: EditowInput, gwoup: IEditowGwoup }> = [];
+		const owdewedGwoups = distinct([
+			...this.editowGwoupSewvice.gwoups,
 		]);
 
-		for (const group of orderedGroups) {
-			for (const editor of group.editors) {
-				if (isEqual(editor.resource, resource) && editor.editorId === editorId) {
-					out.push({ editor, group });
+		fow (const gwoup of owdewedGwoups) {
+			fow (const editow of gwoup.editows) {
+				if (isEquaw(editow.wesouwce, wesouwce) && editow.editowId === editowId) {
+					out.push({ editow, gwoup });
 				}
 			}
 		}
-		return out;
+		wetuwn out;
 	}
 
-	private async doHandleConflictingDefaults(resource: URI, editorName: string, untypedInput: IUntypedEditorInput, currentEditor: EditorInput, group: IEditorGroup) {
-		type StoredChoice = {
-			[key: string]: string[];
+	pwivate async doHandweConfwictingDefauwts(wesouwce: UWI, editowName: stwing, untypedInput: IUntypedEditowInput, cuwwentEditow: EditowInput, gwoup: IEditowGwoup) {
+		type StowedChoice = {
+			[key: stwing]: stwing[];
 		};
-		const editors = this.findMatchingEditors(resource);
-		const storedChoices: StoredChoice = JSON.parse(this.storageService.get(EditorResolverService.conflictingDefaultsStorageID, StorageScope.GLOBAL, '{}'));
-		const globForResource = `*${extname(resource)}`;
-		// Writes to the storage service that a choice has been made for the currently installed editors
-		const writeCurrentEditorsToStorage = () => {
-			storedChoices[globForResource] = [];
-			editors.forEach(editor => storedChoices[globForResource].push(editor.editorInfo.id));
-			this.storageService.store(EditorResolverService.conflictingDefaultsStorageID, JSON.stringify(storedChoices), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		const editows = this.findMatchingEditows(wesouwce);
+		const stowedChoices: StowedChoice = JSON.pawse(this.stowageSewvice.get(EditowWesowvewSewvice.confwictingDefauwtsStowageID, StowageScope.GWOBAW, '{}'));
+		const gwobFowWesouwce = `*${extname(wesouwce)}`;
+		// Wwites to the stowage sewvice that a choice has been made fow the cuwwentwy instawwed editows
+		const wwiteCuwwentEditowsToStowage = () => {
+			stowedChoices[gwobFowWesouwce] = [];
+			editows.fowEach(editow => stowedChoices[gwobFowWesouwce].push(editow.editowInfo.id));
+			this.stowageSewvice.stowe(EditowWesowvewSewvice.confwictingDefauwtsStowageID, JSON.stwingify(stowedChoices), StowageScope.GWOBAW, StowageTawget.MACHINE);
 		};
 
-		// If the user has already made a choice for this editor we don't want to ask them again
-		if (storedChoices[globForResource] && storedChoices[globForResource].find(editorID => editorID === currentEditor.editorId)) {
-			return;
+		// If the usa has awweady made a choice fow this editow we don't want to ask them again
+		if (stowedChoices[gwobFowWesouwce] && stowedChoices[gwobFowWesouwce].find(editowID => editowID === cuwwentEditow.editowId)) {
+			wetuwn;
 		}
 
-		const handle = this.notificationService.prompt(Severity.Warning,
-			localize('editorResolver.conflictingDefaults', 'There are multiple default editors available for the resource.'),
+		const handwe = this.notificationSewvice.pwompt(Sevewity.Wawning,
+			wocawize('editowWesowva.confwictingDefauwts', 'Thewe awe muwtipwe defauwt editows avaiwabwe fow the wesouwce.'),
 			[{
-				label: localize('editorResolver.configureDefault', 'Configure Default'),
-				run: async () => {
-					// Show the picker and tell it to update the setting to whatever the user selected
-					const picked = await this.doPickEditor(untypedInput, true);
+				wabew: wocawize('editowWesowva.configuweDefauwt', 'Configuwe Defauwt'),
+				wun: async () => {
+					// Show the picka and teww it to update the setting to whateva the usa sewected
+					const picked = await this.doPickEditow(untypedInput, twue);
 					if (!picked) {
-						return;
+						wetuwn;
 					}
 					untypedInput.options = picked;
-					const replacementEditor = await this.resolveEditor(untypedInput, group);
-					if (replacementEditor === ResolvedStatus.ABORT || replacementEditor === ResolvedStatus.NONE) {
-						return;
+					const wepwacementEditow = await this.wesowveEditow(untypedInput, gwoup);
+					if (wepwacementEditow === WesowvedStatus.ABOWT || wepwacementEditow === WesowvedStatus.NONE) {
+						wetuwn;
 					}
-					// Replace the current editor with the picked one
-					group.replaceEditors([
+					// Wepwace the cuwwent editow with the picked one
+					gwoup.wepwaceEditows([
 						{
-							editor: currentEditor,
-							replacement: replacementEditor.editor,
-							options: replacementEditor.options ?? picked,
+							editow: cuwwentEditow,
+							wepwacement: wepwacementEditow.editow,
+							options: wepwacementEditow.options ?? picked,
 						}
 					]);
 				}
 			},
 			{
-				label: localize('editorResolver.keepDefault', 'Keep {0}', editorName),
-				run: writeCurrentEditorsToStorage
+				wabew: wocawize('editowWesowva.keepDefauwt', 'Keep {0}', editowName),
+				wun: wwiteCuwwentEditowsToStowage
 			}
 			]);
-		// If the user pressed X we assume they want to keep the current editor as default
-		const onCloseListener = handle.onDidClose(() => {
-			writeCurrentEditorsToStorage();
-			onCloseListener.dispose();
+		// If the usa pwessed X we assume they want to keep the cuwwent editow as defauwt
+		const onCwoseWistena = handwe.onDidCwose(() => {
+			wwiteCuwwentEditowsToStowage();
+			onCwoseWistena.dispose();
 		});
 	}
 
-	private mapEditorsToQuickPickEntry(resource: URI, showDefaultPicker?: boolean) {
-		const currentEditor = firstOrDefault(this.editorGroupService.activeGroup.findEditors(resource));
-		// If untitled, we want all registered editors
-		let registeredEditors = resource.scheme === Schemas.untitled ? this._registeredEditors.filter(e => e.editorInfo.priority !== RegisteredEditorPriority.exclusive) : this.findMatchingEditors(resource);
-		// We don't want duplicate Id entries
-		registeredEditors = distinct(registeredEditors, c => c.editorInfo.id);
-		const defaultSetting = this.getAssociationsForResource(resource)[0]?.viewType;
-		// Not the most efficient way to do this, but we want to ensure the text editor is at the top of the quickpick
-		registeredEditors = registeredEditors.sort((a, b) => {
-			if (a.editorInfo.id === DEFAULT_EDITOR_ASSOCIATION.id) {
-				return -1;
-			} else if (b.editorInfo.id === DEFAULT_EDITOR_ASSOCIATION.id) {
-				return 1;
-			} else {
-				return priorityToRank(b.editorInfo.priority) - priorityToRank(a.editorInfo.priority);
+	pwivate mapEditowsToQuickPickEntwy(wesouwce: UWI, showDefauwtPicka?: boowean) {
+		const cuwwentEditow = fiwstOwDefauwt(this.editowGwoupSewvice.activeGwoup.findEditows(wesouwce));
+		// If untitwed, we want aww wegistewed editows
+		wet wegistewedEditows = wesouwce.scheme === Schemas.untitwed ? this._wegistewedEditows.fiwta(e => e.editowInfo.pwiowity !== WegistewedEditowPwiowity.excwusive) : this.findMatchingEditows(wesouwce);
+		// We don't want dupwicate Id entwies
+		wegistewedEditows = distinct(wegistewedEditows, c => c.editowInfo.id);
+		const defauwtSetting = this.getAssociationsFowWesouwce(wesouwce)[0]?.viewType;
+		// Not the most efficient way to do this, but we want to ensuwe the text editow is at the top of the quickpick
+		wegistewedEditows = wegistewedEditows.sowt((a, b) => {
+			if (a.editowInfo.id === DEFAUWT_EDITOW_ASSOCIATION.id) {
+				wetuwn -1;
+			} ewse if (b.editowInfo.id === DEFAUWT_EDITOW_ASSOCIATION.id) {
+				wetuwn 1;
+			} ewse {
+				wetuwn pwiowityToWank(b.editowInfo.pwiowity) - pwiowityToWank(a.editowInfo.pwiowity);
 			}
 		});
-		const quickPickEntries: Array<IQuickPickItem | IQuickPickSeparator> = [];
-		const currentlyActiveLabel = localize('promptOpenWith.currentlyActive', "Active");
-		const currentDefaultLabel = localize('promptOpenWith.currentDefault', "Default");
-		const currentDefaultAndActiveLabel = localize('promptOpenWith.currentDefaultAndActive', "Active and Default");
-		// Default order = setting -> highest priority -> text
-		let defaultViewType = defaultSetting;
-		if (!defaultViewType && registeredEditors.length > 2 && registeredEditors[1]?.editorInfo.priority !== RegisteredEditorPriority.option) {
-			defaultViewType = registeredEditors[1]?.editorInfo.id;
+		const quickPickEntwies: Awway<IQuickPickItem | IQuickPickSepawatow> = [];
+		const cuwwentwyActiveWabew = wocawize('pwomptOpenWith.cuwwentwyActive', "Active");
+		const cuwwentDefauwtWabew = wocawize('pwomptOpenWith.cuwwentDefauwt', "Defauwt");
+		const cuwwentDefauwtAndActiveWabew = wocawize('pwomptOpenWith.cuwwentDefauwtAndActive', "Active and Defauwt");
+		// Defauwt owda = setting -> highest pwiowity -> text
+		wet defauwtViewType = defauwtSetting;
+		if (!defauwtViewType && wegistewedEditows.wength > 2 && wegistewedEditows[1]?.editowInfo.pwiowity !== WegistewedEditowPwiowity.option) {
+			defauwtViewType = wegistewedEditows[1]?.editowInfo.id;
 		}
-		if (!defaultViewType) {
-			defaultViewType = DEFAULT_EDITOR_ASSOCIATION.id;
+		if (!defauwtViewType) {
+			defauwtViewType = DEFAUWT_EDITOW_ASSOCIATION.id;
 		}
-		// Map the editors to quickpick entries
-		registeredEditors.forEach(editor => {
-			const currentViewType = currentEditor?.editorId ?? DEFAULT_EDITOR_ASSOCIATION.id;
-			const isActive = currentEditor ? editor.editorInfo.id === currentViewType : false;
-			const isDefault = editor.editorInfo.id === defaultViewType;
-			const quickPickEntry: IQuickPickItem = {
-				id: editor.editorInfo.id,
-				label: editor.editorInfo.label,
-				description: isActive && isDefault ? currentDefaultAndActiveLabel : isActive ? currentlyActiveLabel : isDefault ? currentDefaultLabel : undefined,
-				detail: editor.editorInfo.detail ?? editor.editorInfo.priority,
+		// Map the editows to quickpick entwies
+		wegistewedEditows.fowEach(editow => {
+			const cuwwentViewType = cuwwentEditow?.editowId ?? DEFAUWT_EDITOW_ASSOCIATION.id;
+			const isActive = cuwwentEditow ? editow.editowInfo.id === cuwwentViewType : fawse;
+			const isDefauwt = editow.editowInfo.id === defauwtViewType;
+			const quickPickEntwy: IQuickPickItem = {
+				id: editow.editowInfo.id,
+				wabew: editow.editowInfo.wabew,
+				descwiption: isActive && isDefauwt ? cuwwentDefauwtAndActiveWabew : isActive ? cuwwentwyActiveWabew : isDefauwt ? cuwwentDefauwtWabew : undefined,
+				detaiw: editow.editowInfo.detaiw ?? editow.editowInfo.pwiowity,
 			};
-			quickPickEntries.push(quickPickEntry);
+			quickPickEntwies.push(quickPickEntwy);
 		});
-		if (!showDefaultPicker && extname(resource) !== '') {
-			const separator: IQuickPickSeparator = { type: 'separator' };
-			quickPickEntries.push(separator);
-			const configureDefaultEntry = {
-				id: EditorResolverService.configureDefaultID,
-				label: localize('promptOpenWith.configureDefault', "Configure default editor for '{0}'...", `*${extname(resource)}`),
+		if (!showDefauwtPicka && extname(wesouwce) !== '') {
+			const sepawatow: IQuickPickSepawatow = { type: 'sepawatow' };
+			quickPickEntwies.push(sepawatow);
+			const configuweDefauwtEntwy = {
+				id: EditowWesowvewSewvice.configuweDefauwtID,
+				wabew: wocawize('pwomptOpenWith.configuweDefauwt', "Configuwe defauwt editow fow '{0}'...", `*${extname(wesouwce)}`),
 			};
-			quickPickEntries.push(configureDefaultEntry);
+			quickPickEntwies.push(configuweDefauwtEntwy);
 		}
-		return quickPickEntries;
+		wetuwn quickPickEntwies;
 	}
 
-	private async doPickEditor(editor: IUntypedEditorInput, showDefaultPicker?: boolean): Promise<IEditorOptions | undefined> {
+	pwivate async doPickEditow(editow: IUntypedEditowInput, showDefauwtPicka?: boowean): Pwomise<IEditowOptions | undefined> {
 
-		type EditorPick = {
-			readonly item: IQuickPickItem;
-			readonly keyMods?: IKeyMods;
-			readonly openInBackground: boolean;
+		type EditowPick = {
+			weadonwy item: IQuickPickItem;
+			weadonwy keyMods?: IKeyMods;
+			weadonwy openInBackgwound: boowean;
 		};
 
-		let resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		wet wesouwce = EditowWesouwceAccessow.getOwiginawUwi(editow, { suppowtSideBySide: SideBySideEditow.PWIMAWY });
 
-		if (resource === undefined) {
-			resource = URI.from({ scheme: Schemas.untitled });
+		if (wesouwce === undefined) {
+			wesouwce = UWI.fwom({ scheme: Schemas.untitwed });
 		}
 
-		// Get all the editors for the resource as quickpick entries
-		const editorPicks = this.mapEditorsToQuickPickEntry(resource, showDefaultPicker);
+		// Get aww the editows fow the wesouwce as quickpick entwies
+		const editowPicks = this.mapEditowsToQuickPickEntwy(wesouwce, showDefauwtPicka);
 
-		// Create the editor picker
-		const editorPicker = this.quickInputService.createQuickPick<IQuickPickItem>();
-		const placeHolderMessage = showDefaultPicker ?
-			localize('prompOpenWith.updateDefaultPlaceHolder', "Select new default editor for '{0}'", `*${extname(resource)}`) :
-			localize('promptOpenWith.placeHolder', "Select editor for '{0}'", basename(resource));
-		editorPicker.placeholder = placeHolderMessage;
-		editorPicker.canAcceptInBackground = true;
-		editorPicker.items = editorPicks;
-		const firstItem = editorPicker.items.find(item => item.type === 'item') as IQuickPickItem | undefined;
-		if (firstItem) {
-			editorPicker.selectedItems = [firstItem];
+		// Cweate the editow picka
+		const editowPicka = this.quickInputSewvice.cweateQuickPick<IQuickPickItem>();
+		const pwaceHowdewMessage = showDefauwtPicka ?
+			wocawize('pwompOpenWith.updateDefauwtPwaceHowda', "Sewect new defauwt editow fow '{0}'", `*${extname(wesouwce)}`) :
+			wocawize('pwomptOpenWith.pwaceHowda', "Sewect editow fow '{0}'", basename(wesouwce));
+		editowPicka.pwacehowda = pwaceHowdewMessage;
+		editowPicka.canAcceptInBackgwound = twue;
+		editowPicka.items = editowPicks;
+		const fiwstItem = editowPicka.items.find(item => item.type === 'item') as IQuickPickItem | undefined;
+		if (fiwstItem) {
+			editowPicka.sewectedItems = [fiwstItem];
 		}
 
-		// Prompt the user to select an editor
-		const picked: EditorPick | undefined = await new Promise<EditorPick | undefined>(resolve => {
-			editorPicker.onDidAccept(e => {
-				let result: EditorPick | undefined = undefined;
+		// Pwompt the usa to sewect an editow
+		const picked: EditowPick | undefined = await new Pwomise<EditowPick | undefined>(wesowve => {
+			editowPicka.onDidAccept(e => {
+				wet wesuwt: EditowPick | undefined = undefined;
 
-				if (editorPicker.selectedItems.length === 1) {
-					result = {
-						item: editorPicker.selectedItems[0],
-						keyMods: editorPicker.keyMods,
-						openInBackground: e.inBackground
+				if (editowPicka.sewectedItems.wength === 1) {
+					wesuwt = {
+						item: editowPicka.sewectedItems[0],
+						keyMods: editowPicka.keyMods,
+						openInBackgwound: e.inBackgwound
 					};
 				}
 
-				// If asked to always update the setting then update it even if the gear isn't clicked
-				if (resource && showDefaultPicker && result?.item.id) {
-					this.updateUserAssociations(`*${extname(resource)}`, result.item.id,);
+				// If asked to awways update the setting then update it even if the geaw isn't cwicked
+				if (wesouwce && showDefauwtPicka && wesuwt?.item.id) {
+					this.updateUsewAssociations(`*${extname(wesouwce)}`, wesuwt.item.id,);
 				}
 
-				resolve(result);
+				wesowve(wesuwt);
 			});
 
-			editorPicker.onDidHide(() => resolve(undefined));
+			editowPicka.onDidHide(() => wesowve(undefined));
 
-			editorPicker.onDidTriggerItemButton(e => {
+			editowPicka.onDidTwiggewItemButton(e => {
 
-				// Trigger opening and close picker
-				resolve({ item: e.item, openInBackground: false });
+				// Twigga opening and cwose picka
+				wesowve({ item: e.item, openInBackgwound: fawse });
 
-				// Persist setting
-				if (resource && e.item && e.item.id) {
-					this.updateUserAssociations(`*${extname(resource)}`, e.item.id,);
+				// Pewsist setting
+				if (wesouwce && e.item && e.item.id) {
+					this.updateUsewAssociations(`*${extname(wesouwce)}`, e.item.id,);
 				}
 			});
 
-			editorPicker.show();
+			editowPicka.show();
 		});
 
-		// Close picker
-		editorPicker.dispose();
+		// Cwose picka
+		editowPicka.dispose();
 
-		// If the user picked an editor, look at how the picker was
-		// used (e.g. modifier keys, open in background) and create the
-		// options and group to use accordingly
+		// If the usa picked an editow, wook at how the picka was
+		// used (e.g. modifia keys, open in backgwound) and cweate the
+		// options and gwoup to use accowdingwy
 		if (picked) {
 
-			// If the user selected to configure default we trigger this picker again and tell it to show the default picker
-			if (picked.item.id === EditorResolverService.configureDefaultID) {
-				return this.doPickEditor(editor, true);
+			// If the usa sewected to configuwe defauwt we twigga this picka again and teww it to show the defauwt picka
+			if (picked.item.id === EditowWesowvewSewvice.configuweDefauwtID) {
+				wetuwn this.doPickEditow(editow, twue);
 			}
 
-			// Figure out options
-			const targetOptions: IEditorOptions = {
-				...editor.options,
-				override: picked.item.id,
-				preserveFocus: picked.openInBackground || editor.options?.preserveFocus,
+			// Figuwe out options
+			const tawgetOptions: IEditowOptions = {
+				...editow.options,
+				ovewwide: picked.item.id,
+				pwesewveFocus: picked.openInBackgwound || editow.options?.pwesewveFocus,
 			};
 
-			return targetOptions;
+			wetuwn tawgetOptions;
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private sendEditorResolutionTelemetry(chosenInput: EditorInput): void {
-		type editorResolutionClassification = {
-			viewType: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+	pwivate sendEditowWesowutionTewemetwy(chosenInput: EditowInput): void {
+		type editowWesowutionCwassification = {
+			viewType: { cwassification: 'PubwicNonPewsonawData', puwpose: 'FeatuweInsight' };
 		};
-		type editorResolutionEvent = {
-			viewType: string
+		type editowWesowutionEvent = {
+			viewType: stwing
 		};
-		if (chosenInput.editorId) {
-			this.telemetryService.publicLog2<editorResolutionEvent, editorResolutionClassification>('override.viewType', { viewType: chosenInput.editorId });
+		if (chosenInput.editowId) {
+			this.tewemetwySewvice.pubwicWog2<editowWesowutionEvent, editowWesowutionCwassification>('ovewwide.viewType', { viewType: chosenInput.editowId });
 		}
 	}
 
-	private cacheEditors() {
-		// Create a set to store glob patterns
-		const cacheStorage: Set<string> = new Set<string>();
+	pwivate cacheEditows() {
+		// Cweate a set to stowe gwob pattewns
+		const cacheStowage: Set<stwing> = new Set<stwing>();
 
-		// Store just the relative pattern pieces without any path info
-		for (const [globPattern, contribPoint] of this._editors) {
-			const nonOptional = !!contribPoint.find(c => c.editorInfo.priority !== RegisteredEditorPriority.option && c.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
-			// Don't keep a cache of the optional ones as those wouldn't be opened on start anyways
-			if (!nonOptional) {
+		// Stowe just the wewative pattewn pieces without any path info
+		fow (const [gwobPattewn, contwibPoint] of this._editows) {
+			const nonOptionaw = !!contwibPoint.find(c => c.editowInfo.pwiowity !== WegistewedEditowPwiowity.option && c.editowInfo.id !== DEFAUWT_EDITOW_ASSOCIATION.id);
+			// Don't keep a cache of the optionaw ones as those wouwdn't be opened on stawt anyways
+			if (!nonOptionaw) {
 				continue;
 			}
-			if (glob.isRelativePattern(globPattern)) {
-				cacheStorage.add(`${globPattern.pattern}`);
-			} else {
-				cacheStorage.add(globPattern);
+			if (gwob.isWewativePattewn(gwobPattewn)) {
+				cacheStowage.add(`${gwobPattewn.pattewn}`);
+			} ewse {
+				cacheStowage.add(gwobPattewn);
 			}
 		}
 
-		// Also store the users settings as those would have to activate on startup as well
-		const userAssociations = this.getAllUserAssociations();
-		for (const association of userAssociations) {
-			if (association.filenamePattern) {
-				cacheStorage.add(association.filenamePattern);
+		// Awso stowe the usews settings as those wouwd have to activate on stawtup as weww
+		const usewAssociations = this.getAwwUsewAssociations();
+		fow (const association of usewAssociations) {
+			if (association.fiwenamePattewn) {
+				cacheStowage.add(association.fiwenamePattewn);
 			}
 		}
-		this.storageService.store(EditorResolverService.cacheStorageID, JSON.stringify(Array.from(cacheStorage)), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.stowageSewvice.stowe(EditowWesowvewSewvice.cacheStowageID, JSON.stwingify(Awway.fwom(cacheStowage)), StowageScope.GWOBAW, StowageTawget.MACHINE);
 	}
 
-	private resourceMatchesCache(resource: URI): boolean {
+	pwivate wesouwceMatchesCache(wesouwce: UWI): boowean {
 		if (!this.cache) {
-			return false;
+			wetuwn fawse;
 		}
 
-		for (const cacheEntry of this.cache) {
-			if (globMatchesResource(cacheEntry, resource)) {
-				return true;
+		fow (const cacheEntwy of this.cache) {
+			if (gwobMatchesWesouwce(cacheEntwy, wesouwce)) {
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 }
 
-registerSingleton(IEditorResolverService, EditorResolverService);
+wegistewSingweton(IEditowWesowvewSewvice, EditowWesowvewSewvice);

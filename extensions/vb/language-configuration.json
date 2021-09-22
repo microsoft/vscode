@@ -1,30 +1,30 @@
 {
 	"comments": {
-		"lineComment": "'"
+		"wineComment": "'"
 	},
-	"brackets": [
+	"bwackets": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
 		["<", ">"]
 	],
-	"autoClosingPairs": [
+	"autoCwosingPaiws": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
-		{ "open": "\"", "close": "\"", "notIn": ["string"] }
+		{ "open": "\"", "cwose": "\"", "notIn": ["stwing"] }
 	],
-	"surroundingPairs": [
+	"suwwoundingPaiws": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
 		["\"", "\""],
 		["<", ">"]
 	],
-	"folding": {
-		"markers": {
-			"start": "^\\s*#Region\\b",
-			"end": "^\\s*#End Region\\b"
+	"fowding": {
+		"mawkews": {
+			"stawt": "^\\s*#Wegion\\b",
+			"end": "^\\s*#End Wegion\\b"
 		}
 	}
 }

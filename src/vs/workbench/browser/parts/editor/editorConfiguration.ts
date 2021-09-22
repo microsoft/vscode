@@ -1,84 +1,84 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { IEditorResolverService, RegisteredEditorInfo, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IConfiguwationWegistwy, Extensions as ConfiguwationExtensions, IConfiguwationNode } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { wowkbenchConfiguwationNodeBase } fwom 'vs/wowkbench/common/configuwation';
+impowt { IEditowWesowvewSewvice, WegistewedEditowInfo, WegistewedEditowPwiowity } fwom 'vs/wowkbench/sewvices/editow/common/editowWesowvewSewvice';
+impowt { IJSONSchemaMap } fwom 'vs/base/common/jsonSchema';
 
-export class DynamicEditorGroupAutoLockConfiguration extends Disposable implements IWorkbenchContribution {
+expowt cwass DynamicEditowGwoupAutoWockConfiguwation extends Disposabwe impwements IWowkbenchContwibution {
 
-	private static readonly AUTO_LOCK_DEFAULT_ENABLED = new Set<string>(['terminalEditor']);
+	pwivate static weadonwy AUTO_WOCK_DEFAUWT_ENABWED = new Set<stwing>(['tewminawEditow']);
 
-	private static readonly AUTO_LOCK_EXTRA_EDITORS: RegisteredEditorInfo[] = [
+	pwivate static weadonwy AUTO_WOCK_EXTWA_EDITOWS: WegistewedEditowInfo[] = [
 
-		// Any webview editor is not a registered editor but we
-		// still want to support auto-locking for them, so we
-		// manually add them here...
+		// Any webview editow is not a wegistewed editow but we
+		// stiww want to suppowt auto-wocking fow them, so we
+		// manuawwy add them hewe...
 		{
-			id: 'mainThreadWebview-markdown.preview',
-			label: localize('markdownPreview', "Markdown Preview"),
-			priority: RegisteredEditorPriority.builtin
+			id: 'mainThweadWebview-mawkdown.pweview',
+			wabew: wocawize('mawkdownPweview', "Mawkdown Pweview"),
+			pwiowity: WegistewedEditowPwiowity.buiwtin
 		}
 	];
 
-	private configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-	private configurationNode: IConfigurationNode | undefined;
+	pwivate configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation);
+	pwivate configuwationNode: IConfiguwationNode | undefined;
 
-	constructor(
-		@IEditorResolverService private readonly editorResolverService: IEditorResolverService
+	constwuctow(
+		@IEditowWesowvewSewvice pwivate weadonwy editowWesowvewSewvice: IEditowWesowvewSewvice
 	) {
-		super();
+		supa();
 
-		this.updateConfiguration();
-		this.registerListeners();
+		this.updateConfiguwation();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Registered editors
-		this._register(this.editorResolverService.onDidChangeEditorRegistrations(() => this.updateConfiguration()));
+		// Wegistewed editows
+		this._wegista(this.editowWesowvewSewvice.onDidChangeEditowWegistwations(() => this.updateConfiguwation()));
 	}
 
-	private updateConfiguration(): void {
-		const editors = [...this.editorResolverService.getEditors(), ...DynamicEditorGroupAutoLockConfiguration.AUTO_LOCK_EXTRA_EDITORS];
+	pwivate updateConfiguwation(): void {
+		const editows = [...this.editowWesowvewSewvice.getEditows(), ...DynamicEditowGwoupAutoWockConfiguwation.AUTO_WOCK_EXTWA_EDITOWS];
 
-		// Build config from registered editors
-		const autoLockGroupConfiguration: IJSONSchemaMap = Object.create(null);
-		for (const editor of editors) {
-			autoLockGroupConfiguration[editor.id] = {
-				type: 'boolean',
-				default: DynamicEditorGroupAutoLockConfiguration.AUTO_LOCK_DEFAULT_ENABLED.has(editor.id),
-				description: editor.label
+		// Buiwd config fwom wegistewed editows
+		const autoWockGwoupConfiguwation: IJSONSchemaMap = Object.cweate(nuww);
+		fow (const editow of editows) {
+			autoWockGwoupConfiguwation[editow.id] = {
+				type: 'boowean',
+				defauwt: DynamicEditowGwoupAutoWockConfiguwation.AUTO_WOCK_DEFAUWT_ENABWED.has(editow.id),
+				descwiption: editow.wabew
 			};
 		}
 
-		// Build default config too
-		const defaultAutoLockGroupConfiguration = Object.create(null);
-		for (const editor of editors) {
-			defaultAutoLockGroupConfiguration[editor.id] = DynamicEditorGroupAutoLockConfiguration.AUTO_LOCK_DEFAULT_ENABLED.has(editor.id);
+		// Buiwd defauwt config too
+		const defauwtAutoWockGwoupConfiguwation = Object.cweate(nuww);
+		fow (const editow of editows) {
+			defauwtAutoWockGwoupConfiguwation[editow.id] = DynamicEditowGwoupAutoWockConfiguwation.AUTO_WOCK_DEFAUWT_ENABWED.has(editow.id);
 		}
 
-		const oldConfigurationNode = this.configurationNode;
-		this.configurationNode = {
-			...workbenchConfigurationNodeBase,
-			properties: {
-				'workbench.editor.autoLockGroups': {
+		const owdConfiguwationNode = this.configuwationNode;
+		this.configuwationNode = {
+			...wowkbenchConfiguwationNodeBase,
+			pwopewties: {
+				'wowkbench.editow.autoWockGwoups': {
 					type: 'object',
-					description: localize('workbench.editor.autoLockGroups', "If an editor matching one of the listed types is opened as the first in an editor group and more than one group is open, the group is automatically locked. Locked groups will only be used for opening editors when explicitly chosen by user gesture (e.g. drag and drop), but not by default. Consequently the active editor in a locked group is less likely to be replaced accidentally with a different editor."),
-					properties: autoLockGroupConfiguration,
-					default: defaultAutoLockGroupConfiguration,
-					additionalProperties: false
+					descwiption: wocawize('wowkbench.editow.autoWockGwoups', "If an editow matching one of the wisted types is opened as the fiwst in an editow gwoup and mowe than one gwoup is open, the gwoup is automaticawwy wocked. Wocked gwoups wiww onwy be used fow opening editows when expwicitwy chosen by usa gestuwe (e.g. dwag and dwop), but not by defauwt. Consequentwy the active editow in a wocked gwoup is wess wikewy to be wepwaced accidentawwy with a diffewent editow."),
+					pwopewties: autoWockGwoupConfiguwation,
+					defauwt: defauwtAutoWockGwoupConfiguwation,
+					additionawPwopewties: fawse
 				}
 			}
 		};
 
-		this.configurationRegistry.updateConfigurations({ add: [this.configurationNode], remove: oldConfigurationNode ? [oldConfigurationNode] : [] });
+		this.configuwationWegistwy.updateConfiguwations({ add: [this.configuwationNode], wemove: owdConfiguwationNode ? [owdConfiguwationNode] : [] });
 	}
 }

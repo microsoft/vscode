@@ -1,55 +1,55 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { IMode, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IMode, WanguageId, WanguageIdentifia } fwom 'vs/editow/common/modes';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const IModeService = createDecorator<IModeService>('modeService');
+expowt const IModeSewvice = cweateDecowatow<IModeSewvice>('modeSewvice');
 
-export interface ILanguageExtensionPoint {
-	id: string;
-	extensions?: string[];
-	filenames?: string[];
-	filenamePatterns?: string[];
-	firstLine?: string;
-	aliases?: string[];
-	mimetypes?: string[];
-	configuration?: URI;
+expowt intewface IWanguageExtensionPoint {
+	id: stwing;
+	extensions?: stwing[];
+	fiwenames?: stwing[];
+	fiwenamePattewns?: stwing[];
+	fiwstWine?: stwing;
+	awiases?: stwing[];
+	mimetypes?: stwing[];
+	configuwation?: UWI;
 }
 
-export interface ILanguageSelection {
-	readonly languageIdentifier: LanguageIdentifier;
-	readonly onDidChange: Event<LanguageIdentifier>;
+expowt intewface IWanguageSewection {
+	weadonwy wanguageIdentifia: WanguageIdentifia;
+	weadonwy onDidChange: Event<WanguageIdentifia>;
 }
 
-export interface IModeService {
-	readonly _serviceBrand: undefined;
+expowt intewface IModeSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	onDidCreateMode: Event<IMode>;
-	onLanguagesMaybeChanged: Event<void>;
+	onDidCweateMode: Event<IMode>;
+	onWanguagesMaybeChanged: Event<void>;
 
-	// --- reading
-	isRegisteredMode(mimetypeOrModeId: string): boolean;
-	getRegisteredModes(): string[];
-	getRegisteredLanguageNames(): string[];
-	getExtensions(alias: string): string[];
-	getFilenames(alias: string): string[];
-	getMimeForMode(modeId: string): string | null;
-	getLanguageName(modeId: string): string | null;
-	getModeIdForLanguageName(alias: string): string | null;
-	getModeIdByFilepathOrFirstLine(resource: URI, firstLine?: string): string | null;
-	getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string | null;
-	getLanguageIdentifier(modeId: string | LanguageId): LanguageIdentifier | null;
-	getConfigurationFiles(modeId: string): URI[];
+	// --- weading
+	isWegistewedMode(mimetypeOwModeId: stwing): boowean;
+	getWegistewedModes(): stwing[];
+	getWegistewedWanguageNames(): stwing[];
+	getExtensions(awias: stwing): stwing[];
+	getFiwenames(awias: stwing): stwing[];
+	getMimeFowMode(modeId: stwing): stwing | nuww;
+	getWanguageName(modeId: stwing): stwing | nuww;
+	getModeIdFowWanguageName(awias: stwing): stwing | nuww;
+	getModeIdByFiwepathOwFiwstWine(wesouwce: UWI, fiwstWine?: stwing): stwing | nuww;
+	getModeId(commaSepawatedMimetypesOwCommaSepawatedIds: stwing): stwing | nuww;
+	getWanguageIdentifia(modeId: stwing | WanguageId): WanguageIdentifia | nuww;
+	getConfiguwationFiwes(modeId: stwing): UWI[];
 
 	// --- instantiation
-	create(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): ILanguageSelection;
-	createByLanguageName(languageName: string): ILanguageSelection;
-	createByFilepathOrFirstLine(resource: URI | null, firstLine?: string): ILanguageSelection;
+	cweate(commaSepawatedMimetypesOwCommaSepawatedIds: stwing | undefined): IWanguageSewection;
+	cweateByWanguageName(wanguageName: stwing): IWanguageSewection;
+	cweateByFiwepathOwFiwstWine(wesouwce: UWI | nuww, fiwstWine?: stwing): IWanguageSewection;
 
-	triggerMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): void;
+	twiggewMode(commaSepawatedMimetypesOwCommaSepawatedIds: stwing): void;
 }

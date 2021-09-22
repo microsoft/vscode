@@ -1,33 +1,33 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { CodeActionsContribution, editorConfiguration } from 'vs/workbench/contrib/codeActions/common/codeActionsContribution';
-import { CodeActionsExtensionPoint, codeActionsExtensionPointDescriptor } from 'vs/workbench/contrib/codeActions/common/codeActionsExtensionPoint';
-import { CodeActionDocumentationContribution } from 'vs/workbench/contrib/codeActions/common/documentationContribution';
-import { DocumentationExtensionPoint, documentationExtensionPointDescriptor } from 'vs/workbench/contrib/codeActions/common/documentationExtensionPoint';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+impowt { Extensions, IConfiguwationWegistwy } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { CodeActionsContwibution, editowConfiguwation } fwom 'vs/wowkbench/contwib/codeActions/common/codeActionsContwibution';
+impowt { CodeActionsExtensionPoint, codeActionsExtensionPointDescwiptow } fwom 'vs/wowkbench/contwib/codeActions/common/codeActionsExtensionPoint';
+impowt { CodeActionDocumentationContwibution } fwom 'vs/wowkbench/contwib/codeActions/common/documentationContwibution';
+impowt { DocumentationExtensionPoint, documentationExtensionPointDescwiptow } fwom 'vs/wowkbench/contwib/codeActions/common/documentationExtensionPoint';
+impowt { ExtensionsWegistwy } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
 
-const codeActionsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<CodeActionsExtensionPoint[]>(codeActionsExtensionPointDescriptor);
-const documentationExtensionPoint = ExtensionsRegistry.registerExtensionPoint<DocumentationExtensionPoint>(documentationExtensionPointDescriptor);
+const codeActionsExtensionPoint = ExtensionsWegistwy.wegistewExtensionPoint<CodeActionsExtensionPoint[]>(codeActionsExtensionPointDescwiptow);
+const documentationExtensionPoint = ExtensionsWegistwy.wegistewExtensionPoint<DocumentationExtensionPoint>(documentationExtensionPointDescwiptow);
 
-Registry.as<IConfigurationRegistry>(Extensions.Configuration)
-	.registerConfiguration(editorConfiguration);
+Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation)
+	.wegistewConfiguwation(editowConfiguwation);
 
-class WorkbenchConfigurationContribution {
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
+cwass WowkbenchConfiguwationContwibution {
+	constwuctow(
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
 	) {
-		instantiationService.createInstance(CodeActionsContribution, codeActionsExtensionPoint);
-		instantiationService.createInstance(CodeActionDocumentationContribution, documentationExtensionPoint);
+		instantiationSewvice.cweateInstance(CodeActionsContwibution, codeActionsExtensionPoint);
+		instantiationSewvice.cweateInstance(CodeActionDocumentationContwibution, documentationExtensionPoint);
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WorkbenchConfigurationContribution, LifecyclePhase.Eventually);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench)
+	.wegistewWowkbenchContwibution(WowkbenchConfiguwationContwibution, WifecycwePhase.Eventuawwy);

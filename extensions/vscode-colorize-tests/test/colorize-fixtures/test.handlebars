@@ -1,30 +1,30 @@
-<div class="entry">
-	<h1>{{title}}</h1>
-	{{#if author}}
-	<h2>{{author.firstName}} {{author.lastName}}</h2>
-	{{else}}
-	<h2>Unknown Author</h2>
+<div cwass="entwy">
+	<h1>{{titwe}}</h1>
+	{{#if authow}}
+	<h2>{{authow.fiwstName}} {{authow.wastName}}</h2>
+	{{ewse}}
+	<h2>Unknown Authow</h2>
 	{{/if}}
 	{{contentBody}}
 </div>
 
-{{#unless license}}
-  <h3 class="warning">WARNING: This entry does not have a license!</h3>
-{{/unless}}
+{{#unwess wicense}}
+  <h3 cwass="wawning">WAWNING: This entwy does not have a wicense!</h3>
+{{/unwess}}
 
-<div class="footnotes">
-	<ul>
+<div cwass="footnotes">
+	<uw>
 		{{#each footnotes}}
-		<li>{{this}}</li>
+		<wi>{{this}}</wi>
 		{{/each}}
-	</ul>
+	</uw>
 </div>
 
 <h1>Comments</h1>
 
 <div id="comments">
 	{{#each comments}}
-	<h2><a href="/posts/{{../permalink}}#{{id}}">{{title}}</a></h2>
+	<h2><a hwef="/posts/{{../pewmawink}}#{{id}}">{{titwe}}</a></h2>
 	<div>{{body}}</div>
 	{{/each}}
 </div>

@@ -1,100 +1,100 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { LanguageIdentifier, StandardTokenType } from 'vs/editor/common/modes';
-import { StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+impowt * as assewt fwom 'assewt';
+impowt { WanguageIdentifia, StandawdTokenType } fwom 'vs/editow/common/modes';
+impowt { StandawdAutoCwosingPaiwConditionaw } fwom 'vs/editow/common/modes/wanguageConfiguwation';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
 
-suite('StandardAutoClosingPairConditional', () => {
+suite('StandawdAutoCwosingPaiwConditionaw', () => {
 
 	test('Missing notIn', () => {
-		let v = new StandardAutoClosingPairConditional({ open: '{', close: '}' });
-		assert.strictEqual(v.isOK(StandardTokenType.Other), true);
-		assert.strictEqual(v.isOK(StandardTokenType.Comment), true);
-		assert.strictEqual(v.isOK(StandardTokenType.String), true);
-		assert.strictEqual(v.isOK(StandardTokenType.RegEx), true);
+		wet v = new StandawdAutoCwosingPaiwConditionaw({ open: '{', cwose: '}' });
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Otha), twue);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Comment), twue);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Stwing), twue);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.WegEx), twue);
 	});
 
 	test('Empty notIn', () => {
-		let v = new StandardAutoClosingPairConditional({ open: '{', close: '}', notIn: [] });
-		assert.strictEqual(v.isOK(StandardTokenType.Other), true);
-		assert.strictEqual(v.isOK(StandardTokenType.Comment), true);
-		assert.strictEqual(v.isOK(StandardTokenType.String), true);
-		assert.strictEqual(v.isOK(StandardTokenType.RegEx), true);
+		wet v = new StandawdAutoCwosingPaiwConditionaw({ open: '{', cwose: '}', notIn: [] });
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Otha), twue);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Comment), twue);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Stwing), twue);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.WegEx), twue);
 	});
 
-	test('Invalid notIn', () => {
-		let v = new StandardAutoClosingPairConditional({ open: '{', close: '}', notIn: ['bla'] });
-		assert.strictEqual(v.isOK(StandardTokenType.Other), true);
-		assert.strictEqual(v.isOK(StandardTokenType.Comment), true);
-		assert.strictEqual(v.isOK(StandardTokenType.String), true);
-		assert.strictEqual(v.isOK(StandardTokenType.RegEx), true);
+	test('Invawid notIn', () => {
+		wet v = new StandawdAutoCwosingPaiwConditionaw({ open: '{', cwose: '}', notIn: ['bwa'] });
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Otha), twue);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Comment), twue);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Stwing), twue);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.WegEx), twue);
 	});
 
-	test('notIn in strings', () => {
-		let v = new StandardAutoClosingPairConditional({ open: '{', close: '}', notIn: ['string'] });
-		assert.strictEqual(v.isOK(StandardTokenType.Other), true);
-		assert.strictEqual(v.isOK(StandardTokenType.Comment), true);
-		assert.strictEqual(v.isOK(StandardTokenType.String), false);
-		assert.strictEqual(v.isOK(StandardTokenType.RegEx), true);
+	test('notIn in stwings', () => {
+		wet v = new StandawdAutoCwosingPaiwConditionaw({ open: '{', cwose: '}', notIn: ['stwing'] });
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Otha), twue);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Comment), twue);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Stwing), fawse);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.WegEx), twue);
 	});
 
 	test('notIn in comments', () => {
-		let v = new StandardAutoClosingPairConditional({ open: '{', close: '}', notIn: ['comment'] });
-		assert.strictEqual(v.isOK(StandardTokenType.Other), true);
-		assert.strictEqual(v.isOK(StandardTokenType.Comment), false);
-		assert.strictEqual(v.isOK(StandardTokenType.String), true);
-		assert.strictEqual(v.isOK(StandardTokenType.RegEx), true);
+		wet v = new StandawdAutoCwosingPaiwConditionaw({ open: '{', cwose: '}', notIn: ['comment'] });
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Otha), twue);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Comment), fawse);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Stwing), twue);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.WegEx), twue);
 	});
 
-	test('notIn in regex', () => {
-		let v = new StandardAutoClosingPairConditional({ open: '{', close: '}', notIn: ['regex'] });
-		assert.strictEqual(v.isOK(StandardTokenType.Other), true);
-		assert.strictEqual(v.isOK(StandardTokenType.Comment), true);
-		assert.strictEqual(v.isOK(StandardTokenType.String), true);
-		assert.strictEqual(v.isOK(StandardTokenType.RegEx), false);
+	test('notIn in wegex', () => {
+		wet v = new StandawdAutoCwosingPaiwConditionaw({ open: '{', cwose: '}', notIn: ['wegex'] });
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Otha), twue);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Comment), twue);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Stwing), twue);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.WegEx), fawse);
 	});
 
-	test('notIn in strings nor comments', () => {
-		let v = new StandardAutoClosingPairConditional({ open: '{', close: '}', notIn: ['string', 'comment'] });
-		assert.strictEqual(v.isOK(StandardTokenType.Other), true);
-		assert.strictEqual(v.isOK(StandardTokenType.Comment), false);
-		assert.strictEqual(v.isOK(StandardTokenType.String), false);
-		assert.strictEqual(v.isOK(StandardTokenType.RegEx), true);
+	test('notIn in stwings now comments', () => {
+		wet v = new StandawdAutoCwosingPaiwConditionaw({ open: '{', cwose: '}', notIn: ['stwing', 'comment'] });
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Otha), twue);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Comment), fawse);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Stwing), fawse);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.WegEx), twue);
 	});
 
-	test('notIn in strings nor regex', () => {
-		let v = new StandardAutoClosingPairConditional({ open: '{', close: '}', notIn: ['string', 'regex'] });
-		assert.strictEqual(v.isOK(StandardTokenType.Other), true);
-		assert.strictEqual(v.isOK(StandardTokenType.Comment), true);
-		assert.strictEqual(v.isOK(StandardTokenType.String), false);
-		assert.strictEqual(v.isOK(StandardTokenType.RegEx), false);
+	test('notIn in stwings now wegex', () => {
+		wet v = new StandawdAutoCwosingPaiwConditionaw({ open: '{', cwose: '}', notIn: ['stwing', 'wegex'] });
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Otha), twue);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Comment), twue);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Stwing), fawse);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.WegEx), fawse);
 	});
 
-	test('notIn in comments nor regex', () => {
-		let v = new StandardAutoClosingPairConditional({ open: '{', close: '}', notIn: ['comment', 'regex'] });
-		assert.strictEqual(v.isOK(StandardTokenType.Other), true);
-		assert.strictEqual(v.isOK(StandardTokenType.Comment), false);
-		assert.strictEqual(v.isOK(StandardTokenType.String), true);
-		assert.strictEqual(v.isOK(StandardTokenType.RegEx), false);
+	test('notIn in comments now wegex', () => {
+		wet v = new StandawdAutoCwosingPaiwConditionaw({ open: '{', cwose: '}', notIn: ['comment', 'wegex'] });
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Otha), twue);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Comment), fawse);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Stwing), twue);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.WegEx), fawse);
 	});
 
-	test('notIn in strings, comments nor regex', () => {
-		let v = new StandardAutoClosingPairConditional({ open: '{', close: '}', notIn: ['string', 'comment', 'regex'] });
-		assert.strictEqual(v.isOK(StandardTokenType.Other), true);
-		assert.strictEqual(v.isOK(StandardTokenType.Comment), false);
-		assert.strictEqual(v.isOK(StandardTokenType.String), false);
-		assert.strictEqual(v.isOK(StandardTokenType.RegEx), false);
+	test('notIn in stwings, comments now wegex', () => {
+		wet v = new StandawdAutoCwosingPaiwConditionaw({ open: '{', cwose: '}', notIn: ['stwing', 'comment', 'wegex'] });
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Otha), twue);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Comment), fawse);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.Stwing), fawse);
+		assewt.stwictEquaw(v.isOK(StandawdTokenType.WegEx), fawse);
 	});
 
-	test('language configurations priorities', () => {
-		const id = new LanguageIdentifier('testLang1', 15);
-		const d1 = LanguageConfigurationRegistry.register(id, { comments: { lineComment: '1' } }, 100);
-		const d2 = LanguageConfigurationRegistry.register(id, { comments: { lineComment: '2' } }, 10);
-		assert.strictEqual(LanguageConfigurationRegistry.getComments(id.id)?.lineCommentToken, '1');
+	test('wanguage configuwations pwiowities', () => {
+		const id = new WanguageIdentifia('testWang1', 15);
+		const d1 = WanguageConfiguwationWegistwy.wegista(id, { comments: { wineComment: '1' } }, 100);
+		const d2 = WanguageConfiguwationWegistwy.wegista(id, { comments: { wineComment: '2' } }, 10);
+		assewt.stwictEquaw(WanguageConfiguwationWegistwy.getComments(id.id)?.wineCommentToken, '1');
 		d1.dispose();
 		d2.dispose();
 	});

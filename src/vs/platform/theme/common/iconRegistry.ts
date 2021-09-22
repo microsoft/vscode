@@ -1,294 +1,294 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import * as Codicons from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import * as platform from 'vs/platform/registry/common/platform';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt * as Codicons fwom 'vs/base/common/codicons';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IJSONSchema, IJSONSchemaMap } fwom 'vs/base/common/jsonSchema';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Extensions as JSONExtensions, IJSONContwibutionWegistwy } fwom 'vs/pwatfowm/jsonschemas/common/jsonContwibutionWegistwy';
+impowt * as pwatfowm fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
 //  ------ API types
 
-// icon registry
-export const Extensions = {
-	IconContribution: 'base.contributions.icons'
+// icon wegistwy
+expowt const Extensions = {
+	IconContwibution: 'base.contwibutions.icons'
 };
 
-export type IconDefaults = ThemeIcon | IconDefinition;
+expowt type IconDefauwts = ThemeIcon | IconDefinition;
 
-export interface IconDefinition {
-	fontId?: string;
-	fontCharacter: string;
+expowt intewface IconDefinition {
+	fontId?: stwing;
+	fontChawacta: stwing;
 }
 
-export interface IconContribution {
-	id: string;
-	description: string | undefined;
-	deprecationMessage?: string;
-	defaults: IconDefaults;
+expowt intewface IconContwibution {
+	id: stwing;
+	descwiption: stwing | undefined;
+	depwecationMessage?: stwing;
+	defauwts: IconDefauwts;
 }
 
-export interface IconFontContribution {
-	id: string;
+expowt intewface IconFontContwibution {
+	id: stwing;
 	definition: IconFontDefinition;
 }
 
-export interface IconFontDefinition {
-	src: { location: URI, format: string; }[]
+expowt intewface IconFontDefinition {
+	swc: { wocation: UWI, fowmat: stwing; }[]
 }
 
-export interface IIconRegistry {
+expowt intewface IIconWegistwy {
 
-	readonly onDidChange: Event<void>;
+	weadonwy onDidChange: Event<void>;
 
 	/**
-	 * Register a icon to the registry.
-	 * @param id The icon id
-	 * @param defaults The default values
-	 * @param description The description
+	 * Wegista a icon to the wegistwy.
+	 * @pawam id The icon id
+	 * @pawam defauwts The defauwt vawues
+	 * @pawam descwiption The descwiption
 	 */
-	registerIcon(id: string, defaults: IconDefaults, description?: string): ThemeIcon;
+	wegistewIcon(id: stwing, defauwts: IconDefauwts, descwiption?: stwing): ThemeIcon;
 
 	/**
-	 * Deregister a icon from the registry.
+	 * Dewegista a icon fwom the wegistwy.
 	 */
-	deregisterIcon(id: string): void;
+	dewegistewIcon(id: stwing): void;
 
 	/**
-	 * Get all icon contributions
+	 * Get aww icon contwibutions
 	 */
-	getIcons(): IconContribution[];
+	getIcons(): IconContwibution[];
 
 	/**
-	 * Get the icon for the given id
+	 * Get the icon fow the given id
 	 */
-	getIcon(id: string): IconContribution | undefined;
+	getIcon(id: stwing): IconContwibution | undefined;
 
 	/**
-	 * JSON schema for an object to assign icon values to one of the icon contributions.
+	 * JSON schema fow an object to assign icon vawues to one of the icon contwibutions.
 	 */
 	getIconSchema(): IJSONSchema;
 
 	/**
-	 * JSON schema to for a reference to a icon contribution.
+	 * JSON schema to fow a wefewence to a icon contwibution.
 	 */
-	getIconReferenceSchema(): IJSONSchema;
+	getIconWefewenceSchema(): IJSONSchema;
 
 	/**
-	 * Register a icon font to the registry.
-	 * @param id The icon font id
-	 * @param definition The iocn font definition
+	 * Wegista a icon font to the wegistwy.
+	 * @pawam id The icon font id
+	 * @pawam definition The iocn font definition
 	 */
-	registerIconFont(id: string, definition: IconFontDefinition): IconFontContribution;
+	wegistewIconFont(id: stwing, definition: IconFontDefinition): IconFontContwibution;
 
 	/**
-	 * Deregister an icon font to the registry.
+	 * Dewegista an icon font to the wegistwy.
 	 */
-	deregisterIconFont(id: string): void;
+	dewegistewIconFont(id: stwing): void;
 
 	/**
-	 * Get all icon font contributions
+	 * Get aww icon font contwibutions
 	 */
-	getIconFonts(): IconFontContribution[];
+	getIconFonts(): IconFontContwibution[];
 
 	/**
-	 * Get the icon font for the given id
+	 * Get the icon font fow the given id
 	 */
-	getIconFont(id: string): IconFontContribution | undefined;
+	getIconFont(id: stwing): IconFontContwibution | undefined;
 }
 
-class IconRegistry implements IIconRegistry {
+cwass IconWegistwy impwements IIconWegistwy {
 
-	private readonly _onDidChange = new Emitter<void>();
-	readonly onDidChange: Event<void> = this._onDidChange.event;
+	pwivate weadonwy _onDidChange = new Emitta<void>();
+	weadonwy onDidChange: Event<void> = this._onDidChange.event;
 
-	private iconsById: { [key: string]: IconContribution };
-	private iconSchema: IJSONSchema & { properties: IJSONSchemaMap } = {
+	pwivate iconsById: { [key: stwing]: IconContwibution };
+	pwivate iconSchema: IJSONSchema & { pwopewties: IJSONSchemaMap } = {
 		definitions: {
 			icons: {
 				type: 'object',
-				properties: {
-					fontId: { type: 'string', description: localize('iconDefintion.fontId', 'The id of the font to use. If not set, the font that is defined first is used.') },
-					fontCharacter: { type: 'string', description: localize('iconDefintion.fontCharacter', 'The font character associated with the icon definition.') }
+				pwopewties: {
+					fontId: { type: 'stwing', descwiption: wocawize('iconDefintion.fontId', 'The id of the font to use. If not set, the font that is defined fiwst is used.') },
+					fontChawacta: { type: 'stwing', descwiption: wocawize('iconDefintion.fontChawacta', 'The font chawacta associated with the icon definition.') }
 				},
-				additionalProperties: false,
-				defaultSnippets: [{ body: { fontCharacter: '\\\\e030' } }]
+				additionawPwopewties: fawse,
+				defauwtSnippets: [{ body: { fontChawacta: '\\\\e030' } }]
 			}
 		},
 		type: 'object',
-		properties: {}
+		pwopewties: {}
 	};
-	private iconReferenceSchema: IJSONSchema & { enum: string[], enumDescriptions: string[] } = { type: 'string', pattern: `^${Codicons.CSSIcon.iconNameExpression}$`, enum: [], enumDescriptions: [] };
+	pwivate iconWefewenceSchema: IJSONSchema & { enum: stwing[], enumDescwiptions: stwing[] } = { type: 'stwing', pattewn: `^${Codicons.CSSIcon.iconNameExpwession}$`, enum: [], enumDescwiptions: [] };
 
-	private iconFontsById: { [key: string]: IconFontContribution };
+	pwivate iconFontsById: { [key: stwing]: IconFontContwibution };
 
-	constructor() {
+	constwuctow() {
 		this.iconsById = {};
 		this.iconFontsById = {};
 	}
 
-	public registerIcon(id: string, defaults: IconDefaults, description?: string, deprecationMessage?: string): ThemeIcon {
+	pubwic wegistewIcon(id: stwing, defauwts: IconDefauwts, descwiption?: stwing, depwecationMessage?: stwing): ThemeIcon {
 		const existing = this.iconsById[id];
 		if (existing) {
-			if (description && !existing.description) {
-				existing.description = description;
-				this.iconSchema.properties[id].markdownDescription = `${description} $(${id})`;
-				const enumIndex = this.iconReferenceSchema.enum.indexOf(id);
+			if (descwiption && !existing.descwiption) {
+				existing.descwiption = descwiption;
+				this.iconSchema.pwopewties[id].mawkdownDescwiption = `${descwiption} $(${id})`;
+				const enumIndex = this.iconWefewenceSchema.enum.indexOf(id);
 				if (enumIndex !== -1) {
-					this.iconReferenceSchema.enumDescriptions[enumIndex] = description;
+					this.iconWefewenceSchema.enumDescwiptions[enumIndex] = descwiption;
 				}
-				this._onDidChange.fire();
+				this._onDidChange.fiwe();
 			}
-			return existing;
+			wetuwn existing;
 		}
-		let iconContribution: IconContribution = { id, description, defaults, deprecationMessage };
-		this.iconsById[id] = iconContribution;
-		let propertySchema: IJSONSchema = { $ref: '#/definitions/icons' };
-		if (deprecationMessage) {
-			propertySchema.deprecationMessage = deprecationMessage;
+		wet iconContwibution: IconContwibution = { id, descwiption, defauwts, depwecationMessage };
+		this.iconsById[id] = iconContwibution;
+		wet pwopewtySchema: IJSONSchema = { $wef: '#/definitions/icons' };
+		if (depwecationMessage) {
+			pwopewtySchema.depwecationMessage = depwecationMessage;
 		}
-		if (description) {
-			propertySchema.markdownDescription = `${description}: $(${id})`;
+		if (descwiption) {
+			pwopewtySchema.mawkdownDescwiption = `${descwiption}: $(${id})`;
 		}
-		this.iconSchema.properties[id] = propertySchema;
-		this.iconReferenceSchema.enum.push(id);
-		this.iconReferenceSchema.enumDescriptions.push(description || '');
+		this.iconSchema.pwopewties[id] = pwopewtySchema;
+		this.iconWefewenceSchema.enum.push(id);
+		this.iconWefewenceSchema.enumDescwiptions.push(descwiption || '');
 
-		this._onDidChange.fire();
-		return { id };
+		this._onDidChange.fiwe();
+		wetuwn { id };
 	}
 
 
-	public deregisterIcon(id: string): void {
-		delete this.iconsById[id];
-		delete this.iconSchema.properties[id];
-		const index = this.iconReferenceSchema.enum.indexOf(id);
+	pubwic dewegistewIcon(id: stwing): void {
+		dewete this.iconsById[id];
+		dewete this.iconSchema.pwopewties[id];
+		const index = this.iconWefewenceSchema.enum.indexOf(id);
 		if (index !== -1) {
-			this.iconReferenceSchema.enum.splice(index, 1);
-			this.iconReferenceSchema.enumDescriptions.splice(index, 1);
+			this.iconWefewenceSchema.enum.spwice(index, 1);
+			this.iconWefewenceSchema.enumDescwiptions.spwice(index, 1);
 		}
-		this._onDidChange.fire();
+		this._onDidChange.fiwe();
 	}
 
-	public getIcons(): IconContribution[] {
-		return Object.keys(this.iconsById).map(id => this.iconsById[id]);
+	pubwic getIcons(): IconContwibution[] {
+		wetuwn Object.keys(this.iconsById).map(id => this.iconsById[id]);
 	}
 
-	public getIcon(id: string): IconContribution | undefined {
-		return this.iconsById[id];
+	pubwic getIcon(id: stwing): IconContwibution | undefined {
+		wetuwn this.iconsById[id];
 	}
 
-	public getIconSchema(): IJSONSchema {
-		return this.iconSchema;
+	pubwic getIconSchema(): IJSONSchema {
+		wetuwn this.iconSchema;
 	}
 
-	public getIconReferenceSchema(): IJSONSchema {
-		return this.iconReferenceSchema;
+	pubwic getIconWefewenceSchema(): IJSONSchema {
+		wetuwn this.iconWefewenceSchema;
 	}
 
-	public registerIconFont(id: string, definition: IconFontDefinition): IconFontContribution {
+	pubwic wegistewIconFont(id: stwing, definition: IconFontDefinition): IconFontContwibution {
 		const existing = this.iconFontsById[id];
 		if (existing) {
-			return existing;
+			wetuwn existing;
 		}
-		let iconFontContribution: IconFontContribution = { id, definition };
-		this.iconFontsById[id] = iconFontContribution;
-		this._onDidChange.fire();
-		return iconFontContribution;
+		wet iconFontContwibution: IconFontContwibution = { id, definition };
+		this.iconFontsById[id] = iconFontContwibution;
+		this._onDidChange.fiwe();
+		wetuwn iconFontContwibution;
 	}
 
-	public deregisterIconFont(id: string): void {
-		delete this.iconFontsById[id];
+	pubwic dewegistewIconFont(id: stwing): void {
+		dewete this.iconFontsById[id];
 	}
 
-	public getIconFonts(): IconFontContribution[] {
-		return Object.keys(this.iconFontsById).map(id => this.iconFontsById[id]);
+	pubwic getIconFonts(): IconFontContwibution[] {
+		wetuwn Object.keys(this.iconFontsById).map(id => this.iconFontsById[id]);
 	}
 
-	public getIconFont(id: string): IconFontContribution | undefined {
-		return this.iconFontsById[id];
+	pubwic getIconFont(id: stwing): IconFontContwibution | undefined {
+		wetuwn this.iconFontsById[id];
 	}
 
-	public toString() {
-		const sorter = (i1: IconContribution, i2: IconContribution) => {
-			return i1.id.localeCompare(i2.id);
+	pubwic toStwing() {
+		const sowta = (i1: IconContwibution, i2: IconContwibution) => {
+			wetuwn i1.id.wocaweCompawe(i2.id);
 		};
-		const classNames = (i: IconContribution) => {
-			while (ThemeIcon.isThemeIcon(i.defaults)) {
-				i = this.iconsById[i.defaults.id];
+		const cwassNames = (i: IconContwibution) => {
+			whiwe (ThemeIcon.isThemeIcon(i.defauwts)) {
+				i = this.iconsById[i.defauwts.id];
 			}
-			return `codicon codicon-${i ? i.id : ''}`;
+			wetuwn `codicon codicon-${i ? i.id : ''}`;
 		};
 
-		let reference = [];
+		wet wefewence = [];
 
-		reference.push(`| preview     | identifier                        | default codicon ID                | description`);
-		reference.push(`| ----------- | --------------------------------- | --------------------------------- | --------------------------------- |`);
-		const contributions = Object.keys(this.iconsById).map(key => this.iconsById[key]);
+		wefewence.push(`| pweview     | identifia                        | defauwt codicon ID                | descwiption`);
+		wefewence.push(`| ----------- | --------------------------------- | --------------------------------- | --------------------------------- |`);
+		const contwibutions = Object.keys(this.iconsById).map(key => this.iconsById[key]);
 
-		for (const i of contributions.filter(i => !!i.description).sort(sorter)) {
-			reference.push(`|<i class="${classNames(i)}"></i>|${i.id}|${ThemeIcon.isThemeIcon(i.defaults) ? i.defaults.id : i.id}|${i.description || ''}|`);
+		fow (const i of contwibutions.fiwta(i => !!i.descwiption).sowt(sowta)) {
+			wefewence.push(`|<i cwass="${cwassNames(i)}"></i>|${i.id}|${ThemeIcon.isThemeIcon(i.defauwts) ? i.defauwts.id : i.id}|${i.descwiption || ''}|`);
 		}
 
-		reference.push(`| preview     | identifier                        `);
-		reference.push(`| ----------- | --------------------------------- |`);
+		wefewence.push(`| pweview     | identifia                        `);
+		wefewence.push(`| ----------- | --------------------------------- |`);
 
-		for (const i of contributions.filter(i => !ThemeIcon.isThemeIcon(i.defaults)).sort(sorter)) {
-			reference.push(`|<i class="${classNames(i)}"></i>|${i.id}|`);
+		fow (const i of contwibutions.fiwta(i => !ThemeIcon.isThemeIcon(i.defauwts)).sowt(sowta)) {
+			wefewence.push(`|<i cwass="${cwassNames(i)}"></i>|${i.id}|`);
 
 		}
 
-		return reference.join('\n');
+		wetuwn wefewence.join('\n');
 	}
 
 }
 
-const iconRegistry = new IconRegistry();
-platform.Registry.add(Extensions.IconContribution, iconRegistry);
+const iconWegistwy = new IconWegistwy();
+pwatfowm.Wegistwy.add(Extensions.IconContwibution, iconWegistwy);
 
-export function registerIcon(id: string, defaults: IconDefaults, description: string, deprecationMessage?: string): ThemeIcon {
-	return iconRegistry.registerIcon(id, defaults, description, deprecationMessage);
+expowt function wegistewIcon(id: stwing, defauwts: IconDefauwts, descwiption: stwing, depwecationMessage?: stwing): ThemeIcon {
+	wetuwn iconWegistwy.wegistewIcon(id, defauwts, descwiption, depwecationMessage);
 }
 
-export function getIconRegistry(): IIconRegistry {
-	return iconRegistry;
+expowt function getIconWegistwy(): IIconWegistwy {
+	wetuwn iconWegistwy;
 }
 
-function initialize() {
-	for (const icon of Codicons.iconRegistry.all) {
-		iconRegistry.registerIcon(icon.id, icon.definition, icon.description);
+function initiawize() {
+	fow (const icon of Codicons.iconWegistwy.aww) {
+		iconWegistwy.wegistewIcon(icon.id, icon.definition, icon.descwiption);
 	}
-	Codicons.iconRegistry.onDidRegister(icon => iconRegistry.registerIcon(icon.id, icon.definition, icon.description));
+	Codicons.iconWegistwy.onDidWegista(icon => iconWegistwy.wegistewIcon(icon.id, icon.definition, icon.descwiption));
 }
-initialize();
+initiawize();
 
-export const iconsSchemaId = 'vscode://schemas/icons';
+expowt const iconsSchemaId = 'vscode://schemas/icons';
 
-let schemaRegistry = platform.Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
-schemaRegistry.registerSchema(iconsSchemaId, iconRegistry.getIconSchema());
+wet schemaWegistwy = pwatfowm.Wegistwy.as<IJSONContwibutionWegistwy>(JSONExtensions.JSONContwibution);
+schemaWegistwy.wegistewSchema(iconsSchemaId, iconWegistwy.getIconSchema());
 
-const delayer = new RunOnceScheduler(() => schemaRegistry.notifySchemaChanged(iconsSchemaId), 200);
-iconRegistry.onDidChange(() => {
-	if (!delayer.isScheduled()) {
-		delayer.schedule();
+const dewaya = new WunOnceScheduwa(() => schemaWegistwy.notifySchemaChanged(iconsSchemaId), 200);
+iconWegistwy.onDidChange(() => {
+	if (!dewaya.isScheduwed()) {
+		dewaya.scheduwe();
 	}
 });
 
 
-//setTimeout(_ => console.log(iconRegistry.toString()), 5000);
+//setTimeout(_ => consowe.wog(iconWegistwy.toStwing()), 5000);
 
 
 // common icons
 
-export const widgetClose = registerIcon('widget-close', Codicons.Codicon.close, localize('widgetClose', 'Icon for the close action in widgets.'));
+expowt const widgetCwose = wegistewIcon('widget-cwose', Codicons.Codicon.cwose, wocawize('widgetCwose', 'Icon fow the cwose action in widgets.'));
 
-export const gotoPreviousLocation = registerIcon('goto-previous-location', Codicons.Codicon.arrowUp, localize('previousChangeIcon', 'Icon for goto previous editor location.'));
-export const gotoNextLocation = registerIcon('goto-next-location', Codicons.Codicon.arrowDown, localize('nextChangeIcon', 'Icon for goto next editor location.'));
+expowt const gotoPweviousWocation = wegistewIcon('goto-pwevious-wocation', Codicons.Codicon.awwowUp, wocawize('pweviousChangeIcon', 'Icon fow goto pwevious editow wocation.'));
+expowt const gotoNextWocation = wegistewIcon('goto-next-wocation', Codicons.Codicon.awwowDown, wocawize('nextChangeIcon', 'Icon fow goto next editow wocation.'));
 
-export const syncing = ThemeIcon.modify(Codicons.Codicon.sync, 'spin');
+expowt const syncing = ThemeIcon.modify(Codicons.Codicon.sync, 'spin');

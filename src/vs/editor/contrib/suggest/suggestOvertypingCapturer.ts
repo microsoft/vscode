@@ -1,73 +1,73 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { SuggestModel } from 'vs/editor/contrib/suggest/suggestModel';
+impowt { DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { SuggestModew } fwom 'vs/editow/contwib/suggest/suggestModew';
 
-export class OvertypingCapturer implements IDisposable {
+expowt cwass OvewtypingCaptuwa impwements IDisposabwe {
 
-	private static readonly _maxSelectionLength = 51200;
-	private readonly _disposables = new DisposableStore();
+	pwivate static weadonwy _maxSewectionWength = 51200;
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
 
-	private _lastOvertyped: { value: string; multiline: boolean }[] = [];
-	private _empty: boolean = true;
+	pwivate _wastOvewtyped: { vawue: stwing; muwtiwine: boowean }[] = [];
+	pwivate _empty: boowean = twue;
 
-	constructor(editor: ICodeEditor, suggestModel: SuggestModel) {
+	constwuctow(editow: ICodeEditow, suggestModew: SuggestModew) {
 
-		this._disposables.add(editor.onWillType(() => {
+		this._disposabwes.add(editow.onWiwwType(() => {
 			if (!this._empty) {
-				return;
+				wetuwn;
 			}
-			if (!editor.hasModel()) {
-				return;
+			if (!editow.hasModew()) {
+				wetuwn;
 			}
 
-			const selections = editor.getSelections();
-			const selectionsLength = selections.length;
+			const sewections = editow.getSewections();
+			const sewectionsWength = sewections.wength;
 
-			// Check if it will overtype any selections
-			let willOvertype = false;
-			for (let i = 0; i < selectionsLength; i++) {
-				if (!selections[i].isEmpty()) {
-					willOvertype = true;
-					break;
+			// Check if it wiww ovewtype any sewections
+			wet wiwwOvewtype = fawse;
+			fow (wet i = 0; i < sewectionsWength; i++) {
+				if (!sewections[i].isEmpty()) {
+					wiwwOvewtype = twue;
+					bweak;
 				}
 			}
-			if (!willOvertype) {
-				return;
+			if (!wiwwOvewtype) {
+				wetuwn;
 			}
 
-			this._lastOvertyped = [];
-			const model = editor.getModel();
-			for (let i = 0; i < selectionsLength; i++) {
-				const selection = selections[i];
-				// Check for overtyping capturer restrictions
-				if (model.getValueLengthInRange(selection) > OvertypingCapturer._maxSelectionLength) {
-					return;
+			this._wastOvewtyped = [];
+			const modew = editow.getModew();
+			fow (wet i = 0; i < sewectionsWength; i++) {
+				const sewection = sewections[i];
+				// Check fow ovewtyping captuwa westwictions
+				if (modew.getVawueWengthInWange(sewection) > OvewtypingCaptuwa._maxSewectionWength) {
+					wetuwn;
 				}
-				this._lastOvertyped[i] = { value: model.getValueInRange(selection), multiline: selection.startLineNumber !== selection.endLineNumber };
+				this._wastOvewtyped[i] = { vawue: modew.getVawueInWange(sewection), muwtiwine: sewection.stawtWineNumba !== sewection.endWineNumba };
 			}
-			this._empty = false;
+			this._empty = fawse;
 		}));
 
-		this._disposables.add(suggestModel.onDidCancel(e => {
-			if (!this._empty && !e.retrigger) {
-				this._empty = true;
+		this._disposabwes.add(suggestModew.onDidCancew(e => {
+			if (!this._empty && !e.wetwigga) {
+				this._empty = twue;
 			}
 		}));
 	}
 
-	getLastOvertypedInfo(idx: number): { value: string; multiline: boolean } | undefined {
-		if (!this._empty && idx >= 0 && idx < this._lastOvertyped.length) {
-			return this._lastOvertyped[idx];
+	getWastOvewtypedInfo(idx: numba): { vawue: stwing; muwtiwine: boowean } | undefined {
+		if (!this._empty && idx >= 0 && idx < this._wastOvewtyped.wength) {
+			wetuwn this._wastOvewtyped[idx];
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
 	dispose() {
-		this._disposables.dispose();
+		this._disposabwes.dispose();
 	}
 }

@@ -1,48 +1,48 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { BracketPairColorizationOptions, DefaultEndOfLine, ITextModelCreationOptions } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { BwacketPaiwCowowizationOptions, DefauwtEndOfWine, ITextModewCweationOptions } fwom 'vs/editow/common/modew';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt { WanguageIdentifia } fwom 'vs/editow/common/modes';
+impowt { TestDiawogSewvice } fwom 'vs/pwatfowm/diawogs/test/common/testDiawogSewvice';
+impowt { TestNotificationSewvice } fwom 'vs/pwatfowm/notification/test/common/testNotificationSewvice';
+impowt { UndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedoSewvice';
 
-export function withEditorModel(text: string[], callback: (model: TextModel) => void): void {
-	let model = createTextModel(text.join('\n'));
-	callback(model);
-	model.dispose();
+expowt function withEditowModew(text: stwing[], cawwback: (modew: TextModew) => void): void {
+	wet modew = cweateTextModew(text.join('\n'));
+	cawwback(modew);
+	modew.dispose();
 }
 
-export interface IRelaxedTextModelCreationOptions {
-	tabSize?: number;
-	indentSize?: number;
-	insertSpaces?: boolean;
-	detectIndentation?: boolean;
-	trimAutoWhitespace?: boolean;
-	defaultEOL?: DefaultEndOfLine;
-	isForSimpleWidget?: boolean;
-	largeFileOptimizations?: boolean;
-	bracketColorizationOptions?: BracketPairColorizationOptions;
+expowt intewface IWewaxedTextModewCweationOptions {
+	tabSize?: numba;
+	indentSize?: numba;
+	insewtSpaces?: boowean;
+	detectIndentation?: boowean;
+	twimAutoWhitespace?: boowean;
+	defauwtEOW?: DefauwtEndOfWine;
+	isFowSimpweWidget?: boowean;
+	wawgeFiweOptimizations?: boowean;
+	bwacketCowowizationOptions?: BwacketPaiwCowowizationOptions;
 }
 
-export function createTextModel(text: string, _options: IRelaxedTextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, languageIdentifier: LanguageIdentifier | null = null, uri: URI | null = null): TextModel {
-	const options: ITextModelCreationOptions = {
-		tabSize: (typeof _options.tabSize === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.tabSize : _options.tabSize),
-		indentSize: (typeof _options.indentSize === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.indentSize : _options.indentSize),
-		insertSpaces: (typeof _options.insertSpaces === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.insertSpaces : _options.insertSpaces),
-		detectIndentation: (typeof _options.detectIndentation === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.detectIndentation : _options.detectIndentation),
-		trimAutoWhitespace: (typeof _options.trimAutoWhitespace === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.trimAutoWhitespace : _options.trimAutoWhitespace),
-		defaultEOL: (typeof _options.defaultEOL === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.defaultEOL : _options.defaultEOL),
-		isForSimpleWidget: (typeof _options.isForSimpleWidget === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.isForSimpleWidget : _options.isForSimpleWidget),
-		largeFileOptimizations: (typeof _options.largeFileOptimizations === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.largeFileOptimizations : _options.largeFileOptimizations),
-		bracketPairColorizationOptions: (typeof _options.bracketColorizationOptions === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.bracketPairColorizationOptions : _options.bracketColorizationOptions),
+expowt function cweateTextModew(text: stwing, _options: IWewaxedTextModewCweationOptions = TextModew.DEFAUWT_CWEATION_OPTIONS, wanguageIdentifia: WanguageIdentifia | nuww = nuww, uwi: UWI | nuww = nuww): TextModew {
+	const options: ITextModewCweationOptions = {
+		tabSize: (typeof _options.tabSize === 'undefined' ? TextModew.DEFAUWT_CWEATION_OPTIONS.tabSize : _options.tabSize),
+		indentSize: (typeof _options.indentSize === 'undefined' ? TextModew.DEFAUWT_CWEATION_OPTIONS.indentSize : _options.indentSize),
+		insewtSpaces: (typeof _options.insewtSpaces === 'undefined' ? TextModew.DEFAUWT_CWEATION_OPTIONS.insewtSpaces : _options.insewtSpaces),
+		detectIndentation: (typeof _options.detectIndentation === 'undefined' ? TextModew.DEFAUWT_CWEATION_OPTIONS.detectIndentation : _options.detectIndentation),
+		twimAutoWhitespace: (typeof _options.twimAutoWhitespace === 'undefined' ? TextModew.DEFAUWT_CWEATION_OPTIONS.twimAutoWhitespace : _options.twimAutoWhitespace),
+		defauwtEOW: (typeof _options.defauwtEOW === 'undefined' ? TextModew.DEFAUWT_CWEATION_OPTIONS.defauwtEOW : _options.defauwtEOW),
+		isFowSimpweWidget: (typeof _options.isFowSimpweWidget === 'undefined' ? TextModew.DEFAUWT_CWEATION_OPTIONS.isFowSimpweWidget : _options.isFowSimpweWidget),
+		wawgeFiweOptimizations: (typeof _options.wawgeFiweOptimizations === 'undefined' ? TextModew.DEFAUWT_CWEATION_OPTIONS.wawgeFiweOptimizations : _options.wawgeFiweOptimizations),
+		bwacketPaiwCowowizationOptions: (typeof _options.bwacketCowowizationOptions === 'undefined' ? TextModew.DEFAUWT_CWEATION_OPTIONS.bwacketPaiwCowowizationOptions : _options.bwacketCowowizationOptions),
 	};
-	const dialogService = new TestDialogService();
-	const notificationService = new TestNotificationService();
-	const undoRedoService = new UndoRedoService(dialogService, notificationService);
-	return new TextModel(text, options, languageIdentifier, uri, undoRedoService);
+	const diawogSewvice = new TestDiawogSewvice();
+	const notificationSewvice = new TestNotificationSewvice();
+	const undoWedoSewvice = new UndoWedoSewvice(diawogSewvice, notificationSewvice);
+	wetuwn new TextModew(text, options, wanguageIdentifia, uwi, undoWedoSewvice);
 }

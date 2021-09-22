@@ -1,29 +1,29 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { join } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IOutputChannelModelService, AbstractOutputChannelModelService } from 'vs/workbench/contrib/output/common/outputChannelModel';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { toLocalISOString } from 'vs/base/common/date';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { join } fwom 'vs/base/common/path';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IOutputChannewModewSewvice, AbstwactOutputChannewModewSewvice } fwom 'vs/wowkbench/contwib/output/common/outputChannewModew';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { toWocawISOStwing } fwom 'vs/base/common/date';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
 
-export class OutputChannelModelService extends AbstractOutputChannelModelService implements IOutputChannelModelService {
+expowt cwass OutputChannewModewSewvice extends AbstwactOutputChannewModewSewvice impwements IOutputChannewModewSewvice {
 
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IFileService fileService: IFileService,
-		@INativeHostService nativeHostService: INativeHostService
+	constwuctow(
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IWowkbenchEnviwonmentSewvice enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@INativeHostSewvice nativeHostSewvice: INativeHostSewvice
 	) {
-		super(URI.file(join(environmentService.logsPath, `output_${nativeHostService.windowId}_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`)), fileService, instantiationService);
+		supa(UWI.fiwe(join(enviwonmentSewvice.wogsPath, `output_${nativeHostSewvice.windowId}_${toWocawISOStwing(new Date()).wepwace(/-|:|\.\d+Z$/g, '')}`)), fiweSewvice, instantiationSewvice);
 	}
 
 }
 
-registerSingleton(IOutputChannelModelService, OutputChannelModelService);
+wegistewSingweton(IOutputChannewModewSewvice, OutputChannewModewSewvice);

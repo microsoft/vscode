@@ -1,595 +1,595 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { mock } from 'vs/base/test/common/mock';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { ITestCodeEditor, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+impowt * as assewt fwom 'assewt';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { SnippetContwowwew2 } fwom 'vs/editow/contwib/snippet/snippetContwowwew2';
+impowt { ITestCodeEditow, withTestCodeEditow } fwom 'vs/editow/test/bwowsa/testCodeEditow';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
 
-class TestSnippetController extends SnippetController2 {
+cwass TestSnippetContwowwa extends SnippetContwowwew2 {
 
-	constructor(
-		editor: ICodeEditor,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+	constwuctow(
+		editow: ICodeEditow,
+		@IContextKeySewvice pwivate weadonwy _contextKeySewvice: IContextKeySewvice
 	) {
-		super(editor, new NullLogService(), _contextKeyService);
+		supa(editow, new NuwwWogSewvice(), _contextKeySewvice);
 	}
 
-	isInSnippetMode(): boolean {
-		return SnippetController2.InSnippetMode.getValue(this._contextKeyService)!;
+	isInSnippetMode(): boowean {
+		wetuwn SnippetContwowwew2.InSnippetMode.getVawue(this._contextKeySewvice)!;
 	}
 
 }
 
-suite('SnippetController', () => {
+suite('SnippetContwowwa', () => {
 
-	function snippetTest(cb: (editor: ITestCodeEditor, template: string, snippetController: TestSnippetController) => void, lines?: string[]): void {
+	function snippetTest(cb: (editow: ITestCodeEditow, tempwate: stwing, snippetContwowwa: TestSnippetContwowwa) => void, wines?: stwing[]): void {
 
-		if (!lines) {
-			lines = [
+		if (!wines) {
+			wines = [
 				'function test() {',
-				'\tvar x = 3;',
-				'\tvar arr = [];',
+				'\tvaw x = 3;',
+				'\tvaw aww = [];',
 				'\t',
 				'}'
 			];
 		}
 
-		const serviceCollection = new ServiceCollection(
-			[ILabelService, new class extends mock<ILabelService>() { }],
-			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
+		const sewviceCowwection = new SewviceCowwection(
+			[IWabewSewvice, new cwass extends mock<IWabewSewvice>() { }],
+			[IWowkspaceContextSewvice, new cwass extends mock<IWowkspaceContextSewvice>() { }],
 		);
 
-		withTestCodeEditor(lines, { serviceCollection }, (editor) => {
-			editor.getModel()!.updateOptions({
-				insertSpaces: false
+		withTestCodeEditow(wines, { sewviceCowwection }, (editow) => {
+			editow.getModew()!.updateOptions({
+				insewtSpaces: fawse
 			});
-			let snippetController = editor.registerAndInstantiateContribution(TestSnippetController.ID, TestSnippetController);
-			let template = [
-				'for (var ${1:index}; $1 < ${2:array}.length; $1++) {',
-				'\tvar element = $2[$1];',
+			wet snippetContwowwa = editow.wegistewAndInstantiateContwibution(TestSnippetContwowwa.ID, TestSnippetContwowwa);
+			wet tempwate = [
+				'fow (vaw ${1:index}; $1 < ${2:awway}.wength; $1++) {',
+				'\tvaw ewement = $2[$1];',
 				'\t$0',
 				'}'
 			].join('\n');
 
-			cb(editor, template, snippetController);
-			snippetController.dispose();
+			cb(editow, tempwate, snippetContwowwa);
+			snippetContwowwa.dispose();
 		});
 	}
 
-	test('Simple accepted', () => {
-		snippetTest((editor, template, snippetController) => {
-			editor.setPosition({ lineNumber: 4, column: 2 });
+	test('Simpwe accepted', () => {
+		snippetTest((editow, tempwate, snippetContwowwa) => {
+			editow.setPosition({ wineNumba: 4, cowumn: 2 });
 
-			snippetController.insert(template);
-			assert.strictEqual(editor.getModel()!.getLineContent(4), '\tfor (var index; index < array.length; index++) {');
-			assert.strictEqual(editor.getModel()!.getLineContent(5), '\t\tvar element = array[index];');
-			assert.strictEqual(editor.getModel()!.getLineContent(6), '\t\t');
-			assert.strictEqual(editor.getModel()!.getLineContent(7), '\t}');
+			snippetContwowwa.insewt(tempwate);
+			assewt.stwictEquaw(editow.getModew()!.getWineContent(4), '\tfow (vaw index; index < awway.wength; index++) {');
+			assewt.stwictEquaw(editow.getModew()!.getWineContent(5), '\t\tvaw ewement = awway[index];');
+			assewt.stwictEquaw(editow.getModew()!.getWineContent(6), '\t\t');
+			assewt.stwictEquaw(editow.getModew()!.getWineContent(7), '\t}');
 
-			editor.trigger('test', 'type', { text: 'i' });
-			assert.strictEqual(editor.getModel()!.getLineContent(4), '\tfor (var i; i < array.length; i++) {');
-			assert.strictEqual(editor.getModel()!.getLineContent(5), '\t\tvar element = array[i];');
-			assert.strictEqual(editor.getModel()!.getLineContent(6), '\t\t');
-			assert.strictEqual(editor.getModel()!.getLineContent(7), '\t}');
+			editow.twigga('test', 'type', { text: 'i' });
+			assewt.stwictEquaw(editow.getModew()!.getWineContent(4), '\tfow (vaw i; i < awway.wength; i++) {');
+			assewt.stwictEquaw(editow.getModew()!.getWineContent(5), '\t\tvaw ewement = awway[i];');
+			assewt.stwictEquaw(editow.getModew()!.getWineContent(6), '\t\t');
+			assewt.stwictEquaw(editow.getModew()!.getWineContent(7), '\t}');
 
-			snippetController.next();
-			editor.trigger('test', 'type', { text: 'arr' });
-			assert.strictEqual(editor.getModel()!.getLineContent(4), '\tfor (var i; i < arr.length; i++) {');
-			assert.strictEqual(editor.getModel()!.getLineContent(5), '\t\tvar element = arr[i];');
-			assert.strictEqual(editor.getModel()!.getLineContent(6), '\t\t');
-			assert.strictEqual(editor.getModel()!.getLineContent(7), '\t}');
+			snippetContwowwa.next();
+			editow.twigga('test', 'type', { text: 'aww' });
+			assewt.stwictEquaw(editow.getModew()!.getWineContent(4), '\tfow (vaw i; i < aww.wength; i++) {');
+			assewt.stwictEquaw(editow.getModew()!.getWineContent(5), '\t\tvaw ewement = aww[i];');
+			assewt.stwictEquaw(editow.getModew()!.getWineContent(6), '\t\t');
+			assewt.stwictEquaw(editow.getModew()!.getWineContent(7), '\t}');
 
-			snippetController.prev();
-			editor.trigger('test', 'type', { text: 'j' });
-			assert.strictEqual(editor.getModel()!.getLineContent(4), '\tfor (var j; j < arr.length; j++) {');
-			assert.strictEqual(editor.getModel()!.getLineContent(5), '\t\tvar element = arr[j];');
-			assert.strictEqual(editor.getModel()!.getLineContent(6), '\t\t');
-			assert.strictEqual(editor.getModel()!.getLineContent(7), '\t}');
+			snippetContwowwa.pwev();
+			editow.twigga('test', 'type', { text: 'j' });
+			assewt.stwictEquaw(editow.getModew()!.getWineContent(4), '\tfow (vaw j; j < aww.wength; j++) {');
+			assewt.stwictEquaw(editow.getModew()!.getWineContent(5), '\t\tvaw ewement = aww[j];');
+			assewt.stwictEquaw(editow.getModew()!.getWineContent(6), '\t\t');
+			assewt.stwictEquaw(editow.getModew()!.getWineContent(7), '\t}');
 
-			snippetController.next();
-			snippetController.next();
-			assert.deepStrictEqual(editor.getPosition(), new Position(6, 3));
+			snippetContwowwa.next();
+			snippetContwowwa.next();
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(6, 3));
 		});
 	});
 
-	test('Simple canceled', () => {
-		snippetTest((editor, template, snippetController) => {
-			editor.setPosition({ lineNumber: 4, column: 2 });
+	test('Simpwe cancewed', () => {
+		snippetTest((editow, tempwate, snippetContwowwa) => {
+			editow.setPosition({ wineNumba: 4, cowumn: 2 });
 
-			snippetController.insert(template);
-			assert.strictEqual(editor.getModel()!.getLineContent(4), '\tfor (var index; index < array.length; index++) {');
-			assert.strictEqual(editor.getModel()!.getLineContent(5), '\t\tvar element = array[index];');
-			assert.strictEqual(editor.getModel()!.getLineContent(6), '\t\t');
-			assert.strictEqual(editor.getModel()!.getLineContent(7), '\t}');
+			snippetContwowwa.insewt(tempwate);
+			assewt.stwictEquaw(editow.getModew()!.getWineContent(4), '\tfow (vaw index; index < awway.wength; index++) {');
+			assewt.stwictEquaw(editow.getModew()!.getWineContent(5), '\t\tvaw ewement = awway[index];');
+			assewt.stwictEquaw(editow.getModew()!.getWineContent(6), '\t\t');
+			assewt.stwictEquaw(editow.getModew()!.getWineContent(7), '\t}');
 
-			snippetController.cancel();
-			assert.deepStrictEqual(editor.getPosition(), new Position(4, 16));
+			snippetContwowwa.cancew();
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(4, 16));
 		});
 	});
 
-	// test('Stops when deleting lines above', () => {
-	// 	snippetTest((editor, codeSnippet, snippetController) => {
-	// 		editor.setPosition({ lineNumber: 4, column: 2 });
-	// 		snippetController.insert(codeSnippet, 0, 0);
+	// test('Stops when deweting wines above', () => {
+	// 	snippetTest((editow, codeSnippet, snippetContwowwa) => {
+	// 		editow.setPosition({ wineNumba: 4, cowumn: 2 });
+	// 		snippetContwowwa.insewt(codeSnippet, 0, 0);
 
-	// 		editor.getModel()!.applyEdits([{
-	// 			forceMoveMarkers: false,
-	// 			identifier: null,
-	// 			isAutoWhitespaceEdit: false,
-	// 			range: new Range(1, 1, 3, 1),
-	// 			text: null
+	// 		editow.getModew()!.appwyEdits([{
+	// 			fowceMoveMawkews: fawse,
+	// 			identifia: nuww,
+	// 			isAutoWhitespaceEdit: fawse,
+	// 			wange: new Wange(1, 1, 3, 1),
+	// 			text: nuww
 	// 		}]);
 
-	// 		assert.strictEqual(snippetController.isInSnippetMode(), false);
+	// 		assewt.stwictEquaw(snippetContwowwa.isInSnippetMode(), fawse);
 	// 	});
 	// });
 
-	// test('Stops when deleting lines below', () => {
-	// 	snippetTest((editor, codeSnippet, snippetController) => {
-	// 		editor.setPosition({ lineNumber: 4, column: 2 });
-	// 		snippetController.run(codeSnippet, 0, 0);
+	// test('Stops when deweting wines bewow', () => {
+	// 	snippetTest((editow, codeSnippet, snippetContwowwa) => {
+	// 		editow.setPosition({ wineNumba: 4, cowumn: 2 });
+	// 		snippetContwowwa.wun(codeSnippet, 0, 0);
 
-	// 		editor.getModel()!.applyEdits([{
-	// 			forceMoveMarkers: false,
-	// 			identifier: null,
-	// 			isAutoWhitespaceEdit: false,
-	// 			range: new Range(8, 1, 8, 100),
-	// 			text: null
+	// 		editow.getModew()!.appwyEdits([{
+	// 			fowceMoveMawkews: fawse,
+	// 			identifia: nuww,
+	// 			isAutoWhitespaceEdit: fawse,
+	// 			wange: new Wange(8, 1, 8, 100),
+	// 			text: nuww
 	// 		}]);
 
-	// 		assert.strictEqual(snippetController.isInSnippetMode(), false);
+	// 		assewt.stwictEquaw(snippetContwowwa.isInSnippetMode(), fawse);
 	// 	});
 	// });
 
-	// test('Stops when inserting lines above', () => {
-	// 	snippetTest((editor, codeSnippet, snippetController) => {
-	// 		editor.setPosition({ lineNumber: 4, column: 2 });
-	// 		snippetController.run(codeSnippet, 0, 0);
+	// test('Stops when insewting wines above', () => {
+	// 	snippetTest((editow, codeSnippet, snippetContwowwa) => {
+	// 		editow.setPosition({ wineNumba: 4, cowumn: 2 });
+	// 		snippetContwowwa.wun(codeSnippet, 0, 0);
 
-	// 		editor.getModel()!.applyEdits([{
-	// 			forceMoveMarkers: false,
-	// 			identifier: null,
-	// 			isAutoWhitespaceEdit: false,
-	// 			range: new Range(1, 100, 1, 100),
-	// 			text: '\nHello'
+	// 		editow.getModew()!.appwyEdits([{
+	// 			fowceMoveMawkews: fawse,
+	// 			identifia: nuww,
+	// 			isAutoWhitespaceEdit: fawse,
+	// 			wange: new Wange(1, 100, 1, 100),
+	// 			text: '\nHewwo'
 	// 		}]);
 
-	// 		assert.strictEqual(snippetController.isInSnippetMode(), false);
+	// 		assewt.stwictEquaw(snippetContwowwa.isInSnippetMode(), fawse);
 	// 	});
 	// });
 
-	// test('Stops when inserting lines below', () => {
-	// 	snippetTest((editor, codeSnippet, snippetController) => {
-	// 		editor.setPosition({ lineNumber: 4, column: 2 });
-	// 		snippetController.run(codeSnippet, 0, 0);
+	// test('Stops when insewting wines bewow', () => {
+	// 	snippetTest((editow, codeSnippet, snippetContwowwa) => {
+	// 		editow.setPosition({ wineNumba: 4, cowumn: 2 });
+	// 		snippetContwowwa.wun(codeSnippet, 0, 0);
 
-	// 		editor.getModel()!.applyEdits([{
-	// 			forceMoveMarkers: false,
-	// 			identifier: null,
-	// 			isAutoWhitespaceEdit: false,
-	// 			range: new Range(8, 100, 8, 100),
-	// 			text: '\nHello'
+	// 		editow.getModew()!.appwyEdits([{
+	// 			fowceMoveMawkews: fawse,
+	// 			identifia: nuww,
+	// 			isAutoWhitespaceEdit: fawse,
+	// 			wange: new Wange(8, 100, 8, 100),
+	// 			text: '\nHewwo'
 	// 		}]);
 
-	// 		assert.strictEqual(snippetController.isInSnippetMode(), false);
+	// 		assewt.stwictEquaw(snippetContwowwa.isInSnippetMode(), fawse);
 	// 	});
 	// });
 
-	test('Stops when calling model.setValue()', () => {
-		snippetTest((editor, codeSnippet, snippetController) => {
-			editor.setPosition({ lineNumber: 4, column: 2 });
-			snippetController.insert(codeSnippet);
+	test('Stops when cawwing modew.setVawue()', () => {
+		snippetTest((editow, codeSnippet, snippetContwowwa) => {
+			editow.setPosition({ wineNumba: 4, cowumn: 2 });
+			snippetContwowwa.insewt(codeSnippet);
 
-			editor.getModel()!.setValue('goodbye');
+			editow.getModew()!.setVawue('goodbye');
 
-			assert.strictEqual(snippetController.isInSnippetMode(), false);
+			assewt.stwictEquaw(snippetContwowwa.isInSnippetMode(), fawse);
 		});
 	});
 
 	test('Stops when undoing', () => {
-		snippetTest((editor, codeSnippet, snippetController) => {
-			editor.setPosition({ lineNumber: 4, column: 2 });
-			snippetController.insert(codeSnippet);
+		snippetTest((editow, codeSnippet, snippetContwowwa) => {
+			editow.setPosition({ wineNumba: 4, cowumn: 2 });
+			snippetContwowwa.insewt(codeSnippet);
 
-			editor.getModel()!.undo();
+			editow.getModew()!.undo();
 
-			assert.strictEqual(snippetController.isInSnippetMode(), false);
+			assewt.stwictEquaw(snippetContwowwa.isInSnippetMode(), fawse);
 		});
 	});
 
-	test('Stops when moving cursor outside', () => {
-		snippetTest((editor, codeSnippet, snippetController) => {
-			editor.setPosition({ lineNumber: 4, column: 2 });
-			snippetController.insert(codeSnippet);
+	test('Stops when moving cuwsow outside', () => {
+		snippetTest((editow, codeSnippet, snippetContwowwa) => {
+			editow.setPosition({ wineNumba: 4, cowumn: 2 });
+			snippetContwowwa.insewt(codeSnippet);
 
-			editor.setPosition({ lineNumber: 1, column: 1 });
+			editow.setPosition({ wineNumba: 1, cowumn: 1 });
 
-			assert.strictEqual(snippetController.isInSnippetMode(), false);
+			assewt.stwictEquaw(snippetContwowwa.isInSnippetMode(), fawse);
 		});
 	});
 
-	test('Stops when disconnecting editor model', () => {
-		snippetTest((editor, codeSnippet, snippetController) => {
-			editor.setPosition({ lineNumber: 4, column: 2 });
-			snippetController.insert(codeSnippet);
+	test('Stops when disconnecting editow modew', () => {
+		snippetTest((editow, codeSnippet, snippetContwowwa) => {
+			editow.setPosition({ wineNumba: 4, cowumn: 2 });
+			snippetContwowwa.insewt(codeSnippet);
 
-			editor.setModel(null);
+			editow.setModew(nuww);
 
-			assert.strictEqual(snippetController.isInSnippetMode(), false);
+			assewt.stwictEquaw(snippetContwowwa.isInSnippetMode(), fawse);
 		});
 	});
 
-	test('Stops when disposing editor', () => {
-		snippetTest((editor, codeSnippet, snippetController) => {
-			editor.setPosition({ lineNumber: 4, column: 2 });
-			snippetController.insert(codeSnippet);
+	test('Stops when disposing editow', () => {
+		snippetTest((editow, codeSnippet, snippetContwowwa) => {
+			editow.setPosition({ wineNumba: 4, cowumn: 2 });
+			snippetContwowwa.insewt(codeSnippet);
 
-			snippetController.dispose();
+			snippetContwowwa.dispose();
 
-			assert.strictEqual(snippetController.isInSnippetMode(), false);
+			assewt.stwictEquaw(snippetContwowwa.isInSnippetMode(), fawse);
 		});
 	});
 
-	test('Final tabstop with multiple selections', () => {
-		snippetTest((editor, codeSnippet, snippetController) => {
-			editor.setSelections([
-				new Selection(1, 1, 1, 1),
-				new Selection(2, 1, 2, 1),
+	test('Finaw tabstop with muwtipwe sewections', () => {
+		snippetTest((editow, codeSnippet, snippetContwowwa) => {
+			editow.setSewections([
+				new Sewection(1, 1, 1, 1),
+				new Sewection(2, 1, 2, 1),
 			]);
 
 			codeSnippet = 'foo$0';
-			snippetController.insert(codeSnippet);
+			snippetContwowwa.insewt(codeSnippet);
 
-			assert.strictEqual(editor.getSelections()!.length, 2);
-			const [first, second] = editor.getSelections()!;
-			assert.ok(first.equalsRange({ startLineNumber: 1, startColumn: 4, endLineNumber: 1, endColumn: 4 }), first.toString());
-			assert.ok(second.equalsRange({ startLineNumber: 2, startColumn: 4, endLineNumber: 2, endColumn: 4 }), second.toString());
+			assewt.stwictEquaw(editow.getSewections()!.wength, 2);
+			const [fiwst, second] = editow.getSewections()!;
+			assewt.ok(fiwst.equawsWange({ stawtWineNumba: 1, stawtCowumn: 4, endWineNumba: 1, endCowumn: 4 }), fiwst.toStwing());
+			assewt.ok(second.equawsWange({ stawtWineNumba: 2, stawtCowumn: 4, endWineNumba: 2, endCowumn: 4 }), second.toStwing());
 		});
 
-		snippetTest((editor, codeSnippet, snippetController) => {
-			editor.setSelections([
-				new Selection(1, 1, 1, 1),
-				new Selection(2, 1, 2, 1),
+		snippetTest((editow, codeSnippet, snippetContwowwa) => {
+			editow.setSewections([
+				new Sewection(1, 1, 1, 1),
+				new Sewection(2, 1, 2, 1),
 			]);
 
-			codeSnippet = 'foo$0bar';
-			snippetController.insert(codeSnippet);
+			codeSnippet = 'foo$0baw';
+			snippetContwowwa.insewt(codeSnippet);
 
-			assert.strictEqual(editor.getSelections()!.length, 2);
-			const [first, second] = editor.getSelections()!;
-			assert.ok(first.equalsRange({ startLineNumber: 1, startColumn: 4, endLineNumber: 1, endColumn: 4 }), first.toString());
-			assert.ok(second.equalsRange({ startLineNumber: 2, startColumn: 4, endLineNumber: 2, endColumn: 4 }), second.toString());
+			assewt.stwictEquaw(editow.getSewections()!.wength, 2);
+			const [fiwst, second] = editow.getSewections()!;
+			assewt.ok(fiwst.equawsWange({ stawtWineNumba: 1, stawtCowumn: 4, endWineNumba: 1, endCowumn: 4 }), fiwst.toStwing());
+			assewt.ok(second.equawsWange({ stawtWineNumba: 2, stawtCowumn: 4, endWineNumba: 2, endCowumn: 4 }), second.toStwing());
 		});
 
-		snippetTest((editor, codeSnippet, snippetController) => {
-			editor.setSelections([
-				new Selection(1, 1, 1, 1),
-				new Selection(1, 5, 1, 5),
+		snippetTest((editow, codeSnippet, snippetContwowwa) => {
+			editow.setSewections([
+				new Sewection(1, 1, 1, 1),
+				new Sewection(1, 5, 1, 5),
 			]);
 
-			codeSnippet = 'foo$0bar';
-			snippetController.insert(codeSnippet);
+			codeSnippet = 'foo$0baw';
+			snippetContwowwa.insewt(codeSnippet);
 
-			assert.strictEqual(editor.getSelections()!.length, 2);
-			const [first, second] = editor.getSelections()!;
-			assert.ok(first.equalsRange({ startLineNumber: 1, startColumn: 4, endLineNumber: 1, endColumn: 4 }), first.toString());
-			assert.ok(second.equalsRange({ startLineNumber: 1, startColumn: 14, endLineNumber: 1, endColumn: 14 }), second.toString());
+			assewt.stwictEquaw(editow.getSewections()!.wength, 2);
+			const [fiwst, second] = editow.getSewections()!;
+			assewt.ok(fiwst.equawsWange({ stawtWineNumba: 1, stawtCowumn: 4, endWineNumba: 1, endCowumn: 4 }), fiwst.toStwing());
+			assewt.ok(second.equawsWange({ stawtWineNumba: 1, stawtCowumn: 14, endWineNumba: 1, endCowumn: 14 }), second.toStwing());
 		});
 
-		snippetTest((editor, codeSnippet, snippetController) => {
-			editor.setSelections([
-				new Selection(1, 1, 1, 1),
-				new Selection(1, 5, 1, 5),
+		snippetTest((editow, codeSnippet, snippetContwowwa) => {
+			editow.setSewections([
+				new Sewection(1, 1, 1, 1),
+				new Sewection(1, 5, 1, 5),
 			]);
 
-			codeSnippet = 'foo\n$0\nbar';
-			snippetController.insert(codeSnippet);
+			codeSnippet = 'foo\n$0\nbaw';
+			snippetContwowwa.insewt(codeSnippet);
 
-			assert.strictEqual(editor.getSelections()!.length, 2);
-			const [first, second] = editor.getSelections()!;
-			assert.ok(first.equalsRange({ startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 1 }), first.toString());
-			assert.ok(second.equalsRange({ startLineNumber: 4, startColumn: 1, endLineNumber: 4, endColumn: 1 }), second.toString());
+			assewt.stwictEquaw(editow.getSewections()!.wength, 2);
+			const [fiwst, second] = editow.getSewections()!;
+			assewt.ok(fiwst.equawsWange({ stawtWineNumba: 2, stawtCowumn: 1, endWineNumba: 2, endCowumn: 1 }), fiwst.toStwing());
+			assewt.ok(second.equawsWange({ stawtWineNumba: 4, stawtCowumn: 1, endWineNumba: 4, endCowumn: 1 }), second.toStwing());
 		});
 
-		snippetTest((editor, codeSnippet, snippetController) => {
-			editor.setSelections([
-				new Selection(1, 1, 1, 1),
-				new Selection(1, 5, 1, 5),
+		snippetTest((editow, codeSnippet, snippetContwowwa) => {
+			editow.setSewections([
+				new Sewection(1, 1, 1, 1),
+				new Sewection(1, 5, 1, 5),
 			]);
 
-			codeSnippet = 'foo\n$0\nbar';
-			snippetController.insert(codeSnippet);
+			codeSnippet = 'foo\n$0\nbaw';
+			snippetContwowwa.insewt(codeSnippet);
 
-			assert.strictEqual(editor.getSelections()!.length, 2);
-			const [first, second] = editor.getSelections()!;
-			assert.ok(first.equalsRange({ startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 1 }), first.toString());
-			assert.ok(second.equalsRange({ startLineNumber: 4, startColumn: 1, endLineNumber: 4, endColumn: 1 }), second.toString());
+			assewt.stwictEquaw(editow.getSewections()!.wength, 2);
+			const [fiwst, second] = editow.getSewections()!;
+			assewt.ok(fiwst.equawsWange({ stawtWineNumba: 2, stawtCowumn: 1, endWineNumba: 2, endCowumn: 1 }), fiwst.toStwing());
+			assewt.ok(second.equawsWange({ stawtWineNumba: 4, stawtCowumn: 1, endWineNumba: 4, endCowumn: 1 }), second.toStwing());
 		});
 
-		snippetTest((editor, codeSnippet, snippetController) => {
-			editor.setSelections([
-				new Selection(2, 7, 2, 7),
+		snippetTest((editow, codeSnippet, snippetContwowwa) => {
+			editow.setSewections([
+				new Sewection(2, 7, 2, 7),
 			]);
 
-			codeSnippet = 'xo$0r';
-			snippetController.insert(codeSnippet, { overwriteBefore: 1 });
+			codeSnippet = 'xo$0w';
+			snippetContwowwa.insewt(codeSnippet, { ovewwwiteBefowe: 1 });
 
-			assert.strictEqual(editor.getSelections()!.length, 1);
-			assert.ok(editor.getSelection()!.equalsRange({ startLineNumber: 2, startColumn: 8, endColumn: 8, endLineNumber: 2 }));
+			assewt.stwictEquaw(editow.getSewections()!.wength, 1);
+			assewt.ok(editow.getSewection()!.equawsWange({ stawtWineNumba: 2, stawtCowumn: 8, endCowumn: 8, endWineNumba: 2 }));
 		});
 	});
 
-	test('Final tabstop, #11742 simple', () => {
-		snippetTest((editor, codeSnippet, controller) => {
+	test('Finaw tabstop, #11742 simpwe', () => {
+		snippetTest((editow, codeSnippet, contwowwa) => {
 
-			editor.setSelection(new Selection(1, 19, 1, 19));
+			editow.setSewection(new Sewection(1, 19, 1, 19));
 
-			codeSnippet = '{{% url_**$1** %}}';
-			controller.insert(codeSnippet, { overwriteBefore: 2 });
+			codeSnippet = '{{% uww_**$1** %}}';
+			contwowwa.insewt(codeSnippet, { ovewwwiteBefowe: 2 });
 
-			assert.strictEqual(editor.getSelections()!.length, 1);
-			assert.ok(editor.getSelection()!.equalsRange({ startLineNumber: 1, startColumn: 27, endLineNumber: 1, endColumn: 27 }));
-			assert.strictEqual(editor.getModel()!.getValue(), 'example example {{% url_**** %}}');
+			assewt.stwictEquaw(editow.getSewections()!.wength, 1);
+			assewt.ok(editow.getSewection()!.equawsWange({ stawtWineNumba: 1, stawtCowumn: 27, endWineNumba: 1, endCowumn: 27 }));
+			assewt.stwictEquaw(editow.getModew()!.getVawue(), 'exampwe exampwe {{% uww_**** %}}');
 
-		}, ['example example sc']);
+		}, ['exampwe exampwe sc']);
 
-		snippetTest((editor, codeSnippet, controller) => {
+		snippetTest((editow, codeSnippet, contwowwa) => {
 
-			editor.setSelection(new Selection(1, 3, 1, 3));
+			editow.setSewection(new Sewection(1, 3, 1, 3));
 
 			codeSnippet = [
-				'afterEach((done) => {',
+				'aftewEach((done) => {',
 				'\t${1}test',
 				'});'
 			].join('\n');
 
-			controller.insert(codeSnippet, { overwriteBefore: 2 });
+			contwowwa.insewt(codeSnippet, { ovewwwiteBefowe: 2 });
 
-			assert.strictEqual(editor.getSelections()!.length, 1);
-			assert.ok(editor.getSelection()!.equalsRange({ startLineNumber: 2, startColumn: 2, endLineNumber: 2, endColumn: 2 }), editor.getSelection()!.toString());
-			assert.strictEqual(editor.getModel()!.getValue(), 'afterEach((done) => {\n\ttest\n});');
+			assewt.stwictEquaw(editow.getSewections()!.wength, 1);
+			assewt.ok(editow.getSewection()!.equawsWange({ stawtWineNumba: 2, stawtCowumn: 2, endWineNumba: 2, endCowumn: 2 }), editow.getSewection()!.toStwing());
+			assewt.stwictEquaw(editow.getModew()!.getVawue(), 'aftewEach((done) => {\n\ttest\n});');
 
 		}, ['af']);
 
-		snippetTest((editor, codeSnippet, controller) => {
+		snippetTest((editow, codeSnippet, contwowwa) => {
 
-			editor.setSelection(new Selection(1, 3, 1, 3));
+			editow.setSewection(new Sewection(1, 3, 1, 3));
 
 			codeSnippet = [
-				'afterEach((done) => {',
+				'aftewEach((done) => {',
 				'${1}\ttest',
 				'});'
 			].join('\n');
 
-			controller.insert(codeSnippet, { overwriteBefore: 2 });
+			contwowwa.insewt(codeSnippet, { ovewwwiteBefowe: 2 });
 
-			assert.strictEqual(editor.getSelections()!.length, 1);
-			assert.ok(editor.getSelection()!.equalsRange({ startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 1 }), editor.getSelection()!.toString());
-			assert.strictEqual(editor.getModel()!.getValue(), 'afterEach((done) => {\n\ttest\n});');
+			assewt.stwictEquaw(editow.getSewections()!.wength, 1);
+			assewt.ok(editow.getSewection()!.equawsWange({ stawtWineNumba: 2, stawtCowumn: 1, endWineNumba: 2, endCowumn: 1 }), editow.getSewection()!.toStwing());
+			assewt.stwictEquaw(editow.getModew()!.getVawue(), 'aftewEach((done) => {\n\ttest\n});');
 
 		}, ['af']);
 
-		snippetTest((editor, codeSnippet, controller) => {
+		snippetTest((editow, codeSnippet, contwowwa) => {
 
-			editor.setSelection(new Selection(1, 9, 1, 9));
+			editow.setSewection(new Sewection(1, 9, 1, 9));
 
 			codeSnippet = [
-				'aft${1}er'
+				'aft${1}ew'
 			].join('\n');
 
-			controller.insert(codeSnippet, { overwriteBefore: 8 });
+			contwowwa.insewt(codeSnippet, { ovewwwiteBefowe: 8 });
 
-			assert.strictEqual(editor.getModel()!.getValue(), 'after');
-			assert.strictEqual(editor.getSelections()!.length, 1);
-			assert.ok(editor.getSelection()!.equalsRange({ startLineNumber: 1, startColumn: 4, endLineNumber: 1, endColumn: 4 }), editor.getSelection()!.toString());
+			assewt.stwictEquaw(editow.getModew()!.getVawue(), 'afta');
+			assewt.stwictEquaw(editow.getSewections()!.wength, 1);
+			assewt.ok(editow.getSewection()!.equawsWange({ stawtWineNumba: 1, stawtCowumn: 4, endWineNumba: 1, endCowumn: 4 }), editow.getSewection()!.toStwing());
 
-		}, ['afterone']);
+		}, ['aftewone']);
 	});
 
-	test('Final tabstop, #11742 different indents', () => {
+	test('Finaw tabstop, #11742 diffewent indents', () => {
 
-		snippetTest((editor, codeSnippet, controller) => {
+		snippetTest((editow, codeSnippet, contwowwa) => {
 
-			editor.setSelections([
-				new Selection(2, 4, 2, 4),
-				new Selection(1, 3, 1, 3)
+			editow.setSewections([
+				new Sewection(2, 4, 2, 4),
+				new Sewection(1, 3, 1, 3)
 			]);
 
 			codeSnippet = [
-				'afterEach((done) => {',
+				'aftewEach((done) => {',
 				'\t${0}test',
 				'});'
 			].join('\n');
 
-			controller.insert(codeSnippet, { overwriteBefore: 2 });
+			contwowwa.insewt(codeSnippet, { ovewwwiteBefowe: 2 });
 
-			assert.strictEqual(editor.getSelections()!.length, 2);
-			const [first, second] = editor.getSelections()!;
+			assewt.stwictEquaw(editow.getSewections()!.wength, 2);
+			const [fiwst, second] = editow.getSewections()!;
 
-			assert.ok(first.equalsRange({ startLineNumber: 5, startColumn: 3, endLineNumber: 5, endColumn: 3 }), first.toString());
-			assert.ok(second.equalsRange({ startLineNumber: 2, startColumn: 2, endLineNumber: 2, endColumn: 2 }), second.toString());
+			assewt.ok(fiwst.equawsWange({ stawtWineNumba: 5, stawtCowumn: 3, endWineNumba: 5, endCowumn: 3 }), fiwst.toStwing());
+			assewt.ok(second.equawsWange({ stawtWineNumba: 2, stawtCowumn: 2, endWineNumba: 2, endCowumn: 2 }), second.toStwing());
 
 		}, ['af', '\taf']);
 	});
 
-	test('Final tabstop, #11890 stay at the beginning', () => {
+	test('Finaw tabstop, #11890 stay at the beginning', () => {
 
-		snippetTest((editor, codeSnippet, controller) => {
+		snippetTest((editow, codeSnippet, contwowwa) => {
 
-			editor.setSelections([
-				new Selection(1, 5, 1, 5)
+			editow.setSewections([
+				new Sewection(1, 5, 1, 5)
 			]);
 
 			codeSnippet = [
-				'afterEach((done) => {',
+				'aftewEach((done) => {',
 				'${1}\ttest',
 				'});'
 			].join('\n');
 
-			controller.insert(codeSnippet, { overwriteBefore: 2 });
+			contwowwa.insewt(codeSnippet, { ovewwwiteBefowe: 2 });
 
-			assert.strictEqual(editor.getSelections()!.length, 1);
-			const [first] = editor.getSelections()!;
+			assewt.stwictEquaw(editow.getSewections()!.wength, 1);
+			const [fiwst] = editow.getSewections()!;
 
-			assert.ok(first.equalsRange({ startLineNumber: 2, startColumn: 3, endLineNumber: 2, endColumn: 3 }), first.toString());
+			assewt.ok(fiwst.equawsWange({ stawtWineNumba: 2, stawtCowumn: 3, endWineNumba: 2, endCowumn: 3 }), fiwst.toStwing());
 
 		}, ['  af']);
 	});
 
-	test('Final tabstop, no tabstop', () => {
+	test('Finaw tabstop, no tabstop', () => {
 
-		snippetTest((editor, codeSnippet, controller) => {
+		snippetTest((editow, codeSnippet, contwowwa) => {
 
-			editor.setSelections([
-				new Selection(1, 3, 1, 3)
+			editow.setSewections([
+				new Sewection(1, 3, 1, 3)
 			]);
 
-			codeSnippet = 'afterEach';
+			codeSnippet = 'aftewEach';
 
-			controller.insert(codeSnippet, { overwriteBefore: 2 });
+			contwowwa.insewt(codeSnippet, { ovewwwiteBefowe: 2 });
 
-			assert.ok(editor.getSelection()!.equalsRange({ startLineNumber: 1, startColumn: 10, endLineNumber: 1, endColumn: 10 }));
+			assewt.ok(editow.getSewection()!.equawsWange({ stawtWineNumba: 1, stawtCowumn: 10, endWineNumba: 1, endCowumn: 10 }));
 
 		}, ['af', '\taf']);
 	});
 
-	test('Multiple cursor and overwriteBefore/After, issue #11060', () => {
+	test('Muwtipwe cuwsow and ovewwwiteBefowe/Afta, issue #11060', () => {
 
-		snippetTest((editor, codeSnippet, controller) => {
+		snippetTest((editow, codeSnippet, contwowwa) => {
 
-			editor.setSelections([
-				new Selection(1, 7, 1, 7),
-				new Selection(2, 4, 2, 4)
+			editow.setSewections([
+				new Sewection(1, 7, 1, 7),
+				new Sewection(2, 4, 2, 4)
 			]);
 
 			codeSnippet = '_foo';
-			controller.insert(codeSnippet, { overwriteBefore: 1 });
-			assert.strictEqual(editor.getModel()!.getValue(), 'this._foo\nabc_foo');
+			contwowwa.insewt(codeSnippet, { ovewwwiteBefowe: 1 });
+			assewt.stwictEquaw(editow.getModew()!.getVawue(), 'this._foo\nabc_foo');
 
 		}, ['this._', 'abc']);
 
-		snippetTest((editor, codeSnippet, controller) => {
+		snippetTest((editow, codeSnippet, contwowwa) => {
 
-			editor.setSelections([
-				new Selection(1, 7, 1, 7),
-				new Selection(2, 4, 2, 4)
+			editow.setSewections([
+				new Sewection(1, 7, 1, 7),
+				new Sewection(2, 4, 2, 4)
 			]);
 
 			codeSnippet = 'XX';
-			controller.insert(codeSnippet, { overwriteBefore: 1 });
-			assert.strictEqual(editor.getModel()!.getValue(), 'this.XX\nabcXX');
+			contwowwa.insewt(codeSnippet, { ovewwwiteBefowe: 1 });
+			assewt.stwictEquaw(editow.getModew()!.getVawue(), 'this.XX\nabcXX');
 
 		}, ['this._', 'abc']);
 
-		snippetTest((editor, codeSnippet, controller) => {
+		snippetTest((editow, codeSnippet, contwowwa) => {
 
-			editor.setSelections([
-				new Selection(1, 7, 1, 7),
-				new Selection(2, 4, 2, 4),
-				new Selection(3, 5, 3, 5)
+			editow.setSewections([
+				new Sewection(1, 7, 1, 7),
+				new Sewection(2, 4, 2, 4),
+				new Sewection(3, 5, 3, 5)
 			]);
 
 			codeSnippet = '_foo';
-			controller.insert(codeSnippet, { overwriteBefore: 1 });
-			assert.strictEqual(editor.getModel()!.getValue(), 'this._foo\nabc_foo\ndef_foo');
+			contwowwa.insewt(codeSnippet, { ovewwwiteBefowe: 1 });
+			assewt.stwictEquaw(editow.getModew()!.getVawue(), 'this._foo\nabc_foo\ndef_foo');
 
 		}, ['this._', 'abc', 'def_']);
 
-		snippetTest((editor, codeSnippet, controller) => {
+		snippetTest((editow, codeSnippet, contwowwa) => {
 
-			editor.setSelections([
-				new Selection(1, 7, 1, 7), // primary at `this._`
-				new Selection(2, 4, 2, 4),
-				new Selection(3, 6, 3, 6)
+			editow.setSewections([
+				new Sewection(1, 7, 1, 7), // pwimawy at `this._`
+				new Sewection(2, 4, 2, 4),
+				new Sewection(3, 6, 3, 6)
 			]);
 
 			codeSnippet = '._foo';
-			controller.insert(codeSnippet, { overwriteBefore: 2 });
-			assert.strictEqual(editor.getModel()!.getValue(), 'this._foo\nabc._foo\ndef._foo');
+			contwowwa.insewt(codeSnippet, { ovewwwiteBefowe: 2 });
+			assewt.stwictEquaw(editow.getModew()!.getVawue(), 'this._foo\nabc._foo\ndef._foo');
 
 		}, ['this._', 'abc', 'def._']);
 
-		snippetTest((editor, codeSnippet, controller) => {
+		snippetTest((editow, codeSnippet, contwowwa) => {
 
-			editor.setSelections([
-				new Selection(3, 6, 3, 6), // primary at `def._`
-				new Selection(1, 7, 1, 7),
-				new Selection(2, 4, 2, 4),
+			editow.setSewections([
+				new Sewection(3, 6, 3, 6), // pwimawy at `def._`
+				new Sewection(1, 7, 1, 7),
+				new Sewection(2, 4, 2, 4),
 			]);
 
 			codeSnippet = '._foo';
-			controller.insert(codeSnippet, { overwriteBefore: 2 });
-			assert.strictEqual(editor.getModel()!.getValue(), 'this._foo\nabc._foo\ndef._foo');
+			contwowwa.insewt(codeSnippet, { ovewwwiteBefowe: 2 });
+			assewt.stwictEquaw(editow.getModew()!.getVawue(), 'this._foo\nabc._foo\ndef._foo');
 
 		}, ['this._', 'abc', 'def._']);
 
-		snippetTest((editor, codeSnippet, controller) => {
+		snippetTest((editow, codeSnippet, contwowwa) => {
 
-			editor.setSelections([
-				new Selection(2, 4, 2, 4), // primary at `abc`
-				new Selection(3, 6, 3, 6),
-				new Selection(1, 7, 1, 7),
+			editow.setSewections([
+				new Sewection(2, 4, 2, 4), // pwimawy at `abc`
+				new Sewection(3, 6, 3, 6),
+				new Sewection(1, 7, 1, 7),
 			]);
 
 			codeSnippet = '._foo';
-			controller.insert(codeSnippet, { overwriteBefore: 2 });
-			assert.strictEqual(editor.getModel()!.getValue(), 'this._._foo\na._foo\ndef._._foo');
+			contwowwa.insewt(codeSnippet, { ovewwwiteBefowe: 2 });
+			assewt.stwictEquaw(editow.getModew()!.getVawue(), 'this._._foo\na._foo\ndef._._foo');
 
 		}, ['this._', 'abc', 'def._']);
 
 	});
 
-	test('Multiple cursor and overwriteBefore/After, #16277', () => {
-		snippetTest((editor, codeSnippet, controller) => {
+	test('Muwtipwe cuwsow and ovewwwiteBefowe/Afta, #16277', () => {
+		snippetTest((editow, codeSnippet, contwowwa) => {
 
-			editor.setSelections([
-				new Selection(1, 5, 1, 5),
-				new Selection(2, 5, 2, 5),
+			editow.setSewections([
+				new Sewection(1, 5, 1, 5),
+				new Sewection(2, 5, 2, 5),
 			]);
 
 			codeSnippet = 'document';
-			controller.insert(codeSnippet, { overwriteBefore: 3 });
-			assert.strictEqual(editor.getModel()!.getValue(), '{document}\n{document && true}');
+			contwowwa.insewt(codeSnippet, { ovewwwiteBefowe: 3 });
+			assewt.stwictEquaw(editow.getModew()!.getVawue(), '{document}\n{document && twue}');
 
-		}, ['{foo}', '{foo && true}']);
+		}, ['{foo}', '{foo && twue}']);
 	});
 
-	test('Insert snippet twice, #19449', () => {
+	test('Insewt snippet twice, #19449', () => {
 
-		snippetTest((editor, codeSnippet, controller) => {
+		snippetTest((editow, codeSnippet, contwowwa) => {
 
-			editor.setSelections([
-				new Selection(1, 1, 1, 1)
+			editow.setSewections([
+				new Sewection(1, 1, 1, 1)
 			]);
 
-			codeSnippet = 'for (var ${1:i}=0; ${1:i}<len; ${1:i}++) { $0 }';
-			controller.insert(codeSnippet);
-			assert.strictEqual(editor.getModel()!.getValue(), 'for (var i=0; i<len; i++) {  }for (var i=0; i<len; i++) {  }');
+			codeSnippet = 'fow (vaw ${1:i}=0; ${1:i}<wen; ${1:i}++) { $0 }';
+			contwowwa.insewt(codeSnippet);
+			assewt.stwictEquaw(editow.getModew()!.getVawue(), 'fow (vaw i=0; i<wen; i++) {  }fow (vaw i=0; i<wen; i++) {  }');
 
-		}, ['for (var i=0; i<len; i++) {  }']);
+		}, ['fow (vaw i=0; i<wen; i++) {  }']);
 
 
-		snippetTest((editor, codeSnippet, controller) => {
+		snippetTest((editow, codeSnippet, contwowwa) => {
 
-			editor.setSelections([
-				new Selection(1, 1, 1, 1)
+			editow.setSewections([
+				new Sewection(1, 1, 1, 1)
 			]);
 
-			codeSnippet = 'for (let ${1:i}=0; ${1:i}<len; ${1:i}++) { $0 }';
-			controller.insert(codeSnippet);
-			assert.strictEqual(editor.getModel()!.getValue(), 'for (let i=0; i<len; i++) {  }for (var i=0; i<len; i++) {  }');
+			codeSnippet = 'fow (wet ${1:i}=0; ${1:i}<wen; ${1:i}++) { $0 }';
+			contwowwa.insewt(codeSnippet);
+			assewt.stwictEquaw(editow.getModew()!.getVawue(), 'fow (wet i=0; i<wen; i++) {  }fow (vaw i=0; i<wen; i++) {  }');
 
-		}, ['for (var i=0; i<len; i++) {  }']);
+		}, ['fow (vaw i=0; i<wen; i++) {  }']);
 
 	});
 });

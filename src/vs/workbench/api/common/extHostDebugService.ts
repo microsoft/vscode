@@ -1,191 +1,191 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'vs/base/common/path';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import { asPromise } from 'vs/base/common/async';
-import {
-	MainContext, MainThreadDebugServiceShape, ExtHostDebugServiceShape, DebugSessionUUID,
-	IBreakpointsDeltaDto, ISourceMultiBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto
-} from 'vs/workbench/api/common/extHost.protocol';
-import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint, DebugAdapterServer, DebugAdapterExecutable, DataBreakpoint, DebugConsoleMode, DebugAdapterInlineImplementation, DebugAdapterNamedPipeServer } from 'vs/workbench/api/common/extHostTypes';
-import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
-import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { ExtHostDocumentsAndEditors, IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { IDebuggerContribution, IConfig, IDebugAdapter, IDebugAdapterServer, IDebugAdapterExecutable, IAdapterDescriptor, IDebugAdapterImpl, IDebugAdapterNamedPipeServer } from 'vs/workbench/contrib/debug/common/debug';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
-import { ExtHostConfigProvider, IExtHostConfiguration } from '../common/extHostConfiguration';
-import { convertToVSCPaths, convertToDAPaths, isDebuggerMainContribution } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
-import { ISignService } from 'vs/platform/sign/common/sign';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import type * as vscode from 'vscode';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import * as process from 'vs/base/common/process';
-import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
+impowt * as path fwom 'vs/base/common/path';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { asPwomise } fwom 'vs/base/common/async';
+impowt {
+	MainContext, MainThweadDebugSewviceShape, ExtHostDebugSewviceShape, DebugSessionUUID,
+	IBweakpointsDewtaDto, ISouwceMuwtiBweakpointDto, IFunctionBweakpointDto, IDebugSessionDto
+} fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { Disposabwe, Position, Wocation, SouwceBweakpoint, FunctionBweakpoint, DebugAdaptewSewva, DebugAdaptewExecutabwe, DataBweakpoint, DebugConsoweMode, DebugAdaptewInwineImpwementation, DebugAdaptewNamedPipeSewva } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { AbstwactDebugAdapta } fwom 'vs/wowkbench/contwib/debug/common/abstwactDebugAdapta';
+impowt { IExtHostWowkspace } fwom 'vs/wowkbench/api/common/extHostWowkspace';
+impowt { IExtHostExtensionSewvice } fwom 'vs/wowkbench/api/common/extHostExtensionSewvice';
+impowt { ExtHostDocumentsAndEditows, IExtHostDocumentsAndEditows } fwom 'vs/wowkbench/api/common/extHostDocumentsAndEditows';
+impowt { IDebuggewContwibution, IConfig, IDebugAdapta, IDebugAdaptewSewva, IDebugAdaptewExecutabwe, IAdaptewDescwiptow, IDebugAdaptewImpw, IDebugAdaptewNamedPipeSewva } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { IWowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { AbstwactVawiabweWesowvewSewvice } fwom 'vs/wowkbench/sewvices/configuwationWesowva/common/vawiabweWesowva';
+impowt { ExtHostConfigPwovida, IExtHostConfiguwation } fwom '../common/extHostConfiguwation';
+impowt { convewtToVSCPaths, convewtToDAPaths, isDebuggewMainContwibution } fwom 'vs/wowkbench/contwib/debug/common/debugUtiws';
+impowt { IConfiguwationWesowvewSewvice } fwom 'vs/wowkbench/sewvices/configuwationWesowva/common/configuwationWesowva';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { ExtensionDescwiptionWegistwy } fwom 'vs/wowkbench/sewvices/extensions/common/extensionDescwiptionWegistwy';
+impowt { ISignSewvice } fwom 'vs/pwatfowm/sign/common/sign';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt type * as vscode fwom 'vscode';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt * as pwocess fwom 'vs/base/common/pwocess';
+impowt { IExtHostEditowTabs } fwom 'vs/wowkbench/api/common/extHostEditowTabs';
 
-export const IExtHostDebugService = createDecorator<IExtHostDebugService>('IExtHostDebugService');
+expowt const IExtHostDebugSewvice = cweateDecowatow<IExtHostDebugSewvice>('IExtHostDebugSewvice');
 
-export interface IExtHostDebugService extends ExtHostDebugServiceShape {
+expowt intewface IExtHostDebugSewvice extends ExtHostDebugSewviceShape {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	onDidStartDebugSession: Event<vscode.DebugSession>;
-	onDidTerminateDebugSession: Event<vscode.DebugSession>;
+	onDidStawtDebugSession: Event<vscode.DebugSession>;
+	onDidTewminateDebugSession: Event<vscode.DebugSession>;
 	onDidChangeActiveDebugSession: Event<vscode.DebugSession | undefined>;
 	activeDebugSession: vscode.DebugSession | undefined;
-	activeDebugConsole: vscode.DebugConsole;
-	onDidReceiveDebugSessionCustomEvent: Event<vscode.DebugSessionCustomEvent>;
-	onDidChangeBreakpoints: Event<vscode.BreakpointsChangeEvent>;
-	breakpoints: vscode.Breakpoint[];
+	activeDebugConsowe: vscode.DebugConsowe;
+	onDidWeceiveDebugSessionCustomEvent: Event<vscode.DebugSessionCustomEvent>;
+	onDidChangeBweakpoints: Event<vscode.BweakpointsChangeEvent>;
+	bweakpoints: vscode.Bweakpoint[];
 
-	addBreakpoints(breakpoints0: readonly vscode.Breakpoint[]): Promise<void>;
-	removeBreakpoints(breakpoints0: readonly vscode.Breakpoint[]): Promise<void>;
-	startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration, options: vscode.DebugSessionOptions): Promise<boolean>;
-	stopDebugging(session?: vscode.DebugSession): Promise<void>;
-	registerDebugConfigurationProvider(type: string, provider: vscode.DebugConfigurationProvider, trigger: vscode.DebugConfigurationProviderTriggerKind): vscode.Disposable;
-	registerDebugAdapterDescriptorFactory(extension: IExtensionDescription, type: string, factory: vscode.DebugAdapterDescriptorFactory): vscode.Disposable;
-	registerDebugAdapterTrackerFactory(type: string, factory: vscode.DebugAdapterTrackerFactory): vscode.Disposable;
-	asDebugSourceUri(source: vscode.DebugProtocolSource, session?: vscode.DebugSession): vscode.Uri;
+	addBweakpoints(bweakpoints0: weadonwy vscode.Bweakpoint[]): Pwomise<void>;
+	wemoveBweakpoints(bweakpoints0: weadonwy vscode.Bweakpoint[]): Pwomise<void>;
+	stawtDebugging(fowda: vscode.WowkspaceFowda | undefined, nameOwConfig: stwing | vscode.DebugConfiguwation, options: vscode.DebugSessionOptions): Pwomise<boowean>;
+	stopDebugging(session?: vscode.DebugSession): Pwomise<void>;
+	wegistewDebugConfiguwationPwovida(type: stwing, pwovida: vscode.DebugConfiguwationPwovida, twigga: vscode.DebugConfiguwationPwovidewTwiggewKind): vscode.Disposabwe;
+	wegistewDebugAdaptewDescwiptowFactowy(extension: IExtensionDescwiption, type: stwing, factowy: vscode.DebugAdaptewDescwiptowFactowy): vscode.Disposabwe;
+	wegistewDebugAdaptewTwackewFactowy(type: stwing, factowy: vscode.DebugAdaptewTwackewFactowy): vscode.Disposabwe;
+	asDebugSouwceUwi(souwce: vscode.DebugPwotocowSouwce, session?: vscode.DebugSession): vscode.Uwi;
 }
 
-export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, ExtHostDebugServiceShape {
+expowt abstwact cwass ExtHostDebugSewviceBase impwements IExtHostDebugSewvice, ExtHostDebugSewviceShape {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	private _configProviderHandleCounter: number;
-	private _configProviders: ConfigProviderTuple[];
+	pwivate _configPwovidewHandweCounta: numba;
+	pwivate _configPwovidews: ConfigPwovidewTupwe[];
 
-	private _adapterFactoryHandleCounter: number;
-	private _adapterFactories: DescriptorFactoryTuple[];
+	pwivate _adaptewFactowyHandweCounta: numba;
+	pwivate _adaptewFactowies: DescwiptowFactowyTupwe[];
 
-	private _trackerFactoryHandleCounter: number;
-	private _trackerFactories: TrackerFactoryTuple[];
+	pwivate _twackewFactowyHandweCounta: numba;
+	pwivate _twackewFactowies: TwackewFactowyTupwe[];
 
-	private _debugServiceProxy: MainThreadDebugServiceShape;
-	private _debugSessions: Map<DebugSessionUUID, ExtHostDebugSession> = new Map<DebugSessionUUID, ExtHostDebugSession>();
+	pwivate _debugSewvicePwoxy: MainThweadDebugSewviceShape;
+	pwivate _debugSessions: Map<DebugSessionUUID, ExtHostDebugSession> = new Map<DebugSessionUUID, ExtHostDebugSession>();
 
-	private readonly _onDidStartDebugSession: Emitter<vscode.DebugSession>;
-	get onDidStartDebugSession(): Event<vscode.DebugSession> { return this._onDidStartDebugSession.event; }
+	pwivate weadonwy _onDidStawtDebugSession: Emitta<vscode.DebugSession>;
+	get onDidStawtDebugSession(): Event<vscode.DebugSession> { wetuwn this._onDidStawtDebugSession.event; }
 
-	private readonly _onDidTerminateDebugSession: Emitter<vscode.DebugSession>;
-	get onDidTerminateDebugSession(): Event<vscode.DebugSession> { return this._onDidTerminateDebugSession.event; }
+	pwivate weadonwy _onDidTewminateDebugSession: Emitta<vscode.DebugSession>;
+	get onDidTewminateDebugSession(): Event<vscode.DebugSession> { wetuwn this._onDidTewminateDebugSession.event; }
 
-	private readonly _onDidChangeActiveDebugSession: Emitter<vscode.DebugSession | undefined>;
-	get onDidChangeActiveDebugSession(): Event<vscode.DebugSession | undefined> { return this._onDidChangeActiveDebugSession.event; }
+	pwivate weadonwy _onDidChangeActiveDebugSession: Emitta<vscode.DebugSession | undefined>;
+	get onDidChangeActiveDebugSession(): Event<vscode.DebugSession | undefined> { wetuwn this._onDidChangeActiveDebugSession.event; }
 
-	private _activeDebugSession: ExtHostDebugSession | undefined;
-	get activeDebugSession(): ExtHostDebugSession | undefined { return this._activeDebugSession; }
+	pwivate _activeDebugSession: ExtHostDebugSession | undefined;
+	get activeDebugSession(): ExtHostDebugSession | undefined { wetuwn this._activeDebugSession; }
 
-	private readonly _onDidReceiveDebugSessionCustomEvent: Emitter<vscode.DebugSessionCustomEvent>;
-	get onDidReceiveDebugSessionCustomEvent(): Event<vscode.DebugSessionCustomEvent> { return this._onDidReceiveDebugSessionCustomEvent.event; }
+	pwivate weadonwy _onDidWeceiveDebugSessionCustomEvent: Emitta<vscode.DebugSessionCustomEvent>;
+	get onDidWeceiveDebugSessionCustomEvent(): Event<vscode.DebugSessionCustomEvent> { wetuwn this._onDidWeceiveDebugSessionCustomEvent.event; }
 
-	private _activeDebugConsole: ExtHostDebugConsole;
-	get activeDebugConsole(): vscode.DebugConsole { return this._activeDebugConsole.value; }
+	pwivate _activeDebugConsowe: ExtHostDebugConsowe;
+	get activeDebugConsowe(): vscode.DebugConsowe { wetuwn this._activeDebugConsowe.vawue; }
 
-	private _breakpoints: Map<string, vscode.Breakpoint>;
-	private _breakpointEventsActive: boolean;
+	pwivate _bweakpoints: Map<stwing, vscode.Bweakpoint>;
+	pwivate _bweakpointEventsActive: boowean;
 
-	private readonly _onDidChangeBreakpoints: Emitter<vscode.BreakpointsChangeEvent>;
+	pwivate weadonwy _onDidChangeBweakpoints: Emitta<vscode.BweakpointsChangeEvent>;
 
-	private _debugAdapters: Map<number, IDebugAdapter>;
-	private _debugAdaptersTrackers: Map<number, vscode.DebugAdapterTracker>;
+	pwivate _debugAdaptews: Map<numba, IDebugAdapta>;
+	pwivate _debugAdaptewsTwackews: Map<numba, vscode.DebugAdaptewTwacka>;
 
-	private _variableResolver: IConfigurationResolverService | undefined;
+	pwivate _vawiabweWesowva: IConfiguwationWesowvewSewvice | undefined;
 
-	private _signService: ISignService | undefined;
+	pwivate _signSewvice: ISignSewvice | undefined;
 
-	constructor(
-		@IExtHostRpcService extHostRpcService: IExtHostRpcService,
-		@IExtHostWorkspace protected _workspaceService: IExtHostWorkspace,
-		@IExtHostExtensionService private _extensionService: IExtHostExtensionService,
-		@IExtHostDocumentsAndEditors private _editorsService: IExtHostDocumentsAndEditors,
-		@IExtHostConfiguration protected _configurationService: IExtHostConfiguration,
-		@IExtHostEditorTabs protected _editorTabs: IExtHostEditorTabs
+	constwuctow(
+		@IExtHostWpcSewvice extHostWpcSewvice: IExtHostWpcSewvice,
+		@IExtHostWowkspace pwotected _wowkspaceSewvice: IExtHostWowkspace,
+		@IExtHostExtensionSewvice pwivate _extensionSewvice: IExtHostExtensionSewvice,
+		@IExtHostDocumentsAndEditows pwivate _editowsSewvice: IExtHostDocumentsAndEditows,
+		@IExtHostConfiguwation pwotected _configuwationSewvice: IExtHostConfiguwation,
+		@IExtHostEditowTabs pwotected _editowTabs: IExtHostEditowTabs
 	) {
-		this._configProviderHandleCounter = 0;
-		this._configProviders = [];
+		this._configPwovidewHandweCounta = 0;
+		this._configPwovidews = [];
 
-		this._adapterFactoryHandleCounter = 0;
-		this._adapterFactories = [];
+		this._adaptewFactowyHandweCounta = 0;
+		this._adaptewFactowies = [];
 
-		this._trackerFactoryHandleCounter = 0;
-		this._trackerFactories = [];
+		this._twackewFactowyHandweCounta = 0;
+		this._twackewFactowies = [];
 
-		this._debugAdapters = new Map();
-		this._debugAdaptersTrackers = new Map();
+		this._debugAdaptews = new Map();
+		this._debugAdaptewsTwackews = new Map();
 
-		this._onDidStartDebugSession = new Emitter<vscode.DebugSession>();
-		this._onDidTerminateDebugSession = new Emitter<vscode.DebugSession>();
-		this._onDidChangeActiveDebugSession = new Emitter<vscode.DebugSession | undefined>();
-		this._onDidReceiveDebugSessionCustomEvent = new Emitter<vscode.DebugSessionCustomEvent>();
+		this._onDidStawtDebugSession = new Emitta<vscode.DebugSession>();
+		this._onDidTewminateDebugSession = new Emitta<vscode.DebugSession>();
+		this._onDidChangeActiveDebugSession = new Emitta<vscode.DebugSession | undefined>();
+		this._onDidWeceiveDebugSessionCustomEvent = new Emitta<vscode.DebugSessionCustomEvent>();
 
-		this._debugServiceProxy = extHostRpcService.getProxy(MainContext.MainThreadDebugService);
+		this._debugSewvicePwoxy = extHostWpcSewvice.getPwoxy(MainContext.MainThweadDebugSewvice);
 
-		this._onDidChangeBreakpoints = new Emitter<vscode.BreakpointsChangeEvent>({
-			onFirstListenerAdd: () => {
-				this.startBreakpoints();
+		this._onDidChangeBweakpoints = new Emitta<vscode.BweakpointsChangeEvent>({
+			onFiwstWistenewAdd: () => {
+				this.stawtBweakpoints();
 			}
 		});
 
-		this._activeDebugConsole = new ExtHostDebugConsole(this._debugServiceProxy);
+		this._activeDebugConsowe = new ExtHostDebugConsowe(this._debugSewvicePwoxy);
 
-		this._breakpoints = new Map<string, vscode.Breakpoint>();
-		this._breakpointEventsActive = false;
+		this._bweakpoints = new Map<stwing, vscode.Bweakpoint>();
+		this._bweakpointEventsActive = fawse;
 
-		this._extensionService.getExtensionRegistry().then((extensionRegistry: ExtensionDescriptionRegistry) => {
-			extensionRegistry.onDidChange(_ => {
-				this.registerAllDebugTypes(extensionRegistry);
+		this._extensionSewvice.getExtensionWegistwy().then((extensionWegistwy: ExtensionDescwiptionWegistwy) => {
+			extensionWegistwy.onDidChange(_ => {
+				this.wegistewAwwDebugTypes(extensionWegistwy);
 			});
-			this.registerAllDebugTypes(extensionRegistry);
+			this.wegistewAwwDebugTypes(extensionWegistwy);
 		});
 	}
 
-	public asDebugSourceUri(src: vscode.DebugProtocolSource, session?: vscode.DebugSession): URI {
+	pubwic asDebugSouwceUwi(swc: vscode.DebugPwotocowSouwce, session?: vscode.DebugSession): UWI {
 
-		const source = <any>src;
+		const souwce = <any>swc;
 
-		if (typeof source.sourceReference === 'number' && source.sourceReference > 0) {
-			// src can be retrieved via DAP's "source" request
+		if (typeof souwce.souwceWefewence === 'numba' && souwce.souwceWefewence > 0) {
+			// swc can be wetwieved via DAP's "souwce" wequest
 
-			let debug = `debug:${encodeURIComponent(source.path || '')}`;
-			let sep = '?';
+			wet debug = `debug:${encodeUWIComponent(souwce.path || '')}`;
+			wet sep = '?';
 
 			if (session) {
-				debug += `${sep}session=${encodeURIComponent(session.id)}`;
+				debug += `${sep}session=${encodeUWIComponent(session.id)}`;
 				sep = '&';
 			}
 
-			debug += `${sep}ref=${source.sourceReference}`;
+			debug += `${sep}wef=${souwce.souwceWefewence}`;
 
-			return URI.parse(debug);
-		} else if (source.path) {
-			// src is just a local file path
-			return URI.file(source.path);
-		} else {
-			throw new Error(`cannot create uri from DAP 'source' object; properties 'path' and 'sourceReference' are both missing.`);
+			wetuwn UWI.pawse(debug);
+		} ewse if (souwce.path) {
+			// swc is just a wocaw fiwe path
+			wetuwn UWI.fiwe(souwce.path);
+		} ewse {
+			thwow new Ewwow(`cannot cweate uwi fwom DAP 'souwce' object; pwopewties 'path' and 'souwceWefewence' awe both missing.`);
 		}
 	}
 
-	private registerAllDebugTypes(extensionRegistry: ExtensionDescriptionRegistry) {
+	pwivate wegistewAwwDebugTypes(extensionWegistwy: ExtensionDescwiptionWegistwy) {
 
-		const debugTypes: string[] = [];
+		const debugTypes: stwing[] = [];
 
-		for (const ed of extensionRegistry.getAllExtensionDescriptions()) {
-			if (ed.contributes) {
-				const debuggers = <IDebuggerContribution[]>ed.contributes['debuggers'];
-				if (debuggers && debuggers.length > 0) {
-					for (const dbg of debuggers) {
-						if (isDebuggerMainContribution(dbg)) {
+		fow (const ed of extensionWegistwy.getAwwExtensionDescwiptions()) {
+			if (ed.contwibutes) {
+				const debuggews = <IDebuggewContwibution[]>ed.contwibutes['debuggews'];
+				if (debuggews && debuggews.wength > 0) {
+					fow (const dbg of debuggews) {
+						if (isDebuggewMainContwibution(dbg)) {
 							debugTypes.push(dbg.type);
 						}
 					}
@@ -193,72 +193,72 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 			}
 		}
 
-		this._debugServiceProxy.$registerDebugTypes(debugTypes);
+		this._debugSewvicePwoxy.$wegistewDebugTypes(debugTypes);
 	}
 
 	// extension debug API
 
-	get onDidChangeBreakpoints(): Event<vscode.BreakpointsChangeEvent> {
-		return this._onDidChangeBreakpoints.event;
+	get onDidChangeBweakpoints(): Event<vscode.BweakpointsChangeEvent> {
+		wetuwn this._onDidChangeBweakpoints.event;
 	}
 
-	get breakpoints(): vscode.Breakpoint[] {
+	get bweakpoints(): vscode.Bweakpoint[] {
 
-		this.startBreakpoints();
+		this.stawtBweakpoints();
 
-		const result: vscode.Breakpoint[] = [];
-		this._breakpoints.forEach(bp => result.push(bp));
-		return result;
+		const wesuwt: vscode.Bweakpoint[] = [];
+		this._bweakpoints.fowEach(bp => wesuwt.push(bp));
+		wetuwn wesuwt;
 	}
 
-	public addBreakpoints(breakpoints0: vscode.Breakpoint[]): Promise<void> {
+	pubwic addBweakpoints(bweakpoints0: vscode.Bweakpoint[]): Pwomise<void> {
 
-		this.startBreakpoints();
+		this.stawtBweakpoints();
 
-		// filter only new breakpoints
-		const breakpoints = breakpoints0.filter(bp => {
+		// fiwta onwy new bweakpoints
+		const bweakpoints = bweakpoints0.fiwta(bp => {
 			const id = bp.id;
-			if (!this._breakpoints.has(id)) {
-				this._breakpoints.set(id, bp);
-				return true;
+			if (!this._bweakpoints.has(id)) {
+				this._bweakpoints.set(id, bp);
+				wetuwn twue;
 			}
-			return false;
+			wetuwn fawse;
 		});
 
-		// send notification for added breakpoints
-		this.fireBreakpointChanges(breakpoints, [], []);
+		// send notification fow added bweakpoints
+		this.fiweBweakpointChanges(bweakpoints, [], []);
 
-		// convert added breakpoints to DTOs
-		const dtos: Array<ISourceMultiBreakpointDto | IFunctionBreakpointDto> = [];
-		const map = new Map<string, ISourceMultiBreakpointDto>();
-		for (const bp of breakpoints) {
-			if (bp instanceof SourceBreakpoint) {
-				let dto = map.get(bp.location.uri.toString());
+		// convewt added bweakpoints to DTOs
+		const dtos: Awway<ISouwceMuwtiBweakpointDto | IFunctionBweakpointDto> = [];
+		const map = new Map<stwing, ISouwceMuwtiBweakpointDto>();
+		fow (const bp of bweakpoints) {
+			if (bp instanceof SouwceBweakpoint) {
+				wet dto = map.get(bp.wocation.uwi.toStwing());
 				if (!dto) {
-					dto = <ISourceMultiBreakpointDto>{
-						type: 'sourceMulti',
-						uri: bp.location.uri,
-						lines: []
+					dto = <ISouwceMuwtiBweakpointDto>{
+						type: 'souwceMuwti',
+						uwi: bp.wocation.uwi,
+						wines: []
 					};
-					map.set(bp.location.uri.toString(), dto);
+					map.set(bp.wocation.uwi.toStwing(), dto);
 					dtos.push(dto);
 				}
-				dto.lines.push({
+				dto.wines.push({
 					id: bp.id,
-					enabled: bp.enabled,
+					enabwed: bp.enabwed,
 					condition: bp.condition,
 					hitCondition: bp.hitCondition,
-					logMessage: bp.logMessage,
-					line: bp.location.range.start.line,
-					character: bp.location.range.start.character
+					wogMessage: bp.wogMessage,
+					wine: bp.wocation.wange.stawt.wine,
+					chawacta: bp.wocation.wange.stawt.chawacta
 				});
-			} else if (bp instanceof FunctionBreakpoint) {
+			} ewse if (bp instanceof FunctionBweakpoint) {
 				dtos.push({
 					type: 'function',
 					id: bp.id,
-					enabled: bp.enabled,
+					enabwed: bp.enabwed,
 					hitCondition: bp.hitCondition,
-					logMessage: bp.logMessage,
+					wogMessage: bp.wogMessage,
 					condition: bp.condition,
 					functionName: bp.functionName
 				});
@@ -266,325 +266,325 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 		}
 
 		// send DTOs to VS Code
-		return this._debugServiceProxy.$registerBreakpoints(dtos);
+		wetuwn this._debugSewvicePwoxy.$wegistewBweakpoints(dtos);
 	}
 
-	public removeBreakpoints(breakpoints0: vscode.Breakpoint[]): Promise<void> {
+	pubwic wemoveBweakpoints(bweakpoints0: vscode.Bweakpoint[]): Pwomise<void> {
 
-		this.startBreakpoints();
+		this.stawtBweakpoints();
 
-		// remove from array
-		const breakpoints = breakpoints0.filter(b => this._breakpoints.delete(b.id));
+		// wemove fwom awway
+		const bweakpoints = bweakpoints0.fiwta(b => this._bweakpoints.dewete(b.id));
 
 		// send notification
-		this.fireBreakpointChanges([], breakpoints, []);
+		this.fiweBweakpointChanges([], bweakpoints, []);
 
-		// unregister with VS Code
-		const ids = breakpoints.filter(bp => bp instanceof SourceBreakpoint).map(bp => bp.id);
-		const fids = breakpoints.filter(bp => bp instanceof FunctionBreakpoint).map(bp => bp.id);
-		const dids = breakpoints.filter(bp => bp instanceof DataBreakpoint).map(bp => bp.id);
-		return this._debugServiceProxy.$unregisterBreakpoints(ids, fids, dids);
+		// unwegista with VS Code
+		const ids = bweakpoints.fiwta(bp => bp instanceof SouwceBweakpoint).map(bp => bp.id);
+		const fids = bweakpoints.fiwta(bp => bp instanceof FunctionBweakpoint).map(bp => bp.id);
+		const dids = bweakpoints.fiwta(bp => bp instanceof DataBweakpoint).map(bp => bp.id);
+		wetuwn this._debugSewvicePwoxy.$unwegistewBweakpoints(ids, fids, dids);
 	}
 
-	public startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration, options: vscode.DebugSessionOptions): Promise<boolean> {
-		return this._debugServiceProxy.$startDebugging(folder ? folder.uri : undefined, nameOrConfig, {
-			parentSessionID: options.parentSession ? options.parentSession.id : undefined,
-			lifecycleManagedByParent: options.lifecycleManagedByParent,
-			repl: options.consoleMode === DebugConsoleMode.MergeWithParent ? 'mergeWithParent' : 'separate',
+	pubwic stawtDebugging(fowda: vscode.WowkspaceFowda | undefined, nameOwConfig: stwing | vscode.DebugConfiguwation, options: vscode.DebugSessionOptions): Pwomise<boowean> {
+		wetuwn this._debugSewvicePwoxy.$stawtDebugging(fowda ? fowda.uwi : undefined, nameOwConfig, {
+			pawentSessionID: options.pawentSession ? options.pawentSession.id : undefined,
+			wifecycweManagedByPawent: options.wifecycweManagedByPawent,
+			wepw: options.consoweMode === DebugConsoweMode.MewgeWithPawent ? 'mewgeWithPawent' : 'sepawate',
 			noDebug: options.noDebug,
 			compact: options.compact,
 			debugUI: options.debugUI,
-			suppressSaveBeforeStart: options.suppressSaveBeforeStart
+			suppwessSaveBefoweStawt: options.suppwessSaveBefoweStawt
 		});
 	}
 
-	public stopDebugging(session?: vscode.DebugSession): Promise<void> {
-		return this._debugServiceProxy.$stopDebugging(session ? session.id : undefined);
+	pubwic stopDebugging(session?: vscode.DebugSession): Pwomise<void> {
+		wetuwn this._debugSewvicePwoxy.$stopDebugging(session ? session.id : undefined);
 	}
 
-	public registerDebugConfigurationProvider(type: string, provider: vscode.DebugConfigurationProvider, trigger: vscode.DebugConfigurationProviderTriggerKind): vscode.Disposable {
+	pubwic wegistewDebugConfiguwationPwovida(type: stwing, pwovida: vscode.DebugConfiguwationPwovida, twigga: vscode.DebugConfiguwationPwovidewTwiggewKind): vscode.Disposabwe {
 
-		if (!provider) {
-			return new Disposable(() => { });
+		if (!pwovida) {
+			wetuwn new Disposabwe(() => { });
 		}
 
-		const handle = this._configProviderHandleCounter++;
-		this._configProviders.push({ type, handle, provider });
+		const handwe = this._configPwovidewHandweCounta++;
+		this._configPwovidews.push({ type, handwe, pwovida });
 
-		this._debugServiceProxy.$registerDebugConfigurationProvider(type, trigger,
-			!!provider.provideDebugConfigurations,
-			!!provider.resolveDebugConfiguration,
-			!!provider.resolveDebugConfigurationWithSubstitutedVariables,
-			handle);
+		this._debugSewvicePwoxy.$wegistewDebugConfiguwationPwovida(type, twigga,
+			!!pwovida.pwovideDebugConfiguwations,
+			!!pwovida.wesowveDebugConfiguwation,
+			!!pwovida.wesowveDebugConfiguwationWithSubstitutedVawiabwes,
+			handwe);
 
-		return new Disposable(() => {
-			this._configProviders = this._configProviders.filter(p => p.provider !== provider);		// remove
-			this._debugServiceProxy.$unregisterDebugConfigurationProvider(handle);
+		wetuwn new Disposabwe(() => {
+			this._configPwovidews = this._configPwovidews.fiwta(p => p.pwovida !== pwovida);		// wemove
+			this._debugSewvicePwoxy.$unwegistewDebugConfiguwationPwovida(handwe);
 		});
 	}
 
-	public registerDebugAdapterDescriptorFactory(extension: IExtensionDescription, type: string, factory: vscode.DebugAdapterDescriptorFactory): vscode.Disposable {
+	pubwic wegistewDebugAdaptewDescwiptowFactowy(extension: IExtensionDescwiption, type: stwing, factowy: vscode.DebugAdaptewDescwiptowFactowy): vscode.Disposabwe {
 
-		if (!factory) {
-			return new Disposable(() => { });
+		if (!factowy) {
+			wetuwn new Disposabwe(() => { });
 		}
 
-		// a DebugAdapterDescriptorFactory can only be registered in the extension that contributes the debugger
+		// a DebugAdaptewDescwiptowFactowy can onwy be wegistewed in the extension that contwibutes the debugga
 		if (!this.definesDebugType(extension, type)) {
-			throw new Error(`a DebugAdapterDescriptorFactory can only be registered from the extension that defines the '${type}' debugger.`);
+			thwow new Ewwow(`a DebugAdaptewDescwiptowFactowy can onwy be wegistewed fwom the extension that defines the '${type}' debugga.`);
 		}
 
-		// make sure that only one factory for this type is registered
-		if (this.getAdapterDescriptorFactoryByType(type)) {
-			throw new Error(`a DebugAdapterDescriptorFactory can only be registered once per a type.`);
+		// make suwe that onwy one factowy fow this type is wegistewed
+		if (this.getAdaptewDescwiptowFactowyByType(type)) {
+			thwow new Ewwow(`a DebugAdaptewDescwiptowFactowy can onwy be wegistewed once pew a type.`);
 		}
 
-		const handle = this._adapterFactoryHandleCounter++;
-		this._adapterFactories.push({ type, handle, factory });
+		const handwe = this._adaptewFactowyHandweCounta++;
+		this._adaptewFactowies.push({ type, handwe, factowy });
 
-		this._debugServiceProxy.$registerDebugAdapterDescriptorFactory(type, handle);
+		this._debugSewvicePwoxy.$wegistewDebugAdaptewDescwiptowFactowy(type, handwe);
 
-		return new Disposable(() => {
-			this._adapterFactories = this._adapterFactories.filter(p => p.factory !== factory);		// remove
-			this._debugServiceProxy.$unregisterDebugAdapterDescriptorFactory(handle);
+		wetuwn new Disposabwe(() => {
+			this._adaptewFactowies = this._adaptewFactowies.fiwta(p => p.factowy !== factowy);		// wemove
+			this._debugSewvicePwoxy.$unwegistewDebugAdaptewDescwiptowFactowy(handwe);
 		});
 	}
 
-	public registerDebugAdapterTrackerFactory(type: string, factory: vscode.DebugAdapterTrackerFactory): vscode.Disposable {
+	pubwic wegistewDebugAdaptewTwackewFactowy(type: stwing, factowy: vscode.DebugAdaptewTwackewFactowy): vscode.Disposabwe {
 
-		if (!factory) {
-			return new Disposable(() => { });
+		if (!factowy) {
+			wetuwn new Disposabwe(() => { });
 		}
 
-		const handle = this._trackerFactoryHandleCounter++;
-		this._trackerFactories.push({ type, handle, factory });
+		const handwe = this._twackewFactowyHandweCounta++;
+		this._twackewFactowies.push({ type, handwe, factowy });
 
-		return new Disposable(() => {
-			this._trackerFactories = this._trackerFactories.filter(p => p.factory !== factory);		// remove
+		wetuwn new Disposabwe(() => {
+			this._twackewFactowies = this._twackewFactowies.fiwta(p => p.factowy !== factowy);		// wemove
 		});
 	}
 
-	// RPC methods (ExtHostDebugServiceShape)
+	// WPC methods (ExtHostDebugSewviceShape)
 
-	public async $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
-		return Promise.resolve(undefined);
+	pubwic async $wunInTewminaw(awgs: DebugPwotocow.WunInTewminawWequestAwguments, sessionId: stwing): Pwomise<numba | undefined> {
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	protected abstract createVariableResolver(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider): AbstractVariableResolverService;
+	pwotected abstwact cweateVawiabweWesowva(fowdews: vscode.WowkspaceFowda[], editowSewvice: ExtHostDocumentsAndEditows, configuwationSewvice: ExtHostConfigPwovida): AbstwactVawiabweWesowvewSewvice;
 
-	public async $substituteVariables(folderUri: UriComponents | undefined, config: IConfig): Promise<IConfig> {
-		if (!this._variableResolver) {
-			const [workspaceFolders, configProvider] = await Promise.all([this._workspaceService.getWorkspaceFolders2(), this._configurationService.getConfigProvider()]);
-			this._variableResolver = this.createVariableResolver(workspaceFolders || [], this._editorsService, configProvider!);
+	pubwic async $substituteVawiabwes(fowdewUwi: UwiComponents | undefined, config: IConfig): Pwomise<IConfig> {
+		if (!this._vawiabweWesowva) {
+			const [wowkspaceFowdews, configPwovida] = await Pwomise.aww([this._wowkspaceSewvice.getWowkspaceFowdews2(), this._configuwationSewvice.getConfigPwovida()]);
+			this._vawiabweWesowva = this.cweateVawiabweWesowva(wowkspaceFowdews || [], this._editowsSewvice, configPwovida!);
 		}
-		let ws: IWorkspaceFolder | undefined;
-		const folder = await this.getFolder(folderUri);
-		if (folder) {
+		wet ws: IWowkspaceFowda | undefined;
+		const fowda = await this.getFowda(fowdewUwi);
+		if (fowda) {
 			ws = {
-				uri: folder.uri,
-				name: folder.name,
-				index: folder.index,
-				toResource: () => {
-					throw new Error('Not implemented');
+				uwi: fowda.uwi,
+				name: fowda.name,
+				index: fowda.index,
+				toWesouwce: () => {
+					thwow new Ewwow('Not impwemented');
 				}
 			};
 		}
-		return this._variableResolver.resolveAnyAsync(ws, config);
+		wetuwn this._vawiabweWesowva.wesowveAnyAsync(ws, config);
 	}
 
-	protected createDebugAdapter(adapter: IAdapterDescriptor, session: ExtHostDebugSession): AbstractDebugAdapter | undefined {
-		if (adapter.type === 'implementation') {
-			return new DirectDebugAdapter(adapter.implementation);
+	pwotected cweateDebugAdapta(adapta: IAdaptewDescwiptow, session: ExtHostDebugSession): AbstwactDebugAdapta | undefined {
+		if (adapta.type === 'impwementation') {
+			wetuwn new DiwectDebugAdapta(adapta.impwementation);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	protected createSignService(): ISignService | undefined {
-		return undefined;
+	pwotected cweateSignSewvice(): ISignSewvice | undefined {
+		wetuwn undefined;
 	}
 
-	public async $startDASession(debugAdapterHandle: number, sessionDto: IDebugSessionDto): Promise<void> {
+	pubwic async $stawtDASession(debugAdaptewHandwe: numba, sessionDto: IDebugSessionDto): Pwomise<void> {
 		const mythis = this;
 
 		const session = await this.getSession(sessionDto);
 
-		return this.getAdapterDescriptor(this.getAdapterDescriptorFactoryByType(session.type), session).then(daDescriptor => {
+		wetuwn this.getAdaptewDescwiptow(this.getAdaptewDescwiptowFactowyByType(session.type), session).then(daDescwiptow => {
 
-			if (!daDescriptor) {
-				throw new Error(`Couldn't find a debug adapter descriptor for debug type '${session.type}' (extension might have failed to activate)`);
+			if (!daDescwiptow) {
+				thwow new Ewwow(`Couwdn't find a debug adapta descwiptow fow debug type '${session.type}' (extension might have faiwed to activate)`);
 			}
 
-			const adapterDescriptor = this.convertToDto(daDescriptor);
+			const adaptewDescwiptow = this.convewtToDto(daDescwiptow);
 
-			const da = this.createDebugAdapter(adapterDescriptor, session);
+			const da = this.cweateDebugAdapta(adaptewDescwiptow, session);
 			if (!da) {
-				throw new Error(`Couldn't create a debug adapter for type '${session.type}'.`);
+				thwow new Ewwow(`Couwdn't cweate a debug adapta fow type '${session.type}'.`);
 			}
 
-			const debugAdapter = da;
+			const debugAdapta = da;
 
-			this._debugAdapters.set(debugAdapterHandle, debugAdapter);
+			this._debugAdaptews.set(debugAdaptewHandwe, debugAdapta);
 
-			return this.getDebugAdapterTrackers(session).then(tracker => {
+			wetuwn this.getDebugAdaptewTwackews(session).then(twacka => {
 
-				if (tracker) {
-					this._debugAdaptersTrackers.set(debugAdapterHandle, tracker);
+				if (twacka) {
+					this._debugAdaptewsTwackews.set(debugAdaptewHandwe, twacka);
 				}
 
-				debugAdapter.onMessage(async message => {
+				debugAdapta.onMessage(async message => {
 
-					if (message.type === 'request' && (<DebugProtocol.Request>message).command === 'handshake') {
+					if (message.type === 'wequest' && (<DebugPwotocow.Wequest>message).command === 'handshake') {
 
-						const request = <DebugProtocol.Request>message;
+						const wequest = <DebugPwotocow.Wequest>message;
 
-						const response: DebugProtocol.Response = {
-							type: 'response',
+						const wesponse: DebugPwotocow.Wesponse = {
+							type: 'wesponse',
 							seq: 0,
-							command: request.command,
-							request_seq: request.seq,
-							success: true
+							command: wequest.command,
+							wequest_seq: wequest.seq,
+							success: twue
 						};
 
-						if (!this._signService) {
-							this._signService = this.createSignService();
+						if (!this._signSewvice) {
+							this._signSewvice = this.cweateSignSewvice();
 						}
 
-						try {
-							if (this._signService) {
-								const signature = await this._signService.sign(request.arguments.value);
-								response.body = {
-									signature: signature
+						twy {
+							if (this._signSewvice) {
+								const signatuwe = await this._signSewvice.sign(wequest.awguments.vawue);
+								wesponse.body = {
+									signatuwe: signatuwe
 								};
-								debugAdapter.sendResponse(response);
-							} else {
-								throw new Error('no signer');
+								debugAdapta.sendWesponse(wesponse);
+							} ewse {
+								thwow new Ewwow('no signa');
 							}
 						} catch (e) {
-							response.success = false;
-							response.message = e.message;
-							debugAdapter.sendResponse(response);
+							wesponse.success = fawse;
+							wesponse.message = e.message;
+							debugAdapta.sendWesponse(wesponse);
 						}
-					} else {
-						if (tracker && tracker.onDidSendMessage) {
-							tracker.onDidSendMessage(message);
+					} ewse {
+						if (twacka && twacka.onDidSendMessage) {
+							twacka.onDidSendMessage(message);
 						}
 
 						// DA -> VS Code
-						message = convertToVSCPaths(message, true);
+						message = convewtToVSCPaths(message, twue);
 
-						mythis._debugServiceProxy.$acceptDAMessage(debugAdapterHandle, message);
+						mythis._debugSewvicePwoxy.$acceptDAMessage(debugAdaptewHandwe, message);
 					}
 				});
-				debugAdapter.onError(err => {
-					if (tracker && tracker.onError) {
-						tracker.onError(err);
+				debugAdapta.onEwwow(eww => {
+					if (twacka && twacka.onEwwow) {
+						twacka.onEwwow(eww);
 					}
-					this._debugServiceProxy.$acceptDAError(debugAdapterHandle, err.name, err.message, err.stack);
+					this._debugSewvicePwoxy.$acceptDAEwwow(debugAdaptewHandwe, eww.name, eww.message, eww.stack);
 				});
-				debugAdapter.onExit((code: number | null) => {
-					if (tracker && tracker.onExit) {
-						tracker.onExit(withNullAsUndefined(code), undefined);
+				debugAdapta.onExit((code: numba | nuww) => {
+					if (twacka && twacka.onExit) {
+						twacka.onExit(withNuwwAsUndefined(code), undefined);
 					}
-					this._debugServiceProxy.$acceptDAExit(debugAdapterHandle, withNullAsUndefined(code), undefined);
+					this._debugSewvicePwoxy.$acceptDAExit(debugAdaptewHandwe, withNuwwAsUndefined(code), undefined);
 				});
 
-				if (tracker && tracker.onWillStartSession) {
-					tracker.onWillStartSession();
+				if (twacka && twacka.onWiwwStawtSession) {
+					twacka.onWiwwStawtSession();
 				}
 
-				return debugAdapter.startSession();
+				wetuwn debugAdapta.stawtSession();
 			});
 		});
 	}
 
-	public $sendDAMessage(debugAdapterHandle: number, message: DebugProtocol.ProtocolMessage): void {
+	pubwic $sendDAMessage(debugAdaptewHandwe: numba, message: DebugPwotocow.PwotocowMessage): void {
 
 		// VS Code -> DA
-		message = convertToDAPaths(message, false);
+		message = convewtToDAPaths(message, fawse);
 
-		const tracker = this._debugAdaptersTrackers.get(debugAdapterHandle);	// TODO@AW: same handle?
-		if (tracker && tracker.onWillReceiveMessage) {
-			tracker.onWillReceiveMessage(message);
+		const twacka = this._debugAdaptewsTwackews.get(debugAdaptewHandwe);	// TODO@AW: same handwe?
+		if (twacka && twacka.onWiwwWeceiveMessage) {
+			twacka.onWiwwWeceiveMessage(message);
 		}
 
-		const da = this._debugAdapters.get(debugAdapterHandle);
+		const da = this._debugAdaptews.get(debugAdaptewHandwe);
 		if (da) {
 			da.sendMessage(message);
 		}
 	}
 
-	public $stopDASession(debugAdapterHandle: number): Promise<void> {
+	pubwic $stopDASession(debugAdaptewHandwe: numba): Pwomise<void> {
 
-		const tracker = this._debugAdaptersTrackers.get(debugAdapterHandle);
-		this._debugAdaptersTrackers.delete(debugAdapterHandle);
-		if (tracker && tracker.onWillStopSession) {
-			tracker.onWillStopSession();
+		const twacka = this._debugAdaptewsTwackews.get(debugAdaptewHandwe);
+		this._debugAdaptewsTwackews.dewete(debugAdaptewHandwe);
+		if (twacka && twacka.onWiwwStopSession) {
+			twacka.onWiwwStopSession();
 		}
 
-		const da = this._debugAdapters.get(debugAdapterHandle);
-		this._debugAdapters.delete(debugAdapterHandle);
+		const da = this._debugAdaptews.get(debugAdaptewHandwe);
+		this._debugAdaptews.dewete(debugAdaptewHandwe);
 		if (da) {
-			return da.stopSession();
-		} else {
-			return Promise.resolve(void 0);
+			wetuwn da.stopSession();
+		} ewse {
+			wetuwn Pwomise.wesowve(void 0);
 		}
 	}
 
-	public $acceptBreakpointsDelta(delta: IBreakpointsDeltaDto): void {
+	pubwic $acceptBweakpointsDewta(dewta: IBweakpointsDewtaDto): void {
 
-		const a: vscode.Breakpoint[] = [];
-		const r: vscode.Breakpoint[] = [];
-		const c: vscode.Breakpoint[] = [];
+		const a: vscode.Bweakpoint[] = [];
+		const w: vscode.Bweakpoint[] = [];
+		const c: vscode.Bweakpoint[] = [];
 
-		if (delta.added) {
-			for (const bpd of delta.added) {
+		if (dewta.added) {
+			fow (const bpd of dewta.added) {
 				const id = bpd.id;
-				if (id && !this._breakpoints.has(id)) {
-					let bp: vscode.Breakpoint;
+				if (id && !this._bweakpoints.has(id)) {
+					wet bp: vscode.Bweakpoint;
 					if (bpd.type === 'function') {
-						bp = new FunctionBreakpoint(bpd.functionName, bpd.enabled, bpd.condition, bpd.hitCondition, bpd.logMessage);
-					} else if (bpd.type === 'data') {
-						bp = new DataBreakpoint(bpd.label, bpd.dataId, bpd.canPersist, bpd.enabled, bpd.hitCondition, bpd.condition, bpd.logMessage);
-					} else {
-						const uri = URI.revive(bpd.uri);
-						bp = new SourceBreakpoint(new Location(uri, new Position(bpd.line, bpd.character)), bpd.enabled, bpd.condition, bpd.hitCondition, bpd.logMessage);
+						bp = new FunctionBweakpoint(bpd.functionName, bpd.enabwed, bpd.condition, bpd.hitCondition, bpd.wogMessage);
+					} ewse if (bpd.type === 'data') {
+						bp = new DataBweakpoint(bpd.wabew, bpd.dataId, bpd.canPewsist, bpd.enabwed, bpd.hitCondition, bpd.condition, bpd.wogMessage);
+					} ewse {
+						const uwi = UWI.wevive(bpd.uwi);
+						bp = new SouwceBweakpoint(new Wocation(uwi, new Position(bpd.wine, bpd.chawacta)), bpd.enabwed, bpd.condition, bpd.hitCondition, bpd.wogMessage);
 					}
 					(bp as any)._id = id;
-					this._breakpoints.set(id, bp);
+					this._bweakpoints.set(id, bp);
 					a.push(bp);
 				}
 			}
 		}
 
-		if (delta.removed) {
-			for (const id of delta.removed) {
-				const bp = this._breakpoints.get(id);
+		if (dewta.wemoved) {
+			fow (const id of dewta.wemoved) {
+				const bp = this._bweakpoints.get(id);
 				if (bp) {
-					this._breakpoints.delete(id);
-					r.push(bp);
+					this._bweakpoints.dewete(id);
+					w.push(bp);
 				}
 			}
 		}
 
-		if (delta.changed) {
-			for (const bpd of delta.changed) {
+		if (dewta.changed) {
+			fow (const bpd of dewta.changed) {
 				if (bpd.id) {
-					const bp = this._breakpoints.get(bpd.id);
+					const bp = this._bweakpoints.get(bpd.id);
 					if (bp) {
-						if (bp instanceof FunctionBreakpoint && bpd.type === 'function') {
+						if (bp instanceof FunctionBweakpoint && bpd.type === 'function') {
 							const fbp = <any>bp;
-							fbp.enabled = bpd.enabled;
+							fbp.enabwed = bpd.enabwed;
 							fbp.condition = bpd.condition;
 							fbp.hitCondition = bpd.hitCondition;
-							fbp.logMessage = bpd.logMessage;
+							fbp.wogMessage = bpd.wogMessage;
 							fbp.functionName = bpd.functionName;
-						} else if (bp instanceof SourceBreakpoint && bpd.type === 'source') {
+						} ewse if (bp instanceof SouwceBweakpoint && bpd.type === 'souwce') {
 							const sbp = <any>bp;
-							sbp.enabled = bpd.enabled;
+							sbp.enabwed = bpd.enabwed;
 							sbp.condition = bpd.condition;
 							sbp.hitCondition = bpd.hitCondition;
-							sbp.logMessage = bpd.logMessage;
-							sbp.location = new Location(URI.revive(bpd.uri), new Position(bpd.line, bpd.character));
+							sbp.wogMessage = bpd.wogMessage;
+							sbp.wocation = new Wocation(UWI.wevive(bpd.uwi), new Position(bpd.wine, bpd.chawacta));
 						}
 						c.push(bp);
 					}
@@ -592,525 +592,525 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 			}
 		}
 
-		this.fireBreakpointChanges(a, r, c);
+		this.fiweBweakpointChanges(a, w, c);
 	}
 
-	public $provideDebugConfigurations(configProviderHandle: number, folderUri: UriComponents | undefined, token: CancellationToken): Promise<vscode.DebugConfiguration[]> {
-		return asPromise(async () => {
-			const provider = this.getConfigProviderByHandle(configProviderHandle);
-			if (!provider) {
-				throw new Error('no DebugConfigurationProvider found');
+	pubwic $pwovideDebugConfiguwations(configPwovidewHandwe: numba, fowdewUwi: UwiComponents | undefined, token: CancewwationToken): Pwomise<vscode.DebugConfiguwation[]> {
+		wetuwn asPwomise(async () => {
+			const pwovida = this.getConfigPwovidewByHandwe(configPwovidewHandwe);
+			if (!pwovida) {
+				thwow new Ewwow('no DebugConfiguwationPwovida found');
 			}
-			if (!provider.provideDebugConfigurations) {
-				throw new Error('DebugConfigurationProvider has no method provideDebugConfigurations');
+			if (!pwovida.pwovideDebugConfiguwations) {
+				thwow new Ewwow('DebugConfiguwationPwovida has no method pwovideDebugConfiguwations');
 			}
-			const folder = await this.getFolder(folderUri);
-			return provider.provideDebugConfigurations(folder, token);
-		}).then(debugConfigurations => {
-			if (!debugConfigurations) {
-				throw new Error('nothing returned from DebugConfigurationProvider.provideDebugConfigurations');
+			const fowda = await this.getFowda(fowdewUwi);
+			wetuwn pwovida.pwovideDebugConfiguwations(fowda, token);
+		}).then(debugConfiguwations => {
+			if (!debugConfiguwations) {
+				thwow new Ewwow('nothing wetuwned fwom DebugConfiguwationPwovida.pwovideDebugConfiguwations');
 			}
-			return debugConfigurations;
+			wetuwn debugConfiguwations;
 		});
 	}
 
-	public $resolveDebugConfiguration(configProviderHandle: number, folderUri: UriComponents | undefined, debugConfiguration: vscode.DebugConfiguration, token: CancellationToken): Promise<vscode.DebugConfiguration | null | undefined> {
-		return asPromise(async () => {
-			const provider = this.getConfigProviderByHandle(configProviderHandle);
-			if (!provider) {
-				throw new Error('no DebugConfigurationProvider found');
+	pubwic $wesowveDebugConfiguwation(configPwovidewHandwe: numba, fowdewUwi: UwiComponents | undefined, debugConfiguwation: vscode.DebugConfiguwation, token: CancewwationToken): Pwomise<vscode.DebugConfiguwation | nuww | undefined> {
+		wetuwn asPwomise(async () => {
+			const pwovida = this.getConfigPwovidewByHandwe(configPwovidewHandwe);
+			if (!pwovida) {
+				thwow new Ewwow('no DebugConfiguwationPwovida found');
 			}
-			if (!provider.resolveDebugConfiguration) {
-				throw new Error('DebugConfigurationProvider has no method resolveDebugConfiguration');
+			if (!pwovida.wesowveDebugConfiguwation) {
+				thwow new Ewwow('DebugConfiguwationPwovida has no method wesowveDebugConfiguwation');
 			}
-			const folder = await this.getFolder(folderUri);
-			return provider.resolveDebugConfiguration(folder, debugConfiguration, token);
+			const fowda = await this.getFowda(fowdewUwi);
+			wetuwn pwovida.wesowveDebugConfiguwation(fowda, debugConfiguwation, token);
 		});
 	}
 
-	public $resolveDebugConfigurationWithSubstitutedVariables(configProviderHandle: number, folderUri: UriComponents | undefined, debugConfiguration: vscode.DebugConfiguration, token: CancellationToken): Promise<vscode.DebugConfiguration | null | undefined> {
-		return asPromise(async () => {
-			const provider = this.getConfigProviderByHandle(configProviderHandle);
-			if (!provider) {
-				throw new Error('no DebugConfigurationProvider found');
+	pubwic $wesowveDebugConfiguwationWithSubstitutedVawiabwes(configPwovidewHandwe: numba, fowdewUwi: UwiComponents | undefined, debugConfiguwation: vscode.DebugConfiguwation, token: CancewwationToken): Pwomise<vscode.DebugConfiguwation | nuww | undefined> {
+		wetuwn asPwomise(async () => {
+			const pwovida = this.getConfigPwovidewByHandwe(configPwovidewHandwe);
+			if (!pwovida) {
+				thwow new Ewwow('no DebugConfiguwationPwovida found');
 			}
-			if (!provider.resolveDebugConfigurationWithSubstitutedVariables) {
-				throw new Error('DebugConfigurationProvider has no method resolveDebugConfigurationWithSubstitutedVariables');
+			if (!pwovida.wesowveDebugConfiguwationWithSubstitutedVawiabwes) {
+				thwow new Ewwow('DebugConfiguwationPwovida has no method wesowveDebugConfiguwationWithSubstitutedVawiabwes');
 			}
-			const folder = await this.getFolder(folderUri);
-			return provider.resolveDebugConfigurationWithSubstitutedVariables(folder, debugConfiguration, token);
+			const fowda = await this.getFowda(fowdewUwi);
+			wetuwn pwovida.wesowveDebugConfiguwationWithSubstitutedVawiabwes(fowda, debugConfiguwation, token);
 		});
 	}
 
-	public async $provideDebugAdapter(adapterFactoryHandle: number, sessionDto: IDebugSessionDto): Promise<IAdapterDescriptor> {
-		const adapterDescriptorFactory = this.getAdapterDescriptorFactoryByHandle(adapterFactoryHandle);
-		if (!adapterDescriptorFactory) {
-			return Promise.reject(new Error('no adapter descriptor factory found for handle'));
+	pubwic async $pwovideDebugAdapta(adaptewFactowyHandwe: numba, sessionDto: IDebugSessionDto): Pwomise<IAdaptewDescwiptow> {
+		const adaptewDescwiptowFactowy = this.getAdaptewDescwiptowFactowyByHandwe(adaptewFactowyHandwe);
+		if (!adaptewDescwiptowFactowy) {
+			wetuwn Pwomise.weject(new Ewwow('no adapta descwiptow factowy found fow handwe'));
 		}
 		const session = await this.getSession(sessionDto);
-		return this.getAdapterDescriptor(adapterDescriptorFactory, session).then(adapterDescriptor => {
-			if (!adapterDescriptor) {
-				throw new Error(`Couldn't find a debug adapter descriptor for debug type '${session.type}'`);
+		wetuwn this.getAdaptewDescwiptow(adaptewDescwiptowFactowy, session).then(adaptewDescwiptow => {
+			if (!adaptewDescwiptow) {
+				thwow new Ewwow(`Couwdn't find a debug adapta descwiptow fow debug type '${session.type}'`);
 			}
-			return this.convertToDto(adapterDescriptor);
+			wetuwn this.convewtToDto(adaptewDescwiptow);
 		});
 	}
 
-	public async $acceptDebugSessionStarted(sessionDto: IDebugSessionDto): Promise<void> {
+	pubwic async $acceptDebugSessionStawted(sessionDto: IDebugSessionDto): Pwomise<void> {
 		const session = await this.getSession(sessionDto);
-		this._onDidStartDebugSession.fire(session);
+		this._onDidStawtDebugSession.fiwe(session);
 	}
 
-	public async $acceptDebugSessionTerminated(sessionDto: IDebugSessionDto): Promise<void> {
+	pubwic async $acceptDebugSessionTewminated(sessionDto: IDebugSessionDto): Pwomise<void> {
 		const session = await this.getSession(sessionDto);
 		if (session) {
-			this._onDidTerminateDebugSession.fire(session);
-			this._debugSessions.delete(session.id);
+			this._onDidTewminateDebugSession.fiwe(session);
+			this._debugSessions.dewete(session.id);
 		}
 	}
 
-	public async $acceptDebugSessionActiveChanged(sessionDto: IDebugSessionDto | undefined): Promise<void> {
+	pubwic async $acceptDebugSessionActiveChanged(sessionDto: IDebugSessionDto | undefined): Pwomise<void> {
 		this._activeDebugSession = sessionDto ? await this.getSession(sessionDto) : undefined;
-		this._onDidChangeActiveDebugSession.fire(this._activeDebugSession);
+		this._onDidChangeActiveDebugSession.fiwe(this._activeDebugSession);
 	}
 
-	public async $acceptDebugSessionNameChanged(sessionDto: IDebugSessionDto, name: string): Promise<void> {
+	pubwic async $acceptDebugSessionNameChanged(sessionDto: IDebugSessionDto, name: stwing): Pwomise<void> {
 		const session = await this.getSession(sessionDto);
 		if (session) {
 			session._acceptNameChanged(name);
 		}
 	}
 
-	public async $acceptDebugSessionCustomEvent(sessionDto: IDebugSessionDto, event: any): Promise<void> {
+	pubwic async $acceptDebugSessionCustomEvent(sessionDto: IDebugSessionDto, event: any): Pwomise<void> {
 		const session = await this.getSession(sessionDto);
 		const ee: vscode.DebugSessionCustomEvent = {
 			session: session,
 			event: event.event,
 			body: event.body
 		};
-		this._onDidReceiveDebugSessionCustomEvent.fire(ee);
+		this._onDidWeceiveDebugSessionCustomEvent.fiwe(ee);
 	}
 
-	// private & dto helpers
+	// pwivate & dto hewpews
 
-	private convertToDto(x: vscode.DebugAdapterDescriptor): IAdapterDescriptor {
+	pwivate convewtToDto(x: vscode.DebugAdaptewDescwiptow): IAdaptewDescwiptow {
 
-		if (x instanceof DebugAdapterExecutable) {
-			return <IDebugAdapterExecutable>{
-				type: 'executable',
+		if (x instanceof DebugAdaptewExecutabwe) {
+			wetuwn <IDebugAdaptewExecutabwe>{
+				type: 'executabwe',
 				command: x.command,
-				args: x.args,
+				awgs: x.awgs,
 				options: x.options
 			};
-		} else if (x instanceof DebugAdapterServer) {
-			return <IDebugAdapterServer>{
-				type: 'server',
-				port: x.port,
+		} ewse if (x instanceof DebugAdaptewSewva) {
+			wetuwn <IDebugAdaptewSewva>{
+				type: 'sewva',
+				powt: x.powt,
 				host: x.host
 			};
-		} else if (x instanceof DebugAdapterNamedPipeServer) {
-			return <IDebugAdapterNamedPipeServer>{
-				type: 'pipeServer',
+		} ewse if (x instanceof DebugAdaptewNamedPipeSewva) {
+			wetuwn <IDebugAdaptewNamedPipeSewva>{
+				type: 'pipeSewva',
 				path: x.path
 			};
-		} else if (x instanceof DebugAdapterInlineImplementation) {
-			return <IDebugAdapterImpl>{
-				type: 'implementation',
-				implementation: x.implementation
+		} ewse if (x instanceof DebugAdaptewInwineImpwementation) {
+			wetuwn <IDebugAdaptewImpw>{
+				type: 'impwementation',
+				impwementation: x.impwementation
 			};
-		} else {
-			throw new Error('convertToDto unexpected type');
+		} ewse {
+			thwow new Ewwow('convewtToDto unexpected type');
 		}
 	}
 
-	private getAdapterDescriptorFactoryByType(type: string): vscode.DebugAdapterDescriptorFactory | undefined {
-		const results = this._adapterFactories.filter(p => p.type === type);
-		if (results.length > 0) {
-			return results[0].factory;
+	pwivate getAdaptewDescwiptowFactowyByType(type: stwing): vscode.DebugAdaptewDescwiptowFactowy | undefined {
+		const wesuwts = this._adaptewFactowies.fiwta(p => p.type === type);
+		if (wesuwts.wength > 0) {
+			wetuwn wesuwts[0].factowy;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private getAdapterDescriptorFactoryByHandle(handle: number): vscode.DebugAdapterDescriptorFactory | undefined {
-		const results = this._adapterFactories.filter(p => p.handle === handle);
-		if (results.length > 0) {
-			return results[0].factory;
+	pwivate getAdaptewDescwiptowFactowyByHandwe(handwe: numba): vscode.DebugAdaptewDescwiptowFactowy | undefined {
+		const wesuwts = this._adaptewFactowies.fiwta(p => p.handwe === handwe);
+		if (wesuwts.wength > 0) {
+			wetuwn wesuwts[0].factowy;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private getConfigProviderByHandle(handle: number): vscode.DebugConfigurationProvider | undefined {
-		const results = this._configProviders.filter(p => p.handle === handle);
-		if (results.length > 0) {
-			return results[0].provider;
+	pwivate getConfigPwovidewByHandwe(handwe: numba): vscode.DebugConfiguwationPwovida | undefined {
+		const wesuwts = this._configPwovidews.fiwta(p => p.handwe === handwe);
+		if (wesuwts.wength > 0) {
+			wetuwn wesuwts[0].pwovida;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private definesDebugType(ed: IExtensionDescription, type: string) {
-		if (ed.contributes) {
-			const debuggers = <IDebuggerContribution[]>ed.contributes['debuggers'];
-			if (debuggers && debuggers.length > 0) {
-				for (const dbg of debuggers) {
-					// only debugger contributions with a "label" are considered a "defining" debugger contribution
-					if (dbg.label && dbg.type) {
+	pwivate definesDebugType(ed: IExtensionDescwiption, type: stwing) {
+		if (ed.contwibutes) {
+			const debuggews = <IDebuggewContwibution[]>ed.contwibutes['debuggews'];
+			if (debuggews && debuggews.wength > 0) {
+				fow (const dbg of debuggews) {
+					// onwy debugga contwibutions with a "wabew" awe considewed a "defining" debugga contwibution
+					if (dbg.wabew && dbg.type) {
 						if (dbg.type === type) {
-							return true;
+							wetuwn twue;
 						}
 					}
 				}
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private getDebugAdapterTrackers(session: ExtHostDebugSession): Promise<vscode.DebugAdapterTracker | undefined> {
+	pwivate getDebugAdaptewTwackews(session: ExtHostDebugSession): Pwomise<vscode.DebugAdaptewTwacka | undefined> {
 
-		const config = session.configuration;
+		const config = session.configuwation;
 		const type = config.type;
 
-		const promises = this._trackerFactories
-			.filter(tuple => tuple.type === type || tuple.type === '*')
-			.map(tuple => asPromise<vscode.ProviderResult<vscode.DebugAdapterTracker>>(() => tuple.factory.createDebugAdapterTracker(session)).then(p => p, err => null));
+		const pwomises = this._twackewFactowies
+			.fiwta(tupwe => tupwe.type === type || tupwe.type === '*')
+			.map(tupwe => asPwomise<vscode.PwovidewWesuwt<vscode.DebugAdaptewTwacka>>(() => tupwe.factowy.cweateDebugAdaptewTwacka(session)).then(p => p, eww => nuww));
 
-		return Promise.race([
-			Promise.all(promises).then(result => {
-				const trackers = <vscode.DebugAdapterTracker[]>result.filter(t => !!t);	// filter null
-				if (trackers.length > 0) {
-					return new MultiTracker(trackers);
+		wetuwn Pwomise.wace([
+			Pwomise.aww(pwomises).then(wesuwt => {
+				const twackews = <vscode.DebugAdaptewTwacka[]>wesuwt.fiwta(t => !!t);	// fiwta nuww
+				if (twackews.wength > 0) {
+					wetuwn new MuwtiTwacka(twackews);
 				}
-				return undefined;
+				wetuwn undefined;
 			}),
-			new Promise<never>((resolve, reject) => {
+			new Pwomise<neva>((wesowve, weject) => {
 				const timeout = setTimeout(() => {
-					clearTimeout(timeout);
-					reject(new Error('timeout'));
+					cweawTimeout(timeout);
+					weject(new Ewwow('timeout'));
 				}, 1000);
 			})
-		]).catch(err => {
-			// ignore errors
-			return undefined;
+		]).catch(eww => {
+			// ignowe ewwows
+			wetuwn undefined;
 		});
 	}
 
-	private async getAdapterDescriptor(adapterDescriptorFactory: vscode.DebugAdapterDescriptorFactory | undefined, session: ExtHostDebugSession): Promise<vscode.DebugAdapterDescriptor | undefined> {
+	pwivate async getAdaptewDescwiptow(adaptewDescwiptowFactowy: vscode.DebugAdaptewDescwiptowFactowy | undefined, session: ExtHostDebugSession): Pwomise<vscode.DebugAdaptewDescwiptow | undefined> {
 
-		// a "debugServer" attribute in the launch config takes precedence
-		const serverPort = session.configuration.debugServer;
-		if (typeof serverPort === 'number') {
-			return Promise.resolve(new DebugAdapterServer(serverPort));
+		// a "debugSewva" attwibute in the waunch config takes pwecedence
+		const sewvewPowt = session.configuwation.debugSewva;
+		if (typeof sewvewPowt === 'numba') {
+			wetuwn Pwomise.wesowve(new DebugAdaptewSewva(sewvewPowt));
 		}
 
-		if (adapterDescriptorFactory) {
-			const extensionRegistry = await this._extensionService.getExtensionRegistry();
-			return asPromise(() => adapterDescriptorFactory.createDebugAdapterDescriptor(session, this.daExecutableFromPackage(session, extensionRegistry))).then(daDescriptor => {
-				if (daDescriptor) {
-					return daDescriptor;
+		if (adaptewDescwiptowFactowy) {
+			const extensionWegistwy = await this._extensionSewvice.getExtensionWegistwy();
+			wetuwn asPwomise(() => adaptewDescwiptowFactowy.cweateDebugAdaptewDescwiptow(session, this.daExecutabweFwomPackage(session, extensionWegistwy))).then(daDescwiptow => {
+				if (daDescwiptow) {
+					wetuwn daDescwiptow;
 				}
-				return undefined;
+				wetuwn undefined;
 			});
 		}
 
-		// fallback: use executable information from package.json
-		const extensionRegistry = await this._extensionService.getExtensionRegistry();
-		return Promise.resolve(this.daExecutableFromPackage(session, extensionRegistry));
+		// fawwback: use executabwe infowmation fwom package.json
+		const extensionWegistwy = await this._extensionSewvice.getExtensionWegistwy();
+		wetuwn Pwomise.wesowve(this.daExecutabweFwomPackage(session, extensionWegistwy));
 	}
 
-	protected daExecutableFromPackage(session: ExtHostDebugSession, extensionRegistry: ExtensionDescriptionRegistry): DebugAdapterExecutable | undefined {
-		return undefined;
+	pwotected daExecutabweFwomPackage(session: ExtHostDebugSession, extensionWegistwy: ExtensionDescwiptionWegistwy): DebugAdaptewExecutabwe | undefined {
+		wetuwn undefined;
 	}
 
-	private startBreakpoints() {
-		if (!this._breakpointEventsActive) {
-			this._breakpointEventsActive = true;
-			this._debugServiceProxy.$startBreakpointEvents();
+	pwivate stawtBweakpoints() {
+		if (!this._bweakpointEventsActive) {
+			this._bweakpointEventsActive = twue;
+			this._debugSewvicePwoxy.$stawtBweakpointEvents();
 		}
 	}
 
-	private fireBreakpointChanges(added: vscode.Breakpoint[], removed: vscode.Breakpoint[], changed: vscode.Breakpoint[]) {
-		if (added.length > 0 || removed.length > 0 || changed.length > 0) {
-			this._onDidChangeBreakpoints.fire(Object.freeze({
+	pwivate fiweBweakpointChanges(added: vscode.Bweakpoint[], wemoved: vscode.Bweakpoint[], changed: vscode.Bweakpoint[]) {
+		if (added.wength > 0 || wemoved.wength > 0 || changed.wength > 0) {
+			this._onDidChangeBweakpoints.fiwe(Object.fweeze({
 				added,
-				removed,
+				wemoved,
 				changed,
 			}));
 		}
 	}
 
-	private async getSession(dto: IDebugSessionDto): Promise<ExtHostDebugSession> {
+	pwivate async getSession(dto: IDebugSessionDto): Pwomise<ExtHostDebugSession> {
 		if (dto) {
-			if (typeof dto === 'string') {
+			if (typeof dto === 'stwing') {
 				const ds = this._debugSessions.get(dto);
 				if (ds) {
-					return ds;
+					wetuwn ds;
 				}
-			} else {
-				let ds = this._debugSessions.get(dto.id);
+			} ewse {
+				wet ds = this._debugSessions.get(dto.id);
 				if (!ds) {
-					const folder = await this.getFolder(dto.folderUri);
-					const parent = dto.parent ? this._debugSessions.get(dto.parent) : undefined;
-					ds = new ExtHostDebugSession(this._debugServiceProxy, dto.id, dto.type, dto.name, folder, dto.configuration, parent);
+					const fowda = await this.getFowda(dto.fowdewUwi);
+					const pawent = dto.pawent ? this._debugSessions.get(dto.pawent) : undefined;
+					ds = new ExtHostDebugSession(this._debugSewvicePwoxy, dto.id, dto.type, dto.name, fowda, dto.configuwation, pawent);
 					this._debugSessions.set(ds.id, ds);
-					this._debugServiceProxy.$sessionCached(ds.id);
+					this._debugSewvicePwoxy.$sessionCached(ds.id);
 				}
-				return ds;
+				wetuwn ds;
 			}
 		}
-		throw new Error('cannot find session');
+		thwow new Ewwow('cannot find session');
 	}
 
-	private getFolder(_folderUri: UriComponents | undefined): Promise<vscode.WorkspaceFolder | undefined> {
-		if (_folderUri) {
-			const folderURI = URI.revive(_folderUri);
-			return this._workspaceService.resolveWorkspaceFolder(folderURI);
+	pwivate getFowda(_fowdewUwi: UwiComponents | undefined): Pwomise<vscode.WowkspaceFowda | undefined> {
+		if (_fowdewUwi) {
+			const fowdewUWI = UWI.wevive(_fowdewUwi);
+			wetuwn this._wowkspaceSewvice.wesowveWowkspaceFowda(fowdewUWI);
 		}
-		return Promise.resolve(undefined);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 }
 
-export class ExtHostDebugSession implements vscode.DebugSession {
+expowt cwass ExtHostDebugSession impwements vscode.DebugSession {
 
-	constructor(
-		private _debugServiceProxy: MainThreadDebugServiceShape,
-		private _id: DebugSessionUUID,
-		private _type: string,
-		private _name: string,
-		private _workspaceFolder: vscode.WorkspaceFolder | undefined,
-		private _configuration: vscode.DebugConfiguration,
-		private _parentSession: vscode.DebugSession | undefined) {
+	constwuctow(
+		pwivate _debugSewvicePwoxy: MainThweadDebugSewviceShape,
+		pwivate _id: DebugSessionUUID,
+		pwivate _type: stwing,
+		pwivate _name: stwing,
+		pwivate _wowkspaceFowda: vscode.WowkspaceFowda | undefined,
+		pwivate _configuwation: vscode.DebugConfiguwation,
+		pwivate _pawentSession: vscode.DebugSession | undefined) {
 	}
 
-	public get id(): string {
-		return this._id;
+	pubwic get id(): stwing {
+		wetuwn this._id;
 	}
 
-	public get type(): string {
-		return this._type;
+	pubwic get type(): stwing {
+		wetuwn this._type;
 	}
 
-	public get name(): string {
-		return this._name;
+	pubwic get name(): stwing {
+		wetuwn this._name;
 	}
-	public set name(name: string) {
+	pubwic set name(name: stwing) {
 		this._name = name;
-		this._debugServiceProxy.$setDebugSessionName(this._id, name);
+		this._debugSewvicePwoxy.$setDebugSessionName(this._id, name);
 	}
 
-	public get parentSession(): vscode.DebugSession | undefined {
-		return this._parentSession;
+	pubwic get pawentSession(): vscode.DebugSession | undefined {
+		wetuwn this._pawentSession;
 	}
 
-	_acceptNameChanged(name: string) {
+	_acceptNameChanged(name: stwing) {
 		this._name = name;
 	}
 
-	public get workspaceFolder(): vscode.WorkspaceFolder | undefined {
-		return this._workspaceFolder;
+	pubwic get wowkspaceFowda(): vscode.WowkspaceFowda | undefined {
+		wetuwn this._wowkspaceFowda;
 	}
 
-	public get configuration(): vscode.DebugConfiguration {
-		return this._configuration;
+	pubwic get configuwation(): vscode.DebugConfiguwation {
+		wetuwn this._configuwation;
 	}
 
-	public customRequest(command: string, args: any): Promise<any> {
-		return this._debugServiceProxy.$customDebugAdapterRequest(this._id, command, args);
+	pubwic customWequest(command: stwing, awgs: any): Pwomise<any> {
+		wetuwn this._debugSewvicePwoxy.$customDebugAdaptewWequest(this._id, command, awgs);
 	}
 
-	public getDebugProtocolBreakpoint(breakpoint: vscode.Breakpoint): Promise<vscode.DebugProtocolBreakpoint | undefined> {
-		return this._debugServiceProxy.$getDebugProtocolBreakpoint(this._id, breakpoint.id);
+	pubwic getDebugPwotocowBweakpoint(bweakpoint: vscode.Bweakpoint): Pwomise<vscode.DebugPwotocowBweakpoint | undefined> {
+		wetuwn this._debugSewvicePwoxy.$getDebugPwotocowBweakpoint(this._id, bweakpoint.id);
 	}
 }
 
-export class ExtHostDebugConsole {
+expowt cwass ExtHostDebugConsowe {
 
-	readonly value: vscode.DebugConsole;
+	weadonwy vawue: vscode.DebugConsowe;
 
-	constructor(proxy: MainThreadDebugServiceShape) {
+	constwuctow(pwoxy: MainThweadDebugSewviceShape) {
 
-		this.value = Object.freeze({
-			append(value: string): void {
-				proxy.$appendDebugConsole(value);
+		this.vawue = Object.fweeze({
+			append(vawue: stwing): void {
+				pwoxy.$appendDebugConsowe(vawue);
 			},
-			appendLine(value: string): void {
-				this.append(value + '\n');
+			appendWine(vawue: stwing): void {
+				this.append(vawue + '\n');
 			}
 		});
 	}
 }
 
-export class ExtHostVariableResolverService extends AbstractVariableResolverService {
+expowt cwass ExtHostVawiabweWesowvewSewvice extends AbstwactVawiabweWesowvewSewvice {
 
-	constructor(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors | undefined, configurationService: ExtHostConfigProvider, editorTabs: IExtHostEditorTabs, workspaceService?: IExtHostWorkspace) {
-		function getActiveUri(): URI | undefined {
-			if (editorService) {
-				const activeEditor = editorService.activeEditor();
-				if (activeEditor) {
-					return activeEditor.document.uri;
+	constwuctow(fowdews: vscode.WowkspaceFowda[], editowSewvice: ExtHostDocumentsAndEditows | undefined, configuwationSewvice: ExtHostConfigPwovida, editowTabs: IExtHostEditowTabs, wowkspaceSewvice?: IExtHostWowkspace) {
+		function getActiveUwi(): UWI | undefined {
+			if (editowSewvice) {
+				const activeEditow = editowSewvice.activeEditow();
+				if (activeEditow) {
+					wetuwn activeEditow.document.uwi;
 				}
-				const tabs = editorTabs.tabs.filter(tab => tab.isActive);
-				if (tabs.length > 0) {
-					// Resolve a resource from the tab
-					const asSideBySideResource = tabs[0].resource as { primary?: URI, secondary?: URI } | undefined;
-					if (asSideBySideResource && (asSideBySideResource.primary || asSideBySideResource.secondary)) {
-						return asSideBySideResource.primary ?? asSideBySideResource.secondary;
-					} else {
-						return tabs[0].resource as URI | undefined;
+				const tabs = editowTabs.tabs.fiwta(tab => tab.isActive);
+				if (tabs.wength > 0) {
+					// Wesowve a wesouwce fwom the tab
+					const asSideBySideWesouwce = tabs[0].wesouwce as { pwimawy?: UWI, secondawy?: UWI } | undefined;
+					if (asSideBySideWesouwce && (asSideBySideWesouwce.pwimawy || asSideBySideWesouwce.secondawy)) {
+						wetuwn asSideBySideWesouwce.pwimawy ?? asSideBySideWesouwce.secondawy;
+					} ewse {
+						wetuwn tabs[0].wesouwce as UWI | undefined;
 					}
 				}
 			}
-			return undefined;
+			wetuwn undefined;
 		}
 
-		super({
-			getFolderUri: (folderName: string): URI | undefined => {
-				const found = folders.filter(f => f.name === folderName);
-				if (found && found.length > 0) {
-					return found[0].uri;
+		supa({
+			getFowdewUwi: (fowdewName: stwing): UWI | undefined => {
+				const found = fowdews.fiwta(f => f.name === fowdewName);
+				if (found && found.wength > 0) {
+					wetuwn found[0].uwi;
 				}
-				return undefined;
+				wetuwn undefined;
 			},
-			getWorkspaceFolderCount: (): number => {
-				return folders.length;
+			getWowkspaceFowdewCount: (): numba => {
+				wetuwn fowdews.wength;
 			},
-			getConfigurationValue: (folderUri: URI | undefined, section: string): string | undefined => {
-				return configurationService.getConfiguration(undefined, folderUri).get<string>(section);
+			getConfiguwationVawue: (fowdewUwi: UWI | undefined, section: stwing): stwing | undefined => {
+				wetuwn configuwationSewvice.getConfiguwation(undefined, fowdewUwi).get<stwing>(section);
 			},
-			getAppRoot: (): string | undefined => {
-				return process.cwd();
+			getAppWoot: (): stwing | undefined => {
+				wetuwn pwocess.cwd();
 			},
-			getExecPath: (): string | undefined => {
-				return process.env['VSCODE_EXEC_PATH'];
+			getExecPath: (): stwing | undefined => {
+				wetuwn pwocess.env['VSCODE_EXEC_PATH'];
 			},
-			getFilePath: (): string | undefined => {
-				const activeUri = getActiveUri();
-				if (activeUri) {
-					return path.normalize(activeUri.fsPath);
+			getFiwePath: (): stwing | undefined => {
+				const activeUwi = getActiveUwi();
+				if (activeUwi) {
+					wetuwn path.nowmawize(activeUwi.fsPath);
 				}
-				return undefined;
+				wetuwn undefined;
 			},
-			getWorkspaceFolderPathForFile: (): string | undefined => {
-				if (workspaceService) {
-					const activeUri = getActiveUri();
-					if (activeUri) {
-						const ws = workspaceService.getWorkspaceFolder(activeUri);
+			getWowkspaceFowdewPathFowFiwe: (): stwing | undefined => {
+				if (wowkspaceSewvice) {
+					const activeUwi = getActiveUwi();
+					if (activeUwi) {
+						const ws = wowkspaceSewvice.getWowkspaceFowda(activeUwi);
 						if (ws) {
-							return path.normalize(ws.uri.fsPath);
+							wetuwn path.nowmawize(ws.uwi.fsPath);
 						}
 					}
 				}
-				return undefined;
+				wetuwn undefined;
 			},
-			getSelectedText: (): string | undefined => {
-				if (editorService) {
-					const activeEditor = editorService.activeEditor();
-					if (activeEditor && !activeEditor.selection.isEmpty) {
-						return activeEditor.document.getText(activeEditor.selection);
+			getSewectedText: (): stwing | undefined => {
+				if (editowSewvice) {
+					const activeEditow = editowSewvice.activeEditow();
+					if (activeEditow && !activeEditow.sewection.isEmpty) {
+						wetuwn activeEditow.document.getText(activeEditow.sewection);
 					}
 				}
-				return undefined;
+				wetuwn undefined;
 			},
-			getLineNumber: (): string | undefined => {
-				if (editorService) {
-					const activeEditor = editorService.activeEditor();
-					if (activeEditor) {
-						return String(activeEditor.selection.end.line + 1);
+			getWineNumba: (): stwing | undefined => {
+				if (editowSewvice) {
+					const activeEditow = editowSewvice.activeEditow();
+					if (activeEditow) {
+						wetuwn Stwing(activeEditow.sewection.end.wine + 1);
 					}
 				}
-				return undefined;
+				wetuwn undefined;
 			}
-		}, undefined, Promise.resolve(process.env));
+		}, undefined, Pwomise.wesowve(pwocess.env));
 	}
 }
 
-interface ConfigProviderTuple {
-	type: string;
-	handle: number;
-	provider: vscode.DebugConfigurationProvider;
+intewface ConfigPwovidewTupwe {
+	type: stwing;
+	handwe: numba;
+	pwovida: vscode.DebugConfiguwationPwovida;
 }
 
-interface DescriptorFactoryTuple {
-	type: string;
-	handle: number;
-	factory: vscode.DebugAdapterDescriptorFactory;
+intewface DescwiptowFactowyTupwe {
+	type: stwing;
+	handwe: numba;
+	factowy: vscode.DebugAdaptewDescwiptowFactowy;
 }
 
-interface TrackerFactoryTuple {
-	type: string;
-	handle: number;
-	factory: vscode.DebugAdapterTrackerFactory;
+intewface TwackewFactowyTupwe {
+	type: stwing;
+	handwe: numba;
+	factowy: vscode.DebugAdaptewTwackewFactowy;
 }
 
-class MultiTracker implements vscode.DebugAdapterTracker {
+cwass MuwtiTwacka impwements vscode.DebugAdaptewTwacka {
 
-	constructor(private trackers: vscode.DebugAdapterTracker[]) {
+	constwuctow(pwivate twackews: vscode.DebugAdaptewTwacka[]) {
 	}
 
-	onWillStartSession(): void {
-		this.trackers.forEach(t => t.onWillStartSession ? t.onWillStartSession() : undefined);
+	onWiwwStawtSession(): void {
+		this.twackews.fowEach(t => t.onWiwwStawtSession ? t.onWiwwStawtSession() : undefined);
 	}
 
-	onWillReceiveMessage(message: any): void {
-		this.trackers.forEach(t => t.onWillReceiveMessage ? t.onWillReceiveMessage(message) : undefined);
+	onWiwwWeceiveMessage(message: any): void {
+		this.twackews.fowEach(t => t.onWiwwWeceiveMessage ? t.onWiwwWeceiveMessage(message) : undefined);
 	}
 
 	onDidSendMessage(message: any): void {
-		this.trackers.forEach(t => t.onDidSendMessage ? t.onDidSendMessage(message) : undefined);
+		this.twackews.fowEach(t => t.onDidSendMessage ? t.onDidSendMessage(message) : undefined);
 	}
 
-	onWillStopSession(): void {
-		this.trackers.forEach(t => t.onWillStopSession ? t.onWillStopSession() : undefined);
+	onWiwwStopSession(): void {
+		this.twackews.fowEach(t => t.onWiwwStopSession ? t.onWiwwStopSession() : undefined);
 	}
 
-	onError(error: Error): void {
-		this.trackers.forEach(t => t.onError ? t.onError(error) : undefined);
+	onEwwow(ewwow: Ewwow): void {
+		this.twackews.fowEach(t => t.onEwwow ? t.onEwwow(ewwow) : undefined);
 	}
 
-	onExit(code: number, signal: string): void {
-		this.trackers.forEach(t => t.onExit ? t.onExit(code, signal) : undefined);
+	onExit(code: numba, signaw: stwing): void {
+		this.twackews.fowEach(t => t.onExit ? t.onExit(code, signaw) : undefined);
 	}
 }
 
 /*
- * Call directly into a debug adapter implementation
+ * Caww diwectwy into a debug adapta impwementation
  */
-class DirectDebugAdapter extends AbstractDebugAdapter {
+cwass DiwectDebugAdapta extends AbstwactDebugAdapta {
 
-	constructor(private implementation: vscode.DebugAdapter) {
-		super();
+	constwuctow(pwivate impwementation: vscode.DebugAdapta) {
+		supa();
 
-		implementation.onDidSendMessage((message: vscode.DebugProtocolMessage) => {
-			this.acceptMessage(message as DebugProtocol.ProtocolMessage);
+		impwementation.onDidSendMessage((message: vscode.DebugPwotocowMessage) => {
+			this.acceptMessage(message as DebugPwotocow.PwotocowMessage);
 		});
 	}
 
-	startSession(): Promise<void> {
-		return Promise.resolve(undefined);
+	stawtSession(): Pwomise<void> {
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	sendMessage(message: DebugProtocol.ProtocolMessage): void {
-		this.implementation.handleMessage(message);
+	sendMessage(message: DebugPwotocow.PwotocowMessage): void {
+		this.impwementation.handweMessage(message);
 	}
 
-	stopSession(): Promise<void> {
-		this.implementation.dispose();
-		return Promise.resolve(undefined);
+	stopSession(): Pwomise<void> {
+		this.impwementation.dispose();
+		wetuwn Pwomise.wesowve(undefined);
 	}
 }
 
 
-export class WorkerExtHostDebugService extends ExtHostDebugServiceBase {
-	constructor(
-		@IExtHostRpcService extHostRpcService: IExtHostRpcService,
-		@IExtHostWorkspace workspaceService: IExtHostWorkspace,
-		@IExtHostExtensionService extensionService: IExtHostExtensionService,
-		@IExtHostDocumentsAndEditors editorsService: IExtHostDocumentsAndEditors,
-		@IExtHostConfiguration configurationService: IExtHostConfiguration,
-		@IExtHostEditorTabs editorTabs: IExtHostEditorTabs
+expowt cwass WowkewExtHostDebugSewvice extends ExtHostDebugSewviceBase {
+	constwuctow(
+		@IExtHostWpcSewvice extHostWpcSewvice: IExtHostWpcSewvice,
+		@IExtHostWowkspace wowkspaceSewvice: IExtHostWowkspace,
+		@IExtHostExtensionSewvice extensionSewvice: IExtHostExtensionSewvice,
+		@IExtHostDocumentsAndEditows editowsSewvice: IExtHostDocumentsAndEditows,
+		@IExtHostConfiguwation configuwationSewvice: IExtHostConfiguwation,
+		@IExtHostEditowTabs editowTabs: IExtHostEditowTabs
 	) {
-		super(extHostRpcService, workspaceService, extensionService, editorsService, configurationService, editorTabs);
+		supa(extHostWpcSewvice, wowkspaceSewvice, extensionSewvice, editowsSewvice, configuwationSewvice, editowTabs);
 	}
 
-	protected createVariableResolver(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider): AbstractVariableResolverService {
-		return new ExtHostVariableResolverService(folders, editorService, configurationService, this._editorTabs);
+	pwotected cweateVawiabweWesowva(fowdews: vscode.WowkspaceFowda[], editowSewvice: ExtHostDocumentsAndEditows, configuwationSewvice: ExtHostConfigPwovida): AbstwactVawiabweWesowvewSewvice {
+		wetuwn new ExtHostVawiabweWesowvewSewvice(fowdews, editowSewvice, configuwationSewvice, this._editowTabs);
 	}
 }

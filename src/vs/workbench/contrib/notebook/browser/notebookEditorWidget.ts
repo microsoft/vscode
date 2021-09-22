@@ -1,2931 +1,2931 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
-import * as DOM from 'vs/base/browser/dom';
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
-import { IAction } from 'vs/base/common/actions';
-import { SequencerByKey } from 'vs/base/common/async';
-import { Color, RGBA } from 'vs/base/common/color';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { extname, isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import 'vs/css!./media/notebook';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditor } from 'vs/editor/common/editorCommon';
-import * as nls from 'vs/nls';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { contrastBorder, diffInserted, diffRemoved, editorBackground, errorForeground, focusBorder, foreground, iconForeground, listInactiveSelectionBackground, registerColor, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground, toolbarHoverBackground, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { PANEL_BORDER } from 'vs/workbench/common/theme';
-import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
-import { CellEditState, CellFocusMode, IActiveNotebookEditorDelegate, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookCellOutputLayoutInfo, INotebookDeltaDecoration, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorDelegate, INotebookEditorMouseEvent, INotebookEditorOptions, NotebookCellStateChangedEvent, NotebookLayoutChangedEvent, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookDecorationCSSRules, NotebookRefCountedStyleSheet } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookEditorDecorations';
-import { NotebookEditorContextKeys } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookEditorWidgetContextKeys';
-import { NotebookEditorToolbar } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookEditorToolbar';
-import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { NotebookEditorKernelManager } from 'vs/workbench/contrib/notebook/browser/notebookEditorKernelManager';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
-import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
-import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
-import { BackLayerWebView, INotebookWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
-import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellContextKeys';
-import { CellDragAndDropController } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellDnd';
-import { CodeCellRenderer, ListTopCellToolbar, MarkupCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
-import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
-import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, INotebookViewCellsUpdateEvent, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
-import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
-import { mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
-import { readFontInfo } from 'vs/editor/browser/config/configuration';
-import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
-import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
-import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
-import { IAckOutputHeight, IMarkupCellInitialization } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { registerZIndex, ZIndex } from 'vs/platform/layout/browser/zIndexRegistry';
-import { INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+impowt { getPixewWatio, getZoomWevew } fwom 'vs/base/bwowsa/bwowsa';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt * as awia fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt { IMouseWheewEvent, StandawdMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { IWistContextMenuEvent } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { SequencewByKey } fwom 'vs/base/common/async';
+impowt { Cowow, WGBA } fwom 'vs/base/common/cowow';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { combinedDisposabwe, Disposabwe, DisposabweStowe, dispose, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { extname, isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt 'vs/css!./media/notebook';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { BaweFontInfo, FontInfo } fwom 'vs/editow/common/config/fontInfo';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IEditow } fwom 'vs/editow/common/editowCommon';
+impowt * as nws fwom 'vs/nws';
+impowt { cweateAndFiwwInContextMenuActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { IMenuSewvice, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { IWayoutSewvice } fwom 'vs/pwatfowm/wayout/bwowsa/wayoutSewvice';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { contwastBowda, diffInsewted, diffWemoved, editowBackgwound, ewwowFowegwound, focusBowda, fowegwound, iconFowegwound, wistInactiveSewectionBackgwound, wegistewCowow, scwowwbawSwidewActiveBackgwound, scwowwbawSwidewBackgwound, scwowwbawSwidewHovewBackgwound, textBwockQuoteBackgwound, textBwockQuoteBowda, textWinkActiveFowegwound, textWinkFowegwound, textPwefowmatFowegwound, toowbawHovewBackgwound, twanspawent } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IThemeSewvice, wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { PANEW_BOWDa } fwom 'vs/wowkbench/common/theme';
+impowt { debugIconStawtFowegwound } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugCowows';
+impowt { CewwEditState, CewwFocusMode, IActiveNotebookEditowDewegate, ICewwOutputViewModew, ICewwViewModew, ICommonCewwInfo, IDispwayOutputWayoutUpdateWequest, IFocusNotebookCewwOptions, IGenewicCewwViewModew, IInsetWendewOutput, INotebookCewwOutputWayoutInfo, INotebookDewtaDecowation, INotebookEditowContwibution, INotebookEditowContwibutionDescwiption, INotebookEditowCweationOptions, INotebookEditowDewegate, INotebookEditowMouseEvent, INotebookEditowOptions, NotebookCewwStateChangedEvent, NotebookWayoutChangedEvent, NotebookWayoutInfo, NOTEBOOK_EDITOW_EDITABWE, NOTEBOOK_EDITOW_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED, WendewOutputType } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { NotebookDecowationCSSWuwes, NotebookWefCountedStyweSheet } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewPawts/notebookEditowDecowations';
+impowt { NotebookEditowContextKeys } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewPawts/notebookEditowWidgetContextKeys';
+impowt { NotebookEditowToowbaw } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewPawts/notebookEditowToowbaw';
+impowt { NotebookEditowExtensionsWegistwy } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowExtensions';
+impowt { NotebookEditowKewnewManaga } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowKewnewManaga';
+impowt { INotebookEditowSewvice } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowSewvice';
+impowt { NotebookCewwWist } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/notebookCewwWist';
+impowt { OutputWendewa } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/output/outputWendewa';
+impowt { BackWayewWebView, INotebookWebviewMessage } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/wendewews/backWayewWebView';
+impowt { CewwContextKeyManaga } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/wendewews/cewwContextKeys';
+impowt { CewwDwagAndDwopContwowwa } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/wendewews/cewwDnd';
+impowt { CodeCewwWendewa, WistTopCewwToowbaw, MawkupCewwWendewa, NotebookCewwWistDewegate } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/wendewews/cewwWendewa';
+impowt { CodeCewwViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/codeCewwViewModew';
+impowt { NotebookEventDispatcha } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/eventDispatcha';
+impowt { MawkupCewwViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/mawkupCewwViewModew';
+impowt { CewwViewModew, IModewDecowationsChangeAccessow, INotebookEditowViewState, INotebookViewCewwsUpdateEvent, NotebookViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/notebookViewModew';
+impowt { NotebookTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookTextModew';
+impowt { CewwKind, SewectionStateType } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { ICewwWange } fwom 'vs/wowkbench/contwib/notebook/common/notebookWange';
+impowt { editowGuttewModifiedBackgwound } fwom 'vs/wowkbench/contwib/scm/bwowsa/diwtydiffDecowatow';
+impowt { Webview } fwom 'vs/wowkbench/contwib/webview/bwowsa/webview';
+impowt { mawk } fwom 'vs/wowkbench/contwib/notebook/common/notebookPewfowmance';
+impowt { weadFontInfo } fwom 'vs/editow/bwowsa/config/configuwation';
+impowt { INotebookKewnewSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookKewnewSewvice';
+impowt { NotebookOptions } fwom 'vs/wowkbench/contwib/notebook/common/notebookOptions';
+impowt { ViewContext } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/viewContext';
+impowt { INotebookWendewewMessagingSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookWendewewMessagingSewvice';
+impowt { IAckOutputHeight, IMawkupCewwInitiawization } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/wendewews/webviewMessages';
+impowt { SuggestContwowwa } fwom 'vs/editow/contwib/suggest/suggestContwowwa';
+impowt { wegistewZIndex, ZIndex } fwom 'vs/pwatfowm/wayout/bwowsa/zIndexWegistwy';
+impowt { INotebookCewwWist } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/notebookWendewingCommon';
 
 const $ = DOM.$;
 
-export class ListViewInfoAccessor extends Disposable {
-	constructor(
-		readonly list: INotebookCellList
+expowt cwass WistViewInfoAccessow extends Disposabwe {
+	constwuctow(
+		weadonwy wist: INotebookCewwWist
 	) {
-		super();
+		supa();
 	}
 
-	setScrollTop(scrollTop: number) {
-		this.list.scrollTop = scrollTop;
+	setScwowwTop(scwowwTop: numba) {
+		this.wist.scwowwTop = scwowwTop;
 	}
 
-	scrollToBottom() {
-		this.list.scrollToBottom();
+	scwowwToBottom() {
+		this.wist.scwowwToBottom();
 	}
 
-	revealCellRangeInView(range: ICellRange) {
-		return this.list.revealElementsInView(range);
+	weveawCewwWangeInView(wange: ICewwWange) {
+		wetuwn this.wist.weveawEwementsInView(wange);
 	}
 
-	revealInView(cell: ICellViewModel) {
-		this.list.revealElementInView(cell);
+	weveawInView(ceww: ICewwViewModew) {
+		this.wist.weveawEwementInView(ceww);
 	}
 
-	revealInViewAtTop(cell: ICellViewModel) {
-		this.list.revealElementInViewAtTop(cell);
+	weveawInViewAtTop(ceww: ICewwViewModew) {
+		this.wist.weveawEwementInViewAtTop(ceww);
 	}
 
-	revealInCenterIfOutsideViewport(cell: ICellViewModel) {
-		this.list.revealElementInCenterIfOutsideViewport(cell);
+	weveawInCentewIfOutsideViewpowt(ceww: ICewwViewModew) {
+		this.wist.weveawEwementInCentewIfOutsideViewpowt(ceww);
 	}
 
-	async revealInCenterIfOutsideViewportAsync(cell: ICellViewModel) {
-		return this.list.revealElementInCenterIfOutsideViewportAsync(cell);
+	async weveawInCentewIfOutsideViewpowtAsync(ceww: ICewwViewModew) {
+		wetuwn this.wist.weveawEwementInCentewIfOutsideViewpowtAsync(ceww);
 	}
 
-	revealInCenter(cell: ICellViewModel) {
-		this.list.revealElementInCenter(cell);
+	weveawInCenta(ceww: ICewwViewModew) {
+		this.wist.weveawEwementInCenta(ceww);
 	}
 
-	async revealLineInViewAsync(cell: ICellViewModel, line: number): Promise<void> {
-		return this.list.revealElementLineInViewAsync(cell, line);
+	async weveawWineInViewAsync(ceww: ICewwViewModew, wine: numba): Pwomise<void> {
+		wetuwn this.wist.weveawEwementWineInViewAsync(ceww, wine);
 	}
 
-	async revealLineInCenterAsync(cell: ICellViewModel, line: number): Promise<void> {
-		return this.list.revealElementLineInCenterAsync(cell, line);
+	async weveawWineInCentewAsync(ceww: ICewwViewModew, wine: numba): Pwomise<void> {
+		wetuwn this.wist.weveawEwementWineInCentewAsync(ceww, wine);
 	}
 
-	async revealLineInCenterIfOutsideViewportAsync(cell: ICellViewModel, line: number): Promise<void> {
-		return this.list.revealElementLineInCenterIfOutsideViewportAsync(cell, line);
+	async weveawWineInCentewIfOutsideViewpowtAsync(ceww: ICewwViewModew, wine: numba): Pwomise<void> {
+		wetuwn this.wist.weveawEwementWineInCentewIfOutsideViewpowtAsync(ceww, wine);
 	}
 
-	async revealRangeInViewAsync(cell: ICellViewModel, range: Range): Promise<void> {
-		return this.list.revealElementRangeInViewAsync(cell, range);
+	async weveawWangeInViewAsync(ceww: ICewwViewModew, wange: Wange): Pwomise<void> {
+		wetuwn this.wist.weveawEwementWangeInViewAsync(ceww, wange);
 	}
 
-	async revealRangeInCenterAsync(cell: ICellViewModel, range: Range): Promise<void> {
-		return this.list.revealElementRangeInCenterAsync(cell, range);
+	async weveawWangeInCentewAsync(ceww: ICewwViewModew, wange: Wange): Pwomise<void> {
+		wetuwn this.wist.weveawEwementWangeInCentewAsync(ceww, wange);
 	}
 
-	async revealRangeInCenterIfOutsideViewportAsync(cell: ICellViewModel, range: Range): Promise<void> {
-		return this.list.revealElementRangeInCenterIfOutsideViewportAsync(cell, range);
+	async weveawWangeInCentewIfOutsideViewpowtAsync(ceww: ICewwViewModew, wange: Wange): Pwomise<void> {
+		wetuwn this.wist.weveawEwementWangeInCentewIfOutsideViewpowtAsync(ceww, wange);
 	}
 
-	getViewIndex(cell: ICellViewModel): number {
-		return this.list.getViewIndex(cell) ?? -1;
+	getViewIndex(ceww: ICewwViewModew): numba {
+		wetuwn this.wist.getViewIndex(ceww) ?? -1;
 	}
 
-	getViewHeight(cell: ICellViewModel): number {
-		if (!this.list.viewModel) {
-			return -1;
+	getViewHeight(ceww: ICewwViewModew): numba {
+		if (!this.wist.viewModew) {
+			wetuwn -1;
 		}
 
-		return this.list.elementHeight(cell);
+		wetuwn this.wist.ewementHeight(ceww);
 	}
 
-	getCellRangeFromViewRange(startIndex: number, endIndex: number): ICellRange | undefined {
-		if (!this.list.viewModel) {
-			return undefined;
+	getCewwWangeFwomViewWange(stawtIndex: numba, endIndex: numba): ICewwWange | undefined {
+		if (!this.wist.viewModew) {
+			wetuwn undefined;
 		}
 
-		const modelIndex = this.list.getModelIndex2(startIndex);
-		if (modelIndex === undefined) {
-			throw new Error(`startIndex ${startIndex} out of boundary`);
+		const modewIndex = this.wist.getModewIndex2(stawtIndex);
+		if (modewIndex === undefined) {
+			thwow new Ewwow(`stawtIndex ${stawtIndex} out of boundawy`);
 		}
 
-		if (endIndex >= this.list.length) {
+		if (endIndex >= this.wist.wength) {
 			// it's the end
-			const endModelIndex = this.list.viewModel.length;
-			return { start: modelIndex, end: endModelIndex };
-		} else {
-			const endModelIndex = this.list.getModelIndex2(endIndex);
-			if (endModelIndex === undefined) {
-				throw new Error(`endIndex ${endIndex} out of boundary`);
+			const endModewIndex = this.wist.viewModew.wength;
+			wetuwn { stawt: modewIndex, end: endModewIndex };
+		} ewse {
+			const endModewIndex = this.wist.getModewIndex2(endIndex);
+			if (endModewIndex === undefined) {
+				thwow new Ewwow(`endIndex ${endIndex} out of boundawy`);
 			}
-			return { start: modelIndex, end: endModelIndex };
+			wetuwn { stawt: modewIndex, end: endModewIndex };
 		}
 	}
 
-	getCellsFromViewRange(startIndex: number, endIndex: number): ReadonlyArray<ICellViewModel> {
-		if (!this.list.viewModel) {
-			return [];
+	getCewwsFwomViewWange(stawtIndex: numba, endIndex: numba): WeadonwyAwway<ICewwViewModew> {
+		if (!this.wist.viewModew) {
+			wetuwn [];
 		}
 
-		const range = this.getCellRangeFromViewRange(startIndex, endIndex);
-		if (!range) {
-			return [];
+		const wange = this.getCewwWangeFwomViewWange(stawtIndex, endIndex);
+		if (!wange) {
+			wetuwn [];
 		}
 
-		return this.list.viewModel.getCellsInRange(range);
+		wetuwn this.wist.viewModew.getCewwsInWange(wange);
 	}
 
-	getCellsInRange(range?: ICellRange): ReadonlyArray<ICellViewModel> {
-		return this.list.viewModel?.getCellsInRange(range) ?? [];
+	getCewwsInWange(wange?: ICewwWange): WeadonwyAwway<ICewwViewModew> {
+		wetuwn this.wist.viewModew?.getCewwsInWange(wange) ?? [];
 	}
 
-	setCellEditorSelection(cell: ICellViewModel, range: Range): void {
-		this.list.setCellSelection(cell, range);
+	setCewwEditowSewection(ceww: ICewwViewModew, wange: Wange): void {
+		this.wist.setCewwSewection(ceww, wange);
 	}
 
-	setHiddenAreas(_ranges: ICellRange[]): boolean {
-		return this.list.setHiddenAreas(_ranges, true);
+	setHiddenAweas(_wanges: ICewwWange[]): boowean {
+		wetuwn this.wist.setHiddenAweas(_wanges, twue);
 	}
 
-	getVisibleRangesPlusViewportBelow(): ICellRange[] {
-		return this.list?.getVisibleRangesPlusViewportBelow() ?? [];
+	getVisibweWangesPwusViewpowtBewow(): ICewwWange[] {
+		wetuwn this.wist?.getVisibweWangesPwusViewpowtBewow() ?? [];
 	}
 
-	triggerScroll(event: IMouseWheelEvent) {
-		this.list.triggerScrollFromMouseWheelEvent(event);
+	twiggewScwoww(event: IMouseWheewEvent) {
+		this.wist.twiggewScwowwFwomMouseWheewEvent(event);
 	}
 }
 
-export function getDefaultNotebookCreationOptions() {
-	return {
+expowt function getDefauwtNotebookCweationOptions() {
+	wetuwn {
 		menuIds: {
-			notebookToolbar: MenuId.NotebookToolbar,
-			cellTitleToolbar: MenuId.NotebookCellTitle,
-			cellInsertToolbar: MenuId.NotebookCellBetween,
-			cellTopInsertToolbar: MenuId.NotebookCellListTop,
-			cellExecuteToolbar: MenuId.NotebookCellExecute
+			notebookToowbaw: MenuId.NotebookToowbaw,
+			cewwTitweToowbaw: MenuId.NotebookCewwTitwe,
+			cewwInsewtToowbaw: MenuId.NotebookCewwBetween,
+			cewwTopInsewtToowbaw: MenuId.NotebookCewwWistTop,
+			cewwExecuteToowbaw: MenuId.NotebookCewwExecute
 		}
 	};
 }
 
-export class NotebookEditorWidget extends Disposable implements INotebookEditorDelegate {
-	//#region Eventing
-	private readonly _onDidChangeCellState = this._register(new Emitter<NotebookCellStateChangedEvent>());
-	readonly onDidChangeCellState = this._onDidChangeCellState.event;
-	private readonly _onDidChangeViewCells = this._register(new Emitter<INotebookViewCellsUpdateEvent>());
-	readonly onDidChangeViewCells: Event<INotebookViewCellsUpdateEvent> = this._onDidChangeViewCells.event;
-	private readonly _onDidChangeModel = this._register(new Emitter<NotebookTextModel | undefined>());
-	readonly onDidChangeModel: Event<NotebookTextModel | undefined> = this._onDidChangeModel.event;
-	private readonly _onDidChangeOptions = this._register(new Emitter<void>());
-	readonly onDidChangeOptions: Event<void> = this._onDidChangeOptions.event;
-	private readonly _onDidScroll = this._register(new Emitter<void>());
-	readonly onDidScroll: Event<void> = this._onDidScroll.event;
-	private readonly _onDidChangeActiveCell = this._register(new Emitter<void>());
-	readonly onDidChangeActiveCell: Event<void> = this._onDidChangeActiveCell.event;
-	private readonly _onDidChangeSelection = this._register(new Emitter<void>());
-	readonly onDidChangeSelection: Event<void> = this._onDidChangeSelection.event;
-	private readonly _onDidChangeVisibleRanges = this._register(new Emitter<void>());
-	readonly onDidChangeVisibleRanges: Event<void> = this._onDidChangeVisibleRanges.event;
-	private readonly _onDidFocusEditorWidget = this._register(new Emitter<void>());
-	readonly onDidFocusEditorWidget = this._onDidFocusEditorWidget.event;
-	private readonly _onDidFocusEmitter = this._register(new Emitter<void>());
-	readonly onDidFocus = this._onDidFocusEmitter.event;
-	private readonly _onDidBlurEmitter = this._register(new Emitter<void>());
-	readonly onDidBlur = this._onDidBlurEmitter.event;
-	private readonly _onDidChangeActiveEditor = this._register(new Emitter<this>());
-	readonly onDidChangeActiveEditor: Event<this> = this._onDidChangeActiveEditor.event;
-	private readonly _onMouseUp: Emitter<INotebookEditorMouseEvent> = this._register(new Emitter<INotebookEditorMouseEvent>());
-	readonly onMouseUp: Event<INotebookEditorMouseEvent> = this._onMouseUp.event;
-	private readonly _onMouseDown: Emitter<INotebookEditorMouseEvent> = this._register(new Emitter<INotebookEditorMouseEvent>());
-	readonly onMouseDown: Event<INotebookEditorMouseEvent> = this._onMouseDown.event;
-	private readonly _onDidReceiveMessage = this._register(new Emitter<INotebookWebviewMessage>());
-	readonly onDidReceiveMessage: Event<INotebookWebviewMessage> = this._onDidReceiveMessage.event;
+expowt cwass NotebookEditowWidget extends Disposabwe impwements INotebookEditowDewegate {
+	//#wegion Eventing
+	pwivate weadonwy _onDidChangeCewwState = this._wegista(new Emitta<NotebookCewwStateChangedEvent>());
+	weadonwy onDidChangeCewwState = this._onDidChangeCewwState.event;
+	pwivate weadonwy _onDidChangeViewCewws = this._wegista(new Emitta<INotebookViewCewwsUpdateEvent>());
+	weadonwy onDidChangeViewCewws: Event<INotebookViewCewwsUpdateEvent> = this._onDidChangeViewCewws.event;
+	pwivate weadonwy _onDidChangeModew = this._wegista(new Emitta<NotebookTextModew | undefined>());
+	weadonwy onDidChangeModew: Event<NotebookTextModew | undefined> = this._onDidChangeModew.event;
+	pwivate weadonwy _onDidChangeOptions = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeOptions: Event<void> = this._onDidChangeOptions.event;
+	pwivate weadonwy _onDidScwoww = this._wegista(new Emitta<void>());
+	weadonwy onDidScwoww: Event<void> = this._onDidScwoww.event;
+	pwivate weadonwy _onDidChangeActiveCeww = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeActiveCeww: Event<void> = this._onDidChangeActiveCeww.event;
+	pwivate weadonwy _onDidChangeSewection = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeSewection: Event<void> = this._onDidChangeSewection.event;
+	pwivate weadonwy _onDidChangeVisibweWanges = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeVisibweWanges: Event<void> = this._onDidChangeVisibweWanges.event;
+	pwivate weadonwy _onDidFocusEditowWidget = this._wegista(new Emitta<void>());
+	weadonwy onDidFocusEditowWidget = this._onDidFocusEditowWidget.event;
+	pwivate weadonwy _onDidFocusEmitta = this._wegista(new Emitta<void>());
+	weadonwy onDidFocus = this._onDidFocusEmitta.event;
+	pwivate weadonwy _onDidBwuwEmitta = this._wegista(new Emitta<void>());
+	weadonwy onDidBwuw = this._onDidBwuwEmitta.event;
+	pwivate weadonwy _onDidChangeActiveEditow = this._wegista(new Emitta<this>());
+	weadonwy onDidChangeActiveEditow: Event<this> = this._onDidChangeActiveEditow.event;
+	pwivate weadonwy _onMouseUp: Emitta<INotebookEditowMouseEvent> = this._wegista(new Emitta<INotebookEditowMouseEvent>());
+	weadonwy onMouseUp: Event<INotebookEditowMouseEvent> = this._onMouseUp.event;
+	pwivate weadonwy _onMouseDown: Emitta<INotebookEditowMouseEvent> = this._wegista(new Emitta<INotebookEditowMouseEvent>());
+	weadonwy onMouseDown: Event<INotebookEditowMouseEvent> = this._onMouseDown.event;
+	pwivate weadonwy _onDidWeceiveMessage = this._wegista(new Emitta<INotebookWebviewMessage>());
+	weadonwy onDidWeceiveMessage: Event<INotebookWebviewMessage> = this._onDidWeceiveMessage.event;
 
-	//#endregion
-	private _overlayContainer!: HTMLElement;
-	private _notebookTopToolbarContainer!: HTMLElement;
-	private _notebookTopToolbar!: NotebookEditorToolbar;
-	private _body!: HTMLElement;
-	private _styleElement!: HTMLStyleElement;
-	private _overflowContainer!: HTMLElement;
-	private _webview: BackLayerWebView<ICommonCellInfo> | null = null;
-	private _webviewResolvePromise: Promise<BackLayerWebView<ICommonCellInfo> | null> | null = null;
-	private _webviewTransparentCover: HTMLElement | null = null;
-	private _listDelegate: NotebookCellListDelegate | null = null;
-	private _list!: INotebookCellList;
-	private _listViewInfoAccessor!: ListViewInfoAccessor;
-	private _dndController: CellDragAndDropController | null = null;
-	private _listTopCellToolbar: ListTopCellToolbar | null = null;
-	private _renderedEditors: Map<ICellViewModel, ICodeEditor | undefined> = new Map();
-	private _viewContext: ViewContext;
-	private _notebookViewModel: NotebookViewModel | undefined;
-	private _localStore: DisposableStore = this._register(new DisposableStore());
-	private _localCellStateListeners: DisposableStore[] = [];
-	private _fontInfo: FontInfo | undefined;
-	private _dimension: DOM.Dimension | null = null;
-	private _shadowElementViewInfo: { height: number, width: number, top: number; left: number; } | null = null;
+	//#endwegion
+	pwivate _ovewwayContaina!: HTMWEwement;
+	pwivate _notebookTopToowbawContaina!: HTMWEwement;
+	pwivate _notebookTopToowbaw!: NotebookEditowToowbaw;
+	pwivate _body!: HTMWEwement;
+	pwivate _styweEwement!: HTMWStyweEwement;
+	pwivate _ovewfwowContaina!: HTMWEwement;
+	pwivate _webview: BackWayewWebView<ICommonCewwInfo> | nuww = nuww;
+	pwivate _webviewWesowvePwomise: Pwomise<BackWayewWebView<ICommonCewwInfo> | nuww> | nuww = nuww;
+	pwivate _webviewTwanspawentCova: HTMWEwement | nuww = nuww;
+	pwivate _wistDewegate: NotebookCewwWistDewegate | nuww = nuww;
+	pwivate _wist!: INotebookCewwWist;
+	pwivate _wistViewInfoAccessow!: WistViewInfoAccessow;
+	pwivate _dndContwowwa: CewwDwagAndDwopContwowwa | nuww = nuww;
+	pwivate _wistTopCewwToowbaw: WistTopCewwToowbaw | nuww = nuww;
+	pwivate _wendewedEditows: Map<ICewwViewModew, ICodeEditow | undefined> = new Map();
+	pwivate _viewContext: ViewContext;
+	pwivate _notebookViewModew: NotebookViewModew | undefined;
+	pwivate _wocawStowe: DisposabweStowe = this._wegista(new DisposabweStowe());
+	pwivate _wocawCewwStateWistenews: DisposabweStowe[] = [];
+	pwivate _fontInfo: FontInfo | undefined;
+	pwivate _dimension: DOM.Dimension | nuww = nuww;
+	pwivate _shadowEwementViewInfo: { height: numba, width: numba, top: numba; weft: numba; } | nuww = nuww;
 
-	private readonly _editorFocus: IContextKey<boolean>;
-	private readonly _outputFocus: IContextKey<boolean>;
-	private readonly _editorEditable: IContextKey<boolean>;
+	pwivate weadonwy _editowFocus: IContextKey<boowean>;
+	pwivate weadonwy _outputFocus: IContextKey<boowean>;
+	pwivate weadonwy _editowEditabwe: IContextKey<boowean>;
 
-	private _outputRenderer: OutputRenderer;
-	protected readonly _contributions = new Map<string, INotebookEditorContribution>();
-	private _scrollBeyondLastLine: boolean;
-	private readonly _insetModifyQueueByOutputId = new SequencerByKey<string>();
-	private _kernelManger: NotebookEditorKernelManager;
-	private _cellContextKeyManager: CellContextKeyManager | null = null;
-	private _isVisible = false;
-	private readonly _uuid = generateUuid();
-	private _webviewFocused: boolean = false;
+	pwivate _outputWendewa: OutputWendewa;
+	pwotected weadonwy _contwibutions = new Map<stwing, INotebookEditowContwibution>();
+	pwivate _scwowwBeyondWastWine: boowean;
+	pwivate weadonwy _insetModifyQueueByOutputId = new SequencewByKey<stwing>();
+	pwivate _kewnewManga: NotebookEditowKewnewManaga;
+	pwivate _cewwContextKeyManaga: CewwContextKeyManaga | nuww = nuww;
+	pwivate _isVisibwe = fawse;
+	pwivate weadonwy _uuid = genewateUuid();
+	pwivate _webviewFocused: boowean = fawse;
 
-	private _isDisposed: boolean = false;
+	pwivate _isDisposed: boowean = fawse;
 
 	get isDisposed() {
-		return this._isDisposed;
+		wetuwn this._isDisposed;
 	}
 
-	set viewModel(newModel: NotebookViewModel | undefined) {
-		this._notebookViewModel = newModel;
-		this._onDidChangeModel.fire(newModel?.notebookDocument);
+	set viewModew(newModew: NotebookViewModew | undefined) {
+		this._notebookViewModew = newModew;
+		this._onDidChangeModew.fiwe(newModew?.notebookDocument);
 	}
 
-	get viewModel() {
-		return this._notebookViewModel;
+	get viewModew() {
+		wetuwn this._notebookViewModew;
 	}
 
-	get textModel() {
-		return this._notebookViewModel?.notebookDocument;
+	get textModew() {
+		wetuwn this._notebookViewModew?.notebookDocument;
 	}
 
-	get isReadOnly() {
-		return this._notebookViewModel?.options.isReadOnly ?? false;
+	get isWeadOnwy() {
+		wetuwn this._notebookViewModew?.options.isWeadOnwy ?? fawse;
 	}
 
-	get activeCodeEditor(): IEditor | undefined {
+	get activeCodeEditow(): IEditow | undefined {
 		if (this._isDisposed) {
-			return;
+			wetuwn;
 		}
 
-		const [focused] = this._list.getFocusedElements();
-		return this._renderedEditors.get(focused);
+		const [focused] = this._wist.getFocusedEwements();
+		wetuwn this._wendewedEditows.get(focused);
 	}
 
-	private _cursorNavigationMode: boolean = false;
-	get cursorNavigationMode(): boolean {
-		return this._cursorNavigationMode;
+	pwivate _cuwsowNavigationMode: boowean = fawse;
+	get cuwsowNavigationMode(): boowean {
+		wetuwn this._cuwsowNavigationMode;
 	}
 
-	set cursorNavigationMode(v: boolean) {
-		this._cursorNavigationMode = v;
+	set cuwsowNavigationMode(v: boowean) {
+		this._cuwsowNavigationMode = v;
 	}
 
 
-	get visibleRanges() {
-		return this._list.visibleRanges || [];
+	get visibweWanges() {
+		wetuwn this._wist.visibweWanges || [];
 	}
 
-	readonly isEmbedded: boolean;
-	private _readOnly: boolean;
+	weadonwy isEmbedded: boowean;
+	pwivate _weadOnwy: boowean;
 
-	public readonly scopedContextKeyService: IContextKeyService;
-	private readonly instantiationService: IInstantiationService;
-	private readonly _notebookOptions: NotebookOptions;
+	pubwic weadonwy scopedContextKeySewvice: IContextKeySewvice;
+	pwivate weadonwy instantiationSewvice: IInstantiationSewvice;
+	pwivate weadonwy _notebookOptions: NotebookOptions;
 
 	get notebookOptions() {
-		return this._notebookOptions;
+		wetuwn this._notebookOptions;
 	}
 
-	constructor(
-		readonly creationOptions: INotebookEditorCreationOptions,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@INotebookRendererMessagingService private readonly notebookRendererMessaging: INotebookRendererMessagingService,
-		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
-		@INotebookKernelService private readonly notebookKernelService: INotebookKernelService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ILayoutService private readonly layoutService: ILayoutService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IMenuService private readonly menuService: IMenuService,
-		@IThemeService private readonly themeService: IThemeService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+	constwuctow(
+		weadonwy cweationOptions: INotebookEditowCweationOptions,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@INotebookWendewewMessagingSewvice pwivate weadonwy notebookWendewewMessaging: INotebookWendewewMessagingSewvice,
+		@INotebookEditowSewvice pwivate weadonwy notebookEditowSewvice: INotebookEditowSewvice,
+		@INotebookKewnewSewvice pwivate weadonwy notebookKewnewSewvice: INotebookKewnewSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IWayoutSewvice pwivate weadonwy wayoutSewvice: IWayoutSewvice,
+		@IContextMenuSewvice pwivate weadonwy contextMenuSewvice: IContextMenuSewvice,
+		@IMenuSewvice pwivate weadonwy menuSewvice: IMenuSewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice
 	) {
-		super();
-		this.isEmbedded = creationOptions.isEmbedded ?? false;
-		this._readOnly = creationOptions.isReadOnly ?? false;
+		supa();
+		this.isEmbedded = cweationOptions.isEmbedded ?? fawse;
+		this._weadOnwy = cweationOptions.isWeadOnwy ?? fawse;
 
-		this._notebookOptions = creationOptions.options ?? new NotebookOptions(this.configurationService);
-		this._register(this._notebookOptions);
-		this._viewContext = new ViewContext(this._notebookOptions, new NotebookEventDispatcher());
-		this._register(this._viewContext.eventDispatcher.onDidChangeCellState(e => {
-			this._onDidChangeCellState.fire(e);
+		this._notebookOptions = cweationOptions.options ?? new NotebookOptions(this.configuwationSewvice);
+		this._wegista(this._notebookOptions);
+		this._viewContext = new ViewContext(this._notebookOptions, new NotebookEventDispatcha());
+		this._wegista(this._viewContext.eventDispatcha.onDidChangeCewwState(e => {
+			this._onDidChangeCewwState.fiwe(e);
 		}));
 
-		this._overlayContainer = document.createElement('div');
-		this.scopedContextKeyService = contextKeyService.createScoped(this._overlayContainer);
-		this.instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
+		this._ovewwayContaina = document.cweateEwement('div');
+		this.scopedContextKeySewvice = contextKeySewvice.cweateScoped(this._ovewwayContaina);
+		this.instantiationSewvice = instantiationSewvice.cweateChiwd(new SewviceCowwection([IContextKeySewvice, this.scopedContextKeySewvice]));
 
-		this._register(this.instantiationService.createInstance(NotebookEditorContextKeys, this));
+		this._wegista(this.instantiationSewvice.cweateInstance(NotebookEditowContextKeys, this));
 
-		this._kernelManger = this.instantiationService.createInstance(NotebookEditorKernelManager);
-		this._register(notebookKernelService.onDidChangeSelectedNotebooks(e => {
-			if (isEqual(e.notebook, this.viewModel?.uri)) {
-				this._loadKernelPreloads();
+		this._kewnewManga = this.instantiationSewvice.cweateInstance(NotebookEditowKewnewManaga);
+		this._wegista(notebookKewnewSewvice.onDidChangeSewectedNotebooks(e => {
+			if (isEquaw(e.notebook, this.viewModew?.uwi)) {
+				this._woadKewnewPwewoads();
 			}
 		}));
 
 		const that = this;
-		this._outputRenderer = this._register(this.instantiationService.createInstance(OutputRenderer, {
-			get creationOptions() { return that.creationOptions; },
-			getCellOutputLayoutInfo: that._getCellOutputLayoutInfo.bind(that)
+		this._outputWendewa = this._wegista(this.instantiationSewvice.cweateInstance(OutputWendewa, {
+			get cweationOptions() { wetuwn that.cweationOptions; },
+			getCewwOutputWayoutInfo: that._getCewwOutputWayoutInfo.bind(that)
 		}));
-		this._scrollBeyondLastLine = this.configurationService.getValue<boolean>('editor.scrollBeyondLastLine');
+		this._scwowwBeyondWastWine = this.configuwationSewvice.getVawue<boowean>('editow.scwowwBeyondWastWine');
 
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('editor.scrollBeyondLastLine')) {
-				this._scrollBeyondLastLine = this.configurationService.getValue<boolean>('editor.scrollBeyondLastLine');
-				if (this._dimension && this._isVisible) {
-					this.layout(this._dimension);
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation('editow.scwowwBeyondWastWine')) {
+				this._scwowwBeyondWastWine = this.configuwationSewvice.getVawue<boowean>('editow.scwowwBeyondWastWine');
+				if (this._dimension && this._isVisibwe) {
+					this.wayout(this._dimension);
 				}
 			}
 		}));
 
-		this._register(this._notebookOptions.onDidChangeOptions(e => {
-			if (e.cellStatusBarVisibility || e.cellToolbarLocation || e.cellToolbarInteraction) {
-				this._updateForNotebookConfiguration();
+		this._wegista(this._notebookOptions.onDidChangeOptions(e => {
+			if (e.cewwStatusBawVisibiwity || e.cewwToowbawWocation || e.cewwToowbawIntewaction) {
+				this._updateFowNotebookConfiguwation();
 			}
 
-			if (e.compactView || e.focusIndicator || e.insertToolbarPosition || e.cellToolbarLocation || e.dragAndDropEnabled || e.fontSize || e.insertToolbarAlignment) {
-				this._styleElement?.remove();
-				this._createLayoutStyles();
+			if (e.compactView || e.focusIndicatow || e.insewtToowbawPosition || e.cewwToowbawWocation || e.dwagAndDwopEnabwed || e.fontSize || e.insewtToowbawAwignment) {
+				this._styweEwement?.wemove();
+				this._cweateWayoutStywes();
 				this._webview?.updateOptions(this.notebookOptions.computeWebviewOptions());
 			}
 
-			if (this._dimension && this._isVisible) {
-				this.layout(this._dimension);
+			if (this._dimension && this._isVisibwe) {
+				this.wayout(this._dimension);
 			}
 		}));
 
-		this.notebookEditorService.addNotebookEditor(this);
+		this.notebookEditowSewvice.addNotebookEditow(this);
 
-		const id = generateUuid();
-		this._overlayContainer.id = `notebook-${id}`;
-		this._overlayContainer.className = 'notebookOverlay';
-		this._overlayContainer.classList.add('notebook-editor');
-		this._overlayContainer.style.visibility = 'hidden';
+		const id = genewateUuid();
+		this._ovewwayContaina.id = `notebook-${id}`;
+		this._ovewwayContaina.cwassName = 'notebookOvewway';
+		this._ovewwayContaina.cwassWist.add('notebook-editow');
+		this._ovewwayContaina.stywe.visibiwity = 'hidden';
 
-		this.layoutService.container.appendChild(this._overlayContainer);
-		this._createBody(this._overlayContainer);
-		this._generateFontInfo();
-		this._isVisible = true;
-		this._editorFocus = NOTEBOOK_EDITOR_FOCUSED.bindTo(this.scopedContextKeyService);
-		this._outputFocus = NOTEBOOK_OUTPUT_FOCUSED.bindTo(this.scopedContextKeyService);
-		this._editorEditable = NOTEBOOK_EDITOR_EDITABLE.bindTo(this.scopedContextKeyService);
+		this.wayoutSewvice.containa.appendChiwd(this._ovewwayContaina);
+		this._cweateBody(this._ovewwayContaina);
+		this._genewateFontInfo();
+		this._isVisibwe = twue;
+		this._editowFocus = NOTEBOOK_EDITOW_FOCUSED.bindTo(this.scopedContextKeySewvice);
+		this._outputFocus = NOTEBOOK_OUTPUT_FOCUSED.bindTo(this.scopedContextKeySewvice);
+		this._editowEditabwe = NOTEBOOK_EDITOW_EDITABWE.bindTo(this.scopedContextKeySewvice);
 
-		this._editorEditable.set(!creationOptions.isReadOnly);
+		this._editowEditabwe.set(!cweationOptions.isWeadOnwy);
 
-		let contributions: INotebookEditorContributionDescription[];
-		if (Array.isArray(this.creationOptions.contributions)) {
-			contributions = this.creationOptions.contributions;
-		} else {
-			contributions = NotebookEditorExtensionsRegistry.getEditorContributions();
+		wet contwibutions: INotebookEditowContwibutionDescwiption[];
+		if (Awway.isAwway(this.cweationOptions.contwibutions)) {
+			contwibutions = this.cweationOptions.contwibutions;
+		} ewse {
+			contwibutions = NotebookEditowExtensionsWegistwy.getEditowContwibutions();
 		}
-		for (const desc of contributions) {
-			let contribution: INotebookEditorContribution | undefined;
-			try {
-				contribution = this.instantiationService.createInstance(desc.ctor, this);
-			} catch (err) {
-				onUnexpectedError(err);
+		fow (const desc of contwibutions) {
+			wet contwibution: INotebookEditowContwibution | undefined;
+			twy {
+				contwibution = this.instantiationSewvice.cweateInstance(desc.ctow, this);
+			} catch (eww) {
+				onUnexpectedEwwow(eww);
 			}
-			if (contribution) {
-				if (!this._contributions.has(desc.id)) {
-					this._contributions.set(desc.id, contribution);
-				} else {
-					contribution.dispose();
-					throw new Error(`DUPLICATE notebook editor contribution: '${desc.id}'`);
+			if (contwibution) {
+				if (!this._contwibutions.has(desc.id)) {
+					this._contwibutions.set(desc.id, contwibution);
+				} ewse {
+					contwibution.dispose();
+					thwow new Ewwow(`DUPWICATE notebook editow contwibution: '${desc.id}'`);
 				}
 			}
 		}
 
-		this._updateForNotebookConfiguration();
+		this._updateFowNotebookConfiguwation();
 
-		if (this._debugFlag) {
-			this._domFrameLog();
+		if (this._debugFwag) {
+			this._domFwameWog();
 		}
 	}
 
-	private _debugFlag: boolean = false;
-	private _frameId = 0;
-	private _domFrameLog() {
-		DOM.scheduleAtNextAnimationFrame(() => {
-			this._frameId++;
+	pwivate _debugFwag: boowean = fawse;
+	pwivate _fwameId = 0;
+	pwivate _domFwameWog() {
+		DOM.scheduweAtNextAnimationFwame(() => {
+			this._fwameId++;
 
-			this._domFrameLog();
+			this._domFwameWog();
 		}, 1000000);
 	}
 
-	private _debug(...args: any[]) {
-		if (!this._debugFlag) {
-			return;
+	pwivate _debug(...awgs: any[]) {
+		if (!this._debugFwag) {
+			wetuwn;
 		}
 
 		const date = new Date();
-		console.log(`${date.getSeconds()}:${date.getMilliseconds().toString().padStart(3, '0')}`, `frame #${this._frameId}: `, ...args);
+		consowe.wog(`${date.getSeconds()}:${date.getMiwwiseconds().toStwing().padStawt(3, '0')}`, `fwame #${this._fwameId}: `, ...awgs);
 	}
 
 	/**
-	 * EditorId
+	 * EditowId
 	 */
-	public getId(): string {
-		return this._uuid;
+	pubwic getId(): stwing {
+		wetuwn this._uuid;
 	}
 
-	_getViewModel(): NotebookViewModel | undefined {
-		return this.viewModel;
+	_getViewModew(): NotebookViewModew | undefined {
+		wetuwn this.viewModew;
 	}
 
-	getLength() {
-		return this.viewModel?.length ?? 0;
+	getWength() {
+		wetuwn this.viewModew?.wength ?? 0;
 	}
 
-	getSelections() {
-		return this.viewModel?.getSelections() ?? [];
+	getSewections() {
+		wetuwn this.viewModew?.getSewections() ?? [];
 	}
 
-	setSelections(selections: ICellRange[]) {
-		if (!this.viewModel) {
-			return;
+	setSewections(sewections: ICewwWange[]) {
+		if (!this.viewModew) {
+			wetuwn;
 		}
 
-		const focus = this.viewModel.getFocus();
-		this.viewModel.updateSelectionsState({
-			kind: SelectionStateType.Index,
+		const focus = this.viewModew.getFocus();
+		this.viewModew.updateSewectionsState({
+			kind: SewectionStateType.Index,
 			focus: focus,
-			selections: selections
+			sewections: sewections
 		});
 	}
 
 	getFocus() {
-		return this.viewModel?.getFocus() ?? { start: 0, end: 0 };
+		wetuwn this.viewModew?.getFocus() ?? { stawt: 0, end: 0 };
 	}
 
-	setFocus(focus: ICellRange) {
-		if (!this.viewModel) {
-			return;
+	setFocus(focus: ICewwWange) {
+		if (!this.viewModew) {
+			wetuwn;
 		}
 
-		const selections = this.viewModel.getSelections();
-		this.viewModel.updateSelectionsState({
-			kind: SelectionStateType.Index,
+		const sewections = this.viewModew.getSewections();
+		this.viewModew.updateSewectionsState({
+			kind: SewectionStateType.Index,
 			focus: focus,
-			selections: selections
+			sewections: sewections
 		});
 	}
 
-	getSelectionViewModels(): ICellViewModel[] {
-		if (!this.viewModel) {
-			return [];
+	getSewectionViewModews(): ICewwViewModew[] {
+		if (!this.viewModew) {
+			wetuwn [];
 		}
 
-		const cellsSet = new Set<number>();
+		const cewwsSet = new Set<numba>();
 
-		return this.viewModel.getSelections().map(range => this.viewModel!.viewCells.slice(range.start, range.end)).reduce((a, b) => {
-			b.forEach(cell => {
-				if (!cellsSet.has(cell.handle)) {
-					cellsSet.add(cell.handle);
-					a.push(cell);
+		wetuwn this.viewModew.getSewections().map(wange => this.viewModew!.viewCewws.swice(wange.stawt, wange.end)).weduce((a, b) => {
+			b.fowEach(ceww => {
+				if (!cewwsSet.has(ceww.handwe)) {
+					cewwsSet.add(ceww.handwe);
+					a.push(ceww);
 				}
 			});
 
-			return a;
-		}, [] as ICellViewModel[]);
+			wetuwn a;
+		}, [] as ICewwViewModew[]);
 	}
 
-	hasModel(): this is IActiveNotebookEditorDelegate {
-		return !!this._notebookViewModel;
+	hasModew(): this is IActiveNotebookEditowDewegate {
+		wetuwn !!this._notebookViewModew;
 	}
 
-	//#region Editor Core
-	private _updateForNotebookConfiguration() {
-		if (!this._overlayContainer) {
-			return;
+	//#wegion Editow Cowe
+	pwivate _updateFowNotebookConfiguwation() {
+		if (!this._ovewwayContaina) {
+			wetuwn;
 		}
 
-		this._overlayContainer.classList.remove('cell-title-toolbar-left');
-		this._overlayContainer.classList.remove('cell-title-toolbar-right');
-		this._overlayContainer.classList.remove('cell-title-toolbar-hidden');
-		const cellToolbarLocation = this._notebookOptions.computeCellToolbarLocation(this.viewModel?.viewType);
-		this._overlayContainer.classList.add(`cell-title-toolbar-${cellToolbarLocation}`);
+		this._ovewwayContaina.cwassWist.wemove('ceww-titwe-toowbaw-weft');
+		this._ovewwayContaina.cwassWist.wemove('ceww-titwe-toowbaw-wight');
+		this._ovewwayContaina.cwassWist.wemove('ceww-titwe-toowbaw-hidden');
+		const cewwToowbawWocation = this._notebookOptions.computeCewwToowbawWocation(this.viewModew?.viewType);
+		this._ovewwayContaina.cwassWist.add(`ceww-titwe-toowbaw-${cewwToowbawWocation}`);
 
-		const cellToolbarInteraction = this._notebookOptions.getLayoutConfiguration().cellToolbarInteraction;
-		let cellToolbarInteractionState = 'hover';
-		this._overlayContainer.classList.remove('cell-toolbar-hover');
-		this._overlayContainer.classList.remove('cell-toolbar-click');
+		const cewwToowbawIntewaction = this._notebookOptions.getWayoutConfiguwation().cewwToowbawIntewaction;
+		wet cewwToowbawIntewactionState = 'hova';
+		this._ovewwayContaina.cwassWist.wemove('ceww-toowbaw-hova');
+		this._ovewwayContaina.cwassWist.wemove('ceww-toowbaw-cwick');
 
-		if (cellToolbarInteraction === 'hover' || cellToolbarInteraction === 'click') {
-			cellToolbarInteractionState = cellToolbarInteraction;
+		if (cewwToowbawIntewaction === 'hova' || cewwToowbawIntewaction === 'cwick') {
+			cewwToowbawIntewactionState = cewwToowbawIntewaction;
 		}
-		this._overlayContainer.classList.add(`cell-toolbar-${cellToolbarInteractionState}`);
+		this._ovewwayContaina.cwassWist.add(`ceww-toowbaw-${cewwToowbawIntewactionState}`);
 
 	}
 
-	private _generateFontInfo(): void {
-		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-		this._fontInfo = readFontInfo(BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel(), getPixelRatio()));
+	pwivate _genewateFontInfo(): void {
+		const editowOptions = this.configuwationSewvice.getVawue<IEditowOptions>('editow');
+		this._fontInfo = weadFontInfo(BaweFontInfo.cweateFwomWawSettings(editowOptions, getZoomWevew(), getPixewWatio()));
 	}
 
-	private _createBody(parent: HTMLElement): void {
-		this._notebookTopToolbarContainer = document.createElement('div');
-		this._notebookTopToolbarContainer.classList.add('notebook-toolbar-container');
-		this._notebookTopToolbarContainer.style.display = 'none';
-		DOM.append(parent, this._notebookTopToolbarContainer);
-		this._body = document.createElement('div');
-		DOM.append(parent, this._body);
-		this._body.classList.add('cell-list-container');
-		this._createLayoutStyles();
-		this._createCellList();
+	pwivate _cweateBody(pawent: HTMWEwement): void {
+		this._notebookTopToowbawContaina = document.cweateEwement('div');
+		this._notebookTopToowbawContaina.cwassWist.add('notebook-toowbaw-containa');
+		this._notebookTopToowbawContaina.stywe.dispway = 'none';
+		DOM.append(pawent, this._notebookTopToowbawContaina);
+		this._body = document.cweateEwement('div');
+		DOM.append(pawent, this._body);
+		this._body.cwassWist.add('ceww-wist-containa');
+		this._cweateWayoutStywes();
+		this._cweateCewwWist();
 
-		this._overflowContainer = document.createElement('div');
-		this._overflowContainer.classList.add('notebook-overflow-widget-container', 'monaco-editor');
-		DOM.append(parent, this._overflowContainer);
+		this._ovewfwowContaina = document.cweateEwement('div');
+		this._ovewfwowContaina.cwassWist.add('notebook-ovewfwow-widget-containa', 'monaco-editow');
+		DOM.append(pawent, this._ovewfwowContaina);
 	}
 
-	private _createLayoutStyles(): void {
-		this._styleElement = DOM.createStyleSheet(this._body);
+	pwivate _cweateWayoutStywes(): void {
+		this._styweEwement = DOM.cweateStyweSheet(this._body);
 		const {
-			cellRightMargin,
-			cellTopMargin,
-			cellRunGutter,
-			cellBottomMargin,
-			codeCellLeftMargin,
-			markdownCellGutter,
-			markdownCellLeftMargin,
-			markdownCellBottomMargin,
-			markdownCellTopMargin,
-			// bottomToolbarGap: bottomCellToolbarGap,
-			// bottomToolbarHeight: bottomCellToolbarHeight,
-			collapsedIndicatorHeight,
+			cewwWightMawgin,
+			cewwTopMawgin,
+			cewwWunGutta,
+			cewwBottomMawgin,
+			codeCewwWeftMawgin,
+			mawkdownCewwGutta,
+			mawkdownCewwWeftMawgin,
+			mawkdownCewwBottomMawgin,
+			mawkdownCewwTopMawgin,
+			// bottomToowbawGap: bottomCewwToowbawGap,
+			// bottomToowbawHeight: bottomCewwToowbawHeight,
+			cowwapsedIndicatowHeight,
 			compactView,
-			focusIndicator,
-			insertToolbarPosition,
-			insertToolbarAlignment,
+			focusIndicatow,
+			insewtToowbawPosition,
+			insewtToowbawAwignment,
 			fontSize,
-			focusIndicatorLeftMargin
-		} = this._notebookOptions.getLayoutConfiguration();
+			focusIndicatowWeftMawgin
+		} = this._notebookOptions.getWayoutConfiguwation();
 
-		const { bottomToolbarGap, bottomToolbarHeight } = this._notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType);
+		const { bottomToowbawGap, bottomToowbawHeight } = this._notebookOptions.computeBottomToowbawDimensions(this.viewModew?.viewType);
 
-		const styleSheets: string[] = [];
-		const fontFamily = this._fontInfo?.fontFamily ?? `"SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace`;
+		const styweSheets: stwing[] = [];
+		const fontFamiwy = this._fontInfo?.fontFamiwy ?? `"SF Mono", Monaco, Menwo, Consowas, "Ubuntu Mono", "Wibewation Mono", "DejaVu Sans Mono", "Couwia New", monospace`;
 
-		styleSheets.push(`
-		:root {
-			--notebook-cell-output-font-size: ${fontSize}px;
-			--notebook-cell-input-preview-font-size: ${fontSize}px;
-			--notebook-cell-input-preview-font-family: ${fontFamily};
+		styweSheets.push(`
+		:woot {
+			--notebook-ceww-output-font-size: ${fontSize}px;
+			--notebook-ceww-input-pweview-font-size: ${fontSize}px;
+			--notebook-ceww-input-pweview-font-famiwy: ${fontFamiwy};
 		}
 		`);
 
 		if (compactView) {
-			styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .markdown-cell-row div.cell.code { margin-left: ${codeCellLeftMargin + cellRunGutter}px; }`);
-		} else {
-			styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .markdown-cell-row div.cell.code { margin-left: ${codeCellLeftMargin}px; }`);
+			styweSheets.push(`.notebookOvewway .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .mawkdown-ceww-wow div.ceww.code { mawgin-weft: ${codeCewwWeftMawgin + cewwWunGutta}px; }`);
+		} ewse {
+			styweSheets.push(`.notebookOvewway .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .mawkdown-ceww-wow div.ceww.code { mawgin-weft: ${codeCewwWeftMawgin}px; }`);
 		}
 
-		// focus indicator
-		if (focusIndicator === 'border') {
-			styleSheets.push(`
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-top:before,
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-bottom:before,
-			.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row .cell-inner-container:before,
-			.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row .cell-inner-container:after {
+		// focus indicatow
+		if (focusIndicatow === 'bowda') {
+			styweSheets.push(`
+			.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow .ceww-focus-indicatow-top:befowe,
+			.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow .ceww-focus-indicatow-bottom:befowe,
+			.monaco-wowkbench .notebookOvewway .monaco-wist .mawkdown-ceww-wow .ceww-inna-containa:befowe,
+			.monaco-wowkbench .notebookOvewway .monaco-wist .mawkdown-ceww-wow .ceww-inna-containa:afta {
 				content: "";
-				position: absolute;
+				position: absowute;
 				width: 100%;
 				height: 1px;
 			}
 
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left:before,
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-right:before {
+			.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow .ceww-focus-indicatow-weft:befowe,
+			.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow .ceww-focus-indicatow-wight:befowe {
 				content: "";
-				position: absolute;
+				position: absowute;
 				width: 1px;
 				height: 100%;
 				z-index: 10;
 			}
 
-			/* top border */
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-top:before {
-				border-top: 1px solid transparent;
+			/* top bowda */
+			.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow .ceww-focus-indicatow-top:befowe {
+				bowda-top: 1px sowid twanspawent;
 			}
 
-			/* left border */
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left:before {
-				border-left: 1px solid transparent;
+			/* weft bowda */
+			.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow .ceww-focus-indicatow-weft:befowe {
+				bowda-weft: 1px sowid twanspawent;
 			}
 
-			/* bottom border */
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-bottom:before {
-				border-bottom: 1px solid transparent;
+			/* bottom bowda */
+			.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow .ceww-focus-indicatow-bottom:befowe {
+				bowda-bottom: 1px sowid twanspawent;
 			}
 
-			/* right border */
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-right:before {
-				border-right: 1px solid transparent;
+			/* wight bowda */
+			.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow .ceww-focus-indicatow-wight:befowe {
+				bowda-wight: 1px sowid twanspawent;
 			}
 			`);
 
-			// left and right border margins
-			styleSheets.push(`
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.focused .cell-focus-indicator-left:before,
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.focused .cell-focus-indicator-right:before,
-			.monaco-workbench .notebookOverlay .monaco-list.selection-multiple .monaco-list-row.code-cell-row.selected .cell-focus-indicator-left:before,
-			.monaco-workbench .notebookOverlay .monaco-list.selection-multiple .monaco-list-row.code-cell-row.selected .cell-focus-indicator-right:before {
-				top: -${cellTopMargin}px; height: calc(100% + ${cellTopMargin + cellBottomMargin}px)
+			// weft and wight bowda mawgins
+			styweSheets.push(`
+			.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow.code-ceww-wow.focused .ceww-focus-indicatow-weft:befowe,
+			.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow.code-ceww-wow.focused .ceww-focus-indicatow-wight:befowe,
+			.monaco-wowkbench .notebookOvewway .monaco-wist.sewection-muwtipwe .monaco-wist-wow.code-ceww-wow.sewected .ceww-focus-indicatow-weft:befowe,
+			.monaco-wowkbench .notebookOvewway .monaco-wist.sewection-muwtipwe .monaco-wist-wow.code-ceww-wow.sewected .ceww-focus-indicatow-wight:befowe {
+				top: -${cewwTopMawgin}px; height: cawc(100% + ${cewwTopMawgin + cewwBottomMawgin}px)
 			}`);
-		} else {
-			// gutter
-			styleSheets.push(`
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left:before,
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-right:before {
+		} ewse {
+			// gutta
+			styweSheets.push(`
+			.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow .ceww-focus-indicatow-weft:befowe,
+			.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow .ceww-focus-indicatow-wight:befowe {
 				content: "";
-				position: absolute;
+				position: absowute;
 				width: 0px;
 				height: 100%;
 				z-index: 10;
 			}
 			`);
 
-			// left and right border margins
-			styleSheets.push(`
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.focused .cell-focus-indicator-left:before,
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.focused .cell-focus-indicator-right:before,
-			.monaco-workbench .notebookOverlay .monaco-list.selection-multiple .monaco-list-row.code-cell-row.selected .cell-focus-indicator-left:before,
-			.monaco-workbench .notebookOverlay .monaco-list.selection-multiple .monaco-list-row.code-cell-row.selected .cell-focus-indicator-right:before {
+			// weft and wight bowda mawgins
+			styweSheets.push(`
+			.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow.code-ceww-wow.focused .ceww-focus-indicatow-weft:befowe,
+			.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow.code-ceww-wow.focused .ceww-focus-indicatow-wight:befowe,
+			.monaco-wowkbench .notebookOvewway .monaco-wist.sewection-muwtipwe .monaco-wist-wow.code-ceww-wow.sewected .ceww-focus-indicatow-weft:befowe,
+			.monaco-wowkbench .notebookOvewway .monaco-wist.sewection-muwtipwe .monaco-wist-wow.code-ceww-wow.sewected .ceww-focus-indicatow-wight:befowe {
 				top: 0px; height: 100%;
 			}`);
 
-			styleSheets.push(`
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-left:before,
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.selected .cell-focus-indicator-left:before {
-				border-left: 3px solid transparent;
-				border-radius: 2px;
-				margin-left: ${focusIndicatorLeftMargin}px;
+			styweSheets.push(`
+			.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow.focused .ceww-focus-indicatow-weft:befowe,
+			.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow.sewected .ceww-focus-indicatow-weft:befowe {
+				bowda-weft: 3px sowid twanspawent;
+				bowda-wadius: 2px;
+				mawgin-weft: ${focusIndicatowWeftMawgin}px;
 			}`);
 
-			// boder should always show
-			styleSheets.push(`
-			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container .cell-focus-indicator-left:before {
-				border-color: var(--notebook-focused-cell-border-color) !important;
+			// boda shouwd awways show
+			styweSheets.push(`
+			.monaco-wowkbench .notebookOvewway .monaco-wist:focus-within .monaco-wist-wow.focused .ceww-inna-containa .ceww-focus-indicatow-weft:befowe {
+				bowda-cowow: vaw(--notebook-focused-ceww-bowda-cowow) !impowtant;
 			}
 
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-inner-container .cell-focus-indicator-left:before {
-				border-color: var(--notebook-inactive-focused-cell-border-color) !important;
+			.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow.focused .ceww-inna-containa .ceww-focus-indicatow-weft:befowe {
+				bowda-cowow: vaw(--notebook-inactive-focused-ceww-bowda-cowow) !impowtant;
 			}
 			`);
 		}
 
-		// between cell insert toolbar
-		if (insertToolbarPosition === 'betweenCells' || insertToolbarPosition === 'both') {
-			styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container { display: flex; }`);
-			styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .cell-list-top-cell-toolbar-container { display: flex; }`);
-		} else {
-			styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container { display: none; }`);
-			styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .cell-list-top-cell-toolbar-container { display: none; }`);
+		// between ceww insewt toowbaw
+		if (insewtToowbawPosition === 'betweenCewws' || insewtToowbawPosition === 'both') {
+			styweSheets.push(`.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-bottom-toowbaw-containa { dispway: fwex; }`);
+			styweSheets.push(`.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .ceww-wist-top-ceww-toowbaw-containa { dispway: fwex; }`);
+		} ewse {
+			styweSheets.push(`.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-bottom-toowbaw-containa { dispway: none; }`);
+			styweSheets.push(`.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .ceww-wist-top-ceww-toowbaw-containa { dispway: none; }`);
 		}
 
-		if (insertToolbarAlignment === 'left') {
-			styleSheets.push(`
-			.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .action-item:first-child,
-			.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .action-item:first-child, .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .action-item:first-child {
-				margin-right: 0px !important;
+		if (insewtToowbawAwignment === 'weft') {
+			styweSheets.push(`
+			.monaco-wowkbench .notebookOvewway .ceww-wist-top-ceww-toowbaw-containa .action-item:fiwst-chiwd,
+			.monaco-wowkbench .notebookOvewway .ceww-wist-top-ceww-toowbaw-containa .action-item:fiwst-chiwd, .monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-bottom-toowbaw-containa .action-item:fiwst-chiwd {
+				mawgin-wight: 0px !impowtant;
 			}`);
 
-			styleSheets.push(`
-			.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-toolbar .action-label,
-			.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-toolbar .action-label, .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .monaco-toolbar .action-label {
-				padding: 0px !important;
-				justify-content: center;
-				border-radius: 4px;
+			styweSheets.push(`
+			.monaco-wowkbench .notebookOvewway .ceww-wist-top-ceww-toowbaw-containa .monaco-toowbaw .action-wabew,
+			.monaco-wowkbench .notebookOvewway .ceww-wist-top-ceww-toowbaw-containa .monaco-toowbaw .action-wabew, .monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-bottom-toowbaw-containa .monaco-toowbaw .action-wabew {
+				padding: 0px !impowtant;
+				justify-content: centa;
+				bowda-wadius: 4px;
 			}`);
 
-			styleSheets.push(`
-			.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container,
-			.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container, .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container {
-				align-items: flex-start;
-				justify-content: left;
-				margin: 0 16px 0 ${8 + codeCellLeftMargin}px;
+			styweSheets.push(`
+			.monaco-wowkbench .notebookOvewway .ceww-wist-top-ceww-toowbaw-containa,
+			.monaco-wowkbench .notebookOvewway .ceww-wist-top-ceww-toowbaw-containa, .monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-bottom-toowbaw-containa {
+				awign-items: fwex-stawt;
+				justify-content: weft;
+				mawgin: 0 16px 0 ${8 + codeCewwWeftMawgin}px;
 			}`);
 
-			styleSheets.push(`
-			.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container,
-			.notebookOverlay .cell-bottom-toolbar-container .action-item {
-				border: 0px;
+			styweSheets.push(`
+			.monaco-wowkbench .notebookOvewway .ceww-wist-top-ceww-toowbaw-containa,
+			.notebookOvewway .ceww-bottom-toowbaw-containa .action-item {
+				bowda: 0px;
 			}`);
 		}
 
-		// top insert toolbar
-		const topInsertToolbarHeight = this._notebookOptions.computeTopInserToolbarHeight(this.viewModel?.viewType);
-		styleSheets.push(`.notebookOverlay .cell-list-top-cell-toolbar-container { top: -${topInsertToolbarHeight}px }`);
-		styleSheets.push(`.notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element,
-		.notebookOverlay > .cell-list-container > .notebook-gutter > .monaco-list > .monaco-scrollable-element {
-			padding-top: ${topInsertToolbarHeight}px;
-			box-sizing: border-box;
+		// top insewt toowbaw
+		const topInsewtToowbawHeight = this._notebookOptions.computeTopInsewToowbawHeight(this.viewModew?.viewType);
+		styweSheets.push(`.notebookOvewway .ceww-wist-top-ceww-toowbaw-containa { top: -${topInsewtToowbawHeight}px }`);
+		styweSheets.push(`.notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement,
+		.notebookOvewway > .ceww-wist-containa > .notebook-gutta > .monaco-wist > .monaco-scwowwabwe-ewement {
+			padding-top: ${topInsewtToowbawHeight}px;
+			box-sizing: bowda-box;
 		}`);
 
-		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .code-cell-row div.cell.code { margin-left: ${codeCellLeftMargin + cellRunGutter}px; }`);
-		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row div.cell { margin-right: ${cellRightMargin}px; }`);
-		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .cell-inner-container { padding-top: ${cellTopMargin}px; }`);
-		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .markdown-cell-row > .cell-inner-container { padding-bottom: ${markdownCellBottomMargin}px; padding-top: ${markdownCellTopMargin}px; }`);
-		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .markdown-cell-row > .cell-inner-container.webview-backed-markdown-cell { padding: 0; }`);
-		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .markdown-cell-row > .webview-backed-markdown-cell.markdown-cell-edit-mode .cell.code { padding-bottom: ${markdownCellBottomMargin}px; padding-top: ${markdownCellTopMargin}px; }`);
-		styleSheets.push(`.notebookOverlay .output { margin: 0px ${cellRightMargin}px 0px ${codeCellLeftMargin + cellRunGutter}px; }`);
-		styleSheets.push(`.notebookOverlay .output { width: calc(100% - ${codeCellLeftMargin + cellRunGutter + cellRightMargin}px); }`);
+		styweSheets.push(`.notebookOvewway .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .code-ceww-wow div.ceww.code { mawgin-weft: ${codeCewwWeftMawgin + cewwWunGutta}px; }`);
+		styweSheets.push(`.notebookOvewway .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow div.ceww { mawgin-wight: ${cewwWightMawgin}px; }`);
+		styweSheets.push(`.notebookOvewway .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow > .ceww-inna-containa { padding-top: ${cewwTopMawgin}px; }`);
+		styweSheets.push(`.notebookOvewway .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .mawkdown-ceww-wow > .ceww-inna-containa { padding-bottom: ${mawkdownCewwBottomMawgin}px; padding-top: ${mawkdownCewwTopMawgin}px; }`);
+		styweSheets.push(`.notebookOvewway .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .mawkdown-ceww-wow > .ceww-inna-containa.webview-backed-mawkdown-ceww { padding: 0; }`);
+		styweSheets.push(`.notebookOvewway .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .mawkdown-ceww-wow > .webview-backed-mawkdown-ceww.mawkdown-ceww-edit-mode .ceww.code { padding-bottom: ${mawkdownCewwBottomMawgin}px; padding-top: ${mawkdownCewwTopMawgin}px; }`);
+		styweSheets.push(`.notebookOvewway .output { mawgin: 0px ${cewwWightMawgin}px 0px ${codeCewwWeftMawgin + cewwWunGutta}px; }`);
+		styweSheets.push(`.notebookOvewway .output { width: cawc(100% - ${codeCewwWeftMawgin + cewwWunGutta + cewwWightMawgin}px); }`);
 
-		// output toolbar
-		styleSheets.push(`.monaco-workbench .notebookOverlay .output .cell-output-toolbar { left: -${cellRunGutter}px; }`);
-		styleSheets.push(`.monaco-workbench .notebookOverlay .output .cell-output-toolbar { width: ${cellRunGutter}px; }`);
+		// output toowbaw
+		styweSheets.push(`.monaco-wowkbench .notebookOvewway .output .ceww-output-toowbaw { weft: -${cewwWunGutta}px; }`);
+		styweSheets.push(`.monaco-wowkbench .notebookOvewway .output .ceww-output-toowbaw { width: ${cewwWunGutta}px; }`);
 
-		// output collapse button
-		styleSheets.push(`.monaco-workbench .notebookOverlay .output .output-collapse-container .expandButton { left: -${cellRunGutter}px; }`);
-		styleSheets.push(`.monaco-workbench .notebookOverlay .output .output-collapse-container .expandButton {
-			position: absolute;
-			width: ${cellRunGutter}px;
+		// output cowwapse button
+		styweSheets.push(`.monaco-wowkbench .notebookOvewway .output .output-cowwapse-containa .expandButton { weft: -${cewwWunGutta}px; }`);
+		styweSheets.push(`.monaco-wowkbench .notebookOvewway .output .output-cowwapse-containa .expandButton {
+			position: absowute;
+			width: ${cewwWunGutta}px;
 			padding: 6px 0px;
 		}`);
 
-		// show more container
-		styleSheets.push(`.notebookOverlay .output-show-more-container { margin: 0px ${cellRightMargin}px 0px ${codeCellLeftMargin + cellRunGutter}px; }`);
-		styleSheets.push(`.notebookOverlay .output-show-more-container { width: calc(100% - ${codeCellLeftMargin + cellRunGutter + cellRightMargin}px); }`);
-		styleSheets.push(`.notebookOverlay .cell .run-button-container { width: ${cellRunGutter}px; left: ${codeCellLeftMargin}px }`);
-		styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .execution-count-label { left: ${codeCellLeftMargin}px; width: ${cellRunGutter}px; }`);
+		// show mowe containa
+		styweSheets.push(`.notebookOvewway .output-show-mowe-containa { mawgin: 0px ${cewwWightMawgin}px 0px ${codeCewwWeftMawgin + cewwWunGutta}px; }`);
+		styweSheets.push(`.notebookOvewway .output-show-mowe-containa { width: cawc(100% - ${codeCewwWeftMawgin + cewwWunGutta + cewwWightMawgin}px); }`);
+		styweSheets.push(`.notebookOvewway .ceww .wun-button-containa { width: ${cewwWunGutta}px; weft: ${codeCewwWeftMawgin}px }`);
+		styweSheets.push(`.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .execution-count-wabew { weft: ${codeCewwWeftMawgin}px; width: ${cewwWunGutta}px; }`);
 
-		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row div.cell.markdown { padding-left: ${cellRunGutter}px; }`);
-		styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator { left: ${(markdownCellGutter - 20) / 2 + markdownCellLeftMargin}px; }`);
-		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row :not(.webview-backed-markdown-cell) .cell-focus-indicator-top { height: ${cellTopMargin}px; }`);
-		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-side { bottom: ${bottomToolbarGap}px; }`);
-		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row.code-cell-row .cell-focus-indicator-left,
-	.notebookOverlay .monaco-list .monaco-list-row.code-cell-row .cell-drag-handle { width: ${codeCellLeftMargin + cellRunGutter}px; }`);
-		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row .cell-focus-indicator-left { width: ${codeCellLeftMargin}px; }`);
-		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator.cell-focus-indicator-right { width: ${cellRightMargin}px; }`);
-		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-bottom { height: ${cellBottomMargin}px; }`);
-		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row .cell-shadow-container-bottom { top: ${cellBottomMargin}px; }`);
+		styweSheets.push(`.notebookOvewway .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow div.ceww.mawkdown { padding-weft: ${cewwWunGutta}px; }`);
+		styweSheets.push(`.monaco-wowkbench .notebookOvewway > .ceww-wist-containa .notebook-fowding-indicatow { weft: ${(mawkdownCewwGutta - 20) / 2 + mawkdownCewwWeftMawgin}px; }`);
+		styweSheets.push(`.notebookOvewway .monaco-wist .monaco-wist-wow :not(.webview-backed-mawkdown-ceww) .ceww-focus-indicatow-top { height: ${cewwTopMawgin}px; }`);
+		styweSheets.push(`.notebookOvewway .monaco-wist .monaco-wist-wow .ceww-focus-indicatow-side { bottom: ${bottomToowbawGap}px; }`);
+		styweSheets.push(`.notebookOvewway .monaco-wist .monaco-wist-wow.code-ceww-wow .ceww-focus-indicatow-weft,
+	.notebookOvewway .monaco-wist .monaco-wist-wow.code-ceww-wow .ceww-dwag-handwe { width: ${codeCewwWeftMawgin + cewwWunGutta}px; }`);
+		styweSheets.push(`.notebookOvewway .monaco-wist .monaco-wist-wow.mawkdown-ceww-wow .ceww-focus-indicatow-weft { width: ${codeCewwWeftMawgin}px; }`);
+		styweSheets.push(`.notebookOvewway .monaco-wist .monaco-wist-wow .ceww-focus-indicatow.ceww-focus-indicatow-wight { width: ${cewwWightMawgin}px; }`);
+		styweSheets.push(`.notebookOvewway .monaco-wist .monaco-wist-wow .ceww-focus-indicatow-bottom { height: ${cewwBottomMawgin}px; }`);
+		styweSheets.push(`.notebookOvewway .monaco-wist .monaco-wist-wow .ceww-shadow-containa-bottom { top: ${cewwBottomMawgin}px; }`);
 
-		styleSheets.push(`
-			.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .input-collapse-container .cell-collapse-preview {
-				line-height: ${collapsedIndicatorHeight}px;
+		styweSheets.push(`
+			.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .input-cowwapse-containa .ceww-cowwapse-pweview {
+				wine-height: ${cowwapsedIndicatowHeight}px;
 			}
 		`);
 
-		styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .monaco-toolbar { height: ${bottomToolbarHeight}px }`);
-		styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .cell-list-top-cell-toolbar-container .monaco-toolbar { height: ${bottomToolbarHeight}px }`);
+		styweSheets.push(`.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-bottom-toowbaw-containa .monaco-toowbaw { height: ${bottomToowbawHeight}px }`);
+		styweSheets.push(`.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .ceww-wist-top-ceww-toowbaw-containa .monaco-toowbaw { height: ${bottomToowbawHeight}px }`);
 
-		// cell toolbar
-		styleSheets.push(`.monaco-workbench .notebookOverlay.cell-title-toolbar-right > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar {
-			right: ${cellRightMargin + 26}px;
+		// ceww toowbaw
+		styweSheets.push(`.monaco-wowkbench .notebookOvewway.ceww-titwe-toowbaw-wight > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-titwe-toowbaw {
+			wight: ${cewwWightMawgin + 26}px;
 		}
-		.monaco-workbench .notebookOverlay.cell-title-toolbar-left > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar {
-			left: ${codeCellLeftMargin + cellRunGutter + 16}px;
+		.monaco-wowkbench .notebookOvewway.ceww-titwe-toowbaw-weft > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-titwe-toowbaw {
+			weft: ${codeCewwWeftMawgin + cewwWunGutta + 16}px;
 		}
-		.monaco-workbench .notebookOverlay.cell-title-toolbar-hidden > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar {
-			display: none;
+		.monaco-wowkbench .notebookOvewway.ceww-titwe-toowbaw-hidden > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .ceww-titwe-toowbaw {
+			dispway: none;
 		}`);
 
-		this._styleElement.textContent = styleSheets.join('\n');
+		this._styweEwement.textContent = styweSheets.join('\n');
 	}
 
-	private _createCellList(): void {
-		this._body.classList.add('cell-list-container');
+	pwivate _cweateCewwWist(): void {
+		this._body.cwassWist.add('ceww-wist-containa');
 
-		this._dndController = this._register(new CellDragAndDropController(this, this._body));
-		const getScopedContextKeyService = (container: HTMLElement) => this._list.contextKeyService.createScoped(container);
-		const renderers = [
-			this.instantiationService.createInstance(CodeCellRenderer, this, this._renderedEditors, this._dndController, getScopedContextKeyService),
-			this.instantiationService.createInstance(MarkupCellRenderer, this, this._dndController, this._renderedEditors, getScopedContextKeyService),
+		this._dndContwowwa = this._wegista(new CewwDwagAndDwopContwowwa(this, this._body));
+		const getScopedContextKeySewvice = (containa: HTMWEwement) => this._wist.contextKeySewvice.cweateScoped(containa);
+		const wendewews = [
+			this.instantiationSewvice.cweateInstance(CodeCewwWendewa, this, this._wendewedEditows, this._dndContwowwa, getScopedContextKeySewvice),
+			this.instantiationSewvice.cweateInstance(MawkupCewwWendewa, this, this._dndContwowwa, this._wendewedEditows, getScopedContextKeySewvice),
 		];
 
-		renderers.forEach(renderer => {
-			this._register(renderer);
+		wendewews.fowEach(wendewa => {
+			this._wegista(wendewa);
 		});
 
-		this._listDelegate = this.instantiationService.createInstance(NotebookCellListDelegate);
-		this._register(this._listDelegate);
+		this._wistDewegate = this.instantiationSewvice.cweateInstance(NotebookCewwWistDewegate);
+		this._wegista(this._wistDewegate);
 
-		this._list = this.instantiationService.createInstance(
-			NotebookCellList,
-			'NotebookCellList',
-			this._overlayContainer,
+		this._wist = this.instantiationSewvice.cweateInstance(
+			NotebookCewwWist,
+			'NotebookCewwWist',
+			this._ovewwayContaina,
 			this._body,
 			this._viewContext,
-			this._listDelegate,
-			renderers,
-			this.scopedContextKeyService,
+			this._wistDewegate,
+			wendewews,
+			this.scopedContextKeySewvice,
 			{
-				setRowLineHeight: false,
-				setRowHeight: false,
-				supportDynamicHeights: true,
-				horizontalScrolling: false,
-				keyboardSupport: false,
-				mouseSupport: true,
-				multipleSelectionSupport: true,
-				selectionNavigation: true,
-				enableKeyboardNavigation: true,
-				additionalScrollHeight: 0,
-				transformOptimization: false, //(isMacintosh && isNative) || getTitleBarStyle(this.configurationService, this.environmentService) === 'native',
-				styleController: (_suffix: string) => { return this._list; },
-				overrideStyles: {
-					listBackground: editorBackground,
-					listActiveSelectionBackground: editorBackground,
-					listActiveSelectionForeground: foreground,
-					listFocusAndSelectionBackground: editorBackground,
-					listFocusAndSelectionForeground: foreground,
-					listFocusBackground: editorBackground,
-					listFocusForeground: foreground,
-					listHoverForeground: foreground,
-					listHoverBackground: editorBackground,
-					listHoverOutline: focusBorder,
-					listFocusOutline: focusBorder,
-					listInactiveSelectionBackground: editorBackground,
-					listInactiveSelectionForeground: foreground,
-					listInactiveFocusBackground: editorBackground,
-					listInactiveFocusOutline: editorBackground,
+				setWowWineHeight: fawse,
+				setWowHeight: fawse,
+				suppowtDynamicHeights: twue,
+				howizontawScwowwing: fawse,
+				keyboawdSuppowt: fawse,
+				mouseSuppowt: twue,
+				muwtipweSewectionSuppowt: twue,
+				sewectionNavigation: twue,
+				enabweKeyboawdNavigation: twue,
+				additionawScwowwHeight: 0,
+				twansfowmOptimization: fawse, //(isMacintosh && isNative) || getTitweBawStywe(this.configuwationSewvice, this.enviwonmentSewvice) === 'native',
+				styweContwowwa: (_suffix: stwing) => { wetuwn this._wist; },
+				ovewwideStywes: {
+					wistBackgwound: editowBackgwound,
+					wistActiveSewectionBackgwound: editowBackgwound,
+					wistActiveSewectionFowegwound: fowegwound,
+					wistFocusAndSewectionBackgwound: editowBackgwound,
+					wistFocusAndSewectionFowegwound: fowegwound,
+					wistFocusBackgwound: editowBackgwound,
+					wistFocusFowegwound: fowegwound,
+					wistHovewFowegwound: fowegwound,
+					wistHovewBackgwound: editowBackgwound,
+					wistHovewOutwine: focusBowda,
+					wistFocusOutwine: focusBowda,
+					wistInactiveSewectionBackgwound: editowBackgwound,
+					wistInactiveSewectionFowegwound: fowegwound,
+					wistInactiveFocusBackgwound: editowBackgwound,
+					wistInactiveFocusOutwine: editowBackgwound,
 				},
-				accessibilityProvider: {
-					getAriaLabel: (element) => {
-						if (!this.viewModel) {
-							return '';
+				accessibiwityPwovida: {
+					getAwiaWabew: (ewement) => {
+						if (!this.viewModew) {
+							wetuwn '';
 						}
-						const index = this.viewModel.getCellIndex(element);
+						const index = this.viewModew.getCewwIndex(ewement);
 
 						if (index >= 0) {
-							return `Cell ${index}, ${element.cellKind === CellKind.Markup ? 'markdown' : 'code'}  cell`;
+							wetuwn `Ceww ${index}, ${ewement.cewwKind === CewwKind.Mawkup ? 'mawkdown' : 'code'}  ceww`;
 						}
 
-						return '';
+						wetuwn '';
 					},
-					getWidgetAriaLabel() {
-						return nls.localize('notebookTreeAriaLabel', "Notebook");
+					getWidgetAwiaWabew() {
+						wetuwn nws.wocawize('notebookTweeAwiaWabew', "Notebook");
 					}
 				},
-				focusNextPreviousDelegate: {
-					onFocusNext: (applyFocusNext: () => void) => this._updateForCursorNavigationMode(applyFocusNext),
-					onFocusPrevious: (applyFocusPrevious: () => void) => this._updateForCursorNavigationMode(applyFocusPrevious),
+				focusNextPweviousDewegate: {
+					onFocusNext: (appwyFocusNext: () => void) => this._updateFowCuwsowNavigationMode(appwyFocusNext),
+					onFocusPwevious: (appwyFocusPwevious: () => void) => this._updateFowCuwsowNavigationMode(appwyFocusPwevious),
 				}
 			},
 		);
-		this._dndController.setList(this._list);
+		this._dndContwowwa.setWist(this._wist);
 
-		// create Webview
+		// cweate Webview
 
-		this._register(this._list);
-		this._listViewInfoAccessor = new ListViewInfoAccessor(this._list);
-		this._register(this._listViewInfoAccessor);
+		this._wegista(this._wist);
+		this._wistViewInfoAccessow = new WistViewInfoAccessow(this._wist);
+		this._wegista(this._wistViewInfoAccessow);
 
-		this._register(combinedDisposable(...renderers));
+		this._wegista(combinedDisposabwe(...wendewews));
 
-		// top cell toolbar
-		this._listTopCellToolbar = this._register(this.instantiationService.createInstance(ListTopCellToolbar, this, this.scopedContextKeyService, this._list.rowsContainer));
+		// top ceww toowbaw
+		this._wistTopCewwToowbaw = this._wegista(this.instantiationSewvice.cweateInstance(WistTopCewwToowbaw, this, this.scopedContextKeySewvice, this._wist.wowsContaina));
 
-		// transparent cover
-		this._webviewTransparentCover = DOM.append(this._list.rowsContainer, $('.webview-cover'));
-		this._webviewTransparentCover.style.display = 'none';
+		// twanspawent cova
+		this._webviewTwanspawentCova = DOM.append(this._wist.wowsContaina, $('.webview-cova'));
+		this._webviewTwanspawentCova.stywe.dispway = 'none';
 
-		this._register(DOM.addStandardDisposableGenericMouseDownListner(this._overlayContainer, (e: StandardMouseEvent) => {
-			if (e.target.classList.contains('slider') && this._webviewTransparentCover) {
-				this._webviewTransparentCover.style.display = 'block';
+		this._wegista(DOM.addStandawdDisposabweGenewicMouseDownWistna(this._ovewwayContaina, (e: StandawdMouseEvent) => {
+			if (e.tawget.cwassWist.contains('swida') && this._webviewTwanspawentCova) {
+				this._webviewTwanspawentCova.stywe.dispway = 'bwock';
 			}
 		}));
 
-		this._register(DOM.addStandardDisposableGenericMouseUpListner(this._overlayContainer, () => {
-			if (this._webviewTransparentCover) {
-				// no matter when
-				this._webviewTransparentCover.style.display = 'none';
+		this._wegista(DOM.addStandawdDisposabweGenewicMouseUpWistna(this._ovewwayContaina, () => {
+			if (this._webviewTwanspawentCova) {
+				// no matta when
+				this._webviewTwanspawentCova.stywe.dispway = 'none';
 			}
 		}));
 
-		this._register(this._list.onMouseDown(e => {
-			if (e.element) {
-				this._onMouseDown.fire({ event: e.browserEvent, target: e.element });
+		this._wegista(this._wist.onMouseDown(e => {
+			if (e.ewement) {
+				this._onMouseDown.fiwe({ event: e.bwowsewEvent, tawget: e.ewement });
 			}
 		}));
 
-		this._register(this._list.onMouseUp(e => {
-			if (e.element) {
-				this._onMouseUp.fire({ event: e.browserEvent, target: e.element });
+		this._wegista(this._wist.onMouseUp(e => {
+			if (e.ewement) {
+				this._onMouseUp.fiwe({ event: e.bwowsewEvent, tawget: e.ewement });
 			}
 		}));
 
-		this._register(this._list.onDidChangeFocus(_e => {
-			this._onDidChangeActiveEditor.fire(this);
-			this._onDidChangeActiveCell.fire();
-			this._cursorNavigationMode = false;
+		this._wegista(this._wist.onDidChangeFocus(_e => {
+			this._onDidChangeActiveEditow.fiwe(this);
+			this._onDidChangeActiveCeww.fiwe();
+			this._cuwsowNavigationMode = fawse;
 		}));
 
-		this._register(this._list.onContextMenu(e => {
-			this.showListContextMenu(e);
+		this._wegista(this._wist.onContextMenu(e => {
+			this.showWistContextMenu(e);
 		}));
 
-		this._register(this._list.onDidChangeVisibleRanges(() => {
-			this._onDidChangeVisibleRanges.fire();
+		this._wegista(this._wist.onDidChangeVisibweWanges(() => {
+			this._onDidChangeVisibweWanges.fiwe();
 		}));
 
-		this._register(this._list.onDidScroll((e) => {
-			this._onDidScroll.fire();
+		this._wegista(this._wist.onDidScwoww((e) => {
+			this._onDidScwoww.fiwe();
 
-			if (e.scrollTop !== e.oldScrollTop) {
-				this._renderedEditors.forEach((editor, cell) => {
-					if (this.getActiveCell() === cell && editor) {
-						SuggestController.get(editor).cancelSuggestWidget();
+			if (e.scwowwTop !== e.owdScwowwTop) {
+				this._wendewedEditows.fowEach((editow, ceww) => {
+					if (this.getActiveCeww() === ceww && editow) {
+						SuggestContwowwa.get(editow).cancewSuggestWidget();
 					}
 				});
 			}
 		}));
 
-		const widgetFocusTracker = DOM.trackFocus(this.getDomNode());
-		this._register(widgetFocusTracker);
-		this._register(widgetFocusTracker.onDidFocus(() => this._onDidFocusEmitter.fire()));
-		this._register(widgetFocusTracker.onDidBlur(() => this._onDidBlurEmitter.fire()));
+		const widgetFocusTwacka = DOM.twackFocus(this.getDomNode());
+		this._wegista(widgetFocusTwacka);
+		this._wegista(widgetFocusTwacka.onDidFocus(() => this._onDidFocusEmitta.fiwe()));
+		this._wegista(widgetFocusTwacka.onDidBwuw(() => this._onDidBwuwEmitta.fiwe()));
 
-		this._registerNotebookActionsToolbar();
+		this._wegistewNotebookActionsToowbaw();
 	}
 
-	private showListContextMenu(e: IListContextMenuEvent<CellViewModel>) {
-		this.contextMenuService.showContextMenu({
+	pwivate showWistContextMenu(e: IWistContextMenuEvent<CewwViewModew>) {
+		this.contextMenuSewvice.showContextMenu({
 			getActions: () => {
-				const result: IAction[] = [];
-				const menu = this.menuService.createMenu(MenuId.NotebookCellTitle, this.scopedContextKeyService);
-				createAndFillInContextMenuActions(menu, undefined, result);
+				const wesuwt: IAction[] = [];
+				const menu = this.menuSewvice.cweateMenu(MenuId.NotebookCewwTitwe, this.scopedContextKeySewvice);
+				cweateAndFiwwInContextMenuActions(menu, undefined, wesuwt);
 				menu.dispose();
-				return result;
+				wetuwn wesuwt;
 			},
-			getAnchor: () => e.anchor
+			getAnchow: () => e.anchow
 		});
 	}
 
-	private _registerNotebookActionsToolbar() {
-		this._notebookTopToolbar = this._register(this.instantiationService.createInstance(NotebookEditorToolbar, this, this.scopedContextKeyService, this._notebookTopToolbarContainer));
-		this._register(this._notebookTopToolbar.onDidChangeState(() => {
-			if (this._dimension && this._isVisible) {
-				this.layout(this._dimension);
+	pwivate _wegistewNotebookActionsToowbaw() {
+		this._notebookTopToowbaw = this._wegista(this.instantiationSewvice.cweateInstance(NotebookEditowToowbaw, this, this.scopedContextKeySewvice, this._notebookTopToowbawContaina));
+		this._wegista(this._notebookTopToowbaw.onDidChangeState(() => {
+			if (this._dimension && this._isVisibwe) {
+				this.wayout(this._dimension);
 			}
 		}));
 	}
 
-	private _updateForCursorNavigationMode(applyFocusChange: () => void): void {
-		if (this._cursorNavigationMode) {
-			// Will fire onDidChangeFocus, resetting the state to Container
-			applyFocusChange();
+	pwivate _updateFowCuwsowNavigationMode(appwyFocusChange: () => void): void {
+		if (this._cuwsowNavigationMode) {
+			// Wiww fiwe onDidChangeFocus, wesetting the state to Containa
+			appwyFocusChange();
 
-			const newFocusedCell = this._list.getFocusedElements()[0];
-			if (newFocusedCell.cellKind === CellKind.Code || newFocusedCell.getEditState() === CellEditState.Editing) {
-				this.focusNotebookCell(newFocusedCell, 'editor');
-			} else {
-				// Reset to "Editor", the state has not been consumed
-				this._cursorNavigationMode = true;
+			const newFocusedCeww = this._wist.getFocusedEwements()[0];
+			if (newFocusedCeww.cewwKind === CewwKind.Code || newFocusedCeww.getEditState() === CewwEditState.Editing) {
+				this.focusNotebookCeww(newFocusedCeww, 'editow');
+			} ewse {
+				// Weset to "Editow", the state has not been consumed
+				this._cuwsowNavigationMode = twue;
 			}
-		} else {
-			applyFocusChange();
+		} ewse {
+			appwyFocusChange();
 		}
 	}
 
 	getDomNode() {
-		return this._overlayContainer;
+		wetuwn this._ovewwayContaina;
 	}
 
-	getOverflowContainerDomNode() {
-		return this._overflowContainer;
+	getOvewfwowContainewDomNode() {
+		wetuwn this._ovewfwowContaina;
 	}
 
-	getInnerWebview(): Webview | undefined {
-		return this._webview?.webview;
+	getInnewWebview(): Webview | undefined {
+		wetuwn this._webview?.webview;
 	}
 
-	setParentContextKeyService(parentContextKeyService: IContextKeyService): void {
-		this.scopedContextKeyService.updateParent(parentContextKeyService);
+	setPawentContextKeySewvice(pawentContextKeySewvice: IContextKeySewvice): void {
+		this.scopedContextKeySewvice.updatePawent(pawentContextKeySewvice);
 	}
 
-	async setModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined): Promise<void> {
-		if (this.viewModel === undefined || !this.viewModel.equal(textModel)) {
-			const oldTopInsertToolbarHeight = this._notebookOptions.computeTopInserToolbarHeight(this.viewModel?.viewType);
-			const oldBottomToolbarDimensions = this._notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType);
-			this._detachModel();
-			await this._attachModel(textModel, viewState);
-			const newTopInsertToolbarHeight = this._notebookOptions.computeTopInserToolbarHeight(this.viewModel?.viewType);
-			const newBottomToolbarDimensions = this._notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType);
+	async setModew(textModew: NotebookTextModew, viewState: INotebookEditowViewState | undefined): Pwomise<void> {
+		if (this.viewModew === undefined || !this.viewModew.equaw(textModew)) {
+			const owdTopInsewtToowbawHeight = this._notebookOptions.computeTopInsewToowbawHeight(this.viewModew?.viewType);
+			const owdBottomToowbawDimensions = this._notebookOptions.computeBottomToowbawDimensions(this.viewModew?.viewType);
+			this._detachModew();
+			await this._attachModew(textModew, viewState);
+			const newTopInsewtToowbawHeight = this._notebookOptions.computeTopInsewToowbawHeight(this.viewModew?.viewType);
+			const newBottomToowbawDimensions = this._notebookOptions.computeBottomToowbawDimensions(this.viewModew?.viewType);
 
-			if (oldTopInsertToolbarHeight !== newTopInsertToolbarHeight
-				|| oldBottomToolbarDimensions.bottomToolbarGap !== newBottomToolbarDimensions.bottomToolbarGap
-				|| oldBottomToolbarDimensions.bottomToolbarHeight !== newBottomToolbarDimensions.bottomToolbarHeight) {
-				this._styleElement?.remove();
-				this._createLayoutStyles();
+			if (owdTopInsewtToowbawHeight !== newTopInsewtToowbawHeight
+				|| owdBottomToowbawDimensions.bottomToowbawGap !== newBottomToowbawDimensions.bottomToowbawGap
+				|| owdBottomToowbawDimensions.bottomToowbawHeight !== newBottomToowbawDimensions.bottomToowbawHeight) {
+				this._styweEwement?.wemove();
+				this._cweateWayoutStywes();
 				this._webview?.updateOptions(this.notebookOptions.computeWebviewOptions());
 			}
-			type WorkbenchNotebookOpenClassification = {
-				scheme: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-				ext: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-				viewType: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			type WowkbenchNotebookOpenCwassification = {
+				scheme: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight'; };
+				ext: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight'; };
+				viewType: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight'; };
 			};
 
-			type WorkbenchNotebookOpenEvent = {
-				scheme: string;
-				ext: string;
-				viewType: string;
+			type WowkbenchNotebookOpenEvent = {
+				scheme: stwing;
+				ext: stwing;
+				viewType: stwing;
 			};
 
-			this.telemetryService.publicLog2<WorkbenchNotebookOpenEvent, WorkbenchNotebookOpenClassification>('notebook/editorOpened', {
-				scheme: textModel.uri.scheme,
-				ext: extname(textModel.uri),
-				viewType: textModel.viewType
+			this.tewemetwySewvice.pubwicWog2<WowkbenchNotebookOpenEvent, WowkbenchNotebookOpenCwassification>('notebook/editowOpened', {
+				scheme: textModew.uwi.scheme,
+				ext: extname(textModew.uwi),
+				viewType: textModew.viewType
 			});
-		} else {
-			this.restoreListViewState(viewState);
+		} ewse {
+			this.westoweWistViewState(viewState);
 		}
 
-		// load preloads for matching kernel
-		this._loadKernelPreloads();
+		// woad pwewoads fow matching kewnew
+		this._woadKewnewPwewoads();
 
-		// clear state
-		this._dndController?.clearGlobalDragState();
+		// cweaw state
+		this._dndContwowwa?.cweawGwobawDwagState();
 
-		this._localStore.add(this._list.onDidChangeFocus(() => {
+		this._wocawStowe.add(this._wist.onDidChangeFocus(() => {
 			this.updateContextKeysOnFocusChange();
 		}));
 
 		this.updateContextKeysOnFocusChange();
 	}
 
-	private updateContextKeysOnFocusChange() {
-		if (!this.viewModel) {
-			return;
+	pwivate updateContextKeysOnFocusChange() {
+		if (!this.viewModew) {
+			wetuwn;
 		}
 
-		const focused = this._list.getFocusedElements()[0];
+		const focused = this._wist.getFocusedEwements()[0];
 		if (focused) {
-			if (!this._cellContextKeyManager) {
-				this._cellContextKeyManager = this._localStore.add(new CellContextKeyManager(this.scopedContextKeyService, this, focused as CellViewModel));
+			if (!this._cewwContextKeyManaga) {
+				this._cewwContextKeyManaga = this._wocawStowe.add(new CewwContextKeyManaga(this.scopedContextKeySewvice, this, focused as CewwViewModew));
 			}
 
-			this._cellContextKeyManager.updateForElement(focused as CellViewModel);
+			this._cewwContextKeyManaga.updateFowEwement(focused as CewwViewModew);
 		}
 	}
 
-	async setOptions(options: INotebookEditorOptions | undefined) {
-		if (options?.isReadOnly !== undefined) {
-			this._readOnly = options?.isReadOnly;
+	async setOptions(options: INotebookEditowOptions | undefined) {
+		if (options?.isWeadOnwy !== undefined) {
+			this._weadOnwy = options?.isWeadOnwy;
 		}
 
-		if (!this.viewModel) {
-			return;
+		if (!this.viewModew) {
+			wetuwn;
 		}
 
-		this.viewModel.updateOptions({ isReadOnly: this._readOnly });
+		this.viewModew.updateOptions({ isWeadOnwy: this._weadOnwy });
 
-		// reveal cell if editor options tell to do so
-		if (options?.cellOptions) {
-			const cellOptions = options.cellOptions;
-			const cell = this.viewModel.viewCells.find(cell => cell.uri.toString() === cellOptions.resource.toString());
-			if (cell) {
-				this.focusElement(cell);
-				const selection = cellOptions.options?.selection;
-				if (selection) {
-					await this.revealLineInCenterIfOutsideViewportAsync(cell, selection.startLineNumber);
-				} else {
-					await this.revealInCenterIfOutsideViewportAsync(cell);
+		// weveaw ceww if editow options teww to do so
+		if (options?.cewwOptions) {
+			const cewwOptions = options.cewwOptions;
+			const ceww = this.viewModew.viewCewws.find(ceww => ceww.uwi.toStwing() === cewwOptions.wesouwce.toStwing());
+			if (ceww) {
+				this.focusEwement(ceww);
+				const sewection = cewwOptions.options?.sewection;
+				if (sewection) {
+					await this.weveawWineInCentewIfOutsideViewpowtAsync(ceww, sewection.stawtWineNumba);
+				} ewse {
+					await this.weveawInCentewIfOutsideViewpowtAsync(ceww);
 				}
 
-				const editor = this._renderedEditors.get(cell)!;
-				if (editor) {
-					if (cellOptions.options?.selection) {
-						const { selection } = cellOptions.options;
-						editor.setSelection({
-							...selection,
-							endLineNumber: selection.endLineNumber || selection.startLineNumber,
-							endColumn: selection.endColumn || selection.startColumn
+				const editow = this._wendewedEditows.get(ceww)!;
+				if (editow) {
+					if (cewwOptions.options?.sewection) {
+						const { sewection } = cewwOptions.options;
+						editow.setSewection({
+							...sewection,
+							endWineNumba: sewection.endWineNumba || sewection.stawtWineNumba,
+							endCowumn: sewection.endCowumn || sewection.stawtCowumn
 						});
-						editor.revealPositionInCenterIfOutsideViewport({
-							lineNumber: selection.startLineNumber,
-							column: selection.startColumn
+						editow.weveawPositionInCentewIfOutsideViewpowt({
+							wineNumba: sewection.stawtWineNumba,
+							cowumn: sewection.stawtCowumn
 						});
-						await this.revealLineInCenterIfOutsideViewportAsync(cell, selection.startLineNumber);
+						await this.weveawWineInCentewIfOutsideViewpowtAsync(ceww, sewection.stawtWineNumba);
 					}
-					if (!cellOptions.options?.preserveFocus) {
-						editor.focus();
+					if (!cewwOptions.options?.pwesewveFocus) {
+						editow.focus();
 					}
 				}
 			}
 		}
 
-		// select cells if options tell to do so
-		// todo@rebornix https://github.com/microsoft/vscode/issues/118108 support selections not just focus
-		// todo@rebornix support multipe selections
-		if (options?.cellSelections) {
-			const focusCellIndex = options.cellSelections[0].start;
-			const focusedCell = this.viewModel.cellAt(focusCellIndex);
-			if (focusedCell) {
-				this.viewModel.updateSelectionsState({
-					kind: SelectionStateType.Index,
-					focus: { start: focusCellIndex, end: focusCellIndex + 1 },
-					selections: options.cellSelections
+		// sewect cewws if options teww to do so
+		// todo@webownix https://github.com/micwosoft/vscode/issues/118108 suppowt sewections not just focus
+		// todo@webownix suppowt muwtipe sewections
+		if (options?.cewwSewections) {
+			const focusCewwIndex = options.cewwSewections[0].stawt;
+			const focusedCeww = this.viewModew.cewwAt(focusCewwIndex);
+			if (focusedCeww) {
+				this.viewModew.updateSewectionsState({
+					kind: SewectionStateType.Index,
+					focus: { stawt: focusCewwIndex, end: focusCewwIndex + 1 },
+					sewections: options.cewwSewections
 				});
-				this.revealInCenterIfOutsideViewport(focusedCell);
+				this.weveawInCentewIfOutsideViewpowt(focusedCeww);
 			}
 		}
 
-		this._updateForOptions();
-		this._onDidChangeOptions.fire();
+		this._updateFowOptions();
+		this._onDidChangeOptions.fiwe();
 	}
 
-	private _detachModel() {
-		this._localStore.clear();
-		dispose(this._localCellStateListeners);
-		this._list.detachViewModel();
-		this.viewModel?.dispose();
+	pwivate _detachModew() {
+		this._wocawStowe.cweaw();
+		dispose(this._wocawCewwStateWistenews);
+		this._wist.detachViewModew();
+		this.viewModew?.dispose();
 		// avoid event
-		this.viewModel = undefined;
+		this.viewModew = undefined;
 		this._webview?.dispose();
-		this._webview?.element.remove();
-		this._webview = null;
-		this._list.clear();
+		this._webview?.ewement.wemove();
+		this._webview = nuww;
+		this._wist.cweaw();
 	}
 
 
-	private _updateForOptions(): void {
-		if (!this.viewModel) {
-			return;
+	pwivate _updateFowOptions(): void {
+		if (!this.viewModew) {
+			wetuwn;
 		}
 
-		this._editorEditable.set(!this.viewModel.options.isReadOnly);
-		this._overflowContainer.classList.toggle('notebook-editor-editable', !this.viewModel.options.isReadOnly);
-		this.getDomNode().classList.toggle('notebook-editor-editable', !this.viewModel.options.isReadOnly);
+		this._editowEditabwe.set(!this.viewModew.options.isWeadOnwy);
+		this._ovewfwowContaina.cwassWist.toggwe('notebook-editow-editabwe', !this.viewModew.options.isWeadOnwy);
+		this.getDomNode().cwassWist.toggwe('notebook-editow-editabwe', !this.viewModew.options.isWeadOnwy);
 	}
 
-	private async _resolveWebview(): Promise<BackLayerWebView<ICommonCellInfo> | null> {
-		if (!this.textModel) {
-			return null;
+	pwivate async _wesowveWebview(): Pwomise<BackWayewWebView<ICommonCewwInfo> | nuww> {
+		if (!this.textModew) {
+			wetuwn nuww;
 		}
 
-		if (this._webviewResolvePromise) {
-			return this._webviewResolvePromise;
+		if (this._webviewWesowvePwomise) {
+			wetuwn this._webviewWesowvePwomise;
 		}
 
 		if (!this._webview) {
-			this._createWebview(this.getId(), this.textModel.uri);
+			this._cweateWebview(this.getId(), this.textModew.uwi);
 		}
 
-		this._webviewResolvePromise = (async () => {
+		this._webviewWesowvePwomise = (async () => {
 			if (!this._webview) {
-				throw new Error('Notebook output webview object is not created successfully.');
+				thwow new Ewwow('Notebook output webview object is not cweated successfuwwy.');
 			}
 
-			this._webview.createWebview();
+			this._webview.cweateWebview();
 			if (!this._webview.webview) {
-				throw new Error('Notebook output webview element was not created successfully.');
+				thwow new Ewwow('Notebook output webview ewement was not cweated successfuwwy.');
 			}
 
-			this._localStore.add(this._webview.webview.onDidBlur(() => {
-				this._outputFocus.set(false);
-				this.updateEditorFocus();
+			this._wocawStowe.add(this._webview.webview.onDidBwuw(() => {
+				this._outputFocus.set(fawse);
+				this.updateEditowFocus();
 
-				this._webviewFocused = false;
+				this._webviewFocused = fawse;
 			}));
 
-			this._localStore.add(this._webview.webview.onDidFocus(() => {
-				this._outputFocus.set(true);
-				this.updateEditorFocus();
-				this._onDidFocusEmitter.fire();
+			this._wocawStowe.add(this._webview.webview.onDidFocus(() => {
+				this._outputFocus.set(twue);
+				this.updateEditowFocus();
+				this._onDidFocusEmitta.fiwe();
 
-				if (this._overlayContainer.contains(document.activeElement)) {
-					this._webviewFocused = true;
+				if (this._ovewwayContaina.contains(document.activeEwement)) {
+					this._webviewFocused = twue;
 				}
 			}));
 
-			this._localStore.add(this._webview.onMessage(e => {
-				this._onDidReceiveMessage.fire(e);
+			this._wocawStowe.add(this._webview.onMessage(e => {
+				this._onDidWeceiveMessage.fiwe(e);
 			}));
 
-			return this._webview;
+			wetuwn this._webview;
 		})();
 
-		return this._webviewResolvePromise;
+		wetuwn this._webviewWesowvePwomise;
 	}
 
-	private async _createWebview(id: string, resource: URI): Promise<void> {
+	pwivate async _cweateWebview(id: stwing, wesouwce: UWI): Pwomise<void> {
 		const that = this;
 
-		this._webview = this.instantiationService.createInstance(BackLayerWebView, {
-			get creationOptions() { return that.creationOptions; },
-			setScrollTop(scrollTop: number) { that._listViewInfoAccessor.setScrollTop(scrollTop); },
-			triggerScroll(event: IMouseWheelEvent) { that._listViewInfoAccessor.triggerScroll(event); },
-			getCellByInfo: that.getCellByInfo.bind(that),
-			getCellById: that._getCellById.bind(that),
-			toggleNotebookCellSelection: that._toggleNotebookCellSelection.bind(that),
-			focusNotebookCell: that.focusNotebookCell.bind(that),
-			focusNextNotebookCell: that.focusNextNotebookCell.bind(that),
+		this._webview = this.instantiationSewvice.cweateInstance(BackWayewWebView, {
+			get cweationOptions() { wetuwn that.cweationOptions; },
+			setScwowwTop(scwowwTop: numba) { that._wistViewInfoAccessow.setScwowwTop(scwowwTop); },
+			twiggewScwoww(event: IMouseWheewEvent) { that._wistViewInfoAccessow.twiggewScwoww(event); },
+			getCewwByInfo: that.getCewwByInfo.bind(that),
+			getCewwById: that._getCewwById.bind(that),
+			toggweNotebookCewwSewection: that._toggweNotebookCewwSewection.bind(that),
+			focusNotebookCeww: that.focusNotebookCeww.bind(that),
+			focusNextNotebookCeww: that.focusNextNotebookCeww.bind(that),
 			updateOutputHeight: that._updateOutputHeight.bind(that),
-			scheduleOutputHeightAck: that._scheduleOutputHeightAck.bind(that),
-			updateMarkupCellHeight: that._updateMarkupCellHeight.bind(that),
-			setMarkupCellEditState: that._setMarkupCellEditState.bind(that),
-			didStartDragMarkupCell: that._didStartDragMarkupCell.bind(that),
-			didDragMarkupCell: that._didDragMarkupCell.bind(that),
-			didDropMarkupCell: that._didDropMarkupCell.bind(that),
-			didEndDragMarkupCell: that._didEndDragMarkupCell.bind(that)
-		}, id, resource, this._notebookOptions.computeWebviewOptions(), this.notebookRendererMessaging.getScoped(this._uuid));
+			scheduweOutputHeightAck: that._scheduweOutputHeightAck.bind(that),
+			updateMawkupCewwHeight: that._updateMawkupCewwHeight.bind(that),
+			setMawkupCewwEditState: that._setMawkupCewwEditState.bind(that),
+			didStawtDwagMawkupCeww: that._didStawtDwagMawkupCeww.bind(that),
+			didDwagMawkupCeww: that._didDwagMawkupCeww.bind(that),
+			didDwopMawkupCeww: that._didDwopMawkupCeww.bind(that),
+			didEndDwagMawkupCeww: that._didEndDwagMawkupCeww.bind(that)
+		}, id, wesouwce, this._notebookOptions.computeWebviewOptions(), this.notebookWendewewMessaging.getScoped(this._uuid));
 
-		this._webview.element.style.width = '100%';
+		this._webview.ewement.stywe.width = '100%';
 
-		// attach the webview container to the DOM tree first
-		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._webview.element);
+		// attach the webview containa to the DOM twee fiwst
+		this._wist.wowsContaina.insewtAdjacentEwement('aftewbegin', this._webview.ewement);
 	}
 
-	private async _attachModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined) {
-		await this._createWebview(this.getId(), textModel.uri);
-		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, textModel.viewType, textModel, this._viewContext, this.getLayoutInfo(), { isReadOnly: this._readOnly });
-		this._viewContext.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
+	pwivate async _attachModew(textModew: NotebookTextModew, viewState: INotebookEditowViewState | undefined) {
+		await this._cweateWebview(this.getId(), textModew.uwi);
+		this.viewModew = this.instantiationSewvice.cweateInstance(NotebookViewModew, textModew.viewType, textModew, this._viewContext, this.getWayoutInfo(), { isWeadOnwy: this._weadOnwy });
+		this._viewContext.eventDispatcha.emit([new NotebookWayoutChangedEvent({ width: twue, fontInfo: twue }, this.getWayoutInfo())]);
 
-		this._updateForOptions();
-		this._updateForNotebookConfiguration();
+		this._updateFowOptions();
+		this._updateFowNotebookConfiguwation();
 
-		// restore view states, including contributions
+		// westowe view states, incwuding contwibutions
 
 		{
-			// restore view state
-			this.viewModel.restoreEditorViewState(viewState);
+			// westowe view state
+			this.viewModew.westoweEditowViewState(viewState);
 
-			// contribution state restore
+			// contwibution state westowe
 
-			const contributionsState = viewState?.contributionsState || {};
-			for (const [id, contribution] of this._contributions) {
-				if (typeof contribution.restoreViewState === 'function') {
-					contribution.restoreViewState(contributionsState[id]);
+			const contwibutionsState = viewState?.contwibutionsState || {};
+			fow (const [id, contwibution] of this._contwibutions) {
+				if (typeof contwibution.westoweViewState === 'function') {
+					contwibution.westoweViewState(contwibutionsState[id]);
 				}
 			}
 		}
 
-		this._localStore.add(this.viewModel.onDidChangeViewCells(e => {
-			this._onDidChangeViewCells.fire(e);
+		this._wocawStowe.add(this.viewModew.onDidChangeViewCewws(e => {
+			this._onDidChangeViewCewws.fiwe(e);
 		}));
 
-		this._localStore.add(this.viewModel.onDidChangeSelection(() => {
-			this._onDidChangeSelection.fire();
-			this.updateSelectedMarkdownPreviews();
+		this._wocawStowe.add(this.viewModew.onDidChangeSewection(() => {
+			this._onDidChangeSewection.fiwe();
+			this.updateSewectedMawkdownPweviews();
 		}));
 
-		this._localStore.add(this._list.onWillScroll(e => {
-			if (this._webview?.isResolved()) {
-				this._webviewTransparentCover!.style.top = `${e.scrollTop}px`;
+		this._wocawStowe.add(this._wist.onWiwwScwoww(e => {
+			if (this._webview?.isWesowved()) {
+				this._webviewTwanspawentCova!.stywe.top = `${e.scwowwTop}px`;
 			}
 		}));
 
-		let hasPendingChangeContentHeight = false;
-		this._localStore.add(this._list.onDidChangeContentHeight(() => {
+		wet hasPendingChangeContentHeight = fawse;
+		this._wocawStowe.add(this._wist.onDidChangeContentHeight(() => {
 			if (hasPendingChangeContentHeight) {
-				return;
+				wetuwn;
 			}
-			hasPendingChangeContentHeight = true;
+			hasPendingChangeContentHeight = twue;
 
-			DOM.scheduleAtNextAnimationFrame(() => {
-				hasPendingChangeContentHeight = false;
-				this._updateScrollHeight();
+			DOM.scheduweAtNextAnimationFwame(() => {
+				hasPendingChangeContentHeight = fawse;
+				this._updateScwowwHeight();
 			}, 100);
 		}));
 
-		this._localStore.add(this._list.onDidRemoveOutputs(outputs => {
-			outputs.forEach(output => this.removeInset(output));
+		this._wocawStowe.add(this._wist.onDidWemoveOutputs(outputs => {
+			outputs.fowEach(output => this.wemoveInset(output));
 		}));
-		this._localStore.add(this._list.onDidHideOutputs(outputs => {
-			outputs.forEach(output => this.hideInset(output));
+		this._wocawStowe.add(this._wist.onDidHideOutputs(outputs => {
+			outputs.fowEach(output => this.hideInset(output));
 		}));
-		this._localStore.add(this._list.onDidRemoveCellsFromView(cells => {
-			const hiddenCells: MarkupCellViewModel[] = [];
-			const deletedCells: MarkupCellViewModel[] = [];
+		this._wocawStowe.add(this._wist.onDidWemoveCewwsFwomView(cewws => {
+			const hiddenCewws: MawkupCewwViewModew[] = [];
+			const dewetedCewws: MawkupCewwViewModew[] = [];
 
-			for (const cell of cells) {
-				if (cell.cellKind === CellKind.Markup) {
-					const mdCell = cell as MarkupCellViewModel;
-					if (this.viewModel?.viewCells.find(cell => cell.handle === mdCell.handle)) {
-						// Cell has been folded but is still in model
-						hiddenCells.push(mdCell);
-					} else {
-						// Cell was deleted
-						deletedCells.push(mdCell);
+			fow (const ceww of cewws) {
+				if (ceww.cewwKind === CewwKind.Mawkup) {
+					const mdCeww = ceww as MawkupCewwViewModew;
+					if (this.viewModew?.viewCewws.find(ceww => ceww.handwe === mdCeww.handwe)) {
+						// Ceww has been fowded but is stiww in modew
+						hiddenCewws.push(mdCeww);
+					} ewse {
+						// Ceww was deweted
+						dewetedCewws.push(mdCeww);
 					}
 				}
 			}
 
-			this.hideMarkupPreviews(hiddenCells);
-			this.deleteMarkupPreviews(deletedCells);
+			this.hideMawkupPweviews(hiddenCewws);
+			this.deweteMawkupPweviews(dewetedCewws);
 		}));
 
-		// init rendering
-		await this._warmupWithMarkdownRenderer(this.viewModel, viewState);
+		// init wendewing
+		await this._wawmupWithMawkdownWendewa(this.viewModew, viewState);
 
-		mark(textModel.uri, 'customMarkdownLoaded');
+		mawk(textModew.uwi, 'customMawkdownWoaded');
 
-		// model attached
-		this._localCellStateListeners = this.viewModel.viewCells.map(cell => this._bindCellListener(cell));
+		// modew attached
+		this._wocawCewwStateWistenews = this.viewModew.viewCewws.map(ceww => this._bindCewwWistena(ceww));
 
-		this._localStore.add(this.viewModel.onDidChangeViewCells((e) => {
+		this._wocawStowe.add(this.viewModew.onDidChangeViewCewws((e) => {
 			if (this._isDisposed) {
-				return;
+				wetuwn;
 			}
 
-			// update resize listener
-			e.splices.reverse().forEach(splice => {
-				const [start, deleted, newCells] = splice;
-				const deletedCells = this._localCellStateListeners.splice(start, deleted, ...newCells.map(cell => this._bindCellListener(cell)));
+			// update wesize wistena
+			e.spwices.wevewse().fowEach(spwice => {
+				const [stawt, deweted, newCewws] = spwice;
+				const dewetedCewws = this._wocawCewwStateWistenews.spwice(stawt, deweted, ...newCewws.map(ceww => this._bindCewwWistena(ceww)));
 
-				dispose(deletedCells);
+				dispose(dewetedCewws);
 			});
 		}));
 
 		if (this._dimension) {
-			const topInserToolbarHeight = this._notebookOptions.computeTopInserToolbarHeight(this.viewModel?.viewType);
-			this._list.layout(this._dimension.height - topInserToolbarHeight, this._dimension.width);
-		} else {
-			this._list.layout();
+			const topInsewToowbawHeight = this._notebookOptions.computeTopInsewToowbawHeight(this.viewModew?.viewType);
+			this._wist.wayout(this._dimension.height - topInsewToowbawHeight, this._dimension.width);
+		} ewse {
+			this._wist.wayout();
 		}
 
-		this._dndController?.clearGlobalDragState();
+		this._dndContwowwa?.cweawGwobawDwagState();
 
-		// restore list state at last, it must be after list layout
-		this.restoreListViewState(viewState);
+		// westowe wist state at wast, it must be afta wist wayout
+		this.westoweWistViewState(viewState);
 	}
 
-	private _bindCellListener(cell: ICellViewModel) {
-		const store = new DisposableStore();
+	pwivate _bindCewwWistena(ceww: ICewwViewModew) {
+		const stowe = new DisposabweStowe();
 
-		store.add(cell.onDidChangeLayout(e => {
-			if (e.totalHeight !== undefined || e.outerWidth) {
-				this.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
+		stowe.add(ceww.onDidChangeWayout(e => {
+			if (e.totawHeight !== undefined || e.outewWidth) {
+				this.wayoutNotebookCeww(ceww, ceww.wayoutInfo.totawHeight);
 			}
 		}));
 
-		if (cell.cellKind === CellKind.Code) {
-			store.add((cell as CodeCellViewModel).onDidRemoveOutputs((outputs) => {
-				outputs.forEach(output => this.removeInset(output));
+		if (ceww.cewwKind === CewwKind.Code) {
+			stowe.add((ceww as CodeCewwViewModew).onDidWemoveOutputs((outputs) => {
+				outputs.fowEach(output => this.wemoveInset(output));
 			}));
 
-			store.add((cell as CodeCellViewModel).onDidHideOutputs((outputs) => {
-				outputs.forEach(output => this.hideInset(output));
-			}));
-		}
-
-		if (cell.cellKind === CellKind.Markup) {
-			store.add((cell as MarkupCellViewModel).onDidHideInput(() => {
-				this.hideMarkupPreviews([(cell as MarkupCellViewModel)]);
+			stowe.add((ceww as CodeCewwViewModew).onDidHideOutputs((outputs) => {
+				outputs.fowEach(output => this.hideInset(output));
 			}));
 		}
 
-		return store;
+		if (ceww.cewwKind === CewwKind.Mawkup) {
+			stowe.add((ceww as MawkupCewwViewModew).onDidHideInput(() => {
+				this.hideMawkupPweviews([(ceww as MawkupCewwViewModew)]);
+			}));
+		}
+
+		wetuwn stowe;
 	}
 
-	private async _warmupWithMarkdownRenderer(viewModel: NotebookViewModel, viewState: INotebookEditorViewState | undefined) {
+	pwivate async _wawmupWithMawkdownWendewa(viewModew: NotebookViewModew, viewState: INotebookEditowViewState | undefined) {
 
-		await this._resolveWebview();
+		await this._wesowveWebview();
 
-		// make sure that the webview is not visible otherwise users will see pre-rendered markdown cells in wrong position as the list view doesn't have a correct `top` offset yet
-		this._webview!.element.style.visibility = 'hidden';
-		// warm up can take around 200ms to load markdown libraries, etc.
-		await this._warmupViewport(viewModel, viewState);
+		// make suwe that the webview is not visibwe othewwise usews wiww see pwe-wendewed mawkdown cewws in wwong position as the wist view doesn't have a cowwect `top` offset yet
+		this._webview!.ewement.stywe.visibiwity = 'hidden';
+		// wawm up can take awound 200ms to woad mawkdown wibwawies, etc.
+		await this._wawmupViewpowt(viewModew, viewState);
 
-		// todo@rebornix @mjbvz, is this too complicated?
+		// todo@webownix @mjbvz, is this too compwicated?
 
-		/* now the webview is ready, and requests to render markdown are fast enough
-		 * we can start rendering the list view
-		 * render
-		 *   - markdown cell -> request to webview to (10ms, basically just latency between UI and iframe)
-		 *   - code cell -> render in place
+		/* now the webview is weady, and wequests to wenda mawkdown awe fast enough
+		 * we can stawt wendewing the wist view
+		 * wenda
+		 *   - mawkdown ceww -> wequest to webview to (10ms, basicawwy just watency between UI and ifwame)
+		 *   - code ceww -> wenda in pwace
 		 */
-		this._list.layout(0, 0);
-		this._list.attachViewModel(viewModel);
+		this._wist.wayout(0, 0);
+		this._wist.attachViewModew(viewModew);
 
-		// now the list widget has a correct contentHeight/scrollHeight
-		// setting scrollTop will work properly
-		// after setting scroll top, the list view will update `top` of the scrollable element, e.g. `top: -584px`
-		this._list.scrollTop = viewState?.scrollPosition?.top ?? 0;
-		this._debug('finish initial viewport warmup and view state restore.');
-		this._webview!.element.style.visibility = 'visible';
+		// now the wist widget has a cowwect contentHeight/scwowwHeight
+		// setting scwowwTop wiww wowk pwopewwy
+		// afta setting scwoww top, the wist view wiww update `top` of the scwowwabwe ewement, e.g. `top: -584px`
+		this._wist.scwowwTop = viewState?.scwowwPosition?.top ?? 0;
+		this._debug('finish initiaw viewpowt wawmup and view state westowe.');
+		this._webview!.ewement.stywe.visibiwity = 'visibwe';
 
 	}
 
-	private async _warmupViewport(viewModel: NotebookViewModel, viewState: INotebookEditorViewState | undefined) {
-		if (viewState && viewState.cellTotalHeights) {
-			const totalHeightCache = viewState.cellTotalHeights;
-			const scrollTop = viewState.scrollPosition?.top ?? 0;
-			const scrollBottom = scrollTop + Math.max(this._dimension?.height ?? 0, 1080);
+	pwivate async _wawmupViewpowt(viewModew: NotebookViewModew, viewState: INotebookEditowViewState | undefined) {
+		if (viewState && viewState.cewwTotawHeights) {
+			const totawHeightCache = viewState.cewwTotawHeights;
+			const scwowwTop = viewState.scwowwPosition?.top ?? 0;
+			const scwowwBottom = scwowwTop + Math.max(this._dimension?.height ?? 0, 1080);
 
-			let offset = 0;
-			let requests: [ICellViewModel, number][] = [];
+			wet offset = 0;
+			wet wequests: [ICewwViewModew, numba][] = [];
 
-			for (let i = 0; i < viewModel.length; i++) {
-				const cell = viewModel.cellAt(i)!;
+			fow (wet i = 0; i < viewModew.wength; i++) {
+				const ceww = viewModew.cewwAt(i)!;
 
-				if (offset + (totalHeightCache[i] ?? 0) < scrollTop) {
-					offset += (totalHeightCache ? totalHeightCache[i] : 0);
+				if (offset + (totawHeightCache[i] ?? 0) < scwowwTop) {
+					offset += (totawHeightCache ? totawHeightCache[i] : 0);
 					continue;
-				} else {
-					if (cell.cellKind === CellKind.Markup) {
-						requests.push([cell, offset]);
+				} ewse {
+					if (ceww.cewwKind === CewwKind.Mawkup) {
+						wequests.push([ceww, offset]);
 					}
 				}
 
-				offset += (totalHeightCache ? totalHeightCache[i] : 0);
+				offset += (totawHeightCache ? totawHeightCache[i] : 0);
 
-				if (offset > scrollBottom) {
-					break;
+				if (offset > scwowwBottom) {
+					bweak;
 				}
 			}
 
-			await this._webview!.initializeMarkup(requests.map(([model, offset]) => this.createMarkupCellInitialization(model, offset)));
-		} else {
-			const initRequests = viewModel.viewCells
-				.filter(cell => cell.cellKind === CellKind.Markup)
-				.slice(0, 5)
-				.map(cell => this.createMarkupCellInitialization(cell, -10000));
+			await this._webview!.initiawizeMawkup(wequests.map(([modew, offset]) => this.cweateMawkupCewwInitiawization(modew, offset)));
+		} ewse {
+			const initWequests = viewModew.viewCewws
+				.fiwta(ceww => ceww.cewwKind === CewwKind.Mawkup)
+				.swice(0, 5)
+				.map(ceww => this.cweateMawkupCewwInitiawization(ceww, -10000));
 
-			await this._webview!.initializeMarkup(initRequests);
+			await this._webview!.initiawizeMawkup(initWequests);
 
-			// no cached view state so we are rendering the first viewport
-			// after above async call, we already get init height for markdown cells, we can update their offset
-			let offset = 0;
-			const offsetUpdateRequests: { id: string, top: number; }[] = [];
-			const scrollBottom = Math.max(this._dimension?.height ?? 0, 1080);
-			for (const cell of viewModel.viewCells) {
-				if (cell.cellKind === CellKind.Markup) {
-					offsetUpdateRequests.push({ id: cell.id, top: offset });
+			// no cached view state so we awe wendewing the fiwst viewpowt
+			// afta above async caww, we awweady get init height fow mawkdown cewws, we can update theiw offset
+			wet offset = 0;
+			const offsetUpdateWequests: { id: stwing, top: numba; }[] = [];
+			const scwowwBottom = Math.max(this._dimension?.height ?? 0, 1080);
+			fow (const ceww of viewModew.viewCewws) {
+				if (ceww.cewwKind === CewwKind.Mawkup) {
+					offsetUpdateWequests.push({ id: ceww.id, top: offset });
 				}
 
-				offset += cell.getHeight(this.getLayoutInfo().fontInfo.lineHeight);
+				offset += ceww.getHeight(this.getWayoutInfo().fontInfo.wineHeight);
 
-				if (offset > scrollBottom) {
-					break;
+				if (offset > scwowwBottom) {
+					bweak;
 				}
 			}
 
-			this._webview?.updateScrollTops([], offsetUpdateRequests);
+			this._webview?.updateScwowwTops([], offsetUpdateWequests);
 		}
 	}
 
-	private createMarkupCellInitialization(model: ICellViewModel, offset: number): IMarkupCellInitialization {
-		return ({
-			mime: model.mime,
-			cellId: model.id,
-			cellHandle: model.handle,
-			content: model.getText(),
+	pwivate cweateMawkupCewwInitiawization(modew: ICewwViewModew, offset: numba): IMawkupCewwInitiawization {
+		wetuwn ({
+			mime: modew.mime,
+			cewwId: modew.id,
+			cewwHandwe: modew.handwe,
+			content: modew.getText(),
 			offset: offset,
-			visible: false,
+			visibwe: fawse,
 		});
 	}
 
-	restoreListViewState(viewState: INotebookEditorViewState | undefined): void {
-		if (viewState?.scrollPosition !== undefined) {
-			this._list.scrollTop = viewState!.scrollPosition.top;
-			this._list.scrollLeft = viewState!.scrollPosition.left;
-		} else {
-			this._list.scrollTop = 0;
-			this._list.scrollLeft = 0;
+	westoweWistViewState(viewState: INotebookEditowViewState | undefined): void {
+		if (viewState?.scwowwPosition !== undefined) {
+			this._wist.scwowwTop = viewState!.scwowwPosition.top;
+			this._wist.scwowwWeft = viewState!.scwowwPosition.weft;
+		} ewse {
+			this._wist.scwowwTop = 0;
+			this._wist.scwowwWeft = 0;
 		}
 
-		const focusIdx = typeof viewState?.focus === 'number' ? viewState.focus : 0;
-		if (focusIdx < this._list.length) {
-			const element = this._list.element(focusIdx);
-			if (element) {
-				this.viewModel?.updateSelectionsState({
-					kind: SelectionStateType.Handle,
-					primary: element.handle,
-					selections: [element.handle]
+		const focusIdx = typeof viewState?.focus === 'numba' ? viewState.focus : 0;
+		if (focusIdx < this._wist.wength) {
+			const ewement = this._wist.ewement(focusIdx);
+			if (ewement) {
+				this.viewModew?.updateSewectionsState({
+					kind: SewectionStateType.Handwe,
+					pwimawy: ewement.handwe,
+					sewections: [ewement.handwe]
 				});
 			}
-		} else if (this._list.length > 0) {
-			this.viewModel?.updateSelectionsState({
-				kind: SelectionStateType.Index,
-				focus: { start: 0, end: 1 },
-				selections: [{ start: 0, end: 1 }]
+		} ewse if (this._wist.wength > 0) {
+			this.viewModew?.updateSewectionsState({
+				kind: SewectionStateType.Index,
+				focus: { stawt: 0, end: 1 },
+				sewections: [{ stawt: 0, end: 1 }]
 			});
 		}
 
-		if (viewState?.editorFocused) {
-			const cell = this.viewModel?.cellAt(focusIdx);
-			if (cell) {
-				cell.focusMode = CellFocusMode.Editor;
+		if (viewState?.editowFocused) {
+			const ceww = this.viewModew?.cewwAt(focusIdx);
+			if (ceww) {
+				ceww.focusMode = CewwFocusMode.Editow;
 			}
 		}
 	}
 
-	getEditorViewState(): INotebookEditorViewState {
-		const state = this.viewModel?.getEditorViewState();
+	getEditowViewState(): INotebookEditowViewState {
+		const state = this.viewModew?.getEditowViewState();
 		if (!state) {
-			return {
-				editingCells: {},
-				editorViewStates: {}
+			wetuwn {
+				editingCewws: {},
+				editowViewStates: {}
 			};
 		}
 
-		if (this._list) {
-			state.scrollPosition = { left: this._list.scrollLeft, top: this._list.scrollTop };
-			const cellHeights: { [key: number]: number; } = {};
-			for (let i = 0; i < this.viewModel!.length; i++) {
-				const elm = this.viewModel!.cellAt(i) as CellViewModel;
-				if (elm.cellKind === CellKind.Code) {
-					cellHeights[i] = elm.layoutInfo.totalHeight;
-				} else {
-					cellHeights[i] = elm.layoutInfo.totalHeight;
+		if (this._wist) {
+			state.scwowwPosition = { weft: this._wist.scwowwWeft, top: this._wist.scwowwTop };
+			const cewwHeights: { [key: numba]: numba; } = {};
+			fow (wet i = 0; i < this.viewModew!.wength; i++) {
+				const ewm = this.viewModew!.cewwAt(i) as CewwViewModew;
+				if (ewm.cewwKind === CewwKind.Code) {
+					cewwHeights[i] = ewm.wayoutInfo.totawHeight;
+				} ewse {
+					cewwHeights[i] = ewm.wayoutInfo.totawHeight;
 				}
 			}
 
-			state.cellTotalHeights = cellHeights;
+			state.cewwTotawHeights = cewwHeights;
 
-			if (this.viewModel) {
-				const focusRange = this.viewModel.getFocus();
-				const element = this.viewModel.cellAt(focusRange.start);
-				if (element) {
-					const itemDOM = this._list.domElementOfElement(element);
-					const editorFocused = element.getEditState() === CellEditState.Editing && !!(document.activeElement && itemDOM && itemDOM.contains(document.activeElement));
+			if (this.viewModew) {
+				const focusWange = this.viewModew.getFocus();
+				const ewement = this.viewModew.cewwAt(focusWange.stawt);
+				if (ewement) {
+					const itemDOM = this._wist.domEwementOfEwement(ewement);
+					const editowFocused = ewement.getEditState() === CewwEditState.Editing && !!(document.activeEwement && itemDOM && itemDOM.contains(document.activeEwement));
 
-					state.editorFocused = editorFocused;
-					state.focus = focusRange.start;
+					state.editowFocused = editowFocused;
+					state.focus = focusWange.stawt;
 				}
 			}
 		}
 
-		// Save contribution view states
-		const contributionsState: { [key: string]: unknown; } = {};
-		for (const [id, contribution] of this._contributions) {
-			if (typeof contribution.saveViewState === 'function') {
-				contributionsState[id] = contribution.saveViewState();
+		// Save contwibution view states
+		const contwibutionsState: { [key: stwing]: unknown; } = {};
+		fow (const [id, contwibution] of this._contwibutions) {
+			if (typeof contwibution.saveViewState === 'function') {
+				contwibutionsState[id] = contwibution.saveViewState();
 			}
 		}
 
-		state.contributionsState = contributionsState;
-		return state;
+		state.contwibutionsState = contwibutionsState;
+		wetuwn state;
 	}
 
-	private _allowScrollBeyondLastLine() {
-		return this._scrollBeyondLastLine && !this.isEmbedded;
+	pwivate _awwowScwowwBeyondWastWine() {
+		wetuwn this._scwowwBeyondWastWine && !this.isEmbedded;
 	}
 
-	layout(dimension: DOM.Dimension, shadowElement?: HTMLElement): void {
-		if (!shadowElement && this._shadowElementViewInfo === null) {
+	wayout(dimension: DOM.Dimension, shadowEwement?: HTMWEwement): void {
+		if (!shadowEwement && this._shadowEwementViewInfo === nuww) {
 			this._dimension = dimension;
-			return;
+			wetuwn;
 		}
 
 		if (dimension.width <= 0 || dimension.height <= 0) {
-			this.onWillHide();
-			return;
+			this.onWiwwHide();
+			wetuwn;
 		}
 
-		if (shadowElement) {
-			const containerRect = shadowElement.getBoundingClientRect();
+		if (shadowEwement) {
+			const containewWect = shadowEwement.getBoundingCwientWect();
 
-			this._shadowElementViewInfo = {
-				height: containerRect.height,
-				width: containerRect.width,
-				top: containerRect.top,
-				left: containerRect.left
+			this._shadowEwementViewInfo = {
+				height: containewWect.height,
+				width: containewWect.width,
+				top: containewWect.top,
+				weft: containewWect.weft
 			};
 		}
 
-		if (this._shadowElementViewInfo && this._shadowElementViewInfo.width <= 0 && this._shadowElementViewInfo.height <= 0) {
-			this.onWillHide();
-			return;
+		if (this._shadowEwementViewInfo && this._shadowEwementViewInfo.width <= 0 && this._shadowEwementViewInfo.height <= 0) {
+			this.onWiwwHide();
+			wetuwn;
 		}
 
 		this._dimension = new DOM.Dimension(dimension.width, dimension.height);
-		const newBodyHeight = Math.max(dimension.height - (this._notebookTopToolbar?.useGlobalToolbar ? /** Toolbar height */ 26 : 0), 0);
+		const newBodyHeight = Math.max(dimension.height - (this._notebookTopToowbaw?.useGwobawToowbaw ? /** Toowbaw height */ 26 : 0), 0);
 		DOM.size(this._body, dimension.width, newBodyHeight);
 
-		const topInserToolbarHeight = this._notebookOptions.computeTopInserToolbarHeight(this.viewModel?.viewType);
-		const newCellListHeight = Math.max(dimension.height - topInserToolbarHeight, 0);
-		if (this._list.getRenderHeight() < newCellListHeight) {
-			// the new dimension is larger than the list viewport, update its additional height first, otherwise the list view will move down a bit (as the `scrollBottom` will move down)
-			this._list.updateOptions({ additionalScrollHeight: this._allowScrollBeyondLastLine() ? Math.max(0, (newCellListHeight - 50)) : topInserToolbarHeight });
-			this._list.layout(newCellListHeight, dimension.width);
-		} else {
-			// the new dimension is smaller than the list viewport, if we update the additional height, the `scrollBottom` will move up, which moves the whole list view upwards a bit. So we run a layout first.
-			this._list.layout(newCellListHeight, dimension.width);
-			this._list.updateOptions({ additionalScrollHeight: this._allowScrollBeyondLastLine() ? Math.max(0, (newCellListHeight - 50)) : topInserToolbarHeight });
+		const topInsewToowbawHeight = this._notebookOptions.computeTopInsewToowbawHeight(this.viewModew?.viewType);
+		const newCewwWistHeight = Math.max(dimension.height - topInsewToowbawHeight, 0);
+		if (this._wist.getWendewHeight() < newCewwWistHeight) {
+			// the new dimension is wawga than the wist viewpowt, update its additionaw height fiwst, othewwise the wist view wiww move down a bit (as the `scwowwBottom` wiww move down)
+			this._wist.updateOptions({ additionawScwowwHeight: this._awwowScwowwBeyondWastWine() ? Math.max(0, (newCewwWistHeight - 50)) : topInsewToowbawHeight });
+			this._wist.wayout(newCewwWistHeight, dimension.width);
+		} ewse {
+			// the new dimension is smawwa than the wist viewpowt, if we update the additionaw height, the `scwowwBottom` wiww move up, which moves the whowe wist view upwawds a bit. So we wun a wayout fiwst.
+			this._wist.wayout(newCewwWistHeight, dimension.width);
+			this._wist.updateOptions({ additionawScwowwHeight: this._awwowScwowwBeyondWastWine() ? Math.max(0, (newCewwWistHeight - 50)) : topInsewToowbawHeight });
 		}
 
-		this._overlayContainer.style.visibility = 'visible';
-		this._overlayContainer.style.display = 'block';
-		this._overlayContainer.style.position = 'absolute';
-		this._overlayContainer.style.overflow = 'hidden';
+		this._ovewwayContaina.stywe.visibiwity = 'visibwe';
+		this._ovewwayContaina.stywe.dispway = 'bwock';
+		this._ovewwayContaina.stywe.position = 'absowute';
+		this._ovewwayContaina.stywe.ovewfwow = 'hidden';
 
-		const containerRect = this._overlayContainer.parentElement?.getBoundingClientRect();
-		this._overlayContainer.style.top = `${this._shadowElementViewInfo!.top - (containerRect?.top || 0)}px`;
-		this._overlayContainer.style.left = `${this._shadowElementViewInfo!.left - (containerRect?.left || 0)}px`;
-		this._overlayContainer.style.width = `${dimension ? dimension.width : this._shadowElementViewInfo!.width}px`;
-		this._overlayContainer.style.height = `${dimension ? dimension.height : this._shadowElementViewInfo!.height}px`;
+		const containewWect = this._ovewwayContaina.pawentEwement?.getBoundingCwientWect();
+		this._ovewwayContaina.stywe.top = `${this._shadowEwementViewInfo!.top - (containewWect?.top || 0)}px`;
+		this._ovewwayContaina.stywe.weft = `${this._shadowEwementViewInfo!.weft - (containewWect?.weft || 0)}px`;
+		this._ovewwayContaina.stywe.width = `${dimension ? dimension.width : this._shadowEwementViewInfo!.width}px`;
+		this._ovewwayContaina.stywe.height = `${dimension ? dimension.height : this._shadowEwementViewInfo!.height}px`;
 
-		if (this._webviewTransparentCover) {
-			this._webviewTransparentCover.style.height = `${dimension.height}px`;
-			this._webviewTransparentCover.style.width = `${dimension.width}px`;
+		if (this._webviewTwanspawentCova) {
+			this._webviewTwanspawentCova.stywe.height = `${dimension.height}px`;
+			this._webviewTwanspawentCova.stywe.width = `${dimension.width}px`;
 		}
 
-		this._notebookTopToolbar.layout(this._dimension);
+		this._notebookTopToowbaw.wayout(this._dimension);
 
-		this._viewContext?.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
+		this._viewContext?.eventDispatcha.emit([new NotebookWayoutChangedEvent({ width: twue, fontInfo: twue }, this.getWayoutInfo())]);
 	}
-	//#endregion
+	//#endwegion
 
-	//#region Focus tracker
+	//#wegion Focus twacka
 	focus() {
-		this._isVisible = true;
-		this._editorFocus.set(true);
+		this._isVisibwe = twue;
+		this._editowFocus.set(twue);
 
 		if (this._webviewFocused) {
 			this._webview?.focusWebview();
-		} else {
-			if (this.viewModel) {
-				const focusRange = this.viewModel.getFocus();
-				const element = this.viewModel.cellAt(focusRange.start);
+		} ewse {
+			if (this.viewModew) {
+				const focusWange = this.viewModew.getFocus();
+				const ewement = this.viewModew.cewwAt(focusWange.stawt);
 
-				if (element && element.focusMode === CellFocusMode.Editor) {
-					element.updateEditState(CellEditState.Editing, 'editorWidget.focus');
-					element.focusMode = CellFocusMode.Editor;
-					this._onDidFocusEditorWidget.fire();
-					return;
+				if (ewement && ewement.focusMode === CewwFocusMode.Editow) {
+					ewement.updateEditState(CewwEditState.Editing, 'editowWidget.focus');
+					ewement.focusMode = CewwFocusMode.Editow;
+					this._onDidFocusEditowWidget.fiwe();
+					wetuwn;
 				}
 			}
 
-			this._list.domFocus();
+			this._wist.domFocus();
 		}
 
-		this._onDidFocusEditorWidget.fire();
+		this._onDidFocusEditowWidget.fiwe();
 	}
 
-	onWillHide() {
-		this._isVisible = false;
-		this._editorFocus.set(false);
-		this._overlayContainer.style.visibility = 'hidden';
-		this._overlayContainer.style.left = '-50000px';
-		this._notebookTopToolbarContainer.style.display = 'none';
+	onWiwwHide() {
+		this._isVisibwe = fawse;
+		this._editowFocus.set(fawse);
+		this._ovewwayContaina.stywe.visibiwity = 'hidden';
+		this._ovewwayContaina.stywe.weft = '-50000px';
+		this._notebookTopToowbawContaina.stywe.dispway = 'none';
 	}
 
-	updateEditorFocus() {
-		// Note - focus going to the webview will fire 'blur', but the webview element will be
-		// a descendent of the notebook editor root.
-		const focused = this._overlayContainer.contains(document.activeElement);
-		this._editorFocus.set(focused);
-		this.viewModel?.setEditorFocus(focused);
+	updateEditowFocus() {
+		// Note - focus going to the webview wiww fiwe 'bwuw', but the webview ewement wiww be
+		// a descendent of the notebook editow woot.
+		const focused = this._ovewwayContaina.contains(document.activeEwement);
+		this._editowFocus.set(focused);
+		this.viewModew?.setEditowFocus(focused);
 	}
 
-	hasEditorFocus() {
-		// _editorFocus is driven by the FocusTracker, which is only guaranteed to _eventually_ fire blur.
-		// If we need to know whether we have focus at this instant, we need to check the DOM manually.
-		this.updateEditorFocus();
-		return this._editorFocus.get() || false;
+	hasEditowFocus() {
+		// _editowFocus is dwiven by the FocusTwacka, which is onwy guawanteed to _eventuawwy_ fiwe bwuw.
+		// If we need to know whetha we have focus at this instant, we need to check the DOM manuawwy.
+		this.updateEditowFocus();
+		wetuwn this._editowFocus.get() || fawse;
 	}
 
 	hasWebviewFocus() {
-		return this._webviewFocused;
+		wetuwn this._webviewFocused;
 	}
 
-	hasOutputTextSelection() {
-		if (!this.hasEditorFocus()) {
-			return false;
+	hasOutputTextSewection() {
+		if (!this.hasEditowFocus()) {
+			wetuwn fawse;
 		}
 
-		const windowSelection = window.getSelection();
-		if (windowSelection?.rangeCount !== 1) {
-			return false;
+		const windowSewection = window.getSewection();
+		if (windowSewection?.wangeCount !== 1) {
+			wetuwn fawse;
 		}
 
-		const activeSelection = windowSelection.getRangeAt(0);
-		if (activeSelection.startContainer === activeSelection.endContainer && activeSelection.endOffset - activeSelection.startOffset === 0) {
-			return false;
+		const activeSewection = windowSewection.getWangeAt(0);
+		if (activeSewection.stawtContaina === activeSewection.endContaina && activeSewection.endOffset - activeSewection.stawtOffset === 0) {
+			wetuwn fawse;
 		}
 
-		let container: any = activeSelection.commonAncestorContainer;
+		wet containa: any = activeSewection.commonAncestowContaina;
 
-		if (!this._body.contains(container)) {
-			return false;
+		if (!this._body.contains(containa)) {
+			wetuwn fawse;
 		}
 
-		while (container
+		whiwe (containa
 			&&
-			container !== this._body) {
-			if ((container as HTMLElement).classList && (container as HTMLElement).classList.contains('output')) {
-				return true;
+			containa !== this._body) {
+			if ((containa as HTMWEwement).cwassWist && (containa as HTMWEwement).cwassWist.contains('output')) {
+				wetuwn twue;
 			}
 
-			container = container.parentNode;
+			containa = containa.pawentNode;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Editor Features
+	//#wegion Editow Featuwes
 
-	focusElement(cell: ICellViewModel) {
-		this.viewModel?.updateSelectionsState({
-			kind: SelectionStateType.Handle,
-			primary: cell.handle,
-			selections: [cell.handle]
+	focusEwement(ceww: ICewwViewModew) {
+		this.viewModew?.updateSewectionsState({
+			kind: SewectionStateType.Handwe,
+			pwimawy: ceww.handwe,
+			sewections: [ceww.handwe]
 		});
 	}
 
-	scrollToBottom() {
-		this._listViewInfoAccessor.scrollToBottom();
+	scwowwToBottom() {
+		this._wistViewInfoAccessow.scwowwToBottom();
 	}
 
-	revealCellRangeInView(range: ICellRange) {
-		return this._listViewInfoAccessor.revealCellRangeInView(range);
+	weveawCewwWangeInView(wange: ICewwWange) {
+		wetuwn this._wistViewInfoAccessow.weveawCewwWangeInView(wange);
 	}
 
-	revealInView(cell: ICellViewModel) {
-		this._listViewInfoAccessor.revealInView(cell);
+	weveawInView(ceww: ICewwViewModew) {
+		this._wistViewInfoAccessow.weveawInView(ceww);
 	}
 
-	revealInViewAtTop(cell: ICellViewModel) {
-		this._listViewInfoAccessor.revealInViewAtTop(cell);
+	weveawInViewAtTop(ceww: ICewwViewModew) {
+		this._wistViewInfoAccessow.weveawInViewAtTop(ceww);
 	}
 
-	revealInCenterIfOutsideViewport(cell: ICellViewModel) {
-		this._listViewInfoAccessor.revealInCenterIfOutsideViewport(cell);
+	weveawInCentewIfOutsideViewpowt(ceww: ICewwViewModew) {
+		this._wistViewInfoAccessow.weveawInCentewIfOutsideViewpowt(ceww);
 	}
 
-	async revealInCenterIfOutsideViewportAsync(cell: ICellViewModel) {
-		return this._listViewInfoAccessor.revealInCenterIfOutsideViewportAsync(cell);
+	async weveawInCentewIfOutsideViewpowtAsync(ceww: ICewwViewModew) {
+		wetuwn this._wistViewInfoAccessow.weveawInCentewIfOutsideViewpowtAsync(ceww);
 	}
 
-	revealInCenter(cell: ICellViewModel) {
-		this._listViewInfoAccessor.revealInCenter(cell);
+	weveawInCenta(ceww: ICewwViewModew) {
+		this._wistViewInfoAccessow.weveawInCenta(ceww);
 	}
 
-	async revealLineInViewAsync(cell: ICellViewModel, line: number): Promise<void> {
-		return this._listViewInfoAccessor.revealLineInViewAsync(cell, line);
+	async weveawWineInViewAsync(ceww: ICewwViewModew, wine: numba): Pwomise<void> {
+		wetuwn this._wistViewInfoAccessow.weveawWineInViewAsync(ceww, wine);
 	}
 
-	async revealLineInCenterAsync(cell: ICellViewModel, line: number): Promise<void> {
-		return this._listViewInfoAccessor.revealLineInCenterAsync(cell, line);
+	async weveawWineInCentewAsync(ceww: ICewwViewModew, wine: numba): Pwomise<void> {
+		wetuwn this._wistViewInfoAccessow.weveawWineInCentewAsync(ceww, wine);
 	}
 
-	async revealLineInCenterIfOutsideViewportAsync(cell: ICellViewModel, line: number): Promise<void> {
-		return this._listViewInfoAccessor.revealLineInCenterIfOutsideViewportAsync(cell, line);
+	async weveawWineInCentewIfOutsideViewpowtAsync(ceww: ICewwViewModew, wine: numba): Pwomise<void> {
+		wetuwn this._wistViewInfoAccessow.weveawWineInCentewIfOutsideViewpowtAsync(ceww, wine);
 	}
 
-	async revealRangeInViewAsync(cell: ICellViewModel, range: Range): Promise<void> {
-		return this._listViewInfoAccessor.revealRangeInViewAsync(cell, range);
+	async weveawWangeInViewAsync(ceww: ICewwViewModew, wange: Wange): Pwomise<void> {
+		wetuwn this._wistViewInfoAccessow.weveawWangeInViewAsync(ceww, wange);
 	}
 
-	async revealRangeInCenterAsync(cell: ICellViewModel, range: Range): Promise<void> {
-		return this._listViewInfoAccessor.revealRangeInCenterAsync(cell, range);
+	async weveawWangeInCentewAsync(ceww: ICewwViewModew, wange: Wange): Pwomise<void> {
+		wetuwn this._wistViewInfoAccessow.weveawWangeInCentewAsync(ceww, wange);
 	}
 
-	async revealRangeInCenterIfOutsideViewportAsync(cell: ICellViewModel, range: Range): Promise<void> {
-		return this._listViewInfoAccessor.revealRangeInCenterIfOutsideViewportAsync(cell, range);
+	async weveawWangeInCentewIfOutsideViewpowtAsync(ceww: ICewwViewModew, wange: Wange): Pwomise<void> {
+		wetuwn this._wistViewInfoAccessow.weveawWangeInCentewIfOutsideViewpowtAsync(ceww, wange);
 	}
 
-	getViewIndexByModelIndex(index: number): number {
-		if (!this._listViewInfoAccessor) {
-			return -1;
+	getViewIndexByModewIndex(index: numba): numba {
+		if (!this._wistViewInfoAccessow) {
+			wetuwn -1;
 		}
-		const cell = this.viewModel?.viewCells[index];
-		if (!cell) {
-			return -1;
-		}
-
-		return this._listViewInfoAccessor.getViewIndex(cell);
-	}
-
-	getViewHeight(cell: ICellViewModel): number {
-		if (!this._listViewInfoAccessor) {
-			return -1;
+		const ceww = this.viewModew?.viewCewws[index];
+		if (!ceww) {
+			wetuwn -1;
 		}
 
-		return this._listViewInfoAccessor.getViewHeight(cell);
+		wetuwn this._wistViewInfoAccessow.getViewIndex(ceww);
 	}
 
-	getCellRangeFromViewRange(startIndex: number, endIndex: number): ICellRange | undefined {
-		return this._listViewInfoAccessor.getCellRangeFromViewRange(startIndex, endIndex);
+	getViewHeight(ceww: ICewwViewModew): numba {
+		if (!this._wistViewInfoAccessow) {
+			wetuwn -1;
+		}
+
+		wetuwn this._wistViewInfoAccessow.getViewHeight(ceww);
 	}
 
-	getCellsInRange(range?: ICellRange): ReadonlyArray<ICellViewModel> {
-		return this._listViewInfoAccessor.getCellsInRange(range);
+	getCewwWangeFwomViewWange(stawtIndex: numba, endIndex: numba): ICewwWange | undefined {
+		wetuwn this._wistViewInfoAccessow.getCewwWangeFwomViewWange(stawtIndex, endIndex);
 	}
 
-	setCellEditorSelection(cell: ICellViewModel, range: Range): void {
-		this._listViewInfoAccessor.setCellEditorSelection(cell, range);
+	getCewwsInWange(wange?: ICewwWange): WeadonwyAwway<ICewwViewModew> {
+		wetuwn this._wistViewInfoAccessow.getCewwsInWange(wange);
 	}
 
-	setHiddenAreas(_ranges: ICellRange[]): boolean {
-		return this._listViewInfoAccessor.setHiddenAreas(_ranges);
+	setCewwEditowSewection(ceww: ICewwViewModew, wange: Wange): void {
+		this._wistViewInfoAccessow.setCewwEditowSewection(ceww, wange);
 	}
 
-	getVisibleRangesPlusViewportBelow(): ICellRange[] {
-		return this._listViewInfoAccessor.getVisibleRangesPlusViewportBelow();
+	setHiddenAweas(_wanges: ICewwWange[]): boowean {
+		wetuwn this._wistViewInfoAccessow.setHiddenAweas(_wanges);
 	}
 
-	setScrollTop(scrollTop: number) {
-		this._listViewInfoAccessor.setScrollTop(scrollTop);
+	getVisibweWangesPwusViewpowtBewow(): ICewwWange[] {
+		wetuwn this._wistViewInfoAccessow.getVisibweWangesPwusViewpowtBewow();
 	}
 
-	//#endregion
+	setScwowwTop(scwowwTop: numba) {
+		this._wistViewInfoAccessow.setScwowwTop(scwowwTop);
+	}
 
-	//#region Decorations
-	private _editorStyleSheets = new Map<string, NotebookRefCountedStyleSheet>();
-	private _decorationRules = new Map<string, NotebookDecorationCSSRules>();
-	private _decortionKeyToIds = new Map<string, string[]>();
+	//#endwegion
 
-	private _registerDecorationType(key: string) {
-		const options = this.notebookEditorService.resolveEditorDecorationOptions(key);
+	//#wegion Decowations
+	pwivate _editowStyweSheets = new Map<stwing, NotebookWefCountedStyweSheet>();
+	pwivate _decowationWuwes = new Map<stwing, NotebookDecowationCSSWuwes>();
+	pwivate _decowtionKeyToIds = new Map<stwing, stwing[]>();
+
+	pwivate _wegistewDecowationType(key: stwing) {
+		const options = this.notebookEditowSewvice.wesowveEditowDecowationOptions(key);
 
 		if (options) {
-			const styleElement = DOM.createStyleSheet(this._body);
-			const styleSheet = new NotebookRefCountedStyleSheet({
-				removeEditorStyleSheets: (key) => {
-					this._editorStyleSheets.delete(key);
+			const styweEwement = DOM.cweateStyweSheet(this._body);
+			const styweSheet = new NotebookWefCountedStyweSheet({
+				wemoveEditowStyweSheets: (key) => {
+					this._editowStyweSheets.dewete(key);
 				}
-			}, key, styleElement);
-			this._editorStyleSheets.set(key, styleSheet);
-			this._decorationRules.set(key, new NotebookDecorationCSSRules(this.themeService, styleSheet, {
+			}, key, styweEwement);
+			this._editowStyweSheets.set(key, styweSheet);
+			this._decowationWuwes.set(key, new NotebookDecowationCSSWuwes(this.themeSewvice, styweSheet, {
 				key,
 				options,
-				styleSheet
+				styweSheet
 			}));
 		}
 	}
 
-	setEditorDecorations(key: string, range: ICellRange): void {
-		if (!this.viewModel) {
-			return;
+	setEditowDecowations(key: stwing, wange: ICewwWange): void {
+		if (!this.viewModew) {
+			wetuwn;
 		}
 
-		// create css style for the decoration
-		if (!this._editorStyleSheets.has(key)) {
-			this._registerDecorationType(key);
+		// cweate css stywe fow the decowation
+		if (!this._editowStyweSheets.has(key)) {
+			this._wegistewDecowationType(key);
 		}
 
-		const decorationRule = this._decorationRules.get(key);
-		if (!decorationRule) {
-			return;
+		const decowationWuwe = this._decowationWuwes.get(key);
+		if (!decowationWuwe) {
+			wetuwn;
 		}
 
-		const existingDecorations = this._decortionKeyToIds.get(key) || [];
-		const newDecorations = this.viewModel.getCellsInRange(range).map(cell => ({
-			handle: cell.handle,
-			options: { className: decorationRule.className, outputClassName: decorationRule.className, topClassName: decorationRule.topClassName }
+		const existingDecowations = this._decowtionKeyToIds.get(key) || [];
+		const newDecowations = this.viewModew.getCewwsInWange(wange).map(ceww => ({
+			handwe: ceww.handwe,
+			options: { cwassName: decowationWuwe.cwassName, outputCwassName: decowationWuwe.cwassName, topCwassName: decowationWuwe.topCwassName }
 		}));
 
-		this._decortionKeyToIds.set(key, this.deltaCellDecorations(existingDecorations, newDecorations));
+		this._decowtionKeyToIds.set(key, this.dewtaCewwDecowations(existingDecowations, newDecowations));
 	}
 
-	removeEditorDecorations(key: string): void {
-		if (this._decorationRules.has(key)) {
-			this._decorationRules.get(key)?.dispose();
+	wemoveEditowDecowations(key: stwing): void {
+		if (this._decowationWuwes.has(key)) {
+			this._decowationWuwes.get(key)?.dispose();
 		}
 
-		const cellDecorations = this._decortionKeyToIds.get(key);
-		this.deltaCellDecorations(cellDecorations || [], []);
+		const cewwDecowations = this._decowtionKeyToIds.get(key);
+		this.dewtaCewwDecowations(cewwDecowations || [], []);
 	}
 
-	deltaCellDecorations(oldDecorations: string[], newDecorations: INotebookDeltaDecoration[]): string[] {
-		return this.viewModel?.deltaCellDecorations(oldDecorations, newDecorations) || [];
+	dewtaCewwDecowations(owdDecowations: stwing[], newDecowations: INotebookDewtaDecowation[]): stwing[] {
+		wetuwn this.viewModew?.dewtaCewwDecowations(owdDecowations, newDecowations) || [];
 	}
 
-	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]) {
-		this._webview?.deltaCellOutputContainerClassNames(cellId, added, removed);
+	dewtaCewwOutputContainewCwassNames(cewwId: stwing, added: stwing[], wemoved: stwing[]) {
+		this._webview?.dewtaCewwOutputContainewCwassNames(cewwId, added, wemoved);
 	}
 
-	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null {
-		return this.viewModel?.changeModelDecorations<T>(callback) || null;
+	changeModewDecowations<T>(cawwback: (changeAccessow: IModewDecowationsChangeAccessow) => T): T | nuww {
+		wetuwn this.viewModew?.changeModewDecowations<T>(cawwback) || nuww;
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Kernel/Execution
+	//#wegion Kewnew/Execution
 
-	private async _loadKernelPreloads(): Promise<void> {
-		if (!this.hasModel()) {
-			return;
+	pwivate async _woadKewnewPwewoads(): Pwomise<void> {
+		if (!this.hasModew()) {
+			wetuwn;
 		}
-		const { selected } = this.notebookKernelService.getMatchingKernel(this.textModel);
-		if (!this._webview?.isResolved()) {
-			await this._resolveWebview();
+		const { sewected } = this.notebookKewnewSewvice.getMatchingKewnew(this.textModew);
+		if (!this._webview?.isWesowved()) {
+			await this._wesowveWebview();
 		}
-		this._webview?.updateKernelPreloads(selected);
+		this._webview?.updateKewnewPwewoads(sewected);
 	}
 
-	get activeKernel() {
-		return this.textModel && this._kernelManger.getSelectedOrSuggestedKernel(this.textModel);
+	get activeKewnew() {
+		wetuwn this.textModew && this._kewnewManga.getSewectedOwSuggestedKewnew(this.textModew);
 	}
 
-	async cancelNotebookCells(cells?: Iterable<ICellViewModel>): Promise<void> {
-		if (!this.viewModel || !this.hasModel()) {
-			return;
+	async cancewNotebookCewws(cewws?: Itewabwe<ICewwViewModew>): Pwomise<void> {
+		if (!this.viewModew || !this.hasModew()) {
+			wetuwn;
 		}
-		if (!cells) {
-			cells = this.viewModel.viewCells;
+		if (!cewws) {
+			cewws = this.viewModew.viewCewws;
 		}
-		return this._kernelManger.cancelNotebookCells(this.textModel, cells);
+		wetuwn this._kewnewManga.cancewNotebookCewws(this.textModew, cewws);
 	}
 
-	async executeNotebookCells(cells?: Iterable<ICellViewModel>): Promise<void> {
-		if (!this.viewModel || !this.hasModel()) {
-			return;
+	async executeNotebookCewws(cewws?: Itewabwe<ICewwViewModew>): Pwomise<void> {
+		if (!this.viewModew || !this.hasModew()) {
+			wetuwn;
 		}
-		if (!cells) {
-			cells = this.viewModel.viewCells;
+		if (!cewws) {
+			cewws = this.viewModew.viewCewws;
 		}
-		return this._kernelManger.executeNotebookCells(this.textModel, cells);
+		wetuwn this._kewnewManga.executeNotebookCewws(this.textModew, cewws);
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Cell operations/layout API
-	private _pendingLayouts: WeakMap<ICellViewModel, IDisposable> | null = new WeakMap<ICellViewModel, IDisposable>();
-	async layoutNotebookCell(cell: ICellViewModel, height: number): Promise<void> {
-		this._debug('layout cell', cell.handle, height);
-		const viewIndex = this._list.getViewIndex(cell);
+	//#wegion Ceww opewations/wayout API
+	pwivate _pendingWayouts: WeakMap<ICewwViewModew, IDisposabwe> | nuww = new WeakMap<ICewwViewModew, IDisposabwe>();
+	async wayoutNotebookCeww(ceww: ICewwViewModew, height: numba): Pwomise<void> {
+		this._debug('wayout ceww', ceww.handwe, height);
+		const viewIndex = this._wist.getViewIndex(ceww);
 		if (viewIndex === undefined) {
-			// the cell is hidden
-			return;
+			// the ceww is hidden
+			wetuwn;
 		}
 
-		const relayout = (cell: ICellViewModel, height: number) => {
+		const wewayout = (ceww: ICewwViewModew, height: numba) => {
 			if (this._isDisposed) {
-				return;
+				wetuwn;
 			}
 
-			this._list.updateElementHeight2(cell, height);
+			this._wist.updateEwementHeight2(ceww, height);
 		};
 
-		if (this._pendingLayouts?.has(cell)) {
-			this._pendingLayouts?.get(cell)!.dispose();
+		if (this._pendingWayouts?.has(ceww)) {
+			this._pendingWayouts?.get(ceww)!.dispose();
 		}
 
-		let r: () => void;
-		const layoutDisposable = DOM.scheduleAtNextAnimationFrame(() => {
+		wet w: () => void;
+		const wayoutDisposabwe = DOM.scheduweAtNextAnimationFwame(() => {
 			if (this._isDisposed) {
-				return;
+				wetuwn;
 			}
 
-			if (this._list.elementHeight(cell) === height) {
-				return;
+			if (this._wist.ewementHeight(ceww) === height) {
+				wetuwn;
 			}
 
-			this._pendingLayouts?.delete(cell);
+			this._pendingWayouts?.dewete(ceww);
 
-			relayout(cell, height);
-			r();
+			wewayout(ceww, height);
+			w();
 		});
 
-		this._pendingLayouts?.set(cell, toDisposable(() => {
-			layoutDisposable.dispose();
-			r();
+		this._pendingWayouts?.set(ceww, toDisposabwe(() => {
+			wayoutDisposabwe.dispose();
+			w();
 		}));
 
-		return new Promise(resolve => { r = resolve; });
+		wetuwn new Pwomise(wesowve => { w = wesowve; });
 	}
 
-	getActiveCell() {
-		const elements = this._list.getFocusedElements();
+	getActiveCeww() {
+		const ewements = this._wist.getFocusedEwements();
 
-		if (elements && elements.length) {
-			return elements[0];
+		if (ewements && ewements.wength) {
+			wetuwn ewements[0];
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private _cellFocusAria(cell: ICellViewModel, focusItem: 'editor' | 'container' | 'output') {
-		const index = this._notebookViewModel?.getCellIndex(cell);
+	pwivate _cewwFocusAwia(ceww: ICewwViewModew, focusItem: 'editow' | 'containa' | 'output') {
+		const index = this._notebookViewModew?.getCewwIndex(ceww);
 
 		if (index !== undefined && index >= 0) {
-			let position = '';
+			wet position = '';
 			switch (focusItem) {
-				case 'editor':
-					position = `the inner ${cell.cellKind === CellKind.Markup ? 'markdown' : 'code'} editor is focused, press escape to focus the cell container`;
-					break;
+				case 'editow':
+					position = `the inna ${ceww.cewwKind === CewwKind.Mawkup ? 'mawkdown' : 'code'} editow is focused, pwess escape to focus the ceww containa`;
+					bweak;
 				case 'output':
-					position = `the cell output is focused, press escape to focus the cell container`;
-					break;
-				case 'container':
-					position = `the ${cell.cellKind === CellKind.Markup ? 'markdown preview' : 'cell container'} is focused, press enter to focus the inner ${cell.cellKind === CellKind.Markup ? 'markdown' : 'code'} editor`;
-					break;
-				default:
-					break;
+					position = `the ceww output is focused, pwess escape to focus the ceww containa`;
+					bweak;
+				case 'containa':
+					position = `the ${ceww.cewwKind === CewwKind.Mawkup ? 'mawkdown pweview' : 'ceww containa'} is focused, pwess enta to focus the inna ${ceww.cewwKind === CewwKind.Mawkup ? 'mawkdown' : 'code'} editow`;
+					bweak;
+				defauwt:
+					bweak;
 			}
-			aria.alert(`Cell ${this._notebookViewModel?.getCellIndex(cell)}, ${position} `);
+			awia.awewt(`Ceww ${this._notebookViewModew?.getCewwIndex(ceww)}, ${position} `);
 		}
 	}
 
-	private _toggleNotebookCellSelection(selectedCell: ICellViewModel, selectFromPrevious: boolean): void {
-		const currentSelections = this._list.getSelectedElements();
-		const isSelected = currentSelections.includes(selectedCell);
+	pwivate _toggweNotebookCewwSewection(sewectedCeww: ICewwViewModew, sewectFwomPwevious: boowean): void {
+		const cuwwentSewections = this._wist.getSewectedEwements();
+		const isSewected = cuwwentSewections.incwudes(sewectedCeww);
 
-		const previousSelection = selectFromPrevious ? currentSelections[currentSelections.length - 1] ?? selectedCell : selectedCell;
-		const selectedIndex = this._list.getViewIndex(selectedCell)!;
-		const previousIndex = this._list.getViewIndex(previousSelection)!;
+		const pweviousSewection = sewectFwomPwevious ? cuwwentSewections[cuwwentSewections.wength - 1] ?? sewectedCeww : sewectedCeww;
+		const sewectedIndex = this._wist.getViewIndex(sewectedCeww)!;
+		const pweviousIndex = this._wist.getViewIndex(pweviousSewection)!;
 
-		const cellsInSelectionRange = this.getCellsInViewRange(selectedIndex, previousIndex);
-		if (isSelected) {
-			// Deselect
-			this._list.selectElements(currentSelections.filter(current => !cellsInSelectionRange.includes(current)));
-		} else {
-			// Add to selection
-			this.focusElement(selectedCell);
-			this._list.selectElements([...currentSelections.filter(current => !cellsInSelectionRange.includes(current)), ...cellsInSelectionRange]);
+		const cewwsInSewectionWange = this.getCewwsInViewWange(sewectedIndex, pweviousIndex);
+		if (isSewected) {
+			// Desewect
+			this._wist.sewectEwements(cuwwentSewections.fiwta(cuwwent => !cewwsInSewectionWange.incwudes(cuwwent)));
+		} ewse {
+			// Add to sewection
+			this.focusEwement(sewectedCeww);
+			this._wist.sewectEwements([...cuwwentSewections.fiwta(cuwwent => !cewwsInSewectionWange.incwudes(cuwwent)), ...cewwsInSewectionWange]);
 		}
 	}
 
-	private getCellsInViewRange(fromInclusive: number, toInclusive: number): ICellViewModel[] {
-		const selectedCellsInRange: ICellViewModel[] = [];
-		for (let index = 0; index < this._list.length; ++index) {
-			const cell = this._list.element(index);
-			if (cell) {
-				if ((index >= fromInclusive && index <= toInclusive) || (index >= toInclusive && index <= fromInclusive)) {
-					selectedCellsInRange.push(cell);
+	pwivate getCewwsInViewWange(fwomIncwusive: numba, toIncwusive: numba): ICewwViewModew[] {
+		const sewectedCewwsInWange: ICewwViewModew[] = [];
+		fow (wet index = 0; index < this._wist.wength; ++index) {
+			const ceww = this._wist.ewement(index);
+			if (ceww) {
+				if ((index >= fwomIncwusive && index <= toIncwusive) || (index >= toIncwusive && index <= fwomIncwusive)) {
+					sewectedCewwsInWange.push(ceww);
 				}
 			}
 		}
-		return selectedCellsInRange;
+		wetuwn sewectedCewwsInWange;
 	}
 
-	focusNotebookCell(cell: ICellViewModel, focusItem: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions) {
+	focusNotebookCeww(ceww: ICewwViewModew, focusItem: 'editow' | 'containa' | 'output', options?: IFocusNotebookCewwOptions) {
 		if (this._isDisposed) {
-			return;
+			wetuwn;
 		}
 
-		if (focusItem === 'editor') {
-			this.focusElement(cell);
-			this._cellFocusAria(cell, focusItem);
-			this._list.focusView();
+		if (focusItem === 'editow') {
+			this.focusEwement(ceww);
+			this._cewwFocusAwia(ceww, focusItem);
+			this._wist.focusView();
 
-			cell.updateEditState(CellEditState.Editing, 'focusNotebookCell');
-			cell.focusMode = CellFocusMode.Editor;
-			if (!options?.skipReveal) {
-				this.revealInCenterIfOutsideViewport(cell);
+			ceww.updateEditState(CewwEditState.Editing, 'focusNotebookCeww');
+			ceww.focusMode = CewwFocusMode.Editow;
+			if (!options?.skipWeveaw) {
+				this.weveawInCentewIfOutsideViewpowt(ceww);
 			}
-		} else if (focusItem === 'output') {
-			this.focusElement(cell);
-			this._cellFocusAria(cell, focusItem);
-			this._list.focusView();
+		} ewse if (focusItem === 'output') {
+			this.focusEwement(ceww);
+			this._cewwFocusAwia(ceww, focusItem);
+			this._wist.focusView();
 
 			if (!this._webview) {
-				return;
+				wetuwn;
 			}
-			this._webview.focusOutput(cell.id);
+			this._webview.focusOutput(ceww.id);
 
-			cell.updateEditState(CellEditState.Preview, 'focusNotebookCell');
-			cell.focusMode = CellFocusMode.Container;
-			if (!options?.skipReveal) {
-				this.revealInCenterIfOutsideViewport(cell);
+			ceww.updateEditState(CewwEditState.Pweview, 'focusNotebookCeww');
+			ceww.focusMode = CewwFocusMode.Containa;
+			if (!options?.skipWeveaw) {
+				this.weveawInCentewIfOutsideViewpowt(ceww);
 			}
-		} else {
-			const itemDOM = this._list.domElementOfElement(cell);
-			if (document.activeElement && itemDOM && itemDOM.contains(document.activeElement)) {
-				(document.activeElement as HTMLElement).blur();
+		} ewse {
+			const itemDOM = this._wist.domEwementOfEwement(ceww);
+			if (document.activeEwement && itemDOM && itemDOM.contains(document.activeEwement)) {
+				(document.activeEwement as HTMWEwement).bwuw();
 			}
 
-			cell.updateEditState(CellEditState.Preview, 'focusNotebookCell');
-			cell.focusMode = CellFocusMode.Container;
+			ceww.updateEditState(CewwEditState.Pweview, 'focusNotebookCeww');
+			ceww.focusMode = CewwFocusMode.Containa;
 
-			this.focusElement(cell);
-			this._cellFocusAria(cell, focusItem);
-			if (!options?.skipReveal) {
-				this.revealInCenterIfOutsideViewport(cell);
+			this.focusEwement(ceww);
+			this._cewwFocusAwia(ceww, focusItem);
+			if (!options?.skipWeveaw) {
+				this.weveawInCentewIfOutsideViewpowt(ceww);
 			}
-			this._list.focusView();
+			this._wist.focusView();
 		}
 	}
 
-	focusNextNotebookCell(cell: ICellViewModel, focusItem: 'editor' | 'container' | 'output') {
-		const idx = this.viewModel?.getCellIndex(cell);
-		if (typeof idx !== 'number') {
-			return;
+	focusNextNotebookCeww(ceww: ICewwViewModew, focusItem: 'editow' | 'containa' | 'output') {
+		const idx = this.viewModew?.getCewwIndex(ceww);
+		if (typeof idx !== 'numba') {
+			wetuwn;
 		}
 
-		const newCell = this.viewModel?.cellAt(idx + 1);
-		if (!newCell) {
-			return;
+		const newCeww = this.viewModew?.cewwAt(idx + 1);
+		if (!newCeww) {
+			wetuwn;
 		}
 
-		this.focusNotebookCell(newCell, focusItem);
+		this.focusNotebookCeww(newCeww, focusItem);
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region MISC
+	//#wegion MISC
 
-	getLayoutInfo(): NotebookLayoutInfo {
-		if (!this._list) {
-			throw new Error('Editor is not initalized successfully');
+	getWayoutInfo(): NotebookWayoutInfo {
+		if (!this._wist) {
+			thwow new Ewwow('Editow is not initawized successfuwwy');
 		}
 
 		if (!this._fontInfo) {
-			this._generateFontInfo();
+			this._genewateFontInfo();
 		}
 
-		return {
+		wetuwn {
 			width: this._dimension?.width ?? 0,
 			height: this._dimension?.height ?? 0,
 			fontInfo: this._fontInfo!
 		};
 	}
 
-	private _getCellOutputLayoutInfo(cell: IGenericCellViewModel): INotebookCellOutputLayoutInfo {
-		if (!this._list) {
-			throw new Error('Editor is not initalized successfully');
+	pwivate _getCewwOutputWayoutInfo(ceww: IGenewicCewwViewModew): INotebookCewwOutputWayoutInfo {
+		if (!this._wist) {
+			thwow new Ewwow('Editow is not initawized successfuwwy');
 		}
 
 		if (!this._fontInfo) {
-			this._generateFontInfo();
+			this._genewateFontInfo();
 		}
 
 		const {
-			cellRunGutter,
-			codeCellLeftMargin,
-			cellRightMargin
-		} = this._notebookOptions.getLayoutConfiguration();
+			cewwWunGutta,
+			codeCewwWeftMawgin,
+			cewwWightMawgin
+		} = this._notebookOptions.getWayoutConfiguwation();
 
-		const width = (this._dimension?.width ?? 0) - (codeCellLeftMargin + cellRunGutter + cellRightMargin) - 8 /** padding */ * 2;
+		const width = (this._dimension?.width ?? 0) - (codeCewwWeftMawgin + cewwWunGutta + cewwWightMawgin) - 8 /** padding */ * 2;
 
-		return {
+		wetuwn {
 			width: Math.max(width, 0),
 			height: this._dimension?.height ?? 0,
 			fontInfo: this._fontInfo!
 		};
 	}
 
-	async createMarkupPreview(cell: MarkupCellViewModel) {
+	async cweateMawkupPweview(ceww: MawkupCewwViewModew) {
 		if (!this._webview) {
-			return;
+			wetuwn;
 		}
 
-		if (!this._webview.isResolved()) {
-			await this._resolveWebview();
+		if (!this._webview.isWesowved()) {
+			await this._wesowveWebview();
 		}
 
 		if (!this._webview) {
-			return;
+			wetuwn;
 		}
 
-		const cellTop = this._list.getAbsoluteTopOfElement(cell);
-		await this._webview.showMarkupPreview({
-			mime: cell.mime,
-			cellHandle: cell.handle,
-			cellId: cell.id,
-			content: cell.getText(),
-			offset: cellTop,
-			visible: true,
+		const cewwTop = this._wist.getAbsowuteTopOfEwement(ceww);
+		await this._webview.showMawkupPweview({
+			mime: ceww.mime,
+			cewwHandwe: ceww.handwe,
+			cewwId: ceww.id,
+			content: ceww.getText(),
+			offset: cewwTop,
+			visibwe: twue,
 		});
 	}
 
-	async unhideMarkupPreviews(cells: readonly MarkupCellViewModel[]) {
+	async unhideMawkupPweviews(cewws: weadonwy MawkupCewwViewModew[]) {
 		if (!this._webview) {
-			return;
+			wetuwn;
 		}
 
-		if (!this._webview.isResolved()) {
-			await this._resolveWebview();
+		if (!this._webview.isWesowved()) {
+			await this._wesowveWebview();
 		}
 
-		await this._webview?.unhideMarkupPreviews(cells.map(cell => cell.id));
+		await this._webview?.unhideMawkupPweviews(cewws.map(ceww => ceww.id));
 	}
 
-	async hideMarkupPreviews(cells: readonly MarkupCellViewModel[]) {
-		if (!this._webview || !cells.length) {
-			return;
+	async hideMawkupPweviews(cewws: weadonwy MawkupCewwViewModew[]) {
+		if (!this._webview || !cewws.wength) {
+			wetuwn;
 		}
 
-		if (!this._webview.isResolved()) {
-			await this._resolveWebview();
+		if (!this._webview.isWesowved()) {
+			await this._wesowveWebview();
 		}
 
-		await this._webview?.hideMarkupPreviews(cells.map(cell => cell.id));
+		await this._webview?.hideMawkupPweviews(cewws.map(ceww => ceww.id));
 	}
 
-	async deleteMarkupPreviews(cells: readonly MarkupCellViewModel[]) {
+	async deweteMawkupPweviews(cewws: weadonwy MawkupCewwViewModew[]) {
 		if (!this._webview) {
-			return;
+			wetuwn;
 		}
 
-		if (!this._webview.isResolved()) {
-			await this._resolveWebview();
+		if (!this._webview.isWesowved()) {
+			await this._wesowveWebview();
 		}
 
-		await this._webview?.deleteMarkupPreviews(cells.map(cell => cell.id));
+		await this._webview?.deweteMawkupPweviews(cewws.map(ceww => ceww.id));
 	}
 
-	private async updateSelectedMarkdownPreviews(): Promise<void> {
+	pwivate async updateSewectedMawkdownPweviews(): Pwomise<void> {
 		if (!this._webview) {
-			return;
+			wetuwn;
 		}
 
-		if (!this._webview.isResolved()) {
-			await this._resolveWebview();
+		if (!this._webview.isWesowved()) {
+			await this._wesowveWebview();
 		}
 
-		const selectedCells = this.getSelectionViewModels().map(cell => cell.id);
+		const sewectedCewws = this.getSewectionViewModews().map(ceww => ceww.id);
 
-		// Only show selection when there is more than 1 cell selected
-		await this._webview?.updateMarkupPreviewSelections(selectedCells.length > 1 ? selectedCells : []);
+		// Onwy show sewection when thewe is mowe than 1 ceww sewected
+		await this._webview?.updateMawkupPweviewSewections(sewectedCewws.wength > 1 ? sewectedCewws : []);
 	}
 
-	async createOutput(cell: CodeCellViewModel, output: IInsetRenderOutput, offset: number): Promise<void> {
-		this._insetModifyQueueByOutputId.queue(output.source.model.outputId, async () => {
+	async cweateOutput(ceww: CodeCewwViewModew, output: IInsetWendewOutput, offset: numba): Pwomise<void> {
+		this._insetModifyQueueByOutputId.queue(output.souwce.modew.outputId, async () => {
 			if (!this._webview) {
-				return;
+				wetuwn;
 			}
 
-			if (!this._webview.isResolved()) {
-				await this._resolveWebview();
+			if (!this._webview.isWesowved()) {
+				await this._wesowveWebview();
 			}
 
 			if (!this._webview) {
-				return;
+				wetuwn;
 			}
 
-			if (output.type === RenderOutputType.Extension) {
-				this.notebookRendererMessaging.prepare(output.renderer.id);
+			if (output.type === WendewOutputType.Extension) {
+				this.notebookWendewewMessaging.pwepawe(output.wendewa.id);
 			}
 
-			const cellTop = this._list.getAbsoluteTopOfElement(cell);
-			if (!this._webview.insetMapping.has(output.source)) {
-				await this._webview.createOutput({ cellId: cell.id, cellHandle: cell.handle, cellUri: cell.uri }, output, cellTop, offset);
-			} else {
-				const outputIndex = cell.outputsViewModels.indexOf(output.source);
-				const outputOffset = cell.getOutputOffset(outputIndex);
-				this._webview.updateScrollTops([{
-					cell,
-					output: output.source,
-					cellTop,
+			const cewwTop = this._wist.getAbsowuteTopOfEwement(ceww);
+			if (!this._webview.insetMapping.has(output.souwce)) {
+				await this._webview.cweateOutput({ cewwId: ceww.id, cewwHandwe: ceww.handwe, cewwUwi: ceww.uwi }, output, cewwTop, offset);
+			} ewse {
+				const outputIndex = ceww.outputsViewModews.indexOf(output.souwce);
+				const outputOffset = ceww.getOutputOffset(outputIndex);
+				this._webview.updateScwowwTops([{
+					ceww,
+					output: output.souwce,
+					cewwTop,
 					outputOffset,
-					forceDisplay: !cell.metadata.outputCollapsed,
+					fowceDispway: !ceww.metadata.outputCowwapsed,
 				}], []);
 			}
 		});
 	}
 
-	removeInset(output: ICellOutputViewModel) {
-		this._insetModifyQueueByOutputId.queue(output.model.outputId, async () => {
-			if (this._webview?.isResolved()) {
-				this._webview.removeInsets([output]);
+	wemoveInset(output: ICewwOutputViewModew) {
+		this._insetModifyQueueByOutputId.queue(output.modew.outputId, async () => {
+			if (this._webview?.isWesowved()) {
+				this._webview.wemoveInsets([output]);
 			}
 		});
 	}
 
-	hideInset(output: ICellOutputViewModel) {
-		if (this._webview?.isResolved()) {
-			this._insetModifyQueueByOutputId.queue(output.model.outputId, async () => {
+	hideInset(output: ICewwOutputViewModew) {
+		if (this._webview?.isWesowved()) {
+			this._insetModifyQueueByOutputId.queue(output.modew.outputId, async () => {
 				this._webview!.hideInset(output);
 			});
 		}
 	}
 
-	getOutputRenderer(): OutputRenderer {
-		return this._outputRenderer;
+	getOutputWendewa(): OutputWendewa {
+		wetuwn this._outputWendewa;
 	}
 
-	//#region --- webview IPC ----
+	//#wegion --- webview IPC ----
 	postMessage(message: any) {
-		if (this._webview?.isResolved()) {
-			this._webview.postKernelMessage(message);
+		if (this._webview?.isWesowved()) {
+			this._webview.postKewnewMessage(message);
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
-	addClassName(className: string) {
-		this._overlayContainer.classList.add(className);
+	addCwassName(cwassName: stwing) {
+		this._ovewwayContaina.cwassWist.add(cwassName);
 	}
 
-	removeClassName(className: string) {
-		this._overlayContainer.classList.remove(className);
+	wemoveCwassName(cwassName: stwing) {
+		this._ovewwayContaina.cwassWist.wemove(cwassName);
 	}
 
-	cellAt(index: number): ICellViewModel | undefined {
-		return this.viewModel?.cellAt(index);
+	cewwAt(index: numba): ICewwViewModew | undefined {
+		wetuwn this.viewModew?.cewwAt(index);
 	}
 
-	getCellByInfo(cellInfo: ICommonCellInfo): ICellViewModel {
-		const { cellHandle } = cellInfo;
-		return this.viewModel?.viewCells.find(vc => vc.handle === cellHandle) as CodeCellViewModel;
+	getCewwByInfo(cewwInfo: ICommonCewwInfo): ICewwViewModew {
+		const { cewwHandwe } = cewwInfo;
+		wetuwn this.viewModew?.viewCewws.find(vc => vc.handwe === cewwHandwe) as CodeCewwViewModew;
 	}
 
-	getCellByHandle(handle: number): ICellViewModel | undefined {
-		return this.viewModel?.getCellByHandle(handle);
+	getCewwByHandwe(handwe: numba): ICewwViewModew | undefined {
+		wetuwn this.viewModew?.getCewwByHandwe(handwe);
 	}
 
-	getCellIndex(cell: ICellViewModel) {
-		return this.viewModel?.getCellIndexByHandle(cell.handle);
+	getCewwIndex(ceww: ICewwViewModew) {
+		wetuwn this.viewModew?.getCewwIndexByHandwe(ceww.handwe);
 	}
 
-	getNextVisibleCellIndex(index: number): number | undefined {
-		return this.viewModel?.getNextVisibleCellIndex(index);
+	getNextVisibweCewwIndex(index: numba): numba | undefined {
+		wetuwn this.viewModew?.getNextVisibweCewwIndex(index);
 	}
 
 
-	private _updateScrollHeight() {
-		if (this._isDisposed || !this._webview?.isResolved()) {
-			return;
+	pwivate _updateScwowwHeight() {
+		if (this._isDisposed || !this._webview?.isWesowved()) {
+			wetuwn;
 		}
 
-		const scrollHeight = this._list.scrollHeight;
-		this._webview!.element.style.height = `${scrollHeight}px`;
+		const scwowwHeight = this._wist.scwowwHeight;
+		this._webview!.ewement.stywe.height = `${scwowwHeight}px`;
 
-		const updateItems: IDisplayOutputLayoutUpdateRequest[] = [];
-		const removedItems: ICellOutputViewModel[] = [];
-		this._webview?.insetMapping.forEach((value, key) => {
-			const cell = this.viewModel?.getCellByHandle(value.cellInfo.cellHandle);
-			if (!cell || !(cell instanceof CodeCellViewModel)) {
-				return;
+		const updateItems: IDispwayOutputWayoutUpdateWequest[] = [];
+		const wemovedItems: ICewwOutputViewModew[] = [];
+		this._webview?.insetMapping.fowEach((vawue, key) => {
+			const ceww = this.viewModew?.getCewwByHandwe(vawue.cewwInfo.cewwHandwe);
+			if (!ceww || !(ceww instanceof CodeCewwViewModew)) {
+				wetuwn;
 			}
 
-			this.viewModel?.viewCells.find(cell => cell.handle === value.cellInfo.cellHandle);
-			const viewIndex = this._list.getViewIndex(cell);
+			this.viewModew?.viewCewws.find(ceww => ceww.handwe === vawue.cewwInfo.cewwHandwe);
+			const viewIndex = this._wist.getViewIndex(ceww);
 
 			if (viewIndex === undefined) {
-				return;
+				wetuwn;
 			}
 
-			if (cell.outputsViewModels.indexOf(key) < 0) {
-				// output is already gone
-				removedItems.push(key);
+			if (ceww.outputsViewModews.indexOf(key) < 0) {
+				// output is awweady gone
+				wemovedItems.push(key);
 			}
 
-			const cellTop = this._list.getAbsoluteTopOfElement(cell);
-			const outputIndex = cell.outputsViewModels.indexOf(key);
-			const outputOffset = cell.getOutputOffset(outputIndex);
+			const cewwTop = this._wist.getAbsowuteTopOfEwement(ceww);
+			const outputIndex = ceww.outputsViewModews.indexOf(key);
+			const outputOffset = ceww.getOutputOffset(outputIndex);
 			updateItems.push({
-				cell,
+				ceww,
 				output: key,
-				cellTop,
+				cewwTop,
 				outputOffset,
-				forceDisplay: false,
+				fowceDispway: fawse,
 			});
 		});
 
-		this._webview.removeInsets(removedItems);
+		this._webview.wemoveInsets(wemovedItems);
 
-		const markdownUpdateItems: { id: string, top: number; }[] = [];
-		for (const cellId of this._webview.markupPreviewMapping.keys()) {
-			const cell = this.viewModel?.viewCells.find(cell => cell.id === cellId);
-			if (cell) {
-				const cellTop = this._list.getAbsoluteTopOfElement(cell);
-				markdownUpdateItems.push({ id: cellId, top: cellTop });
+		const mawkdownUpdateItems: { id: stwing, top: numba; }[] = [];
+		fow (const cewwId of this._webview.mawkupPweviewMapping.keys()) {
+			const ceww = this.viewModew?.viewCewws.find(ceww => ceww.id === cewwId);
+			if (ceww) {
+				const cewwTop = this._wist.getAbsowuteTopOfEwement(ceww);
+				mawkdownUpdateItems.push({ id: cewwId, top: cewwTop });
 			}
 		}
 
-		if (markdownUpdateItems.length || updateItems.length) {
-			this._debug('_list.onDidChangeContentHeight/markdown', markdownUpdateItems);
-			this._webview?.updateScrollTops(updateItems, markdownUpdateItems);
+		if (mawkdownUpdateItems.wength || updateItems.wength) {
+			this._debug('_wist.onDidChangeContentHeight/mawkdown', mawkdownUpdateItems);
+			this._webview?.updateScwowwTops(updateItems, mawkdownUpdateItems);
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region BacklayerWebview delegate
-	private _updateOutputHeight(cellInfo: ICommonCellInfo, output: ICellOutputViewModel, outputHeight: number, isInit: boolean, source?: string): void {
-		const cell = this.viewModel?.viewCells.find(vc => vc.handle === cellInfo.cellHandle);
-		if (cell && cell instanceof CodeCellViewModel) {
-			const outputIndex = cell.outputsViewModels.indexOf(output);
+	//#wegion BackwayewWebview dewegate
+	pwivate _updateOutputHeight(cewwInfo: ICommonCewwInfo, output: ICewwOutputViewModew, outputHeight: numba, isInit: boowean, souwce?: stwing): void {
+		const ceww = this.viewModew?.viewCewws.find(vc => vc.handwe === cewwInfo.cewwHandwe);
+		if (ceww && ceww instanceof CodeCewwViewModew) {
+			const outputIndex = ceww.outputsViewModews.indexOf(output);
 			if (isInit && outputHeight !== 0) {
-				cell.updateOutputMinHeight(0);
+				ceww.updateOutputMinHeight(0);
 			}
-			this._debug('update cell output', cell.handle, outputHeight);
-			cell.updateOutputHeight(outputIndex, outputHeight, source);
-			this.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
+			this._debug('update ceww output', ceww.handwe, outputHeight);
+			ceww.updateOutputHeight(outputIndex, outputHeight, souwce);
+			this.wayoutNotebookCeww(ceww, ceww.wayoutInfo.totawHeight);
 		}
 	}
 
-	private readonly _pendingOutputHeightAcks = new Map</* outputId */ string, IAckOutputHeight>();
+	pwivate weadonwy _pendingOutputHeightAcks = new Map</* outputId */ stwing, IAckOutputHeight>();
 
-	private _scheduleOutputHeightAck(cellInfo: ICommonCellInfo, outputId: string, height: number) {
+	pwivate _scheduweOutputHeightAck(cewwInfo: ICommonCewwInfo, outputId: stwing, height: numba) {
 		const wasEmpty = this._pendingOutputHeightAcks.size === 0;
-		this._pendingOutputHeightAcks.set(outputId, { cellId: cellInfo.cellId, outputId, height });
+		this._pendingOutputHeightAcks.set(outputId, { cewwId: cewwInfo.cewwId, outputId, height });
 
 		if (wasEmpty) {
-			DOM.scheduleAtNextAnimationFrame(() => {
+			DOM.scheduweAtNextAnimationFwame(() => {
 				this._debug('ack height');
-				this._updateScrollHeight();
+				this._updateScwowwHeight();
 
-				this._webview?.ackHeight([...this._pendingOutputHeightAcks.values()]);
+				this._webview?.ackHeight([...this._pendingOutputHeightAcks.vawues()]);
 
-				this._pendingOutputHeightAcks.clear();
-			}, -1); // -1 priority because this depends on calls to layoutNotebookCell, and that may be called multiple times before this runs
+				this._pendingOutputHeightAcks.cweaw();
+			}, -1); // -1 pwiowity because this depends on cawws to wayoutNotebookCeww, and that may be cawwed muwtipwe times befowe this wuns
 		}
 	}
 
-	private _getCellById(cellId: string): ICellViewModel | undefined {
-		return this.viewModel?.viewCells.find(vc => vc.id === cellId);
+	pwivate _getCewwById(cewwId: stwing): ICewwViewModew | undefined {
+		wetuwn this.viewModew?.viewCewws.find(vc => vc.id === cewwId);
 	}
 
-	private _updateMarkupCellHeight(cellId: string, height: number, isInit: boolean) {
-		const cell = this._getCellById(cellId);
-		if (cell && cell instanceof MarkupCellViewModel) {
-			const { bottomToolbarGap } = this._notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType);
-			this._debug('updateMarkdownCellHeight', cell.handle, height + bottomToolbarGap, isInit);
-			cell.renderedMarkdownHeight = height;
+	pwivate _updateMawkupCewwHeight(cewwId: stwing, height: numba, isInit: boowean) {
+		const ceww = this._getCewwById(cewwId);
+		if (ceww && ceww instanceof MawkupCewwViewModew) {
+			const { bottomToowbawGap } = this._notebookOptions.computeBottomToowbawDimensions(this.viewModew?.viewType);
+			this._debug('updateMawkdownCewwHeight', ceww.handwe, height + bottomToowbawGap, isInit);
+			ceww.wendewedMawkdownHeight = height;
 		}
 	}
 
-	private _setMarkupCellEditState(cellId: string, editState: CellEditState): void {
-		const cell = this._getCellById(cellId);
-		if (cell instanceof MarkupCellViewModel) {
-			this.revealInView(cell);
-			cell.updateEditState(editState, 'setMarkdownCellEditState');
+	pwivate _setMawkupCewwEditState(cewwId: stwing, editState: CewwEditState): void {
+		const ceww = this._getCewwById(cewwId);
+		if (ceww instanceof MawkupCewwViewModew) {
+			this.weveawInView(ceww);
+			ceww.updateEditState(editState, 'setMawkdownCewwEditState');
 		}
 	}
 
-	private _didStartDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void {
-		const cell = this._getCellById(cellId);
-		if (cell instanceof MarkupCellViewModel) {
-			this._dndController?.startExplicitDrag(cell, event.dragOffsetY);
+	pwivate _didStawtDwagMawkupCeww(cewwId: stwing, event: { dwagOffsetY: numba; }): void {
+		const ceww = this._getCewwById(cewwId);
+		if (ceww instanceof MawkupCewwViewModew) {
+			this._dndContwowwa?.stawtExpwicitDwag(ceww, event.dwagOffsetY);
 		}
 	}
 
-	private _didDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void {
-		const cell = this._getCellById(cellId);
-		if (cell instanceof MarkupCellViewModel) {
-			this._dndController?.explicitDrag(cell, event.dragOffsetY);
+	pwivate _didDwagMawkupCeww(cewwId: stwing, event: { dwagOffsetY: numba; }): void {
+		const ceww = this._getCewwById(cewwId);
+		if (ceww instanceof MawkupCewwViewModew) {
+			this._dndContwowwa?.expwicitDwag(ceww, event.dwagOffsetY);
 		}
 	}
 
-	private _didDropMarkupCell(cellId: string, event: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean; }): void {
-		const cell = this._getCellById(cellId);
-		if (cell instanceof MarkupCellViewModel) {
-			this._dndController?.explicitDrop(cell, event);
+	pwivate _didDwopMawkupCeww(cewwId: stwing, event: { dwagOffsetY: numba, ctwwKey: boowean, awtKey: boowean; }): void {
+		const ceww = this._getCewwById(cewwId);
+		if (ceww instanceof MawkupCewwViewModew) {
+			this._dndContwowwa?.expwicitDwop(ceww, event);
 		}
 	}
 
-	private _didEndDragMarkupCell(cellId: string): void {
-		const cell = this._getCellById(cellId);
-		if (cell instanceof MarkupCellViewModel) {
-			this._dndController?.endExplicitDrag(cell);
+	pwivate _didEndDwagMawkupCeww(cewwId: stwing): void {
+		const ceww = this._getCewwById(cewwId);
+		if (ceww instanceof MawkupCewwViewModew) {
+			this._dndContwowwa?.endExpwicitDwag(ceww);
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Editor Contributions
-	getContribution<T extends INotebookEditorContribution>(id: string): T {
-		return <T>(this._contributions.get(id) || null);
+	//#wegion Editow Contwibutions
+	getContwibution<T extends INotebookEditowContwibution>(id: stwing): T {
+		wetuwn <T>(this._contwibutions.get(id) || nuww);
 	}
 
-	//#endregion
+	//#endwegion
 
-	override dispose() {
-		this._isDisposed = true;
-		// dispose webview first
+	ovewwide dispose() {
+		this._isDisposed = twue;
+		// dispose webview fiwst
 		this._webview?.dispose();
-		this._webview = null;
+		this._webview = nuww;
 
-		this.notebookEditorService.removeNotebookEditor(this);
-		dispose(this._contributions.values());
-		this._contributions.clear();
+		this.notebookEditowSewvice.wemoveNotebookEditow(this);
+		dispose(this._contwibutions.vawues());
+		this._contwibutions.cweaw();
 
-		this._localStore.clear();
-		dispose(this._localCellStateListeners);
-		this._list.dispose();
-		this._listTopCellToolbar?.dispose();
+		this._wocawStowe.cweaw();
+		dispose(this._wocawCewwStateWistenews);
+		this._wist.dispose();
+		this._wistTopCewwToowbaw?.dispose();
 
-		this._overlayContainer.remove();
-		this.viewModel?.dispose();
+		this._ovewwayContaina.wemove();
+		this.viewModew?.dispose();
 
-		// unref
-		this._webview = null;
-		this._webviewResolvePromise = null;
-		this._webviewTransparentCover = null;
-		this._dndController = null;
-		this._listTopCellToolbar = null;
-		this._notebookViewModel = undefined;
-		this._cellContextKeyManager = null;
-		this._renderedEditors.clear();
-		this._pendingLayouts = null;
-		this._listDelegate = null;
+		// unwef
+		this._webview = nuww;
+		this._webviewWesowvePwomise = nuww;
+		this._webviewTwanspawentCova = nuww;
+		this._dndContwowwa = nuww;
+		this._wistTopCewwToowbaw = nuww;
+		this._notebookViewModew = undefined;
+		this._cewwContextKeyManaga = nuww;
+		this._wendewedEditows.cweaw();
+		this._pendingWayouts = nuww;
+		this._wistDewegate = nuww;
 
-		super.dispose();
+		supa.dispose();
 	}
 
-	toJSON(): { notebookUri: URI | undefined; } {
-		return {
-			notebookUri: this.viewModel?.uri,
+	toJSON(): { notebookUwi: UWI | undefined; } {
+		wetuwn {
+			notebookUwi: this.viewModew?.uwi,
 		};
 	}
 }
 
-registerZIndex(ZIndex.Base, 5, 'notebook-progress-bar',);
-registerZIndex(ZIndex.Base, 10, 'notebook-list-insertion-indicator');
-registerZIndex(ZIndex.Base, 20, 'notebook-cell-editor-outline');
-registerZIndex(ZIndex.Base, 25, 'notebook-scrollbar');
-registerZIndex(ZIndex.Base, 26, 'notebook-cell-status');
-registerZIndex(ZIndex.Base, 26, 'notebook-cell-drag-handle');
-registerZIndex(ZIndex.Base, 26, 'notebook-folding-indicator');
-registerZIndex(ZIndex.Base, 27, 'notebook-output');
-registerZIndex(ZIndex.Base, 28, 'notebook-cell-bottom-toolbar-container');
-registerZIndex(ZIndex.Base, 29, 'notebook-run-button-container');
-registerZIndex(ZIndex.Base, 29, 'notebook-input-collapse-condicon');
-registerZIndex(ZIndex.Base, 30, 'notebook-cell-output-toolbar');
-registerZIndex(ZIndex.Sash, 1, 'notebook-cell-toolbar');
+wegistewZIndex(ZIndex.Base, 5, 'notebook-pwogwess-baw',);
+wegistewZIndex(ZIndex.Base, 10, 'notebook-wist-insewtion-indicatow');
+wegistewZIndex(ZIndex.Base, 20, 'notebook-ceww-editow-outwine');
+wegistewZIndex(ZIndex.Base, 25, 'notebook-scwowwbaw');
+wegistewZIndex(ZIndex.Base, 26, 'notebook-ceww-status');
+wegistewZIndex(ZIndex.Base, 26, 'notebook-ceww-dwag-handwe');
+wegistewZIndex(ZIndex.Base, 26, 'notebook-fowding-indicatow');
+wegistewZIndex(ZIndex.Base, 27, 'notebook-output');
+wegistewZIndex(ZIndex.Base, 28, 'notebook-ceww-bottom-toowbaw-containa');
+wegistewZIndex(ZIndex.Base, 29, 'notebook-wun-button-containa');
+wegistewZIndex(ZIndex.Base, 29, 'notebook-input-cowwapse-condicon');
+wegistewZIndex(ZIndex.Base, 30, 'notebook-ceww-output-toowbaw');
+wegistewZIndex(ZIndex.Sash, 1, 'notebook-ceww-toowbaw');
 
-export const notebookCellBorder = registerColor('notebook.cellBorderColor', {
-	dark: transparent(listInactiveSelectionBackground, 1),
-	light: transparent(listInactiveSelectionBackground, 1),
-	hc: PANEL_BORDER
-}, nls.localize('notebook.cellBorderColor', "The border color for notebook cells."));
+expowt const notebookCewwBowda = wegistewCowow('notebook.cewwBowdewCowow', {
+	dawk: twanspawent(wistInactiveSewectionBackgwound, 1),
+	wight: twanspawent(wistInactiveSewectionBackgwound, 1),
+	hc: PANEW_BOWDa
+}, nws.wocawize('notebook.cewwBowdewCowow', "The bowda cowow fow notebook cewws."));
 
-export const focusedEditorBorderColor = registerColor('notebook.focusedEditorBorder', {
-	light: focusBorder,
-	dark: focusBorder,
-	hc: focusBorder
-}, nls.localize('notebook.focusedEditorBorder', "The color of the notebook cell editor border."));
+expowt const focusedEditowBowdewCowow = wegistewCowow('notebook.focusedEditowBowda', {
+	wight: focusBowda,
+	dawk: focusBowda,
+	hc: focusBowda
+}, nws.wocawize('notebook.focusedEditowBowda', "The cowow of the notebook ceww editow bowda."));
 
-export const cellStatusIconSuccess = registerColor('notebookStatusSuccessIcon.foreground', {
-	light: debugIconStartForeground,
-	dark: debugIconStartForeground,
-	hc: debugIconStartForeground
-}, nls.localize('notebookStatusSuccessIcon.foreground', "The error icon color of notebook cells in the cell status bar."));
+expowt const cewwStatusIconSuccess = wegistewCowow('notebookStatusSuccessIcon.fowegwound', {
+	wight: debugIconStawtFowegwound,
+	dawk: debugIconStawtFowegwound,
+	hc: debugIconStawtFowegwound
+}, nws.wocawize('notebookStatusSuccessIcon.fowegwound', "The ewwow icon cowow of notebook cewws in the ceww status baw."));
 
-export const cellStatusIconError = registerColor('notebookStatusErrorIcon.foreground', {
-	light: errorForeground,
-	dark: errorForeground,
-	hc: errorForeground
-}, nls.localize('notebookStatusErrorIcon.foreground', "The error icon color of notebook cells in the cell status bar."));
+expowt const cewwStatusIconEwwow = wegistewCowow('notebookStatusEwwowIcon.fowegwound', {
+	wight: ewwowFowegwound,
+	dawk: ewwowFowegwound,
+	hc: ewwowFowegwound
+}, nws.wocawize('notebookStatusEwwowIcon.fowegwound', "The ewwow icon cowow of notebook cewws in the ceww status baw."));
 
-export const cellStatusIconRunning = registerColor('notebookStatusRunningIcon.foreground', {
-	light: foreground,
-	dark: foreground,
-	hc: foreground
-}, nls.localize('notebookStatusRunningIcon.foreground', "The running icon color of notebook cells in the cell status bar."));
+expowt const cewwStatusIconWunning = wegistewCowow('notebookStatusWunningIcon.fowegwound', {
+	wight: fowegwound,
+	dawk: fowegwound,
+	hc: fowegwound
+}, nws.wocawize('notebookStatusWunningIcon.fowegwound', "The wunning icon cowow of notebook cewws in the ceww status baw."));
 
-export const notebookOutputContainerBorderColor = registerColor('notebook.outputContainerBorderColor', {
-	dark: null,
-	light: null,
-	hc: null
-}, nls.localize('notebook.outputContainerBorderColor', "The border color of the notebook output container."));
+expowt const notebookOutputContainewBowdewCowow = wegistewCowow('notebook.outputContainewBowdewCowow', {
+	dawk: nuww,
+	wight: nuww,
+	hc: nuww
+}, nws.wocawize('notebook.outputContainewBowdewCowow', "The bowda cowow of the notebook output containa."));
 
-export const notebookOutputContainerColor = registerColor('notebook.outputContainerBackgroundColor', {
-	dark: null,
-	light: null,
-	hc: null
-}, nls.localize('notebook.outputContainerBackgroundColor', "The color of the notebook output container background."));
+expowt const notebookOutputContainewCowow = wegistewCowow('notebook.outputContainewBackgwoundCowow', {
+	dawk: nuww,
+	wight: nuww,
+	hc: nuww
+}, nws.wocawize('notebook.outputContainewBackgwoundCowow', "The cowow of the notebook output containa backgwound."));
 
-// TODO@rebornix currently also used for toolbar border, if we keep all of this, pick a generic name
-export const CELL_TOOLBAR_SEPERATOR = registerColor('notebook.cellToolbarSeparator', {
-	dark: Color.fromHex('#808080').transparent(0.35),
-	light: Color.fromHex('#808080').transparent(0.35),
-	hc: contrastBorder
-}, nls.localize('notebook.cellToolbarSeparator', "The color of the separator in the cell bottom toolbar"));
+// TODO@webownix cuwwentwy awso used fow toowbaw bowda, if we keep aww of this, pick a genewic name
+expowt const CEWW_TOOWBAW_SEPEWATOW = wegistewCowow('notebook.cewwToowbawSepawatow', {
+	dawk: Cowow.fwomHex('#808080').twanspawent(0.35),
+	wight: Cowow.fwomHex('#808080').twanspawent(0.35),
+	hc: contwastBowda
+}, nws.wocawize('notebook.cewwToowbawSepawatow', "The cowow of the sepawatow in the ceww bottom toowbaw"));
 
-export const focusedCellBackground = registerColor('notebook.focusedCellBackground', {
-	dark: null,
-	light: null,
-	hc: null
-}, nls.localize('focusedCellBackground', "The background color of a cell when the cell is focused."));
+expowt const focusedCewwBackgwound = wegistewCowow('notebook.focusedCewwBackgwound', {
+	dawk: nuww,
+	wight: nuww,
+	hc: nuww
+}, nws.wocawize('focusedCewwBackgwound', "The backgwound cowow of a ceww when the ceww is focused."));
 
-export const selectedCellBackground = registerColor('notebook.selectedCellBackground', {
-	dark: listInactiveSelectionBackground,
-	light: listInactiveSelectionBackground,
-	hc: null
-}, nls.localize('selectedCellBackground', "The background color of a cell when the cell is selected."));
+expowt const sewectedCewwBackgwound = wegistewCowow('notebook.sewectedCewwBackgwound', {
+	dawk: wistInactiveSewectionBackgwound,
+	wight: wistInactiveSewectionBackgwound,
+	hc: nuww
+}, nws.wocawize('sewectedCewwBackgwound', "The backgwound cowow of a ceww when the ceww is sewected."));
 
 
-export const cellHoverBackground = registerColor('notebook.cellHoverBackground', {
-	dark: transparent(focusedCellBackground, .5),
-	light: transparent(focusedCellBackground, .7),
-	hc: null
-}, nls.localize('notebook.cellHoverBackground', "The background color of a cell when the cell is hovered."));
+expowt const cewwHovewBackgwound = wegistewCowow('notebook.cewwHovewBackgwound', {
+	dawk: twanspawent(focusedCewwBackgwound, .5),
+	wight: twanspawent(focusedCewwBackgwound, .7),
+	hc: nuww
+}, nws.wocawize('notebook.cewwHovewBackgwound', "The backgwound cowow of a ceww when the ceww is hovewed."));
 
-export const selectedCellBorder = registerColor('notebook.selectedCellBorder', {
-	dark: notebookCellBorder,
-	light: notebookCellBorder,
-	hc: contrastBorder
-}, nls.localize('notebook.selectedCellBorder', "The color of the cell's top and bottom border when the cell is selected but not focused."));
+expowt const sewectedCewwBowda = wegistewCowow('notebook.sewectedCewwBowda', {
+	dawk: notebookCewwBowda,
+	wight: notebookCewwBowda,
+	hc: contwastBowda
+}, nws.wocawize('notebook.sewectedCewwBowda', "The cowow of the ceww's top and bottom bowda when the ceww is sewected but not focused."));
 
-export const inactiveSelectedCellBorder = registerColor('notebook.inactiveSelectedCellBorder', {
-	dark: null,
-	light: null,
-	hc: focusBorder
-}, nls.localize('notebook.inactiveSelectedCellBorder', "The color of the cell's borders when multiple cells are selected."));
+expowt const inactiveSewectedCewwBowda = wegistewCowow('notebook.inactiveSewectedCewwBowda', {
+	dawk: nuww,
+	wight: nuww,
+	hc: focusBowda
+}, nws.wocawize('notebook.inactiveSewectedCewwBowda', "The cowow of the ceww's bowdews when muwtipwe cewws awe sewected."));
 
-export const focusedCellBorder = registerColor('notebook.focusedCellBorder', {
-	dark: focusBorder,
-	light: focusBorder,
-	hc: focusBorder
-}, nls.localize('notebook.focusedCellBorder', "The color of the cell's borders when the cell is focused."));
+expowt const focusedCewwBowda = wegistewCowow('notebook.focusedCewwBowda', {
+	dawk: focusBowda,
+	wight: focusBowda,
+	hc: focusBowda
+}, nws.wocawize('notebook.focusedCewwBowda', "The cowow of the ceww's bowdews when the ceww is focused."));
 
-export const inactiveFocusedCellBorder = registerColor('notebook.inactiveFocusedCellBorder', {
-	dark: notebookCellBorder,
-	light: notebookCellBorder,
-	hc: notebookCellBorder
-}, nls.localize('notebook.inactiveFocusedCellBorder', "The color of the cell's top and bottom border when a cell is focused while the primary focus is outside of the editor."));
+expowt const inactiveFocusedCewwBowda = wegistewCowow('notebook.inactiveFocusedCewwBowda', {
+	dawk: notebookCewwBowda,
+	wight: notebookCewwBowda,
+	hc: notebookCewwBowda
+}, nws.wocawize('notebook.inactiveFocusedCewwBowda', "The cowow of the ceww's top and bottom bowda when a ceww is focused whiwe the pwimawy focus is outside of the editow."));
 
-export const cellStatusBarItemHover = registerColor('notebook.cellStatusBarItemHoverBackground', {
-	light: new Color(new RGBA(0, 0, 0, 0.08)),
-	dark: new Color(new RGBA(255, 255, 255, 0.15)),
-	hc: new Color(new RGBA(255, 255, 255, 0.15)),
-}, nls.localize('notebook.cellStatusBarItemHoverBackground', "The background color of notebook cell status bar items."));
+expowt const cewwStatusBawItemHova = wegistewCowow('notebook.cewwStatusBawItemHovewBackgwound', {
+	wight: new Cowow(new WGBA(0, 0, 0, 0.08)),
+	dawk: new Cowow(new WGBA(255, 255, 255, 0.15)),
+	hc: new Cowow(new WGBA(255, 255, 255, 0.15)),
+}, nws.wocawize('notebook.cewwStatusBawItemHovewBackgwound', "The backgwound cowow of notebook ceww status baw items."));
 
-export const cellInsertionIndicator = registerColor('notebook.cellInsertionIndicator', {
-	light: focusBorder,
-	dark: focusBorder,
-	hc: focusBorder
-}, nls.localize('notebook.cellInsertionIndicator', "The color of the notebook cell insertion indicator."));
+expowt const cewwInsewtionIndicatow = wegistewCowow('notebook.cewwInsewtionIndicatow', {
+	wight: focusBowda,
+	dawk: focusBowda,
+	hc: focusBowda
+}, nws.wocawize('notebook.cewwInsewtionIndicatow', "The cowow of the notebook ceww insewtion indicatow."));
 
-export const listScrollbarSliderBackground = registerColor('notebookScrollbarSlider.background', {
-	dark: scrollbarSliderBackground,
-	light: scrollbarSliderBackground,
-	hc: scrollbarSliderBackground
-}, nls.localize('notebookScrollbarSliderBackground', "Notebook scrollbar slider background color."));
+expowt const wistScwowwbawSwidewBackgwound = wegistewCowow('notebookScwowwbawSwida.backgwound', {
+	dawk: scwowwbawSwidewBackgwound,
+	wight: scwowwbawSwidewBackgwound,
+	hc: scwowwbawSwidewBackgwound
+}, nws.wocawize('notebookScwowwbawSwidewBackgwound', "Notebook scwowwbaw swida backgwound cowow."));
 
-export const listScrollbarSliderHoverBackground = registerColor('notebookScrollbarSlider.hoverBackground', {
-	dark: scrollbarSliderHoverBackground,
-	light: scrollbarSliderHoverBackground,
-	hc: scrollbarSliderHoverBackground
-}, nls.localize('notebookScrollbarSliderHoverBackground', "Notebook scrollbar slider background color when hovering."));
+expowt const wistScwowwbawSwidewHovewBackgwound = wegistewCowow('notebookScwowwbawSwida.hovewBackgwound', {
+	dawk: scwowwbawSwidewHovewBackgwound,
+	wight: scwowwbawSwidewHovewBackgwound,
+	hc: scwowwbawSwidewHovewBackgwound
+}, nws.wocawize('notebookScwowwbawSwidewHovewBackgwound', "Notebook scwowwbaw swida backgwound cowow when hovewing."));
 
-export const listScrollbarSliderActiveBackground = registerColor('notebookScrollbarSlider.activeBackground', {
-	dark: scrollbarSliderActiveBackground,
-	light: scrollbarSliderActiveBackground,
-	hc: scrollbarSliderActiveBackground
-}, nls.localize('notebookScrollbarSliderActiveBackground', "Notebook scrollbar slider background color when clicked on."));
+expowt const wistScwowwbawSwidewActiveBackgwound = wegistewCowow('notebookScwowwbawSwida.activeBackgwound', {
+	dawk: scwowwbawSwidewActiveBackgwound,
+	wight: scwowwbawSwidewActiveBackgwound,
+	hc: scwowwbawSwidewActiveBackgwound
+}, nws.wocawize('notebookScwowwbawSwidewActiveBackgwound', "Notebook scwowwbaw swida backgwound cowow when cwicked on."));
 
-export const cellSymbolHighlight = registerColor('notebook.symbolHighlightBackground', {
-	dark: Color.fromHex('#ffffff0b'),
-	light: Color.fromHex('#fdff0033'),
-	hc: null
-}, nls.localize('notebook.symbolHighlightBackground', "Background color of highlighted cell"));
+expowt const cewwSymbowHighwight = wegistewCowow('notebook.symbowHighwightBackgwound', {
+	dawk: Cowow.fwomHex('#ffffff0b'),
+	wight: Cowow.fwomHex('#fdff0033'),
+	hc: nuww
+}, nws.wocawize('notebook.symbowHighwightBackgwound', "Backgwound cowow of highwighted ceww"));
 
-export const cellEditorBackground = registerColor('notebook.cellEditorBackground', {
-	light: transparent(foreground, 0.04),
-	dark: transparent(foreground, 0.04),
-	hc: null
-}, nls.localize('notebook.cellEditorBackground', "Cell editor background color."));
+expowt const cewwEditowBackgwound = wegistewCowow('notebook.cewwEditowBackgwound', {
+	wight: twanspawent(fowegwound, 0.04),
+	dawk: twanspawent(fowegwound, 0.04),
+	hc: nuww
+}, nws.wocawize('notebook.cewwEditowBackgwound', "Ceww editow backgwound cowow."));
 
-registerThemingParticipant((theme, collector) => {
-	// add css variable rules
+wegistewThemingPawticipant((theme, cowwectow) => {
+	// add css vawiabwe wuwes
 
-	const focusedCellBorderColor = theme.getColor(focusedCellBorder);
-	const inactiveFocusedBorderColor = theme.getColor(inactiveFocusedCellBorder);
-	const selectedCellBorderColor = theme.getColor(selectedCellBorder);
-	collector.addRule(`
-	:root {
-		--notebook-focused-cell-border-color: ${focusedCellBorderColor};
-		--notebook-inactive-focused-cell-border-color: ${inactiveFocusedBorderColor};
-		--notebook-selected-cell-border-color: ${selectedCellBorderColor};
+	const focusedCewwBowdewCowow = theme.getCowow(focusedCewwBowda);
+	const inactiveFocusedBowdewCowow = theme.getCowow(inactiveFocusedCewwBowda);
+	const sewectedCewwBowdewCowow = theme.getCowow(sewectedCewwBowda);
+	cowwectow.addWuwe(`
+	:woot {
+		--notebook-focused-ceww-bowda-cowow: ${focusedCewwBowdewCowow};
+		--notebook-inactive-focused-ceww-bowda-cowow: ${inactiveFocusedBowdewCowow};
+		--notebook-sewected-ceww-bowda-cowow: ${sewectedCewwBowdewCowow};
 	}
 	`);
 
 
-	const link = theme.getColor(textLinkForeground);
-	if (link) {
-		collector.addRule(`.notebookOverlay .cell.markdown a,
-			.notebookOverlay .output-show-more-container a
-			{ color: ${link};} `);
+	const wink = theme.getCowow(textWinkFowegwound);
+	if (wink) {
+		cowwectow.addWuwe(`.notebookOvewway .ceww.mawkdown a,
+			.notebookOvewway .output-show-mowe-containa a
+			{ cowow: ${wink};} `);
 
 	}
-	const activeLink = theme.getColor(textLinkActiveForeground);
-	if (activeLink) {
-		collector.addRule(`.notebookOverlay .output-show-more-container a:active
-			{ color: ${activeLink}; }`);
+	const activeWink = theme.getCowow(textWinkActiveFowegwound);
+	if (activeWink) {
+		cowwectow.addWuwe(`.notebookOvewway .output-show-mowe-containa a:active
+			{ cowow: ${activeWink}; }`);
 	}
-	const shortcut = theme.getColor(textPreformatForeground);
-	if (shortcut) {
-		collector.addRule(`.notebookOverlay code,
-			.notebookOverlay .shortcut { color: ${shortcut}; }`);
+	const showtcut = theme.getCowow(textPwefowmatFowegwound);
+	if (showtcut) {
+		cowwectow.addWuwe(`.notebookOvewway code,
+			.notebookOvewway .showtcut { cowow: ${showtcut}; }`);
 	}
-	const border = theme.getColor(contrastBorder);
-	if (border) {
-		collector.addRule(`.notebookOverlay .monaco-editor { border-color: ${border}; }`);
+	const bowda = theme.getCowow(contwastBowda);
+	if (bowda) {
+		cowwectow.addWuwe(`.notebookOvewway .monaco-editow { bowda-cowow: ${bowda}; }`);
 	}
-	const quoteBackground = theme.getColor(textBlockQuoteBackground);
-	if (quoteBackground) {
-		collector.addRule(`.notebookOverlay blockquote { background: ${quoteBackground}; }`);
+	const quoteBackgwound = theme.getCowow(textBwockQuoteBackgwound);
+	if (quoteBackgwound) {
+		cowwectow.addWuwe(`.notebookOvewway bwockquote { backgwound: ${quoteBackgwound}; }`);
 	}
-	const quoteBorder = theme.getColor(textBlockQuoteBorder);
-	if (quoteBorder) {
-		collector.addRule(`.notebookOverlay blockquote { border-color: ${quoteBorder}; }`);
-	}
-
-	const containerBackground = theme.getColor(notebookOutputContainerColor);
-	if (containerBackground) {
-		collector.addRule(`.notebookOverlay .output { background-color: ${containerBackground}; }`);
-		collector.addRule(`.notebookOverlay .output-element { background-color: ${containerBackground}; }`);
-		collector.addRule(`.notebookOverlay .output-show-more-container { background-color: ${containerBackground}; }`);
+	const quoteBowda = theme.getCowow(textBwockQuoteBowda);
+	if (quoteBowda) {
+		cowwectow.addWuwe(`.notebookOvewway bwockquote { bowda-cowow: ${quoteBowda}; }`);
 	}
 
-	const containerBorder = theme.getColor(notebookOutputContainerBorderColor);
-	if (containerBorder) {
-		collector.addRule(`.notebookOverlay .output-element { border-top: none !important; border: 1px solid transparent; border-color: ${containerBorder} !important; }`);
+	const containewBackgwound = theme.getCowow(notebookOutputContainewCowow);
+	if (containewBackgwound) {
+		cowwectow.addWuwe(`.notebookOvewway .output { backgwound-cowow: ${containewBackgwound}; }`);
+		cowwectow.addWuwe(`.notebookOvewway .output-ewement { backgwound-cowow: ${containewBackgwound}; }`);
+		cowwectow.addWuwe(`.notebookOvewway .output-show-mowe-containa { backgwound-cowow: ${containewBackgwound}; }`);
 	}
 
-	const notebookBackground = theme.getColor(editorBackground);
-	if (notebookBackground) {
-		collector.addRule(`.notebookOverlay .cell-drag-image .cell-editor-container > div { background: ${notebookBackground} !important; }`);
-		collector.addRule(`.notebookOverlay .monaco-list-row .cell-title-toolbar { background-color: ${notebookBackground}; }`);
-		collector.addRule(`.notebookOverlay .monaco-list-row.cell-drag-image { background-color: ${notebookBackground}; }`);
-		collector.addRule(`.notebookOverlay .cell-bottom-toolbar-container .action-item { background-color: ${notebookBackground} }`);
-		collector.addRule(`.notebookOverlay .cell-list-top-cell-toolbar-container .action-item { background-color: ${notebookBackground} }`);
+	const containewBowda = theme.getCowow(notebookOutputContainewBowdewCowow);
+	if (containewBowda) {
+		cowwectow.addWuwe(`.notebookOvewway .output-ewement { bowda-top: none !impowtant; bowda: 1px sowid twanspawent; bowda-cowow: ${containewBowda} !impowtant; }`);
 	}
 
-	const editorBackgroundColor = theme.getColor(cellEditorBackground) ?? theme.getColor(editorBackground);
-	if (editorBackgroundColor) {
-		collector.addRule(`.notebookOverlay .cell .monaco-editor-background,
-		.notebookOverlay .cell .margin-view-overlays,
-		.notebookOverlay .cell .cell-statusbar-container { background: ${editorBackgroundColor}; }`);
+	const notebookBackgwound = theme.getCowow(editowBackgwound);
+	if (notebookBackgwound) {
+		cowwectow.addWuwe(`.notebookOvewway .ceww-dwag-image .ceww-editow-containa > div { backgwound: ${notebookBackgwound} !impowtant; }`);
+		cowwectow.addWuwe(`.notebookOvewway .monaco-wist-wow .ceww-titwe-toowbaw { backgwound-cowow: ${notebookBackgwound}; }`);
+		cowwectow.addWuwe(`.notebookOvewway .monaco-wist-wow.ceww-dwag-image { backgwound-cowow: ${notebookBackgwound}; }`);
+		cowwectow.addWuwe(`.notebookOvewway .ceww-bottom-toowbaw-containa .action-item { backgwound-cowow: ${notebookBackgwound} }`);
+		cowwectow.addWuwe(`.notebookOvewway .ceww-wist-top-ceww-toowbaw-containa .action-item { backgwound-cowow: ${notebookBackgwound} }`);
 	}
 
-	const cellToolbarSeperator = theme.getColor(CELL_TOOLBAR_SEPERATOR);
-	if (cellToolbarSeperator) {
-		collector.addRule(`.notebookOverlay .monaco-list-row .cell-title-toolbar { border: solid 1px ${cellToolbarSeperator}; }`);
-		collector.addRule(`.notebookOverlay .cell-bottom-toolbar-container .action-item { border: solid 1px ${cellToolbarSeperator} }`);
-		collector.addRule(`.notebookOverlay .cell-list-top-cell-toolbar-container .action-item { border: solid 1px ${cellToolbarSeperator} }`);
-		collector.addRule(`.notebookOverlay .monaco-action-bar .action-item.verticalSeparator { background-color: ${cellToolbarSeperator} }`);
-		collector.addRule(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .input-collapse-container { border-bottom: solid 1px ${cellToolbarSeperator} }`);
+	const editowBackgwoundCowow = theme.getCowow(cewwEditowBackgwound) ?? theme.getCowow(editowBackgwound);
+	if (editowBackgwoundCowow) {
+		cowwectow.addWuwe(`.notebookOvewway .ceww .monaco-editow-backgwound,
+		.notebookOvewway .ceww .mawgin-view-ovewways,
+		.notebookOvewway .ceww .ceww-statusbaw-containa { backgwound: ${editowBackgwoundCowow}; }`);
 	}
 
-	const focusedCellBackgroundColor = theme.getColor(focusedCellBackground);
-	if (focusedCellBackgroundColor) {
-		collector.addRule(`.notebookOverlay .code-cell-row.focused .cell-focus-indicator { background-color: ${focusedCellBackgroundColor} !important; }`);
-		collector.addRule(`.notebookOverlay .markdown-cell-row.focused { background-color: ${focusedCellBackgroundColor} !important; }`);
-		collector.addRule(`.notebookOverlay .code-cell-row.focused .input-collapse-container { background-color: ${focusedCellBackgroundColor} !important; }`);
+	const cewwToowbawSepewatow = theme.getCowow(CEWW_TOOWBAW_SEPEWATOW);
+	if (cewwToowbawSepewatow) {
+		cowwectow.addWuwe(`.notebookOvewway .monaco-wist-wow .ceww-titwe-toowbaw { bowda: sowid 1px ${cewwToowbawSepewatow}; }`);
+		cowwectow.addWuwe(`.notebookOvewway .ceww-bottom-toowbaw-containa .action-item { bowda: sowid 1px ${cewwToowbawSepewatow} }`);
+		cowwectow.addWuwe(`.notebookOvewway .ceww-wist-top-ceww-toowbaw-containa .action-item { bowda: sowid 1px ${cewwToowbawSepewatow} }`);
+		cowwectow.addWuwe(`.notebookOvewway .monaco-action-baw .action-item.vewticawSepawatow { backgwound-cowow: ${cewwToowbawSepewatow} }`);
+		cowwectow.addWuwe(`.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .input-cowwapse-containa { bowda-bottom: sowid 1px ${cewwToowbawSepewatow} }`);
 	}
 
-	const selectedCellBackgroundColor = theme.getColor(selectedCellBackground);
-	if (selectedCellBackground) {
-		collector.addRule(`.notebookOverlay .monaco-list.selection-multiple .markdown-cell-row.selected { background-color: ${selectedCellBackgroundColor} !important; }`);
-		collector.addRule(`.notebookOverlay .monaco-list.selection-multiple .code-cell-row.selected .cell-focus-indicator-top { background-color: ${selectedCellBackgroundColor} !important; }`);
-		collector.addRule(`.notebookOverlay .monaco-list.selection-multiple .code-cell-row.selected .cell-focus-indicator-left { background-color: ${selectedCellBackgroundColor} !important; }`);
-		collector.addRule(`.notebookOverlay .monaco-list.selection-multiple .code-cell-row.selected .cell-focus-indicator-right { background-color: ${selectedCellBackgroundColor} !important; }`);
-		collector.addRule(`.notebookOverlay .monaco-list.selection-multiple .code-cell-row.selected .cell-focus-indicator-bottom { background-color: ${selectedCellBackgroundColor} !important; }`);
+	const focusedCewwBackgwoundCowow = theme.getCowow(focusedCewwBackgwound);
+	if (focusedCewwBackgwoundCowow) {
+		cowwectow.addWuwe(`.notebookOvewway .code-ceww-wow.focused .ceww-focus-indicatow { backgwound-cowow: ${focusedCewwBackgwoundCowow} !impowtant; }`);
+		cowwectow.addWuwe(`.notebookOvewway .mawkdown-ceww-wow.focused { backgwound-cowow: ${focusedCewwBackgwoundCowow} !impowtant; }`);
+		cowwectow.addWuwe(`.notebookOvewway .code-ceww-wow.focused .input-cowwapse-containa { backgwound-cowow: ${focusedCewwBackgwoundCowow} !impowtant; }`);
 	}
 
-	const inactiveSelectedCellBorderColor = theme.getColor(inactiveSelectedCellBorder);
-	collector.addRule(`
-			.notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected .cell-focus-indicator-top:before,
-			.notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected .cell-focus-indicator-bottom:before,
-			.notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-left:before,
-			.notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-right:before {
-					border-color: ${inactiveSelectedCellBorderColor} !important;
+	const sewectedCewwBackgwoundCowow = theme.getCowow(sewectedCewwBackgwound);
+	if (sewectedCewwBackgwound) {
+		cowwectow.addWuwe(`.notebookOvewway .monaco-wist.sewection-muwtipwe .mawkdown-ceww-wow.sewected { backgwound-cowow: ${sewectedCewwBackgwoundCowow} !impowtant; }`);
+		cowwectow.addWuwe(`.notebookOvewway .monaco-wist.sewection-muwtipwe .code-ceww-wow.sewected .ceww-focus-indicatow-top { backgwound-cowow: ${sewectedCewwBackgwoundCowow} !impowtant; }`);
+		cowwectow.addWuwe(`.notebookOvewway .monaco-wist.sewection-muwtipwe .code-ceww-wow.sewected .ceww-focus-indicatow-weft { backgwound-cowow: ${sewectedCewwBackgwoundCowow} !impowtant; }`);
+		cowwectow.addWuwe(`.notebookOvewway .monaco-wist.sewection-muwtipwe .code-ceww-wow.sewected .ceww-focus-indicatow-wight { backgwound-cowow: ${sewectedCewwBackgwoundCowow} !impowtant; }`);
+		cowwectow.addWuwe(`.notebookOvewway .monaco-wist.sewection-muwtipwe .code-ceww-wow.sewected .ceww-focus-indicatow-bottom { backgwound-cowow: ${sewectedCewwBackgwoundCowow} !impowtant; }`);
+	}
+
+	const inactiveSewectedCewwBowdewCowow = theme.getCowow(inactiveSewectedCewwBowda);
+	cowwectow.addWuwe(`
+			.notebookOvewway .monaco-wist.sewection-muwtipwe:focus-within .monaco-wist-wow.sewected .ceww-focus-indicatow-top:befowe,
+			.notebookOvewway .monaco-wist.sewection-muwtipwe:focus-within .monaco-wist-wow.sewected .ceww-focus-indicatow-bottom:befowe,
+			.notebookOvewway .monaco-wist.sewection-muwtipwe:focus-within .monaco-wist-wow.sewected .ceww-inna-containa:not(.ceww-editow-focus) .ceww-focus-indicatow-weft:befowe,
+			.notebookOvewway .monaco-wist.sewection-muwtipwe:focus-within .monaco-wist-wow.sewected .ceww-inna-containa:not(.ceww-editow-focus) .ceww-focus-indicatow-wight:befowe {
+					bowda-cowow: ${inactiveSewectedCewwBowdewCowow} !impowtant;
 			}
 	`);
 
-	const cellHoverBackgroundColor = theme.getColor(cellHoverBackground);
-	if (cellHoverBackgroundColor) {
-		collector.addRule(`.notebookOverlay .code-cell-row:not(.focused):hover .cell-focus-indicator,
-			.notebookOverlay .code-cell-row:not(.focused).cell-output-hover .cell-focus-indicator,
-			.notebookOverlay .markdown-cell-row:not(.focused):hover { background-color: ${cellHoverBackgroundColor} !important; }`);
-		collector.addRule(`.notebookOverlay .code-cell-row:not(.focused):hover .input-collapse-container,
-			.notebookOverlay .code-cell-row:not(.focused).cell-output-hover .input-collapse-container { background-color: ${cellHoverBackgroundColor}; }`);
+	const cewwHovewBackgwoundCowow = theme.getCowow(cewwHovewBackgwound);
+	if (cewwHovewBackgwoundCowow) {
+		cowwectow.addWuwe(`.notebookOvewway .code-ceww-wow:not(.focused):hova .ceww-focus-indicatow,
+			.notebookOvewway .code-ceww-wow:not(.focused).ceww-output-hova .ceww-focus-indicatow,
+			.notebookOvewway .mawkdown-ceww-wow:not(.focused):hova { backgwound-cowow: ${cewwHovewBackgwoundCowow} !impowtant; }`);
+		cowwectow.addWuwe(`.notebookOvewway .code-ceww-wow:not(.focused):hova .input-cowwapse-containa,
+			.notebookOvewway .code-ceww-wow:not(.focused).ceww-output-hova .input-cowwapse-containa { backgwound-cowow: ${cewwHovewBackgwoundCowow}; }`);
 	}
 
-	const cellSymbolHighlightColor = theme.getColor(cellSymbolHighlight);
-	if (cellSymbolHighlightColor) {
-		collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-symbolHighlight .cell-focus-indicator,
-		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row.nb-symbolHighlight {
-			background-color: ${cellSymbolHighlightColor} !important;
+	const cewwSymbowHighwightCowow = theme.getCowow(cewwSymbowHighwight);
+	if (cewwSymbowHighwightCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow.code-ceww-wow.nb-symbowHighwight .ceww-focus-indicatow,
+		.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow.mawkdown-ceww-wow.nb-symbowHighwight {
+			backgwound-cowow: ${cewwSymbowHighwightCowow} !impowtant;
 		}`);
 	}
 
-	const focusedEditorBorderColorColor = theme.getColor(focusedEditorBorderColor);
-	if (focusedEditorBorderColorColor) {
-		collector.addRule(`.notebookOverlay .monaco-list-row .cell-editor-focus .cell-editor-part:before { outline: solid 1px ${focusedEditorBorderColorColor}; }`);
+	const focusedEditowBowdewCowowCowow = theme.getCowow(focusedEditowBowdewCowow);
+	if (focusedEditowBowdewCowowCowow) {
+		cowwectow.addWuwe(`.notebookOvewway .monaco-wist-wow .ceww-editow-focus .ceww-editow-pawt:befowe { outwine: sowid 1px ${focusedEditowBowdewCowowCowow}; }`);
 	}
 
-	const cellBorderColor = theme.getColor(notebookCellBorder);
-	if (cellBorderColor) {
-		collector.addRule(`.notebookOverlay .cell.markdown h1 { border-color: ${cellBorderColor}; }`);
-		collector.addRule(`.notebookOverlay .monaco-list-row .cell-editor-part:before { outline: solid 1px ${cellBorderColor}; }`);
+	const cewwBowdewCowow = theme.getCowow(notebookCewwBowda);
+	if (cewwBowdewCowow) {
+		cowwectow.addWuwe(`.notebookOvewway .ceww.mawkdown h1 { bowda-cowow: ${cewwBowdewCowow}; }`);
+		cowwectow.addWuwe(`.notebookOvewway .monaco-wist-wow .ceww-editow-pawt:befowe { outwine: sowid 1px ${cewwBowdewCowow}; }`);
 	}
 
-	const cellStatusBarHoverBg = theme.getColor(cellStatusBarItemHover);
-	if (cellStatusBarHoverBg) {
-		collector.addRule(`.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-language-picker:hover,
-		.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-item.cell-status-item-has-command:hover { background-color: ${cellStatusBarHoverBg}; }`);
+	const cewwStatusBawHovewBg = theme.getCowow(cewwStatusBawItemHova);
+	if (cewwStatusBawHovewBg) {
+		cowwectow.addWuwe(`.monaco-wowkbench .notebookOvewway .ceww-statusbaw-containa .ceww-wanguage-picka:hova,
+		.monaco-wowkbench .notebookOvewway .ceww-statusbaw-containa .ceww-status-item.ceww-status-item-has-command:hova { backgwound-cowow: ${cewwStatusBawHovewBg}; }`);
 	}
 
-	const cellInsertionIndicatorColor = theme.getColor(cellInsertionIndicator);
-	if (cellInsertionIndicatorColor) {
-		collector.addRule(`.notebookOverlay > .cell-list-container > .cell-list-insertion-indicator { background-color: ${cellInsertionIndicatorColor}; }`);
+	const cewwInsewtionIndicatowCowow = theme.getCowow(cewwInsewtionIndicatow);
+	if (cewwInsewtionIndicatowCowow) {
+		cowwectow.addWuwe(`.notebookOvewway > .ceww-wist-containa > .ceww-wist-insewtion-indicatow { backgwound-cowow: ${cewwInsewtionIndicatowCowow}; }`);
 	}
 
-	const scrollbarSliderBackgroundColor = theme.getColor(listScrollbarSliderBackground);
-	if (scrollbarSliderBackgroundColor) {
-		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider { background: ${scrollbarSliderBackgroundColor}; } `);
-		// collector.addRule(` .monaco-workbench .notebookOverlay .output-plaintext::-webkit-scrollbar-track { background: ${scrollbarSliderBackgroundColor}; } `);
+	const scwowwbawSwidewBackgwoundCowow = theme.getCowow(wistScwowwbawSwidewBackgwound);
+	if (scwowwbawSwidewBackgwoundCowow) {
+		cowwectow.addWuwe(` .notebookOvewway .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .scwowwbaw > .swida { backgwound: ${scwowwbawSwidewBackgwoundCowow}; } `);
+		// cowwectow.addWuwe(` .monaco-wowkbench .notebookOvewway .output-pwaintext::-webkit-scwowwbaw-twack { backgwound: ${scwowwbawSwidewBackgwoundCowow}; } `);
 	}
 
-	const scrollbarSliderHoverBackgroundColor = theme.getColor(listScrollbarSliderHoverBackground);
-	if (scrollbarSliderHoverBackgroundColor) {
-		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider:hover { background: ${scrollbarSliderHoverBackgroundColor}; } `);
-		collector.addRule(` .monaco-workbench .notebookOverlay .output-plaintext::-webkit-scrollbar-thumb { background: ${scrollbarSliderHoverBackgroundColor}; } `);
-		collector.addRule(` .monaco-workbench .notebookOverlay .output .error::-webkit-scrollbar-thumb { background: ${scrollbarSliderHoverBackgroundColor}; } `);
+	const scwowwbawSwidewHovewBackgwoundCowow = theme.getCowow(wistScwowwbawSwidewHovewBackgwound);
+	if (scwowwbawSwidewHovewBackgwoundCowow) {
+		cowwectow.addWuwe(` .notebookOvewway .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .scwowwbaw > .swida:hova { backgwound: ${scwowwbawSwidewHovewBackgwoundCowow}; } `);
+		cowwectow.addWuwe(` .monaco-wowkbench .notebookOvewway .output-pwaintext::-webkit-scwowwbaw-thumb { backgwound: ${scwowwbawSwidewHovewBackgwoundCowow}; } `);
+		cowwectow.addWuwe(` .monaco-wowkbench .notebookOvewway .output .ewwow::-webkit-scwowwbaw-thumb { backgwound: ${scwowwbawSwidewHovewBackgwoundCowow}; } `);
 	}
 
-	const scrollbarSliderActiveBackgroundColor = theme.getColor(listScrollbarSliderActiveBackground);
-	if (scrollbarSliderActiveBackgroundColor) {
-		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider.active { background: ${scrollbarSliderActiveBackgroundColor}; } `);
+	const scwowwbawSwidewActiveBackgwoundCowow = theme.getCowow(wistScwowwbawSwidewActiveBackgwound);
+	if (scwowwbawSwidewActiveBackgwoundCowow) {
+		cowwectow.addWuwe(` .notebookOvewway .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .scwowwbaw > .swida.active { backgwound: ${scwowwbawSwidewActiveBackgwoundCowow}; } `);
 	}
 
-	const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
-	if (toolbarHoverBackgroundColor) {
-		collector.addRule(`
-		.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .expandInputIcon:hover {
-			background-color: ${toolbarHoverBackgroundColor};
+	const toowbawHovewBackgwoundCowow = theme.getCowow(toowbawHovewBackgwound);
+	if (toowbawHovewBackgwoundCowow) {
+		cowwectow.addWuwe(`
+		.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .expandInputIcon:hova {
+			backgwound-cowow: ${toowbawHovewBackgwoundCowow};
 		}
-		.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .expandOutputIcon:hover {
-			background-color: ${toolbarHoverBackgroundColor};
+		.monaco-wowkbench .notebookOvewway > .ceww-wist-containa > .monaco-wist > .monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow .expandOutputIcon:hova {
+			backgwound-cowow: ${toowbawHovewBackgwoundCowow};
 		}
 	`);
 	}
 
 
-	// case ChangeType.Modify: return theme.getColor(editorGutterModifiedBackground);
-	// case ChangeType.Add: return theme.getColor(editorGutterAddedBackground);
-	// case ChangeType.Delete: return theme.getColor(editorGutterDeletedBackground);
+	// case ChangeType.Modify: wetuwn theme.getCowow(editowGuttewModifiedBackgwound);
+	// case ChangeType.Add: wetuwn theme.getCowow(editowGuttewAddedBackgwound);
+	// case ChangeType.Dewete: wetuwn theme.getCowow(editowGuttewDewetedBackgwound);
 	// diff
 
-	const modifiedBackground = theme.getColor(editorGutterModifiedBackground);
-	if (modifiedBackground) {
-		collector.addRule(`
-		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-cell-modified .cell-focus-indicator {
-			background-color: ${modifiedBackground} !important;
+	const modifiedBackgwound = theme.getCowow(editowGuttewModifiedBackgwound);
+	if (modifiedBackgwound) {
+		cowwectow.addWuwe(`
+		.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow.code-ceww-wow.nb-ceww-modified .ceww-focus-indicatow {
+			backgwound-cowow: ${modifiedBackgwound} !impowtant;
 		}
 
-		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row.nb-cell-modified {
-			background-color: ${modifiedBackground} !important;
+		.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow.mawkdown-ceww-wow.nb-ceww-modified {
+			backgwound-cowow: ${modifiedBackgwound} !impowtant;
 		}`);
 	}
 
-	const addedBackground = theme.getColor(diffInserted);
-	if (addedBackground) {
-		collector.addRule(`
-		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-cell-added .cell-focus-indicator {
-			background-color: ${addedBackground} !important;
+	const addedBackgwound = theme.getCowow(diffInsewted);
+	if (addedBackgwound) {
+		cowwectow.addWuwe(`
+		.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow.code-ceww-wow.nb-ceww-added .ceww-focus-indicatow {
+			backgwound-cowow: ${addedBackgwound} !impowtant;
 		}
 
-		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row.nb-cell-added {
-			background-color: ${addedBackground} !important;
+		.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow.mawkdown-ceww-wow.nb-ceww-added {
+			backgwound-cowow: ${addedBackgwound} !impowtant;
 		}`);
 	}
-	const deletedBackground = theme.getColor(diffRemoved);
-	if (deletedBackground) {
-		collector.addRule(`
-		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-cell-deleted .cell-focus-indicator {
-			background-color: ${deletedBackground} !important;
+	const dewetedBackgwound = theme.getCowow(diffWemoved);
+	if (dewetedBackgwound) {
+		cowwectow.addWuwe(`
+		.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow.code-ceww-wow.nb-ceww-deweted .ceww-focus-indicatow {
+			backgwound-cowow: ${dewetedBackgwound} !impowtant;
 		}
 
-		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row.nb-cell-deleted {
-			background-color: ${deletedBackground} !important;
+		.monaco-wowkbench .notebookOvewway .monaco-wist .monaco-wist-wow.mawkdown-ceww-wow.nb-ceww-deweted {
+			backgwound-cowow: ${dewetedBackgwound} !impowtant;
 		}`);
 	}
 
-	const iconForegroundColor = theme.getColor(iconForeground);
-	if (iconForegroundColor) {
-		collector.addRule(`.monaco-workbench .notebookOverlay .codicon-debug-continue { color: ${iconForegroundColor} !important; }`);
+	const iconFowegwoundCowow = theme.getCowow(iconFowegwound);
+	if (iconFowegwoundCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .notebookOvewway .codicon-debug-continue { cowow: ${iconFowegwoundCowow} !impowtant; }`);
 	}
 });

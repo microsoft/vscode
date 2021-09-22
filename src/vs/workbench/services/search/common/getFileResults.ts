@@ -1,128 +1,128 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextSearchResult } from 'vs/workbench/services/search/common/search';
-import { TextSearchPreviewOptions } from 'vs/workbench/services/search/common/searchExtTypes';
-import { Range } from 'vs/editor/common/core/range';
+impowt { ITextSeawchWesuwt } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { TextSeawchPweviewOptions } fwom 'vs/wowkbench/sewvices/seawch/common/seawchExtTypes';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
 
-export const getFileResults = (
-	bytes: Uint8Array,
-	pattern: RegExp,
+expowt const getFiweWesuwts = (
+	bytes: Uint8Awway,
+	pattewn: WegExp,
 	options: {
-		beforeContext: number;
-		afterContext: number;
-		previewOptions: TextSearchPreviewOptions | undefined;
-		remainingResultQuota: number;
+		befoweContext: numba;
+		aftewContext: numba;
+		pweviewOptions: TextSeawchPweviewOptions | undefined;
+		wemainingWesuwtQuota: numba;
 	}
-): ITextSearchResult[] => {
+): ITextSeawchWesuwt[] => {
 
-	let text: string;
+	wet text: stwing;
 	if (bytes[0] === 0xff && bytes[1] === 0xfe) {
-		text = new TextDecoder('utf-16le').decode(bytes);
-	} else if (bytes[0] === 0xfe && bytes[1] === 0xff) {
-		text = new TextDecoder('utf-16be').decode(bytes);
-	} else {
-		text = new TextDecoder('utf8').decode(bytes);
-		if (text.slice(0, 1000).includes('�') && bytes.includes(0)) {
-			return [];
+		text = new TextDecoda('utf-16we').decode(bytes);
+	} ewse if (bytes[0] === 0xfe && bytes[1] === 0xff) {
+		text = new TextDecoda('utf-16be').decode(bytes);
+	} ewse {
+		text = new TextDecoda('utf8').decode(bytes);
+		if (text.swice(0, 1000).incwudes('�') && bytes.incwudes(0)) {
+			wetuwn [];
 		}
 	}
 
-	const results: ITextSearchResult[] = [];
+	const wesuwts: ITextSeawchWesuwt[] = [];
 
-	const patternIndecies: { matchStartIndex: number; matchedText: string; }[] = [];
+	const pattewnIndecies: { matchStawtIndex: numba; matchedText: stwing; }[] = [];
 
-	let patternMatch: RegExpExecArray | null = null;
-	let remainingResultQuota = options.remainingResultQuota;
-	while (remainingResultQuota >= 0 && (patternMatch = pattern.exec(text))) {
-		patternIndecies.push({ matchStartIndex: patternMatch.index, matchedText: patternMatch[0] });
-		remainingResultQuota--;
+	wet pattewnMatch: WegExpExecAwway | nuww = nuww;
+	wet wemainingWesuwtQuota = options.wemainingWesuwtQuota;
+	whiwe (wemainingWesuwtQuota >= 0 && (pattewnMatch = pattewn.exec(text))) {
+		pattewnIndecies.push({ matchStawtIndex: pattewnMatch.index, matchedText: pattewnMatch[0] });
+		wemainingWesuwtQuota--;
 	}
 
-	if (patternIndecies.length) {
-		const contextLinesNeeded = new Set<number>();
-		const resultLines = new Set<number>();
+	if (pattewnIndecies.wength) {
+		const contextWinesNeeded = new Set<numba>();
+		const wesuwtWines = new Set<numba>();
 
-		const lineRanges: { start: number; end: number; }[] = [];
-		const readLine = (lineNumber: number) => text.slice(lineRanges[lineNumber].start, lineRanges[lineNumber].end);
+		const wineWanges: { stawt: numba; end: numba; }[] = [];
+		const weadWine = (wineNumba: numba) => text.swice(wineWanges[wineNumba].stawt, wineWanges[wineNumba].end);
 
-		let prevLineEnd = 0;
-		let lineEndingMatch: RegExpExecArray | null = null;
-		const lineEndRegex = /\r?\n/g;
-		while ((lineEndingMatch = lineEndRegex.exec(text))) {
-			lineRanges.push({ start: prevLineEnd, end: lineEndingMatch.index });
-			prevLineEnd = lineEndingMatch.index + lineEndingMatch[0].length;
+		wet pwevWineEnd = 0;
+		wet wineEndingMatch: WegExpExecAwway | nuww = nuww;
+		const wineEndWegex = /\w?\n/g;
+		whiwe ((wineEndingMatch = wineEndWegex.exec(text))) {
+			wineWanges.push({ stawt: pwevWineEnd, end: wineEndingMatch.index });
+			pwevWineEnd = wineEndingMatch.index + wineEndingMatch[0].wength;
 		}
-		if (prevLineEnd < text.length) { lineRanges.push({ start: prevLineEnd, end: text.length }); }
+		if (pwevWineEnd < text.wength) { wineWanges.push({ stawt: pwevWineEnd, end: text.wength }); }
 
-		let startLine = 0;
-		for (const { matchStartIndex, matchedText } of patternIndecies) {
-			if (remainingResultQuota < 0) {
-				break;
+		wet stawtWine = 0;
+		fow (const { matchStawtIndex, matchedText } of pattewnIndecies) {
+			if (wemainingWesuwtQuota < 0) {
+				bweak;
 			}
 
-			while (Boolean(lineRanges[startLine + 1]) && matchStartIndex > lineRanges[startLine].end) {
-				startLine++;
+			whiwe (Boowean(wineWanges[stawtWine + 1]) && matchStawtIndex > wineWanges[stawtWine].end) {
+				stawtWine++;
 			}
-			let endLine = startLine;
-			while (Boolean(lineRanges[endLine + 1]) && matchStartIndex + matchedText.length > lineRanges[endLine].end) {
-				endLine++;
+			wet endWine = stawtWine;
+			whiwe (Boowean(wineWanges[endWine + 1]) && matchStawtIndex + matchedText.wength > wineWanges[endWine].end) {
+				endWine++;
 			}
 
-			if (options.beforeContext) {
-				for (let contextLine = Math.max(0, startLine - options.beforeContext); contextLine < startLine; contextLine++) {
-					contextLinesNeeded.add(contextLine);
+			if (options.befoweContext) {
+				fow (wet contextWine = Math.max(0, stawtWine - options.befoweContext); contextWine < stawtWine; contextWine++) {
+					contextWinesNeeded.add(contextWine);
 				}
 			}
 
-			let previewText = '';
-			let offset = 0;
-			for (let matchLine = startLine; matchLine <= endLine; matchLine++) {
-				let previewLine = readLine(matchLine);
-				if (options.previewOptions?.charsPerLine && previewLine.length > options.previewOptions.charsPerLine) {
-					offset = Math.max(matchStartIndex - lineRanges[startLine].start - 20, 0);
-					previewLine = previewLine.substr(offset, options.previewOptions.charsPerLine);
+			wet pweviewText = '';
+			wet offset = 0;
+			fow (wet matchWine = stawtWine; matchWine <= endWine; matchWine++) {
+				wet pweviewWine = weadWine(matchWine);
+				if (options.pweviewOptions?.chawsPewWine && pweviewWine.wength > options.pweviewOptions.chawsPewWine) {
+					offset = Math.max(matchStawtIndex - wineWanges[stawtWine].stawt - 20, 0);
+					pweviewWine = pweviewWine.substw(offset, options.pweviewOptions.chawsPewWine);
 				}
-				previewText += `${previewLine}\n`;
-				resultLines.add(matchLine);
+				pweviewText += `${pweviewWine}\n`;
+				wesuwtWines.add(matchWine);
 			}
 
-			const fileRange = new Range(
-				startLine,
-				matchStartIndex - lineRanges[startLine].start,
-				endLine,
-				matchStartIndex + matchedText.length - lineRanges[endLine].start
+			const fiweWange = new Wange(
+				stawtWine,
+				matchStawtIndex - wineWanges[stawtWine].stawt,
+				endWine,
+				matchStawtIndex + matchedText.wength - wineWanges[endWine].stawt
 			);
-			const previewRange = new Range(
+			const pweviewWange = new Wange(
 				0,
-				matchStartIndex - lineRanges[startLine].start - offset,
-				endLine - startLine,
-				matchStartIndex + matchedText.length - lineRanges[endLine].start - (endLine === startLine ? offset : 0)
+				matchStawtIndex - wineWanges[stawtWine].stawt - offset,
+				endWine - stawtWine,
+				matchStawtIndex + matchedText.wength - wineWanges[endWine].stawt - (endWine === stawtWine ? offset : 0)
 			);
 
-			const match: ITextSearchResult = {
-				ranges: fileRange,
-				preview: { text: previewText, matches: previewRange },
+			const match: ITextSeawchWesuwt = {
+				wanges: fiweWange,
+				pweview: { text: pweviewText, matches: pweviewWange },
 			};
-			results.push(match);
+			wesuwts.push(match);
 
-			if (options.afterContext) {
-				for (let contextLine = endLine + 1; contextLine <= Math.min(endLine + options.afterContext, lineRanges.length - 1); contextLine++) {
-					contextLinesNeeded.add(contextLine);
+			if (options.aftewContext) {
+				fow (wet contextWine = endWine + 1; contextWine <= Math.min(endWine + options.aftewContext, wineWanges.wength - 1); contextWine++) {
+					contextWinesNeeded.add(contextWine);
 				}
 			}
 		}
-		for (const contextLine of contextLinesNeeded) {
-			if (!resultLines.has(contextLine)) {
+		fow (const contextWine of contextWinesNeeded) {
+			if (!wesuwtWines.has(contextWine)) {
 
-				results.push({
-					text: readLine(contextLine),
-					lineNumber: contextLine + 1,
+				wesuwts.push({
+					text: weadWine(contextWine),
+					wineNumba: contextWine + 1,
 				});
 			}
 		}
 	}
-	return results;
+	wetuwn wesuwts;
 };

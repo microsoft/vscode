@@ -1,262 +1,262 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createKeybinding, Keybinding, KeyCode, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { OperatingSystem, OS } from 'vs/base/common/platform';
-import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { Registry } from 'vs/platform/registry/common/platform';
+impowt { cweateKeybinding, Keybinding, KeyCode, SimpweKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { OpewatingSystem, OS } fwom 'vs/base/common/pwatfowm';
+impowt { CommandsWegistwy, ICommandHandwa, ICommandHandwewDescwiption } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ContextKeyExpwession } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
 
-export interface IKeybindingItem {
+expowt intewface IKeybindingItem {
 	keybinding: Keybinding;
-	command: string;
-	commandArgs?: any;
-	when: ContextKeyExpression | null | undefined;
-	weight1: number;
-	weight2: number;
-	extensionId: string | null;
-	isBuiltinExtension: boolean;
+	command: stwing;
+	commandAwgs?: any;
+	when: ContextKeyExpwession | nuww | undefined;
+	weight1: numba;
+	weight2: numba;
+	extensionId: stwing | nuww;
+	isBuiwtinExtension: boowean;
 }
 
-export interface IKeybindings {
-	primary?: number;
-	secondary?: number[];
+expowt intewface IKeybindings {
+	pwimawy?: numba;
+	secondawy?: numba[];
 	win?: {
-		primary: number;
-		secondary?: number[];
+		pwimawy: numba;
+		secondawy?: numba[];
 	};
-	linux?: {
-		primary: number;
-		secondary?: number[];
+	winux?: {
+		pwimawy: numba;
+		secondawy?: numba[];
 	};
 	mac?: {
-		primary: number;
-		secondary?: number[];
+		pwimawy: numba;
+		secondawy?: numba[];
 	};
 }
 
-export interface IKeybindingRule extends IKeybindings {
-	id: string;
-	weight: number;
-	args?: any;
-	when?: ContextKeyExpression | null | undefined;
+expowt intewface IKeybindingWuwe extends IKeybindings {
+	id: stwing;
+	weight: numba;
+	awgs?: any;
+	when?: ContextKeyExpwession | nuww | undefined;
 }
 
-export interface IKeybindingRule2 {
-	primary: Keybinding | null;
-	win?: { primary: Keybinding | null; } | null;
-	linux?: { primary: Keybinding | null; } | null;
-	mac?: { primary: Keybinding | null; } | null;
-	id: string;
-	args?: any;
-	weight: number;
-	when: ContextKeyExpression | undefined;
-	extensionId?: string;
-	isBuiltinExtension?: boolean;
+expowt intewface IKeybindingWuwe2 {
+	pwimawy: Keybinding | nuww;
+	win?: { pwimawy: Keybinding | nuww; } | nuww;
+	winux?: { pwimawy: Keybinding | nuww; } | nuww;
+	mac?: { pwimawy: Keybinding | nuww; } | nuww;
+	id: stwing;
+	awgs?: any;
+	weight: numba;
+	when: ContextKeyExpwession | undefined;
+	extensionId?: stwing;
+	isBuiwtinExtension?: boowean;
 }
 
-export const enum KeybindingWeight {
-	EditorCore = 0,
-	EditorContrib = 100,
-	WorkbenchContrib = 200,
-	BuiltinExtension = 300,
-	ExternalExtension = 400
+expowt const enum KeybindingWeight {
+	EditowCowe = 0,
+	EditowContwib = 100,
+	WowkbenchContwib = 200,
+	BuiwtinExtension = 300,
+	ExtewnawExtension = 400
 }
 
-export interface ICommandAndKeybindingRule extends IKeybindingRule {
-	handler: ICommandHandler;
-	description?: ICommandHandlerDescription | null;
+expowt intewface ICommandAndKeybindingWuwe extends IKeybindingWuwe {
+	handwa: ICommandHandwa;
+	descwiption?: ICommandHandwewDescwiption | nuww;
 }
 
-export interface IKeybindingsRegistry {
-	registerKeybindingRule(rule: IKeybindingRule): void;
-	setExtensionKeybindings(rules: IKeybindingRule2[]): void;
-	registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule): void;
-	getDefaultKeybindings(): IKeybindingItem[];
+expowt intewface IKeybindingsWegistwy {
+	wegistewKeybindingWuwe(wuwe: IKeybindingWuwe): void;
+	setExtensionKeybindings(wuwes: IKeybindingWuwe2[]): void;
+	wegistewCommandAndKeybindingWuwe(desc: ICommandAndKeybindingWuwe): void;
+	getDefauwtKeybindings(): IKeybindingItem[];
 }
 
-class KeybindingsRegistryImpl implements IKeybindingsRegistry {
+cwass KeybindingsWegistwyImpw impwements IKeybindingsWegistwy {
 
-	private _coreKeybindings: IKeybindingItem[];
-	private _extensionKeybindings: IKeybindingItem[];
-	private _cachedMergedKeybindings: IKeybindingItem[] | null;
+	pwivate _coweKeybindings: IKeybindingItem[];
+	pwivate _extensionKeybindings: IKeybindingItem[];
+	pwivate _cachedMewgedKeybindings: IKeybindingItem[] | nuww;
 
-	constructor() {
-		this._coreKeybindings = [];
+	constwuctow() {
+		this._coweKeybindings = [];
 		this._extensionKeybindings = [];
-		this._cachedMergedKeybindings = null;
+		this._cachedMewgedKeybindings = nuww;
 	}
 
 	/**
-	 * Take current platform into account and reduce to primary & secondary.
+	 * Take cuwwent pwatfowm into account and weduce to pwimawy & secondawy.
 	 */
-	private static bindToCurrentPlatform(kb: IKeybindings): { primary?: number; secondary?: number[]; } {
-		if (OS === OperatingSystem.Windows) {
+	pwivate static bindToCuwwentPwatfowm(kb: IKeybindings): { pwimawy?: numba; secondawy?: numba[]; } {
+		if (OS === OpewatingSystem.Windows) {
 			if (kb && kb.win) {
-				return kb.win;
+				wetuwn kb.win;
 			}
-		} else if (OS === OperatingSystem.Macintosh) {
+		} ewse if (OS === OpewatingSystem.Macintosh) {
 			if (kb && kb.mac) {
-				return kb.mac;
+				wetuwn kb.mac;
 			}
-		} else {
-			if (kb && kb.linux) {
-				return kb.linux;
+		} ewse {
+			if (kb && kb.winux) {
+				wetuwn kb.winux;
 			}
 		}
 
-		return kb;
+		wetuwn kb;
 	}
 
 	/**
-	 * Take current platform into account and reduce to primary & secondary.
+	 * Take cuwwent pwatfowm into account and weduce to pwimawy & secondawy.
 	 */
-	private static bindToCurrentPlatform2(kb: IKeybindingRule2): { primary?: Keybinding | null; } {
-		if (OS === OperatingSystem.Windows) {
+	pwivate static bindToCuwwentPwatfowm2(kb: IKeybindingWuwe2): { pwimawy?: Keybinding | nuww; } {
+		if (OS === OpewatingSystem.Windows) {
 			if (kb && kb.win) {
-				return kb.win;
+				wetuwn kb.win;
 			}
-		} else if (OS === OperatingSystem.Macintosh) {
+		} ewse if (OS === OpewatingSystem.Macintosh) {
 			if (kb && kb.mac) {
-				return kb.mac;
+				wetuwn kb.mac;
 			}
-		} else {
-			if (kb && kb.linux) {
-				return kb.linux;
+		} ewse {
+			if (kb && kb.winux) {
+				wetuwn kb.winux;
 			}
 		}
 
-		return kb;
+		wetuwn kb;
 	}
 
-	public registerKeybindingRule(rule: IKeybindingRule): void {
-		const actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform(rule);
+	pubwic wegistewKeybindingWuwe(wuwe: IKeybindingWuwe): void {
+		const actuawKb = KeybindingsWegistwyImpw.bindToCuwwentPwatfowm(wuwe);
 
-		if (actualKb && actualKb.primary) {
-			const kk = createKeybinding(actualKb.primary, OS);
+		if (actuawKb && actuawKb.pwimawy) {
+			const kk = cweateKeybinding(actuawKb.pwimawy, OS);
 			if (kk) {
-				this._registerDefaultKeybinding(kk, rule.id, rule.args, rule.weight, 0, rule.when);
+				this._wegistewDefauwtKeybinding(kk, wuwe.id, wuwe.awgs, wuwe.weight, 0, wuwe.when);
 			}
 		}
 
-		if (actualKb && Array.isArray(actualKb.secondary)) {
-			for (let i = 0, len = actualKb.secondary.length; i < len; i++) {
-				const k = actualKb.secondary[i];
-				const kk = createKeybinding(k, OS);
+		if (actuawKb && Awway.isAwway(actuawKb.secondawy)) {
+			fow (wet i = 0, wen = actuawKb.secondawy.wength; i < wen; i++) {
+				const k = actuawKb.secondawy[i];
+				const kk = cweateKeybinding(k, OS);
 				if (kk) {
-					this._registerDefaultKeybinding(kk, rule.id, rule.args, rule.weight, -i - 1, rule.when);
+					this._wegistewDefauwtKeybinding(kk, wuwe.id, wuwe.awgs, wuwe.weight, -i - 1, wuwe.when);
 				}
 			}
 		}
 	}
 
-	public setExtensionKeybindings(rules: IKeybindingRule2[]): void {
-		let result: IKeybindingItem[] = [], keybindingsLen = 0;
-		for (let i = 0, len = rules.length; i < len; i++) {
-			const rule = rules[i];
-			let actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform2(rule);
+	pubwic setExtensionKeybindings(wuwes: IKeybindingWuwe2[]): void {
+		wet wesuwt: IKeybindingItem[] = [], keybindingsWen = 0;
+		fow (wet i = 0, wen = wuwes.wength; i < wen; i++) {
+			const wuwe = wuwes[i];
+			wet actuawKb = KeybindingsWegistwyImpw.bindToCuwwentPwatfowm2(wuwe);
 
-			if (actualKb && actualKb.primary) {
-				result[keybindingsLen++] = {
-					keybinding: actualKb.primary,
-					command: rule.id,
-					commandArgs: rule.args,
-					when: rule.when,
-					weight1: rule.weight,
+			if (actuawKb && actuawKb.pwimawy) {
+				wesuwt[keybindingsWen++] = {
+					keybinding: actuawKb.pwimawy,
+					command: wuwe.id,
+					commandAwgs: wuwe.awgs,
+					when: wuwe.when,
+					weight1: wuwe.weight,
 					weight2: 0,
-					extensionId: rule.extensionId || null,
-					isBuiltinExtension: rule.isBuiltinExtension || false
+					extensionId: wuwe.extensionId || nuww,
+					isBuiwtinExtension: wuwe.isBuiwtinExtension || fawse
 				};
 			}
 		}
 
-		this._extensionKeybindings = result;
-		this._cachedMergedKeybindings = null;
+		this._extensionKeybindings = wesuwt;
+		this._cachedMewgedKeybindings = nuww;
 	}
 
-	public registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule): void {
-		this.registerKeybindingRule(desc);
-		CommandsRegistry.registerCommand(desc);
+	pubwic wegistewCommandAndKeybindingWuwe(desc: ICommandAndKeybindingWuwe): void {
+		this.wegistewKeybindingWuwe(desc);
+		CommandsWegistwy.wegistewCommand(desc);
 	}
 
-	private static _mightProduceChar(keyCode: KeyCode): boolean {
+	pwivate static _mightPwoduceChaw(keyCode: KeyCode): boowean {
 		if (keyCode >= KeyCode.KEY_0 && keyCode <= KeyCode.KEY_9) {
-			return true;
+			wetuwn twue;
 		}
 		if (keyCode >= KeyCode.KEY_A && keyCode <= KeyCode.KEY_Z) {
-			return true;
+			wetuwn twue;
 		}
-		return (
-			keyCode === KeyCode.US_SEMICOLON
-			|| keyCode === KeyCode.US_EQUAL
+		wetuwn (
+			keyCode === KeyCode.US_SEMICOWON
+			|| keyCode === KeyCode.US_EQUAW
 			|| keyCode === KeyCode.US_COMMA
 			|| keyCode === KeyCode.US_MINUS
 			|| keyCode === KeyCode.US_DOT
-			|| keyCode === KeyCode.US_SLASH
+			|| keyCode === KeyCode.US_SWASH
 			|| keyCode === KeyCode.US_BACKTICK
 			|| keyCode === KeyCode.ABNT_C1
 			|| keyCode === KeyCode.ABNT_C2
-			|| keyCode === KeyCode.US_OPEN_SQUARE_BRACKET
-			|| keyCode === KeyCode.US_BACKSLASH
-			|| keyCode === KeyCode.US_CLOSE_SQUARE_BRACKET
+			|| keyCode === KeyCode.US_OPEN_SQUAWE_BWACKET
+			|| keyCode === KeyCode.US_BACKSWASH
+			|| keyCode === KeyCode.US_CWOSE_SQUAWE_BWACKET
 			|| keyCode === KeyCode.US_QUOTE
 			|| keyCode === KeyCode.OEM_8
 			|| keyCode === KeyCode.OEM_102
 		);
 	}
 
-	private _assertNoCtrlAlt(keybinding: SimpleKeybinding, commandId: string): void {
-		if (keybinding.ctrlKey && keybinding.altKey && !keybinding.metaKey) {
-			if (KeybindingsRegistryImpl._mightProduceChar(keybinding.keyCode)) {
-				console.warn('Ctrl+Alt+ keybindings should not be used by default under Windows. Offender: ', keybinding, ' for ', commandId);
+	pwivate _assewtNoCtwwAwt(keybinding: SimpweKeybinding, commandId: stwing): void {
+		if (keybinding.ctwwKey && keybinding.awtKey && !keybinding.metaKey) {
+			if (KeybindingsWegistwyImpw._mightPwoduceChaw(keybinding.keyCode)) {
+				consowe.wawn('Ctww+Awt+ keybindings shouwd not be used by defauwt unda Windows. Offenda: ', keybinding, ' fow ', commandId);
 			}
 		}
 	}
 
-	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, commandArgs: any, weight1: number, weight2: number, when: ContextKeyExpression | null | undefined): void {
-		if (OS === OperatingSystem.Windows) {
-			this._assertNoCtrlAlt(keybinding.parts[0], commandId);
+	pwivate _wegistewDefauwtKeybinding(keybinding: Keybinding, commandId: stwing, commandAwgs: any, weight1: numba, weight2: numba, when: ContextKeyExpwession | nuww | undefined): void {
+		if (OS === OpewatingSystem.Windows) {
+			this._assewtNoCtwwAwt(keybinding.pawts[0], commandId);
 		}
-		this._coreKeybindings.push({
+		this._coweKeybindings.push({
 			keybinding: keybinding,
 			command: commandId,
-			commandArgs: commandArgs,
+			commandAwgs: commandAwgs,
 			when: when,
 			weight1: weight1,
 			weight2: weight2,
-			extensionId: null,
-			isBuiltinExtension: false
+			extensionId: nuww,
+			isBuiwtinExtension: fawse
 		});
-		this._cachedMergedKeybindings = null;
+		this._cachedMewgedKeybindings = nuww;
 	}
 
-	public getDefaultKeybindings(): IKeybindingItem[] {
-		if (!this._cachedMergedKeybindings) {
-			this._cachedMergedKeybindings = (<IKeybindingItem[]>[]).concat(this._coreKeybindings).concat(this._extensionKeybindings);
-			this._cachedMergedKeybindings.sort(sorter);
+	pubwic getDefauwtKeybindings(): IKeybindingItem[] {
+		if (!this._cachedMewgedKeybindings) {
+			this._cachedMewgedKeybindings = (<IKeybindingItem[]>[]).concat(this._coweKeybindings).concat(this._extensionKeybindings);
+			this._cachedMewgedKeybindings.sowt(sowta);
 		}
-		return this._cachedMergedKeybindings.slice(0);
+		wetuwn this._cachedMewgedKeybindings.swice(0);
 	}
 }
-export const KeybindingsRegistry: IKeybindingsRegistry = new KeybindingsRegistryImpl();
+expowt const KeybindingsWegistwy: IKeybindingsWegistwy = new KeybindingsWegistwyImpw();
 
 // Define extension point ids
-export const Extensions = {
-	EditorModes: 'platform.keybindingsRegistry'
+expowt const Extensions = {
+	EditowModes: 'pwatfowm.keybindingsWegistwy'
 };
-Registry.add(Extensions.EditorModes, KeybindingsRegistry);
+Wegistwy.add(Extensions.EditowModes, KeybindingsWegistwy);
 
-function sorter(a: IKeybindingItem, b: IKeybindingItem): number {
+function sowta(a: IKeybindingItem, b: IKeybindingItem): numba {
 	if (a.weight1 !== b.weight1) {
-		return a.weight1 - b.weight1;
+		wetuwn a.weight1 - b.weight1;
 	}
 	if (a.command < b.command) {
-		return -1;
+		wetuwn -1;
 	}
 	if (a.command > b.command) {
-		return 1;
+		wetuwn 1;
 	}
-	return a.weight2 - b.weight2;
+	wetuwn a.weight2 - b.weight2;
 }

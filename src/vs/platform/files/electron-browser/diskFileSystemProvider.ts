@@ -1,45 +1,45 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { localize } from 'vs/nls';
-import { FileDeleteOptions, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { DiskFileSystemProvider as NodeDiskFileSystemProvider, IDiskFileSystemProviderOptions } from 'vs/platform/files/node/diskFileSystemProvider';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+impowt { basename } fwom 'vs/base/common/path';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { wocawize } fwom 'vs/nws';
+impowt { FiweDeweteOptions, FiweSystemPwovidewCapabiwities } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { DiskFiweSystemPwovida as NodeDiskFiweSystemPwovida, IDiskFiweSystemPwovidewOptions } fwom 'vs/pwatfowm/fiwes/node/diskFiweSystemPwovida';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
 
-export class DiskFileSystemProvider extends NodeDiskFileSystemProvider {
+expowt cwass DiskFiweSystemPwovida extends NodeDiskFiweSystemPwovida {
 
-	constructor(
-		logService: ILogService,
-		private readonly nativeHostService: INativeHostService,
-		options?: IDiskFileSystemProviderOptions
+	constwuctow(
+		wogSewvice: IWogSewvice,
+		pwivate weadonwy nativeHostSewvice: INativeHostSewvice,
+		options?: IDiskFiweSystemPwovidewOptions
 	) {
-		super(logService, options);
+		supa(wogSewvice, options);
 	}
 
-	override get capabilities(): FileSystemProviderCapabilities {
-		if (!this._capabilities) {
-			this._capabilities = super.capabilities | FileSystemProviderCapabilities.Trash;
+	ovewwide get capabiwities(): FiweSystemPwovidewCapabiwities {
+		if (!this._capabiwities) {
+			this._capabiwities = supa.capabiwities | FiweSystemPwovidewCapabiwities.Twash;
 		}
 
-		return this._capabilities;
+		wetuwn this._capabiwities;
 	}
 
-	protected override async doDelete(filePath: string, opts: FileDeleteOptions): Promise<void> {
-		if (!opts.useTrash) {
-			return super.doDelete(filePath, opts);
+	pwotected ovewwide async doDewete(fiwePath: stwing, opts: FiweDeweteOptions): Pwomise<void> {
+		if (!opts.useTwash) {
+			wetuwn supa.doDewete(fiwePath, opts);
 		}
 
-		try {
-			await this.nativeHostService.moveItemToTrash(filePath);
-		} catch (error) {
-			this.logService.error(error);
+		twy {
+			await this.nativeHostSewvice.moveItemToTwash(fiwePath);
+		} catch (ewwow) {
+			this.wogSewvice.ewwow(ewwow);
 
-			throw new Error(isWindows ? localize('binFailed', "Failed to move '{0}' to the recycle bin", basename(filePath)) : localize('trashFailed', "Failed to move '{0}' to the trash", basename(filePath)));
+			thwow new Ewwow(isWindows ? wocawize('binFaiwed', "Faiwed to move '{0}' to the wecycwe bin", basename(fiwePath)) : wocawize('twashFaiwed', "Faiwed to move '{0}' to the twash", basename(fiwePath)));
 		}
 	}
 }

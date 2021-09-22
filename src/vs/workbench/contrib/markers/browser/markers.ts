@@ -1,52 +1,52 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, MutableDisposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { localize } from 'vs/nls';
-import Constants from './constants';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { MarkersFilters } from 'vs/workbench/contrib/markers/browser/markersViewActions';
-import { Event } from 'vs/base/common/event';
-import { IView } from 'vs/workbench/common/views';
-import { MarkerElement } from 'vs/workbench/contrib/markers/browser/markersModel';
+impowt { Disposabwe, MutabweDisposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IMawkewSewvice } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { IActivitySewvice, NumbewBadge } fwom 'vs/wowkbench/sewvices/activity/common/activity';
+impowt { wocawize } fwom 'vs/nws';
+impowt Constants fwom './constants';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { MawkewsFiwtews } fwom 'vs/wowkbench/contwib/mawkews/bwowsa/mawkewsViewActions';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IView } fwom 'vs/wowkbench/common/views';
+impowt { MawkewEwement } fwom 'vs/wowkbench/contwib/mawkews/bwowsa/mawkewsModew';
 
-export interface IMarkersView extends IView {
+expowt intewface IMawkewsView extends IView {
 
-	readonly onDidFocusFilter: Event<void>;
-	readonly onDidClearFilterText: Event<void>;
-	readonly filters: MarkersFilters;
-	readonly onDidChangeFilterStats: Event<{ total: number, filtered: number }>;
-	focusFilter(): void;
-	clearFilterText(): void;
-	getFilterStats(): { total: number, filtered: number };
+	weadonwy onDidFocusFiwta: Event<void>;
+	weadonwy onDidCweawFiwtewText: Event<void>;
+	weadonwy fiwtews: MawkewsFiwtews;
+	weadonwy onDidChangeFiwtewStats: Event<{ totaw: numba, fiwtewed: numba }>;
+	focusFiwta(): void;
+	cweawFiwtewText(): void;
+	getFiwtewStats(): { totaw: numba, fiwtewed: numba };
 
-	getFocusElement(): MarkerElement | undefined;
+	getFocusEwement(): MawkewEwement | undefined;
 
-	collapseAll(): void;
-	setMultiline(multiline: boolean): void;
+	cowwapseAww(): void;
+	setMuwtiwine(muwtiwine: boowean): void;
 }
 
-export class ActivityUpdater extends Disposable implements IWorkbenchContribution {
+expowt cwass ActivityUpdata extends Disposabwe impwements IWowkbenchContwibution {
 
-	private readonly activity = this._register(new MutableDisposable<IDisposable>());
+	pwivate weadonwy activity = this._wegista(new MutabweDisposabwe<IDisposabwe>());
 
-	constructor(
-		@IActivityService private readonly activityService: IActivityService,
-		@IMarkerService private readonly markerService: IMarkerService
+	constwuctow(
+		@IActivitySewvice pwivate weadonwy activitySewvice: IActivitySewvice,
+		@IMawkewSewvice pwivate weadonwy mawkewSewvice: IMawkewSewvice
 	) {
-		super();
-		this._register(this.markerService.onMarkerChanged(() => this.updateBadge()));
+		supa();
+		this._wegista(this.mawkewSewvice.onMawkewChanged(() => this.updateBadge()));
 		this.updateBadge();
 	}
 
-	private updateBadge(): void {
-		const { errors, warnings, infos } = this.markerService.getStatistics();
-		const total = errors + warnings + infos;
-		const message = localize('totalProblems', 'Total {0} Problems', total);
-		this.activity.value = this.activityService.showViewActivity(Constants.MARKERS_VIEW_ID, { badge: new NumberBadge(total, () => message) });
+	pwivate updateBadge(): void {
+		const { ewwows, wawnings, infos } = this.mawkewSewvice.getStatistics();
+		const totaw = ewwows + wawnings + infos;
+		const message = wocawize('totawPwobwems', 'Totaw {0} Pwobwems', totaw);
+		this.activity.vawue = this.activitySewvice.showViewActivity(Constants.MAWKEWS_VIEW_ID, { badge: new NumbewBadge(totaw, () => message) });
 	}
 }

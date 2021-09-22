@@ -1,471 +1,471 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { sep } from 'vs/base/common/path';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IFileEditorInput, IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
-import { AutoSaveConfiguration, HotExitConfiguration, FILES_EXCLUDE_CONFIG, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
-import { SortOrder, LexicographicOptions, FILE_EDITOR_INPUT_ID, BINARY_TEXT_FILE_MODE } from 'vs/workbench/contrib/files/common/files';
-import { TextFileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/textFileEditorTracker';
-import { TextFileSaveErrorHandler } from 'vs/workbench/contrib/files/browser/editors/textFileSaveErrorHandler';
-import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
-import { BinaryFileEditor } from 'vs/workbench/contrib/files/browser/editors/binaryFileEditor';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { isLinux, isNative, isWeb, isWindows } from 'vs/base/common/platform';
-import { ExplorerViewletViewsContribution } from 'vs/workbench/contrib/files/browser/explorerViewlet';
-import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ExplorerService, UNDO_REDO_SOURCE } from 'vs/workbench/contrib/files/browser/explorerService';
-import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/encoding';
-import { Schemas } from 'vs/base/common/network';
-import { WorkspaceWatcher } from 'vs/workbench/contrib/files/common/workspaceWatcher';
-import { editorConfigurationBaseNode } from 'vs/editor/common/config/commonEditorConfig';
-import { DirtyFilesIndicator } from 'vs/workbench/contrib/files/common/dirtyFilesIndicator';
-import { UndoCommand, RedoCommand } from 'vs/editor/browser/editorExtensions';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { FileEditorInputSerializer, FileEditorWorkingCopyEditorHandler } from 'vs/workbench/contrib/files/browser/editors/fileEditorHandler';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import product from 'vs/platform/product/common/product';
+impowt * as nws fwom 'vs/nws';
+impowt { sep } fwom 'vs/base/common/path';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IConfiguwationWegistwy, Extensions as ConfiguwationExtensions, ConfiguwationScope, IConfiguwationPwopewtySchema } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { IWowkbenchContwibutionsWegistwy, Extensions as WowkbenchExtensions, IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IFiweEditowInput, IEditowFactowyWegistwy, EditowExtensions } fwom 'vs/wowkbench/common/editow';
+impowt { AutoSaveConfiguwation, HotExitConfiguwation, FIWES_EXCWUDE_CONFIG, FIWES_ASSOCIATIONS_CONFIG } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { SowtOwda, WexicogwaphicOptions, FIWE_EDITOW_INPUT_ID, BINAWY_TEXT_FIWE_MODE } fwom 'vs/wowkbench/contwib/fiwes/common/fiwes';
+impowt { TextFiweEditowTwacka } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/editows/textFiweEditowTwacka';
+impowt { TextFiweSaveEwwowHandwa } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/editows/textFiweSaveEwwowHandwa';
+impowt { FiweEditowInput } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/editows/fiweEditowInput';
+impowt { BinawyFiweEditow } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/editows/binawyFiweEditow';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { isWinux, isNative, isWeb, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { ExpwowewViewwetViewsContwibution } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/expwowewViewwet';
+impowt { IEditowPaneWegistwy, EditowPaneDescwiptow } fwom 'vs/wowkbench/bwowsa/editow';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { ExpwowewSewvice, UNDO_WEDO_SOUWCE } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/expwowewSewvice';
+impowt { SUPPOWTED_ENCODINGS } fwom 'vs/wowkbench/sewvices/textfiwe/common/encoding';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { WowkspaceWatcha } fwom 'vs/wowkbench/contwib/fiwes/common/wowkspaceWatcha';
+impowt { editowConfiguwationBaseNode } fwom 'vs/editow/common/config/commonEditowConfig';
+impowt { DiwtyFiwesIndicatow } fwom 'vs/wowkbench/contwib/fiwes/common/diwtyFiwesIndicatow';
+impowt { UndoCommand, WedoCommand } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { IUndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { IExpwowewSewvice } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/fiwes';
+impowt { FiweEditowInputSewiawiza, FiweEditowWowkingCopyEditowHandwa } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/editows/fiweEditowHandwa';
+impowt { ModesWegistwy } fwom 'vs/editow/common/modes/modesWegistwy';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
 
-class FileUriLabelContribution implements IWorkbenchContribution {
+cwass FiweUwiWabewContwibution impwements IWowkbenchContwibution {
 
-	constructor(@ILabelService labelService: ILabelService) {
-		labelService.registerFormatter({
-			scheme: Schemas.file,
-			formatting: {
-				label: '${authority}${path}',
-				separator: sep,
-				tildify: !isWindows,
-				normalizeDriveLetter: isWindows,
-				authorityPrefix: sep + sep,
-				workspaceSuffix: ''
+	constwuctow(@IWabewSewvice wabewSewvice: IWabewSewvice) {
+		wabewSewvice.wegistewFowmatta({
+			scheme: Schemas.fiwe,
+			fowmatting: {
+				wabew: '${authowity}${path}',
+				sepawatow: sep,
+				tiwdify: !isWindows,
+				nowmawizeDwiveWetta: isWindows,
+				authowityPwefix: sep + sep,
+				wowkspaceSuffix: ''
 			}
 		});
 	}
 }
 
-registerSingleton(IExplorerService, ExplorerService, true);
+wegistewSingweton(IExpwowewSewvice, ExpwowewSewvice, twue);
 
-// Register file editors
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(
-		BinaryFileEditor,
-		BinaryFileEditor.ID,
-		nls.localize('binaryFileEditor', "Binary File Editor")
+// Wegista fiwe editows
+Wegistwy.as<IEditowPaneWegistwy>(EditowExtensions.EditowPane).wegistewEditowPane(
+	EditowPaneDescwiptow.cweate(
+		BinawyFiweEditow,
+		BinawyFiweEditow.ID,
+		nws.wocawize('binawyFiweEditow', "Binawy Fiwe Editow")
 	),
 	[
-		new SyncDescriptor(FileEditorInput)
+		new SyncDescwiptow(FiweEditowInput)
 	]
 );
 
-// Register default file input factory
-Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerFileEditorFactory({
+// Wegista defauwt fiwe input factowy
+Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy).wegistewFiweEditowFactowy({
 
-	typeId: FILE_EDITOR_INPUT_ID,
+	typeId: FIWE_EDITOW_INPUT_ID,
 
-	createFileEditor: (resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode, preferredContents, instantiationService): IFileEditorInput => {
-		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode, preferredContents);
+	cweateFiweEditow: (wesouwce, pwefewwedWesouwce, pwefewwedName, pwefewwedDescwiption, pwefewwedEncoding, pwefewwedMode, pwefewwedContents, instantiationSewvice): IFiweEditowInput => {
+		wetuwn instantiationSewvice.cweateInstance(FiweEditowInput, wesouwce, pwefewwedWesouwce, pwefewwedName, pwefewwedDescwiption, pwefewwedEncoding, pwefewwedMode, pwefewwedContents);
 	},
 
-	isFileEditor: (obj): obj is IFileEditorInput => {
-		return obj instanceof FileEditorInput;
+	isFiweEditow: (obj): obj is IFiweEditowInput => {
+		wetuwn obj instanceof FiweEditowInput;
 	}
 });
 
-// Register Editor Input Serializer & Handler
-Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(FILE_EDITOR_INPUT_ID, FileEditorInputSerializer);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(FileEditorWorkingCopyEditorHandler, LifecyclePhase.Ready);
+// Wegista Editow Input Sewiawiza & Handwa
+Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy).wegistewEditowSewiawiza(FIWE_EDITOW_INPUT_ID, FiweEditowInputSewiawiza);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(FiweEditowWowkingCopyEditowHandwa, WifecycwePhase.Weady);
 
-// Register Explorer views
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ExplorerViewletViewsContribution, LifecyclePhase.Starting);
+// Wegista Expwowa views
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(ExpwowewViewwetViewsContwibution, WifecycwePhase.Stawting);
 
-// Register Text File Editor Tracker
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TextFileEditorTracker, LifecyclePhase.Starting);
+// Wegista Text Fiwe Editow Twacka
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(TextFiweEditowTwacka, WifecycwePhase.Stawting);
 
-// Register Text File Save Error Handler
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TextFileSaveErrorHandler, LifecyclePhase.Starting);
+// Wegista Text Fiwe Save Ewwow Handwa
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(TextFiweSaveEwwowHandwa, WifecycwePhase.Stawting);
 
-// Register uri display for file uris
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(FileUriLabelContribution, LifecyclePhase.Starting);
+// Wegista uwi dispway fow fiwe uwis
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(FiweUwiWabewContwibution, WifecycwePhase.Stawting);
 
-// Register Workspace Watcher
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceWatcher, LifecyclePhase.Restored);
+// Wegista Wowkspace Watcha
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(WowkspaceWatcha, WifecycwePhase.Westowed);
 
-// Register Dirty Files Indicator
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DirtyFilesIndicator, LifecyclePhase.Starting);
+// Wegista Diwty Fiwes Indicatow
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(DiwtyFiwesIndicatow, WifecycwePhase.Stawting);
 
-// Configuration
-const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+// Configuwation
+const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation);
 
-const hotExitConfiguration: IConfigurationPropertySchema = isNative ?
+const hotExitConfiguwation: IConfiguwationPwopewtySchema = isNative ?
 	{
-		'type': 'string',
-		'scope': ConfigurationScope.APPLICATION,
-		'enum': [HotExitConfiguration.OFF, HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE],
-		'default': HotExitConfiguration.ON_EXIT,
-		'markdownEnumDescriptions': [
-			nls.localize('hotExit.off', 'Disable hot exit. A prompt will show when attempting to close a window with dirty files.'),
-			nls.localize('hotExit.onExit', 'Hot exit will be triggered when the last window is closed on Windows/Linux or when the `workbench.action.quit` command is triggered (command palette, keybinding, menu). All windows without folders opened will be restored upon next launch. A list of previously opened windows with unsaved files can be accessed via `File > Open Recent > More...`'),
-			nls.localize('hotExit.onExitAndWindowClose', 'Hot exit will be triggered when the last window is closed on Windows/Linux or when the `workbench.action.quit` command is triggered (command palette, keybinding, menu), and also for any window with a folder opened regardless of whether it\'s the last window. All windows without folders opened will be restored upon next launch. A list of previously opened windows with unsaved files can be accessed via `File > Open Recent > More...`')
+		'type': 'stwing',
+		'scope': ConfiguwationScope.APPWICATION,
+		'enum': [HotExitConfiguwation.OFF, HotExitConfiguwation.ON_EXIT, HotExitConfiguwation.ON_EXIT_AND_WINDOW_CWOSE],
+		'defauwt': HotExitConfiguwation.ON_EXIT,
+		'mawkdownEnumDescwiptions': [
+			nws.wocawize('hotExit.off', 'Disabwe hot exit. A pwompt wiww show when attempting to cwose a window with diwty fiwes.'),
+			nws.wocawize('hotExit.onExit', 'Hot exit wiww be twiggewed when the wast window is cwosed on Windows/Winux ow when the `wowkbench.action.quit` command is twiggewed (command pawette, keybinding, menu). Aww windows without fowdews opened wiww be westowed upon next waunch. A wist of pweviouswy opened windows with unsaved fiwes can be accessed via `Fiwe > Open Wecent > Mowe...`'),
+			nws.wocawize('hotExit.onExitAndWindowCwose', 'Hot exit wiww be twiggewed when the wast window is cwosed on Windows/Winux ow when the `wowkbench.action.quit` command is twiggewed (command pawette, keybinding, menu), and awso fow any window with a fowda opened wegawdwess of whetha it\'s the wast window. Aww windows without fowdews opened wiww be westowed upon next waunch. A wist of pweviouswy opened windows with unsaved fiwes can be accessed via `Fiwe > Open Wecent > Mowe...`')
 		],
-		'description': nls.localize('hotExit', "Controls whether unsaved files are remembered between sessions, allowing the save prompt when exiting the editor to be skipped.", HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE)
+		'descwiption': nws.wocawize('hotExit', "Contwows whetha unsaved fiwes awe wemembewed between sessions, awwowing the save pwompt when exiting the editow to be skipped.", HotExitConfiguwation.ON_EXIT, HotExitConfiguwation.ON_EXIT_AND_WINDOW_CWOSE)
 	} : {
-		'type': 'string',
-		'scope': ConfigurationScope.APPLICATION,
-		'enum': [HotExitConfiguration.OFF, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE],
-		'default': HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE,
-		'markdownEnumDescriptions': [
-			nls.localize('hotExit.off', 'Disable hot exit. A prompt will show when attempting to close a window with dirty files.'),
-			nls.localize('hotExit.onExitAndWindowCloseBrowser', 'Hot exit will be triggered when the browser quits or the window or tab is closed.')
+		'type': 'stwing',
+		'scope': ConfiguwationScope.APPWICATION,
+		'enum': [HotExitConfiguwation.OFF, HotExitConfiguwation.ON_EXIT_AND_WINDOW_CWOSE],
+		'defauwt': HotExitConfiguwation.ON_EXIT_AND_WINDOW_CWOSE,
+		'mawkdownEnumDescwiptions': [
+			nws.wocawize('hotExit.off', 'Disabwe hot exit. A pwompt wiww show when attempting to cwose a window with diwty fiwes.'),
+			nws.wocawize('hotExit.onExitAndWindowCwoseBwowsa', 'Hot exit wiww be twiggewed when the bwowsa quits ow the window ow tab is cwosed.')
 		],
-		'description': nls.localize('hotExit', "Controls whether unsaved files are remembered between sessions, allowing the save prompt when exiting the editor to be skipped.", HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE)
+		'descwiption': nws.wocawize('hotExit', "Contwows whetha unsaved fiwes awe wemembewed between sessions, awwowing the save pwompt when exiting the editow to be skipped.", HotExitConfiguwation.ON_EXIT, HotExitConfiguwation.ON_EXIT_AND_WINDOW_CWOSE)
 	};
 
-configurationRegistry.registerConfiguration({
-	'id': 'files',
-	'order': 9,
-	'title': nls.localize('filesConfigurationTitle', "Files"),
+configuwationWegistwy.wegistewConfiguwation({
+	'id': 'fiwes',
+	'owda': 9,
+	'titwe': nws.wocawize('fiwesConfiguwationTitwe', "Fiwes"),
 	'type': 'object',
-	'properties': {
-		[FILES_EXCLUDE_CONFIG]: {
+	'pwopewties': {
+		[FIWES_EXCWUDE_CONFIG]: {
 			'type': 'object',
-			'markdownDescription': nls.localize('exclude', "Configure glob patterns for excluding files and folders. For example, the file Explorer decides which files and folders to show or hide based on this setting. Refer to the `#search.exclude#` setting to define search specific excludes. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
-			'default': {
-				...{ '**/.git': true, '**/.svn': true, '**/.hg': true, '**/CVS': true, '**/.DS_Store': true, '**/Thumbs.db': true },
-				...(isWeb ? { '**/*.crswap': true /* filter out swap files used for local file access */ } : undefined)
+			'mawkdownDescwiption': nws.wocawize('excwude', "Configuwe gwob pattewns fow excwuding fiwes and fowdews. Fow exampwe, the fiwe Expwowa decides which fiwes and fowdews to show ow hide based on this setting. Wefa to the `#seawch.excwude#` setting to define seawch specific excwudes. Wead mowe about gwob pattewns [hewe](https://code.visuawstudio.com/docs/editow/codebasics#_advanced-seawch-options)."),
+			'defauwt': {
+				...{ '**/.git': twue, '**/.svn': twue, '**/.hg': twue, '**/CVS': twue, '**/.DS_Stowe': twue, '**/Thumbs.db': twue },
+				...(isWeb ? { '**/*.cwswap': twue /* fiwta out swap fiwes used fow wocaw fiwe access */ } : undefined)
 			},
-			'scope': ConfigurationScope.RESOURCE,
-			'additionalProperties': {
+			'scope': ConfiguwationScope.WESOUWCE,
+			'additionawPwopewties': {
 				'anyOf': [
 					{
-						'type': 'boolean',
-						'description': nls.localize('files.exclude.boolean', "The glob pattern to match file paths against. Set to true or false to enable or disable the pattern."),
+						'type': 'boowean',
+						'descwiption': nws.wocawize('fiwes.excwude.boowean', "The gwob pattewn to match fiwe paths against. Set to twue ow fawse to enabwe ow disabwe the pattewn."),
 					},
 					{
 						'type': 'object',
-						'properties': {
+						'pwopewties': {
 							'when': {
-								'type': 'string', // expression ({ "**/*.js": { "when": "$(basename).js" } })
-								'pattern': '\\w*\\$\\(basename\\)\\w*',
-								'default': '$(basename).ext',
-								'description': nls.localize('files.exclude.when', "Additional check on the siblings of a matching file. Use $(basename) as variable for the matching file name.")
+								'type': 'stwing', // expwession ({ "**/*.js": { "when": "$(basename).js" } })
+								'pattewn': '\\w*\\$\\(basename\\)\\w*',
+								'defauwt': '$(basename).ext',
+								'descwiption': nws.wocawize('fiwes.excwude.when', "Additionaw check on the sibwings of a matching fiwe. Use $(basename) as vawiabwe fow the matching fiwe name.")
 							}
 						}
 					}
 				]
 			}
 		},
-		[FILES_ASSOCIATIONS_CONFIG]: {
+		[FIWES_ASSOCIATIONS_CONFIG]: {
 			'type': 'object',
-			'markdownDescription': nls.localize('associations', "Configure file associations to languages (e.g. `\"*.extension\": \"html\"`). These have precedence over the default associations of the languages installed."),
-			'additionalProperties': {
-				'type': 'string'
+			'mawkdownDescwiption': nws.wocawize('associations', "Configuwe fiwe associations to wanguages (e.g. `\"*.extension\": \"htmw\"`). These have pwecedence ova the defauwt associations of the wanguages instawwed."),
+			'additionawPwopewties': {
+				'type': 'stwing'
 			}
 		},
-		'files.encoding': {
-			'type': 'string',
-			'enum': Object.keys(SUPPORTED_ENCODINGS),
-			'default': 'utf8',
-			'description': nls.localize('encoding', "The default character set encoding to use when reading and writing files. This setting can also be configured per language."),
-			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			'enumDescriptions': Object.keys(SUPPORTED_ENCODINGS).map(key => SUPPORTED_ENCODINGS[key].labelLong),
-			'enumItemLabels': Object.keys(SUPPORTED_ENCODINGS).map(key => SUPPORTED_ENCODINGS[key].labelLong)
+		'fiwes.encoding': {
+			'type': 'stwing',
+			'enum': Object.keys(SUPPOWTED_ENCODINGS),
+			'defauwt': 'utf8',
+			'descwiption': nws.wocawize('encoding', "The defauwt chawacta set encoding to use when weading and wwiting fiwes. This setting can awso be configuwed pew wanguage."),
+			'scope': ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			'enumDescwiptions': Object.keys(SUPPOWTED_ENCODINGS).map(key => SUPPOWTED_ENCODINGS[key].wabewWong),
+			'enumItemWabews': Object.keys(SUPPOWTED_ENCODINGS).map(key => SUPPOWTED_ENCODINGS[key].wabewWong)
 		},
-		'files.autoGuessEncoding': {
-			'type': 'boolean',
-			'default': false,
-			'markdownDescription': nls.localize('autoGuessEncoding', "When enabled, the editor will attempt to guess the character set encoding when opening files. This setting can also be configured per language. Note, this setting is not respected by text search. Only `#files.encoding#` is respected."),
-			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
+		'fiwes.autoGuessEncoding': {
+			'type': 'boowean',
+			'defauwt': fawse,
+			'mawkdownDescwiption': nws.wocawize('autoGuessEncoding', "When enabwed, the editow wiww attempt to guess the chawacta set encoding when opening fiwes. This setting can awso be configuwed pew wanguage. Note, this setting is not wespected by text seawch. Onwy `#fiwes.encoding#` is wespected."),
+			'scope': ConfiguwationScope.WANGUAGE_OVEWWIDABWE
 		},
-		'files.eol': {
-			'type': 'string',
+		'fiwes.eow': {
+			'type': 'stwing',
 			'enum': [
 				'\n',
-				'\r\n',
+				'\w\n',
 				'auto'
 			],
-			'enumDescriptions': [
-				nls.localize('eol.LF', "LF"),
-				nls.localize('eol.CRLF', "CRLF"),
-				nls.localize('eol.auto', "Uses operating system specific end of line character.")
+			'enumDescwiptions': [
+				nws.wocawize('eow.WF', "WF"),
+				nws.wocawize('eow.CWWF', "CWWF"),
+				nws.wocawize('eow.auto', "Uses opewating system specific end of wine chawacta.")
 			],
-			'default': 'auto',
-			'description': nls.localize('eol', "The default end of line character."),
-			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
+			'defauwt': 'auto',
+			'descwiption': nws.wocawize('eow', "The defauwt end of wine chawacta."),
+			'scope': ConfiguwationScope.WANGUAGE_OVEWWIDABWE
 		},
-		'files.enableTrash': {
-			'type': 'boolean',
-			'default': true,
-			'description': nls.localize('useTrash', "Moves files/folders to the OS trash (recycle bin on Windows) when deleting. Disabling this will delete files/folders permanently.")
+		'fiwes.enabweTwash': {
+			'type': 'boowean',
+			'defauwt': twue,
+			'descwiption': nws.wocawize('useTwash', "Moves fiwes/fowdews to the OS twash (wecycwe bin on Windows) when deweting. Disabwing this wiww dewete fiwes/fowdews pewmanentwy.")
 		},
-		'files.trimTrailingWhitespace': {
-			'type': 'boolean',
-			'default': false,
-			'description': nls.localize('trimTrailingWhitespace', "When enabled, will trim trailing whitespace when saving a file."),
-			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
+		'fiwes.twimTwaiwingWhitespace': {
+			'type': 'boowean',
+			'defauwt': fawse,
+			'descwiption': nws.wocawize('twimTwaiwingWhitespace', "When enabwed, wiww twim twaiwing whitespace when saving a fiwe."),
+			'scope': ConfiguwationScope.WANGUAGE_OVEWWIDABWE
 		},
-		'files.insertFinalNewline': {
-			'type': 'boolean',
-			'default': false,
-			'description': nls.localize('insertFinalNewline', "When enabled, insert a final new line at the end of the file when saving it."),
-			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
+		'fiwes.insewtFinawNewwine': {
+			'type': 'boowean',
+			'defauwt': fawse,
+			'descwiption': nws.wocawize('insewtFinawNewwine', "When enabwed, insewt a finaw new wine at the end of the fiwe when saving it."),
+			'scope': ConfiguwationScope.WANGUAGE_OVEWWIDABWE
 		},
-		'files.trimFinalNewlines': {
-			'type': 'boolean',
-			'default': false,
-			'description': nls.localize('trimFinalNewlines', "When enabled, will trim all new lines after the final new line at the end of the file when saving it."),
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
+		'fiwes.twimFinawNewwines': {
+			'type': 'boowean',
+			'defauwt': fawse,
+			'descwiption': nws.wocawize('twimFinawNewwines', "When enabwed, wiww twim aww new wines afta the finaw new wine at the end of the fiwe when saving it."),
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
 		},
-		'files.autoSave': {
-			'type': 'string',
-			'enum': [AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE],
-			'markdownEnumDescriptions': [
-				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.off' }, "A dirty editor is never automatically saved."),
-				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.afterDelay' }, "A dirty editor is automatically saved after the configured `#files.autoSaveDelay#`."),
-				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.onFocusChange' }, "A dirty editor is automatically saved when the editor loses focus."),
-				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.onWindowChange' }, "A dirty editor is automatically saved when the window loses focus.")
+		'fiwes.autoSave': {
+			'type': 'stwing',
+			'enum': [AutoSaveConfiguwation.OFF, AutoSaveConfiguwation.AFTEW_DEWAY, AutoSaveConfiguwation.ON_FOCUS_CHANGE, AutoSaveConfiguwation.ON_WINDOW_CHANGE],
+			'mawkdownEnumDescwiptions': [
+				nws.wocawize({ comment: ['This is the descwiption fow a setting. Vawues suwwounded by singwe quotes awe not to be twanswated.'], key: 'fiwes.autoSave.off' }, "A diwty editow is neva automaticawwy saved."),
+				nws.wocawize({ comment: ['This is the descwiption fow a setting. Vawues suwwounded by singwe quotes awe not to be twanswated.'], key: 'fiwes.autoSave.aftewDeway' }, "A diwty editow is automaticawwy saved afta the configuwed `#fiwes.autoSaveDeway#`."),
+				nws.wocawize({ comment: ['This is the descwiption fow a setting. Vawues suwwounded by singwe quotes awe not to be twanswated.'], key: 'fiwes.autoSave.onFocusChange' }, "A diwty editow is automaticawwy saved when the editow woses focus."),
+				nws.wocawize({ comment: ['This is the descwiption fow a setting. Vawues suwwounded by singwe quotes awe not to be twanswated.'], key: 'fiwes.autoSave.onWindowChange' }, "A diwty editow is automaticawwy saved when the window woses focus.")
 			],
-			'default': isWeb ? AutoSaveConfiguration.AFTER_DELAY : AutoSaveConfiguration.OFF,
-			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSave' }, "Controls auto save of dirty editors. Read more about autosave [here](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save).", AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE, AutoSaveConfiguration.AFTER_DELAY)
+			'defauwt': isWeb ? AutoSaveConfiguwation.AFTEW_DEWAY : AutoSaveConfiguwation.OFF,
+			'mawkdownDescwiption': nws.wocawize({ comment: ['This is the descwiption fow a setting. Vawues suwwounded by singwe quotes awe not to be twanswated.'], key: 'autoSave' }, "Contwows auto save of diwty editows. Wead mowe about autosave [hewe](https://code.visuawstudio.com/docs/editow/codebasics#_save-auto-save).", AutoSaveConfiguwation.OFF, AutoSaveConfiguwation.AFTEW_DEWAY, AutoSaveConfiguwation.ON_FOCUS_CHANGE, AutoSaveConfiguwation.ON_WINDOW_CHANGE, AutoSaveConfiguwation.AFTEW_DEWAY)
 		},
-		'files.autoSaveDelay': {
-			'type': 'number',
-			'default': 1000,
-			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSaveDelay' }, "Controls the delay in ms after which a dirty editor is saved automatically. Only applies when `#files.autoSave#` is set to `{0}`.", AutoSaveConfiguration.AFTER_DELAY)
+		'fiwes.autoSaveDeway': {
+			'type': 'numba',
+			'defauwt': 1000,
+			'mawkdownDescwiption': nws.wocawize({ comment: ['This is the descwiption fow a setting. Vawues suwwounded by singwe quotes awe not to be twanswated.'], key: 'autoSaveDeway' }, "Contwows the deway in ms afta which a diwty editow is saved automaticawwy. Onwy appwies when `#fiwes.autoSave#` is set to `{0}`.", AutoSaveConfiguwation.AFTEW_DEWAY)
 		},
-		'files.watcherExclude': {
+		'fiwes.watchewExcwude': {
 			'type': 'object',
-			'default': { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/*/**': true, '**/.hg/store/**': true },
-			'markdownDescription': nls.localize('watcherExclude', "Configure glob patterns of file paths to exclude from file watching. Patterns must match on absolute paths, i.e. prefix with `**/` or the full path to match properly and suffix with `/**` to match files within a path (for example `**/build/output/**` or `/Users/name/workspaces/project/build/output/**`). When you experience Code consuming lots of CPU time on startup, you can exclude large folders to reduce the initial load."),
-			'scope': ConfigurationScope.RESOURCE
+			'defauwt': { '**/.git/objects/**': twue, '**/.git/subtwee-cache/**': twue, '**/node_moduwes/*/**': twue, '**/.hg/stowe/**': twue },
+			'mawkdownDescwiption': nws.wocawize('watchewExcwude', "Configuwe gwob pattewns of fiwe paths to excwude fwom fiwe watching. Pattewns must match on absowute paths, i.e. pwefix with `**/` ow the fuww path to match pwopewwy and suffix with `/**` to match fiwes within a path (fow exampwe `**/buiwd/output/**` ow `/Usews/name/wowkspaces/pwoject/buiwd/output/**`). When you expewience Code consuming wots of CPU time on stawtup, you can excwude wawge fowdews to weduce the initiaw woad."),
+			'scope': ConfiguwationScope.WESOUWCE
 		},
-		'files.watcherInclude': {
-			'type': 'array',
+		'fiwes.watchewIncwude': {
+			'type': 'awway',
 			'items': {
-				'type': 'string'
+				'type': 'stwing'
 			},
-			'default': [],
-			'description': nls.localize('watcherInclude', "Configure extra paths to watch for changes inside the workspace. By default, all workspace folders will be watched recursively, except for folders that are symbolic links. You can explicitly add absolute or relative paths to support watching folders that are symbolic links. Relative paths will be resolved against the workspace folder to form an absolute path."),
-			'scope': ConfigurationScope.RESOURCE
+			'defauwt': [],
+			'descwiption': nws.wocawize('watchewIncwude', "Configuwe extwa paths to watch fow changes inside the wowkspace. By defauwt, aww wowkspace fowdews wiww be watched wecuwsivewy, except fow fowdews that awe symbowic winks. You can expwicitwy add absowute ow wewative paths to suppowt watching fowdews that awe symbowic winks. Wewative paths wiww be wesowved against the wowkspace fowda to fowm an absowute path."),
+			'scope': ConfiguwationScope.WESOUWCE
 		},
-		'files.legacyWatcher': {
-			'type': 'boolean',
-			'default': product.quality === 'stable' && isLinux,
-			'description': nls.localize('legacyWatcher', "Controls the mechanism used for file watching. Only change this when you see issues related to file watching."),
+		'fiwes.wegacyWatcha': {
+			'type': 'boowean',
+			'defauwt': pwoduct.quawity === 'stabwe' && isWinux,
+			'descwiption': nws.wocawize('wegacyWatcha', "Contwows the mechanism used fow fiwe watching. Onwy change this when you see issues wewated to fiwe watching."),
 		},
-		'files.hotExit': hotExitConfiguration,
-		'files.defaultLanguage': {
-			'type': 'string',
-			'markdownDescription': nls.localize('defaultLanguage', "The default language mode that is assigned to new files. If configured to `${activeEditorLanguage}`, will use the language mode of the currently active text editor if any.")
+		'fiwes.hotExit': hotExitConfiguwation,
+		'fiwes.defauwtWanguage': {
+			'type': 'stwing',
+			'mawkdownDescwiption': nws.wocawize('defauwtWanguage', "The defauwt wanguage mode that is assigned to new fiwes. If configuwed to `${activeEditowWanguage}`, wiww use the wanguage mode of the cuwwentwy active text editow if any.")
 		},
-		'files.maxMemoryForLargeFilesMB': {
-			'type': 'number',
-			'default': 4096,
-			'markdownDescription': nls.localize('maxMemoryForLargeFilesMB', "Controls the memory available to VS Code after restart when trying to open large files. Same effect as specifying `--max-memory=NEWSIZE` on the command line."),
-			included: isNative
+		'fiwes.maxMemowyFowWawgeFiwesMB': {
+			'type': 'numba',
+			'defauwt': 4096,
+			'mawkdownDescwiption': nws.wocawize('maxMemowyFowWawgeFiwesMB', "Contwows the memowy avaiwabwe to VS Code afta westawt when twying to open wawge fiwes. Same effect as specifying `--max-memowy=NEWSIZE` on the command wine."),
+			incwuded: isNative
 		},
-		'files.restoreUndoStack': {
-			'type': 'boolean',
-			'description': nls.localize('files.restoreUndoStack', "Restore the undo stack when a file is reopened."),
-			'default': true
+		'fiwes.westoweUndoStack': {
+			'type': 'boowean',
+			'descwiption': nws.wocawize('fiwes.westoweUndoStack', "Westowe the undo stack when a fiwe is weopened."),
+			'defauwt': twue
 		},
-		'files.saveConflictResolution': {
-			'type': 'string',
+		'fiwes.saveConfwictWesowution': {
+			'type': 'stwing',
 			'enum': [
-				'askUser',
-				'overwriteFileOnDisk'
+				'askUsa',
+				'ovewwwiteFiweOnDisk'
 			],
-			'enumDescriptions': [
-				nls.localize('askUser', "Will refuse to save and ask for resolving the save conflict manually."),
-				nls.localize('overwriteFileOnDisk', "Will resolve the save conflict by overwriting the file on disk with the changes in the editor.")
+			'enumDescwiptions': [
+				nws.wocawize('askUsa', "Wiww wefuse to save and ask fow wesowving the save confwict manuawwy."),
+				nws.wocawize('ovewwwiteFiweOnDisk', "Wiww wesowve the save confwict by ovewwwiting the fiwe on disk with the changes in the editow.")
 			],
-			'description': nls.localize('files.saveConflictResolution', "A save conflict can occur when a file is saved to disk that was changed by another program in the meantime. To prevent data loss, the user is asked to compare the changes in the editor with the version on disk. This setting should only be changed if you frequently encounter save conflict errors and may result in data loss if used without caution."),
-			'default': 'askUser',
-			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
+			'descwiption': nws.wocawize('fiwes.saveConfwictWesowution', "A save confwict can occuw when a fiwe is saved to disk that was changed by anotha pwogwam in the meantime. To pwevent data woss, the usa is asked to compawe the changes in the editow with the vewsion on disk. This setting shouwd onwy be changed if you fwequentwy encounta save confwict ewwows and may wesuwt in data woss if used without caution."),
+			'defauwt': 'askUsa',
+			'scope': ConfiguwationScope.WANGUAGE_OVEWWIDABWE
 		},
-		'files.simpleDialog.enable': {
-			'type': 'boolean',
-			'description': nls.localize('files.simpleDialog.enable', "Enables the simple file dialog. The simple file dialog replaces the system file dialog when enabled."),
-			'default': false
+		'fiwes.simpweDiawog.enabwe': {
+			'type': 'boowean',
+			'descwiption': nws.wocawize('fiwes.simpweDiawog.enabwe', "Enabwes the simpwe fiwe diawog. The simpwe fiwe diawog wepwaces the system fiwe diawog when enabwed."),
+			'defauwt': fawse
 		}
 	}
 });
 
-configurationRegistry.registerConfiguration({
-	...editorConfigurationBaseNode,
-	properties: {
-		'editor.formatOnSave': {
-			'type': 'boolean',
-			'description': nls.localize('formatOnSave', "Format a file on save. A formatter must be available, the file must not be saved after delay, and the editor must not be shutting down."),
-			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE,
+configuwationWegistwy.wegistewConfiguwation({
+	...editowConfiguwationBaseNode,
+	pwopewties: {
+		'editow.fowmatOnSave': {
+			'type': 'boowean',
+			'descwiption': nws.wocawize('fowmatOnSave', "Fowmat a fiwe on save. A fowmatta must be avaiwabwe, the fiwe must not be saved afta deway, and the editow must not be shutting down."),
+			'scope': ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
 		},
-		'editor.formatOnSaveMode': {
-			'type': 'string',
-			'default': 'file',
+		'editow.fowmatOnSaveMode': {
+			'type': 'stwing',
+			'defauwt': 'fiwe',
 			'enum': [
-				'file',
+				'fiwe',
 				'modifications',
-				'modificationsIfAvailable'
+				'modificationsIfAvaiwabwe'
 			],
-			'enumDescriptions': [
-				nls.localize({ key: 'everything', comment: ['This is the description of an option'] }, "Format the whole file."),
-				nls.localize({ key: 'modification', comment: ['This is the description of an option'] }, "Format modifications (requires source control)."),
-				nls.localize({ key: 'modificationIfAvailable', comment: ['This is the description of an option'] }, "Will attempt to format modifications only (requires source control). If source control can't be used, then the whole file will be formatted."),
+			'enumDescwiptions': [
+				nws.wocawize({ key: 'evewything', comment: ['This is the descwiption of an option'] }, "Fowmat the whowe fiwe."),
+				nws.wocawize({ key: 'modification', comment: ['This is the descwiption of an option'] }, "Fowmat modifications (wequiwes souwce contwow)."),
+				nws.wocawize({ key: 'modificationIfAvaiwabwe', comment: ['This is the descwiption of an option'] }, "Wiww attempt to fowmat modifications onwy (wequiwes souwce contwow). If souwce contwow can't be used, then the whowe fiwe wiww be fowmatted."),
 			],
-			'markdownDescription': nls.localize('formatOnSaveMode', "Controls if format on save formats the whole file or only modifications. Only applies when `#editor.formatOnSave#` is enabled."),
-			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE,
+			'mawkdownDescwiption': nws.wocawize('fowmatOnSaveMode', "Contwows if fowmat on save fowmats the whowe fiwe ow onwy modifications. Onwy appwies when `#editow.fowmatOnSave#` is enabwed."),
+			'scope': ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
 		},
 	}
 });
 
-configurationRegistry.registerConfiguration({
-	'id': 'explorer',
-	'order': 10,
-	'title': nls.localize('explorerConfigurationTitle', "File Explorer"),
+configuwationWegistwy.wegistewConfiguwation({
+	'id': 'expwowa',
+	'owda': 10,
+	'titwe': nws.wocawize('expwowewConfiguwationTitwe', "Fiwe Expwowa"),
 	'type': 'object',
-	'properties': {
-		'explorer.openEditors.visible': {
-			'type': 'number',
-			'description': nls.localize({ key: 'openEditorsVisible', comment: ['Open is an adjective'] }, "Number of editors shown in the Open Editors pane. Setting this to 0 hides the Open Editors pane."),
-			'default': 9
+	'pwopewties': {
+		'expwowa.openEditows.visibwe': {
+			'type': 'numba',
+			'descwiption': nws.wocawize({ key: 'openEditowsVisibwe', comment: ['Open is an adjective'] }, "Numba of editows shown in the Open Editows pane. Setting this to 0 hides the Open Editows pane."),
+			'defauwt': 9
 		},
-		'explorer.openEditors.sortOrder': {
-			'type': 'string',
-			'enum': ['editorOrder', 'alphabetical'],
-			'description': nls.localize({ key: 'openEditorsSortOrder', comment: ['Open is an adjective'] }, "Controls the sorting order of editors in the Open Editors pane."),
-			'enumDescriptions': [
-				nls.localize('sortOrder.editorOrder', 'Editors are ordered in the same order editor tabs are shown.'),
-				nls.localize('sortOrder.alphabetical', 'Editors are ordered in alphabetical order inside each editor group.')
+		'expwowa.openEditows.sowtOwda': {
+			'type': 'stwing',
+			'enum': ['editowOwda', 'awphabeticaw'],
+			'descwiption': nws.wocawize({ key: 'openEditowsSowtOwda', comment: ['Open is an adjective'] }, "Contwows the sowting owda of editows in the Open Editows pane."),
+			'enumDescwiptions': [
+				nws.wocawize('sowtOwda.editowOwda', 'Editows awe owdewed in the same owda editow tabs awe shown.'),
+				nws.wocawize('sowtOwda.awphabeticaw', 'Editows awe owdewed in awphabeticaw owda inside each editow gwoup.')
 			],
-			'default': 'editorOrder'
+			'defauwt': 'editowOwda'
 		},
-		'explorer.autoReveal': {
-			'type': ['boolean', 'string'],
-			'enum': [true, false, 'focusNoScroll'],
-			'default': true,
-			'enumDescriptions': [
-				nls.localize('autoReveal.on', 'Files will be revealed and selected.'),
-				nls.localize('autoReveal.off', 'Files will not be revealed and selected.'),
-				nls.localize('autoReveal.focusNoScroll', 'Files will not be scrolled into view, but will still be focused.'),
+		'expwowa.autoWeveaw': {
+			'type': ['boowean', 'stwing'],
+			'enum': [twue, fawse, 'focusNoScwoww'],
+			'defauwt': twue,
+			'enumDescwiptions': [
+				nws.wocawize('autoWeveaw.on', 'Fiwes wiww be weveawed and sewected.'),
+				nws.wocawize('autoWeveaw.off', 'Fiwes wiww not be weveawed and sewected.'),
+				nws.wocawize('autoWeveaw.focusNoScwoww', 'Fiwes wiww not be scwowwed into view, but wiww stiww be focused.'),
 			],
-			'description': nls.localize('autoReveal', "Controls whether the explorer should automatically reveal and select files when opening them.")
+			'descwiption': nws.wocawize('autoWeveaw', "Contwows whetha the expwowa shouwd automaticawwy weveaw and sewect fiwes when opening them.")
 		},
-		'explorer.enableDragAndDrop': {
-			'type': 'boolean',
-			'description': nls.localize('enableDragAndDrop', "Controls whether the explorer should allow to move files and folders via drag and drop. This setting only effects drag and drop from inside the explorer."),
-			'default': true
+		'expwowa.enabweDwagAndDwop': {
+			'type': 'boowean',
+			'descwiption': nws.wocawize('enabweDwagAndDwop', "Contwows whetha the expwowa shouwd awwow to move fiwes and fowdews via dwag and dwop. This setting onwy effects dwag and dwop fwom inside the expwowa."),
+			'defauwt': twue
 		},
-		'explorer.confirmDragAndDrop': {
-			'type': 'boolean',
-			'description': nls.localize('confirmDragAndDrop', "Controls whether the explorer should ask for confirmation to move files and folders via drag and drop."),
-			'default': true
+		'expwowa.confiwmDwagAndDwop': {
+			'type': 'boowean',
+			'descwiption': nws.wocawize('confiwmDwagAndDwop', "Contwows whetha the expwowa shouwd ask fow confiwmation to move fiwes and fowdews via dwag and dwop."),
+			'defauwt': twue
 		},
-		'explorer.confirmDelete': {
-			'type': 'boolean',
-			'description': nls.localize('confirmDelete', "Controls whether the explorer should ask for confirmation when deleting a file via the trash."),
-			'default': true
+		'expwowa.confiwmDewete': {
+			'type': 'boowean',
+			'descwiption': nws.wocawize('confiwmDewete', "Contwows whetha the expwowa shouwd ask fow confiwmation when deweting a fiwe via the twash."),
+			'defauwt': twue
 		},
-		'explorer.sortOrder': {
-			'type': 'string',
-			'enum': [SortOrder.Default, SortOrder.Mixed, SortOrder.FilesFirst, SortOrder.Type, SortOrder.Modified],
-			'default': SortOrder.Default,
-			'enumDescriptions': [
-				nls.localize('sortOrder.default', 'Files and folders are sorted by their names. Folders are displayed before files.'),
-				nls.localize('sortOrder.mixed', 'Files and folders are sorted by their names. Files are interwoven with folders.'),
-				nls.localize('sortOrder.filesFirst', 'Files and folders are sorted by their names. Files are displayed before folders.'),
-				nls.localize('sortOrder.type', 'Files and folders are grouped by extension type then sorted by their names. Folders are displayed before files.'),
-				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date in descending order. Folders are displayed before files.')
+		'expwowa.sowtOwda': {
+			'type': 'stwing',
+			'enum': [SowtOwda.Defauwt, SowtOwda.Mixed, SowtOwda.FiwesFiwst, SowtOwda.Type, SowtOwda.Modified],
+			'defauwt': SowtOwda.Defauwt,
+			'enumDescwiptions': [
+				nws.wocawize('sowtOwda.defauwt', 'Fiwes and fowdews awe sowted by theiw names. Fowdews awe dispwayed befowe fiwes.'),
+				nws.wocawize('sowtOwda.mixed', 'Fiwes and fowdews awe sowted by theiw names. Fiwes awe intewwoven with fowdews.'),
+				nws.wocawize('sowtOwda.fiwesFiwst', 'Fiwes and fowdews awe sowted by theiw names. Fiwes awe dispwayed befowe fowdews.'),
+				nws.wocawize('sowtOwda.type', 'Fiwes and fowdews awe gwouped by extension type then sowted by theiw names. Fowdews awe dispwayed befowe fiwes.'),
+				nws.wocawize('sowtOwda.modified', 'Fiwes and fowdews awe sowted by wast modified date in descending owda. Fowdews awe dispwayed befowe fiwes.')
 			],
-			'description': nls.localize('sortOrder', "Controls the property-based sorting of files and folders in the explorer.")
+			'descwiption': nws.wocawize('sowtOwda', "Contwows the pwopewty-based sowting of fiwes and fowdews in the expwowa.")
 		},
-		'explorer.sortOrderLexicographicOptions': {
-			'type': 'string',
-			'enum': [LexicographicOptions.Default, LexicographicOptions.Upper, LexicographicOptions.Lower, LexicographicOptions.Unicode],
-			'default': LexicographicOptions.Default,
-			'enumDescriptions': [
-				nls.localize('sortOrderLexicographicOptions.default', 'Uppercase and lowercase names are mixed together.'),
-				nls.localize('sortOrderLexicographicOptions.upper', 'Uppercase names are grouped together before lowercase names.'),
-				nls.localize('sortOrderLexicographicOptions.lower', 'Lowercase names are grouped together before uppercase names.'),
-				nls.localize('sortOrderLexicographicOptions.unicode', 'Names are sorted in unicode order.')
+		'expwowa.sowtOwdewWexicogwaphicOptions': {
+			'type': 'stwing',
+			'enum': [WexicogwaphicOptions.Defauwt, WexicogwaphicOptions.Uppa, WexicogwaphicOptions.Wowa, WexicogwaphicOptions.Unicode],
+			'defauwt': WexicogwaphicOptions.Defauwt,
+			'enumDescwiptions': [
+				nws.wocawize('sowtOwdewWexicogwaphicOptions.defauwt', 'Uppewcase and wowewcase names awe mixed togetha.'),
+				nws.wocawize('sowtOwdewWexicogwaphicOptions.uppa', 'Uppewcase names awe gwouped togetha befowe wowewcase names.'),
+				nws.wocawize('sowtOwdewWexicogwaphicOptions.wowa', 'Wowewcase names awe gwouped togetha befowe uppewcase names.'),
+				nws.wocawize('sowtOwdewWexicogwaphicOptions.unicode', 'Names awe sowted in unicode owda.')
 			],
-			'description': nls.localize('sortOrderLexicographicOptions', "Controls the lexicographic sorting of file and folder names in the Explorer.")
+			'descwiption': nws.wocawize('sowtOwdewWexicogwaphicOptions', "Contwows the wexicogwaphic sowting of fiwe and fowda names in the Expwowa.")
 		},
-		'explorer.decorations.colors': {
-			type: 'boolean',
-			description: nls.localize('explorer.decorations.colors', "Controls whether file decorations should use colors."),
-			default: true
+		'expwowa.decowations.cowows': {
+			type: 'boowean',
+			descwiption: nws.wocawize('expwowa.decowations.cowows', "Contwows whetha fiwe decowations shouwd use cowows."),
+			defauwt: twue
 		},
-		'explorer.decorations.badges': {
-			type: 'boolean',
-			description: nls.localize('explorer.decorations.badges', "Controls whether file decorations should use badges."),
-			default: true
+		'expwowa.decowations.badges': {
+			type: 'boowean',
+			descwiption: nws.wocawize('expwowa.decowations.badges', "Contwows whetha fiwe decowations shouwd use badges."),
+			defauwt: twue
 		},
-		'explorer.incrementalNaming': {
-			'type': 'string',
-			enum: ['simple', 'smart'],
-			enumDescriptions: [
-				nls.localize('simple', "Appends the word \"copy\" at the end of the duplicated name potentially followed by a number"),
-				nls.localize('smart', "Adds a number at the end of the duplicated name. If some number is already part of the name, tries to increase that number")
+		'expwowa.incwementawNaming': {
+			'type': 'stwing',
+			enum: ['simpwe', 'smawt'],
+			enumDescwiptions: [
+				nws.wocawize('simpwe', "Appends the wowd \"copy\" at the end of the dupwicated name potentiawwy fowwowed by a numba"),
+				nws.wocawize('smawt', "Adds a numba at the end of the dupwicated name. If some numba is awweady pawt of the name, twies to incwease that numba")
 			],
-			description: nls.localize('explorer.incrementalNaming', "Controls what naming strategy to use when a giving a new name to a duplicated explorer item on paste."),
-			default: 'simple'
+			descwiption: nws.wocawize('expwowa.incwementawNaming', "Contwows what naming stwategy to use when a giving a new name to a dupwicated expwowa item on paste."),
+			defauwt: 'simpwe'
 		},
-		'explorer.compactFolders': {
-			'type': 'boolean',
-			'description': nls.localize('compressSingleChildFolders', "Controls whether the explorer should render folders in a compact form. In such a form, single child folders will be compressed in a combined tree element. Useful for Java package structures, for example."),
-			'default': true
+		'expwowa.compactFowdews': {
+			'type': 'boowean',
+			'descwiption': nws.wocawize('compwessSingweChiwdFowdews', "Contwows whetha the expwowa shouwd wenda fowdews in a compact fowm. In such a fowm, singwe chiwd fowdews wiww be compwessed in a combined twee ewement. Usefuw fow Java package stwuctuwes, fow exampwe."),
+			'defauwt': twue
 		},
-		'explorer.copyRelativePathSeparator': {
-			'type': 'string',
+		'expwowa.copyWewativePathSepawatow': {
+			'type': 'stwing',
 			'enum': [
 				'/',
 				'\\',
 				'auto'
 			],
-			'enumDescriptions': [
-				nls.localize('copyRelativePathSeparator.slash', "Use slash as path separation character."),
-				nls.localize('copyRelativePathSeparator.backslash', "Use backslash as path separation character."),
-				nls.localize('copyRelativePathSeparator.auto', "Uses operating system specific path separation character."),
+			'enumDescwiptions': [
+				nws.wocawize('copyWewativePathSepawatow.swash', "Use swash as path sepawation chawacta."),
+				nws.wocawize('copyWewativePathSepawatow.backswash', "Use backswash as path sepawation chawacta."),
+				nws.wocawize('copyWewativePathSepawatow.auto', "Uses opewating system specific path sepawation chawacta."),
 			],
-			'description': nls.localize('copyRelativePathSeparator', "The path separation character used when copying relative file paths."),
-			'default': 'auto'
+			'descwiption': nws.wocawize('copyWewativePathSepawatow', "The path sepawation chawacta used when copying wewative fiwe paths."),
+			'defauwt': 'auto'
 		}
 	}
 });
 
-UndoCommand.addImplementation(110, 'explorer', (accessor: ServicesAccessor) => {
-	const undoRedoService = accessor.get(IUndoRedoService);
-	const explorerService = accessor.get(IExplorerService);
-	if (explorerService.hasViewFocus() && undoRedoService.canUndo(UNDO_REDO_SOURCE)) {
-		undoRedoService.undo(UNDO_REDO_SOURCE);
-		return true;
+UndoCommand.addImpwementation(110, 'expwowa', (accessow: SewvicesAccessow) => {
+	const undoWedoSewvice = accessow.get(IUndoWedoSewvice);
+	const expwowewSewvice = accessow.get(IExpwowewSewvice);
+	if (expwowewSewvice.hasViewFocus() && undoWedoSewvice.canUndo(UNDO_WEDO_SOUWCE)) {
+		undoWedoSewvice.undo(UNDO_WEDO_SOUWCE);
+		wetuwn twue;
 	}
 
-	return false;
+	wetuwn fawse;
 });
 
-RedoCommand.addImplementation(110, 'explorer', (accessor: ServicesAccessor) => {
-	const undoRedoService = accessor.get(IUndoRedoService);
-	const explorerService = accessor.get(IExplorerService);
-	if (explorerService.hasViewFocus() && undoRedoService.canRedo(UNDO_REDO_SOURCE)) {
-		undoRedoService.redo(UNDO_REDO_SOURCE);
-		return true;
+WedoCommand.addImpwementation(110, 'expwowa', (accessow: SewvicesAccessow) => {
+	const undoWedoSewvice = accessow.get(IUndoWedoSewvice);
+	const expwowewSewvice = accessow.get(IExpwowewSewvice);
+	if (expwowewSewvice.hasViewFocus() && undoWedoSewvice.canWedo(UNDO_WEDO_SOUWCE)) {
+		undoWedoSewvice.wedo(UNDO_WEDO_SOUWCE);
+		wetuwn twue;
 	}
 
-	return false;
+	wetuwn fawse;
 });
 
-ModesRegistry.registerLanguage({
-	id: BINARY_TEXT_FILE_MODE,
-	aliases: ['Binary'],
-	mimetypes: ['text/x-code-binary']
+ModesWegistwy.wegistewWanguage({
+	id: BINAWY_TEXT_FIWE_MODE,
+	awiases: ['Binawy'],
+	mimetypes: ['text/x-code-binawy']
 });

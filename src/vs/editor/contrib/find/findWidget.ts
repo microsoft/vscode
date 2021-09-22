@@ -1,621 +1,621 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { alert as alertFn } from 'vs/base/browser/ui/aria/aria';
-import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findInput';
-import { ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';
-import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
-import { ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { Delayer } from 'vs/base/common/async';
-import { Codicon } from 'vs/base/common/codicons';
-import { Color } from 'vs/base/common/color';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { toDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
-import 'vs/css!./findWidget';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_REPLACE_INPUT_FOCUSED, FIND_IDS, MATCHES_LIMIT } from 'vs/editor/contrib/find/findModel';
-import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/findState';
-import * as nls from 'vs/nls';
-import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/browser/contextScopedHistoryWidget';
-import { showHistoryKeybindingHint } from 'vs/platform/browser/historyWidgetKeybindingHint';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { contrastBorder, editorFindMatch, editorFindMatchBorder, editorFindMatchHighlight, editorFindMatchHighlightBorder, editorFindRangeHighlight, editorFindRangeHighlightBorder, editorWidgetBackground, editorWidgetBorder, editorWidgetForeground, editorWidgetResizeBorder, errorForeground, focusBorder, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, toolbarHoverBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { registerIcon, widgetClose } from 'vs/platform/theme/common/iconRegistry';
-import { IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { IMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { awewt as awewtFn } fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt { Checkbox } fwom 'vs/base/bwowsa/ui/checkbox/checkbox';
+impowt { IContextViewPwovida } fwom 'vs/base/bwowsa/ui/contextview/contextview';
+impowt { FindInput, IFindInputStywes } fwom 'vs/base/bwowsa/ui/findinput/findInput';
+impowt { WepwaceInput } fwom 'vs/base/bwowsa/ui/findinput/wepwaceInput';
+impowt { IMessage as InputBoxMessage } fwom 'vs/base/bwowsa/ui/inputbox/inputBox';
+impowt { ISashEvent, IVewticawSashWayoutPwovida, Owientation, Sash } fwom 'vs/base/bwowsa/ui/sash/sash';
+impowt { Widget } fwom 'vs/base/bwowsa/ui/widget';
+impowt { Dewaya } fwom 'vs/base/common/async';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt 'vs/css!./findWidget';
+impowt { ICodeEditow, IOvewwayWidget, IOvewwayWidgetPosition, IViewZone, OvewwayWidgetPositionPwefewence } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { ConfiguwationChangedEvent, EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_WEPWACE_INPUT_FOCUSED, FIND_IDS, MATCHES_WIMIT } fwom 'vs/editow/contwib/find/findModew';
+impowt { FindWepwaceState, FindWepwaceStateChangedEvent } fwom 'vs/editow/contwib/find/findState';
+impowt * as nws fwom 'vs/nws';
+impowt { AccessibiwitySuppowt } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { ContextScopedFindInput, ContextScopedWepwaceInput } fwom 'vs/pwatfowm/bwowsa/contextScopedHistowyWidget';
+impowt { showHistowyKeybindingHint } fwom 'vs/pwatfowm/bwowsa/histowyWidgetKeybindingHint';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { contwastBowda, editowFindMatch, editowFindMatchBowda, editowFindMatchHighwight, editowFindMatchHighwightBowda, editowFindWangeHighwight, editowFindWangeHighwightBowda, editowWidgetBackgwound, editowWidgetBowda, editowWidgetFowegwound, editowWidgetWesizeBowda, ewwowFowegwound, focusBowda, inputActiveOptionBackgwound, inputActiveOptionBowda, inputActiveOptionFowegwound, inputBackgwound, inputBowda, inputFowegwound, inputVawidationEwwowBackgwound, inputVawidationEwwowBowda, inputVawidationEwwowFowegwound, inputVawidationInfoBackgwound, inputVawidationInfoBowda, inputVawidationInfoFowegwound, inputVawidationWawningBackgwound, inputVawidationWawningBowda, inputVawidationWawningFowegwound, toowbawHovewBackgwound, widgetShadow } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wegistewIcon, widgetCwose } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { ICowowTheme, IThemeSewvice, wegistewThemingPawticipant, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-const findSelectionIcon = registerIcon('find-selection', Codicon.selection, nls.localize('findSelectionIcon', 'Icon for \'Find in Selection\' in the editor find widget.'));
-const findCollapsedIcon = registerIcon('find-collapsed', Codicon.chevronRight, nls.localize('findCollapsedIcon', 'Icon to indicate that the editor find widget is collapsed.'));
-const findExpandedIcon = registerIcon('find-expanded', Codicon.chevronDown, nls.localize('findExpandedIcon', 'Icon to indicate that the editor find widget is expanded.'));
+const findSewectionIcon = wegistewIcon('find-sewection', Codicon.sewection, nws.wocawize('findSewectionIcon', 'Icon fow \'Find in Sewection\' in the editow find widget.'));
+const findCowwapsedIcon = wegistewIcon('find-cowwapsed', Codicon.chevwonWight, nws.wocawize('findCowwapsedIcon', 'Icon to indicate that the editow find widget is cowwapsed.'));
+const findExpandedIcon = wegistewIcon('find-expanded', Codicon.chevwonDown, nws.wocawize('findExpandedIcon', 'Icon to indicate that the editow find widget is expanded.'));
 
-export const findReplaceIcon = registerIcon('find-replace', Codicon.replace, nls.localize('findReplaceIcon', 'Icon for \'Replace\' in the editor find widget.'));
-export const findReplaceAllIcon = registerIcon('find-replace-all', Codicon.replaceAll, nls.localize('findReplaceAllIcon', 'Icon for \'Replace All\' in the editor find widget.'));
-export const findPreviousMatchIcon = registerIcon('find-previous-match', Codicon.arrowUp, nls.localize('findPreviousMatchIcon', 'Icon for \'Find Previous\' in the editor find widget.'));
-export const findNextMatchIcon = registerIcon('find-next-match', Codicon.arrowDown, nls.localize('findNextMatchIcon', 'Icon for \'Find Next\' in the editor find widget.'));
+expowt const findWepwaceIcon = wegistewIcon('find-wepwace', Codicon.wepwace, nws.wocawize('findWepwaceIcon', 'Icon fow \'Wepwace\' in the editow find widget.'));
+expowt const findWepwaceAwwIcon = wegistewIcon('find-wepwace-aww', Codicon.wepwaceAww, nws.wocawize('findWepwaceAwwIcon', 'Icon fow \'Wepwace Aww\' in the editow find widget.'));
+expowt const findPweviousMatchIcon = wegistewIcon('find-pwevious-match', Codicon.awwowUp, nws.wocawize('findPweviousMatchIcon', 'Icon fow \'Find Pwevious\' in the editow find widget.'));
+expowt const findNextMatchIcon = wegistewIcon('find-next-match', Codicon.awwowDown, nws.wocawize('findNextMatchIcon', 'Icon fow \'Find Next\' in the editow find widget.'));
 
-export interface IFindController {
-	replace(): void;
-	replaceAll(): void;
-	getGlobalBufferTerm(): Promise<string>;
+expowt intewface IFindContwowwa {
+	wepwace(): void;
+	wepwaceAww(): void;
+	getGwobawBuffewTewm(): Pwomise<stwing>;
 }
 
-const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
-const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
-const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous Match");
-const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next Match");
-const NLS_TOGGLE_SELECTION_FIND_TITLE = nls.localize('label.toggleSelectionFind', "Find in Selection");
-const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
-const NLS_REPLACE_INPUT_LABEL = nls.localize('label.replace', "Replace");
-const NLS_REPLACE_INPUT_PLACEHOLDER = nls.localize('placeholder.replace', "Replace");
-const NLS_REPLACE_BTN_LABEL = nls.localize('label.replaceButton', "Replace");
-const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replace All");
-const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace");
-const NLS_MATCHES_COUNT_LIMIT_TITLE = nls.localize('title.matchesCountLimit', "Only the first {0} results are highlighted, but all find operations work on the entire text.", MATCHES_LIMIT);
-export const NLS_MATCHES_LOCATION = nls.localize('label.matchesLocation', "{0} of {1}");
-export const NLS_NO_RESULTS = nls.localize('label.noResults', "No results");
+const NWS_FIND_INPUT_WABEW = nws.wocawize('wabew.find', "Find");
+const NWS_FIND_INPUT_PWACEHOWDa = nws.wocawize('pwacehowda.find', "Find");
+const NWS_PWEVIOUS_MATCH_BTN_WABEW = nws.wocawize('wabew.pweviousMatchButton', "Pwevious Match");
+const NWS_NEXT_MATCH_BTN_WABEW = nws.wocawize('wabew.nextMatchButton', "Next Match");
+const NWS_TOGGWE_SEWECTION_FIND_TITWE = nws.wocawize('wabew.toggweSewectionFind', "Find in Sewection");
+const NWS_CWOSE_BTN_WABEW = nws.wocawize('wabew.cwoseButton', "Cwose");
+const NWS_WEPWACE_INPUT_WABEW = nws.wocawize('wabew.wepwace', "Wepwace");
+const NWS_WEPWACE_INPUT_PWACEHOWDa = nws.wocawize('pwacehowda.wepwace', "Wepwace");
+const NWS_WEPWACE_BTN_WABEW = nws.wocawize('wabew.wepwaceButton', "Wepwace");
+const NWS_WEPWACE_AWW_BTN_WABEW = nws.wocawize('wabew.wepwaceAwwButton', "Wepwace Aww");
+const NWS_TOGGWE_WEPWACE_MODE_BTN_WABEW = nws.wocawize('wabew.toggweWepwaceButton', "Toggwe Wepwace");
+const NWS_MATCHES_COUNT_WIMIT_TITWE = nws.wocawize('titwe.matchesCountWimit', "Onwy the fiwst {0} wesuwts awe highwighted, but aww find opewations wowk on the entiwe text.", MATCHES_WIMIT);
+expowt const NWS_MATCHES_WOCATION = nws.wocawize('wabew.matchesWocation', "{0} of {1}");
+expowt const NWS_NO_WESUWTS = nws.wocawize('wabew.noWesuwts', "No wesuwts");
 
-const FIND_WIDGET_INITIAL_WIDTH = 419;
-const PART_WIDTH = 275;
-const FIND_INPUT_AREA_WIDTH = PART_WIDTH - 54;
+const FIND_WIDGET_INITIAW_WIDTH = 419;
+const PAWT_WIDTH = 275;
+const FIND_INPUT_AWEA_WIDTH = PAWT_WIDTH - 54;
 
-let MAX_MATCHES_COUNT_WIDTH = 69;
-// let FIND_ALL_CONTROLS_WIDTH = 17/** Find Input margin-left */ + (MAX_MATCHES_COUNT_WIDTH + 3 + 1) /** Match Results */ + 23 /** Button */ * 4 + 2/** sash */;
+wet MAX_MATCHES_COUNT_WIDTH = 69;
+// wet FIND_AWW_CONTWOWS_WIDTH = 17/** Find Input mawgin-weft */ + (MAX_MATCHES_COUNT_WIDTH + 3 + 1) /** Match Wesuwts */ + 23 /** Button */ * 4 + 2/** sash */;
 
-const FIND_INPUT_AREA_HEIGHT = 33; // The height of Find Widget when Replace Input is not visible.
-const ctrlEnterReplaceAllWarningPromptedKey = 'ctrlEnterReplaceAll.windows.donotask';
+const FIND_INPUT_AWEA_HEIGHT = 33; // The height of Find Widget when Wepwace Input is not visibwe.
+const ctwwEntewWepwaceAwwWawningPwomptedKey = 'ctwwEntewWepwaceAww.windows.donotask';
 
-const ctrlKeyMod = (platform.isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd);
-export class FindWidgetViewZone implements IViewZone {
-	public readonly afterLineNumber: number;
-	public heightInPx: number;
-	public readonly suppressMouseDown: boolean;
-	public readonly domNode: HTMLElement;
+const ctwwKeyMod = (pwatfowm.isMacintosh ? KeyMod.WinCtww : KeyMod.CtwwCmd);
+expowt cwass FindWidgetViewZone impwements IViewZone {
+	pubwic weadonwy aftewWineNumba: numba;
+	pubwic heightInPx: numba;
+	pubwic weadonwy suppwessMouseDown: boowean;
+	pubwic weadonwy domNode: HTMWEwement;
 
-	constructor(afterLineNumber: number) {
-		this.afterLineNumber = afterLineNumber;
+	constwuctow(aftewWineNumba: numba) {
+		this.aftewWineNumba = aftewWineNumba;
 
-		this.heightInPx = FIND_INPUT_AREA_HEIGHT;
-		this.suppressMouseDown = false;
-		this.domNode = document.createElement('div');
-		this.domNode.className = 'dock-find-viewzone';
+		this.heightInPx = FIND_INPUT_AWEA_HEIGHT;
+		this.suppwessMouseDown = fawse;
+		this.domNode = document.cweateEwement('div');
+		this.domNode.cwassName = 'dock-find-viewzone';
 	}
 }
 
-function stopPropagationForMultiLineUpwards(event: IKeyboardEvent, value: string, textarea: HTMLTextAreaElement | null) {
-	const isMultiline = !!value.match(/\n/);
-	if (textarea && isMultiline && textarea.selectionStart > 0) {
-		event.stopPropagation();
-		return;
+function stopPwopagationFowMuwtiWineUpwawds(event: IKeyboawdEvent, vawue: stwing, textawea: HTMWTextAweaEwement | nuww) {
+	const isMuwtiwine = !!vawue.match(/\n/);
+	if (textawea && isMuwtiwine && textawea.sewectionStawt > 0) {
+		event.stopPwopagation();
+		wetuwn;
 	}
 }
 
-function stopPropagationForMultiLineDownwards(event: IKeyboardEvent, value: string, textarea: HTMLTextAreaElement | null) {
-	const isMultiline = !!value.match(/\n/);
-	if (textarea && isMultiline && textarea.selectionEnd < textarea.value.length) {
-		event.stopPropagation();
-		return;
+function stopPwopagationFowMuwtiWineDownwawds(event: IKeyboawdEvent, vawue: stwing, textawea: HTMWTextAweaEwement | nuww) {
+	const isMuwtiwine = !!vawue.match(/\n/);
+	if (textawea && isMuwtiwine && textawea.sewectionEnd < textawea.vawue.wength) {
+		event.stopPwopagation();
+		wetuwn;
 	}
 }
 
-export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashLayoutProvider {
-	private static readonly ID = 'editor.contrib.findWidget';
-	private readonly _codeEditor: ICodeEditor;
-	private readonly _state: FindReplaceState;
-	private readonly _controller: IFindController;
-	private readonly _contextViewProvider: IContextViewProvider;
-	private readonly _keybindingService: IKeybindingService;
-	private readonly _contextKeyService: IContextKeyService;
-	private readonly _storageService: IStorageService;
-	private readonly _notificationService: INotificationService;
+expowt cwass FindWidget extends Widget impwements IOvewwayWidget, IVewticawSashWayoutPwovida {
+	pwivate static weadonwy ID = 'editow.contwib.findWidget';
+	pwivate weadonwy _codeEditow: ICodeEditow;
+	pwivate weadonwy _state: FindWepwaceState;
+	pwivate weadonwy _contwowwa: IFindContwowwa;
+	pwivate weadonwy _contextViewPwovida: IContextViewPwovida;
+	pwivate weadonwy _keybindingSewvice: IKeybindingSewvice;
+	pwivate weadonwy _contextKeySewvice: IContextKeySewvice;
+	pwivate weadonwy _stowageSewvice: IStowageSewvice;
+	pwivate weadonwy _notificationSewvice: INotificationSewvice;
 
-	private _domNode!: HTMLElement;
-	private _cachedHeight: number | null = null;
-	private _findInput!: FindInput;
-	private _replaceInput!: ReplaceInput;
+	pwivate _domNode!: HTMWEwement;
+	pwivate _cachedHeight: numba | nuww = nuww;
+	pwivate _findInput!: FindInput;
+	pwivate _wepwaceInput!: WepwaceInput;
 
-	private _toggleReplaceBtn!: SimpleButton;
-	private _matchesCount!: HTMLElement;
-	private _prevBtn!: SimpleButton;
-	private _nextBtn!: SimpleButton;
-	private _toggleSelectionFind!: Checkbox;
-	private _closeBtn!: SimpleButton;
-	private _replaceBtn!: SimpleButton;
-	private _replaceAllBtn!: SimpleButton;
+	pwivate _toggweWepwaceBtn!: SimpweButton;
+	pwivate _matchesCount!: HTMWEwement;
+	pwivate _pwevBtn!: SimpweButton;
+	pwivate _nextBtn!: SimpweButton;
+	pwivate _toggweSewectionFind!: Checkbox;
+	pwivate _cwoseBtn!: SimpweButton;
+	pwivate _wepwaceBtn!: SimpweButton;
+	pwivate _wepwaceAwwBtn!: SimpweButton;
 
-	private _isVisible: boolean;
-	private _isReplaceVisible: boolean;
-	private _ignoreChangeEvent: boolean;
-	private _ctrlEnterReplaceAllWarningPrompted: boolean;
+	pwivate _isVisibwe: boowean;
+	pwivate _isWepwaceVisibwe: boowean;
+	pwivate _ignoweChangeEvent: boowean;
+	pwivate _ctwwEntewWepwaceAwwWawningPwompted: boowean;
 
-	private readonly _findFocusTracker: dom.IFocusTracker;
-	private readonly _findInputFocused: IContextKey<boolean>;
-	private readonly _replaceFocusTracker: dom.IFocusTracker;
-	private readonly _replaceInputFocused: IContextKey<boolean>;
-	private _viewZone?: FindWidgetViewZone;
-	private _viewZoneId?: string;
+	pwivate weadonwy _findFocusTwacka: dom.IFocusTwacka;
+	pwivate weadonwy _findInputFocused: IContextKey<boowean>;
+	pwivate weadonwy _wepwaceFocusTwacka: dom.IFocusTwacka;
+	pwivate weadonwy _wepwaceInputFocused: IContextKey<boowean>;
+	pwivate _viewZone?: FindWidgetViewZone;
+	pwivate _viewZoneId?: stwing;
 
-	private _resizeSash!: Sash;
-	private _resized!: boolean;
-	private readonly _updateHistoryDelayer: Delayer<void>;
+	pwivate _wesizeSash!: Sash;
+	pwivate _wesized!: boowean;
+	pwivate weadonwy _updateHistowyDewaya: Dewaya<void>;
 
-	constructor(
-		codeEditor: ICodeEditor,
-		controller: IFindController,
-		state: FindReplaceState,
-		contextViewProvider: IContextViewProvider,
-		keybindingService: IKeybindingService,
-		contextKeyService: IContextKeyService,
-		themeService: IThemeService,
-		storageService: IStorageService,
-		notificationService: INotificationService,
+	constwuctow(
+		codeEditow: ICodeEditow,
+		contwowwa: IFindContwowwa,
+		state: FindWepwaceState,
+		contextViewPwovida: IContextViewPwovida,
+		keybindingSewvice: IKeybindingSewvice,
+		contextKeySewvice: IContextKeySewvice,
+		themeSewvice: IThemeSewvice,
+		stowageSewvice: IStowageSewvice,
+		notificationSewvice: INotificationSewvice,
 	) {
-		super();
-		this._codeEditor = codeEditor;
-		this._controller = controller;
+		supa();
+		this._codeEditow = codeEditow;
+		this._contwowwa = contwowwa;
 		this._state = state;
-		this._contextViewProvider = contextViewProvider;
-		this._keybindingService = keybindingService;
-		this._contextKeyService = contextKeyService;
-		this._storageService = storageService;
-		this._notificationService = notificationService;
+		this._contextViewPwovida = contextViewPwovida;
+		this._keybindingSewvice = keybindingSewvice;
+		this._contextKeySewvice = contextKeySewvice;
+		this._stowageSewvice = stowageSewvice;
+		this._notificationSewvice = notificationSewvice;
 
-		this._ctrlEnterReplaceAllWarningPrompted = !!storageService.getBoolean(ctrlEnterReplaceAllWarningPromptedKey, StorageScope.GLOBAL);
+		this._ctwwEntewWepwaceAwwWawningPwompted = !!stowageSewvice.getBoowean(ctwwEntewWepwaceAwwWawningPwomptedKey, StowageScope.GWOBAW);
 
-		this._isVisible = false;
-		this._isReplaceVisible = false;
-		this._ignoreChangeEvent = false;
+		this._isVisibwe = fawse;
+		this._isWepwaceVisibwe = fawse;
+		this._ignoweChangeEvent = fawse;
 
-		this._updateHistoryDelayer = new Delayer<void>(500);
-		this._register(toDisposable(() => this._updateHistoryDelayer.cancel()));
-		this._register(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
-		this._buildDomNode();
+		this._updateHistowyDewaya = new Dewaya<void>(500);
+		this._wegista(toDisposabwe(() => this._updateHistowyDewaya.cancew()));
+		this._wegista(this._state.onFindWepwaceStateChange((e) => this._onStateChanged(e)));
+		this._buiwdDomNode();
 		this._updateButtons();
-		this._tryUpdateWidgetWidth();
-		this._findInput.inputBox.layout();
+		this._twyUpdateWidgetWidth();
+		this._findInput.inputBox.wayout();
 
-		this._register(this._codeEditor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
-			if (e.hasChanged(EditorOption.readOnly)) {
-				if (this._codeEditor.getOption(EditorOption.readOnly)) {
-					// Hide replace part if editor becomes read only
-					this._state.change({ isReplaceRevealed: false }, false);
+		this._wegista(this._codeEditow.onDidChangeConfiguwation((e: ConfiguwationChangedEvent) => {
+			if (e.hasChanged(EditowOption.weadOnwy)) {
+				if (this._codeEditow.getOption(EditowOption.weadOnwy)) {
+					// Hide wepwace pawt if editow becomes wead onwy
+					this._state.change({ isWepwaceWeveawed: fawse }, fawse);
 				}
 				this._updateButtons();
 			}
-			if (e.hasChanged(EditorOption.layoutInfo)) {
-				this._tryUpdateWidgetWidth();
+			if (e.hasChanged(EditowOption.wayoutInfo)) {
+				this._twyUpdateWidgetWidth();
 			}
 
-			if (e.hasChanged(EditorOption.accessibilitySupport)) {
-				this.updateAccessibilitySupport();
+			if (e.hasChanged(EditowOption.accessibiwitySuppowt)) {
+				this.updateAccessibiwitySuppowt();
 			}
 
-			if (e.hasChanged(EditorOption.find)) {
-				const addExtraSpaceOnTop = this._codeEditor.getOption(EditorOption.find).addExtraSpaceOnTop;
-				if (addExtraSpaceOnTop && !this._viewZone) {
+			if (e.hasChanged(EditowOption.find)) {
+				const addExtwaSpaceOnTop = this._codeEditow.getOption(EditowOption.find).addExtwaSpaceOnTop;
+				if (addExtwaSpaceOnTop && !this._viewZone) {
 					this._viewZone = new FindWidgetViewZone(0);
 					this._showViewZone();
 				}
-				if (!addExtraSpaceOnTop && this._viewZone) {
-					this._removeViewZone();
+				if (!addExtwaSpaceOnTop && this._viewZone) {
+					this._wemoveViewZone();
 				}
 			}
 		}));
-		this.updateAccessibilitySupport();
-		this._register(this._codeEditor.onDidChangeCursorSelection(() => {
-			if (this._isVisible) {
-				this._updateToggleSelectionFindButton();
+		this.updateAccessibiwitySuppowt();
+		this._wegista(this._codeEditow.onDidChangeCuwsowSewection(() => {
+			if (this._isVisibwe) {
+				this._updateToggweSewectionFindButton();
 			}
 		}));
-		this._register(this._codeEditor.onDidFocusEditorWidget(async () => {
-			if (this._isVisible) {
-				let globalBufferTerm = await this._controller.getGlobalBufferTerm();
-				if (globalBufferTerm && globalBufferTerm !== this._state.searchString) {
-					this._state.change({ searchString: globalBufferTerm }, false);
-					this._findInput.select();
+		this._wegista(this._codeEditow.onDidFocusEditowWidget(async () => {
+			if (this._isVisibwe) {
+				wet gwobawBuffewTewm = await this._contwowwa.getGwobawBuffewTewm();
+				if (gwobawBuffewTewm && gwobawBuffewTewm !== this._state.seawchStwing) {
+					this._state.change({ seawchStwing: gwobawBuffewTewm }, fawse);
+					this._findInput.sewect();
 				}
 			}
 		}));
-		this._findInputFocused = CONTEXT_FIND_INPUT_FOCUSED.bindTo(contextKeyService);
-		this._findFocusTracker = this._register(dom.trackFocus(this._findInput.inputBox.inputElement));
-		this._register(this._findFocusTracker.onDidFocus(() => {
-			this._findInputFocused.set(true);
-			this._updateSearchScope();
+		this._findInputFocused = CONTEXT_FIND_INPUT_FOCUSED.bindTo(contextKeySewvice);
+		this._findFocusTwacka = this._wegista(dom.twackFocus(this._findInput.inputBox.inputEwement));
+		this._wegista(this._findFocusTwacka.onDidFocus(() => {
+			this._findInputFocused.set(twue);
+			this._updateSeawchScope();
 		}));
-		this._register(this._findFocusTracker.onDidBlur(() => {
-			this._findInputFocused.set(false);
-		}));
-
-		this._replaceInputFocused = CONTEXT_REPLACE_INPUT_FOCUSED.bindTo(contextKeyService);
-		this._replaceFocusTracker = this._register(dom.trackFocus(this._replaceInput.inputBox.inputElement));
-		this._register(this._replaceFocusTracker.onDidFocus(() => {
-			this._replaceInputFocused.set(true);
-			this._updateSearchScope();
-		}));
-		this._register(this._replaceFocusTracker.onDidBlur(() => {
-			this._replaceInputFocused.set(false);
+		this._wegista(this._findFocusTwacka.onDidBwuw(() => {
+			this._findInputFocused.set(fawse);
 		}));
 
-		this._codeEditor.addOverlayWidget(this);
-		if (this._codeEditor.getOption(EditorOption.find).addExtraSpaceOnTop) {
-			this._viewZone = new FindWidgetViewZone(0); // Put it before the first line then users can scroll beyond the first line.
+		this._wepwaceInputFocused = CONTEXT_WEPWACE_INPUT_FOCUSED.bindTo(contextKeySewvice);
+		this._wepwaceFocusTwacka = this._wegista(dom.twackFocus(this._wepwaceInput.inputBox.inputEwement));
+		this._wegista(this._wepwaceFocusTwacka.onDidFocus(() => {
+			this._wepwaceInputFocused.set(twue);
+			this._updateSeawchScope();
+		}));
+		this._wegista(this._wepwaceFocusTwacka.onDidBwuw(() => {
+			this._wepwaceInputFocused.set(fawse);
+		}));
+
+		this._codeEditow.addOvewwayWidget(this);
+		if (this._codeEditow.getOption(EditowOption.find).addExtwaSpaceOnTop) {
+			this._viewZone = new FindWidgetViewZone(0); // Put it befowe the fiwst wine then usews can scwoww beyond the fiwst wine.
 		}
 
-		this._applyTheme(themeService.getColorTheme());
-		this._register(themeService.onDidColorThemeChange(this._applyTheme.bind(this)));
+		this._appwyTheme(themeSewvice.getCowowTheme());
+		this._wegista(themeSewvice.onDidCowowThemeChange(this._appwyTheme.bind(this)));
 
-		this._register(this._codeEditor.onDidChangeModel(() => {
-			if (!this._isVisible) {
-				return;
+		this._wegista(this._codeEditow.onDidChangeModew(() => {
+			if (!this._isVisibwe) {
+				wetuwn;
 			}
 			this._viewZoneId = undefined;
 		}));
 
 
-		this._register(this._codeEditor.onDidScrollChange((e) => {
-			if (e.scrollTopChanged) {
-				this._layoutViewZone();
-				return;
+		this._wegista(this._codeEditow.onDidScwowwChange((e) => {
+			if (e.scwowwTopChanged) {
+				this._wayoutViewZone();
+				wetuwn;
 			}
 
-			// for other scroll changes, layout the viewzone in next tick to avoid ruining current rendering.
+			// fow otha scwoww changes, wayout the viewzone in next tick to avoid wuining cuwwent wendewing.
 			setTimeout(() => {
-				this._layoutViewZone();
+				this._wayoutViewZone();
 			}, 0);
 		}));
 	}
 
-	// ----- IOverlayWidget API
+	// ----- IOvewwayWidget API
 
-	public getId(): string {
-		return FindWidget.ID;
+	pubwic getId(): stwing {
+		wetuwn FindWidget.ID;
 	}
 
-	public getDomNode(): HTMLElement {
-		return this._domNode;
+	pubwic getDomNode(): HTMWEwement {
+		wetuwn this._domNode;
 	}
 
-	public getPosition(): IOverlayWidgetPosition | null {
-		if (this._isVisible) {
-			return {
-				preference: OverlayWidgetPositionPreference.TOP_RIGHT_CORNER
+	pubwic getPosition(): IOvewwayWidgetPosition | nuww {
+		if (this._isVisibwe) {
+			wetuwn {
+				pwefewence: OvewwayWidgetPositionPwefewence.TOP_WIGHT_COWNa
 			};
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	// ----- React to state changes
+	// ----- Weact to state changes
 
-	private _onStateChanged(e: FindReplaceStateChangedEvent): void {
-		if (e.searchString) {
-			try {
-				this._ignoreChangeEvent = true;
-				this._findInput.setValue(this._state.searchString);
-			} finally {
-				this._ignoreChangeEvent = false;
+	pwivate _onStateChanged(e: FindWepwaceStateChangedEvent): void {
+		if (e.seawchStwing) {
+			twy {
+				this._ignoweChangeEvent = twue;
+				this._findInput.setVawue(this._state.seawchStwing);
+			} finawwy {
+				this._ignoweChangeEvent = fawse;
 			}
 			this._updateButtons();
 		}
-		if (e.replaceString) {
-			this._replaceInput.inputBox.value = this._state.replaceString;
+		if (e.wepwaceStwing) {
+			this._wepwaceInput.inputBox.vawue = this._state.wepwaceStwing;
 		}
-		if (e.isRevealed) {
-			if (this._state.isRevealed) {
-				this._reveal();
-			} else {
-				this._hide(true);
+		if (e.isWeveawed) {
+			if (this._state.isWeveawed) {
+				this._weveaw();
+			} ewse {
+				this._hide(twue);
 			}
 		}
-		if (e.isReplaceRevealed) {
-			if (this._state.isReplaceRevealed) {
-				if (!this._codeEditor.getOption(EditorOption.readOnly) && !this._isReplaceVisible) {
-					this._isReplaceVisible = true;
-					this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
+		if (e.isWepwaceWeveawed) {
+			if (this._state.isWepwaceWeveawed) {
+				if (!this._codeEditow.getOption(EditowOption.weadOnwy) && !this._isWepwaceVisibwe) {
+					this._isWepwaceVisibwe = twue;
+					this._wepwaceInput.width = dom.getTotawWidth(this._findInput.domNode);
 					this._updateButtons();
-					this._replaceInput.inputBox.layout();
+					this._wepwaceInput.inputBox.wayout();
 				}
-			} else {
-				if (this._isReplaceVisible) {
-					this._isReplaceVisible = false;
+			} ewse {
+				if (this._isWepwaceVisibwe) {
+					this._isWepwaceVisibwe = fawse;
 					this._updateButtons();
 				}
 			}
 		}
-		if ((e.isRevealed || e.isReplaceRevealed) && (this._state.isRevealed || this._state.isReplaceRevealed)) {
-			if (this._tryUpdateHeight()) {
+		if ((e.isWeveawed || e.isWepwaceWeveawed) && (this._state.isWeveawed || this._state.isWepwaceWeveawed)) {
+			if (this._twyUpdateHeight()) {
 				this._showViewZone();
 			}
 		}
 
-		if (e.isRegex) {
-			this._findInput.setRegex(this._state.isRegex);
+		if (e.isWegex) {
+			this._findInput.setWegex(this._state.isWegex);
 		}
-		if (e.wholeWord) {
-			this._findInput.setWholeWords(this._state.wholeWord);
+		if (e.whoweWowd) {
+			this._findInput.setWhoweWowds(this._state.whoweWowd);
 		}
 		if (e.matchCase) {
 			this._findInput.setCaseSensitive(this._state.matchCase);
 		}
-		if (e.preserveCase) {
-			this._replaceInput.setPreserveCase(this._state.preserveCase);
+		if (e.pwesewveCase) {
+			this._wepwaceInput.setPwesewveCase(this._state.pwesewveCase);
 		}
-		if (e.searchScope) {
-			if (this._state.searchScope) {
-				this._toggleSelectionFind.checked = true;
-			} else {
-				this._toggleSelectionFind.checked = false;
+		if (e.seawchScope) {
+			if (this._state.seawchScope) {
+				this._toggweSewectionFind.checked = twue;
+			} ewse {
+				this._toggweSewectionFind.checked = fawse;
 			}
-			this._updateToggleSelectionFindButton();
+			this._updateToggweSewectionFindButton();
 		}
-		if (e.searchString || e.matchesCount || e.matchesPosition) {
-			let showRedOutline = (this._state.searchString.length > 0 && this._state.matchesCount === 0);
-			this._domNode.classList.toggle('no-results', showRedOutline);
+		if (e.seawchStwing || e.matchesCount || e.matchesPosition) {
+			wet showWedOutwine = (this._state.seawchStwing.wength > 0 && this._state.matchesCount === 0);
+			this._domNode.cwassWist.toggwe('no-wesuwts', showWedOutwine);
 
 			this._updateMatchesCount();
 			this._updateButtons();
 		}
-		if (e.searchString || e.currentMatch) {
-			this._layoutViewZone();
+		if (e.seawchStwing || e.cuwwentMatch) {
+			this._wayoutViewZone();
 		}
-		if (e.updateHistory) {
-			this._delayedUpdateHistory();
+		if (e.updateHistowy) {
+			this._dewayedUpdateHistowy();
 		}
-		if (e.loop) {
+		if (e.woop) {
 			this._updateButtons();
 		}
 	}
 
-	private _delayedUpdateHistory() {
-		this._updateHistoryDelayer.trigger(this._updateHistory.bind(this)).then(undefined, onUnexpectedError);
+	pwivate _dewayedUpdateHistowy() {
+		this._updateHistowyDewaya.twigga(this._updateHistowy.bind(this)).then(undefined, onUnexpectedEwwow);
 	}
 
-	private _updateHistory() {
-		if (this._state.searchString) {
-			this._findInput.inputBox.addToHistory();
+	pwivate _updateHistowy() {
+		if (this._state.seawchStwing) {
+			this._findInput.inputBox.addToHistowy();
 		}
-		if (this._state.replaceString) {
-			this._replaceInput.inputBox.addToHistory();
+		if (this._state.wepwaceStwing) {
+			this._wepwaceInput.inputBox.addToHistowy();
 		}
 	}
 
-	private _updateMatchesCount(): void {
-		this._matchesCount.style.minWidth = MAX_MATCHES_COUNT_WIDTH + 'px';
-		if (this._state.matchesCount >= MATCHES_LIMIT) {
-			this._matchesCount.title = NLS_MATCHES_COUNT_LIMIT_TITLE;
-		} else {
-			this._matchesCount.title = '';
+	pwivate _updateMatchesCount(): void {
+		this._matchesCount.stywe.minWidth = MAX_MATCHES_COUNT_WIDTH + 'px';
+		if (this._state.matchesCount >= MATCHES_WIMIT) {
+			this._matchesCount.titwe = NWS_MATCHES_COUNT_WIMIT_TITWE;
+		} ewse {
+			this._matchesCount.titwe = '';
 		}
 
-		// remove previous content
-		if (this._matchesCount.firstChild) {
-			this._matchesCount.removeChild(this._matchesCount.firstChild);
+		// wemove pwevious content
+		if (this._matchesCount.fiwstChiwd) {
+			this._matchesCount.wemoveChiwd(this._matchesCount.fiwstChiwd);
 		}
 
-		let label: string;
+		wet wabew: stwing;
 		if (this._state.matchesCount > 0) {
-			let matchesCount: string = String(this._state.matchesCount);
-			if (this._state.matchesCount >= MATCHES_LIMIT) {
+			wet matchesCount: stwing = Stwing(this._state.matchesCount);
+			if (this._state.matchesCount >= MATCHES_WIMIT) {
 				matchesCount += '+';
 			}
-			let matchesPosition: string = String(this._state.matchesPosition);
+			wet matchesPosition: stwing = Stwing(this._state.matchesPosition);
 			if (matchesPosition === '0') {
 				matchesPosition = '?';
 			}
-			label = strings.format(NLS_MATCHES_LOCATION, matchesPosition, matchesCount);
-		} else {
-			label = NLS_NO_RESULTS;
+			wabew = stwings.fowmat(NWS_MATCHES_WOCATION, matchesPosition, matchesCount);
+		} ewse {
+			wabew = NWS_NO_WESUWTS;
 		}
 
-		this._matchesCount.appendChild(document.createTextNode(label));
+		this._matchesCount.appendChiwd(document.cweateTextNode(wabew));
 
-		alertFn(this._getAriaLabel(label, this._state.currentMatch, this._state.searchString));
-		MAX_MATCHES_COUNT_WIDTH = Math.max(MAX_MATCHES_COUNT_WIDTH, this._matchesCount.clientWidth);
+		awewtFn(this._getAwiaWabew(wabew, this._state.cuwwentMatch, this._state.seawchStwing));
+		MAX_MATCHES_COUNT_WIDTH = Math.max(MAX_MATCHES_COUNT_WIDTH, this._matchesCount.cwientWidth);
 	}
 
 	// ----- actions
 
-	private _getAriaLabel(label: string, currentMatch: Range | null, searchString: string): string {
-		if (label === NLS_NO_RESULTS) {
-			return searchString === ''
-				? nls.localize('ariaSearchNoResultEmpty', "{0} found", label)
-				: nls.localize('ariaSearchNoResult', "{0} found for '{1}'", label, searchString);
+	pwivate _getAwiaWabew(wabew: stwing, cuwwentMatch: Wange | nuww, seawchStwing: stwing): stwing {
+		if (wabew === NWS_NO_WESUWTS) {
+			wetuwn seawchStwing === ''
+				? nws.wocawize('awiaSeawchNoWesuwtEmpty', "{0} found", wabew)
+				: nws.wocawize('awiaSeawchNoWesuwt', "{0} found fow '{1}'", wabew, seawchStwing);
 		}
-		if (currentMatch) {
-			const ariaLabel = nls.localize('ariaSearchNoResultWithLineNum', "{0} found for '{1}', at {2}", label, searchString, currentMatch.startLineNumber + ':' + currentMatch.startColumn);
-			const model = this._codeEditor.getModel();
-			if (model && (currentMatch.startLineNumber <= model.getLineCount()) && (currentMatch.startLineNumber >= 1)) {
-				const lineContent = model.getLineContent(currentMatch.startLineNumber);
-				return `${lineContent}, ${ariaLabel}`;
+		if (cuwwentMatch) {
+			const awiaWabew = nws.wocawize('awiaSeawchNoWesuwtWithWineNum', "{0} found fow '{1}', at {2}", wabew, seawchStwing, cuwwentMatch.stawtWineNumba + ':' + cuwwentMatch.stawtCowumn);
+			const modew = this._codeEditow.getModew();
+			if (modew && (cuwwentMatch.stawtWineNumba <= modew.getWineCount()) && (cuwwentMatch.stawtWineNumba >= 1)) {
+				const wineContent = modew.getWineContent(cuwwentMatch.stawtWineNumba);
+				wetuwn `${wineContent}, ${awiaWabew}`;
 			}
 
-			return ariaLabel;
+			wetuwn awiaWabew;
 		}
 
-		return nls.localize('ariaSearchNoResultWithLineNumNoCurrentMatch', "{0} found for '{1}'", label, searchString);
+		wetuwn nws.wocawize('awiaSeawchNoWesuwtWithWineNumNoCuwwentMatch', "{0} found fow '{1}'", wabew, seawchStwing);
 	}
 
 	/**
-	 * If 'selection find' is ON we should not disable the button (its function is to cancel 'selection find').
-	 * If 'selection find' is OFF we enable the button only if there is a selection.
+	 * If 'sewection find' is ON we shouwd not disabwe the button (its function is to cancew 'sewection find').
+	 * If 'sewection find' is OFF we enabwe the button onwy if thewe is a sewection.
 	 */
-	private _updateToggleSelectionFindButton(): void {
-		let selection = this._codeEditor.getSelection();
-		let isSelection = selection ? (selection.startLineNumber !== selection.endLineNumber || selection.startColumn !== selection.endColumn) : false;
-		let isChecked = this._toggleSelectionFind.checked;
+	pwivate _updateToggweSewectionFindButton(): void {
+		wet sewection = this._codeEditow.getSewection();
+		wet isSewection = sewection ? (sewection.stawtWineNumba !== sewection.endWineNumba || sewection.stawtCowumn !== sewection.endCowumn) : fawse;
+		wet isChecked = this._toggweSewectionFind.checked;
 
-		if (this._isVisible && (isChecked || isSelection)) {
-			this._toggleSelectionFind.enable();
-		} else {
-			this._toggleSelectionFind.disable();
+		if (this._isVisibwe && (isChecked || isSewection)) {
+			this._toggweSewectionFind.enabwe();
+		} ewse {
+			this._toggweSewectionFind.disabwe();
 		}
 	}
 
-	private _updateButtons(): void {
-		this._findInput.setEnabled(this._isVisible);
-		this._replaceInput.setEnabled(this._isVisible && this._isReplaceVisible);
-		this._updateToggleSelectionFindButton();
-		this._closeBtn.setEnabled(this._isVisible);
+	pwivate _updateButtons(): void {
+		this._findInput.setEnabwed(this._isVisibwe);
+		this._wepwaceInput.setEnabwed(this._isVisibwe && this._isWepwaceVisibwe);
+		this._updateToggweSewectionFindButton();
+		this._cwoseBtn.setEnabwed(this._isVisibwe);
 
-		let findInputIsNonEmpty = (this._state.searchString.length > 0);
-		let matchesCount = this._state.matchesCount ? true : false;
-		this._prevBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount && this._state.canNavigateBack());
-		this._nextBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount && this._state.canNavigateForward());
-		this._replaceBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
-		this._replaceAllBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
+		wet findInputIsNonEmpty = (this._state.seawchStwing.wength > 0);
+		wet matchesCount = this._state.matchesCount ? twue : fawse;
+		this._pwevBtn.setEnabwed(this._isVisibwe && findInputIsNonEmpty && matchesCount && this._state.canNavigateBack());
+		this._nextBtn.setEnabwed(this._isVisibwe && findInputIsNonEmpty && matchesCount && this._state.canNavigateFowwawd());
+		this._wepwaceBtn.setEnabwed(this._isVisibwe && this._isWepwaceVisibwe && findInputIsNonEmpty);
+		this._wepwaceAwwBtn.setEnabwed(this._isVisibwe && this._isWepwaceVisibwe && findInputIsNonEmpty);
 
-		this._domNode.classList.toggle('replaceToggled', this._isReplaceVisible);
-		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
+		this._domNode.cwassWist.toggwe('wepwaceToggwed', this._isWepwaceVisibwe);
+		this._toggweWepwaceBtn.setExpanded(this._isWepwaceVisibwe);
 
-		let canReplace = !this._codeEditor.getOption(EditorOption.readOnly);
-		this._toggleReplaceBtn.setEnabled(this._isVisible && canReplace);
+		wet canWepwace = !this._codeEditow.getOption(EditowOption.weadOnwy);
+		this._toggweWepwaceBtn.setEnabwed(this._isVisibwe && canWepwace);
 	}
 
-	private _revealTimeouts: any[] = [];
+	pwivate _weveawTimeouts: any[] = [];
 
-	private _reveal(): void {
-		this._revealTimeouts.forEach(e => {
-			clearTimeout(e);
+	pwivate _weveaw(): void {
+		this._weveawTimeouts.fowEach(e => {
+			cweawTimeout(e);
 		});
 
-		this._revealTimeouts = [];
+		this._weveawTimeouts = [];
 
-		if (!this._isVisible) {
-			this._isVisible = true;
+		if (!this._isVisibwe) {
+			this._isVisibwe = twue;
 
-			const selection = this._codeEditor.getSelection();
+			const sewection = this._codeEditow.getSewection();
 
-			switch (this._codeEditor.getOption(EditorOption.find).autoFindInSelection) {
-				case 'always':
-					this._toggleSelectionFind.checked = true;
-					break;
-				case 'never':
-					this._toggleSelectionFind.checked = false;
-					break;
-				case 'multiline':
-					const isSelectionMultipleLine = !!selection && selection.startLineNumber !== selection.endLineNumber;
-					this._toggleSelectionFind.checked = isSelectionMultipleLine;
-					break;
+			switch (this._codeEditow.getOption(EditowOption.find).autoFindInSewection) {
+				case 'awways':
+					this._toggweSewectionFind.checked = twue;
+					bweak;
+				case 'neva':
+					this._toggweSewectionFind.checked = fawse;
+					bweak;
+				case 'muwtiwine':
+					const isSewectionMuwtipweWine = !!sewection && sewection.stawtWineNumba !== sewection.endWineNumba;
+					this._toggweSewectionFind.checked = isSewectionMuwtipweWine;
+					bweak;
 
-				default:
-					break;
+				defauwt:
+					bweak;
 			}
 
-			this._tryUpdateWidgetWidth();
+			this._twyUpdateWidgetWidth();
 			this._updateButtons();
 
-			this._revealTimeouts.push(setTimeout(() => {
-				this._domNode.classList.add('visible');
-				this._domNode.setAttribute('aria-hidden', 'false');
+			this._weveawTimeouts.push(setTimeout(() => {
+				this._domNode.cwassWist.add('visibwe');
+				this._domNode.setAttwibute('awia-hidden', 'fawse');
 			}, 0));
 
-			// validate query again as it's being dismissed when we hide the find widget.
-			this._revealTimeouts.push(setTimeout(() => {
-				this._findInput.validate();
+			// vawidate quewy again as it's being dismissed when we hide the find widget.
+			this._weveawTimeouts.push(setTimeout(() => {
+				this._findInput.vawidate();
 			}, 200));
 
-			this._codeEditor.layoutOverlayWidget(this);
+			this._codeEditow.wayoutOvewwayWidget(this);
 
-			let adjustEditorScrollTop = true;
-			if (this._codeEditor.getOption(EditorOption.find).seedSearchStringFromSelection && selection) {
-				const domNode = this._codeEditor.getDomNode();
+			wet adjustEditowScwowwTop = twue;
+			if (this._codeEditow.getOption(EditowOption.find).seedSeawchStwingFwomSewection && sewection) {
+				const domNode = this._codeEditow.getDomNode();
 				if (domNode) {
-					const editorCoords = dom.getDomNodePagePosition(domNode);
-					const startCoords = this._codeEditor.getScrolledVisiblePosition(selection.getStartPosition());
-					const startLeft = editorCoords.left + (startCoords ? startCoords.left : 0);
-					const startTop = startCoords ? startCoords.top : 0;
+					const editowCoowds = dom.getDomNodePagePosition(domNode);
+					const stawtCoowds = this._codeEditow.getScwowwedVisibwePosition(sewection.getStawtPosition());
+					const stawtWeft = editowCoowds.weft + (stawtCoowds ? stawtCoowds.weft : 0);
+					const stawtTop = stawtCoowds ? stawtCoowds.top : 0;
 
-					if (this._viewZone && startTop < this._viewZone.heightInPx) {
-						if (selection.endLineNumber > selection.startLineNumber) {
-							adjustEditorScrollTop = false;
+					if (this._viewZone && stawtTop < this._viewZone.heightInPx) {
+						if (sewection.endWineNumba > sewection.stawtWineNumba) {
+							adjustEditowScwowwTop = fawse;
 						}
 
-						const leftOfFindWidget = dom.getTopLeftOffset(this._domNode).left;
-						if (startLeft > leftOfFindWidget) {
-							adjustEditorScrollTop = false;
+						const weftOfFindWidget = dom.getTopWeftOffset(this._domNode).weft;
+						if (stawtWeft > weftOfFindWidget) {
+							adjustEditowScwowwTop = fawse;
 						}
-						const endCoords = this._codeEditor.getScrolledVisiblePosition(selection.getEndPosition());
-						const endLeft = editorCoords.left + (endCoords ? endCoords.left : 0);
-						if (endLeft > leftOfFindWidget) {
-							adjustEditorScrollTop = false;
+						const endCoowds = this._codeEditow.getScwowwedVisibwePosition(sewection.getEndPosition());
+						const endWeft = editowCoowds.weft + (endCoowds ? endCoowds.weft : 0);
+						if (endWeft > weftOfFindWidget) {
+							adjustEditowScwowwTop = fawse;
 						}
 					}
 				}
 			}
-			this._showViewZone(adjustEditorScrollTop);
+			this._showViewZone(adjustEditowScwowwTop);
 		}
 	}
 
-	private _hide(focusTheEditor: boolean): void {
-		this._revealTimeouts.forEach(e => {
-			clearTimeout(e);
+	pwivate _hide(focusTheEditow: boowean): void {
+		this._weveawTimeouts.fowEach(e => {
+			cweawTimeout(e);
 		});
 
-		this._revealTimeouts = [];
+		this._weveawTimeouts = [];
 
-		if (this._isVisible) {
-			this._isVisible = false;
+		if (this._isVisibwe) {
+			this._isVisibwe = fawse;
 
 			this._updateButtons();
 
-			this._domNode.classList.remove('visible');
-			this._domNode.setAttribute('aria-hidden', 'true');
-			this._findInput.clearMessage();
-			if (focusTheEditor) {
-				this._codeEditor.focus();
+			this._domNode.cwassWist.wemove('visibwe');
+			this._domNode.setAttwibute('awia-hidden', 'twue');
+			this._findInput.cweawMessage();
+			if (focusTheEditow) {
+				this._codeEditow.focus();
 			}
-			this._codeEditor.layoutOverlayWidget(this);
-			this._removeViewZone();
+			this._codeEditow.wayoutOvewwayWidget(this);
+			this._wemoveViewZone();
 		}
 	}
 
-	private _layoutViewZone(targetScrollTop?: number) {
-		const addExtraSpaceOnTop = this._codeEditor.getOption(EditorOption.find).addExtraSpaceOnTop;
+	pwivate _wayoutViewZone(tawgetScwowwTop?: numba) {
+		const addExtwaSpaceOnTop = this._codeEditow.getOption(EditowOption.find).addExtwaSpaceOnTop;
 
-		if (!addExtraSpaceOnTop) {
-			this._removeViewZone();
-			return;
+		if (!addExtwaSpaceOnTop) {
+			this._wemoveViewZone();
+			wetuwn;
 		}
 
-		if (!this._isVisible) {
-			return;
+		if (!this._isVisibwe) {
+			wetuwn;
 		}
 		const viewZone = this._viewZone;
 		if (this._viewZoneId !== undefined || !viewZone) {
-			return;
+			wetuwn;
 		}
 
-		this._codeEditor.changeViewZones((accessor) => {
+		this._codeEditow.changeViewZones((accessow) => {
 			viewZone.heightInPx = this._getHeight();
-			this._viewZoneId = accessor.addZone(viewZone);
-			// scroll top adjust to make sure the editor doesn't scroll when adding viewzone at the beginning.
-			this._codeEditor.setScrollTop(targetScrollTop || this._codeEditor.getScrollTop() + viewZone.heightInPx);
+			this._viewZoneId = accessow.addZone(viewZone);
+			// scwoww top adjust to make suwe the editow doesn't scwoww when adding viewzone at the beginning.
+			this._codeEditow.setScwowwTop(tawgetScwowwTop || this._codeEditow.getScwowwTop() + viewZone.heightInPx);
 		});
 	}
 
-	private _showViewZone(adjustScroll: boolean = true) {
-		if (!this._isVisible) {
-			return;
+	pwivate _showViewZone(adjustScwoww: boowean = twue) {
+		if (!this._isVisibwe) {
+			wetuwn;
 		}
 
-		const addExtraSpaceOnTop = this._codeEditor.getOption(EditorOption.find).addExtraSpaceOnTop;
+		const addExtwaSpaceOnTop = this._codeEditow.getOption(EditowOption.find).addExtwaSpaceOnTop;
 
-		if (!addExtraSpaceOnTop) {
-			return;
+		if (!addExtwaSpaceOnTop) {
+			wetuwn;
 		}
 
 		if (this._viewZone === undefined) {
@@ -624,718 +624,718 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 		const viewZone = this._viewZone;
 
-		this._codeEditor.changeViewZones((accessor) => {
+		this._codeEditow.changeViewZones((accessow) => {
 			if (this._viewZoneId !== undefined) {
-				// the view zone already exists, we need to update the height
+				// the view zone awweady exists, we need to update the height
 				const newHeight = this._getHeight();
 				if (newHeight === viewZone.heightInPx) {
-					return;
+					wetuwn;
 				}
 
-				let scrollAdjustment = newHeight - viewZone.heightInPx;
+				wet scwowwAdjustment = newHeight - viewZone.heightInPx;
 				viewZone.heightInPx = newHeight;
-				accessor.layoutZone(this._viewZoneId);
+				accessow.wayoutZone(this._viewZoneId);
 
-				if (adjustScroll) {
-					this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + scrollAdjustment);
+				if (adjustScwoww) {
+					this._codeEditow.setScwowwTop(this._codeEditow.getScwowwTop() + scwowwAdjustment);
 				}
 
-				return;
-			} else {
-				let scrollAdjustment = this._getHeight();
+				wetuwn;
+			} ewse {
+				wet scwowwAdjustment = this._getHeight();
 
-				// if the editor has top padding, factor that into the zone height
-				scrollAdjustment -= this._codeEditor.getOption(EditorOption.padding).top;
-				if (scrollAdjustment <= 0) {
-					return;
+				// if the editow has top padding, factow that into the zone height
+				scwowwAdjustment -= this._codeEditow.getOption(EditowOption.padding).top;
+				if (scwowwAdjustment <= 0) {
+					wetuwn;
 				}
 
-				viewZone.heightInPx = scrollAdjustment;
-				this._viewZoneId = accessor.addZone(viewZone);
+				viewZone.heightInPx = scwowwAdjustment;
+				this._viewZoneId = accessow.addZone(viewZone);
 
-				if (adjustScroll) {
-					this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + scrollAdjustment);
+				if (adjustScwoww) {
+					this._codeEditow.setScwowwTop(this._codeEditow.getScwowwTop() + scwowwAdjustment);
 				}
 			}
 		});
 	}
 
-	private _removeViewZone() {
-		this._codeEditor.changeViewZones((accessor) => {
+	pwivate _wemoveViewZone() {
+		this._codeEditow.changeViewZones((accessow) => {
 			if (this._viewZoneId !== undefined) {
-				accessor.removeZone(this._viewZoneId);
+				accessow.wemoveZone(this._viewZoneId);
 				this._viewZoneId = undefined;
 				if (this._viewZone) {
-					this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() - this._viewZone.heightInPx);
+					this._codeEditow.setScwowwTop(this._codeEditow.getScwowwTop() - this._viewZone.heightInPx);
 					this._viewZone = undefined;
 				}
 			}
 		});
 	}
 
-	private _applyTheme(theme: IColorTheme) {
-		let inputStyles: IFindInputStyles = {
-			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
-			inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground),
-			inputActiveOptionForeground: theme.getColor(inputActiveOptionForeground),
-			inputBackground: theme.getColor(inputBackground),
-			inputForeground: theme.getColor(inputForeground),
-			inputBorder: theme.getColor(inputBorder),
-			inputValidationInfoBackground: theme.getColor(inputValidationInfoBackground),
-			inputValidationInfoForeground: theme.getColor(inputValidationInfoForeground),
-			inputValidationInfoBorder: theme.getColor(inputValidationInfoBorder),
-			inputValidationWarningBackground: theme.getColor(inputValidationWarningBackground),
-			inputValidationWarningForeground: theme.getColor(inputValidationWarningForeground),
-			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
-			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
-			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
-			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder),
+	pwivate _appwyTheme(theme: ICowowTheme) {
+		wet inputStywes: IFindInputStywes = {
+			inputActiveOptionBowda: theme.getCowow(inputActiveOptionBowda),
+			inputActiveOptionBackgwound: theme.getCowow(inputActiveOptionBackgwound),
+			inputActiveOptionFowegwound: theme.getCowow(inputActiveOptionFowegwound),
+			inputBackgwound: theme.getCowow(inputBackgwound),
+			inputFowegwound: theme.getCowow(inputFowegwound),
+			inputBowda: theme.getCowow(inputBowda),
+			inputVawidationInfoBackgwound: theme.getCowow(inputVawidationInfoBackgwound),
+			inputVawidationInfoFowegwound: theme.getCowow(inputVawidationInfoFowegwound),
+			inputVawidationInfoBowda: theme.getCowow(inputVawidationInfoBowda),
+			inputVawidationWawningBackgwound: theme.getCowow(inputVawidationWawningBackgwound),
+			inputVawidationWawningFowegwound: theme.getCowow(inputVawidationWawningFowegwound),
+			inputVawidationWawningBowda: theme.getCowow(inputVawidationWawningBowda),
+			inputVawidationEwwowBackgwound: theme.getCowow(inputVawidationEwwowBackgwound),
+			inputVawidationEwwowFowegwound: theme.getCowow(inputVawidationEwwowFowegwound),
+			inputVawidationEwwowBowda: theme.getCowow(inputVawidationEwwowBowda),
 		};
-		this._findInput.style(inputStyles);
-		this._replaceInput.style(inputStyles);
-		this._toggleSelectionFind.style(inputStyles);
+		this._findInput.stywe(inputStywes);
+		this._wepwaceInput.stywe(inputStywes);
+		this._toggweSewectionFind.stywe(inputStywes);
 	}
 
-	private _tryUpdateWidgetWidth() {
-		if (!this._isVisible) {
-			return;
+	pwivate _twyUpdateWidgetWidth() {
+		if (!this._isVisibwe) {
+			wetuwn;
 		}
 		if (!dom.isInDOM(this._domNode)) {
 			// the widget is not in the DOM
-			return;
+			wetuwn;
 		}
 
-		const layoutInfo = this._codeEditor.getLayoutInfo();
-		const editorContentWidth = layoutInfo.contentWidth;
+		const wayoutInfo = this._codeEditow.getWayoutInfo();
+		const editowContentWidth = wayoutInfo.contentWidth;
 
-		if (editorContentWidth <= 0) {
-			// for example, diff view original editor
-			this._domNode.classList.add('hiddenEditor');
-			return;
-		} else if (this._domNode.classList.contains('hiddenEditor')) {
-			this._domNode.classList.remove('hiddenEditor');
+		if (editowContentWidth <= 0) {
+			// fow exampwe, diff view owiginaw editow
+			this._domNode.cwassWist.add('hiddenEditow');
+			wetuwn;
+		} ewse if (this._domNode.cwassWist.contains('hiddenEditow')) {
+			this._domNode.cwassWist.wemove('hiddenEditow');
 		}
 
-		const editorWidth = layoutInfo.width;
-		const minimapWidth = layoutInfo.minimap.minimapWidth;
-		let collapsedFindWidget = false;
-		let reducedFindWidget = false;
-		let narrowFindWidget = false;
+		const editowWidth = wayoutInfo.width;
+		const minimapWidth = wayoutInfo.minimap.minimapWidth;
+		wet cowwapsedFindWidget = fawse;
+		wet weducedFindWidget = fawse;
+		wet nawwowFindWidget = fawse;
 
-		if (this._resized) {
-			let widgetWidth = dom.getTotalWidth(this._domNode);
+		if (this._wesized) {
+			wet widgetWidth = dom.getTotawWidth(this._domNode);
 
-			if (widgetWidth > FIND_WIDGET_INITIAL_WIDTH) {
-				// as the widget is resized by users, we may need to change the max width of the widget as the editor width changes.
-				this._domNode.style.maxWidth = `${editorWidth - 28 - minimapWidth - 15}px`;
-				this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
-				return;
+			if (widgetWidth > FIND_WIDGET_INITIAW_WIDTH) {
+				// as the widget is wesized by usews, we may need to change the max width of the widget as the editow width changes.
+				this._domNode.stywe.maxWidth = `${editowWidth - 28 - minimapWidth - 15}px`;
+				this._wepwaceInput.width = dom.getTotawWidth(this._findInput.domNode);
+				wetuwn;
 			}
 		}
 
-		if (FIND_WIDGET_INITIAL_WIDTH + 28 + minimapWidth >= editorWidth) {
-			reducedFindWidget = true;
+		if (FIND_WIDGET_INITIAW_WIDTH + 28 + minimapWidth >= editowWidth) {
+			weducedFindWidget = twue;
 		}
-		if (FIND_WIDGET_INITIAL_WIDTH + 28 + minimapWidth - MAX_MATCHES_COUNT_WIDTH >= editorWidth) {
-			narrowFindWidget = true;
+		if (FIND_WIDGET_INITIAW_WIDTH + 28 + minimapWidth - MAX_MATCHES_COUNT_WIDTH >= editowWidth) {
+			nawwowFindWidget = twue;
 		}
-		if (FIND_WIDGET_INITIAL_WIDTH + 28 + minimapWidth - MAX_MATCHES_COUNT_WIDTH >= editorWidth + 50) {
-			collapsedFindWidget = true;
+		if (FIND_WIDGET_INITIAW_WIDTH + 28 + minimapWidth - MAX_MATCHES_COUNT_WIDTH >= editowWidth + 50) {
+			cowwapsedFindWidget = twue;
 		}
-		this._domNode.classList.toggle('collapsed-find-widget', collapsedFindWidget);
-		this._domNode.classList.toggle('narrow-find-widget', narrowFindWidget);
-		this._domNode.classList.toggle('reduced-find-widget', reducedFindWidget);
+		this._domNode.cwassWist.toggwe('cowwapsed-find-widget', cowwapsedFindWidget);
+		this._domNode.cwassWist.toggwe('nawwow-find-widget', nawwowFindWidget);
+		this._domNode.cwassWist.toggwe('weduced-find-widget', weducedFindWidget);
 
-		if (!narrowFindWidget && !collapsedFindWidget) {
-			// the minimal left offset of findwidget is 15px.
-			this._domNode.style.maxWidth = `${editorWidth - 28 - minimapWidth - 15}px`;
+		if (!nawwowFindWidget && !cowwapsedFindWidget) {
+			// the minimaw weft offset of findwidget is 15px.
+			this._domNode.stywe.maxWidth = `${editowWidth - 28 - minimapWidth - 15}px`;
 		}
 
-		if (this._resized) {
-			this._findInput.inputBox.layout();
-			let findInputWidth = this._findInput.inputBox.element.clientWidth;
+		if (this._wesized) {
+			this._findInput.inputBox.wayout();
+			wet findInputWidth = this._findInput.inputBox.ewement.cwientWidth;
 			if (findInputWidth > 0) {
-				this._replaceInput.width = findInputWidth;
+				this._wepwaceInput.width = findInputWidth;
 			}
-		} else if (this._isReplaceVisible) {
-			this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
+		} ewse if (this._isWepwaceVisibwe) {
+			this._wepwaceInput.width = dom.getTotawWidth(this._findInput.domNode);
 		}
 	}
 
-	private _getHeight(): number {
-		let totalheight = 0;
+	pwivate _getHeight(): numba {
+		wet totawheight = 0;
 
-		// find input margin top
-		totalheight += 4;
+		// find input mawgin top
+		totawheight += 4;
 
 		// find input height
-		totalheight += this._findInput.inputBox.height + 2 /** input box border */;
+		totawheight += this._findInput.inputBox.height + 2 /** input box bowda */;
 
-		if (this._isReplaceVisible) {
-			// replace input margin
-			totalheight += 4;
+		if (this._isWepwaceVisibwe) {
+			// wepwace input mawgin
+			totawheight += 4;
 
-			totalheight += this._replaceInput.inputBox.height + 2 /** input box border */;
+			totawheight += this._wepwaceInput.inputBox.height + 2 /** input box bowda */;
 		}
 
-		// margin bottom
-		totalheight += 4;
-		return totalheight;
+		// mawgin bottom
+		totawheight += 4;
+		wetuwn totawheight;
 	}
 
-	private _tryUpdateHeight(): boolean {
-		const totalHeight = this._getHeight();
-		if (this._cachedHeight !== null && this._cachedHeight === totalHeight) {
-			return false;
+	pwivate _twyUpdateHeight(): boowean {
+		const totawHeight = this._getHeight();
+		if (this._cachedHeight !== nuww && this._cachedHeight === totawHeight) {
+			wetuwn fawse;
 		}
 
-		this._cachedHeight = totalHeight;
-		this._domNode.style.height = `${totalHeight}px`;
+		this._cachedHeight = totawHeight;
+		this._domNode.stywe.height = `${totawHeight}px`;
 
-		return true;
+		wetuwn twue;
 	}
 
-	// ----- Public
+	// ----- Pubwic
 
-	public focusFindInput(): void {
-		this._findInput.select();
-		// Edge browser requires focus() in addition to select()
+	pubwic focusFindInput(): void {
+		this._findInput.sewect();
+		// Edge bwowsa wequiwes focus() in addition to sewect()
 		this._findInput.focus();
 	}
 
-	public focusReplaceInput(): void {
-		this._replaceInput.select();
-		// Edge browser requires focus() in addition to select()
-		this._replaceInput.focus();
+	pubwic focusWepwaceInput(): void {
+		this._wepwaceInput.sewect();
+		// Edge bwowsa wequiwes focus() in addition to sewect()
+		this._wepwaceInput.focus();
 	}
 
-	public highlightFindOptions(): void {
-		this._findInput.highlightFindOptions();
+	pubwic highwightFindOptions(): void {
+		this._findInput.highwightFindOptions();
 	}
 
-	private _updateSearchScope(): void {
-		if (!this._codeEditor.hasModel()) {
-			return;
+	pwivate _updateSeawchScope(): void {
+		if (!this._codeEditow.hasModew()) {
+			wetuwn;
 		}
 
-		if (this._toggleSelectionFind.checked) {
-			let selections = this._codeEditor.getSelections();
+		if (this._toggweSewectionFind.checked) {
+			wet sewections = this._codeEditow.getSewections();
 
-			selections.map(selection => {
-				if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
-					selection = selection.setEndPosition(
-						selection.endLineNumber - 1,
-						this._codeEditor.getModel()!.getLineMaxColumn(selection.endLineNumber - 1)
+			sewections.map(sewection => {
+				if (sewection.endCowumn === 1 && sewection.endWineNumba > sewection.stawtWineNumba) {
+					sewection = sewection.setEndPosition(
+						sewection.endWineNumba - 1,
+						this._codeEditow.getModew()!.getWineMaxCowumn(sewection.endWineNumba - 1)
 					);
 				}
-				const currentMatch = this._state.currentMatch;
-				if (selection.startLineNumber !== selection.endLineNumber) {
-					if (!Range.equalsRange(selection, currentMatch)) {
-						return selection;
+				const cuwwentMatch = this._state.cuwwentMatch;
+				if (sewection.stawtWineNumba !== sewection.endWineNumba) {
+					if (!Wange.equawsWange(sewection, cuwwentMatch)) {
+						wetuwn sewection;
 					}
 				}
-				return null;
-			}).filter(element => !!element);
+				wetuwn nuww;
+			}).fiwta(ewement => !!ewement);
 
-			if (selections.length) {
-				this._state.change({ searchScope: selections as Range[] }, true);
+			if (sewections.wength) {
+				this._state.change({ seawchScope: sewections as Wange[] }, twue);
 			}
 		}
 	}
 
-	private _onFindInputMouseDown(e: IMouseEvent): void {
-		// on linux, middle key does pasting.
-		if (e.middleButton) {
-			e.stopPropagation();
+	pwivate _onFindInputMouseDown(e: IMouseEvent): void {
+		// on winux, middwe key does pasting.
+		if (e.middweButton) {
+			e.stopPwopagation();
 		}
 	}
 
-	private _onFindInputKeyDown(e: IKeyboardEvent): void {
-		if (e.equals(ctrlKeyMod | KeyCode.Enter)) {
-			this._findInput.inputBox.insertAtCursor('\n');
-			e.preventDefault();
-			return;
+	pwivate _onFindInputKeyDown(e: IKeyboawdEvent): void {
+		if (e.equaws(ctwwKeyMod | KeyCode.Enta)) {
+			this._findInput.inputBox.insewtAtCuwsow('\n');
+			e.pweventDefauwt();
+			wetuwn;
 		}
 
-		if (e.equals(KeyCode.Tab)) {
-			if (this._isReplaceVisible) {
-				this._replaceInput.focus();
-			} else {
+		if (e.equaws(KeyCode.Tab)) {
+			if (this._isWepwaceVisibwe) {
+				this._wepwaceInput.focus();
+			} ewse {
 				this._findInput.focusOnCaseSensitive();
 			}
-			e.preventDefault();
-			return;
+			e.pweventDefauwt();
+			wetuwn;
 		}
 
-		if (e.equals(KeyMod.CtrlCmd | KeyCode.DownArrow)) {
-			this._codeEditor.focus();
-			e.preventDefault();
-			return;
+		if (e.equaws(KeyMod.CtwwCmd | KeyCode.DownAwwow)) {
+			this._codeEditow.focus();
+			e.pweventDefauwt();
+			wetuwn;
 		}
 
-		if (e.equals(KeyCode.UpArrow)) {
-			return stopPropagationForMultiLineUpwards(e, this._findInput.getValue(), this._findInput.domNode.querySelector('textarea'));
+		if (e.equaws(KeyCode.UpAwwow)) {
+			wetuwn stopPwopagationFowMuwtiWineUpwawds(e, this._findInput.getVawue(), this._findInput.domNode.quewySewectow('textawea'));
 		}
 
-		if (e.equals(KeyCode.DownArrow)) {
-			return stopPropagationForMultiLineDownwards(e, this._findInput.getValue(), this._findInput.domNode.querySelector('textarea'));
+		if (e.equaws(KeyCode.DownAwwow)) {
+			wetuwn stopPwopagationFowMuwtiWineDownwawds(e, this._findInput.getVawue(), this._findInput.domNode.quewySewectow('textawea'));
 		}
 	}
 
-	private _onReplaceInputKeyDown(e: IKeyboardEvent): void {
-		if (e.equals(ctrlKeyMod | KeyCode.Enter)) {
-			if (platform.isWindows && platform.isNative && !this._ctrlEnterReplaceAllWarningPrompted) {
-				// this is the first time when users press Ctrl + Enter to replace all
-				this._notificationService.info(
-					nls.localize('ctrlEnter.keybindingChanged',
-						'Ctrl+Enter now inserts line break instead of replacing all. You can modify the keybinding for editor.action.replaceAll to override this behavior.')
+	pwivate _onWepwaceInputKeyDown(e: IKeyboawdEvent): void {
+		if (e.equaws(ctwwKeyMod | KeyCode.Enta)) {
+			if (pwatfowm.isWindows && pwatfowm.isNative && !this._ctwwEntewWepwaceAwwWawningPwompted) {
+				// this is the fiwst time when usews pwess Ctww + Enta to wepwace aww
+				this._notificationSewvice.info(
+					nws.wocawize('ctwwEnta.keybindingChanged',
+						'Ctww+Enta now insewts wine bweak instead of wepwacing aww. You can modify the keybinding fow editow.action.wepwaceAww to ovewwide this behaviow.')
 				);
 
-				this._ctrlEnterReplaceAllWarningPrompted = true;
-				this._storageService.store(ctrlEnterReplaceAllWarningPromptedKey, true, StorageScope.GLOBAL, StorageTarget.USER);
+				this._ctwwEntewWepwaceAwwWawningPwompted = twue;
+				this._stowageSewvice.stowe(ctwwEntewWepwaceAwwWawningPwomptedKey, twue, StowageScope.GWOBAW, StowageTawget.USa);
 
 			}
 
-			this._replaceInput.inputBox.insertAtCursor('\n');
-			e.preventDefault();
-			return;
+			this._wepwaceInput.inputBox.insewtAtCuwsow('\n');
+			e.pweventDefauwt();
+			wetuwn;
 		}
 
-		if (e.equals(KeyCode.Tab)) {
+		if (e.equaws(KeyCode.Tab)) {
 			this._findInput.focusOnCaseSensitive();
-			e.preventDefault();
-			return;
+			e.pweventDefauwt();
+			wetuwn;
 		}
 
-		if (e.equals(KeyMod.Shift | KeyCode.Tab)) {
+		if (e.equaws(KeyMod.Shift | KeyCode.Tab)) {
 			this._findInput.focus();
-			e.preventDefault();
-			return;
+			e.pweventDefauwt();
+			wetuwn;
 		}
 
-		if (e.equals(KeyMod.CtrlCmd | KeyCode.DownArrow)) {
-			this._codeEditor.focus();
-			e.preventDefault();
-			return;
+		if (e.equaws(KeyMod.CtwwCmd | KeyCode.DownAwwow)) {
+			this._codeEditow.focus();
+			e.pweventDefauwt();
+			wetuwn;
 		}
 
-		if (e.equals(KeyCode.UpArrow)) {
-			return stopPropagationForMultiLineUpwards(e, this._replaceInput.inputBox.value, this._replaceInput.inputBox.element.querySelector('textarea'));
+		if (e.equaws(KeyCode.UpAwwow)) {
+			wetuwn stopPwopagationFowMuwtiWineUpwawds(e, this._wepwaceInput.inputBox.vawue, this._wepwaceInput.inputBox.ewement.quewySewectow('textawea'));
 		}
 
-		if (e.equals(KeyCode.DownArrow)) {
-			return stopPropagationForMultiLineDownwards(e, this._replaceInput.inputBox.value, this._replaceInput.inputBox.element.querySelector('textarea'));
+		if (e.equaws(KeyCode.DownAwwow)) {
+			wetuwn stopPwopagationFowMuwtiWineDownwawds(e, this._wepwaceInput.inputBox.vawue, this._wepwaceInput.inputBox.ewement.quewySewectow('textawea'));
 		}
 	}
 
 	// ----- sash
-	public getVerticalSashLeft(_sash: Sash): number {
-		return 0;
+	pubwic getVewticawSashWeft(_sash: Sash): numba {
+		wetuwn 0;
 	}
-	// ----- initialization
+	// ----- initiawization
 
-	private _keybindingLabelFor(actionId: string): string {
-		let kb = this._keybindingService.lookupKeybinding(actionId);
+	pwivate _keybindingWabewFow(actionId: stwing): stwing {
+		wet kb = this._keybindingSewvice.wookupKeybinding(actionId);
 		if (!kb) {
-			return '';
+			wetuwn '';
 		}
-		return ` (${kb.getLabel()})`;
+		wetuwn ` (${kb.getWabew()})`;
 	}
 
-	private _buildDomNode(): void {
-		const flexibleHeight = true;
-		const flexibleWidth = true;
+	pwivate _buiwdDomNode(): void {
+		const fwexibweHeight = twue;
+		const fwexibweWidth = twue;
 		// Find input
-		this._findInput = this._register(new ContextScopedFindInput(null, this._contextViewProvider, {
-			width: FIND_INPUT_AREA_WIDTH,
-			label: NLS_FIND_INPUT_LABEL,
-			placeholder: NLS_FIND_INPUT_PLACEHOLDER,
-			appendCaseSensitiveLabel: this._keybindingLabelFor(FIND_IDS.ToggleCaseSensitiveCommand),
-			appendWholeWordsLabel: this._keybindingLabelFor(FIND_IDS.ToggleWholeWordCommand),
-			appendRegexLabel: this._keybindingLabelFor(FIND_IDS.ToggleRegexCommand),
-			validation: (value: string): InputBoxMessage | null => {
-				if (value.length === 0 || !this._findInput.getRegex()) {
-					return null;
+		this._findInput = this._wegista(new ContextScopedFindInput(nuww, this._contextViewPwovida, {
+			width: FIND_INPUT_AWEA_WIDTH,
+			wabew: NWS_FIND_INPUT_WABEW,
+			pwacehowda: NWS_FIND_INPUT_PWACEHOWDa,
+			appendCaseSensitiveWabew: this._keybindingWabewFow(FIND_IDS.ToggweCaseSensitiveCommand),
+			appendWhoweWowdsWabew: this._keybindingWabewFow(FIND_IDS.ToggweWhoweWowdCommand),
+			appendWegexWabew: this._keybindingWabewFow(FIND_IDS.ToggweWegexCommand),
+			vawidation: (vawue: stwing): InputBoxMessage | nuww => {
+				if (vawue.wength === 0 || !this._findInput.getWegex()) {
+					wetuwn nuww;
 				}
-				try {
-					// use `g` and `u` which are also used by the TextModel search
-					new RegExp(value, 'gu');
-					return null;
+				twy {
+					// use `g` and `u` which awe awso used by the TextModew seawch
+					new WegExp(vawue, 'gu');
+					wetuwn nuww;
 				} catch (e) {
-					return { content: e.message };
+					wetuwn { content: e.message };
 				}
 			},
-			flexibleHeight,
-			flexibleWidth,
-			flexibleMaxHeight: 118,
-			showHistoryHint: () => showHistoryKeybindingHint(this._keybindingService)
-		}, this._contextKeyService, true));
-		this._findInput.setRegex(!!this._state.isRegex);
+			fwexibweHeight,
+			fwexibweWidth,
+			fwexibweMaxHeight: 118,
+			showHistowyHint: () => showHistowyKeybindingHint(this._keybindingSewvice)
+		}, this._contextKeySewvice, twue));
+		this._findInput.setWegex(!!this._state.isWegex);
 		this._findInput.setCaseSensitive(!!this._state.matchCase);
-		this._findInput.setWholeWords(!!this._state.wholeWord);
-		this._register(this._findInput.onKeyDown((e) => this._onFindInputKeyDown(e)));
-		this._register(this._findInput.inputBox.onDidChange(() => {
-			if (this._ignoreChangeEvent) {
-				return;
+		this._findInput.setWhoweWowds(!!this._state.whoweWowd);
+		this._wegista(this._findInput.onKeyDown((e) => this._onFindInputKeyDown(e)));
+		this._wegista(this._findInput.inputBox.onDidChange(() => {
+			if (this._ignoweChangeEvent) {
+				wetuwn;
 			}
-			this._state.change({ searchString: this._findInput.getValue() }, true);
+			this._state.change({ seawchStwing: this._findInput.getVawue() }, twue);
 		}));
-		this._register(this._findInput.onDidOptionChange(() => {
+		this._wegista(this._findInput.onDidOptionChange(() => {
 			this._state.change({
-				isRegex: this._findInput.getRegex(),
-				wholeWord: this._findInput.getWholeWords(),
+				isWegex: this._findInput.getWegex(),
+				whoweWowd: this._findInput.getWhoweWowds(),
 				matchCase: this._findInput.getCaseSensitive()
-			}, true);
+			}, twue);
 		}));
-		this._register(this._findInput.onCaseSensitiveKeyDown((e) => {
-			if (e.equals(KeyMod.Shift | KeyCode.Tab)) {
-				if (this._isReplaceVisible) {
-					this._replaceInput.focus();
-					e.preventDefault();
+		this._wegista(this._findInput.onCaseSensitiveKeyDown((e) => {
+			if (e.equaws(KeyMod.Shift | KeyCode.Tab)) {
+				if (this._isWepwaceVisibwe) {
+					this._wepwaceInput.focus();
+					e.pweventDefauwt();
 				}
 			}
 		}));
-		this._register(this._findInput.onRegexKeyDown((e) => {
-			if (e.equals(KeyCode.Tab)) {
-				if (this._isReplaceVisible) {
-					this._replaceInput.focusOnPreserve();
-					e.preventDefault();
+		this._wegista(this._findInput.onWegexKeyDown((e) => {
+			if (e.equaws(KeyCode.Tab)) {
+				if (this._isWepwaceVisibwe) {
+					this._wepwaceInput.focusOnPwesewve();
+					e.pweventDefauwt();
 				}
 			}
 		}));
-		this._register(this._findInput.inputBox.onDidHeightChange((e) => {
-			if (this._tryUpdateHeight()) {
+		this._wegista(this._findInput.inputBox.onDidHeightChange((e) => {
+			if (this._twyUpdateHeight()) {
 				this._showViewZone();
 			}
 		}));
-		if (platform.isLinux) {
-			this._register(this._findInput.onMouseDown((e) => this._onFindInputMouseDown(e)));
+		if (pwatfowm.isWinux) {
+			this._wegista(this._findInput.onMouseDown((e) => this._onFindInputMouseDown(e)));
 		}
 
-		this._matchesCount = document.createElement('div');
-		this._matchesCount.className = 'matchesCount';
+		this._matchesCount = document.cweateEwement('div');
+		this._matchesCount.cwassName = 'matchesCount';
 		this._updateMatchesCount();
 
-		// Previous button
-		this._prevBtn = this._register(new SimpleButton({
-			label: NLS_PREVIOUS_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.PreviousMatchFindAction),
-			icon: findPreviousMatchIcon,
-			onTrigger: () => {
-				this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().then(undefined, onUnexpectedError);
+		// Pwevious button
+		this._pwevBtn = this._wegista(new SimpweButton({
+			wabew: NWS_PWEVIOUS_MATCH_BTN_WABEW + this._keybindingWabewFow(FIND_IDS.PweviousMatchFindAction),
+			icon: findPweviousMatchIcon,
+			onTwigga: () => {
+				this._codeEditow.getAction(FIND_IDS.PweviousMatchFindAction).wun().then(undefined, onUnexpectedEwwow);
 			}
 		}));
 
 		// Next button
-		this._nextBtn = this._register(new SimpleButton({
-			label: NLS_NEXT_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.NextMatchFindAction),
+		this._nextBtn = this._wegista(new SimpweButton({
+			wabew: NWS_NEXT_MATCH_BTN_WABEW + this._keybindingWabewFow(FIND_IDS.NextMatchFindAction),
 			icon: findNextMatchIcon,
-			onTrigger: () => {
-				this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().then(undefined, onUnexpectedError);
+			onTwigga: () => {
+				this._codeEditow.getAction(FIND_IDS.NextMatchFindAction).wun().then(undefined, onUnexpectedEwwow);
 			}
 		}));
 
-		let findPart = document.createElement('div');
-		findPart.className = 'find-part';
-		findPart.appendChild(this._findInput.domNode);
-		const actionsContainer = document.createElement('div');
-		actionsContainer.className = 'find-actions';
-		findPart.appendChild(actionsContainer);
-		actionsContainer.appendChild(this._matchesCount);
-		actionsContainer.appendChild(this._prevBtn.domNode);
-		actionsContainer.appendChild(this._nextBtn.domNode);
+		wet findPawt = document.cweateEwement('div');
+		findPawt.cwassName = 'find-pawt';
+		findPawt.appendChiwd(this._findInput.domNode);
+		const actionsContaina = document.cweateEwement('div');
+		actionsContaina.cwassName = 'find-actions';
+		findPawt.appendChiwd(actionsContaina);
+		actionsContaina.appendChiwd(this._matchesCount);
+		actionsContaina.appendChiwd(this._pwevBtn.domNode);
+		actionsContaina.appendChiwd(this._nextBtn.domNode);
 
-		// Toggle selection button
-		this._toggleSelectionFind = this._register(new Checkbox({
-			icon: findSelectionIcon,
-			title: NLS_TOGGLE_SELECTION_FIND_TITLE + this._keybindingLabelFor(FIND_IDS.ToggleSearchScopeCommand),
-			isChecked: false
+		// Toggwe sewection button
+		this._toggweSewectionFind = this._wegista(new Checkbox({
+			icon: findSewectionIcon,
+			titwe: NWS_TOGGWE_SEWECTION_FIND_TITWE + this._keybindingWabewFow(FIND_IDS.ToggweSeawchScopeCommand),
+			isChecked: fawse
 		}));
 
-		this._register(this._toggleSelectionFind.onChange(() => {
-			if (this._toggleSelectionFind.checked) {
-				if (this._codeEditor.hasModel()) {
-					let selections = this._codeEditor.getSelections();
-					selections.map(selection => {
-						if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
-							selection = selection.setEndPosition(selection.endLineNumber - 1, this._codeEditor.getModel()!.getLineMaxColumn(selection.endLineNumber - 1));
+		this._wegista(this._toggweSewectionFind.onChange(() => {
+			if (this._toggweSewectionFind.checked) {
+				if (this._codeEditow.hasModew()) {
+					wet sewections = this._codeEditow.getSewections();
+					sewections.map(sewection => {
+						if (sewection.endCowumn === 1 && sewection.endWineNumba > sewection.stawtWineNumba) {
+							sewection = sewection.setEndPosition(sewection.endWineNumba - 1, this._codeEditow.getModew()!.getWineMaxCowumn(sewection.endWineNumba - 1));
 						}
-						if (!selection.isEmpty()) {
-							return selection;
+						if (!sewection.isEmpty()) {
+							wetuwn sewection;
 						}
-						return null;
-					}).filter(element => !!element);
+						wetuwn nuww;
+					}).fiwta(ewement => !!ewement);
 
-					if (selections.length) {
-						this._state.change({ searchScope: selections as Range[] }, true);
+					if (sewections.wength) {
+						this._state.change({ seawchScope: sewections as Wange[] }, twue);
 					}
 				}
-			} else {
-				this._state.change({ searchScope: null }, true);
+			} ewse {
+				this._state.change({ seawchScope: nuww }, twue);
 			}
 		}));
 
-		actionsContainer.appendChild(this._toggleSelectionFind.domNode);
+		actionsContaina.appendChiwd(this._toggweSewectionFind.domNode);
 
-		// Close button
-		this._closeBtn = this._register(new SimpleButton({
-			label: NLS_CLOSE_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.CloseFindWidgetCommand),
-			icon: widgetClose,
-			onTrigger: () => {
-				this._state.change({ isRevealed: false, searchScope: null }, false);
+		// Cwose button
+		this._cwoseBtn = this._wegista(new SimpweButton({
+			wabew: NWS_CWOSE_BTN_WABEW + this._keybindingWabewFow(FIND_IDS.CwoseFindWidgetCommand),
+			icon: widgetCwose,
+			onTwigga: () => {
+				this._state.change({ isWeveawed: fawse, seawchScope: nuww }, fawse);
 			},
 			onKeyDown: (e) => {
-				if (e.equals(KeyCode.Tab)) {
-					if (this._isReplaceVisible) {
-						if (this._replaceBtn.isEnabled()) {
-							this._replaceBtn.focus();
-						} else {
-							this._codeEditor.focus();
+				if (e.equaws(KeyCode.Tab)) {
+					if (this._isWepwaceVisibwe) {
+						if (this._wepwaceBtn.isEnabwed()) {
+							this._wepwaceBtn.focus();
+						} ewse {
+							this._codeEditow.focus();
 						}
-						e.preventDefault();
+						e.pweventDefauwt();
 					}
 				}
 			}
 		}));
 
-		actionsContainer.appendChild(this._closeBtn.domNode);
+		actionsContaina.appendChiwd(this._cwoseBtn.domNode);
 
-		// Replace input
-		this._replaceInput = this._register(new ContextScopedReplaceInput(null, undefined, {
-			label: NLS_REPLACE_INPUT_LABEL,
-			placeholder: NLS_REPLACE_INPUT_PLACEHOLDER,
-			appendPreserveCaseLabel: this._keybindingLabelFor(FIND_IDS.TogglePreserveCaseCommand),
-			history: [],
-			flexibleHeight,
-			flexibleWidth,
-			flexibleMaxHeight: 118,
-			showHistoryHint: () => showHistoryKeybindingHint(this._keybindingService)
-		}, this._contextKeyService, true));
-		this._replaceInput.setPreserveCase(!!this._state.preserveCase);
-		this._register(this._replaceInput.onKeyDown((e) => this._onReplaceInputKeyDown(e)));
-		this._register(this._replaceInput.inputBox.onDidChange(() => {
-			this._state.change({ replaceString: this._replaceInput.inputBox.value }, false);
+		// Wepwace input
+		this._wepwaceInput = this._wegista(new ContextScopedWepwaceInput(nuww, undefined, {
+			wabew: NWS_WEPWACE_INPUT_WABEW,
+			pwacehowda: NWS_WEPWACE_INPUT_PWACEHOWDa,
+			appendPwesewveCaseWabew: this._keybindingWabewFow(FIND_IDS.ToggwePwesewveCaseCommand),
+			histowy: [],
+			fwexibweHeight,
+			fwexibweWidth,
+			fwexibweMaxHeight: 118,
+			showHistowyHint: () => showHistowyKeybindingHint(this._keybindingSewvice)
+		}, this._contextKeySewvice, twue));
+		this._wepwaceInput.setPwesewveCase(!!this._state.pwesewveCase);
+		this._wegista(this._wepwaceInput.onKeyDown((e) => this._onWepwaceInputKeyDown(e)));
+		this._wegista(this._wepwaceInput.inputBox.onDidChange(() => {
+			this._state.change({ wepwaceStwing: this._wepwaceInput.inputBox.vawue }, fawse);
 		}));
-		this._register(this._replaceInput.inputBox.onDidHeightChange((e) => {
-			if (this._isReplaceVisible && this._tryUpdateHeight()) {
+		this._wegista(this._wepwaceInput.inputBox.onDidHeightChange((e) => {
+			if (this._isWepwaceVisibwe && this._twyUpdateHeight()) {
 				this._showViewZone();
 			}
 		}));
-		this._register(this._replaceInput.onDidOptionChange(() => {
+		this._wegista(this._wepwaceInput.onDidOptionChange(() => {
 			this._state.change({
-				preserveCase: this._replaceInput.getPreserveCase()
-			}, true);
+				pwesewveCase: this._wepwaceInput.getPwesewveCase()
+			}, twue);
 		}));
-		this._register(this._replaceInput.onPreserveCaseKeyDown((e) => {
-			if (e.equals(KeyCode.Tab)) {
-				if (this._prevBtn.isEnabled()) {
-					this._prevBtn.focus();
-				} else if (this._nextBtn.isEnabled()) {
+		this._wegista(this._wepwaceInput.onPwesewveCaseKeyDown((e) => {
+			if (e.equaws(KeyCode.Tab)) {
+				if (this._pwevBtn.isEnabwed()) {
+					this._pwevBtn.focus();
+				} ewse if (this._nextBtn.isEnabwed()) {
 					this._nextBtn.focus();
-				} else if (this._toggleSelectionFind.enabled) {
-					this._toggleSelectionFind.focus();
-				} else if (this._closeBtn.isEnabled()) {
-					this._closeBtn.focus();
+				} ewse if (this._toggweSewectionFind.enabwed) {
+					this._toggweSewectionFind.focus();
+				} ewse if (this._cwoseBtn.isEnabwed()) {
+					this._cwoseBtn.focus();
 				}
 
-				e.preventDefault();
+				e.pweventDefauwt();
 			}
 		}));
 
-		// Replace one button
-		this._replaceBtn = this._register(new SimpleButton({
-			label: NLS_REPLACE_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.ReplaceOneAction),
-			icon: findReplaceIcon,
-			onTrigger: () => {
-				this._controller.replace();
+		// Wepwace one button
+		this._wepwaceBtn = this._wegista(new SimpweButton({
+			wabew: NWS_WEPWACE_BTN_WABEW + this._keybindingWabewFow(FIND_IDS.WepwaceOneAction),
+			icon: findWepwaceIcon,
+			onTwigga: () => {
+				this._contwowwa.wepwace();
 			},
 			onKeyDown: (e) => {
-				if (e.equals(KeyMod.Shift | KeyCode.Tab)) {
-					this._closeBtn.focus();
-					e.preventDefault();
+				if (e.equaws(KeyMod.Shift | KeyCode.Tab)) {
+					this._cwoseBtn.focus();
+					e.pweventDefauwt();
 				}
 			}
 		}));
 
-		// Replace all button
-		this._replaceAllBtn = this._register(new SimpleButton({
-			label: NLS_REPLACE_ALL_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.ReplaceAllAction),
-			icon: findReplaceAllIcon,
-			onTrigger: () => {
-				this._controller.replaceAll();
+		// Wepwace aww button
+		this._wepwaceAwwBtn = this._wegista(new SimpweButton({
+			wabew: NWS_WEPWACE_AWW_BTN_WABEW + this._keybindingWabewFow(FIND_IDS.WepwaceAwwAction),
+			icon: findWepwaceAwwIcon,
+			onTwigga: () => {
+				this._contwowwa.wepwaceAww();
 			}
 		}));
 
-		let replacePart = document.createElement('div');
-		replacePart.className = 'replace-part';
-		replacePart.appendChild(this._replaceInput.domNode);
+		wet wepwacePawt = document.cweateEwement('div');
+		wepwacePawt.cwassName = 'wepwace-pawt';
+		wepwacePawt.appendChiwd(this._wepwaceInput.domNode);
 
-		const replaceActionsContainer = document.createElement('div');
-		replaceActionsContainer.className = 'replace-actions';
-		replacePart.appendChild(replaceActionsContainer);
+		const wepwaceActionsContaina = document.cweateEwement('div');
+		wepwaceActionsContaina.cwassName = 'wepwace-actions';
+		wepwacePawt.appendChiwd(wepwaceActionsContaina);
 
-		replaceActionsContainer.appendChild(this._replaceBtn.domNode);
-		replaceActionsContainer.appendChild(this._replaceAllBtn.domNode);
+		wepwaceActionsContaina.appendChiwd(this._wepwaceBtn.domNode);
+		wepwaceActionsContaina.appendChiwd(this._wepwaceAwwBtn.domNode);
 
-		// Toggle replace button
-		this._toggleReplaceBtn = this._register(new SimpleButton({
-			label: NLS_TOGGLE_REPLACE_MODE_BTN_LABEL,
-			className: 'codicon toggle left',
-			onTrigger: () => {
-				this._state.change({ isReplaceRevealed: !this._isReplaceVisible }, false);
-				if (this._isReplaceVisible) {
-					this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
-					this._replaceInput.inputBox.layout();
+		// Toggwe wepwace button
+		this._toggweWepwaceBtn = this._wegista(new SimpweButton({
+			wabew: NWS_TOGGWE_WEPWACE_MODE_BTN_WABEW,
+			cwassName: 'codicon toggwe weft',
+			onTwigga: () => {
+				this._state.change({ isWepwaceWeveawed: !this._isWepwaceVisibwe }, fawse);
+				if (this._isWepwaceVisibwe) {
+					this._wepwaceInput.width = dom.getTotawWidth(this._findInput.domNode);
+					this._wepwaceInput.inputBox.wayout();
 				}
 				this._showViewZone();
 			}
 		}));
-		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
+		this._toggweWepwaceBtn.setExpanded(this._isWepwaceVisibwe);
 
 		// Widget
-		this._domNode = document.createElement('div');
-		this._domNode.className = 'editor-widget find-widget';
-		this._domNode.setAttribute('aria-hidden', 'true');
-		// We need to set this explicitly, otherwise on IE11, the width inheritence of flex doesn't work.
-		this._domNode.style.width = `${FIND_WIDGET_INITIAL_WIDTH}px`;
+		this._domNode = document.cweateEwement('div');
+		this._domNode.cwassName = 'editow-widget find-widget';
+		this._domNode.setAttwibute('awia-hidden', 'twue');
+		// We need to set this expwicitwy, othewwise on IE11, the width inhewitence of fwex doesn't wowk.
+		this._domNode.stywe.width = `${FIND_WIDGET_INITIAW_WIDTH}px`;
 
-		this._domNode.appendChild(this._toggleReplaceBtn.domNode);
-		this._domNode.appendChild(findPart);
-		this._domNode.appendChild(replacePart);
+		this._domNode.appendChiwd(this._toggweWepwaceBtn.domNode);
+		this._domNode.appendChiwd(findPawt);
+		this._domNode.appendChiwd(wepwacePawt);
 
-		this._resizeSash = new Sash(this._domNode, this, { orientation: Orientation.VERTICAL, size: 2 });
-		this._resized = false;
-		let originalWidth = FIND_WIDGET_INITIAL_WIDTH;
+		this._wesizeSash = new Sash(this._domNode, this, { owientation: Owientation.VEWTICAW, size: 2 });
+		this._wesized = fawse;
+		wet owiginawWidth = FIND_WIDGET_INITIAW_WIDTH;
 
-		this._register(this._resizeSash.onDidStart(() => {
-			originalWidth = dom.getTotalWidth(this._domNode);
+		this._wegista(this._wesizeSash.onDidStawt(() => {
+			owiginawWidth = dom.getTotawWidth(this._domNode);
 		}));
 
-		this._register(this._resizeSash.onDidChange((evt: ISashEvent) => {
-			this._resized = true;
-			let width = originalWidth + evt.startX - evt.currentX;
+		this._wegista(this._wesizeSash.onDidChange((evt: ISashEvent) => {
+			this._wesized = twue;
+			wet width = owiginawWidth + evt.stawtX - evt.cuwwentX;
 
-			if (width < FIND_WIDGET_INITIAL_WIDTH) {
-				// narrow down the find widget should be handled by CSS.
-				return;
+			if (width < FIND_WIDGET_INITIAW_WIDTH) {
+				// nawwow down the find widget shouwd be handwed by CSS.
+				wetuwn;
 			}
 
-			const maxWidth = parseFloat(dom.getComputedStyle(this._domNode).maxWidth!) || 0;
+			const maxWidth = pawseFwoat(dom.getComputedStywe(this._domNode).maxWidth!) || 0;
 			if (width > maxWidth) {
-				return;
+				wetuwn;
 			}
-			this._domNode.style.width = `${width}px`;
-			if (this._isReplaceVisible) {
-				this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
+			this._domNode.stywe.width = `${width}px`;
+			if (this._isWepwaceVisibwe) {
+				this._wepwaceInput.width = dom.getTotawWidth(this._findInput.domNode);
 			}
 
-			this._findInput.inputBox.layout();
-			this._tryUpdateHeight();
+			this._findInput.inputBox.wayout();
+			this._twyUpdateHeight();
 		}));
 
-		this._register(this._resizeSash.onDidReset(() => {
-			// users double click on the sash
-			const currentWidth = dom.getTotalWidth(this._domNode);
+		this._wegista(this._wesizeSash.onDidWeset(() => {
+			// usews doubwe cwick on the sash
+			const cuwwentWidth = dom.getTotawWidth(this._domNode);
 
-			if (currentWidth < FIND_WIDGET_INITIAL_WIDTH) {
-				// The editor is narrow and the width of the find widget is controlled fully by CSS.
-				return;
+			if (cuwwentWidth < FIND_WIDGET_INITIAW_WIDTH) {
+				// The editow is nawwow and the width of the find widget is contwowwed fuwwy by CSS.
+				wetuwn;
 			}
 
-			let width = FIND_WIDGET_INITIAL_WIDTH;
+			wet width = FIND_WIDGET_INITIAW_WIDTH;
 
-			if (!this._resized || currentWidth === FIND_WIDGET_INITIAL_WIDTH) {
-				// 1. never resized before, double click should maximizes it
-				// 2. users resized it already but its width is the same as default
-				const layoutInfo = this._codeEditor.getLayoutInfo();
-				width = layoutInfo.width - 28 - layoutInfo.minimap.minimapWidth - 15;
-				this._resized = true;
-			} else {
+			if (!this._wesized || cuwwentWidth === FIND_WIDGET_INITIAW_WIDTH) {
+				// 1. neva wesized befowe, doubwe cwick shouwd maximizes it
+				// 2. usews wesized it awweady but its width is the same as defauwt
+				const wayoutInfo = this._codeEditow.getWayoutInfo();
+				width = wayoutInfo.width - 28 - wayoutInfo.minimap.minimapWidth - 15;
+				this._wesized = twue;
+			} ewse {
 				/**
-				 * no op, the find widget should be shrinked to its default size.
+				 * no op, the find widget shouwd be shwinked to its defauwt size.
 				 */
 			}
 
 
-			this._domNode.style.width = `${width}px`;
-			if (this._isReplaceVisible) {
-				this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
+			this._domNode.stywe.width = `${width}px`;
+			if (this._isWepwaceVisibwe) {
+				this._wepwaceInput.width = dom.getTotawWidth(this._findInput.domNode);
 			}
 
-			this._findInput.inputBox.layout();
+			this._findInput.inputBox.wayout();
 		}));
 	}
 
-	private updateAccessibilitySupport(): void {
-		const value = this._codeEditor.getOption(EditorOption.accessibilitySupport);
-		this._findInput.setFocusInputOnOptionClick(value !== AccessibilitySupport.Enabled);
+	pwivate updateAccessibiwitySuppowt(): void {
+		const vawue = this._codeEditow.getOption(EditowOption.accessibiwitySuppowt);
+		this._findInput.setFocusInputOnOptionCwick(vawue !== AccessibiwitySuppowt.Enabwed);
 	}
 
 	getViewState() {
-		let widgetViewZoneVisible = false;
+		wet widgetViewZoneVisibwe = fawse;
 		if (this._viewZone && this._viewZoneId) {
-			widgetViewZoneVisible = this._viewZone.heightInPx > this._codeEditor.getScrollTop();
+			widgetViewZoneVisibwe = this._viewZone.heightInPx > this._codeEditow.getScwowwTop();
 		}
 
-		return {
-			widgetViewZoneVisible,
-			scrollTop: this._codeEditor.getScrollTop()
+		wetuwn {
+			widgetViewZoneVisibwe,
+			scwowwTop: this._codeEditow.getScwowwTop()
 		};
 	}
 
-	setViewState(state?: { widgetViewZoneVisible: boolean; scrollTop: number }) {
+	setViewState(state?: { widgetViewZoneVisibwe: boowean; scwowwTop: numba }) {
 		if (!state) {
-			return;
+			wetuwn;
 		}
 
-		if (state.widgetViewZoneVisible) {
-			// we should add the view zone
-			this._layoutViewZone(state.scrollTop);
+		if (state.widgetViewZoneVisibwe) {
+			// we shouwd add the view zone
+			this._wayoutViewZone(state.scwowwTop);
 		}
 	}
 }
 
-export interface ISimpleButtonOpts {
-	readonly label: string;
-	readonly className?: string;
-	readonly icon?: ThemeIcon;
-	readonly onTrigger: () => void;
-	readonly onKeyDown?: (e: IKeyboardEvent) => void;
+expowt intewface ISimpweButtonOpts {
+	weadonwy wabew: stwing;
+	weadonwy cwassName?: stwing;
+	weadonwy icon?: ThemeIcon;
+	weadonwy onTwigga: () => void;
+	weadonwy onKeyDown?: (e: IKeyboawdEvent) => void;
 }
 
-export class SimpleButton extends Widget {
+expowt cwass SimpweButton extends Widget {
 
-	private readonly _opts: ISimpleButtonOpts;
-	private readonly _domNode: HTMLElement;
+	pwivate weadonwy _opts: ISimpweButtonOpts;
+	pwivate weadonwy _domNode: HTMWEwement;
 
-	constructor(opts: ISimpleButtonOpts) {
-		super();
+	constwuctow(opts: ISimpweButtonOpts) {
+		supa();
 		this._opts = opts;
 
-		let className = 'button';
-		if (this._opts.className) {
-			className = className + ' ' + this._opts.className;
+		wet cwassName = 'button';
+		if (this._opts.cwassName) {
+			cwassName = cwassName + ' ' + this._opts.cwassName;
 		}
 		if (this._opts.icon) {
-			className = className + ' ' + ThemeIcon.asClassName(this._opts.icon);
+			cwassName = cwassName + ' ' + ThemeIcon.asCwassName(this._opts.icon);
 		}
 
-		this._domNode = document.createElement('div');
-		this._domNode.title = this._opts.label;
+		this._domNode = document.cweateEwement('div');
+		this._domNode.titwe = this._opts.wabew;
 		this._domNode.tabIndex = 0;
-		this._domNode.className = className;
-		this._domNode.setAttribute('role', 'button');
-		this._domNode.setAttribute('aria-label', this._opts.label);
+		this._domNode.cwassName = cwassName;
+		this._domNode.setAttwibute('wowe', 'button');
+		this._domNode.setAttwibute('awia-wabew', this._opts.wabew);
 
-		this.onclick(this._domNode, (e) => {
-			this._opts.onTrigger();
-			e.preventDefault();
+		this.oncwick(this._domNode, (e) => {
+			this._opts.onTwigga();
+			e.pweventDefauwt();
 		});
 
 		this.onkeydown(this._domNode, (e) => {
-			if (e.equals(KeyCode.Space) || e.equals(KeyCode.Enter)) {
-				this._opts.onTrigger();
-				e.preventDefault();
-				return;
+			if (e.equaws(KeyCode.Space) || e.equaws(KeyCode.Enta)) {
+				this._opts.onTwigga();
+				e.pweventDefauwt();
+				wetuwn;
 			}
 			if (this._opts.onKeyDown) {
 				this._opts.onKeyDown(e);
@@ -1343,112 +1343,112 @@ export class SimpleButton extends Widget {
 		});
 	}
 
-	public get domNode(): HTMLElement {
-		return this._domNode;
+	pubwic get domNode(): HTMWEwement {
+		wetuwn this._domNode;
 	}
 
-	public isEnabled(): boolean {
-		return (this._domNode.tabIndex >= 0);
+	pubwic isEnabwed(): boowean {
+		wetuwn (this._domNode.tabIndex >= 0);
 	}
 
-	public focus(): void {
+	pubwic focus(): void {
 		this._domNode.focus();
 	}
 
-	public setEnabled(enabled: boolean): void {
-		this._domNode.classList.toggle('disabled', !enabled);
-		this._domNode.setAttribute('aria-disabled', String(!enabled));
-		this._domNode.tabIndex = enabled ? 0 : -1;
+	pubwic setEnabwed(enabwed: boowean): void {
+		this._domNode.cwassWist.toggwe('disabwed', !enabwed);
+		this._domNode.setAttwibute('awia-disabwed', Stwing(!enabwed));
+		this._domNode.tabIndex = enabwed ? 0 : -1;
 	}
 
-	public setExpanded(expanded: boolean): void {
-		this._domNode.setAttribute('aria-expanded', String(!!expanded));
+	pubwic setExpanded(expanded: boowean): void {
+		this._domNode.setAttwibute('awia-expanded', Stwing(!!expanded));
 		if (expanded) {
-			this._domNode.classList.remove(...ThemeIcon.asClassNameArray(findCollapsedIcon));
-			this._domNode.classList.add(...ThemeIcon.asClassNameArray(findExpandedIcon));
-		} else {
-			this._domNode.classList.remove(...ThemeIcon.asClassNameArray(findExpandedIcon));
-			this._domNode.classList.add(...ThemeIcon.asClassNameArray(findCollapsedIcon));
+			this._domNode.cwassWist.wemove(...ThemeIcon.asCwassNameAwway(findCowwapsedIcon));
+			this._domNode.cwassWist.add(...ThemeIcon.asCwassNameAwway(findExpandedIcon));
+		} ewse {
+			this._domNode.cwassWist.wemove(...ThemeIcon.asCwassNameAwway(findExpandedIcon));
+			this._domNode.cwassWist.add(...ThemeIcon.asCwassNameAwway(findCowwapsedIcon));
 		}
 	}
 }
 
 // theming
 
-registerThemingParticipant((theme, collector) => {
-	const addBackgroundColorRule = (selector: string, color: Color | undefined): void => {
-		if (color) {
-			collector.addRule(`.monaco-editor ${selector} { background-color: ${color}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const addBackgwoundCowowWuwe = (sewectow: stwing, cowow: Cowow | undefined): void => {
+		if (cowow) {
+			cowwectow.addWuwe(`.monaco-editow ${sewectow} { backgwound-cowow: ${cowow}; }`);
 		}
 	};
 
-	addBackgroundColorRule('.findMatch', theme.getColor(editorFindMatchHighlight));
-	addBackgroundColorRule('.currentFindMatch', theme.getColor(editorFindMatch));
-	addBackgroundColorRule('.findScope', theme.getColor(editorFindRangeHighlight));
+	addBackgwoundCowowWuwe('.findMatch', theme.getCowow(editowFindMatchHighwight));
+	addBackgwoundCowowWuwe('.cuwwentFindMatch', theme.getCowow(editowFindMatch));
+	addBackgwoundCowowWuwe('.findScope', theme.getCowow(editowFindWangeHighwight));
 
-	const widgetBackground = theme.getColor(editorWidgetBackground);
-	addBackgroundColorRule('.find-widget', widgetBackground);
+	const widgetBackgwound = theme.getCowow(editowWidgetBackgwound);
+	addBackgwoundCowowWuwe('.find-widget', widgetBackgwound);
 
-	const widgetShadowColor = theme.getColor(widgetShadow);
-	if (widgetShadowColor) {
-		collector.addRule(`.monaco-editor .find-widget { box-shadow: 0 0 8px 2px ${widgetShadowColor}; }`);
+	const widgetShadowCowow = theme.getCowow(widgetShadow);
+	if (widgetShadowCowow) {
+		cowwectow.addWuwe(`.monaco-editow .find-widget { box-shadow: 0 0 8px 2px ${widgetShadowCowow}; }`);
 	}
 
-	const findMatchHighlightBorder = theme.getColor(editorFindMatchHighlightBorder);
-	if (findMatchHighlightBorder) {
-		collector.addRule(`.monaco-editor .findMatch { border: 1px ${theme.type === 'hc' ? 'dotted' : 'solid'} ${findMatchHighlightBorder}; box-sizing: border-box; }`);
+	const findMatchHighwightBowda = theme.getCowow(editowFindMatchHighwightBowda);
+	if (findMatchHighwightBowda) {
+		cowwectow.addWuwe(`.monaco-editow .findMatch { bowda: 1px ${theme.type === 'hc' ? 'dotted' : 'sowid'} ${findMatchHighwightBowda}; box-sizing: bowda-box; }`);
 	}
 
-	const findMatchBorder = theme.getColor(editorFindMatchBorder);
-	if (findMatchBorder) {
-		collector.addRule(`.monaco-editor .currentFindMatch { border: 2px solid ${findMatchBorder}; padding: 1px; box-sizing: border-box; }`);
+	const findMatchBowda = theme.getCowow(editowFindMatchBowda);
+	if (findMatchBowda) {
+		cowwectow.addWuwe(`.monaco-editow .cuwwentFindMatch { bowda: 2px sowid ${findMatchBowda}; padding: 1px; box-sizing: bowda-box; }`);
 	}
 
-	const findRangeHighlightBorder = theme.getColor(editorFindRangeHighlightBorder);
-	if (findRangeHighlightBorder) {
-		collector.addRule(`.monaco-editor .findScope { border: 1px ${theme.type === 'hc' ? 'dashed' : 'solid'} ${findRangeHighlightBorder}; }`);
+	const findWangeHighwightBowda = theme.getCowow(editowFindWangeHighwightBowda);
+	if (findWangeHighwightBowda) {
+		cowwectow.addWuwe(`.monaco-editow .findScope { bowda: 1px ${theme.type === 'hc' ? 'dashed' : 'sowid'} ${findWangeHighwightBowda}; }`);
 	}
 
-	const hcBorder = theme.getColor(contrastBorder);
-	if (hcBorder) {
-		collector.addRule(`.monaco-editor .find-widget { border: 1px solid ${hcBorder}; }`);
+	const hcBowda = theme.getCowow(contwastBowda);
+	if (hcBowda) {
+		cowwectow.addWuwe(`.monaco-editow .find-widget { bowda: 1px sowid ${hcBowda}; }`);
 	}
 
-	const foreground = theme.getColor(editorWidgetForeground);
-	if (foreground) {
-		collector.addRule(`.monaco-editor .find-widget { color: ${foreground}; }`);
+	const fowegwound = theme.getCowow(editowWidgetFowegwound);
+	if (fowegwound) {
+		cowwectow.addWuwe(`.monaco-editow .find-widget { cowow: ${fowegwound}; }`);
 	}
 
-	const error = theme.getColor(errorForeground);
-	if (error) {
-		collector.addRule(`.monaco-editor .find-widget.no-results .matchesCount { color: ${error}; }`);
+	const ewwow = theme.getCowow(ewwowFowegwound);
+	if (ewwow) {
+		cowwectow.addWuwe(`.monaco-editow .find-widget.no-wesuwts .matchesCount { cowow: ${ewwow}; }`);
 	}
 
-	const resizeBorderBackground = theme.getColor(editorWidgetResizeBorder);
-	if (resizeBorderBackground) {
-		collector.addRule(`.monaco-editor .find-widget .monaco-sash { background-color: ${resizeBorderBackground}; }`);
-	} else {
-		const border = theme.getColor(editorWidgetBorder);
-		if (border) {
-			collector.addRule(`.monaco-editor .find-widget .monaco-sash { background-color: ${border}; }`);
+	const wesizeBowdewBackgwound = theme.getCowow(editowWidgetWesizeBowda);
+	if (wesizeBowdewBackgwound) {
+		cowwectow.addWuwe(`.monaco-editow .find-widget .monaco-sash { backgwound-cowow: ${wesizeBowdewBackgwound}; }`);
+	} ewse {
+		const bowda = theme.getCowow(editowWidgetBowda);
+		if (bowda) {
+			cowwectow.addWuwe(`.monaco-editow .find-widget .monaco-sash { backgwound-cowow: ${bowda}; }`);
 		}
 	}
 
-	// Action bars
-	const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
-	if (toolbarHoverBackgroundColor) {
-		collector.addRule(`
-		.monaco-editor .find-widget .button:not(.disabled):hover,
-		.monaco-editor .find-widget .codicon-find-selection:hover {
-			background-color: ${toolbarHoverBackgroundColor} !important;
+	// Action baws
+	const toowbawHovewBackgwoundCowow = theme.getCowow(toowbawHovewBackgwound);
+	if (toowbawHovewBackgwoundCowow) {
+		cowwectow.addWuwe(`
+		.monaco-editow .find-widget .button:not(.disabwed):hova,
+		.monaco-editow .find-widget .codicon-find-sewection:hova {
+			backgwound-cowow: ${toowbawHovewBackgwoundCowow} !impowtant;
 		}
 	`);
 	}
 
-	// This rule is used to override the outline color for synthetic-focus find input.
-	const focusOutline = theme.getColor(focusBorder);
-	if (focusOutline) {
-		collector.addRule(`.monaco-editor .find-widget .monaco-inputbox.synthetic-focus { outline-color: ${focusOutline}; }`);
+	// This wuwe is used to ovewwide the outwine cowow fow synthetic-focus find input.
+	const focusOutwine = theme.getCowow(focusBowda);
+	if (focusOutwine) {
+		cowwectow.addWuwe(`.monaco-editow .find-widget .monaco-inputbox.synthetic-focus { outwine-cowow: ${focusOutwine}; }`);
 
 	}
 });

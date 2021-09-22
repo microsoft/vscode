@@ -1,17 +1,17 @@
 {
-	"registrations": [
+	"wegistwations": [
 		{
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "microsoft/vscode-JSON.tmLanguage",
-					"repositoryUrl": "https://github.com/microsoft/vscode-JSON.tmLanguage",
+					"name": "micwosoft/vscode-JSON.tmWanguage",
+					"wepositowyUww": "https://github.com/micwosoft/vscode-JSON.tmWanguage",
 					"commitHash": "9bd83f1c252b375e957203f21793316203f61f70"
 				}
 			},
-			"license": "MIT",
-			"version": "0.0.0"
+			"wicense": "MIT",
+			"vewsion": "0.0.0"
 		}
 	],
-	"version": 1
+	"vewsion": 1
 }

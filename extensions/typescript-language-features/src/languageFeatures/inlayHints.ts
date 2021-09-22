@@ -1,120 +1,120 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
-import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
-import { Condition, conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
-import { Disposable } from '../utils/dispose';
-import { DocumentSelector } from '../utils/documentSelector';
-import { Position } from '../utils/typeConverters';
-import FileConfigurationManager, { getInlayHintsPreferences, InlayHintSettingNames } from './fileConfigurationManager';
+impowt * as vscode fwom 'vscode';
+impowt type * as Pwoto fwom '../pwotocow';
+impowt { CwientCapabiwity, ITypeScwiptSewviceCwient } fwom '../typescwiptSewvice';
+impowt API fwom '../utiws/api';
+impowt { Condition, conditionawWegistwation, wequiweMinVewsion, wequiweSomeCapabiwity } fwom '../utiws/dependentWegistwation';
+impowt { Disposabwe } fwom '../utiws/dispose';
+impowt { DocumentSewectow } fwom '../utiws/documentSewectow';
+impowt { Position } fwom '../utiws/typeConvewtews';
+impowt FiweConfiguwationManaga, { getInwayHintsPwefewences, InwayHintSettingNames } fwom './fiweConfiguwationManaga';
 
 
-const inlayHintSettingNames = [
-	InlayHintSettingNames.parameterNamesSuppressWhenArgumentMatchesName,
-	InlayHintSettingNames.parameterNamesEnabled,
-	InlayHintSettingNames.variableTypesEnabled,
-	InlayHintSettingNames.propertyDeclarationTypesEnabled,
-	InlayHintSettingNames.functionLikeReturnTypesEnabled,
-	InlayHintSettingNames.enumMemberValuesEnabled,
+const inwayHintSettingNames = [
+	InwayHintSettingNames.pawametewNamesSuppwessWhenAwgumentMatchesName,
+	InwayHintSettingNames.pawametewNamesEnabwed,
+	InwayHintSettingNames.vawiabweTypesEnabwed,
+	InwayHintSettingNames.pwopewtyDecwawationTypesEnabwed,
+	InwayHintSettingNames.functionWikeWetuwnTypesEnabwed,
+	InwayHintSettingNames.enumMembewVawuesEnabwed,
 ];
 
-class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHintsProvider {
+cwass TypeScwiptInwayHintsPwovida extends Disposabwe impwements vscode.InwayHintsPwovida {
 
-	public static readonly minVersion = API.v440;
+	pubwic static weadonwy minVewsion = API.v440;
 
-	private readonly _onDidChangeInlayHints = new vscode.EventEmitter<void>();
-	public readonly onDidChangeInlayHints = this._onDidChangeInlayHints.event;
+	pwivate weadonwy _onDidChangeInwayHints = new vscode.EventEmitta<void>();
+	pubwic weadonwy onDidChangeInwayHints = this._onDidChangeInwayHints.event;
 
-	constructor(
-		modeId: string,
-		private readonly client: ITypeScriptServiceClient,
-		private readonly fileConfigurationManager: FileConfigurationManager
+	constwuctow(
+		modeId: stwing,
+		pwivate weadonwy cwient: ITypeScwiptSewviceCwient,
+		pwivate weadonwy fiweConfiguwationManaga: FiweConfiguwationManaga
 	) {
-		super();
+		supa();
 
-		this._register(vscode.workspace.onDidChangeConfiguration(e => {
-			if (inlayHintSettingNames.some(settingName => e.affectsConfiguration(modeId + '.' + settingName))) {
-				this._onDidChangeInlayHints.fire();
+		this._wegista(vscode.wowkspace.onDidChangeConfiguwation(e => {
+			if (inwayHintSettingNames.some(settingName => e.affectsConfiguwation(modeId + '.' + settingName))) {
+				this._onDidChangeInwayHints.fiwe();
 			}
 		}));
 	}
 
-	async provideInlayHints(model: vscode.TextDocument, range: vscode.Range, token: vscode.CancellationToken): Promise<vscode.InlayHint[]> {
-		const filepath = this.client.toOpenedFilePath(model);
-		if (!filepath) {
-			return [];
+	async pwovideInwayHints(modew: vscode.TextDocument, wange: vscode.Wange, token: vscode.CancewwationToken): Pwomise<vscode.InwayHint[]> {
+		const fiwepath = this.cwient.toOpenedFiwePath(modew);
+		if (!fiwepath) {
+			wetuwn [];
 		}
 
-		const start = model.offsetAt(range.start);
-		const length = model.offsetAt(range.end) - start;
+		const stawt = modew.offsetAt(wange.stawt);
+		const wength = modew.offsetAt(wange.end) - stawt;
 
-		await this.fileConfigurationManager.ensureConfigurationForDocument(model, token);
+		await this.fiweConfiguwationManaga.ensuweConfiguwationFowDocument(modew, token);
 
-		const response = await this.client.execute('provideInlayHints', { file: filepath, start, length }, token);
-		if (response.type !== 'response' || !response.success || !response.body) {
-			return [];
+		const wesponse = await this.cwient.execute('pwovideInwayHints', { fiwe: fiwepath, stawt, wength }, token);
+		if (wesponse.type !== 'wesponse' || !wesponse.success || !wesponse.body) {
+			wetuwn [];
 		}
 
-		return response.body.map(hint => {
-			const result = new vscode.InlayHint(
+		wetuwn wesponse.body.map(hint => {
+			const wesuwt = new vscode.InwayHint(
 				hint.text,
-				Position.fromLocation(hint.position),
-				hint.kind && fromProtocolInlayHintKind(hint.kind)
+				Position.fwomWocation(hint.position),
+				hint.kind && fwomPwotocowInwayHintKind(hint.kind)
 			);
-			result.whitespaceBefore = hint.whitespaceBefore;
-			result.whitespaceAfter = hint.whitespaceAfter;
-			return result;
+			wesuwt.whitespaceBefowe = hint.whitespaceBefowe;
+			wesuwt.whitespaceAfta = hint.whitespaceAfta;
+			wetuwn wesuwt;
 		});
 	}
 }
 
 
-function fromProtocolInlayHintKind(kind: Proto.InlayHintKind): vscode.InlayHintKind {
+function fwomPwotocowInwayHintKind(kind: Pwoto.InwayHintKind): vscode.InwayHintKind {
 	switch (kind) {
-		case 'Parameter': return vscode.InlayHintKind.Parameter;
-		case 'Type': return vscode.InlayHintKind.Type;
-		case 'Enum': return vscode.InlayHintKind.Other;
-		default: return vscode.InlayHintKind.Other;
+		case 'Pawameta': wetuwn vscode.InwayHintKind.Pawameta;
+		case 'Type': wetuwn vscode.InwayHintKind.Type;
+		case 'Enum': wetuwn vscode.InwayHintKind.Otha;
+		defauwt: wetuwn vscode.InwayHintKind.Otha;
 	}
 }
 
-export function requireInlayHintsConfiguration(
-	language: string
+expowt function wequiweInwayHintsConfiguwation(
+	wanguage: stwing
 ) {
-	return new Condition(
+	wetuwn new Condition(
 		() => {
-			const config = vscode.workspace.getConfiguration(language, null);
-			const preferences = getInlayHintsPreferences(config);
+			const config = vscode.wowkspace.getConfiguwation(wanguage, nuww);
+			const pwefewences = getInwayHintsPwefewences(config);
 
-			return preferences.includeInlayParameterNameHints === 'literals' ||
-				preferences.includeInlayParameterNameHints === 'all' ||
-				preferences.includeInlayEnumMemberValueHints ||
-				preferences.includeInlayFunctionLikeReturnTypeHints ||
-				preferences.includeInlayFunctionParameterTypeHints ||
-				preferences.includeInlayPropertyDeclarationTypeHints ||
-				preferences.includeInlayVariableTypeHints;
+			wetuwn pwefewences.incwudeInwayPawametewNameHints === 'witewaws' ||
+				pwefewences.incwudeInwayPawametewNameHints === 'aww' ||
+				pwefewences.incwudeInwayEnumMembewVawueHints ||
+				pwefewences.incwudeInwayFunctionWikeWetuwnTypeHints ||
+				pwefewences.incwudeInwayFunctionPawametewTypeHints ||
+				pwefewences.incwudeInwayPwopewtyDecwawationTypeHints ||
+				pwefewences.incwudeInwayVawiabweTypeHints;
 		},
-		vscode.workspace.onDidChangeConfiguration
+		vscode.wowkspace.onDidChangeConfiguwation
 	);
 }
 
-export function register(
-	selector: DocumentSelector,
-	modeId: string,
-	client: ITypeScriptServiceClient,
-	fileConfigurationManager: FileConfigurationManager
+expowt function wegista(
+	sewectow: DocumentSewectow,
+	modeId: stwing,
+	cwient: ITypeScwiptSewviceCwient,
+	fiweConfiguwationManaga: FiweConfiguwationManaga
 ) {
-	return conditionalRegistration([
-		requireInlayHintsConfiguration(modeId),
-		requireMinVersion(client, TypeScriptInlayHintsProvider.minVersion),
-		requireSomeCapability(client, ClientCapability.Semantic),
+	wetuwn conditionawWegistwation([
+		wequiweInwayHintsConfiguwation(modeId),
+		wequiweMinVewsion(cwient, TypeScwiptInwayHintsPwovida.minVewsion),
+		wequiweSomeCapabiwity(cwient, CwientCapabiwity.Semantic),
 	], () => {
-		const provider = new TypeScriptInlayHintsProvider(modeId, client, fileConfigurationManager);
-		return vscode.languages.registerInlayHintsProvider(selector.semantic, provider);
+		const pwovida = new TypeScwiptInwayHintsPwovida(modeId, cwient, fiweConfiguwationManaga);
+		wetuwn vscode.wanguages.wegistewInwayHintsPwovida(sewectow.semantic, pwovida);
 	});
 }

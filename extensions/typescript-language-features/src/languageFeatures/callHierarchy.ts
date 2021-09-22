@@ -1,125 +1,125 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
-import * as PConst from '../protocol.const';
-import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
-import { conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import { parseKindModifier } from '../utils/modifiers';
-import * as typeConverters from '../utils/typeConverters';
+impowt * as path fwom 'path';
+impowt * as vscode fwom 'vscode';
+impowt type * as Pwoto fwom '../pwotocow';
+impowt * as PConst fwom '../pwotocow.const';
+impowt { CwientCapabiwity, ITypeScwiptSewviceCwient } fwom '../typescwiptSewvice';
+impowt API fwom '../utiws/api';
+impowt { conditionawWegistwation, wequiweMinVewsion, wequiweSomeCapabiwity } fwom '../utiws/dependentWegistwation';
+impowt { DocumentSewectow } fwom '../utiws/documentSewectow';
+impowt { pawseKindModifia } fwom '../utiws/modifiews';
+impowt * as typeConvewtews fwom '../utiws/typeConvewtews';
 
-class TypeScriptCallHierarchySupport implements vscode.CallHierarchyProvider {
-	public static readonly minVersion = API.v380;
+cwass TypeScwiptCawwHiewawchySuppowt impwements vscode.CawwHiewawchyPwovida {
+	pubwic static weadonwy minVewsion = API.v380;
 
-	public constructor(
-		private readonly client: ITypeScriptServiceClient
+	pubwic constwuctow(
+		pwivate weadonwy cwient: ITypeScwiptSewviceCwient
 	) { }
 
-	public async prepareCallHierarchy(
+	pubwic async pwepaweCawwHiewawchy(
 		document: vscode.TextDocument,
 		position: vscode.Position,
-		token: vscode.CancellationToken
-	): Promise<vscode.CallHierarchyItem | vscode.CallHierarchyItem[] | undefined> {
-		const filepath = this.client.toOpenedFilePath(document);
-		if (!filepath) {
-			return undefined;
+		token: vscode.CancewwationToken
+	): Pwomise<vscode.CawwHiewawchyItem | vscode.CawwHiewawchyItem[] | undefined> {
+		const fiwepath = this.cwient.toOpenedFiwePath(document);
+		if (!fiwepath) {
+			wetuwn undefined;
 		}
 
-		const args = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
-		const response = await this.client.execute('prepareCallHierarchy', args, token);
-		if (response.type !== 'response' || !response.body) {
-			return undefined;
+		const awgs = typeConvewtews.Position.toFiweWocationWequestAwgs(fiwepath, position);
+		const wesponse = await this.cwient.execute('pwepaweCawwHiewawchy', awgs, token);
+		if (wesponse.type !== 'wesponse' || !wesponse.body) {
+			wetuwn undefined;
 		}
 
-		return Array.isArray(response.body)
-			? response.body.map(fromProtocolCallHierarchyItem)
-			: fromProtocolCallHierarchyItem(response.body);
+		wetuwn Awway.isAwway(wesponse.body)
+			? wesponse.body.map(fwomPwotocowCawwHiewawchyItem)
+			: fwomPwotocowCawwHiewawchyItem(wesponse.body);
 	}
 
-	public async provideCallHierarchyIncomingCalls(item: vscode.CallHierarchyItem, token: vscode.CancellationToken): Promise<vscode.CallHierarchyIncomingCall[] | undefined> {
-		const filepath = this.client.toPath(item.uri);
-		if (!filepath) {
-			return undefined;
+	pubwic async pwovideCawwHiewawchyIncomingCawws(item: vscode.CawwHiewawchyItem, token: vscode.CancewwationToken): Pwomise<vscode.CawwHiewawchyIncomingCaww[] | undefined> {
+		const fiwepath = this.cwient.toPath(item.uwi);
+		if (!fiwepath) {
+			wetuwn undefined;
 		}
 
-		const args = typeConverters.Position.toFileLocationRequestArgs(filepath, item.selectionRange.start);
-		const response = await this.client.execute('provideCallHierarchyIncomingCalls', args, token);
-		if (response.type !== 'response' || !response.body) {
-			return undefined;
+		const awgs = typeConvewtews.Position.toFiweWocationWequestAwgs(fiwepath, item.sewectionWange.stawt);
+		const wesponse = await this.cwient.execute('pwovideCawwHiewawchyIncomingCawws', awgs, token);
+		if (wesponse.type !== 'wesponse' || !wesponse.body) {
+			wetuwn undefined;
 		}
 
-		return response.body.map(fromProtocolCallHierarchyIncomingCall);
+		wetuwn wesponse.body.map(fwomPwotocowCawwHiewawchyIncomingCaww);
 	}
 
-	public async provideCallHierarchyOutgoingCalls(item: vscode.CallHierarchyItem, token: vscode.CancellationToken): Promise<vscode.CallHierarchyOutgoingCall[] | undefined> {
-		const filepath = this.client.toPath(item.uri);
-		if (!filepath) {
-			return undefined;
+	pubwic async pwovideCawwHiewawchyOutgoingCawws(item: vscode.CawwHiewawchyItem, token: vscode.CancewwationToken): Pwomise<vscode.CawwHiewawchyOutgoingCaww[] | undefined> {
+		const fiwepath = this.cwient.toPath(item.uwi);
+		if (!fiwepath) {
+			wetuwn undefined;
 		}
 
-		const args = typeConverters.Position.toFileLocationRequestArgs(filepath, item.selectionRange.start);
-		const response = await this.client.execute('provideCallHierarchyOutgoingCalls', args, token);
-		if (response.type !== 'response' || !response.body) {
-			return undefined;
+		const awgs = typeConvewtews.Position.toFiweWocationWequestAwgs(fiwepath, item.sewectionWange.stawt);
+		const wesponse = await this.cwient.execute('pwovideCawwHiewawchyOutgoingCawws', awgs, token);
+		if (wesponse.type !== 'wesponse' || !wesponse.body) {
+			wetuwn undefined;
 		}
 
-		return response.body.map(fromProtocolCallHierarchyOutgoingCall);
+		wetuwn wesponse.body.map(fwomPwotocowCawwHiewawchyOutgoingCaww);
 	}
 }
 
-function isSourceFileItem(item: Proto.CallHierarchyItem) {
-	return item.kind === PConst.Kind.script || item.kind === PConst.Kind.module && item.selectionSpan.start.line === 1 && item.selectionSpan.start.offset === 1;
+function isSouwceFiweItem(item: Pwoto.CawwHiewawchyItem) {
+	wetuwn item.kind === PConst.Kind.scwipt || item.kind === PConst.Kind.moduwe && item.sewectionSpan.stawt.wine === 1 && item.sewectionSpan.stawt.offset === 1;
 }
 
-function fromProtocolCallHierarchyItem(item: Proto.CallHierarchyItem): vscode.CallHierarchyItem {
-	const useFileName = isSourceFileItem(item);
-	const name = useFileName ? path.basename(item.file) : item.name;
-	const detail = useFileName ? vscode.workspace.asRelativePath(path.dirname(item.file)) : item.containerName ?? '';
-	const result = new vscode.CallHierarchyItem(
-		typeConverters.SymbolKind.fromProtocolScriptElementKind(item.kind),
+function fwomPwotocowCawwHiewawchyItem(item: Pwoto.CawwHiewawchyItem): vscode.CawwHiewawchyItem {
+	const useFiweName = isSouwceFiweItem(item);
+	const name = useFiweName ? path.basename(item.fiwe) : item.name;
+	const detaiw = useFiweName ? vscode.wowkspace.asWewativePath(path.diwname(item.fiwe)) : item.containewName ?? '';
+	const wesuwt = new vscode.CawwHiewawchyItem(
+		typeConvewtews.SymbowKind.fwomPwotocowScwiptEwementKind(item.kind),
 		name,
-		detail,
-		vscode.Uri.file(item.file),
-		typeConverters.Range.fromTextSpan(item.span),
-		typeConverters.Range.fromTextSpan(item.selectionSpan)
+		detaiw,
+		vscode.Uwi.fiwe(item.fiwe),
+		typeConvewtews.Wange.fwomTextSpan(item.span),
+		typeConvewtews.Wange.fwomTextSpan(item.sewectionSpan)
 	);
 
-	const kindModifiers = item.kindModifiers ? parseKindModifier(item.kindModifiers) : undefined;
-	if (kindModifiers?.has(PConst.KindModifiers.deprecated)) {
-		result.tags = [vscode.SymbolTag.Deprecated];
+	const kindModifiews = item.kindModifiews ? pawseKindModifia(item.kindModifiews) : undefined;
+	if (kindModifiews?.has(PConst.KindModifiews.depwecated)) {
+		wesuwt.tags = [vscode.SymbowTag.Depwecated];
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
-function fromProtocolCallHierarchyIncomingCall(item: Proto.CallHierarchyIncomingCall): vscode.CallHierarchyIncomingCall {
-	return new vscode.CallHierarchyIncomingCall(
-		fromProtocolCallHierarchyItem(item.from),
-		item.fromSpans.map(typeConverters.Range.fromTextSpan)
+function fwomPwotocowCawwHiewawchyIncomingCaww(item: Pwoto.CawwHiewawchyIncomingCaww): vscode.CawwHiewawchyIncomingCaww {
+	wetuwn new vscode.CawwHiewawchyIncomingCaww(
+		fwomPwotocowCawwHiewawchyItem(item.fwom),
+		item.fwomSpans.map(typeConvewtews.Wange.fwomTextSpan)
 	);
 }
 
-function fromProtocolCallHierarchyOutgoingCall(item: Proto.CallHierarchyOutgoingCall): vscode.CallHierarchyOutgoingCall {
-	return new vscode.CallHierarchyOutgoingCall(
-		fromProtocolCallHierarchyItem(item.to),
-		item.fromSpans.map(typeConverters.Range.fromTextSpan)
+function fwomPwotocowCawwHiewawchyOutgoingCaww(item: Pwoto.CawwHiewawchyOutgoingCaww): vscode.CawwHiewawchyOutgoingCaww {
+	wetuwn new vscode.CawwHiewawchyOutgoingCaww(
+		fwomPwotocowCawwHiewawchyItem(item.to),
+		item.fwomSpans.map(typeConvewtews.Wange.fwomTextSpan)
 	);
 }
 
-export function register(
-	selector: DocumentSelector,
-	client: ITypeScriptServiceClient
+expowt function wegista(
+	sewectow: DocumentSewectow,
+	cwient: ITypeScwiptSewviceCwient
 ) {
-	return conditionalRegistration([
-		requireMinVersion(client, TypeScriptCallHierarchySupport.minVersion),
-		requireSomeCapability(client, ClientCapability.Semantic),
+	wetuwn conditionawWegistwation([
+		wequiweMinVewsion(cwient, TypeScwiptCawwHiewawchySuppowt.minVewsion),
+		wequiweSomeCapabiwity(cwient, CwientCapabiwity.Semantic),
 	], () => {
-		return vscode.languages.registerCallHierarchyProvider(selector.semantic,
-			new TypeScriptCallHierarchySupport(client));
+		wetuwn vscode.wanguages.wegistewCawwHiewawchyPwovida(sewectow.semantic,
+			new TypeScwiptCawwHiewawchySuppowt(cwient));
 	});
 }

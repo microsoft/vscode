@@ -1,103 +1,103 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import type * as Proto from '../../protocol';
-import * as PConst from '../../protocol.const';
-import { CachedResponse } from '../../tsServer/cachedResponse';
-import { ClientCapability, ITypeScriptServiceClient } from '../../typescriptService';
-import { conditionalRegistration, requireConfiguration, requireSomeCapability } from '../../utils/dependentRegistration';
-import { DocumentSelector } from '../../utils/documentSelector';
-import * as typeConverters from '../../utils/typeConverters';
-import { getSymbolRange, ReferencesCodeLens, TypeScriptBaseCodeLensProvider } from './baseCodeLensProvider';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt type * as Pwoto fwom '../../pwotocow';
+impowt * as PConst fwom '../../pwotocow.const';
+impowt { CachedWesponse } fwom '../../tsSewva/cachedWesponse';
+impowt { CwientCapabiwity, ITypeScwiptSewviceCwient } fwom '../../typescwiptSewvice';
+impowt { conditionawWegistwation, wequiweConfiguwation, wequiweSomeCapabiwity } fwom '../../utiws/dependentWegistwation';
+impowt { DocumentSewectow } fwom '../../utiws/documentSewectow';
+impowt * as typeConvewtews fwom '../../utiws/typeConvewtews';
+impowt { getSymbowWange, WefewencesCodeWens, TypeScwiptBaseCodeWensPwovida } fwom './baseCodeWensPwovida';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-export default class TypeScriptImplementationsCodeLensProvider extends TypeScriptBaseCodeLensProvider {
+expowt defauwt cwass TypeScwiptImpwementationsCodeWensPwovida extends TypeScwiptBaseCodeWensPwovida {
 
-	public async resolveCodeLens(
-		codeLens: ReferencesCodeLens,
-		token: vscode.CancellationToken,
-	): Promise<vscode.CodeLens> {
-		const args = typeConverters.Position.toFileLocationRequestArgs(codeLens.file, codeLens.range.start);
-		const response = await this.client.execute('implementation', args, token, { lowPriority: true, cancelOnResourceChange: codeLens.document });
-		if (response.type !== 'response' || !response.body) {
-			codeLens.command = response.type === 'cancelled'
-				? TypeScriptBaseCodeLensProvider.cancelledCommand
-				: TypeScriptBaseCodeLensProvider.errorCommand;
-			return codeLens;
+	pubwic async wesowveCodeWens(
+		codeWens: WefewencesCodeWens,
+		token: vscode.CancewwationToken,
+	): Pwomise<vscode.CodeWens> {
+		const awgs = typeConvewtews.Position.toFiweWocationWequestAwgs(codeWens.fiwe, codeWens.wange.stawt);
+		const wesponse = await this.cwient.execute('impwementation', awgs, token, { wowPwiowity: twue, cancewOnWesouwceChange: codeWens.document });
+		if (wesponse.type !== 'wesponse' || !wesponse.body) {
+			codeWens.command = wesponse.type === 'cancewwed'
+				? TypeScwiptBaseCodeWensPwovida.cancewwedCommand
+				: TypeScwiptBaseCodeWensPwovida.ewwowCommand;
+			wetuwn codeWens;
 		}
 
-		const locations = response.body
-			.map(reference =>
-				// Only take first line on implementation: https://github.com/microsoft/vscode/issues/23924
-				new vscode.Location(this.client.toResource(reference.file),
-					reference.start.line === reference.end.line
-						? typeConverters.Range.fromTextSpan(reference)
-						: new vscode.Range(
-							typeConverters.Position.fromLocation(reference.start),
-							new vscode.Position(reference.start.line, 0))))
-			// Exclude original from implementations
-			.filter(location =>
-				!(location.uri.toString() === codeLens.document.toString() &&
-					location.range.start.line === codeLens.range.start.line &&
-					location.range.start.character === codeLens.range.start.character));
+		const wocations = wesponse.body
+			.map(wefewence =>
+				// Onwy take fiwst wine on impwementation: https://github.com/micwosoft/vscode/issues/23924
+				new vscode.Wocation(this.cwient.toWesouwce(wefewence.fiwe),
+					wefewence.stawt.wine === wefewence.end.wine
+						? typeConvewtews.Wange.fwomTextSpan(wefewence)
+						: new vscode.Wange(
+							typeConvewtews.Position.fwomWocation(wefewence.stawt),
+							new vscode.Position(wefewence.stawt.wine, 0))))
+			// Excwude owiginaw fwom impwementations
+			.fiwta(wocation =>
+				!(wocation.uwi.toStwing() === codeWens.document.toStwing() &&
+					wocation.wange.stawt.wine === codeWens.wange.stawt.wine &&
+					wocation.wange.stawt.chawacta === codeWens.wange.stawt.chawacta));
 
-		codeLens.command = this.getCommand(locations, codeLens);
-		return codeLens;
+		codeWens.command = this.getCommand(wocations, codeWens);
+		wetuwn codeWens;
 	}
 
-	private getCommand(locations: vscode.Location[], codeLens: ReferencesCodeLens): vscode.Command | undefined {
-		return {
-			title: this.getTitle(locations),
-			command: locations.length ? 'editor.action.showReferences' : '',
-			arguments: [codeLens.document, codeLens.range.start, locations]
+	pwivate getCommand(wocations: vscode.Wocation[], codeWens: WefewencesCodeWens): vscode.Command | undefined {
+		wetuwn {
+			titwe: this.getTitwe(wocations),
+			command: wocations.wength ? 'editow.action.showWefewences' : '',
+			awguments: [codeWens.document, codeWens.wange.stawt, wocations]
 		};
 	}
 
-	private getTitle(locations: vscode.Location[]): string {
-		return locations.length === 1
-			? localize('oneImplementationLabel', '1 implementation')
-			: localize('manyImplementationLabel', '{0} implementations', locations.length);
+	pwivate getTitwe(wocations: vscode.Wocation[]): stwing {
+		wetuwn wocations.wength === 1
+			? wocawize('oneImpwementationWabew', '1 impwementation')
+			: wocawize('manyImpwementationWabew', '{0} impwementations', wocations.wength);
 	}
 
-	protected extractSymbol(
+	pwotected extwactSymbow(
 		document: vscode.TextDocument,
-		item: Proto.NavigationTree,
-		_parent: Proto.NavigationTree | null
-	): vscode.Range | null {
+		item: Pwoto.NavigationTwee,
+		_pawent: Pwoto.NavigationTwee | nuww
+	): vscode.Wange | nuww {
 		switch (item.kind) {
-			case PConst.Kind.interface:
-				return getSymbolRange(document, item);
+			case PConst.Kind.intewface:
+				wetuwn getSymbowWange(document, item);
 
-			case PConst.Kind.class:
+			case PConst.Kind.cwass:
 			case PConst.Kind.method:
-			case PConst.Kind.memberVariable:
-			case PConst.Kind.memberGetAccessor:
-			case PConst.Kind.memberSetAccessor:
-				if (item.kindModifiers.match(/\babstract\b/g)) {
-					return getSymbolRange(document, item);
+			case PConst.Kind.membewVawiabwe:
+			case PConst.Kind.membewGetAccessow:
+			case PConst.Kind.membewSetAccessow:
+				if (item.kindModifiews.match(/\babstwact\b/g)) {
+					wetuwn getSymbowWange(document, item);
 				}
-				break;
+				bweak;
 		}
-		return null;
+		wetuwn nuww;
 	}
 }
 
-export function register(
-	selector: DocumentSelector,
-	modeId: string,
-	client: ITypeScriptServiceClient,
-	cachedResponse: CachedResponse<Proto.NavTreeResponse>,
+expowt function wegista(
+	sewectow: DocumentSewectow,
+	modeId: stwing,
+	cwient: ITypeScwiptSewviceCwient,
+	cachedWesponse: CachedWesponse<Pwoto.NavTweeWesponse>,
 ) {
-	return conditionalRegistration([
-		requireConfiguration(modeId, 'implementationsCodeLens.enabled'),
-		requireSomeCapability(client, ClientCapability.Semantic),
+	wetuwn conditionawWegistwation([
+		wequiweConfiguwation(modeId, 'impwementationsCodeWens.enabwed'),
+		wequiweSomeCapabiwity(cwient, CwientCapabiwity.Semantic),
 	], () => {
-		return vscode.languages.registerCodeLensProvider(selector.semantic,
-			new TypeScriptImplementationsCodeLensProvider(client, cachedResponse));
+		wetuwn vscode.wanguages.wegistewCodeWensPwovida(sewectow.semantic,
+			new TypeScwiptImpwementationsCodeWensPwovida(cwient, cachedWesponse));
 	});
 }

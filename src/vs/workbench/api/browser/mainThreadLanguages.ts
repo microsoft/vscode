@@ -1,86 +1,86 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { MainThreadLanguagesShape, MainContext, IExtHostContext, ExtHostContext, ExtHostLanguagesShape } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { StandardTokenType } from 'vs/editor/common/modes';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ILanguageStatus, ILanguageStatusService } from 'vs/workbench/services/languageStatus/common/languageStatusService';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { MainThweadWanguagesShape, MainContext, IExtHostContext, ExtHostContext, ExtHostWanguagesShape } fwom '../common/extHost.pwotocow';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { StandawdTokenType } fwom 'vs/editow/common/modes';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { IWanguageStatus, IWanguageStatusSewvice } fwom 'vs/wowkbench/sewvices/wanguageStatus/common/wanguageStatusSewvice';
+impowt { DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
 
-@extHostNamedCustomer(MainContext.MainThreadLanguages)
-export class MainThreadLanguages implements MainThreadLanguagesShape {
+@extHostNamedCustoma(MainContext.MainThweadWanguages)
+expowt cwass MainThweadWanguages impwements MainThweadWanguagesShape {
 
-	private readonly _disposables = new DisposableStore();
-	private readonly _proxy: ExtHostLanguagesShape;
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
+	pwivate weadonwy _pwoxy: ExtHostWanguagesShape;
 
-	constructor(
+	constwuctow(
 		_extHostContext: IExtHostContext,
-		@IModeService private readonly _modeService: IModeService,
-		@IModelService private readonly _modelService: IModelService,
-		@ITextModelService private _resolverService: ITextModelService,
-		@ILanguageStatusService private readonly _languageStatusService: ILanguageStatusService,
+		@IModeSewvice pwivate weadonwy _modeSewvice: IModeSewvice,
+		@IModewSewvice pwivate weadonwy _modewSewvice: IModewSewvice,
+		@ITextModewSewvice pwivate _wesowvewSewvice: ITextModewSewvice,
+		@IWanguageStatusSewvice pwivate weadonwy _wanguageStatusSewvice: IWanguageStatusSewvice,
 	) {
-		this._proxy = _extHostContext.getProxy(ExtHostContext.ExtHostLanguages);
+		this._pwoxy = _extHostContext.getPwoxy(ExtHostContext.ExtHostWanguages);
 
-		this._proxy.$acceptLanguageIds(_modeService.getRegisteredModes());
-		this._disposables.add(_modeService.onLanguagesMaybeChanged(e => {
-			this._proxy.$acceptLanguageIds(_modeService.getRegisteredModes());
+		this._pwoxy.$acceptWanguageIds(_modeSewvice.getWegistewedModes());
+		this._disposabwes.add(_modeSewvice.onWanguagesMaybeChanged(e => {
+			this._pwoxy.$acceptWanguageIds(_modeSewvice.getWegistewedModes());
 		}));
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
+		this._disposabwes.dispose();
 	}
 
-	async $changeLanguage(resource: UriComponents, languageId: string): Promise<void> {
+	async $changeWanguage(wesouwce: UwiComponents, wanguageId: stwing): Pwomise<void> {
 
-		const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
-		if (!languageIdentifier || languageIdentifier.language !== languageId) {
-			return Promise.reject(new Error(`Unknown language id: ${languageId}`));
+		const wanguageIdentifia = this._modeSewvice.getWanguageIdentifia(wanguageId);
+		if (!wanguageIdentifia || wanguageIdentifia.wanguage !== wanguageId) {
+			wetuwn Pwomise.weject(new Ewwow(`Unknown wanguage id: ${wanguageId}`));
 		}
 
-		const uri = URI.revive(resource);
-		const ref = await this._resolverService.createModelReference(uri);
-		try {
-			this._modelService.setMode(ref.object.textEditorModel, this._modeService.create(languageId));
-		} finally {
-			ref.dispose();
+		const uwi = UWI.wevive(wesouwce);
+		const wef = await this._wesowvewSewvice.cweateModewWefewence(uwi);
+		twy {
+			this._modewSewvice.setMode(wef.object.textEditowModew, this._modeSewvice.cweate(wanguageId));
+		} finawwy {
+			wef.dispose();
 		}
 	}
 
-	async $tokensAtPosition(resource: UriComponents, position: IPosition): Promise<undefined | { type: StandardTokenType, range: IRange }> {
-		const uri = URI.revive(resource);
-		const model = this._modelService.getModel(uri);
-		if (!model) {
-			return undefined;
+	async $tokensAtPosition(wesouwce: UwiComponents, position: IPosition): Pwomise<undefined | { type: StandawdTokenType, wange: IWange }> {
+		const uwi = UWI.wevive(wesouwce);
+		const modew = this._modewSewvice.getModew(uwi);
+		if (!modew) {
+			wetuwn undefined;
 		}
-		model.tokenizeIfCheap(position.lineNumber);
-		const tokens = model.getLineTokens(position.lineNumber);
-		const idx = tokens.findTokenIndexAtOffset(position.column - 1);
-		return {
-			type: tokens.getStandardTokenType(idx),
-			range: new Range(position.lineNumber, 1 + tokens.getStartOffset(idx), position.lineNumber, 1 + tokens.getEndOffset(idx))
+		modew.tokenizeIfCheap(position.wineNumba);
+		const tokens = modew.getWineTokens(position.wineNumba);
+		const idx = tokens.findTokenIndexAtOffset(position.cowumn - 1);
+		wetuwn {
+			type: tokens.getStandawdTokenType(idx),
+			wange: new Wange(position.wineNumba, 1 + tokens.getStawtOffset(idx), position.wineNumba, 1 + tokens.getEndOffset(idx))
 		};
 	}
 
-	// --- language status
+	// --- wanguage status
 
-	private readonly _status = new Map<number, IDisposable>();
+	pwivate weadonwy _status = new Map<numba, IDisposabwe>();
 
-	$setLanguageStatus(handle: number, status: ILanguageStatus): void {
-		this._status.get(handle)?.dispose();
-		this._status.set(handle, this._languageStatusService.addStatus(status));
+	$setWanguageStatus(handwe: numba, status: IWanguageStatus): void {
+		this._status.get(handwe)?.dispose();
+		this._status.set(handwe, this._wanguageStatusSewvice.addStatus(status));
 	}
 
-	$removeLanguageStatus(handle: number): void {
-		this._status.get(handle)?.dispose();
+	$wemoveWanguageStatus(handwe: numba): void {
+		this._status.get(handwe)?.dispose();
 	}
 }

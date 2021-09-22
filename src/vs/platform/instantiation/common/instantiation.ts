@@ -1,174 +1,174 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as descriptors from './descriptors';
-import { ServiceCollection } from './serviceCollection';
+impowt * as descwiptows fwom './descwiptows';
+impowt { SewviceCowwection } fwom './sewviceCowwection';
 
-// ------ internal util
+// ------ intewnaw utiw
 
-export namespace _util {
+expowt namespace _utiw {
 
-	export const serviceIds = new Map<string, ServiceIdentifier<any>>();
+	expowt const sewviceIds = new Map<stwing, SewviceIdentifia<any>>();
 
-	export const DI_TARGET = '$di$target';
-	export const DI_DEPENDENCIES = '$di$dependencies';
+	expowt const DI_TAWGET = '$di$tawget';
+	expowt const DI_DEPENDENCIES = '$di$dependencies';
 
-	export function getServiceDependencies(ctor: any): { id: ServiceIdentifier<any>, index: number, optional: boolean }[] {
-		return ctor[DI_DEPENDENCIES] || [];
+	expowt function getSewviceDependencies(ctow: any): { id: SewviceIdentifia<any>, index: numba, optionaw: boowean }[] {
+		wetuwn ctow[DI_DEPENDENCIES] || [];
 	}
 }
 
-// --- interfaces ------
+// --- intewfaces ------
 
-export type BrandedService = { _serviceBrand: undefined };
+expowt type BwandedSewvice = { _sewviceBwand: undefined };
 
-export interface IConstructorSignature0<T> {
-	new(...services: BrandedService[]): T;
+expowt intewface IConstwuctowSignatuwe0<T> {
+	new(...sewvices: BwandedSewvice[]): T;
 }
 
-export interface IConstructorSignature1<A1, T> {
-	new <Services extends BrandedService[]>(first: A1, ...services: Services): T;
+expowt intewface IConstwuctowSignatuwe1<A1, T> {
+	new <Sewvices extends BwandedSewvice[]>(fiwst: A1, ...sewvices: Sewvices): T;
 }
 
-export interface IConstructorSignature2<A1, A2, T> {
-	new(first: A1, second: A2, ...services: BrandedService[]): T;
+expowt intewface IConstwuctowSignatuwe2<A1, A2, T> {
+	new(fiwst: A1, second: A2, ...sewvices: BwandedSewvice[]): T;
 }
 
-export interface IConstructorSignature3<A1, A2, A3, T> {
-	new(first: A1, second: A2, third: A3, ...services: BrandedService[]): T;
+expowt intewface IConstwuctowSignatuwe3<A1, A2, A3, T> {
+	new(fiwst: A1, second: A2, thiwd: A3, ...sewvices: BwandedSewvice[]): T;
 }
 
-export interface IConstructorSignature4<A1, A2, A3, A4, T> {
-	new(first: A1, second: A2, third: A3, fourth: A4, ...services: BrandedService[]): T;
+expowt intewface IConstwuctowSignatuwe4<A1, A2, A3, A4, T> {
+	new(fiwst: A1, second: A2, thiwd: A3, fouwth: A4, ...sewvices: BwandedSewvice[]): T;
 }
 
-export interface IConstructorSignature5<A1, A2, A3, A4, A5, T> {
-	new(first: A1, second: A2, third: A3, fourth: A4, fifth: A5, ...services: BrandedService[]): T;
+expowt intewface IConstwuctowSignatuwe5<A1, A2, A3, A4, A5, T> {
+	new(fiwst: A1, second: A2, thiwd: A3, fouwth: A4, fifth: A5, ...sewvices: BwandedSewvice[]): T;
 }
 
-export interface IConstructorSignature6<A1, A2, A3, A4, A5, A6, T> {
-	new(first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, ...services: BrandedService[]): T;
+expowt intewface IConstwuctowSignatuwe6<A1, A2, A3, A4, A5, A6, T> {
+	new(fiwst: A1, second: A2, thiwd: A3, fouwth: A4, fifth: A5, sixth: A6, ...sewvices: BwandedSewvice[]): T;
 }
 
-export interface IConstructorSignature7<A1, A2, A3, A4, A5, A6, A7, T> {
-	new(first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, ...services: BrandedService[]): T;
+expowt intewface IConstwuctowSignatuwe7<A1, A2, A3, A4, A5, A6, A7, T> {
+	new(fiwst: A1, second: A2, thiwd: A3, fouwth: A4, fifth: A5, sixth: A6, seventh: A7, ...sewvices: BwandedSewvice[]): T;
 }
 
-export interface IConstructorSignature8<A1, A2, A3, A4, A5, A6, A7, A8, T> {
-	new(first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8, ...services: BrandedService[]): T;
+expowt intewface IConstwuctowSignatuwe8<A1, A2, A3, A4, A5, A6, A7, A8, T> {
+	new(fiwst: A1, second: A2, thiwd: A3, fouwth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8, ...sewvices: BwandedSewvice[]): T;
 }
 
-export interface ServicesAccessor {
-	get<T>(id: ServiceIdentifier<T>): T;
-	get<T>(id: ServiceIdentifier<T>, isOptional: typeof optional): T | undefined;
+expowt intewface SewvicesAccessow {
+	get<T>(id: SewviceIdentifia<T>): T;
+	get<T>(id: SewviceIdentifia<T>, isOptionaw: typeof optionaw): T | undefined;
 }
 
-export const IInstantiationService = createDecorator<IInstantiationService>('instantiationService');
+expowt const IInstantiationSewvice = cweateDecowatow<IInstantiationSewvice>('instantiationSewvice');
 
 /**
- * Given a list of arguments as a tuple, attempt to extract the leading, non-service arguments
- * to their own tuple.
+ * Given a wist of awguments as a tupwe, attempt to extwact the weading, non-sewvice awguments
+ * to theiw own tupwe.
  */
-type GetLeadingNonServiceArgs<Args> =
-	Args extends [...BrandedService[]] ? []
-	: Args extends [infer A1, ...BrandedService[]] ? [A1]
-	: Args extends [infer A1, infer A2, ...BrandedService[]] ? [A1, A2]
-	: Args extends [infer A1, infer A2, infer A3, ...BrandedService[]] ? [A1, A2, A3]
-	: Args extends [infer A1, infer A2, infer A3, infer A4, ...BrandedService[]] ? [A1, A2, A3, A4]
-	: Args extends [infer A1, infer A2, infer A3, infer A4, infer A5, ...BrandedService[]] ? [A1, A2, A3, A4, A5]
-	: Args extends [infer A1, infer A2, infer A3, infer A4, infer A5, infer A6, ...BrandedService[]] ? [A1, A2, A3, A4, A5, A6]
-	: Args extends [infer A1, infer A2, infer A3, infer A4, infer A5, infer A6, infer A7, ...BrandedService[]] ? [A1, A2, A3, A4, A5, A6, A7]
-	: Args extends [infer A1, infer A2, infer A3, infer A4, infer A5, infer A6, infer A7, infer A8, ...BrandedService[]] ? [A1, A2, A3, A4, A5, A6, A7, A8]
-	: never;
+type GetWeadingNonSewviceAwgs<Awgs> =
+	Awgs extends [...BwandedSewvice[]] ? []
+	: Awgs extends [infa A1, ...BwandedSewvice[]] ? [A1]
+	: Awgs extends [infa A1, infa A2, ...BwandedSewvice[]] ? [A1, A2]
+	: Awgs extends [infa A1, infa A2, infa A3, ...BwandedSewvice[]] ? [A1, A2, A3]
+	: Awgs extends [infa A1, infa A2, infa A3, infa A4, ...BwandedSewvice[]] ? [A1, A2, A3, A4]
+	: Awgs extends [infa A1, infa A2, infa A3, infa A4, infa A5, ...BwandedSewvice[]] ? [A1, A2, A3, A4, A5]
+	: Awgs extends [infa A1, infa A2, infa A3, infa A4, infa A5, infa A6, ...BwandedSewvice[]] ? [A1, A2, A3, A4, A5, A6]
+	: Awgs extends [infa A1, infa A2, infa A3, infa A4, infa A5, infa A6, infa A7, ...BwandedSewvice[]] ? [A1, A2, A3, A4, A5, A6, A7]
+	: Awgs extends [infa A1, infa A2, infa A3, infa A4, infa A5, infa A6, infa A7, infa A8, ...BwandedSewvice[]] ? [A1, A2, A3, A4, A5, A6, A7, A8]
+	: neva;
 
-export interface IInstantiationService {
+expowt intewface IInstantiationSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Synchronously creates an instance that is denoted by
-	 * the descriptor
+	 * Synchwonouswy cweates an instance that is denoted by
+	 * the descwiptow
 	 */
-	createInstance<T>(descriptor: descriptors.SyncDescriptor0<T>): T;
-	createInstance<A1, T>(descriptor: descriptors.SyncDescriptor1<A1, T>, a1: A1): T;
-	createInstance<A1, A2, T>(descriptor: descriptors.SyncDescriptor2<A1, A2, T>, a1: A1, a2: A2): T;
-	createInstance<A1, A2, A3, T>(descriptor: descriptors.SyncDescriptor3<A1, A2, A3, T>, a1: A1, a2: A2, a3: A3): T;
-	createInstance<A1, A2, A3, A4, T>(descriptor: descriptors.SyncDescriptor4<A1, A2, A3, A4, T>, a1: A1, a2: A2, a3: A3, a4: A4): T;
-	createInstance<A1, A2, A3, A4, A5, T>(descriptor: descriptors.SyncDescriptor5<A1, A2, A3, A4, A5, T>, a1: A1, a2: A2, a3: A3, a4: A4, a5: A5): T;
-	createInstance<A1, A2, A3, A4, A5, A6, T>(descriptor: descriptors.SyncDescriptor6<A1, A2, A3, A4, A5, A6, T>, a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6): T;
-	createInstance<A1, A2, A3, A4, A5, A6, A7, T>(descriptor: descriptors.SyncDescriptor7<A1, A2, A3, A4, A5, A6, A7, T>, a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6, a7: A7): T;
-	createInstance<A1, A2, A3, A4, A5, A6, A7, A8, T>(descriptor: descriptors.SyncDescriptor8<A1, A2, A3, A4, A5, A6, A7, A8, T>, a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6, a7: A7, a8: A8): T;
+	cweateInstance<T>(descwiptow: descwiptows.SyncDescwiptow0<T>): T;
+	cweateInstance<A1, T>(descwiptow: descwiptows.SyncDescwiptow1<A1, T>, a1: A1): T;
+	cweateInstance<A1, A2, T>(descwiptow: descwiptows.SyncDescwiptow2<A1, A2, T>, a1: A1, a2: A2): T;
+	cweateInstance<A1, A2, A3, T>(descwiptow: descwiptows.SyncDescwiptow3<A1, A2, A3, T>, a1: A1, a2: A2, a3: A3): T;
+	cweateInstance<A1, A2, A3, A4, T>(descwiptow: descwiptows.SyncDescwiptow4<A1, A2, A3, A4, T>, a1: A1, a2: A2, a3: A3, a4: A4): T;
+	cweateInstance<A1, A2, A3, A4, A5, T>(descwiptow: descwiptows.SyncDescwiptow5<A1, A2, A3, A4, A5, T>, a1: A1, a2: A2, a3: A3, a4: A4, a5: A5): T;
+	cweateInstance<A1, A2, A3, A4, A5, A6, T>(descwiptow: descwiptows.SyncDescwiptow6<A1, A2, A3, A4, A5, A6, T>, a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6): T;
+	cweateInstance<A1, A2, A3, A4, A5, A6, A7, T>(descwiptow: descwiptows.SyncDescwiptow7<A1, A2, A3, A4, A5, A6, A7, T>, a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6, a7: A7): T;
+	cweateInstance<A1, A2, A3, A4, A5, A6, A7, A8, T>(descwiptow: descwiptows.SyncDescwiptow8<A1, A2, A3, A4, A5, A6, A7, A8, T>, a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6, a7: A7, a8: A8): T;
 
-	createInstance<Ctor extends new (...args: any[]) => any, R extends InstanceType<Ctor>>(t: Ctor, ...args: GetLeadingNonServiceArgs<ConstructorParameters<Ctor>>): R;
+	cweateInstance<Ctow extends new (...awgs: any[]) => any, W extends InstanceType<Ctow>>(t: Ctow, ...awgs: GetWeadingNonSewviceAwgs<ConstwuctowPawametews<Ctow>>): W;
 
 	/**
 	 *
 	 */
-	invokeFunction<R, TS extends any[] = []>(fn: (accessor: ServicesAccessor, ...args: TS) => R, ...args: TS): R;
+	invokeFunction<W, TS extends any[] = []>(fn: (accessow: SewvicesAccessow, ...awgs: TS) => W, ...awgs: TS): W;
 
 	/**
-	 * Creates a child of this service which inherts all current services
-	 * and adds/overwrites the given services
+	 * Cweates a chiwd of this sewvice which inhewts aww cuwwent sewvices
+	 * and adds/ovewwwites the given sewvices
 	 */
-	createChild(services: ServiceCollection): IInstantiationService;
+	cweateChiwd(sewvices: SewviceCowwection): IInstantiationSewvice;
 }
 
 
 /**
- * Identifies a service of type T
+ * Identifies a sewvice of type T
  */
-export interface ServiceIdentifier<T> {
-	(...args: any[]): void;
+expowt intewface SewviceIdentifia<T> {
+	(...awgs: any[]): void;
 	type: T;
 }
 
-function storeServiceDependency(id: Function, target: Function, index: number, optional: boolean): void {
-	if ((target as any)[_util.DI_TARGET] === target) {
-		(target as any)[_util.DI_DEPENDENCIES].push({ id, index, optional });
-	} else {
-		(target as any)[_util.DI_DEPENDENCIES] = [{ id, index, optional }];
-		(target as any)[_util.DI_TARGET] = target;
+function stoweSewviceDependency(id: Function, tawget: Function, index: numba, optionaw: boowean): void {
+	if ((tawget as any)[_utiw.DI_TAWGET] === tawget) {
+		(tawget as any)[_utiw.DI_DEPENDENCIES].push({ id, index, optionaw });
+	} ewse {
+		(tawget as any)[_utiw.DI_DEPENDENCIES] = [{ id, index, optionaw }];
+		(tawget as any)[_utiw.DI_TAWGET] = tawget;
 	}
 }
 
 /**
- * The *only* valid way to create a {{ServiceIdentifier}}.
+ * The *onwy* vawid way to cweate a {{SewviceIdentifia}}.
  */
-export function createDecorator<T>(serviceId: string): ServiceIdentifier<T> {
+expowt function cweateDecowatow<T>(sewviceId: stwing): SewviceIdentifia<T> {
 
-	if (_util.serviceIds.has(serviceId)) {
-		return _util.serviceIds.get(serviceId)!;
+	if (_utiw.sewviceIds.has(sewviceId)) {
+		wetuwn _utiw.sewviceIds.get(sewviceId)!;
 	}
 
-	const id = <any>function (target: Function, key: string, index: number): any {
-		if (arguments.length !== 3) {
-			throw new Error('@IServiceName-decorator can only be used to decorate a parameter');
+	const id = <any>function (tawget: Function, key: stwing, index: numba): any {
+		if (awguments.wength !== 3) {
+			thwow new Ewwow('@ISewviceName-decowatow can onwy be used to decowate a pawameta');
 		}
-		storeServiceDependency(id, target, index, false);
+		stoweSewviceDependency(id, tawget, index, fawse);
 	};
 
-	id.toString = () => serviceId;
+	id.toStwing = () => sewviceId;
 
-	_util.serviceIds.set(serviceId, id);
-	return id;
+	_utiw.sewviceIds.set(sewviceId, id);
+	wetuwn id;
 }
 
-export function refineServiceDecorator<T1, T extends T1>(serviceIdentifier: ServiceIdentifier<T1>): ServiceIdentifier<T> {
-	return <ServiceIdentifier<T>>serviceIdentifier;
+expowt function wefineSewviceDecowatow<T1, T extends T1>(sewviceIdentifia: SewviceIdentifia<T1>): SewviceIdentifia<T> {
+	wetuwn <SewviceIdentifia<T>>sewviceIdentifia;
 }
 
 /**
- * Mark a service dependency as optional.
- * @deprecated Avoid, see https://github.com/microsoft/vscode/issues/119440
+ * Mawk a sewvice dependency as optionaw.
+ * @depwecated Avoid, see https://github.com/micwosoft/vscode/issues/119440
  */
-export function optional<T>(serviceIdentifier: ServiceIdentifier<T>) {
+expowt function optionaw<T>(sewviceIdentifia: SewviceIdentifia<T>) {
 
-	return function (target: Function, key: string, index: number) {
-		if (arguments.length !== 3) {
-			throw new Error('@optional-decorator can only be used to decorate a parameter');
+	wetuwn function (tawget: Function, key: stwing, index: numba) {
+		if (awguments.wength !== 3) {
+			thwow new Ewwow('@optionaw-decowatow can onwy be used to decowate a pawameta');
 		}
-		storeServiceDependency(serviceIdentifier, target, index, true);
+		stoweSewviceDependency(sewviceIdentifia, tawget, index, twue);
 	};
 }

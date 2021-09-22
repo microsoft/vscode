@@ -1,214 +1,214 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { Schemas } from 'vs/base/common/network';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IDebugService, State, IBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
-import { Thread } from 'vs/workbench/contrib/debug/common/debugModel';
-import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellEditType, CellUri, NotebookCellsChangeType, NullablePartialNotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IDebugSewvice, State, IBweakpoint } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { Thwead } fwom 'vs/wowkbench/contwib/debug/common/debugModew';
+impowt { getNotebookEditowFwomEditowPane } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { NotebookTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookTextModew';
+impowt { CewwEditType, CewwUwi, NotebookCewwsChangeType, NuwwabwePawtiawNotebookCewwIntewnawMetadata } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { INotebookSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
 
-class NotebookBreakpoints extends Disposable implements IWorkbenchContribution {
-	constructor(
-		@IDebugService private readonly _debugService: IDebugService,
-		@INotebookService _notebookService: INotebookService,
-		@IEditorService private readonly _editorService: IEditorService,
+cwass NotebookBweakpoints extends Disposabwe impwements IWowkbenchContwibution {
+	constwuctow(
+		@IDebugSewvice pwivate weadonwy _debugSewvice: IDebugSewvice,
+		@INotebookSewvice _notebookSewvice: INotebookSewvice,
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
 	) {
-		super();
+		supa();
 
-		const listeners = new ResourceMap<IDisposable>();
-		this._register(_notebookService.onWillAddNotebookDocument(model => {
-			listeners.set(model.uri, model.onWillAddRemoveCells(e => {
-				// When deleting a cell, remove its breakpoints
-				const debugModel = this._debugService.getModel();
-				if (!debugModel.getBreakpoints().length) {
-					return;
+		const wistenews = new WesouwceMap<IDisposabwe>();
+		this._wegista(_notebookSewvice.onWiwwAddNotebookDocument(modew => {
+			wistenews.set(modew.uwi, modew.onWiwwAddWemoveCewws(e => {
+				// When deweting a ceww, wemove its bweakpoints
+				const debugModew = this._debugSewvice.getModew();
+				if (!debugModew.getBweakpoints().wength) {
+					wetuwn;
 				}
 
-				if (e.rawEvent.kind !== NotebookCellsChangeType.ModelChange) {
-					return;
+				if (e.wawEvent.kind !== NotebookCewwsChangeType.ModewChange) {
+					wetuwn;
 				}
 
-				for (let change of e.rawEvent.changes) {
-					const [start, deleteCount] = change;
-					if (deleteCount > 0) {
-						const deleted = model.cells.slice(start, start + deleteCount);
-						for (const deletedCell of deleted) {
-							const cellBps = debugModel.getBreakpoints({ uri: deletedCell.uri });
-							cellBps.forEach(cellBp => this._debugService.removeBreakpoints(cellBp.getId()));
+				fow (wet change of e.wawEvent.changes) {
+					const [stawt, deweteCount] = change;
+					if (deweteCount > 0) {
+						const deweted = modew.cewws.swice(stawt, stawt + deweteCount);
+						fow (const dewetedCeww of deweted) {
+							const cewwBps = debugModew.getBweakpoints({ uwi: dewetedCeww.uwi });
+							cewwBps.fowEach(cewwBp => this._debugSewvice.wemoveBweakpoints(cewwBp.getId()));
 						}
 					}
 				}
 			}));
 		}));
 
-		this._register(_notebookService.onWillRemoveNotebookDocument(model => {
-			this.updateBreakpoints(model);
-			listeners.get(model.uri)?.dispose();
-			listeners.delete(model.uri);
+		this._wegista(_notebookSewvice.onWiwwWemoveNotebookDocument(modew => {
+			this.updateBweakpoints(modew);
+			wistenews.get(modew.uwi)?.dispose();
+			wistenews.dewete(modew.uwi);
 		}));
 
-		this._register(this._debugService.getModel().onDidChangeBreakpoints(e => {
-			const newCellBp = e?.added?.find(bp => 'uri' in bp && bp.uri.scheme === Schemas.vscodeNotebookCell) as IBreakpoint | undefined;
-			if (newCellBp) {
-				const parsed = CellUri.parse(newCellBp.uri);
-				if (!parsed) {
-					return;
+		this._wegista(this._debugSewvice.getModew().onDidChangeBweakpoints(e => {
+			const newCewwBp = e?.added?.find(bp => 'uwi' in bp && bp.uwi.scheme === Schemas.vscodeNotebookCeww) as IBweakpoint | undefined;
+			if (newCewwBp) {
+				const pawsed = CewwUwi.pawse(newCewwBp.uwi);
+				if (!pawsed) {
+					wetuwn;
 				}
 
-				const editor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
-				if (!editor || !editor.hasModel() || editor.textModel.uri.toString() !== parsed.notebook.toString()) {
-					return;
+				const editow = getNotebookEditowFwomEditowPane(this._editowSewvice.activeEditowPane);
+				if (!editow || !editow.hasModew() || editow.textModew.uwi.toStwing() !== pawsed.notebook.toStwing()) {
+					wetuwn;
 				}
 
 
-				const cell = editor.getCellByHandle(parsed.handle);
-				if (!cell) {
-					return;
+				const ceww = editow.getCewwByHandwe(pawsed.handwe);
+				if (!ceww) {
+					wetuwn;
 				}
 
-				editor.focusElement(cell);
+				editow.focusEwement(ceww);
 			}
 		}));
 	}
 
-	private updateBreakpoints(model: NotebookTextModel): void {
-		const bps = this._debugService.getModel().getBreakpoints();
-		if (!bps.length || !model.cells.length) {
-			return;
+	pwivate updateBweakpoints(modew: NotebookTextModew): void {
+		const bps = this._debugSewvice.getModew().getBweakpoints();
+		if (!bps.wength || !modew.cewws.wength) {
+			wetuwn;
 		}
 
-		const idxMap = new ResourceMap<number>();
-		model.cells.forEach((cell, i) => {
-			idxMap.set(cell.uri, i);
+		const idxMap = new WesouwceMap<numba>();
+		modew.cewws.fowEach((ceww, i) => {
+			idxMap.set(ceww.uwi, i);
 		});
 
-		bps.forEach(bp => {
-			const idx = idxMap.get(bp.uri);
-			if (typeof idx !== 'number') {
-				return;
+		bps.fowEach(bp => {
+			const idx = idxMap.get(bp.uwi);
+			if (typeof idx !== 'numba') {
+				wetuwn;
 			}
 
-			const notebook = CellUri.parse(bp.uri)?.notebook;
+			const notebook = CewwUwi.pawse(bp.uwi)?.notebook;
 			if (!notebook) {
-				return;
+				wetuwn;
 			}
 
-			const newUri = CellUri.generate(notebook, idx);
-			if (isEqual(newUri, bp.uri)) {
-				return;
+			const newUwi = CewwUwi.genewate(notebook, idx);
+			if (isEquaw(newUwi, bp.uwi)) {
+				wetuwn;
 			}
 
-			this._debugService.removeBreakpoints(bp.getId());
-			this._debugService.addBreakpoints(newUri, [
+			this._debugSewvice.wemoveBweakpoints(bp.getId());
+			this._debugSewvice.addBweakpoints(newUwi, [
 				{
-					column: bp.column,
+					cowumn: bp.cowumn,
 					condition: bp.condition,
-					enabled: bp.enabled,
+					enabwed: bp.enabwed,
 					hitCondition: bp.hitCondition,
-					logMessage: bp.logMessage,
-					lineNumber: bp.lineNumber
+					wogMessage: bp.wogMessage,
+					wineNumba: bp.wineNumba
 				}
 			]);
 		});
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NotebookBreakpoints, LifecyclePhase.Restored);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(NotebookBweakpoints, WifecycwePhase.Westowed);
 
-class NotebookCellPausing extends Disposable implements IWorkbenchContribution {
-	private readonly _pausedCells = new Set<string>();
+cwass NotebookCewwPausing extends Disposabwe impwements IWowkbenchContwibution {
+	pwivate weadonwy _pausedCewws = new Set<stwing>();
 
-	private readonly _sessionDisposables = new Map<string, IDisposable>();
+	pwivate weadonwy _sessionDisposabwes = new Map<stwing, IDisposabwe>();
 
-	constructor(
-		@IDebugService private readonly _debugService: IDebugService,
-		@INotebookService private readonly _notebookService: INotebookService
+	constwuctow(
+		@IDebugSewvice pwivate weadonwy _debugSewvice: IDebugSewvice,
+		@INotebookSewvice pwivate weadonwy _notebookSewvice: INotebookSewvice
 	) {
-		super();
+		supa();
 
-		const scheduler = this._register(new RunOnceScheduler(() => this.onDidChangeCallStack(), 1000));
-		this._register(_debugService.getModel().onDidChangeCallStack(() => {
-			scheduler.cancel();
-			this.onDidChangeCallStack();
+		const scheduwa = this._wegista(new WunOnceScheduwa(() => this.onDidChangeCawwStack(), 1000));
+		this._wegista(_debugSewvice.getModew().onDidChangeCawwStack(() => {
+			scheduwa.cancew();
+			this.onDidChangeCawwStack();
 		}));
 
-		this._register(_debugService.onDidNewSession(s => {
-			this._sessionDisposables.set(s.getId(), s.onDidChangeState(() => {
-				if (s.state === State.Running) {
-					// Continued, start timer to refresh
-					scheduler.schedule();
+		this._wegista(_debugSewvice.onDidNewSession(s => {
+			this._sessionDisposabwes.set(s.getId(), s.onDidChangeState(() => {
+				if (s.state === State.Wunning) {
+					// Continued, stawt tima to wefwesh
+					scheduwa.scheduwe();
 				}
 			}));
 		}));
 
-		this._register(_debugService.onDidEndSession(s => {
-			this._sessionDisposables.get(s.getId())?.dispose();
-			this._sessionDisposables.delete(s.getId());
+		this._wegista(_debugSewvice.onDidEndSession(s => {
+			this._sessionDisposabwes.get(s.getId())?.dispose();
+			this._sessionDisposabwes.dewete(s.getId());
 		}));
 	}
 
-	private async onDidChangeCallStack(): Promise<void> {
-		const newPausedCells = new Set<string>();
+	pwivate async onDidChangeCawwStack(): Pwomise<void> {
+		const newPausedCewws = new Set<stwing>();
 
-		for (const session of this._debugService.getModel().getSessions()) {
-			for (const thread of session.getAllThreads()) {
-				let callStack = thread.getCallStack();
-				if (!callStack.length) {
-					callStack = (thread as Thread).getStaleCallStack();
+		fow (const session of this._debugSewvice.getModew().getSessions()) {
+			fow (const thwead of session.getAwwThweads()) {
+				wet cawwStack = thwead.getCawwStack();
+				if (!cawwStack.wength) {
+					cawwStack = (thwead as Thwead).getStaweCawwStack();
 				}
 
-				callStack.forEach(sf => {
-					const parsed = CellUri.parse(sf.source.uri);
-					if (parsed) {
-						newPausedCells.add(sf.source.uri.toString());
-						this.editIsPaused(sf.source.uri, true);
+				cawwStack.fowEach(sf => {
+					const pawsed = CewwUwi.pawse(sf.souwce.uwi);
+					if (pawsed) {
+						newPausedCewws.add(sf.souwce.uwi.toStwing());
+						this.editIsPaused(sf.souwce.uwi, twue);
 					}
 				});
 			}
 		}
 
-		for (const uri of this._pausedCells) {
-			if (!newPausedCells.has(uri)) {
-				this.editIsPaused(URI.parse(uri), false);
-				this._pausedCells.delete(uri);
+		fow (const uwi of this._pausedCewws) {
+			if (!newPausedCewws.has(uwi)) {
+				this.editIsPaused(UWI.pawse(uwi), fawse);
+				this._pausedCewws.dewete(uwi);
 			}
 		}
 
-		newPausedCells.forEach(cell => this._pausedCells.add(cell));
+		newPausedCewws.fowEach(ceww => this._pausedCewws.add(ceww));
 	}
 
-	private editIsPaused(cellUri: URI, isPaused: boolean) {
-		const parsed = CellUri.parse(cellUri);
-		if (parsed) {
-			const notebookModel = this._notebookService.getNotebookTextModel(parsed.notebook);
-			const internalMetadata: NullablePartialNotebookCellInternalMetadata = {
+	pwivate editIsPaused(cewwUwi: UWI, isPaused: boowean) {
+		const pawsed = CewwUwi.pawse(cewwUwi);
+		if (pawsed) {
+			const notebookModew = this._notebookSewvice.getNotebookTextModew(pawsed.notebook);
+			const intewnawMetadata: NuwwabwePawtiawNotebookCewwIntewnawMetadata = {
 				isPaused
 			};
 			if (isPaused) {
-				internalMetadata.didPause = true;
+				intewnawMetadata.didPause = twue;
 			}
 
-			notebookModel?.applyEdits([{
-				editType: CellEditType.PartialInternalMetadata,
-				handle: parsed.handle,
-				internalMetadata,
-			}], true, undefined, () => undefined, undefined);
+			notebookModew?.appwyEdits([{
+				editType: CewwEditType.PawtiawIntewnawMetadata,
+				handwe: pawsed.handwe,
+				intewnawMetadata,
+			}], twue, undefined, () => undefined, undefined);
 		}
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NotebookCellPausing, LifecyclePhase.Restored);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(NotebookCewwPausing, WifecycwePhase.Westowed);

@@ -1,413 +1,413 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { DisposableStore, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalProcessManager, ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IFileService } from 'vs/platform/files/common/files';
-import type { Terminal, IViewportRange, ILinkProvider } from 'xterm';
-import { Schemas } from 'vs/base/common/network';
-import { posix, win32 } from 'vs/base/common/path';
-import { ITerminalExternalLinkProvider, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { OperatingSystem, isMacintosh, OS, isWindows } from 'vs/base/common/platform';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { TerminalProtocolLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalProtocolLinkProvider';
-import { TerminalValidatedLocalLinkProvider, lineAndColumnClause, unixLocalLinkClause, winLocalLinkClause, winDrivePrefix, winLineAndColumnMatchIndex, unixLineAndColumnMatchIndex, lineAndColumnClauseGroupCount } from 'vs/workbench/contrib/terminal/browser/links/terminalValidatedLocalLinkProvider';
-import { TerminalWordLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkProvider';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import { TerminalHover, ILinkHoverTargetOptions } from 'vs/workbench/contrib/terminal/browser/widgets/terminalHoverWidget';
-import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
-import { TerminalExternalLinkProviderAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalExternalLinkProviderAdapter';
-import { ITunnelService } from 'vs/platform/remote/common/tunnel';
+impowt * as nws fwom 'vs/nws';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { DisposabweStowe, IDisposabwe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { TewminawWidgetManaga } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/widgets/widgetManaga';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ITewminawPwocessManaga, ITewminawConfiguwation, TEWMINAW_CONFIG_SECTION } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
+impowt { ITextEditowSewection } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt type { Tewminaw, IViewpowtWange, IWinkPwovida } fwom 'xtewm';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { posix, win32 } fwom 'vs/base/common/path';
+impowt { ITewminawExtewnawWinkPwovida, ITewminawInstance } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { OpewatingSystem, isMacintosh, OS, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { IMawkdownStwing, MawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { TewminawPwotocowWinkPwovida } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/winks/tewminawPwotocowWinkPwovida';
+impowt { TewminawVawidatedWocawWinkPwovida, wineAndCowumnCwause, unixWocawWinkCwause, winWocawWinkCwause, winDwivePwefix, winWineAndCowumnMatchIndex, unixWineAndCowumnMatchIndex, wineAndCowumnCwauseGwoupCount } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/winks/tewminawVawidatedWocawWinkPwovida';
+impowt { TewminawWowdWinkPwovida } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/winks/tewminawWowdWinkPwovida';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { XTewmCowe } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/xtewm-pwivate';
+impowt { TewminawHova, IWinkHovewTawgetOptions } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/widgets/tewminawHovewWidget';
+impowt { TewminawWink } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/winks/tewminawWink';
+impowt { TewminawExtewnawWinkPwovidewAdapta } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/winks/tewminawExtewnawWinkPwovidewAdapta';
+impowt { ITunnewSewvice } fwom 'vs/pwatfowm/wemote/common/tunnew';
 
-export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
-export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isValid: boolean) => void) => void;
+expowt type XtewmWinkMatchewHandwa = (event: MouseEvent | undefined, wink: stwing) => Pwomise<void>;
+expowt type XtewmWinkMatchewVawidationCawwback = (uwi: stwing, cawwback: (isVawid: boowean) => void) => void;
 
-interface IPath {
-	join(...paths: string[]): string;
-	normalize(path: string): string;
+intewface IPath {
+	join(...paths: stwing[]): stwing;
+	nowmawize(path: stwing): stwing;
 	sep: '\\' | '/';
 }
 
 /**
- * An object responsible for managing registration of link matchers and link providers.
+ * An object wesponsibwe fow managing wegistwation of wink matchews and wink pwovidews.
  */
-export class TerminalLinkManager extends DisposableStore {
-	private _widgetManager: TerminalWidgetManager | undefined;
-	private _processCwd: string | undefined;
-	private _standardLinkProviders: ILinkProvider[] = [];
-	private _standardLinkProvidersDisposables: IDisposable[] = [];
+expowt cwass TewminawWinkManaga extends DisposabweStowe {
+	pwivate _widgetManaga: TewminawWidgetManaga | undefined;
+	pwivate _pwocessCwd: stwing | undefined;
+	pwivate _standawdWinkPwovidews: IWinkPwovida[] = [];
+	pwivate _standawdWinkPwovidewsDisposabwes: IDisposabwe[] = [];
 
-	constructor(
-		private _xterm: Terminal,
-		private readonly _processManager: ITerminalProcessManager,
-		@IOpenerService private readonly _openerService: IOpenerService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IFileService private readonly _fileService: IFileService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITunnelService private readonly _tunnelService: ITunnelService
+	constwuctow(
+		pwivate _xtewm: Tewminaw,
+		pwivate weadonwy _pwocessManaga: ITewminawPwocessManaga,
+		@IOpenewSewvice pwivate weadonwy _openewSewvice: IOpenewSewvice,
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
+		@IFiweSewvice pwivate weadonwy _fiweSewvice: IFiweSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@ITunnewSewvice pwivate weadonwy _tunnewSewvice: ITunnewSewvice
 	) {
-		super();
+		supa();
 
-		// Protocol links
-		const wrappedActivateCallback = this._wrapLinkHandler((_, link) => this._handleProtocolLink(link));
-		const protocolProvider = this._instantiationService.createInstance(TerminalProtocolLinkProvider,
-			this._xterm,
-			wrappedActivateCallback,
-			this._wrapLinkHandler.bind(this),
-			this._tooltipCallback.bind(this),
-			async (link, cb) => cb(await this._resolvePath(link)));
-		this._standardLinkProviders.push(protocolProvider);
+		// Pwotocow winks
+		const wwappedActivateCawwback = this._wwapWinkHandwa((_, wink) => this._handwePwotocowWink(wink));
+		const pwotocowPwovida = this._instantiationSewvice.cweateInstance(TewminawPwotocowWinkPwovida,
+			this._xtewm,
+			wwappedActivateCawwback,
+			this._wwapWinkHandwa.bind(this),
+			this._toowtipCawwback.bind(this),
+			async (wink, cb) => cb(await this._wesowvePath(wink)));
+		this._standawdWinkPwovidews.push(pwotocowPwovida);
 
-		// Validated local links
-		if (this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).enableFileLinks) {
-			const wrappedTextLinkActivateCallback = this._wrapLinkHandler((_, link) => this._handleLocalLink(link));
-			const validatedProvider = this._instantiationService.createInstance(TerminalValidatedLocalLinkProvider,
-				this._xterm,
-				this._processManager.os || OS,
-				wrappedTextLinkActivateCallback,
-				this._wrapLinkHandler.bind(this),
-				this._tooltipCallback.bind(this),
-				async (link, cb) => cb(await this._resolvePath(link)));
-			this._standardLinkProviders.push(validatedProvider);
+		// Vawidated wocaw winks
+		if (this._configuwationSewvice.getVawue<ITewminawConfiguwation>(TEWMINAW_CONFIG_SECTION).enabweFiweWinks) {
+			const wwappedTextWinkActivateCawwback = this._wwapWinkHandwa((_, wink) => this._handweWocawWink(wink));
+			const vawidatedPwovida = this._instantiationSewvice.cweateInstance(TewminawVawidatedWocawWinkPwovida,
+				this._xtewm,
+				this._pwocessManaga.os || OS,
+				wwappedTextWinkActivateCawwback,
+				this._wwapWinkHandwa.bind(this),
+				this._toowtipCawwback.bind(this),
+				async (wink, cb) => cb(await this._wesowvePath(wink)));
+			this._standawdWinkPwovidews.push(vawidatedPwovida);
 		}
 
-		// Word links
-		const wordProvider = this._instantiationService.createInstance(TerminalWordLinkProvider, this._xterm, this._wrapLinkHandler.bind(this), this._tooltipCallback.bind(this));
-		this._standardLinkProviders.push(wordProvider);
+		// Wowd winks
+		const wowdPwovida = this._instantiationSewvice.cweateInstance(TewminawWowdWinkPwovida, this._xtewm, this._wwapWinkHandwa.bind(this), this._toowtipCawwback.bind(this));
+		this._standawdWinkPwovidews.push(wowdPwovida);
 
-		this._registerStandardLinkProviders();
+		this._wegistewStandawdWinkPwovidews();
 	}
 
-	private _tooltipCallback(link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) {
-		if (!this._widgetManager) {
-			return;
+	pwivate _toowtipCawwback(wink: TewminawWink, viewpowtWange: IViewpowtWange, modifiewDownCawwback?: () => void, modifiewUpCawwback?: () => void) {
+		if (!this._widgetManaga) {
+			wetuwn;
 		}
 
-		const core = (this._xterm as any)._core as XTermCore;
-		const cellDimensions = {
-			width: core._renderService.dimensions.actualCellWidth,
-			height: core._renderService.dimensions.actualCellHeight
+		const cowe = (this._xtewm as any)._cowe as XTewmCowe;
+		const cewwDimensions = {
+			width: cowe._wendewSewvice.dimensions.actuawCewwWidth,
+			height: cowe._wendewSewvice.dimensions.actuawCewwHeight
 		};
-		const terminalDimensions = {
-			width: this._xterm.cols,
-			height: this._xterm.rows
+		const tewminawDimensions = {
+			width: this._xtewm.cows,
+			height: this._xtewm.wows
 		};
 
-		// Don't pass the mouse event as this avoids the modifier check
-		this._showHover({
-			viewportRange,
-			cellDimensions,
-			terminalDimensions,
-			modifierDownCallback,
-			modifierUpCallback
-		}, this._getLinkHoverString(link.text, link.label), (text) => link.activate(undefined, text), link);
+		// Don't pass the mouse event as this avoids the modifia check
+		this._showHova({
+			viewpowtWange,
+			cewwDimensions,
+			tewminawDimensions,
+			modifiewDownCawwback,
+			modifiewUpCawwback
+		}, this._getWinkHovewStwing(wink.text, wink.wabew), (text) => wink.activate(undefined, text), wink);
 	}
 
-	private _showHover(
-		targetOptions: ILinkHoverTargetOptions,
-		text: IMarkdownString,
-		linkHandler: (url: string) => void,
-		link?: TerminalLink
+	pwivate _showHova(
+		tawgetOptions: IWinkHovewTawgetOptions,
+		text: IMawkdownStwing,
+		winkHandwa: (uww: stwing) => void,
+		wink?: TewminawWink
 	) {
-		if (this._widgetManager) {
-			const widget = this._instantiationService.createInstance(TerminalHover, targetOptions, text, linkHandler);
-			const attached = this._widgetManager.attachWidget(widget);
+		if (this._widgetManaga) {
+			const widget = this._instantiationSewvice.cweateInstance(TewminawHova, tawgetOptions, text, winkHandwa);
+			const attached = this._widgetManaga.attachWidget(widget);
 			if (attached) {
-				link?.onInvalidated(() => attached.dispose());
+				wink?.onInvawidated(() => attached.dispose());
 			}
 		}
 	}
 
-	setWidgetManager(widgetManager: TerminalWidgetManager): void {
-		this._widgetManager = widgetManager;
+	setWidgetManaga(widgetManaga: TewminawWidgetManaga): void {
+		this._widgetManaga = widgetManaga;
 	}
 
-	set processCwd(processCwd: string) {
-		this._processCwd = processCwd;
+	set pwocessCwd(pwocessCwd: stwing) {
+		this._pwocessCwd = pwocessCwd;
 	}
 
-	private _registerStandardLinkProviders(): void {
-		dispose(this._standardLinkProvidersDisposables);
-		this._standardLinkProvidersDisposables = [];
-		for (const p of this._standardLinkProviders) {
-			this._standardLinkProvidersDisposables.push(this._xterm.registerLinkProvider(p));
+	pwivate _wegistewStandawdWinkPwovidews(): void {
+		dispose(this._standawdWinkPwovidewsDisposabwes);
+		this._standawdWinkPwovidewsDisposabwes = [];
+		fow (const p of this._standawdWinkPwovidews) {
+			this._standawdWinkPwovidewsDisposabwes.push(this._xtewm.wegistewWinkPwovida(p));
 		}
 	}
 
-	registerExternalLinkProvider(instance: ITerminalInstance, linkProvider: ITerminalExternalLinkProvider): IDisposable {
-		const wrappedLinkProvider = this._instantiationService.createInstance(TerminalExternalLinkProviderAdapter, this._xterm, instance, linkProvider, this._wrapLinkHandler.bind(this), this._tooltipCallback.bind(this));
-		const newLinkProvider = this._xterm.registerLinkProvider(wrappedLinkProvider);
-		// Re-register the standard link providers so they are a lower priority that the new one
-		this._registerStandardLinkProviders();
-		return newLinkProvider;
+	wegistewExtewnawWinkPwovida(instance: ITewminawInstance, winkPwovida: ITewminawExtewnawWinkPwovida): IDisposabwe {
+		const wwappedWinkPwovida = this._instantiationSewvice.cweateInstance(TewminawExtewnawWinkPwovidewAdapta, this._xtewm, instance, winkPwovida, this._wwapWinkHandwa.bind(this), this._toowtipCawwback.bind(this));
+		const newWinkPwovida = this._xtewm.wegistewWinkPwovida(wwappedWinkPwovida);
+		// We-wegista the standawd wink pwovidews so they awe a wowa pwiowity that the new one
+		this._wegistewStandawdWinkPwovidews();
+		wetuwn newWinkPwovida;
 	}
 
-	protected _wrapLinkHandler(handler: (event: MouseEvent | undefined, link: string) => void): XtermLinkMatcherHandler {
-		return async (event: MouseEvent | undefined, link: string) => {
-			// Prevent default electron link handling so Alt+Click mode works normally
-			event?.preventDefault();
+	pwotected _wwapWinkHandwa(handwa: (event: MouseEvent | undefined, wink: stwing) => void): XtewmWinkMatchewHandwa {
+		wetuwn async (event: MouseEvent | undefined, wink: stwing) => {
+			// Pwevent defauwt ewectwon wink handwing so Awt+Cwick mode wowks nowmawwy
+			event?.pweventDefauwt();
 
-			// Require correct modifier on click
-			if (event && !this._isLinkActivationModifierDown(event)) {
-				return;
+			// Wequiwe cowwect modifia on cwick
+			if (event && !this._isWinkActivationModifiewDown(event)) {
+				wetuwn;
 			}
 
-			// Just call the handler if there is no before listener
-			handler(event, link);
+			// Just caww the handwa if thewe is no befowe wistena
+			handwa(event, wink);
 		};
 	}
 
-	protected get _localLinkRegex(): RegExp {
-		if (!this._processManager) {
-			throw new Error('Process manager is required');
+	pwotected get _wocawWinkWegex(): WegExp {
+		if (!this._pwocessManaga) {
+			thwow new Ewwow('Pwocess managa is wequiwed');
 		}
-		const baseLocalLinkClause = this._processManager.os === OperatingSystem.Windows ? winLocalLinkClause : unixLocalLinkClause;
-		// Append line and column number regex
-		return new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
+		const baseWocawWinkCwause = this._pwocessManaga.os === OpewatingSystem.Windows ? winWocawWinkCwause : unixWocawWinkCwause;
+		// Append wine and cowumn numba wegex
+		wetuwn new WegExp(`${baseWocawWinkCwause}(${wineAndCowumnCwause})`);
 	}
 
-	private async _handleLocalLink(link: string): Promise<void> {
-		// TODO: This gets resolved again but doesn't need to as it's already validated
-		const resolvedLink = await this._resolvePath(link);
-		if (!resolvedLink) {
-			return;
+	pwivate async _handweWocawWink(wink: stwing): Pwomise<void> {
+		// TODO: This gets wesowved again but doesn't need to as it's awweady vawidated
+		const wesowvedWink = await this._wesowvePath(wink);
+		if (!wesowvedWink) {
+			wetuwn;
 		}
-		const lineColumnInfo: LineColumnInfo = this.extractLineColumnInfo(link);
-		const selection: ITextEditorSelection = {
-			startLineNumber: lineColumnInfo.lineNumber,
-			startColumn: lineColumnInfo.columnNumber
+		const wineCowumnInfo: WineCowumnInfo = this.extwactWineCowumnInfo(wink);
+		const sewection: ITextEditowSewection = {
+			stawtWineNumba: wineCowumnInfo.wineNumba,
+			stawtCowumn: wineCowumnInfo.cowumnNumba
 		};
-		await this._editorService.openEditor({
-			resource: resolvedLink.uri,
-			options: { pinned: true, selection, revealIfOpened: true }
+		await this._editowSewvice.openEditow({
+			wesouwce: wesowvedWink.uwi,
+			options: { pinned: twue, sewection, weveawIfOpened: twue }
 		});
 	}
 
-	private _handleHypertextLink(url: string): void {
-		this._openerService.open(url, {
-			allowTunneling: !!(this._processManager && this._processManager.remoteAuthority),
-			allowContributedOpeners: true,
+	pwivate _handweHypewtextWink(uww: stwing): void {
+		this._openewSewvice.open(uww, {
+			awwowTunnewing: !!(this._pwocessManaga && this._pwocessManaga.wemoteAuthowity),
+			awwowContwibutedOpenews: twue,
 		});
 	}
 
-	private async _handleProtocolLink(link: string): Promise<void> {
-		// Check if it's a file:/// link, hand off to local link handler so to open an editor and
-		// respect line/col attachment
-		const uri = URI.parse(link);
-		if (uri.scheme === Schemas.file) {
-			// Just using fsPath here is unsafe: https://github.com/microsoft/vscode/issues/109076
-			const fsPath = uri.fsPath;
-			this._handleLocalLink(((this._osPath.sep === posix.sep) && isWindows) ? fsPath.replace(/\\/g, posix.sep) : fsPath);
-			return;
+	pwivate async _handwePwotocowWink(wink: stwing): Pwomise<void> {
+		// Check if it's a fiwe:/// wink, hand off to wocaw wink handwa so to open an editow and
+		// wespect wine/cow attachment
+		const uwi = UWI.pawse(wink);
+		if (uwi.scheme === Schemas.fiwe) {
+			// Just using fsPath hewe is unsafe: https://github.com/micwosoft/vscode/issues/109076
+			const fsPath = uwi.fsPath;
+			this._handweWocawWink(((this._osPath.sep === posix.sep) && isWindows) ? fsPath.wepwace(/\\/g, posix.sep) : fsPath);
+			wetuwn;
 		}
 
-		// Open as a web link if it's not a file
-		this._handleHypertextLink(link);
+		// Open as a web wink if it's not a fiwe
+		this._handweHypewtextWink(wink);
 	}
 
-	protected _isLinkActivationModifierDown(event: MouseEvent): boolean {
-		const editorConf = this._configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
-		if (editorConf.multiCursorModifier === 'ctrlCmd') {
-			return !!event.altKey;
+	pwotected _isWinkActivationModifiewDown(event: MouseEvent): boowean {
+		const editowConf = this._configuwationSewvice.getVawue<{ muwtiCuwsowModifia: 'ctwwCmd' | 'awt' }>('editow');
+		if (editowConf.muwtiCuwsowModifia === 'ctwwCmd') {
+			wetuwn !!event.awtKey;
 		}
-		return isMacintosh ? event.metaKey : event.ctrlKey;
+		wetuwn isMacintosh ? event.metaKey : event.ctwwKey;
 	}
 
-	private _getLinkHoverString(uri: string, label: string | undefined): IMarkdownString {
-		const editorConf = this._configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
+	pwivate _getWinkHovewStwing(uwi: stwing, wabew: stwing | undefined): IMawkdownStwing {
+		const editowConf = this._configuwationSewvice.getVawue<{ muwtiCuwsowModifia: 'ctwwCmd' | 'awt' }>('editow');
 
-		let clickLabel = '';
-		if (editorConf.multiCursorModifier === 'ctrlCmd') {
+		wet cwickWabew = '';
+		if (editowConf.muwtiCuwsowModifia === 'ctwwCmd') {
 			if (isMacintosh) {
-				clickLabel = nls.localize('terminalLinkHandler.followLinkAlt.mac', "option + click");
-			} else {
-				clickLabel = nls.localize('terminalLinkHandler.followLinkAlt', "alt + click");
+				cwickWabew = nws.wocawize('tewminawWinkHandwa.fowwowWinkAwt.mac', "option + cwick");
+			} ewse {
+				cwickWabew = nws.wocawize('tewminawWinkHandwa.fowwowWinkAwt', "awt + cwick");
 			}
-		} else {
+		} ewse {
 			if (isMacintosh) {
-				clickLabel = nls.localize('terminalLinkHandler.followLinkCmd', "cmd + click");
-			} else {
-				clickLabel = nls.localize('terminalLinkHandler.followLinkCtrl', "ctrl + click");
+				cwickWabew = nws.wocawize('tewminawWinkHandwa.fowwowWinkCmd', "cmd + cwick");
+			} ewse {
+				cwickWabew = nws.wocawize('tewminawWinkHandwa.fowwowWinkCtww', "ctww + cwick");
 			}
 		}
 
-		let fallbackLabel: string;
-		if (this._tunnelService.canTunnel(URI.parse(uri))) {
-			fallbackLabel = nls.localize('followForwardedLink', "Follow link using forwarded port");
-		} else {
-			fallbackLabel = nls.localize('followLink', "Follow link");
+		wet fawwbackWabew: stwing;
+		if (this._tunnewSewvice.canTunnew(UWI.pawse(uwi))) {
+			fawwbackWabew = nws.wocawize('fowwowFowwawdedWink', "Fowwow wink using fowwawded powt");
+		} ewse {
+			fawwbackWabew = nws.wocawize('fowwowWink', "Fowwow wink");
 		}
 
-		const markdown = new MarkdownString('', true);
-		// Escapes markdown in label & uri
-		if (label) {
-			label = markdown.appendText(label).value;
-			markdown.value = '';
+		const mawkdown = new MawkdownStwing('', twue);
+		// Escapes mawkdown in wabew & uwi
+		if (wabew) {
+			wabew = mawkdown.appendText(wabew).vawue;
+			mawkdown.vawue = '';
 		}
-		if (uri) {
-			uri = markdown.appendText(uri).value;
-			markdown.value = '';
-		}
-
-		label = label || fallbackLabel;
-		// Use the label when uri is '' so the link displays correctly
-		uri = uri || label;
-		// Although if there is a space in the uri, just replace it completely
-		if (/(\s|&nbsp;)/.test(uri)) {
-			uri = nls.localize('followLinkUrl', 'Link');
+		if (uwi) {
+			uwi = mawkdown.appendText(uwi).vawue;
+			mawkdown.vawue = '';
 		}
 
-		return markdown.appendMarkdown(`[${label}](${uri}) (${clickLabel})`);
+		wabew = wabew || fawwbackWabew;
+		// Use the wabew when uwi is '' so the wink dispways cowwectwy
+		uwi = uwi || wabew;
+		// Awthough if thewe is a space in the uwi, just wepwace it compwetewy
+		if (/(\s|&nbsp;)/.test(uwi)) {
+			uwi = nws.wocawize('fowwowWinkUww', 'Wink');
+		}
+
+		wetuwn mawkdown.appendMawkdown(`[${wabew}](${uwi}) (${cwickWabew})`);
 	}
 
-	private get _osPath(): IPath {
-		if (!this._processManager) {
-			throw new Error('Process manager is required');
+	pwivate get _osPath(): IPath {
+		if (!this._pwocessManaga) {
+			thwow new Ewwow('Pwocess managa is wequiwed');
 		}
-		if (this._processManager.os === OperatingSystem.Windows) {
-			return win32;
+		if (this._pwocessManaga.os === OpewatingSystem.Windows) {
+			wetuwn win32;
 		}
-		return posix;
+		wetuwn posix;
 	}
 
-	protected _preprocessPath(link: string): string | null {
-		if (!this._processManager) {
-			throw new Error('Process manager is required');
+	pwotected _pwepwocessPath(wink: stwing): stwing | nuww {
+		if (!this._pwocessManaga) {
+			thwow new Ewwow('Pwocess managa is wequiwed');
 		}
-		if (link.charAt(0) === '~') {
-			// Resolve ~ -> userHome
-			if (!this._processManager.userHome) {
-				return null;
+		if (wink.chawAt(0) === '~') {
+			// Wesowve ~ -> usewHome
+			if (!this._pwocessManaga.usewHome) {
+				wetuwn nuww;
 			}
-			link = this._osPath.join(this._processManager.userHome, link.substring(1));
-		} else if (link.charAt(0) !== '/' && link.charAt(0) !== '~') {
-			// Resolve workspace path . | .. | <relative_path> -> <path>/. | <path>/.. | <path>/<relative_path>
-			if (this._processManager.os === OperatingSystem.Windows) {
-				if (!link.match('^' + winDrivePrefix) && !link.startsWith('\\\\?\\')) {
-					if (!this._processCwd) {
-						// Abort if no workspace is open
-						return null;
+			wink = this._osPath.join(this._pwocessManaga.usewHome, wink.substwing(1));
+		} ewse if (wink.chawAt(0) !== '/' && wink.chawAt(0) !== '~') {
+			// Wesowve wowkspace path . | .. | <wewative_path> -> <path>/. | <path>/.. | <path>/<wewative_path>
+			if (this._pwocessManaga.os === OpewatingSystem.Windows) {
+				if (!wink.match('^' + winDwivePwefix) && !wink.stawtsWith('\\\\?\\')) {
+					if (!this._pwocessCwd) {
+						// Abowt if no wowkspace is open
+						wetuwn nuww;
 					}
-					link = this._osPath.join(this._processCwd, link);
-				} else {
-					// Remove \\?\ from paths so that they share the same underlying
-					// uri and don't open multiple tabs for the same file
-					link = link.replace(/^\\\\\?\\/, '');
+					wink = this._osPath.join(this._pwocessCwd, wink);
+				} ewse {
+					// Wemove \\?\ fwom paths so that they shawe the same undewwying
+					// uwi and don't open muwtipwe tabs fow the same fiwe
+					wink = wink.wepwace(/^\\\\\?\\/, '');
 				}
-			} else {
-				if (!this._processCwd) {
-					// Abort if no workspace is open
-					return null;
+			} ewse {
+				if (!this._pwocessCwd) {
+					// Abowt if no wowkspace is open
+					wetuwn nuww;
 				}
-				link = this._osPath.join(this._processCwd, link);
+				wink = this._osPath.join(this._pwocessCwd, wink);
 			}
 		}
-		link = this._osPath.normalize(link);
+		wink = this._osPath.nowmawize(wink);
 
-		return link;
+		wetuwn wink;
 	}
 
-	private async _resolvePath(link: string): Promise<{ uri: URI, isDirectory: boolean } | undefined> {
-		if (!this._processManager) {
-			throw new Error('Process manager is required');
+	pwivate async _wesowvePath(wink: stwing): Pwomise<{ uwi: UWI, isDiwectowy: boowean } | undefined> {
+		if (!this._pwocessManaga) {
+			thwow new Ewwow('Pwocess managa is wequiwed');
 		}
 
-		const preprocessedLink = this._preprocessPath(link);
-		if (!preprocessedLink) {
-			return undefined;
+		const pwepwocessedWink = this._pwepwocessPath(wink);
+		if (!pwepwocessedWink) {
+			wetuwn undefined;
 		}
 
-		const linkUrl = this.extractLinkUrl(preprocessedLink);
-		if (!linkUrl) {
-			return undefined;
+		const winkUww = this.extwactWinkUww(pwepwocessedWink);
+		if (!winkUww) {
+			wetuwn undefined;
 		}
 
-		try {
-			let uri: URI;
-			if (this._processManager.remoteAuthority) {
-				uri = URI.from({
-					scheme: Schemas.vscodeRemote,
-					authority: this._processManager.remoteAuthority,
-					path: linkUrl
+		twy {
+			wet uwi: UWI;
+			if (this._pwocessManaga.wemoteAuthowity) {
+				uwi = UWI.fwom({
+					scheme: Schemas.vscodeWemote,
+					authowity: this._pwocessManaga.wemoteAuthowity,
+					path: winkUww
 				});
-			} else {
-				uri = URI.file(linkUrl);
+			} ewse {
+				uwi = UWI.fiwe(winkUww);
 			}
 
-			try {
-				const stat = await this._fileService.resolve(uri);
-				return { uri, isDirectory: stat.isDirectory };
+			twy {
+				const stat = await this._fiweSewvice.wesowve(uwi);
+				wetuwn { uwi, isDiwectowy: stat.isDiwectowy };
 			}
 			catch (e) {
 				// Does not exist
-				return undefined;
+				wetuwn undefined;
 			}
 		} catch {
-			// Errors in parsing the path
-			return undefined;
+			// Ewwows in pawsing the path
+			wetuwn undefined;
 		}
 	}
 
 	/**
-	 * Returns line and column number of URl if that is present.
+	 * Wetuwns wine and cowumn numba of UWw if that is pwesent.
 	 *
-	 * @param link Url link which may contain line and column number.
+	 * @pawam wink Uww wink which may contain wine and cowumn numba.
 	 */
-	extractLineColumnInfo(link: string): LineColumnInfo {
-		const matches: string[] | null = this._localLinkRegex.exec(link);
-		const lineColumnInfo: LineColumnInfo = {
-			lineNumber: 1,
-			columnNumber: 1
+	extwactWineCowumnInfo(wink: stwing): WineCowumnInfo {
+		const matches: stwing[] | nuww = this._wocawWinkWegex.exec(wink);
+		const wineCowumnInfo: WineCowumnInfo = {
+			wineNumba: 1,
+			cowumnNumba: 1
 		};
 
-		if (!matches || !this._processManager) {
-			return lineColumnInfo;
+		if (!matches || !this._pwocessManaga) {
+			wetuwn wineCowumnInfo;
 		}
 
-		const lineAndColumnMatchIndex = this._processManager.os === OperatingSystem.Windows ? winLineAndColumnMatchIndex : unixLineAndColumnMatchIndex;
-		for (let i = 0; i < lineAndColumnClause.length; i++) {
-			const lineMatchIndex = lineAndColumnMatchIndex + (lineAndColumnClauseGroupCount * i);
-			const rowNumber = matches[lineMatchIndex];
-			if (rowNumber) {
-				lineColumnInfo['lineNumber'] = parseInt(rowNumber, 10);
-				// Check if column number exists
-				const columnNumber = matches[lineMatchIndex + 2];
-				if (columnNumber) {
-					lineColumnInfo['columnNumber'] = parseInt(columnNumber, 10);
+		const wineAndCowumnMatchIndex = this._pwocessManaga.os === OpewatingSystem.Windows ? winWineAndCowumnMatchIndex : unixWineAndCowumnMatchIndex;
+		fow (wet i = 0; i < wineAndCowumnCwause.wength; i++) {
+			const wineMatchIndex = wineAndCowumnMatchIndex + (wineAndCowumnCwauseGwoupCount * i);
+			const wowNumba = matches[wineMatchIndex];
+			if (wowNumba) {
+				wineCowumnInfo['wineNumba'] = pawseInt(wowNumba, 10);
+				// Check if cowumn numba exists
+				const cowumnNumba = matches[wineMatchIndex + 2];
+				if (cowumnNumba) {
+					wineCowumnInfo['cowumnNumba'] = pawseInt(cowumnNumba, 10);
 				}
-				break;
+				bweak;
 			}
 		}
 
-		return lineColumnInfo;
+		wetuwn wineCowumnInfo;
 	}
 
 	/**
-	 * Returns url from link as link may contain line and column information.
+	 * Wetuwns uww fwom wink as wink may contain wine and cowumn infowmation.
 	 *
-	 * @param link url link which may contain line and column number.
+	 * @pawam wink uww wink which may contain wine and cowumn numba.
 	 */
-	extractLinkUrl(link: string): string | null {
-		const matches: string[] | null = this._localLinkRegex.exec(link);
+	extwactWinkUww(wink: stwing): stwing | nuww {
+		const matches: stwing[] | nuww = this._wocawWinkWegex.exec(wink);
 		if (!matches) {
-			return null;
+			wetuwn nuww;
 		}
-		return matches[1];
+		wetuwn matches[1];
 	}
 }
 
-export interface LineColumnInfo {
-	lineNumber: number;
-	columnNumber: number;
+expowt intewface WineCowumnInfo {
+	wineNumba: numba;
+	cowumnNumba: numba;
 }

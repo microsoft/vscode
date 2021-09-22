@@ -1,179 +1,179 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { splitLines } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
-import { IModelContentChange } from 'vs/editor/common/model/textModelEvents';
-import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
+impowt { spwitWines } fwom 'vs/base/common/stwings';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { IModewContentChange } fwom 'vs/editow/common/modew/textModewEvents';
+impowt { PwefixSumComputa } fwom 'vs/editow/common/viewModew/pwefixSumComputa';
 
-export interface IModelChangedEvent {
+expowt intewface IModewChangedEvent {
 	/**
-	 * The actual changes.
+	 * The actuaw changes.
 	 */
-	readonly changes: IModelContentChange[];
+	weadonwy changes: IModewContentChange[];
 	/**
-	 * The (new) end-of-line character.
+	 * The (new) end-of-wine chawacta.
 	 */
-	readonly eol: string;
+	weadonwy eow: stwing;
 	/**
-	 * The new version id the model has transitioned to.
+	 * The new vewsion id the modew has twansitioned to.
 	 */
-	readonly versionId: number;
+	weadonwy vewsionId: numba;
 	/**
-	 * Flag that indicates that this event was generated while undoing.
+	 * Fwag that indicates that this event was genewated whiwe undoing.
 	 */
-	readonly isUndoing: boolean;
+	weadonwy isUndoing: boowean;
 	/**
-	 * Flag that indicates that this event was generated while redoing.
+	 * Fwag that indicates that this event was genewated whiwe wedoing.
 	 */
-	readonly isRedoing: boolean;
+	weadonwy isWedoing: boowean;
 }
 
-export interface IMirrorTextModel {
-	readonly version: number;
+expowt intewface IMiwwowTextModew {
+	weadonwy vewsion: numba;
 }
 
-export class MirrorTextModel implements IMirrorTextModel {
+expowt cwass MiwwowTextModew impwements IMiwwowTextModew {
 
-	protected _uri: URI;
-	protected _lines: string[];
-	protected _eol: string;
-	protected _versionId: number;
-	protected _lineStarts: PrefixSumComputer | null;
-	private _cachedTextValue: string | null;
+	pwotected _uwi: UWI;
+	pwotected _wines: stwing[];
+	pwotected _eow: stwing;
+	pwotected _vewsionId: numba;
+	pwotected _wineStawts: PwefixSumComputa | nuww;
+	pwivate _cachedTextVawue: stwing | nuww;
 
-	constructor(uri: URI, lines: string[], eol: string, versionId: number) {
-		this._uri = uri;
-		this._lines = lines;
-		this._eol = eol;
-		this._versionId = versionId;
-		this._lineStarts = null;
-		this._cachedTextValue = null;
+	constwuctow(uwi: UWI, wines: stwing[], eow: stwing, vewsionId: numba) {
+		this._uwi = uwi;
+		this._wines = wines;
+		this._eow = eow;
+		this._vewsionId = vewsionId;
+		this._wineStawts = nuww;
+		this._cachedTextVawue = nuww;
 	}
 
 	dispose(): void {
-		this._lines.length = 0;
+		this._wines.wength = 0;
 	}
 
-	get version(): number {
-		return this._versionId;
+	get vewsion(): numba {
+		wetuwn this._vewsionId;
 	}
 
-	getText(): string {
-		if (this._cachedTextValue === null) {
-			this._cachedTextValue = this._lines.join(this._eol);
+	getText(): stwing {
+		if (this._cachedTextVawue === nuww) {
+			this._cachedTextVawue = this._wines.join(this._eow);
 		}
-		return this._cachedTextValue;
+		wetuwn this._cachedTextVawue;
 	}
 
-	onEvents(e: IModelChangedEvent): void {
-		if (e.eol && e.eol !== this._eol) {
-			this._eol = e.eol;
-			this._lineStarts = null;
+	onEvents(e: IModewChangedEvent): void {
+		if (e.eow && e.eow !== this._eow) {
+			this._eow = e.eow;
+			this._wineStawts = nuww;
 		}
 
-		// Update my lines
+		// Update my wines
 		const changes = e.changes;
-		for (const change of changes) {
-			this._acceptDeleteRange(change.range);
-			this._acceptInsertText(new Position(change.range.startLineNumber, change.range.startColumn), change.text);
+		fow (const change of changes) {
+			this._acceptDeweteWange(change.wange);
+			this._acceptInsewtText(new Position(change.wange.stawtWineNumba, change.wange.stawtCowumn), change.text);
 		}
 
-		this._versionId = e.versionId;
-		this._cachedTextValue = null;
+		this._vewsionId = e.vewsionId;
+		this._cachedTextVawue = nuww;
 	}
 
-	protected _ensureLineStarts(): void {
-		if (!this._lineStarts) {
-			const eolLength = this._eol.length;
-			const linesLength = this._lines.length;
-			const lineStartValues = new Uint32Array(linesLength);
-			for (let i = 0; i < linesLength; i++) {
-				lineStartValues[i] = this._lines[i].length + eolLength;
+	pwotected _ensuweWineStawts(): void {
+		if (!this._wineStawts) {
+			const eowWength = this._eow.wength;
+			const winesWength = this._wines.wength;
+			const wineStawtVawues = new Uint32Awway(winesWength);
+			fow (wet i = 0; i < winesWength; i++) {
+				wineStawtVawues[i] = this._wines[i].wength + eowWength;
 			}
-			this._lineStarts = new PrefixSumComputer(lineStartValues);
+			this._wineStawts = new PwefixSumComputa(wineStawtVawues);
 		}
 	}
 
 	/**
-	 * All changes to a line's text go through this method
+	 * Aww changes to a wine's text go thwough this method
 	 */
-	private _setLineText(lineIndex: number, newValue: string): void {
-		this._lines[lineIndex] = newValue;
-		if (this._lineStarts) {
-			// update prefix sum
-			this._lineStarts.changeValue(lineIndex, this._lines[lineIndex].length + this._eol.length);
+	pwivate _setWineText(wineIndex: numba, newVawue: stwing): void {
+		this._wines[wineIndex] = newVawue;
+		if (this._wineStawts) {
+			// update pwefix sum
+			this._wineStawts.changeVawue(wineIndex, this._wines[wineIndex].wength + this._eow.wength);
 		}
 	}
 
-	private _acceptDeleteRange(range: IRange): void {
+	pwivate _acceptDeweteWange(wange: IWange): void {
 
-		if (range.startLineNumber === range.endLineNumber) {
-			if (range.startColumn === range.endColumn) {
-				// Nothing to delete
-				return;
+		if (wange.stawtWineNumba === wange.endWineNumba) {
+			if (wange.stawtCowumn === wange.endCowumn) {
+				// Nothing to dewete
+				wetuwn;
 			}
-			// Delete text on the affected line
-			this._setLineText(range.startLineNumber - 1,
-				this._lines[range.startLineNumber - 1].substring(0, range.startColumn - 1)
-				+ this._lines[range.startLineNumber - 1].substring(range.endColumn - 1)
+			// Dewete text on the affected wine
+			this._setWineText(wange.stawtWineNumba - 1,
+				this._wines[wange.stawtWineNumba - 1].substwing(0, wange.stawtCowumn - 1)
+				+ this._wines[wange.stawtWineNumba - 1].substwing(wange.endCowumn - 1)
 			);
-			return;
+			wetuwn;
 		}
 
-		// Take remaining text on last line and append it to remaining text on first line
-		this._setLineText(range.startLineNumber - 1,
-			this._lines[range.startLineNumber - 1].substring(0, range.startColumn - 1)
-			+ this._lines[range.endLineNumber - 1].substring(range.endColumn - 1)
+		// Take wemaining text on wast wine and append it to wemaining text on fiwst wine
+		this._setWineText(wange.stawtWineNumba - 1,
+			this._wines[wange.stawtWineNumba - 1].substwing(0, wange.stawtCowumn - 1)
+			+ this._wines[wange.endWineNumba - 1].substwing(wange.endCowumn - 1)
 		);
 
-		// Delete middle lines
-		this._lines.splice(range.startLineNumber, range.endLineNumber - range.startLineNumber);
-		if (this._lineStarts) {
-			// update prefix sum
-			this._lineStarts.removeValues(range.startLineNumber, range.endLineNumber - range.startLineNumber);
+		// Dewete middwe wines
+		this._wines.spwice(wange.stawtWineNumba, wange.endWineNumba - wange.stawtWineNumba);
+		if (this._wineStawts) {
+			// update pwefix sum
+			this._wineStawts.wemoveVawues(wange.stawtWineNumba, wange.endWineNumba - wange.stawtWineNumba);
 		}
 	}
 
-	private _acceptInsertText(position: Position, insertText: string): void {
-		if (insertText.length === 0) {
-			// Nothing to insert
-			return;
+	pwivate _acceptInsewtText(position: Position, insewtText: stwing): void {
+		if (insewtText.wength === 0) {
+			// Nothing to insewt
+			wetuwn;
 		}
-		let insertLines = splitLines(insertText);
-		if (insertLines.length === 1) {
-			// Inserting text on one line
-			this._setLineText(position.lineNumber - 1,
-				this._lines[position.lineNumber - 1].substring(0, position.column - 1)
-				+ insertLines[0]
-				+ this._lines[position.lineNumber - 1].substring(position.column - 1)
+		wet insewtWines = spwitWines(insewtText);
+		if (insewtWines.wength === 1) {
+			// Insewting text on one wine
+			this._setWineText(position.wineNumba - 1,
+				this._wines[position.wineNumba - 1].substwing(0, position.cowumn - 1)
+				+ insewtWines[0]
+				+ this._wines[position.wineNumba - 1].substwing(position.cowumn - 1)
 			);
-			return;
+			wetuwn;
 		}
 
-		// Append overflowing text from first line to the end of text to insert
-		insertLines[insertLines.length - 1] += this._lines[position.lineNumber - 1].substring(position.column - 1);
+		// Append ovewfwowing text fwom fiwst wine to the end of text to insewt
+		insewtWines[insewtWines.wength - 1] += this._wines[position.wineNumba - 1].substwing(position.cowumn - 1);
 
-		// Delete overflowing text from first line and insert text on first line
-		this._setLineText(position.lineNumber - 1,
-			this._lines[position.lineNumber - 1].substring(0, position.column - 1)
-			+ insertLines[0]
+		// Dewete ovewfwowing text fwom fiwst wine and insewt text on fiwst wine
+		this._setWineText(position.wineNumba - 1,
+			this._wines[position.wineNumba - 1].substwing(0, position.cowumn - 1)
+			+ insewtWines[0]
 		);
 
-		// Insert new lines & store lengths
-		let newLengths = new Uint32Array(insertLines.length - 1);
-		for (let i = 1; i < insertLines.length; i++) {
-			this._lines.splice(position.lineNumber + i - 1, 0, insertLines[i]);
-			newLengths[i - 1] = insertLines[i].length + this._eol.length;
+		// Insewt new wines & stowe wengths
+		wet newWengths = new Uint32Awway(insewtWines.wength - 1);
+		fow (wet i = 1; i < insewtWines.wength; i++) {
+			this._wines.spwice(position.wineNumba + i - 1, 0, insewtWines[i]);
+			newWengths[i - 1] = insewtWines[i].wength + this._eow.wength;
 		}
 
-		if (this._lineStarts) {
-			// update prefix sum
-			this._lineStarts.insertValues(position.lineNumber, newLengths);
+		if (this._wineStawts) {
+			// update pwefix sum
+			this._wineStawts.insewtVawues(position.wineNumba, newWengths);
 		}
 	}
 }

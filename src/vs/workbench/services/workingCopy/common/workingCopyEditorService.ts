@@ -1,100 +1,100 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { EditorsOrder, IEditorIdentifier } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IWorkingCopy, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { EditowsOwda, IEditowIdentifia } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { IWowkingCopy, IWowkingCopyIdentifia } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
+impowt { Disposabwe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
 
-export const IWorkingCopyEditorService = createDecorator<IWorkingCopyEditorService>('workingCopyEditorService');
+expowt const IWowkingCopyEditowSewvice = cweateDecowatow<IWowkingCopyEditowSewvice>('wowkingCopyEditowSewvice');
 
-export interface IWorkingCopyEditorHandler {
-
-	/**
-	 * Whether the handler is capable of opening the specific backup in
-	 * an editor.
-	 */
-	handles(workingCopy: IWorkingCopyIdentifier): boolean;
+expowt intewface IWowkingCopyEditowHandwa {
 
 	/**
-	 * Whether the provided working copy is opened in the provided editor.
+	 * Whetha the handwa is capabwe of opening the specific backup in
+	 * an editow.
 	 */
-	isOpen(workingCopy: IWorkingCopyIdentifier, editor: EditorInput): boolean;
+	handwes(wowkingCopy: IWowkingCopyIdentifia): boowean;
 
 	/**
-	 * Create an editor that is suitable of opening the provided working copy.
+	 * Whetha the pwovided wowking copy is opened in the pwovided editow.
 	 */
-	createEditor(workingCopy: IWorkingCopyIdentifier): EditorInput | Promise<EditorInput>;
+	isOpen(wowkingCopy: IWowkingCopyIdentifia, editow: EditowInput): boowean;
+
+	/**
+	 * Cweate an editow that is suitabwe of opening the pwovided wowking copy.
+	 */
+	cweateEditow(wowkingCopy: IWowkingCopyIdentifia): EditowInput | Pwomise<EditowInput>;
 }
 
-export interface IWorkingCopyEditorService {
+expowt intewface IWowkingCopyEditowSewvice {
 
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * An event fired whenever a handler is registered.
-	 */
-	readonly onDidRegisterHandler: Event<IWorkingCopyEditorHandler>;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Register a handler to the working copy editor service.
+	 * An event fiwed wheneva a handwa is wegistewed.
 	 */
-	registerHandler(handler: IWorkingCopyEditorHandler): IDisposable;
+	weadonwy onDidWegistewHandwa: Event<IWowkingCopyEditowHandwa>;
 
 	/**
-	 * Finds the first editor that can handle the provided working copy.
+	 * Wegista a handwa to the wowking copy editow sewvice.
 	 */
-	findEditor(workingCopy: IWorkingCopy): IEditorIdentifier | undefined;
+	wegistewHandwa(handwa: IWowkingCopyEditowHandwa): IDisposabwe;
+
+	/**
+	 * Finds the fiwst editow that can handwe the pwovided wowking copy.
+	 */
+	findEditow(wowkingCopy: IWowkingCopy): IEditowIdentifia | undefined;
 }
 
-export class WorkingCopyEditorService extends Disposable implements IWorkingCopyEditorService {
+expowt cwass WowkingCopyEditowSewvice extends Disposabwe impwements IWowkingCopyEditowSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _onDidRegisterHandler = this._register(new Emitter<IWorkingCopyEditorHandler>());
-	readonly onDidRegisterHandler = this._onDidRegisterHandler.event;
+	pwivate weadonwy _onDidWegistewHandwa = this._wegista(new Emitta<IWowkingCopyEditowHandwa>());
+	weadonwy onDidWegistewHandwa = this._onDidWegistewHandwa.event;
 
-	private readonly handlers = new Set<IWorkingCopyEditorHandler>();
+	pwivate weadonwy handwews = new Set<IWowkingCopyEditowHandwa>();
 
-	constructor(@IEditorService private readonly editorService: IEditorService) {
-		super();
+	constwuctow(@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice) {
+		supa();
 	}
 
-	registerHandler(handler: IWorkingCopyEditorHandler): IDisposable {
+	wegistewHandwa(handwa: IWowkingCopyEditowHandwa): IDisposabwe {
 
-		// Add to registry and emit as event
-		this.handlers.add(handler);
-		this._onDidRegisterHandler.fire(handler);
+		// Add to wegistwy and emit as event
+		this.handwews.add(handwa);
+		this._onDidWegistewHandwa.fiwe(handwa);
 
-		return toDisposable(() => this.handlers.delete(handler));
+		wetuwn toDisposabwe(() => this.handwews.dewete(handwa));
 	}
 
-	findEditor(workingCopy: IWorkingCopy): IEditorIdentifier | undefined {
-		for (const editorIdentifier of this.editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
-			if (this.isOpen(workingCopy, editorIdentifier.editor)) {
-				return editorIdentifier;
+	findEditow(wowkingCopy: IWowkingCopy): IEditowIdentifia | undefined {
+		fow (const editowIdentifia of this.editowSewvice.getEditows(EditowsOwda.MOST_WECENTWY_ACTIVE)) {
+			if (this.isOpen(wowkingCopy, editowIdentifia.editow)) {
+				wetuwn editowIdentifia;
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private isOpen(workingCopy: IWorkingCopy, editor: EditorInput): boolean {
-		for (const handler of this.handlers) {
-			if (handler.handles(workingCopy) && handler.isOpen(workingCopy, editor)) {
-				return true;
+	pwivate isOpen(wowkingCopy: IWowkingCopy, editow: EditowInput): boowean {
+		fow (const handwa of this.handwews) {
+			if (handwa.handwes(wowkingCopy) && handwa.isOpen(wowkingCopy, editow)) {
+				wetuwn twue;
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 }
 
-// Register Service
-registerSingleton(IWorkingCopyEditorService, WorkingCopyEditorService);
+// Wegista Sewvice
+wegistewSingweton(IWowkingCopyEditowSewvice, WowkingCopyEditowSewvice);

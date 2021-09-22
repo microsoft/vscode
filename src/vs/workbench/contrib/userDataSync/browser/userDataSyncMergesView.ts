@@ -1,369 +1,369 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/userDataSyncViews';
-import { ITreeItem, TreeItemCollapsibleState, TreeViewItemHandleArg, IViewDescriptorService } from 'vs/workbench/common/views';
-import { localize } from 'vs/nls';
-import { TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IUserDataSyncService, Change, MergeState, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
-import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { URI } from 'vs/base/common/uri';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, dispose } from 'vs/base/common/lifecycle';
-import { Codicon } from 'vs/base/common/codicons';
-import { IUserDataSyncWorkbenchService, getSyncAreaLabel, IUserDataSyncPreview, IUserDataSyncResource, SYNC_MERGES_VIEW_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
-import { isEqual, basename } from 'vs/base/common/resources';
-import { IDecorationsProvider, IDecorationData, IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
-import { IProgressService } from 'vs/platform/progress/common/progress';
-import { listWarningForeground, listDeemphasizedForeground } from 'vs/platform/theme/common/colorRegistry';
-import * as DOM from 'vs/base/browser/dom';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { attachButtonStyler } from 'vs/platform/theme/common/styler';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { Severity } from 'vs/platform/notification/common/notification';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
+impowt 'vs/css!./media/usewDataSyncViews';
+impowt { ITweeItem, TweeItemCowwapsibweState, TweeViewItemHandweAwg, IViewDescwiptowSewvice } fwom 'vs/wowkbench/common/views';
+impowt { wocawize } fwom 'vs/nws';
+impowt { TweeViewPane } fwom 'vs/wowkbench/bwowsa/pawts/views/tweeView';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IUsewDataSyncSewvice, Change, MewgeState, SyncWesouwce } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { wegistewAction2, Action2, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ContextKeyExpw, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { IUsewDataSyncWowkbenchSewvice, getSyncAweaWabew, IUsewDataSyncPweview, IUsewDataSyncWesouwce, SYNC_MEWGES_VIEW_ID } fwom 'vs/wowkbench/sewvices/usewDataSync/common/usewDataSync';
+impowt { isEquaw, basename } fwom 'vs/base/common/wesouwces';
+impowt { IDecowationsPwovida, IDecowationData, IDecowationsSewvice } fwom 'vs/wowkbench/sewvices/decowations/common/decowations';
+impowt { IPwogwessSewvice } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { wistWawningFowegwound, wistDeemphasizedFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { Button } fwom 'vs/base/bwowsa/ui/button/button';
+impowt { IViewwetViewOptions } fwom 'vs/wowkbench/bwowsa/pawts/views/viewsViewwet';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { attachButtonStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { DiffEditowInput } fwom 'vs/wowkbench/common/editow/diffEditowInput';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { FwoatingCwickWidget } fwom 'vs/wowkbench/bwowsa/codeeditow';
+impowt { wegistewEditowContwibution } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { EditowWesowution } fwom 'vs/pwatfowm/editow/common/editow';
 
-export class UserDataSyncMergesViewPane extends TreeViewPane {
+expowt cwass UsewDataSyncMewgesViewPane extends TweeViewPane {
 
-	private userDataSyncPreview: IUserDataSyncPreview;
+	pwivate usewDataSyncPweview: IUsewDataSyncPweview;
 
-	private buttonsContainer!: HTMLElement;
-	private syncButton!: Button;
-	private cancelButton!: Button;
+	pwivate buttonsContaina!: HTMWEwement;
+	pwivate syncButton!: Button;
+	pwivate cancewButton!: Button;
 
-	private readonly treeItems = new Map<string, ITreeItem>();
+	pwivate weadonwy tweeItems = new Map<stwing, ITweeItem>();
 
-	constructor(
-		options: IViewletViewOptions,
-		@IEditorService private readonly editorService: IEditorService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IProgressService private readonly progressService: IProgressService,
-		@IUserDataSyncWorkbenchService userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
-		@IDecorationsService decorationsService: IDecorationsService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IOpenerService openerService: IOpenerService,
-		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
+	constwuctow(
+		options: IViewwetViewOptions,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
+		@IPwogwessSewvice pwivate weadonwy pwogwessSewvice: IPwogwessSewvice,
+		@IUsewDataSyncWowkbenchSewvice usewDataSyncWowkbenchSewvice: IUsewDataSyncWowkbenchSewvice,
+		@IDecowationsSewvice decowationsSewvice: IDecowationsSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
-		this.userDataSyncPreview = userDataSyncWorkbenchService.userDataSyncPreview;
+		supa(options, keybindingSewvice, contextMenuSewvice, configuwationSewvice, contextKeySewvice, viewDescwiptowSewvice, instantiationSewvice, openewSewvice, themeSewvice, tewemetwySewvice);
+		this.usewDataSyncPweview = usewDataSyncWowkbenchSewvice.usewDataSyncPweview;
 
-		this._register(this.userDataSyncPreview.onDidChangeResources(() => this.updateSyncButtonEnablement()));
-		this._register(this.userDataSyncPreview.onDidChangeResources(() => this.treeView.refresh()));
-		this._register(this.userDataSyncPreview.onDidChangeResources(() => this.closeDiffEditors()));
-		this._register(decorationsService.registerDecorationsProvider(this._register(new UserDataSyncResourcesDecorationProvider(this.userDataSyncPreview))));
+		this._wegista(this.usewDataSyncPweview.onDidChangeWesouwces(() => this.updateSyncButtonEnabwement()));
+		this._wegista(this.usewDataSyncPweview.onDidChangeWesouwces(() => this.tweeView.wefwesh()));
+		this._wegista(this.usewDataSyncPweview.onDidChangeWesouwces(() => this.cwoseDiffEditows()));
+		this._wegista(decowationsSewvice.wegistewDecowationsPwovida(this._wegista(new UsewDataSyncWesouwcesDecowationPwovida(this.usewDataSyncPweview))));
 
-		this.registerActions();
+		this.wegistewActions();
 	}
 
-	protected override renderTreeView(container: HTMLElement): void {
-		super.renderTreeView(DOM.append(container, DOM.$('')));
-		this.createButtons(container);
+	pwotected ovewwide wendewTweeView(containa: HTMWEwement): void {
+		supa.wendewTweeView(DOM.append(containa, DOM.$('')));
+		this.cweateButtons(containa);
 
 		const that = this;
-		this.treeView.message = localize('explanation', "Please go through each entry and merge to enable sync.");
-		this.treeView.dataProvider = { getChildren() { return that.getTreeItems(); } };
+		this.tweeView.message = wocawize('expwanation', "Pwease go thwough each entwy and mewge to enabwe sync.");
+		this.tweeView.dataPwovida = { getChiwdwen() { wetuwn that.getTweeItems(); } };
 	}
 
-	private createButtons(container: HTMLElement): void {
-		this.buttonsContainer = DOM.append(container, DOM.$('.manual-sync-buttons-container'));
+	pwivate cweateButtons(containa: HTMWEwement): void {
+		this.buttonsContaina = DOM.append(containa, DOM.$('.manuaw-sync-buttons-containa'));
 
-		this.syncButton = this._register(new Button(this.buttonsContainer));
-		this.syncButton.label = localize('turn on sync', "Turn on Settings Sync");
-		this.updateSyncButtonEnablement();
-		this._register(attachButtonStyler(this.syncButton, this.themeService));
-		this._register(this.syncButton.onDidClick(() => this.apply()));
+		this.syncButton = this._wegista(new Button(this.buttonsContaina));
+		this.syncButton.wabew = wocawize('tuwn on sync', "Tuwn on Settings Sync");
+		this.updateSyncButtonEnabwement();
+		this._wegista(attachButtonStywa(this.syncButton, this.themeSewvice));
+		this._wegista(this.syncButton.onDidCwick(() => this.appwy()));
 
-		this.cancelButton = this._register(new Button(this.buttonsContainer, { secondary: true }));
-		this.cancelButton.label = localize('cancel', "Cancel");
-		this._register(attachButtonStyler(this.cancelButton, this.themeService));
-		this._register(this.cancelButton.onDidClick(() => this.cancel()));
+		this.cancewButton = this._wegista(new Button(this.buttonsContaina, { secondawy: twue }));
+		this.cancewButton.wabew = wocawize('cancew', "Cancew");
+		this._wegista(attachButtonStywa(this.cancewButton, this.themeSewvice));
+		this._wegista(this.cancewButton.onDidCwick(() => this.cancew()));
 	}
 
-	protected override layoutTreeView(height: number, width: number): void {
-		const buttonContainerHeight = 78;
-		this.buttonsContainer.style.height = `${buttonContainerHeight}px`;
-		this.buttonsContainer.style.width = `${width}px`;
+	pwotected ovewwide wayoutTweeView(height: numba, width: numba): void {
+		const buttonContainewHeight = 78;
+		this.buttonsContaina.stywe.height = `${buttonContainewHeight}px`;
+		this.buttonsContaina.stywe.width = `${width}px`;
 
-		const numberOfChanges = this.userDataSyncPreview.resources.filter(r => r.syncResource !== SyncResource.GlobalState && (r.localChange !== Change.None || r.remoteChange !== Change.None)).length;
+		const numbewOfChanges = this.usewDataSyncPweview.wesouwces.fiwta(w => w.syncWesouwce !== SyncWesouwce.GwobawState && (w.wocawChange !== Change.None || w.wemoteChange !== Change.None)).wength;
 		const messageHeight = 44;
-		super.layoutTreeView(Math.min(height - buttonContainerHeight, ((22 * numberOfChanges) + messageHeight)), width);
+		supa.wayoutTweeView(Math.min(height - buttonContainewHeight, ((22 * numbewOfChanges) + messageHeight)), width);
 	}
 
-	private updateSyncButtonEnablement(): void {
-		this.syncButton.enabled = this.userDataSyncPreview.resources.every(c => c.syncResource === SyncResource.GlobalState || c.mergeState === MergeState.Accepted);
+	pwivate updateSyncButtonEnabwement(): void {
+		this.syncButton.enabwed = this.usewDataSyncPweview.wesouwces.evewy(c => c.syncWesouwce === SyncWesouwce.GwobawState || c.mewgeState === MewgeState.Accepted);
 	}
 
-	private async getTreeItems(): Promise<ITreeItem[]> {
-		this.treeItems.clear();
-		const roots: ITreeItem[] = [];
-		for (const resource of this.userDataSyncPreview.resources) {
-			if (resource.syncResource !== SyncResource.GlobalState && (resource.localChange !== Change.None || resource.remoteChange !== Change.None)) {
-				const handle = JSON.stringify(resource);
-				const treeItem = {
-					handle,
-					resourceUri: resource.remote,
-					label: { label: basename(resource.remote), strikethrough: resource.mergeState === MergeState.Accepted && (resource.localChange === Change.Deleted || resource.remoteChange === Change.Deleted) },
-					description: getSyncAreaLabel(resource.syncResource),
-					collapsibleState: TreeItemCollapsibleState.None,
-					command: { id: `workbench.actions.sync.showChanges`, title: '', arguments: [<TreeViewItemHandleArg>{ $treeViewId: '', $treeItemHandle: handle }] },
-					contextValue: `sync-resource-${resource.mergeState}`
+	pwivate async getTweeItems(): Pwomise<ITweeItem[]> {
+		this.tweeItems.cweaw();
+		const woots: ITweeItem[] = [];
+		fow (const wesouwce of this.usewDataSyncPweview.wesouwces) {
+			if (wesouwce.syncWesouwce !== SyncWesouwce.GwobawState && (wesouwce.wocawChange !== Change.None || wesouwce.wemoteChange !== Change.None)) {
+				const handwe = JSON.stwingify(wesouwce);
+				const tweeItem = {
+					handwe,
+					wesouwceUwi: wesouwce.wemote,
+					wabew: { wabew: basename(wesouwce.wemote), stwikethwough: wesouwce.mewgeState === MewgeState.Accepted && (wesouwce.wocawChange === Change.Deweted || wesouwce.wemoteChange === Change.Deweted) },
+					descwiption: getSyncAweaWabew(wesouwce.syncWesouwce),
+					cowwapsibweState: TweeItemCowwapsibweState.None,
+					command: { id: `wowkbench.actions.sync.showChanges`, titwe: '', awguments: [<TweeViewItemHandweAwg>{ $tweeViewId: '', $tweeItemHandwe: handwe }] },
+					contextVawue: `sync-wesouwce-${wesouwce.mewgeState}`
 				};
-				this.treeItems.set(handle, treeItem);
-				roots.push(treeItem);
+				this.tweeItems.set(handwe, tweeItem);
+				woots.push(tweeItem);
 			}
 		}
-		return roots;
+		wetuwn woots;
 	}
 
-	private toUserDataSyncResourceGroup(handle: string): IUserDataSyncResource {
-		const parsed: IUserDataSyncResource = JSON.parse(handle);
-		return {
-			syncResource: parsed.syncResource,
-			local: URI.revive(parsed.local),
-			remote: URI.revive(parsed.remote),
-			merged: URI.revive(parsed.merged),
-			accepted: URI.revive(parsed.accepted),
-			localChange: parsed.localChange,
-			remoteChange: parsed.remoteChange,
-			mergeState: parsed.mergeState,
+	pwivate toUsewDataSyncWesouwceGwoup(handwe: stwing): IUsewDataSyncWesouwce {
+		const pawsed: IUsewDataSyncWesouwce = JSON.pawse(handwe);
+		wetuwn {
+			syncWesouwce: pawsed.syncWesouwce,
+			wocaw: UWI.wevive(pawsed.wocaw),
+			wemote: UWI.wevive(pawsed.wemote),
+			mewged: UWI.wevive(pawsed.mewged),
+			accepted: UWI.wevive(pawsed.accepted),
+			wocawChange: pawsed.wocawChange,
+			wemoteChange: pawsed.wemoteChange,
+			mewgeState: pawsed.mewgeState,
 		};
 	}
 
-	private registerActions(): void {
+	pwivate wegistewActions(): void {
 		const that = this;
 
-		/* accept remote change */
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: `workbench.actions.sync.acceptRemote`,
-					title: localize('workbench.actions.sync.acceptRemote', "Accept Remote"),
-					icon: Codicon.cloudDownload,
+		/* accept wemote change */
+		this._wegista(wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: `wowkbench.actions.sync.acceptWemote`,
+					titwe: wocawize('wowkbench.actions.sync.acceptWemote', "Accept Wemote"),
+					icon: Codicon.cwoudDownwoad,
 					menu: {
 						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', SYNC_MERGES_VIEW_ID), ContextKeyExpr.equals('viewItem', 'sync-resource-preview')),
-						group: 'inline',
-						order: 1,
+						when: ContextKeyExpw.and(ContextKeyExpw.equaws('view', SYNC_MEWGES_VIEW_ID), ContextKeyExpw.equaws('viewItem', 'sync-wesouwce-pweview')),
+						gwoup: 'inwine',
+						owda: 1,
 					},
 				});
 			}
-			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
-				return that.acceptRemote(that.toUserDataSyncResourceGroup(handle.$treeItemHandle));
+			async wun(accessow: SewvicesAccessow, handwe: TweeViewItemHandweAwg): Pwomise<void> {
+				wetuwn that.acceptWemote(that.toUsewDataSyncWesouwceGwoup(handwe.$tweeItemHandwe));
 			}
 		}));
 
-		/* accept local change */
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: `workbench.actions.sync.acceptLocal`,
-					title: localize('workbench.actions.sync.acceptLocal', "Accept Local"),
-					icon: Codicon.cloudUpload,
+		/* accept wocaw change */
+		this._wegista(wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: `wowkbench.actions.sync.acceptWocaw`,
+					titwe: wocawize('wowkbench.actions.sync.acceptWocaw', "Accept Wocaw"),
+					icon: Codicon.cwoudUpwoad,
 					menu: {
 						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', SYNC_MERGES_VIEW_ID), ContextKeyExpr.equals('viewItem', 'sync-resource-preview')),
-						group: 'inline',
-						order: 2,
+						when: ContextKeyExpw.and(ContextKeyExpw.equaws('view', SYNC_MEWGES_VIEW_ID), ContextKeyExpw.equaws('viewItem', 'sync-wesouwce-pweview')),
+						gwoup: 'inwine',
+						owda: 2,
 					},
 				});
 			}
-			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
-				return that.acceptLocal(that.toUserDataSyncResourceGroup(handle.$treeItemHandle));
+			async wun(accessow: SewvicesAccessow, handwe: TweeViewItemHandweAwg): Pwomise<void> {
+				wetuwn that.acceptWocaw(that.toUsewDataSyncWesouwceGwoup(handwe.$tweeItemHandwe));
 			}
 		}));
 
-		/* merge */
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: `workbench.actions.sync.merge`,
-					title: localize('workbench.actions.sync.merge', "Merge"),
-					icon: Codicon.merge,
+		/* mewge */
+		this._wegista(wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: `wowkbench.actions.sync.mewge`,
+					titwe: wocawize('wowkbench.actions.sync.mewge', "Mewge"),
+					icon: Codicon.mewge,
 					menu: {
 						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', SYNC_MERGES_VIEW_ID), ContextKeyExpr.equals('viewItem', 'sync-resource-preview')),
-						group: 'inline',
-						order: 3,
+						when: ContextKeyExpw.and(ContextKeyExpw.equaws('view', SYNC_MEWGES_VIEW_ID), ContextKeyExpw.equaws('viewItem', 'sync-wesouwce-pweview')),
+						gwoup: 'inwine',
+						owda: 3,
 					},
 				});
 			}
-			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
-				return that.mergeResource(that.toUserDataSyncResourceGroup(handle.$treeItemHandle));
+			async wun(accessow: SewvicesAccessow, handwe: TweeViewItemHandweAwg): Pwomise<void> {
+				wetuwn that.mewgeWesouwce(that.toUsewDataSyncWesouwceGwoup(handwe.$tweeItemHandwe));
 			}
 		}));
 
-		/* discard */
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: `workbench.actions.sync.undo`,
-					title: localize('workbench.actions.sync.discard', "Discard"),
-					icon: Codicon.discard,
+		/* discawd */
+		this._wegista(wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: `wowkbench.actions.sync.undo`,
+					titwe: wocawize('wowkbench.actions.sync.discawd', "Discawd"),
+					icon: Codicon.discawd,
 					menu: {
 						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', SYNC_MERGES_VIEW_ID), ContextKeyExpr.or(ContextKeyExpr.equals('viewItem', 'sync-resource-accepted'), ContextKeyExpr.equals('viewItem', 'sync-resource-conflict'))),
-						group: 'inline',
-						order: 3,
+						when: ContextKeyExpw.and(ContextKeyExpw.equaws('view', SYNC_MEWGES_VIEW_ID), ContextKeyExpw.ow(ContextKeyExpw.equaws('viewItem', 'sync-wesouwce-accepted'), ContextKeyExpw.equaws('viewItem', 'sync-wesouwce-confwict'))),
+						gwoup: 'inwine',
+						owda: 3,
 					},
 				});
 			}
-			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
-				return that.discardResource(that.toUserDataSyncResourceGroup(handle.$treeItemHandle));
+			async wun(accessow: SewvicesAccessow, handwe: TweeViewItemHandweAwg): Pwomise<void> {
+				wetuwn that.discawdWesouwce(that.toUsewDataSyncWesouwceGwoup(handwe.$tweeItemHandwe));
 			}
 		}));
 
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: `workbench.actions.sync.showChanges`,
-					title: localize({ key: 'workbench.actions.sync.showChanges', comment: ['This is an action title to show the changes between local and remote version of resources'] }, "Open Changes"),
+		this._wegista(wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: `wowkbench.actions.sync.showChanges`,
+					titwe: wocawize({ key: 'wowkbench.actions.sync.showChanges', comment: ['This is an action titwe to show the changes between wocaw and wemote vewsion of wesouwces'] }, "Open Changes"),
 				});
 			}
-			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
-				const previewResource: IUserDataSyncResource = that.toUserDataSyncResourceGroup(handle.$treeItemHandle);
-				return that.open(previewResource);
+			async wun(accessow: SewvicesAccessow, handwe: TweeViewItemHandweAwg): Pwomise<void> {
+				const pweviewWesouwce: IUsewDataSyncWesouwce = that.toUsewDataSyncWesouwceGwoup(handwe.$tweeItemHandwe);
+				wetuwn that.open(pweviewWesouwce);
 			}
 		}));
 	}
 
-	private async acceptLocal(userDataSyncResource: IUserDataSyncResource): Promise<void> {
-		await this.withProgress(async () => {
-			await this.userDataSyncPreview.accept(userDataSyncResource.syncResource, userDataSyncResource.local);
+	pwivate async acceptWocaw(usewDataSyncWesouwce: IUsewDataSyncWesouwce): Pwomise<void> {
+		await this.withPwogwess(async () => {
+			await this.usewDataSyncPweview.accept(usewDataSyncWesouwce.syncWesouwce, usewDataSyncWesouwce.wocaw);
 		});
-		await this.reopen(userDataSyncResource);
+		await this.weopen(usewDataSyncWesouwce);
 	}
 
-	private async acceptRemote(userDataSyncResource: IUserDataSyncResource): Promise<void> {
-		await this.withProgress(async () => {
-			await this.userDataSyncPreview.accept(userDataSyncResource.syncResource, userDataSyncResource.remote);
+	pwivate async acceptWemote(usewDataSyncWesouwce: IUsewDataSyncWesouwce): Pwomise<void> {
+		await this.withPwogwess(async () => {
+			await this.usewDataSyncPweview.accept(usewDataSyncWesouwce.syncWesouwce, usewDataSyncWesouwce.wemote);
 		});
-		await this.reopen(userDataSyncResource);
+		await this.weopen(usewDataSyncWesouwce);
 	}
 
-	private async mergeResource(previewResource: IUserDataSyncResource): Promise<void> {
-		await this.withProgress(() => this.userDataSyncPreview.merge(previewResource.merged));
-		previewResource = this.userDataSyncPreview.resources.find(({ local }) => isEqual(local, previewResource.local))!;
-		await this.reopen(previewResource);
-		if (previewResource.mergeState === MergeState.Conflict) {
-			await this.dialogService.show(Severity.Warning, localize('conflicts detected', "Conflicts Detected"), undefined, {
-				detail: localize('resolve', "Unable to merge due to conflicts. Please resolve them to continue.")
+	pwivate async mewgeWesouwce(pweviewWesouwce: IUsewDataSyncWesouwce): Pwomise<void> {
+		await this.withPwogwess(() => this.usewDataSyncPweview.mewge(pweviewWesouwce.mewged));
+		pweviewWesouwce = this.usewDataSyncPweview.wesouwces.find(({ wocaw }) => isEquaw(wocaw, pweviewWesouwce.wocaw))!;
+		await this.weopen(pweviewWesouwce);
+		if (pweviewWesouwce.mewgeState === MewgeState.Confwict) {
+			await this.diawogSewvice.show(Sevewity.Wawning, wocawize('confwicts detected', "Confwicts Detected"), undefined, {
+				detaiw: wocawize('wesowve', "Unabwe to mewge due to confwicts. Pwease wesowve them to continue.")
 			});
 		}
 	}
 
-	private async discardResource(previewResource: IUserDataSyncResource): Promise<void> {
-		this.close(previewResource);
-		return this.withProgress(() => this.userDataSyncPreview.discard(previewResource.merged));
+	pwivate async discawdWesouwce(pweviewWesouwce: IUsewDataSyncWesouwce): Pwomise<void> {
+		this.cwose(pweviewWesouwce);
+		wetuwn this.withPwogwess(() => this.usewDataSyncPweview.discawd(pweviewWesouwce.mewged));
 	}
 
-	private async apply(): Promise<void> {
-		this.closeAll();
-		this.syncButton.label = localize('turning on', "Turning on...");
-		this.syncButton.enabled = false;
-		this.cancelButton.enabled = false;
-		try {
-			await this.withProgress(async () => this.userDataSyncPreview.apply());
-		} catch (error) {
-			this.syncButton.enabled = false;
-			this.cancelButton.enabled = true;
+	pwivate async appwy(): Pwomise<void> {
+		this.cwoseAww();
+		this.syncButton.wabew = wocawize('tuwning on', "Tuwning on...");
+		this.syncButton.enabwed = fawse;
+		this.cancewButton.enabwed = fawse;
+		twy {
+			await this.withPwogwess(async () => this.usewDataSyncPweview.appwy());
+		} catch (ewwow) {
+			this.syncButton.enabwed = fawse;
+			this.cancewButton.enabwed = twue;
 		}
 	}
 
-	private async cancel(): Promise<void> {
-		for (const resource of this.userDataSyncPreview.resources) {
-			this.close(resource);
+	pwivate async cancew(): Pwomise<void> {
+		fow (const wesouwce of this.usewDataSyncPweview.wesouwces) {
+			this.cwose(wesouwce);
 		}
-		await this.userDataSyncPreview.cancel();
+		await this.usewDataSyncPweview.cancew();
 	}
 
-	private async open(previewResource: IUserDataSyncResource): Promise<void> {
-		if (previewResource.mergeState === MergeState.Accepted) {
-			if (previewResource.localChange !== Change.Deleted && previewResource.remoteChange !== Change.Deleted) {
-				// Do not open deleted preview
-				await this.editorService.openEditor({
-					resource: previewResource.accepted,
-					label: localize('preview', "{0} (Preview)", basename(previewResource.accepted)),
-					options: { pinned: true }
+	pwivate async open(pweviewWesouwce: IUsewDataSyncWesouwce): Pwomise<void> {
+		if (pweviewWesouwce.mewgeState === MewgeState.Accepted) {
+			if (pweviewWesouwce.wocawChange !== Change.Deweted && pweviewWesouwce.wemoteChange !== Change.Deweted) {
+				// Do not open deweted pweview
+				await this.editowSewvice.openEditow({
+					wesouwce: pweviewWesouwce.accepted,
+					wabew: wocawize('pweview', "{0} (Pweview)", basename(pweviewWesouwce.accepted)),
+					options: { pinned: twue }
 				});
 			}
-		} else {
-			const leftResource = previewResource.remote;
-			const rightResource = previewResource.mergeState === MergeState.Conflict ? previewResource.merged : previewResource.local;
-			const leftResourceName = localize({ key: 'leftResourceName', comment: ['remote as in file in cloud'] }, "{0} (Remote)", basename(leftResource));
-			const rightResourceName = previewResource.mergeState === MergeState.Conflict ? localize('merges', "{0} (Merges)", basename(rightResource))
-				: localize({ key: 'rightResourceName', comment: ['local as in file in disk'] }, "{0} (Local)", basename(rightResource));
-			await this.editorService.openEditor({
-				original: { resource: leftResource },
-				modified: { resource: rightResource },
-				label: localize('sideBySideLabels', "{0} ↔ {1}", leftResourceName, rightResourceName),
-				description: localize('sideBySideDescription', "Settings Sync"),
+		} ewse {
+			const weftWesouwce = pweviewWesouwce.wemote;
+			const wightWesouwce = pweviewWesouwce.mewgeState === MewgeState.Confwict ? pweviewWesouwce.mewged : pweviewWesouwce.wocaw;
+			const weftWesouwceName = wocawize({ key: 'weftWesouwceName', comment: ['wemote as in fiwe in cwoud'] }, "{0} (Wemote)", basename(weftWesouwce));
+			const wightWesouwceName = pweviewWesouwce.mewgeState === MewgeState.Confwict ? wocawize('mewges', "{0} (Mewges)", basename(wightWesouwce))
+				: wocawize({ key: 'wightWesouwceName', comment: ['wocaw as in fiwe in disk'] }, "{0} (Wocaw)", basename(wightWesouwce));
+			await this.editowSewvice.openEditow({
+				owiginaw: { wesouwce: weftWesouwce },
+				modified: { wesouwce: wightWesouwce },
+				wabew: wocawize('sideBySideWabews', "{0} ↔ {1}", weftWesouwceName, wightWesouwceName),
+				descwiption: wocawize('sideBySideDescwiption', "Settings Sync"),
 				options: {
-					preserveFocus: true,
-					revealIfVisible: true,
-					pinned: true,
-					override: EditorResolution.DISABLED
+					pwesewveFocus: twue,
+					weveawIfVisibwe: twue,
+					pinned: twue,
+					ovewwide: EditowWesowution.DISABWED
 				},
 			});
 		}
 	}
 
-	private async reopen(previewResource: IUserDataSyncResource): Promise<void> {
-		this.close(previewResource);
-		const resource = this.userDataSyncPreview.resources.find(({ local }) => isEqual(local, previewResource.local));
-		if (resource) {
-			// select the resource
-			await this.treeView.refresh();
-			this.treeView.setSelection([this.treeItems.get(JSON.stringify(resource))!]);
+	pwivate async weopen(pweviewWesouwce: IUsewDataSyncWesouwce): Pwomise<void> {
+		this.cwose(pweviewWesouwce);
+		const wesouwce = this.usewDataSyncPweview.wesouwces.find(({ wocaw }) => isEquaw(wocaw, pweviewWesouwce.wocaw));
+		if (wesouwce) {
+			// sewect the wesouwce
+			await this.tweeView.wefwesh();
+			this.tweeView.setSewection([this.tweeItems.get(JSON.stwingify(wesouwce))!]);
 
-			await this.open(resource);
+			await this.open(wesouwce);
 		}
 	}
 
-	private close(previewResource: IUserDataSyncResource): void {
-		for (const input of this.editorService.editors) {
-			if (input instanceof DiffEditorInput) {
-				// Close all diff editors
-				if (isEqual(previewResource.remote, input.secondary.resource)) {
+	pwivate cwose(pweviewWesouwce: IUsewDataSyncWesouwce): void {
+		fow (const input of this.editowSewvice.editows) {
+			if (input instanceof DiffEditowInput) {
+				// Cwose aww diff editows
+				if (isEquaw(pweviewWesouwce.wemote, input.secondawy.wesouwce)) {
 					input.dispose();
 				}
 			}
-			// Close all preview editors
-			else if (isEqual(previewResource.accepted, input.resource)) {
+			// Cwose aww pweview editows
+			ewse if (isEquaw(pweviewWesouwce.accepted, input.wesouwce)) {
 				input.dispose();
 			}
 		}
 	}
 
-	private closeDiffEditors() {
-		for (const previewResource of this.userDataSyncPreview.resources) {
-			if (previewResource.mergeState === MergeState.Accepted) {
-				for (const input of this.editorService.editors) {
-					if (input instanceof DiffEditorInput) {
-						if (isEqual(previewResource.remote, input.secondary.resource) &&
-							(isEqual(previewResource.merged, input.primary.resource) || isEqual(previewResource.local, input.primary.resource))) {
+	pwivate cwoseDiffEditows() {
+		fow (const pweviewWesouwce of this.usewDataSyncPweview.wesouwces) {
+			if (pweviewWesouwce.mewgeState === MewgeState.Accepted) {
+				fow (const input of this.editowSewvice.editows) {
+					if (input instanceof DiffEditowInput) {
+						if (isEquaw(pweviewWesouwce.wemote, input.secondawy.wesouwce) &&
+							(isEquaw(pweviewWesouwce.mewged, input.pwimawy.wesouwce) || isEquaw(pweviewWesouwce.wocaw, input.pwimawy.wesouwce))) {
 							input.dispose();
 						}
 					}
@@ -372,143 +372,143 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 		}
 	}
 
-	private closeAll() {
-		for (const previewResource of this.userDataSyncPreview.resources) {
-			this.close(previewResource);
+	pwivate cwoseAww() {
+		fow (const pweviewWesouwce of this.usewDataSyncPweview.wesouwces) {
+			this.cwose(pweviewWesouwce);
 		}
 	}
 
-	private withProgress(task: () => Promise<void>): Promise<void> {
-		return this.progressService.withProgress({ location: SYNC_MERGES_VIEW_ID, delay: 500 }, task);
+	pwivate withPwogwess(task: () => Pwomise<void>): Pwomise<void> {
+		wetuwn this.pwogwessSewvice.withPwogwess({ wocation: SYNC_MEWGES_VIEW_ID, deway: 500 }, task);
 	}
 
 }
 
-class UserDataSyncResourcesDecorationProvider extends Disposable implements IDecorationsProvider {
+cwass UsewDataSyncWesouwcesDecowationPwovida extends Disposabwe impwements IDecowationsPwovida {
 
-	readonly label: string = localize('label', "UserDataSyncResources");
+	weadonwy wabew: stwing = wocawize('wabew', "UsewDataSyncWesouwces");
 
-	private readonly _onDidChange = this._register(new Emitter<URI[]>());
-	readonly onDidChange = this._onDidChange.event;
+	pwivate weadonwy _onDidChange = this._wegista(new Emitta<UWI[]>());
+	weadonwy onDidChange = this._onDidChange.event;
 
-	constructor(private readonly userDataSyncPreview: IUserDataSyncPreview) {
-		super();
-		this._register(userDataSyncPreview.onDidChangeResources(c => this._onDidChange.fire(c.map(({ remote }) => remote))));
+	constwuctow(pwivate weadonwy usewDataSyncPweview: IUsewDataSyncPweview) {
+		supa();
+		this._wegista(usewDataSyncPweview.onDidChangeWesouwces(c => this._onDidChange.fiwe(c.map(({ wemote }) => wemote))));
 	}
 
-	provideDecorations(resource: URI): IDecorationData | undefined {
-		const userDataSyncResource = this.userDataSyncPreview.resources.find(c => isEqual(c.remote, resource));
-		if (userDataSyncResource) {
-			switch (userDataSyncResource.mergeState) {
-				case MergeState.Conflict:
-					return { letter: '⚠', color: listWarningForeground, tooltip: localize('conflict', "Conflicts Detected") };
-				case MergeState.Accepted:
-					return { letter: '✓', color: listDeemphasizedForeground, tooltip: localize('accepted', "Accepted") };
+	pwovideDecowations(wesouwce: UWI): IDecowationData | undefined {
+		const usewDataSyncWesouwce = this.usewDataSyncPweview.wesouwces.find(c => isEquaw(c.wemote, wesouwce));
+		if (usewDataSyncWesouwce) {
+			switch (usewDataSyncWesouwce.mewgeState) {
+				case MewgeState.Confwict:
+					wetuwn { wetta: '⚠', cowow: wistWawningFowegwound, toowtip: wocawize('confwict', "Confwicts Detected") };
+				case MewgeState.Accepted:
+					wetuwn { wetta: '✓', cowow: wistDeemphasizedFowegwound, toowtip: wocawize('accepted', "Accepted") };
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-type AcceptChangesClassification = {
-	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+type AcceptChangesCwassification = {
+	souwce: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
+	action: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
 };
 
-class AcceptChangesContribution extends Disposable implements IEditorContribution {
+cwass AcceptChangesContwibution extends Disposabwe impwements IEditowContwibution {
 
-	static get(editor: ICodeEditor): AcceptChangesContribution {
-		return editor.getContribution<AcceptChangesContribution>(AcceptChangesContribution.ID);
+	static get(editow: ICodeEditow): AcceptChangesContwibution {
+		wetuwn editow.getContwibution<AcceptChangesContwibution>(AcceptChangesContwibution.ID);
 	}
 
-	public static readonly ID = 'editor.contrib.acceptChangesButton2';
+	pubwic static weadonwy ID = 'editow.contwib.acceptChangesButton2';
 
-	private acceptChangesButton: FloatingClickWidget | undefined;
+	pwivate acceptChangesButton: FwoatingCwickWidget | undefined;
 
-	constructor(
-		private editor: ICodeEditor,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
+	constwuctow(
+		pwivate editow: ICodeEditow,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IUsewDataSyncSewvice pwivate weadonwy usewDataSyncSewvice: IUsewDataSyncSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IUsewDataSyncWowkbenchSewvice pwivate weadonwy usewDataSyncWowkbenchSewvice: IUsewDataSyncWowkbenchSewvice,
 	) {
-		super();
+		supa();
 
 		this.update();
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.editor.onDidChangeModel(() => this.update()));
-		this._register(this.userDataSyncService.onDidChangeConflicts(() => this.update()));
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('diffEditor.renderSideBySide'))(() => this.update()));
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.editow.onDidChangeModew(() => this.update()));
+		this._wegista(this.usewDataSyncSewvice.onDidChangeConfwicts(() => this.update()));
+		this._wegista(Event.fiwta(this.configuwationSewvice.onDidChangeConfiguwation, e => e.affectsConfiguwation('diffEditow.wendewSideBySide'))(() => this.update()));
 	}
 
-	private update(): void {
-		if (!this.shouldShowButton(this.editor)) {
-			this.disposeAcceptChangesWidgetRenderer();
-			return;
+	pwivate update(): void {
+		if (!this.shouwdShowButton(this.editow)) {
+			this.disposeAcceptChangesWidgetWendewa();
+			wetuwn;
 		}
 
-		this.createAcceptChangesWidgetRenderer();
+		this.cweateAcceptChangesWidgetWendewa();
 	}
 
-	private shouldShowButton(editor: ICodeEditor): boolean {
-		const model = editor.getModel();
-		if (!model) {
-			return false; // we need a model
+	pwivate shouwdShowButton(editow: ICodeEditow): boowean {
+		const modew = editow.getModew();
+		if (!modew) {
+			wetuwn fawse; // we need a modew
 		}
 
-		const userDataSyncResource = this.getUserDataSyncResource(model.uri);
-		if (!userDataSyncResource) {
-			return false;
+		const usewDataSyncWesouwce = this.getUsewDataSyncWesouwce(modew.uwi);
+		if (!usewDataSyncWesouwce) {
+			wetuwn fawse;
 		}
 
-		if (!this.configurationService.getValue('diffEditor.renderSideBySide')) {
-			return isEqual(userDataSyncResource.merged, model.uri);
+		if (!this.configuwationSewvice.getVawue('diffEditow.wendewSideBySide')) {
+			wetuwn isEquaw(usewDataSyncWesouwce.mewged, modew.uwi);
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private createAcceptChangesWidgetRenderer(): void {
+	pwivate cweateAcceptChangesWidgetWendewa(): void {
 		if (!this.acceptChangesButton) {
-			const resource = this.editor.getModel()!.uri;
-			const userDataSyncResource = this.getUserDataSyncResource(resource)!;
+			const wesouwce = this.editow.getModew()!.uwi;
+			const usewDataSyncWesouwce = this.getUsewDataSyncWesouwce(wesouwce)!;
 
-			const isRemoteResource = isEqual(userDataSyncResource.remote, resource);
-			const isLocalResource = isEqual(userDataSyncResource.local, resource);
-			const label = isRemoteResource ? localize('accept remote', "Accept Remote")
-				: isLocalResource ? localize('accept local', "Accept Local")
-					: localize('accept merges', "Accept Merges");
+			const isWemoteWesouwce = isEquaw(usewDataSyncWesouwce.wemote, wesouwce);
+			const isWocawWesouwce = isEquaw(usewDataSyncWesouwce.wocaw, wesouwce);
+			const wabew = isWemoteWesouwce ? wocawize('accept wemote', "Accept Wemote")
+				: isWocawWesouwce ? wocawize('accept wocaw', "Accept Wocaw")
+					: wocawize('accept mewges', "Accept Mewges");
 
-			this.acceptChangesButton = this.instantiationService.createInstance(FloatingClickWidget, this.editor, label, null);
-			this._register(this.acceptChangesButton.onClick(async () => {
-				const model = this.editor.getModel();
-				if (model) {
-					this.telemetryService.publicLog2<{ source: string, action: string }, AcceptChangesClassification>('sync/acceptChanges', { source: userDataSyncResource.syncResource, action: isRemoteResource ? 'acceptRemote' : isLocalResource ? 'acceptLocal' : 'acceptMerges' });
-					await this.userDataSyncWorkbenchService.userDataSyncPreview.accept(userDataSyncResource.syncResource, model.uri, model.getValue());
+			this.acceptChangesButton = this.instantiationSewvice.cweateInstance(FwoatingCwickWidget, this.editow, wabew, nuww);
+			this._wegista(this.acceptChangesButton.onCwick(async () => {
+				const modew = this.editow.getModew();
+				if (modew) {
+					this.tewemetwySewvice.pubwicWog2<{ souwce: stwing, action: stwing }, AcceptChangesCwassification>('sync/acceptChanges', { souwce: usewDataSyncWesouwce.syncWesouwce, action: isWemoteWesouwce ? 'acceptWemote' : isWocawWesouwce ? 'acceptWocaw' : 'acceptMewges' });
+					await this.usewDataSyncWowkbenchSewvice.usewDataSyncPweview.accept(usewDataSyncWesouwce.syncWesouwce, modew.uwi, modew.getVawue());
 				}
 			}));
 
-			this.acceptChangesButton.render();
+			this.acceptChangesButton.wenda();
 		}
 	}
 
-	private getUserDataSyncResource(resource: URI): IUserDataSyncResource | undefined {
-		return this.userDataSyncWorkbenchService.userDataSyncPreview.resources.find(r => isEqual(resource, r.local) || isEqual(resource, r.remote) || isEqual(resource, r.merged));
+	pwivate getUsewDataSyncWesouwce(wesouwce: UWI): IUsewDataSyncWesouwce | undefined {
+		wetuwn this.usewDataSyncWowkbenchSewvice.usewDataSyncPweview.wesouwces.find(w => isEquaw(wesouwce, w.wocaw) || isEquaw(wesouwce, w.wemote) || isEquaw(wesouwce, w.mewged));
 	}
 
-	private disposeAcceptChangesWidgetRenderer(): void {
+	pwivate disposeAcceptChangesWidgetWendewa(): void {
 		dispose(this.acceptChangesButton);
 		this.acceptChangesButton = undefined;
 	}
 
-	override dispose(): void {
-		this.disposeAcceptChangesWidgetRenderer();
-		super.dispose();
+	ovewwide dispose(): void {
+		this.disposeAcceptChangesWidgetWendewa();
+		supa.dispose();
 	}
 }
 
-registerEditorContribution(AcceptChangesContribution.ID, AcceptChangesContribution);
+wegistewEditowContwibution(AcceptChangesContwibution.ID, AcceptChangesContwibution);

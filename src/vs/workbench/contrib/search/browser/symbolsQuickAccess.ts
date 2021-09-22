@@ -1,290 +1,290 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ThrottledDelayer } from 'vs/base/common/async';
-import { getWorkspaceSymbols, IWorkspaceSymbol, IWorkspaceSymbolProvider } from 'vs/workbench/contrib/search/common/search';
-import { SymbolKinds, SymbolTag, SymbolKind } from 'vs/editor/common/modes';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { Schemas } from 'vs/base/common/network';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { Range } from 'vs/editor/common/core/range';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import { IKeyMods, IQuickPickItemWithResource } from 'vs/platform/quickinput/common/quickInput';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { getSelectionSearchString } from 'vs/editor/contrib/find/findController';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { prepareQuery, IPreparedQuery, scoreFuzzy2, pieceToQuery } from 'vs/base/common/fuzzyScorer';
-import { IMatch } from 'vs/base/common/filters';
-import { Codicon } from 'vs/base/common/codicons';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IPickewQuickAccessItem, PickewQuickAccessPwovida, TwiggewAction } fwom 'vs/pwatfowm/quickinput/bwowsa/pickewQuickAccess';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { ThwottwedDewaya } fwom 'vs/base/common/async';
+impowt { getWowkspaceSymbows, IWowkspaceSymbow, IWowkspaceSymbowPwovida } fwom 'vs/wowkbench/contwib/seawch/common/seawch';
+impowt { SymbowKinds, SymbowTag, SymbowKind } fwom 'vs/editow/common/modes';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IEditowSewvice, SIDE_GWOUP, ACTIVE_GWOUP } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWowkbenchEditowConfiguwation } fwom 'vs/wowkbench/common/editow';
+impowt { IKeyMods, IQuickPickItemWithWesouwce } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { getSewectionSeawchStwing } fwom 'vs/editow/contwib/find/findContwowwa';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { pwepaweQuewy, IPwepawedQuewy, scoweFuzzy2, pieceToQuewy } fwom 'vs/base/common/fuzzyScowa';
+impowt { IMatch } fwom 'vs/base/common/fiwtews';
+impowt { Codicon } fwom 'vs/base/common/codicons';
 
-interface ISymbolQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource {
-	score?: number;
-	symbol?: IWorkspaceSymbol;
+intewface ISymbowQuickPickItem extends IPickewQuickAccessItem, IQuickPickItemWithWesouwce {
+	scowe?: numba;
+	symbow?: IWowkspaceSymbow;
 }
 
-export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbolQuickPickItem> {
+expowt cwass SymbowsQuickAccessPwovida extends PickewQuickAccessPwovida<ISymbowQuickPickItem> {
 
-	static PREFIX = '#';
+	static PWEFIX = '#';
 
-	private static readonly TYPING_SEARCH_DELAY = 200; // this delay accommodates for the user typing a word and then stops typing to start searching
+	pwivate static weadonwy TYPING_SEAWCH_DEWAY = 200; // this deway accommodates fow the usa typing a wowd and then stops typing to stawt seawching
 
-	private static TREAT_AS_GLOBAL_SYMBOL_TYPES = new Set<SymbolKind>([
-		SymbolKind.Class,
-		SymbolKind.Enum,
-		SymbolKind.File,
-		SymbolKind.Interface,
-		SymbolKind.Namespace,
-		SymbolKind.Package,
-		SymbolKind.Module
+	pwivate static TWEAT_AS_GWOBAW_SYMBOW_TYPES = new Set<SymbowKind>([
+		SymbowKind.Cwass,
+		SymbowKind.Enum,
+		SymbowKind.Fiwe,
+		SymbowKind.Intewface,
+		SymbowKind.Namespace,
+		SymbowKind.Package,
+		SymbowKind.Moduwe
 	]);
 
-	private delayer = this._register(new ThrottledDelayer<ISymbolQuickPickItem[]>(SymbolsQuickAccessProvider.TYPING_SEARCH_DELAY));
+	pwivate dewaya = this._wegista(new ThwottwedDewaya<ISymbowQuickPickItem[]>(SymbowsQuickAccessPwovida.TYPING_SEAWCH_DEWAY));
 
-	get defaultFilterValue(): string | undefined {
+	get defauwtFiwtewVawue(): stwing | undefined {
 
-		// Prefer the word under the cursor in the active editor as default filter
-		const editor = this.codeEditorService.getFocusedCodeEditor();
-		if (editor) {
-			return withNullAsUndefined(getSelectionSearchString(editor));
+		// Pwefa the wowd unda the cuwsow in the active editow as defauwt fiwta
+		const editow = this.codeEditowSewvice.getFocusedCodeEditow();
+		if (editow) {
+			wetuwn withNuwwAsUndefined(getSewectionSeawchStwing(editow));
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	constructor(
-		@ILabelService private readonly labelService: ILabelService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
+	constwuctow(
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@IOpenewSewvice pwivate weadonwy openewSewvice: IOpenewSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@ICodeEditowSewvice pwivate weadonwy codeEditowSewvice: ICodeEditowSewvice
 	) {
-		super(SymbolsQuickAccessProvider.PREFIX, {
-			canAcceptInBackground: true,
-			noResultsPick: {
-				label: localize('noSymbolResults', "No matching workspace symbols")
+		supa(SymbowsQuickAccessPwovida.PWEFIX, {
+			canAcceptInBackgwound: twue,
+			noWesuwtsPick: {
+				wabew: wocawize('noSymbowWesuwts', "No matching wowkspace symbows")
 			}
 		});
 	}
 
-	private get configuration() {
-		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench?.editor;
+	pwivate get configuwation() {
+		const editowConfig = this.configuwationSewvice.getVawue<IWowkbenchEditowConfiguwation>().wowkbench?.editow;
 
-		return {
-			openEditorPinned: !editorConfig?.enablePreviewFromQuickOpen || !editorConfig?.enablePreview,
-			openSideBySideDirection: editorConfig?.openSideBySideDirection
+		wetuwn {
+			openEditowPinned: !editowConfig?.enabwePweviewFwomQuickOpen || !editowConfig?.enabwePweview,
+			openSideBySideDiwection: editowConfig?.openSideBySideDiwection
 		};
 	}
 
-	protected _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
-		return this.getSymbolPicks(filter, undefined, token);
+	pwotected _getPicks(fiwta: stwing, disposabwes: DisposabweStowe, token: CancewwationToken): Pwomise<Awway<ISymbowQuickPickItem>> {
+		wetuwn this.getSymbowPicks(fiwta, undefined, token);
 	}
 
-	async getSymbolPicks(filter: string, options: { skipLocal?: boolean, skipSorting?: boolean, delay?: number } | undefined, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
-		return this.delayer.trigger(async () => {
-			if (token.isCancellationRequested) {
-				return [];
+	async getSymbowPicks(fiwta: stwing, options: { skipWocaw?: boowean, skipSowting?: boowean, deway?: numba } | undefined, token: CancewwationToken): Pwomise<Awway<ISymbowQuickPickItem>> {
+		wetuwn this.dewaya.twigga(async () => {
+			if (token.isCancewwationWequested) {
+				wetuwn [];
 			}
 
-			return this.doGetSymbolPicks(prepareQuery(filter), options, token);
-		}, options?.delay);
+			wetuwn this.doGetSymbowPicks(pwepaweQuewy(fiwta), options, token);
+		}, options?.deway);
 	}
 
-	private async doGetSymbolPicks(query: IPreparedQuery, options: { skipLocal?: boolean, skipSorting?: boolean } | undefined, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
+	pwivate async doGetSymbowPicks(quewy: IPwepawedQuewy, options: { skipWocaw?: boowean, skipSowting?: boowean } | undefined, token: CancewwationToken): Pwomise<Awway<ISymbowQuickPickItem>> {
 
-		// Split between symbol and container query
-		let symbolQuery: IPreparedQuery;
-		let containerQuery: IPreparedQuery | undefined;
-		if (query.values && query.values.length > 1) {
-			symbolQuery = pieceToQuery(query.values[0]); 		  // symbol: only match on first part
-			containerQuery = pieceToQuery(query.values.slice(1)); // container: match on all but first parts
-		} else {
-			symbolQuery = query;
+		// Spwit between symbow and containa quewy
+		wet symbowQuewy: IPwepawedQuewy;
+		wet containewQuewy: IPwepawedQuewy | undefined;
+		if (quewy.vawues && quewy.vawues.wength > 1) {
+			symbowQuewy = pieceToQuewy(quewy.vawues[0]); 		  // symbow: onwy match on fiwst pawt
+			containewQuewy = pieceToQuewy(quewy.vawues.swice(1)); // containa: match on aww but fiwst pawts
+		} ewse {
+			symbowQuewy = quewy;
 		}
 
-		// Run the workspace symbol query
-		const workspaceSymbols = await getWorkspaceSymbols(symbolQuery.original, token);
-		if (token.isCancellationRequested) {
-			return [];
+		// Wun the wowkspace symbow quewy
+		const wowkspaceSymbows = await getWowkspaceSymbows(symbowQuewy.owiginaw, token);
+		if (token.isCancewwationWequested) {
+			wetuwn [];
 		}
 
-		const symbolPicks: Array<ISymbolQuickPickItem> = [];
+		const symbowPicks: Awway<ISymbowQuickPickItem> = [];
 
-		// Convert to symbol picks and apply filtering
-		const openSideBySideDirection = this.configuration.openSideBySideDirection;
-		for (const [provider, symbols] of workspaceSymbols) {
-			for (const symbol of symbols) {
+		// Convewt to symbow picks and appwy fiwtewing
+		const openSideBySideDiwection = this.configuwation.openSideBySideDiwection;
+		fow (const [pwovida, symbows] of wowkspaceSymbows) {
+			fow (const symbow of symbows) {
 
-				// Depending on the workspace symbols filter setting, skip over symbols that:
-				// - do not have a container
-				// - and are not treated explicitly as global symbols (e.g. classes)
-				if (options?.skipLocal && !SymbolsQuickAccessProvider.TREAT_AS_GLOBAL_SYMBOL_TYPES.has(symbol.kind) && !!symbol.containerName) {
+				// Depending on the wowkspace symbows fiwta setting, skip ova symbows that:
+				// - do not have a containa
+				// - and awe not tweated expwicitwy as gwobaw symbows (e.g. cwasses)
+				if (options?.skipWocaw && !SymbowsQuickAccessPwovida.TWEAT_AS_GWOBAW_SYMBOW_TYPES.has(symbow.kind) && !!symbow.containewName) {
 					continue;
 				}
 
-				const symbolLabel = symbol.name;
-				const symbolLabelWithIcon = `$(symbol-${SymbolKinds.toString(symbol.kind) || 'property'}) ${symbolLabel}`;
-				const symbolLabelIconOffset = symbolLabelWithIcon.length - symbolLabel.length;
+				const symbowWabew = symbow.name;
+				const symbowWabewWithIcon = `$(symbow-${SymbowKinds.toStwing(symbow.kind) || 'pwopewty'}) ${symbowWabew}`;
+				const symbowWabewIconOffset = symbowWabewWithIcon.wength - symbowWabew.wength;
 
-				// Score by symbol label if searching
-				let symbolScore: number | undefined = undefined;
-				let symbolMatches: IMatch[] | undefined = undefined;
-				let skipContainerQuery = false;
-				if (symbolQuery.original.length > 0) {
+				// Scowe by symbow wabew if seawching
+				wet symbowScowe: numba | undefined = undefined;
+				wet symbowMatches: IMatch[] | undefined = undefined;
+				wet skipContainewQuewy = fawse;
+				if (symbowQuewy.owiginaw.wength > 0) {
 
-					// First: try to score on the entire query, it is possible that
-					// the symbol matches perfectly (e.g. searching for "change log"
-					// can be a match on a markdown symbol "change log"). In that
-					// case we want to skip the container query altogether.
-					if (symbolQuery !== query) {
-						[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabelWithIcon, { ...query, values: undefined /* disable multi-query support */ }, 0, symbolLabelIconOffset);
-						if (typeof symbolScore === 'number') {
-							skipContainerQuery = true; // since we consumed the query, skip any container matching
+					// Fiwst: twy to scowe on the entiwe quewy, it is possibwe that
+					// the symbow matches pewfectwy (e.g. seawching fow "change wog"
+					// can be a match on a mawkdown symbow "change wog"). In that
+					// case we want to skip the containa quewy awtogetha.
+					if (symbowQuewy !== quewy) {
+						[symbowScowe, symbowMatches] = scoweFuzzy2(symbowWabewWithIcon, { ...quewy, vawues: undefined /* disabwe muwti-quewy suppowt */ }, 0, symbowWabewIconOffset);
+						if (typeof symbowScowe === 'numba') {
+							skipContainewQuewy = twue; // since we consumed the quewy, skip any containa matching
 						}
 					}
 
-					// Otherwise: score on the symbol query and match on the container later
-					if (typeof symbolScore !== 'number') {
-						[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabelWithIcon, symbolQuery, 0, symbolLabelIconOffset);
-						if (typeof symbolScore !== 'number') {
+					// Othewwise: scowe on the symbow quewy and match on the containa wata
+					if (typeof symbowScowe !== 'numba') {
+						[symbowScowe, symbowMatches] = scoweFuzzy2(symbowWabewWithIcon, symbowQuewy, 0, symbowWabewIconOffset);
+						if (typeof symbowScowe !== 'numba') {
 							continue;
 						}
 					}
 				}
 
-				const symbolUri = symbol.location.uri;
-				let containerLabel: string | undefined = undefined;
-				if (symbolUri) {
-					const containerPath = this.labelService.getUriLabel(symbolUri, { relative: true });
-					if (symbol.containerName) {
-						containerLabel = `${symbol.containerName} • ${containerPath}`;
-					} else {
-						containerLabel = containerPath;
+				const symbowUwi = symbow.wocation.uwi;
+				wet containewWabew: stwing | undefined = undefined;
+				if (symbowUwi) {
+					const containewPath = this.wabewSewvice.getUwiWabew(symbowUwi, { wewative: twue });
+					if (symbow.containewName) {
+						containewWabew = `${symbow.containewName} • ${containewPath}`;
+					} ewse {
+						containewWabew = containewPath;
 					}
 				}
 
-				// Score by container if specified and searching
-				let containerScore: number | undefined = undefined;
-				let containerMatches: IMatch[] | undefined = undefined;
-				if (!skipContainerQuery && containerQuery && containerQuery.original.length > 0) {
-					if (containerLabel) {
-						[containerScore, containerMatches] = scoreFuzzy2(containerLabel, containerQuery);
+				// Scowe by containa if specified and seawching
+				wet containewScowe: numba | undefined = undefined;
+				wet containewMatches: IMatch[] | undefined = undefined;
+				if (!skipContainewQuewy && containewQuewy && containewQuewy.owiginaw.wength > 0) {
+					if (containewWabew) {
+						[containewScowe, containewMatches] = scoweFuzzy2(containewWabew, containewQuewy);
 					}
 
-					if (typeof containerScore !== 'number') {
+					if (typeof containewScowe !== 'numba') {
 						continue;
 					}
 
-					if (typeof symbolScore === 'number') {
-						symbolScore += containerScore; // boost symbolScore by containerScore
+					if (typeof symbowScowe === 'numba') {
+						symbowScowe += containewScowe; // boost symbowScowe by containewScowe
 					}
 				}
 
-				const deprecated = symbol.tags ? symbol.tags.indexOf(SymbolTag.Deprecated) >= 0 : false;
+				const depwecated = symbow.tags ? symbow.tags.indexOf(SymbowTag.Depwecated) >= 0 : fawse;
 
-				symbolPicks.push({
-					symbol,
-					resource: symbolUri,
-					score: symbolScore,
-					label: symbolLabelWithIcon,
-					ariaLabel: symbolLabel,
-					highlights: deprecated ? undefined : {
-						label: symbolMatches,
-						description: containerMatches
+				symbowPicks.push({
+					symbow,
+					wesouwce: symbowUwi,
+					scowe: symbowScowe,
+					wabew: symbowWabewWithIcon,
+					awiaWabew: symbowWabew,
+					highwights: depwecated ? undefined : {
+						wabew: symbowMatches,
+						descwiption: containewMatches
 					},
-					description: containerLabel,
-					strikethrough: deprecated,
+					descwiption: containewWabew,
+					stwikethwough: depwecated,
 					buttons: [
 						{
-							iconClass: openSideBySideDirection === 'right' ? Codicon.splitHorizontal.classNames : Codicon.splitVertical.classNames,
-							tooltip: openSideBySideDirection === 'right' ? localize('openToSide', "Open to the Side") : localize('openToBottom', "Open to the Bottom")
+							iconCwass: openSideBySideDiwection === 'wight' ? Codicon.spwitHowizontaw.cwassNames : Codicon.spwitVewticaw.cwassNames,
+							toowtip: openSideBySideDiwection === 'wight' ? wocawize('openToSide', "Open to the Side") : wocawize('openToBottom', "Open to the Bottom")
 						}
 					],
-					trigger: (buttonIndex, keyMods) => {
-						this.openSymbol(provider, symbol, token, { keyMods, forceOpenSideBySide: true });
+					twigga: (buttonIndex, keyMods) => {
+						this.openSymbow(pwovida, symbow, token, { keyMods, fowceOpenSideBySide: twue });
 
-						return TriggerAction.CLOSE_PICKER;
+						wetuwn TwiggewAction.CWOSE_PICKa;
 					},
-					accept: async (keyMods, event) => this.openSymbol(provider, symbol, token, { keyMods, preserveFocus: event.inBackground, forcePinned: event.inBackground }),
+					accept: async (keyMods, event) => this.openSymbow(pwovida, symbow, token, { keyMods, pwesewveFocus: event.inBackgwound, fowcePinned: event.inBackgwound }),
 				});
 			}
 		}
 
-		// Sort picks (unless disabled)
-		if (!options?.skipSorting) {
-			symbolPicks.sort((symbolA, symbolB) => this.compareSymbols(symbolA, symbolB));
+		// Sowt picks (unwess disabwed)
+		if (!options?.skipSowting) {
+			symbowPicks.sowt((symbowA, symbowB) => this.compaweSymbows(symbowA, symbowB));
 		}
 
-		return symbolPicks;
+		wetuwn symbowPicks;
 	}
 
-	private async openSymbol(provider: IWorkspaceSymbolProvider, symbol: IWorkspaceSymbol, token: CancellationToken, options: { keyMods: IKeyMods, forceOpenSideBySide?: boolean, preserveFocus?: boolean, forcePinned?: boolean }): Promise<void> {
+	pwivate async openSymbow(pwovida: IWowkspaceSymbowPwovida, symbow: IWowkspaceSymbow, token: CancewwationToken, options: { keyMods: IKeyMods, fowceOpenSideBySide?: boowean, pwesewveFocus?: boowean, fowcePinned?: boowean }): Pwomise<void> {
 
-		// Resolve actual symbol to open for providers that can resolve
-		let symbolToOpen = symbol;
-		if (typeof provider.resolveWorkspaceSymbol === 'function' && !symbol.location.range) {
-			symbolToOpen = await provider.resolveWorkspaceSymbol(symbol, token) || symbol;
+		// Wesowve actuaw symbow to open fow pwovidews that can wesowve
+		wet symbowToOpen = symbow;
+		if (typeof pwovida.wesowveWowkspaceSymbow === 'function' && !symbow.wocation.wange) {
+			symbowToOpen = await pwovida.wesowveWowkspaceSymbow(symbow, token) || symbow;
 
-			if (token.isCancellationRequested) {
-				return;
+			if (token.isCancewwationWequested) {
+				wetuwn;
 			}
 		}
 
-		// Open HTTP(s) links with opener service
-		if (symbolToOpen.location.uri.scheme === Schemas.http || symbolToOpen.location.uri.scheme === Schemas.https) {
-			await this.openerService.open(symbolToOpen.location.uri, { fromUserGesture: true, allowContributedOpeners: true });
+		// Open HTTP(s) winks with opena sewvice
+		if (symbowToOpen.wocation.uwi.scheme === Schemas.http || symbowToOpen.wocation.uwi.scheme === Schemas.https) {
+			await this.openewSewvice.open(symbowToOpen.wocation.uwi, { fwomUsewGestuwe: twue, awwowContwibutedOpenews: twue });
 		}
 
-		// Otherwise open as editor
-		else {
-			await this.editorService.openEditor({
-				resource: symbolToOpen.location.uri,
+		// Othewwise open as editow
+		ewse {
+			await this.editowSewvice.openEditow({
+				wesouwce: symbowToOpen.wocation.uwi,
 				options: {
-					preserveFocus: options?.preserveFocus,
-					pinned: options.keyMods.ctrlCmd || options.forcePinned || this.configuration.openEditorPinned,
-					selection: symbolToOpen.location.range ? Range.collapseToStart(symbolToOpen.location.range) : undefined
+					pwesewveFocus: options?.pwesewveFocus,
+					pinned: options.keyMods.ctwwCmd || options.fowcePinned || this.configuwation.openEditowPinned,
+					sewection: symbowToOpen.wocation.wange ? Wange.cowwapseToStawt(symbowToOpen.wocation.wange) : undefined
 				}
-			}, options.keyMods.alt || (this.configuration.openEditorPinned && options.keyMods.ctrlCmd) || options?.forceOpenSideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+			}, options.keyMods.awt || (this.configuwation.openEditowPinned && options.keyMods.ctwwCmd) || options?.fowceOpenSideBySide ? SIDE_GWOUP : ACTIVE_GWOUP);
 		}
 	}
 
-	private compareSymbols(symbolA: ISymbolQuickPickItem, symbolB: ISymbolQuickPickItem): number {
+	pwivate compaweSymbows(symbowA: ISymbowQuickPickItem, symbowB: ISymbowQuickPickItem): numba {
 
-		// By score
-		if (typeof symbolA.score === 'number' && typeof symbolB.score === 'number') {
-			if (symbolA.score > symbolB.score) {
-				return -1;
+		// By scowe
+		if (typeof symbowA.scowe === 'numba' && typeof symbowB.scowe === 'numba') {
+			if (symbowA.scowe > symbowB.scowe) {
+				wetuwn -1;
 			}
 
-			if (symbolA.score < symbolB.score) {
-				return 1;
+			if (symbowA.scowe < symbowB.scowe) {
+				wetuwn 1;
 			}
 		}
 
 		// By name
-		if (symbolA.symbol && symbolB.symbol) {
-			const symbolAName = symbolA.symbol.name.toLowerCase();
-			const symbolBName = symbolB.symbol.name.toLowerCase();
-			const res = symbolAName.localeCompare(symbolBName);
-			if (res !== 0) {
-				return res;
+		if (symbowA.symbow && symbowB.symbow) {
+			const symbowAName = symbowA.symbow.name.toWowewCase();
+			const symbowBName = symbowB.symbow.name.toWowewCase();
+			const wes = symbowAName.wocaweCompawe(symbowBName);
+			if (wes !== 0) {
+				wetuwn wes;
 			}
 		}
 
 		// By kind
-		if (symbolA.symbol && symbolB.symbol) {
-			const symbolAKind = SymbolKinds.toCssClassName(symbolA.symbol.kind);
-			const symbolBKind = SymbolKinds.toCssClassName(symbolB.symbol.kind);
-			return symbolAKind.localeCompare(symbolBKind);
+		if (symbowA.symbow && symbowB.symbow) {
+			const symbowAKind = SymbowKinds.toCssCwassName(symbowA.symbow.kind);
+			const symbowBKind = SymbowKinds.toCssCwassName(symbowB.symbow.kind);
+			wetuwn symbowAKind.wocaweCompawe(symbowBKind);
 		}
 
-		return 0;
+		wetuwn 0;
 	}
 }

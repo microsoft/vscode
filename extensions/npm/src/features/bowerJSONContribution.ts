@@ -1,210 +1,210 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownString, CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace, Uri } from 'vscode';
-import { IJSONContribution, ISuggestionsCollector } from './jsonContributions';
-import { XHRRequest } from 'request-light';
-import { Location } from 'jsonc-parser';
+impowt { MawkdownStwing, CompwetionItemKind, CompwetionItem, DocumentSewectow, SnippetStwing, wowkspace, Uwi } fwom 'vscode';
+impowt { IJSONContwibution, ISuggestionsCowwectow } fwom './jsonContwibutions';
+impowt { XHWWequest } fwom 'wequest-wight';
+impowt { Wocation } fwom 'jsonc-pawsa';
 
-import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
+impowt * as nws fwom 'vscode-nws';
+const wocawize = nws.woadMessageBundwe();
 
-const USER_AGENT = 'Visual Studio Code';
+const USEW_AGENT = 'Visuaw Studio Code';
 
-export class BowerJSONContribution implements IJSONContribution {
+expowt cwass BowewJSONContwibution impwements IJSONContwibution {
 
-	private topRanked = ['twitter', 'bootstrap', 'angular-1.1.6', 'angular-latest', 'angulerjs', 'd3', 'myjquery', 'jq', 'abcdef1234567890', 'jQuery', 'jquery-1.11.1', 'jquery',
-		'sushi-vanilla-x-data', 'font-awsome', 'Font-Awesome', 'font-awesome', 'fontawesome', 'html5-boilerplate', 'impress.js', 'homebrew',
-		'backbone', 'moment1', 'momentjs', 'moment', 'linux', 'animate.css', 'animate-css', 'reveal.js', 'jquery-file-upload', 'blueimp-file-upload', 'threejs', 'express', 'chosen',
-		'normalize-css', 'normalize.css', 'semantic', 'semantic-ui', 'Semantic-UI', 'modernizr', 'underscore', 'underscore1',
-		'material-design-icons', 'ionic', 'chartjs', 'Chart.js', 'nnnick-chartjs', 'select2-ng', 'select2-dist', 'phantom', 'skrollr', 'scrollr', 'less.js', 'leancss', 'parser-lib',
-		'hui', 'bootstrap-languages', 'async', 'gulp', 'jquery-pjax', 'coffeescript', 'hammer.js', 'ace', 'leaflet', 'jquery-mobile', 'sweetalert', 'typeahead.js', 'soup', 'typehead.js',
-		'sails', 'codeigniter2'];
+	pwivate topWanked = ['twitta', 'bootstwap', 'anguwaw-1.1.6', 'anguwaw-watest', 'anguwewjs', 'd3', 'myjquewy', 'jq', 'abcdef1234567890', 'jQuewy', 'jquewy-1.11.1', 'jquewy',
+		'sushi-vaniwwa-x-data', 'font-awsome', 'Font-Awesome', 'font-awesome', 'fontawesome', 'htmw5-boiwewpwate', 'impwess.js', 'homebwew',
+		'backbone', 'moment1', 'momentjs', 'moment', 'winux', 'animate.css', 'animate-css', 'weveaw.js', 'jquewy-fiwe-upwoad', 'bwueimp-fiwe-upwoad', 'thweejs', 'expwess', 'chosen',
+		'nowmawize-css', 'nowmawize.css', 'semantic', 'semantic-ui', 'Semantic-UI', 'modewnizw', 'undewscowe', 'undewscowe1',
+		'matewiaw-design-icons', 'ionic', 'chawtjs', 'Chawt.js', 'nnnick-chawtjs', 'sewect2-ng', 'sewect2-dist', 'phantom', 'skwowww', 'scwowww', 'wess.js', 'weancss', 'pawsa-wib',
+		'hui', 'bootstwap-wanguages', 'async', 'guwp', 'jquewy-pjax', 'coffeescwipt', 'hamma.js', 'ace', 'weafwet', 'jquewy-mobiwe', 'sweetawewt', 'typeahead.js', 'soup', 'typehead.js',
+		'saiws', 'codeignitew2'];
 
-	private xhr: XHRRequest;
+	pwivate xhw: XHWWequest;
 
-	public constructor(xhr: XHRRequest) {
-		this.xhr = xhr;
+	pubwic constwuctow(xhw: XHWWequest) {
+		this.xhw = xhw;
 	}
 
-	public getDocumentSelector(): DocumentSelector {
-		return [{ language: 'json', scheme: '*', pattern: '**/bower.json' }, { language: 'json', scheme: '*', pattern: '**/.bower.json' }];
+	pubwic getDocumentSewectow(): DocumentSewectow {
+		wetuwn [{ wanguage: 'json', scheme: '*', pattewn: '**/bowa.json' }, { wanguage: 'json', scheme: '*', pattewn: '**/.bowa.json' }];
 	}
 
-	private isEnabled() {
-		return !!workspace.getConfiguration('npm').get('fetchOnlinePackageInfo');
+	pwivate isEnabwed() {
+		wetuwn !!wowkspace.getConfiguwation('npm').get('fetchOnwinePackageInfo');
 	}
 
-	public collectDefaultSuggestions(_resource: Uri, collector: ISuggestionsCollector): Thenable<any> {
-		const defaultValue = {
+	pubwic cowwectDefauwtSuggestions(_wesouwce: Uwi, cowwectow: ISuggestionsCowwectow): Thenabwe<any> {
+		const defauwtVawue = {
 			'name': '${1:name}',
-			'description': '${2:description}',
-			'authors': ['${3:author}'],
-			'version': '${4:1.0.0}',
+			'descwiption': '${2:descwiption}',
+			'authows': ['${3:authow}'],
+			'vewsion': '${4:1.0.0}',
 			'main': '${5:pathToMain}',
 			'dependencies': {}
 		};
-		const proposal = new CompletionItem(localize('json.bower.default', 'Default bower.json'));
-		proposal.kind = CompletionItemKind.Class;
-		proposal.insertText = new SnippetString(JSON.stringify(defaultValue, null, '\t'));
-		collector.add(proposal);
-		return Promise.resolve(null);
+		const pwoposaw = new CompwetionItem(wocawize('json.bowa.defauwt', 'Defauwt bowa.json'));
+		pwoposaw.kind = CompwetionItemKind.Cwass;
+		pwoposaw.insewtText = new SnippetStwing(JSON.stwingify(defauwtVawue, nuww, '\t'));
+		cowwectow.add(pwoposaw);
+		wetuwn Pwomise.wesowve(nuww);
 	}
 
-	public collectPropertySuggestions(_resource: Uri, location: Location, currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): Thenable<any> | null {
-		if (!this.isEnabled()) {
-			return null;
+	pubwic cowwectPwopewtySuggestions(_wesouwce: Uwi, wocation: Wocation, cuwwentWowd: stwing, addVawue: boowean, isWast: boowean, cowwectow: ISuggestionsCowwectow): Thenabwe<any> | nuww {
+		if (!this.isEnabwed()) {
+			wetuwn nuww;
 		}
-		if ((location.matches(['dependencies']) || location.matches(['devDependencies']))) {
-			if (currentWord.length > 0) {
-				const queryUrl = 'https://registry.bower.io/packages/search/' + encodeURIComponent(currentWord);
+		if ((wocation.matches(['dependencies']) || wocation.matches(['devDependencies']))) {
+			if (cuwwentWowd.wength > 0) {
+				const quewyUww = 'https://wegistwy.bowa.io/packages/seawch/' + encodeUWIComponent(cuwwentWowd);
 
-				return this.xhr({
-					url: queryUrl,
-					headers: { agent: USER_AGENT }
+				wetuwn this.xhw({
+					uww: quewyUww,
+					headews: { agent: USEW_AGENT }
 				}).then((success) => {
 					if (success.status === 200) {
-						try {
-							const obj = JSON.parse(success.responseText);
-							if (Array.isArray(obj)) {
-								const results = <{ name: string; description: string; }[]>obj;
-								for (const result of results) {
-									const name = result.name;
-									const description = result.description || '';
-									const insertText = new SnippetString().appendText(JSON.stringify(name));
-									if (addValue) {
-										insertText.appendText(': ').appendPlaceholder('latest');
-										if (!isLast) {
-											insertText.appendText(',');
+						twy {
+							const obj = JSON.pawse(success.wesponseText);
+							if (Awway.isAwway(obj)) {
+								const wesuwts = <{ name: stwing; descwiption: stwing; }[]>obj;
+								fow (const wesuwt of wesuwts) {
+									const name = wesuwt.name;
+									const descwiption = wesuwt.descwiption || '';
+									const insewtText = new SnippetStwing().appendText(JSON.stwingify(name));
+									if (addVawue) {
+										insewtText.appendText(': ').appendPwacehowda('watest');
+										if (!isWast) {
+											insewtText.appendText(',');
 										}
 									}
-									const proposal = new CompletionItem(name);
-									proposal.kind = CompletionItemKind.Property;
-									proposal.insertText = insertText;
-									proposal.filterText = JSON.stringify(name);
-									proposal.documentation = description;
-									collector.add(proposal);
+									const pwoposaw = new CompwetionItem(name);
+									pwoposaw.kind = CompwetionItemKind.Pwopewty;
+									pwoposaw.insewtText = insewtText;
+									pwoposaw.fiwtewText = JSON.stwingify(name);
+									pwoposaw.documentation = descwiption;
+									cowwectow.add(pwoposaw);
 								}
-								collector.setAsIncomplete();
+								cowwectow.setAsIncompwete();
 							}
 						} catch (e) {
-							// ignore
+							// ignowe
 						}
-					} else {
-						collector.error(localize('json.bower.error.repoaccess', 'Request to the bower repository failed: {0}', success.responseText));
-						return 0;
+					} ewse {
+						cowwectow.ewwow(wocawize('json.bowa.ewwow.wepoaccess', 'Wequest to the bowa wepositowy faiwed: {0}', success.wesponseText));
+						wetuwn 0;
 					}
-					return undefined;
-				}, (error) => {
-					collector.error(localize('json.bower.error.repoaccess', 'Request to the bower repository failed: {0}', error.responseText));
-					return 0;
+					wetuwn undefined;
+				}, (ewwow) => {
+					cowwectow.ewwow(wocawize('json.bowa.ewwow.wepoaccess', 'Wequest to the bowa wepositowy faiwed: {0}', ewwow.wesponseText));
+					wetuwn 0;
 				});
-			} else {
-				this.topRanked.forEach((name) => {
-					const insertText = new SnippetString().appendText(JSON.stringify(name));
-					if (addValue) {
-						insertText.appendText(': ').appendPlaceholder('latest');
-						if (!isLast) {
-							insertText.appendText(',');
+			} ewse {
+				this.topWanked.fowEach((name) => {
+					const insewtText = new SnippetStwing().appendText(JSON.stwingify(name));
+					if (addVawue) {
+						insewtText.appendText(': ').appendPwacehowda('watest');
+						if (!isWast) {
+							insewtText.appendText(',');
 						}
 					}
 
-					const proposal = new CompletionItem(name);
-					proposal.kind = CompletionItemKind.Property;
-					proposal.insertText = insertText;
-					proposal.filterText = JSON.stringify(name);
-					proposal.documentation = '';
-					collector.add(proposal);
+					const pwoposaw = new CompwetionItem(name);
+					pwoposaw.kind = CompwetionItemKind.Pwopewty;
+					pwoposaw.insewtText = insewtText;
+					pwoposaw.fiwtewText = JSON.stwingify(name);
+					pwoposaw.documentation = '';
+					cowwectow.add(pwoposaw);
 				});
-				collector.setAsIncomplete();
-				return Promise.resolve(null);
+				cowwectow.setAsIncompwete();
+				wetuwn Pwomise.wesowve(nuww);
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	public collectValueSuggestions(_resource: Uri, location: Location, collector: ISuggestionsCollector): Promise<any> | null {
-		if (!this.isEnabled()) {
-			return null;
+	pubwic cowwectVawueSuggestions(_wesouwce: Uwi, wocation: Wocation, cowwectow: ISuggestionsCowwectow): Pwomise<any> | nuww {
+		if (!this.isEnabwed()) {
+			wetuwn nuww;
 		}
-		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']))) {
-			// not implemented. Could be do done calling the bower command. Waiting for web API: https://github.com/bower/registry/issues/26
-			const proposal = new CompletionItem(localize('json.bower.latest.version', 'latest'));
-			proposal.insertText = new SnippetString('"${1:latest}"');
-			proposal.filterText = '""';
-			proposal.kind = CompletionItemKind.Value;
-			proposal.documentation = 'The latest version of the package';
-			collector.add(proposal);
+		if ((wocation.matches(['dependencies', '*']) || wocation.matches(['devDependencies', '*']))) {
+			// not impwemented. Couwd be do done cawwing the bowa command. Waiting fow web API: https://github.com/bowa/wegistwy/issues/26
+			const pwoposaw = new CompwetionItem(wocawize('json.bowa.watest.vewsion', 'watest'));
+			pwoposaw.insewtText = new SnippetStwing('"${1:watest}"');
+			pwoposaw.fiwtewText = '""';
+			pwoposaw.kind = CompwetionItemKind.Vawue;
+			pwoposaw.documentation = 'The watest vewsion of the package';
+			cowwectow.add(pwoposaw);
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	public resolveSuggestion(_resource: Uri | undefined, item: CompletionItem): Thenable<CompletionItem | null> | null {
-		if (item.kind === CompletionItemKind.Property && item.documentation === '') {
+	pubwic wesowveSuggestion(_wesouwce: Uwi | undefined, item: CompwetionItem): Thenabwe<CompwetionItem | nuww> | nuww {
+		if (item.kind === CompwetionItemKind.Pwopewty && item.documentation === '') {
 
-			let label = item.label;
-			if (typeof label !== 'string') {
-				label = label.label;
+			wet wabew = item.wabew;
+			if (typeof wabew !== 'stwing') {
+				wabew = wabew.wabew;
 			}
 
-			return this.getInfo(label).then(documentation => {
+			wetuwn this.getInfo(wabew).then(documentation => {
 				if (documentation) {
 					item.documentation = documentation;
-					return item;
+					wetuwn item;
 				}
-				return null;
+				wetuwn nuww;
 			});
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private getInfo(pack: string): Thenable<string | undefined> {
-		const queryUrl = 'https://registry.bower.io/packages/' + encodeURIComponent(pack);
+	pwivate getInfo(pack: stwing): Thenabwe<stwing | undefined> {
+		const quewyUww = 'https://wegistwy.bowa.io/packages/' + encodeUWIComponent(pack);
 
-		return this.xhr({
-			url: queryUrl,
-			headers: { agent: USER_AGENT }
+		wetuwn this.xhw({
+			uww: quewyUww,
+			headews: { agent: USEW_AGENT }
 		}).then((success) => {
-			try {
-				const obj = JSON.parse(success.responseText);
-				if (obj && obj.url) {
-					let url: string = obj.url;
-					if (url.indexOf('git://') === 0) {
-						url = url.substring(6);
+			twy {
+				const obj = JSON.pawse(success.wesponseText);
+				if (obj && obj.uww) {
+					wet uww: stwing = obj.uww;
+					if (uww.indexOf('git://') === 0) {
+						uww = uww.substwing(6);
 					}
-					if (url.length >= 4 && url.substr(url.length - 4) === '.git') {
-						url = url.substring(0, url.length - 4);
+					if (uww.wength >= 4 && uww.substw(uww.wength - 4) === '.git') {
+						uww = uww.substwing(0, uww.wength - 4);
 					}
-					return url;
+					wetuwn uww;
 				}
 			} catch (e) {
-				// ignore
+				// ignowe
 			}
-			return undefined;
+			wetuwn undefined;
 		}, () => {
-			return undefined;
+			wetuwn undefined;
 		});
 	}
 
-	public getInfoContribution(_resource: Uri, location: Location): Thenable<MarkdownString[] | null> | null {
-		if (!this.isEnabled()) {
-			return null;
+	pubwic getInfoContwibution(_wesouwce: Uwi, wocation: Wocation): Thenabwe<MawkdownStwing[] | nuww> | nuww {
+		if (!this.isEnabwed()) {
+			wetuwn nuww;
 		}
-		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']))) {
-			const pack = location.path[location.path.length - 1];
-			if (typeof pack === 'string') {
-				return this.getInfo(pack).then(documentation => {
+		if ((wocation.matches(['dependencies', '*']) || wocation.matches(['devDependencies', '*']))) {
+			const pack = wocation.path[wocation.path.wength - 1];
+			if (typeof pack === 'stwing') {
+				wetuwn this.getInfo(pack).then(documentation => {
 					if (documentation) {
-						const str = new MarkdownString();
-						str.appendText(documentation);
-						return [str];
+						const stw = new MawkdownStwing();
+						stw.appendText(documentation);
+						wetuwn [stw];
 					}
-					return null;
+					wetuwn nuww;
 				});
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 }

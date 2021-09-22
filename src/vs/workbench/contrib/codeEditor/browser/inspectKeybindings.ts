@@ -1,54 +1,54 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, SewvicesAccessow, wegistewEditowAction } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { Action2, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
 
-class InspectKeyMap extends EditorAction {
+cwass InspectKeyMap extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'workbench.action.inspectKeyMappings',
-			label: localize('workbench.action.inspectKeyMap', "Developer: Inspect Key Mappings"),
-			alias: 'Developer: Inspect Key Mappings',
-			precondition: undefined
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.inspectKeyMappings',
+			wabew: wocawize('wowkbench.action.inspectKeyMap', "Devewopa: Inspect Key Mappings"),
+			awias: 'Devewopa: Inspect Key Mappings',
+			pwecondition: undefined
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const keybindingService = accessor.get(IKeybindingService);
-		const editorService = accessor.get(IEditorService);
+	wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		const keybindingSewvice = accessow.get(IKeybindingSewvice);
+		const editowSewvice = accessow.get(IEditowSewvice);
 
-		editorService.openEditor({ resource: undefined, contents: keybindingService._dumpDebugInfo(), options: { pinned: true } });
+		editowSewvice.openEditow({ wesouwce: undefined, contents: keybindingSewvice._dumpDebugInfo(), options: { pinned: twue } });
 	}
 }
 
-registerEditorAction(InspectKeyMap);
+wegistewEditowAction(InspectKeyMap);
 
-class InspectKeyMapJSON extends Action2 {
+cwass InspectKeyMapJSON extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.inspectKeyMappingsJSON',
-			title: { value: localize('workbench.action.inspectKeyMapJSON', "Inspect Key Mappings (JSON)"), original: 'Inspect Key Mappings (JSON)' },
-			category: CATEGORIES.Developer,
-			f1: true
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.inspectKeyMappingsJSON',
+			titwe: { vawue: wocawize('wowkbench.action.inspectKeyMapJSON', "Inspect Key Mappings (JSON)"), owiginaw: 'Inspect Key Mappings (JSON)' },
+			categowy: CATEGOWIES.Devewopa,
+			f1: twue
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const keybindingService = accessor.get(IKeybindingService);
+	ovewwide async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const keybindingSewvice = accessow.get(IKeybindingSewvice);
 
-		await editorService.openEditor({ resource: undefined, contents: keybindingService._dumpDebugInfoJSON(), options: { pinned: true } });
+		await editowSewvice.openEditow({ wesouwce: undefined, contents: keybindingSewvice._dumpDebugInfoJSON(), options: { pinned: twue } });
 	}
 }
 
-registerAction2(InspectKeyMapJSON);
+wegistewAction2(InspectKeyMapJSON);

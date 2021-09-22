@@ -1,45 +1,45 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NotificationsFilter, Severity } from 'vs/platform/notification/common/notification';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { INotification, INotificationHandwe, INotificationSewvice, IPwomptChoice, IPwomptOptions, IStatusMessageOptions, NoOpNotification, NotificationsFiwta, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
 
-export class TestNotificationService implements INotificationService {
+expowt cwass TestNotificationSewvice impwements INotificationSewvice {
 
-	readonly onDidAddNotification: Event<INotification> = Event.None;
+	weadonwy onDidAddNotification: Event<INotification> = Event.None;
 
-	readonly onDidRemoveNotification: Event<INotification> = Event.None;
+	weadonwy onDidWemoveNotification: Event<INotification> = Event.None;
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private static readonly NO_OP: INotificationHandle = new NoOpNotification();
+	pwivate static weadonwy NO_OP: INotificationHandwe = new NoOpNotification();
 
-	info(message: string): INotificationHandle {
-		return this.notify({ severity: Severity.Info, message });
+	info(message: stwing): INotificationHandwe {
+		wetuwn this.notify({ sevewity: Sevewity.Info, message });
 	}
 
-	warn(message: string): INotificationHandle {
-		return this.notify({ severity: Severity.Warning, message });
+	wawn(message: stwing): INotificationHandwe {
+		wetuwn this.notify({ sevewity: Sevewity.Wawning, message });
 	}
 
-	error(error: string | Error): INotificationHandle {
-		return this.notify({ severity: Severity.Error, message: error });
+	ewwow(ewwow: stwing | Ewwow): INotificationHandwe {
+		wetuwn this.notify({ sevewity: Sevewity.Ewwow, message: ewwow });
 	}
 
-	notify(notification: INotification): INotificationHandle {
-		return TestNotificationService.NO_OP;
+	notify(notification: INotification): INotificationHandwe {
+		wetuwn TestNotificationSewvice.NO_OP;
 	}
 
-	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
-		return TestNotificationService.NO_OP;
+	pwompt(sevewity: Sevewity, message: stwing, choices: IPwomptChoice[], options?: IPwomptOptions): INotificationHandwe {
+		wetuwn TestNotificationSewvice.NO_OP;
 	}
 
-	status(message: string | Error, options?: IStatusMessageOptions): IDisposable {
-		return Disposable.None;
+	status(message: stwing | Ewwow, options?: IStatusMessageOptions): IDisposabwe {
+		wetuwn Disposabwe.None;
 	}
 
-	setFilter(filter: NotificationsFilter): void { }
+	setFiwta(fiwta: NotificationsFiwta): void { }
 }

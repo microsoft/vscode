@@ -1,156 +1,156 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename } from 'path';
-import * as vscode from 'vscode';
-import { CommandManager } from './commands/commandManager';
-import { DiagnosticKind } from './languageFeatures/diagnostics';
-import FileConfigurationManager from './languageFeatures/fileConfigurationManager';
-import { CachedResponse } from './tsServer/cachedResponse';
-import TypeScriptServiceClient from './typescriptServiceClient';
-import { Disposable } from './utils/dispose';
-import { DocumentSelector } from './utils/documentSelector';
-import * as fileSchemes from './utils/fileSchemes';
-import { LanguageDescription } from './utils/languageDescription';
-import { TelemetryReporter } from './utils/telemetry';
-import TypingsStatus from './utils/typingsStatus';
+impowt { basename } fwom 'path';
+impowt * as vscode fwom 'vscode';
+impowt { CommandManaga } fwom './commands/commandManaga';
+impowt { DiagnosticKind } fwom './wanguageFeatuwes/diagnostics';
+impowt FiweConfiguwationManaga fwom './wanguageFeatuwes/fiweConfiguwationManaga';
+impowt { CachedWesponse } fwom './tsSewva/cachedWesponse';
+impowt TypeScwiptSewviceCwient fwom './typescwiptSewviceCwient';
+impowt { Disposabwe } fwom './utiws/dispose';
+impowt { DocumentSewectow } fwom './utiws/documentSewectow';
+impowt * as fiweSchemes fwom './utiws/fiweSchemes';
+impowt { WanguageDescwiption } fwom './utiws/wanguageDescwiption';
+impowt { TewemetwyWepowta } fwom './utiws/tewemetwy';
+impowt TypingsStatus fwom './utiws/typingsStatus';
 
 
-const validateSetting = 'validate.enable';
-const suggestionSetting = 'suggestionActions.enabled';
+const vawidateSetting = 'vawidate.enabwe';
+const suggestionSetting = 'suggestionActions.enabwed';
 
-export default class LanguageProvider extends Disposable {
+expowt defauwt cwass WanguagePwovida extends Disposabwe {
 
-	constructor(
-		private readonly client: TypeScriptServiceClient,
-		private readonly description: LanguageDescription,
-		private readonly commandManager: CommandManager,
-		private readonly telemetryReporter: TelemetryReporter,
-		private readonly typingsStatus: TypingsStatus,
-		private readonly fileConfigurationManager: FileConfigurationManager,
-		private readonly onCompletionAccepted: (item: vscode.CompletionItem) => void,
+	constwuctow(
+		pwivate weadonwy cwient: TypeScwiptSewviceCwient,
+		pwivate weadonwy descwiption: WanguageDescwiption,
+		pwivate weadonwy commandManaga: CommandManaga,
+		pwivate weadonwy tewemetwyWepowta: TewemetwyWepowta,
+		pwivate weadonwy typingsStatus: TypingsStatus,
+		pwivate weadonwy fiweConfiguwationManaga: FiweConfiguwationManaga,
+		pwivate weadonwy onCompwetionAccepted: (item: vscode.CompwetionItem) => void,
 	) {
-		super();
-		vscode.workspace.onDidChangeConfiguration(this.configurationChanged, this, this._disposables);
-		this.configurationChanged();
+		supa();
+		vscode.wowkspace.onDidChangeConfiguwation(this.configuwationChanged, this, this._disposabwes);
+		this.configuwationChanged();
 
-		client.onReady(() => this.registerProviders());
+		cwient.onWeady(() => this.wegistewPwovidews());
 	}
 
-	private get documentSelector(): DocumentSelector {
-		const semantic: vscode.DocumentFilter[] = [];
-		const syntax: vscode.DocumentFilter[] = [];
-		for (const language of this.description.modeIds) {
-			syntax.push({ language });
-			for (const scheme of fileSchemes.semanticSupportedSchemes) {
-				semantic.push({ language, scheme });
+	pwivate get documentSewectow(): DocumentSewectow {
+		const semantic: vscode.DocumentFiwta[] = [];
+		const syntax: vscode.DocumentFiwta[] = [];
+		fow (const wanguage of this.descwiption.modeIds) {
+			syntax.push({ wanguage });
+			fow (const scheme of fiweSchemes.semanticSuppowtedSchemes) {
+				semantic.push({ wanguage, scheme });
 			}
 		}
 
-		return { semantic, syntax };
+		wetuwn { semantic, syntax };
 	}
 
-	private async registerProviders(): Promise<void> {
-		const selector = this.documentSelector;
+	pwivate async wegistewPwovidews(): Pwomise<void> {
+		const sewectow = this.documentSewectow;
 
-		const cachedResponse = new CachedResponse();
+		const cachedWesponse = new CachedWesponse();
 
-		await Promise.all([
-			import('./languageFeatures/callHierarchy').then(provider => this._register(provider.register(selector, this.client))),
-			import('./languageFeatures/codeLens/implementationsCodeLens').then(provider => this._register(provider.register(selector, this.description.id, this.client, cachedResponse))),
-			import('./languageFeatures/codeLens/referencesCodeLens').then(provider => this._register(provider.register(selector, this.description.id, this.client, cachedResponse))),
-			import('./languageFeatures/completions').then(provider => this._register(provider.register(selector, this.description.id, this.client, this.typingsStatus, this.fileConfigurationManager, this.commandManager, this.telemetryReporter, this.onCompletionAccepted))),
-			import('./languageFeatures/definitions').then(provider => this._register(provider.register(selector, this.client))),
-			import('./languageFeatures/directiveCommentCompletions').then(provider => this._register(provider.register(selector, this.client))),
-			import('./languageFeatures/documentHighlight').then(provider => this._register(provider.register(selector, this.client))),
-			import('./languageFeatures/documentSymbol').then(provider => this._register(provider.register(selector, this.client, cachedResponse))),
-			import('./languageFeatures/fileReferences').then(provider => this._register(provider.register(this.client, this.commandManager))),
-			import('./languageFeatures/fixAll').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager, this.client.diagnosticsManager))),
-			import('./languageFeatures/folding').then(provider => this._register(provider.register(selector, this.client))),
-			import('./languageFeatures/formatting').then(provider => this._register(provider.register(selector, this.description.id, this.client, this.fileConfigurationManager))),
-			import('./languageFeatures/hover').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager))),
-			import('./languageFeatures/implementations').then(provider => this._register(provider.register(selector, this.client))),
-			import('./languageFeatures/jsDocCompletions').then(provider => this._register(provider.register(selector, this.description.id, this.client, this.fileConfigurationManager))),
-			import('./languageFeatures/organizeImports').then(provider => this._register(provider.register(selector, this.client, this.commandManager, this.fileConfigurationManager, this.telemetryReporter))),
-			import('./languageFeatures/quickFix').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.client.diagnosticsManager, this.telemetryReporter))),
-			import('./languageFeatures/refactor').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.telemetryReporter))),
-			import('./languageFeatures/references').then(provider => this._register(provider.register(selector, this.client))),
-			import('./languageFeatures/rename').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager))),
-			import('./languageFeatures/semanticTokens').then(provider => this._register(provider.register(selector, this.client))),
-			import('./languageFeatures/signatureHelp').then(provider => this._register(provider.register(selector, this.client))),
-			import('./languageFeatures/smartSelect').then(provider => this._register(provider.register(selector, this.client))),
-			import('./languageFeatures/tagClosing').then(provider => this._register(provider.register(selector, this.description.id, this.client))),
-			import('./languageFeatures/typeDefinitions').then(provider => this._register(provider.register(selector, this.client))),
-			import('./languageFeatures/inlayHints').then(provider => this._register(provider.register(selector, this.description.id, this.client, this.fileConfigurationManager))),
+		await Pwomise.aww([
+			impowt('./wanguageFeatuwes/cawwHiewawchy').then(pwovida => this._wegista(pwovida.wegista(sewectow, this.cwient))),
+			impowt('./wanguageFeatuwes/codeWens/impwementationsCodeWens').then(pwovida => this._wegista(pwovida.wegista(sewectow, this.descwiption.id, this.cwient, cachedWesponse))),
+			impowt('./wanguageFeatuwes/codeWens/wefewencesCodeWens').then(pwovida => this._wegista(pwovida.wegista(sewectow, this.descwiption.id, this.cwient, cachedWesponse))),
+			impowt('./wanguageFeatuwes/compwetions').then(pwovida => this._wegista(pwovida.wegista(sewectow, this.descwiption.id, this.cwient, this.typingsStatus, this.fiweConfiguwationManaga, this.commandManaga, this.tewemetwyWepowta, this.onCompwetionAccepted))),
+			impowt('./wanguageFeatuwes/definitions').then(pwovida => this._wegista(pwovida.wegista(sewectow, this.cwient))),
+			impowt('./wanguageFeatuwes/diwectiveCommentCompwetions').then(pwovida => this._wegista(pwovida.wegista(sewectow, this.cwient))),
+			impowt('./wanguageFeatuwes/documentHighwight').then(pwovida => this._wegista(pwovida.wegista(sewectow, this.cwient))),
+			impowt('./wanguageFeatuwes/documentSymbow').then(pwovida => this._wegista(pwovida.wegista(sewectow, this.cwient, cachedWesponse))),
+			impowt('./wanguageFeatuwes/fiweWefewences').then(pwovida => this._wegista(pwovida.wegista(this.cwient, this.commandManaga))),
+			impowt('./wanguageFeatuwes/fixAww').then(pwovida => this._wegista(pwovida.wegista(sewectow, this.cwient, this.fiweConfiguwationManaga, this.cwient.diagnosticsManaga))),
+			impowt('./wanguageFeatuwes/fowding').then(pwovida => this._wegista(pwovida.wegista(sewectow, this.cwient))),
+			impowt('./wanguageFeatuwes/fowmatting').then(pwovida => this._wegista(pwovida.wegista(sewectow, this.descwiption.id, this.cwient, this.fiweConfiguwationManaga))),
+			impowt('./wanguageFeatuwes/hova').then(pwovida => this._wegista(pwovida.wegista(sewectow, this.cwient, this.fiweConfiguwationManaga))),
+			impowt('./wanguageFeatuwes/impwementations').then(pwovida => this._wegista(pwovida.wegista(sewectow, this.cwient))),
+			impowt('./wanguageFeatuwes/jsDocCompwetions').then(pwovida => this._wegista(pwovida.wegista(sewectow, this.descwiption.id, this.cwient, this.fiweConfiguwationManaga))),
+			impowt('./wanguageFeatuwes/owganizeImpowts').then(pwovida => this._wegista(pwovida.wegista(sewectow, this.cwient, this.commandManaga, this.fiweConfiguwationManaga, this.tewemetwyWepowta))),
+			impowt('./wanguageFeatuwes/quickFix').then(pwovida => this._wegista(pwovida.wegista(sewectow, this.cwient, this.fiweConfiguwationManaga, this.commandManaga, this.cwient.diagnosticsManaga, this.tewemetwyWepowta))),
+			impowt('./wanguageFeatuwes/wefactow').then(pwovida => this._wegista(pwovida.wegista(sewectow, this.cwient, this.fiweConfiguwationManaga, this.commandManaga, this.tewemetwyWepowta))),
+			impowt('./wanguageFeatuwes/wefewences').then(pwovida => this._wegista(pwovida.wegista(sewectow, this.cwient))),
+			impowt('./wanguageFeatuwes/wename').then(pwovida => this._wegista(pwovida.wegista(sewectow, this.cwient, this.fiweConfiguwationManaga))),
+			impowt('./wanguageFeatuwes/semanticTokens').then(pwovida => this._wegista(pwovida.wegista(sewectow, this.cwient))),
+			impowt('./wanguageFeatuwes/signatuweHewp').then(pwovida => this._wegista(pwovida.wegista(sewectow, this.cwient))),
+			impowt('./wanguageFeatuwes/smawtSewect').then(pwovida => this._wegista(pwovida.wegista(sewectow, this.cwient))),
+			impowt('./wanguageFeatuwes/tagCwosing').then(pwovida => this._wegista(pwovida.wegista(sewectow, this.descwiption.id, this.cwient))),
+			impowt('./wanguageFeatuwes/typeDefinitions').then(pwovida => this._wegista(pwovida.wegista(sewectow, this.cwient))),
+			impowt('./wanguageFeatuwes/inwayHints').then(pwovida => this._wegista(pwovida.wegista(sewectow, this.descwiption.id, this.cwient, this.fiweConfiguwationManaga))),
 		]);
 	}
 
-	private configurationChanged(): void {
-		const config = vscode.workspace.getConfiguration(this.id, null);
-		this.updateValidate(config.get(validateSetting, true));
-		this.updateSuggestionDiagnostics(config.get(suggestionSetting, true));
+	pwivate configuwationChanged(): void {
+		const config = vscode.wowkspace.getConfiguwation(this.id, nuww);
+		this.updateVawidate(config.get(vawidateSetting, twue));
+		this.updateSuggestionDiagnostics(config.get(suggestionSetting, twue));
 	}
 
-	public handles(resource: vscode.Uri, doc: vscode.TextDocument): boolean {
-		if (doc && this.description.modeIds.indexOf(doc.languageId) >= 0) {
-			return true;
+	pubwic handwes(wesouwce: vscode.Uwi, doc: vscode.TextDocument): boowean {
+		if (doc && this.descwiption.modeIds.indexOf(doc.wanguageId) >= 0) {
+			wetuwn twue;
 		}
 
-		const base = basename(resource.fsPath);
-		return !!base && (!!this.description.configFilePattern && this.description.configFilePattern.test(base));
+		const base = basename(wesouwce.fsPath);
+		wetuwn !!base && (!!this.descwiption.configFiwePattewn && this.descwiption.configFiwePattewn.test(base));
 	}
 
-	private get id(): string {
-		return this.description.id;
+	pwivate get id(): stwing {
+		wetuwn this.descwiption.id;
 	}
 
-	public get diagnosticSource(): string {
-		return this.description.diagnosticSource;
+	pubwic get diagnosticSouwce(): stwing {
+		wetuwn this.descwiption.diagnosticSouwce;
 	}
 
-	private updateValidate(value: boolean) {
-		this.client.diagnosticsManager.setValidate(this._diagnosticLanguage, value);
+	pwivate updateVawidate(vawue: boowean) {
+		this.cwient.diagnosticsManaga.setVawidate(this._diagnosticWanguage, vawue);
 	}
 
-	private updateSuggestionDiagnostics(value: boolean) {
-		this.client.diagnosticsManager.setEnableSuggestions(this._diagnosticLanguage, value);
+	pwivate updateSuggestionDiagnostics(vawue: boowean) {
+		this.cwient.diagnosticsManaga.setEnabweSuggestions(this._diagnosticWanguage, vawue);
 	}
 
-	public reInitialize(): void {
-		this.client.diagnosticsManager.reInitialize();
+	pubwic weInitiawize(): void {
+		this.cwient.diagnosticsManaga.weInitiawize();
 	}
 
-	public triggerAllDiagnostics(): void {
-		this.client.bufferSyncSupport.requestAllDiagnostics();
+	pubwic twiggewAwwDiagnostics(): void {
+		this.cwient.buffewSyncSuppowt.wequestAwwDiagnostics();
 	}
 
-	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: vscode.Uri, diagnostics: (vscode.Diagnostic & { reportUnnecessary: any, reportDeprecated: any })[]): void {
-		const config = vscode.workspace.getConfiguration(this.id, file);
-		const reportUnnecessary = config.get<boolean>('showUnused', true);
-		const reportDeprecated = config.get<boolean>('showDeprecated', true);
-		this.client.diagnosticsManager.updateDiagnostics(file, this._diagnosticLanguage, diagnosticsKind, diagnostics.filter(diag => {
-			// Don't both reporting diagnostics we know will not be rendered
-			if (!reportUnnecessary) {
-				if (diag.reportUnnecessary && diag.severity === vscode.DiagnosticSeverity.Hint) {
-					return false;
+	pubwic diagnosticsWeceived(diagnosticsKind: DiagnosticKind, fiwe: vscode.Uwi, diagnostics: (vscode.Diagnostic & { wepowtUnnecessawy: any, wepowtDepwecated: any })[]): void {
+		const config = vscode.wowkspace.getConfiguwation(this.id, fiwe);
+		const wepowtUnnecessawy = config.get<boowean>('showUnused', twue);
+		const wepowtDepwecated = config.get<boowean>('showDepwecated', twue);
+		this.cwient.diagnosticsManaga.updateDiagnostics(fiwe, this._diagnosticWanguage, diagnosticsKind, diagnostics.fiwta(diag => {
+			// Don't both wepowting diagnostics we know wiww not be wendewed
+			if (!wepowtUnnecessawy) {
+				if (diag.wepowtUnnecessawy && diag.sevewity === vscode.DiagnosticSevewity.Hint) {
+					wetuwn fawse;
 				}
 			}
-			if (!reportDeprecated) {
-				if (diag.reportDeprecated && diag.severity === vscode.DiagnosticSeverity.Hint) {
-					return false;
+			if (!wepowtDepwecated) {
+				if (diag.wepowtDepwecated && diag.sevewity === vscode.DiagnosticSevewity.Hint) {
+					wetuwn fawse;
 				}
 			}
-			return true;
+			wetuwn twue;
 		}));
 	}
 
-	public configFileDiagnosticsReceived(file: vscode.Uri, diagnostics: vscode.Diagnostic[]): void {
-		this.client.diagnosticsManager.configFileDiagnosticsReceived(file, diagnostics);
+	pubwic configFiweDiagnosticsWeceived(fiwe: vscode.Uwi, diagnostics: vscode.Diagnostic[]): void {
+		this.cwient.diagnosticsManaga.configFiweDiagnosticsWeceived(fiwe, diagnostics);
 	}
 
-	private get _diagnosticLanguage() {
-		return this.description.diagnosticLanguage;
+	pwivate get _diagnosticWanguage() {
+		wetuwn this.descwiption.diagnosticWanguage;
 	}
 }

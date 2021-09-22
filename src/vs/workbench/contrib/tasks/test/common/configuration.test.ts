@@ -1,913 +1,913 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import { URI } from 'vs/base/common/uri';
-import * as assert from 'assert';
-import Severity from 'vs/base/common/severity';
-import * as UUID from 'vs/base/common/uuid';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt * as assewt fwom 'assewt';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt * as UUID fwom 'vs/base/common/uuid';
 
-import * as Types from 'vs/base/common/types';
-import * as Platform from 'vs/base/common/platform';
-import { ValidationStatus } from 'vs/base/common/parsers';
-import { ProblemMatcher, FileLocationKind, ProblemPattern, ApplyToKind } from 'vs/workbench/contrib/tasks/common/problemMatcher';
-import { WorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
+impowt * as Types fwom 'vs/base/common/types';
+impowt * as Pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { VawidationStatus } fwom 'vs/base/common/pawsews';
+impowt { PwobwemMatcha, FiweWocationKind, PwobwemPattewn, AppwyToKind } fwom 'vs/wowkbench/contwib/tasks/common/pwobwemMatcha';
+impowt { WowkspaceFowda, IWowkspace } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
 
-import * as Tasks from 'vs/workbench/contrib/tasks/common/tasks';
-import { parse, ParseResult, IProblemReporter, ExternalTaskRunnerConfiguration, CustomTask, TaskConfigSource } from 'vs/workbench/contrib/tasks/common/taskConfiguration';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { IContext } from 'vs/platform/contextkey/common/contextkey';
-import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
+impowt * as Tasks fwom 'vs/wowkbench/contwib/tasks/common/tasks';
+impowt { pawse, PawseWesuwt, IPwobwemWepowta, ExtewnawTaskWunnewConfiguwation, CustomTask, TaskConfigSouwce } fwom 'vs/wowkbench/contwib/tasks/common/taskConfiguwation';
+impowt { MockContextKeySewvice } fwom 'vs/pwatfowm/keybinding/test/common/mockKeybindingSewvice';
+impowt { IContext } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { Wowkspace } fwom 'vs/pwatfowm/wowkspace/test/common/testWowkspace';
 
-const workspaceFolder: WorkspaceFolder = new WorkspaceFolder({
-	uri: URI.file('/workspace/folderOne'),
-	name: 'folderOne',
+const wowkspaceFowda: WowkspaceFowda = new WowkspaceFowda({
+	uwi: UWI.fiwe('/wowkspace/fowdewOne'),
+	name: 'fowdewOne',
 	index: 0
 });
 
-const workspace: IWorkspace = new Workspace('id', [workspaceFolder]);
+const wowkspace: IWowkspace = new Wowkspace('id', [wowkspaceFowda]);
 
-class ProblemReporter implements IProblemReporter {
+cwass PwobwemWepowta impwements IPwobwemWepowta {
 
-	private _validationStatus: ValidationStatus = new ValidationStatus();
+	pwivate _vawidationStatus: VawidationStatus = new VawidationStatus();
 
-	public receivedMessage: boolean = false;
-	public lastMessage: string | undefined = undefined;
+	pubwic weceivedMessage: boowean = fawse;
+	pubwic wastMessage: stwing | undefined = undefined;
 
-	public info(message: string): void {
-		this.log(message);
+	pubwic info(message: stwing): void {
+		this.wog(message);
 	}
 
-	public warn(message: string): void {
-		this.log(message);
+	pubwic wawn(message: stwing): void {
+		this.wog(message);
 	}
 
-	public error(message: string): void {
-		this.log(message);
+	pubwic ewwow(message: stwing): void {
+		this.wog(message);
 	}
 
-	public fatal(message: string): void {
-		this.log(message);
+	pubwic fataw(message: stwing): void {
+		this.wog(message);
 	}
 
-	public get status(): ValidationStatus {
-		return this._validationStatus;
+	pubwic get status(): VawidationStatus {
+		wetuwn this._vawidationStatus;
 	}
 
-	private log(message: string): void {
-		this.receivedMessage = true;
-		this.lastMessage = message;
+	pwivate wog(message: stwing): void {
+		this.weceivedMessage = twue;
+		this.wastMessage = message;
 	}
 }
 
-class ConfiguationBuilder {
+cwass ConfiguationBuiwda {
 
-	public result: Tasks.Task[];
-	private builders: CustomTaskBuilder[];
+	pubwic wesuwt: Tasks.Task[];
+	pwivate buiwdews: CustomTaskBuiwda[];
 
-	constructor() {
-		this.result = [];
-		this.builders = [];
+	constwuctow() {
+		this.wesuwt = [];
+		this.buiwdews = [];
 	}
 
-	public task(name: string, command: string): CustomTaskBuilder {
-		let builder = new CustomTaskBuilder(this, name, command);
-		this.builders.push(builder);
-		this.result.push(builder.result);
-		return builder;
+	pubwic task(name: stwing, command: stwing): CustomTaskBuiwda {
+		wet buiwda = new CustomTaskBuiwda(this, name, command);
+		this.buiwdews.push(buiwda);
+		this.wesuwt.push(buiwda.wesuwt);
+		wetuwn buiwda;
 	}
 
-	public done(): void {
-		for (let builder of this.builders) {
-			builder.done();
+	pubwic done(): void {
+		fow (wet buiwda of this.buiwdews) {
+			buiwda.done();
 		}
 	}
 }
 
-class PresentationBuilder {
+cwass PwesentationBuiwda {
 
-	public result: Tasks.PresentationOptions;
+	pubwic wesuwt: Tasks.PwesentationOptions;
 
-	constructor(public parent: CommandConfigurationBuilder) {
-		this.result = { echo: false, reveal: Tasks.RevealKind.Always, revealProblems: Tasks.RevealProblemKind.Never, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true, clear: false, close: false };
+	constwuctow(pubwic pawent: CommandConfiguwationBuiwda) {
+		this.wesuwt = { echo: fawse, weveaw: Tasks.WeveawKind.Awways, weveawPwobwems: Tasks.WeveawPwobwemKind.Neva, focus: fawse, panew: Tasks.PanewKind.Shawed, showWeuseMessage: twue, cweaw: fawse, cwose: fawse };
 	}
 
-	public echo(value: boolean): PresentationBuilder {
-		this.result.echo = value;
-		return this;
+	pubwic echo(vawue: boowean): PwesentationBuiwda {
+		this.wesuwt.echo = vawue;
+		wetuwn this;
 	}
 
-	public reveal(value: Tasks.RevealKind): PresentationBuilder {
-		this.result.reveal = value;
-		return this;
+	pubwic weveaw(vawue: Tasks.WeveawKind): PwesentationBuiwda {
+		this.wesuwt.weveaw = vawue;
+		wetuwn this;
 	}
 
-	public focus(value: boolean): PresentationBuilder {
-		this.result.focus = value;
-		return this;
+	pubwic focus(vawue: boowean): PwesentationBuiwda {
+		this.wesuwt.focus = vawue;
+		wetuwn this;
 	}
 
-	public instance(value: Tasks.PanelKind): PresentationBuilder {
-		this.result.panel = value;
-		return this;
+	pubwic instance(vawue: Tasks.PanewKind): PwesentationBuiwda {
+		this.wesuwt.panew = vawue;
+		wetuwn this;
 	}
 
-	public showReuseMessage(value: boolean): PresentationBuilder {
-		this.result.showReuseMessage = value;
-		return this;
+	pubwic showWeuseMessage(vawue: boowean): PwesentationBuiwda {
+		this.wesuwt.showWeuseMessage = vawue;
+		wetuwn this;
 	}
 
-	public close(value: boolean): PresentationBuilder {
-		this.result.close = value;
-		return this;
+	pubwic cwose(vawue: boowean): PwesentationBuiwda {
+		this.wesuwt.cwose = vawue;
+		wetuwn this;
 	}
 
-	public done(): void {
+	pubwic done(): void {
 	}
 }
 
-class CommandConfigurationBuilder {
-	public result: Tasks.CommandConfiguration;
+cwass CommandConfiguwationBuiwda {
+	pubwic wesuwt: Tasks.CommandConfiguwation;
 
-	private presentationBuilder: PresentationBuilder;
+	pwivate pwesentationBuiwda: PwesentationBuiwda;
 
-	constructor(public parent: CustomTaskBuilder, command: string) {
-		this.presentationBuilder = new PresentationBuilder(this);
-		this.result = {
+	constwuctow(pubwic pawent: CustomTaskBuiwda, command: stwing) {
+		this.pwesentationBuiwda = new PwesentationBuiwda(this);
+		this.wesuwt = {
 			name: command,
-			runtime: Tasks.RuntimeType.Process,
-			args: [],
+			wuntime: Tasks.WuntimeType.Pwocess,
+			awgs: [],
 			options: {
-				cwd: '${workspaceFolder}'
+				cwd: '${wowkspaceFowda}'
 			},
-			presentation: this.presentationBuilder.result,
-			suppressTaskName: false
+			pwesentation: this.pwesentationBuiwda.wesuwt,
+			suppwessTaskName: fawse
 		};
 	}
 
-	public name(value: string): CommandConfigurationBuilder {
-		this.result.name = value;
-		return this;
+	pubwic name(vawue: stwing): CommandConfiguwationBuiwda {
+		this.wesuwt.name = vawue;
+		wetuwn this;
 	}
 
-	public runtime(value: Tasks.RuntimeType): CommandConfigurationBuilder {
-		this.result.runtime = value;
-		return this;
+	pubwic wuntime(vawue: Tasks.WuntimeType): CommandConfiguwationBuiwda {
+		this.wesuwt.wuntime = vawue;
+		wetuwn this;
 	}
 
-	public args(value: string[]): CommandConfigurationBuilder {
-		this.result.args = value;
-		return this;
+	pubwic awgs(vawue: stwing[]): CommandConfiguwationBuiwda {
+		this.wesuwt.awgs = vawue;
+		wetuwn this;
 	}
 
-	public options(value: Tasks.CommandOptions): CommandConfigurationBuilder {
-		this.result.options = value;
-		return this;
+	pubwic options(vawue: Tasks.CommandOptions): CommandConfiguwationBuiwda {
+		this.wesuwt.options = vawue;
+		wetuwn this;
 	}
 
-	public taskSelector(value: string): CommandConfigurationBuilder {
-		this.result.taskSelector = value;
-		return this;
+	pubwic taskSewectow(vawue: stwing): CommandConfiguwationBuiwda {
+		this.wesuwt.taskSewectow = vawue;
+		wetuwn this;
 	}
 
-	public suppressTaskName(value: boolean): CommandConfigurationBuilder {
-		this.result.suppressTaskName = value;
-		return this;
+	pubwic suppwessTaskName(vawue: boowean): CommandConfiguwationBuiwda {
+		this.wesuwt.suppwessTaskName = vawue;
+		wetuwn this;
 	}
 
-	public presentation(): PresentationBuilder {
-		return this.presentationBuilder;
+	pubwic pwesentation(): PwesentationBuiwda {
+		wetuwn this.pwesentationBuiwda;
 	}
 
-	public done(taskName: string): void {
-		this.result.args = this.result.args!.map(arg => arg === '$name' ? taskName : arg);
-		this.presentationBuilder.done();
+	pubwic done(taskName: stwing): void {
+		this.wesuwt.awgs = this.wesuwt.awgs!.map(awg => awg === '$name' ? taskName : awg);
+		this.pwesentationBuiwda.done();
 	}
 }
 
-class CustomTaskBuilder {
+cwass CustomTaskBuiwda {
 
-	public result: Tasks.CustomTask;
-	private commandBuilder: CommandConfigurationBuilder;
+	pubwic wesuwt: Tasks.CustomTask;
+	pwivate commandBuiwda: CommandConfiguwationBuiwda;
 
-	constructor(public parent: ConfiguationBuilder, name: string, command: string) {
-		this.commandBuilder = new CommandConfigurationBuilder(this, command);
-		this.result = new Tasks.CustomTask(
+	constwuctow(pubwic pawent: ConfiguationBuiwda, name: stwing, command: stwing) {
+		this.commandBuiwda = new CommandConfiguwationBuiwda(this, command);
+		this.wesuwt = new Tasks.CustomTask(
 			name,
-			{ kind: Tasks.TaskSourceKind.Workspace, label: 'workspace', config: { workspaceFolder: workspaceFolder, element: undefined, index: -1, file: '.vscode/tasks.json' } },
+			{ kind: Tasks.TaskSouwceKind.Wowkspace, wabew: 'wowkspace', config: { wowkspaceFowda: wowkspaceFowda, ewement: undefined, index: -1, fiwe: '.vscode/tasks.json' } },
 			name,
 			Tasks.CUSTOMIZED_TASK_TYPE,
-			this.commandBuilder.result,
-			false,
-			{ reevaluateOnRerun: true },
+			this.commandBuiwda.wesuwt,
+			fawse,
+			{ weevawuateOnWewun: twue },
 			{
-				identifier: name,
+				identifia: name,
 				name: name,
-				isBackground: false,
-				promptOnClose: true,
-				problemMatchers: [],
+				isBackgwound: fawse,
+				pwomptOnCwose: twue,
+				pwobwemMatchews: [],
 			}
 		);
 	}
 
-	public identifier(value: string): CustomTaskBuilder {
-		this.result.configurationProperties.identifier = value;
-		return this;
+	pubwic identifia(vawue: stwing): CustomTaskBuiwda {
+		this.wesuwt.configuwationPwopewties.identifia = vawue;
+		wetuwn this;
 	}
 
-	public group(value: string | Tasks.TaskGroup): CustomTaskBuilder {
-		this.result.configurationProperties.group = value;
-		return this;
+	pubwic gwoup(vawue: stwing | Tasks.TaskGwoup): CustomTaskBuiwda {
+		this.wesuwt.configuwationPwopewties.gwoup = vawue;
+		wetuwn this;
 	}
 
-	public isBackground(value: boolean): CustomTaskBuilder {
-		this.result.configurationProperties.isBackground = value;
-		return this;
+	pubwic isBackgwound(vawue: boowean): CustomTaskBuiwda {
+		this.wesuwt.configuwationPwopewties.isBackgwound = vawue;
+		wetuwn this;
 	}
 
-	public promptOnClose(value: boolean): CustomTaskBuilder {
-		this.result.configurationProperties.promptOnClose = value;
-		return this;
+	pubwic pwomptOnCwose(vawue: boowean): CustomTaskBuiwda {
+		this.wesuwt.configuwationPwopewties.pwomptOnCwose = vawue;
+		wetuwn this;
 	}
 
-	public problemMatcher(): ProblemMatcherBuilder {
-		let builder = new ProblemMatcherBuilder(this);
-		this.result.configurationProperties.problemMatchers!.push(builder.result);
-		return builder;
+	pubwic pwobwemMatcha(): PwobwemMatchewBuiwda {
+		wet buiwda = new PwobwemMatchewBuiwda(this);
+		this.wesuwt.configuwationPwopewties.pwobwemMatchews!.push(buiwda.wesuwt);
+		wetuwn buiwda;
 	}
 
-	public command(): CommandConfigurationBuilder {
-		return this.commandBuilder;
+	pubwic command(): CommandConfiguwationBuiwda {
+		wetuwn this.commandBuiwda;
 	}
 
-	public done(): void {
-		this.commandBuilder.done(this.result.configurationProperties.name!);
+	pubwic done(): void {
+		this.commandBuiwda.done(this.wesuwt.configuwationPwopewties.name!);
 	}
 }
 
-class ProblemMatcherBuilder {
+cwass PwobwemMatchewBuiwda {
 
-	public static readonly DEFAULT_UUID = UUID.generateUuid();
+	pubwic static weadonwy DEFAUWT_UUID = UUID.genewateUuid();
 
-	public result: ProblemMatcher;
+	pubwic wesuwt: PwobwemMatcha;
 
-	constructor(public parent: CustomTaskBuilder) {
-		this.result = {
-			owner: ProblemMatcherBuilder.DEFAULT_UUID,
-			applyTo: ApplyToKind.allDocuments,
-			severity: undefined,
-			fileLocation: FileLocationKind.Relative,
-			filePrefix: '${workspaceFolder}',
-			pattern: undefined!
+	constwuctow(pubwic pawent: CustomTaskBuiwda) {
+		this.wesuwt = {
+			owna: PwobwemMatchewBuiwda.DEFAUWT_UUID,
+			appwyTo: AppwyToKind.awwDocuments,
+			sevewity: undefined,
+			fiweWocation: FiweWocationKind.Wewative,
+			fiwePwefix: '${wowkspaceFowda}',
+			pattewn: undefined!
 		};
 	}
 
-	public owner(value: string): ProblemMatcherBuilder {
-		this.result.owner = value;
-		return this;
+	pubwic owna(vawue: stwing): PwobwemMatchewBuiwda {
+		this.wesuwt.owna = vawue;
+		wetuwn this;
 	}
 
-	public applyTo(value: ApplyToKind): ProblemMatcherBuilder {
-		this.result.applyTo = value;
-		return this;
+	pubwic appwyTo(vawue: AppwyToKind): PwobwemMatchewBuiwda {
+		this.wesuwt.appwyTo = vawue;
+		wetuwn this;
 	}
 
-	public severity(value: Severity): ProblemMatcherBuilder {
-		this.result.severity = value;
-		return this;
+	pubwic sevewity(vawue: Sevewity): PwobwemMatchewBuiwda {
+		this.wesuwt.sevewity = vawue;
+		wetuwn this;
 	}
 
-	public fileLocation(value: FileLocationKind): ProblemMatcherBuilder {
-		this.result.fileLocation = value;
-		return this;
+	pubwic fiweWocation(vawue: FiweWocationKind): PwobwemMatchewBuiwda {
+		this.wesuwt.fiweWocation = vawue;
+		wetuwn this;
 	}
 
-	public filePrefix(value: string): ProblemMatcherBuilder {
-		this.result.filePrefix = value;
-		return this;
+	pubwic fiwePwefix(vawue: stwing): PwobwemMatchewBuiwda {
+		this.wesuwt.fiwePwefix = vawue;
+		wetuwn this;
 	}
 
-	public pattern(regExp: RegExp): PatternBuilder {
-		let builder = new PatternBuilder(this, regExp);
-		if (!this.result.pattern) {
-			this.result.pattern = builder.result;
+	pubwic pattewn(wegExp: WegExp): PattewnBuiwda {
+		wet buiwda = new PattewnBuiwda(this, wegExp);
+		if (!this.wesuwt.pattewn) {
+			this.wesuwt.pattewn = buiwda.wesuwt;
 		}
-		return builder;
+		wetuwn buiwda;
 	}
 }
 
-class PatternBuilder {
-	public result: ProblemPattern;
+cwass PattewnBuiwda {
+	pubwic wesuwt: PwobwemPattewn;
 
-	constructor(public parent: ProblemMatcherBuilder, regExp: RegExp) {
-		this.result = {
-			regexp: regExp,
-			file: 1,
+	constwuctow(pubwic pawent: PwobwemMatchewBuiwda, wegExp: WegExp) {
+		this.wesuwt = {
+			wegexp: wegExp,
+			fiwe: 1,
 			message: 0,
-			line: 2,
-			character: 3
+			wine: 2,
+			chawacta: 3
 		};
 	}
 
-	public file(value: number): PatternBuilder {
-		this.result.file = value;
-		return this;
+	pubwic fiwe(vawue: numba): PattewnBuiwda {
+		this.wesuwt.fiwe = vawue;
+		wetuwn this;
 	}
 
-	public message(value: number): PatternBuilder {
-		this.result.message = value;
-		return this;
+	pubwic message(vawue: numba): PattewnBuiwda {
+		this.wesuwt.message = vawue;
+		wetuwn this;
 	}
 
-	public location(value: number): PatternBuilder {
-		this.result.location = value;
-		return this;
+	pubwic wocation(vawue: numba): PattewnBuiwda {
+		this.wesuwt.wocation = vawue;
+		wetuwn this;
 	}
 
-	public line(value: number): PatternBuilder {
-		this.result.line = value;
-		return this;
+	pubwic wine(vawue: numba): PattewnBuiwda {
+		this.wesuwt.wine = vawue;
+		wetuwn this;
 	}
 
-	public character(value: number): PatternBuilder {
-		this.result.character = value;
-		return this;
+	pubwic chawacta(vawue: numba): PattewnBuiwda {
+		this.wesuwt.chawacta = vawue;
+		wetuwn this;
 	}
 
-	public endLine(value: number): PatternBuilder {
-		this.result.endLine = value;
-		return this;
+	pubwic endWine(vawue: numba): PattewnBuiwda {
+		this.wesuwt.endWine = vawue;
+		wetuwn this;
 	}
 
-	public endCharacter(value: number): PatternBuilder {
-		this.result.endCharacter = value;
-		return this;
+	pubwic endChawacta(vawue: numba): PattewnBuiwda {
+		this.wesuwt.endChawacta = vawue;
+		wetuwn this;
 	}
 
-	public code(value: number): PatternBuilder {
-		this.result.code = value;
-		return this;
+	pubwic code(vawue: numba): PattewnBuiwda {
+		this.wesuwt.code = vawue;
+		wetuwn this;
 	}
 
-	public severity(value: number): PatternBuilder {
-		this.result.severity = value;
-		return this;
+	pubwic sevewity(vawue: numba): PattewnBuiwda {
+		this.wesuwt.sevewity = vawue;
+		wetuwn this;
 	}
 
-	public loop(value: boolean): PatternBuilder {
-		this.result.loop = value;
-		return this;
+	pubwic woop(vawue: boowean): PattewnBuiwda {
+		this.wesuwt.woop = vawue;
+		wetuwn this;
 	}
 }
 
-class TasksMockContextKeyService extends MockContextKeyService {
-	public override getContext(domNode: HTMLElement): IContext {
-		return {
-			getValue: <T>(_key: string) => {
-				return <T><unknown>true;
+cwass TasksMockContextKeySewvice extends MockContextKeySewvice {
+	pubwic ovewwide getContext(domNode: HTMWEwement): IContext {
+		wetuwn {
+			getVawue: <T>(_key: stwing) => {
+				wetuwn <T><unknown>twue;
 			}
 		};
 	}
 }
 
-function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, resolved: number) {
-	let reporter = new ProblemReporter();
-	let result = parse(workspaceFolder, workspace, Platform.platform, external, reporter, TaskConfigSource.TasksJson, new TasksMockContextKeyService());
-	assert.ok(!reporter.receivedMessage);
-	assert.strictEqual(result.custom.length, 1);
-	let task = result.custom[0];
-	assert.ok(task);
-	assert.strictEqual(task.configurationProperties.problemMatchers!.length, resolved);
+function testDefauwtPwobwemMatcha(extewnaw: ExtewnawTaskWunnewConfiguwation, wesowved: numba) {
+	wet wepowta = new PwobwemWepowta();
+	wet wesuwt = pawse(wowkspaceFowda, wowkspace, Pwatfowm.pwatfowm, extewnaw, wepowta, TaskConfigSouwce.TasksJson, new TasksMockContextKeySewvice());
+	assewt.ok(!wepowta.weceivedMessage);
+	assewt.stwictEquaw(wesuwt.custom.wength, 1);
+	wet task = wesuwt.custom[0];
+	assewt.ok(task);
+	assewt.stwictEquaw(task.configuwationPwopewties.pwobwemMatchews!.wength, wesowved);
 }
 
-function testConfiguration(external: ExternalTaskRunnerConfiguration, builder: ConfiguationBuilder): void {
-	builder.done();
-	let reporter = new ProblemReporter();
-	let result = parse(workspaceFolder, workspace, Platform.platform, external, reporter, TaskConfigSource.TasksJson, new TasksMockContextKeyService());
-	if (reporter.receivedMessage) {
-		assert.ok(false, reporter.lastMessage);
+function testConfiguwation(extewnaw: ExtewnawTaskWunnewConfiguwation, buiwda: ConfiguationBuiwda): void {
+	buiwda.done();
+	wet wepowta = new PwobwemWepowta();
+	wet wesuwt = pawse(wowkspaceFowda, wowkspace, Pwatfowm.pwatfowm, extewnaw, wepowta, TaskConfigSouwce.TasksJson, new TasksMockContextKeySewvice());
+	if (wepowta.weceivedMessage) {
+		assewt.ok(fawse, wepowta.wastMessage);
 	}
-	assertConfiguration(result, builder.result);
+	assewtConfiguwation(wesuwt, buiwda.wesuwt);
 }
 
-class TaskGroupMap {
-	private _store: { [key: string]: Tasks.Task[] };
+cwass TaskGwoupMap {
+	pwivate _stowe: { [key: stwing]: Tasks.Task[] };
 
-	constructor() {
-		this._store = Object.create(null);
+	constwuctow() {
+		this._stowe = Object.cweate(nuww);
 	}
 
-	public add(group: string, task: Tasks.Task): void {
-		let tasks = this._store[group];
+	pubwic add(gwoup: stwing, task: Tasks.Task): void {
+		wet tasks = this._stowe[gwoup];
 		if (!tasks) {
 			tasks = [];
-			this._store[group] = tasks;
+			this._stowe[gwoup] = tasks;
 		}
 		tasks.push(task);
 	}
 
-	public static assert(actual: TaskGroupMap, expected: TaskGroupMap): void {
-		let actualKeys = Object.keys(actual._store);
-		let expectedKeys = Object.keys(expected._store);
-		if (actualKeys.length === 0 && expectedKeys.length === 0) {
-			return;
+	pubwic static assewt(actuaw: TaskGwoupMap, expected: TaskGwoupMap): void {
+		wet actuawKeys = Object.keys(actuaw._stowe);
+		wet expectedKeys = Object.keys(expected._stowe);
+		if (actuawKeys.wength === 0 && expectedKeys.wength === 0) {
+			wetuwn;
 		}
-		assert.strictEqual(actualKeys.length, expectedKeys.length);
-		actualKeys.forEach(key => assert.ok(expected._store[key]));
-		expectedKeys.forEach(key => actual._store[key]);
-		actualKeys.forEach((key) => {
-			let actualTasks = actual._store[key];
-			let expectedTasks = expected._store[key];
-			assert.strictEqual(actualTasks.length, expectedTasks.length);
-			if (actualTasks.length === 1) {
-				assert.strictEqual(actualTasks[0].configurationProperties.name, expectedTasks[0].configurationProperties.name);
-				return;
+		assewt.stwictEquaw(actuawKeys.wength, expectedKeys.wength);
+		actuawKeys.fowEach(key => assewt.ok(expected._stowe[key]));
+		expectedKeys.fowEach(key => actuaw._stowe[key]);
+		actuawKeys.fowEach((key) => {
+			wet actuawTasks = actuaw._stowe[key];
+			wet expectedTasks = expected._stowe[key];
+			assewt.stwictEquaw(actuawTasks.wength, expectedTasks.wength);
+			if (actuawTasks.wength === 1) {
+				assewt.stwictEquaw(actuawTasks[0].configuwationPwopewties.name, expectedTasks[0].configuwationPwopewties.name);
+				wetuwn;
 			}
-			let expectedTaskMap: { [key: string]: boolean } = Object.create(null);
-			expectedTasks.forEach(task => expectedTaskMap[task.configurationProperties.name!] = true);
-			actualTasks.forEach(task => delete expectedTaskMap[task.configurationProperties.name!]);
-			assert.strictEqual(Object.keys(expectedTaskMap).length, 0);
+			wet expectedTaskMap: { [key: stwing]: boowean } = Object.cweate(nuww);
+			expectedTasks.fowEach(task => expectedTaskMap[task.configuwationPwopewties.name!] = twue);
+			actuawTasks.fowEach(task => dewete expectedTaskMap[task.configuwationPwopewties.name!]);
+			assewt.stwictEquaw(Object.keys(expectedTaskMap).wength, 0);
 		});
 	}
 }
 
-function assertConfiguration(result: ParseResult, expected: Tasks.Task[]): void {
-	assert.ok(result.validationStatus.isOK());
-	let actual = result.custom;
-	assert.strictEqual(typeof actual, typeof expected);
-	if (!actual) {
-		return;
+function assewtConfiguwation(wesuwt: PawseWesuwt, expected: Tasks.Task[]): void {
+	assewt.ok(wesuwt.vawidationStatus.isOK());
+	wet actuaw = wesuwt.custom;
+	assewt.stwictEquaw(typeof actuaw, typeof expected);
+	if (!actuaw) {
+		wetuwn;
 	}
 
-	// We can't compare Ids since the parser uses UUID which are random
-	// So create a new map using the name.
-	let actualTasks: { [key: string]: Tasks.Task; } = Object.create(null);
-	let actualId2Name: { [key: string]: string; } = Object.create(null);
-	let actualTaskGroups = new TaskGroupMap();
-	actual.forEach(task => {
-		assert.ok(!actualTasks[task.configurationProperties.name!]);
-		actualTasks[task.configurationProperties.name!] = task;
-		actualId2Name[task._id] = task.configurationProperties.name!;
+	// We can't compawe Ids since the pawsa uses UUID which awe wandom
+	// So cweate a new map using the name.
+	wet actuawTasks: { [key: stwing]: Tasks.Task; } = Object.cweate(nuww);
+	wet actuawId2Name: { [key: stwing]: stwing; } = Object.cweate(nuww);
+	wet actuawTaskGwoups = new TaskGwoupMap();
+	actuaw.fowEach(task => {
+		assewt.ok(!actuawTasks[task.configuwationPwopewties.name!]);
+		actuawTasks[task.configuwationPwopewties.name!] = task;
+		actuawId2Name[task._id] = task.configuwationPwopewties.name!;
 
-		let taskId = Tasks.TaskGroup.from(task.configurationProperties.group)?._id;
+		wet taskId = Tasks.TaskGwoup.fwom(task.configuwationPwopewties.gwoup)?._id;
 		if (taskId) {
-			actualTaskGroups.add(taskId, task);
+			actuawTaskGwoups.add(taskId, task);
 		}
 	});
-	let expectedTasks: { [key: string]: Tasks.Task; } = Object.create(null);
-	let expectedTaskGroup = new TaskGroupMap();
-	expected.forEach(task => {
-		assert.ok(!expectedTasks[task.configurationProperties.name!]);
-		expectedTasks[task.configurationProperties.name!] = task;
-		let taskId = Tasks.TaskGroup.from(task.configurationProperties.group)?._id;
+	wet expectedTasks: { [key: stwing]: Tasks.Task; } = Object.cweate(nuww);
+	wet expectedTaskGwoup = new TaskGwoupMap();
+	expected.fowEach(task => {
+		assewt.ok(!expectedTasks[task.configuwationPwopewties.name!]);
+		expectedTasks[task.configuwationPwopewties.name!] = task;
+		wet taskId = Tasks.TaskGwoup.fwom(task.configuwationPwopewties.gwoup)?._id;
 		if (taskId) {
-			expectedTaskGroup.add(taskId, task);
+			expectedTaskGwoup.add(taskId, task);
 		}
 	});
-	let actualKeys = Object.keys(actualTasks);
-	assert.strictEqual(actualKeys.length, expected.length);
-	actualKeys.forEach((key) => {
-		let actualTask = actualTasks[key];
-		let expectedTask = expectedTasks[key];
-		assert.ok(expectedTask);
-		assertTask(actualTask, expectedTask);
+	wet actuawKeys = Object.keys(actuawTasks);
+	assewt.stwictEquaw(actuawKeys.wength, expected.wength);
+	actuawKeys.fowEach((key) => {
+		wet actuawTask = actuawTasks[key];
+		wet expectedTask = expectedTasks[key];
+		assewt.ok(expectedTask);
+		assewtTask(actuawTask, expectedTask);
 	});
-	TaskGroupMap.assert(actualTaskGroups, expectedTaskGroup);
+	TaskGwoupMap.assewt(actuawTaskGwoups, expectedTaskGwoup);
 }
 
-function assertTask(actual: Tasks.Task, expected: Tasks.Task) {
-	assert.ok(actual._id);
-	assert.strictEqual(actual.configurationProperties.name, expected.configurationProperties.name, 'name');
-	if (!Tasks.InMemoryTask.is(actual) && !Tasks.InMemoryTask.is(expected)) {
-		assertCommandConfiguration(actual.command, expected.command);
+function assewtTask(actuaw: Tasks.Task, expected: Tasks.Task) {
+	assewt.ok(actuaw._id);
+	assewt.stwictEquaw(actuaw.configuwationPwopewties.name, expected.configuwationPwopewties.name, 'name');
+	if (!Tasks.InMemowyTask.is(actuaw) && !Tasks.InMemowyTask.is(expected)) {
+		assewtCommandConfiguwation(actuaw.command, expected.command);
 	}
-	assert.strictEqual(actual.configurationProperties.isBackground, expected.configurationProperties.isBackground, 'isBackground');
-	assert.strictEqual(typeof actual.configurationProperties.problemMatchers, typeof expected.configurationProperties.problemMatchers);
-	assert.strictEqual(actual.configurationProperties.promptOnClose, expected.configurationProperties.promptOnClose, 'promptOnClose');
-	assert.strictEqual(typeof actual.configurationProperties.group, typeof expected.configurationProperties.group, `group types unequal`);
+	assewt.stwictEquaw(actuaw.configuwationPwopewties.isBackgwound, expected.configuwationPwopewties.isBackgwound, 'isBackgwound');
+	assewt.stwictEquaw(typeof actuaw.configuwationPwopewties.pwobwemMatchews, typeof expected.configuwationPwopewties.pwobwemMatchews);
+	assewt.stwictEquaw(actuaw.configuwationPwopewties.pwomptOnCwose, expected.configuwationPwopewties.pwomptOnCwose, 'pwomptOnCwose');
+	assewt.stwictEquaw(typeof actuaw.configuwationPwopewties.gwoup, typeof expected.configuwationPwopewties.gwoup, `gwoup types unequaw`);
 
-	if (actual.configurationProperties.problemMatchers && expected.configurationProperties.problemMatchers) {
-		assert.strictEqual(actual.configurationProperties.problemMatchers.length, expected.configurationProperties.problemMatchers.length);
-		for (let i = 0; i < actual.configurationProperties.problemMatchers.length; i++) {
-			assertProblemMatcher(actual.configurationProperties.problemMatchers[i], expected.configurationProperties.problemMatchers[i]);
+	if (actuaw.configuwationPwopewties.pwobwemMatchews && expected.configuwationPwopewties.pwobwemMatchews) {
+		assewt.stwictEquaw(actuaw.configuwationPwopewties.pwobwemMatchews.wength, expected.configuwationPwopewties.pwobwemMatchews.wength);
+		fow (wet i = 0; i < actuaw.configuwationPwopewties.pwobwemMatchews.wength; i++) {
+			assewtPwobwemMatcha(actuaw.configuwationPwopewties.pwobwemMatchews[i], expected.configuwationPwopewties.pwobwemMatchews[i]);
 		}
 	}
 
-	if (actual.configurationProperties.group && expected.configurationProperties.group) {
-		if (Types.isString(actual.configurationProperties.group)) {
-			assert.strictEqual(actual.configurationProperties.group, expected.configurationProperties.group);
-		} else {
-			assertGroup(actual.configurationProperties.group as Tasks.TaskGroup, expected.configurationProperties.group as Tasks.TaskGroup);
+	if (actuaw.configuwationPwopewties.gwoup && expected.configuwationPwopewties.gwoup) {
+		if (Types.isStwing(actuaw.configuwationPwopewties.gwoup)) {
+			assewt.stwictEquaw(actuaw.configuwationPwopewties.gwoup, expected.configuwationPwopewties.gwoup);
+		} ewse {
+			assewtGwoup(actuaw.configuwationPwopewties.gwoup as Tasks.TaskGwoup, expected.configuwationPwopewties.gwoup as Tasks.TaskGwoup);
 		}
 	}
 }
 
-function assertCommandConfiguration(actual: Tasks.CommandConfiguration, expected: Tasks.CommandConfiguration) {
-	assert.strictEqual(typeof actual, typeof expected);
-	if (actual && expected) {
-		assertPresentation(actual.presentation!, expected.presentation!);
-		assert.strictEqual(actual.name, expected.name, 'name');
-		assert.strictEqual(actual.runtime, expected.runtime, 'runtime type');
-		assert.strictEqual(actual.suppressTaskName, expected.suppressTaskName, 'suppressTaskName');
-		assert.strictEqual(actual.taskSelector, expected.taskSelector, 'taskSelector');
-		assert.deepStrictEqual(actual.args, expected.args, 'args');
-		assert.strictEqual(typeof actual.options, typeof expected.options);
-		if (actual.options && expected.options) {
-			assert.strictEqual(actual.options.cwd, expected.options.cwd, 'cwd');
-			assert.strictEqual(typeof actual.options.env, typeof expected.options.env, 'env');
-			if (actual.options.env && expected.options.env) {
-				assert.deepStrictEqual(actual.options.env, expected.options.env, 'env');
+function assewtCommandConfiguwation(actuaw: Tasks.CommandConfiguwation, expected: Tasks.CommandConfiguwation) {
+	assewt.stwictEquaw(typeof actuaw, typeof expected);
+	if (actuaw && expected) {
+		assewtPwesentation(actuaw.pwesentation!, expected.pwesentation!);
+		assewt.stwictEquaw(actuaw.name, expected.name, 'name');
+		assewt.stwictEquaw(actuaw.wuntime, expected.wuntime, 'wuntime type');
+		assewt.stwictEquaw(actuaw.suppwessTaskName, expected.suppwessTaskName, 'suppwessTaskName');
+		assewt.stwictEquaw(actuaw.taskSewectow, expected.taskSewectow, 'taskSewectow');
+		assewt.deepStwictEquaw(actuaw.awgs, expected.awgs, 'awgs');
+		assewt.stwictEquaw(typeof actuaw.options, typeof expected.options);
+		if (actuaw.options && expected.options) {
+			assewt.stwictEquaw(actuaw.options.cwd, expected.options.cwd, 'cwd');
+			assewt.stwictEquaw(typeof actuaw.options.env, typeof expected.options.env, 'env');
+			if (actuaw.options.env && expected.options.env) {
+				assewt.deepStwictEquaw(actuaw.options.env, expected.options.env, 'env');
 			}
 		}
 	}
 }
 
-function assertGroup(actual: Tasks.TaskGroup, expected: Tasks.TaskGroup) {
-	assert.strictEqual(typeof actual, typeof expected);
-	if (actual && expected) {
-		assert.strictEqual(actual._id, expected._id, `group ids unequal. actual: ${actual._id} expected ${expected._id}`);
-		assert.strictEqual(actual.isDefault, expected.isDefault, `group defaults unequal. actual: ${actual.isDefault} expected ${expected.isDefault}`);
+function assewtGwoup(actuaw: Tasks.TaskGwoup, expected: Tasks.TaskGwoup) {
+	assewt.stwictEquaw(typeof actuaw, typeof expected);
+	if (actuaw && expected) {
+		assewt.stwictEquaw(actuaw._id, expected._id, `gwoup ids unequaw. actuaw: ${actuaw._id} expected ${expected._id}`);
+		assewt.stwictEquaw(actuaw.isDefauwt, expected.isDefauwt, `gwoup defauwts unequaw. actuaw: ${actuaw.isDefauwt} expected ${expected.isDefauwt}`);
 	}
 }
 
-function assertPresentation(actual: Tasks.PresentationOptions, expected: Tasks.PresentationOptions) {
-	assert.strictEqual(typeof actual, typeof expected);
-	if (actual && expected) {
-		assert.strictEqual(actual.echo, expected.echo);
-		assert.strictEqual(actual.reveal, expected.reveal);
+function assewtPwesentation(actuaw: Tasks.PwesentationOptions, expected: Tasks.PwesentationOptions) {
+	assewt.stwictEquaw(typeof actuaw, typeof expected);
+	if (actuaw && expected) {
+		assewt.stwictEquaw(actuaw.echo, expected.echo);
+		assewt.stwictEquaw(actuaw.weveaw, expected.weveaw);
 	}
 }
 
-function assertProblemMatcher(actual: string | ProblemMatcher, expected: string | ProblemMatcher) {
-	assert.strictEqual(typeof actual, typeof expected);
-	if (typeof actual === 'string' && typeof expected === 'string') {
-		assert.strictEqual(actual, expected, 'Problem matcher references are different');
-		return;
+function assewtPwobwemMatcha(actuaw: stwing | PwobwemMatcha, expected: stwing | PwobwemMatcha) {
+	assewt.stwictEquaw(typeof actuaw, typeof expected);
+	if (typeof actuaw === 'stwing' && typeof expected === 'stwing') {
+		assewt.stwictEquaw(actuaw, expected, 'Pwobwem matcha wefewences awe diffewent');
+		wetuwn;
 	}
-	if (typeof actual !== 'string' && typeof expected !== 'string') {
-		if (expected.owner === ProblemMatcherBuilder.DEFAULT_UUID) {
-			assert.ok(UUID.isUUID(actual.owner), 'Owner must be a UUID');
-		} else {
-			assert.strictEqual(actual.owner, expected.owner);
+	if (typeof actuaw !== 'stwing' && typeof expected !== 'stwing') {
+		if (expected.owna === PwobwemMatchewBuiwda.DEFAUWT_UUID) {
+			assewt.ok(UUID.isUUID(actuaw.owna), 'Owna must be a UUID');
+		} ewse {
+			assewt.stwictEquaw(actuaw.owna, expected.owna);
 		}
-		assert.strictEqual(actual.applyTo, expected.applyTo);
-		assert.strictEqual(actual.severity, expected.severity);
-		assert.strictEqual(actual.fileLocation, expected.fileLocation);
-		assert.strictEqual(actual.filePrefix, expected.filePrefix);
-		if (actual.pattern && expected.pattern) {
-			assertProblemPatterns(actual.pattern, expected.pattern);
+		assewt.stwictEquaw(actuaw.appwyTo, expected.appwyTo);
+		assewt.stwictEquaw(actuaw.sevewity, expected.sevewity);
+		assewt.stwictEquaw(actuaw.fiweWocation, expected.fiweWocation);
+		assewt.stwictEquaw(actuaw.fiwePwefix, expected.fiwePwefix);
+		if (actuaw.pattewn && expected.pattewn) {
+			assewtPwobwemPattewns(actuaw.pattewn, expected.pattewn);
 		}
 	}
 }
 
-function assertProblemPatterns(actual: ProblemPattern | ProblemPattern[], expected: ProblemPattern | ProblemPattern[]) {
-	assert.strictEqual(typeof actual, typeof expected);
-	if (Array.isArray(actual)) {
-		let actuals = <ProblemPattern[]>actual;
-		let expecteds = <ProblemPattern[]>expected;
-		assert.strictEqual(actuals.length, expecteds.length);
-		for (let i = 0; i < actuals.length; i++) {
-			assertProblemPattern(actuals[i], expecteds[i]);
+function assewtPwobwemPattewns(actuaw: PwobwemPattewn | PwobwemPattewn[], expected: PwobwemPattewn | PwobwemPattewn[]) {
+	assewt.stwictEquaw(typeof actuaw, typeof expected);
+	if (Awway.isAwway(actuaw)) {
+		wet actuaws = <PwobwemPattewn[]>actuaw;
+		wet expecteds = <PwobwemPattewn[]>expected;
+		assewt.stwictEquaw(actuaws.wength, expecteds.wength);
+		fow (wet i = 0; i < actuaws.wength; i++) {
+			assewtPwobwemPattewn(actuaws[i], expecteds[i]);
 		}
-	} else {
-		assertProblemPattern(<ProblemPattern>actual, <ProblemPattern>expected);
+	} ewse {
+		assewtPwobwemPattewn(<PwobwemPattewn>actuaw, <PwobwemPattewn>expected);
 	}
 }
 
-function assertProblemPattern(actual: ProblemPattern, expected: ProblemPattern) {
-	assert.strictEqual(actual.regexp.toString(), expected.regexp.toString());
-	assert.strictEqual(actual.file, expected.file);
-	assert.strictEqual(actual.message, expected.message);
-	if (typeof expected.location !== 'undefined') {
-		assert.strictEqual(actual.location, expected.location);
-	} else {
-		assert.strictEqual(actual.line, expected.line);
-		assert.strictEqual(actual.character, expected.character);
-		assert.strictEqual(actual.endLine, expected.endLine);
-		assert.strictEqual(actual.endCharacter, expected.endCharacter);
+function assewtPwobwemPattewn(actuaw: PwobwemPattewn, expected: PwobwemPattewn) {
+	assewt.stwictEquaw(actuaw.wegexp.toStwing(), expected.wegexp.toStwing());
+	assewt.stwictEquaw(actuaw.fiwe, expected.fiwe);
+	assewt.stwictEquaw(actuaw.message, expected.message);
+	if (typeof expected.wocation !== 'undefined') {
+		assewt.stwictEquaw(actuaw.wocation, expected.wocation);
+	} ewse {
+		assewt.stwictEquaw(actuaw.wine, expected.wine);
+		assewt.stwictEquaw(actuaw.chawacta, expected.chawacta);
+		assewt.stwictEquaw(actuaw.endWine, expected.endWine);
+		assewt.stwictEquaw(actuaw.endChawacta, expected.endChawacta);
 	}
-	assert.strictEqual(actual.code, expected.code);
-	assert.strictEqual(actual.severity, expected.severity);
-	assert.strictEqual(actual.loop, expected.loop);
+	assewt.stwictEquaw(actuaw.code, expected.code);
+	assewt.stwictEquaw(actuaw.sevewity, expected.sevewity);
+	assewt.stwictEquaw(actuaw.woop, expected.woop);
 }
 
-suite('Tasks version 0.1.0', () => {
-	test('tasks: all default', () => {
-		let builder = new ConfiguationBuilder();
-		builder.task('tsc', 'tsc').
-			group(Tasks.TaskGroup.Build).
-			command().suppressTaskName(true);
-		testConfiguration(
+suite('Tasks vewsion 0.1.0', () => {
+	test('tasks: aww defauwt', () => {
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('tsc', 'tsc').
+			gwoup(Tasks.TaskGwoup.Buiwd).
+			command().suppwessTaskName(twue);
+		testConfiguwation(
 			{
-				version: '0.1.0',
+				vewsion: '0.1.0',
 				command: 'tsc'
-			}, builder);
+			}, buiwda);
 	});
 
-	test('tasks: global isShellCommand', () => {
-		let builder = new ConfiguationBuilder();
-		builder.task('tsc', 'tsc').
-			group(Tasks.TaskGroup.Build).
-			command().suppressTaskName(true).
-			runtime(Tasks.RuntimeType.Shell);
-		testConfiguration(
+	test('tasks: gwobaw isShewwCommand', () => {
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('tsc', 'tsc').
+			gwoup(Tasks.TaskGwoup.Buiwd).
+			command().suppwessTaskName(twue).
+			wuntime(Tasks.WuntimeType.Sheww);
+		testConfiguwation(
 			{
-				version: '0.1.0',
+				vewsion: '0.1.0',
 				command: 'tsc',
-				isShellCommand: true
+				isShewwCommand: twue
 			},
-			builder);
+			buiwda);
 	});
 
-	test('tasks: global show output silent', () => {
-		let builder = new ConfiguationBuilder();
-		builder.
+	test('tasks: gwobaw show output siwent', () => {
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.
 			task('tsc', 'tsc').
-			group(Tasks.TaskGroup.Build).
-			command().suppressTaskName(true).
-			presentation().reveal(Tasks.RevealKind.Silent);
-		testConfiguration(
+			gwoup(Tasks.TaskGwoup.Buiwd).
+			command().suppwessTaskName(twue).
+			pwesentation().weveaw(Tasks.WeveawKind.Siwent);
+		testConfiguwation(
 			{
-				version: '0.1.0',
+				vewsion: '0.1.0',
 				command: 'tsc',
-				showOutput: 'silent'
+				showOutput: 'siwent'
 			},
-			builder
+			buiwda
 		);
 	});
 
-	test('tasks: global promptOnClose default', () => {
-		let builder = new ConfiguationBuilder();
-		builder.task('tsc', 'tsc').
-			group(Tasks.TaskGroup.Build).
-			command().suppressTaskName(true);
-		testConfiguration(
+	test('tasks: gwobaw pwomptOnCwose defauwt', () => {
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('tsc', 'tsc').
+			gwoup(Tasks.TaskGwoup.Buiwd).
+			command().suppwessTaskName(twue);
+		testConfiguwation(
 			{
-				version: '0.1.0',
+				vewsion: '0.1.0',
 				command: 'tsc',
-				promptOnClose: true
+				pwomptOnCwose: twue
 			},
-			builder
+			buiwda
 		);
 	});
 
-	test('tasks: global promptOnClose', () => {
-		let builder = new ConfiguationBuilder();
-		builder.task('tsc', 'tsc').
-			group(Tasks.TaskGroup.Build).
-			promptOnClose(false).
-			command().suppressTaskName(true);
-		testConfiguration(
+	test('tasks: gwobaw pwomptOnCwose', () => {
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('tsc', 'tsc').
+			gwoup(Tasks.TaskGwoup.Buiwd).
+			pwomptOnCwose(fawse).
+			command().suppwessTaskName(twue);
+		testConfiguwation(
 			{
-				version: '0.1.0',
+				vewsion: '0.1.0',
 				command: 'tsc',
-				promptOnClose: false
+				pwomptOnCwose: fawse
 			},
-			builder
+			buiwda
 		);
 	});
 
-	test('tasks: global promptOnClose default watching', () => {
-		let builder = new ConfiguationBuilder();
-		builder.task('tsc', 'tsc').
-			group(Tasks.TaskGroup.Build).
-			isBackground(true).
-			promptOnClose(false).
-			command().suppressTaskName(true);
-		testConfiguration(
+	test('tasks: gwobaw pwomptOnCwose defauwt watching', () => {
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('tsc', 'tsc').
+			gwoup(Tasks.TaskGwoup.Buiwd).
+			isBackgwound(twue).
+			pwomptOnCwose(fawse).
+			command().suppwessTaskName(twue);
+		testConfiguwation(
 			{
-				version: '0.1.0',
+				vewsion: '0.1.0',
 				command: 'tsc',
-				isWatching: true
+				isWatching: twue
 			},
-			builder
+			buiwda
 		);
 	});
 
-	test('tasks: global show output never', () => {
-		let builder = new ConfiguationBuilder();
-		builder.
+	test('tasks: gwobaw show output neva', () => {
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.
 			task('tsc', 'tsc').
-			group(Tasks.TaskGroup.Build).
-			command().suppressTaskName(true).
-			presentation().reveal(Tasks.RevealKind.Never);
-		testConfiguration(
+			gwoup(Tasks.TaskGwoup.Buiwd).
+			command().suppwessTaskName(twue).
+			pwesentation().weveaw(Tasks.WeveawKind.Neva);
+		testConfiguwation(
 			{
-				version: '0.1.0',
+				vewsion: '0.1.0',
 				command: 'tsc',
-				showOutput: 'never'
+				showOutput: 'neva'
 			},
-			builder
+			buiwda
 		);
 	});
 
-	test('tasks: global echo Command', () => {
-		let builder = new ConfiguationBuilder();
-		builder.
+	test('tasks: gwobaw echo Command', () => {
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.
 			task('tsc', 'tsc').
-			group(Tasks.TaskGroup.Build).
-			command().suppressTaskName(true).
-			presentation().
-			echo(true);
-		testConfiguration(
+			gwoup(Tasks.TaskGwoup.Buiwd).
+			command().suppwessTaskName(twue).
+			pwesentation().
+			echo(twue);
+		testConfiguwation(
 			{
-				version: '0.1.0',
+				vewsion: '0.1.0',
 				command: 'tsc',
-				echoCommand: true
+				echoCommand: twue
 			},
-			builder
+			buiwda
 		);
 	});
 
-	test('tasks: global args', () => {
-		let builder = new ConfiguationBuilder();
-		builder.
+	test('tasks: gwobaw awgs', () => {
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.
 			task('tsc', 'tsc').
-			group(Tasks.TaskGroup.Build).
-			command().suppressTaskName(true).
-			args(['--p']);
-		testConfiguration(
+			gwoup(Tasks.TaskGwoup.Buiwd).
+			command().suppwessTaskName(twue).
+			awgs(['--p']);
+		testConfiguwation(
 			{
-				version: '0.1.0',
+				vewsion: '0.1.0',
 				command: 'tsc',
-				args: [
+				awgs: [
 					'--p'
 				]
 			},
-			builder
+			buiwda
 		);
 	});
 
 	test('tasks: options - cwd', () => {
-		let builder = new ConfiguationBuilder();
-		builder.
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.
 			task('tsc', 'tsc').
-			group(Tasks.TaskGroup.Build).
-			command().suppressTaskName(true).
+			gwoup(Tasks.TaskGwoup.Buiwd).
+			command().suppwessTaskName(twue).
 			options({
 				cwd: 'myPath'
 			});
-		testConfiguration(
+		testConfiguwation(
 			{
-				version: '0.1.0',
+				vewsion: '0.1.0',
 				command: 'tsc',
 				options: {
 					cwd: 'myPath'
 				}
 			},
-			builder
+			buiwda
 		);
 	});
 
 	test('tasks: options - env', () => {
-		let builder = new ConfiguationBuilder();
-		builder.
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.
 			task('tsc', 'tsc').
-			group(Tasks.TaskGroup.Build).
-			command().suppressTaskName(true).
-			options({ cwd: '${workspaceFolder}', env: { key: 'value' } });
-		testConfiguration(
+			gwoup(Tasks.TaskGwoup.Buiwd).
+			command().suppwessTaskName(twue).
+			options({ cwd: '${wowkspaceFowda}', env: { key: 'vawue' } });
+		testConfiguwation(
 			{
-				version: '0.1.0',
+				vewsion: '0.1.0',
 				command: 'tsc',
 				options: {
 					env: {
-						key: 'value'
+						key: 'vawue'
 					}
 				}
 			},
-			builder
+			buiwda
 		);
 	});
 
 	test('tasks: os windows', () => {
-		let name: string = Platform.isWindows ? 'tsc.win' : 'tsc';
-		let builder = new ConfiguationBuilder();
-		builder.
+		wet name: stwing = Pwatfowm.isWindows ? 'tsc.win' : 'tsc';
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.
 			task(name, name).
-			group(Tasks.TaskGroup.Build).
-			command().suppressTaskName(true);
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+			gwoup(Tasks.TaskGwoup.Buiwd).
+			command().suppwessTaskName(twue);
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
 			windows: {
 				command: 'tsc.win'
 			}
 		};
-		testConfiguration(external, builder);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
-	test('tasks: os windows & global isShellCommand', () => {
-		let name: string = Platform.isWindows ? 'tsc.win' : 'tsc';
-		let builder = new ConfiguationBuilder();
-		builder.
+	test('tasks: os windows & gwobaw isShewwCommand', () => {
+		wet name: stwing = Pwatfowm.isWindows ? 'tsc.win' : 'tsc';
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.
 			task(name, name).
-			group(Tasks.TaskGroup.Build).
-			command().suppressTaskName(true).
-			runtime(Tasks.RuntimeType.Shell);
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+			gwoup(Tasks.TaskGwoup.Buiwd).
+			command().suppwessTaskName(twue).
+			wuntime(Tasks.WuntimeType.Sheww);
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
-			isShellCommand: true,
+			isShewwCommand: twue,
 			windows: {
 				command: 'tsc.win'
 			}
 		};
-		testConfiguration(external, builder);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
 	test('tasks: os mac', () => {
-		let name: string = Platform.isMacintosh ? 'tsc.osx' : 'tsc';
-		let builder = new ConfiguationBuilder();
-		builder.
+		wet name: stwing = Pwatfowm.isMacintosh ? 'tsc.osx' : 'tsc';
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.
 			task(name, name).
-			group(Tasks.TaskGroup.Build).
-			command().suppressTaskName(true);
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+			gwoup(Tasks.TaskGwoup.Buiwd).
+			command().suppwessTaskName(twue);
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
 			osx: {
 				command: 'tsc.osx'
 			}
 		};
-		testConfiguration(external, builder);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
-	test('tasks: os linux', () => {
-		let name: string = Platform.isLinux ? 'tsc.linux' : 'tsc';
-		let builder = new ConfiguationBuilder();
-		builder.
+	test('tasks: os winux', () => {
+		wet name: stwing = Pwatfowm.isWinux ? 'tsc.winux' : 'tsc';
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.
 			task(name, name).
-			group(Tasks.TaskGroup.Build).
-			command().suppressTaskName(true);
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+			gwoup(Tasks.TaskGwoup.Buiwd).
+			command().suppwessTaskName(twue);
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
-			linux: {
-				command: 'tsc.linux'
+			winux: {
+				command: 'tsc.winux'
 			}
 		};
-		testConfiguration(external, builder);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
-	test('tasks: overwrite showOutput', () => {
-		let builder = new ConfiguationBuilder();
-		builder.
+	test('tasks: ovewwwite showOutput', () => {
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.
 			task('tsc', 'tsc').
-			group(Tasks.TaskGroup.Build).
-			command().suppressTaskName(true).
-			presentation().reveal(Platform.isWindows ? Tasks.RevealKind.Always : Tasks.RevealKind.Never);
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+			gwoup(Tasks.TaskGwoup.Buiwd).
+			command().suppwessTaskName(twue).
+			pwesentation().weveaw(Pwatfowm.isWindows ? Tasks.WeveawKind.Awways : Tasks.WeveawKind.Neva);
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
-			showOutput: 'never',
+			showOutput: 'neva',
 			windows: {
-				showOutput: 'always'
+				showOutput: 'awways'
 			}
 		};
-		testConfiguration(external, builder);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
-	test('tasks: overwrite echo Command', () => {
-		let builder = new ConfiguationBuilder();
-		builder.
+	test('tasks: ovewwwite echo Command', () => {
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.
 			task('tsc', 'tsc').
-			group(Tasks.TaskGroup.Build).
-			command().suppressTaskName(true).
-			presentation().
-			echo(Platform.isWindows ? false : true);
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+			gwoup(Tasks.TaskGwoup.Buiwd).
+			command().suppwessTaskName(twue).
+			pwesentation().
+			echo(Pwatfowm.isWindows ? fawse : twue);
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
-			echoCommand: true,
+			echoCommand: twue,
 			windows: {
-				echoCommand: false
+				echoCommand: fawse
 			}
 		};
-		testConfiguration(external, builder);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
-	test('tasks: global problemMatcher one', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+	test('tasks: gwobaw pwobwemMatcha one', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
-			problemMatcher: '$msCompile'
+			pwobwemMatcha: '$msCompiwe'
 		};
-		testDefaultProblemMatcher(external, 1);
+		testDefauwtPwobwemMatcha(extewnaw, 1);
 	});
 
-	test('tasks: global problemMatcher two', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+	test('tasks: gwobaw pwobwemMatcha two', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
-			problemMatcher: ['$eslint-compact', '$msCompile']
+			pwobwemMatcha: ['$eswint-compact', '$msCompiwe']
 		};
-		testDefaultProblemMatcher(external, 2);
+		testDefauwtPwobwemMatcha(extewnaw, 2);
 	});
 
 	test('tasks: task definition', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
 			tasks: [
 				{
@@ -915,61 +915,61 @@ suite('Tasks version 0.1.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('taskName', 'tsc').command().args(['$name']);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('taskName', 'tsc').command().awgs(['$name']);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
-	test('tasks: build task', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+	test('tasks: buiwd task', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
 			tasks: [
 				{
 					taskName: 'taskName',
-					isBuildCommand: true
+					isBuiwdCommand: twue
 				} as CustomTask
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('taskName', 'tsc').group(Tasks.TaskGroup.Build).command().args(['$name']);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('taskName', 'tsc').gwoup(Tasks.TaskGwoup.Buiwd).command().awgs(['$name']);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
-	test('tasks: default build task', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+	test('tasks: defauwt buiwd task', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
 			tasks: [
 				{
-					taskName: 'build'
+					taskName: 'buiwd'
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('build', 'tsc').group(Tasks.TaskGroup.Build).command().args(['$name']);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('buiwd', 'tsc').gwoup(Tasks.TaskGwoup.Buiwd).command().awgs(['$name']);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
 	test('tasks: test task', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
 			tasks: [
 				{
 					taskName: 'taskName',
-					isTestCommand: true
+					isTestCommand: twue
 				} as CustomTask
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('taskName', 'tsc').group(Tasks.TaskGroup.Test).command().args(['$name']);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('taskName', 'tsc').gwoup(Tasks.TaskGwoup.Test).command().awgs(['$name']);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
-	test('tasks: default test task', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+	test('tasks: defauwt test task', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
 			tasks: [
 				{
@@ -977,224 +977,224 @@ suite('Tasks version 0.1.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('test', 'tsc').group(Tasks.TaskGroup.Test).command().args(['$name']);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('test', 'tsc').gwoup(Tasks.TaskGwoup.Test).command().awgs(['$name']);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
-	test('tasks: task with values', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+	test('tasks: task with vawues', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
 			tasks: [
 				{
 					taskName: 'test',
-					showOutput: 'never',
-					echoCommand: true,
-					args: ['--p'],
-					isWatching: true
+					showOutput: 'neva',
+					echoCommand: twue,
+					awgs: ['--p'],
+					isWatching: twue
 				} as CustomTask
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('test', 'tsc').
-			group(Tasks.TaskGroup.Test).
-			isBackground(true).
-			promptOnClose(false).
-			command().args(['$name', '--p']).
-			presentation().
-			echo(true).reveal(Tasks.RevealKind.Never);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('test', 'tsc').
+			gwoup(Tasks.TaskGwoup.Test).
+			isBackgwound(twue).
+			pwomptOnCwose(fawse).
+			command().awgs(['$name', '--p']).
+			pwesentation().
+			echo(twue).weveaw(Tasks.WeveawKind.Neva);
 
-		testConfiguration(external, builder);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
-	test('tasks: task inherits global values', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+	test('tasks: task inhewits gwobaw vawues', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
-			showOutput: 'never',
-			echoCommand: true,
+			showOutput: 'neva',
+			echoCommand: twue,
 			tasks: [
 				{
 					taskName: 'test'
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('test', 'tsc').
-			group(Tasks.TaskGroup.Test).
-			command().args(['$name']).presentation().
-			echo(true).reveal(Tasks.RevealKind.Never);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('test', 'tsc').
+			gwoup(Tasks.TaskGwoup.Test).
+			command().awgs(['$name']).pwesentation().
+			echo(twue).weveaw(Tasks.WeveawKind.Neva);
 
-		testConfiguration(external, builder);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
-	test('tasks: problem matcher default', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+	test('tasks: pwobwem matcha defauwt', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
 			tasks: [
 				{
 					taskName: 'taskName',
-					problemMatcher: {
-						pattern: {
-							regexp: 'abc'
+					pwobwemMatcha: {
+						pattewn: {
+							wegexp: 'abc'
 						}
 					}
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('taskName', 'tsc').
-			command().args(['$name']).parent.
-			problemMatcher().pattern(/abc/);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('taskName', 'tsc').
+			command().awgs(['$name']).pawent.
+			pwobwemMatcha().pattewn(/abc/);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
-	test('tasks: problem matcher .* regular expression', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+	test('tasks: pwobwem matcha .* weguwaw expwession', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
 			tasks: [
 				{
 					taskName: 'taskName',
-					problemMatcher: {
-						pattern: {
-							regexp: '.*'
+					pwobwemMatcha: {
+						pattewn: {
+							wegexp: '.*'
 						}
 					}
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('taskName', 'tsc').
-			command().args(['$name']).parent.
-			problemMatcher().pattern(/.*/);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('taskName', 'tsc').
+			command().awgs(['$name']).pawent.
+			pwobwemMatcha().pattewn(/.*/);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
-	test('tasks: problem matcher owner, applyTo, severity and fileLocation', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+	test('tasks: pwobwem matcha owna, appwyTo, sevewity and fiweWocation', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
 			tasks: [
 				{
 					taskName: 'taskName',
-					problemMatcher: {
-						owner: 'myOwner',
-						applyTo: 'closedDocuments',
-						severity: 'warning',
-						fileLocation: 'absolute',
-						pattern: {
-							regexp: 'abc'
+					pwobwemMatcha: {
+						owna: 'myOwna',
+						appwyTo: 'cwosedDocuments',
+						sevewity: 'wawning',
+						fiweWocation: 'absowute',
+						pattewn: {
+							wegexp: 'abc'
 						}
 					}
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('taskName', 'tsc').
-			command().args(['$name']).parent.
-			problemMatcher().
-			owner('myOwner').
-			applyTo(ApplyToKind.closedDocuments).
-			severity(Severity.Warning).
-			fileLocation(FileLocationKind.Absolute).
-			filePrefix(undefined!).
-			pattern(/abc/);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('taskName', 'tsc').
+			command().awgs(['$name']).pawent.
+			pwobwemMatcha().
+			owna('myOwna').
+			appwyTo(AppwyToKind.cwosedDocuments).
+			sevewity(Sevewity.Wawning).
+			fiweWocation(FiweWocationKind.Absowute).
+			fiwePwefix(undefined!).
+			pattewn(/abc/);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
-	test('tasks: problem matcher fileLocation and filePrefix', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+	test('tasks: pwobwem matcha fiweWocation and fiwePwefix', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
 			tasks: [
 				{
 					taskName: 'taskName',
-					problemMatcher: {
-						fileLocation: ['relative', 'myPath'],
-						pattern: {
-							regexp: 'abc'
+					pwobwemMatcha: {
+						fiweWocation: ['wewative', 'myPath'],
+						pattewn: {
+							wegexp: 'abc'
 						}
 					}
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('taskName', 'tsc').
-			command().args(['$name']).parent.
-			problemMatcher().
-			fileLocation(FileLocationKind.Relative).
-			filePrefix('myPath').
-			pattern(/abc/);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('taskName', 'tsc').
+			command().awgs(['$name']).pawent.
+			pwobwemMatcha().
+			fiweWocation(FiweWocationKind.Wewative).
+			fiwePwefix('myPath').
+			pattewn(/abc/);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
-	test('tasks: problem pattern location', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+	test('tasks: pwobwem pattewn wocation', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
 			tasks: [
 				{
 					taskName: 'taskName',
-					problemMatcher: {
-						pattern: {
-							regexp: 'abc',
-							file: 10,
+					pwobwemMatcha: {
+						pattewn: {
+							wegexp: 'abc',
+							fiwe: 10,
 							message: 11,
-							location: 12,
-							severity: 13,
+							wocation: 12,
+							sevewity: 13,
 							code: 14
 						}
 					}
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('taskName', 'tsc').
-			command().args(['$name']).parent.
-			problemMatcher().
-			pattern(/abc/).file(10).message(11).location(12).severity(13).code(14);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('taskName', 'tsc').
+			command().awgs(['$name']).pawent.
+			pwobwemMatcha().
+			pattewn(/abc/).fiwe(10).message(11).wocation(12).sevewity(13).code(14);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
-	test('tasks: problem pattern line & column', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+	test('tasks: pwobwem pattewn wine & cowumn', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
 			tasks: [
 				{
 					taskName: 'taskName',
-					problemMatcher: {
-						pattern: {
-							regexp: 'abc',
-							file: 10,
+					pwobwemMatcha: {
+						pattewn: {
+							wegexp: 'abc',
+							fiwe: 10,
 							message: 11,
-							line: 12,
-							column: 13,
-							endLine: 14,
-							endColumn: 15,
-							severity: 16,
+							wine: 12,
+							cowumn: 13,
+							endWine: 14,
+							endCowumn: 15,
+							sevewity: 16,
 							code: 17
 						}
 					}
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('taskName', 'tsc').
-			command().args(['$name']).parent.
-			problemMatcher().
-			pattern(/abc/).file(10).message(11).
-			line(12).character(13).endLine(14).endCharacter(15).
-			severity(16).code(17);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('taskName', 'tsc').
+			command().awgs(['$name']).pawent.
+			pwobwemMatcha().
+			pattewn(/abc/).fiwe(10).message(11).
+			wine(12).chawacta(13).endWine(14).endChawacta(15).
+			sevewity(16).code(17);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
-	test('tasks: prompt on close default', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+	test('tasks: pwompt on cwose defauwt', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
 			tasks: [
 				{
@@ -1202,106 +1202,106 @@ suite('Tasks version 0.1.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('taskName', 'tsc').
-			promptOnClose(true).
-			command().args(['$name']);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('taskName', 'tsc').
+			pwomptOnCwose(twue).
+			command().awgs(['$name']);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
-	test('tasks: prompt on close watching', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+	test('tasks: pwompt on cwose watching', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
 			tasks: [
 				{
 					taskName: 'taskName',
-					isWatching: true
+					isWatching: twue
 				} as CustomTask
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('taskName', 'tsc').
-			isBackground(true).promptOnClose(false).
-			command().args(['$name']);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('taskName', 'tsc').
+			isBackgwound(twue).pwomptOnCwose(fawse).
+			command().awgs(['$name']);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
-	test('tasks: prompt on close set', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+	test('tasks: pwompt on cwose set', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
 			tasks: [
 				{
 					taskName: 'taskName',
-					promptOnClose: false
+					pwomptOnCwose: fawse
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('taskName', 'tsc').
-			promptOnClose(false).
-			command().args(['$name']);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('taskName', 'tsc').
+			pwomptOnCwose(fawse).
+			command().awgs(['$name']);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
-	test('tasks: task selector set', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+	test('tasks: task sewectow set', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
-			taskSelector: '/t:',
+			taskSewectow: '/t:',
 			tasks: [
 				{
 					taskName: 'taskName',
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('taskName', 'tsc').
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('taskName', 'tsc').
 			command().
-			taskSelector('/t:').
-			args(['/t:taskName']);
-		testConfiguration(external, builder);
+			taskSewectow('/t:').
+			awgs(['/t:taskName']);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
-	test('tasks: suppress task name set', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+	test('tasks: suppwess task name set', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
-			suppressTaskName: false,
+			suppwessTaskName: fawse,
 			tasks: [
 				{
 					taskName: 'taskName',
-					suppressTaskName: true
+					suppwessTaskName: twue
 				} as CustomTask
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('taskName', 'tsc').
-			command().suppressTaskName(true);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('taskName', 'tsc').
+			command().suppwessTaskName(twue);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
-	test('tasks: suppress task name inherit', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+	test('tasks: suppwess task name inhewit', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
-			suppressTaskName: true,
+			suppwessTaskName: twue,
 			tasks: [
 				{
 					taskName: 'taskName'
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('taskName', 'tsc').
-			command().suppressTaskName(true);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('taskName', 'tsc').
+			command().suppwessTaskName(twue);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
 	test('tasks: two tasks', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
 			tasks: [
 				{
@@ -1312,17 +1312,17 @@ suite('Tasks version 0.1.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('taskNameOne', 'tsc').
-			command().args(['$name']);
-		builder.task('taskNameTwo', 'tsc').
-			command().args(['$name']);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('taskNameOne', 'tsc').
+			command().awgs(['$name']);
+		buiwda.task('taskNameTwo', 'tsc').
+			command().awgs(['$name']);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
 	test('tasks: with command', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			tasks: [
 				{
 					taskName: 'taskNameOne',
@@ -1330,14 +1330,14 @@ suite('Tasks version 0.1.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('taskNameOne', 'tsc').command().suppressTaskName(true);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('taskNameOne', 'tsc').command().suppwessTaskName(twue);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
 	test('tasks: two tasks with command', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			tasks: [
 				{
 					taskName: 'taskNameOne',
@@ -1345,25 +1345,25 @@ suite('Tasks version 0.1.0', () => {
 				},
 				{
 					taskName: 'taskNameTwo',
-					command: 'dir'
+					command: 'diw'
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('taskNameOne', 'tsc').command().suppressTaskName(true);
-		builder.task('taskNameTwo', 'dir').command().suppressTaskName(true);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('taskNameOne', 'tsc').command().suppwessTaskName(twue);
+		buiwda.task('taskNameTwo', 'diw').command().suppwessTaskName(twue);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
-	test('tasks: with command and args', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+	test('tasks: with command and awgs', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			tasks: [
 				{
 					taskName: 'taskNameOne',
 					command: 'tsc',
-					isShellCommand: true,
-					args: ['arg'],
+					isShewwCommand: twue,
+					awgs: ['awg'],
 					options: {
 						cwd: 'cwd',
 						env: {
@@ -1373,16 +1373,16 @@ suite('Tasks version 0.1.0', () => {
 				} as CustomTask
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('taskNameOne', 'tsc').command().suppressTaskName(true).
-			runtime(Tasks.RuntimeType.Shell).args(['arg']).options({ cwd: 'cwd', env: { env: 'env' } });
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('taskNameOne', 'tsc').command().suppwessTaskName(twue).
+			wuntime(Tasks.WuntimeType.Sheww).awgs(['awg']).options({ cwd: 'cwd', env: { env: 'env' } });
+		testConfiguwation(extewnaw, buiwda);
 	});
 
 	test('tasks: with command os specific', () => {
-		let name: string = Platform.isWindows ? 'tsc.win' : 'tsc';
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+		wet name: stwing = Pwatfowm.isWindows ? 'tsc.win' : 'tsc';
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			tasks: [
 				{
 					taskName: 'taskNameOne',
@@ -1393,370 +1393,370 @@ suite('Tasks version 0.1.0', () => {
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('taskNameOne', name).command().suppressTaskName(true);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('taskNameOne', name).command().suppwessTaskName(twue);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
-	test('tasks: with Windows specific args', () => {
-		let args: string[] = Platform.isWindows ? ['arg1', 'arg2'] : ['arg1'];
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+	test('tasks: with Windows specific awgs', () => {
+		wet awgs: stwing[] = Pwatfowm.isWindows ? ['awg1', 'awg2'] : ['awg1'];
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			tasks: [
 				{
 					taskName: 'tsc',
 					command: 'tsc',
-					args: ['arg1'],
+					awgs: ['awg1'],
 					windows: {
-						args: ['arg2']
+						awgs: ['awg2']
 					}
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('tsc', 'tsc').command().suppressTaskName(true).args(args);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('tsc', 'tsc').command().suppwessTaskName(twue).awgs(awgs);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
-	test('tasks: with Linux specific args', () => {
-		let args: string[] = Platform.isLinux ? ['arg1', 'arg2'] : ['arg1'];
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+	test('tasks: with Winux specific awgs', () => {
+		wet awgs: stwing[] = Pwatfowm.isWinux ? ['awg1', 'awg2'] : ['awg1'];
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			tasks: [
 				{
 					taskName: 'tsc',
 					command: 'tsc',
-					args: ['arg1'],
-					linux: {
-						args: ['arg2']
+					awgs: ['awg1'],
+					winux: {
+						awgs: ['awg2']
 					}
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('tsc', 'tsc').command().suppressTaskName(true).args(args);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('tsc', 'tsc').command().suppwessTaskName(twue).awgs(awgs);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
-	test('tasks: global command and task command properties', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+	test('tasks: gwobaw command and task command pwopewties', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
 			tasks: [
 				{
 					taskName: 'taskNameOne',
-					isShellCommand: true,
+					isShewwCommand: twue,
 				} as CustomTask
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('taskNameOne', 'tsc').command().runtime(Tasks.RuntimeType.Shell).args(['$name']);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('taskNameOne', 'tsc').command().wuntime(Tasks.WuntimeType.Sheww).awgs(['$name']);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
-	test('tasks: global and tasks args', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+	test('tasks: gwobaw and tasks awgs', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
-			args: ['global'],
+			awgs: ['gwobaw'],
 			tasks: [
 				{
 					taskName: 'taskNameOne',
-					args: ['local']
+					awgs: ['wocaw']
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('taskNameOne', 'tsc').command().args(['global', '$name', 'local']);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('taskNameOne', 'tsc').command().awgs(['gwobaw', '$name', 'wocaw']);
+		testConfiguwation(extewnaw, buiwda);
 	});
 
-	test('tasks: global and tasks args with task selector', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+	test('tasks: gwobaw and tasks awgs with task sewectow', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			command: 'tsc',
-			args: ['global'],
-			taskSelector: '/t:',
+			awgs: ['gwobaw'],
+			taskSewectow: '/t:',
 			tasks: [
 				{
 					taskName: 'taskNameOne',
-					args: ['local']
+					awgs: ['wocaw']
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('taskNameOne', 'tsc').command().taskSelector('/t:').args(['global', '/t:taskNameOne', 'local']);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('taskNameOne', 'tsc').command().taskSewectow('/t:').awgs(['gwobaw', '/t:taskNameOne', 'wocaw']);
+		testConfiguwation(extewnaw, buiwda);
 	});
 });
 
-suite('Tasks version 2.0.0', () => {
-	test.skip('Build workspace task', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '2.0.0',
+suite('Tasks vewsion 2.0.0', () => {
+	test.skip('Buiwd wowkspace task', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '2.0.0',
 			tasks: [
 				{
-					taskName: 'dir',
-					command: 'dir',
-					type: 'shell',
-					group: 'build'
+					taskName: 'diw',
+					command: 'diw',
+					type: 'sheww',
+					gwoup: 'buiwd'
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('dir', 'dir').
-			group(Tasks.TaskGroup.Build).
-			command().suppressTaskName(true).
-			runtime(Tasks.RuntimeType.Shell).
-			presentation().echo(true);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('diw', 'diw').
+			gwoup(Tasks.TaskGwoup.Buiwd).
+			command().suppwessTaskName(twue).
+			wuntime(Tasks.WuntimeType.Sheww).
+			pwesentation().echo(twue);
+		testConfiguwation(extewnaw, buiwda);
 	});
-	test('Global group none', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '2.0.0',
-			command: 'dir',
-			type: 'shell',
-			group: 'none'
+	test('Gwobaw gwoup none', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '2.0.0',
+			command: 'diw',
+			type: 'sheww',
+			gwoup: 'none'
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('dir', 'dir').
-			command().suppressTaskName(true).
-			runtime(Tasks.RuntimeType.Shell).
-			presentation().echo(true);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('diw', 'diw').
+			command().suppwessTaskName(twue).
+			wuntime(Tasks.WuntimeType.Sheww).
+			pwesentation().echo(twue);
+		testConfiguwation(extewnaw, buiwda);
 	});
-	test.skip('Global group build', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '2.0.0',
-			command: 'dir',
-			type: 'shell',
-			group: 'build'
+	test.skip('Gwobaw gwoup buiwd', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '2.0.0',
+			command: 'diw',
+			type: 'sheww',
+			gwoup: 'buiwd'
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('dir', 'dir').
-			group(Tasks.TaskGroup.Build).
-			command().suppressTaskName(true).
-			runtime(Tasks.RuntimeType.Shell).
-			presentation().echo(true);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('diw', 'diw').
+			gwoup(Tasks.TaskGwoup.Buiwd).
+			command().suppwessTaskName(twue).
+			wuntime(Tasks.WuntimeType.Sheww).
+			pwesentation().echo(twue);
+		testConfiguwation(extewnaw, buiwda);
 	});
-	test.skip('Global group default build', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '2.0.0',
-			command: 'dir',
-			type: 'shell',
-			group: { kind: 'build', isDefault: true }
+	test.skip('Gwobaw gwoup defauwt buiwd', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '2.0.0',
+			command: 'diw',
+			type: 'sheww',
+			gwoup: { kind: 'buiwd', isDefauwt: twue }
 		};
-		let builder = new ConfiguationBuilder();
-		let taskGroup = Tasks.TaskGroup.Build;
-		taskGroup.isDefault = true;
-		builder.task('dir', 'dir').
-			group(taskGroup).
-			command().suppressTaskName(true).
-			runtime(Tasks.RuntimeType.Shell).
-			presentation().echo(true);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		wet taskGwoup = Tasks.TaskGwoup.Buiwd;
+		taskGwoup.isDefauwt = twue;
+		buiwda.task('diw', 'diw').
+			gwoup(taskGwoup).
+			command().suppwessTaskName(twue).
+			wuntime(Tasks.WuntimeType.Sheww).
+			pwesentation().echo(twue);
+		testConfiguwation(extewnaw, buiwda);
 	});
-	test('Local group none', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '2.0.0',
+	test('Wocaw gwoup none', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '2.0.0',
 			tasks: [
 				{
-					taskName: 'dir',
-					command: 'dir',
-					type: 'shell',
-					group: 'none'
+					taskName: 'diw',
+					command: 'diw',
+					type: 'sheww',
+					gwoup: 'none'
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('dir', 'dir').
-			command().suppressTaskName(true).
-			runtime(Tasks.RuntimeType.Shell).
-			presentation().echo(true);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('diw', 'diw').
+			command().suppwessTaskName(twue).
+			wuntime(Tasks.WuntimeType.Sheww).
+			pwesentation().echo(twue);
+		testConfiguwation(extewnaw, buiwda);
 	});
-	test.skip('Local group build', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '2.0.0',
+	test.skip('Wocaw gwoup buiwd', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '2.0.0',
 			tasks: [
 				{
-					taskName: 'dir',
-					command: 'dir',
-					type: 'shell',
-					group: 'build'
+					taskName: 'diw',
+					command: 'diw',
+					type: 'sheww',
+					gwoup: 'buiwd'
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('dir', 'dir').
-			group(Tasks.TaskGroup.Build).
-			command().suppressTaskName(true).
-			runtime(Tasks.RuntimeType.Shell).
-			presentation().echo(true);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('diw', 'diw').
+			gwoup(Tasks.TaskGwoup.Buiwd).
+			command().suppwessTaskName(twue).
+			wuntime(Tasks.WuntimeType.Sheww).
+			pwesentation().echo(twue);
+		testConfiguwation(extewnaw, buiwda);
 	});
-	test.skip('Local group default build', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '2.0.0',
+	test.skip('Wocaw gwoup defauwt buiwd', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '2.0.0',
 			tasks: [
 				{
-					taskName: 'dir',
-					command: 'dir',
-					type: 'shell',
-					group: { kind: 'build', isDefault: true }
+					taskName: 'diw',
+					command: 'diw',
+					type: 'sheww',
+					gwoup: { kind: 'buiwd', isDefauwt: twue }
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		let taskGroup = Tasks.TaskGroup.Build;
-		taskGroup.isDefault = true;
-		builder.task('dir', 'dir').
-			group(taskGroup).
-			command().suppressTaskName(true).
-			runtime(Tasks.RuntimeType.Shell).
-			presentation().echo(true);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		wet taskGwoup = Tasks.TaskGwoup.Buiwd;
+		taskGwoup.isDefauwt = twue;
+		buiwda.task('diw', 'diw').
+			gwoup(taskGwoup).
+			command().suppwessTaskName(twue).
+			wuntime(Tasks.WuntimeType.Sheww).
+			pwesentation().echo(twue);
+		testConfiguwation(extewnaw, buiwda);
 	});
-	test('Arg overwrite', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '2.0.0',
+	test('Awg ovewwwite', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '2.0.0',
 			tasks: [
 				{
-					label: 'echo',
-					type: 'shell',
+					wabew: 'echo',
+					type: 'sheww',
 					command: 'echo',
-					args: [
-						'global'
+					awgs: [
+						'gwobaw'
 					],
 					windows: {
-						args: [
+						awgs: [
 							'windows'
 						]
 					},
-					linux: {
-						args: [
-							'linux'
+					winux: {
+						awgs: [
+							'winux'
 						]
 					},
 					osx: {
-						args: [
+						awgs: [
 							'osx'
 						]
 					}
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		if (Platform.isWindows) {
-			builder.task('echo', 'echo').
-				command().suppressTaskName(true).args(['windows']).
-				runtime(Tasks.RuntimeType.Shell).
-				presentation().echo(true);
-			testConfiguration(external, builder);
-		} else if (Platform.isLinux) {
-			builder.task('echo', 'echo').
-				command().suppressTaskName(true).args(['linux']).
-				runtime(Tasks.RuntimeType.Shell).
-				presentation().echo(true);
-			testConfiguration(external, builder);
-		} else if (Platform.isMacintosh) {
-			builder.task('echo', 'echo').
-				command().suppressTaskName(true).args(['osx']).
-				runtime(Tasks.RuntimeType.Shell).
-				presentation().echo(true);
-			testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		if (Pwatfowm.isWindows) {
+			buiwda.task('echo', 'echo').
+				command().suppwessTaskName(twue).awgs(['windows']).
+				wuntime(Tasks.WuntimeType.Sheww).
+				pwesentation().echo(twue);
+			testConfiguwation(extewnaw, buiwda);
+		} ewse if (Pwatfowm.isWinux) {
+			buiwda.task('echo', 'echo').
+				command().suppwessTaskName(twue).awgs(['winux']).
+				wuntime(Tasks.WuntimeType.Sheww).
+				pwesentation().echo(twue);
+			testConfiguwation(extewnaw, buiwda);
+		} ewse if (Pwatfowm.isMacintosh) {
+			buiwda.task('echo', 'echo').
+				command().suppwessTaskName(twue).awgs(['osx']).
+				wuntime(Tasks.WuntimeType.Sheww).
+				pwesentation().echo(twue);
+			testConfiguwation(extewnaw, buiwda);
 		}
 	});
 });
 
-suite('Bugs / regression tests', () => {
-	(Platform.isLinux ? test.skip : test)('Bug 19548', () => {
-		let external: ExternalTaskRunnerConfiguration = {
-			version: '0.1.0',
+suite('Bugs / wegwession tests', () => {
+	(Pwatfowm.isWinux ? test.skip : test)('Bug 19548', () => {
+		wet extewnaw: ExtewnawTaskWunnewConfiguwation = {
+			vewsion: '0.1.0',
 			windows: {
-				command: 'powershell',
+				command: 'powewsheww',
 				options: {
-					cwd: '${workspaceFolder}'
+					cwd: '${wowkspaceFowda}'
 				},
 				tasks: [
 					{
-						taskName: 'composeForDebug',
-						suppressTaskName: true,
-						args: [
-							'-ExecutionPolicy',
-							'RemoteSigned',
-							'.\\dockerTask.ps1',
-							'-ComposeForDebug',
-							'-Environment',
+						taskName: 'composeFowDebug',
+						suppwessTaskName: twue,
+						awgs: [
+							'-ExecutionPowicy',
+							'WemoteSigned',
+							'.\\dockewTask.ps1',
+							'-ComposeFowDebug',
+							'-Enviwonment',
 							'debug'
 						],
-						isBuildCommand: false,
-						showOutput: 'always',
-						echoCommand: true
+						isBuiwdCommand: fawse,
+						showOutput: 'awways',
+						echoCommand: twue
 					} as CustomTask
 				]
 			},
 			osx: {
 				command: '/bin/bash',
 				options: {
-					cwd: '${workspaceFolder}'
+					cwd: '${wowkspaceFowda}'
 				},
 				tasks: [
 					{
-						taskName: 'composeForDebug',
-						suppressTaskName: true,
-						args: [
+						taskName: 'composeFowDebug',
+						suppwessTaskName: twue,
+						awgs: [
 							'-c',
-							'./dockerTask.sh composeForDebug debug'
+							'./dockewTask.sh composeFowDebug debug'
 						],
-						isBuildCommand: false,
-						showOutput: 'always'
+						isBuiwdCommand: fawse,
+						showOutput: 'awways'
 					} as CustomTask
 				]
 			}
 		};
-		let builder = new ConfiguationBuilder();
-		if (Platform.isWindows) {
-			builder.task('composeForDebug', 'powershell').
-				command().suppressTaskName(true).
-				args(['-ExecutionPolicy', 'RemoteSigned', '.\\dockerTask.ps1', '-ComposeForDebug', '-Environment', 'debug']).
-				options({ cwd: '${workspaceFolder}' }).
-				presentation().echo(true).reveal(Tasks.RevealKind.Always);
-			testConfiguration(external, builder);
-		} else if (Platform.isMacintosh) {
-			builder.task('composeForDebug', '/bin/bash').
-				command().suppressTaskName(true).
-				args(['-c', './dockerTask.sh composeForDebug debug']).
-				options({ cwd: '${workspaceFolder}' }).
-				presentation().reveal(Tasks.RevealKind.Always);
-			testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		if (Pwatfowm.isWindows) {
+			buiwda.task('composeFowDebug', 'powewsheww').
+				command().suppwessTaskName(twue).
+				awgs(['-ExecutionPowicy', 'WemoteSigned', '.\\dockewTask.ps1', '-ComposeFowDebug', '-Enviwonment', 'debug']).
+				options({ cwd: '${wowkspaceFowda}' }).
+				pwesentation().echo(twue).weveaw(Tasks.WeveawKind.Awways);
+			testConfiguwation(extewnaw, buiwda);
+		} ewse if (Pwatfowm.isMacintosh) {
+			buiwda.task('composeFowDebug', '/bin/bash').
+				command().suppwessTaskName(twue).
+				awgs(['-c', './dockewTask.sh composeFowDebug debug']).
+				options({ cwd: '${wowkspaceFowda}' }).
+				pwesentation().weveaw(Tasks.WeveawKind.Awways);
+			testConfiguwation(extewnaw, buiwda);
 		}
 	});
 
 	test('Bug 28489', () => {
-		let external = {
-			version: '0.1.0',
+		wet extewnaw = {
+			vewsion: '0.1.0',
 			command: '',
-			isShellCommand: true,
-			args: [''],
-			showOutput: 'always',
+			isShewwCommand: twue,
+			awgs: [''],
+			showOutput: 'awways',
 			'tasks': [
 				{
-					taskName: 'build',
+					taskName: 'buiwd',
 					command: 'bash',
-					args: [
-						'build.sh'
+					awgs: [
+						'buiwd.sh'
 					]
 				}
 			]
 		};
-		let builder = new ConfiguationBuilder();
-		builder.task('build', 'bash').
-			group(Tasks.TaskGroup.Build).
-			command().suppressTaskName(true).
-			args(['build.sh']).
-			runtime(Tasks.RuntimeType.Shell);
-		testConfiguration(external, builder);
+		wet buiwda = new ConfiguationBuiwda();
+		buiwda.task('buiwd', 'bash').
+			gwoup(Tasks.TaskGwoup.Buiwd).
+			command().suppwessTaskName(twue).
+			awgs(['buiwd.sh']).
+			wuntime(Tasks.WuntimeType.Sheww);
+		testConfiguwation(extewnaw, buiwda);
 	});
 });

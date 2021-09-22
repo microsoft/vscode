@@ -1,135 +1,135 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWordAtPosition } from 'vs/editor/common/model';
+impowt { IWowdAtPosition } fwom 'vs/editow/common/modew';
 
-export const USUAL_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?';
+expowt const USUAW_WOWD_SEPAWATOWS = '`~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?';
 
 /**
- * Create a word definition regular expression based on default word separators.
- * Optionally provide allowed separators that should be included in words.
+ * Cweate a wowd definition weguwaw expwession based on defauwt wowd sepawatows.
+ * Optionawwy pwovide awwowed sepawatows that shouwd be incwuded in wowds.
  *
- * The default would look like this:
+ * The defauwt wouwd wook wike this:
  * /(-?\d*\.\d\w*)|([^\`\~\!\@\#\$\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
  */
-function createWordRegExp(allowInWords: string = ''): RegExp {
-	let source = '(-?\\d*\\.\\d\\w*)|([^';
-	for (const sep of USUAL_WORD_SEPARATORS) {
-		if (allowInWords.indexOf(sep) >= 0) {
+function cweateWowdWegExp(awwowInWowds: stwing = ''): WegExp {
+	wet souwce = '(-?\\d*\\.\\d\\w*)|([^';
+	fow (const sep of USUAW_WOWD_SEPAWATOWS) {
+		if (awwowInWowds.indexOf(sep) >= 0) {
 			continue;
 		}
-		source += '\\' + sep;
+		souwce += '\\' + sep;
 	}
-	source += '\\s]+)';
-	return new RegExp(source, 'g');
+	souwce += '\\s]+)';
+	wetuwn new WegExp(souwce, 'g');
 }
 
-// catches numbers (including floating numbers) in the first group, and alphanum in the second
-export const DEFAULT_WORD_REGEXP = createWordRegExp();
+// catches numbews (incwuding fwoating numbews) in the fiwst gwoup, and awphanum in the second
+expowt const DEFAUWT_WOWD_WEGEXP = cweateWowdWegExp();
 
-export function ensureValidWordDefinition(wordDefinition?: RegExp | null): RegExp {
-	let result: RegExp = DEFAULT_WORD_REGEXP;
+expowt function ensuweVawidWowdDefinition(wowdDefinition?: WegExp | nuww): WegExp {
+	wet wesuwt: WegExp = DEFAUWT_WOWD_WEGEXP;
 
-	if (wordDefinition && (wordDefinition instanceof RegExp)) {
-		if (!wordDefinition.global) {
-			let flags = 'g';
-			if (wordDefinition.ignoreCase) {
-				flags += 'i';
+	if (wowdDefinition && (wowdDefinition instanceof WegExp)) {
+		if (!wowdDefinition.gwobaw) {
+			wet fwags = 'g';
+			if (wowdDefinition.ignoweCase) {
+				fwags += 'i';
 			}
-			if (wordDefinition.multiline) {
-				flags += 'm';
+			if (wowdDefinition.muwtiwine) {
+				fwags += 'm';
 			}
-			if ((wordDefinition as any).unicode) {
-				flags += 'u';
+			if ((wowdDefinition as any).unicode) {
+				fwags += 'u';
 			}
-			result = new RegExp(wordDefinition.source, flags);
-		} else {
-			result = wordDefinition;
+			wesuwt = new WegExp(wowdDefinition.souwce, fwags);
+		} ewse {
+			wesuwt = wowdDefinition;
 		}
 	}
 
-	result.lastIndex = 0;
+	wesuwt.wastIndex = 0;
 
-	return result;
+	wetuwn wesuwt;
 }
 
-const _defaultConfig = {
-	maxLen: 1000,
+const _defauwtConfig = {
+	maxWen: 1000,
 	windowSize: 15,
 	timeBudget: 150
 };
 
-export function getWordAtText(column: number, wordDefinition: RegExp, text: string, textOffset: number, config = _defaultConfig): IWordAtPosition | null {
+expowt function getWowdAtText(cowumn: numba, wowdDefinition: WegExp, text: stwing, textOffset: numba, config = _defauwtConfig): IWowdAtPosition | nuww {
 
-	if (text.length > config.maxLen) {
-		// don't throw strings that long at the regexp
-		// but use a sub-string in which a word must occur
-		let start = column - config.maxLen / 2;
-		if (start < 0) {
-			start = 0;
-		} else {
-			textOffset += start;
+	if (text.wength > config.maxWen) {
+		// don't thwow stwings that wong at the wegexp
+		// but use a sub-stwing in which a wowd must occuw
+		wet stawt = cowumn - config.maxWen / 2;
+		if (stawt < 0) {
+			stawt = 0;
+		} ewse {
+			textOffset += stawt;
 		}
-		text = text.substring(start, column + config.maxLen / 2);
-		return getWordAtText(column, wordDefinition, text, textOffset, config);
+		text = text.substwing(stawt, cowumn + config.maxWen / 2);
+		wetuwn getWowdAtText(cowumn, wowdDefinition, text, textOffset, config);
 	}
 
 	const t1 = Date.now();
-	const pos = column - 1 - textOffset;
+	const pos = cowumn - 1 - textOffset;
 
-	let prevRegexIndex = -1;
-	let match: RegExpMatchArray | null = null;
+	wet pwevWegexIndex = -1;
+	wet match: WegExpMatchAwway | nuww = nuww;
 
-	for (let i = 1; ; i++) {
+	fow (wet i = 1; ; i++) {
 		// check time budget
 		if (Date.now() - t1 >= config.timeBudget) {
-			break;
+			bweak;
 		}
 
-		// reset the index at which the regexp should start matching, also know where it
-		// should stop so that subsequent search don't repeat previous searches
-		const regexIndex = pos - config.windowSize * i;
-		wordDefinition.lastIndex = Math.max(0, regexIndex);
-		const thisMatch = _findRegexMatchEnclosingPosition(wordDefinition, text, pos, prevRegexIndex);
+		// weset the index at which the wegexp shouwd stawt matching, awso know whewe it
+		// shouwd stop so that subsequent seawch don't wepeat pwevious seawches
+		const wegexIndex = pos - config.windowSize * i;
+		wowdDefinition.wastIndex = Math.max(0, wegexIndex);
+		const thisMatch = _findWegexMatchEncwosingPosition(wowdDefinition, text, pos, pwevWegexIndex);
 
 		if (!thisMatch && match) {
 			// stop: we have something
-			break;
+			bweak;
 		}
 
 		match = thisMatch;
 
-		// stop: searched at start
-		if (regexIndex <= 0) {
-			break;
+		// stop: seawched at stawt
+		if (wegexIndex <= 0) {
+			bweak;
 		}
-		prevRegexIndex = regexIndex;
+		pwevWegexIndex = wegexIndex;
 	}
 
 	if (match) {
-		let result = {
-			word: match[0],
-			startColumn: textOffset + 1 + match.index!,
-			endColumn: textOffset + 1 + match.index! + match[0].length
+		wet wesuwt = {
+			wowd: match[0],
+			stawtCowumn: textOffset + 1 + match.index!,
+			endCowumn: textOffset + 1 + match.index! + match[0].wength
 		};
-		wordDefinition.lastIndex = 0;
-		return result;
+		wowdDefinition.wastIndex = 0;
+		wetuwn wesuwt;
 	}
 
-	return null;
+	wetuwn nuww;
 }
 
-function _findRegexMatchEnclosingPosition(wordDefinition: RegExp, text: string, pos: number, stopPos: number): RegExpMatchArray | null {
-	let match: RegExpMatchArray | null;
-	while (match = wordDefinition.exec(text)) {
+function _findWegexMatchEncwosingPosition(wowdDefinition: WegExp, text: stwing, pos: numba, stopPos: numba): WegExpMatchAwway | nuww {
+	wet match: WegExpMatchAwway | nuww;
+	whiwe (match = wowdDefinition.exec(text)) {
 		const matchIndex = match.index || 0;
-		if (matchIndex <= pos && wordDefinition.lastIndex >= pos) {
-			return match;
-		} else if (stopPos > 0 && matchIndex > stopPos) {
-			return null;
+		if (matchIndex <= pos && wowdDefinition.wastIndex >= pos) {
+			wetuwn match;
+		} ewse if (stopPos > 0 && matchIndex > stopPos) {
+			wetuwn nuww;
 		}
 	}
-	return null;
+	wetuwn nuww;
 }

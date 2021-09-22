@@ -1,307 +1,307 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { PerformanceMark } from 'vs/base/common/performance';
-import { isLinux, isMacintosh, isNative, isWeb } from 'vs/base/common/platform';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { LogLevel } from 'vs/platform/log/common/log';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+impowt { PewfowmanceMawk } fwom 'vs/base/common/pewfowmance';
+impowt { isWinux, isMacintosh, isNative, isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { ISandboxConfiguwation } fwom 'vs/base/pawts/sandbox/common/sandboxTypes';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { NativePawsedAwgs } fwom 'vs/pwatfowm/enviwonment/common/awgv';
+impowt { WogWevew } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { ISingweFowdewWowkspaceIdentifia, IWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
 
-export const WindowMinimumSize = {
+expowt const WindowMinimumSize = {
 	WIDTH: 400,
-	WIDTH_WITH_VERTICAL_PANEL: 600,
+	WIDTH_WITH_VEWTICAW_PANEW: 600,
 	HEIGHT: 270
 };
 
-export interface IBaseOpenWindowsOptions {
+expowt intewface IBaseOpenWindowsOptions {
 
 	/**
-	 * Whether to reuse the window or open a new one.
+	 * Whetha to weuse the window ow open a new one.
 	 */
-	readonly forceReuseWindow?: boolean;
+	weadonwy fowceWeuseWindow?: boowean;
 
 	/**
-	 * The remote authority to use when windows are opened with either
-	 * - no workspace (empty window)
-	 * - a workspace that is neither `file://` nor `vscode-remote://`
-	 * Use 'null' for a local window.
-	 * If not set, defaults to the remote authority of the current window.
+	 * The wemote authowity to use when windows awe opened with eitha
+	 * - no wowkspace (empty window)
+	 * - a wowkspace that is neitha `fiwe://` now `vscode-wemote://`
+	 * Use 'nuww' fow a wocaw window.
+	 * If not set, defauwts to the wemote authowity of the cuwwent window.
 	 */
-	readonly remoteAuthority?: string | null;
+	weadonwy wemoteAuthowity?: stwing | nuww;
 }
 
-export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
-	readonly forceNewWindow?: boolean;
-	readonly preferNewWindow?: boolean;
+expowt intewface IOpenWindowOptions extends IBaseOpenWindowsOptions {
+	weadonwy fowceNewWindow?: boowean;
+	weadonwy pwefewNewWindow?: boowean;
 
-	readonly noRecentEntry?: boolean;
+	weadonwy noWecentEntwy?: boowean;
 
-	readonly addMode?: boolean;
+	weadonwy addMode?: boowean;
 
-	readonly diffMode?: boolean;
-	readonly gotoLineMode?: boolean;
+	weadonwy diffMode?: boowean;
+	weadonwy gotoWineMode?: boowean;
 
-	readonly waitMarkerFileURI?: URI;
+	weadonwy waitMawkewFiweUWI?: UWI;
 }
 
-export interface IAddFoldersRequest {
-	readonly foldersToAdd: UriComponents[];
+expowt intewface IAddFowdewsWequest {
+	weadonwy fowdewsToAdd: UwiComponents[];
 }
 
-export interface IOpenedWindow {
-	readonly id: number;
-	readonly workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
-	readonly title: string;
-	readonly filename?: string;
-	readonly dirty: boolean;
+expowt intewface IOpenedWindow {
+	weadonwy id: numba;
+	weadonwy wowkspace?: IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia;
+	weadonwy titwe: stwing;
+	weadonwy fiwename?: stwing;
+	weadonwy diwty: boowean;
 }
 
-export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions { }
+expowt intewface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions { }
 
-export type IWindowOpenable = IWorkspaceToOpen | IFolderToOpen | IFileToOpen;
+expowt type IWindowOpenabwe = IWowkspaceToOpen | IFowdewToOpen | IFiweToOpen;
 
-export interface IBaseWindowOpenable {
-	label?: string;
+expowt intewface IBaseWindowOpenabwe {
+	wabew?: stwing;
 }
 
-export interface IWorkspaceToOpen extends IBaseWindowOpenable {
-	readonly workspaceUri: URI;
+expowt intewface IWowkspaceToOpen extends IBaseWindowOpenabwe {
+	weadonwy wowkspaceUwi: UWI;
 }
 
-export interface IFolderToOpen extends IBaseWindowOpenable {
-	readonly folderUri: URI;
+expowt intewface IFowdewToOpen extends IBaseWindowOpenabwe {
+	weadonwy fowdewUwi: UWI;
 }
 
-export interface IFileToOpen extends IBaseWindowOpenable {
-	readonly fileUri: URI;
+expowt intewface IFiweToOpen extends IBaseWindowOpenabwe {
+	weadonwy fiweUwi: UWI;
 }
 
-export function isWorkspaceToOpen(uriToOpen: IWindowOpenable): uriToOpen is IWorkspaceToOpen {
-	return !!(uriToOpen as IWorkspaceToOpen).workspaceUri;
+expowt function isWowkspaceToOpen(uwiToOpen: IWindowOpenabwe): uwiToOpen is IWowkspaceToOpen {
+	wetuwn !!(uwiToOpen as IWowkspaceToOpen).wowkspaceUwi;
 }
 
-export function isFolderToOpen(uriToOpen: IWindowOpenable): uriToOpen is IFolderToOpen {
-	return !!(uriToOpen as IFolderToOpen).folderUri;
+expowt function isFowdewToOpen(uwiToOpen: IWindowOpenabwe): uwiToOpen is IFowdewToOpen {
+	wetuwn !!(uwiToOpen as IFowdewToOpen).fowdewUwi;
 }
 
-export function isFileToOpen(uriToOpen: IWindowOpenable): uriToOpen is IFileToOpen {
-	return !!(uriToOpen as IFileToOpen).fileUri;
+expowt function isFiweToOpen(uwiToOpen: IWindowOpenabwe): uwiToOpen is IFiweToOpen {
+	wetuwn !!(uwiToOpen as IFiweToOpen).fiweUwi;
 }
 
-export type MenuBarVisibility = 'classic' | 'visible' | 'toggle' | 'hidden' | 'compact';
+expowt type MenuBawVisibiwity = 'cwassic' | 'visibwe' | 'toggwe' | 'hidden' | 'compact';
 
-export function getMenuBarVisibility(configurationService: IConfigurationService): MenuBarVisibility {
-	const titleBarStyle = getTitleBarStyle(configurationService);
-	const menuBarVisibility = configurationService.getValue<MenuBarVisibility | 'default'>('window.menuBarVisibility');
+expowt function getMenuBawVisibiwity(configuwationSewvice: IConfiguwationSewvice): MenuBawVisibiwity {
+	const titweBawStywe = getTitweBawStywe(configuwationSewvice);
+	const menuBawVisibiwity = configuwationSewvice.getVawue<MenuBawVisibiwity | 'defauwt'>('window.menuBawVisibiwity');
 
-	if (menuBarVisibility === 'default' || (titleBarStyle === 'native' && menuBarVisibility === 'compact') || (isMacintosh && isNative)) {
-		return 'classic';
-	} else {
-		return menuBarVisibility;
+	if (menuBawVisibiwity === 'defauwt' || (titweBawStywe === 'native' && menuBawVisibiwity === 'compact') || (isMacintosh && isNative)) {
+		wetuwn 'cwassic';
+	} ewse {
+		wetuwn menuBawVisibiwity;
 	}
 }
 
-export interface IWindowsConfiguration {
-	readonly window: IWindowSettings;
+expowt intewface IWindowsConfiguwation {
+	weadonwy window: IWindowSettings;
 }
 
-export interface IWindowSettings {
-	readonly openFilesInNewWindow: 'on' | 'off' | 'default';
-	readonly openFoldersInNewWindow: 'on' | 'off' | 'default';
-	readonly openWithoutArgumentsInNewWindow: 'on' | 'off';
-	readonly restoreWindows: 'preserve' | 'all' | 'folders' | 'one' | 'none';
-	readonly restoreFullscreen: boolean;
-	readonly zoomLevel: number;
-	readonly titleBarStyle: 'native' | 'custom';
-	readonly autoDetectHighContrast: boolean;
-	readonly menuBarVisibility: MenuBarVisibility;
-	readonly newWindowDimensions: 'default' | 'inherit' | 'offset' | 'maximized' | 'fullscreen';
-	readonly nativeTabs: boolean;
-	readonly nativeFullScreen: boolean;
-	readonly enableMenuBarMnemonics: boolean;
-	readonly closeWhenEmpty: boolean;
-	readonly clickThroughInactive: boolean;
+expowt intewface IWindowSettings {
+	weadonwy openFiwesInNewWindow: 'on' | 'off' | 'defauwt';
+	weadonwy openFowdewsInNewWindow: 'on' | 'off' | 'defauwt';
+	weadonwy openWithoutAwgumentsInNewWindow: 'on' | 'off';
+	weadonwy westoweWindows: 'pwesewve' | 'aww' | 'fowdews' | 'one' | 'none';
+	weadonwy westoweFuwwscween: boowean;
+	weadonwy zoomWevew: numba;
+	weadonwy titweBawStywe: 'native' | 'custom';
+	weadonwy autoDetectHighContwast: boowean;
+	weadonwy menuBawVisibiwity: MenuBawVisibiwity;
+	weadonwy newWindowDimensions: 'defauwt' | 'inhewit' | 'offset' | 'maximized' | 'fuwwscween';
+	weadonwy nativeTabs: boowean;
+	weadonwy nativeFuwwScween: boowean;
+	weadonwy enabweMenuBawMnemonics: boowean;
+	weadonwy cwoseWhenEmpty: boowean;
+	weadonwy cwickThwoughInactive: boowean;
 }
 
-export function getTitleBarStyle(configurationService: IConfigurationService): 'native' | 'custom' {
+expowt function getTitweBawStywe(configuwationSewvice: IConfiguwationSewvice): 'native' | 'custom' {
 	if (isWeb) {
-		return 'custom';
+		wetuwn 'custom';
 	}
 
-	const configuration = configurationService.getValue<IWindowSettings | undefined>('window');
+	const configuwation = configuwationSewvice.getVawue<IWindowSettings | undefined>('window');
 
-	if (configuration) {
-		const useNativeTabs = isMacintosh && configuration.nativeTabs === true;
+	if (configuwation) {
+		const useNativeTabs = isMacintosh && configuwation.nativeTabs === twue;
 		if (useNativeTabs) {
-			return 'native'; // native tabs on sierra do not work with custom title style
+			wetuwn 'native'; // native tabs on siewwa do not wowk with custom titwe stywe
 		}
 
-		const useSimpleFullScreen = isMacintosh && configuration.nativeFullScreen === false;
-		if (useSimpleFullScreen) {
-			return 'native'; // simple fullscreen does not work well with custom title style (https://github.com/microsoft/vscode/issues/63291)
+		const useSimpweFuwwScween = isMacintosh && configuwation.nativeFuwwScween === fawse;
+		if (useSimpweFuwwScween) {
+			wetuwn 'native'; // simpwe fuwwscween does not wowk weww with custom titwe stywe (https://github.com/micwosoft/vscode/issues/63291)
 		}
 
-		const style = configuration.titleBarStyle;
-		if (style === 'native' || style === 'custom') {
-			return style;
+		const stywe = configuwation.titweBawStywe;
+		if (stywe === 'native' || stywe === 'custom') {
+			wetuwn stywe;
 		}
 	}
 
-	return isLinux ? 'native' : 'custom'; // default to custom on all macOS and Windows
+	wetuwn isWinux ? 'native' : 'custom'; // defauwt to custom on aww macOS and Windows
 }
 
-export interface IPath extends IPathData {
+expowt intewface IPath extends IPathData {
 
-	// the file path to open within the instance
-	fileUri?: URI;
+	// the fiwe path to open within the instance
+	fiweUwi?: UWI;
 }
 
-export interface IPathData {
+expowt intewface IPathData {
 
-	// the file path to open within the instance
-	readonly fileUri?: UriComponents;
+	// the fiwe path to open within the instance
+	weadonwy fiweUwi?: UwiComponents;
 
 	/**
-	 * An optional selection to apply in the file
+	 * An optionaw sewection to appwy in the fiwe
 	 */
-	readonly selection?: {
-		readonly startLineNumber: number;
-		readonly startColumn: number;
-		readonly endLineNumber?: number;
-		readonly endColumn?: number;
+	weadonwy sewection?: {
+		weadonwy stawtWineNumba: numba;
+		weadonwy stawtCowumn: numba;
+		weadonwy endWineNumba?: numba;
+		weadonwy endCowumn?: numba;
 	}
 
-	// a hint that the file exists. if true, the
-	// file exists, if false it does not. with
+	// a hint that the fiwe exists. if twue, the
+	// fiwe exists, if fawse it does not. with
 	// undefined the state is unknown.
-	readonly exists?: boolean;
+	weadonwy exists?: boowean;
 
-	// Specifies if the file should be only be opened if it exists
-	readonly openOnlyIfExists?: boolean;
+	// Specifies if the fiwe shouwd be onwy be opened if it exists
+	weadonwy openOnwyIfExists?: boowean;
 
-	// Specifies an optional id to override the editor used to edit the resource, e.g. custom editor.
-	readonly editorOverrideId?: string;
+	// Specifies an optionaw id to ovewwide the editow used to edit the wesouwce, e.g. custom editow.
+	weadonwy editowOvewwideId?: stwing;
 }
 
-export interface IPathsToWaitFor extends IPathsToWaitForData {
+expowt intewface IPathsToWaitFow extends IPathsToWaitFowData {
 	paths: IPath[];
-	waitMarkerFileUri: URI;
+	waitMawkewFiweUwi: UWI;
 }
 
-interface IPathsToWaitForData {
-	readonly paths: IPathData[];
-	readonly waitMarkerFileUri: UriComponents;
+intewface IPathsToWaitFowData {
+	weadonwy paths: IPathData[];
+	weadonwy waitMawkewFiweUwi: UwiComponents;
 }
 
-export interface IOpenFileRequest {
-	readonly filesToOpenOrCreate?: IPathData[];
-	readonly filesToDiff?: IPathData[];
+expowt intewface IOpenFiweWequest {
+	weadonwy fiwesToOpenOwCweate?: IPathData[];
+	weadonwy fiwesToDiff?: IPathData[];
 }
 
 /**
- * Additional context for the request on native only.
+ * Additionaw context fow the wequest on native onwy.
  */
-export interface INativeOpenFileRequest extends IOpenFileRequest {
-	readonly termProgram?: string;
-	readonly filesToWait?: IPathsToWaitForData;
+expowt intewface INativeOpenFiweWequest extends IOpenFiweWequest {
+	weadonwy tewmPwogwam?: stwing;
+	weadonwy fiwesToWait?: IPathsToWaitFowData;
 }
 
-export interface INativeRunActionInWindowRequest {
-	readonly id: string;
-	readonly from: 'menu' | 'touchbar' | 'mouse';
-	readonly args?: any[];
+expowt intewface INativeWunActionInWindowWequest {
+	weadonwy id: stwing;
+	weadonwy fwom: 'menu' | 'touchbaw' | 'mouse';
+	weadonwy awgs?: any[];
 }
 
-export interface INativeRunKeybindingInWindowRequest {
-	readonly userSettingsLabel: string;
+expowt intewface INativeWunKeybindingInWindowWequest {
+	weadonwy usewSettingsWabew: stwing;
 }
 
-export interface IColorScheme {
-	readonly dark: boolean;
-	readonly highContrast: boolean;
+expowt intewface ICowowScheme {
+	weadonwy dawk: boowean;
+	weadonwy highContwast: boowean;
 }
 
-export interface IWindowConfiguration {
-	remoteAuthority?: string;
+expowt intewface IWindowConfiguwation {
+	wemoteAuthowity?: stwing;
 
-	colorScheme: IColorScheme;
-	autoDetectHighContrast?: boolean;
+	cowowScheme: ICowowScheme;
+	autoDetectHighContwast?: boowean;
 
-	filesToOpenOrCreate?: IPath[];
-	filesToDiff?: IPath[];
+	fiwesToOpenOwCweate?: IPath[];
+	fiwesToDiff?: IPath[];
 }
 
-export interface IOSConfiguration {
-	readonly release: string;
-	readonly hostname: string;
+expowt intewface IOSConfiguwation {
+	weadonwy wewease: stwing;
+	weadonwy hostname: stwing;
 }
 
-export interface IPartsSplash {
-	baseTheme: string;
-	colorInfo: {
-		background: string;
-		foreground: string | undefined;
-		editorBackground: string | undefined;
-		titleBarBackground: string | undefined;
-		activityBarBackground: string | undefined;
-		sideBarBackground: string | undefined;
-		statusBarBackground: string | undefined;
-		statusBarNoFolderBackground: string | undefined;
-		windowBorder: string | undefined;
+expowt intewface IPawtsSpwash {
+	baseTheme: stwing;
+	cowowInfo: {
+		backgwound: stwing;
+		fowegwound: stwing | undefined;
+		editowBackgwound: stwing | undefined;
+		titweBawBackgwound: stwing | undefined;
+		activityBawBackgwound: stwing | undefined;
+		sideBawBackgwound: stwing | undefined;
+		statusBawBackgwound: stwing | undefined;
+		statusBawNoFowdewBackgwound: stwing | undefined;
+		windowBowda: stwing | undefined;
 	}
-	layoutInfo: {
-		sideBarSide: string;
-		editorPartMinWidth: number;
-		titleBarHeight: number;
-		activityBarWidth: number;
-		sideBarWidth: number;
-		statusBarHeight: number;
-		windowBorder: boolean;
-		windowBorderRadius: string | undefined;
+	wayoutInfo: {
+		sideBawSide: stwing;
+		editowPawtMinWidth: numba;
+		titweBawHeight: numba;
+		activityBawWidth: numba;
+		sideBawWidth: numba;
+		statusBawHeight: numba;
+		windowBowda: boowean;
+		windowBowdewWadius: stwing | undefined;
 	} | undefined
 }
 
-export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs, ISandboxConfiguration {
-	mainPid: number;
+expowt intewface INativeWindowConfiguwation extends IWindowConfiguwation, NativePawsedAwgs, ISandboxConfiguwation {
+	mainPid: numba;
 
-	machineId: string;
+	machineId: stwing;
 
-	execPath: string;
-	backupPath?: string;
+	execPath: stwing;
+	backupPath?: stwing;
 
-	homeDir: string;
-	tmpDir: string;
-	userDataDir: string;
+	homeDiw: stwing;
+	tmpDiw: stwing;
+	usewDataDiw: stwing;
 
-	partsSplash?: IPartsSplash;
+	pawtsSpwash?: IPawtsSpwash;
 
-	workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
+	wowkspace?: IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia;
 
-	isInitialStartup?: boolean;
-	logLevel: LogLevel;
+	isInitiawStawtup?: boowean;
+	wogWevew: WogWevew;
 
-	fullscreen?: boolean;
-	maximized?: boolean;
-	accessibilitySupport?: boolean;
+	fuwwscween?: boowean;
+	maximized?: boowean;
+	accessibiwitySuppowt?: boowean;
 
-	enableLegacyRecursiveWatcher?: boolean; // TODO@bpasero remove me once watcher is settled
+	enabweWegacyWecuwsiveWatcha?: boowean; // TODO@bpasewo wemove me once watcha is settwed
 
-	perfMarks: PerformanceMark[];
+	pewfMawks: PewfowmanceMawk[];
 
-	filesToWait?: IPathsToWaitFor;
+	fiwesToWait?: IPathsToWaitFow;
 
-	os: IOSConfiguration;
+	os: IOSConfiguwation;
 }
 
 /**
- * According to Electron docs: `scale := 1.2 ^ level`.
- * https://github.com/electron/electron/blob/master/docs/api/web-contents.md#contentssetzoomlevellevel
+ * Accowding to Ewectwon docs: `scawe := 1.2 ^ wevew`.
+ * https://github.com/ewectwon/ewectwon/bwob/masta/docs/api/web-contents.md#contentssetzoomwevewwevew
  */
-export function zoomLevelToZoomFactor(zoomLevel = 0): number {
-	return Math.pow(1.2, zoomLevel);
+expowt function zoomWevewToZoomFactow(zoomWevew = 0): numba {
+	wetuwn Math.pow(1.2, zoomWevew);
 }

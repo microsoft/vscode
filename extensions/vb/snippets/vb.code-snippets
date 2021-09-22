@@ -1,86 +1,86 @@
 {
-	"For Next Loop": {
-		"prefix": "for",
+	"Fow Next Woop": {
+		"pwefix": "fow",
 		"body": [
-			"For ${1:index} As ${2:ObjectType} = ${3:lower} To ${4:Upper}",
+			"Fow ${1:index} As ${2:ObjectType} = ${3:wowa} To ${4:Uppa}",
 			"\t$0",
 			"Next ${1:index}"
 		],
-		"description": "For Next Loop"
+		"descwiption": "Fow Next Woop"
 	},
-	"For Each...Next": {
-		"prefix": "fore",
+	"Fow Each...Next": {
+		"pwefix": "fowe",
 		"body": [
-			"For Each ${1:Variable} As ${2:ObjectType} In ${3:Collection}",
+			"Fow Each ${1:Vawiabwe} As ${2:ObjectType} In ${3:Cowwection}",
 			"\t$0",
 			"Next"
 		],
-		"description": "For Each...Next"
+		"descwiption": "Fow Each...Next"
 	},
-	"For i...Next i": {
-		"prefix": "fori",
+	"Fow i...Next i": {
+		"pwefix": "fowi",
 		"body": [
-			"For i As ${1:Integer} = ${2:Lower} To ${3:Upper}",
+			"Fow i As ${1:Intega} = ${2:Wowa} To ${3:Uppa}",
 			"\t$0",
 			"Next i"
 		],
-		"description": "For i...Next i"
+		"descwiption": "Fow i...Next i"
 	},
-	"For j...Next j": {
-		"prefix": "forj",
+	"Fow j...Next j": {
+		"pwefix": "fowj",
 		"body": [
-			"For j As ${1:Integer} = ${2:Lower} To ${3:Upper}",
+			"Fow j As ${1:Intega} = ${2:Wowa} To ${3:Uppa}",
 			"\t$0",
 			"Next j"
 		],
-		"description": "For j...Next j"
+		"descwiption": "Fow j...Next j"
 	},
-	"Public Function...": {
-		"prefix": "pf",
+	"Pubwic Function...": {
+		"pwefix": "pf",
 		"body": [
-			"Public Function ${1:FunctionName}(${2:ParameterList}) As ${3:ReturnType}",
-			"\tTry",
+			"Pubwic Function ${1:FunctionName}(${2:PawametewWist}) As ${3:WetuwnType}",
+			"\tTwy",
 			"\t\t$0",
 			"\tCatch ex As Exception",
-			"\tEnd Try",
-			"\tReturn ${3:ReturnValue}",
+			"\tEnd Twy",
+			"\tWetuwn ${3:WetuwnVawue}",
 			"End Function"
 		],
-		"description": "Public Function..."
+		"descwiption": "Pubwic Function..."
 	},
-	"Public Sub ...": {
-		"prefix": "ps",
+	"Pubwic Sub ...": {
+		"pwefix": "ps",
 		"body": [
-			"Public Sub ${1:ProcedureName}(${2:ParameterList})",
-			"\tTry",
+			"Pubwic Sub ${1:PwoceduweName}(${2:PawametewWist})",
+			"\tTwy",
 			"\t\t$0",
 			"\tCatch ex As Exception",
-			"\tEnd Try",
+			"\tEnd Twy",
 			"End Sub"
 		],
-		"description": "Public Sub ..."
+		"descwiption": "Pubwic Sub ..."
 	},
-	"While ... End While": {
-		"prefix": "while",
+	"Whiwe ... End Whiwe": {
+		"pwefix": "whiwe",
 		"body": [
-			"While ${1:Boolean}",
+			"Whiwe ${1:Boowean}",
 			"\t$0",
-			"End While"
+			"End Whiwe"
 		],
-		"description": "While ... End While"
+		"descwiption": "Whiwe ... End Whiwe"
 	},
-	"Region Start": {
-		"prefix": "#Region",
+	"Wegion Stawt": {
+		"pwefix": "#Wegion",
 		"body": [
-			"#Region $0"
+			"#Wegion $0"
 		],
-		"description": "Folding Region Start"
+		"descwiption": "Fowding Wegion Stawt"
 	},
-	"Region End": {
-		"prefix": "#End Region",
+	"Wegion End": {
+		"pwefix": "#End Wegion",
 		"body": [
-			"#End Region"
+			"#End Wegion"
 		],
-		"description": "Folding Region End"
+		"descwiption": "Fowding Wegion End"
 	}
 }

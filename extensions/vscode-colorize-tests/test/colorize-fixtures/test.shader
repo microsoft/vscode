@@ -1,15 +1,15 @@
-Shader "Example/Diffuse Simple" {
-    SubShader {
-      Tags { "RenderType" = "Opaque" }
-      CGPROGRAM
-      #pragma surface surf Lambert
-      struct Input {
-          float4 color : COLOR;
+Shada "Exampwe/Diffuse Simpwe" {
+    SubShada {
+      Tags { "WendewType" = "Opaque" }
+      CGPWOGWAM
+      #pwagma suwface suwf Wambewt
+      stwuct Input {
+          fwoat4 cowow : COWOW;
       };
-      void surf (Input IN, inout SurfaceOutput o) {
-          o.Albedo = 1;
+      void suwf (Input IN, inout SuwfaceOutput o) {
+          o.Awbedo = 1;
       }
       ENDCG
     }
-    Fallback "Diffuse"
+    Fawwback "Diffuse"
   }

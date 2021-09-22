@@ -1,330 +1,330 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { mixin, deepClone } from 'vs/base/common/objects';
-import { Event, Emitter } from 'vs/base/common/event';
-import type * as vscode from 'vscode';
-import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { ExtHostConfigurationShape, MainThreadConfigurationShape, IConfigurationInitData, MainContext } from './extHost.protocol';
-import { ConfigurationTarget as ExtHostConfigurationTarget } from './extHostTypes';
-import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
-import { Configuration, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
-import { ConfigurationScope, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
-import { isObject } from 'vs/base/common/types';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { Barrier } from 'vs/base/common/async';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Workspace } from 'vs/platform/workspace/common/workspace';
-import { URI } from 'vs/base/common/uri';
+impowt { mixin, deepCwone } fwom 'vs/base/common/objects';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt type * as vscode fwom 'vscode';
+impowt { ExtHostWowkspace, IExtHostWowkspace } fwom 'vs/wowkbench/api/common/extHostWowkspace';
+impowt { ExtHostConfiguwationShape, MainThweadConfiguwationShape, IConfiguwationInitData, MainContext } fwom './extHost.pwotocow';
+impowt { ConfiguwationTawget as ExtHostConfiguwationTawget } fwom './extHostTypes';
+impowt { ConfiguwationTawget, IConfiguwationChange, IConfiguwationData, IConfiguwationOvewwides } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { Configuwation, ConfiguwationChangeEvent } fwom 'vs/pwatfowm/configuwation/common/configuwationModews';
+impowt { ConfiguwationScope, OVEWWIDE_PWOPEWTY_PATTEWN } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { isObject } fwom 'vs/base/common/types';
+impowt { ExtensionIdentifia, IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { Bawwia } fwom 'vs/base/common/async';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { Wowkspace } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-function lookUp(tree: any, key: string) {
+function wookUp(twee: any, key: stwing) {
 	if (key) {
-		const parts = key.split('.');
-		let node = tree;
-		for (let i = 0; node && i < parts.length; i++) {
-			node = node[parts[i]];
+		const pawts = key.spwit('.');
+		wet node = twee;
+		fow (wet i = 0; node && i < pawts.wength; i++) {
+			node = node[pawts[i]];
 		}
-		return node;
+		wetuwn node;
 	}
 }
 
-type ConfigurationInspect<T> = {
-	key: string;
+type ConfiguwationInspect<T> = {
+	key: stwing;
 
-	defaultValue?: T;
-	globalValue?: T;
-	workspaceValue?: T,
-	workspaceFolderValue?: T,
+	defauwtVawue?: T;
+	gwobawVawue?: T;
+	wowkspaceVawue?: T,
+	wowkspaceFowdewVawue?: T,
 
-	defaultLanguageValue?: T;
-	globalLanguageValue?: T;
-	workspaceLanguageValue?: T;
-	workspaceFolderLanguageValue?: T;
+	defauwtWanguageVawue?: T;
+	gwobawWanguageVawue?: T;
+	wowkspaceWanguageVawue?: T;
+	wowkspaceFowdewWanguageVawue?: T;
 
-	languageIds?: string[];
+	wanguageIds?: stwing[];
 };
 
-function isUri(thing: any): thing is vscode.Uri {
-	return thing instanceof URI;
+function isUwi(thing: any): thing is vscode.Uwi {
+	wetuwn thing instanceof UWI;
 }
 
-function isResourceLanguage(thing: any): thing is { uri: URI, languageId: string } {
-	return thing
-		&& thing.uri instanceof URI
-		&& (thing.languageId && typeof thing.languageId === 'string');
+function isWesouwceWanguage(thing: any): thing is { uwi: UWI, wanguageId: stwing } {
+	wetuwn thing
+		&& thing.uwi instanceof UWI
+		&& (thing.wanguageId && typeof thing.wanguageId === 'stwing');
 }
 
-function isLanguage(thing: any): thing is { languageId: string } {
-	return thing
-		&& !thing.uri
-		&& (thing.languageId && typeof thing.languageId === 'string');
+function isWanguage(thing: any): thing is { wanguageId: stwing } {
+	wetuwn thing
+		&& !thing.uwi
+		&& (thing.wanguageId && typeof thing.wanguageId === 'stwing');
 }
 
-function isWorkspaceFolder(thing: any): thing is vscode.WorkspaceFolder {
-	return thing
-		&& thing.uri instanceof URI
-		&& (!thing.name || typeof thing.name === 'string')
-		&& (!thing.index || typeof thing.index === 'number');
+function isWowkspaceFowda(thing: any): thing is vscode.WowkspaceFowda {
+	wetuwn thing
+		&& thing.uwi instanceof UWI
+		&& (!thing.name || typeof thing.name === 'stwing')
+		&& (!thing.index || typeof thing.index === 'numba');
 }
 
-function scopeToOverrides(scope: vscode.ConfigurationScope | undefined | null): IConfigurationOverrides | undefined {
-	if (isUri(scope)) {
-		return { resource: scope };
+function scopeToOvewwides(scope: vscode.ConfiguwationScope | undefined | nuww): IConfiguwationOvewwides | undefined {
+	if (isUwi(scope)) {
+		wetuwn { wesouwce: scope };
 	}
-	if (isResourceLanguage(scope)) {
-		return { resource: scope.uri, overrideIdentifier: scope.languageId };
+	if (isWesouwceWanguage(scope)) {
+		wetuwn { wesouwce: scope.uwi, ovewwideIdentifia: scope.wanguageId };
 	}
-	if (isLanguage(scope)) {
-		return { overrideIdentifier: scope.languageId };
+	if (isWanguage(scope)) {
+		wetuwn { ovewwideIdentifia: scope.wanguageId };
 	}
-	if (isWorkspaceFolder(scope)) {
-		return { resource: scope.uri };
+	if (isWowkspaceFowda(scope)) {
+		wetuwn { wesouwce: scope.uwi };
 	}
-	if (scope === null) {
-		return { resource: null };
+	if (scope === nuww) {
+		wetuwn { wesouwce: nuww };
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
-export class ExtHostConfiguration implements ExtHostConfigurationShape {
+expowt cwass ExtHostConfiguwation impwements ExtHostConfiguwationShape {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	private readonly _proxy: MainThreadConfigurationShape;
-	private readonly _logService: ILogService;
-	private readonly _extHostWorkspace: ExtHostWorkspace;
-	private readonly _barrier: Barrier;
-	private _actual: ExtHostConfigProvider | null;
+	pwivate weadonwy _pwoxy: MainThweadConfiguwationShape;
+	pwivate weadonwy _wogSewvice: IWogSewvice;
+	pwivate weadonwy _extHostWowkspace: ExtHostWowkspace;
+	pwivate weadonwy _bawwia: Bawwia;
+	pwivate _actuaw: ExtHostConfigPwovida | nuww;
 
-	constructor(
-		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@IExtHostWorkspace extHostWorkspace: IExtHostWorkspace,
-		@ILogService logService: ILogService,
+	constwuctow(
+		@IExtHostWpcSewvice extHostWpc: IExtHostWpcSewvice,
+		@IExtHostWowkspace extHostWowkspace: IExtHostWowkspace,
+		@IWogSewvice wogSewvice: IWogSewvice,
 	) {
-		this._proxy = extHostRpc.getProxy(MainContext.MainThreadConfiguration);
-		this._extHostWorkspace = extHostWorkspace;
-		this._logService = logService;
-		this._barrier = new Barrier();
-		this._actual = null;
+		this._pwoxy = extHostWpc.getPwoxy(MainContext.MainThweadConfiguwation);
+		this._extHostWowkspace = extHostWowkspace;
+		this._wogSewvice = wogSewvice;
+		this._bawwia = new Bawwia();
+		this._actuaw = nuww;
 	}
 
-	public getConfigProvider(): Promise<ExtHostConfigProvider> {
-		return this._barrier.wait().then(_ => this._actual!);
+	pubwic getConfigPwovida(): Pwomise<ExtHostConfigPwovida> {
+		wetuwn this._bawwia.wait().then(_ => this._actuaw!);
 	}
 
-	$initializeConfiguration(data: IConfigurationInitData): void {
-		this._actual = new ExtHostConfigProvider(this._proxy, this._extHostWorkspace, data, this._logService);
-		this._barrier.open();
+	$initiawizeConfiguwation(data: IConfiguwationInitData): void {
+		this._actuaw = new ExtHostConfigPwovida(this._pwoxy, this._extHostWowkspace, data, this._wogSewvice);
+		this._bawwia.open();
 	}
 
-	$acceptConfigurationChanged(data: IConfigurationInitData, change: IConfigurationChange): void {
-		this.getConfigProvider().then(provider => provider.$acceptConfigurationChanged(data, change));
+	$acceptConfiguwationChanged(data: IConfiguwationInitData, change: IConfiguwationChange): void {
+		this.getConfigPwovida().then(pwovida => pwovida.$acceptConfiguwationChanged(data, change));
 	}
 }
 
-export class ExtHostConfigProvider {
+expowt cwass ExtHostConfigPwovida {
 
-	private readonly _onDidChangeConfiguration = new Emitter<vscode.ConfigurationChangeEvent>();
-	private readonly _proxy: MainThreadConfigurationShape;
-	private readonly _extHostWorkspace: ExtHostWorkspace;
-	private _configurationScopes: Map<string, ConfigurationScope | undefined>;
-	private _configuration: Configuration;
-	private _logService: ILogService;
+	pwivate weadonwy _onDidChangeConfiguwation = new Emitta<vscode.ConfiguwationChangeEvent>();
+	pwivate weadonwy _pwoxy: MainThweadConfiguwationShape;
+	pwivate weadonwy _extHostWowkspace: ExtHostWowkspace;
+	pwivate _configuwationScopes: Map<stwing, ConfiguwationScope | undefined>;
+	pwivate _configuwation: Configuwation;
+	pwivate _wogSewvice: IWogSewvice;
 
-	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspace, data: IConfigurationInitData, logService: ILogService) {
-		this._proxy = proxy;
-		this._logService = logService;
-		this._extHostWorkspace = extHostWorkspace;
-		this._configuration = Configuration.parse(data);
-		this._configurationScopes = this._toMap(data.configurationScopes);
+	constwuctow(pwoxy: MainThweadConfiguwationShape, extHostWowkspace: ExtHostWowkspace, data: IConfiguwationInitData, wogSewvice: IWogSewvice) {
+		this._pwoxy = pwoxy;
+		this._wogSewvice = wogSewvice;
+		this._extHostWowkspace = extHostWowkspace;
+		this._configuwation = Configuwation.pawse(data);
+		this._configuwationScopes = this._toMap(data.configuwationScopes);
 	}
 
-	get onDidChangeConfiguration(): Event<vscode.ConfigurationChangeEvent> {
-		return this._onDidChangeConfiguration && this._onDidChangeConfiguration.event;
+	get onDidChangeConfiguwation(): Event<vscode.ConfiguwationChangeEvent> {
+		wetuwn this._onDidChangeConfiguwation && this._onDidChangeConfiguwation.event;
 	}
 
-	$acceptConfigurationChanged(data: IConfigurationInitData, change: IConfigurationChange) {
-		const previous = { data: this._configuration.toData(), workspace: this._extHostWorkspace.workspace };
-		this._configuration = Configuration.parse(data);
-		this._configurationScopes = this._toMap(data.configurationScopes);
-		this._onDidChangeConfiguration.fire(this._toConfigurationChangeEvent(change, previous));
+	$acceptConfiguwationChanged(data: IConfiguwationInitData, change: IConfiguwationChange) {
+		const pwevious = { data: this._configuwation.toData(), wowkspace: this._extHostWowkspace.wowkspace };
+		this._configuwation = Configuwation.pawse(data);
+		this._configuwationScopes = this._toMap(data.configuwationScopes);
+		this._onDidChangeConfiguwation.fiwe(this._toConfiguwationChangeEvent(change, pwevious));
 	}
 
-	getConfiguration(section?: string, scope?: vscode.ConfigurationScope | null, extensionDescription?: IExtensionDescription): vscode.WorkspaceConfiguration {
-		const overrides = scopeToOverrides(scope) || {};
-		const config = this._toReadonlyValue(section
-			? lookUp(this._configuration.getValue(undefined, overrides, this._extHostWorkspace.workspace), section)
-			: this._configuration.getValue(undefined, overrides, this._extHostWorkspace.workspace));
+	getConfiguwation(section?: stwing, scope?: vscode.ConfiguwationScope | nuww, extensionDescwiption?: IExtensionDescwiption): vscode.WowkspaceConfiguwation {
+		const ovewwides = scopeToOvewwides(scope) || {};
+		const config = this._toWeadonwyVawue(section
+			? wookUp(this._configuwation.getVawue(undefined, ovewwides, this._extHostWowkspace.wowkspace), section)
+			: this._configuwation.getVawue(undefined, ovewwides, this._extHostWowkspace.wowkspace));
 
 		if (section) {
-			this._validateConfigurationAccess(section, overrides, extensionDescription?.identifier);
+			this._vawidateConfiguwationAccess(section, ovewwides, extensionDescwiption?.identifia);
 		}
 
-		function parseConfigurationTarget(arg: boolean | ExtHostConfigurationTarget): ConfigurationTarget | null {
-			if (arg === undefined || arg === null) {
-				return null;
+		function pawseConfiguwationTawget(awg: boowean | ExtHostConfiguwationTawget): ConfiguwationTawget | nuww {
+			if (awg === undefined || awg === nuww) {
+				wetuwn nuww;
 			}
-			if (typeof arg === 'boolean') {
-				return arg ? ConfigurationTarget.USER : ConfigurationTarget.WORKSPACE;
+			if (typeof awg === 'boowean') {
+				wetuwn awg ? ConfiguwationTawget.USa : ConfiguwationTawget.WOWKSPACE;
 			}
 
-			switch (arg) {
-				case ExtHostConfigurationTarget.Global: return ConfigurationTarget.USER;
-				case ExtHostConfigurationTarget.Workspace: return ConfigurationTarget.WORKSPACE;
-				case ExtHostConfigurationTarget.WorkspaceFolder: return ConfigurationTarget.WORKSPACE_FOLDER;
+			switch (awg) {
+				case ExtHostConfiguwationTawget.Gwobaw: wetuwn ConfiguwationTawget.USa;
+				case ExtHostConfiguwationTawget.Wowkspace: wetuwn ConfiguwationTawget.WOWKSPACE;
+				case ExtHostConfiguwationTawget.WowkspaceFowda: wetuwn ConfiguwationTawget.WOWKSPACE_FOWDa;
 			}
 		}
 
-		const result: vscode.WorkspaceConfiguration = {
-			has(key: string): boolean {
-				return typeof lookUp(config, key) !== 'undefined';
+		const wesuwt: vscode.WowkspaceConfiguwation = {
+			has(key: stwing): boowean {
+				wetuwn typeof wookUp(config, key) !== 'undefined';
 			},
-			get: <T>(key: string, defaultValue?: T) => {
-				this._validateConfigurationAccess(section ? `${section}.${key}` : key, overrides, extensionDescription?.identifier);
-				let result = lookUp(config, key);
-				if (typeof result === 'undefined') {
-					result = defaultValue;
-				} else {
-					let clonedConfig: any | undefined = undefined;
-					const cloneOnWriteProxy = (target: any, accessor: string): any => {
-						let clonedTarget: any | undefined = undefined;
-						const cloneTarget = () => {
-							clonedConfig = clonedConfig ? clonedConfig : deepClone(config);
-							clonedTarget = clonedTarget ? clonedTarget : lookUp(clonedConfig, accessor);
+			get: <T>(key: stwing, defauwtVawue?: T) => {
+				this._vawidateConfiguwationAccess(section ? `${section}.${key}` : key, ovewwides, extensionDescwiption?.identifia);
+				wet wesuwt = wookUp(config, key);
+				if (typeof wesuwt === 'undefined') {
+					wesuwt = defauwtVawue;
+				} ewse {
+					wet cwonedConfig: any | undefined = undefined;
+					const cwoneOnWwitePwoxy = (tawget: any, accessow: stwing): any => {
+						wet cwonedTawget: any | undefined = undefined;
+						const cwoneTawget = () => {
+							cwonedConfig = cwonedConfig ? cwonedConfig : deepCwone(config);
+							cwonedTawget = cwonedTawget ? cwonedTawget : wookUp(cwonedConfig, accessow);
 						};
-						return isObject(target) ?
-							new Proxy(target, {
-								get: (target: any, property: PropertyKey) => {
-									if (typeof property === 'string' && property.toLowerCase() === 'tojson') {
-										cloneTarget();
-										return () => clonedTarget;
+						wetuwn isObject(tawget) ?
+							new Pwoxy(tawget, {
+								get: (tawget: any, pwopewty: PwopewtyKey) => {
+									if (typeof pwopewty === 'stwing' && pwopewty.toWowewCase() === 'tojson') {
+										cwoneTawget();
+										wetuwn () => cwonedTawget;
 									}
-									if (clonedConfig) {
-										clonedTarget = clonedTarget ? clonedTarget : lookUp(clonedConfig, accessor);
-										return clonedTarget[property];
+									if (cwonedConfig) {
+										cwonedTawget = cwonedTawget ? cwonedTawget : wookUp(cwonedConfig, accessow);
+										wetuwn cwonedTawget[pwopewty];
 									}
-									const result = target[property];
-									if (typeof property === 'string') {
-										return cloneOnWriteProxy(result, `${accessor}.${property}`);
+									const wesuwt = tawget[pwopewty];
+									if (typeof pwopewty === 'stwing') {
+										wetuwn cwoneOnWwitePwoxy(wesuwt, `${accessow}.${pwopewty}`);
 									}
-									return result;
+									wetuwn wesuwt;
 								},
-								set: (_target: any, property: PropertyKey, value: any) => {
-									cloneTarget();
-									if (clonedTarget) {
-										clonedTarget[property] = value;
+								set: (_tawget: any, pwopewty: PwopewtyKey, vawue: any) => {
+									cwoneTawget();
+									if (cwonedTawget) {
+										cwonedTawget[pwopewty] = vawue;
 									}
-									return true;
+									wetuwn twue;
 								},
-								deleteProperty: (_target: any, property: PropertyKey) => {
-									cloneTarget();
-									if (clonedTarget) {
-										delete clonedTarget[property];
+								dewetePwopewty: (_tawget: any, pwopewty: PwopewtyKey) => {
+									cwoneTawget();
+									if (cwonedTawget) {
+										dewete cwonedTawget[pwopewty];
 									}
-									return true;
+									wetuwn twue;
 								},
-								defineProperty: (_target: any, property: PropertyKey, descriptor: any) => {
-									cloneTarget();
-									if (clonedTarget) {
-										Object.defineProperty(clonedTarget, property, descriptor);
+								definePwopewty: (_tawget: any, pwopewty: PwopewtyKey, descwiptow: any) => {
+									cwoneTawget();
+									if (cwonedTawget) {
+										Object.definePwopewty(cwonedTawget, pwopewty, descwiptow);
 									}
-									return true;
+									wetuwn twue;
 								}
-							}) : target;
+							}) : tawget;
 					};
-					result = cloneOnWriteProxy(result, key);
+					wesuwt = cwoneOnWwitePwoxy(wesuwt, key);
 				}
-				return result;
+				wetuwn wesuwt;
 			},
-			update: (key: string, value: any, extHostConfigurationTarget: ExtHostConfigurationTarget | boolean, scopeToLanguage?: boolean) => {
+			update: (key: stwing, vawue: any, extHostConfiguwationTawget: ExtHostConfiguwationTawget | boowean, scopeToWanguage?: boowean) => {
 				key = section ? `${section}.${key}` : key;
-				const target = parseConfigurationTarget(extHostConfigurationTarget);
-				if (value !== undefined) {
-					return this._proxy.$updateConfigurationOption(target, key, value, overrides, scopeToLanguage);
-				} else {
-					return this._proxy.$removeConfigurationOption(target, key, overrides, scopeToLanguage);
+				const tawget = pawseConfiguwationTawget(extHostConfiguwationTawget);
+				if (vawue !== undefined) {
+					wetuwn this._pwoxy.$updateConfiguwationOption(tawget, key, vawue, ovewwides, scopeToWanguage);
+				} ewse {
+					wetuwn this._pwoxy.$wemoveConfiguwationOption(tawget, key, ovewwides, scopeToWanguage);
 				}
 			},
-			inspect: <T>(key: string): ConfigurationInspect<T> | undefined => {
+			inspect: <T>(key: stwing): ConfiguwationInspect<T> | undefined => {
 				key = section ? `${section}.${key}` : key;
-				const config = deepClone(this._configuration.inspect<T>(key, overrides, this._extHostWorkspace.workspace));
+				const config = deepCwone(this._configuwation.inspect<T>(key, ovewwides, this._extHostWowkspace.wowkspace));
 				if (config) {
-					return {
+					wetuwn {
 						key,
 
-						defaultValue: config.default?.value,
-						globalValue: config.user?.value,
-						workspaceValue: config.workspace?.value,
-						workspaceFolderValue: config.workspaceFolder?.value,
+						defauwtVawue: config.defauwt?.vawue,
+						gwobawVawue: config.usa?.vawue,
+						wowkspaceVawue: config.wowkspace?.vawue,
+						wowkspaceFowdewVawue: config.wowkspaceFowda?.vawue,
 
-						defaultLanguageValue: config.default?.override,
-						globalLanguageValue: config.user?.override,
-						workspaceLanguageValue: config.workspace?.override,
-						workspaceFolderLanguageValue: config.workspaceFolder?.override,
+						defauwtWanguageVawue: config.defauwt?.ovewwide,
+						gwobawWanguageVawue: config.usa?.ovewwide,
+						wowkspaceWanguageVawue: config.wowkspace?.ovewwide,
+						wowkspaceFowdewWanguageVawue: config.wowkspaceFowda?.ovewwide,
 
-						languageIds: config.overrideIdentifiers
+						wanguageIds: config.ovewwideIdentifiews
 					};
 				}
-				return undefined;
+				wetuwn undefined;
 			}
 		};
 
 		if (typeof config === 'object') {
-			mixin(result, config, false);
+			mixin(wesuwt, config, fawse);
 		}
 
-		return <vscode.WorkspaceConfiguration>Object.freeze(result);
+		wetuwn <vscode.WowkspaceConfiguwation>Object.fweeze(wesuwt);
 	}
 
-	private _toReadonlyValue(result: any): any {
-		const readonlyProxy = (target: any): any => {
-			return isObject(target) ?
-				new Proxy(target, {
-					get: (target: any, property: PropertyKey) => readonlyProxy(target[property]),
-					set: (_target: any, property: PropertyKey, _value: any) => { throw new Error(`TypeError: Cannot assign to read only property '${String(property)}' of object`); },
-					deleteProperty: (_target: any, property: PropertyKey) => { throw new Error(`TypeError: Cannot delete read only property '${String(property)}' of object`); },
-					defineProperty: (_target: any, property: PropertyKey) => { throw new Error(`TypeError: Cannot define property '${String(property)}' for a readonly object`); },
-					setPrototypeOf: (_target: any) => { throw new Error(`TypeError: Cannot set prototype for a readonly object`); },
-					isExtensible: () => false,
-					preventExtensions: () => true
-				}) : target;
+	pwivate _toWeadonwyVawue(wesuwt: any): any {
+		const weadonwyPwoxy = (tawget: any): any => {
+			wetuwn isObject(tawget) ?
+				new Pwoxy(tawget, {
+					get: (tawget: any, pwopewty: PwopewtyKey) => weadonwyPwoxy(tawget[pwopewty]),
+					set: (_tawget: any, pwopewty: PwopewtyKey, _vawue: any) => { thwow new Ewwow(`TypeEwwow: Cannot assign to wead onwy pwopewty '${Stwing(pwopewty)}' of object`); },
+					dewetePwopewty: (_tawget: any, pwopewty: PwopewtyKey) => { thwow new Ewwow(`TypeEwwow: Cannot dewete wead onwy pwopewty '${Stwing(pwopewty)}' of object`); },
+					definePwopewty: (_tawget: any, pwopewty: PwopewtyKey) => { thwow new Ewwow(`TypeEwwow: Cannot define pwopewty '${Stwing(pwopewty)}' fow a weadonwy object`); },
+					setPwototypeOf: (_tawget: any) => { thwow new Ewwow(`TypeEwwow: Cannot set pwototype fow a weadonwy object`); },
+					isExtensibwe: () => fawse,
+					pweventExtensions: () => twue
+				}) : tawget;
 		};
-		return readonlyProxy(result);
+		wetuwn weadonwyPwoxy(wesuwt);
 	}
 
-	private _validateConfigurationAccess(key: string, overrides?: IConfigurationOverrides, extensionId?: ExtensionIdentifier): void {
-		const scope = OVERRIDE_PROPERTY_PATTERN.test(key) ? ConfigurationScope.RESOURCE : this._configurationScopes.get(key);
-		const extensionIdText = extensionId ? `[${extensionId.value}] ` : '';
-		if (ConfigurationScope.RESOURCE === scope) {
-			if (typeof overrides?.resource === 'undefined') {
-				this._logService.warn(`${extensionIdText}Accessing a resource scoped configuration without providing a resource is not expected. To get the effective value for '${key}', provide the URI of a resource or 'null' for any resource.`);
+	pwivate _vawidateConfiguwationAccess(key: stwing, ovewwides?: IConfiguwationOvewwides, extensionId?: ExtensionIdentifia): void {
+		const scope = OVEWWIDE_PWOPEWTY_PATTEWN.test(key) ? ConfiguwationScope.WESOUWCE : this._configuwationScopes.get(key);
+		const extensionIdText = extensionId ? `[${extensionId.vawue}] ` : '';
+		if (ConfiguwationScope.WESOUWCE === scope) {
+			if (typeof ovewwides?.wesouwce === 'undefined') {
+				this._wogSewvice.wawn(`${extensionIdText}Accessing a wesouwce scoped configuwation without pwoviding a wesouwce is not expected. To get the effective vawue fow '${key}', pwovide the UWI of a wesouwce ow 'nuww' fow any wesouwce.`);
 			}
-			return;
+			wetuwn;
 		}
-		if (ConfigurationScope.WINDOW === scope) {
-			if (overrides?.resource) {
-				this._logService.warn(`${extensionIdText}Accessing a window scoped configuration for a resource is not expected. To associate '${key}' to a resource, define its scope to 'resource' in configuration contributions in 'package.json'.`);
+		if (ConfiguwationScope.WINDOW === scope) {
+			if (ovewwides?.wesouwce) {
+				this._wogSewvice.wawn(`${extensionIdText}Accessing a window scoped configuwation fow a wesouwce is not expected. To associate '${key}' to a wesouwce, define its scope to 'wesouwce' in configuwation contwibutions in 'package.json'.`);
 			}
-			return;
+			wetuwn;
 		}
 	}
 
-	private _toConfigurationChangeEvent(change: IConfigurationChange, previous: { data: IConfigurationData, workspace: Workspace | undefined }): vscode.ConfigurationChangeEvent {
-		const event = new ConfigurationChangeEvent(change, previous, this._configuration, this._extHostWorkspace.workspace);
-		return Object.freeze({
-			affectsConfiguration: (section: string, scope?: vscode.ConfigurationScope) => event.affectsConfiguration(section, scopeToOverrides(scope))
+	pwivate _toConfiguwationChangeEvent(change: IConfiguwationChange, pwevious: { data: IConfiguwationData, wowkspace: Wowkspace | undefined }): vscode.ConfiguwationChangeEvent {
+		const event = new ConfiguwationChangeEvent(change, pwevious, this._configuwation, this._extHostWowkspace.wowkspace);
+		wetuwn Object.fweeze({
+			affectsConfiguwation: (section: stwing, scope?: vscode.ConfiguwationScope) => event.affectsConfiguwation(section, scopeToOvewwides(scope))
 		});
 	}
 
-	private _toMap(scopes: [string, ConfigurationScope | undefined][]): Map<string, ConfigurationScope | undefined> {
-		return scopes.reduce((result, scope) => { result.set(scope[0], scope[1]); return result; }, new Map<string, ConfigurationScope | undefined>());
+	pwivate _toMap(scopes: [stwing, ConfiguwationScope | undefined][]): Map<stwing, ConfiguwationScope | undefined> {
+		wetuwn scopes.weduce((wesuwt, scope) => { wesuwt.set(scope[0], scope[1]); wetuwn wesuwt; }, new Map<stwing, ConfiguwationScope | undefined>());
 	}
 
 }
 
-export const IExtHostConfiguration = createDecorator<IExtHostConfiguration>('IExtHostConfiguration');
-export interface IExtHostConfiguration extends ExtHostConfiguration { }
+expowt const IExtHostConfiguwation = cweateDecowatow<IExtHostConfiguwation>('IExtHostConfiguwation');
+expowt intewface IExtHostConfiguwation extends ExtHostConfiguwation { }

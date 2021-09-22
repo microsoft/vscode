@@ -1,45 +1,45 @@
 {
-  "name": "clojure",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "name": "cwojuwe",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin atom/language-clojure grammars/clojure.cson ./syntaxes/clojure.tmLanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin atom/wanguage-cwojuwe gwammaws/cwojuwe.cson ./syntaxes/cwojuwe.tmWanguage.json"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
-        "id": "clojure",
-        "aliases": [
-          "Clojure",
-          "clojure"
+        "id": "cwojuwe",
+        "awiases": [
+          "Cwojuwe",
+          "cwojuwe"
         ],
         "extensions": [
-          ".clj",
-          ".cljs",
-          ".cljc",
-          ".cljx",
-          ".clojure",
+          ".cwj",
+          ".cwjs",
+          ".cwjc",
+          ".cwjx",
+          ".cwojuwe",
           ".edn"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "clojure",
-        "scopeName": "source.clojure",
-        "path": "./syntaxes/clojure.tmLanguage.json"
+        "wanguage": "cwojuwe",
+        "scopeName": "souwce.cwojuwe",
+        "path": "./syntaxes/cwojuwe.tmWanguage.json"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

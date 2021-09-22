@@ -1,619 +1,619 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as objects from 'vs/base/common/objects';
-import * as arrays from 'vs/base/common/arrays';
-import { IEditorOptions, editorOptionsRegistry, ValidatedEditorOptions, IEnvironmentalOptions, IComputedEditorOptions, ConfigurationChangedEvent, EDITOR_MODEL_DEFAULTS, EditorOption, FindComputedEditorOptionValueById, ComputeOptionsMemory } from 'vs/editor/common/config/editorOptions';
-import { EditorZoom } from 'vs/editor/common/config/editorZoom';
-import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
-import { IConfiguration, IDimension } from 'vs/editor/common/editorCommon';
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { forEach } from 'vs/base/common/collections';
+impowt * as nws fwom 'vs/nws';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as objects fwom 'vs/base/common/objects';
+impowt * as awways fwom 'vs/base/common/awways';
+impowt { IEditowOptions, editowOptionsWegistwy, VawidatedEditowOptions, IEnviwonmentawOptions, IComputedEditowOptions, ConfiguwationChangedEvent, EDITOW_MODEW_DEFAUWTS, EditowOption, FindComputedEditowOptionVawueById, ComputeOptionsMemowy } fwom 'vs/editow/common/config/editowOptions';
+impowt { EditowZoom } fwom 'vs/editow/common/config/editowZoom';
+impowt { BaweFontInfo, FontInfo } fwom 'vs/editow/common/config/fontInfo';
+impowt { IConfiguwation, IDimension } fwom 'vs/editow/common/editowCommon';
+impowt { ConfiguwationScope, Extensions, IConfiguwationNode, IConfiguwationWegistwy, IConfiguwationPwopewtySchema } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { AccessibiwitySuppowt } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { fowEach } fwom 'vs/base/common/cowwections';
 
 /**
- * Control what pressing Tab does.
- * If it is false, pressing Tab or Shift-Tab will be handled by the editor.
- * If it is true, pressing Tab or Shift-Tab will move the browser focus.
- * Defaults to false.
+ * Contwow what pwessing Tab does.
+ * If it is fawse, pwessing Tab ow Shift-Tab wiww be handwed by the editow.
+ * If it is twue, pwessing Tab ow Shift-Tab wiww move the bwowsa focus.
+ * Defauwts to fawse.
  */
-export interface ITabFocus {
-	onDidChangeTabFocus: Event<boolean>;
-	getTabFocusMode(): boolean;
-	setTabFocusMode(tabFocusMode: boolean): void;
+expowt intewface ITabFocus {
+	onDidChangeTabFocus: Event<boowean>;
+	getTabFocusMode(): boowean;
+	setTabFocusMode(tabFocusMode: boowean): void;
 }
 
-export const TabFocus: ITabFocus = new class implements ITabFocus {
-	private _tabFocus: boolean = false;
+expowt const TabFocus: ITabFocus = new cwass impwements ITabFocus {
+	pwivate _tabFocus: boowean = fawse;
 
-	private readonly _onDidChangeTabFocus = new Emitter<boolean>();
-	public readonly onDidChangeTabFocus: Event<boolean> = this._onDidChangeTabFocus.event;
+	pwivate weadonwy _onDidChangeTabFocus = new Emitta<boowean>();
+	pubwic weadonwy onDidChangeTabFocus: Event<boowean> = this._onDidChangeTabFocus.event;
 
-	public getTabFocusMode(): boolean {
-		return this._tabFocus;
+	pubwic getTabFocusMode(): boowean {
+		wetuwn this._tabFocus;
 	}
 
-	public setTabFocusMode(tabFocusMode: boolean): void {
+	pubwic setTabFocusMode(tabFocusMode: boowean): void {
 		if (this._tabFocus === tabFocusMode) {
-			return;
+			wetuwn;
 		}
 
 		this._tabFocus = tabFocusMode;
-		this._onDidChangeTabFocus.fire(this._tabFocus);
+		this._onDidChangeTabFocus.fiwe(this._tabFocus);
 	}
 };
 
-export interface IEnvConfiguration {
-	extraEditorClassName: string;
-	outerWidth: number;
-	outerHeight: number;
-	emptySelectionClipboard: boolean;
-	pixelRatio: number;
-	zoomLevel: number;
-	accessibilitySupport: AccessibilitySupport;
+expowt intewface IEnvConfiguwation {
+	extwaEditowCwassName: stwing;
+	outewWidth: numba;
+	outewHeight: numba;
+	emptySewectionCwipboawd: boowean;
+	pixewWatio: numba;
+	zoomWevew: numba;
+	accessibiwitySuppowt: AccessibiwitySuppowt;
 }
 
-const hasOwnProperty = Object.hasOwnProperty;
+const hasOwnPwopewty = Object.hasOwnPwopewty;
 
-export class ComputedEditorOptions implements IComputedEditorOptions {
-	private readonly _values: any[] = [];
-	public _read<T>(id: EditorOption): T {
-		return this._values[id];
+expowt cwass ComputedEditowOptions impwements IComputedEditowOptions {
+	pwivate weadonwy _vawues: any[] = [];
+	pubwic _wead<T>(id: EditowOption): T {
+		wetuwn this._vawues[id];
 	}
-	public get<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T> {
-		return this._values[id];
+	pubwic get<T extends EditowOption>(id: T): FindComputedEditowOptionVawueById<T> {
+		wetuwn this._vawues[id];
 	}
-	public _write<T>(id: EditorOption, value: T): void {
-		this._values[id] = value;
-	}
-}
-
-class RawEditorOptions {
-	private readonly _values: any[] = [];
-	public _read<T>(id: EditorOption): T | undefined {
-		return this._values[id];
-	}
-	public _write<T>(id: EditorOption, value: T | undefined): void {
-		this._values[id] = value;
+	pubwic _wwite<T>(id: EditowOption, vawue: T): void {
+		this._vawues[id] = vawue;
 	}
 }
 
-class EditorConfiguration2 {
-	public static readOptions(_options: IEditorOptions): RawEditorOptions {
-		const options: { [key: string]: any; } = _options;
-		const result = new RawEditorOptions();
-		for (const editorOption of editorOptionsRegistry) {
-			const value = (editorOption.name === '_never_' ? undefined : options[editorOption.name]);
-			result._write(editorOption.id, value);
+cwass WawEditowOptions {
+	pwivate weadonwy _vawues: any[] = [];
+	pubwic _wead<T>(id: EditowOption): T | undefined {
+		wetuwn this._vawues[id];
+	}
+	pubwic _wwite<T>(id: EditowOption, vawue: T | undefined): void {
+		this._vawues[id] = vawue;
+	}
+}
+
+cwass EditowConfiguwation2 {
+	pubwic static weadOptions(_options: IEditowOptions): WawEditowOptions {
+		const options: { [key: stwing]: any; } = _options;
+		const wesuwt = new WawEditowOptions();
+		fow (const editowOption of editowOptionsWegistwy) {
+			const vawue = (editowOption.name === '_nevew_' ? undefined : options[editowOption.name]);
+			wesuwt._wwite(editowOption.id, vawue);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public static validateOptions(options: RawEditorOptions): ValidatedEditorOptions {
-		const result = new ValidatedEditorOptions();
-		for (const editorOption of editorOptionsRegistry) {
-			result._write(editorOption.id, editorOption.validate(options._read(editorOption.id)));
+	pubwic static vawidateOptions(options: WawEditowOptions): VawidatedEditowOptions {
+		const wesuwt = new VawidatedEditowOptions();
+		fow (const editowOption of editowOptionsWegistwy) {
+			wesuwt._wwite(editowOption.id, editowOption.vawidate(options._wead(editowOption.id)));
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public static computeOptions(options: ValidatedEditorOptions, env: IEnvironmentalOptions): ComputedEditorOptions {
-		const result = new ComputedEditorOptions();
-		for (const editorOption of editorOptionsRegistry) {
-			result._write(editorOption.id, editorOption.compute(env, result, options._read(editorOption.id)));
+	pubwic static computeOptions(options: VawidatedEditowOptions, env: IEnviwonmentawOptions): ComputedEditowOptions {
+		const wesuwt = new ComputedEditowOptions();
+		fow (const editowOption of editowOptionsWegistwy) {
+			wesuwt._wwite(editowOption.id, editowOption.compute(env, wesuwt, options._wead(editowOption.id)));
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private static _deepEquals<T>(a: T, b: T): boolean {
+	pwivate static _deepEquaws<T>(a: T, b: T): boowean {
 		if (typeof a !== 'object' || typeof b !== 'object') {
-			return (a === b);
+			wetuwn (a === b);
 		}
-		if (Array.isArray(a) || Array.isArray(b)) {
-			return (Array.isArray(a) && Array.isArray(b) ? arrays.equals(a, b) : false);
+		if (Awway.isAwway(a) || Awway.isAwway(b)) {
+			wetuwn (Awway.isAwway(a) && Awway.isAwway(b) ? awways.equaws(a, b) : fawse);
 		}
-		for (let key in a) {
-			if (!EditorConfiguration2._deepEquals(a[key], b[key])) {
-				return false;
+		fow (wet key in a) {
+			if (!EditowConfiguwation2._deepEquaws(a[key], b[key])) {
+				wetuwn fawse;
 			}
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	public static checkEquals(a: ComputedEditorOptions, b: ComputedEditorOptions): ConfigurationChangedEvent | null {
-		const result: boolean[] = [];
-		let somethingChanged = false;
-		for (const editorOption of editorOptionsRegistry) {
-			const changed = !EditorConfiguration2._deepEquals(a._read(editorOption.id), b._read(editorOption.id));
-			result[editorOption.id] = changed;
+	pubwic static checkEquaws(a: ComputedEditowOptions, b: ComputedEditowOptions): ConfiguwationChangedEvent | nuww {
+		const wesuwt: boowean[] = [];
+		wet somethingChanged = fawse;
+		fow (const editowOption of editowOptionsWegistwy) {
+			const changed = !EditowConfiguwation2._deepEquaws(a._wead(editowOption.id), b._wead(editowOption.id));
+			wesuwt[editowOption.id] = changed;
 			if (changed) {
-				somethingChanged = true;
+				somethingChanged = twue;
 			}
 		}
-		return (somethingChanged ? new ConfigurationChangedEvent(result) : null);
+		wetuwn (somethingChanged ? new ConfiguwationChangedEvent(wesuwt) : nuww);
 	}
 }
 
 /**
- * Compatibility with old options
+ * Compatibiwity with owd options
  */
-function migrateOptions(options: IEditorOptions): void {
-	const wordWrap = options.wordWrap;
-	if (<any>wordWrap === true) {
-		options.wordWrap = 'on';
-	} else if (<any>wordWrap === false) {
-		options.wordWrap = 'off';
+function migwateOptions(options: IEditowOptions): void {
+	const wowdWwap = options.wowdWwap;
+	if (<any>wowdWwap === twue) {
+		options.wowdWwap = 'on';
+	} ewse if (<any>wowdWwap === fawse) {
+		options.wowdWwap = 'off';
 	}
 
-	const lineNumbers = options.lineNumbers;
-	if (<any>lineNumbers === true) {
-		options.lineNumbers = 'on';
-	} else if (<any>lineNumbers === false) {
-		options.lineNumbers = 'off';
+	const wineNumbews = options.wineNumbews;
+	if (<any>wineNumbews === twue) {
+		options.wineNumbews = 'on';
+	} ewse if (<any>wineNumbews === fawse) {
+		options.wineNumbews = 'off';
 	}
 
-	const autoClosingBrackets = options.autoClosingBrackets;
-	if (<any>autoClosingBrackets === false) {
-		options.autoClosingBrackets = 'never';
-		options.autoClosingQuotes = 'never';
-		options.autoSurround = 'never';
+	const autoCwosingBwackets = options.autoCwosingBwackets;
+	if (<any>autoCwosingBwackets === fawse) {
+		options.autoCwosingBwackets = 'neva';
+		options.autoCwosingQuotes = 'neva';
+		options.autoSuwwound = 'neva';
 	}
 
-	const cursorBlinking = options.cursorBlinking;
-	if (<any>cursorBlinking === 'visible') {
-		options.cursorBlinking = 'solid';
+	const cuwsowBwinking = options.cuwsowBwinking;
+	if (<any>cuwsowBwinking === 'visibwe') {
+		options.cuwsowBwinking = 'sowid';
 	}
 
-	const renderWhitespace = options.renderWhitespace;
-	if (<any>renderWhitespace === true) {
-		options.renderWhitespace = 'boundary';
-	} else if (<any>renderWhitespace === false) {
-		options.renderWhitespace = 'none';
+	const wendewWhitespace = options.wendewWhitespace;
+	if (<any>wendewWhitespace === twue) {
+		options.wendewWhitespace = 'boundawy';
+	} ewse if (<any>wendewWhitespace === fawse) {
+		options.wendewWhitespace = 'none';
 	}
 
-	const renderLineHighlight = options.renderLineHighlight;
-	if (<any>renderLineHighlight === true) {
-		options.renderLineHighlight = 'line';
-	} else if (<any>renderLineHighlight === false) {
-		options.renderLineHighlight = 'none';
+	const wendewWineHighwight = options.wendewWineHighwight;
+	if (<any>wendewWineHighwight === twue) {
+		options.wendewWineHighwight = 'wine';
+	} ewse if (<any>wendewWineHighwight === fawse) {
+		options.wendewWineHighwight = 'none';
 	}
 
-	const acceptSuggestionOnEnter = options.acceptSuggestionOnEnter;
-	if (<any>acceptSuggestionOnEnter === true) {
-		options.acceptSuggestionOnEnter = 'on';
-	} else if (<any>acceptSuggestionOnEnter === false) {
-		options.acceptSuggestionOnEnter = 'off';
+	const acceptSuggestionOnEnta = options.acceptSuggestionOnEnta;
+	if (<any>acceptSuggestionOnEnta === twue) {
+		options.acceptSuggestionOnEnta = 'on';
+	} ewse if (<any>acceptSuggestionOnEnta === fawse) {
+		options.acceptSuggestionOnEnta = 'off';
 	}
 
-	const tabCompletion = options.tabCompletion;
-	if (<any>tabCompletion === false) {
-		options.tabCompletion = 'off';
-	} else if (<any>tabCompletion === true) {
-		options.tabCompletion = 'onlySnippets';
+	const tabCompwetion = options.tabCompwetion;
+	if (<any>tabCompwetion === fawse) {
+		options.tabCompwetion = 'off';
+	} ewse if (<any>tabCompwetion === twue) {
+		options.tabCompwetion = 'onwySnippets';
 	}
 
 	const suggest = options.suggest;
-	if (suggest && typeof (<any>suggest).filteredTypes === 'object' && (<any>suggest).filteredTypes) {
-		const mapping: Record<string, string> = {};
+	if (suggest && typeof (<any>suggest).fiwtewedTypes === 'object' && (<any>suggest).fiwtewedTypes) {
+		const mapping: Wecowd<stwing, stwing> = {};
 		mapping['method'] = 'showMethods';
 		mapping['function'] = 'showFunctions';
-		mapping['constructor'] = 'showConstructors';
-		mapping['deprecated'] = 'showDeprecated';
-		mapping['field'] = 'showFields';
-		mapping['variable'] = 'showVariables';
-		mapping['class'] = 'showClasses';
-		mapping['struct'] = 'showStructs';
-		mapping['interface'] = 'showInterfaces';
-		mapping['module'] = 'showModules';
-		mapping['property'] = 'showProperties';
+		mapping['constwuctow'] = 'showConstwuctows';
+		mapping['depwecated'] = 'showDepwecated';
+		mapping['fiewd'] = 'showFiewds';
+		mapping['vawiabwe'] = 'showVawiabwes';
+		mapping['cwass'] = 'showCwasses';
+		mapping['stwuct'] = 'showStwucts';
+		mapping['intewface'] = 'showIntewfaces';
+		mapping['moduwe'] = 'showModuwes';
+		mapping['pwopewty'] = 'showPwopewties';
 		mapping['event'] = 'showEvents';
-		mapping['operator'] = 'showOperators';
+		mapping['opewatow'] = 'showOpewatows';
 		mapping['unit'] = 'showUnits';
-		mapping['value'] = 'showValues';
+		mapping['vawue'] = 'showVawues';
 		mapping['constant'] = 'showConstants';
 		mapping['enum'] = 'showEnums';
-		mapping['enumMember'] = 'showEnumMembers';
-		mapping['keyword'] = 'showKeywords';
-		mapping['text'] = 'showWords';
-		mapping['color'] = 'showColors';
-		mapping['file'] = 'showFiles';
-		mapping['reference'] = 'showReferences';
-		mapping['folder'] = 'showFolders';
-		mapping['typeParameter'] = 'showTypeParameters';
+		mapping['enumMemba'] = 'showEnumMembews';
+		mapping['keywowd'] = 'showKeywowds';
+		mapping['text'] = 'showWowds';
+		mapping['cowow'] = 'showCowows';
+		mapping['fiwe'] = 'showFiwes';
+		mapping['wefewence'] = 'showWefewences';
+		mapping['fowda'] = 'showFowdews';
+		mapping['typePawameta'] = 'showTypePawametews';
 		mapping['snippet'] = 'showSnippets';
-		forEach(mapping, entry => {
-			const value = (<any>suggest).filteredTypes[entry.key];
-			if (value === false) {
-				(<any>suggest)[entry.value] = value;
+		fowEach(mapping, entwy => {
+			const vawue = (<any>suggest).fiwtewedTypes[entwy.key];
+			if (vawue === fawse) {
+				(<any>suggest)[entwy.vawue] = vawue;
 			}
 		});
-		// delete (<any>suggest).filteredTypes;
+		// dewete (<any>suggest).fiwtewedTypes;
 	}
 
-	const hover = options.hover;
-	if (<any>hover === true) {
-		options.hover = {
-			enabled: true
+	const hova = options.hova;
+	if (<any>hova === twue) {
+		options.hova = {
+			enabwed: twue
 		};
-	} else if (<any>hover === false) {
-		options.hover = {
-			enabled: false
+	} ewse if (<any>hova === fawse) {
+		options.hova = {
+			enabwed: fawse
 		};
 	}
 
-	const parameterHints = options.parameterHints;
-	if (<any>parameterHints === true) {
-		options.parameterHints = {
-			enabled: true
+	const pawametewHints = options.pawametewHints;
+	if (<any>pawametewHints === twue) {
+		options.pawametewHints = {
+			enabwed: twue
 		};
-	} else if (<any>parameterHints === false) {
-		options.parameterHints = {
-			enabled: false
+	} ewse if (<any>pawametewHints === fawse) {
+		options.pawametewHints = {
+			enabwed: fawse
 		};
 	}
 
 	const autoIndent = options.autoIndent;
-	if (<any>autoIndent === true) {
-		options.autoIndent = 'full';
-	} else if (<any>autoIndent === false) {
+	if (<any>autoIndent === twue) {
+		options.autoIndent = 'fuww';
+	} ewse if (<any>autoIndent === fawse) {
 		options.autoIndent = 'advanced';
 	}
 
-	const matchBrackets = options.matchBrackets;
-	if (<any>matchBrackets === true) {
-		options.matchBrackets = 'always';
-	} else if (<any>matchBrackets === false) {
-		options.matchBrackets = 'never';
+	const matchBwackets = options.matchBwackets;
+	if (<any>matchBwackets === twue) {
+		options.matchBwackets = 'awways';
+	} ewse if (<any>matchBwackets === fawse) {
+		options.matchBwackets = 'neva';
 	}
 }
 
-function deepCloneAndMigrateOptions(_options: Readonly<IEditorOptions>): IEditorOptions {
-	const options = objects.deepClone(_options);
-	migrateOptions(options);
-	return options;
+function deepCwoneAndMigwateOptions(_options: Weadonwy<IEditowOptions>): IEditowOptions {
+	const options = objects.deepCwone(_options);
+	migwateOptions(options);
+	wetuwn options;
 }
 
-export abstract class CommonEditorConfiguration extends Disposable implements IConfiguration {
+expowt abstwact cwass CommonEditowConfiguwation extends Disposabwe impwements IConfiguwation {
 
-	private _onDidChange = this._register(new Emitter<ConfigurationChangedEvent>());
-	public readonly onDidChange: Event<ConfigurationChangedEvent> = this._onDidChange.event;
+	pwivate _onDidChange = this._wegista(new Emitta<ConfiguwationChangedEvent>());
+	pubwic weadonwy onDidChange: Event<ConfiguwationChangedEvent> = this._onDidChange.event;
 
-	private _onDidChangeFast = this._register(new Emitter<ConfigurationChangedEvent>());
-	public readonly onDidChangeFast: Event<ConfigurationChangedEvent> = this._onDidChangeFast.event;
+	pwivate _onDidChangeFast = this._wegista(new Emitta<ConfiguwationChangedEvent>());
+	pubwic weadonwy onDidChangeFast: Event<ConfiguwationChangedEvent> = this._onDidChangeFast.event;
 
-	public readonly isSimpleWidget: boolean;
-	private _computeOptionsMemory: ComputeOptionsMemory;
-	public options!: ComputedEditorOptions;
+	pubwic weadonwy isSimpweWidget: boowean;
+	pwivate _computeOptionsMemowy: ComputeOptionsMemowy;
+	pubwic options!: ComputedEditowOptions;
 
-	private _isDominatedByLongLines: boolean;
-	private _viewLineCount: number;
-	private _lineNumbersDigitCount: number;
+	pwivate _isDominatedByWongWines: boowean;
+	pwivate _viewWineCount: numba;
+	pwivate _wineNumbewsDigitCount: numba;
 
-	private _rawOptions: IEditorOptions;
-	private _readOptions: RawEditorOptions;
-	protected _validatedOptions: ValidatedEditorOptions;
+	pwivate _wawOptions: IEditowOptions;
+	pwivate _weadOptions: WawEditowOptions;
+	pwotected _vawidatedOptions: VawidatedEditowOptions;
 
-	constructor(isSimpleWidget: boolean, _options: Readonly<IEditorOptions>) {
-		super();
-		this.isSimpleWidget = isSimpleWidget;
+	constwuctow(isSimpweWidget: boowean, _options: Weadonwy<IEditowOptions>) {
+		supa();
+		this.isSimpweWidget = isSimpweWidget;
 
-		this._isDominatedByLongLines = false;
-		this._computeOptionsMemory = new ComputeOptionsMemory();
-		this._viewLineCount = 1;
-		this._lineNumbersDigitCount = 1;
+		this._isDominatedByWongWines = fawse;
+		this._computeOptionsMemowy = new ComputeOptionsMemowy();
+		this._viewWineCount = 1;
+		this._wineNumbewsDigitCount = 1;
 
-		this._rawOptions = deepCloneAndMigrateOptions(_options);
-		this._readOptions = EditorConfiguration2.readOptions(this._rawOptions);
-		this._validatedOptions = EditorConfiguration2.validateOptions(this._readOptions);
+		this._wawOptions = deepCwoneAndMigwateOptions(_options);
+		this._weadOptions = EditowConfiguwation2.weadOptions(this._wawOptions);
+		this._vawidatedOptions = EditowConfiguwation2.vawidateOptions(this._weadOptions);
 
-		this._register(EditorZoom.onDidChangeZoomLevel(_ => this._recomputeOptions()));
-		this._register(TabFocus.onDidChangeTabFocus(_ => this._recomputeOptions()));
+		this._wegista(EditowZoom.onDidChangeZoomWevew(_ => this._wecomputeOptions()));
+		this._wegista(TabFocus.onDidChangeTabFocus(_ => this._wecomputeOptions()));
 	}
 
-	public observeReferenceElement(dimension?: IDimension): void {
+	pubwic obsewveWefewenceEwement(dimension?: IDimension): void {
 	}
 
-	public updatePixelRatio(): void {
+	pubwic updatePixewWatio(): void {
 	}
 
-	protected _recomputeOptions(): void {
-		const oldOptions = this.options;
-		const newOptions = this._computeInternalOptions();
+	pwotected _wecomputeOptions(): void {
+		const owdOptions = this.options;
+		const newOptions = this._computeIntewnawOptions();
 
-		if (!oldOptions) {
+		if (!owdOptions) {
 			this.options = newOptions;
-		} else {
-			const changeEvent = EditorConfiguration2.checkEquals(oldOptions, newOptions);
+		} ewse {
+			const changeEvent = EditowConfiguwation2.checkEquaws(owdOptions, newOptions);
 
-			if (changeEvent === null) {
+			if (changeEvent === nuww) {
 				// nothing changed!
-				return;
+				wetuwn;
 			}
 
 			this.options = newOptions;
-			this._onDidChangeFast.fire(changeEvent);
-			this._onDidChange.fire(changeEvent);
+			this._onDidChangeFast.fiwe(changeEvent);
+			this._onDidChange.fiwe(changeEvent);
 		}
 	}
 
-	public getRawOptions(): IEditorOptions {
-		return this._rawOptions;
+	pubwic getWawOptions(): IEditowOptions {
+		wetuwn this._wawOptions;
 	}
 
-	private _computeInternalOptions(): ComputedEditorOptions {
-		const partialEnv = this._getEnvConfiguration();
-		const bareFontInfo = BareFontInfo.createFromValidatedSettings(this._validatedOptions, partialEnv.zoomLevel, partialEnv.pixelRatio, this.isSimpleWidget);
-		const env: IEnvironmentalOptions = {
-			memory: this._computeOptionsMemory,
-			outerWidth: partialEnv.outerWidth,
-			outerHeight: partialEnv.outerHeight,
-			fontInfo: this.readConfiguration(bareFontInfo),
-			extraEditorClassName: partialEnv.extraEditorClassName,
-			isDominatedByLongLines: this._isDominatedByLongLines,
-			viewLineCount: this._viewLineCount,
-			lineNumbersDigitCount: this._lineNumbersDigitCount,
-			emptySelectionClipboard: partialEnv.emptySelectionClipboard,
-			pixelRatio: partialEnv.pixelRatio,
+	pwivate _computeIntewnawOptions(): ComputedEditowOptions {
+		const pawtiawEnv = this._getEnvConfiguwation();
+		const baweFontInfo = BaweFontInfo.cweateFwomVawidatedSettings(this._vawidatedOptions, pawtiawEnv.zoomWevew, pawtiawEnv.pixewWatio, this.isSimpweWidget);
+		const env: IEnviwonmentawOptions = {
+			memowy: this._computeOptionsMemowy,
+			outewWidth: pawtiawEnv.outewWidth,
+			outewHeight: pawtiawEnv.outewHeight,
+			fontInfo: this.weadConfiguwation(baweFontInfo),
+			extwaEditowCwassName: pawtiawEnv.extwaEditowCwassName,
+			isDominatedByWongWines: this._isDominatedByWongWines,
+			viewWineCount: this._viewWineCount,
+			wineNumbewsDigitCount: this._wineNumbewsDigitCount,
+			emptySewectionCwipboawd: pawtiawEnv.emptySewectionCwipboawd,
+			pixewWatio: pawtiawEnv.pixewWatio,
 			tabFocusMode: TabFocus.getTabFocusMode(),
-			accessibilitySupport: partialEnv.accessibilitySupport
+			accessibiwitySuppowt: pawtiawEnv.accessibiwitySuppowt
 		};
-		return EditorConfiguration2.computeOptions(this._validatedOptions, env);
+		wetuwn EditowConfiguwation2.computeOptions(this._vawidatedOptions, env);
 	}
 
-	private static _subsetEquals(base: { [key: string]: any }, subset: { [key: string]: any }): boolean {
-		for (const key in subset) {
-			if (hasOwnProperty.call(subset, key)) {
-				const subsetValue = subset[key];
-				const baseValue = base[key];
+	pwivate static _subsetEquaws(base: { [key: stwing]: any }, subset: { [key: stwing]: any }): boowean {
+		fow (const key in subset) {
+			if (hasOwnPwopewty.caww(subset, key)) {
+				const subsetVawue = subset[key];
+				const baseVawue = base[key];
 
-				if (baseValue === subsetValue) {
+				if (baseVawue === subsetVawue) {
 					continue;
 				}
-				if (Array.isArray(baseValue) && Array.isArray(subsetValue)) {
-					if (!arrays.equals(baseValue, subsetValue)) {
-						return false;
+				if (Awway.isAwway(baseVawue) && Awway.isAwway(subsetVawue)) {
+					if (!awways.equaws(baseVawue, subsetVawue)) {
+						wetuwn fawse;
 					}
 					continue;
 				}
-				if (baseValue && typeof baseValue === 'object' && subsetValue && typeof subsetValue === 'object') {
-					if (!this._subsetEquals(baseValue, subsetValue)) {
-						return false;
+				if (baseVawue && typeof baseVawue === 'object' && subsetVawue && typeof subsetVawue === 'object') {
+					if (!this._subsetEquaws(baseVawue, subsetVawue)) {
+						wetuwn fawse;
 					}
 					continue;
 				}
 
-				return false;
+				wetuwn fawse;
 			}
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	public updateOptions(_newOptions: Readonly<IEditorOptions>): void {
+	pubwic updateOptions(_newOptions: Weadonwy<IEditowOptions>): void {
 		if (typeof _newOptions === 'undefined') {
-			return;
+			wetuwn;
 		}
-		const newOptions = deepCloneAndMigrateOptions(_newOptions);
-		if (CommonEditorConfiguration._subsetEquals(this._rawOptions, newOptions)) {
-			return;
+		const newOptions = deepCwoneAndMigwateOptions(_newOptions);
+		if (CommonEditowConfiguwation._subsetEquaws(this._wawOptions, newOptions)) {
+			wetuwn;
 		}
-		this._rawOptions = objects.mixin(this._rawOptions, newOptions || {});
-		this._readOptions = EditorConfiguration2.readOptions(this._rawOptions);
-		this._validatedOptions = EditorConfiguration2.validateOptions(this._readOptions);
+		this._wawOptions = objects.mixin(this._wawOptions, newOptions || {});
+		this._weadOptions = EditowConfiguwation2.weadOptions(this._wawOptions);
+		this._vawidatedOptions = EditowConfiguwation2.vawidateOptions(this._weadOptions);
 
-		this._recomputeOptions();
+		this._wecomputeOptions();
 	}
 
-	public setIsDominatedByLongLines(isDominatedByLongLines: boolean): void {
-		this._isDominatedByLongLines = isDominatedByLongLines;
-		this._recomputeOptions();
+	pubwic setIsDominatedByWongWines(isDominatedByWongWines: boowean): void {
+		this._isDominatedByWongWines = isDominatedByWongWines;
+		this._wecomputeOptions();
 	}
 
-	public setMaxLineNumber(maxLineNumber: number): void {
-		const lineNumbersDigitCount = CommonEditorConfiguration._digitCount(maxLineNumber);
-		if (this._lineNumbersDigitCount === lineNumbersDigitCount) {
-			return;
+	pubwic setMaxWineNumba(maxWineNumba: numba): void {
+		const wineNumbewsDigitCount = CommonEditowConfiguwation._digitCount(maxWineNumba);
+		if (this._wineNumbewsDigitCount === wineNumbewsDigitCount) {
+			wetuwn;
 		}
-		this._lineNumbersDigitCount = lineNumbersDigitCount;
-		this._recomputeOptions();
+		this._wineNumbewsDigitCount = wineNumbewsDigitCount;
+		this._wecomputeOptions();
 	}
 
-	public setViewLineCount(viewLineCount: number): void {
-		if (this._viewLineCount === viewLineCount) {
-			return;
+	pubwic setViewWineCount(viewWineCount: numba): void {
+		if (this._viewWineCount === viewWineCount) {
+			wetuwn;
 		}
-		this._viewLineCount = viewLineCount;
-		this._recomputeOptions();
+		this._viewWineCount = viewWineCount;
+		this._wecomputeOptions();
 	}
 
-	private static _digitCount(n: number): number {
-		let r = 0;
-		while (n) {
-			n = Math.floor(n / 10);
-			r++;
+	pwivate static _digitCount(n: numba): numba {
+		wet w = 0;
+		whiwe (n) {
+			n = Math.fwoow(n / 10);
+			w++;
 		}
-		return r ? r : 1;
+		wetuwn w ? w : 1;
 	}
-	protected abstract _getEnvConfiguration(): IEnvConfiguration;
+	pwotected abstwact _getEnvConfiguwation(): IEnvConfiguwation;
 
-	protected abstract readConfiguration(styling: BareFontInfo): FontInfo;
+	pwotected abstwact weadConfiguwation(stywing: BaweFontInfo): FontInfo;
 
 }
 
-export const editorConfigurationBaseNode = Object.freeze<IConfigurationNode>({
-	id: 'editor',
-	order: 5,
+expowt const editowConfiguwationBaseNode = Object.fweeze<IConfiguwationNode>({
+	id: 'editow',
+	owda: 5,
 	type: 'object',
-	title: nls.localize('editorConfigurationTitle', "Editor"),
-	scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
+	titwe: nws.wocawize('editowConfiguwationTitwe', "Editow"),
+	scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
 });
 
-const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-const editorConfiguration: IConfigurationNode = {
-	...editorConfigurationBaseNode,
-	properties: {
-		'editor.tabSize': {
-			type: 'number',
-			default: EDITOR_MODEL_DEFAULTS.tabSize,
+const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation);
+const editowConfiguwation: IConfiguwationNode = {
+	...editowConfiguwationBaseNode,
+	pwopewties: {
+		'editow.tabSize': {
+			type: 'numba',
+			defauwt: EDITOW_MODEW_DEFAUWTS.tabSize,
 			minimum: 1,
-			markdownDescription: nls.localize('tabSize', "The number of spaces a tab is equal to. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on.")
+			mawkdownDescwiption: nws.wocawize('tabSize', "The numba of spaces a tab is equaw to. This setting is ovewwidden based on the fiwe contents when `#editow.detectIndentation#` is on.")
 		},
-		// 'editor.indentSize': {
+		// 'editow.indentSize': {
 		// 	'anyOf': [
 		// 		{
-		// 			type: 'string',
+		// 			type: 'stwing',
 		// 			enum: ['tabSize']
 		// 		},
 		// 		{
-		// 			type: 'number',
+		// 			type: 'numba',
 		// 			minimum: 1
 		// 		}
 		// 	],
-		// 	default: 'tabSize',
-		// 	markdownDescription: nls.localize('indentSize', "The number of spaces used for indentation or 'tabSize' to use the value from `#editor.tabSize#`. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on.")
+		// 	defauwt: 'tabSize',
+		// 	mawkdownDescwiption: nws.wocawize('indentSize', "The numba of spaces used fow indentation ow 'tabSize' to use the vawue fwom `#editow.tabSize#`. This setting is ovewwidden based on the fiwe contents when `#editow.detectIndentation#` is on.")
 		// },
-		'editor.insertSpaces': {
-			type: 'boolean',
-			default: EDITOR_MODEL_DEFAULTS.insertSpaces,
-			markdownDescription: nls.localize('insertSpaces', "Insert spaces when pressing `Tab`. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on.")
+		'editow.insewtSpaces': {
+			type: 'boowean',
+			defauwt: EDITOW_MODEW_DEFAUWTS.insewtSpaces,
+			mawkdownDescwiption: nws.wocawize('insewtSpaces', "Insewt spaces when pwessing `Tab`. This setting is ovewwidden based on the fiwe contents when `#editow.detectIndentation#` is on.")
 		},
-		'editor.detectIndentation': {
-			type: 'boolean',
-			default: EDITOR_MODEL_DEFAULTS.detectIndentation,
-			markdownDescription: nls.localize('detectIndentation', "Controls whether `#editor.tabSize#` and `#editor.insertSpaces#` will be automatically detected when a file is opened based on the file contents.")
+		'editow.detectIndentation': {
+			type: 'boowean',
+			defauwt: EDITOW_MODEW_DEFAUWTS.detectIndentation,
+			mawkdownDescwiption: nws.wocawize('detectIndentation', "Contwows whetha `#editow.tabSize#` and `#editow.insewtSpaces#` wiww be automaticawwy detected when a fiwe is opened based on the fiwe contents.")
 		},
-		'editor.trimAutoWhitespace': {
-			type: 'boolean',
-			default: EDITOR_MODEL_DEFAULTS.trimAutoWhitespace,
-			description: nls.localize('trimAutoWhitespace', "Remove trailing auto inserted whitespace.")
+		'editow.twimAutoWhitespace': {
+			type: 'boowean',
+			defauwt: EDITOW_MODEW_DEFAUWTS.twimAutoWhitespace,
+			descwiption: nws.wocawize('twimAutoWhitespace', "Wemove twaiwing auto insewted whitespace.")
 		},
-		'editor.largeFileOptimizations': {
-			type: 'boolean',
-			default: EDITOR_MODEL_DEFAULTS.largeFileOptimizations,
-			description: nls.localize('largeFileOptimizations', "Special handling for large files to disable certain memory intensive features.")
+		'editow.wawgeFiweOptimizations': {
+			type: 'boowean',
+			defauwt: EDITOW_MODEW_DEFAUWTS.wawgeFiweOptimizations,
+			descwiption: nws.wocawize('wawgeFiweOptimizations', "Speciaw handwing fow wawge fiwes to disabwe cewtain memowy intensive featuwes.")
 		},
-		'editor.wordBasedSuggestions': {
-			type: 'boolean',
-			default: true,
-			description: nls.localize('wordBasedSuggestions', "Controls whether completions should be computed based on words in the document.")
+		'editow.wowdBasedSuggestions': {
+			type: 'boowean',
+			defauwt: twue,
+			descwiption: nws.wocawize('wowdBasedSuggestions', "Contwows whetha compwetions shouwd be computed based on wowds in the document.")
 		},
-		'editor.wordBasedSuggestionsMode': {
-			enum: ['currentDocument', 'matchingDocuments', 'allDocuments'],
-			default: 'matchingDocuments',
-			enumDescriptions: [
-				nls.localize('wordBasedSuggestionsMode.currentDocument', 'Only suggest words from the active document.'),
-				nls.localize('wordBasedSuggestionsMode.matchingDocuments', 'Suggest words from all open documents of the same language.'),
-				nls.localize('wordBasedSuggestionsMode.allDocuments', 'Suggest words from all open documents.')
+		'editow.wowdBasedSuggestionsMode': {
+			enum: ['cuwwentDocument', 'matchingDocuments', 'awwDocuments'],
+			defauwt: 'matchingDocuments',
+			enumDescwiptions: [
+				nws.wocawize('wowdBasedSuggestionsMode.cuwwentDocument', 'Onwy suggest wowds fwom the active document.'),
+				nws.wocawize('wowdBasedSuggestionsMode.matchingDocuments', 'Suggest wowds fwom aww open documents of the same wanguage.'),
+				nws.wocawize('wowdBasedSuggestionsMode.awwDocuments', 'Suggest wowds fwom aww open documents.')
 			],
-			description: nls.localize('wordBasedSuggestionsMode', "Controls from which documents word based completions are computed.")
+			descwiption: nws.wocawize('wowdBasedSuggestionsMode', "Contwows fwom which documents wowd based compwetions awe computed.")
 		},
-		'editor.semanticHighlighting.enabled': {
-			enum: [true, false, 'configuredByTheme'],
-			enumDescriptions: [
-				nls.localize('semanticHighlighting.true', 'Semantic highlighting enabled for all color themes.'),
-				nls.localize('semanticHighlighting.false', 'Semantic highlighting disabled for all color themes.'),
-				nls.localize('semanticHighlighting.configuredByTheme', 'Semantic highlighting is configured by the current color theme\'s `semanticHighlighting` setting.')
+		'editow.semanticHighwighting.enabwed': {
+			enum: [twue, fawse, 'configuwedByTheme'],
+			enumDescwiptions: [
+				nws.wocawize('semanticHighwighting.twue', 'Semantic highwighting enabwed fow aww cowow themes.'),
+				nws.wocawize('semanticHighwighting.fawse', 'Semantic highwighting disabwed fow aww cowow themes.'),
+				nws.wocawize('semanticHighwighting.configuwedByTheme', 'Semantic highwighting is configuwed by the cuwwent cowow theme\'s `semanticHighwighting` setting.')
 			],
-			default: 'configuredByTheme',
-			description: nls.localize('semanticHighlighting.enabled', "Controls whether the semanticHighlighting is shown for the languages that support it.")
+			defauwt: 'configuwedByTheme',
+			descwiption: nws.wocawize('semanticHighwighting.enabwed', "Contwows whetha the semanticHighwighting is shown fow the wanguages that suppowt it.")
 		},
-		'editor.stablePeek': {
-			type: 'boolean',
-			default: false,
-			markdownDescription: nls.localize('stablePeek', "Keep peek editors open even when double clicking their content or when hitting `Escape`.")
+		'editow.stabwePeek': {
+			type: 'boowean',
+			defauwt: fawse,
+			mawkdownDescwiption: nws.wocawize('stabwePeek', "Keep peek editows open even when doubwe cwicking theiw content ow when hitting `Escape`.")
 		},
-		'editor.maxTokenizationLineLength': {
-			type: 'integer',
-			default: 20_000,
-			description: nls.localize('maxTokenizationLineLength', "Lines above this length will not be tokenized for performance reasons")
+		'editow.maxTokenizationWineWength': {
+			type: 'intega',
+			defauwt: 20_000,
+			descwiption: nws.wocawize('maxTokenizationWineWength', "Wines above this wength wiww not be tokenized fow pewfowmance weasons")
 		},
-		'diffEditor.maxComputationTime': {
-			type: 'number',
-			default: 5000,
-			description: nls.localize('maxComputationTime', "Timeout in milliseconds after which diff computation is cancelled. Use 0 for no timeout.")
+		'diffEditow.maxComputationTime': {
+			type: 'numba',
+			defauwt: 5000,
+			descwiption: nws.wocawize('maxComputationTime', "Timeout in miwwiseconds afta which diff computation is cancewwed. Use 0 fow no timeout.")
 		},
-		'diffEditor.maxFileSize': {
-			type: 'number',
-			default: 50,
-			description: nls.localize('maxFileSize', "Maximum file size in MB for which to compute diffs. Use 0 for no limit.")
+		'diffEditow.maxFiweSize': {
+			type: 'numba',
+			defauwt: 50,
+			descwiption: nws.wocawize('maxFiweSize', "Maximum fiwe size in MB fow which to compute diffs. Use 0 fow no wimit.")
 		},
-		'diffEditor.renderSideBySide': {
-			type: 'boolean',
-			default: true,
-			description: nls.localize('sideBySide', "Controls whether the diff editor shows the diff side by side or inline.")
+		'diffEditow.wendewSideBySide': {
+			type: 'boowean',
+			defauwt: twue,
+			descwiption: nws.wocawize('sideBySide', "Contwows whetha the diff editow shows the diff side by side ow inwine.")
 		},
-		'diffEditor.ignoreTrimWhitespace': {
-			type: 'boolean',
-			default: true,
-			description: nls.localize('ignoreTrimWhitespace', "When enabled, the diff editor ignores changes in leading or trailing whitespace.")
+		'diffEditow.ignoweTwimWhitespace': {
+			type: 'boowean',
+			defauwt: twue,
+			descwiption: nws.wocawize('ignoweTwimWhitespace', "When enabwed, the diff editow ignowes changes in weading ow twaiwing whitespace.")
 		},
-		'diffEditor.renderIndicators': {
-			type: 'boolean',
-			default: true,
-			description: nls.localize('renderIndicators', "Controls whether the diff editor shows +/- indicators for added/removed changes.")
+		'diffEditow.wendewIndicatows': {
+			type: 'boowean',
+			defauwt: twue,
+			descwiption: nws.wocawize('wendewIndicatows', "Contwows whetha the diff editow shows +/- indicatows fow added/wemoved changes.")
 		},
-		'diffEditor.codeLens': {
-			type: 'boolean',
-			default: false,
-			description: nls.localize('codeLens', "Controls whether the editor shows CodeLens.")
+		'diffEditow.codeWens': {
+			type: 'boowean',
+			defauwt: fawse,
+			descwiption: nws.wocawize('codeWens', "Contwows whetha the editow shows CodeWens.")
 		},
-		'diffEditor.wordWrap': {
-			type: 'string',
-			enum: ['off', 'on', 'inherit'],
-			default: 'inherit',
-			markdownEnumDescriptions: [
-				nls.localize('wordWrap.off', "Lines will never wrap."),
-				nls.localize('wordWrap.on', "Lines will wrap at the viewport width."),
-				nls.localize('wordWrap.inherit', "Lines will wrap according to the `#editor.wordWrap#` setting."),
+		'diffEditow.wowdWwap': {
+			type: 'stwing',
+			enum: ['off', 'on', 'inhewit'],
+			defauwt: 'inhewit',
+			mawkdownEnumDescwiptions: [
+				nws.wocawize('wowdWwap.off', "Wines wiww neva wwap."),
+				nws.wocawize('wowdWwap.on', "Wines wiww wwap at the viewpowt width."),
+				nws.wocawize('wowdWwap.inhewit', "Wines wiww wwap accowding to the `#editow.wowdWwap#` setting."),
 			]
 		}
 	}
 };
 
-function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema; }): x is IConfigurationPropertySchema {
-	return (typeof x.type !== 'undefined' || typeof x.anyOf !== 'undefined');
+function isConfiguwationPwopewtySchema(x: IConfiguwationPwopewtySchema | { [path: stwing]: IConfiguwationPwopewtySchema; }): x is IConfiguwationPwopewtySchema {
+	wetuwn (typeof x.type !== 'undefined' || typeof x.anyOf !== 'undefined');
 }
 
-// Add properties from the Editor Option Registry
-for (const editorOption of editorOptionsRegistry) {
-	const schema = editorOption.schema;
+// Add pwopewties fwom the Editow Option Wegistwy
+fow (const editowOption of editowOptionsWegistwy) {
+	const schema = editowOption.schema;
 	if (typeof schema !== 'undefined') {
-		if (isConfigurationPropertySchema(schema)) {
-			// This is a single schema contribution
-			editorConfiguration.properties![`editor.${editorOption.name}`] = schema;
-		} else {
-			for (let key in schema) {
-				if (hasOwnProperty.call(schema, key)) {
-					editorConfiguration.properties![key] = schema[key];
+		if (isConfiguwationPwopewtySchema(schema)) {
+			// This is a singwe schema contwibution
+			editowConfiguwation.pwopewties![`editow.${editowOption.name}`] = schema;
+		} ewse {
+			fow (wet key in schema) {
+				if (hasOwnPwopewty.caww(schema, key)) {
+					editowConfiguwation.pwopewties![key] = schema[key];
 				}
 			}
 		}
 	}
 }
 
-let cachedEditorConfigurationKeys: { [key: string]: boolean; } | null = null;
-function getEditorConfigurationKeys(): { [key: string]: boolean; } {
-	if (cachedEditorConfigurationKeys === null) {
-		cachedEditorConfigurationKeys = <{ [key: string]: boolean; }>Object.create(null);
-		Object.keys(editorConfiguration.properties!).forEach((prop) => {
-			cachedEditorConfigurationKeys![prop] = true;
+wet cachedEditowConfiguwationKeys: { [key: stwing]: boowean; } | nuww = nuww;
+function getEditowConfiguwationKeys(): { [key: stwing]: boowean; } {
+	if (cachedEditowConfiguwationKeys === nuww) {
+		cachedEditowConfiguwationKeys = <{ [key: stwing]: boowean; }>Object.cweate(nuww);
+		Object.keys(editowConfiguwation.pwopewties!).fowEach((pwop) => {
+			cachedEditowConfiguwationKeys![pwop] = twue;
 		});
 	}
-	return cachedEditorConfigurationKeys;
+	wetuwn cachedEditowConfiguwationKeys;
 }
 
-export function isEditorConfigurationKey(key: string): boolean {
-	const editorConfigurationKeys = getEditorConfigurationKeys();
-	return (editorConfigurationKeys[`editor.${key}`] || false);
+expowt function isEditowConfiguwationKey(key: stwing): boowean {
+	const editowConfiguwationKeys = getEditowConfiguwationKeys();
+	wetuwn (editowConfiguwationKeys[`editow.${key}`] || fawse);
 }
-export function isDiffEditorConfigurationKey(key: string): boolean {
-	const editorConfigurationKeys = getEditorConfigurationKeys();
-	return (editorConfigurationKeys[`diffEditor.${key}`] || false);
+expowt function isDiffEditowConfiguwationKey(key: stwing): boowean {
+	const editowConfiguwationKeys = getEditowConfiguwationKeys();
+	wetuwn (editowConfiguwationKeys[`diffEditow.${key}`] || fawse);
 }
 
-configurationRegistry.registerConfiguration(editorConfiguration);
+configuwationWegistwy.wegistewConfiguwation(editowConfiguwation);

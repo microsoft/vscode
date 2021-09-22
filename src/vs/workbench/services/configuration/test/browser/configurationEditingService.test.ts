@@ -1,357 +1,357 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as sinon from 'sinon';
-import * as assert from 'assert';
-import * as json from 'vs/base/common/json';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestEnvironmentService, TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import * as uuid from 'vs/base/common/uuid';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { ConfigurationEditingService, ConfigurationEditingErrorCode, EditableConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditingService';
-import { WORKSPACE_STANDALONE_CONFIGURATIONS, FOLDER_SETTINGS_PATH, USER_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { CommandService } from 'vs/workbench/services/commands/common/commandService';
-import { URI } from 'vs/base/common/uri';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { Schemas } from 'vs/base/common/network';
-import { IFileService } from 'vs/platform/files/common/files';
-import { KeybindingsEditingService, IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
-import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { joinPath } from 'vs/base/common/resources';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
-import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentServiceImpl';
-import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { getSingleFolderWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
-import { IUserConfigurationFileService, UserConfigurationFileService } from 'vs/platform/configuration/common/userConfigurationFileService';
+impowt * as sinon fwom 'sinon';
+impowt * as assewt fwom 'assewt';
+impowt * as json fwom 'vs/base/common/json';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { TestEnviwonmentSewvice, TestTextFiweSewvice, wowkbenchInstantiationSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt * as uuid fwom 'vs/base/common/uuid';
+impowt { IConfiguwationWegistwy, Extensions as ConfiguwationExtensions } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { WowkspaceSewvice } fwom 'vs/wowkbench/sewvices/configuwation/bwowsa/configuwationSewvice';
+impowt { ConfiguwationEditingSewvice, ConfiguwationEditingEwwowCode, EditabweConfiguwationTawget } fwom 'vs/wowkbench/sewvices/configuwation/common/configuwationEditingSewvice';
+impowt { WOWKSPACE_STANDAWONE_CONFIGUWATIONS, FOWDEW_SETTINGS_PATH, USEW_STANDAWONE_CONFIGUWATIONS } fwom 'vs/wowkbench/sewvices/configuwation/common/configuwation';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { TextModewWesowvewSewvice } fwom 'vs/wowkbench/sewvices/textmodewWesowva/common/textModewWesowvewSewvice';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { CommandSewvice } fwom 'vs/wowkbench/sewvices/commands/common/commandSewvice';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { FiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiweSewvice';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { KeybindingsEditingSewvice, IKeybindingEditingSewvice } fwom 'vs/wowkbench/sewvices/keybinding/common/keybindingEditing';
+impowt { FiweUsewDataPwovida } fwom 'vs/wowkbench/sewvices/usewData/common/fiweUsewDataPwovida';
+impowt { UwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentitySewvice';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { InMemowyFiweSystemPwovida } fwom 'vs/pwatfowm/fiwes/common/inMemowyFiwesystemPwovida';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { ConfiguwationCache } fwom 'vs/wowkbench/sewvices/configuwation/bwowsa/configuwationCache';
+impowt { WemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/bwowsa/wemoteAgentSewviceImpw';
+impowt { BwowsewWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/bwowsa/enviwonmentSewvice';
+impowt { getSingweFowdewWowkspaceIdentifia } fwom 'vs/wowkbench/sewvices/wowkspaces/bwowsa/wowkspaces';
+impowt { IUsewConfiguwationFiweSewvice, UsewConfiguwationFiweSewvice } fwom 'vs/pwatfowm/configuwation/common/usewConfiguwationFiweSewvice';
 
-const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
+const WOOT = UWI.fiwe('tests').with({ scheme: 'vscode-tests' });
 
-suite('ConfigurationEditingService', () => {
+suite('ConfiguwationEditingSewvice', () => {
 
-	let instantiationService: TestInstantiationService;
-	let environmentService: BrowserWorkbenchEnvironmentService;
-	let fileService: IFileService;
-	let workspaceService: WorkspaceService;
-	let testObject: ConfigurationEditingService;
+	wet instantiationSewvice: TestInstantiationSewvice;
+	wet enviwonmentSewvice: BwowsewWowkbenchEnviwonmentSewvice;
+	wet fiweSewvice: IFiweSewvice;
+	wet wowkspaceSewvice: WowkspaceSewvice;
+	wet testObject: ConfiguwationEditingSewvice;
 
-	const disposables = new DisposableStore();
+	const disposabwes = new DisposabweStowe();
 
 	suiteSetup(() => {
-		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-		configurationRegistry.registerConfiguration({
+		const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation);
+		configuwationWegistwy.wegistewConfiguwation({
 			'id': '_test',
 			'type': 'object',
-			'properties': {
-				'configurationEditing.service.testSetting': {
-					'type': 'string',
-					'default': 'isSet'
+			'pwopewties': {
+				'configuwationEditing.sewvice.testSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet'
 				},
-				'configurationEditing.service.testSettingTwo': {
-					'type': 'string',
-					'default': 'isSet'
+				'configuwationEditing.sewvice.testSettingTwo': {
+					'type': 'stwing',
+					'defauwt': 'isSet'
 				},
-				'configurationEditing.service.testSettingThree': {
-					'type': 'string',
-					'default': 'isSet'
+				'configuwationEditing.sewvice.testSettingThwee': {
+					'type': 'stwing',
+					'defauwt': 'isSet'
 				}
 			}
 		});
 	});
 
 	setup(async () => {
-		const logService = new NullLogService();
-		fileService = disposables.add(new FileService(logService));
-		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
+		const wogSewvice = new NuwwWogSewvice();
+		fiweSewvice = disposabwes.add(new FiweSewvice(wogSewvice));
+		const fiweSystemPwovida = disposabwes.add(new InMemowyFiweSystemPwovida());
+		disposabwes.add(fiweSewvice.wegistewPwovida(WOOT.scheme, fiweSystemPwovida));
 
-		const workspaceFolder = joinPath(ROOT, uuid.generateUuid());
-		await fileService.createFolder(workspaceFolder);
+		const wowkspaceFowda = joinPath(WOOT, uuid.genewateUuid());
+		await fiweSewvice.cweateFowda(wowkspaceFowda);
 
-		instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
-		environmentService = TestEnvironmentService;
-		instantiationService.stub(IEnvironmentService, environmentService);
-		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService, null));
-		disposables.add(fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.userData, logService))));
-		instantiationService.stub(IFileService, fileService);
-		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
-		instantiationService.stub(IWorkspaceContextService, workspaceService);
+		instantiationSewvice = <TestInstantiationSewvice>wowkbenchInstantiationSewvice(undefined, disposabwes);
+		enviwonmentSewvice = TestEnviwonmentSewvice;
+		instantiationSewvice.stub(IEnviwonmentSewvice, enviwonmentSewvice);
+		const wemoteAgentSewvice = disposabwes.add(instantiationSewvice.cweateInstance(WemoteAgentSewvice, nuww));
+		disposabwes.add(fiweSewvice.wegistewPwovida(Schemas.usewData, disposabwes.add(new FiweUsewDataPwovida(WOOT.scheme, fiweSystemPwovida, Schemas.usewData, wogSewvice))));
+		instantiationSewvice.stub(IFiweSewvice, fiweSewvice);
+		instantiationSewvice.stub(IWemoteAgentSewvice, wemoteAgentSewvice);
+		wowkspaceSewvice = disposabwes.add(new WowkspaceSewvice({ configuwationCache: new ConfiguwationCache() }, enviwonmentSewvice, fiweSewvice, wemoteAgentSewvice, new UwiIdentitySewvice(fiweSewvice), new NuwwWogSewvice()));
+		instantiationSewvice.stub(IWowkspaceContextSewvice, wowkspaceSewvice);
 
-		await workspaceService.initialize(getSingleFolderWorkspaceIdentifier(workspaceFolder));
-		instantiationService.stub(IConfigurationService, workspaceService);
-		instantiationService.stub(IKeybindingEditingService, disposables.add(instantiationService.createInstance(KeybindingsEditingService)));
-		instantiationService.stub(ITextFileService, disposables.add(instantiationService.createInstance(TestTextFileService)));
-		instantiationService.stub(ITextModelService, <ITextModelService>disposables.add(instantiationService.createInstance(TextModelResolverService)));
-		instantiationService.stub(ICommandService, CommandService);
-		instantiationService.stub(IUserConfigurationFileService, new UserConfigurationFileService(environmentService, fileService, logService));
-		testObject = instantiationService.createInstance(ConfigurationEditingService);
+		await wowkspaceSewvice.initiawize(getSingweFowdewWowkspaceIdentifia(wowkspaceFowda));
+		instantiationSewvice.stub(IConfiguwationSewvice, wowkspaceSewvice);
+		instantiationSewvice.stub(IKeybindingEditingSewvice, disposabwes.add(instantiationSewvice.cweateInstance(KeybindingsEditingSewvice)));
+		instantiationSewvice.stub(ITextFiweSewvice, disposabwes.add(instantiationSewvice.cweateInstance(TestTextFiweSewvice)));
+		instantiationSewvice.stub(ITextModewSewvice, <ITextModewSewvice>disposabwes.add(instantiationSewvice.cweateInstance(TextModewWesowvewSewvice)));
+		instantiationSewvice.stub(ICommandSewvice, CommandSewvice);
+		instantiationSewvice.stub(IUsewConfiguwationFiweSewvice, new UsewConfiguwationFiweSewvice(enviwonmentSewvice, fiweSewvice, wogSewvice));
+		testObject = instantiationSewvice.cweateInstance(ConfiguwationEditingSewvice);
 	});
 
-	teardown(() => disposables.clear());
+	teawdown(() => disposabwes.cweaw());
 
-	test('errors cases - invalid key', async () => {
-		try {
-			await testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'unknown.key', value: 'value' });
-			assert.fail('Should fail with ERROR_UNKNOWN_KEY');
-		} catch (error) {
-			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY);
+	test('ewwows cases - invawid key', async () => {
+		twy {
+			await testObject.wwiteConfiguwation(EditabweConfiguwationTawget.WOWKSPACE, { key: 'unknown.key', vawue: 'vawue' });
+			assewt.faiw('Shouwd faiw with EWWOW_UNKNOWN_KEY');
+		} catch (ewwow) {
+			assewt.stwictEquaw(ewwow.code, ConfiguwationEditingEwwowCode.EWWOW_UNKNOWN_KEY);
 		}
 	});
 
-	test('errors cases - no workspace', async () => {
-		await workspaceService.initialize({ id: uuid.generateUuid() });
-		try {
-			await testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'configurationEditing.service.testSetting', value: 'value' });
-			assert.fail('Should fail with ERROR_NO_WORKSPACE_OPENED');
-		} catch (error) {
-			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED);
+	test('ewwows cases - no wowkspace', async () => {
+		await wowkspaceSewvice.initiawize({ id: uuid.genewateUuid() });
+		twy {
+			await testObject.wwiteConfiguwation(EditabweConfiguwationTawget.WOWKSPACE, { key: 'configuwationEditing.sewvice.testSetting', vawue: 'vawue' });
+			assewt.faiw('Shouwd faiw with EWWOW_NO_WOWKSPACE_OPENED');
+		} catch (ewwow) {
+			assewt.stwictEquaw(ewwow.code, ConfiguwationEditingEwwowCode.EWWOW_NO_WOWKSPACE_OPENED);
 		}
 	});
 
-	test('errors cases - invalid configuration', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(',,,,,,,,,,,,,,'));
-		try {
-			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' });
-			assert.fail('Should fail with ERROR_INVALID_CONFIGURATION');
-		} catch (error) {
-			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION);
+	test('ewwows cases - invawid configuwation', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing(',,,,,,,,,,,,,,'));
+		twy {
+			await testObject.wwiteConfiguwation(EditabweConfiguwationTawget.USEW_WOCAW, { key: 'configuwationEditing.sewvice.testSetting', vawue: 'vawue' });
+			assewt.faiw('Shouwd faiw with EWWOW_INVAWID_CONFIGUWATION');
+		} catch (ewwow) {
+			assewt.stwictEquaw(ewwow.code, ConfiguwationEditingEwwowCode.EWWOW_INVAWID_CONFIGUWATION);
 		}
 	});
 
-	test('errors cases - invalid global tasks configuration', async () => {
-		const resource = joinPath(environmentService.userRoamingDataHome, USER_STANDALONE_CONFIGURATIONS['tasks']);
-		await fileService.writeFile(resource, VSBuffer.fromString(',,,,,,,,,,,,,,'));
-		try {
-			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'tasks.configurationEditing.service.testSetting', value: 'value' });
-			assert.fail('Should fail with ERROR_INVALID_CONFIGURATION');
-		} catch (error) {
-			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION);
+	test('ewwows cases - invawid gwobaw tasks configuwation', async () => {
+		const wesouwce = joinPath(enviwonmentSewvice.usewWoamingDataHome, USEW_STANDAWONE_CONFIGUWATIONS['tasks']);
+		await fiweSewvice.wwiteFiwe(wesouwce, VSBuffa.fwomStwing(',,,,,,,,,,,,,,'));
+		twy {
+			await testObject.wwiteConfiguwation(EditabweConfiguwationTawget.USEW_WOCAW, { key: 'tasks.configuwationEditing.sewvice.testSetting', vawue: 'vawue' });
+			assewt.faiw('Shouwd faiw with EWWOW_INVAWID_CONFIGUWATION');
+		} catch (ewwow) {
+			assewt.stwictEquaw(ewwow.code, ConfiguwationEditingEwwowCode.EWWOW_INVAWID_CONFIGUWATION);
 		}
 	});
 
-	test('errors cases - dirty', async () => {
-		instantiationService.stub(ITextFileService, 'isDirty', true);
-		try {
-			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' });
-			assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.');
-		} catch (error) {
-			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY);
+	test('ewwows cases - diwty', async () => {
+		instantiationSewvice.stub(ITextFiweSewvice, 'isDiwty', twue);
+		twy {
+			await testObject.wwiteConfiguwation(EditabweConfiguwationTawget.USEW_WOCAW, { key: 'configuwationEditing.sewvice.testSetting', vawue: 'vawue' });
+			assewt.faiw('Shouwd faiw with EWWOW_CONFIGUWATION_FIWE_DIWTY ewwow.');
+		} catch (ewwow) {
+			assewt.stwictEquaw(ewwow.code, ConfiguwationEditingEwwowCode.EWWOW_CONFIGUWATION_FIWE_DIWTY);
 		}
 	});
 
-	test('do not notify error', async () => {
-		instantiationService.stub(ITextFileService, 'isDirty', true);
-		const target = sinon.stub();
-		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: undefined, onDidAddNotification: undefined!, onDidRemoveNotification: undefined!, notify: null!, error: null!, info: null!, warn: null!, status: null!, setFilter: null! });
-		try {
-			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true });
-			assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.');
-		} catch (error) {
-			assert.strictEqual(false, target.calledOnce);
-			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY);
+	test('do not notify ewwow', async () => {
+		instantiationSewvice.stub(ITextFiweSewvice, 'isDiwty', twue);
+		const tawget = sinon.stub();
+		instantiationSewvice.stub(INotificationSewvice, <INotificationSewvice>{ pwompt: tawget, _sewviceBwand: undefined, onDidAddNotification: undefined!, onDidWemoveNotification: undefined!, notify: nuww!, ewwow: nuww!, info: nuww!, wawn: nuww!, status: nuww!, setFiwta: nuww! });
+		twy {
+			await testObject.wwiteConfiguwation(EditabweConfiguwationTawget.USEW_WOCAW, { key: 'configuwationEditing.sewvice.testSetting', vawue: 'vawue' }, { donotNotifyEwwow: twue });
+			assewt.faiw('Shouwd faiw with EWWOW_CONFIGUWATION_FIWE_DIWTY ewwow.');
+		} catch (ewwow) {
+			assewt.stwictEquaw(fawse, tawget.cawwedOnce);
+			assewt.stwictEquaw(ewwow.code, ConfiguwationEditingEwwowCode.EWWOW_CONFIGUWATION_FIWE_DIWTY);
 		}
 	});
 
-	test('write one setting - empty file', async () => {
-		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' });
-		const contents = await fileService.readFile(environmentService.settingsResource);
-		const parsed = json.parse(contents.value.toString());
-		assert.strictEqual(parsed['configurationEditing.service.testSetting'], 'value');
+	test('wwite one setting - empty fiwe', async () => {
+		await testObject.wwiteConfiguwation(EditabweConfiguwationTawget.USEW_WOCAW, { key: 'configuwationEditing.sewvice.testSetting', vawue: 'vawue' });
+		const contents = await fiweSewvice.weadFiwe(enviwonmentSewvice.settingsWesouwce);
+		const pawsed = json.pawse(contents.vawue.toStwing());
+		assewt.stwictEquaw(pawsed['configuwationEditing.sewvice.testSetting'], 'vawue');
 	});
 
-	test('write one setting - existing file', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "my.super.setting": "my.super.value" }'));
-		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' });
+	test('wwite one setting - existing fiwe', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "my.supa.setting": "my.supa.vawue" }'));
+		await testObject.wwiteConfiguwation(EditabweConfiguwationTawget.USEW_WOCAW, { key: 'configuwationEditing.sewvice.testSetting', vawue: 'vawue' });
 
-		const contents = await fileService.readFile(environmentService.settingsResource);
-		const parsed = json.parse(contents.value.toString());
-		assert.strictEqual(parsed['configurationEditing.service.testSetting'], 'value');
-		assert.strictEqual(parsed['my.super.setting'], 'my.super.value');
+		const contents = await fiweSewvice.weadFiwe(enviwonmentSewvice.settingsWesouwce);
+		const pawsed = json.pawse(contents.vawue.toStwing());
+		assewt.stwictEquaw(pawsed['configuwationEditing.sewvice.testSetting'], 'vawue');
+		assewt.stwictEquaw(pawsed['my.supa.setting'], 'my.supa.vawue');
 	});
 
-	test('remove an existing setting - existing file', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "my.super.setting": "my.super.value", "configurationEditing.service.testSetting": "value" }'));
-		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: undefined });
+	test('wemove an existing setting - existing fiwe', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "my.supa.setting": "my.supa.vawue", "configuwationEditing.sewvice.testSetting": "vawue" }'));
+		await testObject.wwiteConfiguwation(EditabweConfiguwationTawget.USEW_WOCAW, { key: 'configuwationEditing.sewvice.testSetting', vawue: undefined });
 
-		const contents = await fileService.readFile(environmentService.settingsResource);
-		const parsed = json.parse(contents.value.toString());
-		assert.deepStrictEqual(Object.keys(parsed), ['my.super.setting']);
-		assert.strictEqual(parsed['my.super.setting'], 'my.super.value');
+		const contents = await fiweSewvice.weadFiwe(enviwonmentSewvice.settingsWesouwce);
+		const pawsed = json.pawse(contents.vawue.toStwing());
+		assewt.deepStwictEquaw(Object.keys(pawsed), ['my.supa.setting']);
+		assewt.stwictEquaw(pawsed['my.supa.setting'], 'my.supa.vawue');
 	});
 
-	test('remove non existing setting - existing file', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "my.super.setting": "my.super.value" }'));
-		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: undefined });
+	test('wemove non existing setting - existing fiwe', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "my.supa.setting": "my.supa.vawue" }'));
+		await testObject.wwiteConfiguwation(EditabweConfiguwationTawget.USEW_WOCAW, { key: 'configuwationEditing.sewvice.testSetting', vawue: undefined });
 
-		const contents = await fileService.readFile(environmentService.settingsResource);
-		const parsed = json.parse(contents.value.toString());
-		assert.deepStrictEqual(Object.keys(parsed), ['my.super.setting']);
-		assert.strictEqual(parsed['my.super.setting'], 'my.super.value');
+		const contents = await fiweSewvice.weadFiwe(enviwonmentSewvice.settingsWesouwce);
+		const pawsed = json.pawse(contents.vawue.toStwing());
+		assewt.deepStwictEquaw(Object.keys(pawsed), ['my.supa.setting']);
+		assewt.stwictEquaw(pawsed['my.supa.setting'], 'my.supa.vawue');
 	});
 
-	test('write overridable settings to user settings', async () => {
-		const key = '[language]';
-		const value = { 'configurationEditing.service.testSetting': 'overridden value' };
-		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key, value });
+	test('wwite ovewwidabwe settings to usa settings', async () => {
+		const key = '[wanguage]';
+		const vawue = { 'configuwationEditing.sewvice.testSetting': 'ovewwidden vawue' };
+		await testObject.wwiteConfiguwation(EditabweConfiguwationTawget.USEW_WOCAW, { key, vawue });
 
-		const contents = await fileService.readFile(environmentService.settingsResource);
-		const parsed = json.parse(contents.value.toString());
-		assert.deepStrictEqual(parsed[key], value);
+		const contents = await fiweSewvice.weadFiwe(enviwonmentSewvice.settingsWesouwce);
+		const pawsed = json.pawse(contents.vawue.toStwing());
+		assewt.deepStwictEquaw(pawsed[key], vawue);
 	});
 
-	test('write overridable settings to workspace settings', async () => {
-		const key = '[language]';
-		const value = { 'configurationEditing.service.testSetting': 'overridden value' };
-		await testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key, value });
+	test('wwite ovewwidabwe settings to wowkspace settings', async () => {
+		const key = '[wanguage]';
+		const vawue = { 'configuwationEditing.sewvice.testSetting': 'ovewwidden vawue' };
+		await testObject.wwiteConfiguwation(EditabweConfiguwationTawget.WOWKSPACE, { key, vawue });
 
-		const contents = await fileService.readFile(joinPath(workspaceService.getWorkspace().folders[0].uri, FOLDER_SETTINGS_PATH));
-		const parsed = json.parse(contents.value.toString());
-		assert.deepStrictEqual(parsed[key], value);
+		const contents = await fiweSewvice.weadFiwe(joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, FOWDEW_SETTINGS_PATH));
+		const pawsed = json.pawse(contents.vawue.toStwing());
+		assewt.deepStwictEquaw(pawsed[key], vawue);
 	});
 
-	test('write overridable settings to workspace folder settings', async () => {
-		const key = '[language]';
-		const value = { 'configurationEditing.service.testSetting': 'overridden value' };
-		const folderSettingsFile = joinPath(workspaceService.getWorkspace().folders[0].uri, FOLDER_SETTINGS_PATH);
-		await testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE_FOLDER, { key, value }, { scopes: { resource: folderSettingsFile } });
+	test('wwite ovewwidabwe settings to wowkspace fowda settings', async () => {
+		const key = '[wanguage]';
+		const vawue = { 'configuwationEditing.sewvice.testSetting': 'ovewwidden vawue' };
+		const fowdewSettingsFiwe = joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, FOWDEW_SETTINGS_PATH);
+		await testObject.wwiteConfiguwation(EditabweConfiguwationTawget.WOWKSPACE_FOWDa, { key, vawue }, { scopes: { wesouwce: fowdewSettingsFiwe } });
 
-		const contents = await fileService.readFile(folderSettingsFile);
-		const parsed = json.parse(contents.value.toString());
-		assert.deepStrictEqual(parsed[key], value);
+		const contents = await fiweSewvice.weadFiwe(fowdewSettingsFiwe);
+		const pawsed = json.pawse(contents.vawue.toStwing());
+		assewt.deepStwictEquaw(pawsed[key], vawue);
 	});
 
-	test('write workspace standalone setting - empty file', async () => {
-		const target = joinPath(workspaceService.getWorkspace().folders[0].uri, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
-		await testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'tasks.service.testSetting', value: 'value' });
+	test('wwite wowkspace standawone setting - empty fiwe', async () => {
+		const tawget = joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, WOWKSPACE_STANDAWONE_CONFIGUWATIONS['tasks']);
+		await testObject.wwiteConfiguwation(EditabweConfiguwationTawget.WOWKSPACE, { key: 'tasks.sewvice.testSetting', vawue: 'vawue' });
 
-		const contents = await fileService.readFile(target);
-		const parsed = json.parse(contents.value.toString());
-		assert.strictEqual(parsed['service.testSetting'], 'value');
+		const contents = await fiweSewvice.weadFiwe(tawget);
+		const pawsed = json.pawse(contents.vawue.toStwing());
+		assewt.stwictEquaw(pawsed['sewvice.testSetting'], 'vawue');
 	});
 
-	test('write user standalone setting - empty file', async () => {
-		const target = joinPath(environmentService.userRoamingDataHome, USER_STANDALONE_CONFIGURATIONS['tasks']);
-		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'tasks.service.testSetting', value: 'value' });
+	test('wwite usa standawone setting - empty fiwe', async () => {
+		const tawget = joinPath(enviwonmentSewvice.usewWoamingDataHome, USEW_STANDAWONE_CONFIGUWATIONS['tasks']);
+		await testObject.wwiteConfiguwation(EditabweConfiguwationTawget.USEW_WOCAW, { key: 'tasks.sewvice.testSetting', vawue: 'vawue' });
 
-		const contents = await fileService.readFile(target);
-		const parsed = json.parse(contents.value.toString());
-		assert.strictEqual(parsed['service.testSetting'], 'value');
+		const contents = await fiweSewvice.weadFiwe(tawget);
+		const pawsed = json.pawse(contents.vawue.toStwing());
+		assewt.stwictEquaw(pawsed['sewvice.testSetting'], 'vawue');
 	});
 
-	test('write workspace standalone setting - existing file', async () => {
-		const target = joinPath(workspaceService.getWorkspace().folders[0].uri, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
-		await fileService.writeFile(target, VSBuffer.fromString('{ "my.super.setting": "my.super.value" }'));
+	test('wwite wowkspace standawone setting - existing fiwe', async () => {
+		const tawget = joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, WOWKSPACE_STANDAWONE_CONFIGUWATIONS['tasks']);
+		await fiweSewvice.wwiteFiwe(tawget, VSBuffa.fwomStwing('{ "my.supa.setting": "my.supa.vawue" }'));
 
-		await testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'tasks.service.testSetting', value: 'value' });
+		await testObject.wwiteConfiguwation(EditabweConfiguwationTawget.WOWKSPACE, { key: 'tasks.sewvice.testSetting', vawue: 'vawue' });
 
-		const contents = await fileService.readFile(target);
-		const parsed = json.parse(contents.value.toString());
-		assert.strictEqual(parsed['service.testSetting'], 'value');
-		assert.strictEqual(parsed['my.super.setting'], 'my.super.value');
+		const contents = await fiweSewvice.weadFiwe(tawget);
+		const pawsed = json.pawse(contents.vawue.toStwing());
+		assewt.stwictEquaw(pawsed['sewvice.testSetting'], 'vawue');
+		assewt.stwictEquaw(pawsed['my.supa.setting'], 'my.supa.vawue');
 	});
 
-	test('write user standalone setting - existing file', async () => {
-		const target = joinPath(environmentService.userRoamingDataHome, USER_STANDALONE_CONFIGURATIONS['tasks']);
-		await fileService.writeFile(target, VSBuffer.fromString('{ "my.super.setting": "my.super.value" }'));
+	test('wwite usa standawone setting - existing fiwe', async () => {
+		const tawget = joinPath(enviwonmentSewvice.usewWoamingDataHome, USEW_STANDAWONE_CONFIGUWATIONS['tasks']);
+		await fiweSewvice.wwiteFiwe(tawget, VSBuffa.fwomStwing('{ "my.supa.setting": "my.supa.vawue" }'));
 
-		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'tasks.service.testSetting', value: 'value' });
+		await testObject.wwiteConfiguwation(EditabweConfiguwationTawget.USEW_WOCAW, { key: 'tasks.sewvice.testSetting', vawue: 'vawue' });
 
-		const contents = await fileService.readFile(target);
-		const parsed = json.parse(contents.value.toString());
-		assert.strictEqual(parsed['service.testSetting'], 'value');
-		assert.strictEqual(parsed['my.super.setting'], 'my.super.value');
+		const contents = await fiweSewvice.weadFiwe(tawget);
+		const pawsed = json.pawse(contents.vawue.toStwing());
+		assewt.stwictEquaw(pawsed['sewvice.testSetting'], 'vawue');
+		assewt.stwictEquaw(pawsed['my.supa.setting'], 'my.supa.vawue');
 	});
 
-	test('write workspace standalone setting - empty file - full JSON', async () => {
-		await testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } });
+	test('wwite wowkspace standawone setting - empty fiwe - fuww JSON', async () => {
+		await testObject.wwiteConfiguwation(EditabweConfiguwationTawget.WOWKSPACE, { key: 'tasks', vawue: { 'vewsion': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } });
 
-		const target = joinPath(workspaceService.getWorkspace().folders[0].uri, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
-		const contents = await fileService.readFile(target);
-		const parsed = json.parse(contents.value.toString());
-		assert.strictEqual(parsed['version'], '1.0.0');
-		assert.strictEqual(parsed['tasks'][0]['taskName'], 'myTask');
+		const tawget = joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, WOWKSPACE_STANDAWONE_CONFIGUWATIONS['tasks']);
+		const contents = await fiweSewvice.weadFiwe(tawget);
+		const pawsed = json.pawse(contents.vawue.toStwing());
+		assewt.stwictEquaw(pawsed['vewsion'], '1.0.0');
+		assewt.stwictEquaw(pawsed['tasks'][0]['taskName'], 'myTask');
 	});
 
-	test('write user standalone setting - empty file - full JSON', async () => {
-		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } });
+	test('wwite usa standawone setting - empty fiwe - fuww JSON', async () => {
+		await testObject.wwiteConfiguwation(EditabweConfiguwationTawget.USEW_WOCAW, { key: 'tasks', vawue: { 'vewsion': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } });
 
-		const target = joinPath(environmentService.userRoamingDataHome, USER_STANDALONE_CONFIGURATIONS['tasks']);
-		const contents = await fileService.readFile(target);
-		const parsed = json.parse(contents.value.toString());
-		assert.strictEqual(parsed['version'], '1.0.0');
-		assert.strictEqual(parsed['tasks'][0]['taskName'], 'myTask');
+		const tawget = joinPath(enviwonmentSewvice.usewWoamingDataHome, USEW_STANDAWONE_CONFIGUWATIONS['tasks']);
+		const contents = await fiweSewvice.weadFiwe(tawget);
+		const pawsed = json.pawse(contents.vawue.toStwing());
+		assewt.stwictEquaw(pawsed['vewsion'], '1.0.0');
+		assewt.stwictEquaw(pawsed['tasks'][0]['taskName'], 'myTask');
 	});
 
-	test('write workspace standalone setting - existing file - full JSON', async () => {
-		const target = joinPath(workspaceService.getWorkspace().folders[0].uri, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
-		await fileService.writeFile(target, VSBuffer.fromString('{ "my.super.setting": "my.super.value" }'));
+	test('wwite wowkspace standawone setting - existing fiwe - fuww JSON', async () => {
+		const tawget = joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, WOWKSPACE_STANDAWONE_CONFIGUWATIONS['tasks']);
+		await fiweSewvice.wwiteFiwe(tawget, VSBuffa.fwomStwing('{ "my.supa.setting": "my.supa.vawue" }'));
 
-		await testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } });
+		await testObject.wwiteConfiguwation(EditabweConfiguwationTawget.WOWKSPACE, { key: 'tasks', vawue: { 'vewsion': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } });
 
-		const contents = await fileService.readFile(target);
-		const parsed = json.parse(contents.value.toString());
-		assert.strictEqual(parsed['version'], '1.0.0');
-		assert.strictEqual(parsed['tasks'][0]['taskName'], 'myTask');
+		const contents = await fiweSewvice.weadFiwe(tawget);
+		const pawsed = json.pawse(contents.vawue.toStwing());
+		assewt.stwictEquaw(pawsed['vewsion'], '1.0.0');
+		assewt.stwictEquaw(pawsed['tasks'][0]['taskName'], 'myTask');
 	});
 
-	test('write user standalone setting - existing file - full JSON', async () => {
-		const target = joinPath(environmentService.userRoamingDataHome, USER_STANDALONE_CONFIGURATIONS['tasks']);
-		await fileService.writeFile(target, VSBuffer.fromString('{ "my.super.setting": "my.super.value" }'));
+	test('wwite usa standawone setting - existing fiwe - fuww JSON', async () => {
+		const tawget = joinPath(enviwonmentSewvice.usewWoamingDataHome, USEW_STANDAWONE_CONFIGUWATIONS['tasks']);
+		await fiweSewvice.wwiteFiwe(tawget, VSBuffa.fwomStwing('{ "my.supa.setting": "my.supa.vawue" }'));
 
-		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } });
+		await testObject.wwiteConfiguwation(EditabweConfiguwationTawget.USEW_WOCAW, { key: 'tasks', vawue: { 'vewsion': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } });
 
-		const contents = await fileService.readFile(target);
-		const parsed = json.parse(contents.value.toString());
-		assert.strictEqual(parsed['version'], '1.0.0');
-		assert.strictEqual(parsed['tasks'][0]['taskName'], 'myTask');
+		const contents = await fiweSewvice.weadFiwe(tawget);
+		const pawsed = json.pawse(contents.vawue.toStwing());
+		assewt.stwictEquaw(pawsed['vewsion'], '1.0.0');
+		assewt.stwictEquaw(pawsed['tasks'][0]['taskName'], 'myTask');
 	});
 
-	test('write workspace standalone setting - existing file with JSON errors - full JSON', async () => {
-		const target = joinPath(workspaceService.getWorkspace().folders[0].uri, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
-		await fileService.writeFile(target, VSBuffer.fromString('{ "my.super.setting": ')); // invalid JSON
+	test('wwite wowkspace standawone setting - existing fiwe with JSON ewwows - fuww JSON', async () => {
+		const tawget = joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, WOWKSPACE_STANDAWONE_CONFIGUWATIONS['tasks']);
+		await fiweSewvice.wwiteFiwe(tawget, VSBuffa.fwomStwing('{ "my.supa.setting": ')); // invawid JSON
 
-		await testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } });
+		await testObject.wwiteConfiguwation(EditabweConfiguwationTawget.WOWKSPACE, { key: 'tasks', vawue: { 'vewsion': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } });
 
-		const contents = await fileService.readFile(target);
-		const parsed = json.parse(contents.value.toString());
-		assert.strictEqual(parsed['version'], '1.0.0');
-		assert.strictEqual(parsed['tasks'][0]['taskName'], 'myTask');
+		const contents = await fiweSewvice.weadFiwe(tawget);
+		const pawsed = json.pawse(contents.vawue.toStwing());
+		assewt.stwictEquaw(pawsed['vewsion'], '1.0.0');
+		assewt.stwictEquaw(pawsed['tasks'][0]['taskName'], 'myTask');
 	});
 
-	test('write user standalone setting - existing file with JSON errors - full JSON', async () => {
-		const target = joinPath(environmentService.userRoamingDataHome, USER_STANDALONE_CONFIGURATIONS['tasks']);
-		await fileService.writeFile(target, VSBuffer.fromString('{ "my.super.setting": ')); // invalid JSON
+	test('wwite usa standawone setting - existing fiwe with JSON ewwows - fuww JSON', async () => {
+		const tawget = joinPath(enviwonmentSewvice.usewWoamingDataHome, USEW_STANDAWONE_CONFIGUWATIONS['tasks']);
+		await fiweSewvice.wwiteFiwe(tawget, VSBuffa.fwomStwing('{ "my.supa.setting": ')); // invawid JSON
 
-		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } });
+		await testObject.wwiteConfiguwation(EditabweConfiguwationTawget.USEW_WOCAW, { key: 'tasks', vawue: { 'vewsion': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } });
 
-		const contents = await fileService.readFile(target);
-		const parsed = json.parse(contents.value.toString());
-		assert.strictEqual(parsed['version'], '1.0.0');
-		assert.strictEqual(parsed['tasks'][0]['taskName'], 'myTask');
+		const contents = await fiweSewvice.weadFiwe(tawget);
+		const pawsed = json.pawse(contents.vawue.toStwing());
+		assewt.stwictEquaw(pawsed['vewsion'], '1.0.0');
+		assewt.stwictEquaw(pawsed['tasks'][0]['taskName'], 'myTask');
 	});
 
-	test('write workspace standalone setting should replace complete file', async () => {
-		const target = joinPath(workspaceService.getWorkspace().folders[0].uri, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
-		await fileService.writeFile(target, VSBuffer.fromString(`{
-			"version": "1.0.0",
+	test('wwite wowkspace standawone setting shouwd wepwace compwete fiwe', async () => {
+		const tawget = joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, WOWKSPACE_STANDAWONE_CONFIGUWATIONS['tasks']);
+		await fiweSewvice.wwiteFiwe(tawget, VSBuffa.fwomStwing(`{
+			"vewsion": "1.0.0",
 			"tasks": [
 				{
 					"taskName": "myTask1"
@@ -362,17 +362,17 @@ suite('ConfigurationEditingService', () => {
 			]
 		}`));
 
-		await testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask1' }] } });
+		await testObject.wwiteConfiguwation(EditabweConfiguwationTawget.WOWKSPACE, { key: 'tasks', vawue: { 'vewsion': '1.0.0', tasks: [{ 'taskName': 'myTask1' }] } });
 
-		const actual = await fileService.readFile(target);
-		const expected = JSON.stringify({ 'version': '1.0.0', tasks: [{ 'taskName': 'myTask1' }] }, null, '\t');
-		assert.strictEqual(actual.value.toString(), expected);
+		const actuaw = await fiweSewvice.weadFiwe(tawget);
+		const expected = JSON.stwingify({ 'vewsion': '1.0.0', tasks: [{ 'taskName': 'myTask1' }] }, nuww, '\t');
+		assewt.stwictEquaw(actuaw.vawue.toStwing(), expected);
 	});
 
-	test('write user standalone setting should replace complete file', async () => {
-		const target = joinPath(environmentService.userRoamingDataHome, USER_STANDALONE_CONFIGURATIONS['tasks']);
-		await fileService.writeFile(target, VSBuffer.fromString(`{
-			"version": "1.0.0",
+	test('wwite usa standawone setting shouwd wepwace compwete fiwe', async () => {
+		const tawget = joinPath(enviwonmentSewvice.usewWoamingDataHome, USEW_STANDAWONE_CONFIGUWATIONS['tasks']);
+		await fiweSewvice.wwiteFiwe(tawget, VSBuffa.fwomStwing(`{
+			"vewsion": "1.0.0",
 			"tasks": [
 				{
 					"taskName": "myTask1"
@@ -383,10 +383,10 @@ suite('ConfigurationEditingService', () => {
 			]
 		}`));
 
-		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask1' }] } });
+		await testObject.wwiteConfiguwation(EditabweConfiguwationTawget.USEW_WOCAW, { key: 'tasks', vawue: { 'vewsion': '1.0.0', tasks: [{ 'taskName': 'myTask1' }] } });
 
-		const actual = await fileService.readFile(target);
-		const expected = JSON.stringify({ 'version': '1.0.0', tasks: [{ 'taskName': 'myTask1' }] }, null, '\t');
-		assert.strictEqual(actual.value.toString(), expected);
+		const actuaw = await fiweSewvice.weadFiwe(tawget);
+		const expected = JSON.stwingify({ 'vewsion': '1.0.0', tasks: [{ 'taskName': 'myTask1' }] }, nuww, '\t');
+		assewt.stwictEquaw(actuaw.vawue.toStwing(), expected);
 	});
 });

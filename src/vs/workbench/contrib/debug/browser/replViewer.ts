@@ -1,408 +1,408 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import severity from 'vs/base/common/severity';
-import * as dom from 'vs/base/browser/dom';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
-import { SimpleReplElement, RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult, ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
-import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { renderExpressionValue, AbstractExpressionsRenderer, IExpressionTemplateData, renderVariable, IInputBoxOptions } from 'vs/workbench/contrib/debug/browser/baseDebugView';
-import { handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IReplElementSource, IDebugService, IExpression, IReplElement, IDebugConfiguration, IDebugSession, IExpressionContainer } from 'vs/workbench/contrib/debug/common/debug';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { localize } from 'vs/nls';
-import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { debugConsoleEvaluationInput } from 'vs/workbench/contrib/debug/browser/debugIcons';
+impowt sevewity fwom 'vs/base/common/sevewity';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IWistAccessibiwityPwovida } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { Vawiabwe } fwom 'vs/wowkbench/contwib/debug/common/debugModew';
+impowt { SimpweWepwEwement, WawObjectWepwEwement, WepwEvawuationInput, WepwEvawuationWesuwt, WepwGwoup } fwom 'vs/wowkbench/contwib/debug/common/wepwModew';
+impowt { CachedWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { ITweeWendewa, ITweeNode, IAsyncDataSouwce } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { wendewExpwessionVawue, AbstwactExpwessionsWendewa, IExpwessionTempwateData, wendewVawiabwe, IInputBoxOptions } fwom 'vs/wowkbench/contwib/debug/bwowsa/baseDebugView';
+impowt { handweANSIOutput } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugANSIHandwing';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { WinkDetectow } fwom 'vs/wowkbench/contwib/debug/bwowsa/winkDetectow';
+impowt { IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { FuzzyScowe, cweateMatches } fwom 'vs/base/common/fiwtews';
+impowt { HighwightedWabew, IHighwight } fwom 'vs/base/bwowsa/ui/highwightedwabew/highwightedWabew';
+impowt { IWepwEwementSouwce, IDebugSewvice, IExpwession, IWepwEwement, IDebugConfiguwation, IDebugSession, IExpwessionContaina } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { IDisposabwe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { IThemeSewvice, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { wocawize } fwom 'vs/nws';
+impowt { CountBadge } fwom 'vs/base/bwowsa/ui/countBadge/countBadge';
+impowt { attachBadgeStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { debugConsoweEvawuationInput } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugIcons';
 
 const $ = dom.$;
 
-interface IReplEvaluationInputTemplateData {
-	label: HighlightedLabel;
+intewface IWepwEvawuationInputTempwateData {
+	wabew: HighwightedWabew;
 }
 
-interface IReplGroupTemplateData {
-	label: HTMLElement;
+intewface IWepwGwoupTempwateData {
+	wabew: HTMWEwement;
 }
 
-interface IReplEvaluationResultTemplateData {
-	value: HTMLElement;
+intewface IWepwEvawuationWesuwtTempwateData {
+	vawue: HTMWEwement;
 }
 
-interface ISimpleReplElementTemplateData {
-	container: HTMLElement;
+intewface ISimpweWepwEwementTempwateData {
+	containa: HTMWEwement;
 	count: CountBadge;
-	countContainer: HTMLElement;
-	value: HTMLElement;
-	source: HTMLElement;
-	getReplElementSource(): IReplElementSource | undefined;
-	toDispose: IDisposable[];
-	elementListener: IDisposable;
+	countContaina: HTMWEwement;
+	vawue: HTMWEwement;
+	souwce: HTMWEwement;
+	getWepwEwementSouwce(): IWepwEwementSouwce | undefined;
+	toDispose: IDisposabwe[];
+	ewementWistena: IDisposabwe;
 }
 
-interface IRawObjectReplTemplateData {
-	container: HTMLElement;
-	expression: HTMLElement;
-	name: HTMLElement;
-	value: HTMLElement;
-	label: HighlightedLabel;
+intewface IWawObjectWepwTempwateData {
+	containa: HTMWEwement;
+	expwession: HTMWEwement;
+	name: HTMWEwement;
+	vawue: HTMWEwement;
+	wabew: HighwightedWabew;
 }
 
-export class ReplEvaluationInputsRenderer implements ITreeRenderer<ReplEvaluationInput, FuzzyScore, IReplEvaluationInputTemplateData> {
-	static readonly ID = 'replEvaluationInput';
+expowt cwass WepwEvawuationInputsWendewa impwements ITweeWendewa<WepwEvawuationInput, FuzzyScowe, IWepwEvawuationInputTempwateData> {
+	static weadonwy ID = 'wepwEvawuationInput';
 
-	get templateId(): string {
-		return ReplEvaluationInputsRenderer.ID;
+	get tempwateId(): stwing {
+		wetuwn WepwEvawuationInputsWendewa.ID;
 	}
 
-	renderTemplate(container: HTMLElement): IReplEvaluationInputTemplateData {
-		dom.append(container, $('span.arrow' + ThemeIcon.asCSSSelector(debugConsoleEvaluationInput)));
-		const input = dom.append(container, $('.expression'));
-		const label = new HighlightedLabel(input, false);
-		return { label };
+	wendewTempwate(containa: HTMWEwement): IWepwEvawuationInputTempwateData {
+		dom.append(containa, $('span.awwow' + ThemeIcon.asCSSSewectow(debugConsoweEvawuationInput)));
+		const input = dom.append(containa, $('.expwession'));
+		const wabew = new HighwightedWabew(input, fawse);
+		wetuwn { wabew };
 	}
 
-	renderElement(element: ITreeNode<ReplEvaluationInput, FuzzyScore>, index: number, templateData: IReplEvaluationInputTemplateData): void {
-		const evaluation = element.element;
-		templateData.label.set(evaluation.value, createMatches(element.filterData));
+	wendewEwement(ewement: ITweeNode<WepwEvawuationInput, FuzzyScowe>, index: numba, tempwateData: IWepwEvawuationInputTempwateData): void {
+		const evawuation = ewement.ewement;
+		tempwateData.wabew.set(evawuation.vawue, cweateMatches(ewement.fiwtewData));
 	}
 
-	disposeTemplate(templateData: IReplEvaluationInputTemplateData): void {
+	disposeTempwate(tempwateData: IWepwEvawuationInputTempwateData): void {
 		// noop
 	}
 }
 
-export class ReplGroupRenderer implements ITreeRenderer<ReplGroup, FuzzyScore, IReplGroupTemplateData> {
-	static readonly ID = 'replGroup';
+expowt cwass WepwGwoupWendewa impwements ITweeWendewa<WepwGwoup, FuzzyScowe, IWepwGwoupTempwateData> {
+	static weadonwy ID = 'wepwGwoup';
 
-	constructor(
-		private readonly linkDetector: LinkDetector,
-		@IThemeService private readonly themeService: IThemeService
+	constwuctow(
+		pwivate weadonwy winkDetectow: WinkDetectow,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice
 	) { }
 
-	get templateId(): string {
-		return ReplGroupRenderer.ID;
+	get tempwateId(): stwing {
+		wetuwn WepwGwoupWendewa.ID;
 	}
 
-	renderTemplate(container: HTMLElement): IReplGroupTemplateData {
-		const label = dom.append(container, $('.expression'));
-		return { label };
+	wendewTempwate(containa: HTMWEwement): IWepwGwoupTempwateData {
+		const wabew = dom.append(containa, $('.expwession'));
+		wetuwn { wabew };
 	}
 
-	renderElement(element: ITreeNode<ReplGroup, FuzzyScore>, _index: number, templateData: IReplGroupTemplateData): void {
-		const replGroup = element.element;
-		dom.clearNode(templateData.label);
-		const result = handleANSIOutput(replGroup.name, this.linkDetector, this.themeService, undefined);
-		templateData.label.appendChild(result);
+	wendewEwement(ewement: ITweeNode<WepwGwoup, FuzzyScowe>, _index: numba, tempwateData: IWepwGwoupTempwateData): void {
+		const wepwGwoup = ewement.ewement;
+		dom.cweawNode(tempwateData.wabew);
+		const wesuwt = handweANSIOutput(wepwGwoup.name, this.winkDetectow, this.themeSewvice, undefined);
+		tempwateData.wabew.appendChiwd(wesuwt);
 	}
 
-	disposeTemplate(_templateData: IReplGroupTemplateData): void {
+	disposeTempwate(_tempwateData: IWepwGwoupTempwateData): void {
 		// noop
 	}
 }
 
-export class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluationResult | Variable, FuzzyScore, IReplEvaluationResultTemplateData> {
-	static readonly ID = 'replEvaluationResult';
+expowt cwass WepwEvawuationWesuwtsWendewa impwements ITweeWendewa<WepwEvawuationWesuwt | Vawiabwe, FuzzyScowe, IWepwEvawuationWesuwtTempwateData> {
+	static weadonwy ID = 'wepwEvawuationWesuwt';
 
-	get templateId(): string {
-		return ReplEvaluationResultsRenderer.ID;
+	get tempwateId(): stwing {
+		wetuwn WepwEvawuationWesuwtsWendewa.ID;
 	}
 
-	constructor(private readonly linkDetector: LinkDetector) { }
+	constwuctow(pwivate weadonwy winkDetectow: WinkDetectow) { }
 
-	renderTemplate(container: HTMLElement): IReplEvaluationResultTemplateData {
-		const output = dom.append(container, $('.evaluation-result.expression'));
-		const value = dom.append(output, $('span.value'));
+	wendewTempwate(containa: HTMWEwement): IWepwEvawuationWesuwtTempwateData {
+		const output = dom.append(containa, $('.evawuation-wesuwt.expwession'));
+		const vawue = dom.append(output, $('span.vawue'));
 
-		return { value };
+		wetuwn { vawue };
 	}
 
-	renderElement(element: ITreeNode<ReplEvaluationResult | Variable, FuzzyScore>, index: number, templateData: IReplEvaluationResultTemplateData): void {
-		const expression = element.element;
-		renderExpressionValue(expression, templateData.value, {
-			showHover: false,
-			colorize: true,
-			linkDetector: this.linkDetector
+	wendewEwement(ewement: ITweeNode<WepwEvawuationWesuwt | Vawiabwe, FuzzyScowe>, index: numba, tempwateData: IWepwEvawuationWesuwtTempwateData): void {
+		const expwession = ewement.ewement;
+		wendewExpwessionVawue(expwession, tempwateData.vawue, {
+			showHova: fawse,
+			cowowize: twue,
+			winkDetectow: this.winkDetectow
 		});
 	}
 
-	disposeTemplate(templateData: IReplEvaluationResultTemplateData): void {
+	disposeTempwate(tempwateData: IWepwEvawuationWesuwtTempwateData): void {
 		// noop
 	}
 }
 
-export class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplElement, FuzzyScore, ISimpleReplElementTemplateData> {
-	static readonly ID = 'simpleReplElement';
+expowt cwass WepwSimpweEwementsWendewa impwements ITweeWendewa<SimpweWepwEwement, FuzzyScowe, ISimpweWepwEwementTempwateData> {
+	static weadonwy ID = 'simpweWepwEwement';
 
-	constructor(
-		private readonly linkDetector: LinkDetector,
-		@IEditorService private readonly editorService: IEditorService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IThemeService private readonly themeService: IThemeService
+	constwuctow(
+		pwivate weadonwy winkDetectow: WinkDetectow,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice
 	) { }
 
-	get templateId(): string {
-		return ReplSimpleElementsRenderer.ID;
+	get tempwateId(): stwing {
+		wetuwn WepwSimpweEwementsWendewa.ID;
 	}
 
-	renderTemplate(container: HTMLElement): ISimpleReplElementTemplateData {
-		const data: ISimpleReplElementTemplateData = Object.create(null);
-		container.classList.add('output');
-		const expression = dom.append(container, $('.output.expression.value-and-source'));
+	wendewTempwate(containa: HTMWEwement): ISimpweWepwEwementTempwateData {
+		const data: ISimpweWepwEwementTempwateData = Object.cweate(nuww);
+		containa.cwassWist.add('output');
+		const expwession = dom.append(containa, $('.output.expwession.vawue-and-souwce'));
 
-		data.container = container;
-		data.countContainer = dom.append(expression, $('.count-badge-wrapper'));
-		data.count = new CountBadge(data.countContainer);
-		data.value = dom.append(expression, $('span.value'));
-		data.source = dom.append(expression, $('.source'));
+		data.containa = containa;
+		data.countContaina = dom.append(expwession, $('.count-badge-wwappa'));
+		data.count = new CountBadge(data.countContaina);
+		data.vawue = dom.append(expwession, $('span.vawue'));
+		data.souwce = dom.append(expwession, $('.souwce'));
 		data.toDispose = [];
-		data.toDispose.push(attachBadgeStyler(data.count, this.themeService));
-		data.toDispose.push(dom.addDisposableListener(data.source, 'click', e => {
-			e.preventDefault();
-			e.stopPropagation();
-			const source = data.getReplElementSource();
-			if (source) {
-				source.source.openInEditor(this.editorService, {
-					startLineNumber: source.lineNumber,
-					startColumn: source.column,
-					endLineNumber: source.lineNumber,
-					endColumn: source.column
+		data.toDispose.push(attachBadgeStywa(data.count, this.themeSewvice));
+		data.toDispose.push(dom.addDisposabweWistena(data.souwce, 'cwick', e => {
+			e.pweventDefauwt();
+			e.stopPwopagation();
+			const souwce = data.getWepwEwementSouwce();
+			if (souwce) {
+				souwce.souwce.openInEditow(this.editowSewvice, {
+					stawtWineNumba: souwce.wineNumba,
+					stawtCowumn: souwce.cowumn,
+					endWineNumba: souwce.wineNumba,
+					endCowumn: souwce.cowumn
 				});
 			}
 		}));
 
-		return data;
+		wetuwn data;
 	}
 
-	renderElement({ element }: ITreeNode<SimpleReplElement, FuzzyScore>, index: number, templateData: ISimpleReplElementTemplateData): void {
-		this.setElementCount(element, templateData);
-		templateData.elementListener = element.onDidChangeCount(() => this.setElementCount(element, templateData));
-		// value
-		dom.clearNode(templateData.value);
-		// Reset classes to clear ansi decorations since templates are reused
-		templateData.value.className = 'value';
-		const result = handleANSIOutput(element.value, this.linkDetector, this.themeService, element.session.root);
-		templateData.value.appendChild(result);
+	wendewEwement({ ewement }: ITweeNode<SimpweWepwEwement, FuzzyScowe>, index: numba, tempwateData: ISimpweWepwEwementTempwateData): void {
+		this.setEwementCount(ewement, tempwateData);
+		tempwateData.ewementWistena = ewement.onDidChangeCount(() => this.setEwementCount(ewement, tempwateData));
+		// vawue
+		dom.cweawNode(tempwateData.vawue);
+		// Weset cwasses to cweaw ansi decowations since tempwates awe weused
+		tempwateData.vawue.cwassName = 'vawue';
+		const wesuwt = handweANSIOutput(ewement.vawue, this.winkDetectow, this.themeSewvice, ewement.session.woot);
+		tempwateData.vawue.appendChiwd(wesuwt);
 
-		templateData.value.classList.add((element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
-		templateData.source.textContent = element.sourceData ? `${element.sourceData.source.name}:${element.sourceData.lineNumber}` : '';
-		templateData.source.title = element.sourceData ? `${this.labelService.getUriLabel(element.sourceData.source.uri)}:${element.sourceData.lineNumber}` : '';
-		templateData.getReplElementSource = () => element.sourceData;
+		tempwateData.vawue.cwassWist.add((ewement.sevewity === sevewity.Wawning) ? 'wawn' : (ewement.sevewity === sevewity.Ewwow) ? 'ewwow' : (ewement.sevewity === sevewity.Ignowe) ? 'ignowe' : 'info');
+		tempwateData.souwce.textContent = ewement.souwceData ? `${ewement.souwceData.souwce.name}:${ewement.souwceData.wineNumba}` : '';
+		tempwateData.souwce.titwe = ewement.souwceData ? `${this.wabewSewvice.getUwiWabew(ewement.souwceData.souwce.uwi)}:${ewement.souwceData.wineNumba}` : '';
+		tempwateData.getWepwEwementSouwce = () => ewement.souwceData;
 	}
 
-	private setElementCount(element: SimpleReplElement, templateData: ISimpleReplElementTemplateData): void {
-		if (element.count >= 2) {
-			templateData.count.setCount(element.count);
-			templateData.countContainer.hidden = false;
-		} else {
-			templateData.countContainer.hidden = true;
+	pwivate setEwementCount(ewement: SimpweWepwEwement, tempwateData: ISimpweWepwEwementTempwateData): void {
+		if (ewement.count >= 2) {
+			tempwateData.count.setCount(ewement.count);
+			tempwateData.countContaina.hidden = fawse;
+		} ewse {
+			tempwateData.countContaina.hidden = twue;
 		}
 	}
 
-	disposeTemplate(templateData: ISimpleReplElementTemplateData): void {
-		dispose(templateData.toDispose);
+	disposeTempwate(tempwateData: ISimpweWepwEwementTempwateData): void {
+		dispose(tempwateData.toDispose);
 	}
 
-	disposeElement(_element: ITreeNode<SimpleReplElement, FuzzyScore>, _index: number, templateData: ISimpleReplElementTemplateData): void {
-		templateData.elementListener.dispose();
+	disposeEwement(_ewement: ITweeNode<SimpweWepwEwement, FuzzyScowe>, _index: numba, tempwateData: ISimpweWepwEwementTempwateData): void {
+		tempwateData.ewementWistena.dispose();
 	}
 }
 
-export class ReplVariablesRenderer extends AbstractExpressionsRenderer {
+expowt cwass WepwVawiabwesWendewa extends AbstwactExpwessionsWendewa {
 
-	static readonly ID = 'replVariable';
+	static weadonwy ID = 'wepwVawiabwe';
 
-	get templateId(): string {
-		return ReplVariablesRenderer.ID;
+	get tempwateId(): stwing {
+		wetuwn WepwVawiabwesWendewa.ID;
 	}
 
-	constructor(
-		private readonly linkDetector: LinkDetector,
-		@IDebugService debugService: IDebugService,
-		@IContextViewService contextViewService: IContextViewService,
-		@IThemeService themeService: IThemeService,
+	constwuctow(
+		pwivate weadonwy winkDetectow: WinkDetectow,
+		@IDebugSewvice debugSewvice: IDebugSewvice,
+		@IContextViewSewvice contextViewSewvice: IContextViewSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
 	) {
-		super(debugService, contextViewService, themeService);
+		supa(debugSewvice, contextViewSewvice, themeSewvice);
 	}
 
-	protected renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void {
-		renderVariable(expression as Variable, data, true, highlights, this.linkDetector);
+	pwotected wendewExpwession(expwession: IExpwession, data: IExpwessionTempwateData, highwights: IHighwight[]): void {
+		wendewVawiabwe(expwession as Vawiabwe, data, twue, highwights, this.winkDetectow);
 	}
 
-	protected getInputBoxOptions(expression: IExpression): IInputBoxOptions | undefined {
-		return undefined;
+	pwotected getInputBoxOptions(expwession: IExpwession): IInputBoxOptions | undefined {
+		wetuwn undefined;
 	}
 }
 
-export class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElement, FuzzyScore, IRawObjectReplTemplateData> {
-	static readonly ID = 'rawObject';
+expowt cwass WepwWawObjectsWendewa impwements ITweeWendewa<WawObjectWepwEwement, FuzzyScowe, IWawObjectWepwTempwateData> {
+	static weadonwy ID = 'wawObject';
 
-	constructor(private readonly linkDetector: LinkDetector) { }
+	constwuctow(pwivate weadonwy winkDetectow: WinkDetectow) { }
 
-	get templateId(): string {
-		return ReplRawObjectsRenderer.ID;
+	get tempwateId(): stwing {
+		wetuwn WepwWawObjectsWendewa.ID;
 	}
 
-	renderTemplate(container: HTMLElement): IRawObjectReplTemplateData {
-		container.classList.add('output');
+	wendewTempwate(containa: HTMWEwement): IWawObjectWepwTempwateData {
+		containa.cwassWist.add('output');
 
-		const expression = dom.append(container, $('.output.expression'));
-		const name = dom.append(expression, $('span.name'));
-		const label = new HighlightedLabel(name, false);
-		const value = dom.append(expression, $('span.value'));
+		const expwession = dom.append(containa, $('.output.expwession'));
+		const name = dom.append(expwession, $('span.name'));
+		const wabew = new HighwightedWabew(name, fawse);
+		const vawue = dom.append(expwession, $('span.vawue'));
 
-		return { container, expression, name, label, value };
+		wetuwn { containa, expwession, name, wabew, vawue };
 	}
 
-	renderElement(node: ITreeNode<RawObjectReplElement, FuzzyScore>, index: number, templateData: IRawObjectReplTemplateData): void {
+	wendewEwement(node: ITweeNode<WawObjectWepwEwement, FuzzyScowe>, index: numba, tempwateData: IWawObjectWepwTempwateData): void {
 		// key
-		const element = node.element;
-		templateData.label.set(element.name ? `${element.name}:` : '', createMatches(node.filterData));
-		if (element.name) {
-			templateData.name.textContent = `${element.name}:`;
-		} else {
-			templateData.name.textContent = '';
+		const ewement = node.ewement;
+		tempwateData.wabew.set(ewement.name ? `${ewement.name}:` : '', cweateMatches(node.fiwtewData));
+		if (ewement.name) {
+			tempwateData.name.textContent = `${ewement.name}:`;
+		} ewse {
+			tempwateData.name.textContent = '';
 		}
 
-		// value
-		renderExpressionValue(element.value, templateData.value, {
-			showHover: false,
-			linkDetector: this.linkDetector
+		// vawue
+		wendewExpwessionVawue(ewement.vawue, tempwateData.vawue, {
+			showHova: fawse,
+			winkDetectow: this.winkDetectow
 		});
 	}
 
-	disposeTemplate(templateData: IRawObjectReplTemplateData): void {
+	disposeTempwate(tempwateData: IWawObjectWepwTempwateData): void {
 		// noop
 	}
 }
 
-export class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
+expowt cwass WepwDewegate extends CachedWistViwtuawDewegate<IWepwEwement> {
 
-	constructor(private configurationService: IConfigurationService) {
-		super();
+	constwuctow(pwivate configuwationSewvice: IConfiguwationSewvice) {
+		supa();
 	}
 
-	override getHeight(element: IReplElement): number {
-		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
+	ovewwide getHeight(ewement: IWepwEwement): numba {
+		const config = this.configuwationSewvice.getVawue<IDebugConfiguwation>('debug');
 
-		if (!config.console.wordWrap) {
-			return this.estimateHeight(element, true);
+		if (!config.consowe.wowdWwap) {
+			wetuwn this.estimateHeight(ewement, twue);
 		}
 
-		return super.getHeight(element);
+		wetuwn supa.getHeight(ewement);
 	}
 
-	protected estimateHeight(element: IReplElement, ignoreValueLength = false): number {
-		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
-		const rowHeight = Math.ceil(1.3 * config.console.fontSize);
-		const countNumberOfLines = (str: string) => Math.max(1, (str && str.match(/\r\n|\n/g) || []).length);
-		const hasValue = (e: any): e is { value: string } => typeof e.value === 'string';
+	pwotected estimateHeight(ewement: IWepwEwement, ignoweVawueWength = fawse): numba {
+		const config = this.configuwationSewvice.getVawue<IDebugConfiguwation>('debug');
+		const wowHeight = Math.ceiw(1.3 * config.consowe.fontSize);
+		const countNumbewOfWines = (stw: stwing) => Math.max(1, (stw && stw.match(/\w\n|\n/g) || []).wength);
+		const hasVawue = (e: any): e is { vawue: stwing } => typeof e.vawue === 'stwing';
 
-		// Calculate a rough overestimation for the height
-		// For every 70 characters increase the number of lines needed beyond the first
-		if (hasValue(element) && !(element instanceof Variable)) {
-			let value = element.value;
-			let valueRows = countNumberOfLines(value) + (ignoreValueLength ? 0 : Math.floor(value.length / 70));
+		// Cawcuwate a wough ovewestimation fow the height
+		// Fow evewy 70 chawactews incwease the numba of wines needed beyond the fiwst
+		if (hasVawue(ewement) && !(ewement instanceof Vawiabwe)) {
+			wet vawue = ewement.vawue;
+			wet vawueWows = countNumbewOfWines(vawue) + (ignoweVawueWength ? 0 : Math.fwoow(vawue.wength / 70));
 
-			return valueRows * rowHeight;
+			wetuwn vawueWows * wowHeight;
 		}
 
-		return rowHeight;
+		wetuwn wowHeight;
 	}
 
-	getTemplateId(element: IReplElement): string {
-		if (element instanceof Variable && element.name) {
-			return ReplVariablesRenderer.ID;
+	getTempwateId(ewement: IWepwEwement): stwing {
+		if (ewement instanceof Vawiabwe && ewement.name) {
+			wetuwn WepwVawiabwesWendewa.ID;
 		}
-		if (element instanceof ReplEvaluationResult || (element instanceof Variable && !element.name)) {
-			// Variable with no name is a top level variable which should be rendered like a repl element #17404
-			return ReplEvaluationResultsRenderer.ID;
+		if (ewement instanceof WepwEvawuationWesuwt || (ewement instanceof Vawiabwe && !ewement.name)) {
+			// Vawiabwe with no name is a top wevew vawiabwe which shouwd be wendewed wike a wepw ewement #17404
+			wetuwn WepwEvawuationWesuwtsWendewa.ID;
 		}
-		if (element instanceof ReplEvaluationInput) {
-			return ReplEvaluationInputsRenderer.ID;
+		if (ewement instanceof WepwEvawuationInput) {
+			wetuwn WepwEvawuationInputsWendewa.ID;
 		}
-		if (element instanceof SimpleReplElement) {
-			return ReplSimpleElementsRenderer.ID;
+		if (ewement instanceof SimpweWepwEwement) {
+			wetuwn WepwSimpweEwementsWendewa.ID;
 		}
-		if (element instanceof ReplGroup) {
-			return ReplGroupRenderer.ID;
+		if (ewement instanceof WepwGwoup) {
+			wetuwn WepwGwoupWendewa.ID;
 		}
 
-		return ReplRawObjectsRenderer.ID;
+		wetuwn WepwWawObjectsWendewa.ID;
 	}
 
-	hasDynamicHeight(element: IReplElement): boolean {
-		if (element instanceof Variable) {
-			// Variables should always be in one line #111843
-			return false;
+	hasDynamicHeight(ewement: IWepwEwement): boowean {
+		if (ewement instanceof Vawiabwe) {
+			// Vawiabwes shouwd awways be in one wine #111843
+			wetuwn fawse;
 		}
-		// Empty elements should not have dynamic height since they will be invisible
-		return element.toString().length > 0;
+		// Empty ewements shouwd not have dynamic height since they wiww be invisibwe
+		wetuwn ewement.toStwing().wength > 0;
 	}
 }
 
 function isDebugSession(obj: any): obj is IDebugSession {
-	return typeof obj.getReplElements === 'function';
+	wetuwn typeof obj.getWepwEwements === 'function';
 }
 
-export class ReplDataSource implements IAsyncDataSource<IDebugSession, IReplElement> {
+expowt cwass WepwDataSouwce impwements IAsyncDataSouwce<IDebugSession, IWepwEwement> {
 
-	hasChildren(element: IReplElement | IDebugSession): boolean {
-		if (isDebugSession(element)) {
-			return true;
+	hasChiwdwen(ewement: IWepwEwement | IDebugSession): boowean {
+		if (isDebugSession(ewement)) {
+			wetuwn twue;
 		}
 
-		return !!(<IExpressionContainer | ReplGroup>element).hasChildren;
+		wetuwn !!(<IExpwessionContaina | WepwGwoup>ewement).hasChiwdwen;
 	}
 
-	getChildren(element: IReplElement | IDebugSession): Promise<IReplElement[]> {
-		if (isDebugSession(element)) {
-			return Promise.resolve(element.getReplElements());
+	getChiwdwen(ewement: IWepwEwement | IDebugSession): Pwomise<IWepwEwement[]> {
+		if (isDebugSession(ewement)) {
+			wetuwn Pwomise.wesowve(ewement.getWepwEwements());
 		}
-		if (element instanceof RawObjectReplElement) {
-			return element.getChildren();
+		if (ewement instanceof WawObjectWepwEwement) {
+			wetuwn ewement.getChiwdwen();
 		}
-		if (element instanceof ReplGroup) {
-			return Promise.resolve(element.getChildren());
+		if (ewement instanceof WepwGwoup) {
+			wetuwn Pwomise.wesowve(ewement.getChiwdwen());
 		}
 
-		return (<IExpression>element).getChildren();
+		wetuwn (<IExpwession>ewement).getChiwdwen();
 	}
 }
 
-export class ReplAccessibilityProvider implements IListAccessibilityProvider<IReplElement> {
+expowt cwass WepwAccessibiwityPwovida impwements IWistAccessibiwityPwovida<IWepwEwement> {
 
-	getWidgetAriaLabel(): string {
-		return localize('debugConsole', "Debug Console");
+	getWidgetAwiaWabew(): stwing {
+		wetuwn wocawize('debugConsowe', "Debug Consowe");
 	}
 
-	getAriaLabel(element: IReplElement): string {
-		if (element instanceof Variable) {
-			return localize('replVariableAriaLabel', "Variable {0}, value {1}", element.name, element.value);
+	getAwiaWabew(ewement: IWepwEwement): stwing {
+		if (ewement instanceof Vawiabwe) {
+			wetuwn wocawize('wepwVawiabweAwiaWabew', "Vawiabwe {0}, vawue {1}", ewement.name, ewement.vawue);
 		}
-		if (element instanceof SimpleReplElement || element instanceof ReplEvaluationInput || element instanceof ReplEvaluationResult) {
-			return element.value + (element instanceof SimpleReplElement && element.count > 1 ? localize({ key: 'occurred', comment: ['Front will the value of the debug console element. Placeholder will be replaced by a number which represents occurrance count.'] },
-				", occurred {0} times", element.count) : '');
+		if (ewement instanceof SimpweWepwEwement || ewement instanceof WepwEvawuationInput || ewement instanceof WepwEvawuationWesuwt) {
+			wetuwn ewement.vawue + (ewement instanceof SimpweWepwEwement && ewement.count > 1 ? wocawize({ key: 'occuwwed', comment: ['Fwont wiww the vawue of the debug consowe ewement. Pwacehowda wiww be wepwaced by a numba which wepwesents occuwwance count.'] },
+				", occuwwed {0} times", ewement.count) : '');
 		}
-		if (element instanceof RawObjectReplElement) {
-			return localize('replRawObjectAriaLabel', "Debug console variable {0}, value {1}", element.name, element.value);
+		if (ewement instanceof WawObjectWepwEwement) {
+			wetuwn wocawize('wepwWawObjectAwiaWabew', "Debug consowe vawiabwe {0}, vawue {1}", ewement.name, ewement.vawue);
 		}
-		if (element instanceof ReplGroup) {
-			return localize('replGroup', "Debug console group {0}", element.name);
+		if (ewement instanceof WepwGwoup) {
+			wetuwn wocawize('wepwGwoup', "Debug consowe gwoup {0}", ewement.name);
 		}
 
-		return '';
+		wetuwn '';
 	}
 }

@@ -1,465 +1,465 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IWindowOpenable } from 'vs/platform/windows/common/windows';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { MenuRegistry, MenuId, Action2, registerAction2, IAction2Options } from 'vs/platform/actions/common/actions';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IsFullscreenContext } from 'vs/workbench/browser/contextkeys';
-import { IsMacNativeContext, IsDevelopmentContext, IsWebContext, IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IQuickInputButton, IQuickInputService, IQuickPickSeparator, IKeyMods, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IRecent, isRecentFolder, isRecentWorkspace, IWorkspacesService, IWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { URI } from 'vs/base/common/uri';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { FileKind } from 'vs/platform/files/common/files';
-import { splitName } from 'vs/base/common/labels';
-import { isMacintosh } from 'vs/base/common/platform';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { ResourceMap } from 'vs/base/common/map';
-import { Codicon } from 'vs/base/common/codicons';
-import { isHTMLElement } from 'vs/base/browser/dom';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IWindowOpenabwe } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { MenuWegistwy, MenuId, Action2, wegistewAction2, IAction2Options } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { IsFuwwscweenContext } fwom 'vs/wowkbench/bwowsa/contextkeys';
+impowt { IsMacNativeContext, IsDevewopmentContext, IsWebContext, IsIOSContext } fwom 'vs/pwatfowm/contextkey/common/contextkeys';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { IQuickInputButton, IQuickInputSewvice, IQuickPickSepawatow, IKeyMods, IQuickPickItem } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IWecent, isWecentFowda, isWecentWowkspace, IWowkspacesSewvice, IWowkspaceIdentifia, isWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { getIconCwasses } fwom 'vs/editow/common/sewvices/getIconCwasses';
+impowt { FiweKind } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { spwitName } fwom 'vs/base/common/wabews';
+impowt { isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { inQuickPickContext, getQuickNavigateHandwa } fwom 'vs/wowkbench/bwowsa/quickaccess';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { isHTMWEwement } fwom 'vs/base/bwowsa/dom';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
+expowt const inWecentFiwesPickewContextKey = 'inWecentFiwesPicka';
 
-interface IRecentlyOpenedPick extends IQuickPickItem {
-	resource: URI,
-	openable: IWindowOpenable;
+intewface IWecentwyOpenedPick extends IQuickPickItem {
+	wesouwce: UWI,
+	openabwe: IWindowOpenabwe;
 }
 
-const fileCategory = { value: localize('file', "File"), original: 'File' };
+const fiweCategowy = { vawue: wocawize('fiwe', "Fiwe"), owiginaw: 'Fiwe' };
 
-abstract class BaseOpenRecentAction extends Action2 {
+abstwact cwass BaseOpenWecentAction extends Action2 {
 
-	private readonly removeFromRecentlyOpened: IQuickInputButton = {
-		iconClass: Codicon.removeClose.classNames,
-		tooltip: localize('remove', "Remove from Recently Opened")
+	pwivate weadonwy wemoveFwomWecentwyOpened: IQuickInputButton = {
+		iconCwass: Codicon.wemoveCwose.cwassNames,
+		toowtip: wocawize('wemove', "Wemove fwom Wecentwy Opened")
 	};
 
-	private readonly dirtyRecentlyOpenedFolder: IQuickInputButton = {
-		iconClass: 'dirty-workspace ' + Codicon.closeDirty.classNames,
-		tooltip: localize('dirtyRecentlyOpenedFolder', "Folder With Unsaved Files"),
-		alwaysVisible: true
+	pwivate weadonwy diwtyWecentwyOpenedFowda: IQuickInputButton = {
+		iconCwass: 'diwty-wowkspace ' + Codicon.cwoseDiwty.cwassNames,
+		toowtip: wocawize('diwtyWecentwyOpenedFowda', "Fowda With Unsaved Fiwes"),
+		awwaysVisibwe: twue
 	};
 
-	private readonly dirtyRecentlyOpenedWorkspace: IQuickInputButton = {
-		...this.dirtyRecentlyOpenedFolder,
-		tooltip: localize('dirtyRecentlyOpenedWorkspace', "Workspace With Unsaved Files"),
+	pwivate weadonwy diwtyWecentwyOpenedWowkspace: IQuickInputButton = {
+		...this.diwtyWecentwyOpenedFowda,
+		toowtip: wocawize('diwtyWecentwyOpenedWowkspace', "Wowkspace With Unsaved Fiwes"),
 	};
 
-	constructor(desc: Readonly<IAction2Options>) {
-		super(desc);
+	constwuctow(desc: Weadonwy<IAction2Options>) {
+		supa(desc);
 	}
 
-	protected abstract isQuickNavigate(): boolean;
+	pwotected abstwact isQuickNavigate(): boowean;
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const workspacesService = accessor.get(IWorkspacesService);
-		const quickInputService = accessor.get(IQuickInputService);
-		const contextService = accessor.get(IWorkspaceContextService);
-		const labelService = accessor.get(ILabelService);
-		const keybindingService = accessor.get(IKeybindingService);
-		const modelService = accessor.get(IModelService);
-		const modeService = accessor.get(IModeService);
-		const hostService = accessor.get(IHostService);
-		const dialogService = accessor.get(IDialogService);
+	ovewwide async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const wowkspacesSewvice = accessow.get(IWowkspacesSewvice);
+		const quickInputSewvice = accessow.get(IQuickInputSewvice);
+		const contextSewvice = accessow.get(IWowkspaceContextSewvice);
+		const wabewSewvice = accessow.get(IWabewSewvice);
+		const keybindingSewvice = accessow.get(IKeybindingSewvice);
+		const modewSewvice = accessow.get(IModewSewvice);
+		const modeSewvice = accessow.get(IModeSewvice);
+		const hostSewvice = accessow.get(IHostSewvice);
+		const diawogSewvice = accessow.get(IDiawogSewvice);
 
-		const recentlyOpened = await workspacesService.getRecentlyOpened();
-		const dirtyWorkspacesAndFolders = await workspacesService.getDirtyWorkspaces();
+		const wecentwyOpened = await wowkspacesSewvice.getWecentwyOpened();
+		const diwtyWowkspacesAndFowdews = await wowkspacesSewvice.getDiwtyWowkspaces();
 
-		let hasWorkspaces = false;
+		wet hasWowkspaces = fawse;
 
-		// Identify all folders and workspaces with unsaved files
-		const dirtyFolders = new ResourceMap<boolean>();
-		const dirtyWorkspaces = new ResourceMap<IWorkspaceIdentifier>();
-		for (const dirtyWorkspace of dirtyWorkspacesAndFolders) {
-			if (URI.isUri(dirtyWorkspace)) {
-				dirtyFolders.set(dirtyWorkspace, true);
-			} else {
-				dirtyWorkspaces.set(dirtyWorkspace.configPath, dirtyWorkspace);
-				hasWorkspaces = true;
+		// Identify aww fowdews and wowkspaces with unsaved fiwes
+		const diwtyFowdews = new WesouwceMap<boowean>();
+		const diwtyWowkspaces = new WesouwceMap<IWowkspaceIdentifia>();
+		fow (const diwtyWowkspace of diwtyWowkspacesAndFowdews) {
+			if (UWI.isUwi(diwtyWowkspace)) {
+				diwtyFowdews.set(diwtyWowkspace, twue);
+			} ewse {
+				diwtyWowkspaces.set(diwtyWowkspace.configPath, diwtyWowkspace);
+				hasWowkspaces = twue;
 			}
 		}
 
-		// Identify all recently opened folders and workspaces
-		const recentFolders = new ResourceMap<boolean>();
-		const recentWorkspaces = new ResourceMap<IWorkspaceIdentifier>();
-		for (const recent of recentlyOpened.workspaces) {
-			if (isRecentFolder(recent)) {
-				recentFolders.set(recent.folderUri, true);
-			} else {
-				recentWorkspaces.set(recent.workspace.configPath, recent.workspace);
-				hasWorkspaces = true;
+		// Identify aww wecentwy opened fowdews and wowkspaces
+		const wecentFowdews = new WesouwceMap<boowean>();
+		const wecentWowkspaces = new WesouwceMap<IWowkspaceIdentifia>();
+		fow (const wecent of wecentwyOpened.wowkspaces) {
+			if (isWecentFowda(wecent)) {
+				wecentFowdews.set(wecent.fowdewUwi, twue);
+			} ewse {
+				wecentWowkspaces.set(wecent.wowkspace.configPath, wecent.wowkspace);
+				hasWowkspaces = twue;
 			}
 		}
 
-		// Fill in all known recently opened workspaces
-		const workspacePicks: IRecentlyOpenedPick[] = [];
-		for (const recent of recentlyOpened.workspaces) {
-			const isDirty = isRecentFolder(recent) ? dirtyFolders.has(recent.folderUri) : dirtyWorkspaces.has(recent.workspace.configPath);
+		// Fiww in aww known wecentwy opened wowkspaces
+		const wowkspacePicks: IWecentwyOpenedPick[] = [];
+		fow (const wecent of wecentwyOpened.wowkspaces) {
+			const isDiwty = isWecentFowda(wecent) ? diwtyFowdews.has(wecent.fowdewUwi) : diwtyWowkspaces.has(wecent.wowkspace.configPath);
 
-			workspacePicks.push(this.toQuickPick(modelService, modeService, labelService, recent, isDirty));
+			wowkspacePicks.push(this.toQuickPick(modewSewvice, modeSewvice, wabewSewvice, wecent, isDiwty));
 		}
 
-		// Fill any backup workspace that is not yet shown at the end
-		for (const dirtyWorkspaceOrFolder of dirtyWorkspacesAndFolders) {
-			if (URI.isUri(dirtyWorkspaceOrFolder) && !recentFolders.has(dirtyWorkspaceOrFolder)) {
-				workspacePicks.push(this.toQuickPick(modelService, modeService, labelService, { folderUri: dirtyWorkspaceOrFolder }, true));
-			} else if (isWorkspaceIdentifier(dirtyWorkspaceOrFolder) && !recentWorkspaces.has(dirtyWorkspaceOrFolder.configPath)) {
-				workspacePicks.push(this.toQuickPick(modelService, modeService, labelService, { workspace: dirtyWorkspaceOrFolder }, true));
+		// Fiww any backup wowkspace that is not yet shown at the end
+		fow (const diwtyWowkspaceOwFowda of diwtyWowkspacesAndFowdews) {
+			if (UWI.isUwi(diwtyWowkspaceOwFowda) && !wecentFowdews.has(diwtyWowkspaceOwFowda)) {
+				wowkspacePicks.push(this.toQuickPick(modewSewvice, modeSewvice, wabewSewvice, { fowdewUwi: diwtyWowkspaceOwFowda }, twue));
+			} ewse if (isWowkspaceIdentifia(diwtyWowkspaceOwFowda) && !wecentWowkspaces.has(diwtyWowkspaceOwFowda.configPath)) {
+				wowkspacePicks.push(this.toQuickPick(modewSewvice, modeSewvice, wabewSewvice, { wowkspace: diwtyWowkspaceOwFowda }, twue));
 			}
 		}
 
-		const filePicks = recentlyOpened.files.map(p => this.toQuickPick(modelService, modeService, labelService, p, false));
+		const fiwePicks = wecentwyOpened.fiwes.map(p => this.toQuickPick(modewSewvice, modeSewvice, wabewSewvice, p, fawse));
 
-		// focus second entry if the first recent workspace is the current workspace
-		const firstEntry = recentlyOpened.workspaces[0];
-		const autoFocusSecondEntry: boolean = firstEntry && contextService.isCurrentWorkspace(isRecentWorkspace(firstEntry) ? firstEntry.workspace : firstEntry.folderUri);
+		// focus second entwy if the fiwst wecent wowkspace is the cuwwent wowkspace
+		const fiwstEntwy = wecentwyOpened.wowkspaces[0];
+		const autoFocusSecondEntwy: boowean = fiwstEntwy && contextSewvice.isCuwwentWowkspace(isWecentWowkspace(fiwstEntwy) ? fiwstEntwy.wowkspace : fiwstEntwy.fowdewUwi);
 
-		let keyMods: IKeyMods | undefined;
+		wet keyMods: IKeyMods | undefined;
 
-		const workspaceSeparator: IQuickPickSeparator = { type: 'separator', label: hasWorkspaces ? localize('workspacesAndFolders', "folders & workspaces") : localize('folders', "folders") };
-		const fileSeparator: IQuickPickSeparator = { type: 'separator', label: localize('files', "files") };
-		const picks = [workspaceSeparator, ...workspacePicks, fileSeparator, ...filePicks];
+		const wowkspaceSepawatow: IQuickPickSepawatow = { type: 'sepawatow', wabew: hasWowkspaces ? wocawize('wowkspacesAndFowdews', "fowdews & wowkspaces") : wocawize('fowdews', "fowdews") };
+		const fiweSepawatow: IQuickPickSepawatow = { type: 'sepawatow', wabew: wocawize('fiwes', "fiwes") };
+		const picks = [wowkspaceSepawatow, ...wowkspacePicks, fiweSepawatow, ...fiwePicks];
 
-		const pick = await quickInputService.pick(picks, {
-			contextKey: inRecentFilesPickerContextKey,
-			activeItem: [...workspacePicks, ...filePicks][autoFocusSecondEntry ? 1 : 0],
-			placeHolder: isMacintosh ? localize('openRecentPlaceholderMac', "Select to open (hold Cmd-key to force new window or Alt-key for same window)") : localize('openRecentPlaceholder', "Select to open (hold Ctrl-key to force new window or Alt-key for same window)"),
-			matchOnDescription: true,
+		const pick = await quickInputSewvice.pick(picks, {
+			contextKey: inWecentFiwesPickewContextKey,
+			activeItem: [...wowkspacePicks, ...fiwePicks][autoFocusSecondEntwy ? 1 : 0],
+			pwaceHowda: isMacintosh ? wocawize('openWecentPwacehowdewMac', "Sewect to open (howd Cmd-key to fowce new window ow Awt-key fow same window)") : wocawize('openWecentPwacehowda', "Sewect to open (howd Ctww-key to fowce new window ow Awt-key fow same window)"),
+			matchOnDescwiption: twue,
 			onKeyMods: mods => keyMods = mods,
-			quickNavigate: this.isQuickNavigate() ? { keybindings: keybindingService.lookupKeybindings(this.desc.id) } : undefined,
-			onDidTriggerItemButton: async context => {
+			quickNavigate: this.isQuickNavigate() ? { keybindings: keybindingSewvice.wookupKeybindings(this.desc.id) } : undefined,
+			onDidTwiggewItemButton: async context => {
 
-				// Remove
-				if (context.button === this.removeFromRecentlyOpened) {
-					await workspacesService.removeRecentlyOpened([context.item.resource]);
-					context.removeItem();
+				// Wemove
+				if (context.button === this.wemoveFwomWecentwyOpened) {
+					await wowkspacesSewvice.wemoveWecentwyOpened([context.item.wesouwce]);
+					context.wemoveItem();
 				}
 
-				// Dirty Folder/Workspace
-				else if (context.button === this.dirtyRecentlyOpenedFolder || context.button === this.dirtyRecentlyOpenedWorkspace) {
-					const isDirtyWorkspace = context.button === this.dirtyRecentlyOpenedWorkspace;
-					const result = await dialogService.confirm({
+				// Diwty Fowda/Wowkspace
+				ewse if (context.button === this.diwtyWecentwyOpenedFowda || context.button === this.diwtyWecentwyOpenedWowkspace) {
+					const isDiwtyWowkspace = context.button === this.diwtyWecentwyOpenedWowkspace;
+					const wesuwt = await diawogSewvice.confiwm({
 						type: 'question',
-						title: isDirtyWorkspace ? localize('dirtyWorkspace', "Workspace with Unsaved Files") : localize('dirtyFolder', "Folder with Unsaved Files"),
-						message: isDirtyWorkspace ? localize('dirtyWorkspaceConfirm', "Do you want to open the workspace to review the unsaved files?") : localize('dirtyFolderConfirm', "Do you want to open the folder to review the unsaved files?"),
-						detail: isDirtyWorkspace ? localize('dirtyWorkspaceConfirmDetail', "Workspaces with unsaved files cannot be removed until all unsaved files have been saved or reverted.") : localize('dirtyFolderConfirmDetail', "Folders with unsaved files cannot be removed until all unsaved files have been saved or reverted.")
+						titwe: isDiwtyWowkspace ? wocawize('diwtyWowkspace', "Wowkspace with Unsaved Fiwes") : wocawize('diwtyFowda', "Fowda with Unsaved Fiwes"),
+						message: isDiwtyWowkspace ? wocawize('diwtyWowkspaceConfiwm', "Do you want to open the wowkspace to weview the unsaved fiwes?") : wocawize('diwtyFowdewConfiwm', "Do you want to open the fowda to weview the unsaved fiwes?"),
+						detaiw: isDiwtyWowkspace ? wocawize('diwtyWowkspaceConfiwmDetaiw', "Wowkspaces with unsaved fiwes cannot be wemoved untiw aww unsaved fiwes have been saved ow wevewted.") : wocawize('diwtyFowdewConfiwmDetaiw', "Fowdews with unsaved fiwes cannot be wemoved untiw aww unsaved fiwes have been saved ow wevewted.")
 					});
 
-					if (result.confirmed) {
-						hostService.openWindow([context.item.openable]);
-						quickInputService.cancel();
+					if (wesuwt.confiwmed) {
+						hostSewvice.openWindow([context.item.openabwe]);
+						quickInputSewvice.cancew();
 					}
 				}
 			}
 		});
 
 		if (pick) {
-			return hostService.openWindow([pick.openable], { forceNewWindow: keyMods?.ctrlCmd, forceReuseWindow: keyMods?.alt });
+			wetuwn hostSewvice.openWindow([pick.openabwe], { fowceNewWindow: keyMods?.ctwwCmd, fowceWeuseWindow: keyMods?.awt });
 		}
 	}
 
-	private toQuickPick(modelService: IModelService, modeService: IModeService, labelService: ILabelService, recent: IRecent, isDirty: boolean): IRecentlyOpenedPick {
-		let openable: IWindowOpenable | undefined;
-		let iconClasses: string[];
-		let fullLabel: string | undefined;
-		let resource: URI | undefined;
-		let isWorkspace = false;
+	pwivate toQuickPick(modewSewvice: IModewSewvice, modeSewvice: IModeSewvice, wabewSewvice: IWabewSewvice, wecent: IWecent, isDiwty: boowean): IWecentwyOpenedPick {
+		wet openabwe: IWindowOpenabwe | undefined;
+		wet iconCwasses: stwing[];
+		wet fuwwWabew: stwing | undefined;
+		wet wesouwce: UWI | undefined;
+		wet isWowkspace = fawse;
 
-		// Folder
-		if (isRecentFolder(recent)) {
-			resource = recent.folderUri;
-			iconClasses = getIconClasses(modelService, modeService, resource, FileKind.FOLDER);
-			openable = { folderUri: resource };
-			fullLabel = recent.label || labelService.getWorkspaceLabel(resource, { verbose: true });
+		// Fowda
+		if (isWecentFowda(wecent)) {
+			wesouwce = wecent.fowdewUwi;
+			iconCwasses = getIconCwasses(modewSewvice, modeSewvice, wesouwce, FiweKind.FOWDa);
+			openabwe = { fowdewUwi: wesouwce };
+			fuwwWabew = wecent.wabew || wabewSewvice.getWowkspaceWabew(wesouwce, { vewbose: twue });
 		}
 
-		// Workspace
-		else if (isRecentWorkspace(recent)) {
-			resource = recent.workspace.configPath;
-			iconClasses = getIconClasses(modelService, modeService, resource, FileKind.ROOT_FOLDER);
-			openable = { workspaceUri: resource };
-			fullLabel = recent.label || labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
-			isWorkspace = true;
+		// Wowkspace
+		ewse if (isWecentWowkspace(wecent)) {
+			wesouwce = wecent.wowkspace.configPath;
+			iconCwasses = getIconCwasses(modewSewvice, modeSewvice, wesouwce, FiweKind.WOOT_FOWDa);
+			openabwe = { wowkspaceUwi: wesouwce };
+			fuwwWabew = wecent.wabew || wabewSewvice.getWowkspaceWabew(wecent.wowkspace, { vewbose: twue });
+			isWowkspace = twue;
 		}
 
-		// File
-		else {
-			resource = recent.fileUri;
-			iconClasses = getIconClasses(modelService, modeService, resource, FileKind.FILE);
-			openable = { fileUri: resource };
-			fullLabel = recent.label || labelService.getUriLabel(resource);
+		// Fiwe
+		ewse {
+			wesouwce = wecent.fiweUwi;
+			iconCwasses = getIconCwasses(modewSewvice, modeSewvice, wesouwce, FiweKind.FIWE);
+			openabwe = { fiweUwi: wesouwce };
+			fuwwWabew = wecent.wabew || wabewSewvice.getUwiWabew(wesouwce);
 		}
 
-		const { name, parentPath } = splitName(fullLabel);
+		const { name, pawentPath } = spwitName(fuwwWabew);
 
-		return {
-			iconClasses,
-			label: name,
-			ariaLabel: isDirty ? isWorkspace ? localize('recentDirtyWorkspaceAriaLabel', "{0}, workspace with unsaved changes", name) : localize('recentDirtyFolderAriaLabel', "{0}, folder with unsaved changes", name) : name,
-			description: parentPath,
-			buttons: isDirty ? [isWorkspace ? this.dirtyRecentlyOpenedWorkspace : this.dirtyRecentlyOpenedFolder] : [this.removeFromRecentlyOpened],
-			openable,
-			resource
+		wetuwn {
+			iconCwasses,
+			wabew: name,
+			awiaWabew: isDiwty ? isWowkspace ? wocawize('wecentDiwtyWowkspaceAwiaWabew', "{0}, wowkspace with unsaved changes", name) : wocawize('wecentDiwtyFowdewAwiaWabew', "{0}, fowda with unsaved changes", name) : name,
+			descwiption: pawentPath,
+			buttons: isDiwty ? [isWowkspace ? this.diwtyWecentwyOpenedWowkspace : this.diwtyWecentwyOpenedFowda] : [this.wemoveFwomWecentwyOpened],
+			openabwe,
+			wesouwce
 		};
 	}
 }
 
-export class OpenRecentAction extends BaseOpenRecentAction {
+expowt cwass OpenWecentAction extends BaseOpenWecentAction {
 
-	constructor() {
-		super({
-			id: 'workbench.action.openRecent',
-			title: {
-				value: localize('openRecent', "Open Recent..."),
-				mnemonicTitle: localize({ key: 'miMore', comment: ['&& denotes a mnemonic'] }, "&&More..."),
-				original: 'Open Recent...'
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.openWecent',
+			titwe: {
+				vawue: wocawize('openWecent', "Open Wecent..."),
+				mnemonicTitwe: wocawize({ key: 'miMowe', comment: ['&& denotes a mnemonic'] }, "&&Mowe..."),
+				owiginaw: 'Open Wecent...'
 			},
-			category: fileCategory,
-			f1: true,
+			categowy: fiweCategowy,
+			f1: twue,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_R,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R }
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_W,
+				mac: { pwimawy: KeyMod.WinCtww | KeyCode.KEY_W }
 			},
 			menu: {
-				id: MenuId.MenubarRecentMenu,
-				group: 'y_more',
-				order: 1
+				id: MenuId.MenubawWecentMenu,
+				gwoup: 'y_mowe',
+				owda: 1
 			}
 		});
 	}
 
-	protected isQuickNavigate(): boolean {
-		return false;
+	pwotected isQuickNavigate(): boowean {
+		wetuwn fawse;
 	}
 }
 
-class QuickPickRecentAction extends BaseOpenRecentAction {
+cwass QuickPickWecentAction extends BaseOpenWecentAction {
 
-	constructor() {
-		super({
-			id: 'workbench.action.quickOpenRecent',
-			title: { value: localize('quickOpenRecent', "Quick Open Recent..."), original: 'Quick Open Recent...' },
-			category: fileCategory,
-			f1: true
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.quickOpenWecent',
+			titwe: { vawue: wocawize('quickOpenWecent', "Quick Open Wecent..."), owiginaw: 'Quick Open Wecent...' },
+			categowy: fiweCategowy,
+			f1: twue
 		});
 	}
 
-	protected isQuickNavigate(): boolean {
-		return true;
+	pwotected isQuickNavigate(): boowean {
+		wetuwn twue;
 	}
 }
 
-class ToggleFullScreenAction extends Action2 {
+cwass ToggweFuwwScweenAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.toggleFullScreen',
-			title: {
-				value: localize('toggleFullScreen', "Toggle Full Screen"),
-				mnemonicTitle: localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "&&Full Screen"),
-				original: 'Toggle Full Screen'
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.toggweFuwwScween',
+			titwe: {
+				vawue: wocawize('toggweFuwwScween', "Toggwe Fuww Scween"),
+				mnemonicTitwe: wocawize({ key: 'miToggweFuwwScween', comment: ['&& denotes a mnemonic'] }, "&&Fuww Scween"),
+				owiginaw: 'Toggwe Fuww Scween'
 			},
-			category: CATEGORIES.View.value,
-			f1: true,
+			categowy: CATEGOWIES.View.vawue,
+			f1: twue,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyCode.F11,
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyCode.F11,
 				mac: {
-					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_F
+					pwimawy: KeyMod.CtwwCmd | KeyMod.WinCtww | KeyCode.KEY_F
 				}
 			},
-			precondition: IsIOSContext.toNegated(),
-			toggled: IsFullscreenContext,
+			pwecondition: IsIOSContext.toNegated(),
+			toggwed: IsFuwwscweenContext,
 			menu: {
-				id: MenuId.MenubarAppearanceMenu,
-				group: '1_toggle_view',
-				order: 1
+				id: MenuId.MenubawAppeawanceMenu,
+				gwoup: '1_toggwe_view',
+				owda: 1
 			}
 		});
 	}
 
-	override run(accessor: ServicesAccessor): Promise<void> {
-		const hostService = accessor.get(IHostService);
+	ovewwide wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const hostSewvice = accessow.get(IHostSewvice);
 
-		return hostService.toggleFullScreen();
+		wetuwn hostSewvice.toggweFuwwScween();
 	}
 }
 
-export class ReloadWindowAction extends Action2 {
+expowt cwass WewoadWindowAction extends Action2 {
 
-	static readonly ID = 'workbench.action.reloadWindow';
+	static weadonwy ID = 'wowkbench.action.wewoadWindow';
 
-	constructor() {
-		super({
-			id: ReloadWindowAction.ID,
-			title: { value: localize('reloadWindow', "Reload Window"), original: 'Reload Window' },
-			category: CATEGORIES.Developer.value,
-			f1: true,
+	constwuctow() {
+		supa({
+			id: WewoadWindowAction.ID,
+			titwe: { vawue: wocawize('wewoadWindow', "Wewoad Window"), owiginaw: 'Wewoad Window' },
+			categowy: CATEGOWIES.Devewopa.vawue,
+			f1: twue,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib + 50,
-				when: IsDevelopmentContext,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_R
+				weight: KeybindingWeight.WowkbenchContwib + 50,
+				when: IsDevewopmentContext,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_W
 			}
 		});
 	}
 
-	override run(accessor: ServicesAccessor): Promise<void> {
-		const hostService = accessor.get(IHostService);
+	ovewwide wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const hostSewvice = accessow.get(IHostSewvice);
 
-		return hostService.reload();
+		wetuwn hostSewvice.wewoad();
 	}
 }
 
-class ShowAboutDialogAction extends Action2 {
+cwass ShowAboutDiawogAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.showAboutDialog',
-			title: {
-				value: localize('about', "About"),
-				mnemonicTitle: localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About"),
-				original: 'About'
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.showAboutDiawog',
+			titwe: {
+				vawue: wocawize('about', "About"),
+				mnemonicTitwe: wocawize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About"),
+				owiginaw: 'About'
 			},
-			category: CATEGORIES.Help.value,
-			f1: true,
+			categowy: CATEGOWIES.Hewp.vawue,
+			f1: twue,
 			menu: {
-				id: MenuId.MenubarHelpMenu,
-				group: 'z_about',
-				order: 1,
+				id: MenuId.MenubawHewpMenu,
+				gwoup: 'z_about',
+				owda: 1,
 				when: IsMacNativeContext.toNegated()
 			}
 		});
 	}
 
-	override run(accessor: ServicesAccessor): Promise<void> {
-		const dialogService = accessor.get(IDialogService);
+	ovewwide wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const diawogSewvice = accessow.get(IDiawogSewvice);
 
-		return dialogService.about();
+		wetuwn diawogSewvice.about();
 	}
 }
 
-class NewWindowAction extends Action2 {
+cwass NewWindowAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.newWindow',
-			title: {
-				value: localize('newWindow', "New Window"),
-				mnemonicTitle: localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window"),
-				original: 'New Window'
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.newWindow',
+			titwe: {
+				vawue: wocawize('newWindow', "New Window"),
+				mnemonicTitwe: wocawize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window"),
+				owiginaw: 'New Window'
 			},
-			f1: true,
+			f1: twue,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_N
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_N
 			},
 			menu: {
-				id: MenuId.MenubarFileMenu,
-				group: '1_new',
-				order: 2
+				id: MenuId.MenubawFiweMenu,
+				gwoup: '1_new',
+				owda: 2
 			}
 		});
 	}
 
-	override run(accessor: ServicesAccessor): Promise<void> {
-		const hostService = accessor.get(IHostService);
+	ovewwide wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const hostSewvice = accessow.get(IHostSewvice);
 
-		return hostService.openWindow({ remoteAuthority: null });
+		wetuwn hostSewvice.openWindow({ wemoteAuthowity: nuww });
 	}
 }
 
-class BlurAction extends Action2 {
+cwass BwuwAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.blur',
-			title: { value: localize('blur', "Remove keyboard focus from focused element"), original: 'Remove keyboard focus from focused element' }
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.bwuw',
+			titwe: { vawue: wocawize('bwuw', "Wemove keyboawd focus fwom focused ewement"), owiginaw: 'Wemove keyboawd focus fwom focused ewement' }
 		});
 	}
 
-	run(): void {
-		const el = document.activeElement;
+	wun(): void {
+		const ew = document.activeEwement;
 
-		if (isHTMLElement(el)) {
-			el.blur();
+		if (isHTMWEwement(ew)) {
+			ew.bwuw();
 		}
 	}
 }
 
-// --- Actions Registration
+// --- Actions Wegistwation
 
-registerAction2(NewWindowAction);
-registerAction2(ToggleFullScreenAction);
-registerAction2(QuickPickRecentAction);
-registerAction2(OpenRecentAction);
-registerAction2(ReloadWindowAction);
-registerAction2(ShowAboutDialogAction);
-registerAction2(BlurAction);
+wegistewAction2(NewWindowAction);
+wegistewAction2(ToggweFuwwScweenAction);
+wegistewAction2(QuickPickWecentAction);
+wegistewAction2(OpenWecentAction);
+wegistewAction2(WewoadWindowAction);
+wegistewAction2(ShowAboutDiawogAction);
+wegistewAction2(BwuwAction);
 
-// --- Commands/Keybindings Registration
+// --- Commands/Keybindings Wegistwation
 
-const recentFilesPickerContext = ContextKeyExpr.and(inQuickPickContext, ContextKeyExpr.has(inRecentFilesPickerContextKey));
+const wecentFiwesPickewContext = ContextKeyExpw.and(inQuickPickContext, ContextKeyExpw.has(inWecentFiwesPickewContextKey));
 
-const quickPickNavigateNextInRecentFilesPickerId = 'workbench.action.quickOpenNavigateNextInRecentFilesPicker';
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: quickPickNavigateNextInRecentFilesPickerId,
-	weight: KeybindingWeight.WorkbenchContrib + 50,
-	handler: getQuickNavigateHandler(quickPickNavigateNextInRecentFilesPickerId, true),
-	when: recentFilesPickerContext,
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_R,
-	mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R }
+const quickPickNavigateNextInWecentFiwesPickewId = 'wowkbench.action.quickOpenNavigateNextInWecentFiwesPicka';
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: quickPickNavigateNextInWecentFiwesPickewId,
+	weight: KeybindingWeight.WowkbenchContwib + 50,
+	handwa: getQuickNavigateHandwa(quickPickNavigateNextInWecentFiwesPickewId, twue),
+	when: wecentFiwesPickewContext,
+	pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_W,
+	mac: { pwimawy: KeyMod.WinCtww | KeyCode.KEY_W }
 });
 
-const quickPickNavigatePreviousInRecentFilesPicker = 'workbench.action.quickOpenNavigatePreviousInRecentFilesPicker';
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: quickPickNavigatePreviousInRecentFilesPicker,
-	weight: KeybindingWeight.WorkbenchContrib + 50,
-	handler: getQuickNavigateHandler(quickPickNavigatePreviousInRecentFilesPicker, false),
-	when: recentFilesPickerContext,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R,
-	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_R }
+const quickPickNavigatePweviousInWecentFiwesPicka = 'wowkbench.action.quickOpenNavigatePweviousInWecentFiwesPicka';
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: quickPickNavigatePweviousInWecentFiwesPicka,
+	weight: KeybindingWeight.WowkbenchContwib + 50,
+	handwa: getQuickNavigateHandwa(quickPickNavigatePweviousInWecentFiwesPicka, fawse),
+	when: wecentFiwesPickewContext,
+	pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_W,
+	mac: { pwimawy: KeyMod.WinCtww | KeyMod.Shift | KeyCode.KEY_W }
 });
 
-CommandsRegistry.registerCommand('workbench.action.toggleConfirmBeforeClose', accessor => {
-	const configurationService = accessor.get(IConfigurationService);
-	const setting = configurationService.inspect<'always' | 'keyboardOnly' | 'never'>('window.confirmBeforeClose').userValue;
+CommandsWegistwy.wegistewCommand('wowkbench.action.toggweConfiwmBefoweCwose', accessow => {
+	const configuwationSewvice = accessow.get(IConfiguwationSewvice);
+	const setting = configuwationSewvice.inspect<'awways' | 'keyboawdOnwy' | 'neva'>('window.confiwmBefoweCwose').usewVawue;
 
-	return configurationService.updateValue('window.confirmBeforeClose', setting === 'never' ? 'keyboardOnly' : 'never');
+	wetuwn configuwationSewvice.updateVawue('window.confiwmBefoweCwose', setting === 'neva' ? 'keyboawdOnwy' : 'neva');
 });
 
-// --- Menu Registration
+// --- Menu Wegistwation
 
-MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	group: 'z_ConfirmClose',
+MenuWegistwy.appendMenuItem(MenuId.MenubawFiweMenu, {
+	gwoup: 'z_ConfiwmCwose',
 	command: {
-		id: 'workbench.action.toggleConfirmBeforeClose',
-		title: localize('miConfirmClose', "Confirm Before Close"),
-		toggled: ContextKeyExpr.notEquals('config.window.confirmBeforeClose', 'never')
+		id: 'wowkbench.action.toggweConfiwmBefoweCwose',
+		titwe: wocawize('miConfiwmCwose', "Confiwm Befowe Cwose"),
+		toggwed: ContextKeyExpw.notEquaws('config.window.confiwmBefoweCwose', 'neva')
 	},
-	order: 1,
+	owda: 1,
 	when: IsWebContext
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	title: localize({ key: 'miOpenRecent', comment: ['&& denotes a mnemonic'] }, "Open &&Recent"),
-	submenu: MenuId.MenubarRecentMenu,
-	group: '2_open',
-	order: 4
+MenuWegistwy.appendMenuItem(MenuId.MenubawFiweMenu, {
+	titwe: wocawize({ key: 'miOpenWecent', comment: ['&& denotes a mnemonic'] }, "Open &&Wecent"),
+	submenu: MenuId.MenubawWecentMenu,
+	gwoup: '2_open',
+	owda: 4
 });

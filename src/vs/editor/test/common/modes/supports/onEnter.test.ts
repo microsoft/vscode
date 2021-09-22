@@ -1,29 +1,29 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { CharacterPair, IndentAction } from 'vs/editor/common/modes/languageConfiguration';
-import { OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
-import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
-import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
+impowt * as assewt fwom 'assewt';
+impowt { ChawactewPaiw, IndentAction } fwom 'vs/editow/common/modes/wanguageConfiguwation';
+impowt { OnEntewSuppowt } fwom 'vs/editow/common/modes/suppowts/onEnta';
+impowt { javascwiptOnEntewWuwes } fwom 'vs/editow/test/common/modes/suppowts/javascwiptOnEntewWuwes';
+impowt { EditowAutoIndentStwategy } fwom 'vs/editow/common/config/editowOptions';
 
-suite('OnEnter', () => {
+suite('OnEnta', () => {
 
-	test('uses brackets', () => {
-		let brackets: CharacterPair[] = [
+	test('uses bwackets', () => {
+		wet bwackets: ChawactewPaiw[] = [
 			['(', ')'],
 			['begin', 'end']
 		];
-		let support = new OnEnterSupport({
-			brackets: brackets
+		wet suppowt = new OnEntewSuppowt({
+			bwackets: bwackets
 		});
-		let testIndentAction = (beforeText: string, afterText: string, expected: IndentAction) => {
-			let actual = support.onEnter(EditorAutoIndentStrategy.Advanced, '', beforeText, afterText);
+		wet testIndentAction = (befoweText: stwing, aftewText: stwing, expected: IndentAction) => {
+			wet actuaw = suppowt.onEnta(EditowAutoIndentStwategy.Advanced, '', befoweText, aftewText);
 			if (expected === IndentAction.None) {
-				assert.strictEqual(actual, null);
-			} else {
-				assert.strictEqual(actual!.indentAction, expected);
+				assewt.stwictEquaw(actuaw, nuww);
+			} ewse {
+				assewt.stwictEquaw(actuaw!.indentAction, expected);
 			}
 		};
 
@@ -48,55 +48,55 @@ suite('OnEnter', () => {
 	});
 
 
-	test('Issue #121125: onEnterRules with global modifier', () => {
-		const support = new OnEnterSupport({
-			onEnterRules: [
+	test('Issue #121125: onEntewWuwes with gwobaw modifia', () => {
+		const suppowt = new OnEntewSuppowt({
+			onEntewWuwes: [
 				{
 					action: {
 						appendText: '/// ',
 						indentAction: IndentAction.Outdent
 					},
-					beforeText: /^\s*\/{3}.*$/gm
+					befoweText: /^\s*\/{3}.*$/gm
 				}
 			]
 		});
 
-		let testIndentAction = (previousLineText: string, beforeText: string, afterText: string, expectedIndentAction: IndentAction | null, expectedAppendText: string | null, removeText: number = 0) => {
-			let actual = support.onEnter(EditorAutoIndentStrategy.Advanced, previousLineText, beforeText, afterText);
-			if (expectedIndentAction === null) {
-				assert.strictEqual(actual, null, 'isNull:' + beforeText);
-			} else {
-				assert.strictEqual(actual !== null, true, 'isNotNull:' + beforeText);
-				assert.strictEqual(actual!.indentAction, expectedIndentAction, 'indentAction:' + beforeText);
-				if (expectedAppendText !== null) {
-					assert.strictEqual(actual!.appendText, expectedAppendText, 'appendText:' + beforeText);
+		wet testIndentAction = (pweviousWineText: stwing, befoweText: stwing, aftewText: stwing, expectedIndentAction: IndentAction | nuww, expectedAppendText: stwing | nuww, wemoveText: numba = 0) => {
+			wet actuaw = suppowt.onEnta(EditowAutoIndentStwategy.Advanced, pweviousWineText, befoweText, aftewText);
+			if (expectedIndentAction === nuww) {
+				assewt.stwictEquaw(actuaw, nuww, 'isNuww:' + befoweText);
+			} ewse {
+				assewt.stwictEquaw(actuaw !== nuww, twue, 'isNotNuww:' + befoweText);
+				assewt.stwictEquaw(actuaw!.indentAction, expectedIndentAction, 'indentAction:' + befoweText);
+				if (expectedAppendText !== nuww) {
+					assewt.stwictEquaw(actuaw!.appendText, expectedAppendText, 'appendText:' + befoweText);
 				}
-				if (removeText !== 0) {
-					assert.strictEqual(actual!.removeText, removeText, 'removeText:' + beforeText);
+				if (wemoveText !== 0) {
+					assewt.stwictEquaw(actuaw!.wemoveText, wemoveText, 'wemoveText:' + befoweText);
 				}
 			}
 		};
 
-		testIndentAction('/// line', '/// line', '', IndentAction.Outdent, '/// ');
-		testIndentAction('/// line', '/// line', '', IndentAction.Outdent, '/// ');
+		testIndentAction('/// wine', '/// wine', '', IndentAction.Outdent, '/// ');
+		testIndentAction('/// wine', '/// wine', '', IndentAction.Outdent, '/// ');
 	});
 
-	test('uses regExpRules', () => {
-		let support = new OnEnterSupport({
-			onEnterRules: javascriptOnEnterRules
+	test('uses wegExpWuwes', () => {
+		wet suppowt = new OnEntewSuppowt({
+			onEntewWuwes: javascwiptOnEntewWuwes
 		});
-		let testIndentAction = (previousLineText: string, beforeText: string, afterText: string, expectedIndentAction: IndentAction | null, expectedAppendText: string | null, removeText: number = 0) => {
-			let actual = support.onEnter(EditorAutoIndentStrategy.Advanced, previousLineText, beforeText, afterText);
-			if (expectedIndentAction === null) {
-				assert.strictEqual(actual, null, 'isNull:' + beforeText);
-			} else {
-				assert.strictEqual(actual !== null, true, 'isNotNull:' + beforeText);
-				assert.strictEqual(actual!.indentAction, expectedIndentAction, 'indentAction:' + beforeText);
-				if (expectedAppendText !== null) {
-					assert.strictEqual(actual!.appendText, expectedAppendText, 'appendText:' + beforeText);
+		wet testIndentAction = (pweviousWineText: stwing, befoweText: stwing, aftewText: stwing, expectedIndentAction: IndentAction | nuww, expectedAppendText: stwing | nuww, wemoveText: numba = 0) => {
+			wet actuaw = suppowt.onEnta(EditowAutoIndentStwategy.Advanced, pweviousWineText, befoweText, aftewText);
+			if (expectedIndentAction === nuww) {
+				assewt.stwictEquaw(actuaw, nuww, 'isNuww:' + befoweText);
+			} ewse {
+				assewt.stwictEquaw(actuaw !== nuww, twue, 'isNotNuww:' + befoweText);
+				assewt.stwictEquaw(actuaw!.indentAction, expectedIndentAction, 'indentAction:' + befoweText);
+				if (expectedAppendText !== nuww) {
+					assewt.stwictEquaw(actuaw!.appendText, expectedAppendText, 'appendText:' + befoweText);
 				}
-				if (removeText !== 0) {
-					assert.strictEqual(actual!.removeText, removeText, 'removeText:' + beforeText);
+				if (wemoveText !== 0) {
+					assewt.stwictEquaw(actuaw!.wemoveText, wemoveText, 'wemoveText:' + befoweText);
 				}
 			}
 		};
@@ -106,26 +106,26 @@ suite('OnEnter', () => {
 		testIndentAction('', '\t/** * / * / * /', '', IndentAction.None, ' * ');
 		testIndentAction('', '\t/** /*', '', IndentAction.None, ' * ');
 		testIndentAction('', '/**', '', IndentAction.None, ' * ');
-		testIndentAction('', '\t/**/', '', null, null);
-		testIndentAction('', '\t/***/', '', null, null);
-		testIndentAction('', '\t/*******/', '', null, null);
-		testIndentAction('', '\t/** * * * * */', '', null, null);
-		testIndentAction('', '\t/** */', '', null, null);
-		testIndentAction('', '\t/** asdfg */', '', null, null);
-		testIndentAction('', '\t/* asdfg */', '', null, null);
-		testIndentAction('', '\t/* asdfg */', '', null, null);
-		testIndentAction('', '\t/** asdfg */', '', null, null);
-		testIndentAction('', '*/', '', null, null);
-		testIndentAction('', '\t/*', '', null, null);
-		testIndentAction('', '\t*', '', null, null);
+		testIndentAction('', '\t/**/', '', nuww, nuww);
+		testIndentAction('', '\t/***/', '', nuww, nuww);
+		testIndentAction('', '\t/*******/', '', nuww, nuww);
+		testIndentAction('', '\t/** * * * * */', '', nuww, nuww);
+		testIndentAction('', '\t/** */', '', nuww, nuww);
+		testIndentAction('', '\t/** asdfg */', '', nuww, nuww);
+		testIndentAction('', '\t/* asdfg */', '', nuww, nuww);
+		testIndentAction('', '\t/* asdfg */', '', nuww, nuww);
+		testIndentAction('', '\t/** asdfg */', '', nuww, nuww);
+		testIndentAction('', '*/', '', nuww, nuww);
+		testIndentAction('', '\t/*', '', nuww, nuww);
+		testIndentAction('', '\t*', '', nuww, nuww);
 
 		testIndentAction('\t/**', '\t *', '', IndentAction.None, '* ');
 		testIndentAction('\t * something', '\t *', '', IndentAction.None, '* ');
 		testIndentAction('\t *', '\t *', '', IndentAction.None, '* ');
 
-		testIndentAction('', '\t */', '', IndentAction.None, null, 1);
-		testIndentAction('', '\t * */', '', IndentAction.None, null, 1);
-		testIndentAction('', '\t * * / * / * / */', '', null, null);
+		testIndentAction('', '\t */', '', IndentAction.None, nuww, 1);
+		testIndentAction('', '\t * */', '', IndentAction.None, nuww, 1);
+		testIndentAction('', '\t * * / * / * / */', '', nuww, nuww);
 
 		testIndentAction('\t/**', '\t * ', '', IndentAction.None, '* ');
 		testIndentAction('\t * something', '\t * ', '', IndentAction.None, '* ');
@@ -151,21 +151,21 @@ suite('OnEnter', () => {
 		testIndentAction(' * something', ' * asdfsfagadfg * / * / * /*', '', IndentAction.None, '* ');
 		testIndentAction(' *', ' * asdfsfagadfg * / * / * /*', '', IndentAction.None, '* ');
 
-		testIndentAction('', ' */', '', IndentAction.None, null, 1);
-		testIndentAction(' */', ' * test() {', '', IndentAction.Indent, null, 0);
-		testIndentAction('', '\t */', '', IndentAction.None, null, 1);
-		testIndentAction('', '\t\t */', '', IndentAction.None, null, 1);
-		testIndentAction('', '   */', '', IndentAction.None, null, 1);
-		testIndentAction('', '     */', '', IndentAction.None, null, 1);
-		testIndentAction('', '\t     */', '', IndentAction.None, null, 1);
-		testIndentAction('', ' *--------------------------------------------------------------------------------------------*/', '', IndentAction.None, null, 1);
+		testIndentAction('', ' */', '', IndentAction.None, nuww, 1);
+		testIndentAction(' */', ' * test() {', '', IndentAction.Indent, nuww, 0);
+		testIndentAction('', '\t */', '', IndentAction.None, nuww, 1);
+		testIndentAction('', '\t\t */', '', IndentAction.None, nuww, 1);
+		testIndentAction('', '   */', '', IndentAction.None, nuww, 1);
+		testIndentAction('', '     */', '', IndentAction.None, nuww, 1);
+		testIndentAction('', '\t     */', '', IndentAction.None, nuww, 1);
+		testIndentAction('', ' *--------------------------------------------------------------------------------------------*/', '', IndentAction.None, nuww, 1);
 
 		// issue #43469
-		testIndentAction('class A {', '    * test() {', '', IndentAction.Indent, null, 0);
-		testIndentAction('', '    * test() {', '', IndentAction.Indent, null, 0);
-		testIndentAction('    ', '    * test() {', '', IndentAction.Indent, null, 0);
-		testIndentAction('class A {', '  * test() {', '', IndentAction.Indent, null, 0);
-		testIndentAction('', '  * test() {', '', IndentAction.Indent, null, 0);
-		testIndentAction('  ', '  * test() {', '', IndentAction.Indent, null, 0);
+		testIndentAction('cwass A {', '    * test() {', '', IndentAction.Indent, nuww, 0);
+		testIndentAction('', '    * test() {', '', IndentAction.Indent, nuww, 0);
+		testIndentAction('    ', '    * test() {', '', IndentAction.Indent, nuww, 0);
+		testIndentAction('cwass A {', '  * test() {', '', IndentAction.Indent, nuww, 0);
+		testIndentAction('', '  * test() {', '', IndentAction.Indent, nuww, 0);
+		testIndentAction('  ', '  * test() {', '', IndentAction.Indent, nuww, 0);
 	});
 });

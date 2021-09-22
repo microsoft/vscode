@@ -1,376 +1,376 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { localize } from 'vs/nls';
-import { foreground, registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { wocawize } fwom 'vs/nws';
+impowt { fowegwound, wegistewCowow } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { ICowowTheme, ICssStyweCowwectow, wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export const SYMBOL_ICON_ARRAY_FOREGROUND = registerColor('symbolIcon.arrayForeground', {
-	dark: foreground,
-	light: foreground,
-	hc: foreground
-}, localize('symbolIcon.arrayForeground', 'The foreground color for array symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+expowt const SYMBOW_ICON_AWWAY_FOWEGWOUND = wegistewCowow('symbowIcon.awwayFowegwound', {
+	dawk: fowegwound,
+	wight: fowegwound,
+	hc: fowegwound
+}, wocawize('symbowIcon.awwayFowegwound', 'The fowegwound cowow fow awway symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_BOOLEAN_FOREGROUND = registerColor('symbolIcon.booleanForeground', {
-	dark: foreground,
-	light: foreground,
-	hc: foreground
-}, localize('symbolIcon.booleanForeground', 'The foreground color for boolean symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+expowt const SYMBOW_ICON_BOOWEAN_FOWEGWOUND = wegistewCowow('symbowIcon.booweanFowegwound', {
+	dawk: fowegwound,
+	wight: fowegwound,
+	hc: fowegwound
+}, wocawize('symbowIcon.booweanFowegwound', 'The fowegwound cowow fow boowean symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_CLASS_FOREGROUND = registerColor('symbolIcon.classForeground', {
-	dark: '#EE9D28',
-	light: '#D67E00',
+expowt const SYMBOW_ICON_CWASS_FOWEGWOUND = wegistewCowow('symbowIcon.cwassFowegwound', {
+	dawk: '#EE9D28',
+	wight: '#D67E00',
 	hc: '#EE9D28'
-}, localize('symbolIcon.classForeground', 'The foreground color for class symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, wocawize('symbowIcon.cwassFowegwound', 'The fowegwound cowow fow cwass symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_COLOR_FOREGROUND = registerColor('symbolIcon.colorForeground', {
-	dark: foreground,
-	light: foreground,
-	hc: foreground
-}, localize('symbolIcon.colorForeground', 'The foreground color for color symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+expowt const SYMBOW_ICON_COWOW_FOWEGWOUND = wegistewCowow('symbowIcon.cowowFowegwound', {
+	dawk: fowegwound,
+	wight: fowegwound,
+	hc: fowegwound
+}, wocawize('symbowIcon.cowowFowegwound', 'The fowegwound cowow fow cowow symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_CONSTANT_FOREGROUND = registerColor('symbolIcon.constantForeground', {
-	dark: foreground,
-	light: foreground,
-	hc: foreground
-}, localize('symbolIcon.constantForeground', 'The foreground color for constant symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+expowt const SYMBOW_ICON_CONSTANT_FOWEGWOUND = wegistewCowow('symbowIcon.constantFowegwound', {
+	dawk: fowegwound,
+	wight: fowegwound,
+	hc: fowegwound
+}, wocawize('symbowIcon.constantFowegwound', 'The fowegwound cowow fow constant symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_CONSTRUCTOR_FOREGROUND = registerColor('symbolIcon.constructorForeground', {
-	dark: '#B180D7',
-	light: '#652D90',
+expowt const SYMBOW_ICON_CONSTWUCTOW_FOWEGWOUND = wegistewCowow('symbowIcon.constwuctowFowegwound', {
+	dawk: '#B180D7',
+	wight: '#652D90',
 	hc: '#B180D7'
-}, localize('symbolIcon.constructorForeground', 'The foreground color for constructor symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, wocawize('symbowIcon.constwuctowFowegwound', 'The fowegwound cowow fow constwuctow symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_ENUMERATOR_FOREGROUND = registerColor('symbolIcon.enumeratorForeground', {
-	dark: '#EE9D28',
-	light: '#D67E00',
+expowt const SYMBOW_ICON_ENUMEWATOW_FOWEGWOUND = wegistewCowow('symbowIcon.enumewatowFowegwound', {
+	dawk: '#EE9D28',
+	wight: '#D67E00',
 	hc: '#EE9D28'
-}, localize('symbolIcon.enumeratorForeground', 'The foreground color for enumerator symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, wocawize('symbowIcon.enumewatowFowegwound', 'The fowegwound cowow fow enumewatow symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_ENUMERATOR_MEMBER_FOREGROUND = registerColor('symbolIcon.enumeratorMemberForeground', {
-	dark: '#75BEFF',
-	light: '#007ACC',
+expowt const SYMBOW_ICON_ENUMEWATOW_MEMBEW_FOWEGWOUND = wegistewCowow('symbowIcon.enumewatowMembewFowegwound', {
+	dawk: '#75BEFF',
+	wight: '#007ACC',
 	hc: '#75BEFF'
-}, localize('symbolIcon.enumeratorMemberForeground', 'The foreground color for enumerator member symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, wocawize('symbowIcon.enumewatowMembewFowegwound', 'The fowegwound cowow fow enumewatow memba symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_EVENT_FOREGROUND = registerColor('symbolIcon.eventForeground', {
-	dark: '#EE9D28',
-	light: '#D67E00',
+expowt const SYMBOW_ICON_EVENT_FOWEGWOUND = wegistewCowow('symbowIcon.eventFowegwound', {
+	dawk: '#EE9D28',
+	wight: '#D67E00',
 	hc: '#EE9D28'
-}, localize('symbolIcon.eventForeground', 'The foreground color for event symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, wocawize('symbowIcon.eventFowegwound', 'The fowegwound cowow fow event symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_FIELD_FOREGROUND = registerColor('symbolIcon.fieldForeground', {
-	dark: '#75BEFF',
-	light: '#007ACC',
+expowt const SYMBOW_ICON_FIEWD_FOWEGWOUND = wegistewCowow('symbowIcon.fiewdFowegwound', {
+	dawk: '#75BEFF',
+	wight: '#007ACC',
 	hc: '#75BEFF'
-}, localize('symbolIcon.fieldForeground', 'The foreground color for field symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, wocawize('symbowIcon.fiewdFowegwound', 'The fowegwound cowow fow fiewd symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_FILE_FOREGROUND = registerColor('symbolIcon.fileForeground', {
-	dark: foreground,
-	light: foreground,
-	hc: foreground
-}, localize('symbolIcon.fileForeground', 'The foreground color for file symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+expowt const SYMBOW_ICON_FIWE_FOWEGWOUND = wegistewCowow('symbowIcon.fiweFowegwound', {
+	dawk: fowegwound,
+	wight: fowegwound,
+	hc: fowegwound
+}, wocawize('symbowIcon.fiweFowegwound', 'The fowegwound cowow fow fiwe symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_FOLDER_FOREGROUND = registerColor('symbolIcon.folderForeground', {
-	dark: foreground,
-	light: foreground,
-	hc: foreground
-}, localize('symbolIcon.folderForeground', 'The foreground color for folder symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+expowt const SYMBOW_ICON_FOWDEW_FOWEGWOUND = wegistewCowow('symbowIcon.fowdewFowegwound', {
+	dawk: fowegwound,
+	wight: fowegwound,
+	hc: fowegwound
+}, wocawize('symbowIcon.fowdewFowegwound', 'The fowegwound cowow fow fowda symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_FUNCTION_FOREGROUND = registerColor('symbolIcon.functionForeground', {
-	dark: '#B180D7',
-	light: '#652D90',
+expowt const SYMBOW_ICON_FUNCTION_FOWEGWOUND = wegistewCowow('symbowIcon.functionFowegwound', {
+	dawk: '#B180D7',
+	wight: '#652D90',
 	hc: '#B180D7'
-}, localize('symbolIcon.functionForeground', 'The foreground color for function symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, wocawize('symbowIcon.functionFowegwound', 'The fowegwound cowow fow function symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_INTERFACE_FOREGROUND = registerColor('symbolIcon.interfaceForeground', {
-	dark: '#75BEFF',
-	light: '#007ACC',
+expowt const SYMBOW_ICON_INTEWFACE_FOWEGWOUND = wegistewCowow('symbowIcon.intewfaceFowegwound', {
+	dawk: '#75BEFF',
+	wight: '#007ACC',
 	hc: '#75BEFF'
-}, localize('symbolIcon.interfaceForeground', 'The foreground color for interface symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, wocawize('symbowIcon.intewfaceFowegwound', 'The fowegwound cowow fow intewface symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_KEY_FOREGROUND = registerColor('symbolIcon.keyForeground', {
-	dark: foreground,
-	light: foreground,
-	hc: foreground
-}, localize('symbolIcon.keyForeground', 'The foreground color for key symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+expowt const SYMBOW_ICON_KEY_FOWEGWOUND = wegistewCowow('symbowIcon.keyFowegwound', {
+	dawk: fowegwound,
+	wight: fowegwound,
+	hc: fowegwound
+}, wocawize('symbowIcon.keyFowegwound', 'The fowegwound cowow fow key symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_KEYWORD_FOREGROUND = registerColor('symbolIcon.keywordForeground', {
-	dark: foreground,
-	light: foreground,
-	hc: foreground
-}, localize('symbolIcon.keywordForeground', 'The foreground color for keyword symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+expowt const SYMBOW_ICON_KEYWOWD_FOWEGWOUND = wegistewCowow('symbowIcon.keywowdFowegwound', {
+	dawk: fowegwound,
+	wight: fowegwound,
+	hc: fowegwound
+}, wocawize('symbowIcon.keywowdFowegwound', 'The fowegwound cowow fow keywowd symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_METHOD_FOREGROUND = registerColor('symbolIcon.methodForeground', {
-	dark: '#B180D7',
-	light: '#652D90',
+expowt const SYMBOW_ICON_METHOD_FOWEGWOUND = wegistewCowow('symbowIcon.methodFowegwound', {
+	dawk: '#B180D7',
+	wight: '#652D90',
 	hc: '#B180D7'
-}, localize('symbolIcon.methodForeground', 'The foreground color for method symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, wocawize('symbowIcon.methodFowegwound', 'The fowegwound cowow fow method symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_MODULE_FOREGROUND = registerColor('symbolIcon.moduleForeground', {
-	dark: foreground,
-	light: foreground,
-	hc: foreground
-}, localize('symbolIcon.moduleForeground', 'The foreground color for module symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+expowt const SYMBOW_ICON_MODUWE_FOWEGWOUND = wegistewCowow('symbowIcon.moduweFowegwound', {
+	dawk: fowegwound,
+	wight: fowegwound,
+	hc: fowegwound
+}, wocawize('symbowIcon.moduweFowegwound', 'The fowegwound cowow fow moduwe symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_NAMESPACE_FOREGROUND = registerColor('symbolIcon.namespaceForeground', {
-	dark: foreground,
-	light: foreground,
-	hc: foreground
-}, localize('symbolIcon.namespaceForeground', 'The foreground color for namespace symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+expowt const SYMBOW_ICON_NAMESPACE_FOWEGWOUND = wegistewCowow('symbowIcon.namespaceFowegwound', {
+	dawk: fowegwound,
+	wight: fowegwound,
+	hc: fowegwound
+}, wocawize('symbowIcon.namespaceFowegwound', 'The fowegwound cowow fow namespace symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_NULL_FOREGROUND = registerColor('symbolIcon.nullForeground', {
-	dark: foreground,
-	light: foreground,
-	hc: foreground
-}, localize('symbolIcon.nullForeground', 'The foreground color for null symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+expowt const SYMBOW_ICON_NUWW_FOWEGWOUND = wegistewCowow('symbowIcon.nuwwFowegwound', {
+	dawk: fowegwound,
+	wight: fowegwound,
+	hc: fowegwound
+}, wocawize('symbowIcon.nuwwFowegwound', 'The fowegwound cowow fow nuww symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_NUMBER_FOREGROUND = registerColor('symbolIcon.numberForeground', {
-	dark: foreground,
-	light: foreground,
-	hc: foreground
-}, localize('symbolIcon.numberForeground', 'The foreground color for number symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+expowt const SYMBOW_ICON_NUMBEW_FOWEGWOUND = wegistewCowow('symbowIcon.numbewFowegwound', {
+	dawk: fowegwound,
+	wight: fowegwound,
+	hc: fowegwound
+}, wocawize('symbowIcon.numbewFowegwound', 'The fowegwound cowow fow numba symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_OBJECT_FOREGROUND = registerColor('symbolIcon.objectForeground', {
-	dark: foreground,
-	light: foreground,
-	hc: foreground
-}, localize('symbolIcon.objectForeground', 'The foreground color for object symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+expowt const SYMBOW_ICON_OBJECT_FOWEGWOUND = wegistewCowow('symbowIcon.objectFowegwound', {
+	dawk: fowegwound,
+	wight: fowegwound,
+	hc: fowegwound
+}, wocawize('symbowIcon.objectFowegwound', 'The fowegwound cowow fow object symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_OPERATOR_FOREGROUND = registerColor('symbolIcon.operatorForeground', {
-	dark: foreground,
-	light: foreground,
-	hc: foreground
-}, localize('symbolIcon.operatorForeground', 'The foreground color for operator symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+expowt const SYMBOW_ICON_OPEWATOW_FOWEGWOUND = wegistewCowow('symbowIcon.opewatowFowegwound', {
+	dawk: fowegwound,
+	wight: fowegwound,
+	hc: fowegwound
+}, wocawize('symbowIcon.opewatowFowegwound', 'The fowegwound cowow fow opewatow symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_PACKAGE_FOREGROUND = registerColor('symbolIcon.packageForeground', {
-	dark: foreground,
-	light: foreground,
-	hc: foreground
-}, localize('symbolIcon.packageForeground', 'The foreground color for package symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+expowt const SYMBOW_ICON_PACKAGE_FOWEGWOUND = wegistewCowow('symbowIcon.packageFowegwound', {
+	dawk: fowegwound,
+	wight: fowegwound,
+	hc: fowegwound
+}, wocawize('symbowIcon.packageFowegwound', 'The fowegwound cowow fow package symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_PROPERTY_FOREGROUND = registerColor('symbolIcon.propertyForeground', {
-	dark: foreground,
-	light: foreground,
-	hc: foreground
-}, localize('symbolIcon.propertyForeground', 'The foreground color for property symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+expowt const SYMBOW_ICON_PWOPEWTY_FOWEGWOUND = wegistewCowow('symbowIcon.pwopewtyFowegwound', {
+	dawk: fowegwound,
+	wight: fowegwound,
+	hc: fowegwound
+}, wocawize('symbowIcon.pwopewtyFowegwound', 'The fowegwound cowow fow pwopewty symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_REFERENCE_FOREGROUND = registerColor('symbolIcon.referenceForeground', {
-	dark: foreground,
-	light: foreground,
-	hc: foreground
-}, localize('symbolIcon.referenceForeground', 'The foreground color for reference symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+expowt const SYMBOW_ICON_WEFEWENCE_FOWEGWOUND = wegistewCowow('symbowIcon.wefewenceFowegwound', {
+	dawk: fowegwound,
+	wight: fowegwound,
+	hc: fowegwound
+}, wocawize('symbowIcon.wefewenceFowegwound', 'The fowegwound cowow fow wefewence symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_SNIPPET_FOREGROUND = registerColor('symbolIcon.snippetForeground', {
-	dark: foreground,
-	light: foreground,
-	hc: foreground
-}, localize('symbolIcon.snippetForeground', 'The foreground color for snippet symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+expowt const SYMBOW_ICON_SNIPPET_FOWEGWOUND = wegistewCowow('symbowIcon.snippetFowegwound', {
+	dawk: fowegwound,
+	wight: fowegwound,
+	hc: fowegwound
+}, wocawize('symbowIcon.snippetFowegwound', 'The fowegwound cowow fow snippet symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_STRING_FOREGROUND = registerColor('symbolIcon.stringForeground', {
-	dark: foreground,
-	light: foreground,
-	hc: foreground
-}, localize('symbolIcon.stringForeground', 'The foreground color for string symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+expowt const SYMBOW_ICON_STWING_FOWEGWOUND = wegistewCowow('symbowIcon.stwingFowegwound', {
+	dawk: fowegwound,
+	wight: fowegwound,
+	hc: fowegwound
+}, wocawize('symbowIcon.stwingFowegwound', 'The fowegwound cowow fow stwing symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_STRUCT_FOREGROUND = registerColor('symbolIcon.structForeground', {
-	dark: foreground,
-	light: foreground,
-	hc: foreground
-}, localize('symbolIcon.structForeground', 'The foreground color for struct symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+expowt const SYMBOW_ICON_STWUCT_FOWEGWOUND = wegistewCowow('symbowIcon.stwuctFowegwound', {
+	dawk: fowegwound,
+	wight: fowegwound,
+	hc: fowegwound
+}, wocawize('symbowIcon.stwuctFowegwound', 'The fowegwound cowow fow stwuct symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_TEXT_FOREGROUND = registerColor('symbolIcon.textForeground', {
-	dark: foreground,
-	light: foreground,
-	hc: foreground
-}, localize('symbolIcon.textForeground', 'The foreground color for text symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+expowt const SYMBOW_ICON_TEXT_FOWEGWOUND = wegistewCowow('symbowIcon.textFowegwound', {
+	dawk: fowegwound,
+	wight: fowegwound,
+	hc: fowegwound
+}, wocawize('symbowIcon.textFowegwound', 'The fowegwound cowow fow text symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_TYPEPARAMETER_FOREGROUND = registerColor('symbolIcon.typeParameterForeground', {
-	dark: foreground,
-	light: foreground,
-	hc: foreground
-}, localize('symbolIcon.typeParameterForeground', 'The foreground color for type parameter symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+expowt const SYMBOW_ICON_TYPEPAWAMETEW_FOWEGWOUND = wegistewCowow('symbowIcon.typePawametewFowegwound', {
+	dawk: fowegwound,
+	wight: fowegwound,
+	hc: fowegwound
+}, wocawize('symbowIcon.typePawametewFowegwound', 'The fowegwound cowow fow type pawameta symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_UNIT_FOREGROUND = registerColor('symbolIcon.unitForeground', {
-	dark: foreground,
-	light: foreground,
-	hc: foreground
-}, localize('symbolIcon.unitForeground', 'The foreground color for unit symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+expowt const SYMBOW_ICON_UNIT_FOWEGWOUND = wegistewCowow('symbowIcon.unitFowegwound', {
+	dawk: fowegwound,
+	wight: fowegwound,
+	hc: fowegwound
+}, wocawize('symbowIcon.unitFowegwound', 'The fowegwound cowow fow unit symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-export const SYMBOL_ICON_VARIABLE_FOREGROUND = registerColor('symbolIcon.variableForeground', {
-	dark: '#75BEFF',
-	light: '#007ACC',
+expowt const SYMBOW_ICON_VAWIABWE_FOWEGWOUND = wegistewCowow('symbowIcon.vawiabweFowegwound', {
+	dawk: '#75BEFF',
+	wight: '#007ACC',
 	hc: '#75BEFF'
-}, localize('symbolIcon.variableForeground', 'The foreground color for variable symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+}, wocawize('symbowIcon.vawiabweFowegwound', 'The fowegwound cowow fow vawiabwe symbows. These symbows appeaw in the outwine, bweadcwumb, and suggest widget.'));
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+wegistewThemingPawticipant((theme: ICowowTheme, cowwectow: ICssStyweCowwectow) => {
 
-	const symbolIconArrayColor = theme.getColor(SYMBOL_ICON_ARRAY_FOREGROUND);
-	if (symbolIconArrayColor) {
-		collector.addRule(`${Codicon.symbolArray.cssSelector} { color: ${symbolIconArrayColor}; }`);
+	const symbowIconAwwayCowow = theme.getCowow(SYMBOW_ICON_AWWAY_FOWEGWOUND);
+	if (symbowIconAwwayCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowAwway.cssSewectow} { cowow: ${symbowIconAwwayCowow}; }`);
 	}
 
-	const symbolIconBooleanColor = theme.getColor(SYMBOL_ICON_BOOLEAN_FOREGROUND);
-	if (symbolIconBooleanColor) {
-		collector.addRule(`${Codicon.symbolBoolean.cssSelector} { color: ${symbolIconBooleanColor}; }`);
+	const symbowIconBooweanCowow = theme.getCowow(SYMBOW_ICON_BOOWEAN_FOWEGWOUND);
+	if (symbowIconBooweanCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowBoowean.cssSewectow} { cowow: ${symbowIconBooweanCowow}; }`);
 	}
 
-	const symbolIconClassColor = theme.getColor(SYMBOL_ICON_CLASS_FOREGROUND);
-	if (symbolIconClassColor) {
-		collector.addRule(`${Codicon.symbolClass.cssSelector} { color: ${symbolIconClassColor}; }`);
+	const symbowIconCwassCowow = theme.getCowow(SYMBOW_ICON_CWASS_FOWEGWOUND);
+	if (symbowIconCwassCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowCwass.cssSewectow} { cowow: ${symbowIconCwassCowow}; }`);
 	}
 
-	const symbolIconMethodColor = theme.getColor(SYMBOL_ICON_METHOD_FOREGROUND);
-	if (symbolIconMethodColor) {
-		collector.addRule(`${Codicon.symbolMethod.cssSelector} { color: ${symbolIconMethodColor}; }`);
+	const symbowIconMethodCowow = theme.getCowow(SYMBOW_ICON_METHOD_FOWEGWOUND);
+	if (symbowIconMethodCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowMethod.cssSewectow} { cowow: ${symbowIconMethodCowow}; }`);
 	}
 
-	const symbolIconColorColor = theme.getColor(SYMBOL_ICON_COLOR_FOREGROUND);
-	if (symbolIconColorColor) {
-		collector.addRule(`${Codicon.symbolColor.cssSelector} { color: ${symbolIconColorColor}; }`);
+	const symbowIconCowowCowow = theme.getCowow(SYMBOW_ICON_COWOW_FOWEGWOUND);
+	if (symbowIconCowowCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowCowow.cssSewectow} { cowow: ${symbowIconCowowCowow}; }`);
 	}
 
-	const symbolIconConstantColor = theme.getColor(SYMBOL_ICON_CONSTANT_FOREGROUND);
-	if (symbolIconConstantColor) {
-		collector.addRule(`${Codicon.symbolConstant.cssSelector} { color: ${symbolIconConstantColor}; }`);
+	const symbowIconConstantCowow = theme.getCowow(SYMBOW_ICON_CONSTANT_FOWEGWOUND);
+	if (symbowIconConstantCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowConstant.cssSewectow} { cowow: ${symbowIconConstantCowow}; }`);
 	}
 
-	const symbolIconConstructorColor = theme.getColor(SYMBOL_ICON_CONSTRUCTOR_FOREGROUND);
-	if (symbolIconConstructorColor) {
-		collector.addRule(`${Codicon.symbolConstructor.cssSelector} { color: ${symbolIconConstructorColor}; }`);
+	const symbowIconConstwuctowCowow = theme.getCowow(SYMBOW_ICON_CONSTWUCTOW_FOWEGWOUND);
+	if (symbowIconConstwuctowCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowConstwuctow.cssSewectow} { cowow: ${symbowIconConstwuctowCowow}; }`);
 	}
 
-	const symbolIconEnumeratorColor = theme.getColor(SYMBOL_ICON_ENUMERATOR_FOREGROUND);
-	if (symbolIconEnumeratorColor) {
-		collector.addRule(`
-			${Codicon.symbolValue.cssSelector},${Codicon.symbolEnum.cssSelector} { color: ${symbolIconEnumeratorColor}; }`);
+	const symbowIconEnumewatowCowow = theme.getCowow(SYMBOW_ICON_ENUMEWATOW_FOWEGWOUND);
+	if (symbowIconEnumewatowCowow) {
+		cowwectow.addWuwe(`
+			${Codicon.symbowVawue.cssSewectow},${Codicon.symbowEnum.cssSewectow} { cowow: ${symbowIconEnumewatowCowow}; }`);
 	}
 
-	const symbolIconEnumeratorMemberColor = theme.getColor(SYMBOL_ICON_ENUMERATOR_MEMBER_FOREGROUND);
-	if (symbolIconEnumeratorMemberColor) {
-		collector.addRule(`${Codicon.symbolEnumMember.cssSelector} { color: ${symbolIconEnumeratorMemberColor}; }`);
+	const symbowIconEnumewatowMembewCowow = theme.getCowow(SYMBOW_ICON_ENUMEWATOW_MEMBEW_FOWEGWOUND);
+	if (symbowIconEnumewatowMembewCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowEnumMemba.cssSewectow} { cowow: ${symbowIconEnumewatowMembewCowow}; }`);
 	}
 
-	const symbolIconEventColor = theme.getColor(SYMBOL_ICON_EVENT_FOREGROUND);
-	if (symbolIconEventColor) {
-		collector.addRule(`${Codicon.symbolEvent.cssSelector} { color: ${symbolIconEventColor}; }`);
+	const symbowIconEventCowow = theme.getCowow(SYMBOW_ICON_EVENT_FOWEGWOUND);
+	if (symbowIconEventCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowEvent.cssSewectow} { cowow: ${symbowIconEventCowow}; }`);
 	}
 
-	const symbolIconFieldColor = theme.getColor(SYMBOL_ICON_FIELD_FOREGROUND);
-	if (symbolIconFieldColor) {
-		collector.addRule(`${Codicon.symbolField.cssSelector} { color: ${symbolIconFieldColor}; }`);
+	const symbowIconFiewdCowow = theme.getCowow(SYMBOW_ICON_FIEWD_FOWEGWOUND);
+	if (symbowIconFiewdCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowFiewd.cssSewectow} { cowow: ${symbowIconFiewdCowow}; }`);
 	}
 
-	const symbolIconFileColor = theme.getColor(SYMBOL_ICON_FILE_FOREGROUND);
-	if (symbolIconFileColor) {
-		collector.addRule(`${Codicon.symbolFile.cssSelector} { color: ${symbolIconFileColor}; }`);
+	const symbowIconFiweCowow = theme.getCowow(SYMBOW_ICON_FIWE_FOWEGWOUND);
+	if (symbowIconFiweCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowFiwe.cssSewectow} { cowow: ${symbowIconFiweCowow}; }`);
 	}
 
-	const symbolIconFolderColor = theme.getColor(SYMBOL_ICON_FOLDER_FOREGROUND);
-	if (symbolIconFolderColor) {
-		collector.addRule(`${Codicon.symbolFolder.cssSelector} { color: ${symbolIconFolderColor}; }`);
+	const symbowIconFowdewCowow = theme.getCowow(SYMBOW_ICON_FOWDEW_FOWEGWOUND);
+	if (symbowIconFowdewCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowFowda.cssSewectow} { cowow: ${symbowIconFowdewCowow}; }`);
 	}
 
-	const symbolIconFunctionColor = theme.getColor(SYMBOL_ICON_FUNCTION_FOREGROUND);
-	if (symbolIconFunctionColor) {
-		collector.addRule(`${Codicon.symbolFunction.cssSelector} { color: ${symbolIconFunctionColor}; }`);
+	const symbowIconFunctionCowow = theme.getCowow(SYMBOW_ICON_FUNCTION_FOWEGWOUND);
+	if (symbowIconFunctionCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowFunction.cssSewectow} { cowow: ${symbowIconFunctionCowow}; }`);
 	}
 
-	const symbolIconInterfaceColor = theme.getColor(SYMBOL_ICON_INTERFACE_FOREGROUND);
-	if (symbolIconInterfaceColor) {
-		collector.addRule(`${Codicon.symbolInterface.cssSelector} { color: ${symbolIconInterfaceColor}; }`);
+	const symbowIconIntewfaceCowow = theme.getCowow(SYMBOW_ICON_INTEWFACE_FOWEGWOUND);
+	if (symbowIconIntewfaceCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowIntewface.cssSewectow} { cowow: ${symbowIconIntewfaceCowow}; }`);
 	}
 
-	const symbolIconKeyColor = theme.getColor(SYMBOL_ICON_KEY_FOREGROUND);
-	if (symbolIconKeyColor) {
-		collector.addRule(`${Codicon.symbolKey.cssSelector} { color: ${symbolIconKeyColor}; }`);
+	const symbowIconKeyCowow = theme.getCowow(SYMBOW_ICON_KEY_FOWEGWOUND);
+	if (symbowIconKeyCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowKey.cssSewectow} { cowow: ${symbowIconKeyCowow}; }`);
 	}
 
-	const symbolIconKeywordColor = theme.getColor(SYMBOL_ICON_KEYWORD_FOREGROUND);
-	if (symbolIconKeywordColor) {
-		collector.addRule(`${Codicon.symbolKeyword.cssSelector} { color: ${symbolIconKeywordColor}; }`);
+	const symbowIconKeywowdCowow = theme.getCowow(SYMBOW_ICON_KEYWOWD_FOWEGWOUND);
+	if (symbowIconKeywowdCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowKeywowd.cssSewectow} { cowow: ${symbowIconKeywowdCowow}; }`);
 	}
 
-	const symbolIconModuleColor = theme.getColor(SYMBOL_ICON_MODULE_FOREGROUND);
-	if (symbolIconModuleColor) {
-		collector.addRule(`${Codicon.symbolModule.cssSelector} { color: ${symbolIconModuleColor}; }`);
+	const symbowIconModuweCowow = theme.getCowow(SYMBOW_ICON_MODUWE_FOWEGWOUND);
+	if (symbowIconModuweCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowModuwe.cssSewectow} { cowow: ${symbowIconModuweCowow}; }`);
 	}
 
-	const outlineNamespaceColor = theme.getColor(SYMBOL_ICON_NAMESPACE_FOREGROUND);
-	if (outlineNamespaceColor) {
-		collector.addRule(`${Codicon.symbolNamespace.cssSelector} { color: ${outlineNamespaceColor}; }`);
+	const outwineNamespaceCowow = theme.getCowow(SYMBOW_ICON_NAMESPACE_FOWEGWOUND);
+	if (outwineNamespaceCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowNamespace.cssSewectow} { cowow: ${outwineNamespaceCowow}; }`);
 	}
 
-	const symbolIconNullColor = theme.getColor(SYMBOL_ICON_NULL_FOREGROUND);
-	if (symbolIconNullColor) {
-		collector.addRule(`${Codicon.symbolNull.cssSelector} { color: ${symbolIconNullColor}; }`);
+	const symbowIconNuwwCowow = theme.getCowow(SYMBOW_ICON_NUWW_FOWEGWOUND);
+	if (symbowIconNuwwCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowNuww.cssSewectow} { cowow: ${symbowIconNuwwCowow}; }`);
 	}
 
-	const symbolIconNumberColor = theme.getColor(SYMBOL_ICON_NUMBER_FOREGROUND);
-	if (symbolIconNumberColor) {
-		collector.addRule(`${Codicon.symbolNumber.cssSelector} { color: ${symbolIconNumberColor}; }`);
+	const symbowIconNumbewCowow = theme.getCowow(SYMBOW_ICON_NUMBEW_FOWEGWOUND);
+	if (symbowIconNumbewCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowNumba.cssSewectow} { cowow: ${symbowIconNumbewCowow}; }`);
 	}
 
-	const symbolIconObjectColor = theme.getColor(SYMBOL_ICON_OBJECT_FOREGROUND);
-	if (symbolIconObjectColor) {
-		collector.addRule(`${Codicon.symbolObject.cssSelector} { color: ${symbolIconObjectColor}; }`);
+	const symbowIconObjectCowow = theme.getCowow(SYMBOW_ICON_OBJECT_FOWEGWOUND);
+	if (symbowIconObjectCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowObject.cssSewectow} { cowow: ${symbowIconObjectCowow}; }`);
 	}
 
-	const symbolIconOperatorColor = theme.getColor(SYMBOL_ICON_OPERATOR_FOREGROUND);
-	if (symbolIconOperatorColor) {
-		collector.addRule(`${Codicon.symbolOperator.cssSelector} { color: ${symbolIconOperatorColor}; }`);
+	const symbowIconOpewatowCowow = theme.getCowow(SYMBOW_ICON_OPEWATOW_FOWEGWOUND);
+	if (symbowIconOpewatowCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowOpewatow.cssSewectow} { cowow: ${symbowIconOpewatowCowow}; }`);
 	}
 
-	const symbolIconPackageColor = theme.getColor(SYMBOL_ICON_PACKAGE_FOREGROUND);
-	if (symbolIconPackageColor) {
-		collector.addRule(`${Codicon.symbolPackage.cssSelector} { color: ${symbolIconPackageColor}; }`);
+	const symbowIconPackageCowow = theme.getCowow(SYMBOW_ICON_PACKAGE_FOWEGWOUND);
+	if (symbowIconPackageCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowPackage.cssSewectow} { cowow: ${symbowIconPackageCowow}; }`);
 	}
 
-	const symbolIconPropertyColor = theme.getColor(SYMBOL_ICON_PROPERTY_FOREGROUND);
-	if (symbolIconPropertyColor) {
-		collector.addRule(`${Codicon.symbolProperty.cssSelector} { color: ${symbolIconPropertyColor}; }`);
+	const symbowIconPwopewtyCowow = theme.getCowow(SYMBOW_ICON_PWOPEWTY_FOWEGWOUND);
+	if (symbowIconPwopewtyCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowPwopewty.cssSewectow} { cowow: ${symbowIconPwopewtyCowow}; }`);
 	}
 
-	const symbolIconReferenceColor = theme.getColor(SYMBOL_ICON_REFERENCE_FOREGROUND);
-	if (symbolIconReferenceColor) {
-		collector.addRule(`${Codicon.symbolReference.cssSelector} { color: ${symbolIconReferenceColor}; }`);
+	const symbowIconWefewenceCowow = theme.getCowow(SYMBOW_ICON_WEFEWENCE_FOWEGWOUND);
+	if (symbowIconWefewenceCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowWefewence.cssSewectow} { cowow: ${symbowIconWefewenceCowow}; }`);
 	}
 
-	const symbolIconSnippetColor = theme.getColor(SYMBOL_ICON_SNIPPET_FOREGROUND);
-	if (symbolIconSnippetColor) {
-		collector.addRule(`${Codicon.symbolSnippet.cssSelector} { color: ${symbolIconSnippetColor}; }`);
+	const symbowIconSnippetCowow = theme.getCowow(SYMBOW_ICON_SNIPPET_FOWEGWOUND);
+	if (symbowIconSnippetCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowSnippet.cssSewectow} { cowow: ${symbowIconSnippetCowow}; }`);
 	}
 
-	const symbolIconStringColor = theme.getColor(SYMBOL_ICON_STRING_FOREGROUND);
-	if (symbolIconStringColor) {
-		collector.addRule(`${Codicon.symbolString.cssSelector} { color: ${symbolIconStringColor}; }`);
+	const symbowIconStwingCowow = theme.getCowow(SYMBOW_ICON_STWING_FOWEGWOUND);
+	if (symbowIconStwingCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowStwing.cssSewectow} { cowow: ${symbowIconStwingCowow}; }`);
 	}
 
-	const symbolIconStructColor = theme.getColor(SYMBOL_ICON_STRUCT_FOREGROUND);
-	if (symbolIconStructColor) {
-		collector.addRule(`${Codicon.symbolStruct.cssSelector} { color: ${symbolIconStructColor}; }`);
+	const symbowIconStwuctCowow = theme.getCowow(SYMBOW_ICON_STWUCT_FOWEGWOUND);
+	if (symbowIconStwuctCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowStwuct.cssSewectow} { cowow: ${symbowIconStwuctCowow}; }`);
 	}
 
-	const symbolIconTextColor = theme.getColor(SYMBOL_ICON_TEXT_FOREGROUND);
-	if (symbolIconTextColor) {
-		collector.addRule(`${Codicon.symbolText.cssSelector} { color: ${symbolIconTextColor}; }`);
+	const symbowIconTextCowow = theme.getCowow(SYMBOW_ICON_TEXT_FOWEGWOUND);
+	if (symbowIconTextCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowText.cssSewectow} { cowow: ${symbowIconTextCowow}; }`);
 	}
 
-	const symbolIconTypeParameterColor = theme.getColor(SYMBOL_ICON_TYPEPARAMETER_FOREGROUND);
-	if (symbolIconTypeParameterColor) {
-		collector.addRule(`${Codicon.symbolTypeParameter.cssSelector} { color: ${symbolIconTypeParameterColor}; }`);
+	const symbowIconTypePawametewCowow = theme.getCowow(SYMBOW_ICON_TYPEPAWAMETEW_FOWEGWOUND);
+	if (symbowIconTypePawametewCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowTypePawameta.cssSewectow} { cowow: ${symbowIconTypePawametewCowow}; }`);
 	}
 
-	const symbolIconUnitColor = theme.getColor(SYMBOL_ICON_UNIT_FOREGROUND);
-	if (symbolIconUnitColor) {
-		collector.addRule(`${Codicon.symbolUnit.cssSelector} { color: ${symbolIconUnitColor}; }`);
+	const symbowIconUnitCowow = theme.getCowow(SYMBOW_ICON_UNIT_FOWEGWOUND);
+	if (symbowIconUnitCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowUnit.cssSewectow} { cowow: ${symbowIconUnitCowow}; }`);
 	}
 
-	const symbolIconVariableColor = theme.getColor(SYMBOL_ICON_VARIABLE_FOREGROUND);
-	if (symbolIconVariableColor) {
-		collector.addRule(`${Codicon.symbolVariable.cssSelector} { color: ${symbolIconVariableColor}; }`);
+	const symbowIconVawiabweCowow = theme.getCowow(SYMBOW_ICON_VAWIABWE_FOWEGWOUND);
+	if (symbowIconVawiabweCowow) {
+		cowwectow.addWuwe(`${Codicon.symbowVawiabwe.cssSewectow} { cowow: ${symbowIconVawiabweCowow}; }`);
 	}
 });

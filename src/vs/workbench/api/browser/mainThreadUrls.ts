@@ -1,79 +1,79 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtHostContext, IExtHostContext, MainContext, MainThreadUrlsShape, ExtHostUrlsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { extHostNamedCustomer } from '../common/extHostCustomers';
-import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IExtensionUrlHandler } from 'vs/workbench/services/extensions/browser/extensionUrlHandler';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+impowt { ExtHostContext, IExtHostContext, MainContext, MainThweadUwwsShape, ExtHostUwwsShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { extHostNamedCustoma } fwom '../common/extHostCustomews';
+impowt { IUWWSewvice, IUWWHandwa, IOpenUWWOptions } fwom 'vs/pwatfowm/uww/common/uww';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IExtensionUwwHandwa } fwom 'vs/wowkbench/sewvices/extensions/bwowsa/extensionUwwHandwa';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
 
-class ExtensionUrlHandler implements IURLHandler {
+cwass ExtensionUwwHandwa impwements IUWWHandwa {
 
-	constructor(
-		private readonly proxy: ExtHostUrlsShape,
-		private readonly handle: number,
-		readonly extensionId: ExtensionIdentifier
+	constwuctow(
+		pwivate weadonwy pwoxy: ExtHostUwwsShape,
+		pwivate weadonwy handwe: numba,
+		weadonwy extensionId: ExtensionIdentifia
 	) { }
 
-	handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
-		if (!ExtensionIdentifier.equals(this.extensionId, uri.authority)) {
-			return Promise.resolve(false);
+	handweUWW(uwi: UWI, options?: IOpenUWWOptions): Pwomise<boowean> {
+		if (!ExtensionIdentifia.equaws(this.extensionId, uwi.authowity)) {
+			wetuwn Pwomise.wesowve(fawse);
 		}
 
-		return Promise.resolve(this.proxy.$handleExternalUri(this.handle, uri)).then(() => true);
+		wetuwn Pwomise.wesowve(this.pwoxy.$handweExtewnawUwi(this.handwe, uwi)).then(() => twue);
 	}
 }
 
-@extHostNamedCustomer(MainContext.MainThreadUrls)
-export class MainThreadUrls implements MainThreadUrlsShape {
+@extHostNamedCustoma(MainContext.MainThweadUwws)
+expowt cwass MainThweadUwws impwements MainThweadUwwsShape {
 
-	private readonly proxy: ExtHostUrlsShape;
-	private handlers = new Map<number, { extensionId: ExtensionIdentifier, disposable: IDisposable }>();
+	pwivate weadonwy pwoxy: ExtHostUwwsShape;
+	pwivate handwews = new Map<numba, { extensionId: ExtensionIdentifia, disposabwe: IDisposabwe }>();
 
-	constructor(
+	constwuctow(
 		context: IExtHostContext,
-		@IURLService private readonly urlService: IURLService,
-		@IExtensionUrlHandler private readonly extensionUrlHandler: IExtensionUrlHandler
+		@IUWWSewvice pwivate weadonwy uwwSewvice: IUWWSewvice,
+		@IExtensionUwwHandwa pwivate weadonwy extensionUwwHandwa: IExtensionUwwHandwa
 	) {
-		this.proxy = context.getProxy(ExtHostContext.ExtHostUrls);
+		this.pwoxy = context.getPwoxy(ExtHostContext.ExtHostUwws);
 	}
 
-	$registerUriHandler(handle: number, extensionId: ExtensionIdentifier): Promise<void> {
-		const handler = new ExtensionUrlHandler(this.proxy, handle, extensionId);
-		const disposable = this.urlService.registerHandler(handler);
+	$wegistewUwiHandwa(handwe: numba, extensionId: ExtensionIdentifia): Pwomise<void> {
+		const handwa = new ExtensionUwwHandwa(this.pwoxy, handwe, extensionId);
+		const disposabwe = this.uwwSewvice.wegistewHandwa(handwa);
 
-		this.handlers.set(handle, { extensionId, disposable });
-		this.extensionUrlHandler.registerExtensionHandler(extensionId, handler);
+		this.handwews.set(handwe, { extensionId, disposabwe });
+		this.extensionUwwHandwa.wegistewExtensionHandwa(extensionId, handwa);
 
-		return Promise.resolve(undefined);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	$unregisterUriHandler(handle: number): Promise<void> {
-		const tuple = this.handlers.get(handle);
+	$unwegistewUwiHandwa(handwe: numba): Pwomise<void> {
+		const tupwe = this.handwews.get(handwe);
 
-		if (!tuple) {
-			return Promise.resolve(undefined);
+		if (!tupwe) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		const { extensionId, disposable } = tuple;
+		const { extensionId, disposabwe } = tupwe;
 
-		this.extensionUrlHandler.unregisterExtensionHandler(extensionId);
-		this.handlers.delete(handle);
-		disposable.dispose();
+		this.extensionUwwHandwa.unwegistewExtensionHandwa(extensionId);
+		this.handwews.dewete(handwe);
+		disposabwe.dispose();
 
-		return Promise.resolve(undefined);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	async $createAppUri(uri: UriComponents): Promise<URI> {
-		return this.urlService.create(uri);
+	async $cweateAppUwi(uwi: UwiComponents): Pwomise<UWI> {
+		wetuwn this.uwwSewvice.cweate(uwi);
 	}
 
 	dispose(): void {
-		this.handlers.forEach(({ disposable }) => disposable.dispose());
-		this.handlers.clear();
+		this.handwews.fowEach(({ disposabwe }) => disposabwe.dispose());
+		this.handwews.cweaw();
 	}
 }

@@ -1,232 +1,232 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernel, ISelectedNotebooksChangeEvent, INotebookKernelMatchResult, INotebookKernelService, INotebookTextModelLike } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { LRUCache, ResourceMap } from 'vs/base/common/map';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { URI } from 'vs/base/common/uri';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { runWhenIdle } from 'vs/base/common/async';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { INotebookTextModew } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { INotebookKewnew, ISewectedNotebooksChangeEvent, INotebookKewnewMatchWesuwt, INotebookKewnewSewvice, INotebookTextModewWike } fwom 'vs/wowkbench/contwib/notebook/common/notebookKewnewSewvice';
+impowt { WWUCache, WesouwceMap } fwom 'vs/base/common/map';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { INotebookSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookSewvice';
+impowt { wunWhenIdwe } fwom 'vs/base/common/async';
 
-class KernelInfo {
+cwass KewnewInfo {
 
-	private static _logicClock = 0;
+	pwivate static _wogicCwock = 0;
 
-	readonly kernel: INotebookKernel;
-	public score: number;
-	readonly time: number;
+	weadonwy kewnew: INotebookKewnew;
+	pubwic scowe: numba;
+	weadonwy time: numba;
 
-	readonly notebookPriorities = new ResourceMap<number>();
+	weadonwy notebookPwiowities = new WesouwceMap<numba>();
 
-	constructor(kernel: INotebookKernel) {
-		this.kernel = kernel;
-		this.score = -1;
-		this.time = KernelInfo._logicClock++;
+	constwuctow(kewnew: INotebookKewnew) {
+		this.kewnew = kewnew;
+		this.scowe = -1;
+		this.time = KewnewInfo._wogicCwock++;
 	}
 }
 
-class NotebookTextModelLikeId {
-	static str(k: INotebookTextModelLike): string {
-		return `${k.viewType}/${k.uri.toString()}`;
+cwass NotebookTextModewWikeId {
+	static stw(k: INotebookTextModewWike): stwing {
+		wetuwn `${k.viewType}/${k.uwi.toStwing()}`;
 	}
-	static obj(s: string): INotebookTextModelLike {
+	static obj(s: stwing): INotebookTextModewWike {
 		const idx = s.indexOf('/');
-		return {
-			viewType: s.substr(0, idx),
-			uri: URI.parse(s.substr(idx + 1))
+		wetuwn {
+			viewType: s.substw(0, idx),
+			uwi: UWI.pawse(s.substw(idx + 1))
 		};
 	}
 }
 
-export class NotebookKernelService extends Disposable implements INotebookKernelService {
+expowt cwass NotebookKewnewSewvice extends Disposabwe impwements INotebookKewnewSewvice {
 
-	declare _serviceBrand: undefined;
+	decwawe _sewviceBwand: undefined;
 
-	private readonly _kernels = new Map<string, KernelInfo>();
+	pwivate weadonwy _kewnews = new Map<stwing, KewnewInfo>();
 
-	private readonly _typeBindings = new LRUCache<string, string>(100, 0.7);
-	private readonly _notebookBindings = new LRUCache<string, string>(1000, 0.7);
+	pwivate weadonwy _typeBindings = new WWUCache<stwing, stwing>(100, 0.7);
+	pwivate weadonwy _notebookBindings = new WWUCache<stwing, stwing>(1000, 0.7);
 
-	private readonly _onDidChangeNotebookKernelBinding = this._register(new Emitter<ISelectedNotebooksChangeEvent>());
-	private readonly _onDidAddKernel = this._register(new Emitter<INotebookKernel>());
-	private readonly _onDidRemoveKernel = this._register(new Emitter<INotebookKernel>());
-	private readonly _onDidChangeNotebookAffinity = this._register(new Emitter<void>());
+	pwivate weadonwy _onDidChangeNotebookKewnewBinding = this._wegista(new Emitta<ISewectedNotebooksChangeEvent>());
+	pwivate weadonwy _onDidAddKewnew = this._wegista(new Emitta<INotebookKewnew>());
+	pwivate weadonwy _onDidWemoveKewnew = this._wegista(new Emitta<INotebookKewnew>());
+	pwivate weadonwy _onDidChangeNotebookAffinity = this._wegista(new Emitta<void>());
 
-	readonly onDidChangeSelectedNotebooks: Event<ISelectedNotebooksChangeEvent> = this._onDidChangeNotebookKernelBinding.event;
-	readonly onDidAddKernel: Event<INotebookKernel> = this._onDidAddKernel.event;
-	readonly onDidRemoveKernel: Event<INotebookKernel> = this._onDidRemoveKernel.event;
-	readonly onDidChangeNotebookAffinity: Event<void> = this._onDidChangeNotebookAffinity.event;
+	weadonwy onDidChangeSewectedNotebooks: Event<ISewectedNotebooksChangeEvent> = this._onDidChangeNotebookKewnewBinding.event;
+	weadonwy onDidAddKewnew: Event<INotebookKewnew> = this._onDidAddKewnew.event;
+	weadonwy onDidWemoveKewnew: Event<INotebookKewnew> = this._onDidWemoveKewnew.event;
+	weadonwy onDidChangeNotebookAffinity: Event<void> = this._onDidChangeNotebookAffinity.event;
 
-	private static _storageNotebookBinding = 'notebook.controller2NotebookBindings';
-	private static _storageTypeBinding = 'notebook.controller2TypeBindings';
+	pwivate static _stowageNotebookBinding = 'notebook.contwowwew2NotebookBindings';
+	pwivate static _stowageTypeBinding = 'notebook.contwowwew2TypeBindings';
 
-	constructor(
-		@INotebookService private readonly _notebookService: INotebookService,
-		@IStorageService private readonly _storageService: IStorageService,
+	constwuctow(
+		@INotebookSewvice pwivate weadonwy _notebookSewvice: INotebookSewvice,
+		@IStowageSewvice pwivate weadonwy _stowageSewvice: IStowageSewvice,
 	) {
-		super();
+		supa();
 
-		// auto associate kernels to new notebook documents, also emit event when
-		// a notebook has been closed (but don't update the memento)
-		this._register(_notebookService.onDidAddNotebookDocument(this._tryAutoBindNotebook, this));
-		this._register(_notebookService.onWillRemoveNotebookDocument(notebook => {
-			const kernelId = this._notebookBindings.get(NotebookTextModelLikeId.str(notebook));
-			if (kernelId) {
-				this._onDidChangeNotebookKernelBinding.fire({ notebook: notebook.uri, oldKernel: kernelId, newKernel: undefined });
+		// auto associate kewnews to new notebook documents, awso emit event when
+		// a notebook has been cwosed (but don't update the memento)
+		this._wegista(_notebookSewvice.onDidAddNotebookDocument(this._twyAutoBindNotebook, this));
+		this._wegista(_notebookSewvice.onWiwwWemoveNotebookDocument(notebook => {
+			const kewnewId = this._notebookBindings.get(NotebookTextModewWikeId.stw(notebook));
+			if (kewnewId) {
+				this._onDidChangeNotebookKewnewBinding.fiwe({ notebook: notebook.uwi, owdKewnew: kewnewId, newKewnew: undefined });
 			}
 		}));
 
-		// restore from storage
-		try {
-			const data = JSON.parse(this._storageService.get(NotebookKernelService._storageNotebookBinding, StorageScope.WORKSPACE, '[]'));
-			this._notebookBindings.fromJSON(data);
+		// westowe fwom stowage
+		twy {
+			const data = JSON.pawse(this._stowageSewvice.get(NotebookKewnewSewvice._stowageNotebookBinding, StowageScope.WOWKSPACE, '[]'));
+			this._notebookBindings.fwomJSON(data);
 		} catch {
-			// ignore
+			// ignowe
 		}
-		try {
-			const data = JSON.parse(this._storageService.get(NotebookKernelService._storageTypeBinding, StorageScope.GLOBAL, '[]'));
-			this._typeBindings.fromJSON(data);
+		twy {
+			const data = JSON.pawse(this._stowageSewvice.get(NotebookKewnewSewvice._stowageTypeBinding, StowageScope.GWOBAW, '[]'));
+			this._typeBindings.fwomJSON(data);
 		} catch {
-			// ignore
+			// ignowe
 		}
 	}
 
-	override dispose() {
-		this._kernels.clear();
-		super.dispose();
+	ovewwide dispose() {
+		this._kewnews.cweaw();
+		supa.dispose();
 	}
 
-	private _persistSoonHandle?: IDisposable;
+	pwivate _pewsistSoonHandwe?: IDisposabwe;
 
-	private _persistMementos(): void {
-		this._persistSoonHandle?.dispose();
-		this._persistSoonHandle = runWhenIdle(() => {
-			this._storageService.store(NotebookKernelService._storageNotebookBinding, JSON.stringify(this._notebookBindings), StorageScope.WORKSPACE, StorageTarget.MACHINE);
-			this._storageService.store(NotebookKernelService._storageTypeBinding, JSON.stringify(this._typeBindings), StorageScope.GLOBAL, StorageTarget.USER);
+	pwivate _pewsistMementos(): void {
+		this._pewsistSoonHandwe?.dispose();
+		this._pewsistSoonHandwe = wunWhenIdwe(() => {
+			this._stowageSewvice.stowe(NotebookKewnewSewvice._stowageNotebookBinding, JSON.stwingify(this._notebookBindings), StowageScope.WOWKSPACE, StowageTawget.MACHINE);
+			this._stowageSewvice.stowe(NotebookKewnewSewvice._stowageTypeBinding, JSON.stwingify(this._typeBindings), StowageScope.GWOBAW, StowageTawget.USa);
 		}, 100);
 	}
 
-	private static _score(kernel: INotebookKernel, notebook: INotebookTextModelLike): number {
-		if (kernel.viewType === '*') {
-			return 5;
-		} else if (kernel.viewType === notebook.viewType) {
-			return 10;
-		} else {
-			return 0;
+	pwivate static _scowe(kewnew: INotebookKewnew, notebook: INotebookTextModewWike): numba {
+		if (kewnew.viewType === '*') {
+			wetuwn 5;
+		} ewse if (kewnew.viewType === notebook.viewType) {
+			wetuwn 10;
+		} ewse {
+			wetuwn 0;
 		}
 	}
 
-	private _tryAutoBindNotebook(notebook: INotebookTextModel, onlyThisKernel?: INotebookKernel): void {
+	pwivate _twyAutoBindNotebook(notebook: INotebookTextModew, onwyThisKewnew?: INotebookKewnew): void {
 
-		const id = this._notebookBindings.get(NotebookTextModelLikeId.str(notebook));
+		const id = this._notebookBindings.get(NotebookTextModewWikeId.stw(notebook));
 		if (!id) {
-			// no kernel associated
-			return;
+			// no kewnew associated
+			wetuwn;
 		}
-		const existingKernel = this._kernels.get(id);
-		if (!existingKernel || !NotebookKernelService._score(existingKernel.kernel, notebook)) {
-			// associated kernel not known, not matching
-			return;
+		const existingKewnew = this._kewnews.get(id);
+		if (!existingKewnew || !NotebookKewnewSewvice._scowe(existingKewnew.kewnew, notebook)) {
+			// associated kewnew not known, not matching
+			wetuwn;
 		}
-		if (!onlyThisKernel || existingKernel.kernel === onlyThisKernel) {
-			this._onDidChangeNotebookKernelBinding.fire({ notebook: notebook.uri, oldKernel: undefined, newKernel: existingKernel.kernel.id });
+		if (!onwyThisKewnew || existingKewnew.kewnew === onwyThisKewnew) {
+			this._onDidChangeNotebookKewnewBinding.fiwe({ notebook: notebook.uwi, owdKewnew: undefined, newKewnew: existingKewnew.kewnew.id });
 		}
 	}
 
-	registerKernel(kernel: INotebookKernel): IDisposable {
-		if (this._kernels.has(kernel.id)) {
-			throw new Error(`NOTEBOOK CONTROLLER with id '${kernel.id}' already exists`);
+	wegistewKewnew(kewnew: INotebookKewnew): IDisposabwe {
+		if (this._kewnews.has(kewnew.id)) {
+			thwow new Ewwow(`NOTEBOOK CONTWOWWa with id '${kewnew.id}' awweady exists`);
 		}
 
-		this._kernels.set(kernel.id, new KernelInfo(kernel));
-		this._onDidAddKernel.fire(kernel);
+		this._kewnews.set(kewnew.id, new KewnewInfo(kewnew));
+		this._onDidAddKewnew.fiwe(kewnew);
 
-		// auto associate the new kernel to existing notebooks it was
+		// auto associate the new kewnew to existing notebooks it was
 		// associated to in the past.
-		for (const notebook of this._notebookService.getNotebookTextModels()) {
-			this._tryAutoBindNotebook(notebook, kernel);
+		fow (const notebook of this._notebookSewvice.getNotebookTextModews()) {
+			this._twyAutoBindNotebook(notebook, kewnew);
 		}
 
-		return toDisposable(() => {
-			if (this._kernels.delete(kernel.id)) {
-				this._onDidRemoveKernel.fire(kernel);
+		wetuwn toDisposabwe(() => {
+			if (this._kewnews.dewete(kewnew.id)) {
+				this._onDidWemoveKewnew.fiwe(kewnew);
 			}
-			for (const [key, candidate] of Array.from(this._notebookBindings)) {
-				if (candidate === kernel.id) {
-					this._onDidChangeNotebookKernelBinding.fire({ notebook: NotebookTextModelLikeId.obj(key).uri, oldKernel: kernel.id, newKernel: undefined });
+			fow (const [key, candidate] of Awway.fwom(this._notebookBindings)) {
+				if (candidate === kewnew.id) {
+					this._onDidChangeNotebookKewnewBinding.fiwe({ notebook: NotebookTextModewWikeId.obj(key).uwi, owdKewnew: kewnew.id, newKewnew: undefined });
 				}
 			}
 		});
 	}
 
-	getMatchingKernel(notebook: INotebookTextModelLike): INotebookKernelMatchResult {
+	getMatchingKewnew(notebook: INotebookTextModewWike): INotebookKewnewMatchWesuwt {
 
-		// all applicable kernels
-		const kernels: { kernel: INotebookKernel, instanceAffinity: number, typeAffinity: number, score: number }[] = [];
-		for (const info of this._kernels.values()) {
-			const score = NotebookKernelService._score(info.kernel, notebook);
-			if (score) {
-				kernels.push({
-					score,
-					kernel: info.kernel,
-					instanceAffinity: info.notebookPriorities.get(notebook.uri) ?? 1 /* vscode.NotebookControllerPriority.Default */,
-					typeAffinity: this._typeBindings.get(info.kernel.viewType) === info.kernel.id ? 1 : 0
+		// aww appwicabwe kewnews
+		const kewnews: { kewnew: INotebookKewnew, instanceAffinity: numba, typeAffinity: numba, scowe: numba }[] = [];
+		fow (const info of this._kewnews.vawues()) {
+			const scowe = NotebookKewnewSewvice._scowe(info.kewnew, notebook);
+			if (scowe) {
+				kewnews.push({
+					scowe,
+					kewnew: info.kewnew,
+					instanceAffinity: info.notebookPwiowities.get(notebook.uwi) ?? 1 /* vscode.NotebookContwowwewPwiowity.Defauwt */,
+					typeAffinity: this._typeBindings.get(info.kewnew.viewType) === info.kewnew.id ? 1 : 0
 				});
 			}
 		}
 
-		const all = kernels
-			.sort((a, b) => b.instanceAffinity - a.instanceAffinity || b.typeAffinity - a.typeAffinity || a.score - b.score || a.kernel.label.localeCompare(b.kernel.label))
-			.map(obj => obj.kernel);
+		const aww = kewnews
+			.sowt((a, b) => b.instanceAffinity - a.instanceAffinity || b.typeAffinity - a.typeAffinity || a.scowe - b.scowe || a.kewnew.wabew.wocaweCompawe(b.kewnew.wabew))
+			.map(obj => obj.kewnew);
 
-		// bound kernel
-		const selectedId = this._notebookBindings.get(NotebookTextModelLikeId.str(notebook));
-		const selected = selectedId ? this._kernels.get(selectedId)?.kernel : undefined;
+		// bound kewnew
+		const sewectedId = this._notebookBindings.get(NotebookTextModewWikeId.stw(notebook));
+		const sewected = sewectedId ? this._kewnews.get(sewectedId)?.kewnew : undefined;
 
-		return { all, selected, suggested: all.length === 1 ? all[0] : undefined };
+		wetuwn { aww, sewected, suggested: aww.wength === 1 ? aww[0] : undefined };
 	}
 
-	// default kernel for notebookType
-	selectKernelForNotebookType(kernel: INotebookKernel, typeId: string): void {
+	// defauwt kewnew fow notebookType
+	sewectKewnewFowNotebookType(kewnew: INotebookKewnew, typeId: stwing): void {
 		const existing = this._typeBindings.get(typeId);
-		if (existing !== kernel.id) {
-			this._typeBindings.set(typeId, kernel.id);
-			this._persistMementos();
-			this._onDidChangeNotebookAffinity.fire();
+		if (existing !== kewnew.id) {
+			this._typeBindings.set(typeId, kewnew.id);
+			this._pewsistMementos();
+			this._onDidChangeNotebookAffinity.fiwe();
 		}
 	}
 
-	// a notebook has one kernel, a kernel has N notebooks
-	// notebook <-1----N-> kernel
-	selectKernelForNotebook(kernel: INotebookKernel, notebook: INotebookTextModelLike): void {
-		const key = NotebookTextModelLikeId.str(notebook);
-		const oldKernel = this._notebookBindings.get(key);
-		if (oldKernel !== kernel?.id) {
-			if (kernel) {
-				this._notebookBindings.set(key, kernel.id);
-			} else {
-				this._notebookBindings.delete(key);
+	// a notebook has one kewnew, a kewnew has N notebooks
+	// notebook <-1----N-> kewnew
+	sewectKewnewFowNotebook(kewnew: INotebookKewnew, notebook: INotebookTextModewWike): void {
+		const key = NotebookTextModewWikeId.stw(notebook);
+		const owdKewnew = this._notebookBindings.get(key);
+		if (owdKewnew !== kewnew?.id) {
+			if (kewnew) {
+				this._notebookBindings.set(key, kewnew.id);
+			} ewse {
+				this._notebookBindings.dewete(key);
 			}
-			this._onDidChangeNotebookKernelBinding.fire({ notebook: notebook.uri, oldKernel, newKernel: kernel.id });
-			this._persistMementos();
+			this._onDidChangeNotebookKewnewBinding.fiwe({ notebook: notebook.uwi, owdKewnew, newKewnew: kewnew.id });
+			this._pewsistMementos();
 		}
 	}
 
-	updateKernelNotebookAffinity(kernel: INotebookKernel, notebook: URI, preference: number | undefined): void {
-		const info = this._kernels.get(kernel.id);
+	updateKewnewNotebookAffinity(kewnew: INotebookKewnew, notebook: UWI, pwefewence: numba | undefined): void {
+		const info = this._kewnews.get(kewnew.id);
 		if (!info) {
-			throw new Error(`UNKNOWN kernel '${kernel.id}'`);
+			thwow new Ewwow(`UNKNOWN kewnew '${kewnew.id}'`);
 		}
-		if (preference === undefined) {
-			info.notebookPriorities.delete(notebook);
-		} else {
-			info.notebookPriorities.set(notebook, preference);
+		if (pwefewence === undefined) {
+			info.notebookPwiowities.dewete(notebook);
+		} ewse {
+			info.notebookPwiowities.set(notebook, pwefewence);
 		}
-		this._onDidChangeNotebookAffinity.fire();
+		this._onDidChangeNotebookAffinity.fiwe();
 	}
 }

@@ -1,64 +1,64 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Lazy } from 'vs/base/common/lazy';
+impowt * as assewt fwom 'assewt';
+impowt { Wazy } fwom 'vs/base/common/wazy';
 
-suite('Lazy', () => {
+suite('Wazy', () => {
 
-	test('lazy values should only be resolved once', () => {
-		let counter = 0;
-		const value = new Lazy(() => ++counter);
+	test('wazy vawues shouwd onwy be wesowved once', () => {
+		wet counta = 0;
+		const vawue = new Wazy(() => ++counta);
 
-		assert.strictEqual(value.hasValue(), false);
-		assert.strictEqual(value.getValue(), 1);
-		assert.strictEqual(value.hasValue(), true);
-		assert.strictEqual(value.getValue(), 1); // make sure we did not evaluate again
+		assewt.stwictEquaw(vawue.hasVawue(), fawse);
+		assewt.stwictEquaw(vawue.getVawue(), 1);
+		assewt.stwictEquaw(vawue.hasVawue(), twue);
+		assewt.stwictEquaw(vawue.getVawue(), 1); // make suwe we did not evawuate again
 	});
 
-	test('lazy values handle error case', () => {
-		let counter = 0;
-		const value = new Lazy(() => { throw new Error(`${++counter}`); });
+	test('wazy vawues handwe ewwow case', () => {
+		wet counta = 0;
+		const vawue = new Wazy(() => { thwow new Ewwow(`${++counta}`); });
 
-		assert.strictEqual(value.hasValue(), false);
-		assert.throws(() => value.getValue(), /\b1\b/);
-		assert.strictEqual(value.hasValue(), true);
-		assert.throws(() => value.getValue(), /\b1\b/);
+		assewt.stwictEquaw(vawue.hasVawue(), fawse);
+		assewt.thwows(() => vawue.getVawue(), /\b1\b/);
+		assewt.stwictEquaw(vawue.hasVawue(), twue);
+		assewt.thwows(() => vawue.getVawue(), /\b1\b/);
 	});
 
-	test('map should not cause lazy values to be re-resolved', () => {
-		let outer = 0;
-		let inner = 10;
-		const outerLazy = new Lazy(() => ++outer);
-		const innerLazy = outerLazy.map(x => [x, ++inner]);
+	test('map shouwd not cause wazy vawues to be we-wesowved', () => {
+		wet outa = 0;
+		wet inna = 10;
+		const outewWazy = new Wazy(() => ++outa);
+		const innewWazy = outewWazy.map(x => [x, ++inna]);
 
-		assert.strictEqual(outerLazy.hasValue(), false);
-		assert.strictEqual(innerLazy.hasValue(), false);
+		assewt.stwictEquaw(outewWazy.hasVawue(), fawse);
+		assewt.stwictEquaw(innewWazy.hasVawue(), fawse);
 
-		assert.deepStrictEqual(innerLazy.getValue(), [1, 11]);
-		assert.strictEqual(outerLazy.hasValue(), true);
-		assert.strictEqual(innerLazy.hasValue(), true);
-		assert.strictEqual(outerLazy.getValue(), 1);
+		assewt.deepStwictEquaw(innewWazy.getVawue(), [1, 11]);
+		assewt.stwictEquaw(outewWazy.hasVawue(), twue);
+		assewt.stwictEquaw(innewWazy.hasVawue(), twue);
+		assewt.stwictEquaw(outewWazy.getVawue(), 1);
 
-		// make sure we did not evaluate again
-		assert.strictEqual(outerLazy.getValue(), 1);
-		assert.deepStrictEqual(innerLazy.getValue(), [1, 11]);
+		// make suwe we did not evawuate again
+		assewt.stwictEquaw(outewWazy.getVawue(), 1);
+		assewt.deepStwictEquaw(innewWazy.getVawue(), [1, 11]);
 	});
 
-	test('map should handle error values', () => {
-		let outer = 0;
-		let inner = 10;
-		const outerLazy = new Lazy(() => { throw new Error(`${++outer}`); });
-		const innerLazy = outerLazy.map(x => { throw new Error(`${++inner}`); });
+	test('map shouwd handwe ewwow vawues', () => {
+		wet outa = 0;
+		wet inna = 10;
+		const outewWazy = new Wazy(() => { thwow new Ewwow(`${++outa}`); });
+		const innewWazy = outewWazy.map(x => { thwow new Ewwow(`${++inna}`); });
 
-		assert.strictEqual(outerLazy.hasValue(), false);
-		assert.strictEqual(innerLazy.hasValue(), false);
+		assewt.stwictEquaw(outewWazy.hasVawue(), fawse);
+		assewt.stwictEquaw(innewWazy.hasVawue(), fawse);
 
-		assert.throws(() => innerLazy.getValue(), /\b1\b/); // we should get result from outer
-		assert.strictEqual(outerLazy.hasValue(), true);
-		assert.strictEqual(innerLazy.hasValue(), true);
-		assert.throws(() => outerLazy.getValue(), /\b1\b/);
+		assewt.thwows(() => innewWazy.getVawue(), /\b1\b/); // we shouwd get wesuwt fwom outa
+		assewt.stwictEquaw(outewWazy.hasVawue(), twue);
+		assewt.stwictEquaw(innewWazy.hasVawue(), twue);
+		assewt.thwows(() => outewWazy.getVawue(), /\b1\b/);
 	});
 });

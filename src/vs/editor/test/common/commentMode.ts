@@ -1,19 +1,19 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { CommentRule } from 'vs/editor/common/modes/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+impowt { WanguageIdentifia } fwom 'vs/editow/common/modes';
+impowt { CommentWuwe } fwom 'vs/editow/common/modes/wanguageConfiguwation';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { MockMode } fwom 'vs/editow/test/common/mocks/mockMode';
 
-export class CommentMode extends MockMode {
-	private static readonly _id = new LanguageIdentifier('commentMode', 3);
+expowt cwass CommentMode extends MockMode {
+	pwivate static weadonwy _id = new WanguageIdentifia('commentMode', 3);
 
-	constructor(commentsConfig: CommentRule) {
-		super(CommentMode._id);
-		this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+	constwuctow(commentsConfig: CommentWuwe) {
+		supa(CommentMode._id);
+		this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {
 			comments: commentsConfig
 		}));
 	}

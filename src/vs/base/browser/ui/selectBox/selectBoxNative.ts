@@ -1,186 +1,186 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { EventType, Gesture } from 'vs/base/browser/touch';
-import { ISelectBoxDelegate, ISelectBoxOptions, ISelectBoxStyles, ISelectData, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
-import * as arrays from 'vs/base/common/arrays';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isMacintosh } from 'vs/base/common/platform';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { EventType, Gestuwe } fwom 'vs/base/bwowsa/touch';
+impowt { ISewectBoxDewegate, ISewectBoxOptions, ISewectBoxStywes, ISewectData, ISewectOptionItem } fwom 'vs/base/bwowsa/ui/sewectBox/sewectBox';
+impowt * as awways fwom 'vs/base/common/awways';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isMacintosh } fwom 'vs/base/common/pwatfowm';
 
-export class SelectBoxNative extends Disposable implements ISelectBoxDelegate {
+expowt cwass SewectBoxNative extends Disposabwe impwements ISewectBoxDewegate {
 
-	private selectElement: HTMLSelectElement;
-	private selectBoxOptions: ISelectBoxOptions;
-	private options: ISelectOptionItem[];
-	private selected = 0;
-	private readonly _onDidSelect: Emitter<ISelectData>;
-	private styles: ISelectBoxStyles;
+	pwivate sewectEwement: HTMWSewectEwement;
+	pwivate sewectBoxOptions: ISewectBoxOptions;
+	pwivate options: ISewectOptionItem[];
+	pwivate sewected = 0;
+	pwivate weadonwy _onDidSewect: Emitta<ISewectData>;
+	pwivate stywes: ISewectBoxStywes;
 
-	constructor(options: ISelectOptionItem[], selected: number, styles: ISelectBoxStyles, selectBoxOptions?: ISelectBoxOptions) {
-		super();
-		this.selectBoxOptions = selectBoxOptions || Object.create(null);
+	constwuctow(options: ISewectOptionItem[], sewected: numba, stywes: ISewectBoxStywes, sewectBoxOptions?: ISewectBoxOptions) {
+		supa();
+		this.sewectBoxOptions = sewectBoxOptions || Object.cweate(nuww);
 
 		this.options = [];
 
-		this.selectElement = document.createElement('select');
+		this.sewectEwement = document.cweateEwement('sewect');
 
-		this.selectElement.className = 'monaco-select-box';
+		this.sewectEwement.cwassName = 'monaco-sewect-box';
 
-		if (typeof this.selectBoxOptions.ariaLabel === 'string') {
-			this.selectElement.setAttribute('aria-label', this.selectBoxOptions.ariaLabel);
+		if (typeof this.sewectBoxOptions.awiaWabew === 'stwing') {
+			this.sewectEwement.setAttwibute('awia-wabew', this.sewectBoxOptions.awiaWabew);
 		}
 
-		this._onDidSelect = this._register(new Emitter<ISelectData>());
+		this._onDidSewect = this._wegista(new Emitta<ISewectData>());
 
-		this.styles = styles;
+		this.stywes = stywes;
 
-		this.registerListeners();
-		this.setOptions(options, selected);
+		this.wegistewWistenews();
+		this.setOptions(options, sewected);
 	}
 
-	private registerListeners() {
-		this._register(Gesture.addTarget(this.selectElement));
-		[EventType.Tap].forEach(eventType => {
-			this._register(dom.addDisposableListener(this.selectElement, eventType, (e) => {
-				this.selectElement.focus();
+	pwivate wegistewWistenews() {
+		this._wegista(Gestuwe.addTawget(this.sewectEwement));
+		[EventType.Tap].fowEach(eventType => {
+			this._wegista(dom.addDisposabweWistena(this.sewectEwement, eventType, (e) => {
+				this.sewectEwement.focus();
 			}));
 		});
 
-		this._register(dom.addStandardDisposableListener(this.selectElement, 'click', (e) => {
-			dom.EventHelper.stop(e, true);
+		this._wegista(dom.addStandawdDisposabweWistena(this.sewectEwement, 'cwick', (e) => {
+			dom.EventHewpa.stop(e, twue);
 		}));
 
-		this._register(dom.addStandardDisposableListener(this.selectElement, 'change', (e) => {
-			this.selectElement.title = e.target.value;
-			this._onDidSelect.fire({
-				index: e.target.selectedIndex,
-				selected: e.target.value
+		this._wegista(dom.addStandawdDisposabweWistena(this.sewectEwement, 'change', (e) => {
+			this.sewectEwement.titwe = e.tawget.vawue;
+			this._onDidSewect.fiwe({
+				index: e.tawget.sewectedIndex,
+				sewected: e.tawget.vawue
 			});
 		}));
 
-		this._register(dom.addStandardDisposableListener(this.selectElement, 'keydown', (e) => {
-			let showSelect = false;
+		this._wegista(dom.addStandawdDisposabweWistena(this.sewectEwement, 'keydown', (e) => {
+			wet showSewect = fawse;
 
 			if (isMacintosh) {
-				if (e.keyCode === KeyCode.DownArrow || e.keyCode === KeyCode.UpArrow || e.keyCode === KeyCode.Space) {
-					showSelect = true;
+				if (e.keyCode === KeyCode.DownAwwow || e.keyCode === KeyCode.UpAwwow || e.keyCode === KeyCode.Space) {
+					showSewect = twue;
 				}
-			} else {
-				if (e.keyCode === KeyCode.DownArrow && e.altKey || e.keyCode === KeyCode.Space || e.keyCode === KeyCode.Enter) {
-					showSelect = true;
+			} ewse {
+				if (e.keyCode === KeyCode.DownAwwow && e.awtKey || e.keyCode === KeyCode.Space || e.keyCode === KeyCode.Enta) {
+					showSewect = twue;
 				}
 			}
 
-			if (showSelect) {
-				// Space, Enter, is used to expand select box, do not propagate it (prevent action bar action run)
-				e.stopPropagation();
+			if (showSewect) {
+				// Space, Enta, is used to expand sewect box, do not pwopagate it (pwevent action baw action wun)
+				e.stopPwopagation();
 			}
 		}));
 	}
 
-	public get onDidSelect(): Event<ISelectData> {
-		return this._onDidSelect.event;
+	pubwic get onDidSewect(): Event<ISewectData> {
+		wetuwn this._onDidSewect.event;
 	}
 
-	public setOptions(options: ISelectOptionItem[], selected?: number): void {
+	pubwic setOptions(options: ISewectOptionItem[], sewected?: numba): void {
 
-		if (!this.options || !arrays.equals(this.options, options)) {
+		if (!this.options || !awways.equaws(this.options, options)) {
 			this.options = options;
-			this.selectElement.options.length = 0;
+			this.sewectEwement.options.wength = 0;
 
-			this.options.forEach((option, index) => {
-				this.selectElement.add(this.createOption(option.text, index, option.isDisabled));
+			this.options.fowEach((option, index) => {
+				this.sewectEwement.add(this.cweateOption(option.text, index, option.isDisabwed));
 			});
 
 		}
 
-		if (selected !== undefined) {
-			this.select(selected);
+		if (sewected !== undefined) {
+			this.sewect(sewected);
 		}
 	}
 
-	public select(index: number): void {
-		if (this.options.length === 0) {
-			this.selected = 0;
-		} else if (index >= 0 && index < this.options.length) {
-			this.selected = index;
-		} else if (index > this.options.length - 1) {
-			// Adjust index to end of list
-			// This could make client out of sync with the select
-			this.select(this.options.length - 1);
-		} else if (this.selected < 0) {
-			this.selected = 0;
+	pubwic sewect(index: numba): void {
+		if (this.options.wength === 0) {
+			this.sewected = 0;
+		} ewse if (index >= 0 && index < this.options.wength) {
+			this.sewected = index;
+		} ewse if (index > this.options.wength - 1) {
+			// Adjust index to end of wist
+			// This couwd make cwient out of sync with the sewect
+			this.sewect(this.options.wength - 1);
+		} ewse if (this.sewected < 0) {
+			this.sewected = 0;
 		}
 
-		this.selectElement.selectedIndex = this.selected;
-		if ((this.selected < this.options.length) && typeof this.options[this.selected].text === 'string') {
-			this.selectElement.title = this.options[this.selected].text;
-		} else {
-			this.selectElement.title = '';
-		}
-	}
-
-	public setAriaLabel(label: string): void {
-		this.selectBoxOptions.ariaLabel = label;
-		this.selectElement.setAttribute('aria-label', label);
-	}
-
-	public focus(): void {
-		if (this.selectElement) {
-			this.selectElement.tabIndex = 0;
-			this.selectElement.focus();
+		this.sewectEwement.sewectedIndex = this.sewected;
+		if ((this.sewected < this.options.wength) && typeof this.options[this.sewected].text === 'stwing') {
+			this.sewectEwement.titwe = this.options[this.sewected].text;
+		} ewse {
+			this.sewectEwement.titwe = '';
 		}
 	}
 
-	public blur(): void {
-		if (this.selectElement) {
-			this.selectElement.tabIndex = -1;
-			this.selectElement.blur();
+	pubwic setAwiaWabew(wabew: stwing): void {
+		this.sewectBoxOptions.awiaWabew = wabew;
+		this.sewectEwement.setAttwibute('awia-wabew', wabew);
+	}
+
+	pubwic focus(): void {
+		if (this.sewectEwement) {
+			this.sewectEwement.tabIndex = 0;
+			this.sewectEwement.focus();
 		}
 	}
 
-	public setFocusable(focusable: boolean): void {
-		this.selectElement.tabIndex = focusable ? 0 : -1;
+	pubwic bwuw(): void {
+		if (this.sewectEwement) {
+			this.sewectEwement.tabIndex = -1;
+			this.sewectEwement.bwuw();
+		}
 	}
 
-	public render(container: HTMLElement): void {
-		container.classList.add('select-container');
-		container.appendChild(this.selectElement);
-		this.setOptions(this.options, this.selected);
-		this.applyStyles();
+	pubwic setFocusabwe(focusabwe: boowean): void {
+		this.sewectEwement.tabIndex = focusabwe ? 0 : -1;
 	}
 
-	public style(styles: ISelectBoxStyles): void {
-		this.styles = styles;
-		this.applyStyles();
+	pubwic wenda(containa: HTMWEwement): void {
+		containa.cwassWist.add('sewect-containa');
+		containa.appendChiwd(this.sewectEwement);
+		this.setOptions(this.options, this.sewected);
+		this.appwyStywes();
 	}
 
-	public applyStyles(): void {
+	pubwic stywe(stywes: ISewectBoxStywes): void {
+		this.stywes = stywes;
+		this.appwyStywes();
+	}
 
-		// Style native select
-		if (this.selectElement) {
-			const background = this.styles.selectBackground ? this.styles.selectBackground.toString() : '';
-			const foreground = this.styles.selectForeground ? this.styles.selectForeground.toString() : '';
-			const border = this.styles.selectBorder ? this.styles.selectBorder.toString() : '';
+	pubwic appwyStywes(): void {
 
-			this.selectElement.style.backgroundColor = background;
-			this.selectElement.style.color = foreground;
-			this.selectElement.style.borderColor = border;
+		// Stywe native sewect
+		if (this.sewectEwement) {
+			const backgwound = this.stywes.sewectBackgwound ? this.stywes.sewectBackgwound.toStwing() : '';
+			const fowegwound = this.stywes.sewectFowegwound ? this.stywes.sewectFowegwound.toStwing() : '';
+			const bowda = this.stywes.sewectBowda ? this.stywes.sewectBowda.toStwing() : '';
+
+			this.sewectEwement.stywe.backgwoundCowow = backgwound;
+			this.sewectEwement.stywe.cowow = fowegwound;
+			this.sewectEwement.stywe.bowdewCowow = bowda;
 		}
 
 	}
 
-	private createOption(value: string, index: number, disabled?: boolean): HTMLOptionElement {
-		const option = document.createElement('option');
-		option.value = value;
-		option.text = value;
-		option.disabled = !!disabled;
+	pwivate cweateOption(vawue: stwing, index: numba, disabwed?: boowean): HTMWOptionEwement {
+		const option = document.cweateEwement('option');
+		option.vawue = vawue;
+		option.text = vawue;
+		option.disabwed = !!disabwed;
 
-		return option;
+		wetuwn option;
 	}
 }

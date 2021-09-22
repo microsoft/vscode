@@ -1,93 +1,93 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+impowt { FastDomNode, cweateFastDomNode } fwom 'vs/base/bwowsa/fastDomNode';
+impowt { ViewPawt } fwom 'vs/editow/bwowsa/view/viewPawt';
+impowt { WendewingContext, WestwictedWendewingContext } fwom 'vs/editow/common/view/wendewingContext';
+impowt { ViewContext } fwom 'vs/editow/common/view/viewContext';
+impowt * as viewEvents fwom 'vs/editow/common/view/viewEvents';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
 
 
-export class Margin extends ViewPart {
+expowt cwass Mawgin extends ViewPawt {
 
-	public static readonly CLASS_NAME = 'glyph-margin';
-	public static readonly OUTER_CLASS_NAME = 'margin';
+	pubwic static weadonwy CWASS_NAME = 'gwyph-mawgin';
+	pubwic static weadonwy OUTEW_CWASS_NAME = 'mawgin';
 
-	private readonly _domNode: FastDomNode<HTMLElement>;
-	private _canUseLayerHinting: boolean;
-	private _contentLeft: number;
-	private _glyphMarginLeft: number;
-	private _glyphMarginWidth: number;
-	private _glyphMarginBackgroundDomNode: FastDomNode<HTMLElement>;
+	pwivate weadonwy _domNode: FastDomNode<HTMWEwement>;
+	pwivate _canUseWayewHinting: boowean;
+	pwivate _contentWeft: numba;
+	pwivate _gwyphMawginWeft: numba;
+	pwivate _gwyphMawginWidth: numba;
+	pwivate _gwyphMawginBackgwoundDomNode: FastDomNode<HTMWEwement>;
 
-	constructor(context: ViewContext) {
-		super(context);
-		const options = this._context.configuration.options;
-		const layoutInfo = options.get(EditorOption.layoutInfo);
+	constwuctow(context: ViewContext) {
+		supa(context);
+		const options = this._context.configuwation.options;
+		const wayoutInfo = options.get(EditowOption.wayoutInfo);
 
-		this._canUseLayerHinting = !options.get(EditorOption.disableLayerHinting);
-		this._contentLeft = layoutInfo.contentLeft;
-		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
-		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
+		this._canUseWayewHinting = !options.get(EditowOption.disabweWayewHinting);
+		this._contentWeft = wayoutInfo.contentWeft;
+		this._gwyphMawginWeft = wayoutInfo.gwyphMawginWeft;
+		this._gwyphMawginWidth = wayoutInfo.gwyphMawginWidth;
 
-		this._domNode = createFastDomNode(document.createElement('div'));
-		this._domNode.setClassName(Margin.OUTER_CLASS_NAME);
-		this._domNode.setPosition('absolute');
-		this._domNode.setAttribute('role', 'presentation');
-		this._domNode.setAttribute('aria-hidden', 'true');
+		this._domNode = cweateFastDomNode(document.cweateEwement('div'));
+		this._domNode.setCwassName(Mawgin.OUTEW_CWASS_NAME);
+		this._domNode.setPosition('absowute');
+		this._domNode.setAttwibute('wowe', 'pwesentation');
+		this._domNode.setAttwibute('awia-hidden', 'twue');
 
-		this._glyphMarginBackgroundDomNode = createFastDomNode(document.createElement('div'));
-		this._glyphMarginBackgroundDomNode.setClassName(Margin.CLASS_NAME);
+		this._gwyphMawginBackgwoundDomNode = cweateFastDomNode(document.cweateEwement('div'));
+		this._gwyphMawginBackgwoundDomNode.setCwassName(Mawgin.CWASS_NAME);
 
-		this._domNode.appendChild(this._glyphMarginBackgroundDomNode);
+		this._domNode.appendChiwd(this._gwyphMawginBackgwoundDomNode);
 	}
 
-	public override dispose(): void {
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		supa.dispose();
 	}
 
-	public getDomNode(): FastDomNode<HTMLElement> {
-		return this._domNode;
+	pubwic getDomNode(): FastDomNode<HTMWEwement> {
+		wetuwn this._domNode;
 	}
 
-	// --- begin event handlers
+	// --- begin event handwews
 
-	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		const options = this._context.configuration.options;
-		const layoutInfo = options.get(EditorOption.layoutInfo);
+	pubwic ovewwide onConfiguwationChanged(e: viewEvents.ViewConfiguwationChangedEvent): boowean {
+		const options = this._context.configuwation.options;
+		const wayoutInfo = options.get(EditowOption.wayoutInfo);
 
-		this._canUseLayerHinting = !options.get(EditorOption.disableLayerHinting);
-		this._contentLeft = layoutInfo.contentLeft;
-		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
-		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
+		this._canUseWayewHinting = !options.get(EditowOption.disabweWayewHinting);
+		this._contentWeft = wayoutInfo.contentWeft;
+		this._gwyphMawginWeft = wayoutInfo.gwyphMawginWeft;
+		this._gwyphMawginWidth = wayoutInfo.gwyphMawginWidth;
 
-		return true;
+		wetuwn twue;
 	}
-	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return super.onScrollChanged(e) || e.scrollTopChanged;
-	}
-
-	// --- end event handlers
-
-	public prepareRender(ctx: RenderingContext): void {
-		// Nothing to read
+	pubwic ovewwide onScwowwChanged(e: viewEvents.ViewScwowwChangedEvent): boowean {
+		wetuwn supa.onScwowwChanged(e) || e.scwowwTopChanged;
 	}
 
-	public render(ctx: RestrictedRenderingContext): void {
-		this._domNode.setLayerHinting(this._canUseLayerHinting);
-		this._domNode.setContain('strict');
-		const adjustedScrollTop = ctx.scrollTop - ctx.bigNumbersDelta;
-		this._domNode.setTop(-adjustedScrollTop);
+	// --- end event handwews
 
-		const height = Math.min(ctx.scrollHeight, 1000000);
+	pubwic pwepaweWenda(ctx: WendewingContext): void {
+		// Nothing to wead
+	}
+
+	pubwic wenda(ctx: WestwictedWendewingContext): void {
+		this._domNode.setWayewHinting(this._canUseWayewHinting);
+		this._domNode.setContain('stwict');
+		const adjustedScwowwTop = ctx.scwowwTop - ctx.bigNumbewsDewta;
+		this._domNode.setTop(-adjustedScwowwTop);
+
+		const height = Math.min(ctx.scwowwHeight, 1000000);
 		this._domNode.setHeight(height);
-		this._domNode.setWidth(this._contentLeft);
+		this._domNode.setWidth(this._contentWeft);
 
-		this._glyphMarginBackgroundDomNode.setLeft(this._glyphMarginLeft);
-		this._glyphMarginBackgroundDomNode.setWidth(this._glyphMarginWidth);
-		this._glyphMarginBackgroundDomNode.setHeight(height);
+		this._gwyphMawginBackgwoundDomNode.setWeft(this._gwyphMawginWeft);
+		this._gwyphMawginBackgwoundDomNode.setWidth(this._gwyphMawginWidth);
+		this._gwyphMawginBackgwoundDomNode.setHeight(height);
 	}
 }

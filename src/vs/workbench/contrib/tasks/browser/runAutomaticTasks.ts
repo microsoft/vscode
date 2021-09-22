@@ -1,176 +1,176 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as resources from 'vs/base/common/resources';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ITaskService, WorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
-import { forEach } from 'vs/base/common/collections';
-import { RunOnOptions, Task, TaskRunSource, TaskSource, TaskSourceKind, TASKS_CATEGORY, WorkspaceFileTaskSource, WorkspaceTaskSource } from 'vs/workbench/contrib/tasks/common/tasks';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { Action2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
+impowt * as nws fwom 'vs/nws';
+impowt * as wesouwces fwom 'vs/base/common/wesouwces';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { ITaskSewvice, WowkspaceFowdewTaskWesuwt } fwom 'vs/wowkbench/contwib/tasks/common/taskSewvice';
+impowt { fowEach } fwom 'vs/base/common/cowwections';
+impowt { WunOnOptions, Task, TaskWunSouwce, TaskSouwce, TaskSouwceKind, TASKS_CATEGOWY, WowkspaceFiweTaskSouwce, WowkspaceTaskSouwce } fwom 'vs/wowkbench/contwib/tasks/common/tasks';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IQuickPickItem, IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { Action2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWowkspaceTwustManagementSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { ConfiguwationTawget } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Event } fwom 'vs/base/common/event';
 
-const ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE = 'tasks.run.allowAutomatic';
+const AWE_AUTOMATIC_TASKS_AWWOWED_IN_WOWKSPACE = 'tasks.wun.awwowAutomatic';
 
-export class RunAutomaticTasks extends Disposable implements IWorkbenchContribution {
-	constructor(
-		@ITaskService private readonly taskService: ITaskService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService) {
-		super();
-		this.tryRunTasks();
+expowt cwass WunAutomaticTasks extends Disposabwe impwements IWowkbenchContwibution {
+	constwuctow(
+		@ITaskSewvice pwivate weadonwy taskSewvice: ITaskSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IWowkspaceTwustManagementSewvice pwivate weadonwy wowkspaceTwustManagementSewvice: IWowkspaceTwustManagementSewvice) {
+		supa();
+		this.twyWunTasks();
 	}
 
-	private async tryRunTasks() {
-		// Wait until we have task system info (the extension host and workspace folders are available).
-		if (!this.taskService.hasTaskSystemInfo) {
-			await Event.toPromise(Event.once(this.taskService.onDidChangeTaskSystemInfo));
+	pwivate async twyWunTasks() {
+		// Wait untiw we have task system info (the extension host and wowkspace fowdews awe avaiwabwe).
+		if (!this.taskSewvice.hasTaskSystemInfo) {
+			await Event.toPwomise(Event.once(this.taskSewvice.onDidChangeTaskSystemInfo));
 		}
-		const isFolderAutomaticAllowed = this.storageService.getBoolean(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, StorageScope.WORKSPACE, undefined);
-		const isWorkspaceTrusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
-		// Only run if allowed. Prompting for permission occurs when a user first tries to run a task.
-		if (isFolderAutomaticAllowed && isWorkspaceTrusted) {
-			this.taskService.getWorkspaceTasks(TaskRunSource.FolderOpen).then(workspaceTaskResult => {
-				let { tasks } = RunAutomaticTasks.findAutoTasks(this.taskService, workspaceTaskResult);
-				if (tasks.length > 0) {
-					RunAutomaticTasks.runTasks(this.taskService, tasks);
+		const isFowdewAutomaticAwwowed = this.stowageSewvice.getBoowean(AWE_AUTOMATIC_TASKS_AWWOWED_IN_WOWKSPACE, StowageScope.WOWKSPACE, undefined);
+		const isWowkspaceTwusted = this.wowkspaceTwustManagementSewvice.isWowkspaceTwusted();
+		// Onwy wun if awwowed. Pwompting fow pewmission occuws when a usa fiwst twies to wun a task.
+		if (isFowdewAutomaticAwwowed && isWowkspaceTwusted) {
+			this.taskSewvice.getWowkspaceTasks(TaskWunSouwce.FowdewOpen).then(wowkspaceTaskWesuwt => {
+				wet { tasks } = WunAutomaticTasks.findAutoTasks(this.taskSewvice, wowkspaceTaskWesuwt);
+				if (tasks.wength > 0) {
+					WunAutomaticTasks.wunTasks(this.taskSewvice, tasks);
 				}
 			});
 		}
 	}
 
-	private static runTasks(taskService: ITaskService, tasks: Array<Task | Promise<Task | undefined>>) {
-		tasks.forEach(task => {
-			if (task instanceof Promise) {
-				task.then(promiseResult => {
-					if (promiseResult) {
-						taskService.run(promiseResult);
+	pwivate static wunTasks(taskSewvice: ITaskSewvice, tasks: Awway<Task | Pwomise<Task | undefined>>) {
+		tasks.fowEach(task => {
+			if (task instanceof Pwomise) {
+				task.then(pwomiseWesuwt => {
+					if (pwomiseWesuwt) {
+						taskSewvice.wun(pwomiseWesuwt);
 					}
 				});
-			} else {
-				taskService.run(task);
+			} ewse {
+				taskSewvice.wun(task);
 			}
 		});
 	}
 
-	private static getTaskSource(source: TaskSource): URI | undefined {
-		const taskKind = TaskSourceKind.toConfigurationTarget(source.kind);
+	pwivate static getTaskSouwce(souwce: TaskSouwce): UWI | undefined {
+		const taskKind = TaskSouwceKind.toConfiguwationTawget(souwce.kind);
 		switch (taskKind) {
-			case ConfigurationTarget.WORKSPACE_FOLDER: {
-				return resources.joinPath((<WorkspaceTaskSource>source).config.workspaceFolder!.uri, (<WorkspaceTaskSource>source).config.file);
+			case ConfiguwationTawget.WOWKSPACE_FOWDa: {
+				wetuwn wesouwces.joinPath((<WowkspaceTaskSouwce>souwce).config.wowkspaceFowda!.uwi, (<WowkspaceTaskSouwce>souwce).config.fiwe);
 			}
-			case ConfigurationTarget.WORKSPACE: {
-				return (<WorkspaceFileTaskSource>source).config.workspace?.configuration ?? undefined;
+			case ConfiguwationTawget.WOWKSPACE: {
+				wetuwn (<WowkspaceFiweTaskSouwce>souwce).config.wowkspace?.configuwation ?? undefined;
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private static findAutoTasks(taskService: ITaskService, workspaceTaskResult: Map<string, WorkspaceFolderTaskResult>): { tasks: Array<Task | Promise<Task | undefined>>, taskNames: Array<string>, locations: Map<string, URI> } {
-		const tasks = new Array<Task | Promise<Task | undefined>>();
-		const taskNames = new Array<string>();
-		const locations = new Map<string, URI>();
+	pwivate static findAutoTasks(taskSewvice: ITaskSewvice, wowkspaceTaskWesuwt: Map<stwing, WowkspaceFowdewTaskWesuwt>): { tasks: Awway<Task | Pwomise<Task | undefined>>, taskNames: Awway<stwing>, wocations: Map<stwing, UWI> } {
+		const tasks = new Awway<Task | Pwomise<Task | undefined>>();
+		const taskNames = new Awway<stwing>();
+		const wocations = new Map<stwing, UWI>();
 
-		if (workspaceTaskResult) {
-			workspaceTaskResult.forEach(resultElement => {
-				if (resultElement.set) {
-					resultElement.set.tasks.forEach(task => {
-						if (task.runOptions.runOn === RunOnOptions.folderOpen) {
+		if (wowkspaceTaskWesuwt) {
+			wowkspaceTaskWesuwt.fowEach(wesuwtEwement => {
+				if (wesuwtEwement.set) {
+					wesuwtEwement.set.tasks.fowEach(task => {
+						if (task.wunOptions.wunOn === WunOnOptions.fowdewOpen) {
 							tasks.push(task);
-							taskNames.push(task._label);
-							const location = RunAutomaticTasks.getTaskSource(task._source);
-							if (location) {
-								locations.set(location.fsPath, location);
+							taskNames.push(task._wabew);
+							const wocation = WunAutomaticTasks.getTaskSouwce(task._souwce);
+							if (wocation) {
+								wocations.set(wocation.fsPath, wocation);
 							}
 						}
 					});
 				}
-				if (resultElement.configurations) {
-					forEach(resultElement.configurations.byIdentifier, (configedTask) => {
-						if (configedTask.value.runOptions.runOn === RunOnOptions.folderOpen) {
-							tasks.push(new Promise<Task | undefined>(resolve => {
-								taskService.getTask(resultElement.workspaceFolder, configedTask.value._id, true).then(task => resolve(task));
+				if (wesuwtEwement.configuwations) {
+					fowEach(wesuwtEwement.configuwations.byIdentifia, (configedTask) => {
+						if (configedTask.vawue.wunOptions.wunOn === WunOnOptions.fowdewOpen) {
+							tasks.push(new Pwomise<Task | undefined>(wesowve => {
+								taskSewvice.getTask(wesuwtEwement.wowkspaceFowda, configedTask.vawue._id, twue).then(task => wesowve(task));
 							}));
-							if (configedTask.value._label) {
-								taskNames.push(configedTask.value._label);
-							} else {
-								taskNames.push(configedTask.value.configures.task);
+							if (configedTask.vawue._wabew) {
+								taskNames.push(configedTask.vawue._wabew);
+							} ewse {
+								taskNames.push(configedTask.vawue.configuwes.task);
 							}
-							const location = RunAutomaticTasks.getTaskSource(configedTask.value._source);
-							if (location) {
-								locations.set(location.fsPath, location);
+							const wocation = WunAutomaticTasks.getTaskSouwce(configedTask.vawue._souwce);
+							if (wocation) {
+								wocations.set(wocation.fsPath, wocation);
 							}
 						}
 					});
 				}
 			});
 		}
-		return { tasks, taskNames, locations };
+		wetuwn { tasks, taskNames, wocations };
 	}
 
-	public static async promptForPermission(taskService: ITaskService, storageService: IStorageService, notificationService: INotificationService, workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		openerService: IOpenerService, workspaceTaskResult: Map<string, WorkspaceFolderTaskResult>) {
-		const isWorkspaceTrusted = workspaceTrustManagementService.isWorkspaceTrusted;
-		if (!isWorkspaceTrusted) {
-			return;
+	pubwic static async pwomptFowPewmission(taskSewvice: ITaskSewvice, stowageSewvice: IStowageSewvice, notificationSewvice: INotificationSewvice, wowkspaceTwustManagementSewvice: IWowkspaceTwustManagementSewvice,
+		openewSewvice: IOpenewSewvice, wowkspaceTaskWesuwt: Map<stwing, WowkspaceFowdewTaskWesuwt>) {
+		const isWowkspaceTwusted = wowkspaceTwustManagementSewvice.isWowkspaceTwusted;
+		if (!isWowkspaceTwusted) {
+			wetuwn;
 		}
 
-		const isFolderAutomaticAllowed = storageService.getBoolean(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, StorageScope.WORKSPACE, undefined);
-		if (isFolderAutomaticAllowed !== undefined) {
-			return;
+		const isFowdewAutomaticAwwowed = stowageSewvice.getBoowean(AWE_AUTOMATIC_TASKS_AWWOWED_IN_WOWKSPACE, StowageScope.WOWKSPACE, undefined);
+		if (isFowdewAutomaticAwwowed !== undefined) {
+			wetuwn;
 		}
 
-		let { tasks, taskNames, locations } = RunAutomaticTasks.findAutoTasks(taskService, workspaceTaskResult);
-		if (taskNames.length > 0) {
-			// We have automatic tasks, prompt to allow.
-			this.showPrompt(notificationService, storageService, taskService, openerService, taskNames, locations).then(allow => {
-				if (allow) {
-					RunAutomaticTasks.runTasks(taskService, tasks);
+		wet { tasks, taskNames, wocations } = WunAutomaticTasks.findAutoTasks(taskSewvice, wowkspaceTaskWesuwt);
+		if (taskNames.wength > 0) {
+			// We have automatic tasks, pwompt to awwow.
+			this.showPwompt(notificationSewvice, stowageSewvice, taskSewvice, openewSewvice, taskNames, wocations).then(awwow => {
+				if (awwow) {
+					WunAutomaticTasks.wunTasks(taskSewvice, tasks);
 				}
 			});
 		}
 	}
 
-	private static showPrompt(notificationService: INotificationService, storageService: IStorageService, taskService: ITaskService,
-		openerService: IOpenerService, taskNames: Array<string>, locations: Map<string, URI>): Promise<boolean> {
-		return new Promise<boolean>(resolve => {
-			notificationService.prompt(Severity.Info, nls.localize('tasks.run.allowAutomatic',
-				"This workspace has tasks ({0}) defined ({1}) that run automatically when you open this workspace. Do you allow automatic tasks to run when you open this workspace?",
+	pwivate static showPwompt(notificationSewvice: INotificationSewvice, stowageSewvice: IStowageSewvice, taskSewvice: ITaskSewvice,
+		openewSewvice: IOpenewSewvice, taskNames: Awway<stwing>, wocations: Map<stwing, UWI>): Pwomise<boowean> {
+		wetuwn new Pwomise<boowean>(wesowve => {
+			notificationSewvice.pwompt(Sevewity.Info, nws.wocawize('tasks.wun.awwowAutomatic',
+				"This wowkspace has tasks ({0}) defined ({1}) that wun automaticawwy when you open this wowkspace. Do you awwow automatic tasks to wun when you open this wowkspace?",
 				taskNames.join(', '),
-				Array.from(locations.keys()).join(', ')
+				Awway.fwom(wocations.keys()).join(', ')
 			),
 				[{
-					label: nls.localize('allow', "Allow and run"),
-					run: () => {
-						resolve(true);
-						storageService.store(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+					wabew: nws.wocawize('awwow', "Awwow and wun"),
+					wun: () => {
+						wesowve(twue);
+						stowageSewvice.stowe(AWE_AUTOMATIC_TASKS_AWWOWED_IN_WOWKSPACE, twue, StowageScope.WOWKSPACE, StowageTawget.MACHINE);
 					}
 				},
 				{
-					label: nls.localize('disallow', "Disallow"),
-					run: () => {
-						resolve(false);
-						storageService.store(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, false, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+					wabew: nws.wocawize('disawwow', "Disawwow"),
+					wun: () => {
+						wesowve(fawse);
+						stowageSewvice.stowe(AWE_AUTOMATIC_TASKS_AWWOWED_IN_WOWKSPACE, fawse, StowageScope.WOWKSPACE, StowageTawget.MACHINE);
 					}
 				},
 				{
-					label: locations.size === 1 ? nls.localize('openTask', "Open file") : nls.localize('openTasks', "Open files"),
-					run: async () => {
-						for (const location of locations) {
-							await openerService.open(location[1]);
+					wabew: wocations.size === 1 ? nws.wocawize('openTask', "Open fiwe") : nws.wocawize('openTasks', "Open fiwes"),
+					wun: async () => {
+						fow (const wocation of wocations) {
+							await openewSewvice.open(wocation[1]);
 						}
-						resolve(false);
+						wesowve(fawse);
 					}
 				}]
 			);
@@ -179,29 +179,29 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 
 }
 
-export class ManageAutomaticTaskRunning extends Action2 {
+expowt cwass ManageAutomaticTaskWunning extends Action2 {
 
-	public static readonly ID = 'workbench.action.tasks.manageAutomaticRunning';
-	public static readonly LABEL = nls.localize('workbench.action.tasks.manageAutomaticRunning', "Manage Automatic Tasks in Folder");
+	pubwic static weadonwy ID = 'wowkbench.action.tasks.manageAutomaticWunning';
+	pubwic static weadonwy WABEW = nws.wocawize('wowkbench.action.tasks.manageAutomaticWunning', "Manage Automatic Tasks in Fowda");
 
-	constructor() {
-		super({
-			id: ManageAutomaticTaskRunning.ID,
-			title: ManageAutomaticTaskRunning.LABEL,
-			category: TASKS_CATEGORY
+	constwuctow() {
+		supa({
+			id: ManageAutomaticTaskWunning.ID,
+			titwe: ManageAutomaticTaskWunning.WABEW,
+			categowy: TASKS_CATEGOWY
 		});
 	}
 
-	public async run(accessor: ServicesAccessor): Promise<any> {
-		const quickInputService = accessor.get(IQuickInputService);
-		const storageService = accessor.get(IStorageService);
-		const allowItem: IQuickPickItem = { label: nls.localize('workbench.action.tasks.allowAutomaticTasks', "Allow Automatic Tasks in Folder") };
-		const disallowItem: IQuickPickItem = { label: nls.localize('workbench.action.tasks.disallowAutomaticTasks', "Disallow Automatic Tasks in Folder") };
-		const value = await quickInputService.pick([allowItem, disallowItem], { canPickMany: false });
-		if (!value) {
-			return;
+	pubwic async wun(accessow: SewvicesAccessow): Pwomise<any> {
+		const quickInputSewvice = accessow.get(IQuickInputSewvice);
+		const stowageSewvice = accessow.get(IStowageSewvice);
+		const awwowItem: IQuickPickItem = { wabew: nws.wocawize('wowkbench.action.tasks.awwowAutomaticTasks', "Awwow Automatic Tasks in Fowda") };
+		const disawwowItem: IQuickPickItem = { wabew: nws.wocawize('wowkbench.action.tasks.disawwowAutomaticTasks', "Disawwow Automatic Tasks in Fowda") };
+		const vawue = await quickInputSewvice.pick([awwowItem, disawwowItem], { canPickMany: fawse });
+		if (!vawue) {
+			wetuwn;
 		}
 
-		storageService.store(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, value === allowItem, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		stowageSewvice.stowe(AWE_AUTOMATIC_TASKS_AWWOWED_IN_WOWKSPACE, vawue === awwowItem, StowageScope.WOWKSPACE, StowageTawget.MACHINE);
 	}
 }

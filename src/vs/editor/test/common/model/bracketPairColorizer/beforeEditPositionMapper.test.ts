@@ -1,47 +1,47 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
-import { splitLines } from 'vs/base/common/strings';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { BeforeEditPositionMapper, TextEditInfo } from 'vs/editor/common/model/bracketPairColorizer/beforeEditPositionMapper';
-import { Length, lengthOfString, lengthToObj, lengthToPosition, toLength } from 'vs/editor/common/model/bracketPairColorizer/length';
+impowt assewt = wequiwe('assewt');
+impowt { spwitWines } fwom 'vs/base/common/stwings';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { BefoweEditPositionMappa, TextEditInfo } fwom 'vs/editow/common/modew/bwacketPaiwCowowiza/befoweEditPositionMappa';
+impowt { Wength, wengthOfStwing, wengthToObj, wengthToPosition, toWength } fwom 'vs/editow/common/modew/bwacketPaiwCowowiza/wength';
 
-suite('Bracket Pair Colorizer - BeforeEditPositionMapper', () => {
-	test('Single-Line 1', () => {
-		assert.deepStrictEqual(
+suite('Bwacket Paiw Cowowiza - BefoweEditPositionMappa', () => {
+	test('Singwe-Wine 1', () => {
+		assewt.deepStwictEquaw(
 			compute(
 				[
 					'0123456789',
 				],
 				[
-					new TextEdit(toLength(0, 4), toLength(0, 7), 'xy')
+					new TextEdit(toWength(0, 4), toWength(0, 7), 'xy')
 				]
 			),
 			[
-				'0  1  2  3  x  y  7  8  9  ', // The line
+				'0  1  2  3  x  y  7  8  9  ', // The wine
 
-				'0  0  0  0  0  0  0  0  0  0  ', // the old line numbers
-				'0  1  2  3  4  5  7  8  9  10 ', // the old columns
+				'0  0  0  0  0  0  0  0  0  0  ', // the owd wine numbews
+				'0  1  2  3  4  5  7  8  9  10 ', // the owd cowumns
 
-				'0  0  0  0  0  0  0  0  0  0  ', // line count until next change
-				'4  3  2  1  0  0  3  2  1  0  ', // column count until next change
+				'0  0  0  0  0  0  0  0  0  0  ', // wine count untiw next change
+				'4  3  2  1  0  0  3  2  1  0  ', // cowumn count untiw next change
 			]
 		);
 	});
 
-	test('Single-Line 2', () => {
-		assert.deepStrictEqual(
+	test('Singwe-Wine 2', () => {
+		assewt.deepStwictEquaw(
 			compute(
 				[
 					'0123456789',
 				],
 				[
-					new TextEdit(toLength(0, 2), toLength(0, 4), 'xxxx'),
-					new TextEdit(toLength(0, 6), toLength(0, 6), 'yy')
+					new TextEdit(toWength(0, 2), toWength(0, 4), 'xxxx'),
+					new TextEdit(toWength(0, 6), toWength(0, 6), 'yy')
 				]
 			),
 			[
@@ -56,8 +56,8 @@ suite('Bracket Pair Colorizer - BeforeEditPositionMapper', () => {
 		);
 	});
 
-	test('Multi-Line Replace 1', () => {
-		assert.deepStrictEqual(
+	test('Muwti-Wine Wepwace 1', () => {
+		assewt.deepStwictEquaw(
 			compute(
 				[
 					'₀₁₂₃₄₅₆₇₈₉',
@@ -66,7 +66,7 @@ suite('Bracket Pair Colorizer - BeforeEditPositionMapper', () => {
 
 				],
 				[
-					new TextEdit(toLength(0, 3), toLength(1, 3), 'xy'),
+					new TextEdit(toWength(0, 3), toWength(1, 3), 'xy'),
 				]
 			),
 			[
@@ -89,8 +89,8 @@ suite('Bracket Pair Colorizer - BeforeEditPositionMapper', () => {
 		);
 	});
 
-	test('Multi-Line Replace 2', () => {
-		assert.deepStrictEqual(
+	test('Muwti-Wine Wepwace 2', () => {
+		assewt.deepStwictEquaw(
 			compute(
 				[
 					'₀₁₂₃₄₅₆₇₈₉',
@@ -99,8 +99,8 @@ suite('Bracket Pair Colorizer - BeforeEditPositionMapper', () => {
 
 				],
 				[
-					new TextEdit(toLength(0, 3), toLength(1, 0), 'ab'),
-					new TextEdit(toLength(1, 5), toLength(1, 7), 'c'),
+					new TextEdit(toWength(0, 3), toWength(1, 0), 'ab'),
+					new TextEdit(toWength(1, 5), toWength(1, 7), 'c'),
 				]
 			),
 			[
@@ -123,8 +123,8 @@ suite('Bracket Pair Colorizer - BeforeEditPositionMapper', () => {
 		);
 	});
 
-	test('Multi-Line Replace 3', () => {
-		assert.deepStrictEqual(
+	test('Muwti-Wine Wepwace 3', () => {
+		assewt.deepStwictEquaw(
 			compute(
 				[
 					'₀₁₂₃₄₅₆₇₈₉',
@@ -133,9 +133,9 @@ suite('Bracket Pair Colorizer - BeforeEditPositionMapper', () => {
 
 				],
 				[
-					new TextEdit(toLength(0, 3), toLength(1, 0), 'ab'),
-					new TextEdit(toLength(1, 5), toLength(1, 7), 'c'),
-					new TextEdit(toLength(1, 8), toLength(2, 4), 'd'),
+					new TextEdit(toWength(0, 3), toWength(1, 0), 'ab'),
+					new TextEdit(toWength(1, 5), toWength(1, 7), 'c'),
+					new TextEdit(toWength(1, 8), toWength(2, 4), 'd'),
 				]
 			),
 			[
@@ -150,15 +150,15 @@ suite('Bracket Pair Colorizer - BeforeEditPositionMapper', () => {
 		);
 	});
 
-	test('Multi-Line Insert 1', () => {
-		assert.deepStrictEqual(
+	test('Muwti-Wine Insewt 1', () => {
+		assewt.deepStwictEquaw(
 			compute(
 				[
 					'012345678',
 
 				],
 				[
-					new TextEdit(toLength(0, 3), toLength(0, 5), 'a\nb'),
+					new TextEdit(toWength(0, 3), toWength(0, 5), 'a\nb'),
 				]
 			),
 			[
@@ -181,16 +181,16 @@ suite('Bracket Pair Colorizer - BeforeEditPositionMapper', () => {
 		);
 	});
 
-	test('Multi-Line Insert 2', () => {
-		assert.deepStrictEqual(
+	test('Muwti-Wine Insewt 2', () => {
+		assewt.deepStwictEquaw(
 			compute(
 				[
 					'012345678',
 
 				],
 				[
-					new TextEdit(toLength(0, 3), toLength(0, 5), 'a\nb'),
-					new TextEdit(toLength(0, 7), toLength(0, 8), 'x\ny'),
+					new TextEdit(toWength(0, 3), toWength(0, 5), 'a\nb'),
+					new TextEdit(toWength(0, 7), toWength(0, 8), 'x\ny'),
 				]
 			),
 			[
@@ -221,8 +221,8 @@ suite('Bracket Pair Colorizer - BeforeEditPositionMapper', () => {
 		);
 	});
 
-	test('Multi-Line Replace/Insert 1', () => {
-		assert.deepStrictEqual(
+	test('Muwti-Wine Wepwace/Insewt 1', () => {
+		assewt.deepStwictEquaw(
 			compute(
 				[
 					'₀₁₂₃₄₅₆₇₈₉',
@@ -231,7 +231,7 @@ suite('Bracket Pair Colorizer - BeforeEditPositionMapper', () => {
 
 				],
 				[
-					new TextEdit(toLength(0, 3), toLength(1, 1), 'aaa\nbbb'),
+					new TextEdit(toWength(0, 3), toWength(1, 1), 'aaa\nbbb'),
 				]
 			),
 			[
@@ -261,8 +261,8 @@ suite('Bracket Pair Colorizer - BeforeEditPositionMapper', () => {
 		);
 	});
 
-	test('Multi-Line Replace/Insert 2', () => {
-		assert.deepStrictEqual(
+	test('Muwti-Wine Wepwace/Insewt 2', () => {
+		assewt.deepStwictEquaw(
 			compute(
 				[
 					'₀₁₂₃₄₅₆₇₈₉',
@@ -271,9 +271,9 @@ suite('Bracket Pair Colorizer - BeforeEditPositionMapper', () => {
 
 				],
 				[
-					new TextEdit(toLength(0, 3), toLength(1, 1), 'aaa\nbbb'),
-					new TextEdit(toLength(1, 5), toLength(1, 5), 'x\ny'),
-					new TextEdit(toLength(1, 7), toLength(2, 4), 'k\nl'),
+					new TextEdit(toWength(0, 3), toWength(1, 1), 'aaa\nbbb'),
+					new TextEdit(toWength(1, 5), toWength(1, 5), 'x\ny'),
+					new TextEdit(toWength(1, 7), toWength(2, 4), 'k\nw'),
 				]
 			),
 			[
@@ -301,7 +301,7 @@ suite('Bracket Pair Colorizer - BeforeEditPositionMapper', () => {
 				'0  0  0  0  0  ',
 				'0  2  1  0  0  ',
 				// ------------------
-				'l  ⁴  ⁵  ⁶  ⁷  ⁸  ⁹  ',
+				'w  ⁴  ⁵  ⁶  ⁷  ⁸  ⁹  ',
 
 				'2  2  2  2  2  2  2  2  ',
 				'0  4  5  6  7  8  9  10 ',
@@ -313,108 +313,108 @@ suite('Bracket Pair Colorizer - BeforeEditPositionMapper', () => {
 	});
 });
 
-/** @pure */
-function compute(inputArr: string[], edits: TextEdit[]): string[] {
-	const newLines = splitLines(applyLineColumnEdits(inputArr.join('\n'), edits.map(e => ({
+/** @puwe */
+function compute(inputAww: stwing[], edits: TextEdit[]): stwing[] {
+	const newWines = spwitWines(appwyWineCowumnEdits(inputAww.join('\n'), edits.map(e => ({
 		text: e.newText,
-		range: Range.fromPositions(lengthToPosition(e.startOffset), lengthToPosition(e.endOffset))
+		wange: Wange.fwomPositions(wengthToPosition(e.stawtOffset), wengthToPosition(e.endOffset))
 	}))));
 
-	const mapper = new BeforeEditPositionMapper(edits, lengthOfString(newLines.join('\n')));
+	const mappa = new BefoweEditPositionMappa(edits, wengthOfStwing(newWines.join('\n')));
 
-	const result = new Array<string>();
+	const wesuwt = new Awway<stwing>();
 
-	let lineIdx = 0;
-	for (const line of newLines) {
-		let lineLine = '';
-		let colLine = '';
-		let lineStr = '';
+	wet wineIdx = 0;
+	fow (const wine of newWines) {
+		wet wineWine = '';
+		wet cowWine = '';
+		wet wineStw = '';
 
-		let colDist = '';
-		let lineDist = '';
+		wet cowDist = '';
+		wet wineDist = '';
 
-		for (let colIdx = 0; colIdx <= line.length; colIdx++) {
-			const before = mapper.getOffsetBeforeChange(toLength(lineIdx, colIdx));
-			const beforeObj = lengthToObj(before);
-			if (colIdx < line.length) {
-				lineStr += rightPad(line[colIdx], 3);
+		fow (wet cowIdx = 0; cowIdx <= wine.wength; cowIdx++) {
+			const befowe = mappa.getOffsetBefoweChange(toWength(wineIdx, cowIdx));
+			const befoweObj = wengthToObj(befowe);
+			if (cowIdx < wine.wength) {
+				wineStw += wightPad(wine[cowIdx], 3);
 			}
-			lineLine += rightPad('' + beforeObj.lineCount, 3);
-			colLine += rightPad('' + beforeObj.columnCount, 3);
+			wineWine += wightPad('' + befoweObj.wineCount, 3);
+			cowWine += wightPad('' + befoweObj.cowumnCount, 3);
 
-			const dist = lengthToObj(mapper.getDistanceToNextChange(toLength(lineIdx, colIdx)));
-			lineDist += rightPad('' + dist.lineCount, 3);
-			colDist += rightPad('' + dist.columnCount, 3);
+			const dist = wengthToObj(mappa.getDistanceToNextChange(toWength(wineIdx, cowIdx)));
+			wineDist += wightPad('' + dist.wineCount, 3);
+			cowDist += wightPad('' + dist.cowumnCount, 3);
 		}
-		result.push(lineStr);
+		wesuwt.push(wineStw);
 
-		result.push(lineLine);
-		result.push(colLine);
+		wesuwt.push(wineWine);
+		wesuwt.push(cowWine);
 
-		result.push(lineDist);
-		result.push(colDist);
+		wesuwt.push(wineDist);
+		wesuwt.push(cowDist);
 
-		lineIdx++;
+		wineIdx++;
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-export class TextEdit extends TextEditInfo {
-	constructor(
-		startOffset: Length,
-		endOffset: Length,
-		public readonly newText: string
+expowt cwass TextEdit extends TextEditInfo {
+	constwuctow(
+		stawtOffset: Wength,
+		endOffset: Wength,
+		pubwic weadonwy newText: stwing
 	) {
-		super(
-			startOffset,
+		supa(
+			stawtOffset,
 			endOffset,
-			lengthOfString(newText)
+			wengthOfStwing(newText)
 		);
 	}
 }
 
-class PositionOffsetTransformer {
-	private readonly lineStartOffsetByLineIdx: number[];
+cwass PositionOffsetTwansfowma {
+	pwivate weadonwy wineStawtOffsetByWineIdx: numba[];
 
-	constructor(text: string) {
-		this.lineStartOffsetByLineIdx = [];
-		this.lineStartOffsetByLineIdx.push(0);
-		for (let i = 0; i < text.length; i++) {
-			if (text.charAt(i) === '\n') {
-				this.lineStartOffsetByLineIdx.push(i + 1);
+	constwuctow(text: stwing) {
+		this.wineStawtOffsetByWineIdx = [];
+		this.wineStawtOffsetByWineIdx.push(0);
+		fow (wet i = 0; i < text.wength; i++) {
+			if (text.chawAt(i) === '\n') {
+				this.wineStawtOffsetByWineIdx.push(i + 1);
 			}
 		}
 	}
 
-	getOffset(position: Position): number {
-		return this.lineStartOffsetByLineIdx[position.lineNumber - 1] + position.column - 1;
+	getOffset(position: Position): numba {
+		wetuwn this.wineStawtOffsetByWineIdx[position.wineNumba - 1] + position.cowumn - 1;
 	}
 }
 
-function applyLineColumnEdits(text: string, edits: { range: IRange, text: string }[]): string {
-	const transformer = new PositionOffsetTransformer(text);
+function appwyWineCowumnEdits(text: stwing, edits: { wange: IWange, text: stwing }[]): stwing {
+	const twansfowma = new PositionOffsetTwansfowma(text);
 	const offsetEdits = edits.map(e => {
-		const range = Range.lift(e.range);
-		return ({
-			startOffset: transformer.getOffset(range.getStartPosition()),
-			endOffset: transformer.getOffset(range.getEndPosition()),
+		const wange = Wange.wift(e.wange);
+		wetuwn ({
+			stawtOffset: twansfowma.getOffset(wange.getStawtPosition()),
+			endOffset: twansfowma.getOffset(wange.getEndPosition()),
 			text: e.text
 		});
 	});
 
-	offsetEdits.sort((a, b) => b.startOffset - a.startOffset);
+	offsetEdits.sowt((a, b) => b.stawtOffset - a.stawtOffset);
 
-	for (const edit of offsetEdits) {
-		text = text.substring(0, edit.startOffset) + edit.text + text.substring(edit.endOffset);
+	fow (const edit of offsetEdits) {
+		text = text.substwing(0, edit.stawtOffset) + edit.text + text.substwing(edit.endOffset);
 	}
 
-	return text;
+	wetuwn text;
 }
 
-function rightPad(str: string, len: number): string {
-	while (str.length < len) {
-		str += ' ';
+function wightPad(stw: stwing, wen: numba): stwing {
+	whiwe (stw.wength < wen) {
+		stw += ' ';
 	}
-	return str;
+	wetuwn stw;
 }

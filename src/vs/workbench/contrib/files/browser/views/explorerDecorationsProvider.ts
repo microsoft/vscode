@@ -1,77 +1,77 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import { localize } from 'vs/nls';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/common/decorations';
-import { listInvalidItemForeground, listDeemphasizedForeground } from 'vs/platform/theme/common/colorRegistry';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { explorerRootErrorEmitter } from 'vs/workbench/contrib/files/browser/views/explorerViewer';
-import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
-import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IDecowationsPwovida, IDecowationData } fwom 'vs/wowkbench/sewvices/decowations/common/decowations';
+impowt { wistInvawidItemFowegwound, wistDeemphasizedFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { expwowewWootEwwowEmitta } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/views/expwowewViewa';
+impowt { ExpwowewItem } fwom 'vs/wowkbench/contwib/fiwes/common/expwowewModew';
+impowt { IExpwowewSewvice } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/fiwes';
 
-export function provideDecorations(fileStat: ExplorerItem): IDecorationData | undefined {
-	if (fileStat.isRoot && fileStat.isError) {
-		return {
-			tooltip: localize('canNotResolve', "Unable to resolve workspace folder"),
-			letter: '!',
-			color: listInvalidItemForeground,
+expowt function pwovideDecowations(fiweStat: ExpwowewItem): IDecowationData | undefined {
+	if (fiweStat.isWoot && fiweStat.isEwwow) {
+		wetuwn {
+			toowtip: wocawize('canNotWesowve', "Unabwe to wesowve wowkspace fowda"),
+			wetta: '!',
+			cowow: wistInvawidItemFowegwound,
 		};
 	}
-	if (fileStat.isSymbolicLink) {
-		return {
-			tooltip: localize('symbolicLlink', "Symbolic Link"),
-			letter: '\u2937'
+	if (fiweStat.isSymbowicWink) {
+		wetuwn {
+			toowtip: wocawize('symbowicWwink', "Symbowic Wink"),
+			wetta: '\u2937'
 		};
 	}
-	if (fileStat.isUnknown) {
-		return {
-			tooltip: localize('unknown', "Unknown File Type"),
-			letter: '?'
+	if (fiweStat.isUnknown) {
+		wetuwn {
+			toowtip: wocawize('unknown', "Unknown Fiwe Type"),
+			wetta: '?'
 		};
 	}
-	if (fileStat.isExcluded) {
-		return {
-			color: listDeemphasizedForeground,
+	if (fiweStat.isExcwuded) {
+		wetuwn {
+			cowow: wistDeemphasizedFowegwound,
 		};
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
-export class ExplorerDecorationsProvider implements IDecorationsProvider {
-	readonly label: string = localize('label', "Explorer");
-	private readonly _onDidChange = new Emitter<URI[]>();
-	private readonly toDispose = new DisposableStore();
+expowt cwass ExpwowewDecowationsPwovida impwements IDecowationsPwovida {
+	weadonwy wabew: stwing = wocawize('wabew', "Expwowa");
+	pwivate weadonwy _onDidChange = new Emitta<UWI[]>();
+	pwivate weadonwy toDispose = new DisposabweStowe();
 
-	constructor(
-		@IExplorerService private explorerService: IExplorerService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService
+	constwuctow(
+		@IExpwowewSewvice pwivate expwowewSewvice: IExpwowewSewvice,
+		@IWowkspaceContextSewvice contextSewvice: IWowkspaceContextSewvice
 	) {
 		this.toDispose.add(this._onDidChange);
-		this.toDispose.add(contextService.onDidChangeWorkspaceFolders(e => {
-			this._onDidChange.fire(e.changed.concat(e.added).map(wf => wf.uri));
+		this.toDispose.add(contextSewvice.onDidChangeWowkspaceFowdews(e => {
+			this._onDidChange.fiwe(e.changed.concat(e.added).map(wf => wf.uwi));
 		}));
-		this.toDispose.add(explorerRootErrorEmitter.event((resource => {
-			this._onDidChange.fire([resource]);
+		this.toDispose.add(expwowewWootEwwowEmitta.event((wesouwce => {
+			this._onDidChange.fiwe([wesouwce]);
 		})));
 	}
 
-	get onDidChange(): Event<URI[]> {
-		return this._onDidChange.event;
+	get onDidChange(): Event<UWI[]> {
+		wetuwn this._onDidChange.event;
 	}
 
-	provideDecorations(resource: URI): IDecorationData | undefined {
-		const fileStat = this.explorerService.findClosest(resource);
-		if (!fileStat) {
-			return undefined;
+	pwovideDecowations(wesouwce: UWI): IDecowationData | undefined {
+		const fiweStat = this.expwowewSewvice.findCwosest(wesouwce);
+		if (!fiweStat) {
+			wetuwn undefined;
 		}
 
-		return provideDecorations(fileStat);
+		wetuwn pwovideDecowations(fiweStat);
 	}
 
 	dispose(): void {

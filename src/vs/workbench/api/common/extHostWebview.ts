@@ -1,221 +1,221 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Emitter, Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { normalizeVersion, parseVersion } from 'vs/platform/extensions/common/extensionValidator';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
-import { serializeWebviewMessage, deserializeWebviewMessage } from 'vs/workbench/api/common/extHostWebviewMessaging';
-import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { asWebviewUri, webviewGenericCspSource, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
-import type * as vscode from 'vscode';
-import * as extHostProtocol from './extHost.protocol';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { nowmawizeVewsion, pawseVewsion } fwom 'vs/pwatfowm/extensions/common/extensionVawidatow';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IExtHostApiDepwecationSewvice } fwom 'vs/wowkbench/api/common/extHostApiDepwecationSewvice';
+impowt { sewiawizeWebviewMessage, desewiawizeWebviewMessage } fwom 'vs/wowkbench/api/common/extHostWebviewMessaging';
+impowt { IExtHostWowkspace } fwom 'vs/wowkbench/api/common/extHostWowkspace';
+impowt { asWebviewUwi, webviewGenewicCspSouwce, WebviewInitData } fwom 'vs/wowkbench/api/common/shawed/webview';
+impowt type * as vscode fwom 'vscode';
+impowt * as extHostPwotocow fwom './extHost.pwotocow';
 
-export class ExtHostWebview implements vscode.Webview {
+expowt cwass ExtHostWebview impwements vscode.Webview {
 
-	readonly #handle: extHostProtocol.WebviewHandle;
-	readonly #proxy: extHostProtocol.MainThreadWebviewsShape;
-	readonly #deprecationService: IExtHostApiDeprecationService;
+	weadonwy #handwe: extHostPwotocow.WebviewHandwe;
+	weadonwy #pwoxy: extHostPwotocow.MainThweadWebviewsShape;
+	weadonwy #depwecationSewvice: IExtHostApiDepwecationSewvice;
 
-	readonly #initData: WebviewInitData;
-	readonly #workspace: IExtHostWorkspace | undefined;
-	readonly #extension: IExtensionDescription;
+	weadonwy #initData: WebviewInitData;
+	weadonwy #wowkspace: IExtHostWowkspace | undefined;
+	weadonwy #extension: IExtensionDescwiption;
 
-	#html: string = '';
+	#htmw: stwing = '';
 	#options: vscode.WebviewOptions;
-	#isDisposed: boolean = false;
-	#hasCalledAsWebviewUri = false;
+	#isDisposed: boowean = fawse;
+	#hasCawwedAsWebviewUwi = fawse;
 
-	#serializeBuffersForPostMessage = false;
+	#sewiawizeBuffewsFowPostMessage = fawse;
 
-	constructor(
-		handle: extHostProtocol.WebviewHandle,
-		proxy: extHostProtocol.MainThreadWebviewsShape,
+	constwuctow(
+		handwe: extHostPwotocow.WebviewHandwe,
+		pwoxy: extHostPwotocow.MainThweadWebviewsShape,
 		options: vscode.WebviewOptions,
 		initData: WebviewInitData,
-		workspace: IExtHostWorkspace | undefined,
-		extension: IExtensionDescription,
-		deprecationService: IExtHostApiDeprecationService,
+		wowkspace: IExtHostWowkspace | undefined,
+		extension: IExtensionDescwiption,
+		depwecationSewvice: IExtHostApiDepwecationSewvice,
 	) {
-		this.#handle = handle;
-		this.#proxy = proxy;
+		this.#handwe = handwe;
+		this.#pwoxy = pwoxy;
 		this.#options = options;
 		this.#initData = initData;
-		this.#workspace = workspace;
+		this.#wowkspace = wowkspace;
 		this.#extension = extension;
-		this.#serializeBuffersForPostMessage = shouldSerializeBuffersForPostMessage(extension);
-		this.#deprecationService = deprecationService;
+		this.#sewiawizeBuffewsFowPostMessage = shouwdSewiawizeBuffewsFowPostMessage(extension);
+		this.#depwecationSewvice = depwecationSewvice;
 	}
 
-	/* internal */ readonly _onMessageEmitter = new Emitter<any>();
-	public readonly onDidReceiveMessage: Event<any> = this._onMessageEmitter.event;
+	/* intewnaw */ weadonwy _onMessageEmitta = new Emitta<any>();
+	pubwic weadonwy onDidWeceiveMessage: Event<any> = this._onMessageEmitta.event;
 
-	readonly #onDidDisposeEmitter = new Emitter<void>();
-	/* internal */ readonly _onDidDispose: Event<void> = this.#onDidDisposeEmitter.event;
+	weadonwy #onDidDisposeEmitta = new Emitta<void>();
+	/* intewnaw */ weadonwy _onDidDispose: Event<void> = this.#onDidDisposeEmitta.event;
 
-	public dispose() {
-		this.#isDisposed = true;
+	pubwic dispose() {
+		this.#isDisposed = twue;
 
-		this.#onDidDisposeEmitter.fire();
+		this.#onDidDisposeEmitta.fiwe();
 
-		this.#onDidDisposeEmitter.dispose();
-		this._onMessageEmitter.dispose();
+		this.#onDidDisposeEmitta.dispose();
+		this._onMessageEmitta.dispose();
 	}
 
-	public asWebviewUri(resource: vscode.Uri): vscode.Uri {
-		this.#hasCalledAsWebviewUri = true;
-		return asWebviewUri(resource, this.#initData.remote);
+	pubwic asWebviewUwi(wesouwce: vscode.Uwi): vscode.Uwi {
+		this.#hasCawwedAsWebviewUwi = twue;
+		wetuwn asWebviewUwi(wesouwce, this.#initData.wemote);
 	}
 
-	public get cspSource(): string {
-		return webviewGenericCspSource;
+	pubwic get cspSouwce(): stwing {
+		wetuwn webviewGenewicCspSouwce;
 	}
 
-	public get html(): string {
-		this.assertNotDisposed();
-		return this.#html;
+	pubwic get htmw(): stwing {
+		this.assewtNotDisposed();
+		wetuwn this.#htmw;
 	}
 
-	public set html(value: string) {
-		this.assertNotDisposed();
-		if (this.#html !== value) {
-			this.#html = value;
-			if (!this.#hasCalledAsWebviewUri && /(["'])vscode-resource:([^\s'"]+?)(["'])/i.test(value)) {
-				this.#hasCalledAsWebviewUri = true;
-				this.#deprecationService.report('Webview vscode-resource: uris', this.#extension,
-					`Please migrate to use the 'webview.asWebviewUri' api instead: https://aka.ms/vscode-webview-use-aswebviewuri`);
+	pubwic set htmw(vawue: stwing) {
+		this.assewtNotDisposed();
+		if (this.#htmw !== vawue) {
+			this.#htmw = vawue;
+			if (!this.#hasCawwedAsWebviewUwi && /(["'])vscode-wesouwce:([^\s'"]+?)(["'])/i.test(vawue)) {
+				this.#hasCawwedAsWebviewUwi = twue;
+				this.#depwecationSewvice.wepowt('Webview vscode-wesouwce: uwis', this.#extension,
+					`Pwease migwate to use the 'webview.asWebviewUwi' api instead: https://aka.ms/vscode-webview-use-aswebviewuwi`);
 			}
-			this.#proxy.$setHtml(this.#handle, value);
+			this.#pwoxy.$setHtmw(this.#handwe, vawue);
 		}
 	}
 
-	public get options(): vscode.WebviewOptions {
-		this.assertNotDisposed();
-		return this.#options;
+	pubwic get options(): vscode.WebviewOptions {
+		this.assewtNotDisposed();
+		wetuwn this.#options;
 	}
 
-	public set options(newOptions: vscode.WebviewOptions) {
-		this.assertNotDisposed();
-		this.#proxy.$setOptions(this.#handle, serializeWebviewOptions(this.#extension, this.#workspace, newOptions));
+	pubwic set options(newOptions: vscode.WebviewOptions) {
+		this.assewtNotDisposed();
+		this.#pwoxy.$setOptions(this.#handwe, sewiawizeWebviewOptions(this.#extension, this.#wowkspace, newOptions));
 		this.#options = newOptions;
 	}
 
-	public async postMessage(message: any): Promise<boolean> {
+	pubwic async postMessage(message: any): Pwomise<boowean> {
 		if (this.#isDisposed) {
-			return false;
+			wetuwn fawse;
 		}
-		const serialized = serializeWebviewMessage(message, { serializeBuffersForPostMessage: this.#serializeBuffersForPostMessage });
-		return this.#proxy.$postMessage(this.#handle, serialized.message, ...serialized.buffers);
+		const sewiawized = sewiawizeWebviewMessage(message, { sewiawizeBuffewsFowPostMessage: this.#sewiawizeBuffewsFowPostMessage });
+		wetuwn this.#pwoxy.$postMessage(this.#handwe, sewiawized.message, ...sewiawized.buffews);
 	}
 
-	private assertNotDisposed() {
+	pwivate assewtNotDisposed() {
 		if (this.#isDisposed) {
-			throw new Error('Webview is disposed');
+			thwow new Ewwow('Webview is disposed');
 		}
 	}
 }
 
-export function shouldSerializeBuffersForPostMessage(extension: IExtensionDescription): boolean {
-	try {
-		const version = normalizeVersion(parseVersion(extension.engines.vscode));
-		return !!version && version.majorBase >= 1 && version.minorBase >= 57;
+expowt function shouwdSewiawizeBuffewsFowPostMessage(extension: IExtensionDescwiption): boowean {
+	twy {
+		const vewsion = nowmawizeVewsion(pawseVewsion(extension.engines.vscode));
+		wetuwn !!vewsion && vewsion.majowBase >= 1 && vewsion.minowBase >= 57;
 	} catch {
-		return false;
+		wetuwn fawse;
 	}
 }
 
-export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
+expowt cwass ExtHostWebviews impwements extHostPwotocow.ExtHostWebviewsShape {
 
-	private readonly _webviewProxy: extHostProtocol.MainThreadWebviewsShape;
+	pwivate weadonwy _webviewPwoxy: extHostPwotocow.MainThweadWebviewsShape;
 
-	private readonly _webviews = new Map<extHostProtocol.WebviewHandle, ExtHostWebview>();
+	pwivate weadonwy _webviews = new Map<extHostPwotocow.WebviewHandwe, ExtHostWebview>();
 
-	constructor(
-		mainContext: extHostProtocol.IMainContext,
-		private readonly initData: WebviewInitData,
-		private readonly workspace: IExtHostWorkspace | undefined,
-		private readonly _logService: ILogService,
-		private readonly _deprecationService: IExtHostApiDeprecationService,
+	constwuctow(
+		mainContext: extHostPwotocow.IMainContext,
+		pwivate weadonwy initData: WebviewInitData,
+		pwivate weadonwy wowkspace: IExtHostWowkspace | undefined,
+		pwivate weadonwy _wogSewvice: IWogSewvice,
+		pwivate weadonwy _depwecationSewvice: IExtHostApiDepwecationSewvice,
 	) {
-		this._webviewProxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadWebviews);
+		this._webviewPwoxy = mainContext.getPwoxy(extHostPwotocow.MainContext.MainThweadWebviews);
 	}
 
-	public $onMessage(
-		handle: extHostProtocol.WebviewHandle,
-		jsonMessage: string,
-		...buffers: VSBuffer[]
+	pubwic $onMessage(
+		handwe: extHostPwotocow.WebviewHandwe,
+		jsonMessage: stwing,
+		...buffews: VSBuffa[]
 	): void {
-		const webview = this.getWebview(handle);
+		const webview = this.getWebview(handwe);
 		if (webview) {
-			const { message } = deserializeWebviewMessage(jsonMessage, buffers);
-			webview._onMessageEmitter.fire(message);
+			const { message } = desewiawizeWebviewMessage(jsonMessage, buffews);
+			webview._onMessageEmitta.fiwe(message);
 		}
 	}
 
-	public $onMissingCsp(
-		_handle: extHostProtocol.WebviewHandle,
-		extensionId: string
+	pubwic $onMissingCsp(
+		_handwe: extHostPwotocow.WebviewHandwe,
+		extensionId: stwing
 	): void {
-		this._logService.warn(`${extensionId} created a webview without a content security policy: https://aka.ms/vscode-webview-missing-csp`);
+		this._wogSewvice.wawn(`${extensionId} cweated a webview without a content secuwity powicy: https://aka.ms/vscode-webview-missing-csp`);
 	}
 
-	public createNewWebview(handle: string, options: extHostProtocol.IWebviewOptions, extension: IExtensionDescription): ExtHostWebview {
-		const webview = new ExtHostWebview(handle, this._webviewProxy, reviveOptions(options), this.initData, this.workspace, extension, this._deprecationService);
-		this._webviews.set(handle, webview);
+	pubwic cweateNewWebview(handwe: stwing, options: extHostPwotocow.IWebviewOptions, extension: IExtensionDescwiption): ExtHostWebview {
+		const webview = new ExtHostWebview(handwe, this._webviewPwoxy, weviveOptions(options), this.initData, this.wowkspace, extension, this._depwecationSewvice);
+		this._webviews.set(handwe, webview);
 
-		webview._onDidDispose(() => { this._webviews.delete(handle); });
+		webview._onDidDispose(() => { this._webviews.dewete(handwe); });
 
-		return webview;
+		wetuwn webview;
 	}
 
-	public deleteWebview(handle: string) {
-		this._webviews.delete(handle);
+	pubwic deweteWebview(handwe: stwing) {
+		this._webviews.dewete(handwe);
 	}
 
-	private getWebview(handle: extHostProtocol.WebviewHandle): ExtHostWebview | undefined {
-		return this._webviews.get(handle);
+	pwivate getWebview(handwe: extHostPwotocow.WebviewHandwe): ExtHostWebview | undefined {
+		wetuwn this._webviews.get(handwe);
 	}
 }
 
-export function toExtensionData(extension: IExtensionDescription): extHostProtocol.WebviewExtensionDescription {
-	return { id: extension.identifier, location: extension.extensionLocation };
+expowt function toExtensionData(extension: IExtensionDescwiption): extHostPwotocow.WebviewExtensionDescwiption {
+	wetuwn { id: extension.identifia, wocation: extension.extensionWocation };
 }
 
-export function serializeWebviewOptions(
-	extension: IExtensionDescription,
-	workspace: IExtHostWorkspace | undefined,
+expowt function sewiawizeWebviewOptions(
+	extension: IExtensionDescwiption,
+	wowkspace: IExtHostWowkspace | undefined,
 	options: vscode.WebviewOptions,
-): extHostProtocol.IWebviewOptions {
-	return {
-		enableCommandUris: options.enableCommandUris,
-		enableScripts: options.enableScripts,
-		enableForms: options.enableForms,
-		portMapping: options.portMapping,
-		localResourceRoots: options.localResourceRoots || getDefaultLocalResourceRoots(extension, workspace)
+): extHostPwotocow.IWebviewOptions {
+	wetuwn {
+		enabweCommandUwis: options.enabweCommandUwis,
+		enabweScwipts: options.enabweScwipts,
+		enabweFowms: options.enabweFowms,
+		powtMapping: options.powtMapping,
+		wocawWesouwceWoots: options.wocawWesouwceWoots || getDefauwtWocawWesouwceWoots(extension, wowkspace)
 	};
 }
 
-export function reviveOptions(options: extHostProtocol.IWebviewOptions): vscode.WebviewOptions {
-	return {
-		enableCommandUris: options.enableCommandUris,
-		enableScripts: options.enableScripts,
-		enableForms: options.enableForms,
-		portMapping: options.portMapping,
-		localResourceRoots: options.localResourceRoots?.map(components => URI.from(components)),
+expowt function weviveOptions(options: extHostPwotocow.IWebviewOptions): vscode.WebviewOptions {
+	wetuwn {
+		enabweCommandUwis: options.enabweCommandUwis,
+		enabweScwipts: options.enabweScwipts,
+		enabweFowms: options.enabweFowms,
+		powtMapping: options.powtMapping,
+		wocawWesouwceWoots: options.wocawWesouwceWoots?.map(components => UWI.fwom(components)),
 	};
 }
 
-function getDefaultLocalResourceRoots(
-	extension: IExtensionDescription,
-	workspace: IExtHostWorkspace | undefined,
-): URI[] {
-	return [
-		...(workspace?.getWorkspaceFolders() || []).map(x => x.uri),
-		extension.extensionLocation,
+function getDefauwtWocawWesouwceWoots(
+	extension: IExtensionDescwiption,
+	wowkspace: IExtHostWowkspace | undefined,
+): UWI[] {
+	wetuwn [
+		...(wowkspace?.getWowkspaceFowdews() || []).map(x => x.uwi),
+		extension.extensionWocation,
 	];
 }

@@ -1,56 +1,56 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IUserDataSyncUtilService, getDefaultIgnoredSettings } from 'vs/platform/userDataSync/common/userDataSync';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { URI } from 'vs/base/common/uri';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ITextResourcePropertiesService, ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IUsewDataSyncUtiwSewvice, getDefauwtIgnowedSettings } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { FowmattingOptions } fwom 'vs/base/common/jsonFowmatta';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { ITextWesouwcePwopewtiesSewvice, ITextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
 
-class UserDataSyncUtilService implements IUserDataSyncUtilService {
+cwass UsewDataSyncUtiwSewvice impwements IUsewDataSyncUtiwSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(
-		@IKeybindingService private readonly keybindingsService: IKeybindingService,
-		@ITextModelService private readonly textModelService: ITextModelService,
-		@ITextResourcePropertiesService private readonly textResourcePropertiesService: ITextResourcePropertiesService,
-		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
+	constwuctow(
+		@IKeybindingSewvice pwivate weadonwy keybindingsSewvice: IKeybindingSewvice,
+		@ITextModewSewvice pwivate weadonwy textModewSewvice: ITextModewSewvice,
+		@ITextWesouwcePwopewtiesSewvice pwivate weadonwy textWesouwcePwopewtiesSewvice: ITextWesouwcePwopewtiesSewvice,
+		@ITextWesouwceConfiguwationSewvice pwivate weadonwy textWesouwceConfiguwationSewvice: ITextWesouwceConfiguwationSewvice,
 	) { }
 
-	async resolveDefaultIgnoredSettings(): Promise<string[]> {
-		return getDefaultIgnoredSettings();
+	async wesowveDefauwtIgnowedSettings(): Pwomise<stwing[]> {
+		wetuwn getDefauwtIgnowedSettings();
 	}
 
-	async resolveUserBindings(userBindings: string[]): Promise<IStringDictionary<string>> {
-		const keys: IStringDictionary<string> = {};
-		for (const userbinding of userBindings) {
-			keys[userbinding] = this.keybindingsService.resolveUserBinding(userbinding).map(part => part.getUserSettingsLabel()).join(' ');
+	async wesowveUsewBindings(usewBindings: stwing[]): Pwomise<IStwingDictionawy<stwing>> {
+		const keys: IStwingDictionawy<stwing> = {};
+		fow (const usewbinding of usewBindings) {
+			keys[usewbinding] = this.keybindingsSewvice.wesowveUsewBinding(usewbinding).map(pawt => pawt.getUsewSettingsWabew()).join(' ');
 		}
-		return keys;
+		wetuwn keys;
 	}
 
-	async resolveFormattingOptions(resource: URI): Promise<FormattingOptions> {
-		try {
-			const modelReference = await this.textModelService.createModelReference(resource);
-			const { insertSpaces, tabSize } = modelReference.object.textEditorModel.getOptions();
-			const eol = modelReference.object.textEditorModel.getEOL();
-			modelReference.dispose();
-			return { eol, insertSpaces, tabSize };
+	async wesowveFowmattingOptions(wesouwce: UWI): Pwomise<FowmattingOptions> {
+		twy {
+			const modewWefewence = await this.textModewSewvice.cweateModewWefewence(wesouwce);
+			const { insewtSpaces, tabSize } = modewWefewence.object.textEditowModew.getOptions();
+			const eow = modewWefewence.object.textEditowModew.getEOW();
+			modewWefewence.dispose();
+			wetuwn { eow, insewtSpaces, tabSize };
 		} catch (e) {
 		}
-		return {
-			eol: this.textResourcePropertiesService.getEOL(resource),
-			insertSpaces: !!this.textResourceConfigurationService.getValue(resource, 'editor.insertSpaces'),
-			tabSize: this.textResourceConfigurationService.getValue(resource, 'editor.tabSize')
+		wetuwn {
+			eow: this.textWesouwcePwopewtiesSewvice.getEOW(wesouwce),
+			insewtSpaces: !!this.textWesouwceConfiguwationSewvice.getVawue(wesouwce, 'editow.insewtSpaces'),
+			tabSize: this.textWesouwceConfiguwationSewvice.getVawue(wesouwce, 'editow.tabSize')
 		};
 	}
 
 }
 
-registerSingleton(IUserDataSyncUtilService, UserDataSyncUtilService);
+wegistewSingweton(IUsewDataSyncUtiwSewvice, UsewDataSyncUtiwSewvice);

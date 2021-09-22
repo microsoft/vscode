@@ -1,14 +1,14 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
+'use stwict';
 
-var updateGrammar = require('vscode-grammar-updater');
+vaw updateGwammaw = wequiwe('vscode-gwammaw-updata');
 
-updateGrammar.update('textmate/git.tmbundle', 'Syntaxes/Git%20Commit%20Message.tmLanguage', './syntaxes/git-commit.tmLanguage.json');
-updateGrammar.update('textmate/git.tmbundle', 'Syntaxes/Git%20Rebase%20Message.tmLanguage', './syntaxes/git-rebase.tmLanguage.json');
-updateGrammar.update('textmate/diff.tmbundle', 'Syntaxes/Diff.plist', './syntaxes/diff.tmLanguage.json');
+updateGwammaw.update('textmate/git.tmbundwe', 'Syntaxes/Git%20Commit%20Message.tmWanguage', './syntaxes/git-commit.tmWanguage.json');
+updateGwammaw.update('textmate/git.tmbundwe', 'Syntaxes/Git%20Webase%20Message.tmWanguage', './syntaxes/git-webase.tmWanguage.json');
+updateGwammaw.update('textmate/diff.tmbundwe', 'Syntaxes/Diff.pwist', './syntaxes/diff.tmWanguage.json');
 
 
 

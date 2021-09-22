@@ -1,15 +1,15 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export interface IKeyboard {
-	getLayoutMap(): Promise<Object>;
-	lock(keyCodes?: string[]): Promise<void>;
-	unlock(): void;
-	addEventListener?(type: string, listener: () => void): void;
+expowt intewface IKeyboawd {
+	getWayoutMap(): Pwomise<Object>;
+	wock(keyCodes?: stwing[]): Pwomise<void>;
+	unwock(): void;
+	addEventWistena?(type: stwing, wistena: () => void): void;
 
 }
-export type INavigatorWithKeyboard = Navigator & {
-	keyboard: IKeyboard
+expowt type INavigatowWithKeyboawd = Navigatow & {
+	keyboawd: IKeyboawd
 };

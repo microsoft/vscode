@@ -1,36 +1,36 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IRange } from 'vs/editor/common/core/range';
-import { IChange, ILineChange } from 'vs/editor/common/editorCommon';
-import { IInplaceReplaceSupportResult, TextEdit } from 'vs/editor/common/modes';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { IChange, IWineChange } fwom 'vs/editow/common/editowCommon';
+impowt { IInpwaceWepwaceSuppowtWesuwt, TextEdit } fwom 'vs/editow/common/modes';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const ID_EDITOR_WORKER_SERVICE = 'editorWorkerService';
-export const IEditorWorkerService = createDecorator<IEditorWorkerService>(ID_EDITOR_WORKER_SERVICE);
+expowt const ID_EDITOW_WOWKEW_SEWVICE = 'editowWowkewSewvice';
+expowt const IEditowWowkewSewvice = cweateDecowatow<IEditowWowkewSewvice>(ID_EDITOW_WOWKEW_SEWVICE);
 
-export interface IDiffComputationResult {
-	quitEarly: boolean;
-	identical: boolean;
-	changes: ILineChange[];
+expowt intewface IDiffComputationWesuwt {
+	quitEawwy: boowean;
+	identicaw: boowean;
+	changes: IWineChange[];
 }
 
-export interface IEditorWorkerService {
-	readonly _serviceBrand: undefined;
+expowt intewface IEditowWowkewSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null>;
+	computeDiff(owiginaw: UWI, modified: UWI, ignoweTwimWhitespace: boowean, maxComputationTime: numba): Pwomise<IDiffComputationWesuwt | nuww>;
 
-	canComputeDirtyDiff(original: URI, modified: URI): boolean;
-	computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null>;
+	canComputeDiwtyDiff(owiginaw: UWI, modified: UWI): boowean;
+	computeDiwtyDiff(owiginaw: UWI, modified: UWI, ignoweTwimWhitespace: boowean): Pwomise<IChange[] | nuww>;
 
-	computeMoreMinimalEdits(resource: URI, edits: TextEdit[] | null | undefined): Promise<TextEdit[] | undefined>;
+	computeMoweMinimawEdits(wesouwce: UWI, edits: TextEdit[] | nuww | undefined): Pwomise<TextEdit[] | undefined>;
 
-	canComputeWordRanges(resource: URI): boolean;
-	computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null>;
+	canComputeWowdWanges(wesouwce: UWI): boowean;
+	computeWowdWanges(wesouwce: UWI, wange: IWange): Pwomise<{ [wowd: stwing]: IWange[] } | nuww>;
 
-	canNavigateValueSet(resource: URI): boolean;
-	navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<IInplaceReplaceSupportResult | null>;
+	canNavigateVawueSet(wesouwce: UWI): boowean;
+	navigateVawueSet(wesouwce: UWI, wange: IWange, up: boowean): Pwomise<IInpwaceWepwaceSuppowtWesuwt | nuww>;
 }

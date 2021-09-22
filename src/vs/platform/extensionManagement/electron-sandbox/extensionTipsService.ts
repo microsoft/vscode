@@ -1,151 +1,151 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { disposableTimeout, timeout } from 'vs/base/common/async';
-import { forEach, IStringDictionary } from 'vs/base/common/collections';
-import { Event } from 'vs/base/common/event';
-import { join } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { env } from 'vs/base/common/process';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExecutableBasedExtensionTip, IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionTipsService as BaseExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionTipsService';
-import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+impowt { isNonEmptyAwway } fwom 'vs/base/common/awways';
+impowt { disposabweTimeout, timeout } fwom 'vs/base/common/async';
+impowt { fowEach, IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { join } fwom 'vs/base/common/path';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { env } fwom 'vs/base/common/pwocess';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { INativeEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IExecutabweBasedExtensionTip, IExtensionManagementSewvice, IWocawExtension } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { ExtensionTipsSewvice as BaseExtensionTipsSewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionTipsSewvice';
+impowt { IExtensionWecommendationNotificationSewvice, WecommendationsNotificationWesuwt, WecommendationSouwce } fwom 'vs/pwatfowm/extensionWecommendations/common/extensionWecommendations';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IWequestSewvice } fwom 'vs/pwatfowm/wequest/common/wequest';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
 
-type ExeExtensionRecommendationsClassification = {
-	extensionId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
-	exeName: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+type ExeExtensionWecommendationsCwassification = {
+	extensionId: { cwassification: 'PubwicNonPewsonawData', puwpose: 'FeatuweInsight' };
+	exeName: { cwassification: 'PubwicNonPewsonawData', puwpose: 'FeatuweInsight' };
 };
 
 type IExeBasedExtensionTips = {
-	readonly exeFriendlyName: string,
-	readonly windowsPath?: string,
-	readonly recommendations: { extensionId: string, extensionName: string, isExtensionPack: boolean }[];
+	weadonwy exeFwiendwyName: stwing,
+	weadonwy windowsPath?: stwing,
+	weadonwy wecommendations: { extensionId: stwing, extensionName: stwing, isExtensionPack: boowean }[];
 };
 
-const promptedExecutableTipsStorageKey = 'extensionTips/promptedExecutableTips';
-const lastPromptedMediumImpExeTimeStorageKey = 'extensionTips/lastPromptedMediumImpExeTime';
+const pwomptedExecutabweTipsStowageKey = 'extensionTips/pwomptedExecutabweTips';
+const wastPwomptedMediumImpExeTimeStowageKey = 'extensionTips/wastPwomptedMediumImpExeTime';
 
-export class ExtensionTipsService extends BaseExtensionTipsService {
+expowt cwass ExtensionTipsSewvice extends BaseExtensionTipsSewvice {
 
-	override _serviceBrand: any;
+	ovewwide _sewviceBwand: any;
 
-	private readonly highImportanceExecutableTips: Map<string, IExeBasedExtensionTips> = new Map<string, IExeBasedExtensionTips>();
-	private readonly mediumImportanceExecutableTips: Map<string, IExeBasedExtensionTips> = new Map<string, IExeBasedExtensionTips>();
-	private readonly allOtherExecutableTips: Map<string, IExeBasedExtensionTips> = new Map<string, IExeBasedExtensionTips>();
+	pwivate weadonwy highImpowtanceExecutabweTips: Map<stwing, IExeBasedExtensionTips> = new Map<stwing, IExeBasedExtensionTips>();
+	pwivate weadonwy mediumImpowtanceExecutabweTips: Map<stwing, IExeBasedExtensionTips> = new Map<stwing, IExeBasedExtensionTips>();
+	pwivate weadonwy awwOthewExecutabweTips: Map<stwing, IExeBasedExtensionTips> = new Map<stwing, IExeBasedExtensionTips>();
 
-	private highImportanceTipsByExe = new Map<string, IExecutableBasedExtensionTip[]>();
-	private mediumImportanceTipsByExe = new Map<string, IExecutableBasedExtensionTip[]>();
+	pwivate highImpowtanceTipsByExe = new Map<stwing, IExecutabweBasedExtensionTip[]>();
+	pwivate mediumImpowtanceTipsByExe = new Map<stwing, IExecutabweBasedExtensionTip[]>();
 
-	constructor(
-		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IStorageService private readonly storageService: IStorageService,
-		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IExtensionRecommendationNotificationService private readonly extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
-		@IFileService fileService: IFileService,
-		@IProductService productService: IProductService,
-		@IRequestService requestService: IRequestService,
-		@ILogService logService: ILogService,
+	constwuctow(
+		@INativeEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: INativeEnviwonmentSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IExtensionManagementSewvice pwivate weadonwy extensionManagementSewvice: IExtensionManagementSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@INativeHostSewvice pwivate weadonwy nativeHostSewvice: INativeHostSewvice,
+		@IExtensionWecommendationNotificationSewvice pwivate weadonwy extensionWecommendationNotificationSewvice: IExtensionWecommendationNotificationSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice,
+		@IWequestSewvice wequestSewvice: IWequestSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
 	) {
-		super(fileService, productService, requestService, logService);
-		if (productService.exeBasedExtensionTips) {
-			forEach(productService.exeBasedExtensionTips, ({ key, value: exeBasedExtensionTip }) => {
-				const highImportanceRecommendations: { extensionId: string, extensionName: string, isExtensionPack: boolean }[] = [];
-				const mediumImportanceRecommendations: { extensionId: string, extensionName: string, isExtensionPack: boolean }[] = [];
-				const otherRecommendations: { extensionId: string, extensionName: string, isExtensionPack: boolean }[] = [];
-				forEach(exeBasedExtensionTip.recommendations, ({ key: extensionId, value }) => {
-					if (value.important) {
-						if (exeBasedExtensionTip.important) {
-							highImportanceRecommendations.push({ extensionId, extensionName: value.name, isExtensionPack: !!value.isExtensionPack });
-						} else {
-							mediumImportanceRecommendations.push({ extensionId, extensionName: value.name, isExtensionPack: !!value.isExtensionPack });
+		supa(fiweSewvice, pwoductSewvice, wequestSewvice, wogSewvice);
+		if (pwoductSewvice.exeBasedExtensionTips) {
+			fowEach(pwoductSewvice.exeBasedExtensionTips, ({ key, vawue: exeBasedExtensionTip }) => {
+				const highImpowtanceWecommendations: { extensionId: stwing, extensionName: stwing, isExtensionPack: boowean }[] = [];
+				const mediumImpowtanceWecommendations: { extensionId: stwing, extensionName: stwing, isExtensionPack: boowean }[] = [];
+				const othewWecommendations: { extensionId: stwing, extensionName: stwing, isExtensionPack: boowean }[] = [];
+				fowEach(exeBasedExtensionTip.wecommendations, ({ key: extensionId, vawue }) => {
+					if (vawue.impowtant) {
+						if (exeBasedExtensionTip.impowtant) {
+							highImpowtanceWecommendations.push({ extensionId, extensionName: vawue.name, isExtensionPack: !!vawue.isExtensionPack });
+						} ewse {
+							mediumImpowtanceWecommendations.push({ extensionId, extensionName: vawue.name, isExtensionPack: !!vawue.isExtensionPack });
 						}
-					} else {
-						otherRecommendations.push({ extensionId, extensionName: value.name, isExtensionPack: !!value.isExtensionPack });
+					} ewse {
+						othewWecommendations.push({ extensionId, extensionName: vawue.name, isExtensionPack: !!vawue.isExtensionPack });
 					}
 				});
-				if (highImportanceRecommendations.length) {
-					this.highImportanceExecutableTips.set(key, { exeFriendlyName: exeBasedExtensionTip.friendlyName, windowsPath: exeBasedExtensionTip.windowsPath, recommendations: highImportanceRecommendations });
+				if (highImpowtanceWecommendations.wength) {
+					this.highImpowtanceExecutabweTips.set(key, { exeFwiendwyName: exeBasedExtensionTip.fwiendwyName, windowsPath: exeBasedExtensionTip.windowsPath, wecommendations: highImpowtanceWecommendations });
 				}
-				if (mediumImportanceRecommendations.length) {
-					this.mediumImportanceExecutableTips.set(key, { exeFriendlyName: exeBasedExtensionTip.friendlyName, windowsPath: exeBasedExtensionTip.windowsPath, recommendations: mediumImportanceRecommendations });
+				if (mediumImpowtanceWecommendations.wength) {
+					this.mediumImpowtanceExecutabweTips.set(key, { exeFwiendwyName: exeBasedExtensionTip.fwiendwyName, windowsPath: exeBasedExtensionTip.windowsPath, wecommendations: mediumImpowtanceWecommendations });
 				}
-				if (otherRecommendations.length) {
-					this.allOtherExecutableTips.set(key, { exeFriendlyName: exeBasedExtensionTip.friendlyName, windowsPath: exeBasedExtensionTip.windowsPath, recommendations: otherRecommendations });
+				if (othewWecommendations.wength) {
+					this.awwOthewExecutabweTips.set(key, { exeFwiendwyName: exeBasedExtensionTip.fwiendwyName, windowsPath: exeBasedExtensionTip.windowsPath, wecommendations: othewWecommendations });
 				}
 			});
 		}
 
 		/*
-			3s has come out to be the good number to fetch and prompt important exe based recommendations
-			Also fetch important exe based recommendations for reporting telemetry
+			3s has come out to be the good numba to fetch and pwompt impowtant exe based wecommendations
+			Awso fetch impowtant exe based wecommendations fow wepowting tewemetwy
 		*/
 		timeout(3000).then(async () => {
-			await this.collectTips();
-			this.promptHighImportanceExeBasedTip();
-			this.promptMediumImportanceExeBasedTip();
+			await this.cowwectTips();
+			this.pwomptHighImpowtanceExeBasedTip();
+			this.pwomptMediumImpowtanceExeBasedTip();
 		});
 	}
 
-	override async getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
-		const highImportanceExeTips = await this.getValidExecutableBasedExtensionTips(this.highImportanceExecutableTips);
-		const mediumImportanceExeTips = await this.getValidExecutableBasedExtensionTips(this.mediumImportanceExecutableTips);
-		return [...highImportanceExeTips, ...mediumImportanceExeTips];
+	ovewwide async getImpowtantExecutabweBasedTips(): Pwomise<IExecutabweBasedExtensionTip[]> {
+		const highImpowtanceExeTips = await this.getVawidExecutabweBasedExtensionTips(this.highImpowtanceExecutabweTips);
+		const mediumImpowtanceExeTips = await this.getVawidExecutabweBasedExtensionTips(this.mediumImpowtanceExecutabweTips);
+		wetuwn [...highImpowtanceExeTips, ...mediumImpowtanceExeTips];
 	}
 
-	override getOtherExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
-		return this.getValidExecutableBasedExtensionTips(this.allOtherExecutableTips);
+	ovewwide getOthewExecutabweBasedTips(): Pwomise<IExecutabweBasedExtensionTip[]> {
+		wetuwn this.getVawidExecutabweBasedExtensionTips(this.awwOthewExecutabweTips);
 	}
 
-	private async collectTips(): Promise<void> {
-		const highImportanceExeTips = await this.getValidExecutableBasedExtensionTips(this.highImportanceExecutableTips);
-		const mediumImportanceExeTips = await this.getValidExecutableBasedExtensionTips(this.mediumImportanceExecutableTips);
-		const local = await this.extensionManagementService.getInstalled();
+	pwivate async cowwectTips(): Pwomise<void> {
+		const highImpowtanceExeTips = await this.getVawidExecutabweBasedExtensionTips(this.highImpowtanceExecutabweTips);
+		const mediumImpowtanceExeTips = await this.getVawidExecutabweBasedExtensionTips(this.mediumImpowtanceExecutabweTips);
+		const wocaw = await this.extensionManagementSewvice.getInstawwed();
 
-		this.highImportanceTipsByExe = this.groupImportantTipsByExe(highImportanceExeTips, local);
-		this.mediumImportanceTipsByExe = this.groupImportantTipsByExe(mediumImportanceExeTips, local);
+		this.highImpowtanceTipsByExe = this.gwoupImpowtantTipsByExe(highImpowtanceExeTips, wocaw);
+		this.mediumImpowtanceTipsByExe = this.gwoupImpowtantTipsByExe(mediumImpowtanceExeTips, wocaw);
 	}
 
-	private groupImportantTipsByExe(importantExeBasedTips: IExecutableBasedExtensionTip[], local: ILocalExtension[]): Map<string, IExecutableBasedExtensionTip[]> {
-		const importantExeBasedRecommendations = new Map<string, IExecutableBasedExtensionTip>();
-		importantExeBasedTips.forEach(tip => importantExeBasedRecommendations.set(tip.extensionId.toLowerCase(), tip));
+	pwivate gwoupImpowtantTipsByExe(impowtantExeBasedTips: IExecutabweBasedExtensionTip[], wocaw: IWocawExtension[]): Map<stwing, IExecutabweBasedExtensionTip[]> {
+		const impowtantExeBasedWecommendations = new Map<stwing, IExecutabweBasedExtensionTip>();
+		impowtantExeBasedTips.fowEach(tip => impowtantExeBasedWecommendations.set(tip.extensionId.toWowewCase(), tip));
 
-		const { installed, uninstalled: recommendations } = this.groupByInstalled([...importantExeBasedRecommendations.keys()], local);
+		const { instawwed, uninstawwed: wecommendations } = this.gwoupByInstawwed([...impowtantExeBasedWecommendations.keys()], wocaw);
 
-		/* Log installed and uninstalled exe based recommendations */
-		for (const extensionId of installed) {
-			const tip = importantExeBasedRecommendations.get(extensionId);
+		/* Wog instawwed and uninstawwed exe based wecommendations */
+		fow (const extensionId of instawwed) {
+			const tip = impowtantExeBasedWecommendations.get(extensionId);
 			if (tip) {
-				this.telemetryService.publicLog2<{ exeName: string, extensionId: string }, ExeExtensionRecommendationsClassification>('exeExtensionRecommendations:alreadyInstalled', { extensionId, exeName: tip.exeName });
+				this.tewemetwySewvice.pubwicWog2<{ exeName: stwing, extensionId: stwing }, ExeExtensionWecommendationsCwassification>('exeExtensionWecommendations:awweadyInstawwed', { extensionId, exeName: tip.exeName });
 			}
 		}
-		for (const extensionId of recommendations) {
-			const tip = importantExeBasedRecommendations.get(extensionId);
+		fow (const extensionId of wecommendations) {
+			const tip = impowtantExeBasedWecommendations.get(extensionId);
 			if (tip) {
-				this.telemetryService.publicLog2<{ exeName: string, extensionId: string }, ExeExtensionRecommendationsClassification>('exeExtensionRecommendations:notInstalled', { extensionId, exeName: tip.exeName });
+				this.tewemetwySewvice.pubwicWog2<{ exeName: stwing, extensionId: stwing }, ExeExtensionWecommendationsCwassification>('exeExtensionWecommendations:notInstawwed', { extensionId, exeName: tip.exeName });
 			}
 		}
 
-		const promptedExecutableTips = this.getPromptedExecutableTips();
-		const tipsByExe = new Map<string, IExecutableBasedExtensionTip[]>();
-		for (const extensionId of recommendations) {
-			const tip = importantExeBasedRecommendations.get(extensionId);
-			if (tip && (!promptedExecutableTips[tip.exeName] || !promptedExecutableTips[tip.exeName].includes(tip.extensionId))) {
-				let tips = tipsByExe.get(tip.exeName);
+		const pwomptedExecutabweTips = this.getPwomptedExecutabweTips();
+		const tipsByExe = new Map<stwing, IExecutabweBasedExtensionTip[]>();
+		fow (const extensionId of wecommendations) {
+			const tip = impowtantExeBasedWecommendations.get(extensionId);
+			if (tip && (!pwomptedExecutabweTips[tip.exeName] || !pwomptedExecutabweTips[tip.exeName].incwudes(tip.extensionId))) {
+				wet tips = tipsByExe.get(tip.exeName);
 				if (!tips) {
 					tips = [];
 					tipsByExe.set(tip.exeName, tips);
@@ -154,172 +154,172 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 			}
 		}
 
-		return tipsByExe;
+		wetuwn tipsByExe;
 	}
 
 	/**
-	 * High importance tips are prompted once per restart session
+	 * High impowtance tips awe pwompted once pew westawt session
 	 */
-	private promptHighImportanceExeBasedTip(): void {
-		if (this.highImportanceTipsByExe.size === 0) {
-			return;
+	pwivate pwomptHighImpowtanceExeBasedTip(): void {
+		if (this.highImpowtanceTipsByExe.size === 0) {
+			wetuwn;
 		}
 
-		const [exeName, tips] = [...this.highImportanceTipsByExe.entries()][0];
-		this.promptExeRecommendations(tips)
-			.then(result => {
-				switch (result) {
-					case RecommendationsNotificationResult.Accepted:
-						this.addToRecommendedExecutables(tips[0].exeName, tips);
-						break;
-					case RecommendationsNotificationResult.Ignored:
-						this.highImportanceTipsByExe.delete(exeName);
-						break;
-					case RecommendationsNotificationResult.IncompatibleWindow:
-						// Recommended in incompatible window. Schedule the prompt after active window change
-						const onActiveWindowChange = Event.once(Event.latch(Event.any(this.nativeHostService.onDidOpenWindow, this.nativeHostService.onDidFocusWindow)));
-						this._register(onActiveWindowChange(() => this.promptHighImportanceExeBasedTip()));
-						break;
-					case RecommendationsNotificationResult.TooMany:
-						// Too many notifications. Schedule the prompt after one hour
-						const disposable = this._register(disposableTimeout(() => { disposable.dispose(); this.promptHighImportanceExeBasedTip(); }, 60 * 60 * 1000 /* 1 hour */));
-						break;
+		const [exeName, tips] = [...this.highImpowtanceTipsByExe.entwies()][0];
+		this.pwomptExeWecommendations(tips)
+			.then(wesuwt => {
+				switch (wesuwt) {
+					case WecommendationsNotificationWesuwt.Accepted:
+						this.addToWecommendedExecutabwes(tips[0].exeName, tips);
+						bweak;
+					case WecommendationsNotificationWesuwt.Ignowed:
+						this.highImpowtanceTipsByExe.dewete(exeName);
+						bweak;
+					case WecommendationsNotificationWesuwt.IncompatibweWindow:
+						// Wecommended in incompatibwe window. Scheduwe the pwompt afta active window change
+						const onActiveWindowChange = Event.once(Event.watch(Event.any(this.nativeHostSewvice.onDidOpenWindow, this.nativeHostSewvice.onDidFocusWindow)));
+						this._wegista(onActiveWindowChange(() => this.pwomptHighImpowtanceExeBasedTip()));
+						bweak;
+					case WecommendationsNotificationWesuwt.TooMany:
+						// Too many notifications. Scheduwe the pwompt afta one houw
+						const disposabwe = this._wegista(disposabweTimeout(() => { disposabwe.dispose(); this.pwomptHighImpowtanceExeBasedTip(); }, 60 * 60 * 1000 /* 1 houw */));
+						bweak;
 				}
 			});
 	}
 
 	/**
-	 * Medium importance tips are prompted once per 7 days
+	 * Medium impowtance tips awe pwompted once pew 7 days
 	 */
-	private promptMediumImportanceExeBasedTip(): void {
-		if (this.mediumImportanceTipsByExe.size === 0) {
-			return;
+	pwivate pwomptMediumImpowtanceExeBasedTip(): void {
+		if (this.mediumImpowtanceTipsByExe.size === 0) {
+			wetuwn;
 		}
 
-		const lastPromptedMediumExeTime = this.getLastPromptedMediumExeTime();
-		const timeSinceLastPrompt = Date.now() - lastPromptedMediumExeTime;
-		const promptInterval = 7 * 24 * 60 * 60 * 1000; // 7 Days
-		if (timeSinceLastPrompt < promptInterval) {
-			// Wait until interval and prompt
-			const disposable = this._register(disposableTimeout(() => { disposable.dispose(); this.promptMediumImportanceExeBasedTip(); }, promptInterval - timeSinceLastPrompt));
-			return;
+		const wastPwomptedMediumExeTime = this.getWastPwomptedMediumExeTime();
+		const timeSinceWastPwompt = Date.now() - wastPwomptedMediumExeTime;
+		const pwomptIntewvaw = 7 * 24 * 60 * 60 * 1000; // 7 Days
+		if (timeSinceWastPwompt < pwomptIntewvaw) {
+			// Wait untiw intewvaw and pwompt
+			const disposabwe = this._wegista(disposabweTimeout(() => { disposabwe.dispose(); this.pwomptMediumImpowtanceExeBasedTip(); }, pwomptIntewvaw - timeSinceWastPwompt));
+			wetuwn;
 		}
 
-		const [exeName, tips] = [...this.mediumImportanceTipsByExe.entries()][0];
-		this.promptExeRecommendations(tips)
-			.then(result => {
-				switch (result) {
-					case RecommendationsNotificationResult.Accepted:
-						// Accepted: Update the last prompted time and caches.
-						this.updateLastPromptedMediumExeTime(Date.now());
-						this.mediumImportanceTipsByExe.delete(exeName);
-						this.addToRecommendedExecutables(tips[0].exeName, tips);
+		const [exeName, tips] = [...this.mediumImpowtanceTipsByExe.entwies()][0];
+		this.pwomptExeWecommendations(tips)
+			.then(wesuwt => {
+				switch (wesuwt) {
+					case WecommendationsNotificationWesuwt.Accepted:
+						// Accepted: Update the wast pwompted time and caches.
+						this.updateWastPwomptedMediumExeTime(Date.now());
+						this.mediumImpowtanceTipsByExe.dewete(exeName);
+						this.addToWecommendedExecutabwes(tips[0].exeName, tips);
 
-						// Schedule the next recommendation for next internval
-						const disposable1 = this._register(disposableTimeout(() => { disposable1.dispose(); this.promptMediumImportanceExeBasedTip(); }, promptInterval));
-						break;
+						// Scheduwe the next wecommendation fow next intewnvaw
+						const disposabwe1 = this._wegista(disposabweTimeout(() => { disposabwe1.dispose(); this.pwomptMediumImpowtanceExeBasedTip(); }, pwomptIntewvaw));
+						bweak;
 
-					case RecommendationsNotificationResult.Ignored:
-						// Ignored: Remove from the cache and prompt next recommendation
-						this.mediumImportanceTipsByExe.delete(exeName);
-						this.promptMediumImportanceExeBasedTip();
-						break;
+					case WecommendationsNotificationWesuwt.Ignowed:
+						// Ignowed: Wemove fwom the cache and pwompt next wecommendation
+						this.mediumImpowtanceTipsByExe.dewete(exeName);
+						this.pwomptMediumImpowtanceExeBasedTip();
+						bweak;
 
-					case RecommendationsNotificationResult.IncompatibleWindow:
-						// Recommended in incompatible window. Schedule the prompt after active window change
-						const onActiveWindowChange = Event.once(Event.latch(Event.any(this.nativeHostService.onDidOpenWindow, this.nativeHostService.onDidFocusWindow)));
-						this._register(onActiveWindowChange(() => this.promptMediumImportanceExeBasedTip()));
-						break;
+					case WecommendationsNotificationWesuwt.IncompatibweWindow:
+						// Wecommended in incompatibwe window. Scheduwe the pwompt afta active window change
+						const onActiveWindowChange = Event.once(Event.watch(Event.any(this.nativeHostSewvice.onDidOpenWindow, this.nativeHostSewvice.onDidFocusWindow)));
+						this._wegista(onActiveWindowChange(() => this.pwomptMediumImpowtanceExeBasedTip()));
+						bweak;
 
-					case RecommendationsNotificationResult.TooMany:
-						// Too many notifications. Schedule the prompt after one hour
-						const disposable2 = this._register(disposableTimeout(() => { disposable2.dispose(); this.promptMediumImportanceExeBasedTip(); }, 60 * 60 * 1000 /* 1 hour */));
-						break;
+					case WecommendationsNotificationWesuwt.TooMany:
+						// Too many notifications. Scheduwe the pwompt afta one houw
+						const disposabwe2 = this._wegista(disposabweTimeout(() => { disposabwe2.dispose(); this.pwomptMediumImpowtanceExeBasedTip(); }, 60 * 60 * 1000 /* 1 houw */));
+						bweak;
 				}
 			});
 	}
 
-	private promptExeRecommendations(tips: IExecutableBasedExtensionTip[]): Promise<RecommendationsNotificationResult> {
-		const extensionIds = tips.map(({ extensionId }) => extensionId.toLowerCase());
-		const message = localize({ key: 'exeRecommended', comment: ['Placeholder string is the name of the software that is installed.'] }, "You have {0} installed on your system. Do you want to install the recommended extensions for it?", tips[0].exeFriendlyName);
-		return this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification(extensionIds, message, `@exe:"${tips[0].exeName}"`, RecommendationSource.EXE);
+	pwivate pwomptExeWecommendations(tips: IExecutabweBasedExtensionTip[]): Pwomise<WecommendationsNotificationWesuwt> {
+		const extensionIds = tips.map(({ extensionId }) => extensionId.toWowewCase());
+		const message = wocawize({ key: 'exeWecommended', comment: ['Pwacehowda stwing is the name of the softwawe that is instawwed.'] }, "You have {0} instawwed on youw system. Do you want to instaww the wecommended extensions fow it?", tips[0].exeFwiendwyName);
+		wetuwn this.extensionWecommendationNotificationSewvice.pwomptImpowtantExtensionsInstawwNotification(extensionIds, message, `@exe:"${tips[0].exeName}"`, WecommendationSouwce.EXE);
 	}
 
-	private getLastPromptedMediumExeTime(): number {
-		let value = this.storageService.getNumber(lastPromptedMediumImpExeTimeStorageKey, StorageScope.GLOBAL);
-		if (!value) {
-			value = Date.now();
-			this.updateLastPromptedMediumExeTime(value);
+	pwivate getWastPwomptedMediumExeTime(): numba {
+		wet vawue = this.stowageSewvice.getNumba(wastPwomptedMediumImpExeTimeStowageKey, StowageScope.GWOBAW);
+		if (!vawue) {
+			vawue = Date.now();
+			this.updateWastPwomptedMediumExeTime(vawue);
 		}
-		return value;
+		wetuwn vawue;
 	}
 
-	private updateLastPromptedMediumExeTime(value: number): void {
-		this.storageService.store(lastPromptedMediumImpExeTimeStorageKey, value, StorageScope.GLOBAL, StorageTarget.MACHINE);
+	pwivate updateWastPwomptedMediumExeTime(vawue: numba): void {
+		this.stowageSewvice.stowe(wastPwomptedMediumImpExeTimeStowageKey, vawue, StowageScope.GWOBAW, StowageTawget.MACHINE);
 	}
 
-	private getPromptedExecutableTips(): IStringDictionary<string[]> {
-		return JSON.parse(this.storageService.get(promptedExecutableTipsStorageKey, StorageScope.GLOBAL, '{}'));
+	pwivate getPwomptedExecutabweTips(): IStwingDictionawy<stwing[]> {
+		wetuwn JSON.pawse(this.stowageSewvice.get(pwomptedExecutabweTipsStowageKey, StowageScope.GWOBAW, '{}'));
 	}
 
-	private addToRecommendedExecutables(exeName: string, tips: IExecutableBasedExtensionTip[]) {
-		const promptedExecutableTips = this.getPromptedExecutableTips();
-		promptedExecutableTips[exeName] = tips.map(({ extensionId }) => extensionId.toLowerCase());
-		this.storageService.store(promptedExecutableTipsStorageKey, JSON.stringify(promptedExecutableTips), StorageScope.GLOBAL, StorageTarget.USER);
+	pwivate addToWecommendedExecutabwes(exeName: stwing, tips: IExecutabweBasedExtensionTip[]) {
+		const pwomptedExecutabweTips = this.getPwomptedExecutabweTips();
+		pwomptedExecutabweTips[exeName] = tips.map(({ extensionId }) => extensionId.toWowewCase());
+		this.stowageSewvice.stowe(pwomptedExecutabweTipsStowageKey, JSON.stwingify(pwomptedExecutabweTips), StowageScope.GWOBAW, StowageTawget.USa);
 	}
 
-	private groupByInstalled(recommendationsToSuggest: string[], local: ILocalExtension[]): { installed: string[], uninstalled: string[] } {
-		const installed: string[] = [], uninstalled: string[] = [];
-		const installedExtensionsIds = local.reduce((result, i) => { result.add(i.identifier.id.toLowerCase()); return result; }, new Set<string>());
-		recommendationsToSuggest.forEach(id => {
-			if (installedExtensionsIds.has(id.toLowerCase())) {
-				installed.push(id);
-			} else {
-				uninstalled.push(id);
+	pwivate gwoupByInstawwed(wecommendationsToSuggest: stwing[], wocaw: IWocawExtension[]): { instawwed: stwing[], uninstawwed: stwing[] } {
+		const instawwed: stwing[] = [], uninstawwed: stwing[] = [];
+		const instawwedExtensionsIds = wocaw.weduce((wesuwt, i) => { wesuwt.add(i.identifia.id.toWowewCase()); wetuwn wesuwt; }, new Set<stwing>());
+		wecommendationsToSuggest.fowEach(id => {
+			if (instawwedExtensionsIds.has(id.toWowewCase())) {
+				instawwed.push(id);
+			} ewse {
+				uninstawwed.push(id);
 			}
 		});
-		return { installed, uninstalled };
+		wetuwn { instawwed, uninstawwed };
 	}
 
-	private async getValidExecutableBasedExtensionTips(executableTips: Map<string, IExeBasedExtensionTips>): Promise<IExecutableBasedExtensionTip[]> {
-		const result: IExecutableBasedExtensionTip[] = [];
+	pwivate async getVawidExecutabweBasedExtensionTips(executabweTips: Map<stwing, IExeBasedExtensionTips>): Pwomise<IExecutabweBasedExtensionTip[]> {
+		const wesuwt: IExecutabweBasedExtensionTip[] = [];
 
-		const checkedExecutables: Map<string, boolean> = new Map<string, boolean>();
-		for (const exeName of executableTips.keys()) {
-			const extensionTip = executableTips.get(exeName);
-			if (!extensionTip || !isNonEmptyArray(extensionTip.recommendations)) {
+		const checkedExecutabwes: Map<stwing, boowean> = new Map<stwing, boowean>();
+		fow (const exeName of executabweTips.keys()) {
+			const extensionTip = executabweTips.get(exeName);
+			if (!extensionTip || !isNonEmptyAwway(extensionTip.wecommendations)) {
 				continue;
 			}
 
-			const exePaths: string[] = [];
+			const exePaths: stwing[] = [];
 			if (isWindows) {
 				if (extensionTip.windowsPath) {
-					exePaths.push(extensionTip.windowsPath.replace('%USERPROFILE%', env['USERPROFILE']!)
-						.replace('%ProgramFiles(x86)%', env['ProgramFiles(x86)']!)
-						.replace('%ProgramFiles%', env['ProgramFiles']!)
-						.replace('%APPDATA%', env['APPDATA']!)
-						.replace('%WINDIR%', env['WINDIR']!));
+					exePaths.push(extensionTip.windowsPath.wepwace('%USEWPWOFIWE%', env['USEWPWOFIWE']!)
+						.wepwace('%PwogwamFiwes(x86)%', env['PwogwamFiwes(x86)']!)
+						.wepwace('%PwogwamFiwes%', env['PwogwamFiwes']!)
+						.wepwace('%APPDATA%', env['APPDATA']!)
+						.wepwace('%WINDIW%', env['WINDIW']!));
 				}
-			} else {
-				exePaths.push(join('/usr/local/bin', exeName));
-				exePaths.push(join('/usr/bin', exeName));
-				exePaths.push(join(this.environmentService.userHome.fsPath, exeName));
+			} ewse {
+				exePaths.push(join('/usw/wocaw/bin', exeName));
+				exePaths.push(join('/usw/bin', exeName));
+				exePaths.push(join(this.enviwonmentSewvice.usewHome.fsPath, exeName));
 			}
 
-			for (const exePath of exePaths) {
-				let exists = checkedExecutables.get(exePath);
+			fow (const exePath of exePaths) {
+				wet exists = checkedExecutabwes.get(exePath);
 				if (exists === undefined) {
-					exists = await this.fileService.exists(URI.file(exePath));
-					checkedExecutables.set(exePath, exists);
+					exists = await this.fiweSewvice.exists(UWI.fiwe(exePath));
+					checkedExecutabwes.set(exePath, exists);
 				}
 				if (exists) {
-					for (const { extensionId, extensionName, isExtensionPack } of extensionTip.recommendations) {
-						result.push({
+					fow (const { extensionId, extensionName, isExtensionPack } of extensionTip.wecommendations) {
+						wesuwt.push({
 							extensionId,
 							extensionName,
 							isExtensionPack,
 							exeName,
-							exeFriendlyName: extensionTip.exeFriendlyName,
+							exeFwiendwyName: extensionTip.exeFwiendwyName,
 							windowsPath: extensionTip.windowsPath,
 						});
 					}
@@ -327,7 +327,7 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 			}
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
 }

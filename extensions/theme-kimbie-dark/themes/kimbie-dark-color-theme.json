@@ -1,75 +1,75 @@
 {
-	"name": "Kimbie Dark",
-	"type": "dark",
-	"colors": {
-		"input.background": "#51412c",
-		"dropdown.background": "#51412c",
-		"editor.background": "#221a0f",
-		"editor.foreground": "#d3af86",
-		"focusBorder": "#a57a4c",
-		"list.highlightForeground": "#e3b583",
-		"list.activeSelectionBackground": "#7c5021",
-		"list.hoverBackground": "#7c502166",
-		"quickInputList.focusBackground": "#7c5021AA",
-		"list.inactiveSelectionBackground": "#645342",
-		"pickerGroup.foreground": "#e3b583",
-		"pickerGroup.border": "#e3b583",
-		"inputOption.activeBorder": "#a57a4c",
-		"selection.background": "#84613daa",
-		"editor.selectionBackground": "#84613daa",
-		"minimap.selectionHighlight": "#84613daa",
-		"editorWidget.background": "#131510",
-		"editorHoverWidget.background": "#221a14",
-		"editorGroupHeader.tabsBackground": "#131510",
-		"editorLineNumber.activeForeground": "#adadad",
-		"tab.inactiveBackground": "#131510",
-		"tab.lastPinnedBorder": "#51412c",
-		"titleBar.activeBackground": "#423523",
-		"statusBar.background": "#423523",
-		"statusBar.debuggingBackground": "#423523",
-		"statusBar.noFolderBackground": "#423523",
-		"statusBarItem.remoteBackground": "#6e583b",
-		"ports.iconRunningProcessForeground": "#369432",
-		"activityBar.background": "#221a0f",
-		"activityBar.foreground": "#d3af86",
-		"sideBar.background": "#362712",
-		"menu.background": "#362712",
-		"menu.foreground": "#CCCCCC",
-		"editor.lineHighlightBackground": "#5e452b",
-		"editorCursor.foreground": "#d3af86",
-		"editorWhitespace.foreground": "#a57a4c",
-		"peekViewTitle.background": "#362712",
-		"peekView.border": "#5e452b",
-		"peekViewResult.background": "#362712",
-		"peekViewEditor.background": "#221a14",
-		"peekViewEditor.matchHighlightBackground": "#84613daa",
-		"button.background": "#6e583b",
-		"inputValidation.infoBorder": "#1b60a5",
-		"inputValidation.infoBackground": "#2b2a42",
-		"inputValidation.warningBackground": "#51412c",
-		// "inputValidation.warningBorder": "#5B7E7A",
-		"inputValidation.errorBackground": "#5f0d0d",
-		"inputValidation.errorBorder": "#9d2f23",
-		"badge.background": "#7f5d38",
-		"progressBar.background": "#7f5d38"
+	"name": "Kimbie Dawk",
+	"type": "dawk",
+	"cowows": {
+		"input.backgwound": "#51412c",
+		"dwopdown.backgwound": "#51412c",
+		"editow.backgwound": "#221a0f",
+		"editow.fowegwound": "#d3af86",
+		"focusBowda": "#a57a4c",
+		"wist.highwightFowegwound": "#e3b583",
+		"wist.activeSewectionBackgwound": "#7c5021",
+		"wist.hovewBackgwound": "#7c502166",
+		"quickInputWist.focusBackgwound": "#7c5021AA",
+		"wist.inactiveSewectionBackgwound": "#645342",
+		"pickewGwoup.fowegwound": "#e3b583",
+		"pickewGwoup.bowda": "#e3b583",
+		"inputOption.activeBowda": "#a57a4c",
+		"sewection.backgwound": "#84613daa",
+		"editow.sewectionBackgwound": "#84613daa",
+		"minimap.sewectionHighwight": "#84613daa",
+		"editowWidget.backgwound": "#131510",
+		"editowHovewWidget.backgwound": "#221a14",
+		"editowGwoupHeada.tabsBackgwound": "#131510",
+		"editowWineNumba.activeFowegwound": "#adadad",
+		"tab.inactiveBackgwound": "#131510",
+		"tab.wastPinnedBowda": "#51412c",
+		"titweBaw.activeBackgwound": "#423523",
+		"statusBaw.backgwound": "#423523",
+		"statusBaw.debuggingBackgwound": "#423523",
+		"statusBaw.noFowdewBackgwound": "#423523",
+		"statusBawItem.wemoteBackgwound": "#6e583b",
+		"powts.iconWunningPwocessFowegwound": "#369432",
+		"activityBaw.backgwound": "#221a0f",
+		"activityBaw.fowegwound": "#d3af86",
+		"sideBaw.backgwound": "#362712",
+		"menu.backgwound": "#362712",
+		"menu.fowegwound": "#CCCCCC",
+		"editow.wineHighwightBackgwound": "#5e452b",
+		"editowCuwsow.fowegwound": "#d3af86",
+		"editowWhitespace.fowegwound": "#a57a4c",
+		"peekViewTitwe.backgwound": "#362712",
+		"peekView.bowda": "#5e452b",
+		"peekViewWesuwt.backgwound": "#362712",
+		"peekViewEditow.backgwound": "#221a14",
+		"peekViewEditow.matchHighwightBackgwound": "#84613daa",
+		"button.backgwound": "#6e583b",
+		"inputVawidation.infoBowda": "#1b60a5",
+		"inputVawidation.infoBackgwound": "#2b2a42",
+		"inputVawidation.wawningBackgwound": "#51412c",
+		// "inputVawidation.wawningBowda": "#5B7E7A",
+		"inputVawidation.ewwowBackgwound": "#5f0d0d",
+		"inputVawidation.ewwowBowda": "#9d2f23",
+		"badge.backgwound": "#7f5d38",
+		"pwogwessBaw.backgwound": "#7f5d38"
 	},
-	"tokenColors": [
+	"tokenCowows": [
 		{
 			"settings": {
-				"foreground": "#d3af86"
+				"fowegwound": "#d3af86"
 			}
 		},
 		{
-			"scope": ["meta.embedded", "source.groovy.embedded"],
+			"scope": ["meta.embedded", "souwce.gwoovy.embedded"],
 			"settings": {
-				"foreground": "#d3af86"
+				"fowegwound": "#d3af86"
 			}
 		},
 		{
 			"name": "Text",
-			"scope": "variable.parameter.function",
+			"scope": "vawiabwe.pawameta.function",
 			"settings": {
-				"foreground": "#d3af86"
+				"fowegwound": "#d3af86"
 			}
 		},
 		{
@@ -79,323 +79,323 @@
 				"punctuation.definition.comment"
 			],
 			"settings": {
-				"foreground": "#a57a4c"
+				"fowegwound": "#a57a4c"
 			}
 		},
 		{
 			"name": "Punctuation",
 			"scope": [
-				"punctuation.definition.string",
-				"punctuation.definition.variable",
-				"punctuation.definition.string",
-				"punctuation.definition.parameters",
-				"punctuation.definition.string",
-				"punctuation.definition.array"
+				"punctuation.definition.stwing",
+				"punctuation.definition.vawiabwe",
+				"punctuation.definition.stwing",
+				"punctuation.definition.pawametews",
+				"punctuation.definition.stwing",
+				"punctuation.definition.awway"
 			],
 			"settings": {
-				"foreground": "#d3af86"
+				"fowegwound": "#d3af86"
 			}
 		},
 		{
-			"name": "Delimiters",
+			"name": "Dewimitews",
 			"scope": "none",
 			"settings": {
-				"foreground": "#d3af86"
+				"fowegwound": "#d3af86"
 			}
 		},
 		{
-			"name": "Operators",
-			"scope": "keyword.operator",
+			"name": "Opewatows",
+			"scope": "keywowd.opewatow",
 			"settings": {
-				"foreground": "#d3af86"
+				"fowegwound": "#d3af86"
 			}
 		},
 		{
-			"name": "Keywords",
+			"name": "Keywowds",
 			"scope": [
-				"keyword",
-				"keyword.control",
-				"keyword.operator.new.cpp",
-				"keyword.operator.delete.cpp",
-				"keyword.other.using",
-				"keyword.other.operator"
+				"keywowd",
+				"keywowd.contwow",
+				"keywowd.opewatow.new.cpp",
+				"keywowd.opewatow.dewete.cpp",
+				"keywowd.otha.using",
+				"keywowd.otha.opewatow"
 			],
 			"settings": {
-				"foreground": "#98676a"
+				"fowegwound": "#98676a"
 			}
 		},
 		{
-			"name": "Variables",
-			"scope": "variable",
+			"name": "Vawiabwes",
+			"scope": "vawiabwe",
 			"settings": {
-				"foreground": "#dc3958"
+				"fowegwound": "#dc3958"
 			}
 		},
 		{
 			"name": "Functions",
 			"scope": [
 				"entity.name.function",
-				"meta.require",
-				"support.function.any-method"
+				"meta.wequiwe",
+				"suppowt.function.any-method"
 			],
 			"settings": {
-				"foreground": "#8ab1b0"
+				"fowegwound": "#8ab1b0"
 			}
 		},
 		{
-			"name": "Classes",
+			"name": "Cwasses",
 			"scope": [
-				"support.class",
-				"entity.name.class",
+				"suppowt.cwass",
+				"entity.name.cwass",
 				"entity.name.type",
 				"entity.name.namespace",
-				"entity.name.scope-resolution"
+				"entity.name.scope-wesowution"
 			],
 			"settings": {
-				"foreground": "#f06431"
+				"fowegwound": "#f06431"
 			}
 		},
 		{
 			"name": "Methods",
-			"scope": "keyword.other.special-method",
+			"scope": "keywowd.otha.speciaw-method",
 			"settings": {
-				"foreground": "#8ab1b0"
+				"fowegwound": "#8ab1b0"
 			}
 		},
 		{
-			"name": "Storage",
-			"scope": "storage",
+			"name": "Stowage",
+			"scope": "stowage",
 			"settings": {
-				"foreground": "#98676a"
+				"fowegwound": "#98676a"
 			}
 		},
 		{
-			"name": "Support",
-			"scope": "support.function",
+			"name": "Suppowt",
+			"scope": "suppowt.function",
 			"settings": {
-				"foreground": "#7e602c"
+				"fowegwound": "#7e602c"
 			}
 		},
 		{
-			"name": "Strings, Inherited Class",
+			"name": "Stwings, Inhewited Cwass",
 			"scope": [
-				"string",
-				"constant.other.symbol",
-				"entity.other.inherited-class"
+				"stwing",
+				"constant.otha.symbow",
+				"entity.otha.inhewited-cwass"
 			],
 			"settings": {
-				"foreground": "#889b4a"
+				"fowegwound": "#889b4a"
 			}
 		},
 		{
-			"name": "Integers",
-			"scope": "constant.numeric",
+			"name": "Integews",
+			"scope": "constant.numewic",
 			"settings": {
-				"foreground": "#f79a32"
+				"fowegwound": "#f79a32"
 			}
 		},
 		{
-			"name": "Floats",
+			"name": "Fwoats",
 			"scope": "none",
 			"settings": {
-				"foreground": "#f79a32"
+				"fowegwound": "#f79a32"
 			}
 		},
 		{
-			"name": "Boolean",
+			"name": "Boowean",
 			"scope": "none",
 			"settings": {
-				"foreground": "#f79a32"
+				"fowegwound": "#f79a32"
 			}
 		},
 		{
 			"name": "Constants",
 			"scope": "constant",
 			"settings": {
-				"foreground": "#f79a32"
+				"fowegwound": "#f79a32"
 			}
 		},
 		{
 			"name": "Tags",
 			"scope": "entity.name.tag",
 			"settings": {
-				"foreground": "#dc3958"
+				"fowegwound": "#dc3958"
 			}
 		},
 		{
-			"name": "Attributes",
-			"scope": "entity.other.attribute-name",
+			"name": "Attwibutes",
+			"scope": "entity.otha.attwibute-name",
 			"settings": {
-				"foreground": "#f79a32"
+				"fowegwound": "#f79a32"
 			}
 		},
 		{
-			"name": "Attribute IDs",
+			"name": "Attwibute IDs",
 			"scope": [
-				"entity.other.attribute-name.id",
+				"entity.otha.attwibute-name.id",
 				"punctuation.definition.entity"
 			],
 			"settings": {
-				"foreground": "#8ab1b0"
+				"fowegwound": "#8ab1b0"
 			}
 		},
 		{
-			"name": "Selector",
-			"scope": "meta.selector",
+			"name": "Sewectow",
+			"scope": "meta.sewectow",
 			"settings": {
-				"foreground": "#98676a"
+				"fowegwound": "#98676a"
 			}
 		},
 		{
-			"name": "Values",
+			"name": "Vawues",
 			"scope": "none",
 			"settings": {
-				"foreground": "#f79a32"
+				"fowegwound": "#f79a32"
 			}
 		},
 		{
 			"name": "Headings",
 			"scope": [
-				"markup.heading",
-				"markup.heading.setext",
+				"mawkup.heading",
+				"mawkup.heading.setext",
 				"punctuation.definition.heading",
 				"entity.name.section"
 			],
 			"settings": {
-				"fontStyle": "bold",
-				"foreground": "#8ab1b0"
+				"fontStywe": "bowd",
+				"fowegwound": "#8ab1b0"
 			}
 		},
 		{
 			"name": "Units",
-			"scope": "keyword.other.unit",
+			"scope": "keywowd.otha.unit",
 			"settings": {
-				"foreground": "#f79a32"
+				"fowegwound": "#f79a32"
 			}
 		},
 		{
-			"name": "Bold",
+			"name": "Bowd",
 			"scope": [
-				"markup.bold",
-				"punctuation.definition.bold"
+				"mawkup.bowd",
+				"punctuation.definition.bowd"
 			],
 			"settings": {
-				"fontStyle": "bold",
-				"foreground": "#f06431"
+				"fontStywe": "bowd",
+				"fowegwound": "#f06431"
 			}
 		},
 		{
-			"name": "Italic",
+			"name": "Itawic",
 			"scope": [
-				"markup.italic",
-				"punctuation.definition.italic"
+				"mawkup.itawic",
+				"punctuation.definition.itawic"
 			],
 			"settings": {
-				"fontStyle": "italic",
-				"foreground": "#98676a"
+				"fontStywe": "itawic",
+				"fowegwound": "#98676a"
 			}
 		},
 		{
 			"name": "Code",
-			"scope": "markup.inline.raw",
+			"scope": "mawkup.inwine.waw",
 			"settings": {
-				"foreground": "#889b4a"
+				"fowegwound": "#889b4a"
 			}
 		},
 		{
-			"name": "Link Text",
-			"scope": "string.other.link",
+			"name": "Wink Text",
+			"scope": "stwing.otha.wink",
 			"settings": {
-				"foreground": "#dc3958"
+				"fowegwound": "#dc3958"
 			}
 		},
 		{
-			"name": "Link Url",
-			"scope": "meta.link",
+			"name": "Wink Uww",
+			"scope": "meta.wink",
 			"settings": {
-				"foreground": "#f79a32"
+				"fowegwound": "#f79a32"
 			}
 		},
 		{
-			"name": "Lists",
-			"scope": "markup.list",
+			"name": "Wists",
+			"scope": "mawkup.wist",
 			"settings": {
-				"foreground": "#dc3958"
+				"fowegwound": "#dc3958"
 			}
 		},
 		{
 			"name": "Quotes",
-			"scope": "markup.quote",
+			"scope": "mawkup.quote",
 			"settings": {
-				"foreground": "#f79a32"
+				"fowegwound": "#f79a32"
 			}
 		},
 		{
-			"name": "Separator",
-			"scope": "meta.separator",
+			"name": "Sepawatow",
+			"scope": "meta.sepawatow",
 			"settings": {
-				"foreground": "#d3af86"
+				"fowegwound": "#d3af86"
 			}
 		},
 		{
-			"name": "Inserted",
-			"scope": "markup.inserted",
+			"name": "Insewted",
+			"scope": "mawkup.insewted",
 			"settings": {
-				"foreground": "#889b4a"
+				"fowegwound": "#889b4a"
 			}
 		},
 		{
-			"name": "Deleted",
-			"scope": "markup.deleted",
+			"name": "Deweted",
+			"scope": "mawkup.deweted",
 			"settings": {
-				"foreground": "#dc3958"
+				"fowegwound": "#dc3958"
 			}
 		},
 		{
 			"name": "Changed",
-			"scope": "markup.changed",
+			"scope": "mawkup.changed",
 			"settings": {
-				"foreground": "#98676a"
+				"fowegwound": "#98676a"
 			}
 		},
 		{
-			"name": "Colors",
-			"scope": "constant.other.color",
+			"name": "Cowows",
+			"scope": "constant.otha.cowow",
 			"settings": {
-				"foreground": "#7e602c"
+				"fowegwound": "#7e602c"
 			}
 		},
 		{
-			"name": "Regular Expressions",
-			"scope": "string.regexp",
+			"name": "Weguwaw Expwessions",
+			"scope": "stwing.wegexp",
 			"settings": {
-				"foreground": "#7e602c"
+				"fowegwound": "#7e602c"
 			}
 		},
 		{
-			"name": "Escape Characters",
-			"scope": "constant.character.escape",
+			"name": "Escape Chawactews",
+			"scope": "constant.chawacta.escape",
 			"settings": {
-				"foreground": "#7e602c"
+				"fowegwound": "#7e602c"
 			}
 		},
 		{
 			"name": "Embedded",
 			"scope": [
 				"punctuation.section.embedded",
-				"variable.interpolation"
+				"vawiabwe.intewpowation"
 			],
 			"settings": {
-				"foreground": "#088649"
+				"fowegwound": "#088649"
 			}
 		},
 		{
-			"name": "Invalid",
-			"scope": "invalid",
+			"name": "Invawid",
+			"scope": "invawid",
 			"settings": {
-				"foreground": "#dc3958"
+				"fowegwound": "#dc3958"
 			}
 		}
 	],
-	"semanticHighlighting": true
+	"semanticHighwighting": twue
 }

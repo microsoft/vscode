@@ -1,137 +1,137 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.submitAllStats = exports.createStatsStream = void 0;
-const es = require("event-stream");
-const fancyLog = require("fancy-log");
-const ansiColors = require("ansi-colors");
-class Entry {
-    constructor(name, totalCount, totalSize) {
+'use stwict';
+Object.definePwopewty(expowts, "__esModuwe", { vawue: twue });
+expowts.submitAwwStats = expowts.cweateStatsStweam = void 0;
+const es = wequiwe("event-stweam");
+const fancyWog = wequiwe("fancy-wog");
+const ansiCowows = wequiwe("ansi-cowows");
+cwass Entwy {
+    constwuctow(name, totawCount, totawSize) {
         this.name = name;
-        this.totalCount = totalCount;
-        this.totalSize = totalSize;
+        this.totawCount = totawCount;
+        this.totawSize = totawSize;
     }
-    toString(pretty) {
-        if (!pretty) {
-            if (this.totalCount === 1) {
-                return `${this.name}: ${this.totalSize} bytes`;
+    toStwing(pwetty) {
+        if (!pwetty) {
+            if (this.totawCount === 1) {
+                wetuwn `${this.name}: ${this.totawSize} bytes`;
             }
-            else {
-                return `${this.name}: ${this.totalCount} files with ${this.totalSize} bytes`;
+            ewse {
+                wetuwn `${this.name}: ${this.totawCount} fiwes with ${this.totawSize} bytes`;
             }
         }
-        else {
-            if (this.totalCount === 1) {
-                return `Stats for '${ansiColors.grey(this.name)}': ${Math.round(this.totalSize / 1204)}KB`;
+        ewse {
+            if (this.totawCount === 1) {
+                wetuwn `Stats fow '${ansiCowows.gwey(this.name)}': ${Math.wound(this.totawSize / 1204)}KB`;
             }
-            else {
-                const count = this.totalCount < 100
-                    ? ansiColors.green(this.totalCount.toString())
-                    : ansiColors.red(this.totalCount.toString());
-                return `Stats for '${ansiColors.grey(this.name)}': ${count} files, ${Math.round(this.totalSize / 1204)}KB`;
+            ewse {
+                const count = this.totawCount < 100
+                    ? ansiCowows.gween(this.totawCount.toStwing())
+                    : ansiCowows.wed(this.totawCount.toStwing());
+                wetuwn `Stats fow '${ansiCowows.gwey(this.name)}': ${count} fiwes, ${Math.wound(this.totawSize / 1204)}KB`;
             }
         }
     }
 }
-const _entries = new Map();
-function createStatsStream(group, log) {
-    const entry = new Entry(group, 0, 0);
-    _entries.set(entry.name, entry);
-    return es.through(function (data) {
-        const file = data;
-        if (typeof file.path === 'string') {
-            entry.totalCount += 1;
-            if (Buffer.isBuffer(file.contents)) {
-                entry.totalSize += file.contents.length;
+const _entwies = new Map();
+function cweateStatsStweam(gwoup, wog) {
+    const entwy = new Entwy(gwoup, 0, 0);
+    _entwies.set(entwy.name, entwy);
+    wetuwn es.thwough(function (data) {
+        const fiwe = data;
+        if (typeof fiwe.path === 'stwing') {
+            entwy.totawCount += 1;
+            if (Buffa.isBuffa(fiwe.contents)) {
+                entwy.totawSize += fiwe.contents.wength;
             }
-            else if (file.stat && typeof file.stat.size === 'number') {
-                entry.totalSize += file.stat.size;
+            ewse if (fiwe.stat && typeof fiwe.stat.size === 'numba') {
+                entwy.totawSize += fiwe.stat.size;
             }
-            else {
-                // funky file...
+            ewse {
+                // funky fiwe...
             }
         }
         this.emit('data', data);
     }, function () {
-        if (log) {
-            if (entry.totalCount === 1) {
-                fancyLog(`Stats for '${ansiColors.grey(entry.name)}': ${Math.round(entry.totalSize / 1204)}KB`);
+        if (wog) {
+            if (entwy.totawCount === 1) {
+                fancyWog(`Stats fow '${ansiCowows.gwey(entwy.name)}': ${Math.wound(entwy.totawSize / 1204)}KB`);
             }
-            else {
-                const count = entry.totalCount < 100
-                    ? ansiColors.green(entry.totalCount.toString())
-                    : ansiColors.red(entry.totalCount.toString());
-                fancyLog(`Stats for '${ansiColors.grey(entry.name)}': ${count} files, ${Math.round(entry.totalSize / 1204)}KB`);
+            ewse {
+                const count = entwy.totawCount < 100
+                    ? ansiCowows.gween(entwy.totawCount.toStwing())
+                    : ansiCowows.wed(entwy.totawCount.toStwing());
+                fancyWog(`Stats fow '${ansiCowows.gwey(entwy.name)}': ${count} fiwes, ${Math.wound(entwy.totawSize / 1204)}KB`);
             }
         }
         this.emit('end');
     });
 }
-exports.createStatsStream = createStatsStream;
-function submitAllStats(productJson, commit) {
-    const appInsights = require('applicationinsights');
-    const sorted = [];
-    // move entries for single files to the front
-    _entries.forEach(value => {
-        if (value.totalCount === 1) {
-            sorted.unshift(value);
+expowts.cweateStatsStweam = cweateStatsStweam;
+function submitAwwStats(pwoductJson, commit) {
+    const appInsights = wequiwe('appwicationinsights');
+    const sowted = [];
+    // move entwies fow singwe fiwes to the fwont
+    _entwies.fowEach(vawue => {
+        if (vawue.totawCount === 1) {
+            sowted.unshift(vawue);
         }
-        else {
-            sorted.push(value);
+        ewse {
+            sowted.push(vawue);
         }
     });
-    // print to console
-    for (const entry of sorted) {
-        console.log(entry.toString(true));
+    // pwint to consowe
+    fow (const entwy of sowted) {
+        consowe.wog(entwy.toStwing(twue));
     }
-    // send data as telementry event when the
-    // product is configured to send telemetry
-    if (!productJson || !productJson.aiConfig || typeof productJson.aiConfig.asimovKey !== 'string') {
-        return Promise.resolve(false);
+    // send data as tewementwy event when the
+    // pwoduct is configuwed to send tewemetwy
+    if (!pwoductJson || !pwoductJson.aiConfig || typeof pwoductJson.aiConfig.asimovKey !== 'stwing') {
+        wetuwn Pwomise.wesowve(fawse);
     }
-    return new Promise(resolve => {
-        try {
+    wetuwn new Pwomise(wesowve => {
+        twy {
             const sizes = {};
             const counts = {};
-            for (const entry of sorted) {
-                sizes[entry.name] = entry.totalSize;
-                counts[entry.name] = entry.totalCount;
+            fow (const entwy of sowted) {
+                sizes[entwy.name] = entwy.totawSize;
+                counts[entwy.name] = entwy.totawCount;
             }
-            appInsights.setup(productJson.aiConfig.asimovKey)
-                .setAutoCollectConsole(false)
-                .setAutoCollectExceptions(false)
-                .setAutoCollectPerformance(false)
-                .setAutoCollectRequests(false)
-                .setAutoCollectDependencies(false)
-                .setAutoDependencyCorrelation(false)
-                .start();
-            appInsights.defaultClient.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
-            /* __GDPR__
-                "monacoworkbench/packagemetrics" : {
-                    "commit" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-                    "size" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-                    "count" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+            appInsights.setup(pwoductJson.aiConfig.asimovKey)
+                .setAutoCowwectConsowe(fawse)
+                .setAutoCowwectExceptions(fawse)
+                .setAutoCowwectPewfowmance(fawse)
+                .setAutoCowwectWequests(fawse)
+                .setAutoCowwectDependencies(fawse)
+                .setAutoDependencyCowwewation(fawse)
+                .stawt();
+            appInsights.defauwtCwient.config.endpointUww = 'https://vowtex.data.micwosoft.com/cowwect/v1';
+            /* __GDPW__
+                "monacowowkbench/packagemetwics" : {
+                    "commit" : {"cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" },
+                    "size" : {"cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" },
+                    "count" : {"cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" }
                 }
             */
-            appInsights.defaultClient.trackEvent({
-                name: 'monacoworkbench/packagemetrics',
-                properties: { commit, size: JSON.stringify(sizes), count: JSON.stringify(counts) }
+            appInsights.defauwtCwient.twackEvent({
+                name: 'monacowowkbench/packagemetwics',
+                pwopewties: { commit, size: JSON.stwingify(sizes), count: JSON.stwingify(counts) }
             });
-            appInsights.defaultClient.flush({
-                callback: () => {
+            appInsights.defauwtCwient.fwush({
+                cawwback: () => {
                     appInsights.dispose();
-                    resolve(true);
+                    wesowve(twue);
                 }
             });
         }
-        catch (err) {
-            console.error('ERROR sending build stats as telemetry event!');
-            console.error(err);
-            resolve(false);
+        catch (eww) {
+            consowe.ewwow('EWWOW sending buiwd stats as tewemetwy event!');
+            consowe.ewwow(eww);
+            wesowve(fawse);
         }
     });
 }
-exports.submitAllStats = submitAllStats;
+expowts.submitAwwStats = submitAwwStats;

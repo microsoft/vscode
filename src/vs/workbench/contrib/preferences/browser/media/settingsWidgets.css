@@ -1,202 +1,202 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-item-value > .setting-item-control {
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-item-vawue > .setting-item-contwow {
 	width: 100%;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-value,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-key {
-	margin-right: 3px;
-	margin-left: 2px;
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-vawue,
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-object-widget .setting-wist-object-key {
+	mawgin-wight: 3px;
+	mawgin-weft: 2px;
 }
 
-/* Deal with overflow */
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-value,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-sibling,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-key,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value {
-	white-space: pre;
-	overflow: hidden;
-	text-overflow: ellipsis;
+/* Deaw with ovewfwow */
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-vawue,
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-sibwing,
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-object-widget .setting-wist-object-key,
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-object-widget .setting-wist-object-vawue {
+	white-space: pwe;
+	ovewfwow: hidden;
+	text-ovewfwow: ewwipsis;
 }
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-key,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input-key {
-	margin-left: 4px;
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-object-widget .setting-wist-object-key,
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-object-widget .setting-wist-object-input-key {
+	mawgin-weft: 4px;
 	min-width: 40%;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-list-object-input-key-checkbox {
-	margin-left: 4px;
+.settings-editow > .settings-body > .settings-twee-containa .setting-item-boow .setting-wist-object-input-key-checkbox {
+	mawgin-weft: 4px;
 	height: 24px;
 }
-.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-list-object-input-key-checkbox .setting-value-checkbox {
-	margin-top: 3px;
+.settings-editow > .settings-body > .settings-twee-containa .setting-item-boow .setting-wist-object-input-key-checkbox .setting-vawue-checkbox {
+	mawgin-top: 3px;
 }
-.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-list-object-value {
-	cursor: pointer;
+.settings-editow > .settings-body > .settings-twee-containa .setting-item-boow .setting-wist-object-vawue {
+	cuwsow: pointa;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input-key {
-	margin-left: 0;
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-object-widget .setting-wist-object-input-key {
+	mawgin-weft: 0;
 }
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input-value,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value {
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-object-widget .setting-wist-object-input-vawue,
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-object-widget .setting-wist-object-vawue {
 	width: 100%;
 }
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-row:hover .setting-list-object-value,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-row:focus .setting-list-object-value,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-row.selected .setting-list-object-value {
-	margin-right: 44px;
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-object-widget .setting-wist-wow:hova .setting-wist-object-vawue,
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-object-widget .setting-wist-wow:focus .setting-wist-object-vawue,
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-object-widget .setting-wist-wow.sewected .setting-wist-object-vawue {
+	mawgin-wight: 44px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-value,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-sibling,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-key,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value {
-	display: inline-block;
-	line-height: 24px;
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-vawue,
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-sibwing,
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-object-widget .setting-wist-object-key,
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-object-widget .setting-wist-object-vawue {
+	dispway: inwine-bwock;
+	wine-height: 24px;
 	min-height: 24px;
 }
 
-/* Use monospace to display glob patterns in exclude widget */
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-exclude-widget .setting-list-value,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-exclude-widget .setting-list-sibling {
-	font-family: var(--monaco-monospace-font);
+/* Use monospace to dispway gwob pattewns in excwude widget */
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-excwude-widget .setting-wist-vawue,
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-excwude-widget .setting-wist-sibwing {
+	font-famiwy: vaw(--monaco-monospace-font);
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-sibling {
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-sibwing {
 	opacity: 0.7;
-	margin-left: 0.5em;
+	mawgin-weft: 0.5em;
 	font-size: 0.9em;
-	white-space: pre;
+	white-space: pwe;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row .monaco-action-bar {
-	display: none;
-	position: absolute;
-	right: 0px;
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-wow .monaco-action-baw {
+	dispway: none;
+	position: absowute;
+	wight: 0px;
 	top: 0px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row {
-	display: flex;
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-wow {
+	dispway: fwex;
 }
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row.draggable {
-	cursor: pointer;
-	user-select: none;
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-wow.dwaggabwe {
+	cuwsow: pointa;
+	usa-sewect: none;
 }
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row.drag-hover * {
-	pointer-events: none;
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-wow.dwag-hova * {
+	pointa-events: none;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row-header {
-	position: relative;
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-wow,
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-wow-heada {
+	position: wewative;
 	max-height: 24px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row-header {
-	font-weight: bold;
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-wow-heada {
+	font-weight: bowd;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-row,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-row-header {
-	display: flex;
-	padding-right: 4px;
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-object-widget .setting-wist-wow,
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-object-widget .setting-wist-wow-heada {
+	dispway: fwex;
+	padding-wight: 4px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-row-header,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-row:nth-child(odd):not(:hover):not(:focus):not(.selected),
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-edit-row.setting-list-object-row:nth-child(odd):hover {
-	background-color: rgba(130, 130, 130, 0.04);
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-object-widget .setting-wist-wow-heada,
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-object-widget .setting-wist-object-wow:nth-chiwd(odd):not(:hova):not(:focus):not(.sewected),
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-object-widget .setting-wist-edit-wow.setting-wist-object-wow:nth-chiwd(odd):hova {
+	backgwound-cowow: wgba(130, 130, 130, 0.04);
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row:focus {
-	outline: none;
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-wow:focus {
+	outwine: none;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row:hover .monaco-action-bar,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row.selected .monaco-action-bar {
-	display: block;
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-wow:hova .monaco-action-baw,
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-wow.sewected .monaco-action-baw {
+	dispway: bwock;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row .monaco-action-bar .action-label {
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-wow .monaco-action-baw .action-wabew {
 	width: 16px;
 	height: 20px;
 	padding: 2px;
-	margin-right: 2px;
-	display: flex;
-	color: inherit;
-	align-items: center;
-	justify-content: center;
+	mawgin-wight: 2px;
+	dispway: fwex;
+	cowow: inhewit;
+	awign-items: centa;
+	justify-content: centa;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row .monaco-action-bar .setting-listAction-edit {
-	margin-right: 4px;
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-wow .monaco-action-baw .setting-wistAction-edit {
+	mawgin-wight: 4px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .monaco-text-button {
-	width: initial;
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .monaco-text-button {
+	width: initiaw;
 	padding: 2px 14px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-item-control.setting-list-hide-add-button .setting-list-new-row {
-	display: none;
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-item-contwow.setting-wist-hide-add-button .setting-wist-new-wow {
+	dispway: none;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .monaco-text-button.setting-list-addButton {
-	display: inline-block;
-	margin-top: 4px;
-	margin-right: 4px;
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .monaco-text-button.setting-wist-addButton {
+	dispway: inwine-bwock;
+	mawgin-top: 4px;
+	mawgin-wight: 4px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-edit-row {
-	display: flex
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-edit-wow {
+	dispway: fwex
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-valueInput,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-siblingInput,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input {
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-vawueInput,
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-sibwingInput,
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-object-widget .setting-wist-object-input {
 	height: 24px;
 	max-width: 320px;
-	margin-right: 4px;
+	mawgin-wight: 4px;
 }
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-valueInput.no-sibling,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input {
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-vawueInput.no-sibwing,
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-object-widget .setting-wist-object-input {
 	max-width: unset;
 }
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-valueInput.no-sibling {
-	/* Add more width to help with string arrays */
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-vawueInput.no-sibwing {
+	/* Add mowe width to hewp with stwing awways */
 	width: 100%;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value-container .setting-list-object-input {
-	margin-right: 0;
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-object-widget .setting-wist-object-vawue-containa .setting-wist-object-input {
+	mawgin-wight: 0;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-ok-button {
-	margin: 0 4px;
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-ok-button {
+	mawgin: 0 4px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-widget,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-exclude-widget,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget {
-	margin-bottom: 1px;
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-widget,
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-excwude-widget,
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-object-widget {
+	mawgin-bottom: 1px;
 	padding: 1px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value-container,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input select {
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-object-widget .setting-wist-object-vawue-containa,
+.settings-editow > .settings-body > .settings-twee-containa .setting-item.setting-item-wist .setting-wist-object-widget .setting-wist-object-input sewect {
 	width: 100%;
 	height: 24px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-list-widget .setting-list-object-list-row.select-container {
+.settings-editow > .settings-body > .settings-twee-containa .setting-wist-widget .setting-wist-object-wist-wow.sewect-containa {
 	width: 320px;
 }
-.settings-editor > .settings-body > .settings-tree-container .setting-list-widget .setting-list-object-list-row.select-container > select {
-	width: inherit;
+.settings-editow > .settings-body > .settings-twee-containa .setting-wist-widget .setting-wist-object-wist-wow.sewect-containa > sewect {
+	width: inhewit;
 }

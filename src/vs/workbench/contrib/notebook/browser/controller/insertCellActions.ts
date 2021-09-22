@@ -1,342 +1,342 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { localize } from 'vs/nls';
-import { IAction2Options, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
-import { INotebookActionContext, NotebookAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_EDITABLE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind, GlobalToolbarShowLabel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IAction2Options, MenuId, MenuWegistwy, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { InputFocusedContext } fwom 'vs/pwatfowm/contextkey/common/contextkeys';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { insewtCeww } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwowwa/cewwOpewations';
+impowt { INotebookActionContext, NotebookAction } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwowwa/coweActions';
+impowt { NOTEBOOK_CEWW_WIST_FOCUSED, NOTEBOOK_EDITOW_EDITABWE } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { CewwViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/notebookViewModew';
+impowt { CewwKind, GwobawToowbawShowWabew } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
 
-const INSERT_CODE_CELL_ABOVE_COMMAND_ID = 'notebook.cell.insertCodeCellAbove';
-const INSERT_CODE_CELL_BELOW_COMMAND_ID = 'notebook.cell.insertCodeCellBelow';
-const INSERT_CODE_CELL_ABOVE_AND_FOCUS_CONTAINER_COMMAND_ID = 'notebook.cell.insertCodeCellAboveAndFocusContainer';
-const INSERT_CODE_CELL_BELOW_AND_FOCUS_CONTAINER_COMMAND_ID = 'notebook.cell.insertCodeCellBelowAndFocusContainer';
-const INSERT_CODE_CELL_AT_TOP_COMMAND_ID = 'notebook.cell.insertCodeCellAtTop';
-const INSERT_MARKDOWN_CELL_ABOVE_COMMAND_ID = 'notebook.cell.insertMarkdownCellAbove';
-const INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID = 'notebook.cell.insertMarkdownCellBelow';
-const INSERT_MARKDOWN_CELL_AT_TOP_COMMAND_ID = 'notebook.cell.insertMarkdownCellAtTop';
+const INSEWT_CODE_CEWW_ABOVE_COMMAND_ID = 'notebook.ceww.insewtCodeCewwAbove';
+const INSEWT_CODE_CEWW_BEWOW_COMMAND_ID = 'notebook.ceww.insewtCodeCewwBewow';
+const INSEWT_CODE_CEWW_ABOVE_AND_FOCUS_CONTAINEW_COMMAND_ID = 'notebook.ceww.insewtCodeCewwAboveAndFocusContaina';
+const INSEWT_CODE_CEWW_BEWOW_AND_FOCUS_CONTAINEW_COMMAND_ID = 'notebook.ceww.insewtCodeCewwBewowAndFocusContaina';
+const INSEWT_CODE_CEWW_AT_TOP_COMMAND_ID = 'notebook.ceww.insewtCodeCewwAtTop';
+const INSEWT_MAWKDOWN_CEWW_ABOVE_COMMAND_ID = 'notebook.ceww.insewtMawkdownCewwAbove';
+const INSEWT_MAWKDOWN_CEWW_BEWOW_COMMAND_ID = 'notebook.ceww.insewtMawkdownCewwBewow';
+const INSEWT_MAWKDOWN_CEWW_AT_TOP_COMMAND_ID = 'notebook.ceww.insewtMawkdownCewwAtTop';
 
-abstract class InsertCellCommand extends NotebookAction {
-	constructor(
-		desc: Readonly<IAction2Options>,
-		private kind: CellKind,
-		private direction: 'above' | 'below',
-		private focusEditor: boolean
+abstwact cwass InsewtCewwCommand extends NotebookAction {
+	constwuctow(
+		desc: Weadonwy<IAction2Options>,
+		pwivate kind: CewwKind,
+		pwivate diwection: 'above' | 'bewow',
+		pwivate focusEditow: boowean
 	) {
-		super(desc);
+		supa(desc);
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		let newCell: CellViewModel | null = null;
+	async wunWithContext(accessow: SewvicesAccessow, context: INotebookActionContext): Pwomise<void> {
+		wet newCeww: CewwViewModew | nuww = nuww;
 		if (context.ui) {
-			context.notebookEditor.focus();
+			context.notebookEditow.focus();
 		}
 
-		const modeService = accessor.get(IModeService);
-		if (context.cell) {
-			const idx = context.notebookEditor.getCellIndex(context.cell);
-			newCell = insertCell(modeService, context.notebookEditor, idx, this.kind, this.direction, undefined, true);
-		} else {
-			const focusRange = context.notebookEditor.getFocus();
-			const next = Math.max(focusRange.end - 1, 0);
-			newCell = insertCell(modeService, context.notebookEditor, next, this.kind, this.direction, undefined, true);
+		const modeSewvice = accessow.get(IModeSewvice);
+		if (context.ceww) {
+			const idx = context.notebookEditow.getCewwIndex(context.ceww);
+			newCeww = insewtCeww(modeSewvice, context.notebookEditow, idx, this.kind, this.diwection, undefined, twue);
+		} ewse {
+			const focusWange = context.notebookEditow.getFocus();
+			const next = Math.max(focusWange.end - 1, 0);
+			newCeww = insewtCeww(modeSewvice, context.notebookEditow, next, this.kind, this.diwection, undefined, twue);
 		}
 
-		if (newCell) {
-			context.notebookEditor.focusNotebookCell(newCell, this.focusEditor ? 'editor' : 'container');
+		if (newCeww) {
+			context.notebookEditow.focusNotebookCeww(newCeww, this.focusEditow ? 'editow' : 'containa');
 		}
 	}
 }
 
-registerAction2(class InsertCodeCellAboveAction extends InsertCellCommand {
-	constructor() {
-		super(
+wegistewAction2(cwass InsewtCodeCewwAboveAction extends InsewtCewwCommand {
+	constwuctow() {
+		supa(
 			{
-				id: INSERT_CODE_CELL_ABOVE_COMMAND_ID,
-				title: localize('notebookActions.insertCodeCellAbove', "Insert Code Cell Above"),
+				id: INSEWT_CODE_CEWW_ABOVE_COMMAND_ID,
+				titwe: wocawize('notebookActions.insewtCodeCewwAbove', "Insewt Code Ceww Above"),
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter,
-					when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, InputFocusedContext.toNegated()),
-					weight: KeybindingWeight.WorkbenchContrib
+					pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.Enta,
+					when: ContextKeyExpw.and(NOTEBOOK_CEWW_WIST_FOCUSED, InputFocusedContext.toNegated()),
+					weight: KeybindingWeight.WowkbenchContwib
 				},
 				menu: {
-					id: MenuId.NotebookCellInsert,
-					order: 0
+					id: MenuId.NotebookCewwInsewt,
+					owda: 0
 				}
 			},
-			CellKind.Code,
+			CewwKind.Code,
 			'above',
-			true);
+			twue);
 	}
 });
 
 
 
-registerAction2(class InsertCodeCellAboveAndFocusContainerAction extends InsertCellCommand {
-	constructor() {
-		super(
+wegistewAction2(cwass InsewtCodeCewwAboveAndFocusContainewAction extends InsewtCewwCommand {
+	constwuctow() {
+		supa(
 			{
-				id: INSERT_CODE_CELL_ABOVE_AND_FOCUS_CONTAINER_COMMAND_ID,
-				title: localize('notebookActions.insertCodeCellAboveAndFocusContainer', "Insert Code Cell Above and Focus Container")
+				id: INSEWT_CODE_CEWW_ABOVE_AND_FOCUS_CONTAINEW_COMMAND_ID,
+				titwe: wocawize('notebookActions.insewtCodeCewwAboveAndFocusContaina', "Insewt Code Ceww Above and Focus Containa")
 			},
-			CellKind.Code,
+			CewwKind.Code,
 			'above',
-			false);
+			fawse);
 	}
 });
 
-registerAction2(class InsertCodeCellBelowAction extends InsertCellCommand {
-	constructor() {
-		super(
+wegistewAction2(cwass InsewtCodeCewwBewowAction extends InsewtCewwCommand {
+	constwuctow() {
+		supa(
 			{
-				id: INSERT_CODE_CELL_BELOW_COMMAND_ID,
-				title: localize('notebookActions.insertCodeCellBelow', "Insert Code Cell Below"),
+				id: INSEWT_CODE_CEWW_BEWOW_COMMAND_ID,
+				titwe: wocawize('notebookActions.insewtCodeCewwBewow', "Insewt Code Ceww Bewow"),
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyCode.Enter,
-					when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, InputFocusedContext.toNegated()),
-					weight: KeybindingWeight.WorkbenchContrib
+					pwimawy: KeyMod.CtwwCmd | KeyCode.Enta,
+					when: ContextKeyExpw.and(NOTEBOOK_CEWW_WIST_FOCUSED, InputFocusedContext.toNegated()),
+					weight: KeybindingWeight.WowkbenchContwib
 				},
 				menu: {
-					id: MenuId.NotebookCellInsert,
-					order: 1
+					id: MenuId.NotebookCewwInsewt,
+					owda: 1
 				}
 			},
-			CellKind.Code,
-			'below',
-			true);
+			CewwKind.Code,
+			'bewow',
+			twue);
 	}
 });
 
-registerAction2(class InsertCodeCellBelowAndFocusContainerAction extends InsertCellCommand {
-	constructor() {
-		super(
+wegistewAction2(cwass InsewtCodeCewwBewowAndFocusContainewAction extends InsewtCewwCommand {
+	constwuctow() {
+		supa(
 			{
-				id: INSERT_CODE_CELL_BELOW_AND_FOCUS_CONTAINER_COMMAND_ID,
-				title: localize('notebookActions.insertCodeCellBelowAndFocusContainer', "Insert Code Cell Below and Focus Container"),
+				id: INSEWT_CODE_CEWW_BEWOW_AND_FOCUS_CONTAINEW_COMMAND_ID,
+				titwe: wocawize('notebookActions.insewtCodeCewwBewowAndFocusContaina', "Insewt Code Ceww Bewow and Focus Containa"),
 			},
-			CellKind.Code,
-			'below',
-			false);
+			CewwKind.Code,
+			'bewow',
+			fawse);
 	}
 });
 
 
-registerAction2(class InsertMarkdownCellAboveAction extends InsertCellCommand {
-	constructor() {
-		super(
+wegistewAction2(cwass InsewtMawkdownCewwAboveAction extends InsewtCewwCommand {
+	constwuctow() {
+		supa(
 			{
-				id: INSERT_MARKDOWN_CELL_ABOVE_COMMAND_ID,
-				title: localize('notebookActions.insertMarkdownCellAbove', "Insert Markdown Cell Above"),
+				id: INSEWT_MAWKDOWN_CEWW_ABOVE_COMMAND_ID,
+				titwe: wocawize('notebookActions.insewtMawkdownCewwAbove', "Insewt Mawkdown Ceww Above"),
 				menu: {
-					id: MenuId.NotebookCellInsert,
-					order: 2
+					id: MenuId.NotebookCewwInsewt,
+					owda: 2
 				}
 			},
-			CellKind.Markup,
+			CewwKind.Mawkup,
 			'above',
-			true);
+			twue);
 	}
 });
 
-registerAction2(class InsertMarkdownCellBelowAction extends InsertCellCommand {
-	constructor() {
-		super(
+wegistewAction2(cwass InsewtMawkdownCewwBewowAction extends InsewtCewwCommand {
+	constwuctow() {
+		supa(
 			{
-				id: INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID,
-				title: localize('notebookActions.insertMarkdownCellBelow', "Insert Markdown Cell Below"),
+				id: INSEWT_MAWKDOWN_CEWW_BEWOW_COMMAND_ID,
+				titwe: wocawize('notebookActions.insewtMawkdownCewwBewow', "Insewt Mawkdown Ceww Bewow"),
 				menu: {
-					id: MenuId.NotebookCellInsert,
-					order: 3
+					id: MenuId.NotebookCewwInsewt,
+					owda: 3
 				}
 			},
-			CellKind.Markup,
-			'below',
-			true);
+			CewwKind.Mawkup,
+			'bewow',
+			twue);
 	}
 });
 
 
-registerAction2(class InsertCodeCellAtTopAction extends NotebookAction {
-	constructor() {
-		super(
+wegistewAction2(cwass InsewtCodeCewwAtTopAction extends NotebookAction {
+	constwuctow() {
+		supa(
 			{
-				id: INSERT_CODE_CELL_AT_TOP_COMMAND_ID,
-				title: localize('notebookActions.insertCodeCellAtTop', "Add Code Cell At Top"),
-				f1: false
+				id: INSEWT_CODE_CEWW_AT_TOP_COMMAND_ID,
+				titwe: wocawize('notebookActions.insewtCodeCewwAtTop', "Add Code Ceww At Top"),
+				f1: fawse
 			});
 	}
 
-	override async run(accessor: ServicesAccessor, context?: INotebookActionContext): Promise<void> {
-		context = context ?? this.getEditorContextFromArgsOrActive(accessor);
+	ovewwide async wun(accessow: SewvicesAccessow, context?: INotebookActionContext): Pwomise<void> {
+		context = context ?? this.getEditowContextFwomAwgsOwActive(accessow);
 		if (context) {
-			this.runWithContext(accessor, context);
+			this.wunWithContext(accessow, context);
 		}
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		const modeService = accessor.get(IModeService);
-		const newCell = insertCell(modeService, context.notebookEditor, 0, CellKind.Code, 'above', undefined, true);
+	async wunWithContext(accessow: SewvicesAccessow, context: INotebookActionContext): Pwomise<void> {
+		const modeSewvice = accessow.get(IModeSewvice);
+		const newCeww = insewtCeww(modeSewvice, context.notebookEditow, 0, CewwKind.Code, 'above', undefined, twue);
 
-		if (newCell) {
-			context.notebookEditor.focusNotebookCell(newCell, 'editor');
+		if (newCeww) {
+			context.notebookEditow.focusNotebookCeww(newCeww, 'editow');
 		}
 	}
 });
 
-registerAction2(class InsertMarkdownCellAtTopAction extends NotebookAction {
-	constructor() {
-		super(
+wegistewAction2(cwass InsewtMawkdownCewwAtTopAction extends NotebookAction {
+	constwuctow() {
+		supa(
 			{
-				id: INSERT_MARKDOWN_CELL_AT_TOP_COMMAND_ID,
-				title: localize('notebookActions.insertMarkdownCellAtTop', "Add Markdown Cell At Top"),
-				f1: false
+				id: INSEWT_MAWKDOWN_CEWW_AT_TOP_COMMAND_ID,
+				titwe: wocawize('notebookActions.insewtMawkdownCewwAtTop', "Add Mawkdown Ceww At Top"),
+				f1: fawse
 			});
 	}
 
-	override async run(accessor: ServicesAccessor, context?: INotebookActionContext): Promise<void> {
-		context = context ?? this.getEditorContextFromArgsOrActive(accessor);
+	ovewwide async wun(accessow: SewvicesAccessow, context?: INotebookActionContext): Pwomise<void> {
+		context = context ?? this.getEditowContextFwomAwgsOwActive(accessow);
 		if (context) {
-			this.runWithContext(accessor, context);
+			this.wunWithContext(accessow, context);
 		}
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		const modeService = accessor.get(IModeService);
-		const newCell = insertCell(modeService, context.notebookEditor, 0, CellKind.Markup, 'above', undefined, true);
+	async wunWithContext(accessow: SewvicesAccessow, context: INotebookActionContext): Pwomise<void> {
+		const modeSewvice = accessow.get(IModeSewvice);
+		const newCeww = insewtCeww(modeSewvice, context.notebookEditow, 0, CewwKind.Mawkup, 'above', undefined, twue);
 
-		if (newCell) {
-			context.notebookEditor.focusNotebookCell(newCell, 'editor');
+		if (newCeww) {
+			context.notebookEditow.focusNotebookCeww(newCeww, 'editow');
 		}
 	}
 });
 
-MenuRegistry.appendMenuItem(MenuId.NotebookCellBetween, {
+MenuWegistwy.appendMenuItem(MenuId.NotebookCewwBetween, {
 	command: {
-		id: INSERT_CODE_CELL_BELOW_COMMAND_ID,
-		title: localize('notebookActions.menu.insertCode', "$(add) Code"),
-		tooltip: localize('notebookActions.menu.insertCode.tooltip', "Add Code Cell")
+		id: INSEWT_CODE_CEWW_BEWOW_COMMAND_ID,
+		titwe: wocawize('notebookActions.menu.insewtCode', "$(add) Code"),
+		toowtip: wocawize('notebookActions.menu.insewtCode.toowtip', "Add Code Ceww")
 	},
-	order: 0,
-	group: 'inline',
-	when: ContextKeyExpr.and(
-		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
-		ContextKeyExpr.notEquals('config.notebook.experimental.insertToolbarAlignment', 'left')
+	owda: 0,
+	gwoup: 'inwine',
+	when: ContextKeyExpw.and(
+		NOTEBOOK_EDITOW_EDITABWE.isEquawTo(twue),
+		ContextKeyExpw.notEquaws('config.notebook.expewimentaw.insewtToowbawAwignment', 'weft')
 	)
 });
 
-MenuRegistry.appendMenuItem(MenuId.NotebookCellBetween, {
+MenuWegistwy.appendMenuItem(MenuId.NotebookCewwBetween, {
 	command: {
-		id: INSERT_CODE_CELL_BELOW_COMMAND_ID,
-		title: localize('notebookActions.menu.insertCode.minimalToolbar', "Add Code"),
+		id: INSEWT_CODE_CEWW_BEWOW_COMMAND_ID,
+		titwe: wocawize('notebookActions.menu.insewtCode.minimawToowbaw', "Add Code"),
 		icon: Codicon.add,
-		tooltip: localize('notebookActions.menu.insertCode.tooltip', "Add Code Cell")
+		toowtip: wocawize('notebookActions.menu.insewtCode.toowtip', "Add Code Ceww")
 	},
-	order: 0,
-	group: 'inline',
-	when: ContextKeyExpr.and(
-		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
-		ContextKeyExpr.equals('config.notebook.experimental.insertToolbarAlignment', 'left')
+	owda: 0,
+	gwoup: 'inwine',
+	when: ContextKeyExpw.and(
+		NOTEBOOK_EDITOW_EDITABWE.isEquawTo(twue),
+		ContextKeyExpw.equaws('config.notebook.expewimentaw.insewtToowbawAwignment', 'weft')
 	)
 });
 
-MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
+MenuWegistwy.appendMenuItem(MenuId.NotebookToowbaw, {
 	command: {
-		id: INSERT_CODE_CELL_BELOW_COMMAND_ID,
+		id: INSEWT_CODE_CEWW_BEWOW_COMMAND_ID,
 		icon: Codicon.add,
-		title: localize('notebookActions.menu.insertCode.ontoolbar', "Code"),
-		tooltip: localize('notebookActions.menu.insertCode.tooltip', "Add Code Cell")
+		titwe: wocawize('notebookActions.menu.insewtCode.ontoowbaw', "Code"),
+		toowtip: wocawize('notebookActions.menu.insewtCode.toowtip', "Add Code Ceww")
 	},
-	order: -5,
-	group: 'navigation/add',
-	when: ContextKeyExpr.and(
-		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
-		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'betweenCells'),
-		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'hidden')
+	owda: -5,
+	gwoup: 'navigation/add',
+	when: ContextKeyExpw.and(
+		NOTEBOOK_EDITOW_EDITABWE.isEquawTo(twue),
+		ContextKeyExpw.notEquaws('config.notebook.insewtToowbawWocation', 'betweenCewws'),
+		ContextKeyExpw.notEquaws('config.notebook.insewtToowbawWocation', 'hidden')
 	)
 });
 
-MenuRegistry.appendMenuItem(MenuId.NotebookCellListTop, {
+MenuWegistwy.appendMenuItem(MenuId.NotebookCewwWistTop, {
 	command: {
-		id: INSERT_CODE_CELL_AT_TOP_COMMAND_ID,
-		title: localize('notebookActions.menu.insertCode', "$(add) Code"),
-		tooltip: localize('notebookActions.menu.insertCode.tooltip', "Add Code Cell")
+		id: INSEWT_CODE_CEWW_AT_TOP_COMMAND_ID,
+		titwe: wocawize('notebookActions.menu.insewtCode', "$(add) Code"),
+		toowtip: wocawize('notebookActions.menu.insewtCode.toowtip', "Add Code Ceww")
 	},
-	order: 0,
-	group: 'inline',
-	when: ContextKeyExpr.and(
-		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
-		ContextKeyExpr.notEquals('config.notebook.experimental.insertToolbarAlignment', 'left')
+	owda: 0,
+	gwoup: 'inwine',
+	when: ContextKeyExpw.and(
+		NOTEBOOK_EDITOW_EDITABWE.isEquawTo(twue),
+		ContextKeyExpw.notEquaws('config.notebook.expewimentaw.insewtToowbawAwignment', 'weft')
 	)
 });
 
-MenuRegistry.appendMenuItem(MenuId.NotebookCellListTop, {
+MenuWegistwy.appendMenuItem(MenuId.NotebookCewwWistTop, {
 	command: {
-		id: INSERT_CODE_CELL_AT_TOP_COMMAND_ID,
-		title: localize('notebookActions.menu.insertCode.minimaltoolbar', "Add Code"),
+		id: INSEWT_CODE_CEWW_AT_TOP_COMMAND_ID,
+		titwe: wocawize('notebookActions.menu.insewtCode.minimawtoowbaw', "Add Code"),
 		icon: Codicon.add,
-		tooltip: localize('notebookActions.menu.insertCode.tooltip', "Add Code Cell")
+		toowtip: wocawize('notebookActions.menu.insewtCode.toowtip', "Add Code Ceww")
 	},
-	order: 0,
-	group: 'inline',
-	when: ContextKeyExpr.and(
-		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
-		ContextKeyExpr.equals('config.notebook.experimental.insertToolbarAlignment', 'left')
+	owda: 0,
+	gwoup: 'inwine',
+	when: ContextKeyExpw.and(
+		NOTEBOOK_EDITOW_EDITABWE.isEquawTo(twue),
+		ContextKeyExpw.equaws('config.notebook.expewimentaw.insewtToowbawAwignment', 'weft')
 	)
 });
 
 
-MenuRegistry.appendMenuItem(MenuId.NotebookCellBetween, {
+MenuWegistwy.appendMenuItem(MenuId.NotebookCewwBetween, {
 	command: {
-		id: INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID,
-		title: localize('notebookActions.menu.insertMarkdown', "$(add) Markdown"),
-		tooltip: localize('notebookActions.menu.insertMarkdown.tooltip', "Add Markdown Cell")
+		id: INSEWT_MAWKDOWN_CEWW_BEWOW_COMMAND_ID,
+		titwe: wocawize('notebookActions.menu.insewtMawkdown', "$(add) Mawkdown"),
+		toowtip: wocawize('notebookActions.menu.insewtMawkdown.toowtip', "Add Mawkdown Ceww")
 	},
-	order: 1,
-	group: 'inline',
-	when: ContextKeyExpr.and(
-		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
-		ContextKeyExpr.notEquals('config.notebook.experimental.insertToolbarAlignment', 'left')
+	owda: 1,
+	gwoup: 'inwine',
+	when: ContextKeyExpw.and(
+		NOTEBOOK_EDITOW_EDITABWE.isEquawTo(twue),
+		ContextKeyExpw.notEquaws('config.notebook.expewimentaw.insewtToowbawAwignment', 'weft')
 	)
 });
 
-MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
+MenuWegistwy.appendMenuItem(MenuId.NotebookToowbaw, {
 	command: {
-		id: INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID,
+		id: INSEWT_MAWKDOWN_CEWW_BEWOW_COMMAND_ID,
 		icon: Codicon.add,
-		title: localize('notebookActions.menu.insertMarkdown.ontoolbar', "Markdown"),
-		tooltip: localize('notebookActions.menu.insertMarkdown.tooltip', "Add Markdown Cell")
+		titwe: wocawize('notebookActions.menu.insewtMawkdown.ontoowbaw', "Mawkdown"),
+		toowtip: wocawize('notebookActions.menu.insewtMawkdown.toowtip', "Add Mawkdown Ceww")
 	},
-	order: -5,
-	group: 'navigation/add',
-	when: ContextKeyExpr.and(
-		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
-		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'betweenCells'),
-		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'hidden'),
-		ContextKeyExpr.notEquals(`config.${GlobalToolbarShowLabel}`, false)
+	owda: -5,
+	gwoup: 'navigation/add',
+	when: ContextKeyExpw.and(
+		NOTEBOOK_EDITOW_EDITABWE.isEquawTo(twue),
+		ContextKeyExpw.notEquaws('config.notebook.insewtToowbawWocation', 'betweenCewws'),
+		ContextKeyExpw.notEquaws('config.notebook.insewtToowbawWocation', 'hidden'),
+		ContextKeyExpw.notEquaws(`config.${GwobawToowbawShowWabew}`, fawse)
 	)
 });
 
-MenuRegistry.appendMenuItem(MenuId.NotebookCellListTop, {
+MenuWegistwy.appendMenuItem(MenuId.NotebookCewwWistTop, {
 	command: {
-		id: INSERT_MARKDOWN_CELL_AT_TOP_COMMAND_ID,
-		title: localize('notebookActions.menu.insertMarkdown', "$(add) Markdown"),
-		tooltip: localize('notebookActions.menu.insertMarkdown.tooltip', "Add Markdown Cell")
+		id: INSEWT_MAWKDOWN_CEWW_AT_TOP_COMMAND_ID,
+		titwe: wocawize('notebookActions.menu.insewtMawkdown', "$(add) Mawkdown"),
+		toowtip: wocawize('notebookActions.menu.insewtMawkdown.toowtip', "Add Mawkdown Ceww")
 	},
-	order: 1,
-	group: 'inline',
-	when: ContextKeyExpr.and(
-		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
-		ContextKeyExpr.notEquals('config.notebook.experimental.insertToolbarAlignment', 'left')
+	owda: 1,
+	gwoup: 'inwine',
+	when: ContextKeyExpw.and(
+		NOTEBOOK_EDITOW_EDITABWE.isEquawTo(twue),
+		ContextKeyExpw.notEquaws('config.notebook.expewimentaw.insewtToowbawAwignment', 'weft')
 	)
 });

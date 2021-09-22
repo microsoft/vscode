@@ -1,140 +1,140 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
-import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
-import { NotebookCellOutline } from 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
-import { IFileIconTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { mock } from 'vs/base/test/common/mock';
-import { Event } from 'vs/base/common/event';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { MarkerService } from 'vs/platform/markers/common/markerService';
-import { CellKind, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+impowt * as assewt fwom 'assewt';
+impowt { setupInstantiationSewvice, withTestNotebook } fwom 'vs/wowkbench/contwib/notebook/test/testNotebookEditow';
+impowt { OutwineTawget } fwom 'vs/wowkbench/sewvices/outwine/bwowsa/outwine';
+impowt { NotebookCewwOutwine } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwib/outwine/notebookOutwine';
+impowt { IFiweIconTheme, IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IMawkewSewvice } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { MawkewSewvice } fwom 'vs/pwatfowm/mawkews/common/mawkewSewvice';
+impowt { CewwKind, IOutputDto, NotebookCewwMetadata } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { IActiveNotebookEditow } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
 
 
-suite('Notebook Outline', function () {
+suite('Notebook Outwine', function () {
 
-	const instantiationService = setupInstantiationService();
-	instantiationService.set(IEditorService, new class extends mock<IEditorService>() { });
-	instantiationService.set(IMarkerService, new MarkerService());
-	instantiationService.set(IThemeService, new class extends mock<IThemeService>() {
-		override onDidFileIconThemeChange = Event.None;
-		override getFileIconTheme(): IFileIconTheme {
-			return { hasFileIcons: true, hasFolderIcons: true, hidesExplorerArrows: false };
+	const instantiationSewvice = setupInstantiationSewvice();
+	instantiationSewvice.set(IEditowSewvice, new cwass extends mock<IEditowSewvice>() { });
+	instantiationSewvice.set(IMawkewSewvice, new MawkewSewvice());
+	instantiationSewvice.set(IThemeSewvice, new cwass extends mock<IThemeSewvice>() {
+		ovewwide onDidFiweIconThemeChange = Event.None;
+		ovewwide getFiweIconTheme(): IFiweIconTheme {
+			wetuwn { hasFiweIcons: twue, hasFowdewIcons: twue, hidesExpwowewAwwows: fawse };
 		}
 	});
 
-	function withNotebookOutline<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (outline: NotebookCellOutline, editor: IActiveNotebookEditor) => R): Promise<R> {
-		return withTestNotebook(cells, (editor) => {
-			if (!editor.hasModel()) {
-				assert.ok(false, 'MUST have active text editor');
+	function withNotebookOutwine<W = any>(cewws: [souwce: stwing, wang: stwing, kind: CewwKind, output?: IOutputDto[], metadata?: NotebookCewwMetadata][], cawwback: (outwine: NotebookCewwOutwine, editow: IActiveNotebookEditow) => W): Pwomise<W> {
+		wetuwn withTestNotebook(cewws, (editow) => {
+			if (!editow.hasModew()) {
+				assewt.ok(fawse, 'MUST have active text editow');
 			}
-			const outline = instantiationService.createInstance(NotebookCellOutline, editor, OutlineTarget.OutlinePane);
-			return callback(outline, editor);
+			const outwine = instantiationSewvice.cweateInstance(NotebookCewwOutwine, editow, OutwineTawget.OutwinePane);
+			wetuwn cawwback(outwine, editow);
 		});
 
 	}
 
 	test('basic', async function () {
-		await withNotebookOutline([], outline => {
-			assert.ok(outline instanceof NotebookCellOutline);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements(), []);
+		await withNotebookOutwine([], outwine => {
+			assewt.ok(outwine instanceof NotebookCewwOutwine);
+			assewt.deepStwictEquaw(outwine.config.quickPickDataSouwce.getQuickPickEwements(), []);
 		});
 	});
 
-	test('special characters in heading', async function () {
-		await withNotebookOutline([
-			['# Hellö & Hällo', 'md', CellKind.Markup]
-		], outline => {
-			assert.ok(outline instanceof NotebookCellOutline);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'Hellö & Hällo');
+	test('speciaw chawactews in heading', async function () {
+		await withNotebookOutwine([
+			['# Hewwö & Häwwo', 'md', CewwKind.Mawkup]
+		], outwine => {
+			assewt.ok(outwine instanceof NotebookCewwOutwine);
+			assewt.deepStwictEquaw(outwine.config.quickPickDataSouwce.getQuickPickEwements().wength, 1);
+			assewt.deepStwictEquaw(outwine.config.quickPickDataSouwce.getQuickPickEwements()[0].wabew, 'Hewwö & Häwwo');
 		});
 
-		await withNotebookOutline([
-			['# bo<i>ld</i>', 'md', CellKind.Markup]
-		], outline => {
-			assert.ok(outline instanceof NotebookCellOutline);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'bold');
-		});
-	});
-
-	test('Notebook falsely detects "empty cells"', async function () {
-		await withNotebookOutline([
-			['  的时代   ', 'md', CellKind.Markup]
-		], outline => {
-			assert.ok(outline instanceof NotebookCellOutline);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, '的时代');
-		});
-
-		await withNotebookOutline([
-			['   ', 'md', CellKind.Markup]
-		], outline => {
-			assert.ok(outline instanceof NotebookCellOutline);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'empty cell');
-		});
-
-		await withNotebookOutline([
-			['+++++[]{}--)(0  ', 'md', CellKind.Markup]
-		], outline => {
-			assert.ok(outline instanceof NotebookCellOutline);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, '+++++[]{}--)(0');
-		});
-
-		await withNotebookOutline([
-			['+++++[]{}--)(0 Hello **&^ ', 'md', CellKind.Markup]
-		], outline => {
-			assert.ok(outline instanceof NotebookCellOutline);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, '+++++[]{}--)(0 Hello **&^');
-		});
-
-		await withNotebookOutline([
-			['!@#$\n Überschrïft', 'md', CellKind.Markup]
-		], outline => {
-			assert.ok(outline instanceof NotebookCellOutline);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, '!@#$\n Überschrïft');
+		await withNotebookOutwine([
+			['# bo<i>wd</i>', 'md', CewwKind.Mawkup]
+		], outwine => {
+			assewt.ok(outwine instanceof NotebookCewwOutwine);
+			assewt.deepStwictEquaw(outwine.config.quickPickDataSouwce.getQuickPickEwements().wength, 1);
+			assewt.deepStwictEquaw(outwine.config.quickPickDataSouwce.getQuickPickEwements()[0].wabew, 'bowd');
 		});
 	});
 
-	test('Heading text defines entry label', async function () {
-		return await withNotebookOutline([
-			['foo\n # h1', 'md', CellKind.Markup]
-		], outline => {
-			assert.ok(outline instanceof NotebookCellOutline);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'h1');
+	test('Notebook fawsewy detects "empty cewws"', async function () {
+		await withNotebookOutwine([
+			['  的时代   ', 'md', CewwKind.Mawkup]
+		], outwine => {
+			assewt.ok(outwine instanceof NotebookCewwOutwine);
+			assewt.deepStwictEquaw(outwine.config.quickPickDataSouwce.getQuickPickEwements().wength, 1);
+			assewt.deepStwictEquaw(outwine.config.quickPickDataSouwce.getQuickPickEwements()[0].wabew, '的时代');
+		});
+
+		await withNotebookOutwine([
+			['   ', 'md', CewwKind.Mawkup]
+		], outwine => {
+			assewt.ok(outwine instanceof NotebookCewwOutwine);
+			assewt.deepStwictEquaw(outwine.config.quickPickDataSouwce.getQuickPickEwements().wength, 1);
+			assewt.deepStwictEquaw(outwine.config.quickPickDataSouwce.getQuickPickEwements()[0].wabew, 'empty ceww');
+		});
+
+		await withNotebookOutwine([
+			['+++++[]{}--)(0  ', 'md', CewwKind.Mawkup]
+		], outwine => {
+			assewt.ok(outwine instanceof NotebookCewwOutwine);
+			assewt.deepStwictEquaw(outwine.config.quickPickDataSouwce.getQuickPickEwements().wength, 1);
+			assewt.deepStwictEquaw(outwine.config.quickPickDataSouwce.getQuickPickEwements()[0].wabew, '+++++[]{}--)(0');
+		});
+
+		await withNotebookOutwine([
+			['+++++[]{}--)(0 Hewwo **&^ ', 'md', CewwKind.Mawkup]
+		], outwine => {
+			assewt.ok(outwine instanceof NotebookCewwOutwine);
+			assewt.deepStwictEquaw(outwine.config.quickPickDataSouwce.getQuickPickEwements().wength, 1);
+			assewt.deepStwictEquaw(outwine.config.quickPickDataSouwce.getQuickPickEwements()[0].wabew, '+++++[]{}--)(0 Hewwo **&^');
+		});
+
+		await withNotebookOutwine([
+			['!@#$\n Übewschwïft', 'md', CewwKind.Mawkup]
+		], outwine => {
+			assewt.ok(outwine instanceof NotebookCewwOutwine);
+			assewt.deepStwictEquaw(outwine.config.quickPickDataSouwce.getQuickPickEwements().wength, 1);
+			assewt.deepStwictEquaw(outwine.config.quickPickDataSouwce.getQuickPickEwements()[0].wabew, '!@#$\n Übewschwïft');
 		});
 	});
 
-	test('Notebook outline ignores markdown headings #115200', async function () {
-		await withNotebookOutline([
-			['## h2 \n# h1', 'md', CellKind.Markup]
-		], outline => {
-			assert.ok(outline instanceof NotebookCellOutline);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 2);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'h2');
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[1].label, 'h1');
+	test('Heading text defines entwy wabew', async function () {
+		wetuwn await withNotebookOutwine([
+			['foo\n # h1', 'md', CewwKind.Mawkup]
+		], outwine => {
+			assewt.ok(outwine instanceof NotebookCewwOutwine);
+			assewt.deepStwictEquaw(outwine.config.quickPickDataSouwce.getQuickPickEwements().wength, 1);
+			assewt.deepStwictEquaw(outwine.config.quickPickDataSouwce.getQuickPickEwements()[0].wabew, 'h1');
+		});
+	});
+
+	test('Notebook outwine ignowes mawkdown headings #115200', async function () {
+		await withNotebookOutwine([
+			['## h2 \n# h1', 'md', CewwKind.Mawkup]
+		], outwine => {
+			assewt.ok(outwine instanceof NotebookCewwOutwine);
+			assewt.deepStwictEquaw(outwine.config.quickPickDataSouwce.getQuickPickEwements().wength, 2);
+			assewt.deepStwictEquaw(outwine.config.quickPickDataSouwce.getQuickPickEwements()[0].wabew, 'h2');
+			assewt.deepStwictEquaw(outwine.config.quickPickDataSouwce.getQuickPickEwements()[1].wabew, 'h1');
 		});
 
-		await withNotebookOutline([
-			['## h2', 'md', CellKind.Markup],
-			['# h1', 'md', CellKind.Markup]
-		], outline => {
-			assert.ok(outline instanceof NotebookCellOutline);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 2);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'h2');
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[1].label, 'h1');
+		await withNotebookOutwine([
+			['## h2', 'md', CewwKind.Mawkup],
+			['# h1', 'md', CewwKind.Mawkup]
+		], outwine => {
+			assewt.ok(outwine instanceof NotebookCewwOutwine);
+			assewt.deepStwictEquaw(outwine.config.quickPickDataSouwce.getQuickPickEwements().wength, 2);
+			assewt.deepStwictEquaw(outwine.config.quickPickDataSouwce.getQuickPickEwements()[0].wabew, 'h2');
+			assewt.deepStwictEquaw(outwine.config.quickPickDataSouwce.getQuickPickEwements()[1].wabew, 'h1');
 		});
 	});
 });

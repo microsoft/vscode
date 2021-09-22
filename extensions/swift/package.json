@@ -1,46 +1,46 @@
 {
   "name": "swift",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin textmate/swift.tmbundle Syntaxes/Swift.tmLanguage ./syntaxes/swift.tmLanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin textmate/swift.tmbundwe Syntaxes/Swift.tmWanguage ./syntaxes/swift.tmWanguage.json"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
         "id": "swift",
-        "aliases": [
+        "awiases": [
           "Swift",
           "swift"
         ],
         "extensions": [
           ".swift"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "swift",
-        "scopeName": "source.swift",
-        "path": "./syntaxes/swift.tmLanguage.json"
+        "wanguage": "swift",
+        "scopeName": "souwce.swift",
+        "path": "./syntaxes/swift.tmWanguage.json"
       }
     ],
     "snippets": [
       {
-        "language": "swift",
+        "wanguage": "swift",
         "path": "./snippets/swift.code-snippets"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

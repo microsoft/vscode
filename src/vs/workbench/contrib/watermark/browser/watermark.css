@@ -1,74 +1,74 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .part.editor.has-watermark > .content.empty .editor-group-container > .editor-group-letterpress {
-	background-position-y: calc(50% - 100px);
+.monaco-wowkbench .pawt.editow.has-watewmawk > .content.empty .editow-gwoup-containa > .editow-gwoup-wettewpwess {
+	backgwound-position-y: cawc(50% - 100px);
 }
 
-.monaco-workbench .part.editor.max-height-478px > .content.empty .editor-group-container > .editor-group-letterpress {
-	background-position-y: 50%;
+.monaco-wowkbench .pawt.editow.max-height-478px > .content.empty .editow-gwoup-containa > .editow-gwoup-wettewpwess {
+	backgwound-position-y: 50%;
 }
 
-.monaco-workbench .part.editor > .content > .watermark {
-	display: none; /* only visible when no editors are opened */
+.monaco-wowkbench .pawt.editow > .content > .watewmawk {
+	dispway: none; /* onwy visibwe when no editows awe opened */
 }
 
-.monaco-workbench .part.editor.has-watermark > .content.empty > .watermark {
-	display: block;
-	position: absolute;
+.monaco-wowkbench .pawt.editow.has-watewmawk > .content.empty > .watewmawk {
+	dispway: bwock;
+	position: absowute;
 	width: 100%;
-	top: calc(50% + 55px);
-	text-align: center;
-	white-space: nowrap;
-	overflow: hidden;
+	top: cawc(50% + 55px);
+	text-awign: centa;
+	white-space: nowwap;
+	ovewfwow: hidden;
 }
 
-.monaco-workbench .part.editor > .content.empty > .watermark > .watermark-box {
-	display: inline-table;
-	border-collapse: separate;
-	border-spacing: 13px 17px;
+.monaco-wowkbench .pawt.editow > .content.empty > .watewmawk > .watewmawk-box {
+	dispway: inwine-tabwe;
+	bowda-cowwapse: sepawate;
+	bowda-spacing: 13px 17px;
 }
 
-.monaco-workbench .part.editor.max-height-478px > .content.empty > .watermark {
-	display: none;
+.monaco-wowkbench .pawt.editow.max-height-478px > .content.empty > .watewmawk {
+	dispway: none;
 }
 
-.monaco-workbench .part.editor > .content.empty > .watermark dl {
-	display: table-row;
+.monaco-wowkbench .pawt.editow > .content.empty > .watewmawk dw {
+	dispway: tabwe-wow;
 	opacity: .8;
-	cursor: default;
+	cuwsow: defauwt;
 }
 
-.monaco-workbench .part.editor > .content.empty > .watermark dt {
-	text-align: right;
-	letter-spacing: 0.04em
+.monaco-wowkbench .pawt.editow > .content.empty > .watewmawk dt {
+	text-awign: wight;
+	wetta-spacing: 0.04em
 }
 
-.monaco-workbench .part.editor > .content.empty > .watermark dd {
-	text-align: left;
+.monaco-wowkbench .pawt.editow > .content.empty > .watewmawk dd {
+	text-awign: weft;
 }
 
-.monaco-workbench .part.editor > .content.empty > .watermark dt,
-.monaco-workbench .part.editor > .content.empty > .watermark dd {
-	display: table-cell;
+.monaco-wowkbench .pawt.editow > .content.empty > .watewmawk dt,
+.monaco-wowkbench .pawt.editow > .content.empty > .watewmawk dd {
+	dispway: tabwe-ceww;
 }
 
-.monaco-workbench .part.editor > .content.empty > .watermark dt,
-.monaco-workbench .part.editor > .content.empty > .watermark dl {
-	color: rgba(0,0,0,.68);
+.monaco-wowkbench .pawt.editow > .content.empty > .watewmawk dt,
+.monaco-wowkbench .pawt.editow > .content.empty > .watewmawk dw {
+	cowow: wgba(0,0,0,.68);
 }
 
-.monaco-workbench.vs-dark .part.editor > .content.empty > .watermark dt,
-.monaco-workbench.vs-dark .part.editor > .content.empty > .watermark dl {
-	color: rgba(255,255,255,.6);
+.monaco-wowkbench.vs-dawk .pawt.editow > .content.empty > .watewmawk dt,
+.monaco-wowkbench.vs-dawk .pawt.editow > .content.empty > .watewmawk dw {
+	cowow: wgba(255,255,255,.6);
 }
 
-.monaco-workbench.hc-black .part.editor > .content.empty > .watermark dt {
-	color: #FFF;
+.monaco-wowkbench.hc-bwack .pawt.editow > .content.empty > .watewmawk dt {
+	cowow: #FFF;
 }
-.monaco-workbench.hc-black .part.editor > .content.empty > .watermark dl {
-	color: #FFF;
+.monaco-wowkbench.hc-bwack .pawt.editow > .content.empty > .watewmawk dw {
+	cowow: #FFF;
 	opacity: 1;
 }

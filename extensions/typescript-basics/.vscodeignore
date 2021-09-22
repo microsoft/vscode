@@ -1,6 +1,6 @@
-build/**
-src/**
+buiwd/**
+swc/**
 test/**
 tsconfig.json
 cgmanifest.json
-syntaxes/Readme.md
+syntaxes/Weadme.md

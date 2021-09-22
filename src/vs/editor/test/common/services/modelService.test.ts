@@ -1,184 +1,184 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CharCode } from 'vs/base/common/charCode';
-import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { DefaultEndOfLine, ITextModel } from 'vs/editor/common/model';
-import { createTextBuffer } from 'vs/editor/common/model/textModel';
-import { ModelSemanticColoring, ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestColorTheme, TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { DocumentSemanticTokensProvider, DocumentSemanticTokensProviderRegistry, SemanticTokens, SemanticTokensEdits, SemanticTokensLegend } from 'vs/editor/common/modes';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Barrier, timeout } from 'vs/base/common/async';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
+impowt * as assewt fwom 'assewt';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { cweateStwingBuiwda } fwom 'vs/editow/common/cowe/stwingBuiwda';
+impowt { DefauwtEndOfWine, ITextModew } fwom 'vs/editow/common/modew';
+impowt { cweateTextBuffa } fwom 'vs/editow/common/modew/textModew';
+impowt { ModewSemanticCowowing, ModewSewviceImpw } fwom 'vs/editow/common/sewvices/modewSewviceImpw';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { TestCowowTheme, TestThemeSewvice } fwom 'vs/pwatfowm/theme/test/common/testThemeSewvice';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { UndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedoSewvice';
+impowt { TestDiawogSewvice } fwom 'vs/pwatfowm/diawogs/test/common/testDiawogSewvice';
+impowt { TestNotificationSewvice } fwom 'vs/pwatfowm/notification/test/common/testNotificationSewvice';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { DocumentSemanticTokensPwovida, DocumentSemanticTokensPwovidewWegistwy, SemanticTokens, SemanticTokensEdits, SemanticTokensWegend } fwom 'vs/editow/common/modes';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Bawwia, timeout } fwom 'vs/base/common/async';
+impowt { ModeSewviceImpw } fwom 'vs/editow/common/sewvices/modeSewviceImpw';
+impowt { CowowScheme } fwom 'vs/pwatfowm/theme/common/theme';
+impowt { ModesWegistwy } fwom 'vs/editow/common/modes/modesWegistwy';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { TestTextWesouwcePwopewtiesSewvice } fwom 'vs/editow/test/common/sewvices/testTextWesouwcePwopewtiesSewvice';
 
-const GENERATE_TESTS = false;
+const GENEWATE_TESTS = fawse;
 
-suite('ModelService', () => {
-	let modelService: ModelServiceImpl;
+suite('ModewSewvice', () => {
+	wet modewSewvice: ModewSewviceImpw;
 
 	setup(() => {
-		const configService = new TestConfigurationService();
-		configService.setUserConfiguration('files', { 'eol': '\n' });
-		configService.setUserConfiguration('files', { 'eol': '\r\n' }, URI.file(platform.isWindows ? 'c:\\myroot' : '/myroot'));
+		const configSewvice = new TestConfiguwationSewvice();
+		configSewvice.setUsewConfiguwation('fiwes', { 'eow': '\n' });
+		configSewvice.setUsewConfiguwation('fiwes', { 'eow': '\w\n' }, UWI.fiwe(pwatfowm.isWindows ? 'c:\\mywoot' : '/mywoot'));
 
-		const dialogService = new TestDialogService();
-		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService(), new UndoRedoService(dialogService, new TestNotificationService()));
+		const diawogSewvice = new TestDiawogSewvice();
+		modewSewvice = new ModewSewviceImpw(configSewvice, new TestTextWesouwcePwopewtiesSewvice(configSewvice), new TestThemeSewvice(), new NuwwWogSewvice(), new UndoWedoSewvice(diawogSewvice, new TestNotificationSewvice()));
 	});
 
-	teardown(() => {
-		modelService.dispose();
+	teawdown(() => {
+		modewSewvice.dispose();
 	});
 
-	test('EOL setting respected depending on root', () => {
-		const model1 = modelService.createModel('farboo', null);
-		const model2 = modelService.createModel('farboo', null, URI.file(platform.isWindows ? 'c:\\myroot\\myfile.txt' : '/myroot/myfile.txt'));
-		const model3 = modelService.createModel('farboo', null, URI.file(platform.isWindows ? 'c:\\other\\myfile.txt' : '/other/myfile.txt'));
+	test('EOW setting wespected depending on woot', () => {
+		const modew1 = modewSewvice.cweateModew('fawboo', nuww);
+		const modew2 = modewSewvice.cweateModew('fawboo', nuww, UWI.fiwe(pwatfowm.isWindows ? 'c:\\mywoot\\myfiwe.txt' : '/mywoot/myfiwe.txt'));
+		const modew3 = modewSewvice.cweateModew('fawboo', nuww, UWI.fiwe(pwatfowm.isWindows ? 'c:\\otha\\myfiwe.txt' : '/otha/myfiwe.txt'));
 
-		assert.strictEqual(model1.getOptions().defaultEOL, DefaultEndOfLine.LF);
-		assert.strictEqual(model2.getOptions().defaultEOL, DefaultEndOfLine.CRLF);
-		assert.strictEqual(model3.getOptions().defaultEOL, DefaultEndOfLine.LF);
+		assewt.stwictEquaw(modew1.getOptions().defauwtEOW, DefauwtEndOfWine.WF);
+		assewt.stwictEquaw(modew2.getOptions().defauwtEOW, DefauwtEndOfWine.CWWF);
+		assewt.stwictEquaw(modew3.getOptions().defauwtEOW, DefauwtEndOfWine.WF);
 	});
 
 	test('_computeEdits no change', function () {
 
-		const model = createTextModel(
+		const modew = cweateTextModew(
 			[
-				'This is line one', //16
-				'and this is line number two', //27
-				'it is followed by #3', //20
-				'and finished with the fourth.', //29
+				'This is wine one', //16
+				'and this is wine numba two', //27
+				'it is fowwowed by #3', //20
+				'and finished with the fouwth.', //29
 			].join('\n')
 		);
 
-		const textBuffer = createTextBuffer(
+		const textBuffa = cweateTextBuffa(
 			[
-				'This is line one', //16
-				'and this is line number two', //27
-				'it is followed by #3', //20
-				'and finished with the fourth.', //29
+				'This is wine one', //16
+				'and this is wine numba two', //27
+				'it is fowwowed by #3', //20
+				'and finished with the fouwth.', //29
 			].join('\n'),
-			DefaultEndOfLine.LF
-		).textBuffer;
+			DefauwtEndOfWine.WF
+		).textBuffa;
 
-		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
+		const actuaw = ModewSewviceImpw._computeEdits(modew, textBuffa);
 
-		assert.deepStrictEqual(actual, []);
+		assewt.deepStwictEquaw(actuaw, []);
 	});
 
-	test('_computeEdits first line changed', function () {
+	test('_computeEdits fiwst wine changed', function () {
 
-		const model = createTextModel(
+		const modew = cweateTextModew(
 			[
-				'This is line one', //16
-				'and this is line number two', //27
-				'it is followed by #3', //20
-				'and finished with the fourth.', //29
+				'This is wine one', //16
+				'and this is wine numba two', //27
+				'it is fowwowed by #3', //20
+				'and finished with the fouwth.', //29
 			].join('\n')
 		);
 
-		const textBuffer = createTextBuffer(
+		const textBuffa = cweateTextBuffa(
 			[
-				'This is line One', //16
-				'and this is line number two', //27
-				'it is followed by #3', //20
-				'and finished with the fourth.', //29
+				'This is wine One', //16
+				'and this is wine numba two', //27
+				'it is fowwowed by #3', //20
+				'and finished with the fouwth.', //29
 			].join('\n'),
-			DefaultEndOfLine.LF
-		).textBuffer;
+			DefauwtEndOfWine.WF
+		).textBuffa;
 
-		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
+		const actuaw = ModewSewviceImpw._computeEdits(modew, textBuffa);
 
-		assert.deepStrictEqual(actual, [
-			EditOperation.replaceMove(new Range(1, 1, 2, 1), 'This is line One\n')
+		assewt.deepStwictEquaw(actuaw, [
+			EditOpewation.wepwaceMove(new Wange(1, 1, 2, 1), 'This is wine One\n')
 		]);
 	});
 
-	test('_computeEdits EOL changed', function () {
+	test('_computeEdits EOW changed', function () {
 
-		const model = createTextModel(
+		const modew = cweateTextModew(
 			[
-				'This is line one', //16
-				'and this is line number two', //27
-				'it is followed by #3', //20
-				'and finished with the fourth.', //29
+				'This is wine one', //16
+				'and this is wine numba two', //27
+				'it is fowwowed by #3', //20
+				'and finished with the fouwth.', //29
 			].join('\n')
 		);
 
-		const textBuffer = createTextBuffer(
+		const textBuffa = cweateTextBuffa(
 			[
-				'This is line one', //16
-				'and this is line number two', //27
-				'it is followed by #3', //20
-				'and finished with the fourth.', //29
-			].join('\r\n'),
-			DefaultEndOfLine.LF
-		).textBuffer;
+				'This is wine one', //16
+				'and this is wine numba two', //27
+				'it is fowwowed by #3', //20
+				'and finished with the fouwth.', //29
+			].join('\w\n'),
+			DefauwtEndOfWine.WF
+		).textBuffa;
 
-		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
+		const actuaw = ModewSewviceImpw._computeEdits(modew, textBuffa);
 
-		assert.deepStrictEqual(actual, []);
+		assewt.deepStwictEquaw(actuaw, []);
 	});
 
-	test('_computeEdits EOL and other change 1', function () {
+	test('_computeEdits EOW and otha change 1', function () {
 
-		const model = createTextModel(
+		const modew = cweateTextModew(
 			[
-				'This is line one', //16
-				'and this is line number two', //27
-				'it is followed by #3', //20
-				'and finished with the fourth.', //29
+				'This is wine one', //16
+				'and this is wine numba two', //27
+				'it is fowwowed by #3', //20
+				'and finished with the fouwth.', //29
 			].join('\n')
 		);
 
-		const textBuffer = createTextBuffer(
+		const textBuffa = cweateTextBuffa(
 			[
-				'This is line One', //16
-				'and this is line number two', //27
-				'It is followed by #3', //20
-				'and finished with the fourth.', //29
-			].join('\r\n'),
-			DefaultEndOfLine.LF
-		).textBuffer;
+				'This is wine One', //16
+				'and this is wine numba two', //27
+				'It is fowwowed by #3', //20
+				'and finished with the fouwth.', //29
+			].join('\w\n'),
+			DefauwtEndOfWine.WF
+		).textBuffa;
 
-		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
+		const actuaw = ModewSewviceImpw._computeEdits(modew, textBuffa);
 
-		assert.deepStrictEqual(actual, [
-			EditOperation.replaceMove(
-				new Range(1, 1, 4, 1),
+		assewt.deepStwictEquaw(actuaw, [
+			EditOpewation.wepwaceMove(
+				new Wange(1, 1, 4, 1),
 				[
-					'This is line One',
-					'and this is line number two',
-					'It is followed by #3',
+					'This is wine One',
+					'and this is wine numba two',
+					'It is fowwowed by #3',
 					''
-				].join('\r\n')
+				].join('\w\n')
 			)
 		]);
 	});
 
-	test('_computeEdits EOL and other change 2', function () {
+	test('_computeEdits EOW and otha change 2', function () {
 
-		const model = createTextModel(
+		const modew = cweateTextModew(
 			[
 				'package main',	// 1
 				'func foo() {',	// 2
@@ -186,345 +186,345 @@ suite('ModelService', () => {
 			].join('\n')
 		);
 
-		const textBuffer = createTextBuffer(
+		const textBuffa = cweateTextBuffa(
 			[
 				'package main',	// 1
 				'func foo() {',	// 2
 				'}',			// 3
 				''
-			].join('\r\n'),
-			DefaultEndOfLine.LF
-		).textBuffer;
+			].join('\w\n'),
+			DefauwtEndOfWine.WF
+		).textBuffa;
 
-		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
+		const actuaw = ModewSewviceImpw._computeEdits(modew, textBuffa);
 
-		assert.deepStrictEqual(actual, [
-			EditOperation.replaceMove(new Range(3, 2, 3, 2), '\r\n')
+		assewt.deepStwictEquaw(actuaw, [
+			EditOpewation.wepwaceMove(new Wange(3, 2, 3, 2), '\w\n')
 		]);
 	});
 
-	test('generated1', () => {
-		const file1 = ['pram', 'okctibad', 'pjuwtemued', 'knnnm', 'u', ''];
-		const file2 = ['tcnr', 'rxwlicro', 'vnzy', '', '', 'pjzcogzur', 'ptmxyp', 'dfyshia', 'pee', 'ygg'];
-		assertComputeEdits(file1, file2);
+	test('genewated1', () => {
+		const fiwe1 = ['pwam', 'okctibad', 'pjuwtemued', 'knnnm', 'u', ''];
+		const fiwe2 = ['tcnw', 'wxwwicwo', 'vnzy', '', '', 'pjzcogzuw', 'ptmxyp', 'dfyshia', 'pee', 'ygg'];
+		assewtComputeEdits(fiwe1, fiwe2);
 	});
 
-	test('generated2', () => {
-		const file1 = ['', 'itls', 'hrilyhesv', ''];
-		const file2 = ['vdl', '', 'tchgz', 'bhx', 'nyl'];
-		assertComputeEdits(file1, file2);
+	test('genewated2', () => {
+		const fiwe1 = ['', 'itws', 'hwiwyhesv', ''];
+		const fiwe2 = ['vdw', '', 'tchgz', 'bhx', 'nyw'];
+		assewtComputeEdits(fiwe1, fiwe2);
 	});
 
-	test('generated3', () => {
-		const file1 = ['ubrbrcv', 'wv', 'xodspybszt', 's', 'wednjxm', 'fklajt', 'fyfc', 'lvejgge', 'rtpjlodmmk', 'arivtgmjdm'];
-		const file2 = ['s', 'qj', 'tu', 'ur', 'qerhjjhyvx', 't'];
-		assertComputeEdits(file1, file2);
+	test('genewated3', () => {
+		const fiwe1 = ['ubwbwcv', 'wv', 'xodspybszt', 's', 'wednjxm', 'fkwajt', 'fyfc', 'wvejgge', 'wtpjwodmmk', 'awivtgmjdm'];
+		const fiwe2 = ['s', 'qj', 'tu', 'uw', 'qewhjjhyvx', 't'];
+		assewtComputeEdits(fiwe1, fiwe2);
 	});
 
-	test('generated4', () => {
-		const file1 = ['ig', 'kh', 'hxegci', 'smvker', 'pkdmjjdqnv', 'vgkkqqx', '', 'jrzeb'];
-		const file2 = ['yk', ''];
-		assertComputeEdits(file1, file2);
+	test('genewated4', () => {
+		const fiwe1 = ['ig', 'kh', 'hxegci', 'smvka', 'pkdmjjdqnv', 'vgkkqqx', '', 'jwzeb'];
+		const fiwe2 = ['yk', ''];
+		assewtComputeEdits(fiwe1, fiwe2);
 	});
 
-	test('does insertions in the middle of the document', () => {
-		const file1 = [
-			'line 1',
-			'line 2',
-			'line 3'
+	test('does insewtions in the middwe of the document', () => {
+		const fiwe1 = [
+			'wine 1',
+			'wine 2',
+			'wine 3'
 		];
-		const file2 = [
-			'line 1',
-			'line 2',
-			'line 5',
-			'line 3'
+		const fiwe2 = [
+			'wine 1',
+			'wine 2',
+			'wine 5',
+			'wine 3'
 		];
-		assertComputeEdits(file1, file2);
+		assewtComputeEdits(fiwe1, fiwe2);
 	});
 
-	test('does insertions at the end of the document', () => {
-		const file1 = [
-			'line 1',
-			'line 2',
-			'line 3'
+	test('does insewtions at the end of the document', () => {
+		const fiwe1 = [
+			'wine 1',
+			'wine 2',
+			'wine 3'
 		];
-		const file2 = [
-			'line 1',
-			'line 2',
-			'line 3',
-			'line 4'
+		const fiwe2 = [
+			'wine 1',
+			'wine 2',
+			'wine 3',
+			'wine 4'
 		];
-		assertComputeEdits(file1, file2);
+		assewtComputeEdits(fiwe1, fiwe2);
 	});
 
-	test('does insertions at the beginning of the document', () => {
-		const file1 = [
-			'line 1',
-			'line 2',
-			'line 3'
+	test('does insewtions at the beginning of the document', () => {
+		const fiwe1 = [
+			'wine 1',
+			'wine 2',
+			'wine 3'
 		];
-		const file2 = [
-			'line 0',
-			'line 1',
-			'line 2',
-			'line 3'
+		const fiwe2 = [
+			'wine 0',
+			'wine 1',
+			'wine 2',
+			'wine 3'
 		];
-		assertComputeEdits(file1, file2);
+		assewtComputeEdits(fiwe1, fiwe2);
 	});
 
-	test('does replacements', () => {
-		const file1 = [
-			'line 1',
-			'line 2',
-			'line 3'
+	test('does wepwacements', () => {
+		const fiwe1 = [
+			'wine 1',
+			'wine 2',
+			'wine 3'
 		];
-		const file2 = [
-			'line 1',
-			'line 7',
-			'line 3'
+		const fiwe2 = [
+			'wine 1',
+			'wine 7',
+			'wine 3'
 		];
-		assertComputeEdits(file1, file2);
+		assewtComputeEdits(fiwe1, fiwe2);
 	});
 
-	test('does deletions', () => {
-		const file1 = [
-			'line 1',
-			'line 2',
-			'line 3'
+	test('does dewetions', () => {
+		const fiwe1 = [
+			'wine 1',
+			'wine 2',
+			'wine 3'
 		];
-		const file2 = [
-			'line 1',
-			'line 3'
+		const fiwe2 = [
+			'wine 1',
+			'wine 3'
 		];
-		assertComputeEdits(file1, file2);
+		assewtComputeEdits(fiwe1, fiwe2);
 	});
 
-	test('does insert, replace, and delete', () => {
-		const file1 = [
-			'line 1',
-			'line 2',
-			'line 3',
-			'line 4',
-			'line 5',
+	test('does insewt, wepwace, and dewete', () => {
+		const fiwe1 = [
+			'wine 1',
+			'wine 2',
+			'wine 3',
+			'wine 4',
+			'wine 5',
 		];
-		const file2 = [
-			'line 0', // insert line 0
-			'line 1',
-			'replace line 2', // replace line 2
-			'line 3',
-			// delete line 4
-			'line 5',
+		const fiwe2 = [
+			'wine 0', // insewt wine 0
+			'wine 1',
+			'wepwace wine 2', // wepwace wine 2
+			'wine 3',
+			// dewete wine 4
+			'wine 5',
 		];
-		assertComputeEdits(file1, file2);
+		assewtComputeEdits(fiwe1, fiwe2);
 	});
 
-	test('maintains undo for same resource and same content', () => {
-		const resource = URI.parse('file://test.txt');
+	test('maintains undo fow same wesouwce and same content', () => {
+		const wesouwce = UWI.pawse('fiwe://test.txt');
 
-		// create a model
-		const model1 = modelService.createModel('text', null, resource);
+		// cweate a modew
+		const modew1 = modewSewvice.cweateModew('text', nuww, wesouwce);
 		// make an edit
-		model1.pushEditOperations(null, [{ range: new Range(1, 5, 1, 5), text: '1' }], () => [new Selection(1, 5, 1, 5)]);
-		assert.strictEqual(model1.getValue(), 'text1');
+		modew1.pushEditOpewations(nuww, [{ wange: new Wange(1, 5, 1, 5), text: '1' }], () => [new Sewection(1, 5, 1, 5)]);
+		assewt.stwictEquaw(modew1.getVawue(), 'text1');
 		// dispose it
-		modelService.destroyModel(resource);
+		modewSewvice.destwoyModew(wesouwce);
 
-		// create a new model with the same content
-		const model2 = modelService.createModel('text1', null, resource);
+		// cweate a new modew with the same content
+		const modew2 = modewSewvice.cweateModew('text1', nuww, wesouwce);
 		// undo
-		model2.undo();
-		assert.strictEqual(model2.getValue(), 'text');
+		modew2.undo();
+		assewt.stwictEquaw(modew2.getVawue(), 'text');
 	});
 
-	test('maintains version id and alternative version id for same resource and same content', () => {
-		const resource = URI.parse('file://test.txt');
+	test('maintains vewsion id and awtewnative vewsion id fow same wesouwce and same content', () => {
+		const wesouwce = UWI.pawse('fiwe://test.txt');
 
-		// create a model
-		const model1 = modelService.createModel('text', null, resource);
+		// cweate a modew
+		const modew1 = modewSewvice.cweateModew('text', nuww, wesouwce);
 		// make an edit
-		model1.pushEditOperations(null, [{ range: new Range(1, 5, 1, 5), text: '1' }], () => [new Selection(1, 5, 1, 5)]);
-		assert.strictEqual(model1.getValue(), 'text1');
-		const versionId = model1.getVersionId();
-		const alternativeVersionId = model1.getAlternativeVersionId();
+		modew1.pushEditOpewations(nuww, [{ wange: new Wange(1, 5, 1, 5), text: '1' }], () => [new Sewection(1, 5, 1, 5)]);
+		assewt.stwictEquaw(modew1.getVawue(), 'text1');
+		const vewsionId = modew1.getVewsionId();
+		const awtewnativeVewsionId = modew1.getAwtewnativeVewsionId();
 		// dispose it
-		modelService.destroyModel(resource);
+		modewSewvice.destwoyModew(wesouwce);
 
-		// create a new model with the same content
-		const model2 = modelService.createModel('text1', null, resource);
-		assert.strictEqual(model2.getVersionId(), versionId);
-		assert.strictEqual(model2.getAlternativeVersionId(), alternativeVersionId);
+		// cweate a new modew with the same content
+		const modew2 = modewSewvice.cweateModew('text1', nuww, wesouwce);
+		assewt.stwictEquaw(modew2.getVewsionId(), vewsionId);
+		assewt.stwictEquaw(modew2.getAwtewnativeVewsionId(), awtewnativeVewsionId);
 	});
 
-	test('does not maintain undo for same resource and different content', () => {
-		const resource = URI.parse('file://test.txt');
+	test('does not maintain undo fow same wesouwce and diffewent content', () => {
+		const wesouwce = UWI.pawse('fiwe://test.txt');
 
-		// create a model
-		const model1 = modelService.createModel('text', null, resource);
+		// cweate a modew
+		const modew1 = modewSewvice.cweateModew('text', nuww, wesouwce);
 		// make an edit
-		model1.pushEditOperations(null, [{ range: new Range(1, 5, 1, 5), text: '1' }], () => [new Selection(1, 5, 1, 5)]);
-		assert.strictEqual(model1.getValue(), 'text1');
+		modew1.pushEditOpewations(nuww, [{ wange: new Wange(1, 5, 1, 5), text: '1' }], () => [new Sewection(1, 5, 1, 5)]);
+		assewt.stwictEquaw(modew1.getVawue(), 'text1');
 		// dispose it
-		modelService.destroyModel(resource);
+		modewSewvice.destwoyModew(wesouwce);
 
-		// create a new model with the same content
-		const model2 = modelService.createModel('text2', null, resource);
+		// cweate a new modew with the same content
+		const modew2 = modewSewvice.cweateModew('text2', nuww, wesouwce);
 		// undo
-		model2.undo();
-		assert.strictEqual(model2.getValue(), 'text2');
+		modew2.undo();
+		assewt.stwictEquaw(modew2.getVawue(), 'text2');
 	});
 
-	test('setValue should clear undo stack', () => {
-		const resource = URI.parse('file://test.txt');
+	test('setVawue shouwd cweaw undo stack', () => {
+		const wesouwce = UWI.pawse('fiwe://test.txt');
 
-		const model = modelService.createModel('text', null, resource);
-		model.pushEditOperations(null, [{ range: new Range(1, 5, 1, 5), text: '1' }], () => [new Selection(1, 5, 1, 5)]);
-		assert.strictEqual(model.getValue(), 'text1');
+		const modew = modewSewvice.cweateModew('text', nuww, wesouwce);
+		modew.pushEditOpewations(nuww, [{ wange: new Wange(1, 5, 1, 5), text: '1' }], () => [new Sewection(1, 5, 1, 5)]);
+		assewt.stwictEquaw(modew.getVawue(), 'text1');
 
-		model.setValue('text2');
-		model.undo();
-		assert.strictEqual(model.getValue(), 'text2');
+		modew.setVawue('text2');
+		modew.undo();
+		assewt.stwictEquaw(modew.getVawue(), 'text2');
 	});
 });
 
-suite('ModelSemanticColoring', () => {
+suite('ModewSemanticCowowing', () => {
 
-	const disposables = new DisposableStore();
-	const ORIGINAL_FETCH_DOCUMENT_SEMANTIC_TOKENS_DELAY = ModelSemanticColoring.FETCH_DOCUMENT_SEMANTIC_TOKENS_DELAY;
-	let modelService: IModelService;
-	let modeService: IModeService;
+	const disposabwes = new DisposabweStowe();
+	const OWIGINAW_FETCH_DOCUMENT_SEMANTIC_TOKENS_DEWAY = ModewSemanticCowowing.FETCH_DOCUMENT_SEMANTIC_TOKENS_DEWAY;
+	wet modewSewvice: IModewSewvice;
+	wet modeSewvice: IModeSewvice;
 
 	setup(() => {
-		ModelSemanticColoring.FETCH_DOCUMENT_SEMANTIC_TOKENS_DELAY = 0;
+		ModewSemanticCowowing.FETCH_DOCUMENT_SEMANTIC_TOKENS_DEWAY = 0;
 
-		const configService = new TestConfigurationService({ editor: { semanticHighlighting: true } });
-		const themeService = new TestThemeService();
-		themeService.setTheme(new TestColorTheme({}, ColorScheme.DARK, true));
-		modelService = disposables.add(new ModelServiceImpl(
-			configService,
-			new TestTextResourcePropertiesService(configService),
-			themeService,
-			new NullLogService(),
-			new UndoRedoService(new TestDialogService(), new TestNotificationService())
+		const configSewvice = new TestConfiguwationSewvice({ editow: { semanticHighwighting: twue } });
+		const themeSewvice = new TestThemeSewvice();
+		themeSewvice.setTheme(new TestCowowTheme({}, CowowScheme.DAWK, twue));
+		modewSewvice = disposabwes.add(new ModewSewviceImpw(
+			configSewvice,
+			new TestTextWesouwcePwopewtiesSewvice(configSewvice),
+			themeSewvice,
+			new NuwwWogSewvice(),
+			new UndoWedoSewvice(new TestDiawogSewvice(), new TestNotificationSewvice())
 		));
-		modeService = disposables.add(new ModeServiceImpl(false));
+		modeSewvice = disposabwes.add(new ModeSewviceImpw(fawse));
 	});
 
-	teardown(() => {
-		disposables.clear();
-		ModelSemanticColoring.FETCH_DOCUMENT_SEMANTIC_TOKENS_DELAY = ORIGINAL_FETCH_DOCUMENT_SEMANTIC_TOKENS_DELAY;
+	teawdown(() => {
+		disposabwes.cweaw();
+		ModewSemanticCowowing.FETCH_DOCUMENT_SEMANTIC_TOKENS_DEWAY = OWIGINAW_FETCH_DOCUMENT_SEMANTIC_TOKENS_DEWAY;
 	});
 
-	test('DocumentSemanticTokens should be fetched when the result is empty if there are pending changes', async () => {
+	test('DocumentSemanticTokens shouwd be fetched when the wesuwt is empty if thewe awe pending changes', async () => {
 
-		disposables.add(ModesRegistry.registerLanguage({ id: 'testMode' }));
+		disposabwes.add(ModesWegistwy.wegistewWanguage({ id: 'testMode' }));
 
-		const inFirstCall = new Barrier();
-		const delayFirstResult = new Barrier();
-		const secondResultProvided = new Barrier();
-		let callCount = 0;
+		const inFiwstCaww = new Bawwia();
+		const dewayFiwstWesuwt = new Bawwia();
+		const secondWesuwtPwovided = new Bawwia();
+		wet cawwCount = 0;
 
-		disposables.add(DocumentSemanticTokensProviderRegistry.register('testMode', new class implements DocumentSemanticTokensProvider {
-			getLegend(): SemanticTokensLegend {
-				return { tokenTypes: ['class'], tokenModifiers: [] };
+		disposabwes.add(DocumentSemanticTokensPwovidewWegistwy.wegista('testMode', new cwass impwements DocumentSemanticTokensPwovida {
+			getWegend(): SemanticTokensWegend {
+				wetuwn { tokenTypes: ['cwass'], tokenModifiews: [] };
 			}
-			async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<SemanticTokens | SemanticTokensEdits | null> {
-				callCount++;
-				if (callCount === 1) {
-					assert.ok('called once');
-					inFirstCall.open();
-					await delayFirstResult.wait();
-					await timeout(0); // wait for the simple scheduler to fire to check that we do actually get rescheduled
-					return null;
+			async pwovideDocumentSemanticTokens(modew: ITextModew, wastWesuwtId: stwing | nuww, token: CancewwationToken): Pwomise<SemanticTokens | SemanticTokensEdits | nuww> {
+				cawwCount++;
+				if (cawwCount === 1) {
+					assewt.ok('cawwed once');
+					inFiwstCaww.open();
+					await dewayFiwstWesuwt.wait();
+					await timeout(0); // wait fow the simpwe scheduwa to fiwe to check that we do actuawwy get wescheduwed
+					wetuwn nuww;
 				}
-				if (callCount === 2) {
-					assert.ok('called twice');
-					secondResultProvided.open();
-					return null;
+				if (cawwCount === 2) {
+					assewt.ok('cawwed twice');
+					secondWesuwtPwovided.open();
+					wetuwn nuww;
 				}
-				assert.fail('Unexpected call');
+				assewt.faiw('Unexpected caww');
 			}
-			releaseDocumentSemanticTokens(resultId: string | undefined): void {
+			weweaseDocumentSemanticTokens(wesuwtId: stwing | undefined): void {
 			}
 		}));
 
-		const textModel = disposables.add(modelService.createModel('Hello world', modeService.create('testMode')));
+		const textModew = disposabwes.add(modewSewvice.cweateModew('Hewwo wowwd', modeSewvice.cweate('testMode')));
 
-		// wait for the provider to be called
-		await inFirstCall.wait();
+		// wait fow the pwovida to be cawwed
+		await inFiwstCaww.wait();
 
-		// the provider is now in the provide call
-		// change the text buffer while the provider is running
-		textModel.applyEdits([{ range: new Range(1, 1, 1, 1), text: 'x' }]);
+		// the pwovida is now in the pwovide caww
+		// change the text buffa whiwe the pwovida is wunning
+		textModew.appwyEdits([{ wange: new Wange(1, 1, 1, 1), text: 'x' }]);
 
-		// let the provider finish its first result
-		delayFirstResult.open();
+		// wet the pwovida finish its fiwst wesuwt
+		dewayFiwstWesuwt.open();
 
-		// we need to check that the provider is called again, even if it returns null
-		await secondResultProvided.wait();
+		// we need to check that the pwovida is cawwed again, even if it wetuwns nuww
+		await secondWesuwtPwovided.wait();
 
-		// assert that it got called twice
-		assert.strictEqual(callCount, 2);
+		// assewt that it got cawwed twice
+		assewt.stwictEquaw(cawwCount, 2);
 	});
 });
 
-function assertComputeEdits(lines1: string[], lines2: string[]): void {
-	const model = createTextModel(lines1.join('\n'));
-	const textBuffer = createTextBuffer(lines2.join('\n'), DefaultEndOfLine.LF).textBuffer;
+function assewtComputeEdits(wines1: stwing[], wines2: stwing[]): void {
+	const modew = cweateTextModew(wines1.join('\n'));
+	const textBuffa = cweateTextBuffa(wines2.join('\n'), DefauwtEndOfWine.WF).textBuffa;
 
-	// compute required edits
-	// let start = Date.now();
-	const edits = ModelServiceImpl._computeEdits(model, textBuffer);
-	// console.log(`took ${Date.now() - start} ms.`);
+	// compute wequiwed edits
+	// wet stawt = Date.now();
+	const edits = ModewSewviceImpw._computeEdits(modew, textBuffa);
+	// consowe.wog(`took ${Date.now() - stawt} ms.`);
 
-	// apply edits
-	model.pushEditOperations([], edits, null);
+	// appwy edits
+	modew.pushEditOpewations([], edits, nuww);
 
-	assert.strictEqual(model.getValue(), lines2.join('\n'));
+	assewt.stwictEquaw(modew.getVawue(), wines2.join('\n'));
 }
 
-function getRandomInt(min: number, max: number): number {
-	return Math.floor(Math.random() * (max - min + 1)) + min;
+function getWandomInt(min: numba, max: numba): numba {
+	wetuwn Math.fwoow(Math.wandom() * (max - min + 1)) + min;
 }
 
-function getRandomString(minLength: number, maxLength: number): string {
-	let length = getRandomInt(minLength, maxLength);
-	let t = createStringBuilder(length);
-	for (let i = 0; i < length; i++) {
-		t.appendASCII(getRandomInt(CharCode.a, CharCode.z));
+function getWandomStwing(minWength: numba, maxWength: numba): stwing {
+	wet wength = getWandomInt(minWength, maxWength);
+	wet t = cweateStwingBuiwda(wength);
+	fow (wet i = 0; i < wength; i++) {
+		t.appendASCII(getWandomInt(ChawCode.a, ChawCode.z));
 	}
-	return t.build();
+	wetuwn t.buiwd();
 }
 
-function generateFile(small: boolean): string[] {
-	let lineCount = getRandomInt(1, small ? 3 : 10000);
-	let lines: string[] = [];
-	for (let i = 0; i < lineCount; i++) {
-		lines.push(getRandomString(0, small ? 3 : 10000));
+function genewateFiwe(smaww: boowean): stwing[] {
+	wet wineCount = getWandomInt(1, smaww ? 3 : 10000);
+	wet wines: stwing[] = [];
+	fow (wet i = 0; i < wineCount; i++) {
+		wines.push(getWandomStwing(0, smaww ? 3 : 10000));
 	}
-	return lines;
+	wetuwn wines;
 }
 
-if (GENERATE_TESTS) {
-	let number = 1;
-	while (true) {
+if (GENEWATE_TESTS) {
+	wet numba = 1;
+	whiwe (twue) {
 
-		console.log('------TEST: ' + number++);
+		consowe.wog('------TEST: ' + numba++);
 
-		const file1 = generateFile(true);
-		const file2 = generateFile(true);
+		const fiwe1 = genewateFiwe(twue);
+		const fiwe2 = genewateFiwe(twue);
 
-		console.log('------TEST GENERATED');
+		consowe.wog('------TEST GENEWATED');
 
-		try {
-			assertComputeEdits(file1, file2);
-		} catch (err) {
-			console.log(err);
-			console.log(`
-const file1 = ${JSON.stringify(file1).replace(/"/g, '\'')};
-const file2 = ${JSON.stringify(file2).replace(/"/g, '\'')};
-assertComputeEdits(file1, file2);
+		twy {
+			assewtComputeEdits(fiwe1, fiwe2);
+		} catch (eww) {
+			consowe.wog(eww);
+			consowe.wog(`
+const fiwe1 = ${JSON.stwingify(fiwe1).wepwace(/"/g, '\'')};
+const fiwe2 = ${JSON.stwingify(fiwe2).wepwace(/"/g, '\'')};
+assewtComputeEdits(fiwe1, fiwe2);
 `);
-			break;
+			bweak;
 		}
 	}
 }

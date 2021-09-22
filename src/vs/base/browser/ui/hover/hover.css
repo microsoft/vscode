@@ -1,154 +1,154 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-hover {
-	cursor: default;
-	position: absolute;
-	overflow: hidden;
+.monaco-hova {
+	cuwsow: defauwt;
+	position: absowute;
+	ovewfwow: hidden;
 	z-index: 50;
-	user-select: text;
-	-webkit-user-select: text;
-	-ms-user-select: text;
-	box-sizing: initial;
-	animation: fadein 100ms linear;
-	line-height: 1.5em;
+	usa-sewect: text;
+	-webkit-usa-sewect: text;
+	-ms-usa-sewect: text;
+	box-sizing: initiaw;
+	animation: fadein 100ms wineaw;
+	wine-height: 1.5em;
 }
 
-.monaco-hover.hidden {
-	display: none;
+.monaco-hova.hidden {
+	dispway: none;
 }
 
-.monaco-hover .hover-contents:not(.html-hover-contents) {
+.monaco-hova .hova-contents:not(.htmw-hova-contents) {
 	padding: 4px 8px;
 }
 
-.monaco-hover .markdown-hover > .hover-contents:not(.code-hover-contents) {
+.monaco-hova .mawkdown-hova > .hova-contents:not(.code-hova-contents) {
 	max-width: 500px;
-	word-wrap: break-word;
+	wowd-wwap: bweak-wowd;
 }
 
-.monaco-hover .markdown-hover > .hover-contents:not(.code-hover-contents) hr {
+.monaco-hova .mawkdown-hova > .hova-contents:not(.code-hova-contents) hw {
 	min-width: 100%;
 }
 
-.monaco-hover p,
-.monaco-hover .code,
-.monaco-hover ul {
-	margin: 8px 0;
+.monaco-hova p,
+.monaco-hova .code,
+.monaco-hova uw {
+	mawgin: 8px 0;
 }
 
-.monaco-hover code {
-	font-family: var(--monaco-monospace-font);
+.monaco-hova code {
+	font-famiwy: vaw(--monaco-monospace-font);
 }
 
-.monaco-hover hr {
-	box-sizing: border-box;
-	border-left: 0px;
-	border-right: 0px;
-	margin-top: 4px;
-	margin-bottom: -4px;
-	margin-left: -8px;
-	margin-right: -8px;
+.monaco-hova hw {
+	box-sizing: bowda-box;
+	bowda-weft: 0px;
+	bowda-wight: 0px;
+	mawgin-top: 4px;
+	mawgin-bottom: -4px;
+	mawgin-weft: -8px;
+	mawgin-wight: -8px;
 	height: 1px;
 }
 
-.monaco-hover p:first-child,
-.monaco-hover .code:first-child,
-.monaco-hover ul:first-child {
-	margin-top: 0;
+.monaco-hova p:fiwst-chiwd,
+.monaco-hova .code:fiwst-chiwd,
+.monaco-hova uw:fiwst-chiwd {
+	mawgin-top: 0;
 }
 
-.monaco-hover p:last-child,
-.monaco-hover .code:last-child,
-.monaco-hover ul:last-child {
-	margin-bottom: 0;
+.monaco-hova p:wast-chiwd,
+.monaco-hova .code:wast-chiwd,
+.monaco-hova uw:wast-chiwd {
+	mawgin-bottom: 0;
 }
 
-/* MarkupContent Layout */
-.monaco-hover ul {
-	padding-left: 20px;
+/* MawkupContent Wayout */
+.monaco-hova uw {
+	padding-weft: 20px;
 }
-.monaco-hover ol {
-	padding-left: 20px;
-}
-
-.monaco-hover li > p {
-	margin-bottom: 0;
+.monaco-hova ow {
+	padding-weft: 20px;
 }
 
-.monaco-hover li > ul {
-	margin-top: 0;
+.monaco-hova wi > p {
+	mawgin-bottom: 0;
 }
 
-.monaco-hover code {
-	border-radius: 3px;
+.monaco-hova wi > uw {
+	mawgin-top: 0;
+}
+
+.monaco-hova code {
+	bowda-wadius: 3px;
 	padding: 0 0.4em;
 }
 
-.monaco-hover .monaco-tokenized-source {
-	white-space: pre-wrap;
+.monaco-hova .monaco-tokenized-souwce {
+	white-space: pwe-wwap;
 }
 
-.monaco-hover .hover-row.status-bar {
+.monaco-hova .hova-wow.status-baw {
 	font-size: 12px;
-	line-height: 22px;
+	wine-height: 22px;
 }
 
-.monaco-hover .hover-row.status-bar .actions {
-	display: flex;
+.monaco-hova .hova-wow.status-baw .actions {
+	dispway: fwex;
 	padding: 0px 8px;
 }
 
-.monaco-hover .hover-row.status-bar .actions .action-container {
-	margin-right: 16px;
-	cursor: pointer;
+.monaco-hova .hova-wow.status-baw .actions .action-containa {
+	mawgin-wight: 16px;
+	cuwsow: pointa;
 }
 
-.monaco-hover .hover-row.status-bar .actions .action-container .action .icon {
-	padding-right: 4px;
+.monaco-hova .hova-wow.status-baw .actions .action-containa .action .icon {
+	padding-wight: 4px;
 }
 
-.monaco-hover .markdown-hover .hover-contents .codicon {
-	color: inherit;
-	font-size: inherit;
-	vertical-align: middle;
+.monaco-hova .mawkdown-hova .hova-contents .codicon {
+	cowow: inhewit;
+	font-size: inhewit;
+	vewticaw-awign: middwe;
 }
 
-.monaco-hover .hover-contents a.code-link:hover,
-.monaco-hover .hover-contents a.code-link {
-	color: inherit;
+.monaco-hova .hova-contents a.code-wink:hova,
+.monaco-hova .hova-contents a.code-wink {
+	cowow: inhewit;
 }
 
-.monaco-hover .hover-contents a.code-link:before {
+.monaco-hova .hova-contents a.code-wink:befowe {
 	content: '(';
 }
 
-.monaco-hover .hover-contents a.code-link:after {
+.monaco-hova .hova-contents a.code-wink:afta {
 	content: ')';
 }
 
-.monaco-hover .hover-contents a.code-link > span {
-	text-decoration: underline;
-	/** Hack to force underline to show **/
-	border-bottom: 1px solid transparent;
-	text-underline-position: under;
+.monaco-hova .hova-contents a.code-wink > span {
+	text-decowation: undewwine;
+	/** Hack to fowce undewwine to show **/
+	bowda-bottom: 1px sowid twanspawent;
+	text-undewwine-position: unda;
 }
 
-/** Spans in markdown hovers need a margin-bottom to avoid looking cramped: https://github.com/microsoft/vscode/issues/101496 **/
-.monaco-hover .markdown-hover .hover-contents:not(.code-hover-contents):not(.html-hover-contents) span {
-	margin-bottom: 4px;
-	display: inline-block;
+/** Spans in mawkdown hovews need a mawgin-bottom to avoid wooking cwamped: https://github.com/micwosoft/vscode/issues/101496 **/
+.monaco-hova .mawkdown-hova .hova-contents:not(.code-hova-contents):not(.htmw-hova-contents) span {
+	mawgin-bottom: 4px;
+	dispway: inwine-bwock;
 }
 
-.monaco-hover-content .action-container a {
-	-webkit-user-select: none;
-	user-select: none;
+.monaco-hova-content .action-containa a {
+	-webkit-usa-sewect: none;
+	usa-sewect: none;
 }
 
-.monaco-hover-content .action-container.disabled {
-	pointer-events: none;
+.monaco-hova-content .action-containa.disabwed {
+	pointa-events: none;
 	opacity: 0.4;
-	cursor: default;
+	cuwsow: defauwt;
 }

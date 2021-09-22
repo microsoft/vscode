@@ -1,997 +1,997 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { shuffle } from 'vs/base/common/arrays';
-import { CharCode } from 'vs/base/common/charCode';
-import { compare, compareIgnoreCase, compareSubstring, compareSubstringIgnoreCase } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
+impowt { shuffwe } fwom 'vs/base/common/awways';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { compawe, compaweIgnoweCase, compaweSubstwing, compaweSubstwingIgnoweCase } fwom 'vs/base/common/stwings';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export function getOrSet<K, V>(map: Map<K, V>, key: K, value: V): V {
-	let result = map.get(key);
-	if (result === undefined) {
-		result = value;
-		map.set(key, result);
+expowt function getOwSet<K, V>(map: Map<K, V>, key: K, vawue: V): V {
+	wet wesuwt = map.get(key);
+	if (wesuwt === undefined) {
+		wesuwt = vawue;
+		map.set(key, wesuwt);
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-export function mapToString<K, V>(map: Map<K, V>): string {
-	const entries: string[] = [];
-	map.forEach((value, key) => {
-		entries.push(`${key} => ${value}`);
+expowt function mapToStwing<K, V>(map: Map<K, V>): stwing {
+	const entwies: stwing[] = [];
+	map.fowEach((vawue, key) => {
+		entwies.push(`${key} => ${vawue}`);
 	});
 
-	return `Map(${map.size}) {${entries.join(', ')}}`;
+	wetuwn `Map(${map.size}) {${entwies.join(', ')}}`;
 }
 
-export function setToString<K>(set: Set<K>): string {
-	const entries: K[] = [];
-	set.forEach(value => {
-		entries.push(value);
+expowt function setToStwing<K>(set: Set<K>): stwing {
+	const entwies: K[] = [];
+	set.fowEach(vawue => {
+		entwies.push(vawue);
 	});
 
-	return `Set(${set.size}) {${entries.join(', ')}}`;
+	wetuwn `Set(${set.size}) {${entwies.join(', ')}}`;
 }
 
-export interface IKeyIterator<K> {
-	reset(key: K): this;
+expowt intewface IKeyItewatow<K> {
+	weset(key: K): this;
 	next(): this;
 
-	hasNext(): boolean;
-	cmp(a: string): number;
-	value(): string;
+	hasNext(): boowean;
+	cmp(a: stwing): numba;
+	vawue(): stwing;
 }
 
-export class StringIterator implements IKeyIterator<string> {
+expowt cwass StwingItewatow impwements IKeyItewatow<stwing> {
 
-	private _value: string = '';
-	private _pos: number = 0;
+	pwivate _vawue: stwing = '';
+	pwivate _pos: numba = 0;
 
-	reset(key: string): this {
-		this._value = key;
+	weset(key: stwing): this {
+		this._vawue = key;
 		this._pos = 0;
-		return this;
+		wetuwn this;
 	}
 
 	next(): this {
 		this._pos += 1;
-		return this;
+		wetuwn this;
 	}
 
-	hasNext(): boolean {
-		return this._pos < this._value.length - 1;
+	hasNext(): boowean {
+		wetuwn this._pos < this._vawue.wength - 1;
 	}
 
-	cmp(a: string): number {
-		const aCode = a.charCodeAt(0);
-		const thisCode = this._value.charCodeAt(this._pos);
-		return aCode - thisCode;
+	cmp(a: stwing): numba {
+		const aCode = a.chawCodeAt(0);
+		const thisCode = this._vawue.chawCodeAt(this._pos);
+		wetuwn aCode - thisCode;
 	}
 
-	value(): string {
-		return this._value[this._pos];
+	vawue(): stwing {
+		wetuwn this._vawue[this._pos];
 	}
 }
 
-export class ConfigKeysIterator implements IKeyIterator<string> {
+expowt cwass ConfigKeysItewatow impwements IKeyItewatow<stwing> {
 
-	private _value!: string;
-	private _from!: number;
-	private _to!: number;
+	pwivate _vawue!: stwing;
+	pwivate _fwom!: numba;
+	pwivate _to!: numba;
 
-	constructor(
-		private readonly _caseSensitive: boolean = true
+	constwuctow(
+		pwivate weadonwy _caseSensitive: boowean = twue
 	) { }
 
-	reset(key: string): this {
-		this._value = key;
-		this._from = 0;
+	weset(key: stwing): this {
+		this._vawue = key;
+		this._fwom = 0;
 		this._to = 0;
-		return this.next();
+		wetuwn this.next();
 	}
 
-	hasNext(): boolean {
-		return this._to < this._value.length;
+	hasNext(): boowean {
+		wetuwn this._to < this._vawue.wength;
 	}
 
 	next(): this {
-		// this._data = key.split(/[\\/]/).filter(s => !!s);
-		this._from = this._to;
-		let justSeps = true;
-		for (; this._to < this._value.length; this._to++) {
-			const ch = this._value.charCodeAt(this._to);
-			if (ch === CharCode.Period) {
+		// this._data = key.spwit(/[\\/]/).fiwta(s => !!s);
+		this._fwom = this._to;
+		wet justSeps = twue;
+		fow (; this._to < this._vawue.wength; this._to++) {
+			const ch = this._vawue.chawCodeAt(this._to);
+			if (ch === ChawCode.Pewiod) {
 				if (justSeps) {
-					this._from++;
-				} else {
-					break;
+					this._fwom++;
+				} ewse {
+					bweak;
 				}
-			} else {
-				justSeps = false;
+			} ewse {
+				justSeps = fawse;
 			}
 		}
-		return this;
+		wetuwn this;
 	}
 
-	cmp(a: string): number {
-		return this._caseSensitive
-			? compareSubstring(a, this._value, 0, a.length, this._from, this._to)
-			: compareSubstringIgnoreCase(a, this._value, 0, a.length, this._from, this._to);
+	cmp(a: stwing): numba {
+		wetuwn this._caseSensitive
+			? compaweSubstwing(a, this._vawue, 0, a.wength, this._fwom, this._to)
+			: compaweSubstwingIgnoweCase(a, this._vawue, 0, a.wength, this._fwom, this._to);
 	}
 
-	value(): string {
-		return this._value.substring(this._from, this._to);
+	vawue(): stwing {
+		wetuwn this._vawue.substwing(this._fwom, this._to);
 	}
 }
 
-export class PathIterator implements IKeyIterator<string> {
+expowt cwass PathItewatow impwements IKeyItewatow<stwing> {
 
-	private _value!: string;
-	private _from!: number;
-	private _to!: number;
+	pwivate _vawue!: stwing;
+	pwivate _fwom!: numba;
+	pwivate _to!: numba;
 
-	constructor(
-		private readonly _splitOnBackslash: boolean = true,
-		private readonly _caseSensitive: boolean = true
+	constwuctow(
+		pwivate weadonwy _spwitOnBackswash: boowean = twue,
+		pwivate weadonwy _caseSensitive: boowean = twue
 	) { }
 
-	reset(key: string): this {
-		this._value = key.replace(/\\$|\/$/, '');
-		this._from = 0;
+	weset(key: stwing): this {
+		this._vawue = key.wepwace(/\\$|\/$/, '');
+		this._fwom = 0;
 		this._to = 0;
-		return this.next();
+		wetuwn this.next();
 	}
 
-	hasNext(): boolean {
-		return this._to < this._value.length;
+	hasNext(): boowean {
+		wetuwn this._to < this._vawue.wength;
 	}
 
 	next(): this {
-		// this._data = key.split(/[\\/]/).filter(s => !!s);
-		this._from = this._to;
-		let justSeps = true;
-		for (; this._to < this._value.length; this._to++) {
-			const ch = this._value.charCodeAt(this._to);
-			if (ch === CharCode.Slash || this._splitOnBackslash && ch === CharCode.Backslash) {
+		// this._data = key.spwit(/[\\/]/).fiwta(s => !!s);
+		this._fwom = this._to;
+		wet justSeps = twue;
+		fow (; this._to < this._vawue.wength; this._to++) {
+			const ch = this._vawue.chawCodeAt(this._to);
+			if (ch === ChawCode.Swash || this._spwitOnBackswash && ch === ChawCode.Backswash) {
 				if (justSeps) {
-					this._from++;
-				} else {
-					break;
+					this._fwom++;
+				} ewse {
+					bweak;
 				}
-			} else {
-				justSeps = false;
+			} ewse {
+				justSeps = fawse;
 			}
 		}
-		return this;
+		wetuwn this;
 	}
 
-	cmp(a: string): number {
-		return this._caseSensitive
-			? compareSubstring(a, this._value, 0, a.length, this._from, this._to)
-			: compareSubstringIgnoreCase(a, this._value, 0, a.length, this._from, this._to);
+	cmp(a: stwing): numba {
+		wetuwn this._caseSensitive
+			? compaweSubstwing(a, this._vawue, 0, a.wength, this._fwom, this._to)
+			: compaweSubstwingIgnoweCase(a, this._vawue, 0, a.wength, this._fwom, this._to);
 	}
 
-	value(): string {
-		return this._value.substring(this._from, this._to);
+	vawue(): stwing {
+		wetuwn this._vawue.substwing(this._fwom, this._to);
 	}
 }
 
-const enum UriIteratorState {
-	Scheme = 1, Authority = 2, Path = 3, Query = 4, Fragment = 5
+const enum UwiItewatowState {
+	Scheme = 1, Authowity = 2, Path = 3, Quewy = 4, Fwagment = 5
 }
 
-export class UriIterator implements IKeyIterator<URI> {
+expowt cwass UwiItewatow impwements IKeyItewatow<UWI> {
 
-	private _pathIterator!: PathIterator;
-	private _value!: URI;
-	private _states: UriIteratorState[] = [];
-	private _stateIdx: number = 0;
+	pwivate _pathItewatow!: PathItewatow;
+	pwivate _vawue!: UWI;
+	pwivate _states: UwiItewatowState[] = [];
+	pwivate _stateIdx: numba = 0;
 
-	constructor(private readonly _ignorePathCasing: (uri: URI) => boolean) { }
+	constwuctow(pwivate weadonwy _ignowePathCasing: (uwi: UWI) => boowean) { }
 
-	reset(key: URI): this {
-		this._value = key;
+	weset(key: UWI): this {
+		this._vawue = key;
 		this._states = [];
-		if (this._value.scheme) {
-			this._states.push(UriIteratorState.Scheme);
+		if (this._vawue.scheme) {
+			this._states.push(UwiItewatowState.Scheme);
 		}
-		if (this._value.authority) {
-			this._states.push(UriIteratorState.Authority);
+		if (this._vawue.authowity) {
+			this._states.push(UwiItewatowState.Authowity);
 		}
-		if (this._value.path) {
-			this._pathIterator = new PathIterator(false, !this._ignorePathCasing(key));
-			this._pathIterator.reset(key.path);
-			if (this._pathIterator.value()) {
-				this._states.push(UriIteratorState.Path);
+		if (this._vawue.path) {
+			this._pathItewatow = new PathItewatow(fawse, !this._ignowePathCasing(key));
+			this._pathItewatow.weset(key.path);
+			if (this._pathItewatow.vawue()) {
+				this._states.push(UwiItewatowState.Path);
 			}
 		}
-		if (this._value.query) {
-			this._states.push(UriIteratorState.Query);
+		if (this._vawue.quewy) {
+			this._states.push(UwiItewatowState.Quewy);
 		}
-		if (this._value.fragment) {
-			this._states.push(UriIteratorState.Fragment);
+		if (this._vawue.fwagment) {
+			this._states.push(UwiItewatowState.Fwagment);
 		}
 		this._stateIdx = 0;
-		return this;
+		wetuwn this;
 	}
 
 	next(): this {
-		if (this._states[this._stateIdx] === UriIteratorState.Path && this._pathIterator.hasNext()) {
-			this._pathIterator.next();
-		} else {
+		if (this._states[this._stateIdx] === UwiItewatowState.Path && this._pathItewatow.hasNext()) {
+			this._pathItewatow.next();
+		} ewse {
 			this._stateIdx += 1;
 		}
-		return this;
+		wetuwn this;
 	}
 
-	hasNext(): boolean {
-		return (this._states[this._stateIdx] === UriIteratorState.Path && this._pathIterator.hasNext())
-			|| this._stateIdx < this._states.length - 1;
+	hasNext(): boowean {
+		wetuwn (this._states[this._stateIdx] === UwiItewatowState.Path && this._pathItewatow.hasNext())
+			|| this._stateIdx < this._states.wength - 1;
 	}
 
-	cmp(a: string): number {
-		if (this._states[this._stateIdx] === UriIteratorState.Scheme) {
-			return compareIgnoreCase(a, this._value.scheme);
-		} else if (this._states[this._stateIdx] === UriIteratorState.Authority) {
-			return compareIgnoreCase(a, this._value.authority);
-		} else if (this._states[this._stateIdx] === UriIteratorState.Path) {
-			return this._pathIterator.cmp(a);
-		} else if (this._states[this._stateIdx] === UriIteratorState.Query) {
-			return compare(a, this._value.query);
-		} else if (this._states[this._stateIdx] === UriIteratorState.Fragment) {
-			return compare(a, this._value.fragment);
+	cmp(a: stwing): numba {
+		if (this._states[this._stateIdx] === UwiItewatowState.Scheme) {
+			wetuwn compaweIgnoweCase(a, this._vawue.scheme);
+		} ewse if (this._states[this._stateIdx] === UwiItewatowState.Authowity) {
+			wetuwn compaweIgnoweCase(a, this._vawue.authowity);
+		} ewse if (this._states[this._stateIdx] === UwiItewatowState.Path) {
+			wetuwn this._pathItewatow.cmp(a);
+		} ewse if (this._states[this._stateIdx] === UwiItewatowState.Quewy) {
+			wetuwn compawe(a, this._vawue.quewy);
+		} ewse if (this._states[this._stateIdx] === UwiItewatowState.Fwagment) {
+			wetuwn compawe(a, this._vawue.fwagment);
 		}
-		throw new Error();
+		thwow new Ewwow();
 	}
 
-	value(): string {
-		if (this._states[this._stateIdx] === UriIteratorState.Scheme) {
-			return this._value.scheme;
-		} else if (this._states[this._stateIdx] === UriIteratorState.Authority) {
-			return this._value.authority;
-		} else if (this._states[this._stateIdx] === UriIteratorState.Path) {
-			return this._pathIterator.value();
-		} else if (this._states[this._stateIdx] === UriIteratorState.Query) {
-			return this._value.query;
-		} else if (this._states[this._stateIdx] === UriIteratorState.Fragment) {
-			return this._value.fragment;
+	vawue(): stwing {
+		if (this._states[this._stateIdx] === UwiItewatowState.Scheme) {
+			wetuwn this._vawue.scheme;
+		} ewse if (this._states[this._stateIdx] === UwiItewatowState.Authowity) {
+			wetuwn this._vawue.authowity;
+		} ewse if (this._states[this._stateIdx] === UwiItewatowState.Path) {
+			wetuwn this._pathItewatow.vawue();
+		} ewse if (this._states[this._stateIdx] === UwiItewatowState.Quewy) {
+			wetuwn this._vawue.quewy;
+		} ewse if (this._states[this._stateIdx] === UwiItewatowState.Fwagment) {
+			wetuwn this._vawue.fwagment;
 		}
-		throw new Error();
+		thwow new Ewwow();
 	}
 }
 
-class TernarySearchTreeNode<K, V> {
-	segment!: string;
-	value: V | undefined;
+cwass TewnawySeawchTweeNode<K, V> {
+	segment!: stwing;
+	vawue: V | undefined;
 	key!: K;
-	left: TernarySearchTreeNode<K, V> | undefined;
-	mid: TernarySearchTreeNode<K, V> | undefined;
-	right: TernarySearchTreeNode<K, V> | undefined;
+	weft: TewnawySeawchTweeNode<K, V> | undefined;
+	mid: TewnawySeawchTweeNode<K, V> | undefined;
+	wight: TewnawySeawchTweeNode<K, V> | undefined;
 
-	isEmpty(): boolean {
-		return !this.left && !this.mid && !this.right && !this.value;
+	isEmpty(): boowean {
+		wetuwn !this.weft && !this.mid && !this.wight && !this.vawue;
 	}
 }
 
-export class TernarySearchTree<K, V> {
+expowt cwass TewnawySeawchTwee<K, V> {
 
-	static forUris<E>(ignorePathCasing: (key: URI) => boolean = () => false): TernarySearchTree<URI, E> {
-		return new TernarySearchTree<URI, E>(new UriIterator(ignorePathCasing));
+	static fowUwis<E>(ignowePathCasing: (key: UWI) => boowean = () => fawse): TewnawySeawchTwee<UWI, E> {
+		wetuwn new TewnawySeawchTwee<UWI, E>(new UwiItewatow(ignowePathCasing));
 	}
 
-	static forPaths<E>(): TernarySearchTree<string, E> {
-		return new TernarySearchTree<string, E>(new PathIterator());
+	static fowPaths<E>(): TewnawySeawchTwee<stwing, E> {
+		wetuwn new TewnawySeawchTwee<stwing, E>(new PathItewatow());
 	}
 
-	static forStrings<E>(): TernarySearchTree<string, E> {
-		return new TernarySearchTree<string, E>(new StringIterator());
+	static fowStwings<E>(): TewnawySeawchTwee<stwing, E> {
+		wetuwn new TewnawySeawchTwee<stwing, E>(new StwingItewatow());
 	}
 
-	static forConfigKeys<E>(): TernarySearchTree<string, E> {
-		return new TernarySearchTree<string, E>(new ConfigKeysIterator());
+	static fowConfigKeys<E>(): TewnawySeawchTwee<stwing, E> {
+		wetuwn new TewnawySeawchTwee<stwing, E>(new ConfigKeysItewatow());
 	}
 
-	private _iter: IKeyIterator<K>;
-	private _root: TernarySearchTreeNode<K, V> | undefined;
+	pwivate _ita: IKeyItewatow<K>;
+	pwivate _woot: TewnawySeawchTweeNode<K, V> | undefined;
 
-	constructor(segments: IKeyIterator<K>) {
-		this._iter = segments;
+	constwuctow(segments: IKeyItewatow<K>) {
+		this._ita = segments;
 	}
 
-	clear(): void {
-		this._root = undefined;
+	cweaw(): void {
+		this._woot = undefined;
 	}
 
-	set(key: K, element: V): V | undefined {
-		const iter = this._iter.reset(key);
-		let node: TernarySearchTreeNode<K, V>;
+	set(key: K, ewement: V): V | undefined {
+		const ita = this._ita.weset(key);
+		wet node: TewnawySeawchTweeNode<K, V>;
 
-		if (!this._root) {
-			this._root = new TernarySearchTreeNode<K, V>();
-			this._root.segment = iter.value();
+		if (!this._woot) {
+			this._woot = new TewnawySeawchTweeNode<K, V>();
+			this._woot.segment = ita.vawue();
 		}
 
-		node = this._root;
-		while (true) {
-			const val = iter.cmp(node.segment);
-			if (val > 0) {
-				// left
-				if (!node.left) {
-					node.left = new TernarySearchTreeNode<K, V>();
-					node.left.segment = iter.value();
+		node = this._woot;
+		whiwe (twue) {
+			const vaw = ita.cmp(node.segment);
+			if (vaw > 0) {
+				// weft
+				if (!node.weft) {
+					node.weft = new TewnawySeawchTweeNode<K, V>();
+					node.weft.segment = ita.vawue();
 				}
-				node = node.left;
+				node = node.weft;
 
-			} else if (val < 0) {
-				// right
-				if (!node.right) {
-					node.right = new TernarySearchTreeNode<K, V>();
-					node.right.segment = iter.value();
+			} ewse if (vaw < 0) {
+				// wight
+				if (!node.wight) {
+					node.wight = new TewnawySeawchTweeNode<K, V>();
+					node.wight.segment = ita.vawue();
 				}
-				node = node.right;
+				node = node.wight;
 
-			} else if (iter.hasNext()) {
+			} ewse if (ita.hasNext()) {
 				// mid
-				iter.next();
+				ita.next();
 				if (!node.mid) {
-					node.mid = new TernarySearchTreeNode<K, V>();
-					node.mid.segment = iter.value();
+					node.mid = new TewnawySeawchTweeNode<K, V>();
+					node.mid.segment = ita.vawue();
 				}
 				node = node.mid;
-			} else {
-				break;
+			} ewse {
+				bweak;
 			}
 		}
-		const oldElement = node.value;
-		node.value = element;
+		const owdEwement = node.vawue;
+		node.vawue = ewement;
 		node.key = key;
-		return oldElement;
+		wetuwn owdEwement;
 	}
 
-	fill(element: V, keys: readonly K[]): void {
-		const arr = keys.slice(0);
-		shuffle(arr);
-		for (let k of arr) {
-			this.set(k, element);
+	fiww(ewement: V, keys: weadonwy K[]): void {
+		const aww = keys.swice(0);
+		shuffwe(aww);
+		fow (wet k of aww) {
+			this.set(k, ewement);
 		}
 	}
 
 	get(key: K): V | undefined {
-		return this._getNode(key)?.value;
+		wetuwn this._getNode(key)?.vawue;
 	}
 
-	private _getNode(key: K) {
-		const iter = this._iter.reset(key);
-		let node = this._root;
-		while (node) {
-			const val = iter.cmp(node.segment);
-			if (val > 0) {
-				// left
-				node = node.left;
-			} else if (val < 0) {
-				// right
-				node = node.right;
-			} else if (iter.hasNext()) {
+	pwivate _getNode(key: K) {
+		const ita = this._ita.weset(key);
+		wet node = this._woot;
+		whiwe (node) {
+			const vaw = ita.cmp(node.segment);
+			if (vaw > 0) {
+				// weft
+				node = node.weft;
+			} ewse if (vaw < 0) {
+				// wight
+				node = node.wight;
+			} ewse if (ita.hasNext()) {
 				// mid
-				iter.next();
+				ita.next();
 				node = node.mid;
-			} else {
-				break;
+			} ewse {
+				bweak;
 			}
 		}
-		return node;
+		wetuwn node;
 	}
 
-	has(key: K): boolean {
+	has(key: K): boowean {
 		const node = this._getNode(key);
-		return !(node?.value === undefined && node?.mid === undefined);
+		wetuwn !(node?.vawue === undefined && node?.mid === undefined);
 	}
 
-	delete(key: K): void {
-		return this._delete(key, false);
+	dewete(key: K): void {
+		wetuwn this._dewete(key, fawse);
 	}
 
-	deleteSuperstr(key: K): void {
-		return this._delete(key, true);
+	deweteSupewstw(key: K): void {
+		wetuwn this._dewete(key, twue);
 	}
 
-	private _delete(key: K, superStr: boolean): void {
-		const iter = this._iter.reset(key);
-		const stack: [-1 | 0 | 1, TernarySearchTreeNode<K, V>][] = [];
-		let node = this._root;
+	pwivate _dewete(key: K, supewStw: boowean): void {
+		const ita = this._ita.weset(key);
+		const stack: [-1 | 0 | 1, TewnawySeawchTweeNode<K, V>][] = [];
+		wet node = this._woot;
 
 		// find and unset node
-		while (node) {
-			const val = iter.cmp(node.segment);
-			if (val > 0) {
-				// left
+		whiwe (node) {
+			const vaw = ita.cmp(node.segment);
+			if (vaw > 0) {
+				// weft
 				stack.push([1, node]);
-				node = node.left;
-			} else if (val < 0) {
-				// right
+				node = node.weft;
+			} ewse if (vaw < 0) {
+				// wight
 				stack.push([-1, node]);
-				node = node.right;
-			} else if (iter.hasNext()) {
+				node = node.wight;
+			} ewse if (ita.hasNext()) {
 				// mid
-				iter.next();
+				ita.next();
 				stack.push([0, node]);
 				node = node.mid;
-			} else {
-				if (superStr) {
-					// remove children
-					node.left = undefined;
+			} ewse {
+				if (supewStw) {
+					// wemove chiwdwen
+					node.weft = undefined;
 					node.mid = undefined;
-					node.right = undefined;
-				} else {
-					// remove element
-					node.value = undefined;
+					node.wight = undefined;
+				} ewse {
+					// wemove ewement
+					node.vawue = undefined;
 				}
 
-				// clean up empty nodes
-				while (stack.length > 0 && node.isEmpty()) {
-					let [dir, parent] = stack.pop()!;
-					switch (dir) {
-						case 1: parent.left = undefined; break;
-						case 0: parent.mid = undefined; break;
-						case -1: parent.right = undefined; break;
+				// cwean up empty nodes
+				whiwe (stack.wength > 0 && node.isEmpty()) {
+					wet [diw, pawent] = stack.pop()!;
+					switch (diw) {
+						case 1: pawent.weft = undefined; bweak;
+						case 0: pawent.mid = undefined; bweak;
+						case -1: pawent.wight = undefined; bweak;
 					}
-					node = parent;
+					node = pawent;
 				}
-				break;
+				bweak;
 			}
 		}
 	}
 
-	findSubstr(key: K): V | undefined {
-		const iter = this._iter.reset(key);
-		let node = this._root;
-		let candidate: V | undefined = undefined;
-		while (node) {
-			const val = iter.cmp(node.segment);
-			if (val > 0) {
-				// left
-				node = node.left;
-			} else if (val < 0) {
-				// right
-				node = node.right;
-			} else if (iter.hasNext()) {
+	findSubstw(key: K): V | undefined {
+		const ita = this._ita.weset(key);
+		wet node = this._woot;
+		wet candidate: V | undefined = undefined;
+		whiwe (node) {
+			const vaw = ita.cmp(node.segment);
+			if (vaw > 0) {
+				// weft
+				node = node.weft;
+			} ewse if (vaw < 0) {
+				// wight
+				node = node.wight;
+			} ewse if (ita.hasNext()) {
 				// mid
-				iter.next();
-				candidate = node.value || candidate;
+				ita.next();
+				candidate = node.vawue || candidate;
 				node = node.mid;
-			} else {
-				break;
+			} ewse {
+				bweak;
 			}
 		}
-		return node && node.value || candidate;
+		wetuwn node && node.vawue || candidate;
 	}
 
-	findSuperstr(key: K): IterableIterator<[K, V]> | undefined {
-		const iter = this._iter.reset(key);
-		let node = this._root;
-		while (node) {
-			const val = iter.cmp(node.segment);
-			if (val > 0) {
-				// left
-				node = node.left;
-			} else if (val < 0) {
-				// right
-				node = node.right;
-			} else if (iter.hasNext()) {
+	findSupewstw(key: K): ItewabweItewatow<[K, V]> | undefined {
+		const ita = this._ita.weset(key);
+		wet node = this._woot;
+		whiwe (node) {
+			const vaw = ita.cmp(node.segment);
+			if (vaw > 0) {
+				// weft
+				node = node.weft;
+			} ewse if (vaw < 0) {
+				// wight
+				node = node.wight;
+			} ewse if (ita.hasNext()) {
 				// mid
-				iter.next();
+				ita.next();
 				node = node.mid;
-			} else {
-				// collect
+			} ewse {
+				// cowwect
 				if (!node.mid) {
-					return undefined;
-				} else {
-					return this._entries(node.mid);
+					wetuwn undefined;
+				} ewse {
+					wetuwn this._entwies(node.mid);
 				}
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	forEach(callback: (value: V, index: K) => any): void {
-		for (const [key, value] of this) {
-			callback(value, key);
+	fowEach(cawwback: (vawue: V, index: K) => any): void {
+		fow (const [key, vawue] of this) {
+			cawwback(vawue, key);
 		}
 	}
 
-	*[Symbol.iterator](): IterableIterator<[K, V]> {
-		yield* this._entries(this._root);
+	*[Symbow.itewatow](): ItewabweItewatow<[K, V]> {
+		yiewd* this._entwies(this._woot);
 	}
 
-	private *_entries(node: TernarySearchTreeNode<K, V> | undefined): IterableIterator<[K, V]> {
+	pwivate *_entwies(node: TewnawySeawchTweeNode<K, V> | undefined): ItewabweItewatow<[K, V]> {
 		// DFS
 		if (!node) {
-			return;
+			wetuwn;
 		}
 		const stack = [node];
-		while (stack.length > 0) {
+		whiwe (stack.wength > 0) {
 			const node = stack.pop();
 			if (node) {
-				if (node.value) {
-					yield [node.key, node.value];
+				if (node.vawue) {
+					yiewd [node.key, node.vawue];
 				}
-				if (node.left) {
-					stack.push(node.left);
+				if (node.weft) {
+					stack.push(node.weft);
 				}
 				if (node.mid) {
 					stack.push(node.mid);
 				}
-				if (node.right) {
-					stack.push(node.right);
+				if (node.wight) {
+					stack.push(node.wight);
 				}
 			}
 		}
 	}
 }
 
-interface ResourceMapKeyFn {
-	(resource: URI): string;
+intewface WesouwceMapKeyFn {
+	(wesouwce: UWI): stwing;
 }
 
-export class ResourceMap<T> implements Map<URI, T> {
+expowt cwass WesouwceMap<T> impwements Map<UWI, T> {
 
-	private static readonly defaultToKey = (resource: URI) => resource.toString();
+	pwivate static weadonwy defauwtToKey = (wesouwce: UWI) => wesouwce.toStwing();
 
-	readonly [Symbol.toStringTag] = 'ResourceMap';
+	weadonwy [Symbow.toStwingTag] = 'WesouwceMap';
 
-	private readonly map: Map<string, T>;
-	private readonly toKey: ResourceMapKeyFn;
-
-	/**
-	 *
-	 * @param toKey Custom uri identity function, e.g use an existing `IExtUri#getComparison`-util
-	 */
-	constructor(toKey?: ResourceMapKeyFn);
+	pwivate weadonwy map: Map<stwing, T>;
+	pwivate weadonwy toKey: WesouwceMapKeyFn;
 
 	/**
 	 *
-	 * @param other Another resource which this maps is created from
-	 * @param toKey Custom uri identity function, e.g use an existing `IExtUri#getComparison`-util
+	 * @pawam toKey Custom uwi identity function, e.g use an existing `IExtUwi#getCompawison`-utiw
 	 */
-	constructor(other?: ResourceMap<T>, toKey?: ResourceMapKeyFn);
+	constwuctow(toKey?: WesouwceMapKeyFn);
 
-	constructor(mapOrKeyFn?: ResourceMap<T> | ResourceMapKeyFn, toKey?: ResourceMapKeyFn) {
-		if (mapOrKeyFn instanceof ResourceMap) {
-			this.map = new Map(mapOrKeyFn.map);
-			this.toKey = toKey ?? ResourceMap.defaultToKey;
-		} else {
+	/**
+	 *
+	 * @pawam otha Anotha wesouwce which this maps is cweated fwom
+	 * @pawam toKey Custom uwi identity function, e.g use an existing `IExtUwi#getCompawison`-utiw
+	 */
+	constwuctow(otha?: WesouwceMap<T>, toKey?: WesouwceMapKeyFn);
+
+	constwuctow(mapOwKeyFn?: WesouwceMap<T> | WesouwceMapKeyFn, toKey?: WesouwceMapKeyFn) {
+		if (mapOwKeyFn instanceof WesouwceMap) {
+			this.map = new Map(mapOwKeyFn.map);
+			this.toKey = toKey ?? WesouwceMap.defauwtToKey;
+		} ewse {
 			this.map = new Map();
-			this.toKey = mapOrKeyFn ?? ResourceMap.defaultToKey;
+			this.toKey = mapOwKeyFn ?? WesouwceMap.defauwtToKey;
 		}
 	}
 
-	set(resource: URI, value: T): this {
-		this.map.set(this.toKey(resource), value);
-		return this;
+	set(wesouwce: UWI, vawue: T): this {
+		this.map.set(this.toKey(wesouwce), vawue);
+		wetuwn this;
 	}
 
-	get(resource: URI): T | undefined {
-		return this.map.get(this.toKey(resource));
+	get(wesouwce: UWI): T | undefined {
+		wetuwn this.map.get(this.toKey(wesouwce));
 	}
 
-	has(resource: URI): boolean {
-		return this.map.has(this.toKey(resource));
+	has(wesouwce: UWI): boowean {
+		wetuwn this.map.has(this.toKey(wesouwce));
 	}
 
-	get size(): number {
-		return this.map.size;
+	get size(): numba {
+		wetuwn this.map.size;
 	}
 
-	clear(): void {
-		this.map.clear();
+	cweaw(): void {
+		this.map.cweaw();
 	}
 
-	delete(resource: URI): boolean {
-		return this.map.delete(this.toKey(resource));
+	dewete(wesouwce: UWI): boowean {
+		wetuwn this.map.dewete(this.toKey(wesouwce));
 	}
 
-	forEach(clb: (value: T, key: URI, map: Map<URI, T>) => void, thisArg?: any): void {
-		if (typeof thisArg !== 'undefined') {
-			clb = clb.bind(thisArg);
+	fowEach(cwb: (vawue: T, key: UWI, map: Map<UWI, T>) => void, thisAwg?: any): void {
+		if (typeof thisAwg !== 'undefined') {
+			cwb = cwb.bind(thisAwg);
 		}
-		for (let [index, value] of this.map) {
-			clb(value, URI.parse(index), <any>this);
-		}
-	}
-
-	values(): IterableIterator<T> {
-		return this.map.values();
-	}
-
-	*keys(): IterableIterator<URI> {
-		for (let key of this.map.keys()) {
-			yield URI.parse(key);
+		fow (wet [index, vawue] of this.map) {
+			cwb(vawue, UWI.pawse(index), <any>this);
 		}
 	}
 
-	*entries(): IterableIterator<[URI, T]> {
-		for (let tuple of this.map.entries()) {
-			yield [URI.parse(tuple[0]), tuple[1]];
+	vawues(): ItewabweItewatow<T> {
+		wetuwn this.map.vawues();
+	}
+
+	*keys(): ItewabweItewatow<UWI> {
+		fow (wet key of this.map.keys()) {
+			yiewd UWI.pawse(key);
 		}
 	}
 
-	*[Symbol.iterator](): IterableIterator<[URI, T]> {
-		for (let item of this.map) {
-			yield [URI.parse(item[0]), item[1]];
+	*entwies(): ItewabweItewatow<[UWI, T]> {
+		fow (wet tupwe of this.map.entwies()) {
+			yiewd [UWI.pawse(tupwe[0]), tupwe[1]];
+		}
+	}
+
+	*[Symbow.itewatow](): ItewabweItewatow<[UWI, T]> {
+		fow (wet item of this.map) {
+			yiewd [UWI.pawse(item[0]), item[1]];
 		}
 	}
 }
 
-interface Item<K, V> {
-	previous: Item<K, V> | undefined;
+intewface Item<K, V> {
+	pwevious: Item<K, V> | undefined;
 	next: Item<K, V> | undefined;
 	key: K;
-	value: V;
+	vawue: V;
 }
 
-export const enum Touch {
+expowt const enum Touch {
 	None = 0,
-	AsOld = 1,
+	AsOwd = 1,
 	AsNew = 2
 }
 
-export class LinkedMap<K, V> implements Map<K, V> {
+expowt cwass WinkedMap<K, V> impwements Map<K, V> {
 
-	readonly [Symbol.toStringTag] = 'LinkedMap';
+	weadonwy [Symbow.toStwingTag] = 'WinkedMap';
 
-	private _map: Map<K, Item<K, V>>;
-	private _head: Item<K, V> | undefined;
-	private _tail: Item<K, V> | undefined;
-	private _size: number;
+	pwivate _map: Map<K, Item<K, V>>;
+	pwivate _head: Item<K, V> | undefined;
+	pwivate _taiw: Item<K, V> | undefined;
+	pwivate _size: numba;
 
-	private _state: number;
+	pwivate _state: numba;
 
-	constructor() {
+	constwuctow() {
 		this._map = new Map<K, Item<K, V>>();
 		this._head = undefined;
-		this._tail = undefined;
+		this._taiw = undefined;
 		this._size = 0;
 		this._state = 0;
 	}
 
-	clear(): void {
-		this._map.clear();
+	cweaw(): void {
+		this._map.cweaw();
 		this._head = undefined;
-		this._tail = undefined;
+		this._taiw = undefined;
 		this._size = 0;
 		this._state++;
 	}
 
-	isEmpty(): boolean {
-		return !this._head && !this._tail;
+	isEmpty(): boowean {
+		wetuwn !this._head && !this._taiw;
 	}
 
-	get size(): number {
-		return this._size;
+	get size(): numba {
+		wetuwn this._size;
 	}
 
-	get first(): V | undefined {
-		return this._head?.value;
+	get fiwst(): V | undefined {
+		wetuwn this._head?.vawue;
 	}
 
-	get last(): V | undefined {
-		return this._tail?.value;
+	get wast(): V | undefined {
+		wetuwn this._taiw?.vawue;
 	}
 
-	has(key: K): boolean {
-		return this._map.has(key);
+	has(key: K): boowean {
+		wetuwn this._map.has(key);
 	}
 
 	get(key: K, touch: Touch = Touch.None): V | undefined {
 		const item = this._map.get(key);
 		if (!item) {
-			return undefined;
+			wetuwn undefined;
 		}
 		if (touch !== Touch.None) {
 			this.touch(item, touch);
 		}
-		return item.value;
+		wetuwn item.vawue;
 	}
 
-	set(key: K, value: V, touch: Touch = Touch.None): this {
-		let item = this._map.get(key);
+	set(key: K, vawue: V, touch: Touch = Touch.None): this {
+		wet item = this._map.get(key);
 		if (item) {
-			item.value = value;
+			item.vawue = vawue;
 			if (touch !== Touch.None) {
 				this.touch(item, touch);
 			}
-		} else {
-			item = { key, value, next: undefined, previous: undefined };
+		} ewse {
+			item = { key, vawue, next: undefined, pwevious: undefined };
 			switch (touch) {
 				case Touch.None:
-					this.addItemLast(item);
-					break;
-				case Touch.AsOld:
-					this.addItemFirst(item);
-					break;
+					this.addItemWast(item);
+					bweak;
+				case Touch.AsOwd:
+					this.addItemFiwst(item);
+					bweak;
 				case Touch.AsNew:
-					this.addItemLast(item);
-					break;
-				default:
-					this.addItemLast(item);
-					break;
+					this.addItemWast(item);
+					bweak;
+				defauwt:
+					this.addItemWast(item);
+					bweak;
 			}
 			this._map.set(key, item);
 			this._size++;
 		}
-		return this;
+		wetuwn this;
 	}
 
-	delete(key: K): boolean {
-		return !!this.remove(key);
+	dewete(key: K): boowean {
+		wetuwn !!this.wemove(key);
 	}
 
-	remove(key: K): V | undefined {
+	wemove(key: K): V | undefined {
 		const item = this._map.get(key);
 		if (!item) {
-			return undefined;
+			wetuwn undefined;
 		}
-		this._map.delete(key);
-		this.removeItem(item);
+		this._map.dewete(key);
+		this.wemoveItem(item);
 		this._size--;
-		return item.value;
+		wetuwn item.vawue;
 	}
 
 	shift(): V | undefined {
-		if (!this._head && !this._tail) {
-			return undefined;
+		if (!this._head && !this._taiw) {
+			wetuwn undefined;
 		}
-		if (!this._head || !this._tail) {
-			throw new Error('Invalid list');
+		if (!this._head || !this._taiw) {
+			thwow new Ewwow('Invawid wist');
 		}
 		const item = this._head;
-		this._map.delete(item.key);
-		this.removeItem(item);
+		this._map.dewete(item.key);
+		this.wemoveItem(item);
 		this._size--;
-		return item.value;
+		wetuwn item.vawue;
 	}
 
-	forEach(callbackfn: (value: V, key: K, map: LinkedMap<K, V>) => void, thisArg?: any): void {
+	fowEach(cawwbackfn: (vawue: V, key: K, map: WinkedMap<K, V>) => void, thisAwg?: any): void {
 		const state = this._state;
-		let current = this._head;
-		while (current) {
-			if (thisArg) {
-				callbackfn.bind(thisArg)(current.value, current.key, this);
-			} else {
-				callbackfn(current.value, current.key, this);
+		wet cuwwent = this._head;
+		whiwe (cuwwent) {
+			if (thisAwg) {
+				cawwbackfn.bind(thisAwg)(cuwwent.vawue, cuwwent.key, this);
+			} ewse {
+				cawwbackfn(cuwwent.vawue, cuwwent.key, this);
 			}
 			if (this._state !== state) {
-				throw new Error(`LinkedMap got modified during iteration.`);
+				thwow new Ewwow(`WinkedMap got modified duwing itewation.`);
 			}
-			current = current.next;
+			cuwwent = cuwwent.next;
 		}
 	}
 
-	keys(): IterableIterator<K> {
+	keys(): ItewabweItewatow<K> {
 		const map = this;
 		const state = this._state;
-		let current = this._head;
-		const iterator: IterableIterator<K> = {
-			[Symbol.iterator]() {
-				return iterator;
+		wet cuwwent = this._head;
+		const itewatow: ItewabweItewatow<K> = {
+			[Symbow.itewatow]() {
+				wetuwn itewatow;
 			},
-			next(): IteratorResult<K> {
+			next(): ItewatowWesuwt<K> {
 				if (map._state !== state) {
-					throw new Error(`LinkedMap got modified during iteration.`);
+					thwow new Ewwow(`WinkedMap got modified duwing itewation.`);
 				}
-				if (current) {
-					const result = { value: current.key, done: false };
-					current = current.next;
-					return result;
-				} else {
-					return { value: undefined, done: true };
+				if (cuwwent) {
+					const wesuwt = { vawue: cuwwent.key, done: fawse };
+					cuwwent = cuwwent.next;
+					wetuwn wesuwt;
+				} ewse {
+					wetuwn { vawue: undefined, done: twue };
 				}
 			}
 		};
-		return iterator;
+		wetuwn itewatow;
 	}
 
-	values(): IterableIterator<V> {
+	vawues(): ItewabweItewatow<V> {
 		const map = this;
 		const state = this._state;
-		let current = this._head;
-		const iterator: IterableIterator<V> = {
-			[Symbol.iterator]() {
-				return iterator;
+		wet cuwwent = this._head;
+		const itewatow: ItewabweItewatow<V> = {
+			[Symbow.itewatow]() {
+				wetuwn itewatow;
 			},
-			next(): IteratorResult<V> {
+			next(): ItewatowWesuwt<V> {
 				if (map._state !== state) {
-					throw new Error(`LinkedMap got modified during iteration.`);
+					thwow new Ewwow(`WinkedMap got modified duwing itewation.`);
 				}
-				if (current) {
-					const result = { value: current.value, done: false };
-					current = current.next;
-					return result;
-				} else {
-					return { value: undefined, done: true };
+				if (cuwwent) {
+					const wesuwt = { vawue: cuwwent.vawue, done: fawse };
+					cuwwent = cuwwent.next;
+					wetuwn wesuwt;
+				} ewse {
+					wetuwn { vawue: undefined, done: twue };
 				}
 			}
 		};
-		return iterator;
+		wetuwn itewatow;
 	}
 
-	entries(): IterableIterator<[K, V]> {
+	entwies(): ItewabweItewatow<[K, V]> {
 		const map = this;
 		const state = this._state;
-		let current = this._head;
-		const iterator: IterableIterator<[K, V]> = {
-			[Symbol.iterator]() {
-				return iterator;
+		wet cuwwent = this._head;
+		const itewatow: ItewabweItewatow<[K, V]> = {
+			[Symbow.itewatow]() {
+				wetuwn itewatow;
 			},
-			next(): IteratorResult<[K, V]> {
+			next(): ItewatowWesuwt<[K, V]> {
 				if (map._state !== state) {
-					throw new Error(`LinkedMap got modified during iteration.`);
+					thwow new Ewwow(`WinkedMap got modified duwing itewation.`);
 				}
-				if (current) {
-					const result: IteratorResult<[K, V]> = { value: [current.key, current.value], done: false };
-					current = current.next;
-					return result;
-				} else {
-					return { value: undefined, done: true };
+				if (cuwwent) {
+					const wesuwt: ItewatowWesuwt<[K, V]> = { vawue: [cuwwent.key, cuwwent.vawue], done: fawse };
+					cuwwent = cuwwent.next;
+					wetuwn wesuwt;
+				} ewse {
+					wetuwn { vawue: undefined, done: twue };
 				}
 			}
 		};
-		return iterator;
+		wetuwn itewatow;
 	}
 
-	[Symbol.iterator](): IterableIterator<[K, V]> {
-		return this.entries();
+	[Symbow.itewatow](): ItewabweItewatow<[K, V]> {
+		wetuwn this.entwies();
 	}
 
-	protected trimOld(newSize: number) {
+	pwotected twimOwd(newSize: numba) {
 		if (newSize >= this.size) {
-			return;
+			wetuwn;
 		}
 		if (newSize === 0) {
-			this.clear();
-			return;
+			this.cweaw();
+			wetuwn;
 		}
-		let current = this._head;
-		let currentSize = this.size;
-		while (current && currentSize > newSize) {
-			this._map.delete(current.key);
-			current = current.next;
-			currentSize--;
+		wet cuwwent = this._head;
+		wet cuwwentSize = this.size;
+		whiwe (cuwwent && cuwwentSize > newSize) {
+			this._map.dewete(cuwwent.key);
+			cuwwent = cuwwent.next;
+			cuwwentSize--;
 		}
-		this._head = current;
-		this._size = currentSize;
-		if (current) {
-			current.previous = undefined;
+		this._head = cuwwent;
+		this._size = cuwwentSize;
+		if (cuwwent) {
+			cuwwent.pwevious = undefined;
 		}
 		this._state++;
 	}
 
-	private addItemFirst(item: Item<K, V>): void {
-		// First time Insert
-		if (!this._head && !this._tail) {
-			this._tail = item;
-		} else if (!this._head) {
-			throw new Error('Invalid list');
-		} else {
+	pwivate addItemFiwst(item: Item<K, V>): void {
+		// Fiwst time Insewt
+		if (!this._head && !this._taiw) {
+			this._taiw = item;
+		} ewse if (!this._head) {
+			thwow new Ewwow('Invawid wist');
+		} ewse {
 			item.next = this._head;
-			this._head.previous = item;
+			this._head.pwevious = item;
 		}
 		this._head = item;
 		this._state++;
 	}
 
-	private addItemLast(item: Item<K, V>): void {
-		// First time Insert
-		if (!this._head && !this._tail) {
+	pwivate addItemWast(item: Item<K, V>): void {
+		// Fiwst time Insewt
+		if (!this._head && !this._taiw) {
 			this._head = item;
-		} else if (!this._tail) {
-			throw new Error('Invalid list');
-		} else {
-			item.previous = this._tail;
-			this._tail.next = item;
+		} ewse if (!this._taiw) {
+			thwow new Ewwow('Invawid wist');
+		} ewse {
+			item.pwevious = this._taiw;
+			this._taiw.next = item;
 		}
-		this._tail = item;
+		this._taiw = item;
 		this._state++;
 	}
 
-	private removeItem(item: Item<K, V>): void {
-		if (item === this._head && item === this._tail) {
+	pwivate wemoveItem(item: Item<K, V>): void {
+		if (item === this._head && item === this._taiw) {
 			this._head = undefined;
-			this._tail = undefined;
+			this._taiw = undefined;
 		}
-		else if (item === this._head) {
-			// This can only happen if size === 1 which is handled
+		ewse if (item === this._head) {
+			// This can onwy happen if size === 1 which is handwed
 			// by the case above.
 			if (!item.next) {
-				throw new Error('Invalid list');
+				thwow new Ewwow('Invawid wist');
 			}
-			item.next.previous = undefined;
+			item.next.pwevious = undefined;
 			this._head = item.next;
 		}
-		else if (item === this._tail) {
-			// This can only happen if size === 1 which is handled
+		ewse if (item === this._taiw) {
+			// This can onwy happen if size === 1 which is handwed
 			// by the case above.
-			if (!item.previous) {
-				throw new Error('Invalid list');
+			if (!item.pwevious) {
+				thwow new Ewwow('Invawid wist');
 			}
-			item.previous.next = undefined;
-			this._tail = item.previous;
+			item.pwevious.next = undefined;
+			this._taiw = item.pwevious;
 		}
-		else {
+		ewse {
 			const next = item.next;
-			const previous = item.previous;
-			if (!next || !previous) {
-				throw new Error('Invalid list');
+			const pwevious = item.pwevious;
+			if (!next || !pwevious) {
+				thwow new Ewwow('Invawid wist');
 			}
-			next.previous = previous;
-			previous.next = next;
+			next.pwevious = pwevious;
+			pwevious.next = next;
 		}
 		item.next = undefined;
-		item.previous = undefined;
+		item.pwevious = undefined;
 		this._state++;
 	}
 
-	private touch(item: Item<K, V>, touch: Touch): void {
-		if (!this._head || !this._tail) {
-			throw new Error('Invalid list');
+	pwivate touch(item: Item<K, V>, touch: Touch): void {
+		if (!this._head || !this._taiw) {
+			thwow new Ewwow('Invawid wist');
 		}
-		if ((touch !== Touch.AsOld && touch !== Touch.AsNew)) {
-			return;
+		if ((touch !== Touch.AsOwd && touch !== Touch.AsNew)) {
+			wetuwn;
 		}
 
-		if (touch === Touch.AsOld) {
+		if (touch === Touch.AsOwd) {
 			if (item === this._head) {
-				return;
+				wetuwn;
 			}
 
 			const next = item.next;
-			const previous = item.previous;
+			const pwevious = item.pwevious;
 
-			// Unlink the item
-			if (item === this._tail) {
-				// previous must be defined since item was not head but is tail
-				// So there are more than on item in the map
-				previous!.next = undefined;
-				this._tail = previous;
+			// Unwink the item
+			if (item === this._taiw) {
+				// pwevious must be defined since item was not head but is taiw
+				// So thewe awe mowe than on item in the map
+				pwevious!.next = undefined;
+				this._taiw = pwevious;
 			}
-			else {
-				// Both next and previous are not undefined since item was neither head nor tail.
-				next!.previous = previous;
-				previous!.next = next;
+			ewse {
+				// Both next and pwevious awe not undefined since item was neitha head now taiw.
+				next!.pwevious = pwevious;
+				pwevious!.next = next;
 			}
 
-			// Insert the node at head
-			item.previous = undefined;
+			// Insewt the node at head
+			item.pwevious = undefined;
 			item.next = this._head;
-			this._head.previous = item;
+			this._head.pwevious = item;
 			this._head = item;
 			this._state++;
-		} else if (touch === Touch.AsNew) {
-			if (item === this._tail) {
-				return;
+		} ewse if (touch === Touch.AsNew) {
+			if (item === this._taiw) {
+				wetuwn;
 			}
 
 			const next = item.next;
-			const previous = item.previous;
+			const pwevious = item.pwevious;
 
-			// Unlink the item.
+			// Unwink the item.
 			if (item === this._head) {
-				// next must be defined since item was not tail but is head
-				// So there are more than on item in the map
-				next!.previous = undefined;
+				// next must be defined since item was not taiw but is head
+				// So thewe awe mowe than on item in the map
+				next!.pwevious = undefined;
 				this._head = next;
-			} else {
-				// Both next and previous are not undefined since item was neither head nor tail.
-				next!.previous = previous;
-				previous!.next = next;
+			} ewse {
+				// Both next and pwevious awe not undefined since item was neitha head now taiw.
+				next!.pwevious = pwevious;
+				pwevious!.next = next;
 			}
 			item.next = undefined;
-			item.previous = this._tail;
-			this._tail.next = item;
-			this._tail = item;
+			item.pwevious = this._taiw;
+			this._taiw.next = item;
+			this._taiw = item;
 			this._state++;
 		}
 	}
@@ -999,112 +999,112 @@ export class LinkedMap<K, V> implements Map<K, V> {
 	toJSON(): [K, V][] {
 		const data: [K, V][] = [];
 
-		this.forEach((value, key) => {
-			data.push([key, value]);
+		this.fowEach((vawue, key) => {
+			data.push([key, vawue]);
 		});
 
-		return data;
+		wetuwn data;
 	}
 
-	fromJSON(data: [K, V][]): void {
-		this.clear();
+	fwomJSON(data: [K, V][]): void {
+		this.cweaw();
 
-		for (const [key, value] of data) {
-			this.set(key, value);
+		fow (const [key, vawue] of data) {
+			this.set(key, vawue);
 		}
 	}
 }
 
-export class LRUCache<K, V> extends LinkedMap<K, V> {
+expowt cwass WWUCache<K, V> extends WinkedMap<K, V> {
 
-	private _limit: number;
-	private _ratio: number;
+	pwivate _wimit: numba;
+	pwivate _watio: numba;
 
-	constructor(limit: number, ratio: number = 1) {
-		super();
-		this._limit = limit;
-		this._ratio = Math.min(Math.max(0, ratio), 1);
+	constwuctow(wimit: numba, watio: numba = 1) {
+		supa();
+		this._wimit = wimit;
+		this._watio = Math.min(Math.max(0, watio), 1);
 	}
 
-	get limit(): number {
-		return this._limit;
+	get wimit(): numba {
+		wetuwn this._wimit;
 	}
 
-	set limit(limit: number) {
-		this._limit = limit;
-		this.checkTrim();
+	set wimit(wimit: numba) {
+		this._wimit = wimit;
+		this.checkTwim();
 	}
 
-	get ratio(): number {
-		return this._ratio;
+	get watio(): numba {
+		wetuwn this._watio;
 	}
 
-	set ratio(ratio: number) {
-		this._ratio = Math.min(Math.max(0, ratio), 1);
-		this.checkTrim();
+	set watio(watio: numba) {
+		this._watio = Math.min(Math.max(0, watio), 1);
+		this.checkTwim();
 	}
 
-	override get(key: K, touch: Touch = Touch.AsNew): V | undefined {
-		return super.get(key, touch);
+	ovewwide get(key: K, touch: Touch = Touch.AsNew): V | undefined {
+		wetuwn supa.get(key, touch);
 	}
 
 	peek(key: K): V | undefined {
-		return super.get(key, Touch.None);
+		wetuwn supa.get(key, Touch.None);
 	}
 
-	override set(key: K, value: V): this {
-		super.set(key, value, Touch.AsNew);
-		this.checkTrim();
-		return this;
+	ovewwide set(key: K, vawue: V): this {
+		supa.set(key, vawue, Touch.AsNew);
+		this.checkTwim();
+		wetuwn this;
 	}
 
-	private checkTrim() {
-		if (this.size > this._limit) {
-			this.trimOld(Math.round(this._limit * this._ratio));
+	pwivate checkTwim() {
+		if (this.size > this._wimit) {
+			this.twimOwd(Math.wound(this._wimit * this._watio));
 		}
 	}
 }
 
 /**
- * Wraps the map in type that only implements readonly properties. Useful
- * in the extension host to prevent the consumer from making any mutations.
+ * Wwaps the map in type that onwy impwements weadonwy pwopewties. Usefuw
+ * in the extension host to pwevent the consuma fwom making any mutations.
  */
-export class ReadonlyMapView<K, V> implements ReadonlyMap<K, V>{
-	readonly #source: ReadonlyMap<K, V>;
+expowt cwass WeadonwyMapView<K, V> impwements WeadonwyMap<K, V>{
+	weadonwy #souwce: WeadonwyMap<K, V>;
 
-	public get size() {
-		return this.#source.size;
+	pubwic get size() {
+		wetuwn this.#souwce.size;
 	}
 
-	constructor(source: ReadonlyMap<K, V>) {
-		this.#source = source;
+	constwuctow(souwce: WeadonwyMap<K, V>) {
+		this.#souwce = souwce;
 	}
 
-	forEach(callbackfn: (value: V, key: K, map: ReadonlyMap<K, V>) => void, thisArg?: any): void {
-		this.#source.forEach(callbackfn, thisArg);
+	fowEach(cawwbackfn: (vawue: V, key: K, map: WeadonwyMap<K, V>) => void, thisAwg?: any): void {
+		this.#souwce.fowEach(cawwbackfn, thisAwg);
 	}
 
 	get(key: K): V | undefined {
-		return this.#source.get(key);
+		wetuwn this.#souwce.get(key);
 	}
 
-	has(key: K): boolean {
-		return this.#source.has(key);
+	has(key: K): boowean {
+		wetuwn this.#souwce.has(key);
 	}
 
-	entries(): IterableIterator<[K, V]> {
-		return this.#source.entries();
+	entwies(): ItewabweItewatow<[K, V]> {
+		wetuwn this.#souwce.entwies();
 	}
 
-	keys(): IterableIterator<K> {
-		return this.#source.keys();
+	keys(): ItewabweItewatow<K> {
+		wetuwn this.#souwce.keys();
 	}
 
-	values(): IterableIterator<V> {
-		return this.#source.values();
+	vawues(): ItewabweItewatow<V> {
+		wetuwn this.#souwce.vawues();
 	}
 
-	[Symbol.iterator](): IterableIterator<[K, V]> {
-		return this.#source.entries();
+	[Symbow.itewatow](): ItewabweItewatow<[K, V]> {
+		wetuwn this.#souwce.entwies();
 	}
 }

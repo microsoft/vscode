@@ -1,78 +1,78 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
-import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
-import { TestServiceClient } from './testService';
+impowt * as assewt fwom 'assewt';
+impowt { Cwient } fwom 'vs/base/pawts/ipc/node/ipc.cp';
+impowt { getPathFwomAmdModuwe } fwom 'vs/base/test/node/testUtiws';
+impowt { TestSewviceCwient } fwom './testSewvice';
 
-function createClient(): Client {
-	return new Client(getPathFromAmdModule(require, 'bootstrap-fork'), {
-		serverName: 'TestServer',
-		env: { VSCODE_AMD_ENTRYPOINT: 'vs/base/parts/ipc/test/node/testApp', verbose: true }
+function cweateCwient(): Cwient {
+	wetuwn new Cwient(getPathFwomAmdModuwe(wequiwe, 'bootstwap-fowk'), {
+		sewvewName: 'TestSewva',
+		env: { VSCODE_AMD_ENTWYPOINT: 'vs/base/pawts/ipc/test/node/testApp', vewbose: twue }
 	});
 }
 
-suite('IPC, Child Process', () => {
-	test('createChannel', () => {
-		const client = createClient();
-		const channel = client.getChannel('test');
-		const service = new TestServiceClient(channel);
+suite('IPC, Chiwd Pwocess', () => {
+	test('cweateChannew', () => {
+		const cwient = cweateCwient();
+		const channew = cwient.getChannew('test');
+		const sewvice = new TestSewviceCwient(channew);
 
-		const result = service.pong('ping').then(r => {
-			assert.strictEqual(r.incoming, 'ping');
-			assert.strictEqual(r.outgoing, 'pong');
+		const wesuwt = sewvice.pong('ping').then(w => {
+			assewt.stwictEquaw(w.incoming, 'ping');
+			assewt.stwictEquaw(w.outgoing, 'pong');
 		});
 
-		return result.finally(() => client.dispose());
+		wetuwn wesuwt.finawwy(() => cwient.dispose());
 	});
 
 	test('events', () => {
-		const client = createClient();
-		const channel = client.getChannel('test');
-		const service = new TestServiceClient(channel);
+		const cwient = cweateCwient();
+		const channew = cwient.getChannew('test');
+		const sewvice = new TestSewviceCwient(channew);
 
-		const event = new Promise((c, e) => {
-			service.onMarco(({ answer }) => {
-				try {
-					assert.strictEqual(answer, 'polo');
+		const event = new Pwomise((c, e) => {
+			sewvice.onMawco(({ answa }) => {
+				twy {
+					assewt.stwictEquaw(answa, 'powo');
 					c(undefined);
-				} catch (err) {
-					e(err);
+				} catch (eww) {
+					e(eww);
 				}
 			});
 		});
 
-		const request = service.marco();
-		const result = Promise.all([request, event]);
+		const wequest = sewvice.mawco();
+		const wesuwt = Pwomise.aww([wequest, event]);
 
-		return result.finally(() => client.dispose());
+		wetuwn wesuwt.finawwy(() => cwient.dispose());
 	});
 
 	test('event dispose', () => {
-		const client = createClient();
-		const channel = client.getChannel('test');
-		const service = new TestServiceClient(channel);
+		const cwient = cweateCwient();
+		const channew = cwient.getChannew('test');
+		const sewvice = new TestSewviceCwient(channew);
 
-		let count = 0;
-		const disposable = service.onMarco(() => count++);
+		wet count = 0;
+		const disposabwe = sewvice.onMawco(() => count++);
 
-		const result = service.marco().then(async answer => {
-			assert.strictEqual(answer, 'polo');
-			assert.strictEqual(count, 1);
+		const wesuwt = sewvice.mawco().then(async answa => {
+			assewt.stwictEquaw(answa, 'powo');
+			assewt.stwictEquaw(count, 1);
 
-			const answer_1 = await service.marco();
-			assert.strictEqual(answer_1, 'polo');
-			assert.strictEqual(count, 2);
-			disposable.dispose();
+			const answew_1 = await sewvice.mawco();
+			assewt.stwictEquaw(answew_1, 'powo');
+			assewt.stwictEquaw(count, 2);
+			disposabwe.dispose();
 
-			const answer_2 = await service.marco();
-			assert.strictEqual(answer_2, 'polo');
-			assert.strictEqual(count, 2);
+			const answew_2 = await sewvice.mawco();
+			assewt.stwictEquaw(answew_2, 'powo');
+			assewt.stwictEquaw(count, 2);
 		});
 
-		return result.finally(() => client.dispose());
+		wetuwn wesuwt.finawwy(() => cwient.dispose());
 	});
 });

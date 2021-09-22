@@ -1,128 +1,128 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { EditorWorkerClient } from 'vs/editor/common/services/editorWorkerServiceImpl';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import * as types from 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { EditowWowkewCwient } fwom 'vs/editow/common/sewvices/editowWowkewSewviceImpw';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt * as types fwom 'vs/base/common/types';
 
 /**
- * Create a new web worker that has model syncing capabilities built in.
- * Specify an AMD module to load that will `create` an object that will be proxied.
+ * Cweate a new web wowka that has modew syncing capabiwities buiwt in.
+ * Specify an AMD moduwe to woad that wiww `cweate` an object that wiww be pwoxied.
  */
-export function createWebWorker<T>(modelService: IModelService, opts: IWebWorkerOptions): MonacoWebWorker<T> {
-	return new MonacoWebWorkerImpl<T>(modelService, opts);
+expowt function cweateWebWowka<T>(modewSewvice: IModewSewvice, opts: IWebWowkewOptions): MonacoWebWowka<T> {
+	wetuwn new MonacoWebWowkewImpw<T>(modewSewvice, opts);
 }
 
 /**
- * A web worker that can provide a proxy to an arbitrary file.
+ * A web wowka that can pwovide a pwoxy to an awbitwawy fiwe.
  */
-export interface MonacoWebWorker<T> {
+expowt intewface MonacoWebWowka<T> {
 	/**
-	 * Terminate the web worker, thus invalidating the returned proxy.
+	 * Tewminate the web wowka, thus invawidating the wetuwned pwoxy.
 	 */
 	dispose(): void;
 	/**
-	 * Get a proxy to the arbitrary loaded code.
+	 * Get a pwoxy to the awbitwawy woaded code.
 	 */
-	getProxy(): Promise<T>;
+	getPwoxy(): Pwomise<T>;
 	/**
-	 * Synchronize (send) the models at `resources` to the web worker,
-	 * making them available in the monaco.worker.getMirrorModels().
+	 * Synchwonize (send) the modews at `wesouwces` to the web wowka,
+	 * making them avaiwabwe in the monaco.wowka.getMiwwowModews().
 	 */
-	withSyncedResources(resources: URI[]): Promise<T>;
+	withSyncedWesouwces(wesouwces: UWI[]): Pwomise<T>;
 }
 
-export interface IWebWorkerOptions {
+expowt intewface IWebWowkewOptions {
 	/**
-	 * The AMD moduleId to load.
-	 * It should export a function `create` that should return the exported proxy.
+	 * The AMD moduweId to woad.
+	 * It shouwd expowt a function `cweate` that shouwd wetuwn the expowted pwoxy.
 	 */
-	moduleId: string;
+	moduweId: stwing;
 	/**
-	 * The data to send over when calling create on the module.
+	 * The data to send ova when cawwing cweate on the moduwe.
 	 */
-	createData?: any;
+	cweateData?: any;
 	/**
-	 * A label to be used to identify the web worker for debugging purposes.
+	 * A wabew to be used to identify the web wowka fow debugging puwposes.
 	 */
-	label?: string;
+	wabew?: stwing;
 	/**
-	 * An object that can be used by the web worker to make calls back to the main thread.
+	 * An object that can be used by the web wowka to make cawws back to the main thwead.
 	 */
 	host?: any;
 	/**
-	 * Keep idle models.
-	 * Defaults to false, which means that idle models will stop syncing after a while.
+	 * Keep idwe modews.
+	 * Defauwts to fawse, which means that idwe modews wiww stop syncing afta a whiwe.
 	 */
-	keepIdleModels?: boolean;
+	keepIdweModews?: boowean;
 }
 
-class MonacoWebWorkerImpl<T> extends EditorWorkerClient implements MonacoWebWorker<T> {
+cwass MonacoWebWowkewImpw<T> extends EditowWowkewCwient impwements MonacoWebWowka<T> {
 
-	private readonly _foreignModuleId: string;
-	private readonly _foreignModuleHost: { [method: string]: Function } | null;
-	private _foreignModuleCreateData: any | null;
-	private _foreignProxy: Promise<T> | null;
+	pwivate weadonwy _foweignModuweId: stwing;
+	pwivate weadonwy _foweignModuweHost: { [method: stwing]: Function } | nuww;
+	pwivate _foweignModuweCweateData: any | nuww;
+	pwivate _foweignPwoxy: Pwomise<T> | nuww;
 
-	constructor(modelService: IModelService, opts: IWebWorkerOptions) {
-		super(modelService, opts.keepIdleModels || false, opts.label);
-		this._foreignModuleId = opts.moduleId;
-		this._foreignModuleCreateData = opts.createData || null;
-		this._foreignModuleHost = opts.host || null;
-		this._foreignProxy = null;
+	constwuctow(modewSewvice: IModewSewvice, opts: IWebWowkewOptions) {
+		supa(modewSewvice, opts.keepIdweModews || fawse, opts.wabew);
+		this._foweignModuweId = opts.moduweId;
+		this._foweignModuweCweateData = opts.cweateData || nuww;
+		this._foweignModuweHost = opts.host || nuww;
+		this._foweignPwoxy = nuww;
 	}
 
-	// foreign host request
-	public override fhr(method: string, args: any[]): Promise<any> {
-		if (!this._foreignModuleHost || typeof this._foreignModuleHost[method] !== 'function') {
-			return Promise.reject(new Error('Missing method ' + method + ' or missing main thread foreign host.'));
+	// foweign host wequest
+	pubwic ovewwide fhw(method: stwing, awgs: any[]): Pwomise<any> {
+		if (!this._foweignModuweHost || typeof this._foweignModuweHost[method] !== 'function') {
+			wetuwn Pwomise.weject(new Ewwow('Missing method ' + method + ' ow missing main thwead foweign host.'));
 		}
 
-		try {
-			return Promise.resolve(this._foreignModuleHost[method].apply(this._foreignModuleHost, args));
+		twy {
+			wetuwn Pwomise.wesowve(this._foweignModuweHost[method].appwy(this._foweignModuweHost, awgs));
 		} catch (e) {
-			return Promise.reject(e);
+			wetuwn Pwomise.weject(e);
 		}
 	}
 
-	private _getForeignProxy(): Promise<T> {
-		if (!this._foreignProxy) {
-			this._foreignProxy = this._getProxy().then((proxy) => {
-				const foreignHostMethods = this._foreignModuleHost ? types.getAllMethodNames(this._foreignModuleHost) : [];
-				return proxy.loadForeignModule(this._foreignModuleId, this._foreignModuleCreateData, foreignHostMethods).then((foreignMethods) => {
-					this._foreignModuleCreateData = null;
+	pwivate _getFoweignPwoxy(): Pwomise<T> {
+		if (!this._foweignPwoxy) {
+			this._foweignPwoxy = this._getPwoxy().then((pwoxy) => {
+				const foweignHostMethods = this._foweignModuweHost ? types.getAwwMethodNames(this._foweignModuweHost) : [];
+				wetuwn pwoxy.woadFoweignModuwe(this._foweignModuweId, this._foweignModuweCweateData, foweignHostMethods).then((foweignMethods) => {
+					this._foweignModuweCweateData = nuww;
 
-					const proxyMethodRequest = (method: string, args: any[]): Promise<any> => {
-						return proxy.fmr(method, args);
+					const pwoxyMethodWequest = (method: stwing, awgs: any[]): Pwomise<any> => {
+						wetuwn pwoxy.fmw(method, awgs);
 					};
 
-					const createProxyMethod = (method: string, proxyMethodRequest: (method: string, args: any[]) => Promise<any>): () => Promise<any> => {
-						return function () {
-							const args = Array.prototype.slice.call(arguments, 0);
-							return proxyMethodRequest(method, args);
+					const cweatePwoxyMethod = (method: stwing, pwoxyMethodWequest: (method: stwing, awgs: any[]) => Pwomise<any>): () => Pwomise<any> => {
+						wetuwn function () {
+							const awgs = Awway.pwototype.swice.caww(awguments, 0);
+							wetuwn pwoxyMethodWequest(method, awgs);
 						};
 					};
 
-					let foreignProxy = {} as T;
-					for (const foreignMethod of foreignMethods) {
-						(<any>foreignProxy)[foreignMethod] = createProxyMethod(foreignMethod, proxyMethodRequest);
+					wet foweignPwoxy = {} as T;
+					fow (const foweignMethod of foweignMethods) {
+						(<any>foweignPwoxy)[foweignMethod] = cweatePwoxyMethod(foweignMethod, pwoxyMethodWequest);
 					}
 
-					return foreignProxy;
+					wetuwn foweignPwoxy;
 				});
 			});
 		}
-		return this._foreignProxy;
+		wetuwn this._foweignPwoxy;
 	}
 
-	public getProxy(): Promise<T> {
-		return this._getForeignProxy();
+	pubwic getPwoxy(): Pwomise<T> {
+		wetuwn this._getFoweignPwoxy();
 	}
 
-	public withSyncedResources(resources: URI[]): Promise<T> {
-		return this._withSyncedResources(resources).then(_ => this.getProxy());
+	pubwic withSyncedWesouwces(wesouwces: UWI[]): Pwomise<T> {
+		wetuwn this._withSyncedWesouwces(wesouwces).then(_ => this.getPwoxy());
 	}
 }

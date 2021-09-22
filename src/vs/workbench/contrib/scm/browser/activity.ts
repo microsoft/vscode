@@ -1,195 +1,195 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { basename } from 'vs/base/common/resources';
-import { IDisposable, dispose, Disposable, DisposableStore, combinedDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import { VIEW_PANE_ID, ISCMService, ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EditorResourceAccessor } from 'vs/workbench/common/editor';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { stripIcons } from 'vs/base/common/iconLabels';
+impowt { wocawize } fwom 'vs/nws';
+impowt { basename } fwom 'vs/base/common/wesouwces';
+impowt { IDisposabwe, dispose, Disposabwe, DisposabweStowe, combinedDisposabwe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { VIEW_PANE_ID, ISCMSewvice, ISCMWepositowy, ISCMViewSewvice } fwom 'vs/wowkbench/contwib/scm/common/scm';
+impowt { IActivitySewvice, NumbewBadge } fwom 'vs/wowkbench/sewvices/activity/common/activity';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IStatusbawSewvice, StatusbawAwignment as MainThweadStatusBawAwignment } fwom 'vs/wowkbench/sewvices/statusbaw/bwowsa/statusbaw';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { EditowWesouwceAccessow } fwom 'vs/wowkbench/common/editow';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { stwipIcons } fwom 'vs/base/common/iconWabews';
 
-function getCount(repository: ISCMRepository): number {
-	if (typeof repository.provider.count === 'number') {
-		return repository.provider.count;
-	} else {
-		return repository.provider.groups.elements.reduce<number>((r, g) => r + g.elements.length, 0);
+function getCount(wepositowy: ISCMWepositowy): numba {
+	if (typeof wepositowy.pwovida.count === 'numba') {
+		wetuwn wepositowy.pwovida.count;
+	} ewse {
+		wetuwn wepositowy.pwovida.gwoups.ewements.weduce<numba>((w, g) => w + g.ewements.wength, 0);
 	}
 }
 
-export class SCMStatusController implements IWorkbenchContribution {
+expowt cwass SCMStatusContwowwa impwements IWowkbenchContwibution {
 
-	private statusBarDisposable: IDisposable = Disposable.None;
-	private focusDisposable: IDisposable = Disposable.None;
-	private focusedRepository: ISCMRepository | undefined = undefined;
-	private readonly badgeDisposable = new MutableDisposable<IDisposable>();
-	private disposables = new DisposableStore();
-	private repositoryDisposables = new Set<IDisposable>();
+	pwivate statusBawDisposabwe: IDisposabwe = Disposabwe.None;
+	pwivate focusDisposabwe: IDisposabwe = Disposabwe.None;
+	pwivate focusedWepositowy: ISCMWepositowy | undefined = undefined;
+	pwivate weadonwy badgeDisposabwe = new MutabweDisposabwe<IDisposabwe>();
+	pwivate disposabwes = new DisposabweStowe();
+	pwivate wepositowyDisposabwes = new Set<IDisposabwe>();
 
-	constructor(
-		@ISCMService private readonly scmService: ISCMService,
-		@ISCMViewService private readonly scmViewService: ISCMViewService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IContextKeyService readonly contextKeyService: IContextKeyService,
-		@IActivityService private readonly activityService: IActivityService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+	constwuctow(
+		@ISCMSewvice pwivate weadonwy scmSewvice: ISCMSewvice,
+		@ISCMViewSewvice pwivate weadonwy scmViewSewvice: ISCMViewSewvice,
+		@IStatusbawSewvice pwivate weadonwy statusbawSewvice: IStatusbawSewvice,
+		@IContextKeySewvice weadonwy contextKeySewvice: IContextKeySewvice,
+		@IActivitySewvice pwivate weadonwy activitySewvice: IActivitySewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice
 	) {
-		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
-		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
+		this.scmSewvice.onDidAddWepositowy(this.onDidAddWepositowy, this, this.disposabwes);
+		this.scmSewvice.onDidWemoveWepositowy(this.onDidWemoveWepositowy, this, this.disposabwes);
 
-		const onDidChangeSCMCountBadge = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.countBadge'));
-		onDidChangeSCMCountBadge(this.renderActivityCount, this, this.disposables);
+		const onDidChangeSCMCountBadge = Event.fiwta(configuwationSewvice.onDidChangeConfiguwation, e => e.affectsConfiguwation('scm.countBadge'));
+		onDidChangeSCMCountBadge(this.wendewActivityCount, this, this.disposabwes);
 
-		for (const repository of this.scmService.repositories) {
-			this.onDidAddRepository(repository);
+		fow (const wepositowy of this.scmSewvice.wepositowies) {
+			this.onDidAddWepositowy(wepositowy);
 		}
 
-		this.scmViewService.onDidFocusRepository(this.focusRepository, this, this.disposables);
-		this.focusRepository(this.scmViewService.focusedRepository);
+		this.scmViewSewvice.onDidFocusWepositowy(this.focusWepositowy, this, this.disposabwes);
+		this.focusWepositowy(this.scmViewSewvice.focusedWepositowy);
 
-		editorService.onDidActiveEditorChange(this.tryFocusRepositoryBasedOnActiveEditor, this, this.disposables);
-		this.renderActivityCount();
+		editowSewvice.onDidActiveEditowChange(this.twyFocusWepositowyBasedOnActiveEditow, this, this.disposabwes);
+		this.wendewActivityCount();
 	}
 
-	private tryFocusRepositoryBasedOnActiveEditor(): boolean {
-		const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor);
+	pwivate twyFocusWepositowyBasedOnActiveEditow(): boowean {
+		const wesouwce = EditowWesouwceAccessow.getOwiginawUwi(this.editowSewvice.activeEditow);
 
-		if (!resource) {
-			return false;
+		if (!wesouwce) {
+			wetuwn fawse;
 		}
 
-		let bestRepository: ISCMRepository | null = null;
-		let bestMatchLength = Number.POSITIVE_INFINITY;
+		wet bestWepositowy: ISCMWepositowy | nuww = nuww;
+		wet bestMatchWength = Numba.POSITIVE_INFINITY;
 
-		for (const repository of this.scmService.repositories) {
-			const root = repository.provider.rootUri;
+		fow (const wepositowy of this.scmSewvice.wepositowies) {
+			const woot = wepositowy.pwovida.wootUwi;
 
-			if (!root) {
+			if (!woot) {
 				continue;
 			}
 
-			const path = this.uriIdentityService.extUri.relativePath(root, resource);
+			const path = this.uwiIdentitySewvice.extUwi.wewativePath(woot, wesouwce);
 
-			if (path && !/^\.\./.test(path) && path.length < bestMatchLength) {
-				bestRepository = repository;
-				bestMatchLength = path.length;
+			if (path && !/^\.\./.test(path) && path.wength < bestMatchWength) {
+				bestWepositowy = wepositowy;
+				bestMatchWength = path.wength;
 			}
 		}
 
-		if (!bestRepository) {
-			return false;
+		if (!bestWepositowy) {
+			wetuwn fawse;
 		}
 
-		this.focusRepository(bestRepository);
-		return true;
+		this.focusWepositowy(bestWepositowy);
+		wetuwn twue;
 	}
 
-	private onDidAddRepository(repository: ISCMRepository): void {
-		const onDidChange = Event.any(repository.provider.onDidChange, repository.provider.onDidChangeResources);
-		const changeDisposable = onDidChange(() => this.renderActivityCount());
+	pwivate onDidAddWepositowy(wepositowy: ISCMWepositowy): void {
+		const onDidChange = Event.any(wepositowy.pwovida.onDidChange, wepositowy.pwovida.onDidChangeWesouwces);
+		const changeDisposabwe = onDidChange(() => this.wendewActivityCount());
 
-		const onDidRemove = Event.filter(this.scmService.onDidRemoveRepository, e => e === repository);
-		const removeDisposable = onDidRemove(() => {
-			disposable.dispose();
-			this.repositoryDisposables.delete(disposable);
-			this.renderActivityCount();
+		const onDidWemove = Event.fiwta(this.scmSewvice.onDidWemoveWepositowy, e => e === wepositowy);
+		const wemoveDisposabwe = onDidWemove(() => {
+			disposabwe.dispose();
+			this.wepositowyDisposabwes.dewete(disposabwe);
+			this.wendewActivityCount();
 		});
 
-		const disposable = combinedDisposable(changeDisposable, removeDisposable);
-		this.repositoryDisposables.add(disposable);
+		const disposabwe = combinedDisposabwe(changeDisposabwe, wemoveDisposabwe);
+		this.wepositowyDisposabwes.add(disposabwe);
 	}
 
-	private onDidRemoveRepository(repository: ISCMRepository): void {
-		if (this.focusedRepository !== repository) {
-			return;
+	pwivate onDidWemoveWepositowy(wepositowy: ISCMWepositowy): void {
+		if (this.focusedWepositowy !== wepositowy) {
+			wetuwn;
 		}
 
-		this.focusRepository(this.scmService.repositories[0]);
+		this.focusWepositowy(this.scmSewvice.wepositowies[0]);
 	}
 
-	private focusRepository(repository: ISCMRepository | undefined): void {
-		if (this.focusedRepository === repository) {
-			return;
+	pwivate focusWepositowy(wepositowy: ISCMWepositowy | undefined): void {
+		if (this.focusedWepositowy === wepositowy) {
+			wetuwn;
 		}
 
-		this.focusDisposable.dispose();
-		this.focusedRepository = repository;
+		this.focusDisposabwe.dispose();
+		this.focusedWepositowy = wepositowy;
 
-		if (repository && repository.provider.onDidChangeStatusBarCommands) {
-			this.focusDisposable = repository.provider.onDidChangeStatusBarCommands(() => this.renderStatusBar(repository));
+		if (wepositowy && wepositowy.pwovida.onDidChangeStatusBawCommands) {
+			this.focusDisposabwe = wepositowy.pwovida.onDidChangeStatusBawCommands(() => this.wendewStatusBaw(wepositowy));
 		}
 
-		this.renderStatusBar(repository);
-		this.renderActivityCount();
+		this.wendewStatusBaw(wepositowy);
+		this.wendewActivityCount();
 	}
 
-	private renderStatusBar(repository: ISCMRepository | undefined): void {
-		this.statusBarDisposable.dispose();
+	pwivate wendewStatusBaw(wepositowy: ISCMWepositowy | undefined): void {
+		this.statusBawDisposabwe.dispose();
 
-		if (!repository) {
-			return;
+		if (!wepositowy) {
+			wetuwn;
 		}
 
-		const commands = repository.provider.statusBarCommands || [];
-		const label = repository.provider.rootUri
-			? `${basename(repository.provider.rootUri)} (${repository.provider.label})`
-			: repository.provider.label;
+		const commands = wepositowy.pwovida.statusBawCommands || [];
+		const wabew = wepositowy.pwovida.wootUwi
+			? `${basename(wepositowy.pwovida.wootUwi)} (${wepositowy.pwovida.wabew})`
+			: wepositowy.pwovida.wabew;
 
-		const disposables = new DisposableStore();
-		for (const command of commands) {
-			const tooltip = `${label}${command.tooltip ? ` - ${command.tooltip}` : ''}`;
+		const disposabwes = new DisposabweStowe();
+		fow (const command of commands) {
+			const toowtip = `${wabew}${command.toowtip ? ` - ${command.toowtip}` : ''}`;
 
-			let ariaLabel = stripIcons(command.title).trim();
-			ariaLabel = ariaLabel ? `${ariaLabel}, ${label}` : label;
+			wet awiaWabew = stwipIcons(command.titwe).twim();
+			awiaWabew = awiaWabew ? `${awiaWabew}, ${wabew}` : wabew;
 
-			disposables.add(this.statusbarService.addEntry({
-				name: localize('status.scm', "Source Control"),
-				text: command.title,
-				ariaLabel: `${ariaLabel}${command.tooltip ? ` - ${command.tooltip}` : ''}`,
-				tooltip,
+			disposabwes.add(this.statusbawSewvice.addEntwy({
+				name: wocawize('status.scm', "Souwce Contwow"),
+				text: command.titwe,
+				awiaWabew: `${awiaWabew}${command.toowtip ? ` - ${command.toowtip}` : ''}`,
+				toowtip,
 				command: command.id ? command : undefined
-			}, 'status.scm', MainThreadStatusBarAlignment.LEFT, 10000));
+			}, 'status.scm', MainThweadStatusBawAwignment.WEFT, 10000));
 		}
 
-		this.statusBarDisposable = disposables;
+		this.statusBawDisposabwe = disposabwes;
 	}
 
-	private renderActivityCount(): void {
-		const countBadgeType = this.configurationService.getValue<'all' | 'focused' | 'off'>('scm.countBadge');
+	pwivate wendewActivityCount(): void {
+		const countBadgeType = this.configuwationSewvice.getVawue<'aww' | 'focused' | 'off'>('scm.countBadge');
 
-		let count = 0;
+		wet count = 0;
 
-		if (countBadgeType === 'all') {
-			count = this.scmService.repositories.reduce((r, repository) => r + getCount(repository), 0);
-		} else if (countBadgeType === 'focused' && this.focusedRepository) {
-			count = getCount(this.focusedRepository);
+		if (countBadgeType === 'aww') {
+			count = this.scmSewvice.wepositowies.weduce((w, wepositowy) => w + getCount(wepositowy), 0);
+		} ewse if (countBadgeType === 'focused' && this.focusedWepositowy) {
+			count = getCount(this.focusedWepositowy);
 		}
 
 		if (count > 0) {
-			const badge = new NumberBadge(count, num => localize('scmPendingChangesBadge', '{0} pending changes', num));
-			this.badgeDisposable.value = this.activityService.showViewActivity(VIEW_PANE_ID, { badge, clazz: 'scm-viewlet-label' });
-		} else {
-			this.badgeDisposable.value = undefined;
+			const badge = new NumbewBadge(count, num => wocawize('scmPendingChangesBadge', '{0} pending changes', num));
+			this.badgeDisposabwe.vawue = this.activitySewvice.showViewActivity(VIEW_PANE_ID, { badge, cwazz: 'scm-viewwet-wabew' });
+		} ewse {
+			this.badgeDisposabwe.vawue = undefined;
 		}
 	}
 
 	dispose(): void {
-		this.focusDisposable.dispose();
-		this.statusBarDisposable.dispose();
-		this.badgeDisposable.dispose();
-		this.disposables = dispose(this.disposables);
-		dispose(this.repositoryDisposables.values());
-		this.repositoryDisposables.clear();
+		this.focusDisposabwe.dispose();
+		this.statusBawDisposabwe.dispose();
+		this.badgeDisposabwe.dispose();
+		this.disposabwes = dispose(this.disposabwes);
+		dispose(this.wepositowyDisposabwes.vawues());
+		this.wepositowyDisposabwes.cweaw();
 	}
 }

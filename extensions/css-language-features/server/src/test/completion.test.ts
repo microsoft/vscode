@@ -1,204 +1,204 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import 'mocha';
-import * as assert from 'assert';
-import * as path from 'path';
-import { URI } from 'vscode-uri';
-import { TextDocument, CompletionList, TextEdit } from 'vscode-languageserver-types';
-import { WorkspaceFolder } from 'vscode-languageserver-protocol';
-import { getCSSLanguageService, LanguageServiceOptions, getSCSSLanguageService } from 'vscode-css-languageservice';
-import { getNodeFSRequestService } from '../node/nodeFs';
-import { getDocumentContext } from '../utils/documentContext';
+impowt 'mocha';
+impowt * as assewt fwom 'assewt';
+impowt * as path fwom 'path';
+impowt { UWI } fwom 'vscode-uwi';
+impowt { TextDocument, CompwetionWist, TextEdit } fwom 'vscode-wanguagesewva-types';
+impowt { WowkspaceFowda } fwom 'vscode-wanguagesewva-pwotocow';
+impowt { getCSSWanguageSewvice, WanguageSewviceOptions, getSCSSWanguageSewvice } fwom 'vscode-css-wanguagesewvice';
+impowt { getNodeFSWequestSewvice } fwom '../node/nodeFs';
+impowt { getDocumentContext } fwom '../utiws/documentContext';
 
-export interface ItemDescription {
-	label: string;
-	resultText?: string;
+expowt intewface ItemDescwiption {
+	wabew: stwing;
+	wesuwtText?: stwing;
 }
 
-suite('Completions', () => {
+suite('Compwetions', () => {
 
-	let assertCompletion = function (completions: CompletionList, expected: ItemDescription, document: TextDocument, _offset: number) {
-		let matches = completions.items.filter(completion => {
-			return completion.label === expected.label;
+	wet assewtCompwetion = function (compwetions: CompwetionWist, expected: ItemDescwiption, document: TextDocument, _offset: numba) {
+		wet matches = compwetions.items.fiwta(compwetion => {
+			wetuwn compwetion.wabew === expected.wabew;
 		});
 
-		assert.strictEqual(matches.length, 1, `${expected.label} should only existing once: Actual: ${completions.items.map(c => c.label).join(', ')}`);
-		let match = matches[0];
-		if (expected.resultText && TextEdit.is(match.textEdit)) {
-			assert.strictEqual(TextDocument.applyEdits(document, [match.textEdit]), expected.resultText);
+		assewt.stwictEquaw(matches.wength, 1, `${expected.wabew} shouwd onwy existing once: Actuaw: ${compwetions.items.map(c => c.wabew).join(', ')}`);
+		wet match = matches[0];
+		if (expected.wesuwtText && TextEdit.is(match.textEdit)) {
+			assewt.stwictEquaw(TextDocument.appwyEdits(document, [match.textEdit]), expected.wesuwtText);
 		}
 	};
 
-	async function assertCompletions(value: string, expected: { count?: number, items?: ItemDescription[] }, testUri: string, workspaceFolders?: WorkspaceFolder[], lang: string = 'css'): Promise<any> {
-		const offset = value.indexOf('|');
-		value = value.substr(0, offset) + value.substr(offset + 1);
+	async function assewtCompwetions(vawue: stwing, expected: { count?: numba, items?: ItemDescwiption[] }, testUwi: stwing, wowkspaceFowdews?: WowkspaceFowda[], wang: stwing = 'css'): Pwomise<any> {
+		const offset = vawue.indexOf('|');
+		vawue = vawue.substw(0, offset) + vawue.substw(offset + 1);
 
-		const document = TextDocument.create(testUri, lang, 0, value);
+		const document = TextDocument.cweate(testUwi, wang, 0, vawue);
 		const position = document.positionAt(offset);
 
-		if (!workspaceFolders) {
-			workspaceFolders = [{ name: 'x', uri: testUri.substr(0, testUri.lastIndexOf('/')) }];
+		if (!wowkspaceFowdews) {
+			wowkspaceFowdews = [{ name: 'x', uwi: testUwi.substw(0, testUwi.wastIndexOf('/')) }];
 		}
 
-		const lsOptions: LanguageServiceOptions = { fileSystemProvider: getNodeFSRequestService() };
-		const cssLanguageService = lang === 'scss' ? getSCSSLanguageService(lsOptions) : getCSSLanguageService(lsOptions);
+		const wsOptions: WanguageSewviceOptions = { fiweSystemPwovida: getNodeFSWequestSewvice() };
+		const cssWanguageSewvice = wang === 'scss' ? getSCSSWanguageSewvice(wsOptions) : getCSSWanguageSewvice(wsOptions);
 
-		const context = getDocumentContext(testUri, workspaceFolders);
-		const stylesheet = cssLanguageService.parseStylesheet(document);
-		let list = await cssLanguageService.doComplete2(document, position, stylesheet, context);
+		const context = getDocumentContext(testUwi, wowkspaceFowdews);
+		const stywesheet = cssWanguageSewvice.pawseStywesheet(document);
+		wet wist = await cssWanguageSewvice.doCompwete2(document, position, stywesheet, context);
 
 		if (expected.count) {
-			assert.strictEqual(list.items.length, expected.count);
+			assewt.stwictEquaw(wist.items.wength, expected.count);
 		}
 		if (expected.items) {
-			for (let item of expected.items) {
-				assertCompletion(list, item, document, offset);
+			fow (wet item of expected.items) {
+				assewtCompwetion(wist, item, document, offset);
 			}
 		}
 	}
 
-	test('CSS url() Path completion', async function () {
-		let testUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
-		let folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString() }];
+	test('CSS uww() Path compwetion', async function () {
+		wet testUwi = UWI.fiwe(path.wesowve(__diwname, '../../test/pathCompwetionFixtuwes/about/about.css')).toStwing();
+		wet fowdews = [{ name: 'x', uwi: UWI.fiwe(path.wesowve(__diwname, '../../test')).toStwing() }];
 
-		await assertCompletions('html { background-image: url("./|")', {
+		await assewtCompwetions('htmw { backgwound-image: uww("./|")', {
 			items: [
-				{ label: 'about.html', resultText: 'html { background-image: url("./about.html")' }
+				{ wabew: 'about.htmw', wesuwtText: 'htmw { backgwound-image: uww("./about.htmw")' }
 			]
-		}, testUri, folders);
+		}, testUwi, fowdews);
 
-		await assertCompletions(`html { background-image: url('../|')`, {
+		await assewtCompwetions(`htmw { backgwound-image: uww('../|')`, {
 			items: [
-				{ label: 'about/', resultText: `html { background-image: url('../about/')` },
-				{ label: 'index.html', resultText: `html { background-image: url('../index.html')` },
-				{ label: 'src/', resultText: `html { background-image: url('../src/')` }
+				{ wabew: 'about/', wesuwtText: `htmw { backgwound-image: uww('../about/')` },
+				{ wabew: 'index.htmw', wesuwtText: `htmw { backgwound-image: uww('../index.htmw')` },
+				{ wabew: 'swc/', wesuwtText: `htmw { backgwound-image: uww('../swc/')` }
 			]
-		}, testUri, folders);
+		}, testUwi, fowdews);
 
-		await assertCompletions(`html { background-image: url('../src/a|')`, {
+		await assewtCompwetions(`htmw { backgwound-image: uww('../swc/a|')`, {
 			items: [
-				{ label: 'feature.js', resultText: `html { background-image: url('../src/feature.js')` },
-				{ label: 'data/', resultText: `html { background-image: url('../src/data/')` },
-				{ label: 'test.js', resultText: `html { background-image: url('../src/test.js')` }
+				{ wabew: 'featuwe.js', wesuwtText: `htmw { backgwound-image: uww('../swc/featuwe.js')` },
+				{ wabew: 'data/', wesuwtText: `htmw { backgwound-image: uww('../swc/data/')` },
+				{ wabew: 'test.js', wesuwtText: `htmw { backgwound-image: uww('../swc/test.js')` }
 			]
-		}, testUri, folders);
+		}, testUwi, fowdews);
 
-		await assertCompletions(`html { background-image: url('../src/data/f|.asar')`, {
+		await assewtCompwetions(`htmw { backgwound-image: uww('../swc/data/f|.asaw')`, {
 			items: [
-				{ label: 'foo.asar', resultText: `html { background-image: url('../src/data/foo.asar')` }
+				{ wabew: 'foo.asaw', wesuwtText: `htmw { backgwound-image: uww('../swc/data/foo.asaw')` }
 			]
-		}, testUri, folders);
+		}, testUwi, fowdews);
 
-		await assertCompletions(`html { background-image: url('|')`, {
+		await assewtCompwetions(`htmw { backgwound-image: uww('|')`, {
 			items: [
-				{ label: 'about.html', resultText: `html { background-image: url('about.html')` },
+				{ wabew: 'about.htmw', wesuwtText: `htmw { backgwound-image: uww('about.htmw')` },
 			]
-		}, testUri, folders);
+		}, testUwi, fowdews);
 
-		await assertCompletions(`html { background-image: url('/|')`, {
+		await assewtCompwetions(`htmw { backgwound-image: uww('/|')`, {
 			items: [
-				{ label: 'pathCompletionFixtures/', resultText: `html { background-image: url('/pathCompletionFixtures/')` }
+				{ wabew: 'pathCompwetionFixtuwes/', wesuwtText: `htmw { backgwound-image: uww('/pathCompwetionFixtuwes/')` }
 			]
-		}, testUri, folders);
+		}, testUwi, fowdews);
 
-		await assertCompletions(`html { background-image: url('/pathCompletionFixtures/|')`, {
+		await assewtCompwetions(`htmw { backgwound-image: uww('/pathCompwetionFixtuwes/|')`, {
 			items: [
-				{ label: 'about/', resultText: `html { background-image: url('/pathCompletionFixtures/about/')` },
-				{ label: 'index.html', resultText: `html { background-image: url('/pathCompletionFixtures/index.html')` },
-				{ label: 'src/', resultText: `html { background-image: url('/pathCompletionFixtures/src/')` }
+				{ wabew: 'about/', wesuwtText: `htmw { backgwound-image: uww('/pathCompwetionFixtuwes/about/')` },
+				{ wabew: 'index.htmw', wesuwtText: `htmw { backgwound-image: uww('/pathCompwetionFixtuwes/index.htmw')` },
+				{ wabew: 'swc/', wesuwtText: `htmw { backgwound-image: uww('/pathCompwetionFixtuwes/swc/')` }
 			]
-		}, testUri, folders);
+		}, testUwi, fowdews);
 
-		await assertCompletions(`html { background-image: url("/|")`, {
+		await assewtCompwetions(`htmw { backgwound-image: uww("/|")`, {
 			items: [
-				{ label: 'pathCompletionFixtures/', resultText: `html { background-image: url("/pathCompletionFixtures/")` }
+				{ wabew: 'pathCompwetionFixtuwes/', wesuwtText: `htmw { backgwound-image: uww("/pathCompwetionFixtuwes/")` }
 			]
-		}, testUri, folders);
+		}, testUwi, fowdews);
 	});
 
-	test('CSS url() Path Completion - Unquoted url', async function () {
-		let testUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
-		let folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString() }];
+	test('CSS uww() Path Compwetion - Unquoted uww', async function () {
+		wet testUwi = UWI.fiwe(path.wesowve(__diwname, '../../test/pathCompwetionFixtuwes/about/about.css')).toStwing();
+		wet fowdews = [{ name: 'x', uwi: UWI.fiwe(path.wesowve(__diwname, '../../test')).toStwing() }];
 
-		await assertCompletions('html { background-image: url(./|)', {
+		await assewtCompwetions('htmw { backgwound-image: uww(./|)', {
 			items: [
-				{ label: 'about.html', resultText: 'html { background-image: url(./about.html)' }
+				{ wabew: 'about.htmw', wesuwtText: 'htmw { backgwound-image: uww(./about.htmw)' }
 			]
-		}, testUri, folders);
+		}, testUwi, fowdews);
 
-		await assertCompletions('html { background-image: url(./a|)', {
+		await assewtCompwetions('htmw { backgwound-image: uww(./a|)', {
 			items: [
-				{ label: 'about.html', resultText: 'html { background-image: url(./about.html)' }
+				{ wabew: 'about.htmw', wesuwtText: 'htmw { backgwound-image: uww(./about.htmw)' }
 			]
-		}, testUri, folders);
+		}, testUwi, fowdews);
 
-		await assertCompletions('html { background-image: url(../|src/)', {
+		await assewtCompwetions('htmw { backgwound-image: uww(../|swc/)', {
 			items: [
-				{ label: 'about/', resultText: 'html { background-image: url(../about/)' }
+				{ wabew: 'about/', wesuwtText: 'htmw { backgwound-image: uww(../about/)' }
 			]
-		}, testUri, folders);
+		}, testUwi, fowdews);
 
-		await assertCompletions('html { background-image: url(../s|rc/)', {
+		await assewtCompwetions('htmw { backgwound-image: uww(../s|wc/)', {
 			items: [
-				{ label: 'about/', resultText: 'html { background-image: url(../about/)' }
+				{ wabew: 'about/', wesuwtText: 'htmw { backgwound-image: uww(../about/)' }
 			]
-		}, testUri, folders);
+		}, testUwi, fowdews);
 	});
 
-	test('CSS @import Path completion', async function () {
-		let testUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
-		let folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString() }];
+	test('CSS @impowt Path compwetion', async function () {
+		wet testUwi = UWI.fiwe(path.wesowve(__diwname, '../../test/pathCompwetionFixtuwes/about/about.css')).toStwing();
+		wet fowdews = [{ name: 'x', uwi: UWI.fiwe(path.wesowve(__diwname, '../../test')).toStwing() }];
 
-		await assertCompletions(`@import './|'`, {
+		await assewtCompwetions(`@impowt './|'`, {
 			items: [
-				{ label: 'about.html', resultText: `@import './about.html'` },
+				{ wabew: 'about.htmw', wesuwtText: `@impowt './about.htmw'` },
 			]
-		}, testUri, folders);
+		}, testUwi, fowdews);
 
-		await assertCompletions(`@import '../|'`, {
+		await assewtCompwetions(`@impowt '../|'`, {
 			items: [
-				{ label: 'about/', resultText: `@import '../about/'` },
-				{ label: 'scss/', resultText: `@import '../scss/'` },
-				{ label: 'index.html', resultText: `@import '../index.html'` },
-				{ label: 'src/', resultText: `@import '../src/'` }
+				{ wabew: 'about/', wesuwtText: `@impowt '../about/'` },
+				{ wabew: 'scss/', wesuwtText: `@impowt '../scss/'` },
+				{ wabew: 'index.htmw', wesuwtText: `@impowt '../index.htmw'` },
+				{ wabew: 'swc/', wesuwtText: `@impowt '../swc/'` }
 			]
-		}, testUri, folders);
+		}, testUwi, fowdews);
 	});
 
 	/**
-	 * For SCSS, `@import 'foo';` can be used for importing partial file `_foo.scss`
+	 * Fow SCSS, `@impowt 'foo';` can be used fow impowting pawtiaw fiwe `_foo.scss`
 	 */
-	test('SCSS @import Path completion', async function () {
-		let testCSSUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
-		let folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString() }];
+	test('SCSS @impowt Path compwetion', async function () {
+		wet testCSSUwi = UWI.fiwe(path.wesowve(__diwname, '../../test/pathCompwetionFixtuwes/about/about.css')).toStwing();
+		wet fowdews = [{ name: 'x', uwi: UWI.fiwe(path.wesowve(__diwname, '../../test')).toStwing() }];
 
 		/**
-		 * We are in a CSS file, so no special treatment for SCSS partial files
+		 * We awe in a CSS fiwe, so no speciaw tweatment fow SCSS pawtiaw fiwes
 		*/
-		await assertCompletions(`@import '../scss/|'`, {
+		await assewtCompwetions(`@impowt '../scss/|'`, {
 			items: [
-				{ label: 'main.scss', resultText: `@import '../scss/main.scss'` },
-				{ label: '_foo.scss', resultText: `@import '../scss/_foo.scss'` }
+				{ wabew: 'main.scss', wesuwtText: `@impowt '../scss/main.scss'` },
+				{ wabew: '_foo.scss', wesuwtText: `@impowt '../scss/_foo.scss'` }
 			]
-		}, testCSSUri, folders);
+		}, testCSSUwi, fowdews);
 
-		let testSCSSUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/scss/main.scss')).toString();
-		await assertCompletions(`@import './|'`, {
+		wet testSCSSUwi = UWI.fiwe(path.wesowve(__diwname, '../../test/pathCompwetionFixtuwes/scss/main.scss')).toStwing();
+		await assewtCompwetions(`@impowt './|'`, {
 			items: [
-				{ label: '_foo.scss', resultText: `@import './foo'` }
+				{ wabew: '_foo.scss', wesuwtText: `@impowt './foo'` }
 			]
-		}, testSCSSUri, folders, 'scss');
+		}, testSCSSUwi, fowdews, 'scss');
 	});
 
-	test('Completion should ignore files/folders starting with dot', async function () {
-		let testUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
-		let folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString() }];
+	test('Compwetion shouwd ignowe fiwes/fowdews stawting with dot', async function () {
+		wet testUwi = UWI.fiwe(path.wesowve(__diwname, '../../test/pathCompwetionFixtuwes/about/about.css')).toStwing();
+		wet fowdews = [{ name: 'x', uwi: UWI.fiwe(path.wesowve(__diwname, '../../test')).toStwing() }];
 
-		await assertCompletions('html { background-image: url("../|")', {
+		await assewtCompwetions('htmw { backgwound-image: uww("../|")', {
 			count: 4
-		}, testUri, folders);
+		}, testUwi, fowdews);
 
 	});
 });

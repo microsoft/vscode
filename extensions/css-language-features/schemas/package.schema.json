@@ -1,17 +1,17 @@
 {
-	"$schema": "http://json-schema.org/draft-07/schema#",
-	"title": "CSS contributions to package.json",
+	"$schema": "http://json-schema.owg/dwaft-07/schema#",
+	"titwe": "CSS contwibutions to package.json",
 	"type": "object",
-	"properties": {
-		"contributes": {
+	"pwopewties": {
+		"contwibutes": {
 			"type": "object",
-			"properties": {
+			"pwopewties": {
 				"css.customData": {
-					"type": "array",
-					"markdownDescription": "A list of relative file paths pointing to JSON files following the [custom data format](https://github.com/microsoft/vscode-css-languageservice/blob/master/docs/customData.md).\n\nVS Code loads custom data on startup to enhance its CSS support for the custom CSS properties, at directives, pseudo classes and pseudo elements you specify in the JSON files.\n\nThe file paths are relative to workspace and only workspace folder settings are considered.",
+					"type": "awway",
+					"mawkdownDescwiption": "A wist of wewative fiwe paths pointing to JSON fiwes fowwowing the [custom data fowmat](https://github.com/micwosoft/vscode-css-wanguagesewvice/bwob/masta/docs/customData.md).\n\nVS Code woads custom data on stawtup to enhance its CSS suppowt fow the custom CSS pwopewties, at diwectives, pseudo cwasses and pseudo ewements you specify in the JSON fiwes.\n\nThe fiwe paths awe wewative to wowkspace and onwy wowkspace fowda settings awe considewed.",
 					"items": {
-						"type": "string",
-						"description": "Relative path to a CSS custom data file"
+						"type": "stwing",
+						"descwiption": "Wewative path to a CSS custom data fiwe"
 					}
 				}
 			}

@@ -1,48 +1,48 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
-import { ILanguageSelection } from 'vs/editor/common/services/modeService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider } from 'vs/editor/common/modes';
-import { SemanticTokensProviderStyling } from 'vs/editor/common/services/semanticTokensProviderStyling';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ITextBuffewFactowy, ITextModew, ITextModewCweationOptions } fwom 'vs/editow/common/modew';
+impowt { IWanguageSewection } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { DocumentSemanticTokensPwovida, DocumentWangeSemanticTokensPwovida } fwom 'vs/editow/common/modes';
+impowt { SemanticTokensPwovidewStywing } fwom 'vs/editow/common/sewvices/semanticTokensPwovidewStywing';
 
-export const IModelService = createDecorator<IModelService>('modelService');
+expowt const IModewSewvice = cweateDecowatow<IModewSewvice>('modewSewvice');
 
-export type DocumentTokensProvider = DocumentSemanticTokensProvider | DocumentRangeSemanticTokensProvider;
+expowt type DocumentTokensPwovida = DocumentSemanticTokensPwovida | DocumentWangeSemanticTokensPwovida;
 
-export interface IModelService {
-	readonly _serviceBrand: undefined;
+expowt intewface IModewSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	createModel(value: string | ITextBufferFactory, languageSelection: ILanguageSelection | null, resource?: URI, isForSimpleWidget?: boolean): ITextModel;
+	cweateModew(vawue: stwing | ITextBuffewFactowy, wanguageSewection: IWanguageSewection | nuww, wesouwce?: UWI, isFowSimpweWidget?: boowean): ITextModew;
 
-	updateModel(model: ITextModel, value: string | ITextBufferFactory): void;
+	updateModew(modew: ITextModew, vawue: stwing | ITextBuffewFactowy): void;
 
-	setMode(model: ITextModel, languageSelection: ILanguageSelection): void;
+	setMode(modew: ITextModew, wanguageSewection: IWanguageSewection): void;
 
-	destroyModel(resource: URI): void;
+	destwoyModew(wesouwce: UWI): void;
 
-	getModels(): ITextModel[];
+	getModews(): ITextModew[];
 
-	getCreationOptions(language: string, resource: URI, isForSimpleWidget: boolean): ITextModelCreationOptions;
+	getCweationOptions(wanguage: stwing, wesouwce: UWI, isFowSimpweWidget: boowean): ITextModewCweationOptions;
 
-	getModel(resource: URI): ITextModel | null;
+	getModew(wesouwce: UWI): ITextModew | nuww;
 
-	getSemanticTokensProviderStyling(provider: DocumentTokensProvider): SemanticTokensProviderStyling;
+	getSemanticTokensPwovidewStywing(pwovida: DocumentTokensPwovida): SemanticTokensPwovidewStywing;
 
-	onModelAdded: Event<ITextModel>;
+	onModewAdded: Event<ITextModew>;
 
-	onModelRemoved: Event<ITextModel>;
+	onModewWemoved: Event<ITextModew>;
 
-	onModelModeChanged: Event<{ model: ITextModel; oldModeId: string; }>;
+	onModewModeChanged: Event<{ modew: ITextModew; owdModeId: stwing; }>;
 }
 
-export function shouldSynchronizeModel(model: ITextModel): boolean {
-	return (
-		!model.isTooLargeForSyncing() && !model.isForSimpleWidget
+expowt function shouwdSynchwonizeModew(modew: ITextModew): boowean {
+	wetuwn (
+		!modew.isTooWawgeFowSyncing() && !modew.isFowSimpweWidget
 	);
 }

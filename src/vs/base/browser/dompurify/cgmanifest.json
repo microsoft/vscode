@@ -1,17 +1,17 @@
 {
-	"registrations": [
+	"wegistwations": [
 		{
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "dompurify",
-					"repositoryUrl": "https://github.com/cure53/DOMPurify",
+					"name": "dompuwify",
+					"wepositowyUww": "https://github.com/cuwe53/DOMPuwify",
 					"commitHash": "6cfcdf56269b892550af80baa7c1fa5b680e5db7"
 				}
 			},
-			"license": "Apache 2.0",
-			"version": "2.3.1"
+			"wicense": "Apache 2.0",
+			"vewsion": "2.3.1"
 		}
 	],
-	"version": 1
+	"vewsion": 1
 }

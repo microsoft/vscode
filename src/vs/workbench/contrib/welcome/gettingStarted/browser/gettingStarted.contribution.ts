@@ -1,298 +1,298 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { GettingStartedInputSerializer, GettingStartedPage, inWelcomeContext } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
-import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IWalkthroughsService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
-import { GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { isLinux, isMacintosh, isWindows, OperatingSystem as OS } from 'vs/base/common/platform';
-import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+impowt { wocawize } fwom 'vs/nws';
+impowt { GettingStawtedInputSewiawiza, GettingStawtedPage, inWewcomeContext } fwom 'vs/wowkbench/contwib/wewcome/gettingStawted/bwowsa/gettingStawted';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { EditowExtensions, IEditowFactowyWegistwy } fwom 'vs/wowkbench/common/editow';
+impowt { MenuId, wegistewAction2, Action2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ContextKeyExpw, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IEditowSewvice, SIDE_GWOUP } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { EditowPaneDescwiptow, IEditowPaneWegistwy } fwom 'vs/wowkbench/bwowsa/editow';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { IWawkthwoughsSewvice } fwom 'vs/wowkbench/contwib/wewcome/gettingStawted/bwowsa/gettingStawtedSewvice';
+impowt { GettingStawtedInput } fwom 'vs/wowkbench/contwib/wewcome/gettingStawted/bwowsa/gettingStawtedInput';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { ConfiguwationScope, Extensions as ConfiguwationExtensions, IConfiguwationWegistwy } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { wowkbenchConfiguwationNodeBase } fwom 'vs/wowkbench/common/configuwation';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { EditowWesowution } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { CommandsWegistwy, ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { ITASExpewimentSewvice } fwom 'vs/wowkbench/sewvices/expewiment/common/expewimentSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { isWinux, isMacintosh, isWindows, OpewatingSystem as OS } fwom 'vs/base/common/pwatfowm';
+impowt { IExtensionManagementSewvewSewvice } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
 
 
-export * as icons from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedIcons';
+expowt * as icons fwom 'vs/wowkbench/contwib/wewcome/gettingStawted/bwowsa/gettingStawtedIcons';
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.openWalkthrough',
-			title: localize('Welcome', "Welcome"),
-			category: localize('help', "Help"),
-			f1: true,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.openWawkthwough',
+			titwe: wocawize('Wewcome', "Wewcome"),
+			categowy: wocawize('hewp', "Hewp"),
+			f1: twue,
 			menu: {
-				id: MenuId.MenubarHelpMenu,
-				group: '1_welcome',
-				order: 1,
+				id: MenuId.MenubawHewpMenu,
+				gwoup: '1_wewcome',
+				owda: 1,
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, walkthroughID: string | { category: string, step: string } | undefined, toSide: boolean | undefined) {
-		const editorGroupsService = accessor.get(IEditorGroupsService);
-		const instantiationService = accessor.get(IInstantiationService);
-		const editorService = accessor.get(IEditorService);
+	pubwic wun(accessow: SewvicesAccessow, wawkthwoughID: stwing | { categowy: stwing, step: stwing } | undefined, toSide: boowean | undefined) {
+		const editowGwoupsSewvice = accessow.get(IEditowGwoupsSewvice);
+		const instantiationSewvice = accessow.get(IInstantiationSewvice);
+		const editowSewvice = accessow.get(IEditowSewvice);
 
-		if (walkthroughID) {
-			const selectedCategory = typeof walkthroughID === 'string' ? walkthroughID : walkthroughID.category;
-			const selectedStep = typeof walkthroughID === 'string' ? undefined : walkthroughID.step;
-			// Try first to select the walkthrough on an active welcome page with no selected walkthrough
-			for (const group of editorGroupsService.groups) {
-				if (group.activeEditor instanceof GettingStartedInput) {
-					if (!group.activeEditor.selectedCategory) {
-						(group.activeEditorPane as GettingStartedPage).makeCategoryVisibleWhenAvailable(selectedCategory, selectedStep);
-						return;
+		if (wawkthwoughID) {
+			const sewectedCategowy = typeof wawkthwoughID === 'stwing' ? wawkthwoughID : wawkthwoughID.categowy;
+			const sewectedStep = typeof wawkthwoughID === 'stwing' ? undefined : wawkthwoughID.step;
+			// Twy fiwst to sewect the wawkthwough on an active wewcome page with no sewected wawkthwough
+			fow (const gwoup of editowGwoupsSewvice.gwoups) {
+				if (gwoup.activeEditow instanceof GettingStawtedInput) {
+					if (!gwoup.activeEditow.sewectedCategowy) {
+						(gwoup.activeEditowPane as GettingStawtedPage).makeCategowyVisibweWhenAvaiwabwe(sewectedCategowy, sewectedStep);
+						wetuwn;
 					}
 				}
 			}
 
-			// Otherwise, try to find a welcome input somewhere with no selected walkthrough, and open it to this one.
-			const result = editorService.findEditors({ typeId: GettingStartedInput.ID, editorId: undefined, resource: GettingStartedInput.RESOURCE });
-			for (const { editor, groupId } of result) {
-				if (editor instanceof GettingStartedInput) {
-					if (!editor.selectedCategory) {
-						editor.selectedCategory = selectedCategory;
-						editor.selectedStep = selectedStep;
-						editorService.openEditor(editor, { revealIfOpened: true, override: EditorResolution.DISABLED }, groupId);
-						return;
+			// Othewwise, twy to find a wewcome input somewhewe with no sewected wawkthwough, and open it to this one.
+			const wesuwt = editowSewvice.findEditows({ typeId: GettingStawtedInput.ID, editowId: undefined, wesouwce: GettingStawtedInput.WESOUWCE });
+			fow (const { editow, gwoupId } of wesuwt) {
+				if (editow instanceof GettingStawtedInput) {
+					if (!editow.sewectedCategowy) {
+						editow.sewectedCategowy = sewectedCategowy;
+						editow.sewectedStep = sewectedStep;
+						editowSewvice.openEditow(editow, { weveawIfOpened: twue, ovewwide: EditowWesowution.DISABWED }, gwoupId);
+						wetuwn;
 					}
 				}
 			}
 
-			// Otherwise, just make a new one.
-			editorService.openEditor(instantiationService.createInstance(GettingStartedInput, { selectedCategory: selectedCategory, selectedStep: selectedStep }), {}, toSide ? SIDE_GROUP : undefined);
-		} else {
-			editorService.openEditor(new GettingStartedInput({}), {});
+			// Othewwise, just make a new one.
+			editowSewvice.openEditow(instantiationSewvice.cweateInstance(GettingStawtedInput, { sewectedCategowy: sewectedCategowy, sewectedStep: sewectedStep }), {}, toSide ? SIDE_GWOUP : undefined);
+		} ewse {
+			editowSewvice.openEditow(new GettingStawtedInput({}), {});
 		}
 	}
 });
 
-Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(GettingStartedInput.ID, GettingStartedInputSerializer);
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(
-		GettingStartedPage,
-		GettingStartedPage.ID,
-		localize('welcome', "Welcome")
+Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy).wegistewEditowSewiawiza(GettingStawtedInput.ID, GettingStawtedInputSewiawiza);
+Wegistwy.as<IEditowPaneWegistwy>(EditowExtensions.EditowPane).wegistewEditowPane(
+	EditowPaneDescwiptow.cweate(
+		GettingStawtedPage,
+		GettingStawtedPage.ID,
+		wocawize('wewcome', "Wewcome")
 	),
 	[
-		new SyncDescriptor(GettingStartedInput)
+		new SyncDescwiptow(GettingStawtedInput)
 	]
 );
 
-const category = localize('welcome', "Welcome");
+const categowy = wocawize('wewcome', "Wewcome");
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'welcome.goBack',
-			title: localize('welcome.goBack', "Go Back"),
-			category,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'wewcome.goBack',
+			titwe: wocawize('wewcome.goBack', "Go Back"),
+			categowy,
 			keybinding: {
-				weight: KeybindingWeight.EditorContrib,
-				primary: KeyCode.Escape,
-				when: inWelcomeContext
+				weight: KeybindingWeight.EditowContwib,
+				pwimawy: KeyCode.Escape,
+				when: inWewcomeContext
 			},
-			precondition: ContextKeyExpr.equals('activeEditor', 'gettingStartedPage'),
-			f1: true
+			pwecondition: ContextKeyExpw.equaws('activeEditow', 'gettingStawtedPage'),
+			f1: twue
 		});
 	}
 
-	run(accessor: ServicesAccessor) {
-		const editorService = accessor.get(IEditorService);
-		const editorPane = editorService.activeEditorPane;
-		if (editorPane instanceof GettingStartedPage) {
-			editorPane.escape();
+	wun(accessow: SewvicesAccessow) {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const editowPane = editowSewvice.activeEditowPane;
+		if (editowPane instanceof GettingStawtedPage) {
+			editowPane.escape();
 		}
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: 'walkthroughs.selectStep',
-	handler: (accessor, stepID: string) => {
-		const editorService = accessor.get(IEditorService);
-		const editorPane = editorService.activeEditorPane;
-		if (editorPane instanceof GettingStartedPage) {
-			editorPane.selectStepLoose(stepID);
-		} else {
-			console.error('Cannot run walkthroughs.selectStep outside of walkthrough context');
+CommandsWegistwy.wegistewCommand({
+	id: 'wawkthwoughs.sewectStep',
+	handwa: (accessow, stepID: stwing) => {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const editowPane = editowSewvice.activeEditowPane;
+		if (editowPane instanceof GettingStawtedPage) {
+			editowPane.sewectStepWoose(stepID);
+		} ewse {
+			consowe.ewwow('Cannot wun wawkthwoughs.sewectStep outside of wawkthwough context');
 		}
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'welcome.markStepComplete',
-			title: localize('welcome.markStepComplete', "Mark Step Complete"),
-			category,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'wewcome.mawkStepCompwete',
+			titwe: wocawize('wewcome.mawkStepCompwete', "Mawk Step Compwete"),
+			categowy,
 		});
 	}
 
-	run(accessor: ServicesAccessor, arg: string) {
-		if (!arg) { return; }
-		const gettingStartedService = accessor.get(IWalkthroughsService);
-		gettingStartedService.progressStep(arg);
+	wun(accessow: SewvicesAccessow, awg: stwing) {
+		if (!awg) { wetuwn; }
+		const gettingStawtedSewvice = accessow.get(IWawkthwoughsSewvice);
+		gettingStawtedSewvice.pwogwessStep(awg);
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'welcome.markStepIncomplete',
-			title: localize('welcome.markStepInomplete', "Mark Step Incomplete"),
-			category,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'wewcome.mawkStepIncompwete',
+			titwe: wocawize('wewcome.mawkStepInompwete', "Mawk Step Incompwete"),
+			categowy,
 		});
 	}
 
-	run(accessor: ServicesAccessor, arg: string) {
-		if (!arg) { return; }
-		const gettingStartedService = accessor.get(IWalkthroughsService);
-		gettingStartedService.deprogressStep(arg);
+	wun(accessow: SewvicesAccessow, awg: stwing) {
+		if (!awg) { wetuwn; }
+		const gettingStawtedSewvice = accessow.get(IWawkthwoughsSewvice);
+		gettingStawtedSewvice.depwogwessStep(awg);
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'welcome.showAllWalkthroughs',
-			title: localize('welcome.showAllWalkthroughs', "Open Walkthrough..."),
-			category,
-			f1: true,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'wewcome.showAwwWawkthwoughs',
+			titwe: wocawize('wewcome.showAwwWawkthwoughs', "Open Wawkthwough..."),
+			categowy,
+			f1: twue,
 		});
 	}
 
-	async run(accessor: ServicesAccessor) {
-		const commandService = accessor.get(ICommandService);
-		const quickInputService = accessor.get(IQuickInputService);
-		const gettingStartedService = accessor.get(IWalkthroughsService);
-		const categories = gettingStartedService.getWalkthroughs();
-		const selection = await quickInputService.pick(categories.map(x => ({
+	async wun(accessow: SewvicesAccessow) {
+		const commandSewvice = accessow.get(ICommandSewvice);
+		const quickInputSewvice = accessow.get(IQuickInputSewvice);
+		const gettingStawtedSewvice = accessow.get(IWawkthwoughsSewvice);
+		const categowies = gettingStawtedSewvice.getWawkthwoughs();
+		const sewection = await quickInputSewvice.pick(categowies.map(x => ({
 			id: x.id,
-			label: x.title,
-			detail: x.description,
-			description: x.source,
-		})), { canPickMany: false, matchOnDescription: true, matchOnDetail: true, title: localize('pickWalkthroughs', "Open Walkthrough...") });
-		if (selection) {
-			commandService.executeCommand('workbench.action.openWalkthrough', selection.id);
+			wabew: x.titwe,
+			detaiw: x.descwiption,
+			descwiption: x.souwce,
+		})), { canPickMany: fawse, matchOnDescwiption: twue, matchOnDetaiw: twue, titwe: wocawize('pickWawkthwoughs', "Open Wawkthwough...") });
+		if (sewection) {
+			commandSewvice.executeCommand('wowkbench.action.openWawkthwough', sewection.id);
 		}
 	}
 });
 
-const prefersReducedMotionConfig = {
-	...workbenchConfigurationNodeBase,
-	'properties': {
-		'workbench.welcomePage.preferReducedMotion': {
-			scope: ConfigurationScope.APPLICATION,
-			type: 'boolean',
-			default: true,
-			description: localize('workbench.welcomePage.preferReducedMotion', "When enabled, reduce motion in welcome page.")
+const pwefewsWeducedMotionConfig = {
+	...wowkbenchConfiguwationNodeBase,
+	'pwopewties': {
+		'wowkbench.wewcomePage.pwefewWeducedMotion': {
+			scope: ConfiguwationScope.APPWICATION,
+			type: 'boowean',
+			defauwt: twue,
+			descwiption: wocawize('wowkbench.wewcomePage.pwefewWeducedMotion', "When enabwed, weduce motion in wewcome page.")
 		}
 	}
 } as const;
 
-const prefersStandardMotionConfig = {
-	...workbenchConfigurationNodeBase,
-	'properties': {
-		'workbench.welcomePage.preferReducedMotion': {
-			scope: ConfigurationScope.APPLICATION,
-			type: 'boolean',
-			default: false,
-			description: localize('workbench.welcomePage.preferReducedMotion', "When enabled, reduce motion in welcome page.")
+const pwefewsStandawdMotionConfig = {
+	...wowkbenchConfiguwationNodeBase,
+	'pwopewties': {
+		'wowkbench.wewcomePage.pwefewWeducedMotion': {
+			scope: ConfiguwationScope.APPWICATION,
+			type: 'boowean',
+			defauwt: fawse,
+			descwiption: wocawize('wowkbench.wewcomePage.pwefewWeducedMotion', "When enabwed, weduce motion in wewcome page.")
 		}
 	}
 } as const;
 
-class WorkbenchConfigurationContribution {
-	constructor(
-		@IInstantiationService _instantiationService: IInstantiationService,
-		@IConfigurationService _configurationService: IConfigurationService,
-		@ITASExperimentService _experimentSevice: ITASExperimentService,
+cwass WowkbenchConfiguwationContwibution {
+	constwuctow(
+		@IInstantiationSewvice _instantiationSewvice: IInstantiationSewvice,
+		@IConfiguwationSewvice _configuwationSewvice: IConfiguwationSewvice,
+		@ITASExpewimentSewvice _expewimentSevice: ITASExpewimentSewvice,
 	) {
-		this.registerConfigs(_experimentSevice);
+		this.wegistewConfigs(_expewimentSevice);
 	}
 
-	private async registerConfigs(_experimentSevice: ITASExperimentService) {
-		const preferReduced = await _experimentSevice.getTreatment('welcomePage.preferReducedMotion').catch(e => false);
-		if (preferReduced) {
-			configurationRegistry.updateConfigurations({ add: [prefersReducedMotionConfig], remove: [prefersStandardMotionConfig] });
+	pwivate async wegistewConfigs(_expewimentSevice: ITASExpewimentSewvice) {
+		const pwefewWeduced = await _expewimentSevice.getTweatment('wewcomePage.pwefewWeducedMotion').catch(e => fawse);
+		if (pwefewWeduced) {
+			configuwationWegistwy.updateConfiguwations({ add: [pwefewsWeducedMotionConfig], wemove: [pwefewsStandawdMotionConfig] });
 		}
-		else {
-			configurationRegistry.updateConfigurations({ add: [prefersStandardMotionConfig], remove: [prefersReducedMotionConfig] });
+		ewse {
+			configuwationWegistwy.updateConfiguwations({ add: [pwefewsStandawdMotionConfig], wemove: [pwefewsWeducedMotionConfig] });
 		}
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WorkbenchConfigurationContribution, LifecyclePhase.Restored);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench)
+	.wegistewWowkbenchContwibution(WowkbenchConfiguwationContwibution, WifecycwePhase.Westowed);
 
-export const WorkspacePlatform = new RawContextKey<'mac' | 'linux' | 'windows' | 'webworker' | undefined>('workspacePlatform', undefined, localize('workspacePlatform', "The platform of the current workspace, which in remote or serverless contexts may be different from the platform of the UI"));
-class WorkspacePlatformContribution {
-	constructor(
-		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
-		@IContextKeyService private readonly contextService: IContextKeyService,
+expowt const WowkspacePwatfowm = new WawContextKey<'mac' | 'winux' | 'windows' | 'webwowka' | undefined>('wowkspacePwatfowm', undefined, wocawize('wowkspacePwatfowm', "The pwatfowm of the cuwwent wowkspace, which in wemote ow sewvewwess contexts may be diffewent fwom the pwatfowm of the UI"));
+cwass WowkspacePwatfowmContwibution {
+	constwuctow(
+		@IExtensionManagementSewvewSewvice pwivate weadonwy extensionManagementSewvewSewvice: IExtensionManagementSewvewSewvice,
+		@IWemoteAgentSewvice pwivate weadonwy wemoteAgentSewvice: IWemoteAgentSewvice,
+		@IContextKeySewvice pwivate weadonwy contextSewvice: IContextKeySewvice,
 	) {
-		this.remoteAgentService.getEnvironment().then(env => {
-			const remoteOS = env?.os;
+		this.wemoteAgentSewvice.getEnviwonment().then(env => {
+			const wemoteOS = env?.os;
 
-			const remotePlatform = remoteOS === OS.Macintosh ? 'mac'
-				: remoteOS === OS.Windows ? 'windows'
-					: remoteOS === OS.Linux ? 'linux'
+			const wemotePwatfowm = wemoteOS === OS.Macintosh ? 'mac'
+				: wemoteOS === OS.Windows ? 'windows'
+					: wemoteOS === OS.Winux ? 'winux'
 						: undefined;
 
-			if (remotePlatform) {
-				WorkspacePlatform.bindTo(this.contextService).set(remotePlatform);
-			} else if (this.extensionManagementServerService.localExtensionManagementServer) {
+			if (wemotePwatfowm) {
+				WowkspacePwatfowm.bindTo(this.contextSewvice).set(wemotePwatfowm);
+			} ewse if (this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva) {
 				if (isMacintosh) {
-					WorkspacePlatform.bindTo(this.contextService).set('mac');
-				} else if (isLinux) {
-					WorkspacePlatform.bindTo(this.contextService).set('linux');
-				} else if (isWindows) {
-					WorkspacePlatform.bindTo(this.contextService).set('windows');
+					WowkspacePwatfowm.bindTo(this.contextSewvice).set('mac');
+				} ewse if (isWinux) {
+					WowkspacePwatfowm.bindTo(this.contextSewvice).set('winux');
+				} ewse if (isWindows) {
+					WowkspacePwatfowm.bindTo(this.contextSewvice).set('windows');
 				}
-			} else if (this.extensionManagementServerService.webExtensionManagementServer) {
-				WorkspacePlatform.bindTo(this.contextService).set('webworker');
-			} else {
-				console.error('Error: Unable to detect workspace platform');
+			} ewse if (this.extensionManagementSewvewSewvice.webExtensionManagementSewva) {
+				WowkspacePwatfowm.bindTo(this.contextSewvice).set('webwowka');
+			} ewse {
+				consowe.ewwow('Ewwow: Unabwe to detect wowkspace pwatfowm');
 			}
 		});
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WorkspacePlatformContribution, LifecyclePhase.Restored);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench)
+	.wegistewWowkbenchContwibution(WowkspacePwatfowmContwibution, WifecycwePhase.Westowed);
 
 
-const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-configurationRegistry.registerConfiguration({
-	...workbenchConfigurationNodeBase,
-	properties: {
-		'workbench.welcomePage.walkthroughs.openOnInstall': {
-			scope: ConfigurationScope.APPLICATION,
-			type: 'boolean',
-			default: true,
-			description: localize('workbench.welcomePage.walkthroughs.openOnInstall', "When enabled, an extension's walkthrough will open upon install the extension.")
+const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation);
+configuwationWegistwy.wegistewConfiguwation({
+	...wowkbenchConfiguwationNodeBase,
+	pwopewties: {
+		'wowkbench.wewcomePage.wawkthwoughs.openOnInstaww': {
+			scope: ConfiguwationScope.APPWICATION,
+			type: 'boowean',
+			defauwt: twue,
+			descwiption: wocawize('wowkbench.wewcomePage.wawkthwoughs.openOnInstaww', "When enabwed, an extension's wawkthwough wiww open upon instaww the extension.")
 		}
 	}
 });

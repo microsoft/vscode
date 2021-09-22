@@ -1,521 +1,521 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { MarshalledId } from 'vs/base/common/marshalling';
-import { URI } from 'vs/base/common/uri';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ILocationDto } from 'vs/workbench/api/common/extHost.protocol';
+impowt { IMawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { MawshawwedId } fwom 'vs/base/common/mawshawwing';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IWocationDto } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
 
-export const enum TestResultState {
+expowt const enum TestWesuwtState {
 	Unset = 0,
 	Queued = 1,
-	Running = 2,
+	Wunning = 2,
 	Passed = 3,
-	Failed = 4,
+	Faiwed = 4,
 	Skipped = 5,
-	Errored = 6
+	Ewwowed = 6
 }
 
-export const enum TestRunProfileBitset {
-	Run = 1 << 1,
+expowt const enum TestWunPwofiweBitset {
+	Wun = 1 << 1,
 	Debug = 1 << 2,
-	Coverage = 1 << 3,
-	HasNonDefaultProfile = 1 << 4,
-	HasConfigurable = 1 << 5,
+	Covewage = 1 << 3,
+	HasNonDefauwtPwofiwe = 1 << 4,
+	HasConfiguwabwe = 1 << 5,
 }
 
 /**
- * List of all test run profile bitset values.
+ * Wist of aww test wun pwofiwe bitset vawues.
  */
-export const testRunProfileBitsetList = [
-	TestRunProfileBitset.Run,
-	TestRunProfileBitset.Debug,
-	TestRunProfileBitset.Coverage,
-	TestRunProfileBitset.HasNonDefaultProfile,
+expowt const testWunPwofiweBitsetWist = [
+	TestWunPwofiweBitset.Wun,
+	TestWunPwofiweBitset.Debug,
+	TestWunPwofiweBitset.Covewage,
+	TestWunPwofiweBitset.HasNonDefauwtPwofiwe,
 ];
 
 /**
- * DTO for a controller's run profiles.
+ * DTO fow a contwowwa's wun pwofiwes.
  */
-export interface ITestRunProfile {
-	controllerId: string;
-	profileId: number;
-	label: string;
-	group: TestRunProfileBitset;
-	isDefault: boolean;
-	tag: string | null;
-	hasConfigurationHandler: boolean;
+expowt intewface ITestWunPwofiwe {
+	contwowwewId: stwing;
+	pwofiweId: numba;
+	wabew: stwing;
+	gwoup: TestWunPwofiweBitset;
+	isDefauwt: boowean;
+	tag: stwing | nuww;
+	hasConfiguwationHandwa: boowean;
 }
 
 /**
- * A fully-resolved request to run tests, passsed between the main thread
+ * A fuwwy-wesowved wequest to wun tests, passsed between the main thwead
  * and extension host.
  */
-export interface ResolvedTestRunRequest {
-	targets: {
-		testIds: string[];
-		controllerId: string;
-		profileGroup: TestRunProfileBitset;
-		profileId: number;
+expowt intewface WesowvedTestWunWequest {
+	tawgets: {
+		testIds: stwing[];
+		contwowwewId: stwing;
+		pwofiweGwoup: TestWunPwofiweBitset;
+		pwofiweId: numba;
 	}[]
-	exclude?: string[];
-	isAutoRun?: boolean;
+	excwude?: stwing[];
+	isAutoWun?: boowean;
 }
 
 /**
- * Request to the main thread to run a set of tests.
+ * Wequest to the main thwead to wun a set of tests.
  */
-export interface ExtensionRunTestsRequest {
-	id: string;
-	include: string[];
-	exclude: string[];
-	controllerId: string;
-	profile?: { group: TestRunProfileBitset, id: number };
-	persist: boolean;
+expowt intewface ExtensionWunTestsWequest {
+	id: stwing;
+	incwude: stwing[];
+	excwude: stwing[];
+	contwowwewId: stwing;
+	pwofiwe?: { gwoup: TestWunPwofiweBitset, id: numba };
+	pewsist: boowean;
 }
 
 /**
- * Request from the main thread to run tests for a single controller.
+ * Wequest fwom the main thwead to wun tests fow a singwe contwowwa.
  */
-export interface RunTestForControllerRequest {
-	runId: string;
-	controllerId: string;
-	profileId: number;
-	excludeExtIds: string[];
-	testIds: string[];
+expowt intewface WunTestFowContwowwewWequest {
+	wunId: stwing;
+	contwowwewId: stwing;
+	pwofiweId: numba;
+	excwudeExtIds: stwing[];
+	testIds: stwing[];
 }
 
 /**
- * Location with a fully-instantiated Range and URI.
+ * Wocation with a fuwwy-instantiated Wange and UWI.
  */
-export interface IRichLocation {
-	range: Range;
-	uri: URI;
+expowt intewface IWichWocation {
+	wange: Wange;
+	uwi: UWI;
 }
 
-export const enum TestMessageType {
-	Error,
+expowt const enum TestMessageType {
+	Ewwow,
 	Info
 }
 
-export interface ITestErrorMessage {
-	message: string | IMarkdownString;
-	type: TestMessageType.Error;
-	expected: string | undefined;
-	actual: string | undefined;
-	location: IRichLocation | undefined;
+expowt intewface ITestEwwowMessage {
+	message: stwing | IMawkdownStwing;
+	type: TestMessageType.Ewwow;
+	expected: stwing | undefined;
+	actuaw: stwing | undefined;
+	wocation: IWichWocation | undefined;
 }
 
-export type SerializedTestErrorMessage = Omit<ITestErrorMessage, 'location'> & { location?: ILocationDto };
+expowt type SewiawizedTestEwwowMessage = Omit<ITestEwwowMessage, 'wocation'> & { wocation?: IWocationDto };
 
-export interface ITestOutputMessage {
-	message: string;
+expowt intewface ITestOutputMessage {
+	message: stwing;
 	type: TestMessageType.Info;
-	offset: number;
-	location: IRichLocation | undefined;
+	offset: numba;
+	wocation: IWichWocation | undefined;
 }
 
-export type SerializedTestOutputMessage = Omit<ITestOutputMessage, 'location'> & { location?: ILocationDto };
+expowt type SewiawizedTestOutputMessage = Omit<ITestOutputMessage, 'wocation'> & { wocation?: IWocationDto };
 
-export type SerializedTestMessage = SerializedTestErrorMessage | SerializedTestOutputMessage;
+expowt type SewiawizedTestMessage = SewiawizedTestEwwowMessage | SewiawizedTestOutputMessage;
 
-export type ITestMessage = ITestErrorMessage | ITestOutputMessage;
+expowt type ITestMessage = ITestEwwowMessage | ITestOutputMessage;
 
-export interface ITestTaskState {
-	state: TestResultState;
-	duration: number | undefined;
+expowt intewface ITestTaskState {
+	state: TestWesuwtState;
+	duwation: numba | undefined;
 	messages: ITestMessage[];
 }
 
-export interface ITestRunTask {
-	id: string;
-	name: string | undefined;
-	running: boolean;
+expowt intewface ITestWunTask {
+	id: stwing;
+	name: stwing | undefined;
+	wunning: boowean;
 }
 
-export interface ITestTag {
-	id: string;
+expowt intewface ITestTag {
+	id: stwing;
 }
 
-export interface ITestTagDisplayInfo {
-	id: string;
-	ctrlLabel: string;
+expowt intewface ITestTagDispwayInfo {
+	id: stwing;
+	ctwwWabew: stwing;
 }
 
 /**
- * The TestItem from .d.ts, as a plain object without children.
+ * The TestItem fwom .d.ts, as a pwain object without chiwdwen.
  */
-export interface ITestItem {
-	/** ID of the test given by the test controller */
-	extId: string;
-	label: string;
-	tags: string[];
-	busy?: boolean;
-	children?: never;
-	uri?: URI;
-	range: IRange | null;
-	description: string | null;
-	error: string | IMarkdownString | null;
+expowt intewface ITestItem {
+	/** ID of the test given by the test contwowwa */
+	extId: stwing;
+	wabew: stwing;
+	tags: stwing[];
+	busy?: boowean;
+	chiwdwen?: neva;
+	uwi?: UWI;
+	wange: IWange | nuww;
+	descwiption: stwing | nuww;
+	ewwow: stwing | IMawkdownStwing | nuww;
 }
 
-export const enum TestItemExpandState {
-	NotExpandable,
-	Expandable,
+expowt const enum TestItemExpandState {
+	NotExpandabwe,
+	Expandabwe,
 	BusyExpanding,
 	Expanded,
 }
 
 /**
- * TestItem-like shape, butm with an ID and children as strings.
+ * TestItem-wike shape, butm with an ID and chiwdwen as stwings.
  */
-export interface InternalTestItem {
-	/** Controller ID from whence this test came */
-	controllerId: string;
-	/** Expandability state */
+expowt intewface IntewnawTestItem {
+	/** Contwowwa ID fwom whence this test came */
+	contwowwewId: stwing;
+	/** Expandabiwity state */
 	expand: TestItemExpandState;
-	/** Parent ID, if any */
-	parent: string | null;
-	/** Raw test item properties */
+	/** Pawent ID, if any */
+	pawent: stwing | nuww;
+	/** Waw test item pwopewties */
 	item: ITestItem;
 }
 
 /**
- * A partial update made to an existing InternalTestItem.
+ * A pawtiaw update made to an existing IntewnawTestItem.
  */
-export interface ITestItemUpdate {
-	extId: string;
+expowt intewface ITestItemUpdate {
+	extId: stwing;
 	expand?: TestItemExpandState;
-	item?: Partial<ITestItem>;
+	item?: Pawtiaw<ITestItem>;
 }
 
-export const applyTestItemUpdate = (internal: InternalTestItem | ITestItemUpdate, patch: ITestItemUpdate) => {
+expowt const appwyTestItemUpdate = (intewnaw: IntewnawTestItem | ITestItemUpdate, patch: ITestItemUpdate) => {
 	if (patch.expand !== undefined) {
-		internal.expand = patch.expand;
+		intewnaw.expand = patch.expand;
 	}
 	if (patch.item !== undefined) {
-		internal.item = internal.item ? Object.assign(internal.item, patch.item) : patch.item;
+		intewnaw.item = intewnaw.item ? Object.assign(intewnaw.item, patch.item) : patch.item;
 	}
 };
 
 /**
- * Test result item used in the main thread.
+ * Test wesuwt item used in the main thwead.
  */
-export interface TestResultItem extends InternalTestItem {
-	/** State of this test in various tasks */
+expowt intewface TestWesuwtItem extends IntewnawTestItem {
+	/** State of this test in vawious tasks */
 	tasks: ITestTaskState[];
 	/** State of this test as a computation of its tasks */
-	ownComputedState: TestResultState;
-	/** Computed state based on children */
-	computedState: TestResultState;
-	/** True if the test is outdated */
-	retired: boolean;
-	/** Max duration of the item's tasks (if run directly) */
-	ownDuration?: number;
+	ownComputedState: TestWesuwtState;
+	/** Computed state based on chiwdwen */
+	computedState: TestWesuwtState;
+	/** Twue if the test is outdated */
+	wetiwed: boowean;
+	/** Max duwation of the item's tasks (if wun diwectwy) */
+	ownDuwation?: numba;
 }
 
-export type SerializedTestResultItem = Omit<TestResultItem, 'children' | 'expandable' | 'retired'>
-	& { children: string[], retired: undefined };
+expowt type SewiawizedTestWesuwtItem = Omit<TestWesuwtItem, 'chiwdwen' | 'expandabwe' | 'wetiwed'>
+	& { chiwdwen: stwing[], wetiwed: undefined };
 
 /**
- * Test results serialized for transport and storage.
+ * Test wesuwts sewiawized fow twanspowt and stowage.
  */
-export interface ISerializedTestResults {
-	/** ID of these test results */
-	id: string;
-	/** Time the results were compelted */
-	completedAt: number;
-	/** Subset of test result items */
-	items: SerializedTestResultItem[];
-	/** Tasks involved in the run. */
-	tasks: { id: string; name: string | undefined; messages: ITestOutputMessage[] }[];
-	/** Human-readable name of the test run. */
-	name: string;
-	/** Test trigger informaton */
-	request: ResolvedTestRunRequest;
+expowt intewface ISewiawizedTestWesuwts {
+	/** ID of these test wesuwts */
+	id: stwing;
+	/** Time the wesuwts wewe compewted */
+	compwetedAt: numba;
+	/** Subset of test wesuwt items */
+	items: SewiawizedTestWesuwtItem[];
+	/** Tasks invowved in the wun. */
+	tasks: { id: stwing; name: stwing | undefined; messages: ITestOutputMessage[] }[];
+	/** Human-weadabwe name of the test wun. */
+	name: stwing;
+	/** Test twigga infowmaton */
+	wequest: WesowvedTestWunWequest;
 }
 
-export interface ITestCoverage {
-	files: IFileCoverage[];
+expowt intewface ITestCovewage {
+	fiwes: IFiweCovewage[];
 }
 
-export interface ICoveredCount {
-	covered: number;
-	total: number;
+expowt intewface ICovewedCount {
+	covewed: numba;
+	totaw: numba;
 }
 
-export interface IFileCoverage {
-	uri: URI;
-	statement: ICoveredCount;
-	branch?: ICoveredCount;
-	function?: ICoveredCount;
-	details?: CoverageDetails[];
+expowt intewface IFiweCovewage {
+	uwi: UWI;
+	statement: ICovewedCount;
+	bwanch?: ICovewedCount;
+	function?: ICovewedCount;
+	detaiws?: CovewageDetaiws[];
 }
 
-export const enum DetailType {
+expowt const enum DetaiwType {
 	Function,
 	Statement,
 }
 
-export type CoverageDetails = IFunctionCoverage | IStatementCoverage;
+expowt type CovewageDetaiws = IFunctionCovewage | IStatementCovewage;
 
-export interface IBranchCoverage {
-	count: number;
-	location?: IRange | IPosition;
+expowt intewface IBwanchCovewage {
+	count: numba;
+	wocation?: IWange | IPosition;
 }
 
-export interface IFunctionCoverage {
-	type: DetailType.Function;
-	count: number;
-	location?: IRange | IPosition;
+expowt intewface IFunctionCovewage {
+	type: DetaiwType.Function;
+	count: numba;
+	wocation?: IWange | IPosition;
 }
 
-export interface IStatementCoverage {
-	type: DetailType.Statement;
-	count: number;
-	location: IRange | IPosition;
-	branches?: IBranchCoverage[];
+expowt intewface IStatementCovewage {
+	type: DetaiwType.Statement;
+	count: numba;
+	wocation: IWange | IPosition;
+	bwanches?: IBwanchCovewage[];
 }
 
-export const enum TestDiffOpType {
-	/** Adds a new test (with children) */
+expowt const enum TestDiffOpType {
+	/** Adds a new test (with chiwdwen) */
 	Add,
-	/** Shallow-updates an existing test */
+	/** Shawwow-updates an existing test */
 	Update,
-	/** Removes a test (and all its children) */
-	Remove,
-	/** Changes the number of controllers who are yet to publish their collection roots. */
-	IncrementPendingExtHosts,
-	/** Retires a test/result */
-	Retire,
+	/** Wemoves a test (and aww its chiwdwen) */
+	Wemove,
+	/** Changes the numba of contwowwews who awe yet to pubwish theiw cowwection woots. */
+	IncwementPendingExtHosts,
+	/** Wetiwes a test/wesuwt */
+	Wetiwe,
 	/** Add a new test tag */
 	AddTag,
-	/** Remove a test tag */
-	RemoveTag,
+	/** Wemove a test tag */
+	WemoveTag,
 }
 
-export type TestsDiffOp =
-	| [op: TestDiffOpType.Add, item: InternalTestItem]
+expowt type TestsDiffOp =
+	| [op: TestDiffOpType.Add, item: IntewnawTestItem]
 	| [op: TestDiffOpType.Update, item: ITestItemUpdate]
-	| [op: TestDiffOpType.Remove, itemId: string]
-	| [op: TestDiffOpType.Retire, itemId: string]
-	| [op: TestDiffOpType.IncrementPendingExtHosts, amount: number]
-	| [op: TestDiffOpType.AddTag, tag: ITestTagDisplayInfo]
-	| [op: TestDiffOpType.RemoveTag, id: string];
+	| [op: TestDiffOpType.Wemove, itemId: stwing]
+	| [op: TestDiffOpType.Wetiwe, itemId: stwing]
+	| [op: TestDiffOpType.IncwementPendingExtHosts, amount: numba]
+	| [op: TestDiffOpType.AddTag, tag: ITestTagDispwayInfo]
+	| [op: TestDiffOpType.WemoveTag, id: stwing];
 
 /**
- * Context for actions taken in the test explorer view.
+ * Context fow actions taken in the test expwowa view.
  */
-export interface ITestItemContext {
-	/** Marshalling marker */
-	$mid: MarshalledId.TestItemContext;
-	/** Tests and parents from the root to the current items */
-	tests: InternalTestItem[];
+expowt intewface ITestItemContext {
+	/** Mawshawwing mawka */
+	$mid: MawshawwedId.TestItemContext;
+	/** Tests and pawents fwom the woot to the cuwwent items */
+	tests: IntewnawTestItem[];
 }
 
 /**
- * Request from the ext host or main thread to indicate that tests have
- * changed. It's assumed that any item upserted *must* have its children
- * previously also upserted, or upserted as part of the same operation.
- * Children that no longer exist in an upserted item will be removed.
+ * Wequest fwom the ext host ow main thwead to indicate that tests have
+ * changed. It's assumed that any item upsewted *must* have its chiwdwen
+ * pweviouswy awso upsewted, ow upsewted as pawt of the same opewation.
+ * Chiwdwen that no wonga exist in an upsewted item wiww be wemoved.
  */
-export type TestsDiff = TestsDiffOp[];
+expowt type TestsDiff = TestsDiffOp[];
 
 /**
- * @private
+ * @pwivate
  */
-export interface IncrementalTestCollectionItem extends InternalTestItem {
-	children: Set<string>;
+expowt intewface IncwementawTestCowwectionItem extends IntewnawTestItem {
+	chiwdwen: Set<stwing>;
 }
 
 /**
- * The IncrementalChangeCollector is used in the IncrementalTestCollection
- * and called with diff changes as they're applied. This is used in the
- * ext host to create a cohesive change event from a diff.
+ * The IncwementawChangeCowwectow is used in the IncwementawTestCowwection
+ * and cawwed with diff changes as they'we appwied. This is used in the
+ * ext host to cweate a cohesive change event fwom a diff.
  */
-export class IncrementalChangeCollector<T> {
+expowt cwass IncwementawChangeCowwectow<T> {
 	/**
 	 * A node was added.
 	 */
-	public add(node: T): void { }
+	pubwic add(node: T): void { }
 
 	/**
-	 * A node in the collection was updated.
+	 * A node in the cowwection was updated.
 	 */
-	public update(node: T): void { }
+	pubwic update(node: T): void { }
 
 	/**
-	 * A node was removed.
+	 * A node was wemoved.
 	 */
-	public remove(node: T, isNestedOperation: boolean): void { }
+	pubwic wemove(node: T, isNestedOpewation: boowean): void { }
 
 	/**
-	 * Called when the diff has been applied.
+	 * Cawwed when the diff has been appwied.
 	 */
-	public complete(): void { }
+	pubwic compwete(): void { }
 }
 
 /**
- * Maintains tests in this extension host sent from the main thread.
+ * Maintains tests in this extension host sent fwom the main thwead.
  */
-export abstract class AbstractIncrementalTestCollection<T extends IncrementalTestCollectionItem>  {
-	private readonly _tags = new Map<string, ITestTagDisplayInfo>();
+expowt abstwact cwass AbstwactIncwementawTestCowwection<T extends IncwementawTestCowwectionItem>  {
+	pwivate weadonwy _tags = new Map<stwing, ITestTagDispwayInfo>();
 
 	/**
 	 * Map of item IDs to test item objects.
 	 */
-	protected readonly items = new Map<string, T>();
+	pwotected weadonwy items = new Map<stwing, T>();
 
 	/**
-	 * ID of test root items.
+	 * ID of test woot items.
 	 */
-	protected readonly roots = new Set<T>();
+	pwotected weadonwy woots = new Set<T>();
 
 	/**
-	 * Number of 'busy' controllers.
+	 * Numba of 'busy' contwowwews.
 	 */
-	protected busyControllerCount = 0;
+	pwotected busyContwowwewCount = 0;
 
 	/**
-	 * Number of pending roots.
+	 * Numba of pending woots.
 	 */
-	protected pendingRootCount = 0;
+	pwotected pendingWootCount = 0;
 
 	/**
 	 * Known test tags.
 	 */
-	public readonly tags: ReadonlyMap<string, ITestTagDisplayInfo> = this._tags;
+	pubwic weadonwy tags: WeadonwyMap<stwing, ITestTagDispwayInfo> = this._tags;
 
 	/**
-	 * Applies the diff to the collection.
+	 * Appwies the diff to the cowwection.
 	 */
-	public apply(diff: TestsDiff) {
-		const changes = this.createChangeCollector();
+	pubwic appwy(diff: TestsDiff) {
+		const changes = this.cweateChangeCowwectow();
 
-		for (const op of diff) {
+		fow (const op of diff) {
 			switch (op[0]) {
 				case TestDiffOpType.Add: {
-					const internalTest = op[1];
-					if (!internalTest.parent) {
-						const created = this.createItem(internalTest);
-						this.roots.add(created);
-						this.items.set(internalTest.item.extId, created);
-						changes.add(created);
-					} else if (this.items.has(internalTest.parent)) {
-						const parent = this.items.get(internalTest.parent)!;
-						parent.children.add(internalTest.item.extId);
-						const created = this.createItem(internalTest, parent);
-						this.items.set(internalTest.item.extId, created);
-						changes.add(created);
+					const intewnawTest = op[1];
+					if (!intewnawTest.pawent) {
+						const cweated = this.cweateItem(intewnawTest);
+						this.woots.add(cweated);
+						this.items.set(intewnawTest.item.extId, cweated);
+						changes.add(cweated);
+					} ewse if (this.items.has(intewnawTest.pawent)) {
+						const pawent = this.items.get(intewnawTest.pawent)!;
+						pawent.chiwdwen.add(intewnawTest.item.extId);
+						const cweated = this.cweateItem(intewnawTest, pawent);
+						this.items.set(intewnawTest.item.extId, cweated);
+						changes.add(cweated);
 					}
 
-					if (internalTest.expand === TestItemExpandState.BusyExpanding) {
-						this.busyControllerCount++;
+					if (intewnawTest.expand === TestItemExpandState.BusyExpanding) {
+						this.busyContwowwewCount++;
 					}
-					break;
+					bweak;
 				}
 
 				case TestDiffOpType.Update: {
 					const patch = op[1];
 					const existing = this.items.get(patch.extId);
 					if (!existing) {
-						break;
+						bweak;
 					}
 
 					if (patch.expand !== undefined) {
 						if (existing.expand === TestItemExpandState.BusyExpanding) {
-							this.busyControllerCount--;
+							this.busyContwowwewCount--;
 						}
 						if (patch.expand === TestItemExpandState.BusyExpanding) {
-							this.busyControllerCount++;
+							this.busyContwowwewCount++;
 						}
 					}
 
-					applyTestItemUpdate(existing, patch);
+					appwyTestItemUpdate(existing, patch);
 					changes.update(existing);
-					break;
+					bweak;
 				}
 
-				case TestDiffOpType.Remove: {
-					const toRemove = this.items.get(op[1]);
-					if (!toRemove) {
-						break;
+				case TestDiffOpType.Wemove: {
+					const toWemove = this.items.get(op[1]);
+					if (!toWemove) {
+						bweak;
 					}
 
-					if (toRemove.parent) {
-						const parent = this.items.get(toRemove.parent)!;
-						parent.children.delete(toRemove.item.extId);
-					} else {
-						this.roots.delete(toRemove);
+					if (toWemove.pawent) {
+						const pawent = this.items.get(toWemove.pawent)!;
+						pawent.chiwdwen.dewete(toWemove.item.extId);
+					} ewse {
+						this.woots.dewete(toWemove);
 					}
 
-					const queue: Iterable<string>[] = [[op[1]]];
-					while (queue.length) {
-						for (const itemId of queue.pop()!) {
+					const queue: Itewabwe<stwing>[] = [[op[1]]];
+					whiwe (queue.wength) {
+						fow (const itemId of queue.pop()!) {
 							const existing = this.items.get(itemId);
 							if (existing) {
-								queue.push(existing.children);
-								this.items.delete(itemId);
-								changes.remove(existing, existing !== toRemove);
+								queue.push(existing.chiwdwen);
+								this.items.dewete(itemId);
+								changes.wemove(existing, existing !== toWemove);
 
 								if (existing.expand === TestItemExpandState.BusyExpanding) {
-									this.busyControllerCount--;
+									this.busyContwowwewCount--;
 								}
 							}
 						}
 					}
-					break;
+					bweak;
 				}
 
-				case TestDiffOpType.Retire:
-					this.retireTest(op[1]);
-					break;
+				case TestDiffOpType.Wetiwe:
+					this.wetiweTest(op[1]);
+					bweak;
 
-				case TestDiffOpType.IncrementPendingExtHosts:
-					this.updatePendingRoots(op[1]);
-					break;
+				case TestDiffOpType.IncwementPendingExtHosts:
+					this.updatePendingWoots(op[1]);
+					bweak;
 
 				case TestDiffOpType.AddTag:
 					this._tags.set(op[1].id, op[1]);
-					break;
+					bweak;
 
-				case TestDiffOpType.RemoveTag:
-					this._tags.delete(op[1]);
-					break;
+				case TestDiffOpType.WemoveTag:
+					this._tags.dewete(op[1]);
+					bweak;
 			}
 		}
 
-		changes.complete();
+		changes.compwete();
 	}
 
 	/**
-	 * Called when the extension signals a test result should be retired.
+	 * Cawwed when the extension signaws a test wesuwt shouwd be wetiwed.
 	 */
-	protected retireTest(testId: string) {
+	pwotected wetiweTest(testId: stwing) {
 		// no-op
 	}
 
 	/**
-	 * Updates the number of test root sources who are yet to report. When
-	 * the total pending test roots reaches 0, the roots for all controllers
-	 * will exist in the collection.
+	 * Updates the numba of test woot souwces who awe yet to wepowt. When
+	 * the totaw pending test woots weaches 0, the woots fow aww contwowwews
+	 * wiww exist in the cowwection.
 	 */
-	public updatePendingRoots(delta: number) {
-		this.pendingRootCount += delta;
+	pubwic updatePendingWoots(dewta: numba) {
+		this.pendingWootCount += dewta;
 	}
 
 	/**
-	 * Called before a diff is applied to create a new change collector.
+	 * Cawwed befowe a diff is appwied to cweate a new change cowwectow.
 	 */
-	protected createChangeCollector() {
-		return new IncrementalChangeCollector<T>();
+	pwotected cweateChangeCowwectow() {
+		wetuwn new IncwementawChangeCowwectow<T>();
 	}
 
 	/**
-	 * Creates a new item for the collection from the internal test item.
+	 * Cweates a new item fow the cowwection fwom the intewnaw test item.
 	 */
-	protected abstract createItem(internal: InternalTestItem, parent?: T): T;
+	pwotected abstwact cweateItem(intewnaw: IntewnawTestItem, pawent?: T): T;
 }

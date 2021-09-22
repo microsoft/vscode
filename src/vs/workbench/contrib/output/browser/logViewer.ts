@@ -1,88 +1,88 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { dirname, basename } from 'vs/base/common/path';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { URI } from 'vs/base/common/uri';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { LOG_SCHEME } from 'vs/workbench/contrib/output/common/output';
-import { IFileOutputChannelDescriptor } from 'vs/workbench/services/output/common/output';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
+impowt { wocawize } fwom 'vs/nws';
+impowt { diwname, basename } fwom 'vs/base/common/path';
+impowt { IEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { AbstwactTextWesouwceEditow } fwom 'vs/wowkbench/bwowsa/pawts/editow/textWesouwceEditow';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { TextWesouwceEditowInput } fwom 'vs/wowkbench/common/editow/textWesouwceEditowInput';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { WOG_SCHEME } fwom 'vs/wowkbench/contwib/output/common/output';
+impowt { IFiweOutputChannewDescwiptow } fwom 'vs/wowkbench/sewvices/output/common/output';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IEditowWesowvewSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowWesowvewSewvice';
 
-export class LogViewerInput extends TextResourceEditorInput {
+expowt cwass WogViewewInput extends TextWesouwceEditowInput {
 
-	static override readonly ID = 'workbench.editorinputs.output';
+	static ovewwide weadonwy ID = 'wowkbench.editowinputs.output';
 
-	override get typeId(): string {
-		return LogViewerInput.ID;
+	ovewwide get typeId(): stwing {
+		wetuwn WogViewewInput.ID;
 	}
 
-	constructor(
-		outputChannelDescriptor: IFileOutputChannelDescriptor,
-		@ITextModelService textModelResolverService: ITextModelService,
-		@ITextFileService textFileService: ITextFileService,
-		@IEditorService editorService: IEditorService,
-		@IFileService fileService: IFileService,
-		@ILabelService labelService: ILabelService,
-		@IEditorResolverService editorResolverService: IEditorResolverService
+	constwuctow(
+		outputChannewDescwiptow: IFiweOutputChannewDescwiptow,
+		@ITextModewSewvice textModewWesowvewSewvice: ITextModewSewvice,
+		@ITextFiweSewvice textFiweSewvice: ITextFiweSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IWabewSewvice wabewSewvice: IWabewSewvice,
+		@IEditowWesowvewSewvice editowWesowvewSewvice: IEditowWesowvewSewvice
 	) {
-		super(
-			URI.from({ scheme: LOG_SCHEME, path: outputChannelDescriptor.id }),
-			basename(outputChannelDescriptor.file.path),
-			dirname(outputChannelDescriptor.file.path),
+		supa(
+			UWI.fwom({ scheme: WOG_SCHEME, path: outputChannewDescwiptow.id }),
+			basename(outputChannewDescwiptow.fiwe.path),
+			diwname(outputChannewDescwiptow.fiwe.path),
 			undefined,
 			undefined,
-			textModelResolverService,
-			textFileService,
-			editorService,
-			fileService,
-			labelService,
-			editorResolverService
+			textModewWesowvewSewvice,
+			textFiweSewvice,
+			editowSewvice,
+			fiweSewvice,
+			wabewSewvice,
+			editowWesowvewSewvice
 		);
 	}
 }
 
-export class LogViewer extends AbstractTextResourceEditor {
+expowt cwass WogViewa extends AbstwactTextWesouwceEditow {
 
-	static readonly LOG_VIEWER_EDITOR_ID = 'workbench.editors.logViewer';
+	static weadonwy WOG_VIEWEW_EDITOW_ID = 'wowkbench.editows.wogViewa';
 
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IStorageService storageService: IStorageService,
-		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IThemeService themeService: IThemeService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
+	constwuctow(
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@ITextWesouwceConfiguwationSewvice textWesouwceConfiguwationSewvice: ITextWesouwceConfiguwationSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice
 	) {
-		super(LogViewer.LOG_VIEWER_EDITOR_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService);
+		supa(WogViewa.WOG_VIEWEW_EDITOW_ID, tewemetwySewvice, instantiationSewvice, stowageSewvice, textWesouwceConfiguwationSewvice, themeSewvice, editowGwoupSewvice, editowSewvice);
 	}
 
-	protected override getConfigurationOverrides(): IEditorOptions {
-		const options = super.getConfigurationOverrides();
-		options.wordWrap = 'off'; // all log viewers do not wrap
-		options.folding = false;
-		options.scrollBeyondLastLine = false;
-		options.renderValidationDecorations = 'editable';
-		return options;
+	pwotected ovewwide getConfiguwationOvewwides(): IEditowOptions {
+		const options = supa.getConfiguwationOvewwides();
+		options.wowdWwap = 'off'; // aww wog viewews do not wwap
+		options.fowding = fawse;
+		options.scwowwBeyondWastWine = fawse;
+		options.wendewVawidationDecowations = 'editabwe';
+		wetuwn options;
 	}
 
-	protected getAriaLabel(): string {
-		return localize('logViewerAriaLabel', "Log viewer");
+	pwotected getAwiaWabew(): stwing {
+		wetuwn wocawize('wogViewewAwiaWabew', "Wog viewa");
 	}
 }

@@ -1,538 +1,538 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { RenderLineNumbersType, TextEditorCursorStyle, cursorStyleToString, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { IDecorationOptions, ScrollType } from 'vs/editor/common/editorCommon';
-import { ISingleEditOperation, ITextModel, ITextModelUpdateOptions, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { IApplyEditsOptions, IEditorPropertiesChangeData, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, IUndoStopOptions, TextEditorRevealType } from 'vs/workbench/api/common/extHost.protocol';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { equals } from 'vs/base/common/arrays';
-import { CodeEditorStateFlag, EditorState } from 'vs/editor/browser/core/editorState';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
-import { MainThreadDocuments } from 'vs/workbench/api/browser/mainThreadDocuments';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { WendewWineNumbewsType, TextEditowCuwsowStywe, cuwsowStyweToStwing, EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ISewection, Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { IDecowationOptions, ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { ISingweEditOpewation, ITextModew, ITextModewUpdateOptions, IIdentifiedSingweEditOpewation } fwom 'vs/editow/common/modew';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { SnippetContwowwew2 } fwom 'vs/editow/contwib/snippet/snippetContwowwew2';
+impowt { IAppwyEditsOptions, IEditowPwopewtiesChangeData, IWesowvedTextEditowConfiguwation, ITextEditowConfiguwationUpdate, IUndoStopOptions, TextEditowWeveawType } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { IEditowPane } fwom 'vs/wowkbench/common/editow';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { equaws } fwom 'vs/base/common/awways';
+impowt { CodeEditowStateFwag, EditowState } fwom 'vs/editow/bwowsa/cowe/editowState';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { SnippetPawsa } fwom 'vs/editow/contwib/snippet/snippetPawsa';
+impowt { MainThweadDocuments } fwom 'vs/wowkbench/api/bwowsa/mainThweadDocuments';
 
-export interface IFocusTracker {
+expowt intewface IFocusTwacka {
 	onGainedFocus(): void;
-	onLostFocus(): void;
+	onWostFocus(): void;
 }
 
-export class MainThreadTextEditorProperties {
+expowt cwass MainThweadTextEditowPwopewties {
 
-	public static readFromEditor(previousProperties: MainThreadTextEditorProperties | null, model: ITextModel, codeEditor: ICodeEditor | null): MainThreadTextEditorProperties {
-		const selections = MainThreadTextEditorProperties._readSelectionsFromCodeEditor(previousProperties, codeEditor);
-		const options = MainThreadTextEditorProperties._readOptionsFromCodeEditor(previousProperties, model, codeEditor);
-		const visibleRanges = MainThreadTextEditorProperties._readVisibleRangesFromCodeEditor(previousProperties, codeEditor);
-		return new MainThreadTextEditorProperties(selections, options, visibleRanges);
+	pubwic static weadFwomEditow(pweviousPwopewties: MainThweadTextEditowPwopewties | nuww, modew: ITextModew, codeEditow: ICodeEditow | nuww): MainThweadTextEditowPwopewties {
+		const sewections = MainThweadTextEditowPwopewties._weadSewectionsFwomCodeEditow(pweviousPwopewties, codeEditow);
+		const options = MainThweadTextEditowPwopewties._weadOptionsFwomCodeEditow(pweviousPwopewties, modew, codeEditow);
+		const visibweWanges = MainThweadTextEditowPwopewties._weadVisibweWangesFwomCodeEditow(pweviousPwopewties, codeEditow);
+		wetuwn new MainThweadTextEditowPwopewties(sewections, options, visibweWanges);
 	}
 
-	private static _readSelectionsFromCodeEditor(previousProperties: MainThreadTextEditorProperties | null, codeEditor: ICodeEditor | null): Selection[] {
-		let result: Selection[] | null = null;
-		if (codeEditor) {
-			result = codeEditor.getSelections();
+	pwivate static _weadSewectionsFwomCodeEditow(pweviousPwopewties: MainThweadTextEditowPwopewties | nuww, codeEditow: ICodeEditow | nuww): Sewection[] {
+		wet wesuwt: Sewection[] | nuww = nuww;
+		if (codeEditow) {
+			wesuwt = codeEditow.getSewections();
 		}
-		if (!result && previousProperties) {
-			result = previousProperties.selections;
+		if (!wesuwt && pweviousPwopewties) {
+			wesuwt = pweviousPwopewties.sewections;
 		}
-		if (!result) {
-			result = [new Selection(1, 1, 1, 1)];
+		if (!wesuwt) {
+			wesuwt = [new Sewection(1, 1, 1, 1)];
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private static _readOptionsFromCodeEditor(previousProperties: MainThreadTextEditorProperties | null, model: ITextModel, codeEditor: ICodeEditor | null): IResolvedTextEditorConfiguration {
-		if (model.isDisposed()) {
-			if (previousProperties) {
+	pwivate static _weadOptionsFwomCodeEditow(pweviousPwopewties: MainThweadTextEditowPwopewties | nuww, modew: ITextModew, codeEditow: ICodeEditow | nuww): IWesowvedTextEditowConfiguwation {
+		if (modew.isDisposed()) {
+			if (pweviousPwopewties) {
 				// shutdown time
-				return previousProperties.options;
-			} else {
-				throw new Error('No valid properties');
+				wetuwn pweviousPwopewties.options;
+			} ewse {
+				thwow new Ewwow('No vawid pwopewties');
 			}
 		}
 
-		let cursorStyle: TextEditorCursorStyle;
-		let lineNumbers: RenderLineNumbersType;
-		if (codeEditor) {
-			const options = codeEditor.getOptions();
-			const lineNumbersOpts = options.get(EditorOption.lineNumbers);
-			cursorStyle = options.get(EditorOption.cursorStyle);
-			lineNumbers = lineNumbersOpts.renderType;
-		} else if (previousProperties) {
-			cursorStyle = previousProperties.options.cursorStyle;
-			lineNumbers = previousProperties.options.lineNumbers;
-		} else {
-			cursorStyle = TextEditorCursorStyle.Line;
-			lineNumbers = RenderLineNumbersType.On;
+		wet cuwsowStywe: TextEditowCuwsowStywe;
+		wet wineNumbews: WendewWineNumbewsType;
+		if (codeEditow) {
+			const options = codeEditow.getOptions();
+			const wineNumbewsOpts = options.get(EditowOption.wineNumbews);
+			cuwsowStywe = options.get(EditowOption.cuwsowStywe);
+			wineNumbews = wineNumbewsOpts.wendewType;
+		} ewse if (pweviousPwopewties) {
+			cuwsowStywe = pweviousPwopewties.options.cuwsowStywe;
+			wineNumbews = pweviousPwopewties.options.wineNumbews;
+		} ewse {
+			cuwsowStywe = TextEditowCuwsowStywe.Wine;
+			wineNumbews = WendewWineNumbewsType.On;
 		}
 
-		const modelOptions = model.getOptions();
-		return {
-			insertSpaces: modelOptions.insertSpaces,
-			tabSize: modelOptions.tabSize,
-			cursorStyle: cursorStyle,
-			lineNumbers: lineNumbers
+		const modewOptions = modew.getOptions();
+		wetuwn {
+			insewtSpaces: modewOptions.insewtSpaces,
+			tabSize: modewOptions.tabSize,
+			cuwsowStywe: cuwsowStywe,
+			wineNumbews: wineNumbews
 		};
 	}
 
-	private static _readVisibleRangesFromCodeEditor(previousProperties: MainThreadTextEditorProperties | null, codeEditor: ICodeEditor | null): Range[] {
-		if (codeEditor) {
-			return codeEditor.getVisibleRanges();
+	pwivate static _weadVisibweWangesFwomCodeEditow(pweviousPwopewties: MainThweadTextEditowPwopewties | nuww, codeEditow: ICodeEditow | nuww): Wange[] {
+		if (codeEditow) {
+			wetuwn codeEditow.getVisibweWanges();
 		}
-		return [];
+		wetuwn [];
 	}
 
-	constructor(
-		public readonly selections: Selection[],
-		public readonly options: IResolvedTextEditorConfiguration,
-		public readonly visibleRanges: Range[]
+	constwuctow(
+		pubwic weadonwy sewections: Sewection[],
+		pubwic weadonwy options: IWesowvedTextEditowConfiguwation,
+		pubwic weadonwy visibweWanges: Wange[]
 	) {
 	}
 
-	public generateDelta(oldProps: MainThreadTextEditorProperties | null, selectionChangeSource: string | null): IEditorPropertiesChangeData | null {
-		const delta: IEditorPropertiesChangeData = {
-			options: null,
-			selections: null,
-			visibleRanges: null
+	pubwic genewateDewta(owdPwops: MainThweadTextEditowPwopewties | nuww, sewectionChangeSouwce: stwing | nuww): IEditowPwopewtiesChangeData | nuww {
+		const dewta: IEditowPwopewtiesChangeData = {
+			options: nuww,
+			sewections: nuww,
+			visibweWanges: nuww
 		};
 
-		if (!oldProps || !MainThreadTextEditorProperties._selectionsEqual(oldProps.selections, this.selections)) {
-			delta.selections = {
-				selections: this.selections,
-				source: withNullAsUndefined(selectionChangeSource)
+		if (!owdPwops || !MainThweadTextEditowPwopewties._sewectionsEquaw(owdPwops.sewections, this.sewections)) {
+			dewta.sewections = {
+				sewections: this.sewections,
+				souwce: withNuwwAsUndefined(sewectionChangeSouwce)
 			};
 		}
 
-		if (!oldProps || !MainThreadTextEditorProperties._optionsEqual(oldProps.options, this.options)) {
-			delta.options = this.options;
+		if (!owdPwops || !MainThweadTextEditowPwopewties._optionsEquaw(owdPwops.options, this.options)) {
+			dewta.options = this.options;
 		}
 
-		if (!oldProps || !MainThreadTextEditorProperties._rangesEqual(oldProps.visibleRanges, this.visibleRanges)) {
-			delta.visibleRanges = this.visibleRanges;
+		if (!owdPwops || !MainThweadTextEditowPwopewties._wangesEquaw(owdPwops.visibweWanges, this.visibweWanges)) {
+			dewta.visibweWanges = this.visibweWanges;
 		}
 
-		if (delta.selections || delta.options || delta.visibleRanges) {
+		if (dewta.sewections || dewta.options || dewta.visibweWanges) {
 			// something changed
-			return delta;
+			wetuwn dewta;
 		}
 		// nothing changed
-		return null;
+		wetuwn nuww;
 	}
 
-	private static _selectionsEqual(a: readonly Selection[], b: readonly Selection[]): boolean {
-		return equals(a, b, (aValue, bValue) => aValue.equalsSelection(bValue));
+	pwivate static _sewectionsEquaw(a: weadonwy Sewection[], b: weadonwy Sewection[]): boowean {
+		wetuwn equaws(a, b, (aVawue, bVawue) => aVawue.equawsSewection(bVawue));
 	}
 
-	private static _rangesEqual(a: readonly Range[], b: readonly Range[]): boolean {
-		return equals(a, b, (aValue, bValue) => aValue.equalsRange(bValue));
+	pwivate static _wangesEquaw(a: weadonwy Wange[], b: weadonwy Wange[]): boowean {
+		wetuwn equaws(a, b, (aVawue, bVawue) => aVawue.equawsWange(bVawue));
 	}
 
-	private static _optionsEqual(a: IResolvedTextEditorConfiguration, b: IResolvedTextEditorConfiguration): boolean {
+	pwivate static _optionsEquaw(a: IWesowvedTextEditowConfiguwation, b: IWesowvedTextEditowConfiguwation): boowean {
 		if (a && !b || !a && b) {
-			return false;
+			wetuwn fawse;
 		}
 		if (!a && !b) {
-			return true;
+			wetuwn twue;
 		}
-		return (
+		wetuwn (
 			a.tabSize === b.tabSize
-			&& a.insertSpaces === b.insertSpaces
-			&& a.cursorStyle === b.cursorStyle
-			&& a.lineNumbers === b.lineNumbers
+			&& a.insewtSpaces === b.insewtSpaces
+			&& a.cuwsowStywe === b.cuwsowStywe
+			&& a.wineNumbews === b.wineNumbews
 		);
 	}
 }
 
 /**
- * Text Editor that is permanently bound to the same model.
- * It can be bound or not to a CodeEditor.
+ * Text Editow that is pewmanentwy bound to the same modew.
+ * It can be bound ow not to a CodeEditow.
  */
-export class MainThreadTextEditor {
+expowt cwass MainThweadTextEditow {
 
-	private readonly _id: string;
-	private readonly _model: ITextModel;
-	private readonly _mainThreadDocuments: MainThreadDocuments;
-	private readonly _modelService: IModelService;
-	private readonly _clipboardService: IClipboardService;
-	private readonly _modelListeners = new DisposableStore();
-	private _codeEditor: ICodeEditor | null;
-	private readonly _focusTracker: IFocusTracker;
-	private readonly _codeEditorListeners = new DisposableStore();
+	pwivate weadonwy _id: stwing;
+	pwivate weadonwy _modew: ITextModew;
+	pwivate weadonwy _mainThweadDocuments: MainThweadDocuments;
+	pwivate weadonwy _modewSewvice: IModewSewvice;
+	pwivate weadonwy _cwipboawdSewvice: ICwipboawdSewvice;
+	pwivate weadonwy _modewWistenews = new DisposabweStowe();
+	pwivate _codeEditow: ICodeEditow | nuww;
+	pwivate weadonwy _focusTwacka: IFocusTwacka;
+	pwivate weadonwy _codeEditowWistenews = new DisposabweStowe();
 
-	private _properties: MainThreadTextEditorProperties | null;
-	private readonly _onPropertiesChanged: Emitter<IEditorPropertiesChangeData>;
+	pwivate _pwopewties: MainThweadTextEditowPwopewties | nuww;
+	pwivate weadonwy _onPwopewtiesChanged: Emitta<IEditowPwopewtiesChangeData>;
 
-	constructor(
-		id: string,
-		model: ITextModel,
-		codeEditor: ICodeEditor,
-		focusTracker: IFocusTracker,
-		mainThreadDocuments: MainThreadDocuments,
-		modelService: IModelService,
-		clipboardService: IClipboardService,
+	constwuctow(
+		id: stwing,
+		modew: ITextModew,
+		codeEditow: ICodeEditow,
+		focusTwacka: IFocusTwacka,
+		mainThweadDocuments: MainThweadDocuments,
+		modewSewvice: IModewSewvice,
+		cwipboawdSewvice: ICwipboawdSewvice,
 	) {
 		this._id = id;
-		this._model = model;
-		this._codeEditor = null;
-		this._properties = null;
-		this._focusTracker = focusTracker;
-		this._mainThreadDocuments = mainThreadDocuments;
-		this._modelService = modelService;
-		this._clipboardService = clipboardService;
+		this._modew = modew;
+		this._codeEditow = nuww;
+		this._pwopewties = nuww;
+		this._focusTwacka = focusTwacka;
+		this._mainThweadDocuments = mainThweadDocuments;
+		this._modewSewvice = modewSewvice;
+		this._cwipboawdSewvice = cwipboawdSewvice;
 
-		this._onPropertiesChanged = new Emitter<IEditorPropertiesChangeData>();
+		this._onPwopewtiesChanged = new Emitta<IEditowPwopewtiesChangeData>();
 
-		this._modelListeners.add(this._model.onDidChangeOptions((e) => {
-			this._updatePropertiesNow(null);
+		this._modewWistenews.add(this._modew.onDidChangeOptions((e) => {
+			this._updatePwopewtiesNow(nuww);
 		}));
 
-		this.setCodeEditor(codeEditor);
-		this._updatePropertiesNow(null);
+		this.setCodeEditow(codeEditow);
+		this._updatePwopewtiesNow(nuww);
 	}
 
-	public dispose(): void {
-		this._modelListeners.dispose();
-		this._codeEditor = null;
-		this._codeEditorListeners.dispose();
+	pubwic dispose(): void {
+		this._modewWistenews.dispose();
+		this._codeEditow = nuww;
+		this._codeEditowWistenews.dispose();
 	}
 
-	private _updatePropertiesNow(selectionChangeSource: string | null): void {
-		this._setProperties(
-			MainThreadTextEditorProperties.readFromEditor(this._properties, this._model, this._codeEditor),
-			selectionChangeSource
+	pwivate _updatePwopewtiesNow(sewectionChangeSouwce: stwing | nuww): void {
+		this._setPwopewties(
+			MainThweadTextEditowPwopewties.weadFwomEditow(this._pwopewties, this._modew, this._codeEditow),
+			sewectionChangeSouwce
 		);
 	}
 
-	private _setProperties(newProperties: MainThreadTextEditorProperties, selectionChangeSource: string | null): void {
-		const delta = newProperties.generateDelta(this._properties, selectionChangeSource);
-		this._properties = newProperties;
-		if (delta) {
-			this._onPropertiesChanged.fire(delta);
+	pwivate _setPwopewties(newPwopewties: MainThweadTextEditowPwopewties, sewectionChangeSouwce: stwing | nuww): void {
+		const dewta = newPwopewties.genewateDewta(this._pwopewties, sewectionChangeSouwce);
+		this._pwopewties = newPwopewties;
+		if (dewta) {
+			this._onPwopewtiesChanged.fiwe(dewta);
 		}
 	}
 
-	public getId(): string {
-		return this._id;
+	pubwic getId(): stwing {
+		wetuwn this._id;
 	}
 
-	public getModel(): ITextModel {
-		return this._model;
+	pubwic getModew(): ITextModew {
+		wetuwn this._modew;
 	}
 
-	public getCodeEditor(): ICodeEditor | null {
-		return this._codeEditor;
+	pubwic getCodeEditow(): ICodeEditow | nuww {
+		wetuwn this._codeEditow;
 	}
 
-	public hasCodeEditor(codeEditor: ICodeEditor | null): boolean {
-		return (this._codeEditor === codeEditor);
+	pubwic hasCodeEditow(codeEditow: ICodeEditow | nuww): boowean {
+		wetuwn (this._codeEditow === codeEditow);
 	}
 
-	public setCodeEditor(codeEditor: ICodeEditor | null): void {
-		if (this.hasCodeEditor(codeEditor)) {
+	pubwic setCodeEditow(codeEditow: ICodeEditow | nuww): void {
+		if (this.hasCodeEditow(codeEditow)) {
 			// Nothing to do...
-			return;
+			wetuwn;
 		}
-		this._codeEditorListeners.clear();
+		this._codeEditowWistenews.cweaw();
 
-		this._codeEditor = codeEditor;
-		if (this._codeEditor) {
+		this._codeEditow = codeEditow;
+		if (this._codeEditow) {
 
-			// Catch early the case that this code editor gets a different model set and disassociate from this model
-			this._codeEditorListeners.add(this._codeEditor.onDidChangeModel(() => {
-				this.setCodeEditor(null);
+			// Catch eawwy the case that this code editow gets a diffewent modew set and disassociate fwom this modew
+			this._codeEditowWistenews.add(this._codeEditow.onDidChangeModew(() => {
+				this.setCodeEditow(nuww);
 			}));
 
-			this._codeEditorListeners.add(this._codeEditor.onDidFocusEditorWidget(() => {
-				this._focusTracker.onGainedFocus();
+			this._codeEditowWistenews.add(this._codeEditow.onDidFocusEditowWidget(() => {
+				this._focusTwacka.onGainedFocus();
 			}));
-			this._codeEditorListeners.add(this._codeEditor.onDidBlurEditorWidget(() => {
-				this._focusTracker.onLostFocus();
+			this._codeEditowWistenews.add(this._codeEditow.onDidBwuwEditowWidget(() => {
+				this._focusTwacka.onWostFocus();
 			}));
 
-			let nextSelectionChangeSource: string | null = null;
-			this._codeEditorListeners.add(this._mainThreadDocuments.onIsCaughtUpWithContentChanges((uri) => {
-				if (uri.toString() === this._model.uri.toString()) {
-					const selectionChangeSource = nextSelectionChangeSource;
-					nextSelectionChangeSource = null;
-					this._updatePropertiesNow(selectionChangeSource);
+			wet nextSewectionChangeSouwce: stwing | nuww = nuww;
+			this._codeEditowWistenews.add(this._mainThweadDocuments.onIsCaughtUpWithContentChanges((uwi) => {
+				if (uwi.toStwing() === this._modew.uwi.toStwing()) {
+					const sewectionChangeSouwce = nextSewectionChangeSouwce;
+					nextSewectionChangeSouwce = nuww;
+					this._updatePwopewtiesNow(sewectionChangeSouwce);
 				}
 			}));
 
-			const isValidCodeEditor = () => {
-				// Due to event timings, it is possible that there is a model change event not yet delivered to us.
-				// > e.g. a model change event is emitted to a listener which then decides to update editor options
-				// > In this case the editor configuration change event reaches us first.
-				// So simply check that the model is still attached to this code editor
-				return (this._codeEditor && this._codeEditor.getModel() === this._model);
+			const isVawidCodeEditow = () => {
+				// Due to event timings, it is possibwe that thewe is a modew change event not yet dewivewed to us.
+				// > e.g. a modew change event is emitted to a wistena which then decides to update editow options
+				// > In this case the editow configuwation change event weaches us fiwst.
+				// So simpwy check that the modew is stiww attached to this code editow
+				wetuwn (this._codeEditow && this._codeEditow.getModew() === this._modew);
 			};
 
-			const updateProperties = (selectionChangeSource: string | null) => {
-				// Some editor events get delivered faster than model content changes. This is
-				// problematic, as this leads to editor properties reaching the extension host
-				// too soon, before the model content change that was the root cause.
+			const updatePwopewties = (sewectionChangeSouwce: stwing | nuww) => {
+				// Some editow events get dewivewed fasta than modew content changes. This is
+				// pwobwematic, as this weads to editow pwopewties weaching the extension host
+				// too soon, befowe the modew content change that was the woot cause.
 				//
-				// If this case is identified, then let's update editor properties on the next model
+				// If this case is identified, then wet's update editow pwopewties on the next modew
 				// content change instead.
-				if (this._mainThreadDocuments.isCaughtUpWithContentChanges(this._model.uri)) {
-					nextSelectionChangeSource = null;
-					this._updatePropertiesNow(selectionChangeSource);
-				} else {
-					// update editor properties on the next model content change
-					nextSelectionChangeSource = selectionChangeSource;
+				if (this._mainThweadDocuments.isCaughtUpWithContentChanges(this._modew.uwi)) {
+					nextSewectionChangeSouwce = nuww;
+					this._updatePwopewtiesNow(sewectionChangeSouwce);
+				} ewse {
+					// update editow pwopewties on the next modew content change
+					nextSewectionChangeSouwce = sewectionChangeSouwce;
 				}
 			};
 
-			this._codeEditorListeners.add(this._codeEditor.onDidChangeCursorSelection((e) => {
-				// selection
-				if (!isValidCodeEditor()) {
-					return;
+			this._codeEditowWistenews.add(this._codeEditow.onDidChangeCuwsowSewection((e) => {
+				// sewection
+				if (!isVawidCodeEditow()) {
+					wetuwn;
 				}
-				updateProperties(e.source);
+				updatePwopewties(e.souwce);
 			}));
-			this._codeEditorListeners.add(this._codeEditor.onDidChangeConfiguration((e) => {
+			this._codeEditowWistenews.add(this._codeEditow.onDidChangeConfiguwation((e) => {
 				// options
-				if (!isValidCodeEditor()) {
-					return;
+				if (!isVawidCodeEditow()) {
+					wetuwn;
 				}
-				updateProperties(null);
+				updatePwopewties(nuww);
 			}));
-			this._codeEditorListeners.add(this._codeEditor.onDidLayoutChange(() => {
-				// visibleRanges
-				if (!isValidCodeEditor()) {
-					return;
+			this._codeEditowWistenews.add(this._codeEditow.onDidWayoutChange(() => {
+				// visibweWanges
+				if (!isVawidCodeEditow()) {
+					wetuwn;
 				}
-				updateProperties(null);
+				updatePwopewties(nuww);
 			}));
-			this._codeEditorListeners.add(this._codeEditor.onDidScrollChange(() => {
-				// visibleRanges
-				if (!isValidCodeEditor()) {
-					return;
+			this._codeEditowWistenews.add(this._codeEditow.onDidScwowwChange(() => {
+				// visibweWanges
+				if (!isVawidCodeEditow()) {
+					wetuwn;
 				}
-				updateProperties(null);
+				updatePwopewties(nuww);
 			}));
-			this._updatePropertiesNow(null);
+			this._updatePwopewtiesNow(nuww);
 		}
 	}
 
-	public isVisible(): boolean {
-		return !!this._codeEditor;
+	pubwic isVisibwe(): boowean {
+		wetuwn !!this._codeEditow;
 	}
 
-	public getProperties(): MainThreadTextEditorProperties {
-		return this._properties!;
+	pubwic getPwopewties(): MainThweadTextEditowPwopewties {
+		wetuwn this._pwopewties!;
 	}
 
-	public get onPropertiesChanged(): Event<IEditorPropertiesChangeData> {
-		return this._onPropertiesChanged.event;
+	pubwic get onPwopewtiesChanged(): Event<IEditowPwopewtiesChangeData> {
+		wetuwn this._onPwopewtiesChanged.event;
 	}
 
-	public setSelections(selections: ISelection[]): void {
-		if (this._codeEditor) {
-			this._codeEditor.setSelections(selections);
-			return;
+	pubwic setSewections(sewections: ISewection[]): void {
+		if (this._codeEditow) {
+			this._codeEditow.setSewections(sewections);
+			wetuwn;
 		}
 
-		const newSelections = selections.map(Selection.liftSelection);
-		this._setProperties(
-			new MainThreadTextEditorProperties(newSelections, this._properties!.options, this._properties!.visibleRanges),
-			null
+		const newSewections = sewections.map(Sewection.wiftSewection);
+		this._setPwopewties(
+			new MainThweadTextEditowPwopewties(newSewections, this._pwopewties!.options, this._pwopewties!.visibweWanges),
+			nuww
 		);
 	}
 
-	private _setIndentConfiguration(newConfiguration: ITextEditorConfigurationUpdate): void {
-		const creationOpts = this._modelService.getCreationOptions(this._model.getLanguageIdentifier().language, this._model.uri, this._model.isForSimpleWidget);
+	pwivate _setIndentConfiguwation(newConfiguwation: ITextEditowConfiguwationUpdate): void {
+		const cweationOpts = this._modewSewvice.getCweationOptions(this._modew.getWanguageIdentifia().wanguage, this._modew.uwi, this._modew.isFowSimpweWidget);
 
-		if (newConfiguration.tabSize === 'auto' || newConfiguration.insertSpaces === 'auto') {
+		if (newConfiguwation.tabSize === 'auto' || newConfiguwation.insewtSpaces === 'auto') {
 			// one of the options was set to 'auto' => detect indentation
-			let insertSpaces = creationOpts.insertSpaces;
-			let tabSize = creationOpts.tabSize;
+			wet insewtSpaces = cweationOpts.insewtSpaces;
+			wet tabSize = cweationOpts.tabSize;
 
-			if (newConfiguration.insertSpaces !== 'auto' && typeof newConfiguration.insertSpaces !== 'undefined') {
-				insertSpaces = newConfiguration.insertSpaces;
+			if (newConfiguwation.insewtSpaces !== 'auto' && typeof newConfiguwation.insewtSpaces !== 'undefined') {
+				insewtSpaces = newConfiguwation.insewtSpaces;
 			}
 
-			if (newConfiguration.tabSize !== 'auto' && typeof newConfiguration.tabSize !== 'undefined') {
-				tabSize = newConfiguration.tabSize;
+			if (newConfiguwation.tabSize !== 'auto' && typeof newConfiguwation.tabSize !== 'undefined') {
+				tabSize = newConfiguwation.tabSize;
 			}
 
-			this._model.detectIndentation(insertSpaces, tabSize);
-			return;
+			this._modew.detectIndentation(insewtSpaces, tabSize);
+			wetuwn;
 		}
 
-		const newOpts: ITextModelUpdateOptions = {};
-		if (typeof newConfiguration.insertSpaces !== 'undefined') {
-			newOpts.insertSpaces = newConfiguration.insertSpaces;
+		const newOpts: ITextModewUpdateOptions = {};
+		if (typeof newConfiguwation.insewtSpaces !== 'undefined') {
+			newOpts.insewtSpaces = newConfiguwation.insewtSpaces;
 		}
-		if (typeof newConfiguration.tabSize !== 'undefined') {
-			newOpts.tabSize = newConfiguration.tabSize;
+		if (typeof newConfiguwation.tabSize !== 'undefined') {
+			newOpts.tabSize = newConfiguwation.tabSize;
 		}
-		this._model.updateOptions(newOpts);
+		this._modew.updateOptions(newOpts);
 	}
 
-	public setConfiguration(newConfiguration: ITextEditorConfigurationUpdate): void {
-		this._setIndentConfiguration(newConfiguration);
+	pubwic setConfiguwation(newConfiguwation: ITextEditowConfiguwationUpdate): void {
+		this._setIndentConfiguwation(newConfiguwation);
 
-		if (!this._codeEditor) {
-			return;
+		if (!this._codeEditow) {
+			wetuwn;
 		}
 
-		if (newConfiguration.cursorStyle) {
-			const newCursorStyle = cursorStyleToString(newConfiguration.cursorStyle);
-			this._codeEditor.updateOptions({
-				cursorStyle: newCursorStyle
+		if (newConfiguwation.cuwsowStywe) {
+			const newCuwsowStywe = cuwsowStyweToStwing(newConfiguwation.cuwsowStywe);
+			this._codeEditow.updateOptions({
+				cuwsowStywe: newCuwsowStywe
 			});
 		}
 
-		if (typeof newConfiguration.lineNumbers !== 'undefined') {
-			let lineNumbers: 'on' | 'off' | 'relative';
-			switch (newConfiguration.lineNumbers) {
-				case RenderLineNumbersType.On:
-					lineNumbers = 'on';
-					break;
-				case RenderLineNumbersType.Relative:
-					lineNumbers = 'relative';
-					break;
-				default:
-					lineNumbers = 'off';
+		if (typeof newConfiguwation.wineNumbews !== 'undefined') {
+			wet wineNumbews: 'on' | 'off' | 'wewative';
+			switch (newConfiguwation.wineNumbews) {
+				case WendewWineNumbewsType.On:
+					wineNumbews = 'on';
+					bweak;
+				case WendewWineNumbewsType.Wewative:
+					wineNumbews = 'wewative';
+					bweak;
+				defauwt:
+					wineNumbews = 'off';
 			}
-			this._codeEditor.updateOptions({
-				lineNumbers: lineNumbers
+			this._codeEditow.updateOptions({
+				wineNumbews: wineNumbews
 			});
 		}
 	}
 
-	public setDecorations(key: string, ranges: IDecorationOptions[]): void {
-		if (!this._codeEditor) {
-			return;
+	pubwic setDecowations(key: stwing, wanges: IDecowationOptions[]): void {
+		if (!this._codeEditow) {
+			wetuwn;
 		}
-		this._codeEditor.setDecorations('exthost-api', key, ranges);
+		this._codeEditow.setDecowations('exthost-api', key, wanges);
 	}
 
-	public setDecorationsFast(key: string, _ranges: number[]): void {
-		if (!this._codeEditor) {
-			return;
+	pubwic setDecowationsFast(key: stwing, _wanges: numba[]): void {
+		if (!this._codeEditow) {
+			wetuwn;
 		}
-		const ranges: Range[] = [];
-		for (let i = 0, len = Math.floor(_ranges.length / 4); i < len; i++) {
-			ranges[i] = new Range(_ranges[4 * i], _ranges[4 * i + 1], _ranges[4 * i + 2], _ranges[4 * i + 3]);
+		const wanges: Wange[] = [];
+		fow (wet i = 0, wen = Math.fwoow(_wanges.wength / 4); i < wen; i++) {
+			wanges[i] = new Wange(_wanges[4 * i], _wanges[4 * i + 1], _wanges[4 * i + 2], _wanges[4 * i + 3]);
 		}
-		this._codeEditor.setDecorationsFast(key, ranges);
+		this._codeEditow.setDecowationsFast(key, wanges);
 	}
 
-	public revealRange(range: IRange, revealType: TextEditorRevealType): void {
-		if (!this._codeEditor) {
-			return;
+	pubwic weveawWange(wange: IWange, weveawType: TextEditowWeveawType): void {
+		if (!this._codeEditow) {
+			wetuwn;
 		}
-		switch (revealType) {
-			case TextEditorRevealType.Default:
-				this._codeEditor.revealRange(range, ScrollType.Smooth);
-				break;
-			case TextEditorRevealType.InCenter:
-				this._codeEditor.revealRangeInCenter(range, ScrollType.Smooth);
-				break;
-			case TextEditorRevealType.InCenterIfOutsideViewport:
-				this._codeEditor.revealRangeInCenterIfOutsideViewport(range, ScrollType.Smooth);
-				break;
-			case TextEditorRevealType.AtTop:
-				this._codeEditor.revealRangeAtTop(range, ScrollType.Smooth);
-				break;
-			default:
-				console.warn(`Unknown revealType: ${revealType}`);
-				break;
+		switch (weveawType) {
+			case TextEditowWeveawType.Defauwt:
+				this._codeEditow.weveawWange(wange, ScwowwType.Smooth);
+				bweak;
+			case TextEditowWeveawType.InCenta:
+				this._codeEditow.weveawWangeInCenta(wange, ScwowwType.Smooth);
+				bweak;
+			case TextEditowWeveawType.InCentewIfOutsideViewpowt:
+				this._codeEditow.weveawWangeInCentewIfOutsideViewpowt(wange, ScwowwType.Smooth);
+				bweak;
+			case TextEditowWeveawType.AtTop:
+				this._codeEditow.weveawWangeAtTop(wange, ScwowwType.Smooth);
+				bweak;
+			defauwt:
+				consowe.wawn(`Unknown weveawType: ${weveawType}`);
+				bweak;
 		}
 	}
 
-	public isFocused(): boolean {
-		if (this._codeEditor) {
-			return this._codeEditor.hasTextFocus();
+	pubwic isFocused(): boowean {
+		if (this._codeEditow) {
+			wetuwn this._codeEditow.hasTextFocus();
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public matches(editor: IEditorPane): boolean {
-		if (!editor) {
-			return false;
+	pubwic matches(editow: IEditowPane): boowean {
+		if (!editow) {
+			wetuwn fawse;
 		}
-		return editor.getControl() === this._codeEditor;
+		wetuwn editow.getContwow() === this._codeEditow;
 	}
 
-	public applyEdits(versionIdCheck: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): boolean {
-		if (this._model.getVersionId() !== versionIdCheck) {
-			// throw new Error('Model has changed in the meantime!');
-			// model changed in the meantime
-			return false;
+	pubwic appwyEdits(vewsionIdCheck: numba, edits: ISingweEditOpewation[], opts: IAppwyEditsOptions): boowean {
+		if (this._modew.getVewsionId() !== vewsionIdCheck) {
+			// thwow new Ewwow('Modew has changed in the meantime!');
+			// modew changed in the meantime
+			wetuwn fawse;
 		}
 
-		if (!this._codeEditor) {
-			// console.warn('applyEdits on invisible editor');
-			return false;
+		if (!this._codeEditow) {
+			// consowe.wawn('appwyEdits on invisibwe editow');
+			wetuwn fawse;
 		}
 
-		if (typeof opts.setEndOfLine !== 'undefined') {
-			this._model.pushEOL(opts.setEndOfLine);
+		if (typeof opts.setEndOfWine !== 'undefined') {
+			this._modew.pushEOW(opts.setEndOfWine);
 		}
 
-		const transformedEdits = edits.map((edit): IIdentifiedSingleEditOperation => {
-			return {
-				range: Range.lift(edit.range),
+		const twansfowmedEdits = edits.map((edit): IIdentifiedSingweEditOpewation => {
+			wetuwn {
+				wange: Wange.wift(edit.wange),
 				text: edit.text,
-				forceMoveMarkers: edit.forceMoveMarkers
+				fowceMoveMawkews: edit.fowceMoveMawkews
 			};
 		});
 
-		if (opts.undoStopBefore) {
-			this._codeEditor.pushUndoStop();
+		if (opts.undoStopBefowe) {
+			this._codeEditow.pushUndoStop();
 		}
-		this._codeEditor.executeEdits('MainThreadTextEditor', transformedEdits);
-		if (opts.undoStopAfter) {
-			this._codeEditor.pushUndoStop();
+		this._codeEditow.executeEdits('MainThweadTextEditow', twansfowmedEdits);
+		if (opts.undoStopAfta) {
+			this._codeEditow.pushUndoStop();
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	async insertSnippet(template: string, ranges: readonly IRange[], opts: IUndoStopOptions) {
+	async insewtSnippet(tempwate: stwing, wanges: weadonwy IWange[], opts: IUndoStopOptions) {
 
-		if (!this._codeEditor || !this._codeEditor.hasModel()) {
-			return false;
+		if (!this._codeEditow || !this._codeEditow.hasModew()) {
+			wetuwn fawse;
 		}
 
-		// check if clipboard is required and only iff read it (async)
-		let clipboardText: string | undefined;
-		const needsTemplate = SnippetParser.guessNeedsClipboard(template);
-		if (needsTemplate) {
-			const state = new EditorState(this._codeEditor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
-			clipboardText = await this._clipboardService.readText();
-			if (!state.validate(this._codeEditor)) {
-				return false;
+		// check if cwipboawd is wequiwed and onwy iff wead it (async)
+		wet cwipboawdText: stwing | undefined;
+		const needsTempwate = SnippetPawsa.guessNeedsCwipboawd(tempwate);
+		if (needsTempwate) {
+			const state = new EditowState(this._codeEditow, CodeEditowStateFwag.Vawue | CodeEditowStateFwag.Position);
+			cwipboawdText = await this._cwipboawdSewvice.weadText();
+			if (!state.vawidate(this._codeEditow)) {
+				wetuwn fawse;
 			}
 		}
 
-		const snippetController = SnippetController2.get(this._codeEditor);
+		const snippetContwowwa = SnippetContwowwew2.get(this._codeEditow);
 
-		// cancel previous snippet mode
-		// snippetController.leaveSnippet();
+		// cancew pwevious snippet mode
+		// snippetContwowwa.weaveSnippet();
 
-		// set selection, focus editor
-		const selections = ranges.map(r => new Selection(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn));
-		this._codeEditor.setSelections(selections);
-		this._codeEditor.focus();
+		// set sewection, focus editow
+		const sewections = wanges.map(w => new Sewection(w.stawtWineNumba, w.stawtCowumn, w.endWineNumba, w.endCowumn));
+		this._codeEditow.setSewections(sewections);
+		this._codeEditow.focus();
 
 		// make modifications
-		snippetController.insert(template, {
-			overwriteBefore: 0, overwriteAfter: 0,
-			undoStopBefore: opts.undoStopBefore, undoStopAfter: opts.undoStopAfter,
-			clipboardText
+		snippetContwowwa.insewt(tempwate, {
+			ovewwwiteBefowe: 0, ovewwwiteAfta: 0,
+			undoStopBefowe: opts.undoStopBefowe, undoStopAfta: opts.undoStopAfta,
+			cwipboawdText
 		});
 
-		return true;
+		wetuwn twue;
 	}
 }

@@ -1,68 +1,68 @@
 {
   "name": "php",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "0.10.x"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
         "id": "php",
         "extensions": [
           ".php",
           ".php4",
           ".php5",
-          ".phtml",
+          ".phtmw",
           ".ctp"
         ],
-        "aliases": [
+        "awiases": [
           "PHP",
           "php"
         ],
-        "firstLine": "^#!\\s*/.*\\bphp\\b",
+        "fiwstWine": "^#!\\s*/.*\\bphp\\b",
         "mimetypes": [
-          "application/x-php"
+          "appwication/x-php"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "php",
-        "scopeName": "source.php",
-        "path": "./syntaxes/php.tmLanguage.json"
+        "wanguage": "php",
+        "scopeName": "souwce.php",
+        "path": "./syntaxes/php.tmWanguage.json"
       },
       {
-        "language": "php",
-        "scopeName": "text.html.php",
-        "path": "./syntaxes/html.tmLanguage.json",
-        "embeddedLanguages": {
-          "text.html": "html",
-          "source.php": "php",
-          "source.sql": "sql",
-          "text.xml": "xml",
-          "source.js": "javascript",
-          "source.json": "json",
-          "source.css": "css"
+        "wanguage": "php",
+        "scopeName": "text.htmw.php",
+        "path": "./syntaxes/htmw.tmWanguage.json",
+        "embeddedWanguages": {
+          "text.htmw": "htmw",
+          "souwce.php": "php",
+          "souwce.sqw": "sqw",
+          "text.xmw": "xmw",
+          "souwce.js": "javascwipt",
+          "souwce.json": "json",
+          "souwce.css": "css"
         }
       }
     ],
     "snippets": [
       {
-        "language": "php",
+        "wanguage": "php",
         "path": "./snippets/php.code-snippets"
       }
     ]
   },
-  "scripts": {
-    "update-grammar": "node ./build/update-grammar.js"
+  "scwipts": {
+    "update-gwammaw": "node ./buiwd/update-gwammaw.js"
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

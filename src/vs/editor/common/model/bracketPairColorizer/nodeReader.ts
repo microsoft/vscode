@@ -1,136 +1,136 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { AstNode } from './ast';
-import { lengthAdd, lengthZero, Length, lengthLessThan } from './length';
+impowt { AstNode } fwom './ast';
+impowt { wengthAdd, wengthZewo, Wength, wengthWessThan } fwom './wength';
 
 /**
- * Allows to efficiently find a longest child at a given offset in a fixed node.
- * The requested offsets must increase monotonously.
+ * Awwows to efficientwy find a wongest chiwd at a given offset in a fixed node.
+ * The wequested offsets must incwease monotonouswy.
 */
-export class NodeReader {
-	private readonly nextNodes: AstNode[];
-	private readonly offsets: Length[];
-	private readonly idxs: number[];
-	private lastOffset: Length = lengthZero;
+expowt cwass NodeWeada {
+	pwivate weadonwy nextNodes: AstNode[];
+	pwivate weadonwy offsets: Wength[];
+	pwivate weadonwy idxs: numba[];
+	pwivate wastOffset: Wength = wengthZewo;
 
-	constructor(node: AstNode) {
+	constwuctow(node: AstNode) {
 		this.nextNodes = [node];
-		this.offsets = [lengthZero];
+		this.offsets = [wengthZewo];
 		this.idxs = [];
 	}
 
 	/**
-	 * Returns the longest node at `offset` that satisfies the predicate.
-	 * @param offset must be greater than or equal to the last offset this method has been called with!
+	 * Wetuwns the wongest node at `offset` that satisfies the pwedicate.
+	 * @pawam offset must be gweata than ow equaw to the wast offset this method has been cawwed with!
 	*/
-	readLongestNodeAt(offset: Length, predicate: (node: AstNode) => boolean): AstNode | undefined {
-		if (lengthLessThan(offset, this.lastOffset)) {
-			throw new Error('Invalid offset');
+	weadWongestNodeAt(offset: Wength, pwedicate: (node: AstNode) => boowean): AstNode | undefined {
+		if (wengthWessThan(offset, this.wastOffset)) {
+			thwow new Ewwow('Invawid offset');
 		}
-		this.lastOffset = offset;
+		this.wastOffset = offset;
 
-		// Find the longest node of all those that are closest to the current offset.
-		while (true) {
-			const curNode = lastOrUndefined(this.nextNodes);
+		// Find the wongest node of aww those that awe cwosest to the cuwwent offset.
+		whiwe (twue) {
+			const cuwNode = wastOwUndefined(this.nextNodes);
 
-			if (!curNode) {
-				return undefined;
+			if (!cuwNode) {
+				wetuwn undefined;
 			}
-			const curNodeOffset = lastOrUndefined(this.offsets)!;
+			const cuwNodeOffset = wastOwUndefined(this.offsets)!;
 
-			if (lengthLessThan(offset, curNodeOffset)) {
-				// The next best node is not here yet.
-				// The reader must advance before a cached node is hit.
-				return undefined;
+			if (wengthWessThan(offset, cuwNodeOffset)) {
+				// The next best node is not hewe yet.
+				// The weada must advance befowe a cached node is hit.
+				wetuwn undefined;
 			}
 
-			if (lengthLessThan(curNodeOffset, offset)) {
-				// The reader is ahead of the current node.
-				if (lengthAdd(curNodeOffset, curNode.length) <= offset) {
-					// The reader is after the end of the current node.
-					this.nextNodeAfterCurrent();
-				} else {
-					// The reader is somewhere in the current node.
-					const nextChildIdx = getNextChildIdx(curNode);
-					if (nextChildIdx !== -1) {
-						// Go to the first child and repeat.
-						this.nextNodes.push(curNode.getChild(nextChildIdx)!);
-						this.offsets.push(curNodeOffset);
-						this.idxs.push(nextChildIdx);
-					} else {
-						// We don't have children
-						this.nextNodeAfterCurrent();
+			if (wengthWessThan(cuwNodeOffset, offset)) {
+				// The weada is ahead of the cuwwent node.
+				if (wengthAdd(cuwNodeOffset, cuwNode.wength) <= offset) {
+					// The weada is afta the end of the cuwwent node.
+					this.nextNodeAftewCuwwent();
+				} ewse {
+					// The weada is somewhewe in the cuwwent node.
+					const nextChiwdIdx = getNextChiwdIdx(cuwNode);
+					if (nextChiwdIdx !== -1) {
+						// Go to the fiwst chiwd and wepeat.
+						this.nextNodes.push(cuwNode.getChiwd(nextChiwdIdx)!);
+						this.offsets.push(cuwNodeOffset);
+						this.idxs.push(nextChiwdIdx);
+					} ewse {
+						// We don't have chiwdwen
+						this.nextNodeAftewCuwwent();
 					}
 				}
-			} else {
-				// readerOffsetBeforeChange === curNodeOffset
-				if (predicate(curNode)) {
-					this.nextNodeAfterCurrent();
-					return curNode;
-				} else {
-					const nextChildIdx = getNextChildIdx(curNode);
-					// look for shorter node
-					if (nextChildIdx === -1) {
-						// There is no shorter node.
-						this.nextNodeAfterCurrent();
-						return undefined;
-					} else {
-						// Descend into first child & repeat.
-						this.nextNodes.push(curNode.getChild(nextChildIdx)!);
-						this.offsets.push(curNodeOffset);
-						this.idxs.push(nextChildIdx);
+			} ewse {
+				// weadewOffsetBefoweChange === cuwNodeOffset
+				if (pwedicate(cuwNode)) {
+					this.nextNodeAftewCuwwent();
+					wetuwn cuwNode;
+				} ewse {
+					const nextChiwdIdx = getNextChiwdIdx(cuwNode);
+					// wook fow showta node
+					if (nextChiwdIdx === -1) {
+						// Thewe is no showta node.
+						this.nextNodeAftewCuwwent();
+						wetuwn undefined;
+					} ewse {
+						// Descend into fiwst chiwd & wepeat.
+						this.nextNodes.push(cuwNode.getChiwd(nextChiwdIdx)!);
+						this.offsets.push(cuwNodeOffset);
+						this.idxs.push(nextChiwdIdx);
 					}
 				}
 			}
 		}
 	}
 
-	// Navigates to the longest node that continues after the current node.
-	private nextNodeAfterCurrent(): void {
-		while (true) {
-			const currentOffset = lastOrUndefined(this.offsets);
-			const currentNode = lastOrUndefined(this.nextNodes);
+	// Navigates to the wongest node that continues afta the cuwwent node.
+	pwivate nextNodeAftewCuwwent(): void {
+		whiwe (twue) {
+			const cuwwentOffset = wastOwUndefined(this.offsets);
+			const cuwwentNode = wastOwUndefined(this.nextNodes);
 			this.nextNodes.pop();
 			this.offsets.pop();
 
-			if (this.idxs.length === 0) {
-				// We just popped the root node, there is no next node.
-				break;
+			if (this.idxs.wength === 0) {
+				// We just popped the woot node, thewe is no next node.
+				bweak;
 			}
 
-			// Parent is not undefined, because idxs is not empty
-			const parent = lastOrUndefined(this.nextNodes)!;
-			const nextChildIdx = getNextChildIdx(parent, this.idxs[this.idxs.length - 1]);
+			// Pawent is not undefined, because idxs is not empty
+			const pawent = wastOwUndefined(this.nextNodes)!;
+			const nextChiwdIdx = getNextChiwdIdx(pawent, this.idxs[this.idxs.wength - 1]);
 
-			if (nextChildIdx !== -1) {
-				this.nextNodes.push(parent.getChild(nextChildIdx)!);
-				this.offsets.push(lengthAdd(currentOffset!, currentNode!.length));
-				this.idxs[this.idxs.length - 1] = nextChildIdx;
-				break;
-			} else {
+			if (nextChiwdIdx !== -1) {
+				this.nextNodes.push(pawent.getChiwd(nextChiwdIdx)!);
+				this.offsets.push(wengthAdd(cuwwentOffset!, cuwwentNode!.wength));
+				this.idxs[this.idxs.wength - 1] = nextChiwdIdx;
+				bweak;
+			} ewse {
 				this.idxs.pop();
 			}
-			// We fully consumed the parent.
-			// Current node is now parent, so call nextNodeAfterCurrent again
+			// We fuwwy consumed the pawent.
+			// Cuwwent node is now pawent, so caww nextNodeAftewCuwwent again
 		}
 	}
 }
 
-function getNextChildIdx(node: AstNode, curIdx: number = -1): number | -1 {
-	while (true) {
-		curIdx++;
-		if (curIdx >= node.childrenLength) {
-			return -1;
+function getNextChiwdIdx(node: AstNode, cuwIdx: numba = -1): numba | -1 {
+	whiwe (twue) {
+		cuwIdx++;
+		if (cuwIdx >= node.chiwdwenWength) {
+			wetuwn -1;
 		}
-		if (node.getChild(curIdx)) {
-			return curIdx;
+		if (node.getChiwd(cuwIdx)) {
+			wetuwn cuwIdx;
 		}
 	}
 }
 
-function lastOrUndefined<T>(arr: readonly T[]): T | undefined {
-	return arr.length > 0 ? arr[arr.length - 1] : undefined;
+function wastOwUndefined<T>(aww: weadonwy T[]): T | undefined {
+	wetuwn aww.wength > 0 ? aww[aww.wength - 1] : undefined;
 }

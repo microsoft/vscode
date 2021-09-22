@@ -1,340 +1,340 @@
-// snippets from the Sass documentation at http://sass-lang.com/
+// snippets fwom the Sass documentation at http://sass-wang.com/
 
 /* css stuff */
-/* charset */
-@charset "UTF-8";
+/* chawset */
+@chawset "UTF-8";
 
-/* nested rules */
+/* nested wuwes */
 #main {
   width: 97%;
   p, div {
     font-size: 2em;
-    a { font-weight: bold; }
+    a { font-weight: bowd; }
   }
-  pre { font-size: 3em; }
+  pwe { font-size: 3em; }
 }
 
-/* parent selector (&) */
+/* pawent sewectow (&) */
 #main {
-  color: black;
+  cowow: bwack;
   a {
-    font-weight: bold;
-    &:hover { color: red; }
+    font-weight: bowd;
+    &:hova { cowow: wed; }
   }
 }
 
-/* nested properties */
+/* nested pwopewties */
 .funky {
   font: 2px/3px {
-    family: fantasy;
+    famiwy: fantasy;
     size: 30em;
-    weight: bold;
+    weight: bowd;
   }
-  color: black;
+  cowow: bwack;
 }
 
-/* nesting conflicts */
-tr.default {
-  foo: { // properties
+/* nesting confwicts */
+tw.defauwt {
+  foo: { // pwopewties
     foo : 1;
   }
-  foo: 1px; // rule
-  foo.bar { // selector
+  foo: 1px; // wuwe
+  foo.baw { // sewectow
     foo : 1;
   }
-  foo:bar { // selector
+  foo:baw { // sewectow
     foo : 1;
   }
-  foo: 1px; // rule
+  foo: 1px; // wuwe
 }
 
 /* extended comment syntax */
 /* This comment is
- * several lines long.
+ * sevewaw wines wong.
  * since it uses the CSS comment syntax,
- * it will appear in the CSS output. */
-body { color: black; }
+ * it wiww appeaw in the CSS output. */
+body { cowow: bwack; }
 
-// These comments are only one line long each.
-// They won't appear in the CSS output,
-// since they use the single-line comment syntax.
-a { color: green; }
+// These comments awe onwy one wine wong each.
+// They won't appeaw in the CSS output,
+// since they use the singwe-wine comment syntax.
+a { cowow: gween; }
 
-/* variables */
+/* vawiabwes */
 $width: 5em;
-$width: "Second width?" !default;
+$width: "Second width?" !defauwt;
 #main {
-  $localvar: 6em;
+  $wocawvaw: 6em;
   width: $width;
 
   $font-size: 12px;
-  $line-height: 30px;
-  font: #{$font-size}/#{$line-height};
+  $wine-height: 30px;
+  font: #{$font-size}/#{$wine-height};
 }
 $name: foo;
-$attr: border;
+$attw: bowda;
 p.#{$name} {
-  #{$attr}-color: blue;
+  #{$attw}-cowow: bwue;
 }
 
-/* variable declaration with whitespaces */
-// Set the color of your columns
-$grid-background-column-color     : rgba(100, 100, 225, 0.25)   !default;
+/* vawiabwe decwawation with whitespaces */
+// Set the cowow of youw cowumns
+$gwid-backgwound-cowumn-cowow     : wgba(100, 100, 225, 0.25)   !defauwt;
 
-/* operations*/
+/* opewations*/
 p {
   width: (1em + 2em) * 3;
-  color: #010203 + #040506;
-  font-family: sans- + "serif";
-  margin: 3px + 4px auto;
+  cowow: #010203 + #040506;
+  font-famiwy: sans- + "sewif";
+  mawgin: 3px + 4px auto;
   content: "I ate #{5 + 10} pies!";
-  color: hsl(0, 100%, 50%);
-  color: hsl($hue: 0, $saturation: 100%, $lightness: 50%);
+  cowow: hsw(0, 100%, 50%);
+  cowow: hsw($hue: 0, $satuwation: 100%, $wightness: 50%);
 }
 /* functions*/
-$grid-width: 40px;
-$gutter-width: 10px;
-@function grid-width($n) {
-  @return $n * $grid-width + ($n - 1) * $gutter-width;
+$gwid-width: 40px;
+$gutta-width: 10px;
+@function gwid-width($n) {
+  @wetuwn $n * $gwid-width + ($n - 1) * $gutta-width;
 }
-#sidebar { width: grid-width(5); }
+#sidebaw { width: gwid-width(5); }
 
-/* @import */
-@import "foo.scss";
-$family: unquote("Droid+Sans");
-@import "rounded-corners", url("http://fonts.googleapis.com/css?family=#{$family}");
+/* @impowt */
+@impowt "foo.scss";
+$famiwy: unquote("Dwoid+Sans");
+@impowt "wounded-cownews", uww("http://fonts.googweapis.com/css?famiwy=#{$famiwy}");
 #main {
-  @import "example";
+  @impowt "exampwe";
 }
 
 /* @media */
-.sidebar {
+.sidebaw {
   width: 300px;
-  @media screen and (orientation: landscape) {
+  @media scween and (owientation: wandscape) {
     width: 500px;
   }
 }
 
 /* @extend */
-.error {
-  border: 1px #f00;
-  background-color: #fdd;
+.ewwow {
+  bowda: 1px #f00;
+  backgwound-cowow: #fdd;
 }
-.seriousError {
-  @extend .error;
-  border-width: 3px;
+.sewiousEwwow {
+  @extend .ewwow;
+  bowda-width: 3px;
 }
-#context a%extreme {
-  color: blue;
-  font-weight: bold;
+#context a%extweme {
+  cowow: bwue;
+  font-weight: bowd;
   font-size: 2em;
 }
 .notice {
-  @extend %extreme !optional;
+  @extend %extweme !optionaw;
 }
 
-/* @debug and @warn */
+/* @debug and @wawn */
 @debug 10em + 12em;
-@mixin adjust-location($x, $y) {
-  @if unitless($x) {
-    @warn "Assuming #{$x} to be in pixels";
+@mixin adjust-wocation($x, $y) {
+  @if unitwess($x) {
+    @wawn "Assuming #{$x} to be in pixews";
     $x: 1px * $x;
   }
-  @if unitless($y) {
-    @warn "Assuming #{$y} to be in pixels";
+  @if unitwess($y) {
+    @wawn "Assuming #{$y} to be in pixews";
     $y: 1px * $y;
   }
-  position: relative; left: $x; top: $y;
+  position: wewative; weft: $x; top: $y;
 }
 
-/* control directives */
+/* contwow diwectives */
 
 /* if statement */
 p {
-  @if 1 + 1 == 2 { border: 1px solid;  }
-  @if 5 < 3      { border: 2px dotted; }
-  @if null       { border: 3px double; }
+  @if 1 + 1 == 2 { bowda: 1px sowid;  }
+  @if 5 < 3      { bowda: 2px dotted; }
+  @if nuww       { bowda: 3px doubwe; }
 }
 
-/* if else statement */
-$type: monster;
+/* if ewse statement */
+$type: monsta;
 p {
   @if $type == ocean {
-    color: blue;
-  } @else {
-    color: black;
+    cowow: bwue;
+  } @ewse {
+    cowow: bwack;
   }
 }
 
-/* for statement */
-@for $i from 1 through 3 {
+/* fow statement */
+@fow $i fwom 1 thwough 3 {
   .item-#{$i} { width: 2em * $i; }
 }
 
 /* each statement */
-@each $animal in puma, sea-slug, egret, salamander {
-  .#{$animal}-icon {
-    background-image: url('/images/#{$animal}.png');
+@each $animaw in puma, sea-swug, egwet, sawamanda {
+  .#{$animaw}-icon {
+    backgwound-image: uww('/images/#{$animaw}.png');
   }
 }
 
-/* while statement */
+/* whiwe statement */
 $i: 6;
-@while $i > 0 {
+@whiwe $i > 0 {
   .item-#{$i} { width: 2em * $i; }
   $i: $i - 2;
 }
 
-/* function with controlstatements */
-@function foo($total, $a) {
-  @for $i from 0 to $total {
-    @if (unit($a) == "%") and ($i == ($total - 1)) {
+/* function with contwowstatements */
+@function foo($totaw, $a) {
+  @fow $i fwom 0 to $totaw {
+    @if (unit($a) == "%") and ($i == ($totaw - 1)) {
       $z: 100%;
-      @return '1';
+      @wetuwn '1';
     }
   }
-  @return $grid;
+  @wetuwn $gwid;
 }
 
-/* @mixin simple*/
-@mixin large-text {
+/* @mixin simpwe*/
+@mixin wawge-text {
   font: {
-    family: Arial;
+    famiwy: Awiaw;
     size: 20px;
-    weight: bold;
+    weight: bowd;
   }
-  color: #ff0000;
+  cowow: #ff0000;
 }
-.page-title {
-  @include large-text;
+.page-titwe {
+  @incwude wawge-text;
   padding: 4px;
 }
 
-/* mixin with parameters */
-@mixin sexy-border($color, $width: 1in) {
-  border: {
-    color: $color;
+/* mixin with pawametews */
+@mixin sexy-bowda($cowow, $width: 1in) {
+  bowda: {
+    cowow: $cowow;
     width: $width;
-    style: dashed;
+    stywe: dashed;
   }
 }
-p { @include sexy-border(blue); }
+p { @incwude sexy-bowda(bwue); }
 
-/* mixin with varargs */
+/* mixin with vawawgs */
 @mixin box-shadow($shadows...) {
   -moz-box-shadow: $shadows;
   -webkit-box-shadow: $shadows;
   box-shadow: $shadows;
 }
 .shadows {
-  @include box-shadow(0px 4px 5px #666, 2px 6px 10px #999);
+  @incwude box-shadow(0px 4px 5px #666, 2px 6px 10px #999);
 }
 
-/* include with varargs */
-@mixin colors($text, $background, $border) {
-  color: $text;
-  background-color: $background;
-  border-color: $border;
+/* incwude with vawawgs */
+@mixin cowows($text, $backgwound, $bowda) {
+  cowow: $text;
+  backgwound-cowow: $backgwound;
+  bowda-cowow: $bowda;
 }
-$values: #ff0000, #00ff00, #0000ff;
-.primary {
-  @include colors($values...);
+$vawues: #ff0000, #00ff00, #0000ff;
+.pwimawy {
+  @incwude cowows($vawues...);
 }
 
-/* include with body */
-@mixin apply-to-ie6-only {
-  * html {
+/* incwude with body */
+@mixin appwy-to-ie6-onwy {
+  * htmw {
     @content;
   }
 }
-@include apply-to-ie6-only {
-  #logo {
-    background-image: url(/logo.gif);
+@incwude appwy-to-ie6-onwy {
+  #wogo {
+    backgwound-image: uww(/wogo.gif);
   }
 }
 
-@if $attr {
-  @mixin apply-to-ie6-only {
+@if $attw {
+  @mixin appwy-to-ie6-onwy {
   }
 }
 
 
-/* attributes */
-[rel="external"]::after {
+/* attwibutes */
+[wew="extewnaw"]::afta {
     content: 's';
 }
 /*page */
-@page :left {
-  margin-left: 4cm;
-  margin-right: 3cm;
+@page :weft {
+  mawgin-weft: 4cm;
+  mawgin-wight: 3cm;
 }
 
-/* missing semicolons */
-tr.default {
-  foo.bar {
+/* missing semicowons */
+tw.defauwt {
+  foo.baw {
     $foo: 1px
   }
   foo: {
     foo : white
   }
-  foo.bar1 {
-    @extend tr.default
+  foo.baw1 {
+    @extend tw.defauwt
   }
-  foo.bar2 {
-    @import "compass"
+  foo.baw2 {
+    @impowt "compass"
   }
-  bar: black
+  baw: bwack
 }
 
-/* rules without whitespace */
-legend {foo{a:s}margin-top:0;margin-bottom:#123;margin-top:s(1)}
+/* wuwes without whitespace */
+wegend {foo{a:s}mawgin-top:0;mawgin-bottom:#123;mawgin-top:s(1)}
 
-/* extend with interpolation variable */
-@mixin error($a: false) {
+/* extend with intewpowation vawiabwe */
+@mixin ewwow($a: fawse) {
   @extend .#{$a};
   @extend ##{$a};
 }
-#bar {a: 1px;}
-.bar {b: 1px;}
+#baw {a: 1px;}
+.baw {b: 1px;}
 foo {
-  @include error('bar');
+  @incwude ewwow('baw');
 }
 
 /* css3: @font face */
-@font-face { font-family: Delicious; src: url('Delicious-Roman.otf'); }
+@font-face { font-famiwy: Dewicious; swc: uww('Dewicious-Woman.otf'); }
 
-/* rule names with variables */
-.orbit-#{$d}-prev {
-  #{$d}-style: 0;
+/* wuwe names with vawiabwes */
+.owbit-#{$d}-pwev {
+  #{$d}-stywe: 0;
   foo-#{$d}: 1;
-  #{$d}-bar-#{$d}: 2;
-  foo-#{$d}-bar: 1;
+  #{$d}-baw-#{$d}: 2;
+  foo-#{$d}-baw: 1;
 }
 
-/* keyframes */
-@-webkit-keyframes NAME-YOUR-ANIMATION {
+/* keyfwames */
+@-webkit-keyfwames NAME-YOUW-ANIMATION {
   0%   { opacity: 0; }
   100% { opacity: 1; }
 }
-@-moz-keyframes NAME-YOUR-ANIMATION {
+@-moz-keyfwames NAME-YOUW-ANIMATION {
   0%   { opacity: 0; }
   100% { opacity: 1; }
 }
-@-o-keyframes NAME-YOUR-ANIMATION {
+@-o-keyfwames NAME-YOUW-ANIMATION {
   0%   { opacity: 0; }
   100% { opacity: 1; }
 }
-@keyframes NAME-YOUR-ANIMATION {
+@keyfwames NAME-YOUW-ANIMATION {
   0%   { opacity: 0; }
   100% { opacity: 1; }
 }
 
-/* string escaping */
-[data-icon='test-1']:before {
+/* stwing escaping */
+[data-icon='test-1']:befowe {
   content:'\\';
 }
 /* a comment */
-$var1: '\'';
-$var2: "\"";
-/* another comment */
+$vaw1: '\'';
+$vaw2: "\"";
+/* anotha comment */
 

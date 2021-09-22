@@ -1,15 +1,15 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as httpRequest from 'request-light';
-import * as vscode from 'vscode';
-import { addJSONProviders } from './features/jsonContributions';
+impowt * as httpWequest fwom 'wequest-wight';
+impowt * as vscode fwom 'vscode';
+impowt { addJSONPwovidews } fwom './featuwes/jsonContwibutions';
 
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
-	context.subscriptions.push(addJSONProviders(httpRequest.xhr, undefined));
+expowt async function activate(context: vscode.ExtensionContext): Pwomise<void> {
+	context.subscwiptions.push(addJSONPwovidews(httpWequest.xhw, undefined));
 }
 
-export function deactivate(): void {
+expowt function deactivate(): void {
 }

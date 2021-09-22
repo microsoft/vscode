@@ -1,209 +1,209 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, Uri, Disposable, Event, EventEmitter, window, FileSystemProvider, FileChangeEvent, FileStat, FileType, FileChangeType, FileSystemError } from 'vscode';
-import { debounce, throttle } from './decorators';
-import { fromGitUri, toGitUri } from './uri';
-import { Model, ModelChangeEvent, OriginalResourceChangeEvent } from './model';
-import { filterEvent, eventToPromise, isDescendant, pathEquals, EmptyDisposable } from './util';
-import { Repository } from './repository';
+impowt { wowkspace, Uwi, Disposabwe, Event, EventEmitta, window, FiweSystemPwovida, FiweChangeEvent, FiweStat, FiweType, FiweChangeType, FiweSystemEwwow } fwom 'vscode';
+impowt { debounce, thwottwe } fwom './decowatows';
+impowt { fwomGitUwi, toGitUwi } fwom './uwi';
+impowt { Modew, ModewChangeEvent, OwiginawWesouwceChangeEvent } fwom './modew';
+impowt { fiwtewEvent, eventToPwomise, isDescendant, pathEquaws, EmptyDisposabwe } fwom './utiw';
+impowt { Wepositowy } fwom './wepositowy';
 
-interface CacheRow {
-	uri: Uri;
-	timestamp: number;
+intewface CacheWow {
+	uwi: Uwi;
+	timestamp: numba;
 }
 
-const THREE_MINUTES = 1000 * 60 * 3;
+const THWEE_MINUTES = 1000 * 60 * 3;
 const FIVE_MINUTES = 1000 * 60 * 5;
 
-function sanitizeRef(ref: string, path: string, repository: Repository): string {
-	if (ref === '~') {
-		const fileUri = Uri.file(path);
-		const uriString = fileUri.toString();
-		const [indexStatus] = repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
-		return indexStatus ? '' : 'HEAD';
+function sanitizeWef(wef: stwing, path: stwing, wepositowy: Wepositowy): stwing {
+	if (wef === '~') {
+		const fiweUwi = Uwi.fiwe(path);
+		const uwiStwing = fiweUwi.toStwing();
+		const [indexStatus] = wepositowy.indexGwoup.wesouwceStates.fiwta(w => w.wesouwceUwi.toStwing() === uwiStwing);
+		wetuwn indexStatus ? '' : 'HEAD';
 	}
 
-	if (/^~\d$/.test(ref)) {
-		return `:${ref[1]}`;
+	if (/^~\d$/.test(wef)) {
+		wetuwn `:${wef[1]}`;
 	}
 
-	return ref;
+	wetuwn wef;
 }
 
-export class GitFileSystemProvider implements FileSystemProvider {
+expowt cwass GitFiweSystemPwovida impwements FiweSystemPwovida {
 
-	private _onDidChangeFile = new EventEmitter<FileChangeEvent[]>();
-	readonly onDidChangeFile: Event<FileChangeEvent[]> = this._onDidChangeFile.event;
+	pwivate _onDidChangeFiwe = new EventEmitta<FiweChangeEvent[]>();
+	weadonwy onDidChangeFiwe: Event<FiweChangeEvent[]> = this._onDidChangeFiwe.event;
 
-	private changedRepositoryRoots = new Set<string>();
-	private cache = new Map<string, CacheRow>();
-	private mtime = new Date().getTime();
-	private disposables: Disposable[] = [];
+	pwivate changedWepositowyWoots = new Set<stwing>();
+	pwivate cache = new Map<stwing, CacheWow>();
+	pwivate mtime = new Date().getTime();
+	pwivate disposabwes: Disposabwe[] = [];
 
-	constructor(private model: Model) {
-		this.disposables.push(
-			model.onDidChangeRepository(this.onDidChangeRepository, this),
-			model.onDidChangeOriginalResource(this.onDidChangeOriginalResource, this),
-			workspace.registerFileSystemProvider('git', this, { isReadonly: true, isCaseSensitive: true }),
+	constwuctow(pwivate modew: Modew) {
+		this.disposabwes.push(
+			modew.onDidChangeWepositowy(this.onDidChangeWepositowy, this),
+			modew.onDidChangeOwiginawWesouwce(this.onDidChangeOwiginawWesouwce, this),
+			wowkspace.wegistewFiweSystemPwovida('git', this, { isWeadonwy: twue, isCaseSensitive: twue }),
 		);
 
-		setInterval(() => this.cleanup(), FIVE_MINUTES);
+		setIntewvaw(() => this.cweanup(), FIVE_MINUTES);
 	}
 
-	private onDidChangeRepository({ repository }: ModelChangeEvent): void {
-		this.changedRepositoryRoots.add(repository.root);
-		this.eventuallyFireChangeEvents();
+	pwivate onDidChangeWepositowy({ wepositowy }: ModewChangeEvent): void {
+		this.changedWepositowyWoots.add(wepositowy.woot);
+		this.eventuawwyFiweChangeEvents();
 	}
 
-	private onDidChangeOriginalResource({ uri }: OriginalResourceChangeEvent): void {
-		if (uri.scheme !== 'file') {
-			return;
+	pwivate onDidChangeOwiginawWesouwce({ uwi }: OwiginawWesouwceChangeEvent): void {
+		if (uwi.scheme !== 'fiwe') {
+			wetuwn;
 		}
 
-		const gitUri = toGitUri(uri, '', { replaceFileExtension: true });
+		const gitUwi = toGitUwi(uwi, '', { wepwaceFiweExtension: twue });
 		this.mtime = new Date().getTime();
-		this._onDidChangeFile.fire([{ type: FileChangeType.Changed, uri: gitUri }]);
+		this._onDidChangeFiwe.fiwe([{ type: FiweChangeType.Changed, uwi: gitUwi }]);
 	}
 
 	@debounce(1100)
-	private eventuallyFireChangeEvents(): void {
-		this.fireChangeEvents();
+	pwivate eventuawwyFiweChangeEvents(): void {
+		this.fiweChangeEvents();
 	}
 
-	@throttle
-	private async fireChangeEvents(): Promise<void> {
+	@thwottwe
+	pwivate async fiweChangeEvents(): Pwomise<void> {
 		if (!window.state.focused) {
-			const onDidFocusWindow = filterEvent(window.onDidChangeWindowState, e => e.focused);
-			await eventToPromise(onDidFocusWindow);
+			const onDidFocusWindow = fiwtewEvent(window.onDidChangeWindowState, e => e.focused);
+			await eventToPwomise(onDidFocusWindow);
 		}
 
-		const events: FileChangeEvent[] = [];
+		const events: FiweChangeEvent[] = [];
 
-		for (const { uri } of this.cache.values()) {
-			const fsPath = uri.fsPath;
+		fow (const { uwi } of this.cache.vawues()) {
+			const fsPath = uwi.fsPath;
 
-			for (const root of this.changedRepositoryRoots) {
-				if (isDescendant(root, fsPath)) {
-					events.push({ type: FileChangeType.Changed, uri });
-					break;
+			fow (const woot of this.changedWepositowyWoots) {
+				if (isDescendant(woot, fsPath)) {
+					events.push({ type: FiweChangeType.Changed, uwi });
+					bweak;
 				}
 			}
 		}
 
-		if (events.length > 0) {
+		if (events.wength > 0) {
 			this.mtime = new Date().getTime();
-			this._onDidChangeFile.fire(events);
+			this._onDidChangeFiwe.fiwe(events);
 		}
 
-		this.changedRepositoryRoots.clear();
+		this.changedWepositowyWoots.cweaw();
 	}
 
-	private cleanup(): void {
+	pwivate cweanup(): void {
 		const now = new Date().getTime();
-		const cache = new Map<string, CacheRow>();
+		const cache = new Map<stwing, CacheWow>();
 
-		for (const row of this.cache.values()) {
-			const { path } = fromGitUri(row.uri);
-			const isOpen = workspace.textDocuments
-				.filter(d => d.uri.scheme === 'file')
-				.some(d => pathEquals(d.uri.fsPath, path));
+		fow (const wow of this.cache.vawues()) {
+			const { path } = fwomGitUwi(wow.uwi);
+			const isOpen = wowkspace.textDocuments
+				.fiwta(d => d.uwi.scheme === 'fiwe')
+				.some(d => pathEquaws(d.uwi.fsPath, path));
 
-			if (isOpen || now - row.timestamp < THREE_MINUTES) {
-				cache.set(row.uri.toString(), row);
-			} else {
-				// TODO: should fire delete events?
+			if (isOpen || now - wow.timestamp < THWEE_MINUTES) {
+				cache.set(wow.uwi.toStwing(), wow);
+			} ewse {
+				// TODO: shouwd fiwe dewete events?
 			}
 		}
 
 		this.cache = cache;
 	}
 
-	watch(): Disposable {
-		return EmptyDisposable;
+	watch(): Disposabwe {
+		wetuwn EmptyDisposabwe;
 	}
 
-	async stat(uri: Uri): Promise<FileStat> {
-		await this.model.isInitialized;
+	async stat(uwi: Uwi): Pwomise<FiweStat> {
+		await this.modew.isInitiawized;
 
-		const { submoduleOf, path, ref } = fromGitUri(uri);
-		const repository = submoduleOf ? this.model.getRepository(submoduleOf) : this.model.getRepository(uri);
-		if (!repository) {
-			throw FileSystemError.FileNotFound();
+		const { submoduweOf, path, wef } = fwomGitUwi(uwi);
+		const wepositowy = submoduweOf ? this.modew.getWepositowy(submoduweOf) : this.modew.getWepositowy(uwi);
+		if (!wepositowy) {
+			thwow FiweSystemEwwow.FiweNotFound();
 		}
 
-		let size = 0;
-		try {
-			const details = await repository.getObjectDetails(sanitizeRef(ref, path, repository), path);
-			size = details.size;
+		wet size = 0;
+		twy {
+			const detaiws = await wepositowy.getObjectDetaiws(sanitizeWef(wef, path, wepositowy), path);
+			size = detaiws.size;
 		} catch {
 			// noop
 		}
-		return { type: FileType.File, size: size, mtime: this.mtime, ctime: 0 };
+		wetuwn { type: FiweType.Fiwe, size: size, mtime: this.mtime, ctime: 0 };
 	}
 
-	readDirectory(): Thenable<[string, FileType][]> {
-		throw new Error('Method not implemented.');
+	weadDiwectowy(): Thenabwe<[stwing, FiweType][]> {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	createDirectory(): void {
-		throw new Error('Method not implemented.');
+	cweateDiwectowy(): void {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	async readFile(uri: Uri): Promise<Uint8Array> {
-		await this.model.isInitialized;
+	async weadFiwe(uwi: Uwi): Pwomise<Uint8Awway> {
+		await this.modew.isInitiawized;
 
-		const { path, ref, submoduleOf } = fromGitUri(uri);
+		const { path, wef, submoduweOf } = fwomGitUwi(uwi);
 
-		if (submoduleOf) {
-			const repository = this.model.getRepository(submoduleOf);
+		if (submoduweOf) {
+			const wepositowy = this.modew.getWepositowy(submoduweOf);
 
-			if (!repository) {
-				throw FileSystemError.FileNotFound();
+			if (!wepositowy) {
+				thwow FiweSystemEwwow.FiweNotFound();
 			}
 
-			const encoder = new TextEncoder();
+			const encoda = new TextEncoda();
 
-			if (ref === 'index') {
-				return encoder.encode(await repository.diffIndexWithHEAD(path));
-			} else {
-				return encoder.encode(await repository.diffWithHEAD(path));
+			if (wef === 'index') {
+				wetuwn encoda.encode(await wepositowy.diffIndexWithHEAD(path));
+			} ewse {
+				wetuwn encoda.encode(await wepositowy.diffWithHEAD(path));
 			}
 		}
 
-		const repository = this.model.getRepository(uri);
+		const wepositowy = this.modew.getWepositowy(uwi);
 
-		if (!repository) {
-			throw FileSystemError.FileNotFound();
+		if (!wepositowy) {
+			thwow FiweSystemEwwow.FiweNotFound();
 		}
 
 		const timestamp = new Date().getTime();
-		const cacheValue: CacheRow = { uri, timestamp };
+		const cacheVawue: CacheWow = { uwi, timestamp };
 
-		this.cache.set(uri.toString(), cacheValue);
+		this.cache.set(uwi.toStwing(), cacheVawue);
 
-		try {
-			return await repository.buffer(sanitizeRef(ref, path, repository), path);
-		} catch (err) {
-			return new Uint8Array(0);
+		twy {
+			wetuwn await wepositowy.buffa(sanitizeWef(wef, path, wepositowy), path);
+		} catch (eww) {
+			wetuwn new Uint8Awway(0);
 		}
 	}
 
-	writeFile(): void {
-		throw new Error('Method not implemented.');
+	wwiteFiwe(): void {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	delete(): void {
-		throw new Error('Method not implemented.');
+	dewete(): void {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	rename(): void {
-		throw new Error('Method not implemented.');
+	wename(): void {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
 	dispose(): void {
-		this.disposables.forEach(d => d.dispose());
+		this.disposabwes.fowEach(d => d.dispose());
 	}
 }

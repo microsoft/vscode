@@ -1,32 +1,32 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { SimpleWorkerServer } from 'vs/base/common/worker/simpleWorker';
-import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
-import { EditorWorkerHost } from 'vs/editor/common/services/editorWorkerServiceImpl';
+impowt { SimpweWowkewSewva } fwom 'vs/base/common/wowka/simpweWowka';
+impowt { EditowSimpweWowka } fwom 'vs/editow/common/sewvices/editowSimpweWowka';
+impowt { EditowWowkewHost } fwom 'vs/editow/common/sewvices/editowWowkewSewviceImpw';
 
-let initialized = false;
+wet initiawized = fawse;
 
-export function initialize(foreignModule: any) {
-	if (initialized) {
-		return;
+expowt function initiawize(foweignModuwe: any) {
+	if (initiawized) {
+		wetuwn;
 	}
-	initialized = true;
+	initiawized = twue;
 
-	const simpleWorker = new SimpleWorkerServer((msg) => {
-		(<any>self).postMessage(msg);
-	}, (host: EditorWorkerHost) => new EditorSimpleWorker(host, foreignModule));
+	const simpweWowka = new SimpweWowkewSewva((msg) => {
+		(<any>sewf).postMessage(msg);
+	}, (host: EditowWowkewHost) => new EditowSimpweWowka(host, foweignModuwe));
 
-	self.onmessage = (e: MessageEvent) => {
-		simpleWorker.onmessage(e.data);
+	sewf.onmessage = (e: MessageEvent) => {
+		simpweWowka.onmessage(e.data);
 	};
 }
 
-self.onmessage = (e: MessageEvent) => {
-	// Ignore first message in this case and initialize if not yet initialized
-	if (!initialized) {
-		initialize(null);
+sewf.onmessage = (e: MessageEvent) => {
+	// Ignowe fiwst message in this case and initiawize if not yet initiawized
+	if (!initiawized) {
+		initiawize(nuww);
 	}
 };

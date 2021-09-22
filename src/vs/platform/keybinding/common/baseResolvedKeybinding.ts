@@ -1,83 +1,83 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { illegalArgument } from 'vs/base/common/errors';
-import { AriaLabelProvider, ElectronAcceleratorLabelProvider, Modifiers, UILabelProvider, UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
-import { ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
-import { OperatingSystem } from 'vs/base/common/platform';
+impowt { iwwegawAwgument } fwom 'vs/base/common/ewwows';
+impowt { AwiaWabewPwovida, EwectwonAccewewatowWabewPwovida, Modifiews, UIWabewPwovida, UsewSettingsWabewPwovida } fwom 'vs/base/common/keybindingWabews';
+impowt { WesowvedKeybinding, WesowvedKeybindingPawt } fwom 'vs/base/common/keyCodes';
+impowt { OpewatingSystem } fwom 'vs/base/common/pwatfowm';
 
-export abstract class BaseResolvedKeybinding<T extends Modifiers> extends ResolvedKeybinding {
+expowt abstwact cwass BaseWesowvedKeybinding<T extends Modifiews> extends WesowvedKeybinding {
 
-	protected readonly _os: OperatingSystem;
-	protected readonly _parts: T[];
+	pwotected weadonwy _os: OpewatingSystem;
+	pwotected weadonwy _pawts: T[];
 
-	constructor(os: OperatingSystem, parts: T[]) {
-		super();
-		if (parts.length === 0) {
-			throw illegalArgument(`parts`);
+	constwuctow(os: OpewatingSystem, pawts: T[]) {
+		supa();
+		if (pawts.wength === 0) {
+			thwow iwwegawAwgument(`pawts`);
 		}
 		this._os = os;
-		this._parts = parts;
+		this._pawts = pawts;
 	}
 
-	public getLabel(): string | null {
-		return UILabelProvider.toLabel(this._os, this._parts, (keybinding) => this._getLabel(keybinding));
+	pubwic getWabew(): stwing | nuww {
+		wetuwn UIWabewPwovida.toWabew(this._os, this._pawts, (keybinding) => this._getWabew(keybinding));
 	}
 
-	public getAriaLabel(): string | null {
-		return AriaLabelProvider.toLabel(this._os, this._parts, (keybinding) => this._getAriaLabel(keybinding));
+	pubwic getAwiaWabew(): stwing | nuww {
+		wetuwn AwiaWabewPwovida.toWabew(this._os, this._pawts, (keybinding) => this._getAwiaWabew(keybinding));
 	}
 
-	public getElectronAccelerator(): string | null {
-		if (this._parts.length > 1) {
-			// Electron cannot handle chords
-			return null;
+	pubwic getEwectwonAccewewatow(): stwing | nuww {
+		if (this._pawts.wength > 1) {
+			// Ewectwon cannot handwe chowds
+			wetuwn nuww;
 		}
-		return ElectronAcceleratorLabelProvider.toLabel(this._os, this._parts, (keybinding) => this._getElectronAccelerator(keybinding));
+		wetuwn EwectwonAccewewatowWabewPwovida.toWabew(this._os, this._pawts, (keybinding) => this._getEwectwonAccewewatow(keybinding));
 	}
 
-	public getUserSettingsLabel(): string | null {
-		return UserSettingsLabelProvider.toLabel(this._os, this._parts, (keybinding) => this._getUserSettingsLabel(keybinding));
+	pubwic getUsewSettingsWabew(): stwing | nuww {
+		wetuwn UsewSettingsWabewPwovida.toWabew(this._os, this._pawts, (keybinding) => this._getUsewSettingsWabew(keybinding));
 	}
 
-	public isWYSIWYG(): boolean {
-		return this._parts.every((keybinding) => this._isWYSIWYG(keybinding));
+	pubwic isWYSIWYG(): boowean {
+		wetuwn this._pawts.evewy((keybinding) => this._isWYSIWYG(keybinding));
 	}
 
-	public isChord(): boolean {
-		return (this._parts.length > 1);
+	pubwic isChowd(): boowean {
+		wetuwn (this._pawts.wength > 1);
 	}
 
-	public getParts(): ResolvedKeybindingPart[] {
-		return this._parts.map((keybinding) => this._getPart(keybinding));
+	pubwic getPawts(): WesowvedKeybindingPawt[] {
+		wetuwn this._pawts.map((keybinding) => this._getPawt(keybinding));
 	}
 
-	private _getPart(keybinding: T): ResolvedKeybindingPart {
-		return new ResolvedKeybindingPart(
-			keybinding.ctrlKey,
+	pwivate _getPawt(keybinding: T): WesowvedKeybindingPawt {
+		wetuwn new WesowvedKeybindingPawt(
+			keybinding.ctwwKey,
 			keybinding.shiftKey,
-			keybinding.altKey,
+			keybinding.awtKey,
 			keybinding.metaKey,
-			this._getLabel(keybinding),
-			this._getAriaLabel(keybinding)
+			this._getWabew(keybinding),
+			this._getAwiaWabew(keybinding)
 		);
 	}
 
-	public getDispatchParts(): (string | null)[] {
-		return this._parts.map((keybinding) => this._getDispatchPart(keybinding));
+	pubwic getDispatchPawts(): (stwing | nuww)[] {
+		wetuwn this._pawts.map((keybinding) => this._getDispatchPawt(keybinding));
 	}
 
-	public getSingleModifierDispatchParts(): (string | null)[] {
-		return this._parts.map((keybinding) => this._getSingleModifierDispatchPart(keybinding));
+	pubwic getSingweModifiewDispatchPawts(): (stwing | nuww)[] {
+		wetuwn this._pawts.map((keybinding) => this._getSingweModifiewDispatchPawt(keybinding));
 	}
 
-	protected abstract _getLabel(keybinding: T): string | null;
-	protected abstract _getAriaLabel(keybinding: T): string | null;
-	protected abstract _getElectronAccelerator(keybinding: T): string | null;
-	protected abstract _getUserSettingsLabel(keybinding: T): string | null;
-	protected abstract _isWYSIWYG(keybinding: T): boolean;
-	protected abstract _getDispatchPart(keybinding: T): string | null;
-	protected abstract _getSingleModifierDispatchPart(keybinding: T): string | null;
+	pwotected abstwact _getWabew(keybinding: T): stwing | nuww;
+	pwotected abstwact _getAwiaWabew(keybinding: T): stwing | nuww;
+	pwotected abstwact _getEwectwonAccewewatow(keybinding: T): stwing | nuww;
+	pwotected abstwact _getUsewSettingsWabew(keybinding: T): stwing | nuww;
+	pwotected abstwact _isWYSIWYG(keybinding: T): boowean;
+	pwotected abstwact _getDispatchPawt(keybinding: T): stwing | nuww;
+	pwotected abstwact _getSingweModifiewDispatchPawt(keybinding: T): stwing | nuww;
 }

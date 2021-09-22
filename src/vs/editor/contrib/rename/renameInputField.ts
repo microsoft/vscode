@@ -1,226 +1,226 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import 'vs/css!./renameInputField';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { localize } from 'vs/nls';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { editorWidgetBackground, inputBackground, inputBorder, inputForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt 'vs/css!./wenameInputFiewd';
+impowt { ContentWidgetPositionPwefewence, ICodeEditow, IContentWidget, IContentWidgetPosition } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IContextKey, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { editowWidgetBackgwound, inputBackgwound, inputBowda, inputFowegwound, widgetShadow } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { ICowowTheme, IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export const CONTEXT_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('renameInputVisible', false, localize('renameInputVisible', "Whether the rename input widget is visible"));
+expowt const CONTEXT_WENAME_INPUT_VISIBWE = new WawContextKey<boowean>('wenameInputVisibwe', fawse, wocawize('wenameInputVisibwe', "Whetha the wename input widget is visibwe"));
 
-export interface RenameInputFieldResult {
-	newName: string;
-	wantsPreview?: boolean;
+expowt intewface WenameInputFiewdWesuwt {
+	newName: stwing;
+	wantsPweview?: boowean;
 }
 
-export class RenameInputField implements IContentWidget {
+expowt cwass WenameInputFiewd impwements IContentWidget {
 
-	private _position?: Position;
-	private _domNode?: HTMLElement;
-	private _input?: HTMLInputElement;
-	private _label?: HTMLDivElement;
-	private _visible?: boolean;
-	private readonly _visibleContextKey: IContextKey<boolean>;
-	private readonly _disposables = new DisposableStore();
+	pwivate _position?: Position;
+	pwivate _domNode?: HTMWEwement;
+	pwivate _input?: HTMWInputEwement;
+	pwivate _wabew?: HTMWDivEwement;
+	pwivate _visibwe?: boowean;
+	pwivate weadonwy _visibweContextKey: IContextKey<boowean>;
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
 
-	readonly allowEditorOverflow: boolean = true;
+	weadonwy awwowEditowOvewfwow: boowean = twue;
 
-	constructor(
-		private readonly _editor: ICodeEditor,
-		private readonly _acceptKeybindings: [string, string],
-		@IThemeService private readonly _themeService: IThemeService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+	constwuctow(
+		pwivate weadonwy _editow: ICodeEditow,
+		pwivate weadonwy _acceptKeybindings: [stwing, stwing],
+		@IThemeSewvice pwivate weadonwy _themeSewvice: IThemeSewvice,
+		@IKeybindingSewvice pwivate weadonwy _keybindingSewvice: IKeybindingSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
 	) {
-		this._visibleContextKey = CONTEXT_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
+		this._visibweContextKey = CONTEXT_WENAME_INPUT_VISIBWE.bindTo(contextKeySewvice);
 
-		this._editor.addContentWidget(this);
+		this._editow.addContentWidget(this);
 
-		this._disposables.add(this._editor.onDidChangeConfiguration(e => {
-			if (e.hasChanged(EditorOption.fontInfo)) {
+		this._disposabwes.add(this._editow.onDidChangeConfiguwation(e => {
+			if (e.hasChanged(EditowOption.fontInfo)) {
 				this._updateFont();
 			}
 		}));
 
-		this._disposables.add(_themeService.onDidColorThemeChange(this._updateStyles, this));
+		this._disposabwes.add(_themeSewvice.onDidCowowThemeChange(this._updateStywes, this));
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
-		this._editor.removeContentWidget(this);
+		this._disposabwes.dispose();
+		this._editow.wemoveContentWidget(this);
 	}
 
-	getId(): string {
-		return '__renameInputWidget';
+	getId(): stwing {
+		wetuwn '__wenameInputWidget';
 	}
 
-	getDomNode(): HTMLElement {
+	getDomNode(): HTMWEwement {
 		if (!this._domNode) {
-			this._domNode = document.createElement('div');
-			this._domNode.className = 'monaco-editor rename-box';
+			this._domNode = document.cweateEwement('div');
+			this._domNode.cwassName = 'monaco-editow wename-box';
 
-			this._input = document.createElement('input');
-			this._input.className = 'rename-input';
+			this._input = document.cweateEwement('input');
+			this._input.cwassName = 'wename-input';
 			this._input.type = 'text';
-			this._input.setAttribute('aria-label', localize('renameAriaLabel', "Rename input. Type new name and press Enter to commit."));
-			this._domNode.appendChild(this._input);
+			this._input.setAttwibute('awia-wabew', wocawize('wenameAwiaWabew', "Wename input. Type new name and pwess Enta to commit."));
+			this._domNode.appendChiwd(this._input);
 
-			this._label = document.createElement('div');
-			this._label.className = 'rename-label';
-			this._domNode.appendChild(this._label);
-			const updateLabel = () => {
-				const [accept, preview] = this._acceptKeybindings;
-				this._keybindingService.lookupKeybinding(accept);
-				this._label!.innerText = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Rename, Shift+F2 to Preview"'] }, "{0} to Rename, {1} to Preview", this._keybindingService.lookupKeybinding(accept)?.getLabel(), this._keybindingService.lookupKeybinding(preview)?.getLabel());
+			this._wabew = document.cweateEwement('div');
+			this._wabew.cwassName = 'wename-wabew';
+			this._domNode.appendChiwd(this._wabew);
+			const updateWabew = () => {
+				const [accept, pweview] = this._acceptKeybindings;
+				this._keybindingSewvice.wookupKeybinding(accept);
+				this._wabew!.innewText = wocawize({ key: 'wabew', comment: ['pwacehowdews awe keybindings, e.g "F2 to Wename, Shift+F2 to Pweview"'] }, "{0} to Wename, {1} to Pweview", this._keybindingSewvice.wookupKeybinding(accept)?.getWabew(), this._keybindingSewvice.wookupKeybinding(pweview)?.getWabew());
 			};
-			updateLabel();
-			this._disposables.add(this._keybindingService.onDidUpdateKeybindings(updateLabel));
+			updateWabew();
+			this._disposabwes.add(this._keybindingSewvice.onDidUpdateKeybindings(updateWabew));
 
 			this._updateFont();
-			this._updateStyles(this._themeService.getColorTheme());
+			this._updateStywes(this._themeSewvice.getCowowTheme());
 		}
-		return this._domNode;
+		wetuwn this._domNode;
 	}
 
-	private _updateStyles(theme: IColorTheme): void {
+	pwivate _updateStywes(theme: ICowowTheme): void {
 		if (!this._input || !this._domNode) {
-			return;
+			wetuwn;
 		}
 
-		const widgetShadowColor = theme.getColor(widgetShadow);
-		this._domNode.style.backgroundColor = String(theme.getColor(editorWidgetBackground) ?? '');
-		this._domNode.style.boxShadow = widgetShadowColor ? ` 0 0 8px 2px ${widgetShadowColor}` : '';
-		this._domNode.style.color = String(theme.getColor(inputForeground) ?? '');
+		const widgetShadowCowow = theme.getCowow(widgetShadow);
+		this._domNode.stywe.backgwoundCowow = Stwing(theme.getCowow(editowWidgetBackgwound) ?? '');
+		this._domNode.stywe.boxShadow = widgetShadowCowow ? ` 0 0 8px 2px ${widgetShadowCowow}` : '';
+		this._domNode.stywe.cowow = Stwing(theme.getCowow(inputFowegwound) ?? '');
 
-		this._input.style.backgroundColor = String(theme.getColor(inputBackground) ?? '');
-		// this._input.style.color = String(theme.getColor(inputForeground) ?? '');
-		const border = theme.getColor(inputBorder);
-		this._input.style.borderWidth = border ? '1px' : '0px';
-		this._input.style.borderStyle = border ? 'solid' : 'none';
-		this._input.style.borderColor = border?.toString() ?? 'none';
+		this._input.stywe.backgwoundCowow = Stwing(theme.getCowow(inputBackgwound) ?? '');
+		// this._input.stywe.cowow = Stwing(theme.getCowow(inputFowegwound) ?? '');
+		const bowda = theme.getCowow(inputBowda);
+		this._input.stywe.bowdewWidth = bowda ? '1px' : '0px';
+		this._input.stywe.bowdewStywe = bowda ? 'sowid' : 'none';
+		this._input.stywe.bowdewCowow = bowda?.toStwing() ?? 'none';
 	}
 
-	private _updateFont(): void {
-		if (!this._input || !this._label) {
-			return;
+	pwivate _updateFont(): void {
+		if (!this._input || !this._wabew) {
+			wetuwn;
 		}
 
-		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
-		this._input.style.fontFamily = fontInfo.fontFamily;
-		this._input.style.fontWeight = fontInfo.fontWeight;
-		this._input.style.fontSize = `${fontInfo.fontSize}px`;
+		const fontInfo = this._editow.getOption(EditowOption.fontInfo);
+		this._input.stywe.fontFamiwy = fontInfo.fontFamiwy;
+		this._input.stywe.fontWeight = fontInfo.fontWeight;
+		this._input.stywe.fontSize = `${fontInfo.fontSize}px`;
 
-		this._label.style.fontSize = `${fontInfo.fontSize * 0.8}px`;
+		this._wabew.stywe.fontSize = `${fontInfo.fontSize * 0.8}px`;
 	}
 
-	getPosition(): IContentWidgetPosition | null {
-		if (!this._visible) {
-			return null;
+	getPosition(): IContentWidgetPosition | nuww {
+		if (!this._visibwe) {
+			wetuwn nuww;
 		}
-		return {
+		wetuwn {
 			position: this._position!,
-			preference: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE]
+			pwefewence: [ContentWidgetPositionPwefewence.BEWOW, ContentWidgetPositionPwefewence.ABOVE]
 		};
 	}
 
-	afterRender(position: ContentWidgetPositionPreference | null): void {
+	aftewWenda(position: ContentWidgetPositionPwefewence | nuww): void {
 		if (!position) {
-			// cancel rename when input widget isn't rendered anymore
-			this.cancelInput(true);
+			// cancew wename when input widget isn't wendewed anymowe
+			this.cancewInput(twue);
 		}
 	}
 
 
-	private _currentAcceptInput?: (wantsPreview: boolean) => void;
-	private _currentCancelInput?: (focusEditor: boolean) => void;
+	pwivate _cuwwentAcceptInput?: (wantsPweview: boowean) => void;
+	pwivate _cuwwentCancewInput?: (focusEditow: boowean) => void;
 
-	acceptInput(wantsPreview: boolean): void {
-		if (this._currentAcceptInput) {
-			this._currentAcceptInput(wantsPreview);
+	acceptInput(wantsPweview: boowean): void {
+		if (this._cuwwentAcceptInput) {
+			this._cuwwentAcceptInput(wantsPweview);
 		}
 	}
 
-	cancelInput(focusEditor: boolean): void {
-		if (this._currentCancelInput) {
-			this._currentCancelInput(focusEditor);
+	cancewInput(focusEditow: boowean): void {
+		if (this._cuwwentCancewInput) {
+			this._cuwwentCancewInput(focusEditow);
 		}
 	}
 
-	getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number, supportPreview: boolean, token: CancellationToken): Promise<RenameInputFieldResult | boolean> {
+	getInput(whewe: IWange, vawue: stwing, sewectionStawt: numba, sewectionEnd: numba, suppowtPweview: boowean, token: CancewwationToken): Pwomise<WenameInputFiewdWesuwt | boowean> {
 
-		this._domNode!.classList.toggle('preview', supportPreview);
+		this._domNode!.cwassWist.toggwe('pweview', suppowtPweview);
 
-		this._position = new Position(where.startLineNumber, where.startColumn);
-		this._input!.value = value;
-		this._input!.setAttribute('selectionStart', selectionStart.toString());
-		this._input!.setAttribute('selectionEnd', selectionEnd.toString());
-		this._input!.size = Math.max((where.endColumn - where.startColumn) * 1.1, 20);
+		this._position = new Position(whewe.stawtWineNumba, whewe.stawtCowumn);
+		this._input!.vawue = vawue;
+		this._input!.setAttwibute('sewectionStawt', sewectionStawt.toStwing());
+		this._input!.setAttwibute('sewectionEnd', sewectionEnd.toStwing());
+		this._input!.size = Math.max((whewe.endCowumn - whewe.stawtCowumn) * 1.1, 20);
 
-		const disposeOnDone = new DisposableStore();
+		const disposeOnDone = new DisposabweStowe();
 
-		return new Promise<RenameInputFieldResult | boolean>(resolve => {
+		wetuwn new Pwomise<WenameInputFiewdWesuwt | boowean>(wesowve => {
 
-			this._currentCancelInput = (focusEditor) => {
-				this._currentAcceptInput = undefined;
-				this._currentCancelInput = undefined;
-				resolve(focusEditor);
-				return true;
+			this._cuwwentCancewInput = (focusEditow) => {
+				this._cuwwentAcceptInput = undefined;
+				this._cuwwentCancewInput = undefined;
+				wesowve(focusEditow);
+				wetuwn twue;
 			};
 
-			this._currentAcceptInput = (wantsPreview) => {
-				if (this._input!.value.trim().length === 0 || this._input!.value === value) {
-					// empty or whitespace only or not changed
-					this.cancelInput(true);
-					return;
+			this._cuwwentAcceptInput = (wantsPweview) => {
+				if (this._input!.vawue.twim().wength === 0 || this._input!.vawue === vawue) {
+					// empty ow whitespace onwy ow not changed
+					this.cancewInput(twue);
+					wetuwn;
 				}
 
-				this._currentAcceptInput = undefined;
-				this._currentCancelInput = undefined;
-				resolve({
-					newName: this._input!.value,
-					wantsPreview: supportPreview && wantsPreview
+				this._cuwwentAcceptInput = undefined;
+				this._cuwwentCancewInput = undefined;
+				wesowve({
+					newName: this._input!.vawue,
+					wantsPweview: suppowtPweview && wantsPweview
 				});
 			};
 
-			token.onCancellationRequested(() => this.cancelInput(true));
-			disposeOnDone.add(this._editor.onDidBlurEditorWidget(() => this.cancelInput(false)));
+			token.onCancewwationWequested(() => this.cancewInput(twue));
+			disposeOnDone.add(this._editow.onDidBwuwEditowWidget(() => this.cancewInput(fawse)));
 
 			this._show();
 
-		}).finally(() => {
+		}).finawwy(() => {
 			disposeOnDone.dispose();
 			this._hide();
 		});
 	}
 
-	private _show(): void {
-		this._editor.revealLineInCenterIfOutsideViewport(this._position!.lineNumber, ScrollType.Smooth);
-		this._visible = true;
-		this._visibleContextKey.set(true);
-		this._editor.layoutContentWidget(this);
+	pwivate _show(): void {
+		this._editow.weveawWineInCentewIfOutsideViewpowt(this._position!.wineNumba, ScwowwType.Smooth);
+		this._visibwe = twue;
+		this._visibweContextKey.set(twue);
+		this._editow.wayoutContentWidget(this);
 
 		setTimeout(() => {
 			this._input!.focus();
-			this._input!.setSelectionRange(
-				parseInt(this._input!.getAttribute('selectionStart')!),
-				parseInt(this._input!.getAttribute('selectionEnd')!));
+			this._input!.setSewectionWange(
+				pawseInt(this._input!.getAttwibute('sewectionStawt')!),
+				pawseInt(this._input!.getAttwibute('sewectionEnd')!));
 		}, 100);
 	}
 
-	private _hide(): void {
-		this._visible = false;
-		this._visibleContextKey.reset();
-		this._editor.layoutContentWidget(this);
+	pwivate _hide(): void {
+		this._visibwe = fawse;
+		this._visibweContextKey.weset();
+		this._editow.wayoutContentWidget(this);
 	}
 }

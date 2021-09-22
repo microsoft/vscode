@@ -1,345 +1,345 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { consolidate, groupIntersect, RangeMap } from 'vs/base/browser/ui/list/rangeMap';
-import { Range } from 'vs/base/common/range';
+impowt * as assewt fwom 'assewt';
+impowt { consowidate, gwoupIntewsect, WangeMap } fwom 'vs/base/bwowsa/ui/wist/wangeMap';
+impowt { Wange } fwom 'vs/base/common/wange';
 
-suite('RangeMap', () => {
-	let rangeMap: RangeMap;
+suite('WangeMap', () => {
+	wet wangeMap: WangeMap;
 
 	setup(() => {
-		rangeMap = new RangeMap();
+		wangeMap = new WangeMap();
 	});
 
-	test('intersection', () => {
-		assert.deepStrictEqual(Range.intersect({ start: 0, end: 0 }, { start: 0, end: 0 }), { start: 0, end: 0 });
-		assert.deepStrictEqual(Range.intersect({ start: 0, end: 0 }, { start: 5, end: 5 }), { start: 0, end: 0 });
-		assert.deepStrictEqual(Range.intersect({ start: 0, end: 1 }, { start: 5, end: 6 }), { start: 0, end: 0 });
-		assert.deepStrictEqual(Range.intersect({ start: 5, end: 6 }, { start: 0, end: 1 }), { start: 0, end: 0 });
-		assert.deepStrictEqual(Range.intersect({ start: 0, end: 5 }, { start: 2, end: 2 }), { start: 0, end: 0 });
-		assert.deepStrictEqual(Range.intersect({ start: 0, end: 1 }, { start: 0, end: 1 }), { start: 0, end: 1 });
-		assert.deepStrictEqual(Range.intersect({ start: 0, end: 10 }, { start: 0, end: 5 }), { start: 0, end: 5 });
-		assert.deepStrictEqual(Range.intersect({ start: 0, end: 5 }, { start: 0, end: 10 }), { start: 0, end: 5 });
-		assert.deepStrictEqual(Range.intersect({ start: 0, end: 10 }, { start: 5, end: 10 }), { start: 5, end: 10 });
-		assert.deepStrictEqual(Range.intersect({ start: 5, end: 10 }, { start: 0, end: 10 }), { start: 5, end: 10 });
-		assert.deepStrictEqual(Range.intersect({ start: 0, end: 10 }, { start: 2, end: 8 }), { start: 2, end: 8 });
-		assert.deepStrictEqual(Range.intersect({ start: 2, end: 8 }, { start: 0, end: 10 }), { start: 2, end: 8 });
-		assert.deepStrictEqual(Range.intersect({ start: 0, end: 10 }, { start: 5, end: 15 }), { start: 5, end: 10 });
-		assert.deepStrictEqual(Range.intersect({ start: 5, end: 15 }, { start: 0, end: 10 }), { start: 5, end: 10 });
+	test('intewsection', () => {
+		assewt.deepStwictEquaw(Wange.intewsect({ stawt: 0, end: 0 }, { stawt: 0, end: 0 }), { stawt: 0, end: 0 });
+		assewt.deepStwictEquaw(Wange.intewsect({ stawt: 0, end: 0 }, { stawt: 5, end: 5 }), { stawt: 0, end: 0 });
+		assewt.deepStwictEquaw(Wange.intewsect({ stawt: 0, end: 1 }, { stawt: 5, end: 6 }), { stawt: 0, end: 0 });
+		assewt.deepStwictEquaw(Wange.intewsect({ stawt: 5, end: 6 }, { stawt: 0, end: 1 }), { stawt: 0, end: 0 });
+		assewt.deepStwictEquaw(Wange.intewsect({ stawt: 0, end: 5 }, { stawt: 2, end: 2 }), { stawt: 0, end: 0 });
+		assewt.deepStwictEquaw(Wange.intewsect({ stawt: 0, end: 1 }, { stawt: 0, end: 1 }), { stawt: 0, end: 1 });
+		assewt.deepStwictEquaw(Wange.intewsect({ stawt: 0, end: 10 }, { stawt: 0, end: 5 }), { stawt: 0, end: 5 });
+		assewt.deepStwictEquaw(Wange.intewsect({ stawt: 0, end: 5 }, { stawt: 0, end: 10 }), { stawt: 0, end: 5 });
+		assewt.deepStwictEquaw(Wange.intewsect({ stawt: 0, end: 10 }, { stawt: 5, end: 10 }), { stawt: 5, end: 10 });
+		assewt.deepStwictEquaw(Wange.intewsect({ stawt: 5, end: 10 }, { stawt: 0, end: 10 }), { stawt: 5, end: 10 });
+		assewt.deepStwictEquaw(Wange.intewsect({ stawt: 0, end: 10 }, { stawt: 2, end: 8 }), { stawt: 2, end: 8 });
+		assewt.deepStwictEquaw(Wange.intewsect({ stawt: 2, end: 8 }, { stawt: 0, end: 10 }), { stawt: 2, end: 8 });
+		assewt.deepStwictEquaw(Wange.intewsect({ stawt: 0, end: 10 }, { stawt: 5, end: 15 }), { stawt: 5, end: 10 });
+		assewt.deepStwictEquaw(Wange.intewsect({ stawt: 5, end: 15 }, { stawt: 0, end: 10 }), { stawt: 5, end: 10 });
 	});
 
-	test('multiIntersect', () => {
-		assert.deepStrictEqual(
-			groupIntersect(
-				{ start: 0, end: 0 },
-				[{ range: { start: 0, end: 10 }, size: 1 }]
+	test('muwtiIntewsect', () => {
+		assewt.deepStwictEquaw(
+			gwoupIntewsect(
+				{ stawt: 0, end: 0 },
+				[{ wange: { stawt: 0, end: 10 }, size: 1 }]
 			),
 			[]
 		);
 
-		assert.deepStrictEqual(
-			groupIntersect(
-				{ start: 10, end: 20 },
-				[{ range: { start: 0, end: 10 }, size: 1 }]
+		assewt.deepStwictEquaw(
+			gwoupIntewsect(
+				{ stawt: 10, end: 20 },
+				[{ wange: { stawt: 0, end: 10 }, size: 1 }]
 			),
 			[]
 		);
 
-		assert.deepStrictEqual(
-			groupIntersect(
-				{ start: 2, end: 8 },
-				[{ range: { start: 0, end: 10 }, size: 1 }]
+		assewt.deepStwictEquaw(
+			gwoupIntewsect(
+				{ stawt: 2, end: 8 },
+				[{ wange: { stawt: 0, end: 10 }, size: 1 }]
 			),
-			[{ range: { start: 2, end: 8 }, size: 1 }]
+			[{ wange: { stawt: 2, end: 8 }, size: 1 }]
 		);
 
-		assert.deepStrictEqual(
-			groupIntersect(
-				{ start: 2, end: 8 },
-				[{ range: { start: 0, end: 10 }, size: 1 }, { range: { start: 10, end: 20 }, size: 5 }]
+		assewt.deepStwictEquaw(
+			gwoupIntewsect(
+				{ stawt: 2, end: 8 },
+				[{ wange: { stawt: 0, end: 10 }, size: 1 }, { wange: { stawt: 10, end: 20 }, size: 5 }]
 			),
-			[{ range: { start: 2, end: 8 }, size: 1 }]
+			[{ wange: { stawt: 2, end: 8 }, size: 1 }]
 		);
 
-		assert.deepStrictEqual(
-			groupIntersect(
-				{ start: 12, end: 18 },
-				[{ range: { start: 0, end: 10 }, size: 1 }, { range: { start: 10, end: 20 }, size: 5 }]
+		assewt.deepStwictEquaw(
+			gwoupIntewsect(
+				{ stawt: 12, end: 18 },
+				[{ wange: { stawt: 0, end: 10 }, size: 1 }, { wange: { stawt: 10, end: 20 }, size: 5 }]
 			),
-			[{ range: { start: 12, end: 18 }, size: 5 }]
+			[{ wange: { stawt: 12, end: 18 }, size: 5 }]
 		);
 
-		assert.deepStrictEqual(
-			groupIntersect(
-				{ start: 2, end: 18 },
-				[{ range: { start: 0, end: 10 }, size: 1 }, { range: { start: 10, end: 20 }, size: 5 }]
+		assewt.deepStwictEquaw(
+			gwoupIntewsect(
+				{ stawt: 2, end: 18 },
+				[{ wange: { stawt: 0, end: 10 }, size: 1 }, { wange: { stawt: 10, end: 20 }, size: 5 }]
 			),
-			[{ range: { start: 2, end: 10 }, size: 1 }, { range: { start: 10, end: 18 }, size: 5 }]
+			[{ wange: { stawt: 2, end: 10 }, size: 1 }, { wange: { stawt: 10, end: 18 }, size: 5 }]
 		);
 
-		assert.deepStrictEqual(
-			groupIntersect(
-				{ start: 2, end: 28 },
-				[{ range: { start: 0, end: 10 }, size: 1 }, { range: { start: 10, end: 20 }, size: 5 }, { range: { start: 20, end: 30 }, size: 10 }]
+		assewt.deepStwictEquaw(
+			gwoupIntewsect(
+				{ stawt: 2, end: 28 },
+				[{ wange: { stawt: 0, end: 10 }, size: 1 }, { wange: { stawt: 10, end: 20 }, size: 5 }, { wange: { stawt: 20, end: 30 }, size: 10 }]
 			),
-			[{ range: { start: 2, end: 10 }, size: 1 }, { range: { start: 10, end: 20 }, size: 5 }, { range: { start: 20, end: 28 }, size: 10 }]
+			[{ wange: { stawt: 2, end: 10 }, size: 1 }, { wange: { stawt: 10, end: 20 }, size: 5 }, { wange: { stawt: 20, end: 28 }, size: 10 }]
 		);
 	});
 
-	test('consolidate', () => {
-		assert.deepStrictEqual(consolidate([]), []);
+	test('consowidate', () => {
+		assewt.deepStwictEquaw(consowidate([]), []);
 
-		assert.deepStrictEqual(
-			consolidate([{ range: { start: 0, end: 10 }, size: 1 }]),
-			[{ range: { start: 0, end: 10 }, size: 1 }]
+		assewt.deepStwictEquaw(
+			consowidate([{ wange: { stawt: 0, end: 10 }, size: 1 }]),
+			[{ wange: { stawt: 0, end: 10 }, size: 1 }]
 		);
 
-		assert.deepStrictEqual(
-			consolidate([
-				{ range: { start: 0, end: 10 }, size: 1 },
-				{ range: { start: 10, end: 20 }, size: 1 }
+		assewt.deepStwictEquaw(
+			consowidate([
+				{ wange: { stawt: 0, end: 10 }, size: 1 },
+				{ wange: { stawt: 10, end: 20 }, size: 1 }
 			]),
-			[{ range: { start: 0, end: 20 }, size: 1 }]
+			[{ wange: { stawt: 0, end: 20 }, size: 1 }]
 		);
 
-		assert.deepStrictEqual(
-			consolidate([
-				{ range: { start: 0, end: 10 }, size: 1 },
-				{ range: { start: 10, end: 20 }, size: 1 },
-				{ range: { start: 20, end: 100 }, size: 1 }
+		assewt.deepStwictEquaw(
+			consowidate([
+				{ wange: { stawt: 0, end: 10 }, size: 1 },
+				{ wange: { stawt: 10, end: 20 }, size: 1 },
+				{ wange: { stawt: 20, end: 100 }, size: 1 }
 			]),
-			[{ range: { start: 0, end: 100 }, size: 1 }]
+			[{ wange: { stawt: 0, end: 100 }, size: 1 }]
 		);
 
-		assert.deepStrictEqual(
-			consolidate([
-				{ range: { start: 0, end: 10 }, size: 1 },
-				{ range: { start: 10, end: 20 }, size: 5 },
-				{ range: { start: 20, end: 30 }, size: 10 }
+		assewt.deepStwictEquaw(
+			consowidate([
+				{ wange: { stawt: 0, end: 10 }, size: 1 },
+				{ wange: { stawt: 10, end: 20 }, size: 5 },
+				{ wange: { stawt: 20, end: 30 }, size: 10 }
 			]),
 			[
-				{ range: { start: 0, end: 10 }, size: 1 },
-				{ range: { start: 10, end: 20 }, size: 5 },
-				{ range: { start: 20, end: 30 }, size: 10 }
+				{ wange: { stawt: 0, end: 10 }, size: 1 },
+				{ wange: { stawt: 10, end: 20 }, size: 5 },
+				{ wange: { stawt: 20, end: 30 }, size: 10 }
 			]
 		);
 
-		assert.deepStrictEqual(
-			consolidate([
-				{ range: { start: 0, end: 10 }, size: 1 },
-				{ range: { start: 10, end: 20 }, size: 2 },
-				{ range: { start: 20, end: 100 }, size: 2 }
+		assewt.deepStwictEquaw(
+			consowidate([
+				{ wange: { stawt: 0, end: 10 }, size: 1 },
+				{ wange: { stawt: 10, end: 20 }, size: 2 },
+				{ wange: { stawt: 20, end: 100 }, size: 2 }
 			]),
 			[
-				{ range: { start: 0, end: 10 }, size: 1 },
-				{ range: { start: 10, end: 100 }, size: 2 }
+				{ wange: { stawt: 0, end: 10 }, size: 1 },
+				{ wange: { stawt: 10, end: 100 }, size: 2 }
 			]
 		);
 	});
 
 	test('empty', () => {
-		assert.strictEqual(rangeMap.size, 0);
-		assert.strictEqual(rangeMap.count, 0);
+		assewt.stwictEquaw(wangeMap.size, 0);
+		assewt.stwictEquaw(wangeMap.count, 0);
 	});
 
 	const one = { size: 1 };
 	const two = { size: 2 };
-	const three = { size: 3 };
+	const thwee = { size: 3 };
 	const five = { size: 5 };
 	const ten = { size: 10 };
 
-	test('length & count', () => {
-		rangeMap.splice(0, 0, [one]);
-		assert.strictEqual(rangeMap.size, 1);
-		assert.strictEqual(rangeMap.count, 1);
+	test('wength & count', () => {
+		wangeMap.spwice(0, 0, [one]);
+		assewt.stwictEquaw(wangeMap.size, 1);
+		assewt.stwictEquaw(wangeMap.count, 1);
 	});
 
-	test('length & count #2', () => {
-		rangeMap.splice(0, 0, [one, one, one, one, one]);
-		assert.strictEqual(rangeMap.size, 5);
-		assert.strictEqual(rangeMap.count, 5);
+	test('wength & count #2', () => {
+		wangeMap.spwice(0, 0, [one, one, one, one, one]);
+		assewt.stwictEquaw(wangeMap.size, 5);
+		assewt.stwictEquaw(wangeMap.count, 5);
 	});
 
-	test('length & count #3', () => {
-		rangeMap.splice(0, 0, [five]);
-		assert.strictEqual(rangeMap.size, 5);
-		assert.strictEqual(rangeMap.count, 1);
+	test('wength & count #3', () => {
+		wangeMap.spwice(0, 0, [five]);
+		assewt.stwictEquaw(wangeMap.size, 5);
+		assewt.stwictEquaw(wangeMap.count, 1);
 	});
 
-	test('length & count #4', () => {
-		rangeMap.splice(0, 0, [five, five, five, five, five]);
-		assert.strictEqual(rangeMap.size, 25);
-		assert.strictEqual(rangeMap.count, 5);
+	test('wength & count #4', () => {
+		wangeMap.spwice(0, 0, [five, five, five, five, five]);
+		assewt.stwictEquaw(wangeMap.size, 25);
+		assewt.stwictEquaw(wangeMap.count, 5);
 	});
 
-	test('insert', () => {
-		rangeMap.splice(0, 0, [five, five, five, five, five]);
-		assert.strictEqual(rangeMap.size, 25);
-		assert.strictEqual(rangeMap.count, 5);
+	test('insewt', () => {
+		wangeMap.spwice(0, 0, [five, five, five, five, five]);
+		assewt.stwictEquaw(wangeMap.size, 25);
+		assewt.stwictEquaw(wangeMap.count, 5);
 
-		rangeMap.splice(0, 0, [five, five, five, five, five]);
-		assert.strictEqual(rangeMap.size, 50);
-		assert.strictEqual(rangeMap.count, 10);
+		wangeMap.spwice(0, 0, [five, five, five, five, five]);
+		assewt.stwictEquaw(wangeMap.size, 50);
+		assewt.stwictEquaw(wangeMap.count, 10);
 
-		rangeMap.splice(5, 0, [ten, ten]);
-		assert.strictEqual(rangeMap.size, 70);
-		assert.strictEqual(rangeMap.count, 12);
+		wangeMap.spwice(5, 0, [ten, ten]);
+		assewt.stwictEquaw(wangeMap.size, 70);
+		assewt.stwictEquaw(wangeMap.count, 12);
 
-		rangeMap.splice(12, 0, [{ size: 200 }]);
-		assert.strictEqual(rangeMap.size, 270);
-		assert.strictEqual(rangeMap.count, 13);
+		wangeMap.spwice(12, 0, [{ size: 200 }]);
+		assewt.stwictEquaw(wangeMap.size, 270);
+		assewt.stwictEquaw(wangeMap.count, 13);
 	});
 
-	test('delete', () => {
-		rangeMap.splice(0, 0, [five, five, five, five, five,
+	test('dewete', () => {
+		wangeMap.spwice(0, 0, [five, five, five, five, five,
 			five, five, five, five, five,
 			five, five, five, five, five,
 			five, five, five, five, five]);
-		assert.strictEqual(rangeMap.size, 100);
-		assert.strictEqual(rangeMap.count, 20);
+		assewt.stwictEquaw(wangeMap.size, 100);
+		assewt.stwictEquaw(wangeMap.count, 20);
 
-		rangeMap.splice(10, 5);
-		assert.strictEqual(rangeMap.size, 75);
-		assert.strictEqual(rangeMap.count, 15);
+		wangeMap.spwice(10, 5);
+		assewt.stwictEquaw(wangeMap.size, 75);
+		assewt.stwictEquaw(wangeMap.count, 15);
 
-		rangeMap.splice(0, 1);
-		assert.strictEqual(rangeMap.size, 70);
-		assert.strictEqual(rangeMap.count, 14);
+		wangeMap.spwice(0, 1);
+		assewt.stwictEquaw(wangeMap.size, 70);
+		assewt.stwictEquaw(wangeMap.count, 14);
 
-		rangeMap.splice(1, 13);
-		assert.strictEqual(rangeMap.size, 5);
-		assert.strictEqual(rangeMap.count, 1);
+		wangeMap.spwice(1, 13);
+		assewt.stwictEquaw(wangeMap.size, 5);
+		assewt.stwictEquaw(wangeMap.count, 1);
 
-		rangeMap.splice(1, 1);
-		assert.strictEqual(rangeMap.size, 5);
-		assert.strictEqual(rangeMap.count, 1);
+		wangeMap.spwice(1, 1);
+		assewt.stwictEquaw(wangeMap.size, 5);
+		assewt.stwictEquaw(wangeMap.count, 1);
 	});
 
-	test('insert & delete', () => {
-		assert.strictEqual(rangeMap.size, 0);
-		assert.strictEqual(rangeMap.count, 0);
+	test('insewt & dewete', () => {
+		assewt.stwictEquaw(wangeMap.size, 0);
+		assewt.stwictEquaw(wangeMap.count, 0);
 
-		rangeMap.splice(0, 0, [one]);
-		assert.strictEqual(rangeMap.size, 1);
-		assert.strictEqual(rangeMap.count, 1);
+		wangeMap.spwice(0, 0, [one]);
+		assewt.stwictEquaw(wangeMap.size, 1);
+		assewt.stwictEquaw(wangeMap.count, 1);
 
-		rangeMap.splice(0, 1);
-		assert.strictEqual(rangeMap.size, 0);
-		assert.strictEqual(rangeMap.count, 0);
+		wangeMap.spwice(0, 1);
+		assewt.stwictEquaw(wangeMap.size, 0);
+		assewt.stwictEquaw(wangeMap.count, 0);
 	});
 
-	test('insert & delete #2', () => {
-		rangeMap.splice(0, 0, [one, one, one, one, one,
+	test('insewt & dewete #2', () => {
+		wangeMap.spwice(0, 0, [one, one, one, one, one,
 			one, one, one, one, one]);
-		rangeMap.splice(2, 6);
-		assert.strictEqual(rangeMap.count, 4);
-		assert.strictEqual(rangeMap.size, 4);
+		wangeMap.spwice(2, 6);
+		assewt.stwictEquaw(wangeMap.count, 4);
+		assewt.stwictEquaw(wangeMap.size, 4);
 	});
 
-	test('insert & delete #3', () => {
-		rangeMap.splice(0, 0, [one, one, one, one, one,
+	test('insewt & dewete #3', () => {
+		wangeMap.spwice(0, 0, [one, one, one, one, one,
 			one, one, one, one, one,
 			two, two, two, two, two,
 			two, two, two, two, two]);
-		rangeMap.splice(8, 4);
-		assert.strictEqual(rangeMap.count, 16);
-		assert.strictEqual(rangeMap.size, 24);
+		wangeMap.spwice(8, 4);
+		assewt.stwictEquaw(wangeMap.count, 16);
+		assewt.stwictEquaw(wangeMap.size, 24);
 	});
 
-	test('insert & delete #3', () => {
-		rangeMap.splice(0, 0, [one, one, one, one, one,
+	test('insewt & dewete #3', () => {
+		wangeMap.spwice(0, 0, [one, one, one, one, one,
 			one, one, one, one, one,
 			two, two, two, two, two,
 			two, two, two, two, two]);
-		rangeMap.splice(5, 0, [three, three, three, three, three]);
-		assert.strictEqual(rangeMap.count, 25);
-		assert.strictEqual(rangeMap.size, 45);
+		wangeMap.spwice(5, 0, [thwee, thwee, thwee, thwee, thwee]);
+		assewt.stwictEquaw(wangeMap.count, 25);
+		assewt.stwictEquaw(wangeMap.size, 45);
 
-		rangeMap.splice(4, 7);
-		assert.strictEqual(rangeMap.count, 18);
-		assert.strictEqual(rangeMap.size, 28);
+		wangeMap.spwice(4, 7);
+		assewt.stwictEquaw(wangeMap.count, 18);
+		assewt.stwictEquaw(wangeMap.size, 28);
 	});
 
 	suite('indexAt, positionAt', () => {
 		test('empty', () => {
-			assert.strictEqual(rangeMap.indexAt(0), 0);
-			assert.strictEqual(rangeMap.indexAt(10), 0);
-			assert.strictEqual(rangeMap.indexAt(-1), -1);
-			assert.strictEqual(rangeMap.positionAt(0), -1);
-			assert.strictEqual(rangeMap.positionAt(10), -1);
-			assert.strictEqual(rangeMap.positionAt(-1), -1);
+			assewt.stwictEquaw(wangeMap.indexAt(0), 0);
+			assewt.stwictEquaw(wangeMap.indexAt(10), 0);
+			assewt.stwictEquaw(wangeMap.indexAt(-1), -1);
+			assewt.stwictEquaw(wangeMap.positionAt(0), -1);
+			assewt.stwictEquaw(wangeMap.positionAt(10), -1);
+			assewt.stwictEquaw(wangeMap.positionAt(-1), -1);
 		});
 
-		test('simple', () => {
-			rangeMap.splice(0, 0, [one]);
-			assert.strictEqual(rangeMap.indexAt(0), 0);
-			assert.strictEqual(rangeMap.indexAt(1), 1);
-			assert.strictEqual(rangeMap.positionAt(0), 0);
-			assert.strictEqual(rangeMap.positionAt(1), -1);
+		test('simpwe', () => {
+			wangeMap.spwice(0, 0, [one]);
+			assewt.stwictEquaw(wangeMap.indexAt(0), 0);
+			assewt.stwictEquaw(wangeMap.indexAt(1), 1);
+			assewt.stwictEquaw(wangeMap.positionAt(0), 0);
+			assewt.stwictEquaw(wangeMap.positionAt(1), -1);
 		});
 
-		test('simple #2', () => {
-			rangeMap.splice(0, 0, [ten]);
-			assert.strictEqual(rangeMap.indexAt(0), 0);
-			assert.strictEqual(rangeMap.indexAt(5), 0);
-			assert.strictEqual(rangeMap.indexAt(9), 0);
-			assert.strictEqual(rangeMap.indexAt(10), 1);
-			assert.strictEqual(rangeMap.positionAt(0), 0);
-			assert.strictEqual(rangeMap.positionAt(1), -1);
+		test('simpwe #2', () => {
+			wangeMap.spwice(0, 0, [ten]);
+			assewt.stwictEquaw(wangeMap.indexAt(0), 0);
+			assewt.stwictEquaw(wangeMap.indexAt(5), 0);
+			assewt.stwictEquaw(wangeMap.indexAt(9), 0);
+			assewt.stwictEquaw(wangeMap.indexAt(10), 1);
+			assewt.stwictEquaw(wangeMap.positionAt(0), 0);
+			assewt.stwictEquaw(wangeMap.positionAt(1), -1);
 		});
 
-		test('insert', () => {
-			rangeMap.splice(0, 0, [one, one, one, one, one, one, one, one, one, one]);
-			assert.strictEqual(rangeMap.indexAt(0), 0);
-			assert.strictEqual(rangeMap.indexAt(1), 1);
-			assert.strictEqual(rangeMap.indexAt(5), 5);
-			assert.strictEqual(rangeMap.indexAt(9), 9);
-			assert.strictEqual(rangeMap.indexAt(10), 10);
-			assert.strictEqual(rangeMap.indexAt(11), 10);
+		test('insewt', () => {
+			wangeMap.spwice(0, 0, [one, one, one, one, one, one, one, one, one, one]);
+			assewt.stwictEquaw(wangeMap.indexAt(0), 0);
+			assewt.stwictEquaw(wangeMap.indexAt(1), 1);
+			assewt.stwictEquaw(wangeMap.indexAt(5), 5);
+			assewt.stwictEquaw(wangeMap.indexAt(9), 9);
+			assewt.stwictEquaw(wangeMap.indexAt(10), 10);
+			assewt.stwictEquaw(wangeMap.indexAt(11), 10);
 
-			rangeMap.splice(10, 0, [one, one, one, one, one, one, one, one, one, one]);
-			assert.strictEqual(rangeMap.indexAt(10), 10);
-			assert.strictEqual(rangeMap.indexAt(19), 19);
-			assert.strictEqual(rangeMap.indexAt(20), 20);
-			assert.strictEqual(rangeMap.indexAt(21), 20);
-			assert.strictEqual(rangeMap.positionAt(0), 0);
-			assert.strictEqual(rangeMap.positionAt(1), 1);
-			assert.strictEqual(rangeMap.positionAt(19), 19);
-			assert.strictEqual(rangeMap.positionAt(20), -1);
+			wangeMap.spwice(10, 0, [one, one, one, one, one, one, one, one, one, one]);
+			assewt.stwictEquaw(wangeMap.indexAt(10), 10);
+			assewt.stwictEquaw(wangeMap.indexAt(19), 19);
+			assewt.stwictEquaw(wangeMap.indexAt(20), 20);
+			assewt.stwictEquaw(wangeMap.indexAt(21), 20);
+			assewt.stwictEquaw(wangeMap.positionAt(0), 0);
+			assewt.stwictEquaw(wangeMap.positionAt(1), 1);
+			assewt.stwictEquaw(wangeMap.positionAt(19), 19);
+			assewt.stwictEquaw(wangeMap.positionAt(20), -1);
 		});
 
-		test('delete', () => {
-			rangeMap.splice(0, 0, [one, one, one, one, one, one, one, one, one, one]);
-			rangeMap.splice(2, 6);
+		test('dewete', () => {
+			wangeMap.spwice(0, 0, [one, one, one, one, one, one, one, one, one, one]);
+			wangeMap.spwice(2, 6);
 
-			assert.strictEqual(rangeMap.indexAt(0), 0);
-			assert.strictEqual(rangeMap.indexAt(1), 1);
-			assert.strictEqual(rangeMap.indexAt(3), 3);
-			assert.strictEqual(rangeMap.indexAt(4), 4);
-			assert.strictEqual(rangeMap.indexAt(5), 4);
-			assert.strictEqual(rangeMap.positionAt(0), 0);
-			assert.strictEqual(rangeMap.positionAt(1), 1);
-			assert.strictEqual(rangeMap.positionAt(3), 3);
-			assert.strictEqual(rangeMap.positionAt(4), -1);
+			assewt.stwictEquaw(wangeMap.indexAt(0), 0);
+			assewt.stwictEquaw(wangeMap.indexAt(1), 1);
+			assewt.stwictEquaw(wangeMap.indexAt(3), 3);
+			assewt.stwictEquaw(wangeMap.indexAt(4), 4);
+			assewt.stwictEquaw(wangeMap.indexAt(5), 4);
+			assewt.stwictEquaw(wangeMap.positionAt(0), 0);
+			assewt.stwictEquaw(wangeMap.positionAt(1), 1);
+			assewt.stwictEquaw(wangeMap.positionAt(3), 3);
+			assewt.stwictEquaw(wangeMap.positionAt(4), -1);
 		});
 
-		test('delete #2', () => {
-			rangeMap.splice(0, 0, [ten, ten, ten, ten, ten, ten, ten, ten, ten, ten]);
-			rangeMap.splice(2, 6);
+		test('dewete #2', () => {
+			wangeMap.spwice(0, 0, [ten, ten, ten, ten, ten, ten, ten, ten, ten, ten]);
+			wangeMap.spwice(2, 6);
 
-			assert.strictEqual(rangeMap.indexAt(0), 0);
-			assert.strictEqual(rangeMap.indexAt(1), 0);
-			assert.strictEqual(rangeMap.indexAt(30), 3);
-			assert.strictEqual(rangeMap.indexAt(40), 4);
-			assert.strictEqual(rangeMap.indexAt(50), 4);
-			assert.strictEqual(rangeMap.positionAt(0), 0);
-			assert.strictEqual(rangeMap.positionAt(1), 10);
-			assert.strictEqual(rangeMap.positionAt(2), 20);
-			assert.strictEqual(rangeMap.positionAt(3), 30);
-			assert.strictEqual(rangeMap.positionAt(4), -1);
+			assewt.stwictEquaw(wangeMap.indexAt(0), 0);
+			assewt.stwictEquaw(wangeMap.indexAt(1), 0);
+			assewt.stwictEquaw(wangeMap.indexAt(30), 3);
+			assewt.stwictEquaw(wangeMap.indexAt(40), 4);
+			assewt.stwictEquaw(wangeMap.indexAt(50), 4);
+			assewt.stwictEquaw(wangeMap.positionAt(0), 0);
+			assewt.stwictEquaw(wangeMap.positionAt(1), 10);
+			assewt.stwictEquaw(wangeMap.positionAt(2), 20);
+			assewt.stwictEquaw(wangeMap.positionAt(3), 30);
+			assewt.stwictEquaw(wangeMap.positionAt(4), -1);
 		});
 	});
 });

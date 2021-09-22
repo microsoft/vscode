@@ -1,78 +1,78 @@
 {
-  "name": "yaml",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "name": "yamw",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin textmate/yaml.tmbundle Syntaxes/YAML.tmLanguage ./syntaxes/yaml.tmLanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin textmate/yamw.tmbundwe Syntaxes/YAMW.tmWanguage ./syntaxes/yamw.tmWanguage.json"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
-        "id": "dockercompose",
-        "aliases": [
+        "id": "dockewcompose",
+        "awiases": [
           "Compose",
           "compose"
         ],
-        "filenamePatterns": [
-          "compose.yml",
-          "compose.yaml",
-          "compose.*.yml",
-          "compose.*.yaml",
-          "*docker*compose*.yml",
-          "*docker*compose*.yaml"
+        "fiwenamePattewns": [
+          "compose.ymw",
+          "compose.yamw",
+          "compose.*.ymw",
+          "compose.*.yamw",
+          "*docka*compose*.ymw",
+          "*docka*compose*.yamw"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       },
       {
-        "id": "yaml",
-        "aliases": [
-          "YAML",
-          "yaml"
+        "id": "yamw",
+        "awiases": [
+          "YAMW",
+          "yamw"
         ],
         "extensions": [
-          ".yml",
-          ".eyaml",
-          ".eyml",
-          ".yaml",
+          ".ymw",
+          ".eyamw",
+          ".eymw",
+          ".yamw",
           ".cff"
         ],
-        "firstLine": "^#cloud-config",
-        "configuration": "./language-configuration.json"
+        "fiwstWine": "^#cwoud-config",
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "dockercompose",
-        "scopeName": "source.yaml",
-        "path": "./syntaxes/yaml.tmLanguage.json"
+        "wanguage": "dockewcompose",
+        "scopeName": "souwce.yamw",
+        "path": "./syntaxes/yamw.tmWanguage.json"
       },
       {
-        "language": "yaml",
-        "scopeName": "source.yaml",
-        "path": "./syntaxes/yaml.tmLanguage.json"
+        "wanguage": "yamw",
+        "scopeName": "souwce.yamw",
+        "path": "./syntaxes/yamw.tmWanguage.json"
       }
     ],
-    "configurationDefaults": {
-      "[yaml]": {
-        "editor.insertSpaces": true,
-        "editor.tabSize": 2,
-        "editor.autoIndent": "advanced"
+    "configuwationDefauwts": {
+      "[yamw]": {
+        "editow.insewtSpaces": twue,
+        "editow.tabSize": 2,
+        "editow.autoIndent": "advanced"
       },
-      "[dockercompose]": {
-        "editor.insertSpaces": true,
-        "editor.tabSize": 2,
-        "editor.autoIndent": "advanced"
+      "[dockewcompose]": {
+        "editow.insewtSpaces": twue,
+        "editow.tabSize": 2,
+        "editow.autoIndent": "advanced"
       }
     }
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

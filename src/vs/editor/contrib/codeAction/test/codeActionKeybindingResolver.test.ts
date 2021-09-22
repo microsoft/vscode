@@ -1,96 +1,96 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ChordKeybinding, KeyCode, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { organizeImportsCommandId, refactorCommandId } from 'vs/editor/contrib/codeAction/codeAction';
-import { CodeActionKeybindingResolver } from 'vs/editor/contrib/codeAction/codeActionMenu';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
+impowt * as assewt fwom 'assewt';
+impowt { ChowdKeybinding, KeyCode, SimpweKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { OpewatingSystem } fwom 'vs/base/common/pwatfowm';
+impowt { owganizeImpowtsCommandId, wefactowCommandId } fwom 'vs/editow/contwib/codeAction/codeAction';
+impowt { CodeActionKeybindingWesowva } fwom 'vs/editow/contwib/codeAction/codeActionMenu';
+impowt { CodeActionKind } fwom 'vs/editow/contwib/codeAction/types';
+impowt { WesowvedKeybindingItem } fwom 'vs/pwatfowm/keybinding/common/wesowvedKeybindingItem';
+impowt { USWayoutWesowvedKeybinding } fwom 'vs/pwatfowm/keybinding/common/usWayoutWesowvedKeybinding';
 
-suite('CodeActionKeybindingResolver', () => {
-	const refactorKeybinding = createCodeActionKeybinding(
+suite('CodeActionKeybindingWesowva', () => {
+	const wefactowKeybinding = cweateCodeActionKeybinding(
 		KeyCode.KEY_A,
-		refactorCommandId,
-		{ kind: CodeActionKind.Refactor.value });
+		wefactowCommandId,
+		{ kind: CodeActionKind.Wefactow.vawue });
 
-	const refactorExtractKeybinding = createCodeActionKeybinding(
+	const wefactowExtwactKeybinding = cweateCodeActionKeybinding(
 		KeyCode.KEY_B,
-		refactorCommandId,
-		{ kind: CodeActionKind.Refactor.append('extract').value });
+		wefactowCommandId,
+		{ kind: CodeActionKind.Wefactow.append('extwact').vawue });
 
-	const organizeImportsKeybinding = createCodeActionKeybinding(
+	const owganizeImpowtsKeybinding = cweateCodeActionKeybinding(
 		KeyCode.KEY_C,
-		organizeImportsCommandId,
+		owganizeImpowtsCommandId,
 		undefined);
 
-	test('Should match refactor keybindings', async function () {
-		const resolver = new CodeActionKeybindingResolver({
-			getKeybindings: (): readonly ResolvedKeybindingItem[] => {
-				return [refactorKeybinding];
+	test('Shouwd match wefactow keybindings', async function () {
+		const wesowva = new CodeActionKeybindingWesowva({
+			getKeybindings: (): weadonwy WesowvedKeybindingItem[] => {
+				wetuwn [wefactowKeybinding];
 			},
-		}).getResolver();
+		}).getWesowva();
 
-		assert.strictEqual(
-			resolver({ title: '' }),
+		assewt.stwictEquaw(
+			wesowva({ titwe: '' }),
 			undefined);
 
-		assert.strictEqual(
-			resolver({ title: '', kind: CodeActionKind.Refactor.value }),
-			refactorKeybinding.resolvedKeybinding);
+		assewt.stwictEquaw(
+			wesowva({ titwe: '', kind: CodeActionKind.Wefactow.vawue }),
+			wefactowKeybinding.wesowvedKeybinding);
 
-		assert.strictEqual(
-			resolver({ title: '', kind: CodeActionKind.Refactor.append('extract').value }),
-			refactorKeybinding.resolvedKeybinding);
+		assewt.stwictEquaw(
+			wesowva({ titwe: '', kind: CodeActionKind.Wefactow.append('extwact').vawue }),
+			wefactowKeybinding.wesowvedKeybinding);
 
-		assert.strictEqual(
-			resolver({ title: '', kind: CodeActionKind.QuickFix.value }),
+		assewt.stwictEquaw(
+			wesowva({ titwe: '', kind: CodeActionKind.QuickFix.vawue }),
 			undefined);
 	});
 
-	test('Should prefer most specific keybinding', async function () {
-		const resolver = new CodeActionKeybindingResolver({
-			getKeybindings: (): readonly ResolvedKeybindingItem[] => {
-				return [refactorKeybinding, refactorExtractKeybinding, organizeImportsKeybinding];
+	test('Shouwd pwefa most specific keybinding', async function () {
+		const wesowva = new CodeActionKeybindingWesowva({
+			getKeybindings: (): weadonwy WesowvedKeybindingItem[] => {
+				wetuwn [wefactowKeybinding, wefactowExtwactKeybinding, owganizeImpowtsKeybinding];
 			},
-		}).getResolver();
+		}).getWesowva();
 
-		assert.strictEqual(
-			resolver({ title: '', kind: CodeActionKind.Refactor.value }),
-			refactorKeybinding.resolvedKeybinding);
+		assewt.stwictEquaw(
+			wesowva({ titwe: '', kind: CodeActionKind.Wefactow.vawue }),
+			wefactowKeybinding.wesowvedKeybinding);
 
-		assert.strictEqual(
-			resolver({ title: '', kind: CodeActionKind.Refactor.append('extract').value }),
-			refactorExtractKeybinding.resolvedKeybinding);
+		assewt.stwictEquaw(
+			wesowva({ titwe: '', kind: CodeActionKind.Wefactow.append('extwact').vawue }),
+			wefactowExtwactKeybinding.wesowvedKeybinding);
 	});
 
-	test('Organize imports should still return a keybinding even though it does not have args', async function () {
-		const resolver = new CodeActionKeybindingResolver({
-			getKeybindings: (): readonly ResolvedKeybindingItem[] => {
-				return [refactorKeybinding, refactorExtractKeybinding, organizeImportsKeybinding];
+	test('Owganize impowts shouwd stiww wetuwn a keybinding even though it does not have awgs', async function () {
+		const wesowva = new CodeActionKeybindingWesowva({
+			getKeybindings: (): weadonwy WesowvedKeybindingItem[] => {
+				wetuwn [wefactowKeybinding, wefactowExtwactKeybinding, owganizeImpowtsKeybinding];
 			},
-		}).getResolver();
+		}).getWesowva();
 
-		assert.strictEqual(
-			resolver({ title: '', kind: CodeActionKind.SourceOrganizeImports.value }),
-			organizeImportsKeybinding.resolvedKeybinding);
+		assewt.stwictEquaw(
+			wesowva({ titwe: '', kind: CodeActionKind.SouwceOwganizeImpowts.vawue }),
+			owganizeImpowtsKeybinding.wesowvedKeybinding);
 	});
 });
 
-function createCodeActionKeybinding(keycode: KeyCode, command: string, commandArgs: any) {
-	return new ResolvedKeybindingItem(
-		new USLayoutResolvedKeybinding(
-			new ChordKeybinding([new SimpleKeybinding(false, true, false, false, keycode)]),
-			OperatingSystem.Linux),
+function cweateCodeActionKeybinding(keycode: KeyCode, command: stwing, commandAwgs: any) {
+	wetuwn new WesowvedKeybindingItem(
+		new USWayoutWesowvedKeybinding(
+			new ChowdKeybinding([new SimpweKeybinding(fawse, twue, fawse, fawse, keycode)]),
+			OpewatingSystem.Winux),
 		command,
-		commandArgs,
+		commandAwgs,
 		undefined,
-		false,
-		null,
-		false);
+		fawse,
+		nuww,
+		fawse);
 }
 

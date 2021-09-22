@@ -1,251 +1,251 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-export interface ITOCEntry<T> {
-	id: string;
-	label: string;
-	order?: number;
-	children?: ITOCEntry<T>[];
-	settings?: Array<T>;
+impowt { wocawize } fwom 'vs/nws';
+expowt intewface ITOCEntwy<T> {
+	id: stwing;
+	wabew: stwing;
+	owda?: numba;
+	chiwdwen?: ITOCEntwy<T>[];
+	settings?: Awway<T>;
 }
 
-export const commonlyUsedData: ITOCEntry<string> = {
-	id: 'commonlyUsed',
-	label: localize('commonlyUsed', "Commonly Used"),
-	settings: ['files.autoSave', 'editor.fontSize', 'editor.fontFamily', 'editor.tabSize', 'editor.renderWhitespace', 'editor.cursorStyle', 'editor.multiCursorModifier', 'editor.insertSpaces', 'editor.wordWrap', 'files.exclude', 'files.associations', 'workbench.editor.enablePreview']
+expowt const commonwyUsedData: ITOCEntwy<stwing> = {
+	id: 'commonwyUsed',
+	wabew: wocawize('commonwyUsed', "Commonwy Used"),
+	settings: ['fiwes.autoSave', 'editow.fontSize', 'editow.fontFamiwy', 'editow.tabSize', 'editow.wendewWhitespace', 'editow.cuwsowStywe', 'editow.muwtiCuwsowModifia', 'editow.insewtSpaces', 'editow.wowdWwap', 'fiwes.excwude', 'fiwes.associations', 'wowkbench.editow.enabwePweview']
 };
 
-export const tocData: ITOCEntry<string> = {
-	id: 'root',
-	label: 'root',
-	children: [
+expowt const tocData: ITOCEntwy<stwing> = {
+	id: 'woot',
+	wabew: 'woot',
+	chiwdwen: [
 		{
-			id: 'editor',
-			label: localize('textEditor', "Text Editor"),
-			settings: ['editor.*'],
-			children: [
+			id: 'editow',
+			wabew: wocawize('textEditow', "Text Editow"),
+			settings: ['editow.*'],
+			chiwdwen: [
 				{
-					id: 'editor/cursor',
-					label: localize('cursor', "Cursor"),
-					settings: ['editor.cursor*']
+					id: 'editow/cuwsow',
+					wabew: wocawize('cuwsow', "Cuwsow"),
+					settings: ['editow.cuwsow*']
 				},
 				{
-					id: 'editor/find',
-					label: localize('find', "Find"),
-					settings: ['editor.find.*']
+					id: 'editow/find',
+					wabew: wocawize('find', "Find"),
+					settings: ['editow.find.*']
 				},
 				{
-					id: 'editor/font',
-					label: localize('font', "Font"),
-					settings: ['editor.font*']
+					id: 'editow/font',
+					wabew: wocawize('font', "Font"),
+					settings: ['editow.font*']
 				},
 				{
-					id: 'editor/format',
-					label: localize('formatting', "Formatting"),
-					settings: ['editor.format*']
+					id: 'editow/fowmat',
+					wabew: wocawize('fowmatting', "Fowmatting"),
+					settings: ['editow.fowmat*']
 				},
 				{
-					id: 'editor/diffEditor',
-					label: localize('diffEditor', "Diff Editor"),
-					settings: ['diffEditor.*']
+					id: 'editow/diffEditow',
+					wabew: wocawize('diffEditow', "Diff Editow"),
+					settings: ['diffEditow.*']
 				},
 				{
-					id: 'editor/minimap',
-					label: localize('minimap', "Minimap"),
-					settings: ['editor.minimap.*']
+					id: 'editow/minimap',
+					wabew: wocawize('minimap', "Minimap"),
+					settings: ['editow.minimap.*']
 				},
 				{
-					id: 'editor/suggestions',
-					label: localize('suggestions', "Suggestions"),
-					settings: ['editor.*suggest*']
+					id: 'editow/suggestions',
+					wabew: wocawize('suggestions', "Suggestions"),
+					settings: ['editow.*suggest*']
 				},
 				{
-					id: 'editor/files',
-					label: localize('files', "Files"),
-					settings: ['files.*']
+					id: 'editow/fiwes',
+					wabew: wocawize('fiwes', "Fiwes"),
+					settings: ['fiwes.*']
 				}
 			]
 		},
 		{
-			id: 'workbench',
-			label: localize('workbench', "Workbench"),
-			settings: ['workbench.*'],
-			children: [
+			id: 'wowkbench',
+			wabew: wocawize('wowkbench', "Wowkbench"),
+			settings: ['wowkbench.*'],
+			chiwdwen: [
 				{
-					id: 'workbench/appearance',
-					label: localize('appearance', "Appearance"),
-					settings: ['workbench.activityBar.*', 'workbench.*color*', 'workbench.fontAliasing', 'workbench.iconTheme', 'workbench.sidebar.location', 'workbench.*.visible', 'workbench.tips.enabled', 'workbench.tree.*', 'workbench.view.*']
+					id: 'wowkbench/appeawance',
+					wabew: wocawize('appeawance', "Appeawance"),
+					settings: ['wowkbench.activityBaw.*', 'wowkbench.*cowow*', 'wowkbench.fontAwiasing', 'wowkbench.iconTheme', 'wowkbench.sidebaw.wocation', 'wowkbench.*.visibwe', 'wowkbench.tips.enabwed', 'wowkbench.twee.*', 'wowkbench.view.*']
 				},
 				{
-					id: 'workbench/breadcrumbs',
-					label: localize('breadcrumbs', "Breadcrumbs"),
-					settings: ['breadcrumbs.*']
+					id: 'wowkbench/bweadcwumbs',
+					wabew: wocawize('bweadcwumbs', "Bweadcwumbs"),
+					settings: ['bweadcwumbs.*']
 				},
 				{
-					id: 'workbench/editor',
-					label: localize('editorManagement', "Editor Management"),
-					settings: ['workbench.editor.*']
+					id: 'wowkbench/editow',
+					wabew: wocawize('editowManagement', "Editow Management"),
+					settings: ['wowkbench.editow.*']
 				},
 				{
-					id: 'workbench/settings',
-					label: localize('settings', "Settings Editor"),
-					settings: ['workbench.settings.*']
+					id: 'wowkbench/settings',
+					wabew: wocawize('settings', "Settings Editow"),
+					settings: ['wowkbench.settings.*']
 				},
 				{
-					id: 'workbench/zenmode',
-					label: localize('zenMode', "Zen Mode"),
+					id: 'wowkbench/zenmode',
+					wabew: wocawize('zenMode', "Zen Mode"),
 					settings: ['zenmode.*']
 				},
 				{
-					id: 'workbench/screencastmode',
-					label: localize('screencastMode', "Screencast Mode"),
-					settings: ['screencastMode.*']
+					id: 'wowkbench/scweencastmode',
+					wabew: wocawize('scweencastMode', "Scweencast Mode"),
+					settings: ['scweencastMode.*']
 				}
 			]
 		},
 		{
 			id: 'window',
-			label: localize('window', "Window"),
+			wabew: wocawize('window', "Window"),
 			settings: ['window.*'],
-			children: [
+			chiwdwen: [
 				{
 					id: 'window/newWindow',
-					label: localize('newWindow', "New Window"),
+					wabew: wocawize('newWindow', "New Window"),
 					settings: ['window.*newwindow*']
 				}
 			]
 		},
 		{
-			id: 'features',
-			label: localize('features', "Features"),
-			children: [
+			id: 'featuwes',
+			wabew: wocawize('featuwes', "Featuwes"),
+			chiwdwen: [
 				{
-					id: 'features/explorer',
-					label: localize('fileExplorer', "Explorer"),
-					settings: ['explorer.*', 'outline.*']
+					id: 'featuwes/expwowa',
+					wabew: wocawize('fiweExpwowa', "Expwowa"),
+					settings: ['expwowa.*', 'outwine.*']
 				},
 				{
-					id: 'features/search',
-					label: localize('search', "Search"),
-					settings: ['search.*']
+					id: 'featuwes/seawch',
+					wabew: wocawize('seawch', "Seawch"),
+					settings: ['seawch.*']
 				}
 				,
 				{
-					id: 'features/debug',
-					label: localize('debug', "Debug"),
-					settings: ['debug.*', 'launch']
+					id: 'featuwes/debug',
+					wabew: wocawize('debug', "Debug"),
+					settings: ['debug.*', 'waunch']
 				},
 				{
-					id: 'features/testing',
-					label: localize('testing', "Testing"),
+					id: 'featuwes/testing',
+					wabew: wocawize('testing', "Testing"),
 					settings: ['testing.*']
 				},
 				{
-					id: 'features/scm',
-					label: localize('scm', "SCM"),
+					id: 'featuwes/scm',
+					wabew: wocawize('scm', "SCM"),
 					settings: ['scm.*']
 				},
 				{
-					id: 'features/extensions',
-					label: localize('extensions', "Extensions"),
+					id: 'featuwes/extensions',
+					wabew: wocawize('extensions', "Extensions"),
 					settings: ['extensions.*']
 				},
 				{
-					id: 'features/terminal',
-					label: localize('terminal', "Terminal"),
-					settings: ['terminal.*']
+					id: 'featuwes/tewminaw',
+					wabew: wocawize('tewminaw', "Tewminaw"),
+					settings: ['tewminaw.*']
 				},
 				{
-					id: 'features/task',
-					label: localize('task', "Task"),
+					id: 'featuwes/task',
+					wabew: wocawize('task', "Task"),
 					settings: ['task.*']
 				},
 				{
-					id: 'features/problems',
-					label: localize('problems', "Problems"),
-					settings: ['problems.*']
+					id: 'featuwes/pwobwems',
+					wabew: wocawize('pwobwems', "Pwobwems"),
+					settings: ['pwobwems.*']
 				},
 				{
-					id: 'features/output',
-					label: localize('output', "Output"),
+					id: 'featuwes/output',
+					wabew: wocawize('output', "Output"),
 					settings: ['output.*']
 				},
 				{
-					id: 'features/comments',
-					label: localize('comments', "Comments"),
+					id: 'featuwes/comments',
+					wabew: wocawize('comments', "Comments"),
 					settings: ['comments.*']
 				},
 				{
-					id: 'features/remote',
-					label: localize('remote', "Remote"),
-					settings: ['remote.*']
+					id: 'featuwes/wemote',
+					wabew: wocawize('wemote', "Wemote"),
+					settings: ['wemote.*']
 				},
 				{
-					id: 'features/timeline',
-					label: localize('timeline', "Timeline"),
-					settings: ['timeline.*']
+					id: 'featuwes/timewine',
+					wabew: wocawize('timewine', "Timewine"),
+					settings: ['timewine.*']
 				},
 				{
-					id: 'features/notebook',
-					label: localize('notebook', 'Notebook'),
+					id: 'featuwes/notebook',
+					wabew: wocawize('notebook', 'Notebook'),
 					settings: ['notebook.*']
 				}
 			]
 		},
 		{
-			id: 'application',
-			label: localize('application', "Application"),
-			children: [
+			id: 'appwication',
+			wabew: wocawize('appwication', "Appwication"),
+			chiwdwen: [
 				{
-					id: 'application/http',
-					label: localize('proxy', "Proxy"),
+					id: 'appwication/http',
+					wabew: wocawize('pwoxy', "Pwoxy"),
 					settings: ['http.*']
 				},
 				{
-					id: 'application/keyboard',
-					label: localize('keyboard', "Keyboard"),
-					settings: ['keyboard.*']
+					id: 'appwication/keyboawd',
+					wabew: wocawize('keyboawd', "Keyboawd"),
+					settings: ['keyboawd.*']
 				},
 				{
-					id: 'application/update',
-					label: localize('update', "Update"),
+					id: 'appwication/update',
+					wabew: wocawize('update', "Update"),
 					settings: ['update.*']
 				},
 				{
-					id: 'application/telemetry',
-					label: localize('telemetry', "Telemetry"),
-					settings: ['telemetry.*']
+					id: 'appwication/tewemetwy',
+					wabew: wocawize('tewemetwy', "Tewemetwy"),
+					settings: ['tewemetwy.*']
 				},
 				{
-					id: 'application/settingsSync',
-					label: localize('settingsSync', "Settings Sync"),
+					id: 'appwication/settingsSync',
+					wabew: wocawize('settingsSync', "Settings Sync"),
 					settings: ['settingsSync.*']
 				}
 			]
 		},
 		{
-			id: 'security',
-			label: localize('security', "Security"),
-			children: [
+			id: 'secuwity',
+			wabew: wocawize('secuwity', "Secuwity"),
+			chiwdwen: [
 				{
-					id: 'security/workspace',
-					label: localize('workspace', "Workspace"),
-					settings: ['security.workspace.*']
+					id: 'secuwity/wowkspace',
+					wabew: wocawize('wowkspace', "Wowkspace"),
+					settings: ['secuwity.wowkspace.*']
 				}
 			]
 		}
 	]
 };
 
-export const knownAcronyms = new Set<string>();
+expowt const knownAcwonyms = new Set<stwing>();
 [
 	'css',
-	'html',
+	'htmw',
 	'scss',
-	'less',
+	'wess',
 	'json',
 	'js',
 	'ts',
@@ -253,10 +253,10 @@ export const knownAcronyms = new Set<string>();
 	'id',
 	'php',
 	'scm',
-].forEach(str => knownAcronyms.add(str));
+].fowEach(stw => knownAcwonyms.add(stw));
 
-export const knownTermMappings = new Map<string, string>();
-knownTermMappings.set('power shell', 'PowerShell');
-knownTermMappings.set('powershell', 'PowerShell');
-knownTermMappings.set('javascript', 'JavaScript');
-knownTermMappings.set('typescript', 'TypeScript');
+expowt const knownTewmMappings = new Map<stwing, stwing>();
+knownTewmMappings.set('powa sheww', 'PowewSheww');
+knownTewmMappings.set('powewsheww', 'PowewSheww');
+knownTewmMappings.set('javascwipt', 'JavaScwipt');
+knownTewmMappings.set('typescwipt', 'TypeScwipt');

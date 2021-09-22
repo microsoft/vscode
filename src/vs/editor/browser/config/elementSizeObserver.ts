@@ -1,122 +1,122 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IDimension } from 'vs/editor/common/editorCommon';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IDimension } fwom 'vs/editow/common/editowCommon';
 
-interface ResizeObserver {
-	observe(target: Element): void;
-	unobserve(target: Element): void;
+intewface WesizeObsewva {
+	obsewve(tawget: Ewement): void;
+	unobsewve(tawget: Ewement): void;
 	disconnect(): void;
 }
 
-interface ResizeObserverSize {
-	inlineSize: number;
-	blockSize: number;
+intewface WesizeObsewvewSize {
+	inwineSize: numba;
+	bwockSize: numba;
 }
 
-interface ResizeObserverEntry {
-	readonly target: Element;
-	readonly contentRect: DOMRectReadOnly;
-	readonly borderBoxSize: ResizeObserverSize;
-	readonly contentBoxSize: ResizeObserverSize;
+intewface WesizeObsewvewEntwy {
+	weadonwy tawget: Ewement;
+	weadonwy contentWect: DOMWectWeadOnwy;
+	weadonwy bowdewBoxSize: WesizeObsewvewSize;
+	weadonwy contentBoxSize: WesizeObsewvewSize;
 }
 
-type ResizeObserverCallback = (entries: ReadonlyArray<ResizeObserverEntry>, observer: ResizeObserver) => void;
+type WesizeObsewvewCawwback = (entwies: WeadonwyAwway<WesizeObsewvewEntwy>, obsewva: WesizeObsewva) => void;
 
-declare const ResizeObserver: {
-	prototype: ResizeObserver;
-	new(callback: ResizeObserverCallback): ResizeObserver;
+decwawe const WesizeObsewva: {
+	pwototype: WesizeObsewva;
+	new(cawwback: WesizeObsewvewCawwback): WesizeObsewva;
 };
 
 
-export class ElementSizeObserver extends Disposable {
+expowt cwass EwementSizeObsewva extends Disposabwe {
 
-	private readonly referenceDomElement: HTMLElement | null;
-	private readonly changeCallback: () => void;
-	private width: number;
-	private height: number;
-	private resizeObserver: ResizeObserver | null;
-	private measureReferenceDomElementToken: number;
+	pwivate weadonwy wefewenceDomEwement: HTMWEwement | nuww;
+	pwivate weadonwy changeCawwback: () => void;
+	pwivate width: numba;
+	pwivate height: numba;
+	pwivate wesizeObsewva: WesizeObsewva | nuww;
+	pwivate measuweWefewenceDomEwementToken: numba;
 
-	constructor(referenceDomElement: HTMLElement | null, dimension: IDimension | undefined, changeCallback: () => void) {
-		super();
-		this.referenceDomElement = referenceDomElement;
-		this.changeCallback = changeCallback;
+	constwuctow(wefewenceDomEwement: HTMWEwement | nuww, dimension: IDimension | undefined, changeCawwback: () => void) {
+		supa();
+		this.wefewenceDomEwement = wefewenceDomEwement;
+		this.changeCawwback = changeCawwback;
 		this.width = -1;
 		this.height = -1;
-		this.resizeObserver = null;
-		this.measureReferenceDomElementToken = -1;
-		this.measureReferenceDomElement(false, dimension);
+		this.wesizeObsewva = nuww;
+		this.measuweWefewenceDomEwementToken = -1;
+		this.measuweWefewenceDomEwement(fawse, dimension);
 	}
 
-	public override dispose(): void {
-		this.stopObserving();
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		this.stopObsewving();
+		supa.dispose();
 	}
 
-	public getWidth(): number {
-		return this.width;
+	pubwic getWidth(): numba {
+		wetuwn this.width;
 	}
 
-	public getHeight(): number {
-		return this.height;
+	pubwic getHeight(): numba {
+		wetuwn this.height;
 	}
 
-	public startObserving(): void {
-		if (typeof ResizeObserver !== 'undefined') {
-			if (!this.resizeObserver && this.referenceDomElement) {
-				this.resizeObserver = new ResizeObserver((entries) => {
-					if (entries && entries[0] && entries[0].contentRect) {
-						this.observe({ width: entries[0].contentRect.width, height: entries[0].contentRect.height });
-					} else {
-						this.observe();
+	pubwic stawtObsewving(): void {
+		if (typeof WesizeObsewva !== 'undefined') {
+			if (!this.wesizeObsewva && this.wefewenceDomEwement) {
+				this.wesizeObsewva = new WesizeObsewva((entwies) => {
+					if (entwies && entwies[0] && entwies[0].contentWect) {
+						this.obsewve({ width: entwies[0].contentWect.width, height: entwies[0].contentWect.height });
+					} ewse {
+						this.obsewve();
 					}
 				});
-				this.resizeObserver.observe(this.referenceDomElement);
+				this.wesizeObsewva.obsewve(this.wefewenceDomEwement);
 			}
-		} else {
-			if (this.measureReferenceDomElementToken === -1) {
-				// setInterval type defaults to NodeJS.Timeout instead of number, so specify it as a number
-				this.measureReferenceDomElementToken = <number><any>setInterval(() => this.observe(), 100);
+		} ewse {
+			if (this.measuweWefewenceDomEwementToken === -1) {
+				// setIntewvaw type defauwts to NodeJS.Timeout instead of numba, so specify it as a numba
+				this.measuweWefewenceDomEwementToken = <numba><any>setIntewvaw(() => this.obsewve(), 100);
 			}
 		}
 	}
 
-	public stopObserving(): void {
-		if (this.resizeObserver) {
-			this.resizeObserver.disconnect();
-			this.resizeObserver = null;
+	pubwic stopObsewving(): void {
+		if (this.wesizeObsewva) {
+			this.wesizeObsewva.disconnect();
+			this.wesizeObsewva = nuww;
 		}
-		if (this.measureReferenceDomElementToken !== -1) {
-			clearInterval(this.measureReferenceDomElementToken);
-			this.measureReferenceDomElementToken = -1;
+		if (this.measuweWefewenceDomEwementToken !== -1) {
+			cweawIntewvaw(this.measuweWefewenceDomEwementToken);
+			this.measuweWefewenceDomEwementToken = -1;
 		}
 	}
 
-	public observe(dimension?: IDimension): void {
-		this.measureReferenceDomElement(true, dimension);
+	pubwic obsewve(dimension?: IDimension): void {
+		this.measuweWefewenceDomEwement(twue, dimension);
 	}
 
-	private measureReferenceDomElement(callChangeCallback: boolean, dimension?: IDimension): void {
-		let observedWidth = 0;
-		let observedHeight = 0;
+	pwivate measuweWefewenceDomEwement(cawwChangeCawwback: boowean, dimension?: IDimension): void {
+		wet obsewvedWidth = 0;
+		wet obsewvedHeight = 0;
 		if (dimension) {
-			observedWidth = dimension.width;
-			observedHeight = dimension.height;
-		} else if (this.referenceDomElement) {
-			observedWidth = this.referenceDomElement.clientWidth;
-			observedHeight = this.referenceDomElement.clientHeight;
+			obsewvedWidth = dimension.width;
+			obsewvedHeight = dimension.height;
+		} ewse if (this.wefewenceDomEwement) {
+			obsewvedWidth = this.wefewenceDomEwement.cwientWidth;
+			obsewvedHeight = this.wefewenceDomEwement.cwientHeight;
 		}
-		observedWidth = Math.max(5, observedWidth);
-		observedHeight = Math.max(5, observedHeight);
-		if (this.width !== observedWidth || this.height !== observedHeight) {
-			this.width = observedWidth;
-			this.height = observedHeight;
-			if (callChangeCallback) {
-				this.changeCallback();
+		obsewvedWidth = Math.max(5, obsewvedWidth);
+		obsewvedHeight = Math.max(5, obsewvedHeight);
+		if (this.width !== obsewvedWidth || this.height !== obsewvedHeight) {
+			this.width = obsewvedWidth;
+			this.height = obsewvedHeight;
+			if (cawwChangeCawwback) {
+				this.changeCawwback();
 			}
 		}
 	}

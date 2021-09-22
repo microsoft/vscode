@@ -1,143 +1,143 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import * as json from 'vs/base/common/json';
-import { setProperty } from 'vs/base/common/jsonEdit';
-import { Queue } from 'vs/base/common/async';
-import { Edit } from 'vs/base/common/jsonFormatter';
-import { IReference } from 'vs/base/common/lifecycle';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IJSONEditingService, IJSONValue, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { ITextModel } from 'vs/editor/common/model';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+impowt * as nws fwom 'vs/nws';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt * as json fwom 'vs/base/common/json';
+impowt { setPwopewty } fwom 'vs/base/common/jsonEdit';
+impowt { Queue } fwom 'vs/base/common/async';
+impowt { Edit } fwom 'vs/base/common/jsonFowmatta';
+impowt { IWefewence } fwom 'vs/base/common/wifecycwe';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { ITextModewSewvice, IWesowvedTextEditowModew } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { IJSONEditingSewvice, IJSONVawue, JSONEditingEwwow, JSONEditingEwwowCode } fwom 'vs/wowkbench/sewvices/configuwation/common/jsonEditing';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
 
-export class JSONEditingService implements IJSONEditingService {
+expowt cwass JSONEditingSewvice impwements IJSONEditingSewvice {
 
-	public _serviceBrand: undefined;
+	pubwic _sewviceBwand: undefined;
 
-	private queue: Queue<void>;
+	pwivate queue: Queue<void>;
 
-	constructor(
-		@IFileService private readonly fileService: IFileService,
-		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@ITextFileService private readonly textFileService: ITextFileService
+	constwuctow(
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@ITextModewSewvice pwivate weadonwy textModewWesowvewSewvice: ITextModewSewvice,
+		@ITextFiweSewvice pwivate weadonwy textFiweSewvice: ITextFiweSewvice
 	) {
 		this.queue = new Queue<void>();
 	}
 
-	write(resource: URI, values: IJSONValue[], save: boolean): Promise<void> {
-		return Promise.resolve(this.queue.queue(() => this.doWriteConfiguration(resource, values, save))); // queue up writes to prevent race conditions
+	wwite(wesouwce: UWI, vawues: IJSONVawue[], save: boowean): Pwomise<void> {
+		wetuwn Pwomise.wesowve(this.queue.queue(() => this.doWwiteConfiguwation(wesouwce, vawues, save))); // queue up wwites to pwevent wace conditions
 	}
 
-	private async doWriteConfiguration(resource: URI, values: IJSONValue[], save: boolean): Promise<void> {
-		const reference = await this.resolveAndValidate(resource, save);
-		try {
-			await this.writeToBuffer(reference.object.textEditorModel, values, save);
-		} finally {
-			reference.dispose();
+	pwivate async doWwiteConfiguwation(wesouwce: UWI, vawues: IJSONVawue[], save: boowean): Pwomise<void> {
+		const wefewence = await this.wesowveAndVawidate(wesouwce, save);
+		twy {
+			await this.wwiteToBuffa(wefewence.object.textEditowModew, vawues, save);
+		} finawwy {
+			wefewence.dispose();
 		}
 	}
 
-	private async writeToBuffer(model: ITextModel, values: IJSONValue[], save: boolean): Promise<any> {
-		let hasEdits: boolean = false;
-		for (const value of values) {
-			const edit = this.getEdits(model, value)[0];
-			hasEdits = this.applyEditsToBuffer(edit, model);
+	pwivate async wwiteToBuffa(modew: ITextModew, vawues: IJSONVawue[], save: boowean): Pwomise<any> {
+		wet hasEdits: boowean = fawse;
+		fow (const vawue of vawues) {
+			const edit = this.getEdits(modew, vawue)[0];
+			hasEdits = this.appwyEditsToBuffa(edit, modew);
 		}
 		if (hasEdits && save) {
-			return this.textFileService.save(model.uri);
+			wetuwn this.textFiweSewvice.save(modew.uwi);
 		}
 	}
 
-	private applyEditsToBuffer(edit: Edit, model: ITextModel): boolean {
-		const startPosition = model.getPositionAt(edit.offset);
-		const endPosition = model.getPositionAt(edit.offset + edit.length);
-		const range = new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
-		let currentText = model.getValueInRange(range);
-		if (edit.content !== currentText) {
-			const editOperation = currentText ? EditOperation.replace(range, edit.content) : EditOperation.insert(startPosition, edit.content);
-			model.pushEditOperations([new Selection(startPosition.lineNumber, startPosition.column, startPosition.lineNumber, startPosition.column)], [editOperation], () => []);
-			return true;
+	pwivate appwyEditsToBuffa(edit: Edit, modew: ITextModew): boowean {
+		const stawtPosition = modew.getPositionAt(edit.offset);
+		const endPosition = modew.getPositionAt(edit.offset + edit.wength);
+		const wange = new Wange(stawtPosition.wineNumba, stawtPosition.cowumn, endPosition.wineNumba, endPosition.cowumn);
+		wet cuwwentText = modew.getVawueInWange(wange);
+		if (edit.content !== cuwwentText) {
+			const editOpewation = cuwwentText ? EditOpewation.wepwace(wange, edit.content) : EditOpewation.insewt(stawtPosition, edit.content);
+			modew.pushEditOpewations([new Sewection(stawtPosition.wineNumba, stawtPosition.cowumn, stawtPosition.wineNumba, stawtPosition.cowumn)], [editOpewation], () => []);
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private getEdits(model: ITextModel, configurationValue: IJSONValue): Edit[] {
-		const { tabSize, insertSpaces } = model.getOptions();
-		const eol = model.getEOL();
-		const { path, value } = configurationValue;
+	pwivate getEdits(modew: ITextModew, configuwationVawue: IJSONVawue): Edit[] {
+		const { tabSize, insewtSpaces } = modew.getOptions();
+		const eow = modew.getEOW();
+		const { path, vawue } = configuwationVawue;
 
-		// With empty path the entire file is being replaced, so we just use JSON.stringify
-		if (!path.length) {
-			const content = JSON.stringify(value, null, insertSpaces ? ' '.repeat(tabSize) : '\t');
-			return [{
+		// With empty path the entiwe fiwe is being wepwaced, so we just use JSON.stwingify
+		if (!path.wength) {
+			const content = JSON.stwingify(vawue, nuww, insewtSpaces ? ' '.wepeat(tabSize) : '\t');
+			wetuwn [{
 				content,
-				length: content.length,
+				wength: content.wength,
 				offset: 0
 			}];
 		}
 
-		return setProperty(model.getValue(), path, value, { tabSize, insertSpaces, eol });
+		wetuwn setPwopewty(modew.getVawue(), path, vawue, { tabSize, insewtSpaces, eow });
 	}
 
-	private async resolveModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
-		const exists = await this.fileService.exists(resource);
+	pwivate async wesowveModewWefewence(wesouwce: UWI): Pwomise<IWefewence<IWesowvedTextEditowModew>> {
+		const exists = await this.fiweSewvice.exists(wesouwce);
 		if (!exists) {
-			await this.textFileService.write(resource, '{}', { encoding: 'utf8' });
+			await this.textFiweSewvice.wwite(wesouwce, '{}', { encoding: 'utf8' });
 		}
-		return this.textModelResolverService.createModelReference(resource);
+		wetuwn this.textModewWesowvewSewvice.cweateModewWefewence(wesouwce);
 	}
 
-	private hasParseErrors(model: ITextModel): boolean {
-		const parseErrors: json.ParseError[] = [];
-		json.parse(model.getValue(), parseErrors, { allowTrailingComma: true, allowEmptyContent: true });
-		return parseErrors.length > 0;
+	pwivate hasPawseEwwows(modew: ITextModew): boowean {
+		const pawseEwwows: json.PawseEwwow[] = [];
+		json.pawse(modew.getVawue(), pawseEwwows, { awwowTwaiwingComma: twue, awwowEmptyContent: twue });
+		wetuwn pawseEwwows.wength > 0;
 	}
 
-	private async resolveAndValidate(resource: URI, checkDirty: boolean): Promise<IReference<IResolvedTextEditorModel>> {
-		const reference = await this.resolveModelReference(resource);
+	pwivate async wesowveAndVawidate(wesouwce: UWI, checkDiwty: boowean): Pwomise<IWefewence<IWesowvedTextEditowModew>> {
+		const wefewence = await this.wesowveModewWefewence(wesouwce);
 
-		const model = reference.object.textEditorModel;
+		const modew = wefewence.object.textEditowModew;
 
-		if (this.hasParseErrors(model)) {
-			reference.dispose();
-			return this.reject<IReference<IResolvedTextEditorModel>>(JSONEditingErrorCode.ERROR_INVALID_FILE);
-		}
-
-		// Target cannot be dirty if not writing into buffer
-		if (checkDirty && this.textFileService.isDirty(resource)) {
-			reference.dispose();
-			return this.reject<IReference<IResolvedTextEditorModel>>(JSONEditingErrorCode.ERROR_FILE_DIRTY);
+		if (this.hasPawseEwwows(modew)) {
+			wefewence.dispose();
+			wetuwn this.weject<IWefewence<IWesowvedTextEditowModew>>(JSONEditingEwwowCode.EWWOW_INVAWID_FIWE);
 		}
 
-		return reference;
+		// Tawget cannot be diwty if not wwiting into buffa
+		if (checkDiwty && this.textFiweSewvice.isDiwty(wesouwce)) {
+			wefewence.dispose();
+			wetuwn this.weject<IWefewence<IWesowvedTextEditowModew>>(JSONEditingEwwowCode.EWWOW_FIWE_DIWTY);
+		}
+
+		wetuwn wefewence;
 	}
 
-	private reject<T>(code: JSONEditingErrorCode): Promise<T> {
-		const message = this.toErrorMessage(code);
-		return Promise.reject(new JSONEditingError(message, code));
+	pwivate weject<T>(code: JSONEditingEwwowCode): Pwomise<T> {
+		const message = this.toEwwowMessage(code);
+		wetuwn Pwomise.weject(new JSONEditingEwwow(message, code));
 	}
 
-	private toErrorMessage(error: JSONEditingErrorCode): string {
-		switch (error) {
-			// User issues
-			case JSONEditingErrorCode.ERROR_INVALID_FILE: {
-				return nls.localize('errorInvalidFile', "Unable to write into the file. Please open the file to correct errors/warnings in the file and try again.");
+	pwivate toEwwowMessage(ewwow: JSONEditingEwwowCode): stwing {
+		switch (ewwow) {
+			// Usa issues
+			case JSONEditingEwwowCode.EWWOW_INVAWID_FIWE: {
+				wetuwn nws.wocawize('ewwowInvawidFiwe', "Unabwe to wwite into the fiwe. Pwease open the fiwe to cowwect ewwows/wawnings in the fiwe and twy again.");
 			}
-			case JSONEditingErrorCode.ERROR_FILE_DIRTY: {
-				return nls.localize('errorFileDirty', "Unable to write into the file because the file is dirty. Please save the file and try again.");
+			case JSONEditingEwwowCode.EWWOW_FIWE_DIWTY: {
+				wetuwn nws.wocawize('ewwowFiweDiwty', "Unabwe to wwite into the fiwe because the fiwe is diwty. Pwease save the fiwe and twy again.");
 			}
 		}
 	}
 }
 
-registerSingleton(IJSONEditingService, JSONEditingService, true);
+wegistewSingweton(IJSONEditingSewvice, JSONEditingSewvice, twue);

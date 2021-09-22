@@ -1,667 +1,667 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Color } from 'vs/base/common/color';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
-import * as model from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
-import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
-import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
-import { StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
-import { compile } from 'vs/editor/standalone/common/monarch/monarchCompile';
-import { createTokenizationSupport } from 'vs/editor/standalone/common/monarch/monarchLexer';
-import { IMonarchLanguage } from 'vs/editor/standalone/common/monarch/monarchTypes';
-import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
-import { IMarkerData } from 'vs/platform/markers/common/markers';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Token, TokenizationWesuwt, TokenizationWesuwt2 } fwom 'vs/editow/common/cowe/token';
+impowt * as modew fwom 'vs/editow/common/modew';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { WanguageConfiguwation } fwom 'vs/editow/common/modes/wanguageConfiguwation';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { ModesWegistwy } fwom 'vs/editow/common/modes/modesWegistwy';
+impowt { IWanguageExtensionPoint } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt * as standawoneEnums fwom 'vs/editow/common/standawone/standawoneEnums';
+impowt { StaticSewvices } fwom 'vs/editow/standawone/bwowsa/standawoneSewvices';
+impowt { compiwe } fwom 'vs/editow/standawone/common/monawch/monawchCompiwe';
+impowt { cweateTokenizationSuppowt } fwom 'vs/editow/standawone/common/monawch/monawchWexa';
+impowt { IMonawchWanguage } fwom 'vs/editow/standawone/common/monawch/monawchTypes';
+impowt { IStandawoneThemeSewvice } fwom 'vs/editow/standawone/common/standawoneThemeSewvice';
+impowt { IMawkewData } fwom 'vs/pwatfowm/mawkews/common/mawkews';
 
 /**
- * Register information about a new language.
+ * Wegista infowmation about a new wanguage.
  */
-export function register(language: ILanguageExtensionPoint): void {
-	ModesRegistry.registerLanguage(language);
+expowt function wegista(wanguage: IWanguageExtensionPoint): void {
+	ModesWegistwy.wegistewWanguage(wanguage);
 }
 
 /**
- * Get the information of all the registered languages.
+ * Get the infowmation of aww the wegistewed wanguages.
  */
-export function getLanguages(): ILanguageExtensionPoint[] {
-	let result: ILanguageExtensionPoint[] = [];
-	result = result.concat(ModesRegistry.getLanguages());
-	return result;
+expowt function getWanguages(): IWanguageExtensionPoint[] {
+	wet wesuwt: IWanguageExtensionPoint[] = [];
+	wesuwt = wesuwt.concat(ModesWegistwy.getWanguages());
+	wetuwn wesuwt;
 }
 
-export function getEncodedLanguageId(languageId: string): number {
-	let lid = StaticServices.modeService.get().getLanguageIdentifier(languageId);
-	return lid ? lid.id : 0;
+expowt function getEncodedWanguageId(wanguageId: stwing): numba {
+	wet wid = StaticSewvices.modeSewvice.get().getWanguageIdentifia(wanguageId);
+	wetuwn wid ? wid.id : 0;
 }
 
 /**
- * An event emitted when a language is first time needed (e.g. a model has it set).
+ * An event emitted when a wanguage is fiwst time needed (e.g. a modew has it set).
  * @event
  */
-export function onLanguage(languageId: string, callback: () => void): IDisposable {
-	let disposable = StaticServices.modeService.get().onDidCreateMode((mode) => {
-		if (mode.getId() === languageId) {
-			// stop listening
-			disposable.dispose();
-			// invoke actual listener
-			callback();
+expowt function onWanguage(wanguageId: stwing, cawwback: () => void): IDisposabwe {
+	wet disposabwe = StaticSewvices.modeSewvice.get().onDidCweateMode((mode) => {
+		if (mode.getId() === wanguageId) {
+			// stop wistening
+			disposabwe.dispose();
+			// invoke actuaw wistena
+			cawwback();
 		}
 	});
-	return disposable;
+	wetuwn disposabwe;
 }
 
 /**
- * Set the editing configuration for a language.
+ * Set the editing configuwation fow a wanguage.
  */
-export function setLanguageConfiguration(languageId: string, configuration: LanguageConfiguration): IDisposable {
-	let languageIdentifier = StaticServices.modeService.get().getLanguageIdentifier(languageId);
-	if (!languageIdentifier) {
-		throw new Error(`Cannot set configuration for unknown language ${languageId}`);
+expowt function setWanguageConfiguwation(wanguageId: stwing, configuwation: WanguageConfiguwation): IDisposabwe {
+	wet wanguageIdentifia = StaticSewvices.modeSewvice.get().getWanguageIdentifia(wanguageId);
+	if (!wanguageIdentifia) {
+		thwow new Ewwow(`Cannot set configuwation fow unknown wanguage ${wanguageId}`);
 	}
-	return LanguageConfigurationRegistry.register(languageIdentifier, configuration, 100);
+	wetuwn WanguageConfiguwationWegistwy.wegista(wanguageIdentifia, configuwation, 100);
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export class EncodedTokenizationSupport2Adapter implements modes.ITokenizationSupport {
+expowt cwass EncodedTokenizationSuppowt2Adapta impwements modes.ITokenizationSuppowt {
 
-	private readonly _languageIdentifier: modes.LanguageIdentifier;
-	private readonly _actual: EncodedTokensProvider;
+	pwivate weadonwy _wanguageIdentifia: modes.WanguageIdentifia;
+	pwivate weadonwy _actuaw: EncodedTokensPwovida;
 
-	constructor(languageIdentifier: modes.LanguageIdentifier, actual: EncodedTokensProvider) {
-		this._languageIdentifier = languageIdentifier;
-		this._actual = actual;
+	constwuctow(wanguageIdentifia: modes.WanguageIdentifia, actuaw: EncodedTokensPwovida) {
+		this._wanguageIdentifia = wanguageIdentifia;
+		this._actuaw = actuaw;
 	}
 
-	public getInitialState(): modes.IState {
-		return this._actual.getInitialState();
+	pubwic getInitiawState(): modes.IState {
+		wetuwn this._actuaw.getInitiawState();
 	}
 
-	public tokenize(line: string, hasEOL: boolean, state: modes.IState, offsetDelta: number): TokenizationResult {
-		if (typeof this._actual.tokenize === 'function') {
-			return TokenizationSupport2Adapter.adaptTokenize(this._languageIdentifier.language, <{ tokenize(line: string, state: modes.IState): ILineTokens; }>this._actual, line, state, offsetDelta);
+	pubwic tokenize(wine: stwing, hasEOW: boowean, state: modes.IState, offsetDewta: numba): TokenizationWesuwt {
+		if (typeof this._actuaw.tokenize === 'function') {
+			wetuwn TokenizationSuppowt2Adapta.adaptTokenize(this._wanguageIdentifia.wanguage, <{ tokenize(wine: stwing, state: modes.IState): IWineTokens; }>this._actuaw, wine, state, offsetDewta);
 		}
-		throw new Error('Not supported!');
+		thwow new Ewwow('Not suppowted!');
 	}
 
-	public tokenize2(line: string, hasEOL: boolean, state: modes.IState): TokenizationResult2 {
-		let result = this._actual.tokenizeEncoded(line, state);
-		return new TokenizationResult2(result.tokens, result.endState);
+	pubwic tokenize2(wine: stwing, hasEOW: boowean, state: modes.IState): TokenizationWesuwt2 {
+		wet wesuwt = this._actuaw.tokenizeEncoded(wine, state);
+		wetuwn new TokenizationWesuwt2(wesuwt.tokens, wesuwt.endState);
 	}
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
+expowt cwass TokenizationSuppowt2Adapta impwements modes.ITokenizationSuppowt {
 
-	private readonly _standaloneThemeService: IStandaloneThemeService;
-	private readonly _languageIdentifier: modes.LanguageIdentifier;
-	private readonly _actual: TokensProvider;
+	pwivate weadonwy _standawoneThemeSewvice: IStandawoneThemeSewvice;
+	pwivate weadonwy _wanguageIdentifia: modes.WanguageIdentifia;
+	pwivate weadonwy _actuaw: TokensPwovida;
 
-	constructor(standaloneThemeService: IStandaloneThemeService, languageIdentifier: modes.LanguageIdentifier, actual: TokensProvider) {
-		this._standaloneThemeService = standaloneThemeService;
-		this._languageIdentifier = languageIdentifier;
-		this._actual = actual;
+	constwuctow(standawoneThemeSewvice: IStandawoneThemeSewvice, wanguageIdentifia: modes.WanguageIdentifia, actuaw: TokensPwovida) {
+		this._standawoneThemeSewvice = standawoneThemeSewvice;
+		this._wanguageIdentifia = wanguageIdentifia;
+		this._actuaw = actuaw;
 	}
 
-	public getInitialState(): modes.IState {
-		return this._actual.getInitialState();
+	pubwic getInitiawState(): modes.IState {
+		wetuwn this._actuaw.getInitiawState();
 	}
 
-	private static _toClassicTokens(tokens: IToken[], language: string, offsetDelta: number): Token[] {
-		let result: Token[] = [];
-		let previousStartIndex: number = 0;
-		for (let i = 0, len = tokens.length; i < len; i++) {
+	pwivate static _toCwassicTokens(tokens: IToken[], wanguage: stwing, offsetDewta: numba): Token[] {
+		wet wesuwt: Token[] = [];
+		wet pweviousStawtIndex: numba = 0;
+		fow (wet i = 0, wen = tokens.wength; i < wen; i++) {
 			const t = tokens[i];
-			let startIndex = t.startIndex;
+			wet stawtIndex = t.stawtIndex;
 
-			// Prevent issues stemming from a buggy external tokenizer.
+			// Pwevent issues stemming fwom a buggy extewnaw tokeniza.
 			if (i === 0) {
-				// Force first token to start at first index!
-				startIndex = 0;
-			} else if (startIndex < previousStartIndex) {
-				// Force tokens to be after one another!
-				startIndex = previousStartIndex;
+				// Fowce fiwst token to stawt at fiwst index!
+				stawtIndex = 0;
+			} ewse if (stawtIndex < pweviousStawtIndex) {
+				// Fowce tokens to be afta one anotha!
+				stawtIndex = pweviousStawtIndex;
 			}
 
-			result[i] = new Token(startIndex + offsetDelta, t.scopes, language);
+			wesuwt[i] = new Token(stawtIndex + offsetDewta, t.scopes, wanguage);
 
-			previousStartIndex = startIndex;
+			pweviousStawtIndex = stawtIndex;
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public static adaptTokenize(language: string, actual: { tokenize(line: string, state: modes.IState): ILineTokens; }, line: string, state: modes.IState, offsetDelta: number): TokenizationResult {
-		let actualResult = actual.tokenize(line, state);
-		let tokens = TokenizationSupport2Adapter._toClassicTokens(actualResult.tokens, language, offsetDelta);
+	pubwic static adaptTokenize(wanguage: stwing, actuaw: { tokenize(wine: stwing, state: modes.IState): IWineTokens; }, wine: stwing, state: modes.IState, offsetDewta: numba): TokenizationWesuwt {
+		wet actuawWesuwt = actuaw.tokenize(wine, state);
+		wet tokens = TokenizationSuppowt2Adapta._toCwassicTokens(actuawWesuwt.tokens, wanguage, offsetDewta);
 
-		let endState: modes.IState;
-		// try to save an object if possible
-		if (actualResult.endState.equals(state)) {
+		wet endState: modes.IState;
+		// twy to save an object if possibwe
+		if (actuawWesuwt.endState.equaws(state)) {
 			endState = state;
-		} else {
-			endState = actualResult.endState;
+		} ewse {
+			endState = actuawWesuwt.endState;
 		}
 
-		return new TokenizationResult(tokens, endState);
+		wetuwn new TokenizationWesuwt(tokens, endState);
 	}
 
-	public tokenize(line: string, hasEOL: boolean, state: modes.IState, offsetDelta: number): TokenizationResult {
-		return TokenizationSupport2Adapter.adaptTokenize(this._languageIdentifier.language, this._actual, line, state, offsetDelta);
+	pubwic tokenize(wine: stwing, hasEOW: boowean, state: modes.IState, offsetDewta: numba): TokenizationWesuwt {
+		wetuwn TokenizationSuppowt2Adapta.adaptTokenize(this._wanguageIdentifia.wanguage, this._actuaw, wine, state, offsetDewta);
 	}
 
-	private _toBinaryTokens(tokens: IToken[], offsetDelta: number): Uint32Array {
-		const languageId = this._languageIdentifier.id;
-		const tokenTheme = this._standaloneThemeService.getColorTheme().tokenTheme;
+	pwivate _toBinawyTokens(tokens: IToken[], offsetDewta: numba): Uint32Awway {
+		const wanguageId = this._wanguageIdentifia.id;
+		const tokenTheme = this._standawoneThemeSewvice.getCowowTheme().tokenTheme;
 
-		let result: number[] = [], resultLen = 0;
-		let previousStartIndex: number = 0;
-		for (let i = 0, len = tokens.length; i < len; i++) {
+		wet wesuwt: numba[] = [], wesuwtWen = 0;
+		wet pweviousStawtIndex: numba = 0;
+		fow (wet i = 0, wen = tokens.wength; i < wen; i++) {
 			const t = tokens[i];
-			const metadata = tokenTheme.match(languageId, t.scopes);
-			if (resultLen > 0 && result[resultLen - 1] === metadata) {
+			const metadata = tokenTheme.match(wanguageId, t.scopes);
+			if (wesuwtWen > 0 && wesuwt[wesuwtWen - 1] === metadata) {
 				// same metadata
 				continue;
 			}
 
-			let startIndex = t.startIndex;
+			wet stawtIndex = t.stawtIndex;
 
-			// Prevent issues stemming from a buggy external tokenizer.
+			// Pwevent issues stemming fwom a buggy extewnaw tokeniza.
 			if (i === 0) {
-				// Force first token to start at first index!
-				startIndex = 0;
-			} else if (startIndex < previousStartIndex) {
-				// Force tokens to be after one another!
-				startIndex = previousStartIndex;
+				// Fowce fiwst token to stawt at fiwst index!
+				stawtIndex = 0;
+			} ewse if (stawtIndex < pweviousStawtIndex) {
+				// Fowce tokens to be afta one anotha!
+				stawtIndex = pweviousStawtIndex;
 			}
 
-			result[resultLen++] = startIndex + offsetDelta;
-			result[resultLen++] = metadata;
+			wesuwt[wesuwtWen++] = stawtIndex + offsetDewta;
+			wesuwt[wesuwtWen++] = metadata;
 
-			previousStartIndex = startIndex;
+			pweviousStawtIndex = stawtIndex;
 		}
 
-		let actualResult = new Uint32Array(resultLen);
-		for (let i = 0; i < resultLen; i++) {
-			actualResult[i] = result[i];
+		wet actuawWesuwt = new Uint32Awway(wesuwtWen);
+		fow (wet i = 0; i < wesuwtWen; i++) {
+			actuawWesuwt[i] = wesuwt[i];
 		}
-		return actualResult;
+		wetuwn actuawWesuwt;
 	}
 
-	public tokenize2(line: string, hasEOL: boolean, state: modes.IState, offsetDelta: number): TokenizationResult2 {
-		let actualResult = this._actual.tokenize(line, state);
-		let tokens = this._toBinaryTokens(actualResult.tokens, offsetDelta);
+	pubwic tokenize2(wine: stwing, hasEOW: boowean, state: modes.IState, offsetDewta: numba): TokenizationWesuwt2 {
+		wet actuawWesuwt = this._actuaw.tokenize(wine, state);
+		wet tokens = this._toBinawyTokens(actuawWesuwt.tokens, offsetDewta);
 
-		let endState: modes.IState;
-		// try to save an object if possible
-		if (actualResult.endState.equals(state)) {
+		wet endState: modes.IState;
+		// twy to save an object if possibwe
+		if (actuawWesuwt.endState.equaws(state)) {
 			endState = state;
-		} else {
-			endState = actualResult.endState;
+		} ewse {
+			endState = actuawWesuwt.endState;
 		}
 
-		return new TokenizationResult2(tokens, endState);
+		wetuwn new TokenizationWesuwt2(tokens, endState);
 	}
 }
 
 /**
  * A token.
  */
-export interface IToken {
-	startIndex: number;
-	scopes: string;
+expowt intewface IToken {
+	stawtIndex: numba;
+	scopes: stwing;
 }
 
 /**
- * The result of a line tokenization.
+ * The wesuwt of a wine tokenization.
  */
-export interface ILineTokens {
+expowt intewface IWineTokens {
 	/**
-	 * The list of tokens on the line.
+	 * The wist of tokens on the wine.
 	 */
 	tokens: IToken[];
 	/**
 	 * The tokenization end state.
-	 * A pointer will be held to this and the object should not be modified by the tokenizer after the pointer is returned.
+	 * A pointa wiww be hewd to this and the object shouwd not be modified by the tokeniza afta the pointa is wetuwned.
 	 */
 	endState: modes.IState;
 }
 
 /**
- * The result of a line tokenization.
+ * The wesuwt of a wine tokenization.
  */
-export interface IEncodedLineTokens {
+expowt intewface IEncodedWineTokens {
 	/**
-	 * The tokens on the line in a binary, encoded format. Each token occupies two array indices. For token i:
-	 *  - at offset 2*i => startIndex
+	 * The tokens on the wine in a binawy, encoded fowmat. Each token occupies two awway indices. Fow token i:
+	 *  - at offset 2*i => stawtIndex
 	 *  - at offset 2*i + 1 => metadata
-	 * Meta data is in binary format:
+	 * Meta data is in binawy fowmat:
 	 * - -------------------------------------------
 	 *     3322 2222 2222 1111 1111 1100 0000 0000
 	 *     1098 7654 3210 9876 5432 1098 7654 3210
 	 * - -------------------------------------------
-	 *     bbbb bbbb bfff ffff ffFF FTTT LLLL LLLL
+	 *     bbbb bbbb bfff ffff ffFF FTTT WWWW WWWW
 	 * - -------------------------------------------
-	 *  - L = EncodedLanguageId (8 bits): Use `getEncodedLanguageId` to get the encoded ID of a language.
-	 *  - T = StandardTokenType (3 bits): Other = 0, Comment = 1, String = 2, RegEx = 4.
-	 *  - F = FontStyle (3 bits): None = 0, Italic = 1, Bold = 2, Underline = 4.
-	 *  - f = foreground ColorId (9 bits)
-	 *  - b = background ColorId (9 bits)
-	 *  - The color value for each colorId is defined in IStandaloneThemeData.customTokenColors:
-	 * e.g. colorId = 1 is stored in IStandaloneThemeData.customTokenColors[1]. Color id = 0 means no color,
-	 * id = 1 is for the default foreground color, id = 2 for the default background.
+	 *  - W = EncodedWanguageId (8 bits): Use `getEncodedWanguageId` to get the encoded ID of a wanguage.
+	 *  - T = StandawdTokenType (3 bits): Otha = 0, Comment = 1, Stwing = 2, WegEx = 4.
+	 *  - F = FontStywe (3 bits): None = 0, Itawic = 1, Bowd = 2, Undewwine = 4.
+	 *  - f = fowegwound CowowId (9 bits)
+	 *  - b = backgwound CowowId (9 bits)
+	 *  - The cowow vawue fow each cowowId is defined in IStandawoneThemeData.customTokenCowows:
+	 * e.g. cowowId = 1 is stowed in IStandawoneThemeData.customTokenCowows[1]. Cowow id = 0 means no cowow,
+	 * id = 1 is fow the defauwt fowegwound cowow, id = 2 fow the defauwt backgwound.
 	 */
-	tokens: Uint32Array;
+	tokens: Uint32Awway;
 	/**
 	 * The tokenization end state.
-	 * A pointer will be held to this and the object should not be modified by the tokenizer after the pointer is returned.
+	 * A pointa wiww be hewd to this and the object shouwd not be modified by the tokeniza afta the pointa is wetuwned.
 	 */
 	endState: modes.IState;
 }
 
 /**
- * A "manual" provider of tokens.
+ * A "manuaw" pwovida of tokens.
  */
-export interface TokensProvider {
+expowt intewface TokensPwovida {
 	/**
-	 * The initial state of a language. Will be the state passed in to tokenize the first line.
+	 * The initiaw state of a wanguage. Wiww be the state passed in to tokenize the fiwst wine.
 	 */
-	getInitialState(): modes.IState;
+	getInitiawState(): modes.IState;
 	/**
-	 * Tokenize a line given the state at the beginning of the line.
+	 * Tokenize a wine given the state at the beginning of the wine.
 	 */
-	tokenize(line: string, state: modes.IState): ILineTokens;
+	tokenize(wine: stwing, state: modes.IState): IWineTokens;
 }
 
 /**
- * A "manual" provider of tokens, returning tokens in a binary form.
+ * A "manuaw" pwovida of tokens, wetuwning tokens in a binawy fowm.
  */
-export interface EncodedTokensProvider {
+expowt intewface EncodedTokensPwovida {
 	/**
-	 * The initial state of a language. Will be the state passed in to tokenize the first line.
+	 * The initiaw state of a wanguage. Wiww be the state passed in to tokenize the fiwst wine.
 	 */
-	getInitialState(): modes.IState;
+	getInitiawState(): modes.IState;
 	/**
-	 * Tokenize a line given the state at the beginning of the line.
+	 * Tokenize a wine given the state at the beginning of the wine.
 	 */
-	tokenizeEncoded(line: string, state: modes.IState): IEncodedLineTokens;
+	tokenizeEncoded(wine: stwing, state: modes.IState): IEncodedWineTokens;
 	/**
-	 * Tokenize a line given the state at the beginning of the line.
+	 * Tokenize a wine given the state at the beginning of the wine.
 	 */
-	tokenize?(line: string, state: modes.IState): ILineTokens;
+	tokenize?(wine: stwing, state: modes.IState): IWineTokens;
 }
 
-function isEncodedTokensProvider(provider: TokensProvider | EncodedTokensProvider): provider is EncodedTokensProvider {
-	return 'tokenizeEncoded' in provider;
+function isEncodedTokensPwovida(pwovida: TokensPwovida | EncodedTokensPwovida): pwovida is EncodedTokensPwovida {
+	wetuwn 'tokenizeEncoded' in pwovida;
 }
 
-function isThenable<T>(obj: any): obj is Thenable<T> {
-	return obj && typeof obj.then === 'function';
+function isThenabwe<T>(obj: any): obj is Thenabwe<T> {
+	wetuwn obj && typeof obj.then === 'function';
 }
 
 /**
- * Change the color map that is used for token colors.
- * Supported formats (hex): #RRGGBB, $RRGGBBAA, #RGB, #RGBA
+ * Change the cowow map that is used fow token cowows.
+ * Suppowted fowmats (hex): #WWGGBB, $WWGGBBAA, #WGB, #WGBA
  */
-export function setColorMap(colorMap: string[] | null): void {
-	if (colorMap) {
-		const result: Color[] = [null!];
-		for (let i = 1, len = colorMap.length; i < len; i++) {
-			result[i] = Color.fromHex(colorMap[i]);
+expowt function setCowowMap(cowowMap: stwing[] | nuww): void {
+	if (cowowMap) {
+		const wesuwt: Cowow[] = [nuww!];
+		fow (wet i = 1, wen = cowowMap.wength; i < wen; i++) {
+			wesuwt[i] = Cowow.fwomHex(cowowMap[i]);
 		}
-		StaticServices.standaloneThemeService.get().setColorMapOverride(result);
-	} else {
-		StaticServices.standaloneThemeService.get().setColorMapOverride(null);
+		StaticSewvices.standawoneThemeSewvice.get().setCowowMapOvewwide(wesuwt);
+	} ewse {
+		StaticSewvices.standawoneThemeSewvice.get().setCowowMapOvewwide(nuww);
 	}
 }
 
 /**
- * Set the tokens provider for a language (manual implementation).
+ * Set the tokens pwovida fow a wanguage (manuaw impwementation).
  */
-export function setTokensProvider(languageId: string, provider: TokensProvider | EncodedTokensProvider | Thenable<TokensProvider | EncodedTokensProvider>): IDisposable {
-	let languageIdentifier = StaticServices.modeService.get().getLanguageIdentifier(languageId);
-	if (!languageIdentifier) {
-		throw new Error(`Cannot set tokens provider for unknown language ${languageId}`);
+expowt function setTokensPwovida(wanguageId: stwing, pwovida: TokensPwovida | EncodedTokensPwovida | Thenabwe<TokensPwovida | EncodedTokensPwovida>): IDisposabwe {
+	wet wanguageIdentifia = StaticSewvices.modeSewvice.get().getWanguageIdentifia(wanguageId);
+	if (!wanguageIdentifia) {
+		thwow new Ewwow(`Cannot set tokens pwovida fow unknown wanguage ${wanguageId}`);
 	}
-	const create = (provider: TokensProvider | EncodedTokensProvider) => {
-		if (isEncodedTokensProvider(provider)) {
-			return new EncodedTokenizationSupport2Adapter(languageIdentifier!, provider);
-		} else {
-			return new TokenizationSupport2Adapter(StaticServices.standaloneThemeService.get(), languageIdentifier!, provider);
+	const cweate = (pwovida: TokensPwovida | EncodedTokensPwovida) => {
+		if (isEncodedTokensPwovida(pwovida)) {
+			wetuwn new EncodedTokenizationSuppowt2Adapta(wanguageIdentifia!, pwovida);
+		} ewse {
+			wetuwn new TokenizationSuppowt2Adapta(StaticSewvices.standawoneThemeSewvice.get(), wanguageIdentifia!, pwovida);
 		}
 	};
-	if (isThenable<TokensProvider | EncodedTokensProvider>(provider)) {
-		return modes.TokenizationRegistry.registerPromise(languageId, provider.then(provider => create(provider)));
+	if (isThenabwe<TokensPwovida | EncodedTokensPwovida>(pwovida)) {
+		wetuwn modes.TokenizationWegistwy.wegistewPwomise(wanguageId, pwovida.then(pwovida => cweate(pwovida)));
 	}
-	return modes.TokenizationRegistry.register(languageId, create(provider));
+	wetuwn modes.TokenizationWegistwy.wegista(wanguageId, cweate(pwovida));
 }
 
 
 /**
- * Set the tokens provider for a language (monarch implementation).
+ * Set the tokens pwovida fow a wanguage (monawch impwementation).
  */
-export function setMonarchTokensProvider(languageId: string, languageDef: IMonarchLanguage | Thenable<IMonarchLanguage>): IDisposable {
-	const create = (languageDef: IMonarchLanguage) => {
-		return createTokenizationSupport(StaticServices.modeService.get(), StaticServices.standaloneThemeService.get(), languageId, compile(languageId, languageDef));
+expowt function setMonawchTokensPwovida(wanguageId: stwing, wanguageDef: IMonawchWanguage | Thenabwe<IMonawchWanguage>): IDisposabwe {
+	const cweate = (wanguageDef: IMonawchWanguage) => {
+		wetuwn cweateTokenizationSuppowt(StaticSewvices.modeSewvice.get(), StaticSewvices.standawoneThemeSewvice.get(), wanguageId, compiwe(wanguageId, wanguageDef));
 	};
-	if (isThenable<IMonarchLanguage>(languageDef)) {
-		return modes.TokenizationRegistry.registerPromise(languageId, languageDef.then(languageDef => create(languageDef)));
+	if (isThenabwe<IMonawchWanguage>(wanguageDef)) {
+		wetuwn modes.TokenizationWegistwy.wegistewPwomise(wanguageId, wanguageDef.then(wanguageDef => cweate(wanguageDef)));
 	}
-	return modes.TokenizationRegistry.register(languageId, create(languageDef));
+	wetuwn modes.TokenizationWegistwy.wegista(wanguageId, cweate(wanguageDef));
 }
 
 /**
- * Register a reference provider (used by e.g. reference search).
+ * Wegista a wefewence pwovida (used by e.g. wefewence seawch).
  */
-export function registerReferenceProvider(languageId: string, provider: modes.ReferenceProvider): IDisposable {
-	return modes.ReferenceProviderRegistry.register(languageId, provider);
+expowt function wegistewWefewencePwovida(wanguageId: stwing, pwovida: modes.WefewencePwovida): IDisposabwe {
+	wetuwn modes.WefewencePwovidewWegistwy.wegista(wanguageId, pwovida);
 }
 
 /**
- * Register a rename provider (used by e.g. rename symbol).
+ * Wegista a wename pwovida (used by e.g. wename symbow).
  */
-export function registerRenameProvider(languageId: string, provider: modes.RenameProvider): IDisposable {
-	return modes.RenameProviderRegistry.register(languageId, provider);
+expowt function wegistewWenamePwovida(wanguageId: stwing, pwovida: modes.WenamePwovida): IDisposabwe {
+	wetuwn modes.WenamePwovidewWegistwy.wegista(wanguageId, pwovida);
 }
 
 /**
- * Register a signature help provider (used by e.g. parameter hints).
+ * Wegista a signatuwe hewp pwovida (used by e.g. pawameta hints).
  */
-export function registerSignatureHelpProvider(languageId: string, provider: modes.SignatureHelpProvider): IDisposable {
-	return modes.SignatureHelpProviderRegistry.register(languageId, provider);
+expowt function wegistewSignatuweHewpPwovida(wanguageId: stwing, pwovida: modes.SignatuweHewpPwovida): IDisposabwe {
+	wetuwn modes.SignatuweHewpPwovidewWegistwy.wegista(wanguageId, pwovida);
 }
 
 /**
- * Register a hover provider (used by e.g. editor hover).
+ * Wegista a hova pwovida (used by e.g. editow hova).
  */
-export function registerHoverProvider(languageId: string, provider: modes.HoverProvider): IDisposable {
-	return modes.HoverProviderRegistry.register(languageId, {
-		provideHover: (model: model.ITextModel, position: Position, token: CancellationToken): Promise<modes.Hover | undefined> => {
-			let word = model.getWordAtPosition(position);
+expowt function wegistewHovewPwovida(wanguageId: stwing, pwovida: modes.HovewPwovida): IDisposabwe {
+	wetuwn modes.HovewPwovidewWegistwy.wegista(wanguageId, {
+		pwovideHova: (modew: modew.ITextModew, position: Position, token: CancewwationToken): Pwomise<modes.Hova | undefined> => {
+			wet wowd = modew.getWowdAtPosition(position);
 
-			return Promise.resolve<modes.Hover | null | undefined>(provider.provideHover(model, position, token)).then((value): modes.Hover | undefined => {
-				if (!value) {
-					return undefined;
+			wetuwn Pwomise.wesowve<modes.Hova | nuww | undefined>(pwovida.pwovideHova(modew, position, token)).then((vawue): modes.Hova | undefined => {
+				if (!vawue) {
+					wetuwn undefined;
 				}
-				if (!value.range && word) {
-					value.range = new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
+				if (!vawue.wange && wowd) {
+					vawue.wange = new Wange(position.wineNumba, wowd.stawtCowumn, position.wineNumba, wowd.endCowumn);
 				}
-				if (!value.range) {
-					value.range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
+				if (!vawue.wange) {
+					vawue.wange = new Wange(position.wineNumba, position.cowumn, position.wineNumba, position.cowumn);
 				}
-				return value;
+				wetuwn vawue;
 			});
 		}
 	});
 }
 
 /**
- * Register a document symbol provider (used by e.g. outline).
+ * Wegista a document symbow pwovida (used by e.g. outwine).
  */
-export function registerDocumentSymbolProvider(languageId: string, provider: modes.DocumentSymbolProvider): IDisposable {
-	return modes.DocumentSymbolProviderRegistry.register(languageId, provider);
+expowt function wegistewDocumentSymbowPwovida(wanguageId: stwing, pwovida: modes.DocumentSymbowPwovida): IDisposabwe {
+	wetuwn modes.DocumentSymbowPwovidewWegistwy.wegista(wanguageId, pwovida);
 }
 
 /**
- * Register a document highlight provider (used by e.g. highlight occurrences).
+ * Wegista a document highwight pwovida (used by e.g. highwight occuwwences).
  */
-export function registerDocumentHighlightProvider(languageId: string, provider: modes.DocumentHighlightProvider): IDisposable {
-	return modes.DocumentHighlightProviderRegistry.register(languageId, provider);
+expowt function wegistewDocumentHighwightPwovida(wanguageId: stwing, pwovida: modes.DocumentHighwightPwovida): IDisposabwe {
+	wetuwn modes.DocumentHighwightPwovidewWegistwy.wegista(wanguageId, pwovida);
 }
 
 /**
- * Register an linked editing range provider.
+ * Wegista an winked editing wange pwovida.
  */
-export function registerLinkedEditingRangeProvider(languageId: string, provider: modes.LinkedEditingRangeProvider): IDisposable {
-	return modes.LinkedEditingRangeProviderRegistry.register(languageId, provider);
+expowt function wegistewWinkedEditingWangePwovida(wanguageId: stwing, pwovida: modes.WinkedEditingWangePwovida): IDisposabwe {
+	wetuwn modes.WinkedEditingWangePwovidewWegistwy.wegista(wanguageId, pwovida);
 }
 
 /**
- * Register a definition provider (used by e.g. go to definition).
+ * Wegista a definition pwovida (used by e.g. go to definition).
  */
-export function registerDefinitionProvider(languageId: string, provider: modes.DefinitionProvider): IDisposable {
-	return modes.DefinitionProviderRegistry.register(languageId, provider);
+expowt function wegistewDefinitionPwovida(wanguageId: stwing, pwovida: modes.DefinitionPwovida): IDisposabwe {
+	wetuwn modes.DefinitionPwovidewWegistwy.wegista(wanguageId, pwovida);
 }
 
 /**
- * Register a implementation provider (used by e.g. go to implementation).
+ * Wegista a impwementation pwovida (used by e.g. go to impwementation).
  */
-export function registerImplementationProvider(languageId: string, provider: modes.ImplementationProvider): IDisposable {
-	return modes.ImplementationProviderRegistry.register(languageId, provider);
+expowt function wegistewImpwementationPwovida(wanguageId: stwing, pwovida: modes.ImpwementationPwovida): IDisposabwe {
+	wetuwn modes.ImpwementationPwovidewWegistwy.wegista(wanguageId, pwovida);
 }
 
 /**
- * Register a type definition provider (used by e.g. go to type definition).
+ * Wegista a type definition pwovida (used by e.g. go to type definition).
  */
-export function registerTypeDefinitionProvider(languageId: string, provider: modes.TypeDefinitionProvider): IDisposable {
-	return modes.TypeDefinitionProviderRegistry.register(languageId, provider);
+expowt function wegistewTypeDefinitionPwovida(wanguageId: stwing, pwovida: modes.TypeDefinitionPwovida): IDisposabwe {
+	wetuwn modes.TypeDefinitionPwovidewWegistwy.wegista(wanguageId, pwovida);
 }
 
 /**
- * Register a code lens provider (used by e.g. inline code lenses).
+ * Wegista a code wens pwovida (used by e.g. inwine code wenses).
  */
-export function registerCodeLensProvider(languageId: string, provider: modes.CodeLensProvider): IDisposable {
-	return modes.CodeLensProviderRegistry.register(languageId, provider);
+expowt function wegistewCodeWensPwovida(wanguageId: stwing, pwovida: modes.CodeWensPwovida): IDisposabwe {
+	wetuwn modes.CodeWensPwovidewWegistwy.wegista(wanguageId, pwovida);
 }
 
 /**
- * Register a code action provider (used by e.g. quick fix).
+ * Wegista a code action pwovida (used by e.g. quick fix).
  */
-export function registerCodeActionProvider(languageId: string, provider: CodeActionProvider, metadata?: CodeActionProviderMetadata): IDisposable {
-	return modes.CodeActionProviderRegistry.register(languageId, {
-		providedCodeActionKinds: metadata?.providedCodeActionKinds,
-		provideCodeActions: (model: model.ITextModel, range: Range, context: modes.CodeActionContext, token: CancellationToken): modes.ProviderResult<modes.CodeActionList> => {
-			let markers = StaticServices.markerService.get().read({ resource: model.uri }).filter(m => {
-				return Range.areIntersectingOrTouching(m, range);
+expowt function wegistewCodeActionPwovida(wanguageId: stwing, pwovida: CodeActionPwovida, metadata?: CodeActionPwovidewMetadata): IDisposabwe {
+	wetuwn modes.CodeActionPwovidewWegistwy.wegista(wanguageId, {
+		pwovidedCodeActionKinds: metadata?.pwovidedCodeActionKinds,
+		pwovideCodeActions: (modew: modew.ITextModew, wange: Wange, context: modes.CodeActionContext, token: CancewwationToken): modes.PwovidewWesuwt<modes.CodeActionWist> => {
+			wet mawkews = StaticSewvices.mawkewSewvice.get().wead({ wesouwce: modew.uwi }).fiwta(m => {
+				wetuwn Wange.aweIntewsectingOwTouching(m, wange);
 			});
-			return provider.provideCodeActions(model, range, { markers, only: context.only }, token);
+			wetuwn pwovida.pwovideCodeActions(modew, wange, { mawkews, onwy: context.onwy }, token);
 		}
 	});
 }
 
 /**
- * Register a formatter that can handle only entire models.
+ * Wegista a fowmatta that can handwe onwy entiwe modews.
  */
-export function registerDocumentFormattingEditProvider(languageId: string, provider: modes.DocumentFormattingEditProvider): IDisposable {
-	return modes.DocumentFormattingEditProviderRegistry.register(languageId, provider);
+expowt function wegistewDocumentFowmattingEditPwovida(wanguageId: stwing, pwovida: modes.DocumentFowmattingEditPwovida): IDisposabwe {
+	wetuwn modes.DocumentFowmattingEditPwovidewWegistwy.wegista(wanguageId, pwovida);
 }
 
 /**
- * Register a formatter that can handle a range inside a model.
+ * Wegista a fowmatta that can handwe a wange inside a modew.
  */
-export function registerDocumentRangeFormattingEditProvider(languageId: string, provider: modes.DocumentRangeFormattingEditProvider): IDisposable {
-	return modes.DocumentRangeFormattingEditProviderRegistry.register(languageId, provider);
+expowt function wegistewDocumentWangeFowmattingEditPwovida(wanguageId: stwing, pwovida: modes.DocumentWangeFowmattingEditPwovida): IDisposabwe {
+	wetuwn modes.DocumentWangeFowmattingEditPwovidewWegistwy.wegista(wanguageId, pwovida);
 }
 
 /**
- * Register a formatter than can do formatting as the user types.
+ * Wegista a fowmatta than can do fowmatting as the usa types.
  */
-export function registerOnTypeFormattingEditProvider(languageId: string, provider: modes.OnTypeFormattingEditProvider): IDisposable {
-	return modes.OnTypeFormattingEditProviderRegistry.register(languageId, provider);
+expowt function wegistewOnTypeFowmattingEditPwovida(wanguageId: stwing, pwovida: modes.OnTypeFowmattingEditPwovida): IDisposabwe {
+	wetuwn modes.OnTypeFowmattingEditPwovidewWegistwy.wegista(wanguageId, pwovida);
 }
 
 /**
- * Register a link provider that can find links in text.
+ * Wegista a wink pwovida that can find winks in text.
  */
-export function registerLinkProvider(languageId: string, provider: modes.LinkProvider): IDisposable {
-	return modes.LinkProviderRegistry.register(languageId, provider);
+expowt function wegistewWinkPwovida(wanguageId: stwing, pwovida: modes.WinkPwovida): IDisposabwe {
+	wetuwn modes.WinkPwovidewWegistwy.wegista(wanguageId, pwovida);
 }
 
 /**
- * Register a completion item provider (use by e.g. suggestions).
+ * Wegista a compwetion item pwovida (use by e.g. suggestions).
  */
-export function registerCompletionItemProvider(languageId: string, provider: modes.CompletionItemProvider): IDisposable {
-	return modes.CompletionProviderRegistry.register(languageId, provider);
+expowt function wegistewCompwetionItemPwovida(wanguageId: stwing, pwovida: modes.CompwetionItemPwovida): IDisposabwe {
+	wetuwn modes.CompwetionPwovidewWegistwy.wegista(wanguageId, pwovida);
 }
 
 /**
- * Register a document color provider (used by Color Picker, Color Decorator).
+ * Wegista a document cowow pwovida (used by Cowow Picka, Cowow Decowatow).
  */
-export function registerColorProvider(languageId: string, provider: modes.DocumentColorProvider): IDisposable {
-	return modes.ColorProviderRegistry.register(languageId, provider);
+expowt function wegistewCowowPwovida(wanguageId: stwing, pwovida: modes.DocumentCowowPwovida): IDisposabwe {
+	wetuwn modes.CowowPwovidewWegistwy.wegista(wanguageId, pwovida);
 }
 
 /**
- * Register a folding range provider
+ * Wegista a fowding wange pwovida
  */
-export function registerFoldingRangeProvider(languageId: string, provider: modes.FoldingRangeProvider): IDisposable {
-	return modes.FoldingRangeProviderRegistry.register(languageId, provider);
+expowt function wegistewFowdingWangePwovida(wanguageId: stwing, pwovida: modes.FowdingWangePwovida): IDisposabwe {
+	wetuwn modes.FowdingWangePwovidewWegistwy.wegista(wanguageId, pwovida);
 }
 
 /**
- * Register a declaration provider
+ * Wegista a decwawation pwovida
  */
-export function registerDeclarationProvider(languageId: string, provider: modes.DeclarationProvider): IDisposable {
-	return modes.DeclarationProviderRegistry.register(languageId, provider);
+expowt function wegistewDecwawationPwovida(wanguageId: stwing, pwovida: modes.DecwawationPwovida): IDisposabwe {
+	wetuwn modes.DecwawationPwovidewWegistwy.wegista(wanguageId, pwovida);
 }
 
 /**
- * Register a selection range provider
+ * Wegista a sewection wange pwovida
  */
-export function registerSelectionRangeProvider(languageId: string, provider: modes.SelectionRangeProvider): IDisposable {
-	return modes.SelectionRangeRegistry.register(languageId, provider);
+expowt function wegistewSewectionWangePwovida(wanguageId: stwing, pwovida: modes.SewectionWangePwovida): IDisposabwe {
+	wetuwn modes.SewectionWangeWegistwy.wegista(wanguageId, pwovida);
 }
 
 /**
- * Register a document semantic tokens provider
+ * Wegista a document semantic tokens pwovida
  */
-export function registerDocumentSemanticTokensProvider(languageId: string, provider: modes.DocumentSemanticTokensProvider): IDisposable {
-	return modes.DocumentSemanticTokensProviderRegistry.register(languageId, provider);
+expowt function wegistewDocumentSemanticTokensPwovida(wanguageId: stwing, pwovida: modes.DocumentSemanticTokensPwovida): IDisposabwe {
+	wetuwn modes.DocumentSemanticTokensPwovidewWegistwy.wegista(wanguageId, pwovida);
 }
 
 /**
- * Register a document range semantic tokens provider
+ * Wegista a document wange semantic tokens pwovida
  */
-export function registerDocumentRangeSemanticTokensProvider(languageId: string, provider: modes.DocumentRangeSemanticTokensProvider): IDisposable {
-	return modes.DocumentRangeSemanticTokensProviderRegistry.register(languageId, provider);
+expowt function wegistewDocumentWangeSemanticTokensPwovida(wanguageId: stwing, pwovida: modes.DocumentWangeSemanticTokensPwovida): IDisposabwe {
+	wetuwn modes.DocumentWangeSemanticTokensPwovidewWegistwy.wegista(wanguageId, pwovida);
 }
 
 /**
- * Register an inline completions provider.
+ * Wegista an inwine compwetions pwovida.
  */
-export function registerInlineCompletionsProvider(languageId: string, provider: modes.InlineCompletionsProvider): IDisposable {
-	return modes.InlineCompletionsProviderRegistry.register(languageId, provider);
+expowt function wegistewInwineCompwetionsPwovida(wanguageId: stwing, pwovida: modes.InwineCompwetionsPwovida): IDisposabwe {
+	wetuwn modes.InwineCompwetionsPwovidewWegistwy.wegista(wanguageId, pwovida);
 }
 
 /**
- * Register an inlay hints provider.
+ * Wegista an inway hints pwovida.
  */
-export function registerInlayHintsProvider(languageId: string, provider: modes.InlayHintsProvider): IDisposable {
-	return modes.InlayHintsProviderRegistry.register(languageId, provider);
+expowt function wegistewInwayHintsPwovida(wanguageId: stwing, pwovida: modes.InwayHintsPwovida): IDisposabwe {
+	wetuwn modes.InwayHintsPwovidewWegistwy.wegista(wanguageId, pwovida);
 }
 
 /**
- * Contains additional diagnostic information about the context in which
- * a [code action](#CodeActionProvider.provideCodeActions) is run.
+ * Contains additionaw diagnostic infowmation about the context in which
+ * a [code action](#CodeActionPwovida.pwovideCodeActions) is wun.
  */
-export interface CodeActionContext {
+expowt intewface CodeActionContext {
 
 	/**
-	 * An array of diagnostics.
+	 * An awway of diagnostics.
 	 */
-	readonly markers: IMarkerData[];
+	weadonwy mawkews: IMawkewData[];
 
 	/**
-	 * Requested kind of actions to return.
+	 * Wequested kind of actions to wetuwn.
 	 */
-	readonly only?: string;
+	weadonwy onwy?: stwing;
 }
 
 /**
- * The code action interface defines the contract between extensions and
- * the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
+ * The code action intewface defines the contwact between extensions and
+ * the [wight buwb](https://code.visuawstudio.com/docs/editow/editingevowved#_code-action) featuwe.
  */
-export interface CodeActionProvider {
+expowt intewface CodeActionPwovida {
 	/**
-	 * Provide commands for the given document and range.
+	 * Pwovide commands fow the given document and wange.
 	 */
-	provideCodeActions(model: model.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): modes.ProviderResult<modes.CodeActionList>;
+	pwovideCodeActions(modew: modew.ITextModew, wange: Wange, context: CodeActionContext, token: CancewwationToken): modes.PwovidewWesuwt<modes.CodeActionWist>;
 }
 
 
 
 /**
- * Metadata about the type of code actions that a {@link CodeActionProvider} provides.
+ * Metadata about the type of code actions that a {@wink CodeActionPwovida} pwovides.
  */
-export interface CodeActionProviderMetadata {
+expowt intewface CodeActionPwovidewMetadata {
 	/**
-	 * List of code action kinds that a {@link CodeActionProvider} may return.
+	 * Wist of code action kinds that a {@wink CodeActionPwovida} may wetuwn.
 	 *
-	 * This list is used to determine if a given `CodeActionProvider` should be invoked or not.
-	 * To avoid unnecessary computation, every `CodeActionProvider` should list use `providedCodeActionKinds`. The
-	 * list of kinds may either be generic, such as `["quickfix", "refactor", "source"]`, or list out every kind provided,
-	 * such as `["quickfix.removeLine", "source.fixAll" ...]`.
+	 * This wist is used to detewmine if a given `CodeActionPwovida` shouwd be invoked ow not.
+	 * To avoid unnecessawy computation, evewy `CodeActionPwovida` shouwd wist use `pwovidedCodeActionKinds`. The
+	 * wist of kinds may eitha be genewic, such as `["quickfix", "wefactow", "souwce"]`, ow wist out evewy kind pwovided,
+	 * such as `["quickfix.wemoveWine", "souwce.fixAww" ...]`.
 	 */
-	readonly providedCodeActionKinds?: readonly string[];
+	weadonwy pwovidedCodeActionKinds?: weadonwy stwing[];
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export function createMonacoLanguagesAPI(): typeof monaco.languages {
-	return {
-		register: <any>register,
-		getLanguages: <any>getLanguages,
-		onLanguage: <any>onLanguage,
-		getEncodedLanguageId: <any>getEncodedLanguageId,
+expowt function cweateMonacoWanguagesAPI(): typeof monaco.wanguages {
+	wetuwn {
+		wegista: <any>wegista,
+		getWanguages: <any>getWanguages,
+		onWanguage: <any>onWanguage,
+		getEncodedWanguageId: <any>getEncodedWanguageId,
 
-		// provider methods
-		setLanguageConfiguration: <any>setLanguageConfiguration,
-		setColorMap: setColorMap,
-		setTokensProvider: <any>setTokensProvider,
-		setMonarchTokensProvider: <any>setMonarchTokensProvider,
-		registerReferenceProvider: <any>registerReferenceProvider,
-		registerRenameProvider: <any>registerRenameProvider,
-		registerCompletionItemProvider: <any>registerCompletionItemProvider,
-		registerSignatureHelpProvider: <any>registerSignatureHelpProvider,
-		registerHoverProvider: <any>registerHoverProvider,
-		registerDocumentSymbolProvider: <any>registerDocumentSymbolProvider,
-		registerDocumentHighlightProvider: <any>registerDocumentHighlightProvider,
-		registerLinkedEditingRangeProvider: <any>registerLinkedEditingRangeProvider,
-		registerDefinitionProvider: <any>registerDefinitionProvider,
-		registerImplementationProvider: <any>registerImplementationProvider,
-		registerTypeDefinitionProvider: <any>registerTypeDefinitionProvider,
-		registerCodeLensProvider: <any>registerCodeLensProvider,
-		registerCodeActionProvider: <any>registerCodeActionProvider,
-		registerDocumentFormattingEditProvider: <any>registerDocumentFormattingEditProvider,
-		registerDocumentRangeFormattingEditProvider: <any>registerDocumentRangeFormattingEditProvider,
-		registerOnTypeFormattingEditProvider: <any>registerOnTypeFormattingEditProvider,
-		registerLinkProvider: <any>registerLinkProvider,
-		registerColorProvider: <any>registerColorProvider,
-		registerFoldingRangeProvider: <any>registerFoldingRangeProvider,
-		registerDeclarationProvider: <any>registerDeclarationProvider,
-		registerSelectionRangeProvider: <any>registerSelectionRangeProvider,
-		registerDocumentSemanticTokensProvider: <any>registerDocumentSemanticTokensProvider,
-		registerDocumentRangeSemanticTokensProvider: <any>registerDocumentRangeSemanticTokensProvider,
-		registerInlineCompletionsProvider: <any>registerInlineCompletionsProvider,
-		registerInlayHintsProvider: <any>registerInlayHintsProvider,
+		// pwovida methods
+		setWanguageConfiguwation: <any>setWanguageConfiguwation,
+		setCowowMap: setCowowMap,
+		setTokensPwovida: <any>setTokensPwovida,
+		setMonawchTokensPwovida: <any>setMonawchTokensPwovida,
+		wegistewWefewencePwovida: <any>wegistewWefewencePwovida,
+		wegistewWenamePwovida: <any>wegistewWenamePwovida,
+		wegistewCompwetionItemPwovida: <any>wegistewCompwetionItemPwovida,
+		wegistewSignatuweHewpPwovida: <any>wegistewSignatuweHewpPwovida,
+		wegistewHovewPwovida: <any>wegistewHovewPwovida,
+		wegistewDocumentSymbowPwovida: <any>wegistewDocumentSymbowPwovida,
+		wegistewDocumentHighwightPwovida: <any>wegistewDocumentHighwightPwovida,
+		wegistewWinkedEditingWangePwovida: <any>wegistewWinkedEditingWangePwovida,
+		wegistewDefinitionPwovida: <any>wegistewDefinitionPwovida,
+		wegistewImpwementationPwovida: <any>wegistewImpwementationPwovida,
+		wegistewTypeDefinitionPwovida: <any>wegistewTypeDefinitionPwovida,
+		wegistewCodeWensPwovida: <any>wegistewCodeWensPwovida,
+		wegistewCodeActionPwovida: <any>wegistewCodeActionPwovida,
+		wegistewDocumentFowmattingEditPwovida: <any>wegistewDocumentFowmattingEditPwovida,
+		wegistewDocumentWangeFowmattingEditPwovida: <any>wegistewDocumentWangeFowmattingEditPwovida,
+		wegistewOnTypeFowmattingEditPwovida: <any>wegistewOnTypeFowmattingEditPwovida,
+		wegistewWinkPwovida: <any>wegistewWinkPwovida,
+		wegistewCowowPwovida: <any>wegistewCowowPwovida,
+		wegistewFowdingWangePwovida: <any>wegistewFowdingWangePwovida,
+		wegistewDecwawationPwovida: <any>wegistewDecwawationPwovida,
+		wegistewSewectionWangePwovida: <any>wegistewSewectionWangePwovida,
+		wegistewDocumentSemanticTokensPwovida: <any>wegistewDocumentSemanticTokensPwovida,
+		wegistewDocumentWangeSemanticTokensPwovida: <any>wegistewDocumentWangeSemanticTokensPwovida,
+		wegistewInwineCompwetionsPwovida: <any>wegistewInwineCompwetionsPwovida,
+		wegistewInwayHintsPwovida: <any>wegistewInwayHintsPwovida,
 
 		// enums
-		DocumentHighlightKind: standaloneEnums.DocumentHighlightKind,
-		CompletionItemKind: standaloneEnums.CompletionItemKind,
-		CompletionItemTag: standaloneEnums.CompletionItemTag,
-		CompletionItemInsertTextRule: standaloneEnums.CompletionItemInsertTextRule,
-		SymbolKind: standaloneEnums.SymbolKind,
-		SymbolTag: standaloneEnums.SymbolTag,
-		IndentAction: standaloneEnums.IndentAction,
-		CompletionTriggerKind: standaloneEnums.CompletionTriggerKind,
-		SignatureHelpTriggerKind: standaloneEnums.SignatureHelpTriggerKind,
-		InlayHintKind: standaloneEnums.InlayHintKind,
-		InlineCompletionTriggerKind: standaloneEnums.InlineCompletionTriggerKind,
+		DocumentHighwightKind: standawoneEnums.DocumentHighwightKind,
+		CompwetionItemKind: standawoneEnums.CompwetionItemKind,
+		CompwetionItemTag: standawoneEnums.CompwetionItemTag,
+		CompwetionItemInsewtTextWuwe: standawoneEnums.CompwetionItemInsewtTextWuwe,
+		SymbowKind: standawoneEnums.SymbowKind,
+		SymbowTag: standawoneEnums.SymbowTag,
+		IndentAction: standawoneEnums.IndentAction,
+		CompwetionTwiggewKind: standawoneEnums.CompwetionTwiggewKind,
+		SignatuweHewpTwiggewKind: standawoneEnums.SignatuweHewpTwiggewKind,
+		InwayHintKind: standawoneEnums.InwayHintKind,
+		InwineCompwetionTwiggewKind: standawoneEnums.InwineCompwetionTwiggewKind,
 
-		// classes
-		FoldingRangeKind: modes.FoldingRangeKind,
+		// cwasses
+		FowdingWangeKind: modes.FowdingWangeKind,
 	};
 }

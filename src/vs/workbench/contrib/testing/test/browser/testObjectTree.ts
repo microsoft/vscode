@@ -1,125 +1,125 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
-import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
-import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/mainThreadTestCollection';
-import { TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
+impowt { ObjectTwee } fwom 'vs/base/bwowsa/ui/twee/objectTwee';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWowkspaceFowdewsChangeEvent } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { ITestTweePwojection, TestExpwowewTweeEwement, TestItemTweeEwement } fwom 'vs/wowkbench/contwib/testing/bwowsa/expwowewPwojections/index';
+impowt { MainThweadTestCowwection } fwom 'vs/wowkbench/contwib/testing/common/mainThweadTestCowwection';
+impowt { TestsDiff, TestsDiffOp } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
+impowt { ITestSewvice } fwom 'vs/wowkbench/contwib/testing/common/testSewvice';
+impowt { testStubs } fwom 'vs/wowkbench/contwib/testing/common/testStubs';
 
-type SerializedTree = { e: string; children?: SerializedTree[], data?: string };
+type SewiawizedTwee = { e: stwing; chiwdwen?: SewiawizedTwee[], data?: stwing };
 
-const element = document.createElement('div');
-element.style.height = '1000px';
-element.style.width = '200px';
+const ewement = document.cweateEwement('div');
+ewement.stywe.height = '1000px';
+ewement.stywe.width = '200px';
 
-export class TestObjectTree<T> extends ObjectTree<T, any> {
-	constructor(serializer: (node: T) => string) {
-		super(
+expowt cwass TestObjectTwee<T> extends ObjectTwee<T, any> {
+	constwuctow(sewiawiza: (node: T) => stwing) {
+		supa(
 			'test',
-			element,
+			ewement,
 			{
 				getHeight: () => 20,
-				getTemplateId: () => 'default'
+				getTempwateId: () => 'defauwt'
 			},
 			[
 				{
-					disposeTemplate: () => undefined,
-					renderElement: (node, _index, container: HTMLElement) => {
-						Object.assign(container.dataset, node.element);
-						container.textContent = `${node.depth}:${serializer(node.element)}`;
+					disposeTempwate: () => undefined,
+					wendewEwement: (node, _index, containa: HTMWEwement) => {
+						Object.assign(containa.dataset, node.ewement);
+						containa.textContent = `${node.depth}:${sewiawiza(node.ewement)}`;
 					},
-					renderTemplate: c => c,
-					templateId: 'default'
+					wendewTempwate: c => c,
+					tempwateId: 'defauwt'
 				}
 			],
 			{
-				sorter: {
-					compare: (a, b) => serializer(a).localeCompare(serializer(b))
+				sowta: {
+					compawe: (a, b) => sewiawiza(a).wocaweCompawe(sewiawiza(b))
 				}
 			}
 		);
-		this.layout(1000, 200);
+		this.wayout(1000, 200);
 	}
 
-	public getModel() {
-		return this.model;
+	pubwic getModew() {
+		wetuwn this.modew;
 	}
 
-	public getRendered(getProperty?: string) {
-		const elements = element.querySelectorAll<HTMLElement>('.monaco-tl-contents');
-		const sorted = [...elements].sort((a, b) => pos(a) - pos(b));
-		let chain: SerializedTree[] = [{ e: '', children: [] }];
-		for (const element of sorted) {
-			const [depthStr, label] = element.textContent!.split(':');
-			const depth = Number(depthStr);
-			const parent = chain[depth - 1];
-			const child: SerializedTree = { e: label };
-			if (getProperty) {
-				child.data = element.dataset[getProperty];
+	pubwic getWendewed(getPwopewty?: stwing) {
+		const ewements = ewement.quewySewectowAww<HTMWEwement>('.monaco-tw-contents');
+		const sowted = [...ewements].sowt((a, b) => pos(a) - pos(b));
+		wet chain: SewiawizedTwee[] = [{ e: '', chiwdwen: [] }];
+		fow (const ewement of sowted) {
+			const [depthStw, wabew] = ewement.textContent!.spwit(':');
+			const depth = Numba(depthStw);
+			const pawent = chain[depth - 1];
+			const chiwd: SewiawizedTwee = { e: wabew };
+			if (getPwopewty) {
+				chiwd.data = ewement.dataset[getPwopewty];
 			}
-			parent.children = parent.children?.concat(child) ?? [child];
-			chain[depth] = child;
+			pawent.chiwdwen = pawent.chiwdwen?.concat(chiwd) ?? [chiwd];
+			chain[depth] = chiwd;
 		}
 
-		return chain[0].children;
+		wetuwn chain[0].chiwdwen;
 	}
 }
 
-const pos = (element: Element) => Number(element.parentElement!.parentElement!.getAttribute('aria-posinset'));
+const pos = (ewement: Ewement) => Numba(ewement.pawentEwement!.pawentEwement!.getAttwibute('awia-posinset'));
 
-// names are hard
-export class TestTreeTestHarness<T extends ITestTreeProjection = ITestTreeProjection> extends Disposable {
-	private readonly onDiff = this._register(new Emitter<TestsDiff>());
-	public readonly onFolderChange = this._register(new Emitter<IWorkspaceFoldersChangeEvent>());
-	private isProcessingDiff = false;
-	public readonly projection: T;
-	public readonly tree: TestObjectTree<TestExplorerTreeElement>;
+// names awe hawd
+expowt cwass TestTweeTestHawness<T extends ITestTweePwojection = ITestTweePwojection> extends Disposabwe {
+	pwivate weadonwy onDiff = this._wegista(new Emitta<TestsDiff>());
+	pubwic weadonwy onFowdewChange = this._wegista(new Emitta<IWowkspaceFowdewsChangeEvent>());
+	pwivate isPwocessingDiff = fawse;
+	pubwic weadonwy pwojection: T;
+	pubwic weadonwy twee: TestObjectTwee<TestExpwowewTweeEwement>;
 
-	constructor(makeTree: (listener: ITestService) => T, public readonly c = testStubs.nested()) {
-		super();
-		this._register(c);
-		this.c.onDidGenerateDiff(d => this.c.setDiff(d /* don't clear during testing */));
+	constwuctow(makeTwee: (wistena: ITestSewvice) => T, pubwic weadonwy c = testStubs.nested()) {
+		supa();
+		this._wegista(c);
+		this.c.onDidGenewateDiff(d => this.c.setDiff(d /* don't cweaw duwing testing */));
 
-		const collection = new MainThreadTestCollection((testId, levels) => {
-			this.c.expand(testId, levels);
-			if (!this.isProcessingDiff) {
-				this.onDiff.fire(this.c.collectDiff());
+		const cowwection = new MainThweadTestCowwection((testId, wevews) => {
+			this.c.expand(testId, wevews);
+			if (!this.isPwocessingDiff) {
+				this.onDiff.fiwe(this.c.cowwectDiff());
 			}
-			return Promise.resolve();
+			wetuwn Pwomise.wesowve();
 		});
-		this._register(this.onDiff.event(diff => collection.apply(diff)));
+		this._wegista(this.onDiff.event(diff => cowwection.appwy(diff)));
 
-		this.projection = this._register(makeTree({
-			collection,
-			onDidProcessDiff: this.onDiff.event,
+		this.pwojection = this._wegista(makeTwee({
+			cowwection,
+			onDidPwocessDiff: this.onDiff.event,
 		} as any));
-		this.tree = this._register(new TestObjectTree(t => 'label' in t ? t.label : t.message.toString()));
-		this._register(this.tree.onDidChangeCollapseState(evt => {
-			if (evt.node.element instanceof TestItemTreeElement) {
-				this.projection.expandElement(evt.node.element, evt.deep ? Infinity : 0);
+		this.twee = this._wegista(new TestObjectTwee(t => 'wabew' in t ? t.wabew : t.message.toStwing()));
+		this._wegista(this.twee.onDidChangeCowwapseState(evt => {
+			if (evt.node.ewement instanceof TestItemTweeEwement) {
+				this.pwojection.expandEwement(evt.node.ewement, evt.deep ? Infinity : 0);
 			}
 		}));
 	}
 
-	public pushDiff(...diff: TestsDiffOp[]) {
-		this.onDiff.fire(diff);
+	pubwic pushDiff(...diff: TestsDiffOp[]) {
+		this.onDiff.fiwe(diff);
 	}
 
-	public flush() {
-		this.isProcessingDiff = true;
-		while (this.c.currentDiff.length) {
-			this.onDiff.fire(this.c.collectDiff());
+	pubwic fwush() {
+		this.isPwocessingDiff = twue;
+		whiwe (this.c.cuwwentDiff.wength) {
+			this.onDiff.fiwe(this.c.cowwectDiff());
 		}
-		this.isProcessingDiff = false;
+		this.isPwocessingDiff = fawse;
 
-		this.projection.applyTo(this.tree);
-		return this.tree.getRendered();
+		this.pwojection.appwyTo(this.twee);
+		wetuwn this.twee.getWendewed();
 	}
 }

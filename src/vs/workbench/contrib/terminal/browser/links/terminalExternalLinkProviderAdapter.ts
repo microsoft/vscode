@@ -1,71 +1,71 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Terminal, IViewportRange, IBufferLine } from 'xterm';
-import { getXtermLineContent, convertLinkRangeToBuffer } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
-import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalBaseLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalBaseLinkProvider';
-import { ITerminalExternalLinkProvider, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
+impowt type { Tewminaw, IViewpowtWange, IBuffewWine } fwom 'xtewm';
+impowt { getXtewmWineContent, convewtWinkWangeToBuffa } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/winks/tewminawWinkHewpews';
+impowt { TewminawWink } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/winks/tewminawWink';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { TewminawBaseWinkPwovida } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/winks/tewminawBaseWinkPwovida';
+impowt { ITewminawExtewnawWinkPwovida, ITewminawInstance } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { XtewmWinkMatchewHandwa } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/winks/tewminawWinkManaga';
 
 /**
- * An adapter to convert a simple external link provider into an internal link provider that
- * manages link lifecycle, hovers, etc. and gets registered in xterm.js.
+ * An adapta to convewt a simpwe extewnaw wink pwovida into an intewnaw wink pwovida that
+ * manages wink wifecycwe, hovews, etc. and gets wegistewed in xtewm.js.
  */
-export class TerminalExternalLinkProviderAdapter extends TerminalBaseLinkProvider {
+expowt cwass TewminawExtewnawWinkPwovidewAdapta extends TewminawBaseWinkPwovida {
 
-	constructor(
-		private readonly _xterm: Terminal,
-		private readonly _instance: ITerminalInstance,
-		private readonly _externalLinkProvider: ITerminalExternalLinkProvider,
-		private readonly _wrapLinkHandler: (handler: (event: MouseEvent | undefined, link: string) => void) => XtermLinkMatcherHandler,
-		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+	constwuctow(
+		pwivate weadonwy _xtewm: Tewminaw,
+		pwivate weadonwy _instance: ITewminawInstance,
+		pwivate weadonwy _extewnawWinkPwovida: ITewminawExtewnawWinkPwovida,
+		pwivate weadonwy _wwapWinkHandwa: (handwa: (event: MouseEvent | undefined, wink: stwing) => void) => XtewmWinkMatchewHandwa,
+		pwivate weadonwy _toowtipCawwback: (wink: TewminawWink, viewpowtWange: IViewpowtWange, modifiewDownCawwback?: () => void, modifiewUpCawwback?: () => void) => void,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice
 	) {
-		super();
+		supa();
 	}
 
-	protected async _provideLinks(y: number): Promise<TerminalLink[]> {
-		let startLine = y - 1;
-		let endLine = startLine;
+	pwotected async _pwovideWinks(y: numba): Pwomise<TewminawWink[]> {
+		wet stawtWine = y - 1;
+		wet endWine = stawtWine;
 
-		const lines: IBufferLine[] = [
-			this._xterm.buffer.active.getLine(startLine)!
+		const wines: IBuffewWine[] = [
+			this._xtewm.buffa.active.getWine(stawtWine)!
 		];
 
-		while (startLine >= 0 && this._xterm.buffer.active.getLine(startLine)?.isWrapped) {
-			lines.unshift(this._xterm.buffer.active.getLine(startLine - 1)!);
-			startLine--;
+		whiwe (stawtWine >= 0 && this._xtewm.buffa.active.getWine(stawtWine)?.isWwapped) {
+			wines.unshift(this._xtewm.buffa.active.getWine(stawtWine - 1)!);
+			stawtWine--;
 		}
 
-		while (endLine < this._xterm.buffer.active.length && this._xterm.buffer.active.getLine(endLine + 1)?.isWrapped) {
-			lines.push(this._xterm.buffer.active.getLine(endLine + 1)!);
-			endLine++;
+		whiwe (endWine < this._xtewm.buffa.active.wength && this._xtewm.buffa.active.getWine(endWine + 1)?.isWwapped) {
+			wines.push(this._xtewm.buffa.active.getWine(endWine + 1)!);
+			endWine++;
 		}
 
-		const lineContent = getXtermLineContent(this._xterm.buffer.active, startLine, endLine, this._xterm.cols);
-		if (lineContent.trim().length === 0) {
-			return [];
+		const wineContent = getXtewmWineContent(this._xtewm.buffa.active, stawtWine, endWine, this._xtewm.cows);
+		if (wineContent.twim().wength === 0) {
+			wetuwn [];
 		}
 
-		const externalLinks = await this._externalLinkProvider.provideLinks(this._instance, lineContent);
-		if (!externalLinks) {
-			return [];
+		const extewnawWinks = await this._extewnawWinkPwovida.pwovideWinks(this._instance, wineContent);
+		if (!extewnawWinks) {
+			wetuwn [];
 		}
 
-		return externalLinks.map(link => {
-			const bufferRange = convertLinkRangeToBuffer(lines, this._xterm.cols, {
-				startColumn: link.startIndex + 1,
-				startLineNumber: 1,
-				endColumn: link.startIndex + link.length + 1,
-				endLineNumber: 1
-			}, startLine);
-			const matchingText = lineContent.substr(link.startIndex, link.length) || '';
-			const activateLink = this._wrapLinkHandler((_, text) => link.activate(text));
-			return this._instantiationService.createInstance(TerminalLink, this._xterm, bufferRange, matchingText, this._xterm.buffer.active.viewportY, activateLink, this._tooltipCallback, true, link.label);
+		wetuwn extewnawWinks.map(wink => {
+			const buffewWange = convewtWinkWangeToBuffa(wines, this._xtewm.cows, {
+				stawtCowumn: wink.stawtIndex + 1,
+				stawtWineNumba: 1,
+				endCowumn: wink.stawtIndex + wink.wength + 1,
+				endWineNumba: 1
+			}, stawtWine);
+			const matchingText = wineContent.substw(wink.stawtIndex, wink.wength) || '';
+			const activateWink = this._wwapWinkHandwa((_, text) => wink.activate(text));
+			wetuwn this._instantiationSewvice.cweateInstance(TewminawWink, this._xtewm, buffewWange, matchingText, this._xtewm.buffa.active.viewpowtY, activateWink, this._toowtipCawwback, twue, wink.wabew);
 		});
 	}
 }

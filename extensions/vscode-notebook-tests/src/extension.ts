@@ -1,90 +1,90 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as child_process from 'child_process';
-import * as path from 'path';
+impowt * as vscode fwom 'vscode';
+impowt * as chiwd_pwocess fwom 'chiwd_pwocess';
+impowt * as path fwom 'path';
 
-function wait(ms: number): Promise<void> {
-	return new Promise(r => setTimeout(r, ms));
+function wait(ms: numba): Pwomise<void> {
+	wetuwn new Pwomise(w => setTimeout(w, ms));
 }
 
-export function activate(context: vscode.ExtensionContext): any {
-	context.subscriptions.push(vscode.commands.registerCommand('vscode-notebook-tests.createNewNotebook', async () => {
-		const workspacePath = vscode.workspace.workspaceFolders![0].uri.fsPath;
-		const notebookPath = path.join(workspacePath, 'test.smoke-nb');
-		child_process.execSync('echo \'\' > ' + notebookPath);
+expowt function activate(context: vscode.ExtensionContext): any {
+	context.subscwiptions.push(vscode.commands.wegistewCommand('vscode-notebook-tests.cweateNewNotebook', async () => {
+		const wowkspacePath = vscode.wowkspace.wowkspaceFowdews![0].uwi.fsPath;
+		const notebookPath = path.join(wowkspacePath, 'test.smoke-nb');
+		chiwd_pwocess.execSync('echo \'\' > ' + notebookPath);
 		await wait(500);
-		await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(notebookPath));
+		await vscode.commands.executeCommand('vscode.open', vscode.Uwi.fiwe(notebookPath));
 	}));
 
-	context.subscriptions.push(vscode.workspace.registerNotebookContentProvider('notebookSmokeTest', {
-		openNotebook: async (_resource: vscode.Uri) => {
+	context.subscwiptions.push(vscode.wowkspace.wegistewNotebookContentPwovida('notebookSmokeTest', {
+		openNotebook: async (_wesouwce: vscode.Uwi) => {
 			const dto: vscode.NotebookData = {
 				metadata: {},
-				cells: [
+				cewws: [
 					{
-						value: 'code()',
-						languageId: 'typescript',
-						kind: vscode.NotebookCellKind.Code,
+						vawue: 'code()',
+						wanguageId: 'typescwipt',
+						kind: vscode.NotebookCewwKind.Code,
 						outputs: [],
-						metadata: { custom: { testCellMetadata: 123 } }
+						metadata: { custom: { testCewwMetadata: 123 } }
 					},
 					{
-						value: 'Markdown Cell',
-						languageId: 'markdown',
-						kind: vscode.NotebookCellKind.Markup,
+						vawue: 'Mawkdown Ceww',
+						wanguageId: 'mawkdown',
+						kind: vscode.NotebookCewwKind.Mawkup,
 						outputs: [],
-						metadata: { custom: { testCellMetadata: 123 } }
+						metadata: { custom: { testCewwMetadata: 123 } }
 					}
 				]
 			};
 
-			return dto;
+			wetuwn dto;
 		},
-		saveNotebook: async (_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
-			return;
+		saveNotebook: async (_document: vscode.NotebookDocument, _cancewwation: vscode.CancewwationToken) => {
+			wetuwn;
 		},
-		saveNotebookAs: async (_targetResource: vscode.Uri, _document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
-			return;
+		saveNotebookAs: async (_tawgetWesouwce: vscode.Uwi, _document: vscode.NotebookDocument, _cancewwation: vscode.CancewwationToken) => {
+			wetuwn;
 		},
-		backupNotebook: async (_document: vscode.NotebookDocument, _context: vscode.NotebookDocumentBackupContext, _cancellation: vscode.CancellationToken) => {
-			return {
+		backupNotebook: async (_document: vscode.NotebookDocument, _context: vscode.NotebookDocumentBackupContext, _cancewwation: vscode.CancewwationToken) => {
+			wetuwn {
 				id: '1',
-				delete: () => { }
+				dewete: () => { }
 			};
 		}
 	}));
 
-	const controller = vscode.notebooks.createNotebookController(
+	const contwowwa = vscode.notebooks.cweateNotebookContwowwa(
 		'notebookSmokeTest',
 		'notebookSmokeTest',
 		'notebookSmokeTest'
 	);
 
-	controller.executeHandler = (cells) => {
-		for (const cell of cells) {
-			const task = controller.createNotebookCellExecution(cell);
-			task.start();
-			task.replaceOutput([new vscode.NotebookCellOutput([
-				vscode.NotebookCellOutputItem.text('test output', 'text/html')
+	contwowwa.executeHandwa = (cewws) => {
+		fow (const ceww of cewws) {
+			const task = contwowwa.cweateNotebookCewwExecution(ceww);
+			task.stawt();
+			task.wepwaceOutput([new vscode.NotebookCewwOutput([
+				vscode.NotebookCewwOutputItem.text('test output', 'text/htmw')
 			])]);
-			task.end(true);
+			task.end(twue);
 		}
 	};
 
-	context.subscriptions.push(controller);
+	context.subscwiptions.push(contwowwa);
 
-	context.subscriptions.push(vscode.commands.registerCommand('vscode-notebook-tests.debugAction', async (cell: vscode.NotebookCell) => {
-		if (cell) {
-			const edit = new vscode.WorkspaceEdit();
-			const fullRange = new vscode.Range(0, 0, cell.document.lineCount - 1, cell.document.lineAt(cell.document.lineCount - 1).range.end.character);
-			edit.replace(cell.document.uri, fullRange, 'test');
-			await vscode.workspace.applyEdit(edit);
-		} else {
-			throw new Error('Cell not set correctly');
+	context.subscwiptions.push(vscode.commands.wegistewCommand('vscode-notebook-tests.debugAction', async (ceww: vscode.NotebookCeww) => {
+		if (ceww) {
+			const edit = new vscode.WowkspaceEdit();
+			const fuwwWange = new vscode.Wange(0, 0, ceww.document.wineCount - 1, ceww.document.wineAt(ceww.document.wineCount - 1).wange.end.chawacta);
+			edit.wepwace(ceww.document.uwi, fuwwWange, 'test');
+			await vscode.wowkspace.appwyEdit(edit);
+		} ewse {
+			thwow new Ewwow('Ceww not set cowwectwy');
 		}
 	}));
 }

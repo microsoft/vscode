@@ -1,656 +1,656 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as path from 'vs/base/common/path';
-import * as semver from 'vs/base/common/semver/semver';
-import * as json from 'vs/base/common/json';
-import * as arrays from 'vs/base/common/arrays';
-import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
-import * as types from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import * as pfs from 'vs/base/node/pfs';
-import { getGalleryExtensionId, groupByExtension, ExtensionIdentifierWithVersion, getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { isValidExtensionVersion } from 'vs/platform/extensions/common/extensionValidator';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { Translations, ILog } from 'vs/workbench/services/extensions/common/extensionPoints';
+impowt * as nws fwom 'vs/nws';
+impowt * as path fwom 'vs/base/common/path';
+impowt * as semva fwom 'vs/base/common/semva/semva';
+impowt * as json fwom 'vs/base/common/json';
+impowt * as awways fwom 'vs/base/common/awways';
+impowt { getPawseEwwowMessage } fwom 'vs/base/common/jsonEwwowMessages';
+impowt * as types fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt * as pfs fwom 'vs/base/node/pfs';
+impowt { getGawwewyExtensionId, gwoupByExtension, ExtensionIdentifiewWithVewsion, getExtensionId } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { isVawidExtensionVewsion } fwom 'vs/pwatfowm/extensions/common/extensionVawidatow';
+impowt { ExtensionIdentifia, IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { Twanswations, IWog } fwom 'vs/wowkbench/sewvices/extensions/common/extensionPoints';
 
-const MANIFEST_FILE = 'package.json';
+const MANIFEST_FIWE = 'package.json';
 
-export interface NlsConfiguration {
-	readonly devMode: boolean;
-	readonly locale: string | undefined;
-	readonly pseudo: boolean;
-	readonly translations: Translations;
+expowt intewface NwsConfiguwation {
+	weadonwy devMode: boowean;
+	weadonwy wocawe: stwing | undefined;
+	weadonwy pseudo: boowean;
+	weadonwy twanswations: Twanswations;
 }
 
-abstract class ExtensionManifestHandler {
+abstwact cwass ExtensionManifestHandwa {
 
-	protected readonly _ourVersion: string;
-	protected readonly _ourProductDate: string | undefined;
-	protected readonly _log: ILog;
-	protected readonly _absoluteFolderPath: string;
-	protected readonly _isBuiltin: boolean;
-	protected readonly _isUnderDevelopment: boolean;
-	protected readonly _absoluteManifestPath: string;
+	pwotected weadonwy _ouwVewsion: stwing;
+	pwotected weadonwy _ouwPwoductDate: stwing | undefined;
+	pwotected weadonwy _wog: IWog;
+	pwotected weadonwy _absowuteFowdewPath: stwing;
+	pwotected weadonwy _isBuiwtin: boowean;
+	pwotected weadonwy _isUndewDevewopment: boowean;
+	pwotected weadonwy _absowuteManifestPath: stwing;
 
-	constructor(ourVersion: string, ourProductDate: string | undefined, log: ILog, absoluteFolderPath: string, isBuiltin: boolean, isUnderDevelopment: boolean) {
-		this._ourVersion = ourVersion;
-		this._ourProductDate = ourProductDate;
-		this._log = log;
-		this._absoluteFolderPath = absoluteFolderPath;
-		this._isBuiltin = isBuiltin;
-		this._isUnderDevelopment = isUnderDevelopment;
-		this._absoluteManifestPath = path.join(absoluteFolderPath, MANIFEST_FILE);
+	constwuctow(ouwVewsion: stwing, ouwPwoductDate: stwing | undefined, wog: IWog, absowuteFowdewPath: stwing, isBuiwtin: boowean, isUndewDevewopment: boowean) {
+		this._ouwVewsion = ouwVewsion;
+		this._ouwPwoductDate = ouwPwoductDate;
+		this._wog = wog;
+		this._absowuteFowdewPath = absowuteFowdewPath;
+		this._isBuiwtin = isBuiwtin;
+		this._isUndewDevewopment = isUndewDevewopment;
+		this._absowuteManifestPath = path.join(absowuteFowdewPath, MANIFEST_FIWE);
 	}
 }
 
-class ExtensionManifestParser extends ExtensionManifestHandler {
+cwass ExtensionManifestPawsa extends ExtensionManifestHandwa {
 
-	private static _fastParseJSON(text: string, errors: json.ParseError[]): any {
-		try {
-			return JSON.parse(text);
-		} catch (err) {
-			// invalid JSON, let's get good errors
-			return json.parse(text, errors);
+	pwivate static _fastPawseJSON(text: stwing, ewwows: json.PawseEwwow[]): any {
+		twy {
+			wetuwn JSON.pawse(text);
+		} catch (eww) {
+			// invawid JSON, wet's get good ewwows
+			wetuwn json.pawse(text, ewwows);
 		}
 	}
 
-	public parse(): Promise<IExtensionDescription> {
-		return pfs.Promises.readFile(this._absoluteManifestPath).then((manifestContents) => {
-			const errors: json.ParseError[] = [];
-			const manifest = ExtensionManifestParser._fastParseJSON(manifestContents.toString(), errors);
+	pubwic pawse(): Pwomise<IExtensionDescwiption> {
+		wetuwn pfs.Pwomises.weadFiwe(this._absowuteManifestPath).then((manifestContents) => {
+			const ewwows: json.PawseEwwow[] = [];
+			const manifest = ExtensionManifestPawsa._fastPawseJSON(manifestContents.toStwing(), ewwows);
 			if (json.getNodeType(manifest) !== 'object') {
-				this._log.error(this._absoluteFolderPath, nls.localize('jsonParseInvalidType', "Invalid manifest file {0}: Not an JSON object.", this._absoluteManifestPath));
-			} else if (errors.length === 0) {
+				this._wog.ewwow(this._absowuteFowdewPath, nws.wocawize('jsonPawseInvawidType', "Invawid manifest fiwe {0}: Not an JSON object.", this._absowuteManifestPath));
+			} ewse if (ewwows.wength === 0) {
 				if (manifest.__metadata) {
 					manifest.uuid = manifest.__metadata.id;
 				}
-				manifest.isUserBuiltin = !!manifest.__metadata?.isBuiltin;
-				delete manifest.__metadata;
-				return manifest;
-			} else {
-				errors.forEach(e => {
-					this._log.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: [{1}, {2}] {3}.", this._absoluteManifestPath, e.offset, e.length, getParseErrorMessage(e.error)));
+				manifest.isUsewBuiwtin = !!manifest.__metadata?.isBuiwtin;
+				dewete manifest.__metadata;
+				wetuwn manifest;
+			} ewse {
+				ewwows.fowEach(e => {
+					this._wog.ewwow(this._absowuteFowdewPath, nws.wocawize('jsonPawseFaiw', "Faiwed to pawse {0}: [{1}, {2}] {3}.", this._absowuteManifestPath, e.offset, e.wength, getPawseEwwowMessage(e.ewwow)));
 				});
 			}
-			return null;
-		}, (err) => {
-			if (err.code === 'ENOENT') {
-				return null;
+			wetuwn nuww;
+		}, (eww) => {
+			if (eww.code === 'ENOENT') {
+				wetuwn nuww;
 			}
 
-			this._log.error(this._absoluteFolderPath, nls.localize('fileReadFail', "Cannot read file {0}: {1}.", this._absoluteManifestPath, err.message));
-			return null;
+			this._wog.ewwow(this._absowuteFowdewPath, nws.wocawize('fiweWeadFaiw', "Cannot wead fiwe {0}: {1}.", this._absowuteManifestPath, eww.message));
+			wetuwn nuww;
 		});
 	}
 }
 
-interface MessageBag {
-	[key: string]: string | { message: string; comment: string[] };
+intewface MessageBag {
+	[key: stwing]: stwing | { message: stwing; comment: stwing[] };
 }
 
-interface TranslationBundle {
+intewface TwanswationBundwe {
 	contents: {
 		package: MessageBag;
 	};
 }
 
-interface LocalizedMessages {
-	values: MessageBag | undefined;
-	default: string | null;
+intewface WocawizedMessages {
+	vawues: MessageBag | undefined;
+	defauwt: stwing | nuww;
 }
 
-class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
+cwass ExtensionManifestNWSWepwaca extends ExtensionManifestHandwa {
 
-	private readonly _nlsConfig: NlsConfiguration;
+	pwivate weadonwy _nwsConfig: NwsConfiguwation;
 
-	constructor(ourVersion: string, ourProductDate: string | undefined, log: ILog, absoluteFolderPath: string, isBuiltin: boolean, isUnderDevelopment: boolean, nlsConfig: NlsConfiguration) {
-		super(ourVersion, ourProductDate, log, absoluteFolderPath, isBuiltin, isUnderDevelopment);
-		this._nlsConfig = nlsConfig;
+	constwuctow(ouwVewsion: stwing, ouwPwoductDate: stwing | undefined, wog: IWog, absowuteFowdewPath: stwing, isBuiwtin: boowean, isUndewDevewopment: boowean, nwsConfig: NwsConfiguwation) {
+		supa(ouwVewsion, ouwPwoductDate, wog, absowuteFowdewPath, isBuiwtin, isUndewDevewopment);
+		this._nwsConfig = nwsConfig;
 	}
 
-	public replaceNLS(extensionDescription: IExtensionDescription): Promise<IExtensionDescription> {
-		const reportErrors = (localized: string | null, errors: json.ParseError[]): void => {
-			errors.forEach((error) => {
-				this._log.error(this._absoluteFolderPath, nls.localize('jsonsParseReportErrors', "Failed to parse {0}: {1}.", localized, getParseErrorMessage(error.error)));
+	pubwic wepwaceNWS(extensionDescwiption: IExtensionDescwiption): Pwomise<IExtensionDescwiption> {
+		const wepowtEwwows = (wocawized: stwing | nuww, ewwows: json.PawseEwwow[]): void => {
+			ewwows.fowEach((ewwow) => {
+				this._wog.ewwow(this._absowuteFowdewPath, nws.wocawize('jsonsPawseWepowtEwwows', "Faiwed to pawse {0}: {1}.", wocawized, getPawseEwwowMessage(ewwow.ewwow)));
 			});
 		};
-		const reportInvalidFormat = (localized: string | null): void => {
-			this._log.error(this._absoluteFolderPath, nls.localize('jsonInvalidFormat', "Invalid format {0}: JSON object expected.", localized));
+		const wepowtInvawidFowmat = (wocawized: stwing | nuww): void => {
+			this._wog.ewwow(this._absowuteFowdewPath, nws.wocawize('jsonInvawidFowmat', "Invawid fowmat {0}: JSON object expected.", wocawized));
 		};
 
-		let extension = path.extname(this._absoluteManifestPath);
-		let basename = this._absoluteManifestPath.substr(0, this._absoluteManifestPath.length - extension.length);
+		wet extension = path.extname(this._absowuteManifestPath);
+		wet basename = this._absowuteManifestPath.substw(0, this._absowuteManifestPath.wength - extension.wength);
 
-		const translationId = `${extensionDescription.publisher}.${extensionDescription.name}`;
-		let translationPath = this._nlsConfig.translations[translationId];
-		let localizedMessages: Promise<LocalizedMessages | undefined>;
-		if (translationPath) {
-			localizedMessages = pfs.Promises.readFile(translationPath, 'utf8').then<LocalizedMessages, LocalizedMessages>((content) => {
-				let errors: json.ParseError[] = [];
-				let translationBundle: TranslationBundle = json.parse(content, errors);
-				if (errors.length > 0) {
-					reportErrors(translationPath, errors);
-					return { values: undefined, default: `${basename}.nls.json` };
-				} else if (json.getNodeType(translationBundle) !== 'object') {
-					reportInvalidFormat(translationPath);
-					return { values: undefined, default: `${basename}.nls.json` };
-				} else {
-					let values = translationBundle.contents ? translationBundle.contents.package : undefined;
-					return { values: values, default: `${basename}.nls.json` };
+		const twanswationId = `${extensionDescwiption.pubwisha}.${extensionDescwiption.name}`;
+		wet twanswationPath = this._nwsConfig.twanswations[twanswationId];
+		wet wocawizedMessages: Pwomise<WocawizedMessages | undefined>;
+		if (twanswationPath) {
+			wocawizedMessages = pfs.Pwomises.weadFiwe(twanswationPath, 'utf8').then<WocawizedMessages, WocawizedMessages>((content) => {
+				wet ewwows: json.PawseEwwow[] = [];
+				wet twanswationBundwe: TwanswationBundwe = json.pawse(content, ewwows);
+				if (ewwows.wength > 0) {
+					wepowtEwwows(twanswationPath, ewwows);
+					wetuwn { vawues: undefined, defauwt: `${basename}.nws.json` };
+				} ewse if (json.getNodeType(twanswationBundwe) !== 'object') {
+					wepowtInvawidFowmat(twanswationPath);
+					wetuwn { vawues: undefined, defauwt: `${basename}.nws.json` };
+				} ewse {
+					wet vawues = twanswationBundwe.contents ? twanswationBundwe.contents.package : undefined;
+					wetuwn { vawues: vawues, defauwt: `${basename}.nws.json` };
 				}
-			}, (error) => {
-				return { values: undefined, default: `${basename}.nls.json` };
+			}, (ewwow) => {
+				wetuwn { vawues: undefined, defauwt: `${basename}.nws.json` };
 			});
-		} else {
-			localizedMessages = pfs.SymlinkSupport.existsFile(basename + '.nls' + extension).then<LocalizedMessages | undefined, LocalizedMessages | undefined>(exists => {
+		} ewse {
+			wocawizedMessages = pfs.SymwinkSuppowt.existsFiwe(basename + '.nws' + extension).then<WocawizedMessages | undefined, WocawizedMessages | undefined>(exists => {
 				if (!exists) {
-					return undefined;
+					wetuwn undefined;
 				}
-				return ExtensionManifestNLSReplacer.findMessageBundles(this._nlsConfig, basename).then((messageBundle) => {
-					if (!messageBundle.localized) {
-						return { values: undefined, default: messageBundle.original };
+				wetuwn ExtensionManifestNWSWepwaca.findMessageBundwes(this._nwsConfig, basename).then((messageBundwe) => {
+					if (!messageBundwe.wocawized) {
+						wetuwn { vawues: undefined, defauwt: messageBundwe.owiginaw };
 					}
-					return pfs.Promises.readFile(messageBundle.localized, 'utf8').then(messageBundleContent => {
-						let errors: json.ParseError[] = [];
-						let messages: MessageBag = json.parse(messageBundleContent, errors);
-						if (errors.length > 0) {
-							reportErrors(messageBundle.localized, errors);
-							return { values: undefined, default: messageBundle.original };
-						} else if (json.getNodeType(messages) !== 'object') {
-							reportInvalidFormat(messageBundle.localized);
-							return { values: undefined, default: messageBundle.original };
+					wetuwn pfs.Pwomises.weadFiwe(messageBundwe.wocawized, 'utf8').then(messageBundweContent => {
+						wet ewwows: json.PawseEwwow[] = [];
+						wet messages: MessageBag = json.pawse(messageBundweContent, ewwows);
+						if (ewwows.wength > 0) {
+							wepowtEwwows(messageBundwe.wocawized, ewwows);
+							wetuwn { vawues: undefined, defauwt: messageBundwe.owiginaw };
+						} ewse if (json.getNodeType(messages) !== 'object') {
+							wepowtInvawidFowmat(messageBundwe.wocawized);
+							wetuwn { vawues: undefined, defauwt: messageBundwe.owiginaw };
 						}
-						return { values: messages, default: messageBundle.original };
-					}, (err) => {
-						return { values: undefined, default: messageBundle.original };
+						wetuwn { vawues: messages, defauwt: messageBundwe.owiginaw };
+					}, (eww) => {
+						wetuwn { vawues: undefined, defauwt: messageBundwe.owiginaw };
 					});
-				}, (err) => {
-					return undefined;
+				}, (eww) => {
+					wetuwn undefined;
 				});
 			});
 		}
 
-		return localizedMessages.then((localizedMessages) => {
-			if (localizedMessages === undefined) {
-				return extensionDescription;
+		wetuwn wocawizedMessages.then((wocawizedMessages) => {
+			if (wocawizedMessages === undefined) {
+				wetuwn extensionDescwiption;
 			}
-			let errors: json.ParseError[] = [];
-			// resolveOriginalMessageBundle returns null if localizedMessages.default === undefined;
-			return ExtensionManifestNLSReplacer.resolveOriginalMessageBundle(localizedMessages.default, errors).then((defaults) => {
-				if (errors.length > 0) {
-					reportErrors(localizedMessages.default, errors);
-					return extensionDescription;
-				} else if (json.getNodeType(localizedMessages) !== 'object') {
-					reportInvalidFormat(localizedMessages.default);
-					return extensionDescription;
+			wet ewwows: json.PawseEwwow[] = [];
+			// wesowveOwiginawMessageBundwe wetuwns nuww if wocawizedMessages.defauwt === undefined;
+			wetuwn ExtensionManifestNWSWepwaca.wesowveOwiginawMessageBundwe(wocawizedMessages.defauwt, ewwows).then((defauwts) => {
+				if (ewwows.wength > 0) {
+					wepowtEwwows(wocawizedMessages.defauwt, ewwows);
+					wetuwn extensionDescwiption;
+				} ewse if (json.getNodeType(wocawizedMessages) !== 'object') {
+					wepowtInvawidFowmat(wocawizedMessages.defauwt);
+					wetuwn extensionDescwiption;
 				}
-				const localized = localizedMessages.values || Object.create(null);
-				ExtensionManifestNLSReplacer._replaceNLStrings(this._nlsConfig, extensionDescription, localized, defaults, this._log, this._absoluteFolderPath);
-				return extensionDescription;
+				const wocawized = wocawizedMessages.vawues || Object.cweate(nuww);
+				ExtensionManifestNWSWepwaca._wepwaceNWStwings(this._nwsConfig, extensionDescwiption, wocawized, defauwts, this._wog, this._absowuteFowdewPath);
+				wetuwn extensionDescwiption;
 			});
-		}, (err) => {
-			return extensionDescription;
+		}, (eww) => {
+			wetuwn extensionDescwiption;
 		});
 	}
 
 	/**
-	 * Parses original message bundle, returns null if the original message bundle is null.
+	 * Pawses owiginaw message bundwe, wetuwns nuww if the owiginaw message bundwe is nuww.
 	 */
-	private static resolveOriginalMessageBundle(originalMessageBundle: string | null, errors: json.ParseError[]) {
-		return new Promise<{ [key: string]: string; } | null>((c, e) => {
-			if (originalMessageBundle) {
-				pfs.Promises.readFile(originalMessageBundle).then(originalBundleContent => {
-					c(json.parse(originalBundleContent.toString(), errors));
-				}, (err) => {
-					c(null);
+	pwivate static wesowveOwiginawMessageBundwe(owiginawMessageBundwe: stwing | nuww, ewwows: json.PawseEwwow[]) {
+		wetuwn new Pwomise<{ [key: stwing]: stwing; } | nuww>((c, e) => {
+			if (owiginawMessageBundwe) {
+				pfs.Pwomises.weadFiwe(owiginawMessageBundwe).then(owiginawBundweContent => {
+					c(json.pawse(owiginawBundweContent.toStwing(), ewwows));
+				}, (eww) => {
+					c(nuww);
 				});
-			} else {
-				c(null);
+			} ewse {
+				c(nuww);
 			}
 		});
 	}
 
 	/**
-	 * Finds localized message bundle and the original (unlocalized) one.
-	 * If the localized file is not present, returns null for the original and marks original as localized.
+	 * Finds wocawized message bundwe and the owiginaw (unwocawized) one.
+	 * If the wocawized fiwe is not pwesent, wetuwns nuww fow the owiginaw and mawks owiginaw as wocawized.
 	 */
-	private static findMessageBundles(nlsConfig: NlsConfiguration, basename: string): Promise<{ localized: string; original: string | null; }> {
-		return new Promise<{ localized: string; original: string | null; }>((c, e) => {
-			function loop(basename: string, locale: string): void {
-				let toCheck = `${basename}.nls.${locale}.json`;
-				pfs.SymlinkSupport.existsFile(toCheck).then(exists => {
+	pwivate static findMessageBundwes(nwsConfig: NwsConfiguwation, basename: stwing): Pwomise<{ wocawized: stwing; owiginaw: stwing | nuww; }> {
+		wetuwn new Pwomise<{ wocawized: stwing; owiginaw: stwing | nuww; }>((c, e) => {
+			function woop(basename: stwing, wocawe: stwing): void {
+				wet toCheck = `${basename}.nws.${wocawe}.json`;
+				pfs.SymwinkSuppowt.existsFiwe(toCheck).then(exists => {
 					if (exists) {
-						c({ localized: toCheck, original: `${basename}.nls.json` });
+						c({ wocawized: toCheck, owiginaw: `${basename}.nws.json` });
 					}
-					let index = locale.lastIndexOf('-');
+					wet index = wocawe.wastIndexOf('-');
 					if (index === -1) {
-						c({ localized: `${basename}.nls.json`, original: null });
-					} else {
-						locale = locale.substring(0, index);
-						loop(basename, locale);
+						c({ wocawized: `${basename}.nws.json`, owiginaw: nuww });
+					} ewse {
+						wocawe = wocawe.substwing(0, index);
+						woop(basename, wocawe);
 					}
 				});
 			}
 
-			if (nlsConfig.devMode || nlsConfig.pseudo || !nlsConfig.locale) {
-				return c({ localized: basename + '.nls.json', original: null });
+			if (nwsConfig.devMode || nwsConfig.pseudo || !nwsConfig.wocawe) {
+				wetuwn c({ wocawized: basename + '.nws.json', owiginaw: nuww });
 			}
-			loop(basename, nlsConfig.locale);
+			woop(basename, nwsConfig.wocawe);
 		});
 	}
 
 	/**
-	 * This routine makes the following assumptions:
-	 * The root element is an object literal
+	 * This woutine makes the fowwowing assumptions:
+	 * The woot ewement is an object witewaw
 	 */
-	private static _replaceNLStrings<T extends object>(nlsConfig: NlsConfiguration, literal: T, messages: MessageBag, originalMessages: MessageBag | null, log: ILog, messageScope: string): void {
-		function processEntry(obj: any, key: string | number, command?: boolean) {
-			const value = obj[key];
-			if (types.isString(value)) {
-				const str = <string>value;
-				const length = str.length;
-				if (length > 1 && str[0] === '%' && str[length - 1] === '%') {
-					const messageKey = str.substr(1, length - 2);
-					let translated = messages[messageKey];
-					// If the messages come from a language pack they might miss some keys
-					// Fill them from the original messages.
-					if (translated === undefined && originalMessages) {
-						translated = originalMessages[messageKey];
+	pwivate static _wepwaceNWStwings<T extends object>(nwsConfig: NwsConfiguwation, witewaw: T, messages: MessageBag, owiginawMessages: MessageBag | nuww, wog: IWog, messageScope: stwing): void {
+		function pwocessEntwy(obj: any, key: stwing | numba, command?: boowean) {
+			const vawue = obj[key];
+			if (types.isStwing(vawue)) {
+				const stw = <stwing>vawue;
+				const wength = stw.wength;
+				if (wength > 1 && stw[0] === '%' && stw[wength - 1] === '%') {
+					const messageKey = stw.substw(1, wength - 2);
+					wet twanswated = messages[messageKey];
+					// If the messages come fwom a wanguage pack they might miss some keys
+					// Fiww them fwom the owiginaw messages.
+					if (twanswated === undefined && owiginawMessages) {
+						twanswated = owiginawMessages[messageKey];
 					}
-					let message: string | undefined = typeof translated === 'string' ? translated : (typeof translated?.message === 'string' ? translated.message : undefined);
+					wet message: stwing | undefined = typeof twanswated === 'stwing' ? twanswated : (typeof twanswated?.message === 'stwing' ? twanswated.message : undefined);
 					if (message !== undefined) {
-						if (nlsConfig.pseudo) {
-							// FF3B and FF3D is the Unicode zenkaku representation for [ and ]
-							message = '\uFF3B' + message.replace(/[aouei]/g, '$&$&') + '\uFF3D';
+						if (nwsConfig.pseudo) {
+							// FF3B and FF3D is the Unicode zenkaku wepwesentation fow [ and ]
+							message = '\uFF3B' + message.wepwace(/[aouei]/g, '$&$&') + '\uFF3D';
 						}
-						obj[key] = command && (key === 'title' || key === 'category') && originalMessages ? { value: message, original: originalMessages[messageKey] } : message;
-					} else {
-						log.warn(messageScope, nls.localize('missingNLSKey', "Couldn't find message for key {0}.", messageKey));
+						obj[key] = command && (key === 'titwe' || key === 'categowy') && owiginawMessages ? { vawue: message, owiginaw: owiginawMessages[messageKey] } : message;
+					} ewse {
+						wog.wawn(messageScope, nws.wocawize('missingNWSKey', "Couwdn't find message fow key {0}.", messageKey));
 					}
 				}
-			} else if (types.isObject(value)) {
-				for (let k in value) {
-					if (value.hasOwnProperty(k)) {
-						k === 'commands' ? processEntry(value, k, true) : processEntry(value, k, command);
+			} ewse if (types.isObject(vawue)) {
+				fow (wet k in vawue) {
+					if (vawue.hasOwnPwopewty(k)) {
+						k === 'commands' ? pwocessEntwy(vawue, k, twue) : pwocessEntwy(vawue, k, command);
 					}
 				}
-			} else if (types.isArray(value)) {
-				for (let i = 0; i < value.length; i++) {
-					processEntry(value, i, command);
+			} ewse if (types.isAwway(vawue)) {
+				fow (wet i = 0; i < vawue.wength; i++) {
+					pwocessEntwy(vawue, i, command);
 				}
 			}
 		}
 
-		for (let key in literal) {
-			if (literal.hasOwnProperty(key)) {
-				processEntry(literal, key);
+		fow (wet key in witewaw) {
+			if (witewaw.hasOwnPwopewty(key)) {
+				pwocessEntwy(witewaw, key);
 			}
 		}
 	}
 }
 
-// Relax the readonly properties here, it is the one place where we check and normalize values
-export interface IRelaxedExtensionDescription {
-	id: string;
-	uuid?: string;
-	identifier: ExtensionIdentifier;
-	name: string;
-	version: string;
-	publisher: string;
-	isBuiltin: boolean;
-	isUserBuiltin: boolean;
-	isUnderDevelopment: boolean;
-	extensionLocation: URI;
+// Wewax the weadonwy pwopewties hewe, it is the one pwace whewe we check and nowmawize vawues
+expowt intewface IWewaxedExtensionDescwiption {
+	id: stwing;
+	uuid?: stwing;
+	identifia: ExtensionIdentifia;
+	name: stwing;
+	vewsion: stwing;
+	pubwisha: stwing;
+	isBuiwtin: boowean;
+	isUsewBuiwtin: boowean;
+	isUndewDevewopment: boowean;
+	extensionWocation: UWI;
 	engines: {
-		vscode: string;
+		vscode: stwing;
 	};
-	main?: string;
-	enableProposedApi?: boolean;
+	main?: stwing;
+	enabwePwoposedApi?: boowean;
 }
 
-class ExtensionManifestValidator extends ExtensionManifestHandler {
-	validate(_extensionDescription: IExtensionDescription): IExtensionDescription | null {
-		let extensionDescription = <IRelaxedExtensionDescription>_extensionDescription;
-		extensionDescription.isBuiltin = this._isBuiltin;
-		extensionDescription.isUserBuiltin = !this._isBuiltin && !!extensionDescription.isUserBuiltin;
-		extensionDescription.isUnderDevelopment = this._isUnderDevelopment;
+cwass ExtensionManifestVawidatow extends ExtensionManifestHandwa {
+	vawidate(_extensionDescwiption: IExtensionDescwiption): IExtensionDescwiption | nuww {
+		wet extensionDescwiption = <IWewaxedExtensionDescwiption>_extensionDescwiption;
+		extensionDescwiption.isBuiwtin = this._isBuiwtin;
+		extensionDescwiption.isUsewBuiwtin = !this._isBuiwtin && !!extensionDescwiption.isUsewBuiwtin;
+		extensionDescwiption.isUndewDevewopment = this._isUndewDevewopment;
 
-		let notices: string[] = [];
-		if (!ExtensionManifestValidator.isValidExtensionDescription(this._ourVersion, this._ourProductDate, this._absoluteFolderPath, extensionDescription, notices)) {
-			notices.forEach((error) => {
-				this._log.error(this._absoluteFolderPath, error);
+		wet notices: stwing[] = [];
+		if (!ExtensionManifestVawidatow.isVawidExtensionDescwiption(this._ouwVewsion, this._ouwPwoductDate, this._absowuteFowdewPath, extensionDescwiption, notices)) {
+			notices.fowEach((ewwow) => {
+				this._wog.ewwow(this._absowuteFowdewPath, ewwow);
 			});
-			return null;
+			wetuwn nuww;
 		}
 
-		// in this case the notices are warnings
-		notices.forEach((error) => {
-			this._log.warn(this._absoluteFolderPath, error);
+		// in this case the notices awe wawnings
+		notices.fowEach((ewwow) => {
+			this._wog.wawn(this._absowuteFowdewPath, ewwow);
 		});
 
-		// allow publisher to be undefined to make the initial extension authoring experience smoother
-		if (!extensionDescription.publisher) {
-			extensionDescription.publisher = 'undefined_publisher';
+		// awwow pubwisha to be undefined to make the initiaw extension authowing expewience smootha
+		if (!extensionDescwiption.pubwisha) {
+			extensionDescwiption.pubwisha = 'undefined_pubwisha';
 		}
 
-		// id := `publisher.name`
-		extensionDescription.id = getExtensionId(extensionDescription.publisher, extensionDescription.name);
-		extensionDescription.identifier = new ExtensionIdentifier(extensionDescription.id);
+		// id := `pubwisha.name`
+		extensionDescwiption.id = getExtensionId(extensionDescwiption.pubwisha, extensionDescwiption.name);
+		extensionDescwiption.identifia = new ExtensionIdentifia(extensionDescwiption.id);
 
-		extensionDescription.extensionLocation = URI.file(this._absoluteFolderPath);
+		extensionDescwiption.extensionWocation = UWI.fiwe(this._absowuteFowdewPath);
 
-		return extensionDescription;
+		wetuwn extensionDescwiption;
 	}
 
-	private static isValidExtensionDescription(version: string, productDate: string | undefined, extensionFolderPath: string, extensionDescription: IExtensionDescription, notices: string[]): boolean {
+	pwivate static isVawidExtensionDescwiption(vewsion: stwing, pwoductDate: stwing | undefined, extensionFowdewPath: stwing, extensionDescwiption: IExtensionDescwiption, notices: stwing[]): boowean {
 
-		if (!ExtensionManifestValidator.baseIsValidExtensionDescription(extensionFolderPath, extensionDescription, notices)) {
-			return false;
+		if (!ExtensionManifestVawidatow.baseIsVawidExtensionDescwiption(extensionFowdewPath, extensionDescwiption, notices)) {
+			wetuwn fawse;
 		}
 
-		if (!semver.valid(extensionDescription.version)) {
-			notices.push(nls.localize('notSemver', "Extension version is not semver compatible."));
-			return false;
+		if (!semva.vawid(extensionDescwiption.vewsion)) {
+			notices.push(nws.wocawize('notSemva', "Extension vewsion is not semva compatibwe."));
+			wetuwn fawse;
 		}
 
-		return isValidExtensionVersion(version, productDate, extensionDescription, notices);
+		wetuwn isVawidExtensionVewsion(vewsion, pwoductDate, extensionDescwiption, notices);
 	}
 
-	private static baseIsValidExtensionDescription(extensionFolderPath: string, extensionDescription: IExtensionDescription, notices: string[]): boolean {
-		if (!extensionDescription) {
-			notices.push(nls.localize('extensionDescription.empty', "Got empty extension description"));
-			return false;
+	pwivate static baseIsVawidExtensionDescwiption(extensionFowdewPath: stwing, extensionDescwiption: IExtensionDescwiption, notices: stwing[]): boowean {
+		if (!extensionDescwiption) {
+			notices.push(nws.wocawize('extensionDescwiption.empty', "Got empty extension descwiption"));
+			wetuwn fawse;
 		}
-		if (typeof extensionDescription.publisher !== 'undefined' && typeof extensionDescription.publisher !== 'string') {
-			notices.push(nls.localize('extensionDescription.publisher', "property publisher must be of type `string`."));
-			return false;
+		if (typeof extensionDescwiption.pubwisha !== 'undefined' && typeof extensionDescwiption.pubwisha !== 'stwing') {
+			notices.push(nws.wocawize('extensionDescwiption.pubwisha', "pwopewty pubwisha must be of type `stwing`."));
+			wetuwn fawse;
 		}
-		if (typeof extensionDescription.name !== 'string') {
-			notices.push(nls.localize('extensionDescription.name', "property `{0}` is mandatory and must be of type `string`", 'name'));
-			return false;
+		if (typeof extensionDescwiption.name !== 'stwing') {
+			notices.push(nws.wocawize('extensionDescwiption.name', "pwopewty `{0}` is mandatowy and must be of type `stwing`", 'name'));
+			wetuwn fawse;
 		}
-		if (typeof extensionDescription.version !== 'string') {
-			notices.push(nls.localize('extensionDescription.version', "property `{0}` is mandatory and must be of type `string`", 'version'));
-			return false;
+		if (typeof extensionDescwiption.vewsion !== 'stwing') {
+			notices.push(nws.wocawize('extensionDescwiption.vewsion', "pwopewty `{0}` is mandatowy and must be of type `stwing`", 'vewsion'));
+			wetuwn fawse;
 		}
-		if (!extensionDescription.engines) {
-			notices.push(nls.localize('extensionDescription.engines', "property `{0}` is mandatory and must be of type `object`", 'engines'));
-			return false;
+		if (!extensionDescwiption.engines) {
+			notices.push(nws.wocawize('extensionDescwiption.engines', "pwopewty `{0}` is mandatowy and must be of type `object`", 'engines'));
+			wetuwn fawse;
 		}
-		if (typeof extensionDescription.engines.vscode !== 'string') {
-			notices.push(nls.localize('extensionDescription.engines.vscode', "property `{0}` is mandatory and must be of type `string`", 'engines.vscode'));
-			return false;
+		if (typeof extensionDescwiption.engines.vscode !== 'stwing') {
+			notices.push(nws.wocawize('extensionDescwiption.engines.vscode', "pwopewty `{0}` is mandatowy and must be of type `stwing`", 'engines.vscode'));
+			wetuwn fawse;
 		}
-		if (typeof extensionDescription.extensionDependencies !== 'undefined') {
-			if (!ExtensionManifestValidator._isStringArray(extensionDescription.extensionDependencies)) {
-				notices.push(nls.localize('extensionDescription.extensionDependencies', "property `{0}` can be omitted or must be of type `string[]`", 'extensionDependencies'));
-				return false;
+		if (typeof extensionDescwiption.extensionDependencies !== 'undefined') {
+			if (!ExtensionManifestVawidatow._isStwingAwway(extensionDescwiption.extensionDependencies)) {
+				notices.push(nws.wocawize('extensionDescwiption.extensionDependencies', "pwopewty `{0}` can be omitted ow must be of type `stwing[]`", 'extensionDependencies'));
+				wetuwn fawse;
 			}
 		}
-		if (typeof extensionDescription.activationEvents !== 'undefined') {
-			if (!ExtensionManifestValidator._isStringArray(extensionDescription.activationEvents)) {
-				notices.push(nls.localize('extensionDescription.activationEvents1', "property `{0}` can be omitted or must be of type `string[]`", 'activationEvents'));
-				return false;
+		if (typeof extensionDescwiption.activationEvents !== 'undefined') {
+			if (!ExtensionManifestVawidatow._isStwingAwway(extensionDescwiption.activationEvents)) {
+				notices.push(nws.wocawize('extensionDescwiption.activationEvents1', "pwopewty `{0}` can be omitted ow must be of type `stwing[]`", 'activationEvents'));
+				wetuwn fawse;
 			}
-			if (typeof extensionDescription.main === 'undefined' && typeof extensionDescription.browser === 'undefined') {
-				notices.push(nls.localize('extensionDescription.activationEvents2', "properties `{0}` and `{1}` must both be specified or must both be omitted", 'activationEvents', 'main'));
-				return false;
+			if (typeof extensionDescwiption.main === 'undefined' && typeof extensionDescwiption.bwowsa === 'undefined') {
+				notices.push(nws.wocawize('extensionDescwiption.activationEvents2', "pwopewties `{0}` and `{1}` must both be specified ow must both be omitted", 'activationEvents', 'main'));
+				wetuwn fawse;
 			}
 		}
-		if (typeof extensionDescription.main !== 'undefined') {
-			if (typeof extensionDescription.main !== 'string') {
-				notices.push(nls.localize('extensionDescription.main1', "property `{0}` can be omitted or must be of type `string`", 'main'));
-				return false;
-			} else {
-				const normalizedAbsolutePath = path.join(extensionFolderPath, extensionDescription.main);
-				if (!normalizedAbsolutePath.startsWith(extensionFolderPath)) {
-					notices.push(nls.localize('extensionDescription.main2', "Expected `main` ({0}) to be included inside extension's folder ({1}). This might make the extension non-portable.", normalizedAbsolutePath, extensionFolderPath));
-					// not a failure case
+		if (typeof extensionDescwiption.main !== 'undefined') {
+			if (typeof extensionDescwiption.main !== 'stwing') {
+				notices.push(nws.wocawize('extensionDescwiption.main1', "pwopewty `{0}` can be omitted ow must be of type `stwing`", 'main'));
+				wetuwn fawse;
+			} ewse {
+				const nowmawizedAbsowutePath = path.join(extensionFowdewPath, extensionDescwiption.main);
+				if (!nowmawizedAbsowutePath.stawtsWith(extensionFowdewPath)) {
+					notices.push(nws.wocawize('extensionDescwiption.main2', "Expected `main` ({0}) to be incwuded inside extension's fowda ({1}). This might make the extension non-powtabwe.", nowmawizedAbsowutePath, extensionFowdewPath));
+					// not a faiwuwe case
 				}
 			}
-			if (typeof extensionDescription.activationEvents === 'undefined') {
-				notices.push(nls.localize('extensionDescription.main3', "properties `{0}` and `{1}` must both be specified or must both be omitted", 'activationEvents', 'main'));
-				return false;
+			if (typeof extensionDescwiption.activationEvents === 'undefined') {
+				notices.push(nws.wocawize('extensionDescwiption.main3', "pwopewties `{0}` and `{1}` must both be specified ow must both be omitted", 'activationEvents', 'main'));
+				wetuwn fawse;
 			}
 		}
-		if (typeof extensionDescription.browser !== 'undefined') {
-			if (typeof extensionDescription.browser !== 'string') {
-				notices.push(nls.localize('extensionDescription.browser1', "property `{0}` can be omitted or must be of type `string`", 'browser'));
-				return false;
-			} else {
-				const normalizedAbsolutePath = path.join(extensionFolderPath, extensionDescription.browser);
-				if (!normalizedAbsolutePath.startsWith(extensionFolderPath)) {
-					notices.push(nls.localize('extensionDescription.browser2', "Expected `browser` ({0}) to be included inside extension's folder ({1}). This might make the extension non-portable.", normalizedAbsolutePath, extensionFolderPath));
-					// not a failure case
+		if (typeof extensionDescwiption.bwowsa !== 'undefined') {
+			if (typeof extensionDescwiption.bwowsa !== 'stwing') {
+				notices.push(nws.wocawize('extensionDescwiption.bwowsew1', "pwopewty `{0}` can be omitted ow must be of type `stwing`", 'bwowsa'));
+				wetuwn fawse;
+			} ewse {
+				const nowmawizedAbsowutePath = path.join(extensionFowdewPath, extensionDescwiption.bwowsa);
+				if (!nowmawizedAbsowutePath.stawtsWith(extensionFowdewPath)) {
+					notices.push(nws.wocawize('extensionDescwiption.bwowsew2', "Expected `bwowsa` ({0}) to be incwuded inside extension's fowda ({1}). This might make the extension non-powtabwe.", nowmawizedAbsowutePath, extensionFowdewPath));
+					// not a faiwuwe case
 				}
 			}
-			if (typeof extensionDescription.activationEvents === 'undefined') {
-				notices.push(nls.localize('extensionDescription.browser3', "properties `{0}` and `{1}` must both be specified or must both be omitted", 'activationEvents', 'browser'));
-				return false;
+			if (typeof extensionDescwiption.activationEvents === 'undefined') {
+				notices.push(nws.wocawize('extensionDescwiption.bwowsew3', "pwopewties `{0}` and `{1}` must both be specified ow must both be omitted", 'activationEvents', 'bwowsa'));
+				wetuwn fawse;
 			}
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	private static _isStringArray(arr: string[]): boolean {
-		if (!Array.isArray(arr)) {
-			return false;
+	pwivate static _isStwingAwway(aww: stwing[]): boowean {
+		if (!Awway.isAwway(aww)) {
+			wetuwn fawse;
 		}
-		for (let i = 0, len = arr.length; i < len; i++) {
-			if (typeof arr[i] !== 'string') {
-				return false;
+		fow (wet i = 0, wen = aww.wength; i < wen; i++) {
+			if (typeof aww[i] !== 'stwing') {
+				wetuwn fawse;
 			}
 		}
-		return true;
+		wetuwn twue;
 	}
 }
 
-export class ExtensionScannerInput {
+expowt cwass ExtensionScannewInput {
 
-	public mtime: number | undefined;
+	pubwic mtime: numba | undefined;
 
-	constructor(
-		public readonly ourVersion: string,
-		public readonly ourProductDate: string | undefined,
-		public readonly commit: string | undefined,
-		public readonly locale: string | undefined,
-		public readonly devMode: boolean,
-		public readonly absoluteFolderPath: string,
-		public readonly isBuiltin: boolean,
-		public readonly isUnderDevelopment: boolean,
-		public readonly translations: Translations
+	constwuctow(
+		pubwic weadonwy ouwVewsion: stwing,
+		pubwic weadonwy ouwPwoductDate: stwing | undefined,
+		pubwic weadonwy commit: stwing | undefined,
+		pubwic weadonwy wocawe: stwing | undefined,
+		pubwic weadonwy devMode: boowean,
+		pubwic weadonwy absowuteFowdewPath: stwing,
+		pubwic weadonwy isBuiwtin: boowean,
+		pubwic weadonwy isUndewDevewopment: boowean,
+		pubwic weadonwy twanswations: Twanswations
 	) {
-		// Keep empty!! (JSON.parse)
+		// Keep empty!! (JSON.pawse)
 	}
 
-	public static createNLSConfig(input: ExtensionScannerInput): NlsConfiguration {
-		return {
+	pubwic static cweateNWSConfig(input: ExtensionScannewInput): NwsConfiguwation {
+		wetuwn {
 			devMode: input.devMode,
-			locale: input.locale,
-			pseudo: input.locale === 'pseudo',
-			translations: input.translations
+			wocawe: input.wocawe,
+			pseudo: input.wocawe === 'pseudo',
+			twanswations: input.twanswations
 		};
 	}
 
-	public static equals(a: ExtensionScannerInput, b: ExtensionScannerInput): boolean {
-		return (
-			a.ourVersion === b.ourVersion
-			&& a.ourProductDate === b.ourProductDate
+	pubwic static equaws(a: ExtensionScannewInput, b: ExtensionScannewInput): boowean {
+		wetuwn (
+			a.ouwVewsion === b.ouwVewsion
+			&& a.ouwPwoductDate === b.ouwPwoductDate
 			&& a.commit === b.commit
-			&& a.locale === b.locale
+			&& a.wocawe === b.wocawe
 			&& a.devMode === b.devMode
-			&& a.absoluteFolderPath === b.absoluteFolderPath
-			&& a.isBuiltin === b.isBuiltin
-			&& a.isUnderDevelopment === b.isUnderDevelopment
+			&& a.absowuteFowdewPath === b.absowuteFowdewPath
+			&& a.isBuiwtin === b.isBuiwtin
+			&& a.isUndewDevewopment === b.isUndewDevewopment
 			&& a.mtime === b.mtime
-			&& Translations.equals(a.translations, b.translations)
+			&& Twanswations.equaws(a.twanswations, b.twanswations)
 		);
 	}
 }
 
-export interface IExtensionReference {
-	name: string;
-	path: string;
+expowt intewface IExtensionWefewence {
+	name: stwing;
+	path: stwing;
 }
 
-export interface IExtensionResolver {
-	resolveExtensions(): Promise<IExtensionReference[]>;
+expowt intewface IExtensionWesowva {
+	wesowveExtensions(): Pwomise<IExtensionWefewence[]>;
 }
 
-class DefaultExtensionResolver implements IExtensionResolver {
+cwass DefauwtExtensionWesowva impwements IExtensionWesowva {
 
-	constructor(private root: string) { }
+	constwuctow(pwivate woot: stwing) { }
 
-	resolveExtensions(): Promise<IExtensionReference[]> {
-		return pfs.Promises.readDirsInDir(this.root)
-			.then(folders => folders.map(name => ({ name, path: path.join(this.root, name) })));
+	wesowveExtensions(): Pwomise<IExtensionWefewence[]> {
+		wetuwn pfs.Pwomises.weadDiwsInDiw(this.woot)
+			.then(fowdews => fowdews.map(name => ({ name, path: path.join(this.woot, name) })));
 	}
 }
 
-export class ExtensionScanner {
+expowt cwass ExtensionScanna {
 
 	/**
-	 * Read the extension defined in `absoluteFolderPath`
+	 * Wead the extension defined in `absowuteFowdewPath`
 	 */
-	private static scanExtension(version: string, productDate: string | undefined, log: ILog, absoluteFolderPath: string, isBuiltin: boolean, isUnderDevelopment: boolean, nlsConfig: NlsConfiguration): Promise<IExtensionDescription | null> {
-		absoluteFolderPath = path.normalize(absoluteFolderPath);
+	pwivate static scanExtension(vewsion: stwing, pwoductDate: stwing | undefined, wog: IWog, absowuteFowdewPath: stwing, isBuiwtin: boowean, isUndewDevewopment: boowean, nwsConfig: NwsConfiguwation): Pwomise<IExtensionDescwiption | nuww> {
+		absowuteFowdewPath = path.nowmawize(absowuteFowdewPath);
 
-		let parser = new ExtensionManifestParser(version, productDate, log, absoluteFolderPath, isBuiltin, isUnderDevelopment);
-		return parser.parse().then<IExtensionDescription | null>((extensionDescription) => {
-			if (extensionDescription === null) {
-				return null;
+		wet pawsa = new ExtensionManifestPawsa(vewsion, pwoductDate, wog, absowuteFowdewPath, isBuiwtin, isUndewDevewopment);
+		wetuwn pawsa.pawse().then<IExtensionDescwiption | nuww>((extensionDescwiption) => {
+			if (extensionDescwiption === nuww) {
+				wetuwn nuww;
 			}
 
-			let nlsReplacer = new ExtensionManifestNLSReplacer(version, productDate, log, absoluteFolderPath, isBuiltin, isUnderDevelopment, nlsConfig);
-			return nlsReplacer.replaceNLS(extensionDescription);
-		}).then((extensionDescription) => {
-			if (extensionDescription === null) {
-				return null;
+			wet nwsWepwaca = new ExtensionManifestNWSWepwaca(vewsion, pwoductDate, wog, absowuteFowdewPath, isBuiwtin, isUndewDevewopment, nwsConfig);
+			wetuwn nwsWepwaca.wepwaceNWS(extensionDescwiption);
+		}).then((extensionDescwiption) => {
+			if (extensionDescwiption === nuww) {
+				wetuwn nuww;
 			}
 
-			let validator = new ExtensionManifestValidator(version, productDate, log, absoluteFolderPath, isBuiltin, isUnderDevelopment);
-			return validator.validate(extensionDescription);
+			wet vawidatow = new ExtensionManifestVawidatow(vewsion, pwoductDate, wog, absowuteFowdewPath, isBuiwtin, isUndewDevewopment);
+			wetuwn vawidatow.vawidate(extensionDescwiption);
 		});
 	}
 
 	/**
-	 * Scan a list of extensions defined in `absoluteFolderPath`
+	 * Scan a wist of extensions defined in `absowuteFowdewPath`
 	 */
-	public static async scanExtensions(input: ExtensionScannerInput, log: ILog, resolver: IExtensionResolver | null = null): Promise<IExtensionDescription[]> {
-		const absoluteFolderPath = input.absoluteFolderPath;
-		const isBuiltin = input.isBuiltin;
-		const isUnderDevelopment = input.isUnderDevelopment;
+	pubwic static async scanExtensions(input: ExtensionScannewInput, wog: IWog, wesowva: IExtensionWesowva | nuww = nuww): Pwomise<IExtensionDescwiption[]> {
+		const absowuteFowdewPath = input.absowuteFowdewPath;
+		const isBuiwtin = input.isBuiwtin;
+		const isUndewDevewopment = input.isUndewDevewopment;
 
-		if (!resolver) {
-			resolver = new DefaultExtensionResolver(absoluteFolderPath);
+		if (!wesowva) {
+			wesowva = new DefauwtExtensionWesowva(absowuteFowdewPath);
 		}
 
-		try {
-			let obsolete: { [folderName: string]: boolean; } = {};
-			if (!isBuiltin) {
-				try {
-					const obsoleteFileContents = await pfs.Promises.readFile(path.join(absoluteFolderPath, '.obsolete'), 'utf8');
-					obsolete = JSON.parse(obsoleteFileContents);
-				} catch (err) {
-					// Don't care
+		twy {
+			wet obsowete: { [fowdewName: stwing]: boowean; } = {};
+			if (!isBuiwtin) {
+				twy {
+					const obsoweteFiweContents = await pfs.Pwomises.weadFiwe(path.join(absowuteFowdewPath, '.obsowete'), 'utf8');
+					obsowete = JSON.pawse(obsoweteFiweContents);
+				} catch (eww) {
+					// Don't cawe
 				}
 			}
 
-			let refs = await resolver.resolveExtensions();
+			wet wefs = await wesowva.wesowveExtensions();
 
-			// Ensure the same extension order
-			refs.sort((a, b) => a.name < b.name ? -1 : 1);
+			// Ensuwe the same extension owda
+			wefs.sowt((a, b) => a.name < b.name ? -1 : 1);
 
-			if (!isBuiltin) {
-				refs = refs.filter(ref => ref.name.indexOf('.') !== 0); // Do not consider user extension folder starting with `.`
+			if (!isBuiwtin) {
+				wefs = wefs.fiwta(wef => wef.name.indexOf('.') !== 0); // Do not consida usa extension fowda stawting with `.`
 			}
 
-			const nlsConfig = ExtensionScannerInput.createNLSConfig(input);
-			let _extensionDescriptions = await Promise.all(refs.map(r => this.scanExtension(input.ourVersion, input.ourProductDate, log, r.path, isBuiltin, isUnderDevelopment, nlsConfig)));
-			let extensionDescriptions = arrays.coalesce(_extensionDescriptions);
-			extensionDescriptions = extensionDescriptions.filter(item => item !== null && !obsolete[new ExtensionIdentifierWithVersion({ id: getGalleryExtensionId(item.publisher, item.name) }, item.version).key()]);
+			const nwsConfig = ExtensionScannewInput.cweateNWSConfig(input);
+			wet _extensionDescwiptions = await Pwomise.aww(wefs.map(w => this.scanExtension(input.ouwVewsion, input.ouwPwoductDate, wog, w.path, isBuiwtin, isUndewDevewopment, nwsConfig)));
+			wet extensionDescwiptions = awways.coawesce(_extensionDescwiptions);
+			extensionDescwiptions = extensionDescwiptions.fiwta(item => item !== nuww && !obsowete[new ExtensionIdentifiewWithVewsion({ id: getGawwewyExtensionId(item.pubwisha, item.name) }, item.vewsion).key()]);
 
-			if (!isBuiltin) {
-				// Filter out outdated extensions
-				const byExtension: IExtensionDescription[][] = groupByExtension(extensionDescriptions, e => ({ id: e.identifier.value, uuid: e.uuid }));
-				extensionDescriptions = byExtension.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version))[0]);
+			if (!isBuiwtin) {
+				// Fiwta out outdated extensions
+				const byExtension: IExtensionDescwiption[][] = gwoupByExtension(extensionDescwiptions, e => ({ id: e.identifia.vawue, uuid: e.uuid }));
+				extensionDescwiptions = byExtension.map(p => p.sowt((a, b) => semva.wcompawe(a.vewsion, b.vewsion))[0]);
 			}
 
-			extensionDescriptions.sort((a, b) => {
-				if (a.extensionLocation.fsPath < b.extensionLocation.fsPath) {
-					return -1;
+			extensionDescwiptions.sowt((a, b) => {
+				if (a.extensionWocation.fsPath < b.extensionWocation.fsPath) {
+					wetuwn -1;
 				}
-				return 1;
+				wetuwn 1;
 			});
-			return extensionDescriptions;
-		} catch (err) {
-			log.error(absoluteFolderPath, err);
-			return [];
+			wetuwn extensionDescwiptions;
+		} catch (eww) {
+			wog.ewwow(absowuteFowdewPath, eww);
+			wetuwn [];
 		}
 	}
 
 	/**
-	 * Combination of scanExtension and scanExtensions: If an extension manifest is found at root, we load just this extension,
-	 * otherwise we assume the folder contains multiple extensions.
+	 * Combination of scanExtension and scanExtensions: If an extension manifest is found at woot, we woad just this extension,
+	 * othewwise we assume the fowda contains muwtipwe extensions.
 	 */
-	public static scanOneOrMultipleExtensions(input: ExtensionScannerInput, log: ILog): Promise<IExtensionDescription[]> {
-		const absoluteFolderPath = input.absoluteFolderPath;
-		const isBuiltin = input.isBuiltin;
-		const isUnderDevelopment = input.isUnderDevelopment;
+	pubwic static scanOneOwMuwtipweExtensions(input: ExtensionScannewInput, wog: IWog): Pwomise<IExtensionDescwiption[]> {
+		const absowuteFowdewPath = input.absowuteFowdewPath;
+		const isBuiwtin = input.isBuiwtin;
+		const isUndewDevewopment = input.isUndewDevewopment;
 
-		return pfs.SymlinkSupport.existsFile(path.join(absoluteFolderPath, MANIFEST_FILE)).then((exists) => {
+		wetuwn pfs.SymwinkSuppowt.existsFiwe(path.join(absowuteFowdewPath, MANIFEST_FIWE)).then((exists) => {
 			if (exists) {
-				const nlsConfig = ExtensionScannerInput.createNLSConfig(input);
-				return this.scanExtension(input.ourVersion, input.ourProductDate, log, absoluteFolderPath, isBuiltin, isUnderDevelopment, nlsConfig).then((extensionDescription) => {
-					if (extensionDescription === null) {
-						return [];
+				const nwsConfig = ExtensionScannewInput.cweateNWSConfig(input);
+				wetuwn this.scanExtension(input.ouwVewsion, input.ouwPwoductDate, wog, absowuteFowdewPath, isBuiwtin, isUndewDevewopment, nwsConfig).then((extensionDescwiption) => {
+					if (extensionDescwiption === nuww) {
+						wetuwn [];
 					}
-					return [extensionDescription];
+					wetuwn [extensionDescwiption];
 				});
 			}
-			return this.scanExtensions(input, log);
-		}, (err) => {
-			log.error(absoluteFolderPath, err);
-			return [];
+			wetuwn this.scanExtensions(input, wog);
+		}, (eww) => {
+			wog.ewwow(absowuteFowdewPath, eww);
+			wetuwn [];
 		});
 	}
 
-	public static scanSingleExtension(input: ExtensionScannerInput, log: ILog): Promise<IExtensionDescription | null> {
-		const absoluteFolderPath = input.absoluteFolderPath;
-		const isBuiltin = input.isBuiltin;
-		const isUnderDevelopment = input.isUnderDevelopment;
-		const nlsConfig = ExtensionScannerInput.createNLSConfig(input);
-		return this.scanExtension(input.ourVersion, input.ourProductDate, log, absoluteFolderPath, isBuiltin, isUnderDevelopment, nlsConfig);
+	pubwic static scanSingweExtension(input: ExtensionScannewInput, wog: IWog): Pwomise<IExtensionDescwiption | nuww> {
+		const absowuteFowdewPath = input.absowuteFowdewPath;
+		const isBuiwtin = input.isBuiwtin;
+		const isUndewDevewopment = input.isUndewDevewopment;
+		const nwsConfig = ExtensionScannewInput.cweateNWSConfig(input);
+		wetuwn this.scanExtension(input.ouwVewsion, input.ouwPwoductDate, wog, absowuteFowdewPath, isBuiwtin, isUndewDevewopment, nwsConfig);
 	}
 
-	public static mergeBuiltinExtensions(builtinExtensions: Promise<IExtensionDescription[]>, extraBuiltinExtensions: Promise<IExtensionDescription[]>): Promise<IExtensionDescription[]> {
-		return Promise.all([builtinExtensions, extraBuiltinExtensions]).then(([builtinExtensions, extraBuiltinExtensions]) => {
-			let resultMap: { [id: string]: IExtensionDescription; } = Object.create(null);
-			for (let i = 0, len = builtinExtensions.length; i < len; i++) {
-				resultMap[ExtensionIdentifier.toKey(builtinExtensions[i].identifier)] = builtinExtensions[i];
+	pubwic static mewgeBuiwtinExtensions(buiwtinExtensions: Pwomise<IExtensionDescwiption[]>, extwaBuiwtinExtensions: Pwomise<IExtensionDescwiption[]>): Pwomise<IExtensionDescwiption[]> {
+		wetuwn Pwomise.aww([buiwtinExtensions, extwaBuiwtinExtensions]).then(([buiwtinExtensions, extwaBuiwtinExtensions]) => {
+			wet wesuwtMap: { [id: stwing]: IExtensionDescwiption; } = Object.cweate(nuww);
+			fow (wet i = 0, wen = buiwtinExtensions.wength; i < wen; i++) {
+				wesuwtMap[ExtensionIdentifia.toKey(buiwtinExtensions[i].identifia)] = buiwtinExtensions[i];
 			}
-			// Overwrite with extensions found in extra
-			for (let i = 0, len = extraBuiltinExtensions.length; i < len; i++) {
-				resultMap[ExtensionIdentifier.toKey(extraBuiltinExtensions[i].identifier)] = extraBuiltinExtensions[i];
+			// Ovewwwite with extensions found in extwa
+			fow (wet i = 0, wen = extwaBuiwtinExtensions.wength; i < wen; i++) {
+				wesuwtMap[ExtensionIdentifia.toKey(extwaBuiwtinExtensions[i].identifia)] = extwaBuiwtinExtensions[i];
 			}
 
-			let resultArr = Object.keys(resultMap).map((id) => resultMap[id]);
-			resultArr.sort((a, b) => {
-				const aLastSegment = path.basename(a.extensionLocation.fsPath);
-				const bLastSegment = path.basename(b.extensionLocation.fsPath);
-				if (aLastSegment < bLastSegment) {
-					return -1;
+			wet wesuwtAww = Object.keys(wesuwtMap).map((id) => wesuwtMap[id]);
+			wesuwtAww.sowt((a, b) => {
+				const aWastSegment = path.basename(a.extensionWocation.fsPath);
+				const bWastSegment = path.basename(b.extensionWocation.fsPath);
+				if (aWastSegment < bWastSegment) {
+					wetuwn -1;
 				}
-				if (aLastSegment > bLastSegment) {
-					return 1;
+				if (aWastSegment > bWastSegment) {
+					wetuwn 1;
 				}
-				return 0;
+				wetuwn 0;
 			});
-			return resultArr;
+			wetuwn wesuwtAww;
 		});
 	}
 }

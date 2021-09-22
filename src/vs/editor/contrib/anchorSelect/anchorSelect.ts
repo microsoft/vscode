@@ -1,179 +1,179 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./anchorSelect';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { TrackedRangeStickiness } from 'vs/editor/common/model';
-import { localize } from 'vs/nls';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+impowt { awewt } fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt { MawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { KeyChowd, KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt 'vs/css!./anchowSewect';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, wegistewEditowAction, wegistewEditowContwibution, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { TwackedWangeStickiness } fwom 'vs/editow/common/modew';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IContextKey, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
 
-export const SelectionAnchorSet = new RawContextKey('selectionAnchorSet', false);
+expowt const SewectionAnchowSet = new WawContextKey('sewectionAnchowSet', fawse);
 
-class SelectionAnchorController implements IEditorContribution {
+cwass SewectionAnchowContwowwa impwements IEditowContwibution {
 
-	public static readonly ID = 'editor.contrib.selectionAnchorController';
+	pubwic static weadonwy ID = 'editow.contwib.sewectionAnchowContwowwa';
 
-	static get(editor: ICodeEditor): SelectionAnchorController {
-		return editor.getContribution<SelectionAnchorController>(SelectionAnchorController.ID);
+	static get(editow: ICodeEditow): SewectionAnchowContwowwa {
+		wetuwn editow.getContwibution<SewectionAnchowContwowwa>(SewectionAnchowContwowwa.ID);
 	}
 
-	private decorationId: string | undefined;
-	private selectionAnchorSetContextKey: IContextKey<boolean>;
-	private modelChangeListener: IDisposable;
+	pwivate decowationId: stwing | undefined;
+	pwivate sewectionAnchowSetContextKey: IContextKey<boowean>;
+	pwivate modewChangeWistena: IDisposabwe;
 
-	constructor(
-		private editor: ICodeEditor,
-		@IContextKeyService contextKeyService: IContextKeyService
+	constwuctow(
+		pwivate editow: ICodeEditow,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice
 	) {
-		this.selectionAnchorSetContextKey = SelectionAnchorSet.bindTo(contextKeyService);
-		this.modelChangeListener = editor.onDidChangeModel(() => this.selectionAnchorSetContextKey.reset());
+		this.sewectionAnchowSetContextKey = SewectionAnchowSet.bindTo(contextKeySewvice);
+		this.modewChangeWistena = editow.onDidChangeModew(() => this.sewectionAnchowSetContextKey.weset());
 	}
 
-	setSelectionAnchor(): void {
-		if (this.editor.hasModel()) {
-			const position = this.editor.getPosition();
-			const previousDecorations = this.decorationId ? [this.decorationId] : [];
-			const newDecorationId = this.editor.deltaDecorations(previousDecorations, [{
-				range: Selection.fromPositions(position, position),
+	setSewectionAnchow(): void {
+		if (this.editow.hasModew()) {
+			const position = this.editow.getPosition();
+			const pweviousDecowations = this.decowationId ? [this.decowationId] : [];
+			const newDecowationId = this.editow.dewtaDecowations(pweviousDecowations, [{
+				wange: Sewection.fwomPositions(position, position),
 				options: {
-					description: 'selection-anchor',
-					stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-					hoverMessage: new MarkdownString().appendText(localize('selectionAnchor', "Selection Anchor")),
-					className: 'selection-anchor'
+					descwiption: 'sewection-anchow',
+					stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
+					hovewMessage: new MawkdownStwing().appendText(wocawize('sewectionAnchow', "Sewection Anchow")),
+					cwassName: 'sewection-anchow'
 				}
 			}]);
-			this.decorationId = newDecorationId[0];
-			this.selectionAnchorSetContextKey.set(!!this.decorationId);
-			alert(localize('anchorSet', "Anchor set at {0}:{1}", position.lineNumber, position.column));
+			this.decowationId = newDecowationId[0];
+			this.sewectionAnchowSetContextKey.set(!!this.decowationId);
+			awewt(wocawize('anchowSet', "Anchow set at {0}:{1}", position.wineNumba, position.cowumn));
 		}
 	}
 
-	goToSelectionAnchor(): void {
-		if (this.editor.hasModel() && this.decorationId) {
-			const anchorPosition = this.editor.getModel().getDecorationRange(this.decorationId);
-			if (anchorPosition) {
-				this.editor.setPosition(anchorPosition.getStartPosition());
+	goToSewectionAnchow(): void {
+		if (this.editow.hasModew() && this.decowationId) {
+			const anchowPosition = this.editow.getModew().getDecowationWange(this.decowationId);
+			if (anchowPosition) {
+				this.editow.setPosition(anchowPosition.getStawtPosition());
 			}
 		}
 	}
 
-	selectFromAnchorToCursor(): void {
-		if (this.editor.hasModel() && this.decorationId) {
-			const start = this.editor.getModel().getDecorationRange(this.decorationId);
-			if (start) {
-				const end = this.editor.getPosition();
-				this.editor.setSelection(Selection.fromPositions(start.getStartPosition(), end));
-				this.cancelSelectionAnchor();
+	sewectFwomAnchowToCuwsow(): void {
+		if (this.editow.hasModew() && this.decowationId) {
+			const stawt = this.editow.getModew().getDecowationWange(this.decowationId);
+			if (stawt) {
+				const end = this.editow.getPosition();
+				this.editow.setSewection(Sewection.fwomPositions(stawt.getStawtPosition(), end));
+				this.cancewSewectionAnchow();
 			}
 		}
 	}
 
-	cancelSelectionAnchor(): void {
-		if (this.decorationId) {
-			this.editor.deltaDecorations([this.decorationId], []);
-			this.decorationId = undefined;
-			this.selectionAnchorSetContextKey.set(false);
+	cancewSewectionAnchow(): void {
+		if (this.decowationId) {
+			this.editow.dewtaDecowations([this.decowationId], []);
+			this.decowationId = undefined;
+			this.sewectionAnchowSetContextKey.set(fawse);
 		}
 	}
 
 	dispose(): void {
-		this.cancelSelectionAnchor();
-		this.modelChangeListener.dispose();
+		this.cancewSewectionAnchow();
+		this.modewChangeWistena.dispose();
 	}
 }
 
-class SetSelectionAnchor extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.setSelectionAnchor',
-			label: localize('setSelectionAnchor', "Set Selection Anchor"),
-			alias: 'Set Selection Anchor',
-			precondition: undefined,
+cwass SetSewectionAnchow extends EditowAction {
+	constwuctow() {
+		supa({
+			id: 'editow.action.setSewectionAnchow',
+			wabew: wocawize('setSewectionAnchow', "Set Sewection Anchow"),
+			awias: 'Set Sewection Anchow',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_B),
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_B),
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const controller = SelectionAnchorController.get(editor);
-		controller.setSelectionAnchor();
+	async wun(_accessow: SewvicesAccessow, editow: ICodeEditow): Pwomise<void> {
+		const contwowwa = SewectionAnchowContwowwa.get(editow);
+		contwowwa.setSewectionAnchow();
 	}
 }
 
-class GoToSelectionAnchor extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.goToSelectionAnchor',
-			label: localize('goToSelectionAnchor', "Go to Selection Anchor"),
-			alias: 'Go to Selection Anchor',
-			precondition: SelectionAnchorSet,
+cwass GoToSewectionAnchow extends EditowAction {
+	constwuctow() {
+		supa({
+			id: 'editow.action.goToSewectionAnchow',
+			wabew: wocawize('goToSewectionAnchow', "Go to Sewection Anchow"),
+			awias: 'Go to Sewection Anchow',
+			pwecondition: SewectionAnchowSet,
 		});
 	}
 
-	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const controller = SelectionAnchorController.get(editor);
-		controller.goToSelectionAnchor();
+	async wun(_accessow: SewvicesAccessow, editow: ICodeEditow): Pwomise<void> {
+		const contwowwa = SewectionAnchowContwowwa.get(editow);
+		contwowwa.goToSewectionAnchow();
 	}
 }
 
-class SelectFromAnchorToCursor extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.selectFromAnchorToCursor',
-			label: localize('selectFromAnchorToCursor', "Select from Anchor to Cursor"),
-			alias: 'Select from Anchor to Cursor',
-			precondition: SelectionAnchorSet,
+cwass SewectFwomAnchowToCuwsow extends EditowAction {
+	constwuctow() {
+		supa({
+			id: 'editow.action.sewectFwomAnchowToCuwsow',
+			wabew: wocawize('sewectFwomAnchowToCuwsow', "Sewect fwom Anchow to Cuwsow"),
+			awias: 'Sewect fwom Anchow to Cuwsow',
+			pwecondition: SewectionAnchowSet,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K),
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_K),
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const controller = SelectionAnchorController.get(editor);
-		controller.selectFromAnchorToCursor();
+	async wun(_accessow: SewvicesAccessow, editow: ICodeEditow): Pwomise<void> {
+		const contwowwa = SewectionAnchowContwowwa.get(editow);
+		contwowwa.sewectFwomAnchowToCuwsow();
 	}
 }
 
-class CancelSelectionAnchor extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.cancelSelectionAnchor',
-			label: localize('cancelSelectionAnchor', "Cancel Selection Anchor"),
-			alias: 'Cancel Selection Anchor',
-			precondition: SelectionAnchorSet,
+cwass CancewSewectionAnchow extends EditowAction {
+	constwuctow() {
+		supa({
+			id: 'editow.action.cancewSewectionAnchow',
+			wabew: wocawize('cancewSewectionAnchow', "Cancew Sewection Anchow"),
+			awias: 'Cancew Sewection Anchow',
+			pwecondition: SewectionAnchowSet,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyCode.Escape,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyCode.Escape,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const controller = SelectionAnchorController.get(editor);
-		controller.cancelSelectionAnchor();
+	async wun(_accessow: SewvicesAccessow, editow: ICodeEditow): Pwomise<void> {
+		const contwowwa = SewectionAnchowContwowwa.get(editow);
+		contwowwa.cancewSewectionAnchow();
 	}
 }
 
-registerEditorContribution(SelectionAnchorController.ID, SelectionAnchorController);
-registerEditorAction(SetSelectionAnchor);
-registerEditorAction(GoToSelectionAnchor);
-registerEditorAction(SelectFromAnchorToCursor);
-registerEditorAction(CancelSelectionAnchor);
+wegistewEditowContwibution(SewectionAnchowContwowwa.ID, SewectionAnchowContwowwa);
+wegistewEditowAction(SetSewectionAnchow);
+wegistewEditowAction(GoToSewectionAnchow);
+wegistewEditowAction(SewectFwomAnchowToCuwsow);
+wegistewEditowAction(CancewSewectionAnchow);

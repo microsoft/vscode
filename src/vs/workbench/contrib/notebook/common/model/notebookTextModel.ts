@@ -1,1043 +1,1043 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten } from 'vs/base/common/arrays';
-import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { INotebookTextModel, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, diff, NotebookCellsChangeType, ICellDto2, TransientOptions, NotebookTextModelChangedEvent, IOutputDto, ICellOutput, IOutputItemDto, ISelectionState, NullablePartialNotebookCellMetadata, NotebookCellInternalMetadata, NullablePartialNotebookCellInternalMetadata, NotebookTextModelWillAddRemoveEvent, NotebookCellTextModelSplice, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IUndoRedoService, UndoRedoElementType, IUndoRedoElement, IResourceUndoRedoElement, UndoRedoGroup, IWorkspaceUndoRedoElement } from 'vs/platform/undoRedo/common/undoRedo';
-import { MoveCellEdit, SpliceCellsEdit, CellMetadataEdit } from 'vs/workbench/contrib/notebook/common/model/cellEdit';
-import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
-import { hash } from 'vs/base/common/hash';
-import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { Schemas } from 'vs/base/common/network';
-import { isEqual } from 'vs/base/common/resources';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ITextBuffer, ITextModel } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { isDefined } from 'vs/base/common/types';
+impowt { fwatten } fwom 'vs/base/common/awways';
+impowt { Emitta, Event, PauseabweEmitta } fwom 'vs/base/common/event';
+impowt { Disposabwe, dispose, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { NotebookCewwTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookCewwTextModew';
+impowt { INotebookTextModew, NotebookCewwOutputsSpwice, NotebookDocumentMetadata, NotebookCewwMetadata, ICewwEditOpewation, CewwEditType, CewwUwi, diff, NotebookCewwsChangeType, ICewwDto2, TwansientOptions, NotebookTextModewChangedEvent, IOutputDto, ICewwOutput, IOutputItemDto, ISewectionState, NuwwabwePawtiawNotebookCewwMetadata, NotebookCewwIntewnawMetadata, NuwwabwePawtiawNotebookCewwIntewnawMetadata, NotebookTextModewWiwwAddWemoveEvent, NotebookCewwTextModewSpwice, ICeww } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { IUndoWedoSewvice, UndoWedoEwementType, IUndoWedoEwement, IWesouwceUndoWedoEwement, UndoWedoGwoup, IWowkspaceUndoWedoEwement } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { MoveCewwEdit, SpwiceCewwsEdit, CewwMetadataEdit } fwom 'vs/wowkbench/contwib/notebook/common/modew/cewwEdit';
+impowt { ISequence, WcsDiff } fwom 'vs/base/common/diff/diff';
+impowt { hash } fwom 'vs/base/common/hash';
+impowt { NotebookCewwOutputTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookCewwOutputTextModew';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { ITextBuffa, ITextModew } fwom 'vs/editow/common/modew';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt { isDefined } fwom 'vs/base/common/types';
 
 
-class StackOperation implements IWorkspaceUndoRedoElement {
-	type: UndoRedoElementType.Workspace;
+cwass StackOpewation impwements IWowkspaceUndoWedoEwement {
+	type: UndoWedoEwementType.Wowkspace;
 
-	private _operations: IUndoRedoElement[] = [];
-	private _beginSelectionState: ISelectionState | undefined = undefined;
-	private _resultSelectionState: ISelectionState | undefined = undefined;
-	private _beginAlternativeVersionId: string;
-	private _resultAlternativeVersionId: string;
+	pwivate _opewations: IUndoWedoEwement[] = [];
+	pwivate _beginSewectionState: ISewectionState | undefined = undefined;
+	pwivate _wesuwtSewectionState: ISewectionState | undefined = undefined;
+	pwivate _beginAwtewnativeVewsionId: stwing;
+	pwivate _wesuwtAwtewnativeVewsionId: stwing;
 
-	constructor(
-		readonly textModel: NotebookTextModel,
-		readonly label: string,
-		readonly undoRedoGroup: UndoRedoGroup | undefined,
-		private _pauseableEmitter: PauseableEmitter<NotebookTextModelChangedEvent>,
-		private _postUndoRedo: (alternativeVersionId: string) => void,
-		selectionState: ISelectionState | undefined,
-		beginAlternativeVersionId: string
+	constwuctow(
+		weadonwy textModew: NotebookTextModew,
+		weadonwy wabew: stwing,
+		weadonwy undoWedoGwoup: UndoWedoGwoup | undefined,
+		pwivate _pauseabweEmitta: PauseabweEmitta<NotebookTextModewChangedEvent>,
+		pwivate _postUndoWedo: (awtewnativeVewsionId: stwing) => void,
+		sewectionState: ISewectionState | undefined,
+		beginAwtewnativeVewsionId: stwing
 	) {
-		this.type = UndoRedoElementType.Workspace;
-		this._beginSelectionState = selectionState;
-		this._beginAlternativeVersionId = beginAlternativeVersionId;
-		this._resultAlternativeVersionId = beginAlternativeVersionId;
+		this.type = UndoWedoEwementType.Wowkspace;
+		this._beginSewectionState = sewectionState;
+		this._beginAwtewnativeVewsionId = beginAwtewnativeVewsionId;
+		this._wesuwtAwtewnativeVewsionId = beginAwtewnativeVewsionId;
 	}
-	get resources(): readonly URI[] {
-		return [this.textModel.uri];
-	}
-
-	get isEmpty(): boolean {
-		return this._operations.length === 0;
+	get wesouwces(): weadonwy UWI[] {
+		wetuwn [this.textModew.uwi];
 	}
 
-	pushEndState(alternativeVersionId: string, selectionState: ISelectionState | undefined) {
-		this._resultAlternativeVersionId = alternativeVersionId;
-		this._resultSelectionState = selectionState;
+	get isEmpty(): boowean {
+		wetuwn this._opewations.wength === 0;
 	}
 
-	pushEditOperation(element: IUndoRedoElement, beginSelectionState: ISelectionState | undefined, resultSelectionState: ISelectionState | undefined) {
-		if (this._operations.length === 0) {
-			this._beginSelectionState = this._beginSelectionState ?? beginSelectionState;
+	pushEndState(awtewnativeVewsionId: stwing, sewectionState: ISewectionState | undefined) {
+		this._wesuwtAwtewnativeVewsionId = awtewnativeVewsionId;
+		this._wesuwtSewectionState = sewectionState;
+	}
+
+	pushEditOpewation(ewement: IUndoWedoEwement, beginSewectionState: ISewectionState | undefined, wesuwtSewectionState: ISewectionState | undefined) {
+		if (this._opewations.wength === 0) {
+			this._beginSewectionState = this._beginSewectionState ?? beginSewectionState;
 		}
-		this._operations.push(element);
-		this._resultSelectionState = resultSelectionState;
+		this._opewations.push(ewement);
+		this._wesuwtSewectionState = wesuwtSewectionState;
 	}
 
-	async undo(): Promise<void> {
-		this._pauseableEmitter.pause();
-		for (let i = this._operations.length - 1; i >= 0; i--) {
-			await this._operations[i].undo();
+	async undo(): Pwomise<void> {
+		this._pauseabweEmitta.pause();
+		fow (wet i = this._opewations.wength - 1; i >= 0; i--) {
+			await this._opewations[i].undo();
 		}
-		this._postUndoRedo(this._beginAlternativeVersionId);
-		this._pauseableEmitter.fire({
-			rawEvents: [],
-			synchronous: undefined,
-			versionId: this.textModel.versionId,
-			endSelectionState: this._beginSelectionState
+		this._postUndoWedo(this._beginAwtewnativeVewsionId);
+		this._pauseabweEmitta.fiwe({
+			wawEvents: [],
+			synchwonous: undefined,
+			vewsionId: this.textModew.vewsionId,
+			endSewectionState: this._beginSewectionState
 		});
-		this._pauseableEmitter.resume();
+		this._pauseabweEmitta.wesume();
 	}
 
-	async redo(): Promise<void> {
-		this._pauseableEmitter.pause();
-		for (let i = 0; i < this._operations.length; i++) {
-			await this._operations[i].redo();
+	async wedo(): Pwomise<void> {
+		this._pauseabweEmitta.pause();
+		fow (wet i = 0; i < this._opewations.wength; i++) {
+			await this._opewations[i].wedo();
 		}
-		this._postUndoRedo(this._resultAlternativeVersionId);
-		this._pauseableEmitter.fire({
-			rawEvents: [],
-			synchronous: undefined,
-			versionId: this.textModel.versionId,
-			endSelectionState: this._resultSelectionState
+		this._postUndoWedo(this._wesuwtAwtewnativeVewsionId);
+		this._pauseabweEmitta.fiwe({
+			wawEvents: [],
+			synchwonous: undefined,
+			vewsionId: this.textModew.vewsionId,
+			endSewectionState: this._wesuwtSewectionState
 		});
-		this._pauseableEmitter.resume();
+		this._pauseabweEmitta.wesume();
 
 	}
 }
 
-export class NotebookOperationManager {
-	private _pendingStackOperation: StackOperation | null = null;
-	constructor(
-		private readonly _textModel: NotebookTextModel,
-		private _undoService: IUndoRedoService,
-		private _pauseableEmitter: PauseableEmitter<NotebookTextModelChangedEvent>,
-		private _postUndoRedo: (alternativeVersionId: string) => void
+expowt cwass NotebookOpewationManaga {
+	pwivate _pendingStackOpewation: StackOpewation | nuww = nuww;
+	constwuctow(
+		pwivate weadonwy _textModew: NotebookTextModew,
+		pwivate _undoSewvice: IUndoWedoSewvice,
+		pwivate _pauseabweEmitta: PauseabweEmitta<NotebookTextModewChangedEvent>,
+		pwivate _postUndoWedo: (awtewnativeVewsionId: stwing) => void
 	) {
 	}
 
-	isUndoStackEmpty(): boolean {
-		return this._pendingStackOperation === null || this._pendingStackOperation.isEmpty;
+	isUndoStackEmpty(): boowean {
+		wetuwn this._pendingStackOpewation === nuww || this._pendingStackOpewation.isEmpty;
 	}
 
-	pushStackElement(label: string, selectionState: ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, alternativeVersionId: string) {
-		if (this._pendingStackOperation) {
-			this._pendingStackOperation.pushEndState(alternativeVersionId, selectionState);
-			if (!this._pendingStackOperation.isEmpty) {
-				this._undoService.pushElement(this._pendingStackOperation, this._pendingStackOperation.undoRedoGroup);
+	pushStackEwement(wabew: stwing, sewectionState: ISewectionState | undefined, undoWedoGwoup: UndoWedoGwoup | undefined, awtewnativeVewsionId: stwing) {
+		if (this._pendingStackOpewation) {
+			this._pendingStackOpewation.pushEndState(awtewnativeVewsionId, sewectionState);
+			if (!this._pendingStackOpewation.isEmpty) {
+				this._undoSewvice.pushEwement(this._pendingStackOpewation, this._pendingStackOpewation.undoWedoGwoup);
 			}
-			this._pendingStackOperation = null;
-			return;
+			this._pendingStackOpewation = nuww;
+			wetuwn;
 		}
 
-		this._pendingStackOperation = new StackOperation(this._textModel, label, undoRedoGroup, this._pauseableEmitter, this._postUndoRedo, selectionState, alternativeVersionId);
+		this._pendingStackOpewation = new StackOpewation(this._textModew, wabew, undoWedoGwoup, this._pauseabweEmitta, this._postUndoWedo, sewectionState, awtewnativeVewsionId);
 	}
 
-	pushEditOperation(element: IUndoRedoElement, beginSelectionState: ISelectionState | undefined, resultSelectionState: ISelectionState | undefined) {
-		if (this._pendingStackOperation) {
-			this._pendingStackOperation.pushEditOperation(element, beginSelectionState, resultSelectionState);
-			return;
+	pushEditOpewation(ewement: IUndoWedoEwement, beginSewectionState: ISewectionState | undefined, wesuwtSewectionState: ISewectionState | undefined) {
+		if (this._pendingStackOpewation) {
+			this._pendingStackOpewation.pushEditOpewation(ewement, beginSewectionState, wesuwtSewectionState);
+			wetuwn;
 		}
 
-		this._undoService.pushElement(element);
+		this._undoSewvice.pushEwement(ewement);
 	}
 }
 
-type TransformedEdit = {
-	edit: ICellEditOperation;
-	cellIndex: number;
-	end: number | undefined;
-	originalIndex: number;
+type TwansfowmedEdit = {
+	edit: ICewwEditOpewation;
+	cewwIndex: numba;
+	end: numba | undefined;
+	owiginawIndex: numba;
 };
 
-export class NotebookEventEmitter extends PauseableEmitter<NotebookTextModelChangedEvent> {
-	isDirtyEvent() {
-		for (let e of this._eventQueue) {
-			for (let i = 0; i < e.rawEvents.length; i++) {
-				if (!e.rawEvents[i].transient) {
-					return true;
+expowt cwass NotebookEventEmitta extends PauseabweEmitta<NotebookTextModewChangedEvent> {
+	isDiwtyEvent() {
+		fow (wet e of this._eventQueue) {
+			fow (wet i = 0; i < e.wawEvents.wength; i++) {
+				if (!e.wawEvents[i].twansient) {
+					wetuwn twue;
 				}
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 }
 
-export class NotebookTextModel extends Disposable implements INotebookTextModel {
+expowt cwass NotebookTextModew extends Disposabwe impwements INotebookTextModew {
 
-	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
-	private readonly _onWillAddRemoveCells = this._register(new Emitter<NotebookTextModelWillAddRemoveEvent>());
-	private readonly _onDidChangeContent = this._register(new Emitter<NotebookTextModelChangedEvent>());
-	readonly onWillDispose: Event<void> = this._onWillDispose.event;
-	readonly onWillAddRemoveCells = this._onWillAddRemoveCells.event;
-	readonly onDidChangeContent = this._onDidChangeContent.event;
-	private _cellhandlePool: number = 0;
-	private readonly _cellListeners: Map<number, IDisposable> = new Map();
-	private _cells: NotebookCellTextModel[] = [];
+	pwivate weadonwy _onWiwwDispose: Emitta<void> = this._wegista(new Emitta<void>());
+	pwivate weadonwy _onWiwwAddWemoveCewws = this._wegista(new Emitta<NotebookTextModewWiwwAddWemoveEvent>());
+	pwivate weadonwy _onDidChangeContent = this._wegista(new Emitta<NotebookTextModewChangedEvent>());
+	weadonwy onWiwwDispose: Event<void> = this._onWiwwDispose.event;
+	weadonwy onWiwwAddWemoveCewws = this._onWiwwAddWemoveCewws.event;
+	weadonwy onDidChangeContent = this._onDidChangeContent.event;
+	pwivate _cewwhandwePoow: numba = 0;
+	pwivate weadonwy _cewwWistenews: Map<numba, IDisposabwe> = new Map();
+	pwivate _cewws: NotebookCewwTextModew[] = [];
 
 	metadata: NotebookDocumentMetadata = {};
-	transientOptions: TransientOptions = { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false };
-	private _versionId = 0;
+	twansientOptions: TwansientOptions = { twansientCewwMetadata: {}, twansientDocumentMetadata: {}, twansientOutputs: fawse };
+	pwivate _vewsionId = 0;
 
 	/**
-	 * This alternative id is only for non-cell-content changes.
+	 * This awtewnative id is onwy fow non-ceww-content changes.
 	 */
-	private _notebookSpecificAlternativeId = 0;
+	pwivate _notebookSpecificAwtewnativeId = 0;
 
 	/**
-	 * Unlike, versionId, this can go down (via undo) or go to previous values (via redo)
+	 * Unwike, vewsionId, this can go down (via undo) ow go to pwevious vawues (via wedo)
 	 */
-	private _alternativeVersionId: string = '1';
-	private _operationManager: NotebookOperationManager;
-	private _pauseableEmitter: NotebookEventEmitter;
+	pwivate _awtewnativeVewsionId: stwing = '1';
+	pwivate _opewationManaga: NotebookOpewationManaga;
+	pwivate _pauseabweEmitta: NotebookEventEmitta;
 
-	get length() {
-		return this._cells.length;
+	get wength() {
+		wetuwn this._cewws.wength;
 	}
 
-	get cells(): readonly NotebookCellTextModel[] {
-		return this._cells;
+	get cewws(): weadonwy NotebookCewwTextModew[] {
+		wetuwn this._cewws;
 	}
 
-	get versionId() {
-		return this._versionId;
+	get vewsionId() {
+		wetuwn this._vewsionId;
 	}
 
-	get alternativeVersionId(): string {
-		return this._alternativeVersionId;
+	get awtewnativeVewsionId(): stwing {
+		wetuwn this._awtewnativeVewsionId;
 	}
 
-	constructor(
-		readonly viewType: string,
-		readonly uri: URI,
-		cells: ICellDto2[],
+	constwuctow(
+		weadonwy viewType: stwing,
+		weadonwy uwi: UWI,
+		cewws: ICewwDto2[],
 		metadata: NotebookDocumentMetadata,
-		options: TransientOptions,
-		@IUndoRedoService private readonly _undoService: IUndoRedoService,
-		@IModelService private readonly _modelService: IModelService,
-		@IModeService private readonly _modeService: IModeService,
+		options: TwansientOptions,
+		@IUndoWedoSewvice pwivate weadonwy _undoSewvice: IUndoWedoSewvice,
+		@IModewSewvice pwivate weadonwy _modewSewvice: IModewSewvice,
+		@IModeSewvice pwivate weadonwy _modeSewvice: IModeSewvice,
 	) {
-		super();
-		this.transientOptions = options;
+		supa();
+		this.twansientOptions = options;
 		this.metadata = metadata;
-		this._initialize(cells);
+		this._initiawize(cewws);
 
-		const maybeUpdateCellTextModel = (textModel: ITextModel) => {
-			if (textModel.uri.scheme === Schemas.vscodeNotebookCell && textModel instanceof TextModel) {
-				const cellUri = CellUri.parse(textModel.uri);
-				if (cellUri && isEqual(cellUri.notebook, this.uri)) {
-					const cellIdx = this._getCellIndexByHandle(cellUri.handle);
-					if (cellIdx >= 0) {
-						const cell = this.cells[cellIdx];
-						if (cell) {
-							cell.textModel = textModel;
+		const maybeUpdateCewwTextModew = (textModew: ITextModew) => {
+			if (textModew.uwi.scheme === Schemas.vscodeNotebookCeww && textModew instanceof TextModew) {
+				const cewwUwi = CewwUwi.pawse(textModew.uwi);
+				if (cewwUwi && isEquaw(cewwUwi.notebook, this.uwi)) {
+					const cewwIdx = this._getCewwIndexByHandwe(cewwUwi.handwe);
+					if (cewwIdx >= 0) {
+						const ceww = this.cewws[cewwIdx];
+						if (ceww) {
+							ceww.textModew = textModew;
 						}
 					}
 				}
 			}
 		};
-		this._register(_modelService.onModelAdded(e => maybeUpdateCellTextModel(e)));
+		this._wegista(_modewSewvice.onModewAdded(e => maybeUpdateCewwTextModew(e)));
 
-		this._pauseableEmitter = new NotebookEventEmitter({
-			merge: (events: NotebookTextModelChangedEvent[]) => {
-				let first = events[0];
+		this._pauseabweEmitta = new NotebookEventEmitta({
+			mewge: (events: NotebookTextModewChangedEvent[]) => {
+				wet fiwst = events[0];
 
-				let rawEvents = first.rawEvents;
-				let versionId = first.versionId;
-				let endSelectionState = first.endSelectionState;
-				let synchronous = first.synchronous;
+				wet wawEvents = fiwst.wawEvents;
+				wet vewsionId = fiwst.vewsionId;
+				wet endSewectionState = fiwst.endSewectionState;
+				wet synchwonous = fiwst.synchwonous;
 
-				for (let i = 1; i < events.length; i++) {
-					rawEvents.push(...events[i].rawEvents);
-					versionId = events[i].versionId;
-					endSelectionState = events[i].endSelectionState !== undefined ? events[i].endSelectionState : endSelectionState;
-					synchronous = events[i].synchronous !== undefined ? events[i].synchronous : synchronous;
+				fow (wet i = 1; i < events.wength; i++) {
+					wawEvents.push(...events[i].wawEvents);
+					vewsionId = events[i].vewsionId;
+					endSewectionState = events[i].endSewectionState !== undefined ? events[i].endSewectionState : endSewectionState;
+					synchwonous = events[i].synchwonous !== undefined ? events[i].synchwonous : synchwonous;
 				}
 
-				return { rawEvents, versionId, endSelectionState, synchronous };
+				wetuwn { wawEvents, vewsionId, endSewectionState, synchwonous };
 			}
 		});
 
-		this._register(this._pauseableEmitter.event(e => {
-			if (e.rawEvents.length) {
-				this._onDidChangeContent.fire(e);
+		this._wegista(this._pauseabweEmitta.event(e => {
+			if (e.wawEvents.wength) {
+				this._onDidChangeContent.fiwe(e);
 			}
 		}));
 
-		this._operationManager = new NotebookOperationManager(
+		this._opewationManaga = new NotebookOpewationManaga(
 			this,
-			this._undoService,
-			this._pauseableEmitter,
-			(alternativeVersionId: string) => {
-				this._increaseVersionId(true);
-				this._overwriteAlternativeVersionId(alternativeVersionId);
+			this._undoSewvice,
+			this._pauseabweEmitta,
+			(awtewnativeVewsionId: stwing) => {
+				this._incweaseVewsionId(twue);
+				this._ovewwwiteAwtewnativeVewsionId(awtewnativeVewsionId);
 			}
 		);
 	}
 
-	_initialize(cells: ICellDto2[], triggerDirty?: boolean) {
-		this._cells = [];
-		this._versionId = 0;
-		this._notebookSpecificAlternativeId = 0;
+	_initiawize(cewws: ICewwDto2[], twiggewDiwty?: boowean) {
+		this._cewws = [];
+		this._vewsionId = 0;
+		this._notebookSpecificAwtewnativeId = 0;
 
-		const mainCells = cells.map(cell => {
-			const cellHandle = this._cellhandlePool++;
-			const cellUri = CellUri.generate(this.uri, cellHandle);
-			return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.mime, cell.cellKind, cell.outputs, cell.metadata, cell.internalMetadata, this.transientOptions, this._modeService);
+		const mainCewws = cewws.map(ceww => {
+			const cewwHandwe = this._cewwhandwePoow++;
+			const cewwUwi = CewwUwi.genewate(this.uwi, cewwHandwe);
+			wetuwn new NotebookCewwTextModew(cewwUwi, cewwHandwe, ceww.souwce, ceww.wanguage, ceww.mime, ceww.cewwKind, ceww.outputs, ceww.metadata, ceww.intewnawMetadata, this.twansientOptions, this._modeSewvice);
 		});
 
-		for (let i = 0; i < mainCells.length; i++) {
-			const dirtyStateListener = mainCells[i].onDidChangeContent((e) => {
-				this._bindCellContentHandler(mainCells[i], e);
+		fow (wet i = 0; i < mainCewws.wength; i++) {
+			const diwtyStateWistena = mainCewws[i].onDidChangeContent((e) => {
+				this._bindCewwContentHandwa(mainCewws[i], e);
 			});
 
-			this._cellListeners.set(mainCells[i].handle, dirtyStateListener);
+			this._cewwWistenews.set(mainCewws[i].handwe, diwtyStateWistena);
 		}
 
-		this._cells.splice(0, 0, ...mainCells);
-		this._alternativeVersionId = this._generateAlternativeId();
+		this._cewws.spwice(0, 0, ...mainCewws);
+		this._awtewnativeVewsionId = this._genewateAwtewnativeId();
 
-		if (triggerDirty) {
-			this._pauseableEmitter.fire({
-				rawEvents: [{ kind: NotebookCellsChangeType.Unknown, transient: false }],
-				versionId: this.versionId,
-				synchronous: true,
-				endSelectionState: undefined
+		if (twiggewDiwty) {
+			this._pauseabweEmitta.fiwe({
+				wawEvents: [{ kind: NotebookCewwsChangeType.Unknown, twansient: fawse }],
+				vewsionId: this.vewsionId,
+				synchwonous: twue,
+				endSewectionState: undefined
 			});
 		}
 	}
 
-	private _bindCellContentHandler(cell: NotebookCellTextModel, e: 'content' | 'language' | 'mime') {
-		this._increaseVersionId(e === 'content');
+	pwivate _bindCewwContentHandwa(ceww: NotebookCewwTextModew, e: 'content' | 'wanguage' | 'mime') {
+		this._incweaseVewsionId(e === 'content');
 		switch (e) {
 			case 'content':
-				this._pauseableEmitter.fire({
-					rawEvents: [{ kind: NotebookCellsChangeType.ChangeCellContent, transient: false }],
-					versionId: this.versionId,
-					synchronous: true,
-					endSelectionState: undefined
+				this._pauseabweEmitta.fiwe({
+					wawEvents: [{ kind: NotebookCewwsChangeType.ChangeCewwContent, twansient: fawse }],
+					vewsionId: this.vewsionId,
+					synchwonous: twue,
+					endSewectionState: undefined
 				});
-				break;
+				bweak;
 
-			case 'language':
-				this._pauseableEmitter.fire({
-					rawEvents: [{ kind: NotebookCellsChangeType.ChangeLanguage, index: this._getCellIndexByHandle(cell.handle), language: cell.language, transient: false }],
-					versionId: this.versionId,
-					synchronous: true,
-					endSelectionState: undefined
+			case 'wanguage':
+				this._pauseabweEmitta.fiwe({
+					wawEvents: [{ kind: NotebookCewwsChangeType.ChangeWanguage, index: this._getCewwIndexByHandwe(ceww.handwe), wanguage: ceww.wanguage, twansient: fawse }],
+					vewsionId: this.vewsionId,
+					synchwonous: twue,
+					endSewectionState: undefined
 				});
-				break;
+				bweak;
 
 			case 'mime':
-				this._pauseableEmitter.fire({
-					rawEvents: [{ kind: NotebookCellsChangeType.ChangeCellMime, index: this._getCellIndexByHandle(cell.handle), mime: cell.mime, transient: false }],
-					versionId: this.versionId,
-					synchronous: true,
-					endSelectionState: undefined
+				this._pauseabweEmitta.fiwe({
+					wawEvents: [{ kind: NotebookCewwsChangeType.ChangeCewwMime, index: this._getCewwIndexByHandwe(ceww.handwe), mime: ceww.mime, twansient: fawse }],
+					vewsionId: this.vewsionId,
+					synchwonous: twue,
+					endSewectionState: undefined
 				});
-				break;
+				bweak;
 		}
 	}
 
-	private _generateAlternativeId() {
-		return `${this._notebookSpecificAlternativeId}_` + this.cells.map(cell => cell.handle + ',' + cell.alternativeId).join(';');
+	pwivate _genewateAwtewnativeId() {
+		wetuwn `${this._notebookSpecificAwtewnativeId}_` + this.cewws.map(ceww => ceww.handwe + ',' + ceww.awtewnativeId).join(';');
 	}
 
-	override dispose() {
-		this._onWillDispose.fire();
-		this._undoService.removeElements(this.uri);
+	ovewwide dispose() {
+		this._onWiwwDispose.fiwe();
+		this._undoSewvice.wemoveEwements(this.uwi);
 
-		dispose(this._cellListeners.values());
-		this._cellListeners.clear();
+		dispose(this._cewwWistenews.vawues());
+		this._cewwWistenews.cweaw();
 
-		dispose(this._cells);
-		super.dispose();
+		dispose(this._cewws);
+		supa.dispose();
 	}
 
-	pushStackElement(label: string, selectionState: ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined) {
-		this._operationManager.pushStackElement(label, selectionState, undoRedoGroup, this.alternativeVersionId);
+	pushStackEwement(wabew: stwing, sewectionState: ISewectionState | undefined, undoWedoGwoup: UndoWedoGwoup | undefined) {
+		this._opewationManaga.pushStackEwement(wabew, sewectionState, undoWedoGwoup, this.awtewnativeVewsionId);
 	}
 
-	private _getCellIndexByHandle(handle: number) {
-		return this.cells.findIndex(c => c.handle === handle);
+	pwivate _getCewwIndexByHandwe(handwe: numba) {
+		wetuwn this.cewws.findIndex(c => c.handwe === handwe);
 	}
 
-	private _getCellIndexWithOutputIdHandleFromEdits(outputId: string, rawEdits: ICellEditOperation[]) {
-		const edit = rawEdits.find(e => 'outputs' in e && e.outputs.some(o => o.outputId === outputId));
+	pwivate _getCewwIndexWithOutputIdHandweFwomEdits(outputId: stwing, wawEdits: ICewwEditOpewation[]) {
+		const edit = wawEdits.find(e => 'outputs' in e && e.outputs.some(o => o.outputId === outputId));
 		if (edit) {
 			if ('index' in edit) {
-				return edit.index;
-			} else if ('handle' in edit) {
-				const cellIndex = this._getCellIndexByHandle(edit.handle);
-				this._assertIndex(cellIndex);
-				return cellIndex;
+				wetuwn edit.index;
+			} ewse if ('handwe' in edit) {
+				const cewwIndex = this._getCewwIndexByHandwe(edit.handwe);
+				this._assewtIndex(cewwIndex);
+				wetuwn cewwIndex;
 			}
 		}
 
-		return -1;
+		wetuwn -1;
 	}
 
-	private _getCellIndexWithOutputIdHandle(outputId: string) {
-		return this.cells.findIndex(c => !!c.outputs.find(o => o.outputId === outputId));
+	pwivate _getCewwIndexWithOutputIdHandwe(outputId: stwing) {
+		wetuwn this.cewws.findIndex(c => !!c.outputs.find(o => o.outputId === outputId));
 	}
 
-	reset(cells: ICellDto2[], metadata: NotebookDocumentMetadata, transientOptions: TransientOptions): void {
-		this.transientOptions = transientOptions;
-		this._cellhandlePool = 0;
-		this.applyEdits(
+	weset(cewws: ICewwDto2[], metadata: NotebookDocumentMetadata, twansientOptions: TwansientOptions): void {
+		this.twansientOptions = twansientOptions;
+		this._cewwhandwePoow = 0;
+		this.appwyEdits(
 			[
-				{ editType: CellEditType.Replace, index: 0, count: this.cells.length, cells },
-				{ editType: CellEditType.DocumentMetadata, metadata }
+				{ editType: CewwEditType.Wepwace, index: 0, count: this.cewws.wength, cewws },
+				{ editType: CewwEditType.DocumentMetadata, metadata }
 			],
-			true,
+			twue,
 			undefined, () => undefined,
 			undefined
 		);
 	}
 
-	applyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: ISelectionState | undefined, endSelectionsComputer: () => ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, computeUndoRedo: boolean = true): boolean {
-		this._pauseableEmitter.pause();
-		this.pushStackElement('edit', beginSelectionState, undoRedoGroup);
+	appwyEdits(wawEdits: ICewwEditOpewation[], synchwonous: boowean, beginSewectionState: ISewectionState | undefined, endSewectionsComputa: () => ISewectionState | undefined, undoWedoGwoup: UndoWedoGwoup | undefined, computeUndoWedo: boowean = twue): boowean {
+		this._pauseabweEmitta.pause();
+		this.pushStackEwement('edit', beginSewectionState, undoWedoGwoup);
 
-		try {
-			this._doApplyEdits(rawEdits, synchronous, computeUndoRedo);
-			return true;
-		} finally {
-			// Update selection and versionId after applying edits.
-			const endSelections = endSelectionsComputer();
-			this._increaseVersionId(this._operationManager.isUndoStackEmpty() && !this._pauseableEmitter.isDirtyEvent());
+		twy {
+			this._doAppwyEdits(wawEdits, synchwonous, computeUndoWedo);
+			wetuwn twue;
+		} finawwy {
+			// Update sewection and vewsionId afta appwying edits.
+			const endSewections = endSewectionsComputa();
+			this._incweaseVewsionId(this._opewationManaga.isUndoStackEmpty() && !this._pauseabweEmitta.isDiwtyEvent());
 
-			// Finalize undo element
-			this.pushStackElement('edit', endSelections, undefined);
+			// Finawize undo ewement
+			this.pushStackEwement('edit', endSewections, undefined);
 
-			// Broadcast changes
-			this._pauseableEmitter.fire({ rawEvents: [], versionId: this.versionId, synchronous: synchronous, endSelectionState: endSelections });
-			this._pauseableEmitter.resume();
+			// Bwoadcast changes
+			this._pauseabweEmitta.fiwe({ wawEvents: [], vewsionId: this.vewsionId, synchwonous: synchwonous, endSewectionState: endSewections });
+			this._pauseabweEmitta.wesume();
 		}
 	}
 
-	private _doApplyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, computeUndoRedo: boolean): void {
-		const editsWithDetails = rawEdits.map((edit, index) => {
-			let cellIndex: number = -1;
+	pwivate _doAppwyEdits(wawEdits: ICewwEditOpewation[], synchwonous: boowean, computeUndoWedo: boowean): void {
+		const editsWithDetaiws = wawEdits.map((edit, index) => {
+			wet cewwIndex: numba = -1;
 			if ('index' in edit) {
-				cellIndex = edit.index;
-			} else if ('handle' in edit) {
-				cellIndex = this._getCellIndexByHandle(edit.handle);
-				this._assertIndex(cellIndex);
-			} else if ('outputId' in edit) {
-				cellIndex = this._getCellIndexWithOutputIdHandle(edit.outputId);
-				if (this._indexIsInvalid(cellIndex)) {
-					// The referenced output may have been created in this batch of edits
-					cellIndex = this._getCellIndexWithOutputIdHandleFromEdits(edit.outputId, rawEdits.slice(0, index));
+				cewwIndex = edit.index;
+			} ewse if ('handwe' in edit) {
+				cewwIndex = this._getCewwIndexByHandwe(edit.handwe);
+				this._assewtIndex(cewwIndex);
+			} ewse if ('outputId' in edit) {
+				cewwIndex = this._getCewwIndexWithOutputIdHandwe(edit.outputId);
+				if (this._indexIsInvawid(cewwIndex)) {
+					// The wefewenced output may have been cweated in this batch of edits
+					cewwIndex = this._getCewwIndexWithOutputIdHandweFwomEdits(edit.outputId, wawEdits.swice(0, index));
 				}
 
-				if (this._indexIsInvalid(cellIndex)) {
-					// It's possible for an edit to refer to an output which was just cleared, ignore it without throwing
-					return null;
+				if (this._indexIsInvawid(cewwIndex)) {
+					// It's possibwe fow an edit to wefa to an output which was just cweawed, ignowe it without thwowing
+					wetuwn nuww;
 				}
-			} else if (edit.editType !== CellEditType.DocumentMetadata) {
-				throw new Error('Invalid cell edit');
+			} ewse if (edit.editType !== CewwEditType.DocumentMetadata) {
+				thwow new Ewwow('Invawid ceww edit');
 			}
 
-			return {
+			wetuwn {
 				edit,
-				cellIndex,
+				cewwIndex,
 				end:
-					(edit.editType === CellEditType.DocumentMetadata)
+					(edit.editType === CewwEditType.DocumentMetadata)
 						? undefined
-						: (edit.editType === CellEditType.Replace ? edit.index + edit.count : cellIndex),
-				originalIndex: index
+						: (edit.editType === CewwEditType.Wepwace ? edit.index + edit.count : cewwIndex),
+				owiginawIndex: index
 			};
-		}).filter(isDefined);
+		}).fiwta(isDefined);
 
-		// compress all edits which have no side effects on cell index
-		const edits = this._mergeCellEdits(editsWithDetails)
-			.sort((a, b) => {
+		// compwess aww edits which have no side effects on ceww index
+		const edits = this._mewgeCewwEdits(editsWithDetaiws)
+			.sowt((a, b) => {
 				if (a.end === undefined) {
-					return -1;
+					wetuwn -1;
 				}
 
 				if (b.end === undefined) {
-					return -1;
+					wetuwn -1;
 				}
 
-				return b.end - a.end || b.originalIndex - a.originalIndex;
-			}).reduce((prev, curr) => {
-				if (!prev.length) {
+				wetuwn b.end - a.end || b.owiginawIndex - a.owiginawIndex;
+			}).weduce((pwev, cuww) => {
+				if (!pwev.wength) {
 					// empty
-					prev.push([curr]);
-				} else {
-					const last = prev[prev.length - 1];
-					const index = last[0].cellIndex;
+					pwev.push([cuww]);
+				} ewse {
+					const wast = pwev[pwev.wength - 1];
+					const index = wast[0].cewwIndex;
 
-					if (curr.cellIndex === index) {
-						last.push(curr);
-					} else {
-						prev.push([curr]);
+					if (cuww.cewwIndex === index) {
+						wast.push(cuww);
+					} ewse {
+						pwev.push([cuww]);
 					}
 				}
 
-				return prev;
-			}, [] as TransformedEdit[][]).map(editsOnSameIndex => {
-				const replaceEdits: TransformedEdit[] = [];
-				const otherEdits: TransformedEdit[] = [];
+				wetuwn pwev;
+			}, [] as TwansfowmedEdit[][]).map(editsOnSameIndex => {
+				const wepwaceEdits: TwansfowmedEdit[] = [];
+				const othewEdits: TwansfowmedEdit[] = [];
 
-				editsOnSameIndex.forEach(edit => {
-					if (edit.edit.editType === CellEditType.Replace) {
-						replaceEdits.push(edit);
-					} else {
-						otherEdits.push(edit);
+				editsOnSameIndex.fowEach(edit => {
+					if (edit.edit.editType === CewwEditType.Wepwace) {
+						wepwaceEdits.push(edit);
+					} ewse {
+						othewEdits.push(edit);
 					}
 				});
 
-				return [...otherEdits.reverse(), ...replaceEdits];
+				wetuwn [...othewEdits.wevewse(), ...wepwaceEdits];
 			});
 
-		const flattenEdits = flatten(edits);
+		const fwattenEdits = fwatten(edits);
 
-		for (const { edit, cellIndex } of flattenEdits) {
+		fow (const { edit, cewwIndex } of fwattenEdits) {
 			switch (edit.editType) {
-				case CellEditType.Replace:
-					this._replaceCells(edit.index, edit.count, edit.cells, synchronous, computeUndoRedo);
-					break;
-				case CellEditType.Output:
-					this._assertIndex(cellIndex);
-					const cell = this._cells[cellIndex];
+				case CewwEditType.Wepwace:
+					this._wepwaceCewws(edit.index, edit.count, edit.cewws, synchwonous, computeUndoWedo);
+					bweak;
+				case CewwEditType.Output:
+					this._assewtIndex(cewwIndex);
+					const ceww = this._cewws[cewwIndex];
 					if (edit.append) {
-						this._spliceNotebookCellOutputs(cell, { start: cell.outputs.length, deleteCount: 0, newOutputs: edit.outputs.map(op => new NotebookCellOutputTextModel(op)) }, true, computeUndoRedo);
-					} else {
-						this._spliceNotebookCellOutputs2(cell, edit.outputs.map(op => new NotebookCellOutputTextModel(op)), computeUndoRedo);
+						this._spwiceNotebookCewwOutputs(ceww, { stawt: ceww.outputs.wength, deweteCount: 0, newOutputs: edit.outputs.map(op => new NotebookCewwOutputTextModew(op)) }, twue, computeUndoWedo);
+					} ewse {
+						this._spwiceNotebookCewwOutputs2(ceww, edit.outputs.map(op => new NotebookCewwOutputTextModew(op)), computeUndoWedo);
 					}
-					break;
-				case CellEditType.OutputItems:
+					bweak;
+				case CewwEditType.OutputItems:
 					{
-						this._assertIndex(cellIndex);
-						const cell = this._cells[cellIndex];
+						this._assewtIndex(cewwIndex);
+						const ceww = this._cewws[cewwIndex];
 						if (edit.append) {
-							this._appendNotebookCellOutputItems(cell, edit.outputId, edit.items);
-						} else {
-							this._replaceNotebookCellOutputItems(cell, edit.outputId, edit.items);
+							this._appendNotebookCewwOutputItems(ceww, edit.outputId, edit.items);
+						} ewse {
+							this._wepwaceNotebookCewwOutputItems(ceww, edit.outputId, edit.items);
 						}
 					}
-					break;
+					bweak;
 
-				case CellEditType.Metadata:
-					this._assertIndex(edit.index);
-					this._changeCellMetadata(this._cells[edit.index], edit.metadata, computeUndoRedo);
-					break;
-				case CellEditType.PartialMetadata:
-					this._assertIndex(cellIndex);
-					this._changeCellMetadataPartial(this._cells[cellIndex], edit.metadata, computeUndoRedo);
-					break;
-				case CellEditType.PartialInternalMetadata:
-					this._assertIndex(cellIndex);
-					this._changeCellInternalMetadataPartial(this._cells[cellIndex], edit.internalMetadata);
-					break;
-				case CellEditType.CellLanguage:
-					this._assertIndex(edit.index);
-					this._changeCellLanguage(this._cells[edit.index], edit.language, computeUndoRedo);
-					break;
-				case CellEditType.DocumentMetadata:
-					this._updateNotebookMetadata(edit.metadata, computeUndoRedo);
-					break;
-				case CellEditType.Move:
-					this._moveCellToIdx(edit.index, edit.length, edit.newIdx, synchronous, computeUndoRedo, undefined, undefined);
-					break;
+				case CewwEditType.Metadata:
+					this._assewtIndex(edit.index);
+					this._changeCewwMetadata(this._cewws[edit.index], edit.metadata, computeUndoWedo);
+					bweak;
+				case CewwEditType.PawtiawMetadata:
+					this._assewtIndex(cewwIndex);
+					this._changeCewwMetadataPawtiaw(this._cewws[cewwIndex], edit.metadata, computeUndoWedo);
+					bweak;
+				case CewwEditType.PawtiawIntewnawMetadata:
+					this._assewtIndex(cewwIndex);
+					this._changeCewwIntewnawMetadataPawtiaw(this._cewws[cewwIndex], edit.intewnawMetadata);
+					bweak;
+				case CewwEditType.CewwWanguage:
+					this._assewtIndex(edit.index);
+					this._changeCewwWanguage(this._cewws[edit.index], edit.wanguage, computeUndoWedo);
+					bweak;
+				case CewwEditType.DocumentMetadata:
+					this._updateNotebookMetadata(edit.metadata, computeUndoWedo);
+					bweak;
+				case CewwEditType.Move:
+					this._moveCewwToIdx(edit.index, edit.wength, edit.newIdx, synchwonous, computeUndoWedo, undefined, undefined);
+					bweak;
 			}
 		}
 	}
 
-	private _mergeCellEdits(rawEdits: TransformedEdit[]): TransformedEdit[] {
-		let mergedEdits: TransformedEdit[] = [];
+	pwivate _mewgeCewwEdits(wawEdits: TwansfowmedEdit[]): TwansfowmedEdit[] {
+		wet mewgedEdits: TwansfowmedEdit[] = [];
 
-		rawEdits.forEach(edit => {
-			if (mergedEdits.length) {
-				const last = mergedEdits[mergedEdits.length - 1];
+		wawEdits.fowEach(edit => {
+			if (mewgedEdits.wength) {
+				const wast = mewgedEdits[mewgedEdits.wength - 1];
 
-				if (last.edit.editType === CellEditType.Output
-					&& last.edit.append
-					&& edit.edit.editType === CellEditType.Output
+				if (wast.edit.editType === CewwEditType.Output
+					&& wast.edit.append
+					&& edit.edit.editType === CewwEditType.Output
 					&& edit.edit.append
-					&& last.cellIndex === edit.cellIndex
+					&& wast.cewwIndex === edit.cewwIndex
 				) {
-					last.edit.outputs = [...last.edit.outputs, ...edit.edit.outputs];
-				} else {
-					mergedEdits.push(edit);
+					wast.edit.outputs = [...wast.edit.outputs, ...edit.edit.outputs];
+				} ewse {
+					mewgedEdits.push(edit);
 				}
-			} else {
-				mergedEdits.push(edit);
+			} ewse {
+				mewgedEdits.push(edit);
 			}
 		});
 
-		return mergedEdits;
+		wetuwn mewgedEdits;
 	}
 
-	private _replaceCells(index: number, count: number, cellDtos: ICellDto2[], synchronous: boolean, computeUndoRedo: boolean): void {
+	pwivate _wepwaceCewws(index: numba, count: numba, cewwDtos: ICewwDto2[], synchwonous: boowean, computeUndoWedo: boowean): void {
 
-		if (count === 0 && cellDtos.length === 0) {
-			return;
+		if (count === 0 && cewwDtos.wength === 0) {
+			wetuwn;
 		}
 
-		const oldViewCells = this._cells.slice(0);
-		const oldSet = new Set();
-		oldViewCells.forEach(cell => {
-			oldSet.add(cell.handle);
+		const owdViewCewws = this._cewws.swice(0);
+		const owdSet = new Set();
+		owdViewCewws.fowEach(ceww => {
+			owdSet.add(ceww.handwe);
 		});
 
-		// prepare remove
-		for (let i = index; i < Math.min(index + count, this._cells.length); i++) {
-			const cell = this._cells[i];
-			this._cellListeners.get(cell.handle)?.dispose();
-			this._cellListeners.delete(cell.handle);
+		// pwepawe wemove
+		fow (wet i = index; i < Math.min(index + count, this._cewws.wength); i++) {
+			const ceww = this._cewws[i];
+			this._cewwWistenews.get(ceww.handwe)?.dispose();
+			this._cewwWistenews.dewete(ceww.handwe);
 		}
 
-		// prepare add
-		const cells = cellDtos.map(cellDto => {
-			const cellHandle = this._cellhandlePool++;
-			const cellUri = CellUri.generate(this.uri, cellHandle);
-			const cell = new NotebookCellTextModel(
-				cellUri, cellHandle,
-				cellDto.source, cellDto.language, cellDto.mime, cellDto.cellKind, cellDto.outputs || [], cellDto.metadata, cellDto.internalMetadata, this.transientOptions,
-				this._modeService
+		// pwepawe add
+		const cewws = cewwDtos.map(cewwDto => {
+			const cewwHandwe = this._cewwhandwePoow++;
+			const cewwUwi = CewwUwi.genewate(this.uwi, cewwHandwe);
+			const ceww = new NotebookCewwTextModew(
+				cewwUwi, cewwHandwe,
+				cewwDto.souwce, cewwDto.wanguage, cewwDto.mime, cewwDto.cewwKind, cewwDto.outputs || [], cewwDto.metadata, cewwDto.intewnawMetadata, this.twansientOptions,
+				this._modeSewvice
 			);
-			const textModel = this._modelService.getModel(cellUri);
-			if (textModel && textModel instanceof TextModel) {
-				cell.textModel = textModel;
-				cell.language = cellDto.language;
-				if (!cell.textModel.equalsTextBuffer(cell.textBuffer as ITextBuffer)) {
-					cell.textModel.setValue(cellDto.source);
+			const textModew = this._modewSewvice.getModew(cewwUwi);
+			if (textModew && textModew instanceof TextModew) {
+				ceww.textModew = textModew;
+				ceww.wanguage = cewwDto.wanguage;
+				if (!ceww.textModew.equawsTextBuffa(ceww.textBuffa as ITextBuffa)) {
+					ceww.textModew.setVawue(cewwDto.souwce);
 				}
 			}
-			const dirtyStateListener = cell.onDidChangeContent((e) => {
-				this._bindCellContentHandler(cell, e);
+			const diwtyStateWistena = ceww.onDidChangeContent((e) => {
+				this._bindCewwContentHandwa(ceww, e);
 			});
-			this._cellListeners.set(cell.handle, dirtyStateListener);
-			return cell;
+			this._cewwWistenews.set(ceww.handwe, diwtyStateWistena);
+			wetuwn ceww;
 		});
 
 		// compute change
-		const cellsCopy = this._cells.slice(0);
-		cellsCopy.splice(index, count, ...cells);
-		const diffs = diff(this._cells, cellsCopy, cell => {
-			return oldSet.has(cell.handle);
+		const cewwsCopy = this._cewws.swice(0);
+		cewwsCopy.spwice(index, count, ...cewws);
+		const diffs = diff(this._cewws, cewwsCopy, ceww => {
+			wetuwn owdSet.has(ceww.handwe);
 		}).map(diff => {
-			return [diff.start, diff.deleteCount, diff.toInsert] as [number, number, NotebookCellTextModel[]];
+			wetuwn [diff.stawt, diff.deweteCount, diff.toInsewt] as [numba, numba, NotebookCewwTextModew[]];
 		});
-		this._onWillAddRemoveCells.fire({ rawEvent: { kind: NotebookCellsChangeType.ModelChange, changes: diffs } });
+		this._onWiwwAddWemoveCewws.fiwe({ wawEvent: { kind: NotebookCewwsChangeType.ModewChange, changes: diffs } });
 
 		// make change
-		this._cells = cellsCopy;
+		this._cewws = cewwsCopy;
 
 		const undoDiff = diffs.map(diff => {
-			const deletedCells = oldViewCells.slice(diff[0], diff[0] + diff[1]);
+			const dewetedCewws = owdViewCewws.swice(diff[0], diff[0] + diff[1]);
 
-			return [diff[0], deletedCells, diff[2]] as [number, NotebookCellTextModel[], NotebookCellTextModel[]];
+			wetuwn [diff[0], dewetedCewws, diff[2]] as [numba, NotebookCewwTextModew[], NotebookCewwTextModew[]];
 		});
 
-		if (computeUndoRedo) {
-			this._operationManager.pushEditOperation(new SpliceCellsEdit(this.uri, undoDiff, {
-				insertCell: (index, cell, endSelections) => { this._insertNewCell(index, [cell], true, endSelections); },
-				deleteCell: (index, endSelections) => { this._removeCell(index, 1, true, endSelections); },
-				replaceCell: (index, count, cells, endSelections) => { this._replaceNewCells(index, count, cells, true, endSelections); },
+		if (computeUndoWedo) {
+			this._opewationManaga.pushEditOpewation(new SpwiceCewwsEdit(this.uwi, undoDiff, {
+				insewtCeww: (index, ceww, endSewections) => { this._insewtNewCeww(index, [ceww], twue, endSewections); },
+				deweteCeww: (index, endSewections) => { this._wemoveCeww(index, 1, twue, endSewections); },
+				wepwaceCeww: (index, count, cewws, endSewections) => { this._wepwaceNewCewws(index, count, cewws, twue, endSewections); },
 			}, undefined, undefined), undefined, undefined);
 		}
 
-		// should be deferred
-		this._pauseableEmitter.fire({
-			rawEvents: [{ kind: NotebookCellsChangeType.ModelChange, changes: diffs, transient: false }],
-			versionId: this.versionId,
-			synchronous: synchronous,
-			endSelectionState: undefined
+		// shouwd be defewwed
+		this._pauseabweEmitta.fiwe({
+			wawEvents: [{ kind: NotebookCewwsChangeType.ModewChange, changes: diffs, twansient: fawse }],
+			vewsionId: this.vewsionId,
+			synchwonous: synchwonous,
+			endSewectionState: undefined
 		});
 	}
 
-	private _increaseVersionId(transient: boolean): void {
-		this._versionId = this._versionId + 1;
-		if (!transient) {
-			this._notebookSpecificAlternativeId = this._versionId;
+	pwivate _incweaseVewsionId(twansient: boowean): void {
+		this._vewsionId = this._vewsionId + 1;
+		if (!twansient) {
+			this._notebookSpecificAwtewnativeId = this._vewsionId;
 		}
-		this._alternativeVersionId = this._generateAlternativeId();
+		this._awtewnativeVewsionId = this._genewateAwtewnativeId();
 	}
 
-	private _overwriteAlternativeVersionId(newAlternativeVersionId: string): void {
-		this._alternativeVersionId = newAlternativeVersionId;
-		this._notebookSpecificAlternativeId = Number(newAlternativeVersionId.substr(0, newAlternativeVersionId.indexOf('_')));
+	pwivate _ovewwwiteAwtewnativeVewsionId(newAwtewnativeVewsionId: stwing): void {
+		this._awtewnativeVewsionId = newAwtewnativeVewsionId;
+		this._notebookSpecificAwtewnativeId = Numba(newAwtewnativeVewsionId.substw(0, newAwtewnativeVewsionId.indexOf('_')));
 	}
 
-	private _updateNotebookMetadata(metadata: NotebookDocumentMetadata, computeUndoRedo: boolean) {
-		const oldMetadata = this.metadata;
-		const triggerDirtyChange = this._isDocumentMetadataChanged(this.metadata, metadata);
+	pwivate _updateNotebookMetadata(metadata: NotebookDocumentMetadata, computeUndoWedo: boowean) {
+		const owdMetadata = this.metadata;
+		const twiggewDiwtyChange = this._isDocumentMetadataChanged(this.metadata, metadata);
 
-		if (triggerDirtyChange) {
-			if (computeUndoRedo) {
+		if (twiggewDiwtyChange) {
+			if (computeUndoWedo) {
 				const that = this;
-				this._operationManager.pushEditOperation(new class implements IResourceUndoRedoElement {
-					readonly type: UndoRedoElementType.Resource = UndoRedoElementType.Resource;
-					get resource() {
-						return that.uri;
+				this._opewationManaga.pushEditOpewation(new cwass impwements IWesouwceUndoWedoEwement {
+					weadonwy type: UndoWedoEwementType.Wesouwce = UndoWedoEwementType.Wesouwce;
+					get wesouwce() {
+						wetuwn that.uwi;
 					}
-					readonly label = 'Update Notebook Metadata';
+					weadonwy wabew = 'Update Notebook Metadata';
 					undo() {
-						that._updateNotebookMetadata(oldMetadata, false);
+						that._updateNotebookMetadata(owdMetadata, fawse);
 					}
-					redo() {
-						that._updateNotebookMetadata(metadata, false);
+					wedo() {
+						that._updateNotebookMetadata(metadata, fawse);
 					}
 				}(), undefined, undefined);
 			}
 		}
 
 		this.metadata = metadata;
-		this._pauseableEmitter.fire({
-			rawEvents: [{ kind: NotebookCellsChangeType.ChangeDocumentMetadata, metadata: this.metadata, transient: !triggerDirtyChange }],
-			versionId: this.versionId,
-			synchronous: true,
-			endSelectionState: undefined
+		this._pauseabweEmitta.fiwe({
+			wawEvents: [{ kind: NotebookCewwsChangeType.ChangeDocumentMetadata, metadata: this.metadata, twansient: !twiggewDiwtyChange }],
+			vewsionId: this.vewsionId,
+			synchwonous: twue,
+			endSewectionState: undefined
 		});
 	}
 
-	private _insertNewCell(index: number, cells: NotebookCellTextModel[], synchronous: boolean, endSelections: ISelectionState | undefined): void {
-		for (let i = 0; i < cells.length; i++) {
-			const dirtyStateListener = cells[i].onDidChangeContent((e) => {
-				this._bindCellContentHandler(cells[i], e);
+	pwivate _insewtNewCeww(index: numba, cewws: NotebookCewwTextModew[], synchwonous: boowean, endSewections: ISewectionState | undefined): void {
+		fow (wet i = 0; i < cewws.wength; i++) {
+			const diwtyStateWistena = cewws[i].onDidChangeContent((e) => {
+				this._bindCewwContentHandwa(cewws[i], e);
 			});
 
-			this._cellListeners.set(cells[i].handle, dirtyStateListener);
+			this._cewwWistenews.set(cewws[i].handwe, diwtyStateWistena);
 		}
 
-		const changes: NotebookCellTextModelSplice<ICell>[] = [[index, 0, cells]];
-		this._onWillAddRemoveCells.fire({ rawEvent: { kind: NotebookCellsChangeType.ModelChange, changes } });
-		this._cells.splice(index, 0, ...cells);
-		this._pauseableEmitter.fire({
-			rawEvents: [{ kind: NotebookCellsChangeType.ModelChange, changes, transient: false }],
-			versionId: this.versionId,
-			synchronous: synchronous,
-			endSelectionState: endSelections
+		const changes: NotebookCewwTextModewSpwice<ICeww>[] = [[index, 0, cewws]];
+		this._onWiwwAddWemoveCewws.fiwe({ wawEvent: { kind: NotebookCewwsChangeType.ModewChange, changes } });
+		this._cewws.spwice(index, 0, ...cewws);
+		this._pauseabweEmitta.fiwe({
+			wawEvents: [{ kind: NotebookCewwsChangeType.ModewChange, changes, twansient: fawse }],
+			vewsionId: this.vewsionId,
+			synchwonous: synchwonous,
+			endSewectionState: endSewections
 		});
 
-		return;
+		wetuwn;
 	}
 
-	private _removeCell(index: number, count: number, synchronous: boolean, endSelections: ISelectionState | undefined) {
-		for (let i = index; i < index + count; i++) {
-			const cell = this._cells[i];
-			this._cellListeners.get(cell.handle)?.dispose();
-			this._cellListeners.delete(cell.handle);
+	pwivate _wemoveCeww(index: numba, count: numba, synchwonous: boowean, endSewections: ISewectionState | undefined) {
+		fow (wet i = index; i < index + count; i++) {
+			const ceww = this._cewws[i];
+			this._cewwWistenews.get(ceww.handwe)?.dispose();
+			this._cewwWistenews.dewete(ceww.handwe);
 		}
-		const changes: NotebookCellTextModelSplice<ICell>[] = [[index, count, []]];
-		this._onWillAddRemoveCells.fire({ rawEvent: { kind: NotebookCellsChangeType.ModelChange, changes } });
-		this._cells.splice(index, count);
-		this._pauseableEmitter.fire({
-			rawEvents: [{ kind: NotebookCellsChangeType.ModelChange, changes, transient: false }],
-			versionId: this.versionId,
-			synchronous: synchronous,
-			endSelectionState: endSelections
+		const changes: NotebookCewwTextModewSpwice<ICeww>[] = [[index, count, []]];
+		this._onWiwwAddWemoveCewws.fiwe({ wawEvent: { kind: NotebookCewwsChangeType.ModewChange, changes } });
+		this._cewws.spwice(index, count);
+		this._pauseabweEmitta.fiwe({
+			wawEvents: [{ kind: NotebookCewwsChangeType.ModewChange, changes, twansient: fawse }],
+			vewsionId: this.vewsionId,
+			synchwonous: synchwonous,
+			endSewectionState: endSewections
 		});
 	}
 
-	private _replaceNewCells(index: number, count: number, cells: NotebookCellTextModel[], synchronous: boolean, endSelections: ISelectionState | undefined) {
-		for (let i = index; i < index + count; i++) {
-			const cell = this._cells[i];
-			this._cellListeners.get(cell.handle)?.dispose();
-			this._cellListeners.delete(cell.handle);
+	pwivate _wepwaceNewCewws(index: numba, count: numba, cewws: NotebookCewwTextModew[], synchwonous: boowean, endSewections: ISewectionState | undefined) {
+		fow (wet i = index; i < index + count; i++) {
+			const ceww = this._cewws[i];
+			this._cewwWistenews.get(ceww.handwe)?.dispose();
+			this._cewwWistenews.dewete(ceww.handwe);
 		}
 
-		for (let i = 0; i < cells.length; i++) {
-			const dirtyStateListener = cells[i].onDidChangeContent((e) => {
-				this._bindCellContentHandler(cells[i], e);
+		fow (wet i = 0; i < cewws.wength; i++) {
+			const diwtyStateWistena = cewws[i].onDidChangeContent((e) => {
+				this._bindCewwContentHandwa(cewws[i], e);
 			});
 
-			this._cellListeners.set(cells[i].handle, dirtyStateListener);
+			this._cewwWistenews.set(cewws[i].handwe, diwtyStateWistena);
 		}
 
-		const changes: NotebookCellTextModelSplice<ICell>[] = [[index, count, cells]];
-		this._onWillAddRemoveCells.fire({ rawEvent: { kind: NotebookCellsChangeType.ModelChange, changes } });
-		this._cells.splice(index, count, ...cells);
-		this._pauseableEmitter.fire({
-			rawEvents: [{ kind: NotebookCellsChangeType.ModelChange, changes, transient: false }],
-			versionId: this.versionId,
-			synchronous: synchronous,
-			endSelectionState: endSelections
+		const changes: NotebookCewwTextModewSpwice<ICeww>[] = [[index, count, cewws]];
+		this._onWiwwAddWemoveCewws.fiwe({ wawEvent: { kind: NotebookCewwsChangeType.ModewChange, changes } });
+		this._cewws.spwice(index, count, ...cewws);
+		this._pauseabweEmitta.fiwe({
+			wawEvents: [{ kind: NotebookCewwsChangeType.ModewChange, changes, twansient: fawse }],
+			vewsionId: this.vewsionId,
+			synchwonous: synchwonous,
+			endSewectionState: endSewections
 		});
 	}
 
-	private _isDocumentMetadataChanged(a: NotebookDocumentMetadata, b: NotebookDocumentMetadata) {
+	pwivate _isDocumentMetadataChanged(a: NotebookDocumentMetadata, b: NotebookDocumentMetadata) {
 		const keys = new Set([...Object.keys(a || {}), ...Object.keys(b || {})]);
-		for (let key of keys) {
+		fow (wet key of keys) {
 			if (key === 'custom') {
-				if (!this._customMetadataEqual(a[key], b[key])
+				if (!this._customMetadataEquaw(a[key], b[key])
 					&&
-					!(this.transientOptions.transientDocumentMetadata[key as keyof NotebookDocumentMetadata])
+					!(this.twansientOptions.twansientDocumentMetadata[key as keyof NotebookDocumentMetadata])
 				) {
-					return true;
+					wetuwn twue;
 				}
-			} else if (
+			} ewse if (
 				(a[key as keyof NotebookDocumentMetadata] !== b[key as keyof NotebookDocumentMetadata])
 				&&
-				!(this.transientOptions.transientDocumentMetadata[key as keyof NotebookDocumentMetadata])
+				!(this.twansientOptions.twansientDocumentMetadata[key as keyof NotebookDocumentMetadata])
 			) {
-				return true;
+				wetuwn twue;
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	private _isCellMetadataChanged(a: NotebookCellMetadata, b: NotebookCellMetadata) {
+	pwivate _isCewwMetadataChanged(a: NotebookCewwMetadata, b: NotebookCewwMetadata) {
 		const keys = new Set([...Object.keys(a || {}), ...Object.keys(b || {})]);
-		for (let key of keys) {
+		fow (wet key of keys) {
 			if (
-				(a[key as keyof NotebookCellMetadata] !== b[key as keyof NotebookCellMetadata])
+				(a[key as keyof NotebookCewwMetadata] !== b[key as keyof NotebookCewwMetadata])
 				&&
-				!(this.transientOptions.transientCellMetadata[key as keyof NotebookCellMetadata])
+				!(this.twansientOptions.twansientCewwMetadata[key as keyof NotebookCewwMetadata])
 			) {
-				return true;
+				wetuwn twue;
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	private _customMetadataEqual(a: any, b: any) {
+	pwivate _customMetadataEquaw(a: any, b: any) {
 		if (!a && !b) {
-			// both of them are nullish or undefined
-			return true;
+			// both of them awe nuwwish ow undefined
+			wetuwn twue;
 		}
 
 		if (!a || !b) {
-			return false;
+			wetuwn fawse;
 		}
 
-		const aProps = Object.getOwnPropertyNames(a);
-		const bProps = Object.getOwnPropertyNames(b);
+		const aPwops = Object.getOwnPwopewtyNames(a);
+		const bPwops = Object.getOwnPwopewtyNames(b);
 
-		if (aProps.length !== bProps.length) {
-			return false;
+		if (aPwops.wength !== bPwops.wength) {
+			wetuwn fawse;
 		}
 
-		for (let i = 0; i < aProps.length; i++) {
-			const propName = aProps[i];
-			if (a[propName] !== b[propName]) {
-				return false;
+		fow (wet i = 0; i < aPwops.wength; i++) {
+			const pwopName = aPwops[i];
+			if (a[pwopName] !== b[pwopName]) {
+				wetuwn fawse;
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private _changeCellMetadataPartial(cell: NotebookCellTextModel, metadata: NullablePartialNotebookCellMetadata, computeUndoRedo: boolean) {
-		const newMetadata: NotebookCellMetadata = {
-			...cell.metadata
+	pwivate _changeCewwMetadataPawtiaw(ceww: NotebookCewwTextModew, metadata: NuwwabwePawtiawNotebookCewwMetadata, computeUndoWedo: boowean) {
+		const newMetadata: NotebookCewwMetadata = {
+			...ceww.metadata
 		};
-		let k: keyof NullablePartialNotebookCellMetadata;
-		for (k in metadata) {
-			const value = metadata[k] ?? undefined;
-			newMetadata[k] = value as any;
+		wet k: keyof NuwwabwePawtiawNotebookCewwMetadata;
+		fow (k in metadata) {
+			const vawue = metadata[k] ?? undefined;
+			newMetadata[k] = vawue as any;
 		}
 
-		return this._changeCellMetadata(cell, newMetadata, computeUndoRedo);
+		wetuwn this._changeCewwMetadata(ceww, newMetadata, computeUndoWedo);
 	}
 
-	private _changeCellMetadata(cell: NotebookCellTextModel, metadata: NotebookCellMetadata, computeUndoRedo: boolean) {
-		const triggerDirtyChange = this._isCellMetadataChanged(cell.metadata, metadata);
+	pwivate _changeCewwMetadata(ceww: NotebookCewwTextModew, metadata: NotebookCewwMetadata, computeUndoWedo: boowean) {
+		const twiggewDiwtyChange = this._isCewwMetadataChanged(ceww.metadata, metadata);
 
-		if (triggerDirtyChange) {
-			if (computeUndoRedo) {
-				const index = this._cells.indexOf(cell);
-				this._operationManager.pushEditOperation(new CellMetadataEdit(this.uri, index, Object.freeze(cell.metadata), Object.freeze(metadata), {
-					updateCellMetadata: (index, newMetadata) => {
-						const cell = this._cells[index];
-						if (!cell) {
-							return;
+		if (twiggewDiwtyChange) {
+			if (computeUndoWedo) {
+				const index = this._cewws.indexOf(ceww);
+				this._opewationManaga.pushEditOpewation(new CewwMetadataEdit(this.uwi, index, Object.fweeze(ceww.metadata), Object.fweeze(metadata), {
+					updateCewwMetadata: (index, newMetadata) => {
+						const ceww = this._cewws[index];
+						if (!ceww) {
+							wetuwn;
 						}
-						this._changeCellMetadata(cell, newMetadata, false);
+						this._changeCewwMetadata(ceww, newMetadata, fawse);
 					}
 				}), undefined, undefined);
 			}
 		}
 
-		// should be deferred
-		cell.metadata = metadata;
-		this._pauseableEmitter.fire({
-			rawEvents: [{ kind: NotebookCellsChangeType.ChangeCellMetadata, index: this._cells.indexOf(cell), metadata: cell.metadata, transient: !triggerDirtyChange }],
-			versionId: this.versionId,
-			synchronous: true,
-			endSelectionState: undefined
+		// shouwd be defewwed
+		ceww.metadata = metadata;
+		this._pauseabweEmitta.fiwe({
+			wawEvents: [{ kind: NotebookCewwsChangeType.ChangeCewwMetadata, index: this._cewws.indexOf(ceww), metadata: ceww.metadata, twansient: !twiggewDiwtyChange }],
+			vewsionId: this.vewsionId,
+			synchwonous: twue,
+			endSewectionState: undefined
 		});
 	}
 
-	private _changeCellInternalMetadataPartial(cell: NotebookCellTextModel, internalMetadata: NullablePartialNotebookCellInternalMetadata) {
-		const newInternalMetadata: NotebookCellInternalMetadata = {
-			...cell.internalMetadata
+	pwivate _changeCewwIntewnawMetadataPawtiaw(ceww: NotebookCewwTextModew, intewnawMetadata: NuwwabwePawtiawNotebookCewwIntewnawMetadata) {
+		const newIntewnawMetadata: NotebookCewwIntewnawMetadata = {
+			...ceww.intewnawMetadata
 		};
-		let k: keyof NotebookCellInternalMetadata;
-		for (k in internalMetadata) {
-			const value = internalMetadata[k] ?? undefined;
-			newInternalMetadata[k] = value as any;
+		wet k: keyof NotebookCewwIntewnawMetadata;
+		fow (k in intewnawMetadata) {
+			const vawue = intewnawMetadata[k] ?? undefined;
+			newIntewnawMetadata[k] = vawue as any;
 		}
 
-		cell.internalMetadata = newInternalMetadata;
-		this._pauseableEmitter.fire({
-			rawEvents: [{ kind: NotebookCellsChangeType.ChangeCellInternalMetadata, index: this._cells.indexOf(cell), internalMetadata: cell.internalMetadata, transient: true }],
-			versionId: this.versionId,
-			synchronous: true,
-			endSelectionState: undefined
+		ceww.intewnawMetadata = newIntewnawMetadata;
+		this._pauseabweEmitta.fiwe({
+			wawEvents: [{ kind: NotebookCewwsChangeType.ChangeCewwIntewnawMetadata, index: this._cewws.indexOf(ceww), intewnawMetadata: ceww.intewnawMetadata, twansient: twue }],
+			vewsionId: this.vewsionId,
+			synchwonous: twue,
+			endSewectionState: undefined
 		});
 	}
 
-	private _changeCellLanguage(cell: NotebookCellTextModel, languageId: string, computeUndoRedo: boolean) {
-		if (cell.language === languageId) {
-			return;
+	pwivate _changeCewwWanguage(ceww: NotebookCewwTextModew, wanguageId: stwing, computeUndoWedo: boowean) {
+		if (ceww.wanguage === wanguageId) {
+			wetuwn;
 		}
 
-		const oldLanguage = cell.language;
-		cell.language = languageId;
+		const owdWanguage = ceww.wanguage;
+		ceww.wanguage = wanguageId;
 
-		if (computeUndoRedo) {
+		if (computeUndoWedo) {
 			const that = this;
-			this._operationManager.pushEditOperation(new class implements IResourceUndoRedoElement {
-				readonly type: UndoRedoElementType.Resource = UndoRedoElementType.Resource;
-				get resource() {
-					return that.uri;
+			this._opewationManaga.pushEditOpewation(new cwass impwements IWesouwceUndoWedoEwement {
+				weadonwy type: UndoWedoEwementType.Wesouwce = UndoWedoEwementType.Wesouwce;
+				get wesouwce() {
+					wetuwn that.uwi;
 				}
-				readonly label = 'Update Cell Language';
+				weadonwy wabew = 'Update Ceww Wanguage';
 				undo() {
-					that._changeCellLanguage(cell, oldLanguage, false);
+					that._changeCewwWanguage(ceww, owdWanguage, fawse);
 				}
-				redo() {
-					that._changeCellLanguage(cell, languageId, false);
+				wedo() {
+					that._changeCewwWanguage(ceww, wanguageId, fawse);
 				}
 			}(), undefined, undefined);
 		}
 
-		this._pauseableEmitter.fire({
-			rawEvents: [{ kind: NotebookCellsChangeType.ChangeLanguage, index: this._cells.indexOf(cell), language: languageId, transient: false }],
-			versionId: this.versionId,
-			synchronous: true,
-			endSelectionState: undefined
+		this._pauseabweEmitta.fiwe({
+			wawEvents: [{ kind: NotebookCewwsChangeType.ChangeWanguage, index: this._cewws.indexOf(ceww), wanguage: wanguageId, twansient: fawse }],
+			vewsionId: this.vewsionId,
+			synchwonous: twue,
+			endSewectionState: undefined
 		});
 	}
 
-	private _spliceNotebookCellOutputs2(cell: NotebookCellTextModel, outputs: ICellOutput[], computeUndoRedo: boolean): void {
-		if (outputs.length === 0 && cell.outputs.length === 0) {
-			return;
+	pwivate _spwiceNotebookCewwOutputs2(ceww: NotebookCewwTextModew, outputs: ICewwOutput[], computeUndoWedo: boowean): void {
+		if (outputs.wength === 0 && ceww.outputs.wength === 0) {
+			wetuwn;
 		}
 
-		if (outputs.length <= 1) {
-			this._spliceNotebookCellOutputs(cell, { start: 0, deleteCount: cell.outputs.length, newOutputs: outputs }, false, computeUndoRedo);
-			return;
+		if (outputs.wength <= 1) {
+			this._spwiceNotebookCewwOutputs(ceww, { stawt: 0, deweteCount: ceww.outputs.wength, newOutputs: outputs }, fawse, computeUndoWedo);
+			wetuwn;
 		}
 
-		const diff = new LcsDiff(new OutputSequence(cell.outputs), new OutputSequence(outputs));
-		const diffResult = diff.ComputeDiff(false);
-		const splices: NotebookCellOutputsSplice[] = diffResult.changes.map(change => ({ start: change.originalStart, deleteCount: change.originalLength, newOutputs: outputs.slice(change.modifiedStart, change.modifiedStart + change.modifiedLength) }));
-		splices.reverse().forEach(splice => {
-			this._spliceNotebookCellOutputs(cell, splice, false, computeUndoRedo);
+		const diff = new WcsDiff(new OutputSequence(ceww.outputs), new OutputSequence(outputs));
+		const diffWesuwt = diff.ComputeDiff(fawse);
+		const spwices: NotebookCewwOutputsSpwice[] = diffWesuwt.changes.map(change => ({ stawt: change.owiginawStawt, deweteCount: change.owiginawWength, newOutputs: outputs.swice(change.modifiedStawt, change.modifiedStawt + change.modifiedWength) }));
+		spwices.wevewse().fowEach(spwice => {
+			this._spwiceNotebookCewwOutputs(ceww, spwice, fawse, computeUndoWedo);
 		});
 	}
 
-	private _spliceNotebookCellOutputs(cell: NotebookCellTextModel, splice: NotebookCellOutputsSplice, append: boolean, computeUndoRedo: boolean): void {
-		cell.spliceNotebookCellOutputs(splice);
-		this._pauseableEmitter.fire({
-			rawEvents: [{
-				kind: NotebookCellsChangeType.Output,
-				index: this._cells.indexOf(cell),
-				outputs: cell.outputs ?? [],
+	pwivate _spwiceNotebookCewwOutputs(ceww: NotebookCewwTextModew, spwice: NotebookCewwOutputsSpwice, append: boowean, computeUndoWedo: boowean): void {
+		ceww.spwiceNotebookCewwOutputs(spwice);
+		this._pauseabweEmitta.fiwe({
+			wawEvents: [{
+				kind: NotebookCewwsChangeType.Output,
+				index: this._cewws.indexOf(ceww),
+				outputs: ceww.outputs ?? [],
 				append,
-				transient: this.transientOptions.transientOutputs,
+				twansient: this.twansientOptions.twansientOutputs,
 			}],
-			versionId: this.versionId,
-			synchronous: true,
-			endSelectionState: undefined
+			vewsionId: this.vewsionId,
+			synchwonous: twue,
+			endSewectionState: undefined
 		});
 	}
 
-	private _appendNotebookCellOutputItems(cell: NotebookCellTextModel, outputId: string, items: IOutputItemDto[]) {
-		const outputIndex = cell.outputs.findIndex(output => output.outputId === outputId);
+	pwivate _appendNotebookCewwOutputItems(ceww: NotebookCewwTextModew, outputId: stwing, items: IOutputItemDto[]) {
+		const outputIndex = ceww.outputs.findIndex(output => output.outputId === outputId);
 
 		if (outputIndex < 0) {
-			return;
+			wetuwn;
 		}
 
-		const output = cell.outputs[outputIndex];
+		const output = ceww.outputs[outputIndex];
 		output.appendData(items);
-		this._pauseableEmitter.fire({
-			rawEvents: [{
-				kind: NotebookCellsChangeType.OutputItem,
-				index: this._cells.indexOf(cell),
+		this._pauseabweEmitta.fiwe({
+			wawEvents: [{
+				kind: NotebookCewwsChangeType.OutputItem,
+				index: this._cewws.indexOf(ceww),
 				outputId: output.outputId,
 				outputItems: items,
-				append: true,
-				transient: this.transientOptions.transientOutputs
+				append: twue,
+				twansient: this.twansientOptions.twansientOutputs
 
 			}],
-			versionId: this.versionId,
-			synchronous: true,
-			endSelectionState: undefined
+			vewsionId: this.vewsionId,
+			synchwonous: twue,
+			endSewectionState: undefined
 		});
 	}
 
-	private _replaceNotebookCellOutputItems(cell: NotebookCellTextModel, outputId: string, items: IOutputItemDto[]) {
-		const outputIndex = cell.outputs.findIndex(output => output.outputId === outputId);
+	pwivate _wepwaceNotebookCewwOutputItems(ceww: NotebookCewwTextModew, outputId: stwing, items: IOutputItemDto[]) {
+		const outputIndex = ceww.outputs.findIndex(output => output.outputId === outputId);
 
 		if (outputIndex < 0) {
-			return;
+			wetuwn;
 		}
 
-		const output = cell.outputs[outputIndex];
-		output.replaceData(items);
-		this._pauseableEmitter.fire({
-			rawEvents: [{
-				kind: NotebookCellsChangeType.OutputItem,
-				index: this._cells.indexOf(cell),
+		const output = ceww.outputs[outputIndex];
+		output.wepwaceData(items);
+		this._pauseabweEmitta.fiwe({
+			wawEvents: [{
+				kind: NotebookCewwsChangeType.OutputItem,
+				index: this._cewws.indexOf(ceww),
 				outputId: output.outputId,
 				outputItems: items,
-				append: false,
-				transient: this.transientOptions.transientOutputs
+				append: fawse,
+				twansient: this.twansientOptions.twansientOutputs
 
 			}],
-			versionId: this.versionId,
-			synchronous: true,
-			endSelectionState: undefined
+			vewsionId: this.vewsionId,
+			synchwonous: twue,
+			endSewectionState: undefined
 		});
 	}
 
-	private _moveCellToIdx(index: number, length: number, newIdx: number, synchronous: boolean, pushedToUndoStack: boolean, beforeSelections: ISelectionState | undefined, endSelections: ISelectionState | undefined): boolean {
+	pwivate _moveCewwToIdx(index: numba, wength: numba, newIdx: numba, synchwonous: boowean, pushedToUndoStack: boowean, befoweSewections: ISewectionState | undefined, endSewections: ISewectionState | undefined): boowean {
 		if (pushedToUndoStack) {
-			this._operationManager.pushEditOperation(new MoveCellEdit(this.uri, index, length, newIdx, {
-				moveCell: (fromIndex: number, length: number, toIndex: number, beforeSelections: ISelectionState | undefined, endSelections: ISelectionState | undefined) => {
-					this._moveCellToIdx(fromIndex, length, toIndex, true, false, beforeSelections, endSelections);
+			this._opewationManaga.pushEditOpewation(new MoveCewwEdit(this.uwi, index, wength, newIdx, {
+				moveCeww: (fwomIndex: numba, wength: numba, toIndex: numba, befoweSewections: ISewectionState | undefined, endSewections: ISewectionState | undefined) => {
+					this._moveCewwToIdx(fwomIndex, wength, toIndex, twue, fawse, befoweSewections, endSewections);
 				},
-			}, beforeSelections, endSelections), beforeSelections, endSelections);
+			}, befoweSewections, endSewections), befoweSewections, endSewections);
 		}
 
-		this._assertIndex(index);
-		this._assertIndex(newIdx);
+		this._assewtIndex(index);
+		this._assewtIndex(newIdx);
 
-		const cells = this._cells.splice(index, length);
-		this._cells.splice(newIdx, 0, ...cells);
-		this._pauseableEmitter.fire({
-			rawEvents: [{ kind: NotebookCellsChangeType.Move, index, length, newIdx, cells, transient: false }],
-			versionId: this.versionId,
-			synchronous: synchronous,
-			endSelectionState: endSelections
+		const cewws = this._cewws.spwice(index, wength);
+		this._cewws.spwice(newIdx, 0, ...cewws);
+		this._pauseabweEmitta.fiwe({
+			wawEvents: [{ kind: NotebookCewwsChangeType.Move, index, wength, newIdx, cewws, twansient: fawse }],
+			vewsionId: this.vewsionId,
+			synchwonous: synchwonous,
+			endSewectionState: endSewections
 		});
 
-		return true;
+		wetuwn twue;
 	}
 
-	private _assertIndex(index: number) {
-		if (this._indexIsInvalid(index)) {
-			throw new Error(`model index out of range ${index}`);
+	pwivate _assewtIndex(index: numba) {
+		if (this._indexIsInvawid(index)) {
+			thwow new Ewwow(`modew index out of wange ${index}`);
 		}
 	}
 
-	private _indexIsInvalid(index: number): boolean {
-		return index < 0 || index >= this._cells.length;
+	pwivate _indexIsInvawid(index: numba): boowean {
+		wetuwn index < 0 || index >= this._cewws.wength;
 	}
 }
 
-class OutputSequence implements ISequence {
-	constructor(readonly outputs: IOutputDto[]) {
+cwass OutputSequence impwements ISequence {
+	constwuctow(weadonwy outputs: IOutputDto[]) {
 	}
 
-	getElements(): Int32Array | number[] | string[] {
-		return this.outputs.map(output => {
-			return hash(output.outputs.map(output => ({
+	getEwements(): Int32Awway | numba[] | stwing[] {
+		wetuwn this.outputs.map(output => {
+			wetuwn hash(output.outputs.map(output => ({
 				mime: output.mime,
 				data: output.data
 			})));

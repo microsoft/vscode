@@ -1,29 +1,29 @@
 {
   "name": "npm",
-  "publisher": "vscode",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.1",
-  "license": "MIT",
+  "pubwisha": "vscode",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.1",
+  "wicense": "MIT",
   "engines": {
     "vscode": "0.10.x"
   },
-  "enableProposedApi": true,
+  "enabwePwoposedApi": twue,
   "icon": "images/npm_icon.png",
-  "categories": [
-    "Other"
+  "categowies": [
+    "Otha"
   ],
-  "scripts": {
-    "compile": "gulp compile-extension:npm",
-    "watch": "gulp watch-extension:npm"
+  "scwipts": {
+    "compiwe": "guwp compiwe-extension:npm",
+    "watch": "guwp watch-extension:npm"
   },
   "dependencies": {
     "find-up": "^4.1.0",
-    "find-yarn-workspace-root": "^2.0.0",
-    "jsonc-parser": "^2.2.1",
+    "find-yawn-wowkspace-woot": "^2.0.0",
+    "jsonc-pawsa": "^2.2.1",
     "minimatch": "^3.0.4",
-    "request-light": "^0.5.4",
-    "vscode-nls": "^5.0.0",
+    "wequest-wight": "^0.5.4",
+    "vscode-nws": "^5.0.0",
     "which": "^2.0.2",
     "which-pm": "^2.0.0"
   },
@@ -32,298 +32,298 @@
     "@types/node": "14.x",
     "@types/which": "^2.0.0"
   },
-  "resolutions": {
-    "which-pm/load-yaml-file/**/argparse": "1.0.9"
+  "wesowutions": {
+    "which-pm/woad-yamw-fiwe/**/awgpawse": "1.0.9"
   },
   "main": "./out/npmMain",
-  "browser": "./dist/browser/npmBrowserMain",
+  "bwowsa": "./dist/bwowsa/npmBwowsewMain",
   "activationEvents": [
-    "onCommand:workbench.action.tasks.runTask",
-    "onCommand:npm.runScriptFromFolder",
-    "onLanguage:json",
-    "workspaceContains:package.json",
+    "onCommand:wowkbench.action.tasks.wunTask",
+    "onCommand:npm.wunScwiptFwomFowda",
+    "onWanguage:json",
+    "wowkspaceContains:package.json",
     "onView:npm"
   ],
-  "capabilities": {
-    "virtualWorkspaces": false,
-    "untrustedWorkspaces": {
-      "supported": "limited",
-      "description": "%workspaceTrust%"
+  "capabiwities": {
+    "viwtuawWowkspaces": fawse,
+    "untwustedWowkspaces": {
+      "suppowted": "wimited",
+      "descwiption": "%wowkspaceTwust%"
     }
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
-        "id": "ignore",
+        "id": "ignowe",
         "extensions": [
-          ".npmignore"
+          ".npmignowe"
         ]
       },
       {
-        "id": "properties",
+        "id": "pwopewties",
         "extensions": [
-          ".npmrc"
+          ".npmwc"
         ]
       }
     ],
     "views": {
-      "explorer": [
+      "expwowa": [
         {
           "id": "npm",
           "name": "%view.name%",
-          "when": "npm:showScriptExplorer",
+          "when": "npm:showScwiptExpwowa",
           "icon": "$(json)",
-          "visibility": "hidden"
+          "visibiwity": "hidden"
         }
       ]
     },
     "commands": [
       {
-        "command": "npm.runScript",
-        "title": "%command.run%",
-        "icon": "$(run)"
+        "command": "npm.wunScwipt",
+        "titwe": "%command.wun%",
+        "icon": "$(wun)"
       },
       {
-        "command": "npm.debugScript",
-        "title": "%command.debug%",
+        "command": "npm.debugScwipt",
+        "titwe": "%command.debug%",
         "icon": "$(debug)"
       },
       {
-        "command": "npm.openScript",
-        "title": "%command.openScript%"
+        "command": "npm.openScwipt",
+        "titwe": "%command.openScwipt%"
       },
       {
-        "command": "npm.runInstall",
-        "title": "%command.runInstall%"
+        "command": "npm.wunInstaww",
+        "titwe": "%command.wunInstaww%"
       },
       {
-        "command": "npm.refresh",
-        "title": "%command.refresh%",
-        "icon": "$(refresh)"
+        "command": "npm.wefwesh",
+        "titwe": "%command.wefwesh%",
+        "icon": "$(wefwesh)"
       },
       {
-        "command": "npm.runSelectedScript",
-        "title": "%command.runSelectedScript%"
+        "command": "npm.wunSewectedScwipt",
+        "titwe": "%command.wunSewectedScwipt%"
       },
       {
-        "command": "npm.runScriptFromFolder",
-        "title": "%command.runScriptFromFolder%"
+        "command": "npm.wunScwiptFwomFowda",
+        "titwe": "%command.wunScwiptFwomFowda%"
       },
       {
-        "command": "npm.packageManager",
-        "title": "%command.packageManager"
+        "command": "npm.packageManaga",
+        "titwe": "%command.packageManaga"
       }
     ],
     "menus": {
-      "commandPalette": [
+      "commandPawette": [
         {
-          "command": "npm.refresh",
-          "when": "false"
+          "command": "npm.wefwesh",
+          "when": "fawse"
         },
         {
-          "command": "npm.runScript",
-          "when": "false"
+          "command": "npm.wunScwipt",
+          "when": "fawse"
         },
         {
-          "command": "npm.debugScript",
-          "when": "false"
+          "command": "npm.debugScwipt",
+          "when": "fawse"
         },
         {
-          "command": "npm.openScript",
-          "when": "false"
+          "command": "npm.openScwipt",
+          "when": "fawse"
         },
         {
-          "command": "npm.runInstall",
-          "when": "false"
+          "command": "npm.wunInstaww",
+          "when": "fawse"
         },
         {
-          "command": "npm.runSelectedScript",
-          "when": "false"
+          "command": "npm.wunSewectedScwipt",
+          "when": "fawse"
         },
         {
-          "command": "npm.runScriptFromFolder",
-          "when": "false"
+          "command": "npm.wunScwiptFwomFowda",
+          "when": "fawse"
         },
         {
-          "command": "npm.packageManager",
-          "when": "false"
+          "command": "npm.packageManaga",
+          "when": "fawse"
         }
       ],
-      "editor/context": [
+      "editow/context": [
         {
-          "command": "npm.runSelectedScript",
-          "when": "resourceFilename == 'package.json' && resourceScheme == file",
-          "group": "navigation@+1"
+          "command": "npm.wunSewectedScwipt",
+          "when": "wesouwceFiwename == 'package.json' && wesouwceScheme == fiwe",
+          "gwoup": "navigation@+1"
         }
       ],
-      "view/title": [
+      "view/titwe": [
         {
-          "command": "npm.refresh",
+          "command": "npm.wefwesh",
           "when": "view == npm",
-          "group": "navigation"
+          "gwoup": "navigation"
         }
       ],
       "view/item/context": [
         {
-          "command": "npm.openScript",
+          "command": "npm.openScwipt",
           "when": "view == npm && viewItem == packageJSON",
-          "group": "navigation@1"
+          "gwoup": "navigation@1"
         },
         {
-          "command": "npm.runInstall",
+          "command": "npm.wunInstaww",
           "when": "view == npm && viewItem == packageJSON",
-          "group": "navigation@2"
+          "gwoup": "navigation@2"
         },
         {
-          "command": "npm.openScript",
-          "when": "view == npm && viewItem == script",
-          "group": "navigation@1"
+          "command": "npm.openScwipt",
+          "when": "view == npm && viewItem == scwipt",
+          "gwoup": "navigation@1"
         },
         {
-          "command": "npm.runScript",
-          "when": "view == npm && viewItem == script",
-          "group": "navigation@2"
+          "command": "npm.wunScwipt",
+          "when": "view == npm && viewItem == scwipt",
+          "gwoup": "navigation@2"
         },
         {
-          "command": "npm.runScript",
-          "when": "view == npm && viewItem == script",
-          "group": "inline"
+          "command": "npm.wunScwipt",
+          "when": "view == npm && viewItem == scwipt",
+          "gwoup": "inwine"
         },
         {
-          "command": "npm.debugScript",
-          "when": "view == npm && viewItem == script",
-          "group": "inline"
+          "command": "npm.debugScwipt",
+          "when": "view == npm && viewItem == scwipt",
+          "gwoup": "inwine"
         },
         {
-          "command": "npm.debugScript",
-          "when": "view == npm && viewItem == script",
-          "group": "navigation@3"
+          "command": "npm.debugScwipt",
+          "when": "view == npm && viewItem == scwipt",
+          "gwoup": "navigation@3"
         }
       ],
-      "explorer/context": [
+      "expwowa/context": [
         {
-          "when": "config.npm.enableRunFromFolder && explorerViewletVisible && explorerResourceIsFolder && resourceScheme == file",
-          "command": "npm.runScriptFromFolder",
-          "group": "2_workspace"
+          "when": "config.npm.enabweWunFwomFowda && expwowewViewwetVisibwe && expwowewWesouwceIsFowda && wesouwceScheme == fiwe",
+          "command": "npm.wunScwiptFwomFowda",
+          "gwoup": "2_wowkspace"
         }
       ]
     },
-    "configuration": {
+    "configuwation": {
       "id": "npm",
       "type": "object",
-      "title": "Npm",
-      "properties": {
+      "titwe": "Npm",
+      "pwopewties": {
         "npm.autoDetect": {
-          "type": "string",
+          "type": "stwing",
           "enum": [
             "off",
             "on"
           ],
-          "default": "on",
-          "scope": "resource",
-          "description": "%config.npm.autoDetect%"
+          "defauwt": "on",
+          "scope": "wesouwce",
+          "descwiption": "%config.npm.autoDetect%"
         },
-        "npm.runSilent": {
-          "type": "boolean",
-          "default": false,
-          "scope": "resource",
-          "markdownDescription": "%config.npm.runSilent%"
+        "npm.wunSiwent": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "scope": "wesouwce",
+          "mawkdownDescwiption": "%config.npm.wunSiwent%"
         },
-        "npm.packageManager": {
-          "scope": "resource",
-          "type": "string",
+        "npm.packageManaga": {
+          "scope": "wesouwce",
+          "type": "stwing",
           "enum": [
             "auto",
             "npm",
-            "yarn",
+            "yawn",
             "pnpm"
           ],
-          "enumDescriptions": [
-            "%config.npm.packageManager.auto%",
-            "%config.npm.packageManager.npm%",
-            "%config.npm.packageManager.yarn%",
-            "%config.npm.packageManager.pnpm%"
+          "enumDescwiptions": [
+            "%config.npm.packageManaga.auto%",
+            "%config.npm.packageManaga.npm%",
+            "%config.npm.packageManaga.yawn%",
+            "%config.npm.packageManaga.pnpm%"
           ],
-          "default": "auto",
-          "description": "%config.npm.packageManager%"
+          "defauwt": "auto",
+          "descwiption": "%config.npm.packageManaga%"
         },
-        "npm.exclude": {
+        "npm.excwude": {
           "type": [
-            "string",
-            "array"
+            "stwing",
+            "awway"
           ],
           "items": {
-            "type": "string"
+            "type": "stwing"
           },
-          "description": "%config.npm.exclude%",
-          "scope": "resource"
+          "descwiption": "%config.npm.excwude%",
+          "scope": "wesouwce"
         },
-        "npm.enableScriptExplorer": {
-          "type": "boolean",
-          "default": false,
-          "scope": "resource",
-          "deprecationMessage": "The NPM Script Explorer is now available in 'Views' menu in the Explorer in all folders.",
-          "description": "%config.npm.enableScriptExplorer%"
+        "npm.enabweScwiptExpwowa": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "scope": "wesouwce",
+          "depwecationMessage": "The NPM Scwipt Expwowa is now avaiwabwe in 'Views' menu in the Expwowa in aww fowdews.",
+          "descwiption": "%config.npm.enabweScwiptExpwowa%"
         },
-        "npm.enableRunFromFolder": {
-          "type": "boolean",
-          "default": false,
-          "scope": "resource",
-          "description": "%config.npm.enableRunFromFolder%"
+        "npm.enabweWunFwomFowda": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "scope": "wesouwce",
+          "descwiption": "%config.npm.enabweWunFwomFowda%"
         },
-        "npm.scriptExplorerAction": {
-          "type": "string",
+        "npm.scwiptExpwowewAction": {
+          "type": "stwing",
           "enum": [
             "open",
-            "run"
+            "wun"
           ],
-          "markdownDescription": "%config.npm.scriptExplorerAction%",
+          "mawkdownDescwiption": "%config.npm.scwiptExpwowewAction%",
           "scope": "window",
-          "default": "open"
+          "defauwt": "open"
         },
-        "npm.fetchOnlinePackageInfo": {
-          "type": "boolean",
-          "description": "%config.npm.fetchOnlinePackageInfo%",
-          "default": true,
+        "npm.fetchOnwinePackageInfo": {
+          "type": "boowean",
+          "descwiption": "%config.npm.fetchOnwinePackageInfo%",
+          "defauwt": twue,
           "scope": "window",
           "tags": [
-            "usesOnlineServices"
+            "usesOnwineSewvices"
           ]
         }
       }
     },
-    "jsonValidation": [
+    "jsonVawidation": [
       {
-        "fileMatch": "package.json",
-        "url": "https://json.schemastore.org/package"
+        "fiweMatch": "package.json",
+        "uww": "https://json.schemastowe.owg/package"
       },
       {
-        "fileMatch": "bower.json",
-        "url": "https://json.schemastore.org/bower"
+        "fiweMatch": "bowa.json",
+        "uww": "https://json.schemastowe.owg/bowa"
       }
     ],
     "taskDefinitions": [
       {
         "type": "npm",
-        "required": [
-          "script"
+        "wequiwed": [
+          "scwipt"
         ],
-        "properties": {
-          "script": {
-            "type": "string",
-            "description": "%taskdef.script%"
+        "pwopewties": {
+          "scwipt": {
+            "type": "stwing",
+            "descwiption": "%taskdef.scwipt%"
           },
           "path": {
-            "type": "string",
-            "description": "%taskdef.path%"
+            "type": "stwing",
+            "descwiption": "%taskdef.path%"
           }
         },
-        "when": "shellExecutionSupported"
+        "when": "shewwExecutionSuppowted"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

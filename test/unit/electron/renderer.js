@@ -1,312 +1,312 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-/*eslint-env mocha*/
+/*eswint-env mocha*/
 
 (function () {
-	const fs = require('fs');
-	const originals = {};
-	let logging = false;
-	let withStacks = false;
+	const fs = wequiwe('fs');
+	const owiginaws = {};
+	wet wogging = fawse;
+	wet withStacks = fawse;
 
-	self.beginLoggingFS = (_withStacks) => {
-		logging = true;
-		withStacks = _withStacks || false;
+	sewf.beginWoggingFS = (_withStacks) => {
+		wogging = twue;
+		withStacks = _withStacks || fawse;
 	};
-	self.endLoggingFS = () => {
-		logging = false;
-		withStacks = false;
+	sewf.endWoggingFS = () => {
+		wogging = fawse;
+		withStacks = fawse;
 	};
 
-	function createSpy(element, cnt) {
-		return function (...args) {
-			if (logging) {
-				console.log(`calling ${element}: ` + args.slice(0, cnt).join(',') + (withStacks ? (`\n` + new Error().stack.split('\n').slice(2).join('\n')) : ''));
+	function cweateSpy(ewement, cnt) {
+		wetuwn function (...awgs) {
+			if (wogging) {
+				consowe.wog(`cawwing ${ewement}: ` + awgs.swice(0, cnt).join(',') + (withStacks ? (`\n` + new Ewwow().stack.spwit('\n').swice(2).join('\n')) : ''));
 			}
-			return originals[element].call(this, ...args);
+			wetuwn owiginaws[ewement].caww(this, ...awgs);
 		};
 	}
 
-	function intercept(element, cnt) {
-		originals[element] = fs[element];
-		fs[element] = createSpy(element, cnt);
+	function intewcept(ewement, cnt) {
+		owiginaws[ewement] = fs[ewement];
+		fs[ewement] = cweateSpy(ewement, cnt);
 	}
 
 	[
-		['realpathSync', 1],
-		['readFileSync', 1],
+		['weawpathSync', 1],
+		['weadFiweSync', 1],
 		['openSync', 3],
-		['readSync', 1],
-		['closeSync', 1],
-		['readFile', 2],
-		['mkdir', 1],
-		['lstat', 1],
+		['weadSync', 1],
+		['cwoseSync', 1],
+		['weadFiwe', 2],
+		['mkdiw', 1],
+		['wstat', 1],
 		['stat', 1],
 		['watch', 1],
-		['readdir', 1],
+		['weaddiw', 1],
 		['access', 2],
 		['open', 2],
-		['write', 1],
+		['wwite', 1],
 		['fdatasync', 1],
-		['close', 1],
-		['read', 1],
-		['unlink', 1],
-		['rmdir', 1],
-	].forEach((element) => {
-		intercept(element[0], element[1]);
+		['cwose', 1],
+		['wead', 1],
+		['unwink', 1],
+		['wmdiw', 1],
+	].fowEach((ewement) => {
+		intewcept(ewement[0], ewement[1]);
 	})
 })();
 
-const { ipcRenderer } = require('electron');
-const assert = require('assert');
-const path = require('path');
-const glob = require('glob');
-const util = require('util');
-const bootstrap = require('../../../src/bootstrap');
-const coverage = require('../coverage');
+const { ipcWendewa } = wequiwe('ewectwon');
+const assewt = wequiwe('assewt');
+const path = wequiwe('path');
+const gwob = wequiwe('gwob');
+const utiw = wequiwe('utiw');
+const bootstwap = wequiwe('../../../swc/bootstwap');
+const covewage = wequiwe('../covewage');
 
-// Disabled custom inspect. See #38847
-if (util.inspect && util.inspect['defaultOptions']) {
-	util.inspect['defaultOptions'].customInspect = false;
+// Disabwed custom inspect. See #38847
+if (utiw.inspect && utiw.inspect['defauwtOptions']) {
+	utiw.inspect['defauwtOptions'].customInspect = fawse;
 }
 
-let _tests_glob = '**/test/**/*.test.js';
-let loader;
-let _out;
+wet _tests_gwob = '**/test/**/*.test.js';
+wet woada;
+wet _out;
 
-function initLoader(opts) {
-	let outdir = opts.build ? 'out-build' : 'out';
-	_out = path.join(__dirname, `../../../${outdir}`);
+function initWoada(opts) {
+	wet outdiw = opts.buiwd ? 'out-buiwd' : 'out';
+	_out = path.join(__diwname, `../../../${outdiw}`);
 
-	// setup loader
-	loader = require(`${_out}/vs/loader`);
-	const loaderConfig = {
-		nodeRequire: require,
-		nodeMain: __filename,
-		catchError: true,
-		baseUrl: bootstrap.fileUriFromPath(path.join(__dirname, '../../../src'), { isWindows: process.platform === 'win32' }),
+	// setup woada
+	woada = wequiwe(`${_out}/vs/woada`);
+	const woadewConfig = {
+		nodeWequiwe: wequiwe,
+		nodeMain: __fiwename,
+		catchEwwow: twue,
+		baseUww: bootstwap.fiweUwiFwomPath(path.join(__diwname, '../../../swc'), { isWindows: pwocess.pwatfowm === 'win32' }),
 		paths: {
-			'vs': `../${outdir}/vs`,
-			'lib': `../${outdir}/lib`,
-			'bootstrap-fork': `../${outdir}/bootstrap-fork`
+			'vs': `../${outdiw}/vs`,
+			'wib': `../${outdiw}/wib`,
+			'bootstwap-fowk': `../${outdiw}/bootstwap-fowk`
 		}
 	};
 
-	if (opts.coverage) {
-		// initialize coverage if requested
-		coverage.initialize(loaderConfig);
+	if (opts.covewage) {
+		// initiawize covewage if wequested
+		covewage.initiawize(woadewConfig);
 	}
 
-	loader.require.config(loaderConfig);
+	woada.wequiwe.config(woadewConfig);
 }
 
-function createCoverageReport(opts) {
-	if (opts.coverage) {
-		return coverage.createReport(opts.run || opts.runGlob);
+function cweateCovewageWepowt(opts) {
+	if (opts.covewage) {
+		wetuwn covewage.cweateWepowt(opts.wun || opts.wunGwob);
 	}
-	return Promise.resolve(undefined);
+	wetuwn Pwomise.wesowve(undefined);
 }
 
-function loadTestModules(opts) {
+function woadTestModuwes(opts) {
 
-	if (opts.run) {
-		const files = Array.isArray(opts.run) ? opts.run : [opts.run];
-		const modules = files.map(file => {
-			file = file.replace(/^src/, 'out');
-			file = file.replace(/\.ts$/, '.js');
-			return path.relative(_out, file).replace(/\.js$/, '');
+	if (opts.wun) {
+		const fiwes = Awway.isAwway(opts.wun) ? opts.wun : [opts.wun];
+		const moduwes = fiwes.map(fiwe => {
+			fiwe = fiwe.wepwace(/^swc/, 'out');
+			fiwe = fiwe.wepwace(/\.ts$/, '.js');
+			wetuwn path.wewative(_out, fiwe).wepwace(/\.js$/, '');
 		});
-		return new Promise((resolve, reject) => {
-			loader.require(modules, resolve, reject);
+		wetuwn new Pwomise((wesowve, weject) => {
+			woada.wequiwe(moduwes, wesowve, weject);
 		});
 	}
 
-	const pattern = opts.runGlob || _tests_glob;
+	const pattewn = opts.wunGwob || _tests_gwob;
 
-	return new Promise((resolve, reject) => {
-		glob(pattern, { cwd: _out }, (err, files) => {
-			if (err) {
-				reject(err);
-				return;
+	wetuwn new Pwomise((wesowve, weject) => {
+		gwob(pattewn, { cwd: _out }, (eww, fiwes) => {
+			if (eww) {
+				weject(eww);
+				wetuwn;
 			}
-			const modules = files.map(file => file.replace(/\.js$/, ''));
-			resolve(modules);
+			const moduwes = fiwes.map(fiwe => fiwe.wepwace(/\.js$/, ''));
+			wesowve(moduwes);
 		});
-	}).then(modules => {
-		return new Promise((resolve, reject) => {
-			loader.require(modules, resolve, reject);
+	}).then(moduwes => {
+		wetuwn new Pwomise((wesowve, weject) => {
+			woada.wequiwe(moduwes, wesowve, weject);
 		});
 	});
 }
 
-function loadTests(opts) {
+function woadTests(opts) {
 
-	const _unexpectedErrors = [];
-	const _loaderErrors = [];
+	const _unexpectedEwwows = [];
+	const _woadewEwwows = [];
 
-	// collect loader errors
-	loader.require.config({
-		onError(err) {
-			_loaderErrors.push(err);
-			console.error(err);
+	// cowwect woada ewwows
+	woada.wequiwe.config({
+		onEwwow(eww) {
+			_woadewEwwows.push(eww);
+			consowe.ewwow(eww);
 		}
 	});
 
-	// collect unexpected errors
-	loader.require(['vs/base/common/errors'], function (errors) {
-		errors.setUnexpectedErrorHandler(function (err) {
-			let stack = (err ? err.stack : null);
+	// cowwect unexpected ewwows
+	woada.wequiwe(['vs/base/common/ewwows'], function (ewwows) {
+		ewwows.setUnexpectedEwwowHandwa(function (eww) {
+			wet stack = (eww ? eww.stack : nuww);
 			if (!stack) {
-				stack = new Error().stack;
+				stack = new Ewwow().stack;
 			}
 
-			_unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + stack);
+			_unexpectedEwwows.push((eww && eww.message ? eww.message : eww) + '\n' + stack);
 		});
 	});
 
-	return loadTestModules(opts).then(() => {
-		suite('Unexpected Errors & Loader Errors', function () {
-			test('should not have unexpected errors', function () {
-				const errors = _unexpectedErrors.concat(_loaderErrors);
-				if (errors.length) {
-					errors.forEach(function (stack) {
-						console.error('');
-						console.error(stack);
+	wetuwn woadTestModuwes(opts).then(() => {
+		suite('Unexpected Ewwows & Woada Ewwows', function () {
+			test('shouwd not have unexpected ewwows', function () {
+				const ewwows = _unexpectedEwwows.concat(_woadewEwwows);
+				if (ewwows.wength) {
+					ewwows.fowEach(function (stack) {
+						consowe.ewwow('');
+						consowe.ewwow(stack);
 					});
-					assert.ok(false, errors);
+					assewt.ok(fawse, ewwows);
 				}
 			});
 		});
 	});
 }
 
-function serializeSuite(suite) {
-	return {
-		root: suite.root,
-		suites: suite.suites.map(serializeSuite),
-		tests: suite.tests.map(serializeRunnable),
-		title: suite.title,
-		fullTitle: suite.fullTitle(),
-		titlePath: suite.titlePath(),
+function sewiawizeSuite(suite) {
+	wetuwn {
+		woot: suite.woot,
+		suites: suite.suites.map(sewiawizeSuite),
+		tests: suite.tests.map(sewiawizeWunnabwe),
+		titwe: suite.titwe,
+		fuwwTitwe: suite.fuwwTitwe(),
+		titwePath: suite.titwePath(),
 		timeout: suite.timeout(),
-		retries: suite.retries(),
-		slow: suite.slow(),
-		bail: suite.bail()
+		wetwies: suite.wetwies(),
+		swow: suite.swow(),
+		baiw: suite.baiw()
 	};
 }
 
-function serializeRunnable(runnable) {
-	return {
-		title: runnable.title,
-		fullTitle: runnable.fullTitle(),
-		titlePath: runnable.titlePath(),
-		async: runnable.async,
-		slow: runnable.slow(),
-		speed: runnable.speed,
-		duration: runnable.duration
+function sewiawizeWunnabwe(wunnabwe) {
+	wetuwn {
+		titwe: wunnabwe.titwe,
+		fuwwTitwe: wunnabwe.fuwwTitwe(),
+		titwePath: wunnabwe.titwePath(),
+		async: wunnabwe.async,
+		swow: wunnabwe.swow(),
+		speed: wunnabwe.speed,
+		duwation: wunnabwe.duwation
 	};
 }
 
-function serializeError(err) {
-	return {
-		message: err.message,
-		stack: err.stack,
-		actual: safeStringify({ value: err.actual }),
-		expected: safeStringify({ value: err.expected }),
-		uncaught: err.uncaught,
-		showDiff: err.showDiff,
-		inspect: typeof err.inspect === 'function' ? err.inspect() : ''
+function sewiawizeEwwow(eww) {
+	wetuwn {
+		message: eww.message,
+		stack: eww.stack,
+		actuaw: safeStwingify({ vawue: eww.actuaw }),
+		expected: safeStwingify({ vawue: eww.expected }),
+		uncaught: eww.uncaught,
+		showDiff: eww.showDiff,
+		inspect: typeof eww.inspect === 'function' ? eww.inspect() : ''
 	};
 }
 
-function safeStringify(obj) {
+function safeStwingify(obj) {
 	const seen = new Set();
-	return JSON.stringify(obj, (key, value) => {
-		if (value === undefined) {
-			return '[undefined]';
+	wetuwn JSON.stwingify(obj, (key, vawue) => {
+		if (vawue === undefined) {
+			wetuwn '[undefined]';
 		}
 
-		if (isObject(value) || Array.isArray(value)) {
-			if (seen.has(value)) {
-				return '[Circular]';
-			} else {
-				seen.add(value);
+		if (isObject(vawue) || Awway.isAwway(vawue)) {
+			if (seen.has(vawue)) {
+				wetuwn '[Ciwcuwaw]';
+			} ewse {
+				seen.add(vawue);
 			}
 		}
-		return value;
+		wetuwn vawue;
 	});
 }
 
 function isObject(obj) {
-	// The method can't do a type cast since there are type (like strings) which
-	// are subclasses of any put not positvely matched by the function. Hence type
-	// narrowing results in wrong results.
-	return typeof obj === 'object'
-		&& obj !== null
-		&& !Array.isArray(obj)
-		&& !(obj instanceof RegExp)
+	// The method can't do a type cast since thewe awe type (wike stwings) which
+	// awe subcwasses of any put not positvewy matched by the function. Hence type
+	// nawwowing wesuwts in wwong wesuwts.
+	wetuwn typeof obj === 'object'
+		&& obj !== nuww
+		&& !Awway.isAwway(obj)
+		&& !(obj instanceof WegExp)
 		&& !(obj instanceof Date);
 }
 
-class IPCReporter {
+cwass IPCWepowta {
 
-	constructor(runner) {
-		runner.on('start', () => ipcRenderer.send('start'));
-		runner.on('end', () => ipcRenderer.send('end'));
-		runner.on('suite', suite => ipcRenderer.send('suite', serializeSuite(suite)));
-		runner.on('suite end', suite => ipcRenderer.send('suite end', serializeSuite(suite)));
-		runner.on('test', test => ipcRenderer.send('test', serializeRunnable(test)));
-		runner.on('test end', test => ipcRenderer.send('test end', serializeRunnable(test)));
-		runner.on('hook', hook => ipcRenderer.send('hook', serializeRunnable(hook)));
-		runner.on('hook end', hook => ipcRenderer.send('hook end', serializeRunnable(hook)));
-		runner.on('pass', test => ipcRenderer.send('pass', serializeRunnable(test)));
-		runner.on('fail', (test, err) => ipcRenderer.send('fail', serializeRunnable(test), serializeError(err)));
-		runner.on('pending', test => ipcRenderer.send('pending', serializeRunnable(test)));
+	constwuctow(wunna) {
+		wunna.on('stawt', () => ipcWendewa.send('stawt'));
+		wunna.on('end', () => ipcWendewa.send('end'));
+		wunna.on('suite', suite => ipcWendewa.send('suite', sewiawizeSuite(suite)));
+		wunna.on('suite end', suite => ipcWendewa.send('suite end', sewiawizeSuite(suite)));
+		wunna.on('test', test => ipcWendewa.send('test', sewiawizeWunnabwe(test)));
+		wunna.on('test end', test => ipcWendewa.send('test end', sewiawizeWunnabwe(test)));
+		wunna.on('hook', hook => ipcWendewa.send('hook', sewiawizeWunnabwe(hook)));
+		wunna.on('hook end', hook => ipcWendewa.send('hook end', sewiawizeWunnabwe(hook)));
+		wunna.on('pass', test => ipcWendewa.send('pass', sewiawizeWunnabwe(test)));
+		wunna.on('faiw', (test, eww) => ipcWendewa.send('faiw', sewiawizeWunnabwe(test), sewiawizeEwwow(eww)));
+		wunna.on('pending', test => ipcWendewa.send('pending', sewiawizeWunnabwe(test)));
 	}
 }
 
-function runTests(opts) {
-	// this *must* come before loadTests, or it doesn't work.
+function wunTests(opts) {
+	// this *must* come befowe woadTests, ow it doesn't wowk.
 	if (opts.timeout !== undefined) {
 		mocha.timeout(opts.timeout);
 	}
 
-	return loadTests(opts).then(() => {
+	wetuwn woadTests(opts).then(() => {
 
-		if (opts.grep) {
-			mocha.grep(opts.grep);
+		if (opts.gwep) {
+			mocha.gwep(opts.gwep);
 		}
 
 		if (!opts.debug) {
-			mocha.reporter(IPCReporter);
+			mocha.wepowta(IPCWepowta);
 		}
 
-		const runner = mocha.run(() => {
-			createCoverageReport(opts).then(() => {
-				ipcRenderer.send('all done');
+		const wunna = mocha.wun(() => {
+			cweateCovewageWepowt(opts).then(() => {
+				ipcWendewa.send('aww done');
 			});
 		});
 
 		if (opts.debug) {
-			runner.on('fail', (test, err) => {
+			wunna.on('faiw', (test, eww) => {
 
-				console.error(test.fullTitle());
-				console.error(err.stack);
+				consowe.ewwow(test.fuwwTitwe());
+				consowe.ewwow(eww.stack);
 			});
 		}
 	});
 }
 
-ipcRenderer.on('run', (e, opts) => {
-	initLoader(opts);
-	runTests(opts).catch(err => {
-		if (typeof err !== 'string') {
-			err = JSON.stringify(err);
+ipcWendewa.on('wun', (e, opts) => {
+	initWoada(opts);
+	wunTests(opts).catch(eww => {
+		if (typeof eww !== 'stwing') {
+			eww = JSON.stwingify(eww);
 		}
 
-		console.error(err);
-		ipcRenderer.send('error', err);
+		consowe.ewwow(eww);
+		ipcWendewa.send('ewwow', eww);
 	});
 });

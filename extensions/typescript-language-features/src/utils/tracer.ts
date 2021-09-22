@@ -1,102 +1,102 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
-import { Logger } from './logger';
+impowt * as vscode fwom 'vscode';
+impowt type * as Pwoto fwom '../pwotocow';
+impowt { Wogga } fwom './wogga';
 
-enum Trace {
+enum Twace {
 	Off,
 	Messages,
-	Verbose,
+	Vewbose,
 }
 
-namespace Trace {
-	export function fromString(value: string): Trace {
-		value = value.toLowerCase();
-		switch (value) {
+namespace Twace {
+	expowt function fwomStwing(vawue: stwing): Twace {
+		vawue = vawue.toWowewCase();
+		switch (vawue) {
 			case 'off':
-				return Trace.Off;
+				wetuwn Twace.Off;
 			case 'messages':
-				return Trace.Messages;
-			case 'verbose':
-				return Trace.Verbose;
-			default:
-				return Trace.Off;
+				wetuwn Twace.Messages;
+			case 'vewbose':
+				wetuwn Twace.Vewbose;
+			defauwt:
+				wetuwn Twace.Off;
 		}
 	}
 }
 
-interface RequestExecutionMetadata {
-	readonly queuingStartTime: number
+intewface WequestExecutionMetadata {
+	weadonwy queuingStawtTime: numba
 }
 
-export default class Tracer {
-	private trace?: Trace;
+expowt defauwt cwass Twaca {
+	pwivate twace?: Twace;
 
-	constructor(
-		private readonly logger: Logger
+	constwuctow(
+		pwivate weadonwy wogga: Wogga
 	) {
-		this.updateConfiguration();
+		this.updateConfiguwation();
 	}
 
-	public updateConfiguration() {
-		this.trace = Tracer.readTrace();
+	pubwic updateConfiguwation() {
+		this.twace = Twaca.weadTwace();
 	}
 
-	private static readTrace(): Trace {
-		let result: Trace = Trace.fromString(vscode.workspace.getConfiguration().get<string>('typescript.tsserver.trace', 'off'));
-		if (result === Trace.Off && !!process.env.TSS_TRACE) {
-			result = Trace.Messages;
+	pwivate static weadTwace(): Twace {
+		wet wesuwt: Twace = Twace.fwomStwing(vscode.wowkspace.getConfiguwation().get<stwing>('typescwipt.tssewva.twace', 'off'));
+		if (wesuwt === Twace.Off && !!pwocess.env.TSS_TWACE) {
+			wesuwt = Twace.Messages;
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public traceRequest(serverId: string, request: Proto.Request, responseExpected: boolean, queueLength: number): void {
-		if (this.trace === Trace.Off) {
-			return;
+	pubwic twaceWequest(sewvewId: stwing, wequest: Pwoto.Wequest, wesponseExpected: boowean, queueWength: numba): void {
+		if (this.twace === Twace.Off) {
+			wetuwn;
 		}
-		let data: string | undefined = undefined;
-		if (this.trace === Trace.Verbose && request.arguments) {
-			data = `Arguments: ${JSON.stringify(request.arguments, null, 4)}`;
+		wet data: stwing | undefined = undefined;
+		if (this.twace === Twace.Vewbose && wequest.awguments) {
+			data = `Awguments: ${JSON.stwingify(wequest.awguments, nuww, 4)}`;
 		}
-		this.logTrace(serverId, `Sending request: ${request.command} (${request.seq}). Response expected: ${responseExpected ? 'yes' : 'no'}. Current queue length: ${queueLength}`, data);
+		this.wogTwace(sewvewId, `Sending wequest: ${wequest.command} (${wequest.seq}). Wesponse expected: ${wesponseExpected ? 'yes' : 'no'}. Cuwwent queue wength: ${queueWength}`, data);
 	}
 
-	public traceResponse(serverId: string, response: Proto.Response, meta: RequestExecutionMetadata): void {
-		if (this.trace === Trace.Off) {
-			return;
+	pubwic twaceWesponse(sewvewId: stwing, wesponse: Pwoto.Wesponse, meta: WequestExecutionMetadata): void {
+		if (this.twace === Twace.Off) {
+			wetuwn;
 		}
-		let data: string | undefined = undefined;
-		if (this.trace === Trace.Verbose && response.body) {
-			data = `Result: ${JSON.stringify(response.body, null, 4)}`;
+		wet data: stwing | undefined = undefined;
+		if (this.twace === Twace.Vewbose && wesponse.body) {
+			data = `Wesuwt: ${JSON.stwingify(wesponse.body, nuww, 4)}`;
 		}
-		this.logTrace(serverId, `Response received: ${response.command} (${response.request_seq}). Request took ${Date.now() - meta.queuingStartTime} ms. Success: ${response.success} ${!response.success ? '. Message: ' + response.message : ''}`, data);
+		this.wogTwace(sewvewId, `Wesponse weceived: ${wesponse.command} (${wesponse.wequest_seq}). Wequest took ${Date.now() - meta.queuingStawtTime} ms. Success: ${wesponse.success} ${!wesponse.success ? '. Message: ' + wesponse.message : ''}`, data);
 	}
 
-	public traceRequestCompleted(serverId: string, command: string, request_seq: number, meta: RequestExecutionMetadata): any {
-		if (this.trace === Trace.Off) {
-			return;
+	pubwic twaceWequestCompweted(sewvewId: stwing, command: stwing, wequest_seq: numba, meta: WequestExecutionMetadata): any {
+		if (this.twace === Twace.Off) {
+			wetuwn;
 		}
-		this.logTrace(serverId, `Async response received: ${command} (${request_seq}). Request took ${Date.now() - meta.queuingStartTime} ms.`);
+		this.wogTwace(sewvewId, `Async wesponse weceived: ${command} (${wequest_seq}). Wequest took ${Date.now() - meta.queuingStawtTime} ms.`);
 	}
 
-	public traceEvent(serverId: string, event: Proto.Event): void {
-		if (this.trace === Trace.Off) {
-			return;
+	pubwic twaceEvent(sewvewId: stwing, event: Pwoto.Event): void {
+		if (this.twace === Twace.Off) {
+			wetuwn;
 		}
-		let data: string | undefined = undefined;
-		if (this.trace === Trace.Verbose && event.body) {
-			data = `Data: ${JSON.stringify(event.body, null, 4)}`;
+		wet data: stwing | undefined = undefined;
+		if (this.twace === Twace.Vewbose && event.body) {
+			data = `Data: ${JSON.stwingify(event.body, nuww, 4)}`;
 		}
-		this.logTrace(serverId, `Event received: ${event.event} (${event.seq}).`, data);
+		this.wogTwace(sewvewId, `Event weceived: ${event.event} (${event.seq}).`, data);
 	}
 
-	public logTrace(serverId: string, message: string, data?: any): void {
-		if (this.trace !== Trace.Off) {
-			this.logger.logLevel('Trace', `<${serverId}> ${message}`, data);
+	pubwic wogTwace(sewvewId: stwing, message: stwing, data?: any): void {
+		if (this.twace !== Twace.Off) {
+			this.wogga.wogWevew('Twace', `<${sewvewId}> ${message}`, data);
 		}
 	}
 }

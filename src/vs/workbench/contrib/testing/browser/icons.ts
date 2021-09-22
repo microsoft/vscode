@@ -1,56 +1,56 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { localize } from 'vs/nls';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { testingColorRunAction, testStatesToIconColors } from 'vs/workbench/contrib/testing/browser/theme';
-import { TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { wocawize } fwom 'vs/nws';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { wegistewThemingPawticipant, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { testingCowowWunAction, testStatesToIconCowows } fwom 'vs/wowkbench/contwib/testing/bwowsa/theme';
+impowt { TestWesuwtState } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
 
-export const testingViewIcon = registerIcon('test-view-icon', Codicon.beaker, localize('testViewIcon', 'View icon of the test view.'));
-export const testingRunIcon = registerIcon('testing-run-icon', Codicon.run, localize('testingRunIcon', 'Icon of the "run test" action.'));
-export const testingRunAllIcon = registerIcon('testing-run-all-icon', Codicon.runAll, localize('testingRunAllIcon', 'Icon of the "run all tests" action.'));
-// todo: https://github.com/microsoft/vscode-codicons/issues/72
-export const testingDebugAllIcon = registerIcon('testing-debug-all-icon', Codicon.debugAltSmall, localize('testingDebugAllIcon', 'Icon of the "debug all tests" action.'));
-export const testingDebugIcon = registerIcon('testing-debug-icon', Codicon.debugAltSmall, localize('testingDebugIcon', 'Icon of the "debug test" action.'));
-export const testingCancelIcon = registerIcon('testing-cancel-icon', Codicon.debugStop, localize('testingCancelIcon', 'Icon to cancel ongoing test runs.'));
-export const testingFilterIcon = registerIcon('testing-filter', Codicon.filter, localize('filterIcon', 'Icon for the \'Filter\' action in the testing view.'));
-export const testingAutorunIcon = registerIcon('testing-autorun', Codicon.debugRerun, localize('autoRunIcon', 'Icon for the \'Autorun\' toggle in the testing view.'));
-export const testingHiddenIcon = registerIcon('testing-hidden', Codicon.eyeClosed, localize('hiddenIcon', 'Icon shown beside hidden tests, when they\'ve been shown.'));
+expowt const testingViewIcon = wegistewIcon('test-view-icon', Codicon.beaka, wocawize('testViewIcon', 'View icon of the test view.'));
+expowt const testingWunIcon = wegistewIcon('testing-wun-icon', Codicon.wun, wocawize('testingWunIcon', 'Icon of the "wun test" action.'));
+expowt const testingWunAwwIcon = wegistewIcon('testing-wun-aww-icon', Codicon.wunAww, wocawize('testingWunAwwIcon', 'Icon of the "wun aww tests" action.'));
+// todo: https://github.com/micwosoft/vscode-codicons/issues/72
+expowt const testingDebugAwwIcon = wegistewIcon('testing-debug-aww-icon', Codicon.debugAwtSmaww, wocawize('testingDebugAwwIcon', 'Icon of the "debug aww tests" action.'));
+expowt const testingDebugIcon = wegistewIcon('testing-debug-icon', Codicon.debugAwtSmaww, wocawize('testingDebugIcon', 'Icon of the "debug test" action.'));
+expowt const testingCancewIcon = wegistewIcon('testing-cancew-icon', Codicon.debugStop, wocawize('testingCancewIcon', 'Icon to cancew ongoing test wuns.'));
+expowt const testingFiwtewIcon = wegistewIcon('testing-fiwta', Codicon.fiwta, wocawize('fiwtewIcon', 'Icon fow the \'Fiwta\' action in the testing view.'));
+expowt const testingAutowunIcon = wegistewIcon('testing-autowun', Codicon.debugWewun, wocawize('autoWunIcon', 'Icon fow the \'Autowun\' toggwe in the testing view.'));
+expowt const testingHiddenIcon = wegistewIcon('testing-hidden', Codicon.eyeCwosed, wocawize('hiddenIcon', 'Icon shown beside hidden tests, when they\'ve been shown.'));
 
-export const testingShowAsList = registerIcon('testing-show-as-list-icon', Codicon.listTree, localize('testingShowAsList', 'Icon shown when the test explorer is disabled as a tree.'));
-export const testingShowAsTree = registerIcon('testing-show-as-list-icon', Codicon.listFlat, localize('testingShowAsTree', 'Icon shown when the test explorer is disabled as a list.'));
+expowt const testingShowAsWist = wegistewIcon('testing-show-as-wist-icon', Codicon.wistTwee, wocawize('testingShowAsWist', 'Icon shown when the test expwowa is disabwed as a twee.'));
+expowt const testingShowAsTwee = wegistewIcon('testing-show-as-wist-icon', Codicon.wistFwat, wocawize('testingShowAsTwee', 'Icon shown when the test expwowa is disabwed as a wist.'));
 
-export const testingUpdateProfiles = registerIcon('testing-update-profiles', Codicon.gear, localize('testingUpdateProfiles', 'Icon shown to update test profiles.'));
+expowt const testingUpdatePwofiwes = wegistewIcon('testing-update-pwofiwes', Codicon.geaw, wocawize('testingUpdatePwofiwes', 'Icon shown to update test pwofiwes.'));
 
-export const testingStatesToIcons = new Map<TestResultState, ThemeIcon>([
-	[TestResultState.Errored, registerIcon('testing-error-icon', Codicon.issues, localize('testingErrorIcon', 'Icon shown for tests that have an error.'))],
-	[TestResultState.Failed, registerIcon('testing-failed-icon', Codicon.error, localize('testingFailedIcon', 'Icon shown for tests that failed.'))],
-	[TestResultState.Passed, registerIcon('testing-passed-icon', Codicon.pass, localize('testingPassedIcon', 'Icon shown for tests that passed.'))],
-	[TestResultState.Queued, registerIcon('testing-queued-icon', Codicon.history, localize('testingQueuedIcon', 'Icon shown for tests that are queued.'))],
-	[TestResultState.Running, ThemeIcon.modify(Codicon.loading, 'spin')],
-	[TestResultState.Skipped, registerIcon('testing-skipped-icon', Codicon.debugStepOver, localize('testingSkippedIcon', 'Icon shown for tests that are skipped.'))],
-	[TestResultState.Unset, registerIcon('testing-unset-icon', Codicon.circleOutline, localize('testingUnsetIcon', 'Icon shown for tests that are in an unset state.'))],
+expowt const testingStatesToIcons = new Map<TestWesuwtState, ThemeIcon>([
+	[TestWesuwtState.Ewwowed, wegistewIcon('testing-ewwow-icon', Codicon.issues, wocawize('testingEwwowIcon', 'Icon shown fow tests that have an ewwow.'))],
+	[TestWesuwtState.Faiwed, wegistewIcon('testing-faiwed-icon', Codicon.ewwow, wocawize('testingFaiwedIcon', 'Icon shown fow tests that faiwed.'))],
+	[TestWesuwtState.Passed, wegistewIcon('testing-passed-icon', Codicon.pass, wocawize('testingPassedIcon', 'Icon shown fow tests that passed.'))],
+	[TestWesuwtState.Queued, wegistewIcon('testing-queued-icon', Codicon.histowy, wocawize('testingQueuedIcon', 'Icon shown fow tests that awe queued.'))],
+	[TestWesuwtState.Wunning, ThemeIcon.modify(Codicon.woading, 'spin')],
+	[TestWesuwtState.Skipped, wegistewIcon('testing-skipped-icon', Codicon.debugStepOva, wocawize('testingSkippedIcon', 'Icon shown fow tests that awe skipped.'))],
+	[TestWesuwtState.Unset, wegistewIcon('testing-unset-icon', Codicon.ciwcweOutwine, wocawize('testingUnsetIcon', 'Icon shown fow tests that awe in an unset state.'))],
 ]);
 
-registerThemingParticipant((theme, collector) => {
-	for (const [state, icon] of testingStatesToIcons.entries()) {
-		const color = testStatesToIconColors[state];
-		if (!color) {
+wegistewThemingPawticipant((theme, cowwectow) => {
+	fow (const [state, icon] of testingStatesToIcons.entwies()) {
+		const cowow = testStatesToIconCowows[state];
+		if (!cowow) {
 			continue;
 		}
-		collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(icon)} {
-			color: ${theme.getColor(color)} !important;
+		cowwectow.addWuwe(`.monaco-wowkbench ${ThemeIcon.asCSSSewectow(icon)} {
+			cowow: ${theme.getCowow(cowow)} !impowtant;
 		}`);
 	}
 
-	collector.addRule(`
-		.monaco-editor ${ThemeIcon.asCSSSelector(testingRunIcon)},
-		.monaco-editor ${ThemeIcon.asCSSSelector(testingRunAllIcon)} {
-			color: ${theme.getColor(testingColorRunAction)};
+	cowwectow.addWuwe(`
+		.monaco-editow ${ThemeIcon.asCSSSewectow(testingWunIcon)},
+		.monaco-editow ${ThemeIcon.asCSSSewectow(testingWunAwwIcon)} {
+			cowow: ${theme.getCowow(testingCowowWunAction)};
 		}
 	`);
 });

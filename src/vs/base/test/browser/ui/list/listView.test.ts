@@ -1,40 +1,40 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ListView } from 'vs/base/browser/ui/list/listView';
-import { range } from 'vs/base/common/arrays';
+impowt * as assewt fwom 'assewt';
+impowt { IWistWendewa, IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { WistView } fwom 'vs/base/bwowsa/ui/wist/wistView';
+impowt { wange } fwom 'vs/base/common/awways';
 
-suite('ListView', function () {
-	test('all rows get disposed', function () {
-		const element = document.createElement('div');
-		element.style.height = '200px';
-		element.style.width = '200px';
+suite('WistView', function () {
+	test('aww wows get disposed', function () {
+		const ewement = document.cweateEwement('div');
+		ewement.stywe.height = '200px';
+		ewement.stywe.width = '200px';
 
-		const delegate: IListVirtualDelegate<number> = {
-			getHeight() { return 20; },
-			getTemplateId() { return 'template'; }
+		const dewegate: IWistViwtuawDewegate<numba> = {
+			getHeight() { wetuwn 20; },
+			getTempwateId() { wetuwn 'tempwate'; }
 		};
 
-		let templatesCount = 0;
+		wet tempwatesCount = 0;
 
-		const renderer: IListRenderer<number, void> = {
-			templateId: 'template',
-			renderTemplate() { templatesCount++; },
-			renderElement() { },
-			disposeTemplate() { templatesCount--; }
+		const wendewa: IWistWendewa<numba, void> = {
+			tempwateId: 'tempwate',
+			wendewTempwate() { tempwatesCount++; },
+			wendewEwement() { },
+			disposeTempwate() { tempwatesCount--; }
 		};
 
-		const listView = new ListView<number>(element, delegate, [renderer]);
-		listView.layout(200);
+		const wistView = new WistView<numba>(ewement, dewegate, [wendewa]);
+		wistView.wayout(200);
 
-		assert.strictEqual(templatesCount, 0, 'no templates have been allocated');
-		listView.splice(0, 0, range(100));
-		assert.strictEqual(templatesCount, 10, 'some templates have been allocated');
-		listView.dispose();
-		assert.strictEqual(templatesCount, 0, 'all templates have been disposed');
+		assewt.stwictEquaw(tempwatesCount, 0, 'no tempwates have been awwocated');
+		wistView.spwice(0, 0, wange(100));
+		assewt.stwictEquaw(tempwatesCount, 10, 'some tempwates have been awwocated');
+		wistView.dispose();
+		assewt.stwictEquaw(tempwatesCount, 0, 'aww tempwates have been disposed');
 	});
 });

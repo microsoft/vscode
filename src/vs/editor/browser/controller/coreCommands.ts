@@ -1,113 +1,113 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { isFirefox } from 'vs/base/browser/browser';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import * as types from 'vs/base/common/types';
-import { status } from 'vs/base/browser/ui/aria/aria';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Command, EditorCommand, ICommandOptions, registerEditorCommand, MultiCommand, UndoCommand, RedoCommand, SelectAllCommand } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ColumnSelection, IColumnSelectResult } from 'vs/editor/common/controller/cursorColumnSelection';
-import { CursorState, EditOperationType, IColumnSelectData, PartialCursorState } from 'vs/editor/common/controller/cursorCommon';
-import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
-import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
-import { CursorMove as CursorMove_, CursorMoveCommands } from 'vs/editor/common/controller/cursorMoveCommands';
-import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Handler, ScrollType } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
-import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+impowt * as nws fwom 'vs/nws';
+impowt { isFiwefox } fwom 'vs/base/bwowsa/bwowsa';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt * as types fwom 'vs/base/common/types';
+impowt { status } fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { Command, EditowCommand, ICommandOptions, wegistewEditowCommand, MuwtiCommand, UndoCommand, WedoCommand, SewectAwwCommand } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { CowumnSewection, ICowumnSewectWesuwt } fwom 'vs/editow/common/contwowwa/cuwsowCowumnSewection';
+impowt { CuwsowState, EditOpewationType, ICowumnSewectData, PawtiawCuwsowState } fwom 'vs/editow/common/contwowwa/cuwsowCommon';
+impowt { DeweteOpewations } fwom 'vs/editow/common/contwowwa/cuwsowDeweteOpewations';
+impowt { CuwsowChangeWeason } fwom 'vs/editow/common/contwowwa/cuwsowEvents';
+impowt { CuwsowMove as CuwsowMove_, CuwsowMoveCommands } fwom 'vs/editow/common/contwowwa/cuwsowMoveCommands';
+impowt { TypeOpewations } fwom 'vs/editow/common/contwowwa/cuwsowTypeOpewations';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Handwa, ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { VewticawWeveawType } fwom 'vs/editow/common/view/viewEvents';
+impowt { ICommandHandwewDescwiption } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeybindingWeight, KeybindingsWegistwy } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { IViewModew } fwom 'vs/editow/common/viewModew/viewModew';
 
-const CORE_WEIGHT = KeybindingWeight.EditorCore;
+const COWE_WEIGHT = KeybindingWeight.EditowCowe;
 
-export abstract class CoreEditorCommand extends EditorCommand {
-	public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void {
-		const viewModel = editor._getViewModel();
-		if (!viewModel) {
-			// the editor has no view => has no cursors
-			return;
+expowt abstwact cwass CoweEditowCommand extends EditowCommand {
+	pubwic wunEditowCommand(accessow: SewvicesAccessow | nuww, editow: ICodeEditow, awgs: any): void {
+		const viewModew = editow._getViewModew();
+		if (!viewModew) {
+			// the editow has no view => has no cuwsows
+			wetuwn;
 		}
-		this.runCoreEditorCommand(viewModel, args || {});
+		this.wunCoweEditowCommand(viewModew, awgs || {});
 	}
 
-	public abstract runCoreEditorCommand(viewModel: IViewModel, args: any): void;
+	pubwic abstwact wunCoweEditowCommand(viewModew: IViewModew, awgs: any): void;
 }
 
-export namespace EditorScroll_ {
+expowt namespace EditowScwoww_ {
 
-	const isEditorScrollArgs = function (arg: any): boolean {
-		if (!types.isObject(arg)) {
-			return false;
+	const isEditowScwowwAwgs = function (awg: any): boowean {
+		if (!types.isObject(awg)) {
+			wetuwn fawse;
 		}
 
-		const scrollArg: RawArguments = arg;
+		const scwowwAwg: WawAwguments = awg;
 
-		if (!types.isString(scrollArg.to)) {
-			return false;
+		if (!types.isStwing(scwowwAwg.to)) {
+			wetuwn fawse;
 		}
 
-		if (!types.isUndefined(scrollArg.by) && !types.isString(scrollArg.by)) {
-			return false;
+		if (!types.isUndefined(scwowwAwg.by) && !types.isStwing(scwowwAwg.by)) {
+			wetuwn fawse;
 		}
 
-		if (!types.isUndefined(scrollArg.value) && !types.isNumber(scrollArg.value)) {
-			return false;
+		if (!types.isUndefined(scwowwAwg.vawue) && !types.isNumba(scwowwAwg.vawue)) {
+			wetuwn fawse;
 		}
 
-		if (!types.isUndefined(scrollArg.revealCursor) && !types.isBoolean(scrollArg.revealCursor)) {
-			return false;
+		if (!types.isUndefined(scwowwAwg.weveawCuwsow) && !types.isBoowean(scwowwAwg.weveawCuwsow)) {
+			wetuwn fawse;
 		}
 
-		return true;
+		wetuwn twue;
 	};
 
-	export const description = <ICommandHandlerDescription>{
-		description: 'Scroll editor in the given direction',
-		args: [
+	expowt const descwiption = <ICommandHandwewDescwiption>{
+		descwiption: 'Scwoww editow in the given diwection',
+		awgs: [
 			{
-				name: 'Editor scroll argument object',
-				description: `Property-value pairs that can be passed through this argument:
-					* 'to': A mandatory direction value.
+				name: 'Editow scwoww awgument object',
+				descwiption: `Pwopewty-vawue paiws that can be passed thwough this awgument:
+					* 'to': A mandatowy diwection vawue.
 						\`\`\`
 						'up', 'down'
 						\`\`\`
-					* 'by': Unit to move. Default is computed based on 'to' value.
+					* 'by': Unit to move. Defauwt is computed based on 'to' vawue.
 						\`\`\`
-						'line', 'wrappedLine', 'page', 'halfPage'
+						'wine', 'wwappedWine', 'page', 'hawfPage'
 						\`\`\`
-					* 'value': Number of units to move. Default is '1'.
-					* 'revealCursor': If 'true' reveals the cursor if it is outside view port.
+					* 'vawue': Numba of units to move. Defauwt is '1'.
+					* 'weveawCuwsow': If 'twue' weveaws the cuwsow if it is outside view powt.
 				`,
-				constraint: isEditorScrollArgs,
+				constwaint: isEditowScwowwAwgs,
 				schema: {
 					'type': 'object',
-					'required': ['to'],
-					'properties': {
+					'wequiwed': ['to'],
+					'pwopewties': {
 						'to': {
-							'type': 'string',
+							'type': 'stwing',
 							'enum': ['up', 'down']
 						},
 						'by': {
-							'type': 'string',
-							'enum': ['line', 'wrappedLine', 'page', 'halfPage']
+							'type': 'stwing',
+							'enum': ['wine', 'wwappedWine', 'page', 'hawfPage']
 						},
-						'value': {
-							'type': 'number',
-							'default': 1
+						'vawue': {
+							'type': 'numba',
+							'defauwt': 1
 						},
-						'revealCursor': {
-							'type': 'boolean',
+						'weveawCuwsow': {
+							'type': 'boowean',
 						}
 					}
 				}
@@ -116,142 +116,142 @@ export namespace EditorScroll_ {
 	};
 
 	/**
-	 * Directions in the view for editor scroll command.
+	 * Diwections in the view fow editow scwoww command.
 	 */
-	export const RawDirection = {
+	expowt const WawDiwection = {
 		Up: 'up',
 		Down: 'down',
 	};
 
 	/**
-	 * Units for editor scroll 'by' argument
+	 * Units fow editow scwoww 'by' awgument
 	 */
-	export const RawUnit = {
-		Line: 'line',
-		WrappedLine: 'wrappedLine',
+	expowt const WawUnit = {
+		Wine: 'wine',
+		WwappedWine: 'wwappedWine',
 		Page: 'page',
-		HalfPage: 'halfPage'
+		HawfPage: 'hawfPage'
 	};
 
 	/**
-	 * Arguments for editor scroll command
+	 * Awguments fow editow scwoww command
 	 */
-	export interface RawArguments {
-		to: string;
-		by?: string;
-		value?: number;
-		revealCursor?: boolean;
-		select?: boolean;
+	expowt intewface WawAwguments {
+		to: stwing;
+		by?: stwing;
+		vawue?: numba;
+		weveawCuwsow?: boowean;
+		sewect?: boowean;
 	}
 
-	export function parse(args: RawArguments): ParsedArguments | null {
-		let direction: Direction;
-		switch (args.to) {
-			case RawDirection.Up:
-				direction = Direction.Up;
-				break;
-			case RawDirection.Down:
-				direction = Direction.Down;
-				break;
-			default:
-				// Illegal arguments
-				return null;
+	expowt function pawse(awgs: WawAwguments): PawsedAwguments | nuww {
+		wet diwection: Diwection;
+		switch (awgs.to) {
+			case WawDiwection.Up:
+				diwection = Diwection.Up;
+				bweak;
+			case WawDiwection.Down:
+				diwection = Diwection.Down;
+				bweak;
+			defauwt:
+				// Iwwegaw awguments
+				wetuwn nuww;
 		}
 
-		let unit: Unit;
-		switch (args.by) {
-			case RawUnit.Line:
-				unit = Unit.Line;
-				break;
-			case RawUnit.WrappedLine:
-				unit = Unit.WrappedLine;
-				break;
-			case RawUnit.Page:
+		wet unit: Unit;
+		switch (awgs.by) {
+			case WawUnit.Wine:
+				unit = Unit.Wine;
+				bweak;
+			case WawUnit.WwappedWine:
+				unit = Unit.WwappedWine;
+				bweak;
+			case WawUnit.Page:
 				unit = Unit.Page;
-				break;
-			case RawUnit.HalfPage:
-				unit = Unit.HalfPage;
-				break;
-			default:
-				unit = Unit.WrappedLine;
+				bweak;
+			case WawUnit.HawfPage:
+				unit = Unit.HawfPage;
+				bweak;
+			defauwt:
+				unit = Unit.WwappedWine;
 		}
 
-		const value = Math.floor(args.value || 1);
-		const revealCursor = !!args.revealCursor;
+		const vawue = Math.fwoow(awgs.vawue || 1);
+		const weveawCuwsow = !!awgs.weveawCuwsow;
 
-		return {
-			direction: direction,
+		wetuwn {
+			diwection: diwection,
 			unit: unit,
-			value: value,
-			revealCursor: revealCursor,
-			select: (!!args.select)
+			vawue: vawue,
+			weveawCuwsow: weveawCuwsow,
+			sewect: (!!awgs.sewect)
 		};
 	}
 
-	export interface ParsedArguments {
-		direction: Direction;
+	expowt intewface PawsedAwguments {
+		diwection: Diwection;
 		unit: Unit;
-		value: number;
-		revealCursor: boolean;
-		select: boolean;
+		vawue: numba;
+		weveawCuwsow: boowean;
+		sewect: boowean;
 	}
 
-	export const enum Direction {
+	expowt const enum Diwection {
 		Up = 1,
 		Down = 2
 	}
 
-	export const enum Unit {
-		Line = 1,
-		WrappedLine = 2,
+	expowt const enum Unit {
+		Wine = 1,
+		WwappedWine = 2,
 		Page = 3,
-		HalfPage = 4
+		HawfPage = 4
 	}
 }
 
-export namespace RevealLine_ {
+expowt namespace WeveawWine_ {
 
-	const isRevealLineArgs = function (arg: any): boolean {
-		if (!types.isObject(arg)) {
-			return false;
+	const isWeveawWineAwgs = function (awg: any): boowean {
+		if (!types.isObject(awg)) {
+			wetuwn fawse;
 		}
 
-		const reveaLineArg: RawArguments = arg;
+		const weveaWineAwg: WawAwguments = awg;
 
-		if (!types.isNumber(reveaLineArg.lineNumber) && !types.isString(reveaLineArg.lineNumber)) {
-			return false;
+		if (!types.isNumba(weveaWineAwg.wineNumba) && !types.isStwing(weveaWineAwg.wineNumba)) {
+			wetuwn fawse;
 		}
 
-		if (!types.isUndefined(reveaLineArg.at) && !types.isString(reveaLineArg.at)) {
-			return false;
+		if (!types.isUndefined(weveaWineAwg.at) && !types.isStwing(weveaWineAwg.at)) {
+			wetuwn fawse;
 		}
 
-		return true;
+		wetuwn twue;
 	};
 
-	export const description = <ICommandHandlerDescription>{
-		description: 'Reveal the given line at the given logical position',
-		args: [
+	expowt const descwiption = <ICommandHandwewDescwiption>{
+		descwiption: 'Weveaw the given wine at the given wogicaw position',
+		awgs: [
 			{
-				name: 'Reveal line argument object',
-				description: `Property-value pairs that can be passed through this argument:
-					* 'lineNumber': A mandatory line number value.
-					* 'at': Logical position at which line has to be revealed.
+				name: 'Weveaw wine awgument object',
+				descwiption: `Pwopewty-vawue paiws that can be passed thwough this awgument:
+					* 'wineNumba': A mandatowy wine numba vawue.
+					* 'at': Wogicaw position at which wine has to be weveawed.
 						\`\`\`
-						'top', 'center', 'bottom'
+						'top', 'centa', 'bottom'
 						\`\`\`
 				`,
-				constraint: isRevealLineArgs,
+				constwaint: isWeveawWineAwgs,
 				schema: {
 					'type': 'object',
-					'required': ['lineNumber'],
-					'properties': {
-						'lineNumber': {
-							'type': ['number', 'string'],
+					'wequiwed': ['wineNumba'],
+					'pwopewties': {
+						'wineNumba': {
+							'type': ['numba', 'stwing'],
 						},
 						'at': {
-							'type': 'string',
-							'enum': ['top', 'center', 'bottom']
+							'type': 'stwing',
+							'enum': ['top', 'centa', 'bottom']
 						}
 					}
 				}
@@ -260,783 +260,783 @@ export namespace RevealLine_ {
 	};
 
 	/**
-	 * Arguments for reveal line command
+	 * Awguments fow weveaw wine command
 	 */
-	export interface RawArguments {
-		lineNumber?: number | string;
-		at?: string;
+	expowt intewface WawAwguments {
+		wineNumba?: numba | stwing;
+		at?: stwing;
 	}
 
 	/**
-	 * Values for reveal line 'at' argument
+	 * Vawues fow weveaw wine 'at' awgument
 	 */
-	export const RawAtArgument = {
+	expowt const WawAtAwgument = {
 		Top: 'top',
-		Center: 'center',
+		Centa: 'centa',
 		Bottom: 'bottom'
 	};
 }
 
-abstract class EditorOrNativeTextInputCommand {
+abstwact cwass EditowOwNativeTextInputCommand {
 
-	constructor(target: MultiCommand) {
-		// 1. handle case when focus is in editor.
-		target.addImplementation(10000, 'code-editor', (accessor: ServicesAccessor, args: any) => {
-			// Only if editor text focus (i.e. not if editor has widget focus).
-			const focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
-			if (focusedEditor && focusedEditor.hasTextFocus()) {
-				return this._runEditorCommand(accessor, focusedEditor, args);
+	constwuctow(tawget: MuwtiCommand) {
+		// 1. handwe case when focus is in editow.
+		tawget.addImpwementation(10000, 'code-editow', (accessow: SewvicesAccessow, awgs: any) => {
+			// Onwy if editow text focus (i.e. not if editow has widget focus).
+			const focusedEditow = accessow.get(ICodeEditowSewvice).getFocusedCodeEditow();
+			if (focusedEditow && focusedEditow.hasTextFocus()) {
+				wetuwn this._wunEditowCommand(accessow, focusedEditow, awgs);
 			}
-			return false;
+			wetuwn fawse;
 		});
 
-		// 2. handle case when focus is in some other `input` / `textarea`.
-		target.addImplementation(1000, 'generic-dom-input-textarea', (accessor: ServicesAccessor, args: any) => {
-			// Only if focused on an element that allows for entering text
-			const activeElement = <HTMLElement>document.activeElement;
-			if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
-				this.runDOMCommand();
-				return true;
+		// 2. handwe case when focus is in some otha `input` / `textawea`.
+		tawget.addImpwementation(1000, 'genewic-dom-input-textawea', (accessow: SewvicesAccessow, awgs: any) => {
+			// Onwy if focused on an ewement that awwows fow entewing text
+			const activeEwement = <HTMWEwement>document.activeEwement;
+			if (activeEwement && ['input', 'textawea'].indexOf(activeEwement.tagName.toWowewCase()) >= 0) {
+				this.wunDOMCommand();
+				wetuwn twue;
 			}
-			return false;
+			wetuwn fawse;
 		});
 
-		// 3. (default) handle case when focus is somewhere else.
-		target.addImplementation(0, 'generic-dom', (accessor: ServicesAccessor, args: any) => {
-			// Redirecting to active editor
-			const activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor();
-			if (activeEditor) {
-				activeEditor.focus();
-				return this._runEditorCommand(accessor, activeEditor, args);
+		// 3. (defauwt) handwe case when focus is somewhewe ewse.
+		tawget.addImpwementation(0, 'genewic-dom', (accessow: SewvicesAccessow, awgs: any) => {
+			// Wediwecting to active editow
+			const activeEditow = accessow.get(ICodeEditowSewvice).getActiveCodeEditow();
+			if (activeEditow) {
+				activeEditow.focus();
+				wetuwn this._wunEditowCommand(accessow, activeEditow, awgs);
 			}
-			return false;
+			wetuwn fawse;
 		});
 	}
 
-	public _runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): boolean | Promise<void> {
-		const result = this.runEditorCommand(accessor, editor, args);
-		if (result) {
-			return result;
+	pubwic _wunEditowCommand(accessow: SewvicesAccessow | nuww, editow: ICodeEditow, awgs: any): boowean | Pwomise<void> {
+		const wesuwt = this.wunEditowCommand(accessow, editow, awgs);
+		if (wesuwt) {
+			wetuwn wesuwt;
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	public abstract runDOMCommand(): void;
-	public abstract runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void | Promise<void>;
+	pubwic abstwact wunDOMCommand(): void;
+	pubwic abstwact wunEditowCommand(accessow: SewvicesAccessow | nuww, editow: ICodeEditow, awgs: any): void | Pwomise<void>;
 }
 
-export namespace CoreNavigationCommands {
+expowt namespace CoweNavigationCommands {
 
-	class BaseMoveToCommand extends CoreEditorCommand {
+	cwass BaseMoveToCommand extends CoweEditowCommand {
 
-		private readonly _inSelectionMode: boolean;
+		pwivate weadonwy _inSewectionMode: boowean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
-			super(opts);
-			this._inSelectionMode = opts.inSelectionMode;
+		constwuctow(opts: ICommandOptions & { inSewectionMode: boowean; }) {
+			supa(opts);
+			this._inSewectionMode = opts.inSewectionMode;
 		}
 
-		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
-			viewModel.model.pushStackElement();
-			viewModel.setCursorStates(
-				args.source,
-				CursorChangeReason.Explicit,
+		pubwic wunCoweEditowCommand(viewModew: IViewModew, awgs: any): void {
+			viewModew.modew.pushStackEwement();
+			viewModew.setCuwsowStates(
+				awgs.souwce,
+				CuwsowChangeWeason.Expwicit,
 				[
-					CursorMoveCommands.moveTo(viewModel, viewModel.getPrimaryCursorState(), this._inSelectionMode, args.position, args.viewPosition)
+					CuwsowMoveCommands.moveTo(viewModew, viewModew.getPwimawyCuwsowState(), this._inSewectionMode, awgs.position, awgs.viewPosition)
 				]
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
+			viewModew.weveawPwimawyCuwsow(awgs.souwce, twue);
 		}
 	}
 
-	export const MoveTo: CoreEditorCommand = registerEditorCommand(new BaseMoveToCommand({
+	expowt const MoveTo: CoweEditowCommand = wegistewEditowCommand(new BaseMoveToCommand({
 		id: '_moveTo',
-		inSelectionMode: false,
-		precondition: undefined
+		inSewectionMode: fawse,
+		pwecondition: undefined
 	}));
 
-	export const MoveToSelect: CoreEditorCommand = registerEditorCommand(new BaseMoveToCommand({
-		id: '_moveToSelect',
-		inSelectionMode: true,
-		precondition: undefined
+	expowt const MoveToSewect: CoweEditowCommand = wegistewEditowCommand(new BaseMoveToCommand({
+		id: '_moveToSewect',
+		inSewectionMode: twue,
+		pwecondition: undefined
 	}));
 
-	abstract class ColumnSelectCommand extends CoreEditorCommand {
-		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
-			viewModel.model.pushStackElement();
-			const result = this._getColumnSelectResult(viewModel, viewModel.getPrimaryCursorState(), viewModel.getCursorColumnSelectData(), args);
-			viewModel.setCursorStates(args.source, CursorChangeReason.Explicit, result.viewStates.map((viewState) => CursorState.fromViewState(viewState)));
-			viewModel.setCursorColumnSelectData({
-				isReal: true,
-				fromViewLineNumber: result.fromLineNumber,
-				fromViewVisualColumn: result.fromVisualColumn,
-				toViewLineNumber: result.toLineNumber,
-				toViewVisualColumn: result.toVisualColumn
+	abstwact cwass CowumnSewectCommand extends CoweEditowCommand {
+		pubwic wunCoweEditowCommand(viewModew: IViewModew, awgs: any): void {
+			viewModew.modew.pushStackEwement();
+			const wesuwt = this._getCowumnSewectWesuwt(viewModew, viewModew.getPwimawyCuwsowState(), viewModew.getCuwsowCowumnSewectData(), awgs);
+			viewModew.setCuwsowStates(awgs.souwce, CuwsowChangeWeason.Expwicit, wesuwt.viewStates.map((viewState) => CuwsowState.fwomViewState(viewState)));
+			viewModew.setCuwsowCowumnSewectData({
+				isWeaw: twue,
+				fwomViewWineNumba: wesuwt.fwomWineNumba,
+				fwomViewVisuawCowumn: wesuwt.fwomVisuawCowumn,
+				toViewWineNumba: wesuwt.toWineNumba,
+				toViewVisuawCowumn: wesuwt.toVisuawCowumn
 			});
-			if (result.reversed) {
-				viewModel.revealTopMostCursor(args.source);
-			} else {
-				viewModel.revealBottomMostCursor(args.source);
+			if (wesuwt.wevewsed) {
+				viewModew.weveawTopMostCuwsow(awgs.souwce);
+			} ewse {
+				viewModew.weveawBottomMostCuwsow(awgs.souwce);
 			}
 		}
 
-		protected abstract _getColumnSelectResult(viewModel: IViewModel, primary: CursorState, prevColumnSelectData: IColumnSelectData, args: any): IColumnSelectResult;
+		pwotected abstwact _getCowumnSewectWesuwt(viewModew: IViewModew, pwimawy: CuwsowState, pwevCowumnSewectData: ICowumnSewectData, awgs: any): ICowumnSewectWesuwt;
 
 	}
 
-	export const ColumnSelect: CoreEditorCommand = registerEditorCommand(new class extends ColumnSelectCommand {
-		constructor() {
-			super({
-				id: 'columnSelect',
-				precondition: undefined
+	expowt const CowumnSewect: CoweEditowCommand = wegistewEditowCommand(new cwass extends CowumnSewectCommand {
+		constwuctow() {
+			supa({
+				id: 'cowumnSewect',
+				pwecondition: undefined
 			});
 		}
 
-		protected _getColumnSelectResult(viewModel: IViewModel, primary: CursorState, prevColumnSelectData: IColumnSelectData, args: any): IColumnSelectResult {
+		pwotected _getCowumnSewectWesuwt(viewModew: IViewModew, pwimawy: CuwsowState, pwevCowumnSewectData: ICowumnSewectData, awgs: any): ICowumnSewectWesuwt {
 
-			// validate `args`
-			const validatedPosition = viewModel.model.validatePosition(args.position);
-			const validatedViewPosition = viewModel.coordinatesConverter.validateViewPosition(new Position(args.viewPosition.lineNumber, args.viewPosition.column), validatedPosition);
+			// vawidate `awgs`
+			const vawidatedPosition = viewModew.modew.vawidatePosition(awgs.position);
+			const vawidatedViewPosition = viewModew.coowdinatesConvewta.vawidateViewPosition(new Position(awgs.viewPosition.wineNumba, awgs.viewPosition.cowumn), vawidatedPosition);
 
-			let fromViewLineNumber = args.doColumnSelect ? prevColumnSelectData.fromViewLineNumber : validatedViewPosition.lineNumber;
-			let fromViewVisualColumn = args.doColumnSelect ? prevColumnSelectData.fromViewVisualColumn : args.mouseColumn - 1;
-			return ColumnSelection.columnSelect(viewModel.cursorConfig, viewModel, fromViewLineNumber, fromViewVisualColumn, validatedViewPosition.lineNumber, args.mouseColumn - 1);
+			wet fwomViewWineNumba = awgs.doCowumnSewect ? pwevCowumnSewectData.fwomViewWineNumba : vawidatedViewPosition.wineNumba;
+			wet fwomViewVisuawCowumn = awgs.doCowumnSewect ? pwevCowumnSewectData.fwomViewVisuawCowumn : awgs.mouseCowumn - 1;
+			wetuwn CowumnSewection.cowumnSewect(viewModew.cuwsowConfig, viewModew, fwomViewWineNumba, fwomViewVisuawCowumn, vawidatedViewPosition.wineNumba, awgs.mouseCowumn - 1);
 		}
 	});
 
-	export const CursorColumnSelectLeft: CoreEditorCommand = registerEditorCommand(new class extends ColumnSelectCommand {
-		constructor() {
-			super({
-				id: 'cursorColumnSelectLeft',
-				precondition: undefined,
+	expowt const CuwsowCowumnSewectWeft: CoweEditowCommand = wegistewEditowCommand(new cwass extends CowumnSewectCommand {
+		constwuctow() {
+			supa({
+				id: 'cuwsowCowumnSewectWeft',
+				pwecondition: undefined,
 				kbOpts: {
-					weight: CORE_WEIGHT,
-					kbExpr: EditorContextKeys.textInputFocus,
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.LeftArrow,
-					linux: { primary: 0 }
+					weight: COWE_WEIGHT,
+					kbExpw: EditowContextKeys.textInputFocus,
+					pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.Awt | KeyCode.WeftAwwow,
+					winux: { pwimawy: 0 }
 				}
 			});
 		}
 
-		protected _getColumnSelectResult(viewModel: IViewModel, primary: CursorState, prevColumnSelectData: IColumnSelectData, args: any): IColumnSelectResult {
-			return ColumnSelection.columnSelectLeft(viewModel.cursorConfig, viewModel, prevColumnSelectData);
+		pwotected _getCowumnSewectWesuwt(viewModew: IViewModew, pwimawy: CuwsowState, pwevCowumnSewectData: ICowumnSewectData, awgs: any): ICowumnSewectWesuwt {
+			wetuwn CowumnSewection.cowumnSewectWeft(viewModew.cuwsowConfig, viewModew, pwevCowumnSewectData);
 		}
 	});
 
-	export const CursorColumnSelectRight: CoreEditorCommand = registerEditorCommand(new class extends ColumnSelectCommand {
-		constructor() {
-			super({
-				id: 'cursorColumnSelectRight',
-				precondition: undefined,
+	expowt const CuwsowCowumnSewectWight: CoweEditowCommand = wegistewEditowCommand(new cwass extends CowumnSewectCommand {
+		constwuctow() {
+			supa({
+				id: 'cuwsowCowumnSewectWight',
+				pwecondition: undefined,
 				kbOpts: {
-					weight: CORE_WEIGHT,
-					kbExpr: EditorContextKeys.textInputFocus,
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.RightArrow,
-					linux: { primary: 0 }
+					weight: COWE_WEIGHT,
+					kbExpw: EditowContextKeys.textInputFocus,
+					pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.Awt | KeyCode.WightAwwow,
+					winux: { pwimawy: 0 }
 				}
 			});
 		}
 
-		protected _getColumnSelectResult(viewModel: IViewModel, primary: CursorState, prevColumnSelectData: IColumnSelectData, args: any): IColumnSelectResult {
-			return ColumnSelection.columnSelectRight(viewModel.cursorConfig, viewModel, prevColumnSelectData);
+		pwotected _getCowumnSewectWesuwt(viewModew: IViewModew, pwimawy: CuwsowState, pwevCowumnSewectData: ICowumnSewectData, awgs: any): ICowumnSewectWesuwt {
+			wetuwn CowumnSewection.cowumnSewectWight(viewModew.cuwsowConfig, viewModew, pwevCowumnSewectData);
 		}
 	});
 
-	class ColumnSelectUpCommand extends ColumnSelectCommand {
+	cwass CowumnSewectUpCommand extends CowumnSewectCommand {
 
-		private readonly _isPaged: boolean;
+		pwivate weadonwy _isPaged: boowean;
 
-		constructor(opts: ICommandOptions & { isPaged: boolean; }) {
-			super(opts);
+		constwuctow(opts: ICommandOptions & { isPaged: boowean; }) {
+			supa(opts);
 			this._isPaged = opts.isPaged;
 		}
 
-		protected _getColumnSelectResult(viewModel: IViewModel, primary: CursorState, prevColumnSelectData: IColumnSelectData, args: any): IColumnSelectResult {
-			return ColumnSelection.columnSelectUp(viewModel.cursorConfig, viewModel, prevColumnSelectData, this._isPaged);
+		pwotected _getCowumnSewectWesuwt(viewModew: IViewModew, pwimawy: CuwsowState, pwevCowumnSewectData: ICowumnSewectData, awgs: any): ICowumnSewectWesuwt {
+			wetuwn CowumnSewection.cowumnSewectUp(viewModew.cuwsowConfig, viewModew, pwevCowumnSewectData, this._isPaged);
 		}
 	}
 
-	export const CursorColumnSelectUp: CoreEditorCommand = registerEditorCommand(new ColumnSelectUpCommand({
-		isPaged: false,
-		id: 'cursorColumnSelectUp',
-		precondition: undefined,
+	expowt const CuwsowCowumnSewectUp: CoweEditowCommand = wegistewEditowCommand(new CowumnSewectUpCommand({
+		isPaged: fawse,
+		id: 'cuwsowCowumnSewectUp',
+		pwecondition: undefined,
 		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.UpArrow,
-			linux: { primary: 0 }
+			weight: COWE_WEIGHT,
+			kbExpw: EditowContextKeys.textInputFocus,
+			pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.Awt | KeyCode.UpAwwow,
+			winux: { pwimawy: 0 }
 		}
 	}));
 
-	export const CursorColumnSelectPageUp: CoreEditorCommand = registerEditorCommand(new ColumnSelectUpCommand({
-		isPaged: true,
-		id: 'cursorColumnSelectPageUp',
-		precondition: undefined,
+	expowt const CuwsowCowumnSewectPageUp: CoweEditowCommand = wegistewEditowCommand(new CowumnSewectUpCommand({
+		isPaged: twue,
+		id: 'cuwsowCowumnSewectPageUp',
+		pwecondition: undefined,
 		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.PageUp,
-			linux: { primary: 0 }
+			weight: COWE_WEIGHT,
+			kbExpw: EditowContextKeys.textInputFocus,
+			pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.Awt | KeyCode.PageUp,
+			winux: { pwimawy: 0 }
 		}
 	}));
 
-	class ColumnSelectDownCommand extends ColumnSelectCommand {
+	cwass CowumnSewectDownCommand extends CowumnSewectCommand {
 
-		private readonly _isPaged: boolean;
+		pwivate weadonwy _isPaged: boowean;
 
-		constructor(opts: ICommandOptions & { isPaged: boolean; }) {
-			super(opts);
+		constwuctow(opts: ICommandOptions & { isPaged: boowean; }) {
+			supa(opts);
 			this._isPaged = opts.isPaged;
 		}
 
-		protected _getColumnSelectResult(viewModel: IViewModel, primary: CursorState, prevColumnSelectData: IColumnSelectData, args: any): IColumnSelectResult {
-			return ColumnSelection.columnSelectDown(viewModel.cursorConfig, viewModel, prevColumnSelectData, this._isPaged);
+		pwotected _getCowumnSewectWesuwt(viewModew: IViewModew, pwimawy: CuwsowState, pwevCowumnSewectData: ICowumnSewectData, awgs: any): ICowumnSewectWesuwt {
+			wetuwn CowumnSewection.cowumnSewectDown(viewModew.cuwsowConfig, viewModew, pwevCowumnSewectData, this._isPaged);
 		}
 	}
 
-	export const CursorColumnSelectDown: CoreEditorCommand = registerEditorCommand(new ColumnSelectDownCommand({
-		isPaged: false,
-		id: 'cursorColumnSelectDown',
-		precondition: undefined,
+	expowt const CuwsowCowumnSewectDown: CoweEditowCommand = wegistewEditowCommand(new CowumnSewectDownCommand({
+		isPaged: fawse,
+		id: 'cuwsowCowumnSewectDown',
+		pwecondition: undefined,
 		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.DownArrow,
-			linux: { primary: 0 }
+			weight: COWE_WEIGHT,
+			kbExpw: EditowContextKeys.textInputFocus,
+			pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.Awt | KeyCode.DownAwwow,
+			winux: { pwimawy: 0 }
 		}
 	}));
 
-	export const CursorColumnSelectPageDown: CoreEditorCommand = registerEditorCommand(new ColumnSelectDownCommand({
-		isPaged: true,
-		id: 'cursorColumnSelectPageDown',
-		precondition: undefined,
+	expowt const CuwsowCowumnSewectPageDown: CoweEditowCommand = wegistewEditowCommand(new CowumnSewectDownCommand({
+		isPaged: twue,
+		id: 'cuwsowCowumnSewectPageDown',
+		pwecondition: undefined,
 		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.PageDown,
-			linux: { primary: 0 }
+			weight: COWE_WEIGHT,
+			kbExpw: EditowContextKeys.textInputFocus,
+			pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.Awt | KeyCode.PageDown,
+			winux: { pwimawy: 0 }
 		}
 	}));
 
-	export class CursorMoveImpl extends CoreEditorCommand {
-		constructor() {
-			super({
-				id: 'cursorMove',
-				precondition: undefined,
-				description: CursorMove_.description
+	expowt cwass CuwsowMoveImpw extends CoweEditowCommand {
+		constwuctow() {
+			supa({
+				id: 'cuwsowMove',
+				pwecondition: undefined,
+				descwiption: CuwsowMove_.descwiption
 			});
 		}
 
-		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
-			const parsed = CursorMove_.parse(args);
-			if (!parsed) {
-				// illegal arguments
-				return;
+		pubwic wunCoweEditowCommand(viewModew: IViewModew, awgs: any): void {
+			const pawsed = CuwsowMove_.pawse(awgs);
+			if (!pawsed) {
+				// iwwegaw awguments
+				wetuwn;
 			}
-			this._runCursorMove(viewModel, args.source, parsed);
+			this._wunCuwsowMove(viewModew, awgs.souwce, pawsed);
 		}
 
-		private _runCursorMove(viewModel: IViewModel, source: string | null | undefined, args: CursorMove_.ParsedArguments): void {
-			viewModel.model.pushStackElement();
-			viewModel.setCursorStates(
-				source,
-				CursorChangeReason.Explicit,
-				CursorMoveImpl._move(viewModel, viewModel.getCursorStates(), args)
+		pwivate _wunCuwsowMove(viewModew: IViewModew, souwce: stwing | nuww | undefined, awgs: CuwsowMove_.PawsedAwguments): void {
+			viewModew.modew.pushStackEwement();
+			viewModew.setCuwsowStates(
+				souwce,
+				CuwsowChangeWeason.Expwicit,
+				CuwsowMoveImpw._move(viewModew, viewModew.getCuwsowStates(), awgs)
 			);
-			viewModel.revealPrimaryCursor(source, true);
+			viewModew.weveawPwimawyCuwsow(souwce, twue);
 		}
 
-		private static _move(viewModel: IViewModel, cursors: CursorState[], args: CursorMove_.ParsedArguments): PartialCursorState[] | null {
-			const inSelectionMode = args.select;
-			const value = args.value;
+		pwivate static _move(viewModew: IViewModew, cuwsows: CuwsowState[], awgs: CuwsowMove_.PawsedAwguments): PawtiawCuwsowState[] | nuww {
+			const inSewectionMode = awgs.sewect;
+			const vawue = awgs.vawue;
 
-			switch (args.direction) {
-				case CursorMove_.Direction.Left:
-				case CursorMove_.Direction.Right:
-				case CursorMove_.Direction.Up:
-				case CursorMove_.Direction.Down:
-				case CursorMove_.Direction.PrevBlankLine:
-				case CursorMove_.Direction.NextBlankLine:
-				case CursorMove_.Direction.WrappedLineStart:
-				case CursorMove_.Direction.WrappedLineFirstNonWhitespaceCharacter:
-				case CursorMove_.Direction.WrappedLineColumnCenter:
-				case CursorMove_.Direction.WrappedLineEnd:
-				case CursorMove_.Direction.WrappedLineLastNonWhitespaceCharacter:
-					return CursorMoveCommands.simpleMove(viewModel, cursors, args.direction, inSelectionMode, value, args.unit);
+			switch (awgs.diwection) {
+				case CuwsowMove_.Diwection.Weft:
+				case CuwsowMove_.Diwection.Wight:
+				case CuwsowMove_.Diwection.Up:
+				case CuwsowMove_.Diwection.Down:
+				case CuwsowMove_.Diwection.PwevBwankWine:
+				case CuwsowMove_.Diwection.NextBwankWine:
+				case CuwsowMove_.Diwection.WwappedWineStawt:
+				case CuwsowMove_.Diwection.WwappedWineFiwstNonWhitespaceChawacta:
+				case CuwsowMove_.Diwection.WwappedWineCowumnCenta:
+				case CuwsowMove_.Diwection.WwappedWineEnd:
+				case CuwsowMove_.Diwection.WwappedWineWastNonWhitespaceChawacta:
+					wetuwn CuwsowMoveCommands.simpweMove(viewModew, cuwsows, awgs.diwection, inSewectionMode, vawue, awgs.unit);
 
-				case CursorMove_.Direction.ViewPortTop:
-				case CursorMove_.Direction.ViewPortBottom:
-				case CursorMove_.Direction.ViewPortCenter:
-				case CursorMove_.Direction.ViewPortIfOutside:
-					return CursorMoveCommands.viewportMove(viewModel, cursors, args.direction, inSelectionMode, value);
-				default:
-					return null;
+				case CuwsowMove_.Diwection.ViewPowtTop:
+				case CuwsowMove_.Diwection.ViewPowtBottom:
+				case CuwsowMove_.Diwection.ViewPowtCenta:
+				case CuwsowMove_.Diwection.ViewPowtIfOutside:
+					wetuwn CuwsowMoveCommands.viewpowtMove(viewModew, cuwsows, awgs.diwection, inSewectionMode, vawue);
+				defauwt:
+					wetuwn nuww;
 			}
 		}
 	}
 
-	export const CursorMove: CursorMoveImpl = registerEditorCommand(new CursorMoveImpl());
+	expowt const CuwsowMove: CuwsowMoveImpw = wegistewEditowCommand(new CuwsowMoveImpw());
 
 	const enum Constants {
-		PAGE_SIZE_MARKER = -1
+		PAGE_SIZE_MAWKa = -1
 	}
 
-	class CursorMoveBasedCommand extends CoreEditorCommand {
+	cwass CuwsowMoveBasedCommand extends CoweEditowCommand {
 
-		private readonly _staticArgs: CursorMove_.SimpleMoveArguments;
+		pwivate weadonwy _staticAwgs: CuwsowMove_.SimpweMoveAwguments;
 
-		constructor(opts: ICommandOptions & { args: CursorMove_.SimpleMoveArguments }) {
-			super(opts);
-			this._staticArgs = opts.args;
+		constwuctow(opts: ICommandOptions & { awgs: CuwsowMove_.SimpweMoveAwguments }) {
+			supa(opts);
+			this._staticAwgs = opts.awgs;
 		}
 
-		public runCoreEditorCommand(viewModel: IViewModel, dynamicArgs: any): void {
-			let args = this._staticArgs;
-			if (this._staticArgs.value === Constants.PAGE_SIZE_MARKER) {
-				// -1 is a marker for page size
-				args = {
-					direction: this._staticArgs.direction,
-					unit: this._staticArgs.unit,
-					select: this._staticArgs.select,
-					value: viewModel.cursorConfig.pageSize
+		pubwic wunCoweEditowCommand(viewModew: IViewModew, dynamicAwgs: any): void {
+			wet awgs = this._staticAwgs;
+			if (this._staticAwgs.vawue === Constants.PAGE_SIZE_MAWKa) {
+				// -1 is a mawka fow page size
+				awgs = {
+					diwection: this._staticAwgs.diwection,
+					unit: this._staticAwgs.unit,
+					sewect: this._staticAwgs.sewect,
+					vawue: viewModew.cuwsowConfig.pageSize
 				};
 			}
 
-			viewModel.model.pushStackElement();
-			viewModel.setCursorStates(
-				dynamicArgs.source,
-				CursorChangeReason.Explicit,
-				CursorMoveCommands.simpleMove(viewModel, viewModel.getCursorStates(), args.direction, args.select, args.value, args.unit)
+			viewModew.modew.pushStackEwement();
+			viewModew.setCuwsowStates(
+				dynamicAwgs.souwce,
+				CuwsowChangeWeason.Expwicit,
+				CuwsowMoveCommands.simpweMove(viewModew, viewModew.getCuwsowStates(), awgs.diwection, awgs.sewect, awgs.vawue, awgs.unit)
 			);
-			viewModel.revealPrimaryCursor(dynamicArgs.source, true);
+			viewModew.weveawPwimawyCuwsow(dynamicAwgs.souwce, twue);
 		}
 	}
 
-	export const CursorLeft: CoreEditorCommand = registerEditorCommand(new CursorMoveBasedCommand({
-		args: {
-			direction: CursorMove_.Direction.Left,
-			unit: CursorMove_.Unit.None,
-			select: false,
-			value: 1
+	expowt const CuwsowWeft: CoweEditowCommand = wegistewEditowCommand(new CuwsowMoveBasedCommand({
+		awgs: {
+			diwection: CuwsowMove_.Diwection.Weft,
+			unit: CuwsowMove_.Unit.None,
+			sewect: fawse,
+			vawue: 1
 		},
-		id: 'cursorLeft',
-		precondition: undefined,
+		id: 'cuwsowWeft',
+		pwecondition: undefined,
 		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: KeyCode.LeftArrow,
-			mac: { primary: KeyCode.LeftArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_B] }
+			weight: COWE_WEIGHT,
+			kbExpw: EditowContextKeys.textInputFocus,
+			pwimawy: KeyCode.WeftAwwow,
+			mac: { pwimawy: KeyCode.WeftAwwow, secondawy: [KeyMod.WinCtww | KeyCode.KEY_B] }
 		}
 	}));
 
-	export const CursorLeftSelect: CoreEditorCommand = registerEditorCommand(new CursorMoveBasedCommand({
-		args: {
-			direction: CursorMove_.Direction.Left,
-			unit: CursorMove_.Unit.None,
-			select: true,
-			value: 1
+	expowt const CuwsowWeftSewect: CoweEditowCommand = wegistewEditowCommand(new CuwsowMoveBasedCommand({
+		awgs: {
+			diwection: CuwsowMove_.Diwection.Weft,
+			unit: CuwsowMove_.Unit.None,
+			sewect: twue,
+			vawue: 1
 		},
-		id: 'cursorLeftSelect',
-		precondition: undefined,
+		id: 'cuwsowWeftSewect',
+		pwecondition: undefined,
 		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: KeyMod.Shift | KeyCode.LeftArrow
+			weight: COWE_WEIGHT,
+			kbExpw: EditowContextKeys.textInputFocus,
+			pwimawy: KeyMod.Shift | KeyCode.WeftAwwow
 		}
 	}));
 
-	export const CursorRight: CoreEditorCommand = registerEditorCommand(new CursorMoveBasedCommand({
-		args: {
-			direction: CursorMove_.Direction.Right,
-			unit: CursorMove_.Unit.None,
-			select: false,
-			value: 1
+	expowt const CuwsowWight: CoweEditowCommand = wegistewEditowCommand(new CuwsowMoveBasedCommand({
+		awgs: {
+			diwection: CuwsowMove_.Diwection.Wight,
+			unit: CuwsowMove_.Unit.None,
+			sewect: fawse,
+			vawue: 1
 		},
-		id: 'cursorRight',
-		precondition: undefined,
+		id: 'cuwsowWight',
+		pwecondition: undefined,
 		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: KeyCode.RightArrow,
-			mac: { primary: KeyCode.RightArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_F] }
+			weight: COWE_WEIGHT,
+			kbExpw: EditowContextKeys.textInputFocus,
+			pwimawy: KeyCode.WightAwwow,
+			mac: { pwimawy: KeyCode.WightAwwow, secondawy: [KeyMod.WinCtww | KeyCode.KEY_F] }
 		}
 	}));
 
-	export const CursorRightSelect: CoreEditorCommand = registerEditorCommand(new CursorMoveBasedCommand({
-		args: {
-			direction: CursorMove_.Direction.Right,
-			unit: CursorMove_.Unit.None,
-			select: true,
-			value: 1
+	expowt const CuwsowWightSewect: CoweEditowCommand = wegistewEditowCommand(new CuwsowMoveBasedCommand({
+		awgs: {
+			diwection: CuwsowMove_.Diwection.Wight,
+			unit: CuwsowMove_.Unit.None,
+			sewect: twue,
+			vawue: 1
 		},
-		id: 'cursorRightSelect',
-		precondition: undefined,
+		id: 'cuwsowWightSewect',
+		pwecondition: undefined,
 		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: KeyMod.Shift | KeyCode.RightArrow
+			weight: COWE_WEIGHT,
+			kbExpw: EditowContextKeys.textInputFocus,
+			pwimawy: KeyMod.Shift | KeyCode.WightAwwow
 		}
 	}));
 
-	export const CursorUp: CoreEditorCommand = registerEditorCommand(new CursorMoveBasedCommand({
-		args: {
-			direction: CursorMove_.Direction.Up,
-			unit: CursorMove_.Unit.WrappedLine,
-			select: false,
-			value: 1
+	expowt const CuwsowUp: CoweEditowCommand = wegistewEditowCommand(new CuwsowMoveBasedCommand({
+		awgs: {
+			diwection: CuwsowMove_.Diwection.Up,
+			unit: CuwsowMove_.Unit.WwappedWine,
+			sewect: fawse,
+			vawue: 1
 		},
-		id: 'cursorUp',
-		precondition: undefined,
+		id: 'cuwsowUp',
+		pwecondition: undefined,
 		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: KeyCode.UpArrow,
-			mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_P] }
+			weight: COWE_WEIGHT,
+			kbExpw: EditowContextKeys.textInputFocus,
+			pwimawy: KeyCode.UpAwwow,
+			mac: { pwimawy: KeyCode.UpAwwow, secondawy: [KeyMod.WinCtww | KeyCode.KEY_P] }
 		}
 	}));
 
-	export const CursorUpSelect: CoreEditorCommand = registerEditorCommand(new CursorMoveBasedCommand({
-		args: {
-			direction: CursorMove_.Direction.Up,
-			unit: CursorMove_.Unit.WrappedLine,
-			select: true,
-			value: 1
+	expowt const CuwsowUpSewect: CoweEditowCommand = wegistewEditowCommand(new CuwsowMoveBasedCommand({
+		awgs: {
+			diwection: CuwsowMove_.Diwection.Up,
+			unit: CuwsowMove_.Unit.WwappedWine,
+			sewect: twue,
+			vawue: 1
 		},
-		id: 'cursorUpSelect',
-		precondition: undefined,
+		id: 'cuwsowUpSewect',
+		pwecondition: undefined,
 		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: KeyMod.Shift | KeyCode.UpArrow,
-			secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow],
-			mac: { primary: KeyMod.Shift | KeyCode.UpArrow },
-			linux: { primary: KeyMod.Shift | KeyCode.UpArrow }
+			weight: COWE_WEIGHT,
+			kbExpw: EditowContextKeys.textInputFocus,
+			pwimawy: KeyMod.Shift | KeyCode.UpAwwow,
+			secondawy: [KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.UpAwwow],
+			mac: { pwimawy: KeyMod.Shift | KeyCode.UpAwwow },
+			winux: { pwimawy: KeyMod.Shift | KeyCode.UpAwwow }
 		}
 	}));
 
-	export const CursorPageUp: CoreEditorCommand = registerEditorCommand(new CursorMoveBasedCommand({
-		args: {
-			direction: CursorMove_.Direction.Up,
-			unit: CursorMove_.Unit.WrappedLine,
-			select: false,
-			value: Constants.PAGE_SIZE_MARKER
+	expowt const CuwsowPageUp: CoweEditowCommand = wegistewEditowCommand(new CuwsowMoveBasedCommand({
+		awgs: {
+			diwection: CuwsowMove_.Diwection.Up,
+			unit: CuwsowMove_.Unit.WwappedWine,
+			sewect: fawse,
+			vawue: Constants.PAGE_SIZE_MAWKa
 		},
-		id: 'cursorPageUp',
-		precondition: undefined,
+		id: 'cuwsowPageUp',
+		pwecondition: undefined,
 		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: KeyCode.PageUp
+			weight: COWE_WEIGHT,
+			kbExpw: EditowContextKeys.textInputFocus,
+			pwimawy: KeyCode.PageUp
 		}
 	}));
 
-	export const CursorPageUpSelect: CoreEditorCommand = registerEditorCommand(new CursorMoveBasedCommand({
-		args: {
-			direction: CursorMove_.Direction.Up,
-			unit: CursorMove_.Unit.WrappedLine,
-			select: true,
-			value: Constants.PAGE_SIZE_MARKER
+	expowt const CuwsowPageUpSewect: CoweEditowCommand = wegistewEditowCommand(new CuwsowMoveBasedCommand({
+		awgs: {
+			diwection: CuwsowMove_.Diwection.Up,
+			unit: CuwsowMove_.Unit.WwappedWine,
+			sewect: twue,
+			vawue: Constants.PAGE_SIZE_MAWKa
 		},
-		id: 'cursorPageUpSelect',
-		precondition: undefined,
+		id: 'cuwsowPageUpSewect',
+		pwecondition: undefined,
 		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: KeyMod.Shift | KeyCode.PageUp
+			weight: COWE_WEIGHT,
+			kbExpw: EditowContextKeys.textInputFocus,
+			pwimawy: KeyMod.Shift | KeyCode.PageUp
 		}
 	}));
 
-	export const CursorDown: CoreEditorCommand = registerEditorCommand(new CursorMoveBasedCommand({
-		args: {
-			direction: CursorMove_.Direction.Down,
-			unit: CursorMove_.Unit.WrappedLine,
-			select: false,
-			value: 1
+	expowt const CuwsowDown: CoweEditowCommand = wegistewEditowCommand(new CuwsowMoveBasedCommand({
+		awgs: {
+			diwection: CuwsowMove_.Diwection.Down,
+			unit: CuwsowMove_.Unit.WwappedWine,
+			sewect: fawse,
+			vawue: 1
 		},
-		id: 'cursorDown',
-		precondition: undefined,
+		id: 'cuwsowDown',
+		pwecondition: undefined,
 		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: KeyCode.DownArrow,
-			mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_N] }
+			weight: COWE_WEIGHT,
+			kbExpw: EditowContextKeys.textInputFocus,
+			pwimawy: KeyCode.DownAwwow,
+			mac: { pwimawy: KeyCode.DownAwwow, secondawy: [KeyMod.WinCtww | KeyCode.KEY_N] }
 		}
 	}));
 
-	export const CursorDownSelect: CoreEditorCommand = registerEditorCommand(new CursorMoveBasedCommand({
-		args: {
-			direction: CursorMove_.Direction.Down,
-			unit: CursorMove_.Unit.WrappedLine,
-			select: true,
-			value: 1
+	expowt const CuwsowDownSewect: CoweEditowCommand = wegistewEditowCommand(new CuwsowMoveBasedCommand({
+		awgs: {
+			diwection: CuwsowMove_.Diwection.Down,
+			unit: CuwsowMove_.Unit.WwappedWine,
+			sewect: twue,
+			vawue: 1
 		},
-		id: 'cursorDownSelect',
-		precondition: undefined,
+		id: 'cuwsowDownSewect',
+		pwecondition: undefined,
 		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: KeyMod.Shift | KeyCode.DownArrow,
-			secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow],
-			mac: { primary: KeyMod.Shift | KeyCode.DownArrow },
-			linux: { primary: KeyMod.Shift | KeyCode.DownArrow }
+			weight: COWE_WEIGHT,
+			kbExpw: EditowContextKeys.textInputFocus,
+			pwimawy: KeyMod.Shift | KeyCode.DownAwwow,
+			secondawy: [KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.DownAwwow],
+			mac: { pwimawy: KeyMod.Shift | KeyCode.DownAwwow },
+			winux: { pwimawy: KeyMod.Shift | KeyCode.DownAwwow }
 		}
 	}));
 
-	export const CursorPageDown: CoreEditorCommand = registerEditorCommand(new CursorMoveBasedCommand({
-		args: {
-			direction: CursorMove_.Direction.Down,
-			unit: CursorMove_.Unit.WrappedLine,
-			select: false,
-			value: Constants.PAGE_SIZE_MARKER
+	expowt const CuwsowPageDown: CoweEditowCommand = wegistewEditowCommand(new CuwsowMoveBasedCommand({
+		awgs: {
+			diwection: CuwsowMove_.Diwection.Down,
+			unit: CuwsowMove_.Unit.WwappedWine,
+			sewect: fawse,
+			vawue: Constants.PAGE_SIZE_MAWKa
 		},
-		id: 'cursorPageDown',
-		precondition: undefined,
+		id: 'cuwsowPageDown',
+		pwecondition: undefined,
 		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: KeyCode.PageDown
+			weight: COWE_WEIGHT,
+			kbExpw: EditowContextKeys.textInputFocus,
+			pwimawy: KeyCode.PageDown
 		}
 	}));
 
-	export const CursorPageDownSelect: CoreEditorCommand = registerEditorCommand(new CursorMoveBasedCommand({
-		args: {
-			direction: CursorMove_.Direction.Down,
-			unit: CursorMove_.Unit.WrappedLine,
-			select: true,
-			value: Constants.PAGE_SIZE_MARKER
+	expowt const CuwsowPageDownSewect: CoweEditowCommand = wegistewEditowCommand(new CuwsowMoveBasedCommand({
+		awgs: {
+			diwection: CuwsowMove_.Diwection.Down,
+			unit: CuwsowMove_.Unit.WwappedWine,
+			sewect: twue,
+			vawue: Constants.PAGE_SIZE_MAWKa
 		},
-		id: 'cursorPageDownSelect',
-		precondition: undefined,
+		id: 'cuwsowPageDownSewect',
+		pwecondition: undefined,
 		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: KeyMod.Shift | KeyCode.PageDown
+			weight: COWE_WEIGHT,
+			kbExpw: EditowContextKeys.textInputFocus,
+			pwimawy: KeyMod.Shift | KeyCode.PageDown
 		}
 	}));
 
-	export const CreateCursor: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
-		constructor() {
-			super({
-				id: 'createCursor',
-				precondition: undefined
+	expowt const CweateCuwsow: CoweEditowCommand = wegistewEditowCommand(new cwass extends CoweEditowCommand {
+		constwuctow() {
+			supa({
+				id: 'cweateCuwsow',
+				pwecondition: undefined
 			});
 		}
 
-		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
-			let newState: PartialCursorState;
-			if (args.wholeLine) {
-				newState = CursorMoveCommands.line(viewModel, viewModel.getPrimaryCursorState(), false, args.position, args.viewPosition);
-			} else {
-				newState = CursorMoveCommands.moveTo(viewModel, viewModel.getPrimaryCursorState(), false, args.position, args.viewPosition);
+		pubwic wunCoweEditowCommand(viewModew: IViewModew, awgs: any): void {
+			wet newState: PawtiawCuwsowState;
+			if (awgs.whoweWine) {
+				newState = CuwsowMoveCommands.wine(viewModew, viewModew.getPwimawyCuwsowState(), fawse, awgs.position, awgs.viewPosition);
+			} ewse {
+				newState = CuwsowMoveCommands.moveTo(viewModew, viewModew.getPwimawyCuwsowState(), fawse, awgs.position, awgs.viewPosition);
 			}
 
-			const states: PartialCursorState[] = viewModel.getCursorStates();
+			const states: PawtiawCuwsowState[] = viewModew.getCuwsowStates();
 
-			// Check if we should remove a cursor (sort of like a toggle)
-			if (states.length > 1) {
-				const newModelPosition = (newState.modelState ? newState.modelState.position : null);
-				const newViewPosition = (newState.viewState ? newState.viewState.position : null);
+			// Check if we shouwd wemove a cuwsow (sowt of wike a toggwe)
+			if (states.wength > 1) {
+				const newModewPosition = (newState.modewState ? newState.modewState.position : nuww);
+				const newViewPosition = (newState.viewState ? newState.viewState.position : nuww);
 
-				for (let i = 0, len = states.length; i < len; i++) {
+				fow (wet i = 0, wen = states.wength; i < wen; i++) {
 					const state = states[i];
 
-					if (newModelPosition && !state.modelState!.selection.containsPosition(newModelPosition)) {
+					if (newModewPosition && !state.modewState!.sewection.containsPosition(newModewPosition)) {
 						continue;
 					}
 
-					if (newViewPosition && !state.viewState!.selection.containsPosition(newViewPosition)) {
+					if (newViewPosition && !state.viewState!.sewection.containsPosition(newViewPosition)) {
 						continue;
 					}
 
-					// => Remove the cursor
-					states.splice(i, 1);
+					// => Wemove the cuwsow
+					states.spwice(i, 1);
 
-					viewModel.model.pushStackElement();
-					viewModel.setCursorStates(
-						args.source,
-						CursorChangeReason.Explicit,
+					viewModew.modew.pushStackEwement();
+					viewModew.setCuwsowStates(
+						awgs.souwce,
+						CuwsowChangeWeason.Expwicit,
 						states
 					);
-					return;
+					wetuwn;
 				}
 			}
 
-			// => Add the new cursor
+			// => Add the new cuwsow
 			states.push(newState);
 
-			viewModel.model.pushStackElement();
-			viewModel.setCursorStates(
-				args.source,
-				CursorChangeReason.Explicit,
+			viewModew.modew.pushStackEwement();
+			viewModew.setCuwsowStates(
+				awgs.souwce,
+				CuwsowChangeWeason.Expwicit,
 				states
 			);
 		}
 	});
 
-	export const LastCursorMoveToSelect: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
-		constructor() {
-			super({
-				id: '_lastCursorMoveToSelect',
-				precondition: undefined
+	expowt const WastCuwsowMoveToSewect: CoweEditowCommand = wegistewEditowCommand(new cwass extends CoweEditowCommand {
+		constwuctow() {
+			supa({
+				id: '_wastCuwsowMoveToSewect',
+				pwecondition: undefined
 			});
 		}
 
-		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
-			const lastAddedCursorIndex = viewModel.getLastAddedCursorIndex();
+		pubwic wunCoweEditowCommand(viewModew: IViewModew, awgs: any): void {
+			const wastAddedCuwsowIndex = viewModew.getWastAddedCuwsowIndex();
 
-			const states = viewModel.getCursorStates();
-			const newStates: PartialCursorState[] = states.slice(0);
-			newStates[lastAddedCursorIndex] = CursorMoveCommands.moveTo(viewModel, states[lastAddedCursorIndex], true, args.position, args.viewPosition);
+			const states = viewModew.getCuwsowStates();
+			const newStates: PawtiawCuwsowState[] = states.swice(0);
+			newStates[wastAddedCuwsowIndex] = CuwsowMoveCommands.moveTo(viewModew, states[wastAddedCuwsowIndex], twue, awgs.position, awgs.viewPosition);
 
-			viewModel.model.pushStackElement();
-			viewModel.setCursorStates(
-				args.source,
-				CursorChangeReason.Explicit,
+			viewModew.modew.pushStackEwement();
+			viewModew.setCuwsowStates(
+				awgs.souwce,
+				CuwsowChangeWeason.Expwicit,
 				newStates
 			);
 		}
 	});
 
-	class HomeCommand extends CoreEditorCommand {
+	cwass HomeCommand extends CoweEditowCommand {
 
-		private readonly _inSelectionMode: boolean;
+		pwivate weadonwy _inSewectionMode: boowean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
-			super(opts);
-			this._inSelectionMode = opts.inSelectionMode;
+		constwuctow(opts: ICommandOptions & { inSewectionMode: boowean; }) {
+			supa(opts);
+			this._inSewectionMode = opts.inSewectionMode;
 		}
 
-		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
-			viewModel.model.pushStackElement();
-			viewModel.setCursorStates(
-				args.source,
-				CursorChangeReason.Explicit,
-				CursorMoveCommands.moveToBeginningOfLine(viewModel, viewModel.getCursorStates(), this._inSelectionMode)
+		pubwic wunCoweEditowCommand(viewModew: IViewModew, awgs: any): void {
+			viewModew.modew.pushStackEwement();
+			viewModew.setCuwsowStates(
+				awgs.souwce,
+				CuwsowChangeWeason.Expwicit,
+				CuwsowMoveCommands.moveToBeginningOfWine(viewModew, viewModew.getCuwsowStates(), this._inSewectionMode)
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
+			viewModew.weveawPwimawyCuwsow(awgs.souwce, twue);
 		}
 	}
 
-	export const CursorHome: CoreEditorCommand = registerEditorCommand(new HomeCommand({
-		inSelectionMode: false,
-		id: 'cursorHome',
-		precondition: undefined,
+	expowt const CuwsowHome: CoweEditowCommand = wegistewEditowCommand(new HomeCommand({
+		inSewectionMode: fawse,
+		id: 'cuwsowHome',
+		pwecondition: undefined,
 		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: KeyCode.Home,
-			mac: { primary: KeyCode.Home, secondary: [KeyMod.CtrlCmd | KeyCode.LeftArrow] }
+			weight: COWE_WEIGHT,
+			kbExpw: EditowContextKeys.textInputFocus,
+			pwimawy: KeyCode.Home,
+			mac: { pwimawy: KeyCode.Home, secondawy: [KeyMod.CtwwCmd | KeyCode.WeftAwwow] }
 		}
 	}));
 
-	export const CursorHomeSelect: CoreEditorCommand = registerEditorCommand(new HomeCommand({
-		inSelectionMode: true,
-		id: 'cursorHomeSelect',
-		precondition: undefined,
+	expowt const CuwsowHomeSewect: CoweEditowCommand = wegistewEditowCommand(new HomeCommand({
+		inSewectionMode: twue,
+		id: 'cuwsowHomeSewect',
+		pwecondition: undefined,
 		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: KeyMod.Shift | KeyCode.Home,
-			mac: { primary: KeyMod.Shift | KeyCode.Home, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow] }
+			weight: COWE_WEIGHT,
+			kbExpw: EditowContextKeys.textInputFocus,
+			pwimawy: KeyMod.Shift | KeyCode.Home,
+			mac: { pwimawy: KeyMod.Shift | KeyCode.Home, secondawy: [KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.WeftAwwow] }
 		}
 	}));
 
-	class LineStartCommand extends CoreEditorCommand {
+	cwass WineStawtCommand extends CoweEditowCommand {
 
-		private readonly _inSelectionMode: boolean;
+		pwivate weadonwy _inSewectionMode: boowean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
-			super(opts);
-			this._inSelectionMode = opts.inSelectionMode;
+		constwuctow(opts: ICommandOptions & { inSewectionMode: boowean; }) {
+			supa(opts);
+			this._inSewectionMode = opts.inSewectionMode;
 		}
 
-		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
-			viewModel.model.pushStackElement();
-			viewModel.setCursorStates(
-				args.source,
-				CursorChangeReason.Explicit,
-				this._exec(viewModel.getCursorStates())
+		pubwic wunCoweEditowCommand(viewModew: IViewModew, awgs: any): void {
+			viewModew.modew.pushStackEwement();
+			viewModew.setCuwsowStates(
+				awgs.souwce,
+				CuwsowChangeWeason.Expwicit,
+				this._exec(viewModew.getCuwsowStates())
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
+			viewModew.weveawPwimawyCuwsow(awgs.souwce, twue);
 		}
 
-		private _exec(cursors: CursorState[]): PartialCursorState[] {
-			const result: PartialCursorState[] = [];
-			for (let i = 0, len = cursors.length; i < len; i++) {
-				const cursor = cursors[i];
-				const lineNumber = cursor.modelState.position.lineNumber;
-				result[i] = CursorState.fromModelState(cursor.modelState.move(this._inSelectionMode, lineNumber, 1, 0));
+		pwivate _exec(cuwsows: CuwsowState[]): PawtiawCuwsowState[] {
+			const wesuwt: PawtiawCuwsowState[] = [];
+			fow (wet i = 0, wen = cuwsows.wength; i < wen; i++) {
+				const cuwsow = cuwsows[i];
+				const wineNumba = cuwsow.modewState.position.wineNumba;
+				wesuwt[i] = CuwsowState.fwomModewState(cuwsow.modewState.move(this._inSewectionMode, wineNumba, 1, 0));
 			}
-			return result;
+			wetuwn wesuwt;
 		}
 	}
 
-	export const CursorLineStart: CoreEditorCommand = registerEditorCommand(new LineStartCommand({
-		inSelectionMode: false,
-		id: 'cursorLineStart',
-		precondition: undefined,
+	expowt const CuwsowWineStawt: CoweEditowCommand = wegistewEditowCommand(new WineStawtCommand({
+		inSewectionMode: fawse,
+		id: 'cuwsowWineStawt',
+		pwecondition: undefined,
 		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: 0,
-			mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_A }
+			weight: COWE_WEIGHT,
+			kbExpw: EditowContextKeys.textInputFocus,
+			pwimawy: 0,
+			mac: { pwimawy: KeyMod.WinCtww | KeyCode.KEY_A }
 		}
 	}));
 
-	export const CursorLineStartSelect: CoreEditorCommand = registerEditorCommand(new LineStartCommand({
-		inSelectionMode: true,
-		id: 'cursorLineStartSelect',
-		precondition: undefined,
+	expowt const CuwsowWineStawtSewect: CoweEditowCommand = wegistewEditowCommand(new WineStawtCommand({
+		inSewectionMode: twue,
+		id: 'cuwsowWineStawtSewect',
+		pwecondition: undefined,
 		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: 0,
-			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_A }
+			weight: COWE_WEIGHT,
+			kbExpw: EditowContextKeys.textInputFocus,
+			pwimawy: 0,
+			mac: { pwimawy: KeyMod.WinCtww | KeyMod.Shift | KeyCode.KEY_A }
 		}
 	}));
 
-	class EndCommand extends CoreEditorCommand {
+	cwass EndCommand extends CoweEditowCommand {
 
-		private readonly _inSelectionMode: boolean;
+		pwivate weadonwy _inSewectionMode: boowean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
-			super(opts);
-			this._inSelectionMode = opts.inSelectionMode;
+		constwuctow(opts: ICommandOptions & { inSewectionMode: boowean; }) {
+			supa(opts);
+			this._inSewectionMode = opts.inSewectionMode;
 		}
 
-		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
-			viewModel.model.pushStackElement();
-			viewModel.setCursorStates(
-				args.source,
-				CursorChangeReason.Explicit,
-				CursorMoveCommands.moveToEndOfLine(viewModel, viewModel.getCursorStates(), this._inSelectionMode, args.sticky || false)
+		pubwic wunCoweEditowCommand(viewModew: IViewModew, awgs: any): void {
+			viewModew.modew.pushStackEwement();
+			viewModew.setCuwsowStates(
+				awgs.souwce,
+				CuwsowChangeWeason.Expwicit,
+				CuwsowMoveCommands.moveToEndOfWine(viewModew, viewModew.getCuwsowStates(), this._inSewectionMode, awgs.sticky || fawse)
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
+			viewModew.weveawPwimawyCuwsow(awgs.souwce, twue);
 		}
 	}
 
-	export const CursorEnd: CoreEditorCommand = registerEditorCommand(new EndCommand({
-		inSelectionMode: false,
-		id: 'cursorEnd',
-		precondition: undefined,
+	expowt const CuwsowEnd: CoweEditowCommand = wegistewEditowCommand(new EndCommand({
+		inSewectionMode: fawse,
+		id: 'cuwsowEnd',
+		pwecondition: undefined,
 		kbOpts: {
-			args: { sticky: false },
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: KeyCode.End,
-			mac: { primary: KeyCode.End, secondary: [KeyMod.CtrlCmd | KeyCode.RightArrow] }
+			awgs: { sticky: fawse },
+			weight: COWE_WEIGHT,
+			kbExpw: EditowContextKeys.textInputFocus,
+			pwimawy: KeyCode.End,
+			mac: { pwimawy: KeyCode.End, secondawy: [KeyMod.CtwwCmd | KeyCode.WightAwwow] }
 		},
-		description: {
-			description: `Go to End`,
-			args: [{
-				name: 'args',
+		descwiption: {
+			descwiption: `Go to End`,
+			awgs: [{
+				name: 'awgs',
 				schema: {
 					type: 'object',
-					properties: {
+					pwopewties: {
 						'sticky': {
-							description: nls.localize('stickydesc', "Stick to the end even when going to longer lines"),
-							type: 'boolean',
-							default: false
+							descwiption: nws.wocawize('stickydesc', "Stick to the end even when going to wonga wines"),
+							type: 'boowean',
+							defauwt: fawse
 						}
 					}
 				}
@@ -1044,28 +1044,28 @@ export namespace CoreNavigationCommands {
 		}
 	}));
 
-	export const CursorEndSelect: CoreEditorCommand = registerEditorCommand(new EndCommand({
-		inSelectionMode: true,
-		id: 'cursorEndSelect',
-		precondition: undefined,
+	expowt const CuwsowEndSewect: CoweEditowCommand = wegistewEditowCommand(new EndCommand({
+		inSewectionMode: twue,
+		id: 'cuwsowEndSewect',
+		pwecondition: undefined,
 		kbOpts: {
-			args: { sticky: false },
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: KeyMod.Shift | KeyCode.End,
-			mac: { primary: KeyMod.Shift | KeyCode.End, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow] }
+			awgs: { sticky: fawse },
+			weight: COWE_WEIGHT,
+			kbExpw: EditowContextKeys.textInputFocus,
+			pwimawy: KeyMod.Shift | KeyCode.End,
+			mac: { pwimawy: KeyMod.Shift | KeyCode.End, secondawy: [KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.WightAwwow] }
 		},
-		description: {
-			description: `Select to End`,
-			args: [{
-				name: 'args',
+		descwiption: {
+			descwiption: `Sewect to End`,
+			awgs: [{
+				name: 'awgs',
 				schema: {
 					type: 'object',
-					properties: {
+					pwopewties: {
 						'sticky': {
-							description: nls.localize('stickydesc', "Stick to the end even when going to longer lines"),
-							type: 'boolean',
-							default: false
+							descwiption: nws.wocawize('stickydesc', "Stick to the end even when going to wonga wines"),
+							type: 'boowean',
+							defauwt: fawse
 						}
 					}
 				}
@@ -1073,868 +1073,868 @@ export namespace CoreNavigationCommands {
 		}
 	}));
 
-	class LineEndCommand extends CoreEditorCommand {
+	cwass WineEndCommand extends CoweEditowCommand {
 
-		private readonly _inSelectionMode: boolean;
+		pwivate weadonwy _inSewectionMode: boowean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
-			super(opts);
-			this._inSelectionMode = opts.inSelectionMode;
+		constwuctow(opts: ICommandOptions & { inSewectionMode: boowean; }) {
+			supa(opts);
+			this._inSewectionMode = opts.inSewectionMode;
 		}
 
-		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
-			viewModel.model.pushStackElement();
-			viewModel.setCursorStates(
-				args.source,
-				CursorChangeReason.Explicit,
-				this._exec(viewModel, viewModel.getCursorStates())
+		pubwic wunCoweEditowCommand(viewModew: IViewModew, awgs: any): void {
+			viewModew.modew.pushStackEwement();
+			viewModew.setCuwsowStates(
+				awgs.souwce,
+				CuwsowChangeWeason.Expwicit,
+				this._exec(viewModew, viewModew.getCuwsowStates())
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
+			viewModew.weveawPwimawyCuwsow(awgs.souwce, twue);
 		}
 
-		private _exec(viewModel: IViewModel, cursors: CursorState[]): PartialCursorState[] {
-			const result: PartialCursorState[] = [];
-			for (let i = 0, len = cursors.length; i < len; i++) {
-				const cursor = cursors[i];
-				const lineNumber = cursor.modelState.position.lineNumber;
-				const maxColumn = viewModel.model.getLineMaxColumn(lineNumber);
-				result[i] = CursorState.fromModelState(cursor.modelState.move(this._inSelectionMode, lineNumber, maxColumn, 0));
+		pwivate _exec(viewModew: IViewModew, cuwsows: CuwsowState[]): PawtiawCuwsowState[] {
+			const wesuwt: PawtiawCuwsowState[] = [];
+			fow (wet i = 0, wen = cuwsows.wength; i < wen; i++) {
+				const cuwsow = cuwsows[i];
+				const wineNumba = cuwsow.modewState.position.wineNumba;
+				const maxCowumn = viewModew.modew.getWineMaxCowumn(wineNumba);
+				wesuwt[i] = CuwsowState.fwomModewState(cuwsow.modewState.move(this._inSewectionMode, wineNumba, maxCowumn, 0));
 			}
-			return result;
+			wetuwn wesuwt;
 		}
 	}
 
-	export const CursorLineEnd: CoreEditorCommand = registerEditorCommand(new LineEndCommand({
-		inSelectionMode: false,
-		id: 'cursorLineEnd',
-		precondition: undefined,
+	expowt const CuwsowWineEnd: CoweEditowCommand = wegistewEditowCommand(new WineEndCommand({
+		inSewectionMode: fawse,
+		id: 'cuwsowWineEnd',
+		pwecondition: undefined,
 		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: 0,
-			mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_E }
+			weight: COWE_WEIGHT,
+			kbExpw: EditowContextKeys.textInputFocus,
+			pwimawy: 0,
+			mac: { pwimawy: KeyMod.WinCtww | KeyCode.KEY_E }
 		}
 	}));
 
-	export const CursorLineEndSelect: CoreEditorCommand = registerEditorCommand(new LineEndCommand({
-		inSelectionMode: true,
-		id: 'cursorLineEndSelect',
-		precondition: undefined,
+	expowt const CuwsowWineEndSewect: CoweEditowCommand = wegistewEditowCommand(new WineEndCommand({
+		inSewectionMode: twue,
+		id: 'cuwsowWineEndSewect',
+		pwecondition: undefined,
 		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: 0,
-			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_E }
+			weight: COWE_WEIGHT,
+			kbExpw: EditowContextKeys.textInputFocus,
+			pwimawy: 0,
+			mac: { pwimawy: KeyMod.WinCtww | KeyMod.Shift | KeyCode.KEY_E }
 		}
 	}));
 
-	class TopCommand extends CoreEditorCommand {
+	cwass TopCommand extends CoweEditowCommand {
 
-		private readonly _inSelectionMode: boolean;
+		pwivate weadonwy _inSewectionMode: boowean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
-			super(opts);
-			this._inSelectionMode = opts.inSelectionMode;
+		constwuctow(opts: ICommandOptions & { inSewectionMode: boowean; }) {
+			supa(opts);
+			this._inSewectionMode = opts.inSewectionMode;
 		}
 
-		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
-			viewModel.model.pushStackElement();
-			viewModel.setCursorStates(
-				args.source,
-				CursorChangeReason.Explicit,
-				CursorMoveCommands.moveToBeginningOfBuffer(viewModel, viewModel.getCursorStates(), this._inSelectionMode)
+		pubwic wunCoweEditowCommand(viewModew: IViewModew, awgs: any): void {
+			viewModew.modew.pushStackEwement();
+			viewModew.setCuwsowStates(
+				awgs.souwce,
+				CuwsowChangeWeason.Expwicit,
+				CuwsowMoveCommands.moveToBeginningOfBuffa(viewModew, viewModew.getCuwsowStates(), this._inSewectionMode)
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
+			viewModew.weveawPwimawyCuwsow(awgs.souwce, twue);
 		}
 	}
 
-	export const CursorTop: CoreEditorCommand = registerEditorCommand(new TopCommand({
-		inSelectionMode: false,
-		id: 'cursorTop',
-		precondition: undefined,
+	expowt const CuwsowTop: CoweEditowCommand = wegistewEditowCommand(new TopCommand({
+		inSewectionMode: fawse,
+		id: 'cuwsowTop',
+		pwecondition: undefined,
 		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: KeyMod.CtrlCmd | KeyCode.Home,
-			mac: { primary: KeyMod.CtrlCmd | KeyCode.UpArrow }
+			weight: COWE_WEIGHT,
+			kbExpw: EditowContextKeys.textInputFocus,
+			pwimawy: KeyMod.CtwwCmd | KeyCode.Home,
+			mac: { pwimawy: KeyMod.CtwwCmd | KeyCode.UpAwwow }
 		}
 	}));
 
-	export const CursorTopSelect: CoreEditorCommand = registerEditorCommand(new TopCommand({
-		inSelectionMode: true,
-		id: 'cursorTopSelect',
-		precondition: undefined,
+	expowt const CuwsowTopSewect: CoweEditowCommand = wegistewEditowCommand(new TopCommand({
+		inSewectionMode: twue,
+		id: 'cuwsowTopSewect',
+		pwecondition: undefined,
 		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Home,
-			mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow }
+			weight: COWE_WEIGHT,
+			kbExpw: EditowContextKeys.textInputFocus,
+			pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.Home,
+			mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.UpAwwow }
 		}
 	}));
 
-	class BottomCommand extends CoreEditorCommand {
+	cwass BottomCommand extends CoweEditowCommand {
 
-		private readonly _inSelectionMode: boolean;
+		pwivate weadonwy _inSewectionMode: boowean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
-			super(opts);
-			this._inSelectionMode = opts.inSelectionMode;
+		constwuctow(opts: ICommandOptions & { inSewectionMode: boowean; }) {
+			supa(opts);
+			this._inSewectionMode = opts.inSewectionMode;
 		}
 
-		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
-			viewModel.model.pushStackElement();
-			viewModel.setCursorStates(
-				args.source,
-				CursorChangeReason.Explicit,
-				CursorMoveCommands.moveToEndOfBuffer(viewModel, viewModel.getCursorStates(), this._inSelectionMode)
+		pubwic wunCoweEditowCommand(viewModew: IViewModew, awgs: any): void {
+			viewModew.modew.pushStackEwement();
+			viewModew.setCuwsowStates(
+				awgs.souwce,
+				CuwsowChangeWeason.Expwicit,
+				CuwsowMoveCommands.moveToEndOfBuffa(viewModew, viewModew.getCuwsowStates(), this._inSewectionMode)
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
+			viewModew.weveawPwimawyCuwsow(awgs.souwce, twue);
 		}
 	}
 
-	export const CursorBottom: CoreEditorCommand = registerEditorCommand(new BottomCommand({
-		inSelectionMode: false,
-		id: 'cursorBottom',
-		precondition: undefined,
+	expowt const CuwsowBottom: CoweEditowCommand = wegistewEditowCommand(new BottomCommand({
+		inSewectionMode: fawse,
+		id: 'cuwsowBottom',
+		pwecondition: undefined,
 		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: KeyMod.CtrlCmd | KeyCode.End,
-			mac: { primary: KeyMod.CtrlCmd | KeyCode.DownArrow }
+			weight: COWE_WEIGHT,
+			kbExpw: EditowContextKeys.textInputFocus,
+			pwimawy: KeyMod.CtwwCmd | KeyCode.End,
+			mac: { pwimawy: KeyMod.CtwwCmd | KeyCode.DownAwwow }
 		}
 	}));
 
-	export const CursorBottomSelect: CoreEditorCommand = registerEditorCommand(new BottomCommand({
-		inSelectionMode: true,
-		id: 'cursorBottomSelect',
-		precondition: undefined,
+	expowt const CuwsowBottomSewect: CoweEditowCommand = wegistewEditowCommand(new BottomCommand({
+		inSewectionMode: twue,
+		id: 'cuwsowBottomSewect',
+		pwecondition: undefined,
 		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.End,
-			mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow }
+			weight: COWE_WEIGHT,
+			kbExpw: EditowContextKeys.textInputFocus,
+			pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.End,
+			mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.DownAwwow }
 		}
 	}));
 
-	export class EditorScrollImpl extends CoreEditorCommand {
-		constructor() {
-			super({
-				id: 'editorScroll',
-				precondition: undefined,
-				description: EditorScroll_.description
+	expowt cwass EditowScwowwImpw extends CoweEditowCommand {
+		constwuctow() {
+			supa({
+				id: 'editowScwoww',
+				pwecondition: undefined,
+				descwiption: EditowScwoww_.descwiption
 			});
 		}
 
-		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
-			const parsed = EditorScroll_.parse(args);
-			if (!parsed) {
-				// illegal arguments
-				return;
+		pubwic wunCoweEditowCommand(viewModew: IViewModew, awgs: any): void {
+			const pawsed = EditowScwoww_.pawse(awgs);
+			if (!pawsed) {
+				// iwwegaw awguments
+				wetuwn;
 			}
-			this._runEditorScroll(viewModel, args.source, parsed);
+			this._wunEditowScwoww(viewModew, awgs.souwce, pawsed);
 		}
 
-		_runEditorScroll(viewModel: IViewModel, source: string | null | undefined, args: EditorScroll_.ParsedArguments): void {
+		_wunEditowScwoww(viewModew: IViewModew, souwce: stwing | nuww | undefined, awgs: EditowScwoww_.PawsedAwguments): void {
 
-			const desiredScrollTop = this._computeDesiredScrollTop(viewModel, args);
+			const desiwedScwowwTop = this._computeDesiwedScwowwTop(viewModew, awgs);
 
-			if (args.revealCursor) {
-				// must ensure cursor is in new visible range
-				const desiredVisibleViewRange = viewModel.getCompletelyVisibleViewRangeAtScrollTop(desiredScrollTop);
-				viewModel.setCursorStates(
-					source,
-					CursorChangeReason.Explicit,
+			if (awgs.weveawCuwsow) {
+				// must ensuwe cuwsow is in new visibwe wange
+				const desiwedVisibweViewWange = viewModew.getCompwetewyVisibweViewWangeAtScwowwTop(desiwedScwowwTop);
+				viewModew.setCuwsowStates(
+					souwce,
+					CuwsowChangeWeason.Expwicit,
 					[
-						CursorMoveCommands.findPositionInViewportIfOutside(viewModel, viewModel.getPrimaryCursorState(), desiredVisibleViewRange, args.select)
+						CuwsowMoveCommands.findPositionInViewpowtIfOutside(viewModew, viewModew.getPwimawyCuwsowState(), desiwedVisibweViewWange, awgs.sewect)
 					]
 				);
 			}
 
-			viewModel.setScrollTop(desiredScrollTop, ScrollType.Smooth);
+			viewModew.setScwowwTop(desiwedScwowwTop, ScwowwType.Smooth);
 		}
 
-		private _computeDesiredScrollTop(viewModel: IViewModel, args: EditorScroll_.ParsedArguments): number {
+		pwivate _computeDesiwedScwowwTop(viewModew: IViewModew, awgs: EditowScwoww_.PawsedAwguments): numba {
 
-			if (args.unit === EditorScroll_.Unit.Line) {
-				// scrolling by model lines
-				const visibleViewRange = viewModel.getCompletelyVisibleViewRange();
-				const visibleModelRange = viewModel.coordinatesConverter.convertViewRangeToModelRange(visibleViewRange);
+			if (awgs.unit === EditowScwoww_.Unit.Wine) {
+				// scwowwing by modew wines
+				const visibweViewWange = viewModew.getCompwetewyVisibweViewWange();
+				const visibweModewWange = viewModew.coowdinatesConvewta.convewtViewWangeToModewWange(visibweViewWange);
 
-				let desiredTopModelLineNumber: number;
-				if (args.direction === EditorScroll_.Direction.Up) {
-					// must go x model lines up
-					desiredTopModelLineNumber = Math.max(1, visibleModelRange.startLineNumber - args.value);
-				} else {
-					// must go x model lines down
-					desiredTopModelLineNumber = Math.min(viewModel.model.getLineCount(), visibleModelRange.startLineNumber + args.value);
+				wet desiwedTopModewWineNumba: numba;
+				if (awgs.diwection === EditowScwoww_.Diwection.Up) {
+					// must go x modew wines up
+					desiwedTopModewWineNumba = Math.max(1, visibweModewWange.stawtWineNumba - awgs.vawue);
+				} ewse {
+					// must go x modew wines down
+					desiwedTopModewWineNumba = Math.min(viewModew.modew.getWineCount(), visibweModewWange.stawtWineNumba + awgs.vawue);
 				}
 
-				const viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(new Position(desiredTopModelLineNumber, 1));
-				return viewModel.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
+				const viewPosition = viewModew.coowdinatesConvewta.convewtModewPositionToViewPosition(new Position(desiwedTopModewWineNumba, 1));
+				wetuwn viewModew.getVewticawOffsetFowWineNumba(viewPosition.wineNumba);
 			}
 
-			let noOfLines: number;
-			if (args.unit === EditorScroll_.Unit.Page) {
-				noOfLines = viewModel.cursorConfig.pageSize * args.value;
-			} else if (args.unit === EditorScroll_.Unit.HalfPage) {
-				noOfLines = Math.round(viewModel.cursorConfig.pageSize / 2) * args.value;
-			} else {
-				noOfLines = args.value;
+			wet noOfWines: numba;
+			if (awgs.unit === EditowScwoww_.Unit.Page) {
+				noOfWines = viewModew.cuwsowConfig.pageSize * awgs.vawue;
+			} ewse if (awgs.unit === EditowScwoww_.Unit.HawfPage) {
+				noOfWines = Math.wound(viewModew.cuwsowConfig.pageSize / 2) * awgs.vawue;
+			} ewse {
+				noOfWines = awgs.vawue;
 			}
-			const deltaLines = (args.direction === EditorScroll_.Direction.Up ? -1 : 1) * noOfLines;
-			return viewModel.getScrollTop() + deltaLines * viewModel.cursorConfig.lineHeight;
+			const dewtaWines = (awgs.diwection === EditowScwoww_.Diwection.Up ? -1 : 1) * noOfWines;
+			wetuwn viewModew.getScwowwTop() + dewtaWines * viewModew.cuwsowConfig.wineHeight;
 		}
 	}
 
-	export const EditorScroll: EditorScrollImpl = registerEditorCommand(new EditorScrollImpl());
+	expowt const EditowScwoww: EditowScwowwImpw = wegistewEditowCommand(new EditowScwowwImpw());
 
-	export const ScrollLineUp: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
-		constructor() {
-			super({
-				id: 'scrollLineUp',
-				precondition: undefined,
+	expowt const ScwowwWineUp: CoweEditowCommand = wegistewEditowCommand(new cwass extends CoweEditowCommand {
+		constwuctow() {
+			supa({
+				id: 'scwowwWineUp',
+				pwecondition: undefined,
 				kbOpts: {
-					weight: CORE_WEIGHT,
-					kbExpr: EditorContextKeys.textInputFocus,
-					primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
-					mac: { primary: KeyMod.WinCtrl | KeyCode.PageUp }
+					weight: COWE_WEIGHT,
+					kbExpw: EditowContextKeys.textInputFocus,
+					pwimawy: KeyMod.CtwwCmd | KeyCode.UpAwwow,
+					mac: { pwimawy: KeyMod.WinCtww | KeyCode.PageUp }
 				}
 			});
 		}
 
-		runCoreEditorCommand(viewModel: IViewModel, args: any): void {
-			EditorScroll._runEditorScroll(viewModel, args.source, {
-				direction: EditorScroll_.Direction.Up,
-				unit: EditorScroll_.Unit.WrappedLine,
-				value: 1,
-				revealCursor: false,
-				select: false
+		wunCoweEditowCommand(viewModew: IViewModew, awgs: any): void {
+			EditowScwoww._wunEditowScwoww(viewModew, awgs.souwce, {
+				diwection: EditowScwoww_.Diwection.Up,
+				unit: EditowScwoww_.Unit.WwappedWine,
+				vawue: 1,
+				weveawCuwsow: fawse,
+				sewect: fawse
 			});
 		}
 	});
 
-	export const ScrollPageUp: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
-		constructor() {
-			super({
-				id: 'scrollPageUp',
-				precondition: undefined,
+	expowt const ScwowwPageUp: CoweEditowCommand = wegistewEditowCommand(new cwass extends CoweEditowCommand {
+		constwuctow() {
+			supa({
+				id: 'scwowwPageUp',
+				pwecondition: undefined,
 				kbOpts: {
-					weight: CORE_WEIGHT,
-					kbExpr: EditorContextKeys.textInputFocus,
-					primary: KeyMod.CtrlCmd | KeyCode.PageUp,
-					win: { primary: KeyMod.Alt | KeyCode.PageUp },
-					linux: { primary: KeyMod.Alt | KeyCode.PageUp }
+					weight: COWE_WEIGHT,
+					kbExpw: EditowContextKeys.textInputFocus,
+					pwimawy: KeyMod.CtwwCmd | KeyCode.PageUp,
+					win: { pwimawy: KeyMod.Awt | KeyCode.PageUp },
+					winux: { pwimawy: KeyMod.Awt | KeyCode.PageUp }
 				}
 			});
 		}
 
-		runCoreEditorCommand(viewModel: IViewModel, args: any): void {
-			EditorScroll._runEditorScroll(viewModel, args.source, {
-				direction: EditorScroll_.Direction.Up,
-				unit: EditorScroll_.Unit.Page,
-				value: 1,
-				revealCursor: false,
-				select: false
+		wunCoweEditowCommand(viewModew: IViewModew, awgs: any): void {
+			EditowScwoww._wunEditowScwoww(viewModew, awgs.souwce, {
+				diwection: EditowScwoww_.Diwection.Up,
+				unit: EditowScwoww_.Unit.Page,
+				vawue: 1,
+				weveawCuwsow: fawse,
+				sewect: fawse
 			});
 		}
 	});
 
-	export const ScrollLineDown: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
-		constructor() {
-			super({
-				id: 'scrollLineDown',
-				precondition: undefined,
+	expowt const ScwowwWineDown: CoweEditowCommand = wegistewEditowCommand(new cwass extends CoweEditowCommand {
+		constwuctow() {
+			supa({
+				id: 'scwowwWineDown',
+				pwecondition: undefined,
 				kbOpts: {
-					weight: CORE_WEIGHT,
-					kbExpr: EditorContextKeys.textInputFocus,
-					primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
-					mac: { primary: KeyMod.WinCtrl | KeyCode.PageDown }
+					weight: COWE_WEIGHT,
+					kbExpw: EditowContextKeys.textInputFocus,
+					pwimawy: KeyMod.CtwwCmd | KeyCode.DownAwwow,
+					mac: { pwimawy: KeyMod.WinCtww | KeyCode.PageDown }
 				}
 			});
 		}
 
-		runCoreEditorCommand(viewModel: IViewModel, args: any): void {
-			EditorScroll._runEditorScroll(viewModel, args.source, {
-				direction: EditorScroll_.Direction.Down,
-				unit: EditorScroll_.Unit.WrappedLine,
-				value: 1,
-				revealCursor: false,
-				select: false
+		wunCoweEditowCommand(viewModew: IViewModew, awgs: any): void {
+			EditowScwoww._wunEditowScwoww(viewModew, awgs.souwce, {
+				diwection: EditowScwoww_.Diwection.Down,
+				unit: EditowScwoww_.Unit.WwappedWine,
+				vawue: 1,
+				weveawCuwsow: fawse,
+				sewect: fawse
 			});
 		}
 	});
 
-	export const ScrollPageDown: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
-		constructor() {
-			super({
-				id: 'scrollPageDown',
-				precondition: undefined,
+	expowt const ScwowwPageDown: CoweEditowCommand = wegistewEditowCommand(new cwass extends CoweEditowCommand {
+		constwuctow() {
+			supa({
+				id: 'scwowwPageDown',
+				pwecondition: undefined,
 				kbOpts: {
-					weight: CORE_WEIGHT,
-					kbExpr: EditorContextKeys.textInputFocus,
-					primary: KeyMod.CtrlCmd | KeyCode.PageDown,
-					win: { primary: KeyMod.Alt | KeyCode.PageDown },
-					linux: { primary: KeyMod.Alt | KeyCode.PageDown }
+					weight: COWE_WEIGHT,
+					kbExpw: EditowContextKeys.textInputFocus,
+					pwimawy: KeyMod.CtwwCmd | KeyCode.PageDown,
+					win: { pwimawy: KeyMod.Awt | KeyCode.PageDown },
+					winux: { pwimawy: KeyMod.Awt | KeyCode.PageDown }
 				}
 			});
 		}
 
-		runCoreEditorCommand(viewModel: IViewModel, args: any): void {
-			EditorScroll._runEditorScroll(viewModel, args.source, {
-				direction: EditorScroll_.Direction.Down,
-				unit: EditorScroll_.Unit.Page,
-				value: 1,
-				revealCursor: false,
-				select: false
+		wunCoweEditowCommand(viewModew: IViewModew, awgs: any): void {
+			EditowScwoww._wunEditowScwoww(viewModew, awgs.souwce, {
+				diwection: EditowScwoww_.Diwection.Down,
+				unit: EditowScwoww_.Unit.Page,
+				vawue: 1,
+				weveawCuwsow: fawse,
+				sewect: fawse
 			});
 		}
 	});
 
-	class WordCommand extends CoreEditorCommand {
+	cwass WowdCommand extends CoweEditowCommand {
 
-		private readonly _inSelectionMode: boolean;
+		pwivate weadonwy _inSewectionMode: boowean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
-			super(opts);
-			this._inSelectionMode = opts.inSelectionMode;
+		constwuctow(opts: ICommandOptions & { inSewectionMode: boowean; }) {
+			supa(opts);
+			this._inSewectionMode = opts.inSewectionMode;
 		}
 
-		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
-			viewModel.model.pushStackElement();
-			viewModel.setCursorStates(
-				args.source,
-				CursorChangeReason.Explicit,
+		pubwic wunCoweEditowCommand(viewModew: IViewModew, awgs: any): void {
+			viewModew.modew.pushStackEwement();
+			viewModew.setCuwsowStates(
+				awgs.souwce,
+				CuwsowChangeWeason.Expwicit,
 				[
-					CursorMoveCommands.word(viewModel, viewModel.getPrimaryCursorState(), this._inSelectionMode, args.position)
+					CuwsowMoveCommands.wowd(viewModew, viewModew.getPwimawyCuwsowState(), this._inSewectionMode, awgs.position)
 				]
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
+			viewModew.weveawPwimawyCuwsow(awgs.souwce, twue);
 		}
 	}
 
-	export const WordSelect: CoreEditorCommand = registerEditorCommand(new WordCommand({
-		inSelectionMode: false,
-		id: '_wordSelect',
-		precondition: undefined
+	expowt const WowdSewect: CoweEditowCommand = wegistewEditowCommand(new WowdCommand({
+		inSewectionMode: fawse,
+		id: '_wowdSewect',
+		pwecondition: undefined
 	}));
 
-	export const WordSelectDrag: CoreEditorCommand = registerEditorCommand(new WordCommand({
-		inSelectionMode: true,
-		id: '_wordSelectDrag',
-		precondition: undefined
+	expowt const WowdSewectDwag: CoweEditowCommand = wegistewEditowCommand(new WowdCommand({
+		inSewectionMode: twue,
+		id: '_wowdSewectDwag',
+		pwecondition: undefined
 	}));
 
-	export const LastCursorWordSelect: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
-		constructor() {
-			super({
-				id: 'lastCursorWordSelect',
-				precondition: undefined
+	expowt const WastCuwsowWowdSewect: CoweEditowCommand = wegistewEditowCommand(new cwass extends CoweEditowCommand {
+		constwuctow() {
+			supa({
+				id: 'wastCuwsowWowdSewect',
+				pwecondition: undefined
 			});
 		}
 
-		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
-			const lastAddedCursorIndex = viewModel.getLastAddedCursorIndex();
+		pubwic wunCoweEditowCommand(viewModew: IViewModew, awgs: any): void {
+			const wastAddedCuwsowIndex = viewModew.getWastAddedCuwsowIndex();
 
-			const states = viewModel.getCursorStates();
-			const newStates: PartialCursorState[] = states.slice(0);
-			const lastAddedState = states[lastAddedCursorIndex];
-			newStates[lastAddedCursorIndex] = CursorMoveCommands.word(viewModel, lastAddedState, lastAddedState.modelState.hasSelection(), args.position);
+			const states = viewModew.getCuwsowStates();
+			const newStates: PawtiawCuwsowState[] = states.swice(0);
+			const wastAddedState = states[wastAddedCuwsowIndex];
+			newStates[wastAddedCuwsowIndex] = CuwsowMoveCommands.wowd(viewModew, wastAddedState, wastAddedState.modewState.hasSewection(), awgs.position);
 
-			viewModel.model.pushStackElement();
-			viewModel.setCursorStates(
-				args.source,
-				CursorChangeReason.Explicit,
+			viewModew.modew.pushStackEwement();
+			viewModew.setCuwsowStates(
+				awgs.souwce,
+				CuwsowChangeWeason.Expwicit,
 				newStates
 			);
 		}
 	});
 
-	class LineCommand extends CoreEditorCommand {
-		private readonly _inSelectionMode: boolean;
+	cwass WineCommand extends CoweEditowCommand {
+		pwivate weadonwy _inSewectionMode: boowean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
-			super(opts);
-			this._inSelectionMode = opts.inSelectionMode;
+		constwuctow(opts: ICommandOptions & { inSewectionMode: boowean; }) {
+			supa(opts);
+			this._inSewectionMode = opts.inSewectionMode;
 		}
 
-		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
-			viewModel.model.pushStackElement();
-			viewModel.setCursorStates(
-				args.source,
-				CursorChangeReason.Explicit,
+		pubwic wunCoweEditowCommand(viewModew: IViewModew, awgs: any): void {
+			viewModew.modew.pushStackEwement();
+			viewModew.setCuwsowStates(
+				awgs.souwce,
+				CuwsowChangeWeason.Expwicit,
 				[
-					CursorMoveCommands.line(viewModel, viewModel.getPrimaryCursorState(), this._inSelectionMode, args.position, args.viewPosition)
+					CuwsowMoveCommands.wine(viewModew, viewModew.getPwimawyCuwsowState(), this._inSewectionMode, awgs.position, awgs.viewPosition)
 				]
 			);
-			viewModel.revealPrimaryCursor(args.source, false);
+			viewModew.weveawPwimawyCuwsow(awgs.souwce, fawse);
 		}
 	}
 
-	export const LineSelect: CoreEditorCommand = registerEditorCommand(new LineCommand({
-		inSelectionMode: false,
-		id: '_lineSelect',
-		precondition: undefined
+	expowt const WineSewect: CoweEditowCommand = wegistewEditowCommand(new WineCommand({
+		inSewectionMode: fawse,
+		id: '_wineSewect',
+		pwecondition: undefined
 	}));
 
-	export const LineSelectDrag: CoreEditorCommand = registerEditorCommand(new LineCommand({
-		inSelectionMode: true,
-		id: '_lineSelectDrag',
-		precondition: undefined
+	expowt const WineSewectDwag: CoweEditowCommand = wegistewEditowCommand(new WineCommand({
+		inSewectionMode: twue,
+		id: '_wineSewectDwag',
+		pwecondition: undefined
 	}));
 
-	class LastCursorLineCommand extends CoreEditorCommand {
-		private readonly _inSelectionMode: boolean;
+	cwass WastCuwsowWineCommand extends CoweEditowCommand {
+		pwivate weadonwy _inSewectionMode: boowean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
-			super(opts);
-			this._inSelectionMode = opts.inSelectionMode;
+		constwuctow(opts: ICommandOptions & { inSewectionMode: boowean; }) {
+			supa(opts);
+			this._inSewectionMode = opts.inSewectionMode;
 		}
 
-		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
-			const lastAddedCursorIndex = viewModel.getLastAddedCursorIndex();
+		pubwic wunCoweEditowCommand(viewModew: IViewModew, awgs: any): void {
+			const wastAddedCuwsowIndex = viewModew.getWastAddedCuwsowIndex();
 
-			const states = viewModel.getCursorStates();
-			const newStates: PartialCursorState[] = states.slice(0);
-			newStates[lastAddedCursorIndex] = CursorMoveCommands.line(viewModel, states[lastAddedCursorIndex], this._inSelectionMode, args.position, args.viewPosition);
+			const states = viewModew.getCuwsowStates();
+			const newStates: PawtiawCuwsowState[] = states.swice(0);
+			newStates[wastAddedCuwsowIndex] = CuwsowMoveCommands.wine(viewModew, states[wastAddedCuwsowIndex], this._inSewectionMode, awgs.position, awgs.viewPosition);
 
-			viewModel.model.pushStackElement();
-			viewModel.setCursorStates(
-				args.source,
-				CursorChangeReason.Explicit,
+			viewModew.modew.pushStackEwement();
+			viewModew.setCuwsowStates(
+				awgs.souwce,
+				CuwsowChangeWeason.Expwicit,
 				newStates
 			);
 		}
 	}
 
-	export const LastCursorLineSelect: CoreEditorCommand = registerEditorCommand(new LastCursorLineCommand({
-		inSelectionMode: false,
-		id: 'lastCursorLineSelect',
-		precondition: undefined
+	expowt const WastCuwsowWineSewect: CoweEditowCommand = wegistewEditowCommand(new WastCuwsowWineCommand({
+		inSewectionMode: fawse,
+		id: 'wastCuwsowWineSewect',
+		pwecondition: undefined
 	}));
 
-	export const LastCursorLineSelectDrag: CoreEditorCommand = registerEditorCommand(new LastCursorLineCommand({
-		inSelectionMode: true,
-		id: 'lastCursorLineSelectDrag',
-		precondition: undefined
+	expowt const WastCuwsowWineSewectDwag: CoweEditowCommand = wegistewEditowCommand(new WastCuwsowWineCommand({
+		inSewectionMode: twue,
+		id: 'wastCuwsowWineSewectDwag',
+		pwecondition: undefined
 	}));
 
-	export const ExpandLineSelection: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
-		constructor() {
-			super({
-				id: 'expandLineSelection',
-				precondition: undefined,
+	expowt const ExpandWineSewection: CoweEditowCommand = wegistewEditowCommand(new cwass extends CoweEditowCommand {
+		constwuctow() {
+			supa({
+				id: 'expandWineSewection',
+				pwecondition: undefined,
 				kbOpts: {
-					weight: CORE_WEIGHT,
-					kbExpr: EditorContextKeys.textInputFocus,
-					primary: KeyMod.CtrlCmd | KeyCode.KEY_L
+					weight: COWE_WEIGHT,
+					kbExpw: EditowContextKeys.textInputFocus,
+					pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_W
 				}
 			});
 		}
 
-		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
-			viewModel.model.pushStackElement();
-			viewModel.setCursorStates(
-				args.source,
-				CursorChangeReason.Explicit,
-				CursorMoveCommands.expandLineSelection(viewModel, viewModel.getCursorStates())
+		pubwic wunCoweEditowCommand(viewModew: IViewModew, awgs: any): void {
+			viewModew.modew.pushStackEwement();
+			viewModew.setCuwsowStates(
+				awgs.souwce,
+				CuwsowChangeWeason.Expwicit,
+				CuwsowMoveCommands.expandWineSewection(viewModew, viewModew.getCuwsowStates())
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
+			viewModew.weveawPwimawyCuwsow(awgs.souwce, twue);
 		}
 
 	});
 
-	export const CancelSelection: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
-		constructor() {
-			super({
-				id: 'cancelSelection',
-				precondition: EditorContextKeys.hasNonEmptySelection,
+	expowt const CancewSewection: CoweEditowCommand = wegistewEditowCommand(new cwass extends CoweEditowCommand {
+		constwuctow() {
+			supa({
+				id: 'cancewSewection',
+				pwecondition: EditowContextKeys.hasNonEmptySewection,
 				kbOpts: {
-					weight: CORE_WEIGHT,
-					kbExpr: EditorContextKeys.textInputFocus,
-					primary: KeyCode.Escape,
-					secondary: [KeyMod.Shift | KeyCode.Escape]
+					weight: COWE_WEIGHT,
+					kbExpw: EditowContextKeys.textInputFocus,
+					pwimawy: KeyCode.Escape,
+					secondawy: [KeyMod.Shift | KeyCode.Escape]
 				}
 			});
 		}
 
-		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
-			viewModel.model.pushStackElement();
-			viewModel.setCursorStates(
-				args.source,
-				CursorChangeReason.Explicit,
+		pubwic wunCoweEditowCommand(viewModew: IViewModew, awgs: any): void {
+			viewModew.modew.pushStackEwement();
+			viewModew.setCuwsowStates(
+				awgs.souwce,
+				CuwsowChangeWeason.Expwicit,
 				[
-					CursorMoveCommands.cancelSelection(viewModel, viewModel.getPrimaryCursorState())
+					CuwsowMoveCommands.cancewSewection(viewModew, viewModew.getPwimawyCuwsowState())
 				]
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
+			viewModew.weveawPwimawyCuwsow(awgs.souwce, twue);
 		}
 	});
 
-	export const RemoveSecondaryCursors: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
-		constructor() {
-			super({
-				id: 'removeSecondaryCursors',
-				precondition: EditorContextKeys.hasMultipleSelections,
+	expowt const WemoveSecondawyCuwsows: CoweEditowCommand = wegistewEditowCommand(new cwass extends CoweEditowCommand {
+		constwuctow() {
+			supa({
+				id: 'wemoveSecondawyCuwsows',
+				pwecondition: EditowContextKeys.hasMuwtipweSewections,
 				kbOpts: {
-					weight: CORE_WEIGHT + 1,
-					kbExpr: EditorContextKeys.textInputFocus,
-					primary: KeyCode.Escape,
-					secondary: [KeyMod.Shift | KeyCode.Escape]
+					weight: COWE_WEIGHT + 1,
+					kbExpw: EditowContextKeys.textInputFocus,
+					pwimawy: KeyCode.Escape,
+					secondawy: [KeyMod.Shift | KeyCode.Escape]
 				}
 			});
 		}
 
-		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
-			viewModel.model.pushStackElement();
-			viewModel.setCursorStates(
-				args.source,
-				CursorChangeReason.Explicit,
+		pubwic wunCoweEditowCommand(viewModew: IViewModew, awgs: any): void {
+			viewModew.modew.pushStackEwement();
+			viewModew.setCuwsowStates(
+				awgs.souwce,
+				CuwsowChangeWeason.Expwicit,
 				[
-					viewModel.getPrimaryCursorState()
+					viewModew.getPwimawyCuwsowState()
 				]
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
-			status(nls.localize('removedCursor', "Removed secondary cursors"));
+			viewModew.weveawPwimawyCuwsow(awgs.souwce, twue);
+			status(nws.wocawize('wemovedCuwsow', "Wemoved secondawy cuwsows"));
 		}
 	});
 
-	export const RevealLine: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
-		constructor() {
-			super({
-				id: 'revealLine',
-				precondition: undefined,
-				description: RevealLine_.description
+	expowt const WeveawWine: CoweEditowCommand = wegistewEditowCommand(new cwass extends CoweEditowCommand {
+		constwuctow() {
+			supa({
+				id: 'weveawWine',
+				pwecondition: undefined,
+				descwiption: WeveawWine_.descwiption
 			});
 		}
 
-		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
-			const revealLineArg = <RevealLine_.RawArguments>args;
-			const lineNumberArg = revealLineArg.lineNumber || 0;
-			let lineNumber = typeof lineNumberArg === 'number' ? (lineNumberArg + 1) : (parseInt(lineNumberArg) + 1);
-			if (lineNumber < 1) {
-				lineNumber = 1;
+		pubwic wunCoweEditowCommand(viewModew: IViewModew, awgs: any): void {
+			const weveawWineAwg = <WeveawWine_.WawAwguments>awgs;
+			const wineNumbewAwg = weveawWineAwg.wineNumba || 0;
+			wet wineNumba = typeof wineNumbewAwg === 'numba' ? (wineNumbewAwg + 1) : (pawseInt(wineNumbewAwg) + 1);
+			if (wineNumba < 1) {
+				wineNumba = 1;
 			}
-			const lineCount = viewModel.model.getLineCount();
-			if (lineNumber > lineCount) {
-				lineNumber = lineCount;
+			const wineCount = viewModew.modew.getWineCount();
+			if (wineNumba > wineCount) {
+				wineNumba = wineCount;
 			}
 
-			const range = new Range(
-				lineNumber, 1,
-				lineNumber, viewModel.model.getLineMaxColumn(lineNumber)
+			const wange = new Wange(
+				wineNumba, 1,
+				wineNumba, viewModew.modew.getWineMaxCowumn(wineNumba)
 			);
 
-			let revealAt = VerticalRevealType.Simple;
-			if (revealLineArg.at) {
-				switch (revealLineArg.at) {
-					case RevealLine_.RawAtArgument.Top:
-						revealAt = VerticalRevealType.Top;
-						break;
-					case RevealLine_.RawAtArgument.Center:
-						revealAt = VerticalRevealType.Center;
-						break;
-					case RevealLine_.RawAtArgument.Bottom:
-						revealAt = VerticalRevealType.Bottom;
-						break;
-					default:
-						break;
+			wet weveawAt = VewticawWeveawType.Simpwe;
+			if (weveawWineAwg.at) {
+				switch (weveawWineAwg.at) {
+					case WeveawWine_.WawAtAwgument.Top:
+						weveawAt = VewticawWeveawType.Top;
+						bweak;
+					case WeveawWine_.WawAtAwgument.Centa:
+						weveawAt = VewticawWeveawType.Centa;
+						bweak;
+					case WeveawWine_.WawAtAwgument.Bottom:
+						weveawAt = VewticawWeveawType.Bottom;
+						bweak;
+					defauwt:
+						bweak;
 				}
 			}
 
-			const viewRange = viewModel.coordinatesConverter.convertModelRangeToViewRange(range);
+			const viewWange = viewModew.coowdinatesConvewta.convewtModewWangeToViewWange(wange);
 
-			viewModel.revealRange(args.source, false, viewRange, revealAt, ScrollType.Smooth);
+			viewModew.weveawWange(awgs.souwce, fawse, viewWange, weveawAt, ScwowwType.Smooth);
 		}
 	});
 
-	export const SelectAll = new class extends EditorOrNativeTextInputCommand {
-		constructor() {
-			super(SelectAllCommand);
+	expowt const SewectAww = new cwass extends EditowOwNativeTextInputCommand {
+		constwuctow() {
+			supa(SewectAwwCommand);
 		}
-		public runDOMCommand(): void {
-			if (isFirefox) {
-				(<HTMLInputElement>document.activeElement).focus();
-				(<HTMLInputElement>document.activeElement).select();
+		pubwic wunDOMCommand(): void {
+			if (isFiwefox) {
+				(<HTMWInputEwement>document.activeEwement).focus();
+				(<HTMWInputEwement>document.activeEwement).sewect();
 			}
 
-			document.execCommand('selectAll');
+			document.execCommand('sewectAww');
 		}
-		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-			const viewModel = editor._getViewModel();
-			if (!viewModel) {
-				// the editor has no view => has no cursors
-				return;
+		pubwic wunEditowCommand(accessow: SewvicesAccessow, editow: ICodeEditow, awgs: any): void {
+			const viewModew = editow._getViewModew();
+			if (!viewModew) {
+				// the editow has no view => has no cuwsows
+				wetuwn;
 			}
-			this.runCoreEditorCommand(viewModel, args);
+			this.wunCoweEditowCommand(viewModew, awgs);
 		}
-		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
-			viewModel.model.pushStackElement();
-			viewModel.setCursorStates(
-				'keyboard',
-				CursorChangeReason.Explicit,
+		pubwic wunCoweEditowCommand(viewModew: IViewModew, awgs: any): void {
+			viewModew.modew.pushStackEwement();
+			viewModew.setCuwsowStates(
+				'keyboawd',
+				CuwsowChangeWeason.Expwicit,
 				[
-					CursorMoveCommands.selectAll(viewModel, viewModel.getPrimaryCursorState())
+					CuwsowMoveCommands.sewectAww(viewModew, viewModew.getPwimawyCuwsowState())
 				]
 			);
 		}
 	}();
 
-	export const SetSelection: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
-		constructor() {
-			super({
-				id: 'setSelection',
-				precondition: undefined
+	expowt const SetSewection: CoweEditowCommand = wegistewEditowCommand(new cwass extends CoweEditowCommand {
+		constwuctow() {
+			supa({
+				id: 'setSewection',
+				pwecondition: undefined
 			});
 		}
 
-		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
-			viewModel.model.pushStackElement();
-			viewModel.setCursorStates(
-				args.source,
-				CursorChangeReason.Explicit,
+		pubwic wunCoweEditowCommand(viewModew: IViewModew, awgs: any): void {
+			viewModew.modew.pushStackEwement();
+			viewModew.setCuwsowStates(
+				awgs.souwce,
+				CuwsowChangeWeason.Expwicit,
 				[
-					CursorState.fromModelSelection(args.selection)
+					CuwsowState.fwomModewSewection(awgs.sewection)
 				]
 			);
 		}
 	});
 }
 
-const columnSelectionCondition = ContextKeyExpr.and(
-	EditorContextKeys.textInputFocus,
-	EditorContextKeys.columnSelection
+const cowumnSewectionCondition = ContextKeyExpw.and(
+	EditowContextKeys.textInputFocus,
+	EditowContextKeys.cowumnSewection
 );
-function registerColumnSelection(id: string, keybinding: number): void {
-	KeybindingsRegistry.registerKeybindingRule({
+function wegistewCowumnSewection(id: stwing, keybinding: numba): void {
+	KeybindingsWegistwy.wegistewKeybindingWuwe({
 		id: id,
-		primary: keybinding,
-		when: columnSelectionCondition,
-		weight: CORE_WEIGHT + 1
+		pwimawy: keybinding,
+		when: cowumnSewectionCondition,
+		weight: COWE_WEIGHT + 1
 	});
 }
 
-registerColumnSelection(CoreNavigationCommands.CursorColumnSelectLeft.id, KeyMod.Shift | KeyCode.LeftArrow);
-registerColumnSelection(CoreNavigationCommands.CursorColumnSelectRight.id, KeyMod.Shift | KeyCode.RightArrow);
-registerColumnSelection(CoreNavigationCommands.CursorColumnSelectUp.id, KeyMod.Shift | KeyCode.UpArrow);
-registerColumnSelection(CoreNavigationCommands.CursorColumnSelectPageUp.id, KeyMod.Shift | KeyCode.PageUp);
-registerColumnSelection(CoreNavigationCommands.CursorColumnSelectDown.id, KeyMod.Shift | KeyCode.DownArrow);
-registerColumnSelection(CoreNavigationCommands.CursorColumnSelectPageDown.id, KeyMod.Shift | KeyCode.PageDown);
+wegistewCowumnSewection(CoweNavigationCommands.CuwsowCowumnSewectWeft.id, KeyMod.Shift | KeyCode.WeftAwwow);
+wegistewCowumnSewection(CoweNavigationCommands.CuwsowCowumnSewectWight.id, KeyMod.Shift | KeyCode.WightAwwow);
+wegistewCowumnSewection(CoweNavigationCommands.CuwsowCowumnSewectUp.id, KeyMod.Shift | KeyCode.UpAwwow);
+wegistewCowumnSewection(CoweNavigationCommands.CuwsowCowumnSewectPageUp.id, KeyMod.Shift | KeyCode.PageUp);
+wegistewCowumnSewection(CoweNavigationCommands.CuwsowCowumnSewectDown.id, KeyMod.Shift | KeyCode.DownAwwow);
+wegistewCowumnSewection(CoweNavigationCommands.CuwsowCowumnSewectPageDown.id, KeyMod.Shift | KeyCode.PageDown);
 
-function registerCommand<T extends Command>(command: T): T {
-	command.register();
-	return command;
+function wegistewCommand<T extends Command>(command: T): T {
+	command.wegista();
+	wetuwn command;
 }
 
-export namespace CoreEditingCommands {
+expowt namespace CoweEditingCommands {
 
-	export abstract class CoreEditingCommand extends EditorCommand {
-		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-			const viewModel = editor._getViewModel();
-			if (!viewModel) {
-				// the editor has no view => has no cursors
-				return;
+	expowt abstwact cwass CoweEditingCommand extends EditowCommand {
+		pubwic wunEditowCommand(accessow: SewvicesAccessow, editow: ICodeEditow, awgs: any): void {
+			const viewModew = editow._getViewModew();
+			if (!viewModew) {
+				// the editow has no view => has no cuwsows
+				wetuwn;
 			}
-			this.runCoreEditingCommand(editor, viewModel, args || {});
+			this.wunCoweEditingCommand(editow, viewModew, awgs || {});
 		}
 
-		public abstract runCoreEditingCommand(editor: ICodeEditor, viewModel: IViewModel, args: any): void;
+		pubwic abstwact wunCoweEditingCommand(editow: ICodeEditow, viewModew: IViewModew, awgs: any): void;
 	}
 
-	export const LineBreakInsert: EditorCommand = registerEditorCommand(new class extends CoreEditingCommand {
-		constructor() {
-			super({
-				id: 'lineBreakInsert',
-				precondition: EditorContextKeys.writable,
+	expowt const WineBweakInsewt: EditowCommand = wegistewEditowCommand(new cwass extends CoweEditingCommand {
+		constwuctow() {
+			supa({
+				id: 'wineBweakInsewt',
+				pwecondition: EditowContextKeys.wwitabwe,
 				kbOpts: {
-					weight: CORE_WEIGHT,
-					kbExpr: EditorContextKeys.textInputFocus,
-					primary: 0,
-					mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_O }
+					weight: COWE_WEIGHT,
+					kbExpw: EditowContextKeys.textInputFocus,
+					pwimawy: 0,
+					mac: { pwimawy: KeyMod.WinCtww | KeyCode.KEY_O }
 				}
 			});
 		}
 
-		public runCoreEditingCommand(editor: ICodeEditor, viewModel: IViewModel, args: any): void {
-			editor.pushUndoStop();
-			editor.executeCommands(this.id, TypeOperations.lineBreakInsert(viewModel.cursorConfig, viewModel.model, viewModel.getCursorStates().map(s => s.modelState.selection)));
+		pubwic wunCoweEditingCommand(editow: ICodeEditow, viewModew: IViewModew, awgs: any): void {
+			editow.pushUndoStop();
+			editow.executeCommands(this.id, TypeOpewations.wineBweakInsewt(viewModew.cuwsowConfig, viewModew.modew, viewModew.getCuwsowStates().map(s => s.modewState.sewection)));
 		}
 	});
 
-	export const Outdent: EditorCommand = registerEditorCommand(new class extends CoreEditingCommand {
-		constructor() {
-			super({
+	expowt const Outdent: EditowCommand = wegistewEditowCommand(new cwass extends CoweEditingCommand {
+		constwuctow() {
+			supa({
 				id: 'outdent',
-				precondition: EditorContextKeys.writable,
+				pwecondition: EditowContextKeys.wwitabwe,
 				kbOpts: {
-					weight: CORE_WEIGHT,
-					kbExpr: ContextKeyExpr.and(
-						EditorContextKeys.editorTextFocus,
-						EditorContextKeys.tabDoesNotMoveFocus
+					weight: COWE_WEIGHT,
+					kbExpw: ContextKeyExpw.and(
+						EditowContextKeys.editowTextFocus,
+						EditowContextKeys.tabDoesNotMoveFocus
 					),
-					primary: KeyMod.Shift | KeyCode.Tab
+					pwimawy: KeyMod.Shift | KeyCode.Tab
 				}
 			});
 		}
 
-		public runCoreEditingCommand(editor: ICodeEditor, viewModel: IViewModel, args: any): void {
-			editor.pushUndoStop();
-			editor.executeCommands(this.id, TypeOperations.outdent(viewModel.cursorConfig, viewModel.model, viewModel.getCursorStates().map(s => s.modelState.selection)));
-			editor.pushUndoStop();
+		pubwic wunCoweEditingCommand(editow: ICodeEditow, viewModew: IViewModew, awgs: any): void {
+			editow.pushUndoStop();
+			editow.executeCommands(this.id, TypeOpewations.outdent(viewModew.cuwsowConfig, viewModew.modew, viewModew.getCuwsowStates().map(s => s.modewState.sewection)));
+			editow.pushUndoStop();
 		}
 	});
 
-	export const Tab: EditorCommand = registerEditorCommand(new class extends CoreEditingCommand {
-		constructor() {
-			super({
+	expowt const Tab: EditowCommand = wegistewEditowCommand(new cwass extends CoweEditingCommand {
+		constwuctow() {
+			supa({
 				id: 'tab',
-				precondition: EditorContextKeys.writable,
+				pwecondition: EditowContextKeys.wwitabwe,
 				kbOpts: {
-					weight: CORE_WEIGHT,
-					kbExpr: ContextKeyExpr.and(
-						EditorContextKeys.editorTextFocus,
-						EditorContextKeys.tabDoesNotMoveFocus
+					weight: COWE_WEIGHT,
+					kbExpw: ContextKeyExpw.and(
+						EditowContextKeys.editowTextFocus,
+						EditowContextKeys.tabDoesNotMoveFocus
 					),
-					primary: KeyCode.Tab
+					pwimawy: KeyCode.Tab
 				}
 			});
 		}
 
-		public runCoreEditingCommand(editor: ICodeEditor, viewModel: IViewModel, args: any): void {
-			editor.pushUndoStop();
-			editor.executeCommands(this.id, TypeOperations.tab(viewModel.cursorConfig, viewModel.model, viewModel.getCursorStates().map(s => s.modelState.selection)));
-			editor.pushUndoStop();
+		pubwic wunCoweEditingCommand(editow: ICodeEditow, viewModew: IViewModew, awgs: any): void {
+			editow.pushUndoStop();
+			editow.executeCommands(this.id, TypeOpewations.tab(viewModew.cuwsowConfig, viewModew.modew, viewModew.getCuwsowStates().map(s => s.modewState.sewection)));
+			editow.pushUndoStop();
 		}
 	});
 
-	export const DeleteLeft: EditorCommand = registerEditorCommand(new class extends CoreEditingCommand {
-		constructor() {
-			super({
-				id: 'deleteLeft',
-				precondition: undefined,
+	expowt const DeweteWeft: EditowCommand = wegistewEditowCommand(new cwass extends CoweEditingCommand {
+		constwuctow() {
+			supa({
+				id: 'deweteWeft',
+				pwecondition: undefined,
 				kbOpts: {
-					weight: CORE_WEIGHT,
-					kbExpr: EditorContextKeys.textInputFocus,
-					primary: KeyCode.Backspace,
-					secondary: [KeyMod.Shift | KeyCode.Backspace],
-					mac: { primary: KeyCode.Backspace, secondary: [KeyMod.Shift | KeyCode.Backspace, KeyMod.WinCtrl | KeyCode.KEY_H, KeyMod.WinCtrl | KeyCode.Backspace] }
+					weight: COWE_WEIGHT,
+					kbExpw: EditowContextKeys.textInputFocus,
+					pwimawy: KeyCode.Backspace,
+					secondawy: [KeyMod.Shift | KeyCode.Backspace],
+					mac: { pwimawy: KeyCode.Backspace, secondawy: [KeyMod.Shift | KeyCode.Backspace, KeyMod.WinCtww | KeyCode.KEY_H, KeyMod.WinCtww | KeyCode.Backspace] }
 				}
 			});
 		}
 
-		public runCoreEditingCommand(editor: ICodeEditor, viewModel: IViewModel, args: any): void {
-			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteLeft(viewModel.getPrevEditOperationType(), viewModel.cursorConfig, viewModel.model, viewModel.getCursorStates().map(s => s.modelState.selection), viewModel.getCursorAutoClosedCharacters());
-			if (shouldPushStackElementBefore) {
-				editor.pushUndoStop();
+		pubwic wunCoweEditingCommand(editow: ICodeEditow, viewModew: IViewModew, awgs: any): void {
+			const [shouwdPushStackEwementBefowe, commands] = DeweteOpewations.deweteWeft(viewModew.getPwevEditOpewationType(), viewModew.cuwsowConfig, viewModew.modew, viewModew.getCuwsowStates().map(s => s.modewState.sewection), viewModew.getCuwsowAutoCwosedChawactews());
+			if (shouwdPushStackEwementBefowe) {
+				editow.pushUndoStop();
 			}
-			editor.executeCommands(this.id, commands);
-			viewModel.setPrevEditOperationType(EditOperationType.DeletingLeft);
+			editow.executeCommands(this.id, commands);
+			viewModew.setPwevEditOpewationType(EditOpewationType.DewetingWeft);
 		}
 	});
 
-	export const DeleteRight: EditorCommand = registerEditorCommand(new class extends CoreEditingCommand {
-		constructor() {
-			super({
-				id: 'deleteRight',
-				precondition: undefined,
+	expowt const DeweteWight: EditowCommand = wegistewEditowCommand(new cwass extends CoweEditingCommand {
+		constwuctow() {
+			supa({
+				id: 'deweteWight',
+				pwecondition: undefined,
 				kbOpts: {
-					weight: CORE_WEIGHT,
-					kbExpr: EditorContextKeys.textInputFocus,
-					primary: KeyCode.Delete,
-					mac: { primary: KeyCode.Delete, secondary: [KeyMod.WinCtrl | KeyCode.KEY_D, KeyMod.WinCtrl | KeyCode.Delete] }
+					weight: COWE_WEIGHT,
+					kbExpw: EditowContextKeys.textInputFocus,
+					pwimawy: KeyCode.Dewete,
+					mac: { pwimawy: KeyCode.Dewete, secondawy: [KeyMod.WinCtww | KeyCode.KEY_D, KeyMod.WinCtww | KeyCode.Dewete] }
 				}
 			});
 		}
 
-		public runCoreEditingCommand(editor: ICodeEditor, viewModel: IViewModel, args: any): void {
-			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteRight(viewModel.getPrevEditOperationType(), viewModel.cursorConfig, viewModel.model, viewModel.getCursorStates().map(s => s.modelState.selection));
-			if (shouldPushStackElementBefore) {
-				editor.pushUndoStop();
+		pubwic wunCoweEditingCommand(editow: ICodeEditow, viewModew: IViewModew, awgs: any): void {
+			const [shouwdPushStackEwementBefowe, commands] = DeweteOpewations.deweteWight(viewModew.getPwevEditOpewationType(), viewModew.cuwsowConfig, viewModew.modew, viewModew.getCuwsowStates().map(s => s.modewState.sewection));
+			if (shouwdPushStackEwementBefowe) {
+				editow.pushUndoStop();
 			}
-			editor.executeCommands(this.id, commands);
-			viewModel.setPrevEditOperationType(EditOperationType.DeletingRight);
+			editow.executeCommands(this.id, commands);
+			viewModew.setPwevEditOpewationType(EditOpewationType.DewetingWight);
 		}
 	});
 
-	export const Undo = new class extends EditorOrNativeTextInputCommand {
-		constructor() {
-			super(UndoCommand);
+	expowt const Undo = new cwass extends EditowOwNativeTextInputCommand {
+		constwuctow() {
+			supa(UndoCommand);
 		}
-		public runDOMCommand(): void {
+		pubwic wunDOMCommand(): void {
 			document.execCommand('undo');
 		}
-		public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void | Promise<void> {
-			if (!editor.hasModel() || editor.getOption(EditorOption.readOnly) === true) {
-				return;
+		pubwic wunEditowCommand(accessow: SewvicesAccessow | nuww, editow: ICodeEditow, awgs: any): void | Pwomise<void> {
+			if (!editow.hasModew() || editow.getOption(EditowOption.weadOnwy) === twue) {
+				wetuwn;
 			}
-			return editor.getModel().undo();
+			wetuwn editow.getModew().undo();
 		}
 	}();
 
-	export const Redo = new class extends EditorOrNativeTextInputCommand {
-		constructor() {
-			super(RedoCommand);
+	expowt const Wedo = new cwass extends EditowOwNativeTextInputCommand {
+		constwuctow() {
+			supa(WedoCommand);
 		}
-		public runDOMCommand(): void {
-			document.execCommand('redo');
+		pubwic wunDOMCommand(): void {
+			document.execCommand('wedo');
 		}
-		public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void | Promise<void> {
-			if (!editor.hasModel() || editor.getOption(EditorOption.readOnly) === true) {
-				return;
+		pubwic wunEditowCommand(accessow: SewvicesAccessow | nuww, editow: ICodeEditow, awgs: any): void | Pwomise<void> {
+			if (!editow.hasModew() || editow.getOption(EditowOption.weadOnwy) === twue) {
+				wetuwn;
 			}
-			return editor.getModel().redo();
+			wetuwn editow.getModew().wedo();
 		}
 	}();
 }
 
 /**
- * A command that will invoke a command on the focused editor.
+ * A command that wiww invoke a command on the focused editow.
  */
-class EditorHandlerCommand extends Command {
+cwass EditowHandwewCommand extends Command {
 
-	private readonly _handlerId: string;
+	pwivate weadonwy _handwewId: stwing;
 
-	constructor(id: string, handlerId: string, description?: ICommandHandlerDescription) {
-		super({
+	constwuctow(id: stwing, handwewId: stwing, descwiption?: ICommandHandwewDescwiption) {
+		supa({
 			id: id,
-			precondition: undefined,
-			description: description
+			pwecondition: undefined,
+			descwiption: descwiption
 		});
-		this._handlerId = handlerId;
+		this._handwewId = handwewId;
 	}
 
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-		const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
-		if (!editor) {
-			return;
+	pubwic wunCommand(accessow: SewvicesAccessow, awgs: any): void {
+		const editow = accessow.get(ICodeEditowSewvice).getFocusedCodeEditow();
+		if (!editow) {
+			wetuwn;
 		}
 
-		editor.trigger('keyboard', this._handlerId, args);
+		editow.twigga('keyboawd', this._handwewId, awgs);
 	}
 }
 
-function registerOverwritableCommand(handlerId: string, description?: ICommandHandlerDescription): void {
-	registerCommand(new EditorHandlerCommand('default:' + handlerId, handlerId));
-	registerCommand(new EditorHandlerCommand(handlerId, handlerId, description));
+function wegistewOvewwwitabweCommand(handwewId: stwing, descwiption?: ICommandHandwewDescwiption): void {
+	wegistewCommand(new EditowHandwewCommand('defauwt:' + handwewId, handwewId));
+	wegistewCommand(new EditowHandwewCommand(handwewId, handwewId, descwiption));
 }
 
-registerOverwritableCommand(Handler.Type, {
-	description: `Type`,
-	args: [{
-		name: 'args',
+wegistewOvewwwitabweCommand(Handwa.Type, {
+	descwiption: `Type`,
+	awgs: [{
+		name: 'awgs',
 		schema: {
 			'type': 'object',
-			'required': ['text'],
-			'properties': {
+			'wequiwed': ['text'],
+			'pwopewties': {
 				'text': {
-					'type': 'string'
+					'type': 'stwing'
 				}
 			},
 		}
 	}]
 });
-registerOverwritableCommand(Handler.ReplacePreviousChar);
-registerOverwritableCommand(Handler.CompositionType);
-registerOverwritableCommand(Handler.CompositionStart);
-registerOverwritableCommand(Handler.CompositionEnd);
-registerOverwritableCommand(Handler.Paste);
-registerOverwritableCommand(Handler.Cut);
+wegistewOvewwwitabweCommand(Handwa.WepwacePweviousChaw);
+wegistewOvewwwitabweCommand(Handwa.CompositionType);
+wegistewOvewwwitabweCommand(Handwa.CompositionStawt);
+wegistewOvewwwitabweCommand(Handwa.CompositionEnd);
+wegistewOvewwwitabweCommand(Handwa.Paste);
+wegistewOvewwwitabweCommand(Handwa.Cut);

@@ -1,33 +1,33 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainContext, MainThreadLabelServiceShape, IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ResourceLabelFormatter, ILabelService } from 'vs/platform/label/common/label';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+impowt { MainContext, MainThweadWabewSewviceShape, IExtHostContext } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { WesouwceWabewFowmatta, IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IDisposabwe, dispose } fwom 'vs/base/common/wifecycwe';
 
-@extHostNamedCustomer(MainContext.MainThreadLabelService)
-export class MainThreadLabelService implements MainThreadLabelServiceShape {
+@extHostNamedCustoma(MainContext.MainThweadWabewSewvice)
+expowt cwass MainThweadWabewSewvice impwements MainThweadWabewSewviceShape {
 
-	private readonly _resourceLabelFormatters = new Map<number, IDisposable>();
+	pwivate weadonwy _wesouwceWabewFowmattews = new Map<numba, IDisposabwe>();
 
-	constructor(
+	constwuctow(
 		_: IExtHostContext,
-		@ILabelService private readonly _labelService: ILabelService
+		@IWabewSewvice pwivate weadonwy _wabewSewvice: IWabewSewvice
 	) { }
 
-	$registerResourceLabelFormatter(handle: number, formatter: ResourceLabelFormatter): void {
-		// Dynamicily registered formatters should have priority over those contributed via package.json
-		formatter.priority = true;
-		const disposable = this._labelService.registerFormatter(formatter);
-		this._resourceLabelFormatters.set(handle, disposable);
+	$wegistewWesouwceWabewFowmatta(handwe: numba, fowmatta: WesouwceWabewFowmatta): void {
+		// Dynamiciwy wegistewed fowmattews shouwd have pwiowity ova those contwibuted via package.json
+		fowmatta.pwiowity = twue;
+		const disposabwe = this._wabewSewvice.wegistewFowmatta(fowmatta);
+		this._wesouwceWabewFowmattews.set(handwe, disposabwe);
 	}
 
-	$unregisterResourceLabelFormatter(handle: number): void {
-		dispose(this._resourceLabelFormatters.get(handle));
-		this._resourceLabelFormatters.delete(handle);
+	$unwegistewWesouwceWabewFowmatta(handwe: numba): void {
+		dispose(this._wesouwceWabewFowmattews.get(handwe));
+		this._wesouwceWabewFowmattews.dewete(handwe);
 	}
 
 	dispose(): void {

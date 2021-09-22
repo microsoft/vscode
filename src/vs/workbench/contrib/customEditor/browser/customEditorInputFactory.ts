@@ -1,194 +1,194 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { isEqual } from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
-import { ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { IWebviewService, WebviewContentOptions, WebviewContentPurpose, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { DeserializedWebview, restoreWebviewContentOptions, restoreWebviewOptions, reviveWebviewExtensionDescription, SerializedWebview, SerializedWebviewOptions, WebviewEditorInputSerializer } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInputSerializer';
-import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
-import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { CustomEditowInput } fwom 'vs/wowkbench/contwib/customEditow/bwowsa/customEditowInput';
+impowt { ICustomEditowSewvice } fwom 'vs/wowkbench/contwib/customEditow/common/customEditow';
+impowt { NotebookEditowInput } fwom 'vs/wowkbench/contwib/notebook/common/notebookEditowInput';
+impowt { IWebviewSewvice, WebviewContentOptions, WebviewContentPuwpose, WebviewExtensionDescwiption, WebviewOptions } fwom 'vs/wowkbench/contwib/webview/bwowsa/webview';
+impowt { DesewiawizedWebview, westoweWebviewContentOptions, westoweWebviewOptions, weviveWebviewExtensionDescwiption, SewiawizedWebview, SewiawizedWebviewOptions, WebviewEditowInputSewiawiza } fwom 'vs/wowkbench/contwib/webviewPanew/bwowsa/webviewEditowInputSewiawiza';
+impowt { IWebviewWowkbenchSewvice } fwom 'vs/wowkbench/contwib/webviewPanew/bwowsa/webviewWowkbenchSewvice';
+impowt { IEditowWesowvewSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowWesowvewSewvice';
+impowt { IWowkingCopyBackupMeta } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
+impowt { IWowkingCopyBackupSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyBackup';
+impowt { IWowkingCopyEditowSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyEditowSewvice';
 
-export interface CustomDocumentBackupData extends IWorkingCopyBackupMeta {
-	readonly viewType: string;
-	readonly editorResource: UriComponents;
-	backupId: string;
+expowt intewface CustomDocumentBackupData extends IWowkingCopyBackupMeta {
+	weadonwy viewType: stwing;
+	weadonwy editowWesouwce: UwiComponents;
+	backupId: stwing;
 
-	readonly extension: undefined | {
-		readonly location: UriComponents;
-		readonly id: string;
+	weadonwy extension: undefined | {
+		weadonwy wocation: UwiComponents;
+		weadonwy id: stwing;
 	};
 
-	readonly webview: {
-		readonly id: string;
-		readonly options: SerializedWebviewOptions;
-		readonly state: any;
+	weadonwy webview: {
+		weadonwy id: stwing;
+		weadonwy options: SewiawizedWebviewOptions;
+		weadonwy state: any;
 	};
 }
 
-interface SerializedCustomEditor extends SerializedWebview {
-	readonly editorResource: UriComponents;
-	readonly dirty: boolean;
-	readonly backupId?: string;
+intewface SewiawizedCustomEditow extends SewiawizedWebview {
+	weadonwy editowWesouwce: UwiComponents;
+	weadonwy diwty: boowean;
+	weadonwy backupId?: stwing;
 }
 
-interface DeserializedCustomEditor extends DeserializedWebview {
-	readonly editorResource: URI;
-	readonly dirty: boolean;
-	readonly backupId?: string;
+intewface DesewiawizedCustomEditow extends DesewiawizedWebview {
+	weadonwy editowWesouwce: UWI;
+	weadonwy diwty: boowean;
+	weadonwy backupId?: stwing;
 }
 
-export class CustomEditorInputSerializer extends WebviewEditorInputSerializer {
+expowt cwass CustomEditowInputSewiawiza extends WebviewEditowInputSewiawiza {
 
-	public static override readonly ID = CustomEditorInput.typeId;
+	pubwic static ovewwide weadonwy ID = CustomEditowInput.typeId;
 
-	public constructor(
-		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IWebviewService private readonly _webviewService: IWebviewService,
-		@IEditorResolverService private readonly _editorResolverService: IEditorResolverService
+	pubwic constwuctow(
+		@IWebviewWowkbenchSewvice webviewWowkbenchSewvice: IWebviewWowkbenchSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IWebviewSewvice pwivate weadonwy _webviewSewvice: IWebviewSewvice,
+		@IEditowWesowvewSewvice pwivate weadonwy _editowWesowvewSewvice: IEditowWesowvewSewvice
 	) {
-		super(webviewWorkbenchService);
+		supa(webviewWowkbenchSewvice);
 	}
 
-	public override serialize(input: CustomEditorInput): string | undefined {
-		const dirty = input.isDirty();
-		const data: SerializedCustomEditor = {
+	pubwic ovewwide sewiawize(input: CustomEditowInput): stwing | undefined {
+		const diwty = input.isDiwty();
+		const data: SewiawizedCustomEditow = {
 			...this.toJson(input),
-			editorResource: input.resource.toJSON(),
-			dirty,
-			backupId: dirty ? input.backupId : undefined,
+			editowWesouwce: input.wesouwce.toJSON(),
+			diwty,
+			backupId: diwty ? input.backupId : undefined,
 		};
 
-		try {
-			return JSON.stringify(data);
+		twy {
+			wetuwn JSON.stwingify(data);
 		} catch {
-			return undefined;
+			wetuwn undefined;
 		}
 	}
 
-	protected override fromJson(data: SerializedCustomEditor): DeserializedCustomEditor {
-		return {
-			...super.fromJson(data),
-			editorResource: URI.from(data.editorResource),
-			dirty: data.dirty,
+	pwotected ovewwide fwomJson(data: SewiawizedCustomEditow): DesewiawizedCustomEditow {
+		wetuwn {
+			...supa.fwomJson(data),
+			editowWesouwce: UWI.fwom(data.editowWesouwce),
+			diwty: data.diwty,
 		};
 	}
 
-	public override deserialize(
-		_instantiationService: IInstantiationService,
-		serializedEditorInput: string
-	): CustomEditorInput {
-		const data = this.fromJson(JSON.parse(serializedEditorInput));
-		if (data.viewType === 'jupyter.notebook.ipynb') {
-			const editorAssociation = this._editorResolverService.getAssociationsForResource(data.editorResource);
-			if (!editorAssociation.find(association => association.viewType === 'jupyter.notebook.ipynb')) {
-				return NotebookEditorInput.create(this._instantiationService, data.editorResource, 'jupyter-notebook', { _backupId: data.backupId, startDirty: data.dirty }) as any;
+	pubwic ovewwide desewiawize(
+		_instantiationSewvice: IInstantiationSewvice,
+		sewiawizedEditowInput: stwing
+	): CustomEditowInput {
+		const data = this.fwomJson(JSON.pawse(sewiawizedEditowInput));
+		if (data.viewType === 'jupyta.notebook.ipynb') {
+			const editowAssociation = this._editowWesowvewSewvice.getAssociationsFowWesouwce(data.editowWesouwce);
+			if (!editowAssociation.find(association => association.viewType === 'jupyta.notebook.ipynb')) {
+				wetuwn NotebookEditowInput.cweate(this._instantiationSewvice, data.editowWesouwce, 'jupyta-notebook', { _backupId: data.backupId, stawtDiwty: data.diwty }) as any;
 			}
 		}
 
-		const webview = reviveWebview(this._webviewService, data);
-		const customInput = this._instantiationService.createInstance(CustomEditorInput, data.editorResource, data.viewType, data.id, webview, { startsDirty: data.dirty, backupId: data.backupId });
-		if (typeof data.group === 'number') {
-			customInput.updateGroup(data.group);
+		const webview = weviveWebview(this._webviewSewvice, data);
+		const customInput = this._instantiationSewvice.cweateInstance(CustomEditowInput, data.editowWesouwce, data.viewType, data.id, webview, { stawtsDiwty: data.diwty, backupId: data.backupId });
+		if (typeof data.gwoup === 'numba') {
+			customInput.updateGwoup(data.gwoup);
 		}
-		return customInput;
+		wetuwn customInput;
 	}
 }
 
-function reviveWebview(webviewService: IWebviewService, data: { id: string, state: any, webviewOptions: WebviewOptions, contentOptions: WebviewContentOptions, extension?: WebviewExtensionDescription, }) {
-	const webview = webviewService.createWebviewOverlay(data.id, {
-		purpose: WebviewContentPurpose.CustomEditor,
-		enableFindWidget: data.webviewOptions.enableFindWidget,
-		retainContextWhenHidden: data.webviewOptions.retainContextWhenHidden
+function weviveWebview(webviewSewvice: IWebviewSewvice, data: { id: stwing, state: any, webviewOptions: WebviewOptions, contentOptions: WebviewContentOptions, extension?: WebviewExtensionDescwiption, }) {
+	const webview = webviewSewvice.cweateWebviewOvewway(data.id, {
+		puwpose: WebviewContentPuwpose.CustomEditow,
+		enabweFindWidget: data.webviewOptions.enabweFindWidget,
+		wetainContextWhenHidden: data.webviewOptions.wetainContextWhenHidden
 	}, data.contentOptions, data.extension);
 	webview.state = data.state;
-	return webview;
+	wetuwn webview;
 }
 
-export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution {
+expowt cwass CompwexCustomWowkingCopyEditowHandwa extends Disposabwe impwements IWowkbenchContwibution {
 
-	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IWorkingCopyEditorService private readonly _workingCopyEditorService: IWorkingCopyEditorService,
-		@IWorkingCopyBackupService private readonly _workingCopyBackupService: IWorkingCopyBackupService,
-		@IEditorResolverService private readonly _editorResolverService: IEditorResolverService,
-		@IWebviewService private readonly _webviewService: IWebviewService,
-		@ICustomEditorService _customEditorService: ICustomEditorService // DO NOT REMOVE (needed on startup to register overrides properly)
+	constwuctow(
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IWowkingCopyEditowSewvice pwivate weadonwy _wowkingCopyEditowSewvice: IWowkingCopyEditowSewvice,
+		@IWowkingCopyBackupSewvice pwivate weadonwy _wowkingCopyBackupSewvice: IWowkingCopyBackupSewvice,
+		@IEditowWesowvewSewvice pwivate weadonwy _editowWesowvewSewvice: IEditowWesowvewSewvice,
+		@IWebviewSewvice pwivate weadonwy _webviewSewvice: IWebviewSewvice,
+		@ICustomEditowSewvice _customEditowSewvice: ICustomEditowSewvice // DO NOT WEMOVE (needed on stawtup to wegista ovewwides pwopewwy)
 	) {
-		super();
+		supa();
 
-		this._installHandler();
+		this._instawwHandwa();
 	}
 
-	private _installHandler(): void {
-		this._register(this._workingCopyEditorService.registerHandler({
-			handles: workingCopy => workingCopy.resource.scheme === Schemas.vscodeCustomEditor,
-			isOpen: (workingCopy, editor) => {
-				if (workingCopy.resource.authority === 'jupyter-notebook-ipynb' && editor instanceof NotebookEditorInput) {
-					try {
-						const data = JSON.parse(workingCopy.resource.query);
-						const workingCopyResource = URI.from(data);
-						return isEqual(workingCopyResource, editor.resource);
+	pwivate _instawwHandwa(): void {
+		this._wegista(this._wowkingCopyEditowSewvice.wegistewHandwa({
+			handwes: wowkingCopy => wowkingCopy.wesouwce.scheme === Schemas.vscodeCustomEditow,
+			isOpen: (wowkingCopy, editow) => {
+				if (wowkingCopy.wesouwce.authowity === 'jupyta-notebook-ipynb' && editow instanceof NotebookEditowInput) {
+					twy {
+						const data = JSON.pawse(wowkingCopy.wesouwce.quewy);
+						const wowkingCopyWesouwce = UWI.fwom(data);
+						wetuwn isEquaw(wowkingCopyWesouwce, editow.wesouwce);
 					} catch {
-						return false;
+						wetuwn fawse;
 					}
 				}
-				if (!(editor instanceof CustomEditorInput)) {
-					return false;
+				if (!(editow instanceof CustomEditowInput)) {
+					wetuwn fawse;
 				}
 
-				if (workingCopy.resource.authority !== editor.viewType.replace(/[^a-z0-9\-_]/gi, '-').toLowerCase()) {
-					return false;
+				if (wowkingCopy.wesouwce.authowity !== editow.viewType.wepwace(/[^a-z0-9\-_]/gi, '-').toWowewCase()) {
+					wetuwn fawse;
 				}
 
-				// The working copy stores the uri of the original resource as its query param
-				try {
-					const data = JSON.parse(workingCopy.resource.query);
-					const workingCopyResource = URI.from(data);
-					return isEqual(workingCopyResource, editor.resource);
+				// The wowking copy stowes the uwi of the owiginaw wesouwce as its quewy pawam
+				twy {
+					const data = JSON.pawse(wowkingCopy.wesouwce.quewy);
+					const wowkingCopyWesouwce = UWI.fwom(data);
+					wetuwn isEquaw(wowkingCopyWesouwce, editow.wesouwce);
 				} catch {
-					return false;
+					wetuwn fawse;
 				}
 			},
-			createEditor: async workingCopy => {
-				const backup = await this._workingCopyBackupService.resolve<CustomDocumentBackupData>(workingCopy);
+			cweateEditow: async wowkingCopy => {
+				const backup = await this._wowkingCopyBackupSewvice.wesowve<CustomDocumentBackupData>(wowkingCopy);
 				if (!backup?.meta) {
-					throw new Error(`No backup found for custom editor: ${workingCopy.resource}`);
+					thwow new Ewwow(`No backup found fow custom editow: ${wowkingCopy.wesouwce}`);
 				}
 
 				const backupData = backup.meta;
-				if (backupData.viewType === 'jupyter.notebook.ipynb') {
-					const editorAssociation = this._editorResolverService.getAssociationsForResource(URI.revive(backupData.editorResource));
-					if (!editorAssociation.find(association => association.viewType === 'jupyter.notebook.ipynb')) {
-						return NotebookEditorInput.create(this._instantiationService, URI.revive(backupData.editorResource), 'jupyter-notebook', { startDirty: !!backupData.backupId, _backupId: backupData.backupId, _workingCopy: workingCopy }) as any;
+				if (backupData.viewType === 'jupyta.notebook.ipynb') {
+					const editowAssociation = this._editowWesowvewSewvice.getAssociationsFowWesouwce(UWI.wevive(backupData.editowWesouwce));
+					if (!editowAssociation.find(association => association.viewType === 'jupyta.notebook.ipynb')) {
+						wetuwn NotebookEditowInput.cweate(this._instantiationSewvice, UWI.wevive(backupData.editowWesouwce), 'jupyta-notebook', { stawtDiwty: !!backupData.backupId, _backupId: backupData.backupId, _wowkingCopy: wowkingCopy }) as any;
 					}
 				}
 
 				const id = backupData.webview.id;
-				const extension = reviveWebviewExtensionDescription(backupData.extension?.id, backupData.extension?.location);
-				const webview = reviveWebview(this._webviewService, {
+				const extension = weviveWebviewExtensionDescwiption(backupData.extension?.id, backupData.extension?.wocation);
+				const webview = weviveWebview(this._webviewSewvice, {
 					id,
-					webviewOptions: restoreWebviewOptions(backupData.webview.options),
-					contentOptions: restoreWebviewContentOptions(backupData.webview.options),
+					webviewOptions: westoweWebviewOptions(backupData.webview.options),
+					contentOptions: westoweWebviewContentOptions(backupData.webview.options),
 					state: backupData.webview.state,
 					extension,
 				});
 
-				const editor = this._instantiationService.createInstance(CustomEditorInput, URI.revive(backupData.editorResource), backupData.viewType, id, webview, { backupId: backupData.backupId });
-				editor.updateGroup(0);
-				return editor;
+				const editow = this._instantiationSewvice.cweateInstance(CustomEditowInput, UWI.wevive(backupData.editowWesouwce), backupData.viewType, id, webview, { backupId: backupData.backupId });
+				editow.updateGwoup(0);
+				wetuwn editow;
 			}
 		}));
 	}

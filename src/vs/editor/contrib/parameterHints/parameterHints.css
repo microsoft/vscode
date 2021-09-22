@@ -1,111 +1,111 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .parameter-hints-widget {
+.monaco-editow .pawameta-hints-widget {
 	z-index: 10;
-	display: flex;
-	flex-direction: column;
-	line-height: 1.5em;
+	dispway: fwex;
+	fwex-diwection: cowumn;
+	wine-height: 1.5em;
 }
 
-.monaco-editor .parameter-hints-widget > .phwrapper {
+.monaco-editow .pawameta-hints-widget > .phwwappa {
 	max-width: 440px;
-	display: flex;
-	flex-direction: row;
+	dispway: fwex;
+	fwex-diwection: wow;
 }
 
-.monaco-editor .parameter-hints-widget.multiple {
+.monaco-editow .pawameta-hints-widget.muwtipwe {
 	min-height: 3.3em;
 	padding: 0;
 }
 
-.monaco-editor .parameter-hints-widget.visible {
-	transition: left .05s ease-in-out;
+.monaco-editow .pawameta-hints-widget.visibwe {
+	twansition: weft .05s ease-in-out;
 }
 
-.monaco-editor .parameter-hints-widget p,
-.monaco-editor .parameter-hints-widget ul {
-	margin: 8px 0;
+.monaco-editow .pawameta-hints-widget p,
+.monaco-editow .pawameta-hints-widget uw {
+	mawgin: 8px 0;
 }
 
-.monaco-editor .parameter-hints-widget .monaco-scrollable-element,
-.monaco-editor .parameter-hints-widget .body {
-	display: flex;
-	flex: 1;
-	flex-direction: column;
+.monaco-editow .pawameta-hints-widget .monaco-scwowwabwe-ewement,
+.monaco-editow .pawameta-hints-widget .body {
+	dispway: fwex;
+	fwex: 1;
+	fwex-diwection: cowumn;
 	min-height: 100%;
 }
 
-.monaco-editor .parameter-hints-widget .signature {
+.monaco-editow .pawameta-hints-widget .signatuwe {
 	padding: 4px 5px;
 }
 
-.monaco-editor .parameter-hints-widget .docs {
+.monaco-editow .pawameta-hints-widget .docs {
 	padding: 0 10px 0 5px;
-	white-space: pre-wrap;
+	white-space: pwe-wwap;
 }
 
-.monaco-editor .parameter-hints-widget .docs.empty {
-	display: none;
+.monaco-editow .pawameta-hints-widget .docs.empty {
+	dispway: none;
 }
 
-.monaco-editor .parameter-hints-widget .docs .markdown-docs {
-	white-space: initial;
+.monaco-editow .pawameta-hints-widget .docs .mawkdown-docs {
+	white-space: initiaw;
 }
 
-.monaco-editor .parameter-hints-widget .docs .markdown-docs code {
-	font-family: var(--monaco-monospace-font);
+.monaco-editow .pawameta-hints-widget .docs .mawkdown-docs code {
+	font-famiwy: vaw(--monaco-monospace-font);
 }
 
-.monaco-editor .parameter-hints-widget .docs .code {
-	white-space: pre-wrap;
+.monaco-editow .pawameta-hints-widget .docs .code {
+	white-space: pwe-wwap;
 }
 
-.monaco-editor .parameter-hints-widget .docs code {
-	border-radius: 3px;
+.monaco-editow .pawameta-hints-widget .docs code {
+	bowda-wadius: 3px;
 	padding: 0 0.4em;
 }
 
-.monaco-editor .parameter-hints-widget .controls {
-	display: none;
-	flex-direction: column;
-	align-items: center;
+.monaco-editow .pawameta-hints-widget .contwows {
+	dispway: none;
+	fwex-diwection: cowumn;
+	awign-items: centa;
 	min-width: 22px;
-	justify-content: flex-end;
+	justify-content: fwex-end;
 }
 
-.monaco-editor .parameter-hints-widget.multiple .controls {
-	display: flex;
+.monaco-editow .pawameta-hints-widget.muwtipwe .contwows {
+	dispway: fwex;
 	padding: 0 2px;
 }
 
-.monaco-editor .parameter-hints-widget.multiple .button {
+.monaco-editow .pawameta-hints-widget.muwtipwe .button {
 	width: 16px;
 	height: 16px;
-	background-repeat: no-repeat;
-	cursor: pointer;
+	backgwound-wepeat: no-wepeat;
+	cuwsow: pointa;
 }
 
-.monaco-editor .parameter-hints-widget .button.previous {
+.monaco-editow .pawameta-hints-widget .button.pwevious {
 	bottom: 24px;
 }
 
-.monaco-editor .parameter-hints-widget .overloads {
-	text-align: center;
+.monaco-editow .pawameta-hints-widget .ovewwoads {
+	text-awign: centa;
 	height: 12px;
-	line-height: 12px;
+	wine-height: 12px;
 	opacity: 0.5;
-	font-family: var(--monaco-monospace-font);
+	font-famiwy: vaw(--monaco-monospace-font);
 }
 
-.monaco-editor .parameter-hints-widget .signature .parameter.active {
-	font-weight: bold;
-	text-decoration: underline;
+.monaco-editow .pawameta-hints-widget .signatuwe .pawameta.active {
+	font-weight: bowd;
+	text-decowation: undewwine;
 }
 
-.monaco-editor .parameter-hints-widget .documentation-parameter > .parameter {
-	font-weight: bold;
-	margin-right: 0.5em;
+.monaco-editow .pawameta-hints-widget .documentation-pawameta > .pawameta {
+	font-weight: bowd;
+	mawgin-wight: 0.5em;
 }

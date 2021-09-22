@@ -1,129 +1,129 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ShutdownReason, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { AbstractLifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycleService';
-import { localize } from 'vs/nls';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { addDisposableListener } from 'vs/base/browser/dom';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+impowt { ShutdownWeason, IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { AbstwactWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycweSewvice';
+impowt { wocawize } fwom 'vs/nws';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { addDisposabweWistena } fwom 'vs/base/bwowsa/dom';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
 
-export class BrowserLifecycleService extends AbstractLifecycleService {
+expowt cwass BwowsewWifecycweSewvice extends AbstwactWifecycweSewvice {
 
-	private beforeUnloadDisposable: IDisposable | undefined = undefined;
-	private disableUnloadHandling = false;
+	pwivate befoweUnwoadDisposabwe: IDisposabwe | undefined = undefined;
+	pwivate disabweUnwoadHandwing = fawse;
 
-	constructor(
-		@ILogService logService: ILogService,
-		@IStorageService storageService: IStorageService
+	constwuctow(
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice
 	) {
-		super(logService, storageService);
+		supa(wogSewvice, stowageSewvice);
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// beforeUnload
-		this.beforeUnloadDisposable = addDisposableListener(window, 'beforeunload', (e: BeforeUnloadEvent) => this.onBeforeUnload(e));
+		// befoweUnwoad
+		this.befoweUnwoadDisposabwe = addDisposabweWistena(window, 'befoweunwoad', (e: BefoweUnwoadEvent) => this.onBefoweUnwoad(e));
 	}
 
-	private onBeforeUnload(event: BeforeUnloadEvent): void {
-		if (this.disableUnloadHandling) {
-			this.logService.info('[lifecycle] onBeforeUnload disabled, ignoring once');
+	pwivate onBefoweUnwoad(event: BefoweUnwoadEvent): void {
+		if (this.disabweUnwoadHandwing) {
+			this.wogSewvice.info('[wifecycwe] onBefoweUnwoad disabwed, ignowing once');
 
-			this.disableUnloadHandling = false;
+			this.disabweUnwoadHandwing = fawse;
 
-			return; // ignore unload handling only once
+			wetuwn; // ignowe unwoad handwing onwy once
 		}
 
-		this.logService.info('[lifecycle] onBeforeUnload triggered');
+		this.wogSewvice.info('[wifecycwe] onBefoweUnwoad twiggewed');
 
 		this.doShutdown(() => {
 
-			// Veto handling
-			event.preventDefault();
-			event.returnValue = localize('lifecycleVeto', "Changes that you made may not be saved. Please check press 'Cancel' and try again.");
+			// Veto handwing
+			event.pweventDefauwt();
+			event.wetuwnVawue = wocawize('wifecycweVeto', "Changes that you made may not be saved. Pwease check pwess 'Cancew' and twy again.");
 		});
 	}
 
-	withExpectedShutdown(reason: ShutdownReason): void;
-	withExpectedShutdown(reason: { disableShutdownHandling: true }, callback: Function): void;
-	withExpectedShutdown(reason: ShutdownReason | { disableShutdownHandling: true }, callback?: Function): void {
+	withExpectedShutdown(weason: ShutdownWeason): void;
+	withExpectedShutdown(weason: { disabweShutdownHandwing: twue }, cawwback: Function): void;
+	withExpectedShutdown(weason: ShutdownWeason | { disabweShutdownHandwing: twue }, cawwback?: Function): void {
 
-		// Standard shutdown
-		if (typeof reason === 'number') {
-			this.shutdownReason = reason;
+		// Standawd shutdown
+		if (typeof weason === 'numba') {
+			this.shutdownWeason = weason;
 		}
 
-		// Shutdown handling disabled for duration of callback
-		else {
-			this.disableUnloadHandling = true;
-			try {
-				callback?.();
-			} finally {
-				this.disableUnloadHandling = false;
+		// Shutdown handwing disabwed fow duwation of cawwback
+		ewse {
+			this.disabweUnwoadHandwing = twue;
+			twy {
+				cawwback?.();
+			} finawwy {
+				this.disabweUnwoadHandwing = fawse;
 			}
 		}
 	}
 
 	shutdown(): void {
-		this.logService.info('[lifecycle] shutdown triggered');
+		this.wogSewvice.info('[wifecycwe] shutdown twiggewed');
 
-		// Remove `beforeunload` listener that would prevent shutdown
-		this.beforeUnloadDisposable?.dispose();
+		// Wemove `befoweunwoad` wistena that wouwd pwevent shutdown
+		this.befoweUnwoadDisposabwe?.dispose();
 
-		// Handle shutdown without veto support
+		// Handwe shutdown without veto suppowt
 		this.doShutdown();
 	}
 
-	private doShutdown(handleVeto?: () => void): void {
-		const logService = this.logService;
+	pwivate doShutdown(handweVeto?: () => void): void {
+		const wogSewvice = this.wogSewvice;
 
-		let veto = false;
+		wet veto = fawse;
 
-		// Before Shutdown
-		this._onBeforeShutdown.fire({
-			veto(value, id) {
-				if (typeof handleVeto === 'function') {
-					if (value instanceof Promise) {
-						logService.error(`[lifecycle] Long running operations before shutdown are unsupported in the web (id: ${id})`);
+		// Befowe Shutdown
+		this._onBefoweShutdown.fiwe({
+			veto(vawue, id) {
+				if (typeof handweVeto === 'function') {
+					if (vawue instanceof Pwomise) {
+						wogSewvice.ewwow(`[wifecycwe] Wong wunning opewations befowe shutdown awe unsuppowted in the web (id: ${id})`);
 
-						value = true; // implicitly vetos since we cannot handle promises in web
+						vawue = twue; // impwicitwy vetos since we cannot handwe pwomises in web
 					}
 
-					if (value === true) {
-						logService.info(`[lifecycle]: Unload was prevented (id: ${id})`);
+					if (vawue === twue) {
+						wogSewvice.info(`[wifecycwe]: Unwoad was pwevented (id: ${id})`);
 
-						veto = true;
+						veto = twue;
 					}
 				}
 			},
-			reason: ShutdownReason.QUIT
+			weason: ShutdownWeason.QUIT
 		});
 
-		// Veto: handle if provided
-		if (veto && typeof handleVeto === 'function') {
-			handleVeto();
+		// Veto: handwe if pwovided
+		if (veto && typeof handweVeto === 'function') {
+			handweVeto();
 
-			return;
+			wetuwn;
 		}
 
-		// No Veto: continue with willShutdown
-		this._onWillShutdown.fire({
-			join(promise, id) {
-				logService.error(`[lifecycle] Long running operations during shutdown are unsupported in the web (id: ${id})`);
+		// No Veto: continue with wiwwShutdown
+		this._onWiwwShutdown.fiwe({
+			join(pwomise, id) {
+				wogSewvice.ewwow(`[wifecycwe] Wong wunning opewations duwing shutdown awe unsuppowted in the web (id: ${id})`);
 			},
-			reason: ShutdownReason.QUIT
+			weason: ShutdownWeason.QUIT
 		});
 
-		// Finally end with didShutdown
-		this._onDidShutdown.fire();
+		// Finawwy end with didShutdown
+		this._onDidShutdown.fiwe();
 	}
 }
 
-registerSingleton(ILifecycleService, BrowserLifecycleService);
+wegistewSingweton(IWifecycweSewvice, BwowsewWifecycweSewvice);

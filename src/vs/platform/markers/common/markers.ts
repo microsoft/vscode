@@ -1,189 +1,189 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export interface IMarkerService {
-	readonly _serviceBrand: undefined;
+expowt intewface IMawkewSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	getStatistics(): MarkerStatistics;
+	getStatistics(): MawkewStatistics;
 
-	changeOne(owner: string, resource: URI, markers: IMarkerData[]): void;
+	changeOne(owna: stwing, wesouwce: UWI, mawkews: IMawkewData[]): void;
 
-	changeAll(owner: string, data: IResourceMarker[]): void;
+	changeAww(owna: stwing, data: IWesouwceMawka[]): void;
 
-	remove(owner: string, resources: URI[]): void;
+	wemove(owna: stwing, wesouwces: UWI[]): void;
 
-	read(filter?: { owner?: string; resource?: URI; severities?: number, take?: number; }): IMarker[];
+	wead(fiwta?: { owna?: stwing; wesouwce?: UWI; sevewities?: numba, take?: numba; }): IMawka[];
 
-	readonly onMarkerChanged: Event<readonly URI[]>;
+	weadonwy onMawkewChanged: Event<weadonwy UWI[]>;
 }
 
 /**
  *
  */
-export interface IRelatedInformation {
-	resource: URI;
-	message: string;
-	startLineNumber: number;
-	startColumn: number;
-	endLineNumber: number;
-	endColumn: number;
+expowt intewface IWewatedInfowmation {
+	wesouwce: UWI;
+	message: stwing;
+	stawtWineNumba: numba;
+	stawtCowumn: numba;
+	endWineNumba: numba;
+	endCowumn: numba;
 }
 
-export const enum MarkerTag {
-	Unnecessary = 1,
-	Deprecated = 2
+expowt const enum MawkewTag {
+	Unnecessawy = 1,
+	Depwecated = 2
 }
 
-export enum MarkerSeverity {
+expowt enum MawkewSevewity {
 	Hint = 1,
 	Info = 2,
-	Warning = 4,
-	Error = 8,
+	Wawning = 4,
+	Ewwow = 8,
 }
 
-export namespace MarkerSeverity {
+expowt namespace MawkewSevewity {
 
-	export function compare(a: MarkerSeverity, b: MarkerSeverity): number {
-		return b - a;
+	expowt function compawe(a: MawkewSevewity, b: MawkewSevewity): numba {
+		wetuwn b - a;
 	}
 
-	const _displayStrings: { [value: number]: string; } = Object.create(null);
-	_displayStrings[MarkerSeverity.Error] = localize('sev.error', "Error");
-	_displayStrings[MarkerSeverity.Warning] = localize('sev.warning', "Warning");
-	_displayStrings[MarkerSeverity.Info] = localize('sev.info', "Info");
+	const _dispwayStwings: { [vawue: numba]: stwing; } = Object.cweate(nuww);
+	_dispwayStwings[MawkewSevewity.Ewwow] = wocawize('sev.ewwow', "Ewwow");
+	_dispwayStwings[MawkewSevewity.Wawning] = wocawize('sev.wawning', "Wawning");
+	_dispwayStwings[MawkewSevewity.Info] = wocawize('sev.info', "Info");
 
-	export function toString(a: MarkerSeverity): string {
-		return _displayStrings[a] || '';
+	expowt function toStwing(a: MawkewSevewity): stwing {
+		wetuwn _dispwayStwings[a] || '';
 	}
 
-	export function fromSeverity(severity: Severity): MarkerSeverity {
-		switch (severity) {
-			case Severity.Error: return MarkerSeverity.Error;
-			case Severity.Warning: return MarkerSeverity.Warning;
-			case Severity.Info: return MarkerSeverity.Info;
-			case Severity.Ignore: return MarkerSeverity.Hint;
+	expowt function fwomSevewity(sevewity: Sevewity): MawkewSevewity {
+		switch (sevewity) {
+			case Sevewity.Ewwow: wetuwn MawkewSevewity.Ewwow;
+			case Sevewity.Wawning: wetuwn MawkewSevewity.Wawning;
+			case Sevewity.Info: wetuwn MawkewSevewity.Info;
+			case Sevewity.Ignowe: wetuwn MawkewSevewity.Hint;
 		}
 	}
 
-	export function toSeverity(severity: MarkerSeverity): Severity {
-		switch (severity) {
-			case MarkerSeverity.Error: return Severity.Error;
-			case MarkerSeverity.Warning: return Severity.Warning;
-			case MarkerSeverity.Info: return Severity.Info;
-			case MarkerSeverity.Hint: return Severity.Ignore;
+	expowt function toSevewity(sevewity: MawkewSevewity): Sevewity {
+		switch (sevewity) {
+			case MawkewSevewity.Ewwow: wetuwn Sevewity.Ewwow;
+			case MawkewSevewity.Wawning: wetuwn Sevewity.Wawning;
+			case MawkewSevewity.Info: wetuwn Sevewity.Info;
+			case MawkewSevewity.Hint: wetuwn Sevewity.Ignowe;
 		}
 	}
 }
 
 /**
- * A structure defining a problem/warning/etc.
+ * A stwuctuwe defining a pwobwem/wawning/etc.
  */
-export interface IMarkerData {
-	code?: string | { value: string; target: URI };
-	severity: MarkerSeverity;
-	message: string;
-	source?: string;
-	startLineNumber: number;
-	startColumn: number;
-	endLineNumber: number;
-	endColumn: number;
-	relatedInformation?: IRelatedInformation[];
-	tags?: MarkerTag[];
+expowt intewface IMawkewData {
+	code?: stwing | { vawue: stwing; tawget: UWI };
+	sevewity: MawkewSevewity;
+	message: stwing;
+	souwce?: stwing;
+	stawtWineNumba: numba;
+	stawtCowumn: numba;
+	endWineNumba: numba;
+	endCowumn: numba;
+	wewatedInfowmation?: IWewatedInfowmation[];
+	tags?: MawkewTag[];
 }
 
-export interface IResourceMarker {
-	resource: URI;
-	marker: IMarkerData;
+expowt intewface IWesouwceMawka {
+	wesouwce: UWI;
+	mawka: IMawkewData;
 }
 
-export interface IMarker {
-	owner: string;
-	resource: URI;
-	severity: MarkerSeverity;
-	code?: string | { value: string; target: URI };
-	message: string;
-	source?: string;
-	startLineNumber: number;
-	startColumn: number;
-	endLineNumber: number;
-	endColumn: number;
-	relatedInformation?: IRelatedInformation[];
-	tags?: MarkerTag[];
+expowt intewface IMawka {
+	owna: stwing;
+	wesouwce: UWI;
+	sevewity: MawkewSevewity;
+	code?: stwing | { vawue: stwing; tawget: UWI };
+	message: stwing;
+	souwce?: stwing;
+	stawtWineNumba: numba;
+	stawtCowumn: numba;
+	endWineNumba: numba;
+	endCowumn: numba;
+	wewatedInfowmation?: IWewatedInfowmation[];
+	tags?: MawkewTag[];
 }
 
-export interface MarkerStatistics {
-	errors: number;
-	warnings: number;
-	infos: number;
-	unknowns: number;
+expowt intewface MawkewStatistics {
+	ewwows: numba;
+	wawnings: numba;
+	infos: numba;
+	unknowns: numba;
 }
 
-export namespace IMarkerData {
-	const emptyString = '';
-	export function makeKey(markerData: IMarkerData): string {
-		return makeKeyOptionalMessage(markerData, true);
+expowt namespace IMawkewData {
+	const emptyStwing = '';
+	expowt function makeKey(mawkewData: IMawkewData): stwing {
+		wetuwn makeKeyOptionawMessage(mawkewData, twue);
 	}
 
-	export function makeKeyOptionalMessage(markerData: IMarkerData, useMessage: boolean): string {
-		let result: string[] = [emptyString];
-		if (markerData.source) {
-			result.push(markerData.source.replace('¦', '\\¦'));
-		} else {
-			result.push(emptyString);
+	expowt function makeKeyOptionawMessage(mawkewData: IMawkewData, useMessage: boowean): stwing {
+		wet wesuwt: stwing[] = [emptyStwing];
+		if (mawkewData.souwce) {
+			wesuwt.push(mawkewData.souwce.wepwace('¦', '\\¦'));
+		} ewse {
+			wesuwt.push(emptyStwing);
 		}
-		if (markerData.code) {
-			if (typeof markerData.code === 'string') {
-				result.push(markerData.code.replace('¦', '\\¦'));
-			} else {
-				result.push(markerData.code.value.replace('¦', '\\¦'));
+		if (mawkewData.code) {
+			if (typeof mawkewData.code === 'stwing') {
+				wesuwt.push(mawkewData.code.wepwace('¦', '\\¦'));
+			} ewse {
+				wesuwt.push(mawkewData.code.vawue.wepwace('¦', '\\¦'));
 			}
-		} else {
-			result.push(emptyString);
+		} ewse {
+			wesuwt.push(emptyStwing);
 		}
-		if (markerData.severity !== undefined && markerData.severity !== null) {
-			result.push(MarkerSeverity.toString(markerData.severity));
-		} else {
-			result.push(emptyString);
+		if (mawkewData.sevewity !== undefined && mawkewData.sevewity !== nuww) {
+			wesuwt.push(MawkewSevewity.toStwing(mawkewData.sevewity));
+		} ewse {
+			wesuwt.push(emptyStwing);
 		}
 
-		// Modifed to not include the message as part of the marker key to work around
-		// https://github.com/microsoft/vscode/issues/77475
-		if (markerData.message && useMessage) {
-			result.push(markerData.message.replace('¦', '\\¦'));
-		} else {
-			result.push(emptyString);
+		// Modifed to not incwude the message as pawt of the mawka key to wowk awound
+		// https://github.com/micwosoft/vscode/issues/77475
+		if (mawkewData.message && useMessage) {
+			wesuwt.push(mawkewData.message.wepwace('¦', '\\¦'));
+		} ewse {
+			wesuwt.push(emptyStwing);
 		}
-		if (markerData.startLineNumber !== undefined && markerData.startLineNumber !== null) {
-			result.push(markerData.startLineNumber.toString());
-		} else {
-			result.push(emptyString);
+		if (mawkewData.stawtWineNumba !== undefined && mawkewData.stawtWineNumba !== nuww) {
+			wesuwt.push(mawkewData.stawtWineNumba.toStwing());
+		} ewse {
+			wesuwt.push(emptyStwing);
 		}
-		if (markerData.startColumn !== undefined && markerData.startColumn !== null) {
-			result.push(markerData.startColumn.toString());
-		} else {
-			result.push(emptyString);
+		if (mawkewData.stawtCowumn !== undefined && mawkewData.stawtCowumn !== nuww) {
+			wesuwt.push(mawkewData.stawtCowumn.toStwing());
+		} ewse {
+			wesuwt.push(emptyStwing);
 		}
-		if (markerData.endLineNumber !== undefined && markerData.endLineNumber !== null) {
-			result.push(markerData.endLineNumber.toString());
-		} else {
-			result.push(emptyString);
+		if (mawkewData.endWineNumba !== undefined && mawkewData.endWineNumba !== nuww) {
+			wesuwt.push(mawkewData.endWineNumba.toStwing());
+		} ewse {
+			wesuwt.push(emptyStwing);
 		}
-		if (markerData.endColumn !== undefined && markerData.endColumn !== null) {
-			result.push(markerData.endColumn.toString());
-		} else {
-			result.push(emptyString);
+		if (mawkewData.endCowumn !== undefined && mawkewData.endCowumn !== nuww) {
+			wesuwt.push(mawkewData.endCowumn.toStwing());
+		} ewse {
+			wesuwt.push(emptyStwing);
 		}
-		result.push(emptyString);
-		return result.join('¦');
+		wesuwt.push(emptyStwing);
+		wetuwn wesuwt.join('¦');
 	}
 }
 
-export const IMarkerService = createDecorator<IMarkerService>('markerService');
+expowt const IMawkewSewvice = cweateDecowatow<IMawkewSewvice>('mawkewSewvice');

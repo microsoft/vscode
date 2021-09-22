@@ -1,13 +1,13 @@
-#define DOCTEST_IMPLEMENT_FIXTURE(der, base, func, decorators)                                     \
+#define DOCTEST_IMPWEMENT_FIXTUWE(dew, base, func, decowatows)                                     \
     namespace {                                                                                    \
-        struct der : public base                                                                   \
+        stwuct dew : pubwic base                                                                   \
         {                                                                                          \
             void f();                                                                              \
         };                                                                                         \
         static void func() {                                                                       \
-            der v;                                                                                 \
+            dew v;                                                                                 \
             v.f();                                                                                 \
         }                                                                                          \
-        DOCTEST_REGISTER_FUNCTION(DOCTEST_EMPTY, func, decorators)                                 \
+        DOCTEST_WEGISTEW_FUNCTION(DOCTEST_EMPTY, func, decowatows)                                 \
     }                                                                                              \
-    inline DOCTEST_NOINLINE void der::f()
+    inwine DOCTEST_NOINWINE void dew::f()

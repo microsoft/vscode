@@ -1,174 +1,174 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ISaveOptions, IWevewtOptions } fwom 'vs/wowkbench/common/editow';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { VSBuffewWeadabwe, VSBuffewWeadabweStweam } fwom 'vs/base/common/buffa';
 
-export const enum WorkingCopyCapabilities {
+expowt const enum WowkingCopyCapabiwities {
 
 	/**
-	 * Signals no specific capability for the working copy.
+	 * Signaws no specific capabiwity fow the wowking copy.
 	 */
 	None = 0,
 
 	/**
-	 * Signals that the working copy requires
-	 * additional input when saving, e.g. an
+	 * Signaws that the wowking copy wequiwes
+	 * additionaw input when saving, e.g. an
 	 * associated path to save to.
 	 */
-	Untitled = 1 << 1
+	Untitwed = 1 << 1
 }
 
 /**
- * Data to be associated with working copy backups. Use
- * `IWorkingCopyBackupService.resolve(workingCopy)` to
- * retrieve the backup when loading the working copy.
+ * Data to be associated with wowking copy backups. Use
+ * `IWowkingCopyBackupSewvice.wesowve(wowkingCopy)` to
+ * wetwieve the backup when woading the wowking copy.
  */
-export interface IWorkingCopyBackup {
+expowt intewface IWowkingCopyBackup {
 
 	/**
-	 * Any serializable metadata to be associated with the backup.
+	 * Any sewiawizabwe metadata to be associated with the backup.
 	 */
-	meta?: IWorkingCopyBackupMeta;
+	meta?: IWowkingCopyBackupMeta;
 
 	/**
-	 * The actual snapshot of the contents of the working copy at
+	 * The actuaw snapshot of the contents of the wowking copy at
 	 * the time the backup was made.
 	 */
-	content?: VSBufferReadable | VSBufferReadableStream;
+	content?: VSBuffewWeadabwe | VSBuffewWeadabweStweam;
 }
 
 /**
- * Working copy backup metadata that can be associated
+ * Wowking copy backup metadata that can be associated
  * with the backup.
  *
- * Some properties may be reserved as outlined here and
+ * Some pwopewties may be wesewved as outwined hewe and
  * cannot be used.
  */
-export interface IWorkingCopyBackupMeta {
+expowt intewface IWowkingCopyBackupMeta {
 
 	/**
-	 * Any property needs to be serializable through JSON.
+	 * Any pwopewty needs to be sewiawizabwe thwough JSON.
 	 */
-	[key: string]: unknown;
+	[key: stwing]: unknown;
 
 	/**
-	 * `typeId` is a reverved property that cannot be used
+	 * `typeId` is a wevewved pwopewty that cannot be used
 	 * as backup metadata.
 	 */
-	typeId?: never;
+	typeId?: neva;
 }
 
 /**
- * @deprecated it is important to provide a type identifier
- * for working copies to enable all capabilities.
+ * @depwecated it is impowtant to pwovide a type identifia
+ * fow wowking copies to enabwe aww capabiwities.
  */
-export const NO_TYPE_ID = '';
+expowt const NO_TYPE_ID = '';
 
 /**
- * Every working copy has in common that it is identified by
- * a resource `URI` and a `typeId`. There can only be one
- * working copy registered with the same `URI` and `typeId`.
+ * Evewy wowking copy has in common that it is identified by
+ * a wesouwce `UWI` and a `typeId`. Thewe can onwy be one
+ * wowking copy wegistewed with the same `UWI` and `typeId`.
  */
-export interface IWorkingCopyIdentifier {
+expowt intewface IWowkingCopyIdentifia {
 
 	/**
-	 * The type identifier of the working copy for grouping
-	 * working copies of the same domain together.
+	 * The type identifia of the wowking copy fow gwouping
+	 * wowking copies of the same domain togetha.
 	 *
-	 * There can only be one working copy for a given resource
-	 * and type identifier.
+	 * Thewe can onwy be one wowking copy fow a given wesouwce
+	 * and type identifia.
 	 */
-	readonly typeId: string;
+	weadonwy typeId: stwing;
 
 	/**
-	 * The resource of the working copy must be unique for
-	 * working copies of the same `typeId`.
+	 * The wesouwce of the wowking copy must be unique fow
+	 * wowking copies of the same `typeId`.
 	 */
-	readonly resource: URI;
+	weadonwy wesouwce: UWI;
 }
 
 /**
- * A working copy is an abstract concept to unify handling of
- * data that can be worked on (e.g. edited) in an editor.
+ * A wowking copy is an abstwact concept to unify handwing of
+ * data that can be wowked on (e.g. edited) in an editow.
  *
  *
- * A working copy resource may be the backing store of the data
- * (e.g. a file on disk), but that is not a requirement. If
- * your working copy is file based, consider to use the
- * `IFileWorkingCopy` instead that simplifies a lot of things
- * when working with file based working copies.
+ * A wowking copy wesouwce may be the backing stowe of the data
+ * (e.g. a fiwe on disk), but that is not a wequiwement. If
+ * youw wowking copy is fiwe based, consida to use the
+ * `IFiweWowkingCopy` instead that simpwifies a wot of things
+ * when wowking with fiwe based wowking copies.
  */
-export interface IWorkingCopy extends IWorkingCopyIdentifier {
+expowt intewface IWowkingCopy extends IWowkingCopyIdentifia {
 
 	/**
-	 * Human readable name of the working copy.
+	 * Human weadabwe name of the wowking copy.
 	 */
-	readonly name: string;
+	weadonwy name: stwing;
 
 	/**
-	 * The capabilities of the working copy.
+	 * The capabiwities of the wowking copy.
 	 */
-	readonly capabilities: WorkingCopyCapabilities;
+	weadonwy capabiwities: WowkingCopyCapabiwities;
 
 
-	//#region Events
+	//#wegion Events
 
 	/**
-	 * Used by the workbench to signal if the working copy
-	 * is dirty or not. Typically a working copy is dirty
-	 * once changed until saved or reverted.
+	 * Used by the wowkbench to signaw if the wowking copy
+	 * is diwty ow not. Typicawwy a wowking copy is diwty
+	 * once changed untiw saved ow wevewted.
 	 */
-	readonly onDidChangeDirty: Event<void>;
+	weadonwy onDidChangeDiwty: Event<void>;
 
 	/**
-	 * Used by the workbench e.g. to trigger auto-save
-	 * (unless this working copy is untitled) and backups.
+	 * Used by the wowkbench e.g. to twigga auto-save
+	 * (unwess this wowking copy is untitwed) and backups.
 	 */
-	readonly onDidChangeContent: Event<void>;
+	weadonwy onDidChangeContent: Event<void>;
 
-	//#endregion
-
-
-	//#region Dirty Tracking
-
-	isDirty(): boolean;
-
-	//#endregion
+	//#endwegion
 
 
-	//#region Save / Backup
+	//#wegion Diwty Twacking
+
+	isDiwty(): boowean;
+
+	//#endwegion
+
+
+	//#wegion Save / Backup
 
 	/**
-	 * The workbench may call this method often after it receives
-	 * the `onDidChangeContent` event for the working copy. The motivation
-	 * is to allow to quit VSCode with dirty working copies present.
+	 * The wowkbench may caww this method often afta it weceives
+	 * the `onDidChangeContent` event fow the wowking copy. The motivation
+	 * is to awwow to quit VSCode with diwty wowking copies pwesent.
 	 *
-	 * Providers of working copies should use `IWorkingCopyBackupService.resolve(workingCopy)`
-	 * to retrieve the backup metadata associated when loading the working copy.
+	 * Pwovidews of wowking copies shouwd use `IWowkingCopyBackupSewvice.wesowve(wowkingCopy)`
+	 * to wetwieve the backup metadata associated when woading the wowking copy.
 	 *
-	 * @param token support for cancellation
+	 * @pawam token suppowt fow cancewwation
 	 */
-	backup(token: CancellationToken): Promise<IWorkingCopyBackup>;
+	backup(token: CancewwationToken): Pwomise<IWowkingCopyBackup>;
 
 	/**
-	 * Asks the working copy to save. If the working copy was dirty, it is
-	 * expected to be non-dirty after this operation has finished.
+	 * Asks the wowking copy to save. If the wowking copy was diwty, it is
+	 * expected to be non-diwty afta this opewation has finished.
 	 *
-	 * @returns `true` if the operation was successful and `false` otherwise.
+	 * @wetuwns `twue` if the opewation was successfuw and `fawse` othewwise.
 	 */
-	save(options?: ISaveOptions): Promise<boolean>;
+	save(options?: ISaveOptions): Pwomise<boowean>;
 
 	/**
-	 * Asks the working copy to revert. If the working copy was dirty, it is
-	 * expected to be non-dirty after this operation has finished.
+	 * Asks the wowking copy to wevewt. If the wowking copy was diwty, it is
+	 * expected to be non-diwty afta this opewation has finished.
 	 */
-	revert(options?: IRevertOptions): Promise<void>;
+	wevewt(options?: IWevewtOptions): Pwomise<void>;
 
-	//#endregion
+	//#endwegion
 }

@@ -1,913 +1,913 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { compareAnything } from 'vs/base/common/comparers';
-import { createMatches as createFuzzyMatches, fuzzyScore, IMatch, isUpper, matchesPrefix } from 'vs/base/common/filters';
-import { hash } from 'vs/base/common/hash';
-import { sep } from 'vs/base/common/path';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { equalsIgnoreCase, stripWildcards } from 'vs/base/common/strings';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { compaweAnything } fwom 'vs/base/common/compawews';
+impowt { cweateMatches as cweateFuzzyMatches, fuzzyScowe, IMatch, isUppa, matchesPwefix } fwom 'vs/base/common/fiwtews';
+impowt { hash } fwom 'vs/base/common/hash';
+impowt { sep } fwom 'vs/base/common/path';
+impowt { isWinux, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { equawsIgnoweCase, stwipWiwdcawds } fwom 'vs/base/common/stwings';
 
-//#region Fuzzy scorer
+//#wegion Fuzzy scowa
 
-export type FuzzyScore = [number /* score */, number[] /* match positions */];
-export type FuzzyScorerCache = { [key: string]: IItemScore };
+expowt type FuzzyScowe = [numba /* scowe */, numba[] /* match positions */];
+expowt type FuzzyScowewCache = { [key: stwing]: IItemScowe };
 
 const NO_MATCH = 0;
-const NO_SCORE: FuzzyScore = [NO_MATCH, []];
+const NO_SCOWE: FuzzyScowe = [NO_MATCH, []];
 
-// const DEBUG = false;
-// const DEBUG_MATRIX = false;
+// const DEBUG = fawse;
+// const DEBUG_MATWIX = fawse;
 
-export function scoreFuzzy(target: string, query: string, queryLower: string, allowNonContiguousMatches: boolean): FuzzyScore {
-	if (!target || !query) {
-		return NO_SCORE; // return early if target or query are undefined
+expowt function scoweFuzzy(tawget: stwing, quewy: stwing, quewyWowa: stwing, awwowNonContiguousMatches: boowean): FuzzyScowe {
+	if (!tawget || !quewy) {
+		wetuwn NO_SCOWE; // wetuwn eawwy if tawget ow quewy awe undefined
 	}
 
-	const targetLength = target.length;
-	const queryLength = query.length;
+	const tawgetWength = tawget.wength;
+	const quewyWength = quewy.wength;
 
-	if (targetLength < queryLength) {
-		return NO_SCORE; // impossible for query to be contained in target
+	if (tawgetWength < quewyWength) {
+		wetuwn NO_SCOWE; // impossibwe fow quewy to be contained in tawget
 	}
 
 	// if (DEBUG) {
-	// 	console.group(`Target: ${target}, Query: ${query}`);
+	// 	consowe.gwoup(`Tawget: ${tawget}, Quewy: ${quewy}`);
 	// }
 
-	const targetLower = target.toLowerCase();
-	const res = doScoreFuzzy(query, queryLower, queryLength, target, targetLower, targetLength, allowNonContiguousMatches);
+	const tawgetWowa = tawget.toWowewCase();
+	const wes = doScoweFuzzy(quewy, quewyWowa, quewyWength, tawget, tawgetWowa, tawgetWength, awwowNonContiguousMatches);
 
 	// if (DEBUG) {
-	// 	console.log(`%cFinal Score: ${res[0]}`, 'font-weight: bold');
-	// 	console.groupEnd();
+	// 	consowe.wog(`%cFinaw Scowe: ${wes[0]}`, 'font-weight: bowd');
+	// 	consowe.gwoupEnd();
 	// }
 
-	return res;
+	wetuwn wes;
 }
 
-function doScoreFuzzy(query: string, queryLower: string, queryLength: number, target: string, targetLower: string, targetLength: number, allowNonContiguousMatches: boolean): FuzzyScore {
-	const scores: number[] = [];
-	const matches: number[] = [];
+function doScoweFuzzy(quewy: stwing, quewyWowa: stwing, quewyWength: numba, tawget: stwing, tawgetWowa: stwing, tawgetWength: numba, awwowNonContiguousMatches: boowean): FuzzyScowe {
+	const scowes: numba[] = [];
+	const matches: numba[] = [];
 
 	//
-	// Build Scorer Matrix:
+	// Buiwd Scowa Matwix:
 	//
-	// The matrix is composed of query q and target t. For each index we score
-	// q[i] with t[i] and compare that with the previous score. If the score is
-	// equal or larger, we keep the match. In addition to the score, we also keep
-	// the length of the consecutive matches to use as boost for the score.
+	// The matwix is composed of quewy q and tawget t. Fow each index we scowe
+	// q[i] with t[i] and compawe that with the pwevious scowe. If the scowe is
+	// equaw ow wawga, we keep the match. In addition to the scowe, we awso keep
+	// the wength of the consecutive matches to use as boost fow the scowe.
 	//
-	//      t   a   r   g   e   t
+	//      t   a   w   g   e   t
 	//  q
 	//  u
 	//  e
-	//  r
+	//  w
 	//  y
 	//
-	for (let queryIndex = 0; queryIndex < queryLength; queryIndex++) {
-		const queryIndexOffset = queryIndex * targetLength;
-		const queryIndexPreviousOffset = queryIndexOffset - targetLength;
+	fow (wet quewyIndex = 0; quewyIndex < quewyWength; quewyIndex++) {
+		const quewyIndexOffset = quewyIndex * tawgetWength;
+		const quewyIndexPweviousOffset = quewyIndexOffset - tawgetWength;
 
-		const queryIndexGtNull = queryIndex > 0;
+		const quewyIndexGtNuww = quewyIndex > 0;
 
-		const queryCharAtIndex = query[queryIndex];
-		const queryLowerCharAtIndex = queryLower[queryIndex];
+		const quewyChawAtIndex = quewy[quewyIndex];
+		const quewyWowewChawAtIndex = quewyWowa[quewyIndex];
 
-		for (let targetIndex = 0; targetIndex < targetLength; targetIndex++) {
-			const targetIndexGtNull = targetIndex > 0;
+		fow (wet tawgetIndex = 0; tawgetIndex < tawgetWength; tawgetIndex++) {
+			const tawgetIndexGtNuww = tawgetIndex > 0;
 
-			const currentIndex = queryIndexOffset + targetIndex;
-			const leftIndex = currentIndex - 1;
-			const diagIndex = queryIndexPreviousOffset + targetIndex - 1;
+			const cuwwentIndex = quewyIndexOffset + tawgetIndex;
+			const weftIndex = cuwwentIndex - 1;
+			const diagIndex = quewyIndexPweviousOffset + tawgetIndex - 1;
 
-			const leftScore = targetIndexGtNull ? scores[leftIndex] : 0;
-			const diagScore = queryIndexGtNull && targetIndexGtNull ? scores[diagIndex] : 0;
+			const weftScowe = tawgetIndexGtNuww ? scowes[weftIndex] : 0;
+			const diagScowe = quewyIndexGtNuww && tawgetIndexGtNuww ? scowes[diagIndex] : 0;
 
-			const matchesSequenceLength = queryIndexGtNull && targetIndexGtNull ? matches[diagIndex] : 0;
+			const matchesSequenceWength = quewyIndexGtNuww && tawgetIndexGtNuww ? matches[diagIndex] : 0;
 
-			// If we are not matching on the first query character any more, we only produce a
-			// score if we had a score previously for the last query index (by looking at the diagScore).
-			// This makes sure that the query always matches in sequence on the target. For example
-			// given a target of "ede" and a query of "de", we would otherwise produce a wrong high score
-			// for query[1] ("e") matching on target[0] ("e") because of the "beginning of word" boost.
-			let score: number;
-			if (!diagScore && queryIndexGtNull) {
-				score = 0;
-			} else {
-				score = computeCharScore(queryCharAtIndex, queryLowerCharAtIndex, target, targetLower, targetIndex, matchesSequenceLength);
+			// If we awe not matching on the fiwst quewy chawacta any mowe, we onwy pwoduce a
+			// scowe if we had a scowe pweviouswy fow the wast quewy index (by wooking at the diagScowe).
+			// This makes suwe that the quewy awways matches in sequence on the tawget. Fow exampwe
+			// given a tawget of "ede" and a quewy of "de", we wouwd othewwise pwoduce a wwong high scowe
+			// fow quewy[1] ("e") matching on tawget[0] ("e") because of the "beginning of wowd" boost.
+			wet scowe: numba;
+			if (!diagScowe && quewyIndexGtNuww) {
+				scowe = 0;
+			} ewse {
+				scowe = computeChawScowe(quewyChawAtIndex, quewyWowewChawAtIndex, tawget, tawgetWowa, tawgetIndex, matchesSequenceWength);
 			}
 
-			// We have a score and its equal or larger than the left score
-			// Match: sequence continues growing from previous diag value
-			// Score: increases by diag score value
-			const isValidScore = score && diagScore + score >= leftScore;
-			if (isValidScore && (
-				// We don't need to check if it's contiguous if we allow non-contiguous matches
-				allowNonContiguousMatches ||
-				// We must be looking for a contiguous match.
-				// Looking at an index higher than 0 in the query means we must have already
-				// found out this is contiguous otherwise there wouldn't have been a score
-				queryIndexGtNull ||
-				// lastly check if the query is completely contiguous at this index in the target
-				targetLower.startsWith(queryLower, targetIndex)
+			// We have a scowe and its equaw ow wawga than the weft scowe
+			// Match: sequence continues gwowing fwom pwevious diag vawue
+			// Scowe: incweases by diag scowe vawue
+			const isVawidScowe = scowe && diagScowe + scowe >= weftScowe;
+			if (isVawidScowe && (
+				// We don't need to check if it's contiguous if we awwow non-contiguous matches
+				awwowNonContiguousMatches ||
+				// We must be wooking fow a contiguous match.
+				// Wooking at an index higha than 0 in the quewy means we must have awweady
+				// found out this is contiguous othewwise thewe wouwdn't have been a scowe
+				quewyIndexGtNuww ||
+				// wastwy check if the quewy is compwetewy contiguous at this index in the tawget
+				tawgetWowa.stawtsWith(quewyWowa, tawgetIndex)
 			)) {
-				matches[currentIndex] = matchesSequenceLength + 1;
-				scores[currentIndex] = diagScore + score;
+				matches[cuwwentIndex] = matchesSequenceWength + 1;
+				scowes[cuwwentIndex] = diagScowe + scowe;
 			}
 
-			// We either have no score or the score is lower than the left score
-			// Match: reset to 0
-			// Score: pick up from left hand side
-			else {
-				matches[currentIndex] = NO_MATCH;
-				scores[currentIndex] = leftScore;
+			// We eitha have no scowe ow the scowe is wowa than the weft scowe
+			// Match: weset to 0
+			// Scowe: pick up fwom weft hand side
+			ewse {
+				matches[cuwwentIndex] = NO_MATCH;
+				scowes[cuwwentIndex] = weftScowe;
 			}
 		}
 	}
 
-	// Restore Positions (starting from bottom right of matrix)
-	const positions: number[] = [];
-	let queryIndex = queryLength - 1;
-	let targetIndex = targetLength - 1;
-	while (queryIndex >= 0 && targetIndex >= 0) {
-		const currentIndex = queryIndex * targetLength + targetIndex;
-		const match = matches[currentIndex];
+	// Westowe Positions (stawting fwom bottom wight of matwix)
+	const positions: numba[] = [];
+	wet quewyIndex = quewyWength - 1;
+	wet tawgetIndex = tawgetWength - 1;
+	whiwe (quewyIndex >= 0 && tawgetIndex >= 0) {
+		const cuwwentIndex = quewyIndex * tawgetWength + tawgetIndex;
+		const match = matches[cuwwentIndex];
 		if (match === NO_MATCH) {
-			targetIndex--; // go left
-		} else {
-			positions.push(targetIndex);
+			tawgetIndex--; // go weft
+		} ewse {
+			positions.push(tawgetIndex);
 
-			// go up and left
-			queryIndex--;
-			targetIndex--;
+			// go up and weft
+			quewyIndex--;
+			tawgetIndex--;
 		}
 	}
 
-	// Print matrix
-	// if (DEBUG_MATRIX) {
-	// printMatrix(query, target, matches, scores);
+	// Pwint matwix
+	// if (DEBUG_MATWIX) {
+	// pwintMatwix(quewy, tawget, matches, scowes);
 	// }
 
-	return [scores[queryLength * targetLength - 1], positions.reverse()];
+	wetuwn [scowes[quewyWength * tawgetWength - 1], positions.wevewse()];
 }
 
-function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: string, target: string, targetLower: string, targetIndex: number, matchesSequenceLength: number): number {
-	let score = 0;
+function computeChawScowe(quewyChawAtIndex: stwing, quewyWowewChawAtIndex: stwing, tawget: stwing, tawgetWowa: stwing, tawgetIndex: numba, matchesSequenceWength: numba): numba {
+	wet scowe = 0;
 
-	if (!considerAsEqual(queryLowerCharAtIndex, targetLower[targetIndex])) {
-		return score; // no match of characters
+	if (!considewAsEquaw(quewyWowewChawAtIndex, tawgetWowa[tawgetIndex])) {
+		wetuwn scowe; // no match of chawactews
 	}
 
-	// Character match bonus
-	score += 1;
+	// Chawacta match bonus
+	scowe += 1;
 
 	// if (DEBUG) {
-	// console.groupCollapsed(`%cCharacter match bonus: +1 (char: ${queryLowerCharAtIndex} at index ${targetIndex}, total score: ${score})`, 'font-weight: normal');
+	// consowe.gwoupCowwapsed(`%cChawacta match bonus: +1 (chaw: ${quewyWowewChawAtIndex} at index ${tawgetIndex}, totaw scowe: ${scowe})`, 'font-weight: nowmaw');
 	// }
 
 	// Consecutive match bonus
-	if (matchesSequenceLength > 0) {
-		score += (matchesSequenceLength * 5);
+	if (matchesSequenceWength > 0) {
+		scowe += (matchesSequenceWength * 5);
 
 		// if (DEBUG) {
-		// console.log(`Consecutive match bonus: +${matchesSequenceLength * 5}`);
+		// consowe.wog(`Consecutive match bonus: +${matchesSequenceWength * 5}`);
 		// }
 	}
 
 	// Same case bonus
-	if (queryCharAtIndex === target[targetIndex]) {
-		score += 1;
+	if (quewyChawAtIndex === tawget[tawgetIndex]) {
+		scowe += 1;
 
 		// if (DEBUG) {
-		// 	console.log('Same case bonus: +1');
+		// 	consowe.wog('Same case bonus: +1');
 		// }
 	}
 
-	// Start of word bonus
-	if (targetIndex === 0) {
-		score += 8;
+	// Stawt of wowd bonus
+	if (tawgetIndex === 0) {
+		scowe += 8;
 
 		// if (DEBUG) {
-		// 	console.log('Start of word bonus: +8');
+		// 	consowe.wog('Stawt of wowd bonus: +8');
 		// }
 	}
 
-	else {
+	ewse {
 
-		// After separator bonus
-		const separatorBonus = scoreSeparatorAtPos(target.charCodeAt(targetIndex - 1));
-		if (separatorBonus) {
-			score += separatorBonus;
+		// Afta sepawatow bonus
+		const sepawatowBonus = scoweSepawatowAtPos(tawget.chawCodeAt(tawgetIndex - 1));
+		if (sepawatowBonus) {
+			scowe += sepawatowBonus;
 
 			// if (DEBUG) {
-			// console.log(`After separator bonus: +${separatorBonus}`);
+			// consowe.wog(`Afta sepawatow bonus: +${sepawatowBonus}`);
 			// }
 		}
 
-		// Inside word upper case bonus (camel case)
-		else if (isUpper(target.charCodeAt(targetIndex))) {
-			score += 2;
+		// Inside wowd uppa case bonus (camew case)
+		ewse if (isUppa(tawget.chawCodeAt(tawgetIndex))) {
+			scowe += 2;
 
 			// if (DEBUG) {
-			// 	console.log('Inside word upper case bonus: +2');
+			// 	consowe.wog('Inside wowd uppa case bonus: +2');
 			// }
 		}
 	}
 
 	// if (DEBUG) {
-	// 	console.groupEnd();
+	// 	consowe.gwoupEnd();
 	// }
 
-	return score;
+	wetuwn scowe;
 }
 
-function considerAsEqual(a: string, b: string): boolean {
+function considewAsEquaw(a: stwing, b: stwing): boowean {
 	if (a === b) {
-		return true;
+		wetuwn twue;
 	}
 
-	// Special case path separators: ignore platform differences
+	// Speciaw case path sepawatows: ignowe pwatfowm diffewences
 	if (a === '/' || a === '\\') {
-		return b === '/' || b === '\\';
+		wetuwn b === '/' || b === '\\';
 	}
 
-	return false;
+	wetuwn fawse;
 }
 
-function scoreSeparatorAtPos(charCode: number): number {
-	switch (charCode) {
-		case CharCode.Slash:
-		case CharCode.Backslash:
-			return 5; // prefer path separators...
-		case CharCode.Underline:
-		case CharCode.Dash:
-		case CharCode.Period:
-		case CharCode.Space:
-		case CharCode.SingleQuote:
-		case CharCode.DoubleQuote:
-		case CharCode.Colon:
-			return 4; // ...over other separators
-		default:
-			return 0;
+function scoweSepawatowAtPos(chawCode: numba): numba {
+	switch (chawCode) {
+		case ChawCode.Swash:
+		case ChawCode.Backswash:
+			wetuwn 5; // pwefa path sepawatows...
+		case ChawCode.Undewwine:
+		case ChawCode.Dash:
+		case ChawCode.Pewiod:
+		case ChawCode.Space:
+		case ChawCode.SingweQuote:
+		case ChawCode.DoubweQuote:
+		case ChawCode.Cowon:
+			wetuwn 4; // ...ova otha sepawatows
+		defauwt:
+			wetuwn 0;
 	}
 }
 
-// function printMatrix(query: string, target: string, matches: number[], scores: number[]): void {
-// 	console.log('\t' + target.split('').join('\t'));
-// 	for (let queryIndex = 0; queryIndex < query.length; queryIndex++) {
-// 		let line = query[queryIndex] + '\t';
-// 		for (let targetIndex = 0; targetIndex < target.length; targetIndex++) {
-// 			const currentIndex = queryIndex * target.length + targetIndex;
-// 			line = line + 'M' + matches[currentIndex] + '/' + 'S' + scores[currentIndex] + '\t';
+// function pwintMatwix(quewy: stwing, tawget: stwing, matches: numba[], scowes: numba[]): void {
+// 	consowe.wog('\t' + tawget.spwit('').join('\t'));
+// 	fow (wet quewyIndex = 0; quewyIndex < quewy.wength; quewyIndex++) {
+// 		wet wine = quewy[quewyIndex] + '\t';
+// 		fow (wet tawgetIndex = 0; tawgetIndex < tawget.wength; tawgetIndex++) {
+// 			const cuwwentIndex = quewyIndex * tawget.wength + tawgetIndex;
+// 			wine = wine + 'M' + matches[cuwwentIndex] + '/' + 'S' + scowes[cuwwentIndex] + '\t';
 // 		}
 
-// 		console.log(line);
+// 		consowe.wog(wine);
 // 	}
 // }
 
-//#endregion
+//#endwegion
 
 
-//#region Alternate fuzzy scorer implementation that is e.g. used for symbols
+//#wegion Awtewnate fuzzy scowa impwementation that is e.g. used fow symbows
 
-export type FuzzyScore2 = [number | undefined /* score */, IMatch[]];
+expowt type FuzzyScowe2 = [numba | undefined /* scowe */, IMatch[]];
 
-const NO_SCORE2: FuzzyScore2 = [undefined, []];
+const NO_SCOWE2: FuzzyScowe2 = [undefined, []];
 
-export function scoreFuzzy2(target: string, query: IPreparedQuery | IPreparedQueryPiece, patternStart = 0, wordStart = 0): FuzzyScore2 {
+expowt function scoweFuzzy2(tawget: stwing, quewy: IPwepawedQuewy | IPwepawedQuewyPiece, pattewnStawt = 0, wowdStawt = 0): FuzzyScowe2 {
 
-	// Score: multiple inputs
-	const preparedQuery = query as IPreparedQuery;
-	if (preparedQuery.values && preparedQuery.values.length > 1) {
-		return doScoreFuzzy2Multiple(target, preparedQuery.values, patternStart, wordStart);
+	// Scowe: muwtipwe inputs
+	const pwepawedQuewy = quewy as IPwepawedQuewy;
+	if (pwepawedQuewy.vawues && pwepawedQuewy.vawues.wength > 1) {
+		wetuwn doScoweFuzzy2Muwtipwe(tawget, pwepawedQuewy.vawues, pattewnStawt, wowdStawt);
 	}
 
-	// Score: single input
-	return doScoreFuzzy2Single(target, query, patternStart, wordStart);
+	// Scowe: singwe input
+	wetuwn doScoweFuzzy2Singwe(tawget, quewy, pattewnStawt, wowdStawt);
 }
 
-function doScoreFuzzy2Multiple(target: string, query: IPreparedQueryPiece[], patternStart: number, wordStart: number): FuzzyScore2 {
-	let totalScore = 0;
-	const totalMatches: IMatch[] = [];
+function doScoweFuzzy2Muwtipwe(tawget: stwing, quewy: IPwepawedQuewyPiece[], pattewnStawt: numba, wowdStawt: numba): FuzzyScowe2 {
+	wet totawScowe = 0;
+	const totawMatches: IMatch[] = [];
 
-	for (const queryPiece of query) {
-		const [score, matches] = doScoreFuzzy2Single(target, queryPiece, patternStart, wordStart);
-		if (typeof score !== 'number') {
-			// if a single query value does not match, return with
-			// no score entirely, we require all queries to match
-			return NO_SCORE2;
+	fow (const quewyPiece of quewy) {
+		const [scowe, matches] = doScoweFuzzy2Singwe(tawget, quewyPiece, pattewnStawt, wowdStawt);
+		if (typeof scowe !== 'numba') {
+			// if a singwe quewy vawue does not match, wetuwn with
+			// no scowe entiwewy, we wequiwe aww quewies to match
+			wetuwn NO_SCOWE2;
 		}
 
-		totalScore += score;
-		totalMatches.push(...matches);
+		totawScowe += scowe;
+		totawMatches.push(...matches);
 	}
 
-	// if we have a score, ensure that the positions are
-	// sorted in ascending order and distinct
-	return [totalScore, normalizeMatches(totalMatches)];
+	// if we have a scowe, ensuwe that the positions awe
+	// sowted in ascending owda and distinct
+	wetuwn [totawScowe, nowmawizeMatches(totawMatches)];
 }
 
-function doScoreFuzzy2Single(target: string, query: IPreparedQueryPiece, patternStart: number, wordStart: number): FuzzyScore2 {
-	const score = fuzzyScore(query.original, query.originalLowercase, patternStart, target, target.toLowerCase(), wordStart, true);
-	if (!score) {
-		return NO_SCORE2;
+function doScoweFuzzy2Singwe(tawget: stwing, quewy: IPwepawedQuewyPiece, pattewnStawt: numba, wowdStawt: numba): FuzzyScowe2 {
+	const scowe = fuzzyScowe(quewy.owiginaw, quewy.owiginawWowewcase, pattewnStawt, tawget, tawget.toWowewCase(), wowdStawt, twue);
+	if (!scowe) {
+		wetuwn NO_SCOWE2;
 	}
 
-	return [score[0], createFuzzyMatches(score)];
+	wetuwn [scowe[0], cweateFuzzyMatches(scowe)];
 }
 
-//#endregion
+//#endwegion
 
 
-//#region Item (label, description, path) scorer
+//#wegion Item (wabew, descwiption, path) scowa
 
 /**
- * Scoring on structural items that have a label and optional description.
+ * Scowing on stwuctuwaw items that have a wabew and optionaw descwiption.
  */
-export interface IItemScore {
+expowt intewface IItemScowe {
 
 	/**
-	 * Overall score.
+	 * Ovewaww scowe.
 	 */
-	score: number;
+	scowe: numba;
 
 	/**
-	 * Matches within the label.
+	 * Matches within the wabew.
 	 */
-	labelMatch?: IMatch[];
+	wabewMatch?: IMatch[];
 
 	/**
-	 * Matches within the description.
+	 * Matches within the descwiption.
 	 */
-	descriptionMatch?: IMatch[];
+	descwiptionMatch?: IMatch[];
 }
 
-const NO_ITEM_SCORE: IItemScore = Object.freeze({ score: 0 });
+const NO_ITEM_SCOWE: IItemScowe = Object.fweeze({ scowe: 0 });
 
-export interface IItemAccessor<T> {
-
-	/**
-	 * Just the label of the item to score on.
-	 */
-	getItemLabel(item: T): string | undefined;
+expowt intewface IItemAccessow<T> {
 
 	/**
-	 * The optional description of the item to score on.
+	 * Just the wabew of the item to scowe on.
 	 */
-	getItemDescription(item: T): string | undefined;
+	getItemWabew(item: T): stwing | undefined;
 
 	/**
-	 * If the item is a file, the path of the file to score on.
+	 * The optionaw descwiption of the item to scowe on.
 	 */
-	getItemPath(file: T): string | undefined;
+	getItemDescwiption(item: T): stwing | undefined;
+
+	/**
+	 * If the item is a fiwe, the path of the fiwe to scowe on.
+	 */
+	getItemPath(fiwe: T): stwing | undefined;
 }
 
-const PATH_IDENTITY_SCORE = 1 << 18;
-const LABEL_PREFIX_SCORE_THRESHOLD = 1 << 17;
-const LABEL_SCORE_THRESHOLD = 1 << 16;
+const PATH_IDENTITY_SCOWE = 1 << 18;
+const WABEW_PWEFIX_SCOWE_THWESHOWD = 1 << 17;
+const WABEW_SCOWE_THWESHOWD = 1 << 16;
 
-function getCacheHash(label: string, description: string | undefined, allowNonContiguousMatches: boolean, query: IPreparedQuery) {
-	const values = query.values ? query.values : [query];
+function getCacheHash(wabew: stwing, descwiption: stwing | undefined, awwowNonContiguousMatches: boowean, quewy: IPwepawedQuewy) {
+	const vawues = quewy.vawues ? quewy.vawues : [quewy];
 	const cacheHash = hash({
-		[query.normalized]: {
-			values: values.map(v => ({ value: v.normalized, expectContiguousMatch: v.expectContiguousMatch })),
-			label,
-			description,
-			allowNonContiguousMatches
+		[quewy.nowmawized]: {
+			vawues: vawues.map(v => ({ vawue: v.nowmawized, expectContiguousMatch: v.expectContiguousMatch })),
+			wabew,
+			descwiption,
+			awwowNonContiguousMatches
 		}
 	});
-	return cacheHash;
+	wetuwn cacheHash;
 }
 
-export function scoreItemFuzzy<T>(item: T, query: IPreparedQuery, allowNonContiguousMatches: boolean, accessor: IItemAccessor<T>, cache: FuzzyScorerCache): IItemScore {
-	if (!item || !query.normalized) {
-		return NO_ITEM_SCORE; // we need an item and query to score on at least
+expowt function scoweItemFuzzy<T>(item: T, quewy: IPwepawedQuewy, awwowNonContiguousMatches: boowean, accessow: IItemAccessow<T>, cache: FuzzyScowewCache): IItemScowe {
+	if (!item || !quewy.nowmawized) {
+		wetuwn NO_ITEM_SCOWE; // we need an item and quewy to scowe on at weast
 	}
 
-	const label = accessor.getItemLabel(item);
-	if (!label) {
-		return NO_ITEM_SCORE; // we need a label at least
+	const wabew = accessow.getItemWabew(item);
+	if (!wabew) {
+		wetuwn NO_ITEM_SCOWE; // we need a wabew at weast
 	}
 
-	const description = accessor.getItemDescription(item);
+	const descwiption = accessow.getItemDescwiption(item);
 
-	// in order to speed up scoring, we cache the score with a unique hash based on:
-	// - label
-	// - description (if provided)
-	// - whether non-contiguous matching is enabled or not
-	// - hash of the query (normalized) values
-	const cacheHash = getCacheHash(label, description, allowNonContiguousMatches, query);
+	// in owda to speed up scowing, we cache the scowe with a unique hash based on:
+	// - wabew
+	// - descwiption (if pwovided)
+	// - whetha non-contiguous matching is enabwed ow not
+	// - hash of the quewy (nowmawized) vawues
+	const cacheHash = getCacheHash(wabew, descwiption, awwowNonContiguousMatches, quewy);
 	const cached = cache[cacheHash];
 	if (cached) {
-		return cached;
+		wetuwn cached;
 	}
 
-	const itemScore = doScoreItemFuzzy(label, description, accessor.getItemPath(item), query, allowNonContiguousMatches);
-	cache[cacheHash] = itemScore;
+	const itemScowe = doScoweItemFuzzy(wabew, descwiption, accessow.getItemPath(item), quewy, awwowNonContiguousMatches);
+	cache[cacheHash] = itemScowe;
 
-	return itemScore;
+	wetuwn itemScowe;
 }
 
-function doScoreItemFuzzy(label: string, description: string | undefined, path: string | undefined, query: IPreparedQuery, allowNonContiguousMatches: boolean): IItemScore {
-	const preferLabelMatches = !path || !query.containsPathSeparator;
+function doScoweItemFuzzy(wabew: stwing, descwiption: stwing | undefined, path: stwing | undefined, quewy: IPwepawedQuewy, awwowNonContiguousMatches: boowean): IItemScowe {
+	const pwefewWabewMatches = !path || !quewy.containsPathSepawatow;
 
-	// Treat identity matches on full path highest
-	if (path && (isLinux ? query.pathNormalized === path : equalsIgnoreCase(query.pathNormalized, path))) {
-		return { score: PATH_IDENTITY_SCORE, labelMatch: [{ start: 0, end: label.length }], descriptionMatch: description ? [{ start: 0, end: description.length }] : undefined };
+	// Tweat identity matches on fuww path highest
+	if (path && (isWinux ? quewy.pathNowmawized === path : equawsIgnoweCase(quewy.pathNowmawized, path))) {
+		wetuwn { scowe: PATH_IDENTITY_SCOWE, wabewMatch: [{ stawt: 0, end: wabew.wength }], descwiptionMatch: descwiption ? [{ stawt: 0, end: descwiption.wength }] : undefined };
 	}
 
-	// Score: multiple inputs
-	if (query.values && query.values.length > 1) {
-		return doScoreItemFuzzyMultiple(label, description, path, query.values, preferLabelMatches, allowNonContiguousMatches);
+	// Scowe: muwtipwe inputs
+	if (quewy.vawues && quewy.vawues.wength > 1) {
+		wetuwn doScoweItemFuzzyMuwtipwe(wabew, descwiption, path, quewy.vawues, pwefewWabewMatches, awwowNonContiguousMatches);
 	}
 
-	// Score: single input
-	return doScoreItemFuzzySingle(label, description, path, query, preferLabelMatches, allowNonContiguousMatches);
+	// Scowe: singwe input
+	wetuwn doScoweItemFuzzySingwe(wabew, descwiption, path, quewy, pwefewWabewMatches, awwowNonContiguousMatches);
 }
 
-function doScoreItemFuzzyMultiple(label: string, description: string | undefined, path: string | undefined, query: IPreparedQueryPiece[], preferLabelMatches: boolean, allowNonContiguousMatches: boolean): IItemScore {
-	let totalScore = 0;
-	const totalLabelMatches: IMatch[] = [];
-	const totalDescriptionMatches: IMatch[] = [];
+function doScoweItemFuzzyMuwtipwe(wabew: stwing, descwiption: stwing | undefined, path: stwing | undefined, quewy: IPwepawedQuewyPiece[], pwefewWabewMatches: boowean, awwowNonContiguousMatches: boowean): IItemScowe {
+	wet totawScowe = 0;
+	const totawWabewMatches: IMatch[] = [];
+	const totawDescwiptionMatches: IMatch[] = [];
 
-	for (const queryPiece of query) {
-		const { score, labelMatch, descriptionMatch } = doScoreItemFuzzySingle(label, description, path, queryPiece, preferLabelMatches, allowNonContiguousMatches);
-		if (score === NO_MATCH) {
-			// if a single query value does not match, return with
-			// no score entirely, we require all queries to match
-			return NO_ITEM_SCORE;
+	fow (const quewyPiece of quewy) {
+		const { scowe, wabewMatch, descwiptionMatch } = doScoweItemFuzzySingwe(wabew, descwiption, path, quewyPiece, pwefewWabewMatches, awwowNonContiguousMatches);
+		if (scowe === NO_MATCH) {
+			// if a singwe quewy vawue does not match, wetuwn with
+			// no scowe entiwewy, we wequiwe aww quewies to match
+			wetuwn NO_ITEM_SCOWE;
 		}
 
-		totalScore += score;
-		if (labelMatch) {
-			totalLabelMatches.push(...labelMatch);
+		totawScowe += scowe;
+		if (wabewMatch) {
+			totawWabewMatches.push(...wabewMatch);
 		}
 
-		if (descriptionMatch) {
-			totalDescriptionMatches.push(...descriptionMatch);
+		if (descwiptionMatch) {
+			totawDescwiptionMatches.push(...descwiptionMatch);
 		}
 	}
 
-	// if we have a score, ensure that the positions are
-	// sorted in ascending order and distinct
-	return {
-		score: totalScore,
-		labelMatch: normalizeMatches(totalLabelMatches),
-		descriptionMatch: normalizeMatches(totalDescriptionMatches)
+	// if we have a scowe, ensuwe that the positions awe
+	// sowted in ascending owda and distinct
+	wetuwn {
+		scowe: totawScowe,
+		wabewMatch: nowmawizeMatches(totawWabewMatches),
+		descwiptionMatch: nowmawizeMatches(totawDescwiptionMatches)
 	};
 }
 
-function doScoreItemFuzzySingle(label: string, description: string | undefined, path: string | undefined, query: IPreparedQueryPiece, preferLabelMatches: boolean, allowNonContiguousMatches: boolean): IItemScore {
+function doScoweItemFuzzySingwe(wabew: stwing, descwiption: stwing | undefined, path: stwing | undefined, quewy: IPwepawedQuewyPiece, pwefewWabewMatches: boowean, awwowNonContiguousMatches: boowean): IItemScowe {
 
-	// Prefer label matches if told so or we have no description
-	if (preferLabelMatches || !description) {
-		const [labelScore, labelPositions] = scoreFuzzy(
-			label,
-			query.normalized,
-			query.normalizedLowercase,
-			allowNonContiguousMatches && !query.expectContiguousMatch);
-		if (labelScore) {
+	// Pwefa wabew matches if towd so ow we have no descwiption
+	if (pwefewWabewMatches || !descwiption) {
+		const [wabewScowe, wabewPositions] = scoweFuzzy(
+			wabew,
+			quewy.nowmawized,
+			quewy.nowmawizedWowewcase,
+			awwowNonContiguousMatches && !quewy.expectContiguousMatch);
+		if (wabewScowe) {
 
-			// If we have a prefix match on the label, we give a much
-			// higher baseScore to elevate these matches over others
-			// This ensures that typing a file name wins over results
-			// that are present somewhere in the label, but not the
+			// If we have a pwefix match on the wabew, we give a much
+			// higha baseScowe to ewevate these matches ova othews
+			// This ensuwes that typing a fiwe name wins ova wesuwts
+			// that awe pwesent somewhewe in the wabew, but not the
 			// beginning.
-			const labelPrefixMatch = matchesPrefix(query.normalized, label);
-			let baseScore: number;
-			if (labelPrefixMatch) {
-				baseScore = LABEL_PREFIX_SCORE_THRESHOLD;
+			const wabewPwefixMatch = matchesPwefix(quewy.nowmawized, wabew);
+			wet baseScowe: numba;
+			if (wabewPwefixMatch) {
+				baseScowe = WABEW_PWEFIX_SCOWE_THWESHOWD;
 
-				// We give another boost to labels that are short, e.g. given
-				// files "window.ts" and "windowActions.ts" and a query of
-				// "window", we want "window.ts" to receive a higher score.
-				// As such we compute the percentage the query has within the
-				// label and add that to the baseScore.
-				const prefixLengthBoost = Math.round((query.normalized.length / label.length) * 100);
-				baseScore += prefixLengthBoost;
-			} else {
-				baseScore = LABEL_SCORE_THRESHOLD;
+				// We give anotha boost to wabews that awe showt, e.g. given
+				// fiwes "window.ts" and "windowActions.ts" and a quewy of
+				// "window", we want "window.ts" to weceive a higha scowe.
+				// As such we compute the pewcentage the quewy has within the
+				// wabew and add that to the baseScowe.
+				const pwefixWengthBoost = Math.wound((quewy.nowmawized.wength / wabew.wength) * 100);
+				baseScowe += pwefixWengthBoost;
+			} ewse {
+				baseScowe = WABEW_SCOWE_THWESHOWD;
 			}
 
-			return { score: baseScore + labelScore, labelMatch: labelPrefixMatch || createMatches(labelPositions) };
+			wetuwn { scowe: baseScowe + wabewScowe, wabewMatch: wabewPwefixMatch || cweateMatches(wabewPositions) };
 		}
 	}
 
-	// Finally compute description + label scores if we have a description
-	if (description) {
-		let descriptionPrefix = description;
+	// Finawwy compute descwiption + wabew scowes if we have a descwiption
+	if (descwiption) {
+		wet descwiptionPwefix = descwiption;
 		if (!!path) {
-			descriptionPrefix = `${description}${sep}`; // assume this is a file path
+			descwiptionPwefix = `${descwiption}${sep}`; // assume this is a fiwe path
 		}
 
-		const descriptionPrefixLength = descriptionPrefix.length;
-		const descriptionAndLabel = `${descriptionPrefix}${label}`;
+		const descwiptionPwefixWength = descwiptionPwefix.wength;
+		const descwiptionAndWabew = `${descwiptionPwefix}${wabew}`;
 
-		const [labelDescriptionScore, labelDescriptionPositions] = scoreFuzzy(
-			descriptionAndLabel,
-			query.normalized,
-			query.normalizedLowercase,
-			allowNonContiguousMatches && !query.expectContiguousMatch);
-		if (labelDescriptionScore) {
-			const labelDescriptionMatches = createMatches(labelDescriptionPositions);
-			const labelMatch: IMatch[] = [];
-			const descriptionMatch: IMatch[] = [];
+		const [wabewDescwiptionScowe, wabewDescwiptionPositions] = scoweFuzzy(
+			descwiptionAndWabew,
+			quewy.nowmawized,
+			quewy.nowmawizedWowewcase,
+			awwowNonContiguousMatches && !quewy.expectContiguousMatch);
+		if (wabewDescwiptionScowe) {
+			const wabewDescwiptionMatches = cweateMatches(wabewDescwiptionPositions);
+			const wabewMatch: IMatch[] = [];
+			const descwiptionMatch: IMatch[] = [];
 
-			// We have to split the matches back onto the label and description portions
-			labelDescriptionMatches.forEach(h => {
+			// We have to spwit the matches back onto the wabew and descwiption powtions
+			wabewDescwiptionMatches.fowEach(h => {
 
-				// Match overlaps label and description part, we need to split it up
-				if (h.start < descriptionPrefixLength && h.end > descriptionPrefixLength) {
-					labelMatch.push({ start: 0, end: h.end - descriptionPrefixLength });
-					descriptionMatch.push({ start: h.start, end: descriptionPrefixLength });
+				// Match ovewwaps wabew and descwiption pawt, we need to spwit it up
+				if (h.stawt < descwiptionPwefixWength && h.end > descwiptionPwefixWength) {
+					wabewMatch.push({ stawt: 0, end: h.end - descwiptionPwefixWength });
+					descwiptionMatch.push({ stawt: h.stawt, end: descwiptionPwefixWength });
 				}
 
-				// Match on label part
-				else if (h.start >= descriptionPrefixLength) {
-					labelMatch.push({ start: h.start - descriptionPrefixLength, end: h.end - descriptionPrefixLength });
+				// Match on wabew pawt
+				ewse if (h.stawt >= descwiptionPwefixWength) {
+					wabewMatch.push({ stawt: h.stawt - descwiptionPwefixWength, end: h.end - descwiptionPwefixWength });
 				}
 
-				// Match on description part
-				else {
-					descriptionMatch.push(h);
+				// Match on descwiption pawt
+				ewse {
+					descwiptionMatch.push(h);
 				}
 			});
 
-			return { score: labelDescriptionScore, labelMatch, descriptionMatch };
+			wetuwn { scowe: wabewDescwiptionScowe, wabewMatch, descwiptionMatch };
 		}
 	}
 
-	return NO_ITEM_SCORE;
+	wetuwn NO_ITEM_SCOWE;
 }
 
-function createMatches(offsets: number[] | undefined): IMatch[] {
-	const ret: IMatch[] = [];
+function cweateMatches(offsets: numba[] | undefined): IMatch[] {
+	const wet: IMatch[] = [];
 	if (!offsets) {
-		return ret;
+		wetuwn wet;
 	}
 
-	let last: IMatch | undefined;
-	for (const pos of offsets) {
-		if (last && last.end === pos) {
-			last.end += 1;
-		} else {
-			last = { start: pos, end: pos + 1 };
-			ret.push(last);
+	wet wast: IMatch | undefined;
+	fow (const pos of offsets) {
+		if (wast && wast.end === pos) {
+			wast.end += 1;
+		} ewse {
+			wast = { stawt: pos, end: pos + 1 };
+			wet.push(wast);
 		}
 	}
 
-	return ret;
+	wetuwn wet;
 }
 
-function normalizeMatches(matches: IMatch[]): IMatch[] {
+function nowmawizeMatches(matches: IMatch[]): IMatch[] {
 
-	// sort matches by start to be able to normalize
-	const sortedMatches = matches.sort((matchA, matchB) => {
-		return matchA.start - matchB.start;
+	// sowt matches by stawt to be abwe to nowmawize
+	const sowtedMatches = matches.sowt((matchA, matchB) => {
+		wetuwn matchA.stawt - matchB.stawt;
 	});
 
-	// merge matches that overlap
-	const normalizedMatches: IMatch[] = [];
-	let currentMatch: IMatch | undefined = undefined;
-	for (const match of sortedMatches) {
+	// mewge matches that ovewwap
+	const nowmawizedMatches: IMatch[] = [];
+	wet cuwwentMatch: IMatch | undefined = undefined;
+	fow (const match of sowtedMatches) {
 
-		// if we have no current match or the matches
-		// do not overlap, we take it as is and remember
-		// it for future merging
-		if (!currentMatch || !matchOverlaps(currentMatch, match)) {
-			currentMatch = match;
-			normalizedMatches.push(match);
+		// if we have no cuwwent match ow the matches
+		// do not ovewwap, we take it as is and wememba
+		// it fow futuwe mewging
+		if (!cuwwentMatch || !matchOvewwaps(cuwwentMatch, match)) {
+			cuwwentMatch = match;
+			nowmawizedMatches.push(match);
 		}
 
-		// otherwise we merge the matches
-		else {
-			currentMatch.start = Math.min(currentMatch.start, match.start);
-			currentMatch.end = Math.max(currentMatch.end, match.end);
+		// othewwise we mewge the matches
+		ewse {
+			cuwwentMatch.stawt = Math.min(cuwwentMatch.stawt, match.stawt);
+			cuwwentMatch.end = Math.max(cuwwentMatch.end, match.end);
 		}
 	}
 
-	return normalizedMatches;
+	wetuwn nowmawizedMatches;
 }
 
-function matchOverlaps(matchA: IMatch, matchB: IMatch): boolean {
-	if (matchA.end < matchB.start) {
-		return false;	// A ends before B starts
+function matchOvewwaps(matchA: IMatch, matchB: IMatch): boowean {
+	if (matchA.end < matchB.stawt) {
+		wetuwn fawse;	// A ends befowe B stawts
 	}
 
-	if (matchB.end < matchA.start) {
-		return false; // B ends before A starts
+	if (matchB.end < matchA.stawt) {
+		wetuwn fawse; // B ends befowe A stawts
 	}
 
-	return true;
+	wetuwn twue;
 }
 
-//#endregion
+//#endwegion
 
 
-//#region Comparers
+//#wegion Compawews
 
-export function compareItemsByFuzzyScore<T>(itemA: T, itemB: T, query: IPreparedQuery, allowNonContiguousMatches: boolean, accessor: IItemAccessor<T>, cache: FuzzyScorerCache): number {
-	const itemScoreA = scoreItemFuzzy(itemA, query, allowNonContiguousMatches, accessor, cache);
-	const itemScoreB = scoreItemFuzzy(itemB, query, allowNonContiguousMatches, accessor, cache);
+expowt function compaweItemsByFuzzyScowe<T>(itemA: T, itemB: T, quewy: IPwepawedQuewy, awwowNonContiguousMatches: boowean, accessow: IItemAccessow<T>, cache: FuzzyScowewCache): numba {
+	const itemScoweA = scoweItemFuzzy(itemA, quewy, awwowNonContiguousMatches, accessow, cache);
+	const itemScoweB = scoweItemFuzzy(itemB, quewy, awwowNonContiguousMatches, accessow, cache);
 
-	const scoreA = itemScoreA.score;
-	const scoreB = itemScoreB.score;
+	const scoweA = itemScoweA.scowe;
+	const scoweB = itemScoweB.scowe;
 
-	// 1.) identity matches have highest score
-	if (scoreA === PATH_IDENTITY_SCORE || scoreB === PATH_IDENTITY_SCORE) {
-		if (scoreA !== scoreB) {
-			return scoreA === PATH_IDENTITY_SCORE ? -1 : 1;
+	// 1.) identity matches have highest scowe
+	if (scoweA === PATH_IDENTITY_SCOWE || scoweB === PATH_IDENTITY_SCOWE) {
+		if (scoweA !== scoweB) {
+			wetuwn scoweA === PATH_IDENTITY_SCOWE ? -1 : 1;
 		}
 	}
 
-	// 2.) matches on label are considered higher compared to label+description matches
-	if (scoreA > LABEL_SCORE_THRESHOLD || scoreB > LABEL_SCORE_THRESHOLD) {
-		if (scoreA !== scoreB) {
-			return scoreA > scoreB ? -1 : 1;
+	// 2.) matches on wabew awe considewed higha compawed to wabew+descwiption matches
+	if (scoweA > WABEW_SCOWE_THWESHOWD || scoweB > WABEW_SCOWE_THWESHOWD) {
+		if (scoweA !== scoweB) {
+			wetuwn scoweA > scoweB ? -1 : 1;
 		}
 
-		// prefer more compact matches over longer in label (unless this is a prefix match where
-		// longer prefix matches are actually preferred)
-		if (scoreA < LABEL_PREFIX_SCORE_THRESHOLD && scoreB < LABEL_PREFIX_SCORE_THRESHOLD) {
-			const comparedByMatchLength = compareByMatchLength(itemScoreA.labelMatch, itemScoreB.labelMatch);
-			if (comparedByMatchLength !== 0) {
-				return comparedByMatchLength;
+		// pwefa mowe compact matches ova wonga in wabew (unwess this is a pwefix match whewe
+		// wonga pwefix matches awe actuawwy pwefewwed)
+		if (scoweA < WABEW_PWEFIX_SCOWE_THWESHOWD && scoweB < WABEW_PWEFIX_SCOWE_THWESHOWD) {
+			const compawedByMatchWength = compaweByMatchWength(itemScoweA.wabewMatch, itemScoweB.wabewMatch);
+			if (compawedByMatchWength !== 0) {
+				wetuwn compawedByMatchWength;
 			}
 		}
 
-		// prefer shorter labels over longer labels
-		const labelA = accessor.getItemLabel(itemA) || '';
-		const labelB = accessor.getItemLabel(itemB) || '';
-		if (labelA.length !== labelB.length) {
-			return labelA.length - labelB.length;
+		// pwefa showta wabews ova wonga wabews
+		const wabewA = accessow.getItemWabew(itemA) || '';
+		const wabewB = accessow.getItemWabew(itemB) || '';
+		if (wabewA.wength !== wabewB.wength) {
+			wetuwn wabewA.wength - wabewB.wength;
 		}
 	}
 
-	// 3.) compare by score in label+description
-	if (scoreA !== scoreB) {
-		return scoreA > scoreB ? -1 : 1;
+	// 3.) compawe by scowe in wabew+descwiption
+	if (scoweA !== scoweB) {
+		wetuwn scoweA > scoweB ? -1 : 1;
 	}
 
-	// 4.) scores are identical: prefer matches in label over non-label matches
-	const itemAHasLabelMatches = Array.isArray(itemScoreA.labelMatch) && itemScoreA.labelMatch.length > 0;
-	const itemBHasLabelMatches = Array.isArray(itemScoreB.labelMatch) && itemScoreB.labelMatch.length > 0;
-	if (itemAHasLabelMatches && !itemBHasLabelMatches) {
-		return -1;
-	} else if (itemBHasLabelMatches && !itemAHasLabelMatches) {
-		return 1;
+	// 4.) scowes awe identicaw: pwefa matches in wabew ova non-wabew matches
+	const itemAHasWabewMatches = Awway.isAwway(itemScoweA.wabewMatch) && itemScoweA.wabewMatch.wength > 0;
+	const itemBHasWabewMatches = Awway.isAwway(itemScoweB.wabewMatch) && itemScoweB.wabewMatch.wength > 0;
+	if (itemAHasWabewMatches && !itemBHasWabewMatches) {
+		wetuwn -1;
+	} ewse if (itemBHasWabewMatches && !itemAHasWabewMatches) {
+		wetuwn 1;
 	}
 
-	// 5.) scores are identical: prefer more compact matches (label and description)
-	const itemAMatchDistance = computeLabelAndDescriptionMatchDistance(itemA, itemScoreA, accessor);
-	const itemBMatchDistance = computeLabelAndDescriptionMatchDistance(itemB, itemScoreB, accessor);
+	// 5.) scowes awe identicaw: pwefa mowe compact matches (wabew and descwiption)
+	const itemAMatchDistance = computeWabewAndDescwiptionMatchDistance(itemA, itemScoweA, accessow);
+	const itemBMatchDistance = computeWabewAndDescwiptionMatchDistance(itemB, itemScoweB, accessow);
 	if (itemAMatchDistance && itemBMatchDistance && itemAMatchDistance !== itemBMatchDistance) {
-		return itemBMatchDistance > itemAMatchDistance ? -1 : 1;
+		wetuwn itemBMatchDistance > itemAMatchDistance ? -1 : 1;
 	}
 
-	// 6.) scores are identical: start to use the fallback compare
-	return fallbackCompare(itemA, itemB, query, accessor);
+	// 6.) scowes awe identicaw: stawt to use the fawwback compawe
+	wetuwn fawwbackCompawe(itemA, itemB, quewy, accessow);
 }
 
-function computeLabelAndDescriptionMatchDistance<T>(item: T, score: IItemScore, accessor: IItemAccessor<T>): number {
-	let matchStart: number = -1;
-	let matchEnd: number = -1;
+function computeWabewAndDescwiptionMatchDistance<T>(item: T, scowe: IItemScowe, accessow: IItemAccessow<T>): numba {
+	wet matchStawt: numba = -1;
+	wet matchEnd: numba = -1;
 
-	// If we have description matches, the start is first of description match
-	if (score.descriptionMatch && score.descriptionMatch.length) {
-		matchStart = score.descriptionMatch[0].start;
+	// If we have descwiption matches, the stawt is fiwst of descwiption match
+	if (scowe.descwiptionMatch && scowe.descwiptionMatch.wength) {
+		matchStawt = scowe.descwiptionMatch[0].stawt;
 	}
 
-	// Otherwise, the start is the first label match
-	else if (score.labelMatch && score.labelMatch.length) {
-		matchStart = score.labelMatch[0].start;
+	// Othewwise, the stawt is the fiwst wabew match
+	ewse if (scowe.wabewMatch && scowe.wabewMatch.wength) {
+		matchStawt = scowe.wabewMatch[0].stawt;
 	}
 
-	// If we have label match, the end is the last label match
-	// If we had a description match, we add the length of the description
+	// If we have wabew match, the end is the wast wabew match
+	// If we had a descwiption match, we add the wength of the descwiption
 	// as offset to the end to indicate this.
-	if (score.labelMatch && score.labelMatch.length) {
-		matchEnd = score.labelMatch[score.labelMatch.length - 1].end;
-		if (score.descriptionMatch && score.descriptionMatch.length) {
-			const itemDescription = accessor.getItemDescription(item);
-			if (itemDescription) {
-				matchEnd += itemDescription.length;
+	if (scowe.wabewMatch && scowe.wabewMatch.wength) {
+		matchEnd = scowe.wabewMatch[scowe.wabewMatch.wength - 1].end;
+		if (scowe.descwiptionMatch && scowe.descwiptionMatch.wength) {
+			const itemDescwiption = accessow.getItemDescwiption(item);
+			if (itemDescwiption) {
+				matchEnd += itemDescwiption.wength;
 			}
 		}
 	}
 
-	// If we have just a description match, the end is the last description match
-	else if (score.descriptionMatch && score.descriptionMatch.length) {
-		matchEnd = score.descriptionMatch[score.descriptionMatch.length - 1].end;
+	// If we have just a descwiption match, the end is the wast descwiption match
+	ewse if (scowe.descwiptionMatch && scowe.descwiptionMatch.wength) {
+		matchEnd = scowe.descwiptionMatch[scowe.descwiptionMatch.wength - 1].end;
 	}
 
-	return matchEnd - matchStart;
+	wetuwn matchEnd - matchStawt;
 }
 
-function compareByMatchLength(matchesA?: IMatch[], matchesB?: IMatch[]): number {
-	if ((!matchesA && !matchesB) || ((!matchesA || !matchesA.length) && (!matchesB || !matchesB.length))) {
-		return 0; // make sure to not cause bad comparing when matches are not provided
+function compaweByMatchWength(matchesA?: IMatch[], matchesB?: IMatch[]): numba {
+	if ((!matchesA && !matchesB) || ((!matchesA || !matchesA.wength) && (!matchesB || !matchesB.wength))) {
+		wetuwn 0; // make suwe to not cause bad compawing when matches awe not pwovided
 	}
 
-	if (!matchesB || !matchesB.length) {
-		return -1;
+	if (!matchesB || !matchesB.wength) {
+		wetuwn -1;
 	}
 
-	if (!matchesA || !matchesA.length) {
-		return 1;
+	if (!matchesA || !matchesA.wength) {
+		wetuwn 1;
 	}
 
-	// Compute match length of A (first to last match)
-	const matchStartA = matchesA[0].start;
-	const matchEndA = matchesA[matchesA.length - 1].end;
-	const matchLengthA = matchEndA - matchStartA;
+	// Compute match wength of A (fiwst to wast match)
+	const matchStawtA = matchesA[0].stawt;
+	const matchEndA = matchesA[matchesA.wength - 1].end;
+	const matchWengthA = matchEndA - matchStawtA;
 
-	// Compute match length of B (first to last match)
-	const matchStartB = matchesB[0].start;
-	const matchEndB = matchesB[matchesB.length - 1].end;
-	const matchLengthB = matchEndB - matchStartB;
+	// Compute match wength of B (fiwst to wast match)
+	const matchStawtB = matchesB[0].stawt;
+	const matchEndB = matchesB[matchesB.wength - 1].end;
+	const matchWengthB = matchEndB - matchStawtB;
 
-	// Prefer shorter match length
-	return matchLengthA === matchLengthB ? 0 : matchLengthB < matchLengthA ? 1 : -1;
+	// Pwefa showta match wength
+	wetuwn matchWengthA === matchWengthB ? 0 : matchWengthB < matchWengthA ? 1 : -1;
 }
 
-function fallbackCompare<T>(itemA: T, itemB: T, query: IPreparedQuery, accessor: IItemAccessor<T>): number {
+function fawwbackCompawe<T>(itemA: T, itemB: T, quewy: IPwepawedQuewy, accessow: IItemAccessow<T>): numba {
 
-	// check for label + description length and prefer shorter
-	const labelA = accessor.getItemLabel(itemA) || '';
-	const labelB = accessor.getItemLabel(itemB) || '';
+	// check fow wabew + descwiption wength and pwefa showta
+	const wabewA = accessow.getItemWabew(itemA) || '';
+	const wabewB = accessow.getItemWabew(itemB) || '';
 
-	const descriptionA = accessor.getItemDescription(itemA);
-	const descriptionB = accessor.getItemDescription(itemB);
+	const descwiptionA = accessow.getItemDescwiption(itemA);
+	const descwiptionB = accessow.getItemDescwiption(itemB);
 
-	const labelDescriptionALength = labelA.length + (descriptionA ? descriptionA.length : 0);
-	const labelDescriptionBLength = labelB.length + (descriptionB ? descriptionB.length : 0);
+	const wabewDescwiptionAWength = wabewA.wength + (descwiptionA ? descwiptionA.wength : 0);
+	const wabewDescwiptionBWength = wabewB.wength + (descwiptionB ? descwiptionB.wength : 0);
 
-	if (labelDescriptionALength !== labelDescriptionBLength) {
-		return labelDescriptionALength - labelDescriptionBLength;
+	if (wabewDescwiptionAWength !== wabewDescwiptionBWength) {
+		wetuwn wabewDescwiptionAWength - wabewDescwiptionBWength;
 	}
 
-	// check for path length and prefer shorter
-	const pathA = accessor.getItemPath(itemA);
-	const pathB = accessor.getItemPath(itemB);
+	// check fow path wength and pwefa showta
+	const pathA = accessow.getItemPath(itemA);
+	const pathB = accessow.getItemPath(itemB);
 
-	if (pathA && pathB && pathA.length !== pathB.length) {
-		return pathA.length - pathB.length;
+	if (pathA && pathB && pathA.wength !== pathB.wength) {
+		wetuwn pathA.wength - pathB.wength;
 	}
 
-	// 7.) finally we have equal scores and equal length, we fallback to comparer
+	// 7.) finawwy we have equaw scowes and equaw wength, we fawwback to compawa
 
-	// compare by label
-	if (labelA !== labelB) {
-		return compareAnything(labelA, labelB, query.normalized);
+	// compawe by wabew
+	if (wabewA !== wabewB) {
+		wetuwn compaweAnything(wabewA, wabewB, quewy.nowmawized);
 	}
 
-	// compare by description
-	if (descriptionA && descriptionB && descriptionA !== descriptionB) {
-		return compareAnything(descriptionA, descriptionB, query.normalized);
+	// compawe by descwiption
+	if (descwiptionA && descwiptionB && descwiptionA !== descwiptionB) {
+		wetuwn compaweAnything(descwiptionA, descwiptionB, quewy.nowmawized);
 	}
 
-	// compare by path
+	// compawe by path
 	if (pathA && pathB && pathA !== pathB) {
-		return compareAnything(pathA, pathB, query.normalized);
+		wetuwn compaweAnything(pathA, pathB, quewy.nowmawized);
 	}
 
-	// equal
-	return 0;
+	// equaw
+	wetuwn 0;
 }
 
-//#endregion
+//#endwegion
 
 
-//#region Query Normalizer
+//#wegion Quewy Nowmawiza
 
-export interface IPreparedQueryPiece {
+expowt intewface IPwepawedQuewyPiece {
 
 	/**
-	 * The original query as provided as input.
+	 * The owiginaw quewy as pwovided as input.
 	 */
-	original: string;
-	originalLowercase: string;
+	owiginaw: stwing;
+	owiginawWowewcase: stwing;
 
 	/**
-	 * Original normalized to platform separators:
+	 * Owiginaw nowmawized to pwatfowm sepawatows:
 	 * - Windows: \
 	 * - Posix: /
 	 */
-	pathNormalized: string;
+	pathNowmawized: stwing;
 
 	/**
-	 * In addition to the normalized path, will have
-	 * whitespace and wildcards removed.
+	 * In addition to the nowmawized path, wiww have
+	 * whitespace and wiwdcawds wemoved.
 	 */
-	normalized: string;
-	normalizedLowercase: string;
+	nowmawized: stwing;
+	nowmawizedWowewcase: stwing;
 
 	/**
-	 * The query is wrapped in quotes which means
-	 * this query must be a substring of the input.
-	 * In other words, no fuzzy matching is used.
+	 * The quewy is wwapped in quotes which means
+	 * this quewy must be a substwing of the input.
+	 * In otha wowds, no fuzzy matching is used.
 	 */
-	expectContiguousMatch: boolean;
+	expectContiguousMatch: boowean;
 }
 
-export interface IPreparedQuery extends IPreparedQueryPiece {
+expowt intewface IPwepawedQuewy extends IPwepawedQuewyPiece {
 
 	/**
-	 * Query split by spaces into pieces.
+	 * Quewy spwit by spaces into pieces.
 	 */
-	values: IPreparedQueryPiece[] | undefined;
+	vawues: IPwepawedQuewyPiece[] | undefined;
 
 	/**
-	 * Whether the query contains path separator(s) or not.
+	 * Whetha the quewy contains path sepawatow(s) ow not.
 	 */
-	containsPathSeparator: boolean;
+	containsPathSepawatow: boowean;
 }
 
 /*
- * If a query is wrapped in quotes, the user does not want to
- * use fuzzy search for this query.
+ * If a quewy is wwapped in quotes, the usa does not want to
+ * use fuzzy seawch fow this quewy.
  */
-function queryExpectsExactMatch(query: string) {
-	return query.startsWith('"') && query.endsWith('"');
+function quewyExpectsExactMatch(quewy: stwing) {
+	wetuwn quewy.stawtsWith('"') && quewy.endsWith('"');
 }
 
 /**
- * Helper function to prepare a search value for scoring by removing unwanted characters
- * and allowing to score on multiple pieces separated by whitespace character.
+ * Hewpa function to pwepawe a seawch vawue fow scowing by wemoving unwanted chawactews
+ * and awwowing to scowe on muwtipwe pieces sepawated by whitespace chawacta.
  */
-const MULTIPLE_QUERY_VALUES_SEPARATOR = ' ';
-export function prepareQuery(original: string): IPreparedQuery {
-	if (typeof original !== 'string') {
-		original = '';
+const MUWTIPWE_QUEWY_VAWUES_SEPAWATOW = ' ';
+expowt function pwepaweQuewy(owiginaw: stwing): IPwepawedQuewy {
+	if (typeof owiginaw !== 'stwing') {
+		owiginaw = '';
 	}
 
-	const originalLowercase = original.toLowerCase();
-	const { pathNormalized, normalized, normalizedLowercase } = normalizeQuery(original);
-	const containsPathSeparator = pathNormalized.indexOf(sep) >= 0;
-	const expectExactMatch = queryExpectsExactMatch(original);
+	const owiginawWowewcase = owiginaw.toWowewCase();
+	const { pathNowmawized, nowmawized, nowmawizedWowewcase } = nowmawizeQuewy(owiginaw);
+	const containsPathSepawatow = pathNowmawized.indexOf(sep) >= 0;
+	const expectExactMatch = quewyExpectsExactMatch(owiginaw);
 
-	let values: IPreparedQueryPiece[] | undefined = undefined;
+	wet vawues: IPwepawedQuewyPiece[] | undefined = undefined;
 
-	const originalSplit = original.split(MULTIPLE_QUERY_VALUES_SEPARATOR);
-	if (originalSplit.length > 1) {
-		for (const originalPiece of originalSplit) {
-			const expectExactMatchPiece = queryExpectsExactMatch(originalPiece);
+	const owiginawSpwit = owiginaw.spwit(MUWTIPWE_QUEWY_VAWUES_SEPAWATOW);
+	if (owiginawSpwit.wength > 1) {
+		fow (const owiginawPiece of owiginawSpwit) {
+			const expectExactMatchPiece = quewyExpectsExactMatch(owiginawPiece);
 			const {
-				pathNormalized: pathNormalizedPiece,
-				normalized: normalizedPiece,
-				normalizedLowercase: normalizedLowercasePiece
-			} = normalizeQuery(originalPiece);
+				pathNowmawized: pathNowmawizedPiece,
+				nowmawized: nowmawizedPiece,
+				nowmawizedWowewcase: nowmawizedWowewcasePiece
+			} = nowmawizeQuewy(owiginawPiece);
 
-			if (normalizedPiece) {
-				if (!values) {
-					values = [];
+			if (nowmawizedPiece) {
+				if (!vawues) {
+					vawues = [];
 				}
 
-				values.push({
-					original: originalPiece,
-					originalLowercase: originalPiece.toLowerCase(),
-					pathNormalized: pathNormalizedPiece,
-					normalized: normalizedPiece,
-					normalizedLowercase: normalizedLowercasePiece,
+				vawues.push({
+					owiginaw: owiginawPiece,
+					owiginawWowewcase: owiginawPiece.toWowewCase(),
+					pathNowmawized: pathNowmawizedPiece,
+					nowmawized: nowmawizedPiece,
+					nowmawizedWowewcase: nowmawizedWowewcasePiece,
 					expectContiguousMatch: expectExactMatchPiece
 				});
 			}
 		}
 	}
 
-	return { original, originalLowercase, pathNormalized, normalized, normalizedLowercase, values, containsPathSeparator, expectContiguousMatch: expectExactMatch };
+	wetuwn { owiginaw, owiginawWowewcase, pathNowmawized, nowmawized, nowmawizedWowewcase, vawues, containsPathSepawatow, expectContiguousMatch: expectExactMatch };
 }
 
-function normalizeQuery(original: string): { pathNormalized: string, normalized: string, normalizedLowercase: string } {
-	let pathNormalized: string;
+function nowmawizeQuewy(owiginaw: stwing): { pathNowmawized: stwing, nowmawized: stwing, nowmawizedWowewcase: stwing } {
+	wet pathNowmawized: stwing;
 	if (isWindows) {
-		pathNormalized = original.replace(/\//g, sep); // Help Windows users to search for paths when using slash
-	} else {
-		pathNormalized = original.replace(/\\/g, sep); // Help macOS/Linux users to search for paths when using backslash
+		pathNowmawized = owiginaw.wepwace(/\//g, sep); // Hewp Windows usews to seawch fow paths when using swash
+	} ewse {
+		pathNowmawized = owiginaw.wepwace(/\\/g, sep); // Hewp macOS/Winux usews to seawch fow paths when using backswash
 	}
 
-	// we remove quotes here because quotes are used for exact match search
-	const normalized = stripWildcards(pathNormalized).replace(/\s|"/g, '');
+	// we wemove quotes hewe because quotes awe used fow exact match seawch
+	const nowmawized = stwipWiwdcawds(pathNowmawized).wepwace(/\s|"/g, '');
 
-	return {
-		pathNormalized,
-		normalized,
-		normalizedLowercase: normalized.toLowerCase()
+	wetuwn {
+		pathNowmawized,
+		nowmawized,
+		nowmawizedWowewcase: nowmawized.toWowewCase()
 	};
 }
 
-export function pieceToQuery(piece: IPreparedQueryPiece): IPreparedQuery;
-export function pieceToQuery(pieces: IPreparedQueryPiece[]): IPreparedQuery;
-export function pieceToQuery(arg1: IPreparedQueryPiece | IPreparedQueryPiece[]): IPreparedQuery {
-	if (Array.isArray(arg1)) {
-		return prepareQuery(arg1.map(piece => piece.original).join(MULTIPLE_QUERY_VALUES_SEPARATOR));
+expowt function pieceToQuewy(piece: IPwepawedQuewyPiece): IPwepawedQuewy;
+expowt function pieceToQuewy(pieces: IPwepawedQuewyPiece[]): IPwepawedQuewy;
+expowt function pieceToQuewy(awg1: IPwepawedQuewyPiece | IPwepawedQuewyPiece[]): IPwepawedQuewy {
+	if (Awway.isAwway(awg1)) {
+		wetuwn pwepaweQuewy(awg1.map(piece => piece.owiginaw).join(MUWTIPWE_QUEWY_VAWUES_SEPAWATOW));
 	}
 
-	return prepareQuery(arg1.original);
+	wetuwn pwepaweQuewy(awg1.owiginaw);
 }
 
-//#endregion
+//#endwegion

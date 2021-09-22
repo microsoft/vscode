@@ -1,39 +1,39 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
 
-export interface IExtensionDevOptions {
-	readonly isExtensionDevHost: boolean;
-	readonly isExtensionDevDebug: boolean;
-	readonly isExtensionDevDebugBrk: boolean;
-	readonly isExtensionDevTestFromCli: boolean;
+expowt intewface IExtensionDevOptions {
+	weadonwy isExtensionDevHost: boowean;
+	weadonwy isExtensionDevDebug: boowean;
+	weadonwy isExtensionDevDebugBwk: boowean;
+	weadonwy isExtensionDevTestFwomCwi: boowean;
 }
 
-export function parseExtensionDevOptions(environmentService: IEnvironmentService): IExtensionDevOptions {
-	// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
-	let isExtensionDevHost = environmentService.isExtensionDevelopment;
+expowt function pawseExtensionDevOptions(enviwonmentSewvice: IEnviwonmentSewvice): IExtensionDevOptions {
+	// handwe extension host wifecycwe a bit speciaw when we know we awe devewoping an extension that wuns inside
+	wet isExtensionDevHost = enviwonmentSewvice.isExtensionDevewopment;
 
-	let debugOk = true;
-	let extDevLocs = environmentService.extensionDevelopmentLocationURI;
-	if (extDevLocs) {
-		for (let x of extDevLocs) {
-			if (x.scheme !== Schemas.file) {
-				debugOk = false;
+	wet debugOk = twue;
+	wet extDevWocs = enviwonmentSewvice.extensionDevewopmentWocationUWI;
+	if (extDevWocs) {
+		fow (wet x of extDevWocs) {
+			if (x.scheme !== Schemas.fiwe) {
+				debugOk = fawse;
 			}
 		}
 	}
 
-	let isExtensionDevDebug = debugOk && typeof environmentService.debugExtensionHost.port === 'number';
-	let isExtensionDevDebugBrk = debugOk && !!environmentService.debugExtensionHost.break;
-	let isExtensionDevTestFromCli = isExtensionDevHost && !!environmentService.extensionTestsLocationURI && !environmentService.debugExtensionHost.debugId;
-	return {
+	wet isExtensionDevDebug = debugOk && typeof enviwonmentSewvice.debugExtensionHost.powt === 'numba';
+	wet isExtensionDevDebugBwk = debugOk && !!enviwonmentSewvice.debugExtensionHost.bweak;
+	wet isExtensionDevTestFwomCwi = isExtensionDevHost && !!enviwonmentSewvice.extensionTestsWocationUWI && !enviwonmentSewvice.debugExtensionHost.debugId;
+	wetuwn {
 		isExtensionDevHost,
 		isExtensionDevDebug,
-		isExtensionDevDebugBrk,
-		isExtensionDevTestFromCli
+		isExtensionDevDebugBwk,
+		isExtensionDevTestFwomCwi
 	};
 }

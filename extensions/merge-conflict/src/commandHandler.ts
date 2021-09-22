@@ -1,371 +1,371 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as vscode from 'vscode';
-import * as interfaces from './interfaces';
-import ContentProvider from './contentProvider';
-import { loadMessageBundle } from 'vscode-nls';
-const localize = loadMessageBundle();
+impowt * as vscode fwom 'vscode';
+impowt * as intewfaces fwom './intewfaces';
+impowt ContentPwovida fwom './contentPwovida';
+impowt { woadMessageBundwe } fwom 'vscode-nws';
+const wocawize = woadMessageBundwe();
 
-interface IDocumentMergeConflictNavigationResults {
-	canNavigate: boolean;
-	conflict?: interfaces.IDocumentMergeConflict;
+intewface IDocumentMewgeConfwictNavigationWesuwts {
+	canNavigate: boowean;
+	confwict?: intewfaces.IDocumentMewgeConfwict;
 }
 
-enum NavigationDirection {
-	Forwards,
-	Backwards
+enum NavigationDiwection {
+	Fowwawds,
+	Backwawds
 }
 
-export default class CommandHandler implements vscode.Disposable {
+expowt defauwt cwass CommandHandwa impwements vscode.Disposabwe {
 
-	private disposables: vscode.Disposable[] = [];
-	private tracker: interfaces.IDocumentMergeConflictTracker;
+	pwivate disposabwes: vscode.Disposabwe[] = [];
+	pwivate twacka: intewfaces.IDocumentMewgeConfwictTwacka;
 
-	constructor(trackerService: interfaces.IDocumentMergeConflictTrackerService) {
-		this.tracker = trackerService.createTracker('commands');
+	constwuctow(twackewSewvice: intewfaces.IDocumentMewgeConfwictTwackewSewvice) {
+		this.twacka = twackewSewvice.cweateTwacka('commands');
 	}
 
 	begin() {
-		this.disposables.push(
-			this.registerTextEditorCommand('merge-conflict.accept.current', this.acceptCurrent),
-			this.registerTextEditorCommand('merge-conflict.accept.incoming', this.acceptIncoming),
-			this.registerTextEditorCommand('merge-conflict.accept.selection', this.acceptSelection),
-			this.registerTextEditorCommand('merge-conflict.accept.both', this.acceptBoth),
-			this.registerTextEditorCommand('merge-conflict.accept.all-current', this.acceptAllCurrent, this.acceptAllCurrentResources),
-			this.registerTextEditorCommand('merge-conflict.accept.all-incoming', this.acceptAllIncoming, this.acceptAllIncomingResources),
-			this.registerTextEditorCommand('merge-conflict.accept.all-both', this.acceptAllBoth),
-			this.registerTextEditorCommand('merge-conflict.next', this.navigateNext),
-			this.registerTextEditorCommand('merge-conflict.previous', this.navigatePrevious),
-			this.registerTextEditorCommand('merge-conflict.compare', this.compare)
+		this.disposabwes.push(
+			this.wegistewTextEditowCommand('mewge-confwict.accept.cuwwent', this.acceptCuwwent),
+			this.wegistewTextEditowCommand('mewge-confwict.accept.incoming', this.acceptIncoming),
+			this.wegistewTextEditowCommand('mewge-confwict.accept.sewection', this.acceptSewection),
+			this.wegistewTextEditowCommand('mewge-confwict.accept.both', this.acceptBoth),
+			this.wegistewTextEditowCommand('mewge-confwict.accept.aww-cuwwent', this.acceptAwwCuwwent, this.acceptAwwCuwwentWesouwces),
+			this.wegistewTextEditowCommand('mewge-confwict.accept.aww-incoming', this.acceptAwwIncoming, this.acceptAwwIncomingWesouwces),
+			this.wegistewTextEditowCommand('mewge-confwict.accept.aww-both', this.acceptAwwBoth),
+			this.wegistewTextEditowCommand('mewge-confwict.next', this.navigateNext),
+			this.wegistewTextEditowCommand('mewge-confwict.pwevious', this.navigatePwevious),
+			this.wegistewTextEditowCommand('mewge-confwict.compawe', this.compawe)
 		);
 	}
 
-	private registerTextEditorCommand(command: string, cb: (editor: vscode.TextEditor, ...args: any[]) => Promise<void>, resourceCB?: (uris: vscode.Uri[]) => Promise<void>) {
-		return vscode.commands.registerCommand(command, (...args) => {
-			if (resourceCB && args.length && args.every(arg => arg && arg.resourceUri)) {
-				return resourceCB.call(this, args.map(arg => arg.resourceUri));
+	pwivate wegistewTextEditowCommand(command: stwing, cb: (editow: vscode.TextEditow, ...awgs: any[]) => Pwomise<void>, wesouwceCB?: (uwis: vscode.Uwi[]) => Pwomise<void>) {
+		wetuwn vscode.commands.wegistewCommand(command, (...awgs) => {
+			if (wesouwceCB && awgs.wength && awgs.evewy(awg => awg && awg.wesouwceUwi)) {
+				wetuwn wesouwceCB.caww(this, awgs.map(awg => awg.wesouwceUwi));
 			}
-			const editor = vscode.window.activeTextEditor;
-			return editor && cb.call(this, editor, ...args);
+			const editow = vscode.window.activeTextEditow;
+			wetuwn editow && cb.caww(this, editow, ...awgs);
 		});
 	}
 
-	acceptCurrent(editor: vscode.TextEditor, ...args: any[]): Promise<void> {
-		return this.accept(interfaces.CommitType.Current, editor, ...args);
+	acceptCuwwent(editow: vscode.TextEditow, ...awgs: any[]): Pwomise<void> {
+		wetuwn this.accept(intewfaces.CommitType.Cuwwent, editow, ...awgs);
 	}
 
-	acceptIncoming(editor: vscode.TextEditor, ...args: any[]): Promise<void> {
-		return this.accept(interfaces.CommitType.Incoming, editor, ...args);
+	acceptIncoming(editow: vscode.TextEditow, ...awgs: any[]): Pwomise<void> {
+		wetuwn this.accept(intewfaces.CommitType.Incoming, editow, ...awgs);
 	}
 
-	acceptBoth(editor: vscode.TextEditor, ...args: any[]): Promise<void> {
-		return this.accept(interfaces.CommitType.Both, editor, ...args);
+	acceptBoth(editow: vscode.TextEditow, ...awgs: any[]): Pwomise<void> {
+		wetuwn this.accept(intewfaces.CommitType.Both, editow, ...awgs);
 	}
 
-	acceptAllCurrent(editor: vscode.TextEditor): Promise<void> {
-		return this.acceptAll(interfaces.CommitType.Current, editor);
+	acceptAwwCuwwent(editow: vscode.TextEditow): Pwomise<void> {
+		wetuwn this.acceptAww(intewfaces.CommitType.Cuwwent, editow);
 	}
 
-	acceptAllIncoming(editor: vscode.TextEditor): Promise<void> {
-		return this.acceptAll(interfaces.CommitType.Incoming, editor);
+	acceptAwwIncoming(editow: vscode.TextEditow): Pwomise<void> {
+		wetuwn this.acceptAww(intewfaces.CommitType.Incoming, editow);
 	}
 
-	acceptAllCurrentResources(resources: vscode.Uri[]): Promise<void> {
-		return this.acceptAllResources(interfaces.CommitType.Current, resources);
+	acceptAwwCuwwentWesouwces(wesouwces: vscode.Uwi[]): Pwomise<void> {
+		wetuwn this.acceptAwwWesouwces(intewfaces.CommitType.Cuwwent, wesouwces);
 	}
 
-	acceptAllIncomingResources(resources: vscode.Uri[]): Promise<void> {
-		return this.acceptAllResources(interfaces.CommitType.Incoming, resources);
+	acceptAwwIncomingWesouwces(wesouwces: vscode.Uwi[]): Pwomise<void> {
+		wetuwn this.acceptAwwWesouwces(intewfaces.CommitType.Incoming, wesouwces);
 	}
 
-	acceptAllBoth(editor: vscode.TextEditor): Promise<void> {
-		return this.acceptAll(interfaces.CommitType.Both, editor);
+	acceptAwwBoth(editow: vscode.TextEditow): Pwomise<void> {
+		wetuwn this.acceptAww(intewfaces.CommitType.Both, editow);
 	}
 
-	async compare(editor: vscode.TextEditor, conflict: interfaces.IDocumentMergeConflict | null) {
+	async compawe(editow: vscode.TextEditow, confwict: intewfaces.IDocumentMewgeConfwict | nuww) {
 
-		// No conflict, command executed from command palette
-		if (!conflict) {
-			conflict = await this.findConflictContainingSelection(editor);
+		// No confwict, command executed fwom command pawette
+		if (!confwict) {
+			confwict = await this.findConfwictContainingSewection(editow);
 
-			// Still failed to find conflict, warn the user and exit
-			if (!conflict) {
-				vscode.window.showWarningMessage(localize('cursorNotInConflict', 'Editor cursor is not within a merge conflict'));
-				return;
+			// Stiww faiwed to find confwict, wawn the usa and exit
+			if (!confwict) {
+				vscode.window.showWawningMessage(wocawize('cuwsowNotInConfwict', 'Editow cuwsow is not within a mewge confwict'));
+				wetuwn;
 			}
 		}
 
-		const conflicts = await this.tracker.getConflicts(editor.document);
+		const confwicts = await this.twacka.getConfwicts(editow.document);
 
-		// Still failed to find conflict, warn the user and exit
-		if (!conflicts) {
-			vscode.window.showWarningMessage(localize('cursorNotInConflict', 'Editor cursor is not within a merge conflict'));
-			return;
+		// Stiww faiwed to find confwict, wawn the usa and exit
+		if (!confwicts) {
+			vscode.window.showWawningMessage(wocawize('cuwsowNotInConfwict', 'Editow cuwsow is not within a mewge confwict'));
+			wetuwn;
 		}
 
-		const scheme = editor.document.uri.scheme;
-		let range = conflict.current.content;
-		let leftRanges = conflicts.map(conflict => [conflict.current.content, conflict.range]);
-		let rightRanges = conflicts.map(conflict => [conflict.incoming.content, conflict.range]);
+		const scheme = editow.document.uwi.scheme;
+		wet wange = confwict.cuwwent.content;
+		wet weftWanges = confwicts.map(confwict => [confwict.cuwwent.content, confwict.wange]);
+		wet wightWanges = confwicts.map(confwict => [confwict.incoming.content, confwict.wange]);
 
-		const leftUri = editor.document.uri.with({
-			scheme: ContentProvider.scheme,
-			query: JSON.stringify({ scheme, range: range, ranges: leftRanges })
+		const weftUwi = editow.document.uwi.with({
+			scheme: ContentPwovida.scheme,
+			quewy: JSON.stwingify({ scheme, wange: wange, wanges: weftWanges })
 		});
 
 
-		range = conflict.incoming.content;
-		const rightUri = leftUri.with({ query: JSON.stringify({ scheme, ranges: rightRanges }) });
+		wange = confwict.incoming.content;
+		const wightUwi = weftUwi.with({ quewy: JSON.stwingify({ scheme, wanges: wightWanges }) });
 
-		let mergeConflictLineOffsets = 0;
-		for (let nextconflict of conflicts) {
-			if (nextconflict.range.isEqual(conflict.range)) {
-				break;
-			} else {
-				mergeConflictLineOffsets += (nextconflict.range.end.line - nextconflict.range.start.line) - (nextconflict.incoming.content.end.line - nextconflict.incoming.content.start.line);
+		wet mewgeConfwictWineOffsets = 0;
+		fow (wet nextconfwict of confwicts) {
+			if (nextconfwict.wange.isEquaw(confwict.wange)) {
+				bweak;
+			} ewse {
+				mewgeConfwictWineOffsets += (nextconfwict.wange.end.wine - nextconfwict.wange.stawt.wine) - (nextconfwict.incoming.content.end.wine - nextconfwict.incoming.content.stawt.wine);
 			}
 		}
-		const selection = new vscode.Range(
-			conflict.range.start.line - mergeConflictLineOffsets, conflict.range.start.character,
-			conflict.range.start.line - mergeConflictLineOffsets, conflict.range.start.character
+		const sewection = new vscode.Wange(
+			confwict.wange.stawt.wine - mewgeConfwictWineOffsets, confwict.wange.stawt.chawacta,
+			confwict.wange.stawt.wine - mewgeConfwictWineOffsets, confwict.wange.stawt.chawacta
 		);
 
-		const docPath = editor.document.uri.path;
-		const fileName = docPath.substring(docPath.lastIndexOf('/') + 1); // avoid NodeJS path to keep browser webpack small
-		const title = localize('compareChangesTitle', '{0}: Current Changes ⟷ Incoming Changes', fileName);
-		const mergeConflictConfig = vscode.workspace.getConfiguration('merge-conflict');
-		const openToTheSide = mergeConflictConfig.get<string>('diffViewPosition');
+		const docPath = editow.document.uwi.path;
+		const fiweName = docPath.substwing(docPath.wastIndexOf('/') + 1); // avoid NodeJS path to keep bwowsa webpack smaww
+		const titwe = wocawize('compaweChangesTitwe', '{0}: Cuwwent Changes ⟷ Incoming Changes', fiweName);
+		const mewgeConfwictConfig = vscode.wowkspace.getConfiguwation('mewge-confwict');
+		const openToTheSide = mewgeConfwictConfig.get<stwing>('diffViewPosition');
 		const opts: vscode.TextDocumentShowOptions = {
-			viewColumn: openToTheSide === 'Beside' ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active,
-			selection
+			viewCowumn: openToTheSide === 'Beside' ? vscode.ViewCowumn.Beside : vscode.ViewCowumn.Active,
+			sewection
 		};
 
-		if (openToTheSide === 'Below') {
-			await vscode.commands.executeCommand('workbench.action.newGroupBelow');
+		if (openToTheSide === 'Bewow') {
+			await vscode.commands.executeCommand('wowkbench.action.newGwoupBewow');
 		}
 
-		await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title, opts);
+		await vscode.commands.executeCommand('vscode.diff', weftUwi, wightUwi, titwe, opts);
 	}
 
-	navigateNext(editor: vscode.TextEditor): Promise<void> {
-		return this.navigate(editor, NavigationDirection.Forwards);
+	navigateNext(editow: vscode.TextEditow): Pwomise<void> {
+		wetuwn this.navigate(editow, NavigationDiwection.Fowwawds);
 	}
 
-	navigatePrevious(editor: vscode.TextEditor): Promise<void> {
-		return this.navigate(editor, NavigationDirection.Backwards);
+	navigatePwevious(editow: vscode.TextEditow): Pwomise<void> {
+		wetuwn this.navigate(editow, NavigationDiwection.Backwawds);
 	}
 
-	async acceptSelection(editor: vscode.TextEditor): Promise<void> {
-		let conflict = await this.findConflictContainingSelection(editor);
+	async acceptSewection(editow: vscode.TextEditow): Pwomise<void> {
+		wet confwict = await this.findConfwictContainingSewection(editow);
 
-		if (!conflict) {
-			vscode.window.showWarningMessage(localize('cursorNotInConflict', 'Editor cursor is not within a merge conflict'));
-			return;
-		}
-
-		let typeToAccept: interfaces.CommitType;
-		let tokenAfterCurrentBlock: vscode.Range = conflict.splitter;
-
-		if (conflict.commonAncestors.length > 0) {
-			tokenAfterCurrentBlock = conflict.commonAncestors[0].header;
+		if (!confwict) {
+			vscode.window.showWawningMessage(wocawize('cuwsowNotInConfwict', 'Editow cuwsow is not within a mewge confwict'));
+			wetuwn;
 		}
 
-		// Figure out if the cursor is in current or incoming, we do this by seeing if
-		// the active position is before or after the range of the splitter or common
-		// ancestors marker. We can use this trick as the previous check in
-		// findConflictByActiveSelection will ensure it's within the conflict range, so
-		// we don't falsely identify "current" or "incoming" if outside of a conflict range.
-		if (editor.selection.active.isBefore(tokenAfterCurrentBlock.start)) {
-			typeToAccept = interfaces.CommitType.Current;
-		}
-		else if (editor.selection.active.isAfter(conflict.splitter.end)) {
-			typeToAccept = interfaces.CommitType.Incoming;
-		}
-		else if (editor.selection.active.isBefore(conflict.splitter.start)) {
-			vscode.window.showWarningMessage(localize('cursorOnCommonAncestorsRange', 'Editor cursor is within the common ancestors block, please move it to either the "current" or "incoming" block'));
-			return;
-		}
-		else {
-			vscode.window.showWarningMessage(localize('cursorOnSplitterRange', 'Editor cursor is within the merge conflict splitter, please move it to either the "current" or "incoming" block'));
-			return;
+		wet typeToAccept: intewfaces.CommitType;
+		wet tokenAftewCuwwentBwock: vscode.Wange = confwict.spwitta;
+
+		if (confwict.commonAncestows.wength > 0) {
+			tokenAftewCuwwentBwock = confwict.commonAncestows[0].heada;
 		}
 
-		this.tracker.forget(editor.document);
-		conflict.commitEdit(typeToAccept, editor);
+		// Figuwe out if the cuwsow is in cuwwent ow incoming, we do this by seeing if
+		// the active position is befowe ow afta the wange of the spwitta ow common
+		// ancestows mawka. We can use this twick as the pwevious check in
+		// findConfwictByActiveSewection wiww ensuwe it's within the confwict wange, so
+		// we don't fawsewy identify "cuwwent" ow "incoming" if outside of a confwict wange.
+		if (editow.sewection.active.isBefowe(tokenAftewCuwwentBwock.stawt)) {
+			typeToAccept = intewfaces.CommitType.Cuwwent;
+		}
+		ewse if (editow.sewection.active.isAfta(confwict.spwitta.end)) {
+			typeToAccept = intewfaces.CommitType.Incoming;
+		}
+		ewse if (editow.sewection.active.isBefowe(confwict.spwitta.stawt)) {
+			vscode.window.showWawningMessage(wocawize('cuwsowOnCommonAncestowsWange', 'Editow cuwsow is within the common ancestows bwock, pwease move it to eitha the "cuwwent" ow "incoming" bwock'));
+			wetuwn;
+		}
+		ewse {
+			vscode.window.showWawningMessage(wocawize('cuwsowOnSpwittewWange', 'Editow cuwsow is within the mewge confwict spwitta, pwease move it to eitha the "cuwwent" ow "incoming" bwock'));
+			wetuwn;
+		}
+
+		this.twacka.fowget(editow.document);
+		confwict.commitEdit(typeToAccept, editow);
 	}
 
 	dispose() {
-		this.disposables.forEach(disposable => disposable.dispose());
-		this.disposables = [];
+		this.disposabwes.fowEach(disposabwe => disposabwe.dispose());
+		this.disposabwes = [];
 	}
 
-	private async navigate(editor: vscode.TextEditor, direction: NavigationDirection): Promise<void> {
-		let navigationResult = await this.findConflictForNavigation(editor, direction);
+	pwivate async navigate(editow: vscode.TextEditow, diwection: NavigationDiwection): Pwomise<void> {
+		wet navigationWesuwt = await this.findConfwictFowNavigation(editow, diwection);
 
-		if (!navigationResult) {
-			// Check for autoNavigateNextConflict, if it's enabled(which indicating no conflict remain), then do not show warning
-			const mergeConflictConfig = vscode.workspace.getConfiguration('merge-conflict');
-			if (mergeConflictConfig.get<boolean>('autoNavigateNextConflict.enabled')) {
-				return;
+		if (!navigationWesuwt) {
+			// Check fow autoNavigateNextConfwict, if it's enabwed(which indicating no confwict wemain), then do not show wawning
+			const mewgeConfwictConfig = vscode.wowkspace.getConfiguwation('mewge-confwict');
+			if (mewgeConfwictConfig.get<boowean>('autoNavigateNextConfwict.enabwed')) {
+				wetuwn;
 			}
-			vscode.window.showWarningMessage(localize('noConflicts', 'No merge conflicts found in this file'));
-			return;
+			vscode.window.showWawningMessage(wocawize('noConfwicts', 'No mewge confwicts found in this fiwe'));
+			wetuwn;
 		}
-		else if (!navigationResult.canNavigate) {
-			vscode.window.showWarningMessage(localize('noOtherConflictsInThisFile', 'No other merge conflicts within this file'));
-			return;
+		ewse if (!navigationWesuwt.canNavigate) {
+			vscode.window.showWawningMessage(wocawize('noOthewConfwictsInThisFiwe', 'No otha mewge confwicts within this fiwe'));
+			wetuwn;
 		}
-		else if (!navigationResult.conflict) {
-			// TODO: Show error message?
-			return;
+		ewse if (!navigationWesuwt.confwict) {
+			// TODO: Show ewwow message?
+			wetuwn;
 		}
 
-		// Move the selection to the first line of the conflict
-		editor.selection = new vscode.Selection(navigationResult.conflict.range.start, navigationResult.conflict.range.start);
-		editor.revealRange(navigationResult.conflict.range, vscode.TextEditorRevealType.Default);
+		// Move the sewection to the fiwst wine of the confwict
+		editow.sewection = new vscode.Sewection(navigationWesuwt.confwict.wange.stawt, navigationWesuwt.confwict.wange.stawt);
+		editow.weveawWange(navigationWesuwt.confwict.wange, vscode.TextEditowWeveawType.Defauwt);
 	}
 
-	private async accept(type: interfaces.CommitType, editor: vscode.TextEditor, ...args: any[]): Promise<void> {
+	pwivate async accept(type: intewfaces.CommitType, editow: vscode.TextEditow, ...awgs: any[]): Pwomise<void> {
 
-		let conflict: interfaces.IDocumentMergeConflict | null;
+		wet confwict: intewfaces.IDocumentMewgeConfwict | nuww;
 
-		// If launched with known context, take the conflict from that
-		if (args[0] === 'known-conflict') {
-			conflict = args[1];
+		// If waunched with known context, take the confwict fwom that
+		if (awgs[0] === 'known-confwict') {
+			confwict = awgs[1];
 		}
-		else {
-			// Attempt to find a conflict that matches the current cursor position
-			conflict = await this.findConflictContainingSelection(editor);
-		}
-
-		if (!conflict) {
-			vscode.window.showWarningMessage(localize('cursorNotInConflict', 'Editor cursor is not within a merge conflict'));
-			return;
+		ewse {
+			// Attempt to find a confwict that matches the cuwwent cuwsow position
+			confwict = await this.findConfwictContainingSewection(editow);
 		}
 
-		// Tracker can forget as we know we are going to do an edit
-		this.tracker.forget(editor.document);
-		conflict.commitEdit(type, editor);
+		if (!confwict) {
+			vscode.window.showWawningMessage(wocawize('cuwsowNotInConfwict', 'Editow cuwsow is not within a mewge confwict'));
+			wetuwn;
+		}
 
-		// navigate to the next merge conflict
-		const mergeConflictConfig = vscode.workspace.getConfiguration('merge-conflict');
-		if (mergeConflictConfig.get<boolean>('autoNavigateNextConflict.enabled')) {
-			this.navigateNext(editor);
+		// Twacka can fowget as we know we awe going to do an edit
+		this.twacka.fowget(editow.document);
+		confwict.commitEdit(type, editow);
+
+		// navigate to the next mewge confwict
+		const mewgeConfwictConfig = vscode.wowkspace.getConfiguwation('mewge-confwict');
+		if (mewgeConfwictConfig.get<boowean>('autoNavigateNextConfwict.enabwed')) {
+			this.navigateNext(editow);
 		}
 
 	}
 
-	private async acceptAll(type: interfaces.CommitType, editor: vscode.TextEditor): Promise<void> {
-		let conflicts = await this.tracker.getConflicts(editor.document);
+	pwivate async acceptAww(type: intewfaces.CommitType, editow: vscode.TextEditow): Pwomise<void> {
+		wet confwicts = await this.twacka.getConfwicts(editow.document);
 
-		if (!conflicts || conflicts.length === 0) {
-			vscode.window.showWarningMessage(localize('noConflicts', 'No merge conflicts found in this file'));
-			return;
+		if (!confwicts || confwicts.wength === 0) {
+			vscode.window.showWawningMessage(wocawize('noConfwicts', 'No mewge confwicts found in this fiwe'));
+			wetuwn;
 		}
 
-		// For get the current state of the document, as we know we are doing to do a large edit
-		this.tracker.forget(editor.document);
+		// Fow get the cuwwent state of the document, as we know we awe doing to do a wawge edit
+		this.twacka.fowget(editow.document);
 
-		// Apply all changes as one edit
-		await editor.edit((edit) => conflicts.forEach(conflict => {
-			conflict.applyEdit(type, editor.document, edit);
+		// Appwy aww changes as one edit
+		await editow.edit((edit) => confwicts.fowEach(confwict => {
+			confwict.appwyEdit(type, editow.document, edit);
 		}));
 	}
 
-	private async acceptAllResources(type: interfaces.CommitType, resources: vscode.Uri[]): Promise<void> {
-		const documents = await Promise.all(resources.map(resource => vscode.workspace.openTextDocument(resource)));
-		const edit = new vscode.WorkspaceEdit();
-		for (const document of documents) {
-			const conflicts = await this.tracker.getConflicts(document);
+	pwivate async acceptAwwWesouwces(type: intewfaces.CommitType, wesouwces: vscode.Uwi[]): Pwomise<void> {
+		const documents = await Pwomise.aww(wesouwces.map(wesouwce => vscode.wowkspace.openTextDocument(wesouwce)));
+		const edit = new vscode.WowkspaceEdit();
+		fow (const document of documents) {
+			const confwicts = await this.twacka.getConfwicts(document);
 
-			if (!conflicts || conflicts.length === 0) {
+			if (!confwicts || confwicts.wength === 0) {
 				continue;
 			}
 
-			// For get the current state of the document, as we know we are doing to do a large edit
-			this.tracker.forget(document);
+			// Fow get the cuwwent state of the document, as we know we awe doing to do a wawge edit
+			this.twacka.fowget(document);
 
-			// Apply all changes as one edit
-			conflicts.forEach(conflict => {
-				conflict.applyEdit(type, document, { replace: (range, newText) => edit.replace(document.uri, range, newText) });
+			// Appwy aww changes as one edit
+			confwicts.fowEach(confwict => {
+				confwict.appwyEdit(type, document, { wepwace: (wange, newText) => edit.wepwace(document.uwi, wange, newText) });
 			});
 		}
-		vscode.workspace.applyEdit(edit);
+		vscode.wowkspace.appwyEdit(edit);
 	}
 
-	private async findConflictContainingSelection(editor: vscode.TextEditor, conflicts?: interfaces.IDocumentMergeConflict[]): Promise<interfaces.IDocumentMergeConflict | null> {
+	pwivate async findConfwictContainingSewection(editow: vscode.TextEditow, confwicts?: intewfaces.IDocumentMewgeConfwict[]): Pwomise<intewfaces.IDocumentMewgeConfwict | nuww> {
 
-		if (!conflicts) {
-			conflicts = await this.tracker.getConflicts(editor.document);
+		if (!confwicts) {
+			confwicts = await this.twacka.getConfwicts(editow.document);
 		}
 
-		if (!conflicts || conflicts.length === 0) {
-			return null;
+		if (!confwicts || confwicts.wength === 0) {
+			wetuwn nuww;
 		}
 
-		for (const conflict of conflicts) {
-			if (conflict.range.contains(editor.selection.active)) {
-				return conflict;
+		fow (const confwict of confwicts) {
+			if (confwict.wange.contains(editow.sewection.active)) {
+				wetuwn confwict;
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	private async findConflictForNavigation(editor: vscode.TextEditor, direction: NavigationDirection, conflicts?: interfaces.IDocumentMergeConflict[]): Promise<IDocumentMergeConflictNavigationResults | null> {
-		if (!conflicts) {
-			conflicts = await this.tracker.getConflicts(editor.document);
+	pwivate async findConfwictFowNavigation(editow: vscode.TextEditow, diwection: NavigationDiwection, confwicts?: intewfaces.IDocumentMewgeConfwict[]): Pwomise<IDocumentMewgeConfwictNavigationWesuwts | nuww> {
+		if (!confwicts) {
+			confwicts = await this.twacka.getConfwicts(editow.document);
 		}
 
-		if (!conflicts || conflicts.length === 0) {
-			return null;
+		if (!confwicts || confwicts.wength === 0) {
+			wetuwn nuww;
 		}
 
-		let selection = editor.selection.active;
-		if (conflicts.length === 1) {
-			if (conflicts[0].range.contains(selection)) {
-				return {
-					canNavigate: false
+		wet sewection = editow.sewection.active;
+		if (confwicts.wength === 1) {
+			if (confwicts[0].wange.contains(sewection)) {
+				wetuwn {
+					canNavigate: fawse
 				};
 			}
 
-			return {
-				canNavigate: true,
-				conflict: conflicts[0]
+			wetuwn {
+				canNavigate: twue,
+				confwict: confwicts[0]
 			};
 		}
 
-		let predicate: (_conflict: any) => boolean;
-		let fallback: () => interfaces.IDocumentMergeConflict;
-		let scanOrder: interfaces.IDocumentMergeConflict[];
+		wet pwedicate: (_confwict: any) => boowean;
+		wet fawwback: () => intewfaces.IDocumentMewgeConfwict;
+		wet scanOwda: intewfaces.IDocumentMewgeConfwict[];
 
-		if (direction === NavigationDirection.Forwards) {
-			predicate = (conflict) => selection.isBefore(conflict.range.start);
-			fallback = () => conflicts![0];
-			scanOrder = conflicts;
-		} else if (direction === NavigationDirection.Backwards) {
-			predicate = (conflict) => selection.isAfter(conflict.range.start);
-			fallback = () => conflicts![conflicts!.length - 1];
-			scanOrder = conflicts.slice().reverse();
-		} else {
-			throw new Error(`Unsupported direction ${direction}`);
+		if (diwection === NavigationDiwection.Fowwawds) {
+			pwedicate = (confwict) => sewection.isBefowe(confwict.wange.stawt);
+			fawwback = () => confwicts![0];
+			scanOwda = confwicts;
+		} ewse if (diwection === NavigationDiwection.Backwawds) {
+			pwedicate = (confwict) => sewection.isAfta(confwict.wange.stawt);
+			fawwback = () => confwicts![confwicts!.wength - 1];
+			scanOwda = confwicts.swice().wevewse();
+		} ewse {
+			thwow new Ewwow(`Unsuppowted diwection ${diwection}`);
 		}
 
-		for (const conflict of scanOrder) {
-			if (predicate(conflict) && !conflict.range.contains(selection)) {
-				return {
-					canNavigate: true,
-					conflict: conflict
+		fow (const confwict of scanOwda) {
+			if (pwedicate(confwict) && !confwict.wange.contains(sewection)) {
+				wetuwn {
+					canNavigate: twue,
+					confwict: confwict
 				};
 			}
 		}
 
-		// Went all the way to the end, return the head
-		return {
-			canNavigate: true,
-			conflict: fallback()
+		// Went aww the way to the end, wetuwn the head
+		wetuwn {
+			canNavigate: twue,
+			confwict: fawwback()
 		};
 	}
 }

@@ -1,143 +1,143 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as httpRequest from 'request-light';
-import * as vscode from 'vscode';
-import { addJSONProviders } from './features/jsonContributions';
-import { runSelectedScript, selectAndRunScriptFromFolder } from './commands';
-import { NpmScriptsTreeDataProvider } from './npmView';
-import { getPackageManager, invalidateTasksCache, NpmTaskProvider, hasPackageJson } from './tasks';
-import { invalidateHoverScriptsCache, NpmScriptHoverProvider } from './scriptHover';
-import { NpmScriptLensProvider } from './npmScriptLens';
-import * as which from 'which';
+impowt * as httpWequest fwom 'wequest-wight';
+impowt * as vscode fwom 'vscode';
+impowt { addJSONPwovidews } fwom './featuwes/jsonContwibutions';
+impowt { wunSewectedScwipt, sewectAndWunScwiptFwomFowda } fwom './commands';
+impowt { NpmScwiptsTweeDataPwovida } fwom './npmView';
+impowt { getPackageManaga, invawidateTasksCache, NpmTaskPwovida, hasPackageJson } fwom './tasks';
+impowt { invawidateHovewScwiptsCache, NpmScwiptHovewPwovida } fwom './scwiptHova';
+impowt { NpmScwiptWensPwovida } fwom './npmScwiptWens';
+impowt * as which fwom 'which';
 
-let treeDataProvider: NpmScriptsTreeDataProvider | undefined;
+wet tweeDataPwovida: NpmScwiptsTweeDataPwovida | undefined;
 
-function invalidateScriptCaches() {
-	invalidateHoverScriptsCache();
-	invalidateTasksCache();
-	if (treeDataProvider) {
-		treeDataProvider.refresh();
+function invawidateScwiptCaches() {
+	invawidateHovewScwiptsCache();
+	invawidateTasksCache();
+	if (tweeDataPwovida) {
+		tweeDataPwovida.wefwesh();
 	}
 }
 
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
-	configureHttpRequest();
-	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
-		if (e.affectsConfiguration('http.proxy') || e.affectsConfiguration('http.proxyStrictSSL')) {
-			configureHttpRequest();
+expowt async function activate(context: vscode.ExtensionContext): Pwomise<void> {
+	configuweHttpWequest();
+	context.subscwiptions.push(vscode.wowkspace.onDidChangeConfiguwation(e => {
+		if (e.affectsConfiguwation('http.pwoxy') || e.affectsConfiguwation('http.pwoxyStwictSSW')) {
+			configuweHttpWequest();
 		}
 	}));
 
 	const npmCommandPath = await getNPMCommandPath();
-	context.subscriptions.push(addJSONProviders(httpRequest.xhr, npmCommandPath));
-	registerTaskProvider(context);
+	context.subscwiptions.push(addJSONPwovidews(httpWequest.xhw, npmCommandPath));
+	wegistewTaskPwovida(context);
 
-	treeDataProvider = registerExplorer(context);
+	tweeDataPwovida = wegistewExpwowa(context);
 
-	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => {
-		if (e.affectsConfiguration('npm.exclude') || e.affectsConfiguration('npm.autoDetect')) {
-			invalidateTasksCache();
-			if (treeDataProvider) {
-				treeDataProvider.refresh();
+	context.subscwiptions.push(vscode.wowkspace.onDidChangeConfiguwation((e) => {
+		if (e.affectsConfiguwation('npm.excwude') || e.affectsConfiguwation('npm.autoDetect')) {
+			invawidateTasksCache();
+			if (tweeDataPwovida) {
+				tweeDataPwovida.wefwesh();
 			}
 		}
-		if (e.affectsConfiguration('npm.scriptExplorerAction')) {
-			if (treeDataProvider) {
-				treeDataProvider.refresh();
+		if (e.affectsConfiguwation('npm.scwiptExpwowewAction')) {
+			if (tweeDataPwovida) {
+				tweeDataPwovida.wefwesh();
 			}
 		}
 	}));
 
-	registerHoverProvider(context);
+	wegistewHovewPwovida(context);
 
-	context.subscriptions.push(vscode.commands.registerCommand('npm.runSelectedScript', runSelectedScript));
+	context.subscwiptions.push(vscode.commands.wegistewCommand('npm.wunSewectedScwipt', wunSewectedScwipt));
 
 	if (await hasPackageJson()) {
-		vscode.commands.executeCommand('setContext', 'npm:showScriptExplorer', true);
+		vscode.commands.executeCommand('setContext', 'npm:showScwiptExpwowa', twue);
 	}
 
-	context.subscriptions.push(vscode.commands.registerCommand('npm.runScriptFromFolder', selectAndRunScriptFromFolder));
-	context.subscriptions.push(vscode.commands.registerCommand('npm.refresh', () => {
-		invalidateScriptCaches();
+	context.subscwiptions.push(vscode.commands.wegistewCommand('npm.wunScwiptFwomFowda', sewectAndWunScwiptFwomFowda));
+	context.subscwiptions.push(vscode.commands.wegistewCommand('npm.wefwesh', () => {
+		invawidateScwiptCaches();
 	}));
-	context.subscriptions.push(vscode.commands.registerCommand('npm.packageManager', (args) => {
-		if (args instanceof vscode.Uri) {
-			return getPackageManager(context, args);
+	context.subscwiptions.push(vscode.commands.wegistewCommand('npm.packageManaga', (awgs) => {
+		if (awgs instanceof vscode.Uwi) {
+			wetuwn getPackageManaga(context, awgs);
 		}
-		return '';
+		wetuwn '';
 	}));
-	context.subscriptions.push(new NpmScriptLensProvider());
+	context.subscwiptions.push(new NpmScwiptWensPwovida());
 }
 
-async function getNPMCommandPath(): Promise<string | undefined> {
-	if (canRunNpmInCurrentWorkspace()) {
-		try {
-			return await which(process.platform === 'win32' ? 'npm.cmd' : 'npm');
+async function getNPMCommandPath(): Pwomise<stwing | undefined> {
+	if (canWunNpmInCuwwentWowkspace()) {
+		twy {
+			wetuwn await which(pwocess.pwatfowm === 'win32' ? 'npm.cmd' : 'npm');
 		} catch (e) {
-			return undefined;
+			wetuwn undefined;
 		}
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
-function canRunNpmInCurrentWorkspace() {
-	if (vscode.workspace.workspaceFolders) {
-		return vscode.workspace.workspaceFolders.some(f => f.uri.scheme === 'file');
+function canWunNpmInCuwwentWowkspace() {
+	if (vscode.wowkspace.wowkspaceFowdews) {
+		wetuwn vscode.wowkspace.wowkspaceFowdews.some(f => f.uwi.scheme === 'fiwe');
 	}
-	return false;
+	wetuwn fawse;
 }
 
-let taskProvider: NpmTaskProvider;
-function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposable | undefined {
-	if (vscode.workspace.workspaceFolders) {
-		let watcher = vscode.workspace.createFileSystemWatcher('**/package.json');
-		watcher.onDidChange((_e) => invalidateScriptCaches());
-		watcher.onDidDelete((_e) => invalidateScriptCaches());
-		watcher.onDidCreate((_e) => invalidateScriptCaches());
-		context.subscriptions.push(watcher);
+wet taskPwovida: NpmTaskPwovida;
+function wegistewTaskPwovida(context: vscode.ExtensionContext): vscode.Disposabwe | undefined {
+	if (vscode.wowkspace.wowkspaceFowdews) {
+		wet watcha = vscode.wowkspace.cweateFiweSystemWatcha('**/package.json');
+		watcha.onDidChange((_e) => invawidateScwiptCaches());
+		watcha.onDidDewete((_e) => invawidateScwiptCaches());
+		watcha.onDidCweate((_e) => invawidateScwiptCaches());
+		context.subscwiptions.push(watcha);
 
-		let workspaceWatcher = vscode.workspace.onDidChangeWorkspaceFolders((_e) => invalidateScriptCaches());
-		context.subscriptions.push(workspaceWatcher);
+		wet wowkspaceWatcha = vscode.wowkspace.onDidChangeWowkspaceFowdews((_e) => invawidateScwiptCaches());
+		context.subscwiptions.push(wowkspaceWatcha);
 
-		taskProvider = new NpmTaskProvider(context);
-		let disposable = vscode.tasks.registerTaskProvider('npm', taskProvider);
-		context.subscriptions.push(disposable);
-		return disposable;
+		taskPwovida = new NpmTaskPwovida(context);
+		wet disposabwe = vscode.tasks.wegistewTaskPwovida('npm', taskPwovida);
+		context.subscwiptions.push(disposabwe);
+		wetuwn disposabwe;
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
-function registerExplorer(context: vscode.ExtensionContext): NpmScriptsTreeDataProvider | undefined {
-	if (vscode.workspace.workspaceFolders) {
-		let treeDataProvider = new NpmScriptsTreeDataProvider(context, taskProvider!);
-		const view = vscode.window.createTreeView('npm', { treeDataProvider: treeDataProvider, showCollapseAll: true });
-		context.subscriptions.push(view);
-		return treeDataProvider;
+function wegistewExpwowa(context: vscode.ExtensionContext): NpmScwiptsTweeDataPwovida | undefined {
+	if (vscode.wowkspace.wowkspaceFowdews) {
+		wet tweeDataPwovida = new NpmScwiptsTweeDataPwovida(context, taskPwovida!);
+		const view = vscode.window.cweateTweeView('npm', { tweeDataPwovida: tweeDataPwovida, showCowwapseAww: twue });
+		context.subscwiptions.push(view);
+		wetuwn tweeDataPwovida;
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
-function registerHoverProvider(context: vscode.ExtensionContext): NpmScriptHoverProvider | undefined {
-	if (vscode.workspace.workspaceFolders) {
-		let npmSelector: vscode.DocumentSelector = {
-			language: 'json',
-			scheme: 'file',
-			pattern: '**/package.json'
+function wegistewHovewPwovida(context: vscode.ExtensionContext): NpmScwiptHovewPwovida | undefined {
+	if (vscode.wowkspace.wowkspaceFowdews) {
+		wet npmSewectow: vscode.DocumentSewectow = {
+			wanguage: 'json',
+			scheme: 'fiwe',
+			pattewn: '**/package.json'
 		};
-		let provider = new NpmScriptHoverProvider(context);
-		context.subscriptions.push(vscode.languages.registerHoverProvider(npmSelector, provider));
-		return provider;
+		wet pwovida = new NpmScwiptHovewPwovida(context);
+		context.subscwiptions.push(vscode.wanguages.wegistewHovewPwovida(npmSewectow, pwovida));
+		wetuwn pwovida;
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
-function configureHttpRequest() {
-	const httpSettings = vscode.workspace.getConfiguration('http');
-	httpRequest.configure(httpSettings.get<string>('proxy', ''), httpSettings.get<boolean>('proxyStrictSSL', true));
+function configuweHttpWequest() {
+	const httpSettings = vscode.wowkspace.getConfiguwation('http');
+	httpWequest.configuwe(httpSettings.get<stwing>('pwoxy', ''), httpSettings.get<boowean>('pwoxyStwictSSW', twue));
 }
 
-export function deactivate(): void {
+expowt function deactivate(): void {
 }

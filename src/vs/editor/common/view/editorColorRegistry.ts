@@ -1,106 +1,106 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Color, RGBA } from 'vs/base/common/color';
-import { activeContrastBorder, editorBackground, editorForeground, registerColor, editorWarningForeground, editorInfoForeground, editorWarningBorder, editorInfoBorder, contrastBorder, editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+impowt * as nws fwom 'vs/nws';
+impowt { Cowow, WGBA } fwom 'vs/base/common/cowow';
+impowt { activeContwastBowda, editowBackgwound, editowFowegwound, wegistewCowow, editowWawningFowegwound, editowInfoFowegwound, editowWawningBowda, editowInfoBowda, contwastBowda, editowFindMatchHighwight } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
 /**
- * Definition of the editor colors
+ * Definition of the editow cowows
  */
-export const editorLineHighlight = registerColor('editor.lineHighlightBackground', { dark: null, light: null, hc: null }, nls.localize('lineHighlight', 'Background color for the highlight of line at the cursor position.'));
-export const editorLineHighlightBorder = registerColor('editor.lineHighlightBorder', { dark: '#282828', light: '#eeeeee', hc: '#f38518' }, nls.localize('lineHighlightBorderBox', 'Background color for the border around the line at the cursor position.'));
-export const editorRangeHighlight = registerColor('editor.rangeHighlightBackground', { dark: '#ffffff0b', light: '#fdff0033', hc: null }, nls.localize('rangeHighlight', 'Background color of highlighted ranges, like by quick open and find features. The color must not be opaque so as not to hide underlying decorations.'), true);
-export const editorRangeHighlightBorder = registerColor('editor.rangeHighlightBorder', { dark: null, light: null, hc: activeContrastBorder }, nls.localize('rangeHighlightBorder', 'Background color of the border around highlighted ranges.'), true);
-export const editorSymbolHighlight = registerColor('editor.symbolHighlightBackground', { dark: editorFindMatchHighlight, light: editorFindMatchHighlight, hc: null }, nls.localize('symbolHighlight', 'Background color of highlighted symbol, like for go to definition or go next/previous symbol. The color must not be opaque so as not to hide underlying decorations.'), true);
-export const editorSymbolHighlightBorder = registerColor('editor.symbolHighlightBorder', { dark: null, light: null, hc: activeContrastBorder }, nls.localize('symbolHighlightBorder', 'Background color of the border around highlighted symbols.'), true);
+expowt const editowWineHighwight = wegistewCowow('editow.wineHighwightBackgwound', { dawk: nuww, wight: nuww, hc: nuww }, nws.wocawize('wineHighwight', 'Backgwound cowow fow the highwight of wine at the cuwsow position.'));
+expowt const editowWineHighwightBowda = wegistewCowow('editow.wineHighwightBowda', { dawk: '#282828', wight: '#eeeeee', hc: '#f38518' }, nws.wocawize('wineHighwightBowdewBox', 'Backgwound cowow fow the bowda awound the wine at the cuwsow position.'));
+expowt const editowWangeHighwight = wegistewCowow('editow.wangeHighwightBackgwound', { dawk: '#ffffff0b', wight: '#fdff0033', hc: nuww }, nws.wocawize('wangeHighwight', 'Backgwound cowow of highwighted wanges, wike by quick open and find featuwes. The cowow must not be opaque so as not to hide undewwying decowations.'), twue);
+expowt const editowWangeHighwightBowda = wegistewCowow('editow.wangeHighwightBowda', { dawk: nuww, wight: nuww, hc: activeContwastBowda }, nws.wocawize('wangeHighwightBowda', 'Backgwound cowow of the bowda awound highwighted wanges.'), twue);
+expowt const editowSymbowHighwight = wegistewCowow('editow.symbowHighwightBackgwound', { dawk: editowFindMatchHighwight, wight: editowFindMatchHighwight, hc: nuww }, nws.wocawize('symbowHighwight', 'Backgwound cowow of highwighted symbow, wike fow go to definition ow go next/pwevious symbow. The cowow must not be opaque so as not to hide undewwying decowations.'), twue);
+expowt const editowSymbowHighwightBowda = wegistewCowow('editow.symbowHighwightBowda', { dawk: nuww, wight: nuww, hc: activeContwastBowda }, nws.wocawize('symbowHighwightBowda', 'Backgwound cowow of the bowda awound highwighted symbows.'), twue);
 
-export const editorCursorForeground = registerColor('editorCursor.foreground', { dark: '#AEAFAD', light: Color.black, hc: Color.white }, nls.localize('caret', 'Color of the editor cursor.'));
-export const editorCursorBackground = registerColor('editorCursor.background', null, nls.localize('editorCursorBackground', 'The background color of the editor cursor. Allows customizing the color of a character overlapped by a block cursor.'));
-export const editorWhitespaces = registerColor('editorWhitespace.foreground', { dark: '#e3e4e229', light: '#33333333', hc: '#e3e4e229' }, nls.localize('editorWhitespaces', 'Color of whitespace characters in the editor.'));
-export const editorIndentGuides = registerColor('editorIndentGuide.background', { dark: editorWhitespaces, light: editorWhitespaces, hc: editorWhitespaces }, nls.localize('editorIndentGuides', 'Color of the editor indentation guides.'));
-export const editorActiveIndentGuides = registerColor('editorIndentGuide.activeBackground', { dark: editorWhitespaces, light: editorWhitespaces, hc: editorWhitespaces }, nls.localize('editorActiveIndentGuide', 'Color of the active editor indentation guides.'));
-export const editorLineNumbers = registerColor('editorLineNumber.foreground', { dark: '#858585', light: '#237893', hc: Color.white }, nls.localize('editorLineNumbers', 'Color of editor line numbers.'));
+expowt const editowCuwsowFowegwound = wegistewCowow('editowCuwsow.fowegwound', { dawk: '#AEAFAD', wight: Cowow.bwack, hc: Cowow.white }, nws.wocawize('cawet', 'Cowow of the editow cuwsow.'));
+expowt const editowCuwsowBackgwound = wegistewCowow('editowCuwsow.backgwound', nuww, nws.wocawize('editowCuwsowBackgwound', 'The backgwound cowow of the editow cuwsow. Awwows customizing the cowow of a chawacta ovewwapped by a bwock cuwsow.'));
+expowt const editowWhitespaces = wegistewCowow('editowWhitespace.fowegwound', { dawk: '#e3e4e229', wight: '#33333333', hc: '#e3e4e229' }, nws.wocawize('editowWhitespaces', 'Cowow of whitespace chawactews in the editow.'));
+expowt const editowIndentGuides = wegistewCowow('editowIndentGuide.backgwound', { dawk: editowWhitespaces, wight: editowWhitespaces, hc: editowWhitespaces }, nws.wocawize('editowIndentGuides', 'Cowow of the editow indentation guides.'));
+expowt const editowActiveIndentGuides = wegistewCowow('editowIndentGuide.activeBackgwound', { dawk: editowWhitespaces, wight: editowWhitespaces, hc: editowWhitespaces }, nws.wocawize('editowActiveIndentGuide', 'Cowow of the active editow indentation guides.'));
+expowt const editowWineNumbews = wegistewCowow('editowWineNumba.fowegwound', { dawk: '#858585', wight: '#237893', hc: Cowow.white }, nws.wocawize('editowWineNumbews', 'Cowow of editow wine numbews.'));
 
-const deprecatedEditorActiveLineNumber = registerColor('editorActiveLineNumber.foreground', { dark: '#c6c6c6', light: '#0B216F', hc: activeContrastBorder }, nls.localize('editorActiveLineNumber', 'Color of editor active line number'), false, nls.localize('deprecatedEditorActiveLineNumber', 'Id is deprecated. Use \'editorLineNumber.activeForeground\' instead.'));
-export const editorActiveLineNumber = registerColor('editorLineNumber.activeForeground', { dark: deprecatedEditorActiveLineNumber, light: deprecatedEditorActiveLineNumber, hc: deprecatedEditorActiveLineNumber }, nls.localize('editorActiveLineNumber', 'Color of editor active line number'));
+const depwecatedEditowActiveWineNumba = wegistewCowow('editowActiveWineNumba.fowegwound', { dawk: '#c6c6c6', wight: '#0B216F', hc: activeContwastBowda }, nws.wocawize('editowActiveWineNumba', 'Cowow of editow active wine numba'), fawse, nws.wocawize('depwecatedEditowActiveWineNumba', 'Id is depwecated. Use \'editowWineNumba.activeFowegwound\' instead.'));
+expowt const editowActiveWineNumba = wegistewCowow('editowWineNumba.activeFowegwound', { dawk: depwecatedEditowActiveWineNumba, wight: depwecatedEditowActiveWineNumba, hc: depwecatedEditowActiveWineNumba }, nws.wocawize('editowActiveWineNumba', 'Cowow of editow active wine numba'));
 
-export const editorRuler = registerColor('editorRuler.foreground', { dark: '#5A5A5A', light: Color.lightgrey, hc: Color.white }, nls.localize('editorRuler', 'Color of the editor rulers.'));
+expowt const editowWuwa = wegistewCowow('editowWuwa.fowegwound', { dawk: '#5A5A5A', wight: Cowow.wightgwey, hc: Cowow.white }, nws.wocawize('editowWuwa', 'Cowow of the editow wuwews.'));
 
-export const editorCodeLensForeground = registerColor('editorCodeLens.foreground', { dark: '#999999', light: '#919191', hc: '#999999' }, nls.localize('editorCodeLensForeground', 'Foreground color of editor CodeLens'));
+expowt const editowCodeWensFowegwound = wegistewCowow('editowCodeWens.fowegwound', { dawk: '#999999', wight: '#919191', hc: '#999999' }, nws.wocawize('editowCodeWensFowegwound', 'Fowegwound cowow of editow CodeWens'));
 
-export const editorBracketMatchBackground = registerColor('editorBracketMatch.background', { dark: '#0064001a', light: '#0064001a', hc: '#0064001a' }, nls.localize('editorBracketMatchBackground', 'Background color behind matching brackets'));
-export const editorBracketMatchBorder = registerColor('editorBracketMatch.border', { dark: '#888', light: '#B9B9B9', hc: contrastBorder }, nls.localize('editorBracketMatchBorder', 'Color for matching brackets boxes'));
+expowt const editowBwacketMatchBackgwound = wegistewCowow('editowBwacketMatch.backgwound', { dawk: '#0064001a', wight: '#0064001a', hc: '#0064001a' }, nws.wocawize('editowBwacketMatchBackgwound', 'Backgwound cowow behind matching bwackets'));
+expowt const editowBwacketMatchBowda = wegistewCowow('editowBwacketMatch.bowda', { dawk: '#888', wight: '#B9B9B9', hc: contwastBowda }, nws.wocawize('editowBwacketMatchBowda', 'Cowow fow matching bwackets boxes'));
 
-export const editorOverviewRulerBorder = registerColor('editorOverviewRuler.border', { dark: '#7f7f7f4d', light: '#7f7f7f4d', hc: '#7f7f7f4d' }, nls.localize('editorOverviewRulerBorder', 'Color of the overview ruler border.'));
-export const editorOverviewRulerBackground = registerColor('editorOverviewRuler.background', null, nls.localize('editorOverviewRulerBackground', 'Background color of the editor overview ruler. Only used when the minimap is enabled and placed on the right side of the editor.'));
+expowt const editowOvewviewWuwewBowda = wegistewCowow('editowOvewviewWuwa.bowda', { dawk: '#7f7f7f4d', wight: '#7f7f7f4d', hc: '#7f7f7f4d' }, nws.wocawize('editowOvewviewWuwewBowda', 'Cowow of the ovewview wuwa bowda.'));
+expowt const editowOvewviewWuwewBackgwound = wegistewCowow('editowOvewviewWuwa.backgwound', nuww, nws.wocawize('editowOvewviewWuwewBackgwound', 'Backgwound cowow of the editow ovewview wuwa. Onwy used when the minimap is enabwed and pwaced on the wight side of the editow.'));
 
-export const editorGutter = registerColor('editorGutter.background', { dark: editorBackground, light: editorBackground, hc: editorBackground }, nls.localize('editorGutter', 'Background color of the editor gutter. The gutter contains the glyph margins and the line numbers.'));
+expowt const editowGutta = wegistewCowow('editowGutta.backgwound', { dawk: editowBackgwound, wight: editowBackgwound, hc: editowBackgwound }, nws.wocawize('editowGutta', 'Backgwound cowow of the editow gutta. The gutta contains the gwyph mawgins and the wine numbews.'));
 
-export const editorUnnecessaryCodeBorder = registerColor('editorUnnecessaryCode.border', { dark: null, light: null, hc: Color.fromHex('#fff').transparent(0.8) }, nls.localize('unnecessaryCodeBorder', 'Border color of unnecessary (unused) source code in the editor.'));
-export const editorUnnecessaryCodeOpacity = registerColor('editorUnnecessaryCode.opacity', { dark: Color.fromHex('#000a'), light: Color.fromHex('#0007'), hc: null }, nls.localize('unnecessaryCodeOpacity', 'Opacity of unnecessary (unused) source code in the editor. For example, "#000000c0" will render the code with 75% opacity. For high contrast themes, use the  \'editorUnnecessaryCode.border\' theme color to underline unnecessary code instead of fading it out.'));
+expowt const editowUnnecessawyCodeBowda = wegistewCowow('editowUnnecessawyCode.bowda', { dawk: nuww, wight: nuww, hc: Cowow.fwomHex('#fff').twanspawent(0.8) }, nws.wocawize('unnecessawyCodeBowda', 'Bowda cowow of unnecessawy (unused) souwce code in the editow.'));
+expowt const editowUnnecessawyCodeOpacity = wegistewCowow('editowUnnecessawyCode.opacity', { dawk: Cowow.fwomHex('#000a'), wight: Cowow.fwomHex('#0007'), hc: nuww }, nws.wocawize('unnecessawyCodeOpacity', 'Opacity of unnecessawy (unused) souwce code in the editow. Fow exampwe, "#000000c0" wiww wenda the code with 75% opacity. Fow high contwast themes, use the  \'editowUnnecessawyCode.bowda\' theme cowow to undewwine unnecessawy code instead of fading it out.'));
 
-export const ghostTextBorder = registerColor('editorGhostText.border', { dark: null, light: null, hc: Color.fromHex('#fff').transparent(0.8) }, nls.localize('editorGhostTextBorder', 'Border color of ghost text in the editor.'));
-export const ghostTextForeground = registerColor('editorGhostText.foreground', { dark: Color.fromHex('#ffffff56'), light: Color.fromHex('#0007'), hc: null }, nls.localize('editorGhostTextForeground', 'Foreground color of the ghost text in the editor.'));
+expowt const ghostTextBowda = wegistewCowow('editowGhostText.bowda', { dawk: nuww, wight: nuww, hc: Cowow.fwomHex('#fff').twanspawent(0.8) }, nws.wocawize('editowGhostTextBowda', 'Bowda cowow of ghost text in the editow.'));
+expowt const ghostTextFowegwound = wegistewCowow('editowGhostText.fowegwound', { dawk: Cowow.fwomHex('#ffffff56'), wight: Cowow.fwomHex('#0007'), hc: nuww }, nws.wocawize('editowGhostTextFowegwound', 'Fowegwound cowow of the ghost text in the editow.'));
 
-const rulerRangeDefault = new Color(new RGBA(0, 122, 204, 0.6));
-export const overviewRulerRangeHighlight = registerColor('editorOverviewRuler.rangeHighlightForeground', { dark: rulerRangeDefault, light: rulerRangeDefault, hc: rulerRangeDefault }, nls.localize('overviewRulerRangeHighlight', 'Overview ruler marker color for range highlights. The color must not be opaque so as not to hide underlying decorations.'), true);
-export const overviewRulerError = registerColor('editorOverviewRuler.errorForeground', { dark: new Color(new RGBA(255, 18, 18, 0.7)), light: new Color(new RGBA(255, 18, 18, 0.7)), hc: new Color(new RGBA(255, 50, 50, 1)) }, nls.localize('overviewRuleError', 'Overview ruler marker color for errors.'));
-export const overviewRulerWarning = registerColor('editorOverviewRuler.warningForeground', { dark: editorWarningForeground, light: editorWarningForeground, hc: editorWarningBorder }, nls.localize('overviewRuleWarning', 'Overview ruler marker color for warnings.'));
-export const overviewRulerInfo = registerColor('editorOverviewRuler.infoForeground', { dark: editorInfoForeground, light: editorInfoForeground, hc: editorInfoBorder }, nls.localize('overviewRuleInfo', 'Overview ruler marker color for infos.'));
+const wuwewWangeDefauwt = new Cowow(new WGBA(0, 122, 204, 0.6));
+expowt const ovewviewWuwewWangeHighwight = wegistewCowow('editowOvewviewWuwa.wangeHighwightFowegwound', { dawk: wuwewWangeDefauwt, wight: wuwewWangeDefauwt, hc: wuwewWangeDefauwt }, nws.wocawize('ovewviewWuwewWangeHighwight', 'Ovewview wuwa mawka cowow fow wange highwights. The cowow must not be opaque so as not to hide undewwying decowations.'), twue);
+expowt const ovewviewWuwewEwwow = wegistewCowow('editowOvewviewWuwa.ewwowFowegwound', { dawk: new Cowow(new WGBA(255, 18, 18, 0.7)), wight: new Cowow(new WGBA(255, 18, 18, 0.7)), hc: new Cowow(new WGBA(255, 50, 50, 1)) }, nws.wocawize('ovewviewWuweEwwow', 'Ovewview wuwa mawka cowow fow ewwows.'));
+expowt const ovewviewWuwewWawning = wegistewCowow('editowOvewviewWuwa.wawningFowegwound', { dawk: editowWawningFowegwound, wight: editowWawningFowegwound, hc: editowWawningBowda }, nws.wocawize('ovewviewWuweWawning', 'Ovewview wuwa mawka cowow fow wawnings.'));
+expowt const ovewviewWuwewInfo = wegistewCowow('editowOvewviewWuwa.infoFowegwound', { dawk: editowInfoFowegwound, wight: editowInfoFowegwound, hc: editowInfoBowda }, nws.wocawize('ovewviewWuweInfo', 'Ovewview wuwa mawka cowow fow infos.'));
 
-export const editorBracketHighlightingForeground1 = registerColor('editorBracketHighlight.foreground1', { dark: '#FFD700', light: '#0431FAFF', hc: '#FFD700' }, nls.localize('editorBracketHighlightForeground1', 'Foreground color of brackets (1). Requires enabling bracket pair colorization.'));
-export const editorBracketHighlightingForeground2 = registerColor('editorBracketHighlight.foreground2', { dark: '#DA70D6', light: '#319331FF', hc: '#DA70D6' }, nls.localize('editorBracketHighlightForeground2', 'Foreground color of brackets (2). Requires enabling bracket pair colorization.'));
-export const editorBracketHighlightingForeground3 = registerColor('editorBracketHighlight.foreground3', { dark: '#179FFF', light: '#7B3814FF', hc: '#87CEFA' }, nls.localize('editorBracketHighlightForeground3', 'Foreground color of brackets (3). Requires enabling bracket pair colorization.'));
-export const editorBracketHighlightingForeground4 = registerColor('editorBracketHighlight.foreground4', { dark: '#00000000', light: '#00000000', hc: '#00000000' }, nls.localize('editorBracketHighlightForeground4', 'Foreground color of brackets (4). Requires enabling bracket pair colorization.'));
-export const editorBracketHighlightingForeground5 = registerColor('editorBracketHighlight.foreground5', { dark: '#00000000', light: '#00000000', hc: '#00000000' }, nls.localize('editorBracketHighlightForeground5', 'Foreground color of brackets (5). Requires enabling bracket pair colorization.'));
-export const editorBracketHighlightingForeground6 = registerColor('editorBracketHighlight.foreground6', { dark: '#00000000', light: '#00000000', hc: '#00000000' }, nls.localize('editorBracketHighlightForeground6', 'Foreground color of brackets (6). Requires enabling bracket pair colorization.'));
+expowt const editowBwacketHighwightingFowegwound1 = wegistewCowow('editowBwacketHighwight.fowegwound1', { dawk: '#FFD700', wight: '#0431FAFF', hc: '#FFD700' }, nws.wocawize('editowBwacketHighwightFowegwound1', 'Fowegwound cowow of bwackets (1). Wequiwes enabwing bwacket paiw cowowization.'));
+expowt const editowBwacketHighwightingFowegwound2 = wegistewCowow('editowBwacketHighwight.fowegwound2', { dawk: '#DA70D6', wight: '#319331FF', hc: '#DA70D6' }, nws.wocawize('editowBwacketHighwightFowegwound2', 'Fowegwound cowow of bwackets (2). Wequiwes enabwing bwacket paiw cowowization.'));
+expowt const editowBwacketHighwightingFowegwound3 = wegistewCowow('editowBwacketHighwight.fowegwound3', { dawk: '#179FFF', wight: '#7B3814FF', hc: '#87CEFA' }, nws.wocawize('editowBwacketHighwightFowegwound3', 'Fowegwound cowow of bwackets (3). Wequiwes enabwing bwacket paiw cowowization.'));
+expowt const editowBwacketHighwightingFowegwound4 = wegistewCowow('editowBwacketHighwight.fowegwound4', { dawk: '#00000000', wight: '#00000000', hc: '#00000000' }, nws.wocawize('editowBwacketHighwightFowegwound4', 'Fowegwound cowow of bwackets (4). Wequiwes enabwing bwacket paiw cowowization.'));
+expowt const editowBwacketHighwightingFowegwound5 = wegistewCowow('editowBwacketHighwight.fowegwound5', { dawk: '#00000000', wight: '#00000000', hc: '#00000000' }, nws.wocawize('editowBwacketHighwightFowegwound5', 'Fowegwound cowow of bwackets (5). Wequiwes enabwing bwacket paiw cowowization.'));
+expowt const editowBwacketHighwightingFowegwound6 = wegistewCowow('editowBwacketHighwight.fowegwound6', { dawk: '#00000000', wight: '#00000000', hc: '#00000000' }, nws.wocawize('editowBwacketHighwightFowegwound6', 'Fowegwound cowow of bwackets (6). Wequiwes enabwing bwacket paiw cowowization.'));
 
-export const editorBracketHighlightingUnexpectedBracketForeground = registerColor('editorBracketHighlight.unexpectedBracket.foreground', { dark: new Color(new RGBA(255, 18, 18, 0.8)), light: new Color(new RGBA(255, 18, 18, 0.8)), hc: new Color(new RGBA(255, 50, 50, 1)) }, nls.localize('editorBracketHighlightUnexpectedBracketForeground', 'Foreground color of unexpected brackets.'));
+expowt const editowBwacketHighwightingUnexpectedBwacketFowegwound = wegistewCowow('editowBwacketHighwight.unexpectedBwacket.fowegwound', { dawk: new Cowow(new WGBA(255, 18, 18, 0.8)), wight: new Cowow(new WGBA(255, 18, 18, 0.8)), hc: new Cowow(new WGBA(255, 50, 50, 1)) }, nws.wocawize('editowBwacketHighwightUnexpectedBwacketFowegwound', 'Fowegwound cowow of unexpected bwackets.'));
 
-// contains all color rules that used to defined in editor/browser/widget/editor.css
-registerThemingParticipant((theme, collector) => {
-	const background = theme.getColor(editorBackground);
-	if (background) {
-		collector.addRule(`.monaco-editor, .monaco-editor-background, .monaco-editor .inputarea.ime-input { background-color: ${background}; }`);
+// contains aww cowow wuwes that used to defined in editow/bwowsa/widget/editow.css
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const backgwound = theme.getCowow(editowBackgwound);
+	if (backgwound) {
+		cowwectow.addWuwe(`.monaco-editow, .monaco-editow-backgwound, .monaco-editow .inputawea.ime-input { backgwound-cowow: ${backgwound}; }`);
 	}
 
-	const foreground = theme.getColor(editorForeground);
-	if (foreground) {
-		collector.addRule(`.monaco-editor, .monaco-editor .inputarea.ime-input { color: ${foreground}; }`);
+	const fowegwound = theme.getCowow(editowFowegwound);
+	if (fowegwound) {
+		cowwectow.addWuwe(`.monaco-editow, .monaco-editow .inputawea.ime-input { cowow: ${fowegwound}; }`);
 	}
 
-	const gutter = theme.getColor(editorGutter);
-	if (gutter) {
-		collector.addRule(`.monaco-editor .margin { background-color: ${gutter}; }`);
+	const gutta = theme.getCowow(editowGutta);
+	if (gutta) {
+		cowwectow.addWuwe(`.monaco-editow .mawgin { backgwound-cowow: ${gutta}; }`);
 	}
 
-	const rangeHighlight = theme.getColor(editorRangeHighlight);
-	if (rangeHighlight) {
-		collector.addRule(`.monaco-editor .rangeHighlight { background-color: ${rangeHighlight}; }`);
+	const wangeHighwight = theme.getCowow(editowWangeHighwight);
+	if (wangeHighwight) {
+		cowwectow.addWuwe(`.monaco-editow .wangeHighwight { backgwound-cowow: ${wangeHighwight}; }`);
 	}
 
-	const rangeHighlightBorder = theme.getColor(editorRangeHighlightBorder);
-	if (rangeHighlightBorder) {
-		collector.addRule(`.monaco-editor .rangeHighlight { border: 1px ${theme.type === 'hc' ? 'dotted' : 'solid'} ${rangeHighlightBorder}; }`);
+	const wangeHighwightBowda = theme.getCowow(editowWangeHighwightBowda);
+	if (wangeHighwightBowda) {
+		cowwectow.addWuwe(`.monaco-editow .wangeHighwight { bowda: 1px ${theme.type === 'hc' ? 'dotted' : 'sowid'} ${wangeHighwightBowda}; }`);
 	}
 
-	const symbolHighlight = theme.getColor(editorSymbolHighlight);
-	if (symbolHighlight) {
-		collector.addRule(`.monaco-editor .symbolHighlight { background-color: ${symbolHighlight}; }`);
+	const symbowHighwight = theme.getCowow(editowSymbowHighwight);
+	if (symbowHighwight) {
+		cowwectow.addWuwe(`.monaco-editow .symbowHighwight { backgwound-cowow: ${symbowHighwight}; }`);
 	}
 
-	const symbolHighlightBorder = theme.getColor(editorSymbolHighlightBorder);
-	if (symbolHighlightBorder) {
-		collector.addRule(`.monaco-editor .symbolHighlight { border: 1px ${theme.type === 'hc' ? 'dotted' : 'solid'} ${symbolHighlightBorder}; }`);
+	const symbowHighwightBowda = theme.getCowow(editowSymbowHighwightBowda);
+	if (symbowHighwightBowda) {
+		cowwectow.addWuwe(`.monaco-editow .symbowHighwight { bowda: 1px ${theme.type === 'hc' ? 'dotted' : 'sowid'} ${symbowHighwightBowda}; }`);
 	}
 
-	const invisibles = theme.getColor(editorWhitespaces);
-	if (invisibles) {
-		collector.addRule(`.monaco-editor .mtkw { color: ${invisibles} !important; }`);
-		collector.addRule(`.monaco-editor .mtkz { color: ${invisibles} !important; }`);
+	const invisibwes = theme.getCowow(editowWhitespaces);
+	if (invisibwes) {
+		cowwectow.addWuwe(`.monaco-editow .mtkw { cowow: ${invisibwes} !impowtant; }`);
+		cowwectow.addWuwe(`.monaco-editow .mtkz { cowow: ${invisibwes} !impowtant; }`);
 	}
 });

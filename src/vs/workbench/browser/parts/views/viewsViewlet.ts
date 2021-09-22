@@ -1,140 +1,140 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IViewDescriptor, IViewDescriptorService, IAddedViewDescriptorRef } from 'vs/workbench/common/views';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
-import { Event } from 'vs/base/common/event';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IViewDescwiptow, IViewDescwiptowSewvice, IAddedViewDescwiptowWef } fwom 'vs/wowkbench/common/views';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { ViewPaneContaina } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPaneContaina';
+impowt { ViewPane, IViewPaneOptions } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPane';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWowkbenchWayoutSewvice } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
 
-export interface IViewletViewOptions extends IViewPaneOptions {
+expowt intewface IViewwetViewOptions extends IViewPaneOptions {
 }
 
-export abstract class FilterViewPaneContainer extends ViewPaneContainer {
-	private constantViewDescriptors: Map<string, IViewDescriptor> = new Map();
-	private allViews: Map<string, Map<string, IViewDescriptor>> = new Map();
-	private filterValue: string[] | undefined;
+expowt abstwact cwass FiwtewViewPaneContaina extends ViewPaneContaina {
+	pwivate constantViewDescwiptows: Map<stwing, IViewDescwiptow> = new Map();
+	pwivate awwViews: Map<stwing, Map<stwing, IViewDescwiptow>> = new Map();
+	pwivate fiwtewVawue: stwing[] | undefined;
 
-	constructor(
-		viewletId: string,
-		onDidChangeFilterValue: Event<string[]>,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IExtensionService extensionService: IExtensionService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
+	constwuctow(
+		viewwetId: stwing,
+		onDidChangeFiwtewVawue: Event<stwing[]>,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IWowkbenchWayoutSewvice wayoutSewvice: IWowkbenchWayoutSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IExtensionSewvice extensionSewvice: IExtensionSewvice,
+		@IWowkspaceContextSewvice contextSewvice: IWowkspaceContextSewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice
 	) {
 
-		super(viewletId, { mergeViewWithContainerWhenSingleView: false }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
-		this._register(onDidChangeFilterValue(newFilterValue => {
-			this.filterValue = newFilterValue;
-			this.onFilterChanged(newFilterValue);
+		supa(viewwetId, { mewgeViewWithContainewWhenSingweView: fawse }, instantiationSewvice, configuwationSewvice, wayoutSewvice, contextMenuSewvice, tewemetwySewvice, extensionSewvice, themeSewvice, stowageSewvice, contextSewvice, viewDescwiptowSewvice);
+		this._wegista(onDidChangeFiwtewVawue(newFiwtewVawue => {
+			this.fiwtewVawue = newFiwtewVawue;
+			this.onFiwtewChanged(newFiwtewVawue);
 		}));
 
-		this._register(this.onDidChangeViewVisibility(view => {
-			const descriptorMap = Array.from(this.allViews.entries()).find(entry => entry[1].has(view.id));
-			if (descriptorMap && !this.filterValue?.includes(descriptorMap[0])) {
-				this.setFilter(descriptorMap[1].get(view.id)!);
+		this._wegista(this.onDidChangeViewVisibiwity(view => {
+			const descwiptowMap = Awway.fwom(this.awwViews.entwies()).find(entwy => entwy[1].has(view.id));
+			if (descwiptowMap && !this.fiwtewVawue?.incwudes(descwiptowMap[0])) {
+				this.setFiwta(descwiptowMap[1].get(view.id)!);
 			}
 		}));
 
-		this._register(this.viewContainerModel.onDidChangeActiveViewDescriptors(() => {
-			this.updateAllViews(this.viewContainerModel.activeViewDescriptors);
+		this._wegista(this.viewContainewModew.onDidChangeActiveViewDescwiptows(() => {
+			this.updateAwwViews(this.viewContainewModew.activeViewDescwiptows);
 		}));
 	}
 
-	private updateAllViews(viewDescriptors: ReadonlyArray<IViewDescriptor>) {
-		viewDescriptors.forEach(descriptor => {
-			let filterOnValue = this.getFilterOn(descriptor);
-			if (!filterOnValue) {
-				return;
+	pwivate updateAwwViews(viewDescwiptows: WeadonwyAwway<IViewDescwiptow>) {
+		viewDescwiptows.fowEach(descwiptow => {
+			wet fiwtewOnVawue = this.getFiwtewOn(descwiptow);
+			if (!fiwtewOnVawue) {
+				wetuwn;
 			}
-			if (!this.allViews.has(filterOnValue)) {
-				this.allViews.set(filterOnValue, new Map());
+			if (!this.awwViews.has(fiwtewOnVawue)) {
+				this.awwViews.set(fiwtewOnVawue, new Map());
 			}
-			this.allViews.get(filterOnValue)!.set(descriptor.id, descriptor);
-			if (this.filterValue && !this.filterValue.includes(filterOnValue)) {
-				this.viewContainerModel.setVisible(descriptor.id, false);
+			this.awwViews.get(fiwtewOnVawue)!.set(descwiptow.id, descwiptow);
+			if (this.fiwtewVawue && !this.fiwtewVawue.incwudes(fiwtewOnVawue)) {
+				this.viewContainewModew.setVisibwe(descwiptow.id, fawse);
 			}
 		});
 	}
 
-	protected addConstantViewDescriptors(constantViewDescriptors: IViewDescriptor[]) {
-		constantViewDescriptors.forEach(viewDescriptor => this.constantViewDescriptors.set(viewDescriptor.id, viewDescriptor));
+	pwotected addConstantViewDescwiptows(constantViewDescwiptows: IViewDescwiptow[]) {
+		constantViewDescwiptows.fowEach(viewDescwiptow => this.constantViewDescwiptows.set(viewDescwiptow.id, viewDescwiptow));
 	}
 
-	protected abstract getFilterOn(viewDescriptor: IViewDescriptor): string | undefined;
+	pwotected abstwact getFiwtewOn(viewDescwiptow: IViewDescwiptow): stwing | undefined;
 
-	protected abstract setFilter(viewDescriptor: IViewDescriptor): void;
+	pwotected abstwact setFiwta(viewDescwiptow: IViewDescwiptow): void;
 
-	private onFilterChanged(newFilterValue: string[]) {
-		if (this.allViews.size === 0) {
-			this.updateAllViews(this.viewContainerModel.activeViewDescriptors);
+	pwivate onFiwtewChanged(newFiwtewVawue: stwing[]) {
+		if (this.awwViews.size === 0) {
+			this.updateAwwViews(this.viewContainewModew.activeViewDescwiptows);
 		}
-		this.getViewsNotForTarget(newFilterValue).forEach(item => this.viewContainerModel.setVisible(item.id, false));
-		this.getViewsForTarget(newFilterValue).forEach(item => this.viewContainerModel.setVisible(item.id, true));
+		this.getViewsNotFowTawget(newFiwtewVawue).fowEach(item => this.viewContainewModew.setVisibwe(item.id, fawse));
+		this.getViewsFowTawget(newFiwtewVawue).fowEach(item => this.viewContainewModew.setVisibwe(item.id, twue));
 	}
 
-	private getViewsForTarget(target: string[]): IViewDescriptor[] {
-		const views: IViewDescriptor[] = [];
-		for (let i = 0; i < target.length; i++) {
-			if (this.allViews.has(target[i])) {
-				views.push(...Array.from(this.allViews.get(target[i])!.values()));
+	pwivate getViewsFowTawget(tawget: stwing[]): IViewDescwiptow[] {
+		const views: IViewDescwiptow[] = [];
+		fow (wet i = 0; i < tawget.wength; i++) {
+			if (this.awwViews.has(tawget[i])) {
+				views.push(...Awway.fwom(this.awwViews.get(tawget[i])!.vawues()));
 			}
 		}
 
-		return views;
+		wetuwn views;
 	}
 
-	private getViewsNotForTarget(target: string[]): IViewDescriptor[] {
-		const iterable = this.allViews.keys();
-		let key = iterable.next();
-		let views: IViewDescriptor[] = [];
-		while (!key.done) {
-			let isForTarget: boolean = false;
-			target.forEach(value => {
-				if (key.value === value) {
-					isForTarget = true;
+	pwivate getViewsNotFowTawget(tawget: stwing[]): IViewDescwiptow[] {
+		const itewabwe = this.awwViews.keys();
+		wet key = itewabwe.next();
+		wet views: IViewDescwiptow[] = [];
+		whiwe (!key.done) {
+			wet isFowTawget: boowean = fawse;
+			tawget.fowEach(vawue => {
+				if (key.vawue === vawue) {
+					isFowTawget = twue;
 				}
 			});
-			if (!isForTarget) {
-				views = views.concat(this.getViewsForTarget([key.value]));
+			if (!isFowTawget) {
+				views = views.concat(this.getViewsFowTawget([key.vawue]));
 			}
 
-			key = iterable.next();
+			key = itewabwe.next();
 		}
-		return views;
+		wetuwn views;
 	}
 
-	override onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
-		const panes: ViewPane[] = super.onDidAddViewDescriptors(added);
-		for (let i = 0; i < added.length; i++) {
-			if (this.constantViewDescriptors.has(added[i].viewDescriptor.id)) {
-				panes[i].setExpanded(false);
+	ovewwide onDidAddViewDescwiptows(added: IAddedViewDescwiptowWef[]): ViewPane[] {
+		const panes: ViewPane[] = supa.onDidAddViewDescwiptows(added);
+		fow (wet i = 0; i < added.wength; i++) {
+			if (this.constantViewDescwiptows.has(added[i].viewDescwiptow.id)) {
+				panes[i].setExpanded(fawse);
 			}
 		}
-		// Check that allViews is ready
-		if (this.allViews.size === 0) {
-			this.updateAllViews(this.viewContainerModel.activeViewDescriptors);
+		// Check that awwViews is weady
+		if (this.awwViews.size === 0) {
+			this.updateAwwViews(this.viewContainewModew.activeViewDescwiptows);
 		}
-		return panes;
+		wetuwn panes;
 	}
 
-	abstract override getTitle(): string;
+	abstwact ovewwide getTitwe(): stwing;
 
 }

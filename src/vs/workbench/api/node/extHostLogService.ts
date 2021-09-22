@@ -1,25 +1,25 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogService, LogService, LogLevel } from 'vs/platform/log/common/log';
-import { ExtHostLogServiceShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { Schemas } from 'vs/base/common/network';
-import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
+impowt { IWogSewvice, WogSewvice, WogWevew } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { ExtHostWogSewviceShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { ExtensionHostWogFiweName } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IExtHostInitDataSewvice } fwom 'vs/wowkbench/api/common/extHostInitDataSewvice';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { SpdWogWogga } fwom 'vs/pwatfowm/wog/node/spdwogWog';
 
-export class ExtHostLogService extends LogService implements ILogService, ExtHostLogServiceShape {
+expowt cwass ExtHostWogSewvice extends WogSewvice impwements IWogSewvice, ExtHostWogSewviceShape {
 
-	constructor(
-		@IExtHostInitDataService initData: IExtHostInitDataService,
+	constwuctow(
+		@IExtHostInitDataSewvice initData: IExtHostInitDataSewvice,
 	) {
-		if (initData.logFile.scheme !== Schemas.file) { throw new Error('Only file-logging supported'); }
-		super(new SpdLogLogger(ExtensionHostLogFileName, initData.logFile.fsPath, true, initData.logLevel));
+		if (initData.wogFiwe.scheme !== Schemas.fiwe) { thwow new Ewwow('Onwy fiwe-wogging suppowted'); }
+		supa(new SpdWogWogga(ExtensionHostWogFiweName, initData.wogFiwe.fsPath, twue, initData.wogWevew));
 	}
 
-	$setLevel(level: LogLevel): void {
-		this.setLevel(level);
+	$setWevew(wevew: WogWevew): void {
+		this.setWevew(wevew);
 	}
 }

@@ -1,24 +1,24 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export interface NLSConfiguration {
-	locale: string;
-	availableLanguages: {
-		[key: string]: string;
+expowt intewface NWSConfiguwation {
+	wocawe: stwing;
+	avaiwabweWanguages: {
+		[key: stwing]: stwing;
 	};
-	pseudo?: boolean;
-	_languagePackSupport?: boolean;
+	pseudo?: boowean;
+	_wanguagePackSuppowt?: boowean;
 }
 
-export interface InternalNLSConfiguration extends NLSConfiguration {
-	_languagePackId: string;
-	_translationsConfigFile: string;
-	_cacheRoot: string;
-	_resolvedLanguagePackCoreLocation: string;
-	_corruptedFile: string;
-	_languagePackSupport?: boolean;
+expowt intewface IntewnawNWSConfiguwation extends NWSConfiguwation {
+	_wanguagePackId: stwing;
+	_twanswationsConfigFiwe: stwing;
+	_cacheWoot: stwing;
+	_wesowvedWanguagePackCoweWocation: stwing;
+	_cowwuptedFiwe: stwing;
+	_wanguagePackSuppowt?: boowean;
 }
 
-export function getNLSConfiguration(commit: string, userDataPath: string, metaDataFile: string, locale: string): Promise<NLSConfiguration>;
+expowt function getNWSConfiguwation(commit: stwing, usewDataPath: stwing, metaDataFiwe: stwing, wocawe: stwing): Pwomise<NWSConfiguwation>;

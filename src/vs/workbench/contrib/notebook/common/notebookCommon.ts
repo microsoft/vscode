@@ -1,884 +1,884 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDiffResult, ISequence } from 'vs/base/common/diff/diff';
-import { Event } from 'vs/base/common/event';
-import * as glob from 'vs/base/common/glob';
-import { Mimes } from 'vs/base/common/mime';
-import { Schemas } from 'vs/base/common/network';
-import { basename } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { ISplice } from 'vs/base/common/sequence';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Command } from 'vs/editor/common/modes';
-import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopy';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IDiffWesuwt, ISequence } fwom 'vs/base/common/diff/diff';
+impowt { Event } fwom 'vs/base/common/event';
+impowt * as gwob fwom 'vs/base/common/gwob';
+impowt { Mimes } fwom 'vs/base/common/mime';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { basename } fwom 'vs/base/common/path';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { ISpwice } fwom 'vs/base/common/sequence';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt * as editowCommon fwom 'vs/editow/common/editowCommon';
+impowt { Command } fwom 'vs/editow/common/modes';
+impowt { IAccessibiwityInfowmation } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IEditowModew } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { ThemeCowow } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IWevewtOptions, ISaveOptions } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { NotebookTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookTextModew';
+impowt { ICewwWange } fwom 'vs/wowkbench/contwib/notebook/common/notebookWange';
+impowt { IWowkingCopyBackupMeta } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
 
-export enum CellKind {
-	Markup = 1,
+expowt enum CewwKind {
+	Mawkup = 1,
 	Code = 2
 }
 
-export const NOTEBOOK_DISPLAY_ORDER = [
-	'application/json',
-	'application/javascript',
-	'text/html',
-	'image/svg+xml',
-	Mimes.markdown,
+expowt const NOTEBOOK_DISPWAY_OWDa = [
+	'appwication/json',
+	'appwication/javascwipt',
+	'text/htmw',
+	'image/svg+xmw',
+	Mimes.mawkdown,
 	'image/png',
 	'image/jpeg',
 	Mimes.text
 ];
 
-export const ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER = [
-	Mimes.markdown,
-	'application/json',
+expowt const ACCESSIBWE_NOTEBOOK_DISPWAY_OWDa = [
+	Mimes.mawkdown,
+	'appwication/json',
 	Mimes.text,
-	'text/html',
-	'image/svg+xml',
+	'text/htmw',
+	'image/svg+xmw',
 	'image/png',
 	'image/jpeg',
 ];
 
-export const BUILTIN_RENDERER_ID = '_builtin';
-export const RENDERER_NOT_AVAILABLE = '_notAvailable';
+expowt const BUIWTIN_WENDEWEW_ID = '_buiwtin';
+expowt const WENDEWEW_NOT_AVAIWABWE = '_notAvaiwabwe';
 
-export type NotebookRendererEntrypoint = string | { extends: string; path: string; };
+expowt type NotebookWendewewEntwypoint = stwing | { extends: stwing; path: stwing; };
 
-export enum NotebookRunState {
-	Running = 1,
-	Idle = 2
+expowt enum NotebookWunState {
+	Wunning = 1,
+	Idwe = 2
 }
 
-export type NotebookDocumentMetadata = Record<string, unknown>;
+expowt type NotebookDocumentMetadata = Wecowd<stwing, unknown>;
 
-// Aligns with the vscode.d.ts version
-export enum NotebookCellExecutionState {
+// Awigns with the vscode.d.ts vewsion
+expowt enum NotebookCewwExecutionState {
 	Pending = 2,
 	Executing = 3
 }
 
-export interface INotebookCellPreviousExecutionResult {
-	executionOrder?: number;
-	success?: boolean;
-	duration?: number;
+expowt intewface INotebookCewwPweviousExecutionWesuwt {
+	executionOwda?: numba;
+	success?: boowean;
+	duwation?: numba;
 }
 
-export interface NotebookCellMetadata {
-	inputCollapsed?: boolean;
-	outputCollapsed?: boolean;
+expowt intewface NotebookCewwMetadata {
+	inputCowwapsed?: boowean;
+	outputCowwapsed?: boowean;
 
 	/**
 	 * custom metadata
 	 */
-	[key: string]: unknown;
+	[key: stwing]: unknown;
 }
 
-export interface NotebookCellInternalMetadata {
-	executionOrder?: number;
-	lastRunSuccess?: boolean;
-	runState?: NotebookCellExecutionState;
-	runStartTime?: number;
-	runStartTimeAdjustment?: number;
-	runEndTime?: number;
-	isPaused?: boolean;
-	didPause?: boolean;
+expowt intewface NotebookCewwIntewnawMetadata {
+	executionOwda?: numba;
+	wastWunSuccess?: boowean;
+	wunState?: NotebookCewwExecutionState;
+	wunStawtTime?: numba;
+	wunStawtTimeAdjustment?: numba;
+	wunEndTime?: numba;
+	isPaused?: boowean;
+	didPause?: boowean;
 }
 
-export type TransientCellMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
-export type TransientDocumentMetadata = { [K in keyof NotebookDocumentMetadata]?: boolean };
+expowt type TwansientCewwMetadata = { [K in keyof NotebookCewwMetadata]?: boowean };
+expowt type TwansientDocumentMetadata = { [K in keyof NotebookDocumentMetadata]?: boowean };
 
-export interface TransientOptions {
-	transientOutputs: boolean;
-	transientCellMetadata: TransientCellMetadata;
-	transientDocumentMetadata: TransientDocumentMetadata;
+expowt intewface TwansientOptions {
+	twansientOutputs: boowean;
+	twansientCewwMetadata: TwansientCewwMetadata;
+	twansientDocumentMetadata: TwansientDocumentMetadata;
 }
 
 
 
-/** Note: enum values are used for sorting */
-export const enum NotebookRendererMatch {
-	/** Renderer has a hard dependency on an available kernel */
-	WithHardKernelDependency = 0,
-	/** Renderer works better with an available kernel */
-	WithOptionalKernelDependency = 1,
-	/** Renderer is kernel-agnostic */
-	Pure = 2,
-	/** Renderer is for a different mimeType or has a hard dependency which is unsatisfied */
-	Never = 3,
+/** Note: enum vawues awe used fow sowting */
+expowt const enum NotebookWendewewMatch {
+	/** Wendewa has a hawd dependency on an avaiwabwe kewnew */
+	WithHawdKewnewDependency = 0,
+	/** Wendewa wowks betta with an avaiwabwe kewnew */
+	WithOptionawKewnewDependency = 1,
+	/** Wendewa is kewnew-agnostic */
+	Puwe = 2,
+	/** Wendewa is fow a diffewent mimeType ow has a hawd dependency which is unsatisfied */
+	Neva = 3,
 }
 
 /**
- * Renderer messaging requirement. While this allows for 'optional' messaging,
- * VS Code effectively treats it the same as true right now. "Partial
- * activation" of extensions is a very tricky problem, which could allow
- * solving this. But for now, optional is mostly only honored for aznb.
+ * Wendewa messaging wequiwement. Whiwe this awwows fow 'optionaw' messaging,
+ * VS Code effectivewy tweats it the same as twue wight now. "Pawtiaw
+ * activation" of extensions is a vewy twicky pwobwem, which couwd awwow
+ * sowving this. But fow now, optionaw is mostwy onwy honowed fow aznb.
  */
-export const enum RendererMessagingSpec {
-	Always = 'always',
-	Never = 'never',
-	Optional = 'optional',
+expowt const enum WendewewMessagingSpec {
+	Awways = 'awways',
+	Neva = 'neva',
+	Optionaw = 'optionaw',
 }
 
-export interface INotebookRendererInfo {
-	id: string;
-	displayName: string;
-	extends?: string;
-	entrypoint: URI;
-	preloads: ReadonlyArray<URI>;
-	extensionLocation: URI;
-	extensionId: ExtensionIdentifier;
-	messaging: RendererMessagingSpec;
+expowt intewface INotebookWendewewInfo {
+	id: stwing;
+	dispwayName: stwing;
+	extends?: stwing;
+	entwypoint: UWI;
+	pwewoads: WeadonwyAwway<UWI>;
+	extensionWocation: UWI;
+	extensionId: ExtensionIdentifia;
+	messaging: WendewewMessagingSpec;
 
-	readonly mimeTypes: readonly string[];
+	weadonwy mimeTypes: weadonwy stwing[];
 
-	readonly dependencies: readonly string[];
+	weadonwy dependencies: weadonwy stwing[];
 
-	matchesWithoutKernel(mimeType: string): NotebookRendererMatch;
-	matches(mimeType: string, kernelProvides: ReadonlyArray<string>): NotebookRendererMatch;
+	matchesWithoutKewnew(mimeType: stwing): NotebookWendewewMatch;
+	matches(mimeType: stwing, kewnewPwovides: WeadonwyAwway<stwing>): NotebookWendewewMatch;
 }
 
 
-export interface IOrderedMimeType {
-	mimeType: string;
-	rendererId: string;
-	isTrusted: boolean;
+expowt intewface IOwdewedMimeType {
+	mimeType: stwing;
+	wendewewId: stwing;
+	isTwusted: boowean;
 }
 
-export interface IOutputItemDto {
-	readonly mime: string;
-	readonly data: VSBuffer;
+expowt intewface IOutputItemDto {
+	weadonwy mime: stwing;
+	weadonwy data: VSBuffa;
 }
 
-export interface IOutputDto {
+expowt intewface IOutputDto {
 	outputs: IOutputItemDto[];
-	outputId: string;
-	metadata?: Record<string, any>;
+	outputId: stwing;
+	metadata?: Wecowd<stwing, any>;
 }
 
-export interface ICellOutput {
+expowt intewface ICewwOutput {
 	outputs: IOutputItemDto[];
-	metadata?: Record<string, any>;
-	outputId: string;
+	metadata?: Wecowd<stwing, any>;
+	outputId: stwing;
 	onDidChangeData: Event<void>;
-	replaceData(items: IOutputItemDto[]): void;
+	wepwaceData(items: IOutputItemDto[]): void;
 	appendData(items: IOutputItemDto[]): void;
 }
 
-export interface CellInternalMetadataChangedEvent {
-	readonly runStateChanged?: boolean;
-	readonly lastRunSuccessChanged?: boolean;
+expowt intewface CewwIntewnawMetadataChangedEvent {
+	weadonwy wunStateChanged?: boowean;
+	weadonwy wastWunSuccessChanged?: boowean;
 }
 
-export interface ICell {
-	readonly uri: URI;
-	handle: number;
-	language: string;
-	cellKind: CellKind;
-	outputs: ICellOutput[];
-	metadata: NotebookCellMetadata;
-	internalMetadata: NotebookCellInternalMetadata;
-	onDidChangeOutputs?: Event<NotebookCellOutputsSplice>;
-	onDidChangeLanguage: Event<string>;
+expowt intewface ICeww {
+	weadonwy uwi: UWI;
+	handwe: numba;
+	wanguage: stwing;
+	cewwKind: CewwKind;
+	outputs: ICewwOutput[];
+	metadata: NotebookCewwMetadata;
+	intewnawMetadata: NotebookCewwIntewnawMetadata;
+	onDidChangeOutputs?: Event<NotebookCewwOutputsSpwice>;
+	onDidChangeWanguage: Event<stwing>;
 	onDidChangeMetadata: Event<void>;
-	onDidChangeInternalMetadata: Event<CellInternalMetadataChangedEvent>;
+	onDidChangeIntewnawMetadata: Event<CewwIntewnawMetadataChangedEvent>;
 }
 
-export interface INotebookTextModel {
-	readonly viewType: string;
+expowt intewface INotebookTextModew {
+	weadonwy viewType: stwing;
 	metadata: NotebookDocumentMetadata;
-	readonly uri: URI;
-	readonly versionId: number;
+	weadonwy uwi: UWI;
+	weadonwy vewsionId: numba;
 
-	readonly cells: readonly ICell[];
-	onWillDispose: Event<void>;
+	weadonwy cewws: weadonwy ICeww[];
+	onWiwwDispose: Event<void>;
 }
 
-export type NotebookCellTextModelSplice<T> = [
-	start: number,
-	deleteCount: number,
+expowt type NotebookCewwTextModewSpwice<T> = [
+	stawt: numba,
+	deweteCount: numba,
 	newItems: T[]
 ];
 
-export type NotebookCellOutputsSplice = {
-	start: number /* start */;
-	deleteCount: number /* delete count */;
-	newOutputs: ICellOutput[];
+expowt type NotebookCewwOutputsSpwice = {
+	stawt: numba /* stawt */;
+	deweteCount: numba /* dewete count */;
+	newOutputs: ICewwOutput[];
 };
 
-export interface IMainCellDto {
-	handle: number;
-	uri: UriComponents,
-	source: string[];
-	eol: string;
-	language: string;
-	cellKind: CellKind;
+expowt intewface IMainCewwDto {
+	handwe: numba;
+	uwi: UwiComponents,
+	souwce: stwing[];
+	eow: stwing;
+	wanguage: stwing;
+	cewwKind: CewwKind;
 	outputs: IOutputDto[];
-	metadata?: NotebookCellMetadata;
-	internalMetadata?: NotebookCellInternalMetadata;
+	metadata?: NotebookCewwMetadata;
+	intewnawMetadata?: NotebookCewwIntewnawMetadata;
 }
 
-export enum NotebookCellsChangeType {
-	ModelChange = 1,
+expowt enum NotebookCewwsChangeType {
+	ModewChange = 1,
 	Move = 2,
-	ChangeLanguage = 5,
-	Initialize = 6,
-	ChangeCellMetadata = 7,
+	ChangeWanguage = 5,
+	Initiawize = 6,
+	ChangeCewwMetadata = 7,
 	Output = 8,
 	OutputItem = 9,
-	ChangeCellContent = 10,
+	ChangeCewwContent = 10,
 	ChangeDocumentMetadata = 11,
-	ChangeCellInternalMetadata = 12,
-	ChangeCellMime = 13,
+	ChangeCewwIntewnawMetadata = 12,
+	ChangeCewwMime = 13,
 	Unknown = 100
 }
 
-export interface NotebookCellsInitializeEvent<T> {
-	readonly kind: NotebookCellsChangeType.Initialize;
-	readonly changes: NotebookCellTextModelSplice<T>[];
+expowt intewface NotebookCewwsInitiawizeEvent<T> {
+	weadonwy kind: NotebookCewwsChangeType.Initiawize;
+	weadonwy changes: NotebookCewwTextModewSpwice<T>[];
 }
 
-export interface NotebookCellContentChangeEvent {
-	readonly kind: NotebookCellsChangeType.ChangeCellContent;
+expowt intewface NotebookCewwContentChangeEvent {
+	weadonwy kind: NotebookCewwsChangeType.ChangeCewwContent;
 }
 
-export interface NotebookCellsModelChangedEvent<T> {
-	readonly kind: NotebookCellsChangeType.ModelChange;
-	readonly changes: NotebookCellTextModelSplice<T>[];
+expowt intewface NotebookCewwsModewChangedEvent<T> {
+	weadonwy kind: NotebookCewwsChangeType.ModewChange;
+	weadonwy changes: NotebookCewwTextModewSpwice<T>[];
 }
 
-export interface NotebookCellsModelMoveEvent<T> {
-	readonly kind: NotebookCellsChangeType.Move;
-	readonly index: number;
-	readonly length: number;
-	readonly newIdx: number;
-	readonly cells: T[];
+expowt intewface NotebookCewwsModewMoveEvent<T> {
+	weadonwy kind: NotebookCewwsChangeType.Move;
+	weadonwy index: numba;
+	weadonwy wength: numba;
+	weadonwy newIdx: numba;
+	weadonwy cewws: T[];
 }
 
-export interface NotebookOutputChangedEvent {
-	readonly kind: NotebookCellsChangeType.Output;
-	readonly index: number;
-	readonly outputs: IOutputDto[];
-	readonly append: boolean;
+expowt intewface NotebookOutputChangedEvent {
+	weadonwy kind: NotebookCewwsChangeType.Output;
+	weadonwy index: numba;
+	weadonwy outputs: IOutputDto[];
+	weadonwy append: boowean;
 }
 
-export interface NotebookOutputItemChangedEvent {
-	readonly kind: NotebookCellsChangeType.OutputItem;
-	readonly index: number;
-	readonly outputId: string;
-	readonly outputItems: IOutputItemDto[];
-	readonly append: boolean;
+expowt intewface NotebookOutputItemChangedEvent {
+	weadonwy kind: NotebookCewwsChangeType.OutputItem;
+	weadonwy index: numba;
+	weadonwy outputId: stwing;
+	weadonwy outputItems: IOutputItemDto[];
+	weadonwy append: boowean;
 }
 
-export interface NotebookCellsChangeLanguageEvent {
-	readonly kind: NotebookCellsChangeType.ChangeLanguage;
-	readonly index: number;
-	readonly language: string;
+expowt intewface NotebookCewwsChangeWanguageEvent {
+	weadonwy kind: NotebookCewwsChangeType.ChangeWanguage;
+	weadonwy index: numba;
+	weadonwy wanguage: stwing;
 }
 
-export interface NotebookCellsChangeMimeEvent {
-	readonly kind: NotebookCellsChangeType.ChangeCellMime;
-	readonly index: number;
-	readonly mime: string | undefined;
+expowt intewface NotebookCewwsChangeMimeEvent {
+	weadonwy kind: NotebookCewwsChangeType.ChangeCewwMime;
+	weadonwy index: numba;
+	weadonwy mime: stwing | undefined;
 }
 
-export interface NotebookCellsChangeMetadataEvent {
-	readonly kind: NotebookCellsChangeType.ChangeCellMetadata;
-	readonly index: number;
-	readonly metadata: NotebookCellMetadata;
+expowt intewface NotebookCewwsChangeMetadataEvent {
+	weadonwy kind: NotebookCewwsChangeType.ChangeCewwMetadata;
+	weadonwy index: numba;
+	weadonwy metadata: NotebookCewwMetadata;
 }
 
-export interface NotebookCellsChangeInternalMetadataEvent {
-	readonly kind: NotebookCellsChangeType.ChangeCellInternalMetadata;
-	readonly index: number;
-	readonly internalMetadata: NotebookCellInternalMetadata;
+expowt intewface NotebookCewwsChangeIntewnawMetadataEvent {
+	weadonwy kind: NotebookCewwsChangeType.ChangeCewwIntewnawMetadata;
+	weadonwy index: numba;
+	weadonwy intewnawMetadata: NotebookCewwIntewnawMetadata;
 }
 
-export interface NotebookDocumentChangeMetadataEvent {
-	readonly kind: NotebookCellsChangeType.ChangeDocumentMetadata;
-	readonly metadata: NotebookDocumentMetadata;
+expowt intewface NotebookDocumentChangeMetadataEvent {
+	weadonwy kind: NotebookCewwsChangeType.ChangeDocumentMetadata;
+	weadonwy metadata: NotebookDocumentMetadata;
 }
 
-export interface NotebookDocumentUnknownChangeEvent {
-	readonly kind: NotebookCellsChangeType.Unknown;
+expowt intewface NotebookDocumentUnknownChangeEvent {
+	weadonwy kind: NotebookCewwsChangeType.Unknown;
 }
 
-export type NotebookRawContentEventDto = NotebookCellsInitializeEvent<IMainCellDto> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<IMainCellDto> | NotebookCellsModelMoveEvent<IMainCellDto> | NotebookOutputChangedEvent | NotebookOutputItemChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMimeEvent | NotebookCellsChangeMetadataEvent | NotebookCellsChangeInternalMetadataEvent | NotebookDocumentUnknownChangeEvent;
+expowt type NotebookWawContentEventDto = NotebookCewwsInitiawizeEvent<IMainCewwDto> | NotebookDocumentChangeMetadataEvent | NotebookCewwContentChangeEvent | NotebookCewwsModewChangedEvent<IMainCewwDto> | NotebookCewwsModewMoveEvent<IMainCewwDto> | NotebookOutputChangedEvent | NotebookOutputItemChangedEvent | NotebookCewwsChangeWanguageEvent | NotebookCewwsChangeMimeEvent | NotebookCewwsChangeMetadataEvent | NotebookCewwsChangeIntewnawMetadataEvent | NotebookDocumentUnknownChangeEvent;
 
-export type NotebookCellsChangedEventDto = {
-	readonly rawEvents: NotebookRawContentEventDto[];
-	readonly versionId: number;
+expowt type NotebookCewwsChangedEventDto = {
+	weadonwy wawEvents: NotebookWawContentEventDto[];
+	weadonwy vewsionId: numba;
 };
 
-export type NotebookRawContentEvent = (NotebookCellsInitializeEvent<ICell> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<ICell> | NotebookCellsModelMoveEvent<ICell> | NotebookOutputChangedEvent | NotebookOutputItemChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMimeEvent | NotebookCellsChangeMetadataEvent | NotebookCellsChangeInternalMetadataEvent | NotebookDocumentUnknownChangeEvent) & { transient: boolean; };
+expowt type NotebookWawContentEvent = (NotebookCewwsInitiawizeEvent<ICeww> | NotebookDocumentChangeMetadataEvent | NotebookCewwContentChangeEvent | NotebookCewwsModewChangedEvent<ICeww> | NotebookCewwsModewMoveEvent<ICeww> | NotebookOutputChangedEvent | NotebookOutputItemChangedEvent | NotebookCewwsChangeWanguageEvent | NotebookCewwsChangeMimeEvent | NotebookCewwsChangeMetadataEvent | NotebookCewwsChangeIntewnawMetadataEvent | NotebookDocumentUnknownChangeEvent) & { twansient: boowean; };
 
-export enum SelectionStateType {
-	Handle = 0,
+expowt enum SewectionStateType {
+	Handwe = 0,
 	Index = 1
 }
 
-export interface ISelectionHandleState {
-	kind: SelectionStateType.Handle;
-	primary: number | null;
-	selections: number[];
+expowt intewface ISewectionHandweState {
+	kind: SewectionStateType.Handwe;
+	pwimawy: numba | nuww;
+	sewections: numba[];
 }
 
-export interface ISelectionIndexState {
-	kind: SelectionStateType.Index;
-	focus: ICellRange;
-	selections: ICellRange[];
+expowt intewface ISewectionIndexState {
+	kind: SewectionStateType.Index;
+	focus: ICewwWange;
+	sewections: ICewwWange[];
 }
 
-export type ISelectionState = ISelectionHandleState | ISelectionIndexState;
+expowt type ISewectionState = ISewectionHandweState | ISewectionIndexState;
 
-export type NotebookTextModelChangedEvent = {
-	readonly rawEvents: NotebookRawContentEvent[];
-	readonly versionId: number;
-	readonly synchronous: boolean | undefined;
-	readonly endSelectionState: ISelectionState | undefined;
+expowt type NotebookTextModewChangedEvent = {
+	weadonwy wawEvents: NotebookWawContentEvent[];
+	weadonwy vewsionId: numba;
+	weadonwy synchwonous: boowean | undefined;
+	weadonwy endSewectionState: ISewectionState | undefined;
 };
 
-export type NotebookTextModelWillAddRemoveEvent = {
-	readonly rawEvent: NotebookCellsModelChangedEvent<ICell>;
+expowt type NotebookTextModewWiwwAddWemoveEvent = {
+	weadonwy wawEvent: NotebookCewwsModewChangedEvent<ICeww>;
 };
 
-export const enum CellEditType {
-	Replace = 1,
+expowt const enum CewwEditType {
+	Wepwace = 1,
 	Output = 2,
 	Metadata = 3,
-	CellLanguage = 4,
+	CewwWanguage = 4,
 	DocumentMetadata = 5,
 	Move = 6,
 	OutputItems = 7,
-	PartialMetadata = 8,
-	PartialInternalMetadata = 9,
+	PawtiawMetadata = 8,
+	PawtiawIntewnawMetadata = 9,
 }
 
-export interface ICellDto2 {
-	source: string;
-	language: string;
-	mime: string | undefined;
-	cellKind: CellKind;
+expowt intewface ICewwDto2 {
+	souwce: stwing;
+	wanguage: stwing;
+	mime: stwing | undefined;
+	cewwKind: CewwKind;
 	outputs: IOutputDto[];
-	metadata?: NotebookCellMetadata;
-	internalMetadata?: NotebookCellInternalMetadata;
+	metadata?: NotebookCewwMetadata;
+	intewnawMetadata?: NotebookCewwIntewnawMetadata;
 }
 
-export interface ICellReplaceEdit {
-	editType: CellEditType.Replace;
-	index: number;
-	count: number;
-	cells: ICellDto2[];
+expowt intewface ICewwWepwaceEdit {
+	editType: CewwEditType.Wepwace;
+	index: numba;
+	count: numba;
+	cewws: ICewwDto2[];
 }
 
-export interface ICellOutputEdit {
-	editType: CellEditType.Output;
-	index: number;
+expowt intewface ICewwOutputEdit {
+	editType: CewwEditType.Output;
+	index: numba;
 	outputs: IOutputDto[];
-	append?: boolean;
+	append?: boowean;
 }
 
-export interface ICellOutputEditByHandle {
-	editType: CellEditType.Output;
-	handle: number;
+expowt intewface ICewwOutputEditByHandwe {
+	editType: CewwEditType.Output;
+	handwe: numba;
 	outputs: IOutputDto[];
-	append?: boolean;
+	append?: boowean;
 }
 
-export interface ICellOutputItemEdit {
-	editType: CellEditType.OutputItems;
-	outputId: string;
+expowt intewface ICewwOutputItemEdit {
+	editType: CewwEditType.OutputItems;
+	outputId: stwing;
 	items: IOutputItemDto[];
-	append?: boolean;
+	append?: boowean;
 }
 
-export interface ICellMetadataEdit {
-	editType: CellEditType.Metadata;
-	index: number;
-	metadata: NotebookCellMetadata;
+expowt intewface ICewwMetadataEdit {
+	editType: CewwEditType.Metadata;
+	index: numba;
+	metadata: NotebookCewwMetadata;
 }
 
-// These types are nullable because we need to use 'null' on the EH side so it is JSON-stringified
-export type NullablePartialNotebookCellMetadata = {
-	[Key in keyof Partial<NotebookCellMetadata>]: NotebookCellMetadata[Key] | null
+// These types awe nuwwabwe because we need to use 'nuww' on the EH side so it is JSON-stwingified
+expowt type NuwwabwePawtiawNotebookCewwMetadata = {
+	[Key in keyof Pawtiaw<NotebookCewwMetadata>]: NotebookCewwMetadata[Key] | nuww
 };
 
-export interface ICellPartialMetadataEdit {
-	editType: CellEditType.PartialMetadata;
-	index: number;
-	metadata: NullablePartialNotebookCellMetadata;
+expowt intewface ICewwPawtiawMetadataEdit {
+	editType: CewwEditType.PawtiawMetadata;
+	index: numba;
+	metadata: NuwwabwePawtiawNotebookCewwMetadata;
 }
 
-export interface ICellPartialMetadataEditByHandle {
-	editType: CellEditType.PartialMetadata;
-	handle: number;
-	metadata: NullablePartialNotebookCellMetadata;
+expowt intewface ICewwPawtiawMetadataEditByHandwe {
+	editType: CewwEditType.PawtiawMetadata;
+	handwe: numba;
+	metadata: NuwwabwePawtiawNotebookCewwMetadata;
 }
 
-export type NullablePartialNotebookCellInternalMetadata = {
-	[Key in keyof Partial<NotebookCellInternalMetadata>]: NotebookCellInternalMetadata[Key] | null
+expowt type NuwwabwePawtiawNotebookCewwIntewnawMetadata = {
+	[Key in keyof Pawtiaw<NotebookCewwIntewnawMetadata>]: NotebookCewwIntewnawMetadata[Key] | nuww
 };
-export interface ICellPartialInternalMetadataEdit {
-	editType: CellEditType.PartialInternalMetadata;
-	index: number;
-	internalMetadata: NullablePartialNotebookCellInternalMetadata;
+expowt intewface ICewwPawtiawIntewnawMetadataEdit {
+	editType: CewwEditType.PawtiawIntewnawMetadata;
+	index: numba;
+	intewnawMetadata: NuwwabwePawtiawNotebookCewwIntewnawMetadata;
 }
 
-export interface ICellPartialInternalMetadataEditByHandle {
-	editType: CellEditType.PartialInternalMetadata;
-	handle: number;
-	internalMetadata: NullablePartialNotebookCellInternalMetadata;
+expowt intewface ICewwPawtiawIntewnawMetadataEditByHandwe {
+	editType: CewwEditType.PawtiawIntewnawMetadata;
+	handwe: numba;
+	intewnawMetadata: NuwwabwePawtiawNotebookCewwIntewnawMetadata;
 }
 
-export interface ICellLanguageEdit {
-	editType: CellEditType.CellLanguage;
-	index: number;
-	language: string;
+expowt intewface ICewwWanguageEdit {
+	editType: CewwEditType.CewwWanguage;
+	index: numba;
+	wanguage: stwing;
 }
 
-export interface IDocumentMetadataEdit {
-	editType: CellEditType.DocumentMetadata;
+expowt intewface IDocumentMetadataEdit {
+	editType: CewwEditType.DocumentMetadata;
 	metadata: NotebookDocumentMetadata;
 }
 
-export interface ICellMoveEdit {
-	editType: CellEditType.Move;
-	index: number;
-	length: number;
-	newIdx: number;
+expowt intewface ICewwMoveEdit {
+	editType: CewwEditType.Move;
+	index: numba;
+	wength: numba;
+	newIdx: numba;
 }
 
-export type IImmediateCellEditOperation = ICellOutputEditByHandle | ICellPartialMetadataEditByHandle | ICellOutputItemEdit | ICellPartialInternalMetadataEdit | ICellPartialInternalMetadataEditByHandle | ICellPartialMetadataEdit;
-export type ICellEditOperation = IImmediateCellEditOperation | ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellPartialMetadataEdit | ICellPartialInternalMetadataEdit | IDocumentMetadataEdit | ICellMoveEdit | ICellOutputItemEdit | ICellLanguageEdit;
+expowt type IImmediateCewwEditOpewation = ICewwOutputEditByHandwe | ICewwPawtiawMetadataEditByHandwe | ICewwOutputItemEdit | ICewwPawtiawIntewnawMetadataEdit | ICewwPawtiawIntewnawMetadataEditByHandwe | ICewwPawtiawMetadataEdit;
+expowt type ICewwEditOpewation = IImmediateCewwEditOpewation | ICewwWepwaceEdit | ICewwOutputEdit | ICewwMetadataEdit | ICewwPawtiawMetadataEdit | ICewwPawtiawIntewnawMetadataEdit | IDocumentMetadataEdit | ICewwMoveEdit | ICewwOutputItemEdit | ICewwWanguageEdit;
 
-export interface NotebookData {
-	readonly cells: ICellDto2[];
-	readonly metadata: NotebookDocumentMetadata;
-}
-
-
-export interface INotebookContributionData {
-	extension?: ExtensionIdentifier,
-	providerDisplayName: string;
-	displayName: string;
-	filenamePattern: (string | glob.IRelativePattern | INotebookExclusiveDocumentFilter)[];
-	exclusive: boolean;
+expowt intewface NotebookData {
+	weadonwy cewws: ICewwDto2[];
+	weadonwy metadata: NotebookDocumentMetadata;
 }
 
 
-export namespace CellUri {
+expowt intewface INotebookContwibutionData {
+	extension?: ExtensionIdentifia,
+	pwovidewDispwayName: stwing;
+	dispwayName: stwing;
+	fiwenamePattewn: (stwing | gwob.IWewativePattewn | INotebookExcwusiveDocumentFiwta)[];
+	excwusive: boowean;
+}
 
-	export const scheme = Schemas.vscodeNotebookCell;
 
-	const _regex = /^ch(\d{7,})/;
+expowt namespace CewwUwi {
 
-	export function generate(notebook: URI, handle: number): URI {
-		return notebook.with({
+	expowt const scheme = Schemas.vscodeNotebookCeww;
+
+	const _wegex = /^ch(\d{7,})/;
+
+	expowt function genewate(notebook: UWI, handwe: numba): UWI {
+		wetuwn notebook.with({
 			scheme,
-			fragment: `ch${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
+			fwagment: `ch${handwe.toStwing().padStawt(7, '0')}${notebook.scheme !== Schemas.fiwe ? notebook.scheme : ''}`
 		});
 	}
 
-	export function parse(cell: URI): { notebook: URI, handle: number; } | undefined {
-		if (cell.scheme !== scheme) {
-			return undefined;
+	expowt function pawse(ceww: UWI): { notebook: UWI, handwe: numba; } | undefined {
+		if (ceww.scheme !== scheme) {
+			wetuwn undefined;
 		}
-		const match = _regex.exec(cell.fragment);
+		const match = _wegex.exec(ceww.fwagment);
 		if (!match) {
-			return undefined;
+			wetuwn undefined;
 		}
-		const handle = Number(match[1]);
-		return {
-			handle,
-			notebook: cell.with({
-				scheme: cell.fragment.substr(match[0].length) || Schemas.file,
-				fragment: null
+		const handwe = Numba(match[1]);
+		wetuwn {
+			handwe,
+			notebook: ceww.with({
+				scheme: ceww.fwagment.substw(match[0].wength) || Schemas.fiwe,
+				fwagment: nuww
 			})
 		};
 	}
 
-	export function parseCellMetadataUri(metadata: URI) {
-		if (metadata.scheme !== Schemas.vscodeNotebookCellMetadata) {
-			return undefined;
+	expowt function pawseCewwMetadataUwi(metadata: UWI) {
+		if (metadata.scheme !== Schemas.vscodeNotebookCewwMetadata) {
+			wetuwn undefined;
 		}
-		const match = _regex.exec(metadata.fragment);
+		const match = _wegex.exec(metadata.fwagment);
 		if (!match) {
-			return undefined;
+			wetuwn undefined;
 		}
-		const handle = Number(match[1]);
-		return {
-			handle,
+		const handwe = Numba(match[1]);
+		wetuwn {
+			handwe,
 			notebook: metadata.with({
-				scheme: metadata.fragment.substr(match[0].length) || Schemas.file,
-				fragment: null
+				scheme: metadata.fwagment.substw(match[0].wength) || Schemas.fiwe,
+				fwagment: nuww
 			})
 		};
 	}
 
-	export function generateCellUri(notebook: URI, handle: number, scheme: string): URI {
-		return notebook.with({
+	expowt function genewateCewwUwi(notebook: UWI, handwe: numba, scheme: stwing): UWI {
+		wetuwn notebook.with({
 			scheme: scheme,
-			fragment: `ch${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
+			fwagment: `ch${handwe.toStwing().padStawt(7, '0')}${notebook.scheme !== Schemas.fiwe ? notebook.scheme : ''}`
 		});
 	}
 
-	export function parseCellUri(metadata: URI, scheme: string) {
+	expowt function pawseCewwUwi(metadata: UWI, scheme: stwing) {
 		if (metadata.scheme !== scheme) {
-			return undefined;
+			wetuwn undefined;
 		}
-		const match = _regex.exec(metadata.fragment);
+		const match = _wegex.exec(metadata.fwagment);
 		if (!match) {
-			return undefined;
+			wetuwn undefined;
 		}
-		const handle = Number(match[1]);
-		return {
-			handle,
+		const handwe = Numba(match[1]);
+		wetuwn {
+			handwe,
 			notebook: metadata.with({
-				scheme: metadata.fragment.substr(match[0].length) || Schemas.file,
-				fragment: null
+				scheme: metadata.fwagment.substw(match[0].wength) || Schemas.fiwe,
+				fwagment: nuww
 			})
 		};
 	}
 }
 
 type MimeTypeInfo = {
-	alwaysSecure?: boolean;
-	supportedByCore?: boolean;
-	mergeable?: boolean;
+	awwaysSecuwe?: boowean;
+	suppowtedByCowe?: boowean;
+	mewgeabwe?: boowean;
 };
 
-const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
-	['application/javascript', { supportedByCore: true }],
-	['image/png', { alwaysSecure: true, supportedByCore: true }],
-	['image/jpeg', { alwaysSecure: true, supportedByCore: true }],
-	['image/git', { alwaysSecure: true, supportedByCore: true }],
-	['image/svg+xml', { supportedByCore: true }],
-	['application/json', { alwaysSecure: true, supportedByCore: true }],
-	[Mimes.markdown, { alwaysSecure: true, supportedByCore: true }],
-	[Mimes.text, { alwaysSecure: true, supportedByCore: true }],
-	['text/html', { supportedByCore: true }],
-	['text/x-javascript', { alwaysSecure: true, supportedByCore: true }], // secure because rendered as text, not executed
-	['application/vnd.code.notebook.error', { alwaysSecure: true, supportedByCore: true }],
-	['application/vnd.code.notebook.stdout', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
-	['application/vnd.code.notebook.stderr', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
+const _mimeTypeInfo = new Map<stwing, MimeTypeInfo>([
+	['appwication/javascwipt', { suppowtedByCowe: twue }],
+	['image/png', { awwaysSecuwe: twue, suppowtedByCowe: twue }],
+	['image/jpeg', { awwaysSecuwe: twue, suppowtedByCowe: twue }],
+	['image/git', { awwaysSecuwe: twue, suppowtedByCowe: twue }],
+	['image/svg+xmw', { suppowtedByCowe: twue }],
+	['appwication/json', { awwaysSecuwe: twue, suppowtedByCowe: twue }],
+	[Mimes.mawkdown, { awwaysSecuwe: twue, suppowtedByCowe: twue }],
+	[Mimes.text, { awwaysSecuwe: twue, suppowtedByCowe: twue }],
+	['text/htmw', { suppowtedByCowe: twue }],
+	['text/x-javascwipt', { awwaysSecuwe: twue, suppowtedByCowe: twue }], // secuwe because wendewed as text, not executed
+	['appwication/vnd.code.notebook.ewwow', { awwaysSecuwe: twue, suppowtedByCowe: twue }],
+	['appwication/vnd.code.notebook.stdout', { awwaysSecuwe: twue, suppowtedByCowe: twue, mewgeabwe: twue }],
+	['appwication/vnd.code.notebook.stdeww', { awwaysSecuwe: twue, suppowtedByCowe: twue, mewgeabwe: twue }],
 ]);
 
-export function mimeTypeIsAlwaysSecure(mimeType: string): boolean {
-	return _mimeTypeInfo.get(mimeType)?.alwaysSecure ?? false;
+expowt function mimeTypeIsAwwaysSecuwe(mimeType: stwing): boowean {
+	wetuwn _mimeTypeInfo.get(mimeType)?.awwaysSecuwe ?? fawse;
 }
 
-export function mimeTypeSupportedByCore(mimeType: string) {
-	return _mimeTypeInfo.get(mimeType)?.supportedByCore ?? false;
+expowt function mimeTypeSuppowtedByCowe(mimeType: stwing) {
+	wetuwn _mimeTypeInfo.get(mimeType)?.suppowtedByCowe ?? fawse;
 }
 
-export function mimeTypeIsMergeable(mimeType: string): boolean {
-	return _mimeTypeInfo.get(mimeType)?.mergeable ?? false;
+expowt function mimeTypeIsMewgeabwe(mimeType: stwing): boowean {
+	wetuwn _mimeTypeInfo.get(mimeType)?.mewgeabwe ?? fawse;
 }
 
-function matchGlobUniversal(pattern: string, path: string) {
+function matchGwobUnivewsaw(pattewn: stwing, path: stwing) {
 	if (isWindows) {
-		pattern = pattern.replace(/\//g, '\\');
-		path = path.replace(/\//g, '\\');
+		pattewn = pattewn.wepwace(/\//g, '\\');
+		path = path.wepwace(/\//g, '\\');
 	}
 
-	return glob.match(pattern, path);
+	wetuwn gwob.match(pattewn, path);
 }
 
 
-function getMimeTypeOrder(mimeType: string, userDisplayOrder: string[], defaultOrder: string[]) {
-	let order = 0;
-	for (let i = 0; i < userDisplayOrder.length; i++) {
-		if (matchGlobUniversal(userDisplayOrder[i], mimeType)) {
-			return order;
+function getMimeTypeOwda(mimeType: stwing, usewDispwayOwda: stwing[], defauwtOwda: stwing[]) {
+	wet owda = 0;
+	fow (wet i = 0; i < usewDispwayOwda.wength; i++) {
+		if (matchGwobUnivewsaw(usewDispwayOwda[i], mimeType)) {
+			wetuwn owda;
 		}
-		order++;
+		owda++;
 	}
 
-	for (let i = 0; i < defaultOrder.length; i++) {
-		if (matchGlobUniversal(defaultOrder[i], mimeType)) {
-			return order;
+	fow (wet i = 0; i < defauwtOwda.wength; i++) {
+		if (matchGwobUnivewsaw(defauwtOwda[i], mimeType)) {
+			wetuwn owda;
 		}
 
-		order++;
+		owda++;
 	}
 
-	return order;
+	wetuwn owda;
 }
 
-export function sortMimeTypes(mimeTypes: string[], userDisplayOrder: string[], defaultOrder: string[]) {
-	return mimeTypes.sort((a, b) => getMimeTypeOrder(a, userDisplayOrder, defaultOrder) - getMimeTypeOrder(b, userDisplayOrder, defaultOrder));
+expowt function sowtMimeTypes(mimeTypes: stwing[], usewDispwayOwda: stwing[], defauwtOwda: stwing[]) {
+	wetuwn mimeTypes.sowt((a, b) => getMimeTypeOwda(a, usewDispwayOwda, defauwtOwda) - getMimeTypeOwda(b, usewDispwayOwda, defauwtOwda));
 }
 
-interface IMutableSplice<T> extends ISplice<T> {
-	deleteCount: number;
+intewface IMutabweSpwice<T> extends ISpwice<T> {
+	deweteCount: numba;
 }
 
-export function diff<T>(before: T[], after: T[], contains: (a: T) => boolean, equal: (a: T, b: T) => boolean = (a: T, b: T) => a === b): ISplice<T>[] {
-	const result: IMutableSplice<T>[] = [];
+expowt function diff<T>(befowe: T[], afta: T[], contains: (a: T) => boowean, equaw: (a: T, b: T) => boowean = (a: T, b: T) => a === b): ISpwice<T>[] {
+	const wesuwt: IMutabweSpwice<T>[] = [];
 
-	function pushSplice(start: number, deleteCount: number, toInsert: T[]): void {
-		if (deleteCount === 0 && toInsert.length === 0) {
-			return;
+	function pushSpwice(stawt: numba, deweteCount: numba, toInsewt: T[]): void {
+		if (deweteCount === 0 && toInsewt.wength === 0) {
+			wetuwn;
 		}
 
-		const latest = result[result.length - 1];
+		const watest = wesuwt[wesuwt.wength - 1];
 
-		if (latest && latest.start + latest.deleteCount === start) {
-			latest.deleteCount += deleteCount;
-			latest.toInsert.push(...toInsert);
-		} else {
-			result.push({ start, deleteCount, toInsert });
+		if (watest && watest.stawt + watest.deweteCount === stawt) {
+			watest.deweteCount += deweteCount;
+			watest.toInsewt.push(...toInsewt);
+		} ewse {
+			wesuwt.push({ stawt, deweteCount, toInsewt });
 		}
 	}
 
-	let beforeIdx = 0;
-	let afterIdx = 0;
+	wet befoweIdx = 0;
+	wet aftewIdx = 0;
 
-	while (true) {
-		if (beforeIdx === before.length) {
-			pushSplice(beforeIdx, 0, after.slice(afterIdx));
-			break;
+	whiwe (twue) {
+		if (befoweIdx === befowe.wength) {
+			pushSpwice(befoweIdx, 0, afta.swice(aftewIdx));
+			bweak;
 		}
 
-		if (afterIdx === after.length) {
-			pushSplice(beforeIdx, before.length - beforeIdx, []);
-			break;
+		if (aftewIdx === afta.wength) {
+			pushSpwice(befoweIdx, befowe.wength - befoweIdx, []);
+			bweak;
 		}
 
-		const beforeElement = before[beforeIdx];
-		const afterElement = after[afterIdx];
+		const befoweEwement = befowe[befoweIdx];
+		const aftewEwement = afta[aftewIdx];
 
-		if (equal(beforeElement, afterElement)) {
-			// equal
-			beforeIdx += 1;
-			afterIdx += 1;
+		if (equaw(befoweEwement, aftewEwement)) {
+			// equaw
+			befoweIdx += 1;
+			aftewIdx += 1;
 			continue;
 		}
 
-		if (contains(afterElement)) {
-			// `afterElement` exists before, which means some elements before `afterElement` are deleted
-			pushSplice(beforeIdx, 1, []);
-			beforeIdx += 1;
-		} else {
-			// `afterElement` added
-			pushSplice(beforeIdx, 0, [afterElement]);
-			afterIdx += 1;
+		if (contains(aftewEwement)) {
+			// `aftewEwement` exists befowe, which means some ewements befowe `aftewEwement` awe deweted
+			pushSpwice(befoweIdx, 1, []);
+			befoweIdx += 1;
+		} ewse {
+			// `aftewEwement` added
+			pushSpwice(befoweIdx, 0, [aftewEwement]);
+			aftewIdx += 1;
 		}
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-export interface ICellEditorViewState {
-	selections: editorCommon.ICursorState[];
+expowt intewface ICewwEditowViewState {
+	sewections: editowCommon.ICuwsowState[];
 }
 
-export const NOTEBOOK_EDITOR_CURSOR_BOUNDARY = new RawContextKey<'none' | 'top' | 'bottom' | 'both'>('notebookEditorCursorAtBoundary', 'none');
+expowt const NOTEBOOK_EDITOW_CUWSOW_BOUNDAWY = new WawContextKey<'none' | 'top' | 'bottom' | 'both'>('notebookEditowCuwsowAtBoundawy', 'none');
 
 
-export interface INotebookLoadOptions {
+expowt intewface INotebookWoadOptions {
 	/**
-	 * Go to disk bypassing any cache of the model if any.
+	 * Go to disk bypassing any cache of the modew if any.
 	 */
-	forceReadFromFile?: boolean;
+	fowceWeadFwomFiwe?: boowean;
 }
 
-export interface IResolvedNotebookEditorModel extends INotebookEditorModel {
-	notebook: NotebookTextModel;
+expowt intewface IWesowvedNotebookEditowModew extends INotebookEditowModew {
+	notebook: NotebookTextModew;
 }
 
-export interface INotebookEditorModel extends IEditorModel {
-	readonly onDidChangeDirty: Event<void>;
-	readonly onDidSave: Event<void>;
-	readonly onDidChangeOrphaned: Event<void>;
-	readonly onDidChangeReadonly: Event<void>;
-	readonly resource: URI;
-	readonly viewType: string;
-	readonly notebook: NotebookTextModel | undefined;
-	isResolved(): this is IResolvedNotebookEditorModel;
-	isDirty(): boolean;
-	isReadonly(): boolean;
-	isOrphaned(): boolean;
-	hasAssociatedFilePath(): boolean;
-	load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel>;
-	save(options?: ISaveOptions): Promise<boolean>;
-	saveAs(target: URI): Promise<EditorInput | undefined>;
-	revert(options?: IRevertOptions): Promise<void>;
+expowt intewface INotebookEditowModew extends IEditowModew {
+	weadonwy onDidChangeDiwty: Event<void>;
+	weadonwy onDidSave: Event<void>;
+	weadonwy onDidChangeOwphaned: Event<void>;
+	weadonwy onDidChangeWeadonwy: Event<void>;
+	weadonwy wesouwce: UWI;
+	weadonwy viewType: stwing;
+	weadonwy notebook: NotebookTextModew | undefined;
+	isWesowved(): this is IWesowvedNotebookEditowModew;
+	isDiwty(): boowean;
+	isWeadonwy(): boowean;
+	isOwphaned(): boowean;
+	hasAssociatedFiwePath(): boowean;
+	woad(options?: INotebookWoadOptions): Pwomise<IWesowvedNotebookEditowModew>;
+	save(options?: ISaveOptions): Pwomise<boowean>;
+	saveAs(tawget: UWI): Pwomise<EditowInput | undefined>;
+	wevewt(options?: IWevewtOptions): Pwomise<void>;
 }
 
-export interface INotebookDiffEditorModel extends IEditorModel {
-	original: IResolvedNotebookEditorModel;
-	modified: IResolvedNotebookEditorModel;
+expowt intewface INotebookDiffEditowModew extends IEditowModew {
+	owiginaw: IWesowvedNotebookEditowModew;
+	modified: IWesowvedNotebookEditowModew;
 }
 
-export interface NotebookDocumentBackupData extends IWorkingCopyBackupMeta {
-	readonly viewType: string;
-	readonly backupId?: string;
-	readonly mtime?: number;
+expowt intewface NotebookDocumentBackupData extends IWowkingCopyBackupMeta {
+	weadonwy viewType: stwing;
+	weadonwy backupId?: stwing;
+	weadonwy mtime?: numba;
 }
 
-export enum NotebookEditorPriority {
-	default = 'default',
+expowt enum NotebookEditowPwiowity {
+	defauwt = 'defauwt',
 	option = 'option',
 }
 
-export interface INotebookSearchOptions {
-	regex?: boolean;
-	wholeWord?: boolean;
-	caseSensitive?: boolean;
-	wordSeparators?: string;
+expowt intewface INotebookSeawchOptions {
+	wegex?: boowean;
+	whoweWowd?: boowean;
+	caseSensitive?: boowean;
+	wowdSepawatows?: stwing;
 }
 
-export interface INotebookExclusiveDocumentFilter {
-	include?: string | glob.IRelativePattern;
-	exclude?: string | glob.IRelativePattern;
+expowt intewface INotebookExcwusiveDocumentFiwta {
+	incwude?: stwing | gwob.IWewativePattewn;
+	excwude?: stwing | gwob.IWewativePattewn;
 }
 
-export interface INotebookDocumentFilter {
-	viewType?: string | string[];
-	filenamePattern?: string | glob.IRelativePattern | INotebookExclusiveDocumentFilter;
+expowt intewface INotebookDocumentFiwta {
+	viewType?: stwing | stwing[];
+	fiwenamePattewn?: stwing | gwob.IWewativePattewn | INotebookExcwusiveDocumentFiwta;
 }
 
-//TODO@rebornix test
+//TODO@webownix test
 
-export function isDocumentExcludePattern(filenamePattern: string | glob.IRelativePattern | INotebookExclusiveDocumentFilter): filenamePattern is { include: string | glob.IRelativePattern; exclude: string | glob.IRelativePattern; } {
-	const arg = filenamePattern as INotebookExclusiveDocumentFilter;
+expowt function isDocumentExcwudePattewn(fiwenamePattewn: stwing | gwob.IWewativePattewn | INotebookExcwusiveDocumentFiwta): fiwenamePattewn is { incwude: stwing | gwob.IWewativePattewn; excwude: stwing | gwob.IWewativePattewn; } {
+	const awg = fiwenamePattewn as INotebookExcwusiveDocumentFiwta;
 
-	if ((typeof arg.include === 'string' || glob.isRelativePattern(arg.include))
-		&& (typeof arg.exclude === 'string' || glob.isRelativePattern(arg.exclude))) {
-		return true;
+	if ((typeof awg.incwude === 'stwing' || gwob.isWewativePattewn(awg.incwude))
+		&& (typeof awg.excwude === 'stwing' || gwob.isWewativePattewn(awg.excwude))) {
+		wetuwn twue;
 	}
 
-	return false;
+	wetuwn fawse;
 }
-export function notebookDocumentFilterMatch(filter: INotebookDocumentFilter, viewType: string, resource: URI): boolean {
-	if (Array.isArray(filter.viewType) && filter.viewType.indexOf(viewType) >= 0) {
-		return true;
+expowt function notebookDocumentFiwtewMatch(fiwta: INotebookDocumentFiwta, viewType: stwing, wesouwce: UWI): boowean {
+	if (Awway.isAwway(fiwta.viewType) && fiwta.viewType.indexOf(viewType) >= 0) {
+		wetuwn twue;
 	}
 
-	if (filter.viewType === viewType) {
-		return true;
+	if (fiwta.viewType === viewType) {
+		wetuwn twue;
 	}
 
-	if (filter.filenamePattern) {
-		let filenamePattern = isDocumentExcludePattern(filter.filenamePattern) ? filter.filenamePattern.include : (filter.filenamePattern as string | glob.IRelativePattern);
-		let excludeFilenamePattern = isDocumentExcludePattern(filter.filenamePattern) ? filter.filenamePattern.exclude : undefined;
+	if (fiwta.fiwenamePattewn) {
+		wet fiwenamePattewn = isDocumentExcwudePattewn(fiwta.fiwenamePattewn) ? fiwta.fiwenamePattewn.incwude : (fiwta.fiwenamePattewn as stwing | gwob.IWewativePattewn);
+		wet excwudeFiwenamePattewn = isDocumentExcwudePattewn(fiwta.fiwenamePattewn) ? fiwta.fiwenamePattewn.excwude : undefined;
 
-		if (glob.match(filenamePattern, basename(resource.fsPath).toLowerCase())) {
-			if (excludeFilenamePattern) {
-				if (glob.match(excludeFilenamePattern, basename(resource.fsPath).toLowerCase())) {
-					// should exclude
+		if (gwob.match(fiwenamePattewn, basename(wesouwce.fsPath).toWowewCase())) {
+			if (excwudeFiwenamePattewn) {
+				if (gwob.match(excwudeFiwenamePattewn, basename(wesouwce.fsPath).toWowewCase())) {
+					// shouwd excwude
 
-					return false;
+					wetuwn fawse;
 				}
 			}
-			return true;
+			wetuwn twue;
 		}
 	}
-	return false;
+	wetuwn fawse;
 }
 
-export interface INotebookCellStatusBarItemProvider {
-	viewType: string;
-	onDidChangeStatusBarItems?: Event<void>;
-	provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken): Promise<INotebookCellStatusBarItemList | undefined>;
+expowt intewface INotebookCewwStatusBawItemPwovida {
+	viewType: stwing;
+	onDidChangeStatusBawItems?: Event<void>;
+	pwovideCewwStatusBawItems(uwi: UWI, index: numba, token: CancewwationToken): Pwomise<INotebookCewwStatusBawItemWist | undefined>;
 }
 
-export class CellSequence implements ISequence {
+expowt cwass CewwSequence impwements ISequence {
 
-	constructor(readonly textModel: NotebookTextModel) {
+	constwuctow(weadonwy textModew: NotebookTextModew) {
 	}
 
-	getElements(): string[] | number[] | Int32Array {
-		const hashValue = new Int32Array(this.textModel.cells.length);
-		for (let i = 0; i < this.textModel.cells.length; i++) {
-			hashValue[i] = this.textModel.cells[i].getHashValue();
+	getEwements(): stwing[] | numba[] | Int32Awway {
+		const hashVawue = new Int32Awway(this.textModew.cewws.wength);
+		fow (wet i = 0; i < this.textModew.cewws.wength; i++) {
+			hashVawue[i] = this.textModew.cewws[i].getHashVawue();
 		}
 
-		return hashValue;
+		wetuwn hashVawue;
 	}
 }
 
-export interface INotebookDiffResult {
-	cellsDiff: IDiffResult,
-	linesDiff?: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: editorCommon.ILineChange[]; }[];
+expowt intewface INotebookDiffWesuwt {
+	cewwsDiff: IDiffWesuwt,
+	winesDiff?: { owiginawCewwhandwe: numba, modifiedCewwhandwe: numba, wineChanges: editowCommon.IWineChange[]; }[];
 }
 
-export interface INotebookCellStatusBarItem {
-	readonly alignment: CellStatusbarAlignment;
-	readonly priority?: number;
-	readonly text: string;
-	readonly color?: string | ThemeColor;
-	readonly backgroundColor?: string | ThemeColor;
-	readonly tooltip?: string;
-	readonly command?: string | Command;
-	readonly accessibilityInformation?: IAccessibilityInformation;
-	readonly opacity?: string;
-	readonly onlyShowWhenActive?: boolean;
+expowt intewface INotebookCewwStatusBawItem {
+	weadonwy awignment: CewwStatusbawAwignment;
+	weadonwy pwiowity?: numba;
+	weadonwy text: stwing;
+	weadonwy cowow?: stwing | ThemeCowow;
+	weadonwy backgwoundCowow?: stwing | ThemeCowow;
+	weadonwy toowtip?: stwing;
+	weadonwy command?: stwing | Command;
+	weadonwy accessibiwityInfowmation?: IAccessibiwityInfowmation;
+	weadonwy opacity?: stwing;
+	weadonwy onwyShowWhenActive?: boowean;
 }
 
-export interface INotebookCellStatusBarItemList {
-	items: INotebookCellStatusBarItem[];
+expowt intewface INotebookCewwStatusBawItemWist {
+	items: INotebookCewwStatusBawItem[];
 	dispose?(): void;
 }
 
-export const DisplayOrderKey = 'notebook.displayOrder';
-export const CellToolbarLocation = 'notebook.cellToolbarLocation';
-export const CellToolbarVisibility = 'notebook.cellToolbarVisibility';
-export type ShowCellStatusBarType = 'hidden' | 'visible' | 'visibleAfterExecute';
-export const ShowCellStatusBar = 'notebook.showCellStatusBar';
-export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
-export const ExperimentalInsertToolbarAlignment = 'notebook.experimental.insertToolbarAlignment';
-export const CompactView = 'notebook.compactView';
-export const FocusIndicator = 'notebook.cellFocusIndicator';
-export const InsertToolbarLocation = 'notebook.insertToolbarLocation';
-export const GlobalToolbar = 'notebook.globalToolbar';
-export const UndoRedoPerCell = 'notebook.undoRedoPerCell';
-export const ConsolidatedOutputButton = 'notebook.consolidatedOutputButton';
-export const ShowFoldingControls = 'notebook.showFoldingControls';
-export const DragAndDropEnabled = 'notebook.dragAndDropEnabled';
-export const NotebookCellEditorOptionsCustomizations = 'notebook.editorOptionsCustomizations';
-export const ConsolidatedRunButton = 'notebook.consolidatedRunButton';
-export const OpenGettingStarted = 'notebook.experimental.openGettingStarted';
-export const TextOutputLineLimit = 'notebook.output.textLineLimit';
-export const GlobalToolbarShowLabel = 'notebook.globalToolbarShowLabel';
+expowt const DispwayOwdewKey = 'notebook.dispwayOwda';
+expowt const CewwToowbawWocation = 'notebook.cewwToowbawWocation';
+expowt const CewwToowbawVisibiwity = 'notebook.cewwToowbawVisibiwity';
+expowt type ShowCewwStatusBawType = 'hidden' | 'visibwe' | 'visibweAftewExecute';
+expowt const ShowCewwStatusBaw = 'notebook.showCewwStatusBaw';
+expowt const NotebookTextDiffEditowPweview = 'notebook.diff.enabwePweview';
+expowt const ExpewimentawInsewtToowbawAwignment = 'notebook.expewimentaw.insewtToowbawAwignment';
+expowt const CompactView = 'notebook.compactView';
+expowt const FocusIndicatow = 'notebook.cewwFocusIndicatow';
+expowt const InsewtToowbawWocation = 'notebook.insewtToowbawWocation';
+expowt const GwobawToowbaw = 'notebook.gwobawToowbaw';
+expowt const UndoWedoPewCeww = 'notebook.undoWedoPewCeww';
+expowt const ConsowidatedOutputButton = 'notebook.consowidatedOutputButton';
+expowt const ShowFowdingContwows = 'notebook.showFowdingContwows';
+expowt const DwagAndDwopEnabwed = 'notebook.dwagAndDwopEnabwed';
+expowt const NotebookCewwEditowOptionsCustomizations = 'notebook.editowOptionsCustomizations';
+expowt const ConsowidatedWunButton = 'notebook.consowidatedWunButton';
+expowt const OpenGettingStawted = 'notebook.expewimentaw.openGettingStawted';
+expowt const TextOutputWineWimit = 'notebook.output.textWineWimit';
+expowt const GwobawToowbawShowWabew = 'notebook.gwobawToowbawShowWabew';
 
-export const enum CellStatusbarAlignment {
-	Left = 1,
-	Right = 2
+expowt const enum CewwStatusbawAwignment {
+	Weft = 1,
+	Wight = 2
 }
 
-export interface INotebookDecorationRenderOptions {
-	backgroundColor?: string | ThemeColor;
-	borderColor?: string | ThemeColor;
-	top?: editorCommon.IContentDecorationRenderOptions;
+expowt intewface INotebookDecowationWendewOptions {
+	backgwoundCowow?: stwing | ThemeCowow;
+	bowdewCowow?: stwing | ThemeCowow;
+	top?: editowCommon.IContentDecowationWendewOptions;
 }
 
-export class NotebookWorkingCopyTypeIdentifier {
+expowt cwass NotebookWowkingCopyTypeIdentifia {
 
-	private static _prefix = 'notebook/';
+	pwivate static _pwefix = 'notebook/';
 
-	static create(viewType: string): string {
-		return `${NotebookWorkingCopyTypeIdentifier._prefix}${viewType}`;
+	static cweate(viewType: stwing): stwing {
+		wetuwn `${NotebookWowkingCopyTypeIdentifia._pwefix}${viewType}`;
 	}
 
-	static parse(candidate: string): string | undefined {
-		if (candidate.startsWith(NotebookWorkingCopyTypeIdentifier._prefix)) {
-			return candidate.substr(NotebookWorkingCopyTypeIdentifier._prefix.length);
+	static pawse(candidate: stwing): stwing | undefined {
+		if (candidate.stawtsWith(NotebookWowkingCopyTypeIdentifia._pwefix)) {
+			wetuwn candidate.substw(NotebookWowkingCopyTypeIdentifia._pwefix.wength);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }

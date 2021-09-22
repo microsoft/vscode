@@ -1,46 +1,46 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtUri } from 'vs/base/common/resources';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IExtUwi } fwom 'vs/base/common/wesouwces';
 
 
-export const IUriIdentityService = createDecorator<IUriIdentityService>('IUriIdentityService');
+expowt const IUwiIdentitySewvice = cweateDecowatow<IUwiIdentitySewvice>('IUwiIdentitySewvice');
 
-export interface IUriIdentityService {
+expowt intewface IUwiIdentitySewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Uri extensions that are aware of casing.
+	 * Uwi extensions that awe awawe of casing.
 	 */
-	readonly extUri: IExtUri;
+	weadonwy extUwi: IExtUwi;
 
 	/**
-	 * Returns a canonical uri for the given resource. Different uris can point to the same
-	 * resource. That's because of casing or missing normalization, e.g the following uris
-	 * are different but refer to the same document (because windows paths are not case-sensitive)
+	 * Wetuwns a canonicaw uwi fow the given wesouwce. Diffewent uwis can point to the same
+	 * wesouwce. That's because of casing ow missing nowmawization, e.g the fowwowing uwis
+	 * awe diffewent but wefa to the same document (because windows paths awe not case-sensitive)
 	 *
 	 * ```txt
-	 * file:///c:/foo/bar.txt
-	 * file:///c:/FOO/BAR.txt
+	 * fiwe:///c:/foo/baw.txt
+	 * fiwe:///c:/FOO/BAW.txt
 	 * ```
 	 *
-	 * This function should be invoked when feeding uris into the system that represent the truth,
-	 * e.g document uris or marker-to-document associations etc. This function should NOT be called
-	 * to pretty print a label nor to sanitize a uri.
+	 * This function shouwd be invoked when feeding uwis into the system that wepwesent the twuth,
+	 * e.g document uwis ow mawka-to-document associations etc. This function shouwd NOT be cawwed
+	 * to pwetty pwint a wabew now to sanitize a uwi.
 	 *
-	 * Samples:
+	 * Sampwes:
 	 *
 	 * | in | out | |
 	 * |---|---|---|
-	 * | `file:///foo/bar/../bar` | `file:///foo/bar` | n/a |
-	 * | `file:///foo/bar/../bar#frag` | `file:///foo/bar#frag` | keep fragment |
-	 * | `file:///foo/BAR` | `file:///foo/bar` | assume ignore case |
-	 * | `file:///foo/bar/../BAR?q=2` | `file:///foo/BAR?q=2` | query makes it a different document |
+	 * | `fiwe:///foo/baw/../baw` | `fiwe:///foo/baw` | n/a |
+	 * | `fiwe:///foo/baw/../baw#fwag` | `fiwe:///foo/baw#fwag` | keep fwagment |
+	 * | `fiwe:///foo/BAW` | `fiwe:///foo/baw` | assume ignowe case |
+	 * | `fiwe:///foo/baw/../BAW?q=2` | `fiwe:///foo/BAW?q=2` | quewy makes it a diffewent document |
 	 */
-	asCanonicalUri(uri: URI): URI;
+	asCanonicawUwi(uwi: UWI): UWI;
 }

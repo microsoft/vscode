@@ -1,40 +1,40 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
-import { TSESTree } from '@typescript-eslint/experimental-utils';
+impowt * as eswint fwom 'eswint';
+impowt { TSESTwee } fwom '@typescwipt-eswint/expewimentaw-utiws';
 
-export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
+expowt = new cwass ApiPwovidewNaming impwements eswint.Wuwe.WuweModuwe {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	weadonwy meta: eswint.Wuwe.WuweMetaData = {
 		messages: {
-			naming: 'A provider should only have functions like provideXYZ or resolveXYZ',
+			naming: 'A pwovida shouwd onwy have functions wike pwovideXYZ ow wesowveXYZ',
 		}
 	};
 
-	private static _providerFunctionNames = /^(provide|resolve|prepare).+/;
+	pwivate static _pwovidewFunctionNames = /^(pwovide|wesowve|pwepawe).+/;
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	cweate(context: eswint.Wuwe.WuweContext): eswint.Wuwe.WuweWistena {
 
-		const config = <{ allowed: string[] }>context.options[0];
-		const allowed = new Set(config.allowed);
+		const config = <{ awwowed: stwing[] }>context.options[0];
+		const awwowed = new Set(config.awwowed);
 
-		return {
-			['TSInterfaceDeclaration[id.name=/.+Provider/] TSMethodSignature']: (node: any) => {
+		wetuwn {
+			['TSIntewfaceDecwawation[id.name=/.+Pwovida/] TSMethodSignatuwe']: (node: any) => {
 
 
-				const interfaceName = (<TSESTree.TSInterfaceDeclaration>(<TSESTree.Identifier>node).parent?.parent).id.name;
-				if (allowed.has(interfaceName)) {
-					// allowed
-					return;
+				const intewfaceName = (<TSESTwee.TSIntewfaceDecwawation>(<TSESTwee.Identifia>node).pawent?.pawent).id.name;
+				if (awwowed.has(intewfaceName)) {
+					// awwowed
+					wetuwn;
 				}
 
-				const methodName = (<any>(<TSESTree.TSMethodSignatureNonComputedName>node).key).name;
+				const methodName = (<any>(<TSESTwee.TSMethodSignatuweNonComputedName>node).key).name;
 
-				if (!ApiProviderNaming._providerFunctionNames.test(methodName)) {
-					context.report({
+				if (!ApiPwovidewNaming._pwovidewFunctionNames.test(methodName)) {
+					context.wepowt({
 						node,
 						messageId: 'naming'
 					});

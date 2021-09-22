@@ -1,220 +1,220 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions, GroupsOrder, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Dimension } from 'vs/base/browser/dom';
-import { Event } from 'vs/base/common/event';
-import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { isObject } from 'vs/base/common/types';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
+impowt { GwoupIdentifia, IWowkbenchEditowConfiguwation, IEditowIdentifia, IEditowCwoseEvent, IEditowPawtOptions, IEditowPawtOptionsChangeEvent, SideBySideEditow } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { IEditowGwoup, GwoupDiwection, IAddGwoupOptions, IMewgeGwoupOptions, GwoupsOwda, GwoupsAwwangement } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Dimension } fwom 'vs/base/bwowsa/dom';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IConfiguwationChangeEvent, IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { ISewiawizabweView } fwom 'vs/base/bwowsa/ui/gwid/gwid';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { isObject } fwom 'vs/base/common/types';
+impowt { IEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
 
-export interface IEditorPartCreationOptions {
-	restorePreviousState: boolean;
+expowt intewface IEditowPawtCweationOptions {
+	westowePweviousState: boowean;
 }
 
-export const DEFAULT_EDITOR_MIN_DIMENSIONS = new Dimension(220, 70);
-export const DEFAULT_EDITOR_MAX_DIMENSIONS = new Dimension(Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY);
+expowt const DEFAUWT_EDITOW_MIN_DIMENSIONS = new Dimension(220, 70);
+expowt const DEFAUWT_EDITOW_MAX_DIMENSIONS = new Dimension(Numba.POSITIVE_INFINITY, Numba.POSITIVE_INFINITY);
 
-export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
-	showTabs: true,
-	highlightModifiedTabs: false,
-	tabCloseButton: 'right',
+expowt const DEFAUWT_EDITOW_PAWT_OPTIONS: IEditowPawtOptions = {
+	showTabs: twue,
+	highwightModifiedTabs: fawse,
+	tabCwoseButton: 'wight',
 	tabSizing: 'fit',
-	pinnedTabSizing: 'normal',
-	titleScrollbarSizing: 'default',
-	focusRecentEditorAfterClose: true,
-	showIcons: true,
-	hasIcons: true, // 'vs-seti' is our default icon theme
-	enablePreview: true,
-	openPositioning: 'right',
-	openSideBySideDirection: 'right',
-	closeEmptyGroups: true,
-	labelFormat: 'default',
-	splitSizing: 'distribute',
-	splitOnDragAndDrop: true
+	pinnedTabSizing: 'nowmaw',
+	titweScwowwbawSizing: 'defauwt',
+	focusWecentEditowAftewCwose: twue,
+	showIcons: twue,
+	hasIcons: twue, // 'vs-seti' is ouw defauwt icon theme
+	enabwePweview: twue,
+	openPositioning: 'wight',
+	openSideBySideDiwection: 'wight',
+	cwoseEmptyGwoups: twue,
+	wabewFowmat: 'defauwt',
+	spwitSizing: 'distwibute',
+	spwitOnDwagAndDwop: twue
 };
 
-export function impactsEditorPartOptions(event: IConfigurationChangeEvent): boolean {
-	return event.affectsConfiguration('workbench.editor') || event.affectsConfiguration('workbench.iconTheme');
+expowt function impactsEditowPawtOptions(event: IConfiguwationChangeEvent): boowean {
+	wetuwn event.affectsConfiguwation('wowkbench.editow') || event.affectsConfiguwation('wowkbench.iconTheme');
 }
 
-export function getEditorPartOptions(configurationService: IConfigurationService, themeService: IThemeService): IEditorPartOptions {
+expowt function getEditowPawtOptions(configuwationSewvice: IConfiguwationSewvice, themeSewvice: IThemeSewvice): IEditowPawtOptions {
 	const options = {
-		...DEFAULT_EDITOR_PART_OPTIONS,
-		hasIcons: themeService.getFileIconTheme().hasFileIcons
+		...DEFAUWT_EDITOW_PAWT_OPTIONS,
+		hasIcons: themeSewvice.getFiweIconTheme().hasFiweIcons
 	};
 
-	const config = configurationService.getValue<IWorkbenchEditorConfiguration>();
-	if (config?.workbench?.editor) {
+	const config = configuwationSewvice.getVawue<IWowkbenchEditowConfiguwation>();
+	if (config?.wowkbench?.editow) {
 
-		// Assign all primitive configuration over
-		Object.assign(options, config.workbench.editor);
+		// Assign aww pwimitive configuwation ova
+		Object.assign(options, config.wowkbench.editow);
 
-		// Special handle array types and convert to Set
-		if (isObject(config.workbench.editor.autoLockGroups)) {
-			options.autoLockGroups = new Set();
+		// Speciaw handwe awway types and convewt to Set
+		if (isObject(config.wowkbench.editow.autoWockGwoups)) {
+			options.autoWockGwoups = new Set();
 
-			for (const [editorId, enablement] of Object.entries(config.workbench.editor.autoLockGroups)) {
-				if (enablement === true) {
-					options.autoLockGroups.add(editorId);
+			fow (const [editowId, enabwement] of Object.entwies(config.wowkbench.editow.autoWockGwoups)) {
+				if (enabwement === twue) {
+					options.autoWockGwoups.add(editowId);
 				}
 			}
-		} else {
-			options.autoLockGroups = undefined;
+		} ewse {
+			options.autoWockGwoups = undefined;
 		}
 	}
 
-	return options;
+	wetuwn options;
 }
 
-export interface IEditorGroupsAccessor {
+expowt intewface IEditowGwoupsAccessow {
 
-	readonly groups: IEditorGroupView[];
-	readonly activeGroup: IEditorGroupView;
+	weadonwy gwoups: IEditowGwoupView[];
+	weadonwy activeGwoup: IEditowGwoupView;
 
-	readonly partOptions: IEditorPartOptions;
-	readonly onDidChangeEditorPartOptions: Event<IEditorPartOptionsChangeEvent>;
+	weadonwy pawtOptions: IEditowPawtOptions;
+	weadonwy onDidChangeEditowPawtOptions: Event<IEditowPawtOptionsChangeEvent>;
 
-	readonly onDidVisibilityChange: Event<boolean>;
+	weadonwy onDidVisibiwityChange: Event<boowean>;
 
-	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined;
-	getGroups(order: GroupsOrder): IEditorGroupView[];
+	getGwoup(identifia: GwoupIdentifia): IEditowGwoupView | undefined;
+	getGwoups(owda: GwoupsOwda): IEditowGwoupView[];
 
-	activateGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
-	restoreGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
+	activateGwoup(identifia: IEditowGwoupView | GwoupIdentifia): IEditowGwoupView;
+	westoweGwoup(identifia: IEditowGwoupView | GwoupIdentifia): IEditowGwoupView;
 
-	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): IEditorGroupView;
-	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroupView;
+	addGwoup(wocation: IEditowGwoupView | GwoupIdentifia, diwection: GwoupDiwection, options?: IAddGwoupOptions): IEditowGwoupView;
+	mewgeGwoup(gwoup: IEditowGwoupView | GwoupIdentifia, tawget: IEditowGwoupView | GwoupIdentifia, options?: IMewgeGwoupOptions): IEditowGwoupView;
 
-	moveGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;
-	copyGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;
+	moveGwoup(gwoup: IEditowGwoupView | GwoupIdentifia, wocation: IEditowGwoupView | GwoupIdentifia, diwection: GwoupDiwection): IEditowGwoupView;
+	copyGwoup(gwoup: IEditowGwoupView | GwoupIdentifia, wocation: IEditowGwoupView | GwoupIdentifia, diwection: GwoupDiwection): IEditowGwoupView;
 
-	removeGroup(group: IEditorGroupView | GroupIdentifier): void;
+	wemoveGwoup(gwoup: IEditowGwoupView | GwoupIdentifia): void;
 
-	arrangeGroups(arrangement: GroupsArrangement, target?: IEditorGroupView | GroupIdentifier): void;
+	awwangeGwoups(awwangement: GwoupsAwwangement, tawget?: IEditowGwoupView | GwoupIdentifia): void;
 }
 
-export interface IEditorGroupTitleHeight {
+expowt intewface IEditowGwoupTitweHeight {
 
 	/**
-	 * The overall height of the editor group title control.
+	 * The ovewaww height of the editow gwoup titwe contwow.
 	 */
-	total: number;
+	totaw: numba;
 
 	/**
-	 * The height offset to e.g. use when drawing drop overlays.
-	 * This number may be smaller than `height` if the title control
-	 * decides to have an `offset` that is within the title area
-	 * (e.g. when breadcrumbs are enabled).
+	 * The height offset to e.g. use when dwawing dwop ovewways.
+	 * This numba may be smawwa than `height` if the titwe contwow
+	 * decides to have an `offset` that is within the titwe awea
+	 * (e.g. when bweadcwumbs awe enabwed).
 	 */
-	offset: number;
+	offset: numba;
 }
 
-export interface IEditorGroupView extends IDisposable, ISerializableView, IEditorGroup {
+expowt intewface IEditowGwoupView extends IDisposabwe, ISewiawizabweView, IEditowGwoup {
 
-	readonly onDidFocus: Event<void>;
+	weadonwy onDidFocus: Event<void>;
 
-	readonly onDidOpenEditorFail: Event<EditorInput>;
-	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
+	weadonwy onDidOpenEditowFaiw: Event<EditowInput>;
+	weadonwy onDidCwoseEditow: Event<IEditowCwoseEvent>;
 
 	/**
-	 * A promise that resolves when the group has been restored.
+	 * A pwomise that wesowves when the gwoup has been westowed.
 	 *
-	 * For a group with active editor, the promise will resolve
-	 * when the active editor has finished to resolve.
+	 * Fow a gwoup with active editow, the pwomise wiww wesowve
+	 * when the active editow has finished to wesowve.
 	 */
-	readonly whenRestored: Promise<void>;
+	weadonwy whenWestowed: Pwomise<void>;
 
-	readonly titleHeight: IEditorGroupTitleHeight;
+	weadonwy titweHeight: IEditowGwoupTitweHeight;
 
-	readonly isMinimized: boolean;
+	weadonwy isMinimized: boowean;
 
-	readonly disposed: boolean;
+	weadonwy disposed: boowean;
 
-	setActive(isActive: boolean): void;
+	setActive(isActive: boowean): void;
 
-	notifyIndexChanged(newIndex: number): void;
+	notifyIndexChanged(newIndex: numba): void;
 
-	relayout(): void;
+	wewayout(): void;
 }
 
-export function fillActiveEditorViewState(group: IEditorGroup, expectedActiveEditor?: EditorInput, presetOptions?: IEditorOptions): IEditorOptions {
-	if (!expectedActiveEditor || !group.activeEditor || expectedActiveEditor.matches(group.activeEditor)) {
-		const options: IEditorOptions = {
-			...presetOptions,
-			viewState: group.activeEditorPane?.getViewState()
+expowt function fiwwActiveEditowViewState(gwoup: IEditowGwoup, expectedActiveEditow?: EditowInput, pwesetOptions?: IEditowOptions): IEditowOptions {
+	if (!expectedActiveEditow || !gwoup.activeEditow || expectedActiveEditow.matches(gwoup.activeEditow)) {
+		const options: IEditowOptions = {
+			...pwesetOptions,
+			viewState: gwoup.activeEditowPane?.getViewState()
 		};
 
-		return options;
+		wetuwn options;
 	}
 
-	return presetOptions || Object.create(null);
+	wetuwn pwesetOptions || Object.cweate(nuww);
 }
 
 /**
- * A sub-interface of IEditorService to hide some workbench-core specific
- * events from clients.
+ * A sub-intewface of IEditowSewvice to hide some wowkbench-cowe specific
+ * events fwom cwients.
  */
-export interface EditorServiceImpl extends IEditorService {
+expowt intewface EditowSewviceImpw extends IEditowSewvice {
 
 	/**
-	 * Emitted when an editor failed to open.
+	 * Emitted when an editow faiwed to open.
 	 */
-	readonly onDidOpenEditorFail: Event<IEditorIdentifier>;
+	weadonwy onDidOpenEditowFaiw: Event<IEditowIdentifia>;
 
 	/**
-	 * Emitted when the list of most recently active editors change.
+	 * Emitted when the wist of most wecentwy active editows change.
 	 */
-	readonly onDidMostRecentlyActiveEditorsChange: Event<void>;
+	weadonwy onDidMostWecentwyActiveEditowsChange: Event<void>;
 }
 
-export interface IInternalEditorTitleControlOptions {
+expowt intewface IIntewnawEditowTitweContwowOptions {
 
 	/**
-	 * A hint to defer updating the title control for perf reasons.
-	 * The caller must ensure to update the title control then.
+	 * A hint to defa updating the titwe contwow fow pewf weasons.
+	 * The cawwa must ensuwe to update the titwe contwow then.
 	 */
-	skipTitleUpdate?: boolean;
+	skipTitweUpdate?: boowean;
 }
 
-export interface IInternalEditorOpenOptions extends IInternalEditorTitleControlOptions {
+expowt intewface IIntewnawEditowOpenOptions extends IIntewnawEditowTitweContwowOptions {
 
 	/**
-	 * Whether to consider a side by side editor as matching
-	 * when figuring out if the editor to open is already
-	 * opened or not. By default, side by side editors will
-	 * not be considered as matching, even if the editor is
+	 * Whetha to consida a side by side editow as matching
+	 * when figuwing out if the editow to open is awweady
+	 * opened ow not. By defauwt, side by side editows wiww
+	 * not be considewed as matching, even if the editow is
 	 * opened in one of the sides.
 	 */
-	supportSideBySide?: SideBySideEditor.ANY | SideBySideEditor.BOTH;
+	suppowtSideBySide?: SideBySideEditow.ANY | SideBySideEditow.BOTH;
 }
 
-export interface IInternalEditorCloseOptions extends IInternalEditorTitleControlOptions {
+expowt intewface IIntewnawEditowCwoseOptions extends IIntewnawEditowTitweContwowOptions {
 
 	/**
-	 * A hint that the editor is closed due to an error opening. This can be
-	 * used to optimize how error toasts are appearing if any.
+	 * A hint that the editow is cwosed due to an ewwow opening. This can be
+	 * used to optimize how ewwow toasts awe appeawing if any.
 	 */
-	fromError?: boolean;
+	fwomEwwow?: boowean;
 
 	/**
-	 * A hint that the editor is closed because it moves to another group.
+	 * A hint that the editow is cwosed because it moves to anotha gwoup.
 	 */
-	fromMove?: boolean;
+	fwomMove?: boowean;
 }
 
-export interface IInternalMoveCopyOptions extends IInternalEditorTitleControlOptions {
+expowt intewface IIntewnawMoveCopyOptions extends IIntewnawEditowTitweContwowOptions {
 
 	/**
-	 * Whether to close the editor at the source or keep it.
+	 * Whetha to cwose the editow at the souwce ow keep it.
 	 */
-	keepCopy?: boolean;
+	keepCopy?: boowean;
 }

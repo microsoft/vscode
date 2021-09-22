@@ -1,574 +1,574 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ISettingsSyncContent, parseSettingsSyncContent, SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
-import { ISyncData, IUserDataSyncService, IUserDataSyncStoreService, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
-import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
+impowt * as assewt fwom 'assewt';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { DisposabweStowe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ConfiguwationScope, Extensions, IConfiguwationWegistwy } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { ISettingsSyncContent, pawseSettingsSyncContent, SettingsSynchwonisa } fwom 'vs/pwatfowm/usewDataSync/common/settingsSync';
+impowt { ISyncData, IUsewDataSyncSewvice, IUsewDataSyncStoweSewvice, SyncWesouwce, SyncStatus, UsewDataSyncEwwow, UsewDataSyncEwwowCode } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { UsewDataSyncSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncSewvice';
+impowt { UsewDataSyncCwient, UsewDataSyncTestSewva } fwom 'vs/pwatfowm/usewDataSync/test/common/usewDataSyncCwient';
 
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation).wegistewConfiguwation({
 	'id': 'settingsSync',
 	'type': 'object',
-	'properties': {
+	'pwopewties': {
 		'settingsSync.machine': {
-			'type': 'string',
-			'scope': ConfigurationScope.MACHINE
+			'type': 'stwing',
+			'scope': ConfiguwationScope.MACHINE
 		},
-		'settingsSync.machineOverridable': {
-			'type': 'string',
-			'scope': ConfigurationScope.MACHINE_OVERRIDABLE
+		'settingsSync.machineOvewwidabwe': {
+			'type': 'stwing',
+			'scope': ConfiguwationScope.MACHINE_OVEWWIDABWE
 		}
 	}
 });
 
 suite('SettingsSync - Auto', () => {
 
-	const disposableStore = new DisposableStore();
-	const server = new UserDataSyncTestServer();
-	let client: UserDataSyncClient;
-	let testObject: SettingsSynchroniser;
+	const disposabweStowe = new DisposabweStowe();
+	const sewva = new UsewDataSyncTestSewva();
+	wet cwient: UsewDataSyncCwient;
+	wet testObject: SettingsSynchwonisa;
 
 	setup(async () => {
-		client = disposableStore.add(new UserDataSyncClient(server));
-		await client.setUp(true);
-		testObject = (client.instantiationService.get(IUserDataSyncService) as UserDataSyncService).getSynchroniser(SyncResource.Settings) as SettingsSynchroniser;
-		disposableStore.add(toDisposable(() => client.instantiationService.get(IUserDataSyncStoreService).clear()));
+		cwient = disposabweStowe.add(new UsewDataSyncCwient(sewva));
+		await cwient.setUp(twue);
+		testObject = (cwient.instantiationSewvice.get(IUsewDataSyncSewvice) as UsewDataSyncSewvice).getSynchwonisa(SyncWesouwce.Settings) as SettingsSynchwonisa;
+		disposabweStowe.add(toDisposabwe(() => cwient.instantiationSewvice.get(IUsewDataSyncStoweSewvice).cweaw()));
 	});
 
-	teardown(() => disposableStore.clear());
+	teawdown(() => disposabweStowe.cweaw());
 
-	test('when settings file does not exist', async () => {
-		const fileService = client.instantiationService.get(IFileService);
-		const settingResource = client.instantiationService.get(IEnvironmentService).settingsResource;
+	test('when settings fiwe does not exist', async () => {
+		const fiweSewvice = cwient.instantiationSewvice.get(IFiweSewvice);
+		const settingWesouwce = cwient.instantiationSewvice.get(IEnviwonmentSewvice).settingsWesouwce;
 
-		assert.deepStrictEqual(await testObject.getLastSyncUserData(), null);
-		let manifest = await client.manifest();
-		server.reset();
+		assewt.deepStwictEquaw(await testObject.getWastSyncUsewData(), nuww);
+		wet manifest = await cwient.manifest();
+		sewva.weset();
 		await testObject.sync(manifest);
 
-		assert.deepStrictEqual(server.requests, [
-			{ type: 'GET', url: `${server.url}/v1/resource/${testObject.resource}/latest`, headers: {} },
+		assewt.deepStwictEquaw(sewva.wequests, [
+			{ type: 'GET', uww: `${sewva.uww}/v1/wesouwce/${testObject.wesouwce}/watest`, headews: {} },
 		]);
-		assert.ok(!await fileService.exists(settingResource));
+		assewt.ok(!await fiweSewvice.exists(settingWesouwce));
 
-		const lastSyncUserData = await testObject.getLastSyncUserData();
-		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.deepStrictEqual(lastSyncUserData!.ref, remoteUserData.ref);
-		assert.deepStrictEqual(lastSyncUserData!.syncData, remoteUserData.syncData);
-		assert.strictEqual(lastSyncUserData!.syncData, null);
+		const wastSyncUsewData = await testObject.getWastSyncUsewData();
+		const wemoteUsewData = await testObject.getWemoteUsewData(nuww);
+		assewt.deepStwictEquaw(wastSyncUsewData!.wef, wemoteUsewData.wef);
+		assewt.deepStwictEquaw(wastSyncUsewData!.syncData, wemoteUsewData.syncData);
+		assewt.stwictEquaw(wastSyncUsewData!.syncData, nuww);
 
-		manifest = await client.manifest();
-		server.reset();
+		manifest = await cwient.manifest();
+		sewva.weset();
 		await testObject.sync(manifest);
-		assert.deepStrictEqual(server.requests, []);
+		assewt.deepStwictEquaw(sewva.wequests, []);
 
-		manifest = await client.manifest();
-		server.reset();
+		manifest = await cwient.manifest();
+		sewva.weset();
 		await testObject.sync(manifest);
-		assert.deepStrictEqual(server.requests, []);
+		assewt.deepStwictEquaw(sewva.wequests, []);
 	});
 
-	test('when settings file is empty and remote has no changes', async () => {
-		const fileService = client.instantiationService.get(IFileService);
-		const settingsResource = client.instantiationService.get(IEnvironmentService).settingsResource;
-		await fileService.writeFile(settingsResource, VSBuffer.fromString(''));
+	test('when settings fiwe is empty and wemote has no changes', async () => {
+		const fiweSewvice = cwient.instantiationSewvice.get(IFiweSewvice);
+		const settingsWesouwce = cwient.instantiationSewvice.get(IEnviwonmentSewvice).settingsWesouwce;
+		await fiweSewvice.wwiteFiwe(settingsWesouwce, VSBuffa.fwomStwing(''));
 
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await cwient.manifest());
 
-		const lastSyncUserData = await testObject.getLastSyncUserData();
-		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.strictEqual(parseSettingsSyncContent(lastSyncUserData!.syncData!.content!)?.settings, '{}');
-		assert.strictEqual(parseSettingsSyncContent(remoteUserData!.syncData!.content!)?.settings, '{}');
-		assert.strictEqual((await fileService.readFile(settingsResource)).value.toString(), '');
+		const wastSyncUsewData = await testObject.getWastSyncUsewData();
+		const wemoteUsewData = await testObject.getWemoteUsewData(nuww);
+		assewt.stwictEquaw(pawseSettingsSyncContent(wastSyncUsewData!.syncData!.content!)?.settings, '{}');
+		assewt.stwictEquaw(pawseSettingsSyncContent(wemoteUsewData!.syncData!.content!)?.settings, '{}');
+		assewt.stwictEquaw((await fiweSewvice.weadFiwe(settingsWesouwce)).vawue.toStwing(), '');
 	});
 
-	test('when settings file is empty and remote has changes', async () => {
-		const client2 = disposableStore.add(new UserDataSyncClient(server));
-		await client2.setUp(true);
+	test('when settings fiwe is empty and wemote has changes', async () => {
+		const cwient2 = disposabweStowe.add(new UsewDataSyncCwient(sewva));
+		await cwient2.setUp(twue);
 		const content =
 			`{
-	// Always
-	"files.autoSave": "afterDelay",
-	"files.simpleDialog.enable": true,
+	// Awways
+	"fiwes.autoSave": "aftewDeway",
+	"fiwes.simpweDiawog.enabwe": twue,
 
-	// Workbench
-	"workbench.colorTheme": "GitHub Sharp",
-	"workbench.tree.indent": 20,
-	"workbench.colorCustomizations": {
-		"editorLineNumber.activeForeground": "#ff0000",
-		"[GitHub Sharp]": {
-			"statusBarItem.remoteBackground": "#24292E",
-			"editorPane.background": "#f3f1f11a"
+	// Wowkbench
+	"wowkbench.cowowTheme": "GitHub Shawp",
+	"wowkbench.twee.indent": 20,
+	"wowkbench.cowowCustomizations": {
+		"editowWineNumba.activeFowegwound": "#ff0000",
+		"[GitHub Shawp]": {
+			"statusBawItem.wemoteBackgwound": "#24292E",
+			"editowPane.backgwound": "#f3f1f11a"
 		}
 	},
 
-	"gitBranch.base": "remote-repo/master",
+	"gitBwanch.base": "wemote-wepo/masta",
 
-	// Experimental
-	"workbench.view.experimental.allowMovingToNewContainer": true,
+	// Expewimentaw
+	"wowkbench.view.expewimentaw.awwowMovingToNewContaina": twue,
 }`;
-		await client2.instantiationService.get(IFileService).writeFile(client2.instantiationService.get(IEnvironmentService).settingsResource, VSBuffer.fromString(content));
-		await client2.sync();
+		await cwient2.instantiationSewvice.get(IFiweSewvice).wwiteFiwe(cwient2.instantiationSewvice.get(IEnviwonmentSewvice).settingsWesouwce, VSBuffa.fwomStwing(content));
+		await cwient2.sync();
 
-		const fileService = client.instantiationService.get(IFileService);
-		const settingsResource = client.instantiationService.get(IEnvironmentService).settingsResource;
-		await fileService.writeFile(settingsResource, VSBuffer.fromString(''));
+		const fiweSewvice = cwient.instantiationSewvice.get(IFiweSewvice);
+		const settingsWesouwce = cwient.instantiationSewvice.get(IEnviwonmentSewvice).settingsWesouwce;
+		await fiweSewvice.wwiteFiwe(settingsWesouwce, VSBuffa.fwomStwing(''));
 
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await cwient.manifest());
 
-		const lastSyncUserData = await testObject.getLastSyncUserData();
-		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.strictEqual(parseSettingsSyncContent(lastSyncUserData!.syncData!.content!)?.settings, content);
-		assert.strictEqual(parseSettingsSyncContent(remoteUserData!.syncData!.content!)?.settings, content);
-		assert.strictEqual((await fileService.readFile(settingsResource)).value.toString(), content);
+		const wastSyncUsewData = await testObject.getWastSyncUsewData();
+		const wemoteUsewData = await testObject.getWemoteUsewData(nuww);
+		assewt.stwictEquaw(pawseSettingsSyncContent(wastSyncUsewData!.syncData!.content!)?.settings, content);
+		assewt.stwictEquaw(pawseSettingsSyncContent(wemoteUsewData!.syncData!.content!)?.settings, content);
+		assewt.stwictEquaw((await fiweSewvice.weadFiwe(settingsWesouwce)).vawue.toStwing(), content);
 	});
 
-	test('when settings file is created after first sync', async () => {
-		const fileService = client.instantiationService.get(IFileService);
+	test('when settings fiwe is cweated afta fiwst sync', async () => {
+		const fiweSewvice = cwient.instantiationSewvice.get(IFiweSewvice);
 
-		const settingsResource = client.instantiationService.get(IEnvironmentService).settingsResource;
-		await testObject.sync(await client.manifest());
-		await fileService.createFile(settingsResource, VSBuffer.fromString('{}'));
+		const settingsWesouwce = cwient.instantiationSewvice.get(IEnviwonmentSewvice).settingsWesouwce;
+		await testObject.sync(await cwient.manifest());
+		await fiweSewvice.cweateFiwe(settingsWesouwce, VSBuffa.fwomStwing('{}'));
 
-		let lastSyncUserData = await testObject.getLastSyncUserData();
-		const manifest = await client.manifest();
-		server.reset();
+		wet wastSyncUsewData = await testObject.getWastSyncUsewData();
+		const manifest = await cwient.manifest();
+		sewva.weset();
 		await testObject.sync(manifest);
 
-		assert.deepStrictEqual(server.requests, [
-			{ type: 'POST', url: `${server.url}/v1/resource/${testObject.resource}`, headers: { 'If-Match': lastSyncUserData?.ref } },
+		assewt.deepStwictEquaw(sewva.wequests, [
+			{ type: 'POST', uww: `${sewva.uww}/v1/wesouwce/${testObject.wesouwce}`, headews: { 'If-Match': wastSyncUsewData?.wef } },
 		]);
 
-		lastSyncUserData = await testObject.getLastSyncUserData();
-		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.deepStrictEqual(lastSyncUserData!.ref, remoteUserData.ref);
-		assert.deepStrictEqual(lastSyncUserData!.syncData, remoteUserData.syncData);
-		assert.strictEqual(parseSettingsSyncContent(lastSyncUserData!.syncData!.content!)?.settings, '{}');
+		wastSyncUsewData = await testObject.getWastSyncUsewData();
+		const wemoteUsewData = await testObject.getWemoteUsewData(nuww);
+		assewt.deepStwictEquaw(wastSyncUsewData!.wef, wemoteUsewData.wef);
+		assewt.deepStwictEquaw(wastSyncUsewData!.syncData, wemoteUsewData.syncData);
+		assewt.stwictEquaw(pawseSettingsSyncContent(wastSyncUsewData!.syncData!.content!)?.settings, '{}');
 	});
 
-	test('sync for first time to the server', async () => {
+	test('sync fow fiwst time to the sewva', async () => {
 		const expected =
 			`{
-	// Always
-	"files.autoSave": "afterDelay",
-	"files.simpleDialog.enable": true,
+	// Awways
+	"fiwes.autoSave": "aftewDeway",
+	"fiwes.simpweDiawog.enabwe": twue,
 
-	// Workbench
-	"workbench.colorTheme": "GitHub Sharp",
-	"workbench.tree.indent": 20,
-	"workbench.colorCustomizations": {
-		"editorLineNumber.activeForeground": "#ff0000",
-		"[GitHub Sharp]": {
-			"statusBarItem.remoteBackground": "#24292E",
-			"editorPane.background": "#f3f1f11a"
+	// Wowkbench
+	"wowkbench.cowowTheme": "GitHub Shawp",
+	"wowkbench.twee.indent": 20,
+	"wowkbench.cowowCustomizations": {
+		"editowWineNumba.activeFowegwound": "#ff0000",
+		"[GitHub Shawp]": {
+			"statusBawItem.wemoteBackgwound": "#24292E",
+			"editowPane.backgwound": "#f3f1f11a"
 		}
 	},
 
-	"gitBranch.base": "remote-repo/master",
+	"gitBwanch.base": "wemote-wepo/masta",
 
-	// Experimental
-	"workbench.view.experimental.allowMovingToNewContainer": true,
+	// Expewimentaw
+	"wowkbench.view.expewimentaw.awwowMovingToNewContaina": twue,
 }`;
 
-		await updateSettings(expected, client);
-		await testObject.sync(await client.manifest());
+		await updateSettings(expected, cwient);
+		await testObject.sync(await cwient.manifest());
 
-		const { content } = await client.read(testObject.resource);
-		assert.ok(content !== null);
-		const actual = parseSettings(content!);
-		assert.deepStrictEqual(actual, expected);
+		const { content } = await cwient.wead(testObject.wesouwce);
+		assewt.ok(content !== nuww);
+		const actuaw = pawseSettings(content!);
+		assewt.deepStwictEquaw(actuaw, expected);
 	});
 
 	test('do not sync machine settings', async () => {
 		const settingsContent =
 			`{
-	// Always
-	"files.autoSave": "afterDelay",
-	"files.simpleDialog.enable": true,
+	// Awways
+	"fiwes.autoSave": "aftewDeway",
+	"fiwes.simpweDiawog.enabwe": twue,
 
-	// Workbench
-	"workbench.colorTheme": "GitHub Sharp",
+	// Wowkbench
+	"wowkbench.cowowTheme": "GitHub Shawp",
 
 	// Machine
-	"settingsSync.machine": "someValue",
-	"settingsSync.machineOverridable": "someValue"
+	"settingsSync.machine": "someVawue",
+	"settingsSync.machineOvewwidabwe": "someVawue"
 }`;
-		await updateSettings(settingsContent, client);
+		await updateSettings(settingsContent, cwient);
 
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await cwient.manifest());
 
-		const { content } = await client.read(testObject.resource);
-		assert.ok(content !== null);
-		const actual = parseSettings(content!);
-		assert.deepStrictEqual(actual, `{
-	// Always
-	"files.autoSave": "afterDelay",
-	"files.simpleDialog.enable": true,
+		const { content } = await cwient.wead(testObject.wesouwce);
+		assewt.ok(content !== nuww);
+		const actuaw = pawseSettings(content!);
+		assewt.deepStwictEquaw(actuaw, `{
+	// Awways
+	"fiwes.autoSave": "aftewDeway",
+	"fiwes.simpweDiawog.enabwe": twue,
 
-	// Workbench
-	"workbench.colorTheme": "GitHub Sharp"
+	// Wowkbench
+	"wowkbench.cowowTheme": "GitHub Shawp"
 }`);
 	});
 
-	test('do not sync machine settings when spread across file', async () => {
+	test('do not sync machine settings when spwead acwoss fiwe', async () => {
 		const settingsContent =
 			`{
-	// Always
-	"files.autoSave": "afterDelay",
-	"settingsSync.machine": "someValue",
-	"files.simpleDialog.enable": true,
+	// Awways
+	"fiwes.autoSave": "aftewDeway",
+	"settingsSync.machine": "someVawue",
+	"fiwes.simpweDiawog.enabwe": twue,
 
-	// Workbench
-	"workbench.colorTheme": "GitHub Sharp",
+	// Wowkbench
+	"wowkbench.cowowTheme": "GitHub Shawp",
 
 	// Machine
-	"settingsSync.machineOverridable": "someValue"
+	"settingsSync.machineOvewwidabwe": "someVawue"
 }`;
-		await updateSettings(settingsContent, client);
+		await updateSettings(settingsContent, cwient);
 
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await cwient.manifest());
 
-		const { content } = await client.read(testObject.resource);
-		assert.ok(content !== null);
-		const actual = parseSettings(content!);
-		assert.deepStrictEqual(actual, `{
-	// Always
-	"files.autoSave": "afterDelay",
-	"files.simpleDialog.enable": true,
+		const { content } = await cwient.wead(testObject.wesouwce);
+		assewt.ok(content !== nuww);
+		const actuaw = pawseSettings(content!);
+		assewt.deepStwictEquaw(actuaw, `{
+	// Awways
+	"fiwes.autoSave": "aftewDeway",
+	"fiwes.simpweDiawog.enabwe": twue,
 
-	// Workbench
-	"workbench.colorTheme": "GitHub Sharp"
+	// Wowkbench
+	"wowkbench.cowowTheme": "GitHub Shawp"
 }`);
 	});
 
-	test('do not sync machine settings when spread across file - 2', async () => {
+	test('do not sync machine settings when spwead acwoss fiwe - 2', async () => {
 		const settingsContent =
 			`{
-	// Always
-	"files.autoSave": "afterDelay",
-	"settingsSync.machine": "someValue",
+	// Awways
+	"fiwes.autoSave": "aftewDeway",
+	"settingsSync.machine": "someVawue",
 
-	// Workbench
-	"workbench.colorTheme": "GitHub Sharp",
+	// Wowkbench
+	"wowkbench.cowowTheme": "GitHub Shawp",
 
 	// Machine
-	"settingsSync.machineOverridable": "someValue",
-	"files.simpleDialog.enable": true,
+	"settingsSync.machineOvewwidabwe": "someVawue",
+	"fiwes.simpweDiawog.enabwe": twue,
 }`;
-		await updateSettings(settingsContent, client);
+		await updateSettings(settingsContent, cwient);
 
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await cwient.manifest());
 
-		const { content } = await client.read(testObject.resource);
-		assert.ok(content !== null);
-		const actual = parseSettings(content!);
-		assert.deepStrictEqual(actual, `{
-	// Always
-	"files.autoSave": "afterDelay",
+		const { content } = await cwient.wead(testObject.wesouwce);
+		assewt.ok(content !== nuww);
+		const actuaw = pawseSettings(content!);
+		assewt.deepStwictEquaw(actuaw, `{
+	// Awways
+	"fiwes.autoSave": "aftewDeway",
 
-	// Workbench
-	"workbench.colorTheme": "GitHub Sharp",
-	"files.simpleDialog.enable": true,
+	// Wowkbench
+	"wowkbench.cowowTheme": "GitHub Shawp",
+	"fiwes.simpweDiawog.enabwe": twue,
 }`);
 	});
 
-	test('sync when all settings are machine settings', async () => {
+	test('sync when aww settings awe machine settings', async () => {
 		const settingsContent =
 			`{
 	// Machine
-	"settingsSync.machine": "someValue",
-	"settingsSync.machineOverridable": "someValue"
+	"settingsSync.machine": "someVawue",
+	"settingsSync.machineOvewwidabwe": "someVawue"
 }`;
-		await updateSettings(settingsContent, client);
+		await updateSettings(settingsContent, cwient);
 
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await cwient.manifest());
 
-		const { content } = await client.read(testObject.resource);
-		assert.ok(content !== null);
-		const actual = parseSettings(content!);
-		assert.deepStrictEqual(actual, `{
+		const { content } = await cwient.wead(testObject.wesouwce);
+		assewt.ok(content !== nuww);
+		const actuaw = pawseSettings(content!);
+		assewt.deepStwictEquaw(actuaw, `{
 }`);
 	});
 
-	test('sync when all settings are machine settings with trailing comma', async () => {
+	test('sync when aww settings awe machine settings with twaiwing comma', async () => {
 		const settingsContent =
 			`{
 	// Machine
-	"settingsSync.machine": "someValue",
-	"settingsSync.machineOverridable": "someValue",
+	"settingsSync.machine": "someVawue",
+	"settingsSync.machineOvewwidabwe": "someVawue",
 }`;
-		await updateSettings(settingsContent, client);
+		await updateSettings(settingsContent, cwient);
 
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await cwient.manifest());
 
-		const { content } = await client.read(testObject.resource);
-		assert.ok(content !== null);
-		const actual = parseSettings(content!);
-		assert.deepStrictEqual(actual, `{
+		const { content } = await cwient.wead(testObject.wesouwce);
+		assewt.ok(content !== nuww);
+		const actuaw = pawseSettings(content!);
+		assewt.deepStwictEquaw(actuaw, `{
 	,
 }`);
 	});
 
-	test('local change event is triggered when settings are changed', async () => {
+	test('wocaw change event is twiggewed when settings awe changed', async () => {
 		const content =
 			`{
-	"files.autoSave": "afterDelay",
-	"files.simpleDialog.enable": true,
+	"fiwes.autoSave": "aftewDeway",
+	"fiwes.simpweDiawog.enabwe": twue,
 }`;
 
-		await updateSettings(content, client);
-		await testObject.sync(await client.manifest());
+		await updateSettings(content, cwient);
+		await testObject.sync(await cwient.manifest());
 
-		const promise = Event.toPromise(testObject.onDidChangeLocal);
+		const pwomise = Event.toPwomise(testObject.onDidChangeWocaw);
 		await updateSettings(`{
-	"files.autoSave": "off",
-	"files.simpleDialog.enable": true,
-}`, client);
-		await promise;
+	"fiwes.autoSave": "off",
+	"fiwes.simpweDiawog.enabwe": twue,
+}`, cwient);
+		await pwomise;
 	});
 
-	test('do not sync ignored settings', async () => {
+	test('do not sync ignowed settings', async () => {
 		const settingsContent =
 			`{
-	// Always
-	"files.autoSave": "afterDelay",
-	"files.simpleDialog.enable": true,
+	// Awways
+	"fiwes.autoSave": "aftewDeway",
+	"fiwes.simpweDiawog.enabwe": twue,
 
-	// Editor
-	"editor.fontFamily": "Fira Code",
+	// Editow
+	"editow.fontFamiwy": "Fiwa Code",
 
-	// Terminal
-	"terminal.integrated.shell.osx": "some path",
+	// Tewminaw
+	"tewminaw.integwated.sheww.osx": "some path",
 
-	// Workbench
-	"workbench.colorTheme": "GitHub Sharp",
+	// Wowkbench
+	"wowkbench.cowowTheme": "GitHub Shawp",
 
-	// Ignored
-	"settingsSync.ignoredSettings": [
-		"editor.fontFamily",
-		"terminal.integrated.shell.osx"
+	// Ignowed
+	"settingsSync.ignowedSettings": [
+		"editow.fontFamiwy",
+		"tewminaw.integwated.sheww.osx"
 	]
 }`;
-		await updateSettings(settingsContent, client);
+		await updateSettings(settingsContent, cwient);
 
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await cwient.manifest());
 
-		const { content } = await client.read(testObject.resource);
-		assert.ok(content !== null);
-		const actual = parseSettings(content!);
-		assert.deepStrictEqual(actual, `{
-	// Always
-	"files.autoSave": "afterDelay",
-	"files.simpleDialog.enable": true,
+		const { content } = await cwient.wead(testObject.wesouwce);
+		assewt.ok(content !== nuww);
+		const actuaw = pawseSettings(content!);
+		assewt.deepStwictEquaw(actuaw, `{
+	// Awways
+	"fiwes.autoSave": "aftewDeway",
+	"fiwes.simpweDiawog.enabwe": twue,
 
-	// Workbench
-	"workbench.colorTheme": "GitHub Sharp",
+	// Wowkbench
+	"wowkbench.cowowTheme": "GitHub Shawp",
 
-	// Ignored
-	"settingsSync.ignoredSettings": [
-		"editor.fontFamily",
-		"terminal.integrated.shell.osx"
+	// Ignowed
+	"settingsSync.ignowedSettings": [
+		"editow.fontFamiwy",
+		"tewminaw.integwated.sheww.osx"
 	]
 }`);
 	});
 
-	test('do not sync ignored and machine settings', async () => {
+	test('do not sync ignowed and machine settings', async () => {
 		const settingsContent =
 			`{
-	// Always
-	"files.autoSave": "afterDelay",
-	"files.simpleDialog.enable": true,
+	// Awways
+	"fiwes.autoSave": "aftewDeway",
+	"fiwes.simpweDiawog.enabwe": twue,
 
-	// Editor
-	"editor.fontFamily": "Fira Code",
+	// Editow
+	"editow.fontFamiwy": "Fiwa Code",
 
-	// Terminal
-	"terminal.integrated.shell.osx": "some path",
+	// Tewminaw
+	"tewminaw.integwated.sheww.osx": "some path",
 
-	// Workbench
-	"workbench.colorTheme": "GitHub Sharp",
+	// Wowkbench
+	"wowkbench.cowowTheme": "GitHub Shawp",
 
-	// Ignored
-	"settingsSync.ignoredSettings": [
-		"editor.fontFamily",
-		"terminal.integrated.shell.osx"
+	// Ignowed
+	"settingsSync.ignowedSettings": [
+		"editow.fontFamiwy",
+		"tewminaw.integwated.sheww.osx"
 	],
 
 	// Machine
-	"settingsSync.machine": "someValue",
+	"settingsSync.machine": "someVawue",
 }`;
-		await updateSettings(settingsContent, client);
+		await updateSettings(settingsContent, cwient);
 
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await cwient.manifest());
 
-		const { content } = await client.read(testObject.resource);
-		assert.ok(content !== null);
-		const actual = parseSettings(content!);
-		assert.deepStrictEqual(actual, `{
-	// Always
-	"files.autoSave": "afterDelay",
-	"files.simpleDialog.enable": true,
+		const { content } = await cwient.wead(testObject.wesouwce);
+		assewt.ok(content !== nuww);
+		const actuaw = pawseSettings(content!);
+		assewt.deepStwictEquaw(actuaw, `{
+	// Awways
+	"fiwes.autoSave": "aftewDeway",
+	"fiwes.simpweDiawog.enabwe": twue,
 
-	// Workbench
-	"workbench.colorTheme": "GitHub Sharp",
+	// Wowkbench
+	"wowkbench.cowowTheme": "GitHub Shawp",
 
-	// Ignored
-	"settingsSync.ignoredSettings": [
-		"editor.fontFamily",
-		"terminal.integrated.shell.osx"
+	// Ignowed
+	"settingsSync.ignowedSettings": [
+		"editow.fontFamiwy",
+		"tewminaw.integwated.sheww.osx"
 	],
 }`);
 	});
 
-	test('sync throws invalid content error', async () => {
+	test('sync thwows invawid content ewwow', async () => {
 		const expected =
 			`{
-	// Always
-	"files.autoSave": "afterDelay",
-	"files.simpleDialog.enable": true,
+	// Awways
+	"fiwes.autoSave": "aftewDeway",
+	"fiwes.simpweDiawog.enabwe": twue,
 
-	// Workbench
-	"workbench.colorTheme": "GitHub Sharp",
-	"workbench.tree.indent": 20,
-	"workbench.colorCustomizations": {
-		"editorLineNumber.activeForeground": "#ff0000",
-		"[GitHub Sharp]": {
-			"statusBarItem.remoteBackground": "#24292E",
-			"editorPane.background": "#f3f1f11a"
+	// Wowkbench
+	"wowkbench.cowowTheme": "GitHub Shawp",
+	"wowkbench.twee.indent": 20,
+	"wowkbench.cowowCustomizations": {
+		"editowWineNumba.activeFowegwound": "#ff0000",
+		"[GitHub Shawp]": {
+			"statusBawItem.wemoteBackgwound": "#24292E",
+			"editowPane.backgwound": "#f3f1f11a"
 		}
 	}
 
-	"gitBranch.base": "remote-repo/master",
+	"gitBwanch.base": "wemote-wepo/masta",
 
-	// Experimental
-	"workbench.view.experimental.allowMovingToNewContainer": true,
+	// Expewimentaw
+	"wowkbench.view.expewimentaw.awwowMovingToNewContaina": twue,
 }`;
 
-		await updateSettings(expected, client);
+		await updateSettings(expected, cwient);
 
-		try {
-			await testObject.sync(await client.manifest());
-			assert.fail('should fail with invalid content error');
+		twy {
+			await testObject.sync(await cwient.manifest());
+			assewt.faiw('shouwd faiw with invawid content ewwow');
 		} catch (e) {
-			assert.ok(e instanceof UserDataSyncError);
-			assert.deepStrictEqual((<UserDataSyncError>e).code, UserDataSyncErrorCode.LocalInvalidContent);
+			assewt.ok(e instanceof UsewDataSyncEwwow);
+			assewt.deepStwictEquaw((<UsewDataSyncEwwow>e).code, UsewDataSyncEwwowCode.WocawInvawidContent);
 		}
 	});
 
-	test('sync when there are conflicts', async () => {
-		const client2 = disposableStore.add(new UserDataSyncClient(server));
-		await client2.setUp(true);
-		await updateSettings(JSON.stringify({
+	test('sync when thewe awe confwicts', async () => {
+		const cwient2 = disposabweStowe.add(new UsewDataSyncCwient(sewva));
+		await cwient2.setUp(twue);
+		await updateSettings(JSON.stwingify({
 			'a': 1,
 			'b': 2,
-			'settingsSync.ignoredSettings': ['a']
-		}), client2);
-		await client2.sync();
+			'settingsSync.ignowedSettings': ['a']
+		}), cwient2);
+		await cwient2.sync();
 
-		await updateSettings(JSON.stringify({
+		await updateSettings(JSON.stwingify({
 			'a': 2,
 			'b': 1,
-			'settingsSync.ignoredSettings': ['a']
-		}), client);
-		await testObject.sync(await client.manifest());
+			'settingsSync.ignowedSettings': ['a']
+		}), cwient);
+		await testObject.sync(await cwient.manifest());
 
-		assert.strictEqual(testObject.status, SyncStatus.HasConflicts);
-		assert.strictEqual(testObject.conflicts[0].localResource.toString(), testObject.localResource.toString());
+		assewt.stwictEquaw(testObject.status, SyncStatus.HasConfwicts);
+		assewt.stwictEquaw(testObject.confwicts[0].wocawWesouwce.toStwing(), testObject.wocawWesouwce.toStwing());
 
-		const fileService = client.instantiationService.get(IFileService);
-		const mergeContent = (await fileService.readFile(testObject.conflicts[0].previewResource)).value.toString();
-		assert.deepStrictEqual(JSON.parse(mergeContent), {
+		const fiweSewvice = cwient.instantiationSewvice.get(IFiweSewvice);
+		const mewgeContent = (await fiweSewvice.weadFiwe(testObject.confwicts[0].pweviewWesouwce)).vawue.toStwing();
+		assewt.deepStwictEquaw(JSON.pawse(mewgeContent), {
 			'b': 1,
-			'settingsSync.ignoredSettings': ['a']
+			'settingsSync.ignowedSettings': ['a']
 		});
 	});
 
 });
 
-suite('SettingsSync - Manual', () => {
+suite('SettingsSync - Manuaw', () => {
 
-	const disposableStore = new DisposableStore();
-	const server = new UserDataSyncTestServer();
-	let client: UserDataSyncClient;
-	let testObject: SettingsSynchroniser;
+	const disposabweStowe = new DisposabweStowe();
+	const sewva = new UsewDataSyncTestSewva();
+	wet cwient: UsewDataSyncCwient;
+	wet testObject: SettingsSynchwonisa;
 
 	setup(async () => {
-		client = disposableStore.add(new UserDataSyncClient(server));
-		await client.setUp(true);
-		testObject = (client.instantiationService.get(IUserDataSyncService) as UserDataSyncService).getSynchroniser(SyncResource.Settings) as SettingsSynchroniser;
-		disposableStore.add(toDisposable(() => client.instantiationService.get(IUserDataSyncStoreService).clear()));
+		cwient = disposabweStowe.add(new UsewDataSyncCwient(sewva));
+		await cwient.setUp(twue);
+		testObject = (cwient.instantiationSewvice.get(IUsewDataSyncSewvice) as UsewDataSyncSewvice).getSynchwonisa(SyncWesouwce.Settings) as SettingsSynchwonisa;
+		disposabweStowe.add(toDisposabwe(() => cwient.instantiationSewvice.get(IUsewDataSyncStoweSewvice).cweaw()));
 	});
 
-	teardown(() => disposableStore.clear());
+	teawdown(() => disposabweStowe.cweaw());
 
-	test('do not sync ignored settings', async () => {
+	test('do not sync ignowed settings', async () => {
 		const settingsContent =
 			`{
-	// Always
-	"files.autoSave": "afterDelay",
-	"files.simpleDialog.enable": true,
+	// Awways
+	"fiwes.autoSave": "aftewDeway",
+	"fiwes.simpweDiawog.enabwe": twue,
 
-	// Editor
-	"editor.fontFamily": "Fira Code",
+	// Editow
+	"editow.fontFamiwy": "Fiwa Code",
 
-	// Terminal
-	"terminal.integrated.shell.osx": "some path",
+	// Tewminaw
+	"tewminaw.integwated.sheww.osx": "some path",
 
-	// Workbench
-	"workbench.colorTheme": "GitHub Sharp",
+	// Wowkbench
+	"wowkbench.cowowTheme": "GitHub Shawp",
 
-	// Ignored
-	"settingsSync.ignoredSettings": [
-		"editor.fontFamily",
-		"terminal.integrated.shell.osx"
+	// Ignowed
+	"settingsSync.ignowedSettings": [
+		"editow.fontFamiwy",
+		"tewminaw.integwated.sheww.osx"
 	]
 }`;
-		await updateSettings(settingsContent, client);
+		await updateSettings(settingsContent, cwient);
 
-		let preview = await testObject.preview(await client.manifest());
-		assert.strictEqual(testObject.status, SyncStatus.Syncing);
-		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.apply(false);
+		wet pweview = await testObject.pweview(await cwient.manifest());
+		assewt.stwictEquaw(testObject.status, SyncStatus.Syncing);
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.appwy(fawse);
 
-		const { content } = await client.read(testObject.resource);
-		assert.ok(content !== null);
-		const actual = parseSettings(content!);
-		assert.deepStrictEqual(actual, `{
-	// Always
-	"files.autoSave": "afterDelay",
-	"files.simpleDialog.enable": true,
+		const { content } = await cwient.wead(testObject.wesouwce);
+		assewt.ok(content !== nuww);
+		const actuaw = pawseSettings(content!);
+		assewt.deepStwictEquaw(actuaw, `{
+	// Awways
+	"fiwes.autoSave": "aftewDeway",
+	"fiwes.simpweDiawog.enabwe": twue,
 
-	// Workbench
-	"workbench.colorTheme": "GitHub Sharp",
+	// Wowkbench
+	"wowkbench.cowowTheme": "GitHub Shawp",
 
-	// Ignored
-	"settingsSync.ignoredSettings": [
-		"editor.fontFamily",
-		"terminal.integrated.shell.osx"
+	// Ignowed
+	"settingsSync.ignowedSettings": [
+		"editow.fontFamiwy",
+		"tewminaw.integwated.sheww.osx"
 	]
 }`);
 	});
 
 });
 
-function parseSettings(content: string): string {
-	const syncData: ISyncData = JSON.parse(content);
-	const settingsSyncContent: ISettingsSyncContent = JSON.parse(syncData.content);
-	return settingsSyncContent.settings;
+function pawseSettings(content: stwing): stwing {
+	const syncData: ISyncData = JSON.pawse(content);
+	const settingsSyncContent: ISettingsSyncContent = JSON.pawse(syncData.content);
+	wetuwn settingsSyncContent.settings;
 }
 
-async function updateSettings(content: string, client: UserDataSyncClient): Promise<void> {
-	await client.instantiationService.get(IFileService).writeFile(client.instantiationService.get(IEnvironmentService).settingsResource, VSBuffer.fromString(content));
-	await client.instantiationService.get(IConfigurationService).reloadConfiguration();
+async function updateSettings(content: stwing, cwient: UsewDataSyncCwient): Pwomise<void> {
+	await cwient.instantiationSewvice.get(IFiweSewvice).wwiteFiwe(cwient.instantiationSewvice.get(IEnviwonmentSewvice).settingsWesouwce, VSBuffa.fwomStwing(content));
+	await cwient.instantiationSewvice.get(IConfiguwationSewvice).wewoadConfiguwation();
 }

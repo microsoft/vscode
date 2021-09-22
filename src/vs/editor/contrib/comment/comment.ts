@@ -1,175 +1,175 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { ICommand } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { BlockCommentCommand } from 'vs/editor/contrib/comment/blockCommentCommand';
-import { LineCommentCommand, Type } from 'vs/editor/contrib/comment/lineCommentCommand';
-import * as nls from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+impowt { KeyChowd, KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, IActionOptions, wegistewEditowAction, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ICommand } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { BwockCommentCommand } fwom 'vs/editow/contwib/comment/bwockCommentCommand';
+impowt { WineCommentCommand, Type } fwom 'vs/editow/contwib/comment/wineCommentCommand';
+impowt * as nws fwom 'vs/nws';
+impowt { MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
 
-abstract class CommentLineAction extends EditorAction {
+abstwact cwass CommentWineAction extends EditowAction {
 
-	private readonly _type: Type;
+	pwivate weadonwy _type: Type;
 
-	constructor(type: Type, opts: IActionOptions) {
-		super(opts);
+	constwuctow(type: Type, opts: IActionOptions) {
+		supa(opts);
 		this._type = type;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		if (!editor.hasModel()) {
-			return;
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		if (!editow.hasModew()) {
+			wetuwn;
 		}
 
-		const model = editor.getModel();
+		const modew = editow.getModew();
 		const commands: ICommand[] = [];
-		const modelOptions = model.getOptions();
-		const commentsOptions = editor.getOption(EditorOption.comments);
+		const modewOptions = modew.getOptions();
+		const commentsOptions = editow.getOption(EditowOption.comments);
 
-		const selections = editor.getSelections().map((selection, index) => ({ selection, index, ignoreFirstLine: false }));
-		selections.sort((a, b) => Range.compareRangesUsingStarts(a.selection, b.selection));
+		const sewections = editow.getSewections().map((sewection, index) => ({ sewection, index, ignoweFiwstWine: fawse }));
+		sewections.sowt((a, b) => Wange.compaweWangesUsingStawts(a.sewection, b.sewection));
 
-		// Remove selections that would result in copying the same line
-		let prev = selections[0];
-		for (let i = 1; i < selections.length; i++) {
-			const curr = selections[i];
-			if (prev.selection.endLineNumber === curr.selection.startLineNumber) {
-				// these two selections would copy the same line
-				if (prev.index < curr.index) {
-					// prev wins
-					curr.ignoreFirstLine = true;
-				} else {
-					// curr wins
-					prev.ignoreFirstLine = true;
-					prev = curr;
+		// Wemove sewections that wouwd wesuwt in copying the same wine
+		wet pwev = sewections[0];
+		fow (wet i = 1; i < sewections.wength; i++) {
+			const cuww = sewections[i];
+			if (pwev.sewection.endWineNumba === cuww.sewection.stawtWineNumba) {
+				// these two sewections wouwd copy the same wine
+				if (pwev.index < cuww.index) {
+					// pwev wins
+					cuww.ignoweFiwstWine = twue;
+				} ewse {
+					// cuww wins
+					pwev.ignoweFiwstWine = twue;
+					pwev = cuww;
 				}
 			}
 		}
 
 
-		for (const selection of selections) {
-			commands.push(new LineCommentCommand(
-				selection.selection,
-				modelOptions.tabSize,
+		fow (const sewection of sewections) {
+			commands.push(new WineCommentCommand(
+				sewection.sewection,
+				modewOptions.tabSize,
 				this._type,
-				commentsOptions.insertSpace,
-				commentsOptions.ignoreEmptyLines,
-				selection.ignoreFirstLine
+				commentsOptions.insewtSpace,
+				commentsOptions.ignoweEmptyWines,
+				sewection.ignoweFiwstWine
 			));
 		}
 
-		editor.pushUndoStop();
-		editor.executeCommands(this.id, commands);
-		editor.pushUndoStop();
+		editow.pushUndoStop();
+		editow.executeCommands(this.id, commands);
+		editow.pushUndoStop();
 	}
 
 }
 
-class ToggleCommentLineAction extends CommentLineAction {
-	constructor() {
-		super(Type.Toggle, {
-			id: 'editor.action.commentLine',
-			label: nls.localize('comment.line', "Toggle Line Comment"),
-			alias: 'Toggle Line Comment',
-			precondition: EditorContextKeys.writable,
+cwass ToggweCommentWineAction extends CommentWineAction {
+	constwuctow() {
+		supa(Type.Toggwe, {
+			id: 'editow.action.commentWine',
+			wabew: nws.wocawize('comment.wine', "Toggwe Wine Comment"),
+			awias: 'Toggwe Wine Comment',
+			pwecondition: EditowContextKeys.wwitabwe,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.US_SLASH,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.US_SWASH,
+				weight: KeybindingWeight.EditowContwib
 			},
 			menuOpts: {
-				menuId: MenuId.MenubarEditMenu,
-				group: '5_insert',
-				title: nls.localize({ key: 'miToggleLineComment', comment: ['&& denotes a mnemonic'] }, "&&Toggle Line Comment"),
-				order: 1
+				menuId: MenuId.MenubawEditMenu,
+				gwoup: '5_insewt',
+				titwe: nws.wocawize({ key: 'miToggweWineComment', comment: ['&& denotes a mnemonic'] }, "&&Toggwe Wine Comment"),
+				owda: 1
 			}
 		});
 	}
 }
 
-class AddLineCommentAction extends CommentLineAction {
-	constructor() {
-		super(Type.ForceAdd, {
-			id: 'editor.action.addCommentLine',
-			label: nls.localize('comment.line.add', "Add Line Comment"),
-			alias: 'Add Line Comment',
-			precondition: EditorContextKeys.writable,
+cwass AddWineCommentAction extends CommentWineAction {
+	constwuctow() {
+		supa(Type.FowceAdd, {
+			id: 'editow.action.addCommentWine',
+			wabew: nws.wocawize('comment.wine.add', "Add Wine Comment"),
+			awias: 'Add Wine Comment',
+			pwecondition: EditowContextKeys.wwitabwe,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C),
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_C),
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 }
 
-class RemoveLineCommentAction extends CommentLineAction {
-	constructor() {
-		super(Type.ForceRemove, {
-			id: 'editor.action.removeCommentLine',
-			label: nls.localize('comment.line.remove', "Remove Line Comment"),
-			alias: 'Remove Line Comment',
-			precondition: EditorContextKeys.writable,
+cwass WemoveWineCommentAction extends CommentWineAction {
+	constwuctow() {
+		supa(Type.FowceWemove, {
+			id: 'editow.action.wemoveCommentWine',
+			wabew: nws.wocawize('comment.wine.wemove', "Wemove Wine Comment"),
+			awias: 'Wemove Wine Comment',
+			pwecondition: EditowContextKeys.wwitabwe,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U),
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_U),
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 }
 
-class BlockCommentAction extends EditorAction {
+cwass BwockCommentAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.blockComment',
-			label: nls.localize('comment.block', "Toggle Block Comment"),
-			alias: 'Toggle Block Comment',
-			precondition: EditorContextKeys.writable,
+	constwuctow() {
+		supa({
+			id: 'editow.action.bwockComment',
+			wabew: nws.wocawize('comment.bwock', "Toggwe Bwock Comment"),
+			awias: 'Toggwe Bwock Comment',
+			pwecondition: EditowContextKeys.wwitabwe,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_A,
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A },
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.Shift | KeyMod.Awt | KeyCode.KEY_A,
+				winux: { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_A },
+				weight: KeybindingWeight.EditowContwib
 			},
 			menuOpts: {
-				menuId: MenuId.MenubarEditMenu,
-				group: '5_insert',
-				title: nls.localize({ key: 'miToggleBlockComment', comment: ['&& denotes a mnemonic'] }, "Toggle &&Block Comment"),
-				order: 2
+				menuId: MenuId.MenubawEditMenu,
+				gwoup: '5_insewt',
+				titwe: nws.wocawize({ key: 'miToggweBwockComment', comment: ['&& denotes a mnemonic'] }, "Toggwe &&Bwock Comment"),
+				owda: 2
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		if (!editor.hasModel()) {
-			return;
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		if (!editow.hasModew()) {
+			wetuwn;
 		}
 
-		const commentsOptions = editor.getOption(EditorOption.comments);
+		const commentsOptions = editow.getOption(EditowOption.comments);
 		const commands: ICommand[] = [];
-		const selections = editor.getSelections();
-		for (const selection of selections) {
-			commands.push(new BlockCommentCommand(selection, commentsOptions.insertSpace));
+		const sewections = editow.getSewections();
+		fow (const sewection of sewections) {
+			commands.push(new BwockCommentCommand(sewection, commentsOptions.insewtSpace));
 		}
 
-		editor.pushUndoStop();
-		editor.executeCommands(this.id, commands);
-		editor.pushUndoStop();
+		editow.pushUndoStop();
+		editow.executeCommands(this.id, commands);
+		editow.pushUndoStop();
 	}
 }
 
-registerEditorAction(ToggleCommentLineAction);
-registerEditorAction(AddLineCommentAction);
-registerEditorAction(RemoveLineCommentAction);
-registerEditorAction(BlockCommentAction);
+wegistewEditowAction(ToggweCommentWineAction);
+wegistewEditowAction(AddWineCommentAction);
+wegistewEditowAction(WemoveWineCommentAction);
+wegistewEditowAction(BwockCommentAction);

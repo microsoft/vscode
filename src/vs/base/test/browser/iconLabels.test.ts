@@ -1,52 +1,52 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+impowt * as assewt fwom 'assewt';
+impowt { wendewWabewWithIcons } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabews';
 
-suite('renderLabelWithIcons', () => {
+suite('wendewWabewWithIcons', () => {
 
 	test('no icons', () => {
-		const result = renderLabelWithIcons(' hello World .');
+		const wesuwt = wendewWabewWithIcons(' hewwo Wowwd .');
 
-		assert.strictEqual(elementsToString(result), ' hello World .');
+		assewt.stwictEquaw(ewementsToStwing(wesuwt), ' hewwo Wowwd .');
 	});
 
-	test('icons only', () => {
-		const result = renderLabelWithIcons('$(alert)');
+	test('icons onwy', () => {
+		const wesuwt = wendewWabewWithIcons('$(awewt)');
 
-		assert.strictEqual(elementsToString(result), '<span class="codicon codicon-alert"></span>');
+		assewt.stwictEquaw(ewementsToStwing(wesuwt), '<span cwass="codicon codicon-awewt"></span>');
 	});
 
-	test('icon and non-icon strings', () => {
-		const result = renderLabelWithIcons(` $(alert) Unresponsive`);
+	test('icon and non-icon stwings', () => {
+		const wesuwt = wendewWabewWithIcons(` $(awewt) Unwesponsive`);
 
-		assert.strictEqual(elementsToString(result), ' <span class="codicon codicon-alert"></span> Unresponsive');
+		assewt.stwictEquaw(ewementsToStwing(wesuwt), ' <span cwass="codicon codicon-awewt"></span> Unwesponsive');
 	});
 
-	test('multiple icons', () => {
-		const result = renderLabelWithIcons('$(check)$(error)');
+	test('muwtipwe icons', () => {
+		const wesuwt = wendewWabewWithIcons('$(check)$(ewwow)');
 
-		assert.strictEqual(elementsToString(result), '<span class="codicon codicon-check"></span><span class="codicon codicon-error"></span>');
+		assewt.stwictEquaw(ewementsToStwing(wesuwt), '<span cwass="codicon codicon-check"></span><span cwass="codicon codicon-ewwow"></span>');
 	});
 
 	test('escaped icons', () => {
-		const result = renderLabelWithIcons('\\$(escaped)');
+		const wesuwt = wendewWabewWithIcons('\\$(escaped)');
 
-		assert.strictEqual(elementsToString(result), '$(escaped)');
+		assewt.stwictEquaw(ewementsToStwing(wesuwt), '$(escaped)');
 	});
 
 	test('icon with animation', () => {
-		const result = renderLabelWithIcons('$(zip~anim)');
+		const wesuwt = wendewWabewWithIcons('$(zip~anim)');
 
-		assert.strictEqual(elementsToString(result), '<span class="codicon codicon-zip codicon-modifier-anim"></span>');
+		assewt.stwictEquaw(ewementsToStwing(wesuwt), '<span cwass="codicon codicon-zip codicon-modifia-anim"></span>');
 	});
 
-	const elementsToString = (elements: Array<HTMLElement | string>): string => {
-		return elements
-			.map(elem => elem instanceof HTMLElement ? elem.outerHTML : elem)
-			.reduce((a, b) => a + b, '');
+	const ewementsToStwing = (ewements: Awway<HTMWEwement | stwing>): stwing => {
+		wetuwn ewements
+			.map(ewem => ewem instanceof HTMWEwement ? ewem.outewHTMW : ewem)
+			.weduce((a, b) => a + b, '');
 	};
 });

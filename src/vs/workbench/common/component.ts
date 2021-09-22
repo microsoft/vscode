@@ -1,45 +1,45 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Memento, MementoObject } from 'vs/workbench/common/memento';
-import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+impowt { Memento, MementoObject } fwom 'vs/wowkbench/common/memento';
+impowt { IThemeSewvice, Themabwe } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
 
-export class Component extends Themable {
+expowt cwass Component extends Themabwe {
 
-	private readonly memento: Memento;
+	pwivate weadonwy memento: Memento;
 
-	constructor(
-		private readonly id: string,
-		themeService: IThemeService,
-		storageService: IStorageService
+	constwuctow(
+		pwivate weadonwy id: stwing,
+		themeSewvice: IThemeSewvice,
+		stowageSewvice: IStowageSewvice
 	) {
-		super(themeService);
+		supa(themeSewvice);
 
 		this.id = id;
-		this.memento = new Memento(this.id, storageService);
+		this.memento = new Memento(this.id, stowageSewvice);
 
-		this._register(storageService.onWillSaveState(() => {
+		this._wegista(stowageSewvice.onWiwwSaveState(() => {
 
-			// Ask the component to persist state into the memento
+			// Ask the component to pewsist state into the memento
 			this.saveState();
 
-			// Then save the memento into storage
+			// Then save the memento into stowage
 			this.memento.saveMemento();
 		}));
 	}
 
-	getId(): string {
-		return this.id;
+	getId(): stwing {
+		wetuwn this.id;
 	}
 
-	protected getMemento(scope: StorageScope, target: StorageTarget): MementoObject {
-		return this.memento.getMemento(scope, target);
+	pwotected getMemento(scope: StowageScope, tawget: StowageTawget): MementoObject {
+		wetuwn this.memento.getMemento(scope, tawget);
 	}
 
-	protected saveState(): void {
-		// Subclasses to implement for storing state
+	pwotected saveState(): void {
+		// Subcwasses to impwement fow stowing state
 	}
 }

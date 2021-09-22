@@ -1,497 +1,497 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { tmpdir } from 'os';
-import { join } from 'vs/base/common/path';
-import { Promises } from 'vs/base/node/pfs';
-import { URI } from 'vs/base/common/uri';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { hash } from 'vs/base/common/hash';
-import { NativeWorkingCopyBackupTracker } from 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyBackupTracker';
-import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { NodeTestWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/test/electron-browser/workingCopyBackupService.test';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { toResource } from 'vs/base/test/common/utils';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { HotExitConfiguration } from 'vs/platform/files/common/files';
-import { ShutdownReason, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IFileDialogService, ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/electron-browser/workbenchTestServices';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { createEditorPart, registerTestFileEditor, TestBeforeShutdownEvent, TestFilesConfigurationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopy';
+impowt * as assewt fwom 'assewt';
+impowt { isMacintosh, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { tmpdiw } fwom 'os';
+impowt { join } fwom 'vs/base/common/path';
+impowt { Pwomises } fwom 'vs/base/node/pfs';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { fwakySuite, getWandomTestPath } fwom 'vs/base/test/node/testUtiws';
+impowt { hash } fwom 'vs/base/common/hash';
+impowt { NativeWowkingCopyBackupTwacka } fwom 'vs/wowkbench/sewvices/wowkingCopy/ewectwon-sandbox/wowkingCopyBackupTwacka';
+impowt { TextFiweEditowModewManaga } fwom 'vs/wowkbench/sewvices/textfiwe/common/textFiweEditowModewManaga';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { EditowPawt } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPawt';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { EditowSewvice } fwom 'vs/wowkbench/sewvices/editow/bwowsa/editowSewvice';
+impowt { IWowkingCopyBackupSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyBackup';
+impowt { NodeTestWowkingCopyBackupSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/test/ewectwon-bwowsa/wowkingCopyBackupSewvice.test';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { toWesouwce } fwom 'vs/base/test/common/utiws';
+impowt { IFiwesConfiguwationSewvice } fwom 'vs/wowkbench/sewvices/fiwesConfiguwation/common/fiwesConfiguwationSewvice';
+impowt { IWowkingCopySewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { HotExitConfiguwation } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { ShutdownWeason, IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IFiweDiawogSewvice, ConfiwmWesuwt, IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { wowkbenchInstantiationSewvice, TestSewviceAccessow } fwom 'vs/wowkbench/test/ewectwon-bwowsa/wowkbenchTestSewvices';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { cweateEditowPawt, wegistewTestFiweEditow, TestBefoweShutdownEvent, TestFiwesConfiguwationSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { MockContextKeySewvice } fwom 'vs/pwatfowm/keybinding/test/common/mockKeybindingSewvice';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { Wowkspace } fwom 'vs/pwatfowm/wowkspace/test/common/testWowkspace';
+impowt { IPwogwessSewvice } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { IWowkingCopyEditowSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyEditowSewvice';
+impowt { TestWowkingCopy } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IWowkingCopyBackup } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
 
-flakySuite('WorkingCopyBackupTracker (native)', function () {
+fwakySuite('WowkingCopyBackupTwacka (native)', function () {
 
-	class TestWorkingCopyBackupTracker extends NativeWorkingCopyBackupTracker {
+	cwass TestWowkingCopyBackupTwacka extends NativeWowkingCopyBackupTwacka {
 
-		constructor(
-			@IWorkingCopyBackupService workingCopyBackupService: IWorkingCopyBackupService,
-			@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
-			@IWorkingCopyService workingCopyService: IWorkingCopyService,
-			@ILifecycleService lifecycleService: ILifecycleService,
-			@IFileDialogService fileDialogService: IFileDialogService,
-			@IDialogService dialogService: IDialogService,
-			@IWorkspaceContextService contextService: IWorkspaceContextService,
-			@INativeHostService nativeHostService: INativeHostService,
-			@ILogService logService: ILogService,
-			@IEditorService editorService: IEditorService,
-			@IEnvironmentService environmentService: IEnvironmentService,
-			@IProgressService progressService: IProgressService,
-			@IWorkingCopyEditorService workingCopyEditorService: IWorkingCopyEditorService,
-			@IEditorGroupsService editorGroupService: IEditorGroupsService
+		constwuctow(
+			@IWowkingCopyBackupSewvice wowkingCopyBackupSewvice: IWowkingCopyBackupSewvice,
+			@IFiwesConfiguwationSewvice fiwesConfiguwationSewvice: IFiwesConfiguwationSewvice,
+			@IWowkingCopySewvice wowkingCopySewvice: IWowkingCopySewvice,
+			@IWifecycweSewvice wifecycweSewvice: IWifecycweSewvice,
+			@IFiweDiawogSewvice fiweDiawogSewvice: IFiweDiawogSewvice,
+			@IDiawogSewvice diawogSewvice: IDiawogSewvice,
+			@IWowkspaceContextSewvice contextSewvice: IWowkspaceContextSewvice,
+			@INativeHostSewvice nativeHostSewvice: INativeHostSewvice,
+			@IWogSewvice wogSewvice: IWogSewvice,
+			@IEditowSewvice editowSewvice: IEditowSewvice,
+			@IEnviwonmentSewvice enviwonmentSewvice: IEnviwonmentSewvice,
+			@IPwogwessSewvice pwogwessSewvice: IPwogwessSewvice,
+			@IWowkingCopyEditowSewvice wowkingCopyEditowSewvice: IWowkingCopyEditowSewvice,
+			@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice
 		) {
-			super(workingCopyBackupService, filesConfigurationService, workingCopyService, lifecycleService, fileDialogService, dialogService, contextService, nativeHostService, logService, environmentService, progressService, workingCopyEditorService, editorService, editorGroupService);
+			supa(wowkingCopyBackupSewvice, fiwesConfiguwationSewvice, wowkingCopySewvice, wifecycweSewvice, fiweDiawogSewvice, diawogSewvice, contextSewvice, nativeHostSewvice, wogSewvice, enviwonmentSewvice, pwogwessSewvice, wowkingCopyEditowSewvice, editowSewvice, editowGwoupSewvice);
 		}
 
-		protected override getBackupScheduleDelay(): number {
-			return 10; // Reduce timeout for tests
+		pwotected ovewwide getBackupScheduweDeway(): numba {
+			wetuwn 10; // Weduce timeout fow tests
 		}
 
-		waitForReady(): Promise<void> {
-			return super.whenReady;
+		waitFowWeady(): Pwomise<void> {
+			wetuwn supa.whenWeady;
 		}
 
-		override dispose() {
-			super.dispose();
+		ovewwide dispose() {
+			supa.dispose();
 
-			for (const [_, disposable] of this.pendingBackups) {
-				disposable.dispose();
+			fow (const [_, disposabwe] of this.pendingBackups) {
+				disposabwe.dispose();
 			}
 		}
 	}
 
-	let testDir: string;
-	let backupHome: string;
-	let workspaceBackupPath: string;
+	wet testDiw: stwing;
+	wet backupHome: stwing;
+	wet wowkspaceBackupPath: stwing;
 
-	let accessor: TestServiceAccessor;
-	const disposables = new DisposableStore();
+	wet accessow: TestSewviceAccessow;
+	const disposabwes = new DisposabweStowe();
 
 	setup(async () => {
-		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'backuprestorer');
-		backupHome = join(testDir, 'Backups');
-		const workspacesJsonPath = join(backupHome, 'workspaces.json');
+		testDiw = getWandomTestPath(tmpdiw(), 'vsctests', 'backupwestowa');
+		backupHome = join(testDiw, 'Backups');
+		const wowkspacesJsonPath = join(backupHome, 'wowkspaces.json');
 
-		const workspaceResource = URI.file(isWindows ? 'c:\\workspace' : '/workspace');
-		workspaceBackupPath = join(backupHome, hash(workspaceResource.fsPath).toString(16));
+		const wowkspaceWesouwce = UWI.fiwe(isWindows ? 'c:\\wowkspace' : '/wowkspace');
+		wowkspaceBackupPath = join(backupHome, hash(wowkspaceWesouwce.fsPath).toStwing(16));
 
-		const instantiationService = workbenchInstantiationService();
-		accessor = instantiationService.createInstance(TestServiceAccessor);
-		disposables.add((<TextFileEditorModelManager>accessor.textFileService.files));
+		const instantiationSewvice = wowkbenchInstantiationSewvice();
+		accessow = instantiationSewvice.cweateInstance(TestSewviceAccessow);
+		disposabwes.add((<TextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes));
 
-		disposables.add(registerTestFileEditor());
+		disposabwes.add(wegistewTestFiweEditow());
 
-		await Promises.mkdir(backupHome, { recursive: true });
-		await Promises.mkdir(workspaceBackupPath, { recursive: true });
+		await Pwomises.mkdiw(backupHome, { wecuwsive: twue });
+		await Pwomises.mkdiw(wowkspaceBackupPath, { wecuwsive: twue });
 
-		return Promises.writeFile(workspacesJsonPath, '');
+		wetuwn Pwomises.wwiteFiwe(wowkspacesJsonPath, '');
 	});
 
-	teardown(async () => {
-		disposables.clear();
+	teawdown(async () => {
+		disposabwes.cweaw();
 
-		return Promises.rm(testDir);
+		wetuwn Pwomises.wm(testDiw);
 	});
 
-	async function createTracker(autoSaveEnabled = false): Promise<{ accessor: TestServiceAccessor, part: EditorPart, tracker: TestWorkingCopyBackupTracker, instantiationService: IInstantiationService, cleanup: () => Promise<void> }> {
-		const workingCopyBackupService = new NodeTestWorkingCopyBackupService(testDir, workspaceBackupPath);
-		const instantiationService = workbenchInstantiationService();
-		instantiationService.stub(IWorkingCopyBackupService, workingCopyBackupService);
+	async function cweateTwacka(autoSaveEnabwed = fawse): Pwomise<{ accessow: TestSewviceAccessow, pawt: EditowPawt, twacka: TestWowkingCopyBackupTwacka, instantiationSewvice: IInstantiationSewvice, cweanup: () => Pwomise<void> }> {
+		const wowkingCopyBackupSewvice = new NodeTestWowkingCopyBackupSewvice(testDiw, wowkspaceBackupPath);
+		const instantiationSewvice = wowkbenchInstantiationSewvice();
+		instantiationSewvice.stub(IWowkingCopyBackupSewvice, wowkingCopyBackupSewvice);
 
-		const configurationService = new TestConfigurationService();
-		if (autoSaveEnabled) {
-			configurationService.setUserConfiguration('files', { autoSave: 'afterDelay', autoSaveDelay: 1 });
+		const configuwationSewvice = new TestConfiguwationSewvice();
+		if (autoSaveEnabwed) {
+			configuwationSewvice.setUsewConfiguwation('fiwes', { autoSave: 'aftewDeway', autoSaveDeway: 1 });
 		}
-		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationSewvice.stub(IConfiguwationSewvice, configuwationSewvice);
 
-		instantiationService.stub(IFilesConfigurationService, new TestFilesConfigurationService(
-			<IContextKeyService>instantiationService.createInstance(MockContextKeyService),
-			configurationService
+		instantiationSewvice.stub(IFiwesConfiguwationSewvice, new TestFiwesConfiguwationSewvice(
+			<IContextKeySewvice>instantiationSewvice.cweateInstance(MockContextKeySewvice),
+			configuwationSewvice
 		));
 
-		const part = await createEditorPart(instantiationService, disposables);
-		instantiationService.stub(IEditorGroupsService, part);
+		const pawt = await cweateEditowPawt(instantiationSewvice, disposabwes);
+		instantiationSewvice.stub(IEditowGwoupsSewvice, pawt);
 
-		const editorService: EditorService = instantiationService.createInstance(EditorService);
-		instantiationService.stub(IEditorService, editorService);
+		const editowSewvice: EditowSewvice = instantiationSewvice.cweateInstance(EditowSewvice);
+		instantiationSewvice.stub(IEditowSewvice, editowSewvice);
 
-		accessor = instantiationService.createInstance(TestServiceAccessor);
+		accessow = instantiationSewvice.cweateInstance(TestSewviceAccessow);
 
-		const tracker = instantiationService.createInstance(TestWorkingCopyBackupTracker);
+		const twacka = instantiationSewvice.cweateInstance(TestWowkingCopyBackupTwacka);
 
-		const cleanup = async () => {
-			// File changes could also schedule some backup operations so we need to wait for them before finishing the test
-			await accessor.workingCopyBackupService.waitForAllBackups();
+		const cweanup = async () => {
+			// Fiwe changes couwd awso scheduwe some backup opewations so we need to wait fow them befowe finishing the test
+			await accessow.wowkingCopyBackupSewvice.waitFowAwwBackups();
 
-			part.dispose();
-			tracker.dispose();
+			pawt.dispose();
+			twacka.dispose();
 		};
 
-		return { accessor, part, tracker, instantiationService, cleanup };
+		wetuwn { accessow, pawt, twacka, instantiationSewvice, cweanup };
 	}
 
-	test('Track backups (file, auto save off)', function () {
-		return trackBackupsTest(toResource.call(this, '/path/index.txt'), false);
+	test('Twack backups (fiwe, auto save off)', function () {
+		wetuwn twackBackupsTest(toWesouwce.caww(this, '/path/index.txt'), fawse);
 	});
 
-	test('Track backups (file, auto save on)', function () {
-		return trackBackupsTest(toResource.call(this, '/path/index.txt'), true);
+	test('Twack backups (fiwe, auto save on)', function () {
+		wetuwn twackBackupsTest(toWesouwce.caww(this, '/path/index.txt'), twue);
 	});
 
-	async function trackBackupsTest(resource: URI, autoSave: boolean) {
-		const { accessor, cleanup } = await createTracker(autoSave);
+	async function twackBackupsTest(wesouwce: UWI, autoSave: boowean) {
+		const { accessow, cweanup } = await cweateTwacka(autoSave);
 
-		await accessor.editorService.openEditor({ resource, options: { pinned: true } });
+		await accessow.editowSewvice.openEditow({ wesouwce, options: { pinned: twue } });
 
-		const fileModel = accessor.textFileService.files.get(resource);
-		assert.ok(fileModel);
-		fileModel.textEditorModel?.setValue('Super Good');
+		const fiweModew = accessow.textFiweSewvice.fiwes.get(wesouwce);
+		assewt.ok(fiweModew);
+		fiweModew.textEditowModew?.setVawue('Supa Good');
 
-		await accessor.workingCopyBackupService.joinBackupResource();
+		await accessow.wowkingCopyBackupSewvice.joinBackupWesouwce();
 
-		assert.strictEqual(accessor.workingCopyBackupService.hasBackupSync(fileModel), true);
+		assewt.stwictEquaw(accessow.wowkingCopyBackupSewvice.hasBackupSync(fiweModew), twue);
 
-		fileModel.dispose();
+		fiweModew.dispose();
 
-		await accessor.workingCopyBackupService.joinDiscardBackup();
+		await accessow.wowkingCopyBackupSewvice.joinDiscawdBackup();
 
-		assert.strictEqual(accessor.workingCopyBackupService.hasBackupSync(fileModel), false);
+		assewt.stwictEquaw(accessow.wowkingCopyBackupSewvice.hasBackupSync(fiweModew), fawse);
 
-		await cleanup();
+		await cweanup();
 	}
 
-	test('onWillShutdown - no veto if no dirty files', async function () {
-		const { accessor, cleanup } = await createTracker();
+	test('onWiwwShutdown - no veto if no diwty fiwes', async function () {
+		const { accessow, cweanup } = await cweateTwacka();
 
-		const resource = toResource.call(this, '/path/index.txt');
-		await accessor.editorService.openEditor({ resource, options: { pinned: true } });
+		const wesouwce = toWesouwce.caww(this, '/path/index.txt');
+		await accessow.editowSewvice.openEditow({ wesouwce, options: { pinned: twue } });
 
-		const event = new TestBeforeShutdownEvent();
-		accessor.lifecycleService.fireBeforeShutdown(event);
+		const event = new TestBefoweShutdownEvent();
+		accessow.wifecycweSewvice.fiweBefoweShutdown(event);
 
-		const veto = await event.value;
-		assert.ok(!veto);
+		const veto = await event.vawue;
+		assewt.ok(!veto);
 
-		await cleanup();
+		await cweanup();
 	});
 
-	test('onWillShutdown - veto if user cancels (hot.exit: off)', async function () {
-		const { accessor, cleanup } = await createTracker();
+	test('onWiwwShutdown - veto if usa cancews (hot.exit: off)', async function () {
+		const { accessow, cweanup } = await cweateTwacka();
 
-		const resource = toResource.call(this, '/path/index.txt');
-		await accessor.editorService.openEditor({ resource, options: { pinned: true } });
+		const wesouwce = toWesouwce.caww(this, '/path/index.txt');
+		await accessow.editowSewvice.openEditow({ wesouwce, options: { pinned: twue } });
 
-		const model = accessor.textFileService.files.get(resource);
+		const modew = accessow.textFiweSewvice.fiwes.get(wesouwce);
 
-		accessor.fileDialogService.setConfirmResult(ConfirmResult.CANCEL);
-		accessor.filesConfigurationService.onFilesConfigurationChange({ files: { hotExit: 'off' } });
+		accessow.fiweDiawogSewvice.setConfiwmWesuwt(ConfiwmWesuwt.CANCEW);
+		accessow.fiwesConfiguwationSewvice.onFiwesConfiguwationChange({ fiwes: { hotExit: 'off' } });
 
-		await model?.resolve();
-		model?.textEditorModel?.setValue('foo');
-		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
+		await modew?.wesowve();
+		modew?.textEditowModew?.setVawue('foo');
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.diwtyCount, 1);
 
-		const event = new TestBeforeShutdownEvent();
-		accessor.lifecycleService.fireBeforeShutdown(event);
+		const event = new TestBefoweShutdownEvent();
+		accessow.wifecycweSewvice.fiweBefoweShutdown(event);
 
-		const veto = await event.value;
-		assert.ok(veto);
+		const veto = await event.vawue;
+		assewt.ok(veto);
 
-		await cleanup();
+		await cweanup();
 	});
 
-	test('onWillShutdown - no veto if auto save is on', async function () {
-		const { accessor, cleanup } = await createTracker(true /* auto save enabled */);
+	test('onWiwwShutdown - no veto if auto save is on', async function () {
+		const { accessow, cweanup } = await cweateTwacka(twue /* auto save enabwed */);
 
-		const resource = toResource.call(this, '/path/index.txt');
-		await accessor.editorService.openEditor({ resource, options: { pinned: true } });
+		const wesouwce = toWesouwce.caww(this, '/path/index.txt');
+		await accessow.editowSewvice.openEditow({ wesouwce, options: { pinned: twue } });
 
-		const model = accessor.textFileService.files.get(resource);
+		const modew = accessow.textFiweSewvice.fiwes.get(wesouwce);
 
-		await model?.resolve();
-		model?.textEditorModel?.setValue('foo');
-		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
+		await modew?.wesowve();
+		modew?.textEditowModew?.setVawue('foo');
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.diwtyCount, 1);
 
-		const event = new TestBeforeShutdownEvent();
-		accessor.lifecycleService.fireBeforeShutdown(event);
+		const event = new TestBefoweShutdownEvent();
+		accessow.wifecycweSewvice.fiweBefoweShutdown(event);
 
-		const veto = await event.value;
-		assert.ok(!veto);
+		const veto = await event.vawue;
+		assewt.ok(!veto);
 
-		assert.strictEqual(accessor.workingCopyService.dirtyCount, 0);
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.diwtyCount, 0);
 
-		await cleanup();
+		await cweanup();
 	});
 
-	test('onWillShutdown - no veto and backups cleaned up if user does not want to save (hot.exit: off)', async function () {
-		const { accessor, cleanup } = await createTracker();
+	test('onWiwwShutdown - no veto and backups cweaned up if usa does not want to save (hot.exit: off)', async function () {
+		const { accessow, cweanup } = await cweateTwacka();
 
-		const resource = toResource.call(this, '/path/index.txt');
-		await accessor.editorService.openEditor({ resource, options: { pinned: true } });
+		const wesouwce = toWesouwce.caww(this, '/path/index.txt');
+		await accessow.editowSewvice.openEditow({ wesouwce, options: { pinned: twue } });
 
-		const model = accessor.textFileService.files.get(resource);
+		const modew = accessow.textFiweSewvice.fiwes.get(wesouwce);
 
-		accessor.fileDialogService.setConfirmResult(ConfirmResult.DONT_SAVE);
-		accessor.filesConfigurationService.onFilesConfigurationChange({ files: { hotExit: 'off' } });
+		accessow.fiweDiawogSewvice.setConfiwmWesuwt(ConfiwmWesuwt.DONT_SAVE);
+		accessow.fiwesConfiguwationSewvice.onFiwesConfiguwationChange({ fiwes: { hotExit: 'off' } });
 
-		await model?.resolve();
-		model?.textEditorModel?.setValue('foo');
-		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
-		const event = new TestBeforeShutdownEvent();
-		accessor.lifecycleService.fireBeforeShutdown(event);
+		await modew?.wesowve();
+		modew?.textEditowModew?.setVawue('foo');
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.diwtyCount, 1);
+		const event = new TestBefoweShutdownEvent();
+		accessow.wifecycweSewvice.fiweBefoweShutdown(event);
 
-		const veto = await event.value;
-		assert.ok(!veto);
-		assert.ok(accessor.workingCopyBackupService.discardedBackups.length > 0);
+		const veto = await event.vawue;
+		assewt.ok(!veto);
+		assewt.ok(accessow.wowkingCopyBackupSewvice.discawdedBackups.wength > 0);
 
-		await cleanup();
+		await cweanup();
 	});
 
-	test('onWillShutdown - no backups discarded when shutdown without dirty but tracker not ready', async function () {
-		const { accessor, cleanup } = await createTracker();
+	test('onWiwwShutdown - no backups discawded when shutdown without diwty but twacka not weady', async function () {
+		const { accessow, cweanup } = await cweateTwacka();
 
-		const event = new TestBeforeShutdownEvent();
-		accessor.lifecycleService.fireBeforeShutdown(event);
+		const event = new TestBefoweShutdownEvent();
+		accessow.wifecycweSewvice.fiweBefoweShutdown(event);
 
-		const veto = await event.value;
-		assert.ok(!veto);
-		assert.ok(!accessor.workingCopyBackupService.discardedAllBackups);
+		const veto = await event.vawue;
+		assewt.ok(!veto);
+		assewt.ok(!accessow.wowkingCopyBackupSewvice.discawdedAwwBackups);
 
-		await cleanup();
+		await cweanup();
 	});
 
-	test('onWillShutdown - backups discarded when shutdown without dirty', async function () {
-		const { accessor, tracker, cleanup } = await createTracker();
+	test('onWiwwShutdown - backups discawded when shutdown without diwty', async function () {
+		const { accessow, twacka, cweanup } = await cweateTwacka();
 
-		await tracker.waitForReady();
+		await twacka.waitFowWeady();
 
-		const event = new TestBeforeShutdownEvent();
-		accessor.lifecycleService.fireBeforeShutdown(event);
+		const event = new TestBefoweShutdownEvent();
+		accessow.wifecycweSewvice.fiweBefoweShutdown(event);
 
-		const veto = await event.value;
-		assert.ok(!veto);
-		assert.ok(!accessor.workingCopyBackupService.discardedAllBackups);
+		const veto = await event.vawue;
+		assewt.ok(!veto);
+		assewt.ok(!accessow.wowkingCopyBackupSewvice.discawdedAwwBackups);
 
-		await cleanup();
+		await cweanup();
 	});
 
-	test('onWillShutdown - save (hot.exit: off)', async function () {
-		const { accessor, cleanup } = await createTracker();
+	test('onWiwwShutdown - save (hot.exit: off)', async function () {
+		const { accessow, cweanup } = await cweateTwacka();
 
-		const resource = toResource.call(this, '/path/index.txt');
-		await accessor.editorService.openEditor({ resource, options: { pinned: true } });
+		const wesouwce = toWesouwce.caww(this, '/path/index.txt');
+		await accessow.editowSewvice.openEditow({ wesouwce, options: { pinned: twue } });
 
-		const model = accessor.textFileService.files.get(resource);
+		const modew = accessow.textFiweSewvice.fiwes.get(wesouwce);
 
-		accessor.fileDialogService.setConfirmResult(ConfirmResult.SAVE);
-		accessor.filesConfigurationService.onFilesConfigurationChange({ files: { hotExit: 'off' } });
+		accessow.fiweDiawogSewvice.setConfiwmWesuwt(ConfiwmWesuwt.SAVE);
+		accessow.fiwesConfiguwationSewvice.onFiwesConfiguwationChange({ fiwes: { hotExit: 'off' } });
 
-		await model?.resolve();
-		model?.textEditorModel?.setValue('foo');
-		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
-		const event = new TestBeforeShutdownEvent();
-		accessor.lifecycleService.fireBeforeShutdown(event);
+		await modew?.wesowve();
+		modew?.textEditowModew?.setVawue('foo');
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.diwtyCount, 1);
+		const event = new TestBefoweShutdownEvent();
+		accessow.wifecycweSewvice.fiweBefoweShutdown(event);
 
-		const veto = await event.value;
-		assert.ok(!veto);
-		assert.ok(!model?.isDirty());
+		const veto = await event.vawue;
+		assewt.ok(!veto);
+		assewt.ok(!modew?.isDiwty());
 
-		await cleanup();
+		await cweanup();
 	});
 
-	test('onWillShutdown - veto if backup fails', async function () {
-		const { accessor, cleanup } = await createTracker();
+	test('onWiwwShutdown - veto if backup faiws', async function () {
+		const { accessow, cweanup } = await cweateTwacka();
 
-		class TestBackupWorkingCopy extends TestWorkingCopy {
+		cwass TestBackupWowkingCopy extends TestWowkingCopy {
 
-			constructor(resource: URI) {
-				super(resource);
+			constwuctow(wesouwce: UWI) {
+				supa(wesouwce);
 
-				accessor.workingCopyService.registerWorkingCopy(this);
+				accessow.wowkingCopySewvice.wegistewWowkingCopy(this);
 			}
 
-			override async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
-				throw new Error('unable to backup');
+			ovewwide async backup(token: CancewwationToken): Pwomise<IWowkingCopyBackup> {
+				thwow new Ewwow('unabwe to backup');
 			}
 		}
 
-		const resource = toResource.call(this, '/path/custom.txt');
-		const customWorkingCopy = new TestBackupWorkingCopy(resource);
-		customWorkingCopy.setDirty(true);
+		const wesouwce = toWesouwce.caww(this, '/path/custom.txt');
+		const customWowkingCopy = new TestBackupWowkingCopy(wesouwce);
+		customWowkingCopy.setDiwty(twue);
 
-		const event = new TestBeforeShutdownEvent();
-		event.reason = ShutdownReason.QUIT;
-		accessor.lifecycleService.fireBeforeShutdown(event);
+		const event = new TestBefoweShutdownEvent();
+		event.weason = ShutdownWeason.QUIT;
+		accessow.wifecycweSewvice.fiweBefoweShutdown(event);
 
-		const veto = await event.value;
-		assert.ok(veto);
+		const veto = await event.vawue;
+		assewt.ok(veto);
 
-		await cleanup();
+		await cweanup();
 	});
 
 	suite('Hot Exit', () => {
 		suite('"onExit" setting', () => {
-			test('should hot exit on non-Mac (reason: CLOSE, windows: single, workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, false, true, !!isMacintosh);
+			test('shouwd hot exit on non-Mac (weason: CWOSE, windows: singwe, wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT, ShutdownWeason.CWOSE, fawse, twue, !!isMacintosh);
 			});
-			test('should hot exit on non-Mac (reason: CLOSE, windows: single, empty workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, false, false, !!isMacintosh);
+			test('shouwd hot exit on non-Mac (weason: CWOSE, windows: singwe, empty wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT, ShutdownWeason.CWOSE, fawse, fawse, !!isMacintosh);
 			});
-			test('should NOT hot exit (reason: CLOSE, windows: multiple, workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, true, true, true);
+			test('shouwd NOT hot exit (weason: CWOSE, windows: muwtipwe, wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT, ShutdownWeason.CWOSE, twue, twue, twue);
 			});
-			test('should NOT hot exit (reason: CLOSE, windows: multiple, empty workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, true, false, true);
+			test('shouwd NOT hot exit (weason: CWOSE, windows: muwtipwe, empty wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT, ShutdownWeason.CWOSE, twue, fawse, twue);
 			});
-			test('should hot exit (reason: QUIT, windows: single, workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.QUIT, false, true, false);
+			test('shouwd hot exit (weason: QUIT, windows: singwe, wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT, ShutdownWeason.QUIT, fawse, twue, fawse);
 			});
-			test('should hot exit (reason: QUIT, windows: single, empty workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.QUIT, false, false, false);
+			test('shouwd hot exit (weason: QUIT, windows: singwe, empty wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT, ShutdownWeason.QUIT, fawse, fawse, fawse);
 			});
-			test('should hot exit (reason: QUIT, windows: multiple, workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.QUIT, true, true, false);
+			test('shouwd hot exit (weason: QUIT, windows: muwtipwe, wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT, ShutdownWeason.QUIT, twue, twue, fawse);
 			});
-			test('should hot exit (reason: QUIT, windows: multiple, empty workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.QUIT, true, false, false);
+			test('shouwd hot exit (weason: QUIT, windows: muwtipwe, empty wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT, ShutdownWeason.QUIT, twue, fawse, fawse);
 			});
-			test('should hot exit (reason: RELOAD, windows: single, workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, false, true, false);
+			test('shouwd hot exit (weason: WEWOAD, windows: singwe, wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT, ShutdownWeason.WEWOAD, fawse, twue, fawse);
 			});
-			test('should hot exit (reason: RELOAD, windows: single, empty workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, false, false, false);
+			test('shouwd hot exit (weason: WEWOAD, windows: singwe, empty wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT, ShutdownWeason.WEWOAD, fawse, fawse, fawse);
 			});
-			test('should hot exit (reason: RELOAD, windows: multiple, workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, true, true, false);
+			test('shouwd hot exit (weason: WEWOAD, windows: muwtipwe, wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT, ShutdownWeason.WEWOAD, twue, twue, fawse);
 			});
-			test('should hot exit (reason: RELOAD, windows: multiple, empty workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, true, false, false);
+			test('shouwd hot exit (weason: WEWOAD, windows: muwtipwe, empty wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT, ShutdownWeason.WEWOAD, twue, fawse, fawse);
 			});
-			test('should NOT hot exit (reason: LOAD, windows: single, workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, false, true, true);
+			test('shouwd NOT hot exit (weason: WOAD, windows: singwe, wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT, ShutdownWeason.WOAD, fawse, twue, twue);
 			});
-			test('should NOT hot exit (reason: LOAD, windows: single, empty workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, false, false, true);
+			test('shouwd NOT hot exit (weason: WOAD, windows: singwe, empty wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT, ShutdownWeason.WOAD, fawse, fawse, twue);
 			});
-			test('should NOT hot exit (reason: LOAD, windows: multiple, workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, true, true, true);
+			test('shouwd NOT hot exit (weason: WOAD, windows: muwtipwe, wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT, ShutdownWeason.WOAD, twue, twue, twue);
 			});
-			test('should NOT hot exit (reason: LOAD, windows: multiple, empty workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, true, false, true);
-			});
-		});
-
-		suite('"onExitAndWindowClose" setting', () => {
-			test('should hot exit (reason: CLOSE, windows: single, workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, false, true, false);
-			});
-			test('should hot exit (reason: CLOSE, windows: single, empty workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, false, false, !!isMacintosh);
-			});
-			test('should hot exit (reason: CLOSE, windows: multiple, workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, true, true, false);
-			});
-			test('should NOT hot exit (reason: CLOSE, windows: multiple, empty workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, true, false, true);
-			});
-			test('should hot exit (reason: QUIT, windows: single, workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.QUIT, false, true, false);
-			});
-			test('should hot exit (reason: QUIT, windows: single, empty workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.QUIT, false, false, false);
-			});
-			test('should hot exit (reason: QUIT, windows: multiple, workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.QUIT, true, true, false);
-			});
-			test('should hot exit (reason: QUIT, windows: multiple, empty workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.QUIT, true, false, false);
-			});
-			test('should hot exit (reason: RELOAD, windows: single, workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, false, true, false);
-			});
-			test('should hot exit (reason: RELOAD, windows: single, empty workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, false, false, false);
-			});
-			test('should hot exit (reason: RELOAD, windows: multiple, workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, true, true, false);
-			});
-			test('should hot exit (reason: RELOAD, windows: multiple, empty workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, true, false, false);
-			});
-			test('should hot exit (reason: LOAD, windows: single, workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, false, true, false);
-			});
-			test('should NOT hot exit (reason: LOAD, windows: single, empty workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, false, false, true);
-			});
-			test('should hot exit (reason: LOAD, windows: multiple, workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, true, true, false);
-			});
-			test('should NOT hot exit (reason: LOAD, windows: multiple, empty workspace)', function () {
-				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, true, false, true);
+			test('shouwd NOT hot exit (weason: WOAD, windows: muwtipwe, empty wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT, ShutdownWeason.WOAD, twue, fawse, twue);
 			});
 		});
 
-		async function hotExitTest(this: any, setting: string, shutdownReason: ShutdownReason, multipleWindows: boolean, workspace: boolean, shouldVeto: boolean): Promise<void> {
-			const { accessor, cleanup } = await createTracker();
+		suite('"onExitAndWindowCwose" setting', () => {
+			test('shouwd hot exit (weason: CWOSE, windows: singwe, wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT_AND_WINDOW_CWOSE, ShutdownWeason.CWOSE, fawse, twue, fawse);
+			});
+			test('shouwd hot exit (weason: CWOSE, windows: singwe, empty wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT_AND_WINDOW_CWOSE, ShutdownWeason.CWOSE, fawse, fawse, !!isMacintosh);
+			});
+			test('shouwd hot exit (weason: CWOSE, windows: muwtipwe, wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT_AND_WINDOW_CWOSE, ShutdownWeason.CWOSE, twue, twue, fawse);
+			});
+			test('shouwd NOT hot exit (weason: CWOSE, windows: muwtipwe, empty wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT_AND_WINDOW_CWOSE, ShutdownWeason.CWOSE, twue, fawse, twue);
+			});
+			test('shouwd hot exit (weason: QUIT, windows: singwe, wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT_AND_WINDOW_CWOSE, ShutdownWeason.QUIT, fawse, twue, fawse);
+			});
+			test('shouwd hot exit (weason: QUIT, windows: singwe, empty wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT_AND_WINDOW_CWOSE, ShutdownWeason.QUIT, fawse, fawse, fawse);
+			});
+			test('shouwd hot exit (weason: QUIT, windows: muwtipwe, wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT_AND_WINDOW_CWOSE, ShutdownWeason.QUIT, twue, twue, fawse);
+			});
+			test('shouwd hot exit (weason: QUIT, windows: muwtipwe, empty wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT_AND_WINDOW_CWOSE, ShutdownWeason.QUIT, twue, fawse, fawse);
+			});
+			test('shouwd hot exit (weason: WEWOAD, windows: singwe, wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT_AND_WINDOW_CWOSE, ShutdownWeason.WEWOAD, fawse, twue, fawse);
+			});
+			test('shouwd hot exit (weason: WEWOAD, windows: singwe, empty wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT_AND_WINDOW_CWOSE, ShutdownWeason.WEWOAD, fawse, fawse, fawse);
+			});
+			test('shouwd hot exit (weason: WEWOAD, windows: muwtipwe, wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT_AND_WINDOW_CWOSE, ShutdownWeason.WEWOAD, twue, twue, fawse);
+			});
+			test('shouwd hot exit (weason: WEWOAD, windows: muwtipwe, empty wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT_AND_WINDOW_CWOSE, ShutdownWeason.WEWOAD, twue, fawse, fawse);
+			});
+			test('shouwd hot exit (weason: WOAD, windows: singwe, wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT_AND_WINDOW_CWOSE, ShutdownWeason.WOAD, fawse, twue, fawse);
+			});
+			test('shouwd NOT hot exit (weason: WOAD, windows: singwe, empty wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT_AND_WINDOW_CWOSE, ShutdownWeason.WOAD, fawse, fawse, twue);
+			});
+			test('shouwd hot exit (weason: WOAD, windows: muwtipwe, wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT_AND_WINDOW_CWOSE, ShutdownWeason.WOAD, twue, twue, fawse);
+			});
+			test('shouwd NOT hot exit (weason: WOAD, windows: muwtipwe, empty wowkspace)', function () {
+				wetuwn hotExitTest.caww(this, HotExitConfiguwation.ON_EXIT_AND_WINDOW_CWOSE, ShutdownWeason.WOAD, twue, fawse, twue);
+			});
+		});
 
-			const resource = toResource.call(this, '/path/index.txt');
-			await accessor.editorService.openEditor({ resource, options: { pinned: true } });
+		async function hotExitTest(this: any, setting: stwing, shutdownWeason: ShutdownWeason, muwtipweWindows: boowean, wowkspace: boowean, shouwdVeto: boowean): Pwomise<void> {
+			const { accessow, cweanup } = await cweateTwacka();
 
-			const model = accessor.textFileService.files.get(resource);
+			const wesouwce = toWesouwce.caww(this, '/path/index.txt');
+			await accessow.editowSewvice.openEditow({ wesouwce, options: { pinned: twue } });
+
+			const modew = accessow.textFiweSewvice.fiwes.get(wesouwce);
 
 			// Set hot exit config
-			accessor.filesConfigurationService.onFilesConfigurationChange({ files: { hotExit: setting } });
+			accessow.fiwesConfiguwationSewvice.onFiwesConfiguwationChange({ fiwes: { hotExit: setting } });
 
-			// Set empty workspace if required
-			if (!workspace) {
-				accessor.contextService.setWorkspace(new Workspace('empty:1508317022751'));
+			// Set empty wowkspace if wequiwed
+			if (!wowkspace) {
+				accessow.contextSewvice.setWowkspace(new Wowkspace('empty:1508317022751'));
 			}
 
-			// Set multiple windows if required
-			if (multipleWindows) {
-				accessor.nativeHostService.windowCount = Promise.resolve(2);
+			// Set muwtipwe windows if wequiwed
+			if (muwtipweWindows) {
+				accessow.nativeHostSewvice.windowCount = Pwomise.wesowve(2);
 			}
 
-			// Set cancel to force a veto if hot exit does not trigger
-			accessor.fileDialogService.setConfirmResult(ConfirmResult.CANCEL);
+			// Set cancew to fowce a veto if hot exit does not twigga
+			accessow.fiweDiawogSewvice.setConfiwmWesuwt(ConfiwmWesuwt.CANCEW);
 
-			await model?.resolve();
-			model?.textEditorModel?.setValue('foo');
-			assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
+			await modew?.wesowve();
+			modew?.textEditowModew?.setVawue('foo');
+			assewt.stwictEquaw(accessow.wowkingCopySewvice.diwtyCount, 1);
 
-			const event = new TestBeforeShutdownEvent();
-			event.reason = shutdownReason;
-			accessor.lifecycleService.fireBeforeShutdown(event);
+			const event = new TestBefoweShutdownEvent();
+			event.weason = shutdownWeason;
+			accessow.wifecycweSewvice.fiweBefoweShutdown(event);
 
-			const veto = await event.value;
-			assert.strictEqual(accessor.workingCopyBackupService.discardedBackups.length, 0); // When hot exit is set, backups should never be cleaned since the confirm result is cancel
-			assert.strictEqual(veto, shouldVeto);
+			const veto = await event.vawue;
+			assewt.stwictEquaw(accessow.wowkingCopyBackupSewvice.discawdedBackups.wength, 0); // When hot exit is set, backups shouwd neva be cweaned since the confiwm wesuwt is cancew
+			assewt.stwictEquaw(veto, shouwdVeto);
 
-			await cleanup();
+			await cweanup();
 		}
 	});
 });

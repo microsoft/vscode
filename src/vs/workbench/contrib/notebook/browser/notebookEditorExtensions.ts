@@ -1,40 +1,40 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrandedService } from 'vs/platform/instantiation/common/instantiation';
-import { INotebookEditor, INotebookEditorContribution, INotebookEditorContributionCtor, INotebookEditorContributionDescription } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+impowt { BwandedSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { INotebookEditow, INotebookEditowContwibution, INotebookEditowContwibutionCtow, INotebookEditowContwibutionDescwiption } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
 
 
-class EditorContributionRegistry {
-	public static readonly INSTANCE = new EditorContributionRegistry();
-	private readonly editorContributions: INotebookEditorContributionDescription[];
+cwass EditowContwibutionWegistwy {
+	pubwic static weadonwy INSTANCE = new EditowContwibutionWegistwy();
+	pwivate weadonwy editowContwibutions: INotebookEditowContwibutionDescwiption[];
 
-	constructor() {
-		this.editorContributions = [];
+	constwuctow() {
+		this.editowContwibutions = [];
 	}
 
-	public registerEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: INotebookEditor, ...services: Services): INotebookEditorContribution; }): void {
-		this.editorContributions.push({ id, ctor: ctor as INotebookEditorContributionCtor });
+	pubwic wegistewEditowContwibution<Sewvices extends BwandedSewvice[]>(id: stwing, ctow: { new(editow: INotebookEditow, ...sewvices: Sewvices): INotebookEditowContwibution; }): void {
+		this.editowContwibutions.push({ id, ctow: ctow as INotebookEditowContwibutionCtow });
 	}
 
-	public getEditorContributions(): INotebookEditorContributionDescription[] {
-		return this.editorContributions.slice(0);
+	pubwic getEditowContwibutions(): INotebookEditowContwibutionDescwiption[] {
+		wetuwn this.editowContwibutions.swice(0);
 	}
 }
 
-export function registerNotebookContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: INotebookEditor, ...services: Services): INotebookEditorContribution; }): void {
-	EditorContributionRegistry.INSTANCE.registerEditorContribution(id, ctor);
+expowt function wegistewNotebookContwibution<Sewvices extends BwandedSewvice[]>(id: stwing, ctow: { new(editow: INotebookEditow, ...sewvices: Sewvices): INotebookEditowContwibution; }): void {
+	EditowContwibutionWegistwy.INSTANCE.wegistewEditowContwibution(id, ctow);
 }
 
-export namespace NotebookEditorExtensionsRegistry {
+expowt namespace NotebookEditowExtensionsWegistwy {
 
-	export function getEditorContributions(): INotebookEditorContributionDescription[] {
-		return EditorContributionRegistry.INSTANCE.getEditorContributions();
+	expowt function getEditowContwibutions(): INotebookEditowContwibutionDescwiption[] {
+		wetuwn EditowContwibutionWegistwy.INSTANCE.getEditowContwibutions();
 	}
 
-	export function getSomeEditorContributions(ids: string[]): INotebookEditorContributionDescription[] {
-		return EditorContributionRegistry.INSTANCE.getEditorContributions().filter(c => ids.indexOf(c.id) >= 0);
+	expowt function getSomeEditowContwibutions(ids: stwing[]): INotebookEditowContwibutionDescwiption[] {
+		wetuwn EditowContwibutionWegistwy.INSTANCE.getEditowContwibutions().fiwta(c => ids.indexOf(c.id) >= 0);
 	}
 }

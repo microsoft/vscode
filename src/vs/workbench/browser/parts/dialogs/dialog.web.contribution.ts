@@ -1,78 +1,78 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IDialogHandler, IDialogResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IDialogsModel, IDialogViewItem } from 'vs/workbench/common/dialogs';
-import { BrowserDialogHandler } from 'vs/workbench/browser/parts/dialogs/dialogHandler';
-import { DialogService } from 'vs/workbench/services/dialogs/common/dialogService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { IDiawogHandwa, IDiawogWesuwt, IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IWayoutSewvice } fwom 'vs/pwatfowm/wayout/bwowsa/wayoutSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy, Extensions as WowkbenchExtensions } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IDiawogsModew, IDiawogViewItem } fwom 'vs/wowkbench/common/diawogs';
+impowt { BwowsewDiawogHandwa } fwom 'vs/wowkbench/bwowsa/pawts/diawogs/diawogHandwa';
+impowt { DiawogSewvice } fwom 'vs/wowkbench/sewvices/diawogs/common/diawogSewvice';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export class DialogHandlerContribution extends Disposable implements IWorkbenchContribution {
-	private readonly model: IDialogsModel;
-	private readonly impl: IDialogHandler;
+expowt cwass DiawogHandwewContwibution extends Disposabwe impwements IWowkbenchContwibution {
+	pwivate weadonwy modew: IDiawogsModew;
+	pwivate weadonwy impw: IDiawogHandwa;
 
-	private currentDialog: IDialogViewItem | undefined;
+	pwivate cuwwentDiawog: IDiawogViewItem | undefined;
 
-	constructor(
-		@IDialogService private dialogService: IDialogService,
-		@ILogService logService: ILogService,
-		@ILayoutService layoutService: ILayoutService,
-		@IThemeService themeService: IThemeService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IProductService productService: IProductService,
-		@IClipboardService clipboardService: IClipboardService
+	constwuctow(
+		@IDiawogSewvice pwivate diawogSewvice: IDiawogSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IWayoutSewvice wayoutSewvice: IWayoutSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice,
+		@ICwipboawdSewvice cwipboawdSewvice: ICwipboawdSewvice
 	) {
-		super();
+		supa();
 
-		this.impl = new BrowserDialogHandler(logService, layoutService, themeService, keybindingService, instantiationService, productService, clipboardService);
+		this.impw = new BwowsewDiawogHandwa(wogSewvice, wayoutSewvice, themeSewvice, keybindingSewvice, instantiationSewvice, pwoductSewvice, cwipboawdSewvice);
 
-		this.model = (this.dialogService as DialogService).model;
+		this.modew = (this.diawogSewvice as DiawogSewvice).modew;
 
-		this._register(this.model.onDidShowDialog(() => {
-			if (!this.currentDialog) {
-				this.processDialogs();
+		this._wegista(this.modew.onDidShowDiawog(() => {
+			if (!this.cuwwentDiawog) {
+				this.pwocessDiawogs();
 			}
 		}));
 
-		this.processDialogs();
+		this.pwocessDiawogs();
 	}
 
-	private async processDialogs(): Promise<void> {
-		while (this.model.dialogs.length) {
-			this.currentDialog = this.model.dialogs[0];
+	pwivate async pwocessDiawogs(): Pwomise<void> {
+		whiwe (this.modew.diawogs.wength) {
+			this.cuwwentDiawog = this.modew.diawogs[0];
 
-			let result: IDialogResult | undefined = undefined;
-			if (this.currentDialog.args.confirmArgs) {
-				const args = this.currentDialog.args.confirmArgs;
-				result = await this.impl.confirm(args.confirmation);
-			} else if (this.currentDialog.args.inputArgs) {
-				const args = this.currentDialog.args.inputArgs;
-				result = await this.impl.input(args.severity, args.message, args.buttons, args.inputs, args.options);
-			} else if (this.currentDialog.args.showArgs) {
-				const args = this.currentDialog.args.showArgs;
-				result = await this.impl.show(args.severity, args.message, args.buttons, args.options);
-			} else {
-				await this.impl.about();
+			wet wesuwt: IDiawogWesuwt | undefined = undefined;
+			if (this.cuwwentDiawog.awgs.confiwmAwgs) {
+				const awgs = this.cuwwentDiawog.awgs.confiwmAwgs;
+				wesuwt = await this.impw.confiwm(awgs.confiwmation);
+			} ewse if (this.cuwwentDiawog.awgs.inputAwgs) {
+				const awgs = this.cuwwentDiawog.awgs.inputAwgs;
+				wesuwt = await this.impw.input(awgs.sevewity, awgs.message, awgs.buttons, awgs.inputs, awgs.options);
+			} ewse if (this.cuwwentDiawog.awgs.showAwgs) {
+				const awgs = this.cuwwentDiawog.awgs.showAwgs;
+				wesuwt = await this.impw.show(awgs.sevewity, awgs.message, awgs.buttons, awgs.options);
+			} ewse {
+				await this.impw.about();
 			}
 
-			this.currentDialog.close(result);
-			this.currentDialog = undefined;
+			this.cuwwentDiawog.cwose(wesuwt);
+			this.cuwwentDiawog = undefined;
 		}
 	}
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(DialogHandlerContribution, LifecyclePhase.Starting);
+const wowkbenchWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench);
+wowkbenchWegistwy.wegistewWowkbenchContwibution(DiawogHandwewContwibution, WifecycwePhase.Stawting);

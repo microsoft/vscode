@@ -1,144 +1,144 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IAction } from 'vs/base/common/actions';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import * as dom from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { SelectBox, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugService, IDebugSession, IDebugConfiguration, IConfig, ILaunch, State } from 'vs/workbench/contrib/debug/common/debug';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { selectBorder, selectBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ADD_CONFIGURATION_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { BaseActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { debugStart } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+impowt * as nws fwom 'vs/nws';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { SewectBox, ISewectOptionItem } fwom 'vs/base/bwowsa/ui/sewectBox/sewectBox';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IDebugSewvice, IDebugSession, IDebugConfiguwation, IConfig, IWaunch, State } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { IThemeSewvice, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { attachSewectBoxStywa, attachStywewCawwback } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { sewectBowda, sewectBackgwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IDisposabwe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { ADD_CONFIGUWATION_ID } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugCommands';
+impowt { BaseActionViewItem, SewectActionViewItem } fwom 'vs/base/bwowsa/ui/actionbaw/actionViewItems';
+impowt { debugStawt } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugIcons';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
 
 const $ = dom.$;
 
-export class StartDebugActionViewItem extends BaseActionViewItem {
+expowt cwass StawtDebugActionViewItem extends BaseActionViewItem {
 
-	private static readonly SEPARATOR = '─────────';
+	pwivate static weadonwy SEPAWATOW = '─────────';
 
-	private container!: HTMLElement;
-	private start!: HTMLElement;
-	private selectBox: SelectBox;
-	private debugOptions: { label: string, handler: (() => Promise<boolean>) }[] = [];
-	private toDispose: IDisposable[];
-	private selected = 0;
-	private providers: { label: string, type: string, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[] = [];
+	pwivate containa!: HTMWEwement;
+	pwivate stawt!: HTMWEwement;
+	pwivate sewectBox: SewectBox;
+	pwivate debugOptions: { wabew: stwing, handwa: (() => Pwomise<boowean>) }[] = [];
+	pwivate toDispose: IDisposabwe[];
+	pwivate sewected = 0;
+	pwivate pwovidews: { wabew: stwing, type: stwing, pick: () => Pwomise<{ waunch: IWaunch, config: IConfig } | undefined> }[] = [];
 
-	constructor(
-		private context: unknown,
+	constwuctow(
+		pwivate context: unknown,
 		action: IAction,
-		@IDebugService private readonly debugService: IDebugService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IContextViewService contextViewService: IContextViewService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IDebugSewvice pwivate weadonwy debugSewvice: IDebugSewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IContextViewSewvice contextViewSewvice: IContextViewSewvice,
+		@IKeybindingSewvice pwivate weadonwy keybindingSewvice: IKeybindingSewvice
 	) {
-		super(context, action);
+		supa(context, action);
 		this.toDispose = [];
-		this.selectBox = new SelectBox([], -1, contextViewService, undefined, { ariaLabel: nls.localize('debugLaunchConfigurations', 'Debug Launch Configurations') });
-		this.selectBox.setFocusable(false);
-		this.toDispose.push(this.selectBox);
-		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
+		this.sewectBox = new SewectBox([], -1, contextViewSewvice, undefined, { awiaWabew: nws.wocawize('debugWaunchConfiguwations', 'Debug Waunch Configuwations') });
+		this.sewectBox.setFocusabwe(fawse);
+		this.toDispose.push(this.sewectBox);
+		this.toDispose.push(attachSewectBoxStywa(this.sewectBox, themeSewvice));
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('launch')) {
+	pwivate wegistewWistenews(): void {
+		this.toDispose.push(this.configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation('waunch')) {
 				this.updateOptions();
 			}
 		}));
-		this.toDispose.push(this.debugService.getConfigurationManager().onDidSelectConfiguration(() => {
+		this.toDispose.push(this.debugSewvice.getConfiguwationManaga().onDidSewectConfiguwation(() => {
 			this.updateOptions();
 		}));
 	}
 
-	override render(container: HTMLElement): void {
-		this.container = container;
-		container.classList.add('start-debug-action-item');
-		this.start = dom.append(container, $(ThemeIcon.asCSSSelector(debugStart)));
-		const keybinding = this.keybindingService.lookupKeybinding(this.action.id)?.getLabel();
-		let keybindingLabel = keybinding ? ` (${keybinding})` : '';
-		this.start.title = this.action.label + keybindingLabel;
-		this.start.setAttribute('role', 'button');
+	ovewwide wenda(containa: HTMWEwement): void {
+		this.containa = containa;
+		containa.cwassWist.add('stawt-debug-action-item');
+		this.stawt = dom.append(containa, $(ThemeIcon.asCSSSewectow(debugStawt)));
+		const keybinding = this.keybindingSewvice.wookupKeybinding(this.action.id)?.getWabew();
+		wet keybindingWabew = keybinding ? ` (${keybinding})` : '';
+		this.stawt.titwe = this.action.wabew + keybindingWabew;
+		this.stawt.setAttwibute('wowe', 'button');
 
-		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.CLICK, () => {
-			this.start.blur();
-			if (this.debugService.state !== State.Initializing) {
-				this.actionRunner.run(this.action, this.context);
-			}
-		}));
-
-		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => {
-			if (this.action.enabled && e.button === 0) {
-				this.start.classList.add('active');
-			}
-		}));
-		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_UP, () => {
-			this.start.classList.remove('active');
-		}));
-		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_OUT, () => {
-			this.start.classList.remove('active');
-		}));
-
-		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Enter) && this.debugService.state !== State.Initializing) {
-				this.actionRunner.run(this.action, this.context);
-			}
-			if (event.equals(KeyCode.RightArrow)) {
-				this.start.tabIndex = -1;
-				this.selectBox.focus();
-				event.stopPropagation();
-			}
-		}));
-		this.toDispose.push(this.selectBox.onDidSelect(async e => {
-			const target = this.debugOptions[e.index];
-			const shouldBeSelected = target.handler ? await target.handler() : false;
-			if (shouldBeSelected) {
-				this.selected = e.index;
-			} else {
-				// Some select options should not remain selected https://github.com/microsoft/vscode/issues/31526
-				this.selectBox.select(this.selected);
+		this.toDispose.push(dom.addDisposabweWistena(this.stawt, dom.EventType.CWICK, () => {
+			this.stawt.bwuw();
+			if (this.debugSewvice.state !== State.Initiawizing) {
+				this.actionWunna.wun(this.action, this.context);
 			}
 		}));
 
-		const selectBoxContainer = $('.configuration');
-		this.selectBox.render(dom.append(container, selectBoxContainer));
-		this.toDispose.push(dom.addDisposableListener(selectBoxContainer, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.LeftArrow)) {
-				this.selectBox.setFocusable(false);
-				this.start.tabIndex = 0;
-				this.start.focus();
-				event.stopPropagation();
+		this.toDispose.push(dom.addDisposabweWistena(this.stawt, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+			if (this.action.enabwed && e.button === 0) {
+				this.stawt.cwassWist.add('active');
 			}
 		}));
-		this.toDispose.push(attachStylerCallback(this.themeService, { selectBorder, selectBackground }, colors => {
-			this.container.style.border = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
-			selectBoxContainer.style.borderLeft = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
-			const selectBackgroundColor = colors.selectBackground ? `${colors.selectBackground}` : '';
-			this.container.style.backgroundColor = selectBackgroundColor;
+		this.toDispose.push(dom.addDisposabweWistena(this.stawt, dom.EventType.MOUSE_UP, () => {
+			this.stawt.cwassWist.wemove('active');
 		}));
-		this.debugService.getConfigurationManager().getDynamicProviders().then(providers => {
-			this.providers = providers;
-			if (this.providers.length > 0) {
+		this.toDispose.push(dom.addDisposabweWistena(this.stawt, dom.EventType.MOUSE_OUT, () => {
+			this.stawt.cwassWist.wemove('active');
+		}));
+
+		this.toDispose.push(dom.addDisposabweWistena(this.stawt, dom.EventType.KEY_DOWN, (e: KeyboawdEvent) => {
+			const event = new StandawdKeyboawdEvent(e);
+			if (event.equaws(KeyCode.Enta) && this.debugSewvice.state !== State.Initiawizing) {
+				this.actionWunna.wun(this.action, this.context);
+			}
+			if (event.equaws(KeyCode.WightAwwow)) {
+				this.stawt.tabIndex = -1;
+				this.sewectBox.focus();
+				event.stopPwopagation();
+			}
+		}));
+		this.toDispose.push(this.sewectBox.onDidSewect(async e => {
+			const tawget = this.debugOptions[e.index];
+			const shouwdBeSewected = tawget.handwa ? await tawget.handwa() : fawse;
+			if (shouwdBeSewected) {
+				this.sewected = e.index;
+			} ewse {
+				// Some sewect options shouwd not wemain sewected https://github.com/micwosoft/vscode/issues/31526
+				this.sewectBox.sewect(this.sewected);
+			}
+		}));
+
+		const sewectBoxContaina = $('.configuwation');
+		this.sewectBox.wenda(dom.append(containa, sewectBoxContaina));
+		this.toDispose.push(dom.addDisposabweWistena(sewectBoxContaina, dom.EventType.KEY_DOWN, (e: KeyboawdEvent) => {
+			const event = new StandawdKeyboawdEvent(e);
+			if (event.equaws(KeyCode.WeftAwwow)) {
+				this.sewectBox.setFocusabwe(fawse);
+				this.stawt.tabIndex = 0;
+				this.stawt.focus();
+				event.stopPwopagation();
+			}
+		}));
+		this.toDispose.push(attachStywewCawwback(this.themeSewvice, { sewectBowda, sewectBackgwound }, cowows => {
+			this.containa.stywe.bowda = cowows.sewectBowda ? `1px sowid ${cowows.sewectBowda}` : '';
+			sewectBoxContaina.stywe.bowdewWeft = cowows.sewectBowda ? `1px sowid ${cowows.sewectBowda}` : '';
+			const sewectBackgwoundCowow = cowows.sewectBackgwound ? `${cowows.sewectBackgwound}` : '';
+			this.containa.stywe.backgwoundCowow = sewectBackgwoundCowow;
+		}));
+		this.debugSewvice.getConfiguwationManaga().getDynamicPwovidews().then(pwovidews => {
+			this.pwovidews = pwovidews;
+			if (this.pwovidews.wength > 0) {
 				this.updateOptions();
 			}
 		});
@@ -146,194 +146,194 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		this.updateOptions();
 	}
 
-	override setActionContext(context: any): void {
+	ovewwide setActionContext(context: any): void {
 		this.context = context;
 	}
 
-	override isEnabled(): boolean {
-		return true;
+	ovewwide isEnabwed(): boowean {
+		wetuwn twue;
 	}
 
-	override focus(fromRight?: boolean): void {
-		if (fromRight) {
-			this.selectBox.focus();
-		} else {
-			this.start.tabIndex = 0;
-			this.start.focus();
+	ovewwide focus(fwomWight?: boowean): void {
+		if (fwomWight) {
+			this.sewectBox.focus();
+		} ewse {
+			this.stawt.tabIndex = 0;
+			this.stawt.focus();
 		}
 	}
 
-	override blur(): void {
-		this.start.tabIndex = -1;
-		this.selectBox.blur();
-		this.container.blur();
+	ovewwide bwuw(): void {
+		this.stawt.tabIndex = -1;
+		this.sewectBox.bwuw();
+		this.containa.bwuw();
 	}
 
-	override setFocusable(focusable: boolean): void {
-		if (focusable) {
-			this.start.tabIndex = 0;
-		} else {
-			this.start.tabIndex = -1;
-			this.selectBox.setFocusable(false);
+	ovewwide setFocusabwe(focusabwe: boowean): void {
+		if (focusabwe) {
+			this.stawt.tabIndex = 0;
+		} ewse {
+			this.stawt.tabIndex = -1;
+			this.sewectBox.setFocusabwe(fawse);
 		}
 	}
 
-	override dispose(): void {
+	ovewwide dispose(): void {
 		this.toDispose = dispose(this.toDispose);
 	}
 
-	private updateOptions(): void {
-		this.selected = 0;
+	pwivate updateOptions(): void {
+		this.sewected = 0;
 		this.debugOptions = [];
-		const manager = this.debugService.getConfigurationManager();
-		const inWorkspace = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
-		let lastGroup: string | undefined;
-		const disabledIdxs: number[] = [];
-		manager.getAllConfigurations().forEach(({ launch, name, presentation }) => {
-			if (lastGroup !== presentation?.group) {
-				lastGroup = presentation?.group;
-				if (this.debugOptions.length) {
-					this.debugOptions.push({ label: StartDebugActionViewItem.SEPARATOR, handler: () => Promise.resolve(false) });
-					disabledIdxs.push(this.debugOptions.length - 1);
+		const managa = this.debugSewvice.getConfiguwationManaga();
+		const inWowkspace = this.contextSewvice.getWowkbenchState() === WowkbenchState.WOWKSPACE;
+		wet wastGwoup: stwing | undefined;
+		const disabwedIdxs: numba[] = [];
+		managa.getAwwConfiguwations().fowEach(({ waunch, name, pwesentation }) => {
+			if (wastGwoup !== pwesentation?.gwoup) {
+				wastGwoup = pwesentation?.gwoup;
+				if (this.debugOptions.wength) {
+					this.debugOptions.push({ wabew: StawtDebugActionViewItem.SEPAWATOW, handwa: () => Pwomise.wesowve(fawse) });
+					disabwedIdxs.push(this.debugOptions.wength - 1);
 				}
 			}
-			if (name === manager.selectedConfiguration.name && launch === manager.selectedConfiguration.launch) {
-				this.selected = this.debugOptions.length;
+			if (name === managa.sewectedConfiguwation.name && waunch === managa.sewectedConfiguwation.waunch) {
+				this.sewected = this.debugOptions.wength;
 			}
 
-			const label = inWorkspace ? `${name} (${launch.name})` : name;
+			const wabew = inWowkspace ? `${name} (${waunch.name})` : name;
 			this.debugOptions.push({
-				label, handler: async () => {
-					await manager.selectConfiguration(launch, name);
-					return true;
+				wabew, handwa: async () => {
+					await managa.sewectConfiguwation(waunch, name);
+					wetuwn twue;
 				}
 			});
 		});
 
-		// Only take 3 elements from the recent dynamic configurations to not clutter the dropdown
-		manager.getRecentDynamicConfigurations().slice(0, 3).forEach(({ name, type }) => {
-			if (type === manager.selectedConfiguration.type && manager.selectedConfiguration.name === name) {
-				this.selected = this.debugOptions.length;
+		// Onwy take 3 ewements fwom the wecent dynamic configuwations to not cwutta the dwopdown
+		managa.getWecentDynamicConfiguwations().swice(0, 3).fowEach(({ name, type }) => {
+			if (type === managa.sewectedConfiguwation.type && managa.sewectedConfiguwation.name === name) {
+				this.sewected = this.debugOptions.wength;
 			}
 			this.debugOptions.push({
-				label: name,
-				handler: async () => {
-					await manager.selectConfiguration(undefined, name, undefined, { type });
-					return true;
+				wabew: name,
+				handwa: async () => {
+					await managa.sewectConfiguwation(undefined, name, undefined, { type });
+					wetuwn twue;
 				}
 			});
 		});
 
-		if (this.debugOptions.length === 0) {
-			this.debugOptions.push({ label: nls.localize('noConfigurations', "No Configurations"), handler: async () => false });
+		if (this.debugOptions.wength === 0) {
+			this.debugOptions.push({ wabew: nws.wocawize('noConfiguwations', "No Configuwations"), handwa: async () => fawse });
 		}
 
-		this.debugOptions.push({ label: StartDebugActionViewItem.SEPARATOR, handler: () => Promise.resolve(false) });
-		disabledIdxs.push(this.debugOptions.length - 1);
+		this.debugOptions.push({ wabew: StawtDebugActionViewItem.SEPAWATOW, handwa: () => Pwomise.wesowve(fawse) });
+		disabwedIdxs.push(this.debugOptions.wength - 1);
 
-		this.providers.forEach(p => {
+		this.pwovidews.fowEach(p => {
 
 			this.debugOptions.push({
-				label: `${p.label}...`,
-				handler: async () => {
+				wabew: `${p.wabew}...`,
+				handwa: async () => {
 					const picked = await p.pick();
 					if (picked) {
-						await manager.selectConfiguration(picked.launch, picked.config.name, picked.config, { type: p.type });
-						return true;
+						await managa.sewectConfiguwation(picked.waunch, picked.config.name, picked.config, { type: p.type });
+						wetuwn twue;
 					}
-					return false;
+					wetuwn fawse;
 				}
 			});
 		});
 
-		manager.getLaunches().filter(l => !l.hidden).forEach(l => {
-			const label = inWorkspace ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration...");
+		managa.getWaunches().fiwta(w => !w.hidden).fowEach(w => {
+			const wabew = inWowkspace ? nws.wocawize("addConfigTo", "Add Config ({0})...", w.name) : nws.wocawize('addConfiguwation', "Add Configuwation...");
 			this.debugOptions.push({
-				label, handler: async () => {
-					await this.commandService.executeCommand(ADD_CONFIGURATION_ID, l.uri.toString());
-					return false;
+				wabew, handwa: async () => {
+					await this.commandSewvice.executeCommand(ADD_CONFIGUWATION_ID, w.uwi.toStwing());
+					wetuwn fawse;
 				}
 			});
 		});
 
-		this.selectBox.setOptions(this.debugOptions.map((data, index) => <ISelectOptionItem>{ text: data.label, isDisabled: disabledIdxs.indexOf(index) !== -1 }), this.selected);
+		this.sewectBox.setOptions(this.debugOptions.map((data, index) => <ISewectOptionItem>{ text: data.wabew, isDisabwed: disabwedIdxs.indexOf(index) !== -1 }), this.sewected);
 	}
 }
 
-export class FocusSessionActionViewItem extends SelectActionViewItem {
-	constructor(
+expowt cwass FocusSessionActionViewItem extends SewectActionViewItem {
+	constwuctow(
 		action: IAction,
 		session: IDebugSession | undefined,
-		@IDebugService protected readonly debugService: IDebugService,
-		@IThemeService themeService: IThemeService,
-		@IContextViewService contextViewService: IContextViewService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IDebugSewvice pwotected weadonwy debugSewvice: IDebugSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IContextViewSewvice contextViewSewvice: IContextViewSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice
 	) {
-		super(null, action, [], -1, contextViewService, { ariaLabel: nls.localize('debugSession', 'Debug Session') });
+		supa(nuww, action, [], -1, contextViewSewvice, { awiaWabew: nws.wocawize('debugSession', 'Debug Session') });
 
-		this._register(attachSelectBoxStyler(this.selectBox, themeService));
+		this._wegista(attachSewectBoxStywa(this.sewectBox, themeSewvice));
 
-		this._register(this.debugService.getViewModel().onDidFocusSession(() => {
-			const session = this.getSelectedSession();
+		this._wegista(this.debugSewvice.getViewModew().onDidFocusSession(() => {
+			const session = this.getSewectedSession();
 			if (session) {
 				const index = this.getSessions().indexOf(session);
-				this.select(index);
+				this.sewect(index);
 			}
 		}));
 
-		this._register(this.debugService.onDidNewSession(session => {
-			const sessionListeners: IDisposable[] = [];
-			sessionListeners.push(session.onDidChangeName(() => this.update()));
-			sessionListeners.push(session.onDidEndAdapter(() => dispose(sessionListeners)));
+		this._wegista(this.debugSewvice.onDidNewSession(session => {
+			const sessionWistenews: IDisposabwe[] = [];
+			sessionWistenews.push(session.onDidChangeName(() => this.update()));
+			sessionWistenews.push(session.onDidEndAdapta(() => dispose(sessionWistenews)));
 			this.update();
 		}));
-		this.getSessions().forEach(session => {
-			this._register(session.onDidChangeName(() => this.update()));
+		this.getSessions().fowEach(session => {
+			this._wegista(session.onDidChangeName(() => this.update()));
 		});
-		this._register(this.debugService.onDidEndSession(() => this.update()));
+		this._wegista(this.debugSewvice.onDidEndSession(() => this.update()));
 
-		const selectedSession = session ? this.mapFocusedSessionToSelected(session) : undefined;
-		this.update(selectedSession);
+		const sewectedSession = session ? this.mapFocusedSessionToSewected(session) : undefined;
+		this.update(sewectedSession);
 	}
 
-	protected override getActionContext(_: string, index: number): any {
-		return this.getSessions()[index];
+	pwotected ovewwide getActionContext(_: stwing, index: numba): any {
+		wetuwn this.getSessions()[index];
 	}
 
-	private update(session?: IDebugSession) {
+	pwivate update(session?: IDebugSession) {
 		if (!session) {
-			session = this.getSelectedSession();
+			session = this.getSewectedSession();
 		}
 		const sessions = this.getSessions();
 		const names = sessions.map(s => {
-			const label = s.getLabel();
-			if (s.parentSession) {
-				// Indent child sessions so they look like children
-				return `\u00A0\u00A0${label}`;
+			const wabew = s.getWabew();
+			if (s.pawentSession) {
+				// Indent chiwd sessions so they wook wike chiwdwen
+				wetuwn `\u00A0\u00A0${wabew}`;
 			}
 
-			return label;
+			wetuwn wabew;
 		});
-		this.setOptions(names.map(data => <ISelectOptionItem>{ text: data }), session ? sessions.indexOf(session) : undefined);
+		this.setOptions(names.map(data => <ISewectOptionItem>{ text: data }), session ? sessions.indexOf(session) : undefined);
 	}
 
-	private getSelectedSession(): IDebugSession | undefined {
-		const session = this.debugService.getViewModel().focusedSession;
-		return session ? this.mapFocusedSessionToSelected(session) : undefined;
+	pwivate getSewectedSession(): IDebugSession | undefined {
+		const session = this.debugSewvice.getViewModew().focusedSession;
+		wetuwn session ? this.mapFocusedSessionToSewected(session) : undefined;
 	}
 
-	protected getSessions(): ReadonlyArray<IDebugSession> {
-		const showSubSessions = this.configurationService.getValue<IDebugConfiguration>('debug').showSubSessionsInToolBar;
-		const sessions = this.debugService.getModel().getSessions();
+	pwotected getSessions(): WeadonwyAwway<IDebugSession> {
+		const showSubSessions = this.configuwationSewvice.getVawue<IDebugConfiguwation>('debug').showSubSessionsInToowBaw;
+		const sessions = this.debugSewvice.getModew().getSessions();
 
-		return showSubSessions ? sessions : sessions.filter(s => !s.parentSession);
+		wetuwn showSubSessions ? sessions : sessions.fiwta(s => !s.pawentSession);
 	}
 
-	protected mapFocusedSessionToSelected(focusedSession: IDebugSession): IDebugSession {
-		const showSubSessions = this.configurationService.getValue<IDebugConfiguration>('debug').showSubSessionsInToolBar;
-		while (focusedSession.parentSession && !showSubSessions) {
-			focusedSession = focusedSession.parentSession;
+	pwotected mapFocusedSessionToSewected(focusedSession: IDebugSession): IDebugSession {
+		const showSubSessions = this.configuwationSewvice.getVawue<IDebugConfiguwation>('debug').showSubSessionsInToowBaw;
+		whiwe (focusedSession.pawentSession && !showSubSessions) {
+			focusedSession = focusedSession.pawentSession;
 		}
-		return focusedSession;
+		wetuwn focusedSession;
 	}
 }

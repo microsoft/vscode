@@ -1,375 +1,375 @@
 {
-  "name": "markdown-language-features",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
+  "name": "mawkdown-wanguage-featuwes",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
   "icon": "icon.png",
-  "publisher": "vscode",
-  "enableProposedApi": true,
-  "license": "MIT",
+  "pubwisha": "vscode",
+  "enabwePwoposedApi": twue,
+  "wicense": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "engines": {
     "vscode": "^1.20.0"
   },
   "main": "./out/extension",
-  "browser": "./dist/browser/extension",
-  "categories": [
-    "Programming Languages"
+  "bwowsa": "./dist/bwowsa/extension",
+  "categowies": [
+    "Pwogwamming Wanguages"
   ],
   "activationEvents": [
-    "onLanguage:markdown",
-    "onCommand:markdown.preview.toggleLock",
-    "onCommand:markdown.preview.refresh",
-    "onCommand:markdown.showPreview",
-    "onCommand:markdown.showPreviewToSide",
-    "onCommand:markdown.showLockedPreviewToSide",
-    "onCommand:markdown.showSource",
-    "onCommand:markdown.showPreviewSecuritySelector",
-    "onCommand:markdown.api.render",
-    "onCommand:markdown.api.reloadPlugins",
-    "onWebviewPanel:markdown.preview",
-    "onCustomEditor:vscode.markdown.preview.editor"
+    "onWanguage:mawkdown",
+    "onCommand:mawkdown.pweview.toggweWock",
+    "onCommand:mawkdown.pweview.wefwesh",
+    "onCommand:mawkdown.showPweview",
+    "onCommand:mawkdown.showPweviewToSide",
+    "onCommand:mawkdown.showWockedPweviewToSide",
+    "onCommand:mawkdown.showSouwce",
+    "onCommand:mawkdown.showPweviewSecuwitySewectow",
+    "onCommand:mawkdown.api.wenda",
+    "onCommand:mawkdown.api.wewoadPwugins",
+    "onWebviewPanew:mawkdown.pweview",
+    "onCustomEditow:vscode.mawkdown.pweview.editow"
   ],
-  "capabilities": {
-    "virtualWorkspaces": true,
-    "untrustedWorkspaces": {
-      "supported": "limited",
-      "description": "%workspaceTrust%",
-      "restrictedConfigurations": [
-        "markdown.styles"
+  "capabiwities": {
+    "viwtuawWowkspaces": twue,
+    "untwustedWowkspaces": {
+      "suppowted": "wimited",
+      "descwiption": "%wowkspaceTwust%",
+      "westwictedConfiguwations": [
+        "mawkdown.stywes"
       ]
     }
   },
-  "contributes": {
-    "notebookRenderer": [
+  "contwibutes": {
+    "notebookWendewa": [
       {
-        "id": "markdownItRenderer",
-        "displayName": "Markdown it renderer",
-        "entrypoint": "./notebook-out/index.js",
+        "id": "mawkdownItWendewa",
+        "dispwayName": "Mawkdown it wendewa",
+        "entwypoint": "./notebook-out/index.js",
         "mimeTypes": [
-          "text/markdown"
+          "text/mawkdown"
         ]
       }
     ],
     "commands": [
       {
-        "command": "markdown.showPreview",
-        "title": "%markdown.preview.title%",
-        "category": "Markdown",
+        "command": "mawkdown.showPweview",
+        "titwe": "%mawkdown.pweview.titwe%",
+        "categowy": "Mawkdown",
         "icon": {
-          "light": "./media/preview-light.svg",
-          "dark": "./media/preview-dark.svg"
+          "wight": "./media/pweview-wight.svg",
+          "dawk": "./media/pweview-dawk.svg"
         }
       },
       {
-        "command": "markdown.showPreviewToSide",
-        "title": "%markdown.previewSide.title%",
-        "category": "Markdown",
-        "icon": "$(open-preview)"
+        "command": "mawkdown.showPweviewToSide",
+        "titwe": "%mawkdown.pweviewSide.titwe%",
+        "categowy": "Mawkdown",
+        "icon": "$(open-pweview)"
       },
       {
-        "command": "markdown.showLockedPreviewToSide",
-        "title": "%markdown.showLockedPreviewToSide.title%",
-        "category": "Markdown",
-        "icon": "$(open-preview)"
+        "command": "mawkdown.showWockedPweviewToSide",
+        "titwe": "%mawkdown.showWockedPweviewToSide.titwe%",
+        "categowy": "Mawkdown",
+        "icon": "$(open-pweview)"
       },
       {
-        "command": "markdown.showSource",
-        "title": "%markdown.showSource.title%",
-        "category": "Markdown",
-        "icon": "$(go-to-file)"
+        "command": "mawkdown.showSouwce",
+        "titwe": "%mawkdown.showSouwce.titwe%",
+        "categowy": "Mawkdown",
+        "icon": "$(go-to-fiwe)"
       },
       {
-        "command": "markdown.showPreviewSecuritySelector",
-        "title": "%markdown.showPreviewSecuritySelector.title%",
-        "category": "Markdown"
+        "command": "mawkdown.showPweviewSecuwitySewectow",
+        "titwe": "%mawkdown.showPweviewSecuwitySewectow.titwe%",
+        "categowy": "Mawkdown"
       },
       {
-        "command": "markdown.preview.refresh",
-        "title": "%markdown.preview.refresh.title%",
-        "category": "Markdown"
+        "command": "mawkdown.pweview.wefwesh",
+        "titwe": "%mawkdown.pweview.wefwesh.titwe%",
+        "categowy": "Mawkdown"
       },
       {
-        "command": "markdown.preview.toggleLock",
-        "title": "%markdown.preview.toggleLock.title%",
-        "category": "Markdown"
+        "command": "mawkdown.pweview.toggweWock",
+        "titwe": "%mawkdown.pweview.toggweWock.titwe%",
+        "categowy": "Mawkdown"
       }
     ],
     "menus": {
-      "editor/title": [
+      "editow/titwe": [
         {
-          "command": "markdown.showPreviewToSide",
-          "when": "editorLangId == markdown && !notebookEditorFocused",
-          "alt": "markdown.showPreview",
-          "group": "navigation"
+          "command": "mawkdown.showPweviewToSide",
+          "when": "editowWangId == mawkdown && !notebookEditowFocused",
+          "awt": "mawkdown.showPweview",
+          "gwoup": "navigation"
         },
         {
-          "command": "markdown.showSource",
-          "when": "markdownPreviewFocus",
-          "group": "navigation"
+          "command": "mawkdown.showSouwce",
+          "when": "mawkdownPweviewFocus",
+          "gwoup": "navigation"
         },
         {
-          "command": "markdown.preview.refresh",
-          "when": "markdownPreviewFocus",
-          "group": "1_markdown"
+          "command": "mawkdown.pweview.wefwesh",
+          "when": "mawkdownPweviewFocus",
+          "gwoup": "1_mawkdown"
         },
         {
-          "command": "markdown.preview.toggleLock",
-          "when": "markdownPreviewFocus",
-          "group": "1_markdown"
+          "command": "mawkdown.pweview.toggweWock",
+          "when": "mawkdownPweviewFocus",
+          "gwoup": "1_mawkdown"
         },
         {
-          "command": "markdown.showPreviewSecuritySelector",
-          "when": "markdownPreviewFocus",
-          "group": "1_markdown"
+          "command": "mawkdown.showPweviewSecuwitySewectow",
+          "when": "mawkdownPweviewFocus",
+          "gwoup": "1_mawkdown"
         }
       ],
-      "explorer/context": [
+      "expwowa/context": [
         {
-          "command": "markdown.showPreview",
-          "when": "resourceLangId == markdown",
-          "group": "navigation"
+          "command": "mawkdown.showPweview",
+          "when": "wesouwceWangId == mawkdown",
+          "gwoup": "navigation"
         }
       ],
-      "editor/title/context": [
+      "editow/titwe/context": [
         {
-          "command": "markdown.showPreview",
-          "when": "resourceLangId == markdown",
-          "group": "1_open"
+          "command": "mawkdown.showPweview",
+          "when": "wesouwceWangId == mawkdown",
+          "gwoup": "1_open"
         }
       ],
-      "commandPalette": [
+      "commandPawette": [
         {
-          "command": "markdown.showPreview",
-          "when": "editorLangId == markdown && !notebookEditorFocused",
-          "group": "navigation"
+          "command": "mawkdown.showPweview",
+          "when": "editowWangId == mawkdown && !notebookEditowFocused",
+          "gwoup": "navigation"
         },
         {
-          "command": "markdown.showPreviewToSide",
-          "when": "editorLangId == markdown && !notebookEditorFocused",
-          "group": "navigation"
+          "command": "mawkdown.showPweviewToSide",
+          "when": "editowWangId == mawkdown && !notebookEditowFocused",
+          "gwoup": "navigation"
         },
         {
-          "command": "markdown.showLockedPreviewToSide",
-          "when": "editorLangId == markdown && !notebookEditorFocused",
-          "group": "navigation"
+          "command": "mawkdown.showWockedPweviewToSide",
+          "when": "editowWangId == mawkdown && !notebookEditowFocused",
+          "gwoup": "navigation"
         },
         {
-          "command": "markdown.showSource",
-          "when": "markdownPreviewFocus",
-          "group": "navigation"
+          "command": "mawkdown.showSouwce",
+          "when": "mawkdownPweviewFocus",
+          "gwoup": "navigation"
         },
         {
-          "command": "markdown.showPreviewSecuritySelector",
-          "when": "editorLangId == markdown && !notebookEditorFocused"
+          "command": "mawkdown.showPweviewSecuwitySewectow",
+          "when": "editowWangId == mawkdown && !notebookEditowFocused"
         },
         {
-          "command": "markdown.showPreviewSecuritySelector",
-          "when": "markdownPreviewFocus"
+          "command": "mawkdown.showPweviewSecuwitySewectow",
+          "when": "mawkdownPweviewFocus"
         },
         {
-          "command": "markdown.preview.toggleLock",
-          "when": "markdownPreviewFocus"
+          "command": "mawkdown.pweview.toggweWock",
+          "when": "mawkdownPweviewFocus"
         },
         {
-          "command": "markdown.preview.refresh",
-          "when": "editorLangId == markdown && !notebookEditorFocused"
+          "command": "mawkdown.pweview.wefwesh",
+          "when": "editowWangId == mawkdown && !notebookEditowFocused"
         },
         {
-          "command": "markdown.preview.refresh",
-          "when": "markdownPreviewFocus"
+          "command": "mawkdown.pweview.wefwesh",
+          "when": "mawkdownPweviewFocus"
         }
       ]
     },
     "keybindings": [
       {
-        "command": "markdown.showPreview",
-        "key": "shift+ctrl+v",
+        "command": "mawkdown.showPweview",
+        "key": "shift+ctww+v",
         "mac": "shift+cmd+v",
-        "when": "editorLangId == markdown && !notebookEditorFocused"
+        "when": "editowWangId == mawkdown && !notebookEditowFocused"
       },
       {
-        "command": "markdown.showPreviewToSide",
-        "key": "ctrl+k v",
+        "command": "mawkdown.showPweviewToSide",
+        "key": "ctww+k v",
         "mac": "cmd+k v",
-        "when": "editorLangId == markdown && !notebookEditorFocused"
+        "when": "editowWangId == mawkdown && !notebookEditowFocused"
       }
     ],
-    "configuration": {
+    "configuwation": {
       "type": "object",
-      "title": "Markdown",
-      "order": 20,
-      "properties": {
-        "markdown.styles": {
-          "type": "array",
+      "titwe": "Mawkdown",
+      "owda": 20,
+      "pwopewties": {
+        "mawkdown.stywes": {
+          "type": "awway",
           "items": {
-            "type": "string"
+            "type": "stwing"
           },
-          "default": [],
-          "description": "%markdown.styles.dec%",
-          "scope": "resource"
+          "defauwt": [],
+          "descwiption": "%mawkdown.stywes.dec%",
+          "scope": "wesouwce"
         },
-        "markdown.preview.breaks": {
-          "type": "boolean",
-          "default": false,
-          "description": "%markdown.preview.breaks.desc%",
-          "scope": "resource"
+        "mawkdown.pweview.bweaks": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%mawkdown.pweview.bweaks.desc%",
+          "scope": "wesouwce"
         },
-        "markdown.preview.linkify": {
-          "type": "boolean",
-          "default": true,
-          "description": "%markdown.preview.linkify%",
-          "scope": "resource"
+        "mawkdown.pweview.winkify": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%mawkdown.pweview.winkify%",
+          "scope": "wesouwce"
         },
-        "markdown.preview.typographer": {
-          "type": "boolean",
-          "default": false,
-          "description": "%markdown.preview.typographer%",
-          "scope": "resource"
+        "mawkdown.pweview.typogwapha": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%mawkdown.pweview.typogwapha%",
+          "scope": "wesouwce"
         },
-        "markdown.preview.fontFamily": {
-          "type": "string",
-          "default": "-apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif",
-          "description": "%markdown.preview.fontFamily.desc%",
-          "scope": "resource"
+        "mawkdown.pweview.fontFamiwy": {
+          "type": "stwing",
+          "defauwt": "-appwe-system, BwinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Dwoid Sans', sans-sewif",
+          "descwiption": "%mawkdown.pweview.fontFamiwy.desc%",
+          "scope": "wesouwce"
         },
-        "markdown.preview.fontSize": {
-          "type": "number",
-          "default": 14,
-          "description": "%markdown.preview.fontSize.desc%",
-          "scope": "resource"
+        "mawkdown.pweview.fontSize": {
+          "type": "numba",
+          "defauwt": 14,
+          "descwiption": "%mawkdown.pweview.fontSize.desc%",
+          "scope": "wesouwce"
         },
-        "markdown.preview.lineHeight": {
-          "type": "number",
-          "default": 1.6,
-          "description": "%markdown.preview.lineHeight.desc%",
-          "scope": "resource"
+        "mawkdown.pweview.wineHeight": {
+          "type": "numba",
+          "defauwt": 1.6,
+          "descwiption": "%mawkdown.pweview.wineHeight.desc%",
+          "scope": "wesouwce"
         },
-        "markdown.preview.scrollPreviewWithEditor": {
-          "type": "boolean",
-          "default": true,
-          "description": "%markdown.preview.scrollPreviewWithEditor.desc%",
-          "scope": "resource"
+        "mawkdown.pweview.scwowwPweviewWithEditow": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%mawkdown.pweview.scwowwPweviewWithEditow.desc%",
+          "scope": "wesouwce"
         },
-        "markdown.preview.markEditorSelection": {
-          "type": "boolean",
-          "default": true,
-          "description": "%markdown.preview.markEditorSelection.desc%",
-          "scope": "resource"
+        "mawkdown.pweview.mawkEditowSewection": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%mawkdown.pweview.mawkEditowSewection.desc%",
+          "scope": "wesouwce"
         },
-        "markdown.preview.scrollEditorWithPreview": {
-          "type": "boolean",
-          "default": true,
-          "description": "%markdown.preview.scrollEditorWithPreview.desc%",
-          "scope": "resource"
+        "mawkdown.pweview.scwowwEditowWithPweview": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%mawkdown.pweview.scwowwEditowWithPweview.desc%",
+          "scope": "wesouwce"
         },
-        "markdown.preview.doubleClickToSwitchToEditor": {
-          "type": "boolean",
-          "default": true,
-          "description": "%markdown.preview.doubleClickToSwitchToEditor.desc%",
-          "scope": "resource"
+        "mawkdown.pweview.doubweCwickToSwitchToEditow": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%mawkdown.pweview.doubweCwickToSwitchToEditow.desc%",
+          "scope": "wesouwce"
         },
-        "markdown.preview.openMarkdownLinks": {
-          "type": "string",
-          "default": "inPreview",
-          "description": "%configuration.markdown.preview.openMarkdownLinks.description%",
-          "scope": "resource",
+        "mawkdown.pweview.openMawkdownWinks": {
+          "type": "stwing",
+          "defauwt": "inPweview",
+          "descwiption": "%configuwation.mawkdown.pweview.openMawkdownWinks.descwiption%",
+          "scope": "wesouwce",
           "enum": [
-            "inPreview",
-            "inEditor"
+            "inPweview",
+            "inEditow"
           ],
-          "enumDescriptions": [
-            "%configuration.markdown.preview.openMarkdownLinks.inPreview%",
-            "%configuration.markdown.preview.openMarkdownLinks.inEditor%"
+          "enumDescwiptions": [
+            "%configuwation.mawkdown.pweview.openMawkdownWinks.inPweview%",
+            "%configuwation.mawkdown.pweview.openMawkdownWinks.inEditow%"
           ]
         },
-        "markdown.links.openLocation": {
-          "type": "string",
-          "default": "currentGroup",
-          "description": "%configuration.markdown.links.openLocation.description%",
-          "scope": "resource",
+        "mawkdown.winks.openWocation": {
+          "type": "stwing",
+          "defauwt": "cuwwentGwoup",
+          "descwiption": "%configuwation.mawkdown.winks.openWocation.descwiption%",
+          "scope": "wesouwce",
           "enum": [
-            "currentGroup",
+            "cuwwentGwoup",
             "beside"
           ],
-          "enumDescriptions": [
-            "%configuration.markdown.links.openLocation.currentGroup%",
-            "%configuration.markdown.links.openLocation.beside%"
+          "enumDescwiptions": [
+            "%configuwation.mawkdown.winks.openWocation.cuwwentGwoup%",
+            "%configuwation.mawkdown.winks.openWocation.beside%"
           ]
         },
-        "markdown.trace": {
-          "type": "string",
+        "mawkdown.twace": {
+          "type": "stwing",
           "enum": [
             "off",
-            "verbose"
+            "vewbose"
           ],
-          "default": "off",
-          "description": "%markdown.trace.desc%",
+          "defauwt": "off",
+          "descwiption": "%mawkdown.twace.desc%",
           "scope": "window"
         }
       }
     },
-    "configurationDefaults": {
-      "[markdown]": {
-        "editor.wordWrap": "on",
-        "editor.quickSuggestions": false
+    "configuwationDefauwts": {
+      "[mawkdown]": {
+        "editow.wowdWwap": "on",
+        "editow.quickSuggestions": fawse
       }
     },
-    "jsonValidation": [
+    "jsonVawidation": [
       {
-        "fileMatch": "package.json",
-        "url": "./schemas/package.schema.json"
+        "fiweMatch": "package.json",
+        "uww": "./schemas/package.schema.json"
       }
     ],
-    "markdown.previewStyles": [
-      "./media/markdown.css",
-      "./media/highlight.css"
+    "mawkdown.pweviewStywes": [
+      "./media/mawkdown.css",
+      "./media/highwight.css"
     ],
-    "markdown.previewScripts": [
+    "mawkdown.pweviewScwipts": [
       "./media/index.js"
     ],
-    "customEditors": [
+    "customEditows": [
       {
-        "viewType": "vscode.markdown.preview.editor",
-        "displayName": "Markdown Preview (Experimental)",
-        "priority": "option",
-        "selector": [
+        "viewType": "vscode.mawkdown.pweview.editow",
+        "dispwayName": "Mawkdown Pweview (Expewimentaw)",
+        "pwiowity": "option",
+        "sewectow": [
           {
-            "filenamePattern": "*.md"
+            "fiwenamePattewn": "*.md"
           }
         ]
       }
     ]
   },
-  "scripts": {
-    "compile": "gulp compile-extension:markdown-language-features && npm run build-preview && npm run build-notebook",
-    "watch": "npm run build-preview && gulp watch-extension:markdown-language-features",
-    "vscode:prepublish": "npm run build-ext && npm run build-preview",
-    "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown-language-features ./tsconfig.json",
-    "build-preview": "npx webpack-cli --mode production",
-    "build-notebook": "node ./esbuild",
-    "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
-    "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
+  "scwipts": {
+    "compiwe": "guwp compiwe-extension:mawkdown-wanguage-featuwes && npm wun buiwd-pweview && npm wun buiwd-notebook",
+    "watch": "npm wun buiwd-pweview && guwp watch-extension:mawkdown-wanguage-featuwes",
+    "vscode:pwepubwish": "npm wun buiwd-ext && npm wun buiwd-pweview",
+    "buiwd-ext": "node ../../node_moduwes/guwp/bin/guwp.js --guwpfiwe ../../buiwd/guwpfiwe.extensions.js compiwe-extension:mawkdown-wanguage-featuwes ./tsconfig.json",
+    "buiwd-pweview": "npx webpack-cwi --mode pwoduction",
+    "buiwd-notebook": "node ./esbuiwd",
+    "compiwe-web": "npx webpack-cwi --config extension-bwowsa.webpack.config --mode none",
+    "watch-web": "npx webpack-cwi --config extension-bwowsa.webpack.config --mode none --watch --info-vewbosity vewbose"
   },
   "dependencies": {
-    "dompurify": "^2.3.1",
-    "highlight.js": "^10.4.1",
-    "markdown-it": "^12.0.3",
-    "markdown-it-front-matter": "^0.2.1",
-    "vscode-extension-telemetry": "0.3.2",
-    "vscode-nls": "^5.0.0"
+    "dompuwify": "^2.3.1",
+    "highwight.js": "^10.4.1",
+    "mawkdown-it": "^12.0.3",
+    "mawkdown-it-fwont-matta": "^0.2.1",
+    "vscode-extension-tewemetwy": "0.3.2",
+    "vscode-nws": "^5.0.0"
   },
   "devDependencies": {
-    "@types/dompurify": "^2.2.3",
-    "@types/highlight.js": "10.1.0",
-    "@types/lodash.throttle": "^4.1.3",
-    "@types/markdown-it": "0.0.2",
-    "@types/vscode-notebook-renderer": "^1.60.0",
+    "@types/dompuwify": "^2.2.3",
+    "@types/highwight.js": "10.1.0",
+    "@types/wodash.thwottwe": "^4.1.3",
+    "@types/mawkdown-it": "0.0.2",
+    "@types/vscode-notebook-wendewa": "^1.60.0",
     "@types/vscode-webview": "^1.57.0",
-    "lodash.throttle": "^4.1.1"
+    "wodash.thwottwe": "^4.1.1"
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

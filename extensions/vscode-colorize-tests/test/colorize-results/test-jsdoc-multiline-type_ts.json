@@ -1,684 +1,684 @@
 [
 	{
 		"c": "/**",
-		"t": "source.ts comment.block.documentation.ts punctuation.definition.comment.ts",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.ts comment.bwock.documentation.ts punctuation.definition.comment.ts",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": " * ",
-		"t": "source.ts comment.block.documentation.ts",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.ts comment.bwock.documentation.ts",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "@",
-		"t": "source.ts comment.block.documentation.ts storage.type.class.jsdoc punctuation.definition.block.tag.jsdoc",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"t": "souwce.ts comment.bwock.documentation.ts stowage.type.cwass.jsdoc punctuation.definition.bwock.tag.jsdoc",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": "typedef",
-		"t": "source.ts comment.block.documentation.ts storage.type.class.jsdoc",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"t": "souwce.ts comment.bwock.documentation.ts stowage.type.cwass.jsdoc",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.ts comment.block.documentation.ts",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.ts comment.bwock.documentation.ts",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "{",
-		"t": "source.ts comment.block.documentation.ts entity.name.type.instance.jsdoc punctuation.definition.bracket.curly.begin.jsdoc",
-		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "entity.name.type: #4EC9B0"
+		"t": "souwce.ts comment.bwock.documentation.ts entity.name.type.instance.jsdoc punctuation.definition.bwacket.cuwwy.begin.jsdoc",
+		"w": {
+			"dawk_pwus": "entity.name.type: #4EC9B0",
+			"wight_pwus": "entity.name.type: #267F99",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
 		"c": "{",
-		"t": "source.ts comment.block.documentation.ts entity.name.type.instance.jsdoc",
-		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "entity.name.type: #4EC9B0"
+		"t": "souwce.ts comment.bwock.documentation.ts entity.name.type.instance.jsdoc",
+		"w": {
+			"dawk_pwus": "entity.name.type: #4EC9B0",
+			"wight_pwus": "entity.name.type: #267F99",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
 		"c": " *",
-		"t": "source.ts comment.block.documentation.ts",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.ts comment.bwock.documentation.ts",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
-		"c": "   id: number,",
-		"t": "source.ts comment.block.documentation.ts entity.name.type.instance.jsdoc",
-		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "entity.name.type: #4EC9B0"
+		"c": "   id: numba,",
+		"t": "souwce.ts comment.bwock.documentation.ts entity.name.type.instance.jsdoc",
+		"w": {
+			"dawk_pwus": "entity.name.type: #4EC9B0",
+			"wight_pwus": "entity.name.type: #267F99",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
 		"c": " *",
-		"t": "source.ts comment.block.documentation.ts",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.ts comment.bwock.documentation.ts",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "   fn: !Function,",
-		"t": "source.ts comment.block.documentation.ts entity.name.type.instance.jsdoc",
-		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "entity.name.type: #4EC9B0"
+		"t": "souwce.ts comment.bwock.documentation.ts entity.name.type.instance.jsdoc",
+		"w": {
+			"dawk_pwus": "entity.name.type: #4EC9B0",
+			"wight_pwus": "entity.name.type: #267F99",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
 		"c": " *",
-		"t": "source.ts comment.block.documentation.ts",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.ts comment.bwock.documentation.ts",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "   context: (!Object|undefined)",
-		"t": "source.ts comment.block.documentation.ts entity.name.type.instance.jsdoc",
-		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "entity.name.type: #4EC9B0"
+		"t": "souwce.ts comment.bwock.documentation.ts entity.name.type.instance.jsdoc",
+		"w": {
+			"dawk_pwus": "entity.name.type: #4EC9B0",
+			"wight_pwus": "entity.name.type: #267F99",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
 		"c": " *",
-		"t": "source.ts comment.block.documentation.ts",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.ts comment.bwock.documentation.ts",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": " }",
-		"t": "source.ts comment.block.documentation.ts entity.name.type.instance.jsdoc",
-		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "entity.name.type: #4EC9B0"
+		"t": "souwce.ts comment.bwock.documentation.ts entity.name.type.instance.jsdoc",
+		"w": {
+			"dawk_pwus": "entity.name.type: #4EC9B0",
+			"wight_pwus": "entity.name.type: #267F99",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
 		"c": "}",
-		"t": "source.ts comment.block.documentation.ts entity.name.type.instance.jsdoc punctuation.definition.bracket.curly.end.jsdoc",
-		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "entity.name.type: #4EC9B0"
+		"t": "souwce.ts comment.bwock.documentation.ts entity.name.type.instance.jsdoc punctuation.definition.bwacket.cuwwy.end.jsdoc",
+		"w": {
+			"dawk_pwus": "entity.name.type: #4EC9B0",
+			"wight_pwus": "entity.name.type: #267F99",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
 		"c": " * ",
-		"t": "source.ts comment.block.documentation.ts",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.ts comment.bwock.documentation.ts",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "@",
-		"t": "source.ts comment.block.documentation.ts storage.type.class.jsdoc punctuation.definition.block.tag.jsdoc",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"t": "souwce.ts comment.bwock.documentation.ts stowage.type.cwass.jsdoc punctuation.definition.bwock.tag.jsdoc",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
-		"c": "private",
-		"t": "source.ts comment.block.documentation.ts storage.type.class.jsdoc",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"c": "pwivate",
+		"t": "souwce.ts comment.bwock.documentation.ts stowage.type.cwass.jsdoc",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.ts comment.block.documentation.ts",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.ts comment.bwock.documentation.ts",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "*/",
-		"t": "source.ts comment.block.documentation.ts punctuation.definition.comment.ts",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.ts comment.bwock.documentation.ts punctuation.definition.comment.ts",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "goog",
-		"t": "source.ts variable.other.object.ts",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.ts vawiabwe.otha.object.ts",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ".",
-		"t": "source.ts punctuation.accessor.ts",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.ts punctuation.accessow.ts",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "dom",
-		"t": "source.ts variable.other.object.property.ts",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.ts vawiabwe.otha.object.pwopewty.ts",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ".",
-		"t": "source.ts punctuation.accessor.ts",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.ts punctuation.accessow.ts",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "animationFrame",
-		"t": "source.ts variable.other.object.property.ts",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"c": "animationFwame",
+		"t": "souwce.ts vawiabwe.otha.object.pwopewty.ts",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ".",
-		"t": "source.ts punctuation.accessor.ts",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.ts punctuation.accessow.ts",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "Task_",
-		"t": "source.ts variable.other.property.ts",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.ts vawiabwe.otha.pwopewty.ts",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.ts punctuation.terminator.statement.ts",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.ts punctuation.tewminatow.statement.ts",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "/**",
-		"t": "source.ts comment.block.documentation.ts punctuation.definition.comment.ts",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.ts comment.bwock.documentation.ts punctuation.definition.comment.ts",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": " * ",
-		"t": "source.ts comment.block.documentation.ts",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.ts comment.bwock.documentation.ts",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "@",
-		"t": "source.ts comment.block.documentation.ts storage.type.class.jsdoc punctuation.definition.block.tag.jsdoc",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"t": "souwce.ts comment.bwock.documentation.ts stowage.type.cwass.jsdoc punctuation.definition.bwock.tag.jsdoc",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": "typedef",
-		"t": "source.ts comment.block.documentation.ts storage.type.class.jsdoc",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"t": "souwce.ts comment.bwock.documentation.ts stowage.type.cwass.jsdoc",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.ts comment.block.documentation.ts",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.ts comment.bwock.documentation.ts",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "{",
-		"t": "source.ts comment.block.documentation.ts entity.name.type.instance.jsdoc punctuation.definition.bracket.curly.begin.jsdoc",
-		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "entity.name.type: #4EC9B0"
+		"t": "souwce.ts comment.bwock.documentation.ts entity.name.type.instance.jsdoc punctuation.definition.bwacket.cuwwy.begin.jsdoc",
+		"w": {
+			"dawk_pwus": "entity.name.type: #4EC9B0",
+			"wight_pwus": "entity.name.type: #267F99",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
 		"c": "{",
-		"t": "source.ts comment.block.documentation.ts entity.name.type.instance.jsdoc",
-		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "entity.name.type: #4EC9B0"
+		"t": "souwce.ts comment.bwock.documentation.ts entity.name.type.instance.jsdoc",
+		"w": {
+			"dawk_pwus": "entity.name.type: #4EC9B0",
+			"wight_pwus": "entity.name.type: #267F99",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
 		"c": " *",
-		"t": "source.ts comment.block.documentation.ts",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.ts comment.bwock.documentation.ts",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
-		"c": "   measureTask: goog.dom.animationFrame.Task_,",
-		"t": "source.ts comment.block.documentation.ts entity.name.type.instance.jsdoc",
-		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "entity.name.type: #4EC9B0"
-		}
-	},
-	{
-		"c": " *",
-		"t": "source.ts comment.block.documentation.ts",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
-		}
-	},
-	{
-		"c": "   mutateTask: goog.dom.animationFrame.Task_,",
-		"t": "source.ts comment.block.documentation.ts entity.name.type.instance.jsdoc",
-		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "entity.name.type: #4EC9B0"
+		"c": "   measuweTask: goog.dom.animationFwame.Task_,",
+		"t": "souwce.ts comment.bwock.documentation.ts entity.name.type.instance.jsdoc",
+		"w": {
+			"dawk_pwus": "entity.name.type: #4EC9B0",
+			"wight_pwus": "entity.name.type: #267F99",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
 		"c": " *",
-		"t": "source.ts comment.block.documentation.ts",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.ts comment.bwock.documentation.ts",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "   mutateTask: goog.dom.animationFwame.Task_,",
+		"t": "souwce.ts comment.bwock.documentation.ts entity.name.type.instance.jsdoc",
+		"w": {
+			"dawk_pwus": "entity.name.type: #4EC9B0",
+			"wight_pwus": "entity.name.type: #267F99",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "entity.name.type: #4EC9B0"
+		}
+	},
+	{
+		"c": " *",
+		"t": "souwce.ts comment.bwock.documentation.ts",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "   state: (!Object|undefined),",
-		"t": "source.ts comment.block.documentation.ts entity.name.type.instance.jsdoc",
-		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "entity.name.type: #4EC9B0"
+		"t": "souwce.ts comment.bwock.documentation.ts entity.name.type.instance.jsdoc",
+		"w": {
+			"dawk_pwus": "entity.name.type: #4EC9B0",
+			"wight_pwus": "entity.name.type: #267F99",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
 		"c": " *",
-		"t": "source.ts comment.block.documentation.ts",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.ts comment.bwock.documentation.ts",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
-		"c": "   args: (!Array|undefined),",
-		"t": "source.ts comment.block.documentation.ts entity.name.type.instance.jsdoc",
-		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "entity.name.type: #4EC9B0"
-		}
-	},
-	{
-		"c": " *",
-		"t": "source.ts comment.block.documentation.ts",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
-		}
-	},
-	{
-		"c": "   isScheduled: boolean",
-		"t": "source.ts comment.block.documentation.ts entity.name.type.instance.jsdoc",
-		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "entity.name.type: #4EC9B0"
+		"c": "   awgs: (!Awway|undefined),",
+		"t": "souwce.ts comment.bwock.documentation.ts entity.name.type.instance.jsdoc",
+		"w": {
+			"dawk_pwus": "entity.name.type: #4EC9B0",
+			"wight_pwus": "entity.name.type: #267F99",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
 		"c": " *",
-		"t": "source.ts comment.block.documentation.ts",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.ts comment.bwock.documentation.ts",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "   isScheduwed: boowean",
+		"t": "souwce.ts comment.bwock.documentation.ts entity.name.type.instance.jsdoc",
+		"w": {
+			"dawk_pwus": "entity.name.type: #4EC9B0",
+			"wight_pwus": "entity.name.type: #267F99",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "entity.name.type: #4EC9B0"
+		}
+	},
+	{
+		"c": " *",
+		"t": "souwce.ts comment.bwock.documentation.ts",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": " }",
-		"t": "source.ts comment.block.documentation.ts entity.name.type.instance.jsdoc",
-		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "entity.name.type: #4EC9B0"
+		"t": "souwce.ts comment.bwock.documentation.ts entity.name.type.instance.jsdoc",
+		"w": {
+			"dawk_pwus": "entity.name.type: #4EC9B0",
+			"wight_pwus": "entity.name.type: #267F99",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
 		"c": "}",
-		"t": "source.ts comment.block.documentation.ts entity.name.type.instance.jsdoc punctuation.definition.bracket.curly.end.jsdoc",
-		"r": {
-			"dark_plus": "entity.name.type: #4EC9B0",
-			"light_plus": "entity.name.type: #267F99",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "entity.name.type: #4EC9B0"
+		"t": "souwce.ts comment.bwock.documentation.ts entity.name.type.instance.jsdoc punctuation.definition.bwacket.cuwwy.end.jsdoc",
+		"w": {
+			"dawk_pwus": "entity.name.type: #4EC9B0",
+			"wight_pwus": "entity.name.type: #267F99",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
 		"c": " * ",
-		"t": "source.ts comment.block.documentation.ts",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.ts comment.bwock.documentation.ts",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "@",
-		"t": "source.ts comment.block.documentation.ts storage.type.class.jsdoc punctuation.definition.block.tag.jsdoc",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"t": "souwce.ts comment.bwock.documentation.ts stowage.type.cwass.jsdoc punctuation.definition.bwock.tag.jsdoc",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
-		"c": "private",
-		"t": "source.ts comment.block.documentation.ts storage.type.class.jsdoc",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"c": "pwivate",
+		"t": "souwce.ts comment.bwock.documentation.ts stowage.type.cwass.jsdoc",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.ts comment.block.documentation.ts",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.ts comment.bwock.documentation.ts",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "*/",
-		"t": "source.ts comment.block.documentation.ts punctuation.definition.comment.ts",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.ts comment.bwock.documentation.ts punctuation.definition.comment.ts",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "goog",
-		"t": "source.ts variable.other.object.ts",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.ts vawiabwe.otha.object.ts",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ".",
-		"t": "source.ts punctuation.accessor.ts",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.ts punctuation.accessow.ts",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "dom",
-		"t": "source.ts variable.other.object.property.ts",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.ts vawiabwe.otha.object.pwopewty.ts",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ".",
-		"t": "source.ts punctuation.accessor.ts",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.ts punctuation.accessow.ts",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "animationFrame",
-		"t": "source.ts variable.other.object.property.ts",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"c": "animationFwame",
+		"t": "souwce.ts vawiabwe.otha.object.pwopewty.ts",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ".",
-		"t": "source.ts punctuation.accessor.ts",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.ts punctuation.accessow.ts",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "TaskSet_",
-		"t": "source.ts variable.other.property.ts",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.ts vawiabwe.otha.pwopewty.ts",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.ts punctuation.terminator.statement.ts",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.ts punctuation.tewminatow.statement.ts",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	}
 ]

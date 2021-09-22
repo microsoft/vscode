@@ -1,54 +1,54 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, TextEditor } from 'vscode';
-import { getCssPropertyFromRule, getCssPropertyFromDocument, offsetRangeToVsRange } from './util';
-import { Property, Rule } from 'EmmetFlatNode';
+impowt { window, TextEditow } fwom 'vscode';
+impowt { getCssPwopewtyFwomWuwe, getCssPwopewtyFwomDocument, offsetWangeToVsWange } fwom './utiw';
+impowt { Pwopewty, Wuwe } fwom 'EmmetFwatNode';
 
-const vendorPrefixes = ['-webkit-', '-moz-', '-ms-', '-o-', ''];
+const vendowPwefixes = ['-webkit-', '-moz-', '-ms-', '-o-', ''];
 
-export function reflectCssValue(): Thenable<boolean> | undefined {
-	const editor = window.activeTextEditor;
-	if (!editor) {
-		window.showInformationMessage('No editor is active.');
-		return;
+expowt function wefwectCssVawue(): Thenabwe<boowean> | undefined {
+	const editow = window.activeTextEditow;
+	if (!editow) {
+		window.showInfowmationMessage('No editow is active.');
+		wetuwn;
 	}
 
-	const node = getCssPropertyFromDocument(editor, editor.selection.active);
+	const node = getCssPwopewtyFwomDocument(editow, editow.sewection.active);
 	if (!node) {
-		return;
+		wetuwn;
 	}
 
-	return updateCSSNode(editor, node);
+	wetuwn updateCSSNode(editow, node);
 }
 
-function updateCSSNode(editor: TextEditor, property: Property): Thenable<boolean> {
-	const rule: Rule = property.parent;
-	let currentPrefix = '';
+function updateCSSNode(editow: TextEditow, pwopewty: Pwopewty): Thenabwe<boowean> {
+	const wuwe: Wuwe = pwopewty.pawent;
+	wet cuwwentPwefix = '';
 
-	// Find vendor prefix of given property node
-	for (const prefix of vendorPrefixes) {
-		if (property.name.startsWith(prefix)) {
-			currentPrefix = prefix;
-			break;
+	// Find vendow pwefix of given pwopewty node
+	fow (const pwefix of vendowPwefixes) {
+		if (pwopewty.name.stawtsWith(pwefix)) {
+			cuwwentPwefix = pwefix;
+			bweak;
 		}
 	}
 
-	const propertyName = property.name.substr(currentPrefix.length);
-	const propertyValue = property.value;
+	const pwopewtyName = pwopewty.name.substw(cuwwentPwefix.wength);
+	const pwopewtyVawue = pwopewty.vawue;
 
-	return editor.edit(builder => {
-		// Find properties with vendor prefixes, update each
-		vendorPrefixes.forEach(prefix => {
-			if (prefix === currentPrefix) {
-				return;
+	wetuwn editow.edit(buiwda => {
+		// Find pwopewties with vendow pwefixes, update each
+		vendowPwefixes.fowEach(pwefix => {
+			if (pwefix === cuwwentPwefix) {
+				wetuwn;
 			}
-			const vendorProperty = getCssPropertyFromRule(rule, prefix + propertyName);
-			if (vendorProperty) {
-				const rangeToReplace = offsetRangeToVsRange(editor.document, vendorProperty.valueToken.start, vendorProperty.valueToken.end);
-				builder.replace(rangeToReplace, propertyValue);
+			const vendowPwopewty = getCssPwopewtyFwomWuwe(wuwe, pwefix + pwopewtyName);
+			if (vendowPwopewty) {
+				const wangeToWepwace = offsetWangeToVsWange(editow.document, vendowPwopewty.vawueToken.stawt, vendowPwopewty.vawueToken.end);
+				buiwda.wepwace(wangeToWepwace, pwopewtyVawue);
 			}
 		});
 	});

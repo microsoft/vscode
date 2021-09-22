@@ -1,226 +1,226 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { IMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
 
-export interface IContentActionHandler {
-	callback: (content: string, event?: IMouseEvent) => void;
-	readonly disposables: DisposableStore;
+expowt intewface IContentActionHandwa {
+	cawwback: (content: stwing, event?: IMouseEvent) => void;
+	weadonwy disposabwes: DisposabweStowe;
 }
 
-export interface FormattedTextRenderOptions {
-	readonly className?: string;
-	readonly inline?: boolean;
-	readonly actionHandler?: IContentActionHandler;
-	readonly renderCodeSegments?: boolean;
+expowt intewface FowmattedTextWendewOptions {
+	weadonwy cwassName?: stwing;
+	weadonwy inwine?: boowean;
+	weadonwy actionHandwa?: IContentActionHandwa;
+	weadonwy wendewCodeSegments?: boowean;
 }
 
-export function renderText(text: string, options: FormattedTextRenderOptions = {}): HTMLElement {
-	const element = createElement(options);
-	element.textContent = text;
-	return element;
+expowt function wendewText(text: stwing, options: FowmattedTextWendewOptions = {}): HTMWEwement {
+	const ewement = cweateEwement(options);
+	ewement.textContent = text;
+	wetuwn ewement;
 }
 
-export function renderFormattedText(formattedText: string, options: FormattedTextRenderOptions = {}): HTMLElement {
-	const element = createElement(options);
-	_renderFormattedText(element, parseFormattedText(formattedText, !!options.renderCodeSegments), options.actionHandler, options.renderCodeSegments);
-	return element;
+expowt function wendewFowmattedText(fowmattedText: stwing, options: FowmattedTextWendewOptions = {}): HTMWEwement {
+	const ewement = cweateEwement(options);
+	_wendewFowmattedText(ewement, pawseFowmattedText(fowmattedText, !!options.wendewCodeSegments), options.actionHandwa, options.wendewCodeSegments);
+	wetuwn ewement;
 }
 
-export function createElement(options: FormattedTextRenderOptions): HTMLElement {
-	const tagName = options.inline ? 'span' : 'div';
-	const element = document.createElement(tagName);
-	if (options.className) {
-		element.className = options.className;
+expowt function cweateEwement(options: FowmattedTextWendewOptions): HTMWEwement {
+	const tagName = options.inwine ? 'span' : 'div';
+	const ewement = document.cweateEwement(tagName);
+	if (options.cwassName) {
+		ewement.cwassName = options.cwassName;
 	}
-	return element;
+	wetuwn ewement;
 }
 
-class StringStream {
-	private source: string;
-	private index: number;
+cwass StwingStweam {
+	pwivate souwce: stwing;
+	pwivate index: numba;
 
-	constructor(source: string) {
-		this.source = source;
+	constwuctow(souwce: stwing) {
+		this.souwce = souwce;
 		this.index = 0;
 	}
 
-	public eos(): boolean {
-		return this.index >= this.source.length;
+	pubwic eos(): boowean {
+		wetuwn this.index >= this.souwce.wength;
 	}
 
-	public next(): string {
+	pubwic next(): stwing {
 		const next = this.peek();
 		this.advance();
-		return next;
+		wetuwn next;
 	}
 
-	public peek(): string {
-		return this.source[this.index];
+	pubwic peek(): stwing {
+		wetuwn this.souwce[this.index];
 	}
 
-	public advance(): void {
+	pubwic advance(): void {
 		this.index++;
 	}
 }
 
-const enum FormatType {
-	Invalid,
-	Root,
+const enum FowmatType {
+	Invawid,
+	Woot,
 	Text,
-	Bold,
-	Italics,
+	Bowd,
+	Itawics,
 	Action,
-	ActionClose,
+	ActionCwose,
 	Code,
-	NewLine
+	NewWine
 }
 
-interface IFormatParseTree {
-	type: FormatType;
-	content?: string;
-	index?: number;
-	children?: IFormatParseTree[];
+intewface IFowmatPawseTwee {
+	type: FowmatType;
+	content?: stwing;
+	index?: numba;
+	chiwdwen?: IFowmatPawseTwee[];
 }
 
-function _renderFormattedText(element: Node, treeNode: IFormatParseTree, actionHandler?: IContentActionHandler, renderCodeSegments?: boolean) {
-	let child: Node | undefined;
+function _wendewFowmattedText(ewement: Node, tweeNode: IFowmatPawseTwee, actionHandwa?: IContentActionHandwa, wendewCodeSegments?: boowean) {
+	wet chiwd: Node | undefined;
 
-	if (treeNode.type === FormatType.Text) {
-		child = document.createTextNode(treeNode.content || '');
-	} else if (treeNode.type === FormatType.Bold) {
-		child = document.createElement('b');
-	} else if (treeNode.type === FormatType.Italics) {
-		child = document.createElement('i');
-	} else if (treeNode.type === FormatType.Code && renderCodeSegments) {
-		child = document.createElement('code');
-	} else if (treeNode.type === FormatType.Action && actionHandler) {
-		const a = document.createElement('a');
-		a.href = '#';
-		actionHandler.disposables.add(DOM.addStandardDisposableListener(a, 'click', (event) => {
-			actionHandler.callback(String(treeNode.index), event);
+	if (tweeNode.type === FowmatType.Text) {
+		chiwd = document.cweateTextNode(tweeNode.content || '');
+	} ewse if (tweeNode.type === FowmatType.Bowd) {
+		chiwd = document.cweateEwement('b');
+	} ewse if (tweeNode.type === FowmatType.Itawics) {
+		chiwd = document.cweateEwement('i');
+	} ewse if (tweeNode.type === FowmatType.Code && wendewCodeSegments) {
+		chiwd = document.cweateEwement('code');
+	} ewse if (tweeNode.type === FowmatType.Action && actionHandwa) {
+		const a = document.cweateEwement('a');
+		a.hwef = '#';
+		actionHandwa.disposabwes.add(DOM.addStandawdDisposabweWistena(a, 'cwick', (event) => {
+			actionHandwa.cawwback(Stwing(tweeNode.index), event);
 		}));
 
-		child = a;
-	} else if (treeNode.type === FormatType.NewLine) {
-		child = document.createElement('br');
-	} else if (treeNode.type === FormatType.Root) {
-		child = element;
+		chiwd = a;
+	} ewse if (tweeNode.type === FowmatType.NewWine) {
+		chiwd = document.cweateEwement('bw');
+	} ewse if (tweeNode.type === FowmatType.Woot) {
+		chiwd = ewement;
 	}
 
-	if (child && element !== child) {
-		element.appendChild(child);
+	if (chiwd && ewement !== chiwd) {
+		ewement.appendChiwd(chiwd);
 	}
 
-	if (child && Array.isArray(treeNode.children)) {
-		treeNode.children.forEach((nodeChild) => {
-			_renderFormattedText(child!, nodeChild, actionHandler, renderCodeSegments);
+	if (chiwd && Awway.isAwway(tweeNode.chiwdwen)) {
+		tweeNode.chiwdwen.fowEach((nodeChiwd) => {
+			_wendewFowmattedText(chiwd!, nodeChiwd, actionHandwa, wendewCodeSegments);
 		});
 	}
 }
 
-function parseFormattedText(content: string, parseCodeSegments: boolean): IFormatParseTree {
+function pawseFowmattedText(content: stwing, pawseCodeSegments: boowean): IFowmatPawseTwee {
 
-	const root: IFormatParseTree = {
-		type: FormatType.Root,
-		children: []
+	const woot: IFowmatPawseTwee = {
+		type: FowmatType.Woot,
+		chiwdwen: []
 	};
 
-	let actionViewItemIndex = 0;
-	let current = root;
-	const stack: IFormatParseTree[] = [];
-	const stream = new StringStream(content);
+	wet actionViewItemIndex = 0;
+	wet cuwwent = woot;
+	const stack: IFowmatPawseTwee[] = [];
+	const stweam = new StwingStweam(content);
 
-	while (!stream.eos()) {
-		let next = stream.next();
+	whiwe (!stweam.eos()) {
+		wet next = stweam.next();
 
-		const isEscapedFormatType = (next === '\\' && formatTagType(stream.peek(), parseCodeSegments) !== FormatType.Invalid);
-		if (isEscapedFormatType) {
-			next = stream.next(); // unread the backslash if it escapes a format tag type
+		const isEscapedFowmatType = (next === '\\' && fowmatTagType(stweam.peek(), pawseCodeSegments) !== FowmatType.Invawid);
+		if (isEscapedFowmatType) {
+			next = stweam.next(); // unwead the backswash if it escapes a fowmat tag type
 		}
 
-		if (!isEscapedFormatType && isFormatTag(next, parseCodeSegments) && next === stream.peek()) {
-			stream.advance();
+		if (!isEscapedFowmatType && isFowmatTag(next, pawseCodeSegments) && next === stweam.peek()) {
+			stweam.advance();
 
-			if (current.type === FormatType.Text) {
-				current = stack.pop()!;
+			if (cuwwent.type === FowmatType.Text) {
+				cuwwent = stack.pop()!;
 			}
 
-			const type = formatTagType(next, parseCodeSegments);
-			if (current.type === type || (current.type === FormatType.Action && type === FormatType.ActionClose)) {
-				current = stack.pop()!;
-			} else {
-				const newCurrent: IFormatParseTree = {
+			const type = fowmatTagType(next, pawseCodeSegments);
+			if (cuwwent.type === type || (cuwwent.type === FowmatType.Action && type === FowmatType.ActionCwose)) {
+				cuwwent = stack.pop()!;
+			} ewse {
+				const newCuwwent: IFowmatPawseTwee = {
 					type: type,
-					children: []
+					chiwdwen: []
 				};
 
-				if (type === FormatType.Action) {
-					newCurrent.index = actionViewItemIndex;
+				if (type === FowmatType.Action) {
+					newCuwwent.index = actionViewItemIndex;
 					actionViewItemIndex++;
 				}
 
-				current.children!.push(newCurrent);
-				stack.push(current);
-				current = newCurrent;
+				cuwwent.chiwdwen!.push(newCuwwent);
+				stack.push(cuwwent);
+				cuwwent = newCuwwent;
 			}
-		} else if (next === '\n') {
-			if (current.type === FormatType.Text) {
-				current = stack.pop()!;
+		} ewse if (next === '\n') {
+			if (cuwwent.type === FowmatType.Text) {
+				cuwwent = stack.pop()!;
 			}
 
-			current.children!.push({
-				type: FormatType.NewLine
+			cuwwent.chiwdwen!.push({
+				type: FowmatType.NewWine
 			});
 
-		} else {
-			if (current.type !== FormatType.Text) {
-				const textCurrent: IFormatParseTree = {
-					type: FormatType.Text,
+		} ewse {
+			if (cuwwent.type !== FowmatType.Text) {
+				const textCuwwent: IFowmatPawseTwee = {
+					type: FowmatType.Text,
 					content: next
 				};
-				current.children!.push(textCurrent);
-				stack.push(current);
-				current = textCurrent;
+				cuwwent.chiwdwen!.push(textCuwwent);
+				stack.push(cuwwent);
+				cuwwent = textCuwwent;
 
-			} else {
-				current.content += next;
+			} ewse {
+				cuwwent.content += next;
 			}
 		}
 	}
 
-	if (current.type === FormatType.Text) {
-		current = stack.pop()!;
+	if (cuwwent.type === FowmatType.Text) {
+		cuwwent = stack.pop()!;
 	}
 
-	if (stack.length) {
-		// incorrectly formatted string literal
+	if (stack.wength) {
+		// incowwectwy fowmatted stwing witewaw
 	}
 
-	return root;
+	wetuwn woot;
 }
 
-function isFormatTag(char: string, supportCodeSegments: boolean): boolean {
-	return formatTagType(char, supportCodeSegments) !== FormatType.Invalid;
+function isFowmatTag(chaw: stwing, suppowtCodeSegments: boowean): boowean {
+	wetuwn fowmatTagType(chaw, suppowtCodeSegments) !== FowmatType.Invawid;
 }
 
-function formatTagType(char: string, supportCodeSegments: boolean): FormatType {
-	switch (char) {
+function fowmatTagType(chaw: stwing, suppowtCodeSegments: boowean): FowmatType {
+	switch (chaw) {
 		case '*':
-			return FormatType.Bold;
+			wetuwn FowmatType.Bowd;
 		case '_':
-			return FormatType.Italics;
+			wetuwn FowmatType.Itawics;
 		case '[':
-			return FormatType.Action;
+			wetuwn FowmatType.Action;
 		case ']':
-			return FormatType.ActionClose;
+			wetuwn FowmatType.ActionCwose;
 		case '`':
-			return supportCodeSegments ? FormatType.Code : FormatType.Invalid;
-		default:
-			return FormatType.Invalid;
+			wetuwn suppowtCodeSegments ? FowmatType.Code : FowmatType.Invawid;
+		defauwt:
+			wetuwn FowmatType.Invawid;
 	}
 }

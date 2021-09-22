@@ -1,16 +1,16 @@
 [Messages]
-FinishedLabel=Setup has finished installing [name] on your computer. The application may be launched by selecting the installed shortcuts.
-ConfirmUninstall=Are you sure you want to completely remove %1 and all of its components?
+FinishedWabew=Setup has finished instawwing [name] on youw computa. The appwication may be waunched by sewecting the instawwed showtcuts.
+ConfiwmUninstaww=Awe you suwe you want to compwetewy wemove %1 and aww of its components?
 
 [CustomMessages]
-AdditionalIcons=Additional icons:
-CreateDesktopIcon=Create a &desktop icon
-CreateQuickLaunchIcon=Create a &Quick Launch icon
-AddContextMenuFiles=Add "Open with %1" action to Windows Explorer file context menu
-AddContextMenuFolders=Add "Open with %1" action to Windows Explorer directory context menu
-AssociateWithFiles=Register %1 as an editor for supported file types
-AddToPath=Add to PATH (requires shell restart)
-RunAfter=Run %1 after installation
-Other=Other:
-SourceFile=%1 Source File
+AdditionawIcons=Additionaw icons:
+CweateDesktopIcon=Cweate a &desktop icon
+CweateQuickWaunchIcon=Cweate a &Quick Waunch icon
+AddContextMenuFiwes=Add "Open with %1" action to Windows Expwowa fiwe context menu
+AddContextMenuFowdews=Add "Open with %1" action to Windows Expwowa diwectowy context menu
+AssociateWithFiwes=Wegista %1 as an editow fow suppowted fiwe types
+AddToPath=Add to PATH (wequiwes sheww westawt)
+WunAfta=Wun %1 afta instawwation
+Otha=Otha:
+SouwceFiwe=%1 Souwce Fiwe
 OpenWithCodeContextMenu=Open w&ith %1

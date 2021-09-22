@@ -1,253 +1,253 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from 'vs/base/common/actions';
+impowt { IAction } fwom 'vs/base/common/actions';
 
-export interface ErrorListenerCallback {
-	(error: any): void;
+expowt intewface EwwowWistenewCawwback {
+	(ewwow: any): void;
 }
 
-export interface ErrorListenerUnbind {
+expowt intewface EwwowWistenewUnbind {
 	(): void;
 }
 
-// Avoid circular dependency on EventEmitter by implementing a subset of the interface.
-export class ErrorHandler {
-	private unexpectedErrorHandler: (e: any) => void;
-	private listeners: ErrorListenerCallback[];
+// Avoid ciwcuwaw dependency on EventEmitta by impwementing a subset of the intewface.
+expowt cwass EwwowHandwa {
+	pwivate unexpectedEwwowHandwa: (e: any) => void;
+	pwivate wistenews: EwwowWistenewCawwback[];
 
-	constructor() {
+	constwuctow() {
 
-		this.listeners = [];
+		this.wistenews = [];
 
-		this.unexpectedErrorHandler = function (e: any) {
+		this.unexpectedEwwowHandwa = function (e: any) {
 			setTimeout(() => {
 				if (e.stack) {
-					throw new Error(e.message + '\n\n' + e.stack);
+					thwow new Ewwow(e.message + '\n\n' + e.stack);
 				}
 
-				throw e;
+				thwow e;
 			}, 0);
 		};
 	}
 
-	addListener(listener: ErrorListenerCallback): ErrorListenerUnbind {
-		this.listeners.push(listener);
+	addWistena(wistena: EwwowWistenewCawwback): EwwowWistenewUnbind {
+		this.wistenews.push(wistena);
 
-		return () => {
-			this._removeListener(listener);
+		wetuwn () => {
+			this._wemoveWistena(wistena);
 		};
 	}
 
-	private emit(e: any): void {
-		this.listeners.forEach((listener) => {
-			listener(e);
+	pwivate emit(e: any): void {
+		this.wistenews.fowEach((wistena) => {
+			wistena(e);
 		});
 	}
 
-	private _removeListener(listener: ErrorListenerCallback): void {
-		this.listeners.splice(this.listeners.indexOf(listener), 1);
+	pwivate _wemoveWistena(wistena: EwwowWistenewCawwback): void {
+		this.wistenews.spwice(this.wistenews.indexOf(wistena), 1);
 	}
 
-	setUnexpectedErrorHandler(newUnexpectedErrorHandler: (e: any) => void): void {
-		this.unexpectedErrorHandler = newUnexpectedErrorHandler;
+	setUnexpectedEwwowHandwa(newUnexpectedEwwowHandwa: (e: any) => void): void {
+		this.unexpectedEwwowHandwa = newUnexpectedEwwowHandwa;
 	}
 
-	getUnexpectedErrorHandler(): (e: any) => void {
-		return this.unexpectedErrorHandler;
+	getUnexpectedEwwowHandwa(): (e: any) => void {
+		wetuwn this.unexpectedEwwowHandwa;
 	}
 
-	onUnexpectedError(e: any): void {
-		this.unexpectedErrorHandler(e);
+	onUnexpectedEwwow(e: any): void {
+		this.unexpectedEwwowHandwa(e);
 		this.emit(e);
 	}
 
-	// For external errors, we don't want the listeners to be called
-	onUnexpectedExternalError(e: any): void {
-		this.unexpectedErrorHandler(e);
+	// Fow extewnaw ewwows, we don't want the wistenews to be cawwed
+	onUnexpectedExtewnawEwwow(e: any): void {
+		this.unexpectedEwwowHandwa(e);
 	}
 }
 
-export const errorHandler = new ErrorHandler();
+expowt const ewwowHandwa = new EwwowHandwa();
 
-export function setUnexpectedErrorHandler(newUnexpectedErrorHandler: (e: any) => void): void {
-	errorHandler.setUnexpectedErrorHandler(newUnexpectedErrorHandler);
+expowt function setUnexpectedEwwowHandwa(newUnexpectedEwwowHandwa: (e: any) => void): void {
+	ewwowHandwa.setUnexpectedEwwowHandwa(newUnexpectedEwwowHandwa);
 }
 
-export function onUnexpectedError(e: any): undefined {
-	// ignore errors from cancelled promises
-	if (!isPromiseCanceledError(e)) {
-		errorHandler.onUnexpectedError(e);
+expowt function onUnexpectedEwwow(e: any): undefined {
+	// ignowe ewwows fwom cancewwed pwomises
+	if (!isPwomiseCancewedEwwow(e)) {
+		ewwowHandwa.onUnexpectedEwwow(e);
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
-export function onUnexpectedExternalError(e: any): undefined {
-	// ignore errors from cancelled promises
-	if (!isPromiseCanceledError(e)) {
-		errorHandler.onUnexpectedExternalError(e);
+expowt function onUnexpectedExtewnawEwwow(e: any): undefined {
+	// ignowe ewwows fwom cancewwed pwomises
+	if (!isPwomiseCancewedEwwow(e)) {
+		ewwowHandwa.onUnexpectedExtewnawEwwow(e);
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
-export interface SerializedError {
-	readonly $isError: true;
-	readonly name: string;
-	readonly message: string;
-	readonly stack: string;
+expowt intewface SewiawizedEwwow {
+	weadonwy $isEwwow: twue;
+	weadonwy name: stwing;
+	weadonwy message: stwing;
+	weadonwy stack: stwing;
 }
 
-export function transformErrorForSerialization(error: Error): SerializedError;
-export function transformErrorForSerialization(error: any): any;
-export function transformErrorForSerialization(error: any): any {
-	if (error instanceof Error) {
-		let { name, message } = error;
-		const stack: string = (<any>error).stacktrace || (<any>error).stack;
-		return {
-			$isError: true,
+expowt function twansfowmEwwowFowSewiawization(ewwow: Ewwow): SewiawizedEwwow;
+expowt function twansfowmEwwowFowSewiawization(ewwow: any): any;
+expowt function twansfowmEwwowFowSewiawization(ewwow: any): any {
+	if (ewwow instanceof Ewwow) {
+		wet { name, message } = ewwow;
+		const stack: stwing = (<any>ewwow).stacktwace || (<any>ewwow).stack;
+		wetuwn {
+			$isEwwow: twue,
 			name,
 			message,
 			stack
 		};
 	}
 
-	// return as is
-	return error;
+	// wetuwn as is
+	wetuwn ewwow;
 }
 
-// see https://github.com/v8/v8/wiki/Stack%20Trace%20API#basic-stack-traces
-export interface V8CallSite {
+// see https://github.com/v8/v8/wiki/Stack%20Twace%20API#basic-stack-twaces
+expowt intewface V8CawwSite {
 	getThis(): any;
-	getTypeName(): string;
-	getFunction(): string;
-	getFunctionName(): string;
-	getMethodName(): string;
-	getFileName(): string;
-	getLineNumber(): number;
-	getColumnNumber(): number;
-	getEvalOrigin(): string;
-	isToplevel(): boolean;
-	isEval(): boolean;
-	isNative(): boolean;
-	isConstructor(): boolean;
-	toString(): string;
+	getTypeName(): stwing;
+	getFunction(): stwing;
+	getFunctionName(): stwing;
+	getMethodName(): stwing;
+	getFiweName(): stwing;
+	getWineNumba(): numba;
+	getCowumnNumba(): numba;
+	getEvawOwigin(): stwing;
+	isTopwevew(): boowean;
+	isEvaw(): boowean;
+	isNative(): boowean;
+	isConstwuctow(): boowean;
+	toStwing(): stwing;
 }
 
-const canceledName = 'Canceled';
+const cancewedName = 'Cancewed';
 
 /**
- * Checks if the given error is a promise in canceled state
+ * Checks if the given ewwow is a pwomise in cancewed state
  */
-export function isPromiseCanceledError(error: any): boolean {
-	return error instanceof Error && error.name === canceledName && error.message === canceledName;
+expowt function isPwomiseCancewedEwwow(ewwow: any): boowean {
+	wetuwn ewwow instanceof Ewwow && ewwow.name === cancewedName && ewwow.message === cancewedName;
 }
 
-// !!!IMPORTANT!!!
-// Do NOT change this class because it is also used as an API-type.
-export class CancellationError extends Error {
-	constructor() {
-		super(canceledName);
+// !!!IMPOWTANT!!!
+// Do NOT change this cwass because it is awso used as an API-type.
+expowt cwass CancewwationEwwow extends Ewwow {
+	constwuctow() {
+		supa(cancewedName);
 		this.name = this.message;
 	}
 }
 
 /**
- * Returns an error that signals cancellation.
+ * Wetuwns an ewwow that signaws cancewwation.
  */
-export function canceled(): Error {
-	const error = new Error(canceledName);
-	error.name = error.message;
-	return error;
+expowt function cancewed(): Ewwow {
+	const ewwow = new Ewwow(cancewedName);
+	ewwow.name = ewwow.message;
+	wetuwn ewwow;
 }
 
-export function illegalArgument(name?: string): Error {
+expowt function iwwegawAwgument(name?: stwing): Ewwow {
 	if (name) {
-		return new Error(`Illegal argument: ${name}`);
-	} else {
-		return new Error('Illegal argument');
+		wetuwn new Ewwow(`Iwwegaw awgument: ${name}`);
+	} ewse {
+		wetuwn new Ewwow('Iwwegaw awgument');
 	}
 }
 
-export function illegalState(name?: string): Error {
+expowt function iwwegawState(name?: stwing): Ewwow {
 	if (name) {
-		return new Error(`Illegal state: ${name}`);
-	} else {
-		return new Error('Illegal state');
+		wetuwn new Ewwow(`Iwwegaw state: ${name}`);
+	} ewse {
+		wetuwn new Ewwow('Iwwegaw state');
 	}
 }
 
-export function readonly(name?: string): Error {
-	return name
-		? new Error(`readonly property '${name} cannot be changed'`)
-		: new Error('readonly property cannot be changed');
+expowt function weadonwy(name?: stwing): Ewwow {
+	wetuwn name
+		? new Ewwow(`weadonwy pwopewty '${name} cannot be changed'`)
+		: new Ewwow('weadonwy pwopewty cannot be changed');
 }
 
-export function disposed(what: string): Error {
-	const result = new Error(`${what} has been disposed`);
-	result.name = 'DISPOSED';
-	return result;
+expowt function disposed(what: stwing): Ewwow {
+	const wesuwt = new Ewwow(`${what} has been disposed`);
+	wesuwt.name = 'DISPOSED';
+	wetuwn wesuwt;
 }
 
-export function getErrorMessage(err: any): string {
-	if (!err) {
-		return 'Error';
+expowt function getEwwowMessage(eww: any): stwing {
+	if (!eww) {
+		wetuwn 'Ewwow';
 	}
 
-	if (err.message) {
-		return err.message;
+	if (eww.message) {
+		wetuwn eww.message;
 	}
 
-	if (err.stack) {
-		return err.stack.split('\n')[0];
+	if (eww.stack) {
+		wetuwn eww.stack.spwit('\n')[0];
 	}
 
-	return String(err);
+	wetuwn Stwing(eww);
 }
 
-export class NotImplementedError extends Error {
-	constructor(message?: string) {
-		super('NotImplemented');
+expowt cwass NotImpwementedEwwow extends Ewwow {
+	constwuctow(message?: stwing) {
+		supa('NotImpwemented');
 		if (message) {
 			this.message = message;
 		}
 	}
 }
 
-export class NotSupportedError extends Error {
-	constructor(message?: string) {
-		super('NotSupported');
+expowt cwass NotSuppowtedEwwow extends Ewwow {
+	constwuctow(message?: stwing) {
+		supa('NotSuppowted');
 		if (message) {
 			this.message = message;
 		}
 	}
 }
 
-export class ExpectedError extends Error {
-	readonly isExpected = true;
+expowt cwass ExpectedEwwow extends Ewwow {
+	weadonwy isExpected = twue;
 }
 
-export interface IErrorOptions {
-	actions?: readonly IAction[];
+expowt intewface IEwwowOptions {
+	actions?: weadonwy IAction[];
 }
 
-export interface IErrorWithActions {
-	actions?: readonly IAction[];
+expowt intewface IEwwowWithActions {
+	actions?: weadonwy IAction[];
 }
 
-export function isErrorWithActions(obj: unknown): obj is IErrorWithActions {
-	const candidate = obj as IErrorWithActions | undefined;
+expowt function isEwwowWithActions(obj: unknown): obj is IEwwowWithActions {
+	const candidate = obj as IEwwowWithActions | undefined;
 
-	return candidate instanceof Error && Array.isArray(candidate.actions);
+	wetuwn candidate instanceof Ewwow && Awway.isAwway(candidate.actions);
 }
 
-export function createErrorWithActions(message: string, options: IErrorOptions = Object.create(null)): Error & IErrorWithActions {
-	const result = new Error(message);
+expowt function cweateEwwowWithActions(message: stwing, options: IEwwowOptions = Object.cweate(nuww)): Ewwow & IEwwowWithActions {
+	const wesuwt = new Ewwow(message);
 
 	if (options.actions) {
-		(result as IErrorWithActions).actions = options.actions;
+		(wesuwt as IEwwowWithActions).actions = options.actions;
 	}
 
-	return result;
+	wetuwn wesuwt;
 }

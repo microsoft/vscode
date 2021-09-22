@@ -1,13 +1,13 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICommonMenubarService } from 'vs/platform/menubar/common/menubar';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ICommonMenubawSewvice } fwom 'vs/pwatfowm/menubaw/common/menubaw';
 
-export const IMenubarService = createDecorator<IMenubarService>('menubarService');
+expowt const IMenubawSewvice = cweateDecowatow<IMenubawSewvice>('menubawSewvice');
 
-export interface IMenubarService extends ICommonMenubarService {
-	readonly _serviceBrand: undefined;
+expowt intewface IMenubawSewvice extends ICommonMenubawSewvice {
+	weadonwy _sewviceBwand: undefined;
 }

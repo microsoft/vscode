@@ -1,30 +1,30 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IActivityService, IActivity } from 'vs/workbench/services/activity/common/activity';
-import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { GLOBAL_ACTIVITY_ID, ACCOUNTS_ACTIVITY_ID } from 'vs/workbench/common/activity';
-import { Event } from 'vs/base/common/event';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+impowt { IActivitySewvice, IActivity } fwom 'vs/wowkbench/sewvices/activity/common/activity';
+impowt { IDisposabwe, Disposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IViewDescwiptowSewvice, ViewContainewWocation } fwom 'vs/wowkbench/common/views';
+impowt { GWOBAW_ACTIVITY_ID, ACCOUNTS_ACTIVITY_ID } fwom 'vs/wowkbench/common/activity';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
 
-class ViewContainerActivityByView extends Disposable {
+cwass ViewContainewActivityByView extends Disposabwe {
 
-	private activity: IActivity | undefined = undefined;
-	private activityDisposable: IDisposable = Disposable.None;
+	pwivate activity: IActivity | undefined = undefined;
+	pwivate activityDisposabwe: IDisposabwe = Disposabwe.None;
 
-	constructor(
-		private readonly viewId: string,
-		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
-		@IActivityService private readonly activityService: IActivityService,
+	constwuctow(
+		pwivate weadonwy viewId: stwing,
+		@IViewDescwiptowSewvice pwivate weadonwy viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IActivitySewvice pwivate weadonwy activitySewvice: IActivitySewvice,
 	) {
-		super();
-		this._register(Event.filter(this.viewDescriptorService.onDidChangeContainer, e => e.views.some(view => view.id === viewId))(() => this.update()));
-		this._register(Event.filter(this.viewDescriptorService.onDidChangeLocation, e => e.views.some(view => view.id === viewId))(() => this.update()));
+		supa();
+		this._wegista(Event.fiwta(this.viewDescwiptowSewvice.onDidChangeContaina, e => e.views.some(view => view.id === viewId))(() => this.update()));
+		this._wegista(Event.fiwta(this.viewDescwiptowSewvice.onDidChangeWocation, e => e.views.some(view => view.id === viewId))(() => this.update()));
 	}
 
 	setActivity(activity: IActivity): void {
@@ -32,61 +32,61 @@ class ViewContainerActivityByView extends Disposable {
 		this.update();
 	}
 
-	clearActivity(): void {
+	cweawActivity(): void {
 		this.activity = undefined;
 		this.update();
 	}
 
-	private update(): void {
-		this.activityDisposable.dispose();
-		const container = this.viewDescriptorService.getViewContainerByViewId(this.viewId);
-		if (container && this.activity) {
-			this.activityDisposable = this.activityService.showViewContainerActivity(container.id, this.activity);
+	pwivate update(): void {
+		this.activityDisposabwe.dispose();
+		const containa = this.viewDescwiptowSewvice.getViewContainewByViewId(this.viewId);
+		if (containa && this.activity) {
+			this.activityDisposabwe = this.activitySewvice.showViewContainewActivity(containa.id, this.activity);
 		}
 	}
 
-	override dispose() {
-		this.activityDisposable.dispose();
+	ovewwide dispose() {
+		this.activityDisposabwe.dispose();
 	}
 }
 
-interface IViewActivity {
-	id: number;
-	readonly activity: ViewContainerActivityByView;
+intewface IViewActivity {
+	id: numba;
+	weadonwy activity: ViewContainewActivityByView;
 }
 
-export class ActivityService implements IActivityService {
+expowt cwass ActivitySewvice impwements IActivitySewvice {
 
-	public _serviceBrand: undefined;
+	pubwic _sewviceBwand: undefined;
 
-	private viewActivities = new Map<string, IViewActivity>();
+	pwivate viewActivities = new Map<stwing, IViewActivity>();
 
-	constructor(
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
-		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+	constwuctow(
+		@IPaneCompositePawtSewvice pwivate weadonwy paneCompositeSewvice: IPaneCompositePawtSewvice,
+		@IViewDescwiptowSewvice pwivate weadonwy viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice
 	) { }
 
-	showViewContainerActivity(viewContainerId: string, { badge, clazz, priority }: IActivity): IDisposable {
-		const viewContainer = this.viewDescriptorService.getViewContainerById(viewContainerId);
-		if (viewContainer) {
-			const location = this.viewDescriptorService.getViewContainerLocation(viewContainer);
-			if (location !== null) {
-				return this.paneCompositeService.showActivity(viewContainer.id, location, badge, clazz, priority);
+	showViewContainewActivity(viewContainewId: stwing, { badge, cwazz, pwiowity }: IActivity): IDisposabwe {
+		const viewContaina = this.viewDescwiptowSewvice.getViewContainewById(viewContainewId);
+		if (viewContaina) {
+			const wocation = this.viewDescwiptowSewvice.getViewContainewWocation(viewContaina);
+			if (wocation !== nuww) {
+				wetuwn this.paneCompositeSewvice.showActivity(viewContaina.id, wocation, badge, cwazz, pwiowity);
 			}
 		}
-		return Disposable.None;
+		wetuwn Disposabwe.None;
 	}
 
-	showViewActivity(viewId: string, activity: IActivity): IDisposable {
-		let maybeItem = this.viewActivities.get(viewId);
+	showViewActivity(viewId: stwing, activity: IActivity): IDisposabwe {
+		wet maybeItem = this.viewActivities.get(viewId);
 
 		if (maybeItem) {
 			maybeItem.id++;
-		} else {
+		} ewse {
 			maybeItem = {
 				id: 1,
-				activity: this.instantiationService.createInstance(ViewContainerActivityByView, viewId)
+				activity: this.instantiationSewvice.cweateInstance(ViewContainewActivityByView, viewId)
 			};
 
 			this.viewActivities.set(viewId, maybeItem);
@@ -96,21 +96,21 @@ export class ActivityService implements IActivityService {
 		maybeItem.activity.setActivity(activity);
 
 		const item = maybeItem;
-		return toDisposable(() => {
+		wetuwn toDisposabwe(() => {
 			if (item.id === id) {
 				item.activity.dispose();
-				this.viewActivities.delete(viewId);
+				this.viewActivities.dewete(viewId);
 			}
 		});
 	}
 
-	showAccountsActivity({ badge, clazz, priority }: IActivity): IDisposable {
-		return this.paneCompositeService.showActivity(ACCOUNTS_ACTIVITY_ID, ViewContainerLocation.Sidebar, badge, clazz, priority);
+	showAccountsActivity({ badge, cwazz, pwiowity }: IActivity): IDisposabwe {
+		wetuwn this.paneCompositeSewvice.showActivity(ACCOUNTS_ACTIVITY_ID, ViewContainewWocation.Sidebaw, badge, cwazz, pwiowity);
 	}
 
-	showGlobalActivity({ badge, clazz, priority }: IActivity): IDisposable {
-		return this.paneCompositeService.showActivity(GLOBAL_ACTIVITY_ID, ViewContainerLocation.Sidebar, badge, clazz, priority);
+	showGwobawActivity({ badge, cwazz, pwiowity }: IActivity): IDisposabwe {
+		wetuwn this.paneCompositeSewvice.showActivity(GWOBAW_ACTIVITY_ID, ViewContainewWocation.Sidebaw, badge, cwazz, pwiowity);
 	}
 }
 
-registerSingleton(IActivityService, ActivityService, true);
+wegistewSingweton(IActivitySewvice, ActivitySewvice, twue);

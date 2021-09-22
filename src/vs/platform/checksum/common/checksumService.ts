@@ -1,19 +1,19 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const IChecksumService = createDecorator<IChecksumService>('checksumService');
+expowt const IChecksumSewvice = cweateDecowatow<IChecksumSewvice>('checksumSewvice');
 
-export interface IChecksumService {
+expowt intewface IChecksumSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Computes the checksum of the contents of the resource.
+	 * Computes the checksum of the contents of the wesouwce.
 	 */
-	checksum(resource: URI): Promise<string>;
+	checksum(wesouwce: UWI): Pwomise<stwing>;
 }

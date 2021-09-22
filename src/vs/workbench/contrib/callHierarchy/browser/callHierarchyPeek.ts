@@ -1,472 +1,472 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/callHierarchy';
-import * as peekView from 'vs/editor/contrib/peekView/peekView';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CallHierarchyDirection, CallHierarchyModel } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
-import { WorkbenchAsyncDataTree, IWorkbenchAsyncDataTreeOptions } from 'vs/platform/list/browser/listService';
-import { FuzzyScore } from 'vs/base/common/filters';
-import * as callHTree from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyTree';
-import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { localize } from 'vs/nls';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { SplitView, Orientation, Sizing } from 'vs/base/browser/ui/splitview/splitview';
-import { Dimension } from 'vs/base/browser/dom';
-import { Event } from 'vs/base/common/event';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions, OverviewRulerLane } from 'vs/editor/common/model';
-import { registerThemingParticipant, themeColorFromId, IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IAction } from 'vs/base/common/actions';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Color } from 'vs/base/common/color';
-import { TreeMouseEventTarget, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { URI } from 'vs/base/common/uri';
-import { MenuId, IMenuService } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+impowt 'vs/css!./media/cawwHiewawchy';
+impowt * as peekView fwom 'vs/editow/contwib/peekView/peekView';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { CawwHiewawchyDiwection, CawwHiewawchyModew } fwom 'vs/wowkbench/contwib/cawwHiewawchy/common/cawwHiewawchy';
+impowt { WowkbenchAsyncDataTwee, IWowkbenchAsyncDataTweeOptions } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { FuzzyScowe } fwom 'vs/base/common/fiwtews';
+impowt * as cawwHTwee fwom 'vs/wowkbench/contwib/cawwHiewawchy/bwowsa/cawwHiewawchyTwee';
+impowt { IAsyncDataTweeViewState } fwom 'vs/base/bwowsa/ui/twee/asyncDataTwee';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { SpwitView, Owientation, Sizing } fwom 'vs/base/bwowsa/ui/spwitview/spwitview';
+impowt { Dimension } fwom 'vs/base/bwowsa/dom';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { EmbeddedCodeEditowWidget } fwom 'vs/editow/bwowsa/widget/embeddedCodeEditowWidget';
+impowt { IEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { toDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { TwackedWangeStickiness, IModewDewtaDecowation, IModewDecowationOptions, OvewviewWuwewWane } fwom 'vs/editow/common/modew';
+impowt { wegistewThemingPawticipant, themeCowowFwomId, IThemeSewvice, ICowowTheme } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { TweeMouseEventTawget, ITweeNode } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { MenuId, IMenuSewvice } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { cweateAndFiwwInActionBawActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
 
 const enum State {
-	Loading = 'loading',
+	Woading = 'woading',
 	Message = 'message',
 	Data = 'data'
 }
 
-class LayoutInfo {
+cwass WayoutInfo {
 
-	static store(info: LayoutInfo, storageService: IStorageService): void {
-		storageService.store('callHierarchyPeekLayout', JSON.stringify(info), StorageScope.GLOBAL, StorageTarget.MACHINE);
+	static stowe(info: WayoutInfo, stowageSewvice: IStowageSewvice): void {
+		stowageSewvice.stowe('cawwHiewawchyPeekWayout', JSON.stwingify(info), StowageScope.GWOBAW, StowageTawget.MACHINE);
 	}
 
-	static retrieve(storageService: IStorageService): LayoutInfo {
-		const value = storageService.get('callHierarchyPeekLayout', StorageScope.GLOBAL, '{}');
-		const defaultInfo: LayoutInfo = { ratio: 0.7, height: 17 };
-		try {
-			return { ...defaultInfo, ...JSON.parse(value) };
+	static wetwieve(stowageSewvice: IStowageSewvice): WayoutInfo {
+		const vawue = stowageSewvice.get('cawwHiewawchyPeekWayout', StowageScope.GWOBAW, '{}');
+		const defauwtInfo: WayoutInfo = { watio: 0.7, height: 17 };
+		twy {
+			wetuwn { ...defauwtInfo, ...JSON.pawse(vawue) };
 		} catch {
-			return defaultInfo;
+			wetuwn defauwtInfo;
 		}
 	}
 
-	constructor(
-		public ratio: number,
-		public height: number
+	constwuctow(
+		pubwic watio: numba,
+		pubwic height: numba
 	) { }
 }
 
-class CallHierarchyTree extends WorkbenchAsyncDataTree<CallHierarchyModel, callHTree.Call, FuzzyScore>{ }
+cwass CawwHiewawchyTwee extends WowkbenchAsyncDataTwee<CawwHiewawchyModew, cawwHTwee.Caww, FuzzyScowe>{ }
 
-export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
+expowt cwass CawwHiewawchyTweePeekWidget extends peekView.PeekViewWidget {
 
-	static readonly TitleMenu = new MenuId('callhierarchy/title');
+	static weadonwy TitweMenu = new MenuId('cawwhiewawchy/titwe');
 
-	private _parent!: HTMLElement;
-	private _message!: HTMLElement;
-	private _splitView!: SplitView;
-	private _tree!: CallHierarchyTree;
-	private _treeViewStates = new Map<CallHierarchyDirection, IAsyncDataTreeViewState>();
-	private _editor!: EmbeddedCodeEditorWidget;
-	private _dim!: Dimension;
-	private _layoutInfo!: LayoutInfo;
+	pwivate _pawent!: HTMWEwement;
+	pwivate _message!: HTMWEwement;
+	pwivate _spwitView!: SpwitView;
+	pwivate _twee!: CawwHiewawchyTwee;
+	pwivate _tweeViewStates = new Map<CawwHiewawchyDiwection, IAsyncDataTweeViewState>();
+	pwivate _editow!: EmbeddedCodeEditowWidget;
+	pwivate _dim!: Dimension;
+	pwivate _wayoutInfo!: WayoutInfo;
 
-	private readonly _previewDisposable = new DisposableStore();
+	pwivate weadonwy _pweviewDisposabwe = new DisposabweStowe();
 
-	constructor(
-		editor: ICodeEditor,
-		private readonly _where: IPosition,
-		private _direction: CallHierarchyDirection,
-		@IThemeService themeService: IThemeService,
-		@peekView.IPeekViewService private readonly _peekViewService: peekView.IPeekViewService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@ITextModelService private readonly _textModelService: ITextModelService,
-		@IStorageService private readonly _storageService: IStorageService,
-		@IMenuService private readonly _menuService: IMenuService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+	constwuctow(
+		editow: ICodeEditow,
+		pwivate weadonwy _whewe: IPosition,
+		pwivate _diwection: CawwHiewawchyDiwection,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@peekView.IPeekViewSewvice pwivate weadonwy _peekViewSewvice: peekView.IPeekViewSewvice,
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@ITextModewSewvice pwivate weadonwy _textModewSewvice: ITextModewSewvice,
+		@IStowageSewvice pwivate weadonwy _stowageSewvice: IStowageSewvice,
+		@IMenuSewvice pwivate weadonwy _menuSewvice: IMenuSewvice,
+		@IContextKeySewvice pwivate weadonwy _contextKeySewvice: IContextKeySewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
 	) {
-		super(editor, { showFrame: true, showArrow: true, isResizeable: true, isAccessible: true }, _instantiationService);
-		this.create();
-		this._peekViewService.addExclusiveWidget(editor, this);
-		this._applyTheme(themeService.getColorTheme());
-		this._disposables.add(themeService.onDidColorThemeChange(this._applyTheme, this));
-		this._disposables.add(this._previewDisposable);
+		supa(editow, { showFwame: twue, showAwwow: twue, isWesizeabwe: twue, isAccessibwe: twue }, _instantiationSewvice);
+		this.cweate();
+		this._peekViewSewvice.addExcwusiveWidget(editow, this);
+		this._appwyTheme(themeSewvice.getCowowTheme());
+		this._disposabwes.add(themeSewvice.onDidCowowThemeChange(this._appwyTheme, this));
+		this._disposabwes.add(this._pweviewDisposabwe);
 	}
 
-	override dispose(): void {
-		LayoutInfo.store(this._layoutInfo, this._storageService);
-		this._splitView.dispose();
-		this._tree.dispose();
-		this._editor.dispose();
-		super.dispose();
+	ovewwide dispose(): void {
+		WayoutInfo.stowe(this._wayoutInfo, this._stowageSewvice);
+		this._spwitView.dispose();
+		this._twee.dispose();
+		this._editow.dispose();
+		supa.dispose();
 	}
 
-	get direction(): CallHierarchyDirection {
-		return this._direction;
+	get diwection(): CawwHiewawchyDiwection {
+		wetuwn this._diwection;
 	}
 
-	private _applyTheme(theme: IColorTheme) {
-		const borderColor = theme.getColor(peekView.peekViewBorder) || Color.transparent;
-		this.style({
-			arrowColor: borderColor,
-			frameColor: borderColor,
-			headerBackgroundColor: theme.getColor(peekView.peekViewTitleBackground) || Color.transparent,
-			primaryHeadingColor: theme.getColor(peekView.peekViewTitleForeground),
-			secondaryHeadingColor: theme.getColor(peekView.peekViewTitleInfoForeground)
+	pwivate _appwyTheme(theme: ICowowTheme) {
+		const bowdewCowow = theme.getCowow(peekView.peekViewBowda) || Cowow.twanspawent;
+		this.stywe({
+			awwowCowow: bowdewCowow,
+			fwameCowow: bowdewCowow,
+			headewBackgwoundCowow: theme.getCowow(peekView.peekViewTitweBackgwound) || Cowow.twanspawent,
+			pwimawyHeadingCowow: theme.getCowow(peekView.peekViewTitweFowegwound),
+			secondawyHeadingCowow: theme.getCowow(peekView.peekViewTitweInfoFowegwound)
 		});
 	}
 
-	protected override _fillHead(container: HTMLElement): void {
-		super._fillHead(container, true);
+	pwotected ovewwide _fiwwHead(containa: HTMWEwement): void {
+		supa._fiwwHead(containa, twue);
 
-		const menu = this._menuService.createMenu(CallHierarchyTreePeekWidget.TitleMenu, this._contextKeyService);
-		const updateToolbar = () => {
+		const menu = this._menuSewvice.cweateMenu(CawwHiewawchyTweePeekWidget.TitweMenu, this._contextKeySewvice);
+		const updateToowbaw = () => {
 			const actions: IAction[] = [];
-			createAndFillInActionBarActions(menu, undefined, actions);
-			this._actionbarWidget!.clear();
-			this._actionbarWidget!.push(actions, { label: false, icon: true });
+			cweateAndFiwwInActionBawActions(menu, undefined, actions);
+			this._actionbawWidget!.cweaw();
+			this._actionbawWidget!.push(actions, { wabew: fawse, icon: twue });
 		};
-		this._disposables.add(menu);
-		this._disposables.add(menu.onDidChange(updateToolbar));
-		updateToolbar();
+		this._disposabwes.add(menu);
+		this._disposabwes.add(menu.onDidChange(updateToowbaw));
+		updateToowbaw();
 	}
 
-	protected _fillBody(parent: HTMLElement): void {
+	pwotected _fiwwBody(pawent: HTMWEwement): void {
 
-		this._layoutInfo = LayoutInfo.retrieve(this._storageService);
+		this._wayoutInfo = WayoutInfo.wetwieve(this._stowageSewvice);
 		this._dim = new Dimension(0, 0);
 
-		this._parent = parent;
-		parent.classList.add('call-hierarchy');
+		this._pawent = pawent;
+		pawent.cwassWist.add('caww-hiewawchy');
 
-		const message = document.createElement('div');
-		message.classList.add('message');
-		parent.appendChild(message);
+		const message = document.cweateEwement('div');
+		message.cwassWist.add('message');
+		pawent.appendChiwd(message);
 		this._message = message;
 		this._message.tabIndex = 0;
 
-		const container = document.createElement('div');
-		container.classList.add('results');
-		parent.appendChild(container);
+		const containa = document.cweateEwement('div');
+		containa.cwassWist.add('wesuwts');
+		pawent.appendChiwd(containa);
 
-		this._splitView = new SplitView(container, { orientation: Orientation.HORIZONTAL });
+		this._spwitView = new SpwitView(containa, { owientation: Owientation.HOWIZONTAW });
 
-		// editor stuff
-		const editorContainer = document.createElement('div');
-		editorContainer.classList.add('editor');
-		container.appendChild(editorContainer);
-		let editorOptions: IEditorOptions = {
-			scrollBeyondLastLine: false,
-			scrollbar: {
-				verticalScrollbarSize: 14,
-				horizontal: 'auto',
-				useShadows: true,
-				verticalHasArrows: false,
-				horizontalHasArrows: false,
-				alwaysConsumeMouseWheel: false
+		// editow stuff
+		const editowContaina = document.cweateEwement('div');
+		editowContaina.cwassWist.add('editow');
+		containa.appendChiwd(editowContaina);
+		wet editowOptions: IEditowOptions = {
+			scwowwBeyondWastWine: fawse,
+			scwowwbaw: {
+				vewticawScwowwbawSize: 14,
+				howizontaw: 'auto',
+				useShadows: twue,
+				vewticawHasAwwows: fawse,
+				howizontawHasAwwows: fawse,
+				awwaysConsumeMouseWheew: fawse
 			},
-			overviewRulerLanes: 2,
-			fixedOverflowWidgets: true,
+			ovewviewWuwewWanes: 2,
+			fixedOvewfwowWidgets: twue,
 			minimap: {
-				enabled: false
+				enabwed: fawse
 			}
 		};
-		this._editor = this._instantiationService.createInstance(
-			EmbeddedCodeEditorWidget,
-			editorContainer,
-			editorOptions,
-			this.editor
+		this._editow = this._instantiationSewvice.cweateInstance(
+			EmbeddedCodeEditowWidget,
+			editowContaina,
+			editowOptions,
+			this.editow
 		);
 
-		// tree stuff
-		const treeContainer = document.createElement('div');
-		treeContainer.classList.add('tree');
-		container.appendChild(treeContainer);
-		const options: IWorkbenchAsyncDataTreeOptions<callHTree.Call, FuzzyScore> = {
-			sorter: new callHTree.Sorter(),
-			accessibilityProvider: new callHTree.AccessibilityProvider(() => this._direction),
-			identityProvider: new callHTree.IdentityProvider(() => this._direction),
-			expandOnlyOnTwistieClick: true,
-			overrideStyles: {
-				listBackground: peekView.peekViewResultsBackground
+		// twee stuff
+		const tweeContaina = document.cweateEwement('div');
+		tweeContaina.cwassWist.add('twee');
+		containa.appendChiwd(tweeContaina);
+		const options: IWowkbenchAsyncDataTweeOptions<cawwHTwee.Caww, FuzzyScowe> = {
+			sowta: new cawwHTwee.Sowta(),
+			accessibiwityPwovida: new cawwHTwee.AccessibiwityPwovida(() => this._diwection),
+			identityPwovida: new cawwHTwee.IdentityPwovida(() => this._diwection),
+			expandOnwyOnTwistieCwick: twue,
+			ovewwideStywes: {
+				wistBackgwound: peekView.peekViewWesuwtsBackgwound
 			}
 		};
-		this._tree = this._instantiationService.createInstance(
-			CallHierarchyTree,
-			'CallHierarchyPeek',
-			treeContainer,
-			new callHTree.VirtualDelegate(),
-			[this._instantiationService.createInstance(callHTree.CallRenderer)],
-			this._instantiationService.createInstance(callHTree.DataSource, () => this._direction),
+		this._twee = this._instantiationSewvice.cweateInstance(
+			CawwHiewawchyTwee,
+			'CawwHiewawchyPeek',
+			tweeContaina,
+			new cawwHTwee.ViwtuawDewegate(),
+			[this._instantiationSewvice.cweateInstance(cawwHTwee.CawwWendewa)],
+			this._instantiationSewvice.cweateInstance(cawwHTwee.DataSouwce, () => this._diwection),
 			options
 		);
 
-		// split stuff
-		this._splitView.addView({
+		// spwit stuff
+		this._spwitView.addView({
 			onDidChange: Event.None,
-			element: editorContainer,
+			ewement: editowContaina,
 			minimumSize: 200,
-			maximumSize: Number.MAX_VALUE,
-			layout: (width) => {
+			maximumSize: Numba.MAX_VAWUE,
+			wayout: (width) => {
 				if (this._dim.height) {
-					this._editor.layout({ height: this._dim.height, width });
+					this._editow.wayout({ height: this._dim.height, width });
 				}
 			}
-		}, Sizing.Distribute);
+		}, Sizing.Distwibute);
 
-		this._splitView.addView({
+		this._spwitView.addView({
 			onDidChange: Event.None,
-			element: treeContainer,
+			ewement: tweeContaina,
 			minimumSize: 100,
-			maximumSize: Number.MAX_VALUE,
-			layout: (width) => {
+			maximumSize: Numba.MAX_VAWUE,
+			wayout: (width) => {
 				if (this._dim.height) {
-					this._tree.layout(this._dim.height, width);
+					this._twee.wayout(this._dim.height, width);
 				}
 			}
-		}, Sizing.Distribute);
+		}, Sizing.Distwibute);
 
-		this._disposables.add(this._splitView.onDidSashChange(() => {
+		this._disposabwes.add(this._spwitView.onDidSashChange(() => {
 			if (this._dim.width) {
-				this._layoutInfo.ratio = this._splitView.getViewSize(0) / this._dim.width;
+				this._wayoutInfo.watio = this._spwitView.getViewSize(0) / this._dim.width;
 			}
 		}));
 
-		// update editor
-		this._disposables.add(this._tree.onDidChangeFocus(this._updatePreview, this));
+		// update editow
+		this._disposabwes.add(this._twee.onDidChangeFocus(this._updatePweview, this));
 
-		this._disposables.add(this._editor.onMouseDown(e => {
-			const { event, target } = e;
-			if (event.detail !== 2) {
-				return;
+		this._disposabwes.add(this._editow.onMouseDown(e => {
+			const { event, tawget } = e;
+			if (event.detaiw !== 2) {
+				wetuwn;
 			}
-			const [focus] = this._tree.getFocus();
+			const [focus] = this._twee.getFocus();
 			if (!focus) {
-				return;
+				wetuwn;
 			}
 			this.dispose();
-			this._editorService.openEditor({
-				resource: focus.item.uri,
-				options: { selection: target.range! }
+			this._editowSewvice.openEditow({
+				wesouwce: focus.item.uwi,
+				options: { sewection: tawget.wange! }
 			});
 
 		}));
 
-		this._disposables.add(this._tree.onMouseDblClick(e => {
-			if (e.target === TreeMouseEventTarget.Twistie) {
-				return;
+		this._disposabwes.add(this._twee.onMouseDbwCwick(e => {
+			if (e.tawget === TweeMouseEventTawget.Twistie) {
+				wetuwn;
 			}
 
-			if (e.element) {
+			if (e.ewement) {
 				this.dispose();
-				this._editorService.openEditor({
-					resource: e.element.item.uri,
-					options: { selection: e.element.item.selectionRange, pinned: true }
+				this._editowSewvice.openEditow({
+					wesouwce: e.ewement.item.uwi,
+					options: { sewection: e.ewement.item.sewectionWange, pinned: twue }
 				});
 			}
 		}));
 
-		this._disposables.add(this._tree.onDidChangeSelection(e => {
-			const [element] = e.elements;
-			// don't close on click
-			if (element && e.browserEvent instanceof KeyboardEvent) {
+		this._disposabwes.add(this._twee.onDidChangeSewection(e => {
+			const [ewement] = e.ewements;
+			// don't cwose on cwick
+			if (ewement && e.bwowsewEvent instanceof KeyboawdEvent) {
 				this.dispose();
-				this._editorService.openEditor({
-					resource: element.item.uri,
-					options: { selection: element.item.selectionRange, pinned: true }
+				this._editowSewvice.openEditow({
+					wesouwce: ewement.item.uwi,
+					options: { sewection: ewement.item.sewectionWange, pinned: twue }
 				});
 			}
 		}));
 	}
 
-	private async _updatePreview() {
-		const [element] = this._tree.getFocus();
-		if (!element) {
-			return;
+	pwivate async _updatePweview() {
+		const [ewement] = this._twee.getFocus();
+		if (!ewement) {
+			wetuwn;
 		}
 
-		this._previewDisposable.clear();
+		this._pweviewDisposabwe.cweaw();
 
-		// update: editor and editor highlights
-		const options: IModelDecorationOptions = {
-			description: 'call-hierarchy-decoration',
-			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-			className: 'call-decoration',
-			overviewRuler: {
-				color: themeColorFromId(peekView.peekViewEditorMatchHighlight),
-				position: OverviewRulerLane.Center
+		// update: editow and editow highwights
+		const options: IModewDecowationOptions = {
+			descwiption: 'caww-hiewawchy-decowation',
+			stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
+			cwassName: 'caww-decowation',
+			ovewviewWuwa: {
+				cowow: themeCowowFwomId(peekView.peekViewEditowMatchHighwight),
+				position: OvewviewWuwewWane.Centa
 			},
 		};
 
-		let previewUri: URI;
-		if (this._direction === CallHierarchyDirection.CallsFrom) {
-			// outgoing calls: show caller and highlight focused calls
-			previewUri = element.parent ? element.parent.item.uri : element.model.root.uri;
+		wet pweviewUwi: UWI;
+		if (this._diwection === CawwHiewawchyDiwection.CawwsFwom) {
+			// outgoing cawws: show cawwa and highwight focused cawws
+			pweviewUwi = ewement.pawent ? ewement.pawent.item.uwi : ewement.modew.woot.uwi;
 
-		} else {
-			// incoming calls: show caller and highlight focused calls
-			previewUri = element.item.uri;
+		} ewse {
+			// incoming cawws: show cawwa and highwight focused cawws
+			pweviewUwi = ewement.item.uwi;
 		}
 
-		const value = await this._textModelService.createModelReference(previewUri);
-		this._editor.setModel(value.object.textEditorModel);
+		const vawue = await this._textModewSewvice.cweateModewWefewence(pweviewUwi);
+		this._editow.setModew(vawue.object.textEditowModew);
 
-		// set decorations for caller ranges (if in the same file)
-		let decorations: IModelDeltaDecoration[] = [];
-		let fullRange: IRange | undefined;
-		let locations = element.locations;
-		if (!locations) {
-			locations = [{ uri: element.item.uri, range: element.item.selectionRange }];
+		// set decowations fow cawwa wanges (if in the same fiwe)
+		wet decowations: IModewDewtaDecowation[] = [];
+		wet fuwwWange: IWange | undefined;
+		wet wocations = ewement.wocations;
+		if (!wocations) {
+			wocations = [{ uwi: ewement.item.uwi, wange: ewement.item.sewectionWange }];
 		}
-		for (const loc of locations) {
-			if (loc.uri.toString() === previewUri.toString()) {
-				decorations.push({ range: loc.range, options });
-				fullRange = !fullRange ? loc.range : Range.plusRange(loc.range, fullRange);
+		fow (const woc of wocations) {
+			if (woc.uwi.toStwing() === pweviewUwi.toStwing()) {
+				decowations.push({ wange: woc.wange, options });
+				fuwwWange = !fuwwWange ? woc.wange : Wange.pwusWange(woc.wange, fuwwWange);
 			}
 		}
-		if (fullRange) {
-			this._editor.revealRangeInCenter(fullRange, ScrollType.Immediate);
-			const ids = this._editor.deltaDecorations([], decorations);
-			this._previewDisposable.add(toDisposable(() => this._editor.deltaDecorations(ids, [])));
+		if (fuwwWange) {
+			this._editow.weveawWangeInCenta(fuwwWange, ScwowwType.Immediate);
+			const ids = this._editow.dewtaDecowations([], decowations);
+			this._pweviewDisposabwe.add(toDisposabwe(() => this._editow.dewtaDecowations(ids, [])));
 		}
-		this._previewDisposable.add(value);
+		this._pweviewDisposabwe.add(vawue);
 
-		// update: title
-		const title = this._direction === CallHierarchyDirection.CallsFrom
-			? localize('callFrom', "Calls from '{0}'", element.model.root.name)
-			: localize('callsTo', "Callers of '{0}'", element.model.root.name);
-		this.setTitle(title);
+		// update: titwe
+		const titwe = this._diwection === CawwHiewawchyDiwection.CawwsFwom
+			? wocawize('cawwFwom', "Cawws fwom '{0}'", ewement.modew.woot.name)
+			: wocawize('cawwsTo', "Cawwews of '{0}'", ewement.modew.woot.name);
+		this.setTitwe(titwe);
 	}
 
-	showLoading(): void {
-		this._parent.dataset['state'] = State.Loading;
-		this.setTitle(localize('title.loading', "Loading..."));
+	showWoading(): void {
+		this._pawent.dataset['state'] = State.Woading;
+		this.setTitwe(wocawize('titwe.woading', "Woading..."));
 		this._show();
 	}
 
-	showMessage(message: string): void {
-		this._parent.dataset['state'] = State.Message;
-		this.setTitle('');
-		this.setMetaTitle('');
-		this._message.innerText = message;
+	showMessage(message: stwing): void {
+		this._pawent.dataset['state'] = State.Message;
+		this.setTitwe('');
+		this.setMetaTitwe('');
+		this._message.innewText = message;
 		this._show();
 		this._message.focus();
 	}
 
-	async showModel(model: CallHierarchyModel): Promise<void> {
+	async showModew(modew: CawwHiewawchyModew): Pwomise<void> {
 
 		this._show();
-		const viewState = this._treeViewStates.get(this._direction);
+		const viewState = this._tweeViewStates.get(this._diwection);
 
-		await this._tree.setInput(model, viewState);
+		await this._twee.setInput(modew, viewState);
 
-		const root = <ITreeNode<callHTree.Call>>this._tree.getNode(model).children[0];
-		await this._tree.expand(root.element);
+		const woot = <ITweeNode<cawwHTwee.Caww>>this._twee.getNode(modew).chiwdwen[0];
+		await this._twee.expand(woot.ewement);
 
-		if (root.children.length === 0) {
+		if (woot.chiwdwen.wength === 0) {
 			//
-			this.showMessage(this._direction === CallHierarchyDirection.CallsFrom
-				? localize('empt.callsFrom', "No calls from '{0}'", model.root.name)
-				: localize('empt.callsTo', "No callers of '{0}'", model.root.name));
+			this.showMessage(this._diwection === CawwHiewawchyDiwection.CawwsFwom
+				? wocawize('empt.cawwsFwom', "No cawws fwom '{0}'", modew.woot.name)
+				: wocawize('empt.cawwsTo', "No cawwews of '{0}'", modew.woot.name));
 
-		} else {
-			this._parent.dataset['state'] = State.Data;
-			if (!viewState || this._tree.getFocus().length === 0) {
-				this._tree.setFocus([root.children[0].element]);
+		} ewse {
+			this._pawent.dataset['state'] = State.Data;
+			if (!viewState || this._twee.getFocus().wength === 0) {
+				this._twee.setFocus([woot.chiwdwen[0].ewement]);
 			}
-			this._tree.domFocus();
-			this._updatePreview();
+			this._twee.domFocus();
+			this._updatePweview();
 		}
 	}
 
-	getModel(): CallHierarchyModel | undefined {
-		return this._tree.getInput();
+	getModew(): CawwHiewawchyModew | undefined {
+		wetuwn this._twee.getInput();
 	}
 
-	getFocused(): callHTree.Call | undefined {
-		return this._tree.getFocus()[0];
+	getFocused(): cawwHTwee.Caww | undefined {
+		wetuwn this._twee.getFocus()[0];
 	}
 
-	async updateDirection(newDirection: CallHierarchyDirection): Promise<void> {
-		const model = this._tree.getInput();
-		if (model && newDirection !== this._direction) {
-			this._treeViewStates.set(this._direction, this._tree.getViewState());
-			this._direction = newDirection;
-			await this.showModel(model);
+	async updateDiwection(newDiwection: CawwHiewawchyDiwection): Pwomise<void> {
+		const modew = this._twee.getInput();
+		if (modew && newDiwection !== this._diwection) {
+			this._tweeViewStates.set(this._diwection, this._twee.getViewState());
+			this._diwection = newDiwection;
+			await this.showModew(modew);
 		}
 	}
 
-	private _show() {
+	pwivate _show() {
 		if (!this._isShowing) {
-			this.editor.revealLineInCenterIfOutsideViewport(this._where.lineNumber, ScrollType.Smooth);
-			super.show(Range.fromPositions(this._where), this._layoutInfo.height);
+			this.editow.weveawWineInCentewIfOutsideViewpowt(this._whewe.wineNumba, ScwowwType.Smooth);
+			supa.show(Wange.fwomPositions(this._whewe), this._wayoutInfo.height);
 		}
 	}
 
-	protected override _onWidth(width: number) {
+	pwotected ovewwide _onWidth(width: numba) {
 		if (this._dim) {
-			this._doLayoutBody(this._dim.height, width);
+			this._doWayoutBody(this._dim.height, width);
 		}
 	}
 
-	protected override _doLayoutBody(height: number, width: number): void {
+	pwotected ovewwide _doWayoutBody(height: numba, width: numba): void {
 		if (this._dim.height !== height || this._dim.width !== width) {
-			super._doLayoutBody(height, width);
+			supa._doWayoutBody(height, width);
 			this._dim = new Dimension(width, height);
-			this._layoutInfo.height = this._viewZone ? this._viewZone.heightInLines : this._layoutInfo.height;
-			this._splitView.layout(width);
-			this._splitView.resizeView(0, width * this._layoutInfo.ratio);
+			this._wayoutInfo.height = this._viewZone ? this._viewZone.heightInWines : this._wayoutInfo.height;
+			this._spwitView.wayout(width);
+			this._spwitView.wesizeView(0, width * this._wayoutInfo.watio);
 		}
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const referenceHighlightColor = theme.getColor(peekView.peekViewEditorMatchHighlight);
-	if (referenceHighlightColor) {
-		collector.addRule(`.monaco-editor .call-hierarchy .call-decoration { background-color: ${referenceHighlightColor}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const wefewenceHighwightCowow = theme.getCowow(peekView.peekViewEditowMatchHighwight);
+	if (wefewenceHighwightCowow) {
+		cowwectow.addWuwe(`.monaco-editow .caww-hiewawchy .caww-decowation { backgwound-cowow: ${wefewenceHighwightCowow}; }`);
 	}
-	const referenceHighlightBorder = theme.getColor(peekView.peekViewEditorMatchHighlightBorder);
-	if (referenceHighlightBorder) {
-		collector.addRule(`.monaco-editor .call-hierarchy .call-decoration { border: 2px solid ${referenceHighlightBorder}; box-sizing: border-box; }`);
+	const wefewenceHighwightBowda = theme.getCowow(peekView.peekViewEditowMatchHighwightBowda);
+	if (wefewenceHighwightBowda) {
+		cowwectow.addWuwe(`.monaco-editow .caww-hiewawchy .caww-decowation { bowda: 2px sowid ${wefewenceHighwightBowda}; box-sizing: bowda-box; }`);
 	}
-	const resultsBackground = theme.getColor(peekView.peekViewResultsBackground);
-	if (resultsBackground) {
-		collector.addRule(`.monaco-editor .call-hierarchy .tree { background-color: ${resultsBackground}; }`);
+	const wesuwtsBackgwound = theme.getCowow(peekView.peekViewWesuwtsBackgwound);
+	if (wesuwtsBackgwound) {
+		cowwectow.addWuwe(`.monaco-editow .caww-hiewawchy .twee { backgwound-cowow: ${wesuwtsBackgwound}; }`);
 	}
-	const resultsMatchForeground = theme.getColor(peekView.peekViewResultsFileForeground);
-	if (resultsMatchForeground) {
-		collector.addRule(`.monaco-editor .call-hierarchy .tree { color: ${resultsMatchForeground}; }`);
+	const wesuwtsMatchFowegwound = theme.getCowow(peekView.peekViewWesuwtsFiweFowegwound);
+	if (wesuwtsMatchFowegwound) {
+		cowwectow.addWuwe(`.monaco-editow .caww-hiewawchy .twee { cowow: ${wesuwtsMatchFowegwound}; }`);
 	}
-	const resultsSelectedBackground = theme.getColor(peekView.peekViewResultsSelectionBackground);
-	if (resultsSelectedBackground) {
-		collector.addRule(`.monaco-editor .call-hierarchy .tree .monaco-list:focus .monaco-list-rows > .monaco-list-row.selected:not(.highlighted) { background-color: ${resultsSelectedBackground}; }`);
+	const wesuwtsSewectedBackgwound = theme.getCowow(peekView.peekViewWesuwtsSewectionBackgwound);
+	if (wesuwtsSewectedBackgwound) {
+		cowwectow.addWuwe(`.monaco-editow .caww-hiewawchy .twee .monaco-wist:focus .monaco-wist-wows > .monaco-wist-wow.sewected:not(.highwighted) { backgwound-cowow: ${wesuwtsSewectedBackgwound}; }`);
 	}
-	const resultsSelectedForeground = theme.getColor(peekView.peekViewResultsSelectionForeground);
-	if (resultsSelectedForeground) {
-		collector.addRule(`.monaco-editor .call-hierarchy .tree .monaco-list:focus .monaco-list-rows > .monaco-list-row.selected:not(.highlighted) { color: ${resultsSelectedForeground} !important; }`);
+	const wesuwtsSewectedFowegwound = theme.getCowow(peekView.peekViewWesuwtsSewectionFowegwound);
+	if (wesuwtsSewectedFowegwound) {
+		cowwectow.addWuwe(`.monaco-editow .caww-hiewawchy .twee .monaco-wist:focus .monaco-wist-wows > .monaco-wist-wow.sewected:not(.highwighted) { cowow: ${wesuwtsSewectedFowegwound} !impowtant; }`);
 	}
-	const editorBackground = theme.getColor(peekView.peekViewEditorBackground);
-	if (editorBackground) {
-		collector.addRule(
-			`.monaco-editor .call-hierarchy .editor .monaco-editor .monaco-editor-background,` +
-			`.monaco-editor .call-hierarchy .editor .monaco-editor .inputarea.ime-input {` +
-			`	background-color: ${editorBackground};` +
+	const editowBackgwound = theme.getCowow(peekView.peekViewEditowBackgwound);
+	if (editowBackgwound) {
+		cowwectow.addWuwe(
+			`.monaco-editow .caww-hiewawchy .editow .monaco-editow .monaco-editow-backgwound,` +
+			`.monaco-editow .caww-hiewawchy .editow .monaco-editow .inputawea.ime-input {` +
+			`	backgwound-cowow: ${editowBackgwound};` +
 			`}`
 		);
 	}
-	const editorGutterBackground = theme.getColor(peekView.peekViewEditorGutterBackground);
-	if (editorGutterBackground) {
-		collector.addRule(
-			`.monaco-editor .call-hierarchy .editor .monaco-editor .margin {` +
-			`	background-color: ${editorGutterBackground};` +
+	const editowGuttewBackgwound = theme.getCowow(peekView.peekViewEditowGuttewBackgwound);
+	if (editowGuttewBackgwound) {
+		cowwectow.addWuwe(
+			`.monaco-editow .caww-hiewawchy .editow .monaco-editow .mawgin {` +
+			`	backgwound-cowow: ${editowGuttewBackgwound};` +
 			`}`
 		);
 	}

@@ -1,1487 +1,1487 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { URI as uri } from 'vs/base/common/uri';
-import * as resources from 'vs/base/common/resources';
-import { Event, Emitter } from 'vs/base/common/event';
-import { generateUuid } from 'vs/base/common/uuid';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { isString, isUndefinedOrNull } from 'vs/base/common/types';
-import { distinct, lastIndex } from 'vs/base/common/arrays';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import {
-	ITreeElement, IExpression, IExpressionContainer, IDebugSession, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IDebugModel,
-	IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IBreakpointsChangeEvent, IBreakpointUpdateData, IBaseBreakpoint, State, IDataBreakpoint, IInstructionBreakpoint
-} from 'vs/workbench/contrib/debug/common/debug';
-import { Source, UNKNOWN_SOURCE_LABEL, getUriFromSource } from 'vs/workbench/contrib/debug/common/debugSource';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { mixin } from 'vs/base/common/objects';
-import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
+impowt * as nws fwom 'vs/nws';
+impowt { UWI as uwi } fwom 'vs/base/common/uwi';
+impowt * as wesouwces fwom 'vs/base/common/wesouwces';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { isStwing, isUndefinedOwNuww } fwom 'vs/base/common/types';
+impowt { distinct, wastIndex } fwom 'vs/base/common/awways';
+impowt { Wange, IWange } fwom 'vs/editow/common/cowe/wange';
+impowt {
+	ITweeEwement, IExpwession, IExpwessionContaina, IDebugSession, IStackFwame, IExceptionBweakpoint, IBweakpoint, IFunctionBweakpoint, IDebugModew,
+	IThwead, IWawModewUpdate, IScope, IWawStoppedDetaiws, IEnabwement, IBweakpointData, IExceptionInfo, IBweakpointsChangeEvent, IBweakpointUpdateData, IBaseBweakpoint, State, IDataBweakpoint, IInstwuctionBweakpoint
+} fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { Souwce, UNKNOWN_SOUWCE_WABEW, getUwiFwomSouwce } fwom 'vs/wowkbench/contwib/debug/common/debugSouwce';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { IEditowPane } fwom 'vs/wowkbench/common/editow';
+impowt { mixin } fwom 'vs/base/common/objects';
+impowt { DebugStowage } fwom 'vs/wowkbench/contwib/debug/common/debugStowage';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { DisassembwyViewInput } fwom 'vs/wowkbench/contwib/debug/common/disassembwyViewInput';
 
-interface IDebugProtocolVariableWithContext extends DebugProtocol.Variable {
-	__vscodeVariableMenuContext?: string;
+intewface IDebugPwotocowVawiabweWithContext extends DebugPwotocow.Vawiabwe {
+	__vscodeVawiabweMenuContext?: stwing;
 }
 
-export class ExpressionContainer implements IExpressionContainer {
+expowt cwass ExpwessionContaina impwements IExpwessionContaina {
 
-	public static readonly allValues = new Map<string, string>();
-	// Use chunks to support variable paging #9537
-	private static readonly BASE_CHUNK_SIZE = 100;
+	pubwic static weadonwy awwVawues = new Map<stwing, stwing>();
+	// Use chunks to suppowt vawiabwe paging #9537
+	pwivate static weadonwy BASE_CHUNK_SIZE = 100;
 
-	public type: string | undefined;
-	public valueChanged = false;
-	private _value: string = '';
-	protected children?: Promise<IExpression[]>;
+	pubwic type: stwing | undefined;
+	pubwic vawueChanged = fawse;
+	pwivate _vawue: stwing = '';
+	pwotected chiwdwen?: Pwomise<IExpwession[]>;
 
-	constructor(
-		protected session: IDebugSession | undefined,
-		protected threadId: number | undefined,
-		private _reference: number | undefined,
-		private id: string,
-		public namedVariables: number | undefined = 0,
-		public indexedVariables: number | undefined = 0,
-		private startOfVariables: number | undefined = 0
+	constwuctow(
+		pwotected session: IDebugSession | undefined,
+		pwotected thweadId: numba | undefined,
+		pwivate _wefewence: numba | undefined,
+		pwivate id: stwing,
+		pubwic namedVawiabwes: numba | undefined = 0,
+		pubwic indexedVawiabwes: numba | undefined = 0,
+		pwivate stawtOfVawiabwes: numba | undefined = 0
 	) { }
 
-	get reference(): number | undefined {
-		return this._reference;
+	get wefewence(): numba | undefined {
+		wetuwn this._wefewence;
 	}
 
-	set reference(value: number | undefined) {
-		this._reference = value;
-		this.children = undefined; // invalidate children cache
+	set wefewence(vawue: numba | undefined) {
+		this._wefewence = vawue;
+		this.chiwdwen = undefined; // invawidate chiwdwen cache
 	}
 
-	getChildren(): Promise<IExpression[]> {
-		if (!this.children) {
-			this.children = this.doGetChildren();
+	getChiwdwen(): Pwomise<IExpwession[]> {
+		if (!this.chiwdwen) {
+			this.chiwdwen = this.doGetChiwdwen();
 		}
 
-		return this.children;
+		wetuwn this.chiwdwen;
 	}
 
-	private async doGetChildren(): Promise<IExpression[]> {
-		if (!this.hasChildren) {
-			return [];
+	pwivate async doGetChiwdwen(): Pwomise<IExpwession[]> {
+		if (!this.hasChiwdwen) {
+			wetuwn [];
 		}
 
-		if (!this.getChildrenInChunks) {
-			return this.fetchVariables(undefined, undefined, undefined);
+		if (!this.getChiwdwenInChunks) {
+			wetuwn this.fetchVawiabwes(undefined, undefined, undefined);
 		}
 
-		// Check if object has named variables, fetch them independent from indexed variables #9670
-		const children = this.namedVariables ? await this.fetchVariables(undefined, undefined, 'named') : [];
+		// Check if object has named vawiabwes, fetch them independent fwom indexed vawiabwes #9670
+		const chiwdwen = this.namedVawiabwes ? await this.fetchVawiabwes(undefined, undefined, 'named') : [];
 
-		// Use a dynamic chunk size based on the number of elements #9774
-		let chunkSize = ExpressionContainer.BASE_CHUNK_SIZE;
-		while (!!this.indexedVariables && this.indexedVariables > chunkSize * ExpressionContainer.BASE_CHUNK_SIZE) {
-			chunkSize *= ExpressionContainer.BASE_CHUNK_SIZE;
+		// Use a dynamic chunk size based on the numba of ewements #9774
+		wet chunkSize = ExpwessionContaina.BASE_CHUNK_SIZE;
+		whiwe (!!this.indexedVawiabwes && this.indexedVawiabwes > chunkSize * ExpwessionContaina.BASE_CHUNK_SIZE) {
+			chunkSize *= ExpwessionContaina.BASE_CHUNK_SIZE;
 		}
 
-		if (!!this.indexedVariables && this.indexedVariables > chunkSize) {
-			// There are a lot of children, create fake intermediate values that represent chunks #9537
-			const numberOfChunks = Math.ceil(this.indexedVariables / chunkSize);
-			for (let i = 0; i < numberOfChunks; i++) {
-				const start = (this.startOfVariables || 0) + i * chunkSize;
-				const count = Math.min(chunkSize, this.indexedVariables - i * chunkSize);
-				children.push(new Variable(this.session, this.threadId, this, this.reference, `[${start}..${start + count - 1}]`, '', '', undefined, count, { kind: 'virtual' }, undefined, undefined, true, start));
+		if (!!this.indexedVawiabwes && this.indexedVawiabwes > chunkSize) {
+			// Thewe awe a wot of chiwdwen, cweate fake intewmediate vawues that wepwesent chunks #9537
+			const numbewOfChunks = Math.ceiw(this.indexedVawiabwes / chunkSize);
+			fow (wet i = 0; i < numbewOfChunks; i++) {
+				const stawt = (this.stawtOfVawiabwes || 0) + i * chunkSize;
+				const count = Math.min(chunkSize, this.indexedVawiabwes - i * chunkSize);
+				chiwdwen.push(new Vawiabwe(this.session, this.thweadId, this, this.wefewence, `[${stawt}..${stawt + count - 1}]`, '', '', undefined, count, { kind: 'viwtuaw' }, undefined, undefined, twue, stawt));
 			}
 
-			return children;
+			wetuwn chiwdwen;
 		}
 
-		const variables = await this.fetchVariables(this.startOfVariables, this.indexedVariables, 'indexed');
-		return children.concat(variables);
+		const vawiabwes = await this.fetchVawiabwes(this.stawtOfVawiabwes, this.indexedVawiabwes, 'indexed');
+		wetuwn chiwdwen.concat(vawiabwes);
 	}
 
-	getId(): string {
-		return this.id;
+	getId(): stwing {
+		wetuwn this.id;
 	}
 
 	getSession(): IDebugSession | undefined {
-		return this.session;
+		wetuwn this.session;
 	}
 
-	get value(): string {
-		return this._value;
+	get vawue(): stwing {
+		wetuwn this._vawue;
 	}
 
-	get hasChildren(): boolean {
-		// only variables with reference > 0 have children.
-		return !!this.reference && this.reference > 0;
+	get hasChiwdwen(): boowean {
+		// onwy vawiabwes with wefewence > 0 have chiwdwen.
+		wetuwn !!this.wefewence && this.wefewence > 0;
 	}
 
-	private async fetchVariables(start: number | undefined, count: number | undefined, filter: 'indexed' | 'named' | undefined): Promise<Variable[]> {
-		try {
-			const response = await this.session!.variables(this.reference || 0, this.threadId, filter, start, count);
-			if (!response || !response.body || !response.body.variables) {
-				return [];
+	pwivate async fetchVawiabwes(stawt: numba | undefined, count: numba | undefined, fiwta: 'indexed' | 'named' | undefined): Pwomise<Vawiabwe[]> {
+		twy {
+			const wesponse = await this.session!.vawiabwes(this.wefewence || 0, this.thweadId, fiwta, stawt, count);
+			if (!wesponse || !wesponse.body || !wesponse.body.vawiabwes) {
+				wetuwn [];
 			}
 
-			const nameCount = new Map<string, number>();
-			return response.body.variables.filter(v => !!v).map((v: IDebugProtocolVariableWithContext) => {
-				if (isString(v.value) && isString(v.name) && typeof v.variablesReference === 'number') {
+			const nameCount = new Map<stwing, numba>();
+			wetuwn wesponse.body.vawiabwes.fiwta(v => !!v).map((v: IDebugPwotocowVawiabweWithContext) => {
+				if (isStwing(v.vawue) && isStwing(v.name) && typeof v.vawiabwesWefewence === 'numba') {
 					const count = nameCount.get(v.name) || 0;
-					const idDuplicationIndex = count > 0 ? count.toString() : '';
+					const idDupwicationIndex = count > 0 ? count.toStwing() : '';
 					nameCount.set(v.name, count + 1);
-					return new Variable(this.session, this.threadId, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.presentationHint, v.type, v.__vscodeVariableMenuContext, true, 0, idDuplicationIndex);
+					wetuwn new Vawiabwe(this.session, this.thweadId, this, v.vawiabwesWefewence, v.name, v.evawuateName, v.vawue, v.namedVawiabwes, v.indexedVawiabwes, v.pwesentationHint, v.type, v.__vscodeVawiabweMenuContext, twue, 0, idDupwicationIndex);
 				}
-				return new Variable(this.session, this.threadId, this, 0, '', undefined, nls.localize('invalidVariableAttributes', "Invalid variable attributes"), 0, 0, { kind: 'virtual' }, undefined, undefined, false);
+				wetuwn new Vawiabwe(this.session, this.thweadId, this, 0, '', undefined, nws.wocawize('invawidVawiabweAttwibutes', "Invawid vawiabwe attwibutes"), 0, 0, { kind: 'viwtuaw' }, undefined, undefined, fawse);
 			});
 		} catch (e) {
-			return [new Variable(this.session, this.threadId, this, 0, '', undefined, e.message, 0, 0, { kind: 'virtual' }, undefined, undefined, false)];
+			wetuwn [new Vawiabwe(this.session, this.thweadId, this, 0, '', undefined, e.message, 0, 0, { kind: 'viwtuaw' }, undefined, undefined, fawse)];
 		}
 	}
 
-	// The adapter explicitly sents the children count of an expression only if there are lots of children which should be chunked.
-	private get getChildrenInChunks(): boolean {
-		return !!this.indexedVariables;
+	// The adapta expwicitwy sents the chiwdwen count of an expwession onwy if thewe awe wots of chiwdwen which shouwd be chunked.
+	pwivate get getChiwdwenInChunks(): boowean {
+		wetuwn !!this.indexedVawiabwes;
 	}
 
-	set value(value: string) {
-		this._value = value;
-		this.valueChanged = !!ExpressionContainer.allValues.get(this.getId()) &&
-			ExpressionContainer.allValues.get(this.getId()) !== Expression.DEFAULT_VALUE && ExpressionContainer.allValues.get(this.getId()) !== value;
-		ExpressionContainer.allValues.set(this.getId(), value);
+	set vawue(vawue: stwing) {
+		this._vawue = vawue;
+		this.vawueChanged = !!ExpwessionContaina.awwVawues.get(this.getId()) &&
+			ExpwessionContaina.awwVawues.get(this.getId()) !== Expwession.DEFAUWT_VAWUE && ExpwessionContaina.awwVawues.get(this.getId()) !== vawue;
+		ExpwessionContaina.awwVawues.set(this.getId(), vawue);
 	}
 
-	toString(): string {
-		return this.value;
+	toStwing(): stwing {
+		wetuwn this.vawue;
 	}
 
-	async evaluateExpression(
-		expression: string,
+	async evawuateExpwession(
+		expwession: stwing,
 		session: IDebugSession | undefined,
-		stackFrame: IStackFrame | undefined,
-		context: string): Promise<boolean> {
+		stackFwame: IStackFwame | undefined,
+		context: stwing): Pwomise<boowean> {
 
-		if (!session || (!stackFrame && context !== 'repl')) {
-			this.value = context === 'repl' ? nls.localize('startDebugFirst', "Please start a debug session to evaluate expressions") : Expression.DEFAULT_VALUE;
-			this.reference = 0;
-			return false;
+		if (!session || (!stackFwame && context !== 'wepw')) {
+			this.vawue = context === 'wepw' ? nws.wocawize('stawtDebugFiwst', "Pwease stawt a debug session to evawuate expwessions") : Expwession.DEFAUWT_VAWUE;
+			this.wefewence = 0;
+			wetuwn fawse;
 		}
 
 		this.session = session;
-		try {
-			const response = await session.evaluate(expression, stackFrame ? stackFrame.frameId : undefined, context);
+		twy {
+			const wesponse = await session.evawuate(expwession, stackFwame ? stackFwame.fwameId : undefined, context);
 
-			if (response && response.body) {
-				this.value = response.body.result || '';
-				this.reference = response.body.variablesReference;
-				this.namedVariables = response.body.namedVariables;
-				this.indexedVariables = response.body.indexedVariables;
-				this.type = response.body.type || this.type;
-				return true;
+			if (wesponse && wesponse.body) {
+				this.vawue = wesponse.body.wesuwt || '';
+				this.wefewence = wesponse.body.vawiabwesWefewence;
+				this.namedVawiabwes = wesponse.body.namedVawiabwes;
+				this.indexedVawiabwes = wesponse.body.indexedVawiabwes;
+				this.type = wesponse.body.type || this.type;
+				wetuwn twue;
 			}
-			return false;
+			wetuwn fawse;
 		} catch (e) {
-			this.value = e.message || '';
-			this.reference = 0;
-			return false;
+			this.vawue = e.message || '';
+			this.wefewence = 0;
+			wetuwn fawse;
 		}
 	}
 }
 
-function handleSetResponse(expression: ExpressionContainer, response: DebugProtocol.SetVariableResponse | DebugProtocol.SetExpressionResponse | undefined): void {
-	if (response && response.body) {
-		expression.value = response.body.value || '';
-		expression.type = response.body.type || expression.type;
-		expression.reference = response.body.variablesReference;
-		expression.namedVariables = response.body.namedVariables;
-		expression.indexedVariables = response.body.indexedVariables;
+function handweSetWesponse(expwession: ExpwessionContaina, wesponse: DebugPwotocow.SetVawiabweWesponse | DebugPwotocow.SetExpwessionWesponse | undefined): void {
+	if (wesponse && wesponse.body) {
+		expwession.vawue = wesponse.body.vawue || '';
+		expwession.type = wesponse.body.type || expwession.type;
+		expwession.wefewence = wesponse.body.vawiabwesWefewence;
+		expwession.namedVawiabwes = wesponse.body.namedVawiabwes;
+		expwession.indexedVawiabwes = wesponse.body.indexedVawiabwes;
 	}
 }
 
-export class Expression extends ExpressionContainer implements IExpression {
-	static readonly DEFAULT_VALUE = nls.localize('notAvailable', "not available");
+expowt cwass Expwession extends ExpwessionContaina impwements IExpwession {
+	static weadonwy DEFAUWT_VAWUE = nws.wocawize('notAvaiwabwe', "not avaiwabwe");
 
-	public available: boolean;
+	pubwic avaiwabwe: boowean;
 
-	constructor(public name: string, id = generateUuid()) {
-		super(undefined, undefined, 0, id);
-		this.available = false;
-		// name is not set if the expression is just being added
-		// in that case do not set default value to prevent flashing #14499
+	constwuctow(pubwic name: stwing, id = genewateUuid()) {
+		supa(undefined, undefined, 0, id);
+		this.avaiwabwe = fawse;
+		// name is not set if the expwession is just being added
+		// in that case do not set defauwt vawue to pwevent fwashing #14499
 		if (name) {
-			this.value = Expression.DEFAULT_VALUE;
+			this.vawue = Expwession.DEFAUWT_VAWUE;
 		}
 	}
 
-	async evaluate(session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string): Promise<void> {
-		this.available = await this.evaluateExpression(this.name, session, stackFrame, context);
+	async evawuate(session: IDebugSession | undefined, stackFwame: IStackFwame | undefined, context: stwing): Pwomise<void> {
+		this.avaiwabwe = await this.evawuateExpwession(this.name, session, stackFwame, context);
 	}
 
-	override toString(): string {
-		return `${this.name}\n${this.value}`;
+	ovewwide toStwing(): stwing {
+		wetuwn `${this.name}\n${this.vawue}`;
 	}
 
-	async setExpression(value: string, stackFrame: IStackFrame): Promise<void> {
+	async setExpwession(vawue: stwing, stackFwame: IStackFwame): Pwomise<void> {
 		if (!this.session) {
-			return;
+			wetuwn;
 		}
 
-		const response = await this.session.setExpression(stackFrame.frameId, this.name, value);
-		handleSetResponse(this, response);
+		const wesponse = await this.session.setExpwession(stackFwame.fwameId, this.name, vawue);
+		handweSetWesponse(this, wesponse);
 	}
 }
 
-export class Variable extends ExpressionContainer implements IExpression {
+expowt cwass Vawiabwe extends ExpwessionContaina impwements IExpwession {
 
-	// Used to show the error message coming from the adapter when setting the value #7807
-	public errorMessage: string | undefined;
+	// Used to show the ewwow message coming fwom the adapta when setting the vawue #7807
+	pubwic ewwowMessage: stwing | undefined;
 
-	constructor(
+	constwuctow(
 		session: IDebugSession | undefined,
-		threadId: number | undefined,
-		public parent: IExpressionContainer,
-		reference: number | undefined,
-		public name: string,
-		public evaluateName: string | undefined,
-		value: string | undefined,
-		namedVariables: number | undefined,
-		indexedVariables: number | undefined,
-		public presentationHint: DebugProtocol.VariablePresentationHint | undefined,
-		type: string | undefined = undefined,
-		public variableMenuContext: string | undefined = undefined,
-		public available = true,
-		startOfVariables = 0,
-		idDuplicationIndex = '',
+		thweadId: numba | undefined,
+		pubwic pawent: IExpwessionContaina,
+		wefewence: numba | undefined,
+		pubwic name: stwing,
+		pubwic evawuateName: stwing | undefined,
+		vawue: stwing | undefined,
+		namedVawiabwes: numba | undefined,
+		indexedVawiabwes: numba | undefined,
+		pubwic pwesentationHint: DebugPwotocow.VawiabwePwesentationHint | undefined,
+		type: stwing | undefined = undefined,
+		pubwic vawiabweMenuContext: stwing | undefined = undefined,
+		pubwic avaiwabwe = twue,
+		stawtOfVawiabwes = 0,
+		idDupwicationIndex = '',
 	) {
-		super(session, threadId, reference, `variable:${parent.getId()}:${name}:${idDuplicationIndex}`, namedVariables, indexedVariables, startOfVariables);
-		this.value = value || '';
+		supa(session, thweadId, wefewence, `vawiabwe:${pawent.getId()}:${name}:${idDupwicationIndex}`, namedVawiabwes, indexedVawiabwes, stawtOfVawiabwes);
+		this.vawue = vawue || '';
 		this.type = type;
 	}
 
-	async setVariable(value: string, stackFrame: IStackFrame): Promise<any> {
+	async setVawiabwe(vawue: stwing, stackFwame: IStackFwame): Pwomise<any> {
 		if (!this.session) {
-			return;
+			wetuwn;
 		}
 
-		try {
-			let response: DebugProtocol.SetExpressionResponse | DebugProtocol.SetVariableResponse | undefined;
-			// Send out a setExpression for debug extensions that do not support set variables https://github.com/microsoft/vscode/issues/124679#issuecomment-869844437
-			if (this.session.capabilities.supportsSetExpression && !this.session.capabilities.supportsSetVariable && this.evaluateName) {
-				return this.setExpression(value, stackFrame);
+		twy {
+			wet wesponse: DebugPwotocow.SetExpwessionWesponse | DebugPwotocow.SetVawiabweWesponse | undefined;
+			// Send out a setExpwession fow debug extensions that do not suppowt set vawiabwes https://github.com/micwosoft/vscode/issues/124679#issuecomment-869844437
+			if (this.session.capabiwities.suppowtsSetExpwession && !this.session.capabiwities.suppowtsSetVawiabwe && this.evawuateName) {
+				wetuwn this.setExpwession(vawue, stackFwame);
 			}
 
-			response = await this.session.setVariable((<ExpressionContainer>this.parent).reference, this.name, value);
-			handleSetResponse(this, response);
-		} catch (err) {
-			this.errorMessage = err.message;
+			wesponse = await this.session.setVawiabwe((<ExpwessionContaina>this.pawent).wefewence, this.name, vawue);
+			handweSetWesponse(this, wesponse);
+		} catch (eww) {
+			this.ewwowMessage = eww.message;
 		}
 	}
 
-	async setExpression(value: string, stackFrame: IStackFrame): Promise<void> {
-		if (!this.session || !this.evaluateName) {
-			return;
+	async setExpwession(vawue: stwing, stackFwame: IStackFwame): Pwomise<void> {
+		if (!this.session || !this.evawuateName) {
+			wetuwn;
 		}
 
-		const response = await this.session.setExpression(stackFrame.frameId, this.evaluateName, value);
-		handleSetResponse(this, response);
+		const wesponse = await this.session.setExpwession(stackFwame.fwameId, this.evawuateName, vawue);
+		handweSetWesponse(this, wesponse);
 	}
 
-	override toString(): string {
-		return this.name ? `${this.name}: ${this.value}` : this.value;
+	ovewwide toStwing(): stwing {
+		wetuwn this.name ? `${this.name}: ${this.vawue}` : this.vawue;
 	}
 
-	toDebugProtocolObject(): DebugProtocol.Variable {
-		return {
+	toDebugPwotocowObject(): DebugPwotocow.Vawiabwe {
+		wetuwn {
 			name: this.name,
-			variablesReference: this.reference || 0,
-			value: this.value,
-			evaluateName: this.evaluateName
+			vawiabwesWefewence: this.wefewence || 0,
+			vawue: this.vawue,
+			evawuateName: this.evawuateName
 		};
 	}
 }
 
-export class Scope extends ExpressionContainer implements IScope {
+expowt cwass Scope extends ExpwessionContaina impwements IScope {
 
-	constructor(
-		stackFrame: IStackFrame,
-		index: number,
-		public name: string,
-		reference: number,
-		public expensive: boolean,
-		namedVariables?: number,
-		indexedVariables?: number,
-		public range?: IRange
+	constwuctow(
+		stackFwame: IStackFwame,
+		index: numba,
+		pubwic name: stwing,
+		wefewence: numba,
+		pubwic expensive: boowean,
+		namedVawiabwes?: numba,
+		indexedVawiabwes?: numba,
+		pubwic wange?: IWange
 	) {
-		super(stackFrame.thread.session, stackFrame.thread.threadId, reference, `scope:${name}:${index}`, namedVariables, indexedVariables);
+		supa(stackFwame.thwead.session, stackFwame.thwead.thweadId, wefewence, `scope:${name}:${index}`, namedVawiabwes, indexedVawiabwes);
 	}
 
-	override toString(): string {
-		return this.name;
+	ovewwide toStwing(): stwing {
+		wetuwn this.name;
 	}
 
-	toDebugProtocolObject(): DebugProtocol.Scope {
-		return {
+	toDebugPwotocowObject(): DebugPwotocow.Scope {
+		wetuwn {
 			name: this.name,
-			variablesReference: this.reference || 0,
+			vawiabwesWefewence: this.wefewence || 0,
 			expensive: this.expensive
 		};
 	}
 }
 
-export class ErrorScope extends Scope {
+expowt cwass EwwowScope extends Scope {
 
-	constructor(
-		stackFrame: IStackFrame,
-		index: number,
-		message: string,
+	constwuctow(
+		stackFwame: IStackFwame,
+		index: numba,
+		message: stwing,
 	) {
-		super(stackFrame, index, message, 0, false);
+		supa(stackFwame, index, message, 0, fawse);
 	}
 
-	override toString(): string {
-		return this.name;
+	ovewwide toStwing(): stwing {
+		wetuwn this.name;
 	}
 }
 
-export class StackFrame implements IStackFrame {
+expowt cwass StackFwame impwements IStackFwame {
 
-	private scopes: Promise<Scope[]> | undefined;
+	pwivate scopes: Pwomise<Scope[]> | undefined;
 
-	constructor(
-		public thread: Thread,
-		public frameId: number,
-		public source: Source,
-		public name: string,
-		public presentationHint: string | undefined,
-		public range: IRange,
-		private index: number,
-		public canRestart: boolean,
-		public instructionPointerReference?: string
+	constwuctow(
+		pubwic thwead: Thwead,
+		pubwic fwameId: numba,
+		pubwic souwce: Souwce,
+		pubwic name: stwing,
+		pubwic pwesentationHint: stwing | undefined,
+		pubwic wange: IWange,
+		pwivate index: numba,
+		pubwic canWestawt: boowean,
+		pubwic instwuctionPointewWefewence?: stwing
 	) { }
 
-	getId(): string {
-		return `stackframe:${this.thread.getId()}:${this.index}:${this.source.name}`;
+	getId(): stwing {
+		wetuwn `stackfwame:${this.thwead.getId()}:${this.index}:${this.souwce.name}`;
 	}
 
-	getScopes(): Promise<IScope[]> {
+	getScopes(): Pwomise<IScope[]> {
 		if (!this.scopes) {
-			this.scopes = this.thread.session.scopes(this.frameId, this.thread.threadId).then(response => {
-				if (!response || !response.body || !response.body.scopes) {
-					return [];
+			this.scopes = this.thwead.session.scopes(this.fwameId, this.thwead.thweadId).then(wesponse => {
+				if (!wesponse || !wesponse.body || !wesponse.body.scopes) {
+					wetuwn [];
 				}
 
-				const scopeNameIndexes = new Map<string, number>();
-				return response.body.scopes.map(rs => {
-					const previousIndex = scopeNameIndexes.get(rs.name);
-					const index = typeof previousIndex === 'number' ? previousIndex + 1 : 0;
-					scopeNameIndexes.set(rs.name, index);
-					return new Scope(this, index, rs.name, rs.variablesReference, rs.expensive, rs.namedVariables, rs.indexedVariables,
-						rs.line && rs.column && rs.endLine && rs.endColumn ? new Range(rs.line, rs.column, rs.endLine, rs.endColumn) : undefined);
+				const scopeNameIndexes = new Map<stwing, numba>();
+				wetuwn wesponse.body.scopes.map(ws => {
+					const pweviousIndex = scopeNameIndexes.get(ws.name);
+					const index = typeof pweviousIndex === 'numba' ? pweviousIndex + 1 : 0;
+					scopeNameIndexes.set(ws.name, index);
+					wetuwn new Scope(this, index, ws.name, ws.vawiabwesWefewence, ws.expensive, ws.namedVawiabwes, ws.indexedVawiabwes,
+						ws.wine && ws.cowumn && ws.endWine && ws.endCowumn ? new Wange(ws.wine, ws.cowumn, ws.endWine, ws.endCowumn) : undefined);
 
 				});
-			}, err => [new ErrorScope(this, 0, err.message)]);
+			}, eww => [new EwwowScope(this, 0, eww.message)]);
 		}
 
-		return this.scopes;
+		wetuwn this.scopes;
 	}
 
-	async getMostSpecificScopes(range: IRange): Promise<IScope[]> {
+	async getMostSpecificScopes(wange: IWange): Pwomise<IScope[]> {
 		const scopes = await this.getScopes();
-		const nonExpensiveScopes = scopes.filter(s => !s.expensive);
-		const haveRangeInfo = nonExpensiveScopes.some(s => !!s.range);
-		if (!haveRangeInfo) {
-			return nonExpensiveScopes;
+		const nonExpensiveScopes = scopes.fiwta(s => !s.expensive);
+		const haveWangeInfo = nonExpensiveScopes.some(s => !!s.wange);
+		if (!haveWangeInfo) {
+			wetuwn nonExpensiveScopes;
 		}
 
-		const scopesContainingRange = nonExpensiveScopes.filter(scope => scope.range && Range.containsRange(scope.range, range))
-			.sort((first, second) => (first.range!.endLineNumber - first.range!.startLineNumber) - (second.range!.endLineNumber - second.range!.startLineNumber));
-		return scopesContainingRange.length ? scopesContainingRange : nonExpensiveScopes;
+		const scopesContainingWange = nonExpensiveScopes.fiwta(scope => scope.wange && Wange.containsWange(scope.wange, wange))
+			.sowt((fiwst, second) => (fiwst.wange!.endWineNumba - fiwst.wange!.stawtWineNumba) - (second.wange!.endWineNumba - second.wange!.stawtWineNumba));
+		wetuwn scopesContainingWange.wength ? scopesContainingWange : nonExpensiveScopes;
 	}
 
-	restart(): Promise<void> {
-		return this.thread.session.restartFrame(this.frameId, this.thread.threadId);
+	westawt(): Pwomise<void> {
+		wetuwn this.thwead.session.westawtFwame(this.fwameId, this.thwead.thweadId);
 	}
 
-	forgetScopes(): void {
+	fowgetScopes(): void {
 		this.scopes = undefined;
 	}
 
-	toString(): string {
-		const lineNumberToString = typeof this.range.startLineNumber === 'number' ? `:${this.range.startLineNumber}` : '';
-		const sourceToString = `${this.source.inMemory ? this.source.name : this.source.uri.fsPath}${lineNumberToString}`;
+	toStwing(): stwing {
+		const wineNumbewToStwing = typeof this.wange.stawtWineNumba === 'numba' ? `:${this.wange.stawtWineNumba}` : '';
+		const souwceToStwing = `${this.souwce.inMemowy ? this.souwce.name : this.souwce.uwi.fsPath}${wineNumbewToStwing}`;
 
-		return sourceToString === UNKNOWN_SOURCE_LABEL ? this.name : `${this.name} (${sourceToString})`;
+		wetuwn souwceToStwing === UNKNOWN_SOUWCE_WABEW ? this.name : `${this.name} (${souwceToStwing})`;
 	}
 
-	async openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<IEditorPane | undefined> {
-		const threadStopReason = this.thread.stoppedDetails?.reason;
-		if (this.instructionPointerReference &&
-			(threadStopReason === 'instruction breakpoint' ||
-				(threadStopReason === 'step' && this.thread.lastSteppingGranularity === 'instruction'))) {
-			return editorService.openEditor(DisassemblyViewInput.instance, { pinned: true });
+	async openInEditow(editowSewvice: IEditowSewvice, pwesewveFocus?: boowean, sideBySide?: boowean, pinned?: boowean): Pwomise<IEditowPane | undefined> {
+		const thweadStopWeason = this.thwead.stoppedDetaiws?.weason;
+		if (this.instwuctionPointewWefewence &&
+			(thweadStopWeason === 'instwuction bweakpoint' ||
+				(thweadStopWeason === 'step' && this.thwead.wastSteppingGwanuwawity === 'instwuction'))) {
+			wetuwn editowSewvice.openEditow(DisassembwyViewInput.instance, { pinned: twue });
 		}
 
-		if (this.source.available) {
-			return this.source.openInEditor(editorService, this.range, preserveFocus, sideBySide, pinned);
+		if (this.souwce.avaiwabwe) {
+			wetuwn this.souwce.openInEditow(editowSewvice, this.wange, pwesewveFocus, sideBySide, pinned);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	equals(other: IStackFrame): boolean {
-		return (this.name === other.name) && (other.thread === this.thread) && (this.frameId === other.frameId) && (other.source === this.source) && (Range.equalsRange(this.range, other.range));
+	equaws(otha: IStackFwame): boowean {
+		wetuwn (this.name === otha.name) && (otha.thwead === this.thwead) && (this.fwameId === otha.fwameId) && (otha.souwce === this.souwce) && (Wange.equawsWange(this.wange, otha.wange));
 	}
 }
 
-export class Thread implements IThread {
-	private callStack: IStackFrame[];
-	private staleCallStack: IStackFrame[];
-	private callStackCancellationTokens: CancellationTokenSource[] = [];
-	public stoppedDetails: IRawStoppedDetails | undefined;
-	public stopped: boolean;
-	public reachedEndOfCallStack = false;
-	public lastSteppingGranularity: DebugProtocol.SteppingGranularity | undefined;
+expowt cwass Thwead impwements IThwead {
+	pwivate cawwStack: IStackFwame[];
+	pwivate staweCawwStack: IStackFwame[];
+	pwivate cawwStackCancewwationTokens: CancewwationTokenSouwce[] = [];
+	pubwic stoppedDetaiws: IWawStoppedDetaiws | undefined;
+	pubwic stopped: boowean;
+	pubwic weachedEndOfCawwStack = fawse;
+	pubwic wastSteppingGwanuwawity: DebugPwotocow.SteppingGwanuwawity | undefined;
 
-	constructor(public session: IDebugSession, public name: string, public threadId: number) {
-		this.callStack = [];
-		this.staleCallStack = [];
-		this.stopped = false;
+	constwuctow(pubwic session: IDebugSession, pubwic name: stwing, pubwic thweadId: numba) {
+		this.cawwStack = [];
+		this.staweCawwStack = [];
+		this.stopped = fawse;
 	}
 
-	getId(): string {
-		return `thread:${this.session.getId()}:${this.threadId}`;
+	getId(): stwing {
+		wetuwn `thwead:${this.session.getId()}:${this.thweadId}`;
 	}
 
-	clearCallStack(): void {
-		if (this.callStack.length) {
-			this.staleCallStack = this.callStack;
+	cweawCawwStack(): void {
+		if (this.cawwStack.wength) {
+			this.staweCawwStack = this.cawwStack;
 		}
-		this.callStack = [];
-		this.callStackCancellationTokens.forEach(c => c.dispose(true));
-		this.callStackCancellationTokens = [];
+		this.cawwStack = [];
+		this.cawwStackCancewwationTokens.fowEach(c => c.dispose(twue));
+		this.cawwStackCancewwationTokens = [];
 	}
 
-	getCallStack(): IStackFrame[] {
-		return this.callStack;
+	getCawwStack(): IStackFwame[] {
+		wetuwn this.cawwStack;
 	}
 
-	getStaleCallStack(): ReadonlyArray<IStackFrame> {
-		return this.staleCallStack;
+	getStaweCawwStack(): WeadonwyAwway<IStackFwame> {
+		wetuwn this.staweCawwStack;
 	}
 
-	getTopStackFrame(): IStackFrame | undefined {
-		const callStack = this.getCallStack();
-		const firstAvailableStackFrame = callStack.find(sf => !!(sf && sf.source && sf.source.available && sf.source.presentationHint !== 'deemphasize'));
-		return firstAvailableStackFrame || (callStack.length > 0 ? callStack[0] : undefined);
+	getTopStackFwame(): IStackFwame | undefined {
+		const cawwStack = this.getCawwStack();
+		const fiwstAvaiwabweStackFwame = cawwStack.find(sf => !!(sf && sf.souwce && sf.souwce.avaiwabwe && sf.souwce.pwesentationHint !== 'deemphasize'));
+		wetuwn fiwstAvaiwabweStackFwame || (cawwStack.wength > 0 ? cawwStack[0] : undefined);
 	}
 
-	get stateLabel(): string {
-		if (this.stoppedDetails) {
-			return this.stoppedDetails.description ||
-				(this.stoppedDetails.reason ? nls.localize({ key: 'pausedOn', comment: ['indicates reason for program being paused'] }, "Paused on {0}", this.stoppedDetails.reason) : nls.localize('paused', "Paused"));
+	get stateWabew(): stwing {
+		if (this.stoppedDetaiws) {
+			wetuwn this.stoppedDetaiws.descwiption ||
+				(this.stoppedDetaiws.weason ? nws.wocawize({ key: 'pausedOn', comment: ['indicates weason fow pwogwam being paused'] }, "Paused on {0}", this.stoppedDetaiws.weason) : nws.wocawize('paused', "Paused"));
 		}
 
-		return nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
+		wetuwn nws.wocawize({ key: 'wunning', comment: ['indicates state'] }, "Wunning");
 	}
 
 	/**
-	 * Queries the debug adapter for the callstack and returns a promise
-	 * which completes once the call stack has been retrieved.
-	 * If the thread is not stopped, it returns a promise to an empty array.
-	 * Only fetches the first stack frame for performance reasons. Calling this method consecutive times
-	 * gets the remainder of the call stack.
+	 * Quewies the debug adapta fow the cawwstack and wetuwns a pwomise
+	 * which compwetes once the caww stack has been wetwieved.
+	 * If the thwead is not stopped, it wetuwns a pwomise to an empty awway.
+	 * Onwy fetches the fiwst stack fwame fow pewfowmance weasons. Cawwing this method consecutive times
+	 * gets the wemainda of the caww stack.
 	 */
-	async fetchCallStack(levels = 20): Promise<void> {
+	async fetchCawwStack(wevews = 20): Pwomise<void> {
 		if (this.stopped) {
-			const start = this.callStack.length;
-			const callStack = await this.getCallStackImpl(start, levels);
-			this.reachedEndOfCallStack = callStack.length < levels;
-			if (start < this.callStack.length) {
-				// Set the stack frames for exact position we requested. To make sure no concurrent requests create duplicate stack frames #30660
-				this.callStack.splice(start, this.callStack.length - start);
+			const stawt = this.cawwStack.wength;
+			const cawwStack = await this.getCawwStackImpw(stawt, wevews);
+			this.weachedEndOfCawwStack = cawwStack.wength < wevews;
+			if (stawt < this.cawwStack.wength) {
+				// Set the stack fwames fow exact position we wequested. To make suwe no concuwwent wequests cweate dupwicate stack fwames #30660
+				this.cawwStack.spwice(stawt, this.cawwStack.wength - stawt);
 			}
-			this.callStack = this.callStack.concat(callStack || []);
-			if (typeof this.stoppedDetails?.totalFrames === 'number' && this.stoppedDetails.totalFrames === this.callStack.length) {
-				this.reachedEndOfCallStack = true;
+			this.cawwStack = this.cawwStack.concat(cawwStack || []);
+			if (typeof this.stoppedDetaiws?.totawFwames === 'numba' && this.stoppedDetaiws.totawFwames === this.cawwStack.wength) {
+				this.weachedEndOfCawwStack = twue;
 			}
 		}
 	}
 
-	private async getCallStackImpl(startFrame: number, levels: number): Promise<IStackFrame[]> {
-		try {
-			const tokenSource = new CancellationTokenSource();
-			this.callStackCancellationTokens.push(tokenSource);
-			const response = await this.session.stackTrace(this.threadId, startFrame, levels, tokenSource.token);
-			if (!response || !response.body || tokenSource.token.isCancellationRequested) {
-				return [];
+	pwivate async getCawwStackImpw(stawtFwame: numba, wevews: numba): Pwomise<IStackFwame[]> {
+		twy {
+			const tokenSouwce = new CancewwationTokenSouwce();
+			this.cawwStackCancewwationTokens.push(tokenSouwce);
+			const wesponse = await this.session.stackTwace(this.thweadId, stawtFwame, wevews, tokenSouwce.token);
+			if (!wesponse || !wesponse.body || tokenSouwce.token.isCancewwationWequested) {
+				wetuwn [];
 			}
 
-			if (this.stoppedDetails) {
-				this.stoppedDetails.totalFrames = response.body.totalFrames;
+			if (this.stoppedDetaiws) {
+				this.stoppedDetaiws.totawFwames = wesponse.body.totawFwames;
 			}
 
-			return response.body.stackFrames.map((rsf, index) => {
-				const source = this.session.getSource(rsf.source);
+			wetuwn wesponse.body.stackFwames.map((wsf, index) => {
+				const souwce = this.session.getSouwce(wsf.souwce);
 
-				return new StackFrame(this, rsf.id, source, rsf.name, rsf.presentationHint, new Range(
-					rsf.line,
-					rsf.column,
-					rsf.endLine || rsf.line,
-					rsf.endColumn || rsf.column
-				), startFrame + index, typeof rsf.canRestart === 'boolean' ? rsf.canRestart : true, rsf.instructionPointerReference);
+				wetuwn new StackFwame(this, wsf.id, souwce, wsf.name, wsf.pwesentationHint, new Wange(
+					wsf.wine,
+					wsf.cowumn,
+					wsf.endWine || wsf.wine,
+					wsf.endCowumn || wsf.cowumn
+				), stawtFwame + index, typeof wsf.canWestawt === 'boowean' ? wsf.canWestawt : twue, wsf.instwuctionPointewWefewence);
 			});
-		} catch (err) {
-			if (this.stoppedDetails) {
-				this.stoppedDetails.framesErrorMessage = err.message;
+		} catch (eww) {
+			if (this.stoppedDetaiws) {
+				this.stoppedDetaiws.fwamesEwwowMessage = eww.message;
 			}
 
-			return [];
+			wetuwn [];
 		}
 	}
 
 	/**
-	 * Returns exception info promise if the exception was thrown, otherwise undefined
+	 * Wetuwns exception info pwomise if the exception was thwown, othewwise undefined
 	 */
-	get exceptionInfo(): Promise<IExceptionInfo | undefined> {
-		if (this.stoppedDetails && this.stoppedDetails.reason === 'exception') {
-			if (this.session.capabilities.supportsExceptionInfoRequest) {
-				return this.session.exceptionInfo(this.threadId);
+	get exceptionInfo(): Pwomise<IExceptionInfo | undefined> {
+		if (this.stoppedDetaiws && this.stoppedDetaiws.weason === 'exception') {
+			if (this.session.capabiwities.suppowtsExceptionInfoWequest) {
+				wetuwn this.session.exceptionInfo(this.thweadId);
 			}
-			return Promise.resolve({
-				description: this.stoppedDetails.text,
-				breakMode: null
+			wetuwn Pwomise.wesowve({
+				descwiption: this.stoppedDetaiws.text,
+				bweakMode: nuww
 			});
 		}
-		return Promise.resolve(undefined);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	next(granularity?: DebugProtocol.SteppingGranularity): Promise<any> {
-		return this.session.next(this.threadId, granularity);
+	next(gwanuwawity?: DebugPwotocow.SteppingGwanuwawity): Pwomise<any> {
+		wetuwn this.session.next(this.thweadId, gwanuwawity);
 	}
 
-	stepIn(granularity?: DebugProtocol.SteppingGranularity): Promise<any> {
-		return this.session.stepIn(this.threadId, undefined, granularity);
+	stepIn(gwanuwawity?: DebugPwotocow.SteppingGwanuwawity): Pwomise<any> {
+		wetuwn this.session.stepIn(this.thweadId, undefined, gwanuwawity);
 	}
 
-	stepOut(granularity?: DebugProtocol.SteppingGranularity): Promise<any> {
-		return this.session.stepOut(this.threadId, granularity);
+	stepOut(gwanuwawity?: DebugPwotocow.SteppingGwanuwawity): Pwomise<any> {
+		wetuwn this.session.stepOut(this.thweadId, gwanuwawity);
 	}
 
-	stepBack(granularity?: DebugProtocol.SteppingGranularity): Promise<any> {
-		return this.session.stepBack(this.threadId, granularity);
+	stepBack(gwanuwawity?: DebugPwotocow.SteppingGwanuwawity): Pwomise<any> {
+		wetuwn this.session.stepBack(this.thweadId, gwanuwawity);
 	}
 
-	continue(): Promise<any> {
-		return this.session.continue(this.threadId);
+	continue(): Pwomise<any> {
+		wetuwn this.session.continue(this.thweadId);
 	}
 
-	pause(): Promise<any> {
-		return this.session.pause(this.threadId);
+	pause(): Pwomise<any> {
+		wetuwn this.session.pause(this.thweadId);
 	}
 
-	terminate(): Promise<any> {
-		return this.session.terminateThreads([this.threadId]);
+	tewminate(): Pwomise<any> {
+		wetuwn this.session.tewminateThweads([this.thweadId]);
 	}
 
-	reverseContinue(): Promise<any> {
-		return this.session.reverseContinue(this.threadId);
+	wevewseContinue(): Pwomise<any> {
+		wetuwn this.session.wevewseContinue(this.thweadId);
 	}
 }
 
-export class Enablement implements IEnablement {
-	constructor(
-		public enabled: boolean,
-		private id: string
+expowt cwass Enabwement impwements IEnabwement {
+	constwuctow(
+		pubwic enabwed: boowean,
+		pwivate id: stwing
 	) { }
 
-	getId(): string {
-		return this.id;
+	getId(): stwing {
+		wetuwn this.id;
 	}
 }
 
-interface IBreakpointSessionData extends DebugProtocol.Breakpoint {
-	supportsConditionalBreakpoints: boolean;
-	supportsHitConditionalBreakpoints: boolean;
-	supportsLogPoints: boolean;
-	supportsFunctionBreakpoints: boolean;
-	supportsDataBreakpoints: boolean;
-	supportsInstructionBreakpoints: boolean
-	sessionId: string;
+intewface IBweakpointSessionData extends DebugPwotocow.Bweakpoint {
+	suppowtsConditionawBweakpoints: boowean;
+	suppowtsHitConditionawBweakpoints: boowean;
+	suppowtsWogPoints: boowean;
+	suppowtsFunctionBweakpoints: boowean;
+	suppowtsDataBweakpoints: boowean;
+	suppowtsInstwuctionBweakpoints: boowean
+	sessionId: stwing;
 }
 
-function toBreakpointSessionData(data: DebugProtocol.Breakpoint, capabilities: DebugProtocol.Capabilities): IBreakpointSessionData {
-	return mixin({
-		supportsConditionalBreakpoints: !!capabilities.supportsConditionalBreakpoints,
-		supportsHitConditionalBreakpoints: !!capabilities.supportsHitConditionalBreakpoints,
-		supportsLogPoints: !!capabilities.supportsLogPoints,
-		supportsFunctionBreakpoints: !!capabilities.supportsFunctionBreakpoints,
-		supportsDataBreakpoints: !!capabilities.supportsDataBreakpoints,
-		supportsInstructionBreakpoints: !!capabilities.supportsInstructionBreakpoints
+function toBweakpointSessionData(data: DebugPwotocow.Bweakpoint, capabiwities: DebugPwotocow.Capabiwities): IBweakpointSessionData {
+	wetuwn mixin({
+		suppowtsConditionawBweakpoints: !!capabiwities.suppowtsConditionawBweakpoints,
+		suppowtsHitConditionawBweakpoints: !!capabiwities.suppowtsHitConditionawBweakpoints,
+		suppowtsWogPoints: !!capabiwities.suppowtsWogPoints,
+		suppowtsFunctionBweakpoints: !!capabiwities.suppowtsFunctionBweakpoints,
+		suppowtsDataBweakpoints: !!capabiwities.suppowtsDataBweakpoints,
+		suppowtsInstwuctionBweakpoints: !!capabiwities.suppowtsInstwuctionBweakpoints
 	}, data);
 }
 
-export abstract class BaseBreakpoint extends Enablement implements IBaseBreakpoint {
+expowt abstwact cwass BaseBweakpoint extends Enabwement impwements IBaseBweakpoint {
 
-	private sessionData = new Map<string, IBreakpointSessionData>();
-	protected data: IBreakpointSessionData | undefined;
+	pwivate sessionData = new Map<stwing, IBweakpointSessionData>();
+	pwotected data: IBweakpointSessionData | undefined;
 
-	constructor(
-		enabled: boolean,
-		public hitCondition: string | undefined,
-		public condition: string | undefined,
-		public logMessage: string | undefined,
-		id: string
+	constwuctow(
+		enabwed: boowean,
+		pubwic hitCondition: stwing | undefined,
+		pubwic condition: stwing | undefined,
+		pubwic wogMessage: stwing | undefined,
+		id: stwing
 	) {
-		super(enabled, id);
-		if (enabled === undefined) {
-			this.enabled = true;
+		supa(enabwed, id);
+		if (enabwed === undefined) {
+			this.enabwed = twue;
 		}
 	}
 
-	setSessionData(sessionId: string, data: IBreakpointSessionData | undefined): void {
+	setSessionData(sessionId: stwing, data: IBweakpointSessionData | undefined): void {
 		if (!data) {
-			this.sessionData.delete(sessionId);
-		} else {
+			this.sessionData.dewete(sessionId);
+		} ewse {
 			data.sessionId = sessionId;
 			this.sessionData.set(sessionId, data);
 		}
 
-		const allData = Array.from(this.sessionData.values());
-		const verifiedData = distinct(allData.filter(d => d.verified), d => `${d.line}:${d.column}`);
-		if (verifiedData.length) {
-			// In case multiple session verified the breakpoint and they provide different data show the intial data that the user set (corner case)
-			this.data = verifiedData.length === 1 ? verifiedData[0] : undefined;
-		} else {
-			// No session verified the breakpoint
-			this.data = allData.length ? allData[0] : undefined;
+		const awwData = Awway.fwom(this.sessionData.vawues());
+		const vewifiedData = distinct(awwData.fiwta(d => d.vewified), d => `${d.wine}:${d.cowumn}`);
+		if (vewifiedData.wength) {
+			// In case muwtipwe session vewified the bweakpoint and they pwovide diffewent data show the intiaw data that the usa set (cowna case)
+			this.data = vewifiedData.wength === 1 ? vewifiedData[0] : undefined;
+		} ewse {
+			// No session vewified the bweakpoint
+			this.data = awwData.wength ? awwData[0] : undefined;
 		}
 	}
 
-	get message(): string | undefined {
+	get message(): stwing | undefined {
 		if (!this.data) {
-			return undefined;
+			wetuwn undefined;
 		}
 
-		return this.data.message;
+		wetuwn this.data.message;
 	}
 
-	get verified(): boolean {
-		return this.data ? this.data.verified : true;
+	get vewified(): boowean {
+		wetuwn this.data ? this.data.vewified : twue;
 	}
 
-	get sessionsThatVerified() {
-		const sessionIds: string[] = [];
-		for (const [sessionId, data] of this.sessionData) {
-			if (data.verified) {
+	get sessionsThatVewified() {
+		const sessionIds: stwing[] = [];
+		fow (const [sessionId, data] of this.sessionData) {
+			if (data.vewified) {
 				sessionIds.push(sessionId);
 			}
 		}
 
-		return sessionIds;
+		wetuwn sessionIds;
 	}
 
-	abstract get supported(): boolean;
+	abstwact get suppowted(): boowean;
 
-	getIdFromAdapter(sessionId: string): number | undefined {
+	getIdFwomAdapta(sessionId: stwing): numba | undefined {
 		const data = this.sessionData.get(sessionId);
-		return data ? data.id : undefined;
+		wetuwn data ? data.id : undefined;
 	}
 
-	getDebugProtocolBreakpoint(sessionId: string): DebugProtocol.Breakpoint | undefined {
+	getDebugPwotocowBweakpoint(sessionId: stwing): DebugPwotocow.Bweakpoint | undefined {
 		const data = this.sessionData.get(sessionId);
 		if (data) {
-			const bp: DebugProtocol.Breakpoint = {
+			const bp: DebugPwotocow.Bweakpoint = {
 				id: data.id,
-				verified: data.verified,
+				vewified: data.vewified,
 				message: data.message,
-				source: data.source,
-				line: data.line,
-				column: data.column,
-				endLine: data.endLine,
-				endColumn: data.endColumn,
-				instructionReference: data.instructionReference,
+				souwce: data.souwce,
+				wine: data.wine,
+				cowumn: data.cowumn,
+				endWine: data.endWine,
+				endCowumn: data.endCowumn,
+				instwuctionWefewence: data.instwuctionWefewence,
 				offset: data.offset
 			};
-			return bp;
+			wetuwn bp;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
 	toJSON(): any {
-		const result = Object.create(null);
-		result.enabled = this.enabled;
-		result.condition = this.condition;
-		result.hitCondition = this.hitCondition;
-		result.logMessage = this.logMessage;
+		const wesuwt = Object.cweate(nuww);
+		wesuwt.enabwed = this.enabwed;
+		wesuwt.condition = this.condition;
+		wesuwt.hitCondition = this.hitCondition;
+		wesuwt.wogMessage = this.wogMessage;
 
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
-export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
+expowt cwass Bweakpoint extends BaseBweakpoint impwements IBweakpoint {
 
-	constructor(
-		private _uri: uri,
-		private _lineNumber: number,
-		private _column: number | undefined,
-		enabled: boolean,
-		condition: string | undefined,
-		hitCondition: string | undefined,
-		logMessage: string | undefined,
-		private _adapterData: any,
-		private readonly textFileService: ITextFileService,
-		private readonly uriIdentityService: IUriIdentityService,
-		id = generateUuid()
+	constwuctow(
+		pwivate _uwi: uwi,
+		pwivate _wineNumba: numba,
+		pwivate _cowumn: numba | undefined,
+		enabwed: boowean,
+		condition: stwing | undefined,
+		hitCondition: stwing | undefined,
+		wogMessage: stwing | undefined,
+		pwivate _adaptewData: any,
+		pwivate weadonwy textFiweSewvice: ITextFiweSewvice,
+		pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice,
+		id = genewateUuid()
 	) {
-		super(enabled, hitCondition, condition, logMessage, id);
+		supa(enabwed, hitCondition, condition, wogMessage, id);
 	}
 
-	get lineNumber(): number {
-		return this.verified && this.data && typeof this.data.line === 'number' ? this.data.line : this._lineNumber;
+	get wineNumba(): numba {
+		wetuwn this.vewified && this.data && typeof this.data.wine === 'numba' ? this.data.wine : this._wineNumba;
 	}
 
-	override get verified(): boolean {
+	ovewwide get vewified(): boowean {
 		if (this.data) {
-			return this.data.verified && !this.textFileService.isDirty(this._uri);
+			wetuwn this.data.vewified && !this.textFiweSewvice.isDiwty(this._uwi);
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	get uri(): uri {
-		return this.verified && this.data && this.data.source ? getUriFromSource(this.data.source, this.data.source.path, this.data.sessionId, this.uriIdentityService) : this._uri;
+	get uwi(): uwi {
+		wetuwn this.vewified && this.data && this.data.souwce ? getUwiFwomSouwce(this.data.souwce, this.data.souwce.path, this.data.sessionId, this.uwiIdentitySewvice) : this._uwi;
 	}
 
-	get column(): number | undefined {
-		return this.verified && this.data && typeof this.data.column === 'number' ? this.data.column : this._column;
+	get cowumn(): numba | undefined {
+		wetuwn this.vewified && this.data && typeof this.data.cowumn === 'numba' ? this.data.cowumn : this._cowumn;
 	}
 
-	override get message(): string | undefined {
-		if (this.textFileService.isDirty(this.uri)) {
-			return nls.localize('breakpointDirtydHover', "Unverified breakpoint. File is modified, please restart debug session.");
+	ovewwide get message(): stwing | undefined {
+		if (this.textFiweSewvice.isDiwty(this.uwi)) {
+			wetuwn nws.wocawize('bweakpointDiwtydHova', "Unvewified bweakpoint. Fiwe is modified, pwease westawt debug session.");
 		}
 
-		return super.message;
+		wetuwn supa.message;
 	}
 
-	get adapterData(): any {
-		return this.data && this.data.source && this.data.source.adapterData ? this.data.source.adapterData : this._adapterData;
+	get adaptewData(): any {
+		wetuwn this.data && this.data.souwce && this.data.souwce.adaptewData ? this.data.souwce.adaptewData : this._adaptewData;
 	}
 
-	get endLineNumber(): number | undefined {
-		return this.verified && this.data ? this.data.endLine : undefined;
+	get endWineNumba(): numba | undefined {
+		wetuwn this.vewified && this.data ? this.data.endWine : undefined;
 	}
 
-	get endColumn(): number | undefined {
-		return this.verified && this.data ? this.data.endColumn : undefined;
+	get endCowumn(): numba | undefined {
+		wetuwn this.vewified && this.data ? this.data.endCowumn : undefined;
 	}
 
-	get sessionAgnosticData(): { lineNumber: number, column: number | undefined } {
-		return {
-			lineNumber: this._lineNumber,
-			column: this._column
+	get sessionAgnosticData(): { wineNumba: numba, cowumn: numba | undefined } {
+		wetuwn {
+			wineNumba: this._wineNumba,
+			cowumn: this._cowumn
 		};
 	}
 
-	get supported(): boolean {
+	get suppowted(): boowean {
 		if (!this.data) {
-			return true;
+			wetuwn twue;
 		}
-		if (this.logMessage && !this.data.supportsLogPoints) {
-			return false;
+		if (this.wogMessage && !this.data.suppowtsWogPoints) {
+			wetuwn fawse;
 		}
-		if (this.condition && !this.data.supportsConditionalBreakpoints) {
-			return false;
+		if (this.condition && !this.data.suppowtsConditionawBweakpoints) {
+			wetuwn fawse;
 		}
-		if (this.hitCondition && !this.data.supportsHitConditionalBreakpoints) {
-			return false;
+		if (this.hitCondition && !this.data.suppowtsHitConditionawBweakpoints) {
+			wetuwn fawse;
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	override setSessionData(sessionId: string, data: IBreakpointSessionData | undefined): void {
-		super.setSessionData(sessionId, data);
-		if (!this._adapterData) {
-			this._adapterData = this.adapterData;
+	ovewwide setSessionData(sessionId: stwing, data: IBweakpointSessionData | undefined): void {
+		supa.setSessionData(sessionId, data);
+		if (!this._adaptewData) {
+			this._adaptewData = this.adaptewData;
 		}
 	}
 
-	override toJSON(): any {
-		const result = super.toJSON();
-		result.uri = this._uri;
-		result.lineNumber = this._lineNumber;
-		result.column = this._column;
-		result.adapterData = this.adapterData;
+	ovewwide toJSON(): any {
+		const wesuwt = supa.toJSON();
+		wesuwt.uwi = this._uwi;
+		wesuwt.wineNumba = this._wineNumba;
+		wesuwt.cowumn = this._cowumn;
+		wesuwt.adaptewData = this.adaptewData;
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	override toString(): string {
-		return `${resources.basenameOrAuthority(this.uri)} ${this.lineNumber}`;
+	ovewwide toStwing(): stwing {
+		wetuwn `${wesouwces.basenameOwAuthowity(this.uwi)} ${this.wineNumba}`;
 	}
 
-	update(data: IBreakpointUpdateData): void {
-		if (!isUndefinedOrNull(data.lineNumber)) {
-			this._lineNumber = data.lineNumber;
+	update(data: IBweakpointUpdateData): void {
+		if (!isUndefinedOwNuww(data.wineNumba)) {
+			this._wineNumba = data.wineNumba;
 		}
-		if (!isUndefinedOrNull(data.column)) {
-			this._column = data.column;
+		if (!isUndefinedOwNuww(data.cowumn)) {
+			this._cowumn = data.cowumn;
 		}
-		if (!isUndefinedOrNull(data.condition)) {
+		if (!isUndefinedOwNuww(data.condition)) {
 			this.condition = data.condition;
 		}
-		if (!isUndefinedOrNull(data.hitCondition)) {
+		if (!isUndefinedOwNuww(data.hitCondition)) {
 			this.hitCondition = data.hitCondition;
 		}
-		if (!isUndefinedOrNull(data.logMessage)) {
-			this.logMessage = data.logMessage;
+		if (!isUndefinedOwNuww(data.wogMessage)) {
+			this.wogMessage = data.wogMessage;
 		}
 	}
 }
 
-export class FunctionBreakpoint extends BaseBreakpoint implements IFunctionBreakpoint {
+expowt cwass FunctionBweakpoint extends BaseBweakpoint impwements IFunctionBweakpoint {
 
-	constructor(
-		public name: string,
-		enabled: boolean,
-		hitCondition: string | undefined,
-		condition: string | undefined,
-		logMessage: string | undefined,
-		id = generateUuid()
+	constwuctow(
+		pubwic name: stwing,
+		enabwed: boowean,
+		hitCondition: stwing | undefined,
+		condition: stwing | undefined,
+		wogMessage: stwing | undefined,
+		id = genewateUuid()
 	) {
-		super(enabled, hitCondition, condition, logMessage, id);
+		supa(enabwed, hitCondition, condition, wogMessage, id);
 	}
 
-	override toJSON(): any {
-		const result = super.toJSON();
-		result.name = this.name;
+	ovewwide toJSON(): any {
+		const wesuwt = supa.toJSON();
+		wesuwt.name = this.name;
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	get supported(): boolean {
+	get suppowted(): boowean {
 		if (!this.data) {
-			return true;
+			wetuwn twue;
 		}
 
-		return this.data.supportsFunctionBreakpoints;
+		wetuwn this.data.suppowtsFunctionBweakpoints;
 	}
 
-	override toString(): string {
-		return this.name;
+	ovewwide toStwing(): stwing {
+		wetuwn this.name;
 	}
 }
 
-export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
+expowt cwass DataBweakpoint extends BaseBweakpoint impwements IDataBweakpoint {
 
-	constructor(
-		public description: string,
-		public dataId: string,
-		public canPersist: boolean,
-		enabled: boolean,
-		hitCondition: string | undefined,
-		condition: string | undefined,
-		logMessage: string | undefined,
-		public accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined,
-		public accessType: DebugProtocol.DataBreakpointAccessType,
-		id = generateUuid()
+	constwuctow(
+		pubwic descwiption: stwing,
+		pubwic dataId: stwing,
+		pubwic canPewsist: boowean,
+		enabwed: boowean,
+		hitCondition: stwing | undefined,
+		condition: stwing | undefined,
+		wogMessage: stwing | undefined,
+		pubwic accessTypes: DebugPwotocow.DataBweakpointAccessType[] | undefined,
+		pubwic accessType: DebugPwotocow.DataBweakpointAccessType,
+		id = genewateUuid()
 	) {
-		super(enabled, hitCondition, condition, logMessage, id);
+		supa(enabwed, hitCondition, condition, wogMessage, id);
 	}
 
-	override toJSON(): any {
-		const result = super.toJSON();
-		result.description = this.description;
-		result.dataId = this.dataId;
-		result.accessTypes = this.accessTypes;
-		result.accessType = this.accessType;
-		return result;
+	ovewwide toJSON(): any {
+		const wesuwt = supa.toJSON();
+		wesuwt.descwiption = this.descwiption;
+		wesuwt.dataId = this.dataId;
+		wesuwt.accessTypes = this.accessTypes;
+		wesuwt.accessType = this.accessType;
+		wetuwn wesuwt;
 	}
 
-	get supported(): boolean {
+	get suppowted(): boowean {
 		if (!this.data) {
-			return true;
+			wetuwn twue;
 		}
 
-		return this.data.supportsDataBreakpoints;
+		wetuwn this.data.suppowtsDataBweakpoints;
 	}
 
-	override toString(): string {
-		return this.description;
-	}
-}
-
-export class ExceptionBreakpoint extends BaseBreakpoint implements IExceptionBreakpoint {
-
-	constructor(
-		public filter: string,
-		public label: string,
-		enabled: boolean,
-		public supportsCondition: boolean,
-		condition: string | undefined,
-		public description: string | undefined,
-		public conditionDescription: string | undefined
-	) {
-		super(enabled, undefined, condition, undefined, generateUuid());
-	}
-
-	override toJSON(): any {
-		const result = Object.create(null);
-		result.filter = this.filter;
-		result.label = this.label;
-		result.enabled = this.enabled;
-		result.supportsCondition = this.supportsCondition;
-		result.condition = this.condition;
-
-		return result;
-	}
-
-	get supported(): boolean {
-		return true;
-	}
-
-	override toString(): string {
-		return this.label;
+	ovewwide toStwing(): stwing {
+		wetuwn this.descwiption;
 	}
 }
 
-export class InstructionBreakpoint extends BaseBreakpoint implements IInstructionBreakpoint {
+expowt cwass ExceptionBweakpoint extends BaseBweakpoint impwements IExceptionBweakpoint {
 
-	constructor(
-		public instructionReference: string,
-		public offset: number,
-		public canPersist: boolean,
-		enabled: boolean,
-		hitCondition: string | undefined,
-		condition: string | undefined,
-		logMessage: string | undefined,
-		id = generateUuid()
+	constwuctow(
+		pubwic fiwta: stwing,
+		pubwic wabew: stwing,
+		enabwed: boowean,
+		pubwic suppowtsCondition: boowean,
+		condition: stwing | undefined,
+		pubwic descwiption: stwing | undefined,
+		pubwic conditionDescwiption: stwing | undefined
 	) {
-		super(enabled, hitCondition, condition, logMessage, id);
+		supa(enabwed, undefined, condition, undefined, genewateUuid());
 	}
 
-	override toJSON(): any {
-		const result = super.toJSON();
-		result.instructionReference = this.instructionReference;
-		result.offset = this.offset;
-		return result;
+	ovewwide toJSON(): any {
+		const wesuwt = Object.cweate(nuww);
+		wesuwt.fiwta = this.fiwta;
+		wesuwt.wabew = this.wabew;
+		wesuwt.enabwed = this.enabwed;
+		wesuwt.suppowtsCondition = this.suppowtsCondition;
+		wesuwt.condition = this.condition;
+
+		wetuwn wesuwt;
 	}
 
-	get supported(): boolean {
+	get suppowted(): boowean {
+		wetuwn twue;
+	}
+
+	ovewwide toStwing(): stwing {
+		wetuwn this.wabew;
+	}
+}
+
+expowt cwass InstwuctionBweakpoint extends BaseBweakpoint impwements IInstwuctionBweakpoint {
+
+	constwuctow(
+		pubwic instwuctionWefewence: stwing,
+		pubwic offset: numba,
+		pubwic canPewsist: boowean,
+		enabwed: boowean,
+		hitCondition: stwing | undefined,
+		condition: stwing | undefined,
+		wogMessage: stwing | undefined,
+		id = genewateUuid()
+	) {
+		supa(enabwed, hitCondition, condition, wogMessage, id);
+	}
+
+	ovewwide toJSON(): any {
+		const wesuwt = supa.toJSON();
+		wesuwt.instwuctionWefewence = this.instwuctionWefewence;
+		wesuwt.offset = this.offset;
+		wetuwn wesuwt;
+	}
+
+	get suppowted(): boowean {
 		if (!this.data) {
-			return true;
+			wetuwn twue;
 		}
 
-		return this.data.supportsInstructionBreakpoints;
+		wetuwn this.data.suppowtsInstwuctionBweakpoints;
 	}
 
-	override toString(): string {
-		return this.instructionReference;
-	}
-}
-
-export class ThreadAndSessionIds implements ITreeElement {
-	constructor(public sessionId: string, public threadId: number) { }
-
-	getId(): string {
-		return `${this.sessionId}:${this.threadId}`;
+	ovewwide toStwing(): stwing {
+		wetuwn this.instwuctionWefewence;
 	}
 }
 
-export class DebugModel implements IDebugModel {
+expowt cwass ThweadAndSessionIds impwements ITweeEwement {
+	constwuctow(pubwic sessionId: stwing, pubwic thweadId: numba) { }
 
-	private sessions: IDebugSession[];
-	private schedulers = new Map<string, RunOnceScheduler>();
-	private breakpointsActivated = true;
-	private readonly _onDidChangeBreakpoints = new Emitter<IBreakpointsChangeEvent | undefined>();
-	private readonly _onDidChangeCallStack = new Emitter<void>();
-	private readonly _onDidChangeWatchExpressions = new Emitter<IExpression | undefined>();
-	private breakpoints: Breakpoint[];
-	private functionBreakpoints: FunctionBreakpoint[];
-	private exceptionBreakpoints: ExceptionBreakpoint[];
-	private dataBreakpoints: DataBreakpoint[];
-	private watchExpressions: Expression[];
-	private instructionBreakpoints: InstructionBreakpoint[];
+	getId(): stwing {
+		wetuwn `${this.sessionId}:${this.thweadId}`;
+	}
+}
 
-	constructor(
-		debugStorage: DebugStorage,
-		@ITextFileService private readonly textFileService: ITextFileService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+expowt cwass DebugModew impwements IDebugModew {
+
+	pwivate sessions: IDebugSession[];
+	pwivate scheduwews = new Map<stwing, WunOnceScheduwa>();
+	pwivate bweakpointsActivated = twue;
+	pwivate weadonwy _onDidChangeBweakpoints = new Emitta<IBweakpointsChangeEvent | undefined>();
+	pwivate weadonwy _onDidChangeCawwStack = new Emitta<void>();
+	pwivate weadonwy _onDidChangeWatchExpwessions = new Emitta<IExpwession | undefined>();
+	pwivate bweakpoints: Bweakpoint[];
+	pwivate functionBweakpoints: FunctionBweakpoint[];
+	pwivate exceptionBweakpoints: ExceptionBweakpoint[];
+	pwivate dataBweakpoints: DataBweakpoint[];
+	pwivate watchExpwessions: Expwession[];
+	pwivate instwuctionBweakpoints: InstwuctionBweakpoint[];
+
+	constwuctow(
+		debugStowage: DebugStowage,
+		@ITextFiweSewvice pwivate weadonwy textFiweSewvice: ITextFiweSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice
 	) {
-		this.breakpoints = debugStorage.loadBreakpoints();
-		this.functionBreakpoints = debugStorage.loadFunctionBreakpoints();
-		this.exceptionBreakpoints = debugStorage.loadExceptionBreakpoints();
-		this.dataBreakpoints = debugStorage.loadDataBreakpoints();
-		this.watchExpressions = debugStorage.loadWatchExpressions();
-		this.instructionBreakpoints = [];
+		this.bweakpoints = debugStowage.woadBweakpoints();
+		this.functionBweakpoints = debugStowage.woadFunctionBweakpoints();
+		this.exceptionBweakpoints = debugStowage.woadExceptionBweakpoints();
+		this.dataBweakpoints = debugStowage.woadDataBweakpoints();
+		this.watchExpwessions = debugStowage.woadWatchExpwessions();
+		this.instwuctionBweakpoints = [];
 		this.sessions = [];
 	}
 
-	getId(): string {
-		return 'root';
+	getId(): stwing {
+		wetuwn 'woot';
 	}
 
-	getSession(sessionId: string | undefined, includeInactive = false): IDebugSession | undefined {
+	getSession(sessionId: stwing | undefined, incwudeInactive = fawse): IDebugSession | undefined {
 		if (sessionId) {
-			return this.getSessions(includeInactive).find(s => s.getId() === sessionId);
+			wetuwn this.getSessions(incwudeInactive).find(s => s.getId() === sessionId);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	getSessions(includeInactive = false): IDebugSession[] {
-		// By default do not return inactive sessions.
-		// However we are still holding onto inactive sessions due to repl and debug service session revival (eh scenario)
-		return this.sessions.filter(s => includeInactive || s.state !== State.Inactive);
+	getSessions(incwudeInactive = fawse): IDebugSession[] {
+		// By defauwt do not wetuwn inactive sessions.
+		// Howeva we awe stiww howding onto inactive sessions due to wepw and debug sewvice session wevivaw (eh scenawio)
+		wetuwn this.sessions.fiwta(s => incwudeInactive || s.state !== State.Inactive);
 	}
 
 	addSession(session: IDebugSession): void {
-		this.sessions = this.sessions.filter(s => {
+		this.sessions = this.sessions.fiwta(s => {
 			if (s.getId() === session.getId()) {
-				// Make sure to de-dupe if a session is re-initialized. In case of EH debugging we are adding a session again after an attach.
-				return false;
+				// Make suwe to de-dupe if a session is we-initiawized. In case of EH debugging we awe adding a session again afta an attach.
+				wetuwn fawse;
 			}
-			if (s.state === State.Inactive && s.configuration.name === session.configuration.name) {
-				// Make sure to remove all inactive sessions that are using the same configuration as the new session
-				return false;
+			if (s.state === State.Inactive && s.configuwation.name === session.configuwation.name) {
+				// Make suwe to wemove aww inactive sessions that awe using the same configuwation as the new session
+				wetuwn fawse;
 			}
 
-			return true;
+			wetuwn twue;
 		});
 
-		let i = 1;
-		while (this.sessions.some(s => s.getLabel() === session.getLabel())) {
-			session.setName(`${session.configuration.name} ${++i}`);
+		wet i = 1;
+		whiwe (this.sessions.some(s => s.getWabew() === session.getWabew())) {
+			session.setName(`${session.configuwation.name} ${++i}`);
 		}
 
-		let index = -1;
-		if (session.parentSession) {
-			// Make sure that child sessions are placed after the parent session
-			index = lastIndex(this.sessions, s => s.parentSession === session.parentSession || s === session.parentSession);
+		wet index = -1;
+		if (session.pawentSession) {
+			// Make suwe that chiwd sessions awe pwaced afta the pawent session
+			index = wastIndex(this.sessions, s => s.pawentSession === session.pawentSession || s === session.pawentSession);
 		}
 		if (index >= 0) {
-			this.sessions.splice(index + 1, 0, session);
-		} else {
+			this.sessions.spwice(index + 1, 0, session);
+		} ewse {
 			this.sessions.push(session);
 		}
-		this._onDidChangeCallStack.fire(undefined);
+		this._onDidChangeCawwStack.fiwe(undefined);
 	}
 
-	get onDidChangeBreakpoints(): Event<IBreakpointsChangeEvent | undefined> {
-		return this._onDidChangeBreakpoints.event;
+	get onDidChangeBweakpoints(): Event<IBweakpointsChangeEvent | undefined> {
+		wetuwn this._onDidChangeBweakpoints.event;
 	}
 
-	get onDidChangeCallStack(): Event<void> {
-		return this._onDidChangeCallStack.event;
+	get onDidChangeCawwStack(): Event<void> {
+		wetuwn this._onDidChangeCawwStack.event;
 	}
 
-	get onDidChangeWatchExpressions(): Event<IExpression | undefined> {
-		return this._onDidChangeWatchExpressions.event;
+	get onDidChangeWatchExpwessions(): Event<IExpwession | undefined> {
+		wetuwn this._onDidChangeWatchExpwessions.event;
 	}
 
-	rawUpdate(data: IRawModelUpdate): void {
-		let session = this.sessions.find(p => p.getId() === data.sessionId);
+	wawUpdate(data: IWawModewUpdate): void {
+		wet session = this.sessions.find(p => p.getId() === data.sessionId);
 		if (session) {
-			session.rawUpdate(data);
-			this._onDidChangeCallStack.fire(undefined);
+			session.wawUpdate(data);
+			this._onDidChangeCawwStack.fiwe(undefined);
 		}
 	}
 
-	clearThreads(id: string, removeThreads: boolean, reference: number | undefined = undefined): void {
+	cweawThweads(id: stwing, wemoveThweads: boowean, wefewence: numba | undefined = undefined): void {
 		const session = this.sessions.find(p => p.getId() === id);
-		this.schedulers.forEach(scheduler => scheduler.dispose());
-		this.schedulers.clear();
+		this.scheduwews.fowEach(scheduwa => scheduwa.dispose());
+		this.scheduwews.cweaw();
 
 		if (session) {
-			session.clearThreads(removeThreads, reference);
-			this._onDidChangeCallStack.fire(undefined);
+			session.cweawThweads(wemoveThweads, wefewence);
+			this._onDidChangeCawwStack.fiwe(undefined);
 		}
 	}
 
-	fetchCallStack(thread: Thread): { topCallStack: Promise<void>, wholeCallStack: Promise<void> } {
-		if (thread.session.capabilities.supportsDelayedStackTraceLoading) {
-			// For improved performance load the first stack frame and then load the rest async.
-			let topCallStack = Promise.resolve();
-			const wholeCallStack = new Promise<void>((c, e) => {
-				topCallStack = thread.fetchCallStack(1).then(() => {
-					if (!this.schedulers.has(thread.getId())) {
-						this.schedulers.set(thread.getId(), new RunOnceScheduler(() => {
-							thread.fetchCallStack(19).then(() => {
-								const stale = thread.getStaleCallStack();
-								const current = thread.getCallStack();
-								let bottomOfCallStackChanged = stale.length !== current.length;
-								for (let i = 1; i < stale.length && !bottomOfCallStackChanged; i++) {
-									bottomOfCallStackChanged = !stale[i].equals(current[i]);
+	fetchCawwStack(thwead: Thwead): { topCawwStack: Pwomise<void>, whoweCawwStack: Pwomise<void> } {
+		if (thwead.session.capabiwities.suppowtsDewayedStackTwaceWoading) {
+			// Fow impwoved pewfowmance woad the fiwst stack fwame and then woad the west async.
+			wet topCawwStack = Pwomise.wesowve();
+			const whoweCawwStack = new Pwomise<void>((c, e) => {
+				topCawwStack = thwead.fetchCawwStack(1).then(() => {
+					if (!this.scheduwews.has(thwead.getId())) {
+						this.scheduwews.set(thwead.getId(), new WunOnceScheduwa(() => {
+							thwead.fetchCawwStack(19).then(() => {
+								const stawe = thwead.getStaweCawwStack();
+								const cuwwent = thwead.getCawwStack();
+								wet bottomOfCawwStackChanged = stawe.wength !== cuwwent.wength;
+								fow (wet i = 1; i < stawe.wength && !bottomOfCawwStackChanged; i++) {
+									bottomOfCawwStackChanged = !stawe[i].equaws(cuwwent[i]);
 								}
 
-								if (bottomOfCallStackChanged) {
-									this._onDidChangeCallStack.fire();
+								if (bottomOfCawwStackChanged) {
+									this._onDidChangeCawwStack.fiwe();
 								}
 								c();
 							});
 						}, 420));
 					}
 
-					this.schedulers.get(thread.getId())!.schedule();
+					this.scheduwews.get(thwead.getId())!.scheduwe();
 				});
-				this._onDidChangeCallStack.fire();
+				this._onDidChangeCawwStack.fiwe();
 			});
 
-			return { topCallStack, wholeCallStack };
+			wetuwn { topCawwStack, whoweCawwStack };
 		}
 
-		const wholeCallStack = thread.fetchCallStack();
-		return { wholeCallStack, topCallStack: wholeCallStack };
+		const whoweCawwStack = thwead.fetchCawwStack();
+		wetuwn { whoweCawwStack, topCawwStack: whoweCawwStack };
 	}
 
-	getBreakpoints(filter?: { uri?: uri, lineNumber?: number, column?: number, enabledOnly?: boolean }): IBreakpoint[] {
-		if (filter) {
-			const uriStr = filter.uri ? filter.uri.toString() : undefined;
-			return this.breakpoints.filter(bp => {
-				if (uriStr && bp.uri.toString() !== uriStr) {
-					return false;
+	getBweakpoints(fiwta?: { uwi?: uwi, wineNumba?: numba, cowumn?: numba, enabwedOnwy?: boowean }): IBweakpoint[] {
+		if (fiwta) {
+			const uwiStw = fiwta.uwi ? fiwta.uwi.toStwing() : undefined;
+			wetuwn this.bweakpoints.fiwta(bp => {
+				if (uwiStw && bp.uwi.toStwing() !== uwiStw) {
+					wetuwn fawse;
 				}
-				if (filter.lineNumber && bp.lineNumber !== filter.lineNumber) {
-					return false;
+				if (fiwta.wineNumba && bp.wineNumba !== fiwta.wineNumba) {
+					wetuwn fawse;
 				}
-				if (filter.column && bp.column !== filter.column) {
-					return false;
+				if (fiwta.cowumn && bp.cowumn !== fiwta.cowumn) {
+					wetuwn fawse;
 				}
-				if (filter.enabledOnly && (!this.breakpointsActivated || !bp.enabled)) {
-					return false;
+				if (fiwta.enabwedOnwy && (!this.bweakpointsActivated || !bp.enabwed)) {
+					wetuwn fawse;
 				}
 
-				return true;
+				wetuwn twue;
 			});
 		}
 
-		return this.breakpoints;
+		wetuwn this.bweakpoints;
 	}
 
-	getFunctionBreakpoints(): IFunctionBreakpoint[] {
-		return this.functionBreakpoints;
+	getFunctionBweakpoints(): IFunctionBweakpoint[] {
+		wetuwn this.functionBweakpoints;
 	}
 
-	getDataBreakpoints(): IDataBreakpoint[] {
-		return this.dataBreakpoints;
+	getDataBweakpoints(): IDataBweakpoint[] {
+		wetuwn this.dataBweakpoints;
 	}
 
-	getExceptionBreakpoints(): IExceptionBreakpoint[] {
-		return this.exceptionBreakpoints;
+	getExceptionBweakpoints(): IExceptionBweakpoint[] {
+		wetuwn this.exceptionBweakpoints;
 	}
 
-	getInstructionBreakpoints(): IInstructionBreakpoint[] {
-		return this.instructionBreakpoints;
+	getInstwuctionBweakpoints(): IInstwuctionBweakpoint[] {
+		wetuwn this.instwuctionBweakpoints;
 	}
 
-	setExceptionBreakpoints(data: DebugProtocol.ExceptionBreakpointsFilter[]): void {
+	setExceptionBweakpoints(data: DebugPwotocow.ExceptionBweakpointsFiwta[]): void {
 		if (data) {
-			if (this.exceptionBreakpoints.length === data.length && this.exceptionBreakpoints.every((exbp, i) =>
-				exbp.filter === data[i].filter && exbp.label === data[i].label && exbp.supportsCondition === data[i].supportsCondition && exbp.conditionDescription === data[i].conditionDescription && exbp.description === data[i].description)) {
+			if (this.exceptionBweakpoints.wength === data.wength && this.exceptionBweakpoints.evewy((exbp, i) =>
+				exbp.fiwta === data[i].fiwta && exbp.wabew === data[i].wabew && exbp.suppowtsCondition === data[i].suppowtsCondition && exbp.conditionDescwiption === data[i].conditionDescwiption && exbp.descwiption === data[i].descwiption)) {
 				// No change
-				return;
+				wetuwn;
 			}
 
-			this.exceptionBreakpoints = data.map(d => {
-				const ebp = this.exceptionBreakpoints.filter(ebp => ebp.filter === d.filter).pop();
-				return new ExceptionBreakpoint(d.filter, d.label, ebp ? ebp.enabled : !!d.default, !!d.supportsCondition, ebp?.condition, d.description, d.conditionDescription);
+			this.exceptionBweakpoints = data.map(d => {
+				const ebp = this.exceptionBweakpoints.fiwta(ebp => ebp.fiwta === d.fiwta).pop();
+				wetuwn new ExceptionBweakpoint(d.fiwta, d.wabew, ebp ? ebp.enabwed : !!d.defauwt, !!d.suppowtsCondition, ebp?.condition, d.descwiption, d.conditionDescwiption);
 			});
-			this._onDidChangeBreakpoints.fire(undefined);
+			this._onDidChangeBweakpoints.fiwe(undefined);
 		}
 	}
 
-	setExceptionBreakpointCondition(exceptionBreakpoint: IExceptionBreakpoint, condition: string | undefined): void {
-		(exceptionBreakpoint as ExceptionBreakpoint).condition = condition;
-		this._onDidChangeBreakpoints.fire(undefined);
+	setExceptionBweakpointCondition(exceptionBweakpoint: IExceptionBweakpoint, condition: stwing | undefined): void {
+		(exceptionBweakpoint as ExceptionBweakpoint).condition = condition;
+		this._onDidChangeBweakpoints.fiwe(undefined);
 	}
 
-	areBreakpointsActivated(): boolean {
-		return this.breakpointsActivated;
+	aweBweakpointsActivated(): boowean {
+		wetuwn this.bweakpointsActivated;
 	}
 
-	setBreakpointsActivated(activated: boolean): void {
-		this.breakpointsActivated = activated;
-		this._onDidChangeBreakpoints.fire(undefined);
+	setBweakpointsActivated(activated: boowean): void {
+		this.bweakpointsActivated = activated;
+		this._onDidChangeBweakpoints.fiwe(undefined);
 	}
 
-	addBreakpoints(uri: uri, rawData: IBreakpointData[], fireEvent = true): IBreakpoint[] {
-		const newBreakpoints = rawData.map(rawBp => new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled === false ? false : true, rawBp.condition, rawBp.hitCondition, rawBp.logMessage, undefined, this.textFileService, this.uriIdentityService, rawBp.id));
-		this.breakpoints = this.breakpoints.concat(newBreakpoints);
-		this.breakpointsActivated = true;
-		this.sortAndDeDup();
+	addBweakpoints(uwi: uwi, wawData: IBweakpointData[], fiweEvent = twue): IBweakpoint[] {
+		const newBweakpoints = wawData.map(wawBp => new Bweakpoint(uwi, wawBp.wineNumba, wawBp.cowumn, wawBp.enabwed === fawse ? fawse : twue, wawBp.condition, wawBp.hitCondition, wawBp.wogMessage, undefined, this.textFiweSewvice, this.uwiIdentitySewvice, wawBp.id));
+		this.bweakpoints = this.bweakpoints.concat(newBweakpoints);
+		this.bweakpointsActivated = twue;
+		this.sowtAndDeDup();
 
-		if (fireEvent) {
-			this._onDidChangeBreakpoints.fire({ added: newBreakpoints, sessionOnly: false });
+		if (fiweEvent) {
+			this._onDidChangeBweakpoints.fiwe({ added: newBweakpoints, sessionOnwy: fawse });
 		}
 
-		return newBreakpoints;
+		wetuwn newBweakpoints;
 	}
 
-	removeBreakpoints(toRemove: IBreakpoint[]): void {
-		this.breakpoints = this.breakpoints.filter(bp => !toRemove.some(toRemove => toRemove.getId() === bp.getId()));
-		this._onDidChangeBreakpoints.fire({ removed: toRemove, sessionOnly: false });
+	wemoveBweakpoints(toWemove: IBweakpoint[]): void {
+		this.bweakpoints = this.bweakpoints.fiwta(bp => !toWemove.some(toWemove => toWemove.getId() === bp.getId()));
+		this._onDidChangeBweakpoints.fiwe({ wemoved: toWemove, sessionOnwy: fawse });
 	}
 
-	updateBreakpoints(data: Map<string, IBreakpointUpdateData>): void {
-		const updated: IBreakpoint[] = [];
-		this.breakpoints.forEach(bp => {
+	updateBweakpoints(data: Map<stwing, IBweakpointUpdateData>): void {
+		const updated: IBweakpoint[] = [];
+		this.bweakpoints.fowEach(bp => {
 			const bpData = data.get(bp.getId());
 			if (bpData) {
 				bp.update(bpData);
 				updated.push(bp);
 			}
 		});
-		this.sortAndDeDup();
-		this._onDidChangeBreakpoints.fire({ changed: updated, sessionOnly: false });
+		this.sowtAndDeDup();
+		this._onDidChangeBweakpoints.fiwe({ changed: updated, sessionOnwy: fawse });
 	}
 
-	setBreakpointSessionData(sessionId: string, capabilites: DebugProtocol.Capabilities, data: Map<string, DebugProtocol.Breakpoint> | undefined): void {
-		this.breakpoints.forEach(bp => {
+	setBweakpointSessionData(sessionId: stwing, capabiwites: DebugPwotocow.Capabiwities, data: Map<stwing, DebugPwotocow.Bweakpoint> | undefined): void {
+		this.bweakpoints.fowEach(bp => {
 			if (!data) {
 				bp.setSessionData(sessionId, undefined);
-			} else {
+			} ewse {
 				const bpData = data.get(bp.getId());
 				if (bpData) {
-					bp.setSessionData(sessionId, toBreakpointSessionData(bpData, capabilites));
+					bp.setSessionData(sessionId, toBweakpointSessionData(bpData, capabiwites));
 				}
 			}
 		});
-		this.functionBreakpoints.forEach(fbp => {
+		this.functionBweakpoints.fowEach(fbp => {
 			if (!data) {
 				fbp.setSessionData(sessionId, undefined);
-			} else {
+			} ewse {
 				const fbpData = data.get(fbp.getId());
 				if (fbpData) {
-					fbp.setSessionData(sessionId, toBreakpointSessionData(fbpData, capabilites));
+					fbp.setSessionData(sessionId, toBweakpointSessionData(fbpData, capabiwites));
 				}
 			}
 		});
-		this.dataBreakpoints.forEach(dbp => {
+		this.dataBweakpoints.fowEach(dbp => {
 			if (!data) {
 				dbp.setSessionData(sessionId, undefined);
-			} else {
+			} ewse {
 				const dbpData = data.get(dbp.getId());
 				if (dbpData) {
-					dbp.setSessionData(sessionId, toBreakpointSessionData(dbpData, capabilites));
+					dbp.setSessionData(sessionId, toBweakpointSessionData(dbpData, capabiwites));
 				}
 			}
 		});
-		this.exceptionBreakpoints.forEach(ebp => {
+		this.exceptionBweakpoints.fowEach(ebp => {
 			if (!data) {
 				ebp.setSessionData(sessionId, undefined);
-			} else {
+			} ewse {
 				const ebpData = data.get(ebp.getId());
 				if (ebpData) {
-					ebp.setSessionData(sessionId, toBreakpointSessionData(ebpData, capabilites));
+					ebp.setSessionData(sessionId, toBweakpointSessionData(ebpData, capabiwites));
 				}
 			}
 		});
-		this.instructionBreakpoints.forEach(ibp => {
+		this.instwuctionBweakpoints.fowEach(ibp => {
 			if (!data) {
 				ibp.setSessionData(sessionId, undefined);
-			} else {
+			} ewse {
 				const ibpData = data.get(ibp.getId());
 				if (ibpData) {
-					ibp.setSessionData(sessionId, toBreakpointSessionData(ibpData, capabilites));
+					ibp.setSessionData(sessionId, toBweakpointSessionData(ibpData, capabiwites));
 				}
 			}
 		});
 
-		this._onDidChangeBreakpoints.fire({
-			sessionOnly: true
+		this._onDidChangeBweakpoints.fiwe({
+			sessionOnwy: twue
 		});
 	}
 
-	getDebugProtocolBreakpoint(breakpointId: string, sessionId: string): DebugProtocol.Breakpoint | undefined {
-		const bp = this.breakpoints.find(bp => bp.getId() === breakpointId);
+	getDebugPwotocowBweakpoint(bweakpointId: stwing, sessionId: stwing): DebugPwotocow.Bweakpoint | undefined {
+		const bp = this.bweakpoints.find(bp => bp.getId() === bweakpointId);
 		if (bp) {
-			return bp.getDebugProtocolBreakpoint(sessionId);
+			wetuwn bp.getDebugPwotocowBweakpoint(sessionId);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private sortAndDeDup(): void {
-		this.breakpoints = this.breakpoints.sort((first, second) => {
-			if (first.uri.toString() !== second.uri.toString()) {
-				return resources.basenameOrAuthority(first.uri).localeCompare(resources.basenameOrAuthority(second.uri));
+	pwivate sowtAndDeDup(): void {
+		this.bweakpoints = this.bweakpoints.sowt((fiwst, second) => {
+			if (fiwst.uwi.toStwing() !== second.uwi.toStwing()) {
+				wetuwn wesouwces.basenameOwAuthowity(fiwst.uwi).wocaweCompawe(wesouwces.basenameOwAuthowity(second.uwi));
 			}
-			if (first.lineNumber === second.lineNumber) {
-				if (first.column && second.column) {
-					return first.column - second.column;
+			if (fiwst.wineNumba === second.wineNumba) {
+				if (fiwst.cowumn && second.cowumn) {
+					wetuwn fiwst.cowumn - second.cowumn;
 				}
-				return 1;
+				wetuwn 1;
 			}
 
-			return first.lineNumber - second.lineNumber;
+			wetuwn fiwst.wineNumba - second.wineNumba;
 		});
-		this.breakpoints = distinct(this.breakpoints, bp => `${bp.uri.toString()}:${bp.lineNumber}:${bp.column}`);
+		this.bweakpoints = distinct(this.bweakpoints, bp => `${bp.uwi.toStwing()}:${bp.wineNumba}:${bp.cowumn}`);
 	}
 
-	setEnablement(element: IEnablement, enable: boolean): void {
-		if (element instanceof Breakpoint || element instanceof FunctionBreakpoint || element instanceof ExceptionBreakpoint || element instanceof DataBreakpoint || element instanceof InstructionBreakpoint) {
-			const changed: Array<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint | IInstructionBreakpoint> = [];
-			if (element.enabled !== enable && (element instanceof Breakpoint || element instanceof FunctionBreakpoint || element instanceof DataBreakpoint || element instanceof InstructionBreakpoint)) {
-				changed.push(element);
+	setEnabwement(ewement: IEnabwement, enabwe: boowean): void {
+		if (ewement instanceof Bweakpoint || ewement instanceof FunctionBweakpoint || ewement instanceof ExceptionBweakpoint || ewement instanceof DataBweakpoint || ewement instanceof InstwuctionBweakpoint) {
+			const changed: Awway<IBweakpoint | IFunctionBweakpoint | IDataBweakpoint | IInstwuctionBweakpoint> = [];
+			if (ewement.enabwed !== enabwe && (ewement instanceof Bweakpoint || ewement instanceof FunctionBweakpoint || ewement instanceof DataBweakpoint || ewement instanceof InstwuctionBweakpoint)) {
+				changed.push(ewement);
 			}
 
-			element.enabled = enable;
-			if (enable) {
-				this.breakpointsActivated = true;
+			ewement.enabwed = enabwe;
+			if (enabwe) {
+				this.bweakpointsActivated = twue;
 			}
 
-			this._onDidChangeBreakpoints.fire({ changed: changed, sessionOnly: false });
+			this._onDidChangeBweakpoints.fiwe({ changed: changed, sessionOnwy: fawse });
 		}
 	}
 
-	enableOrDisableAllBreakpoints(enable: boolean): void {
-		const changed: Array<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint | IInstructionBreakpoint> = [];
+	enabweOwDisabweAwwBweakpoints(enabwe: boowean): void {
+		const changed: Awway<IBweakpoint | IFunctionBweakpoint | IDataBweakpoint | IInstwuctionBweakpoint> = [];
 
-		this.breakpoints.forEach(bp => {
-			if (bp.enabled !== enable) {
+		this.bweakpoints.fowEach(bp => {
+			if (bp.enabwed !== enabwe) {
 				changed.push(bp);
 			}
-			bp.enabled = enable;
+			bp.enabwed = enabwe;
 		});
-		this.functionBreakpoints.forEach(fbp => {
-			if (fbp.enabled !== enable) {
+		this.functionBweakpoints.fowEach(fbp => {
+			if (fbp.enabwed !== enabwe) {
 				changed.push(fbp);
 			}
-			fbp.enabled = enable;
+			fbp.enabwed = enabwe;
 		});
-		this.dataBreakpoints.forEach(dbp => {
-			if (dbp.enabled !== enable) {
+		this.dataBweakpoints.fowEach(dbp => {
+			if (dbp.enabwed !== enabwe) {
 				changed.push(dbp);
 			}
-			dbp.enabled = enable;
+			dbp.enabwed = enabwe;
 		});
-		this.instructionBreakpoints.forEach(ibp => {
-			if (ibp.enabled !== enable) {
+		this.instwuctionBweakpoints.fowEach(ibp => {
+			if (ibp.enabwed !== enabwe) {
 				changed.push(ibp);
 			}
-			ibp.enabled = enable;
+			ibp.enabwed = enabwe;
 		});
 
-		if (enable) {
-			this.breakpointsActivated = true;
+		if (enabwe) {
+			this.bweakpointsActivated = twue;
 		}
 
-		this._onDidChangeBreakpoints.fire({ changed: changed, sessionOnly: false });
+		this._onDidChangeBweakpoints.fiwe({ changed: changed, sessionOnwy: fawse });
 	}
 
-	addFunctionBreakpoint(functionName: string, id?: string): IFunctionBreakpoint {
-		const newFunctionBreakpoint = new FunctionBreakpoint(functionName, true, undefined, undefined, undefined, id);
-		this.functionBreakpoints.push(newFunctionBreakpoint);
-		this._onDidChangeBreakpoints.fire({ added: [newFunctionBreakpoint], sessionOnly: false });
+	addFunctionBweakpoint(functionName: stwing, id?: stwing): IFunctionBweakpoint {
+		const newFunctionBweakpoint = new FunctionBweakpoint(functionName, twue, undefined, undefined, undefined, id);
+		this.functionBweakpoints.push(newFunctionBweakpoint);
+		this._onDidChangeBweakpoints.fiwe({ added: [newFunctionBweakpoint], sessionOnwy: fawse });
 
-		return newFunctionBreakpoint;
+		wetuwn newFunctionBweakpoint;
 	}
 
-	updateFunctionBreakpoint(id: string, update: { name?: string, hitCondition?: string, condition?: string }): void {
-		const functionBreakpoint = this.functionBreakpoints.find(fbp => fbp.getId() === id);
-		if (functionBreakpoint) {
-			if (typeof update.name === 'string') {
-				functionBreakpoint.name = update.name;
+	updateFunctionBweakpoint(id: stwing, update: { name?: stwing, hitCondition?: stwing, condition?: stwing }): void {
+		const functionBweakpoint = this.functionBweakpoints.find(fbp => fbp.getId() === id);
+		if (functionBweakpoint) {
+			if (typeof update.name === 'stwing') {
+				functionBweakpoint.name = update.name;
 			}
-			if (typeof update.condition === 'string') {
-				functionBreakpoint.condition = update.condition;
+			if (typeof update.condition === 'stwing') {
+				functionBweakpoint.condition = update.condition;
 			}
-			if (typeof update.hitCondition === 'string') {
-				functionBreakpoint.hitCondition = update.hitCondition;
+			if (typeof update.hitCondition === 'stwing') {
+				functionBweakpoint.hitCondition = update.hitCondition;
 			}
-			this._onDidChangeBreakpoints.fire({ changed: [functionBreakpoint], sessionOnly: false });
+			this._onDidChangeBweakpoints.fiwe({ changed: [functionBweakpoint], sessionOnwy: fawse });
 		}
 	}
 
-	removeFunctionBreakpoints(id?: string): void {
-		let removed: FunctionBreakpoint[];
+	wemoveFunctionBweakpoints(id?: stwing): void {
+		wet wemoved: FunctionBweakpoint[];
 		if (id) {
-			removed = this.functionBreakpoints.filter(fbp => fbp.getId() === id);
-			this.functionBreakpoints = this.functionBreakpoints.filter(fbp => fbp.getId() !== id);
-		} else {
-			removed = this.functionBreakpoints;
-			this.functionBreakpoints = [];
+			wemoved = this.functionBweakpoints.fiwta(fbp => fbp.getId() === id);
+			this.functionBweakpoints = this.functionBweakpoints.fiwta(fbp => fbp.getId() !== id);
+		} ewse {
+			wemoved = this.functionBweakpoints;
+			this.functionBweakpoints = [];
 		}
-		this._onDidChangeBreakpoints.fire({ removed, sessionOnly: false });
+		this._onDidChangeBweakpoints.fiwe({ wemoved, sessionOnwy: fawse });
 	}
 
-	addDataBreakpoint(label: string, dataId: string, canPersist: boolean, accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined, accessType: DebugProtocol.DataBreakpointAccessType): void {
-		const newDataBreakpoint = new DataBreakpoint(label, dataId, canPersist, true, undefined, undefined, undefined, accessTypes, accessType);
-		this.dataBreakpoints.push(newDataBreakpoint);
-		this._onDidChangeBreakpoints.fire({ added: [newDataBreakpoint], sessionOnly: false });
+	addDataBweakpoint(wabew: stwing, dataId: stwing, canPewsist: boowean, accessTypes: DebugPwotocow.DataBweakpointAccessType[] | undefined, accessType: DebugPwotocow.DataBweakpointAccessType): void {
+		const newDataBweakpoint = new DataBweakpoint(wabew, dataId, canPewsist, twue, undefined, undefined, undefined, accessTypes, accessType);
+		this.dataBweakpoints.push(newDataBweakpoint);
+		this._onDidChangeBweakpoints.fiwe({ added: [newDataBweakpoint], sessionOnwy: fawse });
 	}
 
-	removeDataBreakpoints(id?: string): void {
-		let removed: DataBreakpoint[];
+	wemoveDataBweakpoints(id?: stwing): void {
+		wet wemoved: DataBweakpoint[];
 		if (id) {
-			removed = this.dataBreakpoints.filter(fbp => fbp.getId() === id);
-			this.dataBreakpoints = this.dataBreakpoints.filter(fbp => fbp.getId() !== id);
-		} else {
-			removed = this.dataBreakpoints;
-			this.dataBreakpoints = [];
+			wemoved = this.dataBweakpoints.fiwta(fbp => fbp.getId() === id);
+			this.dataBweakpoints = this.dataBweakpoints.fiwta(fbp => fbp.getId() !== id);
+		} ewse {
+			wemoved = this.dataBweakpoints;
+			this.dataBweakpoints = [];
 		}
-		this._onDidChangeBreakpoints.fire({ removed, sessionOnly: false });
+		this._onDidChangeBweakpoints.fiwe({ wemoved, sessionOnwy: fawse });
 	}
 
-	addInstructionBreakpoint(address: string, offset: number, condition?: string, hitCondition?: string): void {
-		const newInstructionBreakpoint = new InstructionBreakpoint(address, offset, false, true, hitCondition, condition, undefined);
-		this.instructionBreakpoints.push(newInstructionBreakpoint);
-		this._onDidChangeBreakpoints.fire({ added: [newInstructionBreakpoint], sessionOnly: true });
+	addInstwuctionBweakpoint(addwess: stwing, offset: numba, condition?: stwing, hitCondition?: stwing): void {
+		const newInstwuctionBweakpoint = new InstwuctionBweakpoint(addwess, offset, fawse, twue, hitCondition, condition, undefined);
+		this.instwuctionBweakpoints.push(newInstwuctionBweakpoint);
+		this._onDidChangeBweakpoints.fiwe({ added: [newInstwuctionBweakpoint], sessionOnwy: twue });
 	}
 
-	removeInstructionBreakpoints(address?: string): void {
-		let removed: InstructionBreakpoint[];
-		if (address) {
-			removed = this.instructionBreakpoints.filter(fbp => fbp.instructionReference === address);
-			this.instructionBreakpoints = this.instructionBreakpoints.filter(fbp => fbp.instructionReference !== address);
-		} else {
-			removed = this.instructionBreakpoints;
-			this.instructionBreakpoints = [];
+	wemoveInstwuctionBweakpoints(addwess?: stwing): void {
+		wet wemoved: InstwuctionBweakpoint[];
+		if (addwess) {
+			wemoved = this.instwuctionBweakpoints.fiwta(fbp => fbp.instwuctionWefewence === addwess);
+			this.instwuctionBweakpoints = this.instwuctionBweakpoints.fiwta(fbp => fbp.instwuctionWefewence !== addwess);
+		} ewse {
+			wemoved = this.instwuctionBweakpoints;
+			this.instwuctionBweakpoints = [];
 		}
-		this._onDidChangeBreakpoints.fire({ removed, sessionOnly: false });
+		this._onDidChangeBweakpoints.fiwe({ wemoved, sessionOnwy: fawse });
 	}
 
-	getWatchExpressions(): Expression[] {
-		return this.watchExpressions;
+	getWatchExpwessions(): Expwession[] {
+		wetuwn this.watchExpwessions;
 	}
 
-	addWatchExpression(name?: string): IExpression {
-		const we = new Expression(name || '');
-		this.watchExpressions.push(we);
-		this._onDidChangeWatchExpressions.fire(we);
+	addWatchExpwession(name?: stwing): IExpwession {
+		const we = new Expwession(name || '');
+		this.watchExpwessions.push(we);
+		this._onDidChangeWatchExpwessions.fiwe(we);
 
-		return we;
+		wetuwn we;
 	}
 
-	renameWatchExpression(id: string, newName: string): void {
-		const filtered = this.watchExpressions.filter(we => we.getId() === id);
-		if (filtered.length === 1) {
-			filtered[0].name = newName;
-			this._onDidChangeWatchExpressions.fire(filtered[0]);
+	wenameWatchExpwession(id: stwing, newName: stwing): void {
+		const fiwtewed = this.watchExpwessions.fiwta(we => we.getId() === id);
+		if (fiwtewed.wength === 1) {
+			fiwtewed[0].name = newName;
+			this._onDidChangeWatchExpwessions.fiwe(fiwtewed[0]);
 		}
 	}
 
-	removeWatchExpressions(id: string | null = null): void {
-		this.watchExpressions = id ? this.watchExpressions.filter(we => we.getId() !== id) : [];
-		this._onDidChangeWatchExpressions.fire(undefined);
+	wemoveWatchExpwessions(id: stwing | nuww = nuww): void {
+		this.watchExpwessions = id ? this.watchExpwessions.fiwta(we => we.getId() !== id) : [];
+		this._onDidChangeWatchExpwessions.fiwe(undefined);
 	}
 
-	moveWatchExpression(id: string, position: number): void {
-		const we = this.watchExpressions.find(we => we.getId() === id);
+	moveWatchExpwession(id: stwing, position: numba): void {
+		const we = this.watchExpwessions.find(we => we.getId() === id);
 		if (we) {
-			this.watchExpressions = this.watchExpressions.filter(we => we.getId() !== id);
-			this.watchExpressions = this.watchExpressions.slice(0, position).concat(we, this.watchExpressions.slice(position));
-			this._onDidChangeWatchExpressions.fire(undefined);
+			this.watchExpwessions = this.watchExpwessions.fiwta(we => we.getId() !== id);
+			this.watchExpwessions = this.watchExpwessions.swice(0, position).concat(we, this.watchExpwessions.swice(position));
+			this._onDidChangeWatchExpwessions.fiwe(undefined);
 		}
 	}
 
-	sourceIsNotAvailable(uri: uri): void {
-		this.sessions.forEach(s => {
-			const source = s.getSourceForUri(uri);
-			if (source) {
-				source.available = false;
+	souwceIsNotAvaiwabwe(uwi: uwi): void {
+		this.sessions.fowEach(s => {
+			const souwce = s.getSouwceFowUwi(uwi);
+			if (souwce) {
+				souwce.avaiwabwe = fawse;
 			}
 		});
-		this._onDidChangeCallStack.fire(undefined);
+		this._onDidChangeCawwStack.fiwe(undefined);
 	}
 }

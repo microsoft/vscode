@@ -1,160 +1,160 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/textmate/diff.tmbundle/blob/master/Syntaxes/Diff.plist",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/textmate/diff.tmbundwe/bwob/masta/Syntaxes/Diff.pwist",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/textmate/diff.tmbundle/commit/0593bb775eab1824af97ef2172fd38822abd97d7",
+	"vewsion": "https://github.com/textmate/diff.tmbundwe/commit/0593bb775eab1824af97ef2172fd38822abd97d7",
 	"name": "Diff",
-	"scopeName": "source.diff",
-	"patterns": [
+	"scopeName": "souwce.diff",
+	"pattewns": [
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.separator.diff"
+					"name": "punctuation.definition.sepawatow.diff"
 				}
 			},
 			"match": "^((\\*{15})|(={67})|(-{3}))$\\n?",
-			"name": "meta.separator.diff"
+			"name": "meta.sepawatow.diff"
 		},
 		{
 			"match": "^\\d+(,\\d+)*(a|d|c)\\d+(,\\d+)*$\\n?",
-			"name": "meta.diff.range.normal"
+			"name": "meta.diff.wange.nowmaw"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.range.diff"
+					"name": "punctuation.definition.wange.diff"
 				},
 				"2": {
-					"name": "meta.toc-list.line-number.diff"
+					"name": "meta.toc-wist.wine-numba.diff"
 				},
 				"3": {
-					"name": "punctuation.definition.range.diff"
+					"name": "punctuation.definition.wange.diff"
 				}
 			},
 			"match": "^(@@)\\s*(.+?)\\s*(@@)($\\n?)?",
-			"name": "meta.diff.range.unified"
+			"name": "meta.diff.wange.unified"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"3": {
-					"name": "punctuation.definition.range.diff"
+					"name": "punctuation.definition.wange.diff"
 				},
 				"4": {
-					"name": "punctuation.definition.range.diff"
+					"name": "punctuation.definition.wange.diff"
 				},
 				"6": {
-					"name": "punctuation.definition.range.diff"
+					"name": "punctuation.definition.wange.diff"
 				},
 				"7": {
-					"name": "punctuation.definition.range.diff"
+					"name": "punctuation.definition.wange.diff"
 				}
 			},
 			"match": "^(((\\-{3}) .+ (\\-{4}))|((\\*{3}) .+ (\\*{4})))$\\n?",
-			"name": "meta.diff.range.context"
+			"name": "meta.diff.wange.context"
 		},
 		{
 			"match": "^diff --git a/.*$\\n?",
-			"name": "meta.diff.header.git"
+			"name": "meta.diff.heada.git"
 		},
 		{
 			"match": "^diff (-|\\S+\\s+\\S+).*$\\n?",
-			"name": "meta.diff.header.command"
+			"name": "meta.diff.heada.command"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"4": {
-					"name": "punctuation.definition.from-file.diff"
+					"name": "punctuation.definition.fwom-fiwe.diff"
 				},
 				"6": {
-					"name": "punctuation.definition.from-file.diff"
+					"name": "punctuation.definition.fwom-fiwe.diff"
 				},
 				"7": {
-					"name": "punctuation.definition.from-file.diff"
+					"name": "punctuation.definition.fwom-fiwe.diff"
 				}
 			},
 			"match": "(^(((-{3}) .+)|((\\*{3}) .+))$\\n?|^(={4}) .+(?= - ))",
-			"name": "meta.diff.header.from-file"
+			"name": "meta.diff.heada.fwom-fiwe"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"2": {
-					"name": "punctuation.definition.to-file.diff"
+					"name": "punctuation.definition.to-fiwe.diff"
 				},
 				"3": {
-					"name": "punctuation.definition.to-file.diff"
+					"name": "punctuation.definition.to-fiwe.diff"
 				},
 				"4": {
-					"name": "punctuation.definition.to-file.diff"
+					"name": "punctuation.definition.to-fiwe.diff"
 				}
 			},
 			"match": "(^(\\+{3}) .+$\\n?| (-) .* (={4})$\\n?)",
-			"name": "meta.diff.header.to-file"
+			"name": "meta.diff.heada.to-fiwe"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"3": {
-					"name": "punctuation.definition.inserted.diff"
+					"name": "punctuation.definition.insewted.diff"
 				},
 				"6": {
-					"name": "punctuation.definition.inserted.diff"
+					"name": "punctuation.definition.insewted.diff"
 				}
 			},
 			"match": "^(((>)( .*)?)|((\\+).*))$\\n?",
-			"name": "markup.inserted.diff"
+			"name": "mawkup.insewted.diff"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
 					"name": "punctuation.definition.changed.diff"
 				}
 			},
 			"match": "^(!).*$\\n?",
-			"name": "markup.changed.diff"
+			"name": "mawkup.changed.diff"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"3": {
-					"name": "punctuation.definition.deleted.diff"
+					"name": "punctuation.definition.deweted.diff"
 				},
 				"6": {
-					"name": "punctuation.definition.deleted.diff"
+					"name": "punctuation.definition.deweted.diff"
 				}
 			},
 			"match": "^(((<)( .*)?)|((-).*))$\\n?",
-			"name": "markup.deleted.diff"
+			"name": "mawkup.deweted.diff"
 		},
 		{
 			"begin": "^(#)",
-			"captures": {
+			"captuwes": {
 				"1": {
 					"name": "punctuation.definition.comment.diff"
 				}
 			},
-			"comment": "Git produces unified diffs with embedded comments\"",
+			"comment": "Git pwoduces unified diffs with embedded comments\"",
 			"end": "\\n",
-			"name": "comment.line.number-sign.diff"
+			"name": "comment.wine.numba-sign.diff"
 		},
 		{
 			"match": "^index [0-9a-f]{7,40}\\.\\.[0-9a-f]{7,40}.*$\\n?",
 			"name": "meta.diff.index.git"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.separator.key-value.diff"
+					"name": "punctuation.sepawatow.key-vawue.diff"
 				},
 				"2": {
-					"name": "meta.toc-list.file-name.diff"
+					"name": "meta.toc-wist.fiwe-name.diff"
 				}
 			},
 			"match": "^Index(:) (.+)$\\n?",
 			"name": "meta.diff.index"
 		},
 		{
-			"match": "^Only in .*: .*$\\n?",
-			"name": "meta.diff.only-in"
+			"match": "^Onwy in .*: .*$\\n?",
+			"name": "meta.diff.onwy-in"
 		}
 	]
 }

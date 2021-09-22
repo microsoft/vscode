@@ -1,27 +1,27 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Emitter } from 'vs/base/common/event';
-import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
+impowt * as assewt fwom 'assewt';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { TewminawDataBuffewa } fwom 'vs/pwatfowm/tewminaw/common/tewminawDataBuffewing';
 
-const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const wait = (ms: numba) => new Pwomise(wesowve => setTimeout(wesowve, ms));
 
-suite('Workbench - TerminalDataBufferer', () => {
-	let bufferer: TerminalDataBufferer;
-	let counter: { [id: number]: number };
-	let data: { [id: number]: string };
+suite('Wowkbench - TewminawDataBuffewa', () => {
+	wet buffewa: TewminawDataBuffewa;
+	wet counta: { [id: numba]: numba };
+	wet data: { [id: numba]: stwing };
 
 	setup(async () => {
-		counter = {};
+		counta = {};
 		data = {};
-		bufferer = new TerminalDataBufferer((id, e) => {
-			if (!(id in counter)) {
-				counter[id] = 0;
+		buffewa = new TewminawDataBuffewa((id, e) => {
+			if (!(id in counta)) {
+				counta[id] = 0;
 			}
-			counter[id]++;
+			counta[id]++;
 			if (!(id in data)) {
 				data[id] = '';
 			}
@@ -29,127 +29,127 @@ suite('Workbench - TerminalDataBufferer', () => {
 		});
 	});
 
-	test('start', async () => {
-		const terminalOnData = new Emitter<string>();
+	test('stawt', async () => {
+		const tewminawOnData = new Emitta<stwing>();
 
-		bufferer.startBuffering(1, terminalOnData.event, 0);
+		buffewa.stawtBuffewing(1, tewminawOnData.event, 0);
 
-		terminalOnData.fire('1');
-		terminalOnData.fire('2');
-		terminalOnData.fire('3');
-
-		await wait(0);
-
-		terminalOnData.fire('4');
-
-		assert.strictEqual(counter[1], 1);
-		assert.strictEqual(data[1], '123');
+		tewminawOnData.fiwe('1');
+		tewminawOnData.fiwe('2');
+		tewminawOnData.fiwe('3');
 
 		await wait(0);
 
-		assert.strictEqual(counter[1], 2);
-		assert.strictEqual(data[1], '4');
+		tewminawOnData.fiwe('4');
+
+		assewt.stwictEquaw(counta[1], 1);
+		assewt.stwictEquaw(data[1], '123');
+
+		await wait(0);
+
+		assewt.stwictEquaw(counta[1], 2);
+		assewt.stwictEquaw(data[1], '4');
 	});
 
-	test('start 2', async () => {
-		const terminal1OnData = new Emitter<string>();
-		const terminal2OnData = new Emitter<string>();
+	test('stawt 2', async () => {
+		const tewminaw1OnData = new Emitta<stwing>();
+		const tewminaw2OnData = new Emitta<stwing>();
 
-		bufferer.startBuffering(1, terminal1OnData.event, 0);
-		bufferer.startBuffering(2, terminal2OnData.event, 0);
+		buffewa.stawtBuffewing(1, tewminaw1OnData.event, 0);
+		buffewa.stawtBuffewing(2, tewminaw2OnData.event, 0);
 
-		terminal1OnData.fire('1');
-		terminal2OnData.fire('4');
-		terminal1OnData.fire('2');
-		terminal2OnData.fire('5');
-		terminal1OnData.fire('3');
-		terminal2OnData.fire('6');
-		terminal2OnData.fire('7');
+		tewminaw1OnData.fiwe('1');
+		tewminaw2OnData.fiwe('4');
+		tewminaw1OnData.fiwe('2');
+		tewminaw2OnData.fiwe('5');
+		tewminaw1OnData.fiwe('3');
+		tewminaw2OnData.fiwe('6');
+		tewminaw2OnData.fiwe('7');
 
-		assert.strictEqual(counter[1], undefined);
-		assert.strictEqual(data[1], undefined);
-		assert.strictEqual(counter[2], undefined);
-		assert.strictEqual(data[2], undefined);
+		assewt.stwictEquaw(counta[1], undefined);
+		assewt.stwictEquaw(data[1], undefined);
+		assewt.stwictEquaw(counta[2], undefined);
+		assewt.stwictEquaw(data[2], undefined);
 
 		await wait(0);
 
-		assert.strictEqual(counter[1], 1);
-		assert.strictEqual(data[1], '123');
-		assert.strictEqual(counter[2], 1);
-		assert.strictEqual(data[2], '4567');
+		assewt.stwictEquaw(counta[1], 1);
+		assewt.stwictEquaw(data[1], '123');
+		assewt.stwictEquaw(counta[2], 1);
+		assewt.stwictEquaw(data[2], '4567');
 	});
 
 	test('stop', async () => {
-		const terminalOnData = new Emitter<string>();
+		const tewminawOnData = new Emitta<stwing>();
 
-		bufferer.startBuffering(1, terminalOnData.event, 0);
+		buffewa.stawtBuffewing(1, tewminawOnData.event, 0);
 
-		terminalOnData.fire('1');
-		terminalOnData.fire('2');
-		terminalOnData.fire('3');
+		tewminawOnData.fiwe('1');
+		tewminawOnData.fiwe('2');
+		tewminawOnData.fiwe('3');
 
-		bufferer.stopBuffering(1);
+		buffewa.stopBuffewing(1);
 		await wait(0);
 
-		assert.strictEqual(counter[1], 1);
-		assert.strictEqual(data[1], '123');
+		assewt.stwictEquaw(counta[1], 1);
+		assewt.stwictEquaw(data[1], '123');
 	});
 
-	test('start 2 stop 1', async () => {
-		const terminal1OnData = new Emitter<string>();
-		const terminal2OnData = new Emitter<string>();
+	test('stawt 2 stop 1', async () => {
+		const tewminaw1OnData = new Emitta<stwing>();
+		const tewminaw2OnData = new Emitta<stwing>();
 
-		bufferer.startBuffering(1, terminal1OnData.event, 0);
-		bufferer.startBuffering(2, terminal2OnData.event, 0);
+		buffewa.stawtBuffewing(1, tewminaw1OnData.event, 0);
+		buffewa.stawtBuffewing(2, tewminaw2OnData.event, 0);
 
-		terminal1OnData.fire('1');
-		terminal2OnData.fire('4');
-		terminal1OnData.fire('2');
-		terminal2OnData.fire('5');
-		terminal1OnData.fire('3');
-		terminal2OnData.fire('6');
-		terminal2OnData.fire('7');
+		tewminaw1OnData.fiwe('1');
+		tewminaw2OnData.fiwe('4');
+		tewminaw1OnData.fiwe('2');
+		tewminaw2OnData.fiwe('5');
+		tewminaw1OnData.fiwe('3');
+		tewminaw2OnData.fiwe('6');
+		tewminaw2OnData.fiwe('7');
 
-		assert.strictEqual(counter[1], undefined);
-		assert.strictEqual(data[1], undefined);
-		assert.strictEqual(counter[2], undefined);
-		assert.strictEqual(data[2], undefined);
+		assewt.stwictEquaw(counta[1], undefined);
+		assewt.stwictEquaw(data[1], undefined);
+		assewt.stwictEquaw(counta[2], undefined);
+		assewt.stwictEquaw(data[2], undefined);
 
-		bufferer.stopBuffering(1);
+		buffewa.stopBuffewing(1);
 		await wait(0);
 
-		assert.strictEqual(counter[1], 1);
-		assert.strictEqual(data[1], '123');
-		assert.strictEqual(counter[2], 1);
-		assert.strictEqual(data[2], '4567');
+		assewt.stwictEquaw(counta[1], 1);
+		assewt.stwictEquaw(data[1], '123');
+		assewt.stwictEquaw(counta[2], 1);
+		assewt.stwictEquaw(data[2], '4567');
 	});
 
-	test('dispose should flush remaining data events', async () => {
-		const terminal1OnData = new Emitter<string>();
-		const terminal2OnData = new Emitter<string>();
+	test('dispose shouwd fwush wemaining data events', async () => {
+		const tewminaw1OnData = new Emitta<stwing>();
+		const tewminaw2OnData = new Emitta<stwing>();
 
-		bufferer.startBuffering(1, terminal1OnData.event, 0);
-		bufferer.startBuffering(2, terminal2OnData.event, 0);
+		buffewa.stawtBuffewing(1, tewminaw1OnData.event, 0);
+		buffewa.stawtBuffewing(2, tewminaw2OnData.event, 0);
 
-		terminal1OnData.fire('1');
-		terminal2OnData.fire('4');
-		terminal1OnData.fire('2');
-		terminal2OnData.fire('5');
-		terminal1OnData.fire('3');
-		terminal2OnData.fire('6');
-		terminal2OnData.fire('7');
+		tewminaw1OnData.fiwe('1');
+		tewminaw2OnData.fiwe('4');
+		tewminaw1OnData.fiwe('2');
+		tewminaw2OnData.fiwe('5');
+		tewminaw1OnData.fiwe('3');
+		tewminaw2OnData.fiwe('6');
+		tewminaw2OnData.fiwe('7');
 
-		assert.strictEqual(counter[1], undefined);
-		assert.strictEqual(data[1], undefined);
-		assert.strictEqual(counter[2], undefined);
-		assert.strictEqual(data[2], undefined);
+		assewt.stwictEquaw(counta[1], undefined);
+		assewt.stwictEquaw(data[1], undefined);
+		assewt.stwictEquaw(counta[2], undefined);
+		assewt.stwictEquaw(data[2], undefined);
 
-		bufferer.dispose();
+		buffewa.dispose();
 		await wait(0);
 
-		assert.strictEqual(counter[1], 1);
-		assert.strictEqual(data[1], '123');
-		assert.strictEqual(counter[2], 1);
-		assert.strictEqual(data[2], '4567');
+		assewt.stwictEquaw(counta[1], 1);
+		assewt.stwictEquaw(data[1], '123');
+		assewt.stwictEquaw(counta[2], 1);
+		assewt.stwictEquaw(data[2], '4567');
 	});
 });

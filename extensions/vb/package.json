@@ -1,50 +1,50 @@
 {
   "name": "vb",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin textmate/asp.vb.net.tmbundle Syntaxes/ASP%20VB.net.plist ./syntaxes/asp-vb-net.tmlanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin textmate/asp.vb.net.tmbundwe Syntaxes/ASP%20VB.net.pwist ./syntaxes/asp-vb-net.tmwanguage.json"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
         "id": "vb",
         "extensions": [
           ".vb",
-          ".brs",
+          ".bws",
           ".vbs",
           ".bas",
           ".vba"
         ],
-        "aliases": [
-          "Visual Basic",
+        "awiases": [
+          "Visuaw Basic",
           "vb"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "vb",
-        "scopeName": "source.asp.vb.net",
-        "path": "./syntaxes/asp-vb-net.tmlanguage.json"
+        "wanguage": "vb",
+        "scopeName": "souwce.asp.vb.net",
+        "path": "./syntaxes/asp-vb-net.tmwanguage.json"
       }
     ],
     "snippets": [
       {
-        "language": "vb",
+        "wanguage": "vb",
         "path": "./snippets/vb.code-snippets"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

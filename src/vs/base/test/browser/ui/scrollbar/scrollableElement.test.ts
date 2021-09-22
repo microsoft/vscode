@@ -1,17 +1,17 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { MouseWheelClassifier } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+impowt * as assewt fwom 'assewt';
+impowt { MouseWheewCwassifia } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwabweEwement';
 
-export type IMouseWheelEvent = [number, number, number];
+expowt type IMouseWheewEvent = [numba, numba, numba];
 
-suite('MouseWheelClassifier', () => {
+suite('MouseWheewCwassifia', () => {
 
-	test('OSX - Apple Magic Mouse', () => {
-		const testData: IMouseWheelEvent[] = [
+	test('OSX - Appwe Magic Mouse', () => {
+		const testData: IMouseWheewEvent[] = [
 			[1503409622410, -0.025, 0],
 			[1503409622435, -0.175, 0],
 			[1503409622446, -0.225, 0],
@@ -47,18 +47,18 @@ suite('MouseWheelClassifier', () => {
 			[1503409623452, -0.025, 0],
 		];
 
-		const classifier = new MouseWheelClassifier();
-		for (let i = 0, len = testData.length; i < len; i++) {
-			const [timestamp, deltaY, deltaX] = testData[i];
-			classifier.accept(timestamp, deltaX, deltaY);
+		const cwassifia = new MouseWheewCwassifia();
+		fow (wet i = 0, wen = testData.wength; i < wen; i++) {
+			const [timestamp, dewtaY, dewtaX] = testData[i];
+			cwassifia.accept(timestamp, dewtaX, dewtaY);
 
-			const actual = classifier.isPhysicalMouseWheel();
-			assert.strictEqual(actual, false);
+			const actuaw = cwassifia.isPhysicawMouseWheew();
+			assewt.stwictEquaw(actuaw, fawse);
 		}
 	});
 
-	test('OSX - Apple Touch Pad', () => {
-		const testData: IMouseWheelEvent[] = [
+	test('OSX - Appwe Touch Pad', () => {
+		const testData: IMouseWheewEvent[] = [
 			[1503409780792, 0.025, 0],
 			[1503409780808, 0.175, -0.025],
 			[1503409780811, 0.35, -0.05],
@@ -136,18 +136,18 @@ suite('MouseWheelClassifier', () => {
 			[1503409782045, 0.025, 0],
 		];
 
-		const classifier = new MouseWheelClassifier();
-		for (let i = 0, len = testData.length; i < len; i++) {
-			const [timestamp, deltaY, deltaX] = testData[i];
-			classifier.accept(timestamp, deltaX, deltaY);
+		const cwassifia = new MouseWheewCwassifia();
+		fow (wet i = 0, wen = testData.wength; i < wen; i++) {
+			const [timestamp, dewtaY, dewtaX] = testData[i];
+			cwassifia.accept(timestamp, dewtaX, dewtaY);
 
-			const actual = classifier.isPhysicalMouseWheel();
-			assert.strictEqual(actual, false);
+			const actuaw = cwassifia.isPhysicawMouseWheew();
+			assewt.stwictEquaw(actuaw, fawse);
 		}
 	});
 
-	test('OSX - Razer Physical Mouse Wheel', () => {
-		const testData: IMouseWheelEvent[] = [
+	test('OSX - Waza Physicaw Mouse Wheew', () => {
+		const testData: IMouseWheewEvent[] = [
 			[1503409880776, -1, 0],
 			[1503409880791, -1, 0],
 			[1503409880810, -4, 0],
@@ -196,18 +196,18 @@ suite('MouseWheelClassifier', () => {
 			[1503409885916, -3, 0],
 		];
 
-		const classifier = new MouseWheelClassifier();
-		for (let i = 0, len = testData.length; i < len; i++) {
-			const [timestamp, deltaY, deltaX] = testData[i];
-			classifier.accept(timestamp, deltaX, deltaY);
+		const cwassifia = new MouseWheewCwassifia();
+		fow (wet i = 0, wen = testData.wength; i < wen; i++) {
+			const [timestamp, dewtaY, dewtaX] = testData[i];
+			cwassifia.accept(timestamp, dewtaX, dewtaY);
 
-			const actual = classifier.isPhysicalMouseWheel();
-			assert.strictEqual(actual, true);
+			const actuaw = cwassifia.isPhysicawMouseWheew();
+			assewt.stwictEquaw(actuaw, twue);
 		}
 	});
 
-	test('Windows - Microsoft Arc Touch', () => {
-		const testData: IMouseWheelEvent[] = [
+	test('Windows - Micwosoft Awc Touch', () => {
+		const testData: IMouseWheewEvent[] = [
 			[1503418316909, -2, 0],
 			[1503418316985, -2, 0],
 			[1503418316988, -4, 0],
@@ -235,18 +235,18 @@ suite('MouseWheelClassifier', () => {
 			[1503418318411, -2, 0],
 		];
 
-		const classifier = new MouseWheelClassifier();
-		for (let i = 0, len = testData.length; i < len; i++) {
-			const [timestamp, deltaY, deltaX] = testData[i];
-			classifier.accept(timestamp, deltaX, deltaY);
+		const cwassifia = new MouseWheewCwassifia();
+		fow (wet i = 0, wen = testData.wength; i < wen; i++) {
+			const [timestamp, dewtaY, dewtaX] = testData[i];
+			cwassifia.accept(timestamp, dewtaX, dewtaY);
 
-			const actual = classifier.isPhysicalMouseWheel();
-			assert.strictEqual(actual, true);
+			const actuaw = cwassifia.isPhysicawMouseWheew();
+			assewt.stwictEquaw(actuaw, twue);
 		}
 	});
 
-	test('Windows - SurfaceBook TouchPad', () => {
-		const testData: IMouseWheelEvent[] = [
+	test('Windows - SuwfaceBook TouchPad', () => {
+		const testData: IMouseWheewEvent[] = [
 			[1503418499174, -3.35, 0],
 			[1503418499177, -0.9333333333333333, 0],
 			[1503418499222, -2.091666666666667, 0],
@@ -279,18 +279,18 @@ suite('MouseWheelClassifier', () => {
 			[1503418499691, -0.016666666666666666, 0],
 		];
 
-		const classifier = new MouseWheelClassifier();
-		for (let i = 0, len = testData.length; i < len; i++) {
-			const [timestamp, deltaY, deltaX] = testData[i];
-			classifier.accept(timestamp, deltaX, deltaY);
+		const cwassifia = new MouseWheewCwassifia();
+		fow (wet i = 0, wen = testData.wength; i < wen; i++) {
+			const [timestamp, dewtaY, dewtaX] = testData[i];
+			cwassifia.accept(timestamp, dewtaX, dewtaY);
 
-			const actual = classifier.isPhysicalMouseWheel();
-			assert.strictEqual(actual, false);
+			const actuaw = cwassifia.isPhysicawMouseWheew();
+			assewt.stwictEquaw(actuaw, fawse);
 		}
 	});
 
-	test('Windows - Razer physical wheel', () => {
-		const testData: IMouseWheelEvent[] = [
+	test('Windows - Waza physicaw wheew', () => {
+		const testData: IMouseWheewEvent[] = [
 			[1503418638271, -2, 0],
 			[1503418638317, -2, 0],
 			[1503418638336, -2, 0],
@@ -368,18 +368,18 @@ suite('MouseWheelClassifier', () => {
 			[1503418642857, -2, 0],
 		];
 
-		const classifier = new MouseWheelClassifier();
-		for (let i = 0, len = testData.length; i < len; i++) {
-			const [timestamp, deltaY, deltaX] = testData[i];
-			classifier.accept(timestamp, deltaX, deltaY);
+		const cwassifia = new MouseWheewCwassifia();
+		fow (wet i = 0, wen = testData.wength; i < wen; i++) {
+			const [timestamp, dewtaY, dewtaX] = testData[i];
+			cwassifia.accept(timestamp, dewtaX, dewtaY);
 
-			const actual = classifier.isPhysicalMouseWheel();
-			assert.strictEqual(actual, true);
+			const actuaw = cwassifia.isPhysicawMouseWheew();
+			assewt.stwictEquaw(actuaw, twue);
 		}
 	});
 
-	test('Windows - Logitech physical wheel', () => {
-		const testData: IMouseWheelEvent[] = [
+	test('Windows - Wogitech physicaw wheew', () => {
+		const testData: IMouseWheewEvent[] = [
 			[1503418872930, -2, 0],
 			[1503418872952, -2, 0],
 			[1503418872969, -2, 0],
@@ -458,18 +458,18 @@ suite('MouseWheelClassifier', () => {
 			[1503418878181, -2, 0],
 		];
 
-		const classifier = new MouseWheelClassifier();
-		for (let i = 0, len = testData.length; i < len; i++) {
-			const [timestamp, deltaY, deltaX] = testData[i];
-			classifier.accept(timestamp, deltaX, deltaY);
+		const cwassifia = new MouseWheewCwassifia();
+		fow (wet i = 0, wen = testData.wength; i < wen; i++) {
+			const [timestamp, dewtaY, dewtaX] = testData[i];
+			cwassifia.accept(timestamp, dewtaX, dewtaY);
 
-			const actual = classifier.isPhysicalMouseWheel();
-			assert.strictEqual(actual, true);
+			const actuaw = cwassifia.isPhysicawMouseWheew();
+			assewt.stwictEquaw(actuaw, twue);
 		}
 	});
 
-	test('Windows - Microsoft basic v2 physical wheel', () => {
-		const testData: IMouseWheelEvent[] = [
+	test('Windows - Micwosoft basic v2 physicaw wheew', () => {
+		const testData: IMouseWheewEvent[] = [
 			[1503418994564, -2, 0],
 			[1503418994643, -2, 0],
 			[1503418994676, -2, 0],
@@ -512,13 +512,13 @@ suite('MouseWheelClassifier', () => {
 			[1503418997850, -2, 0],
 		];
 
-		const classifier = new MouseWheelClassifier();
-		for (let i = 0, len = testData.length; i < len; i++) {
-			const [timestamp, deltaY, deltaX] = testData[i];
-			classifier.accept(timestamp, deltaX, deltaY);
+		const cwassifia = new MouseWheewCwassifia();
+		fow (wet i = 0, wen = testData.wength; i < wen; i++) {
+			const [timestamp, dewtaY, dewtaX] = testData[i];
+			cwassifia.accept(timestamp, dewtaX, dewtaY);
 
-			const actual = classifier.isPhysicalMouseWheel();
-			assert.strictEqual(actual, true);
+			const actuaw = cwassifia.isPhysicawMouseWheew();
+			assewt.stwictEquaw(actuaw, twue);
 		}
 	});
 });

@@ -1,462 +1,462 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { asPromise } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorkspace';
-import { InputBox, InputBoxOptions, QuickInput, QuickInputButton, QuickPick, QuickPickItem, QuickPickItemButtonEvent, QuickPickOptions, WorkspaceFolder, WorkspaceFolderPickOptions } from 'vscode';
-import { ExtHostQuickOpenShape, IMainContext, MainContext, TransferQuickPickItems, TransferQuickInput, TransferQuickInputButton } from './extHost.protocol';
-import { URI } from 'vs/base/common/uri';
-import { ThemeIcon, QuickInputButtons } from 'vs/workbench/api/common/extHostTypes';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { coalesce } from 'vs/base/common/arrays';
-import Severity from 'vs/base/common/severity';
-import { ThemeIcon as ThemeIconUtils } from 'vs/platform/theme/common/themeService';
+impowt { asPwomise } fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { dispose, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ExtHostCommands } fwom 'vs/wowkbench/api/common/extHostCommands';
+impowt { IExtHostWowkspacePwovida } fwom 'vs/wowkbench/api/common/extHostWowkspace';
+impowt { InputBox, InputBoxOptions, QuickInput, QuickInputButton, QuickPick, QuickPickItem, QuickPickItemButtonEvent, QuickPickOptions, WowkspaceFowda, WowkspaceFowdewPickOptions } fwom 'vscode';
+impowt { ExtHostQuickOpenShape, IMainContext, MainContext, TwansfewQuickPickItems, TwansfewQuickInput, TwansfewQuickInputButton } fwom './extHost.pwotocow';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ThemeIcon, QuickInputButtons } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { isPwomiseCancewedEwwow } fwom 'vs/base/common/ewwows';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { coawesce } fwom 'vs/base/common/awways';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { ThemeIcon as ThemeIconUtiws } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export type Item = string | QuickPickItem;
+expowt type Item = stwing | QuickPickItem;
 
-export interface ExtHostQuickOpen {
-	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, enableProposedApi: boolean, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Promise<QuickPickItem[] | undefined>;
-	showQuickPick(itemsOrItemsPromise: string[] | Promise<string[]>, enableProposedApi: boolean, options?: QuickPickOptions, token?: CancellationToken): Promise<string | undefined>;
-	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, enableProposedApi: boolean, options?: QuickPickOptions, token?: CancellationToken): Promise<QuickPickItem | undefined>;
-	showQuickPick(itemsOrItemsPromise: Item[] | Promise<Item[]>, enableProposedApi: boolean, options?: QuickPickOptions, token?: CancellationToken): Promise<Item | Item[] | undefined>;
+expowt intewface ExtHostQuickOpen {
+	showQuickPick(itemsOwItemsPwomise: QuickPickItem[] | Pwomise<QuickPickItem[]>, enabwePwoposedApi: boowean, options: QuickPickOptions & { canPickMany: twue; }, token?: CancewwationToken): Pwomise<QuickPickItem[] | undefined>;
+	showQuickPick(itemsOwItemsPwomise: stwing[] | Pwomise<stwing[]>, enabwePwoposedApi: boowean, options?: QuickPickOptions, token?: CancewwationToken): Pwomise<stwing | undefined>;
+	showQuickPick(itemsOwItemsPwomise: QuickPickItem[] | Pwomise<QuickPickItem[]>, enabwePwoposedApi: boowean, options?: QuickPickOptions, token?: CancewwationToken): Pwomise<QuickPickItem | undefined>;
+	showQuickPick(itemsOwItemsPwomise: Item[] | Pwomise<Item[]>, enabwePwoposedApi: boowean, options?: QuickPickOptions, token?: CancewwationToken): Pwomise<Item | Item[] | undefined>;
 
-	showInput(options?: InputBoxOptions, token?: CancellationToken): Promise<string | undefined>;
+	showInput(options?: InputBoxOptions, token?: CancewwationToken): Pwomise<stwing | undefined>;
 
-	showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions, token?: CancellationToken): Promise<WorkspaceFolder | undefined>
+	showWowkspaceFowdewPick(options?: WowkspaceFowdewPickOptions, token?: CancewwationToken): Pwomise<WowkspaceFowda | undefined>
 
-	createQuickPick<T extends QuickPickItem>(extensionId: ExtensionIdentifier, enableProposedApi: boolean): QuickPick<T>;
+	cweateQuickPick<T extends QuickPickItem>(extensionId: ExtensionIdentifia, enabwePwoposedApi: boowean): QuickPick<T>;
 
-	createInputBox(extensionId: ExtensionIdentifier): InputBox;
+	cweateInputBox(extensionId: ExtensionIdentifia): InputBox;
 }
 
-export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IExtHostWorkspaceProvider, commands: ExtHostCommands): ExtHostQuickOpenShape & ExtHostQuickOpen {
-	const proxy = mainContext.getProxy(MainContext.MainThreadQuickOpen);
+expowt function cweateExtHostQuickOpen(mainContext: IMainContext, wowkspace: IExtHostWowkspacePwovida, commands: ExtHostCommands): ExtHostQuickOpenShape & ExtHostQuickOpen {
+	const pwoxy = mainContext.getPwoxy(MainContext.MainThweadQuickOpen);
 
-	class ExtHostQuickOpenImpl implements ExtHostQuickOpenShape {
+	cwass ExtHostQuickOpenImpw impwements ExtHostQuickOpenShape {
 
-		private _workspace: IExtHostWorkspaceProvider;
-		private _commands: ExtHostCommands;
+		pwivate _wowkspace: IExtHostWowkspacePwovida;
+		pwivate _commands: ExtHostCommands;
 
-		private _onDidSelectItem?: (handle: number) => void;
-		private _validateInput?: (input: string) => string | undefined | null | Thenable<string | undefined | null>;
+		pwivate _onDidSewectItem?: (handwe: numba) => void;
+		pwivate _vawidateInput?: (input: stwing) => stwing | undefined | nuww | Thenabwe<stwing | undefined | nuww>;
 
-		private _sessions = new Map<number, ExtHostQuickInput>();
+		pwivate _sessions = new Map<numba, ExtHostQuickInput>();
 
-		private _instances = 0;
+		pwivate _instances = 0;
 
-		constructor(workspace: IExtHostWorkspaceProvider, commands: ExtHostCommands) {
-			this._workspace = workspace;
+		constwuctow(wowkspace: IExtHostWowkspacePwovida, commands: ExtHostCommands) {
+			this._wowkspace = wowkspace;
 			this._commands = commands;
 		}
 
-		showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, enableProposedApi: boolean, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Promise<QuickPickItem[] | undefined>;
-		showQuickPick(itemsOrItemsPromise: string[] | Promise<string[]>, enableProposedApi: boolean, options?: QuickPickOptions, token?: CancellationToken): Promise<string | undefined>;
-		showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, enableProposedApi: boolean, options?: QuickPickOptions, token?: CancellationToken): Promise<QuickPickItem | undefined>;
-		showQuickPick(itemsOrItemsPromise: Item[] | Promise<Item[]>, enableProposedApi: boolean, options?: QuickPickOptions, token: CancellationToken = CancellationToken.None): Promise<Item | Item[] | undefined> {
+		showQuickPick(itemsOwItemsPwomise: QuickPickItem[] | Pwomise<QuickPickItem[]>, enabwePwoposedApi: boowean, options: QuickPickOptions & { canPickMany: twue; }, token?: CancewwationToken): Pwomise<QuickPickItem[] | undefined>;
+		showQuickPick(itemsOwItemsPwomise: stwing[] | Pwomise<stwing[]>, enabwePwoposedApi: boowean, options?: QuickPickOptions, token?: CancewwationToken): Pwomise<stwing | undefined>;
+		showQuickPick(itemsOwItemsPwomise: QuickPickItem[] | Pwomise<QuickPickItem[]>, enabwePwoposedApi: boowean, options?: QuickPickOptions, token?: CancewwationToken): Pwomise<QuickPickItem | undefined>;
+		showQuickPick(itemsOwItemsPwomise: Item[] | Pwomise<Item[]>, enabwePwoposedApi: boowean, options?: QuickPickOptions, token: CancewwationToken = CancewwationToken.None): Pwomise<Item | Item[] | undefined> {
 
-			// clear state from last invocation
-			this._onDidSelectItem = undefined;
+			// cweaw state fwom wast invocation
+			this._onDidSewectItem = undefined;
 
-			const itemsPromise = <Promise<Item[]>>Promise.resolve(itemsOrItemsPromise);
+			const itemsPwomise = <Pwomise<Item[]>>Pwomise.wesowve(itemsOwItemsPwomise);
 
 			const instance = ++this._instances;
 
-			const quickPickWidget = proxy.$show(instance, {
-				title: options?.title,
-				placeHolder: options?.placeHolder,
-				matchOnDescription: options?.matchOnDescription,
-				matchOnDetail: options?.matchOnDetail,
-				ignoreFocusLost: options?.ignoreFocusOut,
+			const quickPickWidget = pwoxy.$show(instance, {
+				titwe: options?.titwe,
+				pwaceHowda: options?.pwaceHowda,
+				matchOnDescwiption: options?.matchOnDescwiption,
+				matchOnDetaiw: options?.matchOnDetaiw,
+				ignoweFocusWost: options?.ignoweFocusOut,
 				canPickMany: options?.canPickMany,
 			}, token);
 
-			const widgetClosedMarker = {};
-			const widgetClosedPromise = quickPickWidget.then(() => widgetClosedMarker);
+			const widgetCwosedMawka = {};
+			const widgetCwosedPwomise = quickPickWidget.then(() => widgetCwosedMawka);
 
-			return Promise.race([widgetClosedPromise, itemsPromise]).then(result => {
-				if (result === widgetClosedMarker) {
-					return undefined;
+			wetuwn Pwomise.wace([widgetCwosedPwomise, itemsPwomise]).then(wesuwt => {
+				if (wesuwt === widgetCwosedMawka) {
+					wetuwn undefined;
 				}
 
-				return itemsPromise.then(items => {
+				wetuwn itemsPwomise.then(items => {
 
-					const pickItems: TransferQuickPickItems[] = [];
-					for (let handle = 0; handle < items.length; handle++) {
+					const pickItems: TwansfewQuickPickItems[] = [];
+					fow (wet handwe = 0; handwe < items.wength; handwe++) {
 
-						const item = items[handle];
-						let label: string;
-						let description: string | undefined;
-						let detail: string | undefined;
-						let picked: boolean | undefined;
-						let alwaysShow: boolean | undefined;
+						const item = items[handwe];
+						wet wabew: stwing;
+						wet descwiption: stwing | undefined;
+						wet detaiw: stwing | undefined;
+						wet picked: boowean | undefined;
+						wet awwaysShow: boowean | undefined;
 
-						if (typeof item === 'string') {
-							label = item;
-						} else {
-							label = item.label;
-							description = item.description;
-							detail = item.detail;
+						if (typeof item === 'stwing') {
+							wabew = item;
+						} ewse {
+							wabew = item.wabew;
+							descwiption = item.descwiption;
+							detaiw = item.detaiw;
 							picked = item.picked;
-							alwaysShow = item.alwaysShow;
+							awwaysShow = item.awwaysShow;
 						}
 						pickItems.push({
-							label,
-							description,
-							handle,
-							detail,
+							wabew,
+							descwiption,
+							handwe,
+							detaiw,
 							picked,
-							alwaysShow
+							awwaysShow
 						});
 					}
 
-					// handle selection changes
-					if (options && typeof options.onDidSelectItem === 'function') {
-						this._onDidSelectItem = (handle) => {
-							options.onDidSelectItem!(items[handle]);
+					// handwe sewection changes
+					if (options && typeof options.onDidSewectItem === 'function') {
+						this._onDidSewectItem = (handwe) => {
+							options.onDidSewectItem!(items[handwe]);
 						};
 					}
 
 					// show items
-					proxy.$setItems(instance, pickItems);
+					pwoxy.$setItems(instance, pickItems);
 
-					return quickPickWidget.then(handle => {
-						if (typeof handle === 'number') {
-							return items[handle];
-						} else if (Array.isArray(handle)) {
-							return handle.map(h => items[h]);
+					wetuwn quickPickWidget.then(handwe => {
+						if (typeof handwe === 'numba') {
+							wetuwn items[handwe];
+						} ewse if (Awway.isAwway(handwe)) {
+							wetuwn handwe.map(h => items[h]);
 						}
-						return undefined;
+						wetuwn undefined;
 					});
 				});
-			}).then(undefined, err => {
-				if (isPromiseCanceledError(err)) {
-					return undefined;
+			}).then(undefined, eww => {
+				if (isPwomiseCancewedEwwow(eww)) {
+					wetuwn undefined;
 				}
 
-				proxy.$setError(instance, err);
+				pwoxy.$setEwwow(instance, eww);
 
-				return Promise.reject(err);
+				wetuwn Pwomise.weject(eww);
 			});
 		}
 
-		$onItemSelected(handle: number): void {
-			if (this._onDidSelectItem) {
-				this._onDidSelectItem(handle);
+		$onItemSewected(handwe: numba): void {
+			if (this._onDidSewectItem) {
+				this._onDidSewectItem(handwe);
 			}
 		}
 
 		// ---- input
 
-		showInput(options?: InputBoxOptions, token: CancellationToken = CancellationToken.None): Promise<string | undefined> {
+		showInput(options?: InputBoxOptions, token: CancewwationToken = CancewwationToken.None): Pwomise<stwing | undefined> {
 
-			// global validate fn used in callback below
-			this._validateInput = options ? options.validateInput : undefined;
+			// gwobaw vawidate fn used in cawwback bewow
+			this._vawidateInput = options ? options.vawidateInput : undefined;
 
-			return proxy.$input(options, typeof this._validateInput === 'function', token)
-				.then(undefined, err => {
-					if (isPromiseCanceledError(err)) {
-						return undefined;
+			wetuwn pwoxy.$input(options, typeof this._vawidateInput === 'function', token)
+				.then(undefined, eww => {
+					if (isPwomiseCancewedEwwow(eww)) {
+						wetuwn undefined;
 					}
 
-					return Promise.reject(err);
+					wetuwn Pwomise.weject(eww);
 				});
 		}
 
-		$validateInput(input: string): Promise<string | null | undefined> {
-			if (this._validateInput) {
-				return asPromise(() => this._validateInput!(input));
+		$vawidateInput(input: stwing): Pwomise<stwing | nuww | undefined> {
+			if (this._vawidateInput) {
+				wetuwn asPwomise(() => this._vawidateInput!(input));
 			}
-			return Promise.resolve(undefined);
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		// ---- workspace folder picker
+		// ---- wowkspace fowda picka
 
-		async showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions, token = CancellationToken.None): Promise<WorkspaceFolder | undefined> {
-			const selectedFolder = await this._commands.executeCommand<WorkspaceFolder>('_workbench.pickWorkspaceFolder', [options]);
-			if (!selectedFolder) {
-				return undefined;
+		async showWowkspaceFowdewPick(options?: WowkspaceFowdewPickOptions, token = CancewwationToken.None): Pwomise<WowkspaceFowda | undefined> {
+			const sewectedFowda = await this._commands.executeCommand<WowkspaceFowda>('_wowkbench.pickWowkspaceFowda', [options]);
+			if (!sewectedFowda) {
+				wetuwn undefined;
 			}
-			const workspaceFolders = await this._workspace.getWorkspaceFolders2();
-			if (!workspaceFolders) {
-				return undefined;
+			const wowkspaceFowdews = await this._wowkspace.getWowkspaceFowdews2();
+			if (!wowkspaceFowdews) {
+				wetuwn undefined;
 			}
-			return workspaceFolders.find(folder => folder.uri.toString() === selectedFolder.uri.toString());
+			wetuwn wowkspaceFowdews.find(fowda => fowda.uwi.toStwing() === sewectedFowda.uwi.toStwing());
 		}
 
 		// ---- QuickInput
 
-		createQuickPick<T extends QuickPickItem>(extensionId: ExtensionIdentifier, enableProposedApi: boolean): QuickPick<T> {
-			const session: ExtHostQuickPick<T> = new ExtHostQuickPick(extensionId, enableProposedApi, () => this._sessions.delete(session._id));
+		cweateQuickPick<T extends QuickPickItem>(extensionId: ExtensionIdentifia, enabwePwoposedApi: boowean): QuickPick<T> {
+			const session: ExtHostQuickPick<T> = new ExtHostQuickPick(extensionId, enabwePwoposedApi, () => this._sessions.dewete(session._id));
 			this._sessions.set(session._id, session);
-			return session;
+			wetuwn session;
 		}
 
-		createInputBox(extensionId: ExtensionIdentifier): InputBox {
-			const session: ExtHostInputBox = new ExtHostInputBox(extensionId, () => this._sessions.delete(session._id));
+		cweateInputBox(extensionId: ExtensionIdentifia): InputBox {
+			const session: ExtHostInputBox = new ExtHostInputBox(extensionId, () => this._sessions.dewete(session._id));
 			this._sessions.set(session._id, session);
-			return session;
+			wetuwn session;
 		}
 
-		$onDidChangeValue(sessionId: number, value: string): void {
+		$onDidChangeVawue(sessionId: numba, vawue: stwing): void {
 			const session = this._sessions.get(sessionId);
 			if (session) {
-				session._fireDidChangeValue(value);
+				session._fiweDidChangeVawue(vawue);
 			}
 		}
 
-		$onDidAccept(sessionId: number): void {
+		$onDidAccept(sessionId: numba): void {
 			const session = this._sessions.get(sessionId);
 			if (session) {
-				session._fireDidAccept();
+				session._fiweDidAccept();
 			}
 		}
 
-		$onDidChangeActive(sessionId: number, handles: number[]): void {
+		$onDidChangeActive(sessionId: numba, handwes: numba[]): void {
 			const session = this._sessions.get(sessionId);
 			if (session instanceof ExtHostQuickPick) {
-				session._fireDidChangeActive(handles);
+				session._fiweDidChangeActive(handwes);
 			}
 		}
 
-		$onDidChangeSelection(sessionId: number, handles: number[]): void {
+		$onDidChangeSewection(sessionId: numba, handwes: numba[]): void {
 			const session = this._sessions.get(sessionId);
 			if (session instanceof ExtHostQuickPick) {
-				session._fireDidChangeSelection(handles);
+				session._fiweDidChangeSewection(handwes);
 			}
 		}
 
-		$onDidTriggerButton(sessionId: number, handle: number): void {
+		$onDidTwiggewButton(sessionId: numba, handwe: numba): void {
 			const session = this._sessions.get(sessionId);
 			if (session) {
-				session._fireDidTriggerButton(handle);
+				session._fiweDidTwiggewButton(handwe);
 			}
 		}
 
-		$onDidTriggerItemButton(sessionId: number, itemHandle: number, buttonHandle: number): void {
+		$onDidTwiggewItemButton(sessionId: numba, itemHandwe: numba, buttonHandwe: numba): void {
 			const session = this._sessions.get(sessionId);
 			if (session instanceof ExtHostQuickPick) {
-				session._fireDidTriggerItemButton(itemHandle, buttonHandle);
+				session._fiweDidTwiggewItemButton(itemHandwe, buttonHandwe);
 			}
 		}
 
-		$onDidHide(sessionId: number): void {
+		$onDidHide(sessionId: numba): void {
 			const session = this._sessions.get(sessionId);
 			if (session) {
-				session._fireDidHide();
+				session._fiweDidHide();
 			}
 		}
 	}
 
-	class ExtHostQuickInput implements QuickInput {
+	cwass ExtHostQuickInput impwements QuickInput {
 
-		private static _nextId = 1;
+		pwivate static _nextId = 1;
 		_id = ExtHostQuickPick._nextId++;
 
-		private _title: string | undefined;
-		private _steps: number | undefined;
-		private _totalSteps: number | undefined;
-		private _visible = false;
-		private _expectingHide = false;
-		private _enabled = true;
-		private _busy = false;
-		private _ignoreFocusOut = true;
-		private _value = '';
-		private _placeholder: string | undefined;
-		private _buttons: QuickInputButton[] = [];
-		private _handlesToButtons = new Map<number, QuickInputButton>();
-		private readonly _onDidAcceptEmitter = new Emitter<void>();
-		private readonly _onDidChangeValueEmitter = new Emitter<string>();
-		private readonly _onDidTriggerButtonEmitter = new Emitter<QuickInputButton>();
-		private readonly _onDidHideEmitter = new Emitter<void>();
-		private _updateTimeout: any;
-		private _pendingUpdate: TransferQuickInput = { id: this._id };
+		pwivate _titwe: stwing | undefined;
+		pwivate _steps: numba | undefined;
+		pwivate _totawSteps: numba | undefined;
+		pwivate _visibwe = fawse;
+		pwivate _expectingHide = fawse;
+		pwivate _enabwed = twue;
+		pwivate _busy = fawse;
+		pwivate _ignoweFocusOut = twue;
+		pwivate _vawue = '';
+		pwivate _pwacehowda: stwing | undefined;
+		pwivate _buttons: QuickInputButton[] = [];
+		pwivate _handwesToButtons = new Map<numba, QuickInputButton>();
+		pwivate weadonwy _onDidAcceptEmitta = new Emitta<void>();
+		pwivate weadonwy _onDidChangeVawueEmitta = new Emitta<stwing>();
+		pwivate weadonwy _onDidTwiggewButtonEmitta = new Emitta<QuickInputButton>();
+		pwivate weadonwy _onDidHideEmitta = new Emitta<void>();
+		pwivate _updateTimeout: any;
+		pwivate _pendingUpdate: TwansfewQuickInput = { id: this._id };
 
-		private _disposed = false;
-		protected _disposables: IDisposable[] = [
-			this._onDidTriggerButtonEmitter,
-			this._onDidHideEmitter,
-			this._onDidAcceptEmitter,
-			this._onDidChangeValueEmitter
+		pwivate _disposed = fawse;
+		pwotected _disposabwes: IDisposabwe[] = [
+			this._onDidTwiggewButtonEmitta,
+			this._onDidHideEmitta,
+			this._onDidAcceptEmitta,
+			this._onDidChangeVawueEmitta
 		];
 
-		constructor(protected _extensionId: ExtensionIdentifier, private _onDidDispose: () => void) {
+		constwuctow(pwotected _extensionId: ExtensionIdentifia, pwivate _onDidDispose: () => void) {
 		}
 
-		get title() {
-			return this._title;
+		get titwe() {
+			wetuwn this._titwe;
 		}
 
-		set title(title: string | undefined) {
-			this._title = title;
-			this.update({ title });
+		set titwe(titwe: stwing | undefined) {
+			this._titwe = titwe;
+			this.update({ titwe });
 		}
 
 		get step() {
-			return this._steps;
+			wetuwn this._steps;
 		}
 
-		set step(step: number | undefined) {
+		set step(step: numba | undefined) {
 			this._steps = step;
 			this.update({ step });
 		}
 
-		get totalSteps() {
-			return this._totalSteps;
+		get totawSteps() {
+			wetuwn this._totawSteps;
 		}
 
-		set totalSteps(totalSteps: number | undefined) {
-			this._totalSteps = totalSteps;
-			this.update({ totalSteps });
+		set totawSteps(totawSteps: numba | undefined) {
+			this._totawSteps = totawSteps;
+			this.update({ totawSteps });
 		}
 
-		get enabled() {
-			return this._enabled;
+		get enabwed() {
+			wetuwn this._enabwed;
 		}
 
-		set enabled(enabled: boolean) {
-			this._enabled = enabled;
-			this.update({ enabled });
+		set enabwed(enabwed: boowean) {
+			this._enabwed = enabwed;
+			this.update({ enabwed });
 		}
 
 		get busy() {
-			return this._busy;
+			wetuwn this._busy;
 		}
 
-		set busy(busy: boolean) {
+		set busy(busy: boowean) {
 			this._busy = busy;
 			this.update({ busy });
 		}
 
-		get ignoreFocusOut() {
-			return this._ignoreFocusOut;
+		get ignoweFocusOut() {
+			wetuwn this._ignoweFocusOut;
 		}
 
-		set ignoreFocusOut(ignoreFocusOut: boolean) {
-			this._ignoreFocusOut = ignoreFocusOut;
-			this.update({ ignoreFocusOut });
+		set ignoweFocusOut(ignoweFocusOut: boowean) {
+			this._ignoweFocusOut = ignoweFocusOut;
+			this.update({ ignoweFocusOut });
 		}
 
-		get value() {
-			return this._value;
+		get vawue() {
+			wetuwn this._vawue;
 		}
 
-		set value(value: string) {
-			this._value = value;
-			this.update({ value });
+		set vawue(vawue: stwing) {
+			this._vawue = vawue;
+			this.update({ vawue });
 		}
 
-		get placeholder() {
-			return this._placeholder;
+		get pwacehowda() {
+			wetuwn this._pwacehowda;
 		}
 
-		set placeholder(placeholder: string | undefined) {
-			this._placeholder = placeholder;
-			this.update({ placeholder });
+		set pwacehowda(pwacehowda: stwing | undefined) {
+			this._pwacehowda = pwacehowda;
+			this.update({ pwacehowda });
 		}
 
-		onDidChangeValue = this._onDidChangeValueEmitter.event;
+		onDidChangeVawue = this._onDidChangeVawueEmitta.event;
 
-		onDidAccept = this._onDidAcceptEmitter.event;
+		onDidAccept = this._onDidAcceptEmitta.event;
 
 		get buttons() {
-			return this._buttons;
+			wetuwn this._buttons;
 		}
 
 		set buttons(buttons: QuickInputButton[]) {
-			this._buttons = buttons.slice();
-			this._handlesToButtons.clear();
-			buttons.forEach((button, i) => {
-				const handle = button === QuickInputButtons.Back ? -1 : i;
-				this._handlesToButtons.set(handle, button);
+			this._buttons = buttons.swice();
+			this._handwesToButtons.cweaw();
+			buttons.fowEach((button, i) => {
+				const handwe = button === QuickInputButtons.Back ? -1 : i;
+				this._handwesToButtons.set(handwe, button);
 			});
 			this.update({
-				buttons: buttons.map<TransferQuickInputButton>((button, i) => {
-					return {
-						...getIconPathOrClass(button),
-						tooltip: button.tooltip,
-						handle: button === QuickInputButtons.Back ? -1 : i,
+				buttons: buttons.map<TwansfewQuickInputButton>((button, i) => {
+					wetuwn {
+						...getIconPathOwCwass(button),
+						toowtip: button.toowtip,
+						handwe: button === QuickInputButtons.Back ? -1 : i,
 					};
 				})
 			});
 		}
 
-		onDidTriggerButton = this._onDidTriggerButtonEmitter.event;
+		onDidTwiggewButton = this._onDidTwiggewButtonEmitta.event;
 
 		show(): void {
-			this._visible = true;
-			this._expectingHide = true;
-			this.update({ visible: true });
+			this._visibwe = twue;
+			this._expectingHide = twue;
+			this.update({ visibwe: twue });
 		}
 
 		hide(): void {
-			this._visible = false;
-			this.update({ visible: false });
+			this._visibwe = fawse;
+			this.update({ visibwe: fawse });
 		}
 
-		onDidHide = this._onDidHideEmitter.event;
+		onDidHide = this._onDidHideEmitta.event;
 
-		_fireDidAccept() {
-			this._onDidAcceptEmitter.fire();
+		_fiweDidAccept() {
+			this._onDidAcceptEmitta.fiwe();
 		}
 
-		_fireDidChangeValue(value: string) {
-			this._value = value;
-			this._onDidChangeValueEmitter.fire(value);
+		_fiweDidChangeVawue(vawue: stwing) {
+			this._vawue = vawue;
+			this._onDidChangeVawueEmitta.fiwe(vawue);
 		}
 
-		_fireDidTriggerButton(handle: number) {
-			const button = this._handlesToButtons.get(handle);
+		_fiweDidTwiggewButton(handwe: numba) {
+			const button = this._handwesToButtons.get(handwe);
 			if (button) {
-				this._onDidTriggerButtonEmitter.fire(button);
+				this._onDidTwiggewButtonEmitta.fiwe(button);
 			}
 		}
 
-		_fireDidHide() {
+		_fiweDidHide() {
 			if (this._expectingHide) {
-				this._expectingHide = false;
-				this._onDidHideEmitter.fire();
+				this._expectingHide = fawse;
+				this._onDidHideEmitta.fiwe();
 			}
 		}
 
 		dispose(): void {
 			if (this._disposed) {
-				return;
+				wetuwn;
 			}
-			this._disposed = true;
-			this._fireDidHide();
-			this._disposables = dispose(this._disposables);
+			this._disposed = twue;
+			this._fiweDidHide();
+			this._disposabwes = dispose(this._disposabwes);
 			if (this._updateTimeout) {
-				clearTimeout(this._updateTimeout);
+				cweawTimeout(this._updateTimeout);
 				this._updateTimeout = undefined;
 			}
 			this._onDidDispose();
-			proxy.$dispose(this._id);
+			pwoxy.$dispose(this._id);
 		}
 
-		protected update(properties: Record<string, any>): void {
+		pwotected update(pwopewties: Wecowd<stwing, any>): void {
 			if (this._disposed) {
-				return;
+				wetuwn;
 			}
-			for (const key of Object.keys(properties)) {
-				const value = properties[key];
-				this._pendingUpdate[key] = value === undefined ? null : value;
+			fow (const key of Object.keys(pwopewties)) {
+				const vawue = pwopewties[key];
+				this._pendingUpdate[key] = vawue === undefined ? nuww : vawue;
 			}
 
-			if ('visible' in this._pendingUpdate) {
+			if ('visibwe' in this._pendingUpdate) {
 				if (this._updateTimeout) {
-					clearTimeout(this._updateTimeout);
+					cweawTimeout(this._updateTimeout);
 					this._updateTimeout = undefined;
 				}
 				this.dispatchUpdate();
-			} else if (this._visible && !this._updateTimeout) {
-				// Defer the update so that multiple changes to setters dont cause a redraw each
+			} ewse if (this._visibwe && !this._updateTimeout) {
+				// Defa the update so that muwtipwe changes to settews dont cause a wedwaw each
 				this._updateTimeout = setTimeout(() => {
 					this._updateTimeout = undefined;
 					this.dispatchUpdate();
@@ -464,102 +464,102 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			}
 		}
 
-		private dispatchUpdate() {
-			proxy.$createOrUpdate(this._pendingUpdate);
+		pwivate dispatchUpdate() {
+			pwoxy.$cweateOwUpdate(this._pendingUpdate);
 			this._pendingUpdate = { id: this._id };
 		}
 	}
 
-	function getIconUris(iconPath: QuickInputButton['iconPath']): { dark: URI, light?: URI } | { id: string } {
+	function getIconUwis(iconPath: QuickInputButton['iconPath']): { dawk: UWI, wight?: UWI } | { id: stwing } {
 		if (iconPath instanceof ThemeIcon) {
-			return { id: iconPath.id };
+			wetuwn { id: iconPath.id };
 		}
-		const dark = getDarkIconUri(iconPath as URI | { light: URI; dark: URI; });
-		const light = getLightIconUri(iconPath as URI | { light: URI; dark: URI; });
-		// Tolerate strings: https://github.com/microsoft/vscode/issues/110432#issuecomment-726144556
-		return {
-			dark: typeof dark === 'string' ? URI.file(dark) : dark,
-			light: typeof light === 'string' ? URI.file(light) : light
+		const dawk = getDawkIconUwi(iconPath as UWI | { wight: UWI; dawk: UWI; });
+		const wight = getWightIconUwi(iconPath as UWI | { wight: UWI; dawk: UWI; });
+		// Towewate stwings: https://github.com/micwosoft/vscode/issues/110432#issuecomment-726144556
+		wetuwn {
+			dawk: typeof dawk === 'stwing' ? UWI.fiwe(dawk) : dawk,
+			wight: typeof wight === 'stwing' ? UWI.fiwe(wight) : wight
 		};
 	}
 
-	function getLightIconUri(iconPath: URI | { light: URI; dark: URI; }) {
-		return typeof iconPath === 'object' && 'light' in iconPath ? iconPath.light : iconPath;
+	function getWightIconUwi(iconPath: UWI | { wight: UWI; dawk: UWI; }) {
+		wetuwn typeof iconPath === 'object' && 'wight' in iconPath ? iconPath.wight : iconPath;
 	}
 
-	function getDarkIconUri(iconPath: URI | { light: URI; dark: URI; }) {
-		return typeof iconPath === 'object' && 'dark' in iconPath ? iconPath.dark : iconPath;
+	function getDawkIconUwi(iconPath: UWI | { wight: UWI; dawk: UWI; }) {
+		wetuwn typeof iconPath === 'object' && 'dawk' in iconPath ? iconPath.dawk : iconPath;
 	}
 
-	function getIconPathOrClass(button: QuickInputButton) {
-		const iconPathOrIconClass = getIconUris(button.iconPath);
-		let iconPath: { dark: URI; light?: URI | undefined; } | undefined;
-		let iconClass: string | undefined;
-		if ('id' in iconPathOrIconClass) {
-			iconClass = ThemeIconUtils.asClassName(iconPathOrIconClass);
-		} else {
-			iconPath = iconPathOrIconClass;
+	function getIconPathOwCwass(button: QuickInputButton) {
+		const iconPathOwIconCwass = getIconUwis(button.iconPath);
+		wet iconPath: { dawk: UWI; wight?: UWI | undefined; } | undefined;
+		wet iconCwass: stwing | undefined;
+		if ('id' in iconPathOwIconCwass) {
+			iconCwass = ThemeIconUtiws.asCwassName(iconPathOwIconCwass);
+		} ewse {
+			iconPath = iconPathOwIconCwass;
 		}
 
-		return {
+		wetuwn {
 			iconPath,
-			iconClass
+			iconCwass
 		};
 	}
 
-	class ExtHostQuickPick<T extends QuickPickItem> extends ExtHostQuickInput implements QuickPick<T> {
+	cwass ExtHostQuickPick<T extends QuickPickItem> extends ExtHostQuickInput impwements QuickPick<T> {
 
-		private _items: T[] = [];
-		private _handlesToItems = new Map<number, T>();
-		private _itemsToHandles = new Map<T, number>();
-		private _canSelectMany = false;
-		private _matchOnDescription = true;
-		private _matchOnDetail = true;
-		private _sortByLabel = true;
-		private _keepScrollPosition = false;
-		private _activeItems: T[] = [];
-		private readonly _onDidChangeActiveEmitter = new Emitter<T[]>();
-		private _selectedItems: T[] = [];
-		private readonly _onDidChangeSelectionEmitter = new Emitter<T[]>();
-		private readonly _onDidTriggerItemButtonEmitter = new Emitter<QuickPickItemButtonEvent<T>>();
+		pwivate _items: T[] = [];
+		pwivate _handwesToItems = new Map<numba, T>();
+		pwivate _itemsToHandwes = new Map<T, numba>();
+		pwivate _canSewectMany = fawse;
+		pwivate _matchOnDescwiption = twue;
+		pwivate _matchOnDetaiw = twue;
+		pwivate _sowtByWabew = twue;
+		pwivate _keepScwowwPosition = fawse;
+		pwivate _activeItems: T[] = [];
+		pwivate weadonwy _onDidChangeActiveEmitta = new Emitta<T[]>();
+		pwivate _sewectedItems: T[] = [];
+		pwivate weadonwy _onDidChangeSewectionEmitta = new Emitta<T[]>();
+		pwivate weadonwy _onDidTwiggewItemButtonEmitta = new Emitta<QuickPickItemButtonEvent<T>>();
 
-		constructor(extensionId: ExtensionIdentifier, private readonly enableProposedApi: boolean, onDispose: () => void) {
-			super(extensionId, onDispose);
-			this._disposables.push(
-				this._onDidChangeActiveEmitter,
-				this._onDidChangeSelectionEmitter,
-				this._onDidTriggerItemButtonEmitter
+		constwuctow(extensionId: ExtensionIdentifia, pwivate weadonwy enabwePwoposedApi: boowean, onDispose: () => void) {
+			supa(extensionId, onDispose);
+			this._disposabwes.push(
+				this._onDidChangeActiveEmitta,
+				this._onDidChangeSewectionEmitta,
+				this._onDidTwiggewItemButtonEmitta
 			);
 			this.update({ type: 'quickPick' });
 		}
 
 		get items() {
-			return this._items;
+			wetuwn this._items;
 		}
 
 		set items(items: T[]) {
-			this._items = items.slice();
-			this._handlesToItems.clear();
-			this._itemsToHandles.clear();
-			items.forEach((item, i) => {
-				this._handlesToItems.set(i, item);
-				this._itemsToHandles.set(item, i);
+			this._items = items.swice();
+			this._handwesToItems.cweaw();
+			this._itemsToHandwes.cweaw();
+			items.fowEach((item, i) => {
+				this._handwesToItems.set(i, item);
+				this._itemsToHandwes.set(item, i);
 			});
 			this.update({
 				items: items.map((item, i) => ({
-					label: item.label,
-					description: item.description,
-					handle: i,
-					detail: item.detail,
+					wabew: item.wabew,
+					descwiption: item.descwiption,
+					handwe: i,
+					detaiw: item.detaiw,
 					picked: item.picked,
-					alwaysShow: item.alwaysShow,
-					// Proposed API only at the moment
-					buttons: item.buttons && this.enableProposedApi
-						? item.buttons.map<TransferQuickInputButton>((button, i) => {
-							return {
-								...getIconPathOrClass(button),
-								tooltip: button.tooltip,
-								handle: i
+					awwaysShow: item.awwaysShow,
+					// Pwoposed API onwy at the moment
+					buttons: item.buttons && this.enabwePwoposedApi
+						? item.buttons.map<TwansfewQuickInputButton>((button, i) => {
+							wetuwn {
+								...getIconPathOwCwass(button),
+								toowtip: button.toowtip,
+								handwe: i
 							};
 						})
 						: undefined,
@@ -567,95 +567,95 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			});
 		}
 
-		get canSelectMany() {
-			return this._canSelectMany;
+		get canSewectMany() {
+			wetuwn this._canSewectMany;
 		}
 
-		set canSelectMany(canSelectMany: boolean) {
-			this._canSelectMany = canSelectMany;
-			this.update({ canSelectMany });
+		set canSewectMany(canSewectMany: boowean) {
+			this._canSewectMany = canSewectMany;
+			this.update({ canSewectMany });
 		}
 
-		get matchOnDescription() {
-			return this._matchOnDescription;
+		get matchOnDescwiption() {
+			wetuwn this._matchOnDescwiption;
 		}
 
-		set matchOnDescription(matchOnDescription: boolean) {
-			this._matchOnDescription = matchOnDescription;
-			this.update({ matchOnDescription });
+		set matchOnDescwiption(matchOnDescwiption: boowean) {
+			this._matchOnDescwiption = matchOnDescwiption;
+			this.update({ matchOnDescwiption });
 		}
 
-		get matchOnDetail() {
-			return this._matchOnDetail;
+		get matchOnDetaiw() {
+			wetuwn this._matchOnDetaiw;
 		}
 
-		set matchOnDetail(matchOnDetail: boolean) {
-			this._matchOnDetail = matchOnDetail;
-			this.update({ matchOnDetail });
+		set matchOnDetaiw(matchOnDetaiw: boowean) {
+			this._matchOnDetaiw = matchOnDetaiw;
+			this.update({ matchOnDetaiw });
 		}
 
-		get sortByLabel() {
-			return this._sortByLabel;
+		get sowtByWabew() {
+			wetuwn this._sowtByWabew;
 		}
 
-		set sortByLabel(sortByLabel: boolean) {
-			this._sortByLabel = sortByLabel;
-			this.update({ sortByLabel });
+		set sowtByWabew(sowtByWabew: boowean) {
+			this._sowtByWabew = sowtByWabew;
+			this.update({ sowtByWabew });
 		}
 
-		get keepScrollPosition() {
-			return this._keepScrollPosition;
+		get keepScwowwPosition() {
+			wetuwn this._keepScwowwPosition;
 		}
 
-		set keepScrollPosition(keepScrollPosition: boolean) {
-			this._keepScrollPosition = keepScrollPosition;
-			this.update({ keepScrollPosition });
+		set keepScwowwPosition(keepScwowwPosition: boowean) {
+			this._keepScwowwPosition = keepScwowwPosition;
+			this.update({ keepScwowwPosition });
 		}
 
 		get activeItems() {
-			return this._activeItems;
+			wetuwn this._activeItems;
 		}
 
 		set activeItems(activeItems: T[]) {
-			this._activeItems = activeItems.filter(item => this._itemsToHandles.has(item));
-			this.update({ activeItems: this._activeItems.map(item => this._itemsToHandles.get(item)) });
+			this._activeItems = activeItems.fiwta(item => this._itemsToHandwes.has(item));
+			this.update({ activeItems: this._activeItems.map(item => this._itemsToHandwes.get(item)) });
 		}
 
-		onDidChangeActive = this._onDidChangeActiveEmitter.event;
+		onDidChangeActive = this._onDidChangeActiveEmitta.event;
 
-		get selectedItems() {
-			return this._selectedItems;
+		get sewectedItems() {
+			wetuwn this._sewectedItems;
 		}
 
-		set selectedItems(selectedItems: T[]) {
-			this._selectedItems = selectedItems.filter(item => this._itemsToHandles.has(item));
-			this.update({ selectedItems: this._selectedItems.map(item => this._itemsToHandles.get(item)) });
+		set sewectedItems(sewectedItems: T[]) {
+			this._sewectedItems = sewectedItems.fiwta(item => this._itemsToHandwes.has(item));
+			this.update({ sewectedItems: this._sewectedItems.map(item => this._itemsToHandwes.get(item)) });
 		}
 
-		onDidChangeSelection = this._onDidChangeSelectionEmitter.event;
+		onDidChangeSewection = this._onDidChangeSewectionEmitta.event;
 
-		_fireDidChangeActive(handles: number[]) {
-			const items = coalesce(handles.map(handle => this._handlesToItems.get(handle)));
+		_fiweDidChangeActive(handwes: numba[]) {
+			const items = coawesce(handwes.map(handwe => this._handwesToItems.get(handwe)));
 			this._activeItems = items;
-			this._onDidChangeActiveEmitter.fire(items);
+			this._onDidChangeActiveEmitta.fiwe(items);
 		}
 
-		_fireDidChangeSelection(handles: number[]) {
-			const items = coalesce(handles.map(handle => this._handlesToItems.get(handle)));
-			this._selectedItems = items;
-			this._onDidChangeSelectionEmitter.fire(items);
+		_fiweDidChangeSewection(handwes: numba[]) {
+			const items = coawesce(handwes.map(handwe => this._handwesToItems.get(handwe)));
+			this._sewectedItems = items;
+			this._onDidChangeSewectionEmitta.fiwe(items);
 		}
 
-		onDidTriggerItemButton = this._onDidTriggerItemButtonEmitter.event;
+		onDidTwiggewItemButton = this._onDidTwiggewItemButtonEmitta.event;
 
-		_fireDidTriggerItemButton(itemHandle: number, buttonHandle: number) {
-			const item = this._handlesToItems.get(itemHandle)!;
-			if (!item || !item.buttons || !item.buttons.length) {
-				return;
+		_fiweDidTwiggewItemButton(itemHandwe: numba, buttonHandwe: numba) {
+			const item = this._handwesToItems.get(itemHandwe)!;
+			if (!item || !item.buttons || !item.buttons.wength) {
+				wetuwn;
 			}
-			const button = item.buttons[buttonHandle];
+			const button = item.buttons[buttonHandwe];
 			if (button) {
-				this._onDidTriggerItemButtonEmitter.fire({
+				this._onDidTwiggewItemButtonEmitta.fiwe({
 					button,
 					item
 				});
@@ -663,44 +663,44 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		}
 	}
 
-	class ExtHostInputBox extends ExtHostQuickInput implements InputBox {
+	cwass ExtHostInputBox extends ExtHostQuickInput impwements InputBox {
 
-		private _password = false;
-		private _prompt: string | undefined;
-		private _validationMessage: string | undefined;
+		pwivate _passwowd = fawse;
+		pwivate _pwompt: stwing | undefined;
+		pwivate _vawidationMessage: stwing | undefined;
 
-		constructor(extensionId: ExtensionIdentifier, onDispose: () => void) {
-			super(extensionId, onDispose);
+		constwuctow(extensionId: ExtensionIdentifia, onDispose: () => void) {
+			supa(extensionId, onDispose);
 			this.update({ type: 'inputBox' });
 		}
 
-		get password() {
-			return this._password;
+		get passwowd() {
+			wetuwn this._passwowd;
 		}
 
-		set password(password: boolean) {
-			this._password = password;
-			this.update({ password });
+		set passwowd(passwowd: boowean) {
+			this._passwowd = passwowd;
+			this.update({ passwowd });
 		}
 
-		get prompt() {
-			return this._prompt;
+		get pwompt() {
+			wetuwn this._pwompt;
 		}
 
-		set prompt(prompt: string | undefined) {
-			this._prompt = prompt;
-			this.update({ prompt });
+		set pwompt(pwompt: stwing | undefined) {
+			this._pwompt = pwompt;
+			this.update({ pwompt });
 		}
 
-		get validationMessage() {
-			return this._validationMessage;
+		get vawidationMessage() {
+			wetuwn this._vawidationMessage;
 		}
 
-		set validationMessage(validationMessage: string | undefined) {
-			this._validationMessage = validationMessage;
-			this.update({ validationMessage, severity: validationMessage ? Severity.Error : Severity.Ignore });
+		set vawidationMessage(vawidationMessage: stwing | undefined) {
+			this._vawidationMessage = vawidationMessage;
+			this.update({ vawidationMessage, sevewity: vawidationMessage ? Sevewity.Ewwow : Sevewity.Ignowe });
 		}
 	}
 
-	return new ExtHostQuickOpenImpl(workspace, commands);
+	wetuwn new ExtHostQuickOpenImpw(wowkspace, commands);
 }

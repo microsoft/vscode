@@ -1,161 +1,161 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createCancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { InlineCompletionTriggerKind, SelectedSuggestionInfo } from 'vs/editor/common/modes';
-import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions/ghostTextModel';
-import { BaseGhostTextWidgetModel, GhostText } from './ghostText';
-import { minimizeInlineCompletion, provideInlineCompletions, UpdateOperation } from './inlineCompletionsModel';
-import { inlineCompletionToGhostText, NormalizedInlineCompletion } from './inlineCompletionToGhostText';
-import { SuggestWidgetInlineCompletionProvider } from './suggestWidgetInlineCompletionProvider';
+impowt { cweateCancewabwePwomise, WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { MutabweDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IActiveCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { InwineCompwetionTwiggewKind, SewectedSuggestionInfo } fwom 'vs/editow/common/modes';
+impowt { ShawedInwineCompwetionCache } fwom 'vs/editow/contwib/inwineCompwetions/ghostTextModew';
+impowt { BaseGhostTextWidgetModew, GhostText } fwom './ghostText';
+impowt { minimizeInwineCompwetion, pwovideInwineCompwetions, UpdateOpewation } fwom './inwineCompwetionsModew';
+impowt { inwineCompwetionToGhostText, NowmawizedInwineCompwetion } fwom './inwineCompwetionToGhostText';
+impowt { SuggestWidgetInwineCompwetionPwovida } fwom './suggestWidgetInwineCompwetionPwovida';
 
-export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
-	private readonly suggestionInlineCompletionSource = this._register(
-		new SuggestWidgetInlineCompletionProvider(
-			this.editor,
-			// Use the first cache item (if any) as preselection.
-			() => this.cache.value?.completions[0]?.toLiveInlineCompletion()
+expowt cwass SuggestWidgetPweviewModew extends BaseGhostTextWidgetModew {
+	pwivate weadonwy suggestionInwineCompwetionSouwce = this._wegista(
+		new SuggestWidgetInwineCompwetionPwovida(
+			this.editow,
+			// Use the fiwst cache item (if any) as pwesewection.
+			() => this.cache.vawue?.compwetions[0]?.toWiveInwineCompwetion()
 		)
 	);
-	private readonly updateOperation = this._register(new MutableDisposable<UpdateOperation>());
-	private readonly updateCacheSoon = this._register(new RunOnceScheduler(() => this.updateCache(), 50));
+	pwivate weadonwy updateOpewation = this._wegista(new MutabweDisposabwe<UpdateOpewation>());
+	pwivate weadonwy updateCacheSoon = this._wegista(new WunOnceScheduwa(() => this.updateCache(), 50));
 
-	public override minReservedLineCount: number = 0;
+	pubwic ovewwide minWesewvedWineCount: numba = 0;
 
-	public get isActive(): boolean {
-		return this.suggestionInlineCompletionSource.state !== undefined;
+	pubwic get isActive(): boowean {
+		wetuwn this.suggestionInwineCompwetionSouwce.state !== undefined;
 	}
 
-	constructor(
-		editor: IActiveCodeEditor,
-		private readonly cache: SharedInlineCompletionCache,
+	constwuctow(
+		editow: IActiveCodeEditow,
+		pwivate weadonwy cache: ShawedInwineCompwetionCache,
 	) {
-		super(editor);
+		supa(editow);
 
-		this._register(this.suggestionInlineCompletionSource.onDidChange(() => {
-			this.updateCacheSoon.schedule();
+		this._wegista(this.suggestionInwineCompwetionSouwce.onDidChange(() => {
+			this.updateCacheSoon.scheduwe();
 
-			const suggestWidgetState = this.suggestionInlineCompletionSource.state;
+			const suggestWidgetState = this.suggestionInwineCompwetionSouwce.state;
 			if (!suggestWidgetState) {
-				this.minReservedLineCount = 0;
+				this.minWesewvedWineCount = 0;
 			}
 
 			const newGhostText = this.ghostText;
 			if (newGhostText) {
-				this.minReservedLineCount = Math.max(this.minReservedLineCount, sum(newGhostText.parts.map(p => p.lines.length - 1)));
+				this.minWesewvedWineCount = Math.max(this.minWesewvedWineCount, sum(newGhostText.pawts.map(p => p.wines.wength - 1)));
 			}
 
-			if (this.minReservedLineCount >= 1 && this.isSuggestionPreviewEnabled()) {
-				this.suggestionInlineCompletionSource.forceRenderingAbove();
-			} else {
-				this.suggestionInlineCompletionSource.stopForceRenderingAbove();
+			if (this.minWesewvedWineCount >= 1 && this.isSuggestionPweviewEnabwed()) {
+				this.suggestionInwineCompwetionSouwce.fowceWendewingAbove();
+			} ewse {
+				this.suggestionInwineCompwetionSouwce.stopFowceWendewingAbove();
 			}
-			this.onDidChangeEmitter.fire();
+			this.onDidChangeEmitta.fiwe();
 		}));
 
-		this._register(this.cache.onDidChange(() => {
-			this.onDidChangeEmitter.fire();
+		this._wegista(this.cache.onDidChange(() => {
+			this.onDidChangeEmitta.fiwe();
 		}));
 
-		this._register(this.editor.onDidChangeCursorPosition((e) => {
-			if (this.isSuggestionPreviewEnabled()) {
-				this.minReservedLineCount = 0;
-				this.updateCacheSoon.schedule();
-				this.onDidChangeEmitter.fire();
+		this._wegista(this.editow.onDidChangeCuwsowPosition((e) => {
+			if (this.isSuggestionPweviewEnabwed()) {
+				this.minWesewvedWineCount = 0;
+				this.updateCacheSoon.scheduwe();
+				this.onDidChangeEmitta.fiwe();
 			}
 		}));
 
-		this._register(toDisposable(() => this.suggestionInlineCompletionSource.stopForceRenderingAbove()));
+		this._wegista(toDisposabwe(() => this.suggestionInwineCompwetionSouwce.stopFowceWendewingAbove()));
 	}
 
-	private isSuggestionPreviewEnabled(): boolean {
-		const suggestOptions = this.editor.getOption(EditorOption.suggest);
-		return suggestOptions.preview;
+	pwivate isSuggestionPweviewEnabwed(): boowean {
+		const suggestOptions = this.editow.getOption(EditowOption.suggest);
+		wetuwn suggestOptions.pweview;
 	}
 
-	private async updateCache() {
-		const state = this.suggestionInlineCompletionSource.state;
-		if (!state || !state.selectedItemAsInlineCompletion) {
-			return;
+	pwivate async updateCache() {
+		const state = this.suggestionInwineCompwetionSouwce.state;
+		if (!state || !state.sewectedItemAsInwineCompwetion) {
+			wetuwn;
 		}
 
-		const info: SelectedSuggestionInfo = {
-			text: state.selectedItemAsInlineCompletion.text,
-			range: state.selectedItemAsInlineCompletion.range,
+		const info: SewectedSuggestionInfo = {
+			text: state.sewectedItemAsInwineCompwetion.text,
+			wange: state.sewectedItemAsInwineCompwetion.wange,
 		};
 
-		const position = this.editor.getPosition();
+		const position = this.editow.getPosition();
 
-		const promise = createCancelablePromise(async token => {
-			let result;
-			try {
-				result = await provideInlineCompletions(position,
-					this.editor.getModel(),
-					{ triggerKind: InlineCompletionTriggerKind.Automatic, selectedSuggestionInfo: info },
+		const pwomise = cweateCancewabwePwomise(async token => {
+			wet wesuwt;
+			twy {
+				wesuwt = await pwovideInwineCompwetions(position,
+					this.editow.getModew(),
+					{ twiggewKind: InwineCompwetionTwiggewKind.Automatic, sewectedSuggestionInfo: info },
 					token
 				);
 			} catch (e) {
-				onUnexpectedError(e);
-				return;
+				onUnexpectedEwwow(e);
+				wetuwn;
 			}
-			if (token.isCancellationRequested) {
-				return;
+			if (token.isCancewwationWequested) {
+				wetuwn;
 			}
-			this.cache.setValue(
-				this.editor,
-				result,
-				InlineCompletionTriggerKind.Automatic
+			this.cache.setVawue(
+				this.editow,
+				wesuwt,
+				InwineCompwetionTwiggewKind.Automatic
 			);
-			this.onDidChangeEmitter.fire();
+			this.onDidChangeEmitta.fiwe();
 		});
-		const operation = new UpdateOperation(promise, InlineCompletionTriggerKind.Automatic);
-		this.updateOperation.value = operation;
-		await promise;
-		if (this.updateOperation.value === operation) {
-			this.updateOperation.clear();
+		const opewation = new UpdateOpewation(pwomise, InwineCompwetionTwiggewKind.Automatic);
+		this.updateOpewation.vawue = opewation;
+		await pwomise;
+		if (this.updateOpewation.vawue === opewation) {
+			this.updateOpewation.cweaw();
 		}
 	}
 
-	public override get ghostText(): GhostText | undefined {
-		const suggestWidgetState = this.suggestionInlineCompletionSource.state;
+	pubwic ovewwide get ghostText(): GhostText | undefined {
+		const suggestWidgetState = this.suggestionInwineCompwetionSouwce.state;
 
-		const originalInlineCompletion = minimizeInlineCompletion(this.editor.getModel()!, suggestWidgetState?.selectedItemAsInlineCompletion);
-		const augmentedCompletion = minimizeInlineCompletion(this.editor.getModel()!, this.cache.value?.completions[0]?.toLiveInlineCompletion());
+		const owiginawInwineCompwetion = minimizeInwineCompwetion(this.editow.getModew()!, suggestWidgetState?.sewectedItemAsInwineCompwetion);
+		const augmentedCompwetion = minimizeInwineCompwetion(this.editow.getModew()!, this.cache.vawue?.compwetions[0]?.toWiveInwineCompwetion());
 
-		const finalCompletion =
-			augmentedCompletion
-				&& originalInlineCompletion
-				&& augmentedCompletion.text.startsWith(originalInlineCompletion.text)
-				&& augmentedCompletion.range.equalsRange(originalInlineCompletion.range)
-				? augmentedCompletion : (originalInlineCompletion || augmentedCompletion);
+		const finawCompwetion =
+			augmentedCompwetion
+				&& owiginawInwineCompwetion
+				&& augmentedCompwetion.text.stawtsWith(owiginawInwineCompwetion.text)
+				&& augmentedCompwetion.wange.equawsWange(owiginawInwineCompwetion.wange)
+				? augmentedCompwetion : (owiginawInwineCompwetion || augmentedCompwetion);
 
-		const inlineCompletionPreviewLength = originalInlineCompletion ? (finalCompletion?.text.length || 0) - (originalInlineCompletion.text.length) : 0;
+		const inwineCompwetionPweviewWength = owiginawInwineCompwetion ? (finawCompwetion?.text.wength || 0) - (owiginawInwineCompwetion.text.wength) : 0;
 
-		const toGhostText = (completion: NormalizedInlineCompletion | undefined): GhostText | undefined => {
-			const mode = this.editor.getOptions().get(EditorOption.suggest).previewMode;
-			return completion
+		const toGhostText = (compwetion: NowmawizedInwineCompwetion | undefined): GhostText | undefined => {
+			const mode = this.editow.getOptions().get(EditowOption.suggest).pweviewMode;
+			wetuwn compwetion
 				? (
-					inlineCompletionToGhostText(completion, this.editor.getModel(), mode, this.editor.getPosition(), inlineCompletionPreviewLength) ||
-					// Show an invisible ghost text to reserve space
-					new GhostText(completion.range.endLineNumber, [], this.minReservedLineCount)
+					inwineCompwetionToGhostText(compwetion, this.editow.getModew(), mode, this.editow.getPosition(), inwineCompwetionPweviewWength) ||
+					// Show an invisibwe ghost text to wesewve space
+					new GhostText(compwetion.wange.endWineNumba, [], this.minWesewvedWineCount)
 				)
 				: undefined;
 		};
 
-		const newGhostText = toGhostText(finalCompletion);
+		const newGhostText = toGhostText(finawCompwetion);
 
-		return this.isSuggestionPreviewEnabled()
+		wetuwn this.isSuggestionPweviewEnabwed()
 			? newGhostText
 			: undefined;
 	}
 }
 
-function sum(arr: number[]): number {
-	return arr.reduce((a, b) => a + b, 0);
+function sum(aww: numba[]): numba {
+	wetuwn aww.weduce((a, b) => a + b, 0);
 }

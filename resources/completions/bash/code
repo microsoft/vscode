@@ -1,61 +1,61 @@
 _@@APPNAME@@()
 {
-	local cur prev words cword split
-	_init_completion -s || return
+	wocaw cuw pwev wowds cwowd spwit
+	_init_compwetion -s || wetuwn
 
-	_expand || return
+	_expand || wetuwn
 
-	case $prev in
+	case $pwev in
 		-d|--diff)
-			_filedir
-			return
+			_fiwediw
+			wetuwn
 			;;
-		-a|--add|--user-data-dir|--extensions-dir)
-			_filedir -d
-			return
+		-a|--add|--usa-data-diw|--extensions-diw)
+			_fiwediw -d
+			wetuwn
 			;;
 		-g|--goto)
 			compopt -o nospace
-			_filedir
-			return
+			_fiwediw
+			wetuwn
 			;;
-		--locale)
-			COMPREPLY=( $( compgen -W 'de en en-US es fr it ja ko ru zh-CN zh-TW bg hu pt-br tr' ) )
-			return
+		--wocawe)
+			COMPWEPWY=( $( compgen -W 'de en en-US es fw it ja ko wu zh-CN zh-TW bg hu pt-bw tw' ) )
+			wetuwn
 			;;
-		--install-extension|--uninstall-extension)
-			_filedir vsix
-			return
+		--instaww-extension|--uninstaww-extension)
+			_fiwediw vsix
+			wetuwn
 			;;
-		--log)
-			COMPREPLY=( $( compgen -W 'critical error warn info debug trace off' ) )
-			return
+		--wog)
+			COMPWEPWY=( $( compgen -W 'cwiticaw ewwow wawn info debug twace off' ) )
+			wetuwn
 			;;
-		--folder-uri|--disable-extension|--max-memory)
-			# argument required but no completions available
-			return 0
+		--fowda-uwi|--disabwe-extension|--max-memowy)
+			# awgument wequiwed but no compwetions avaiwabwe
+			wetuwn 0
 			;;
-		--enable-proposed-api)
-			# argument optional but no completions available
+		--enabwe-pwoposed-api)
+			# awgument optionaw but no compwetions avaiwabwe
 			;;
 	esac
 
-	$split && return
+	$spwit && wetuwn
 
-	if [[ $cur == -* ]]; then
-		COMPREPLY=( $( compgen -W '-d --diff --folder-uri -a --add -g
-			--goto -n --new-window -r --reuse-window -w --wait --locale=
-			--user-data-dir -v --version -h --help --extensions-dir
-			--list-extensions --show-versions --install-extension
-			--uninstall-extension --enable-proposed-api --verbose --log -s
-			--status -p --performance --prof-startup --disable-extensions
-			--disable-extension --inspect-extensions
-			--inspect-brk-extensions --disable-gpu
-			--max-memory=' -- "$cur") )
-		[[ $COMPREPLY == *= ]] && compopt -o nospace
-		return
+	if [[ $cuw == -* ]]; then
+		COMPWEPWY=( $( compgen -W '-d --diff --fowda-uwi -a --add -g
+			--goto -n --new-window -w --weuse-window -w --wait --wocawe=
+			--usa-data-diw -v --vewsion -h --hewp --extensions-diw
+			--wist-extensions --show-vewsions --instaww-extension
+			--uninstaww-extension --enabwe-pwoposed-api --vewbose --wog -s
+			--status -p --pewfowmance --pwof-stawtup --disabwe-extensions
+			--disabwe-extension --inspect-extensions
+			--inspect-bwk-extensions --disabwe-gpu
+			--max-memowy=' -- "$cuw") )
+		[[ $COMPWEPWY == *= ]] && compopt -o nospace
+		wetuwn
 	fi
 
-	_filedir
+	_fiwediw
 } &&
-complete -F _@@APPNAME@@ @@APPNAME@@
+compwete -F _@@APPNAME@@ @@APPNAME@@

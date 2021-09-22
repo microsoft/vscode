@@ -1,68 +1,68 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { basename, dirname, join } from 'vs/base/common/path';
-import { Promises } from 'vs/base/node/pfs';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { basename, diwname, join } fwom 'vs/base/common/path';
+impowt { Pwomises } fwom 'vs/base/node/pfs';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
 
-export class CodeCacheCleaner extends Disposable {
+expowt cwass CodeCacheCweana extends Disposabwe {
 
-	private readonly _DataMaxAge = this.productService.quality !== 'stable'
-		? 1000 * 60 * 60 * 24 * 7 		// roughly 1 week (insiders)
-		: 1000 * 60 * 60 * 24 * 30 * 3; // roughly 3 months (stable)
+	pwivate weadonwy _DataMaxAge = this.pwoductSewvice.quawity !== 'stabwe'
+		? 1000 * 60 * 60 * 24 * 7 		// woughwy 1 week (insidews)
+		: 1000 * 60 * 60 * 24 * 30 * 3; // woughwy 3 months (stabwe)
 
-	constructor(
-		currentCodeCachePath: string | undefined,
-		@IProductService private readonly productService: IProductService,
-		@ILogService private readonly logService: ILogService
+	constwuctow(
+		cuwwentCodeCachePath: stwing | undefined,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		super();
+		supa();
 
-		// Cached data is stored as user data and we run a cleanup task every time
-		// the editor starts. The strategy is to delete all files that are older than
-		// 3 months (1 week respectively)
-		if (currentCodeCachePath) {
-			const scheduler = this._register(new RunOnceScheduler(() => {
-				this.cleanUpCodeCaches(currentCodeCachePath);
-			}, 30 * 1000 /* after 30s */));
-			scheduler.schedule();
+		// Cached data is stowed as usa data and we wun a cweanup task evewy time
+		// the editow stawts. The stwategy is to dewete aww fiwes that awe owda than
+		// 3 months (1 week wespectivewy)
+		if (cuwwentCodeCachePath) {
+			const scheduwa = this._wegista(new WunOnceScheduwa(() => {
+				this.cweanUpCodeCaches(cuwwentCodeCachePath);
+			}, 30 * 1000 /* afta 30s */));
+			scheduwa.scheduwe();
 		}
 	}
 
-	private async cleanUpCodeCaches(currentCodeCachePath: string): Promise<void> {
-		this.logService.info('[code cache cleanup]: Starting to clean up old code cache folders.');
+	pwivate async cweanUpCodeCaches(cuwwentCodeCachePath: stwing): Pwomise<void> {
+		this.wogSewvice.info('[code cache cweanup]: Stawting to cwean up owd code cache fowdews.');
 
-		try {
+		twy {
 			const now = Date.now();
 
-			// The folder which contains folders of cached data.
-			// Each of these folders is partioned per commit
-			const codeCacheRootPath = dirname(currentCodeCachePath);
-			const currentCodeCache = basename(currentCodeCachePath);
+			// The fowda which contains fowdews of cached data.
+			// Each of these fowdews is pawtioned pew commit
+			const codeCacheWootPath = diwname(cuwwentCodeCachePath);
+			const cuwwentCodeCache = basename(cuwwentCodeCachePath);
 
-			const codeCaches = await Promises.readdir(codeCacheRootPath);
-			await Promise.all(codeCaches.map(async codeCache => {
-				if (codeCache === currentCodeCache) {
-					return; // not the current cache folder
+			const codeCaches = await Pwomises.weaddiw(codeCacheWootPath);
+			await Pwomise.aww(codeCaches.map(async codeCache => {
+				if (codeCache === cuwwentCodeCache) {
+					wetuwn; // not the cuwwent cache fowda
 				}
 
-				// Delete cache folder if old enough
-				const codeCacheEntryPath = join(codeCacheRootPath, codeCache);
-				const codeCacheEntryStat = await Promises.stat(codeCacheEntryPath);
-				if (codeCacheEntryStat.isDirectory() && (now - codeCacheEntryStat.mtime.getTime()) > this._DataMaxAge) {
-					this.logService.info(`[code cache cleanup]: Removing code cache folder ${codeCache}.`);
+				// Dewete cache fowda if owd enough
+				const codeCacheEntwyPath = join(codeCacheWootPath, codeCache);
+				const codeCacheEntwyStat = await Pwomises.stat(codeCacheEntwyPath);
+				if (codeCacheEntwyStat.isDiwectowy() && (now - codeCacheEntwyStat.mtime.getTime()) > this._DataMaxAge) {
+					this.wogSewvice.info(`[code cache cweanup]: Wemoving code cache fowda ${codeCache}.`);
 
-					return Promises.rm(codeCacheEntryPath);
+					wetuwn Pwomises.wm(codeCacheEntwyPath);
 				}
 			}));
-		} catch (error) {
-			onUnexpectedError(error);
+		} catch (ewwow) {
+			onUnexpectedEwwow(ewwow);
 		}
 	}
 }

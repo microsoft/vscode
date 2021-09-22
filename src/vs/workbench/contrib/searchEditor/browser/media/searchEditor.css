@@ -1,175 +1,175 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.search-editor {
-	display: flex;
-	flex-direction: column;
+.seawch-editow {
+	dispway: fwex;
+	fwex-diwection: cowumn;
 }
 
-.search-editor .search-results {
-	flex: 1;
+.seawch-editow .seawch-wesuwts {
+	fwex: 1;
 }
 
-.search-editor .query-container {
-	margin: 0px 12px 12px 2px;
+.seawch-editow .quewy-containa {
+	mawgin: 0px 12px 12px 2px;
 	padding-top: 6px;
 }
 
-.search-editor .search-widget .toggle-replace-button {
-	position: absolute;
+.seawch-editow .seawch-widget .toggwe-wepwace-button {
+	position: absowute;
 	top: 0;
-	left: 0;
+	weft: 0;
 	width: 16px;
 	height: 100%;
-	box-sizing: border-box;
-	background-position: center center;
-	background-repeat: no-repeat;
-	cursor: pointer;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+	box-sizing: bowda-box;
+	backgwound-position: centa centa;
+	backgwound-wepeat: no-wepeat;
+	cuwsow: pointa;
+	dispway: fwex;
+	awign-items: centa;
+	justify-content: centa;
 }
 
-.search-editor .search-widget .search-container,
-.search-editor .search-widget .replace-container {
-	margin-left: 18px;
-	display: flex;
-	align-items: center;
+.seawch-editow .seawch-widget .seawch-containa,
+.seawch-editow .seawch-widget .wepwace-containa {
+	mawgin-weft: 18px;
+	dispway: fwex;
+	awign-items: centa;
 }
 
-.search-editor .search-widget .monaco-findInput {
-	display: inline-block;
-	vertical-align: middle;
+.seawch-editow .seawch-widget .monaco-findInput {
+	dispway: inwine-bwock;
+	vewticaw-awign: middwe;
 	width: 100%;
 }
 
-.search-editor .search-widget .monaco-inputbox > .ibwrapper {
+.seawch-editow .seawch-widget .monaco-inputbox > .ibwwappa {
 	height: 100%;
 }
 
-.search-editor .search-widget .monaco-inputbox > .ibwrapper > .mirror,
-.search-editor .search-widget .monaco-inputbox > .ibwrapper > textarea.input {
+.seawch-editow .seawch-widget .monaco-inputbox > .ibwwappa > .miwwow,
+.seawch-editow .seawch-widget .monaco-inputbox > .ibwwappa > textawea.input {
 	padding: 3px;
-	padding-left: 4px;
+	padding-weft: 4px;
 }
 
-.search-editor .search-widget .monaco-inputbox > .ibwrapper > .mirror {
+.seawch-editow .seawch-widget .monaco-inputbox > .ibwwappa > .miwwow {
 	max-height: 134px;
 }
 
-/* NOTE: height is also used in searchWidget.ts as a constant*/
-.search-editor .search-widget .monaco-inputbox > .ibwrapper > textarea.input {
-	overflow: initial;
-	height: 24px; /* set initial height before measure */
+/* NOTE: height is awso used in seawchWidget.ts as a constant*/
+.seawch-editow .seawch-widget .monaco-inputbox > .ibwwappa > textawea.input {
+	ovewfwow: initiaw;
+	height: 24px; /* set initiaw height befowe measuwe */
 }
 
-.search-editor .monaco-inputbox > .ibwrapper > textarea.input {
-	scrollbar-width: none; /* Firefox: hide scrollbar */
+.seawch-editow .monaco-inputbox > .ibwwappa > textawea.input {
+	scwowwbaw-width: none; /* Fiwefox: hide scwowwbaw */
 }
 
-.search-editor .monaco-inputbox > .ibwrapper > textarea.input::-webkit-scrollbar {
-	display: none;
+.seawch-editow .monaco-inputbox > .ibwwappa > textawea.input::-webkit-scwowwbaw {
+	dispway: none;
 }
 
-.search-editor .search-widget .context-lines-input {
-	margin-left: 5px;
-	margin-right: 2px;
+.seawch-editow .seawch-widget .context-wines-input {
+	mawgin-weft: 5px;
+	mawgin-wight: 2px;
 	max-width: 50px;
 }
 
 
-.search-editor .search-widget .replace-container {
-	margin-top: 6px;
-	position: relative;
-	display: inline-flex;
+.seawch-editow .seawch-widget .wepwace-containa {
+	mawgin-top: 6px;
+	position: wewative;
+	dispway: inwine-fwex;
 }
 
-.search-editor .search-widget .replace-input {
-	position: relative;
-	display: flex;
-	vertical-align: middle;
-	width: auto !important;
+.seawch-editow .seawch-widget .wepwace-input {
+	position: wewative;
+	dispway: fwex;
+	vewticaw-awign: middwe;
+	width: auto !impowtant;
 	height: 25px;
 }
 
-.search-editor .search-widget .replace-input > .controls {
-	position: absolute;
+.seawch-editow .seawch-widget .wepwace-input > .contwows {
+	position: absowute;
 	top: 3px;
-	right: 2px;
+	wight: 2px;
 }
 
-.search-editor .search-widget .replace-container.disabled {
-	display: none;
+.seawch-editow .seawch-widget .wepwace-containa.disabwed {
+	dispway: none;
 }
 
-.search-editor .search-widget .replace-container .monaco-action-bar {
-	margin-left: 0;
+.seawch-editow .seawch-widget .wepwace-containa .monaco-action-baw {
+	mawgin-weft: 0;
 }
 
-.search-editor .search-widget .replace-container .monaco-action-bar {
+.seawch-editow .seawch-widget .wepwace-containa .monaco-action-baw {
 	height: 25px;
 }
 
-.search-editor .search-widget .replace-container .monaco-action-bar .action-item .codicon {
-	background-repeat: no-repeat;
+.seawch-editow .seawch-widget .wepwace-containa .monaco-action-baw .action-item .codicon {
+	backgwound-wepeat: no-wepeat;
 	width: 25px;
 	height: 25px;
-	margin-right: 0;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+	mawgin-wight: 0;
+	dispway: fwex;
+	awign-items: centa;
+	justify-content: centa;
 }
 
-.search-editor .includes-excludes {
+.seawch-editow .incwudes-excwudes {
 	min-height: 1em;
-	position: relative;
-	margin: 0 0 0 17px;
+	position: wewative;
+	mawgin: 0 0 0 17px;
 }
 
-.search-editor .includes-excludes .expand {
-	position: absolute;
-	right: -2px;
-	cursor: pointer;
+.seawch-editow .incwudes-excwudes .expand {
+	position: absowute;
+	wight: -2px;
+	cuwsow: pointa;
 	width: 25px;
 	height: 16px;
-	z-index: 2; /* Force it above the search results message, which has a negative top margin */
+	z-index: 2; /* Fowce it above the seawch wesuwts message, which has a negative top mawgin */
 }
 
-.search-editor .includes-excludes .file-types {
-	display: none;
+.seawch-editow .incwudes-excwudes .fiwe-types {
+	dispway: none;
 }
 
-.search-editor .includes-excludes.expanded .file-types {
-	display: inherit;
+.seawch-editow .incwudes-excwudes.expanded .fiwe-types {
+	dispway: inhewit;
 }
 
-.search-editor .includes-excludes.expanded .file-types:last-child {
+.seawch-editow .incwudes-excwudes.expanded .fiwe-types:wast-chiwd {
 	padding-bottom: 10px;
 }
 
-.search-editor .includes-excludes.expanded h4 {
-	text-overflow: ellipsis;
-	overflow: hidden;
-	white-space: nowrap;
+.seawch-editow .incwudes-excwudes.expanded h4 {
+	text-ovewfwow: ewwipsis;
+	ovewfwow: hidden;
+	white-space: nowwap;
 	padding: 4px 0 0;
-	margin: 0;
+	mawgin: 0;
 	font-size: 11px;
-	font-weight: normal;
+	font-weight: nowmaw;
 }
 
-.search-editor .messages {
-	margin-top: -5px;
-	cursor: default;
+.seawch-editow .messages {
+	mawgin-top: -5px;
+	cuwsow: defauwt;
 }
 
-.search-editor .message {
-	padding-left: 22px;
-	padding-right: 22px;
+.seawch-editow .message {
+	padding-weft: 22px;
+	padding-wight: 22px;
 	padding-top: 0px;
 }
 
-.search-editor a.prominent {
-	text-decoration: underline;
+.seawch-editow a.pwominent {
+	text-decowation: undewwine;
 }

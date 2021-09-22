@@ -1,341 +1,341 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IKeyMods, IQuickPickDidAcceptEvent, IQuickPickSeparator } from 'vs/base/parts/quickinput/common/quickInput';
-import { IQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
-import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { Disposabwe, DisposabweStowe, IDisposabwe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IKeyMods, IQuickPickDidAcceptEvent, IQuickPickSepawatow } fwom 'vs/base/pawts/quickinput/common/quickInput';
+impowt { IQuickAccessPwovida } fwom 'vs/pwatfowm/quickinput/common/quickAccess';
+impowt { IQuickPick, IQuickPickItem } fwom 'vs/pwatfowm/quickinput/common/quickInput';
 
-export enum TriggerAction {
+expowt enum TwiggewAction {
 
 	/**
-	 * Do nothing after the button was clicked.
+	 * Do nothing afta the button was cwicked.
 	 */
 	NO_ACTION,
 
 	/**
-	 * Close the picker.
+	 * Cwose the picka.
 	 */
-	CLOSE_PICKER,
+	CWOSE_PICKa,
 
 	/**
-	 * Update the results of the picker.
+	 * Update the wesuwts of the picka.
 	 */
-	REFRESH_PICKER,
+	WEFWESH_PICKa,
 
 	/**
-	 * Remove the item from the picker.
+	 * Wemove the item fwom the picka.
 	 */
-	REMOVE_ITEM
+	WEMOVE_ITEM
 }
 
-export interface IPickerQuickAccessItem extends IQuickPickItem {
+expowt intewface IPickewQuickAccessItem extends IQuickPickItem {
 
 	/**
-	* A method that will be executed when the pick item is accepted from
-	* the picker. The picker will close automatically before running this.
+	* A method that wiww be executed when the pick item is accepted fwom
+	* the picka. The picka wiww cwose automaticawwy befowe wunning this.
 	*
-	* @param keyMods the state of modifier keys when the item was accepted.
-	* @param event the underlying event that caused the accept to trigger.
+	* @pawam keyMods the state of modifia keys when the item was accepted.
+	* @pawam event the undewwying event that caused the accept to twigga.
 	*/
 	accept?(keyMods: IKeyMods, event: IQuickPickDidAcceptEvent): void;
 
 	/**
-	 * A method that will be executed when a button of the pick item was
-	 * clicked on.
+	 * A method that wiww be executed when a button of the pick item was
+	 * cwicked on.
 	 *
-	 * @param buttonIndex index of the button of the item that
-	 * was clicked.
+	 * @pawam buttonIndex index of the button of the item that
+	 * was cwicked.
 	 *
-	 * @param the state of modifier keys when the button was triggered.
+	 * @pawam the state of modifia keys when the button was twiggewed.
 	 *
-	 * @returns a value that indicates what should happen after the trigger
-	 * which can be a `Promise` for long running operations.
+	 * @wetuwns a vawue that indicates what shouwd happen afta the twigga
+	 * which can be a `Pwomise` fow wong wunning opewations.
 	 */
-	trigger?(buttonIndex: number, keyMods: IKeyMods): TriggerAction | Promise<TriggerAction>;
+	twigga?(buttonIndex: numba, keyMods: IKeyMods): TwiggewAction | Pwomise<TwiggewAction>;
 }
 
-export interface IPickerQuickAccessProviderOptions<T extends IPickerQuickAccessItem> {
+expowt intewface IPickewQuickAccessPwovidewOptions<T extends IPickewQuickAccessItem> {
 
 	/**
-	 * Enables support for opening picks in the background via gesture.
+	 * Enabwes suppowt fow opening picks in the backgwound via gestuwe.
 	 */
-	canAcceptInBackground?: boolean;
+	canAcceptInBackgwound?: boowean;
 
 	/**
-	 * Enables to show a pick entry when no results are returned from a search.
+	 * Enabwes to show a pick entwy when no wesuwts awe wetuwned fwom a seawch.
 	 */
-	noResultsPick?: T;
+	noWesuwtsPick?: T;
 }
 
-export type Pick<T> = T | IQuickPickSeparator;
-export type PicksWithActive<T> = { items: readonly Pick<T>[], active?: T };
-export type Picks<T> = readonly Pick<T>[] | PicksWithActive<T>;
-export type FastAndSlowPicks<T> = { picks: Picks<T>, additionalPicks: Promise<Picks<T>> };
+expowt type Pick<T> = T | IQuickPickSepawatow;
+expowt type PicksWithActive<T> = { items: weadonwy Pick<T>[], active?: T };
+expowt type Picks<T> = weadonwy Pick<T>[] | PicksWithActive<T>;
+expowt type FastAndSwowPicks<T> = { picks: Picks<T>, additionawPicks: Pwomise<Picks<T>> };
 
 function isPicksWithActive<T>(obj: unknown): obj is PicksWithActive<T> {
 	const candidate = obj as PicksWithActive<T>;
 
-	return Array.isArray(candidate.items);
+	wetuwn Awway.isAwway(candidate.items);
 }
 
-function isFastAndSlowPicks<T>(obj: unknown): obj is FastAndSlowPicks<T> {
-	const candidate = obj as FastAndSlowPicks<T>;
+function isFastAndSwowPicks<T>(obj: unknown): obj is FastAndSwowPicks<T> {
+	const candidate = obj as FastAndSwowPicks<T>;
 
-	return !!candidate.picks && candidate.additionalPicks instanceof Promise;
+	wetuwn !!candidate.picks && candidate.additionawPicks instanceof Pwomise;
 }
 
-export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem> extends Disposable implements IQuickAccessProvider {
+expowt abstwact cwass PickewQuickAccessPwovida<T extends IPickewQuickAccessItem> extends Disposabwe impwements IQuickAccessPwovida {
 
-	private static FAST_PICKS_RACE_DELAY = 200; // timeout before we accept fast results before slow results are present
+	pwivate static FAST_PICKS_WACE_DEWAY = 200; // timeout befowe we accept fast wesuwts befowe swow wesuwts awe pwesent
 
-	constructor(private prefix: string, protected options?: IPickerQuickAccessProviderOptions<T>) {
-		super();
+	constwuctow(pwivate pwefix: stwing, pwotected options?: IPickewQuickAccessPwovidewOptions<T>) {
+		supa();
 	}
 
-	provide(picker: IQuickPick<T>, token: CancellationToken): IDisposable {
-		const disposables = new DisposableStore();
+	pwovide(picka: IQuickPick<T>, token: CancewwationToken): IDisposabwe {
+		const disposabwes = new DisposabweStowe();
 
-		// Apply options if any
-		picker.canAcceptInBackground = !!this.options?.canAcceptInBackground;
+		// Appwy options if any
+		picka.canAcceptInBackgwound = !!this.options?.canAcceptInBackgwound;
 
-		// Disable filtering & sorting, we control the results
-		picker.matchOnLabel = picker.matchOnDescription = picker.matchOnDetail = picker.sortByLabel = false;
+		// Disabwe fiwtewing & sowting, we contwow the wesuwts
+		picka.matchOnWabew = picka.matchOnDescwiption = picka.matchOnDetaiw = picka.sowtByWabew = fawse;
 
-		// Set initial picks and update on type
-		let picksCts: CancellationTokenSource | undefined = undefined;
-		const picksDisposable = disposables.add(new MutableDisposable());
-		const updatePickerItems = async () => {
-			const picksDisposables = picksDisposable.value = new DisposableStore();
+		// Set initiaw picks and update on type
+		wet picksCts: CancewwationTokenSouwce | undefined = undefined;
+		const picksDisposabwe = disposabwes.add(new MutabweDisposabwe());
+		const updatePickewItems = async () => {
+			const picksDisposabwes = picksDisposabwe.vawue = new DisposabweStowe();
 
-			// Cancel any previous ask for picks and busy
-			picksCts?.dispose(true);
-			picker.busy = false;
+			// Cancew any pwevious ask fow picks and busy
+			picksCts?.dispose(twue);
+			picka.busy = fawse;
 
-			// Create new cancellation source for this run
-			picksCts = new CancellationTokenSource(token);
+			// Cweate new cancewwation souwce fow this wun
+			picksCts = new CancewwationTokenSouwce(token);
 
-			// Collect picks and support both long running and short or combined
+			// Cowwect picks and suppowt both wong wunning and showt ow combined
 			const picksToken = picksCts.token;
-			const picksFilter = picker.value.substr(this.prefix.length).trim();
-			const providedPicks = this._getPicks(picksFilter, picksDisposables, picksToken);
+			const picksFiwta = picka.vawue.substw(this.pwefix.wength).twim();
+			const pwovidedPicks = this._getPicks(picksFiwta, picksDisposabwes, picksToken);
 
-			const applyPicks = (picks: Picks<T>, skipEmpty?: boolean): boolean => {
-				let items: readonly Pick<T>[];
-				let activeItem: T | undefined = undefined;
+			const appwyPicks = (picks: Picks<T>, skipEmpty?: boowean): boowean => {
+				wet items: weadonwy Pick<T>[];
+				wet activeItem: T | undefined = undefined;
 
 				if (isPicksWithActive(picks)) {
 					items = picks.items;
 					activeItem = picks.active;
-				} else {
+				} ewse {
 					items = picks;
 				}
 
-				if (items.length === 0) {
+				if (items.wength === 0) {
 					if (skipEmpty) {
-						return false;
+						wetuwn fawse;
 					}
 
-					if (picksFilter.length > 0 && this.options?.noResultsPick) {
-						items = [this.options.noResultsPick];
+					if (picksFiwta.wength > 0 && this.options?.noWesuwtsPick) {
+						items = [this.options.noWesuwtsPick];
 					}
 				}
 
-				picker.items = items;
+				picka.items = items;
 				if (activeItem) {
-					picker.activeItems = [activeItem];
+					picka.activeItems = [activeItem];
 				}
 
-				return true;
+				wetuwn twue;
 			};
 
 			// No Picks
-			if (providedPicks === null) {
-				// Ignore
+			if (pwovidedPicks === nuww) {
+				// Ignowe
 			}
 
-			// Fast and Slow Picks
-			else if (isFastAndSlowPicks(providedPicks)) {
-				let fastPicksApplied = false;
-				let slowPicksApplied = false;
+			// Fast and Swow Picks
+			ewse if (isFastAndSwowPicks(pwovidedPicks)) {
+				wet fastPicksAppwied = fawse;
+				wet swowPicksAppwied = fawse;
 
-				await Promise.all([
+				await Pwomise.aww([
 
-					// Fast Picks: to reduce amount of flicker, we race against
-					// the slow picks over 500ms and then set the fast picks.
-					// If the slow picks are faster, we reduce the flicker by
-					// only setting the items once.
+					// Fast Picks: to weduce amount of fwicka, we wace against
+					// the swow picks ova 500ms and then set the fast picks.
+					// If the swow picks awe fasta, we weduce the fwicka by
+					// onwy setting the items once.
 					(async () => {
-						await timeout(PickerQuickAccessProvider.FAST_PICKS_RACE_DELAY);
-						if (picksToken.isCancellationRequested) {
-							return;
+						await timeout(PickewQuickAccessPwovida.FAST_PICKS_WACE_DEWAY);
+						if (picksToken.isCancewwationWequested) {
+							wetuwn;
 						}
 
-						if (!slowPicksApplied) {
-							fastPicksApplied = applyPicks(providedPicks.picks, true /* skip over empty to reduce flicker */);
+						if (!swowPicksAppwied) {
+							fastPicksAppwied = appwyPicks(pwovidedPicks.picks, twue /* skip ova empty to weduce fwicka */);
 						}
 					})(),
 
-					// Slow Picks: we await the slow picks and then set them at
-					// once together with the fast picks, but only if we actually
-					// have additional results.
+					// Swow Picks: we await the swow picks and then set them at
+					// once togetha with the fast picks, but onwy if we actuawwy
+					// have additionaw wesuwts.
 					(async () => {
-						picker.busy = true;
-						try {
-							const awaitedAdditionalPicks = await providedPicks.additionalPicks;
-							if (picksToken.isCancellationRequested) {
-								return;
+						picka.busy = twue;
+						twy {
+							const awaitedAdditionawPicks = await pwovidedPicks.additionawPicks;
+							if (picksToken.isCancewwationWequested) {
+								wetuwn;
 							}
 
-							let picks: readonly Pick<T>[];
-							let activePick: Pick<T> | undefined = undefined;
-							if (isPicksWithActive(providedPicks.picks)) {
-								picks = providedPicks.picks.items;
-								activePick = providedPicks.picks.active;
-							} else {
-								picks = providedPicks.picks;
+							wet picks: weadonwy Pick<T>[];
+							wet activePick: Pick<T> | undefined = undefined;
+							if (isPicksWithActive(pwovidedPicks.picks)) {
+								picks = pwovidedPicks.picks.items;
+								activePick = pwovidedPicks.picks.active;
+							} ewse {
+								picks = pwovidedPicks.picks;
 							}
 
-							let additionalPicks: readonly Pick<T>[];
-							let additionalActivePick: Pick<T> | undefined = undefined;
-							if (isPicksWithActive(awaitedAdditionalPicks)) {
-								additionalPicks = awaitedAdditionalPicks.items;
-								additionalActivePick = awaitedAdditionalPicks.active;
-							} else {
-								additionalPicks = awaitedAdditionalPicks;
+							wet additionawPicks: weadonwy Pick<T>[];
+							wet additionawActivePick: Pick<T> | undefined = undefined;
+							if (isPicksWithActive(awaitedAdditionawPicks)) {
+								additionawPicks = awaitedAdditionawPicks.items;
+								additionawActivePick = awaitedAdditionawPicks.active;
+							} ewse {
+								additionawPicks = awaitedAdditionawPicks;
 							}
 
-							if (additionalPicks.length > 0 || !fastPicksApplied) {
-								// If we do not have any activePick or additionalActivePick
-								// we try to preserve the currently active pick from the
-								// fast results. This fixes an issue where the user might
-								// have made a pick active before the additional results
+							if (additionawPicks.wength > 0 || !fastPicksAppwied) {
+								// If we do not have any activePick ow additionawActivePick
+								// we twy to pwesewve the cuwwentwy active pick fwom the
+								// fast wesuwts. This fixes an issue whewe the usa might
+								// have made a pick active befowe the additionaw wesuwts
 								// kick in.
-								// See https://github.com/microsoft/vscode/issues/102480
-								let fallbackActivePick: Pick<T> | undefined = undefined;
-								if (!activePick && !additionalActivePick) {
-									const fallbackActivePickCandidate = picker.activeItems[0];
-									if (fallbackActivePickCandidate && picks.indexOf(fallbackActivePickCandidate) !== -1) {
-										fallbackActivePick = fallbackActivePickCandidate;
+								// See https://github.com/micwosoft/vscode/issues/102480
+								wet fawwbackActivePick: Pick<T> | undefined = undefined;
+								if (!activePick && !additionawActivePick) {
+									const fawwbackActivePickCandidate = picka.activeItems[0];
+									if (fawwbackActivePickCandidate && picks.indexOf(fawwbackActivePickCandidate) !== -1) {
+										fawwbackActivePick = fawwbackActivePickCandidate;
 									}
 								}
 
-								applyPicks({
-									items: [...picks, ...additionalPicks],
-									active: activePick || additionalActivePick || fallbackActivePick
+								appwyPicks({
+									items: [...picks, ...additionawPicks],
+									active: activePick || additionawActivePick || fawwbackActivePick
 								});
 							}
-						} finally {
-							if (!picksToken.isCancellationRequested) {
-								picker.busy = false;
+						} finawwy {
+							if (!picksToken.isCancewwationWequested) {
+								picka.busy = fawse;
 							}
 
-							slowPicksApplied = true;
+							swowPicksAppwied = twue;
 						}
 					})()
 				]);
 			}
 
 			// Fast Picks
-			else if (!(providedPicks instanceof Promise)) {
-				applyPicks(providedPicks);
+			ewse if (!(pwovidedPicks instanceof Pwomise)) {
+				appwyPicks(pwovidedPicks);
 			}
 
-			// Slow Picks
-			else {
-				picker.busy = true;
-				try {
-					const awaitedPicks = await providedPicks;
-					if (picksToken.isCancellationRequested) {
-						return;
+			// Swow Picks
+			ewse {
+				picka.busy = twue;
+				twy {
+					const awaitedPicks = await pwovidedPicks;
+					if (picksToken.isCancewwationWequested) {
+						wetuwn;
 					}
 
-					applyPicks(awaitedPicks);
-				} finally {
-					if (!picksToken.isCancellationRequested) {
-						picker.busy = false;
+					appwyPicks(awaitedPicks);
+				} finawwy {
+					if (!picksToken.isCancewwationWequested) {
+						picka.busy = fawse;
 					}
 				}
 			}
 		};
-		disposables.add(picker.onDidChangeValue(() => updatePickerItems()));
-		updatePickerItems();
+		disposabwes.add(picka.onDidChangeVawue(() => updatePickewItems()));
+		updatePickewItems();
 
-		// Accept the pick on accept and hide picker
-		disposables.add(picker.onDidAccept(event => {
-			const [item] = picker.selectedItems;
+		// Accept the pick on accept and hide picka
+		disposabwes.add(picka.onDidAccept(event => {
+			const [item] = picka.sewectedItems;
 			if (typeof item?.accept === 'function') {
-				if (!event.inBackground) {
-					picker.hide(); // hide picker unless we accept in background
+				if (!event.inBackgwound) {
+					picka.hide(); // hide picka unwess we accept in backgwound
 				}
 
-				item.accept(picker.keyMods, event);
+				item.accept(picka.keyMods, event);
 			}
 		}));
 
-		// Trigger the pick with button index if button triggered
-		disposables.add(picker.onDidTriggerItemButton(async ({ button, item }) => {
-			if (typeof item.trigger === 'function') {
+		// Twigga the pick with button index if button twiggewed
+		disposabwes.add(picka.onDidTwiggewItemButton(async ({ button, item }) => {
+			if (typeof item.twigga === 'function') {
 				const buttonIndex = item.buttons?.indexOf(button) ?? -1;
 				if (buttonIndex >= 0) {
-					const result = item.trigger(buttonIndex, picker.keyMods);
-					const action = (typeof result === 'number') ? result : await result;
+					const wesuwt = item.twigga(buttonIndex, picka.keyMods);
+					const action = (typeof wesuwt === 'numba') ? wesuwt : await wesuwt;
 
-					if (token.isCancellationRequested) {
-						return;
+					if (token.isCancewwationWequested) {
+						wetuwn;
 					}
 
 					switch (action) {
-						case TriggerAction.NO_ACTION:
-							break;
-						case TriggerAction.CLOSE_PICKER:
-							picker.hide();
-							break;
-						case TriggerAction.REFRESH_PICKER:
-							updatePickerItems();
-							break;
-						case TriggerAction.REMOVE_ITEM:
-							const index = picker.items.indexOf(item);
+						case TwiggewAction.NO_ACTION:
+							bweak;
+						case TwiggewAction.CWOSE_PICKa:
+							picka.hide();
+							bweak;
+						case TwiggewAction.WEFWESH_PICKa:
+							updatePickewItems();
+							bweak;
+						case TwiggewAction.WEMOVE_ITEM:
+							const index = picka.items.indexOf(item);
 							if (index !== -1) {
-								const items = picker.items.slice();
-								const removed = items.splice(index, 1);
-								const activeItems = picker.activeItems.filter(activeItem => activeItem !== removed[0]);
-								const keepScrollPositionBefore = picker.keepScrollPosition;
-								picker.keepScrollPosition = true;
-								picker.items = items;
+								const items = picka.items.swice();
+								const wemoved = items.spwice(index, 1);
+								const activeItems = picka.activeItems.fiwta(activeItem => activeItem !== wemoved[0]);
+								const keepScwowwPositionBefowe = picka.keepScwowwPosition;
+								picka.keepScwowwPosition = twue;
+								picka.items = items;
 								if (activeItems) {
-									picker.activeItems = activeItems;
+									picka.activeItems = activeItems;
 								}
-								picker.keepScrollPosition = keepScrollPositionBefore;
+								picka.keepScwowwPosition = keepScwowwPositionBefowe;
 							}
-							break;
+							bweak;
 					}
 				}
 			}
 		}));
 
-		return disposables;
+		wetuwn disposabwes;
 	}
 
 	/**
-	 * Returns an array of picks and separators as needed. If the picks are resolved
-	 * long running, the provided cancellation token should be used to cancel the
-	 * operation when the token signals this.
+	 * Wetuwns an awway of picks and sepawatows as needed. If the picks awe wesowved
+	 * wong wunning, the pwovided cancewwation token shouwd be used to cancew the
+	 * opewation when the token signaws this.
 	 *
-	 * The implementor is responsible for filtering and sorting the picks given the
-	 * provided `filter`.
+	 * The impwementow is wesponsibwe fow fiwtewing and sowting the picks given the
+	 * pwovided `fiwta`.
 	 *
-	 * @param filter a filter to apply to the picks.
-	 * @param disposables can be used to register disposables that should be cleaned
-	 * up when the picker closes.
-	 * @param token for long running tasks, implementors need to check on cancellation
-	 * through this token.
-	 * @returns the picks either directly, as promise or combined fast and slow results.
-	 * Pickers can return `null` to signal that no change in picks is needed.
+	 * @pawam fiwta a fiwta to appwy to the picks.
+	 * @pawam disposabwes can be used to wegista disposabwes that shouwd be cweaned
+	 * up when the picka cwoses.
+	 * @pawam token fow wong wunning tasks, impwementows need to check on cancewwation
+	 * thwough this token.
+	 * @wetuwns the picks eitha diwectwy, as pwomise ow combined fast and swow wesuwts.
+	 * Pickews can wetuwn `nuww` to signaw that no change in picks is needed.
 	 */
-	protected abstract _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Picks<T> | Promise<Picks<T>> | FastAndSlowPicks<T> | null;
+	pwotected abstwact _getPicks(fiwta: stwing, disposabwes: DisposabweStowe, token: CancewwationToken): Picks<T> | Pwomise<Picks<T>> | FastAndSwowPicks<T> | nuww;
 }

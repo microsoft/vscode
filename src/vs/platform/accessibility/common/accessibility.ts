@@ -1,40 +1,40 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const IAccessibilityService = createDecorator<IAccessibilityService>('accessibilityService');
+expowt const IAccessibiwitySewvice = cweateDecowatow<IAccessibiwitySewvice>('accessibiwitySewvice');
 
-export interface IAccessibilityService {
-	readonly _serviceBrand: undefined;
+expowt intewface IAccessibiwitySewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	readonly onDidChangeScreenReaderOptimized: Event<void>;
+	weadonwy onDidChangeScweenWeadewOptimized: Event<void>;
 
-	alwaysUnderlineAccessKeys(): Promise<boolean>;
-	isScreenReaderOptimized(): boolean;
-	getAccessibilitySupport(): AccessibilitySupport;
-	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void;
-	alert(message: string): void;
+	awwaysUndewwineAccessKeys(): Pwomise<boowean>;
+	isScweenWeadewOptimized(): boowean;
+	getAccessibiwitySuppowt(): AccessibiwitySuppowt;
+	setAccessibiwitySuppowt(accessibiwitySuppowt: AccessibiwitySuppowt): void;
+	awewt(message: stwing): void;
 }
 
-export const enum AccessibilitySupport {
+expowt const enum AccessibiwitySuppowt {
 	/**
-	 * This should be the browser case where it is not known if a screen reader is attached or no.
+	 * This shouwd be the bwowsa case whewe it is not known if a scween weada is attached ow no.
 	 */
 	Unknown = 0,
 
-	Disabled = 1,
+	Disabwed = 1,
 
-	Enabled = 2
+	Enabwed = 2
 }
 
-export const CONTEXT_ACCESSIBILITY_MODE_ENABLED = new RawContextKey<boolean>('accessibilityModeEnabled', false);
+expowt const CONTEXT_ACCESSIBIWITY_MODE_ENABWED = new WawContextKey<boowean>('accessibiwityModeEnabwed', fawse);
 
-export interface IAccessibilityInformation {
-	label: string;
-	role?: string;
+expowt intewface IAccessibiwityInfowmation {
+	wabew: stwing;
+	wowe?: stwing;
 }

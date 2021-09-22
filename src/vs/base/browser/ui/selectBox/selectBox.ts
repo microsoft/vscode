@@ -1,136 +1,136 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContentActionHandler } from 'vs/base/browser/formattedTextRenderer';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { SelectBoxList } from 'vs/base/browser/ui/selectBox/selectBoxCustom';
-import { SelectBoxNative } from 'vs/base/browser/ui/selectBox/selectBoxNative';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { Color } from 'vs/base/common/color';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { deepClone } from 'vs/base/common/objects';
-import { isMacintosh } from 'vs/base/common/platform';
-import 'vs/css!./selectBox';
+impowt { IContentActionHandwa } fwom 'vs/base/bwowsa/fowmattedTextWendewa';
+impowt { IContextViewPwovida } fwom 'vs/base/bwowsa/ui/contextview/contextview';
+impowt { IWistStywes } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { SewectBoxWist } fwom 'vs/base/bwowsa/ui/sewectBox/sewectBoxCustom';
+impowt { SewectBoxNative } fwom 'vs/base/bwowsa/ui/sewectBox/sewectBoxNative';
+impowt { Widget } fwom 'vs/base/bwowsa/ui/widget';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { deepCwone } fwom 'vs/base/common/objects';
+impowt { isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt 'vs/css!./sewectBox';
 
 
 
-// Public SelectBox interface - Calls routed to appropriate select implementation class
+// Pubwic SewectBox intewface - Cawws wouted to appwopwiate sewect impwementation cwass
 
-export interface ISelectBoxDelegate extends IDisposable {
+expowt intewface ISewectBoxDewegate extends IDisposabwe {
 
-	// Public SelectBox Interface
-	readonly onDidSelect: Event<ISelectData>;
-	setOptions(options: ISelectOptionItem[], selected?: number): void;
-	select(index: number): void;
-	setAriaLabel(label: string): void;
+	// Pubwic SewectBox Intewface
+	weadonwy onDidSewect: Event<ISewectData>;
+	setOptions(options: ISewectOptionItem[], sewected?: numba): void;
+	sewect(index: numba): void;
+	setAwiaWabew(wabew: stwing): void;
 	focus(): void;
-	blur(): void;
-	setFocusable(focus: boolean): void;
+	bwuw(): void;
+	setFocusabwe(focus: boowean): void;
 
-	// Delegated Widget interface
-	render(container: HTMLElement): void;
-	style(styles: ISelectBoxStyles): void;
-	applyStyles(): void;
+	// Dewegated Widget intewface
+	wenda(containa: HTMWEwement): void;
+	stywe(stywes: ISewectBoxStywes): void;
+	appwyStywes(): void;
 }
 
-export interface ISelectBoxOptions {
-	useCustomDrawn?: boolean;
-	ariaLabel?: string;
-	minBottomMargin?: number;
-	optionsAsChildren?: boolean;
+expowt intewface ISewectBoxOptions {
+	useCustomDwawn?: boowean;
+	awiaWabew?: stwing;
+	minBottomMawgin?: numba;
+	optionsAsChiwdwen?: boowean;
 }
 
-// Utilize optionItem interface to capture all option parameters
-export interface ISelectOptionItem {
-	text: string;
-	detail?: string;
-	decoratorRight?: string;
-	description?: string;
-	descriptionIsMarkdown?: boolean;
-	descriptionMarkdownActionHandler?: IContentActionHandler;
-	isDisabled?: boolean;
+// Utiwize optionItem intewface to captuwe aww option pawametews
+expowt intewface ISewectOptionItem {
+	text: stwing;
+	detaiw?: stwing;
+	decowatowWight?: stwing;
+	descwiption?: stwing;
+	descwiptionIsMawkdown?: boowean;
+	descwiptionMawkdownActionHandwa?: IContentActionHandwa;
+	isDisabwed?: boowean;
 }
 
-export interface ISelectBoxStyles extends IListStyles {
-	selectBackground?: Color;
-	selectListBackground?: Color;
-	selectForeground?: Color;
-	decoratorRightForeground?: Color;
-	selectBorder?: Color;
-	selectListBorder?: Color;
-	focusBorder?: Color;
+expowt intewface ISewectBoxStywes extends IWistStywes {
+	sewectBackgwound?: Cowow;
+	sewectWistBackgwound?: Cowow;
+	sewectFowegwound?: Cowow;
+	decowatowWightFowegwound?: Cowow;
+	sewectBowda?: Cowow;
+	sewectWistBowda?: Cowow;
+	focusBowda?: Cowow;
 }
 
-export const defaultStyles = {
-	selectBackground: Color.fromHex('#3C3C3C'),
-	selectForeground: Color.fromHex('#F0F0F0'),
-	selectBorder: Color.fromHex('#3C3C3C')
+expowt const defauwtStywes = {
+	sewectBackgwound: Cowow.fwomHex('#3C3C3C'),
+	sewectFowegwound: Cowow.fwomHex('#F0F0F0'),
+	sewectBowda: Cowow.fwomHex('#3C3C3C')
 };
 
-export interface ISelectData {
-	selected: string;
-	index: number;
+expowt intewface ISewectData {
+	sewected: stwing;
+	index: numba;
 }
 
-export class SelectBox extends Widget implements ISelectBoxDelegate {
-	private selectBoxDelegate: ISelectBoxDelegate;
+expowt cwass SewectBox extends Widget impwements ISewectBoxDewegate {
+	pwivate sewectBoxDewegate: ISewectBoxDewegate;
 
-	constructor(options: ISelectOptionItem[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles = deepClone(defaultStyles), selectBoxOptions?: ISelectBoxOptions) {
-		super();
+	constwuctow(options: ISewectOptionItem[], sewected: numba, contextViewPwovida: IContextViewPwovida, stywes: ISewectBoxStywes = deepCwone(defauwtStywes), sewectBoxOptions?: ISewectBoxOptions) {
+		supa();
 
-		// Default to native SelectBox for OSX unless overridden
-		if (isMacintosh && !selectBoxOptions?.useCustomDrawn) {
-			this.selectBoxDelegate = new SelectBoxNative(options, selected, styles, selectBoxOptions);
-		} else {
-			this.selectBoxDelegate = new SelectBoxList(options, selected, contextViewProvider, styles, selectBoxOptions);
+		// Defauwt to native SewectBox fow OSX unwess ovewwidden
+		if (isMacintosh && !sewectBoxOptions?.useCustomDwawn) {
+			this.sewectBoxDewegate = new SewectBoxNative(options, sewected, stywes, sewectBoxOptions);
+		} ewse {
+			this.sewectBoxDewegate = new SewectBoxWist(options, sewected, contextViewPwovida, stywes, sewectBoxOptions);
 		}
 
-		this._register(this.selectBoxDelegate);
+		this._wegista(this.sewectBoxDewegate);
 	}
 
-	// Public SelectBox Methods - routed through delegate interface
+	// Pubwic SewectBox Methods - wouted thwough dewegate intewface
 
-	get onDidSelect(): Event<ISelectData> {
-		return this.selectBoxDelegate.onDidSelect;
+	get onDidSewect(): Event<ISewectData> {
+		wetuwn this.sewectBoxDewegate.onDidSewect;
 	}
 
-	setOptions(options: ISelectOptionItem[], selected?: number): void {
-		this.selectBoxDelegate.setOptions(options, selected);
+	setOptions(options: ISewectOptionItem[], sewected?: numba): void {
+		this.sewectBoxDewegate.setOptions(options, sewected);
 	}
 
-	select(index: number): void {
-		this.selectBoxDelegate.select(index);
+	sewect(index: numba): void {
+		this.sewectBoxDewegate.sewect(index);
 	}
 
-	setAriaLabel(label: string): void {
-		this.selectBoxDelegate.setAriaLabel(label);
+	setAwiaWabew(wabew: stwing): void {
+		this.sewectBoxDewegate.setAwiaWabew(wabew);
 	}
 
 	focus(): void {
-		this.selectBoxDelegate.focus();
+		this.sewectBoxDewegate.focus();
 	}
 
-	blur(): void {
-		this.selectBoxDelegate.blur();
+	bwuw(): void {
+		this.sewectBoxDewegate.bwuw();
 	}
 
-	setFocusable(focusable: boolean): void {
-		this.selectBoxDelegate.setFocusable(focusable);
+	setFocusabwe(focusabwe: boowean): void {
+		this.sewectBoxDewegate.setFocusabwe(focusabwe);
 	}
 
-	render(container: HTMLElement): void {
-		this.selectBoxDelegate.render(container);
+	wenda(containa: HTMWEwement): void {
+		this.sewectBoxDewegate.wenda(containa);
 	}
 
-	style(styles: ISelectBoxStyles): void {
-		this.selectBoxDelegate.style(styles);
+	stywe(stywes: ISewectBoxStywes): void {
+		this.sewectBoxDewegate.stywe(stywes);
 	}
 
-	applyStyles(): void {
-		this.selectBoxDelegate.applyStyles();
+	appwyStywes(): void {
+		this.sewectBoxDewegate.appwyStywes();
 	}
 }

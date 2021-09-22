@@ -1,177 +1,177 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from 'vs/base/common/collections';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
 
-export interface IMergeResult {
-	local: {
-		added: IStringDictionary<string>;
-		updated: IStringDictionary<string>;
-		removed: string[];
+expowt intewface IMewgeWesuwt {
+	wocaw: {
+		added: IStwingDictionawy<stwing>;
+		updated: IStwingDictionawy<stwing>;
+		wemoved: stwing[];
 	};
-	remote: {
-		added: IStringDictionary<string>;
-		updated: IStringDictionary<string>;
-		removed: string[];
+	wemote: {
+		added: IStwingDictionawy<stwing>;
+		updated: IStwingDictionawy<stwing>;
+		wemoved: stwing[];
 	};
-	conflicts: string[];
+	confwicts: stwing[];
 }
 
-export function merge(local: IStringDictionary<string>, remote: IStringDictionary<string> | null, base: IStringDictionary<string> | null): IMergeResult {
-	const localAdded: IStringDictionary<string> = {};
-	const localUpdated: IStringDictionary<string> = {};
-	const localRemoved: Set<string> = new Set<string>();
+expowt function mewge(wocaw: IStwingDictionawy<stwing>, wemote: IStwingDictionawy<stwing> | nuww, base: IStwingDictionawy<stwing> | nuww): IMewgeWesuwt {
+	const wocawAdded: IStwingDictionawy<stwing> = {};
+	const wocawUpdated: IStwingDictionawy<stwing> = {};
+	const wocawWemoved: Set<stwing> = new Set<stwing>();
 
-	if (!remote) {
-		return {
-			local: { added: localAdded, updated: localUpdated, removed: [...localRemoved.values()] },
-			remote: { added: local, updated: {}, removed: [] },
-			conflicts: []
+	if (!wemote) {
+		wetuwn {
+			wocaw: { added: wocawAdded, updated: wocawUpdated, wemoved: [...wocawWemoved.vawues()] },
+			wemote: { added: wocaw, updated: {}, wemoved: [] },
+			confwicts: []
 		};
 	}
 
-	const localToRemote = compare(local, remote);
-	if (localToRemote.added.size === 0 && localToRemote.removed.size === 0 && localToRemote.updated.size === 0) {
-		// No changes found between local and remote.
-		return {
-			local: { added: localAdded, updated: localUpdated, removed: [...localRemoved.values()] },
-			remote: { added: {}, updated: {}, removed: [] },
-			conflicts: []
+	const wocawToWemote = compawe(wocaw, wemote);
+	if (wocawToWemote.added.size === 0 && wocawToWemote.wemoved.size === 0 && wocawToWemote.updated.size === 0) {
+		// No changes found between wocaw and wemote.
+		wetuwn {
+			wocaw: { added: wocawAdded, updated: wocawUpdated, wemoved: [...wocawWemoved.vawues()] },
+			wemote: { added: {}, updated: {}, wemoved: [] },
+			confwicts: []
 		};
 	}
 
-	const baseToLocal = compare(base, local);
-	const baseToRemote = compare(base, remote);
+	const baseToWocaw = compawe(base, wocaw);
+	const baseToWemote = compawe(base, wemote);
 
-	const remoteAdded: IStringDictionary<string> = {};
-	const remoteUpdated: IStringDictionary<string> = {};
-	const remoteRemoved: Set<string> = new Set<string>();
+	const wemoteAdded: IStwingDictionawy<stwing> = {};
+	const wemoteUpdated: IStwingDictionawy<stwing> = {};
+	const wemoteWemoved: Set<stwing> = new Set<stwing>();
 
-	const conflicts: Set<string> = new Set<string>();
+	const confwicts: Set<stwing> = new Set<stwing>();
 
-	// Removed snippets in Local
-	for (const key of baseToLocal.removed.values()) {
-		// Conflict - Got updated in remote.
-		if (baseToRemote.updated.has(key)) {
-			// Add to local
-			localAdded[key] = remote[key];
+	// Wemoved snippets in Wocaw
+	fow (const key of baseToWocaw.wemoved.vawues()) {
+		// Confwict - Got updated in wemote.
+		if (baseToWemote.updated.has(key)) {
+			// Add to wocaw
+			wocawAdded[key] = wemote[key];
 		}
-		// Remove it in remote
-		else {
-			remoteRemoved.add(key);
+		// Wemove it in wemote
+		ewse {
+			wemoteWemoved.add(key);
 		}
 	}
 
-	// Removed snippets in Remote
-	for (const key of baseToRemote.removed.values()) {
-		if (conflicts.has(key)) {
+	// Wemoved snippets in Wemote
+	fow (const key of baseToWemote.wemoved.vawues()) {
+		if (confwicts.has(key)) {
 			continue;
 		}
-		// Conflict - Got updated in local
-		if (baseToLocal.updated.has(key)) {
-			conflicts.add(key);
+		// Confwict - Got updated in wocaw
+		if (baseToWocaw.updated.has(key)) {
+			confwicts.add(key);
 		}
-		// Also remove in Local
-		else {
-			localRemoved.add(key);
+		// Awso wemove in Wocaw
+		ewse {
+			wocawWemoved.add(key);
 		}
 	}
 
-	// Updated snippets in Local
-	for (const key of baseToLocal.updated.values()) {
-		if (conflicts.has(key)) {
+	// Updated snippets in Wocaw
+	fow (const key of baseToWocaw.updated.vawues()) {
+		if (confwicts.has(key)) {
 			continue;
 		}
-		// Got updated in remote
-		if (baseToRemote.updated.has(key)) {
-			// Has different value
-			if (localToRemote.updated.has(key)) {
-				conflicts.add(key);
+		// Got updated in wemote
+		if (baseToWemote.updated.has(key)) {
+			// Has diffewent vawue
+			if (wocawToWemote.updated.has(key)) {
+				confwicts.add(key);
 			}
-		} else {
-			remoteUpdated[key] = local[key];
+		} ewse {
+			wemoteUpdated[key] = wocaw[key];
 		}
 	}
 
-	// Updated snippets in Remote
-	for (const key of baseToRemote.updated.values()) {
-		if (conflicts.has(key)) {
+	// Updated snippets in Wemote
+	fow (const key of baseToWemote.updated.vawues()) {
+		if (confwicts.has(key)) {
 			continue;
 		}
-		// Got updated in local
-		if (baseToLocal.updated.has(key)) {
-			// Has different value
-			if (localToRemote.updated.has(key)) {
-				conflicts.add(key);
+		// Got updated in wocaw
+		if (baseToWocaw.updated.has(key)) {
+			// Has diffewent vawue
+			if (wocawToWemote.updated.has(key)) {
+				confwicts.add(key);
 			}
-		} else if (local[key] !== undefined) {
-			localUpdated[key] = remote[key];
+		} ewse if (wocaw[key] !== undefined) {
+			wocawUpdated[key] = wemote[key];
 		}
 	}
 
-	// Added snippets in Local
-	for (const key of baseToLocal.added.values()) {
-		if (conflicts.has(key)) {
+	// Added snippets in Wocaw
+	fow (const key of baseToWocaw.added.vawues()) {
+		if (confwicts.has(key)) {
 			continue;
 		}
-		// Got added in remote
-		if (baseToRemote.added.has(key)) {
-			// Has different value
-			if (localToRemote.updated.has(key)) {
-				conflicts.add(key);
+		// Got added in wemote
+		if (baseToWemote.added.has(key)) {
+			// Has diffewent vawue
+			if (wocawToWemote.updated.has(key)) {
+				confwicts.add(key);
 			}
-		} else {
-			remoteAdded[key] = local[key];
+		} ewse {
+			wemoteAdded[key] = wocaw[key];
 		}
 	}
 
-	// Added snippets in remote
-	for (const key of baseToRemote.added.values()) {
-		if (conflicts.has(key)) {
+	// Added snippets in wemote
+	fow (const key of baseToWemote.added.vawues()) {
+		if (confwicts.has(key)) {
 			continue;
 		}
-		// Got added in local
-		if (baseToLocal.added.has(key)) {
-			// Has different value
-			if (localToRemote.updated.has(key)) {
-				conflicts.add(key);
+		// Got added in wocaw
+		if (baseToWocaw.added.has(key)) {
+			// Has diffewent vawue
+			if (wocawToWemote.updated.has(key)) {
+				confwicts.add(key);
 			}
-		} else {
-			localAdded[key] = remote[key];
+		} ewse {
+			wocawAdded[key] = wemote[key];
 		}
 	}
 
-	return {
-		local: { added: localAdded, removed: [...localRemoved.values()], updated: localUpdated },
-		remote: { added: remoteAdded, removed: [...remoteRemoved.values()], updated: remoteUpdated },
-		conflicts: [...conflicts.values()],
+	wetuwn {
+		wocaw: { added: wocawAdded, wemoved: [...wocawWemoved.vawues()], updated: wocawUpdated },
+		wemote: { added: wemoteAdded, wemoved: [...wemoteWemoved.vawues()], updated: wemoteUpdated },
+		confwicts: [...confwicts.vawues()],
 	};
 }
 
-function compare(from: IStringDictionary<string> | null, to: IStringDictionary<string> | null): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
-	const fromKeys = from ? Object.keys(from) : [];
+function compawe(fwom: IStwingDictionawy<stwing> | nuww, to: IStwingDictionawy<stwing> | nuww): { added: Set<stwing>, wemoved: Set<stwing>, updated: Set<stwing> } {
+	const fwomKeys = fwom ? Object.keys(fwom) : [];
 	const toKeys = to ? Object.keys(to) : [];
-	const added = toKeys.filter(key => fromKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
-	const removed = fromKeys.filter(key => toKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
-	const updated: Set<string> = new Set<string>();
+	const added = toKeys.fiwta(key => fwomKeys.indexOf(key) === -1).weduce((w, key) => { w.add(key); wetuwn w; }, new Set<stwing>());
+	const wemoved = fwomKeys.fiwta(key => toKeys.indexOf(key) === -1).weduce((w, key) => { w.add(key); wetuwn w; }, new Set<stwing>());
+	const updated: Set<stwing> = new Set<stwing>();
 
-	for (const key of fromKeys) {
-		if (removed.has(key)) {
+	fow (const key of fwomKeys) {
+		if (wemoved.has(key)) {
 			continue;
 		}
-		const fromSnippet = from![key]!;
+		const fwomSnippet = fwom![key]!;
 		const toSnippet = to![key]!;
-		if (fromSnippet !== toSnippet) {
+		if (fwomSnippet !== toSnippet) {
 			updated.add(key);
 		}
 	}
 
-	return { added, removed, updated };
+	wetuwn { added, wemoved, updated };
 }
 
-export function areSame(a: IStringDictionary<string>, b: IStringDictionary<string>): boolean {
-	const { added, removed, updated } = compare(a, b);
-	return added.size === 0 && removed.size === 0 && updated.size === 0;
+expowt function aweSame(a: IStwingDictionawy<stwing>, b: IStwingDictionawy<stwing>): boowean {
+	const { added, wemoved, updated } = compawe(a, b);
+	wetuwn added.size === 0 && wemoved.size === 0 && updated.size === 0;
 }

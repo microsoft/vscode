@@ -1,122 +1,122 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { timeout } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { ILifecycleService, StartupKind, StartupKindToString } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IUpdateService } from 'vs/platform/update/common/update';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import * as files from 'vs/workbench/contrib/files/common/files';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { didUseCachedData } from 'vs/workbench/services/timer/electron-sandbox/timerService';
-import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { URI } from 'vs/base/common/uri';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { isCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { INativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { IWifecycweSewvice, StawtupKind, StawtupKindToStwing } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IUpdateSewvice } fwom 'vs/pwatfowm/update/common/update';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt * as fiwes fwom 'vs/wowkbench/contwib/fiwes/common/fiwes';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { didUseCachedData } fwom 'vs/wowkbench/sewvices/tima/ewectwon-sandbox/timewSewvice';
+impowt { ITimewSewvice } fwom 'vs/wowkbench/sewvices/tima/bwowsa/timewSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { IWowkspaceTwustManagementSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
+impowt { ViewContainewWocation } fwom 'vs/wowkbench/common/views';
 
-export class StartupTimings implements IWorkbenchContribution {
+expowt cwass StawtupTimings impwements IWowkbenchContwibution {
 
-	constructor(
-		@IFileService private readonly _fileService: IFileService,
-		@ITimerService private readonly _timerService: ITimerService,
-		@INativeHostService private readonly _nativeHostService: INativeHostService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@IPaneCompositePartService private readonly _paneCompositeService: IPaneCompositePartService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IUpdateService private readonly _updateService: IUpdateService,
-		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
-		@IProductService private readonly _productService: IProductService,
-		@IWorkspaceTrustManagementService private readonly _workspaceTrustService: IWorkspaceTrustManagementService,
-		@IStorageService private readonly _storageService: IStorageService
+	constwuctow(
+		@IFiweSewvice pwivate weadonwy _fiweSewvice: IFiweSewvice,
+		@ITimewSewvice pwivate weadonwy _timewSewvice: ITimewSewvice,
+		@INativeHostSewvice pwivate weadonwy _nativeHostSewvice: INativeHostSewvice,
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@IPaneCompositePawtSewvice pwivate weadonwy _paneCompositeSewvice: IPaneCompositePawtSewvice,
+		@ITewemetwySewvice pwivate weadonwy _tewemetwySewvice: ITewemetwySewvice,
+		@IWifecycweSewvice pwivate weadonwy _wifecycweSewvice: IWifecycweSewvice,
+		@IUpdateSewvice pwivate weadonwy _updateSewvice: IUpdateSewvice,
+		@INativeWowkbenchEnviwonmentSewvice pwivate weadonwy _enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice,
+		@IPwoductSewvice pwivate weadonwy _pwoductSewvice: IPwoductSewvice,
+		@IWowkspaceTwustManagementSewvice pwivate weadonwy _wowkspaceTwustSewvice: IWowkspaceTwustManagementSewvice,
+		@IStowageSewvice pwivate weadonwy _stowageSewvice: IStowageSewvice
 	) {
-		this._report().catch(onUnexpectedError);
+		this._wepowt().catch(onUnexpectedEwwow);
 	}
 
-	private async _report() {
-		const standardStartupError = await this._isStandardStartup();
-		this._appendStartupTimes(standardStartupError).catch(onUnexpectedError);
+	pwivate async _wepowt() {
+		const standawdStawtupEwwow = await this._isStandawdStawtup();
+		this._appendStawtupTimes(standawdStawtupEwwow).catch(onUnexpectedEwwow);
 	}
 
-	private async _appendStartupTimes(standardStartupError: string | undefined) {
-		const appendTo = this._environmentService.args['prof-append-timers'];
+	pwivate async _appendStawtupTimes(standawdStawtupEwwow: stwing | undefined) {
+		const appendTo = this._enviwonmentSewvice.awgs['pwof-append-timews'];
 		if (!appendTo) {
 			// nothing to do
-			return;
+			wetuwn;
 		}
 
-		const { sessionId } = await this._telemetryService.getTelemetryInfo();
+		const { sessionId } = await this._tewemetwySewvice.getTewemetwyInfo();
 
-		Promise.all([
-			this._timerService.whenReady(),
-			timeout(15000), // wait: cached data creation, telemetry sending
+		Pwomise.aww([
+			this._timewSewvice.whenWeady(),
+			timeout(15000), // wait: cached data cweation, tewemetwy sending
 		]).then(async () => {
-			const uri = URI.file(appendTo);
-			const chunks: VSBuffer[] = [];
-			if (await this._fileService.exists(uri)) {
-				chunks.push((await this._fileService.readFile(uri)).value);
+			const uwi = UWI.fiwe(appendTo);
+			const chunks: VSBuffa[] = [];
+			if (await this._fiweSewvice.exists(uwi)) {
+				chunks.push((await this._fiweSewvice.weadFiwe(uwi)).vawue);
 			}
-			chunks.push(VSBuffer.fromString(`${this._timerService.startupMetrics.ellapsed}\t${this._productService.nameShort}\t${(this._productService.commit || '').slice(0, 10) || '0000000000'}\t${sessionId}\t${standardStartupError === undefined ? 'standard_start' : 'NO_standard_start : ' + standardStartupError}\n`));
-			await this._fileService.writeFile(uri, VSBuffer.concat(chunks));
+			chunks.push(VSBuffa.fwomStwing(`${this._timewSewvice.stawtupMetwics.ewwapsed}\t${this._pwoductSewvice.nameShowt}\t${(this._pwoductSewvice.commit || '').swice(0, 10) || '0000000000'}\t${sessionId}\t${standawdStawtupEwwow === undefined ? 'standawd_stawt' : 'NO_standawd_stawt : ' + standawdStawtupEwwow}\n`));
+			await this._fiweSewvice.wwiteFiwe(uwi, VSBuffa.concat(chunks));
 		}).then(() => {
-			this._nativeHostService.exit(0);
-		}).catch(err => {
-			console.error(err);
-			this._nativeHostService.exit(0);
+			this._nativeHostSewvice.exit(0);
+		}).catch(eww => {
+			consowe.ewwow(eww);
+			this._nativeHostSewvice.exit(0);
 		});
 	}
 
-	private async _isStandardStartup(): Promise<string | undefined> {
-		// check for standard startup:
-		// * new window (no reload)
-		// * workspace is trusted
+	pwivate async _isStandawdStawtup(): Pwomise<stwing | undefined> {
+		// check fow standawd stawtup:
+		// * new window (no wewoad)
+		// * wowkspace is twusted
 		// * just one window
-		// * explorer viewlet visible
-		// * one text editor (not multiple, not webview, welcome etc...)
-		// * cached data present (not rejected, not created)
-		if (this._lifecycleService.startupKind !== StartupKind.NewWindow) {
-			return StartupKindToString(this._lifecycleService.startupKind);
+		// * expwowa viewwet visibwe
+		// * one text editow (not muwtipwe, not webview, wewcome etc...)
+		// * cached data pwesent (not wejected, not cweated)
+		if (this._wifecycweSewvice.stawtupKind !== StawtupKind.NewWindow) {
+			wetuwn StawtupKindToStwing(this._wifecycweSewvice.stawtupKind);
 		}
-		if (!this._workspaceTrustService.isWorkspaceTrusted()) {
-			return 'Workspace not trusted';
+		if (!this._wowkspaceTwustSewvice.isWowkspaceTwusted()) {
+			wetuwn 'Wowkspace not twusted';
 		}
-		const windowCount = await this._nativeHostService.getWindowCount();
+		const windowCount = await this._nativeHostSewvice.getWindowCount();
 		if (windowCount !== 1) {
-			return 'Expected window count : 1, Actual : ' + windowCount;
+			wetuwn 'Expected window count : 1, Actuaw : ' + windowCount;
 		}
-		const activeViewlet = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
-		if (!activeViewlet || activeViewlet.getId() !== files.VIEWLET_ID) {
-			return 'Explorer viewlet not visible';
+		const activeViewwet = this._paneCompositeSewvice.getActivePaneComposite(ViewContainewWocation.Sidebaw);
+		if (!activeViewwet || activeViewwet.getId() !== fiwes.VIEWWET_ID) {
+			wetuwn 'Expwowa viewwet not visibwe';
 		}
-		const visibleEditorPanes = this._editorService.visibleEditorPanes;
-		if (visibleEditorPanes.length !== 1) {
-			return 'Expected text editor count : 1, Actual : ' + visibleEditorPanes.length;
+		const visibweEditowPanes = this._editowSewvice.visibweEditowPanes;
+		if (visibweEditowPanes.wength !== 1) {
+			wetuwn 'Expected text editow count : 1, Actuaw : ' + visibweEditowPanes.wength;
 		}
-		if (!isCodeEditor(visibleEditorPanes[0].getControl())) {
-			return 'Active editor is not a text editor';
+		if (!isCodeEditow(visibweEditowPanes[0].getContwow())) {
+			wetuwn 'Active editow is not a text editow';
 		}
-		const activePanel = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
-		if (activePanel) {
-			return 'Current active panel : ' + this._paneCompositeService.getPaneComposite(activePanel.getId(), ViewContainerLocation.Panel)?.name;
+		const activePanew = this._paneCompositeSewvice.getActivePaneComposite(ViewContainewWocation.Panew);
+		if (activePanew) {
+			wetuwn 'Cuwwent active panew : ' + this._paneCompositeSewvice.getPaneComposite(activePanew.getId(), ViewContainewWocation.Panew)?.name;
 		}
-		const noCachedData = this._environmentService.args['no-cached-data'];
-		if (!noCachedData && !didUseCachedData(this._productService, this._storageService, this._environmentService)) {
-			return 'Either cache data is rejected or not created';
+		const noCachedData = this._enviwonmentSewvice.awgs['no-cached-data'];
+		if (!noCachedData && !didUseCachedData(this._pwoductSewvice, this._stowageSewvice, this._enviwonmentSewvice)) {
+			wetuwn 'Eitha cache data is wejected ow not cweated';
 		}
-		if (!await this._updateService.isLatestVersion()) {
-			return 'Not on latest version, updates available';
+		if (!await this._updateSewvice.isWatestVewsion()) {
+			wetuwn 'Not on watest vewsion, updates avaiwabwe';
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }

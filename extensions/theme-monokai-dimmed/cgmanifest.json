@@ -1,16 +1,16 @@
 {
-	"registrations": [
+	"wegistwations": [
 		{
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "Colorsublime-Themes",
-					"repositoryUrl": "https://github.com/Colorsublime/Colorsublime-Themes",
+					"name": "Cowowsubwime-Themes",
+					"wepositowyUww": "https://github.com/Cowowsubwime/Cowowsubwime-Themes",
 					"commitHash": "c10fdd8b144486b7a4f3cb4e2251c66df222a825"
 				}
 			},
-			"version": "0.1.0"
+			"vewsion": "0.1.0"
 		}
 	],
-	"version": 1
+	"vewsion": 1
 }

@@ -1,74 +1,74 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IUpdateService, State } from 'vs/platform/update/common/update';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IChannew, ISewvewChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { IUpdateSewvice, State } fwom 'vs/pwatfowm/update/common/update';
 
-export class UpdateChannel implements IServerChannel {
+expowt cwass UpdateChannew impwements ISewvewChannew {
 
-	constructor(private service: IUpdateService) { }
+	constwuctow(pwivate sewvice: IUpdateSewvice) { }
 
-	listen(_: unknown, event: string): Event<any> {
+	wisten(_: unknown, event: stwing): Event<any> {
 		switch (event) {
-			case 'onStateChange': return this.service.onStateChange;
+			case 'onStateChange': wetuwn this.sewvice.onStateChange;
 		}
 
-		throw new Error(`Event not found: ${event}`);
+		thwow new Ewwow(`Event not found: ${event}`);
 	}
 
-	call(_: unknown, command: string, arg?: any): Promise<any> {
+	caww(_: unknown, command: stwing, awg?: any): Pwomise<any> {
 		switch (command) {
-			case 'checkForUpdates': return this.service.checkForUpdates(arg);
-			case 'downloadUpdate': return this.service.downloadUpdate();
-			case 'applyUpdate': return this.service.applyUpdate();
-			case 'quitAndInstall': return this.service.quitAndInstall();
-			case '_getInitialState': return Promise.resolve(this.service.state);
-			case 'isLatestVersion': return this.service.isLatestVersion();
+			case 'checkFowUpdates': wetuwn this.sewvice.checkFowUpdates(awg);
+			case 'downwoadUpdate': wetuwn this.sewvice.downwoadUpdate();
+			case 'appwyUpdate': wetuwn this.sewvice.appwyUpdate();
+			case 'quitAndInstaww': wetuwn this.sewvice.quitAndInstaww();
+			case '_getInitiawState': wetuwn Pwomise.wesowve(this.sewvice.state);
+			case 'isWatestVewsion': wetuwn this.sewvice.isWatestVewsion();
 		}
 
-		throw new Error(`Call not found: ${command}`);
+		thwow new Ewwow(`Caww not found: ${command}`);
 	}
 }
 
-export class UpdateChannelClient implements IUpdateService {
+expowt cwass UpdateChannewCwient impwements IUpdateSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _onStateChange = new Emitter<State>();
-	readonly onStateChange: Event<State> = this._onStateChange.event;
+	pwivate weadonwy _onStateChange = new Emitta<State>();
+	weadonwy onStateChange: Event<State> = this._onStateChange.event;
 
-	private _state: State = State.Uninitialized;
-	get state(): State { return this._state; }
+	pwivate _state: State = State.Uninitiawized;
+	get state(): State { wetuwn this._state; }
 	set state(state: State) {
 		this._state = state;
-		this._onStateChange.fire(state);
+		this._onStateChange.fiwe(state);
 	}
 
-	constructor(private readonly channel: IChannel) {
-		this.channel.listen<State>('onStateChange')(state => this.state = state);
-		this.channel.call<State>('_getInitialState').then(state => this.state = state);
+	constwuctow(pwivate weadonwy channew: IChannew) {
+		this.channew.wisten<State>('onStateChange')(state => this.state = state);
+		this.channew.caww<State>('_getInitiawState').then(state => this.state = state);
 	}
 
-	checkForUpdates(explicit: boolean): Promise<void> {
-		return this.channel.call('checkForUpdates', explicit);
+	checkFowUpdates(expwicit: boowean): Pwomise<void> {
+		wetuwn this.channew.caww('checkFowUpdates', expwicit);
 	}
 
-	downloadUpdate(): Promise<void> {
-		return this.channel.call('downloadUpdate');
+	downwoadUpdate(): Pwomise<void> {
+		wetuwn this.channew.caww('downwoadUpdate');
 	}
 
-	applyUpdate(): Promise<void> {
-		return this.channel.call('applyUpdate');
+	appwyUpdate(): Pwomise<void> {
+		wetuwn this.channew.caww('appwyUpdate');
 	}
 
-	quitAndInstall(): Promise<void> {
-		return this.channel.call('quitAndInstall');
+	quitAndInstaww(): Pwomise<void> {
+		wetuwn this.channew.caww('quitAndInstaww');
 	}
 
-	isLatestVersion(): Promise<boolean> {
-		return this.channel.call('isLatestVersion');
+	isWatestVewsion(): Pwomise<boowean> {
+		wetuwn this.channew.caww('isWatestVewsion');
 	}
 }

@@ -1,48 +1,48 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .quick-input-list .quick-input-list-entry.has-actions:hover .quick-input-list-entry-action-bar .action-label.dirty-workspace::before {
-	content: "\ea76"; /* Close icon flips between black dot and "X" for dirty workspaces */
+.monaco-wowkbench .quick-input-wist .quick-input-wist-entwy.has-actions:hova .quick-input-wist-entwy-action-baw .action-wabew.diwty-wowkspace::befowe {
+	content: "\ea76"; /* Cwose icon fwips between bwack dot and "X" fow diwty wowkspaces */
 }
 
-.monaco-workbench .screencast-mouse {
-	position: absolute;
-	border-width: 2px;
-	border-style: solid;
-	border-radius: 50%;
+.monaco-wowkbench .scweencast-mouse {
+	position: absowute;
+	bowda-width: 2px;
+	bowda-stywe: sowid;
+	bowda-wadius: 50%;
 	z-index: 100000;
 	content: ' ';
-	pointer-events: none;
-	display: none;
+	pointa-events: none;
+	dispway: none;
 }
 
-.monaco-workbench .screencast-keyboard {
-	position: absolute;
-	background-color: rgba(0, 0, 0 ,0.5);
+.monaco-wowkbench .scweencast-keyboawd {
+	position: absowute;
+	backgwound-cowow: wgba(0, 0, 0 ,0.5);
 	width: 100%;
-	left: 0;
+	weft: 0;
 	z-index: 100000;
-	pointer-events: none;
-	color: #eee;
-	line-height: 1.75em;
-	text-align: center;
-	transition: opacity 0.3s ease-out;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
+	pointa-events: none;
+	cowow: #eee;
+	wine-height: 1.75em;
+	text-awign: centa;
+	twansition: opacity 0.3s ease-out;
+	white-space: nowwap;
+	ovewfwow: hidden;
+	text-ovewfwow: ewwipsis;
 }
 
-.monaco-workbench .screencast-keyboard:empty {
+.monaco-wowkbench .scweencast-keyboawd:empty {
 	opacity: 0;
 }
 
-.monaco-workbench .screencast-keyboard > .key {
+.monaco-wowkbench .scweencast-keyboawd > .key {
 	padding: 0 8px;
-	box-shadow: inset 0 -3px 0 hsla(0,0%,73%,.4);
-	margin-right: 6px;
-	border: 1px solid hsla(0,0%,80%,.4);
-	border-radius: 5px;
-	background-color: rgba(255, 255, 255, 0.05);
+	box-shadow: inset 0 -3px 0 hswa(0,0%,73%,.4);
+	mawgin-wight: 6px;
+	bowda: 1px sowid hswa(0,0%,80%,.4);
+	bowda-wadius: 5px;
+	backgwound-cowow: wgba(255, 255, 255, 0.05);
 }

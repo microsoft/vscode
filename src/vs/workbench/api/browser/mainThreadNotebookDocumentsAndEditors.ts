@@ -1,247 +1,247 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { diffMaps, diffSets } from 'vs/base/common/collections';
-import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MainThreadNotebookDocuments } from 'vs/workbench/api/browser/mainThreadNotebookDocuments';
-import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
-import { MainThreadNotebookEditors } from 'vs/workbench/api/browser/mainThreadNotebookEditors';
-import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { getNotebookEditorFromEditorPane, IActiveNotebookEditor, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookDocumentsAndEditorsDelta, INotebookEditorAddData, INotebookModelAddedData, MainContext } from '../common/extHost.protocol';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+impowt { diffMaps, diffSets } fwom 'vs/base/common/cowwections';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { combinedDisposabwe, DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { MainThweadNotebookDocuments } fwom 'vs/wowkbench/api/bwowsa/mainThweadNotebookDocuments';
+impowt { NotebookDto } fwom 'vs/wowkbench/api/bwowsa/mainThweadNotebookDto';
+impowt { MainThweadNotebookEditows } fwom 'vs/wowkbench/api/bwowsa/mainThweadNotebookEditows';
+impowt { extHostCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { editowGwoupToCowumn } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupCowumn';
+impowt { getNotebookEditowFwomEditowPane, IActiveNotebookEditow, INotebookEditow } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { INotebookEditowSewvice } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowSewvice';
+impowt { NotebookTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookTextModew';
+impowt { INotebookSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookSewvice';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookDocumentsAndEditowsDewta, INotebookEditowAddData, INotebookModewAddedData, MainContext } fwom '../common/extHost.pwotocow';
+impowt { SewiawizabweObjectWithBuffews } fwom 'vs/wowkbench/sewvices/extensions/common/pwoxyIdentifia';
 
-interface INotebookAndEditorDelta {
-	removedDocuments: URI[];
-	addedDocuments: NotebookTextModel[];
-	removedEditors: string[];
-	addedEditors: IActiveNotebookEditor[];
-	newActiveEditor?: string | null;
-	visibleEditors?: string[];
+intewface INotebookAndEditowDewta {
+	wemovedDocuments: UWI[];
+	addedDocuments: NotebookTextModew[];
+	wemovedEditows: stwing[];
+	addedEditows: IActiveNotebookEditow[];
+	newActiveEditow?: stwing | nuww;
+	visibweEditows?: stwing[];
 }
 
-class NotebookAndEditorState {
-	static delta(before: NotebookAndEditorState | undefined, after: NotebookAndEditorState): INotebookAndEditorDelta {
-		if (!before) {
-			return {
-				addedDocuments: [...after.documents],
-				removedDocuments: [],
-				addedEditors: [...after.textEditors.values()],
-				removedEditors: [],
-				visibleEditors: [...after.visibleEditors].map(editor => editor[0])
+cwass NotebookAndEditowState {
+	static dewta(befowe: NotebookAndEditowState | undefined, afta: NotebookAndEditowState): INotebookAndEditowDewta {
+		if (!befowe) {
+			wetuwn {
+				addedDocuments: [...afta.documents],
+				wemovedDocuments: [],
+				addedEditows: [...afta.textEditows.vawues()],
+				wemovedEditows: [],
+				visibweEditows: [...afta.visibweEditows].map(editow => editow[0])
 			};
 		}
-		const documentDelta = diffSets(before.documents, after.documents);
-		const editorDelta = diffMaps(before.textEditors, after.textEditors);
+		const documentDewta = diffSets(befowe.documents, afta.documents);
+		const editowDewta = diffMaps(befowe.textEditows, afta.textEditows);
 
-		const newActiveEditor = before.activeEditor !== after.activeEditor ? after.activeEditor : undefined;
-		const visibleEditorDelta = diffMaps(before.visibleEditors, after.visibleEditors);
+		const newActiveEditow = befowe.activeEditow !== afta.activeEditow ? afta.activeEditow : undefined;
+		const visibweEditowDewta = diffMaps(befowe.visibweEditows, afta.visibweEditows);
 
-		return {
-			addedDocuments: documentDelta.added,
-			removedDocuments: documentDelta.removed.map(e => e.uri),
-			addedEditors: editorDelta.added,
-			removedEditors: editorDelta.removed.map(removed => removed.getId()),
-			newActiveEditor: newActiveEditor,
-			visibleEditors: visibleEditorDelta.added.length === 0 && visibleEditorDelta.removed.length === 0
+		wetuwn {
+			addedDocuments: documentDewta.added,
+			wemovedDocuments: documentDewta.wemoved.map(e => e.uwi),
+			addedEditows: editowDewta.added,
+			wemovedEditows: editowDewta.wemoved.map(wemoved => wemoved.getId()),
+			newActiveEditow: newActiveEditow,
+			visibweEditows: visibweEditowDewta.added.wength === 0 && visibweEditowDewta.wemoved.wength === 0
 				? undefined
-				: [...after.visibleEditors].map(editor => editor[0])
+				: [...afta.visibweEditows].map(editow => editow[0])
 		};
 	}
 
-	constructor(
-		readonly documents: Set<NotebookTextModel>,
-		readonly textEditors: Map<string, IActiveNotebookEditor>,
-		readonly activeEditor: string | null | undefined,
-		readonly visibleEditors: Map<string, IActiveNotebookEditor>
+	constwuctow(
+		weadonwy documents: Set<NotebookTextModew>,
+		weadonwy textEditows: Map<stwing, IActiveNotebookEditow>,
+		weadonwy activeEditow: stwing | nuww | undefined,
+		weadonwy visibweEditows: Map<stwing, IActiveNotebookEditow>
 	) {
 		//
 	}
 }
 
-@extHostCustomer
-export class MainThreadNotebooksAndEditors {
+@extHostCustoma
+expowt cwass MainThweadNotebooksAndEditows {
 
-	private readonly _onDidAddNotebooks = new Emitter<NotebookTextModel[]>();
-	private readonly _onDidRemoveNotebooks = new Emitter<URI[]>();
-	private readonly _onDidAddEditors = new Emitter<IActiveNotebookEditor[]>();
-	private readonly _onDidRemoveEditors = new Emitter<string[]>();
+	pwivate weadonwy _onDidAddNotebooks = new Emitta<NotebookTextModew[]>();
+	pwivate weadonwy _onDidWemoveNotebooks = new Emitta<UWI[]>();
+	pwivate weadonwy _onDidAddEditows = new Emitta<IActiveNotebookEditow[]>();
+	pwivate weadonwy _onDidWemoveEditows = new Emitta<stwing[]>();
 
-	readonly onDidAddNotebooks: Event<NotebookTextModel[]> = this._onDidAddNotebooks.event;
-	readonly onDidRemoveNotebooks: Event<URI[]> = this._onDidRemoveNotebooks.event;
-	readonly onDidAddEditors: Event<IActiveNotebookEditor[]> = this._onDidAddEditors.event;
-	readonly onDidRemoveEditors: Event<string[]> = this._onDidRemoveEditors.event;
+	weadonwy onDidAddNotebooks: Event<NotebookTextModew[]> = this._onDidAddNotebooks.event;
+	weadonwy onDidWemoveNotebooks: Event<UWI[]> = this._onDidWemoveNotebooks.event;
+	weadonwy onDidAddEditows: Event<IActiveNotebookEditow[]> = this._onDidAddEditows.event;
+	weadonwy onDidWemoveEditows: Event<stwing[]> = this._onDidWemoveEditows.event;
 
-	private readonly _proxy: Pick<ExtHostNotebookShape, '$acceptDocumentAndEditorsDelta'>;
-	private readonly _disposables = new DisposableStore();
+	pwivate weadonwy _pwoxy: Pick<ExtHostNotebookShape, '$acceptDocumentAndEditowsDewta'>;
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
 
-	private readonly _editorListeners = new Map<string, IDisposable>();
+	pwivate weadonwy _editowWistenews = new Map<stwing, IDisposabwe>();
 
-	private _currentState?: NotebookAndEditorState;
+	pwivate _cuwwentState?: NotebookAndEditowState;
 
-	private readonly _mainThreadNotebooks: MainThreadNotebookDocuments;
-	private readonly _mainThreadEditors: MainThreadNotebookEditors;
+	pwivate weadonwy _mainThweadNotebooks: MainThweadNotebookDocuments;
+	pwivate weadonwy _mainThweadEditows: MainThweadNotebookEditows;
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@INotebookService private readonly _notebookService: INotebookService,
-		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@INotebookSewvice pwivate weadonwy _notebookSewvice: INotebookSewvice,
+		@INotebookEditowSewvice pwivate weadonwy _notebookEditowSewvice: INotebookEditowSewvice,
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy _editowGwoupSewvice: IEditowGwoupsSewvice,
 	) {
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebook);
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostNotebook);
 
-		this._mainThreadNotebooks = instantiationService.createInstance(MainThreadNotebookDocuments, extHostContext, this);
-		this._mainThreadEditors = instantiationService.createInstance(MainThreadNotebookEditors, extHostContext, this);
+		this._mainThweadNotebooks = instantiationSewvice.cweateInstance(MainThweadNotebookDocuments, extHostContext, this);
+		this._mainThweadEditows = instantiationSewvice.cweateInstance(MainThweadNotebookEditows, extHostContext, this);
 
-		extHostContext.set(MainContext.MainThreadNotebookDocuments, this._mainThreadNotebooks);
-		extHostContext.set(MainContext.MainThreadNotebookEditors, this._mainThreadEditors);
+		extHostContext.set(MainContext.MainThweadNotebookDocuments, this._mainThweadNotebooks);
+		extHostContext.set(MainContext.MainThweadNotebookEditows, this._mainThweadEditows);
 
-		this._notebookService.onWillAddNotebookDocument(() => this._updateState(), this, this._disposables);
-		this._notebookService.onDidRemoveNotebookDocument(() => this._updateState(), this, this._disposables);
-		this._editorService.onDidActiveEditorChange(() => this._updateState(), this, this._disposables);
-		this._editorService.onDidVisibleEditorsChange(() => this._updateState(), this, this._disposables);
-		this._notebookEditorService.onDidAddNotebookEditor(this._handleEditorAdd, this, this._disposables);
-		this._notebookEditorService.onDidRemoveNotebookEditor(this._handleEditorRemove, this, this._disposables);
+		this._notebookSewvice.onWiwwAddNotebookDocument(() => this._updateState(), this, this._disposabwes);
+		this._notebookSewvice.onDidWemoveNotebookDocument(() => this._updateState(), this, this._disposabwes);
+		this._editowSewvice.onDidActiveEditowChange(() => this._updateState(), this, this._disposabwes);
+		this._editowSewvice.onDidVisibweEditowsChange(() => this._updateState(), this, this._disposabwes);
+		this._notebookEditowSewvice.onDidAddNotebookEditow(this._handweEditowAdd, this, this._disposabwes);
+		this._notebookEditowSewvice.onDidWemoveNotebookEditow(this._handweEditowWemove, this, this._disposabwes);
 		this._updateState();
 	}
 
 	dispose() {
-		this._mainThreadNotebooks.dispose();
-		this._mainThreadEditors.dispose();
-		this._onDidAddEditors.dispose();
-		this._onDidRemoveEditors.dispose();
+		this._mainThweadNotebooks.dispose();
+		this._mainThweadEditows.dispose();
+		this._onDidAddEditows.dispose();
+		this._onDidWemoveEditows.dispose();
 		this._onDidAddNotebooks.dispose();
-		this._onDidRemoveNotebooks.dispose();
-		this._disposables.dispose();
+		this._onDidWemoveNotebooks.dispose();
+		this._disposabwes.dispose();
 	}
 
-	private _handleEditorAdd(editor: INotebookEditor): void {
-		this._editorListeners.set(editor.getId(), combinedDisposable(
-			editor.onDidChangeModel(() => this._updateState()),
-			editor.onDidFocusEditorWidget(() => this._updateState(editor)),
+	pwivate _handweEditowAdd(editow: INotebookEditow): void {
+		this._editowWistenews.set(editow.getId(), combinedDisposabwe(
+			editow.onDidChangeModew(() => this._updateState()),
+			editow.onDidFocusEditowWidget(() => this._updateState(editow)),
 		));
 		this._updateState();
 	}
 
-	private _handleEditorRemove(editor: INotebookEditor): void {
-		this._editorListeners.get(editor.getId())?.dispose();
-		this._editorListeners.delete(editor.getId());
+	pwivate _handweEditowWemove(editow: INotebookEditow): void {
+		this._editowWistenews.get(editow.getId())?.dispose();
+		this._editowWistenews.dewete(editow.getId());
 		this._updateState();
 	}
 
-	private _updateState(focusedEditor?: INotebookEditor): void {
+	pwivate _updateState(focusedEditow?: INotebookEditow): void {
 
-		const editors = new Map<string, IActiveNotebookEditor>();
-		const visibleEditorsMap = new Map<string, IActiveNotebookEditor>();
+		const editows = new Map<stwing, IActiveNotebookEditow>();
+		const visibweEditowsMap = new Map<stwing, IActiveNotebookEditow>();
 
-		for (const editor of this._notebookEditorService.listNotebookEditors()) {
-			if (editor.hasModel()) {
-				editors.set(editor.getId(), editor);
+		fow (const editow of this._notebookEditowSewvice.wistNotebookEditows()) {
+			if (editow.hasModew()) {
+				editows.set(editow.getId(), editow);
 			}
 		}
 
-		const activeNotebookEditor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
-		let activeEditor: string | null = null;
-		if (activeNotebookEditor) {
-			activeEditor = activeNotebookEditor.getId();
-		} else if (focusedEditor?.textModel) {
-			activeEditor = focusedEditor.getId();
+		const activeNotebookEditow = getNotebookEditowFwomEditowPane(this._editowSewvice.activeEditowPane);
+		wet activeEditow: stwing | nuww = nuww;
+		if (activeNotebookEditow) {
+			activeEditow = activeNotebookEditow.getId();
+		} ewse if (focusedEditow?.textModew) {
+			activeEditow = focusedEditow.getId();
 		}
-		if (activeEditor && !editors.has(activeEditor)) {
-			activeEditor = null;
+		if (activeEditow && !editows.has(activeEditow)) {
+			activeEditow = nuww;
 		}
 
-		for (const editorPane of this._editorService.visibleEditorPanes) {
-			const notebookEditor = getNotebookEditorFromEditorPane(editorPane);
-			if (notebookEditor?.hasModel() && editors.has(notebookEditor.getId())) {
-				visibleEditorsMap.set(notebookEditor.getId(), notebookEditor);
+		fow (const editowPane of this._editowSewvice.visibweEditowPanes) {
+			const notebookEditow = getNotebookEditowFwomEditowPane(editowPane);
+			if (notebookEditow?.hasModew() && editows.has(notebookEditow.getId())) {
+				visibweEditowsMap.set(notebookEditow.getId(), notebookEditow);
 			}
 		}
 
-		const newState = new NotebookAndEditorState(new Set(this._notebookService.listNotebookDocuments()), editors, activeEditor, visibleEditorsMap);
-		this._onDelta(NotebookAndEditorState.delta(this._currentState, newState));
-		this._currentState = newState;
+		const newState = new NotebookAndEditowState(new Set(this._notebookSewvice.wistNotebookDocuments()), editows, activeEditow, visibweEditowsMap);
+		this._onDewta(NotebookAndEditowState.dewta(this._cuwwentState, newState));
+		this._cuwwentState = newState;
 	}
 
-	private _onDelta(delta: INotebookAndEditorDelta): void {
-		if (MainThreadNotebooksAndEditors._isDeltaEmpty(delta)) {
-			return;
+	pwivate _onDewta(dewta: INotebookAndEditowDewta): void {
+		if (MainThweadNotebooksAndEditows._isDewtaEmpty(dewta)) {
+			wetuwn;
 		}
 
-		const dto: INotebookDocumentsAndEditorsDelta = {
-			removedDocuments: delta.removedDocuments,
-			removedEditors: delta.removedEditors,
-			newActiveEditor: delta.newActiveEditor,
-			visibleEditors: delta.visibleEditors,
-			addedDocuments: delta.addedDocuments.map(MainThreadNotebooksAndEditors._asModelAddData),
-			addedEditors: delta.addedEditors.map(this._asEditorAddData, this),
+		const dto: INotebookDocumentsAndEditowsDewta = {
+			wemovedDocuments: dewta.wemovedDocuments,
+			wemovedEditows: dewta.wemovedEditows,
+			newActiveEditow: dewta.newActiveEditow,
+			visibweEditows: dewta.visibweEditows,
+			addedDocuments: dewta.addedDocuments.map(MainThweadNotebooksAndEditows._asModewAddData),
+			addedEditows: dewta.addedEditows.map(this._asEditowAddData, this),
 		};
 
-		// send to extension FIRST
-		this._proxy.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers(dto));
+		// send to extension FIWST
+		this._pwoxy.$acceptDocumentAndEditowsDewta(new SewiawizabweObjectWithBuffews(dto));
 
-		// handle internally
-		this._onDidRemoveEditors.fire(delta.removedEditors);
-		this._onDidRemoveNotebooks.fire(delta.removedDocuments);
-		this._onDidAddNotebooks.fire(delta.addedDocuments);
-		this._onDidAddEditors.fire(delta.addedEditors);
+		// handwe intewnawwy
+		this._onDidWemoveEditows.fiwe(dewta.wemovedEditows);
+		this._onDidWemoveNotebooks.fiwe(dewta.wemovedDocuments);
+		this._onDidAddNotebooks.fiwe(dewta.addedDocuments);
+		this._onDidAddEditows.fiwe(dewta.addedEditows);
 	}
 
-	private static _isDeltaEmpty(delta: INotebookAndEditorDelta): boolean {
-		if (delta.addedDocuments !== undefined && delta.addedDocuments.length > 0) {
-			return false;
+	pwivate static _isDewtaEmpty(dewta: INotebookAndEditowDewta): boowean {
+		if (dewta.addedDocuments !== undefined && dewta.addedDocuments.wength > 0) {
+			wetuwn fawse;
 		}
-		if (delta.removedDocuments !== undefined && delta.removedDocuments.length > 0) {
-			return false;
+		if (dewta.wemovedDocuments !== undefined && dewta.wemovedDocuments.wength > 0) {
+			wetuwn fawse;
 		}
-		if (delta.addedEditors !== undefined && delta.addedEditors.length > 0) {
-			return false;
+		if (dewta.addedEditows !== undefined && dewta.addedEditows.wength > 0) {
+			wetuwn fawse;
 		}
-		if (delta.removedEditors !== undefined && delta.removedEditors.length > 0) {
-			return false;
+		if (dewta.wemovedEditows !== undefined && dewta.wemovedEditows.wength > 0) {
+			wetuwn fawse;
 		}
-		if (delta.visibleEditors !== undefined && delta.visibleEditors.length > 0) {
-			return false;
+		if (dewta.visibweEditows !== undefined && dewta.visibweEditows.wength > 0) {
+			wetuwn fawse;
 		}
-		if (delta.newActiveEditor !== undefined) {
-			return false;
+		if (dewta.newActiveEditow !== undefined) {
+			wetuwn fawse;
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	private static _asModelAddData(e: NotebookTextModel): INotebookModelAddedData {
-		return {
+	pwivate static _asModewAddData(e: NotebookTextModew): INotebookModewAddedData {
+		wetuwn {
 			viewType: e.viewType,
-			uri: e.uri,
+			uwi: e.uwi,
 			metadata: e.metadata,
-			versionId: e.versionId,
-			cells: e.cells.map(NotebookDto.toNotebookCellDto)
+			vewsionId: e.vewsionId,
+			cewws: e.cewws.map(NotebookDto.toNotebookCewwDto)
 		};
 	}
 
-	private _asEditorAddData(add: IActiveNotebookEditor): INotebookEditorAddData {
+	pwivate _asEditowAddData(add: IActiveNotebookEditow): INotebookEditowAddData {
 
-		const pane = this._editorService.visibleEditorPanes.find(pane => getNotebookEditorFromEditorPane(pane) === add);
+		const pane = this._editowSewvice.visibweEditowPanes.find(pane => getNotebookEditowFwomEditowPane(pane) === add);
 
-		return {
+		wetuwn {
 			id: add.getId(),
-			documentUri: add.textModel.uri,
-			selections: add.getSelections(),
-			visibleRanges: add.visibleRanges,
-			viewColumn: pane && editorGroupToColumn(this._editorGroupService, pane.group)
+			documentUwi: add.textModew.uwi,
+			sewections: add.getSewections(),
+			visibweWanges: add.visibweWanges,
+			viewCowumn: pane && editowGwoupToCowumn(this._editowGwoupSewvice, pane.gwoup)
 		};
 	}
 }

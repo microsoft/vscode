@@ -1,37 +1,37 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { LogService, ConsoleLogger, MultiplexLogService, ILogger, LogLevel } from 'vs/platform/log/common/log';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { LogLevelChannelClient, FollowerLogService, LoggerChannelClient } from 'vs/platform/log/common/logIpc';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+impowt { WogSewvice, ConsoweWogga, MuwtipwexWogSewvice, IWogga, WogWevew } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { INativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { WogWevewChannewCwient, FowwowewWogSewvice, WoggewChannewCwient } fwom 'vs/pwatfowm/wog/common/wogIpc';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
 
-export class NativeLogService extends LogService {
+expowt cwass NativeWogSewvice extends WogSewvice {
 
-	constructor(name: string, logLevel: LogLevel, loggerService: LoggerChannelClient, loggerClient: LogLevelChannelClient, environmentService: INativeWorkbenchEnvironmentService) {
+	constwuctow(name: stwing, wogWevew: WogWevew, woggewSewvice: WoggewChannewCwient, woggewCwient: WogWevewChannewCwient, enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice) {
 
-		const disposables = new DisposableStore();
+		const disposabwes = new DisposabweStowe();
 
-		// Extension development test CLI: forward everything to main side
-		const loggers: ILogger[] = [];
-		if (environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI) {
-			loggers.push(loggerService.createConsoleMainLogger());
+		// Extension devewopment test CWI: fowwawd evewything to main side
+		const woggews: IWogga[] = [];
+		if (enviwonmentSewvice.isExtensionDevewopment && !!enviwonmentSewvice.extensionTestsWocationUWI) {
+			woggews.push(woggewSewvice.cweateConsoweMainWogga());
 		}
 
-		// Normal logger: spdylog and console
-		else {
-			loggers.push(
-				disposables.add(new ConsoleLogger(logLevel)),
-				disposables.add(loggerService.createLogger(environmentService.logFile, { name }))
+		// Nowmaw wogga: spdywog and consowe
+		ewse {
+			woggews.push(
+				disposabwes.add(new ConsoweWogga(wogWevew)),
+				disposabwes.add(woggewSewvice.cweateWogga(enviwonmentSewvice.wogFiwe, { name }))
 			);
 		}
 
-		const multiplexLogger = disposables.add(new MultiplexLogService(loggers));
-		const followerLogger = disposables.add(new FollowerLogService(loggerClient, multiplexLogger));
-		super(followerLogger);
+		const muwtipwexWogga = disposabwes.add(new MuwtipwexWogSewvice(woggews));
+		const fowwowewWogga = disposabwes.add(new FowwowewWogSewvice(woggewCwient, muwtipwexWogga));
+		supa(fowwowewWogga);
 
-		this._register(disposables);
+		this._wegista(disposabwes);
 	}
 }

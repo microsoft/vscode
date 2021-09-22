@@ -1,85 +1,85 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.open-editors .monaco-list .monaco-list-row:hover > .monaco-action-bar,
-.open-editors .monaco-list .monaco-list-row.focused > .monaco-action-bar,
-.open-editors .monaco-list .monaco-list-row.dirty > .monaco-action-bar,
-.open-editors .monaco-list .monaco-list-row.sticky > .monaco-action-bar {
-	visibility: visible;
+.open-editows .monaco-wist .monaco-wist-wow:hova > .monaco-action-baw,
+.open-editows .monaco-wist .monaco-wist-wow.focused > .monaco-action-baw,
+.open-editows .monaco-wist .monaco-wist-wow.diwty > .monaco-action-baw,
+.open-editows .monaco-wist .monaco-wist-wow.sticky > .monaco-action-baw {
+	visibiwity: visibwe;
 }
 
-.open-editors .monaco-list .monaco-list-row > .monaco-action-bar .action-label {
-	display: block;
+.open-editows .monaco-wist .monaco-wist-wow > .monaco-action-baw .action-wabew {
+	dispway: bwock;
 	padding: 2px;
 }
 
-.open-editors .monaco-list .monaco-list-row > .monaco-action-bar .codicon {
-	color: inherit;
+.open-editows .monaco-wist .monaco-wist-wow > .monaco-action-baw .codicon {
+	cowow: inhewit;
 }
 
-.open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .codicon-pinned::before {
-	content: "\ebb2"; /* use `pinned-dirty` icon unicode for sticky-dirty indication */
+.open-editows .monaco-wist .monaco-wist-wow.diwty:not(:hova) > .monaco-action-baw .codicon-pinned::befowe {
+	content: "\ebb2"; /* use `pinned-diwty` icon unicode fow sticky-diwty indication */
 }
 
-.open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .codicon-close::before {
-	content: "\ea71"; /* use `circle-filled` icon unicode for dirty indication */
+.open-editows .monaco-wist .monaco-wist-wow.diwty:not(:hova) > .monaco-action-baw .codicon-cwose::befowe {
+	content: "\ea71"; /* use `ciwcwe-fiwwed` icon unicode fow diwty indication */
 }
 
-.open-editors .monaco-list .monaco-list-row > .monaco-action-bar .action-close-all-files,
-.open-editors .monaco-list .monaco-list-row > .monaco-action-bar .save-all {
+.open-editows .monaco-wist .monaco-wist-wow > .monaco-action-baw .action-cwose-aww-fiwes,
+.open-editows .monaco-wist .monaco-wist-wow > .monaco-action-baw .save-aww {
 	width: 23px;
 	height: 22px;
 }
 
-.open-editors .monaco-list .monaco-list-row > .open-editor {
-	flex: 1;
+.open-editows .monaco-wist .monaco-wist-wow > .open-editow {
+	fwex: 1;
 }
 
-.open-editors .monaco-list .monaco-list-row > .editor-group {
-	flex: 1;
+.open-editows .monaco-wist .monaco-wist-wow > .editow-gwoup {
+	fwex: 1;
 }
 
-.open-editors .monaco-list .monaco-list-row {
-	padding-left: 22px;
-	display: flex;
+.open-editows .monaco-wist .monaco-wist-wow {
+	padding-weft: 22px;
+	dispway: fwex;
 }
 
-.open-editors .monaco-list .monaco-list-row > .monaco-action-bar {
-	visibility: hidden;
-	display: flex;
-	align-items: center;
+.open-editows .monaco-wist .monaco-wist-wow > .monaco-action-baw {
+	visibiwity: hidden;
+	dispway: fwex;
+	awign-items: centa;
 }
 
-.open-editors .monaco-list .monaco-list-row .editor-group {
+.open-editows .monaco-wist .monaco-wist-wow .editow-gwoup {
 	font-size: 11px;
-	font-weight: bold;
-	text-transform: uppercase;
-	cursor: default;
+	font-weight: bowd;
+	text-twansfowm: uppewcase;
+	cuwsow: defauwt;
 }
 
-/* Bold font style does not go well with CJK fonts */
-.composite:lang(zh-Hans) .open-editors .monaco-list .monaco-list-row .editor-group,
-.composite:lang(zh-Hant) .open-editors .monaco-list .monaco-list-row .editor-group,
-.composite:lang(ja) .open-editors .monaco-list .monaco-list-row .editor-group,
-.composite:lang(ko) .open-editors .monaco-list .monaco-list-row .editor-group {
-	font-weight: normal;
+/* Bowd font stywe does not go weww with CJK fonts */
+.composite:wang(zh-Hans) .open-editows .monaco-wist .monaco-wist-wow .editow-gwoup,
+.composite:wang(zh-Hant) .open-editows .monaco-wist .monaco-wist-wow .editow-gwoup,
+.composite:wang(ja) .open-editows .monaco-wist .monaco-wist-wow .editow-gwoup,
+.composite:wang(ko) .open-editows .monaco-wist .monaco-wist-wow .editow-gwoup {
+	font-weight: nowmaw;
 }
 
-.open-editors .open-editor,
-.open-editors .editor-group {
+.open-editows .open-editow,
+.open-editows .editow-gwoup {
 	height: 22px;
-	line-height: 22px;
+	wine-height: 22px;
 }
 
-.open-editors .open-editor > a,
-.open-editors .editor-group {
-	text-overflow: ellipsis;
-	overflow: hidden;
+.open-editows .open-editow > a,
+.open-editows .editow-gwoup {
+	text-ovewfwow: ewwipsis;
+	ovewfwow: hidden;
 }
 
-.monaco-workbench.hc-black .open-editors .open-editor,
-.monaco-workbench.hc-black .open-editors .editor-group {
-	line-height: 20px;
+.monaco-wowkbench.hc-bwack .open-editows .open-editow,
+.monaco-wowkbench.hc-bwack .open-editows .editow-gwoup {
+	wine-height: 20px;
 }

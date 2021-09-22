@@ -1,25 +1,25 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { WorkbenchListAutomaticKeyboardNavigationKey } from 'vs/platform/list/browser/listService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+impowt { IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { WowkbenchWistAutomaticKeyboawdNavigationKey } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IWowkbenchContwibutionsWegistwy, Extensions as WowkbenchExtensions, IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
 
-export const WorkbenchListSupportsKeyboardNavigation = new RawContextKey<boolean>('listSupportsKeyboardNavigation', true);
-export const WorkbenchListAutomaticKeyboardNavigation = new RawContextKey<boolean>(WorkbenchListAutomaticKeyboardNavigationKey, true);
+expowt const WowkbenchWistSuppowtsKeyboawdNavigation = new WawContextKey<boowean>('wistSuppowtsKeyboawdNavigation', twue);
+expowt const WowkbenchWistAutomaticKeyboawdNavigation = new WawContextKey<boowean>(WowkbenchWistAutomaticKeyboawdNavigationKey, twue);
 
-export class ListContext implements IWorkbenchContribution {
+expowt cwass WistContext impwements IWowkbenchContwibution {
 
-	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService
+	constwuctow(
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice
 	) {
-		WorkbenchListSupportsKeyboardNavigation.bindTo(contextKeyService);
-		WorkbenchListAutomaticKeyboardNavigation.bindTo(contextKeyService);
+		WowkbenchWistSuppowtsKeyboawdNavigation.bindTo(contextKeySewvice);
+		WowkbenchWistAutomaticKeyboawdNavigation.bindTo(contextKeySewvice);
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ListContext, LifecyclePhase.Starting);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(WistContext, WifecycwePhase.Stawting);

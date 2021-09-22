@@ -1,118 +1,118 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import type * as Proto from '../../protocol';
-import { CachedResponse } from '../../tsServer/cachedResponse';
-import { ITypeScriptServiceClient } from '../../typescriptService';
-import { escapeRegExp } from '../../utils/regexp';
-import * as typeConverters from '../../utils/typeConverters';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt type * as Pwoto fwom '../../pwotocow';
+impowt { CachedWesponse } fwom '../../tsSewva/cachedWesponse';
+impowt { ITypeScwiptSewviceCwient } fwom '../../typescwiptSewvice';
+impowt { escapeWegExp } fwom '../../utiws/wegexp';
+impowt * as typeConvewtews fwom '../../utiws/typeConvewtews';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-export class ReferencesCodeLens extends vscode.CodeLens {
-	constructor(
-		public document: vscode.Uri,
-		public file: string,
-		range: vscode.Range
+expowt cwass WefewencesCodeWens extends vscode.CodeWens {
+	constwuctow(
+		pubwic document: vscode.Uwi,
+		pubwic fiwe: stwing,
+		wange: vscode.Wange
 	) {
-		super(range);
+		supa(wange);
 	}
 }
 
-export abstract class TypeScriptBaseCodeLensProvider implements vscode.CodeLensProvider<ReferencesCodeLens> {
+expowt abstwact cwass TypeScwiptBaseCodeWensPwovida impwements vscode.CodeWensPwovida<WefewencesCodeWens> {
 
-	public static readonly cancelledCommand: vscode.Command = {
-		// Cancellation is not an error. Just show nothing until we can properly re-compute the code lens
-		title: '',
+	pubwic static weadonwy cancewwedCommand: vscode.Command = {
+		// Cancewwation is not an ewwow. Just show nothing untiw we can pwopewwy we-compute the code wens
+		titwe: '',
 		command: ''
 	};
 
-	public static readonly errorCommand: vscode.Command = {
-		title: localize('referenceErrorLabel', 'Could not determine references'),
+	pubwic static weadonwy ewwowCommand: vscode.Command = {
+		titwe: wocawize('wefewenceEwwowWabew', 'Couwd not detewmine wefewences'),
 		command: ''
 	};
 
-	private onDidChangeCodeLensesEmitter = new vscode.EventEmitter<void>();
+	pwivate onDidChangeCodeWensesEmitta = new vscode.EventEmitta<void>();
 
-	public constructor(
-		protected client: ITypeScriptServiceClient,
-		private cachedResponse: CachedResponse<Proto.NavTreeResponse>
+	pubwic constwuctow(
+		pwotected cwient: ITypeScwiptSewviceCwient,
+		pwivate cachedWesponse: CachedWesponse<Pwoto.NavTweeWesponse>
 	) { }
 
-	public get onDidChangeCodeLenses(): vscode.Event<void> {
-		return this.onDidChangeCodeLensesEmitter.event;
+	pubwic get onDidChangeCodeWenses(): vscode.Event<void> {
+		wetuwn this.onDidChangeCodeWensesEmitta.event;
 	}
 
-	async provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<ReferencesCodeLens[]> {
-		const filepath = this.client.toOpenedFilePath(document);
-		if (!filepath) {
-			return [];
+	async pwovideCodeWenses(document: vscode.TextDocument, token: vscode.CancewwationToken): Pwomise<WefewencesCodeWens[]> {
+		const fiwepath = this.cwient.toOpenedFiwePath(document);
+		if (!fiwepath) {
+			wetuwn [];
 		}
 
-		const response = await this.cachedResponse.execute(document, () => this.client.execute('navtree', { file: filepath }, token));
-		if (response.type !== 'response') {
-			return [];
+		const wesponse = await this.cachedWesponse.execute(document, () => this.cwient.execute('navtwee', { fiwe: fiwepath }, token));
+		if (wesponse.type !== 'wesponse') {
+			wetuwn [];
 		}
 
-		const tree = response.body;
-		const referenceableSpans: vscode.Range[] = [];
-		if (tree && tree.childItems) {
-			tree.childItems.forEach(item => this.walkNavTree(document, item, null, referenceableSpans));
+		const twee = wesponse.body;
+		const wefewenceabweSpans: vscode.Wange[] = [];
+		if (twee && twee.chiwdItems) {
+			twee.chiwdItems.fowEach(item => this.wawkNavTwee(document, item, nuww, wefewenceabweSpans));
 		}
-		return referenceableSpans.map(span => new ReferencesCodeLens(document.uri, filepath, span));
+		wetuwn wefewenceabweSpans.map(span => new WefewencesCodeWens(document.uwi, fiwepath, span));
 	}
 
-	protected abstract extractSymbol(
+	pwotected abstwact extwactSymbow(
 		document: vscode.TextDocument,
-		item: Proto.NavigationTree,
-		parent: Proto.NavigationTree | null
-	): vscode.Range | null;
+		item: Pwoto.NavigationTwee,
+		pawent: Pwoto.NavigationTwee | nuww
+	): vscode.Wange | nuww;
 
-	private walkNavTree(
+	pwivate wawkNavTwee(
 		document: vscode.TextDocument,
-		item: Proto.NavigationTree,
-		parent: Proto.NavigationTree | null,
-		results: vscode.Range[]
+		item: Pwoto.NavigationTwee,
+		pawent: Pwoto.NavigationTwee | nuww,
+		wesuwts: vscode.Wange[]
 	): void {
 		if (!item) {
-			return;
+			wetuwn;
 		}
 
-		const range = this.extractSymbol(document, item, parent);
-		if (range) {
-			results.push(range);
+		const wange = this.extwactSymbow(document, item, pawent);
+		if (wange) {
+			wesuwts.push(wange);
 		}
 
-		(item.childItems || []).forEach(child => this.walkNavTree(document, child, item, results));
+		(item.chiwdItems || []).fowEach(chiwd => this.wawkNavTwee(document, chiwd, item, wesuwts));
 	}
 }
 
-export function getSymbolRange(
+expowt function getSymbowWange(
 	document: vscode.TextDocument,
-	item: Proto.NavigationTree
-): vscode.Range | null {
+	item: Pwoto.NavigationTwee
+): vscode.Wange | nuww {
 	if (item.nameSpan) {
-		return typeConverters.Range.fromTextSpan(item.nameSpan);
+		wetuwn typeConvewtews.Wange.fwomTextSpan(item.nameSpan);
 	}
 
-	// In older versions, we have to calculate this manually. See #23924
+	// In owda vewsions, we have to cawcuwate this manuawwy. See #23924
 	const span = item.spans && item.spans[0];
 	if (!span) {
-		return null;
+		wetuwn nuww;
 	}
 
-	const range = typeConverters.Range.fromTextSpan(span);
-	const text = document.getText(range);
+	const wange = typeConvewtews.Wange.fwomTextSpan(span);
+	const text = document.getText(wange);
 
-	const identifierMatch = new RegExp(`^(.*?(\\b|\\W))${escapeRegExp(item.text || '')}(\\b|\\W)`, 'gm');
-	const match = identifierMatch.exec(text);
-	const prefixLength = match ? match.index + match[1].length : 0;
-	const startOffset = document.offsetAt(new vscode.Position(range.start.line, range.start.character)) + prefixLength;
-	return new vscode.Range(
-		document.positionAt(startOffset),
-		document.positionAt(startOffset + item.text.length));
+	const identifiewMatch = new WegExp(`^(.*?(\\b|\\W))${escapeWegExp(item.text || '')}(\\b|\\W)`, 'gm');
+	const match = identifiewMatch.exec(text);
+	const pwefixWength = match ? match.index + match[1].wength : 0;
+	const stawtOffset = document.offsetAt(new vscode.Position(wange.stawt.wine, wange.stawt.chawacta)) + pwefixWength;
+	wetuwn new vscode.Wange(
+		document.positionAt(stawtOffset),
+		document.positionAt(stawtOffset + item.text.wength));
 }

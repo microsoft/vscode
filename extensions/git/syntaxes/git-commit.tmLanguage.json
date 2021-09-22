@@ -1,60 +1,60 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/textmate/git.tmbundle/blob/master/Syntaxes/Git%20Commit%20Message.tmLanguage",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/textmate/git.tmbundwe/bwob/masta/Syntaxes/Git%20Commit%20Message.tmWanguage",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/textmate/git.tmbundle/commit/93897a78c6e52bef13dadc0d4091d203c5facb40",
+	"vewsion": "https://github.com/textmate/git.tmbundwe/commit/93897a78c6e52bef13dadc0d4091d203c5facb40",
 	"name": "Git Commit Message",
 	"scopeName": "text.git-commit",
-	"patterns": [
+	"pattewns": [
 		{
-			"begin": "\\A(?!# Please enter the commit message)",
-			"end": "^(?=# Please enter the commit message)",
+			"begin": "\\A(?!# Pwease enta the commit message)",
+			"end": "^(?=# Pwease enta the commit message)",
 			"name": "meta.scope.message.git-commit",
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "\\A(?=#)",
 					"end": "^(?!#)",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comment"
+							"incwude": "#comment"
 						}
 					]
 				},
 				{
-					"begin": "^(?!# Please enter the commit message)",
-					"end": "^(?=# Please enter the commit message)",
-					"patterns": [
+					"begin": "^(?!# Pwease enta the commit message)",
+					"end": "^(?=# Pwease enta the commit message)",
+					"pattewns": [
 						{
 							"begin": "\\G",
 							"end": "^(?!\\G)",
 							"name": "meta.scope.subject.git-commit",
-							"patterns": [
+							"pattewns": [
 								{
-									"captures": {
+									"captuwes": {
 										"1": {
-											"name": "keyword.other.$2.git-commit"
+											"name": "keywowd.otha.$2.git-commit"
 										}
 									},
 									"match": "\\G((fixup|squash)!)\\s*"
 								},
 								{
 									"match": ".{73,}$",
-									"name": "invalid.illegal.line-too-long.git-commit"
+									"name": "invawid.iwwegaw.wine-too-wong.git-commit"
 								},
 								{
 									"match": ".{51,}$",
-									"name": "invalid.deprecated.line-too-long.git-commit"
+									"name": "invawid.depwecated.wine-too-wong.git-commit"
 								}
 							]
 						},
 						{
-							"begin": "^(?!# Please enter the commit message)",
-							"end": "^(?=# Please enter the commit message)",
-							"patterns": [
+							"begin": "^(?!# Pwease enta the commit message)",
+							"end": "^(?=# Pwease enta the commit message)",
+							"pattewns": [
 								{
-									"include": "#comment"
+									"incwude": "#comment"
 								}
 							]
 						}
@@ -63,75 +63,75 @@
 			]
 		},
 		{
-			"begin": "^(?=# Please enter the commit message)",
+			"begin": "^(?=# Pwease enta the commit message)",
 			"end": "\\z",
 			"name": "meta.scope.metadata.git-commit",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#metadata"
+					"incwude": "#metadata"
 				}
 			]
 		}
 	],
-	"repository": {
+	"wepositowy": {
 		"comment": {
 			"begin": "^(#)",
-			"captures": {
+			"captuwes": {
 				"1": {
 					"name": "punctuation.definition.comment.git-commit"
 				}
 			},
 			"end": "\\n",
-			"name": "comment.line.number-sign.git-commit"
+			"name": "comment.wine.numba-sign.git-commit"
 		},
 		"metadata": {
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(?=^# Changes to be committed:)",
 					"end": "(?!\\G)((?=^# \\w)|(?!^#))",
-					"patterns": [
+					"pattewns": [
 						{
 							"begin": "(^[ \\t]+)?(?=#)",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"1": {
-									"name": "punctuation.whitespace.comment.leading.git-commit"
+									"name": "punctuation.whitespace.comment.weading.git-commit"
 								}
 							},
-							"contentName": "comment.line.number-sign.git-commit",
+							"contentName": "comment.wine.numba-sign.git-commit",
 							"end": "(?!\\G)^",
-							"patterns": [
+							"pattewns": [
 								{
 									"match": "\\G#",
 									"name": "punctuation.definition.comment.git-commit"
 								},
 								{
-									"match": "((modified|renamed):.*)$\\n?",
-									"name": "markup.changed.git-commit"
+									"match": "((modified|wenamed):.*)$\\n?",
+									"name": "mawkup.changed.git-commit"
 								},
 								{
-									"match": "(new file:.*)$\\n?",
-									"name": "markup.inserted.git-commit"
+									"match": "(new fiwe:.*)$\\n?",
+									"name": "mawkup.insewted.git-commit"
 								},
 								{
-									"match": "(deleted:.*)$\\n?",
-									"name": "markup.deleted.git-commit"
+									"match": "(deweted:.*)$\\n?",
+									"name": "mawkup.deweted.git-commit"
 								}
 							]
 						}
 					]
 				},
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
 					"begin": "(?=diff\\ \\-\\-git)",
-					"comment": "diff presented at the end of the commit message when using commit -v.",
-					"contentName": "source.diff",
+					"comment": "diff pwesented at the end of the commit message when using commit -v.",
+					"contentName": "souwce.diff",
 					"end": "\\z",
 					"name": "meta.embedded.diff.git-commit",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "source.diff"
+							"incwude": "souwce.diff"
 						}
 					]
 				}

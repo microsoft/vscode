@@ -1,181 +1,181 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Queue } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { basename, dirname, joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ByteSize, FileOperationError, FileOperationResult, IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { BufferLogService } from 'vs/platform/log/common/bufferLog';
-import { AbstractLogger, AbstractLoggerService, ILogger, ILoggerOptions, ILoggerService, ILogService, LogLevel } from 'vs/platform/log/common/log';
+impowt { Queue } fwom 'vs/base/common/async';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { basename, diwname, joinPath } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ByteSize, FiweOpewationEwwow, FiweOpewationWesuwt, IFiweSewvice, whenPwovidewWegistewed } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { BuffewWogSewvice } fwom 'vs/pwatfowm/wog/common/buffewWog';
+impowt { AbstwactWogga, AbstwactWoggewSewvice, IWogga, IWoggewOptions, IWoggewSewvice, IWogSewvice, WogWevew } fwom 'vs/pwatfowm/wog/common/wog';
 
-const MAX_FILE_SIZE = 5 * ByteSize.MB;
+const MAX_FIWE_SIZE = 5 * ByteSize.MB;
 
-export class FileLogger extends AbstractLogger implements ILogger {
+expowt cwass FiweWogga extends AbstwactWogga impwements IWogga {
 
-	private readonly initializePromise: Promise<void>;
-	private readonly queue: Queue<void>;
-	private backupIndex: number = 1;
+	pwivate weadonwy initiawizePwomise: Pwomise<void>;
+	pwivate weadonwy queue: Queue<void>;
+	pwivate backupIndex: numba = 1;
 
-	constructor(
-		private readonly name: string,
-		private readonly resource: URI,
-		level: LogLevel,
-		private readonly donotUseFormatters: boolean,
-		@IFileService private readonly fileService: IFileService
+	constwuctow(
+		pwivate weadonwy name: stwing,
+		pwivate weadonwy wesouwce: UWI,
+		wevew: WogWevew,
+		pwivate weadonwy donotUseFowmattews: boowean,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice
 	) {
-		super();
-		this.setLevel(level);
-		this.queue = this._register(new Queue<void>());
-		this.initializePromise = this.initialize();
+		supa();
+		this.setWevew(wevew);
+		this.queue = this._wegista(new Queue<void>());
+		this.initiawizePwomise = this.initiawize();
 	}
 
-	trace(): void {
-		if (this.getLevel() <= LogLevel.Trace) {
-			this._log(LogLevel.Trace, this.format(arguments));
+	twace(): void {
+		if (this.getWevew() <= WogWevew.Twace) {
+			this._wog(WogWevew.Twace, this.fowmat(awguments));
 		}
 	}
 
 	debug(): void {
-		if (this.getLevel() <= LogLevel.Debug) {
-			this._log(LogLevel.Debug, this.format(arguments));
+		if (this.getWevew() <= WogWevew.Debug) {
+			this._wog(WogWevew.Debug, this.fowmat(awguments));
 		}
 	}
 
 	info(): void {
-		if (this.getLevel() <= LogLevel.Info) {
-			this._log(LogLevel.Info, this.format(arguments));
+		if (this.getWevew() <= WogWevew.Info) {
+			this._wog(WogWevew.Info, this.fowmat(awguments));
 		}
 	}
 
-	warn(): void {
-		if (this.getLevel() <= LogLevel.Warning) {
-			this._log(LogLevel.Warning, this.format(arguments));
+	wawn(): void {
+		if (this.getWevew() <= WogWevew.Wawning) {
+			this._wog(WogWevew.Wawning, this.fowmat(awguments));
 		}
 	}
 
-	error(): void {
-		if (this.getLevel() <= LogLevel.Error) {
-			const arg = arguments[0];
+	ewwow(): void {
+		if (this.getWevew() <= WogWevew.Ewwow) {
+			const awg = awguments[0];
 
-			if (arg instanceof Error) {
-				const array = Array.prototype.slice.call(arguments) as any[];
-				array[0] = arg.stack;
-				this._log(LogLevel.Error, this.format(array));
-			} else {
-				this._log(LogLevel.Error, this.format(arguments));
+			if (awg instanceof Ewwow) {
+				const awway = Awway.pwototype.swice.caww(awguments) as any[];
+				awway[0] = awg.stack;
+				this._wog(WogWevew.Ewwow, this.fowmat(awway));
+			} ewse {
+				this._wog(WogWevew.Ewwow, this.fowmat(awguments));
 			}
 		}
 	}
 
-	critical(): void {
-		if (this.getLevel() <= LogLevel.Critical) {
-			this._log(LogLevel.Critical, this.format(arguments));
+	cwiticaw(): void {
+		if (this.getWevew() <= WogWevew.Cwiticaw) {
+			this._wog(WogWevew.Cwiticaw, this.fowmat(awguments));
 		}
 	}
 
-	flush(): void {
+	fwush(): void {
 	}
 
-	log(level: LogLevel, args: any[]): void {
-		this._log(level, this.format(args));
+	wog(wevew: WogWevew, awgs: any[]): void {
+		this._wog(wevew, this.fowmat(awgs));
 	}
 
-	private async initialize(): Promise<void> {
-		try {
-			await this.fileService.createFile(this.resource);
-		} catch (error) {
-			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_MODIFIED_SINCE) {
-				throw error;
+	pwivate async initiawize(): Pwomise<void> {
+		twy {
+			await this.fiweSewvice.cweateFiwe(this.wesouwce);
+		} catch (ewwow) {
+			if ((<FiweOpewationEwwow>ewwow).fiweOpewationWesuwt !== FiweOpewationWesuwt.FIWE_MODIFIED_SINCE) {
+				thwow ewwow;
 			}
 		}
 	}
 
-	private _log(level: LogLevel, message: string): void {
+	pwivate _wog(wevew: WogWevew, message: stwing): void {
 		this.queue.queue(async () => {
-			await this.initializePromise;
-			let content = await this.loadContent();
-			if (content.length > MAX_FILE_SIZE) {
-				await this.fileService.writeFile(this.getBackupResource(), VSBuffer.fromString(content));
+			await this.initiawizePwomise;
+			wet content = await this.woadContent();
+			if (content.wength > MAX_FIWE_SIZE) {
+				await this.fiweSewvice.wwiteFiwe(this.getBackupWesouwce(), VSBuffa.fwomStwing(content));
 				content = '';
 			}
-			if (this.donotUseFormatters) {
+			if (this.donotUseFowmattews) {
 				content += message;
-			} else {
-				content += `[${this.getCurrentTimestamp()}] [${this.name}] [${this.stringifyLogLevel(level)}] ${message}\n`;
+			} ewse {
+				content += `[${this.getCuwwentTimestamp()}] [${this.name}] [${this.stwingifyWogWevew(wevew)}] ${message}\n`;
 			}
-			await this.fileService.writeFile(this.resource, VSBuffer.fromString(content));
+			await this.fiweSewvice.wwiteFiwe(this.wesouwce, VSBuffa.fwomStwing(content));
 		});
 	}
 
-	private getCurrentTimestamp(): string {
-		const toTwoDigits = (v: number) => v < 10 ? `0${v}` : v;
-		const toThreeDigits = (v: number) => v < 10 ? `00${v}` : v < 100 ? `0${v}` : v;
-		const currentTime = new Date();
-		return `${currentTime.getFullYear()}-${toTwoDigits(currentTime.getMonth() + 1)}-${toTwoDigits(currentTime.getDate())} ${toTwoDigits(currentTime.getHours())}:${toTwoDigits(currentTime.getMinutes())}:${toTwoDigits(currentTime.getSeconds())}.${toThreeDigits(currentTime.getMilliseconds())}`;
+	pwivate getCuwwentTimestamp(): stwing {
+		const toTwoDigits = (v: numba) => v < 10 ? `0${v}` : v;
+		const toThweeDigits = (v: numba) => v < 10 ? `00${v}` : v < 100 ? `0${v}` : v;
+		const cuwwentTime = new Date();
+		wetuwn `${cuwwentTime.getFuwwYeaw()}-${toTwoDigits(cuwwentTime.getMonth() + 1)}-${toTwoDigits(cuwwentTime.getDate())} ${toTwoDigits(cuwwentTime.getHouws())}:${toTwoDigits(cuwwentTime.getMinutes())}:${toTwoDigits(cuwwentTime.getSeconds())}.${toThweeDigits(cuwwentTime.getMiwwiseconds())}`;
 	}
 
-	private getBackupResource(): URI {
+	pwivate getBackupWesouwce(): UWI {
 		this.backupIndex = this.backupIndex > 5 ? 1 : this.backupIndex;
-		return joinPath(dirname(this.resource), `${basename(this.resource)}_${this.backupIndex++}`);
+		wetuwn joinPath(diwname(this.wesouwce), `${basename(this.wesouwce)}_${this.backupIndex++}`);
 	}
 
-	private async loadContent(): Promise<string> {
-		try {
-			const content = await this.fileService.readFile(this.resource);
-			return content.value.toString();
+	pwivate async woadContent(): Pwomise<stwing> {
+		twy {
+			const content = await this.fiweSewvice.weadFiwe(this.wesouwce);
+			wetuwn content.vawue.toStwing();
 		} catch (e) {
-			return '';
+			wetuwn '';
 		}
 	}
 
-	private stringifyLogLevel(level: LogLevel): string {
-		switch (level) {
-			case LogLevel.Critical: return 'critical';
-			case LogLevel.Debug: return 'debug';
-			case LogLevel.Error: return 'error';
-			case LogLevel.Info: return 'info';
-			case LogLevel.Trace: return 'trace';
-			case LogLevel.Warning: return 'warning';
+	pwivate stwingifyWogWevew(wevew: WogWevew): stwing {
+		switch (wevew) {
+			case WogWevew.Cwiticaw: wetuwn 'cwiticaw';
+			case WogWevew.Debug: wetuwn 'debug';
+			case WogWevew.Ewwow: wetuwn 'ewwow';
+			case WogWevew.Info: wetuwn 'info';
+			case WogWevew.Twace: wetuwn 'twace';
+			case WogWevew.Wawning: wetuwn 'wawning';
 		}
-		return '';
+		wetuwn '';
 	}
 
-	private format(args: any): string {
-		let result = '';
+	pwivate fowmat(awgs: any): stwing {
+		wet wesuwt = '';
 
-		for (let i = 0; i < args.length; i++) {
-			let a = args[i];
+		fow (wet i = 0; i < awgs.wength; i++) {
+			wet a = awgs[i];
 
 			if (typeof a === 'object') {
-				try {
-					a = JSON.stringify(a);
+				twy {
+					a = JSON.stwingify(a);
 				} catch (e) { }
 			}
 
-			result += (i > 0 ? ' ' : '') + a;
+			wesuwt += (i > 0 ? ' ' : '') + a;
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
-export class FileLoggerService extends AbstractLoggerService implements ILoggerService {
+expowt cwass FiweWoggewSewvice extends AbstwactWoggewSewvice impwements IWoggewSewvice {
 
-	constructor(
-		@ILogService logService: ILogService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IFileService private readonly fileService: IFileService,
+	constwuctow(
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
 	) {
-		super(logService.getLevel(), logService.onDidChangeLogLevel);
+		supa(wogSewvice.getWevew(), wogSewvice.onDidChangeWogWevew);
 	}
 
-	protected doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {
-		const logger = new BufferLogService(logLevel);
-		whenProviderRegistered(resource, this.fileService).then(() => (<BufferLogService>logger).logger = this.instantiationService.createInstance(FileLogger, basename(resource), resource, logger.getLevel(), !!options?.donotUseFormatters));
-		return logger;
+	pwotected doCweateWogga(wesouwce: UWI, wogWevew: WogWevew, options?: IWoggewOptions): IWogga {
+		const wogga = new BuffewWogSewvice(wogWevew);
+		whenPwovidewWegistewed(wesouwce, this.fiweSewvice).then(() => (<BuffewWogSewvice>wogga).wogga = this.instantiationSewvice.cweateInstance(FiweWogga, basename(wesouwce), wesouwce, wogga.getWevew(), !!options?.donotUseFowmattews));
+		wetuwn wogga;
 	}
 }

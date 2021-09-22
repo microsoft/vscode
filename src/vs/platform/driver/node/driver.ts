@@ -1,143 +1,143 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Client } from 'vs/base/parts/ipc/common/ipc.net';
-import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
-import { IDriver, IElement, ILocaleInfo, ILocalizedStrings, IWindowDriverRegistry } from 'vs/platform/driver/common/driver';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IChannew, ISewvewChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { Cwient } fwom 'vs/base/pawts/ipc/common/ipc.net';
+impowt { connect as connectNet } fwom 'vs/base/pawts/ipc/node/ipc.net';
+impowt { IDwiva, IEwement, IWocaweInfo, IWocawizedStwings, IWindowDwivewWegistwy } fwom 'vs/pwatfowm/dwiva/common/dwiva';
 
-export class DriverChannel implements IServerChannel {
+expowt cwass DwivewChannew impwements ISewvewChannew {
 
-	constructor(private driver: IDriver) { }
+	constwuctow(pwivate dwiva: IDwiva) { }
 
-	listen<T>(_: unknown, event: string): Event<T> {
-		throw new Error('No event found');
+	wisten<T>(_: unknown, event: stwing): Event<T> {
+		thwow new Ewwow('No event found');
 	}
 
-	call(_: unknown, command: string, arg?: any): Promise<any> {
+	caww(_: unknown, command: stwing, awg?: any): Pwomise<any> {
 		switch (command) {
-			case 'getWindowIds': return this.driver.getWindowIds();
-			case 'capturePage': return this.driver.capturePage(arg);
-			case 'reloadWindow': return this.driver.reloadWindow(arg);
-			case 'exitApplication': return this.driver.exitApplication();
-			case 'dispatchKeybinding': return this.driver.dispatchKeybinding(arg[0], arg[1]);
-			case 'click': return this.driver.click(arg[0], arg[1], arg[2], arg[3]);
-			case 'doubleClick': return this.driver.doubleClick(arg[0], arg[1]);
-			case 'setValue': return this.driver.setValue(arg[0], arg[1], arg[2]);
-			case 'getTitle': return this.driver.getTitle(arg[0]);
-			case 'isActiveElement': return this.driver.isActiveElement(arg[0], arg[1]);
-			case 'getElements': return this.driver.getElements(arg[0], arg[1], arg[2]);
-			case 'getElementXY': return this.driver.getElementXY(arg[0], arg[1], arg[2]);
-			case 'typeInEditor': return this.driver.typeInEditor(arg[0], arg[1], arg[2]);
-			case 'getTerminalBuffer': return this.driver.getTerminalBuffer(arg[0], arg[1]);
-			case 'writeInTerminal': return this.driver.writeInTerminal(arg[0], arg[1], arg[2]);
-			case 'getLocaleInfo': return this.driver.getLocaleInfo(arg);
-			case 'getLocalizedStrings': return this.driver.getLocalizedStrings(arg);
+			case 'getWindowIds': wetuwn this.dwiva.getWindowIds();
+			case 'captuwePage': wetuwn this.dwiva.captuwePage(awg);
+			case 'wewoadWindow': wetuwn this.dwiva.wewoadWindow(awg);
+			case 'exitAppwication': wetuwn this.dwiva.exitAppwication();
+			case 'dispatchKeybinding': wetuwn this.dwiva.dispatchKeybinding(awg[0], awg[1]);
+			case 'cwick': wetuwn this.dwiva.cwick(awg[0], awg[1], awg[2], awg[3]);
+			case 'doubweCwick': wetuwn this.dwiva.doubweCwick(awg[0], awg[1]);
+			case 'setVawue': wetuwn this.dwiva.setVawue(awg[0], awg[1], awg[2]);
+			case 'getTitwe': wetuwn this.dwiva.getTitwe(awg[0]);
+			case 'isActiveEwement': wetuwn this.dwiva.isActiveEwement(awg[0], awg[1]);
+			case 'getEwements': wetuwn this.dwiva.getEwements(awg[0], awg[1], awg[2]);
+			case 'getEwementXY': wetuwn this.dwiva.getEwementXY(awg[0], awg[1], awg[2]);
+			case 'typeInEditow': wetuwn this.dwiva.typeInEditow(awg[0], awg[1], awg[2]);
+			case 'getTewminawBuffa': wetuwn this.dwiva.getTewminawBuffa(awg[0], awg[1]);
+			case 'wwiteInTewminaw': wetuwn this.dwiva.wwiteInTewminaw(awg[0], awg[1], awg[2]);
+			case 'getWocaweInfo': wetuwn this.dwiva.getWocaweInfo(awg);
+			case 'getWocawizedStwings': wetuwn this.dwiva.getWocawizedStwings(awg);
 		}
 
-		throw new Error(`Call not found: ${command}`);
+		thwow new Ewwow(`Caww not found: ${command}`);
 	}
 }
 
-export class DriverChannelClient implements IDriver {
+expowt cwass DwivewChannewCwient impwements IDwiva {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(private channel: IChannel) { }
+	constwuctow(pwivate channew: IChannew) { }
 
-	getWindowIds(): Promise<number[]> {
-		return this.channel.call('getWindowIds');
+	getWindowIds(): Pwomise<numba[]> {
+		wetuwn this.channew.caww('getWindowIds');
 	}
 
-	capturePage(windowId: number): Promise<string> {
-		return this.channel.call('capturePage', windowId);
+	captuwePage(windowId: numba): Pwomise<stwing> {
+		wetuwn this.channew.caww('captuwePage', windowId);
 	}
 
-	reloadWindow(windowId: number): Promise<void> {
-		return this.channel.call('reloadWindow', windowId);
+	wewoadWindow(windowId: numba): Pwomise<void> {
+		wetuwn this.channew.caww('wewoadWindow', windowId);
 	}
 
-	exitApplication(): Promise<boolean> {
-		return this.channel.call('exitApplication');
+	exitAppwication(): Pwomise<boowean> {
+		wetuwn this.channew.caww('exitAppwication');
 	}
 
-	dispatchKeybinding(windowId: number, keybinding: string): Promise<void> {
-		return this.channel.call('dispatchKeybinding', [windowId, keybinding]);
+	dispatchKeybinding(windowId: numba, keybinding: stwing): Pwomise<void> {
+		wetuwn this.channew.caww('dispatchKeybinding', [windowId, keybinding]);
 	}
 
-	click(windowId: number, selector: string, xoffset: number | undefined, yoffset: number | undefined): Promise<void> {
-		return this.channel.call('click', [windowId, selector, xoffset, yoffset]);
+	cwick(windowId: numba, sewectow: stwing, xoffset: numba | undefined, yoffset: numba | undefined): Pwomise<void> {
+		wetuwn this.channew.caww('cwick', [windowId, sewectow, xoffset, yoffset]);
 	}
 
-	doubleClick(windowId: number, selector: string): Promise<void> {
-		return this.channel.call('doubleClick', [windowId, selector]);
+	doubweCwick(windowId: numba, sewectow: stwing): Pwomise<void> {
+		wetuwn this.channew.caww('doubweCwick', [windowId, sewectow]);
 	}
 
-	setValue(windowId: number, selector: string, text: string): Promise<void> {
-		return this.channel.call('setValue', [windowId, selector, text]);
+	setVawue(windowId: numba, sewectow: stwing, text: stwing): Pwomise<void> {
+		wetuwn this.channew.caww('setVawue', [windowId, sewectow, text]);
 	}
 
-	getTitle(windowId: number): Promise<string> {
-		return this.channel.call('getTitle', [windowId]);
+	getTitwe(windowId: numba): Pwomise<stwing> {
+		wetuwn this.channew.caww('getTitwe', [windowId]);
 	}
 
-	isActiveElement(windowId: number, selector: string): Promise<boolean> {
-		return this.channel.call('isActiveElement', [windowId, selector]);
+	isActiveEwement(windowId: numba, sewectow: stwing): Pwomise<boowean> {
+		wetuwn this.channew.caww('isActiveEwement', [windowId, sewectow]);
 	}
 
-	getElements(windowId: number, selector: string, recursive: boolean): Promise<IElement[]> {
-		return this.channel.call('getElements', [windowId, selector, recursive]);
+	getEwements(windowId: numba, sewectow: stwing, wecuwsive: boowean): Pwomise<IEwement[]> {
+		wetuwn this.channew.caww('getEwements', [windowId, sewectow, wecuwsive]);
 	}
 
-	getElementXY(windowId: number, selector: string, xoffset: number | undefined, yoffset: number | undefined): Promise<{ x: number, y: number }> {
-		return this.channel.call('getElementXY', [windowId, selector, xoffset, yoffset]);
+	getEwementXY(windowId: numba, sewectow: stwing, xoffset: numba | undefined, yoffset: numba | undefined): Pwomise<{ x: numba, y: numba }> {
+		wetuwn this.channew.caww('getEwementXY', [windowId, sewectow, xoffset, yoffset]);
 	}
 
-	typeInEditor(windowId: number, selector: string, text: string): Promise<void> {
-		return this.channel.call('typeInEditor', [windowId, selector, text]);
+	typeInEditow(windowId: numba, sewectow: stwing, text: stwing): Pwomise<void> {
+		wetuwn this.channew.caww('typeInEditow', [windowId, sewectow, text]);
 	}
 
-	getTerminalBuffer(windowId: number, selector: string): Promise<string[]> {
-		return this.channel.call('getTerminalBuffer', [windowId, selector]);
+	getTewminawBuffa(windowId: numba, sewectow: stwing): Pwomise<stwing[]> {
+		wetuwn this.channew.caww('getTewminawBuffa', [windowId, sewectow]);
 	}
 
-	writeInTerminal(windowId: number, selector: string, text: string): Promise<void> {
-		return this.channel.call('writeInTerminal', [windowId, selector, text]);
+	wwiteInTewminaw(windowId: numba, sewectow: stwing, text: stwing): Pwomise<void> {
+		wetuwn this.channew.caww('wwiteInTewminaw', [windowId, sewectow, text]);
 	}
 
-	getLocaleInfo(windowId: number): Promise<ILocaleInfo> {
-		return this.channel.call('getLocaleInfo', windowId);
+	getWocaweInfo(windowId: numba): Pwomise<IWocaweInfo> {
+		wetuwn this.channew.caww('getWocaweInfo', windowId);
 	}
 
-	getLocalizedStrings(windowId: number): Promise<ILocalizedStrings> {
-		return this.channel.call('getLocalizedStrings', windowId);
+	getWocawizedStwings(windowId: numba): Pwomise<IWocawizedStwings> {
+		wetuwn this.channew.caww('getWocawizedStwings', windowId);
 	}
 }
 
-export class WindowDriverRegistryChannel implements IServerChannel {
+expowt cwass WindowDwivewWegistwyChannew impwements ISewvewChannew {
 
-	constructor(private registry: IWindowDriverRegistry) { }
+	constwuctow(pwivate wegistwy: IWindowDwivewWegistwy) { }
 
-	listen<T>(_: unknown, event: string): Event<T> {
-		throw new Error(`Event not found: ${event}`);
+	wisten<T>(_: unknown, event: stwing): Event<T> {
+		thwow new Ewwow(`Event not found: ${event}`);
 	}
 
-	call(_: unknown, command: string, arg?: any): Promise<any> {
+	caww(_: unknown, command: stwing, awg?: any): Pwomise<any> {
 		switch (command) {
-			case 'registerWindowDriver': return this.registry.registerWindowDriver(arg);
-			case 'reloadWindowDriver': return this.registry.reloadWindowDriver(arg);
+			case 'wegistewWindowDwiva': wetuwn this.wegistwy.wegistewWindowDwiva(awg);
+			case 'wewoadWindowDwiva': wetuwn this.wegistwy.wewoadWindowDwiva(awg);
 		}
 
-		throw new Error(`Call not found: ${command}`);
+		thwow new Ewwow(`Caww not found: ${command}`);
 	}
 }
 
-export async function connect(handle: string): Promise<{ client: Client, driver: IDriver }> {
-	const client = await connectNet(handle, 'driverClient');
-	const channel = client.getChannel('driver');
-	const driver = new DriverChannelClient(channel);
-	return { client, driver };
+expowt async function connect(handwe: stwing): Pwomise<{ cwient: Cwient, dwiva: IDwiva }> {
+	const cwient = await connectNet(handwe, 'dwivewCwient');
+	const channew = cwient.getChannew('dwiva');
+	const dwiva = new DwivewChannewCwient(channew);
+	wetuwn { cwient, dwiva };
 }

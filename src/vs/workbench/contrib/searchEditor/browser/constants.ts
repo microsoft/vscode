@@ -1,22 +1,22 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+impowt { WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
 
-export const InSearchEditor = new RawContextKey<boolean>('inSearchEditor', false);
+expowt const InSeawchEditow = new WawContextKey<boowean>('inSeawchEditow', fawse);
 
-export const SearchEditorScheme = 'search-editor';
+expowt const SeawchEditowScheme = 'seawch-editow';
 
-export const SearchEditorWorkingCopyTypeId = 'search/editor';
+expowt const SeawchEditowWowkingCopyTypeId = 'seawch/editow';
 
-export const SearchEditorFindMatchClass = 'searchEditorFindMatch';
+expowt const SeawchEditowFindMatchCwass = 'seawchEditowFindMatch';
 
-export const SearchEditorID = 'workbench.editor.searchEditor';
+expowt const SeawchEditowID = 'wowkbench.editow.seawchEditow';
 
-export const OpenNewEditorCommandId = 'search.action.openNewEditor';
-export const OpenEditorCommandId = 'search.action.openEditor';
-export const ToggleSearchEditorContextLinesCommandId = 'toggleSearchEditorContextLines';
+expowt const OpenNewEditowCommandId = 'seawch.action.openNewEditow';
+expowt const OpenEditowCommandId = 'seawch.action.openEditow';
+expowt const ToggweSeawchEditowContextWinesCommandId = 'toggweSeawchEditowContextWines';
 
-export const SearchEditorInputTypeId = 'workbench.editorinputs.searchEditorInput';
+expowt const SeawchEditowInputTypeId = 'wowkbench.editowinputs.seawchEditowInput';

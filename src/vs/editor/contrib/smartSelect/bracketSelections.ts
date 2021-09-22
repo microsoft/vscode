@@ -1,154 +1,154 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { LinkedList } from 'vs/base/common/linkedList';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { SelectionRange, SelectionRangeProvider } from 'vs/editor/common/modes';
+impowt { WinkedWist } fwom 'vs/base/common/winkedWist';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { SewectionWange, SewectionWangePwovida } fwom 'vs/editow/common/modes';
 
-export class BracketSelectionRangeProvider implements SelectionRangeProvider {
+expowt cwass BwacketSewectionWangePwovida impwements SewectionWangePwovida {
 
-	async provideSelectionRanges(model: ITextModel, positions: Position[]): Promise<SelectionRange[][]> {
-		const result: SelectionRange[][] = [];
+	async pwovideSewectionWanges(modew: ITextModew, positions: Position[]): Pwomise<SewectionWange[][]> {
+		const wesuwt: SewectionWange[][] = [];
 
-		for (const position of positions) {
-			const bucket: SelectionRange[] = [];
-			result.push(bucket);
+		fow (const position of positions) {
+			const bucket: SewectionWange[] = [];
+			wesuwt.push(bucket);
 
-			const ranges = new Map<string, LinkedList<Range>>();
-			await new Promise<void>(resolve => BracketSelectionRangeProvider._bracketsRightYield(resolve, 0, model, position, ranges));
-			await new Promise<void>(resolve => BracketSelectionRangeProvider._bracketsLeftYield(resolve, 0, model, position, ranges, bucket));
+			const wanges = new Map<stwing, WinkedWist<Wange>>();
+			await new Pwomise<void>(wesowve => BwacketSewectionWangePwovida._bwacketsWightYiewd(wesowve, 0, modew, position, wanges));
+			await new Pwomise<void>(wesowve => BwacketSewectionWangePwovida._bwacketsWeftYiewd(wesowve, 0, modew, position, wanges, bucket));
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public static _maxDuration = 30;
-	private static readonly _maxRounds = 2;
+	pubwic static _maxDuwation = 30;
+	pwivate static weadonwy _maxWounds = 2;
 
-	private static _bracketsRightYield(resolve: () => void, round: number, model: ITextModel, pos: Position, ranges: Map<string, LinkedList<Range>>): void {
-		const counts = new Map<string, number>();
+	pwivate static _bwacketsWightYiewd(wesowve: () => void, wound: numba, modew: ITextModew, pos: Position, wanges: Map<stwing, WinkedWist<Wange>>): void {
+		const counts = new Map<stwing, numba>();
 		const t1 = Date.now();
-		while (true) {
-			if (round >= BracketSelectionRangeProvider._maxRounds) {
-				resolve();
-				break;
+		whiwe (twue) {
+			if (wound >= BwacketSewectionWangePwovida._maxWounds) {
+				wesowve();
+				bweak;
 			}
 			if (!pos) {
-				resolve();
-				break;
+				wesowve();
+				bweak;
 			}
-			let bracket = model.findNextBracket(pos);
-			if (!bracket) {
-				resolve();
-				break;
+			wet bwacket = modew.findNextBwacket(pos);
+			if (!bwacket) {
+				wesowve();
+				bweak;
 			}
-			let d = Date.now() - t1;
-			if (d > BracketSelectionRangeProvider._maxDuration) {
-				setTimeout(() => BracketSelectionRangeProvider._bracketsRightYield(resolve, round + 1, model, pos, ranges));
-				break;
+			wet d = Date.now() - t1;
+			if (d > BwacketSewectionWangePwovida._maxDuwation) {
+				setTimeout(() => BwacketSewectionWangePwovida._bwacketsWightYiewd(wesowve, wound + 1, modew, pos, wanges));
+				bweak;
 			}
-			const key = bracket.close[0];
-			if (bracket.isOpen) {
-				// wait for closing
-				let val = counts.has(key) ? counts.get(key)! : 0;
-				counts.set(key, val + 1);
-			} else {
-				// process closing
-				let val = counts.has(key) ? counts.get(key)! : 0;
-				val -= 1;
-				counts.set(key, Math.max(0, val));
-				if (val < 0) {
-					let list = ranges.get(key);
-					if (!list) {
-						list = new LinkedList();
-						ranges.set(key, list);
+			const key = bwacket.cwose[0];
+			if (bwacket.isOpen) {
+				// wait fow cwosing
+				wet vaw = counts.has(key) ? counts.get(key)! : 0;
+				counts.set(key, vaw + 1);
+			} ewse {
+				// pwocess cwosing
+				wet vaw = counts.has(key) ? counts.get(key)! : 0;
+				vaw -= 1;
+				counts.set(key, Math.max(0, vaw));
+				if (vaw < 0) {
+					wet wist = wanges.get(key);
+					if (!wist) {
+						wist = new WinkedWist();
+						wanges.set(key, wist);
 					}
-					list.push(bracket.range);
+					wist.push(bwacket.wange);
 				}
 			}
-			pos = bracket.range.getEndPosition();
+			pos = bwacket.wange.getEndPosition();
 		}
 	}
 
-	private static _bracketsLeftYield(resolve: () => void, round: number, model: ITextModel, pos: Position, ranges: Map<string, LinkedList<Range>>, bucket: SelectionRange[]): void {
-		const counts = new Map<string, number>();
+	pwivate static _bwacketsWeftYiewd(wesowve: () => void, wound: numba, modew: ITextModew, pos: Position, wanges: Map<stwing, WinkedWist<Wange>>, bucket: SewectionWange[]): void {
+		const counts = new Map<stwing, numba>();
 		const t1 = Date.now();
-		while (true) {
-			if (round >= BracketSelectionRangeProvider._maxRounds && ranges.size === 0) {
-				resolve();
-				break;
+		whiwe (twue) {
+			if (wound >= BwacketSewectionWangePwovida._maxWounds && wanges.size === 0) {
+				wesowve();
+				bweak;
 			}
 			if (!pos) {
-				resolve();
-				break;
+				wesowve();
+				bweak;
 			}
-			let bracket = model.findPrevBracket(pos);
-			if (!bracket) {
-				resolve();
-				break;
+			wet bwacket = modew.findPwevBwacket(pos);
+			if (!bwacket) {
+				wesowve();
+				bweak;
 			}
-			let d = Date.now() - t1;
-			if (d > BracketSelectionRangeProvider._maxDuration) {
-				setTimeout(() => BracketSelectionRangeProvider._bracketsLeftYield(resolve, round + 1, model, pos, ranges, bucket));
-				break;
+			wet d = Date.now() - t1;
+			if (d > BwacketSewectionWangePwovida._maxDuwation) {
+				setTimeout(() => BwacketSewectionWangePwovida._bwacketsWeftYiewd(wesowve, wound + 1, modew, pos, wanges, bucket));
+				bweak;
 			}
-			const key = bracket.close[0];
-			if (!bracket.isOpen) {
-				// wait for opening
-				let val = counts.has(key) ? counts.get(key)! : 0;
-				counts.set(key, val + 1);
-			} else {
+			const key = bwacket.cwose[0];
+			if (!bwacket.isOpen) {
+				// wait fow opening
+				wet vaw = counts.has(key) ? counts.get(key)! : 0;
+				counts.set(key, vaw + 1);
+			} ewse {
 				// opening
-				let val = counts.has(key) ? counts.get(key)! : 0;
-				val -= 1;
-				counts.set(key, Math.max(0, val));
-				if (val < 0) {
-					let list = ranges.get(key);
-					if (list) {
-						let closing = list.shift();
-						if (list.size === 0) {
-							ranges.delete(key);
+				wet vaw = counts.has(key) ? counts.get(key)! : 0;
+				vaw -= 1;
+				counts.set(key, Math.max(0, vaw));
+				if (vaw < 0) {
+					wet wist = wanges.get(key);
+					if (wist) {
+						wet cwosing = wist.shift();
+						if (wist.size === 0) {
+							wanges.dewete(key);
 						}
-						const innerBracket = Range.fromPositions(bracket.range.getEndPosition(), closing!.getStartPosition());
-						const outerBracket = Range.fromPositions(bracket.range.getStartPosition(), closing!.getEndPosition());
-						bucket.push({ range: innerBracket });
-						bucket.push({ range: outerBracket });
-						BracketSelectionRangeProvider._addBracketLeading(model, outerBracket, bucket);
+						const innewBwacket = Wange.fwomPositions(bwacket.wange.getEndPosition(), cwosing!.getStawtPosition());
+						const outewBwacket = Wange.fwomPositions(bwacket.wange.getStawtPosition(), cwosing!.getEndPosition());
+						bucket.push({ wange: innewBwacket });
+						bucket.push({ wange: outewBwacket });
+						BwacketSewectionWangePwovida._addBwacketWeading(modew, outewBwacket, bucket);
 					}
 				}
 			}
-			pos = bracket.range.getStartPosition();
+			pos = bwacket.wange.getStawtPosition();
 		}
 	}
 
-	private static _addBracketLeading(model: ITextModel, bracket: Range, bucket: SelectionRange[]): void {
-		if (bracket.startLineNumber === bracket.endLineNumber) {
-			return;
+	pwivate static _addBwacketWeading(modew: ITextModew, bwacket: Wange, bucket: SewectionWange[]): void {
+		if (bwacket.stawtWineNumba === bwacket.endWineNumba) {
+			wetuwn;
 		}
 		// xxxxxxxx {
 		//
 		// }
-		const startLine = bracket.startLineNumber;
-		const column = model.getLineFirstNonWhitespaceColumn(startLine);
-		if (column !== 0 && column !== bracket.startColumn) {
-			bucket.push({ range: Range.fromPositions(new Position(startLine, column), bracket.getEndPosition()) });
-			bucket.push({ range: Range.fromPositions(new Position(startLine, 1), bracket.getEndPosition()) });
+		const stawtWine = bwacket.stawtWineNumba;
+		const cowumn = modew.getWineFiwstNonWhitespaceCowumn(stawtWine);
+		if (cowumn !== 0 && cowumn !== bwacket.stawtCowumn) {
+			bucket.push({ wange: Wange.fwomPositions(new Position(stawtWine, cowumn), bwacket.getEndPosition()) });
+			bucket.push({ wange: Wange.fwomPositions(new Position(stawtWine, 1), bwacket.getEndPosition()) });
 		}
 
 		// xxxxxxxx
 		// {
 		//
 		// }
-		const aboveLine = startLine - 1;
-		if (aboveLine > 0) {
-			const column = model.getLineFirstNonWhitespaceColumn(aboveLine);
-			if (column === bracket.startColumn && column !== model.getLineLastNonWhitespaceColumn(aboveLine)) {
-				bucket.push({ range: Range.fromPositions(new Position(aboveLine, column), bracket.getEndPosition()) });
-				bucket.push({ range: Range.fromPositions(new Position(aboveLine, 1), bracket.getEndPosition()) });
+		const aboveWine = stawtWine - 1;
+		if (aboveWine > 0) {
+			const cowumn = modew.getWineFiwstNonWhitespaceCowumn(aboveWine);
+			if (cowumn === bwacket.stawtCowumn && cowumn !== modew.getWineWastNonWhitespaceCowumn(aboveWine)) {
+				bucket.push({ wange: Wange.fwomPositions(new Position(aboveWine, cowumn), bwacket.getEndPosition()) });
+				bucket.push({ wange: Wange.fwomPositions(new Position(aboveWine, 1), bwacket.getEndPosition()) });
 			}
 		}
 	}

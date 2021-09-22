@@ -1,18 +1,18 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+impowt { IExtensionUwwTwustSewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionUwwTwust';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
 
-class ExtensionUrlTrustService implements IExtensionUrlTrustService {
+cwass ExtensionUwwTwustSewvice impwements IExtensionUwwTwustSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	async isExtensionUrlTrusted(): Promise<boolean> {
-		return false;
+	async isExtensionUwwTwusted(): Pwomise<boowean> {
+		wetuwn fawse;
 	}
 }
 
-registerSingleton(IExtensionUrlTrustService, ExtensionUrlTrustService);
+wegistewSingweton(IExtensionUwwTwustSewvice, ExtensionUwwTwustSewvice);

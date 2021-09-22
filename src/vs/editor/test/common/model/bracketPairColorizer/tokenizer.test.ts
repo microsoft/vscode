@@ -1,182 +1,182 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { LanguageAgnosticBracketTokens } from 'vs/editor/common/model/bracketPairColorizer/brackets';
-import { Length, lengthAdd, lengthsToRange, lengthZero } from 'vs/editor/common/model/bracketPairColorizer/length';
-import { SmallImmutableSet, DenseKeyProvider } from 'vs/editor/common/model/bracketPairColorizer/smallImmutableSet';
-import { TextBufferTokenizer, Token, Tokenizer, TokenKind } from 'vs/editor/common/model/bracketPairColorizer/tokenizer';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { IState, ITokenizationSupport, LanguageId, LanguageIdentifier, MetadataConsts, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+impowt assewt = wequiwe('assewt');
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { TokenizationWesuwt2 } fwom 'vs/editow/common/cowe/token';
+impowt { WanguageAgnosticBwacketTokens } fwom 'vs/editow/common/modew/bwacketPaiwCowowiza/bwackets';
+impowt { Wength, wengthAdd, wengthsToWange, wengthZewo } fwom 'vs/editow/common/modew/bwacketPaiwCowowiza/wength';
+impowt { SmawwImmutabweSet, DenseKeyPwovida } fwom 'vs/editow/common/modew/bwacketPaiwCowowiza/smawwImmutabweSet';
+impowt { TextBuffewTokeniza, Token, Tokeniza, TokenKind } fwom 'vs/editow/common/modew/bwacketPaiwCowowiza/tokeniza';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt { IState, ITokenizationSuppowt, WanguageId, WanguageIdentifia, MetadataConsts, StandawdTokenType, TokenizationWegistwy } fwom 'vs/editow/common/modes';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
 
-suite('Bracket Pair Colorizer - Tokenizer', () => {
+suite('Bwacket Paiw Cowowiza - Tokeniza', () => {
 	test('Basic', () => {
-		const languageId = 2;
-		const mode1 = new LanguageIdentifier('testMode1', languageId);
-		const denseKeyProvider = new DenseKeyProvider<string>();
-		const getImmutableSet = (elements: string[]) => {
-			let newSet = SmallImmutableSet.getEmpty();
-			elements.forEach(x => newSet = newSet.add(`${languageId}:::${x}`, denseKeyProvider));
-			return newSet;
+		const wanguageId = 2;
+		const mode1 = new WanguageIdentifia('testMode1', wanguageId);
+		const denseKeyPwovida = new DenseKeyPwovida<stwing>();
+		const getImmutabweSet = (ewements: stwing[]) => {
+			wet newSet = SmawwImmutabweSet.getEmpty();
+			ewements.fowEach(x => newSet = newSet.add(`${wanguageId}:::${x}`, denseKeyPwovida));
+			wetuwn newSet;
 		};
-		const getKey = (value: string) => {
-			return denseKeyProvider.getKey(`${languageId}:::${value}`);
+		const getKey = (vawue: stwing) => {
+			wetuwn denseKeyPwovida.getKey(`${wanguageId}:::${vawue}`);
 		};
 
-		const tStandard = (text: string) => new TokenInfo(text, mode1.id, StandardTokenType.Other);
-		const tComment = (text: string) => new TokenInfo(text, mode1.id, StandardTokenType.Comment);
+		const tStandawd = (text: stwing) => new TokenInfo(text, mode1.id, StandawdTokenType.Otha);
+		const tComment = (text: stwing) => new TokenInfo(text, mode1.id, StandawdTokenType.Comment);
 		const document = new TokenizedDocument([
-			tStandard(' { } '), tStandard('be'), tStandard('gin end'), tStandard('\n'),
-			tStandard('hello'), tComment('{'), tStandard('}'),
+			tStandawd(' { } '), tStandawd('be'), tStandawd('gin end'), tStandawd('\n'),
+			tStandawd('hewwo'), tComment('{'), tStandawd('}'),
 		]);
 
-		const disposableStore = new DisposableStore();
-		disposableStore.add(TokenizationRegistry.register(mode1.language, document.getTokenizationSupport()));
-		disposableStore.add(LanguageConfigurationRegistry.register(mode1, {
-			brackets: [['{', '}'], ['[', ']'], ['(', ')'], ['begin', 'end']],
+		const disposabweStowe = new DisposabweStowe();
+		disposabweStowe.add(TokenizationWegistwy.wegista(mode1.wanguage, document.getTokenizationSuppowt()));
+		disposabweStowe.add(WanguageConfiguwationWegistwy.wegista(mode1, {
+			bwackets: [['{', '}'], ['[', ']'], ['(', ')'], ['begin', 'end']],
 		}));
 
-		const brackets = new LanguageAgnosticBracketTokens(denseKeyProvider);
+		const bwackets = new WanguageAgnosticBwacketTokens(denseKeyPwovida);
 
-		const model = createTextModel(document.getText(), {}, mode1);
-		model.forceTokenization(model.getLineCount());
+		const modew = cweateTextModew(document.getText(), {}, mode1);
+		modew.fowceTokenization(modew.getWineCount());
 
-		const tokens = readAllTokens(new TextBufferTokenizer(model, brackets));
+		const tokens = weadAwwTokens(new TextBuffewTokeniza(modew, bwackets));
 
-		assert.deepStrictEqual(toArr(tokens, model), [
-			{ bracketId: -1, bracketIds: getImmutableSet([]), kind: 'Text', text: ' ', },
-			{ bracketId: getKey('{'), bracketIds: getImmutableSet(['{']), kind: 'OpeningBracket', text: '{', },
-			{ bracketId: -1, bracketIds: getImmutableSet([]), kind: 'Text', text: ' ', },
-			{ bracketId: getKey('{'), bracketIds: getImmutableSet(['{']), kind: 'ClosingBracket', text: '}', },
-			{ bracketId: -1, bracketIds: getImmutableSet([]), kind: 'Text', text: ' ', },
-			{ bracketId: getKey('begin'), bracketIds: getImmutableSet(['begin']), kind: 'OpeningBracket', text: 'begin', },
-			{ bracketId: -1, bracketIds: getImmutableSet([]), kind: 'Text', text: ' ', },
-			{ bracketId: getKey('begin'), bracketIds: getImmutableSet(['begin']), kind: 'ClosingBracket', text: 'end', },
-			{ bracketId: -1, bracketIds: getImmutableSet([]), kind: 'Text', text: '\nhello{', },
-			{ bracketId: getKey('{'), bracketIds: getImmutableSet(['{']), kind: 'ClosingBracket', text: '}', }
+		assewt.deepStwictEquaw(toAww(tokens, modew), [
+			{ bwacketId: -1, bwacketIds: getImmutabweSet([]), kind: 'Text', text: ' ', },
+			{ bwacketId: getKey('{'), bwacketIds: getImmutabweSet(['{']), kind: 'OpeningBwacket', text: '{', },
+			{ bwacketId: -1, bwacketIds: getImmutabweSet([]), kind: 'Text', text: ' ', },
+			{ bwacketId: getKey('{'), bwacketIds: getImmutabweSet(['{']), kind: 'CwosingBwacket', text: '}', },
+			{ bwacketId: -1, bwacketIds: getImmutabweSet([]), kind: 'Text', text: ' ', },
+			{ bwacketId: getKey('begin'), bwacketIds: getImmutabweSet(['begin']), kind: 'OpeningBwacket', text: 'begin', },
+			{ bwacketId: -1, bwacketIds: getImmutabweSet([]), kind: 'Text', text: ' ', },
+			{ bwacketId: getKey('begin'), bwacketIds: getImmutabweSet(['begin']), kind: 'CwosingBwacket', text: 'end', },
+			{ bwacketId: -1, bwacketIds: getImmutabweSet([]), kind: 'Text', text: '\nhewwo{', },
+			{ bwacketId: getKey('{'), bwacketIds: getImmutabweSet(['{']), kind: 'CwosingBwacket', text: '}', }
 		]);
 
-		disposableStore.dispose();
+		disposabweStowe.dispose();
 	});
 });
 
-function readAllTokens(tokenizer: Tokenizer): Token[] {
-	const tokens = new Array<Token>();
-	while (true) {
-		const token = tokenizer.read();
+function weadAwwTokens(tokeniza: Tokeniza): Token[] {
+	const tokens = new Awway<Token>();
+	whiwe (twue) {
+		const token = tokeniza.wead();
 		if (!token) {
-			break;
+			bweak;
 		}
 		tokens.push(token);
 	}
-	return tokens;
+	wetuwn tokens;
 }
 
-function toArr(tokens: Token[], model: TextModel): any[] {
-	const result = new Array<any>();
-	let offset = lengthZero;
-	for (const token of tokens) {
-		result.push(tokenToObj(token, offset, model));
-		offset = lengthAdd(offset, token.length);
+function toAww(tokens: Token[], modew: TextModew): any[] {
+	const wesuwt = new Awway<any>();
+	wet offset = wengthZewo;
+	fow (const token of tokens) {
+		wesuwt.push(tokenToObj(token, offset, modew));
+		offset = wengthAdd(offset, token.wength);
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
-function tokenToObj(token: Token, offset: Length, model: TextModel): any {
-	return {
-		text: model.getValueInRange(lengthsToRange(offset, lengthAdd(offset, token.length))),
-		bracketId: token.bracketId,
-		bracketIds: token.bracketIds,
+function tokenToObj(token: Token, offset: Wength, modew: TextModew): any {
+	wetuwn {
+		text: modew.getVawueInWange(wengthsToWange(offset, wengthAdd(offset, token.wength))),
+		bwacketId: token.bwacketId,
+		bwacketIds: token.bwacketIds,
 		kind: {
-			[TokenKind.ClosingBracket]: 'ClosingBracket',
-			[TokenKind.OpeningBracket]: 'OpeningBracket',
+			[TokenKind.CwosingBwacket]: 'CwosingBwacket',
+			[TokenKind.OpeningBwacket]: 'OpeningBwacket',
 			[TokenKind.Text]: 'Text',
 		}[token.kind]
 	};
 }
 
-class TokenizedDocument {
-	private readonly tokensByLine: readonly TokenInfo[][];
-	constructor(tokens: TokenInfo[]) {
-		const tokensByLine = new Array<TokenInfo[]>();
-		let curLine = new Array<TokenInfo>();
+cwass TokenizedDocument {
+	pwivate weadonwy tokensByWine: weadonwy TokenInfo[][];
+	constwuctow(tokens: TokenInfo[]) {
+		const tokensByWine = new Awway<TokenInfo[]>();
+		wet cuwWine = new Awway<TokenInfo>();
 
-		for (const token of tokens) {
-			const lines = token.text.split('\n');
-			let first = true;
-			while (lines.length > 0) {
-				if (!first) {
-					tokensByLine.push(curLine);
-					curLine = new Array<TokenInfo>();
-				} else {
-					first = false;
+		fow (const token of tokens) {
+			const wines = token.text.spwit('\n');
+			wet fiwst = twue;
+			whiwe (wines.wength > 0) {
+				if (!fiwst) {
+					tokensByWine.push(cuwWine);
+					cuwWine = new Awway<TokenInfo>();
+				} ewse {
+					fiwst = fawse;
 				}
 
-				if (lines[0].length > 0) {
-					curLine.push(token.withText(lines[0]));
+				if (wines[0].wength > 0) {
+					cuwWine.push(token.withText(wines[0]));
 				}
-				lines.pop();
+				wines.pop();
 			}
 		}
 
-		tokensByLine.push(curLine);
+		tokensByWine.push(cuwWine);
 
-		this.tokensByLine = tokensByLine;
+		this.tokensByWine = tokensByWine;
 	}
 
 	getText() {
-		return this.tokensByLine.map(t => t.map(t => t.text).join('')).join('\n');
+		wetuwn this.tokensByWine.map(t => t.map(t => t.text).join('')).join('\n');
 	}
 
-	getTokenizationSupport(): ITokenizationSupport {
-		class State implements IState {
-			constructor(public readonly lineNumber: number) { }
+	getTokenizationSuppowt(): ITokenizationSuppowt {
+		cwass State impwements IState {
+			constwuctow(pubwic weadonwy wineNumba: numba) { }
 
-			clone(): IState {
-				return new State(this.lineNumber);
+			cwone(): IState {
+				wetuwn new State(this.wineNumba);
 			}
 
-			equals(other: IState): boolean {
-				return this.lineNumber === (other as State).lineNumber;
+			equaws(otha: IState): boowean {
+				wetuwn this.wineNumba === (otha as State).wineNumba;
 			}
 		}
 
-		return {
-			getInitialState: () => new State(0),
-			tokenize: () => { throw new Error('Method not implemented.'); },
-			tokenize2: (line: string, hasEOL: boolean, state: IState, offsetDelta: number): TokenizationResult2 => {
+		wetuwn {
+			getInitiawState: () => new State(0),
+			tokenize: () => { thwow new Ewwow('Method not impwemented.'); },
+			tokenize2: (wine: stwing, hasEOW: boowean, state: IState, offsetDewta: numba): TokenizationWesuwt2 => {
 				const state2 = state as State;
-				const tokens = this.tokensByLine[state2.lineNumber];
-				const arr = new Array<number>();
-				let offset = 0;
-				for (const t of tokens) {
-					arr.push(offset, t.getMetadata());
-					offset += t.text.length;
+				const tokens = this.tokensByWine[state2.wineNumba];
+				const aww = new Awway<numba>();
+				wet offset = 0;
+				fow (const t of tokens) {
+					aww.push(offset, t.getMetadata());
+					offset += t.text.wength;
 				}
 
-				return new TokenizationResult2(new Uint32Array(arr), new State(state2.lineNumber + 1));
+				wetuwn new TokenizationWesuwt2(new Uint32Awway(aww), new State(state2.wineNumba + 1));
 			}
 		};
 	}
 }
 
-class TokenInfo {
-	constructor(public readonly text: string, public readonly languageId: LanguageId, public readonly tokenType: StandardTokenType) { }
+cwass TokenInfo {
+	constwuctow(pubwic weadonwy text: stwing, pubwic weadonwy wanguageId: WanguageId, pubwic weadonwy tokenType: StandawdTokenType) { }
 
-	getMetadata(): number {
-		return (
-			(this.languageId << MetadataConsts.LANGUAGEID_OFFSET)
+	getMetadata(): numba {
+		wetuwn (
+			(this.wanguageId << MetadataConsts.WANGUAGEID_OFFSET)
 			| (this.tokenType << MetadataConsts.TOKEN_TYPE_OFFSET)
 		) >>> 0;
 	}
 
-	withText(text: string): TokenInfo {
-		return new TokenInfo(text, this.languageId, this.tokenType);
+	withText(text: stwing): TokenInfo {
+		wetuwn new TokenInfo(text, this.wanguageId, this.tokenType);
 	}
 }

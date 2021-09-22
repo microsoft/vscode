@@ -1,476 +1,476 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IHorizontalSashLayoutProvider, ISashEvent, Orientation, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
-import { Color, RGBA } from 'vs/base/common/color';
-import { IdGenerator } from 'vs/base/common/idGenerator';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import * as objects from 'vs/base/common/objects';
-import 'vs/css!./zoneWidget';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
-import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IHowizontawSashWayoutPwovida, ISashEvent, Owientation, Sash, SashState } fwom 'vs/base/bwowsa/ui/sash/sash';
+impowt { Cowow, WGBA } fwom 'vs/base/common/cowow';
+impowt { IdGenewatow } fwom 'vs/base/common/idGenewatow';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt * as objects fwom 'vs/base/common/objects';
+impowt 'vs/css!./zoneWidget';
+impowt { ICodeEditow, IOvewwayWidget, IOvewwayWidgetPosition, IViewZone, IViewZoneChangeAccessow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowWayoutInfo, EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { IPosition, Position } fwom 'vs/editow/common/cowe/position';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { TwackedWangeStickiness } fwom 'vs/editow/common/modew';
+impowt { ModewDecowationOptions } fwom 'vs/editow/common/modew/textModew';
 
-export interface IOptions {
-	showFrame?: boolean;
-	showArrow?: boolean;
-	frameWidth?: number;
-	className?: string;
-	isAccessible?: boolean;
-	isResizeable?: boolean;
-	frameColor?: Color;
-	arrowColor?: Color;
-	keepEditorSelection?: boolean;
+expowt intewface IOptions {
+	showFwame?: boowean;
+	showAwwow?: boowean;
+	fwameWidth?: numba;
+	cwassName?: stwing;
+	isAccessibwe?: boowean;
+	isWesizeabwe?: boowean;
+	fwameCowow?: Cowow;
+	awwowCowow?: Cowow;
+	keepEditowSewection?: boowean;
 }
 
-export interface IStyles {
-	frameColor?: Color | null;
-	arrowColor?: Color | null;
+expowt intewface IStywes {
+	fwameCowow?: Cowow | nuww;
+	awwowCowow?: Cowow | nuww;
 }
 
-const defaultColor = new Color(new RGBA(0, 122, 204));
+const defauwtCowow = new Cowow(new WGBA(0, 122, 204));
 
-const defaultOptions: IOptions = {
-	showArrow: true,
-	showFrame: true,
-	className: '',
-	frameColor: defaultColor,
-	arrowColor: defaultColor,
-	keepEditorSelection: false
+const defauwtOptions: IOptions = {
+	showAwwow: twue,
+	showFwame: twue,
+	cwassName: '',
+	fwameCowow: defauwtCowow,
+	awwowCowow: defauwtCowow,
+	keepEditowSewection: fawse
 };
 
-const WIDGET_ID = 'vs.editor.contrib.zoneWidget';
+const WIDGET_ID = 'vs.editow.contwib.zoneWidget';
 
-export class ViewZoneDelegate implements IViewZone {
+expowt cwass ViewZoneDewegate impwements IViewZone {
 
-	domNode: HTMLElement;
-	id: string = ''; // A valid zone id should be greater than 0
-	afterLineNumber: number;
-	afterColumn: number;
-	heightInLines: number;
+	domNode: HTMWEwement;
+	id: stwing = ''; // A vawid zone id shouwd be gweata than 0
+	aftewWineNumba: numba;
+	aftewCowumn: numba;
+	heightInWines: numba;
 
-	private readonly _onDomNodeTop: (top: number) => void;
-	private readonly _onComputedHeight: (height: number) => void;
+	pwivate weadonwy _onDomNodeTop: (top: numba) => void;
+	pwivate weadonwy _onComputedHeight: (height: numba) => void;
 
-	constructor(domNode: HTMLElement, afterLineNumber: number, afterColumn: number, heightInLines: number,
-		onDomNodeTop: (top: number) => void,
-		onComputedHeight: (height: number) => void
+	constwuctow(domNode: HTMWEwement, aftewWineNumba: numba, aftewCowumn: numba, heightInWines: numba,
+		onDomNodeTop: (top: numba) => void,
+		onComputedHeight: (height: numba) => void
 	) {
 		this.domNode = domNode;
-		this.afterLineNumber = afterLineNumber;
-		this.afterColumn = afterColumn;
-		this.heightInLines = heightInLines;
+		this.aftewWineNumba = aftewWineNumba;
+		this.aftewCowumn = aftewCowumn;
+		this.heightInWines = heightInWines;
 		this._onDomNodeTop = onDomNodeTop;
 		this._onComputedHeight = onComputedHeight;
 	}
 
-	onDomNodeTop(top: number): void {
+	onDomNodeTop(top: numba): void {
 		this._onDomNodeTop(top);
 	}
 
-	onComputedHeight(height: number): void {
+	onComputedHeight(height: numba): void {
 		this._onComputedHeight(height);
 	}
 }
 
-export class OverlayWidgetDelegate implements IOverlayWidget {
+expowt cwass OvewwayWidgetDewegate impwements IOvewwayWidget {
 
-	private readonly _id: string;
-	private readonly _domNode: HTMLElement;
+	pwivate weadonwy _id: stwing;
+	pwivate weadonwy _domNode: HTMWEwement;
 
-	constructor(id: string, domNode: HTMLElement) {
+	constwuctow(id: stwing, domNode: HTMWEwement) {
 		this._id = id;
 		this._domNode = domNode;
 	}
 
-	getId(): string {
-		return this._id;
+	getId(): stwing {
+		wetuwn this._id;
 	}
 
-	getDomNode(): HTMLElement {
-		return this._domNode;
+	getDomNode(): HTMWEwement {
+		wetuwn this._domNode;
 	}
 
-	getPosition(): IOverlayWidgetPosition | null {
-		return null;
+	getPosition(): IOvewwayWidgetPosition | nuww {
+		wetuwn nuww;
 	}
 }
 
-class Arrow {
+cwass Awwow {
 
-	private static readonly _IdGenerator = new IdGenerator('.arrow-decoration-');
+	pwivate static weadonwy _IdGenewatow = new IdGenewatow('.awwow-decowation-');
 
-	private readonly _ruleName = Arrow._IdGenerator.nextId();
-	private _decorations: string[] = [];
-	private _color: string | null = null;
-	private _height: number = -1;
+	pwivate weadonwy _wuweName = Awwow._IdGenewatow.nextId();
+	pwivate _decowations: stwing[] = [];
+	pwivate _cowow: stwing | nuww = nuww;
+	pwivate _height: numba = -1;
 
-	constructor(
-		private readonly _editor: ICodeEditor
+	constwuctow(
+		pwivate weadonwy _editow: ICodeEditow
 	) {
 		//
 	}
 
 	dispose(): void {
 		this.hide();
-		dom.removeCSSRulesContainingSelector(this._ruleName);
+		dom.wemoveCSSWuwesContainingSewectow(this._wuweName);
 	}
 
-	set color(value: string) {
-		if (this._color !== value) {
-			this._color = value;
-			this._updateStyle();
+	set cowow(vawue: stwing) {
+		if (this._cowow !== vawue) {
+			this._cowow = vawue;
+			this._updateStywe();
 		}
 	}
 
-	set height(value: number) {
-		if (this._height !== value) {
-			this._height = value;
-			this._updateStyle();
+	set height(vawue: numba) {
+		if (this._height !== vawue) {
+			this._height = vawue;
+			this._updateStywe();
 		}
 	}
 
-	private _updateStyle(): void {
-		dom.removeCSSRulesContainingSelector(this._ruleName);
-		dom.createCSSRule(
-			`.monaco-editor ${this._ruleName}`,
-			`border-style: solid; border-color: transparent; border-bottom-color: ${this._color}; border-width: ${this._height}px; bottom: -${this._height}px; margin-left: -${this._height}px; `
+	pwivate _updateStywe(): void {
+		dom.wemoveCSSWuwesContainingSewectow(this._wuweName);
+		dom.cweateCSSWuwe(
+			`.monaco-editow ${this._wuweName}`,
+			`bowda-stywe: sowid; bowda-cowow: twanspawent; bowda-bottom-cowow: ${this._cowow}; bowda-width: ${this._height}px; bottom: -${this._height}px; mawgin-weft: -${this._height}px; `
 		);
 	}
 
-	show(where: IPosition): void {
-		this._decorations = this._editor.deltaDecorations(
-			this._decorations,
-			[{ range: Range.fromPositions(where), options: { description: 'zone-widget-arrow', className: this._ruleName, stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } }]
+	show(whewe: IPosition): void {
+		this._decowations = this._editow.dewtaDecowations(
+			this._decowations,
+			[{ wange: Wange.fwomPositions(whewe), options: { descwiption: 'zone-widget-awwow', cwassName: this._wuweName, stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges } }]
 		);
 	}
 
 	hide(): void {
-		this._editor.deltaDecorations(this._decorations, []);
+		this._editow.dewtaDecowations(this._decowations, []);
 	}
 }
 
-export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
+expowt abstwact cwass ZoneWidget impwements IHowizontawSashWayoutPwovida {
 
-	private _arrow: Arrow | null = null;
-	private _overlayWidget: OverlayWidgetDelegate | null = null;
-	private _resizeSash: Sash | null = null;
-	private _positionMarkerId: string[] = [];
+	pwivate _awwow: Awwow | nuww = nuww;
+	pwivate _ovewwayWidget: OvewwayWidgetDewegate | nuww = nuww;
+	pwivate _wesizeSash: Sash | nuww = nuww;
+	pwivate _positionMawkewId: stwing[] = [];
 
-	protected _viewZone: ViewZoneDelegate | null = null;
-	protected readonly _disposables = new DisposableStore();
+	pwotected _viewZone: ViewZoneDewegate | nuww = nuww;
+	pwotected weadonwy _disposabwes = new DisposabweStowe();
 
-	container: HTMLElement | null = null;
-	domNode: HTMLElement;
-	editor: ICodeEditor;
+	containa: HTMWEwement | nuww = nuww;
+	domNode: HTMWEwement;
+	editow: ICodeEditow;
 	options: IOptions;
 
 
-	constructor(editor: ICodeEditor, options: IOptions = {}) {
-		this.editor = editor;
-		this.options = objects.deepClone(options);
-		objects.mixin(this.options, defaultOptions, false);
-		this.domNode = document.createElement('div');
-		if (!this.options.isAccessible) {
-			this.domNode.setAttribute('aria-hidden', 'true');
-			this.domNode.setAttribute('role', 'presentation');
+	constwuctow(editow: ICodeEditow, options: IOptions = {}) {
+		this.editow = editow;
+		this.options = objects.deepCwone(options);
+		objects.mixin(this.options, defauwtOptions, fawse);
+		this.domNode = document.cweateEwement('div');
+		if (!this.options.isAccessibwe) {
+			this.domNode.setAttwibute('awia-hidden', 'twue');
+			this.domNode.setAttwibute('wowe', 'pwesentation');
 		}
 
-		this._disposables.add(this.editor.onDidLayoutChange((info: EditorLayoutInfo) => {
+		this._disposabwes.add(this.editow.onDidWayoutChange((info: EditowWayoutInfo) => {
 			const width = this._getWidth(info);
-			this.domNode.style.width = width + 'px';
-			this.domNode.style.left = this._getLeft(info) + 'px';
+			this.domNode.stywe.width = width + 'px';
+			this.domNode.stywe.weft = this._getWeft(info) + 'px';
 			this._onWidth(width);
 		}));
 	}
 
 	dispose(): void {
-		if (this._overlayWidget) {
-			this.editor.removeOverlayWidget(this._overlayWidget);
-			this._overlayWidget = null;
+		if (this._ovewwayWidget) {
+			this.editow.wemoveOvewwayWidget(this._ovewwayWidget);
+			this._ovewwayWidget = nuww;
 		}
 
 		if (this._viewZone) {
-			this.editor.changeViewZones(accessor => {
+			this.editow.changeViewZones(accessow => {
 				if (this._viewZone) {
-					accessor.removeZone(this._viewZone.id);
+					accessow.wemoveZone(this._viewZone.id);
 				}
-				this._viewZone = null;
+				this._viewZone = nuww;
 			});
 		}
 
-		this.editor.deltaDecorations(this._positionMarkerId, []);
-		this._positionMarkerId = [];
+		this.editow.dewtaDecowations(this._positionMawkewId, []);
+		this._positionMawkewId = [];
 
-		this._disposables.dispose();
+		this._disposabwes.dispose();
 	}
 
-	create(): void {
+	cweate(): void {
 
-		this.domNode.classList.add('zone-widget');
-		if (this.options.className) {
-			this.domNode.classList.add(this.options.className);
+		this.domNode.cwassWist.add('zone-widget');
+		if (this.options.cwassName) {
+			this.domNode.cwassWist.add(this.options.cwassName);
 		}
 
-		this.container = document.createElement('div');
-		this.container.classList.add('zone-widget-container');
-		this.domNode.appendChild(this.container);
-		if (this.options.showArrow) {
-			this._arrow = new Arrow(this.editor);
-			this._disposables.add(this._arrow);
+		this.containa = document.cweateEwement('div');
+		this.containa.cwassWist.add('zone-widget-containa');
+		this.domNode.appendChiwd(this.containa);
+		if (this.options.showAwwow) {
+			this._awwow = new Awwow(this.editow);
+			this._disposabwes.add(this._awwow);
 		}
-		this._fillContainer(this.container);
+		this._fiwwContaina(this.containa);
 		this._initSash();
-		this._applyStyles();
+		this._appwyStywes();
 	}
 
-	style(styles: IStyles): void {
-		if (styles.frameColor) {
-			this.options.frameColor = styles.frameColor;
+	stywe(stywes: IStywes): void {
+		if (stywes.fwameCowow) {
+			this.options.fwameCowow = stywes.fwameCowow;
 		}
-		if (styles.arrowColor) {
-			this.options.arrowColor = styles.arrowColor;
+		if (stywes.awwowCowow) {
+			this.options.awwowCowow = stywes.awwowCowow;
 		}
-		this._applyStyles();
+		this._appwyStywes();
 	}
 
-	protected _applyStyles(): void {
-		if (this.container && this.options.frameColor) {
-			let frameColor = this.options.frameColor.toString();
-			this.container.style.borderTopColor = frameColor;
-			this.container.style.borderBottomColor = frameColor;
+	pwotected _appwyStywes(): void {
+		if (this.containa && this.options.fwameCowow) {
+			wet fwameCowow = this.options.fwameCowow.toStwing();
+			this.containa.stywe.bowdewTopCowow = fwameCowow;
+			this.containa.stywe.bowdewBottomCowow = fwameCowow;
 		}
-		if (this._arrow && this.options.arrowColor) {
-			let arrowColor = this.options.arrowColor.toString();
-			this._arrow.color = arrowColor;
+		if (this._awwow && this.options.awwowCowow) {
+			wet awwowCowow = this.options.awwowCowow.toStwing();
+			this._awwow.cowow = awwowCowow;
 		}
 	}
 
-	private _getWidth(info: EditorLayoutInfo): number {
-		return info.width - info.minimap.minimapWidth - info.verticalScrollbarWidth;
+	pwivate _getWidth(info: EditowWayoutInfo): numba {
+		wetuwn info.width - info.minimap.minimapWidth - info.vewticawScwowwbawWidth;
 	}
 
-	private _getLeft(info: EditorLayoutInfo): number {
-		// If minimap is to the left, we move beyond it
-		if (info.minimap.minimapWidth > 0 && info.minimap.minimapLeft === 0) {
-			return info.minimap.minimapWidth;
+	pwivate _getWeft(info: EditowWayoutInfo): numba {
+		// If minimap is to the weft, we move beyond it
+		if (info.minimap.minimapWidth > 0 && info.minimap.minimapWeft === 0) {
+			wetuwn info.minimap.minimapWidth;
 		}
-		return 0;
+		wetuwn 0;
 	}
 
-	private _onViewZoneTop(top: number): void {
-		this.domNode.style.top = top + 'px';
+	pwivate _onViewZoneTop(top: numba): void {
+		this.domNode.stywe.top = top + 'px';
 	}
 
-	private _onViewZoneHeight(height: number): void {
-		this.domNode.style.height = `${height}px`;
+	pwivate _onViewZoneHeight(height: numba): void {
+		this.domNode.stywe.height = `${height}px`;
 
-		if (this.container) {
-			let containerHeight = height - this._decoratingElementsHeight();
-			this.container.style.height = `${containerHeight}px`;
-			const layoutInfo = this.editor.getLayoutInfo();
-			this._doLayout(containerHeight, this._getWidth(layoutInfo));
+		if (this.containa) {
+			wet containewHeight = height - this._decowatingEwementsHeight();
+			this.containa.stywe.height = `${containewHeight}px`;
+			const wayoutInfo = this.editow.getWayoutInfo();
+			this._doWayout(containewHeight, this._getWidth(wayoutInfo));
 		}
 
-		if (this._resizeSash) {
-			this._resizeSash.layout();
+		if (this._wesizeSash) {
+			this._wesizeSash.wayout();
 		}
 	}
 
 	get position(): Position | undefined {
-		const [id] = this._positionMarkerId;
+		const [id] = this._positionMawkewId;
 		if (!id) {
-			return undefined;
+			wetuwn undefined;
 		}
 
-		const model = this.editor.getModel();
-		if (!model) {
-			return undefined;
+		const modew = this.editow.getModew();
+		if (!modew) {
+			wetuwn undefined;
 		}
 
-		const range = model.getDecorationRange(id);
-		if (!range) {
-			return undefined;
+		const wange = modew.getDecowationWange(id);
+		if (!wange) {
+			wetuwn undefined;
 		}
-		return range.getStartPosition();
+		wetuwn wange.getStawtPosition();
 	}
 
-	protected _isShowing: boolean = false;
+	pwotected _isShowing: boowean = fawse;
 
-	show(rangeOrPos: IRange | IPosition, heightInLines: number): void {
-		const range = Range.isIRange(rangeOrPos) ? Range.lift(rangeOrPos) : Range.fromPositions(rangeOrPos);
-		this._isShowing = true;
-		this._showImpl(range, heightInLines);
-		this._isShowing = false;
-		this._positionMarkerId = this.editor.deltaDecorations(this._positionMarkerId, [{ range, options: ModelDecorationOptions.EMPTY }]);
+	show(wangeOwPos: IWange | IPosition, heightInWines: numba): void {
+		const wange = Wange.isIWange(wangeOwPos) ? Wange.wift(wangeOwPos) : Wange.fwomPositions(wangeOwPos);
+		this._isShowing = twue;
+		this._showImpw(wange, heightInWines);
+		this._isShowing = fawse;
+		this._positionMawkewId = this.editow.dewtaDecowations(this._positionMawkewId, [{ wange, options: ModewDecowationOptions.EMPTY }]);
 	}
 
 	hide(): void {
 		if (this._viewZone) {
-			this.editor.changeViewZones(accessor => {
+			this.editow.changeViewZones(accessow => {
 				if (this._viewZone) {
-					accessor.removeZone(this._viewZone.id);
+					accessow.wemoveZone(this._viewZone.id);
 				}
 			});
-			this._viewZone = null;
+			this._viewZone = nuww;
 		}
-		if (this._overlayWidget) {
-			this.editor.removeOverlayWidget(this._overlayWidget);
-			this._overlayWidget = null;
+		if (this._ovewwayWidget) {
+			this.editow.wemoveOvewwayWidget(this._ovewwayWidget);
+			this._ovewwayWidget = nuww;
 		}
-		if (this._arrow) {
-			this._arrow.hide();
+		if (this._awwow) {
+			this._awwow.hide();
 		}
 	}
 
-	private _decoratingElementsHeight(): number {
-		let lineHeight = this.editor.getOption(EditorOption.lineHeight);
-		let result = 0;
+	pwivate _decowatingEwementsHeight(): numba {
+		wet wineHeight = this.editow.getOption(EditowOption.wineHeight);
+		wet wesuwt = 0;
 
-		if (this.options.showArrow) {
-			let arrowHeight = Math.round(lineHeight / 3);
-			result += 2 * arrowHeight;
+		if (this.options.showAwwow) {
+			wet awwowHeight = Math.wound(wineHeight / 3);
+			wesuwt += 2 * awwowHeight;
 		}
 
-		if (this.options.showFrame) {
-			let frameThickness = Math.round(lineHeight / 9);
-			result += 2 * frameThickness;
+		if (this.options.showFwame) {
+			wet fwameThickness = Math.wound(wineHeight / 9);
+			wesuwt += 2 * fwameThickness;
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _showImpl(where: Range, heightInLines: number): void {
-		const position = where.getStartPosition();
-		const layoutInfo = this.editor.getLayoutInfo();
-		const width = this._getWidth(layoutInfo);
-		this.domNode.style.width = `${width}px`;
-		this.domNode.style.left = this._getLeft(layoutInfo) + 'px';
+	pwivate _showImpw(whewe: Wange, heightInWines: numba): void {
+		const position = whewe.getStawtPosition();
+		const wayoutInfo = this.editow.getWayoutInfo();
+		const width = this._getWidth(wayoutInfo);
+		this.domNode.stywe.width = `${width}px`;
+		this.domNode.stywe.weft = this._getWeft(wayoutInfo) + 'px';
 
-		// Render the widget as zone (rendering) and widget (lifecycle)
-		const viewZoneDomNode = document.createElement('div');
-		viewZoneDomNode.style.overflow = 'hidden';
-		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
+		// Wenda the widget as zone (wendewing) and widget (wifecycwe)
+		const viewZoneDomNode = document.cweateEwement('div');
+		viewZoneDomNode.stywe.ovewfwow = 'hidden';
+		const wineHeight = this.editow.getOption(EditowOption.wineHeight);
 
-		// adjust heightInLines to viewport
-		const maxHeightInLines = Math.max(12, (this.editor.getLayoutInfo().height / lineHeight) * 0.8);
-		heightInLines = Math.min(heightInLines, maxHeightInLines);
+		// adjust heightInWines to viewpowt
+		const maxHeightInWines = Math.max(12, (this.editow.getWayoutInfo().height / wineHeight) * 0.8);
+		heightInWines = Math.min(heightInWines, maxHeightInWines);
 
-		let arrowHeight = 0;
-		let frameThickness = 0;
+		wet awwowHeight = 0;
+		wet fwameThickness = 0;
 
-		// Render the arrow one 1/3 of an editor line height
-		if (this._arrow && this.options.showArrow) {
-			arrowHeight = Math.round(lineHeight / 3);
-			this._arrow.height = arrowHeight;
-			this._arrow.show(position);
+		// Wenda the awwow one 1/3 of an editow wine height
+		if (this._awwow && this.options.showAwwow) {
+			awwowHeight = Math.wound(wineHeight / 3);
+			this._awwow.height = awwowHeight;
+			this._awwow.show(position);
 		}
 
-		// Render the frame as 1/9 of an editor line height
-		if (this.options.showFrame) {
-			frameThickness = Math.round(lineHeight / 9);
+		// Wenda the fwame as 1/9 of an editow wine height
+		if (this.options.showFwame) {
+			fwameThickness = Math.wound(wineHeight / 9);
 		}
 
-		// insert zone widget
-		this.editor.changeViewZones((accessor: IViewZoneChangeAccessor) => {
+		// insewt zone widget
+		this.editow.changeViewZones((accessow: IViewZoneChangeAccessow) => {
 			if (this._viewZone) {
-				accessor.removeZone(this._viewZone.id);
+				accessow.wemoveZone(this._viewZone.id);
 			}
-			if (this._overlayWidget) {
-				this.editor.removeOverlayWidget(this._overlayWidget);
-				this._overlayWidget = null;
+			if (this._ovewwayWidget) {
+				this.editow.wemoveOvewwayWidget(this._ovewwayWidget);
+				this._ovewwayWidget = nuww;
 			}
-			this.domNode.style.top = '-1000px';
-			this._viewZone = new ViewZoneDelegate(
+			this.domNode.stywe.top = '-1000px';
+			this._viewZone = new ViewZoneDewegate(
 				viewZoneDomNode,
-				position.lineNumber,
-				position.column,
-				heightInLines,
-				(top: number) => this._onViewZoneTop(top),
-				(height: number) => this._onViewZoneHeight(height)
+				position.wineNumba,
+				position.cowumn,
+				heightInWines,
+				(top: numba) => this._onViewZoneTop(top),
+				(height: numba) => this._onViewZoneHeight(height)
 			);
-			this._viewZone.id = accessor.addZone(this._viewZone);
-			this._overlayWidget = new OverlayWidgetDelegate(WIDGET_ID + this._viewZone.id, this.domNode);
-			this.editor.addOverlayWidget(this._overlayWidget);
+			this._viewZone.id = accessow.addZone(this._viewZone);
+			this._ovewwayWidget = new OvewwayWidgetDewegate(WIDGET_ID + this._viewZone.id, this.domNode);
+			this.editow.addOvewwayWidget(this._ovewwayWidget);
 		});
 
-		if (this.container && this.options.showFrame) {
-			const width = this.options.frameWidth ? this.options.frameWidth : frameThickness;
-			this.container.style.borderTopWidth = width + 'px';
-			this.container.style.borderBottomWidth = width + 'px';
+		if (this.containa && this.options.showFwame) {
+			const width = this.options.fwameWidth ? this.options.fwameWidth : fwameThickness;
+			this.containa.stywe.bowdewTopWidth = width + 'px';
+			this.containa.stywe.bowdewBottomWidth = width + 'px';
 		}
 
-		let containerHeight = heightInLines * lineHeight - this._decoratingElementsHeight();
+		wet containewHeight = heightInWines * wineHeight - this._decowatingEwementsHeight();
 
-		if (this.container) {
-			this.container.style.top = arrowHeight + 'px';
-			this.container.style.height = containerHeight + 'px';
-			this.container.style.overflow = 'hidden';
+		if (this.containa) {
+			this.containa.stywe.top = awwowHeight + 'px';
+			this.containa.stywe.height = containewHeight + 'px';
+			this.containa.stywe.ovewfwow = 'hidden';
 		}
 
-		this._doLayout(containerHeight, width);
+		this._doWayout(containewHeight, width);
 
-		if (!this.options.keepEditorSelection) {
-			this.editor.setSelection(where);
+		if (!this.options.keepEditowSewection) {
+			this.editow.setSewection(whewe);
 		}
 
-		const model = this.editor.getModel();
-		if (model) {
-			const revealLine = where.endLineNumber + 1;
-			if (revealLine <= model.getLineCount()) {
-				// reveal line below the zone widget
-				this.revealLine(revealLine, false);
-			} else {
-				// reveal last line atop
-				this.revealLine(model.getLineCount(), true);
+		const modew = this.editow.getModew();
+		if (modew) {
+			const weveawWine = whewe.endWineNumba + 1;
+			if (weveawWine <= modew.getWineCount()) {
+				// weveaw wine bewow the zone widget
+				this.weveawWine(weveawWine, fawse);
+			} ewse {
+				// weveaw wast wine atop
+				this.weveawWine(modew.getWineCount(), twue);
 			}
 		}
 	}
 
-	protected revealLine(lineNumber: number, isLastLine: boolean) {
-		if (isLastLine) {
-			this.editor.revealLineInCenter(lineNumber, ScrollType.Smooth);
-		} else {
-			this.editor.revealLine(lineNumber, ScrollType.Smooth);
+	pwotected weveawWine(wineNumba: numba, isWastWine: boowean) {
+		if (isWastWine) {
+			this.editow.weveawWineInCenta(wineNumba, ScwowwType.Smooth);
+		} ewse {
+			this.editow.weveawWine(wineNumba, ScwowwType.Smooth);
 		}
 	}
 
-	protected setCssClass(className: string, classToReplace?: string): void {
-		if (!this.container) {
-			return;
+	pwotected setCssCwass(cwassName: stwing, cwassToWepwace?: stwing): void {
+		if (!this.containa) {
+			wetuwn;
 		}
 
-		if (classToReplace) {
-			this.container.classList.remove(classToReplace);
+		if (cwassToWepwace) {
+			this.containa.cwassWist.wemove(cwassToWepwace);
 		}
 
-		this.container.classList.add(className);
+		this.containa.cwassWist.add(cwassName);
 
 	}
 
-	protected abstract _fillContainer(container: HTMLElement): void;
+	pwotected abstwact _fiwwContaina(containa: HTMWEwement): void;
 
-	protected _onWidth(widthInPixel: number): void {
-		// implement in subclass
+	pwotected _onWidth(widthInPixew: numba): void {
+		// impwement in subcwass
 	}
 
-	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
-		// implement in subclass
+	pwotected _doWayout(heightInPixew: numba, widthInPixew: numba): void {
+		// impwement in subcwass
 	}
 
-	protected _relayout(newHeightInLines: number): void {
-		if (this._viewZone && this._viewZone.heightInLines !== newHeightInLines) {
-			this.editor.changeViewZones(accessor => {
+	pwotected _wewayout(newHeightInWines: numba): void {
+		if (this._viewZone && this._viewZone.heightInWines !== newHeightInWines) {
+			this.editow.changeViewZones(accessow => {
 				if (this._viewZone) {
-					this._viewZone.heightInLines = newHeightInLines;
-					accessor.layoutZone(this._viewZone.id);
+					this._viewZone.heightInWines = newHeightInWines;
+					accessow.wayoutZone(this._viewZone.id);
 				}
 			});
 		}
@@ -478,54 +478,54 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 	// --- sash
 
-	private _initSash(): void {
-		if (this._resizeSash) {
-			return;
+	pwivate _initSash(): void {
+		if (this._wesizeSash) {
+			wetuwn;
 		}
-		this._resizeSash = this._disposables.add(new Sash(this.domNode, this, { orientation: Orientation.HORIZONTAL }));
+		this._wesizeSash = this._disposabwes.add(new Sash(this.domNode, this, { owientation: Owientation.HOWIZONTAW }));
 
-		if (!this.options.isResizeable) {
-			this._resizeSash.hide();
-			this._resizeSash.state = SashState.Disabled;
+		if (!this.options.isWesizeabwe) {
+			this._wesizeSash.hide();
+			this._wesizeSash.state = SashState.Disabwed;
 		}
 
-		let data: { startY: number; heightInLines: number; } | undefined;
-		this._disposables.add(this._resizeSash.onDidStart((e: ISashEvent) => {
+		wet data: { stawtY: numba; heightInWines: numba; } | undefined;
+		this._disposabwes.add(this._wesizeSash.onDidStawt((e: ISashEvent) => {
 			if (this._viewZone) {
 				data = {
-					startY: e.startY,
-					heightInLines: this._viewZone.heightInLines,
+					stawtY: e.stawtY,
+					heightInWines: this._viewZone.heightInWines,
 				};
 			}
 		}));
 
-		this._disposables.add(this._resizeSash.onDidEnd(() => {
+		this._disposabwes.add(this._wesizeSash.onDidEnd(() => {
 			data = undefined;
 		}));
 
-		this._disposables.add(this._resizeSash.onDidChange((evt: ISashEvent) => {
+		this._disposabwes.add(this._wesizeSash.onDidChange((evt: ISashEvent) => {
 			if (data) {
-				let lineDelta = (evt.currentY - data.startY) / this.editor.getOption(EditorOption.lineHeight);
-				let roundedLineDelta = lineDelta < 0 ? Math.ceil(lineDelta) : Math.floor(lineDelta);
-				let newHeightInLines = data.heightInLines + roundedLineDelta;
+				wet wineDewta = (evt.cuwwentY - data.stawtY) / this.editow.getOption(EditowOption.wineHeight);
+				wet woundedWineDewta = wineDewta < 0 ? Math.ceiw(wineDewta) : Math.fwoow(wineDewta);
+				wet newHeightInWines = data.heightInWines + woundedWineDewta;
 
-				if (newHeightInLines > 5 && newHeightInLines < 35) {
-					this._relayout(newHeightInLines);
+				if (newHeightInWines > 5 && newHeightInWines < 35) {
+					this._wewayout(newHeightInWines);
 				}
 			}
 		}));
 	}
 
-	getHorizontalSashLeft() {
-		return 0;
+	getHowizontawSashWeft() {
+		wetuwn 0;
 	}
 
-	getHorizontalSashTop() {
-		return (this.domNode.style.height === null ? 0 : parseInt(this.domNode.style.height)) - (this._decoratingElementsHeight() / 2);
+	getHowizontawSashTop() {
+		wetuwn (this.domNode.stywe.height === nuww ? 0 : pawseInt(this.domNode.stywe.height)) - (this._decowatingEwementsHeight() / 2);
 	}
 
-	getHorizontalSashWidth() {
-		const layoutInfo = this.editor.getLayoutInfo();
-		return layoutInfo.width - layoutInfo.minimap.minimapWidth;
+	getHowizontawSashWidth() {
+		const wayoutInfo = this.editow.getWayoutInfo();
+		wetuwn wayoutInfo.width - wayoutInfo.minimap.minimapWidth;
 	}
 }

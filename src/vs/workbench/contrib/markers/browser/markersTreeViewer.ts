@@ -1,838 +1,838 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import * as network from 'vs/base/common/network';
-import * as paths from 'vs/base/common/path';
-import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { ResourceMarkers, Marker, RelatedInformation, MarkerElement } from 'vs/workbench/contrib/markers/browser/markersModel';
-import Messages from 'vs/workbench/contrib/markers/browser/messages';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IDisposable, dispose, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { QuickFixAction, QuickFixActionViewItem } from 'vs/workbench/contrib/markers/browser/markersViewActions';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { dirname, basename, isEqual } from 'vs/base/common/resources';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeFilter, TreeVisibility, TreeFilterResult, ITreeRenderer, ITreeNode, ITreeDragAndDrop, ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
-import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilterOptions';
-import { IMatch } from 'vs/base/common/filters';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { isUndefinedOrNull } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { Action, IAction } from 'vs/base/common/actions';
-import { localize } from 'vs/nls';
-import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { fillEditorsDragData } from 'vs/workbench/browser/dnd';
-import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { Range } from 'vs/editor/common/core/range';
-import { getCodeActions, CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
-import { ITextModel } from 'vs/editor/common/model';
-import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
-import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
-import { CodeActionTriggerType } from 'vs/editor/common/modes';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IFileService } from 'vs/platform/files/common/files';
-import { Progress } from 'vs/platform/progress/common/progress';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { Link } from 'vs/platform/opener/browser/link';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt * as netwowk fwom 'vs/base/common/netwowk';
+impowt * as paths fwom 'vs/base/common/path';
+impowt { CountBadge } fwom 'vs/base/bwowsa/ui/countBadge/countBadge';
+impowt { WesouwceWabews, IWesouwceWabew } fwom 'vs/wowkbench/bwowsa/wabews';
+impowt { HighwightedWabew } fwom 'vs/base/bwowsa/ui/highwightedwabew/highwightedWabew';
+impowt { IMawka, MawkewSevewity } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { WesouwceMawkews, Mawka, WewatedInfowmation, MawkewEwement } fwom 'vs/wowkbench/contwib/mawkews/bwowsa/mawkewsModew';
+impowt Messages fwom 'vs/wowkbench/contwib/mawkews/bwowsa/messages';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { attachBadgeStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { IThemeSewvice, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IDisposabwe, dispose, Disposabwe, toDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { ActionBaw } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { QuickFixAction, QuickFixActionViewItem } fwom 'vs/wowkbench/contwib/mawkews/bwowsa/mawkewsViewActions';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { diwname, basename, isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { ITweeFiwta, TweeVisibiwity, TweeFiwtewWesuwt, ITweeWendewa, ITweeNode, ITweeDwagAndDwop, ITweeDwagOvewWeaction } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { FiwtewOptions } fwom 'vs/wowkbench/contwib/mawkews/bwowsa/mawkewsFiwtewOptions';
+impowt { IMatch } fwom 'vs/base/common/fiwtews';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { IWistAccessibiwityPwovida } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { isUndefinedOwNuww } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Action, IAction } fwom 'vs/base/common/actions';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IDwagAndDwopData } fwom 'vs/base/bwowsa/dnd';
+impowt { EwementsDwagAndDwopData } fwom 'vs/base/bwowsa/ui/wist/wistView';
+impowt { fiwwEditowsDwagData } fwom 'vs/wowkbench/bwowsa/dnd';
+impowt { CancewabwePwomise, cweateCancewabwePwomise, Dewaya } fwom 'vs/base/common/async';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { getCodeActions, CodeActionSet } fwom 'vs/editow/contwib/codeAction/codeAction';
+impowt { CodeActionKind } fwom 'vs/editow/contwib/codeAction/types';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { IEditowSewvice, ACTIVE_GWOUP } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { appwyCodeAction } fwom 'vs/editow/contwib/codeAction/codeActionCommands';
+impowt { SevewityIcon } fwom 'vs/pwatfowm/sevewityIcon/common/sevewityIcon';
+impowt { CodeActionTwiggewType } fwom 'vs/editow/common/modes';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { Pwogwess } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { ActionViewItem } fwom 'vs/base/bwowsa/ui/actionbaw/actionViewItems';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { Wink } fwom 'vs/pwatfowm/opena/bwowsa/wink';
 
-interface IResourceMarkersTemplateData {
-	resourceLabel: IResourceLabel;
+intewface IWesouwceMawkewsTempwateData {
+	wesouwceWabew: IWesouwceWabew;
 	count: CountBadge;
-	styler: IDisposable;
+	stywa: IDisposabwe;
 }
 
-interface IMarkerTemplateData {
-	markerWidget: MarkerWidget;
+intewface IMawkewTempwateData {
+	mawkewWidget: MawkewWidget;
 }
 
-interface IRelatedInformationTemplateData {
-	resourceLabel: HighlightedLabel;
-	lnCol: HTMLElement;
-	description: HighlightedLabel;
+intewface IWewatedInfowmationTempwateData {
+	wesouwceWabew: HighwightedWabew;
+	wnCow: HTMWEwement;
+	descwiption: HighwightedWabew;
 }
 
-export class MarkersTreeAccessibilityProvider implements IListAccessibilityProvider<MarkerElement> {
+expowt cwass MawkewsTweeAccessibiwityPwovida impwements IWistAccessibiwityPwovida<MawkewEwement> {
 
-	constructor(@ILabelService private readonly labelService: ILabelService) { }
+	constwuctow(@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice) { }
 
-	getWidgetAriaLabel(): string {
-		return localize('problemsView', "Problems View");
+	getWidgetAwiaWabew(): stwing {
+		wetuwn wocawize('pwobwemsView', "Pwobwems View");
 	}
 
-	public getAriaLabel(element: MarkerElement): string | null {
-		if (element instanceof ResourceMarkers) {
-			const path = this.labelService.getUriLabel(element.resource, { relative: true }) || element.resource.fsPath;
-			return Messages.MARKERS_TREE_ARIA_LABEL_RESOURCE(element.markers.length, element.name, paths.dirname(path));
+	pubwic getAwiaWabew(ewement: MawkewEwement): stwing | nuww {
+		if (ewement instanceof WesouwceMawkews) {
+			const path = this.wabewSewvice.getUwiWabew(ewement.wesouwce, { wewative: twue }) || ewement.wesouwce.fsPath;
+			wetuwn Messages.MAWKEWS_TWEE_AWIA_WABEW_WESOUWCE(ewement.mawkews.wength, ewement.name, paths.diwname(path));
 		}
-		if (element instanceof Marker) {
-			return Messages.MARKERS_TREE_ARIA_LABEL_MARKER(element);
+		if (ewement instanceof Mawka) {
+			wetuwn Messages.MAWKEWS_TWEE_AWIA_WABEW_MAWKa(ewement);
 		}
-		if (element instanceof RelatedInformation) {
-			return Messages.MARKERS_TREE_ARIA_LABEL_RELATED_INFORMATION(element.raw);
+		if (ewement instanceof WewatedInfowmation) {
+			wetuwn Messages.MAWKEWS_TWEE_AWIA_WABEW_WEWATED_INFOWMATION(ewement.waw);
 		}
-		return null;
-	}
-}
-
-const enum TemplateId {
-	ResourceMarkers = 'rm',
-	Marker = 'm',
-	RelatedInformation = 'ri'
-}
-
-export class VirtualDelegate implements IListVirtualDelegate<MarkerElement> {
-
-	static LINE_HEIGHT: number = 22;
-
-	constructor(private readonly markersViewState: MarkersViewModel) { }
-
-	getHeight(element: MarkerElement): number {
-		if (element instanceof Marker) {
-			const viewModel = this.markersViewState.getViewModel(element);
-			const noOfLines = !viewModel || viewModel.multiline ? element.lines.length : 1;
-			return noOfLines * VirtualDelegate.LINE_HEIGHT;
-		}
-		return VirtualDelegate.LINE_HEIGHT;
-	}
-
-	getTemplateId(element: MarkerElement): string {
-		if (element instanceof ResourceMarkers) {
-			return TemplateId.ResourceMarkers;
-		} else if (element instanceof Marker) {
-			return TemplateId.Marker;
-		} else {
-			return TemplateId.RelatedInformation;
-		}
+		wetuwn nuww;
 	}
 }
 
-const enum FilterDataType {
-	ResourceMarkers,
-	Marker,
-	RelatedInformation
+const enum TempwateId {
+	WesouwceMawkews = 'wm',
+	Mawka = 'm',
+	WewatedInfowmation = 'wi'
 }
 
-interface ResourceMarkersFilterData {
-	type: FilterDataType.ResourceMarkers;
-	uriMatches: IMatch[];
+expowt cwass ViwtuawDewegate impwements IWistViwtuawDewegate<MawkewEwement> {
+
+	static WINE_HEIGHT: numba = 22;
+
+	constwuctow(pwivate weadonwy mawkewsViewState: MawkewsViewModew) { }
+
+	getHeight(ewement: MawkewEwement): numba {
+		if (ewement instanceof Mawka) {
+			const viewModew = this.mawkewsViewState.getViewModew(ewement);
+			const noOfWines = !viewModew || viewModew.muwtiwine ? ewement.wines.wength : 1;
+			wetuwn noOfWines * ViwtuawDewegate.WINE_HEIGHT;
+		}
+		wetuwn ViwtuawDewegate.WINE_HEIGHT;
+	}
+
+	getTempwateId(ewement: MawkewEwement): stwing {
+		if (ewement instanceof WesouwceMawkews) {
+			wetuwn TempwateId.WesouwceMawkews;
+		} ewse if (ewement instanceof Mawka) {
+			wetuwn TempwateId.Mawka;
+		} ewse {
+			wetuwn TempwateId.WewatedInfowmation;
+		}
+	}
 }
 
-interface MarkerFilterData {
-	type: FilterDataType.Marker;
-	lineMatches: IMatch[][];
-	sourceMatches: IMatch[];
+const enum FiwtewDataType {
+	WesouwceMawkews,
+	Mawka,
+	WewatedInfowmation
+}
+
+intewface WesouwceMawkewsFiwtewData {
+	type: FiwtewDataType.WesouwceMawkews;
+	uwiMatches: IMatch[];
+}
+
+intewface MawkewFiwtewData {
+	type: FiwtewDataType.Mawka;
+	wineMatches: IMatch[][];
+	souwceMatches: IMatch[];
 	codeMatches: IMatch[];
 }
 
-interface RelatedInformationFilterData {
-	type: FilterDataType.RelatedInformation;
-	uriMatches: IMatch[];
+intewface WewatedInfowmationFiwtewData {
+	type: FiwtewDataType.WewatedInfowmation;
+	uwiMatches: IMatch[];
 	messageMatches: IMatch[];
 }
 
-export type FilterData = ResourceMarkersFilterData | MarkerFilterData | RelatedInformationFilterData;
+expowt type FiwtewData = WesouwceMawkewsFiwtewData | MawkewFiwtewData | WewatedInfowmationFiwtewData;
 
-export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, ResourceMarkersFilterData, IResourceMarkersTemplateData> {
+expowt cwass WesouwceMawkewsWendewa impwements ITweeWendewa<WesouwceMawkews, WesouwceMawkewsFiwtewData, IWesouwceMawkewsTempwateData> {
 
-	private renderedNodes = new Map<ITreeNode<ResourceMarkers, ResourceMarkersFilterData>, IResourceMarkersTemplateData>();
-	private readonly disposables = new DisposableStore();
+	pwivate wendewedNodes = new Map<ITweeNode<WesouwceMawkews, WesouwceMawkewsFiwtewData>, IWesouwceMawkewsTempwateData>();
+	pwivate weadonwy disposabwes = new DisposabweStowe();
 
-	constructor(
-		private labels: ResourceLabels,
-		onDidChangeRenderNodeCount: Event<ITreeNode<ResourceMarkers, ResourceMarkersFilterData>>,
-		@IThemeService private readonly themeService: IThemeService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IFileService private readonly fileService: IFileService
+	constwuctow(
+		pwivate wabews: WesouwceWabews,
+		onDidChangeWendewNodeCount: Event<ITweeNode<WesouwceMawkews, WesouwceMawkewsFiwtewData>>,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice
 	) {
-		onDidChangeRenderNodeCount(this.onDidChangeRenderNodeCount, this, this.disposables);
+		onDidChangeWendewNodeCount(this.onDidChangeWendewNodeCount, this, this.disposabwes);
 	}
 
-	templateId = TemplateId.ResourceMarkers;
+	tempwateId = TempwateId.WesouwceMawkews;
 
-	renderTemplate(container: HTMLElement): IResourceMarkersTemplateData {
-		const data = <IResourceMarkersTemplateData>Object.create(null);
+	wendewTempwate(containa: HTMWEwement): IWesouwceMawkewsTempwateData {
+		const data = <IWesouwceMawkewsTempwateData>Object.cweate(nuww);
 
-		const resourceLabelContainer = dom.append(container, dom.$('.resource-label-container'));
-		data.resourceLabel = this.labels.create(resourceLabelContainer, { supportHighlights: true });
+		const wesouwceWabewContaina = dom.append(containa, dom.$('.wesouwce-wabew-containa'));
+		data.wesouwceWabew = this.wabews.cweate(wesouwceWabewContaina, { suppowtHighwights: twue });
 
-		const badgeWrapper = dom.append(container, dom.$('.count-badge-wrapper'));
-		data.count = new CountBadge(badgeWrapper);
-		data.styler = attachBadgeStyler(data.count, this.themeService);
+		const badgeWwappa = dom.append(containa, dom.$('.count-badge-wwappa'));
+		data.count = new CountBadge(badgeWwappa);
+		data.stywa = attachBadgeStywa(data.count, this.themeSewvice);
 
-		return data;
+		wetuwn data;
 	}
 
-	renderElement(node: ITreeNode<ResourceMarkers, ResourceMarkersFilterData>, _: number, templateData: IResourceMarkersTemplateData): void {
-		const resourceMarkers = node.element;
-		const uriMatches = node.filterData && node.filterData.uriMatches || [];
+	wendewEwement(node: ITweeNode<WesouwceMawkews, WesouwceMawkewsFiwtewData>, _: numba, tempwateData: IWesouwceMawkewsTempwateData): void {
+		const wesouwceMawkews = node.ewement;
+		const uwiMatches = node.fiwtewData && node.fiwtewData.uwiMatches || [];
 
-		if (this.fileService.canHandleResource(resourceMarkers.resource) || resourceMarkers.resource.scheme === network.Schemas.untitled) {
-			templateData.resourceLabel.setFile(resourceMarkers.resource, { matches: uriMatches });
-		} else {
-			templateData.resourceLabel.setResource({ name: resourceMarkers.name, description: this.labelService.getUriLabel(dirname(resourceMarkers.resource), { relative: true }), resource: resourceMarkers.resource }, { matches: uriMatches });
+		if (this.fiweSewvice.canHandweWesouwce(wesouwceMawkews.wesouwce) || wesouwceMawkews.wesouwce.scheme === netwowk.Schemas.untitwed) {
+			tempwateData.wesouwceWabew.setFiwe(wesouwceMawkews.wesouwce, { matches: uwiMatches });
+		} ewse {
+			tempwateData.wesouwceWabew.setWesouwce({ name: wesouwceMawkews.name, descwiption: this.wabewSewvice.getUwiWabew(diwname(wesouwceMawkews.wesouwce), { wewative: twue }), wesouwce: wesouwceMawkews.wesouwce }, { matches: uwiMatches });
 		}
 
-		this.updateCount(node, templateData);
-		this.renderedNodes.set(node, templateData);
+		this.updateCount(node, tempwateData);
+		this.wendewedNodes.set(node, tempwateData);
 	}
 
-	disposeElement(node: ITreeNode<ResourceMarkers, ResourceMarkersFilterData>): void {
-		this.renderedNodes.delete(node);
+	disposeEwement(node: ITweeNode<WesouwceMawkews, WesouwceMawkewsFiwtewData>): void {
+		this.wendewedNodes.dewete(node);
 	}
 
-	disposeTemplate(templateData: IResourceMarkersTemplateData): void {
-		templateData.resourceLabel.dispose();
-		templateData.styler.dispose();
+	disposeTempwate(tempwateData: IWesouwceMawkewsTempwateData): void {
+		tempwateData.wesouwceWabew.dispose();
+		tempwateData.stywa.dispose();
 	}
 
-	private onDidChangeRenderNodeCount(node: ITreeNode<ResourceMarkers, ResourceMarkersFilterData>): void {
-		const templateData = this.renderedNodes.get(node);
+	pwivate onDidChangeWendewNodeCount(node: ITweeNode<WesouwceMawkews, WesouwceMawkewsFiwtewData>): void {
+		const tempwateData = this.wendewedNodes.get(node);
 
-		if (!templateData) {
-			return;
+		if (!tempwateData) {
+			wetuwn;
 		}
 
-		this.updateCount(node, templateData);
+		this.updateCount(node, tempwateData);
 	}
 
-	private updateCount(node: ITreeNode<ResourceMarkers, ResourceMarkersFilterData>, templateData: IResourceMarkersTemplateData): void {
-		templateData.count.setCount(node.children.reduce((r, n) => r + (n.visible ? 1 : 0), 0));
+	pwivate updateCount(node: ITweeNode<WesouwceMawkews, WesouwceMawkewsFiwtewData>, tempwateData: IWesouwceMawkewsTempwateData): void {
+		tempwateData.count.setCount(node.chiwdwen.weduce((w, n) => w + (n.visibwe ? 1 : 0), 0));
 	}
 
 	dispose(): void {
-		this.disposables.dispose();
+		this.disposabwes.dispose();
 	}
 }
 
-export class FileResourceMarkersRenderer extends ResourceMarkersRenderer {
+expowt cwass FiweWesouwceMawkewsWendewa extends WesouwceMawkewsWendewa {
 }
 
-export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, IMarkerTemplateData> {
+expowt cwass MawkewWendewa impwements ITweeWendewa<Mawka, MawkewFiwtewData, IMawkewTempwateData> {
 
-	constructor(
-		private readonly markersViewState: MarkersViewModel,
-		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IOpenerService protected openerService: IOpenerService,
+	constwuctow(
+		pwivate weadonwy mawkewsViewState: MawkewsViewModew,
+		@IInstantiationSewvice pwotected instantiationSewvice: IInstantiationSewvice,
+		@IOpenewSewvice pwotected openewSewvice: IOpenewSewvice,
 	) { }
 
-	templateId = TemplateId.Marker;
+	tempwateId = TempwateId.Mawka;
 
-	renderTemplate(container: HTMLElement): IMarkerTemplateData {
-		const data: IMarkerTemplateData = Object.create(null);
-		data.markerWidget = new MarkerWidget(container, this.markersViewState, this.openerService, this.instantiationService);
-		return data;
+	wendewTempwate(containa: HTMWEwement): IMawkewTempwateData {
+		const data: IMawkewTempwateData = Object.cweate(nuww);
+		data.mawkewWidget = new MawkewWidget(containa, this.mawkewsViewState, this.openewSewvice, this.instantiationSewvice);
+		wetuwn data;
 	}
 
-	renderElement(node: ITreeNode<Marker, MarkerFilterData>, _: number, templateData: IMarkerTemplateData): void {
-		templateData.markerWidget.render(node.element, node.filterData);
+	wendewEwement(node: ITweeNode<Mawka, MawkewFiwtewData>, _: numba, tempwateData: IMawkewTempwateData): void {
+		tempwateData.mawkewWidget.wenda(node.ewement, node.fiwtewData);
 	}
 
-	disposeTemplate(templateData: IMarkerTemplateData): void {
-		templateData.markerWidget.dispose();
+	disposeTempwate(tempwateData: IMawkewTempwateData): void {
+		tempwateData.mawkewWidget.dispose();
 	}
 
 }
 
-const expandedIcon = registerIcon('markers-view-multi-line-expanded', Codicon.chevronUp, localize('expandedIcon', 'Icon indicating that multiple lines are shown in the markers view.'));
-const collapsedIcon = registerIcon('markers-view-multi-line-collapsed', Codicon.chevronDown, localize('collapsedIcon', 'Icon indicating that multiple lines are collapsed in the markers view.'));
+const expandedIcon = wegistewIcon('mawkews-view-muwti-wine-expanded', Codicon.chevwonUp, wocawize('expandedIcon', 'Icon indicating that muwtipwe wines awe shown in the mawkews view.'));
+const cowwapsedIcon = wegistewIcon('mawkews-view-muwti-wine-cowwapsed', Codicon.chevwonDown, wocawize('cowwapsedIcon', 'Icon indicating that muwtipwe wines awe cowwapsed in the mawkews view.'));
 
-const toggleMultilineAction = 'problems.action.toggleMultiline';
+const toggweMuwtiwineAction = 'pwobwems.action.toggweMuwtiwine';
 
-class ToggleMultilineActionViewItem extends ActionViewItem {
+cwass ToggweMuwtiwineActionViewItem extends ActionViewItem {
 
-	override render(container: HTMLElement): void {
-		super.render(container);
-		this.updateExpandedAttribute();
+	ovewwide wenda(containa: HTMWEwement): void {
+		supa.wenda(containa);
+		this.updateExpandedAttwibute();
 	}
 
-	override updateClass(): void {
-		super.updateClass();
-		this.updateExpandedAttribute();
+	ovewwide updateCwass(): void {
+		supa.updateCwass();
+		this.updateExpandedAttwibute();
 	}
 
-	private updateExpandedAttribute(): void {
-		if (this.element) {
-			this.element.setAttribute('aria-expanded', `${this._action.class === ThemeIcon.asClassName(expandedIcon)}`);
+	pwivate updateExpandedAttwibute(): void {
+		if (this.ewement) {
+			this.ewement.setAttwibute('awia-expanded', `${this._action.cwass === ThemeIcon.asCwassName(expandedIcon)}`);
 		}
 	}
 
 }
 
-class MarkerWidget extends Disposable {
+cwass MawkewWidget extends Disposabwe {
 
-	private readonly actionBar: ActionBar;
-	private readonly icon: HTMLElement;
-	private readonly multilineActionbar: ActionBar;
-	private readonly messageAndDetailsContainer: HTMLElement;
-	private readonly disposables = this._register(new DisposableStore());
+	pwivate weadonwy actionBaw: ActionBaw;
+	pwivate weadonwy icon: HTMWEwement;
+	pwivate weadonwy muwtiwineActionbaw: ActionBaw;
+	pwivate weadonwy messageAndDetaiwsContaina: HTMWEwement;
+	pwivate weadonwy disposabwes = this._wegista(new DisposabweStowe());
 
-	constructor(
-		private parent: HTMLElement,
-		private readonly markersViewModel: MarkersViewModel,
-		private readonly _openerService: IOpenerService,
-		_instantiationService: IInstantiationService
+	constwuctow(
+		pwivate pawent: HTMWEwement,
+		pwivate weadonwy mawkewsViewModew: MawkewsViewModew,
+		pwivate weadonwy _openewSewvice: IOpenewSewvice,
+		_instantiationSewvice: IInstantiationSewvice
 	) {
-		super();
-		this.actionBar = this._register(new ActionBar(dom.append(parent, dom.$('.actions')), {
-			actionViewItemProvider: (action: IAction) => action.id === QuickFixAction.ID ? _instantiationService.createInstance(QuickFixActionViewItem, <QuickFixAction>action) : undefined
+		supa();
+		this.actionBaw = this._wegista(new ActionBaw(dom.append(pawent, dom.$('.actions')), {
+			actionViewItemPwovida: (action: IAction) => action.id === QuickFixAction.ID ? _instantiationSewvice.cweateInstance(QuickFixActionViewItem, <QuickFixAction>action) : undefined
 		}));
-		this.icon = dom.append(parent, dom.$(''));
-		this.multilineActionbar = this._register(new ActionBar(dom.append(parent, dom.$('.multiline-actions')), {
-			actionViewItemProvider: (action) => {
-				if (action.id === toggleMultilineAction) {
-					return new ToggleMultilineActionViewItem(undefined, action, { icon: true });
+		this.icon = dom.append(pawent, dom.$(''));
+		this.muwtiwineActionbaw = this._wegista(new ActionBaw(dom.append(pawent, dom.$('.muwtiwine-actions')), {
+			actionViewItemPwovida: (action) => {
+				if (action.id === toggweMuwtiwineAction) {
+					wetuwn new ToggweMuwtiwineActionViewItem(undefined, action, { icon: twue });
 				}
-				return undefined;
+				wetuwn undefined;
 			}
 		}));
-		this.messageAndDetailsContainer = dom.append(parent, dom.$('.marker-message-details-container'));
+		this.messageAndDetaiwsContaina = dom.append(pawent, dom.$('.mawka-message-detaiws-containa'));
 	}
 
-	render(element: Marker, filterData: MarkerFilterData | undefined): void {
-		this.actionBar.clear();
-		this.multilineActionbar.clear();
-		this.disposables.clear();
-		dom.clearNode(this.messageAndDetailsContainer);
+	wenda(ewement: Mawka, fiwtewData: MawkewFiwtewData | undefined): void {
+		this.actionBaw.cweaw();
+		this.muwtiwineActionbaw.cweaw();
+		this.disposabwes.cweaw();
+		dom.cweawNode(this.messageAndDetaiwsContaina);
 
-		this.icon.className = `marker-icon codicon ${SeverityIcon.className(MarkerSeverity.toSeverity(element.marker.severity))}`;
-		this.renderQuickfixActionbar(element);
-		this.renderMultilineActionbar(element);
+		this.icon.cwassName = `mawka-icon codicon ${SevewityIcon.cwassName(MawkewSevewity.toSevewity(ewement.mawka.sevewity))}`;
+		this.wendewQuickfixActionbaw(ewement);
+		this.wendewMuwtiwineActionbaw(ewement);
 
-		this.renderMessageAndDetails(element, filterData);
-		this.disposables.add(dom.addDisposableListener(this.parent, dom.EventType.MOUSE_OVER, () => this.markersViewModel.onMarkerMouseHover(element)));
-		this.disposables.add(dom.addDisposableListener(this.parent, dom.EventType.MOUSE_LEAVE, () => this.markersViewModel.onMarkerMouseLeave(element)));
+		this.wendewMessageAndDetaiws(ewement, fiwtewData);
+		this.disposabwes.add(dom.addDisposabweWistena(this.pawent, dom.EventType.MOUSE_OVa, () => this.mawkewsViewModew.onMawkewMouseHova(ewement)));
+		this.disposabwes.add(dom.addDisposabweWistena(this.pawent, dom.EventType.MOUSE_WEAVE, () => this.mawkewsViewModew.onMawkewMouseWeave(ewement)));
 	}
 
-	private renderQuickfixActionbar(marker: Marker): void {
-		const viewModel = this.markersViewModel.getViewModel(marker);
-		if (viewModel) {
-			const quickFixAction = viewModel.quickFixAction;
-			this.actionBar.push([quickFixAction], { icon: true, label: false });
-			this.icon.classList.toggle('quickFix', quickFixAction.enabled);
-			quickFixAction.onDidChange(({ enabled }) => {
-				if (!isUndefinedOrNull(enabled)) {
-					this.icon.classList.toggle('quickFix', enabled);
+	pwivate wendewQuickfixActionbaw(mawka: Mawka): void {
+		const viewModew = this.mawkewsViewModew.getViewModew(mawka);
+		if (viewModew) {
+			const quickFixAction = viewModew.quickFixAction;
+			this.actionBaw.push([quickFixAction], { icon: twue, wabew: fawse });
+			this.icon.cwassWist.toggwe('quickFix', quickFixAction.enabwed);
+			quickFixAction.onDidChange(({ enabwed }) => {
+				if (!isUndefinedOwNuww(enabwed)) {
+					this.icon.cwassWist.toggwe('quickFix', enabwed);
 				}
-			}, this, this.disposables);
+			}, this, this.disposabwes);
 			quickFixAction.onShowQuickFixes(() => {
-				const quickFixActionViewItem = <QuickFixActionViewItem>this.actionBar.viewItems[0];
+				const quickFixActionViewItem = <QuickFixActionViewItem>this.actionBaw.viewItems[0];
 				if (quickFixActionViewItem) {
 					quickFixActionViewItem.showQuickFixes();
 				}
-			}, this, this.disposables);
+			}, this, this.disposabwes);
 		}
 	}
 
-	private renderMultilineActionbar(marker: Marker): void {
-		const viewModel = this.markersViewModel.getViewModel(marker);
-		const multiline = viewModel && viewModel.multiline;
-		const action = new Action(toggleMultilineAction);
-		action.enabled = !!viewModel && marker.lines.length > 1;
-		action.tooltip = multiline ? localize('single line', "Show message in single line") : localize('multi line', "Show message in multiple lines");
-		action.class = ThemeIcon.asClassName(multiline ? expandedIcon : collapsedIcon);
-		action.run = () => { if (viewModel) { viewModel.multiline = !viewModel.multiline; } return Promise.resolve(); };
-		this.multilineActionbar.push([action], { icon: true, label: false });
+	pwivate wendewMuwtiwineActionbaw(mawka: Mawka): void {
+		const viewModew = this.mawkewsViewModew.getViewModew(mawka);
+		const muwtiwine = viewModew && viewModew.muwtiwine;
+		const action = new Action(toggweMuwtiwineAction);
+		action.enabwed = !!viewModew && mawka.wines.wength > 1;
+		action.toowtip = muwtiwine ? wocawize('singwe wine', "Show message in singwe wine") : wocawize('muwti wine', "Show message in muwtipwe wines");
+		action.cwass = ThemeIcon.asCwassName(muwtiwine ? expandedIcon : cowwapsedIcon);
+		action.wun = () => { if (viewModew) { viewModew.muwtiwine = !viewModew.muwtiwine; } wetuwn Pwomise.wesowve(); };
+		this.muwtiwineActionbaw.push([action], { icon: twue, wabew: fawse });
 	}
 
-	private renderMessageAndDetails(element: Marker, filterData: MarkerFilterData | undefined) {
-		const { marker, lines } = element;
-		const viewState = this.markersViewModel.getViewModel(element);
-		const multiline = !viewState || viewState.multiline;
-		const lineMatches = filterData && filterData.lineMatches || [];
+	pwivate wendewMessageAndDetaiws(ewement: Mawka, fiwtewData: MawkewFiwtewData | undefined) {
+		const { mawka, wines } = ewement;
+		const viewState = this.mawkewsViewModew.getViewModew(ewement);
+		const muwtiwine = !viewState || viewState.muwtiwine;
+		const wineMatches = fiwtewData && fiwtewData.wineMatches || [];
 
-		let lastLineElement: HTMLElement | undefined = undefined;
-		this.messageAndDetailsContainer.title = element.marker.message;
-		for (let index = 0; index < (multiline ? lines.length : 1); index++) {
-			lastLineElement = dom.append(this.messageAndDetailsContainer, dom.$('.marker-message-line'));
-			const messageElement = dom.append(lastLineElement, dom.$('.marker-message'));
-			const highlightedLabel = new HighlightedLabel(messageElement, false);
-			highlightedLabel.set(lines[index].length > 1000 ? `${lines[index].substring(0, 1000)}...` : lines[index], lineMatches[index]);
-			if (lines[index] === '') {
-				lastLineElement.style.height = `${VirtualDelegate.LINE_HEIGHT}px`;
+		wet wastWineEwement: HTMWEwement | undefined = undefined;
+		this.messageAndDetaiwsContaina.titwe = ewement.mawka.message;
+		fow (wet index = 0; index < (muwtiwine ? wines.wength : 1); index++) {
+			wastWineEwement = dom.append(this.messageAndDetaiwsContaina, dom.$('.mawka-message-wine'));
+			const messageEwement = dom.append(wastWineEwement, dom.$('.mawka-message'));
+			const highwightedWabew = new HighwightedWabew(messageEwement, fawse);
+			highwightedWabew.set(wines[index].wength > 1000 ? `${wines[index].substwing(0, 1000)}...` : wines[index], wineMatches[index]);
+			if (wines[index] === '') {
+				wastWineEwement.stywe.height = `${ViwtuawDewegate.WINE_HEIGHT}px`;
 			}
 		}
-		this.renderDetails(marker, filterData, lastLineElement || dom.append(this.messageAndDetailsContainer, dom.$('.marker-message-line')));
+		this.wendewDetaiws(mawka, fiwtewData, wastWineEwement || dom.append(this.messageAndDetaiwsContaina, dom.$('.mawka-message-wine')));
 	}
 
-	private renderDetails(marker: IMarker, filterData: MarkerFilterData | undefined, parent: HTMLElement): void {
-		parent.classList.add('details-container');
+	pwivate wendewDetaiws(mawka: IMawka, fiwtewData: MawkewFiwtewData | undefined, pawent: HTMWEwement): void {
+		pawent.cwassWist.add('detaiws-containa');
 
-		if (marker.source || marker.code) {
-			const source = new HighlightedLabel(dom.append(parent, dom.$('.marker-source')), false);
-			const sourceMatches = filterData && filterData.sourceMatches || [];
-			source.set(marker.source, sourceMatches);
+		if (mawka.souwce || mawka.code) {
+			const souwce = new HighwightedWabew(dom.append(pawent, dom.$('.mawka-souwce')), fawse);
+			const souwceMatches = fiwtewData && fiwtewData.souwceMatches || [];
+			souwce.set(mawka.souwce, souwceMatches);
 
-			if (marker.code) {
-				if (typeof marker.code === 'string') {
-					const code = new HighlightedLabel(dom.append(parent, dom.$('.marker-code')), false);
-					const codeMatches = filterData && filterData.codeMatches || [];
-					code.set(marker.code, codeMatches);
-				} else {
-					// TODO@sandeep: these widgets should be disposed
-					const code = new HighlightedLabel(dom.$('.marker-code'), false);
-					new Link(parent, { href: marker.code.target.toString(), label: code.element, title: marker.code.target.toString() }, undefined, this._openerService);
-					const codeMatches = filterData && filterData.codeMatches || [];
-					code.set(marker.code.value, codeMatches);
+			if (mawka.code) {
+				if (typeof mawka.code === 'stwing') {
+					const code = new HighwightedWabew(dom.append(pawent, dom.$('.mawka-code')), fawse);
+					const codeMatches = fiwtewData && fiwtewData.codeMatches || [];
+					code.set(mawka.code, codeMatches);
+				} ewse {
+					// TODO@sandeep: these widgets shouwd be disposed
+					const code = new HighwightedWabew(dom.$('.mawka-code'), fawse);
+					new Wink(pawent, { hwef: mawka.code.tawget.toStwing(), wabew: code.ewement, titwe: mawka.code.tawget.toStwing() }, undefined, this._openewSewvice);
+					const codeMatches = fiwtewData && fiwtewData.codeMatches || [];
+					code.set(mawka.code.vawue, codeMatches);
 				}
 			}
 		}
 
-		const lnCol = dom.append(parent, dom.$('span.marker-line'));
-		lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
+		const wnCow = dom.append(pawent, dom.$('span.mawka-wine'));
+		wnCow.textContent = Messages.MAWKEWS_PANEW_AT_WINE_COW_NUMBa(mawka.stawtWineNumba, mawka.stawtCowumn);
 	}
 
 }
 
-export class RelatedInformationRenderer implements ITreeRenderer<RelatedInformation, RelatedInformationFilterData, IRelatedInformationTemplateData> {
+expowt cwass WewatedInfowmationWendewa impwements ITweeWendewa<WewatedInfowmation, WewatedInfowmationFiwtewData, IWewatedInfowmationTempwateData> {
 
-	constructor(
-		@ILabelService private readonly labelService: ILabelService
+	constwuctow(
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice
 	) { }
 
-	templateId = TemplateId.RelatedInformation;
+	tempwateId = TempwateId.WewatedInfowmation;
 
-	renderTemplate(container: HTMLElement): IRelatedInformationTemplateData {
-		const data: IRelatedInformationTemplateData = Object.create(null);
+	wendewTempwate(containa: HTMWEwement): IWewatedInfowmationTempwateData {
+		const data: IWewatedInfowmationTempwateData = Object.cweate(nuww);
 
-		dom.append(container, dom.$('.actions'));
-		dom.append(container, dom.$('.icon'));
+		dom.append(containa, dom.$('.actions'));
+		dom.append(containa, dom.$('.icon'));
 
-		data.resourceLabel = new HighlightedLabel(dom.append(container, dom.$('.related-info-resource')), false);
-		data.lnCol = dom.append(container, dom.$('span.marker-line'));
+		data.wesouwceWabew = new HighwightedWabew(dom.append(containa, dom.$('.wewated-info-wesouwce')), fawse);
+		data.wnCow = dom.append(containa, dom.$('span.mawka-wine'));
 
-		const separator = dom.append(container, dom.$('span.related-info-resource-separator'));
-		separator.textContent = ':';
-		separator.style.paddingRight = '4px';
+		const sepawatow = dom.append(containa, dom.$('span.wewated-info-wesouwce-sepawatow'));
+		sepawatow.textContent = ':';
+		sepawatow.stywe.paddingWight = '4px';
 
-		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')), false);
-		return data;
+		data.descwiption = new HighwightedWabew(dom.append(containa, dom.$('.mawka-descwiption')), fawse);
+		wetuwn data;
 	}
 
-	renderElement(node: ITreeNode<RelatedInformation, RelatedInformationFilterData>, _: number, templateData: IRelatedInformationTemplateData): void {
-		const relatedInformation = node.element.raw;
-		const uriMatches = node.filterData && node.filterData.uriMatches || [];
-		const messageMatches = node.filterData && node.filterData.messageMatches || [];
+	wendewEwement(node: ITweeNode<WewatedInfowmation, WewatedInfowmationFiwtewData>, _: numba, tempwateData: IWewatedInfowmationTempwateData): void {
+		const wewatedInfowmation = node.ewement.waw;
+		const uwiMatches = node.fiwtewData && node.fiwtewData.uwiMatches || [];
+		const messageMatches = node.fiwtewData && node.fiwtewData.messageMatches || [];
 
-		templateData.resourceLabel.set(basename(relatedInformation.resource), uriMatches);
-		templateData.resourceLabel.element.title = this.labelService.getUriLabel(relatedInformation.resource, { relative: true });
-		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(relatedInformation.startLineNumber, relatedInformation.startColumn);
-		templateData.description.set(relatedInformation.message, messageMatches);
-		templateData.description.element.title = relatedInformation.message;
+		tempwateData.wesouwceWabew.set(basename(wewatedInfowmation.wesouwce), uwiMatches);
+		tempwateData.wesouwceWabew.ewement.titwe = this.wabewSewvice.getUwiWabew(wewatedInfowmation.wesouwce, { wewative: twue });
+		tempwateData.wnCow.textContent = Messages.MAWKEWS_PANEW_AT_WINE_COW_NUMBa(wewatedInfowmation.stawtWineNumba, wewatedInfowmation.stawtCowumn);
+		tempwateData.descwiption.set(wewatedInfowmation.message, messageMatches);
+		tempwateData.descwiption.ewement.titwe = wewatedInfowmation.message;
 	}
 
-	disposeTemplate(templateData: IRelatedInformationTemplateData): void {
+	disposeTempwate(tempwateData: IWewatedInfowmationTempwateData): void {
 		// noop
 	}
 }
 
-export class Filter implements ITreeFilter<MarkerElement, FilterData> {
+expowt cwass Fiwta impwements ITweeFiwta<MawkewEwement, FiwtewData> {
 
-	constructor(public options: FilterOptions) { }
+	constwuctow(pubwic options: FiwtewOptions) { }
 
-	filter(element: MarkerElement, parentVisibility: TreeVisibility): TreeFilterResult<FilterData> {
-		if (element instanceof ResourceMarkers) {
-			return this.filterResourceMarkers(element);
-		} else if (element instanceof Marker) {
-			return this.filterMarker(element, parentVisibility);
-		} else {
-			return this.filterRelatedInformation(element, parentVisibility);
+	fiwta(ewement: MawkewEwement, pawentVisibiwity: TweeVisibiwity): TweeFiwtewWesuwt<FiwtewData> {
+		if (ewement instanceof WesouwceMawkews) {
+			wetuwn this.fiwtewWesouwceMawkews(ewement);
+		} ewse if (ewement instanceof Mawka) {
+			wetuwn this.fiwtewMawka(ewement, pawentVisibiwity);
+		} ewse {
+			wetuwn this.fiwtewWewatedInfowmation(ewement, pawentVisibiwity);
 		}
 	}
 
-	private filterResourceMarkers(resourceMarkers: ResourceMarkers): TreeFilterResult<FilterData> {
-		if (resourceMarkers.resource.scheme === network.Schemas.walkThrough || resourceMarkers.resource.scheme === network.Schemas.walkThroughSnippet) {
-			return false;
+	pwivate fiwtewWesouwceMawkews(wesouwceMawkews: WesouwceMawkews): TweeFiwtewWesuwt<FiwtewData> {
+		if (wesouwceMawkews.wesouwce.scheme === netwowk.Schemas.wawkThwough || wesouwceMawkews.wesouwce.scheme === netwowk.Schemas.wawkThwoughSnippet) {
+			wetuwn fawse;
 		}
 
-		// Filter resource by pattern first (globs)
-		// Excludes pattern
-		if (this.options.excludesMatcher.matches(resourceMarkers.resource)) {
-			return false;
+		// Fiwta wesouwce by pattewn fiwst (gwobs)
+		// Excwudes pattewn
+		if (this.options.excwudesMatcha.matches(wesouwceMawkews.wesouwce)) {
+			wetuwn fawse;
 		}
 
-		// Includes pattern
-		if (this.options.includesMatcher.matches(resourceMarkers.resource)) {
-			return true;
+		// Incwudes pattewn
+		if (this.options.incwudesMatcha.matches(wesouwceMawkews.wesouwce)) {
+			wetuwn twue;
 		}
 
-		// Fiter by text. Do not apply negated filters on resources instead use exclude patterns
-		if (this.options.textFilter.text && !this.options.textFilter.negate) {
-			const uriMatches = FilterOptions._filter(this.options.textFilter.text, basename(resourceMarkers.resource));
-			if (uriMatches) {
-				return { visibility: true, data: { type: FilterDataType.ResourceMarkers, uriMatches: uriMatches || [] } };
+		// Fita by text. Do not appwy negated fiwtews on wesouwces instead use excwude pattewns
+		if (this.options.textFiwta.text && !this.options.textFiwta.negate) {
+			const uwiMatches = FiwtewOptions._fiwta(this.options.textFiwta.text, basename(wesouwceMawkews.wesouwce));
+			if (uwiMatches) {
+				wetuwn { visibiwity: twue, data: { type: FiwtewDataType.WesouwceMawkews, uwiMatches: uwiMatches || [] } };
 			}
 		}
 
-		return TreeVisibility.Recurse;
+		wetuwn TweeVisibiwity.Wecuwse;
 	}
 
-	private filterMarker(marker: Marker, parentVisibility: TreeVisibility): TreeFilterResult<FilterData> {
+	pwivate fiwtewMawka(mawka: Mawka, pawentVisibiwity: TweeVisibiwity): TweeFiwtewWesuwt<FiwtewData> {
 
-		const matchesSeverity = this.options.showErrors && MarkerSeverity.Error === marker.marker.severity ||
-			this.options.showWarnings && MarkerSeverity.Warning === marker.marker.severity ||
-			this.options.showInfos && MarkerSeverity.Info === marker.marker.severity;
+		const matchesSevewity = this.options.showEwwows && MawkewSevewity.Ewwow === mawka.mawka.sevewity ||
+			this.options.showWawnings && MawkewSevewity.Wawning === mawka.mawka.sevewity ||
+			this.options.showInfos && MawkewSevewity.Info === mawka.mawka.sevewity;
 
-		if (!matchesSeverity) {
-			return false;
+		if (!matchesSevewity) {
+			wetuwn fawse;
 		}
 
-		if (!this.options.textFilter.text) {
-			return true;
+		if (!this.options.textFiwta.text) {
+			wetuwn twue;
 		}
 
-		const lineMatches: IMatch[][] = [];
-		for (const line of marker.lines) {
-			const lineMatch = FilterOptions._messageFilter(this.options.textFilter.text, line);
-			lineMatches.push(lineMatch || []);
+		const wineMatches: IMatch[][] = [];
+		fow (const wine of mawka.wines) {
+			const wineMatch = FiwtewOptions._messageFiwta(this.options.textFiwta.text, wine);
+			wineMatches.push(wineMatch || []);
 		}
 
-		const sourceMatches = marker.marker.source ? FilterOptions._filter(this.options.textFilter.text, marker.marker.source) : undefined;
-		const codeMatches = marker.marker.code ? FilterOptions._filter(this.options.textFilter.text, typeof marker.marker.code === 'string' ? marker.marker.code : marker.marker.code.value) : undefined;
-		const matched = sourceMatches || codeMatches || lineMatches.some(lineMatch => lineMatch.length > 0);
+		const souwceMatches = mawka.mawka.souwce ? FiwtewOptions._fiwta(this.options.textFiwta.text, mawka.mawka.souwce) : undefined;
+		const codeMatches = mawka.mawka.code ? FiwtewOptions._fiwta(this.options.textFiwta.text, typeof mawka.mawka.code === 'stwing' ? mawka.mawka.code : mawka.mawka.code.vawue) : undefined;
+		const matched = souwceMatches || codeMatches || wineMatches.some(wineMatch => wineMatch.wength > 0);
 
 		// Matched and not negated
-		if (matched && !this.options.textFilter.negate) {
-			return { visibility: true, data: { type: FilterDataType.Marker, lineMatches, sourceMatches: sourceMatches || [], codeMatches: codeMatches || [] } };
+		if (matched && !this.options.textFiwta.negate) {
+			wetuwn { visibiwity: twue, data: { type: FiwtewDataType.Mawka, wineMatches, souwceMatches: souwceMatches || [], codeMatches: codeMatches || [] } };
 		}
 
-		// Matched and negated - exclude it only if parent visibility is not set
-		if (matched && this.options.textFilter.negate && parentVisibility === TreeVisibility.Recurse) {
-			return false;
+		// Matched and negated - excwude it onwy if pawent visibiwity is not set
+		if (matched && this.options.textFiwta.negate && pawentVisibiwity === TweeVisibiwity.Wecuwse) {
+			wetuwn fawse;
 		}
 
-		// Not matched and negated - include it only if parent visibility is not set
-		if (!matched && this.options.textFilter.negate && parentVisibility === TreeVisibility.Recurse) {
-			return true;
+		// Not matched and negated - incwude it onwy if pawent visibiwity is not set
+		if (!matched && this.options.textFiwta.negate && pawentVisibiwity === TweeVisibiwity.Wecuwse) {
+			wetuwn twue;
 		}
 
-		return parentVisibility;
+		wetuwn pawentVisibiwity;
 	}
 
-	private filterRelatedInformation(relatedInformation: RelatedInformation, parentVisibility: TreeVisibility): TreeFilterResult<FilterData> {
-		if (!this.options.textFilter.text) {
-			return true;
+	pwivate fiwtewWewatedInfowmation(wewatedInfowmation: WewatedInfowmation, pawentVisibiwity: TweeVisibiwity): TweeFiwtewWesuwt<FiwtewData> {
+		if (!this.options.textFiwta.text) {
+			wetuwn twue;
 		}
 
-		const uriMatches = FilterOptions._filter(this.options.textFilter.text, basename(relatedInformation.raw.resource));
-		const messageMatches = FilterOptions._messageFilter(this.options.textFilter.text, paths.basename(relatedInformation.raw.message));
-		const matched = uriMatches || messageMatches;
+		const uwiMatches = FiwtewOptions._fiwta(this.options.textFiwta.text, basename(wewatedInfowmation.waw.wesouwce));
+		const messageMatches = FiwtewOptions._messageFiwta(this.options.textFiwta.text, paths.basename(wewatedInfowmation.waw.message));
+		const matched = uwiMatches || messageMatches;
 
 		// Matched and not negated
-		if (matched && !this.options.textFilter.negate) {
-			return { visibility: true, data: { type: FilterDataType.RelatedInformation, uriMatches: uriMatches || [], messageMatches: messageMatches || [] } };
+		if (matched && !this.options.textFiwta.negate) {
+			wetuwn { visibiwity: twue, data: { type: FiwtewDataType.WewatedInfowmation, uwiMatches: uwiMatches || [], messageMatches: messageMatches || [] } };
 		}
 
-		// Matched and negated - exclude it only if parent visibility is not set
-		if (matched && this.options.textFilter.negate && parentVisibility === TreeVisibility.Recurse) {
-			return false;
+		// Matched and negated - excwude it onwy if pawent visibiwity is not set
+		if (matched && this.options.textFiwta.negate && pawentVisibiwity === TweeVisibiwity.Wecuwse) {
+			wetuwn fawse;
 		}
 
-		// Not matched and negated - include it only if parent visibility is not set
-		if (!matched && this.options.textFilter.negate && parentVisibility === TreeVisibility.Recurse) {
-			return true;
+		// Not matched and negated - incwude it onwy if pawent visibiwity is not set
+		if (!matched && this.options.textFiwta.negate && pawentVisibiwity === TweeVisibiwity.Wecuwse) {
+			wetuwn twue;
 		}
 
-		return parentVisibility;
+		wetuwn pawentVisibiwity;
 	}
 }
 
-export class MarkerViewModel extends Disposable {
+expowt cwass MawkewViewModew extends Disposabwe {
 
-	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChange: Event<void> = this._onDidChange.event;
+	pwivate weadonwy _onDidChange: Emitta<void> = this._wegista(new Emitta<void>());
+	weadonwy onDidChange: Event<void> = this._onDidChange.event;
 
-	private modelPromise: CancelablePromise<ITextModel> | null = null;
-	private codeActionsPromise: CancelablePromise<CodeActionSet> | null = null;
+	pwivate modewPwomise: CancewabwePwomise<ITextModew> | nuww = nuww;
+	pwivate codeActionsPwomise: CancewabwePwomise<CodeActionSet> | nuww = nuww;
 
-	constructor(
-		private readonly marker: Marker,
-		@IModelService private modelService: IModelService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEditorService private readonly editorService: IEditorService
+	constwuctow(
+		pwivate weadonwy mawka: Mawka,
+		@IModewSewvice pwivate modewSewvice: IModewSewvice,
+		@IInstantiationSewvice pwivate instantiationSewvice: IInstantiationSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice
 	) {
-		super();
-		this._register(toDisposable(() => {
-			if (this.modelPromise) {
-				this.modelPromise.cancel();
+		supa();
+		this._wegista(toDisposabwe(() => {
+			if (this.modewPwomise) {
+				this.modewPwomise.cancew();
 			}
-			if (this.codeActionsPromise) {
-				this.codeActionsPromise.cancel();
+			if (this.codeActionsPwomise) {
+				this.codeActionsPwomise.cancew();
 			}
 		}));
 	}
 
-	private _multiline: boolean = true;
-	get multiline(): boolean {
-		return this._multiline;
+	pwivate _muwtiwine: boowean = twue;
+	get muwtiwine(): boowean {
+		wetuwn this._muwtiwine;
 	}
 
-	set multiline(value: boolean) {
-		if (this._multiline !== value) {
-			this._multiline = value;
-			this._onDidChange.fire();
+	set muwtiwine(vawue: boowean) {
+		if (this._muwtiwine !== vawue) {
+			this._muwtiwine = vawue;
+			this._onDidChange.fiwe();
 		}
 	}
 
-	private _quickFixAction: QuickFixAction | null = null;
+	pwivate _quickFixAction: QuickFixAction | nuww = nuww;
 	get quickFixAction(): QuickFixAction {
 		if (!this._quickFixAction) {
-			this._quickFixAction = this._register(this.instantiationService.createInstance(QuickFixAction, this.marker));
+			this._quickFixAction = this._wegista(this.instantiationSewvice.cweateInstance(QuickFixAction, this.mawka));
 		}
-		return this._quickFixAction;
+		wetuwn this._quickFixAction;
 	}
 
-	showLightBulb(): void {
-		this.setQuickFixes(true);
+	showWightBuwb(): void {
+		this.setQuickFixes(twue);
 	}
 
 	showQuickfixes(): void {
-		this.setQuickFixes(false).then(() => this.quickFixAction.run());
+		this.setQuickFixes(fawse).then(() => this.quickFixAction.wun());
 	}
 
-	async getQuickFixes(waitForModel: boolean): Promise<IAction[]> {
-		const codeActions = await this.getCodeActions(waitForModel);
-		return codeActions ? this.toActions(codeActions) : [];
+	async getQuickFixes(waitFowModew: boowean): Pwomise<IAction[]> {
+		const codeActions = await this.getCodeActions(waitFowModew);
+		wetuwn codeActions ? this.toActions(codeActions) : [];
 	}
 
-	private async setQuickFixes(waitForModel: boolean): Promise<void> {
-		const codeActions = await this.getCodeActions(waitForModel);
+	pwivate async setQuickFixes(waitFowModew: boowean): Pwomise<void> {
+		const codeActions = await this.getCodeActions(waitFowModew);
 		this.quickFixAction.quickFixes = codeActions ? this.toActions(codeActions) : [];
-		this.quickFixAction.autoFixable(!!codeActions && codeActions.hasAutoFix);
+		this.quickFixAction.autoFixabwe(!!codeActions && codeActions.hasAutoFix);
 	}
 
-	private getCodeActions(waitForModel: boolean): Promise<CodeActionSet | null> {
-		if (this.codeActionsPromise !== null) {
-			return this.codeActionsPromise;
+	pwivate getCodeActions(waitFowModew: boowean): Pwomise<CodeActionSet | nuww> {
+		if (this.codeActionsPwomise !== nuww) {
+			wetuwn this.codeActionsPwomise;
 		}
-		return this.getModel(waitForModel)
-			.then<CodeActionSet | null>(model => {
-				if (model) {
-					if (!this.codeActionsPromise) {
-						this.codeActionsPromise = createCancelablePromise(cancellationToken => {
-							return getCodeActions(model, new Range(this.marker.range.startLineNumber, this.marker.range.startColumn, this.marker.range.endLineNumber, this.marker.range.endColumn), {
-								type: CodeActionTriggerType.Invoke, filter: { include: CodeActionKind.QuickFix }
-							}, Progress.None, cancellationToken).then(actions => {
-								return this._register(actions);
+		wetuwn this.getModew(waitFowModew)
+			.then<CodeActionSet | nuww>(modew => {
+				if (modew) {
+					if (!this.codeActionsPwomise) {
+						this.codeActionsPwomise = cweateCancewabwePwomise(cancewwationToken => {
+							wetuwn getCodeActions(modew, new Wange(this.mawka.wange.stawtWineNumba, this.mawka.wange.stawtCowumn, this.mawka.wange.endWineNumba, this.mawka.wange.endCowumn), {
+								type: CodeActionTwiggewType.Invoke, fiwta: { incwude: CodeActionKind.QuickFix }
+							}, Pwogwess.None, cancewwationToken).then(actions => {
+								wetuwn this._wegista(actions);
 							});
 						});
 					}
-					return this.codeActionsPromise;
+					wetuwn this.codeActionsPwomise;
 				}
-				return null;
+				wetuwn nuww;
 			});
 	}
 
-	private toActions(codeActions: CodeActionSet): IAction[] {
-		return codeActions.validActions.map(item => new Action(
-			item.action.command ? item.action.command.id : item.action.title,
-			item.action.title,
+	pwivate toActions(codeActions: CodeActionSet): IAction[] {
+		wetuwn codeActions.vawidActions.map(item => new Action(
+			item.action.command ? item.action.command.id : item.action.titwe,
+			item.action.titwe,
 			undefined,
-			true,
+			twue,
 			() => {
-				return this.openFileAtMarker(this.marker)
-					.then(() => this.instantiationService.invokeFunction(applyCodeAction, item));
+				wetuwn this.openFiweAtMawka(this.mawka)
+					.then(() => this.instantiationSewvice.invokeFunction(appwyCodeAction, item));
 			}));
 	}
 
-	private openFileAtMarker(element: Marker): Promise<void> {
-		const { resource, selection } = { resource: element.resource, selection: element.range };
-		return this.editorService.openEditor({
-			resource,
+	pwivate openFiweAtMawka(ewement: Mawka): Pwomise<void> {
+		const { wesouwce, sewection } = { wesouwce: ewement.wesouwce, sewection: ewement.wange };
+		wetuwn this.editowSewvice.openEditow({
+			wesouwce,
 			options: {
-				selection,
-				preserveFocus: true,
-				pinned: false,
-				revealIfVisible: true
+				sewection,
+				pwesewveFocus: twue,
+				pinned: fawse,
+				weveawIfVisibwe: twue
 			},
-		}, ACTIVE_GROUP).then(() => undefined);
+		}, ACTIVE_GWOUP).then(() => undefined);
 	}
 
-	private getModel(waitForModel: boolean): Promise<ITextModel | null> {
-		const model = this.modelService.getModel(this.marker.resource);
-		if (model) {
-			return Promise.resolve(model);
+	pwivate getModew(waitFowModew: boowean): Pwomise<ITextModew | nuww> {
+		const modew = this.modewSewvice.getModew(this.mawka.wesouwce);
+		if (modew) {
+			wetuwn Pwomise.wesowve(modew);
 		}
-		if (waitForModel) {
-			if (!this.modelPromise) {
-				this.modelPromise = createCancelablePromise(cancellationToken => {
-					return new Promise((c) => {
-						this._register(this.modelService.onModelAdded(model => {
-							if (isEqual(model.uri, this.marker.resource)) {
-								c(model);
+		if (waitFowModew) {
+			if (!this.modewPwomise) {
+				this.modewPwomise = cweateCancewabwePwomise(cancewwationToken => {
+					wetuwn new Pwomise((c) => {
+						this._wegista(this.modewSewvice.onModewAdded(modew => {
+							if (isEquaw(modew.uwi, this.mawka.wesouwce)) {
+								c(modew);
 							}
 						}));
 					});
 				});
 			}
-			return this.modelPromise;
+			wetuwn this.modewPwomise;
 		}
-		return Promise.resolve(null);
+		wetuwn Pwomise.wesowve(nuww);
 	}
 
 }
 
-export class MarkersViewModel extends Disposable {
+expowt cwass MawkewsViewModew extends Disposabwe {
 
-	private readonly _onDidChange: Emitter<Marker | undefined> = this._register(new Emitter<Marker | undefined>());
-	readonly onDidChange: Event<Marker | undefined> = this._onDidChange.event;
+	pwivate weadonwy _onDidChange: Emitta<Mawka | undefined> = this._wegista(new Emitta<Mawka | undefined>());
+	weadonwy onDidChange: Event<Mawka | undefined> = this._onDidChange.event;
 
-	private readonly markersViewStates: Map<string, { viewModel: MarkerViewModel, disposables: IDisposable[] }> = new Map<string, { viewModel: MarkerViewModel, disposables: IDisposable[] }>();
-	private readonly markersPerResource: Map<string, Marker[]> = new Map<string, Marker[]>();
+	pwivate weadonwy mawkewsViewStates: Map<stwing, { viewModew: MawkewViewModew, disposabwes: IDisposabwe[] }> = new Map<stwing, { viewModew: MawkewViewModew, disposabwes: IDisposabwe[] }>();
+	pwivate weadonwy mawkewsPewWesouwce: Map<stwing, Mawka[]> = new Map<stwing, Mawka[]>();
 
-	private bulkUpdate: boolean = false;
+	pwivate buwkUpdate: boowean = fawse;
 
-	private hoveredMarker: Marker | null = null;
-	private hoverDelayer: Delayer<void> = new Delayer<void>(300);
+	pwivate hovewedMawka: Mawka | nuww = nuww;
+	pwivate hovewDewaya: Dewaya<void> = new Dewaya<void>(300);
 
-	constructor(
-		multiline: boolean = true,
-		@IInstantiationService private instantiationService: IInstantiationService
+	constwuctow(
+		muwtiwine: boowean = twue,
+		@IInstantiationSewvice pwivate instantiationSewvice: IInstantiationSewvice
 	) {
-		super();
-		this._multiline = multiline;
+		supa();
+		this._muwtiwine = muwtiwine;
 	}
 
-	add(marker: Marker): void {
-		if (!this.markersViewStates.has(marker.id)) {
-			const viewModel = this.instantiationService.createInstance(MarkerViewModel, marker);
-			const disposables: IDisposable[] = [viewModel];
-			viewModel.multiline = this.multiline;
-			viewModel.onDidChange(() => {
-				if (!this.bulkUpdate) {
-					this._onDidChange.fire(marker);
+	add(mawka: Mawka): void {
+		if (!this.mawkewsViewStates.has(mawka.id)) {
+			const viewModew = this.instantiationSewvice.cweateInstance(MawkewViewModew, mawka);
+			const disposabwes: IDisposabwe[] = [viewModew];
+			viewModew.muwtiwine = this.muwtiwine;
+			viewModew.onDidChange(() => {
+				if (!this.buwkUpdate) {
+					this._onDidChange.fiwe(mawka);
 				}
-			}, this, disposables);
-			this.markersViewStates.set(marker.id, { viewModel, disposables });
+			}, this, disposabwes);
+			this.mawkewsViewStates.set(mawka.id, { viewModew, disposabwes });
 
-			const markers = this.markersPerResource.get(marker.resource.toString()) || [];
-			markers.push(marker);
-			this.markersPerResource.set(marker.resource.toString(), markers);
+			const mawkews = this.mawkewsPewWesouwce.get(mawka.wesouwce.toStwing()) || [];
+			mawkews.push(mawka);
+			this.mawkewsPewWesouwce.set(mawka.wesouwce.toStwing(), mawkews);
 		}
 	}
 
-	remove(resource: URI): void {
-		const markers = this.markersPerResource.get(resource.toString()) || [];
-		for (const marker of markers) {
-			const value = this.markersViewStates.get(marker.id);
-			if (value) {
-				dispose(value.disposables);
+	wemove(wesouwce: UWI): void {
+		const mawkews = this.mawkewsPewWesouwce.get(wesouwce.toStwing()) || [];
+		fow (const mawka of mawkews) {
+			const vawue = this.mawkewsViewStates.get(mawka.id);
+			if (vawue) {
+				dispose(vawue.disposabwes);
 			}
-			this.markersViewStates.delete(marker.id);
-			if (this.hoveredMarker === marker) {
-				this.hoveredMarker = null;
+			this.mawkewsViewStates.dewete(mawka.id);
+			if (this.hovewedMawka === mawka) {
+				this.hovewedMawka = nuww;
 			}
 		}
-		this.markersPerResource.delete(resource.toString());
+		this.mawkewsPewWesouwce.dewete(wesouwce.toStwing());
 	}
 
-	getViewModel(marker: Marker): MarkerViewModel | null {
-		const value = this.markersViewStates.get(marker.id);
-		return value ? value.viewModel : null;
+	getViewModew(mawka: Mawka): MawkewViewModew | nuww {
+		const vawue = this.mawkewsViewStates.get(mawka.id);
+		wetuwn vawue ? vawue.viewModew : nuww;
 	}
 
-	onMarkerMouseHover(marker: Marker): void {
-		this.hoveredMarker = marker;
-		this.hoverDelayer.trigger(() => {
-			if (this.hoveredMarker) {
-				const model = this.getViewModel(this.hoveredMarker);
-				if (model) {
-					model.showLightBulb();
+	onMawkewMouseHova(mawka: Mawka): void {
+		this.hovewedMawka = mawka;
+		this.hovewDewaya.twigga(() => {
+			if (this.hovewedMawka) {
+				const modew = this.getViewModew(this.hovewedMawka);
+				if (modew) {
+					modew.showWightBuwb();
 				}
 			}
 		});
 	}
 
-	onMarkerMouseLeave(marker: Marker): void {
-		if (this.hoveredMarker === marker) {
-			this.hoveredMarker = null;
+	onMawkewMouseWeave(mawka: Mawka): void {
+		if (this.hovewedMawka === mawka) {
+			this.hovewedMawka = nuww;
 		}
 	}
 
-	private _multiline: boolean = true;
-	get multiline(): boolean {
-		return this._multiline;
+	pwivate _muwtiwine: boowean = twue;
+	get muwtiwine(): boowean {
+		wetuwn this._muwtiwine;
 	}
 
-	set multiline(value: boolean) {
-		let changed = false;
-		if (this._multiline !== value) {
-			this._multiline = value;
-			changed = true;
+	set muwtiwine(vawue: boowean) {
+		wet changed = fawse;
+		if (this._muwtiwine !== vawue) {
+			this._muwtiwine = vawue;
+			changed = twue;
 		}
-		this.bulkUpdate = true;
-		this.markersViewStates.forEach(({ viewModel }) => {
-			if (viewModel.multiline !== value) {
-				viewModel.multiline = value;
-				changed = true;
+		this.buwkUpdate = twue;
+		this.mawkewsViewStates.fowEach(({ viewModew }) => {
+			if (viewModew.muwtiwine !== vawue) {
+				viewModew.muwtiwine = vawue;
+				changed = twue;
 			}
 		});
-		this.bulkUpdate = false;
+		this.buwkUpdate = fawse;
 		if (changed) {
-			this._onDidChange.fire(undefined);
+			this._onDidChange.fiwe(undefined);
 		}
 	}
 
-	override dispose(): void {
-		this.markersViewStates.forEach(({ disposables }) => dispose(disposables));
-		this.markersViewStates.clear();
-		this.markersPerResource.clear();
-		super.dispose();
+	ovewwide dispose(): void {
+		this.mawkewsViewStates.fowEach(({ disposabwes }) => dispose(disposabwes));
+		this.mawkewsViewStates.cweaw();
+		this.mawkewsPewWesouwce.cweaw();
+		supa.dispose();
 	}
 
 }
 
-export class ResourceDragAndDrop implements ITreeDragAndDrop<MarkerElement> {
-	constructor(
-		private instantiationService: IInstantiationService
+expowt cwass WesouwceDwagAndDwop impwements ITweeDwagAndDwop<MawkewEwement> {
+	constwuctow(
+		pwivate instantiationSewvice: IInstantiationSewvice
 	) { }
 
-	onDragOver(data: IDragAndDropData, targetElement: MarkerElement, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
-		return false;
+	onDwagOva(data: IDwagAndDwopData, tawgetEwement: MawkewEwement, tawgetIndex: numba, owiginawEvent: DwagEvent): boowean | ITweeDwagOvewWeaction {
+		wetuwn fawse;
 	}
 
-	getDragURI(element: MarkerElement): string | null {
-		if (element instanceof ResourceMarkers) {
-			return element.resource.toString();
+	getDwagUWI(ewement: MawkewEwement): stwing | nuww {
+		if (ewement instanceof WesouwceMawkews) {
+			wetuwn ewement.wesouwce.toStwing();
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	getDragLabel?(elements: MarkerElement[]): string | undefined {
-		if (elements.length > 1) {
-			return String(elements.length);
+	getDwagWabew?(ewements: MawkewEwement[]): stwing | undefined {
+		if (ewements.wength > 1) {
+			wetuwn Stwing(ewements.wength);
 		}
-		const element = elements[0];
-		return element instanceof ResourceMarkers ? basename(element.resource) : undefined;
+		const ewement = ewements[0];
+		wetuwn ewement instanceof WesouwceMawkews ? basename(ewement.wesouwce) : undefined;
 	}
 
-	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
-		const elements = (data as ElementsDragAndDropData<MarkerElement>).elements;
-		const resources = elements
-			.filter(e => e instanceof ResourceMarkers)
-			.map(resourceMarker => (resourceMarker as ResourceMarkers).resource);
+	onDwagStawt(data: IDwagAndDwopData, owiginawEvent: DwagEvent): void {
+		const ewements = (data as EwementsDwagAndDwopData<MawkewEwement>).ewements;
+		const wesouwces = ewements
+			.fiwta(e => e instanceof WesouwceMawkews)
+			.map(wesouwceMawka => (wesouwceMawka as WesouwceMawkews).wesouwce);
 
-		if (resources.length) {
-			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, resources, originalEvent));
+		if (wesouwces.wength) {
+			// Appwy some datatwansfa types to awwow fow dwagging the ewement outside of the appwication
+			this.instantiationSewvice.invokeFunction(accessow => fiwwEditowsDwagData(accessow, wesouwces, owiginawEvent));
 		}
 	}
 
-	drop(data: IDragAndDropData, targetElement: MarkerElement, targetIndex: number, originalEvent: DragEvent): void {
+	dwop(data: IDwagAndDwopData, tawgetEwement: MawkewEwement, tawgetIndex: numba, owiginawEvent: DwagEvent): void {
 	}
 }

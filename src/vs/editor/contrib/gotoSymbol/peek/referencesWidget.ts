@@ -1,555 +1,555 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Orientation } from 'vs/base/browser/ui/sash/sash';
-import { Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { DisposableStore, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
-import 'vs/css!./referencesWidget';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions, TextModel } from 'vs/editor/common/model/textModel';
-import { Location } from 'vs/editor/common/modes';
-import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { AccessibilityProvider, DataSource, Delegate, FileReferencesRenderer, IdentityProvider, OneReferenceRenderer, StringRepresentationProvider, TreeElement } from 'vs/editor/contrib/gotoSymbol/peek/referencesTree';
-import * as peekView from 'vs/editor/contrib/peekView/peekView';
-import * as nls from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IWorkbenchAsyncDataTreeOptions, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { FileReferences, OneReference, ReferencesModel } from '../referencesModel';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { Owientation } fwom 'vs/base/bwowsa/ui/sash/sash';
+impowt { Sizing, SpwitView } fwom 'vs/base/bwowsa/ui/spwitview/spwitview';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { FuzzyScowe } fwom 'vs/base/common/fiwtews';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { DisposabweStowe, dispose, IDisposabwe, IWefewence } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { basenameOwAuthowity, diwname } fwom 'vs/base/common/wesouwces';
+impowt 'vs/css!./wefewencesWidget';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EmbeddedCodeEditowWidget } fwom 'vs/editow/bwowsa/widget/embeddedCodeEditowWidget';
+impowt { IEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { IModewDewtaDecowation, TwackedWangeStickiness } fwom 'vs/editow/common/modew';
+impowt { ModewDecowationOptions, TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt { Wocation } fwom 'vs/editow/common/modes';
+impowt { ITextEditowModew, ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { AccessibiwityPwovida, DataSouwce, Dewegate, FiweWefewencesWendewa, IdentityPwovida, OneWefewenceWendewa, StwingWepwesentationPwovida, TweeEwement } fwom 'vs/editow/contwib/gotoSymbow/peek/wefewencesTwee';
+impowt * as peekView fwom 'vs/editow/contwib/peekView/peekView';
+impowt * as nws fwom 'vs/nws';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IWowkbenchAsyncDataTweeOptions, WowkbenchAsyncDataTwee } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { activeContwastBowda } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { ICowowTheme, IThemeSewvice, wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IUndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { FiweWefewences, OneWefewence, WefewencesModew } fwom '../wefewencesModew';
 
 
-class DecorationsManager implements IDisposable {
+cwass DecowationsManaga impwements IDisposabwe {
 
-	private static readonly DecorationOptions = ModelDecorationOptions.register({
-		description: 'reference-decoration',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		className: 'reference-decoration'
+	pwivate static weadonwy DecowationOptions = ModewDecowationOptions.wegista({
+		descwiption: 'wefewence-decowation',
+		stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
+		cwassName: 'wefewence-decowation'
 	});
 
-	private _decorations = new Map<string, OneReference>();
-	private _decorationIgnoreSet = new Set<string>();
-	private readonly _callOnDispose = new DisposableStore();
-	private readonly _callOnModelChange = new DisposableStore();
+	pwivate _decowations = new Map<stwing, OneWefewence>();
+	pwivate _decowationIgnoweSet = new Set<stwing>();
+	pwivate weadonwy _cawwOnDispose = new DisposabweStowe();
+	pwivate weadonwy _cawwOnModewChange = new DisposabweStowe();
 
-	constructor(private _editor: ICodeEditor, private _model: ReferencesModel) {
-		this._callOnDispose.add(this._editor.onDidChangeModel(() => this._onModelChanged()));
-		this._onModelChanged();
+	constwuctow(pwivate _editow: ICodeEditow, pwivate _modew: WefewencesModew) {
+		this._cawwOnDispose.add(this._editow.onDidChangeModew(() => this._onModewChanged()));
+		this._onModewChanged();
 	}
 
 	dispose(): void {
-		this._callOnModelChange.dispose();
-		this._callOnDispose.dispose();
-		this.removeDecorations();
+		this._cawwOnModewChange.dispose();
+		this._cawwOnDispose.dispose();
+		this.wemoveDecowations();
 	}
 
-	private _onModelChanged(): void {
-		this._callOnModelChange.clear();
-		const model = this._editor.getModel();
-		if (!model) {
-			return;
+	pwivate _onModewChanged(): void {
+		this._cawwOnModewChange.cweaw();
+		const modew = this._editow.getModew();
+		if (!modew) {
+			wetuwn;
 		}
-		for (let ref of this._model.references) {
-			if (ref.uri.toString() === model.uri.toString()) {
-				this._addDecorations(ref.parent);
-				return;
+		fow (wet wef of this._modew.wefewences) {
+			if (wef.uwi.toStwing() === modew.uwi.toStwing()) {
+				this._addDecowations(wef.pawent);
+				wetuwn;
 			}
 		}
 	}
 
-	private _addDecorations(reference: FileReferences): void {
-		if (!this._editor.hasModel()) {
-			return;
+	pwivate _addDecowations(wefewence: FiweWefewences): void {
+		if (!this._editow.hasModew()) {
+			wetuwn;
 		}
-		this._callOnModelChange.add(this._editor.getModel().onDidChangeDecorations(() => this._onDecorationChanged()));
+		this._cawwOnModewChange.add(this._editow.getModew().onDidChangeDecowations(() => this._onDecowationChanged()));
 
-		const newDecorations: IModelDeltaDecoration[] = [];
-		const newDecorationsActualIndex: number[] = [];
+		const newDecowations: IModewDewtaDecowation[] = [];
+		const newDecowationsActuawIndex: numba[] = [];
 
-		for (let i = 0, len = reference.children.length; i < len; i++) {
-			let oneReference = reference.children[i];
-			if (this._decorationIgnoreSet.has(oneReference.id)) {
+		fow (wet i = 0, wen = wefewence.chiwdwen.wength; i < wen; i++) {
+			wet oneWefewence = wefewence.chiwdwen[i];
+			if (this._decowationIgnoweSet.has(oneWefewence.id)) {
 				continue;
 			}
-			if (oneReference.uri.toString() !== this._editor.getModel().uri.toString()) {
+			if (oneWefewence.uwi.toStwing() !== this._editow.getModew().uwi.toStwing()) {
 				continue;
 			}
-			newDecorations.push({
-				range: oneReference.range,
-				options: DecorationsManager.DecorationOptions
+			newDecowations.push({
+				wange: oneWefewence.wange,
+				options: DecowationsManaga.DecowationOptions
 			});
-			newDecorationsActualIndex.push(i);
+			newDecowationsActuawIndex.push(i);
 		}
 
-		const decorations = this._editor.deltaDecorations([], newDecorations);
-		for (let i = 0; i < decorations.length; i++) {
-			this._decorations.set(decorations[i], reference.children[newDecorationsActualIndex[i]]);
+		const decowations = this._editow.dewtaDecowations([], newDecowations);
+		fow (wet i = 0; i < decowations.wength; i++) {
+			this._decowations.set(decowations[i], wefewence.chiwdwen[newDecowationsActuawIndex[i]]);
 		}
 	}
 
-	private _onDecorationChanged(): void {
-		const toRemove: string[] = [];
+	pwivate _onDecowationChanged(): void {
+		const toWemove: stwing[] = [];
 
-		const model = this._editor.getModel();
-		if (!model) {
-			return;
+		const modew = this._editow.getModew();
+		if (!modew) {
+			wetuwn;
 		}
 
-		for (let [decorationId, reference] of this._decorations) {
+		fow (wet [decowationId, wefewence] of this._decowations) {
 
-			const newRange = model.getDecorationRange(decorationId);
+			const newWange = modew.getDecowationWange(decowationId);
 
-			if (!newRange) {
+			if (!newWange) {
 				continue;
 			}
 
-			let ignore = false;
-			if (Range.equalsRange(newRange, reference.range)) {
+			wet ignowe = fawse;
+			if (Wange.equawsWange(newWange, wefewence.wange)) {
 				continue;
 
 			}
 
-			if (Range.spansMultipleLines(newRange)) {
-				ignore = true;
+			if (Wange.spansMuwtipweWines(newWange)) {
+				ignowe = twue;
 
-			} else {
-				const lineLength = reference.range.endColumn - reference.range.startColumn;
-				const newLineLength = newRange.endColumn - newRange.startColumn;
+			} ewse {
+				const wineWength = wefewence.wange.endCowumn - wefewence.wange.stawtCowumn;
+				const newWineWength = newWange.endCowumn - newWange.stawtCowumn;
 
-				if (lineLength !== newLineLength) {
-					ignore = true;
+				if (wineWength !== newWineWength) {
+					ignowe = twue;
 				}
 			}
 
-			if (ignore) {
-				this._decorationIgnoreSet.add(reference.id);
-				toRemove.push(decorationId);
-			} else {
-				reference.range = newRange;
+			if (ignowe) {
+				this._decowationIgnoweSet.add(wefewence.id);
+				toWemove.push(decowationId);
+			} ewse {
+				wefewence.wange = newWange;
 			}
 		}
 
-		for (let i = 0, len = toRemove.length; i < len; i++) {
-			this._decorations.delete(toRemove[i]);
+		fow (wet i = 0, wen = toWemove.wength; i < wen; i++) {
+			this._decowations.dewete(toWemove[i]);
 		}
-		this._editor.deltaDecorations(toRemove, []);
+		this._editow.dewtaDecowations(toWemove, []);
 	}
 
-	removeDecorations(): void {
-		this._editor.deltaDecorations([...this._decorations.keys()], []);
-		this._decorations.clear();
+	wemoveDecowations(): void {
+		this._editow.dewtaDecowations([...this._decowations.keys()], []);
+		this._decowations.cweaw();
 	}
 }
 
-export class LayoutData {
-	ratio: number = 0.7;
-	heightInLines: number = 18;
+expowt cwass WayoutData {
+	watio: numba = 0.7;
+	heightInWines: numba = 18;
 
-	static fromJSON(raw: string): LayoutData {
-		let ratio: number | undefined;
-		let heightInLines: number | undefined;
-		try {
-			const data = <LayoutData>JSON.parse(raw);
-			ratio = data.ratio;
-			heightInLines = data.heightInLines;
+	static fwomJSON(waw: stwing): WayoutData {
+		wet watio: numba | undefined;
+		wet heightInWines: numba | undefined;
+		twy {
+			const data = <WayoutData>JSON.pawse(waw);
+			watio = data.watio;
+			heightInWines = data.heightInWines;
 		} catch {
 			//
 		}
-		return {
-			ratio: ratio || 0.7,
-			heightInLines: heightInLines || 18
+		wetuwn {
+			watio: watio || 0.7,
+			heightInWines: heightInWines || 18
 		};
 	}
 }
 
-export interface SelectionEvent {
-	readonly kind: 'goto' | 'show' | 'side' | 'open';
-	readonly source: 'editor' | 'tree' | 'title';
-	readonly element?: Location;
+expowt intewface SewectionEvent {
+	weadonwy kind: 'goto' | 'show' | 'side' | 'open';
+	weadonwy souwce: 'editow' | 'twee' | 'titwe';
+	weadonwy ewement?: Wocation;
 }
 
-class ReferencesTree extends WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore> { }
+cwass WefewencesTwee extends WowkbenchAsyncDataTwee<WefewencesModew | FiweWefewences, TweeEwement, FuzzyScowe> { }
 
 /**
- * ZoneWidget that is shown inside the editor
+ * ZoneWidget that is shown inside the editow
  */
-export class ReferenceWidget extends peekView.PeekViewWidget {
+expowt cwass WefewenceWidget extends peekView.PeekViewWidget {
 
-	private _model?: ReferencesModel;
-	private _decorationsManager?: DecorationsManager;
+	pwivate _modew?: WefewencesModew;
+	pwivate _decowationsManaga?: DecowationsManaga;
 
-	private readonly _disposeOnNewModel = new DisposableStore();
-	private readonly _callOnDispose = new DisposableStore();
+	pwivate weadonwy _disposeOnNewModew = new DisposabweStowe();
+	pwivate weadonwy _cawwOnDispose = new DisposabweStowe();
 
-	private readonly _onDidSelectReference = new Emitter<SelectionEvent>();
-	readonly onDidSelectReference = this._onDidSelectReference.event;
+	pwivate weadonwy _onDidSewectWefewence = new Emitta<SewectionEvent>();
+	weadonwy onDidSewectWefewence = this._onDidSewectWefewence.event;
 
-	private _tree!: ReferencesTree;
-	private _treeContainer!: HTMLElement;
-	private _splitView!: SplitView;
-	private _preview!: ICodeEditor;
-	private _previewModelReference!: IReference<ITextEditorModel>;
-	private _previewNotAvailableMessage!: TextModel;
-	private _previewContainer!: HTMLElement;
-	private _messageContainer!: HTMLElement;
-	private _dim = new dom.Dimension(0, 0);
+	pwivate _twee!: WefewencesTwee;
+	pwivate _tweeContaina!: HTMWEwement;
+	pwivate _spwitView!: SpwitView;
+	pwivate _pweview!: ICodeEditow;
+	pwivate _pweviewModewWefewence!: IWefewence<ITextEditowModew>;
+	pwivate _pweviewNotAvaiwabweMessage!: TextModew;
+	pwivate _pweviewContaina!: HTMWEwement;
+	pwivate _messageContaina!: HTMWEwement;
+	pwivate _dim = new dom.Dimension(0, 0);
 
-	constructor(
-		editor: ICodeEditor,
-		private _defaultTreeKeyboardSupport: boolean,
-		public layoutData: LayoutData,
-		@IThemeService themeService: IThemeService,
-		@ITextModelService private readonly _textModelResolverService: ITextModelService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@peekView.IPeekViewService private readonly _peekViewService: peekView.IPeekViewService,
-		@ILabelService private readonly _uriLabel: ILabelService,
-		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+	constwuctow(
+		editow: ICodeEditow,
+		pwivate _defauwtTweeKeyboawdSuppowt: boowean,
+		pubwic wayoutData: WayoutData,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@ITextModewSewvice pwivate weadonwy _textModewWesowvewSewvice: ITextModewSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@peekView.IPeekViewSewvice pwivate weadonwy _peekViewSewvice: peekView.IPeekViewSewvice,
+		@IWabewSewvice pwivate weadonwy _uwiWabew: IWabewSewvice,
+		@IUndoWedoSewvice pwivate weadonwy _undoWedoSewvice: IUndoWedoSewvice,
+		@IKeybindingSewvice pwivate weadonwy _keybindingSewvice: IKeybindingSewvice,
 	) {
-		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true, supportOnTitleClick: true }, _instantiationService);
+		supa(editow, { showFwame: fawse, showAwwow: twue, isWesizeabwe: twue, isAccessibwe: twue, suppowtOnTitweCwick: twue }, _instantiationSewvice);
 
-		this._applyTheme(themeService.getColorTheme());
-		this._callOnDispose.add(themeService.onDidColorThemeChange(this._applyTheme.bind(this)));
-		this._peekViewService.addExclusiveWidget(editor, this);
-		this.create();
+		this._appwyTheme(themeSewvice.getCowowTheme());
+		this._cawwOnDispose.add(themeSewvice.onDidCowowThemeChange(this._appwyTheme.bind(this)));
+		this._peekViewSewvice.addExcwusiveWidget(editow, this);
+		this.cweate();
 	}
 
-	override dispose(): void {
-		this.setModel(undefined);
-		this._callOnDispose.dispose();
-		this._disposeOnNewModel.dispose();
-		dispose(this._preview);
-		dispose(this._previewNotAvailableMessage);
-		dispose(this._tree);
-		dispose(this._previewModelReference);
-		this._splitView.dispose();
-		super.dispose();
+	ovewwide dispose(): void {
+		this.setModew(undefined);
+		this._cawwOnDispose.dispose();
+		this._disposeOnNewModew.dispose();
+		dispose(this._pweview);
+		dispose(this._pweviewNotAvaiwabweMessage);
+		dispose(this._twee);
+		dispose(this._pweviewModewWefewence);
+		this._spwitView.dispose();
+		supa.dispose();
 	}
 
-	private _applyTheme(theme: IColorTheme) {
-		const borderColor = theme.getColor(peekView.peekViewBorder) || Color.transparent;
-		this.style({
-			arrowColor: borderColor,
-			frameColor: borderColor,
-			headerBackgroundColor: theme.getColor(peekView.peekViewTitleBackground) || Color.transparent,
-			primaryHeadingColor: theme.getColor(peekView.peekViewTitleForeground),
-			secondaryHeadingColor: theme.getColor(peekView.peekViewTitleInfoForeground)
+	pwivate _appwyTheme(theme: ICowowTheme) {
+		const bowdewCowow = theme.getCowow(peekView.peekViewBowda) || Cowow.twanspawent;
+		this.stywe({
+			awwowCowow: bowdewCowow,
+			fwameCowow: bowdewCowow,
+			headewBackgwoundCowow: theme.getCowow(peekView.peekViewTitweBackgwound) || Cowow.twanspawent,
+			pwimawyHeadingCowow: theme.getCowow(peekView.peekViewTitweFowegwound),
+			secondawyHeadingCowow: theme.getCowow(peekView.peekViewTitweInfoFowegwound)
 		});
 	}
 
-	override show(where: IRange) {
-		this.editor.revealRangeInCenterIfOutsideViewport(where, ScrollType.Smooth);
-		super.show(where, this.layoutData.heightInLines || 18);
+	ovewwide show(whewe: IWange) {
+		this.editow.weveawWangeInCentewIfOutsideViewpowt(whewe, ScwowwType.Smooth);
+		supa.show(whewe, this.wayoutData.heightInWines || 18);
 	}
 
-	focusOnReferenceTree(): void {
-		this._tree.domFocus();
+	focusOnWefewenceTwee(): void {
+		this._twee.domFocus();
 	}
 
-	focusOnPreviewEditor(): void {
-		this._preview.focus();
+	focusOnPweviewEditow(): void {
+		this._pweview.focus();
 	}
 
-	isPreviewEditorFocused(): boolean {
-		return this._preview.hasTextFocus();
+	isPweviewEditowFocused(): boowean {
+		wetuwn this._pweview.hasTextFocus();
 	}
 
-	protected override _onTitleClick(e: IMouseEvent): void {
-		if (this._preview && this._preview.getModel()) {
-			this._onDidSelectReference.fire({
-				element: this._getFocusedReference(),
-				kind: e.ctrlKey || e.metaKey || e.altKey ? 'side' : 'open',
-				source: 'title'
+	pwotected ovewwide _onTitweCwick(e: IMouseEvent): void {
+		if (this._pweview && this._pweview.getModew()) {
+			this._onDidSewectWefewence.fiwe({
+				ewement: this._getFocusedWefewence(),
+				kind: e.ctwwKey || e.metaKey || e.awtKey ? 'side' : 'open',
+				souwce: 'titwe'
 			});
 		}
 	}
 
-	protected _fillBody(containerElement: HTMLElement): void {
-		this.setCssClass('reference-zone-widget');
+	pwotected _fiwwBody(containewEwement: HTMWEwement): void {
+		this.setCssCwass('wefewence-zone-widget');
 
 		// message pane
-		this._messageContainer = dom.append(containerElement, dom.$('div.messages'));
-		dom.hide(this._messageContainer);
+		this._messageContaina = dom.append(containewEwement, dom.$('div.messages'));
+		dom.hide(this._messageContaina);
 
-		this._splitView = new SplitView(containerElement, { orientation: Orientation.HORIZONTAL });
+		this._spwitView = new SpwitView(containewEwement, { owientation: Owientation.HOWIZONTAW });
 
-		// editor
-		this._previewContainer = dom.append(containerElement, dom.$('div.preview.inline'));
-		let options: IEditorOptions = {
-			scrollBeyondLastLine: false,
-			scrollbar: {
-				verticalScrollbarSize: 14,
-				horizontal: 'auto',
-				useShadows: true,
-				verticalHasArrows: false,
-				horizontalHasArrows: false,
-				alwaysConsumeMouseWheel: false
+		// editow
+		this._pweviewContaina = dom.append(containewEwement, dom.$('div.pweview.inwine'));
+		wet options: IEditowOptions = {
+			scwowwBeyondWastWine: fawse,
+			scwowwbaw: {
+				vewticawScwowwbawSize: 14,
+				howizontaw: 'auto',
+				useShadows: twue,
+				vewticawHasAwwows: fawse,
+				howizontawHasAwwows: fawse,
+				awwaysConsumeMouseWheew: fawse
 			},
-			overviewRulerLanes: 2,
-			fixedOverflowWidgets: true,
+			ovewviewWuwewWanes: 2,
+			fixedOvewfwowWidgets: twue,
 			minimap: {
-				enabled: false
+				enabwed: fawse
 			}
 		};
-		this._preview = this._instantiationService.createInstance(EmbeddedCodeEditorWidget, this._previewContainer, options, this.editor);
-		dom.hide(this._previewContainer);
-		this._previewNotAvailableMessage = new TextModel(nls.localize('missingPreviewMessage', "no preview available"), TextModel.DEFAULT_CREATION_OPTIONS, null, null, this._undoRedoService);
+		this._pweview = this._instantiationSewvice.cweateInstance(EmbeddedCodeEditowWidget, this._pweviewContaina, options, this.editow);
+		dom.hide(this._pweviewContaina);
+		this._pweviewNotAvaiwabweMessage = new TextModew(nws.wocawize('missingPweviewMessage', "no pweview avaiwabwe"), TextModew.DEFAUWT_CWEATION_OPTIONS, nuww, nuww, this._undoWedoSewvice);
 
-		// tree
-		this._treeContainer = dom.append(containerElement, dom.$('div.ref-tree.inline'));
-		const treeOptions: IWorkbenchAsyncDataTreeOptions<TreeElement, FuzzyScore> = {
-			keyboardSupport: this._defaultTreeKeyboardSupport,
-			accessibilityProvider: new AccessibilityProvider(),
-			keyboardNavigationLabelProvider: this._instantiationService.createInstance(StringRepresentationProvider),
-			identityProvider: new IdentityProvider(),
-			openOnSingleClick: true,
-			selectionNavigation: true,
-			overrideStyles: {
-				listBackground: peekView.peekViewResultsBackground
+		// twee
+		this._tweeContaina = dom.append(containewEwement, dom.$('div.wef-twee.inwine'));
+		const tweeOptions: IWowkbenchAsyncDataTweeOptions<TweeEwement, FuzzyScowe> = {
+			keyboawdSuppowt: this._defauwtTweeKeyboawdSuppowt,
+			accessibiwityPwovida: new AccessibiwityPwovida(),
+			keyboawdNavigationWabewPwovida: this._instantiationSewvice.cweateInstance(StwingWepwesentationPwovida),
+			identityPwovida: new IdentityPwovida(),
+			openOnSingweCwick: twue,
+			sewectionNavigation: twue,
+			ovewwideStywes: {
+				wistBackgwound: peekView.peekViewWesuwtsBackgwound
 			}
 		};
-		if (this._defaultTreeKeyboardSupport) {
-			// the tree will consume `Escape` and prevent the widget from closing
-			this._callOnDispose.add(dom.addStandardDisposableListener(this._treeContainer, 'keydown', (e) => {
-				if (e.equals(KeyCode.Escape)) {
-					this._keybindingService.dispatchEvent(e, e.target);
-					e.stopPropagation();
+		if (this._defauwtTweeKeyboawdSuppowt) {
+			// the twee wiww consume `Escape` and pwevent the widget fwom cwosing
+			this._cawwOnDispose.add(dom.addStandawdDisposabweWistena(this._tweeContaina, 'keydown', (e) => {
+				if (e.equaws(KeyCode.Escape)) {
+					this._keybindingSewvice.dispatchEvent(e, e.tawget);
+					e.stopPwopagation();
 				}
-			}, true));
+			}, twue));
 		}
-		this._tree = this._instantiationService.createInstance(
-			ReferencesTree,
-			'ReferencesWidget',
-			this._treeContainer,
-			new Delegate(),
+		this._twee = this._instantiationSewvice.cweateInstance(
+			WefewencesTwee,
+			'WefewencesWidget',
+			this._tweeContaina,
+			new Dewegate(),
 			[
-				this._instantiationService.createInstance(FileReferencesRenderer),
-				this._instantiationService.createInstance(OneReferenceRenderer),
+				this._instantiationSewvice.cweateInstance(FiweWefewencesWendewa),
+				this._instantiationSewvice.cweateInstance(OneWefewenceWendewa),
 			],
-			this._instantiationService.createInstance(DataSource),
-			treeOptions,
+			this._instantiationSewvice.cweateInstance(DataSouwce),
+			tweeOptions,
 		);
 
-		// split stuff
-		this._splitView.addView({
+		// spwit stuff
+		this._spwitView.addView({
 			onDidChange: Event.None,
-			element: this._previewContainer,
+			ewement: this._pweviewContaina,
 			minimumSize: 200,
-			maximumSize: Number.MAX_VALUE,
-			layout: (width) => {
-				this._preview.layout({ height: this._dim.height, width });
+			maximumSize: Numba.MAX_VAWUE,
+			wayout: (width) => {
+				this._pweview.wayout({ height: this._dim.height, width });
 			}
-		}, Sizing.Distribute);
+		}, Sizing.Distwibute);
 
-		this._splitView.addView({
+		this._spwitView.addView({
 			onDidChange: Event.None,
-			element: this._treeContainer,
+			ewement: this._tweeContaina,
 			minimumSize: 100,
-			maximumSize: Number.MAX_VALUE,
-			layout: (width) => {
-				this._treeContainer.style.height = `${this._dim.height}px`;
-				this._treeContainer.style.width = `${width}px`;
-				this._tree.layout(this._dim.height, width);
+			maximumSize: Numba.MAX_VAWUE,
+			wayout: (width) => {
+				this._tweeContaina.stywe.height = `${this._dim.height}px`;
+				this._tweeContaina.stywe.width = `${width}px`;
+				this._twee.wayout(this._dim.height, width);
 			}
-		}, Sizing.Distribute);
+		}, Sizing.Distwibute);
 
-		this._disposables.add(this._splitView.onDidSashChange(() => {
+		this._disposabwes.add(this._spwitView.onDidSashChange(() => {
 			if (this._dim.width) {
-				this.layoutData.ratio = this._splitView.getViewSize(0) / this._dim.width;
+				this.wayoutData.watio = this._spwitView.getViewSize(0) / this._dim.width;
 			}
 		}, undefined));
 
-		// listen on selection and focus
-		let onEvent = (element: any, kind: 'show' | 'goto' | 'side') => {
-			if (element instanceof OneReference) {
+		// wisten on sewection and focus
+		wet onEvent = (ewement: any, kind: 'show' | 'goto' | 'side') => {
+			if (ewement instanceof OneWefewence) {
 				if (kind === 'show') {
-					this._revealReference(element, false);
+					this._weveawWefewence(ewement, fawse);
 				}
-				this._onDidSelectReference.fire({ element, kind, source: 'tree' });
+				this._onDidSewectWefewence.fiwe({ ewement, kind, souwce: 'twee' });
 			}
 		};
-		this._tree.onDidOpen(e => {
+		this._twee.onDidOpen(e => {
 			if (e.sideBySide) {
-				onEvent(e.element, 'side');
-			} else if (e.editorOptions.pinned) {
-				onEvent(e.element, 'goto');
-			} else {
-				onEvent(e.element, 'show');
+				onEvent(e.ewement, 'side');
+			} ewse if (e.editowOptions.pinned) {
+				onEvent(e.ewement, 'goto');
+			} ewse {
+				onEvent(e.ewement, 'show');
 			}
 		});
 
-		dom.hide(this._treeContainer);
+		dom.hide(this._tweeContaina);
 	}
 
-	protected override _onWidth(width: number) {
+	pwotected ovewwide _onWidth(width: numba) {
 		if (this._dim) {
-			this._doLayoutBody(this._dim.height, width);
+			this._doWayoutBody(this._dim.height, width);
 		}
 	}
 
-	protected override _doLayoutBody(heightInPixel: number, widthInPixel: number): void {
-		super._doLayoutBody(heightInPixel, widthInPixel);
-		this._dim = new dom.Dimension(widthInPixel, heightInPixel);
-		this.layoutData.heightInLines = this._viewZone ? this._viewZone.heightInLines : this.layoutData.heightInLines;
-		this._splitView.layout(widthInPixel);
-		this._splitView.resizeView(0, widthInPixel * this.layoutData.ratio);
+	pwotected ovewwide _doWayoutBody(heightInPixew: numba, widthInPixew: numba): void {
+		supa._doWayoutBody(heightInPixew, widthInPixew);
+		this._dim = new dom.Dimension(widthInPixew, heightInPixew);
+		this.wayoutData.heightInWines = this._viewZone ? this._viewZone.heightInWines : this.wayoutData.heightInWines;
+		this._spwitView.wayout(widthInPixew);
+		this._spwitView.wesizeView(0, widthInPixew * this.wayoutData.watio);
 	}
 
-	setSelection(selection: OneReference): Promise<any> {
-		return this._revealReference(selection, true).then(() => {
-			if (!this._model) {
+	setSewection(sewection: OneWefewence): Pwomise<any> {
+		wetuwn this._weveawWefewence(sewection, twue).then(() => {
+			if (!this._modew) {
 				// disposed
-				return;
+				wetuwn;
 			}
-			// show in tree
-			this._tree.setSelection([selection]);
-			this._tree.setFocus([selection]);
+			// show in twee
+			this._twee.setSewection([sewection]);
+			this._twee.setFocus([sewection]);
 		});
 	}
 
-	setModel(newModel: ReferencesModel | undefined): Promise<any> {
-		// clean up
-		this._disposeOnNewModel.clear();
-		this._model = newModel;
-		if (this._model) {
-			return this._onNewModel();
+	setModew(newModew: WefewencesModew | undefined): Pwomise<any> {
+		// cwean up
+		this._disposeOnNewModew.cweaw();
+		this._modew = newModew;
+		if (this._modew) {
+			wetuwn this._onNewModew();
 		}
-		return Promise.resolve();
+		wetuwn Pwomise.wesowve();
 	}
 
-	private _onNewModel(): Promise<any> {
-		if (!this._model) {
-			return Promise.resolve(undefined);
+	pwivate _onNewModew(): Pwomise<any> {
+		if (!this._modew) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		if (this._model.isEmpty) {
-			this.setTitle('');
-			this._messageContainer.innerText = nls.localize('noResults', "No results");
-			dom.show(this._messageContainer);
-			return Promise.resolve(undefined);
+		if (this._modew.isEmpty) {
+			this.setTitwe('');
+			this._messageContaina.innewText = nws.wocawize('noWesuwts', "No wesuwts");
+			dom.show(this._messageContaina);
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		dom.hide(this._messageContainer);
-		this._decorationsManager = new DecorationsManager(this._preview, this._model);
-		this._disposeOnNewModel.add(this._decorationsManager);
+		dom.hide(this._messageContaina);
+		this._decowationsManaga = new DecowationsManaga(this._pweview, this._modew);
+		this._disposeOnNewModew.add(this._decowationsManaga);
 
-		// listen on model changes
-		this._disposeOnNewModel.add(this._model.onDidChangeReferenceRange(reference => this._tree.rerender(reference)));
+		// wisten on modew changes
+		this._disposeOnNewModew.add(this._modew.onDidChangeWefewenceWange(wefewence => this._twee.wewenda(wefewence)));
 
-		// listen on editor
-		this._disposeOnNewModel.add(this._preview.onMouseDown(e => {
-			const { event, target } = e;
-			if (event.detail !== 2) {
-				return;
+		// wisten on editow
+		this._disposeOnNewModew.add(this._pweview.onMouseDown(e => {
+			const { event, tawget } = e;
+			if (event.detaiw !== 2) {
+				wetuwn;
 			}
-			const element = this._getFocusedReference();
-			if (!element) {
-				return;
+			const ewement = this._getFocusedWefewence();
+			if (!ewement) {
+				wetuwn;
 			}
-			this._onDidSelectReference.fire({
-				element: { uri: element.uri, range: target.range! },
-				kind: (event.ctrlKey || event.metaKey || event.altKey) ? 'side' : 'open',
-				source: 'editor'
+			this._onDidSewectWefewence.fiwe({
+				ewement: { uwi: ewement.uwi, wange: tawget.wange! },
+				kind: (event.ctwwKey || event.metaKey || event.awtKey) ? 'side' : 'open',
+				souwce: 'editow'
 			});
 		}));
 
-		// make sure things are rendered
-		this.container!.classList.add('results-loaded');
-		dom.show(this._treeContainer);
-		dom.show(this._previewContainer);
-		this._splitView.layout(this._dim.width);
-		this.focusOnReferenceTree();
+		// make suwe things awe wendewed
+		this.containa!.cwassWist.add('wesuwts-woaded');
+		dom.show(this._tweeContaina);
+		dom.show(this._pweviewContaina);
+		this._spwitView.wayout(this._dim.width);
+		this.focusOnWefewenceTwee();
 
-		// pick input and a reference to begin with
-		return this._tree.setInput(this._model.groups.length === 1 ? this._model.groups[0] : this._model);
+		// pick input and a wefewence to begin with
+		wetuwn this._twee.setInput(this._modew.gwoups.wength === 1 ? this._modew.gwoups[0] : this._modew);
 	}
 
-	private _getFocusedReference(): OneReference | undefined {
-		const [element] = this._tree.getFocus();
-		if (element instanceof OneReference) {
-			return element;
-		} else if (element instanceof FileReferences) {
-			if (element.children.length > 0) {
-				return element.children[0];
+	pwivate _getFocusedWefewence(): OneWefewence | undefined {
+		const [ewement] = this._twee.getFocus();
+		if (ewement instanceof OneWefewence) {
+			wetuwn ewement;
+		} ewse if (ewement instanceof FiweWefewences) {
+			if (ewement.chiwdwen.wength > 0) {
+				wetuwn ewement.chiwdwen[0];
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	async revealReference(reference: OneReference): Promise<void> {
-		await this._revealReference(reference, false);
-		this._onDidSelectReference.fire({ element: reference, kind: 'goto', source: 'tree' });
+	async weveawWefewence(wefewence: OneWefewence): Pwomise<void> {
+		await this._weveawWefewence(wefewence, fawse);
+		this._onDidSewectWefewence.fiwe({ ewement: wefewence, kind: 'goto', souwce: 'twee' });
 	}
 
-	private _revealedReference?: OneReference;
+	pwivate _weveawedWefewence?: OneWefewence;
 
-	private async _revealReference(reference: OneReference, revealParent: boolean): Promise<void> {
+	pwivate async _weveawWefewence(wefewence: OneWefewence, weveawPawent: boowean): Pwomise<void> {
 
-		// check if there is anything to do...
-		if (this._revealedReference === reference) {
-			return;
+		// check if thewe is anything to do...
+		if (this._weveawedWefewence === wefewence) {
+			wetuwn;
 		}
-		this._revealedReference = reference;
+		this._weveawedWefewence = wefewence;
 
-		// Update widget header
-		if (reference.uri.scheme !== Schemas.inMemory) {
-			this.setTitle(basenameOrAuthority(reference.uri), this._uriLabel.getUriLabel(dirname(reference.uri)));
-		} else {
-			this.setTitle(nls.localize('peekView.alternateTitle', "References"));
+		// Update widget heada
+		if (wefewence.uwi.scheme !== Schemas.inMemowy) {
+			this.setTitwe(basenameOwAuthowity(wefewence.uwi), this._uwiWabew.getUwiWabew(diwname(wefewence.uwi)));
+		} ewse {
+			this.setTitwe(nws.wocawize('peekView.awtewnateTitwe', "Wefewences"));
 		}
 
-		const promise = this._textModelResolverService.createModelReference(reference.uri);
+		const pwomise = this._textModewWesowvewSewvice.cweateModewWefewence(wefewence.uwi);
 
-		if (this._tree.getInput() === reference.parent) {
-			this._tree.reveal(reference);
-		} else {
-			if (revealParent) {
-				this._tree.reveal(reference.parent);
+		if (this._twee.getInput() === wefewence.pawent) {
+			this._twee.weveaw(wefewence);
+		} ewse {
+			if (weveawPawent) {
+				this._twee.weveaw(wefewence.pawent);
 			}
-			await this._tree.expand(reference.parent);
-			this._tree.reveal(reference);
+			await this._twee.expand(wefewence.pawent);
+			this._twee.weveaw(wefewence);
 		}
 
-		const ref = await promise;
+		const wef = await pwomise;
 
-		if (!this._model) {
+		if (!this._modew) {
 			// disposed
-			ref.dispose();
-			return;
+			wef.dispose();
+			wetuwn;
 		}
 
-		dispose(this._previewModelReference);
+		dispose(this._pweviewModewWefewence);
 
-		// show in editor
-		const model = ref.object;
-		if (model) {
-			const scrollType = this._preview.getModel() === model.textEditorModel ? ScrollType.Smooth : ScrollType.Immediate;
-			const sel = Range.lift(reference.range).collapseToStart();
-			this._previewModelReference = ref;
-			this._preview.setModel(model.textEditorModel);
-			this._preview.setSelection(sel);
-			this._preview.revealRangeInCenter(sel, scrollType);
-		} else {
-			this._preview.setModel(this._previewNotAvailableMessage);
-			ref.dispose();
+		// show in editow
+		const modew = wef.object;
+		if (modew) {
+			const scwowwType = this._pweview.getModew() === modew.textEditowModew ? ScwowwType.Smooth : ScwowwType.Immediate;
+			const sew = Wange.wift(wefewence.wange).cowwapseToStawt();
+			this._pweviewModewWefewence = wef;
+			this._pweview.setModew(modew.textEditowModew);
+			this._pweview.setSewection(sew);
+			this._pweview.weveawWangeInCenta(sew, scwowwType);
+		} ewse {
+			this._pweview.setModew(this._pweviewNotAvaiwabweMessage);
+			wef.dispose();
 		}
 	}
 }
@@ -557,56 +557,56 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 // theming
 
 
-registerThemingParticipant((theme, collector) => {
-	const findMatchHighlightColor = theme.getColor(peekView.peekViewResultsMatchHighlight);
-	if (findMatchHighlightColor) {
-		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .referenceMatch .highlight { background-color: ${findMatchHighlightColor}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const findMatchHighwightCowow = theme.getCowow(peekView.peekViewWesuwtsMatchHighwight);
+	if (findMatchHighwightCowow) {
+		cowwectow.addWuwe(`.monaco-editow .wefewence-zone-widget .wef-twee .wefewenceMatch .highwight { backgwound-cowow: ${findMatchHighwightCowow}; }`);
 	}
-	const referenceHighlightColor = theme.getColor(peekView.peekViewEditorMatchHighlight);
-	if (referenceHighlightColor) {
-		collector.addRule(`.monaco-editor .reference-zone-widget .preview .reference-decoration { background-color: ${referenceHighlightColor}; }`);
+	const wefewenceHighwightCowow = theme.getCowow(peekView.peekViewEditowMatchHighwight);
+	if (wefewenceHighwightCowow) {
+		cowwectow.addWuwe(`.monaco-editow .wefewence-zone-widget .pweview .wefewence-decowation { backgwound-cowow: ${wefewenceHighwightCowow}; }`);
 	}
-	const referenceHighlightBorder = theme.getColor(peekView.peekViewEditorMatchHighlightBorder);
-	if (referenceHighlightBorder) {
-		collector.addRule(`.monaco-editor .reference-zone-widget .preview .reference-decoration { border: 2px solid ${referenceHighlightBorder}; box-sizing: border-box; }`);
+	const wefewenceHighwightBowda = theme.getCowow(peekView.peekViewEditowMatchHighwightBowda);
+	if (wefewenceHighwightBowda) {
+		cowwectow.addWuwe(`.monaco-editow .wefewence-zone-widget .pweview .wefewence-decowation { bowda: 2px sowid ${wefewenceHighwightBowda}; box-sizing: bowda-box; }`);
 	}
-	const hcOutline = theme.getColor(activeContrastBorder);
-	if (hcOutline) {
-		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .referenceMatch .highlight { border: 1px dotted ${hcOutline}; box-sizing: border-box; }`);
+	const hcOutwine = theme.getCowow(activeContwastBowda);
+	if (hcOutwine) {
+		cowwectow.addWuwe(`.monaco-editow .wefewence-zone-widget .wef-twee .wefewenceMatch .highwight { bowda: 1px dotted ${hcOutwine}; box-sizing: bowda-box; }`);
 	}
-	const resultsBackground = theme.getColor(peekView.peekViewResultsBackground);
-	if (resultsBackground) {
-		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree { background-color: ${resultsBackground}; }`);
+	const wesuwtsBackgwound = theme.getCowow(peekView.peekViewWesuwtsBackgwound);
+	if (wesuwtsBackgwound) {
+		cowwectow.addWuwe(`.monaco-editow .wefewence-zone-widget .wef-twee { backgwound-cowow: ${wesuwtsBackgwound}; }`);
 	}
-	const resultsMatchForeground = theme.getColor(peekView.peekViewResultsMatchForeground);
-	if (resultsMatchForeground) {
-		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree { color: ${resultsMatchForeground}; }`);
+	const wesuwtsMatchFowegwound = theme.getCowow(peekView.peekViewWesuwtsMatchFowegwound);
+	if (wesuwtsMatchFowegwound) {
+		cowwectow.addWuwe(`.monaco-editow .wefewence-zone-widget .wef-twee { cowow: ${wesuwtsMatchFowegwound}; }`);
 	}
-	const resultsFileForeground = theme.getColor(peekView.peekViewResultsFileForeground);
-	if (resultsFileForeground) {
-		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .reference-file { color: ${resultsFileForeground}; }`);
+	const wesuwtsFiweFowegwound = theme.getCowow(peekView.peekViewWesuwtsFiweFowegwound);
+	if (wesuwtsFiweFowegwound) {
+		cowwectow.addWuwe(`.monaco-editow .wefewence-zone-widget .wef-twee .wefewence-fiwe { cowow: ${wesuwtsFiweFowegwound}; }`);
 	}
-	const resultsSelectedBackground = theme.getColor(peekView.peekViewResultsSelectionBackground);
-	if (resultsSelectedBackground) {
-		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .monaco-list:focus .monaco-list-rows > .monaco-list-row.selected:not(.highlighted) { background-color: ${resultsSelectedBackground}; }`);
+	const wesuwtsSewectedBackgwound = theme.getCowow(peekView.peekViewWesuwtsSewectionBackgwound);
+	if (wesuwtsSewectedBackgwound) {
+		cowwectow.addWuwe(`.monaco-editow .wefewence-zone-widget .wef-twee .monaco-wist:focus .monaco-wist-wows > .monaco-wist-wow.sewected:not(.highwighted) { backgwound-cowow: ${wesuwtsSewectedBackgwound}; }`);
 	}
-	const resultsSelectedForeground = theme.getColor(peekView.peekViewResultsSelectionForeground);
-	if (resultsSelectedForeground) {
-		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .monaco-list:focus .monaco-list-rows > .monaco-list-row.selected:not(.highlighted) { color: ${resultsSelectedForeground} !important; }`);
+	const wesuwtsSewectedFowegwound = theme.getCowow(peekView.peekViewWesuwtsSewectionFowegwound);
+	if (wesuwtsSewectedFowegwound) {
+		cowwectow.addWuwe(`.monaco-editow .wefewence-zone-widget .wef-twee .monaco-wist:focus .monaco-wist-wows > .monaco-wist-wow.sewected:not(.highwighted) { cowow: ${wesuwtsSewectedFowegwound} !impowtant; }`);
 	}
-	const editorBackground = theme.getColor(peekView.peekViewEditorBackground);
-	if (editorBackground) {
-		collector.addRule(
-			`.monaco-editor .reference-zone-widget .preview .monaco-editor .monaco-editor-background,` +
-			`.monaco-editor .reference-zone-widget .preview .monaco-editor .inputarea.ime-input {` +
-			`	background-color: ${editorBackground};` +
+	const editowBackgwound = theme.getCowow(peekView.peekViewEditowBackgwound);
+	if (editowBackgwound) {
+		cowwectow.addWuwe(
+			`.monaco-editow .wefewence-zone-widget .pweview .monaco-editow .monaco-editow-backgwound,` +
+			`.monaco-editow .wefewence-zone-widget .pweview .monaco-editow .inputawea.ime-input {` +
+			`	backgwound-cowow: ${editowBackgwound};` +
 			`}`);
 	}
-	const editorGutterBackground = theme.getColor(peekView.peekViewEditorGutterBackground);
-	if (editorGutterBackground) {
-		collector.addRule(
-			`.monaco-editor .reference-zone-widget .preview .monaco-editor .margin {` +
-			`	background-color: ${editorGutterBackground};` +
+	const editowGuttewBackgwound = theme.getCowow(peekView.peekViewEditowGuttewBackgwound);
+	if (editowGuttewBackgwound) {
+		cowwectow.addWuwe(
+			`.monaco-editow .wefewence-zone-widget .pweview .monaco-editow .mawgin {` +
+			`	backgwound-cowow: ${editowGuttewBackgwound};` +
 			`}`);
 	}
 });

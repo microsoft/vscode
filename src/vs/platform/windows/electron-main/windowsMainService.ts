@@ -1,768 +1,768 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, MessageBoxOptions, nativeTheme, WebContents } from 'electron';
-import { statSync } from 'fs';
-import { hostname, release } from 'os';
-import { coalesce, distinct, firstOrDefault } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { CharCode } from 'vs/base/common/charCode';
-import { Emitter, Event } from 'vs/base/common/event';
-import { isWindowsDriveLetter, parseLineAndColumnAware, sanitizeFilePath, toSlashes } from 'vs/base/common/extpath';
-import { once } from 'vs/base/common/functional';
-import { getPathLabel, mnemonicButtonLabel } from 'vs/base/common/labels';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { basename, join, normalize, posix } from 'vs/base/common/path';
-import { getMarks, mark } from 'vs/base/common/performance';
-import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
-import { cwd } from 'vs/base/common/process';
-import { extUriBiasedIgnorePathCase, normalizePath, originalFSPath, removeTrailingPathSeparator } from 'vs/base/common/resources';
-import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
-import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import { IAddFoldersRequest, INativeOpenFileRequest, INativeWindowConfiguration, IOpenEmptyWindowOptions, IPath, IPathsToWaitFor, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, IWindowSettings } from 'vs/platform/windows/common/windows';
-import { CodeWindow } from 'vs/platform/windows/electron-main/window';
-import { ICodeWindow, IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext, UnloadReason } from 'vs/platform/windows/electron-main/windows';
-import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnWorkspaceOrFolder } from 'vs/platform/windows/electron-main/windowsFinder';
-import { IWindowState, WindowsStateHandler } from 'vs/platform/windows/electron-main/windowsStateHandler';
-import { hasWorkspaceFileExtension, IRecent, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from 'vs/platform/workspaces/electron-main/workspaces';
-import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
-import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
+impowt { app, BwowsewWindow, MessageBoxOptions, nativeTheme, WebContents } fwom 'ewectwon';
+impowt { statSync } fwom 'fs';
+impowt { hostname, wewease } fwom 'os';
+impowt { coawesce, distinct, fiwstOwDefauwt } fwom 'vs/base/common/awways';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { isWindowsDwiveWetta, pawseWineAndCowumnAwawe, sanitizeFiwePath, toSwashes } fwom 'vs/base/common/extpath';
+impowt { once } fwom 'vs/base/common/functionaw';
+impowt { getPathWabew, mnemonicButtonWabew } fwom 'vs/base/common/wabews';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { basename, join, nowmawize, posix } fwom 'vs/base/common/path';
+impowt { getMawks, mawk } fwom 'vs/base/common/pewfowmance';
+impowt { IPwocessEnviwonment, isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { cwd } fwom 'vs/base/common/pwocess';
+impowt { extUwiBiasedIgnowePathCase, nowmawizePath, owiginawFSPath, wemoveTwaiwingPathSepawatow } fwom 'vs/base/common/wesouwces';
+impowt { assewtIsDefined, withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IBackupMainSewvice } fwom 'vs/pwatfowm/backup/ewectwon-main/backup';
+impowt { IEmptyWindowBackupInfo } fwom 'vs/pwatfowm/backup/node/backup';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IDiawogMainSewvice } fwom 'vs/pwatfowm/diawogs/ewectwon-main/diawogMainSewvice';
+impowt { NativePawsedAwgs } fwom 'vs/pwatfowm/enviwonment/common/awgv';
+impowt { IEnviwonmentMainSewvice } fwom 'vs/pwatfowm/enviwonment/ewectwon-main/enviwonmentMainSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWifecycweMainSewvice } fwom 'vs/pwatfowm/wifecycwe/ewectwon-main/wifecycweMainSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IPwotocowMainSewvice } fwom 'vs/pwatfowm/pwotocow/ewectwon-main/pwotocow';
+impowt { getWemoteAuthowity } fwom 'vs/pwatfowm/wemote/common/wemoteHosts';
+impowt { IStateMainSewvice } fwom 'vs/pwatfowm/state/ewectwon-main/state';
+impowt { IAddFowdewsWequest, INativeOpenFiweWequest, INativeWindowConfiguwation, IOpenEmptyWindowOptions, IPath, IPathsToWaitFow, isFiweToOpen, isFowdewToOpen, isWowkspaceToOpen, IWindowOpenabwe, IWindowSettings } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { CodeWindow } fwom 'vs/pwatfowm/windows/ewectwon-main/window';
+impowt { ICodeWindow, IOpenConfiguwation, IOpenEmptyConfiguwation, IWindowsCountChangedEvent, IWindowsMainSewvice, OpenContext, UnwoadWeason } fwom 'vs/pwatfowm/windows/ewectwon-main/windows';
+impowt { findWindowOnExtensionDevewopmentPath, findWindowOnFiwe, findWindowOnWowkspaceOwFowda } fwom 'vs/pwatfowm/windows/ewectwon-main/windowsFinda';
+impowt { IWindowState, WindowsStateHandwa } fwom 'vs/pwatfowm/windows/ewectwon-main/windowsStateHandwa';
+impowt { hasWowkspaceFiweExtension, IWecent, ISingweFowdewWowkspaceIdentifia, isSingweFowdewWowkspaceIdentifia, isWowkspaceIdentifia, IWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { getSingweFowdewWowkspaceIdentifia, getWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/ewectwon-main/wowkspaces';
+impowt { IWowkspacesHistowyMainSewvice } fwom 'vs/pwatfowm/wowkspaces/ewectwon-main/wowkspacesHistowyMainSewvice';
+impowt { IWowkspacesManagementMainSewvice } fwom 'vs/pwatfowm/wowkspaces/ewectwon-main/wowkspacesManagementMainSewvice';
 
-//#region Helper Interfaces
+//#wegion Hewpa Intewfaces
 
-type RestoreWindowsSetting = 'preserve' | 'all' | 'folders' | 'one' | 'none';
+type WestoweWindowsSetting = 'pwesewve' | 'aww' | 'fowdews' | 'one' | 'none';
 
-interface IOpenBrowserWindowOptions {
-	readonly userEnv?: IProcessEnvironment;
-	readonly cli?: NativeParsedArgs;
+intewface IOpenBwowsewWindowOptions {
+	weadonwy usewEnv?: IPwocessEnviwonment;
+	weadonwy cwi?: NativePawsedAwgs;
 
-	readonly workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
+	weadonwy wowkspace?: IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia;
 
-	readonly remoteAuthority?: string;
+	weadonwy wemoteAuthowity?: stwing;
 
-	readonly initialStartup?: boolean;
+	weadonwy initiawStawtup?: boowean;
 
-	readonly filesToOpen?: IFilesToOpen;
+	weadonwy fiwesToOpen?: IFiwesToOpen;
 
-	readonly forceNewWindow?: boolean;
-	readonly forceNewTabbedWindow?: boolean;
-	readonly windowToUse?: ICodeWindow;
+	weadonwy fowceNewWindow?: boowean;
+	weadonwy fowceNewTabbedWindow?: boowean;
+	weadonwy windowToUse?: ICodeWindow;
 
-	readonly emptyWindowBackupInfo?: IEmptyWindowBackupInfo;
+	weadonwy emptyWindowBackupInfo?: IEmptyWindowBackupInfo;
 }
 
-interface IPathResolveOptions {
+intewface IPathWesowveOptions {
 
 	/**
-	 * By default, resolving a path will check
-	 * if the path exists. This can be disabled
-	 * with this flag.
+	 * By defauwt, wesowving a path wiww check
+	 * if the path exists. This can be disabwed
+	 * with this fwag.
 	 */
-	readonly ignoreFileNotFound?: boolean;
+	weadonwy ignoweFiweNotFound?: boowean;
 
 	/**
-	 * Will reject a path if it points to a transient
-	 * workspace as indicated by a `transient: true`
-	 * property in the workspace file.
+	 * Wiww weject a path if it points to a twansient
+	 * wowkspace as indicated by a `twansient: twue`
+	 * pwopewty in the wowkspace fiwe.
 	 */
-	readonly rejectTransientWorkspaces?: boolean;
+	weadonwy wejectTwansientWowkspaces?: boowean;
 
 	/**
-	 * If enabled, will resolve the path line/column
-	 * aware and properly remove this information
-	 * from the resulting file path.
+	 * If enabwed, wiww wesowve the path wine/cowumn
+	 * awawe and pwopewwy wemove this infowmation
+	 * fwom the wesuwting fiwe path.
 	 */
-	readonly gotoLineMode?: boolean;
+	weadonwy gotoWineMode?: boowean;
 
 	/**
-	 * Forces to resolve the provided path as workspace
-	 * file instead of opening it as a file.
+	 * Fowces to wesowve the pwovided path as wowkspace
+	 * fiwe instead of opening it as a fiwe.
 	 */
-	readonly forceOpenWorkspaceAsFile?: boolean;
+	weadonwy fowceOpenWowkspaceAsFiwe?: boowean;
 
 	/**
-	 * The remoteAuthority to use if the URL to open is
-	 * neither `file` nor `vscode-remote`.
+	 * The wemoteAuthowity to use if the UWW to open is
+	 * neitha `fiwe` now `vscode-wemote`.
 	 */
-	readonly remoteAuthority?: string;
+	weadonwy wemoteAuthowity?: stwing;
 }
 
-interface IFilesToOpen {
-	readonly remoteAuthority?: string;
+intewface IFiwesToOpen {
+	weadonwy wemoteAuthowity?: stwing;
 
-	filesToOpenOrCreate: IPath[];
-	filesToDiff: IPath[];
-	filesToWait?: IPathsToWaitFor;
+	fiwesToOpenOwCweate: IPath[];
+	fiwesToDiff: IPath[];
+	fiwesToWait?: IPathsToWaitFow;
 }
 
-interface IPathToOpen extends IPath {
+intewface IPathToOpen extends IPath {
 
-	// the workspace to open
-	readonly workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
+	// the wowkspace to open
+	weadonwy wowkspace?: IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia;
 
-	// whether the path is considered to be transient or not
-	// for example, a transient workspace should not add to
-	// the workspaces history and should never restore
-	readonly transient?: boolean;
+	// whetha the path is considewed to be twansient ow not
+	// fow exampwe, a twansient wowkspace shouwd not add to
+	// the wowkspaces histowy and shouwd neva westowe
+	weadonwy twansient?: boowean;
 
 	// the backup path to use
-	readonly backupPath?: string;
+	weadonwy backupPath?: stwing;
 
-	// the remote authority for the Code instance to open. Undefined if not remote.
-	readonly remoteAuthority?: string;
+	// the wemote authowity fow the Code instance to open. Undefined if not wemote.
+	weadonwy wemoteAuthowity?: stwing;
 
-	// optional label for the recent history
-	label?: string;
+	// optionaw wabew fow the wecent histowy
+	wabew?: stwing;
 }
 
-interface IWorkspacePathToOpen extends IPathToOpen {
-	readonly workspace: IWorkspaceIdentifier;
+intewface IWowkspacePathToOpen extends IPathToOpen {
+	weadonwy wowkspace: IWowkspaceIdentifia;
 }
 
-interface ISingleFolderWorkspacePathToOpen extends IPathToOpen {
-	readonly workspace: ISingleFolderWorkspaceIdentifier;
+intewface ISingweFowdewWowkspacePathToOpen extends IPathToOpen {
+	weadonwy wowkspace: ISingweFowdewWowkspaceIdentifia;
 }
 
-function isWorkspacePathToOpen(path: IPathToOpen | undefined): path is IWorkspacePathToOpen {
-	return isWorkspaceIdentifier(path?.workspace);
+function isWowkspacePathToOpen(path: IPathToOpen | undefined): path is IWowkspacePathToOpen {
+	wetuwn isWowkspaceIdentifia(path?.wowkspace);
 }
 
-function isSingleFolderWorkspacePathToOpen(path: IPathToOpen | undefined): path is ISingleFolderWorkspacePathToOpen {
-	return isSingleFolderWorkspaceIdentifier(path?.workspace);
+function isSingweFowdewWowkspacePathToOpen(path: IPathToOpen | undefined): path is ISingweFowdewWowkspacePathToOpen {
+	wetuwn isSingweFowdewWowkspaceIdentifia(path?.wowkspace);
 }
 
-//#endregion
+//#endwegion
 
-export class WindowsMainService extends Disposable implements IWindowsMainService {
+expowt cwass WindowsMainSewvice extends Disposabwe impwements IWindowsMainSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private static readonly WINDOWS: ICodeWindow[] = [];
+	pwivate static weadonwy WINDOWS: ICodeWindow[] = [];
 
-	private readonly _onDidOpenWindow = this._register(new Emitter<ICodeWindow>());
-	readonly onDidOpenWindow = this._onDidOpenWindow.event;
+	pwivate weadonwy _onDidOpenWindow = this._wegista(new Emitta<ICodeWindow>());
+	weadonwy onDidOpenWindow = this._onDidOpenWindow.event;
 
-	private readonly _onDidSignalReadyWindow = this._register(new Emitter<ICodeWindow>());
-	readonly onDidSignalReadyWindow = this._onDidSignalReadyWindow.event;
+	pwivate weadonwy _onDidSignawWeadyWindow = this._wegista(new Emitta<ICodeWindow>());
+	weadonwy onDidSignawWeadyWindow = this._onDidSignawWeadyWindow.event;
 
-	private readonly _onDidDestroyWindow = this._register(new Emitter<ICodeWindow>());
-	readonly onDidDestroyWindow = this._onDidDestroyWindow.event;
+	pwivate weadonwy _onDidDestwoyWindow = this._wegista(new Emitta<ICodeWindow>());
+	weadonwy onDidDestwoyWindow = this._onDidDestwoyWindow.event;
 
-	private readonly _onDidChangeWindowsCount = this._register(new Emitter<IWindowsCountChangedEvent>());
-	readonly onDidChangeWindowsCount = this._onDidChangeWindowsCount.event;
+	pwivate weadonwy _onDidChangeWindowsCount = this._wegista(new Emitta<IWindowsCountChangedEvent>());
+	weadonwy onDidChangeWindowsCount = this._onDidChangeWindowsCount.event;
 
-	private readonly windowsStateHandler = this._register(new WindowsStateHandler(this, this.stateMainService, this.lifecycleMainService, this.logService, this.configurationService));
+	pwivate weadonwy windowsStateHandwa = this._wegista(new WindowsStateHandwa(this, this.stateMainSewvice, this.wifecycweMainSewvice, this.wogSewvice, this.configuwationSewvice));
 
-	constructor(
-		private readonly machineId: string,
-		private readonly initialUserEnv: IProcessEnvironment,
-		@ILogService private readonly logService: ILogService,
-		@IStateMainService private readonly stateMainService: IStateMainService,
-		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@IBackupMainService private readonly backupMainService: IBackupMainService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkspacesHistoryMainService private readonly workspacesHistoryMainService: IWorkspacesHistoryMainService,
-		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IDialogMainService private readonly dialogMainService: IDialogMainService,
-		@IFileService private readonly fileService: IFileService,
-		@IProductService private readonly productService: IProductService,
-		@IProtocolMainService private readonly protocolMainService: IProtocolMainService
+	constwuctow(
+		pwivate weadonwy machineId: stwing,
+		pwivate weadonwy initiawUsewEnv: IPwocessEnviwonment,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IStateMainSewvice pwivate weadonwy stateMainSewvice: IStateMainSewvice,
+		@IEnviwonmentMainSewvice pwivate weadonwy enviwonmentMainSewvice: IEnviwonmentMainSewvice,
+		@IWifecycweMainSewvice pwivate weadonwy wifecycweMainSewvice: IWifecycweMainSewvice,
+		@IBackupMainSewvice pwivate weadonwy backupMainSewvice: IBackupMainSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IWowkspacesHistowyMainSewvice pwivate weadonwy wowkspacesHistowyMainSewvice: IWowkspacesHistowyMainSewvice,
+		@IWowkspacesManagementMainSewvice pwivate weadonwy wowkspacesManagementMainSewvice: IWowkspacesManagementMainSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IDiawogMainSewvice pwivate weadonwy diawogMainSewvice: IDiawogMainSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@IPwotocowMainSewvice pwivate weadonwy pwotocowMainSewvice: IPwotocowMainSewvice
 	) {
-		super();
+		supa();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Signal a window is ready after having entered a workspace
-		this._register(this.workspacesManagementMainService.onDidEnterWorkspace(event => this._onDidSignalReadyWindow.fire(event.window)));
+		// Signaw a window is weady afta having entewed a wowkspace
+		this._wegista(this.wowkspacesManagementMainSewvice.onDidEntewWowkspace(event => this._onDidSignawWeadyWindow.fiwe(event.window)));
 
-		// Update valid roots in protocol service for extension dev windows
-		this._register(this.onDidSignalReadyWindow(window => {
-			if (window.config?.extensionDevelopmentPath || window.config?.extensionTestsPath) {
-				const disposables = new DisposableStore();
-				disposables.add(Event.any(window.onDidClose, window.onDidDestroy)(() => disposables.dispose()));
+		// Update vawid woots in pwotocow sewvice fow extension dev windows
+		this._wegista(this.onDidSignawWeadyWindow(window => {
+			if (window.config?.extensionDevewopmentPath || window.config?.extensionTestsPath) {
+				const disposabwes = new DisposabweStowe();
+				disposabwes.add(Event.any(window.onDidCwose, window.onDidDestwoy)(() => disposabwes.dispose()));
 
-				// Allow access to extension development path
-				if (window.config.extensionDevelopmentPath) {
-					for (const extensionDevelopmentPath of window.config.extensionDevelopmentPath) {
-						disposables.add(this.protocolMainService.addValidFileRoot(URI.file(extensionDevelopmentPath)));
+				// Awwow access to extension devewopment path
+				if (window.config.extensionDevewopmentPath) {
+					fow (const extensionDevewopmentPath of window.config.extensionDevewopmentPath) {
+						disposabwes.add(this.pwotocowMainSewvice.addVawidFiweWoot(UWI.fiwe(extensionDevewopmentPath)));
 					}
 				}
 
-				// Allow access to extension tests path
+				// Awwow access to extension tests path
 				if (window.config.extensionTestsPath) {
-					disposables.add(this.protocolMainService.addValidFileRoot(URI.file(window.config.extensionTestsPath)));
+					disposabwes.add(this.pwotocowMainSewvice.addVawidFiweWoot(UWI.fiwe(window.config.extensionTestsPath)));
 				}
 			}
 		}));
 	}
 
-	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): ICodeWindow[] {
-		let cli = this.environmentMainService.args;
-		const remoteAuthority = options?.remoteAuthority || undefined;
-		const forceEmpty = true;
-		const forceReuseWindow = options?.forceReuseWindow;
-		const forceNewWindow = !forceReuseWindow;
+	openEmptyWindow(openConfig: IOpenEmptyConfiguwation, options?: IOpenEmptyWindowOptions): ICodeWindow[] {
+		wet cwi = this.enviwonmentMainSewvice.awgs;
+		const wemoteAuthowity = options?.wemoteAuthowity || undefined;
+		const fowceEmpty = twue;
+		const fowceWeuseWindow = options?.fowceWeuseWindow;
+		const fowceNewWindow = !fowceWeuseWindow;
 
-		return this.open({ ...openConfig, cli, forceEmpty, forceNewWindow, forceReuseWindow, remoteAuthority });
+		wetuwn this.open({ ...openConfig, cwi, fowceEmpty, fowceNewWindow, fowceWeuseWindow, wemoteAuthowity });
 	}
 
-	open(openConfig: IOpenConfiguration): ICodeWindow[] {
-		this.logService.trace('windowsManager#open');
+	open(openConfig: IOpenConfiguwation): ICodeWindow[] {
+		this.wogSewvice.twace('windowsManaga#open');
 
-		if (openConfig.addMode && (openConfig.initialStartup || !this.getLastActiveWindow())) {
-			openConfig.addMode = false; // Make sure addMode is only enabled if we have an active window
+		if (openConfig.addMode && (openConfig.initiawStawtup || !this.getWastActiveWindow())) {
+			openConfig.addMode = fawse; // Make suwe addMode is onwy enabwed if we have an active window
 		}
 
-		const foldersToAdd: ISingleFolderWorkspacePathToOpen[] = [];
-		const foldersToOpen: ISingleFolderWorkspacePathToOpen[] = [];
+		const fowdewsToAdd: ISingweFowdewWowkspacePathToOpen[] = [];
+		const fowdewsToOpen: ISingweFowdewWowkspacePathToOpen[] = [];
 
-		const workspacesToOpen: IWorkspacePathToOpen[] = [];
-		const untitledWorkspacesToRestore: IWorkspacePathToOpen[] = [];
+		const wowkspacesToOpen: IWowkspacePathToOpen[] = [];
+		const untitwedWowkspacesToWestowe: IWowkspacePathToOpen[] = [];
 
-		const emptyWindowsWithBackupsToRestore: IEmptyWindowBackupInfo[] = [];
+		const emptyWindowsWithBackupsToWestowe: IEmptyWindowBackupInfo[] = [];
 
-		let filesToOpen: IFilesToOpen | undefined;
-		let emptyToOpen = 0;
+		wet fiwesToOpen: IFiwesToOpen | undefined;
+		wet emptyToOpen = 0;
 
-		// Identify things to open from open config
+		// Identify things to open fwom open config
 		const pathsToOpen = this.getPathsToOpen(openConfig);
-		this.logService.trace('windowsManager#open pathsToOpen', pathsToOpen);
-		for (const path of pathsToOpen) {
-			if (isSingleFolderWorkspacePathToOpen(path)) {
+		this.wogSewvice.twace('windowsManaga#open pathsToOpen', pathsToOpen);
+		fow (const path of pathsToOpen) {
+			if (isSingweFowdewWowkspacePathToOpen(path)) {
 				if (openConfig.addMode) {
-					// When run with --add, take the folders that are to be opened as
-					// folders that should be added to the currently active window.
-					foldersToAdd.push(path);
-				} else {
-					foldersToOpen.push(path);
+					// When wun with --add, take the fowdews that awe to be opened as
+					// fowdews that shouwd be added to the cuwwentwy active window.
+					fowdewsToAdd.push(path);
+				} ewse {
+					fowdewsToOpen.push(path);
 				}
-			} else if (isWorkspacePathToOpen(path)) {
-				workspacesToOpen.push(path);
-			} else if (path.fileUri) {
-				if (!filesToOpen) {
-					filesToOpen = { filesToOpenOrCreate: [], filesToDiff: [], remoteAuthority: path.remoteAuthority };
+			} ewse if (isWowkspacePathToOpen(path)) {
+				wowkspacesToOpen.push(path);
+			} ewse if (path.fiweUwi) {
+				if (!fiwesToOpen) {
+					fiwesToOpen = { fiwesToOpenOwCweate: [], fiwesToDiff: [], wemoteAuthowity: path.wemoteAuthowity };
 				}
-				filesToOpen.filesToOpenOrCreate.push(path);
-			} else if (path.backupPath) {
-				emptyWindowsWithBackupsToRestore.push({ backupFolder: basename(path.backupPath), remoteAuthority: path.remoteAuthority });
-			} else {
+				fiwesToOpen.fiwesToOpenOwCweate.push(path);
+			} ewse if (path.backupPath) {
+				emptyWindowsWithBackupsToWestowe.push({ backupFowda: basename(path.backupPath), wemoteAuthowity: path.wemoteAuthowity });
+			} ewse {
 				emptyToOpen++;
 			}
 		}
 
-		// When run with --diff, take the first 2 files to open as files to diff
-		if (openConfig.diffMode && filesToOpen && filesToOpen.filesToOpenOrCreate.length >= 2) {
-			filesToOpen.filesToDiff = filesToOpen.filesToOpenOrCreate.slice(0, 2);
-			filesToOpen.filesToOpenOrCreate = [];
+		// When wun with --diff, take the fiwst 2 fiwes to open as fiwes to diff
+		if (openConfig.diffMode && fiwesToOpen && fiwesToOpen.fiwesToOpenOwCweate.wength >= 2) {
+			fiwesToOpen.fiwesToDiff = fiwesToOpen.fiwesToOpenOwCweate.swice(0, 2);
+			fiwesToOpen.fiwesToOpenOwCweate = [];
 		}
 
-		// When run with --wait, make sure we keep the paths to wait for
-		if (filesToOpen && openConfig.waitMarkerFileURI) {
-			filesToOpen.filesToWait = { paths: [...filesToOpen.filesToDiff, ...filesToOpen.filesToOpenOrCreate], waitMarkerFileUri: openConfig.waitMarkerFileURI };
+		// When wun with --wait, make suwe we keep the paths to wait fow
+		if (fiwesToOpen && openConfig.waitMawkewFiweUWI) {
+			fiwesToOpen.fiwesToWait = { paths: [...fiwesToOpen.fiwesToDiff, ...fiwesToOpen.fiwesToOpenOwCweate], waitMawkewFiweUwi: openConfig.waitMawkewFiweUWI };
 		}
 
-		// These are windows to restore because of hot-exit or from previous session (only performed once on startup!)
-		if (openConfig.initialStartup) {
+		// These awe windows to westowe because of hot-exit ow fwom pwevious session (onwy pewfowmed once on stawtup!)
+		if (openConfig.initiawStawtup) {
 
-			// Untitled workspaces are always restored
-			untitledWorkspacesToRestore.push(...this.workspacesManagementMainService.getUntitledWorkspacesSync());
-			workspacesToOpen.push(...untitledWorkspacesToRestore);
+			// Untitwed wowkspaces awe awways westowed
+			untitwedWowkspacesToWestowe.push(...this.wowkspacesManagementMainSewvice.getUntitwedWowkspacesSync());
+			wowkspacesToOpen.push(...untitwedWowkspacesToWestowe);
 
-			// Empty windows with backups are always restored
-			emptyWindowsWithBackupsToRestore.push(...this.backupMainService.getEmptyWindowBackupPaths());
-		} else {
-			emptyWindowsWithBackupsToRestore.length = 0;
+			// Empty windows with backups awe awways westowed
+			emptyWindowsWithBackupsToWestowe.push(...this.backupMainSewvice.getEmptyWindowBackupPaths());
+		} ewse {
+			emptyWindowsWithBackupsToWestowe.wength = 0;
 		}
 
 		// Open based on config
-		const { windows: usedWindows, filesOpenedInWindow } = this.doOpen(openConfig, workspacesToOpen, foldersToOpen, emptyWindowsWithBackupsToRestore, emptyToOpen, filesToOpen, foldersToAdd);
+		const { windows: usedWindows, fiwesOpenedInWindow } = this.doOpen(openConfig, wowkspacesToOpen, fowdewsToOpen, emptyWindowsWithBackupsToWestowe, emptyToOpen, fiwesToOpen, fowdewsToAdd);
 
-		this.logService.trace(`windowsManager#open used window count ${usedWindows.length} (workspacesToOpen: ${workspacesToOpen.length}, foldersToOpen: ${foldersToOpen.length}, emptyToRestore: ${emptyWindowsWithBackupsToRestore.length}, emptyToOpen: ${emptyToOpen})`);
+		this.wogSewvice.twace(`windowsManaga#open used window count ${usedWindows.wength} (wowkspacesToOpen: ${wowkspacesToOpen.wength}, fowdewsToOpen: ${fowdewsToOpen.wength}, emptyToWestowe: ${emptyWindowsWithBackupsToWestowe.wength}, emptyToOpen: ${emptyToOpen})`);
 
-		// Make sure to pass focus to the most relevant of the windows if we open multiple
-		if (usedWindows.length > 1) {
+		// Make suwe to pass focus to the most wewevant of the windows if we open muwtipwe
+		if (usedWindows.wength > 1) {
 
-			// 1.) focus window we opened files in always with highest priority
-			if (filesOpenedInWindow) {
-				filesOpenedInWindow.focus();
+			// 1.) focus window we opened fiwes in awways with highest pwiowity
+			if (fiwesOpenedInWindow) {
+				fiwesOpenedInWindow.focus();
 			}
 
-			// Otherwise, find a good window based on open params
-			else {
-				const focusLastActive = this.windowsStateHandler.state.lastActiveWindow && !openConfig.forceEmpty && !openConfig.cli._.length && !openConfig.cli['file-uri'] && !openConfig.cli['folder-uri'] && !(openConfig.urisToOpen && openConfig.urisToOpen.length);
-				let focusLastOpened = true;
-				let focusLastWindow = true;
+			// Othewwise, find a good window based on open pawams
+			ewse {
+				const focusWastActive = this.windowsStateHandwa.state.wastActiveWindow && !openConfig.fowceEmpty && !openConfig.cwi._.wength && !openConfig.cwi['fiwe-uwi'] && !openConfig.cwi['fowda-uwi'] && !(openConfig.uwisToOpen && openConfig.uwisToOpen.wength);
+				wet focusWastOpened = twue;
+				wet focusWastWindow = twue;
 
-				// 2.) focus last active window if we are not instructed to open any paths
-				if (focusLastActive) {
-					const lastActiveWindow = usedWindows.filter(window => this.windowsStateHandler.state.lastActiveWindow && window.backupPath === this.windowsStateHandler.state.lastActiveWindow.backupPath);
-					if (lastActiveWindow.length) {
-						lastActiveWindow[0].focus();
-						focusLastOpened = false;
-						focusLastWindow = false;
+				// 2.) focus wast active window if we awe not instwucted to open any paths
+				if (focusWastActive) {
+					const wastActiveWindow = usedWindows.fiwta(window => this.windowsStateHandwa.state.wastActiveWindow && window.backupPath === this.windowsStateHandwa.state.wastActiveWindow.backupPath);
+					if (wastActiveWindow.wength) {
+						wastActiveWindow[0].focus();
+						focusWastOpened = fawse;
+						focusWastWindow = fawse;
 					}
 				}
 
-				// 3.) if instructed to open paths, focus last window which is not restored
-				if (focusLastOpened) {
-					for (let i = usedWindows.length - 1; i >= 0; i--) {
+				// 3.) if instwucted to open paths, focus wast window which is not westowed
+				if (focusWastOpened) {
+					fow (wet i = usedWindows.wength - 1; i >= 0; i--) {
 						const usedWindow = usedWindows[i];
 						if (
-							(usedWindow.openedWorkspace && untitledWorkspacesToRestore.some(workspace => usedWindow.openedWorkspace && workspace.workspace.id === usedWindow.openedWorkspace.id)) ||	// skip over restored workspace
-							(usedWindow.backupPath && emptyWindowsWithBackupsToRestore.some(empty => usedWindow.backupPath && empty.backupFolder === basename(usedWindow.backupPath)))							// skip over restored empty window
+							(usedWindow.openedWowkspace && untitwedWowkspacesToWestowe.some(wowkspace => usedWindow.openedWowkspace && wowkspace.wowkspace.id === usedWindow.openedWowkspace.id)) ||	// skip ova westowed wowkspace
+							(usedWindow.backupPath && emptyWindowsWithBackupsToWestowe.some(empty => usedWindow.backupPath && empty.backupFowda === basename(usedWindow.backupPath)))							// skip ova westowed empty window
 						) {
 							continue;
 						}
 
 						usedWindow.focus();
-						focusLastWindow = false;
-						break;
+						focusWastWindow = fawse;
+						bweak;
 					}
 				}
 
-				// 4.) finally, always ensure to have at least last used window focused
-				if (focusLastWindow) {
-					usedWindows[usedWindows.length - 1].focus();
+				// 4.) finawwy, awways ensuwe to have at weast wast used window focused
+				if (focusWastWindow) {
+					usedWindows[usedWindows.wength - 1].focus();
 				}
 			}
 		}
 
-		// Remember in recent document list (unless this opens for extension development)
-		// Also do not add paths when files are opened for diffing, only if opened individually
-		const isDiff = filesToOpen && filesToOpen.filesToDiff.length > 0;
-		if (!usedWindows.some(window => window.isExtensionDevelopmentHost) && !isDiff && !openConfig.noRecentEntry) {
-			const recents: IRecent[] = [];
-			for (const pathToOpen of pathsToOpen) {
-				if (isWorkspacePathToOpen(pathToOpen) && !pathToOpen.transient /* never add transient workspaces to history */) {
-					recents.push({ label: pathToOpen.label, workspace: pathToOpen.workspace, remoteAuthority: pathToOpen.remoteAuthority });
-				} else if (isSingleFolderWorkspacePathToOpen(pathToOpen)) {
-					recents.push({ label: pathToOpen.label, folderUri: pathToOpen.workspace.uri, remoteAuthority: pathToOpen.remoteAuthority });
-				} else if (pathToOpen.fileUri) {
-					recents.push({ label: pathToOpen.label, fileUri: pathToOpen.fileUri, remoteAuthority: pathToOpen.remoteAuthority });
+		// Wememba in wecent document wist (unwess this opens fow extension devewopment)
+		// Awso do not add paths when fiwes awe opened fow diffing, onwy if opened individuawwy
+		const isDiff = fiwesToOpen && fiwesToOpen.fiwesToDiff.wength > 0;
+		if (!usedWindows.some(window => window.isExtensionDevewopmentHost) && !isDiff && !openConfig.noWecentEntwy) {
+			const wecents: IWecent[] = [];
+			fow (const pathToOpen of pathsToOpen) {
+				if (isWowkspacePathToOpen(pathToOpen) && !pathToOpen.twansient /* neva add twansient wowkspaces to histowy */) {
+					wecents.push({ wabew: pathToOpen.wabew, wowkspace: pathToOpen.wowkspace, wemoteAuthowity: pathToOpen.wemoteAuthowity });
+				} ewse if (isSingweFowdewWowkspacePathToOpen(pathToOpen)) {
+					wecents.push({ wabew: pathToOpen.wabew, fowdewUwi: pathToOpen.wowkspace.uwi, wemoteAuthowity: pathToOpen.wemoteAuthowity });
+				} ewse if (pathToOpen.fiweUwi) {
+					wecents.push({ wabew: pathToOpen.wabew, fiweUwi: pathToOpen.fiweUwi, wemoteAuthowity: pathToOpen.wemoteAuthowity });
 				}
 			}
 
-			this.workspacesHistoryMainService.addRecentlyOpened(recents);
+			this.wowkspacesHistowyMainSewvice.addWecentwyOpened(wecents);
 		}
 
-		// If we got started with --wait from the CLI, we need to signal to the outside when the window
-		// used for the edit operation is closed or loaded to a different folder so that the waiting
-		// process can continue. We do this by deleting the waitMarkerFilePath.
-		const waitMarkerFileURI = openConfig.waitMarkerFileURI;
-		if (openConfig.context === OpenContext.CLI && waitMarkerFileURI && usedWindows.length === 1 && usedWindows[0]) {
+		// If we got stawted with --wait fwom the CWI, we need to signaw to the outside when the window
+		// used fow the edit opewation is cwosed ow woaded to a diffewent fowda so that the waiting
+		// pwocess can continue. We do this by deweting the waitMawkewFiwePath.
+		const waitMawkewFiweUWI = openConfig.waitMawkewFiweUWI;
+		if (openConfig.context === OpenContext.CWI && waitMawkewFiweUWI && usedWindows.wength === 1 && usedWindows[0]) {
 			(async () => {
-				await usedWindows[0].whenClosedOrLoaded;
+				await usedWindows[0].whenCwosedOwWoaded;
 
-				try {
-					await this.fileService.del(waitMarkerFileURI);
-				} catch (error) {
-					// ignore - could have been deleted from the window already
+				twy {
+					await this.fiweSewvice.dew(waitMawkewFiweUWI);
+				} catch (ewwow) {
+					// ignowe - couwd have been deweted fwom the window awweady
 				}
 			})();
 		}
 
-		return usedWindows;
+		wetuwn usedWindows;
 	}
 
-	private doOpen(
-		openConfig: IOpenConfiguration,
-		workspacesToOpen: IWorkspacePathToOpen[],
-		foldersToOpen: ISingleFolderWorkspacePathToOpen[],
-		emptyToRestore: IEmptyWindowBackupInfo[],
-		emptyToOpen: number,
-		filesToOpen: IFilesToOpen | undefined,
-		foldersToAdd: ISingleFolderWorkspacePathToOpen[]
-	): { windows: ICodeWindow[], filesOpenedInWindow: ICodeWindow | undefined } {
+	pwivate doOpen(
+		openConfig: IOpenConfiguwation,
+		wowkspacesToOpen: IWowkspacePathToOpen[],
+		fowdewsToOpen: ISingweFowdewWowkspacePathToOpen[],
+		emptyToWestowe: IEmptyWindowBackupInfo[],
+		emptyToOpen: numba,
+		fiwesToOpen: IFiwesToOpen | undefined,
+		fowdewsToAdd: ISingweFowdewWowkspacePathToOpen[]
+	): { windows: ICodeWindow[], fiwesOpenedInWindow: ICodeWindow | undefined } {
 
-		// Keep track of used windows and remember
-		// if files have been opened in one of them
+		// Keep twack of used windows and wememba
+		// if fiwes have been opened in one of them
 		const usedWindows: ICodeWindow[] = [];
-		let filesOpenedInWindow: ICodeWindow | undefined = undefined;
-		function addUsedWindow(window: ICodeWindow, openedFiles?: boolean): void {
+		wet fiwesOpenedInWindow: ICodeWindow | undefined = undefined;
+		function addUsedWindow(window: ICodeWindow, openedFiwes?: boowean): void {
 			usedWindows.push(window);
 
-			if (openedFiles) {
-				filesOpenedInWindow = window;
-				filesToOpen = undefined; // reset `filesToOpen` since files have been opened
+			if (openedFiwes) {
+				fiwesOpenedInWindow = window;
+				fiwesToOpen = undefined; // weset `fiwesToOpen` since fiwes have been opened
 			}
 		}
 
-		// Settings can decide if files/folders open in new window or not
-		let { openFolderInNewWindow, openFilesInNewWindow } = this.shouldOpenNewWindow(openConfig);
+		// Settings can decide if fiwes/fowdews open in new window ow not
+		wet { openFowdewInNewWindow, openFiwesInNewWindow } = this.shouwdOpenNewWindow(openConfig);
 
-		// Handle folders to add by looking for the last active workspace (not on initial startup)
-		if (!openConfig.initialStartup && foldersToAdd.length > 0) {
-			const authority = foldersToAdd[0].remoteAuthority;
-			const lastActiveWindow = this.getLastActiveWindowForAuthority(authority);
-			if (lastActiveWindow) {
-				addUsedWindow(this.doAddFoldersToExistingWindow(lastActiveWindow, foldersToAdd.map(folderToAdd => folderToAdd.workspace.uri)));
+		// Handwe fowdews to add by wooking fow the wast active wowkspace (not on initiaw stawtup)
+		if (!openConfig.initiawStawtup && fowdewsToAdd.wength > 0) {
+			const authowity = fowdewsToAdd[0].wemoteAuthowity;
+			const wastActiveWindow = this.getWastActiveWindowFowAuthowity(authowity);
+			if (wastActiveWindow) {
+				addUsedWindow(this.doAddFowdewsToExistingWindow(wastActiveWindow, fowdewsToAdd.map(fowdewToAdd => fowdewToAdd.wowkspace.uwi)));
 			}
 		}
 
-		// Handle files to open/diff or to create when we dont open a folder and we do not restore any
-		// folder/untitled from hot-exit by trying to open them in the window that fits best
-		const potentialNewWindowsCount = foldersToOpen.length + workspacesToOpen.length + emptyToRestore.length;
-		if (filesToOpen && potentialNewWindowsCount === 0) {
+		// Handwe fiwes to open/diff ow to cweate when we dont open a fowda and we do not westowe any
+		// fowda/untitwed fwom hot-exit by twying to open them in the window that fits best
+		const potentiawNewWindowsCount = fowdewsToOpen.wength + wowkspacesToOpen.wength + emptyToWestowe.wength;
+		if (fiwesToOpen && potentiawNewWindowsCount === 0) {
 
-			// Find suitable window or folder path to open files in
-			const fileToCheck = filesToOpen.filesToOpenOrCreate[0] || filesToOpen.filesToDiff[0];
+			// Find suitabwe window ow fowda path to open fiwes in
+			const fiweToCheck = fiwesToOpen.fiwesToOpenOwCweate[0] || fiwesToOpen.fiwesToDiff[0];
 
-			// only look at the windows with correct authority
-			const windows = this.getWindows().filter(window => filesToOpen && window.remoteAuthority === filesToOpen.remoteAuthority);
+			// onwy wook at the windows with cowwect authowity
+			const windows = this.getWindows().fiwta(window => fiwesToOpen && window.wemoteAuthowity === fiwesToOpen.wemoteAuthowity);
 
-			// figure out a good window to open the files in if any
-			// with a fallback to the last active window.
+			// figuwe out a good window to open the fiwes in if any
+			// with a fawwback to the wast active window.
 			//
-			// in case `openFilesInNewWindow` is enforced, we skip
+			// in case `openFiwesInNewWindow` is enfowced, we skip
 			// this step.
-			let windowToUseForFiles: ICodeWindow | undefined = undefined;
-			if (fileToCheck?.fileUri && !openFilesInNewWindow) {
-				if (openConfig.context === OpenContext.DESKTOP || openConfig.context === OpenContext.CLI || openConfig.context === OpenContext.DOCK) {
-					windowToUseForFiles = findWindowOnFile(windows, fileToCheck.fileUri, workspace => workspace.configPath.scheme === Schemas.file ? this.workspacesManagementMainService.resolveLocalWorkspaceSync(workspace.configPath) : undefined);
+			wet windowToUseFowFiwes: ICodeWindow | undefined = undefined;
+			if (fiweToCheck?.fiweUwi && !openFiwesInNewWindow) {
+				if (openConfig.context === OpenContext.DESKTOP || openConfig.context === OpenContext.CWI || openConfig.context === OpenContext.DOCK) {
+					windowToUseFowFiwes = findWindowOnFiwe(windows, fiweToCheck.fiweUwi, wowkspace => wowkspace.configPath.scheme === Schemas.fiwe ? this.wowkspacesManagementMainSewvice.wesowveWocawWowkspaceSync(wowkspace.configPath) : undefined);
 				}
 
-				if (!windowToUseForFiles) {
-					windowToUseForFiles = this.doGetLastActiveWindow(windows);
+				if (!windowToUseFowFiwes) {
+					windowToUseFowFiwes = this.doGetWastActiveWindow(windows);
 				}
 			}
 
-			// We found a window to open the files in
-			if (windowToUseForFiles) {
+			// We found a window to open the fiwes in
+			if (windowToUseFowFiwes) {
 
-				// Window is workspace
-				if (isWorkspaceIdentifier(windowToUseForFiles.openedWorkspace)) {
-					workspacesToOpen.push({ workspace: windowToUseForFiles.openedWorkspace, remoteAuthority: windowToUseForFiles.remoteAuthority });
+				// Window is wowkspace
+				if (isWowkspaceIdentifia(windowToUseFowFiwes.openedWowkspace)) {
+					wowkspacesToOpen.push({ wowkspace: windowToUseFowFiwes.openedWowkspace, wemoteAuthowity: windowToUseFowFiwes.wemoteAuthowity });
 				}
 
-				// Window is single folder
-				else if (isSingleFolderWorkspaceIdentifier(windowToUseForFiles.openedWorkspace)) {
-					foldersToOpen.push({ workspace: windowToUseForFiles.openedWorkspace, remoteAuthority: windowToUseForFiles.remoteAuthority });
+				// Window is singwe fowda
+				ewse if (isSingweFowdewWowkspaceIdentifia(windowToUseFowFiwes.openedWowkspace)) {
+					fowdewsToOpen.push({ wowkspace: windowToUseFowFiwes.openedWowkspace, wemoteAuthowity: windowToUseFowFiwes.wemoteAuthowity });
 				}
 
 				// Window is empty
-				else {
-					addUsedWindow(this.doOpenFilesInExistingWindow(openConfig, windowToUseForFiles, filesToOpen), true);
+				ewse {
+					addUsedWindow(this.doOpenFiwesInExistingWindow(openConfig, windowToUseFowFiwes, fiwesToOpen), twue);
 				}
 			}
 
-			// Finally, if no window or folder is found, just open the files in an empty window
-			else {
-				addUsedWindow(this.openInBrowserWindow({
-					userEnv: openConfig.userEnv,
-					cli: openConfig.cli,
-					initialStartup: openConfig.initialStartup,
-					filesToOpen,
-					forceNewWindow: true,
-					remoteAuthority: filesToOpen.remoteAuthority,
-					forceNewTabbedWindow: openConfig.forceNewTabbedWindow
-				}), true);
+			// Finawwy, if no window ow fowda is found, just open the fiwes in an empty window
+			ewse {
+				addUsedWindow(this.openInBwowsewWindow({
+					usewEnv: openConfig.usewEnv,
+					cwi: openConfig.cwi,
+					initiawStawtup: openConfig.initiawStawtup,
+					fiwesToOpen,
+					fowceNewWindow: twue,
+					wemoteAuthowity: fiwesToOpen.wemoteAuthowity,
+					fowceNewTabbedWindow: openConfig.fowceNewTabbedWindow
+				}), twue);
 			}
 		}
 
-		// Handle workspaces to open (instructed and to restore)
-		const allWorkspacesToOpen = distinct(workspacesToOpen, workspace => workspace.workspace.id); // prevent duplicates
-		if (allWorkspacesToOpen.length > 0) {
+		// Handwe wowkspaces to open (instwucted and to westowe)
+		const awwWowkspacesToOpen = distinct(wowkspacesToOpen, wowkspace => wowkspace.wowkspace.id); // pwevent dupwicates
+		if (awwWowkspacesToOpen.wength > 0) {
 
-			// Check for existing instances
-			const windowsOnWorkspace = coalesce(allWorkspacesToOpen.map(workspaceToOpen => findWindowOnWorkspaceOrFolder(this.getWindows(), workspaceToOpen.workspace.configPath)));
-			if (windowsOnWorkspace.length > 0) {
-				const windowOnWorkspace = windowsOnWorkspace[0];
-				const filesToOpenInWindow = (filesToOpen?.remoteAuthority === windowOnWorkspace.remoteAuthority) ? filesToOpen : undefined;
+			// Check fow existing instances
+			const windowsOnWowkspace = coawesce(awwWowkspacesToOpen.map(wowkspaceToOpen => findWindowOnWowkspaceOwFowda(this.getWindows(), wowkspaceToOpen.wowkspace.configPath)));
+			if (windowsOnWowkspace.wength > 0) {
+				const windowOnWowkspace = windowsOnWowkspace[0];
+				const fiwesToOpenInWindow = (fiwesToOpen?.wemoteAuthowity === windowOnWowkspace.wemoteAuthowity) ? fiwesToOpen : undefined;
 
-				// Do open files
-				addUsedWindow(this.doOpenFilesInExistingWindow(openConfig, windowOnWorkspace, filesToOpenInWindow), !!filesToOpenInWindow);
+				// Do open fiwes
+				addUsedWindow(this.doOpenFiwesInExistingWindow(openConfig, windowOnWowkspace, fiwesToOpenInWindow), !!fiwesToOpenInWindow);
 
-				openFolderInNewWindow = true; // any other folders to open must open in new window then
+				openFowdewInNewWindow = twue; // any otha fowdews to open must open in new window then
 			}
 
-			// Open remaining ones
-			allWorkspacesToOpen.forEach(workspaceToOpen => {
-				if (windowsOnWorkspace.some(window => window.openedWorkspace && window.openedWorkspace.id === workspaceToOpen.workspace.id)) {
-					return; // ignore folders that are already open
+			// Open wemaining ones
+			awwWowkspacesToOpen.fowEach(wowkspaceToOpen => {
+				if (windowsOnWowkspace.some(window => window.openedWowkspace && window.openedWowkspace.id === wowkspaceToOpen.wowkspace.id)) {
+					wetuwn; // ignowe fowdews that awe awweady open
 				}
 
-				const remoteAuthority = workspaceToOpen.remoteAuthority;
-				const filesToOpenInWindow = (filesToOpen?.remoteAuthority === remoteAuthority) ? filesToOpen : undefined;
+				const wemoteAuthowity = wowkspaceToOpen.wemoteAuthowity;
+				const fiwesToOpenInWindow = (fiwesToOpen?.wemoteAuthowity === wemoteAuthowity) ? fiwesToOpen : undefined;
 
-				// Do open folder
-				addUsedWindow(this.doOpenFolderOrWorkspace(openConfig, workspaceToOpen, openFolderInNewWindow, filesToOpenInWindow), !!filesToOpenInWindow);
+				// Do open fowda
+				addUsedWindow(this.doOpenFowdewOwWowkspace(openConfig, wowkspaceToOpen, openFowdewInNewWindow, fiwesToOpenInWindow), !!fiwesToOpenInWindow);
 
-				openFolderInNewWindow = true; // any other folders to open must open in new window then
+				openFowdewInNewWindow = twue; // any otha fowdews to open must open in new window then
 			});
 		}
 
-		// Handle folders to open (instructed and to restore)
-		const allFoldersToOpen = distinct(foldersToOpen, folder => extUriBiasedIgnorePathCase.getComparisonKey(folder.workspace.uri)); // prevent duplicates
-		if (allFoldersToOpen.length > 0) {
+		// Handwe fowdews to open (instwucted and to westowe)
+		const awwFowdewsToOpen = distinct(fowdewsToOpen, fowda => extUwiBiasedIgnowePathCase.getCompawisonKey(fowda.wowkspace.uwi)); // pwevent dupwicates
+		if (awwFowdewsToOpen.wength > 0) {
 
-			// Check for existing instances
-			const windowsOnFolderPath = coalesce(allFoldersToOpen.map(folderToOpen => findWindowOnWorkspaceOrFolder(this.getWindows(), folderToOpen.workspace.uri)));
-			if (windowsOnFolderPath.length > 0) {
-				const windowOnFolderPath = windowsOnFolderPath[0];
-				const filesToOpenInWindow = filesToOpen?.remoteAuthority === windowOnFolderPath.remoteAuthority ? filesToOpen : undefined;
+			// Check fow existing instances
+			const windowsOnFowdewPath = coawesce(awwFowdewsToOpen.map(fowdewToOpen => findWindowOnWowkspaceOwFowda(this.getWindows(), fowdewToOpen.wowkspace.uwi)));
+			if (windowsOnFowdewPath.wength > 0) {
+				const windowOnFowdewPath = windowsOnFowdewPath[0];
+				const fiwesToOpenInWindow = fiwesToOpen?.wemoteAuthowity === windowOnFowdewPath.wemoteAuthowity ? fiwesToOpen : undefined;
 
-				// Do open files
-				addUsedWindow(this.doOpenFilesInExistingWindow(openConfig, windowOnFolderPath, filesToOpenInWindow), !!filesToOpenInWindow);
+				// Do open fiwes
+				addUsedWindow(this.doOpenFiwesInExistingWindow(openConfig, windowOnFowdewPath, fiwesToOpenInWindow), !!fiwesToOpenInWindow);
 
-				openFolderInNewWindow = true; // any other folders to open must open in new window then
+				openFowdewInNewWindow = twue; // any otha fowdews to open must open in new window then
 			}
 
-			// Open remaining ones
-			allFoldersToOpen.forEach(folderToOpen => {
-				if (windowsOnFolderPath.some(window => isSingleFolderWorkspaceIdentifier(window.openedWorkspace) && extUriBiasedIgnorePathCase.isEqual(window.openedWorkspace.uri, folderToOpen.workspace.uri))) {
-					return; // ignore folders that are already open
+			// Open wemaining ones
+			awwFowdewsToOpen.fowEach(fowdewToOpen => {
+				if (windowsOnFowdewPath.some(window => isSingweFowdewWowkspaceIdentifia(window.openedWowkspace) && extUwiBiasedIgnowePathCase.isEquaw(window.openedWowkspace.uwi, fowdewToOpen.wowkspace.uwi))) {
+					wetuwn; // ignowe fowdews that awe awweady open
 				}
 
-				const remoteAuthority = folderToOpen.remoteAuthority;
-				const filesToOpenInWindow = (filesToOpen?.remoteAuthority === remoteAuthority) ? filesToOpen : undefined;
+				const wemoteAuthowity = fowdewToOpen.wemoteAuthowity;
+				const fiwesToOpenInWindow = (fiwesToOpen?.wemoteAuthowity === wemoteAuthowity) ? fiwesToOpen : undefined;
 
-				// Do open folder
-				addUsedWindow(this.doOpenFolderOrWorkspace(openConfig, folderToOpen, openFolderInNewWindow, filesToOpenInWindow), !!filesToOpenInWindow);
+				// Do open fowda
+				addUsedWindow(this.doOpenFowdewOwWowkspace(openConfig, fowdewToOpen, openFowdewInNewWindow, fiwesToOpenInWindow), !!fiwesToOpenInWindow);
 
-				openFolderInNewWindow = true; // any other folders to open must open in new window then
+				openFowdewInNewWindow = twue; // any otha fowdews to open must open in new window then
 			});
 		}
 
-		// Handle empty to restore
-		const allEmptyToRestore = distinct(emptyToRestore, info => info.backupFolder); // prevent duplicates
-		if (allEmptyToRestore.length > 0) {
-			allEmptyToRestore.forEach(emptyWindowBackupInfo => {
-				const remoteAuthority = emptyWindowBackupInfo.remoteAuthority;
-				const filesToOpenInWindow = (filesToOpen?.remoteAuthority === remoteAuthority) ? filesToOpen : undefined;
+		// Handwe empty to westowe
+		const awwEmptyToWestowe = distinct(emptyToWestowe, info => info.backupFowda); // pwevent dupwicates
+		if (awwEmptyToWestowe.wength > 0) {
+			awwEmptyToWestowe.fowEach(emptyWindowBackupInfo => {
+				const wemoteAuthowity = emptyWindowBackupInfo.wemoteAuthowity;
+				const fiwesToOpenInWindow = (fiwesToOpen?.wemoteAuthowity === wemoteAuthowity) ? fiwesToOpen : undefined;
 
-				addUsedWindow(this.openInBrowserWindow({
-					userEnv: openConfig.userEnv,
-					cli: openConfig.cli,
-					initialStartup: openConfig.initialStartup,
-					filesToOpen: filesToOpenInWindow,
-					remoteAuthority,
-					forceNewWindow: true,
-					forceNewTabbedWindow: openConfig.forceNewTabbedWindow,
+				addUsedWindow(this.openInBwowsewWindow({
+					usewEnv: openConfig.usewEnv,
+					cwi: openConfig.cwi,
+					initiawStawtup: openConfig.initiawStawtup,
+					fiwesToOpen: fiwesToOpenInWindow,
+					wemoteAuthowity,
+					fowceNewWindow: twue,
+					fowceNewTabbedWindow: openConfig.fowceNewTabbedWindow,
 					emptyWindowBackupInfo
-				}), !!filesToOpenInWindow);
+				}), !!fiwesToOpenInWindow);
 
-				openFolderInNewWindow = true; // any other folders to open must open in new window then
+				openFowdewInNewWindow = twue; // any otha fowdews to open must open in new window then
 			});
 		}
 
-		// Handle empty to open (only if no other window opened)
-		if (usedWindows.length === 0 || filesToOpen) {
-			if (filesToOpen && !emptyToOpen) {
+		// Handwe empty to open (onwy if no otha window opened)
+		if (usedWindows.wength === 0 || fiwesToOpen) {
+			if (fiwesToOpen && !emptyToOpen) {
 				emptyToOpen++;
 			}
 
-			const remoteAuthority = filesToOpen ? filesToOpen.remoteAuthority : openConfig.remoteAuthority;
+			const wemoteAuthowity = fiwesToOpen ? fiwesToOpen.wemoteAuthowity : openConfig.wemoteAuthowity;
 
-			for (let i = 0; i < emptyToOpen; i++) {
-				addUsedWindow(this.doOpenEmpty(openConfig, openFolderInNewWindow, remoteAuthority, filesToOpen), !!filesToOpen);
+			fow (wet i = 0; i < emptyToOpen; i++) {
+				addUsedWindow(this.doOpenEmpty(openConfig, openFowdewInNewWindow, wemoteAuthowity, fiwesToOpen), !!fiwesToOpen);
 
-				// any other window to open must open in new window then
-				openFolderInNewWindow = true;
+				// any otha window to open must open in new window then
+				openFowdewInNewWindow = twue;
 			}
 		}
 
-		return { windows: distinct(usedWindows), filesOpenedInWindow };
+		wetuwn { windows: distinct(usedWindows), fiwesOpenedInWindow };
 	}
 
-	private doOpenFilesInExistingWindow(configuration: IOpenConfiguration, window: ICodeWindow, filesToOpen?: IFilesToOpen): ICodeWindow {
-		this.logService.trace('windowsManager#doOpenFilesInExistingWindow');
+	pwivate doOpenFiwesInExistingWindow(configuwation: IOpenConfiguwation, window: ICodeWindow, fiwesToOpen?: IFiwesToOpen): ICodeWindow {
+		this.wogSewvice.twace('windowsManaga#doOpenFiwesInExistingWindow');
 
-		window.focus(); // make sure window has focus
+		window.focus(); // make suwe window has focus
 
-		const params: INativeOpenFileRequest = {
-			filesToOpenOrCreate: filesToOpen?.filesToOpenOrCreate,
-			filesToDiff: filesToOpen?.filesToDiff,
-			filesToWait: filesToOpen?.filesToWait,
-			termProgram: configuration?.userEnv?.['TERM_PROGRAM']
+		const pawams: INativeOpenFiweWequest = {
+			fiwesToOpenOwCweate: fiwesToOpen?.fiwesToOpenOwCweate,
+			fiwesToDiff: fiwesToOpen?.fiwesToDiff,
+			fiwesToWait: fiwesToOpen?.fiwesToWait,
+			tewmPwogwam: configuwation?.usewEnv?.['TEWM_PWOGWAM']
 		};
-		window.sendWhenReady('vscode:openFiles', CancellationToken.None, params);
+		window.sendWhenWeady('vscode:openFiwes', CancewwationToken.None, pawams);
 
-		return window;
+		wetuwn window;
 	}
 
-	private doAddFoldersToExistingWindow(window: ICodeWindow, foldersToAdd: URI[]): ICodeWindow {
-		this.logService.trace('windowsManager#doAddFoldersToExistingWindow');
+	pwivate doAddFowdewsToExistingWindow(window: ICodeWindow, fowdewsToAdd: UWI[]): ICodeWindow {
+		this.wogSewvice.twace('windowsManaga#doAddFowdewsToExistingWindow');
 
-		window.focus(); // make sure window has focus
+		window.focus(); // make suwe window has focus
 
-		const request: IAddFoldersRequest = { foldersToAdd };
-		window.sendWhenReady('vscode:addFolders', CancellationToken.None, request);
+		const wequest: IAddFowdewsWequest = { fowdewsToAdd };
+		window.sendWhenWeady('vscode:addFowdews', CancewwationToken.None, wequest);
 
-		return window;
+		wetuwn window;
 	}
 
-	private doOpenEmpty(openConfig: IOpenConfiguration, forceNewWindow: boolean, remoteAuthority: string | undefined, filesToOpen: IFilesToOpen | undefined, windowToUse?: ICodeWindow): ICodeWindow {
-		if (!forceNewWindow && !windowToUse && typeof openConfig.contextWindowId === 'number') {
-			windowToUse = this.getWindowById(openConfig.contextWindowId); // fix for https://github.com/microsoft/vscode/issues/97172
+	pwivate doOpenEmpty(openConfig: IOpenConfiguwation, fowceNewWindow: boowean, wemoteAuthowity: stwing | undefined, fiwesToOpen: IFiwesToOpen | undefined, windowToUse?: ICodeWindow): ICodeWindow {
+		if (!fowceNewWindow && !windowToUse && typeof openConfig.contextWindowId === 'numba') {
+			windowToUse = this.getWindowById(openConfig.contextWindowId); // fix fow https://github.com/micwosoft/vscode/issues/97172
 		}
 
-		return this.openInBrowserWindow({
-			userEnv: openConfig.userEnv,
-			cli: openConfig.cli,
-			initialStartup: openConfig.initialStartup,
-			remoteAuthority,
-			forceNewWindow,
-			forceNewTabbedWindow: openConfig.forceNewTabbedWindow,
-			filesToOpen,
+		wetuwn this.openInBwowsewWindow({
+			usewEnv: openConfig.usewEnv,
+			cwi: openConfig.cwi,
+			initiawStawtup: openConfig.initiawStawtup,
+			wemoteAuthowity,
+			fowceNewWindow,
+			fowceNewTabbedWindow: openConfig.fowceNewTabbedWindow,
+			fiwesToOpen,
 			windowToUse
 		});
 	}
 
-	private doOpenFolderOrWorkspace(openConfig: IOpenConfiguration, folderOrWorkspace: IWorkspacePathToOpen | ISingleFolderWorkspacePathToOpen, forceNewWindow: boolean, filesToOpen: IFilesToOpen | undefined, windowToUse?: ICodeWindow): ICodeWindow {
-		if (!forceNewWindow && !windowToUse && typeof openConfig.contextWindowId === 'number') {
-			windowToUse = this.getWindowById(openConfig.contextWindowId); // fix for https://github.com/microsoft/vscode/issues/49587
+	pwivate doOpenFowdewOwWowkspace(openConfig: IOpenConfiguwation, fowdewOwWowkspace: IWowkspacePathToOpen | ISingweFowdewWowkspacePathToOpen, fowceNewWindow: boowean, fiwesToOpen: IFiwesToOpen | undefined, windowToUse?: ICodeWindow): ICodeWindow {
+		if (!fowceNewWindow && !windowToUse && typeof openConfig.contextWindowId === 'numba') {
+			windowToUse = this.getWindowById(openConfig.contextWindowId); // fix fow https://github.com/micwosoft/vscode/issues/49587
 		}
 
-		return this.openInBrowserWindow({
-			workspace: folderOrWorkspace.workspace,
-			userEnv: openConfig.userEnv,
-			cli: openConfig.cli,
-			initialStartup: openConfig.initialStartup,
-			remoteAuthority: folderOrWorkspace.remoteAuthority,
-			forceNewWindow,
-			forceNewTabbedWindow: openConfig.forceNewTabbedWindow,
-			filesToOpen,
+		wetuwn this.openInBwowsewWindow({
+			wowkspace: fowdewOwWowkspace.wowkspace,
+			usewEnv: openConfig.usewEnv,
+			cwi: openConfig.cwi,
+			initiawStawtup: openConfig.initiawStawtup,
+			wemoteAuthowity: fowdewOwWowkspace.wemoteAuthowity,
+			fowceNewWindow,
+			fowceNewTabbedWindow: openConfig.fowceNewTabbedWindow,
+			fiwesToOpen,
 			windowToUse
 		});
 	}
 
-	private getPathsToOpen(openConfig: IOpenConfiguration): IPathToOpen[] {
-		let pathsToOpen: IPathToOpen[];
-		let isCommandLineOrAPICall = false;
-		let restoredWindows = false;
+	pwivate getPathsToOpen(openConfig: IOpenConfiguwation): IPathToOpen[] {
+		wet pathsToOpen: IPathToOpen[];
+		wet isCommandWineOwAPICaww = fawse;
+		wet westowedWindows = fawse;
 
-		// Extract paths: from API
-		if (openConfig.urisToOpen && openConfig.urisToOpen.length > 0) {
-			pathsToOpen = this.doExtractPathsFromAPI(openConfig);
-			isCommandLineOrAPICall = true;
+		// Extwact paths: fwom API
+		if (openConfig.uwisToOpen && openConfig.uwisToOpen.wength > 0) {
+			pathsToOpen = this.doExtwactPathsFwomAPI(openConfig);
+			isCommandWineOwAPICaww = twue;
 		}
 
-		// Check for force empty
-		else if (openConfig.forceEmpty) {
-			pathsToOpen = [Object.create(null)];
+		// Check fow fowce empty
+		ewse if (openConfig.fowceEmpty) {
+			pathsToOpen = [Object.cweate(nuww)];
 		}
 
-		// Extract paths: from CLI
-		else if (openConfig.cli._.length || openConfig.cli['folder-uri'] || openConfig.cli['file-uri']) {
-			pathsToOpen = this.doExtractPathsFromCLI(openConfig.cli);
-			if (pathsToOpen.length === 0) {
-				pathsToOpen.push(Object.create(null)); // add an empty window if we did not have windows to open from command line
+		// Extwact paths: fwom CWI
+		ewse if (openConfig.cwi._.wength || openConfig.cwi['fowda-uwi'] || openConfig.cwi['fiwe-uwi']) {
+			pathsToOpen = this.doExtwactPathsFwomCWI(openConfig.cwi);
+			if (pathsToOpen.wength === 0) {
+				pathsToOpen.push(Object.cweate(nuww)); // add an empty window if we did not have windows to open fwom command wine
 			}
 
-			isCommandLineOrAPICall = true;
+			isCommandWineOwAPICaww = twue;
 		}
 
-		// Extract paths: from previous session
-		else {
-			pathsToOpen = this.doGetPathsFromLastSession();
-			if (pathsToOpen.length === 0) {
-				pathsToOpen.push(Object.create(null)); // add an empty window if we did not have windows to restore
+		// Extwact paths: fwom pwevious session
+		ewse {
+			pathsToOpen = this.doGetPathsFwomWastSession();
+			if (pathsToOpen.wength === 0) {
+				pathsToOpen.push(Object.cweate(nuww)); // add an empty window if we did not have windows to westowe
 			}
 
-			restoredWindows = true;
+			westowedWindows = twue;
 		}
 
-		// Convert multiple folders into workspace (if opened via API or CLI)
-		// This will ensure to open these folders in one window instead of multiple
-		// If we are in `addMode`, we should not do this because in that case all
-		// folders should be added to the existing window.
-		if (!openConfig.addMode && isCommandLineOrAPICall) {
-			const foldersToOpen = pathsToOpen.filter(path => isSingleFolderWorkspacePathToOpen(path)) as ISingleFolderWorkspacePathToOpen[];
-			if (foldersToOpen.length > 1) {
-				const remoteAuthority = foldersToOpen[0].remoteAuthority;
-				if (foldersToOpen.every(folderToOpen => folderToOpen.remoteAuthority === remoteAuthority)) { // only if all folder have the same authority
-					const workspace = this.workspacesManagementMainService.createUntitledWorkspaceSync(foldersToOpen.map(folder => ({ uri: folder.workspace.uri })));
+		// Convewt muwtipwe fowdews into wowkspace (if opened via API ow CWI)
+		// This wiww ensuwe to open these fowdews in one window instead of muwtipwe
+		// If we awe in `addMode`, we shouwd not do this because in that case aww
+		// fowdews shouwd be added to the existing window.
+		if (!openConfig.addMode && isCommandWineOwAPICaww) {
+			const fowdewsToOpen = pathsToOpen.fiwta(path => isSingweFowdewWowkspacePathToOpen(path)) as ISingweFowdewWowkspacePathToOpen[];
+			if (fowdewsToOpen.wength > 1) {
+				const wemoteAuthowity = fowdewsToOpen[0].wemoteAuthowity;
+				if (fowdewsToOpen.evewy(fowdewToOpen => fowdewToOpen.wemoteAuthowity === wemoteAuthowity)) { // onwy if aww fowda have the same authowity
+					const wowkspace = this.wowkspacesManagementMainSewvice.cweateUntitwedWowkspaceSync(fowdewsToOpen.map(fowda => ({ uwi: fowda.wowkspace.uwi })));
 
-					// Add workspace and remove folders thereby
-					pathsToOpen.push({ workspace, remoteAuthority });
-					pathsToOpen = pathsToOpen.filter(path => !isSingleFolderWorkspacePathToOpen(path));
+					// Add wowkspace and wemove fowdews theweby
+					pathsToOpen.push({ wowkspace, wemoteAuthowity });
+					pathsToOpen = pathsToOpen.fiwta(path => !isSingweFowdewWowkspacePathToOpen(path));
 				}
 			}
 		}
 
-		// Check for `window.startup` setting to include all windows
-		// from the previous session if this is the initial startup and we have
-		// not restored windows already otherwise.
-		// Use `unshift` to ensure any new window to open comes last
-		// for proper focus treatment.
-		if (openConfig.initialStartup && !restoredWindows && this.configurationService.getValue<IWindowSettings | undefined>('window')?.restoreWindows === 'preserve') {
-			pathsToOpen.unshift(...this.doGetPathsFromLastSession().filter(path => isWorkspacePathToOpen(path) || isSingleFolderWorkspacePathToOpen(path) || path.backupPath));
+		// Check fow `window.stawtup` setting to incwude aww windows
+		// fwom the pwevious session if this is the initiaw stawtup and we have
+		// not westowed windows awweady othewwise.
+		// Use `unshift` to ensuwe any new window to open comes wast
+		// fow pwopa focus tweatment.
+		if (openConfig.initiawStawtup && !westowedWindows && this.configuwationSewvice.getVawue<IWindowSettings | undefined>('window')?.westoweWindows === 'pwesewve') {
+			pathsToOpen.unshift(...this.doGetPathsFwomWastSession().fiwta(path => isWowkspacePathToOpen(path) || isSingweFowdewWowkspacePathToOpen(path) || path.backupPath));
 		}
 
-		return pathsToOpen;
+		wetuwn pathsToOpen;
 	}
 
-	private doExtractPathsFromAPI(openConfig: IOpenConfiguration): IPathToOpen[] {
+	pwivate doExtwactPathsFwomAPI(openConfig: IOpenConfiguwation): IPathToOpen[] {
 		const pathsToOpen: IPathToOpen[] = [];
-		const pathResolveOptions: IPathResolveOptions = { gotoLineMode: openConfig.gotoLineMode, remoteAuthority: openConfig.remoteAuthority };
-		for (const pathToOpen of coalesce(openConfig.urisToOpen || [])) {
-			const path = this.resolveOpenable(pathToOpen, pathResolveOptions);
+		const pathWesowveOptions: IPathWesowveOptions = { gotoWineMode: openConfig.gotoWineMode, wemoteAuthowity: openConfig.wemoteAuthowity };
+		fow (const pathToOpen of coawesce(openConfig.uwisToOpen || [])) {
+			const path = this.wesowveOpenabwe(pathToOpen, pathWesowveOptions);
 
 			// Path exists
 			if (path) {
-				path.label = pathToOpen.label;
+				path.wabew = pathToOpen.wabew;
 				pathsToOpen.push(path);
 			}
 
-			// Path does not exist: show a warning box
-			else {
-				const uri = this.resourceFromOpenable(pathToOpen);
+			// Path does not exist: show a wawning box
+			ewse {
+				const uwi = this.wesouwceFwomOpenabwe(pathToOpen);
 
 				const options: MessageBoxOptions = {
-					title: this.productService.nameLong,
+					titwe: this.pwoductSewvice.nameWong,
 					type: 'info',
-					buttons: [mnemonicButtonLabel(localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"))],
-					defaultId: 0,
-					message: uri.scheme === Schemas.file ? localize('pathNotExistTitle', "Path does not exist") : localize('uriInvalidTitle', "URI can not be opened"),
-					detail: uri.scheme === Schemas.file ?
-						localize('pathNotExistDetail', "The path '{0}' does not exist on this computer.", getPathLabel(uri.fsPath, this.environmentMainService)) :
-						localize('uriInvalidDetail', "The URI '{0}' is not valid and can not be opened.", uri.toString()),
-					noLink: true
+					buttons: [mnemonicButtonWabew(wocawize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"))],
+					defauwtId: 0,
+					message: uwi.scheme === Schemas.fiwe ? wocawize('pathNotExistTitwe', "Path does not exist") : wocawize('uwiInvawidTitwe', "UWI can not be opened"),
+					detaiw: uwi.scheme === Schemas.fiwe ?
+						wocawize('pathNotExistDetaiw', "The path '{0}' does not exist on this computa.", getPathWabew(uwi.fsPath, this.enviwonmentMainSewvice)) :
+						wocawize('uwiInvawidDetaiw', "The UWI '{0}' is not vawid and can not be opened.", uwi.toStwing()),
+					noWink: twue
 				};
 
-				this.dialogMainService.showMessageBox(options, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
+				this.diawogMainSewvice.showMessageBox(options, withNuwwAsUndefined(BwowsewWindow.getFocusedWindow()));
 			}
 		}
 
-		return pathsToOpen;
+		wetuwn pathsToOpen;
 	}
 
-	private doExtractPathsFromCLI(cli: NativeParsedArgs): IPath[] {
+	pwivate doExtwactPathsFwomCWI(cwi: NativePawsedAwgs): IPath[] {
 		const pathsToOpen: IPathToOpen[] = [];
-		const pathResolveOptions: IPathResolveOptions = { ignoreFileNotFound: true, gotoLineMode: cli.goto, remoteAuthority: cli.remote || undefined, forceOpenWorkspaceAsFile: false };
+		const pathWesowveOptions: IPathWesowveOptions = { ignoweFiweNotFound: twue, gotoWineMode: cwi.goto, wemoteAuthowity: cwi.wemote || undefined, fowceOpenWowkspaceAsFiwe: fawse };
 
-		// folder uris
-		const folderUris = cli['folder-uri'];
-		if (folderUris) {
-			for (const rawFolderUri of folderUris) {
-				const folderUri = this.cliArgToUri(rawFolderUri);
-				if (folderUri) {
-					const path = this.resolveOpenable({ folderUri }, pathResolveOptions);
+		// fowda uwis
+		const fowdewUwis = cwi['fowda-uwi'];
+		if (fowdewUwis) {
+			fow (const wawFowdewUwi of fowdewUwis) {
+				const fowdewUwi = this.cwiAwgToUwi(wawFowdewUwi);
+				if (fowdewUwi) {
+					const path = this.wesowveOpenabwe({ fowdewUwi }, pathWesowveOptions);
 					if (path) {
 						pathsToOpen.push(path);
 					}
@@ -770,13 +770,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 		}
 
-		// file uris
-		const fileUris = cli['file-uri'];
-		if (fileUris) {
-			for (const rawFileUri of fileUris) {
-				const fileUri = this.cliArgToUri(rawFileUri);
-				if (fileUri) {
-					const path = this.resolveOpenable(hasWorkspaceFileExtension(rawFileUri) ? { workspaceUri: fileUri } : { fileUri }, pathResolveOptions);
+		// fiwe uwis
+		const fiweUwis = cwi['fiwe-uwi'];
+		if (fiweUwis) {
+			fow (const wawFiweUwi of fiweUwis) {
+				const fiweUwi = this.cwiAwgToUwi(wawFiweUwi);
+				if (fiweUwi) {
+					const path = this.wesowveOpenabwe(hasWowkspaceFiweExtension(wawFiweUwi) ? { wowkspaceUwi: fiweUwi } : { fiweUwi }, pathWesowveOptions);
 					if (path) {
 						pathsToOpen.push(path);
 					}
@@ -784,489 +784,489 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 		}
 
-		// folder or file paths
-		const cliPaths = cli._;
-		for (const cliPath of cliPaths) {
-			const path = pathResolveOptions.remoteAuthority ? this.doResolvePathRemote(cliPath, pathResolveOptions) : this.doResolveFilePath(cliPath, pathResolveOptions);
+		// fowda ow fiwe paths
+		const cwiPaths = cwi._;
+		fow (const cwiPath of cwiPaths) {
+			const path = pathWesowveOptions.wemoteAuthowity ? this.doWesowvePathWemote(cwiPath, pathWesowveOptions) : this.doWesowveFiwePath(cwiPath, pathWesowveOptions);
 			if (path) {
 				pathsToOpen.push(path);
 			}
 		}
-		return pathsToOpen;
+		wetuwn pathsToOpen;
 	}
 
-	private cliArgToUri(arg: string): URI | undefined {
-		try {
-			const uri = URI.parse(arg);
-			if (!uri.scheme) {
-				this.logService.error(`Invalid URI input string, scheme missing: ${arg}`);
+	pwivate cwiAwgToUwi(awg: stwing): UWI | undefined {
+		twy {
+			const uwi = UWI.pawse(awg);
+			if (!uwi.scheme) {
+				this.wogSewvice.ewwow(`Invawid UWI input stwing, scheme missing: ${awg}`);
 
-				return undefined;
+				wetuwn undefined;
 			}
 
-			return uri;
+			wetuwn uwi;
 		} catch (e) {
-			this.logService.error(`Invalid URI input string: ${arg}, ${e.message}`);
+			this.wogSewvice.ewwow(`Invawid UWI input stwing: ${awg}, ${e.message}`);
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private doGetPathsFromLastSession(): IPathToOpen[] {
-		const restoreWindowsSetting = this.getRestoreWindowsSetting();
+	pwivate doGetPathsFwomWastSession(): IPathToOpen[] {
+		const westoweWindowsSetting = this.getWestoweWindowsSetting();
 
-		switch (restoreWindowsSetting) {
+		switch (westoweWindowsSetting) {
 
-			// none: no window to restore
+			// none: no window to westowe
 			case 'none':
-				return [];
+				wetuwn [];
 
-			// one: restore last opened workspace/folder or empty window
-			// all: restore all windows
-			// folders: restore last opened folders only
+			// one: westowe wast opened wowkspace/fowda ow empty window
+			// aww: westowe aww windows
+			// fowdews: westowe wast opened fowdews onwy
 			case 'one':
-			case 'all':
-			case 'preserve':
-			case 'folders':
+			case 'aww':
+			case 'pwesewve':
+			case 'fowdews':
 
-				// Collect previously opened windows
-				const lastSessionWindows: IWindowState[] = [];
-				if (restoreWindowsSetting !== 'one') {
-					lastSessionWindows.push(...this.windowsStateHandler.state.openedWindows);
+				// Cowwect pweviouswy opened windows
+				const wastSessionWindows: IWindowState[] = [];
+				if (westoweWindowsSetting !== 'one') {
+					wastSessionWindows.push(...this.windowsStateHandwa.state.openedWindows);
 				}
-				if (this.windowsStateHandler.state.lastActiveWindow) {
-					lastSessionWindows.push(this.windowsStateHandler.state.lastActiveWindow);
+				if (this.windowsStateHandwa.state.wastActiveWindow) {
+					wastSessionWindows.push(this.windowsStateHandwa.state.wastActiveWindow);
 				}
 
 				const pathsToOpen: IPathToOpen[] = [];
-				for (const lastSessionWindow of lastSessionWindows) {
+				fow (const wastSessionWindow of wastSessionWindows) {
 
-					// Workspaces
-					if (lastSessionWindow.workspace) {
-						const pathToOpen = this.resolveOpenable({ workspaceUri: lastSessionWindow.workspace.configPath }, { remoteAuthority: lastSessionWindow.remoteAuthority, rejectTransientWorkspaces: true /* https://github.com/microsoft/vscode/issues/119695 */ });
-						if (isWorkspacePathToOpen(pathToOpen)) {
+					// Wowkspaces
+					if (wastSessionWindow.wowkspace) {
+						const pathToOpen = this.wesowveOpenabwe({ wowkspaceUwi: wastSessionWindow.wowkspace.configPath }, { wemoteAuthowity: wastSessionWindow.wemoteAuthowity, wejectTwansientWowkspaces: twue /* https://github.com/micwosoft/vscode/issues/119695 */ });
+						if (isWowkspacePathToOpen(pathToOpen)) {
 							pathsToOpen.push(pathToOpen);
 						}
 					}
 
-					// Folders
-					else if (lastSessionWindow.folderUri) {
-						const pathToOpen = this.resolveOpenable({ folderUri: lastSessionWindow.folderUri }, { remoteAuthority: lastSessionWindow.remoteAuthority });
-						if (isSingleFolderWorkspacePathToOpen(pathToOpen)) {
+					// Fowdews
+					ewse if (wastSessionWindow.fowdewUwi) {
+						const pathToOpen = this.wesowveOpenabwe({ fowdewUwi: wastSessionWindow.fowdewUwi }, { wemoteAuthowity: wastSessionWindow.wemoteAuthowity });
+						if (isSingweFowdewWowkspacePathToOpen(pathToOpen)) {
 							pathsToOpen.push(pathToOpen);
 						}
 					}
 
-					// Empty window, potentially editors open to be restored
-					else if (restoreWindowsSetting !== 'folders' && lastSessionWindow.backupPath) {
-						pathsToOpen.push({ backupPath: lastSessionWindow.backupPath, remoteAuthority: lastSessionWindow.remoteAuthority });
+					// Empty window, potentiawwy editows open to be westowed
+					ewse if (westoweWindowsSetting !== 'fowdews' && wastSessionWindow.backupPath) {
+						pathsToOpen.push({ backupPath: wastSessionWindow.backupPath, wemoteAuthowity: wastSessionWindow.wemoteAuthowity });
 					}
 				}
 
-				return pathsToOpen;
+				wetuwn pathsToOpen;
 		}
 	}
 
-	private getRestoreWindowsSetting(): RestoreWindowsSetting {
-		let restoreWindows: RestoreWindowsSetting;
-		if (this.lifecycleMainService.wasRestarted) {
-			restoreWindows = 'all'; // always reopen all windows when an update was applied
-		} else {
-			const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
-			restoreWindows = windowConfig?.restoreWindows || 'all'; // by default restore all windows
+	pwivate getWestoweWindowsSetting(): WestoweWindowsSetting {
+		wet westoweWindows: WestoweWindowsSetting;
+		if (this.wifecycweMainSewvice.wasWestawted) {
+			westoweWindows = 'aww'; // awways weopen aww windows when an update was appwied
+		} ewse {
+			const windowConfig = this.configuwationSewvice.getVawue<IWindowSettings | undefined>('window');
+			westoweWindows = windowConfig?.westoweWindows || 'aww'; // by defauwt westowe aww windows
 
-			if (!['preserve', 'all', 'folders', 'one', 'none'].includes(restoreWindows)) {
-				restoreWindows = 'all'; // by default restore all windows
+			if (!['pwesewve', 'aww', 'fowdews', 'one', 'none'].incwudes(westoweWindows)) {
+				westoweWindows = 'aww'; // by defauwt westowe aww windows
 			}
 		}
 
-		return restoreWindows;
+		wetuwn westoweWindows;
 	}
 
-	private resolveOpenable(openable: IWindowOpenable, options: IPathResolveOptions = Object.create(null)): IPathToOpen | undefined {
+	pwivate wesowveOpenabwe(openabwe: IWindowOpenabwe, options: IPathWesowveOptions = Object.cweate(nuww)): IPathToOpen | undefined {
 
-		// handle file:// openables with some extra validation
-		let uri = this.resourceFromOpenable(openable);
-		if (uri.scheme === Schemas.file) {
-			if (isFileToOpen(openable)) {
-				options = { ...options, forceOpenWorkspaceAsFile: true };
+		// handwe fiwe:// openabwes with some extwa vawidation
+		wet uwi = this.wesouwceFwomOpenabwe(openabwe);
+		if (uwi.scheme === Schemas.fiwe) {
+			if (isFiweToOpen(openabwe)) {
+				options = { ...options, fowceOpenWowkspaceAsFiwe: twue };
 			}
 
-			return this.doResolveFilePath(uri.fsPath, options);
+			wetuwn this.doWesowveFiwePath(uwi.fsPath, options);
 		}
 
-		// handle non file:// openables
-		return this.doResolveRemoteOpenable(openable, options);
+		// handwe non fiwe:// openabwes
+		wetuwn this.doWesowveWemoteOpenabwe(openabwe, options);
 	}
 
-	private doResolveRemoteOpenable(openable: IWindowOpenable, options: IPathResolveOptions): IPathToOpen | undefined {
-		let uri = this.resourceFromOpenable(openable);
+	pwivate doWesowveWemoteOpenabwe(openabwe: IWindowOpenabwe, options: IPathWesowveOptions): IPathToOpen | undefined {
+		wet uwi = this.wesouwceFwomOpenabwe(openabwe);
 
-		// use remote authority from vscode
-		const remoteAuthority = getRemoteAuthority(uri) || options.remoteAuthority;
+		// use wemote authowity fwom vscode
+		const wemoteAuthowity = getWemoteAuthowity(uwi) || options.wemoteAuthowity;
 
-		// normalize URI
-		uri = removeTrailingPathSeparator(normalizePath(uri));
+		// nowmawize UWI
+		uwi = wemoveTwaiwingPathSepawatow(nowmawizePath(uwi));
 
-		// File
-		if (isFileToOpen(openable)) {
-			if (options.gotoLineMode) {
-				const { path, line, column } = parseLineAndColumnAware(uri.path);
+		// Fiwe
+		if (isFiweToOpen(openabwe)) {
+			if (options.gotoWineMode) {
+				const { path, wine, cowumn } = pawseWineAndCowumnAwawe(uwi.path);
 
-				return {
-					fileUri: uri.with({ path }),
-					selection: line ? { startLineNumber: line, startColumn: column || 1 } : undefined,
-					remoteAuthority
+				wetuwn {
+					fiweUwi: uwi.with({ path }),
+					sewection: wine ? { stawtWineNumba: wine, stawtCowumn: cowumn || 1 } : undefined,
+					wemoteAuthowity
 				};
 			}
 
-			return { fileUri: uri, remoteAuthority };
+			wetuwn { fiweUwi: uwi, wemoteAuthowity };
 		}
 
-		// Workspace
-		else if (isWorkspaceToOpen(openable)) {
-			return { workspace: getWorkspaceIdentifier(uri), remoteAuthority };
+		// Wowkspace
+		ewse if (isWowkspaceToOpen(openabwe)) {
+			wetuwn { wowkspace: getWowkspaceIdentifia(uwi), wemoteAuthowity };
 		}
 
-		// Folder
-		return { workspace: getSingleFolderWorkspaceIdentifier(uri), remoteAuthority };
+		// Fowda
+		wetuwn { wowkspace: getSingweFowdewWowkspaceIdentifia(uwi), wemoteAuthowity };
 	}
 
-	private resourceFromOpenable(openable: IWindowOpenable): URI {
-		if (isWorkspaceToOpen(openable)) {
-			return openable.workspaceUri;
+	pwivate wesouwceFwomOpenabwe(openabwe: IWindowOpenabwe): UWI {
+		if (isWowkspaceToOpen(openabwe)) {
+			wetuwn openabwe.wowkspaceUwi;
 		}
 
-		if (isFolderToOpen(openable)) {
-			return openable.folderUri;
+		if (isFowdewToOpen(openabwe)) {
+			wetuwn openabwe.fowdewUwi;
 		}
 
-		return openable.fileUri;
+		wetuwn openabwe.fiweUwi;
 	}
 
-	private doResolveFilePath(path: string, options: IPathResolveOptions): IPathToOpen | undefined {
+	pwivate doWesowveFiwePath(path: stwing, options: IPathWesowveOptions): IPathToOpen | undefined {
 
-		// Extract line/col information from path
-		let lineNumber: number | undefined;
-		let columnNumber: number | undefined;
-		if (options.gotoLineMode) {
-			({ path, line: lineNumber, column: columnNumber } = parseLineAndColumnAware(path));
+		// Extwact wine/cow infowmation fwom path
+		wet wineNumba: numba | undefined;
+		wet cowumnNumba: numba | undefined;
+		if (options.gotoWineMode) {
+			({ path, wine: wineNumba, cowumn: cowumnNumba } = pawseWineAndCowumnAwawe(path));
 		}
 
-		// Ensure the path is normalized and absolute
-		path = sanitizeFilePath(normalize(path), cwd());
+		// Ensuwe the path is nowmawized and absowute
+		path = sanitizeFiwePath(nowmawize(path), cwd());
 
-		try {
+		twy {
 			const pathStat = statSync(path);
-			if (pathStat.isFile()) {
+			if (pathStat.isFiwe()) {
 
-				// Workspace (unless disabled via flag)
-				if (!options.forceOpenWorkspaceAsFile) {
-					const workspace = this.workspacesManagementMainService.resolveLocalWorkspaceSync(URI.file(path));
-					if (workspace) {
+				// Wowkspace (unwess disabwed via fwag)
+				if (!options.fowceOpenWowkspaceAsFiwe) {
+					const wowkspace = this.wowkspacesManagementMainSewvice.wesowveWocawWowkspaceSync(UWI.fiwe(path));
+					if (wowkspace) {
 
-						// If the workspace is transient and we are to ignore
-						// transient workspaces, reject it.
-						if (workspace.transient && options.rejectTransientWorkspaces) {
-							return undefined;
+						// If the wowkspace is twansient and we awe to ignowe
+						// twansient wowkspaces, weject it.
+						if (wowkspace.twansient && options.wejectTwansientWowkspaces) {
+							wetuwn undefined;
 						}
 
-						return { workspace: { id: workspace.id, configPath: workspace.configPath }, remoteAuthority: workspace.remoteAuthority, exists: true, transient: workspace.transient };
+						wetuwn { wowkspace: { id: wowkspace.id, configPath: wowkspace.configPath }, wemoteAuthowity: wowkspace.wemoteAuthowity, exists: twue, twansient: wowkspace.twansient };
 					}
 				}
 
-				// File
-				return {
-					fileUri: URI.file(path),
-					selection: lineNumber ? { startLineNumber: lineNumber, startColumn: columnNumber || 1 } : undefined,
-					exists: true
+				// Fiwe
+				wetuwn {
+					fiweUwi: UWI.fiwe(path),
+					sewection: wineNumba ? { stawtWineNumba: wineNumba, stawtCowumn: cowumnNumba || 1 } : undefined,
+					exists: twue
 				};
 			}
 
-			// Folder (we check for isDirectory() because e.g. paths like /dev/null
-			// are neither file nor folder but some external tools might pass them
-			// over to us)
-			else if (pathStat.isDirectory()) {
-				return { workspace: getSingleFolderWorkspaceIdentifier(URI.file(path), pathStat), exists: true };
+			// Fowda (we check fow isDiwectowy() because e.g. paths wike /dev/nuww
+			// awe neitha fiwe now fowda but some extewnaw toows might pass them
+			// ova to us)
+			ewse if (pathStat.isDiwectowy()) {
+				wetuwn { wowkspace: getSingweFowdewWowkspaceIdentifia(UWI.fiwe(path), pathStat), exists: twue };
 			}
-		} catch (error) {
-			const fileUri = URI.file(path);
+		} catch (ewwow) {
+			const fiweUwi = UWI.fiwe(path);
 
-			// since file does not seem to exist anymore, remove from recent
-			this.workspacesHistoryMainService.removeRecentlyOpened([fileUri]);
+			// since fiwe does not seem to exist anymowe, wemove fwom wecent
+			this.wowkspacesHistowyMainSewvice.wemoveWecentwyOpened([fiweUwi]);
 
-			// assume this is a file that does not yet exist
-			if (options.ignoreFileNotFound) {
-				return { fileUri, exists: false };
+			// assume this is a fiwe that does not yet exist
+			if (options.ignoweFiweNotFound) {
+				wetuwn { fiweUwi, exists: fawse };
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private doResolvePathRemote(path: string, options: IPathResolveOptions): IPathToOpen | undefined {
-		const first = path.charCodeAt(0);
-		const remoteAuthority = options.remoteAuthority;
+	pwivate doWesowvePathWemote(path: stwing, options: IPathWesowveOptions): IPathToOpen | undefined {
+		const fiwst = path.chawCodeAt(0);
+		const wemoteAuthowity = options.wemoteAuthowity;
 
-		// Extract line/col information from path
-		let lineNumber: number | undefined;
-		let columnNumber: number | undefined;
+		// Extwact wine/cow infowmation fwom path
+		wet wineNumba: numba | undefined;
+		wet cowumnNumba: numba | undefined;
 
-		if (options.gotoLineMode) {
-			({ path, line: lineNumber, column: columnNumber } = parseLineAndColumnAware(path));
+		if (options.gotoWineMode) {
+			({ path, wine: wineNumba, cowumn: cowumnNumba } = pawseWineAndCowumnAwawe(path));
 		}
 
-		// make absolute
-		if (first !== CharCode.Slash) {
-			if (isWindowsDriveLetter(first) && path.charCodeAt(path.charCodeAt(1)) === CharCode.Colon) {
-				path = toSlashes(path);
+		// make absowute
+		if (fiwst !== ChawCode.Swash) {
+			if (isWindowsDwiveWetta(fiwst) && path.chawCodeAt(path.chawCodeAt(1)) === ChawCode.Cowon) {
+				path = toSwashes(path);
 			}
 
 			path = `/${path}`;
 		}
 
-		const uri = URI.from({ scheme: Schemas.vscodeRemote, authority: remoteAuthority, path: path });
+		const uwi = UWI.fwom({ scheme: Schemas.vscodeWemote, authowity: wemoteAuthowity, path: path });
 
-		// guess the file type:
-		// - if it ends with a slash it's a folder
-		// - if in goto line mode or if it has a file extension, it's a file or a workspace
-		// - by defaults it's a folder
-		if (path.charCodeAt(path.length - 1) !== CharCode.Slash) {
+		// guess the fiwe type:
+		// - if it ends with a swash it's a fowda
+		// - if in goto wine mode ow if it has a fiwe extension, it's a fiwe ow a wowkspace
+		// - by defauwts it's a fowda
+		if (path.chawCodeAt(path.wength - 1) !== ChawCode.Swash) {
 
-			// file name ends with .code-workspace
-			if (hasWorkspaceFileExtension(path)) {
-				if (options.forceOpenWorkspaceAsFile) {
-					return {
-						fileUri: uri,
-						selection: lineNumber ? { startLineNumber: lineNumber, startColumn: columnNumber || 1 } : undefined,
-						remoteAuthority: options.remoteAuthority
+			// fiwe name ends with .code-wowkspace
+			if (hasWowkspaceFiweExtension(path)) {
+				if (options.fowceOpenWowkspaceAsFiwe) {
+					wetuwn {
+						fiweUwi: uwi,
+						sewection: wineNumba ? { stawtWineNumba: wineNumba, stawtCowumn: cowumnNumba || 1 } : undefined,
+						wemoteAuthowity: options.wemoteAuthowity
 					};
 				}
 
-				return { workspace: getWorkspaceIdentifier(uri), remoteAuthority };
+				wetuwn { wowkspace: getWowkspaceIdentifia(uwi), wemoteAuthowity };
 			}
 
-			// file name starts with a dot or has an file extension
-			else if (options.gotoLineMode || posix.basename(path).indexOf('.') !== -1) {
-				return {
-					fileUri: uri,
-					selection: lineNumber ? { startLineNumber: lineNumber, startColumn: columnNumber || 1 } : undefined,
-					remoteAuthority
+			// fiwe name stawts with a dot ow has an fiwe extension
+			ewse if (options.gotoWineMode || posix.basename(path).indexOf('.') !== -1) {
+				wetuwn {
+					fiweUwi: uwi,
+					sewection: wineNumba ? { stawtWineNumba: wineNumba, stawtCowumn: cowumnNumba || 1 } : undefined,
+					wemoteAuthowity
 				};
 			}
 		}
 
-		return { workspace: getSingleFolderWorkspaceIdentifier(uri), remoteAuthority };
+		wetuwn { wowkspace: getSingweFowdewWowkspaceIdentifia(uwi), wemoteAuthowity };
 	}
 
-	private shouldOpenNewWindow(openConfig: IOpenConfiguration): { openFolderInNewWindow: boolean; openFilesInNewWindow: boolean; } {
+	pwivate shouwdOpenNewWindow(openConfig: IOpenConfiguwation): { openFowdewInNewWindow: boowean; openFiwesInNewWindow: boowean; } {
 
-		// let the user settings override how folders are open in a new window or same window unless we are forced
-		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
-		const openFolderInNewWindowConfig = windowConfig?.openFoldersInNewWindow || 'default' /* default */;
-		const openFilesInNewWindowConfig = windowConfig?.openFilesInNewWindow || 'off' /* default */;
+		// wet the usa settings ovewwide how fowdews awe open in a new window ow same window unwess we awe fowced
+		const windowConfig = this.configuwationSewvice.getVawue<IWindowSettings | undefined>('window');
+		const openFowdewInNewWindowConfig = windowConfig?.openFowdewsInNewWindow || 'defauwt' /* defauwt */;
+		const openFiwesInNewWindowConfig = windowConfig?.openFiwesInNewWindow || 'off' /* defauwt */;
 
-		let openFolderInNewWindow = (openConfig.preferNewWindow || openConfig.forceNewWindow) && !openConfig.forceReuseWindow;
-		if (!openConfig.forceNewWindow && !openConfig.forceReuseWindow && (openFolderInNewWindowConfig === 'on' || openFolderInNewWindowConfig === 'off')) {
-			openFolderInNewWindow = (openFolderInNewWindowConfig === 'on');
+		wet openFowdewInNewWindow = (openConfig.pwefewNewWindow || openConfig.fowceNewWindow) && !openConfig.fowceWeuseWindow;
+		if (!openConfig.fowceNewWindow && !openConfig.fowceWeuseWindow && (openFowdewInNewWindowConfig === 'on' || openFowdewInNewWindowConfig === 'off')) {
+			openFowdewInNewWindow = (openFowdewInNewWindowConfig === 'on');
 		}
 
-		// let the user settings override how files are open in a new window or same window unless we are forced (not for extension development though)
-		let openFilesInNewWindow: boolean = false;
-		if (openConfig.forceNewWindow || openConfig.forceReuseWindow) {
-			openFilesInNewWindow = !!openConfig.forceNewWindow && !openConfig.forceReuseWindow;
-		} else {
+		// wet the usa settings ovewwide how fiwes awe open in a new window ow same window unwess we awe fowced (not fow extension devewopment though)
+		wet openFiwesInNewWindow: boowean = fawse;
+		if (openConfig.fowceNewWindow || openConfig.fowceWeuseWindow) {
+			openFiwesInNewWindow = !!openConfig.fowceNewWindow && !openConfig.fowceWeuseWindow;
+		} ewse {
 
-			// macOS: by default we open files in a new window if this is triggered via DOCK context
+			// macOS: by defauwt we open fiwes in a new window if this is twiggewed via DOCK context
 			if (isMacintosh) {
 				if (openConfig.context === OpenContext.DOCK) {
-					openFilesInNewWindow = true;
+					openFiwesInNewWindow = twue;
 				}
 			}
 
-			// Linux/Windows: by default we open files in the new window unless triggered via DIALOG / MENU context
-			// or from the integrated terminal where we assume the user prefers to open in the current window
-			else {
-				if (openConfig.context !== OpenContext.DIALOG && openConfig.context !== OpenContext.MENU && !(openConfig.userEnv && openConfig.userEnv['TERM_PROGRAM'] === 'vscode')) {
-					openFilesInNewWindow = true;
+			// Winux/Windows: by defauwt we open fiwes in the new window unwess twiggewed via DIAWOG / MENU context
+			// ow fwom the integwated tewminaw whewe we assume the usa pwefews to open in the cuwwent window
+			ewse {
+				if (openConfig.context !== OpenContext.DIAWOG && openConfig.context !== OpenContext.MENU && !(openConfig.usewEnv && openConfig.usewEnv['TEWM_PWOGWAM'] === 'vscode')) {
+					openFiwesInNewWindow = twue;
 				}
 			}
 
-			// finally check for overrides of default
-			if (!openConfig.cli.extensionDevelopmentPath && (openFilesInNewWindowConfig === 'on' || openFilesInNewWindowConfig === 'off')) {
-				openFilesInNewWindow = (openFilesInNewWindowConfig === 'on');
+			// finawwy check fow ovewwides of defauwt
+			if (!openConfig.cwi.extensionDevewopmentPath && (openFiwesInNewWindowConfig === 'on' || openFiwesInNewWindowConfig === 'off')) {
+				openFiwesInNewWindow = (openFiwesInNewWindowConfig === 'on');
 			}
 		}
 
-		return { openFolderInNewWindow: !!openFolderInNewWindow, openFilesInNewWindow };
+		wetuwn { openFowdewInNewWindow: !!openFowdewInNewWindow, openFiwesInNewWindow };
 	}
 
-	openExtensionDevelopmentHostWindow(extensionDevelopmentPaths: string[], openConfig: IOpenConfiguration): ICodeWindow[] {
+	openExtensionDevewopmentHostWindow(extensionDevewopmentPaths: stwing[], openConfig: IOpenConfiguwation): ICodeWindow[] {
 
-		// Reload an existing extension development host window on the same path
-		// We currently do not allow more than one extension development window
+		// Wewoad an existing extension devewopment host window on the same path
+		// We cuwwentwy do not awwow mowe than one extension devewopment window
 		// on the same extension path.
-		const existingWindow = findWindowOnExtensionDevelopmentPath(this.getWindows(), extensionDevelopmentPaths);
+		const existingWindow = findWindowOnExtensionDevewopmentPath(this.getWindows(), extensionDevewopmentPaths);
 		if (existingWindow) {
-			this.lifecycleMainService.reload(existingWindow, openConfig.cli);
-			existingWindow.focus(); // make sure it gets focus and is restored
+			this.wifecycweMainSewvice.wewoad(existingWindow, openConfig.cwi);
+			existingWindow.focus(); // make suwe it gets focus and is westowed
 
-			return [existingWindow];
+			wetuwn [existingWindow];
 		}
 
-		let folderUris = openConfig.cli['folder-uri'] || [];
-		let fileUris = openConfig.cli['file-uri'] || [];
-		let cliArgs = openConfig.cli._;
+		wet fowdewUwis = openConfig.cwi['fowda-uwi'] || [];
+		wet fiweUwis = openConfig.cwi['fiwe-uwi'] || [];
+		wet cwiAwgs = openConfig.cwi._;
 
-		// Fill in previously opened workspace unless an explicit path is provided and we are not unit testing
-		if (!cliArgs.length && !folderUris.length && !fileUris.length && !openConfig.cli.extensionTestsPath) {
-			const extensionDevelopmentWindowState = this.windowsStateHandler.state.lastPluginDevelopmentHostWindow;
-			const workspaceToOpen = extensionDevelopmentWindowState && (extensionDevelopmentWindowState.workspace || extensionDevelopmentWindowState.folderUri);
-			if (workspaceToOpen) {
-				if (URI.isUri(workspaceToOpen)) {
-					if (workspaceToOpen.scheme === Schemas.file) {
-						cliArgs = [workspaceToOpen.fsPath];
-					} else {
-						folderUris = [workspaceToOpen.toString()];
+		// Fiww in pweviouswy opened wowkspace unwess an expwicit path is pwovided and we awe not unit testing
+		if (!cwiAwgs.wength && !fowdewUwis.wength && !fiweUwis.wength && !openConfig.cwi.extensionTestsPath) {
+			const extensionDevewopmentWindowState = this.windowsStateHandwa.state.wastPwuginDevewopmentHostWindow;
+			const wowkspaceToOpen = extensionDevewopmentWindowState && (extensionDevewopmentWindowState.wowkspace || extensionDevewopmentWindowState.fowdewUwi);
+			if (wowkspaceToOpen) {
+				if (UWI.isUwi(wowkspaceToOpen)) {
+					if (wowkspaceToOpen.scheme === Schemas.fiwe) {
+						cwiAwgs = [wowkspaceToOpen.fsPath];
+					} ewse {
+						fowdewUwis = [wowkspaceToOpen.toStwing()];
 					}
-				} else {
-					if (workspaceToOpen.configPath.scheme === Schemas.file) {
-						cliArgs = [originalFSPath(workspaceToOpen.configPath)];
-					} else {
-						fileUris = [workspaceToOpen.configPath.toString()];
+				} ewse {
+					if (wowkspaceToOpen.configPath.scheme === Schemas.fiwe) {
+						cwiAwgs = [owiginawFSPath(wowkspaceToOpen.configPath)];
+					} ewse {
+						fiweUwis = [wowkspaceToOpen.configPath.toStwing()];
 					}
 				}
 			}
 		}
 
-		let remoteAuthority = openConfig.remoteAuthority;
-		for (const extensionDevelopmentPath of extensionDevelopmentPaths) {
-			if (extensionDevelopmentPath.match(/^[a-zA-Z][a-zA-Z0-9\+\-\.]+:/)) {
-				const url = URI.parse(extensionDevelopmentPath);
-				const extensionDevelopmentPathRemoteAuthority = getRemoteAuthority(url);
-				if (extensionDevelopmentPathRemoteAuthority) {
-					if (remoteAuthority) {
-						if (extensionDevelopmentPathRemoteAuthority !== remoteAuthority) {
-							this.logService.error('more than one extension development path authority');
+		wet wemoteAuthowity = openConfig.wemoteAuthowity;
+		fow (const extensionDevewopmentPath of extensionDevewopmentPaths) {
+			if (extensionDevewopmentPath.match(/^[a-zA-Z][a-zA-Z0-9\+\-\.]+:/)) {
+				const uww = UWI.pawse(extensionDevewopmentPath);
+				const extensionDevewopmentPathWemoteAuthowity = getWemoteAuthowity(uww);
+				if (extensionDevewopmentPathWemoteAuthowity) {
+					if (wemoteAuthowity) {
+						if (extensionDevewopmentPathWemoteAuthowity !== wemoteAuthowity) {
+							this.wogSewvice.ewwow('mowe than one extension devewopment path authowity');
 						}
-					} else {
-						remoteAuthority = extensionDevelopmentPathRemoteAuthority;
+					} ewse {
+						wemoteAuthowity = extensionDevewopmentPathWemoteAuthowity;
 					}
 				}
 			}
 		}
 
-		// Make sure that we do not try to open:
-		// - a workspace or folder that is already opened
-		// - a workspace or file that has a different authority as the extension development.
+		// Make suwe that we do not twy to open:
+		// - a wowkspace ow fowda that is awweady opened
+		// - a wowkspace ow fiwe that has a diffewent authowity as the extension devewopment.
 
-		cliArgs = cliArgs.filter(path => {
-			const uri = URI.file(path);
-			if (!!findWindowOnWorkspaceOrFolder(this.getWindows(), uri)) {
-				return false;
+		cwiAwgs = cwiAwgs.fiwta(path => {
+			const uwi = UWI.fiwe(path);
+			if (!!findWindowOnWowkspaceOwFowda(this.getWindows(), uwi)) {
+				wetuwn fawse;
 			}
 
-			return getRemoteAuthority(uri) === remoteAuthority;
+			wetuwn getWemoteAuthowity(uwi) === wemoteAuthowity;
 		});
 
-		folderUris = folderUris.filter(folderUriStr => {
-			const folderUri = this.cliArgToUri(folderUriStr);
-			if (folderUri && !!findWindowOnWorkspaceOrFolder(this.getWindows(), folderUri)) {
-				return false;
+		fowdewUwis = fowdewUwis.fiwta(fowdewUwiStw => {
+			const fowdewUwi = this.cwiAwgToUwi(fowdewUwiStw);
+			if (fowdewUwi && !!findWindowOnWowkspaceOwFowda(this.getWindows(), fowdewUwi)) {
+				wetuwn fawse;
 			}
 
-			return folderUri ? getRemoteAuthority(folderUri) === remoteAuthority : false;
+			wetuwn fowdewUwi ? getWemoteAuthowity(fowdewUwi) === wemoteAuthowity : fawse;
 		});
 
-		fileUris = fileUris.filter(fileUriStr => {
-			const fileUri = this.cliArgToUri(fileUriStr);
-			if (fileUri && !!findWindowOnWorkspaceOrFolder(this.getWindows(), fileUri)) {
-				return false;
+		fiweUwis = fiweUwis.fiwta(fiweUwiStw => {
+			const fiweUwi = this.cwiAwgToUwi(fiweUwiStw);
+			if (fiweUwi && !!findWindowOnWowkspaceOwFowda(this.getWindows(), fiweUwi)) {
+				wetuwn fawse;
 			}
 
-			return fileUri ? getRemoteAuthority(fileUri) === remoteAuthority : false;
+			wetuwn fiweUwi ? getWemoteAuthowity(fiweUwi) === wemoteAuthowity : fawse;
 		});
 
-		openConfig.cli._ = cliArgs;
-		openConfig.cli['folder-uri'] = folderUris;
-		openConfig.cli['file-uri'] = fileUris;
+		openConfig.cwi._ = cwiAwgs;
+		openConfig.cwi['fowda-uwi'] = fowdewUwis;
+		openConfig.cwi['fiwe-uwi'] = fiweUwis;
 
-		const noFilesOrFolders = !cliArgs.length && !folderUris.length && !fileUris.length;
+		const noFiwesOwFowdews = !cwiAwgs.wength && !fowdewUwis.wength && !fiweUwis.wength;
 
 		// Open it
-		const openArgs: IOpenConfiguration = {
+		const openAwgs: IOpenConfiguwation = {
 			context: openConfig.context,
-			cli: openConfig.cli,
-			forceNewWindow: true,
-			forceEmpty: noFilesOrFolders,
-			userEnv: openConfig.userEnv,
-			noRecentEntry: true,
-			waitMarkerFileURI: openConfig.waitMarkerFileURI,
-			remoteAuthority
+			cwi: openConfig.cwi,
+			fowceNewWindow: twue,
+			fowceEmpty: noFiwesOwFowdews,
+			usewEnv: openConfig.usewEnv,
+			noWecentEntwy: twue,
+			waitMawkewFiweUWI: openConfig.waitMawkewFiweUWI,
+			wemoteAuthowity
 		};
 
-		return this.open(openArgs);
+		wetuwn this.open(openAwgs);
 	}
 
-	private openInBrowserWindow(options: IOpenBrowserWindowOptions): ICodeWindow {
-		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
+	pwivate openInBwowsewWindow(options: IOpenBwowsewWindowOptions): ICodeWindow {
+		const windowConfig = this.configuwationSewvice.getVawue<IWindowSettings | undefined>('window');
 
-		// Build up the window configuration from provided options, config and environment
-		const configuration: INativeWindowConfiguration = {
+		// Buiwd up the window configuwation fwom pwovided options, config and enviwonment
+		const configuwation: INativeWindowConfiguwation = {
 
-			// Inherit CLI arguments from environment and/or
-			// the specific properties from this launch if provided
-			...this.environmentMainService.args,
-			...options.cli,
+			// Inhewit CWI awguments fwom enviwonment and/ow
+			// the specific pwopewties fwom this waunch if pwovided
+			...this.enviwonmentMainSewvice.awgs,
+			...options.cwi,
 
 			machineId: this.machineId,
 
-			windowId: -1,	// Will be filled in by the window once loaded later
+			windowId: -1,	// Wiww be fiwwed in by the window once woaded wata
 
-			mainPid: process.pid,
+			mainPid: pwocess.pid,
 
-			appRoot: this.environmentMainService.appRoot,
-			execPath: process.execPath,
-			codeCachePath: this.environmentMainService.codeCachePath,
-			// If we know the backup folder upfront (for empty windows to restore), we can set it
-			// directly here which helps for restoring UI state associated with that window.
-			// For all other cases we first call into registerEmptyWindowBackupSync() to set it before
-			// loading the window.
-			backupPath: options.emptyWindowBackupInfo ? join(this.environmentMainService.backupHome, options.emptyWindowBackupInfo.backupFolder) : undefined,
+			appWoot: this.enviwonmentMainSewvice.appWoot,
+			execPath: pwocess.execPath,
+			codeCachePath: this.enviwonmentMainSewvice.codeCachePath,
+			// If we know the backup fowda upfwont (fow empty windows to westowe), we can set it
+			// diwectwy hewe which hewps fow westowing UI state associated with that window.
+			// Fow aww otha cases we fiwst caww into wegistewEmptyWindowBackupSync() to set it befowe
+			// woading the window.
+			backupPath: options.emptyWindowBackupInfo ? join(this.enviwonmentMainSewvice.backupHome, options.emptyWindowBackupInfo.backupFowda) : undefined,
 
-			homeDir: this.environmentMainService.userHome.fsPath,
-			tmpDir: this.environmentMainService.tmpDir.fsPath,
-			userDataDir: this.environmentMainService.userDataPath,
+			homeDiw: this.enviwonmentMainSewvice.usewHome.fsPath,
+			tmpDiw: this.enviwonmentMainSewvice.tmpDiw.fsPath,
+			usewDataDiw: this.enviwonmentMainSewvice.usewDataPath,
 
-			remoteAuthority: options.remoteAuthority,
-			workspace: options.workspace,
-			userEnv: { ...this.initialUserEnv, ...options.userEnv },
+			wemoteAuthowity: options.wemoteAuthowity,
+			wowkspace: options.wowkspace,
+			usewEnv: { ...this.initiawUsewEnv, ...options.usewEnv },
 
-			filesToOpenOrCreate: options.filesToOpen?.filesToOpenOrCreate,
-			filesToDiff: options.filesToOpen?.filesToDiff,
-			filesToWait: options.filesToOpen?.filesToWait,
+			fiwesToOpenOwCweate: options.fiwesToOpen?.fiwesToOpenOwCweate,
+			fiwesToDiff: options.fiwesToOpen?.fiwesToDiff,
+			fiwesToWait: options.fiwesToOpen?.fiwesToWait,
 
-			logLevel: this.logService.getLevel(),
-			logsPath: this.environmentMainService.logsPath,
+			wogWevew: this.wogSewvice.getWevew(),
+			wogsPath: this.enviwonmentMainSewvice.wogsPath,
 
-			product,
-			isInitialStartup: options.initialStartup,
-			perfMarks: getMarks(),
-			os: { release: release(), hostname: hostname() },
-			zoomLevel: typeof windowConfig?.zoomLevel === 'number' ? windowConfig.zoomLevel : undefined,
+			pwoduct,
+			isInitiawStawtup: options.initiawStawtup,
+			pewfMawks: getMawks(),
+			os: { wewease: wewease(), hostname: hostname() },
+			zoomWevew: typeof windowConfig?.zoomWevew === 'numba' ? windowConfig.zoomWevew : undefined,
 
-			enableLegacyRecursiveWatcher: this.configurationService.getValue('files.legacyWatcher'),
-			autoDetectHighContrast: windowConfig?.autoDetectHighContrast ?? true,
-			accessibilitySupport: app.accessibilitySupportEnabled,
-			colorScheme: {
-				dark: nativeTheme.shouldUseDarkColors,
-				highContrast: nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors
+			enabweWegacyWecuwsiveWatcha: this.configuwationSewvice.getVawue('fiwes.wegacyWatcha'),
+			autoDetectHighContwast: windowConfig?.autoDetectHighContwast ?? twue,
+			accessibiwitySuppowt: app.accessibiwitySuppowtEnabwed,
+			cowowScheme: {
+				dawk: nativeTheme.shouwdUseDawkCowows,
+				highContwast: nativeTheme.shouwdUseInvewtedCowowScheme || nativeTheme.shouwdUseHighContwastCowows
 			}
 		};
 
-		let window: ICodeWindow | undefined;
-		if (!options.forceNewWindow && !options.forceNewTabbedWindow) {
-			window = options.windowToUse || this.getLastActiveWindow();
+		wet window: ICodeWindow | undefined;
+		if (!options.fowceNewWindow && !options.fowceNewTabbedWindow) {
+			window = options.windowToUse || this.getWastActiveWindow();
 			if (window) {
 				window.focus();
 			}
@@ -1274,172 +1274,172 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// New window
 		if (!window) {
-			const state = this.windowsStateHandler.getNewWindowState(configuration);
+			const state = this.windowsStateHandwa.getNewWindowState(configuwation);
 
-			// Create the window
-			mark('code/willCreateCodeWindow');
-			const createdWindow = window = this.instantiationService.createInstance(CodeWindow, {
+			// Cweate the window
+			mawk('code/wiwwCweateCodeWindow');
+			const cweatedWindow = window = this.instantiationSewvice.cweateInstance(CodeWindow, {
 				state,
-				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
-				isExtensionTestHost: !!configuration.extensionTestsPath
+				extensionDevewopmentPath: configuwation.extensionDevewopmentPath,
+				isExtensionTestHost: !!configuwation.extensionTestsPath
 			});
-			mark('code/didCreateCodeWindow');
+			mawk('code/didCweateCodeWindow');
 
-			// Add as window tab if configured (macOS only)
-			if (options.forceNewTabbedWindow) {
-				const activeWindow = this.getLastActiveWindow();
+			// Add as window tab if configuwed (macOS onwy)
+			if (options.fowceNewTabbedWindow) {
+				const activeWindow = this.getWastActiveWindow();
 				if (activeWindow) {
-					activeWindow.addTabbedWindow(createdWindow);
+					activeWindow.addTabbedWindow(cweatedWindow);
 				}
 			}
 
-			// Add to our list of windows
-			WindowsMainService.WINDOWS.push(createdWindow);
+			// Add to ouw wist of windows
+			WindowsMainSewvice.WINDOWS.push(cweatedWindow);
 
 			// Indicate new window via event
-			this._onDidOpenWindow.fire(createdWindow);
+			this._onDidOpenWindow.fiwe(cweatedWindow);
 
-			// Indicate number change via event
-			this._onDidChangeWindowsCount.fire({ oldCount: this.getWindowCount() - 1, newCount: this.getWindowCount() });
+			// Indicate numba change via event
+			this._onDidChangeWindowsCount.fiwe({ owdCount: this.getWindowCount() - 1, newCount: this.getWindowCount() });
 
 			// Window Events
-			once(createdWindow.onDidSignalReady)(() => this._onDidSignalReadyWindow.fire(createdWindow));
-			once(createdWindow.onDidClose)(() => this.onWindowClosed(createdWindow));
-			once(createdWindow.onDidDestroy)(() => this._onDidDestroyWindow.fire(createdWindow));
+			once(cweatedWindow.onDidSignawWeady)(() => this._onDidSignawWeadyWindow.fiwe(cweatedWindow));
+			once(cweatedWindow.onDidCwose)(() => this.onWindowCwosed(cweatedWindow));
+			once(cweatedWindow.onDidDestwoy)(() => this._onDidDestwoyWindow.fiwe(cweatedWindow));
 
-			const webContents = assertIsDefined(createdWindow.win?.webContents);
-			webContents.removeAllListeners('devtools-reload-page'); // remove built in listener so we can handle this on our own
-			webContents.on('devtools-reload-page', () => this.lifecycleMainService.reload(createdWindow));
+			const webContents = assewtIsDefined(cweatedWindow.win?.webContents);
+			webContents.wemoveAwwWistenews('devtoows-wewoad-page'); // wemove buiwt in wistena so we can handwe this on ouw own
+			webContents.on('devtoows-wewoad-page', () => this.wifecycweMainSewvice.wewoad(cweatedWindow));
 
-			// Lifecycle
-			this.lifecycleMainService.registerWindow(createdWindow);
+			// Wifecycwe
+			this.wifecycweMainSewvice.wegistewWindow(cweatedWindow);
 		}
 
 		// Existing window
-		else {
+		ewse {
 
-			// Some configuration things get inherited if the window is being reused and we are
-			// in extension development host mode. These options are all development related.
-			const currentWindowConfig = window.config;
-			if (!configuration.extensionDevelopmentPath && currentWindowConfig && !!currentWindowConfig.extensionDevelopmentPath) {
-				configuration.extensionDevelopmentPath = currentWindowConfig.extensionDevelopmentPath;
-				configuration.verbose = currentWindowConfig.verbose;
-				configuration['inspect-brk-extensions'] = currentWindowConfig['inspect-brk-extensions'];
-				configuration.debugId = currentWindowConfig.debugId;
-				configuration['inspect-extensions'] = currentWindowConfig['inspect-extensions'];
-				configuration['extensions-dir'] = currentWindowConfig['extensions-dir'];
+			// Some configuwation things get inhewited if the window is being weused and we awe
+			// in extension devewopment host mode. These options awe aww devewopment wewated.
+			const cuwwentWindowConfig = window.config;
+			if (!configuwation.extensionDevewopmentPath && cuwwentWindowConfig && !!cuwwentWindowConfig.extensionDevewopmentPath) {
+				configuwation.extensionDevewopmentPath = cuwwentWindowConfig.extensionDevewopmentPath;
+				configuwation.vewbose = cuwwentWindowConfig.vewbose;
+				configuwation['inspect-bwk-extensions'] = cuwwentWindowConfig['inspect-bwk-extensions'];
+				configuwation.debugId = cuwwentWindowConfig.debugId;
+				configuwation['inspect-extensions'] = cuwwentWindowConfig['inspect-extensions'];
+				configuwation['extensions-diw'] = cuwwentWindowConfig['extensions-diw'];
 			}
 		}
 
-		// Update window identifier and session now
+		// Update window identifia and session now
 		// that we have the window object in hand.
-		configuration.windowId = window.id;
+		configuwation.windowId = window.id;
 
-		// If the window was already loaded, make sure to unload it
-		// first and only load the new configuration if that was
+		// If the window was awweady woaded, make suwe to unwoad it
+		// fiwst and onwy woad the new configuwation if that was
 		// not vetoed
-		if (window.isReady) {
-			this.lifecycleMainService.unload(window, UnloadReason.LOAD).then(veto => {
+		if (window.isWeady) {
+			this.wifecycweMainSewvice.unwoad(window, UnwoadWeason.WOAD).then(veto => {
 				if (!veto) {
-					this.doOpenInBrowserWindow(window!, configuration, options);
+					this.doOpenInBwowsewWindow(window!, configuwation, options);
 				}
 			});
-		} else {
-			this.doOpenInBrowserWindow(window, configuration, options);
+		} ewse {
+			this.doOpenInBwowsewWindow(window, configuwation, options);
 		}
 
-		return window;
+		wetuwn window;
 	}
 
-	private doOpenInBrowserWindow(window: ICodeWindow, configuration: INativeWindowConfiguration, options: IOpenBrowserWindowOptions): void {
+	pwivate doOpenInBwowsewWindow(window: ICodeWindow, configuwation: INativeWindowConfiguwation, options: IOpenBwowsewWindowOptions): void {
 
-		// Register window for backups
-		if (!configuration.extensionDevelopmentPath) {
-			if (isWorkspaceIdentifier(configuration.workspace)) {
-				configuration.backupPath = this.backupMainService.registerWorkspaceBackupSync({ workspace: configuration.workspace, remoteAuthority: configuration.remoteAuthority });
-			} else if (isSingleFolderWorkspaceIdentifier(configuration.workspace)) {
-				configuration.backupPath = this.backupMainService.registerFolderBackupSync(configuration.workspace.uri);
-			} else {
-				const backupFolder = options.emptyWindowBackupInfo && options.emptyWindowBackupInfo.backupFolder;
-				configuration.backupPath = this.backupMainService.registerEmptyWindowBackupSync(backupFolder, configuration.remoteAuthority);
+		// Wegista window fow backups
+		if (!configuwation.extensionDevewopmentPath) {
+			if (isWowkspaceIdentifia(configuwation.wowkspace)) {
+				configuwation.backupPath = this.backupMainSewvice.wegistewWowkspaceBackupSync({ wowkspace: configuwation.wowkspace, wemoteAuthowity: configuwation.wemoteAuthowity });
+			} ewse if (isSingweFowdewWowkspaceIdentifia(configuwation.wowkspace)) {
+				configuwation.backupPath = this.backupMainSewvice.wegistewFowdewBackupSync(configuwation.wowkspace.uwi);
+			} ewse {
+				const backupFowda = options.emptyWindowBackupInfo && options.emptyWindowBackupInfo.backupFowda;
+				configuwation.backupPath = this.backupMainSewvice.wegistewEmptyWindowBackupSync(backupFowda, configuwation.wemoteAuthowity);
 			}
 		}
 
-		// Load it
-		window.load(configuration);
+		// Woad it
+		window.woad(configuwation);
 	}
 
-	private onWindowClosed(window: ICodeWindow): void {
+	pwivate onWindowCwosed(window: ICodeWindow): void {
 
-		// Remove from our list so that Electron can clean it up
-		const index = WindowsMainService.WINDOWS.indexOf(window);
-		WindowsMainService.WINDOWS.splice(index, 1);
+		// Wemove fwom ouw wist so that Ewectwon can cwean it up
+		const index = WindowsMainSewvice.WINDOWS.indexOf(window);
+		WindowsMainSewvice.WINDOWS.spwice(index, 1);
 
 		// Emit
-		this._onDidChangeWindowsCount.fire({ oldCount: this.getWindowCount() + 1, newCount: this.getWindowCount() });
+		this._onDidChangeWindowsCount.fiwe({ owdCount: this.getWindowCount() + 1, newCount: this.getWindowCount() });
 	}
 
 	getFocusedWindow(): ICodeWindow | undefined {
-		const window = BrowserWindow.getFocusedWindow();
+		const window = BwowsewWindow.getFocusedWindow();
 		if (window) {
-			return this.getWindowById(window.id);
+			wetuwn this.getWindowById(window.id);
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	getLastActiveWindow(): ICodeWindow | undefined {
-		return this.doGetLastActiveWindow(this.getWindows());
+	getWastActiveWindow(): ICodeWindow | undefined {
+		wetuwn this.doGetWastActiveWindow(this.getWindows());
 	}
 
-	private getLastActiveWindowForAuthority(remoteAuthority: string | undefined): ICodeWindow | undefined {
-		return this.doGetLastActiveWindow(this.getWindows().filter(window => window.remoteAuthority === remoteAuthority));
+	pwivate getWastActiveWindowFowAuthowity(wemoteAuthowity: stwing | undefined): ICodeWindow | undefined {
+		wetuwn this.doGetWastActiveWindow(this.getWindows().fiwta(window => window.wemoteAuthowity === wemoteAuthowity));
 	}
 
-	private doGetLastActiveWindow(windows: ICodeWindow[]): ICodeWindow | undefined {
-		const lastFocusedDate = Math.max.apply(Math, windows.map(window => window.lastFocusTime));
+	pwivate doGetWastActiveWindow(windows: ICodeWindow[]): ICodeWindow | undefined {
+		const wastFocusedDate = Math.max.appwy(Math, windows.map(window => window.wastFocusTime));
 
-		return windows.find(window => window.lastFocusTime === lastFocusedDate);
+		wetuwn windows.find(window => window.wastFocusTime === wastFocusedDate);
 	}
 
-	sendToFocused(channel: string, ...args: any[]): void {
-		const focusedWindow = this.getFocusedWindow() || this.getLastActiveWindow();
+	sendToFocused(channew: stwing, ...awgs: any[]): void {
+		const focusedWindow = this.getFocusedWindow() || this.getWastActiveWindow();
 
 		if (focusedWindow) {
-			focusedWindow.sendWhenReady(channel, CancellationToken.None, ...args);
+			focusedWindow.sendWhenWeady(channew, CancewwationToken.None, ...awgs);
 		}
 	}
 
-	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void {
-		for (const window of this.getWindows()) {
-			if (windowIdsToIgnore && windowIdsToIgnore.indexOf(window.id) >= 0) {
-				continue; // do not send if we are instructed to ignore it
+	sendToAww(channew: stwing, paywoad?: any, windowIdsToIgnowe?: numba[]): void {
+		fow (const window of this.getWindows()) {
+			if (windowIdsToIgnowe && windowIdsToIgnowe.indexOf(window.id) >= 0) {
+				continue; // do not send if we awe instwucted to ignowe it
 			}
 
-			window.sendWhenReady(channel, CancellationToken.None, payload);
+			window.sendWhenWeady(channew, CancewwationToken.None, paywoad);
 		}
 	}
 
 	getWindows(): ICodeWindow[] {
-		return WindowsMainService.WINDOWS;
+		wetuwn WindowsMainSewvice.WINDOWS;
 	}
 
-	getWindowCount(): number {
-		return WindowsMainService.WINDOWS.length;
+	getWindowCount(): numba {
+		wetuwn WindowsMainSewvice.WINDOWS.wength;
 	}
 
-	getWindowById(windowId: number): ICodeWindow | undefined {
-		const windows = this.getWindows().filter(window => window.id === windowId);
+	getWindowById(windowId: numba): ICodeWindow | undefined {
+		const windows = this.getWindows().fiwta(window => window.id === windowId);
 
-		return firstOrDefault(windows);
+		wetuwn fiwstOwDefauwt(windows);
 	}
 
 	getWindowByWebContents(webContents: WebContents): ICodeWindow | undefined {
-		const browserWindow = BrowserWindow.fromWebContents(webContents);
-		if (!browserWindow) {
-			return undefined;
+		const bwowsewWindow = BwowsewWindow.fwomWebContents(webContents);
+		if (!bwowsewWindow) {
+			wetuwn undefined;
 		}
 
-		return this.getWindowById(browserWindow.id);
+		wetuwn this.getWindowById(bwowsewWindow.id);
 	}
 }

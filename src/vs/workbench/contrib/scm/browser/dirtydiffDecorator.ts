@@ -1,1140 +1,1140 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+impowt * as nws fwom 'vs/nws';
 
-import 'vs/css!./media/dirtydiffDecorator';
-import { ThrottledDelayer, first } from 'vs/base/common/async';
-import { IDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import * as ext from 'vs/workbench/common/contributions';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { URI } from 'vs/base/common/uri';
-import { ISCMService, ISCMRepository, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { registerThemingParticipant, IColorTheme, ICssStyleCollector, themeColorFromId, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { Color, RGBA } from 'vs/base/common/color';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
-import { PeekViewWidget, getOuterEditor, peekViewBorder, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/peekView/peekView';
-import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Position } from 'vs/editor/common/core/position';
-import { rot } from 'vs/base/common/numbers';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import { IDiffEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Action, IAction, ActionRunner } from 'vs/base/common/actions';
-import { IActionBarOptions } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { basename, isEqualOrParent } from 'vs/base/common/resources';
-import { MenuId, IMenuService, IMenu, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IChange, IEditorModel, ScrollType, IEditorContribution, IDiffEditorModel } from 'vs/editor/common/editorCommon';
-import { OverviewRulerLane, ITextModel, IModelDecorationOptions, MinimapPosition } from 'vs/editor/common/model';
-import { sortedDiff } from 'vs/base/common/arrays';
-import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ISplice } from 'vs/base/common/sequence';
-import { createStyleSheet } from 'vs/base/browser/dom';
-import { EncodingMode, ITextFileEditorModel, IResolvedTextFileEditorModel, ITextFileService, isTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { gotoNextLocation, gotoPreviousLocation } from 'vs/platform/theme/common/iconRegistry';
-import { Codicon } from 'vs/base/common/codicons';
-import { onUnexpectedError } from 'vs/base/common/errors';
+impowt 'vs/css!./media/diwtydiffDecowatow';
+impowt { ThwottwedDewaya, fiwst } fwom 'vs/base/common/async';
+impowt { IDisposabwe, dispose, toDisposabwe, Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt * as ext fwom 'vs/wowkbench/common/contwibutions';
+impowt { CodeEditowWidget } fwom 'vs/editow/bwowsa/widget/codeEditowWidget';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWesowvedTextEditowModew, ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IEditowWowkewSewvice } fwom 'vs/editow/common/sewvices/editowWowkewSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ISCMSewvice, ISCMWepositowy, ISCMPwovida } fwom 'vs/wowkbench/contwib/scm/common/scm';
+impowt { ModewDecowationOptions } fwom 'vs/editow/common/modew/textModew';
+impowt { wegistewThemingPawticipant, ICowowTheme, ICssStyweCowwectow, themeCowowFwomId, IThemeSewvice, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { wegistewCowow, twanspawent } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { Cowow, WGBA } fwom 'vs/base/common/cowow';
+impowt { ICodeEditow, IEditowMouseEvent, MouseTawgetType } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { wegistewEditowAction, wegistewEditowContwibution, SewvicesAccessow, EditowAction } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { PeekViewWidget, getOutewEditow, peekViewBowda, peekViewTitweBackgwound, peekViewTitweFowegwound, peekViewTitweInfoFowegwound } fwom 'vs/editow/contwib/peekView/peekView';
+impowt { IContextKeySewvice, IContextKey, ContextKeyExpw, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { wot } fwom 'vs/base/common/numbews';
+impowt { KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { EmbeddedDiffEditowWidget } fwom 'vs/editow/bwowsa/widget/embeddedCodeEditowWidget';
+impowt { IDiffEditowOptions, EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { Action, IAction, ActionWunna } fwom 'vs/base/common/actions';
+impowt { IActionBawOptions } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { basename, isEquawOwPawent } fwom 'vs/base/common/wesouwces';
+impowt { MenuId, IMenuSewvice, IMenu, MenuItemAction, MenuWegistwy } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { cweateAndFiwwInActionBawActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { IChange, IEditowModew, ScwowwType, IEditowContwibution, IDiffEditowModew } fwom 'vs/editow/common/editowCommon';
+impowt { OvewviewWuwewWane, ITextModew, IModewDecowationOptions, MinimapPosition } fwom 'vs/editow/common/modew';
+impowt { sowtedDiff } fwom 'vs/base/common/awways';
+impowt { IMawginData } fwom 'vs/editow/bwowsa/contwowwa/mouseTawget';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { ISpwice } fwom 'vs/base/common/sequence';
+impowt { cweateStyweSheet } fwom 'vs/base/bwowsa/dom';
+impowt { EncodingMode, ITextFiweEditowModew, IWesowvedTextFiweEditowModew, ITextFiweSewvice, isTextFiweEditowModew } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { gotoNextWocation, gotoPweviousWocation } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
 
-class DiffActionRunner extends ActionRunner {
+cwass DiffActionWunna extends ActionWunna {
 
-	override runAction(action: IAction, context: any): Promise<any> {
+	ovewwide wunAction(action: IAction, context: any): Pwomise<any> {
 		if (action instanceof MenuItemAction) {
-			return action.run(...context);
+			wetuwn action.wun(...context);
 		}
 
-		return super.runAction(action, context);
+		wetuwn supa.wunAction(action, context);
 	}
 }
 
-export interface IModelRegistry {
-	getModel(editorModel: IEditorModel): DirtyDiffModel | null;
+expowt intewface IModewWegistwy {
+	getModew(editowModew: IEditowModew): DiwtyDiffModew | nuww;
 }
 
-export const isDirtyDiffVisible = new RawContextKey<boolean>('dirtyDiffVisible', false);
+expowt const isDiwtyDiffVisibwe = new WawContextKey<boowean>('diwtyDiffVisibwe', fawse);
 
-function getChangeHeight(change: IChange): number {
-	const modified = change.modifiedEndLineNumber - change.modifiedStartLineNumber + 1;
-	const original = change.originalEndLineNumber - change.originalStartLineNumber + 1;
+function getChangeHeight(change: IChange): numba {
+	const modified = change.modifiedEndWineNumba - change.modifiedStawtWineNumba + 1;
+	const owiginaw = change.owiginawEndWineNumba - change.owiginawStawtWineNumba + 1;
 
-	if (change.originalEndLineNumber === 0) {
-		return modified;
-	} else if (change.modifiedEndLineNumber === 0) {
-		return original;
-	} else {
-		return modified + original;
+	if (change.owiginawEndWineNumba === 0) {
+		wetuwn modified;
+	} ewse if (change.modifiedEndWineNumba === 0) {
+		wetuwn owiginaw;
+	} ewse {
+		wetuwn modified + owiginaw;
 	}
 }
 
-function getModifiedEndLineNumber(change: IChange): number {
-	if (change.modifiedEndLineNumber === 0) {
-		return change.modifiedStartLineNumber === 0 ? 1 : change.modifiedStartLineNumber;
-	} else {
-		return change.modifiedEndLineNumber;
+function getModifiedEndWineNumba(change: IChange): numba {
+	if (change.modifiedEndWineNumba === 0) {
+		wetuwn change.modifiedStawtWineNumba === 0 ? 1 : change.modifiedStawtWineNumba;
+	} ewse {
+		wetuwn change.modifiedEndWineNumba;
 	}
 }
 
-function lineIntersectsChange(lineNumber: number, change: IChange): boolean {
-	// deletion at the beginning of the file
-	if (lineNumber === 1 && change.modifiedStartLineNumber === 0 && change.modifiedEndLineNumber === 0) {
-		return true;
+function wineIntewsectsChange(wineNumba: numba, change: IChange): boowean {
+	// dewetion at the beginning of the fiwe
+	if (wineNumba === 1 && change.modifiedStawtWineNumba === 0 && change.modifiedEndWineNumba === 0) {
+		wetuwn twue;
 	}
 
-	return lineNumber >= change.modifiedStartLineNumber && lineNumber <= (change.modifiedEndLineNumber || change.modifiedStartLineNumber);
+	wetuwn wineNumba >= change.modifiedStawtWineNumba && wineNumba <= (change.modifiedEndWineNumba || change.modifiedStawtWineNumba);
 }
 
-class UIEditorAction extends Action {
+cwass UIEditowAction extends Action {
 
-	private editor: ICodeEditor;
-	private action: EditorAction;
-	private instantiationService: IInstantiationService;
+	pwivate editow: ICodeEditow;
+	pwivate action: EditowAction;
+	pwivate instantiationSewvice: IInstantiationSewvice;
 
-	constructor(
-		editor: ICodeEditor,
-		action: EditorAction,
-		cssClass: string,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService
+	constwuctow(
+		editow: ICodeEditow,
+		action: EditowAction,
+		cssCwass: stwing,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice
 	) {
-		const keybinding = keybindingService.lookupKeybinding(action.id);
-		const label = action.label + (keybinding ? ` (${keybinding.getLabel()})` : '');
+		const keybinding = keybindingSewvice.wookupKeybinding(action.id);
+		const wabew = action.wabew + (keybinding ? ` (${keybinding.getWabew()})` : '');
 
-		super(action.id, label, cssClass);
+		supa(action.id, wabew, cssCwass);
 
-		this.instantiationService = instantiationService;
+		this.instantiationSewvice = instantiationSewvice;
 		this.action = action;
-		this.editor = editor;
+		this.editow = editow;
 	}
 
-	override run(): Promise<any> {
-		return Promise.resolve(this.instantiationService.invokeFunction(accessor => this.action.run(accessor, this.editor, null)));
+	ovewwide wun(): Pwomise<any> {
+		wetuwn Pwomise.wesowve(this.instantiationSewvice.invokeFunction(accessow => this.action.wun(accessow, this.editow, nuww)));
 	}
 }
 
 enum ChangeType {
 	Modify,
 	Add,
-	Delete
+	Dewete
 }
 
 function getChangeType(change: IChange): ChangeType {
-	if (change.originalEndLineNumber === 0) {
-		return ChangeType.Add;
-	} else if (change.modifiedEndLineNumber === 0) {
-		return ChangeType.Delete;
-	} else {
-		return ChangeType.Modify;
+	if (change.owiginawEndWineNumba === 0) {
+		wetuwn ChangeType.Add;
+	} ewse if (change.modifiedEndWineNumba === 0) {
+		wetuwn ChangeType.Dewete;
+	} ewse {
+		wetuwn ChangeType.Modify;
 	}
 }
 
-function getChangeTypeColor(theme: IColorTheme, changeType: ChangeType): Color | undefined {
+function getChangeTypeCowow(theme: ICowowTheme, changeType: ChangeType): Cowow | undefined {
 	switch (changeType) {
-		case ChangeType.Modify: return theme.getColor(editorGutterModifiedBackground);
-		case ChangeType.Add: return theme.getColor(editorGutterAddedBackground);
-		case ChangeType.Delete: return theme.getColor(editorGutterDeletedBackground);
+		case ChangeType.Modify: wetuwn theme.getCowow(editowGuttewModifiedBackgwound);
+		case ChangeType.Add: wetuwn theme.getCowow(editowGuttewAddedBackgwound);
+		case ChangeType.Dewete: wetuwn theme.getCowow(editowGuttewDewetedBackgwound);
 	}
 }
 
-function getOuterEditorFromDiffEditor(accessor: ServicesAccessor): ICodeEditor | null {
-	const diffEditors = accessor.get(ICodeEditorService).listDiffEditors();
+function getOutewEditowFwomDiffEditow(accessow: SewvicesAccessow): ICodeEditow | nuww {
+	const diffEditows = accessow.get(ICodeEditowSewvice).wistDiffEditows();
 
-	for (const diffEditor of diffEditors) {
-		if (diffEditor.hasTextFocus() && diffEditor instanceof EmbeddedDiffEditorWidget) {
-			return diffEditor.getParentEditor();
+	fow (const diffEditow of diffEditows) {
+		if (diffEditow.hasTextFocus() && diffEditow instanceof EmbeddedDiffEditowWidget) {
+			wetuwn diffEditow.getPawentEditow();
 		}
 	}
 
-	return getOuterEditor(accessor);
+	wetuwn getOutewEditow(accessow);
 }
 
-class DirtyDiffWidget extends PeekViewWidget {
+cwass DiwtyDiffWidget extends PeekViewWidget {
 
-	private diffEditor!: EmbeddedDiffEditorWidget;
-	private title: string;
-	private menu: IMenu;
-	private index: number = 0;
-	private change: IChange | undefined;
-	private height: number | undefined = undefined;
+	pwivate diffEditow!: EmbeddedDiffEditowWidget;
+	pwivate titwe: stwing;
+	pwivate menu: IMenu;
+	pwivate index: numba = 0;
+	pwivate change: IChange | undefined;
+	pwivate height: numba | undefined = undefined;
 
-	constructor(
-		editor: ICodeEditor,
-		private model: DirtyDiffModel,
-		@IThemeService private readonly themeService: IThemeService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IMenuService menuService: IMenuService,
-		@IContextKeyService _contextKeyService: IContextKeyService
+	constwuctow(
+		editow: ICodeEditow,
+		pwivate modew: DiwtyDiffModew,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IMenuSewvice menuSewvice: IMenuSewvice,
+		@IContextKeySewvice _contextKeySewvice: IContextKeySewvice
 	) {
-		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true }, instantiationService);
+		supa(editow, { isWesizeabwe: twue, fwameWidth: 1, keepEditowSewection: twue }, instantiationSewvice);
 
-		this._disposables.add(themeService.onDidColorThemeChange(this._applyTheme, this));
-		this._applyTheme(themeService.getColorTheme());
+		this._disposabwes.add(themeSewvice.onDidCowowThemeChange(this._appwyTheme, this));
+		this._appwyTheme(themeSewvice.getCowowTheme());
 
-		const contextKeyService = _contextKeyService.createOverlay([
-			['originalResourceScheme', this.model.original!.uri.scheme]
+		const contextKeySewvice = _contextKeySewvice.cweateOvewway([
+			['owiginawWesouwceScheme', this.modew.owiginaw!.uwi.scheme]
 		]);
-		this.menu = menuService.createMenu(MenuId.SCMChangeContext, contextKeyService);
-		this._disposables.add(this.menu);
+		this.menu = menuSewvice.cweateMenu(MenuId.SCMChangeContext, contextKeySewvice);
+		this._disposabwes.add(this.menu);
 
-		this.create();
-		if (editor.hasModel()) {
-			this.title = basename(editor.getModel().uri);
-		} else {
-			this.title = '';
+		this.cweate();
+		if (editow.hasModew()) {
+			this.titwe = basename(editow.getModew().uwi);
+		} ewse {
+			this.titwe = '';
 		}
-		this.setTitle(this.title);
+		this.setTitwe(this.titwe);
 
-		this._disposables.add(model.onDidChange(this.renderTitle, this));
+		this._disposabwes.add(modew.onDidChange(this.wendewTitwe, this));
 	}
 
-	showChange(index: number): void {
-		const change = this.model.changes[index];
+	showChange(index: numba): void {
+		const change = this.modew.changes[index];
 		this.index = index;
 		this.change = change;
 
-		const originalModel = this.model.original;
+		const owiginawModew = this.modew.owiginaw;
 
-		if (!originalModel) {
-			return;
+		if (!owiginawModew) {
+			wetuwn;
 		}
 
-		const onFirstDiffUpdate = Event.once(this.diffEditor.onDidUpdateDiff);
+		const onFiwstDiffUpdate = Event.once(this.diffEditow.onDidUpdateDiff);
 
-		// TODO@joao TODO@alex need this setTimeout probably because the
-		// non-side-by-side diff still hasn't created the view zones
-		onFirstDiffUpdate(() => setTimeout(() => this.revealChange(change), 0));
+		// TODO@joao TODO@awex need this setTimeout pwobabwy because the
+		// non-side-by-side diff stiww hasn't cweated the view zones
+		onFiwstDiffUpdate(() => setTimeout(() => this.weveawChange(change), 0));
 
-		this.diffEditor.setModel(this.model as IDiffEditorModel);
+		this.diffEditow.setModew(this.modew as IDiffEditowModew);
 
-		const position = new Position(getModifiedEndLineNumber(change), 1);
+		const position = new Position(getModifiedEndWineNumba(change), 1);
 
-		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
-		const editorHeight = this.editor.getLayoutInfo().height;
-		const editorHeightInLines = Math.floor(editorHeight / lineHeight);
-		const height = Math.min(getChangeHeight(change) + /* padding */ 8, Math.floor(editorHeightInLines / 3));
+		const wineHeight = this.editow.getOption(EditowOption.wineHeight);
+		const editowHeight = this.editow.getWayoutInfo().height;
+		const editowHeightInWines = Math.fwoow(editowHeight / wineHeight);
+		const height = Math.min(getChangeHeight(change) + /* padding */ 8, Math.fwoow(editowHeightInWines / 3));
 
-		this.renderTitle();
+		this.wendewTitwe();
 
 		const changeType = getChangeType(change);
-		const changeTypeColor = getChangeTypeColor(this.themeService.getColorTheme(), changeType);
-		this.style({ frameColor: changeTypeColor, arrowColor: changeTypeColor });
+		const changeTypeCowow = getChangeTypeCowow(this.themeSewvice.getCowowTheme(), changeType);
+		this.stywe({ fwameCowow: changeTypeCowow, awwowCowow: changeTypeCowow });
 
-		this._actionbarWidget!.context = [this.model.modified!.uri, this.model.changes, index];
+		this._actionbawWidget!.context = [this.modew.modified!.uwi, this.modew.changes, index];
 		this.show(position, height);
-		this.editor.focus();
+		this.editow.focus();
 	}
 
-	private renderTitle(): void {
-		const detail = this.model.changes.length > 1
-			? nls.localize('changes', "{0} of {1} changes", this.index + 1, this.model.changes.length)
-			: nls.localize('change', "{0} of {1} change", this.index + 1, this.model.changes.length);
+	pwivate wendewTitwe(): void {
+		const detaiw = this.modew.changes.wength > 1
+			? nws.wocawize('changes', "{0} of {1} changes", this.index + 1, this.modew.changes.wength)
+			: nws.wocawize('change', "{0} of {1} change", this.index + 1, this.modew.changes.wength);
 
-		this.setTitle(this.title, detail);
+		this.setTitwe(this.titwe, detaiw);
 	}
 
-	protected override _fillHead(container: HTMLElement): void {
-		super._fillHead(container, true);
+	pwotected ovewwide _fiwwHead(containa: HTMWEwement): void {
+		supa._fiwwHead(containa, twue);
 
-		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(), ThemeIcon.asClassName(gotoPreviousLocation));
-		const next = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowNextChangeAction(), ThemeIcon.asClassName(gotoNextLocation));
+		const pwevious = this.instantiationSewvice.cweateInstance(UIEditowAction, this.editow, new ShowPweviousChangeAction(), ThemeIcon.asCwassName(gotoPweviousWocation));
+		const next = this.instantiationSewvice.cweateInstance(UIEditowAction, this.editow, new ShowNextChangeAction(), ThemeIcon.asCwassName(gotoNextWocation));
 
-		this._disposables.add(previous);
-		this._disposables.add(next);
+		this._disposabwes.add(pwevious);
+		this._disposabwes.add(next);
 
 		const actions: IAction[] = [];
-		this._disposables.add(createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, actions));
-		this._actionbarWidget!.push(actions.reverse(), { label: false, icon: true });
-		this._actionbarWidget!.push([next, previous], { label: false, icon: true });
-		this._actionbarWidget!.push(new Action('peekview.close', nls.localize('label.close', "Close"), Codicon.close.classNames, true, () => this.dispose()), { label: false, icon: true });
+		this._disposabwes.add(cweateAndFiwwInActionBawActions(this.menu, { shouwdFowwawdAwgs: twue }, actions));
+		this._actionbawWidget!.push(actions.wevewse(), { wabew: fawse, icon: twue });
+		this._actionbawWidget!.push([next, pwevious], { wabew: fawse, icon: twue });
+		this._actionbawWidget!.push(new Action('peekview.cwose', nws.wocawize('wabew.cwose', "Cwose"), Codicon.cwose.cwassNames, twue, () => this.dispose()), { wabew: fawse, icon: twue });
 	}
 
-	protected override _getActionBarOptions(): IActionBarOptions {
-		const actionRunner = new DiffActionRunner();
+	pwotected ovewwide _getActionBawOptions(): IActionBawOptions {
+		const actionWunna = new DiffActionWunna();
 
-		// close widget on successful action
-		actionRunner.onDidRun(e => {
-			if (!(e.action instanceof UIEditorAction) && !e.error) {
+		// cwose widget on successfuw action
+		actionWunna.onDidWun(e => {
+			if (!(e.action instanceof UIEditowAction) && !e.ewwow) {
 				this.dispose();
 			}
 		});
 
-		return {
-			...super._getActionBarOptions(),
-			actionRunner
+		wetuwn {
+			...supa._getActionBawOptions(),
+			actionWunna
 		};
 	}
 
-	protected _fillBody(container: HTMLElement): void {
-		const options: IDiffEditorOptions = {
-			scrollBeyondLastLine: true,
-			scrollbar: {
-				verticalScrollbarSize: 14,
-				horizontal: 'auto',
-				useShadows: true,
-				verticalHasArrows: false,
-				horizontalHasArrows: false
+	pwotected _fiwwBody(containa: HTMWEwement): void {
+		const options: IDiffEditowOptions = {
+			scwowwBeyondWastWine: twue,
+			scwowwbaw: {
+				vewticawScwowwbawSize: 14,
+				howizontaw: 'auto',
+				useShadows: twue,
+				vewticawHasAwwows: fawse,
+				howizontawHasAwwows: fawse
 			},
-			overviewRulerLanes: 2,
-			fixedOverflowWidgets: true,
-			minimap: { enabled: false },
-			renderSideBySide: false,
-			readOnly: false,
-			ignoreTrimWhitespace: false
+			ovewviewWuwewWanes: 2,
+			fixedOvewfwowWidgets: twue,
+			minimap: { enabwed: fawse },
+			wendewSideBySide: fawse,
+			weadOnwy: fawse,
+			ignoweTwimWhitespace: fawse
 		};
 
-		this.diffEditor = this.instantiationService.createInstance(EmbeddedDiffEditorWidget, container, options, this.editor);
-		this._disposables.add(this.diffEditor);
+		this.diffEditow = this.instantiationSewvice.cweateInstance(EmbeddedDiffEditowWidget, containa, options, this.editow);
+		this._disposabwes.add(this.diffEditow);
 	}
 
-	override _onWidth(width: number): void {
+	ovewwide _onWidth(width: numba): void {
 		if (typeof this.height === 'undefined') {
-			return;
+			wetuwn;
 		}
 
-		this.diffEditor.layout({ height: this.height, width });
+		this.diffEditow.wayout({ height: this.height, width });
 	}
 
-	protected override _doLayoutBody(height: number, width: number): void {
-		super._doLayoutBody(height, width);
-		this.diffEditor.layout({ height, width });
+	pwotected ovewwide _doWayoutBody(height: numba, width: numba): void {
+		supa._doWayoutBody(height, width);
+		this.diffEditow.wayout({ height, width });
 
 		if (typeof this.height === 'undefined' && this.change) {
-			this.revealChange(this.change);
+			this.weveawChange(this.change);
 		}
 
 		this.height = height;
 	}
 
-	private revealChange(change: IChange): void {
-		let start: number, end: number;
+	pwivate weveawChange(change: IChange): void {
+		wet stawt: numba, end: numba;
 
-		if (change.modifiedEndLineNumber === 0) { // deletion
-			start = change.modifiedStartLineNumber;
-			end = change.modifiedStartLineNumber + 1;
-		} else if (change.originalEndLineNumber > 0) { // modification
-			start = change.modifiedStartLineNumber - 1;
-			end = change.modifiedEndLineNumber + 1;
-		} else { // insertion
-			start = change.modifiedStartLineNumber;
-			end = change.modifiedEndLineNumber;
+		if (change.modifiedEndWineNumba === 0) { // dewetion
+			stawt = change.modifiedStawtWineNumba;
+			end = change.modifiedStawtWineNumba + 1;
+		} ewse if (change.owiginawEndWineNumba > 0) { // modification
+			stawt = change.modifiedStawtWineNumba - 1;
+			end = change.modifiedEndWineNumba + 1;
+		} ewse { // insewtion
+			stawt = change.modifiedStawtWineNumba;
+			end = change.modifiedEndWineNumba;
 		}
 
-		this.diffEditor.revealLinesInCenter(start, end, ScrollType.Immediate);
+		this.diffEditow.weveawWinesInCenta(stawt, end, ScwowwType.Immediate);
 	}
 
-	private _applyTheme(theme: IColorTheme) {
-		const borderColor = theme.getColor(peekViewBorder) || Color.transparent;
-		this.style({
-			arrowColor: borderColor,
-			frameColor: borderColor,
-			headerBackgroundColor: theme.getColor(peekViewTitleBackground) || Color.transparent,
-			primaryHeadingColor: theme.getColor(peekViewTitleForeground),
-			secondaryHeadingColor: theme.getColor(peekViewTitleInfoForeground)
+	pwivate _appwyTheme(theme: ICowowTheme) {
+		const bowdewCowow = theme.getCowow(peekViewBowda) || Cowow.twanspawent;
+		this.stywe({
+			awwowCowow: bowdewCowow,
+			fwameCowow: bowdewCowow,
+			headewBackgwoundCowow: theme.getCowow(peekViewTitweBackgwound) || Cowow.twanspawent,
+			pwimawyHeadingCowow: theme.getCowow(peekViewTitweFowegwound),
+			secondawyHeadingCowow: theme.getCowow(peekViewTitweInfoFowegwound)
 		});
 	}
 
-	protected override revealLine(lineNumber: number) {
-		this.editor.revealLineInCenterIfOutsideViewport(lineNumber, ScrollType.Smooth);
+	pwotected ovewwide weveawWine(wineNumba: numba) {
+		this.editow.weveawWineInCentewIfOutsideViewpowt(wineNumba, ScwowwType.Smooth);
 	}
 
-	hasFocus(): boolean {
-		return this.diffEditor.hasTextFocus();
+	hasFocus(): boowean {
+		wetuwn this.diffEditow.hasTextFocus();
 	}
 }
 
-export class ShowPreviousChangeAction extends EditorAction {
+expowt cwass ShowPweviousChangeAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.dirtydiff.previous',
-			label: nls.localize('show previous change', "Show Previous Change"),
-			alias: 'Show Previous Change',
-			precondition: undefined,
-			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F3, weight: KeybindingWeight.EditorContrib }
+	constwuctow() {
+		supa({
+			id: 'editow.action.diwtydiff.pwevious',
+			wabew: nws.wocawize('show pwevious change', "Show Pwevious Change"),
+			awias: 'Show Pwevious Change',
+			pwecondition: undefined,
+			kbOpts: { kbExpw: EditowContextKeys.editowTextFocus, pwimawy: KeyMod.Shift | KeyMod.Awt | KeyCode.F3, weight: KeybindingWeight.EditowContwib }
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const outerEditor = getOuterEditorFromDiffEditor(accessor);
+	wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		const outewEditow = getOutewEditowFwomDiffEditow(accessow);
 
-		if (!outerEditor) {
-			return;
+		if (!outewEditow) {
+			wetuwn;
 		}
 
-		const controller = DirtyDiffController.get(outerEditor);
+		const contwowwa = DiwtyDiffContwowwa.get(outewEditow);
 
-		if (!controller) {
-			return;
+		if (!contwowwa) {
+			wetuwn;
 		}
 
-		if (!controller.canNavigate()) {
-			return;
+		if (!contwowwa.canNavigate()) {
+			wetuwn;
 		}
 
-		controller.previous();
+		contwowwa.pwevious();
 	}
 }
-registerEditorAction(ShowPreviousChangeAction);
+wegistewEditowAction(ShowPweviousChangeAction);
 
-export class ShowNextChangeAction extends EditorAction {
+expowt cwass ShowNextChangeAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.dirtydiff.next',
-			label: nls.localize('show next change', "Show Next Change"),
-			alias: 'Show Next Change',
-			precondition: undefined,
-			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Alt | KeyCode.F3, weight: KeybindingWeight.EditorContrib }
+	constwuctow() {
+		supa({
+			id: 'editow.action.diwtydiff.next',
+			wabew: nws.wocawize('show next change', "Show Next Change"),
+			awias: 'Show Next Change',
+			pwecondition: undefined,
+			kbOpts: { kbExpw: EditowContextKeys.editowTextFocus, pwimawy: KeyMod.Awt | KeyCode.F3, weight: KeybindingWeight.EditowContwib }
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const outerEditor = getOuterEditorFromDiffEditor(accessor);
+	wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		const outewEditow = getOutewEditowFwomDiffEditow(accessow);
 
-		if (!outerEditor) {
-			return;
+		if (!outewEditow) {
+			wetuwn;
 		}
 
-		const controller = DirtyDiffController.get(outerEditor);
+		const contwowwa = DiwtyDiffContwowwa.get(outewEditow);
 
-		if (!controller) {
-			return;
+		if (!contwowwa) {
+			wetuwn;
 		}
 
-		if (!controller.canNavigate()) {
-			return;
+		if (!contwowwa.canNavigate()) {
+			wetuwn;
 		}
 
-		controller.next();
+		contwowwa.next();
 	}
 }
-registerEditorAction(ShowNextChangeAction);
+wegistewEditowAction(ShowNextChangeAction);
 
 // Go to menu
-MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-	group: '7_change_nav',
+MenuWegistwy.appendMenuItem(MenuId.MenubawGoMenu, {
+	gwoup: '7_change_nav',
 	command: {
-		id: 'editor.action.dirtydiff.next',
-		title: nls.localize({ key: 'miGotoNextChange', comment: ['&& denotes a mnemonic'] }, "Next &&Change")
+		id: 'editow.action.diwtydiff.next',
+		titwe: nws.wocawize({ key: 'miGotoNextChange', comment: ['&& denotes a mnemonic'] }, "Next &&Change")
 	},
-	order: 1
+	owda: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-	group: '7_change_nav',
+MenuWegistwy.appendMenuItem(MenuId.MenubawGoMenu, {
+	gwoup: '7_change_nav',
 	command: {
-		id: 'editor.action.dirtydiff.previous',
-		title: nls.localize({ key: 'miGotoPreviousChange', comment: ['&& denotes a mnemonic'] }, "Previous &&Change")
+		id: 'editow.action.diwtydiff.pwevious',
+		titwe: nws.wocawize({ key: 'miGotoPweviousChange', comment: ['&& denotes a mnemonic'] }, "Pwevious &&Change")
 	},
-	order: 2
+	owda: 2
 });
 
-export class MoveToPreviousChangeAction extends EditorAction {
+expowt cwass MoveToPweviousChangeAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'workbench.action.editor.previousChange',
-			label: nls.localize('move to previous change', "Move to Previous Change"),
-			alias: 'Move to Previous Change',
-			precondition: undefined,
-			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F5, weight: KeybindingWeight.EditorContrib }
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.editow.pweviousChange',
+			wabew: nws.wocawize('move to pwevious change', "Move to Pwevious Change"),
+			awias: 'Move to Pwevious Change',
+			pwecondition: undefined,
+			kbOpts: { kbExpw: EditowContextKeys.editowTextFocus, pwimawy: KeyMod.Shift | KeyMod.Awt | KeyCode.F5, weight: KeybindingWeight.EditowContwib }
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const outerEditor = getOuterEditorFromDiffEditor(accessor);
+	wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		const outewEditow = getOutewEditowFwomDiffEditow(accessow);
 
-		if (!outerEditor || !outerEditor.hasModel()) {
-			return;
+		if (!outewEditow || !outewEditow.hasModew()) {
+			wetuwn;
 		}
 
-		const controller = DirtyDiffController.get(outerEditor);
+		const contwowwa = DiwtyDiffContwowwa.get(outewEditow);
 
-		if (!controller || !controller.modelRegistry) {
-			return;
+		if (!contwowwa || !contwowwa.modewWegistwy) {
+			wetuwn;
 		}
 
-		const lineNumber = outerEditor.getPosition().lineNumber;
-		const model = controller.modelRegistry.getModel(outerEditor.getModel());
+		const wineNumba = outewEditow.getPosition().wineNumba;
+		const modew = contwowwa.modewWegistwy.getModew(outewEditow.getModew());
 
-		if (!model || model.changes.length === 0) {
-			return;
+		if (!modew || modew.changes.wength === 0) {
+			wetuwn;
 		}
 
-		const index = model.findPreviousClosestChange(lineNumber, false);
-		const change = model.changes[index];
+		const index = modew.findPweviousCwosestChange(wineNumba, fawse);
+		const change = modew.changes[index];
 
-		const position = new Position(change.modifiedStartLineNumber, 1);
-		outerEditor.setPosition(position);
-		outerEditor.revealPositionInCenter(position);
+		const position = new Position(change.modifiedStawtWineNumba, 1);
+		outewEditow.setPosition(position);
+		outewEditow.weveawPositionInCenta(position);
 	}
 }
-registerEditorAction(MoveToPreviousChangeAction);
+wegistewEditowAction(MoveToPweviousChangeAction);
 
-export class MoveToNextChangeAction extends EditorAction {
+expowt cwass MoveToNextChangeAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'workbench.action.editor.nextChange',
-			label: nls.localize('move to next change', "Move to Next Change"),
-			alias: 'Move to Next Change',
-			precondition: undefined,
-			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Alt | KeyCode.F5, weight: KeybindingWeight.EditorContrib }
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.editow.nextChange',
+			wabew: nws.wocawize('move to next change', "Move to Next Change"),
+			awias: 'Move to Next Change',
+			pwecondition: undefined,
+			kbOpts: { kbExpw: EditowContextKeys.editowTextFocus, pwimawy: KeyMod.Awt | KeyCode.F5, weight: KeybindingWeight.EditowContwib }
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const outerEditor = getOuterEditorFromDiffEditor(accessor);
+	wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		const outewEditow = getOutewEditowFwomDiffEditow(accessow);
 
-		if (!outerEditor || !outerEditor.hasModel()) {
-			return;
+		if (!outewEditow || !outewEditow.hasModew()) {
+			wetuwn;
 		}
 
-		const controller = DirtyDiffController.get(outerEditor);
+		const contwowwa = DiwtyDiffContwowwa.get(outewEditow);
 
-		if (!controller || !controller.modelRegistry) {
-			return;
+		if (!contwowwa || !contwowwa.modewWegistwy) {
+			wetuwn;
 		}
 
-		const lineNumber = outerEditor.getPosition().lineNumber;
-		const model = controller.modelRegistry.getModel(outerEditor.getModel());
+		const wineNumba = outewEditow.getPosition().wineNumba;
+		const modew = contwowwa.modewWegistwy.getModew(outewEditow.getModew());
 
-		if (!model || model.changes.length === 0) {
-			return;
+		if (!modew || modew.changes.wength === 0) {
+			wetuwn;
 		}
 
-		const index = model.findNextClosestChange(lineNumber, false);
-		const change = model.changes[index];
+		const index = modew.findNextCwosestChange(wineNumba, fawse);
+		const change = modew.changes[index];
 
-		const position = new Position(change.modifiedStartLineNumber, 1);
-		outerEditor.setPosition(position);
-		outerEditor.revealPositionInCenter(position);
+		const position = new Position(change.modifiedStawtWineNumba, 1);
+		outewEditow.setPosition(position);
+		outewEditow.weveawPositionInCenta(position);
 	}
 }
-registerEditorAction(MoveToNextChangeAction);
+wegistewEditowAction(MoveToNextChangeAction);
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'closeDirtyDiff',
-	weight: KeybindingWeight.EditorContrib + 50,
-	primary: KeyCode.Escape,
-	secondary: [KeyMod.Shift | KeyCode.Escape],
-	when: ContextKeyExpr.and(isDirtyDiffVisible),
-	handler: (accessor: ServicesAccessor) => {
-		const outerEditor = getOuterEditorFromDiffEditor(accessor);
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'cwoseDiwtyDiff',
+	weight: KeybindingWeight.EditowContwib + 50,
+	pwimawy: KeyCode.Escape,
+	secondawy: [KeyMod.Shift | KeyCode.Escape],
+	when: ContextKeyExpw.and(isDiwtyDiffVisibwe),
+	handwa: (accessow: SewvicesAccessow) => {
+		const outewEditow = getOutewEditowFwomDiffEditow(accessow);
 
-		if (!outerEditor) {
-			return;
+		if (!outewEditow) {
+			wetuwn;
 		}
 
-		const controller = DirtyDiffController.get(outerEditor);
+		const contwowwa = DiwtyDiffContwowwa.get(outewEditow);
 
-		if (!controller) {
-			return;
+		if (!contwowwa) {
+			wetuwn;
 		}
 
-		controller.close();
+		contwowwa.cwose();
 	}
 });
 
-export class DirtyDiffController extends Disposable implements IEditorContribution {
+expowt cwass DiwtyDiffContwowwa extends Disposabwe impwements IEditowContwibution {
 
-	public static readonly ID = 'editor.contrib.dirtydiff';
+	pubwic static weadonwy ID = 'editow.contwib.diwtydiff';
 
-	static get(editor: ICodeEditor): DirtyDiffController {
-		return editor.getContribution<DirtyDiffController>(DirtyDiffController.ID);
+	static get(editow: ICodeEditow): DiwtyDiffContwowwa {
+		wetuwn editow.getContwibution<DiwtyDiffContwowwa>(DiwtyDiffContwowwa.ID);
 	}
 
-	modelRegistry: IModelRegistry | null = null;
+	modewWegistwy: IModewWegistwy | nuww = nuww;
 
-	private model: DirtyDiffModel | null = null;
-	private widget: DirtyDiffWidget | null = null;
-	private currentIndex: number = -1;
-	private readonly isDirtyDiffVisible!: IContextKey<boolean>;
-	private session: IDisposable = Disposable.None;
-	private mouseDownInfo: { lineNumber: number } | null = null;
-	private enabled = false;
-	private gutterActionDisposables = new DisposableStore();
-	private stylesheet: HTMLStyleElement;
+	pwivate modew: DiwtyDiffModew | nuww = nuww;
+	pwivate widget: DiwtyDiffWidget | nuww = nuww;
+	pwivate cuwwentIndex: numba = -1;
+	pwivate weadonwy isDiwtyDiffVisibwe!: IContextKey<boowean>;
+	pwivate session: IDisposabwe = Disposabwe.None;
+	pwivate mouseDownInfo: { wineNumba: numba } | nuww = nuww;
+	pwivate enabwed = fawse;
+	pwivate guttewActionDisposabwes = new DisposabweStowe();
+	pwivate stywesheet: HTMWStyweEwement;
 
-	constructor(
-		private editor: ICodeEditor,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+	constwuctow(
+		pwivate editow: ICodeEditow,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice
 	) {
-		super();
-		this.enabled = !contextKeyService.getContextKeyValue('isInDiffEditor');
-		this.stylesheet = createStyleSheet();
-		this._register(toDisposable(() => this.stylesheet.remove()));
+		supa();
+		this.enabwed = !contextKeySewvice.getContextKeyVawue('isInDiffEditow');
+		this.stywesheet = cweateStyweSheet();
+		this._wegista(toDisposabwe(() => this.stywesheet.wemove()));
 
-		if (this.enabled) {
-			this.isDirtyDiffVisible = isDirtyDiffVisible.bindTo(contextKeyService);
-			this._register(editor.onDidChangeModel(() => this.close()));
+		if (this.enabwed) {
+			this.isDiwtyDiffVisibwe = isDiwtyDiffVisibwe.bindTo(contextKeySewvice);
+			this._wegista(editow.onDidChangeModew(() => this.cwose()));
 
-			const onDidChangeGutterAction = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorationsGutterAction'));
-			this._register(onDidChangeGutterAction(this.onDidChangeGutterAction, this));
-			this.onDidChangeGutterAction();
+			const onDidChangeGuttewAction = Event.fiwta(configuwationSewvice.onDidChangeConfiguwation, e => e.affectsConfiguwation('scm.diffDecowationsGuttewAction'));
+			this._wegista(onDidChangeGuttewAction(this.onDidChangeGuttewAction, this));
+			this.onDidChangeGuttewAction();
 		}
 	}
 
-	private onDidChangeGutterAction(): void {
-		const gutterAction = this.configurationService.getValue<'diff' | 'none'>('scm.diffDecorationsGutterAction');
+	pwivate onDidChangeGuttewAction(): void {
+		const guttewAction = this.configuwationSewvice.getVawue<'diff' | 'none'>('scm.diffDecowationsGuttewAction');
 
-		this.gutterActionDisposables.dispose();
-		this.gutterActionDisposables = new DisposableStore();
+		this.guttewActionDisposabwes.dispose();
+		this.guttewActionDisposabwes = new DisposabweStowe();
 
-		if (gutterAction === 'diff') {
-			this.gutterActionDisposables.add(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
-			this.gutterActionDisposables.add(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
-			this.stylesheet.textContent = `
-				.monaco-editor .dirty-diff-glyph {
-					cursor: pointer;
+		if (guttewAction === 'diff') {
+			this.guttewActionDisposabwes.add(this.editow.onMouseDown(e => this.onEditowMouseDown(e)));
+			this.guttewActionDisposabwes.add(this.editow.onMouseUp(e => this.onEditowMouseUp(e)));
+			this.stywesheet.textContent = `
+				.monaco-editow .diwty-diff-gwyph {
+					cuwsow: pointa;
 				}
 
-				.monaco-editor .margin-view-overlays .dirty-diff-glyph:hover::before {
+				.monaco-editow .mawgin-view-ovewways .diwty-diff-gwyph:hova::befowe {
 					width: 9px;
-					left: -6px;
+					weft: -6px;
 				}
 
-				.monaco-editor .margin-view-overlays .dirty-diff-deleted:hover::after {
+				.monaco-editow .mawgin-view-ovewways .diwty-diff-deweted:hova::afta {
 					bottom: 0;
-					border-top-width: 0;
-					border-bottom-width: 0;
+					bowda-top-width: 0;
+					bowda-bottom-width: 0;
 				}
 			`;
-		} else {
-			this.stylesheet.textContent = ``;
+		} ewse {
+			this.stywesheet.textContent = ``;
 		}
 	}
 
-	canNavigate(): boolean {
-		return this.currentIndex === -1 || (!!this.model && this.model.changes.length > 1);
+	canNavigate(): boowean {
+		wetuwn this.cuwwentIndex === -1 || (!!this.modew && this.modew.changes.wength > 1);
 	}
 
-	next(lineNumber?: number): void {
-		if (!this.assertWidget()) {
-			return;
+	next(wineNumba?: numba): void {
+		if (!this.assewtWidget()) {
+			wetuwn;
 		}
-		if (!this.widget || !this.model) {
-			return;
-		}
-
-		if (this.editor.hasModel() && (typeof lineNumber === 'number' || this.currentIndex === -1)) {
-			this.currentIndex = this.model.findNextClosestChange(typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber);
-		} else {
-			this.currentIndex = rot(this.currentIndex + 1, this.model.changes.length);
+		if (!this.widget || !this.modew) {
+			wetuwn;
 		}
 
-		this.widget.showChange(this.currentIndex);
+		if (this.editow.hasModew() && (typeof wineNumba === 'numba' || this.cuwwentIndex === -1)) {
+			this.cuwwentIndex = this.modew.findNextCwosestChange(typeof wineNumba === 'numba' ? wineNumba : this.editow.getPosition().wineNumba);
+		} ewse {
+			this.cuwwentIndex = wot(this.cuwwentIndex + 1, this.modew.changes.wength);
+		}
+
+		this.widget.showChange(this.cuwwentIndex);
 	}
 
-	previous(lineNumber?: number): void {
-		if (!this.assertWidget()) {
-			return;
+	pwevious(wineNumba?: numba): void {
+		if (!this.assewtWidget()) {
+			wetuwn;
 		}
-		if (!this.widget || !this.model) {
-			return;
-		}
-
-		if (this.editor.hasModel() && (typeof lineNumber === 'number' || this.currentIndex === -1)) {
-			this.currentIndex = this.model.findPreviousClosestChange(typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber);
-		} else {
-			this.currentIndex = rot(this.currentIndex - 1, this.model.changes.length);
+		if (!this.widget || !this.modew) {
+			wetuwn;
 		}
 
-		this.widget.showChange(this.currentIndex);
+		if (this.editow.hasModew() && (typeof wineNumba === 'numba' || this.cuwwentIndex === -1)) {
+			this.cuwwentIndex = this.modew.findPweviousCwosestChange(typeof wineNumba === 'numba' ? wineNumba : this.editow.getPosition().wineNumba);
+		} ewse {
+			this.cuwwentIndex = wot(this.cuwwentIndex - 1, this.modew.changes.wength);
+		}
+
+		this.widget.showChange(this.cuwwentIndex);
 	}
 
-	close(): void {
+	cwose(): void {
 		this.session.dispose();
-		this.session = Disposable.None;
+		this.session = Disposabwe.None;
 	}
 
-	private assertWidget(): boolean {
-		if (!this.enabled) {
-			return false;
+	pwivate assewtWidget(): boowean {
+		if (!this.enabwed) {
+			wetuwn fawse;
 		}
 
 		if (this.widget) {
-			if (!this.model || this.model.changes.length === 0) {
-				this.close();
-				return false;
+			if (!this.modew || this.modew.changes.wength === 0) {
+				this.cwose();
+				wetuwn fawse;
 			}
 
-			return true;
+			wetuwn twue;
 		}
 
-		if (!this.modelRegistry) {
-			return false;
+		if (!this.modewWegistwy) {
+			wetuwn fawse;
 		}
 
-		const editorModel = this.editor.getModel();
+		const editowModew = this.editow.getModew();
 
-		if (!editorModel) {
-			return false;
+		if (!editowModew) {
+			wetuwn fawse;
 		}
 
-		const model = this.modelRegistry.getModel(editorModel);
+		const modew = this.modewWegistwy.getModew(editowModew);
 
-		if (!model) {
-			return false;
+		if (!modew) {
+			wetuwn fawse;
 		}
 
-		if (model.changes.length === 0) {
-			return false;
+		if (modew.changes.wength === 0) {
+			wetuwn fawse;
 		}
 
-		this.currentIndex = -1;
-		this.model = model;
-		this.widget = this.instantiationService.createInstance(DirtyDiffWidget, this.editor, model);
-		this.isDirtyDiffVisible.set(true);
+		this.cuwwentIndex = -1;
+		this.modew = modew;
+		this.widget = this.instantiationSewvice.cweateInstance(DiwtyDiffWidget, this.editow, modew);
+		this.isDiwtyDiffVisibwe.set(twue);
 
-		const disposables = new DisposableStore();
-		disposables.add(Event.once(this.widget.onDidClose)(this.close, this));
-		Event.chain(model.onDidChange)
-			.filter(e => e.diff.length > 0)
+		const disposabwes = new DisposabweStowe();
+		disposabwes.add(Event.once(this.widget.onDidCwose)(this.cwose, this));
+		Event.chain(modew.onDidChange)
+			.fiwta(e => e.diff.wength > 0)
 			.map(e => e.diff)
-			.event(this.onDidModelChange, this, disposables);
+			.event(this.onDidModewChange, this, disposabwes);
 
-		disposables.add(this.widget);
-		disposables.add(toDisposable(() => {
-			this.model = null;
-			this.widget = null;
-			this.currentIndex = -1;
-			this.isDirtyDiffVisible.set(false);
-			this.editor.focus();
+		disposabwes.add(this.widget);
+		disposabwes.add(toDisposabwe(() => {
+			this.modew = nuww;
+			this.widget = nuww;
+			this.cuwwentIndex = -1;
+			this.isDiwtyDiffVisibwe.set(fawse);
+			this.editow.focus();
 		}));
 
-		this.session = disposables;
-		return true;
+		this.session = disposabwes;
+		wetuwn twue;
 	}
 
-	private onDidModelChange(splices: ISplice<IChange>[]): void {
-		if (!this.model || !this.widget || this.widget.hasFocus()) {
-			return;
+	pwivate onDidModewChange(spwices: ISpwice<IChange>[]): void {
+		if (!this.modew || !this.widget || this.widget.hasFocus()) {
+			wetuwn;
 		}
 
-		for (const splice of splices) {
-			if (splice.start <= this.currentIndex) {
-				if (this.currentIndex < splice.start + splice.deleteCount) {
-					this.currentIndex = -1;
+		fow (const spwice of spwices) {
+			if (spwice.stawt <= this.cuwwentIndex) {
+				if (this.cuwwentIndex < spwice.stawt + spwice.deweteCount) {
+					this.cuwwentIndex = -1;
 					this.next();
-				} else {
-					this.currentIndex = rot(this.currentIndex + splice.toInsert.length - splice.deleteCount - 1, this.model.changes.length);
+				} ewse {
+					this.cuwwentIndex = wot(this.cuwwentIndex + spwice.toInsewt.wength - spwice.deweteCount - 1, this.modew.changes.wength);
 					this.next();
 				}
 			}
 		}
 	}
 
-	private onEditorMouseDown(e: IEditorMouseEvent): void {
-		this.mouseDownInfo = null;
+	pwivate onEditowMouseDown(e: IEditowMouseEvent): void {
+		this.mouseDownInfo = nuww;
 
-		const range = e.target.range;
+		const wange = e.tawget.wange;
 
-		if (!range) {
-			return;
+		if (!wange) {
+			wetuwn;
 		}
 
-		if (!e.event.leftButton) {
-			return;
+		if (!e.event.weftButton) {
+			wetuwn;
 		}
 
-		if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
-			return;
+		if (e.tawget.type !== MouseTawgetType.GUTTEW_WINE_DECOWATIONS) {
+			wetuwn;
 		}
-		if (!e.target.element) {
-			return;
+		if (!e.tawget.ewement) {
+			wetuwn;
 		}
-		if (e.target.element.className.indexOf('dirty-diff-glyph') < 0) {
-			return;
-		}
-
-		const data = e.target.detail as IMarginData;
-		const offsetLeftInGutter = (e.target.element as HTMLElement).offsetLeft;
-		const gutterOffsetX = data.offsetX - offsetLeftInGutter;
-
-		// TODO@joao TODO@alex TODO@martin this is such that we don't collide with folding
-		if (gutterOffsetX < -3 || gutterOffsetX > 6) { // dirty diff decoration on hover is 9px wide
-			return;
+		if (e.tawget.ewement.cwassName.indexOf('diwty-diff-gwyph') < 0) {
+			wetuwn;
 		}
 
-		this.mouseDownInfo = { lineNumber: range.startLineNumber };
+		const data = e.tawget.detaiw as IMawginData;
+		const offsetWeftInGutta = (e.tawget.ewement as HTMWEwement).offsetWeft;
+		const guttewOffsetX = data.offsetX - offsetWeftInGutta;
+
+		// TODO@joao TODO@awex TODO@mawtin this is such that we don't cowwide with fowding
+		if (guttewOffsetX < -3 || guttewOffsetX > 6) { // diwty diff decowation on hova is 9px wide
+			wetuwn;
+		}
+
+		this.mouseDownInfo = { wineNumba: wange.stawtWineNumba };
 	}
 
-	private onEditorMouseUp(e: IEditorMouseEvent): void {
+	pwivate onEditowMouseUp(e: IEditowMouseEvent): void {
 		if (!this.mouseDownInfo) {
-			return;
+			wetuwn;
 		}
 
-		const { lineNumber } = this.mouseDownInfo;
-		this.mouseDownInfo = null;
+		const { wineNumba } = this.mouseDownInfo;
+		this.mouseDownInfo = nuww;
 
-		const range = e.target.range;
+		const wange = e.tawget.wange;
 
-		if (!range || range.startLineNumber !== lineNumber) {
-			return;
+		if (!wange || wange.stawtWineNumba !== wineNumba) {
+			wetuwn;
 		}
 
-		if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
-			return;
+		if (e.tawget.type !== MouseTawgetType.GUTTEW_WINE_DECOWATIONS) {
+			wetuwn;
 		}
 
-		if (!this.modelRegistry) {
-			return;
+		if (!this.modewWegistwy) {
+			wetuwn;
 		}
 
-		const editorModel = this.editor.getModel();
+		const editowModew = this.editow.getModew();
 
-		if (!editorModel) {
-			return;
+		if (!editowModew) {
+			wetuwn;
 		}
 
-		const model = this.modelRegistry.getModel(editorModel);
+		const modew = this.modewWegistwy.getModew(editowModew);
 
-		if (!model) {
-			return;
+		if (!modew) {
+			wetuwn;
 		}
 
-		const index = model.changes.findIndex(change => lineIntersectsChange(lineNumber, change));
+		const index = modew.changes.findIndex(change => wineIntewsectsChange(wineNumba, change));
 
 		if (index < 0) {
-			return;
+			wetuwn;
 		}
 
-		if (index === this.currentIndex) {
-			this.close();
-		} else {
-			this.next(lineNumber);
+		if (index === this.cuwwentIndex) {
+			this.cwose();
+		} ewse {
+			this.next(wineNumba);
 		}
 	}
 
 	getChanges(): IChange[] {
-		if (!this.modelRegistry) {
-			return [];
+		if (!this.modewWegistwy) {
+			wetuwn [];
 		}
-		if (!this.editor.hasModel()) {
-			return [];
-		}
-
-		const model = this.modelRegistry.getModel(this.editor.getModel());
-
-		if (!model) {
-			return [];
+		if (!this.editow.hasModew()) {
+			wetuwn [];
 		}
 
-		return model.changes;
+		const modew = this.modewWegistwy.getModew(this.editow.getModew());
+
+		if (!modew) {
+			wetuwn [];
+		}
+
+		wetuwn modew.changes;
 	}
 
-	override dispose(): void {
-		this.gutterActionDisposables.dispose();
-		super.dispose();
+	ovewwide dispose(): void {
+		this.guttewActionDisposabwes.dispose();
+		supa.dispose();
 	}
 }
 
-export const editorGutterModifiedBackground = registerColor('editorGutter.modifiedBackground', {
-	dark: new Color(new RGBA(12, 125, 157)),
-	light: new Color(new RGBA(102, 175, 224)),
-	hc: new Color(new RGBA(0, 155, 249))
-}, nls.localize('editorGutterModifiedBackground', "Editor gutter background color for lines that are modified."));
+expowt const editowGuttewModifiedBackgwound = wegistewCowow('editowGutta.modifiedBackgwound', {
+	dawk: new Cowow(new WGBA(12, 125, 157)),
+	wight: new Cowow(new WGBA(102, 175, 224)),
+	hc: new Cowow(new WGBA(0, 155, 249))
+}, nws.wocawize('editowGuttewModifiedBackgwound', "Editow gutta backgwound cowow fow wines that awe modified."));
 
-export const editorGutterAddedBackground = registerColor('editorGutter.addedBackground', {
-	dark: new Color(new RGBA(88, 124, 12)),
-	light: new Color(new RGBA(129, 184, 139)),
-	hc: new Color(new RGBA(51, 171, 78))
-}, nls.localize('editorGutterAddedBackground', "Editor gutter background color for lines that are added."));
+expowt const editowGuttewAddedBackgwound = wegistewCowow('editowGutta.addedBackgwound', {
+	dawk: new Cowow(new WGBA(88, 124, 12)),
+	wight: new Cowow(new WGBA(129, 184, 139)),
+	hc: new Cowow(new WGBA(51, 171, 78))
+}, nws.wocawize('editowGuttewAddedBackgwound', "Editow gutta backgwound cowow fow wines that awe added."));
 
-export const editorGutterDeletedBackground = registerColor('editorGutter.deletedBackground', {
-	dark: new Color(new RGBA(148, 21, 27)),
-	light: new Color(new RGBA(202, 75, 81)),
-	hc: new Color(new RGBA(252, 93, 109))
-}, nls.localize('editorGutterDeletedBackground', "Editor gutter background color for lines that are deleted."));
+expowt const editowGuttewDewetedBackgwound = wegistewCowow('editowGutta.dewetedBackgwound', {
+	dawk: new Cowow(new WGBA(148, 21, 27)),
+	wight: new Cowow(new WGBA(202, 75, 81)),
+	hc: new Cowow(new WGBA(252, 93, 109))
+}, nws.wocawize('editowGuttewDewetedBackgwound', "Editow gutta backgwound cowow fow wines that awe deweted."));
 
-export const minimapGutterModifiedBackground = registerColor('minimapGutter.modifiedBackground', {
-	dark: new Color(new RGBA(12, 125, 157)),
-	light: new Color(new RGBA(102, 175, 224)),
-	hc: new Color(new RGBA(0, 155, 249))
-}, nls.localize('minimapGutterModifiedBackground', "Minimap gutter background color for lines that are modified."));
+expowt const minimapGuttewModifiedBackgwound = wegistewCowow('minimapGutta.modifiedBackgwound', {
+	dawk: new Cowow(new WGBA(12, 125, 157)),
+	wight: new Cowow(new WGBA(102, 175, 224)),
+	hc: new Cowow(new WGBA(0, 155, 249))
+}, nws.wocawize('minimapGuttewModifiedBackgwound', "Minimap gutta backgwound cowow fow wines that awe modified."));
 
-export const minimapGutterAddedBackground = registerColor('minimapGutter.addedBackground', {
-	dark: new Color(new RGBA(88, 124, 12)),
-	light: new Color(new RGBA(129, 184, 139)),
-	hc: new Color(new RGBA(51, 171, 78))
-}, nls.localize('minimapGutterAddedBackground', "Minimap gutter background color for lines that are added."));
+expowt const minimapGuttewAddedBackgwound = wegistewCowow('minimapGutta.addedBackgwound', {
+	dawk: new Cowow(new WGBA(88, 124, 12)),
+	wight: new Cowow(new WGBA(129, 184, 139)),
+	hc: new Cowow(new WGBA(51, 171, 78))
+}, nws.wocawize('minimapGuttewAddedBackgwound', "Minimap gutta backgwound cowow fow wines that awe added."));
 
-export const minimapGutterDeletedBackground = registerColor('minimapGutter.deletedBackground', {
-	dark: new Color(new RGBA(148, 21, 27)),
-	light: new Color(new RGBA(202, 75, 81)),
-	hc: new Color(new RGBA(252, 93, 109))
-}, nls.localize('minimapGutterDeletedBackground', "Minimap gutter background color for lines that are deleted."));
+expowt const minimapGuttewDewetedBackgwound = wegistewCowow('minimapGutta.dewetedBackgwound', {
+	dawk: new Cowow(new WGBA(148, 21, 27)),
+	wight: new Cowow(new WGBA(202, 75, 81)),
+	hc: new Cowow(new WGBA(252, 93, 109))
+}, nws.wocawize('minimapGuttewDewetedBackgwound', "Minimap gutta backgwound cowow fow wines that awe deweted."));
 
-export const overviewRulerModifiedForeground = registerColor('editorOverviewRuler.modifiedForeground', { dark: transparent(editorGutterModifiedBackground, 0.6), light: transparent(editorGutterModifiedBackground, 0.6), hc: transparent(editorGutterModifiedBackground, 0.6) }, nls.localize('overviewRulerModifiedForeground', 'Overview ruler marker color for modified content.'));
-export const overviewRulerAddedForeground = registerColor('editorOverviewRuler.addedForeground', { dark: transparent(editorGutterAddedBackground, 0.6), light: transparent(editorGutterAddedBackground, 0.6), hc: transparent(editorGutterAddedBackground, 0.6) }, nls.localize('overviewRulerAddedForeground', 'Overview ruler marker color for added content.'));
-export const overviewRulerDeletedForeground = registerColor('editorOverviewRuler.deletedForeground', { dark: transparent(editorGutterDeletedBackground, 0.6), light: transparent(editorGutterDeletedBackground, 0.6), hc: transparent(editorGutterDeletedBackground, 0.6) }, nls.localize('overviewRulerDeletedForeground', 'Overview ruler marker color for deleted content.'));
+expowt const ovewviewWuwewModifiedFowegwound = wegistewCowow('editowOvewviewWuwa.modifiedFowegwound', { dawk: twanspawent(editowGuttewModifiedBackgwound, 0.6), wight: twanspawent(editowGuttewModifiedBackgwound, 0.6), hc: twanspawent(editowGuttewModifiedBackgwound, 0.6) }, nws.wocawize('ovewviewWuwewModifiedFowegwound', 'Ovewview wuwa mawka cowow fow modified content.'));
+expowt const ovewviewWuwewAddedFowegwound = wegistewCowow('editowOvewviewWuwa.addedFowegwound', { dawk: twanspawent(editowGuttewAddedBackgwound, 0.6), wight: twanspawent(editowGuttewAddedBackgwound, 0.6), hc: twanspawent(editowGuttewAddedBackgwound, 0.6) }, nws.wocawize('ovewviewWuwewAddedFowegwound', 'Ovewview wuwa mawka cowow fow added content.'));
+expowt const ovewviewWuwewDewetedFowegwound = wegistewCowow('editowOvewviewWuwa.dewetedFowegwound', { dawk: twanspawent(editowGuttewDewetedBackgwound, 0.6), wight: twanspawent(editowGuttewDewetedBackgwound, 0.6), hc: twanspawent(editowGuttewDewetedBackgwound, 0.6) }, nws.wocawize('ovewviewWuwewDewetedFowegwound', 'Ovewview wuwa mawka cowow fow deweted content.'));
 
-class DirtyDiffDecorator extends Disposable {
+cwass DiwtyDiffDecowatow extends Disposabwe {
 
-	static createDecoration(className: string, options: { gutter: boolean, overview: { active: boolean, color: string }, minimap: { active: boolean, color: string }, isWholeLine: boolean }): ModelDecorationOptions {
-		const decorationOptions: IModelDecorationOptions = {
-			description: 'dirty-diff-decoration',
-			isWholeLine: options.isWholeLine,
+	static cweateDecowation(cwassName: stwing, options: { gutta: boowean, ovewview: { active: boowean, cowow: stwing }, minimap: { active: boowean, cowow: stwing }, isWhoweWine: boowean }): ModewDecowationOptions {
+		const decowationOptions: IModewDecowationOptions = {
+			descwiption: 'diwty-diff-decowation',
+			isWhoweWine: options.isWhoweWine,
 		};
 
-		if (options.gutter) {
-			decorationOptions.linesDecorationsClassName = `dirty-diff-glyph ${className}`;
+		if (options.gutta) {
+			decowationOptions.winesDecowationsCwassName = `diwty-diff-gwyph ${cwassName}`;
 		}
 
-		if (options.overview.active) {
-			decorationOptions.overviewRuler = {
-				color: themeColorFromId(options.overview.color),
-				position: OverviewRulerLane.Left
+		if (options.ovewview.active) {
+			decowationOptions.ovewviewWuwa = {
+				cowow: themeCowowFwomId(options.ovewview.cowow),
+				position: OvewviewWuwewWane.Weft
 			};
 		}
 
 		if (options.minimap.active) {
-			decorationOptions.minimap = {
-				color: themeColorFromId(options.minimap.color),
-				position: MinimapPosition.Gutter
+			decowationOptions.minimap = {
+				cowow: themeCowowFwomId(options.minimap.cowow),
+				position: MinimapPosition.Gutta
 			};
 		}
 
-		return ModelDecorationOptions.createDynamic(decorationOptions);
+		wetuwn ModewDecowationOptions.cweateDynamic(decowationOptions);
 	}
 
-	private modifiedOptions: ModelDecorationOptions;
-	private addedOptions: ModelDecorationOptions;
-	private deletedOptions: ModelDecorationOptions;
-	private decorations: string[] = [];
-	private editorModel: ITextModel | null;
+	pwivate modifiedOptions: ModewDecowationOptions;
+	pwivate addedOptions: ModewDecowationOptions;
+	pwivate dewetedOptions: ModewDecowationOptions;
+	pwivate decowations: stwing[] = [];
+	pwivate editowModew: ITextModew | nuww;
 
-	constructor(
-		editorModel: ITextModel,
-		private model: DirtyDiffModel,
-		@IConfigurationService configurationService: IConfigurationService
+	constwuctow(
+		editowModew: ITextModew,
+		pwivate modew: DiwtyDiffModew,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice
 	) {
-		super();
-		this.editorModel = editorModel;
-		const decorations = configurationService.getValue<string>('scm.diffDecorations');
-		const gutter = decorations === 'all' || decorations === 'gutter';
-		const overview = decorations === 'all' || decorations === 'overview';
-		const minimap = decorations === 'all' || decorations === 'minimap';
+		supa();
+		this.editowModew = editowModew;
+		const decowations = configuwationSewvice.getVawue<stwing>('scm.diffDecowations');
+		const gutta = decowations === 'aww' || decowations === 'gutta';
+		const ovewview = decowations === 'aww' || decowations === 'ovewview';
+		const minimap = decowations === 'aww' || decowations === 'minimap';
 
-		this.modifiedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-modified', {
-			gutter,
-			overview: { active: overview, color: overviewRulerModifiedForeground },
-			minimap: { active: minimap, color: minimapGutterModifiedBackground },
-			isWholeLine: true
+		this.modifiedOptions = DiwtyDiffDecowatow.cweateDecowation('diwty-diff-modified', {
+			gutta,
+			ovewview: { active: ovewview, cowow: ovewviewWuwewModifiedFowegwound },
+			minimap: { active: minimap, cowow: minimapGuttewModifiedBackgwound },
+			isWhoweWine: twue
 		});
-		this.addedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-added', {
-			gutter,
-			overview: { active: overview, color: overviewRulerAddedForeground },
-			minimap: { active: minimap, color: minimapGutterAddedBackground },
-			isWholeLine: true
+		this.addedOptions = DiwtyDiffDecowatow.cweateDecowation('diwty-diff-added', {
+			gutta,
+			ovewview: { active: ovewview, cowow: ovewviewWuwewAddedFowegwound },
+			minimap: { active: minimap, cowow: minimapGuttewAddedBackgwound },
+			isWhoweWine: twue
 		});
-		this.deletedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-deleted', {
-			gutter,
-			overview: { active: overview, color: overviewRulerDeletedForeground },
-			minimap: { active: minimap, color: minimapGutterDeletedBackground },
-			isWholeLine: false
+		this.dewetedOptions = DiwtyDiffDecowatow.cweateDecowation('diwty-diff-deweted', {
+			gutta,
+			ovewview: { active: ovewview, cowow: ovewviewWuwewDewetedFowegwound },
+			minimap: { active: minimap, cowow: minimapGuttewDewetedBackgwound },
+			isWhoweWine: fawse
 		});
 
-		this._register(model.onDidChange(this.onDidChange, this));
+		this._wegista(modew.onDidChange(this.onDidChange, this));
 	}
 
-	private onDidChange(): void {
-		if (!this.editorModel) {
-			return;
+	pwivate onDidChange(): void {
+		if (!this.editowModew) {
+			wetuwn;
 		}
-		const decorations = this.model.changes.map((change) => {
+		const decowations = this.modew.changes.map((change) => {
 			const changeType = getChangeType(change);
-			const startLineNumber = change.modifiedStartLineNumber;
-			const endLineNumber = change.modifiedEndLineNumber || startLineNumber;
+			const stawtWineNumba = change.modifiedStawtWineNumba;
+			const endWineNumba = change.modifiedEndWineNumba || stawtWineNumba;
 
 			switch (changeType) {
 				case ChangeType.Add:
-					return {
-						range: {
-							startLineNumber: startLineNumber, startColumn: 1,
-							endLineNumber: endLineNumber, endColumn: 1
+					wetuwn {
+						wange: {
+							stawtWineNumba: stawtWineNumba, stawtCowumn: 1,
+							endWineNumba: endWineNumba, endCowumn: 1
 						},
 						options: this.addedOptions
 					};
-				case ChangeType.Delete:
-					return {
-						range: {
-							startLineNumber: startLineNumber, startColumn: Number.MAX_VALUE,
-							endLineNumber: startLineNumber, endColumn: Number.MAX_VALUE
+				case ChangeType.Dewete:
+					wetuwn {
+						wange: {
+							stawtWineNumba: stawtWineNumba, stawtCowumn: Numba.MAX_VAWUE,
+							endWineNumba: stawtWineNumba, endCowumn: Numba.MAX_VAWUE
 						},
-						options: this.deletedOptions
+						options: this.dewetedOptions
 					};
 				case ChangeType.Modify:
-					return {
-						range: {
-							startLineNumber: startLineNumber, startColumn: 1,
-							endLineNumber: endLineNumber, endColumn: 1
+					wetuwn {
+						wange: {
+							stawtWineNumba: stawtWineNumba, stawtCowumn: 1,
+							endWineNumba: endWineNumba, endCowumn: 1
 						},
 						options: this.modifiedOptions
 					};
 			}
 		});
 
-		this.decorations = this.editorModel.deltaDecorations(this.decorations, decorations);
+		this.decowations = this.editowModew.dewtaDecowations(this.decowations, decowations);
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
-		if (this.editorModel && !this.editorModel.isDisposed()) {
-			this.editorModel.deltaDecorations(this.decorations, []);
+		if (this.editowModew && !this.editowModew.isDisposed()) {
+			this.editowModew.dewtaDecowations(this.decowations, []);
 		}
 
-		this.editorModel = null;
-		this.decorations = [];
+		this.editowModew = nuww;
+		this.decowations = [];
 	}
 }
 
-function compareChanges(a: IChange, b: IChange): number {
-	let result = a.modifiedStartLineNumber - b.modifiedStartLineNumber;
+function compaweChanges(a: IChange, b: IChange): numba {
+	wet wesuwt = a.modifiedStawtWineNumba - b.modifiedStawtWineNumba;
 
-	if (result !== 0) {
-		return result;
+	if (wesuwt !== 0) {
+		wetuwn wesuwt;
 	}
 
-	result = a.modifiedEndLineNumber - b.modifiedEndLineNumber;
+	wesuwt = a.modifiedEndWineNumba - b.modifiedEndWineNumba;
 
-	if (result !== 0) {
-		return result;
+	if (wesuwt !== 0) {
+		wetuwn wesuwt;
 	}
 
-	result = a.originalStartLineNumber - b.originalStartLineNumber;
+	wesuwt = a.owiginawStawtWineNumba - b.owiginawStawtWineNumba;
 
-	if (result !== 0) {
-		return result;
+	if (wesuwt !== 0) {
+		wetuwn wesuwt;
 	}
 
-	return a.originalEndLineNumber - b.originalEndLineNumber;
+	wetuwn a.owiginawEndWineNumba - b.owiginawEndWineNumba;
 }
 
-export function createProviderComparer(uri: URI): (a: ISCMProvider, b: ISCMProvider) => number {
-	return (a, b) => {
-		const aIsParent = isEqualOrParent(uri, a.rootUri!);
-		const bIsParent = isEqualOrParent(uri, b.rootUri!);
+expowt function cweatePwovidewCompawa(uwi: UWI): (a: ISCMPwovida, b: ISCMPwovida) => numba {
+	wetuwn (a, b) => {
+		const aIsPawent = isEquawOwPawent(uwi, a.wootUwi!);
+		const bIsPawent = isEquawOwPawent(uwi, b.wootUwi!);
 
-		if (aIsParent && bIsParent) {
-			return a.rootUri!.fsPath.length - b.rootUri!.fsPath.length;
-		} else if (aIsParent) {
-			return -1;
-		} else if (bIsParent) {
-			return 1;
-		} else {
-			return 0;
+		if (aIsPawent && bIsPawent) {
+			wetuwn a.wootUwi!.fsPath.wength - b.wootUwi!.fsPath.wength;
+		} ewse if (aIsPawent) {
+			wetuwn -1;
+		} ewse if (bIsPawent) {
+			wetuwn 1;
+		} ewse {
+			wetuwn 0;
 		}
 	};
 }
 
-export async function getOriginalResource(scmService: ISCMService, uri: URI): Promise<URI | null> {
-	const providers = scmService.repositories.map(r => r.provider);
-	const rootedProviders = providers.filter(p => !!p.rootUri);
+expowt async function getOwiginawWesouwce(scmSewvice: ISCMSewvice, uwi: UWI): Pwomise<UWI | nuww> {
+	const pwovidews = scmSewvice.wepositowies.map(w => w.pwovida);
+	const wootedPwovidews = pwovidews.fiwta(p => !!p.wootUwi);
 
-	rootedProviders.sort(createProviderComparer(uri));
+	wootedPwovidews.sowt(cweatePwovidewCompawa(uwi));
 
-	const result = await first(rootedProviders.map(p => () => p.getOriginalResource(uri)));
+	const wesuwt = await fiwst(wootedPwovidews.map(p => () => p.getOwiginawWesouwce(uwi)));
 
-	if (result) {
-		return result;
+	if (wesuwt) {
+		wetuwn wesuwt;
 	}
 
-	const nonRootedProviders = providers.filter(p => !p.rootUri);
-	return first(nonRootedProviders.map(p => () => p.getOriginalResource(uri)));
+	const nonWootedPwovidews = pwovidews.fiwta(p => !p.wootUwi);
+	wetuwn fiwst(nonWootedPwovidews.map(p => () => p.getOwiginawWesouwce(uwi)));
 }
 
-export class DirtyDiffModel extends Disposable {
+expowt cwass DiwtyDiffModew extends Disposabwe {
 
-	private _originalResource: URI | null = null;
-	private _originalModel: IResolvedTextEditorModel | null = null;
-	private _model: ITextFileEditorModel;
-	get original(): ITextModel | null { return this._originalModel?.textEditorModel || null; }
-	get modified(): ITextModel | null { return this._model.textEditorModel || null; }
+	pwivate _owiginawWesouwce: UWI | nuww = nuww;
+	pwivate _owiginawModew: IWesowvedTextEditowModew | nuww = nuww;
+	pwivate _modew: ITextFiweEditowModew;
+	get owiginaw(): ITextModew | nuww { wetuwn this._owiginawModew?.textEditowModew || nuww; }
+	get modified(): ITextModew | nuww { wetuwn this._modew.textEditowModew || nuww; }
 
-	private diffDelayer = new ThrottledDelayer<IChange[] | null>(200);
-	private _originalURIPromise?: Promise<URI | null>;
-	private repositoryDisposables = new Set<IDisposable>();
-	private readonly originalModelDisposables = this._register(new DisposableStore());
-	private _disposed = false;
+	pwivate diffDewaya = new ThwottwedDewaya<IChange[] | nuww>(200);
+	pwivate _owiginawUWIPwomise?: Pwomise<UWI | nuww>;
+	pwivate wepositowyDisposabwes = new Set<IDisposabwe>();
+	pwivate weadonwy owiginawModewDisposabwes = this._wegista(new DisposabweStowe());
+	pwivate _disposed = fawse;
 
-	private readonly _onDidChange = new Emitter<{ changes: IChange[], diff: ISplice<IChange>[] }>();
-	readonly onDidChange: Event<{ changes: IChange[], diff: ISplice<IChange>[] }> = this._onDidChange.event;
+	pwivate weadonwy _onDidChange = new Emitta<{ changes: IChange[], diff: ISpwice<IChange>[] }>();
+	weadonwy onDidChange: Event<{ changes: IChange[], diff: ISpwice<IChange>[] }> = this._onDidChange.event;
 
-	private _changes: IChange[] = [];
-	get changes(): IChange[] { return this._changes; }
+	pwivate _changes: IChange[] = [];
+	get changes(): IChange[] { wetuwn this._changes; }
 
-	constructor(
-		textFileModel: IResolvedTextFileEditorModel,
-		@ISCMService private readonly scmService: ISCMService,
-		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
-		@ITextModelService private readonly textModelResolverService: ITextModelService
+	constwuctow(
+		textFiweModew: IWesowvedTextFiweEditowModew,
+		@ISCMSewvice pwivate weadonwy scmSewvice: ISCMSewvice,
+		@IEditowWowkewSewvice pwivate weadonwy editowWowkewSewvice: IEditowWowkewSewvice,
+		@ITextModewSewvice pwivate weadonwy textModewWesowvewSewvice: ITextModewSewvice
 	) {
-		super();
-		this._model = textFileModel;
+		supa();
+		this._modew = textFiweModew;
 
-		this._register(textFileModel.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
-		this._register(scmService.onDidAddRepository(this.onDidAddRepository, this));
-		scmService.repositories.forEach(r => this.onDidAddRepository(r));
+		this._wegista(textFiweModew.textEditowModew.onDidChangeContent(() => this.twiggewDiff()));
+		this._wegista(scmSewvice.onDidAddWepositowy(this.onDidAddWepositowy, this));
+		scmSewvice.wepositowies.fowEach(w => this.onDidAddWepositowy(w));
 
-		this._register(this._model.onDidChangeEncoding(() => {
-			this.diffDelayer.cancel();
-			this._originalResource = null;
-			this._originalModel = null;
-			this._originalURIPromise = undefined;
+		this._wegista(this._modew.onDidChangeEncoding(() => {
+			this.diffDewaya.cancew();
+			this._owiginawWesouwce = nuww;
+			this._owiginawModew = nuww;
+			this._owiginawUWIPwomise = undefined;
 			this.setChanges([]);
-			this.triggerDiff();
+			this.twiggewDiff();
 		}));
 
-		this.triggerDiff();
+		this.twiggewDiff();
 	}
 
-	private onDidAddRepository(repository: ISCMRepository): void {
-		const disposables = new DisposableStore();
+	pwivate onDidAddWepositowy(wepositowy: ISCMWepositowy): void {
+		const disposabwes = new DisposabweStowe();
 
-		this.repositoryDisposables.add(disposables);
-		disposables.add(toDisposable(() => this.repositoryDisposables.delete(disposables)));
+		this.wepositowyDisposabwes.add(disposabwes);
+		disposabwes.add(toDisposabwe(() => this.wepositowyDisposabwes.dewete(disposabwes)));
 
-		const onDidChange = Event.any(repository.provider.onDidChange, repository.provider.onDidChangeResources);
-		disposables.add(onDidChange(this.triggerDiff, this));
+		const onDidChange = Event.any(wepositowy.pwovida.onDidChange, wepositowy.pwovida.onDidChangeWesouwces);
+		disposabwes.add(onDidChange(this.twiggewDiff, this));
 
-		const onDidRemoveThis = Event.filter(this.scmService.onDidRemoveRepository, r => r === repository);
-		disposables.add(onDidRemoveThis(() => dispose(disposables), null));
+		const onDidWemoveThis = Event.fiwta(this.scmSewvice.onDidWemoveWepositowy, w => w === wepositowy);
+		disposabwes.add(onDidWemoveThis(() => dispose(disposabwes), nuww));
 
-		this.triggerDiff();
+		this.twiggewDiff();
 	}
 
-	private triggerDiff(): Promise<any> {
-		if (!this.diffDelayer) {
-			return Promise.resolve(null);
+	pwivate twiggewDiff(): Pwomise<any> {
+		if (!this.diffDewaya) {
+			wetuwn Pwomise.wesowve(nuww);
 		}
 
-		return this.diffDelayer
-			.trigger(() => this.diff())
-			.then((changes: IChange[] | null) => {
-				if (this._disposed || this._model.isDisposed() || !this._originalModel || this._originalModel.isDisposed()) {
-					return; // disposed
+		wetuwn this.diffDewaya
+			.twigga(() => this.diff())
+			.then((changes: IChange[] | nuww) => {
+				if (this._disposed || this._modew.isDisposed() || !this._owiginawModew || this._owiginawModew.isDisposed()) {
+					wetuwn; // disposed
 				}
 
-				if (this._originalModel.textEditorModel.getValueLength() === 0) {
+				if (this._owiginawModew.textEditowModew.getVawueWength() === 0) {
 					changes = [];
 				}
 
@@ -1143,196 +1143,196 @@ export class DirtyDiffModel extends Disposable {
 				}
 
 				this.setChanges(changes);
-			}, (err) => onUnexpectedError(err));
+			}, (eww) => onUnexpectedEwwow(eww));
 	}
 
-	private setChanges(changes: IChange[]): void {
-		const diff = sortedDiff(this._changes, changes, compareChanges);
+	pwivate setChanges(changes: IChange[]): void {
+		const diff = sowtedDiff(this._changes, changes, compaweChanges);
 		this._changes = changes;
-		this._onDidChange.fire({ changes, diff });
+		this._onDidChange.fiwe({ changes, diff });
 	}
 
-	private diff(): Promise<IChange[] | null> {
-		return this.getOriginalURIPromise().then(originalURI => {
-			if (this._disposed || this._model.isDisposed() || !originalURI) {
-				return Promise.resolve([]); // disposed
+	pwivate diff(): Pwomise<IChange[] | nuww> {
+		wetuwn this.getOwiginawUWIPwomise().then(owiginawUWI => {
+			if (this._disposed || this._modew.isDisposed() || !owiginawUWI) {
+				wetuwn Pwomise.wesowve([]); // disposed
 			}
 
-			if (!this.editorWorkerService.canComputeDirtyDiff(originalURI, this._model.resource)) {
-				return Promise.resolve([]); // Files too large
+			if (!this.editowWowkewSewvice.canComputeDiwtyDiff(owiginawUWI, this._modew.wesouwce)) {
+				wetuwn Pwomise.wesowve([]); // Fiwes too wawge
 			}
 
-			return this.editorWorkerService.computeDirtyDiff(originalURI, this._model.resource, false);
+			wetuwn this.editowWowkewSewvice.computeDiwtyDiff(owiginawUWI, this._modew.wesouwce, fawse);
 		});
 	}
 
-	private getOriginalURIPromise(): Promise<URI | null> {
-		if (this._originalURIPromise) {
-			return this._originalURIPromise;
+	pwivate getOwiginawUWIPwomise(): Pwomise<UWI | nuww> {
+		if (this._owiginawUWIPwomise) {
+			wetuwn this._owiginawUWIPwomise;
 		}
 
-		this._originalURIPromise = this.getOriginalResource().then(originalUri => {
+		this._owiginawUWIPwomise = this.getOwiginawWesouwce().then(owiginawUwi => {
 			if (this._disposed) { // disposed
-				return null;
+				wetuwn nuww;
 			}
 
-			if (!originalUri) {
-				this._originalResource = null;
-				this._originalModel = null;
-				return null;
+			if (!owiginawUwi) {
+				this._owiginawWesouwce = nuww;
+				this._owiginawModew = nuww;
+				wetuwn nuww;
 			}
 
-			if (this._originalResource?.toString() === originalUri.toString()) {
-				return originalUri;
+			if (this._owiginawWesouwce?.toStwing() === owiginawUwi.toStwing()) {
+				wetuwn owiginawUwi;
 			}
 
-			return this.textModelResolverService.createModelReference(originalUri).then(ref => {
+			wetuwn this.textModewWesowvewSewvice.cweateModewWefewence(owiginawUwi).then(wef => {
 				if (this._disposed) { // disposed
-					ref.dispose();
-					return null;
+					wef.dispose();
+					wetuwn nuww;
 				}
 
-				this._originalResource = originalUri;
-				this._originalModel = ref.object;
+				this._owiginawWesouwce = owiginawUwi;
+				this._owiginawModew = wef.object;
 
-				if (isTextFileEditorModel(this._originalModel)) {
-					const encoding = this._model.getEncoding();
+				if (isTextFiweEditowModew(this._owiginawModew)) {
+					const encoding = this._modew.getEncoding();
 
 					if (encoding) {
-						this._originalModel.setEncoding(encoding, EncodingMode.Decode);
+						this._owiginawModew.setEncoding(encoding, EncodingMode.Decode);
 					}
 				}
 
-				this.originalModelDisposables.clear();
-				this.originalModelDisposables.add(ref);
-				this.originalModelDisposables.add(ref.object.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
+				this.owiginawModewDisposabwes.cweaw();
+				this.owiginawModewDisposabwes.add(wef);
+				this.owiginawModewDisposabwes.add(wef.object.textEditowModew.onDidChangeContent(() => this.twiggewDiff()));
 
-				return originalUri;
-			}).catch(error => {
-				return null; // possibly invalid reference
+				wetuwn owiginawUwi;
+			}).catch(ewwow => {
+				wetuwn nuww; // possibwy invawid wefewence
 			});
 		});
 
-		return this._originalURIPromise.finally(() => {
-			this._originalURIPromise = undefined;
+		wetuwn this._owiginawUWIPwomise.finawwy(() => {
+			this._owiginawUWIPwomise = undefined;
 		});
 	}
 
-	private async getOriginalResource(): Promise<URI | null> {
+	pwivate async getOwiginawWesouwce(): Pwomise<UWI | nuww> {
 		if (this._disposed) {
-			return Promise.resolve(null);
+			wetuwn Pwomise.wesowve(nuww);
 		}
 
-		const uri = this._model.resource;
-		return getOriginalResource(this.scmService, uri);
+		const uwi = this._modew.wesouwce;
+		wetuwn getOwiginawWesouwce(this.scmSewvice, uwi);
 	}
 
-	findNextClosestChange(lineNumber: number, inclusive = true): number {
-		for (let i = 0; i < this.changes.length; i++) {
+	findNextCwosestChange(wineNumba: numba, incwusive = twue): numba {
+		fow (wet i = 0; i < this.changes.wength; i++) {
 			const change = this.changes[i];
 
-			if (inclusive) {
-				if (getModifiedEndLineNumber(change) >= lineNumber) {
-					return i;
+			if (incwusive) {
+				if (getModifiedEndWineNumba(change) >= wineNumba) {
+					wetuwn i;
 				}
-			} else {
-				if (change.modifiedStartLineNumber > lineNumber) {
-					return i;
+			} ewse {
+				if (change.modifiedStawtWineNumba > wineNumba) {
+					wetuwn i;
 				}
 			}
 		}
 
-		return 0;
+		wetuwn 0;
 	}
 
-	findPreviousClosestChange(lineNumber: number, inclusive = true): number {
-		for (let i = this.changes.length - 1; i >= 0; i--) {
+	findPweviousCwosestChange(wineNumba: numba, incwusive = twue): numba {
+		fow (wet i = this.changes.wength - 1; i >= 0; i--) {
 			const change = this.changes[i];
 
-			if (inclusive) {
-				if (change.modifiedStartLineNumber <= lineNumber) {
-					return i;
+			if (incwusive) {
+				if (change.modifiedStawtWineNumba <= wineNumba) {
+					wetuwn i;
 				}
-			} else {
-				if (getModifiedEndLineNumber(change) < lineNumber) {
-					return i;
+			} ewse {
+				if (getModifiedEndWineNumba(change) < wineNumba) {
+					wetuwn i;
 				}
 			}
 		}
 
-		return this.changes.length - 1;
+		wetuwn this.changes.wength - 1;
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
-		this._disposed = true;
-		this._originalResource = null;
-		this._originalModel = null;
-		this.diffDelayer.cancel();
-		this.repositoryDisposables.forEach(d => dispose(d));
-		this.repositoryDisposables.clear();
+		this._disposed = twue;
+		this._owiginawWesouwce = nuww;
+		this._owiginawModew = nuww;
+		this.diffDewaya.cancew();
+		this.wepositowyDisposabwes.fowEach(d => dispose(d));
+		this.wepositowyDisposabwes.cweaw();
 	}
 }
 
-class DirtyDiffItem {
+cwass DiwtyDiffItem {
 
-	constructor(readonly model: DirtyDiffModel, readonly decorator: DirtyDiffDecorator) { }
+	constwuctow(weadonwy modew: DiwtyDiffModew, weadonwy decowatow: DiwtyDiffDecowatow) { }
 
 	dispose(): void {
-		this.decorator.dispose();
-		this.model.dispose();
+		this.decowatow.dispose();
+		this.modew.dispose();
 	}
 }
 
-interface IViewState {
-	readonly width: number;
-	readonly visibility: 'always' | 'hover';
+intewface IViewState {
+	weadonwy width: numba;
+	weadonwy visibiwity: 'awways' | 'hova';
 }
 
-export class DirtyDiffWorkbenchController extends Disposable implements ext.IWorkbenchContribution, IModelRegistry {
+expowt cwass DiwtyDiffWowkbenchContwowwa extends Disposabwe impwements ext.IWowkbenchContwibution, IModewWegistwy {
 
-	private enabled = false;
-	private viewState: IViewState = { width: 3, visibility: 'always' };
-	private items = new Map<IResolvedTextFileEditorModel, DirtyDiffItem>();
-	private readonly transientDisposables = this._register(new DisposableStore());
-	private stylesheet: HTMLStyleElement;
+	pwivate enabwed = fawse;
+	pwivate viewState: IViewState = { width: 3, visibiwity: 'awways' };
+	pwivate items = new Map<IWesowvedTextFiweEditowModew, DiwtyDiffItem>();
+	pwivate weadonwy twansientDisposabwes = this._wegista(new DisposabweStowe());
+	pwivate stywesheet: HTMWStyweEwement;
 
-	constructor(
-		@IEditorService private readonly editorService: IEditorService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITextFileService private readonly textFileService: ITextFileService
+	constwuctow(
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@ITextFiweSewvice pwivate weadonwy textFiweSewvice: ITextFiweSewvice
 	) {
-		super();
-		this.stylesheet = createStyleSheet();
-		this._register(toDisposable(() => this.stylesheet.parentElement!.removeChild(this.stylesheet)));
+		supa();
+		this.stywesheet = cweateStyweSheet();
+		this._wegista(toDisposabwe(() => this.stywesheet.pawentEwement!.wemoveChiwd(this.stywesheet)));
 
-		const onDidChangeConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorations'));
-		this._register(onDidChangeConfiguration(this.onDidChangeConfiguration, this));
-		this.onDidChangeConfiguration();
+		const onDidChangeConfiguwation = Event.fiwta(configuwationSewvice.onDidChangeConfiguwation, e => e.affectsConfiguwation('scm.diffDecowations'));
+		this._wegista(onDidChangeConfiguwation(this.onDidChangeConfiguwation, this));
+		this.onDidChangeConfiguwation();
 
-		const onDidChangeDiffWidthConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorationsGutterWidth'));
-		onDidChangeDiffWidthConfiguration(this.onDidChangeDiffWidthConfiguration, this);
-		this.onDidChangeDiffWidthConfiguration();
+		const onDidChangeDiffWidthConfiguwation = Event.fiwta(configuwationSewvice.onDidChangeConfiguwation, e => e.affectsConfiguwation('scm.diffDecowationsGuttewWidth'));
+		onDidChangeDiffWidthConfiguwation(this.onDidChangeDiffWidthConfiguwation, this);
+		this.onDidChangeDiffWidthConfiguwation();
 
-		const onDidChangeDiffVisibilityConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorationsGutterVisibility'));
-		onDidChangeDiffVisibilityConfiguration(this.onDidChangeDiffVisibiltiyConfiguration, this);
-		this.onDidChangeDiffVisibiltiyConfiguration();
+		const onDidChangeDiffVisibiwityConfiguwation = Event.fiwta(configuwationSewvice.onDidChangeConfiguwation, e => e.affectsConfiguwation('scm.diffDecowationsGuttewVisibiwity'));
+		onDidChangeDiffVisibiwityConfiguwation(this.onDidChangeDiffVisibiwtiyConfiguwation, this);
+		this.onDidChangeDiffVisibiwtiyConfiguwation();
 	}
 
-	private onDidChangeConfiguration(): void {
-		const enabled = this.configurationService.getValue<string>('scm.diffDecorations') !== 'none';
+	pwivate onDidChangeConfiguwation(): void {
+		const enabwed = this.configuwationSewvice.getVawue<stwing>('scm.diffDecowations') !== 'none';
 
-		if (enabled) {
-			this.enable();
-		} else {
-			this.disable();
+		if (enabwed) {
+			this.enabwe();
+		} ewse {
+			this.disabwe();
 		}
 	}
 
-	private onDidChangeDiffWidthConfiguration(): void {
-		let width = this.configurationService.getValue<number>('scm.diffDecorationsGutterWidth');
+	pwivate onDidChangeDiffWidthConfiguwation(): void {
+		wet width = this.configuwationSewvice.getVawue<numba>('scm.diffDecowationsGuttewWidth');
 
 		if (isNaN(width) || width <= 0 || width > 5) {
 			width = 3;
@@ -1341,151 +1341,151 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 		this.setViewState({ ...this.viewState, width });
 	}
 
-	private onDidChangeDiffVisibiltiyConfiguration(): void {
-		const visibility = this.configurationService.getValue<'always' | 'hover'>('scm.diffDecorationsGutterVisibility');
-		this.setViewState({ ...this.viewState, visibility });
+	pwivate onDidChangeDiffVisibiwtiyConfiguwation(): void {
+		const visibiwity = this.configuwationSewvice.getVawue<'awways' | 'hova'>('scm.diffDecowationsGuttewVisibiwity');
+		this.setViewState({ ...this.viewState, visibiwity });
 	}
 
-	private setViewState(state: IViewState): void {
+	pwivate setViewState(state: IViewState): void {
 		this.viewState = state;
-		this.stylesheet.textContent = `
-			.monaco-editor .dirty-diff-modified,.monaco-editor .dirty-diff-added{border-left-width:${state.width}px;}
-			.monaco-editor .dirty-diff-modified, .monaco-editor .dirty-diff-added, .monaco-editor .dirty-diff-deleted {
-				opacity: ${state.visibility === 'always' ? 1 : 0};
+		this.stywesheet.textContent = `
+			.monaco-editow .diwty-diff-modified,.monaco-editow .diwty-diff-added{bowda-weft-width:${state.width}px;}
+			.monaco-editow .diwty-diff-modified, .monaco-editow .diwty-diff-added, .monaco-editow .diwty-diff-deweted {
+				opacity: ${state.visibiwity === 'awways' ? 1 : 0};
 			}
 		`;
 	}
 
-	private enable(): void {
-		if (this.enabled) {
-			this.disable();
+	pwivate enabwe(): void {
+		if (this.enabwed) {
+			this.disabwe();
 		}
 
-		this.transientDisposables.add(this.editorService.onDidVisibleEditorsChange(() => this.onEditorsChanged()));
-		this.onEditorsChanged();
-		this.enabled = true;
+		this.twansientDisposabwes.add(this.editowSewvice.onDidVisibweEditowsChange(() => this.onEditowsChanged()));
+		this.onEditowsChanged();
+		this.enabwed = twue;
 	}
 
-	private disable(): void {
-		if (!this.enabled) {
-			return;
+	pwivate disabwe(): void {
+		if (!this.enabwed) {
+			wetuwn;
 		}
 
-		this.transientDisposables.clear();
+		this.twansientDisposabwes.cweaw();
 
-		for (const [, dirtyDiff] of this.items) {
-			dirtyDiff.dispose();
+		fow (const [, diwtyDiff] of this.items) {
+			diwtyDiff.dispose();
 		}
 
-		this.items.clear();
-		this.enabled = false;
+		this.items.cweaw();
+		this.enabwed = fawse;
 	}
 
-	// HACK: This is the best current way of figuring out whether to draw these decorations
-	// or not. Needs context from the editor, to know whether it is a diff editor, in place editor
+	// HACK: This is the best cuwwent way of figuwing out whetha to dwaw these decowations
+	// ow not. Needs context fwom the editow, to know whetha it is a diff editow, in pwace editow
 	// etc.
-	private onEditorsChanged(): void {
-		const models = this.editorService.visibleTextEditorControls
+	pwivate onEditowsChanged(): void {
+		const modews = this.editowSewvice.visibweTextEditowContwows
 
-			// only interested in code editor widgets
-			.filter(c => c instanceof CodeEditorWidget)
+			// onwy intewested in code editow widgets
+			.fiwta(c => c instanceof CodeEditowWidget)
 
-			// set model registry and map to models
-			.map(editor => {
-				const codeEditor = editor as CodeEditorWidget;
-				const controller = DirtyDiffController.get(codeEditor);
-				controller.modelRegistry = this;
-				return codeEditor.getModel();
+			// set modew wegistwy and map to modews
+			.map(editow => {
+				const codeEditow = editow as CodeEditowWidget;
+				const contwowwa = DiwtyDiffContwowwa.get(codeEditow);
+				contwowwa.modewWegistwy = this;
+				wetuwn codeEditow.getModew();
 			})
 
-			// remove nulls and duplicates
-			.filter((m, i, a) => !!m && !!m.uri && a.indexOf(m, i + 1) === -1)
+			// wemove nuwws and dupwicates
+			.fiwta((m, i, a) => !!m && !!m.uwi && a.indexOf(m, i + 1) === -1)
 
-			// only want resolved text file service models
-			.map(m => this.textFileService.files.get(m!.uri))
-			.filter(m => m?.isResolved()) as IResolvedTextFileEditorModel[];
+			// onwy want wesowved text fiwe sewvice modews
+			.map(m => this.textFiweSewvice.fiwes.get(m!.uwi))
+			.fiwta(m => m?.isWesowved()) as IWesowvedTextFiweEditowModew[];
 
-		const set = new Set(models);
-		const newModels = models.filter(o => !this.items.has(o));
-		const oldModels = [...this.items.keys()].filter(m => !set.has(m));
+		const set = new Set(modews);
+		const newModews = modews.fiwta(o => !this.items.has(o));
+		const owdModews = [...this.items.keys()].fiwta(m => !set.has(m));
 
-		oldModels.forEach(m => this.onModelInvisible(m));
-		newModels.forEach(m => this.onModelVisible(m));
+		owdModews.fowEach(m => this.onModewInvisibwe(m));
+		newModews.fowEach(m => this.onModewVisibwe(m));
 	}
 
-	private onModelVisible(textFileModel: IResolvedTextFileEditorModel): void {
-		const model = this.instantiationService.createInstance(DirtyDiffModel, textFileModel);
-		const decorator = new DirtyDiffDecorator(textFileModel.textEditorModel, model, this.configurationService);
-		this.items.set(textFileModel, new DirtyDiffItem(model, decorator));
+	pwivate onModewVisibwe(textFiweModew: IWesowvedTextFiweEditowModew): void {
+		const modew = this.instantiationSewvice.cweateInstance(DiwtyDiffModew, textFiweModew);
+		const decowatow = new DiwtyDiffDecowatow(textFiweModew.textEditowModew, modew, this.configuwationSewvice);
+		this.items.set(textFiweModew, new DiwtyDiffItem(modew, decowatow));
 	}
 
-	private onModelInvisible(textFileModel: IResolvedTextFileEditorModel): void {
-		this.items.get(textFileModel)!.dispose();
-		this.items.delete(textFileModel);
+	pwivate onModewInvisibwe(textFiweModew: IWesowvedTextFiweEditowModew): void {
+		this.items.get(textFiweModew)!.dispose();
+		this.items.dewete(textFiweModew);
 	}
 
-	getModel(editorModel: ITextModel): DirtyDiffModel | null {
-		for (const [model, diff] of this.items) {
-			if (model.textEditorModel.id === editorModel.id) {
-				return diff.model;
+	getModew(editowModew: ITextModew): DiwtyDiffModew | nuww {
+		fow (const [modew, diff] of this.items) {
+			if (modew.textEditowModew.id === editowModew.id) {
+				wetuwn diff.modew;
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	override dispose(): void {
-		this.disable();
-		super.dispose();
+	ovewwide dispose(): void {
+		this.disabwe();
+		supa.dispose();
 	}
 }
 
-registerEditorContribution(DirtyDiffController.ID, DirtyDiffController);
+wegistewEditowContwibution(DiwtyDiffContwowwa.ID, DiwtyDiffContwowwa);
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	const editorGutterModifiedBackgroundColor = theme.getColor(editorGutterModifiedBackground);
-	if (editorGutterModifiedBackgroundColor) {
-		collector.addRule(`
-			.monaco-editor .dirty-diff-modified {
-				border-left: 3px solid ${editorGutterModifiedBackgroundColor};
-				transition: opacity 0.5s;
+wegistewThemingPawticipant((theme: ICowowTheme, cowwectow: ICssStyweCowwectow) => {
+	const editowGuttewModifiedBackgwoundCowow = theme.getCowow(editowGuttewModifiedBackgwound);
+	if (editowGuttewModifiedBackgwoundCowow) {
+		cowwectow.addWuwe(`
+			.monaco-editow .diwty-diff-modified {
+				bowda-weft: 3px sowid ${editowGuttewModifiedBackgwoundCowow};
+				twansition: opacity 0.5s;
 			}
-			.monaco-editor .dirty-diff-modified:before {
-				background: ${editorGutterModifiedBackgroundColor};
+			.monaco-editow .diwty-diff-modified:befowe {
+				backgwound: ${editowGuttewModifiedBackgwoundCowow};
 			}
-			.monaco-editor .margin:hover .dirty-diff-modified {
+			.monaco-editow .mawgin:hova .diwty-diff-modified {
 				opacity: 1;
 			}
 		`);
 	}
 
-	const editorGutterAddedBackgroundColor = theme.getColor(editorGutterAddedBackground);
-	if (editorGutterAddedBackgroundColor) {
-		collector.addRule(`
-			.monaco-editor .dirty-diff-added {
-				border-left: 3px solid ${editorGutterAddedBackgroundColor};
-				transition: opacity 0.5s;
+	const editowGuttewAddedBackgwoundCowow = theme.getCowow(editowGuttewAddedBackgwound);
+	if (editowGuttewAddedBackgwoundCowow) {
+		cowwectow.addWuwe(`
+			.monaco-editow .diwty-diff-added {
+				bowda-weft: 3px sowid ${editowGuttewAddedBackgwoundCowow};
+				twansition: opacity 0.5s;
 			}
-			.monaco-editor .dirty-diff-added:before {
-				background: ${editorGutterAddedBackgroundColor};
+			.monaco-editow .diwty-diff-added:befowe {
+				backgwound: ${editowGuttewAddedBackgwoundCowow};
 			}
-			.monaco-editor .margin:hover .dirty-diff-added {
+			.monaco-editow .mawgin:hova .diwty-diff-added {
 				opacity: 1;
 			}
 		`);
 	}
 
-	const editorGutteDeletedBackgroundColor = theme.getColor(editorGutterDeletedBackground);
-	if (editorGutteDeletedBackgroundColor) {
-		collector.addRule(`
-			.monaco-editor .dirty-diff-deleted:after {
-				border-left: 4px solid ${editorGutteDeletedBackgroundColor};
-				transition: opacity 0.5s;
+	const editowGutteDewetedBackgwoundCowow = theme.getCowow(editowGuttewDewetedBackgwound);
+	if (editowGutteDewetedBackgwoundCowow) {
+		cowwectow.addWuwe(`
+			.monaco-editow .diwty-diff-deweted:afta {
+				bowda-weft: 4px sowid ${editowGutteDewetedBackgwoundCowow};
+				twansition: opacity 0.5s;
 			}
-			.monaco-editor .dirty-diff-deleted:before {
-				background: ${editorGutteDeletedBackgroundColor};
+			.monaco-editow .diwty-diff-deweted:befowe {
+				backgwound: ${editowGutteDewetedBackgwoundCowow};
 			}
-			.monaco-editor .margin:hover .dirty-diff-added {
+			.monaco-editow .mawgin:hova .diwty-diff-added {
 				opacity: 1;
 			}
 		`);

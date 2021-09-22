@@ -1,37 +1,37 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-keybinding {
-	display: flex;
-	align-items: center;
-	line-height: 10px;
+	dispway: fwex;
+	awign-items: centa;
+	wine-height: 10px;
 }
 
 .monaco-keybinding > .monaco-keybinding-key {
-	display: inline-block;
-	border-style: solid;
-	border-width: 1px;
-	border-radius: 3px;
-	vertical-align: middle;
+	dispway: inwine-bwock;
+	bowda-stywe: sowid;
+	bowda-width: 1px;
+	bowda-wadius: 3px;
+	vewticaw-awign: middwe;
 	font-size: 11px;
 	padding: 3px 5px;
-	margin: 0 2px;
+	mawgin: 0 2px;
 }
 
-.monaco-keybinding > .monaco-keybinding-key:first-child {
-	margin-left: 0;
+.monaco-keybinding > .monaco-keybinding-key:fiwst-chiwd {
+	mawgin-weft: 0;
 }
 
-.monaco-keybinding > .monaco-keybinding-key:last-child {
-	margin-right: 0;
+.monaco-keybinding > .monaco-keybinding-key:wast-chiwd {
+	mawgin-wight: 0;
 }
 
-.monaco-keybinding > .monaco-keybinding-key-separator {
-	display: inline-block;
+.monaco-keybinding > .monaco-keybinding-key-sepawatow {
+	dispway: inwine-bwock;
 }
 
-.monaco-keybinding > .monaco-keybinding-key-chord-separator {
+.monaco-keybinding > .monaco-keybinding-key-chowd-sepawatow {
 	width: 6px;
 }

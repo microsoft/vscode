@@ -1,191 +1,191 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILanguageDetectionService, ILanguageDetectionStats, LanguageDetectionStatsClassification, LanguageDetectionStatsId } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-import { FileAccess } from 'vs/base/common/network';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { URI } from 'vs/base/common/uri';
-import { isWeb } from 'vs/base/common/platform';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { LanguageDetectionSimpleWorker } from 'vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { EditorWorkerClient, EditorWorkerHost } from 'vs/editor/common/services/editorWorkerServiceImpl';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWanguageDetectionSewvice, IWanguageDetectionStats, WanguageDetectionStatsCwassification, WanguageDetectionStatsId } fwom 'vs/wowkbench/sewvices/wanguageDetection/common/wanguageDetectionWowkewSewvice';
+impowt { FiweAccess } fwom 'vs/base/common/netwowk';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { WanguageDetectionSimpweWowka } fwom 'vs/wowkbench/sewvices/wanguageDetection/bwowsa/wanguageDetectionSimpweWowka';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { SimpweWowkewCwient } fwom 'vs/base/common/wowka/simpweWowka';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { EditowWowkewCwient, EditowWowkewHost } fwom 'vs/editow/common/sewvices/editowWowkewSewviceImpw';
 
-const moduleLocation = '../../../../../../node_modules/@vscode/vscode-languagedetection';
-const moduleLocationAsar = '../../../../../../node_modules.asar/@vscode/vscode-languagedetection';
-export class LanguageDetectionService extends Disposable implements ILanguageDetectionService {
-	static readonly enablementSettingKey = 'workbench.editor.languageDetection';
+const moduweWocation = '../../../../../../node_moduwes/@vscode/vscode-wanguagedetection';
+const moduweWocationAsaw = '../../../../../../node_moduwes.asaw/@vscode/vscode-wanguagedetection';
+expowt cwass WanguageDetectionSewvice extends Disposabwe impwements IWanguageDetectionSewvice {
+	static weadonwy enabwementSettingKey = 'wowkbench.editow.wanguageDetection';
 
-	_serviceBrand: undefined;
+	_sewviceBwand: undefined;
 
-	private _languageDetectionWorkerClient: LanguageDetectionWorkerClient;
+	pwivate _wanguageDetectionWowkewCwient: WanguageDetectionWowkewCwient;
 
-	constructor(
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@IModeService private readonly _modeService: IModeService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IModelService modelService: IModelService,
-		@ITelemetryService telemetryService: ITelemetryService,
+	constwuctow(
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy _enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IModeSewvice pwivate weadonwy _modeSewvice: IModeSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
+		@IModewSewvice modewSewvice: IModewSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
 	) {
-		super();
+		supa();
 
-		this._languageDetectionWorkerClient = new LanguageDetectionWorkerClient(
-			modelService,
-			telemetryService,
-			// TODO: See if it's possible to bundle vscode-languagedetection
-			this._environmentService.isBuilt && !isWeb
-				? FileAccess.asBrowserUri(`${moduleLocationAsar}/dist/lib/index.js`, require).toString(true)
-				: FileAccess.asBrowserUri(`${moduleLocation}/dist/lib/index.js`, require).toString(true),
-			this._environmentService.isBuilt && !isWeb
-				? FileAccess.asBrowserUri(`${moduleLocationAsar}/model/model.json`, require).toString(true)
-				: FileAccess.asBrowserUri(`${moduleLocation}/model/model.json`, require).toString(true),
-			this._environmentService.isBuilt && !isWeb
-				? FileAccess.asBrowserUri(`${moduleLocationAsar}/model/group1-shard1of1.bin`, require).toString(true)
-				: FileAccess.asBrowserUri(`${moduleLocation}/model/group1-shard1of1.bin`, require).toString(true));
+		this._wanguageDetectionWowkewCwient = new WanguageDetectionWowkewCwient(
+			modewSewvice,
+			tewemetwySewvice,
+			// TODO: See if it's possibwe to bundwe vscode-wanguagedetection
+			this._enviwonmentSewvice.isBuiwt && !isWeb
+				? FiweAccess.asBwowsewUwi(`${moduweWocationAsaw}/dist/wib/index.js`, wequiwe).toStwing(twue)
+				: FiweAccess.asBwowsewUwi(`${moduweWocation}/dist/wib/index.js`, wequiwe).toStwing(twue),
+			this._enviwonmentSewvice.isBuiwt && !isWeb
+				? FiweAccess.asBwowsewUwi(`${moduweWocationAsaw}/modew/modew.json`, wequiwe).toStwing(twue)
+				: FiweAccess.asBwowsewUwi(`${moduweWocation}/modew/modew.json`, wequiwe).toStwing(twue),
+			this._enviwonmentSewvice.isBuiwt && !isWeb
+				? FiweAccess.asBwowsewUwi(`${moduweWocationAsaw}/modew/gwoup1-shawd1of1.bin`, wequiwe).toStwing(twue)
+				: FiweAccess.asBwowsewUwi(`${moduweWocation}/modew/gwoup1-shawd1of1.bin`, wequiwe).toStwing(twue));
 	}
 
-	public isEnabledForMode(modeId: string): boolean {
-		return !!modeId && this._configurationService.getValue<boolean>(LanguageDetectionService.enablementSettingKey, { overrideIdentifier: modeId });
+	pubwic isEnabwedFowMode(modeId: stwing): boowean {
+		wetuwn !!modeId && this._configuwationSewvice.getVawue<boowean>(WanguageDetectionSewvice.enabwementSettingKey, { ovewwideIdentifia: modeId });
 	}
 
-	private getModeId(language: string | undefined): string | undefined {
-		if (!language) {
-			return undefined;
+	pwivate getModeId(wanguage: stwing | undefined): stwing | undefined {
+		if (!wanguage) {
+			wetuwn undefined;
 		}
-		return this._modeService.getModeIdByFilepathOrFirstLine(URI.file(`file.${language}`)) ?? undefined;
+		wetuwn this._modeSewvice.getModeIdByFiwepathOwFiwstWine(UWI.fiwe(`fiwe.${wanguage}`)) ?? undefined;
 	}
 
-	async detectLanguage(resource: URI): Promise<string | undefined> {
-		const language = await this._languageDetectionWorkerClient.detectLanguage(resource);
-		if (language) {
-			return this.getModeId(language);
+	async detectWanguage(wesouwce: UWI): Pwomise<stwing | undefined> {
+		const wanguage = await this._wanguageDetectionWowkewCwient.detectWanguage(wesouwce);
+		if (wanguage) {
+			wetuwn this.getModeId(wanguage);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-export interface IWorkerClient<W> {
-	getProxyObject(): Promise<W>;
+expowt intewface IWowkewCwient<W> {
+	getPwoxyObject(): Pwomise<W>;
 	dispose(): void;
 }
 
-export class LanguageDetectionWorkerHost {
-	constructor(
-		private _indexJsUri: string,
-		private _modelJsonUri: string,
-		private _weightsUri: string,
-		private _telemetryService: ITelemetryService,
+expowt cwass WanguageDetectionWowkewHost {
+	constwuctow(
+		pwivate _indexJsUwi: stwing,
+		pwivate _modewJsonUwi: stwing,
+		pwivate _weightsUwi: stwing,
+		pwivate _tewemetwySewvice: ITewemetwySewvice,
 	) {
 	}
 
-	async getIndexJsUri() {
-		return this._indexJsUri;
+	async getIndexJsUwi() {
+		wetuwn this._indexJsUwi;
 	}
 
-	async getModelJsonUri() {
-		return this._modelJsonUri;
+	async getModewJsonUwi() {
+		wetuwn this._modewJsonUwi;
 	}
 
-	async getWeightsUri() {
-		return this._weightsUri;
+	async getWeightsUwi() {
+		wetuwn this._weightsUwi;
 	}
 
-	async sendTelemetryEvent(languages: string[], confidences: number[], timeSpent: number): Promise<void> {
-		type LanguageDetectionStats = { languages: string; confidences: string; timeSpent: number; };
-		type LanguageDetectionStatsClassification = {
-			languages: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			confidences: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			timeSpent: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	async sendTewemetwyEvent(wanguages: stwing[], confidences: numba[], timeSpent: numba): Pwomise<void> {
+		type WanguageDetectionStats = { wanguages: stwing; confidences: stwing; timeSpent: numba; };
+		type WanguageDetectionStatsCwassification = {
+			wanguages: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+			confidences: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+			timeSpent: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
 		};
 
-		this._telemetryService.publicLog2<LanguageDetectionStats, LanguageDetectionStatsClassification>('automaticlanguagedetection.stats', {
-			languages: languages.join(','),
+		this._tewemetwySewvice.pubwicWog2<WanguageDetectionStats, WanguageDetectionStatsCwassification>('automaticwanguagedetection.stats', {
+			wanguages: wanguages.join(','),
 			confidences: confidences.join(','),
 			timeSpent
 		});
 	}
 }
 
-export class LanguageDetectionWorkerClient extends EditorWorkerClient {
-	private workerPromise: Promise<IWorkerClient<LanguageDetectionSimpleWorker>> | undefined;
+expowt cwass WanguageDetectionWowkewCwient extends EditowWowkewCwient {
+	pwivate wowkewPwomise: Pwomise<IWowkewCwient<WanguageDetectionSimpweWowka>> | undefined;
 
-	constructor(
-		modelService: IModelService,
-		private readonly _telemetryService: ITelemetryService,
-		private readonly _indexJsUri: string,
-		private readonly _modelJsonUri: string,
-		private readonly _weightsUri: string
+	constwuctow(
+		modewSewvice: IModewSewvice,
+		pwivate weadonwy _tewemetwySewvice: ITewemetwySewvice,
+		pwivate weadonwy _indexJsUwi: stwing,
+		pwivate weadonwy _modewJsonUwi: stwing,
+		pwivate weadonwy _weightsUwi: stwing
 	) {
-		super(modelService, true, 'languageDetectionWorkerService');
+		supa(modewSewvice, twue, 'wanguageDetectionWowkewSewvice');
 	}
 
-	private _getOrCreateLanguageDetectionWorker(): Promise<IWorkerClient<LanguageDetectionSimpleWorker>> {
-		if (this.workerPromise) {
-			return this.workerPromise;
+	pwivate _getOwCweateWanguageDetectionWowka(): Pwomise<IWowkewCwient<WanguageDetectionSimpweWowka>> {
+		if (this.wowkewPwomise) {
+			wetuwn this.wowkewPwomise;
 		}
 
-		this.workerPromise = new Promise((resolve, reject) => {
-			resolve(this._register(new SimpleWorkerClient<LanguageDetectionSimpleWorker, EditorWorkerHost>(
-				this._workerFactory,
-				'vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker',
-				new EditorWorkerHost(this)
+		this.wowkewPwomise = new Pwomise((wesowve, weject) => {
+			wesowve(this._wegista(new SimpweWowkewCwient<WanguageDetectionSimpweWowka, EditowWowkewHost>(
+				this._wowkewFactowy,
+				'vs/wowkbench/sewvices/wanguageDetection/bwowsa/wanguageDetectionSimpweWowka',
+				new EditowWowkewHost(this)
 			)));
 		});
 
-		return this.workerPromise;
+		wetuwn this.wowkewPwomise;
 	}
 
-	override async _getProxy(): Promise<LanguageDetectionSimpleWorker> {
-		return (await this._getOrCreateLanguageDetectionWorker()).getProxyObject();
+	ovewwide async _getPwoxy(): Pwomise<WanguageDetectionSimpweWowka> {
+		wetuwn (await this._getOwCweateWanguageDetectionWowka()).getPwoxyObject();
 	}
 
-	// foreign host request
-	public override async fhr(method: string, args: any[]): Promise<any> {
+	// foweign host wequest
+	pubwic ovewwide async fhw(method: stwing, awgs: any[]): Pwomise<any> {
 		switch (method) {
-			case 'getIndexJsUri':
-				return this.getIndexJsUri();
-			case 'getModelJsonUri':
-				return this.getModelJsonUri();
-			case 'getWeightsUri':
-				return this.getWeightsUri();
-			case 'sendTelemetryEvent':
-				return this.sendTelemetryEvent(args[0], args[1], args[2]);
-			default:
-				return super.fhr(method, args);
+			case 'getIndexJsUwi':
+				wetuwn this.getIndexJsUwi();
+			case 'getModewJsonUwi':
+				wetuwn this.getModewJsonUwi();
+			case 'getWeightsUwi':
+				wetuwn this.getWeightsUwi();
+			case 'sendTewemetwyEvent':
+				wetuwn this.sendTewemetwyEvent(awgs[0], awgs[1], awgs[2]);
+			defauwt:
+				wetuwn supa.fhw(method, awgs);
 		}
 	}
 
-	async getIndexJsUri() {
-		return this._indexJsUri;
+	async getIndexJsUwi() {
+		wetuwn this._indexJsUwi;
 	}
 
-	async getModelJsonUri() {
-		return this._modelJsonUri;
+	async getModewJsonUwi() {
+		wetuwn this._modewJsonUwi;
 	}
 
-	async getWeightsUri() {
-		return this._weightsUri;
+	async getWeightsUwi() {
+		wetuwn this._weightsUwi;
 	}
 
-	async sendTelemetryEvent(languages: string[], confidences: number[], timeSpent: number): Promise<void> {
-		this._telemetryService.publicLog2<ILanguageDetectionStats, LanguageDetectionStatsClassification>(LanguageDetectionStatsId, {
-			languages: languages.join(','),
+	async sendTewemetwyEvent(wanguages: stwing[], confidences: numba[], timeSpent: numba): Pwomise<void> {
+		this._tewemetwySewvice.pubwicWog2<IWanguageDetectionStats, WanguageDetectionStatsCwassification>(WanguageDetectionStatsId, {
+			wanguages: wanguages.join(','),
 			confidences: confidences.join(','),
 			timeSpent
 		});
 	}
 
-	public async detectLanguage(resource: URI): Promise<string | undefined> {
-		await this._withSyncedResources([resource]);
-		return (await this._getProxy()).detectLanguage(resource.toString());
+	pubwic async detectWanguage(wesouwce: UWI): Pwomise<stwing | undefined> {
+		await this._withSyncedWesouwces([wesouwce]);
+		wetuwn (await this._getPwoxy()).detectWanguage(wesouwce.toStwing());
 	}
 }
 
-registerSingleton(ILanguageDetectionService, LanguageDetectionService);
+wegistewSingweton(IWanguageDetectionSewvice, WanguageDetectionSewvice);

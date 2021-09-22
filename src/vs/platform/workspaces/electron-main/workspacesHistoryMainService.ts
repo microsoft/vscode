@@ -1,446 +1,446 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, JumpListCategory, JumpListItem } from 'electron';
-import { coalesce } from 'vs/base/common/arrays';
-import { ThrottledDelayer } from 'vs/base/common/async';
-import { Emitter, Event as CommonEvent } from 'vs/base/common/event';
-import { normalizeDriveLetter, splitName } from 'vs/base/common/labels';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { basename, extUriBiasedIgnorePathCase, originalFSPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { Promises } from 'vs/base/node/pfs';
-import { localize } from 'vs/nls';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
-import { IRecent, IRecentFile, IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFile, isRecentFolder, isRecentWorkspace, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, RecentlyOpenedStorageData, restoreRecentlyOpened, toStoreData, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
+impowt { app, JumpWistCategowy, JumpWistItem } fwom 'ewectwon';
+impowt { coawesce } fwom 'vs/base/common/awways';
+impowt { ThwottwedDewaya } fwom 'vs/base/common/async';
+impowt { Emitta, Event as CommonEvent } fwom 'vs/base/common/event';
+impowt { nowmawizeDwiveWetta, spwitName } fwom 'vs/base/common/wabews';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { isMacintosh, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { basename, extUwiBiasedIgnowePathCase, owiginawFSPath } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Pwomises } fwom 'vs/base/node/pfs';
+impowt { wocawize } fwom 'vs/nws';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWifecycweMainSewvice, WifecycweMainPhase } fwom 'vs/pwatfowm/wifecycwe/ewectwon-main/wifecycweMainSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IStateMainSewvice } fwom 'vs/pwatfowm/state/ewectwon-main/state';
+impowt { ICodeWindow } fwom 'vs/pwatfowm/windows/ewectwon-main/windows';
+impowt { IWecent, IWecentFiwe, IWecentFowda, IWecentwyOpened, IWecentWowkspace, isWecentFiwe, isWecentFowda, isWecentWowkspace, isSingweFowdewWowkspaceIdentifia, isWowkspaceIdentifia, IWowkspaceIdentifia, WecentwyOpenedStowageData, westoweWecentwyOpened, toStoweData, WOWKSPACE_EXTENSION } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { IWowkspacesManagementMainSewvice } fwom 'vs/pwatfowm/wowkspaces/ewectwon-main/wowkspacesManagementMainSewvice';
 
-export const IWorkspacesHistoryMainService = createDecorator<IWorkspacesHistoryMainService>('workspacesHistoryMainService');
+expowt const IWowkspacesHistowyMainSewvice = cweateDecowatow<IWowkspacesHistowyMainSewvice>('wowkspacesHistowyMainSewvice');
 
-export interface IWorkspacesHistoryMainService {
+expowt intewface IWowkspacesHistowyMainSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	readonly onDidChangeRecentlyOpened: CommonEvent<void>;
+	weadonwy onDidChangeWecentwyOpened: CommonEvent<void>;
 
-	addRecentlyOpened(recents: IRecent[]): void;
-	getRecentlyOpened(include?: ICodeWindow): IRecentlyOpened;
-	removeRecentlyOpened(paths: URI[]): void;
-	clearRecentlyOpened(): void;
+	addWecentwyOpened(wecents: IWecent[]): void;
+	getWecentwyOpened(incwude?: ICodeWindow): IWecentwyOpened;
+	wemoveWecentwyOpened(paths: UWI[]): void;
+	cweawWecentwyOpened(): void;
 
-	updateWindowsJumpList(): void;
+	updateWindowsJumpWist(): void;
 }
 
-export class WorkspacesHistoryMainService extends Disposable implements IWorkspacesHistoryMainService {
+expowt cwass WowkspacesHistowyMainSewvice extends Disposabwe impwements IWowkspacesHistowyMainSewvice {
 
-	private static readonly MAX_TOTAL_RECENT_ENTRIES = 100;
+	pwivate static weadonwy MAX_TOTAW_WECENT_ENTWIES = 100;
 
-	private static readonly MAX_MACOS_DOCK_RECENT_WORKSPACES = 7; 		// prefer higher number of workspaces...
-	private static readonly MAX_MACOS_DOCK_RECENT_ENTRIES_TOTAL = 10; 	// ...over number of files
+	pwivate static weadonwy MAX_MACOS_DOCK_WECENT_WOWKSPACES = 7; 		// pwefa higha numba of wowkspaces...
+	pwivate static weadonwy MAX_MACOS_DOCK_WECENT_ENTWIES_TOTAW = 10; 	// ...ova numba of fiwes
 
-	// Exclude some very common files from the dock/taskbar
-	private static readonly COMMON_FILES_FILTER = [
+	// Excwude some vewy common fiwes fwom the dock/taskbaw
+	pwivate static weadonwy COMMON_FIWES_FIWTa = [
 		'COMMIT_EDITMSG',
-		'MERGE_MSG'
+		'MEWGE_MSG'
 	];
 
-	private static readonly recentlyOpenedStorageKey = 'openedPathsList';
+	pwivate static weadonwy wecentwyOpenedStowageKey = 'openedPathsWist';
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _onDidChangeRecentlyOpened = this._register(new Emitter<void>());
-	readonly onDidChangeRecentlyOpened: CommonEvent<void> = this._onDidChangeRecentlyOpened.event;
+	pwivate weadonwy _onDidChangeWecentwyOpened = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeWecentwyOpened: CommonEvent<void> = this._onDidChangeWecentwyOpened.event;
 
-	private readonly macOSRecentDocumentsUpdater = this._register(new ThrottledDelayer<void>(800));
+	pwivate weadonwy macOSWecentDocumentsUpdata = this._wegista(new ThwottwedDewaya<void>(800));
 
-	constructor(
-		@IStateMainService private readonly stateMainService: IStateMainService,
-		@ILogService private readonly logService: ILogService,
-		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
+	constwuctow(
+		@IStateMainSewvice pwivate weadonwy stateMainSewvice: IStateMainSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IWowkspacesManagementMainSewvice pwivate weadonwy wowkspacesManagementMainSewvice: IWowkspacesManagementMainSewvice,
+		@IWifecycweMainSewvice pwivate weadonwy wifecycweMainSewvice: IWifecycweMainSewvice
 	) {
-		super();
+		supa();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Install window jump list after opening window
-		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => this.handleWindowsJumpList());
+		// Instaww window jump wist afta opening window
+		this.wifecycweMainSewvice.when(WifecycweMainPhase.AftewWindowOpen).then(() => this.handweWindowsJumpWist());
 
-		// Add to history when entering workspace
-		this._register(this.workspacesManagementMainService.onDidEnterWorkspace(event => this.addRecentlyOpened([{ workspace: event.workspace }])));
+		// Add to histowy when entewing wowkspace
+		this._wegista(this.wowkspacesManagementMainSewvice.onDidEntewWowkspace(event => this.addWecentwyOpened([{ wowkspace: event.wowkspace }])));
 	}
 
-	private handleWindowsJumpList(): void {
+	pwivate handweWindowsJumpWist(): void {
 		if (!isWindows) {
-			return; // only on windows
+			wetuwn; // onwy on windows
 		}
 
-		this.updateWindowsJumpList();
-		this._register(this.onDidChangeRecentlyOpened(() => this.updateWindowsJumpList()));
+		this.updateWindowsJumpWist();
+		this._wegista(this.onDidChangeWecentwyOpened(() => this.updateWindowsJumpWist()));
 	}
 
-	addRecentlyOpened(recentToAdd: IRecent[]): void {
-		const workspaces: Array<IRecentFolder | IRecentWorkspace> = [];
-		const files: IRecentFile[] = [];
+	addWecentwyOpened(wecentToAdd: IWecent[]): void {
+		const wowkspaces: Awway<IWecentFowda | IWecentWowkspace> = [];
+		const fiwes: IWecentFiwe[] = [];
 
-		for (let recent of recentToAdd) {
+		fow (wet wecent of wecentToAdd) {
 
-			// Workspace
-			if (isRecentWorkspace(recent)) {
-				if (!this.workspacesManagementMainService.isUntitledWorkspace(recent.workspace) && indexOfWorkspace(workspaces, recent.workspace) === -1) {
-					workspaces.push(recent);
+			// Wowkspace
+			if (isWecentWowkspace(wecent)) {
+				if (!this.wowkspacesManagementMainSewvice.isUntitwedWowkspace(wecent.wowkspace) && indexOfWowkspace(wowkspaces, wecent.wowkspace) === -1) {
+					wowkspaces.push(wecent);
 				}
 			}
 
-			// Folder
-			else if (isRecentFolder(recent)) {
-				if (indexOfFolder(workspaces, recent.folderUri) === -1) {
-					workspaces.push(recent);
+			// Fowda
+			ewse if (isWecentFowda(wecent)) {
+				if (indexOfFowda(wowkspaces, wecent.fowdewUwi) === -1) {
+					wowkspaces.push(wecent);
 				}
 			}
 
-			// File
-			else {
-				const alreadyExistsInHistory = indexOfFile(files, recent.fileUri) >= 0;
-				const shouldBeFiltered = recent.fileUri.scheme === Schemas.file && WorkspacesHistoryMainService.COMMON_FILES_FILTER.indexOf(basename(recent.fileUri)) >= 0;
+			// Fiwe
+			ewse {
+				const awweadyExistsInHistowy = indexOfFiwe(fiwes, wecent.fiweUwi) >= 0;
+				const shouwdBeFiwtewed = wecent.fiweUwi.scheme === Schemas.fiwe && WowkspacesHistowyMainSewvice.COMMON_FIWES_FIWTa.indexOf(basename(wecent.fiweUwi)) >= 0;
 
-				if (!alreadyExistsInHistory && !shouldBeFiltered) {
-					files.push(recent);
+				if (!awweadyExistsInHistowy && !shouwdBeFiwtewed) {
+					fiwes.push(wecent);
 
-					// Add to recent documents (Windows only, macOS later)
-					if (isWindows && recent.fileUri.scheme === Schemas.file) {
-						app.addRecentDocument(recent.fileUri.fsPath);
+					// Add to wecent documents (Windows onwy, macOS wata)
+					if (isWindows && wecent.fiweUwi.scheme === Schemas.fiwe) {
+						app.addWecentDocument(wecent.fiweUwi.fsPath);
 					}
 				}
 			}
 		}
 
-		this.addEntriesFromStorage(workspaces, files);
+		this.addEntwiesFwomStowage(wowkspaces, fiwes);
 
-		if (workspaces.length > WorkspacesHistoryMainService.MAX_TOTAL_RECENT_ENTRIES) {
-			workspaces.length = WorkspacesHistoryMainService.MAX_TOTAL_RECENT_ENTRIES;
+		if (wowkspaces.wength > WowkspacesHistowyMainSewvice.MAX_TOTAW_WECENT_ENTWIES) {
+			wowkspaces.wength = WowkspacesHistowyMainSewvice.MAX_TOTAW_WECENT_ENTWIES;
 		}
 
-		if (files.length > WorkspacesHistoryMainService.MAX_TOTAL_RECENT_ENTRIES) {
-			files.length = WorkspacesHistoryMainService.MAX_TOTAL_RECENT_ENTRIES;
+		if (fiwes.wength > WowkspacesHistowyMainSewvice.MAX_TOTAW_WECENT_ENTWIES) {
+			fiwes.wength = WowkspacesHistowyMainSewvice.MAX_TOTAW_WECENT_ENTWIES;
 		}
 
-		this.saveRecentlyOpened({ workspaces, files });
-		this._onDidChangeRecentlyOpened.fire();
+		this.saveWecentwyOpened({ wowkspaces, fiwes });
+		this._onDidChangeWecentwyOpened.fiwe();
 
-		// Schedule update to recent documents on macOS dock
+		// Scheduwe update to wecent documents on macOS dock
 		if (isMacintosh) {
-			this.macOSRecentDocumentsUpdater.trigger(() => this.updateMacOSRecentDocuments());
+			this.macOSWecentDocumentsUpdata.twigga(() => this.updateMacOSWecentDocuments());
 		}
 	}
 
-	removeRecentlyOpened(recentToRemove: URI[]): void {
-		const keep = (recent: IRecent) => {
-			const uri = location(recent);
-			for (const resourceToRemove of recentToRemove) {
-				if (extUriBiasedIgnorePathCase.isEqual(resourceToRemove, uri)) {
-					return false;
+	wemoveWecentwyOpened(wecentToWemove: UWI[]): void {
+		const keep = (wecent: IWecent) => {
+			const uwi = wocation(wecent);
+			fow (const wesouwceToWemove of wecentToWemove) {
+				if (extUwiBiasedIgnowePathCase.isEquaw(wesouwceToWemove, uwi)) {
+					wetuwn fawse;
 				}
 			}
 
-			return true;
+			wetuwn twue;
 		};
 
-		const mru = this.getRecentlyOpened();
-		const workspaces = mru.workspaces.filter(keep);
-		const files = mru.files.filter(keep);
+		const mwu = this.getWecentwyOpened();
+		const wowkspaces = mwu.wowkspaces.fiwta(keep);
+		const fiwes = mwu.fiwes.fiwta(keep);
 
-		if (workspaces.length !== mru.workspaces.length || files.length !== mru.files.length) {
-			this.saveRecentlyOpened({ files, workspaces });
-			this._onDidChangeRecentlyOpened.fire();
+		if (wowkspaces.wength !== mwu.wowkspaces.wength || fiwes.wength !== mwu.fiwes.wength) {
+			this.saveWecentwyOpened({ fiwes, wowkspaces });
+			this._onDidChangeWecentwyOpened.fiwe();
 
-			// Schedule update to recent documents on macOS dock
+			// Scheduwe update to wecent documents on macOS dock
 			if (isMacintosh) {
-				this.macOSRecentDocumentsUpdater.trigger(() => this.updateMacOSRecentDocuments());
+				this.macOSWecentDocumentsUpdata.twigga(() => this.updateMacOSWecentDocuments());
 			}
 		}
 	}
 
-	private async updateMacOSRecentDocuments(): Promise<void> {
+	pwivate async updateMacOSWecentDocuments(): Pwomise<void> {
 		if (!isMacintosh) {
-			return;
+			wetuwn;
 		}
 
-		// We clear all documents first to ensure an up-to-date view on the set. Since entries
-		// can get deleted on disk, this ensures that the list is always valid
-		app.clearRecentDocuments();
+		// We cweaw aww documents fiwst to ensuwe an up-to-date view on the set. Since entwies
+		// can get deweted on disk, this ensuwes that the wist is awways vawid
+		app.cweawWecentDocuments();
 
-		const mru = this.getRecentlyOpened();
+		const mwu = this.getWecentwyOpened();
 
-		// Collect max-N recent workspaces that are known to exist
-		const workspaceEntries: string[] = [];
-		let entries = 0;
-		for (let i = 0; i < mru.workspaces.length && entries < WorkspacesHistoryMainService.MAX_MACOS_DOCK_RECENT_WORKSPACES; i++) {
-			const loc = location(mru.workspaces[i]);
-			if (loc.scheme === Schemas.file) {
-				const workspacePath = originalFSPath(loc);
-				if (await Promises.exists(workspacePath)) {
-					workspaceEntries.push(workspacePath);
-					entries++;
+		// Cowwect max-N wecent wowkspaces that awe known to exist
+		const wowkspaceEntwies: stwing[] = [];
+		wet entwies = 0;
+		fow (wet i = 0; i < mwu.wowkspaces.wength && entwies < WowkspacesHistowyMainSewvice.MAX_MACOS_DOCK_WECENT_WOWKSPACES; i++) {
+			const woc = wocation(mwu.wowkspaces[i]);
+			if (woc.scheme === Schemas.fiwe) {
+				const wowkspacePath = owiginawFSPath(woc);
+				if (await Pwomises.exists(wowkspacePath)) {
+					wowkspaceEntwies.push(wowkspacePath);
+					entwies++;
 				}
 			}
 		}
 
-		// Collect max-N recent files that are known to exist
-		const fileEntries: string[] = [];
-		for (let i = 0; i < mru.files.length && entries < WorkspacesHistoryMainService.MAX_MACOS_DOCK_RECENT_ENTRIES_TOTAL; i++) {
-			const loc = location(mru.files[i]);
-			if (loc.scheme === Schemas.file) {
-				const filePath = originalFSPath(loc);
+		// Cowwect max-N wecent fiwes that awe known to exist
+		const fiweEntwies: stwing[] = [];
+		fow (wet i = 0; i < mwu.fiwes.wength && entwies < WowkspacesHistowyMainSewvice.MAX_MACOS_DOCK_WECENT_ENTWIES_TOTAW; i++) {
+			const woc = wocation(mwu.fiwes[i]);
+			if (woc.scheme === Schemas.fiwe) {
+				const fiwePath = owiginawFSPath(woc);
 				if (
-					WorkspacesHistoryMainService.COMMON_FILES_FILTER.includes(basename(loc)) || // skip some well known file entries
-					workspaceEntries.includes(filePath)											// prefer a workspace entry over a file entry (e.g. for .code-workspace)
+					WowkspacesHistowyMainSewvice.COMMON_FIWES_FIWTa.incwudes(basename(woc)) || // skip some weww known fiwe entwies
+					wowkspaceEntwies.incwudes(fiwePath)											// pwefa a wowkspace entwy ova a fiwe entwy (e.g. fow .code-wowkspace)
 				) {
 					continue;
 				}
 
-				if (await Promises.exists(filePath)) {
-					fileEntries.push(filePath);
-					entries++;
+				if (await Pwomises.exists(fiwePath)) {
+					fiweEntwies.push(fiwePath);
+					entwies++;
 				}
 			}
 		}
 
-		// The apple guidelines (https://developer.apple.com/design/human-interface-guidelines/macos/menus/menu-anatomy/)
-		// explain that most recent entries should appear close to the interaction by the user (e.g. close to the
-		// mouse click). Most native macOS applications that add recent documents to the dock, show the most recent document
-		// to the bottom (because the dock menu is not appearing from top to bottom, but from the bottom to the top). As such
-		// we fill in the entries in reverse order so that the most recent shows up at the bottom of the menu.
+		// The appwe guidewines (https://devewopa.appwe.com/design/human-intewface-guidewines/macos/menus/menu-anatomy/)
+		// expwain that most wecent entwies shouwd appeaw cwose to the intewaction by the usa (e.g. cwose to the
+		// mouse cwick). Most native macOS appwications that add wecent documents to the dock, show the most wecent document
+		// to the bottom (because the dock menu is not appeawing fwom top to bottom, but fwom the bottom to the top). As such
+		// we fiww in the entwies in wevewse owda so that the most wecent shows up at the bottom of the menu.
 		//
-		// On top of that, the maximum number of documents can be configured by the user (defaults to 10). To ensure that
-		// we are not failing to show the most recent entries, we start by adding files first (in reverse order of recency)
-		// and then add folders (in reverse order of recency). Given that strategy, we can ensure that the most recent
-		// N folders are always appearing, even if the limit is low (https://github.com/microsoft/vscode/issues/74788)
-		fileEntries.reverse().forEach(fileEntry => app.addRecentDocument(fileEntry));
-		workspaceEntries.reverse().forEach(workspaceEntry => app.addRecentDocument(workspaceEntry));
+		// On top of that, the maximum numba of documents can be configuwed by the usa (defauwts to 10). To ensuwe that
+		// we awe not faiwing to show the most wecent entwies, we stawt by adding fiwes fiwst (in wevewse owda of wecency)
+		// and then add fowdews (in wevewse owda of wecency). Given that stwategy, we can ensuwe that the most wecent
+		// N fowdews awe awways appeawing, even if the wimit is wow (https://github.com/micwosoft/vscode/issues/74788)
+		fiweEntwies.wevewse().fowEach(fiweEntwy => app.addWecentDocument(fiweEntwy));
+		wowkspaceEntwies.wevewse().fowEach(wowkspaceEntwy => app.addWecentDocument(wowkspaceEntwy));
 	}
 
-	clearRecentlyOpened(): void {
-		this.saveRecentlyOpened({ workspaces: [], files: [] });
-		app.clearRecentDocuments();
+	cweawWecentwyOpened(): void {
+		this.saveWecentwyOpened({ wowkspaces: [], fiwes: [] });
+		app.cweawWecentDocuments();
 
 		// Event
-		this._onDidChangeRecentlyOpened.fire();
+		this._onDidChangeWecentwyOpened.fiwe();
 	}
 
-	getRecentlyOpened(include?: ICodeWindow): IRecentlyOpened {
-		const workspaces: Array<IRecentFolder | IRecentWorkspace> = [];
-		const files: IRecentFile[] = [];
+	getWecentwyOpened(incwude?: ICodeWindow): IWecentwyOpened {
+		const wowkspaces: Awway<IWecentFowda | IWecentWowkspace> = [];
+		const fiwes: IWecentFiwe[] = [];
 
-		// Add current workspace to beginning if set
-		const currentWorkspace = include?.config?.workspace;
-		if (isWorkspaceIdentifier(currentWorkspace) && !this.workspacesManagementMainService.isUntitledWorkspace(currentWorkspace)) {
-			workspaces.push({ workspace: currentWorkspace });
-		} else if (isSingleFolderWorkspaceIdentifier(currentWorkspace)) {
-			workspaces.push({ folderUri: currentWorkspace.uri });
+		// Add cuwwent wowkspace to beginning if set
+		const cuwwentWowkspace = incwude?.config?.wowkspace;
+		if (isWowkspaceIdentifia(cuwwentWowkspace) && !this.wowkspacesManagementMainSewvice.isUntitwedWowkspace(cuwwentWowkspace)) {
+			wowkspaces.push({ wowkspace: cuwwentWowkspace });
+		} ewse if (isSingweFowdewWowkspaceIdentifia(cuwwentWowkspace)) {
+			wowkspaces.push({ fowdewUwi: cuwwentWowkspace.uwi });
 		}
 
-		// Add currently files to open to the beginning if any
-		const currentFiles = include?.config?.filesToOpenOrCreate;
-		if (currentFiles) {
-			for (let currentFile of currentFiles) {
-				const fileUri = currentFile.fileUri;
-				if (fileUri && indexOfFile(files, fileUri) === -1) {
-					files.push({ fileUri });
+		// Add cuwwentwy fiwes to open to the beginning if any
+		const cuwwentFiwes = incwude?.config?.fiwesToOpenOwCweate;
+		if (cuwwentFiwes) {
+			fow (wet cuwwentFiwe of cuwwentFiwes) {
+				const fiweUwi = cuwwentFiwe.fiweUwi;
+				if (fiweUwi && indexOfFiwe(fiwes, fiweUwi) === -1) {
+					fiwes.push({ fiweUwi });
 				}
 			}
 		}
 
-		this.addEntriesFromStorage(workspaces, files);
+		this.addEntwiesFwomStowage(wowkspaces, fiwes);
 
-		return { workspaces, files };
+		wetuwn { wowkspaces, fiwes };
 	}
 
-	private addEntriesFromStorage(workspaces: Array<IRecentFolder | IRecentWorkspace>, files: IRecentFile[]) {
+	pwivate addEntwiesFwomStowage(wowkspaces: Awway<IWecentFowda | IWecentWowkspace>, fiwes: IWecentFiwe[]) {
 
-		// Get from storage
-		let recents = this.getRecentlyOpenedFromStorage();
-		for (let recent of recents.workspaces) {
-			let index = isRecentFolder(recent) ? indexOfFolder(workspaces, recent.folderUri) : indexOfWorkspace(workspaces, recent.workspace);
+		// Get fwom stowage
+		wet wecents = this.getWecentwyOpenedFwomStowage();
+		fow (wet wecent of wecents.wowkspaces) {
+			wet index = isWecentFowda(wecent) ? indexOfFowda(wowkspaces, wecent.fowdewUwi) : indexOfWowkspace(wowkspaces, wecent.wowkspace);
 			if (index >= 0) {
-				workspaces[index].label = workspaces[index].label || recent.label;
-			} else {
-				workspaces.push(recent);
+				wowkspaces[index].wabew = wowkspaces[index].wabew || wecent.wabew;
+			} ewse {
+				wowkspaces.push(wecent);
 			}
 		}
 
-		for (let recent of recents.files) {
-			let index = indexOfFile(files, recent.fileUri);
+		fow (wet wecent of wecents.fiwes) {
+			wet index = indexOfFiwe(fiwes, wecent.fiweUwi);
 			if (index >= 0) {
-				files[index].label = files[index].label || recent.label;
-			} else {
-				files.push(recent);
+				fiwes[index].wabew = fiwes[index].wabew || wecent.wabew;
+			} ewse {
+				fiwes.push(wecent);
 			}
 		}
 	}
 
-	private getRecentlyOpenedFromStorage(): IRecentlyOpened {
-		const storedRecents = this.stateMainService.getItem<RecentlyOpenedStorageData>(WorkspacesHistoryMainService.recentlyOpenedStorageKey);
+	pwivate getWecentwyOpenedFwomStowage(): IWecentwyOpened {
+		const stowedWecents = this.stateMainSewvice.getItem<WecentwyOpenedStowageData>(WowkspacesHistowyMainSewvice.wecentwyOpenedStowageKey);
 
-		return restoreRecentlyOpened(storedRecents, this.logService);
+		wetuwn westoweWecentwyOpened(stowedWecents, this.wogSewvice);
 	}
 
-	private saveRecentlyOpened(recent: IRecentlyOpened): void {
-		const serialized = toStoreData(recent);
+	pwivate saveWecentwyOpened(wecent: IWecentwyOpened): void {
+		const sewiawized = toStoweData(wecent);
 
-		this.stateMainService.setItem(WorkspacesHistoryMainService.recentlyOpenedStorageKey, serialized);
+		this.stateMainSewvice.setItem(WowkspacesHistowyMainSewvice.wecentwyOpenedStowageKey, sewiawized);
 	}
 
-	updateWindowsJumpList(): void {
+	updateWindowsJumpWist(): void {
 		if (!isWindows) {
-			return; // only on windows
+			wetuwn; // onwy on windows
 		}
 
-		const jumpList: JumpListCategory[] = [];
+		const jumpWist: JumpWistCategowy[] = [];
 
 		// Tasks
-		jumpList.push({
+		jumpWist.push({
 			type: 'tasks',
 			items: [
 				{
 					type: 'task',
-					title: localize('newWindow', "New Window"),
-					description: localize('newWindowDesc', "Opens a new window"),
-					program: process.execPath,
-					args: '-n', // force new window
-					iconPath: process.execPath,
+					titwe: wocawize('newWindow', "New Window"),
+					descwiption: wocawize('newWindowDesc', "Opens a new window"),
+					pwogwam: pwocess.execPath,
+					awgs: '-n', // fowce new window
+					iconPath: pwocess.execPath,
 					iconIndex: 0
 				}
 			]
 		});
 
-		// Recent Workspaces
-		if (this.getRecentlyOpened().workspaces.length > 0) {
+		// Wecent Wowkspaces
+		if (this.getWecentwyOpened().wowkspaces.wength > 0) {
 
-			// The user might have meanwhile removed items from the jump list and we have to respect that
-			// so we need to update our list of recent paths with the choice of the user to not add them again
-			// Also: Windows will not show our custom category at all if there is any entry which was removed
-			// by the user! See https://github.com/microsoft/vscode/issues/15052
-			let toRemove: URI[] = [];
-			for (let item of app.getJumpListSettings().removedItems) {
-				const args = item.args;
-				if (args) {
-					const match = /^--(folder|file)-uri\s+"([^"]+)"$/.exec(args);
+			// The usa might have meanwhiwe wemoved items fwom the jump wist and we have to wespect that
+			// so we need to update ouw wist of wecent paths with the choice of the usa to not add them again
+			// Awso: Windows wiww not show ouw custom categowy at aww if thewe is any entwy which was wemoved
+			// by the usa! See https://github.com/micwosoft/vscode/issues/15052
+			wet toWemove: UWI[] = [];
+			fow (wet item of app.getJumpWistSettings().wemovedItems) {
+				const awgs = item.awgs;
+				if (awgs) {
+					const match = /^--(fowda|fiwe)-uwi\s+"([^"]+)"$/.exec(awgs);
 					if (match) {
-						toRemove.push(URI.parse(match[2]));
+						toWemove.push(UWI.pawse(match[2]));
 					}
 				}
 			}
-			this.removeRecentlyOpened(toRemove);
+			this.wemoveWecentwyOpened(toWemove);
 
-			// Add entries
-			let hasWorkspaces = false;
-			const items: JumpListItem[] = coalesce(this.getRecentlyOpened().workspaces.slice(0, 7 /* limit number of entries here */).map(recent => {
-				const workspace = isRecentWorkspace(recent) ? recent.workspace : recent.folderUri;
+			// Add entwies
+			wet hasWowkspaces = fawse;
+			const items: JumpWistItem[] = coawesce(this.getWecentwyOpened().wowkspaces.swice(0, 7 /* wimit numba of entwies hewe */).map(wecent => {
+				const wowkspace = isWecentWowkspace(wecent) ? wecent.wowkspace : wecent.fowdewUwi;
 
-				const { title, description } = this.getWindowsJumpListLabel(workspace, recent.label);
-				let args;
-				if (URI.isUri(workspace)) {
-					args = `--folder-uri "${workspace.toString()}"`;
-				} else {
-					hasWorkspaces = true;
-					args = `--file-uri "${workspace.configPath.toString()}"`;
+				const { titwe, descwiption } = this.getWindowsJumpWistWabew(wowkspace, wecent.wabew);
+				wet awgs;
+				if (UWI.isUwi(wowkspace)) {
+					awgs = `--fowda-uwi "${wowkspace.toStwing()}"`;
+				} ewse {
+					hasWowkspaces = twue;
+					awgs = `--fiwe-uwi "${wowkspace.configPath.toStwing()}"`;
 				}
 
-				return {
+				wetuwn {
 					type: 'task',
-					title: title.substr(0, 255), 				// Windows seems to be picky around the length of entries
-					description: description.substr(0, 255),	// (see https://github.com/microsoft/vscode/issues/111177)
-					program: process.execPath,
-					args,
-					iconPath: 'explorer.exe', // simulate folder icon
+					titwe: titwe.substw(0, 255), 				// Windows seems to be picky awound the wength of entwies
+					descwiption: descwiption.substw(0, 255),	// (see https://github.com/micwosoft/vscode/issues/111177)
+					pwogwam: pwocess.execPath,
+					awgs,
+					iconPath: 'expwowa.exe', // simuwate fowda icon
 					iconIndex: 0
 				};
 			}));
 
-			if (items.length > 0) {
-				jumpList.push({
+			if (items.wength > 0) {
+				jumpWist.push({
 					type: 'custom',
-					name: hasWorkspaces ? localize('recentFoldersAndWorkspaces', "Recent Folders & Workspaces") : localize('recentFolders', "Recent Folders"),
+					name: hasWowkspaces ? wocawize('wecentFowdewsAndWowkspaces', "Wecent Fowdews & Wowkspaces") : wocawize('wecentFowdews', "Wecent Fowdews"),
 					items
 				});
 			}
 		}
 
-		// Recent
-		jumpList.push({
-			type: 'recent' // this enables to show files in the "recent" category
+		// Wecent
+		jumpWist.push({
+			type: 'wecent' // this enabwes to show fiwes in the "wecent" categowy
 		});
 
-		try {
-			app.setJumpList(jumpList);
-		} catch (error) {
-			this.logService.warn('updateWindowsJumpList#setJumpList', error); // since setJumpList is relatively new API, make sure to guard for errors
+		twy {
+			app.setJumpWist(jumpWist);
+		} catch (ewwow) {
+			this.wogSewvice.wawn('updateWindowsJumpWist#setJumpWist', ewwow); // since setJumpWist is wewativewy new API, make suwe to guawd fow ewwows
 		}
 	}
 
-	private getWindowsJumpListLabel(workspace: IWorkspaceIdentifier | URI, recentLabel: string | undefined): { title: string; description: string } {
+	pwivate getWindowsJumpWistWabew(wowkspace: IWowkspaceIdentifia | UWI, wecentWabew: stwing | undefined): { titwe: stwing; descwiption: stwing } {
 
-		// Prefer recent label
-		if (recentLabel) {
-			return { title: splitName(recentLabel).name, description: recentLabel };
+		// Pwefa wecent wabew
+		if (wecentWabew) {
+			wetuwn { titwe: spwitName(wecentWabew).name, descwiption: wecentWabew };
 		}
 
-		// Single Folder
-		if (URI.isUri(workspace)) {
-			return { title: basename(workspace), description: renderJumpListPathDescription(workspace) };
+		// Singwe Fowda
+		if (UWI.isUwi(wowkspace)) {
+			wetuwn { titwe: basename(wowkspace), descwiption: wendewJumpWistPathDescwiption(wowkspace) };
 		}
 
-		// Workspace: Untitled
-		if (this.workspacesManagementMainService.isUntitledWorkspace(workspace)) {
-			return { title: localize('untitledWorkspace', "Untitled (Workspace)"), description: '' };
+		// Wowkspace: Untitwed
+		if (this.wowkspacesManagementMainSewvice.isUntitwedWowkspace(wowkspace)) {
+			wetuwn { titwe: wocawize('untitwedWowkspace', "Untitwed (Wowkspace)"), descwiption: '' };
 		}
 
-		// Workspace: normal
-		let filename = basename(workspace.configPath);
-		if (filename.endsWith(WORKSPACE_EXTENSION)) {
-			filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
+		// Wowkspace: nowmaw
+		wet fiwename = basename(wowkspace.configPath);
+		if (fiwename.endsWith(WOWKSPACE_EXTENSION)) {
+			fiwename = fiwename.substw(0, fiwename.wength - WOWKSPACE_EXTENSION.wength - 1);
 		}
 
-		return { title: localize('workspaceName', "{0} (Workspace)", filename), description: renderJumpListPathDescription(workspace.configPath) };
+		wetuwn { titwe: wocawize('wowkspaceName', "{0} (Wowkspace)", fiwename), descwiption: wendewJumpWistPathDescwiption(wowkspace.configPath) };
 	}
 }
 
-function renderJumpListPathDescription(uri: URI) {
-	return uri.scheme === 'file' ? normalizeDriveLetter(uri.fsPath) : uri.toString();
+function wendewJumpWistPathDescwiption(uwi: UWI) {
+	wetuwn uwi.scheme === 'fiwe' ? nowmawizeDwiveWetta(uwi.fsPath) : uwi.toStwing();
 }
 
-function location(recent: IRecent): URI {
-	if (isRecentFolder(recent)) {
-		return recent.folderUri;
+function wocation(wecent: IWecent): UWI {
+	if (isWecentFowda(wecent)) {
+		wetuwn wecent.fowdewUwi;
 	}
 
-	if (isRecentFile(recent)) {
-		return recent.fileUri;
+	if (isWecentFiwe(wecent)) {
+		wetuwn wecent.fiweUwi;
 	}
 
-	return recent.workspace.configPath;
+	wetuwn wecent.wowkspace.configPath;
 }
 
-function indexOfWorkspace(arr: IRecent[], candidate: IWorkspaceIdentifier): number {
-	return arr.findIndex(workspace => isRecentWorkspace(workspace) && workspace.workspace.id === candidate.id);
+function indexOfWowkspace(aww: IWecent[], candidate: IWowkspaceIdentifia): numba {
+	wetuwn aww.findIndex(wowkspace => isWecentWowkspace(wowkspace) && wowkspace.wowkspace.id === candidate.id);
 }
 
-function indexOfFolder(arr: IRecent[], candidate: URI): number {
-	return arr.findIndex(folder => isRecentFolder(folder) && extUriBiasedIgnorePathCase.isEqual(folder.folderUri, candidate));
+function indexOfFowda(aww: IWecent[], candidate: UWI): numba {
+	wetuwn aww.findIndex(fowda => isWecentFowda(fowda) && extUwiBiasedIgnowePathCase.isEquaw(fowda.fowdewUwi, candidate));
 }
 
-function indexOfFile(arr: IRecentFile[], candidate: URI): number {
-	return arr.findIndex(file => extUriBiasedIgnorePathCase.isEqual(file.fileUri, candidate));
+function indexOfFiwe(aww: IWecentFiwe[], candidate: UWI): numba {
+	wetuwn aww.findIndex(fiwe => extUwiBiasedIgnowePathCase.isEquaw(fiwe.fiweUwi, candidate));
 }

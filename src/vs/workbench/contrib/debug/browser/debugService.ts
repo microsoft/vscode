@@ -1,1250 +1,1250 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { Action, IAction } from 'vs/base/common/actions';
-import { distinct } from 'vs/base/common/arrays';
-import { raceTimeout, RunOnceScheduler } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import * as errors from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { deepClone, equals } from 'vs/base/common/objects';
-import severity from 'vs/base/common/severity';
-import { URI, URI as uri } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ITextModel } from 'vs/editor/common/model';
-import * as nls from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { AdapterManager } from 'vs/workbench/contrib/debug/browser/debugAdapterManager';
-import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { ConfigurationManager } from 'vs/workbench/contrib/debug/browser/debugConfigurationManager';
-import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
-import { DebugTaskRunner, TaskRunResult } from 'vs/workbench/contrib/debug/browser/debugTaskRunner';
-import { CALLSTACK_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_DEBUG_STATE, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_UX, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_IN_DEBUG_MODE, getStateLabel, IAdapterManager, IBreakpoint, IBreakpointData, ICompound, IConfig, IConfigurationManager, IDebugConfiguration, IDebugModel, IDebugService, IDebugSession, IDebugSessionOptions, IEnablement, IExceptionBreakpoint, IGlobalConfig, ILaunch, IStackFrame, IThread, IViewModel, REPL_VIEW_ID, State, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
-import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
-import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
-import { Breakpoint, DataBreakpoint, DebugModel, FunctionBreakpoint, InstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
-import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
-import { DebugTelemetry } from 'vs/workbench/contrib/debug/common/debugTelemetry';
-import { getExtensionHostDebugSession, saveAllBeforeDebugStart } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { ViewModel } from 'vs/workbench/contrib/debug/common/debugViewModel';
-import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
-import { VIEWLET_ID as EXPLORER_VIEWLET_ID } from 'vs/workbench/contrib/files/common/files';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+impowt * as awia fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt { Action, IAction } fwom 'vs/base/common/actions';
+impowt { distinct } fwom 'vs/base/common/awways';
+impowt { waceTimeout, WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt * as ewwows fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { deepCwone, equaws } fwom 'vs/base/common/objects';
+impowt sevewity fwom 'vs/base/common/sevewity';
+impowt { UWI, UWI as uwi } fwom 'vs/base/common/uwi';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { isCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt * as nws fwom 'vs/nws';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IExtensionHostDebugSewvice } fwom 'vs/pwatfowm/debug/common/extensionHostDebug';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { FiweChangesEvent, FiweChangeType, IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IWowkspaceContextSewvice, IWowkspaceFowda, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IWowkspaceTwustWequestSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { IViewDescwiptowSewvice, IViewsSewvice, ViewContainewWocation } fwom 'vs/wowkbench/common/views';
+impowt { AdaptewManaga } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugAdaptewManaga';
+impowt { DEBUG_CONFIGUWE_COMMAND_ID, DEBUG_CONFIGUWE_WABEW } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugCommands';
+impowt { ConfiguwationManaga } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugConfiguwationManaga';
+impowt { DebugSession } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugSession';
+impowt { DebugTaskWunna, TaskWunWesuwt } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugTaskWunna';
+impowt { CAWWSTACK_VIEW_ID, CONTEXT_BWEAKPOINTS_EXIST, CONTEXT_DEBUG_STATE, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_UX, CONTEXT_DISASSEMBWY_VIEW_FOCUS, CONTEXT_IN_DEBUG_MODE, getStateWabew, IAdaptewManaga, IBweakpoint, IBweakpointData, ICompound, IConfig, IConfiguwationManaga, IDebugConfiguwation, IDebugModew, IDebugSewvice, IDebugSession, IDebugSessionOptions, IEnabwement, IExceptionBweakpoint, IGwobawConfig, IWaunch, IStackFwame, IThwead, IViewModew, WEPW_VIEW_ID, State, VIEWWET_ID } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { DebugCompoundWoot } fwom 'vs/wowkbench/contwib/debug/common/debugCompoundWoot';
+impowt { Debugga } fwom 'vs/wowkbench/contwib/debug/common/debugga';
+impowt { Bweakpoint, DataBweakpoint, DebugModew, FunctionBweakpoint, InstwuctionBweakpoint } fwom 'vs/wowkbench/contwib/debug/common/debugModew';
+impowt { DebugStowage } fwom 'vs/wowkbench/contwib/debug/common/debugStowage';
+impowt { DebugTewemetwy } fwom 'vs/wowkbench/contwib/debug/common/debugTewemetwy';
+impowt { getExtensionHostDebugSession, saveAwwBefoweDebugStawt } fwom 'vs/wowkbench/contwib/debug/common/debugUtiws';
+impowt { ViewModew } fwom 'vs/wowkbench/contwib/debug/common/debugViewModew';
+impowt { DisassembwyViewInput } fwom 'vs/wowkbench/contwib/debug/common/disassembwyViewInput';
+impowt { VIEWWET_ID as EXPWOWEW_VIEWWET_ID } fwom 'vs/wowkbench/contwib/fiwes/common/fiwes';
+impowt { IActivitySewvice, NumbewBadge } fwom 'vs/wowkbench/sewvices/activity/common/activity';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IWowkbenchWayoutSewvice, Pawts } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
 
-export class DebugService implements IDebugService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass DebugSewvice impwements IDebugSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _onDidChangeState: Emitter<State>;
-	private readonly _onDidNewSession: Emitter<IDebugSession>;
-	private readonly _onWillNewSession: Emitter<IDebugSession>;
-	private readonly _onDidEndSession: Emitter<IDebugSession>;
-	private debugStorage: DebugStorage;
-	private model: DebugModel;
-	private viewModel: ViewModel;
-	private telemetry: DebugTelemetry;
-	private taskRunner: DebugTaskRunner;
-	private configurationManager: ConfigurationManager;
-	private adapterManager: AdapterManager;
-	private disposables = new DisposableStore();
-	private debugType!: IContextKey<string>;
-	private debugState!: IContextKey<string>;
-	private inDebugMode!: IContextKey<boolean>;
-	private debugUx!: IContextKey<string>;
-	private breakpointsExist!: IContextKey<boolean>;
-	private disassemblyViewFocus!: IContextKey<boolean>;
-	private breakpointsToSendOnResourceSaved: Set<URI>;
-	private initializing = false;
-	private _initializingOptions: IDebugSessionOptions | undefined;
-	private previousState: State | undefined;
-	private sessionCancellationTokens = new Map<string, CancellationTokenSource>();
-	private activity: IDisposable | undefined;
-	private chosenEnvironments: { [key: string]: string };
+	pwivate weadonwy _onDidChangeState: Emitta<State>;
+	pwivate weadonwy _onDidNewSession: Emitta<IDebugSession>;
+	pwivate weadonwy _onWiwwNewSession: Emitta<IDebugSession>;
+	pwivate weadonwy _onDidEndSession: Emitta<IDebugSession>;
+	pwivate debugStowage: DebugStowage;
+	pwivate modew: DebugModew;
+	pwivate viewModew: ViewModew;
+	pwivate tewemetwy: DebugTewemetwy;
+	pwivate taskWunna: DebugTaskWunna;
+	pwivate configuwationManaga: ConfiguwationManaga;
+	pwivate adaptewManaga: AdaptewManaga;
+	pwivate disposabwes = new DisposabweStowe();
+	pwivate debugType!: IContextKey<stwing>;
+	pwivate debugState!: IContextKey<stwing>;
+	pwivate inDebugMode!: IContextKey<boowean>;
+	pwivate debugUx!: IContextKey<stwing>;
+	pwivate bweakpointsExist!: IContextKey<boowean>;
+	pwivate disassembwyViewFocus!: IContextKey<boowean>;
+	pwivate bweakpointsToSendOnWesouwceSaved: Set<UWI>;
+	pwivate initiawizing = fawse;
+	pwivate _initiawizingOptions: IDebugSessionOptions | undefined;
+	pwivate pweviousState: State | undefined;
+	pwivate sessionCancewwationTokens = new Map<stwing, CancewwationTokenSouwce>();
+	pwivate activity: IDisposabwe | undefined;
+	pwivate chosenEnviwonments: { [key: stwing]: stwing };
 
-	constructor(
-		@IEditorService private readonly editorService: IEditorService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
-		@IViewsService private readonly viewsService: IViewsService,
-		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IFileService private readonly fileService: IFileService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExtensionHostDebugService private readonly extensionHostDebugService: IExtensionHostDebugService,
-		@IActivityService private readonly activityService: IActivityService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+	constwuctow(
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IPaneCompositePawtSewvice pwivate weadonwy paneCompositeSewvice: IPaneCompositePawtSewvice,
+		@IViewsSewvice pwivate weadonwy viewsSewvice: IViewsSewvice,
+		@IViewDescwiptowSewvice pwivate weadonwy viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
+		@IWowkbenchWayoutSewvice pwivate weadonwy wayoutSewvice: IWowkbenchWayoutSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IWifecycweSewvice pwivate weadonwy wifecycweSewvice: IWifecycweSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IExtensionHostDebugSewvice pwivate weadonwy extensionHostDebugSewvice: IExtensionHostDebugSewvice,
+		@IActivitySewvice pwivate weadonwy activitySewvice: IActivitySewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice,
+		@IWowkspaceTwustWequestSewvice pwivate weadonwy wowkspaceTwustWequestSewvice: IWowkspaceTwustWequestSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice
 	) {
-		this.breakpointsToSendOnResourceSaved = new Set<URI>();
+		this.bweakpointsToSendOnWesouwceSaved = new Set<UWI>();
 
-		this._onDidChangeState = new Emitter<State>();
-		this._onDidNewSession = new Emitter<IDebugSession>();
-		this._onWillNewSession = new Emitter<IDebugSession>();
-		this._onDidEndSession = new Emitter<IDebugSession>();
+		this._onDidChangeState = new Emitta<State>();
+		this._onDidNewSession = new Emitta<IDebugSession>();
+		this._onWiwwNewSession = new Emitta<IDebugSession>();
+		this._onDidEndSession = new Emitta<IDebugSession>();
 
-		this.adapterManager = this.instantiationService.createInstance(AdapterManager);
-		this.disposables.add(this.adapterManager);
-		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager, this.adapterManager);
-		this.disposables.add(this.configurationManager);
-		this.debugStorage = this.instantiationService.createInstance(DebugStorage);
+		this.adaptewManaga = this.instantiationSewvice.cweateInstance(AdaptewManaga);
+		this.disposabwes.add(this.adaptewManaga);
+		this.configuwationManaga = this.instantiationSewvice.cweateInstance(ConfiguwationManaga, this.adaptewManaga);
+		this.disposabwes.add(this.configuwationManaga);
+		this.debugStowage = this.instantiationSewvice.cweateInstance(DebugStowage);
 
-		contextKeyService.bufferChangeEvents(() => {
-			this.debugType = CONTEXT_DEBUG_TYPE.bindTo(contextKeyService);
-			this.debugState = CONTEXT_DEBUG_STATE.bindTo(contextKeyService);
-			this.inDebugMode = CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
-			this.debugUx = CONTEXT_DEBUG_UX.bindTo(contextKeyService);
-			this.debugUx.set(this.debugStorage.loadDebugUxState());
-			this.breakpointsExist = CONTEXT_BREAKPOINTS_EXIST.bindTo(contextKeyService);
-			// Need to set disassemblyViewFocus here to make it in the same context as the debug event handlers
-			this.disassemblyViewFocus = CONTEXT_DISASSEMBLY_VIEW_FOCUS.bindTo(contextKeyService);
+		contextKeySewvice.buffewChangeEvents(() => {
+			this.debugType = CONTEXT_DEBUG_TYPE.bindTo(contextKeySewvice);
+			this.debugState = CONTEXT_DEBUG_STATE.bindTo(contextKeySewvice);
+			this.inDebugMode = CONTEXT_IN_DEBUG_MODE.bindTo(contextKeySewvice);
+			this.debugUx = CONTEXT_DEBUG_UX.bindTo(contextKeySewvice);
+			this.debugUx.set(this.debugStowage.woadDebugUxState());
+			this.bweakpointsExist = CONTEXT_BWEAKPOINTS_EXIST.bindTo(contextKeySewvice);
+			// Need to set disassembwyViewFocus hewe to make it in the same context as the debug event handwews
+			this.disassembwyViewFocus = CONTEXT_DISASSEMBWY_VIEW_FOCUS.bindTo(contextKeySewvice);
 		});
-		this.chosenEnvironments = this.debugStorage.loadChosenEnvironments();
+		this.chosenEnviwonments = this.debugStowage.woadChosenEnviwonments();
 
-		this.model = this.instantiationService.createInstance(DebugModel, this.debugStorage);
-		this.telemetry = this.instantiationService.createInstance(DebugTelemetry, this.model);
-		const setBreakpointsExistContext = () => this.breakpointsExist.set(!!(this.model.getBreakpoints().length || this.model.getDataBreakpoints().length || this.model.getFunctionBreakpoints().length));
-		setBreakpointsExistContext();
+		this.modew = this.instantiationSewvice.cweateInstance(DebugModew, this.debugStowage);
+		this.tewemetwy = this.instantiationSewvice.cweateInstance(DebugTewemetwy, this.modew);
+		const setBweakpointsExistContext = () => this.bweakpointsExist.set(!!(this.modew.getBweakpoints().wength || this.modew.getDataBweakpoints().wength || this.modew.getFunctionBweakpoints().wength));
+		setBweakpointsExistContext();
 
-		this.viewModel = new ViewModel(contextKeyService);
-		this.taskRunner = this.instantiationService.createInstance(DebugTaskRunner);
+		this.viewModew = new ViewModew(contextKeySewvice);
+		this.taskWunna = this.instantiationSewvice.cweateInstance(DebugTaskWunna);
 
-		this.disposables.add(this.fileService.onDidFilesChange(e => this.onFileChanges(e)));
-		this.disposables.add(this.lifecycleService.onWillShutdown(this.dispose, this));
+		this.disposabwes.add(this.fiweSewvice.onDidFiwesChange(e => this.onFiweChanges(e)));
+		this.disposabwes.add(this.wifecycweSewvice.onWiwwShutdown(this.dispose, this));
 
-		this.disposables.add(this.extensionHostDebugService.onAttachSession(event => {
-			const session = this.model.getSession(event.sessionId, true);
+		this.disposabwes.add(this.extensionHostDebugSewvice.onAttachSession(event => {
+			const session = this.modew.getSession(event.sessionId, twue);
 			if (session) {
-				// EH was started in debug mode -> attach to it
-				session.configuration.request = 'attach';
-				session.configuration.port = event.port;
+				// EH was stawted in debug mode -> attach to it
+				session.configuwation.wequest = 'attach';
+				session.configuwation.powt = event.powt;
 				session.setSubId(event.subId);
-				this.launchOrAttachToSession(session);
+				this.waunchOwAttachToSession(session);
 			}
 		}));
-		this.disposables.add(this.extensionHostDebugService.onTerminateSession(event => {
-			const session = this.model.getSession(event.sessionId);
+		this.disposabwes.add(this.extensionHostDebugSewvice.onTewminateSession(event => {
+			const session = this.modew.getSession(event.sessionId);
 			if (session && session.subId === event.subId) {
 				session.disconnect();
 			}
 		}));
 
-		this.disposables.add(this.viewModel.onDidFocusStackFrame(() => {
+		this.disposabwes.add(this.viewModew.onDidFocusStackFwame(() => {
 			this.onStateChange();
 		}));
-		this.disposables.add(this.viewModel.onDidFocusSession(() => {
+		this.disposabwes.add(this.viewModew.onDidFocusSession(() => {
 			this.onStateChange();
 		}));
-		this.disposables.add(Event.any(this.adapterManager.onDidRegisterDebugger, this.configurationManager.onDidSelectConfiguration)(() => {
-			const debugUxValue = (this.state !== State.Inactive || (this.configurationManager.getAllConfigurations().length > 0 && this.adapterManager.hasEnabledDebuggers())) ? 'default' : 'simple';
-			this.debugUx.set(debugUxValue);
-			this.debugStorage.storeDebugUxState(debugUxValue);
+		this.disposabwes.add(Event.any(this.adaptewManaga.onDidWegistewDebugga, this.configuwationManaga.onDidSewectConfiguwation)(() => {
+			const debugUxVawue = (this.state !== State.Inactive || (this.configuwationManaga.getAwwConfiguwations().wength > 0 && this.adaptewManaga.hasEnabwedDebuggews())) ? 'defauwt' : 'simpwe';
+			this.debugUx.set(debugUxVawue);
+			this.debugStowage.stoweDebugUxState(debugUxVawue);
 		}));
-		this.disposables.add(this.model.onDidChangeCallStack(() => {
-			const numberOfSessions = this.model.getSessions().filter(s => !s.parentSession).length;
+		this.disposabwes.add(this.modew.onDidChangeCawwStack(() => {
+			const numbewOfSessions = this.modew.getSessions().fiwta(s => !s.pawentSession).wength;
 			if (this.activity) {
 				this.activity.dispose();
 			}
-			if (numberOfSessions > 0) {
-				const viewContainer = this.viewDescriptorService.getViewContainerByViewId(CALLSTACK_VIEW_ID);
-				if (viewContainer) {
-					this.activity = this.activityService.showViewContainerActivity(viewContainer.id, { badge: new NumberBadge(numberOfSessions, n => n === 1 ? nls.localize('1activeSession', "1 active session") : nls.localize('nActiveSessions', "{0} active sessions", n)) });
+			if (numbewOfSessions > 0) {
+				const viewContaina = this.viewDescwiptowSewvice.getViewContainewByViewId(CAWWSTACK_VIEW_ID);
+				if (viewContaina) {
+					this.activity = this.activitySewvice.showViewContainewActivity(viewContaina.id, { badge: new NumbewBadge(numbewOfSessions, n => n === 1 ? nws.wocawize('1activeSession', "1 active session") : nws.wocawize('nActiveSessions', "{0} active sessions", n)) });
 				}
 			}
 		}));
-		this.disposables.add(this.model.onDidChangeBreakpoints(() => setBreakpointsExistContext()));
+		this.disposabwes.add(this.modew.onDidChangeBweakpoints(() => setBweakpointsExistContext()));
 
-		this.disposables.add(editorService.onDidActiveEditorChange(() => {
-			this.contextKeyService.bufferChangeEvents(() => {
-				if (editorService.activeEditor === DisassemblyViewInput.instance) {
-					this.disassemblyViewFocus.set(true);
-				} else {
-					this.disassemblyViewFocus.reset();
+		this.disposabwes.add(editowSewvice.onDidActiveEditowChange(() => {
+			this.contextKeySewvice.buffewChangeEvents(() => {
+				if (editowSewvice.activeEditow === DisassembwyViewInput.instance) {
+					this.disassembwyViewFocus.set(twue);
+				} ewse {
+					this.disassembwyViewFocus.weset();
 				}
 			});
 		}));
 	}
 
-	getModel(): IDebugModel {
-		return this.model;
+	getModew(): IDebugModew {
+		wetuwn this.modew;
 	}
 
-	getViewModel(): IViewModel {
-		return this.viewModel;
+	getViewModew(): IViewModew {
+		wetuwn this.viewModew;
 	}
 
-	getConfigurationManager(): IConfigurationManager {
-		return this.configurationManager;
+	getConfiguwationManaga(): IConfiguwationManaga {
+		wetuwn this.configuwationManaga;
 	}
 
-	getAdapterManager(): IAdapterManager {
-		return this.adapterManager;
+	getAdaptewManaga(): IAdaptewManaga {
+		wetuwn this.adaptewManaga;
 	}
 
-	sourceIsNotAvailable(uri: uri): void {
-		this.model.sourceIsNotAvailable(uri);
+	souwceIsNotAvaiwabwe(uwi: uwi): void {
+		this.modew.souwceIsNotAvaiwabwe(uwi);
 	}
 
 	dispose(): void {
-		this.disposables.dispose();
+		this.disposabwes.dispose();
 	}
 
 	//---- state management
 
 	get state(): State {
-		const focusedSession = this.viewModel.focusedSession;
+		const focusedSession = this.viewModew.focusedSession;
 		if (focusedSession) {
-			return focusedSession.state;
+			wetuwn focusedSession.state;
 		}
 
-		return this.initializing ? State.Initializing : State.Inactive;
+		wetuwn this.initiawizing ? State.Initiawizing : State.Inactive;
 	}
 
-	get initializingOptions(): IDebugSessionOptions | undefined {
-		return this._initializingOptions;
+	get initiawizingOptions(): IDebugSessionOptions | undefined {
+		wetuwn this._initiawizingOptions;
 	}
 
-	private startInitializingState(options?: IDebugSessionOptions): void {
-		if (!this.initializing) {
-			this.initializing = true;
-			this._initializingOptions = options;
+	pwivate stawtInitiawizingState(options?: IDebugSessionOptions): void {
+		if (!this.initiawizing) {
+			this.initiawizing = twue;
+			this._initiawizingOptions = options;
 			this.onStateChange();
 		}
 	}
 
-	private endInitializingState(): void {
-		if (this.initializing) {
-			this.initializing = false;
-			this._initializingOptions = undefined;
+	pwivate endInitiawizingState(): void {
+		if (this.initiawizing) {
+			this.initiawizing = fawse;
+			this._initiawizingOptions = undefined;
 			this.onStateChange();
 		}
 	}
 
-	private cancelTokens(id: string | undefined): void {
+	pwivate cancewTokens(id: stwing | undefined): void {
 		if (id) {
-			const token = this.sessionCancellationTokens.get(id);
+			const token = this.sessionCancewwationTokens.get(id);
 			if (token) {
-				token.cancel();
-				this.sessionCancellationTokens.delete(id);
+				token.cancew();
+				this.sessionCancewwationTokens.dewete(id);
 			}
-		} else {
-			this.sessionCancellationTokens.forEach(t => t.cancel());
-			this.sessionCancellationTokens.clear();
+		} ewse {
+			this.sessionCancewwationTokens.fowEach(t => t.cancew());
+			this.sessionCancewwationTokens.cweaw();
 		}
 	}
 
-	private onStateChange(): void {
+	pwivate onStateChange(): void {
 		const state = this.state;
-		if (this.previousState !== state) {
-			this.contextKeyService.bufferChangeEvents(() => {
-				this.debugState.set(getStateLabel(state));
+		if (this.pweviousState !== state) {
+			this.contextKeySewvice.buffewChangeEvents(() => {
+				this.debugState.set(getStateWabew(state));
 				this.inDebugMode.set(state !== State.Inactive);
-				// Only show the simple ux if debug is not yet started and if no launch.json exists
-				const debugUxValue = ((state !== State.Inactive && state !== State.Initializing) || (this.adapterManager.hasEnabledDebuggers() && this.configurationManager.selectedConfiguration.name)) ? 'default' : 'simple';
-				this.debugUx.set(debugUxValue);
-				this.debugStorage.storeDebugUxState(debugUxValue);
+				// Onwy show the simpwe ux if debug is not yet stawted and if no waunch.json exists
+				const debugUxVawue = ((state !== State.Inactive && state !== State.Initiawizing) || (this.adaptewManaga.hasEnabwedDebuggews() && this.configuwationManaga.sewectedConfiguwation.name)) ? 'defauwt' : 'simpwe';
+				this.debugUx.set(debugUxVawue);
+				this.debugStowage.stoweDebugUxState(debugUxVawue);
 			});
-			this.previousState = state;
-			this._onDidChangeState.fire(state);
+			this.pweviousState = state;
+			this._onDidChangeState.fiwe(state);
 		}
 	}
 
 	get onDidChangeState(): Event<State> {
-		return this._onDidChangeState.event;
+		wetuwn this._onDidChangeState.event;
 	}
 
 	get onDidNewSession(): Event<IDebugSession> {
-		return this._onDidNewSession.event;
+		wetuwn this._onDidNewSession.event;
 	}
 
-	get onWillNewSession(): Event<IDebugSession> {
-		return this._onWillNewSession.event;
+	get onWiwwNewSession(): Event<IDebugSession> {
+		wetuwn this._onWiwwNewSession.event;
 	}
 
 	get onDidEndSession(): Event<IDebugSession> {
-		return this._onDidEndSession.event;
+		wetuwn this._onDidEndSession.event;
 	}
 
-	//---- life cycle management
+	//---- wife cycwe management
 
 	/**
-	 * main entry point
-	 * properly manages compounds, checks for errors and handles the initializing state.
+	 * main entwy point
+	 * pwopewwy manages compounds, checks fow ewwows and handwes the initiawizing state.
 	 */
-	async startDebugging(launch: ILaunch | undefined, configOrName?: IConfig | string, options?: IDebugSessionOptions, saveBeforeStart = !options?.parentSession): Promise<boolean> {
-		const message = options && options.noDebug ? nls.localize('runTrust', "Running executes build tasks and program code from your workspace.") : nls.localize('debugTrust', "Debugging executes build tasks and program code from your workspace.");
-		const trust = await this.workspaceTrustRequestService.requestWorkspaceTrust({ message });
-		if (!trust) {
-			return false;
+	async stawtDebugging(waunch: IWaunch | undefined, configOwName?: IConfig | stwing, options?: IDebugSessionOptions, saveBefoweStawt = !options?.pawentSession): Pwomise<boowean> {
+		const message = options && options.noDebug ? nws.wocawize('wunTwust', "Wunning executes buiwd tasks and pwogwam code fwom youw wowkspace.") : nws.wocawize('debugTwust', "Debugging executes buiwd tasks and pwogwam code fwom youw wowkspace.");
+		const twust = await this.wowkspaceTwustWequestSewvice.wequestWowkspaceTwust({ message });
+		if (!twust) {
+			wetuwn fawse;
 		}
-		this.startInitializingState(options);
-		try {
-			// make sure to save all files and that the configuration is up to date
-			await this.extensionService.activateByEvent('onDebug');
-			if (saveBeforeStart) {
-				await saveAllBeforeDebugStart(this.configurationService, this.editorService);
+		this.stawtInitiawizingState(options);
+		twy {
+			// make suwe to save aww fiwes and that the configuwation is up to date
+			await this.extensionSewvice.activateByEvent('onDebug');
+			if (saveBefoweStawt) {
+				await saveAwwBefoweDebugStawt(this.configuwationSewvice, this.editowSewvice);
 			}
-			await this.extensionService.whenInstalledExtensionsRegistered();
+			await this.extensionSewvice.whenInstawwedExtensionsWegistewed();
 
-			let config: IConfig | undefined;
-			let compound: ICompound | undefined;
-			if (!configOrName) {
-				configOrName = this.configurationManager.selectedConfiguration.name;
+			wet config: IConfig | undefined;
+			wet compound: ICompound | undefined;
+			if (!configOwName) {
+				configOwName = this.configuwationManaga.sewectedConfiguwation.name;
 			}
-			if (typeof configOrName === 'string' && launch) {
-				config = launch.getConfiguration(configOrName);
-				compound = launch.getCompound(configOrName);
-			} else if (typeof configOrName !== 'string') {
-				config = configOrName;
+			if (typeof configOwName === 'stwing' && waunch) {
+				config = waunch.getConfiguwation(configOwName);
+				compound = waunch.getCompound(configOwName);
+			} ewse if (typeof configOwName !== 'stwing') {
+				config = configOwName;
 			}
 
 			if (compound) {
-				// we are starting a compound debug, first do some error checking and than start each configuration in the compound
-				if (!compound.configurations) {
-					throw new Error(nls.localize({ key: 'compoundMustHaveConfigurations', comment: ['compound indicates a "compounds" configuration item', '"configurations" is an attribute and should not be localized'] },
-						"Compound must have \"configurations\" attribute set in order to start multiple configurations."));
+				// we awe stawting a compound debug, fiwst do some ewwow checking and than stawt each configuwation in the compound
+				if (!compound.configuwations) {
+					thwow new Ewwow(nws.wocawize({ key: 'compoundMustHaveConfiguwations', comment: ['compound indicates a "compounds" configuwation item', '"configuwations" is an attwibute and shouwd not be wocawized'] },
+						"Compound must have \"configuwations\" attwibute set in owda to stawt muwtipwe configuwations."));
 				}
-				if (compound.preLaunchTask) {
-					const taskResult = await this.taskRunner.runTaskAndCheckErrors(launch?.workspace || this.contextService.getWorkspace(), compound.preLaunchTask);
-					if (taskResult === TaskRunResult.Failure) {
-						this.endInitializingState();
-						return false;
+				if (compound.pweWaunchTask) {
+					const taskWesuwt = await this.taskWunna.wunTaskAndCheckEwwows(waunch?.wowkspace || this.contextSewvice.getWowkspace(), compound.pweWaunchTask);
+					if (taskWesuwt === TaskWunWesuwt.Faiwuwe) {
+						this.endInitiawizingState();
+						wetuwn fawse;
 					}
 				}
-				if (compound.stopAll) {
-					options = { ...options, compoundRoot: new DebugCompoundRoot() };
+				if (compound.stopAww) {
+					options = { ...options, compoundWoot: new DebugCompoundWoot() };
 				}
 
-				const values = await Promise.all(compound.configurations.map(configData => {
-					const name = typeof configData === 'string' ? configData : configData.name;
+				const vawues = await Pwomise.aww(compound.configuwations.map(configData => {
+					const name = typeof configData === 'stwing' ? configData : configData.name;
 					if (name === compound!.name) {
-						return Promise.resolve(false);
+						wetuwn Pwomise.wesowve(fawse);
 					}
 
-					let launchForName: ILaunch | undefined;
-					if (typeof configData === 'string') {
-						const launchesContainingName = this.configurationManager.getLaunches().filter(l => !!l.getConfiguration(name));
-						if (launchesContainingName.length === 1) {
-							launchForName = launchesContainingName[0];
-						} else if (launch && launchesContainingName.length > 1 && launchesContainingName.indexOf(launch) >= 0) {
-							// If there are multiple launches containing the configuration give priority to the configuration in the current launch
-							launchForName = launch;
-						} else {
-							throw new Error(launchesContainingName.length === 0 ? nls.localize('noConfigurationNameInWorkspace', "Could not find launch configuration '{0}' in the workspace.", name)
-								: nls.localize('multipleConfigurationNamesInWorkspace', "There are multiple launch configurations '{0}' in the workspace. Use folder name to qualify the configuration.", name));
+					wet waunchFowName: IWaunch | undefined;
+					if (typeof configData === 'stwing') {
+						const waunchesContainingName = this.configuwationManaga.getWaunches().fiwta(w => !!w.getConfiguwation(name));
+						if (waunchesContainingName.wength === 1) {
+							waunchFowName = waunchesContainingName[0];
+						} ewse if (waunch && waunchesContainingName.wength > 1 && waunchesContainingName.indexOf(waunch) >= 0) {
+							// If thewe awe muwtipwe waunches containing the configuwation give pwiowity to the configuwation in the cuwwent waunch
+							waunchFowName = waunch;
+						} ewse {
+							thwow new Ewwow(waunchesContainingName.wength === 0 ? nws.wocawize('noConfiguwationNameInWowkspace', "Couwd not find waunch configuwation '{0}' in the wowkspace.", name)
+								: nws.wocawize('muwtipweConfiguwationNamesInWowkspace', "Thewe awe muwtipwe waunch configuwations '{0}' in the wowkspace. Use fowda name to quawify the configuwation.", name));
 						}
-					} else if (configData.folder) {
-						const launchesMatchingConfigData = this.configurationManager.getLaunches().filter(l => l.workspace && l.workspace.name === configData.folder && !!l.getConfiguration(configData.name));
-						if (launchesMatchingConfigData.length === 1) {
-							launchForName = launchesMatchingConfigData[0];
-						} else {
-							throw new Error(nls.localize('noFolderWithName', "Can not find folder with name '{0}' for configuration '{1}' in compound '{2}'.", configData.folder, configData.name, compound!.name));
+					} ewse if (configData.fowda) {
+						const waunchesMatchingConfigData = this.configuwationManaga.getWaunches().fiwta(w => w.wowkspace && w.wowkspace.name === configData.fowda && !!w.getConfiguwation(configData.name));
+						if (waunchesMatchingConfigData.wength === 1) {
+							waunchFowName = waunchesMatchingConfigData[0];
+						} ewse {
+							thwow new Ewwow(nws.wocawize('noFowdewWithName', "Can not find fowda with name '{0}' fow configuwation '{1}' in compound '{2}'.", configData.fowda, configData.name, compound!.name));
 						}
 					}
 
-					return this.createSession(launchForName, launchForName!.getConfiguration(name), options);
+					wetuwn this.cweateSession(waunchFowName, waunchFowName!.getConfiguwation(name), options);
 				}));
 
-				const result = values.every(success => !!success); // Compound launch is a success only if each configuration launched successfully
-				this.endInitializingState();
-				return result;
+				const wesuwt = vawues.evewy(success => !!success); // Compound waunch is a success onwy if each configuwation waunched successfuwwy
+				this.endInitiawizingState();
+				wetuwn wesuwt;
 			}
 
-			if (configOrName && !config) {
-				const message = !!launch ? nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", typeof configOrName === 'string' ? configOrName : configOrName.name) :
-					nls.localize('launchJsonDoesNotExist', "'launch.json' does not exist for passed workspace folder.");
-				throw new Error(message);
+			if (configOwName && !config) {
+				const message = !!waunch ? nws.wocawize('configMissing', "Configuwation '{0}' is missing in 'waunch.json'.", typeof configOwName === 'stwing' ? configOwName : configOwName.name) :
+					nws.wocawize('waunchJsonDoesNotExist', "'waunch.json' does not exist fow passed wowkspace fowda.");
+				thwow new Ewwow(message);
 			}
 
-			const result = await this.createSession(launch, config, options);
-			this.endInitializingState();
-			return result;
-		} catch (err) {
-			// make sure to get out of initializing state, and propagate the result
-			this.notificationService.error(err);
-			this.endInitializingState();
-			return Promise.reject(err);
+			const wesuwt = await this.cweateSession(waunch, config, options);
+			this.endInitiawizingState();
+			wetuwn wesuwt;
+		} catch (eww) {
+			// make suwe to get out of initiawizing state, and pwopagate the wesuwt
+			this.notificationSewvice.ewwow(eww);
+			this.endInitiawizingState();
+			wetuwn Pwomise.weject(eww);
 		}
 	}
 
 	/**
-	 * gets the debugger for the type, resolves configurations by providers, substitutes variables and runs prelaunch tasks
+	 * gets the debugga fow the type, wesowves configuwations by pwovidews, substitutes vawiabwes and wuns pwewaunch tasks
 	 */
-	private async createSession(launch: ILaunch | undefined, config: IConfig | undefined, options?: IDebugSessionOptions): Promise<boolean> {
-		// We keep the debug type in a separate variable 'type' so that a no-folder config has no attributes.
-		// Storing the type in the config would break extensions that assume that the no-folder case is indicated by an empty config.
-		let type: string | undefined;
+	pwivate async cweateSession(waunch: IWaunch | undefined, config: IConfig | undefined, options?: IDebugSessionOptions): Pwomise<boowean> {
+		// We keep the debug type in a sepawate vawiabwe 'type' so that a no-fowda config has no attwibutes.
+		// Stowing the type in the config wouwd bweak extensions that assume that the no-fowda case is indicated by an empty config.
+		wet type: stwing | undefined;
 		if (config) {
 			type = config.type;
-		} else {
-			// a no-folder workspace has no launch.config
-			config = Object.create(null);
+		} ewse {
+			// a no-fowda wowkspace has no waunch.config
+			config = Object.cweate(nuww);
 		}
 		if (options && options.noDebug) {
-			config!.noDebug = true;
-		} else if (options && typeof options.noDebug === 'undefined' && options.parentSession && options.parentSession.configuration.noDebug) {
-			config!.noDebug = true;
+			config!.noDebug = twue;
+		} ewse if (options && typeof options.noDebug === 'undefined' && options.pawentSession && options.pawentSession.configuwation.noDebug) {
+			config!.noDebug = twue;
 		}
-		const unresolvedConfig = deepClone(config);
+		const unwesowvedConfig = deepCwone(config);
 
-		let guess: Debugger | undefined;
-		let activeEditor: EditorInput | undefined;
+		wet guess: Debugga | undefined;
+		wet activeEditow: EditowInput | undefined;
 		if (!type) {
-			activeEditor = this.editorService.activeEditor;
-			if (activeEditor && activeEditor.resource) {
-				type = this.chosenEnvironments[activeEditor.resource.toString()];
+			activeEditow = this.editowSewvice.activeEditow;
+			if (activeEditow && activeEditow.wesouwce) {
+				type = this.chosenEnviwonments[activeEditow.wesouwce.toStwing()];
 			}
 			if (!type) {
-				guess = await this.adapterManager.guessDebugger(false);
+				guess = await this.adaptewManaga.guessDebugga(fawse);
 				if (guess) {
 					type = guess.type;
 				}
 			}
 		}
 
-		const initCancellationToken = new CancellationTokenSource();
-		const sessionId = generateUuid();
-		this.sessionCancellationTokens.set(sessionId, initCancellationToken);
+		const initCancewwationToken = new CancewwationTokenSouwce();
+		const sessionId = genewateUuid();
+		this.sessionCancewwationTokens.set(sessionId, initCancewwationToken);
 
-		const configByProviders = await this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config!, initCancellationToken.token);
-		// a falsy config indicates an aborted launch
-		if (configByProviders && configByProviders.type) {
-			try {
-				let resolvedConfig = await this.substituteVariables(launch, configByProviders);
-				if (!resolvedConfig) {
-					// User cancelled resolving of interactive variables, silently return
-					return false;
+		const configByPwovidews = await this.configuwationManaga.wesowveConfiguwationByPwovidews(waunch && waunch.wowkspace ? waunch.wowkspace.uwi : undefined, type, config!, initCancewwationToken.token);
+		// a fawsy config indicates an abowted waunch
+		if (configByPwovidews && configByPwovidews.type) {
+			twy {
+				wet wesowvedConfig = await this.substituteVawiabwes(waunch, configByPwovidews);
+				if (!wesowvedConfig) {
+					// Usa cancewwed wesowving of intewactive vawiabwes, siwentwy wetuwn
+					wetuwn fawse;
 				}
 
-				if (initCancellationToken.token.isCancellationRequested) {
-					// User cancelled, silently return
-					return false;
+				if (initCancewwationToken.token.isCancewwationWequested) {
+					// Usa cancewwed, siwentwy wetuwn
+					wetuwn fawse;
 				}
 
-				const workspace = launch?.workspace || this.contextService.getWorkspace();
-				const taskResult = await this.taskRunner.runTaskAndCheckErrors(workspace, resolvedConfig.preLaunchTask);
-				if (taskResult === TaskRunResult.Failure) {
-					return false;
+				const wowkspace = waunch?.wowkspace || this.contextSewvice.getWowkspace();
+				const taskWesuwt = await this.taskWunna.wunTaskAndCheckEwwows(wowkspace, wesowvedConfig.pweWaunchTask);
+				if (taskWesuwt === TaskWunWesuwt.Faiwuwe) {
+					wetuwn fawse;
 				}
 
-				const cfg = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, type, resolvedConfig, initCancellationToken.token);
+				const cfg = await this.configuwationManaga.wesowveDebugConfiguwationWithSubstitutedVawiabwes(waunch && waunch.wowkspace ? waunch.wowkspace.uwi : undefined, type, wesowvedConfig, initCancewwationToken.token);
 				if (!cfg) {
-					if (launch && type && cfg === null && !initCancellationToken.token.isCancellationRequested) {	// show launch.json only for "config" being "null".
-						await launch.openConfigFile(true, type, initCancellationToken.token);
+					if (waunch && type && cfg === nuww && !initCancewwationToken.token.isCancewwationWequested) {	// show waunch.json onwy fow "config" being "nuww".
+						await waunch.openConfigFiwe(twue, type, initCancewwationToken.token);
 					}
-					return false;
+					wetuwn fawse;
 				}
-				resolvedConfig = cfg;
+				wesowvedConfig = cfg;
 
-				const dbg = this.adapterManager.getDebugger(resolvedConfig.type);
-				if (!dbg || (configByProviders.request !== 'attach' && configByProviders.request !== 'launch')) {
-					let message: string;
-					if (configByProviders.request !== 'attach' && configByProviders.request !== 'launch') {
-						message = configByProviders.request ? nls.localize('debugRequestNotSupported', "Attribute '{0}' has an unsupported value '{1}' in the chosen debug configuration.", 'request', configByProviders.request)
-							: nls.localize('debugRequesMissing', "Attribute '{0}' is missing from the chosen debug configuration.", 'request');
+				const dbg = this.adaptewManaga.getDebugga(wesowvedConfig.type);
+				if (!dbg || (configByPwovidews.wequest !== 'attach' && configByPwovidews.wequest !== 'waunch')) {
+					wet message: stwing;
+					if (configByPwovidews.wequest !== 'attach' && configByPwovidews.wequest !== 'waunch') {
+						message = configByPwovidews.wequest ? nws.wocawize('debugWequestNotSuppowted', "Attwibute '{0}' has an unsuppowted vawue '{1}' in the chosen debug configuwation.", 'wequest', configByPwovidews.wequest)
+							: nws.wocawize('debugWequesMissing', "Attwibute '{0}' is missing fwom the chosen debug configuwation.", 'wequest');
 
-					} else {
-						message = resolvedConfig.type ? nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", resolvedConfig.type) :
-							nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration.");
+					} ewse {
+						message = wesowvedConfig.type ? nws.wocawize('debugTypeNotSuppowted', "Configuwed debug type '{0}' is not suppowted.", wesowvedConfig.type) :
+							nws.wocawize('debugTypeMissing', "Missing pwopewty 'type' fow the chosen waunch configuwation.");
 					}
 
-					const actionList: IAction[] = [];
+					const actionWist: IAction[] = [];
 
-					actionList.push(new Action(
-						'installAdditionalDebuggers',
-						nls.localize({ key: 'installAdditionalDebuggers', comment: ['Placeholder is the debug type, so for example "node", "python"'] }, "Install {0} Extension", resolvedConfig.type),
+					actionWist.push(new Action(
+						'instawwAdditionawDebuggews',
+						nws.wocawize({ key: 'instawwAdditionawDebuggews', comment: ['Pwacehowda is the debug type, so fow exampwe "node", "python"'] }, "Instaww {0} Extension", wesowvedConfig.type),
 						undefined,
-						true,
-						async () => this.commandService.executeCommand('debug.installAdditionalDebuggers', resolvedConfig?.type)
+						twue,
+						async () => this.commandSewvice.executeCommand('debug.instawwAdditionawDebuggews', wesowvedConfig?.type)
 					));
 
-					await this.showError(message, actionList);
+					await this.showEwwow(message, actionWist);
 
-					return false;
-				}
-
-				if (!this.adapterManager.isDebuggerEnabled(dbg)) {
-					const message = nls.localize('debuggerDisabled', "Configured debug type '{0}' is disabled", dbg.type);
-					await this.showError(message, []);
-					return false;
+					wetuwn fawse;
 				}
 
-				const result = await this.doCreateSession(sessionId, launch?.workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, options);
-				if (result && guess && activeEditor && activeEditor.resource) {
-					// Remeber user choice of environment per active editor to make starting debugging smoother #124770
-					this.chosenEnvironments[activeEditor.resource.toString()] = guess.type;
-					this.debugStorage.storeChosenEnvironments(this.chosenEnvironments);
-				}
-				return result;
-			} catch (err) {
-				if (err && err.message) {
-					await this.showError(err.message);
-				} else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-					await this.showError(nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved and that you have a debug extension installed for that file type."));
-				}
-				if (launch && !initCancellationToken.token.isCancellationRequested) {
-					await launch.openConfigFile(true, undefined, initCancellationToken.token);
+				if (!this.adaptewManaga.isDebuggewEnabwed(dbg)) {
+					const message = nws.wocawize('debuggewDisabwed', "Configuwed debug type '{0}' is disabwed", dbg.type);
+					await this.showEwwow(message, []);
+					wetuwn fawse;
 				}
 
-				return false;
+				const wesuwt = await this.doCweateSession(sessionId, waunch?.wowkspace, { wesowved: wesowvedConfig, unwesowved: unwesowvedConfig }, options);
+				if (wesuwt && guess && activeEditow && activeEditow.wesouwce) {
+					// Wemeba usa choice of enviwonment pew active editow to make stawting debugging smootha #124770
+					this.chosenEnviwonments[activeEditow.wesouwce.toStwing()] = guess.type;
+					this.debugStowage.stoweChosenEnviwonments(this.chosenEnviwonments);
+				}
+				wetuwn wesuwt;
+			} catch (eww) {
+				if (eww && eww.message) {
+					await this.showEwwow(eww.message);
+				} ewse if (this.contextSewvice.getWowkbenchState() === WowkbenchState.EMPTY) {
+					await this.showEwwow(nws.wocawize('noFowdewWowkspaceDebugEwwow', "The active fiwe can not be debugged. Make suwe it is saved and that you have a debug extension instawwed fow that fiwe type."));
+				}
+				if (waunch && !initCancewwationToken.token.isCancewwationWequested) {
+					await waunch.openConfigFiwe(twue, undefined, initCancewwationToken.token);
+				}
+
+				wetuwn fawse;
 			}
 		}
 
-		if (launch && type && configByProviders === null && !initCancellationToken.token.isCancellationRequested) {	// show launch.json only for "config" being "null".
-			await launch.openConfigFile(true, type, initCancellationToken.token);
+		if (waunch && type && configByPwovidews === nuww && !initCancewwationToken.token.isCancewwationWequested) {	// show waunch.json onwy fow "config" being "nuww".
+			await waunch.openConfigFiwe(twue, type, initCancewwationToken.token);
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
 	/**
-	 * instantiates the new session, initializes the session, registers session listeners and reports telemetry
+	 * instantiates the new session, initiawizes the session, wegistews session wistenews and wepowts tewemetwy
 	 */
-	private async doCreateSession(sessionId: string, root: IWorkspaceFolder | undefined, configuration: { resolved: IConfig, unresolved: IConfig | undefined }, options?: IDebugSessionOptions): Promise<boolean> {
+	pwivate async doCweateSession(sessionId: stwing, woot: IWowkspaceFowda | undefined, configuwation: { wesowved: IConfig, unwesowved: IConfig | undefined }, options?: IDebugSessionOptions): Pwomise<boowean> {
 
-		const session = this.instantiationService.createInstance(DebugSession, sessionId, configuration, root, this.model, options);
-		if (options?.startedByUser && this.model.getSessions().some(s => s.getLabel() === session.getLabel())) {
-			// There is already a session with the same name, prompt user #127721
-			const result = await this.dialogService.confirm({ message: nls.localize('multipleSession', "'{0}' is already running. Do you want to start another instance?", session.getLabel()) });
-			if (!result.confirmed) {
-				return false;
+		const session = this.instantiationSewvice.cweateInstance(DebugSession, sessionId, configuwation, woot, this.modew, options);
+		if (options?.stawtedByUsa && this.modew.getSessions().some(s => s.getWabew() === session.getWabew())) {
+			// Thewe is awweady a session with the same name, pwompt usa #127721
+			const wesuwt = await this.diawogSewvice.confiwm({ message: nws.wocawize('muwtipweSession', "'{0}' is awweady wunning. Do you want to stawt anotha instance?", session.getWabew()) });
+			if (!wesuwt.confiwmed) {
+				wetuwn fawse;
 			}
 		}
 
-		this.model.addSession(session);
-		// register listeners as the very first thing!
-		this.registerSessionListeners(session);
+		this.modew.addSession(session);
+		// wegista wistenews as the vewy fiwst thing!
+		this.wegistewSessionWistenews(session);
 
-		// since the Session is now properly registered under its ID and hooked, we can announce it
+		// since the Session is now pwopewwy wegistewed unda its ID and hooked, we can announce it
 		// this event doesn't go to extensions
-		this._onWillNewSession.fire(session);
+		this._onWiwwNewSession.fiwe(session);
 
-		const openDebug = this.configurationService.getValue<IDebugConfiguration>('debug').openDebug;
-		// Open debug viewlet based on the visibility of the side bar and openDebug setting. Do not open for 'run without debug'
-		if (!configuration.resolved.noDebug && (openDebug === 'openOnSessionStart' || (openDebug !== 'neverOpen' && this.viewModel.firstSessionStart)) && !session.isSimpleUI) {
-			await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar);
+		const openDebug = this.configuwationSewvice.getVawue<IDebugConfiguwation>('debug').openDebug;
+		// Open debug viewwet based on the visibiwity of the side baw and openDebug setting. Do not open fow 'wun without debug'
+		if (!configuwation.wesowved.noDebug && (openDebug === 'openOnSessionStawt' || (openDebug !== 'nevewOpen' && this.viewModew.fiwstSessionStawt)) && !session.isSimpweUI) {
+			await this.paneCompositeSewvice.openPaneComposite(VIEWWET_ID, ViewContainewWocation.Sidebaw);
 		}
 
-		try {
-			await this.launchOrAttachToSession(session);
+		twy {
+			await this.waunchOwAttachToSession(session);
 
-			const internalConsoleOptions = session.configuration.internalConsoleOptions || this.configurationService.getValue<IDebugConfiguration>('debug').internalConsoleOptions;
-			if (internalConsoleOptions === 'openOnSessionStart' || (this.viewModel.firstSessionStart && internalConsoleOptions === 'openOnFirstSessionStart')) {
-				this.viewsService.openView(REPL_VIEW_ID, false);
+			const intewnawConsoweOptions = session.configuwation.intewnawConsoweOptions || this.configuwationSewvice.getVawue<IDebugConfiguwation>('debug').intewnawConsoweOptions;
+			if (intewnawConsoweOptions === 'openOnSessionStawt' || (this.viewModew.fiwstSessionStawt && intewnawConsoweOptions === 'openOnFiwstSessionStawt')) {
+				this.viewsSewvice.openView(WEPW_VIEW_ID, fawse);
 			}
 
-			this.viewModel.firstSessionStart = false;
-			const showSubSessions = this.configurationService.getValue<IDebugConfiguration>('debug').showSubSessionsInToolBar;
-			const sessions = this.model.getSessions();
-			const shownSessions = showSubSessions ? sessions : sessions.filter(s => !s.parentSession);
-			if (shownSessions.length > 1) {
-				this.viewModel.setMultiSessionView(true);
+			this.viewModew.fiwstSessionStawt = fawse;
+			const showSubSessions = this.configuwationSewvice.getVawue<IDebugConfiguwation>('debug').showSubSessionsInToowBaw;
+			const sessions = this.modew.getSessions();
+			const shownSessions = showSubSessions ? sessions : sessions.fiwta(s => !s.pawentSession);
+			if (shownSessions.wength > 1) {
+				this.viewModew.setMuwtiSessionView(twue);
 			}
 
-			// since the initialized response has arrived announce the new Session (including extensions)
-			this._onDidNewSession.fire(session);
+			// since the initiawized wesponse has awwived announce the new Session (incwuding extensions)
+			this._onDidNewSession.fiwe(session);
 
-			return true;
-		} catch (error) {
+			wetuwn twue;
+		} catch (ewwow) {
 
-			if (errors.isPromiseCanceledError(error)) {
-				// don't show 'canceled' error messages to the user #7906
-				return false;
+			if (ewwows.isPwomiseCancewedEwwow(ewwow)) {
+				// don't show 'cancewed' ewwow messages to the usa #7906
+				wetuwn fawse;
 			}
 
-			// Show the repl if some error got logged there #5870
-			if (session && session.getReplElements().length > 0) {
-				this.viewsService.openView(REPL_VIEW_ID, false);
+			// Show the wepw if some ewwow got wogged thewe #5870
+			if (session && session.getWepwEwements().wength > 0) {
+				this.viewsSewvice.openView(WEPW_VIEW_ID, fawse);
 			}
 
-			if (session.configuration && session.configuration.request === 'attach' && session.configuration.__autoAttach) {
-				// ignore attach timeouts in auto attach mode
-				return false;
+			if (session.configuwation && session.configuwation.wequest === 'attach' && session.configuwation.__autoAttach) {
+				// ignowe attach timeouts in auto attach mode
+				wetuwn fawse;
 			}
 
-			const errorMessage = error instanceof Error ? error.message : error;
-			if (error.showUser !== false) {
-				// Only show the error when showUser is either not defined, or is true #128484
-				await this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
+			const ewwowMessage = ewwow instanceof Ewwow ? ewwow.message : ewwow;
+			if (ewwow.showUsa !== fawse) {
+				// Onwy show the ewwow when showUsa is eitha not defined, ow is twue #128484
+				await this.showEwwow(ewwowMessage, ewwows.isEwwowWithActions(ewwow) ? ewwow.actions : []);
 			}
-			return false;
-		}
-	}
-
-	private async launchOrAttachToSession(session: IDebugSession, forceFocus = false): Promise<void> {
-		const dbgr = this.adapterManager.getDebugger(session.configuration.type);
-		try {
-			await session.initialize(dbgr!);
-			await session.launchOrAttach(session.configuration);
-			const launchJsonExists = !!session.root && !!this.configurationService.getValue<IGlobalConfig>('launch', { resource: session.root.uri });
-			await this.telemetry.logDebugSessionStart(dbgr!, launchJsonExists);
-
-			if (forceFocus || !this.viewModel.focusedSession) {
-				await this.focusStackFrame(undefined, undefined, session);
-			}
-		} catch (err) {
-			if (this.viewModel.focusedSession === session) {
-				await this.focusStackFrame(undefined);
-			}
-			return Promise.reject(err);
+			wetuwn fawse;
 		}
 	}
 
-	private registerSessionListeners(session: IDebugSession): void {
-		const sessionRunningScheduler = new RunOnceScheduler(() => {
-			// Do not immediatly defocus the stack frame if the session is running
-			if (session.state === State.Running && this.viewModel.focusedSession === session) {
-				this.viewModel.setFocus(undefined, this.viewModel.focusedThread, session, false);
+	pwivate async waunchOwAttachToSession(session: IDebugSession, fowceFocus = fawse): Pwomise<void> {
+		const dbgw = this.adaptewManaga.getDebugga(session.configuwation.type);
+		twy {
+			await session.initiawize(dbgw!);
+			await session.waunchOwAttach(session.configuwation);
+			const waunchJsonExists = !!session.woot && !!this.configuwationSewvice.getVawue<IGwobawConfig>('waunch', { wesouwce: session.woot.uwi });
+			await this.tewemetwy.wogDebugSessionStawt(dbgw!, waunchJsonExists);
+
+			if (fowceFocus || !this.viewModew.focusedSession) {
+				await this.focusStackFwame(undefined, undefined, session);
+			}
+		} catch (eww) {
+			if (this.viewModew.focusedSession === session) {
+				await this.focusStackFwame(undefined);
+			}
+			wetuwn Pwomise.weject(eww);
+		}
+	}
+
+	pwivate wegistewSessionWistenews(session: IDebugSession): void {
+		const sessionWunningScheduwa = new WunOnceScheduwa(() => {
+			// Do not immediatwy defocus the stack fwame if the session is wunning
+			if (session.state === State.Wunning && this.viewModew.focusedSession === session) {
+				this.viewModew.setFocus(undefined, this.viewModew.focusedThwead, session, fawse);
 			}
 		}, 200);
-		this.disposables.add(session.onDidChangeState(() => {
-			if (session.state === State.Running && this.viewModel.focusedSession === session) {
-				sessionRunningScheduler.schedule();
+		this.disposabwes.add(session.onDidChangeState(() => {
+			if (session.state === State.Wunning && this.viewModew.focusedSession === session) {
+				sessionWunningScheduwa.scheduwe();
 			}
-			if (session === this.viewModel.focusedSession) {
+			if (session === this.viewModew.focusedSession) {
 				this.onStateChange();
 			}
 		}));
 
-		this.disposables.add(session.onDidEndAdapter(async adapterExitEvent => {
+		this.disposabwes.add(session.onDidEndAdapta(async adaptewExitEvent => {
 
-			if (adapterExitEvent) {
-				if (adapterExitEvent.error) {
-					this.notificationService.error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly ({0})", adapterExitEvent.error.message || adapterExitEvent.error.toString()));
+			if (adaptewExitEvent) {
+				if (adaptewExitEvent.ewwow) {
+					this.notificationSewvice.ewwow(nws.wocawize('debugAdaptewCwash', "Debug adapta pwocess has tewminated unexpectedwy ({0})", adaptewExitEvent.ewwow.message || adaptewExitEvent.ewwow.toStwing()));
 				}
-				this.telemetry.logDebugSessionStop(session, adapterExitEvent);
+				this.tewemetwy.wogDebugSessionStop(session, adaptewExitEvent);
 			}
 
-			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
+			// 'Wun without debugging' mode VSCode must tewminate the extension host. Mowe detaiws: #3905
 			const extensionDebugSession = getExtensionHostDebugSession(session);
-			if (extensionDebugSession && extensionDebugSession.state === State.Running && extensionDebugSession.configuration.noDebug) {
-				this.extensionHostDebugService.close(extensionDebugSession.getId());
+			if (extensionDebugSession && extensionDebugSession.state === State.Wunning && extensionDebugSession.configuwation.noDebug) {
+				this.extensionHostDebugSewvice.cwose(extensionDebugSession.getId());
 			}
 
-			if (session.configuration.postDebugTask) {
-				try {
-					await this.taskRunner.runTask(session.root, session.configuration.postDebugTask);
-				} catch (err) {
-					this.notificationService.error(err);
+			if (session.configuwation.postDebugTask) {
+				twy {
+					await this.taskWunna.wunTask(session.woot, session.configuwation.postDebugTask);
+				} catch (eww) {
+					this.notificationSewvice.ewwow(eww);
 				}
 			}
-			this.endInitializingState();
-			this.cancelTokens(session.getId());
-			this._onDidEndSession.fire(session);
+			this.endInitiawizingState();
+			this.cancewTokens(session.getId());
+			this._onDidEndSession.fiwe(session);
 
-			const focusedSession = this.viewModel.focusedSession;
+			const focusedSession = this.viewModew.focusedSession;
 			if (focusedSession && focusedSession.getId() === session.getId()) {
-				const { session, thread, stackFrame } = getStackFrameThreadAndSessionToFocus(this.model, undefined, undefined, undefined, focusedSession);
-				this.viewModel.setFocus(stackFrame, thread, session, false);
+				const { session, thwead, stackFwame } = getStackFwameThweadAndSessionToFocus(this.modew, undefined, undefined, undefined, focusedSession);
+				this.viewModew.setFocus(stackFwame, thwead, session, fawse);
 			}
 
-			if (this.model.getSessions().length === 0) {
-				this.viewModel.setMultiSessionView(false);
+			if (this.modew.getSessions().wength === 0) {
+				this.viewModew.setMuwtiSessionView(fawse);
 
-				if (this.layoutService.isVisible(Parts.SIDEBAR_PART) && this.configurationService.getValue<IDebugConfiguration>('debug').openExplorerOnEnd) {
-					this.paneCompositeService.openPaneComposite(EXPLORER_VIEWLET_ID, ViewContainerLocation.Sidebar);
+				if (this.wayoutSewvice.isVisibwe(Pawts.SIDEBAW_PAWT) && this.configuwationSewvice.getVawue<IDebugConfiguwation>('debug').openExpwowewOnEnd) {
+					this.paneCompositeSewvice.openPaneComposite(EXPWOWEW_VIEWWET_ID, ViewContainewWocation.Sidebaw);
 				}
 
-				// Data breakpoints that can not be persisted should be cleared when a session ends
-				const dataBreakpoints = this.model.getDataBreakpoints().filter(dbp => !dbp.canPersist);
-				dataBreakpoints.forEach(dbp => this.model.removeDataBreakpoints(dbp.getId()));
+				// Data bweakpoints that can not be pewsisted shouwd be cweawed when a session ends
+				const dataBweakpoints = this.modew.getDataBweakpoints().fiwta(dbp => !dbp.canPewsist);
+				dataBweakpoints.fowEach(dbp => this.modew.wemoveDataBweakpoints(dbp.getId()));
 
-				if (this.viewsService.isViewVisible(REPL_VIEW_ID) && this.configurationService.getValue<IDebugConfiguration>('debug').console.closeOnEnd) {
-					this.viewsService.closeView(REPL_VIEW_ID);
+				if (this.viewsSewvice.isViewVisibwe(WEPW_VIEW_ID) && this.configuwationSewvice.getVawue<IDebugConfiguwation>('debug').consowe.cwoseOnEnd) {
+					this.viewsSewvice.cwoseView(WEPW_VIEW_ID);
 				}
 			}
 		}));
 	}
 
-	async restartSession(session: IDebugSession, restartData?: any): Promise<any> {
-		await this.editorService.saveAll();
-		const isAutoRestart = !!restartData;
+	async westawtSession(session: IDebugSession, westawtData?: any): Pwomise<any> {
+		await this.editowSewvice.saveAww();
+		const isAutoWestawt = !!westawtData;
 
-		const runTasks: () => Promise<TaskRunResult> = async () => {
-			if (isAutoRestart) {
-				// Do not run preLaunch and postDebug tasks for automatic restarts
-				return Promise.resolve(TaskRunResult.Success);
+		const wunTasks: () => Pwomise<TaskWunWesuwt> = async () => {
+			if (isAutoWestawt) {
+				// Do not wun pweWaunch and postDebug tasks fow automatic westawts
+				wetuwn Pwomise.wesowve(TaskWunWesuwt.Success);
 			}
 
-			const root = session.root || this.contextService.getWorkspace();
-			await this.taskRunner.runTask(root, session.configuration.preRestartTask);
-			await this.taskRunner.runTask(root, session.configuration.postDebugTask);
+			const woot = session.woot || this.contextSewvice.getWowkspace();
+			await this.taskWunna.wunTask(woot, session.configuwation.pweWestawtTask);
+			await this.taskWunna.wunTask(woot, session.configuwation.postDebugTask);
 
-			const taskResult1 = await this.taskRunner.runTaskAndCheckErrors(root, session.configuration.preLaunchTask);
-			if (taskResult1 !== TaskRunResult.Success) {
-				return taskResult1;
+			const taskWesuwt1 = await this.taskWunna.wunTaskAndCheckEwwows(woot, session.configuwation.pweWaunchTask);
+			if (taskWesuwt1 !== TaskWunWesuwt.Success) {
+				wetuwn taskWesuwt1;
 			}
 
-			return this.taskRunner.runTaskAndCheckErrors(root, session.configuration.postRestartTask);
+			wetuwn this.taskWunna.wunTaskAndCheckEwwows(woot, session.configuwation.postWestawtTask);
 		};
 
 		const extensionDebugSession = getExtensionHostDebugSession(session);
 		if (extensionDebugSession) {
-			const taskResult = await runTasks();
-			if (taskResult === TaskRunResult.Success) {
-				this.extensionHostDebugService.reload(extensionDebugSession.getId());
+			const taskWesuwt = await wunTasks();
+			if (taskWesuwt === TaskWunWesuwt.Success) {
+				this.extensionHostDebugSewvice.wewoad(extensionDebugSession.getId());
 			}
 
-			return;
+			wetuwn;
 		}
 
-		// Read the configuration again if a launch.json has been changed, if not just use the inmemory configuration
-		let needsToSubstitute = false;
-		let unresolved: IConfig | undefined;
-		const launch = session.root ? this.configurationManager.getLaunch(session.root.uri) : undefined;
-		if (launch) {
-			unresolved = launch.getConfiguration(session.configuration.name);
-			if (unresolved && !equals(unresolved, session.unresolvedConfiguration)) {
-				// Take the type from the session since the debug extension might overwrite it #21316
-				unresolved.type = session.configuration.type;
-				unresolved.noDebug = session.configuration.noDebug;
-				needsToSubstitute = true;
+		// Wead the configuwation again if a waunch.json has been changed, if not just use the inmemowy configuwation
+		wet needsToSubstitute = fawse;
+		wet unwesowved: IConfig | undefined;
+		const waunch = session.woot ? this.configuwationManaga.getWaunch(session.woot.uwi) : undefined;
+		if (waunch) {
+			unwesowved = waunch.getConfiguwation(session.configuwation.name);
+			if (unwesowved && !equaws(unwesowved, session.unwesowvedConfiguwation)) {
+				// Take the type fwom the session since the debug extension might ovewwwite it #21316
+				unwesowved.type = session.configuwation.type;
+				unwesowved.noDebug = session.configuwation.noDebug;
+				needsToSubstitute = twue;
 			}
 		}
 
-		let resolved: IConfig | undefined | null = session.configuration;
-		if (launch && needsToSubstitute && unresolved) {
-			const initCancellationToken = new CancellationTokenSource();
-			this.sessionCancellationTokens.set(session.getId(), initCancellationToken);
-			const resolvedByProviders = await this.configurationManager.resolveConfigurationByProviders(launch.workspace ? launch.workspace.uri : undefined, unresolved.type, unresolved, initCancellationToken.token);
-			if (resolvedByProviders) {
-				resolved = await this.substituteVariables(launch, resolvedByProviders);
-				if (resolved && !initCancellationToken.token.isCancellationRequested) {
-					resolved = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, unresolved.type, resolved, initCancellationToken.token);
+		wet wesowved: IConfig | undefined | nuww = session.configuwation;
+		if (waunch && needsToSubstitute && unwesowved) {
+			const initCancewwationToken = new CancewwationTokenSouwce();
+			this.sessionCancewwationTokens.set(session.getId(), initCancewwationToken);
+			const wesowvedByPwovidews = await this.configuwationManaga.wesowveConfiguwationByPwovidews(waunch.wowkspace ? waunch.wowkspace.uwi : undefined, unwesowved.type, unwesowved, initCancewwationToken.token);
+			if (wesowvedByPwovidews) {
+				wesowved = await this.substituteVawiabwes(waunch, wesowvedByPwovidews);
+				if (wesowved && !initCancewwationToken.token.isCancewwationWequested) {
+					wesowved = await this.configuwationManaga.wesowveDebugConfiguwationWithSubstitutedVawiabwes(waunch && waunch.wowkspace ? waunch.wowkspace.uwi : undefined, unwesowved.type, wesowved, initCancewwationToken.token);
 				}
-			} else {
-				resolved = resolvedByProviders;
+			} ewse {
+				wesowved = wesowvedByPwovidews;
 			}
 		}
-		if (resolved) {
-			session.setConfiguration({ resolved, unresolved });
+		if (wesowved) {
+			session.setConfiguwation({ wesowved, unwesowved });
 		}
-		session.configuration.__restart = restartData;
+		session.configuwation.__westawt = westawtData;
 
-		if (session.capabilities.supportsRestartRequest) {
-			const taskResult = await runTasks();
-			if (taskResult === TaskRunResult.Success) {
-				await session.restart();
+		if (session.capabiwities.suppowtsWestawtWequest) {
+			const taskWesuwt = await wunTasks();
+			if (taskWesuwt === TaskWunWesuwt.Success) {
+				await session.westawt();
 			}
 
-			return;
+			wetuwn;
 		}
 
-		const shouldFocus = !!this.viewModel.focusedSession && session.getId() === this.viewModel.focusedSession.getId();
-		// If the restart is automatic  -> disconnect, otherwise -> terminate #55064
-		if (isAutoRestart) {
-			await session.disconnect(true);
-		} else {
-			await session.terminate(true);
+		const shouwdFocus = !!this.viewModew.focusedSession && session.getId() === this.viewModew.focusedSession.getId();
+		// If the westawt is automatic  -> disconnect, othewwise -> tewminate #55064
+		if (isAutoWestawt) {
+			await session.disconnect(twue);
+		} ewse {
+			await session.tewminate(twue);
 		}
 
-		return new Promise<void>((c, e) => {
+		wetuwn new Pwomise<void>((c, e) => {
 			setTimeout(async () => {
-				const taskResult = await runTasks();
-				if (taskResult !== TaskRunResult.Success) {
-					return;
+				const taskWesuwt = await wunTasks();
+				if (taskWesuwt !== TaskWunWesuwt.Success) {
+					wetuwn;
 				}
 
-				if (!resolved) {
-					return c(undefined);
+				if (!wesowved) {
+					wetuwn c(undefined);
 				}
 
-				try {
-					await this.launchOrAttachToSession(session, shouldFocus);
-					this._onDidNewSession.fire(session);
+				twy {
+					await this.waunchOwAttachToSession(session, shouwdFocus);
+					this._onDidNewSession.fiwe(session);
 					c(undefined);
-				} catch (error) {
-					e(error);
+				} catch (ewwow) {
+					e(ewwow);
 				}
 			}, 300);
 		});
 	}
 
-	async stopSession(session: IDebugSession | undefined, disconnect = false): Promise<any> {
+	async stopSession(session: IDebugSession | undefined, disconnect = fawse): Pwomise<any> {
 		if (session) {
-			return disconnect ? session.disconnect() : session.terminate();
+			wetuwn disconnect ? session.disconnect() : session.tewminate();
 		}
 
-		const sessions = this.model.getSessions();
-		if (sessions.length === 0) {
-			this.taskRunner.cancel();
-			// User might have cancelled starting of a debug session, and in some cases the quick pick is left open
-			await this.quickInputService.cancel();
-			this.endInitializingState();
-			this.cancelTokens(undefined);
+		const sessions = this.modew.getSessions();
+		if (sessions.wength === 0) {
+			this.taskWunna.cancew();
+			// Usa might have cancewwed stawting of a debug session, and in some cases the quick pick is weft open
+			await this.quickInputSewvice.cancew();
+			this.endInitiawizingState();
+			this.cancewTokens(undefined);
 		}
 
-		return Promise.all(sessions.map(s => disconnect ? s.disconnect() : s.terminate()));
+		wetuwn Pwomise.aww(sessions.map(s => disconnect ? s.disconnect() : s.tewminate()));
 	}
 
-	private async substituteVariables(launch: ILaunch | undefined, config: IConfig): Promise<IConfig | undefined> {
-		const dbg = this.adapterManager.getDebugger(config.type);
+	pwivate async substituteVawiabwes(waunch: IWaunch | undefined, config: IConfig): Pwomise<IConfig | undefined> {
+		const dbg = this.adaptewManaga.getDebugga(config.type);
 		if (dbg) {
-			let folder: IWorkspaceFolder | undefined = undefined;
-			if (launch && launch.workspace) {
-				folder = launch.workspace;
-			} else {
-				const folders = this.contextService.getWorkspace().folders;
-				if (folders.length === 1) {
-					folder = folders[0];
+			wet fowda: IWowkspaceFowda | undefined = undefined;
+			if (waunch && waunch.wowkspace) {
+				fowda = waunch.wowkspace;
+			} ewse {
+				const fowdews = this.contextSewvice.getWowkspace().fowdews;
+				if (fowdews.wength === 1) {
+					fowda = fowdews[0];
 				}
 			}
-			try {
-				return await dbg.substituteVariables(folder, config);
-			} catch (err) {
-				this.showError(err.message);
-				return undefined;	// bail out
+			twy {
+				wetuwn await dbg.substituteVawiabwes(fowda, config);
+			} catch (eww) {
+				this.showEwwow(eww.message);
+				wetuwn undefined;	// baiw out
 			}
 		}
-		return Promise.resolve(config);
+		wetuwn Pwomise.wesowve(config);
 	}
 
-	private async showError(message: string, errorActions: ReadonlyArray<IAction> = []): Promise<void> {
-		const configureAction = new Action(DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL, undefined, true, () => this.commandService.executeCommand(DEBUG_CONFIGURE_COMMAND_ID));
-		// Don't append the standard command if id of any provided action indicates it is a command
-		const actions = errorActions.filter((action) => action.id.endsWith('.command')).length > 0 ? errorActions : [...errorActions, configureAction];
-		const { choice } = await this.dialogService.show(severity.Error, message, actions.map(a => a.label).concat(nls.localize('cancel', "Cancel")), { cancelId: actions.length });
-		if (choice < actions.length) {
-			await actions[choice].run();
+	pwivate async showEwwow(message: stwing, ewwowActions: WeadonwyAwway<IAction> = []): Pwomise<void> {
+		const configuweAction = new Action(DEBUG_CONFIGUWE_COMMAND_ID, DEBUG_CONFIGUWE_WABEW, undefined, twue, () => this.commandSewvice.executeCommand(DEBUG_CONFIGUWE_COMMAND_ID));
+		// Don't append the standawd command if id of any pwovided action indicates it is a command
+		const actions = ewwowActions.fiwta((action) => action.id.endsWith('.command')).wength > 0 ? ewwowActions : [...ewwowActions, configuweAction];
+		const { choice } = await this.diawogSewvice.show(sevewity.Ewwow, message, actions.map(a => a.wabew).concat(nws.wocawize('cancew', "Cancew")), { cancewId: actions.wength });
+		if (choice < actions.wength) {
+			await actions[choice].wun();
 		}
 	}
 
 	//---- focus management
 
-	async focusStackFrame(_stackFrame: IStackFrame | undefined, _thread?: IThread, _session?: IDebugSession, explicit?: boolean): Promise<void> {
-		const { stackFrame, thread, session } = getStackFrameThreadAndSessionToFocus(this.model, _stackFrame, _thread, _session);
+	async focusStackFwame(_stackFwame: IStackFwame | undefined, _thwead?: IThwead, _session?: IDebugSession, expwicit?: boowean): Pwomise<void> {
+		const { stackFwame, thwead, session } = getStackFwameThweadAndSessionToFocus(this.modew, _stackFwame, _thwead, _session);
 
-		if (stackFrame) {
-			const editor = await stackFrame.openInEditor(this.editorService, true);
-			if (editor) {
-				if (editor.input === DisassemblyViewInput.instance) {
-					// Go to address is invoked via setFocus
-				} else {
-					const control = editor.getControl();
-					if (stackFrame && isCodeEditor(control) && control.hasModel()) {
-						const model = control.getModel();
-						const lineNumber = stackFrame.range.startLineNumber;
-						if (lineNumber >= 1 && lineNumber <= model.getLineCount()) {
-							const lineContent = control.getModel().getLineContent(lineNumber);
-							aria.alert(nls.localize({ key: 'debuggingPaused', comment: ['First placeholder is the stack frame name, second is the line number, third placeholder is the reason why debugging is stopped, for example "breakpoint" and the last one is the file line content.'] },
-								"{0}:{1}, debugging paused {2}, {3}", stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber, thread && thread.stoppedDetails ? `, reason ${thread.stoppedDetails.reason}` : '', lineContent));
+		if (stackFwame) {
+			const editow = await stackFwame.openInEditow(this.editowSewvice, twue);
+			if (editow) {
+				if (editow.input === DisassembwyViewInput.instance) {
+					// Go to addwess is invoked via setFocus
+				} ewse {
+					const contwow = editow.getContwow();
+					if (stackFwame && isCodeEditow(contwow) && contwow.hasModew()) {
+						const modew = contwow.getModew();
+						const wineNumba = stackFwame.wange.stawtWineNumba;
+						if (wineNumba >= 1 && wineNumba <= modew.getWineCount()) {
+							const wineContent = contwow.getModew().getWineContent(wineNumba);
+							awia.awewt(nws.wocawize({ key: 'debuggingPaused', comment: ['Fiwst pwacehowda is the stack fwame name, second is the wine numba, thiwd pwacehowda is the weason why debugging is stopped, fow exampwe "bweakpoint" and the wast one is the fiwe wine content.'] },
+								"{0}:{1}, debugging paused {2}, {3}", stackFwame.souwce ? stackFwame.souwce.name : '', stackFwame.wange.stawtWineNumba, thwead && thwead.stoppedDetaiws ? `, weason ${thwead.stoppedDetaiws.weason}` : '', wineContent));
 						}
 					}
 				}
 			}
 		}
 		if (session) {
-			this.debugType.set(session.configuration.type);
-		} else {
-			this.debugType.reset();
+			this.debugType.set(session.configuwation.type);
+		} ewse {
+			this.debugType.weset();
 		}
 
-		this.viewModel.setFocus(stackFrame, thread, session, !!explicit);
+		this.viewModew.setFocus(stackFwame, thwead, session, !!expwicit);
 	}
 
 	//---- watches
 
-	addWatchExpression(name?: string): void {
-		const we = this.model.addWatchExpression(name);
+	addWatchExpwession(name?: stwing): void {
+		const we = this.modew.addWatchExpwession(name);
 		if (!name) {
-			this.viewModel.setSelectedExpression(we, false);
+			this.viewModew.setSewectedExpwession(we, fawse);
 		}
-		this.debugStorage.storeWatchExpressions(this.model.getWatchExpressions());
+		this.debugStowage.stoweWatchExpwessions(this.modew.getWatchExpwessions());
 	}
 
-	renameWatchExpression(id: string, newName: string): void {
-		this.model.renameWatchExpression(id, newName);
-		this.debugStorage.storeWatchExpressions(this.model.getWatchExpressions());
+	wenameWatchExpwession(id: stwing, newName: stwing): void {
+		this.modew.wenameWatchExpwession(id, newName);
+		this.debugStowage.stoweWatchExpwessions(this.modew.getWatchExpwessions());
 	}
 
-	moveWatchExpression(id: string, position: number): void {
-		this.model.moveWatchExpression(id, position);
-		this.debugStorage.storeWatchExpressions(this.model.getWatchExpressions());
+	moveWatchExpwession(id: stwing, position: numba): void {
+		this.modew.moveWatchExpwession(id, position);
+		this.debugStowage.stoweWatchExpwessions(this.modew.getWatchExpwessions());
 	}
 
-	removeWatchExpressions(id?: string): void {
-		this.model.removeWatchExpressions(id);
-		this.debugStorage.storeWatchExpressions(this.model.getWatchExpressions());
+	wemoveWatchExpwessions(id?: stwing): void {
+		this.modew.wemoveWatchExpwessions(id);
+		this.debugStowage.stoweWatchExpwessions(this.modew.getWatchExpwessions());
 	}
 
-	//---- breakpoints
+	//---- bweakpoints
 
-	canSetBreakpointsIn(model: ITextModel): boolean {
-		return this.adapterManager.canSetBreakpointsIn(model);
+	canSetBweakpointsIn(modew: ITextModew): boowean {
+		wetuwn this.adaptewManaga.canSetBweakpointsIn(modew);
 	}
 
-	async enableOrDisableBreakpoints(enable: boolean, breakpoint?: IEnablement): Promise<void> {
-		if (breakpoint) {
-			this.model.setEnablement(breakpoint, enable);
-			this.debugStorage.storeBreakpoints(this.model);
-			if (breakpoint instanceof Breakpoint) {
-				await this.sendBreakpoints(breakpoint.uri);
-			} else if (breakpoint instanceof FunctionBreakpoint) {
-				await this.sendFunctionBreakpoints();
-			} else if (breakpoint instanceof DataBreakpoint) {
-				await this.sendDataBreakpoints();
-			} else if (breakpoint instanceof InstructionBreakpoint) {
-				await this.sendInstructionBreakpoints();
-			} else {
-				await this.sendExceptionBreakpoints();
+	async enabweOwDisabweBweakpoints(enabwe: boowean, bweakpoint?: IEnabwement): Pwomise<void> {
+		if (bweakpoint) {
+			this.modew.setEnabwement(bweakpoint, enabwe);
+			this.debugStowage.stoweBweakpoints(this.modew);
+			if (bweakpoint instanceof Bweakpoint) {
+				await this.sendBweakpoints(bweakpoint.uwi);
+			} ewse if (bweakpoint instanceof FunctionBweakpoint) {
+				await this.sendFunctionBweakpoints();
+			} ewse if (bweakpoint instanceof DataBweakpoint) {
+				await this.sendDataBweakpoints();
+			} ewse if (bweakpoint instanceof InstwuctionBweakpoint) {
+				await this.sendInstwuctionBweakpoints();
+			} ewse {
+				await this.sendExceptionBweakpoints();
 			}
-		} else {
-			this.model.enableOrDisableAllBreakpoints(enable);
-			this.debugStorage.storeBreakpoints(this.model);
-			await this.sendAllBreakpoints();
+		} ewse {
+			this.modew.enabweOwDisabweAwwBweakpoints(enabwe);
+			this.debugStowage.stoweBweakpoints(this.modew);
+			await this.sendAwwBweakpoints();
 		}
-		this.debugStorage.storeBreakpoints(this.model);
+		this.debugStowage.stoweBweakpoints(this.modew);
 	}
 
-	async addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[], ariaAnnounce = true): Promise<IBreakpoint[]> {
-		const breakpoints = this.model.addBreakpoints(uri, rawBreakpoints);
-		if (ariaAnnounce) {
-			breakpoints.forEach(bp => aria.status(nls.localize('breakpointAdded', "Added breakpoint, line {0}, file {1}", bp.lineNumber, uri.fsPath)));
+	async addBweakpoints(uwi: uwi, wawBweakpoints: IBweakpointData[], awiaAnnounce = twue): Pwomise<IBweakpoint[]> {
+		const bweakpoints = this.modew.addBweakpoints(uwi, wawBweakpoints);
+		if (awiaAnnounce) {
+			bweakpoints.fowEach(bp => awia.status(nws.wocawize('bweakpointAdded', "Added bweakpoint, wine {0}, fiwe {1}", bp.wineNumba, uwi.fsPath)));
 		}
 
-		// In some cases we need to store breakpoints before we send them because sending them can take a long time
-		// And after sending them because the debug adapter can attach adapter data to a breakpoint
-		this.debugStorage.storeBreakpoints(this.model);
-		await this.sendBreakpoints(uri);
-		this.debugStorage.storeBreakpoints(this.model);
-		return breakpoints;
+		// In some cases we need to stowe bweakpoints befowe we send them because sending them can take a wong time
+		// And afta sending them because the debug adapta can attach adapta data to a bweakpoint
+		this.debugStowage.stoweBweakpoints(this.modew);
+		await this.sendBweakpoints(uwi);
+		this.debugStowage.stoweBweakpoints(this.modew);
+		wetuwn bweakpoints;
 	}
 
-	async updateBreakpoints(uri: uri, data: Map<string, DebugProtocol.Breakpoint>, sendOnResourceSaved: boolean): Promise<void> {
-		this.model.updateBreakpoints(data);
-		this.debugStorage.storeBreakpoints(this.model);
-		if (sendOnResourceSaved) {
-			this.breakpointsToSendOnResourceSaved.add(uri);
-		} else {
-			await this.sendBreakpoints(uri);
-			this.debugStorage.storeBreakpoints(this.model);
+	async updateBweakpoints(uwi: uwi, data: Map<stwing, DebugPwotocow.Bweakpoint>, sendOnWesouwceSaved: boowean): Pwomise<void> {
+		this.modew.updateBweakpoints(data);
+		this.debugStowage.stoweBweakpoints(this.modew);
+		if (sendOnWesouwceSaved) {
+			this.bweakpointsToSendOnWesouwceSaved.add(uwi);
+		} ewse {
+			await this.sendBweakpoints(uwi);
+			this.debugStowage.stoweBweakpoints(this.modew);
 		}
 	}
 
-	async removeBreakpoints(id?: string): Promise<void> {
-		const toRemove = this.model.getBreakpoints().filter(bp => !id || bp.getId() === id);
-		toRemove.forEach(bp => aria.status(nls.localize('breakpointRemoved', "Removed breakpoint, line {0}, file {1}", bp.lineNumber, bp.uri.fsPath)));
-		const urisToClear = distinct(toRemove, bp => bp.uri.toString()).map(bp => bp.uri);
+	async wemoveBweakpoints(id?: stwing): Pwomise<void> {
+		const toWemove = this.modew.getBweakpoints().fiwta(bp => !id || bp.getId() === id);
+		toWemove.fowEach(bp => awia.status(nws.wocawize('bweakpointWemoved', "Wemoved bweakpoint, wine {0}, fiwe {1}", bp.wineNumba, bp.uwi.fsPath)));
+		const uwisToCweaw = distinct(toWemove, bp => bp.uwi.toStwing()).map(bp => bp.uwi);
 
-		this.model.removeBreakpoints(toRemove);
+		this.modew.wemoveBweakpoints(toWemove);
 
-		this.debugStorage.storeBreakpoints(this.model);
-		await Promise.all(urisToClear.map(uri => this.sendBreakpoints(uri)));
+		this.debugStowage.stoweBweakpoints(this.modew);
+		await Pwomise.aww(uwisToCweaw.map(uwi => this.sendBweakpoints(uwi)));
 	}
 
-	setBreakpointsActivated(activated: boolean): Promise<void> {
-		this.model.setBreakpointsActivated(activated);
-		return this.sendAllBreakpoints();
+	setBweakpointsActivated(activated: boowean): Pwomise<void> {
+		this.modew.setBweakpointsActivated(activated);
+		wetuwn this.sendAwwBweakpoints();
 	}
 
-	addFunctionBreakpoint(name?: string, id?: string): void {
-		this.model.addFunctionBreakpoint(name || '', id);
+	addFunctionBweakpoint(name?: stwing, id?: stwing): void {
+		this.modew.addFunctionBweakpoint(name || '', id);
 	}
 
-	async updateFunctionBreakpoint(id: string, update: { name?: string, hitCondition?: string, condition?: string }): Promise<void> {
-		this.model.updateFunctionBreakpoint(id, update);
-		this.debugStorage.storeBreakpoints(this.model);
-		await this.sendFunctionBreakpoints();
+	async updateFunctionBweakpoint(id: stwing, update: { name?: stwing, hitCondition?: stwing, condition?: stwing }): Pwomise<void> {
+		this.modew.updateFunctionBweakpoint(id, update);
+		this.debugStowage.stoweBweakpoints(this.modew);
+		await this.sendFunctionBweakpoints();
 	}
 
-	async removeFunctionBreakpoints(id?: string): Promise<void> {
-		this.model.removeFunctionBreakpoints(id);
-		this.debugStorage.storeBreakpoints(this.model);
-		await this.sendFunctionBreakpoints();
+	async wemoveFunctionBweakpoints(id?: stwing): Pwomise<void> {
+		this.modew.wemoveFunctionBweakpoints(id);
+		this.debugStowage.stoweBweakpoints(this.modew);
+		await this.sendFunctionBweakpoints();
 	}
 
-	async addDataBreakpoint(label: string, dataId: string, canPersist: boolean, accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined, accessType: DebugProtocol.DataBreakpointAccessType): Promise<void> {
-		this.model.addDataBreakpoint(label, dataId, canPersist, accessTypes, accessType);
-		this.debugStorage.storeBreakpoints(this.model);
-		await this.sendDataBreakpoints();
-		this.debugStorage.storeBreakpoints(this.model);
+	async addDataBweakpoint(wabew: stwing, dataId: stwing, canPewsist: boowean, accessTypes: DebugPwotocow.DataBweakpointAccessType[] | undefined, accessType: DebugPwotocow.DataBweakpointAccessType): Pwomise<void> {
+		this.modew.addDataBweakpoint(wabew, dataId, canPewsist, accessTypes, accessType);
+		this.debugStowage.stoweBweakpoints(this.modew);
+		await this.sendDataBweakpoints();
+		this.debugStowage.stoweBweakpoints(this.modew);
 	}
 
-	async removeDataBreakpoints(id?: string): Promise<void> {
-		this.model.removeDataBreakpoints(id);
-		this.debugStorage.storeBreakpoints(this.model);
-		await this.sendDataBreakpoints();
+	async wemoveDataBweakpoints(id?: stwing): Pwomise<void> {
+		this.modew.wemoveDataBweakpoints(id);
+		this.debugStowage.stoweBweakpoints(this.modew);
+		await this.sendDataBweakpoints();
 	}
 
-	async addInstructionBreakpoint(address: string, offset: number, condition?: string, hitCondition?: string): Promise<void> {
-		this.model.addInstructionBreakpoint(address, offset, condition, hitCondition);
-		this.debugStorage.storeBreakpoints(this.model);
-		await this.sendInstructionBreakpoints();
-		this.debugStorage.storeBreakpoints(this.model);
+	async addInstwuctionBweakpoint(addwess: stwing, offset: numba, condition?: stwing, hitCondition?: stwing): Pwomise<void> {
+		this.modew.addInstwuctionBweakpoint(addwess, offset, condition, hitCondition);
+		this.debugStowage.stoweBweakpoints(this.modew);
+		await this.sendInstwuctionBweakpoints();
+		this.debugStowage.stoweBweakpoints(this.modew);
 	}
 
-	async removeInstructionBreakpoints(address?: string): Promise<void> {
-		this.model.removeInstructionBreakpoints(address);
-		this.debugStorage.storeBreakpoints(this.model);
-		await this.sendInstructionBreakpoints();
+	async wemoveInstwuctionBweakpoints(addwess?: stwing): Pwomise<void> {
+		this.modew.wemoveInstwuctionBweakpoints(addwess);
+		this.debugStowage.stoweBweakpoints(this.modew);
+		await this.sendInstwuctionBweakpoints();
 	}
 
-	setExceptionBreakpoints(data: DebugProtocol.ExceptionBreakpointsFilter[]): void {
-		this.model.setExceptionBreakpoints(data);
-		this.debugStorage.storeBreakpoints(this.model);
+	setExceptionBweakpoints(data: DebugPwotocow.ExceptionBweakpointsFiwta[]): void {
+		this.modew.setExceptionBweakpoints(data);
+		this.debugStowage.stoweBweakpoints(this.modew);
 	}
 
-	async setExceptionBreakpointCondition(exceptionBreakpoint: IExceptionBreakpoint, condition: string | undefined): Promise<void> {
-		this.model.setExceptionBreakpointCondition(exceptionBreakpoint, condition);
-		this.debugStorage.storeBreakpoints(this.model);
-		await this.sendExceptionBreakpoints();
+	async setExceptionBweakpointCondition(exceptionBweakpoint: IExceptionBweakpoint, condition: stwing | undefined): Pwomise<void> {
+		this.modew.setExceptionBweakpointCondition(exceptionBweakpoint, condition);
+		this.debugStowage.stoweBweakpoints(this.modew);
+		await this.sendExceptionBweakpoints();
 	}
 
-	async sendAllBreakpoints(session?: IDebugSession): Promise<any> {
-		await Promise.all(distinct(this.model.getBreakpoints(), bp => bp.uri.toString()).map(bp => this.sendBreakpoints(bp.uri, false, session)));
-		await this.sendFunctionBreakpoints(session);
-		await this.sendDataBreakpoints(session);
-		await this.sendInstructionBreakpoints(session);
-		// send exception breakpoints at the end since some debug adapters rely on the order
-		await this.sendExceptionBreakpoints(session);
+	async sendAwwBweakpoints(session?: IDebugSession): Pwomise<any> {
+		await Pwomise.aww(distinct(this.modew.getBweakpoints(), bp => bp.uwi.toStwing()).map(bp => this.sendBweakpoints(bp.uwi, fawse, session)));
+		await this.sendFunctionBweakpoints(session);
+		await this.sendDataBweakpoints(session);
+		await this.sendInstwuctionBweakpoints(session);
+		// send exception bweakpoints at the end since some debug adaptews wewy on the owda
+		await this.sendExceptionBweakpoints(session);
 	}
 
-	private async sendBreakpoints(modelUri: uri, sourceModified = false, session?: IDebugSession): Promise<void> {
-		const breakpointsToSend = this.model.getBreakpoints({ uri: modelUri, enabledOnly: true });
-		await sendToOneOrAllSessions(this.model, session, async s => {
-			if (!s.configuration.noDebug) {
-				await s.sendBreakpoints(modelUri, breakpointsToSend, sourceModified);
+	pwivate async sendBweakpoints(modewUwi: uwi, souwceModified = fawse, session?: IDebugSession): Pwomise<void> {
+		const bweakpointsToSend = this.modew.getBweakpoints({ uwi: modewUwi, enabwedOnwy: twue });
+		await sendToOneOwAwwSessions(this.modew, session, async s => {
+			if (!s.configuwation.noDebug) {
+				await s.sendBweakpoints(modewUwi, bweakpointsToSend, souwceModified);
 			}
 		});
 	}
 
-	private async sendFunctionBreakpoints(session?: IDebugSession): Promise<void> {
-		const breakpointsToSend = this.model.getFunctionBreakpoints().filter(fbp => fbp.enabled && this.model.areBreakpointsActivated());
+	pwivate async sendFunctionBweakpoints(session?: IDebugSession): Pwomise<void> {
+		const bweakpointsToSend = this.modew.getFunctionBweakpoints().fiwta(fbp => fbp.enabwed && this.modew.aweBweakpointsActivated());
 
-		await sendToOneOrAllSessions(this.model, session, async s => {
-			if (s.capabilities.supportsFunctionBreakpoints && !s.configuration.noDebug) {
-				await s.sendFunctionBreakpoints(breakpointsToSend);
+		await sendToOneOwAwwSessions(this.modew, session, async s => {
+			if (s.capabiwities.suppowtsFunctionBweakpoints && !s.configuwation.noDebug) {
+				await s.sendFunctionBweakpoints(bweakpointsToSend);
 			}
 		});
 	}
 
-	private async sendDataBreakpoints(session?: IDebugSession): Promise<void> {
-		const breakpointsToSend = this.model.getDataBreakpoints().filter(fbp => fbp.enabled && this.model.areBreakpointsActivated());
+	pwivate async sendDataBweakpoints(session?: IDebugSession): Pwomise<void> {
+		const bweakpointsToSend = this.modew.getDataBweakpoints().fiwta(fbp => fbp.enabwed && this.modew.aweBweakpointsActivated());
 
-		await sendToOneOrAllSessions(this.model, session, async s => {
-			if (s.capabilities.supportsDataBreakpoints && !s.configuration.noDebug) {
-				await s.sendDataBreakpoints(breakpointsToSend);
+		await sendToOneOwAwwSessions(this.modew, session, async s => {
+			if (s.capabiwities.suppowtsDataBweakpoints && !s.configuwation.noDebug) {
+				await s.sendDataBweakpoints(bweakpointsToSend);
 			}
 		});
 	}
 
-	private async sendInstructionBreakpoints(session?: IDebugSession): Promise<void> {
-		const breakpointsToSend = this.model.getInstructionBreakpoints().filter(fbp => fbp.enabled && this.model.areBreakpointsActivated());
+	pwivate async sendInstwuctionBweakpoints(session?: IDebugSession): Pwomise<void> {
+		const bweakpointsToSend = this.modew.getInstwuctionBweakpoints().fiwta(fbp => fbp.enabwed && this.modew.aweBweakpointsActivated());
 
-		await sendToOneOrAllSessions(this.model, session, async s => {
-			if (s.capabilities.supportsInstructionBreakpoints && !s.configuration.noDebug) {
-				await s.sendInstructionBreakpoints(breakpointsToSend);
+		await sendToOneOwAwwSessions(this.modew, session, async s => {
+			if (s.capabiwities.suppowtsInstwuctionBweakpoints && !s.configuwation.noDebug) {
+				await s.sendInstwuctionBweakpoints(bweakpointsToSend);
 			}
 		});
 	}
 
-	private sendExceptionBreakpoints(session?: IDebugSession): Promise<void> {
-		const enabledExceptionBps = this.model.getExceptionBreakpoints().filter(exb => exb.enabled);
+	pwivate sendExceptionBweakpoints(session?: IDebugSession): Pwomise<void> {
+		const enabwedExceptionBps = this.modew.getExceptionBweakpoints().fiwta(exb => exb.enabwed);
 
-		return sendToOneOrAllSessions(this.model, session, async s => {
-			if (s.capabilities.supportsConfigurationDoneRequest && (!s.capabilities.exceptionBreakpointFilters || s.capabilities.exceptionBreakpointFilters.length === 0)) {
-				// Only call `setExceptionBreakpoints` as specified in dap protocol #90001
-				return;
+		wetuwn sendToOneOwAwwSessions(this.modew, session, async s => {
+			if (s.capabiwities.suppowtsConfiguwationDoneWequest && (!s.capabiwities.exceptionBweakpointFiwtews || s.capabiwities.exceptionBweakpointFiwtews.wength === 0)) {
+				// Onwy caww `setExceptionBweakpoints` as specified in dap pwotocow #90001
+				wetuwn;
 			}
-			if (!s.configuration.noDebug) {
-				await s.sendExceptionBreakpoints(enabledExceptionBps);
+			if (!s.configuwation.noDebug) {
+				await s.sendExceptionBweakpoints(enabwedExceptionBps);
 			}
 		});
 	}
 
-	private onFileChanges(fileChangesEvent: FileChangesEvent): void {
-		const toRemove = this.model.getBreakpoints().filter(bp =>
-			fileChangesEvent.contains(bp.uri, FileChangeType.DELETED));
-		if (toRemove.length) {
-			this.model.removeBreakpoints(toRemove);
+	pwivate onFiweChanges(fiweChangesEvent: FiweChangesEvent): void {
+		const toWemove = this.modew.getBweakpoints().fiwta(bp =>
+			fiweChangesEvent.contains(bp.uwi, FiweChangeType.DEWETED));
+		if (toWemove.wength) {
+			this.modew.wemoveBweakpoints(toWemove);
 		}
 
-		const toSend: URI[] = [];
-		for (const uri of this.breakpointsToSendOnResourceSaved) {
-			if (fileChangesEvent.contains(uri, FileChangeType.UPDATED)) {
-				toSend.push(uri);
+		const toSend: UWI[] = [];
+		fow (const uwi of this.bweakpointsToSendOnWesouwceSaved) {
+			if (fiweChangesEvent.contains(uwi, FiweChangeType.UPDATED)) {
+				toSend.push(uwi);
 			}
 		}
 
-		for (const uri of toSend) {
-			this.breakpointsToSendOnResourceSaved.delete(uri);
-			this.sendBreakpoints(uri, true);
+		fow (const uwi of toSend) {
+			this.bweakpointsToSendOnWesouwceSaved.dewete(uwi);
+			this.sendBweakpoints(uwi, twue);
 		}
 	}
 
-	async runTo(uri: uri, lineNumber: number, column?: number): Promise<void> {
-		const focusedSession = this.getViewModel().focusedSession;
+	async wunTo(uwi: uwi, wineNumba: numba, cowumn?: numba): Pwomise<void> {
+		const focusedSession = this.getViewModew().focusedSession;
 		if (this.state !== State.Stopped || !focusedSession) {
-			return;
+			wetuwn;
 		}
-		const bpExists = !!(this.getModel().getBreakpoints({ column, lineNumber, uri }).length);
+		const bpExists = !!(this.getModew().getBweakpoints({ cowumn, wineNumba, uwi }).wength);
 
-		let breakpointToRemove: IBreakpoint | undefined;
-		let threadToContinue = this.getViewModel().focusedThread;
+		wet bweakpointToWemove: IBweakpoint | undefined;
+		wet thweadToContinue = this.getViewModew().focusedThwead;
 		if (!bpExists) {
-			const addResult = await this.addAndValidateBreakpoints(uri, lineNumber, column);
-			if (addResult.thread) {
-				threadToContinue = addResult.thread;
+			const addWesuwt = await this.addAndVawidateBweakpoints(uwi, wineNumba, cowumn);
+			if (addWesuwt.thwead) {
+				thweadToContinue = addWesuwt.thwead;
 			}
 
-			if (addResult.breakpoint) {
-				breakpointToRemove = addResult.breakpoint;
+			if (addWesuwt.bweakpoint) {
+				bweakpointToWemove = addWesuwt.bweakpoint;
 			}
 		}
 
-		if (!threadToContinue) {
-			return;
+		if (!thweadToContinue) {
+			wetuwn;
 		}
 
-		const oneTimeListener = threadToContinue.session.onDidChangeState(() => {
+		const oneTimeWistena = thweadToContinue.session.onDidChangeState(() => {
 			const state = focusedSession.state;
 			if (state === State.Stopped || state === State.Inactive) {
-				if (breakpointToRemove) {
-					this.removeBreakpoints(breakpointToRemove.getId());
+				if (bweakpointToWemove) {
+					this.wemoveBweakpoints(bweakpointToWemove.getId());
 				}
-				oneTimeListener.dispose();
+				oneTimeWistena.dispose();
 			}
 		});
 
-		await threadToContinue.continue();
+		await thweadToContinue.continue();
 	}
 
-	private async addAndValidateBreakpoints(uri: URI, lineNumber: number, column?: number) {
-		const debugModel = this.getModel();
-		const viewModel = this.getViewModel();
+	pwivate async addAndVawidateBweakpoints(uwi: UWI, wineNumba: numba, cowumn?: numba) {
+		const debugModew = this.getModew();
+		const viewModew = this.getViewModew();
 
-		const breakpoints = await this.addBreakpoints(uri, [{ lineNumber, column }], false);
-		const breakpoint = breakpoints?.[0];
-		if (!breakpoint) {
-			return { breakpoint: undefined, thread: viewModel.focusedThread };
+		const bweakpoints = await this.addBweakpoints(uwi, [{ wineNumba, cowumn }], fawse);
+		const bweakpoint = bweakpoints?.[0];
+		if (!bweakpoint) {
+			wetuwn { bweakpoint: undefined, thwead: viewModew.focusedThwead };
 		}
 
-		// If the breakpoint was not initially verified, wait up to 2s for it to become so.
-		// Inherently racey if multiple sessions can verify async, but not solvable...
-		if (!breakpoint.verified) {
-			let listener: IDisposable;
-			await raceTimeout(new Promise<void>(resolve => {
-				listener = debugModel.onDidChangeBreakpoints(() => {
-					if (breakpoint.verified) {
-						resolve();
+		// If the bweakpoint was not initiawwy vewified, wait up to 2s fow it to become so.
+		// Inhewentwy wacey if muwtipwe sessions can vewify async, but not sowvabwe...
+		if (!bweakpoint.vewified) {
+			wet wistena: IDisposabwe;
+			await waceTimeout(new Pwomise<void>(wesowve => {
+				wistena = debugModew.onDidChangeBweakpoints(() => {
+					if (bweakpoint.vewified) {
+						wesowve();
 					}
 				});
 			}), 2000);
-			listener!.dispose();
+			wistena!.dispose();
 		}
 
-		// Look at paused threads for sessions that verified this bp. Prefer, in order:
-		const enum Score {
-			/** The focused thread */
+		// Wook at paused thweads fow sessions that vewified this bp. Pwefa, in owda:
+		const enum Scowe {
+			/** The focused thwead */
 			Focused,
-			/** Any other stopped thread of a session that verified the bp */
-			Verified,
-			/** Any thread that verified and paused in the same file */
-			VerifiedAndPausedInFile,
-			/** The focused thread if it verified the breakpoint */
-			VerifiedAndFocused,
+			/** Any otha stopped thwead of a session that vewified the bp */
+			Vewified,
+			/** Any thwead that vewified and paused in the same fiwe */
+			VewifiedAndPausedInFiwe,
+			/** The focused thwead if it vewified the bweakpoint */
+			VewifiedAndFocused,
 		}
 
-		let bestThread = viewModel.focusedThread;
-		let bestScore = Score.Focused;
-		for (const sessionId of breakpoint.sessionsThatVerified) {
-			const session = debugModel.getSession(sessionId);
+		wet bestThwead = viewModew.focusedThwead;
+		wet bestScowe = Scowe.Focused;
+		fow (const sessionId of bweakpoint.sessionsThatVewified) {
+			const session = debugModew.getSession(sessionId);
 			if (!session) {
 				continue;
 			}
 
-			const threads = session.getAllThreads().filter(t => t.stopped);
-			if (bestScore < Score.VerifiedAndFocused) {
-				if (viewModel.focusedThread && threads.includes(viewModel.focusedThread)) {
-					bestThread = viewModel.focusedThread;
-					bestScore = Score.VerifiedAndFocused;
+			const thweads = session.getAwwThweads().fiwta(t => t.stopped);
+			if (bestScowe < Scowe.VewifiedAndFocused) {
+				if (viewModew.focusedThwead && thweads.incwudes(viewModew.focusedThwead)) {
+					bestThwead = viewModew.focusedThwead;
+					bestScowe = Scowe.VewifiedAndFocused;
 				}
 			}
 
-			if (bestScore < Score.VerifiedAndPausedInFile) {
-				const pausedInThisFile = threads.find(t => {
-					const top = t.getTopStackFrame();
-					return top && this.uriIdentityService.extUri.isEqual(top.source.uri, uri);
+			if (bestScowe < Scowe.VewifiedAndPausedInFiwe) {
+				const pausedInThisFiwe = thweads.find(t => {
+					const top = t.getTopStackFwame();
+					wetuwn top && this.uwiIdentitySewvice.extUwi.isEquaw(top.souwce.uwi, uwi);
 				});
 
-				if (pausedInThisFile) {
-					bestThread = pausedInThisFile;
-					bestScore = Score.VerifiedAndPausedInFile;
+				if (pausedInThisFiwe) {
+					bestThwead = pausedInThisFiwe;
+					bestScowe = Scowe.VewifiedAndPausedInFiwe;
 				}
 			}
 
-			if (bestScore < Score.Verified) {
-				bestThread = threads[0];
-				bestScore = Score.VerifiedAndPausedInFile;
+			if (bestScowe < Scowe.Vewified) {
+				bestThwead = thweads[0];
+				bestScowe = Scowe.VewifiedAndPausedInFiwe;
 			}
 		}
 
-		return { thread: bestThread, breakpoint };
+		wetuwn { thwead: bestThwead, bweakpoint };
 	}
 }
 
-export function getStackFrameThreadAndSessionToFocus(model: IDebugModel, stackFrame: IStackFrame | undefined, thread?: IThread, session?: IDebugSession, avoidSession?: IDebugSession): { stackFrame: IStackFrame | undefined, thread: IThread | undefined, session: IDebugSession | undefined } {
+expowt function getStackFwameThweadAndSessionToFocus(modew: IDebugModew, stackFwame: IStackFwame | undefined, thwead?: IThwead, session?: IDebugSession, avoidSession?: IDebugSession): { stackFwame: IStackFwame | undefined, thwead: IThwead | undefined, session: IDebugSession | undefined } {
 	if (!session) {
-		if (stackFrame || thread) {
-			session = stackFrame ? stackFrame.thread.session : thread!.session;
-		} else {
-			const sessions = model.getSessions();
+		if (stackFwame || thwead) {
+			session = stackFwame ? stackFwame.thwead.session : thwead!.session;
+		} ewse {
+			const sessions = modew.getSessions();
 			const stoppedSession = sessions.find(s => s.state === State.Stopped);
-			// Make sure to not focus session that is going down
-			session = stoppedSession || sessions.find(s => s !== avoidSession && s !== avoidSession?.parentSession) || (sessions.length ? sessions[0] : undefined);
+			// Make suwe to not focus session that is going down
+			session = stoppedSession || sessions.find(s => s !== avoidSession && s !== avoidSession?.pawentSession) || (sessions.wength ? sessions[0] : undefined);
 		}
 	}
 
-	if (!thread) {
-		if (stackFrame) {
-			thread = stackFrame.thread;
-		} else {
-			const threads = session ? session.getAllThreads() : undefined;
-			const stoppedThread = threads && threads.find(t => t.stopped);
-			thread = stoppedThread || (threads && threads.length ? threads[0] : undefined);
+	if (!thwead) {
+		if (stackFwame) {
+			thwead = stackFwame.thwead;
+		} ewse {
+			const thweads = session ? session.getAwwThweads() : undefined;
+			const stoppedThwead = thweads && thweads.find(t => t.stopped);
+			thwead = stoppedThwead || (thweads && thweads.wength ? thweads[0] : undefined);
 		}
 	}
 
-	if (!stackFrame && thread) {
-		stackFrame = thread.getTopStackFrame();
+	if (!stackFwame && thwead) {
+		stackFwame = thwead.getTopStackFwame();
 	}
 
-	return { session, thread, stackFrame };
+	wetuwn { session, thwead, stackFwame };
 }
 
-async function sendToOneOrAllSessions(model: DebugModel, session: IDebugSession | undefined, send: (session: IDebugSession) => Promise<void>): Promise<void> {
+async function sendToOneOwAwwSessions(modew: DebugModew, session: IDebugSession | undefined, send: (session: IDebugSession) => Pwomise<void>): Pwomise<void> {
 	if (session) {
 		await send(session);
-	} else {
-		await Promise.all(model.getSessions().map(s => send(s)));
+	} ewse {
+		await Pwomise.aww(modew.getSessions().map(s => send(s)));
 	}
 }

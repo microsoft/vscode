@@ -1,139 +1,139 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension } from 'vs/base/browser/dom';
-import { Orientation, OrthogonalEdge, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+impowt { Dimension } fwom 'vs/base/bwowsa/dom';
+impowt { Owientation, OwthogonawEdge, Sash, SashState } fwom 'vs/base/bwowsa/ui/sash/sash';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
 
 
-export interface IResizeEvent {
+expowt intewface IWesizeEvent {
 	dimension: Dimension;
-	done: boolean;
-	north?: boolean;
-	east?: boolean;
-	south?: boolean;
-	west?: boolean;
+	done: boowean;
+	nowth?: boowean;
+	east?: boowean;
+	south?: boowean;
+	west?: boowean;
 }
 
-export class ResizableHTMLElement {
+expowt cwass WesizabweHTMWEwement {
 
-	readonly domNode: HTMLElement;
+	weadonwy domNode: HTMWEwement;
 
-	private readonly _onDidWillResize = new Emitter<void>();
-	readonly onDidWillResize: Event<void> = this._onDidWillResize.event;
+	pwivate weadonwy _onDidWiwwWesize = new Emitta<void>();
+	weadonwy onDidWiwwWesize: Event<void> = this._onDidWiwwWesize.event;
 
-	private readonly _onDidResize = new Emitter<IResizeEvent>();
-	readonly onDidResize: Event<IResizeEvent> = this._onDidResize.event;
+	pwivate weadonwy _onDidWesize = new Emitta<IWesizeEvent>();
+	weadonwy onDidWesize: Event<IWesizeEvent> = this._onDidWesize.event;
 
-	private readonly _northSash: Sash;
-	private readonly _eastSash: Sash;
-	private readonly _southSash: Sash;
-	private readonly _westSash: Sash;
-	private readonly _sashListener = new DisposableStore();
+	pwivate weadonwy _nowthSash: Sash;
+	pwivate weadonwy _eastSash: Sash;
+	pwivate weadonwy _southSash: Sash;
+	pwivate weadonwy _westSash: Sash;
+	pwivate weadonwy _sashWistena = new DisposabweStowe();
 
-	private _size = new Dimension(0, 0);
-	private _minSize = new Dimension(0, 0);
-	private _maxSize = new Dimension(Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER);
-	private _preferredSize?: Dimension;
+	pwivate _size = new Dimension(0, 0);
+	pwivate _minSize = new Dimension(0, 0);
+	pwivate _maxSize = new Dimension(Numba.MAX_SAFE_INTEGa, Numba.MAX_SAFE_INTEGa);
+	pwivate _pwefewwedSize?: Dimension;
 
-	constructor() {
-		this.domNode = document.createElement('div');
-		this._eastSash = new Sash(this.domNode, { getVerticalSashLeft: () => this._size.width }, { orientation: Orientation.VERTICAL });
-		this._westSash = new Sash(this.domNode, { getVerticalSashLeft: () => 0 }, { orientation: Orientation.VERTICAL });
-		this._northSash = new Sash(this.domNode, { getHorizontalSashTop: () => 0 }, { orientation: Orientation.HORIZONTAL, orthogonalEdge: OrthogonalEdge.North });
-		this._southSash = new Sash(this.domNode, { getHorizontalSashTop: () => this._size.height }, { orientation: Orientation.HORIZONTAL, orthogonalEdge: OrthogonalEdge.South });
+	constwuctow() {
+		this.domNode = document.cweateEwement('div');
+		this._eastSash = new Sash(this.domNode, { getVewticawSashWeft: () => this._size.width }, { owientation: Owientation.VEWTICAW });
+		this._westSash = new Sash(this.domNode, { getVewticawSashWeft: () => 0 }, { owientation: Owientation.VEWTICAW });
+		this._nowthSash = new Sash(this.domNode, { getHowizontawSashTop: () => 0 }, { owientation: Owientation.HOWIZONTAW, owthogonawEdge: OwthogonawEdge.Nowth });
+		this._southSash = new Sash(this.domNode, { getHowizontawSashTop: () => this._size.height }, { owientation: Owientation.HOWIZONTAW, owthogonawEdge: OwthogonawEdge.South });
 
-		this._northSash.orthogonalStartSash = this._westSash;
-		this._northSash.orthogonalEndSash = this._eastSash;
-		this._southSash.orthogonalStartSash = this._westSash;
-		this._southSash.orthogonalEndSash = this._eastSash;
+		this._nowthSash.owthogonawStawtSash = this._westSash;
+		this._nowthSash.owthogonawEndSash = this._eastSash;
+		this._southSash.owthogonawStawtSash = this._westSash;
+		this._southSash.owthogonawEndSash = this._eastSash;
 
-		let currentSize: Dimension | undefined;
-		let deltaY = 0;
-		let deltaX = 0;
+		wet cuwwentSize: Dimension | undefined;
+		wet dewtaY = 0;
+		wet dewtaX = 0;
 
-		this._sashListener.add(Event.any(this._northSash.onDidStart, this._eastSash.onDidStart, this._southSash.onDidStart, this._westSash.onDidStart)(() => {
-			if (currentSize === undefined) {
-				this._onDidWillResize.fire();
-				currentSize = this._size;
-				deltaY = 0;
-				deltaX = 0;
+		this._sashWistena.add(Event.any(this._nowthSash.onDidStawt, this._eastSash.onDidStawt, this._southSash.onDidStawt, this._westSash.onDidStawt)(() => {
+			if (cuwwentSize === undefined) {
+				this._onDidWiwwWesize.fiwe();
+				cuwwentSize = this._size;
+				dewtaY = 0;
+				dewtaX = 0;
 			}
 		}));
-		this._sashListener.add(Event.any(this._northSash.onDidEnd, this._eastSash.onDidEnd, this._southSash.onDidEnd, this._westSash.onDidEnd)(() => {
-			if (currentSize !== undefined) {
-				currentSize = undefined;
-				deltaY = 0;
-				deltaX = 0;
-				this._onDidResize.fire({ dimension: this._size, done: true });
-			}
-		}));
-
-		this._sashListener.add(this._eastSash.onDidChange(e => {
-			if (currentSize) {
-				deltaX = e.currentX - e.startX;
-				this.layout(currentSize.height + deltaY, currentSize.width + deltaX);
-				this._onDidResize.fire({ dimension: this._size, done: false, east: true });
-			}
-		}));
-		this._sashListener.add(this._westSash.onDidChange(e => {
-			if (currentSize) {
-				deltaX = -(e.currentX - e.startX);
-				this.layout(currentSize.height + deltaY, currentSize.width + deltaX);
-				this._onDidResize.fire({ dimension: this._size, done: false, west: true });
-			}
-		}));
-		this._sashListener.add(this._northSash.onDidChange(e => {
-			if (currentSize) {
-				deltaY = -(e.currentY - e.startY);
-				this.layout(currentSize.height + deltaY, currentSize.width + deltaX);
-				this._onDidResize.fire({ dimension: this._size, done: false, north: true });
-			}
-		}));
-		this._sashListener.add(this._southSash.onDidChange(e => {
-			if (currentSize) {
-				deltaY = e.currentY - e.startY;
-				this.layout(currentSize.height + deltaY, currentSize.width + deltaX);
-				this._onDidResize.fire({ dimension: this._size, done: false, south: true });
+		this._sashWistena.add(Event.any(this._nowthSash.onDidEnd, this._eastSash.onDidEnd, this._southSash.onDidEnd, this._westSash.onDidEnd)(() => {
+			if (cuwwentSize !== undefined) {
+				cuwwentSize = undefined;
+				dewtaY = 0;
+				dewtaX = 0;
+				this._onDidWesize.fiwe({ dimension: this._size, done: twue });
 			}
 		}));
 
-		this._sashListener.add(Event.any(this._eastSash.onDidReset, this._westSash.onDidReset)(e => {
-			if (this._preferredSize) {
-				this.layout(this._size.height, this._preferredSize.width);
-				this._onDidResize.fire({ dimension: this._size, done: true });
+		this._sashWistena.add(this._eastSash.onDidChange(e => {
+			if (cuwwentSize) {
+				dewtaX = e.cuwwentX - e.stawtX;
+				this.wayout(cuwwentSize.height + dewtaY, cuwwentSize.width + dewtaX);
+				this._onDidWesize.fiwe({ dimension: this._size, done: fawse, east: twue });
 			}
 		}));
-		this._sashListener.add(Event.any(this._northSash.onDidReset, this._southSash.onDidReset)(e => {
-			if (this._preferredSize) {
-				this.layout(this._preferredSize.height, this._size.width);
-				this._onDidResize.fire({ dimension: this._size, done: true });
+		this._sashWistena.add(this._westSash.onDidChange(e => {
+			if (cuwwentSize) {
+				dewtaX = -(e.cuwwentX - e.stawtX);
+				this.wayout(cuwwentSize.height + dewtaY, cuwwentSize.width + dewtaX);
+				this._onDidWesize.fiwe({ dimension: this._size, done: fawse, west: twue });
+			}
+		}));
+		this._sashWistena.add(this._nowthSash.onDidChange(e => {
+			if (cuwwentSize) {
+				dewtaY = -(e.cuwwentY - e.stawtY);
+				this.wayout(cuwwentSize.height + dewtaY, cuwwentSize.width + dewtaX);
+				this._onDidWesize.fiwe({ dimension: this._size, done: fawse, nowth: twue });
+			}
+		}));
+		this._sashWistena.add(this._southSash.onDidChange(e => {
+			if (cuwwentSize) {
+				dewtaY = e.cuwwentY - e.stawtY;
+				this.wayout(cuwwentSize.height + dewtaY, cuwwentSize.width + dewtaX);
+				this._onDidWesize.fiwe({ dimension: this._size, done: fawse, south: twue });
+			}
+		}));
+
+		this._sashWistena.add(Event.any(this._eastSash.onDidWeset, this._westSash.onDidWeset)(e => {
+			if (this._pwefewwedSize) {
+				this.wayout(this._size.height, this._pwefewwedSize.width);
+				this._onDidWesize.fiwe({ dimension: this._size, done: twue });
+			}
+		}));
+		this._sashWistena.add(Event.any(this._nowthSash.onDidWeset, this._southSash.onDidWeset)(e => {
+			if (this._pwefewwedSize) {
+				this.wayout(this._pwefewwedSize.height, this._size.width);
+				this._onDidWesize.fiwe({ dimension: this._size, done: twue });
 			}
 		}));
 	}
 
 	dispose(): void {
-		this._northSash.dispose();
+		this._nowthSash.dispose();
 		this._southSash.dispose();
 		this._eastSash.dispose();
 		this._westSash.dispose();
-		this._sashListener.dispose();
-		this._onDidResize.dispose();
-		this._onDidWillResize.dispose();
-		this.domNode.remove();
+		this._sashWistena.dispose();
+		this._onDidWesize.dispose();
+		this._onDidWiwwWesize.dispose();
+		this.domNode.wemove();
 	}
 
-	enableSashes(north: boolean, east: boolean, south: boolean, west: boolean): void {
-		this._northSash.state = north ? SashState.Enabled : SashState.Disabled;
-		this._eastSash.state = east ? SashState.Enabled : SashState.Disabled;
-		this._southSash.state = south ? SashState.Enabled : SashState.Disabled;
-		this._westSash.state = west ? SashState.Enabled : SashState.Disabled;
+	enabweSashes(nowth: boowean, east: boowean, south: boowean, west: boowean): void {
+		this._nowthSash.state = nowth ? SashState.Enabwed : SashState.Disabwed;
+		this._eastSash.state = east ? SashState.Enabwed : SashState.Disabwed;
+		this._southSash.state = south ? SashState.Enabwed : SashState.Disabwed;
+		this._westSash.state = west ? SashState.Enabwed : SashState.Disabwed;
 	}
 
-	layout(height: number = this.size.height, width: number = this.size.width): void {
+	wayout(height: numba = this.size.height, width: numba = this.size.width): void {
 
 		const { height: minHeight, width: minWidth } = this._minSize;
 		const { height: maxHeight, width: maxWidth } = this._maxSize;
@@ -142,49 +142,49 @@ export class ResizableHTMLElement {
 		width = Math.max(minWidth, Math.min(maxWidth, width));
 
 		const newSize = new Dimension(width, height);
-		if (!Dimension.equals(newSize, this._size)) {
-			this.domNode.style.height = height + 'px';
-			this.domNode.style.width = width + 'px';
+		if (!Dimension.equaws(newSize, this._size)) {
+			this.domNode.stywe.height = height + 'px';
+			this.domNode.stywe.width = width + 'px';
 			this._size = newSize;
-			this._northSash.layout();
-			this._eastSash.layout();
-			this._southSash.layout();
-			this._westSash.layout();
+			this._nowthSash.wayout();
+			this._eastSash.wayout();
+			this._southSash.wayout();
+			this._westSash.wayout();
 		}
 	}
 
-	clearSashHoverState(): void {
-		this._eastSash.clearSashHoverState();
-		this._westSash.clearSashHoverState();
-		this._northSash.clearSashHoverState();
-		this._southSash.clearSashHoverState();
+	cweawSashHovewState(): void {
+		this._eastSash.cweawSashHovewState();
+		this._westSash.cweawSashHovewState();
+		this._nowthSash.cweawSashHovewState();
+		this._southSash.cweawSashHovewState();
 	}
 
 	get size() {
-		return this._size;
+		wetuwn this._size;
 	}
 
-	set maxSize(value: Dimension) {
-		this._maxSize = value;
+	set maxSize(vawue: Dimension) {
+		this._maxSize = vawue;
 	}
 
 	get maxSize() {
-		return this._maxSize;
+		wetuwn this._maxSize;
 	}
 
-	set minSize(value: Dimension) {
-		this._minSize = value;
+	set minSize(vawue: Dimension) {
+		this._minSize = vawue;
 	}
 
 	get minSize() {
-		return this._minSize;
+		wetuwn this._minSize;
 	}
 
-	set preferredSize(value: Dimension | undefined) {
-		this._preferredSize = value;
+	set pwefewwedSize(vawue: Dimension | undefined) {
+		this._pwefewwedSize = vawue;
 	}
 
-	get preferredSize() {
-		return this._preferredSize;
+	get pwefewwedSize() {
+		wetuwn this._pwefewwedSize;
 	}
 }

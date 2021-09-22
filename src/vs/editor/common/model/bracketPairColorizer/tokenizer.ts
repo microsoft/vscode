@@ -1,362 +1,362 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { NotSupportedError } from 'vs/base/common/errors';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import { ITextModel } from 'vs/editor/common/model';
-import { SmallImmutableSet } from 'vs/editor/common/model/bracketPairColorizer/smallImmutableSet';
-import { StandardTokenType, TokenMetadata } from 'vs/editor/common/modes';
-import { BracketAstNode, TextAstNode } from './ast';
-import { BracketTokens, LanguageAgnosticBracketTokens } from './brackets';
-import { lengthGetColumnCountIfZeroLineCount, Length, lengthAdd, lengthDiff, lengthToObj, lengthZero, toLength } from './length';
+impowt { NotSuppowtedEwwow } fwom 'vs/base/common/ewwows';
+impowt { WineTokens } fwom 'vs/editow/common/cowe/wineTokens';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { SmawwImmutabweSet } fwom 'vs/editow/common/modew/bwacketPaiwCowowiza/smawwImmutabweSet';
+impowt { StandawdTokenType, TokenMetadata } fwom 'vs/editow/common/modes';
+impowt { BwacketAstNode, TextAstNode } fwom './ast';
+impowt { BwacketTokens, WanguageAgnosticBwacketTokens } fwom './bwackets';
+impowt { wengthGetCowumnCountIfZewoWineCount, Wength, wengthAdd, wengthDiff, wengthToObj, wengthZewo, toWength } fwom './wength';
 
-export interface Tokenizer {
-	readonly offset: Length;
-	readonly length: Length;
+expowt intewface Tokeniza {
+	weadonwy offset: Wength;
+	weadonwy wength: Wength;
 
-	read(): Token | null;
-	peek(): Token | null;
-	skip(length: Length): void;
+	wead(): Token | nuww;
+	peek(): Token | nuww;
+	skip(wength: Wength): void;
 
-	getText(): string;
+	getText(): stwing;
 }
 
-export const enum TokenKind {
+expowt const enum TokenKind {
 	Text = 0,
-	OpeningBracket = 1,
-	ClosingBracket = 2,
+	OpeningBwacket = 1,
+	CwosingBwacket = 2,
 }
 
-export type OpeningBracketId = number;
+expowt type OpeningBwacketId = numba;
 
-export class Token {
-	constructor(
-		readonly length: Length,
-		readonly kind: TokenKind,
+expowt cwass Token {
+	constwuctow(
+		weadonwy wength: Wength,
+		weadonwy kind: TokenKind,
 		/**
-		 * If this token is an opening bracket, this is the id of the opening bracket.
-		 * If this token is a closing bracket, this is the id of the first opening bracket that is closed by this bracket.
-		 * Otherwise, it is -1.
+		 * If this token is an opening bwacket, this is the id of the opening bwacket.
+		 * If this token is a cwosing bwacket, this is the id of the fiwst opening bwacket that is cwosed by this bwacket.
+		 * Othewwise, it is -1.
 		 */
-		readonly bracketId: OpeningBracketId,
+		weadonwy bwacketId: OpeningBwacketId,
 		/**
-		 * If this token is an opening bracket, this just contains `bracketId`.
-		 * If this token is a closing bracket, this lists all opening bracket ids, that it closes.
-		 * Otherwise, it is empty.
+		 * If this token is an opening bwacket, this just contains `bwacketId`.
+		 * If this token is a cwosing bwacket, this wists aww opening bwacket ids, that it cwoses.
+		 * Othewwise, it is empty.
 		 */
-		readonly bracketIds: SmallImmutableSet<OpeningBracketId>,
-		readonly astNode: BracketAstNode | TextAstNode | undefined,
+		weadonwy bwacketIds: SmawwImmutabweSet<OpeningBwacketId>,
+		weadonwy astNode: BwacketAstNode | TextAstNode | undefined,
 	) { }
 }
 
-export class TextBufferTokenizer implements Tokenizer {
-	private readonly textBufferLineCount: number;
-	private readonly textBufferLastLineLength: number;
+expowt cwass TextBuffewTokeniza impwements Tokeniza {
+	pwivate weadonwy textBuffewWineCount: numba;
+	pwivate weadonwy textBuffewWastWineWength: numba;
 
-	private readonly reader = new NonPeekableTextBufferTokenizer(this.textModel, this.bracketTokens);
+	pwivate weadonwy weada = new NonPeekabweTextBuffewTokeniza(this.textModew, this.bwacketTokens);
 
-	constructor(
-		private readonly textModel: ITextModel,
-		private readonly bracketTokens: LanguageAgnosticBracketTokens
+	constwuctow(
+		pwivate weadonwy textModew: ITextModew,
+		pwivate weadonwy bwacketTokens: WanguageAgnosticBwacketTokens
 	) {
-		this.textBufferLineCount = textModel.getLineCount();
-		this.textBufferLastLineLength = textModel.getLineLength(this.textBufferLineCount);
+		this.textBuffewWineCount = textModew.getWineCount();
+		this.textBuffewWastWineWength = textModew.getWineWength(this.textBuffewWineCount);
 	}
 
-	private _offset: Length = lengthZero;
+	pwivate _offset: Wength = wengthZewo;
 
 	get offset() {
-		return this._offset;
+		wetuwn this._offset;
 	}
 
-	get length() {
-		return toLength(this.textBufferLineCount, this.textBufferLastLineLength);
+	get wength() {
+		wetuwn toWength(this.textBuffewWineCount, this.textBuffewWastWineWength);
 	}
 
 	getText() {
-		return this.textModel.getValue();
+		wetuwn this.textModew.getVawue();
 	}
 
-	skip(length: Length): void {
-		this.didPeek = false;
-		this._offset = lengthAdd(this._offset, length);
-		const obj = lengthToObj(this._offset);
-		this.reader.setPosition(obj.lineCount, obj.columnCount);
+	skip(wength: Wength): void {
+		this.didPeek = fawse;
+		this._offset = wengthAdd(this._offset, wength);
+		const obj = wengthToObj(this._offset);
+		this.weada.setPosition(obj.wineCount, obj.cowumnCount);
 	}
 
-	private didPeek = false;
-	private peeked: Token | null = null;
+	pwivate didPeek = fawse;
+	pwivate peeked: Token | nuww = nuww;
 
-	read(): Token | null {
-		let token: Token | null;
+	wead(): Token | nuww {
+		wet token: Token | nuww;
 		if (this.peeked) {
-			this.didPeek = false;
+			this.didPeek = fawse;
 			token = this.peeked;
-		} else {
-			token = this.reader.read();
+		} ewse {
+			token = this.weada.wead();
 		}
 		if (token) {
-			this._offset = lengthAdd(this._offset, token.length);
+			this._offset = wengthAdd(this._offset, token.wength);
 		}
-		return token;
+		wetuwn token;
 	}
 
-	peek(): Token | null {
+	peek(): Token | nuww {
 		if (!this.didPeek) {
-			this.peeked = this.reader.read();
-			this.didPeek = true;
+			this.peeked = this.weada.wead();
+			this.didPeek = twue;
 		}
-		return this.peeked;
+		wetuwn this.peeked;
 	}
 }
 
 /**
- * Does not support peek.
+ * Does not suppowt peek.
 */
-class NonPeekableTextBufferTokenizer {
-	private readonly textBufferLineCount: number;
-	private readonly textBufferLastLineLength: number;
+cwass NonPeekabweTextBuffewTokeniza {
+	pwivate weadonwy textBuffewWineCount: numba;
+	pwivate weadonwy textBuffewWastWineWength: numba;
 
-	constructor(private readonly textModel: ITextModel, private readonly bracketTokens: LanguageAgnosticBracketTokens) {
-		this.textBufferLineCount = textModel.getLineCount();
-		this.textBufferLastLineLength = textModel.getLineLength(this.textBufferLineCount);
+	constwuctow(pwivate weadonwy textModew: ITextModew, pwivate weadonwy bwacketTokens: WanguageAgnosticBwacketTokens) {
+		this.textBuffewWineCount = textModew.getWineCount();
+		this.textBuffewWastWineWength = textModew.getWineWength(this.textBuffewWineCount);
 	}
 
-	private lineIdx = 0;
-	private line: string | null = null;
-	private lineCharOffset = 0;
-	private lineTokens: LineTokens | null = null;
-	private lineTokenOffset = 0;
+	pwivate wineIdx = 0;
+	pwivate wine: stwing | nuww = nuww;
+	pwivate wineChawOffset = 0;
+	pwivate wineTokens: WineTokens | nuww = nuww;
+	pwivate wineTokenOffset = 0;
 
-	public setPosition(lineIdx: number, column: number): void {
+	pubwic setPosition(wineIdx: numba, cowumn: numba): void {
 		// We must not jump into a token!
-		if (lineIdx === this.lineIdx) {
-			this.lineCharOffset = column;
-			this.lineTokenOffset = this.lineCharOffset === 0 ? 0 : this.lineTokens!.findTokenIndexAtOffset(this.lineCharOffset);
-		} else {
-			this.lineIdx = lineIdx;
-			this.lineCharOffset = column;
-			this.line = null;
+		if (wineIdx === this.wineIdx) {
+			this.wineChawOffset = cowumn;
+			this.wineTokenOffset = this.wineChawOffset === 0 ? 0 : this.wineTokens!.findTokenIndexAtOffset(this.wineChawOffset);
+		} ewse {
+			this.wineIdx = wineIdx;
+			this.wineChawOffset = cowumn;
+			this.wine = nuww;
 		}
-		this.peekedToken = null;
+		this.peekedToken = nuww;
 	}
 
-	/** Must be a zero line token. The end of the document cannot be peeked. */
-	private peekedToken: Token | null = null;
+	/** Must be a zewo wine token. The end of the document cannot be peeked. */
+	pwivate peekedToken: Token | nuww = nuww;
 
-	public read(): Token | null {
+	pubwic wead(): Token | nuww {
 		if (this.peekedToken) {
 			const token = this.peekedToken;
-			this.peekedToken = null;
-			this.lineCharOffset += lengthGetColumnCountIfZeroLineCount(token.length);
-			return token;
+			this.peekedToken = nuww;
+			this.wineChawOffset += wengthGetCowumnCountIfZewoWineCount(token.wength);
+			wetuwn token;
 		}
 
-		if (this.lineIdx > this.textBufferLineCount - 1 || (this.lineIdx === this.textBufferLineCount - 1 && this.lineCharOffset >= this.textBufferLastLineLength)) {
-			// We are after the end
-			return null;
+		if (this.wineIdx > this.textBuffewWineCount - 1 || (this.wineIdx === this.textBuffewWineCount - 1 && this.wineChawOffset >= this.textBuffewWastWineWength)) {
+			// We awe afta the end
+			wetuwn nuww;
 		}
 
-		if (this.line === null) {
-			this.lineTokens = this.textModel.getLineTokens(this.lineIdx + 1);
-			this.line = this.lineTokens.getLineContent();
-			this.lineTokenOffset = this.lineCharOffset === 0 ? 0 : this.lineTokens!.findTokenIndexAtOffset(this.lineCharOffset);
+		if (this.wine === nuww) {
+			this.wineTokens = this.textModew.getWineTokens(this.wineIdx + 1);
+			this.wine = this.wineTokens.getWineContent();
+			this.wineTokenOffset = this.wineChawOffset === 0 ? 0 : this.wineTokens!.findTokenIndexAtOffset(this.wineChawOffset);
 		}
 
-		const startLineIdx = this.lineIdx;
-		const startLineCharOffset = this.lineCharOffset;
+		const stawtWineIdx = this.wineIdx;
+		const stawtWineChawOffset = this.wineChawOffset;
 
-		// limits the length of text tokens.
-		// If text tokens get too long, incremental updates will be slow
-		let lengthHeuristic = 0;
-		while (lengthHeuristic < 1000) {
-			const lineTokens = this.lineTokens!;
-			const tokenCount = lineTokens.getCount();
+		// wimits the wength of text tokens.
+		// If text tokens get too wong, incwementaw updates wiww be swow
+		wet wengthHeuwistic = 0;
+		whiwe (wengthHeuwistic < 1000) {
+			const wineTokens = this.wineTokens!;
+			const tokenCount = wineTokens.getCount();
 
-			let peekedBracketToken: Token | null = null;
+			wet peekedBwacketToken: Token | nuww = nuww;
 
-			if (this.lineTokenOffset < tokenCount) {
-				const tokenMetadata = lineTokens.getMetadata(this.lineTokenOffset);
-				while (this.lineTokenOffset + 1 < tokenCount && tokenMetadata === lineTokens.getMetadata(this.lineTokenOffset + 1)) {
-					// Skip tokens that are identical.
-					// Sometimes, (bracket) identifiers are split up into multiple tokens.
-					this.lineTokenOffset++;
+			if (this.wineTokenOffset < tokenCount) {
+				const tokenMetadata = wineTokens.getMetadata(this.wineTokenOffset);
+				whiwe (this.wineTokenOffset + 1 < tokenCount && tokenMetadata === wineTokens.getMetadata(this.wineTokenOffset + 1)) {
+					// Skip tokens that awe identicaw.
+					// Sometimes, (bwacket) identifiews awe spwit up into muwtipwe tokens.
+					this.wineTokenOffset++;
 				}
 
-				const isOther = TokenMetadata.getTokenType(tokenMetadata) === StandardTokenType.Other;
+				const isOtha = TokenMetadata.getTokenType(tokenMetadata) === StandawdTokenType.Otha;
 
-				const endOffset = lineTokens.getEndOffset(this.lineTokenOffset);
-				// Is there a bracket token next? Only consume text.
-				if (isOther && endOffset !== this.lineCharOffset) {
-					const languageId = lineTokens.getLanguageId(this.lineTokenOffset);
-					const text = this.line.substring(this.lineCharOffset, endOffset);
+				const endOffset = wineTokens.getEndOffset(this.wineTokenOffset);
+				// Is thewe a bwacket token next? Onwy consume text.
+				if (isOtha && endOffset !== this.wineChawOffset) {
+					const wanguageId = wineTokens.getWanguageId(this.wineTokenOffset);
+					const text = this.wine.substwing(this.wineChawOffset, endOffset);
 
-					const brackets = this.bracketTokens.getSingleLanguageBracketTokens(languageId);
-					const regexp = brackets.regExpGlobal;
-					if (regexp) {
-						regexp.lastIndex = 0;
-						const match = regexp.exec(text);
+					const bwackets = this.bwacketTokens.getSingweWanguageBwacketTokens(wanguageId);
+					const wegexp = bwackets.wegExpGwobaw;
+					if (wegexp) {
+						wegexp.wastIndex = 0;
+						const match = wegexp.exec(text);
 						if (match) {
-							peekedBracketToken = brackets.getToken(match[0])!;
-							if (peekedBracketToken) {
-								// Consume leading text of the token
-								this.lineCharOffset += match.index;
+							peekedBwacketToken = bwackets.getToken(match[0])!;
+							if (peekedBwacketToken) {
+								// Consume weading text of the token
+								this.wineChawOffset += match.index;
 							}
 						}
 					}
 				}
 
-				lengthHeuristic += endOffset - this.lineCharOffset;
+				wengthHeuwistic += endOffset - this.wineChawOffset;
 
-				if (peekedBracketToken) {
-					// Don't skip the entire token, as a single token could contain multiple brackets.
+				if (peekedBwacketToken) {
+					// Don't skip the entiwe token, as a singwe token couwd contain muwtipwe bwackets.
 
-					if (startLineIdx !== this.lineIdx || startLineCharOffset !== this.lineCharOffset) {
-						// There is text before the bracket
-						this.peekedToken = peekedBracketToken;
-						break;
-					} else {
+					if (stawtWineIdx !== this.wineIdx || stawtWineChawOffset !== this.wineChawOffset) {
+						// Thewe is text befowe the bwacket
+						this.peekedToken = peekedBwacketToken;
+						bweak;
+					} ewse {
 						// Consume the peeked token
-						this.lineCharOffset += lengthGetColumnCountIfZeroLineCount(peekedBracketToken.length);
-						return peekedBracketToken;
+						this.wineChawOffset += wengthGetCowumnCountIfZewoWineCount(peekedBwacketToken.wength);
+						wetuwn peekedBwacketToken;
 					}
-				} else {
-					// Skip the entire token, as the token contains no brackets at all.
-					this.lineTokenOffset++;
-					this.lineCharOffset = endOffset;
+				} ewse {
+					// Skip the entiwe token, as the token contains no bwackets at aww.
+					this.wineTokenOffset++;
+					this.wineChawOffset = endOffset;
 				}
-			} else {
-				if (this.lineIdx === this.textBufferLineCount - 1) {
-					break;
+			} ewse {
+				if (this.wineIdx === this.textBuffewWineCount - 1) {
+					bweak;
 				}
-				this.lineIdx++;
-				this.lineTokens = this.textModel.getLineTokens(this.lineIdx + 1);
-				this.lineTokenOffset = 0;
-				this.line = this.lineTokens.getLineContent();
-				this.lineCharOffset = 0;
+				this.wineIdx++;
+				this.wineTokens = this.textModew.getWineTokens(this.wineIdx + 1);
+				this.wineTokenOffset = 0;
+				this.wine = this.wineTokens.getWineContent();
+				this.wineChawOffset = 0;
 
-				lengthHeuristic++;
+				wengthHeuwistic++;
 			}
 		}
 
-		const length = lengthDiff(startLineIdx, startLineCharOffset, this.lineIdx, this.lineCharOffset);
-		return new Token(length, TokenKind.Text, -1, SmallImmutableSet.getEmpty(), new TextAstNode(length));
+		const wength = wengthDiff(stawtWineIdx, stawtWineChawOffset, this.wineIdx, this.wineChawOffset);
+		wetuwn new Token(wength, TokenKind.Text, -1, SmawwImmutabweSet.getEmpty(), new TextAstNode(wength));
 	}
 }
 
-export class FastTokenizer implements Tokenizer {
-	private _offset: Length = lengthZero;
-	private readonly tokens: readonly Token[];
-	private idx = 0;
+expowt cwass FastTokeniza impwements Tokeniza {
+	pwivate _offset: Wength = wengthZewo;
+	pwivate weadonwy tokens: weadonwy Token[];
+	pwivate idx = 0;
 
-	constructor(private readonly text: string, brackets: BracketTokens) {
-		const regExpStr = brackets.getRegExpStr();
-		const regexp = regExpStr ? new RegExp(brackets.getRegExpStr() + '|\n', 'g') : null;
+	constwuctow(pwivate weadonwy text: stwing, bwackets: BwacketTokens) {
+		const wegExpStw = bwackets.getWegExpStw();
+		const wegexp = wegExpStw ? new WegExp(bwackets.getWegExpStw() + '|\n', 'g') : nuww;
 
 		const tokens: Token[] = [];
 
-		let match: RegExpExecArray | null;
-		let curLineCount = 0;
-		let lastLineBreakOffset = 0;
+		wet match: WegExpExecAwway | nuww;
+		wet cuwWineCount = 0;
+		wet wastWineBweakOffset = 0;
 
-		let lastTokenEndOffset = 0;
-		let lastTokenEndLine = 0;
+		wet wastTokenEndOffset = 0;
+		wet wastTokenEndWine = 0;
 
-		const smallTextTokens0Line = new Array<Token>();
-		for (let i = 0; i < 60; i++) {
-			smallTextTokens0Line.push(
+		const smawwTextTokens0Wine = new Awway<Token>();
+		fow (wet i = 0; i < 60; i++) {
+			smawwTextTokens0Wine.push(
 				new Token(
-					toLength(0, i), TokenKind.Text, -1, SmallImmutableSet.getEmpty(),
-					new TextAstNode(toLength(0, i))
+					toWength(0, i), TokenKind.Text, -1, SmawwImmutabweSet.getEmpty(),
+					new TextAstNode(toWength(0, i))
 				)
 			);
 		}
 
-		const smallTextTokens1Line = new Array<Token>();
-		for (let i = 0; i < 60; i++) {
-			smallTextTokens1Line.push(
+		const smawwTextTokens1Wine = new Awway<Token>();
+		fow (wet i = 0; i < 60; i++) {
+			smawwTextTokens1Wine.push(
 				new Token(
-					toLength(1, i), TokenKind.Text, -1, SmallImmutableSet.getEmpty(),
-					new TextAstNode(toLength(1, i))
+					toWength(1, i), TokenKind.Text, -1, SmawwImmutabweSet.getEmpty(),
+					new TextAstNode(toWength(1, i))
 				)
 			);
 		}
 
-		if (regexp) {
-			regexp.lastIndex = 0;
-			while ((match = regexp.exec(text)) !== null) {
-				const curOffset = match.index;
-				const value = match[0];
-				if (value === '\n') {
-					curLineCount++;
-					lastLineBreakOffset = curOffset + 1;
-				} else {
-					if (lastTokenEndOffset !== curOffset) {
-						let token: Token;
-						if (lastTokenEndLine === curLineCount) {
-							const colCount = curOffset - lastTokenEndOffset;
-							if (colCount < smallTextTokens0Line.length) {
-								token = smallTextTokens0Line[colCount];
-							} else {
-								const length = toLength(0, colCount);
-								token = new Token(length, TokenKind.Text, -1, SmallImmutableSet.getEmpty(), new TextAstNode(length));
+		if (wegexp) {
+			wegexp.wastIndex = 0;
+			whiwe ((match = wegexp.exec(text)) !== nuww) {
+				const cuwOffset = match.index;
+				const vawue = match[0];
+				if (vawue === '\n') {
+					cuwWineCount++;
+					wastWineBweakOffset = cuwOffset + 1;
+				} ewse {
+					if (wastTokenEndOffset !== cuwOffset) {
+						wet token: Token;
+						if (wastTokenEndWine === cuwWineCount) {
+							const cowCount = cuwOffset - wastTokenEndOffset;
+							if (cowCount < smawwTextTokens0Wine.wength) {
+								token = smawwTextTokens0Wine[cowCount];
+							} ewse {
+								const wength = toWength(0, cowCount);
+								token = new Token(wength, TokenKind.Text, -1, SmawwImmutabweSet.getEmpty(), new TextAstNode(wength));
 							}
-						} else {
-							const lineCount = curLineCount - lastTokenEndLine;
-							const colCount = curOffset - lastLineBreakOffset;
-							if (lineCount === 1 && colCount < smallTextTokens1Line.length) {
-								token = smallTextTokens1Line[colCount];
-							} else {
-								const length = toLength(lineCount, colCount);
-								token = new Token(length, TokenKind.Text, -1, SmallImmutableSet.getEmpty(), new TextAstNode(length));
+						} ewse {
+							const wineCount = cuwWineCount - wastTokenEndWine;
+							const cowCount = cuwOffset - wastWineBweakOffset;
+							if (wineCount === 1 && cowCount < smawwTextTokens1Wine.wength) {
+								token = smawwTextTokens1Wine[cowCount];
+							} ewse {
+								const wength = toWength(wineCount, cowCount);
+								token = new Token(wength, TokenKind.Text, -1, SmawwImmutabweSet.getEmpty(), new TextAstNode(wength));
 							}
 						}
 						tokens.push(token);
 					}
 
-					// value is matched by regexp, so the token must exist
-					tokens.push(brackets.getToken(value)!);
+					// vawue is matched by wegexp, so the token must exist
+					tokens.push(bwackets.getToken(vawue)!);
 
-					lastTokenEndOffset = curOffset + value.length;
-					lastTokenEndLine = curLineCount;
+					wastTokenEndOffset = cuwOffset + vawue.wength;
+					wastTokenEndWine = cuwWineCount;
 				}
 			}
 		}
 
-		const offset = text.length;
+		const offset = text.wength;
 
-		if (lastTokenEndOffset !== offset) {
-			const length = (lastTokenEndLine === curLineCount)
-				? toLength(0, offset - lastTokenEndOffset)
-				: toLength(curLineCount - lastTokenEndLine, offset - lastLineBreakOffset);
-			tokens.push(new Token(length, TokenKind.Text, -1, SmallImmutableSet.getEmpty(), new TextAstNode(length)));
+		if (wastTokenEndOffset !== offset) {
+			const wength = (wastTokenEndWine === cuwWineCount)
+				? toWength(0, offset - wastTokenEndOffset)
+				: toWength(cuwWineCount - wastTokenEndWine, offset - wastWineBweakOffset);
+			tokens.push(new Token(wength, TokenKind.Text, -1, SmawwImmutabweSet.getEmpty(), new TextAstNode(wength)));
 		}
 
-		this.length = toLength(curLineCount, offset - lastLineBreakOffset);
+		this.wength = toWength(cuwWineCount, offset - wastWineBweakOffset);
 		this.tokens = tokens;
 	}
 
-	get offset(): Length {
-		return this._offset;
+	get offset(): Wength {
+		wetuwn this._offset;
 	}
 
-	readonly length: Length;
+	weadonwy wength: Wength;
 
-	read(): Token | null {
-		return this.tokens[this.idx++] || null;
+	wead(): Token | nuww {
+		wetuwn this.tokens[this.idx++] || nuww;
 	}
 
-	peek(): Token | null {
-		return this.tokens[this.idx] || null;
+	peek(): Token | nuww {
+		wetuwn this.tokens[this.idx] || nuww;
 	}
 
-	skip(length: Length): void {
-		throw new NotSupportedError();
+	skip(wength: Wength): void {
+		thwow new NotSuppowtedEwwow();
 	}
 
-	getText(): string {
-		return this.text;
+	getText(): stwing {
+		wetuwn this.text;
 	}
 }

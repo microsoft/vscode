@@ -1,372 +1,372 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { IdleValue, raceCancellation } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/browser/core/editorState';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, registerModelAndPositionCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITextModel } from 'vs/editor/common/model';
-import { Rejection, RenameLocation, RenameProvider, RenameProviderRegistry, WorkspaceEdit } from 'vs/editor/common/modes';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { MessageController } from 'vs/editor/contrib/message/messageController';
-import * as nls from 'vs/nls';
-import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { CONTEXT_RENAME_INPUT_VISIBLE, RenameInputField } from './renameInputField';
+impowt { awewt } fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt { IdweVawue, waceCancewwation } fwom 'vs/base/common/async';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { assewtType } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { CodeEditowStateFwag, EditowStateCancewwationTokenSouwce } fwom 'vs/editow/bwowsa/cowe/editowState';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, EditowCommand, wegistewEditowAction, wegistewEditowCommand, wegistewEditowContwibution, wegistewModewAndPositionCommand, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { IBuwkEditSewvice, WesouwceEdit } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { IPosition, Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { Wejection, WenameWocation, WenamePwovida, WenamePwovidewWegistwy, WowkspaceEdit } fwom 'vs/editow/common/modes';
+impowt { ITextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { MessageContwowwa } fwom 'vs/editow/contwib/message/messageContwowwa';
+impowt * as nws fwom 'vs/nws';
+impowt { ConfiguwationScope, Extensions, IConfiguwationWegistwy } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IEditowPwogwessSewvice } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { CONTEXT_WENAME_INPUT_VISIBWE, WenameInputFiewd } fwom './wenameInputFiewd';
 
-class RenameSkeleton {
+cwass WenameSkeweton {
 
-	private readonly _providers: RenameProvider[];
-	private _providerRenameIdx: number = 0;
+	pwivate weadonwy _pwovidews: WenamePwovida[];
+	pwivate _pwovidewWenameIdx: numba = 0;
 
-	constructor(
-		private readonly model: ITextModel,
-		private readonly position: Position
+	constwuctow(
+		pwivate weadonwy modew: ITextModew,
+		pwivate weadonwy position: Position
 	) {
-		this._providers = RenameProviderRegistry.ordered(model);
+		this._pwovidews = WenamePwovidewWegistwy.owdewed(modew);
 	}
 
-	hasProvider() {
-		return this._providers.length > 0;
+	hasPwovida() {
+		wetuwn this._pwovidews.wength > 0;
 	}
 
-	async resolveRenameLocation(token: CancellationToken): Promise<RenameLocation & Rejection | undefined> {
+	async wesowveWenameWocation(token: CancewwationToken): Pwomise<WenameWocation & Wejection | undefined> {
 
-		const rejects: string[] = [];
+		const wejects: stwing[] = [];
 
-		for (this._providerRenameIdx = 0; this._providerRenameIdx < this._providers.length; this._providerRenameIdx++) {
-			const provider = this._providers[this._providerRenameIdx];
-			if (!provider.resolveRenameLocation) {
-				break;
+		fow (this._pwovidewWenameIdx = 0; this._pwovidewWenameIdx < this._pwovidews.wength; this._pwovidewWenameIdx++) {
+			const pwovida = this._pwovidews[this._pwovidewWenameIdx];
+			if (!pwovida.wesowveWenameWocation) {
+				bweak;
 			}
-			let res = await provider.resolveRenameLocation(this.model, this.position, token);
-			if (!res) {
+			wet wes = await pwovida.wesowveWenameWocation(this.modew, this.position, token);
+			if (!wes) {
 				continue;
 			}
-			if (res.rejectReason) {
-				rejects.push(res.rejectReason);
+			if (wes.wejectWeason) {
+				wejects.push(wes.wejectWeason);
 				continue;
 			}
-			return res;
+			wetuwn wes;
 		}
 
-		const word = this.model.getWordAtPosition(this.position);
-		if (!word) {
-			return {
-				range: Range.fromPositions(this.position),
+		const wowd = this.modew.getWowdAtPosition(this.position);
+		if (!wowd) {
+			wetuwn {
+				wange: Wange.fwomPositions(this.position),
 				text: '',
-				rejectReason: rejects.length > 0 ? rejects.join('\n') : undefined
+				wejectWeason: wejects.wength > 0 ? wejects.join('\n') : undefined
 			};
 		}
-		return {
-			range: new Range(this.position.lineNumber, word.startColumn, this.position.lineNumber, word.endColumn),
-			text: word.word,
-			rejectReason: rejects.length > 0 ? rejects.join('\n') : undefined
+		wetuwn {
+			wange: new Wange(this.position.wineNumba, wowd.stawtCowumn, this.position.wineNumba, wowd.endCowumn),
+			text: wowd.wowd,
+			wejectWeason: wejects.wength > 0 ? wejects.join('\n') : undefined
 		};
 	}
 
-	async provideRenameEdits(newName: string, token: CancellationToken): Promise<WorkspaceEdit & Rejection> {
-		return this._provideRenameEdits(newName, this._providerRenameIdx, [], token);
+	async pwovideWenameEdits(newName: stwing, token: CancewwationToken): Pwomise<WowkspaceEdit & Wejection> {
+		wetuwn this._pwovideWenameEdits(newName, this._pwovidewWenameIdx, [], token);
 	}
 
-	private async _provideRenameEdits(newName: string, i: number, rejects: string[], token: CancellationToken): Promise<WorkspaceEdit & Rejection> {
-		const provider = this._providers[i];
-		if (!provider) {
-			return {
+	pwivate async _pwovideWenameEdits(newName: stwing, i: numba, wejects: stwing[], token: CancewwationToken): Pwomise<WowkspaceEdit & Wejection> {
+		const pwovida = this._pwovidews[i];
+		if (!pwovida) {
+			wetuwn {
 				edits: [],
-				rejectReason: rejects.join('\n')
+				wejectWeason: wejects.join('\n')
 			};
 		}
 
-		const result = await provider.provideRenameEdits(this.model, this.position, newName, token);
-		if (!result) {
-			return this._provideRenameEdits(newName, i + 1, rejects.concat(nls.localize('no result', "No result.")), token);
-		} else if (result.rejectReason) {
-			return this._provideRenameEdits(newName, i + 1, rejects.concat(result.rejectReason), token);
+		const wesuwt = await pwovida.pwovideWenameEdits(this.modew, this.position, newName, token);
+		if (!wesuwt) {
+			wetuwn this._pwovideWenameEdits(newName, i + 1, wejects.concat(nws.wocawize('no wesuwt', "No wesuwt.")), token);
+		} ewse if (wesuwt.wejectWeason) {
+			wetuwn this._pwovideWenameEdits(newName, i + 1, wejects.concat(wesuwt.wejectWeason), token);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
-export async function rename(model: ITextModel, position: Position, newName: string): Promise<WorkspaceEdit & Rejection> {
-	const skeleton = new RenameSkeleton(model, position);
-	const loc = await skeleton.resolveRenameLocation(CancellationToken.None);
-	if (loc?.rejectReason) {
-		return { edits: [], rejectReason: loc.rejectReason };
+expowt async function wename(modew: ITextModew, position: Position, newName: stwing): Pwomise<WowkspaceEdit & Wejection> {
+	const skeweton = new WenameSkeweton(modew, position);
+	const woc = await skeweton.wesowveWenameWocation(CancewwationToken.None);
+	if (woc?.wejectWeason) {
+		wetuwn { edits: [], wejectWeason: woc.wejectWeason };
 	}
-	return skeleton.provideRenameEdits(newName, CancellationToken.None);
+	wetuwn skeweton.pwovideWenameEdits(newName, CancewwationToken.None);
 }
 
-// ---  register actions and commands
+// ---  wegista actions and commands
 
-class RenameController implements IEditorContribution {
+cwass WenameContwowwa impwements IEditowContwibution {
 
-	public static readonly ID = 'editor.contrib.renameController';
+	pubwic static weadonwy ID = 'editow.contwib.wenameContwowwa';
 
-	static get(editor: ICodeEditor): RenameController {
-		return editor.getContribution<RenameController>(RenameController.ID);
+	static get(editow: ICodeEditow): WenameContwowwa {
+		wetuwn editow.getContwibution<WenameContwowwa>(WenameContwowwa.ID);
 	}
 
-	private readonly _renameInputField: IdleValue<RenameInputField>;
-	private readonly _dispoableStore = new DisposableStore();
-	private _cts: CancellationTokenSource = new CancellationTokenSource();
+	pwivate weadonwy _wenameInputFiewd: IdweVawue<WenameInputFiewd>;
+	pwivate weadonwy _dispoabweStowe = new DisposabweStowe();
+	pwivate _cts: CancewwationTokenSouwce = new CancewwationTokenSouwce();
 
-	constructor(
-		private readonly editor: ICodeEditor,
-		@IInstantiationService private readonly _instaService: IInstantiationService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
-		@IEditorProgressService private readonly _progressService: IEditorProgressService,
-		@ILogService private readonly _logService: ILogService,
-		@ITextResourceConfigurationService private readonly _configService: ITextResourceConfigurationService,
+	constwuctow(
+		pwivate weadonwy editow: ICodeEditow,
+		@IInstantiationSewvice pwivate weadonwy _instaSewvice: IInstantiationSewvice,
+		@INotificationSewvice pwivate weadonwy _notificationSewvice: INotificationSewvice,
+		@IBuwkEditSewvice pwivate weadonwy _buwkEditSewvice: IBuwkEditSewvice,
+		@IEditowPwogwessSewvice pwivate weadonwy _pwogwessSewvice: IEditowPwogwessSewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
+		@ITextWesouwceConfiguwationSewvice pwivate weadonwy _configSewvice: ITextWesouwceConfiguwationSewvice,
 	) {
-		this._renameInputField = this._dispoableStore.add(new IdleValue(() => this._dispoableStore.add(this._instaService.createInstance(RenameInputField, this.editor, ['acceptRenameInput', 'acceptRenameInputWithPreview']))));
+		this._wenameInputFiewd = this._dispoabweStowe.add(new IdweVawue(() => this._dispoabweStowe.add(this._instaSewvice.cweateInstance(WenameInputFiewd, this.editow, ['acceptWenameInput', 'acceptWenameInputWithPweview']))));
 	}
 
 	dispose(): void {
-		this._dispoableStore.dispose();
-		this._cts.dispose(true);
+		this._dispoabweStowe.dispose();
+		this._cts.dispose(twue);
 	}
 
-	async run(): Promise<void> {
+	async wun(): Pwomise<void> {
 
-		this._cts.dispose(true);
+		this._cts.dispose(twue);
 
-		if (!this.editor.hasModel()) {
-			return undefined;
+		if (!this.editow.hasModew()) {
+			wetuwn undefined;
 		}
 
-		const position = this.editor.getPosition();
-		const skeleton = new RenameSkeleton(this.editor.getModel(), position);
+		const position = this.editow.getPosition();
+		const skeweton = new WenameSkeweton(this.editow.getModew(), position);
 
-		if (!skeleton.hasProvider()) {
-			return undefined;
+		if (!skeweton.hasPwovida()) {
+			wetuwn undefined;
 		}
 
-		this._cts = new EditorStateCancellationTokenSource(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value);
+		this._cts = new EditowStateCancewwationTokenSouwce(this.editow, CodeEditowStateFwag.Position | CodeEditowStateFwag.Vawue);
 
-		// resolve rename location
-		let loc: RenameLocation & Rejection | undefined;
-		try {
-			const resolveLocationOperation = skeleton.resolveRenameLocation(this._cts.token);
-			this._progressService.showWhile(resolveLocationOperation, 250);
-			loc = await resolveLocationOperation;
+		// wesowve wename wocation
+		wet woc: WenameWocation & Wejection | undefined;
+		twy {
+			const wesowveWocationOpewation = skeweton.wesowveWenameWocation(this._cts.token);
+			this._pwogwessSewvice.showWhiwe(wesowveWocationOpewation, 250);
+			woc = await wesowveWocationOpewation;
 		} catch (e) {
-			MessageController.get(this.editor).showMessage(e || nls.localize('resolveRenameLocationFailed', "An unknown error occurred while resolving rename location"), position);
-			return undefined;
+			MessageContwowwa.get(this.editow).showMessage(e || nws.wocawize('wesowveWenameWocationFaiwed', "An unknown ewwow occuwwed whiwe wesowving wename wocation"), position);
+			wetuwn undefined;
 		}
 
-		if (!loc) {
-			return undefined;
+		if (!woc) {
+			wetuwn undefined;
 		}
 
-		if (loc.rejectReason) {
-			MessageController.get(this.editor).showMessage(loc.rejectReason, position);
-			return undefined;
+		if (woc.wejectWeason) {
+			MessageContwowwa.get(this.editow).showMessage(woc.wejectWeason, position);
+			wetuwn undefined;
 		}
 
-		if (this._cts.token.isCancellationRequested) {
-			return undefined;
+		if (this._cts.token.isCancewwationWequested) {
+			wetuwn undefined;
 		}
 		this._cts.dispose();
-		this._cts = new EditorStateCancellationTokenSource(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value, loc.range);
+		this._cts = new EditowStateCancewwationTokenSouwce(this.editow, CodeEditowStateFwag.Position | CodeEditowStateFwag.Vawue, woc.wange);
 
-		// do rename at location
-		let selection = this.editor.getSelection();
-		let selectionStart = 0;
-		let selectionEnd = loc.text.length;
+		// do wename at wocation
+		wet sewection = this.editow.getSewection();
+		wet sewectionStawt = 0;
+		wet sewectionEnd = woc.text.wength;
 
-		if (!Range.isEmpty(selection) && !Range.spansMultipleLines(selection) && Range.containsRange(loc.range, selection)) {
-			selectionStart = Math.max(0, selection.startColumn - loc.range.startColumn);
-			selectionEnd = Math.min(loc.range.endColumn, selection.endColumn) - loc.range.startColumn;
+		if (!Wange.isEmpty(sewection) && !Wange.spansMuwtipweWines(sewection) && Wange.containsWange(woc.wange, sewection)) {
+			sewectionStawt = Math.max(0, sewection.stawtCowumn - woc.wange.stawtCowumn);
+			sewectionEnd = Math.min(woc.wange.endCowumn, sewection.endCowumn) - woc.wange.stawtCowumn;
 		}
 
-		const supportPreview = this._bulkEditService.hasPreviewHandler() && this._configService.getValue<boolean>(this.editor.getModel().uri, 'editor.rename.enablePreview');
-		const inputFieldResult = await this._renameInputField.value.getInput(loc.range, loc.text, selectionStart, selectionEnd, supportPreview, this._cts.token);
+		const suppowtPweview = this._buwkEditSewvice.hasPweviewHandwa() && this._configSewvice.getVawue<boowean>(this.editow.getModew().uwi, 'editow.wename.enabwePweview');
+		const inputFiewdWesuwt = await this._wenameInputFiewd.vawue.getInput(woc.wange, woc.text, sewectionStawt, sewectionEnd, suppowtPweview, this._cts.token);
 
-		// no result, only hint to focus the editor or not
-		if (typeof inputFieldResult === 'boolean') {
-			if (inputFieldResult) {
-				this.editor.focus();
+		// no wesuwt, onwy hint to focus the editow ow not
+		if (typeof inputFiewdWesuwt === 'boowean') {
+			if (inputFiewdWesuwt) {
+				this.editow.focus();
 			}
-			return undefined;
+			wetuwn undefined;
 		}
 
-		this.editor.focus();
+		this.editow.focus();
 
-		const renameOperation = raceCancellation(skeleton.provideRenameEdits(inputFieldResult.newName, this._cts.token), this._cts.token).then(async renameResult => {
+		const wenameOpewation = waceCancewwation(skeweton.pwovideWenameEdits(inputFiewdWesuwt.newName, this._cts.token), this._cts.token).then(async wenameWesuwt => {
 
-			if (!renameResult || !this.editor.hasModel()) {
-				return;
+			if (!wenameWesuwt || !this.editow.hasModew()) {
+				wetuwn;
 			}
 
-			if (renameResult.rejectReason) {
-				this._notificationService.info(renameResult.rejectReason);
-				return;
+			if (wenameWesuwt.wejectWeason) {
+				this._notificationSewvice.info(wenameWesuwt.wejectWeason);
+				wetuwn;
 			}
 
-			this._bulkEditService.apply(ResourceEdit.convert(renameResult), {
-				editor: this.editor,
-				showPreview: inputFieldResult.wantsPreview,
-				label: nls.localize('label', "Renaming '{0}'", loc?.text),
-				quotableLabel: nls.localize('quotableLabel', "Renaming {0}", loc?.text),
-			}).then(result => {
-				if (result.ariaSummary) {
-					alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", loc!.text, inputFieldResult.newName, result.ariaSummary));
+			this._buwkEditSewvice.appwy(WesouwceEdit.convewt(wenameWesuwt), {
+				editow: this.editow,
+				showPweview: inputFiewdWesuwt.wantsPweview,
+				wabew: nws.wocawize('wabew', "Wenaming '{0}'", woc?.text),
+				quotabweWabew: nws.wocawize('quotabweWabew', "Wenaming {0}", woc?.text),
+			}).then(wesuwt => {
+				if (wesuwt.awiaSummawy) {
+					awewt(nws.wocawize('awia', "Successfuwwy wenamed '{0}' to '{1}'. Summawy: {2}", woc!.text, inputFiewdWesuwt.newName, wesuwt.awiaSummawy));
 				}
-			}).catch(err => {
-				this._notificationService.error(nls.localize('rename.failedApply', "Rename failed to apply edits"));
-				this._logService.error(err);
+			}).catch(eww => {
+				this._notificationSewvice.ewwow(nws.wocawize('wename.faiwedAppwy', "Wename faiwed to appwy edits"));
+				this._wogSewvice.ewwow(eww);
 			});
 
-		}, err => {
-			this._notificationService.error(nls.localize('rename.failed', "Rename failed to compute edits"));
-			this._logService.error(err);
+		}, eww => {
+			this._notificationSewvice.ewwow(nws.wocawize('wename.faiwed', "Wename faiwed to compute edits"));
+			this._wogSewvice.ewwow(eww);
 		});
 
-		this._progressService.showWhile(renameOperation, 250);
-		return renameOperation;
+		this._pwogwessSewvice.showWhiwe(wenameOpewation, 250);
+		wetuwn wenameOpewation;
 
 	}
 
-	acceptRenameInput(wantsPreview: boolean): void {
-		this._renameInputField.value.acceptInput(wantsPreview);
+	acceptWenameInput(wantsPweview: boowean): void {
+		this._wenameInputFiewd.vawue.acceptInput(wantsPweview);
 	}
 
-	cancelRenameInput(): void {
-		this._renameInputField.value.cancelInput(true);
+	cancewWenameInput(): void {
+		this._wenameInputFiewd.vawue.cancewInput(twue);
 	}
 }
 
-// ---- action implementation
+// ---- action impwementation
 
-export class RenameAction extends EditorAction {
+expowt cwass WenameAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.rename',
-			label: nls.localize('rename.label', "Rename Symbol"),
-			alias: 'Rename Symbol',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasRenameProvider),
+	constwuctow() {
+		supa({
+			id: 'editow.action.wename',
+			wabew: nws.wocawize('wename.wabew', "Wename Symbow"),
+			awias: 'Wename Symbow',
+			pwecondition: ContextKeyExpw.and(EditowContextKeys.wwitabwe, EditowContextKeys.hasWenamePwovida),
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyCode.F2,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyCode.F2,
+				weight: KeybindingWeight.EditowContwib
 			},
 			contextMenuOpts: {
-				group: '1_modification',
-				order: 1.1
+				gwoup: '1_modification',
+				owda: 1.1
 			}
 		});
 	}
 
-	override runCommand(accessor: ServicesAccessor, args: [URI, IPosition]): void | Promise<void> {
-		const editorService = accessor.get(ICodeEditorService);
-		const [uri, pos] = Array.isArray(args) && args || [undefined, undefined];
+	ovewwide wunCommand(accessow: SewvicesAccessow, awgs: [UWI, IPosition]): void | Pwomise<void> {
+		const editowSewvice = accessow.get(ICodeEditowSewvice);
+		const [uwi, pos] = Awway.isAwway(awgs) && awgs || [undefined, undefined];
 
-		if (URI.isUri(uri) && Position.isIPosition(pos)) {
-			return editorService.openCodeEditor({ resource: uri }, editorService.getActiveCodeEditor()).then(editor => {
-				if (!editor) {
-					return;
+		if (UWI.isUwi(uwi) && Position.isIPosition(pos)) {
+			wetuwn editowSewvice.openCodeEditow({ wesouwce: uwi }, editowSewvice.getActiveCodeEditow()).then(editow => {
+				if (!editow) {
+					wetuwn;
 				}
-				editor.setPosition(pos);
-				editor.invokeWithinContext(accessor => {
-					this.reportTelemetry(accessor, editor);
-					return this.run(accessor, editor);
+				editow.setPosition(pos);
+				editow.invokeWithinContext(accessow => {
+					this.wepowtTewemetwy(accessow, editow);
+					wetuwn this.wun(accessow, editow);
 				});
-			}, onUnexpectedError);
+			}, onUnexpectedEwwow);
 		}
 
-		return super.runCommand(accessor, args);
+		wetuwn supa.wunCommand(accessow, awgs);
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const controller = RenameController.get(editor);
-		if (controller) {
-			return controller.run();
+	wun(accessow: SewvicesAccessow, editow: ICodeEditow): Pwomise<void> {
+		const contwowwa = WenameContwowwa.get(editow);
+		if (contwowwa) {
+			wetuwn contwowwa.wun();
 		}
-		return Promise.resolve();
+		wetuwn Pwomise.wesowve();
 	}
 }
 
-registerEditorContribution(RenameController.ID, RenameController);
-registerEditorAction(RenameAction);
+wegistewEditowContwibution(WenameContwowwa.ID, WenameContwowwa);
+wegistewEditowAction(WenameAction);
 
-const RenameCommand = EditorCommand.bindToContribution<RenameController>(RenameController.get);
+const WenameCommand = EditowCommand.bindToContwibution<WenameContwowwa>(WenameContwowwa.get);
 
-registerEditorCommand(new RenameCommand({
-	id: 'acceptRenameInput',
-	precondition: CONTEXT_RENAME_INPUT_VISIBLE,
-	handler: x => x.acceptRenameInput(false),
+wegistewEditowCommand(new WenameCommand({
+	id: 'acceptWenameInput',
+	pwecondition: CONTEXT_WENAME_INPUT_VISIBWE,
+	handwa: x => x.acceptWenameInput(fawse),
 	kbOpts: {
-		weight: KeybindingWeight.EditorContrib + 99,
-		kbExpr: EditorContextKeys.focus,
-		primary: KeyCode.Enter
+		weight: KeybindingWeight.EditowContwib + 99,
+		kbExpw: EditowContextKeys.focus,
+		pwimawy: KeyCode.Enta
 	}
 }));
 
-registerEditorCommand(new RenameCommand({
-	id: 'acceptRenameInputWithPreview',
-	precondition: ContextKeyExpr.and(CONTEXT_RENAME_INPUT_VISIBLE, ContextKeyExpr.has('config.editor.rename.enablePreview')),
-	handler: x => x.acceptRenameInput(true),
+wegistewEditowCommand(new WenameCommand({
+	id: 'acceptWenameInputWithPweview',
+	pwecondition: ContextKeyExpw.and(CONTEXT_WENAME_INPUT_VISIBWE, ContextKeyExpw.has('config.editow.wename.enabwePweview')),
+	handwa: x => x.acceptWenameInput(twue),
 	kbOpts: {
-		weight: KeybindingWeight.EditorContrib + 99,
-		kbExpr: EditorContextKeys.focus,
-		primary: KeyMod.Shift + KeyCode.Enter
+		weight: KeybindingWeight.EditowContwib + 99,
+		kbExpw: EditowContextKeys.focus,
+		pwimawy: KeyMod.Shift + KeyCode.Enta
 	}
 }));
 
-registerEditorCommand(new RenameCommand({
-	id: 'cancelRenameInput',
-	precondition: CONTEXT_RENAME_INPUT_VISIBLE,
-	handler: x => x.cancelRenameInput(),
+wegistewEditowCommand(new WenameCommand({
+	id: 'cancewWenameInput',
+	pwecondition: CONTEXT_WENAME_INPUT_VISIBWE,
+	handwa: x => x.cancewWenameInput(),
 	kbOpts: {
-		weight: KeybindingWeight.EditorContrib + 99,
-		kbExpr: EditorContextKeys.focus,
-		primary: KeyCode.Escape,
-		secondary: [KeyMod.Shift | KeyCode.Escape]
+		weight: KeybindingWeight.EditowContwib + 99,
+		kbExpw: EditowContextKeys.focus,
+		pwimawy: KeyCode.Escape,
+		secondawy: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));
 
-// ---- api bridge command
+// ---- api bwidge command
 
-registerModelAndPositionCommand('_executeDocumentRenameProvider', function (model, position, ...args) {
-	const [newName] = args;
-	assertType(typeof newName === 'string');
-	return rename(model, position, newName);
+wegistewModewAndPositionCommand('_executeDocumentWenamePwovida', function (modew, position, ...awgs) {
+	const [newName] = awgs;
+	assewtType(typeof newName === 'stwing');
+	wetuwn wename(modew, position, newName);
 });
 
 
-//todo@jrieken use editor options world
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	id: 'editor',
-	properties: {
-		'editor.rename.enablePreview': {
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			description: nls.localize('enablePreview', "Enable/disable the ability to preview changes before renaming"),
-			default: true,
-			type: 'boolean'
+//todo@jwieken use editow options wowwd
+Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation).wegistewConfiguwation({
+	id: 'editow',
+	pwopewties: {
+		'editow.wename.enabwePweview': {
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			descwiption: nws.wocawize('enabwePweview', "Enabwe/disabwe the abiwity to pweview changes befowe wenaming"),
+			defauwt: twue,
+			type: 'boowean'
 		}
 	}
 });

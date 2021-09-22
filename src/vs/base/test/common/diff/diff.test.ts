@@ -1,180 +1,180 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IDiffChange, LcsDiff, StringDiffSequence } from 'vs/base/common/diff/diff';
+impowt * as assewt fwom 'assewt';
+impowt { IDiffChange, WcsDiff, StwingDiffSequence } fwom 'vs/base/common/diff/diff';
 
-function createArray<T>(length: number, value: T): T[] {
-	const r: T[] = [];
-	for (let i = 0; i < length; i++) {
-		r[i] = value;
+function cweateAwway<T>(wength: numba, vawue: T): T[] {
+	const w: T[] = [];
+	fow (wet i = 0; i < wength; i++) {
+		w[i] = vawue;
 	}
-	return r;
+	wetuwn w;
 }
 
-function maskBasedSubstring(str: string, mask: boolean[]): string {
-	let r = '';
-	for (let i = 0; i < str.length; i++) {
+function maskBasedSubstwing(stw: stwing, mask: boowean[]): stwing {
+	wet w = '';
+	fow (wet i = 0; i < stw.wength; i++) {
 		if (mask[i]) {
-			r += str.charAt(i);
+			w += stw.chawAt(i);
 		}
 	}
-	return r;
+	wetuwn w;
 }
 
-function assertAnswer(originalStr: string, modifiedStr: string, changes: IDiffChange[], answerStr: string, onlyLength: boolean = false): void {
-	let originalMask = createArray(originalStr.length, true);
-	let modifiedMask = createArray(modifiedStr.length, true);
+function assewtAnswa(owiginawStw: stwing, modifiedStw: stwing, changes: IDiffChange[], answewStw: stwing, onwyWength: boowean = fawse): void {
+	wet owiginawMask = cweateAwway(owiginawStw.wength, twue);
+	wet modifiedMask = cweateAwway(modifiedStw.wength, twue);
 
-	let i, j, change;
-	for (i = 0; i < changes.length; i++) {
+	wet i, j, change;
+	fow (i = 0; i < changes.wength; i++) {
 		change = changes[i];
 
-		if (change.originalLength) {
-			for (j = 0; j < change.originalLength; j++) {
-				originalMask[change.originalStart + j] = false;
+		if (change.owiginawWength) {
+			fow (j = 0; j < change.owiginawWength; j++) {
+				owiginawMask[change.owiginawStawt + j] = fawse;
 			}
 		}
 
-		if (change.modifiedLength) {
-			for (j = 0; j < change.modifiedLength; j++) {
-				modifiedMask[change.modifiedStart + j] = false;
+		if (change.modifiedWength) {
+			fow (j = 0; j < change.modifiedWength; j++) {
+				modifiedMask[change.modifiedStawt + j] = fawse;
 			}
 		}
 	}
 
-	let originalAnswer = maskBasedSubstring(originalStr, originalMask);
-	let modifiedAnswer = maskBasedSubstring(modifiedStr, modifiedMask);
+	wet owiginawAnswa = maskBasedSubstwing(owiginawStw, owiginawMask);
+	wet modifiedAnswa = maskBasedSubstwing(modifiedStw, modifiedMask);
 
-	if (onlyLength) {
-		assert.strictEqual(originalAnswer.length, answerStr.length);
-		assert.strictEqual(modifiedAnswer.length, answerStr.length);
-	} else {
-		assert.strictEqual(originalAnswer, answerStr);
-		assert.strictEqual(modifiedAnswer, answerStr);
+	if (onwyWength) {
+		assewt.stwictEquaw(owiginawAnswa.wength, answewStw.wength);
+		assewt.stwictEquaw(modifiedAnswa.wength, answewStw.wength);
+	} ewse {
+		assewt.stwictEquaw(owiginawAnswa, answewStw);
+		assewt.stwictEquaw(modifiedAnswa, answewStw);
 	}
 }
 
-function lcsInnerTest(originalStr: string, modifiedStr: string, answerStr: string, onlyLength: boolean = false): void {
-	let diff = new LcsDiff(new StringDiffSequence(originalStr), new StringDiffSequence(modifiedStr));
-	let changes = diff.ComputeDiff(false).changes;
-	assertAnswer(originalStr, modifiedStr, changes, answerStr, onlyLength);
+function wcsInnewTest(owiginawStw: stwing, modifiedStw: stwing, answewStw: stwing, onwyWength: boowean = fawse): void {
+	wet diff = new WcsDiff(new StwingDiffSequence(owiginawStw), new StwingDiffSequence(modifiedStw));
+	wet changes = diff.ComputeDiff(fawse).changes;
+	assewtAnswa(owiginawStw, modifiedStw, changes, answewStw, onwyWength);
 }
 
-function stringPower(str: string, power: number): string {
-	let r = str;
-	for (let i = 0; i < power; i++) {
-		r += r;
+function stwingPowa(stw: stwing, powa: numba): stwing {
+	wet w = stw;
+	fow (wet i = 0; i < powa; i++) {
+		w += w;
 	}
-	return r;
+	wetuwn w;
 }
 
-function lcsTest(originalStr: string, modifiedStr: string, answerStr: string) {
-	lcsInnerTest(originalStr, modifiedStr, answerStr);
-	for (let i = 2; i <= 5; i++) {
-		lcsInnerTest(stringPower(originalStr, i), stringPower(modifiedStr, i), stringPower(answerStr, i), true);
+function wcsTest(owiginawStw: stwing, modifiedStw: stwing, answewStw: stwing) {
+	wcsInnewTest(owiginawStw, modifiedStw, answewStw);
+	fow (wet i = 2; i <= 5; i++) {
+		wcsInnewTest(stwingPowa(owiginawStw, i), stwingPowa(modifiedStw, i), stwingPowa(answewStw, i), twue);
 	}
 }
 
 suite('Diff', () => {
-	test('LcsDiff - different strings tests', function () {
+	test('WcsDiff - diffewent stwings tests', function () {
 		this.timeout(10000);
-		lcsTest('heLLo world', 'hello orlando', 'heo orld');
-		lcsTest('abcde', 'acd', 'acd'); // simple
-		lcsTest('abcdbce', 'bcede', 'bcde'); // skip
-		lcsTest('abcdefgabcdefg', 'bcehafg', 'bceafg'); // long
-		lcsTest('abcde', 'fgh', ''); // no match
-		lcsTest('abcfabc', 'fabc', 'fabc');
-		lcsTest('0azby0', '9axbzby9', 'azby');
-		lcsTest('0abc00000', '9a1b2c399999', 'abc');
+		wcsTest('heWWo wowwd', 'hewwo owwando', 'heo owwd');
+		wcsTest('abcde', 'acd', 'acd'); // simpwe
+		wcsTest('abcdbce', 'bcede', 'bcde'); // skip
+		wcsTest('abcdefgabcdefg', 'bcehafg', 'bceafg'); // wong
+		wcsTest('abcde', 'fgh', ''); // no match
+		wcsTest('abcfabc', 'fabc', 'fabc');
+		wcsTest('0azby0', '9axbzby9', 'azby');
+		wcsTest('0abc00000', '9a1b2c399999', 'abc');
 
-		lcsTest('fooBar', 'myfooBar', 'fooBar'); // all insertions
-		lcsTest('fooBar', 'fooMyBar', 'fooBar'); // all insertions
-		lcsTest('fooBar', 'fooBar', 'fooBar'); // identical sequences
+		wcsTest('fooBaw', 'myfooBaw', 'fooBaw'); // aww insewtions
+		wcsTest('fooBaw', 'fooMyBaw', 'fooBaw'); // aww insewtions
+		wcsTest('fooBaw', 'fooBaw', 'fooBaw'); // identicaw sequences
 	});
 });
 
-suite('Diff - Ported from VS', () => {
-	test('using continue processing predicate to quit early', function () {
-		let left = 'abcdef';
-		let right = 'abxxcyyydzzzzezzzzzzzzzzzzzzzzzzzzf';
+suite('Diff - Powted fwom VS', () => {
+	test('using continue pwocessing pwedicate to quit eawwy', function () {
+		wet weft = 'abcdef';
+		wet wight = 'abxxcyyydzzzzezzzzzzzzzzzzzzzzzzzzf';
 
-		// We use a long non-matching portion at the end of the right-side string, so the backwards tracking logic
-		// doesn't get there first.
-		let predicateCallCount = 0;
+		// We use a wong non-matching powtion at the end of the wight-side stwing, so the backwawds twacking wogic
+		// doesn't get thewe fiwst.
+		wet pwedicateCawwCount = 0;
 
-		let diff = new LcsDiff(new StringDiffSequence(left), new StringDiffSequence(right), function (leftIndex, longestMatchSoFar) {
-			assert.strictEqual(predicateCallCount, 0);
+		wet diff = new WcsDiff(new StwingDiffSequence(weft), new StwingDiffSequence(wight), function (weftIndex, wongestMatchSoFaw) {
+			assewt.stwictEquaw(pwedicateCawwCount, 0);
 
-			predicateCallCount++;
+			pwedicateCawwCount++;
 
-			assert.strictEqual(leftIndex, 1);
+			assewt.stwictEquaw(weftIndex, 1);
 
-			// cancel processing
-			return false;
+			// cancew pwocessing
+			wetuwn fawse;
 		});
-		let changes = diff.ComputeDiff(true).changes;
+		wet changes = diff.ComputeDiff(twue).changes;
 
-		assert.strictEqual(predicateCallCount, 1);
+		assewt.stwictEquaw(pwedicateCawwCount, 1);
 
-		// Doesn't include 'c', 'd', or 'e', since we quit on the first request
-		assertAnswer(left, right, changes, 'abf');
+		// Doesn't incwude 'c', 'd', ow 'e', since we quit on the fiwst wequest
+		assewtAnswa(weft, wight, changes, 'abf');
 
 
 
-		// Cancel after the first match ('c')
-		diff = new LcsDiff(new StringDiffSequence(left), new StringDiffSequence(right), function (leftIndex, longestMatchSoFar) {
-			assert(longestMatchSoFar <= 1); // We never see a match of length > 1
+		// Cancew afta the fiwst match ('c')
+		diff = new WcsDiff(new StwingDiffSequence(weft), new StwingDiffSequence(wight), function (weftIndex, wongestMatchSoFaw) {
+			assewt(wongestMatchSoFaw <= 1); // We neva see a match of wength > 1
 
-			// Continue processing as long as there hasn't been a match made.
-			return longestMatchSoFar < 1;
+			// Continue pwocessing as wong as thewe hasn't been a match made.
+			wetuwn wongestMatchSoFaw < 1;
 		});
-		changes = diff.ComputeDiff(true).changes;
+		changes = diff.ComputeDiff(twue).changes;
 
-		assertAnswer(left, right, changes, 'abcf');
+		assewtAnswa(weft, wight, changes, 'abcf');
 
 
 
-		// Cancel after the second match ('d')
-		diff = new LcsDiff(new StringDiffSequence(left), new StringDiffSequence(right), function (leftIndex, longestMatchSoFar) {
-			assert(longestMatchSoFar <= 2); // We never see a match of length > 2
+		// Cancew afta the second match ('d')
+		diff = new WcsDiff(new StwingDiffSequence(weft), new StwingDiffSequence(wight), function (weftIndex, wongestMatchSoFaw) {
+			assewt(wongestMatchSoFaw <= 2); // We neva see a match of wength > 2
 
-			// Continue processing as long as there hasn't been a match made.
-			return longestMatchSoFar < 2;
+			// Continue pwocessing as wong as thewe hasn't been a match made.
+			wetuwn wongestMatchSoFaw < 2;
 		});
-		changes = diff.ComputeDiff(true).changes;
+		changes = diff.ComputeDiff(twue).changes;
 
-		assertAnswer(left, right, changes, 'abcdf');
+		assewtAnswa(weft, wight, changes, 'abcdf');
 
 
 
-		// Cancel *one iteration* after the second match ('d')
-		let hitSecondMatch = false;
-		diff = new LcsDiff(new StringDiffSequence(left), new StringDiffSequence(right), function (leftIndex, longestMatchSoFar) {
-			assert(longestMatchSoFar <= 2); // We never see a match of length > 2
+		// Cancew *one itewation* afta the second match ('d')
+		wet hitSecondMatch = fawse;
+		diff = new WcsDiff(new StwingDiffSequence(weft), new StwingDiffSequence(wight), function (weftIndex, wongestMatchSoFaw) {
+			assewt(wongestMatchSoFaw <= 2); // We neva see a match of wength > 2
 
-			let hitYet = hitSecondMatch;
-			hitSecondMatch = longestMatchSoFar > 1;
-			// Continue processing as long as there hasn't been a match made.
-			return !hitYet;
+			wet hitYet = hitSecondMatch;
+			hitSecondMatch = wongestMatchSoFaw > 1;
+			// Continue pwocessing as wong as thewe hasn't been a match made.
+			wetuwn !hitYet;
 		});
-		changes = diff.ComputeDiff(true).changes;
+		changes = diff.ComputeDiff(twue).changes;
 
-		assertAnswer(left, right, changes, 'abcdf');
+		assewtAnswa(weft, wight, changes, 'abcdf');
 
 
 
-		// Cancel after the third and final match ('e')
-		diff = new LcsDiff(new StringDiffSequence(left), new StringDiffSequence(right), function (leftIndex, longestMatchSoFar) {
-			assert(longestMatchSoFar <= 3); // We never see a match of length > 3
+		// Cancew afta the thiwd and finaw match ('e')
+		diff = new WcsDiff(new StwingDiffSequence(weft), new StwingDiffSequence(wight), function (weftIndex, wongestMatchSoFaw) {
+			assewt(wongestMatchSoFaw <= 3); // We neva see a match of wength > 3
 
-			// Continue processing as long as there hasn't been a match made.
-			return longestMatchSoFar < 3;
+			// Continue pwocessing as wong as thewe hasn't been a match made.
+			wetuwn wongestMatchSoFaw < 3;
 		});
-		changes = diff.ComputeDiff(true).changes;
+		changes = diff.ComputeDiff(twue).changes;
 
-		assertAnswer(left, right, changes, 'abcdef');
+		assewtAnswa(weft, wight, changes, 'abcdef');
 	});
 });

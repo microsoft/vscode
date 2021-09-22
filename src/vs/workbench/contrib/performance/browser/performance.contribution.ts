@@ -1,56 +1,56 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { EditorExtensions, IEditorSerializer, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
-import { PerfviewContrib, PerfviewInput } from 'vs/workbench/contrib/performance/browser/perfviewEditor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+impowt { wocawize } fwom 'vs/nws';
+impowt { wegistewAction2, Action2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { Extensions, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { EditowExtensions, IEditowSewiawiza, IEditowFactowyWegistwy } fwom 'vs/wowkbench/common/editow';
+impowt { PewfviewContwib, PewfviewInput } fwom 'vs/wowkbench/contwib/pewfowmance/bwowsa/pewfviewEditow';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
 
-// -- startup performance view
+// -- stawtup pewfowmance view
 
-Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
-	PerfviewContrib,
-	LifecyclePhase.Ready
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(Extensions.Wowkbench).wegistewWowkbenchContwibution(
+	PewfviewContwib,
+	WifecycwePhase.Weady
 );
 
-Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
-	PerfviewInput.Id,
-	class implements IEditorSerializer {
-		canSerialize(): boolean {
-			return true;
+Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy).wegistewEditowSewiawiza(
+	PewfviewInput.Id,
+	cwass impwements IEditowSewiawiza {
+		canSewiawize(): boowean {
+			wetuwn twue;
 		}
-		serialize(): string {
-			return '';
+		sewiawize(): stwing {
+			wetuwn '';
 		}
-		deserialize(instantiationService: IInstantiationService): PerfviewInput {
-			return instantiationService.createInstance(PerfviewInput);
+		desewiawize(instantiationSewvice: IInstantiationSewvice): PewfviewInput {
+			wetuwn instantiationSewvice.cweateInstance(PewfviewInput);
 		}
 	}
 );
 
 
-registerAction2(class extends Action2 {
+wegistewAction2(cwass extends Action2 {
 
-	constructor() {
-		super({
-			id: 'perfview.show',
-			title: { value: localize('show.label', "Startup Performance"), original: 'Startup Performance' },
-			category: CATEGORIES.Developer,
-			f1: true
+	constwuctow() {
+		supa({
+			id: 'pewfview.show',
+			titwe: { vawue: wocawize('show.wabew', "Stawtup Pewfowmance"), owiginaw: 'Stawtup Pewfowmance' },
+			categowy: CATEGOWIES.Devewopa,
+			f1: twue
 		});
 	}
 
-	run(accessor: ServicesAccessor) {
-		const editorService = accessor.get(IEditorService);
-		const instaService = accessor.get(IInstantiationService);
-		return editorService.openEditor(instaService.createInstance(PerfviewInput), { pinned: true });
+	wun(accessow: SewvicesAccessow) {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const instaSewvice = accessow.get(IInstantiationSewvice);
+		wetuwn editowSewvice.openEditow(instaSewvice.cweateInstance(PewfviewInput), { pinned: twue });
 	}
 });

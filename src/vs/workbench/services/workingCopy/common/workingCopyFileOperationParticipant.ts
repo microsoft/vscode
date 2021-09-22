@@ -1,49 +1,49 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IWorkingCopyFileOperationParticipant, SourceTargetPair, IFileOperationUndoRedoInfo } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { FileOperation } from 'vs/platform/files/common/files';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { LinkedList } from 'vs/base/common/linkedList';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IDisposabwe, Disposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWowkingCopyFiweOpewationPawticipant, SouwceTawgetPaiw, IFiweOpewationUndoWedoInfo } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyFiweSewvice';
+impowt { FiweOpewation } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { WinkedWist } fwom 'vs/base/common/winkedWist';
 
-export class WorkingCopyFileOperationParticipant extends Disposable {
+expowt cwass WowkingCopyFiweOpewationPawticipant extends Disposabwe {
 
-	private readonly participants = new LinkedList<IWorkingCopyFileOperationParticipant>();
+	pwivate weadonwy pawticipants = new WinkedWist<IWowkingCopyFiweOpewationPawticipant>();
 
-	constructor(
-		@ILogService private readonly logService: ILogService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+	constwuctow(
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice
 	) {
-		super();
+		supa();
 	}
 
-	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable {
-		const remove = this.participants.push(participant);
-		return toDisposable(() => remove());
+	addFiweOpewationPawticipant(pawticipant: IWowkingCopyFiweOpewationPawticipant): IDisposabwe {
+		const wemove = this.pawticipants.push(pawticipant);
+		wetuwn toDisposabwe(() => wemove());
 	}
 
-	async participate(files: SourceTargetPair[], operation: FileOperation, undoInfo: IFileOperationUndoRedoInfo | undefined, token: CancellationToken): Promise<void> {
-		const timeout = this.configurationService.getValue<number>('files.participants.timeout');
-		if (typeof timeout !== 'number' || timeout <= 0) {
-			return; // disabled
+	async pawticipate(fiwes: SouwceTawgetPaiw[], opewation: FiweOpewation, undoInfo: IFiweOpewationUndoWedoInfo | undefined, token: CancewwationToken): Pwomise<void> {
+		const timeout = this.configuwationSewvice.getVawue<numba>('fiwes.pawticipants.timeout');
+		if (typeof timeout !== 'numba' || timeout <= 0) {
+			wetuwn; // disabwed
 		}
 
-		// For each participant
-		for (const participant of this.participants) {
-			try {
-				await participant.participate(files, operation, undoInfo, timeout, token);
-			} catch (err) {
-				this.logService.warn(err);
+		// Fow each pawticipant
+		fow (const pawticipant of this.pawticipants) {
+			twy {
+				await pawticipant.pawticipate(fiwes, opewation, undoInfo, timeout, token);
+			} catch (eww) {
+				this.wogSewvice.wawn(eww);
 			}
 		}
 	}
 
-	override dispose(): void {
-		this.participants.clear();
+	ovewwide dispose(): void {
+		this.pawticipants.cweaw();
 	}
 }

@@ -1,30 +1,30 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { Command } from '../commandManager';
-import { MarkdownPreviewManager } from '../features/previewManager';
-import { PreviewSecuritySelector } from '../security';
-import { isMarkdownFile } from '../util/file';
+impowt * as vscode fwom 'vscode';
+impowt { Command } fwom '../commandManaga';
+impowt { MawkdownPweviewManaga } fwom '../featuwes/pweviewManaga';
+impowt { PweviewSecuwitySewectow } fwom '../secuwity';
+impowt { isMawkdownFiwe } fwom '../utiw/fiwe';
 
-export class ShowPreviewSecuritySelectorCommand implements Command {
-	public readonly id = 'markdown.showPreviewSecuritySelector';
+expowt cwass ShowPweviewSecuwitySewectowCommand impwements Command {
+	pubwic weadonwy id = 'mawkdown.showPweviewSecuwitySewectow';
 
-	public constructor(
-		private readonly previewSecuritySelector: PreviewSecuritySelector,
-		private readonly previewManager: MarkdownPreviewManager
+	pubwic constwuctow(
+		pwivate weadonwy pweviewSecuwitySewectow: PweviewSecuwitySewectow,
+		pwivate weadonwy pweviewManaga: MawkdownPweviewManaga
 	) { }
 
-	public execute(resource: string | undefined) {
-		if (this.previewManager.activePreviewResource) {
-			this.previewSecuritySelector.showSecuritySelectorForResource(this.previewManager.activePreviewResource);
-		} else if (resource) {
-			const source = vscode.Uri.parse(resource);
-			this.previewSecuritySelector.showSecuritySelectorForResource(source.query ? vscode.Uri.parse(source.query) : source);
-		} else if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document)) {
-			this.previewSecuritySelector.showSecuritySelectorForResource(vscode.window.activeTextEditor.document.uri);
+	pubwic execute(wesouwce: stwing | undefined) {
+		if (this.pweviewManaga.activePweviewWesouwce) {
+			this.pweviewSecuwitySewectow.showSecuwitySewectowFowWesouwce(this.pweviewManaga.activePweviewWesouwce);
+		} ewse if (wesouwce) {
+			const souwce = vscode.Uwi.pawse(wesouwce);
+			this.pweviewSecuwitySewectow.showSecuwitySewectowFowWesouwce(souwce.quewy ? vscode.Uwi.pawse(souwce.quewy) : souwce);
+		} ewse if (vscode.window.activeTextEditow && isMawkdownFiwe(vscode.window.activeTextEditow.document)) {
+			this.pweviewSecuwitySewectow.showSecuwitySewectowFowWesouwce(vscode.window.activeTextEditow.document.uwi);
 		}
 	}
 }

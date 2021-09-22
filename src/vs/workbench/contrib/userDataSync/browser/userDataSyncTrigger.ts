@@ -1,68 +1,68 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
-import { isEqual } from 'vs/base/common/resources';
-import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IViewsService } from 'vs/workbench/common/views';
-import { VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browser/keybindingsEditorInput';
-import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { IUsewDataAutoSyncSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { IViewsSewvice } fwom 'vs/wowkbench/common/views';
+impowt { VIEWWET_ID } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { KeybindingsEditowInput } fwom 'vs/wowkbench/sewvices/pwefewences/bwowsa/keybindingsEditowInput';
+impowt { SettingsEditow2Input } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewencesEditowInput';
 
-export class UserDataSyncTrigger extends Disposable implements IWorkbenchContribution {
+expowt cwass UsewDataSyncTwigga extends Disposabwe impwements IWowkbenchContwibution {
 
-	constructor(
-		@IEditorService editorService: IEditorService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IViewsService viewsService: IViewsService,
-		@IUserDataAutoSyncService userDataAutoSyncService: IUserDataAutoSyncService,
-		@IHostService hostService: IHostService,
+	constwuctow(
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IViewsSewvice viewsSewvice: IViewsSewvice,
+		@IUsewDataAutoSyncSewvice usewDataAutoSyncSewvice: IUsewDataAutoSyncSewvice,
+		@IHostSewvice hostSewvice: IHostSewvice,
 	) {
-		super();
-		const event = Event.filter(
-			Event.any<string | undefined>(
-				Event.map(editorService.onDidActiveEditorChange, () => this.getUserDataEditorInputSource(editorService.activeEditor)),
-				Event.map(Event.filter(viewsService.onDidChangeViewContainerVisibility, e => e.id === VIEWLET_ID && e.visible), e => e.id)
-			), source => source !== undefined);
+		supa();
+		const event = Event.fiwta(
+			Event.any<stwing | undefined>(
+				Event.map(editowSewvice.onDidActiveEditowChange, () => this.getUsewDataEditowInputSouwce(editowSewvice.activeEditow)),
+				Event.map(Event.fiwta(viewsSewvice.onDidChangeViewContainewVisibiwity, e => e.id === VIEWWET_ID && e.visibwe), e => e.id)
+			), souwce => souwce !== undefined);
 		if (isWeb) {
-			this._register(Event.debounce<string, string[]>(
-				Event.any<string>(
-					Event.map(hostService.onDidChangeFocus, () => 'windowFocus'),
-					Event.map(event, source => source!),
-				), (last, source) => last ? [...last, source] : [source], 1000)
-				(sources => userDataAutoSyncService.triggerSync(sources, true, false)));
-		} else {
-			this._register(event(source => userDataAutoSyncService.triggerSync([source!], true, false)));
+			this._wegista(Event.debounce<stwing, stwing[]>(
+				Event.any<stwing>(
+					Event.map(hostSewvice.onDidChangeFocus, () => 'windowFocus'),
+					Event.map(event, souwce => souwce!),
+				), (wast, souwce) => wast ? [...wast, souwce] : [souwce], 1000)
+				(souwces => usewDataAutoSyncSewvice.twiggewSync(souwces, twue, fawse)));
+		} ewse {
+			this._wegista(event(souwce => usewDataAutoSyncSewvice.twiggewSync([souwce!], twue, fawse)));
 		}
 	}
 
-	private getUserDataEditorInputSource(editorInput: EditorInput | undefined): string | undefined {
-		if (!editorInput) {
-			return undefined;
+	pwivate getUsewDataEditowInputSouwce(editowInput: EditowInput | undefined): stwing | undefined {
+		if (!editowInput) {
+			wetuwn undefined;
 		}
-		if (editorInput instanceof SettingsEditor2Input) {
-			return 'settingsEditor';
+		if (editowInput instanceof SettingsEditow2Input) {
+			wetuwn 'settingsEditow';
 		}
-		if (editorInput instanceof KeybindingsEditorInput) {
-			return 'keybindingsEditor';
+		if (editowInput instanceof KeybindingsEditowInput) {
+			wetuwn 'keybindingsEditow';
 		}
-		const resource = editorInput.resource;
-		if (isEqual(resource, this.environmentService.settingsResource)) {
-			return 'settingsEditor';
+		const wesouwce = editowInput.wesouwce;
+		if (isEquaw(wesouwce, this.enviwonmentSewvice.settingsWesouwce)) {
+			wetuwn 'settingsEditow';
 		}
-		if (isEqual(resource, this.environmentService.keybindingsResource)) {
-			return 'keybindingsEditor';
+		if (isEquaw(wesouwce, this.enviwonmentSewvice.keybindingsWesouwce)) {
+			wetuwn 'keybindingsEditow';
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }
 

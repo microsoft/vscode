@@ -1,176 +1,176 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createHash } from 'crypto';
-import { distinct, equals } from 'vs/base/common/arrays';
-import { Queue } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { join } from 'vs/base/common/path';
-import { Promises } from 'vs/base/node/pfs';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionIdentifier, IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ILocalizationsService, isValidLocalization } from 'vs/platform/localizations/common/localizations';
-import { ILogService } from 'vs/platform/log/common/log';
+impowt { cweateHash } fwom 'cwypto';
+impowt { distinct, equaws } fwom 'vs/base/common/awways';
+impowt { Queue } fwom 'vs/base/common/async';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { join } fwom 'vs/base/common/path';
+impowt { Pwomises } fwom 'vs/base/node/pfs';
+impowt { INativeEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IExtensionIdentifia, IExtensionManagementSewvice, IWocawExtension } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { aweSameExtensions } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { IWocawizationsSewvice, isVawidWocawization } fwom 'vs/pwatfowm/wocawizations/common/wocawizations';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-interface ILanguagePack {
-	hash: string;
+intewface IWanguagePack {
+	hash: stwing;
 	extensions: {
-		extensionIdentifier: IExtensionIdentifier;
-		version: string;
+		extensionIdentifia: IExtensionIdentifia;
+		vewsion: stwing;
 	}[];
-	translations: { [id: string]: string };
+	twanswations: { [id: stwing]: stwing };
 }
 
-export class LocalizationsService extends Disposable implements ILocalizationsService {
+expowt cwass WocawizationsSewvice extends Disposabwe impwements IWocawizationsSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly cache: LanguagePacksCache;
+	pwivate weadonwy cache: WanguagePacksCache;
 
-	constructor(
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@INativeEnvironmentService environmentService: INativeEnvironmentService,
-		@ILogService private readonly logService: ILogService
+	constwuctow(
+		@IExtensionManagementSewvice pwivate weadonwy extensionManagementSewvice: IExtensionManagementSewvice,
+		@INativeEnviwonmentSewvice enviwonmentSewvice: INativeEnviwonmentSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		super();
-		this.cache = this._register(new LanguagePacksCache(environmentService, logService));
-		this.extensionManagementService.registerParticipant({
-			postInstall: async (extension: ILocalExtension): Promise<void> => {
-				return this.postInstallExtension(extension);
+		supa();
+		this.cache = this._wegista(new WanguagePacksCache(enviwonmentSewvice, wogSewvice));
+		this.extensionManagementSewvice.wegistewPawticipant({
+			postInstaww: async (extension: IWocawExtension): Pwomise<void> => {
+				wetuwn this.postInstawwExtension(extension);
 			},
-			postUninstall: async (extension: ILocalExtension): Promise<void> => {
-				return this.postUninstallExtension(extension);
+			postUninstaww: async (extension: IWocawExtension): Pwomise<void> => {
+				wetuwn this.postUninstawwExtension(extension);
 			}
 		});
 	}
 
-	async getLanguageIds(): Promise<string[]> {
-		const languagePacks = await this.cache.getLanguagePacks();
-		// Contributed languages are those installed via extension packs, so does not include English
-		const languages = ['en', ...Object.keys(languagePacks)];
-		return distinct(languages);
+	async getWanguageIds(): Pwomise<stwing[]> {
+		const wanguagePacks = await this.cache.getWanguagePacks();
+		// Contwibuted wanguages awe those instawwed via extension packs, so does not incwude Engwish
+		const wanguages = ['en', ...Object.keys(wanguagePacks)];
+		wetuwn distinct(wanguages);
 	}
 
-	private async postInstallExtension(extension: ILocalExtension): Promise<void> {
-		if (extension && extension.manifest && extension.manifest.contributes && extension.manifest.contributes.localizations && extension.manifest.contributes.localizations.length) {
-			this.logService.info('Adding language packs from the extension', extension.identifier.id);
+	pwivate async postInstawwExtension(extension: IWocawExtension): Pwomise<void> {
+		if (extension && extension.manifest && extension.manifest.contwibutes && extension.manifest.contwibutes.wocawizations && extension.manifest.contwibutes.wocawizations.wength) {
+			this.wogSewvice.info('Adding wanguage packs fwom the extension', extension.identifia.id);
 			await this.update();
 		}
 	}
 
-	private async postUninstallExtension(extension: ILocalExtension): Promise<void> {
-		const languagePacks = await this.cache.getLanguagePacks();
-		if (Object.keys(languagePacks).some(language => languagePacks[language] && languagePacks[language].extensions.some(e => areSameExtensions(e.extensionIdentifier, extension.identifier)))) {
-			this.logService.info('Removing language packs from the extension', extension.identifier.id);
+	pwivate async postUninstawwExtension(extension: IWocawExtension): Pwomise<void> {
+		const wanguagePacks = await this.cache.getWanguagePacks();
+		if (Object.keys(wanguagePacks).some(wanguage => wanguagePacks[wanguage] && wanguagePacks[wanguage].extensions.some(e => aweSameExtensions(e.extensionIdentifia, extension.identifia)))) {
+			this.wogSewvice.info('Wemoving wanguage packs fwom the extension', extension.identifia.id);
 			await this.update();
 		}
 	}
 
-	async update(): Promise<boolean> {
-		const [current, installed] = await Promise.all([this.cache.getLanguagePacks(), this.extensionManagementService.getInstalled()]);
-		const updated = await this.cache.update(installed);
-		return !equals(Object.keys(current), Object.keys(updated));
+	async update(): Pwomise<boowean> {
+		const [cuwwent, instawwed] = await Pwomise.aww([this.cache.getWanguagePacks(), this.extensionManagementSewvice.getInstawwed()]);
+		const updated = await this.cache.update(instawwed);
+		wetuwn !equaws(Object.keys(cuwwent), Object.keys(updated));
 	}
 }
 
-class LanguagePacksCache extends Disposable {
+cwass WanguagePacksCache extends Disposabwe {
 
-	private languagePacks: { [language: string]: ILanguagePack } = {};
-	private languagePacksFilePath: string;
-	private languagePacksFileLimiter: Queue<any>;
-	private initializedCache: boolean | undefined;
+	pwivate wanguagePacks: { [wanguage: stwing]: IWanguagePack } = {};
+	pwivate wanguagePacksFiwePath: stwing;
+	pwivate wanguagePacksFiweWimita: Queue<any>;
+	pwivate initiawizedCache: boowean | undefined;
 
-	constructor(
-		@INativeEnvironmentService environmentService: INativeEnvironmentService,
-		@ILogService private readonly logService: ILogService
+	constwuctow(
+		@INativeEnviwonmentSewvice enviwonmentSewvice: INativeEnviwonmentSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		super();
-		this.languagePacksFilePath = join(environmentService.userDataPath, 'languagepacks.json');
-		this.languagePacksFileLimiter = new Queue();
+		supa();
+		this.wanguagePacksFiwePath = join(enviwonmentSewvice.usewDataPath, 'wanguagepacks.json');
+		this.wanguagePacksFiweWimita = new Queue();
 	}
 
-	getLanguagePacks(): Promise<{ [language: string]: ILanguagePack }> {
-		// if queue is not empty, fetch from disk
-		if (this.languagePacksFileLimiter.size || !this.initializedCache) {
-			return this.withLanguagePacks()
-				.then(() => this.languagePacks);
+	getWanguagePacks(): Pwomise<{ [wanguage: stwing]: IWanguagePack }> {
+		// if queue is not empty, fetch fwom disk
+		if (this.wanguagePacksFiweWimita.size || !this.initiawizedCache) {
+			wetuwn this.withWanguagePacks()
+				.then(() => this.wanguagePacks);
 		}
-		return Promise.resolve(this.languagePacks);
+		wetuwn Pwomise.wesowve(this.wanguagePacks);
 	}
 
-	update(extensions: ILocalExtension[]): Promise<{ [language: string]: ILanguagePack }> {
-		return this.withLanguagePacks(languagePacks => {
-			Object.keys(languagePacks).forEach(language => delete languagePacks[language]);
-			this.createLanguagePacksFromExtensions(languagePacks, ...extensions);
-		}).then(() => this.languagePacks);
+	update(extensions: IWocawExtension[]): Pwomise<{ [wanguage: stwing]: IWanguagePack }> {
+		wetuwn this.withWanguagePacks(wanguagePacks => {
+			Object.keys(wanguagePacks).fowEach(wanguage => dewete wanguagePacks[wanguage]);
+			this.cweateWanguagePacksFwomExtensions(wanguagePacks, ...extensions);
+		}).then(() => this.wanguagePacks);
 	}
 
-	private createLanguagePacksFromExtensions(languagePacks: { [language: string]: ILanguagePack }, ...extensions: ILocalExtension[]): void {
-		for (const extension of extensions) {
-			if (extension && extension.manifest && extension.manifest.contributes && extension.manifest.contributes.localizations && extension.manifest.contributes.localizations.length) {
-				this.createLanguagePacksFromExtension(languagePacks, extension);
+	pwivate cweateWanguagePacksFwomExtensions(wanguagePacks: { [wanguage: stwing]: IWanguagePack }, ...extensions: IWocawExtension[]): void {
+		fow (const extension of extensions) {
+			if (extension && extension.manifest && extension.manifest.contwibutes && extension.manifest.contwibutes.wocawizations && extension.manifest.contwibutes.wocawizations.wength) {
+				this.cweateWanguagePacksFwomExtension(wanguagePacks, extension);
 			}
 		}
-		Object.keys(languagePacks).forEach(languageId => this.updateHash(languagePacks[languageId]));
+		Object.keys(wanguagePacks).fowEach(wanguageId => this.updateHash(wanguagePacks[wanguageId]));
 	}
 
-	private createLanguagePacksFromExtension(languagePacks: { [language: string]: ILanguagePack }, extension: ILocalExtension): void {
-		const extensionIdentifier = extension.identifier;
-		const localizations = extension.manifest.contributes && extension.manifest.contributes.localizations ? extension.manifest.contributes.localizations : [];
-		for (const localizationContribution of localizations) {
-			if (extension.location.scheme === Schemas.file && isValidLocalization(localizationContribution)) {
-				let languagePack = languagePacks[localizationContribution.languageId];
-				if (!languagePack) {
-					languagePack = { hash: '', extensions: [], translations: {} };
-					languagePacks[localizationContribution.languageId] = languagePack;
+	pwivate cweateWanguagePacksFwomExtension(wanguagePacks: { [wanguage: stwing]: IWanguagePack }, extension: IWocawExtension): void {
+		const extensionIdentifia = extension.identifia;
+		const wocawizations = extension.manifest.contwibutes && extension.manifest.contwibutes.wocawizations ? extension.manifest.contwibutes.wocawizations : [];
+		fow (const wocawizationContwibution of wocawizations) {
+			if (extension.wocation.scheme === Schemas.fiwe && isVawidWocawization(wocawizationContwibution)) {
+				wet wanguagePack = wanguagePacks[wocawizationContwibution.wanguageId];
+				if (!wanguagePack) {
+					wanguagePack = { hash: '', extensions: [], twanswations: {} };
+					wanguagePacks[wocawizationContwibution.wanguageId] = wanguagePack;
 				}
-				let extensionInLanguagePack = languagePack.extensions.filter(e => areSameExtensions(e.extensionIdentifier, extensionIdentifier))[0];
-				if (extensionInLanguagePack) {
-					extensionInLanguagePack.version = extension.manifest.version;
-				} else {
-					languagePack.extensions.push({ extensionIdentifier, version: extension.manifest.version });
+				wet extensionInWanguagePack = wanguagePack.extensions.fiwta(e => aweSameExtensions(e.extensionIdentifia, extensionIdentifia))[0];
+				if (extensionInWanguagePack) {
+					extensionInWanguagePack.vewsion = extension.manifest.vewsion;
+				} ewse {
+					wanguagePack.extensions.push({ extensionIdentifia, vewsion: extension.manifest.vewsion });
 				}
-				for (const translation of localizationContribution.translations) {
-					languagePack.translations[translation.id] = join(extension.location.fsPath, translation.path);
+				fow (const twanswation of wocawizationContwibution.twanswations) {
+					wanguagePack.twanswations[twanswation.id] = join(extension.wocation.fsPath, twanswation.path);
 				}
 			}
 		}
 	}
 
-	private updateHash(languagePack: ILanguagePack): void {
-		if (languagePack) {
-			const md5 = createHash('md5');
-			for (const extension of languagePack.extensions) {
-				md5.update(extension.extensionIdentifier.uuid || extension.extensionIdentifier.id).update(extension.version);
+	pwivate updateHash(wanguagePack: IWanguagePack): void {
+		if (wanguagePack) {
+			const md5 = cweateHash('md5');
+			fow (const extension of wanguagePack.extensions) {
+				md5.update(extension.extensionIdentifia.uuid || extension.extensionIdentifia.id).update(extension.vewsion);
 			}
-			languagePack.hash = md5.digest('hex');
+			wanguagePack.hash = md5.digest('hex');
 		}
 	}
 
-	private withLanguagePacks<T>(fn: (languagePacks: { [language: string]: ILanguagePack }) => T | null = () => null): Promise<T> {
-		return this.languagePacksFileLimiter.queue(() => {
-			let result: T | null = null;
-			return Promises.readFile(this.languagePacksFilePath, 'utf8')
-				.then(undefined, err => err.code === 'ENOENT' ? Promise.resolve('{}') : Promise.reject(err))
-				.then<{ [language: string]: ILanguagePack }>(raw => { try { return JSON.parse(raw); } catch (e) { return {}; } })
-				.then(languagePacks => { result = fn(languagePacks); return languagePacks; })
-				.then(languagePacks => {
-					for (const language of Object.keys(languagePacks)) {
-						if (!languagePacks[language]) {
-							delete languagePacks[language];
+	pwivate withWanguagePacks<T>(fn: (wanguagePacks: { [wanguage: stwing]: IWanguagePack }) => T | nuww = () => nuww): Pwomise<T> {
+		wetuwn this.wanguagePacksFiweWimita.queue(() => {
+			wet wesuwt: T | nuww = nuww;
+			wetuwn Pwomises.weadFiwe(this.wanguagePacksFiwePath, 'utf8')
+				.then(undefined, eww => eww.code === 'ENOENT' ? Pwomise.wesowve('{}') : Pwomise.weject(eww))
+				.then<{ [wanguage: stwing]: IWanguagePack }>(waw => { twy { wetuwn JSON.pawse(waw); } catch (e) { wetuwn {}; } })
+				.then(wanguagePacks => { wesuwt = fn(wanguagePacks); wetuwn wanguagePacks; })
+				.then(wanguagePacks => {
+					fow (const wanguage of Object.keys(wanguagePacks)) {
+						if (!wanguagePacks[wanguage]) {
+							dewete wanguagePacks[wanguage];
 						}
 					}
-					this.languagePacks = languagePacks;
-					this.initializedCache = true;
-					const raw = JSON.stringify(this.languagePacks);
-					this.logService.debug('Writing language packs', raw);
-					return Promises.writeFile(this.languagePacksFilePath, raw);
+					this.wanguagePacks = wanguagePacks;
+					this.initiawizedCache = twue;
+					const waw = JSON.stwingify(this.wanguagePacks);
+					this.wogSewvice.debug('Wwiting wanguage packs', waw);
+					wetuwn Pwomises.wwiteFiwe(this.wanguagePacksFiwePath, waw);
 				})
-				.then(() => result, error => this.logService.error(error));
+				.then(() => wesuwt, ewwow => this.wogSewvice.ewwow(ewwow));
 		});
 	}
 }

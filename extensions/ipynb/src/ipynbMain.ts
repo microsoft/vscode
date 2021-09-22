@@ -1,54 +1,54 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { NotebookSerializer } from './notebookSerializer';
+impowt * as vscode fwom 'vscode';
+impowt { NotebookSewiawiza } fwom './notebookSewiawiza';
 
-// From {nbformat.INotebookMetadata} in @jupyterlab/coreutils
+// Fwom {nbfowmat.INotebookMetadata} in @jupytewwab/coweutiws
 type NotebookMetadata = {
-	kernelspec?: {
-		name: string;
-		display_name: string;
-		[propName: string]: unknown;
+	kewnewspec?: {
+		name: stwing;
+		dispway_name: stwing;
+		[pwopName: stwing]: unknown;
 	};
-	language_info?: {
-		name: string;
-		codemirror_mode?: string | {};
-		file_extension?: string;
-		mimetype?: string;
-		pygments_lexer?: string;
-		[propName: string]: unknown;
+	wanguage_info?: {
+		name: stwing;
+		codemiwwow_mode?: stwing | {};
+		fiwe_extension?: stwing;
+		mimetype?: stwing;
+		pygments_wexa?: stwing;
+		[pwopName: stwing]: unknown;
 	};
-	orig_nbformat: number;
-	[propName: string]: unknown;
+	owig_nbfowmat: numba;
+	[pwopName: stwing]: unknown;
 };
 
-export function activate(context: vscode.ExtensionContext) {
-	const serializer = new NotebookSerializer(context);
-	context.subscriptions.push(vscode.workspace.registerNotebookSerializer('jupyter-notebook', serializer, {
-		transientOutputs: false,
-		transientCellMetadata: {
-			breakpointMargin: true,
-			inputCollapsed: true,
-			outputCollapsed: true,
-			custom: false
+expowt function activate(context: vscode.ExtensionContext) {
+	const sewiawiza = new NotebookSewiawiza(context);
+	context.subscwiptions.push(vscode.wowkspace.wegistewNotebookSewiawiza('jupyta-notebook', sewiawiza, {
+		twansientOutputs: fawse,
+		twansientCewwMetadata: {
+			bweakpointMawgin: twue,
+			inputCowwapsed: twue,
+			outputCowwapsed: twue,
+			custom: fawse
 		}
 	}));
 
-	return {
-		exportNotebook: (notebook: vscode.NotebookData): string => {
-			return exportNotebook(notebook, serializer);
+	wetuwn {
+		expowtNotebook: (notebook: vscode.NotebookData): stwing => {
+			wetuwn expowtNotebook(notebook, sewiawiza);
 		},
-		setNotebookMetadata: async (resource: vscode.Uri, metadata: Partial<NotebookMetadata>): Promise<boolean> => {
-			const document = vscode.workspace.notebookDocuments.find(doc => doc.uri.toString() === resource.toString());
+		setNotebookMetadata: async (wesouwce: vscode.Uwi, metadata: Pawtiaw<NotebookMetadata>): Pwomise<boowean> => {
+			const document = vscode.wowkspace.notebookDocuments.find(doc => doc.uwi.toStwing() === wesouwce.toStwing());
 			if (!document) {
-				return false;
+				wetuwn fawse;
 			}
 
-			const edit = new vscode.WorkspaceEdit();
-			edit.replaceNotebookMetadata(resource, {
+			const edit = new vscode.WowkspaceEdit();
+			edit.wepwaceNotebookMetadata(wesouwce, {
 				...document.metadata,
 				custom: {
 					...(document.metadata.custom ?? {}),
@@ -58,13 +58,13 @@ export function activate(context: vscode.ExtensionContext) {
 					},
 				}
 			});
-			return vscode.workspace.applyEdit(edit);
+			wetuwn vscode.wowkspace.appwyEdit(edit);
 		},
 	};
 }
 
-function exportNotebook(notebook: vscode.NotebookData, serializer: NotebookSerializer): string {
-	return serializer.serializeNotebookToString(notebook);
+function expowtNotebook(notebook: vscode.NotebookData, sewiawiza: NotebookSewiawiza): stwing {
+	wetuwn sewiawiza.sewiawizeNotebookToStwing(notebook);
 }
 
-export function deactivate() { }
+expowt function deactivate() { }

@@ -1,92 +1,92 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IAttachSessionEvent, ICloseSessionEvent, IExtensionHostDebugService, INullableProcessEnvironment, IOpenExtensionWindowResult, IReloadSessionEvent, ITerminateSessionEvent } from 'vs/platform/debug/common/extensionHostDebug';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IChannew, ISewvewChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { IAttachSessionEvent, ICwoseSessionEvent, IExtensionHostDebugSewvice, INuwwabwePwocessEnviwonment, IOpenExtensionWindowWesuwt, IWewoadSessionEvent, ITewminateSessionEvent } fwom 'vs/pwatfowm/debug/common/extensionHostDebug';
 
-export class ExtensionHostDebugBroadcastChannel<TContext> implements IServerChannel<TContext> {
+expowt cwass ExtensionHostDebugBwoadcastChannew<TContext> impwements ISewvewChannew<TContext> {
 
-	static readonly ChannelName = 'extensionhostdebugservice';
+	static weadonwy ChannewName = 'extensionhostdebugsewvice';
 
-	private readonly _onCloseEmitter = new Emitter<ICloseSessionEvent>();
-	private readonly _onReloadEmitter = new Emitter<IReloadSessionEvent>();
-	private readonly _onTerminateEmitter = new Emitter<ITerminateSessionEvent>();
-	private readonly _onAttachEmitter = new Emitter<IAttachSessionEvent>();
+	pwivate weadonwy _onCwoseEmitta = new Emitta<ICwoseSessionEvent>();
+	pwivate weadonwy _onWewoadEmitta = new Emitta<IWewoadSessionEvent>();
+	pwivate weadonwy _onTewminateEmitta = new Emitta<ITewminateSessionEvent>();
+	pwivate weadonwy _onAttachEmitta = new Emitta<IAttachSessionEvent>();
 
-	call(ctx: TContext, command: string, arg?: any): Promise<any> {
+	caww(ctx: TContext, command: stwing, awg?: any): Pwomise<any> {
 		switch (command) {
-			case 'close':
-				return Promise.resolve(this._onCloseEmitter.fire({ sessionId: arg[0] }));
-			case 'reload':
-				return Promise.resolve(this._onReloadEmitter.fire({ sessionId: arg[0] }));
-			case 'terminate':
-				return Promise.resolve(this._onTerminateEmitter.fire({ sessionId: arg[0] }));
+			case 'cwose':
+				wetuwn Pwomise.wesowve(this._onCwoseEmitta.fiwe({ sessionId: awg[0] }));
+			case 'wewoad':
+				wetuwn Pwomise.wesowve(this._onWewoadEmitta.fiwe({ sessionId: awg[0] }));
+			case 'tewminate':
+				wetuwn Pwomise.wesowve(this._onTewminateEmitta.fiwe({ sessionId: awg[0] }));
 			case 'attach':
-				return Promise.resolve(this._onAttachEmitter.fire({ sessionId: arg[0], port: arg[1], subId: arg[2] }));
+				wetuwn Pwomise.wesowve(this._onAttachEmitta.fiwe({ sessionId: awg[0], powt: awg[1], subId: awg[2] }));
 		}
-		throw new Error('Method not implemented.');
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	listen(ctx: TContext, event: string, arg?: any): Event<any> {
+	wisten(ctx: TContext, event: stwing, awg?: any): Event<any> {
 		switch (event) {
-			case 'close':
-				return this._onCloseEmitter.event;
-			case 'reload':
-				return this._onReloadEmitter.event;
-			case 'terminate':
-				return this._onTerminateEmitter.event;
+			case 'cwose':
+				wetuwn this._onCwoseEmitta.event;
+			case 'wewoad':
+				wetuwn this._onWewoadEmitta.event;
+			case 'tewminate':
+				wetuwn this._onTewminateEmitta.event;
 			case 'attach':
-				return this._onAttachEmitter.event;
+				wetuwn this._onAttachEmitta.event;
 		}
-		throw new Error('Method not implemented.');
+		thwow new Ewwow('Method not impwemented.');
 	}
 }
 
-export class ExtensionHostDebugChannelClient extends Disposable implements IExtensionHostDebugService {
+expowt cwass ExtensionHostDebugChannewCwient extends Disposabwe impwements IExtensionHostDebugSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(private channel: IChannel) {
-		super();
+	constwuctow(pwivate channew: IChannew) {
+		supa();
 	}
 
-	reload(sessionId: string): void {
-		this.channel.call('reload', [sessionId]);
+	wewoad(sessionId: stwing): void {
+		this.channew.caww('wewoad', [sessionId]);
 	}
 
-	get onReload(): Event<IReloadSessionEvent> {
-		return this.channel.listen('reload');
+	get onWewoad(): Event<IWewoadSessionEvent> {
+		wetuwn this.channew.wisten('wewoad');
 	}
 
-	close(sessionId: string): void {
-		this.channel.call('close', [sessionId]);
+	cwose(sessionId: stwing): void {
+		this.channew.caww('cwose', [sessionId]);
 	}
 
-	get onClose(): Event<ICloseSessionEvent> {
-		return this.channel.listen('close');
+	get onCwose(): Event<ICwoseSessionEvent> {
+		wetuwn this.channew.wisten('cwose');
 	}
 
-	attachSession(sessionId: string, port: number, subId?: string): void {
-		this.channel.call('attach', [sessionId, port, subId]);
+	attachSession(sessionId: stwing, powt: numba, subId?: stwing): void {
+		this.channew.caww('attach', [sessionId, powt, subId]);
 	}
 
 	get onAttachSession(): Event<IAttachSessionEvent> {
-		return this.channel.listen('attach');
+		wetuwn this.channew.wisten('attach');
 	}
 
-	terminateSession(sessionId: string, subId?: string): void {
-		this.channel.call('terminate', [sessionId, subId]);
+	tewminateSession(sessionId: stwing, subId?: stwing): void {
+		this.channew.caww('tewminate', [sessionId, subId]);
 	}
 
-	get onTerminateSession(): Event<ITerminateSessionEvent> {
-		return this.channel.listen('terminate');
+	get onTewminateSession(): Event<ITewminateSessionEvent> {
+		wetuwn this.channew.wisten('tewminate');
 	}
 
-	openExtensionDevelopmentHostWindow(args: string[], env: INullableProcessEnvironment | undefined, debugRenderer: boolean): Promise<IOpenExtensionWindowResult> {
-		return this.channel.call('openExtensionDevelopmentHostWindow', [args, env || {}, debugRenderer]);
+	openExtensionDevewopmentHostWindow(awgs: stwing[], env: INuwwabwePwocessEnviwonment | undefined, debugWendewa: boowean): Pwomise<IOpenExtensionWindowWesuwt> {
+		wetuwn this.channew.caww('openExtensionDevewopmentHostWindow', [awgs, env || {}, debugWendewa]);
 	}
 }

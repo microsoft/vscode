@@ -1,27 +1,27 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ITextWesouwcePwopewtiesSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
 
-export class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
+expowt cwass TestTextWesouwcePwopewtiesSewvice impwements ITextWesouwcePwopewtiesSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+	constwuctow(
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
 	) {
 	}
 
-	getEOL(resource: URI, language?: string): string {
-		const eol = this.configurationService.getValue('files.eol', { overrideIdentifier: language, resource });
-		if (eol && typeof eol === 'string' && eol !== 'auto') {
-			return eol;
+	getEOW(wesouwce: UWI, wanguage?: stwing): stwing {
+		const eow = this.configuwationSewvice.getVawue('fiwes.eow', { ovewwideIdentifia: wanguage, wesouwce });
+		if (eow && typeof eow === 'stwing' && eow !== 'auto') {
+			wetuwn eow;
 		}
-		return (platform.isLinux || platform.isMacintosh) ? '\n' : '\r\n';
+		wetuwn (pwatfowm.isWinux || pwatfowm.isMacintosh) ? '\n' : '\w\n';
 	}
 }

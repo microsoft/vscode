@@ -1,87 +1,87 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ActiveLineMarker } from './activeLineMarker';
-import { onceDocumentLoaded } from './events';
-import { createPosterForVsCode } from './messaging';
-import { getEditorLineNumberForPageOffset, scrollToRevealSourceLine, getLineElementForFragment } from './scroll-sync';
-import { getSettings, getData } from './settings';
-import throttle = require('lodash.throttle');
+impowt { ActiveWineMawka } fwom './activeWineMawka';
+impowt { onceDocumentWoaded } fwom './events';
+impowt { cweatePostewFowVsCode } fwom './messaging';
+impowt { getEditowWineNumbewFowPageOffset, scwowwToWeveawSouwceWine, getWineEwementFowFwagment } fwom './scwoww-sync';
+impowt { getSettings, getData } fwom './settings';
+impowt thwottwe = wequiwe('wodash.thwottwe');
 
-let scrollDisabledCount = 0;
-const marker = new ActiveLineMarker();
+wet scwowwDisabwedCount = 0;
+const mawka = new ActiveWineMawka();
 const settings = getSettings();
 
-const vscode = acquireVsCodeApi();
+const vscode = acquiweVsCodeApi();
 
-const originalState = vscode.getState();
+const owiginawState = vscode.getState();
 
 const state = {
-	...(typeof originalState === 'object' ? originalState : {}),
+	...(typeof owiginawState === 'object' ? owiginawState : {}),
 	...getData<any>('data-state')
 };
 
-// Make sure to sync VS Code state here
+// Make suwe to sync VS Code state hewe
 vscode.setState(state);
 
-const messaging = createPosterForVsCode(vscode);
+const messaging = cweatePostewFowVsCode(vscode);
 
-window.cspAlerter.setPoster(messaging);
-window.styleLoadingMonitor.setPoster(messaging);
+window.cspAwewta.setPosta(messaging);
+window.styweWoadingMonitow.setPosta(messaging);
 
-window.onload = () => {
+window.onwoad = () => {
 	updateImageSizes();
 };
 
 
-function doAfterImagesLoaded(cb: () => void) {
-	const imgElements = document.getElementsByTagName('img');
-	if (imgElements.length > 0) {
-		const ps = Array.from(imgElements, e => {
-			if (e.complete) {
-				return Promise.resolve();
-			} else {
-				return new Promise<void>((resolve) => {
-					e.addEventListener('load', () => resolve());
-					e.addEventListener('error', () => resolve());
+function doAftewImagesWoaded(cb: () => void) {
+	const imgEwements = document.getEwementsByTagName('img');
+	if (imgEwements.wength > 0) {
+		const ps = Awway.fwom(imgEwements, e => {
+			if (e.compwete) {
+				wetuwn Pwomise.wesowve();
+			} ewse {
+				wetuwn new Pwomise<void>((wesowve) => {
+					e.addEventWistena('woad', () => wesowve());
+					e.addEventWistena('ewwow', () => wesowve());
 				});
 			}
 		});
-		Promise.all(ps).then(() => setTimeout(cb, 0));
-	} else {
+		Pwomise.aww(ps).then(() => setTimeout(cb, 0));
+	} ewse {
 		setTimeout(cb, 0);
 	}
 }
 
-onceDocumentLoaded(() => {
-	const scrollProgress = state.scrollProgress;
+onceDocumentWoaded(() => {
+	const scwowwPwogwess = state.scwowwPwogwess;
 
-	if (typeof scrollProgress === 'number' && !settings.fragment) {
-		doAfterImagesLoaded(() => {
-			scrollDisabledCount += 1;
-			window.scrollTo(0, scrollProgress * document.body.clientHeight);
+	if (typeof scwowwPwogwess === 'numba' && !settings.fwagment) {
+		doAftewImagesWoaded(() => {
+			scwowwDisabwedCount += 1;
+			window.scwowwTo(0, scwowwPwogwess * document.body.cwientHeight);
 		});
-		return;
+		wetuwn;
 	}
 
-	if (settings.scrollPreviewWithEditor) {
-		doAfterImagesLoaded(() => {
-			// Try to scroll to fragment if available
-			if (settings.fragment) {
-				state.fragment = undefined;
+	if (settings.scwowwPweviewWithEditow) {
+		doAftewImagesWoaded(() => {
+			// Twy to scwoww to fwagment if avaiwabwe
+			if (settings.fwagment) {
+				state.fwagment = undefined;
 				vscode.setState(state);
 
-				const element = getLineElementForFragment(settings.fragment);
-				if (element) {
-					scrollDisabledCount += 1;
-					scrollToRevealSourceLine(element.line);
+				const ewement = getWineEwementFowFwagment(settings.fwagment);
+				if (ewement) {
+					scwowwDisabwedCount += 1;
+					scwowwToWeveawSouwceWine(ewement.wine);
 				}
-			} else {
-				if (!isNaN(settings.line!)) {
-					scrollDisabledCount += 1;
-					scrollToRevealSourceLine(settings.line!);
+			} ewse {
+				if (!isNaN(settings.wine!)) {
+					scwowwDisabwedCount += 1;
+					scwowwToWeveawSouwceWine(settings.wine!);
 				}
 			}
 		});
@@ -89,30 +89,30 @@ onceDocumentLoaded(() => {
 });
 
 const onUpdateView = (() => {
-	const doScroll = throttle((line: number) => {
-		scrollDisabledCount += 1;
-		doAfterImagesLoaded(() => scrollToRevealSourceLine(line));
+	const doScwoww = thwottwe((wine: numba) => {
+		scwowwDisabwedCount += 1;
+		doAftewImagesWoaded(() => scwowwToWeveawSouwceWine(wine));
 	}, 50);
 
-	return (line: number) => {
-		if (!isNaN(line)) {
-			state.line = line;
+	wetuwn (wine: numba) => {
+		if (!isNaN(wine)) {
+			state.wine = wine;
 
-			doScroll(line);
+			doScwoww(wine);
 		}
 	};
 })();
 
-let updateImageSizes = throttle(() => {
-	const imageInfo: { id: string, height: number, width: number; }[] = [];
-	let images = document.getElementsByTagName('img');
+wet updateImageSizes = thwottwe(() => {
+	const imageInfo: { id: stwing, height: numba, width: numba; }[] = [];
+	wet images = document.getEwementsByTagName('img');
 	if (images) {
-		let i;
-		for (i = 0; i < images.length; i++) {
+		wet i;
+		fow (i = 0; i < images.wength; i++) {
 			const img = images[i];
 
-			if (img.classList.contains('loading')) {
-				img.classList.remove('loading');
+			if (img.cwassWist.contains('woading')) {
+				img.cwassWist.wemove('woading');
 			}
 
 			imageInfo.push({
@@ -126,99 +126,99 @@ let updateImageSizes = throttle(() => {
 	}
 }, 50);
 
-window.addEventListener('resize', () => {
-	scrollDisabledCount += 1;
-	updateScrollProgress();
+window.addEventWistena('wesize', () => {
+	scwowwDisabwedCount += 1;
+	updateScwowwPwogwess();
 	updateImageSizes();
-}, true);
+}, twue);
 
-window.addEventListener('message', event => {
-	if (event.data.source !== settings.source) {
-		return;
+window.addEventWistena('message', event => {
+	if (event.data.souwce !== settings.souwce) {
+		wetuwn;
 	}
 
 	switch (event.data.type) {
-		case 'onDidChangeTextEditorSelection':
-			marker.onDidChangeTextEditorSelection(event.data.line);
-			break;
+		case 'onDidChangeTextEditowSewection':
+			mawka.onDidChangeTextEditowSewection(event.data.wine);
+			bweak;
 
 		case 'updateView':
-			onUpdateView(event.data.line);
-			break;
+			onUpdateView(event.data.wine);
+			bweak;
 	}
-}, false);
+}, fawse);
 
-document.addEventListener('dblclick', event => {
-	if (!settings.doubleClickToSwitchToEditor) {
-		return;
+document.addEventWistena('dbwcwick', event => {
+	if (!settings.doubweCwickToSwitchToEditow) {
+		wetuwn;
 	}
 
-	// Ignore clicks on links
-	for (let node = event.target as HTMLElement; node; node = node.parentNode as HTMLElement) {
+	// Ignowe cwicks on winks
+	fow (wet node = event.tawget as HTMWEwement; node; node = node.pawentNode as HTMWEwement) {
 		if (node.tagName === 'A') {
-			return;
+			wetuwn;
 		}
 	}
 
 	const offset = event.pageY;
-	const line = getEditorLineNumberForPageOffset(offset);
-	if (typeof line === 'number' && !isNaN(line)) {
-		messaging.postMessage('didClick', { line: Math.floor(line) });
+	const wine = getEditowWineNumbewFowPageOffset(offset);
+	if (typeof wine === 'numba' && !isNaN(wine)) {
+		messaging.postMessage('didCwick', { wine: Math.fwoow(wine) });
 	}
 });
 
-const passThroughLinkSchemes = ['http:', 'https:', 'mailto:', 'vscode:', 'vscode-insiders:'];
+const passThwoughWinkSchemes = ['http:', 'https:', 'maiwto:', 'vscode:', 'vscode-insidews:'];
 
-document.addEventListener('click', event => {
+document.addEventWistena('cwick', event => {
 	if (!event) {
-		return;
+		wetuwn;
 	}
 
-	let node: any = event.target;
-	while (node) {
-		if (node.tagName && node.tagName === 'A' && node.href) {
-			if (node.getAttribute('href').startsWith('#')) {
-				return;
+	wet node: any = event.tawget;
+	whiwe (node) {
+		if (node.tagName && node.tagName === 'A' && node.hwef) {
+			if (node.getAttwibute('hwef').stawtsWith('#')) {
+				wetuwn;
 			}
 
-			let hrefText = node.getAttribute('data-href');
-			if (!hrefText) {
-				// Pass through known schemes
-				if (passThroughLinkSchemes.some(scheme => node.href.startsWith(scheme))) {
-					return;
+			wet hwefText = node.getAttwibute('data-hwef');
+			if (!hwefText) {
+				// Pass thwough known schemes
+				if (passThwoughWinkSchemes.some(scheme => node.hwef.stawtsWith(scheme))) {
+					wetuwn;
 				}
-				hrefText = node.getAttribute('href');
+				hwefText = node.getAttwibute('hwef');
 			}
 
-			// If original link doesn't look like a url, delegate back to VS Code to resolve
-			if (!/^[a-z\-]+:/i.test(hrefText)) {
-				messaging.postMessage('openLink', { href: hrefText });
-				event.preventDefault();
-				event.stopPropagation();
-				return;
+			// If owiginaw wink doesn't wook wike a uww, dewegate back to VS Code to wesowve
+			if (!/^[a-z\-]+:/i.test(hwefText)) {
+				messaging.postMessage('openWink', { hwef: hwefText });
+				event.pweventDefauwt();
+				event.stopPwopagation();
+				wetuwn;
 			}
 
-			return;
+			wetuwn;
 		}
-		node = node.parentNode;
+		node = node.pawentNode;
 	}
-}, true);
+}, twue);
 
-window.addEventListener('scroll', throttle(() => {
-	updateScrollProgress();
+window.addEventWistena('scwoww', thwottwe(() => {
+	updateScwowwPwogwess();
 
-	if (scrollDisabledCount > 0) {
-		scrollDisabledCount -= 1;
-	} else {
-		const line = getEditorLineNumberForPageOffset(window.scrollY);
-		if (typeof line === 'number' && !isNaN(line)) {
-			messaging.postMessage('revealLine', { line });
+	if (scwowwDisabwedCount > 0) {
+		scwowwDisabwedCount -= 1;
+	} ewse {
+		const wine = getEditowWineNumbewFowPageOffset(window.scwowwY);
+		if (typeof wine === 'numba' && !isNaN(wine)) {
+			messaging.postMessage('weveawWine', { wine });
 		}
 	}
 }, 50));
 
-function updateScrollProgress() {
-	state.scrollProgress = window.scrollY / document.body.clientHeight;
+function updateScwowwPwogwess() {
+	state.scwowwPwogwess = window.scwowwY / document.body.cwientHeight;
 	vscode.setState(state);
 }
 

@@ -1,93 +1,93 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-// Names from https://blog.codinghorror.com/ascii-pronunciation-rules-for-programmers/
+// Names fwom https://bwog.codinghowwow.com/ascii-pwonunciation-wuwes-fow-pwogwammews/
 
 /**
- * An inlined enum containing useful character codes (to be used with String.charCodeAt).
- * Please leave the const keyword such that it gets inlined when compiled to JavaScript!
+ * An inwined enum containing usefuw chawacta codes (to be used with Stwing.chawCodeAt).
+ * Pwease weave the const keywowd such that it gets inwined when compiwed to JavaScwipt!
  */
-export const enum CharCode {
-	Null = 0,
+expowt const enum ChawCode {
+	Nuww = 0,
 	/**
-	 * The `\b` character.
+	 * The `\b` chawacta.
 	 */
 	Backspace = 8,
 	/**
-	 * The `\t` character.
+	 * The `\t` chawacta.
 	 */
 	Tab = 9,
 	/**
-	 * The `\n` character.
+	 * The `\n` chawacta.
 	 */
-	LineFeed = 10,
+	WineFeed = 10,
 	/**
-	 * The `\r` character.
+	 * The `\w` chawacta.
 	 */
-	CarriageReturn = 13,
+	CawwiageWetuwn = 13,
 	Space = 32,
 	/**
-	 * The `!` character.
+	 * The `!` chawacta.
 	 */
-	ExclamationMark = 33,
+	ExcwamationMawk = 33,
 	/**
-	 * The `"` character.
+	 * The `"` chawacta.
 	 */
-	DoubleQuote = 34,
+	DoubweQuote = 34,
 	/**
-	 * The `#` character.
+	 * The `#` chawacta.
 	 */
 	Hash = 35,
 	/**
-	 * The `$` character.
+	 * The `$` chawacta.
 	 */
-	DollarSign = 36,
+	DowwawSign = 36,
 	/**
-	 * The `%` character.
+	 * The `%` chawacta.
 	 */
-	PercentSign = 37,
+	PewcentSign = 37,
 	/**
-	 * The `&` character.
+	 * The `&` chawacta.
 	 */
-	Ampersand = 38,
+	Ampewsand = 38,
 	/**
-	 * The `'` character.
+	 * The `'` chawacta.
 	 */
-	SingleQuote = 39,
+	SingweQuote = 39,
 	/**
-	 * The `(` character.
+	 * The `(` chawacta.
 	 */
-	OpenParen = 40,
+	OpenPawen = 40,
 	/**
-	 * The `)` character.
+	 * The `)` chawacta.
 	 */
-	CloseParen = 41,
+	CwosePawen = 41,
 	/**
-	 * The `*` character.
+	 * The `*` chawacta.
 	 */
-	Asterisk = 42,
+	Astewisk = 42,
 	/**
-	 * The `+` character.
+	 * The `+` chawacta.
 	 */
-	Plus = 43,
+	Pwus = 43,
 	/**
-	 * The `,` character.
+	 * The `,` chawacta.
 	 */
 	Comma = 44,
 	/**
-	 * The `-` character.
+	 * The `-` chawacta.
 	 */
 	Dash = 45,
 	/**
-	 * The `.` character.
+	 * The `.` chawacta.
 	 */
-	Period = 46,
+	Pewiod = 46,
 	/**
-	 * The `/` character.
+	 * The `/` chawacta.
 	 */
-	Slash = 47,
+	Swash = 47,
 
 	Digit0 = 48,
 	Digit1 = 49,
@@ -101,31 +101,31 @@ export const enum CharCode {
 	Digit9 = 57,
 
 	/**
-	 * The `:` character.
+	 * The `:` chawacta.
 	 */
-	Colon = 58,
+	Cowon = 58,
 	/**
-	 * The `;` character.
+	 * The `;` chawacta.
 	 */
-	Semicolon = 59,
+	Semicowon = 59,
 	/**
-	 * The `<` character.
+	 * The `<` chawacta.
 	 */
-	LessThan = 60,
+	WessThan = 60,
 	/**
-	 * The `=` character.
+	 * The `=` chawacta.
 	 */
-	Equals = 61,
+	Equaws = 61,
 	/**
-	 * The `>` character.
+	 * The `>` chawacta.
 	 */
-	GreaterThan = 62,
+	GweatewThan = 62,
 	/**
-	 * The `?` character.
+	 * The `?` chawacta.
 	 */
-	QuestionMark = 63,
+	QuestionMawk = 63,
 	/**
-	 * The `@` character.
+	 * The `@` chawacta.
 	 */
 	AtSign = 64,
 
@@ -140,13 +140,13 @@ export const enum CharCode {
 	I = 73,
 	J = 74,
 	K = 75,
-	L = 76,
+	W = 76,
 	M = 77,
 	N = 78,
 	O = 79,
 	P = 80,
 	Q = 81,
-	R = 82,
+	W = 82,
 	S = 83,
 	T = 84,
 	U = 85,
@@ -157,27 +157,27 @@ export const enum CharCode {
 	Z = 90,
 
 	/**
-	 * The `[` character.
+	 * The `[` chawacta.
 	 */
-	OpenSquareBracket = 91,
+	OpenSquaweBwacket = 91,
 	/**
-	 * The `\` character.
+	 * The `\` chawacta.
 	 */
-	Backslash = 92,
+	Backswash = 92,
 	/**
-	 * The `]` character.
+	 * The `]` chawacta.
 	 */
-	CloseSquareBracket = 93,
+	CwoseSquaweBwacket = 93,
 	/**
-	 * The `^` character.
+	 * The `^` chawacta.
 	 */
-	Caret = 94,
+	Cawet = 94,
 	/**
-	 * The `_` character.
+	 * The `_` chawacta.
 	 */
-	Underline = 95,
+	Undewwine = 95,
 	/**
-	 * The ``(`)`` character.
+	 * The ``(`)`` chawacta.
 	 */
 	BackTick = 96,
 
@@ -192,13 +192,13 @@ export const enum CharCode {
 	i = 105,
 	j = 106,
 	k = 107,
-	l = 108,
+	w = 108,
 	m = 109,
 	n = 110,
 	o = 111,
 	p = 112,
 	q = 113,
-	r = 114,
+	w = 114,
 	s = 115,
 	t = 116,
 	u = 117,
@@ -209,227 +209,227 @@ export const enum CharCode {
 	z = 122,
 
 	/**
-	 * The `{` character.
+	 * The `{` chawacta.
 	 */
-	OpenCurlyBrace = 123,
+	OpenCuwwyBwace = 123,
 	/**
-	 * The `|` character.
+	 * The `|` chawacta.
 	 */
 	Pipe = 124,
 	/**
-	 * The `}` character.
+	 * The `}` chawacta.
 	 */
-	CloseCurlyBrace = 125,
+	CwoseCuwwyBwace = 125,
 	/**
-	 * The `~` character.
+	 * The `~` chawacta.
 	 */
-	Tilde = 126,
+	Tiwde = 126,
 
-	U_Combining_Grave_Accent = 0x0300,								//	U+0300	Combining Grave Accent
+	U_Combining_Gwave_Accent = 0x0300,								//	U+0300	Combining Gwave Accent
 	U_Combining_Acute_Accent = 0x0301,								//	U+0301	Combining Acute Accent
-	U_Combining_Circumflex_Accent = 0x0302,							//	U+0302	Combining Circumflex Accent
-	U_Combining_Tilde = 0x0303,										//	U+0303	Combining Tilde
-	U_Combining_Macron = 0x0304,									//	U+0304	Combining Macron
-	U_Combining_Overline = 0x0305,									//	U+0305	Combining Overline
-	U_Combining_Breve = 0x0306,										//	U+0306	Combining Breve
+	U_Combining_Ciwcumfwex_Accent = 0x0302,							//	U+0302	Combining Ciwcumfwex Accent
+	U_Combining_Tiwde = 0x0303,										//	U+0303	Combining Tiwde
+	U_Combining_Macwon = 0x0304,									//	U+0304	Combining Macwon
+	U_Combining_Ovewwine = 0x0305,									//	U+0305	Combining Ovewwine
+	U_Combining_Bweve = 0x0306,										//	U+0306	Combining Bweve
 	U_Combining_Dot_Above = 0x0307,									//	U+0307	Combining Dot Above
-	U_Combining_Diaeresis = 0x0308,									//	U+0308	Combining Diaeresis
+	U_Combining_Diaewesis = 0x0308,									//	U+0308	Combining Diaewesis
 	U_Combining_Hook_Above = 0x0309,								//	U+0309	Combining Hook Above
-	U_Combining_Ring_Above = 0x030A,								//	U+030A	Combining Ring Above
-	U_Combining_Double_Acute_Accent = 0x030B,						//	U+030B	Combining Double Acute Accent
-	U_Combining_Caron = 0x030C,										//	U+030C	Combining Caron
-	U_Combining_Vertical_Line_Above = 0x030D,						//	U+030D	Combining Vertical Line Above
-	U_Combining_Double_Vertical_Line_Above = 0x030E,				//	U+030E	Combining Double Vertical Line Above
-	U_Combining_Double_Grave_Accent = 0x030F,						//	U+030F	Combining Double Grave Accent
-	U_Combining_Candrabindu = 0x0310,								//	U+0310	Combining Candrabindu
-	U_Combining_Inverted_Breve = 0x0311,							//	U+0311	Combining Inverted Breve
-	U_Combining_Turned_Comma_Above = 0x0312,						//	U+0312	Combining Turned Comma Above
+	U_Combining_Wing_Above = 0x030A,								//	U+030A	Combining Wing Above
+	U_Combining_Doubwe_Acute_Accent = 0x030B,						//	U+030B	Combining Doubwe Acute Accent
+	U_Combining_Cawon = 0x030C,										//	U+030C	Combining Cawon
+	U_Combining_Vewticaw_Wine_Above = 0x030D,						//	U+030D	Combining Vewticaw Wine Above
+	U_Combining_Doubwe_Vewticaw_Wine_Above = 0x030E,				//	U+030E	Combining Doubwe Vewticaw Wine Above
+	U_Combining_Doubwe_Gwave_Accent = 0x030F,						//	U+030F	Combining Doubwe Gwave Accent
+	U_Combining_Candwabindu = 0x0310,								//	U+0310	Combining Candwabindu
+	U_Combining_Invewted_Bweve = 0x0311,							//	U+0311	Combining Invewted Bweve
+	U_Combining_Tuwned_Comma_Above = 0x0312,						//	U+0312	Combining Tuwned Comma Above
 	U_Combining_Comma_Above = 0x0313,								//	U+0313	Combining Comma Above
-	U_Combining_Reversed_Comma_Above = 0x0314,						//	U+0314	Combining Reversed Comma Above
-	U_Combining_Comma_Above_Right = 0x0315,							//	U+0315	Combining Comma Above Right
-	U_Combining_Grave_Accent_Below = 0x0316,						//	U+0316	Combining Grave Accent Below
-	U_Combining_Acute_Accent_Below = 0x0317,						//	U+0317	Combining Acute Accent Below
-	U_Combining_Left_Tack_Below = 0x0318,							//	U+0318	Combining Left Tack Below
-	U_Combining_Right_Tack_Below = 0x0319,							//	U+0319	Combining Right Tack Below
-	U_Combining_Left_Angle_Above = 0x031A,							//	U+031A	Combining Left Angle Above
-	U_Combining_Horn = 0x031B,										//	U+031B	Combining Horn
-	U_Combining_Left_Half_Ring_Below = 0x031C,						//	U+031C	Combining Left Half Ring Below
-	U_Combining_Up_Tack_Below = 0x031D,								//	U+031D	Combining Up Tack Below
-	U_Combining_Down_Tack_Below = 0x031E,							//	U+031E	Combining Down Tack Below
-	U_Combining_Plus_Sign_Below = 0x031F,							//	U+031F	Combining Plus Sign Below
-	U_Combining_Minus_Sign_Below = 0x0320,							//	U+0320	Combining Minus Sign Below
-	U_Combining_Palatalized_Hook_Below = 0x0321,					//	U+0321	Combining Palatalized Hook Below
-	U_Combining_Retroflex_Hook_Below = 0x0322,						//	U+0322	Combining Retroflex Hook Below
-	U_Combining_Dot_Below = 0x0323,									//	U+0323	Combining Dot Below
-	U_Combining_Diaeresis_Below = 0x0324,							//	U+0324	Combining Diaeresis Below
-	U_Combining_Ring_Below = 0x0325,								//	U+0325	Combining Ring Below
-	U_Combining_Comma_Below = 0x0326,								//	U+0326	Combining Comma Below
-	U_Combining_Cedilla = 0x0327,									//	U+0327	Combining Cedilla
+	U_Combining_Wevewsed_Comma_Above = 0x0314,						//	U+0314	Combining Wevewsed Comma Above
+	U_Combining_Comma_Above_Wight = 0x0315,							//	U+0315	Combining Comma Above Wight
+	U_Combining_Gwave_Accent_Bewow = 0x0316,						//	U+0316	Combining Gwave Accent Bewow
+	U_Combining_Acute_Accent_Bewow = 0x0317,						//	U+0317	Combining Acute Accent Bewow
+	U_Combining_Weft_Tack_Bewow = 0x0318,							//	U+0318	Combining Weft Tack Bewow
+	U_Combining_Wight_Tack_Bewow = 0x0319,							//	U+0319	Combining Wight Tack Bewow
+	U_Combining_Weft_Angwe_Above = 0x031A,							//	U+031A	Combining Weft Angwe Above
+	U_Combining_Hown = 0x031B,										//	U+031B	Combining Hown
+	U_Combining_Weft_Hawf_Wing_Bewow = 0x031C,						//	U+031C	Combining Weft Hawf Wing Bewow
+	U_Combining_Up_Tack_Bewow = 0x031D,								//	U+031D	Combining Up Tack Bewow
+	U_Combining_Down_Tack_Bewow = 0x031E,							//	U+031E	Combining Down Tack Bewow
+	U_Combining_Pwus_Sign_Bewow = 0x031F,							//	U+031F	Combining Pwus Sign Bewow
+	U_Combining_Minus_Sign_Bewow = 0x0320,							//	U+0320	Combining Minus Sign Bewow
+	U_Combining_Pawatawized_Hook_Bewow = 0x0321,					//	U+0321	Combining Pawatawized Hook Bewow
+	U_Combining_Wetwofwex_Hook_Bewow = 0x0322,						//	U+0322	Combining Wetwofwex Hook Bewow
+	U_Combining_Dot_Bewow = 0x0323,									//	U+0323	Combining Dot Bewow
+	U_Combining_Diaewesis_Bewow = 0x0324,							//	U+0324	Combining Diaewesis Bewow
+	U_Combining_Wing_Bewow = 0x0325,								//	U+0325	Combining Wing Bewow
+	U_Combining_Comma_Bewow = 0x0326,								//	U+0326	Combining Comma Bewow
+	U_Combining_Cediwwa = 0x0327,									//	U+0327	Combining Cediwwa
 	U_Combining_Ogonek = 0x0328,									//	U+0328	Combining Ogonek
-	U_Combining_Vertical_Line_Below = 0x0329,						//	U+0329	Combining Vertical Line Below
-	U_Combining_Bridge_Below = 0x032A,								//	U+032A	Combining Bridge Below
-	U_Combining_Inverted_Double_Arch_Below = 0x032B,				//	U+032B	Combining Inverted Double Arch Below
-	U_Combining_Caron_Below = 0x032C,								//	U+032C	Combining Caron Below
-	U_Combining_Circumflex_Accent_Below = 0x032D,					//	U+032D	Combining Circumflex Accent Below
-	U_Combining_Breve_Below = 0x032E,								//	U+032E	Combining Breve Below
-	U_Combining_Inverted_Breve_Below = 0x032F,						//	U+032F	Combining Inverted Breve Below
-	U_Combining_Tilde_Below = 0x0330,								//	U+0330	Combining Tilde Below
-	U_Combining_Macron_Below = 0x0331,								//	U+0331	Combining Macron Below
-	U_Combining_Low_Line = 0x0332,									//	U+0332	Combining Low Line
-	U_Combining_Double_Low_Line = 0x0333,							//	U+0333	Combining Double Low Line
-	U_Combining_Tilde_Overlay = 0x0334,								//	U+0334	Combining Tilde Overlay
-	U_Combining_Short_Stroke_Overlay = 0x0335,						//	U+0335	Combining Short Stroke Overlay
-	U_Combining_Long_Stroke_Overlay = 0x0336,						//	U+0336	Combining Long Stroke Overlay
-	U_Combining_Short_Solidus_Overlay = 0x0337,						//	U+0337	Combining Short Solidus Overlay
-	U_Combining_Long_Solidus_Overlay = 0x0338,						//	U+0338	Combining Long Solidus Overlay
-	U_Combining_Right_Half_Ring_Below = 0x0339,						//	U+0339	Combining Right Half Ring Below
-	U_Combining_Inverted_Bridge_Below = 0x033A,						//	U+033A	Combining Inverted Bridge Below
-	U_Combining_Square_Below = 0x033B,								//	U+033B	Combining Square Below
-	U_Combining_Seagull_Below = 0x033C,								//	U+033C	Combining Seagull Below
+	U_Combining_Vewticaw_Wine_Bewow = 0x0329,						//	U+0329	Combining Vewticaw Wine Bewow
+	U_Combining_Bwidge_Bewow = 0x032A,								//	U+032A	Combining Bwidge Bewow
+	U_Combining_Invewted_Doubwe_Awch_Bewow = 0x032B,				//	U+032B	Combining Invewted Doubwe Awch Bewow
+	U_Combining_Cawon_Bewow = 0x032C,								//	U+032C	Combining Cawon Bewow
+	U_Combining_Ciwcumfwex_Accent_Bewow = 0x032D,					//	U+032D	Combining Ciwcumfwex Accent Bewow
+	U_Combining_Bweve_Bewow = 0x032E,								//	U+032E	Combining Bweve Bewow
+	U_Combining_Invewted_Bweve_Bewow = 0x032F,						//	U+032F	Combining Invewted Bweve Bewow
+	U_Combining_Tiwde_Bewow = 0x0330,								//	U+0330	Combining Tiwde Bewow
+	U_Combining_Macwon_Bewow = 0x0331,								//	U+0331	Combining Macwon Bewow
+	U_Combining_Wow_Wine = 0x0332,									//	U+0332	Combining Wow Wine
+	U_Combining_Doubwe_Wow_Wine = 0x0333,							//	U+0333	Combining Doubwe Wow Wine
+	U_Combining_Tiwde_Ovewway = 0x0334,								//	U+0334	Combining Tiwde Ovewway
+	U_Combining_Showt_Stwoke_Ovewway = 0x0335,						//	U+0335	Combining Showt Stwoke Ovewway
+	U_Combining_Wong_Stwoke_Ovewway = 0x0336,						//	U+0336	Combining Wong Stwoke Ovewway
+	U_Combining_Showt_Sowidus_Ovewway = 0x0337,						//	U+0337	Combining Showt Sowidus Ovewway
+	U_Combining_Wong_Sowidus_Ovewway = 0x0338,						//	U+0338	Combining Wong Sowidus Ovewway
+	U_Combining_Wight_Hawf_Wing_Bewow = 0x0339,						//	U+0339	Combining Wight Hawf Wing Bewow
+	U_Combining_Invewted_Bwidge_Bewow = 0x033A,						//	U+033A	Combining Invewted Bwidge Bewow
+	U_Combining_Squawe_Bewow = 0x033B,								//	U+033B	Combining Squawe Bewow
+	U_Combining_Seaguww_Bewow = 0x033C,								//	U+033C	Combining Seaguww Bewow
 	U_Combining_X_Above = 0x033D,									//	U+033D	Combining X Above
-	U_Combining_Vertical_Tilde = 0x033E,							//	U+033E	Combining Vertical Tilde
-	U_Combining_Double_Overline = 0x033F,							//	U+033F	Combining Double Overline
-	U_Combining_Grave_Tone_Mark = 0x0340,							//	U+0340	Combining Grave Tone Mark
-	U_Combining_Acute_Tone_Mark = 0x0341,							//	U+0341	Combining Acute Tone Mark
-	U_Combining_Greek_Perispomeni = 0x0342,							//	U+0342	Combining Greek Perispomeni
-	U_Combining_Greek_Koronis = 0x0343,								//	U+0343	Combining Greek Koronis
-	U_Combining_Greek_Dialytika_Tonos = 0x0344,						//	U+0344	Combining Greek Dialytika Tonos
-	U_Combining_Greek_Ypogegrammeni = 0x0345,						//	U+0345	Combining Greek Ypogegrammeni
-	U_Combining_Bridge_Above = 0x0346,								//	U+0346	Combining Bridge Above
-	U_Combining_Equals_Sign_Below = 0x0347,							//	U+0347	Combining Equals Sign Below
-	U_Combining_Double_Vertical_Line_Below = 0x0348,				//	U+0348	Combining Double Vertical Line Below
-	U_Combining_Left_Angle_Below = 0x0349,							//	U+0349	Combining Left Angle Below
-	U_Combining_Not_Tilde_Above = 0x034A,							//	U+034A	Combining Not Tilde Above
+	U_Combining_Vewticaw_Tiwde = 0x033E,							//	U+033E	Combining Vewticaw Tiwde
+	U_Combining_Doubwe_Ovewwine = 0x033F,							//	U+033F	Combining Doubwe Ovewwine
+	U_Combining_Gwave_Tone_Mawk = 0x0340,							//	U+0340	Combining Gwave Tone Mawk
+	U_Combining_Acute_Tone_Mawk = 0x0341,							//	U+0341	Combining Acute Tone Mawk
+	U_Combining_Gweek_Pewispomeni = 0x0342,							//	U+0342	Combining Gweek Pewispomeni
+	U_Combining_Gweek_Kowonis = 0x0343,								//	U+0343	Combining Gweek Kowonis
+	U_Combining_Gweek_Diawytika_Tonos = 0x0344,						//	U+0344	Combining Gweek Diawytika Tonos
+	U_Combining_Gweek_Ypogegwammeni = 0x0345,						//	U+0345	Combining Gweek Ypogegwammeni
+	U_Combining_Bwidge_Above = 0x0346,								//	U+0346	Combining Bwidge Above
+	U_Combining_Equaws_Sign_Bewow = 0x0347,							//	U+0347	Combining Equaws Sign Bewow
+	U_Combining_Doubwe_Vewticaw_Wine_Bewow = 0x0348,				//	U+0348	Combining Doubwe Vewticaw Wine Bewow
+	U_Combining_Weft_Angwe_Bewow = 0x0349,							//	U+0349	Combining Weft Angwe Bewow
+	U_Combining_Not_Tiwde_Above = 0x034A,							//	U+034A	Combining Not Tiwde Above
 	U_Combining_Homothetic_Above = 0x034B,							//	U+034B	Combining Homothetic Above
-	U_Combining_Almost_Equal_To_Above = 0x034C,						//	U+034C	Combining Almost Equal To Above
-	U_Combining_Left_Right_Arrow_Below = 0x034D,					//	U+034D	Combining Left Right Arrow Below
-	U_Combining_Upwards_Arrow_Below = 0x034E,						//	U+034E	Combining Upwards Arrow Below
-	U_Combining_Grapheme_Joiner = 0x034F,							//	U+034F	Combining Grapheme Joiner
-	U_Combining_Right_Arrowhead_Above = 0x0350,						//	U+0350	Combining Right Arrowhead Above
-	U_Combining_Left_Half_Ring_Above = 0x0351,						//	U+0351	Combining Left Half Ring Above
-	U_Combining_Fermata = 0x0352,									//	U+0352	Combining Fermata
-	U_Combining_X_Below = 0x0353,									//	U+0353	Combining X Below
-	U_Combining_Left_Arrowhead_Below = 0x0354,						//	U+0354	Combining Left Arrowhead Below
-	U_Combining_Right_Arrowhead_Below = 0x0355,						//	U+0355	Combining Right Arrowhead Below
-	U_Combining_Right_Arrowhead_And_Up_Arrowhead_Below = 0x0356,	//	U+0356	Combining Right Arrowhead And Up Arrowhead Below
-	U_Combining_Right_Half_Ring_Above = 0x0357,						//	U+0357	Combining Right Half Ring Above
-	U_Combining_Dot_Above_Right = 0x0358,							//	U+0358	Combining Dot Above Right
-	U_Combining_Asterisk_Below = 0x0359,							//	U+0359	Combining Asterisk Below
-	U_Combining_Double_Ring_Below = 0x035A,							//	U+035A	Combining Double Ring Below
+	U_Combining_Awmost_Equaw_To_Above = 0x034C,						//	U+034C	Combining Awmost Equaw To Above
+	U_Combining_Weft_Wight_Awwow_Bewow = 0x034D,					//	U+034D	Combining Weft Wight Awwow Bewow
+	U_Combining_Upwawds_Awwow_Bewow = 0x034E,						//	U+034E	Combining Upwawds Awwow Bewow
+	U_Combining_Gwapheme_Joina = 0x034F,							//	U+034F	Combining Gwapheme Joina
+	U_Combining_Wight_Awwowhead_Above = 0x0350,						//	U+0350	Combining Wight Awwowhead Above
+	U_Combining_Weft_Hawf_Wing_Above = 0x0351,						//	U+0351	Combining Weft Hawf Wing Above
+	U_Combining_Fewmata = 0x0352,									//	U+0352	Combining Fewmata
+	U_Combining_X_Bewow = 0x0353,									//	U+0353	Combining X Bewow
+	U_Combining_Weft_Awwowhead_Bewow = 0x0354,						//	U+0354	Combining Weft Awwowhead Bewow
+	U_Combining_Wight_Awwowhead_Bewow = 0x0355,						//	U+0355	Combining Wight Awwowhead Bewow
+	U_Combining_Wight_Awwowhead_And_Up_Awwowhead_Bewow = 0x0356,	//	U+0356	Combining Wight Awwowhead And Up Awwowhead Bewow
+	U_Combining_Wight_Hawf_Wing_Above = 0x0357,						//	U+0357	Combining Wight Hawf Wing Above
+	U_Combining_Dot_Above_Wight = 0x0358,							//	U+0358	Combining Dot Above Wight
+	U_Combining_Astewisk_Bewow = 0x0359,							//	U+0359	Combining Astewisk Bewow
+	U_Combining_Doubwe_Wing_Bewow = 0x035A,							//	U+035A	Combining Doubwe Wing Bewow
 	U_Combining_Zigzag_Above = 0x035B,								//	U+035B	Combining Zigzag Above
-	U_Combining_Double_Breve_Below = 0x035C,						//	U+035C	Combining Double Breve Below
-	U_Combining_Double_Breve = 0x035D,								//	U+035D	Combining Double Breve
-	U_Combining_Double_Macron = 0x035E,								//	U+035E	Combining Double Macron
-	U_Combining_Double_Macron_Below = 0x035F,						//	U+035F	Combining Double Macron Below
-	U_Combining_Double_Tilde = 0x0360,								//	U+0360	Combining Double Tilde
-	U_Combining_Double_Inverted_Breve = 0x0361,						//	U+0361	Combining Double Inverted Breve
-	U_Combining_Double_Rightwards_Arrow_Below = 0x0362,				//	U+0362	Combining Double Rightwards Arrow Below
-	U_Combining_Latin_Small_Letter_A = 0x0363, 						//	U+0363	Combining Latin Small Letter A
-	U_Combining_Latin_Small_Letter_E = 0x0364, 						//	U+0364	Combining Latin Small Letter E
-	U_Combining_Latin_Small_Letter_I = 0x0365, 						//	U+0365	Combining Latin Small Letter I
-	U_Combining_Latin_Small_Letter_O = 0x0366, 						//	U+0366	Combining Latin Small Letter O
-	U_Combining_Latin_Small_Letter_U = 0x0367, 						//	U+0367	Combining Latin Small Letter U
-	U_Combining_Latin_Small_Letter_C = 0x0368, 						//	U+0368	Combining Latin Small Letter C
-	U_Combining_Latin_Small_Letter_D = 0x0369, 						//	U+0369	Combining Latin Small Letter D
-	U_Combining_Latin_Small_Letter_H = 0x036A, 						//	U+036A	Combining Latin Small Letter H
-	U_Combining_Latin_Small_Letter_M = 0x036B, 						//	U+036B	Combining Latin Small Letter M
-	U_Combining_Latin_Small_Letter_R = 0x036C, 						//	U+036C	Combining Latin Small Letter R
-	U_Combining_Latin_Small_Letter_T = 0x036D, 						//	U+036D	Combining Latin Small Letter T
-	U_Combining_Latin_Small_Letter_V = 0x036E, 						//	U+036E	Combining Latin Small Letter V
-	U_Combining_Latin_Small_Letter_X = 0x036F, 						//	U+036F	Combining Latin Small Letter X
+	U_Combining_Doubwe_Bweve_Bewow = 0x035C,						//	U+035C	Combining Doubwe Bweve Bewow
+	U_Combining_Doubwe_Bweve = 0x035D,								//	U+035D	Combining Doubwe Bweve
+	U_Combining_Doubwe_Macwon = 0x035E,								//	U+035E	Combining Doubwe Macwon
+	U_Combining_Doubwe_Macwon_Bewow = 0x035F,						//	U+035F	Combining Doubwe Macwon Bewow
+	U_Combining_Doubwe_Tiwde = 0x0360,								//	U+0360	Combining Doubwe Tiwde
+	U_Combining_Doubwe_Invewted_Bweve = 0x0361,						//	U+0361	Combining Doubwe Invewted Bweve
+	U_Combining_Doubwe_Wightwawds_Awwow_Bewow = 0x0362,				//	U+0362	Combining Doubwe Wightwawds Awwow Bewow
+	U_Combining_Watin_Smaww_Wettew_A = 0x0363, 						//	U+0363	Combining Watin Smaww Wetta A
+	U_Combining_Watin_Smaww_Wettew_E = 0x0364, 						//	U+0364	Combining Watin Smaww Wetta E
+	U_Combining_Watin_Smaww_Wettew_I = 0x0365, 						//	U+0365	Combining Watin Smaww Wetta I
+	U_Combining_Watin_Smaww_Wettew_O = 0x0366, 						//	U+0366	Combining Watin Smaww Wetta O
+	U_Combining_Watin_Smaww_Wettew_U = 0x0367, 						//	U+0367	Combining Watin Smaww Wetta U
+	U_Combining_Watin_Smaww_Wettew_C = 0x0368, 						//	U+0368	Combining Watin Smaww Wetta C
+	U_Combining_Watin_Smaww_Wettew_D = 0x0369, 						//	U+0369	Combining Watin Smaww Wetta D
+	U_Combining_Watin_Smaww_Wettew_H = 0x036A, 						//	U+036A	Combining Watin Smaww Wetta H
+	U_Combining_Watin_Smaww_Wettew_M = 0x036B, 						//	U+036B	Combining Watin Smaww Wetta M
+	U_Combining_Watin_Smaww_Wettew_W = 0x036C, 						//	U+036C	Combining Watin Smaww Wetta W
+	U_Combining_Watin_Smaww_Wettew_T = 0x036D, 						//	U+036D	Combining Watin Smaww Wetta T
+	U_Combining_Watin_Smaww_Wettew_V = 0x036E, 						//	U+036E	Combining Watin Smaww Wetta V
+	U_Combining_Watin_Smaww_Wettew_X = 0x036F, 						//	U+036F	Combining Watin Smaww Wetta X
 
 	/**
-	 * Unicode Character 'LINE SEPARATOR' (U+2028)
-	 * http://www.fileformat.info/info/unicode/char/2028/index.htm
+	 * Unicode Chawacta 'WINE SEPAWATOW' (U+2028)
+	 * http://www.fiwefowmat.info/info/unicode/chaw/2028/index.htm
 	 */
-	LINE_SEPARATOR = 0x2028,
+	WINE_SEPAWATOW = 0x2028,
 	/**
-	 * Unicode Character 'PARAGRAPH SEPARATOR' (U+2029)
-	 * http://www.fileformat.info/info/unicode/char/2029/index.htm
+	 * Unicode Chawacta 'PAWAGWAPH SEPAWATOW' (U+2029)
+	 * http://www.fiwefowmat.info/info/unicode/chaw/2029/index.htm
 	 */
-	PARAGRAPH_SEPARATOR = 0x2029,
+	PAWAGWAPH_SEPAWATOW = 0x2029,
 	/**
-	 * Unicode Character 'NEXT LINE' (U+0085)
-	 * http://www.fileformat.info/info/unicode/char/0085/index.htm
+	 * Unicode Chawacta 'NEXT WINE' (U+0085)
+	 * http://www.fiwefowmat.info/info/unicode/chaw/0085/index.htm
 	 */
-	NEXT_LINE = 0x0085,
+	NEXT_WINE = 0x0085,
 
-	// http://www.fileformat.info/info/unicode/category/Sk/list.htm
-	U_CIRCUMFLEX = 0x005E,									// U+005E	CIRCUMFLEX
-	U_GRAVE_ACCENT = 0x0060,								// U+0060	GRAVE ACCENT
-	U_DIAERESIS = 0x00A8,									// U+00A8	DIAERESIS
-	U_MACRON = 0x00AF,										// U+00AF	MACRON
+	// http://www.fiwefowmat.info/info/unicode/categowy/Sk/wist.htm
+	U_CIWCUMFWEX = 0x005E,									// U+005E	CIWCUMFWEX
+	U_GWAVE_ACCENT = 0x0060,								// U+0060	GWAVE ACCENT
+	U_DIAEWESIS = 0x00A8,									// U+00A8	DIAEWESIS
+	U_MACWON = 0x00AF,										// U+00AF	MACWON
 	U_ACUTE_ACCENT = 0x00B4,								// U+00B4	ACUTE ACCENT
-	U_CEDILLA = 0x00B8,										// U+00B8	CEDILLA
-	U_MODIFIER_LETTER_LEFT_ARROWHEAD = 0x02C2,				// U+02C2	MODIFIER LETTER LEFT ARROWHEAD
-	U_MODIFIER_LETTER_RIGHT_ARROWHEAD = 0x02C3,				// U+02C3	MODIFIER LETTER RIGHT ARROWHEAD
-	U_MODIFIER_LETTER_UP_ARROWHEAD = 0x02C4,				// U+02C4	MODIFIER LETTER UP ARROWHEAD
-	U_MODIFIER_LETTER_DOWN_ARROWHEAD = 0x02C5,				// U+02C5	MODIFIER LETTER DOWN ARROWHEAD
-	U_MODIFIER_LETTER_CENTRED_RIGHT_HALF_RING = 0x02D2,		// U+02D2	MODIFIER LETTER CENTRED RIGHT HALF RING
-	U_MODIFIER_LETTER_CENTRED_LEFT_HALF_RING = 0x02D3,		// U+02D3	MODIFIER LETTER CENTRED LEFT HALF RING
-	U_MODIFIER_LETTER_UP_TACK = 0x02D4,						// U+02D4	MODIFIER LETTER UP TACK
-	U_MODIFIER_LETTER_DOWN_TACK = 0x02D5,					// U+02D5	MODIFIER LETTER DOWN TACK
-	U_MODIFIER_LETTER_PLUS_SIGN = 0x02D6,					// U+02D6	MODIFIER LETTER PLUS SIGN
-	U_MODIFIER_LETTER_MINUS_SIGN = 0x02D7,					// U+02D7	MODIFIER LETTER MINUS SIGN
-	U_BREVE = 0x02D8,										// U+02D8	BREVE
+	U_CEDIWWA = 0x00B8,										// U+00B8	CEDIWWA
+	U_MODIFIEW_WETTEW_WEFT_AWWOWHEAD = 0x02C2,				// U+02C2	MODIFIa WETTa WEFT AWWOWHEAD
+	U_MODIFIEW_WETTEW_WIGHT_AWWOWHEAD = 0x02C3,				// U+02C3	MODIFIa WETTa WIGHT AWWOWHEAD
+	U_MODIFIEW_WETTEW_UP_AWWOWHEAD = 0x02C4,				// U+02C4	MODIFIa WETTa UP AWWOWHEAD
+	U_MODIFIEW_WETTEW_DOWN_AWWOWHEAD = 0x02C5,				// U+02C5	MODIFIa WETTa DOWN AWWOWHEAD
+	U_MODIFIEW_WETTEW_CENTWED_WIGHT_HAWF_WING = 0x02D2,		// U+02D2	MODIFIa WETTa CENTWED WIGHT HAWF WING
+	U_MODIFIEW_WETTEW_CENTWED_WEFT_HAWF_WING = 0x02D3,		// U+02D3	MODIFIa WETTa CENTWED WEFT HAWF WING
+	U_MODIFIEW_WETTEW_UP_TACK = 0x02D4,						// U+02D4	MODIFIa WETTa UP TACK
+	U_MODIFIEW_WETTEW_DOWN_TACK = 0x02D5,					// U+02D5	MODIFIa WETTa DOWN TACK
+	U_MODIFIEW_WETTEW_PWUS_SIGN = 0x02D6,					// U+02D6	MODIFIa WETTa PWUS SIGN
+	U_MODIFIEW_WETTEW_MINUS_SIGN = 0x02D7,					// U+02D7	MODIFIa WETTa MINUS SIGN
+	U_BWEVE = 0x02D8,										// U+02D8	BWEVE
 	U_DOT_ABOVE = 0x02D9,									// U+02D9	DOT ABOVE
-	U_RING_ABOVE = 0x02DA,									// U+02DA	RING ABOVE
+	U_WING_ABOVE = 0x02DA,									// U+02DA	WING ABOVE
 	U_OGONEK = 0x02DB,										// U+02DB	OGONEK
-	U_SMALL_TILDE = 0x02DC,									// U+02DC	SMALL TILDE
-	U_DOUBLE_ACUTE_ACCENT = 0x02DD,							// U+02DD	DOUBLE ACUTE ACCENT
-	U_MODIFIER_LETTER_RHOTIC_HOOK = 0x02DE,					// U+02DE	MODIFIER LETTER RHOTIC HOOK
-	U_MODIFIER_LETTER_CROSS_ACCENT = 0x02DF,				// U+02DF	MODIFIER LETTER CROSS ACCENT
-	U_MODIFIER_LETTER_EXTRA_HIGH_TONE_BAR = 0x02E5,			// U+02E5	MODIFIER LETTER EXTRA-HIGH TONE BAR
-	U_MODIFIER_LETTER_HIGH_TONE_BAR = 0x02E6,				// U+02E6	MODIFIER LETTER HIGH TONE BAR
-	U_MODIFIER_LETTER_MID_TONE_BAR = 0x02E7,				// U+02E7	MODIFIER LETTER MID TONE BAR
-	U_MODIFIER_LETTER_LOW_TONE_BAR = 0x02E8,				// U+02E8	MODIFIER LETTER LOW TONE BAR
-	U_MODIFIER_LETTER_EXTRA_LOW_TONE_BAR = 0x02E9,			// U+02E9	MODIFIER LETTER EXTRA-LOW TONE BAR
-	U_MODIFIER_LETTER_YIN_DEPARTING_TONE_MARK = 0x02EA,		// U+02EA	MODIFIER LETTER YIN DEPARTING TONE MARK
-	U_MODIFIER_LETTER_YANG_DEPARTING_TONE_MARK = 0x02EB,	// U+02EB	MODIFIER LETTER YANG DEPARTING TONE MARK
-	U_MODIFIER_LETTER_UNASPIRATED = 0x02ED,					// U+02ED	MODIFIER LETTER UNASPIRATED
-	U_MODIFIER_LETTER_LOW_DOWN_ARROWHEAD = 0x02EF,			// U+02EF	MODIFIER LETTER LOW DOWN ARROWHEAD
-	U_MODIFIER_LETTER_LOW_UP_ARROWHEAD = 0x02F0,			// U+02F0	MODIFIER LETTER LOW UP ARROWHEAD
-	U_MODIFIER_LETTER_LOW_LEFT_ARROWHEAD = 0x02F1,			// U+02F1	MODIFIER LETTER LOW LEFT ARROWHEAD
-	U_MODIFIER_LETTER_LOW_RIGHT_ARROWHEAD = 0x02F2,			// U+02F2	MODIFIER LETTER LOW RIGHT ARROWHEAD
-	U_MODIFIER_LETTER_LOW_RING = 0x02F3,					// U+02F3	MODIFIER LETTER LOW RING
-	U_MODIFIER_LETTER_MIDDLE_GRAVE_ACCENT = 0x02F4,			// U+02F4	MODIFIER LETTER MIDDLE GRAVE ACCENT
-	U_MODIFIER_LETTER_MIDDLE_DOUBLE_GRAVE_ACCENT = 0x02F5,	// U+02F5	MODIFIER LETTER MIDDLE DOUBLE GRAVE ACCENT
-	U_MODIFIER_LETTER_MIDDLE_DOUBLE_ACUTE_ACCENT = 0x02F6,	// U+02F6	MODIFIER LETTER MIDDLE DOUBLE ACUTE ACCENT
-	U_MODIFIER_LETTER_LOW_TILDE = 0x02F7,					// U+02F7	MODIFIER LETTER LOW TILDE
-	U_MODIFIER_LETTER_RAISED_COLON = 0x02F8,				// U+02F8	MODIFIER LETTER RAISED COLON
-	U_MODIFIER_LETTER_BEGIN_HIGH_TONE = 0x02F9,				// U+02F9	MODIFIER LETTER BEGIN HIGH TONE
-	U_MODIFIER_LETTER_END_HIGH_TONE = 0x02FA,				// U+02FA	MODIFIER LETTER END HIGH TONE
-	U_MODIFIER_LETTER_BEGIN_LOW_TONE = 0x02FB,				// U+02FB	MODIFIER LETTER BEGIN LOW TONE
-	U_MODIFIER_LETTER_END_LOW_TONE = 0x02FC,				// U+02FC	MODIFIER LETTER END LOW TONE
-	U_MODIFIER_LETTER_SHELF = 0x02FD,						// U+02FD	MODIFIER LETTER SHELF
-	U_MODIFIER_LETTER_OPEN_SHELF = 0x02FE,					// U+02FE	MODIFIER LETTER OPEN SHELF
-	U_MODIFIER_LETTER_LOW_LEFT_ARROW = 0x02FF,				// U+02FF	MODIFIER LETTER LOW LEFT ARROW
-	U_GREEK_LOWER_NUMERAL_SIGN = 0x0375,					// U+0375	GREEK LOWER NUMERAL SIGN
-	U_GREEK_TONOS = 0x0384,									// U+0384	GREEK TONOS
-	U_GREEK_DIALYTIKA_TONOS = 0x0385,						// U+0385	GREEK DIALYTIKA TONOS
-	U_GREEK_KORONIS = 0x1FBD,								// U+1FBD	GREEK KORONIS
-	U_GREEK_PSILI = 0x1FBF,									// U+1FBF	GREEK PSILI
-	U_GREEK_PERISPOMENI = 0x1FC0,							// U+1FC0	GREEK PERISPOMENI
-	U_GREEK_DIALYTIKA_AND_PERISPOMENI = 0x1FC1,				// U+1FC1	GREEK DIALYTIKA AND PERISPOMENI
-	U_GREEK_PSILI_AND_VARIA = 0x1FCD,						// U+1FCD	GREEK PSILI AND VARIA
-	U_GREEK_PSILI_AND_OXIA = 0x1FCE,						// U+1FCE	GREEK PSILI AND OXIA
-	U_GREEK_PSILI_AND_PERISPOMENI = 0x1FCF,					// U+1FCF	GREEK PSILI AND PERISPOMENI
-	U_GREEK_DASIA_AND_VARIA = 0x1FDD,						// U+1FDD	GREEK DASIA AND VARIA
-	U_GREEK_DASIA_AND_OXIA = 0x1FDE,						// U+1FDE	GREEK DASIA AND OXIA
-	U_GREEK_DASIA_AND_PERISPOMENI = 0x1FDF,					// U+1FDF	GREEK DASIA AND PERISPOMENI
-	U_GREEK_DIALYTIKA_AND_VARIA = 0x1FED,					// U+1FED	GREEK DIALYTIKA AND VARIA
-	U_GREEK_DIALYTIKA_AND_OXIA = 0x1FEE,					// U+1FEE	GREEK DIALYTIKA AND OXIA
-	U_GREEK_VARIA = 0x1FEF,									// U+1FEF	GREEK VARIA
-	U_GREEK_OXIA = 0x1FFD,									// U+1FFD	GREEK OXIA
-	U_GREEK_DASIA = 0x1FFE,									// U+1FFE	GREEK DASIA
+	U_SMAWW_TIWDE = 0x02DC,									// U+02DC	SMAWW TIWDE
+	U_DOUBWE_ACUTE_ACCENT = 0x02DD,							// U+02DD	DOUBWE ACUTE ACCENT
+	U_MODIFIEW_WETTEW_WHOTIC_HOOK = 0x02DE,					// U+02DE	MODIFIa WETTa WHOTIC HOOK
+	U_MODIFIEW_WETTEW_CWOSS_ACCENT = 0x02DF,				// U+02DF	MODIFIa WETTa CWOSS ACCENT
+	U_MODIFIEW_WETTEW_EXTWA_HIGH_TONE_BAW = 0x02E5,			// U+02E5	MODIFIa WETTa EXTWA-HIGH TONE BAW
+	U_MODIFIEW_WETTEW_HIGH_TONE_BAW = 0x02E6,				// U+02E6	MODIFIa WETTa HIGH TONE BAW
+	U_MODIFIEW_WETTEW_MID_TONE_BAW = 0x02E7,				// U+02E7	MODIFIa WETTa MID TONE BAW
+	U_MODIFIEW_WETTEW_WOW_TONE_BAW = 0x02E8,				// U+02E8	MODIFIa WETTa WOW TONE BAW
+	U_MODIFIEW_WETTEW_EXTWA_WOW_TONE_BAW = 0x02E9,			// U+02E9	MODIFIa WETTa EXTWA-WOW TONE BAW
+	U_MODIFIEW_WETTEW_YIN_DEPAWTING_TONE_MAWK = 0x02EA,		// U+02EA	MODIFIa WETTa YIN DEPAWTING TONE MAWK
+	U_MODIFIEW_WETTEW_YANG_DEPAWTING_TONE_MAWK = 0x02EB,	// U+02EB	MODIFIa WETTa YANG DEPAWTING TONE MAWK
+	U_MODIFIEW_WETTEW_UNASPIWATED = 0x02ED,					// U+02ED	MODIFIa WETTa UNASPIWATED
+	U_MODIFIEW_WETTEW_WOW_DOWN_AWWOWHEAD = 0x02EF,			// U+02EF	MODIFIa WETTa WOW DOWN AWWOWHEAD
+	U_MODIFIEW_WETTEW_WOW_UP_AWWOWHEAD = 0x02F0,			// U+02F0	MODIFIa WETTa WOW UP AWWOWHEAD
+	U_MODIFIEW_WETTEW_WOW_WEFT_AWWOWHEAD = 0x02F1,			// U+02F1	MODIFIa WETTa WOW WEFT AWWOWHEAD
+	U_MODIFIEW_WETTEW_WOW_WIGHT_AWWOWHEAD = 0x02F2,			// U+02F2	MODIFIa WETTa WOW WIGHT AWWOWHEAD
+	U_MODIFIEW_WETTEW_WOW_WING = 0x02F3,					// U+02F3	MODIFIa WETTa WOW WING
+	U_MODIFIEW_WETTEW_MIDDWE_GWAVE_ACCENT = 0x02F4,			// U+02F4	MODIFIa WETTa MIDDWE GWAVE ACCENT
+	U_MODIFIEW_WETTEW_MIDDWE_DOUBWE_GWAVE_ACCENT = 0x02F5,	// U+02F5	MODIFIa WETTa MIDDWE DOUBWE GWAVE ACCENT
+	U_MODIFIEW_WETTEW_MIDDWE_DOUBWE_ACUTE_ACCENT = 0x02F6,	// U+02F6	MODIFIa WETTa MIDDWE DOUBWE ACUTE ACCENT
+	U_MODIFIEW_WETTEW_WOW_TIWDE = 0x02F7,					// U+02F7	MODIFIa WETTa WOW TIWDE
+	U_MODIFIEW_WETTEW_WAISED_COWON = 0x02F8,				// U+02F8	MODIFIa WETTa WAISED COWON
+	U_MODIFIEW_WETTEW_BEGIN_HIGH_TONE = 0x02F9,				// U+02F9	MODIFIa WETTa BEGIN HIGH TONE
+	U_MODIFIEW_WETTEW_END_HIGH_TONE = 0x02FA,				// U+02FA	MODIFIa WETTa END HIGH TONE
+	U_MODIFIEW_WETTEW_BEGIN_WOW_TONE = 0x02FB,				// U+02FB	MODIFIa WETTa BEGIN WOW TONE
+	U_MODIFIEW_WETTEW_END_WOW_TONE = 0x02FC,				// U+02FC	MODIFIa WETTa END WOW TONE
+	U_MODIFIEW_WETTEW_SHEWF = 0x02FD,						// U+02FD	MODIFIa WETTa SHEWF
+	U_MODIFIEW_WETTEW_OPEN_SHEWF = 0x02FE,					// U+02FE	MODIFIa WETTa OPEN SHEWF
+	U_MODIFIEW_WETTEW_WOW_WEFT_AWWOW = 0x02FF,				// U+02FF	MODIFIa WETTa WOW WEFT AWWOW
+	U_GWEEK_WOWEW_NUMEWAW_SIGN = 0x0375,					// U+0375	GWEEK WOWa NUMEWAW SIGN
+	U_GWEEK_TONOS = 0x0384,									// U+0384	GWEEK TONOS
+	U_GWEEK_DIAWYTIKA_TONOS = 0x0385,						// U+0385	GWEEK DIAWYTIKA TONOS
+	U_GWEEK_KOWONIS = 0x1FBD,								// U+1FBD	GWEEK KOWONIS
+	U_GWEEK_PSIWI = 0x1FBF,									// U+1FBF	GWEEK PSIWI
+	U_GWEEK_PEWISPOMENI = 0x1FC0,							// U+1FC0	GWEEK PEWISPOMENI
+	U_GWEEK_DIAWYTIKA_AND_PEWISPOMENI = 0x1FC1,				// U+1FC1	GWEEK DIAWYTIKA AND PEWISPOMENI
+	U_GWEEK_PSIWI_AND_VAWIA = 0x1FCD,						// U+1FCD	GWEEK PSIWI AND VAWIA
+	U_GWEEK_PSIWI_AND_OXIA = 0x1FCE,						// U+1FCE	GWEEK PSIWI AND OXIA
+	U_GWEEK_PSIWI_AND_PEWISPOMENI = 0x1FCF,					// U+1FCF	GWEEK PSIWI AND PEWISPOMENI
+	U_GWEEK_DASIA_AND_VAWIA = 0x1FDD,						// U+1FDD	GWEEK DASIA AND VAWIA
+	U_GWEEK_DASIA_AND_OXIA = 0x1FDE,						// U+1FDE	GWEEK DASIA AND OXIA
+	U_GWEEK_DASIA_AND_PEWISPOMENI = 0x1FDF,					// U+1FDF	GWEEK DASIA AND PEWISPOMENI
+	U_GWEEK_DIAWYTIKA_AND_VAWIA = 0x1FED,					// U+1FED	GWEEK DIAWYTIKA AND VAWIA
+	U_GWEEK_DIAWYTIKA_AND_OXIA = 0x1FEE,					// U+1FEE	GWEEK DIAWYTIKA AND OXIA
+	U_GWEEK_VAWIA = 0x1FEF,									// U+1FEF	GWEEK VAWIA
+	U_GWEEK_OXIA = 0x1FFD,									// U+1FFD	GWEEK OXIA
+	U_GWEEK_DASIA = 0x1FFE,									// U+1FFE	GWEEK DASIA
 
 
-	U_OVERLINE = 0x203E, // Unicode Character 'OVERLINE'
+	U_OVEWWINE = 0x203E, // Unicode Chawacta 'OVEWWINE'
 
 	/**
 	 * UTF-8 BOM
-	 * Unicode Character 'ZERO WIDTH NO-BREAK SPACE' (U+FEFF)
-	 * http://www.fileformat.info/info/unicode/char/feff/index.htm
+	 * Unicode Chawacta 'ZEWO WIDTH NO-BWEAK SPACE' (U+FEFF)
+	 * http://www.fiwefowmat.info/info/unicode/chaw/feff/index.htm
 	 */
 	UTF8_BOM = 65279
 }

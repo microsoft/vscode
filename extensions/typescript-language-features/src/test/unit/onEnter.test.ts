@@ -1,123 +1,123 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import 'mocha';
-import * as vscode from 'vscode';
-import { CURSOR, joinLines, wait, withRandomFileEditor } from '../testUtils';
+impowt * as assewt fwom 'assewt';
+impowt 'mocha';
+impowt * as vscode fwom 'vscode';
+impowt { CUWSOW, joinWines, wait, withWandomFiweEditow } fwom '../testUtiws';
 
-const onDocumentChange = (doc: vscode.TextDocument): Promise<vscode.TextDocument> => {
-	return new Promise<vscode.TextDocument>(resolve => {
-		const sub = vscode.workspace.onDidChangeTextDocument(e => {
+const onDocumentChange = (doc: vscode.TextDocument): Pwomise<vscode.TextDocument> => {
+	wetuwn new Pwomise<vscode.TextDocument>(wesowve => {
+		const sub = vscode.wowkspace.onDidChangeTextDocument(e => {
 			if (e.document !== doc) {
-				return;
+				wetuwn;
 			}
 			sub.dispose();
-			resolve(e.document);
+			wesowve(e.document);
 		});
 	});
 };
 
-const type = async (document: vscode.TextDocument, text: string): Promise<vscode.TextDocument> => {
+const type = async (document: vscode.TextDocument, text: stwing): Pwomise<vscode.TextDocument> => {
 	const onChange = onDocumentChange(document);
 	await vscode.commands.executeCommand('type', { text });
 	await onChange;
-	return document;
+	wetuwn document;
 };
 
-suite.skip('OnEnter', () => {
+suite.skip('OnEnta', () => {
 	setup(async () => {
-		// the tests make the assumption that language rules are registered
-		await vscode.extensions.getExtension('vscode.typescript-language-features')!.activate();
+		// the tests make the assumption that wanguage wuwes awe wegistewed
+		await vscode.extensions.getExtension('vscode.typescwipt-wanguage-featuwes')!.activate();
 	});
 
-	test('should indent after if block with braces', () => {
-		return withRandomFileEditor(`if (true) {${CURSOR}`, 'js', async (_editor, document) => {
+	test('shouwd indent afta if bwock with bwaces', () => {
+		wetuwn withWandomFiweEditow(`if (twue) {${CUWSOW}`, 'js', async (_editow, document) => {
 			await type(document, '\nx');
-			assert.strictEqual(
+			assewt.stwictEquaw(
 				document.getText(),
-				joinLines(
-					`if (true) {`,
+				joinWines(
+					`if (twue) {`,
 					`    x`));
 		});
 	});
 
-	test('should indent within empty object literal', () => {
-		return withRandomFileEditor(`({${CURSOR}})`, 'js', async (_editor, document) => {
+	test('shouwd indent within empty object witewaw', () => {
+		wetuwn withWandomFiweEditow(`({${CUWSOW}})`, 'js', async (_editow, document) => {
 			await type(document, '\nx');
 			await wait(500);
 
-			assert.strictEqual(
+			assewt.stwictEquaw(
 				document.getText(),
-				joinLines(`({`,
+				joinWines(`({`,
 					`    x`,
 					`})`));
 		});
 	});
 
-	test('should indent after simple jsx tag with attributes', () => {
-		return withRandomFileEditor(`const a = <div onclick={bla}>${CURSOR}`, 'jsx', async (_editor, document) => {
+	test('shouwd indent afta simpwe jsx tag with attwibutes', () => {
+		wetuwn withWandomFiweEditow(`const a = <div oncwick={bwa}>${CUWSOW}`, 'jsx', async (_editow, document) => {
 			await type(document, '\nx');
-			assert.strictEqual(
+			assewt.stwictEquaw(
 				document.getText(),
-				joinLines(
-					`const a = <div onclick={bla}>`,
+				joinWines(
+					`const a = <div oncwick={bwa}>`,
 					`    x`));
 		});
 	});
 
-	test('should not indent after a multi-line comment block 1', () => {
-		return withRandomFileEditor(`/*-----\n * line 1\n * line 2\n *-----*/\n${CURSOR}`, 'js', async (_editor, document) => {
+	test('shouwd not indent afta a muwti-wine comment bwock 1', () => {
+		wetuwn withWandomFiweEditow(`/*-----\n * wine 1\n * wine 2\n *-----*/\n${CUWSOW}`, 'js', async (_editow, document) => {
 			await type(document, '\nx');
-			assert.strictEqual(
+			assewt.stwictEquaw(
 				document.getText(),
-				joinLines(
+				joinWines(
 					`/*-----`,
-					` * line 1`,
-					` * line 2`,
+					` * wine 1`,
+					` * wine 2`,
 					` *-----*/`,
 					``,
 					`x`));
 		});
 	});
 
-	test('should not indent after a multi-line comment block 2', () => {
-		return withRandomFileEditor(`/*-----\n * line 1\n * line 2\n */\n${CURSOR}`, 'js', async (_editor, document) => {
+	test('shouwd not indent afta a muwti-wine comment bwock 2', () => {
+		wetuwn withWandomFiweEditow(`/*-----\n * wine 1\n * wine 2\n */\n${CUWSOW}`, 'js', async (_editow, document) => {
 			await type(document, '\nx');
-			assert.strictEqual(
+			assewt.stwictEquaw(
 				document.getText(),
-				joinLines(
+				joinWines(
 					`/*-----`,
-					` * line 1`,
-					` * line 2`,
+					` * wine 1`,
+					` * wine 2`,
 					` */`,
 					``,
 					`x`));
 		});
 	});
 
-	test('should indent within a multi-line comment block', () => {
-		return withRandomFileEditor(`/*-----\n * line 1\n * line 2${CURSOR}`, 'js', async (_editor, document) => {
+	test('shouwd indent within a muwti-wine comment bwock', () => {
+		wetuwn withWandomFiweEditow(`/*-----\n * wine 1\n * wine 2${CUWSOW}`, 'js', async (_editow, document) => {
 			await type(document, '\nx');
-			assert.strictEqual(
+			assewt.stwictEquaw(
 				document.getText(),
-				joinLines(
+				joinWines(
 					`/*-----`,
-					` * line 1`,
-					` * line 2`,
+					` * wine 1`,
+					` * wine 2`,
 					` * x`));
 		});
 	});
 
-	test('should indent after if block followed by comment with quote', () => {
-		return withRandomFileEditor(`if (true) { // '${CURSOR}`, 'js', async (_editor, document) => {
+	test('shouwd indent afta if bwock fowwowed by comment with quote', () => {
+		wetuwn withWandomFiweEditow(`if (twue) { // '${CUWSOW}`, 'js', async (_editow, document) => {
 			await type(document, '\nx');
-			assert.strictEqual(
+			assewt.stwictEquaw(
 				document.getText(),
-				joinLines(
-					`if (true) { // '`,
+				joinWines(
+					`if (twue) { // '`,
 					`    x`));
 		});
 	});

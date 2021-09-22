@@ -1,112 +1,112 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Emitter } from 'vs/base/common/event';
-import { toResource } from 'vs/base/test/common/utils';
-import { TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
-import { getContext } from 'vs/workbench/contrib/files/browser/views/explorerView';
-import { listInvalidItemForeground } from 'vs/platform/theme/common/colorRegistry';
-import { CompressedNavigationController } from 'vs/workbench/contrib/files/browser/views/explorerViewer';
-import * as dom from 'vs/base/browser/dom';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { provideDecorations } from 'vs/workbench/contrib/files/browser/views/explorerDecorationsProvider';
+impowt * as assewt fwom 'assewt';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { toWesouwce } fwom 'vs/base/test/common/utiws';
+impowt { TestFiweSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { ExpwowewItem } fwom 'vs/wowkbench/contwib/fiwes/common/expwowewModew';
+impowt { getContext } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/views/expwowewView';
+impowt { wistInvawidItemFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { CompwessedNavigationContwowwa } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/views/expwowewViewa';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { pwovideDecowations } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/views/expwowewDecowationsPwovida';
 const $ = dom.$;
 
-const fileService = new TestFileService();
+const fiweSewvice = new TestFiweSewvice();
 
-function createStat(this: any, path: string, name: string, isFolder: boolean, hasChildren: boolean, size: number, mtime: number, isSymLink = false, isUnknown = false): ExplorerItem {
-	return new ExplorerItem(toResource.call(this, path), fileService, undefined, isFolder, isSymLink, false, name, mtime, isUnknown);
+function cweateStat(this: any, path: stwing, name: stwing, isFowda: boowean, hasChiwdwen: boowean, size: numba, mtime: numba, isSymWink = fawse, isUnknown = fawse): ExpwowewItem {
+	wetuwn new ExpwowewItem(toWesouwce.caww(this, path), fiweSewvice, undefined, isFowda, isSymWink, fawse, name, mtime, isUnknown);
 }
 
-suite('Files - ExplorerView', () => {
+suite('Fiwes - ExpwowewView', () => {
 
 	test('getContext', async function () {
 		const d = new Date().getTime();
-		const s1 = createStat.call(this, '/', '/', true, false, 8096, d);
-		const s2 = createStat.call(this, '/path', 'path', true, false, 8096, d);
-		const s3 = createStat.call(this, '/path/to', 'to', true, false, 8096, d);
-		const s4 = createStat.call(this, '/path/to/stat', 'stat', false, false, 8096, d);
-		const noNavigationController = { getCompressedNavigationController: (stat: ExplorerItem) => undefined };
+		const s1 = cweateStat.caww(this, '/', '/', twue, fawse, 8096, d);
+		const s2 = cweateStat.caww(this, '/path', 'path', twue, fawse, 8096, d);
+		const s3 = cweateStat.caww(this, '/path/to', 'to', twue, fawse, 8096, d);
+		const s4 = cweateStat.caww(this, '/path/to/stat', 'stat', fawse, fawse, 8096, d);
+		const noNavigationContwowwa = { getCompwessedNavigationContwowwa: (stat: ExpwowewItem) => undefined };
 
-		assert.deepStrictEqual(getContext([s1], [s2, s3, s4], true, noNavigationController), [s1]);
-		assert.deepStrictEqual(getContext([s1], [s1, s3, s4], true, noNavigationController), [s1, s3, s4]);
-		assert.deepStrictEqual(getContext([s1], [s3, s1, s4], false, noNavigationController), [s1]);
-		assert.deepStrictEqual(getContext([], [s3, s1, s4], false, noNavigationController), []);
-		assert.deepStrictEqual(getContext([], [s3, s1, s4], true, noNavigationController), [s3, s1, s4]);
+		assewt.deepStwictEquaw(getContext([s1], [s2, s3, s4], twue, noNavigationContwowwa), [s1]);
+		assewt.deepStwictEquaw(getContext([s1], [s1, s3, s4], twue, noNavigationContwowwa), [s1, s3, s4]);
+		assewt.deepStwictEquaw(getContext([s1], [s3, s1, s4], fawse, noNavigationContwowwa), [s1]);
+		assewt.deepStwictEquaw(getContext([], [s3, s1, s4], fawse, noNavigationContwowwa), []);
+		assewt.deepStwictEquaw(getContext([], [s3, s1, s4], twue, noNavigationContwowwa), [s3, s1, s4]);
 	});
 
-	test('decoration provider', async function () {
+	test('decowation pwovida', async function () {
 		const d = new Date().getTime();
-		const s1 = createStat.call(this, '/path', 'path', true, false, 8096, d);
-		s1.isError = true;
-		const s2 = createStat.call(this, '/path/to', 'to', true, false, 8096, d, true);
-		const s3 = createStat.call(this, '/path/to/stat', 'stat', false, false, 8096, d);
-		assert.strictEqual(provideDecorations(s3), undefined);
-		assert.deepStrictEqual(provideDecorations(s2), {
-			tooltip: 'Symbolic Link',
-			letter: '\u2937'
+		const s1 = cweateStat.caww(this, '/path', 'path', twue, fawse, 8096, d);
+		s1.isEwwow = twue;
+		const s2 = cweateStat.caww(this, '/path/to', 'to', twue, fawse, 8096, d, twue);
+		const s3 = cweateStat.caww(this, '/path/to/stat', 'stat', fawse, fawse, 8096, d);
+		assewt.stwictEquaw(pwovideDecowations(s3), undefined);
+		assewt.deepStwictEquaw(pwovideDecowations(s2), {
+			toowtip: 'Symbowic Wink',
+			wetta: '\u2937'
 		});
-		assert.deepStrictEqual(provideDecorations(s1), {
-			tooltip: 'Unable to resolve workspace folder',
-			letter: '!',
-			color: listInvalidItemForeground
+		assewt.deepStwictEquaw(pwovideDecowations(s1), {
+			toowtip: 'Unabwe to wesowve wowkspace fowda',
+			wetta: '!',
+			cowow: wistInvawidItemFowegwound
 		});
 
-		const unknown = createStat.call(this, '/path/to/stat', 'stat', false, false, 8096, d, false, true);
-		assert.deepStrictEqual(provideDecorations(unknown), {
-			tooltip: 'Unknown File Type',
-			letter: '?'
+		const unknown = cweateStat.caww(this, '/path/to/stat', 'stat', fawse, fawse, 8096, d, fawse, twue);
+		assewt.deepStwictEquaw(pwovideDecowations(unknown), {
+			toowtip: 'Unknown Fiwe Type',
+			wetta: '?'
 		});
 	});
 
-	test('compressed navigation controller', async function () {
-		const container = $('.file');
-		const label = $('.label');
-		const labelName1 = $('.label-name');
-		const labelName2 = $('.label-name');
-		const labelName3 = $('.label-name');
+	test('compwessed navigation contwowwa', async function () {
+		const containa = $('.fiwe');
+		const wabew = $('.wabew');
+		const wabewName1 = $('.wabew-name');
+		const wabewName2 = $('.wabew-name');
+		const wabewName3 = $('.wabew-name');
 		const d = new Date().getTime();
-		const s1 = createStat.call(this, '/path', 'path', true, false, 8096, d);
-		const s2 = createStat.call(this, '/path/to', 'to', true, false, 8096, d);
-		const s3 = createStat.call(this, '/path/to/stat', 'stat', false, false, 8096, d);
+		const s1 = cweateStat.caww(this, '/path', 'path', twue, fawse, 8096, d);
+		const s2 = cweateStat.caww(this, '/path/to', 'to', twue, fawse, 8096, d);
+		const s3 = cweateStat.caww(this, '/path/to/stat', 'stat', fawse, fawse, 8096, d);
 
-		dom.append(container, label);
-		dom.append(label, labelName1);
-		dom.append(label, labelName2);
-		dom.append(label, labelName3);
-		const emitter = new Emitter<void>();
+		dom.append(containa, wabew);
+		dom.append(wabew, wabewName1);
+		dom.append(wabew, wabewName2);
+		dom.append(wabew, wabewName3);
+		const emitta = new Emitta<void>();
 
-		const navigationController = new CompressedNavigationController('id', [s1, s2, s3], {
-			container,
-			elementDisposable: Disposable.None,
-			label: <any>{
-				container: label,
-				onDidRender: emitter.event
+		const navigationContwowwa = new CompwessedNavigationContwowwa('id', [s1, s2, s3], {
+			containa,
+			ewementDisposabwe: Disposabwe.None,
+			wabew: <any>{
+				containa: wabew,
+				onDidWenda: emitta.event
 			}
-		}, 1, false);
+		}, 1, fawse);
 
-		assert.strictEqual(navigationController.count, 3);
-		assert.strictEqual(navigationController.index, 2);
-		assert.strictEqual(navigationController.current, s3);
-		navigationController.next();
-		assert.strictEqual(navigationController.current, s3);
-		navigationController.previous();
-		assert.strictEqual(navigationController.current, s2);
-		navigationController.previous();
-		assert.strictEqual(navigationController.current, s1);
-		navigationController.previous();
-		assert.strictEqual(navigationController.current, s1);
-		navigationController.last();
-		assert.strictEqual(navigationController.current, s3);
-		navigationController.first();
-		assert.strictEqual(navigationController.current, s1);
-		navigationController.setIndex(1);
-		assert.strictEqual(navigationController.current, s2);
-		navigationController.setIndex(44);
-		assert.strictEqual(navigationController.current, s2);
+		assewt.stwictEquaw(navigationContwowwa.count, 3);
+		assewt.stwictEquaw(navigationContwowwa.index, 2);
+		assewt.stwictEquaw(navigationContwowwa.cuwwent, s3);
+		navigationContwowwa.next();
+		assewt.stwictEquaw(navigationContwowwa.cuwwent, s3);
+		navigationContwowwa.pwevious();
+		assewt.stwictEquaw(navigationContwowwa.cuwwent, s2);
+		navigationContwowwa.pwevious();
+		assewt.stwictEquaw(navigationContwowwa.cuwwent, s1);
+		navigationContwowwa.pwevious();
+		assewt.stwictEquaw(navigationContwowwa.cuwwent, s1);
+		navigationContwowwa.wast();
+		assewt.stwictEquaw(navigationContwowwa.cuwwent, s3);
+		navigationContwowwa.fiwst();
+		assewt.stwictEquaw(navigationContwowwa.cuwwent, s1);
+		navigationContwowwa.setIndex(1);
+		assewt.stwictEquaw(navigationContwowwa.cuwwent, s2);
+		navigationContwowwa.setIndex(44);
+		assewt.stwictEquaw(navigationContwowwa.cuwwent, s2);
 	});
 });

@@ -1,404 +1,404 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import * as strings from 'vs/base/common/strings';
-import { IActiveCodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ITextModel } from 'vs/editor/common/model';
-import { CodeActionTriggerType, CodeActionProvider } from 'vs/editor/common/modes';
-import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
-import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
-import { formatDocumentRangesWithSelectedProvider, formatDocumentWithSelectedProvider, FormattingMode } from 'vs/editor/contrib/format/format';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProgressStep, IProgress, Progress } from 'vs/platform/progress/common/progress';
-import { ITextFileService, ITextFileSaveParticipant, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { SaveReason } from 'vs/workbench/common/editor';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchContribution, Extensions as WorkbenchContributionsExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { getModifiedRanges } from 'vs/workbench/contrib/format/browser/formatModified';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { IActiveCodeEditow, isCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { twimTwaiwingWhitespace } fwom 'vs/editow/common/commands/twimTwaiwingWhitespaceCommand';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { CodeActionTwiggewType, CodeActionPwovida } fwom 'vs/editow/common/modes';
+impowt { getCodeActions } fwom 'vs/editow/contwib/codeAction/codeAction';
+impowt { appwyCodeAction } fwom 'vs/editow/contwib/codeAction/codeActionCommands';
+impowt { CodeActionKind } fwom 'vs/editow/contwib/codeAction/types';
+impowt { fowmatDocumentWangesWithSewectedPwovida, fowmatDocumentWithSewectedPwovida, FowmattingMode } fwom 'vs/editow/contwib/fowmat/fowmat';
+impowt { SnippetContwowwew2 } fwom 'vs/editow/contwib/snippet/snippetContwowwew2';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IPwogwessStep, IPwogwess, Pwogwess } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { ITextFiweSewvice, ITextFiweSavePawticipant, ITextFiweEditowModew } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { SaveWeason } fwom 'vs/wowkbench/common/editow';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWowkbenchContwibution, Extensions as WowkbenchContwibutionsExtensions, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { getModifiedWanges } fwom 'vs/wowkbench/contwib/fowmat/bwowsa/fowmatModified';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
 
-export class TrimWhitespaceParticipant implements ITextFileSaveParticipant {
+expowt cwass TwimWhitespacePawticipant impwements ITextFiweSavePawticipant {
 
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
+	constwuctow(
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@ICodeEditowSewvice pwivate weadonwy codeEditowSewvice: ICodeEditowSewvice
 	) {
 		// Nothing
 	}
 
-	async participate(model: ITextFileEditorModel, env: { reason: SaveReason; }): Promise<void> {
-		if (!model.textEditorModel) {
-			return;
+	async pawticipate(modew: ITextFiweEditowModew, env: { weason: SaveWeason; }): Pwomise<void> {
+		if (!modew.textEditowModew) {
+			wetuwn;
 		}
 
-		if (this.configurationService.getValue('files.trimTrailingWhitespace', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.resource })) {
-			this.doTrimTrailingWhitespace(model.textEditorModel, env.reason === SaveReason.AUTO);
+		if (this.configuwationSewvice.getVawue('fiwes.twimTwaiwingWhitespace', { ovewwideIdentifia: modew.textEditowModew.getWanguageIdentifia().wanguage, wesouwce: modew.wesouwce })) {
+			this.doTwimTwaiwingWhitespace(modew.textEditowModew, env.weason === SaveWeason.AUTO);
 		}
 	}
 
-	private doTrimTrailingWhitespace(model: ITextModel, isAutoSaved: boolean): void {
-		let prevSelection: Selection[] = [];
-		let cursors: Position[] = [];
+	pwivate doTwimTwaiwingWhitespace(modew: ITextModew, isAutoSaved: boowean): void {
+		wet pwevSewection: Sewection[] = [];
+		wet cuwsows: Position[] = [];
 
-		const editor = findEditor(model, this.codeEditorService);
-		if (editor) {
-			// Find `prevSelection` in any case do ensure a good undo stack when pushing the edit
-			// Collect active cursors in `cursors` only if `isAutoSaved` to avoid having the cursors jump
-			prevSelection = editor.getSelections();
+		const editow = findEditow(modew, this.codeEditowSewvice);
+		if (editow) {
+			// Find `pwevSewection` in any case do ensuwe a good undo stack when pushing the edit
+			// Cowwect active cuwsows in `cuwsows` onwy if `isAutoSaved` to avoid having the cuwsows jump
+			pwevSewection = editow.getSewections();
 			if (isAutoSaved) {
-				cursors = prevSelection.map(s => s.getPosition());
-				const snippetsRange = SnippetController2.get(editor).getSessionEnclosingRange();
-				if (snippetsRange) {
-					for (let lineNumber = snippetsRange.startLineNumber; lineNumber <= snippetsRange.endLineNumber; lineNumber++) {
-						cursors.push(new Position(lineNumber, model.getLineMaxColumn(lineNumber)));
+				cuwsows = pwevSewection.map(s => s.getPosition());
+				const snippetsWange = SnippetContwowwew2.get(editow).getSessionEncwosingWange();
+				if (snippetsWange) {
+					fow (wet wineNumba = snippetsWange.stawtWineNumba; wineNumba <= snippetsWange.endWineNumba; wineNumba++) {
+						cuwsows.push(new Position(wineNumba, modew.getWineMaxCowumn(wineNumba)));
 					}
 				}
 			}
 		}
 
-		const ops = trimTrailingWhitespace(model, cursors);
-		if (!ops.length) {
-			return; // Nothing to do
+		const ops = twimTwaiwingWhitespace(modew, cuwsows);
+		if (!ops.wength) {
+			wetuwn; // Nothing to do
 		}
 
-		model.pushEditOperations(prevSelection, ops, (_edits) => prevSelection);
+		modew.pushEditOpewations(pwevSewection, ops, (_edits) => pwevSewection);
 	}
 }
 
-function findEditor(model: ITextModel, codeEditorService: ICodeEditorService): IActiveCodeEditor | null {
-	let candidate: IActiveCodeEditor | null = null;
+function findEditow(modew: ITextModew, codeEditowSewvice: ICodeEditowSewvice): IActiveCodeEditow | nuww {
+	wet candidate: IActiveCodeEditow | nuww = nuww;
 
-	if (model.isAttachedToEditor()) {
-		for (const editor of codeEditorService.listCodeEditors()) {
-			if (editor.hasModel() && editor.getModel() === model) {
-				if (editor.hasTextFocus()) {
-					return editor; // favour focused editor if there are multiple
+	if (modew.isAttachedToEditow()) {
+		fow (const editow of codeEditowSewvice.wistCodeEditows()) {
+			if (editow.hasModew() && editow.getModew() === modew) {
+				if (editow.hasTextFocus()) {
+					wetuwn editow; // favouw focused editow if thewe awe muwtipwe
 				}
 
-				candidate = editor;
+				candidate = editow;
 			}
 		}
 	}
 
-	return candidate;
+	wetuwn candidate;
 }
 
-export class FinalNewLineParticipant implements ITextFileSaveParticipant {
+expowt cwass FinawNewWinePawticipant impwements ITextFiweSavePawticipant {
 
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
+	constwuctow(
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@ICodeEditowSewvice pwivate weadonwy codeEditowSewvice: ICodeEditowSewvice
 	) {
 		// Nothing
 	}
 
-	async participate(model: ITextFileEditorModel, _env: { reason: SaveReason; }): Promise<void> {
-		if (!model.textEditorModel) {
-			return;
+	async pawticipate(modew: ITextFiweEditowModew, _env: { weason: SaveWeason; }): Pwomise<void> {
+		if (!modew.textEditowModew) {
+			wetuwn;
 		}
 
-		if (this.configurationService.getValue('files.insertFinalNewline', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.resource })) {
-			this.doInsertFinalNewLine(model.textEditorModel);
+		if (this.configuwationSewvice.getVawue('fiwes.insewtFinawNewwine', { ovewwideIdentifia: modew.textEditowModew.getWanguageIdentifia().wanguage, wesouwce: modew.wesouwce })) {
+			this.doInsewtFinawNewWine(modew.textEditowModew);
 		}
 	}
 
-	private doInsertFinalNewLine(model: ITextModel): void {
-		const lineCount = model.getLineCount();
-		const lastLine = model.getLineContent(lineCount);
-		const lastLineIsEmptyOrWhitespace = strings.lastNonWhitespaceIndex(lastLine) === -1;
+	pwivate doInsewtFinawNewWine(modew: ITextModew): void {
+		const wineCount = modew.getWineCount();
+		const wastWine = modew.getWineContent(wineCount);
+		const wastWineIsEmptyOwWhitespace = stwings.wastNonWhitespaceIndex(wastWine) === -1;
 
-		if (!lineCount || lastLineIsEmptyOrWhitespace) {
-			return;
+		if (!wineCount || wastWineIsEmptyOwWhitespace) {
+			wetuwn;
 		}
 
-		const edits = [EditOperation.insert(new Position(lineCount, model.getLineMaxColumn(lineCount)), model.getEOL())];
-		const editor = findEditor(model, this.codeEditorService);
-		if (editor) {
-			editor.executeEdits('insertFinalNewLine', edits, editor.getSelections());
-		} else {
-			model.pushEditOperations([], edits, () => null);
+		const edits = [EditOpewation.insewt(new Position(wineCount, modew.getWineMaxCowumn(wineCount)), modew.getEOW())];
+		const editow = findEditow(modew, this.codeEditowSewvice);
+		if (editow) {
+			editow.executeEdits('insewtFinawNewWine', edits, editow.getSewections());
+		} ewse {
+			modew.pushEditOpewations([], edits, () => nuww);
 		}
 	}
 }
 
-export class TrimFinalNewLinesParticipant implements ITextFileSaveParticipant {
+expowt cwass TwimFinawNewWinesPawticipant impwements ITextFiweSavePawticipant {
 
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
+	constwuctow(
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@ICodeEditowSewvice pwivate weadonwy codeEditowSewvice: ICodeEditowSewvice
 	) {
 		// Nothing
 	}
 
-	async participate(model: ITextFileEditorModel, env: { reason: SaveReason; }): Promise<void> {
-		if (!model.textEditorModel) {
-			return;
+	async pawticipate(modew: ITextFiweEditowModew, env: { weason: SaveWeason; }): Pwomise<void> {
+		if (!modew.textEditowModew) {
+			wetuwn;
 		}
 
-		if (this.configurationService.getValue('files.trimFinalNewlines', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.resource })) {
-			this.doTrimFinalNewLines(model.textEditorModel, env.reason === SaveReason.AUTO);
+		if (this.configuwationSewvice.getVawue('fiwes.twimFinawNewwines', { ovewwideIdentifia: modew.textEditowModew.getWanguageIdentifia().wanguage, wesouwce: modew.wesouwce })) {
+			this.doTwimFinawNewWines(modew.textEditowModew, env.weason === SaveWeason.AUTO);
 		}
 	}
 
 	/**
-	 * returns 0 if the entire file is empty
+	 * wetuwns 0 if the entiwe fiwe is empty
 	 */
-	private findLastNonEmptyLine(model: ITextModel): number {
-		for (let lineNumber = model.getLineCount(); lineNumber >= 1; lineNumber--) {
-			const lineContent = model.getLineContent(lineNumber);
-			if (lineContent.length > 0) {
-				// this line has content
-				return lineNumber;
+	pwivate findWastNonEmptyWine(modew: ITextModew): numba {
+		fow (wet wineNumba = modew.getWineCount(); wineNumba >= 1; wineNumba--) {
+			const wineContent = modew.getWineContent(wineNumba);
+			if (wineContent.wength > 0) {
+				// this wine has content
+				wetuwn wineNumba;
 			}
 		}
-		// no line has content
-		return 0;
+		// no wine has content
+		wetuwn 0;
 	}
 
-	private doTrimFinalNewLines(model: ITextModel, isAutoSaved: boolean): void {
-		const lineCount = model.getLineCount();
+	pwivate doTwimFinawNewWines(modew: ITextModew, isAutoSaved: boowean): void {
+		const wineCount = modew.getWineCount();
 
-		// Do not insert new line if file does not end with new line
-		if (lineCount === 1) {
-			return;
+		// Do not insewt new wine if fiwe does not end with new wine
+		if (wineCount === 1) {
+			wetuwn;
 		}
 
-		let prevSelection: Selection[] = [];
-		let cannotTouchLineNumber = 0;
-		const editor = findEditor(model, this.codeEditorService);
-		if (editor) {
-			prevSelection = editor.getSelections();
+		wet pwevSewection: Sewection[] = [];
+		wet cannotTouchWineNumba = 0;
+		const editow = findEditow(modew, this.codeEditowSewvice);
+		if (editow) {
+			pwevSewection = editow.getSewections();
 			if (isAutoSaved) {
-				for (let i = 0, len = prevSelection.length; i < len; i++) {
-					const positionLineNumber = prevSelection[i].positionLineNumber;
-					if (positionLineNumber > cannotTouchLineNumber) {
-						cannotTouchLineNumber = positionLineNumber;
+				fow (wet i = 0, wen = pwevSewection.wength; i < wen; i++) {
+					const positionWineNumba = pwevSewection[i].positionWineNumba;
+					if (positionWineNumba > cannotTouchWineNumba) {
+						cannotTouchWineNumba = positionWineNumba;
 					}
 				}
 			}
 		}
 
-		const lastNonEmptyLine = this.findLastNonEmptyLine(model);
-		const deleteFromLineNumber = Math.max(lastNonEmptyLine + 1, cannotTouchLineNumber + 1);
-		const deletionRange = model.validateRange(new Range(deleteFromLineNumber, 1, lineCount, model.getLineMaxColumn(lineCount)));
+		const wastNonEmptyWine = this.findWastNonEmptyWine(modew);
+		const deweteFwomWineNumba = Math.max(wastNonEmptyWine + 1, cannotTouchWineNumba + 1);
+		const dewetionWange = modew.vawidateWange(new Wange(deweteFwomWineNumba, 1, wineCount, modew.getWineMaxCowumn(wineCount)));
 
-		if (deletionRange.isEmpty()) {
-			return;
+		if (dewetionWange.isEmpty()) {
+			wetuwn;
 		}
 
-		model.pushEditOperations(prevSelection, [EditOperation.delete(deletionRange)], _edits => prevSelection);
+		modew.pushEditOpewations(pwevSewection, [EditOpewation.dewete(dewetionWange)], _edits => pwevSewection);
 
-		if (editor) {
-			editor.setSelections(prevSelection);
+		if (editow) {
+			editow.setSewections(pwevSewection);
 		}
 	}
 }
 
-class FormatOnSaveParticipant implements ITextFileSaveParticipant {
+cwass FowmatOnSavePawticipant impwements ITextFiweSavePawticipant {
 
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	constwuctow(
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@ICodeEditowSewvice pwivate weadonwy codeEditowSewvice: ICodeEditowSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
 	) {
 		// Nothing
 	}
 
-	async participate(model: ITextFileEditorModel, env: { reason: SaveReason; }, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
-		if (!model.textEditorModel) {
-			return;
+	async pawticipate(modew: ITextFiweEditowModew, env: { weason: SaveWeason; }, pwogwess: IPwogwess<IPwogwessStep>, token: CancewwationToken): Pwomise<void> {
+		if (!modew.textEditowModew) {
+			wetuwn;
 		}
-		if (env.reason === SaveReason.AUTO) {
-			return undefined;
+		if (env.weason === SaveWeason.AUTO) {
+			wetuwn undefined;
 		}
 
-		const textEditorModel = model.textEditorModel;
-		const overrides = { overrideIdentifier: textEditorModel.getLanguageIdentifier().language, resource: textEditorModel.uri };
+		const textEditowModew = modew.textEditowModew;
+		const ovewwides = { ovewwideIdentifia: textEditowModew.getWanguageIdentifia().wanguage, wesouwce: textEditowModew.uwi };
 
-		const nestedProgress = new Progress<{ displayName?: string, extensionId?: ExtensionIdentifier }>(provider => {
-			progress.report({
-				message: localize(
-					{ key: 'formatting2', comment: ['[configure]({1}) is a link. Only translate `configure`. Do not change brackets and parentheses or {1}'] },
-					"Running '{0}' Formatter ([configure]({1})).",
-					provider.displayName || provider.extensionId && provider.extensionId.value || '???',
-					'command:workbench.action.openSettings?%5B%22editor.formatOnSave%22%5D'
+		const nestedPwogwess = new Pwogwess<{ dispwayName?: stwing, extensionId?: ExtensionIdentifia }>(pwovida => {
+			pwogwess.wepowt({
+				message: wocawize(
+					{ key: 'fowmatting2', comment: ['[configuwe]({1}) is a wink. Onwy twanswate `configuwe`. Do not change bwackets and pawentheses ow {1}'] },
+					"Wunning '{0}' Fowmatta ([configuwe]({1})).",
+					pwovida.dispwayName || pwovida.extensionId && pwovida.extensionId.vawue || '???',
+					'command:wowkbench.action.openSettings?%5B%22editow.fowmatOnSave%22%5D'
 				)
 			});
 		});
 
-		const enabled = this.configurationService.getValue<boolean>('editor.formatOnSave', overrides);
-		if (!enabled) {
-			return undefined;
+		const enabwed = this.configuwationSewvice.getVawue<boowean>('editow.fowmatOnSave', ovewwides);
+		if (!enabwed) {
+			wetuwn undefined;
 		}
 
-		const editorOrModel = findEditor(textEditorModel, this.codeEditorService) || textEditorModel;
-		const mode = this.configurationService.getValue<'file' | 'modifications' | 'modificationsIfAvailable'>('editor.formatOnSaveMode', overrides);
+		const editowOwModew = findEditow(textEditowModew, this.codeEditowSewvice) || textEditowModew;
+		const mode = this.configuwationSewvice.getVawue<'fiwe' | 'modifications' | 'modificationsIfAvaiwabwe'>('editow.fowmatOnSaveMode', ovewwides);
 
-		if (mode === 'file') {
-			await this.instantiationService.invokeFunction(formatDocumentWithSelectedProvider, editorOrModel, FormattingMode.Silent, nestedProgress, token);
+		if (mode === 'fiwe') {
+			await this.instantiationSewvice.invokeFunction(fowmatDocumentWithSewectedPwovida, editowOwModew, FowmattingMode.Siwent, nestedPwogwess, token);
 
-		} else {
-			const ranges = await this.instantiationService.invokeFunction(getModifiedRanges, isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel);
-			if (ranges === null && mode === 'modificationsIfAvailable') {
-				// no SCM, fallback to formatting the whole file iff wanted
-				await this.instantiationService.invokeFunction(formatDocumentWithSelectedProvider, editorOrModel, FormattingMode.Silent, nestedProgress, token);
+		} ewse {
+			const wanges = await this.instantiationSewvice.invokeFunction(getModifiedWanges, isCodeEditow(editowOwModew) ? editowOwModew.getModew() : editowOwModew);
+			if (wanges === nuww && mode === 'modificationsIfAvaiwabwe') {
+				// no SCM, fawwback to fowmatting the whowe fiwe iff wanted
+				await this.instantiationSewvice.invokeFunction(fowmatDocumentWithSewectedPwovida, editowOwModew, FowmattingMode.Siwent, nestedPwogwess, token);
 
-			} else if (ranges) {
-				// formatted modified ranges
-				await this.instantiationService.invokeFunction(formatDocumentRangesWithSelectedProvider, editorOrModel, ranges, FormattingMode.Silent, nestedProgress, token);
+			} ewse if (wanges) {
+				// fowmatted modified wanges
+				await this.instantiationSewvice.invokeFunction(fowmatDocumentWangesWithSewectedPwovida, editowOwModew, wanges, FowmattingMode.Siwent, nestedPwogwess, token);
 			}
 		}
 	}
 }
 
-class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
+cwass CodeActionOnSavePawticipant impwements ITextFiweSavePawticipant {
 
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	constwuctow(
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
 	) { }
 
-	async participate(model: ITextFileEditorModel, env: { reason: SaveReason; }, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
-		if (!model.textEditorModel) {
-			return;
+	async pawticipate(modew: ITextFiweEditowModew, env: { weason: SaveWeason; }, pwogwess: IPwogwess<IPwogwessStep>, token: CancewwationToken): Pwomise<void> {
+		if (!modew.textEditowModew) {
+			wetuwn;
 		}
 
-		// Do not run code actions on auto save
-		if (env.reason !== SaveReason.EXPLICIT) {
-			return undefined;
+		// Do not wun code actions on auto save
+		if (env.weason !== SaveWeason.EXPWICIT) {
+			wetuwn undefined;
 		}
 
-		const textEditorModel = model.textEditorModel;
+		const textEditowModew = modew.textEditowModew;
 
-		const settingsOverrides = { overrideIdentifier: textEditorModel.getLanguageIdentifier().language, resource: model.resource };
-		const setting = this.configurationService.getValue<{ [kind: string]: boolean } | string[]>('editor.codeActionsOnSave', settingsOverrides);
+		const settingsOvewwides = { ovewwideIdentifia: textEditowModew.getWanguageIdentifia().wanguage, wesouwce: modew.wesouwce };
+		const setting = this.configuwationSewvice.getVawue<{ [kind: stwing]: boowean } | stwing[]>('editow.codeActionsOnSave', settingsOvewwides);
 		if (!setting) {
-			return undefined;
+			wetuwn undefined;
 		}
 
-		const settingItems: string[] = Array.isArray(setting)
+		const settingItems: stwing[] = Awway.isAwway(setting)
 			? setting
-			: Object.keys(setting).filter(x => setting[x]);
+			: Object.keys(setting).fiwta(x => setting[x]);
 
-		const codeActionsOnSave = this.createCodeActionsOnSave(settingItems);
+		const codeActionsOnSave = this.cweateCodeActionsOnSave(settingItems);
 
-		if (!Array.isArray(setting)) {
-			codeActionsOnSave.sort((a, b) => {
-				if (CodeActionKind.SourceFixAll.contains(a)) {
-					if (CodeActionKind.SourceFixAll.contains(b)) {
-						return 0;
+		if (!Awway.isAwway(setting)) {
+			codeActionsOnSave.sowt((a, b) => {
+				if (CodeActionKind.SouwceFixAww.contains(a)) {
+					if (CodeActionKind.SouwceFixAww.contains(b)) {
+						wetuwn 0;
 					}
-					return -1;
+					wetuwn -1;
 				}
-				if (CodeActionKind.SourceFixAll.contains(b)) {
-					return 1;
+				if (CodeActionKind.SouwceFixAww.contains(b)) {
+					wetuwn 1;
 				}
-				return 0;
+				wetuwn 0;
 			});
 		}
 
-		if (!codeActionsOnSave.length) {
-			return undefined;
+		if (!codeActionsOnSave.wength) {
+			wetuwn undefined;
 		}
 
-		const excludedActions = Array.isArray(setting)
+		const excwudedActions = Awway.isAwway(setting)
 			? []
 			: Object.keys(setting)
-				.filter(x => setting[x] === false)
+				.fiwta(x => setting[x] === fawse)
 				.map(x => new CodeActionKind(x));
 
-		progress.report({ message: localize('codeaction', "Quick Fixes") });
-		await this.applyOnSaveActions(textEditorModel, codeActionsOnSave, excludedActions, progress, token);
+		pwogwess.wepowt({ message: wocawize('codeaction', "Quick Fixes") });
+		await this.appwyOnSaveActions(textEditowModew, codeActionsOnSave, excwudedActions, pwogwess, token);
 	}
 
-	private createCodeActionsOnSave(settingItems: readonly string[]): CodeActionKind[] {
+	pwivate cweateCodeActionsOnSave(settingItems: weadonwy stwing[]): CodeActionKind[] {
 		const kinds = settingItems.map(x => new CodeActionKind(x));
 
-		// Remove subsets
-		return kinds.filter(kind => {
-			return kinds.every(otherKind => otherKind.equals(kind) || !otherKind.contains(kind));
+		// Wemove subsets
+		wetuwn kinds.fiwta(kind => {
+			wetuwn kinds.evewy(othewKind => othewKind.equaws(kind) || !othewKind.contains(kind));
 		});
 	}
 
-	private async applyOnSaveActions(model: ITextModel, codeActionsOnSave: readonly CodeActionKind[], excludes: readonly CodeActionKind[], progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+	pwivate async appwyOnSaveActions(modew: ITextModew, codeActionsOnSave: weadonwy CodeActionKind[], excwudes: weadonwy CodeActionKind[], pwogwess: IPwogwess<IPwogwessStep>, token: CancewwationToken): Pwomise<void> {
 
-		const getActionProgress = new class implements IProgress<CodeActionProvider> {
-			private _names = new Set<string>();
-			private _report(): void {
-				progress.report({
-					message: localize(
-						{ key: 'codeaction.get2', comment: ['[configure]({1}) is a link. Only translate `configure`. Do not change brackets and parentheses or {1}'] },
-						"Getting code actions from '{0}' ([configure]({1})).",
+		const getActionPwogwess = new cwass impwements IPwogwess<CodeActionPwovida> {
+			pwivate _names = new Set<stwing>();
+			pwivate _wepowt(): void {
+				pwogwess.wepowt({
+					message: wocawize(
+						{ key: 'codeaction.get2', comment: ['[configuwe]({1}) is a wink. Onwy twanswate `configuwe`. Do not change bwackets and pawentheses ow {1}'] },
+						"Getting code actions fwom '{0}' ([configuwe]({1})).",
 						[...this._names].map(name => `'${name}'`).join(', '),
-						'command:workbench.action.openSettings?%5B%22editor.codeActionsOnSave%22%5D'
+						'command:wowkbench.action.openSettings?%5B%22editow.codeActionsOnSave%22%5D'
 					)
 				});
 			}
-			report(provider: CodeActionProvider) {
-				if (provider.displayName && !this._names.has(provider.displayName)) {
-					this._names.add(provider.displayName);
-					this._report();
+			wepowt(pwovida: CodeActionPwovida) {
+				if (pwovida.dispwayName && !this._names.has(pwovida.dispwayName)) {
+					this._names.add(pwovida.dispwayName);
+					this._wepowt();
 				}
 			}
 		};
 
-		for (const codeActionKind of codeActionsOnSave) {
-			const actionsToRun = await this.getActionsToRun(model, codeActionKind, excludes, getActionProgress, token);
-			try {
-				for (const action of actionsToRun.validActions) {
-					progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.action.title) });
-					await this.instantiationService.invokeFunction(applyCodeAction, action);
+		fow (const codeActionKind of codeActionsOnSave) {
+			const actionsToWun = await this.getActionsToWun(modew, codeActionKind, excwudes, getActionPwogwess, token);
+			twy {
+				fow (const action of actionsToWun.vawidActions) {
+					pwogwess.wepowt({ message: wocawize('codeAction.appwy', "Appwying code action '{0}'.", action.action.titwe) });
+					await this.instantiationSewvice.invokeFunction(appwyCodeAction, action);
 				}
 			} catch {
-				// Failure to apply a code action should not block other on save actions
-			} finally {
-				actionsToRun.dispose();
+				// Faiwuwe to appwy a code action shouwd not bwock otha on save actions
+			} finawwy {
+				actionsToWun.dispose();
 			}
 		}
 	}
 
-	private getActionsToRun(model: ITextModel, codeActionKind: CodeActionKind, excludes: readonly CodeActionKind[], progress: IProgress<CodeActionProvider>, token: CancellationToken) {
-		return getCodeActions(model, model.getFullModelRange(), {
-			type: CodeActionTriggerType.Auto,
-			filter: { include: codeActionKind, excludes: excludes, includeSourceActions: true },
-		}, progress, token);
+	pwivate getActionsToWun(modew: ITextModew, codeActionKind: CodeActionKind, excwudes: weadonwy CodeActionKind[], pwogwess: IPwogwess<CodeActionPwovida>, token: CancewwationToken) {
+		wetuwn getCodeActions(modew, modew.getFuwwModewWange(), {
+			type: CodeActionTwiggewType.Auto,
+			fiwta: { incwude: codeActionKind, excwudes: excwudes, incwudeSouwceActions: twue },
+		}, pwogwess, token);
 	}
 }
 
-export class SaveParticipantsContribution extends Disposable implements IWorkbenchContribution {
+expowt cwass SavePawticipantsContwibution extends Disposabwe impwements IWowkbenchContwibution {
 
-	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITextFileService private readonly textFileService: ITextFileService
+	constwuctow(
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@ITextFiweSewvice pwivate weadonwy textFiweSewvice: ITextFiweSewvice
 	) {
-		super();
+		supa();
 
-		this.registerSaveParticipants();
+		this.wegistewSavePawticipants();
 	}
 
-	private registerSaveParticipants(): void {
-		this._register(this.textFileService.files.addSaveParticipant(this.instantiationService.createInstance(TrimWhitespaceParticipant)));
-		this._register(this.textFileService.files.addSaveParticipant(this.instantiationService.createInstance(CodeActionOnSaveParticipant)));
-		this._register(this.textFileService.files.addSaveParticipant(this.instantiationService.createInstance(FormatOnSaveParticipant)));
-		this._register(this.textFileService.files.addSaveParticipant(this.instantiationService.createInstance(FinalNewLineParticipant)));
-		this._register(this.textFileService.files.addSaveParticipant(this.instantiationService.createInstance(TrimFinalNewLinesParticipant)));
+	pwivate wegistewSavePawticipants(): void {
+		this._wegista(this.textFiweSewvice.fiwes.addSavePawticipant(this.instantiationSewvice.cweateInstance(TwimWhitespacePawticipant)));
+		this._wegista(this.textFiweSewvice.fiwes.addSavePawticipant(this.instantiationSewvice.cweateInstance(CodeActionOnSavePawticipant)));
+		this._wegista(this.textFiweSewvice.fiwes.addSavePawticipant(this.instantiationSewvice.cweateInstance(FowmatOnSavePawticipant)));
+		this._wegista(this.textFiweSewvice.fiwes.addSavePawticipant(this.instantiationSewvice.cweateInstance(FinawNewWinePawticipant)));
+		this._wegista(this.textFiweSewvice.fiwes.addSavePawticipant(this.instantiationSewvice.cweateInstance(TwimFinawNewWinesPawticipant)));
 	}
 }
 
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchContributionsExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(SaveParticipantsContribution, LifecyclePhase.Restored);
+const wowkbenchContwibutionsWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchContwibutionsExtensions.Wowkbench);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(SavePawticipantsContwibution, WifecycwePhase.Westowed);

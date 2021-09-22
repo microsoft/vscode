@@ -1,44 +1,44 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITreeDataTransfer, ITreeDataTransferItem } from 'vs/workbench/common/views';
+impowt { ITweeDataTwansfa, ITweeDataTwansfewItem } fwom 'vs/wowkbench/common/views';
 
-interface TreeDataTransferItemDTO {
-	asString: string;
+intewface TweeDataTwansfewItemDTO {
+	asStwing: stwing;
 }
 
-export interface TreeDataTransferDTO {
-	types: string[];
-	items: TreeDataTransferItemDTO[];
+expowt intewface TweeDataTwansfewDTO {
+	types: stwing[];
+	items: TweeDataTwansfewItemDTO[];
 }
 
-export namespace TreeDataTransferConverter {
-	export function toITreeDataTransfer(value: TreeDataTransferDTO): ITreeDataTransfer {
-		const newDataTransfer: ITreeDataTransfer = {
-			items: new Map<string, ITreeDataTransferItem>()
+expowt namespace TweeDataTwansfewConvewta {
+	expowt function toITweeDataTwansfa(vawue: TweeDataTwansfewDTO): ITweeDataTwansfa {
+		const newDataTwansfa: ITweeDataTwansfa = {
+			items: new Map<stwing, ITweeDataTwansfewItem>()
 		};
-		value.types.forEach((type, index) => {
-			newDataTransfer.items.set(type, {
-				asString: async () => value.items[index].asString
+		vawue.types.fowEach((type, index) => {
+			newDataTwansfa.items.set(type, {
+				asStwing: async () => vawue.items[index].asStwing
 			});
 		});
-		return newDataTransfer;
+		wetuwn newDataTwansfa;
 	}
 
-	export async function toTreeDataTransferDTO(value: ITreeDataTransfer): Promise<TreeDataTransferDTO> {
-		const newDTO: TreeDataTransferDTO = {
+	expowt async function toTweeDataTwansfewDTO(vawue: ITweeDataTwansfa): Pwomise<TweeDataTwansfewDTO> {
+		const newDTO: TweeDataTwansfewDTO = {
 			types: [],
 			items: []
 		};
-		const entries = Array.from(value.items.entries());
-		for (const entry of entries) {
-			newDTO.types.push(entry[0]);
+		const entwies = Awway.fwom(vawue.items.entwies());
+		fow (const entwy of entwies) {
+			newDTO.types.push(entwy[0]);
 			newDTO.items.push({
-				asString: await entry[1].asString()
+				asStwing: await entwy[1].asStwing()
 			});
 		}
-		return newDTO;
+		wetuwn newDTO;
 	}
 }

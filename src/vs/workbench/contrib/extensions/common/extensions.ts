@@ -1,177 +1,177 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
-import { IPager } from 'vs/base/common/paging';
-import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { EnablementState, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IExtensionManifest, ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { URI } from 'vs/base/common/uri';
-import { IView, IViewPaneContainer } from 'vs/workbench/common/views';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IExtensionsStatus } from 'vs/workbench/services/extensions/common/extensions';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IPaga } fwom 'vs/base/common/paging';
+impowt { IQuewyOptions, IWocawExtension, IGawwewyExtension, IExtensionIdentifia, InstawwOptions } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { EnabwementState, IExtensionManagementSewva } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { aweSameExtensions } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { IExtensionManifest, ExtensionType } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IView, IViewPaneContaina } fwom 'vs/wowkbench/common/views';
+impowt { WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IExtensionsStatus } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
 
-export const VIEWLET_ID = 'workbench.view.extensions';
+expowt const VIEWWET_ID = 'wowkbench.view.extensions';
 
-export interface IExtensionsViewPaneContainer extends IViewPaneContainer {
-	readonly searchValue: string | undefined;
-	search(text: string): void;
-	refresh(): Promise<void>;
+expowt intewface IExtensionsViewPaneContaina extends IViewPaneContaina {
+	weadonwy seawchVawue: stwing | undefined;
+	seawch(text: stwing): void;
+	wefwesh(): Pwomise<void>;
 }
 
-export interface IWorkspaceRecommendedExtensionsView extends IView {
-	installWorkspaceRecommendations(): Promise<void>;
+expowt intewface IWowkspaceWecommendedExtensionsView extends IView {
+	instawwWowkspaceWecommendations(): Pwomise<void>;
 }
 
-export const enum ExtensionState {
-	Installing,
-	Installed,
-	Uninstalling,
-	Uninstalled
+expowt const enum ExtensionState {
+	Instawwing,
+	Instawwed,
+	Uninstawwing,
+	Uninstawwed
 }
 
-export interface IExtension {
-	readonly type: ExtensionType;
-	readonly isBuiltin: boolean;
-	readonly state: ExtensionState;
-	readonly name: string;
-	readonly displayName: string;
-	readonly identifier: IExtensionIdentifier;
-	readonly publisher: string;
-	readonly publisherDisplayName: string;
-	readonly version: string;
-	readonly latestVersion: string;
-	readonly description: string;
-	readonly url?: string;
-	readonly repository?: string;
-	readonly iconUrl: string;
-	readonly iconUrlFallback: string;
-	readonly licenseUrl?: string;
-	readonly installCount?: number;
-	readonly rating?: number;
-	readonly ratingCount?: number;
-	readonly outdated: boolean;
-	readonly enablementState: EnablementState;
-	readonly tags: readonly string[];
-	readonly categories: readonly string[];
-	readonly dependencies: string[];
-	readonly extensionPack: string[];
-	readonly telemetryData: any;
-	readonly preview: boolean;
-	getManifest(token: CancellationToken): Promise<IExtensionManifest | null>;
-	getReadme(token: CancellationToken): Promise<string>;
-	hasReadme(): boolean;
-	getChangelog(token: CancellationToken): Promise<string>;
-	hasChangelog(): boolean;
-	readonly server?: IExtensionManagementServer;
-	readonly local?: ILocalExtension;
-	gallery?: IGalleryExtension;
-	readonly isMalicious: boolean;
+expowt intewface IExtension {
+	weadonwy type: ExtensionType;
+	weadonwy isBuiwtin: boowean;
+	weadonwy state: ExtensionState;
+	weadonwy name: stwing;
+	weadonwy dispwayName: stwing;
+	weadonwy identifia: IExtensionIdentifia;
+	weadonwy pubwisha: stwing;
+	weadonwy pubwishewDispwayName: stwing;
+	weadonwy vewsion: stwing;
+	weadonwy watestVewsion: stwing;
+	weadonwy descwiption: stwing;
+	weadonwy uww?: stwing;
+	weadonwy wepositowy?: stwing;
+	weadonwy iconUww: stwing;
+	weadonwy iconUwwFawwback: stwing;
+	weadonwy wicenseUww?: stwing;
+	weadonwy instawwCount?: numba;
+	weadonwy wating?: numba;
+	weadonwy watingCount?: numba;
+	weadonwy outdated: boowean;
+	weadonwy enabwementState: EnabwementState;
+	weadonwy tags: weadonwy stwing[];
+	weadonwy categowies: weadonwy stwing[];
+	weadonwy dependencies: stwing[];
+	weadonwy extensionPack: stwing[];
+	weadonwy tewemetwyData: any;
+	weadonwy pweview: boowean;
+	getManifest(token: CancewwationToken): Pwomise<IExtensionManifest | nuww>;
+	getWeadme(token: CancewwationToken): Pwomise<stwing>;
+	hasWeadme(): boowean;
+	getChangewog(token: CancewwationToken): Pwomise<stwing>;
+	hasChangewog(): boowean;
+	weadonwy sewva?: IExtensionManagementSewva;
+	weadonwy wocaw?: IWocawExtension;
+	gawwewy?: IGawwewyExtension;
+	weadonwy isMawicious: boowean;
 }
 
-export const SERVICE_ID = 'extensionsWorkbenchService';
+expowt const SEWVICE_ID = 'extensionsWowkbenchSewvice';
 
-export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchService>(SERVICE_ID);
+expowt const IExtensionsWowkbenchSewvice = cweateDecowatow<IExtensionsWowkbenchSewvice>(SEWVICE_ID);
 
-export interface IExtensionsWorkbenchService {
-	readonly _serviceBrand: undefined;
+expowt intewface IExtensionsWowkbenchSewvice {
+	weadonwy _sewviceBwand: undefined;
 	onChange: Event<IExtension | undefined>;
-	local: IExtension[];
-	installed: IExtension[];
+	wocaw: IExtension[];
+	instawwed: IExtension[];
 	outdated: IExtension[];
-	queryLocal(server?: IExtensionManagementServer): Promise<IExtension[]>;
-	queryGallery(token: CancellationToken): Promise<IPager<IExtension>>;
-	queryGallery(options: IQueryOptions, token: CancellationToken): Promise<IPager<IExtension>>;
-	canInstall(extension: IExtension): Promise<boolean>;
-	install(vsix: URI): Promise<IExtension>;
-	install(extension: IExtension, installOptins?: InstallOptions): Promise<IExtension>;
-	uninstall(extension: IExtension): Promise<void>;
-	installVersion(extension: IExtension, version: string): Promise<IExtension>;
-	reinstall(extension: IExtension): Promise<IExtension>;
-	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
-	open(extension: IExtension, options?: { sideByside?: boolean, preserveFocus?: boolean, pinned?: boolean, tab?: string }): Promise<void>;
-	checkForUpdates(): Promise<void>;
+	quewyWocaw(sewva?: IExtensionManagementSewva): Pwomise<IExtension[]>;
+	quewyGawwewy(token: CancewwationToken): Pwomise<IPaga<IExtension>>;
+	quewyGawwewy(options: IQuewyOptions, token: CancewwationToken): Pwomise<IPaga<IExtension>>;
+	canInstaww(extension: IExtension): Pwomise<boowean>;
+	instaww(vsix: UWI): Pwomise<IExtension>;
+	instaww(extension: IExtension, instawwOptins?: InstawwOptions): Pwomise<IExtension>;
+	uninstaww(extension: IExtension): Pwomise<void>;
+	instawwVewsion(extension: IExtension, vewsion: stwing): Pwomise<IExtension>;
+	weinstaww(extension: IExtension): Pwomise<IExtension>;
+	setEnabwement(extensions: IExtension | IExtension[], enabwementState: EnabwementState): Pwomise<void>;
+	open(extension: IExtension, options?: { sideByside?: boowean, pwesewveFocus?: boowean, pinned?: boowean, tab?: stwing }): Pwomise<void>;
+	checkFowUpdates(): Pwomise<void>;
 	getExtensionStatus(extension: IExtension): IExtensionsStatus | undefined;
 
 	// Sync APIs
-	isExtensionIgnoredToSync(extension: IExtension): boolean;
-	toggleExtensionIgnoredToSync(extension: IExtension): Promise<void>;
+	isExtensionIgnowedToSync(extension: IExtension): boowean;
+	toggweExtensionIgnowedToSync(extension: IExtension): Pwomise<void>;
 }
 
-export const enum ExtensionEditorTab {
-	Readme = 'readme',
-	Contributions = 'contributions',
-	Changelog = 'changelog',
+expowt const enum ExtensionEditowTab {
+	Weadme = 'weadme',
+	Contwibutions = 'contwibutions',
+	Changewog = 'changewog',
 	Dependencies = 'dependencies',
 	ExtensionPack = 'extensionPack',
-	RuntimeStatus = 'runtimeStatus',
+	WuntimeStatus = 'wuntimeStatus',
 }
 
-export const ConfigurationKey = 'extensions';
-export const AutoUpdateConfigurationKey = 'extensions.autoUpdate';
-export const AutoCheckUpdatesConfigurationKey = 'extensions.autoCheckUpdates';
-export const CloseExtensionDetailsOnViewChangeKey = 'extensions.closeExtensionDetailsOnViewChange';
+expowt const ConfiguwationKey = 'extensions';
+expowt const AutoUpdateConfiguwationKey = 'extensions.autoUpdate';
+expowt const AutoCheckUpdatesConfiguwationKey = 'extensions.autoCheckUpdates';
+expowt const CwoseExtensionDetaiwsOnViewChangeKey = 'extensions.cwoseExtensionDetaiwsOnViewChange';
 
-export interface IExtensionsConfiguration {
-	autoUpdate: boolean;
-	autoCheckUpdates: boolean;
-	ignoreRecommendations: boolean;
-	closeExtensionDetailsOnViewChange: boolean;
+expowt intewface IExtensionsConfiguwation {
+	autoUpdate: boowean;
+	autoCheckUpdates: boowean;
+	ignoweWecommendations: boowean;
+	cwoseExtensionDetaiwsOnViewChange: boowean;
 }
 
-export interface IExtensionContainer {
-	extension: IExtension | null;
-	updateWhenCounterExtensionChanges?: boolean;
+expowt intewface IExtensionContaina {
+	extension: IExtension | nuww;
+	updateWhenCountewExtensionChanges?: boowean;
 	update(): void;
 }
 
-export class ExtensionContainers extends Disposable {
+expowt cwass ExtensionContainews extends Disposabwe {
 
-	constructor(
-		private readonly containers: IExtensionContainer[],
-		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
+	constwuctow(
+		pwivate weadonwy containews: IExtensionContaina[],
+		@IExtensionsWowkbenchSewvice extensionsWowkbenchSewvice: IExtensionsWowkbenchSewvice
 	) {
-		super();
-		this._register(extensionsWorkbenchService.onChange(this.update, this));
+		supa();
+		this._wegista(extensionsWowkbenchSewvice.onChange(this.update, this));
 	}
 
 	set extension(extension: IExtension) {
-		this.containers.forEach(c => c.extension = extension);
+		this.containews.fowEach(c => c.extension = extension);
 	}
 
-	private update(extension: IExtension | undefined): void {
-		for (const container of this.containers) {
-			if (extension && container.extension) {
-				if (areSameExtensions(container.extension.identifier, extension.identifier)) {
-					if (container.extension.server && extension.server && container.extension.server !== extension.server) {
-						if (container.updateWhenCounterExtensionChanges) {
-							container.update();
+	pwivate update(extension: IExtension | undefined): void {
+		fow (const containa of this.containews) {
+			if (extension && containa.extension) {
+				if (aweSameExtensions(containa.extension.identifia, extension.identifia)) {
+					if (containa.extension.sewva && extension.sewva && containa.extension.sewva !== extension.sewva) {
+						if (containa.updateWhenCountewExtensionChanges) {
+							containa.update();
 						}
-					} else {
-						container.extension = extension;
+					} ewse {
+						containa.extension = extension;
 					}
 				}
-			} else {
-				container.update();
+			} ewse {
+				containa.update();
 			}
 		}
 	}
 }
 
-export const WORKSPACE_RECOMMENDATIONS_VIEW_ID = 'workbench.views.extensions.workspaceRecommendations';
-export const TOGGLE_IGNORE_EXTENSION_ACTION_ID = 'workbench.extensions.action.toggleIgnoreExtension';
-export const SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID = 'workbench.extensions.action.installVSIX';
-export const INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID = 'workbench.extensions.command.installFromVSIX';
+expowt const WOWKSPACE_WECOMMENDATIONS_VIEW_ID = 'wowkbench.views.extensions.wowkspaceWecommendations';
+expowt const TOGGWE_IGNOWE_EXTENSION_ACTION_ID = 'wowkbench.extensions.action.toggweIgnoweExtension';
+expowt const SEWECT_INSTAWW_VSIX_EXTENSION_COMMAND_ID = 'wowkbench.extensions.action.instawwVSIX';
+expowt const INSTAWW_EXTENSION_FWOM_VSIX_COMMAND_ID = 'wowkbench.extensions.command.instawwFwomVSIX';
 
-export const LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID = 'workbench.extensions.action.listWorkspaceUnsupportedExtensions';
+expowt const WIST_WOWKSPACE_UNSUPPOWTED_EXTENSIONS_COMMAND_ID = 'wowkbench.extensions.action.wistWowkspaceUnsuppowtedExtensions';
 
 // Context Keys
-export const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
-export const ExtensionsSortByContext = new RawContextKey<string>('extensionsSortByValue', '');
-export const HasOutdatedExtensionsContext = new RawContextKey<boolean>('hasOutdatedExtensions', false);
+expowt const DefauwtViewsContext = new WawContextKey<boowean>('defauwtExtensionViews', twue);
+expowt const ExtensionsSowtByContext = new WawContextKey<stwing>('extensionsSowtByVawue', '');
+expowt const HasOutdatedExtensionsContext = new WawContextKey<boowean>('hasOutdatedExtensions', fawse);

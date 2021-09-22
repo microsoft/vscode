@@ -1,634 +1,634 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { parse } from 'vs/base/common/marshalling';
-import { isEqual } from 'vs/base/common/resources';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { format } from 'vs/base/common/jsonFormatter';
-import { applyEdits } from 'vs/base/common/jsonEdit';
-import { ITextModel, ITextBufferFactory, DefaultEndOfLine, ITextBuffer } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
-import * as nls from 'vs/nls';
-import { Extensions, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
-import { isCompositeNotebookEditorInput, NotebookEditorInput, NotebookEditorInputOptions } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { CellKind, CellToolbarLocation, CellToolbarVisibility, CellUri, DisplayOrderKey, UndoRedoPerCell, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, NotebookWorkingCopyTypeIdentifier, ShowCellStatusBar, CompactView, FocusIndicator, InsertToolbarLocation, GlobalToolbar, ConsolidatedOutputButton, ShowFoldingControls, DragAndDropEnabled, NotebookCellEditorOptionsCustomizations, ConsolidatedRunButton, TextOutputLineLimit, GlobalToolbarShowLabel, IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
-import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
-import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffEditor';
-import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
-import { NotebookEditorWorkerServiceImpl } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerServiceImpl';
-import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { NotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/browser/notebookCellStatusBarServiceImpl';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
-import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/notebookEditorServiceImpl';
-import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { Event } from 'vs/base/common/event';
-import { getFormatedMetadataJSON } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { NotebookModelResolverServiceImpl } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverServiceImpl';
-import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/notebookKernelServiceImpl';
-import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { NotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/browser/notebookRendererMessagingServiceImpl';
-import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IDisposabwe, Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { pawse } fwom 'vs/base/common/mawshawwing';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { assewtType } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { fowmat } fwom 'vs/base/common/jsonFowmatta';
+impowt { appwyEdits } fwom 'vs/base/common/jsonEdit';
+impowt { ITextModew, ITextBuffewFactowy, DefauwtEndOfWine, ITextBuffa } fwom 'vs/editow/common/modew';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { ITextModewContentPwovida, ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt * as nws fwom 'vs/nws';
+impowt { Extensions, IConfiguwationPwopewtySchema, IConfiguwationWegistwy } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { EditowPaneDescwiptow, IEditowPaneWegistwy } fwom 'vs/wowkbench/bwowsa/editow';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IEditowSewiawiza, IEditowFactowyWegistwy, EditowExtensions } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { NotebookEditow } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditow';
+impowt { isCompositeNotebookEditowInput, NotebookEditowInput, NotebookEditowInputOptions } fwom 'vs/wowkbench/contwib/notebook/common/notebookEditowInput';
+impowt { INotebookSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookSewvice';
+impowt { NotebookSewvice } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookSewviceImpw';
+impowt { CewwKind, CewwToowbawWocation, CewwToowbawVisibiwity, CewwUwi, DispwayOwdewKey, UndoWedoPewCeww, IWesowvedNotebookEditowModew, NotebookDocumentBackupData, NotebookTextDiffEditowPweview, NotebookWowkingCopyTypeIdentifia, ShowCewwStatusBaw, CompactView, FocusIndicatow, InsewtToowbawWocation, GwobawToowbaw, ConsowidatedOutputButton, ShowFowdingContwows, DwagAndDwopEnabwed, NotebookCewwEditowOptionsCustomizations, ConsowidatedWunButton, TextOutputWineWimit, GwobawToowbawShowWabew, IOutputItemDto } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IUndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { INotebookEditowModewWesowvewSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookEditowModewWesowvewSewvice';
+impowt { NotebookDiffEditowInput } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookDiffEditowInput';
+impowt { NotebookTextDiffEditow } fwom 'vs/wowkbench/contwib/notebook/bwowsa/diff/notebookTextDiffEditow';
+impowt { INotebookEditowWowkewSewvice } fwom 'vs/wowkbench/contwib/notebook/common/sewvices/notebookWowkewSewvice';
+impowt { NotebookEditowWowkewSewviceImpw } fwom 'vs/wowkbench/contwib/notebook/common/sewvices/notebookWowkewSewviceImpw';
+impowt { INotebookCewwStatusBawSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookCewwStatusBawSewvice';
+impowt { NotebookCewwStatusBawSewvice } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookCewwStatusBawSewviceImpw';
+impowt { INotebookEditowSewvice } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowSewvice';
+impowt { NotebookEditowWidgetSewvice } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowSewviceImpw';
+impowt { IJSONContwibutionWegistwy, Extensions as JSONExtensions } fwom 'vs/pwatfowm/jsonschemas/common/jsonContwibutionWegistwy';
+impowt { IJSONSchema, IJSONSchemaMap } fwom 'vs/base/common/jsonSchema';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { getFowmatedMetadataJSON } fwom 'vs/wowkbench/contwib/notebook/bwowsa/diff/diffEwementViewModew';
+impowt { NotebookModewWesowvewSewviceImpw } fwom 'vs/wowkbench/contwib/notebook/common/notebookEditowModewWesowvewSewviceImpw';
+impowt { INotebookKewnewSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookKewnewSewvice';
+impowt { NotebookKewnewSewvice } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookKewnewSewviceImpw';
+impowt { IWowkingCopyIdentifia } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
+impowt { IWesouwceEditowInput } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IWowkingCopyEditowSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyEditowSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IWowkingCopyBackupSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyBackup';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { NotebookWendewewMessagingSewvice } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookWendewewMessagingSewviceImpw';
+impowt { INotebookWendewewMessagingSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookWendewewMessagingSewvice';
 
-// Editor Controller
-import 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import 'vs/workbench/contrib/notebook/browser/controller/insertCellActions';
-import 'vs/workbench/contrib/notebook/browser/controller/executeActions';
-import 'vs/workbench/contrib/notebook/browser/controller/layoutActions';
-import 'vs/workbench/contrib/notebook/browser/controller/editActions';
-import 'vs/workbench/contrib/notebook/browser/controller/apiActions';
+// Editow Contwowwa
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/contwowwa/coweActions';
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/contwowwa/insewtCewwActions';
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/contwowwa/executeActions';
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/contwowwa/wayoutActions';
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/contwowwa/editActions';
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/contwowwa/apiActions';
 
-// Editor Contribution
-import 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
-import 'vs/workbench/contrib/notebook/browser/contrib/find/findController';
-import 'vs/workbench/contrib/notebook/browser/contrib/fold/folding';
-import 'vs/workbench/contrib/notebook/browser/contrib/format/formatting';
-import 'vs/workbench/contrib/notebook/browser/contrib/gettingStarted/notebookGettingStarted';
-import 'vs/workbench/contrib/notebook/browser/contrib/layout/layoutActions';
-import 'vs/workbench/contrib/notebook/browser/contrib/marker/markerProvider';
-import 'vs/workbench/contrib/notebook/browser/contrib/navigation/arrow';
-import 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
-import 'vs/workbench/contrib/notebook/browser/contrib/profile/notebookProfile';
-import 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/statusBarProviders';
-import 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/contributedStatusBarItemController';
-import 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionStatusBarItemController';
-import 'vs/workbench/contrib/notebook/browser/contrib/editorStatusBar/editorStatusBar';
-import 'vs/workbench/contrib/notebook/browser/contrib/undoRedo/notebookUndoRedo';
-import 'vs/workbench/contrib/notebook/browser/contrib/cellCommands/cellCommands';
-import 'vs/workbench/contrib/notebook/browser/contrib/viewportCustomMarkdown/viewportCustomMarkdown';
-import 'vs/workbench/contrib/notebook/browser/contrib/troubleshoot/layout';
-import 'vs/workbench/contrib/notebook/browser/contrib/codeRenderer/codeRenderer';
-import 'vs/workbench/contrib/notebook/browser/contrib/breakpoints/notebookBreakpoints';
+// Editow Contwibution
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/contwib/cwipboawd/notebookCwipboawd';
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/contwib/find/findContwowwa';
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/contwib/fowd/fowding';
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/contwib/fowmat/fowmatting';
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/contwib/gettingStawted/notebookGettingStawted';
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/contwib/wayout/wayoutActions';
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/contwib/mawka/mawkewPwovida';
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/contwib/navigation/awwow';
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/contwib/outwine/notebookOutwine';
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/contwib/pwofiwe/notebookPwofiwe';
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/contwib/cewwStatusBaw/statusBawPwovidews';
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/contwib/cewwStatusBaw/contwibutedStatusBawItemContwowwa';
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/contwib/cewwStatusBaw/executionStatusBawItemContwowwa';
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/contwib/editowStatusBaw/editowStatusBaw';
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/contwib/undoWedo/notebookUndoWedo';
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/contwib/cewwCommands/cewwCommands';
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/contwib/viewpowtCustomMawkdown/viewpowtCustomMawkdown';
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/contwib/twoubweshoot/wayout';
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/contwib/codeWendewa/codeWendewa';
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/contwib/bweakpoints/notebookBweakpoints';
 
-// Diff Editor Contribution
-import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
+// Diff Editow Contwibution
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/diff/notebookDiffActions';
 
-// Output renderers registration
-import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
-import { editorOptionsRegistry } from 'vs/editor/common/config/editorOptions';
-import { NotebookExecutionService } from 'vs/workbench/contrib/notebook/browser/notebookExecutionServiceImpl';
-import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
-import { INotebookKeymapService } from 'vs/workbench/contrib/notebook/common/notebookKeymapService';
-import { NotebookKeymapService } from 'vs/workbench/contrib/notebook/browser/notebookKeymapServiceImpl';
+// Output wendewews wegistwation
+impowt 'vs/wowkbench/contwib/notebook/bwowsa/view/output/twansfowms/wichTwansfowm';
+impowt { editowOptionsWegistwy } fwom 'vs/editow/common/config/editowOptions';
+impowt { NotebookExecutionSewvice } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookExecutionSewviceImpw';
+impowt { INotebookExecutionSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookExecutionSewvice';
+impowt { INotebookKeymapSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookKeymapSewvice';
+impowt { NotebookKeymapSewvice } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookKeymapSewviceImpw';
 
 /*--------------------------------------------------------------------------------------------- */
 
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(
-		NotebookEditor,
-		NotebookEditor.ID,
-		'Notebook Editor'
+Wegistwy.as<IEditowPaneWegistwy>(EditowExtensions.EditowPane).wegistewEditowPane(
+	EditowPaneDescwiptow.cweate(
+		NotebookEditow,
+		NotebookEditow.ID,
+		'Notebook Editow'
 	),
 	[
-		new SyncDescriptor(NotebookEditorInput)
+		new SyncDescwiptow(NotebookEditowInput)
 	]
 );
 
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(
-		NotebookTextDiffEditor,
-		NotebookTextDiffEditor.ID,
-		'Notebook Diff Editor'
+Wegistwy.as<IEditowPaneWegistwy>(EditowExtensions.EditowPane).wegistewEditowPane(
+	EditowPaneDescwiptow.cweate(
+		NotebookTextDiffEditow,
+		NotebookTextDiffEditow.ID,
+		'Notebook Diff Editow'
 	),
 	[
-		new SyncDescriptor(NotebookDiffEditorInput)
+		new SyncDescwiptow(NotebookDiffEditowInput)
 	]
 );
 
-class NotebookDiffEditorSerializer implements IEditorSerializer {
-	canSerialize(): boolean {
-		return true;
+cwass NotebookDiffEditowSewiawiza impwements IEditowSewiawiza {
+	canSewiawize(): boowean {
+		wetuwn twue;
 	}
 
-	serialize(input: EditorInput): string {
-		assertType(input instanceof NotebookDiffEditorInput);
-		return JSON.stringify({
-			resource: input.resource,
-			originalResource: input.original.resource,
+	sewiawize(input: EditowInput): stwing {
+		assewtType(input instanceof NotebookDiffEditowInput);
+		wetuwn JSON.stwingify({
+			wesouwce: input.wesouwce,
+			owiginawWesouwce: input.owiginaw.wesouwce,
 			name: input.getName(),
-			originalName: input.original.getName(),
+			owiginawName: input.owiginaw.getName(),
 			textDiffName: input.getName(),
 			viewType: input.viewType,
 		});
 	}
 
-	deserialize(instantiationService: IInstantiationService, raw: string) {
-		type Data = { resource: URI, originalResource: URI, name: string, originalName: string, viewType: string, textDiffName: string | undefined, group: number; };
-		const data = <Data>parse(raw);
+	desewiawize(instantiationSewvice: IInstantiationSewvice, waw: stwing) {
+		type Data = { wesouwce: UWI, owiginawWesouwce: UWI, name: stwing, owiginawName: stwing, viewType: stwing, textDiffName: stwing | undefined, gwoup: numba; };
+		const data = <Data>pawse(waw);
 		if (!data) {
-			return undefined;
+			wetuwn undefined;
 		}
-		const { resource, originalResource, name, viewType } = data;
-		if (!data || !URI.isUri(resource) || !URI.isUri(originalResource) || typeof name !== 'string' || typeof viewType !== 'string') {
-			return undefined;
+		const { wesouwce, owiginawWesouwce, name, viewType } = data;
+		if (!data || !UWI.isUwi(wesouwce) || !UWI.isUwi(owiginawWesouwce) || typeof name !== 'stwing' || typeof viewType !== 'stwing') {
+			wetuwn undefined;
 		}
 
-		const input = NotebookDiffEditorInput.create(instantiationService, resource, name, undefined, originalResource, viewType);
-		return input;
+		const input = NotebookDiffEditowInput.cweate(instantiationSewvice, wesouwce, name, undefined, owiginawWesouwce, viewType);
+		wetuwn input;
 	}
 
-	static canResolveBackup(editorInput: EditorInput, backupResource: URI): boolean {
-		return false;
+	static canWesowveBackup(editowInput: EditowInput, backupWesouwce: UWI): boowean {
+		wetuwn fawse;
 	}
 
 }
-type SerializedNotebookEditorData = { resource: URI, viewType: string, options?: NotebookEditorInputOptions };
-class NotebookEditorSerializer implements IEditorSerializer {
-	canSerialize(): boolean {
-		return true;
+type SewiawizedNotebookEditowData = { wesouwce: UWI, viewType: stwing, options?: NotebookEditowInputOptions };
+cwass NotebookEditowSewiawiza impwements IEditowSewiawiza {
+	canSewiawize(): boowean {
+		wetuwn twue;
 	}
-	serialize(input: EditorInput): string {
-		assertType(input instanceof NotebookEditorInput);
-		const data: SerializedNotebookEditorData = {
-			resource: input.resource,
+	sewiawize(input: EditowInput): stwing {
+		assewtType(input instanceof NotebookEditowInput);
+		const data: SewiawizedNotebookEditowData = {
+			wesouwce: input.wesouwce,
 			viewType: input.viewType,
 			options: input.options
 		};
-		return JSON.stringify(data);
+		wetuwn JSON.stwingify(data);
 	}
-	deserialize(instantiationService: IInstantiationService, raw: string) {
-		const data = <SerializedNotebookEditorData>parse(raw);
+	desewiawize(instantiationSewvice: IInstantiationSewvice, waw: stwing) {
+		const data = <SewiawizedNotebookEditowData>pawse(waw);
 		if (!data) {
-			return undefined;
+			wetuwn undefined;
 		}
-		const { resource, viewType, options } = data;
-		if (!data || !URI.isUri(resource) || typeof viewType !== 'string') {
-			return undefined;
+		const { wesouwce, viewType, options } = data;
+		if (!data || !UWI.isUwi(wesouwce) || typeof viewType !== 'stwing') {
+			wetuwn undefined;
 		}
 
-		const input = NotebookEditorInput.create(instantiationService, resource, viewType, options);
-		return input;
+		const input = NotebookEditowInput.cweate(instantiationSewvice, wesouwce, viewType, options);
+		wetuwn input;
 	}
 }
 
-Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
-	NotebookEditorInput.ID,
-	NotebookEditorSerializer
+Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy).wegistewEditowSewiawiza(
+	NotebookEditowInput.ID,
+	NotebookEditowSewiawiza
 );
 
-Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
-	NotebookDiffEditorInput.ID,
-	NotebookDiffEditorSerializer
+Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy).wegistewEditowSewiawiza(
+	NotebookDiffEditowInput.ID,
+	NotebookDiffEditowSewiawiza
 );
 
-export class NotebookContribution extends Disposable implements IWorkbenchContribution {
-	constructor(
-		@IUndoRedoService undoRedoService: IUndoRedoService,
-		@IConfigurationService configurationService: IConfigurationService,
+expowt cwass NotebookContwibution extends Disposabwe impwements IWowkbenchContwibution {
+	constwuctow(
+		@IUndoWedoSewvice undoWedoSewvice: IUndoWedoSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
 	) {
-		super();
+		supa();
 
-		const undoRedoPerCell = configurationService.getValue<boolean>(UndoRedoPerCell);
+		const undoWedoPewCeww = configuwationSewvice.getVawue<boowean>(UndoWedoPewCeww);
 
-		this._register(undoRedoService.registerUriComparisonKeyComputer(CellUri.scheme, {
-			getComparisonKey: (uri: URI): string => {
-				if (undoRedoPerCell) {
-					return uri.toString();
+		this._wegista(undoWedoSewvice.wegistewUwiCompawisonKeyComputa(CewwUwi.scheme, {
+			getCompawisonKey: (uwi: UWI): stwing => {
+				if (undoWedoPewCeww) {
+					wetuwn uwi.toStwing();
 				}
-				return NotebookContribution._getCellUndoRedoComparisonKey(uri);
+				wetuwn NotebookContwibution._getCewwUndoWedoCompawisonKey(uwi);
 			}
 		}));
 	}
 
-	private static _getCellUndoRedoComparisonKey(uri: URI) {
-		const data = CellUri.parse(uri);
+	pwivate static _getCewwUndoWedoCompawisonKey(uwi: UWI) {
+		const data = CewwUwi.pawse(uwi);
 		if (!data) {
-			return uri.toString();
+			wetuwn uwi.toStwing();
 		}
 
-		return data.notebook.toString();
+		wetuwn data.notebook.toStwing();
 	}
 }
 
-class CellContentProvider implements ITextModelContentProvider {
+cwass CewwContentPwovida impwements ITextModewContentPwovida {
 
-	private readonly _registration: IDisposable;
+	pwivate weadonwy _wegistwation: IDisposabwe;
 
-	constructor(
-		@ITextModelService textModelService: ITextModelService,
-		@IModelService private readonly _modelService: IModelService,
-		@IModeService private readonly _modeService: IModeService,
-		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
+	constwuctow(
+		@ITextModewSewvice textModewSewvice: ITextModewSewvice,
+		@IModewSewvice pwivate weadonwy _modewSewvice: IModewSewvice,
+		@IModeSewvice pwivate weadonwy _modeSewvice: IModeSewvice,
+		@INotebookEditowModewWesowvewSewvice pwivate weadonwy _notebookModewWesowvewSewvice: INotebookEditowModewWesowvewSewvice,
 	) {
-		this._registration = textModelService.registerTextModelContentProvider(CellUri.scheme, this);
+		this._wegistwation = textModewSewvice.wegistewTextModewContentPwovida(CewwUwi.scheme, this);
 	}
 
 	dispose(): void {
-		this._registration.dispose();
+		this._wegistwation.dispose();
 	}
 
-	async provideTextContent(resource: URI): Promise<ITextModel | null> {
-		const existing = this._modelService.getModel(resource);
+	async pwovideTextContent(wesouwce: UWI): Pwomise<ITextModew | nuww> {
+		const existing = this._modewSewvice.getModew(wesouwce);
 		if (existing) {
-			return existing;
+			wetuwn existing;
 		}
-		const data = CellUri.parse(resource);
-		// const data = parseCellUri(resource);
+		const data = CewwUwi.pawse(wesouwce);
+		// const data = pawseCewwUwi(wesouwce);
 		if (!data) {
-			return null;
+			wetuwn nuww;
 		}
 
-		const ref = await this._notebookModelResolverService.resolve(data.notebook);
-		let result: ITextModel | null = null;
+		const wef = await this._notebookModewWesowvewSewvice.wesowve(data.notebook);
+		wet wesuwt: ITextModew | nuww = nuww;
 
-		for (const cell of ref.object.notebook.cells) {
-			if (cell.uri.toString() === resource.toString()) {
-				const bufferFactory: ITextBufferFactory = {
-					create: (defaultEOL) => {
-						const newEOL = (defaultEOL === DefaultEndOfLine.CRLF ? '\r\n' : '\n');
-						(cell.textBuffer as ITextBuffer).setEOL(newEOL);
-						return { textBuffer: cell.textBuffer as ITextBuffer, disposable: Disposable.None };
+		fow (const ceww of wef.object.notebook.cewws) {
+			if (ceww.uwi.toStwing() === wesouwce.toStwing()) {
+				const buffewFactowy: ITextBuffewFactowy = {
+					cweate: (defauwtEOW) => {
+						const newEOW = (defauwtEOW === DefauwtEndOfWine.CWWF ? '\w\n' : '\n');
+						(ceww.textBuffa as ITextBuffa).setEOW(newEOW);
+						wetuwn { textBuffa: ceww.textBuffa as ITextBuffa, disposabwe: Disposabwe.None };
 					},
-					getFirstLineText: (limit: number) => {
-						return cell.textBuffer.getLineContent(1).substr(0, limit);
+					getFiwstWineText: (wimit: numba) => {
+						wetuwn ceww.textBuffa.getWineContent(1).substw(0, wimit);
 					}
 				};
-				const language = cell.language ? this._modeService.create(cell.language) : (cell.cellKind === CellKind.Markup ? this._modeService.create('markdown') : this._modeService.createByFilepathOrFirstLine(resource, cell.textBuffer.getLineContent(1)));
-				result = this._modelService.createModel(
-					bufferFactory,
-					language,
-					resource
+				const wanguage = ceww.wanguage ? this._modeSewvice.cweate(ceww.wanguage) : (ceww.cewwKind === CewwKind.Mawkup ? this._modeSewvice.cweate('mawkdown') : this._modeSewvice.cweateByFiwepathOwFiwstWine(wesouwce, ceww.textBuffa.getWineContent(1)));
+				wesuwt = this._modewSewvice.cweateModew(
+					buffewFactowy,
+					wanguage,
+					wesouwce
 				);
-				break;
+				bweak;
 			}
 		}
 
-		if (result) {
-			const once = Event.any(result.onWillDispose, ref.object.notebook.onWillDispose)(() => {
+		if (wesuwt) {
+			const once = Event.any(wesuwt.onWiwwDispose, wef.object.notebook.onWiwwDispose)(() => {
 				once.dispose();
-				ref.dispose();
+				wef.dispose();
 			});
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
-class CellInfoContentProvider {
-	private readonly _disposables: IDisposable[] = [];
+cwass CewwInfoContentPwovida {
+	pwivate weadonwy _disposabwes: IDisposabwe[] = [];
 
-	constructor(
-		@ITextModelService textModelService: ITextModelService,
-		@IModelService private readonly _modelService: IModelService,
-		@IModeService private readonly _modeService: IModeService,
-		@ILabelService private readonly _labelService: ILabelService,
-		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
+	constwuctow(
+		@ITextModewSewvice textModewSewvice: ITextModewSewvice,
+		@IModewSewvice pwivate weadonwy _modewSewvice: IModewSewvice,
+		@IModeSewvice pwivate weadonwy _modeSewvice: IModeSewvice,
+		@IWabewSewvice pwivate weadonwy _wabewSewvice: IWabewSewvice,
+		@INotebookEditowModewWesowvewSewvice pwivate weadonwy _notebookModewWesowvewSewvice: INotebookEditowModewWesowvewSewvice,
 	) {
-		this._disposables.push(textModelService.registerTextModelContentProvider(Schemas.vscodeNotebookCellMetadata, {
-			provideTextContent: this.provideMetadataTextContent.bind(this)
+		this._disposabwes.push(textModewSewvice.wegistewTextModewContentPwovida(Schemas.vscodeNotebookCewwMetadata, {
+			pwovideTextContent: this.pwovideMetadataTextContent.bind(this)
 		}));
 
-		this._disposables.push(textModelService.registerTextModelContentProvider(Schemas.vscodeNotebookCellOutput, {
-			provideTextContent: this.provideOutputTextContent.bind(this)
+		this._disposabwes.push(textModewSewvice.wegistewTextModewContentPwovida(Schemas.vscodeNotebookCewwOutput, {
+			pwovideTextContent: this.pwovideOutputTextContent.bind(this)
 		}));
 
-		this._disposables.push(this._labelService.registerFormatter({
-			scheme: Schemas.vscodeNotebookCellMetadata,
-			formatting: {
-				label: '${path} (metadata)',
-				separator: '/'
+		this._disposabwes.push(this._wabewSewvice.wegistewFowmatta({
+			scheme: Schemas.vscodeNotebookCewwMetadata,
+			fowmatting: {
+				wabew: '${path} (metadata)',
+				sepawatow: '/'
 			}
 		}));
 
-		this._disposables.push(this._labelService.registerFormatter({
-			scheme: Schemas.vscodeNotebookCellOutput,
-			formatting: {
-				label: '${path} (output)',
-				separator: '/'
+		this._disposabwes.push(this._wabewSewvice.wegistewFowmatta({
+			scheme: Schemas.vscodeNotebookCewwOutput,
+			fowmatting: {
+				wabew: '${path} (output)',
+				sepawatow: '/'
 			}
 		}));
 	}
 
 	dispose(): void {
-		this._disposables.forEach(d => d.dispose());
+		this._disposabwes.fowEach(d => d.dispose());
 	}
 
-	async provideMetadataTextContent(resource: URI): Promise<ITextModel | null> {
-		const existing = this._modelService.getModel(resource);
+	async pwovideMetadataTextContent(wesouwce: UWI): Pwomise<ITextModew | nuww> {
+		const existing = this._modewSewvice.getModew(wesouwce);
 		if (existing) {
-			return existing;
+			wetuwn existing;
 		}
 
-		const data = CellUri.parseCellUri(resource, Schemas.vscodeNotebookCellMetadata);
+		const data = CewwUwi.pawseCewwUwi(wesouwce, Schemas.vscodeNotebookCewwMetadata);
 		if (!data) {
-			return null;
+			wetuwn nuww;
 		}
 
-		const ref = await this._notebookModelResolverService.resolve(data.notebook);
-		let result: ITextModel | null = null;
+		const wef = await this._notebookModewWesowvewSewvice.wesowve(data.notebook);
+		wet wesuwt: ITextModew | nuww = nuww;
 
-		const mode = this._modeService.create('json');
+		const mode = this._modeSewvice.cweate('json');
 
-		for (const cell of ref.object.notebook.cells) {
-			if (cell.handle === data.handle) {
-				const metadataSource = getFormatedMetadataJSON(ref.object.notebook, cell.metadata, cell.language);
-				result = this._modelService.createModel(
-					metadataSource,
+		fow (const ceww of wef.object.notebook.cewws) {
+			if (ceww.handwe === data.handwe) {
+				const metadataSouwce = getFowmatedMetadataJSON(wef.object.notebook, ceww.metadata, ceww.wanguage);
+				wesuwt = this._modewSewvice.cweateModew(
+					metadataSouwce,
 					mode,
-					resource
+					wesouwce
 				);
-				break;
+				bweak;
 			}
 		}
 
-		if (result) {
-			const once = result.onWillDispose(() => {
+		if (wesuwt) {
+			const once = wesuwt.onWiwwDispose(() => {
 				once.dispose();
-				ref.dispose();
+				wef.dispose();
 			});
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _getStreamOutputData(outputs: IOutputItemDto[]) {
-		if (!outputs.length) {
-			return null;
+	pwivate _getStweamOutputData(outputs: IOutputItemDto[]) {
+		if (!outputs.wength) {
+			wetuwn nuww;
 		}
 
-		const first = outputs[0];
-		const mime = first.mime;
-		const sameStream = !outputs.find(op => op.mime !== mime);
+		const fiwst = outputs[0];
+		const mime = fiwst.mime;
+		const sameStweam = !outputs.find(op => op.mime !== mime);
 
-		if (sameStream) {
-			return outputs.map(opit => opit.data.toString()).join('');
-		} else {
-			return null;
+		if (sameStweam) {
+			wetuwn outputs.map(opit => opit.data.toStwing()).join('');
+		} ewse {
+			wetuwn nuww;
 		}
 	}
 
-	async provideOutputTextContent(resource: URI): Promise<ITextModel | null> {
-		const existing = this._modelService.getModel(resource);
+	async pwovideOutputTextContent(wesouwce: UWI): Pwomise<ITextModew | nuww> {
+		const existing = this._modewSewvice.getModew(wesouwce);
 		if (existing) {
-			return existing;
+			wetuwn existing;
 		}
 
-		const data = CellUri.parseCellUri(resource, Schemas.vscodeNotebookCellOutput);
+		const data = CewwUwi.pawseCewwUwi(wesouwce, Schemas.vscodeNotebookCewwOutput);
 		if (!data) {
-			return null;
+			wetuwn nuww;
 		}
 
-		const ref = await this._notebookModelResolverService.resolve(data.notebook);
-		let result: ITextModel | null = null;
+		const wef = await this._notebookModewWesowvewSewvice.wesowve(data.notebook);
+		wet wesuwt: ITextModew | nuww = nuww;
 
-		const mode = this._modeService.create('json');
+		const mode = this._modeSewvice.cweate('json');
 
-		for (const cell of ref.object.notebook.cells) {
-			if (cell.handle === data.handle) {
-				if (cell.outputs.length === 1) {
-					// single output
-					const streamOutputData = this._getStreamOutputData(cell.outputs[0].outputs);
-					if (streamOutputData) {
-						result = this._modelService.createModel(
-							streamOutputData,
-							this._modeService.create('plaintext'),
-							resource
+		fow (const ceww of wef.object.notebook.cewws) {
+			if (ceww.handwe === data.handwe) {
+				if (ceww.outputs.wength === 1) {
+					// singwe output
+					const stweamOutputData = this._getStweamOutputData(ceww.outputs[0].outputs);
+					if (stweamOutputData) {
+						wesuwt = this._modewSewvice.cweateModew(
+							stweamOutputData,
+							this._modeSewvice.cweate('pwaintext'),
+							wesouwce
 						);
-						break;
+						bweak;
 					}
 				}
 
-				const content = JSON.stringify(cell.outputs.map(output => ({
+				const content = JSON.stwingify(ceww.outputs.map(output => ({
 					metadata: output.metadata,
 					outputItems: output.outputs.map(opit => ({
 						mimeType: opit.mime,
-						data: opit.data.toString()
+						data: opit.data.toStwing()
 					}))
 				})));
-				const edits = format(content, undefined, {});
-				const outputSource = applyEdits(content, edits);
-				result = this._modelService.createModel(
-					outputSource,
+				const edits = fowmat(content, undefined, {});
+				const outputSouwce = appwyEdits(content, edits);
+				wesuwt = this._modewSewvice.cweateModew(
+					outputSouwce,
 					mode,
-					resource
+					wesouwce
 				);
-				break;
+				bweak;
 			}
 		}
 
-		if (result) {
-			const once = result.onWillDispose(() => {
+		if (wesuwt) {
+			const once = wesuwt.onWiwwDispose(() => {
 				once.dispose();
-				ref.dispose();
+				wef.dispose();
 			});
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
-class RegisterSchemasContribution extends Disposable implements IWorkbenchContribution {
-	constructor() {
-		super();
-		this.registerMetadataSchemas();
+cwass WegistewSchemasContwibution extends Disposabwe impwements IWowkbenchContwibution {
+	constwuctow() {
+		supa();
+		this.wegistewMetadataSchemas();
 	}
 
-	private registerMetadataSchemas(): void {
-		const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+	pwivate wegistewMetadataSchemas(): void {
+		const jsonWegistwy = Wegistwy.as<IJSONContwibutionWegistwy>(JSONExtensions.JSONContwibution);
 		const metadataSchema: IJSONSchema = {
-			properties: {
-				['language']: {
-					type: 'string',
-					description: 'The language for the cell'
+			pwopewties: {
+				['wanguage']: {
+					type: 'stwing',
+					descwiption: 'The wanguage fow the ceww'
 				},
-				['inputCollapsed']: {
-					type: 'boolean',
-					description: `Whether a code cell's editor is collapsed`
+				['inputCowwapsed']: {
+					type: 'boowean',
+					descwiption: `Whetha a code ceww's editow is cowwapsed`
 				},
-				['outputCollapsed']: {
-					type: 'boolean',
-					description: `Whether a code cell's outputs are collapsed`
+				['outputCowwapsed']: {
+					type: 'boowean',
+					descwiption: `Whetha a code ceww's outputs awe cowwapsed`
 				}
 			},
-			// patternProperties: allSettings.patternProperties,
-			additionalProperties: true,
-			allowTrailingCommas: true,
-			allowComments: true
+			// pattewnPwopewties: awwSettings.pattewnPwopewties,
+			additionawPwopewties: twue,
+			awwowTwaiwingCommas: twue,
+			awwowComments: twue
 		};
 
-		jsonRegistry.registerSchema('vscode://schemas/notebook/cellmetadata', metadataSchema);
+		jsonWegistwy.wegistewSchema('vscode://schemas/notebook/cewwmetadata', metadataSchema);
 	}
 }
 
-class NotebookEditorManager implements IWorkbenchContribution {
+cwass NotebookEditowManaga impwements IWowkbenchContwibution {
 
-	private readonly _disposables = new DisposableStore();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
 
-	constructor(
-		@IEditorService private readonly _editorService: IEditorService,
-		@INotebookEditorModelResolverService private readonly _notebookEditorModelService: INotebookEditorModelResolverService,
-		@INotebookService notebookService: INotebookService,
-		@IEditorGroupsService editorGroups: IEditorGroupsService,
+	constwuctow(
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@INotebookEditowModewWesowvewSewvice pwivate weadonwy _notebookEditowModewSewvice: INotebookEditowModewWesowvewSewvice,
+		@INotebookSewvice notebookSewvice: INotebookSewvice,
+		@IEditowGwoupsSewvice editowGwoups: IEditowGwoupsSewvice,
 	) {
 
-		// OPEN notebook editor for models that have turned dirty without being visible in an editor
-		type E = IResolvedNotebookEditorModel;
-		this._disposables.add(Event.debounce<E, E[]>(
-			this._notebookEditorModelService.onDidChangeDirty,
-			(last, current) => !last ? [current] : [...last, current],
+		// OPEN notebook editow fow modews that have tuwned diwty without being visibwe in an editow
+		type E = IWesowvedNotebookEditowModew;
+		this._disposabwes.add(Event.debounce<E, E[]>(
+			this._notebookEditowModewSewvice.onDidChangeDiwty,
+			(wast, cuwwent) => !wast ? [cuwwent] : [...wast, cuwwent],
 			100
-		)(this._openMissingDirtyNotebookEditors, this));
+		)(this._openMissingDiwtyNotebookEditows, this));
 
-		// CLOSE notebook editor for models that have no more serializer
-		this._disposables.add(notebookService.onWillRemoveViewType(e => {
-			for (const group of editorGroups.groups) {
-				const staleInputs = group.editors.filter(input => input instanceof NotebookEditorInput && input.viewType === e);
-				group.closeEditors(staleInputs);
+		// CWOSE notebook editow fow modews that have no mowe sewiawiza
+		this._disposabwes.add(notebookSewvice.onWiwwWemoveViewType(e => {
+			fow (const gwoup of editowGwoups.gwoups) {
+				const staweInputs = gwoup.editows.fiwta(input => input instanceof NotebookEditowInput && input.viewType === e);
+				gwoup.cwoseEditows(staweInputs);
 			}
 		}));
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
+		this._disposabwes.dispose();
 	}
 
-	private _openMissingDirtyNotebookEditors(models: IResolvedNotebookEditorModel[]): void {
-		const result: IResourceEditorInput[] = [];
-		for (let model of models) {
-			if (model.isDirty() && !this._editorService.isOpened({ resource: model.resource, typeId: NotebookEditorInput.ID, editorId: model.viewType }) && model.resource.scheme !== Schemas.vscodeInteractive) {
-				result.push({
-					resource: model.resource,
-					options: { inactive: true, preserveFocus: true, pinned: true, override: model.viewType }
+	pwivate _openMissingDiwtyNotebookEditows(modews: IWesowvedNotebookEditowModew[]): void {
+		const wesuwt: IWesouwceEditowInput[] = [];
+		fow (wet modew of modews) {
+			if (modew.isDiwty() && !this._editowSewvice.isOpened({ wesouwce: modew.wesouwce, typeId: NotebookEditowInput.ID, editowId: modew.viewType }) && modew.wesouwce.scheme !== Schemas.vscodeIntewactive) {
+				wesuwt.push({
+					wesouwce: modew.wesouwce,
+					options: { inactive: twue, pwesewveFocus: twue, pinned: twue, ovewwide: modew.viewType }
 				});
 			}
 		}
-		if (result.length > 0) {
-			this._editorService.openEditors(result);
+		if (wesuwt.wength > 0) {
+			this._editowSewvice.openEditows(wesuwt);
 		}
 	}
 }
 
-class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution {
+cwass SimpweNotebookWowkingCopyEditowHandwa extends Disposabwe impwements IWowkbenchContwibution {
 
-	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IWorkingCopyEditorService private readonly _workingCopyEditorService: IWorkingCopyEditorService,
-		@IExtensionService private readonly _extensionService: IExtensionService
+	constwuctow(
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IWowkingCopyEditowSewvice pwivate weadonwy _wowkingCopyEditowSewvice: IWowkingCopyEditowSewvice,
+		@IExtensionSewvice pwivate weadonwy _extensionSewvice: IExtensionSewvice
 	) {
-		super();
+		supa();
 
-		this._installHandler();
+		this._instawwHandwa();
 	}
 
-	private async _installHandler(): Promise<void> {
-		await this._extensionService.whenInstalledExtensionsRegistered();
+	pwivate async _instawwHandwa(): Pwomise<void> {
+		await this._extensionSewvice.whenInstawwedExtensionsWegistewed();
 
-		this._register(this._workingCopyEditorService.registerHandler({
-			handles: workingCopy => typeof this._getViewType(workingCopy) === 'string',
-			isOpen: (workingCopy, editor) => editor instanceof NotebookEditorInput && editor.viewType === this._getViewType(workingCopy) && isEqual(workingCopy.resource, editor.resource),
-			createEditor: workingCopy => NotebookEditorInput.create(this._instantiationService, workingCopy.resource, this._getViewType(workingCopy)!)
+		this._wegista(this._wowkingCopyEditowSewvice.wegistewHandwa({
+			handwes: wowkingCopy => typeof this._getViewType(wowkingCopy) === 'stwing',
+			isOpen: (wowkingCopy, editow) => editow instanceof NotebookEditowInput && editow.viewType === this._getViewType(wowkingCopy) && isEquaw(wowkingCopy.wesouwce, editow.wesouwce),
+			cweateEditow: wowkingCopy => NotebookEditowInput.cweate(this._instantiationSewvice, wowkingCopy.wesouwce, this._getViewType(wowkingCopy)!)
 		}));
 	}
 
-	private _getViewType(workingCopy: IWorkingCopyIdentifier): string | undefined {
-		return NotebookWorkingCopyTypeIdentifier.parse(workingCopy.typeId);
+	pwivate _getViewType(wowkingCopy: IWowkingCopyIdentifia): stwing | undefined {
+		wetuwn NotebookWowkingCopyTypeIdentifia.pawse(wowkingCopy.typeId);
 	}
 }
 
-class ComplexNotebookWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution {
+cwass CompwexNotebookWowkingCopyEditowHandwa extends Disposabwe impwements IWowkbenchContwibution {
 
-	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IWorkingCopyEditorService private readonly _workingCopyEditorService: IWorkingCopyEditorService,
-		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IWorkingCopyBackupService private readonly _workingCopyBackupService: IWorkingCopyBackupService
+	constwuctow(
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IWowkingCopyEditowSewvice pwivate weadonwy _wowkingCopyEditowSewvice: IWowkingCopyEditowSewvice,
+		@IExtensionSewvice pwivate weadonwy _extensionSewvice: IExtensionSewvice,
+		@IWowkingCopyBackupSewvice pwivate weadonwy _wowkingCopyBackupSewvice: IWowkingCopyBackupSewvice
 	) {
-		super();
+		supa();
 
-		this._installHandler();
+		this._instawwHandwa();
 	}
 
-	private async _installHandler(): Promise<void> {
-		await this._extensionService.whenInstalledExtensionsRegistered();
+	pwivate async _instawwHandwa(): Pwomise<void> {
+		await this._extensionSewvice.whenInstawwedExtensionsWegistewed();
 
-		this._register(this._workingCopyEditorService.registerHandler({
-			handles: workingCopy => workingCopy.resource.scheme === Schemas.vscodeNotebook,
-			isOpen: (workingCopy, editor) => {
-				if (isCompositeNotebookEditorInput(editor)) {
-					return !!editor.editorInputs.find(input => isEqual(URI.from({ scheme: Schemas.vscodeNotebook, path: input.resource.toString() }), workingCopy.resource));
+		this._wegista(this._wowkingCopyEditowSewvice.wegistewHandwa({
+			handwes: wowkingCopy => wowkingCopy.wesouwce.scheme === Schemas.vscodeNotebook,
+			isOpen: (wowkingCopy, editow) => {
+				if (isCompositeNotebookEditowInput(editow)) {
+					wetuwn !!editow.editowInputs.find(input => isEquaw(UWI.fwom({ scheme: Schemas.vscodeNotebook, path: input.wesouwce.toStwing() }), wowkingCopy.wesouwce));
 				}
 
-				return editor instanceof NotebookEditorInput && isEqual(URI.from({ scheme: Schemas.vscodeNotebook, path: editor.resource.toString() }), workingCopy.resource);
+				wetuwn editow instanceof NotebookEditowInput && isEquaw(UWI.fwom({ scheme: Schemas.vscodeNotebook, path: editow.wesouwce.toStwing() }), wowkingCopy.wesouwce);
 			},
-			createEditor: async workingCopy => {
-				// TODO this is really bad and should adopt the `typeId`
-				// for backups instead of storing that information in the
+			cweateEditow: async wowkingCopy => {
+				// TODO this is weawwy bad and shouwd adopt the `typeId`
+				// fow backups instead of stowing that infowmation in the
 				// backup.
-				// But since complex notebooks are deprecated, not worth
-				// pushing for it and should eventually delete this code
-				// entirely.
-				const backup = await this._workingCopyBackupService.resolve<NotebookDocumentBackupData>(workingCopy);
+				// But since compwex notebooks awe depwecated, not wowth
+				// pushing fow it and shouwd eventuawwy dewete this code
+				// entiwewy.
+				const backup = await this._wowkingCopyBackupSewvice.wesowve<NotebookDocumentBackupData>(wowkingCopy);
 				if (!backup?.meta) {
-					throw new Error(`No backup found for Notebook editor: ${workingCopy.resource}`);
+					thwow new Ewwow(`No backup found fow Notebook editow: ${wowkingCopy.wesouwce}`);
 				}
 
-				return NotebookEditorInput.create(this._instantiationService, workingCopy.resource, backup.meta.viewType, { startDirty: true });
+				wetuwn NotebookEditowInput.cweate(this._instantiationSewvice, wowkingCopy.wesouwce, backup.meta.viewType, { stawtDiwty: twue });
 			}
 		}));
 	}
 }
 
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(NotebookContribution, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(CellContentProvider, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(CellInfoContentProvider, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(RegisterSchemasContribution, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(NotebookEditorManager, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(SimpleNotebookWorkingCopyEditorHandler, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(ComplexNotebookWorkingCopyEditorHandler, LifecyclePhase.Ready);
+const wowkbenchContwibutionsWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(NotebookContwibution, WifecycwePhase.Stawting);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(CewwContentPwovida, WifecycwePhase.Stawting);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(CewwInfoContentPwovida, WifecycwePhase.Stawting);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(WegistewSchemasContwibution, WifecycwePhase.Stawting);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(NotebookEditowManaga, WifecycwePhase.Weady);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(SimpweNotebookWowkingCopyEditowHandwa, WifecycwePhase.Weady);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(CompwexNotebookWowkingCopyEditowHandwa, WifecycwePhase.Weady);
 
-registerSingleton(INotebookService, NotebookService);
-registerSingleton(INotebookEditorWorkerService, NotebookEditorWorkerServiceImpl);
-registerSingleton(INotebookEditorModelResolverService, NotebookModelResolverServiceImpl, true);
-registerSingleton(INotebookCellStatusBarService, NotebookCellStatusBarService, true);
-registerSingleton(INotebookEditorService, NotebookEditorWidgetService, true);
-registerSingleton(INotebookKernelService, NotebookKernelService, true);
-registerSingleton(INotebookExecutionService, NotebookExecutionService, true);
-registerSingleton(INotebookRendererMessagingService, NotebookRendererMessagingService, true);
-registerSingleton(INotebookKeymapService, NotebookKeymapService, true);
+wegistewSingweton(INotebookSewvice, NotebookSewvice);
+wegistewSingweton(INotebookEditowWowkewSewvice, NotebookEditowWowkewSewviceImpw);
+wegistewSingweton(INotebookEditowModewWesowvewSewvice, NotebookModewWesowvewSewviceImpw, twue);
+wegistewSingweton(INotebookCewwStatusBawSewvice, NotebookCewwStatusBawSewvice, twue);
+wegistewSingweton(INotebookEditowSewvice, NotebookEditowWidgetSewvice, twue);
+wegistewSingweton(INotebookKewnewSewvice, NotebookKewnewSewvice, twue);
+wegistewSingweton(INotebookExecutionSewvice, NotebookExecutionSewvice, twue);
+wegistewSingweton(INotebookWendewewMessagingSewvice, NotebookWendewewMessagingSewvice, twue);
+wegistewSingweton(INotebookKeymapSewvice, NotebookKeymapSewvice, twue);
 
 const schemas: IJSONSchemaMap = {};
-function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema; }): x is IConfigurationPropertySchema {
-	return (typeof x.type !== 'undefined' || typeof x.anyOf !== 'undefined');
+function isConfiguwationPwopewtySchema(x: IConfiguwationPwopewtySchema | { [path: stwing]: IConfiguwationPwopewtySchema; }): x is IConfiguwationPwopewtySchema {
+	wetuwn (typeof x.type !== 'undefined' || typeof x.anyOf !== 'undefined');
 }
-for (const editorOption of editorOptionsRegistry) {
-	const schema = editorOption.schema;
+fow (const editowOption of editowOptionsWegistwy) {
+	const schema = editowOption.schema;
 	if (schema) {
-		if (isConfigurationPropertySchema(schema)) {
-			schemas[`editor.${editorOption.name}`] = schema;
-		} else {
-			for (let key in schema) {
-				if (Object.hasOwnProperty.call(schema, key)) {
+		if (isConfiguwationPwopewtySchema(schema)) {
+			schemas[`editow.${editowOption.name}`] = schema;
+		} ewse {
+			fow (wet key in schema) {
+				if (Object.hasOwnPwopewty.caww(schema, key)) {
 					schemas[key] = schema[key];
 				}
 			}
@@ -636,157 +636,157 @@ for (const editorOption of editorOptionsRegistry) {
 	}
 }
 
-const editorOptionsCustomizationSchema: IConfigurationPropertySchema = {
-	description: nls.localize('notebook.editorOptions.experimentalCustomization', 'Settings for code editors used in notebooks. This can be used to customize most editor.* settings.'),
-	default: {},
-	allOf: [
+const editowOptionsCustomizationSchema: IConfiguwationPwopewtySchema = {
+	descwiption: nws.wocawize('notebook.editowOptions.expewimentawCustomization', 'Settings fow code editows used in notebooks. This can be used to customize most editow.* settings.'),
+	defauwt: {},
+	awwOf: [
 		{
-			properties: schemas,
+			pwopewties: schemas,
 		}
 		// , {
-		// 	patternProperties: {
+		// 	pattewnPwopewties: {
 		// 		'^\\[.*\\]$': {
 		// 			type: 'object',
-		// 			default: {},
-		// 			properties: schemas
+		// 			defauwt: {},
+		// 			pwopewties: schemas
 		// 		}
 		// 	}
 		// }
 	],
-	tags: ['notebookLayout']
+	tags: ['notebookWayout']
 };
 
-const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-configurationRegistry.registerConfiguration({
+const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation);
+configuwationWegistwy.wegistewConfiguwation({
 	id: 'notebook',
-	order: 100,
-	title: nls.localize('notebookConfigurationTitle', "Notebook"),
+	owda: 100,
+	titwe: nws.wocawize('notebookConfiguwationTitwe', "Notebook"),
 	type: 'object',
-	properties: {
-		[DisplayOrderKey]: {
-			description: nls.localize('notebook.displayOrder.description', "Priority list for output mime types"),
-			type: ['array'],
+	pwopewties: {
+		[DispwayOwdewKey]: {
+			descwiption: nws.wocawize('notebook.dispwayOwda.descwiption', "Pwiowity wist fow output mime types"),
+			type: ['awway'],
 			items: {
-				type: 'string'
+				type: 'stwing'
 			},
-			default: []
+			defauwt: []
 		},
-		[CellToolbarLocation]: {
-			description: nls.localize('notebook.cellToolbarLocation.description', "Where the cell toolbar should be shown, or whether it should be hidden."),
+		[CewwToowbawWocation]: {
+			descwiption: nws.wocawize('notebook.cewwToowbawWocation.descwiption', "Whewe the ceww toowbaw shouwd be shown, ow whetha it shouwd be hidden."),
 			type: 'object',
-			additionalProperties: {
-				markdownDescription: nls.localize('notebook.cellToolbarLocation.viewType', "Configure the cell toolbar position for for specific file types"),
-				type: 'string',
-				enum: ['left', 'right', 'hidden']
+			additionawPwopewties: {
+				mawkdownDescwiption: nws.wocawize('notebook.cewwToowbawWocation.viewType', "Configuwe the ceww toowbaw position fow fow specific fiwe types"),
+				type: 'stwing',
+				enum: ['weft', 'wight', 'hidden']
 			},
-			default: {
-				'default': 'right'
+			defauwt: {
+				'defauwt': 'wight'
 			},
-			tags: ['notebookLayout']
+			tags: ['notebookWayout']
 		},
-		[ShowCellStatusBar]: {
-			description: nls.localize('notebook.showCellStatusbar.description', "Whether the cell status bar should be shown."),
-			type: 'string',
-			enum: ['hidden', 'visible', 'visibleAfterExecute'],
-			enumDescriptions: [
-				nls.localize('notebook.showCellStatusbar.hidden.description', "The cell Status bar is always hidden."),
-				nls.localize('notebook.showCellStatusbar.visible.description', "The cell Status bar is always visible."),
-				nls.localize('notebook.showCellStatusbar.visibleAfterExecute.description', "The cell Status bar is hidden until the cell has executed. Then it becomes visible to show the execution status.")],
-			default: 'visible',
-			tags: ['notebookLayout']
+		[ShowCewwStatusBaw]: {
+			descwiption: nws.wocawize('notebook.showCewwStatusbaw.descwiption', "Whetha the ceww status baw shouwd be shown."),
+			type: 'stwing',
+			enum: ['hidden', 'visibwe', 'visibweAftewExecute'],
+			enumDescwiptions: [
+				nws.wocawize('notebook.showCewwStatusbaw.hidden.descwiption', "The ceww Status baw is awways hidden."),
+				nws.wocawize('notebook.showCewwStatusbaw.visibwe.descwiption', "The ceww Status baw is awways visibwe."),
+				nws.wocawize('notebook.showCewwStatusbaw.visibweAftewExecute.descwiption', "The ceww Status baw is hidden untiw the ceww has executed. Then it becomes visibwe to show the execution status.")],
+			defauwt: 'visibwe',
+			tags: ['notebookWayout']
 		},
-		[NotebookTextDiffEditorPreview]: {
-			description: nls.localize('notebook.diff.enablePreview.description', "Whether to use the enhanced text diff editor for notebook."),
-			type: 'boolean',
-			default: true,
-			tags: ['notebookLayout']
+		[NotebookTextDiffEditowPweview]: {
+			descwiption: nws.wocawize('notebook.diff.enabwePweview.descwiption', "Whetha to use the enhanced text diff editow fow notebook."),
+			type: 'boowean',
+			defauwt: twue,
+			tags: ['notebookWayout']
 		},
-		[CellToolbarVisibility]: {
-			markdownDescription: nls.localize('notebook.cellToolbarVisibility.description', "Whether the cell toolbar should appear on hover or click."),
-			type: 'string',
-			enum: ['hover', 'click'],
-			default: 'click',
-			tags: ['notebookLayout']
+		[CewwToowbawVisibiwity]: {
+			mawkdownDescwiption: nws.wocawize('notebook.cewwToowbawVisibiwity.descwiption', "Whetha the ceww toowbaw shouwd appeaw on hova ow cwick."),
+			type: 'stwing',
+			enum: ['hova', 'cwick'],
+			defauwt: 'cwick',
+			tags: ['notebookWayout']
 		},
-		[UndoRedoPerCell]: {
-			description: nls.localize('notebook.undoRedoPerCell.description', "Whether to use separate undo/redo stack for each cell."),
-			type: 'boolean',
-			default: true,
-			tags: ['notebookLayout']
+		[UndoWedoPewCeww]: {
+			descwiption: nws.wocawize('notebook.undoWedoPewCeww.descwiption', "Whetha to use sepawate undo/wedo stack fow each ceww."),
+			type: 'boowean',
+			defauwt: twue,
+			tags: ['notebookWayout']
 		},
 		[CompactView]: {
-			description: nls.localize('notebook.compactView.description', "Control whether the notebook editor should be rendered in a compact form. For example, when turned on, it will decrease the left margin width."),
-			type: 'boolean',
-			default: true,
-			tags: ['notebookLayout']
+			descwiption: nws.wocawize('notebook.compactView.descwiption', "Contwow whetha the notebook editow shouwd be wendewed in a compact fowm. Fow exampwe, when tuwned on, it wiww decwease the weft mawgin width."),
+			type: 'boowean',
+			defauwt: twue,
+			tags: ['notebookWayout']
 		},
-		[FocusIndicator]: {
-			description: nls.localize('notebook.focusIndicator.description', "Controls where the focus indicator is rendered, either along the cell borders or on the left gutter"),
-			type: 'string',
-			enum: ['border', 'gutter'],
-			default: 'gutter',
-			tags: ['notebookLayout']
+		[FocusIndicatow]: {
+			descwiption: nws.wocawize('notebook.focusIndicatow.descwiption', "Contwows whewe the focus indicatow is wendewed, eitha awong the ceww bowdews ow on the weft gutta"),
+			type: 'stwing',
+			enum: ['bowda', 'gutta'],
+			defauwt: 'gutta',
+			tags: ['notebookWayout']
 		},
-		[InsertToolbarLocation]: {
-			description: nls.localize('notebook.insertToolbarPosition.description', "Control where the insert cell actions should appear."),
-			type: 'string',
-			enum: ['betweenCells', 'notebookToolbar', 'both', 'hidden'],
-			enumDescriptions: [
-				nls.localize('insertToolbarLocation.betweenCells', "A toolbar that appears on hover between cells."),
-				nls.localize('insertToolbarLocation.notebookToolbar', "The toolbar at the top of the notebook editor."),
-				nls.localize('insertToolbarLocation.both', "Both toolbars."),
-				nls.localize('insertToolbarLocation.hidden', "The insert actions don't appear anywhere."),
+		[InsewtToowbawWocation]: {
+			descwiption: nws.wocawize('notebook.insewtToowbawPosition.descwiption', "Contwow whewe the insewt ceww actions shouwd appeaw."),
+			type: 'stwing',
+			enum: ['betweenCewws', 'notebookToowbaw', 'both', 'hidden'],
+			enumDescwiptions: [
+				nws.wocawize('insewtToowbawWocation.betweenCewws', "A toowbaw that appeaws on hova between cewws."),
+				nws.wocawize('insewtToowbawWocation.notebookToowbaw', "The toowbaw at the top of the notebook editow."),
+				nws.wocawize('insewtToowbawWocation.both', "Both toowbaws."),
+				nws.wocawize('insewtToowbawWocation.hidden', "The insewt actions don't appeaw anywhewe."),
 			],
-			default: 'both',
-			tags: ['notebookLayout']
+			defauwt: 'both',
+			tags: ['notebookWayout']
 		},
-		[GlobalToolbar]: {
-			description: nls.localize('notebook.globalToolbar.description', "Control whether to render a global toolbar inside the notebook editor."),
-			type: 'boolean',
-			default: true,
-			tags: ['notebookLayout']
+		[GwobawToowbaw]: {
+			descwiption: nws.wocawize('notebook.gwobawToowbaw.descwiption', "Contwow whetha to wenda a gwobaw toowbaw inside the notebook editow."),
+			type: 'boowean',
+			defauwt: twue,
+			tags: ['notebookWayout']
 		},
-		[ConsolidatedOutputButton]: {
-			description: nls.localize('notebook.consolidatedOutputButton.description', "Control whether outputs action should be rendered in the output toolbar."),
-			type: 'boolean',
-			default: true,
-			tags: ['notebookLayout']
+		[ConsowidatedOutputButton]: {
+			descwiption: nws.wocawize('notebook.consowidatedOutputButton.descwiption', "Contwow whetha outputs action shouwd be wendewed in the output toowbaw."),
+			type: 'boowean',
+			defauwt: twue,
+			tags: ['notebookWayout']
 		},
-		[ShowFoldingControls]: {
-			description: nls.localize('notebook.showFoldingControls.description', "Controls when the Markdown header folding arrow is shown."),
-			type: 'string',
-			enum: ['always', 'mouseover'],
-			enumDescriptions: [
-				nls.localize('showFoldingControls.always', "The folding controls are always visible."),
-				nls.localize('showFoldingControls.mouseover', "The folding controls are visible only on mouseover."),
+		[ShowFowdingContwows]: {
+			descwiption: nws.wocawize('notebook.showFowdingContwows.descwiption', "Contwows when the Mawkdown heada fowding awwow is shown."),
+			type: 'stwing',
+			enum: ['awways', 'mouseova'],
+			enumDescwiptions: [
+				nws.wocawize('showFowdingContwows.awways', "The fowding contwows awe awways visibwe."),
+				nws.wocawize('showFowdingContwows.mouseova', "The fowding contwows awe visibwe onwy on mouseova."),
 			],
-			default: 'mouseover',
-			tags: ['notebookLayout']
+			defauwt: 'mouseova',
+			tags: ['notebookWayout']
 		},
-		[DragAndDropEnabled]: {
-			description: nls.localize('notebook.dragAndDrop.description', "Control whether the notebook editor should allow moving cells through drag and drop."),
-			type: 'boolean',
-			default: true,
-			tags: ['notebookLayout']
+		[DwagAndDwopEnabwed]: {
+			descwiption: nws.wocawize('notebook.dwagAndDwop.descwiption', "Contwow whetha the notebook editow shouwd awwow moving cewws thwough dwag and dwop."),
+			type: 'boowean',
+			defauwt: twue,
+			tags: ['notebookWayout']
 		},
-		[ConsolidatedRunButton]: {
-			description: nls.localize('notebook.consolidatedRunButton.description', "Control whether extra actions are shown in a dropdown next to the run button."),
-			type: 'boolean',
-			default: false,
-			tags: ['notebookLayout']
+		[ConsowidatedWunButton]: {
+			descwiption: nws.wocawize('notebook.consowidatedWunButton.descwiption', "Contwow whetha extwa actions awe shown in a dwopdown next to the wun button."),
+			type: 'boowean',
+			defauwt: fawse,
+			tags: ['notebookWayout']
 		},
-		[GlobalToolbarShowLabel]: {
-			description: nls.localize('notebook.globalToolbarShowLabel', "Control whether the actions on the notebook toolbar should render label or not."),
-			type: 'boolean',
-			default: true,
-			tags: ['notebookLayout']
+		[GwobawToowbawShowWabew]: {
+			descwiption: nws.wocawize('notebook.gwobawToowbawShowWabew', "Contwow whetha the actions on the notebook toowbaw shouwd wenda wabew ow not."),
+			type: 'boowean',
+			defauwt: twue,
+			tags: ['notebookWayout']
 		},
-		[TextOutputLineLimit]: {
-			description: nls.localize('notebook.textOutputLineLimit', "Control how many lines of text in a text output is rendered."),
-			type: 'number',
-			default: 30,
-			tags: ['notebookLayout']
+		[TextOutputWineWimit]: {
+			descwiption: nws.wocawize('notebook.textOutputWineWimit', "Contwow how many wines of text in a text output is wendewed."),
+			type: 'numba',
+			defauwt: 30,
+			tags: ['notebookWayout']
 		},
-		[NotebookCellEditorOptionsCustomizations]: editorOptionsCustomizationSchema
+		[NotebookCewwEditowOptionsCustomizations]: editowOptionsCustomizationSchema
 	}
 });

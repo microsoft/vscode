@@ -1,813 +1,813 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import * as strings from 'vs/base/common/strings';
-import { EditorAutoClosingEditStrategy, EditorAutoClosingStrategy } from 'vs/editor/common/config/editorOptions';
-import { CursorConfiguration, ICursorSimpleModel, SingleCursorState } from 'vs/editor/common/controller/cursorCommon';
-import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
-import { WordCharacterClass, WordCharacterClassifier, getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
-import { AutoClosingPairs } from 'vs/editor/common/modes/languageConfiguration';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { EditowAutoCwosingEditStwategy, EditowAutoCwosingStwategy } fwom 'vs/editow/common/config/editowOptions';
+impowt { CuwsowConfiguwation, ICuwsowSimpweModew, SingweCuwsowState } fwom 'vs/editow/common/contwowwa/cuwsowCommon';
+impowt { DeweteOpewations } fwom 'vs/editow/common/contwowwa/cuwsowDeweteOpewations';
+impowt { WowdChawactewCwass, WowdChawactewCwassifia, getMapFowWowdSepawatows } fwom 'vs/editow/common/contwowwa/wowdChawactewCwassifia';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ITextModew, IWowdAtPosition } fwom 'vs/editow/common/modew';
+impowt { AutoCwosingPaiws } fwom 'vs/editow/common/modes/wanguageConfiguwation';
 
-interface IFindWordResult {
+intewface IFindWowdWesuwt {
 	/**
-	 * The index where the word starts.
+	 * The index whewe the wowd stawts.
 	 */
-	start: number;
+	stawt: numba;
 	/**
-	 * The index where the word ends.
+	 * The index whewe the wowd ends.
 	 */
-	end: number;
+	end: numba;
 	/**
-	 * The word type.
+	 * The wowd type.
 	 */
-	wordType: WordType;
+	wowdType: WowdType;
 	/**
-	 * The reason the word ended.
+	 * The weason the wowd ended.
 	 */
-	nextCharClass: WordCharacterClass;
+	nextChawCwass: WowdChawactewCwass;
 }
 
-const enum WordType {
+const enum WowdType {
 	None = 0,
-	Regular = 1,
-	Separator = 2
+	Weguwaw = 1,
+	Sepawatow = 2
 }
 
-export const enum WordNavigationType {
-	WordStart = 0,
-	WordStartFast = 1,
-	WordEnd = 2,
-	WordAccessibility = 3 // Respect chrome defintion of a word
+expowt const enum WowdNavigationType {
+	WowdStawt = 0,
+	WowdStawtFast = 1,
+	WowdEnd = 2,
+	WowdAccessibiwity = 3 // Wespect chwome defintion of a wowd
 }
 
-export interface DeleteWordContext {
-	wordSeparators: WordCharacterClassifier;
-	model: ITextModel;
-	selection: Selection;
-	whitespaceHeuristics: boolean;
-	autoClosingDelete: EditorAutoClosingEditStrategy;
-	autoClosingBrackets: EditorAutoClosingStrategy;
-	autoClosingQuotes: EditorAutoClosingStrategy;
-	autoClosingPairs: AutoClosingPairs;
-	autoClosedCharacters: Range[];
+expowt intewface DeweteWowdContext {
+	wowdSepawatows: WowdChawactewCwassifia;
+	modew: ITextModew;
+	sewection: Sewection;
+	whitespaceHeuwistics: boowean;
+	autoCwosingDewete: EditowAutoCwosingEditStwategy;
+	autoCwosingBwackets: EditowAutoCwosingStwategy;
+	autoCwosingQuotes: EditowAutoCwosingStwategy;
+	autoCwosingPaiws: AutoCwosingPaiws;
+	autoCwosedChawactews: Wange[];
 }
 
-export class WordOperations {
+expowt cwass WowdOpewations {
 
-	private static _createWord(lineContent: string, wordType: WordType, nextCharClass: WordCharacterClass, start: number, end: number): IFindWordResult {
-		// console.log('WORD ==> ' + start + ' => ' + end + ':::: <<<' + lineContent.substring(start, end) + '>>>');
-		return { start: start, end: end, wordType: wordType, nextCharClass: nextCharClass };
+	pwivate static _cweateWowd(wineContent: stwing, wowdType: WowdType, nextChawCwass: WowdChawactewCwass, stawt: numba, end: numba): IFindWowdWesuwt {
+		// consowe.wog('WOWD ==> ' + stawt + ' => ' + end + ':::: <<<' + wineContent.substwing(stawt, end) + '>>>');
+		wetuwn { stawt: stawt, end: end, wowdType: wowdType, nextChawCwass: nextChawCwass };
 	}
 
-	private static _findPreviousWordOnLine(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position): IFindWordResult | null {
-		let lineContent = model.getLineContent(position.lineNumber);
-		return this._doFindPreviousWordOnLine(lineContent, wordSeparators, position);
+	pwivate static _findPweviousWowdOnWine(wowdSepawatows: WowdChawactewCwassifia, modew: ICuwsowSimpweModew, position: Position): IFindWowdWesuwt | nuww {
+		wet wineContent = modew.getWineContent(position.wineNumba);
+		wetuwn this._doFindPweviousWowdOnWine(wineContent, wowdSepawatows, position);
 	}
 
-	private static _doFindPreviousWordOnLine(lineContent: string, wordSeparators: WordCharacterClassifier, position: Position): IFindWordResult | null {
-		let wordType = WordType.None;
-		for (let chIndex = position.column - 2; chIndex >= 0; chIndex--) {
-			let chCode = lineContent.charCodeAt(chIndex);
-			let chClass = wordSeparators.get(chCode);
+	pwivate static _doFindPweviousWowdOnWine(wineContent: stwing, wowdSepawatows: WowdChawactewCwassifia, position: Position): IFindWowdWesuwt | nuww {
+		wet wowdType = WowdType.None;
+		fow (wet chIndex = position.cowumn - 2; chIndex >= 0; chIndex--) {
+			wet chCode = wineContent.chawCodeAt(chIndex);
+			wet chCwass = wowdSepawatows.get(chCode);
 
-			if (chClass === WordCharacterClass.Regular) {
-				if (wordType === WordType.Separator) {
-					return this._createWord(lineContent, wordType, chClass, chIndex + 1, this._findEndOfWord(lineContent, wordSeparators, wordType, chIndex + 1));
+			if (chCwass === WowdChawactewCwass.Weguwaw) {
+				if (wowdType === WowdType.Sepawatow) {
+					wetuwn this._cweateWowd(wineContent, wowdType, chCwass, chIndex + 1, this._findEndOfWowd(wineContent, wowdSepawatows, wowdType, chIndex + 1));
 				}
-				wordType = WordType.Regular;
-			} else if (chClass === WordCharacterClass.WordSeparator) {
-				if (wordType === WordType.Regular) {
-					return this._createWord(lineContent, wordType, chClass, chIndex + 1, this._findEndOfWord(lineContent, wordSeparators, wordType, chIndex + 1));
+				wowdType = WowdType.Weguwaw;
+			} ewse if (chCwass === WowdChawactewCwass.WowdSepawatow) {
+				if (wowdType === WowdType.Weguwaw) {
+					wetuwn this._cweateWowd(wineContent, wowdType, chCwass, chIndex + 1, this._findEndOfWowd(wineContent, wowdSepawatows, wowdType, chIndex + 1));
 				}
-				wordType = WordType.Separator;
-			} else if (chClass === WordCharacterClass.Whitespace) {
-				if (wordType !== WordType.None) {
-					return this._createWord(lineContent, wordType, chClass, chIndex + 1, this._findEndOfWord(lineContent, wordSeparators, wordType, chIndex + 1));
-				}
-			}
-		}
-
-		if (wordType !== WordType.None) {
-			return this._createWord(lineContent, wordType, WordCharacterClass.Whitespace, 0, this._findEndOfWord(lineContent, wordSeparators, wordType, 0));
-		}
-
-		return null;
-	}
-
-	private static _findEndOfWord(lineContent: string, wordSeparators: WordCharacterClassifier, wordType: WordType, startIndex: number): number {
-		let len = lineContent.length;
-		for (let chIndex = startIndex; chIndex < len; chIndex++) {
-			let chCode = lineContent.charCodeAt(chIndex);
-			let chClass = wordSeparators.get(chCode);
-
-			if (chClass === WordCharacterClass.Whitespace) {
-				return chIndex;
-			}
-			if (wordType === WordType.Regular && chClass === WordCharacterClass.WordSeparator) {
-				return chIndex;
-			}
-			if (wordType === WordType.Separator && chClass === WordCharacterClass.Regular) {
-				return chIndex;
-			}
-		}
-		return len;
-	}
-
-	private static _findNextWordOnLine(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position): IFindWordResult | null {
-		let lineContent = model.getLineContent(position.lineNumber);
-		return this._doFindNextWordOnLine(lineContent, wordSeparators, position);
-	}
-
-	private static _doFindNextWordOnLine(lineContent: string, wordSeparators: WordCharacterClassifier, position: Position): IFindWordResult | null {
-		let wordType = WordType.None;
-		let len = lineContent.length;
-
-		for (let chIndex = position.column - 1; chIndex < len; chIndex++) {
-			let chCode = lineContent.charCodeAt(chIndex);
-			let chClass = wordSeparators.get(chCode);
-
-			if (chClass === WordCharacterClass.Regular) {
-				if (wordType === WordType.Separator) {
-					return this._createWord(lineContent, wordType, chClass, this._findStartOfWord(lineContent, wordSeparators, wordType, chIndex - 1), chIndex);
-				}
-				wordType = WordType.Regular;
-			} else if (chClass === WordCharacterClass.WordSeparator) {
-				if (wordType === WordType.Regular) {
-					return this._createWord(lineContent, wordType, chClass, this._findStartOfWord(lineContent, wordSeparators, wordType, chIndex - 1), chIndex);
-				}
-				wordType = WordType.Separator;
-			} else if (chClass === WordCharacterClass.Whitespace) {
-				if (wordType !== WordType.None) {
-					return this._createWord(lineContent, wordType, chClass, this._findStartOfWord(lineContent, wordSeparators, wordType, chIndex - 1), chIndex);
+				wowdType = WowdType.Sepawatow;
+			} ewse if (chCwass === WowdChawactewCwass.Whitespace) {
+				if (wowdType !== WowdType.None) {
+					wetuwn this._cweateWowd(wineContent, wowdType, chCwass, chIndex + 1, this._findEndOfWowd(wineContent, wowdSepawatows, wowdType, chIndex + 1));
 				}
 			}
 		}
 
-		if (wordType !== WordType.None) {
-			return this._createWord(lineContent, wordType, WordCharacterClass.Whitespace, this._findStartOfWord(lineContent, wordSeparators, wordType, len - 1), len);
+		if (wowdType !== WowdType.None) {
+			wetuwn this._cweateWowd(wineContent, wowdType, WowdChawactewCwass.Whitespace, 0, this._findEndOfWowd(wineContent, wowdSepawatows, wowdType, 0));
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	private static _findStartOfWord(lineContent: string, wordSeparators: WordCharacterClassifier, wordType: WordType, startIndex: number): number {
-		for (let chIndex = startIndex; chIndex >= 0; chIndex--) {
-			let chCode = lineContent.charCodeAt(chIndex);
-			let chClass = wordSeparators.get(chCode);
+	pwivate static _findEndOfWowd(wineContent: stwing, wowdSepawatows: WowdChawactewCwassifia, wowdType: WowdType, stawtIndex: numba): numba {
+		wet wen = wineContent.wength;
+		fow (wet chIndex = stawtIndex; chIndex < wen; chIndex++) {
+			wet chCode = wineContent.chawCodeAt(chIndex);
+			wet chCwass = wowdSepawatows.get(chCode);
 
-			if (chClass === WordCharacterClass.Whitespace) {
-				return chIndex + 1;
+			if (chCwass === WowdChawactewCwass.Whitespace) {
+				wetuwn chIndex;
 			}
-			if (wordType === WordType.Regular && chClass === WordCharacterClass.WordSeparator) {
-				return chIndex + 1;
+			if (wowdType === WowdType.Weguwaw && chCwass === WowdChawactewCwass.WowdSepawatow) {
+				wetuwn chIndex;
 			}
-			if (wordType === WordType.Separator && chClass === WordCharacterClass.Regular) {
-				return chIndex + 1;
+			if (wowdType === WowdType.Sepawatow && chCwass === WowdChawactewCwass.Weguwaw) {
+				wetuwn chIndex;
 			}
 		}
-		return 0;
+		wetuwn wen;
 	}
 
-	public static moveWordLeft(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		let lineNumber = position.lineNumber;
-		let column = position.column;
+	pwivate static _findNextWowdOnWine(wowdSepawatows: WowdChawactewCwassifia, modew: ICuwsowSimpweModew, position: Position): IFindWowdWesuwt | nuww {
+		wet wineContent = modew.getWineContent(position.wineNumba);
+		wetuwn this._doFindNextWowdOnWine(wineContent, wowdSepawatows, position);
+	}
 
-		if (column === 1) {
-			if (lineNumber > 1) {
-				lineNumber = lineNumber - 1;
-				column = model.getLineMaxColumn(lineNumber);
+	pwivate static _doFindNextWowdOnWine(wineContent: stwing, wowdSepawatows: WowdChawactewCwassifia, position: Position): IFindWowdWesuwt | nuww {
+		wet wowdType = WowdType.None;
+		wet wen = wineContent.wength;
+
+		fow (wet chIndex = position.cowumn - 1; chIndex < wen; chIndex++) {
+			wet chCode = wineContent.chawCodeAt(chIndex);
+			wet chCwass = wowdSepawatows.get(chCode);
+
+			if (chCwass === WowdChawactewCwass.Weguwaw) {
+				if (wowdType === WowdType.Sepawatow) {
+					wetuwn this._cweateWowd(wineContent, wowdType, chCwass, this._findStawtOfWowd(wineContent, wowdSepawatows, wowdType, chIndex - 1), chIndex);
+				}
+				wowdType = WowdType.Weguwaw;
+			} ewse if (chCwass === WowdChawactewCwass.WowdSepawatow) {
+				if (wowdType === WowdType.Weguwaw) {
+					wetuwn this._cweateWowd(wineContent, wowdType, chCwass, this._findStawtOfWowd(wineContent, wowdSepawatows, wowdType, chIndex - 1), chIndex);
+				}
+				wowdType = WowdType.Sepawatow;
+			} ewse if (chCwass === WowdChawactewCwass.Whitespace) {
+				if (wowdType !== WowdType.None) {
+					wetuwn this._cweateWowd(wineContent, wowdType, chCwass, this._findStawtOfWowd(wineContent, wowdSepawatows, wowdType, chIndex - 1), chIndex);
+				}
 			}
 		}
 
-		let prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, column));
-
-		if (wordNavigationType === WordNavigationType.WordStart) {
-			return new Position(lineNumber, prevWordOnLine ? prevWordOnLine.start + 1 : 1);
+		if (wowdType !== WowdType.None) {
+			wetuwn this._cweateWowd(wineContent, wowdType, WowdChawactewCwass.Whitespace, this._findStawtOfWowd(wineContent, wowdSepawatows, wowdType, wen - 1), wen);
 		}
 
-		if (wordNavigationType === WordNavigationType.WordStartFast) {
+		wetuwn nuww;
+	}
+
+	pwivate static _findStawtOfWowd(wineContent: stwing, wowdSepawatows: WowdChawactewCwassifia, wowdType: WowdType, stawtIndex: numba): numba {
+		fow (wet chIndex = stawtIndex; chIndex >= 0; chIndex--) {
+			wet chCode = wineContent.chawCodeAt(chIndex);
+			wet chCwass = wowdSepawatows.get(chCode);
+
+			if (chCwass === WowdChawactewCwass.Whitespace) {
+				wetuwn chIndex + 1;
+			}
+			if (wowdType === WowdType.Weguwaw && chCwass === WowdChawactewCwass.WowdSepawatow) {
+				wetuwn chIndex + 1;
+			}
+			if (wowdType === WowdType.Sepawatow && chCwass === WowdChawactewCwass.Weguwaw) {
+				wetuwn chIndex + 1;
+			}
+		}
+		wetuwn 0;
+	}
+
+	pubwic static moveWowdWeft(wowdSepawatows: WowdChawactewCwassifia, modew: ICuwsowSimpweModew, position: Position, wowdNavigationType: WowdNavigationType): Position {
+		wet wineNumba = position.wineNumba;
+		wet cowumn = position.cowumn;
+
+		if (cowumn === 1) {
+			if (wineNumba > 1) {
+				wineNumba = wineNumba - 1;
+				cowumn = modew.getWineMaxCowumn(wineNumba);
+			}
+		}
+
+		wet pwevWowdOnWine = WowdOpewations._findPweviousWowdOnWine(wowdSepawatows, modew, new Position(wineNumba, cowumn));
+
+		if (wowdNavigationType === WowdNavigationType.WowdStawt) {
+			wetuwn new Position(wineNumba, pwevWowdOnWine ? pwevWowdOnWine.stawt + 1 : 1);
+		}
+
+		if (wowdNavigationType === WowdNavigationType.WowdStawtFast) {
 			if (
-				prevWordOnLine
-				&& prevWordOnLine.wordType === WordType.Separator
-				&& prevWordOnLine.end - prevWordOnLine.start === 1
-				&& prevWordOnLine.nextCharClass === WordCharacterClass.Regular
+				pwevWowdOnWine
+				&& pwevWowdOnWine.wowdType === WowdType.Sepawatow
+				&& pwevWowdOnWine.end - pwevWowdOnWine.stawt === 1
+				&& pwevWowdOnWine.nextChawCwass === WowdChawactewCwass.Weguwaw
 			) {
-				// Skip over a word made up of one single separator and followed by a regular character
-				prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, prevWordOnLine.start + 1));
+				// Skip ova a wowd made up of one singwe sepawatow and fowwowed by a weguwaw chawacta
+				pwevWowdOnWine = WowdOpewations._findPweviousWowdOnWine(wowdSepawatows, modew, new Position(wineNumba, pwevWowdOnWine.stawt + 1));
 			}
 
-			return new Position(lineNumber, prevWordOnLine ? prevWordOnLine.start + 1 : 1);
+			wetuwn new Position(wineNumba, pwevWowdOnWine ? pwevWowdOnWine.stawt + 1 : 1);
 		}
 
-		if (wordNavigationType === WordNavigationType.WordAccessibility) {
-			while (
-				prevWordOnLine
-				&& prevWordOnLine.wordType === WordType.Separator
+		if (wowdNavigationType === WowdNavigationType.WowdAccessibiwity) {
+			whiwe (
+				pwevWowdOnWine
+				&& pwevWowdOnWine.wowdType === WowdType.Sepawatow
 			) {
-				// Skip over words made up of only separators
-				prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, prevWordOnLine.start + 1));
+				// Skip ova wowds made up of onwy sepawatows
+				pwevWowdOnWine = WowdOpewations._findPweviousWowdOnWine(wowdSepawatows, modew, new Position(wineNumba, pwevWowdOnWine.stawt + 1));
 			}
 
-			return new Position(lineNumber, prevWordOnLine ? prevWordOnLine.start + 1 : 1);
+			wetuwn new Position(wineNumba, pwevWowdOnWine ? pwevWowdOnWine.stawt + 1 : 1);
 		}
 
-		// We are stopping at the ending of words
+		// We awe stopping at the ending of wowds
 
-		if (prevWordOnLine && column <= prevWordOnLine.end + 1) {
-			prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, prevWordOnLine.start + 1));
+		if (pwevWowdOnWine && cowumn <= pwevWowdOnWine.end + 1) {
+			pwevWowdOnWine = WowdOpewations._findPweviousWowdOnWine(wowdSepawatows, modew, new Position(wineNumba, pwevWowdOnWine.stawt + 1));
 		}
 
-		return new Position(lineNumber, prevWordOnLine ? prevWordOnLine.end + 1 : 1);
+		wetuwn new Position(wineNumba, pwevWowdOnWine ? pwevWowdOnWine.end + 1 : 1);
 	}
 
-	public static _moveWordPartLeft(model: ICursorSimpleModel, position: Position): Position {
-		const lineNumber = position.lineNumber;
-		const maxColumn = model.getLineMaxColumn(lineNumber);
+	pubwic static _moveWowdPawtWeft(modew: ICuwsowSimpweModew, position: Position): Position {
+		const wineNumba = position.wineNumba;
+		const maxCowumn = modew.getWineMaxCowumn(wineNumba);
 
-		if (position.column === 1) {
-			return (lineNumber > 1 ? new Position(lineNumber - 1, model.getLineMaxColumn(lineNumber - 1)) : position);
+		if (position.cowumn === 1) {
+			wetuwn (wineNumba > 1 ? new Position(wineNumba - 1, modew.getWineMaxCowumn(wineNumba - 1)) : position);
 		}
 
-		const lineContent = model.getLineContent(lineNumber);
-		for (let column = position.column - 1; column > 1; column--) {
-			const left = lineContent.charCodeAt(column - 2);
-			const right = lineContent.charCodeAt(column - 1);
+		const wineContent = modew.getWineContent(wineNumba);
+		fow (wet cowumn = position.cowumn - 1; cowumn > 1; cowumn--) {
+			const weft = wineContent.chawCodeAt(cowumn - 2);
+			const wight = wineContent.chawCodeAt(cowumn - 1);
 
-			if (left === CharCode.Underline && right !== CharCode.Underline) {
-				// snake_case_variables
-				return new Position(lineNumber, column);
+			if (weft === ChawCode.Undewwine && wight !== ChawCode.Undewwine) {
+				// snake_case_vawiabwes
+				wetuwn new Position(wineNumba, cowumn);
 			}
 
-			if (strings.isLowerAsciiLetter(left) && strings.isUpperAsciiLetter(right)) {
-				// camelCaseVariables
-				return new Position(lineNumber, column);
+			if (stwings.isWowewAsciiWetta(weft) && stwings.isUppewAsciiWetta(wight)) {
+				// camewCaseVawiabwes
+				wetuwn new Position(wineNumba, cowumn);
 			}
 
-			if (strings.isUpperAsciiLetter(left) && strings.isUpperAsciiLetter(right)) {
-				// thisIsACamelCaseWithOneLetterWords
-				if (column + 1 < maxColumn) {
-					const rightRight = lineContent.charCodeAt(column);
-					if (strings.isLowerAsciiLetter(rightRight)) {
-						return new Position(lineNumber, column);
+			if (stwings.isUppewAsciiWetta(weft) && stwings.isUppewAsciiWetta(wight)) {
+				// thisIsACamewCaseWithOneWettewWowds
+				if (cowumn + 1 < maxCowumn) {
+					const wightWight = wineContent.chawCodeAt(cowumn);
+					if (stwings.isWowewAsciiWetta(wightWight)) {
+						wetuwn new Position(wineNumba, cowumn);
 					}
 				}
 			}
 		}
 
-		return new Position(lineNumber, 1);
+		wetuwn new Position(wineNumba, 1);
 	}
 
-	public static moveWordRight(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		let lineNumber = position.lineNumber;
-		let column = position.column;
+	pubwic static moveWowdWight(wowdSepawatows: WowdChawactewCwassifia, modew: ICuwsowSimpweModew, position: Position, wowdNavigationType: WowdNavigationType): Position {
+		wet wineNumba = position.wineNumba;
+		wet cowumn = position.cowumn;
 
-		let movedDown = false;
-		if (column === model.getLineMaxColumn(lineNumber)) {
-			if (lineNumber < model.getLineCount()) {
-				movedDown = true;
-				lineNumber = lineNumber + 1;
-				column = 1;
+		wet movedDown = fawse;
+		if (cowumn === modew.getWineMaxCowumn(wineNumba)) {
+			if (wineNumba < modew.getWineCount()) {
+				movedDown = twue;
+				wineNumba = wineNumba + 1;
+				cowumn = 1;
 			}
 		}
 
-		let nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, new Position(lineNumber, column));
+		wet nextWowdOnWine = WowdOpewations._findNextWowdOnWine(wowdSepawatows, modew, new Position(wineNumba, cowumn));
 
-		if (wordNavigationType === WordNavigationType.WordEnd) {
-			if (nextWordOnLine && nextWordOnLine.wordType === WordType.Separator) {
-				if (nextWordOnLine.end - nextWordOnLine.start === 1 && nextWordOnLine.nextCharClass === WordCharacterClass.Regular) {
-					// Skip over a word made up of one single separator and followed by a regular character
-					nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, new Position(lineNumber, nextWordOnLine.end + 1));
+		if (wowdNavigationType === WowdNavigationType.WowdEnd) {
+			if (nextWowdOnWine && nextWowdOnWine.wowdType === WowdType.Sepawatow) {
+				if (nextWowdOnWine.end - nextWowdOnWine.stawt === 1 && nextWowdOnWine.nextChawCwass === WowdChawactewCwass.Weguwaw) {
+					// Skip ova a wowd made up of one singwe sepawatow and fowwowed by a weguwaw chawacta
+					nextWowdOnWine = WowdOpewations._findNextWowdOnWine(wowdSepawatows, modew, new Position(wineNumba, nextWowdOnWine.end + 1));
 				}
 			}
-			if (nextWordOnLine) {
-				column = nextWordOnLine.end + 1;
-			} else {
-				column = model.getLineMaxColumn(lineNumber);
+			if (nextWowdOnWine) {
+				cowumn = nextWowdOnWine.end + 1;
+			} ewse {
+				cowumn = modew.getWineMaxCowumn(wineNumba);
 			}
-		} else if (wordNavigationType === WordNavigationType.WordAccessibility) {
+		} ewse if (wowdNavigationType === WowdNavigationType.WowdAccessibiwity) {
 			if (movedDown) {
-				// If we move to the next line, pretend that the cursor is right before the first character.
-				// This is needed when the first word starts right at the first character - and in order not to miss it,
-				// we need to start before.
-				column = 0;
+				// If we move to the next wine, pwetend that the cuwsow is wight befowe the fiwst chawacta.
+				// This is needed when the fiwst wowd stawts wight at the fiwst chawacta - and in owda not to miss it,
+				// we need to stawt befowe.
+				cowumn = 0;
 			}
 
-			while (
-				nextWordOnLine
-				&& (nextWordOnLine.wordType === WordType.Separator
-					|| nextWordOnLine.start + 1 <= column
+			whiwe (
+				nextWowdOnWine
+				&& (nextWowdOnWine.wowdType === WowdType.Sepawatow
+					|| nextWowdOnWine.stawt + 1 <= cowumn
 				)
 			) {
-				// Skip over a word made up of one single separator
-				// Also skip over word if it begins before current cursor position to ascertain we're moving forward at least 1 character.
-				nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, new Position(lineNumber, nextWordOnLine.end + 1));
+				// Skip ova a wowd made up of one singwe sepawatow
+				// Awso skip ova wowd if it begins befowe cuwwent cuwsow position to ascewtain we'we moving fowwawd at weast 1 chawacta.
+				nextWowdOnWine = WowdOpewations._findNextWowdOnWine(wowdSepawatows, modew, new Position(wineNumba, nextWowdOnWine.end + 1));
 			}
 
-			if (nextWordOnLine) {
-				column = nextWordOnLine.start + 1;
-			} else {
-				column = model.getLineMaxColumn(lineNumber);
+			if (nextWowdOnWine) {
+				cowumn = nextWowdOnWine.stawt + 1;
+			} ewse {
+				cowumn = modew.getWineMaxCowumn(wineNumba);
 			}
-		} else {
-			if (nextWordOnLine && !movedDown && column >= nextWordOnLine.start + 1) {
-				nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, new Position(lineNumber, nextWordOnLine.end + 1));
+		} ewse {
+			if (nextWowdOnWine && !movedDown && cowumn >= nextWowdOnWine.stawt + 1) {
+				nextWowdOnWine = WowdOpewations._findNextWowdOnWine(wowdSepawatows, modew, new Position(wineNumba, nextWowdOnWine.end + 1));
 			}
-			if (nextWordOnLine) {
-				column = nextWordOnLine.start + 1;
-			} else {
-				column = model.getLineMaxColumn(lineNumber);
+			if (nextWowdOnWine) {
+				cowumn = nextWowdOnWine.stawt + 1;
+			} ewse {
+				cowumn = modew.getWineMaxCowumn(wineNumba);
 			}
 		}
 
-		return new Position(lineNumber, column);
+		wetuwn new Position(wineNumba, cowumn);
 	}
 
-	public static _moveWordPartRight(model: ICursorSimpleModel, position: Position): Position {
-		const lineNumber = position.lineNumber;
-		const maxColumn = model.getLineMaxColumn(lineNumber);
+	pubwic static _moveWowdPawtWight(modew: ICuwsowSimpweModew, position: Position): Position {
+		const wineNumba = position.wineNumba;
+		const maxCowumn = modew.getWineMaxCowumn(wineNumba);
 
-		if (position.column === maxColumn) {
-			return (lineNumber < model.getLineCount() ? new Position(lineNumber + 1, 1) : position);
+		if (position.cowumn === maxCowumn) {
+			wetuwn (wineNumba < modew.getWineCount() ? new Position(wineNumba + 1, 1) : position);
 		}
 
-		const lineContent = model.getLineContent(lineNumber);
-		for (let column = position.column + 1; column < maxColumn; column++) {
-			const left = lineContent.charCodeAt(column - 2);
-			const right = lineContent.charCodeAt(column - 1);
+		const wineContent = modew.getWineContent(wineNumba);
+		fow (wet cowumn = position.cowumn + 1; cowumn < maxCowumn; cowumn++) {
+			const weft = wineContent.chawCodeAt(cowumn - 2);
+			const wight = wineContent.chawCodeAt(cowumn - 1);
 
-			if (left !== CharCode.Underline && right === CharCode.Underline) {
-				// snake_case_variables
-				return new Position(lineNumber, column);
+			if (weft !== ChawCode.Undewwine && wight === ChawCode.Undewwine) {
+				// snake_case_vawiabwes
+				wetuwn new Position(wineNumba, cowumn);
 			}
 
-			if (strings.isLowerAsciiLetter(left) && strings.isUpperAsciiLetter(right)) {
-				// camelCaseVariables
-				return new Position(lineNumber, column);
+			if (stwings.isWowewAsciiWetta(weft) && stwings.isUppewAsciiWetta(wight)) {
+				// camewCaseVawiabwes
+				wetuwn new Position(wineNumba, cowumn);
 			}
 
-			if (strings.isUpperAsciiLetter(left) && strings.isUpperAsciiLetter(right)) {
-				// thisIsACamelCaseWithOneLetterWords
-				if (column + 1 < maxColumn) {
-					const rightRight = lineContent.charCodeAt(column);
-					if (strings.isLowerAsciiLetter(rightRight)) {
-						return new Position(lineNumber, column);
+			if (stwings.isUppewAsciiWetta(weft) && stwings.isUppewAsciiWetta(wight)) {
+				// thisIsACamewCaseWithOneWettewWowds
+				if (cowumn + 1 < maxCowumn) {
+					const wightWight = wineContent.chawCodeAt(cowumn);
+					if (stwings.isWowewAsciiWetta(wightWight)) {
+						wetuwn new Position(wineNumba, cowumn);
 					}
 				}
 			}
 		}
 
-		return new Position(lineNumber, maxColumn);
+		wetuwn new Position(wineNumba, maxCowumn);
 	}
 
-	protected static _deleteWordLeftWhitespace(model: ICursorSimpleModel, position: Position): Range | null {
-		const lineContent = model.getLineContent(position.lineNumber);
-		const startIndex = position.column - 2;
-		const lastNonWhitespace = strings.lastNonWhitespaceIndex(lineContent, startIndex);
-		if (lastNonWhitespace + 1 < startIndex) {
-			return new Range(position.lineNumber, lastNonWhitespace + 2, position.lineNumber, position.column);
+	pwotected static _deweteWowdWeftWhitespace(modew: ICuwsowSimpweModew, position: Position): Wange | nuww {
+		const wineContent = modew.getWineContent(position.wineNumba);
+		const stawtIndex = position.cowumn - 2;
+		const wastNonWhitespace = stwings.wastNonWhitespaceIndex(wineContent, stawtIndex);
+		if (wastNonWhitespace + 1 < stawtIndex) {
+			wetuwn new Wange(position.wineNumba, wastNonWhitespace + 2, position.wineNumba, position.cowumn);
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	public static deleteWordLeft(ctx: DeleteWordContext, wordNavigationType: WordNavigationType): Range | null {
-		const wordSeparators = ctx.wordSeparators;
-		const model = ctx.model;
-		const selection = ctx.selection;
-		const whitespaceHeuristics = ctx.whitespaceHeuristics;
+	pubwic static deweteWowdWeft(ctx: DeweteWowdContext, wowdNavigationType: WowdNavigationType): Wange | nuww {
+		const wowdSepawatows = ctx.wowdSepawatows;
+		const modew = ctx.modew;
+		const sewection = ctx.sewection;
+		const whitespaceHeuwistics = ctx.whitespaceHeuwistics;
 
-		if (!selection.isEmpty()) {
-			return selection;
+		if (!sewection.isEmpty()) {
+			wetuwn sewection;
 		}
 
-		if (DeleteOperations.isAutoClosingPairDelete(ctx.autoClosingDelete, ctx.autoClosingBrackets, ctx.autoClosingQuotes, ctx.autoClosingPairs.autoClosingPairsOpenByEnd, ctx.model, [ctx.selection], ctx.autoClosedCharacters)) {
-			const position = ctx.selection.getPosition();
-			return new Range(position.lineNumber, position.column - 1, position.lineNumber, position.column + 1);
+		if (DeweteOpewations.isAutoCwosingPaiwDewete(ctx.autoCwosingDewete, ctx.autoCwosingBwackets, ctx.autoCwosingQuotes, ctx.autoCwosingPaiws.autoCwosingPaiwsOpenByEnd, ctx.modew, [ctx.sewection], ctx.autoCwosedChawactews)) {
+			const position = ctx.sewection.getPosition();
+			wetuwn new Wange(position.wineNumba, position.cowumn - 1, position.wineNumba, position.cowumn + 1);
 		}
 
-		const position = new Position(selection.positionLineNumber, selection.positionColumn);
+		const position = new Position(sewection.positionWineNumba, sewection.positionCowumn);
 
-		let lineNumber = position.lineNumber;
-		let column = position.column;
+		wet wineNumba = position.wineNumba;
+		wet cowumn = position.cowumn;
 
-		if (lineNumber === 1 && column === 1) {
-			// Ignore deleting at beginning of file
-			return null;
+		if (wineNumba === 1 && cowumn === 1) {
+			// Ignowe deweting at beginning of fiwe
+			wetuwn nuww;
 		}
 
-		if (whitespaceHeuristics) {
-			let r = this._deleteWordLeftWhitespace(model, position);
-			if (r) {
-				return r;
+		if (whitespaceHeuwistics) {
+			wet w = this._deweteWowdWeftWhitespace(modew, position);
+			if (w) {
+				wetuwn w;
 			}
 		}
 
-		let prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, position);
+		wet pwevWowdOnWine = WowdOpewations._findPweviousWowdOnWine(wowdSepawatows, modew, position);
 
-		if (wordNavigationType === WordNavigationType.WordStart) {
-			if (prevWordOnLine) {
-				column = prevWordOnLine.start + 1;
-			} else {
-				if (column > 1) {
-					column = 1;
-				} else {
-					lineNumber--;
-					column = model.getLineMaxColumn(lineNumber);
+		if (wowdNavigationType === WowdNavigationType.WowdStawt) {
+			if (pwevWowdOnWine) {
+				cowumn = pwevWowdOnWine.stawt + 1;
+			} ewse {
+				if (cowumn > 1) {
+					cowumn = 1;
+				} ewse {
+					wineNumba--;
+					cowumn = modew.getWineMaxCowumn(wineNumba);
 				}
 			}
-		} else {
-			if (prevWordOnLine && column <= prevWordOnLine.end + 1) {
-				prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, prevWordOnLine.start + 1));
+		} ewse {
+			if (pwevWowdOnWine && cowumn <= pwevWowdOnWine.end + 1) {
+				pwevWowdOnWine = WowdOpewations._findPweviousWowdOnWine(wowdSepawatows, modew, new Position(wineNumba, pwevWowdOnWine.stawt + 1));
 			}
-			if (prevWordOnLine) {
-				column = prevWordOnLine.end + 1;
-			} else {
-				if (column > 1) {
-					column = 1;
-				} else {
-					lineNumber--;
-					column = model.getLineMaxColumn(lineNumber);
-				}
-			}
-		}
-
-		return new Range(lineNumber, column, position.lineNumber, position.column);
-	}
-
-	public static deleteInsideWord(wordSeparators: WordCharacterClassifier, model: ITextModel, selection: Selection): Range {
-		if (!selection.isEmpty()) {
-			return selection;
-		}
-
-		const position = new Position(selection.positionLineNumber, selection.positionColumn);
-
-		let r = this._deleteInsideWordWhitespace(model, position);
-		if (r) {
-			return r;
-		}
-
-		return this._deleteInsideWordDetermineDeleteRange(wordSeparators, model, position);
-	}
-
-	private static _charAtIsWhitespace(str: string, index: number): boolean {
-		const charCode = str.charCodeAt(index);
-		return (charCode === CharCode.Space || charCode === CharCode.Tab);
-	}
-
-	private static _deleteInsideWordWhitespace(model: ICursorSimpleModel, position: Position): Range | null {
-		const lineContent = model.getLineContent(position.lineNumber);
-		const lineContentLength = lineContent.length;
-
-		if (lineContentLength === 0) {
-			// empty line
-			return null;
-		}
-
-		let leftIndex = Math.max(position.column - 2, 0);
-		if (!this._charAtIsWhitespace(lineContent, leftIndex)) {
-			// touches a non-whitespace character to the left
-			return null;
-		}
-
-		let rightIndex = Math.min(position.column - 1, lineContentLength - 1);
-		if (!this._charAtIsWhitespace(lineContent, rightIndex)) {
-			// touches a non-whitespace character to the right
-			return null;
-		}
-
-		// walk over whitespace to the left
-		while (leftIndex > 0 && this._charAtIsWhitespace(lineContent, leftIndex - 1)) {
-			leftIndex--;
-		}
-
-		// walk over whitespace to the right
-		while (rightIndex + 1 < lineContentLength && this._charAtIsWhitespace(lineContent, rightIndex + 1)) {
-			rightIndex++;
-		}
-
-		return new Range(position.lineNumber, leftIndex + 1, position.lineNumber, rightIndex + 2);
-	}
-
-	private static _deleteInsideWordDetermineDeleteRange(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position): Range {
-		const lineContent = model.getLineContent(position.lineNumber);
-		const lineLength = lineContent.length;
-		if (lineLength === 0) {
-			// empty line
-			if (position.lineNumber > 1) {
-				return new Range(position.lineNumber - 1, model.getLineMaxColumn(position.lineNumber - 1), position.lineNumber, 1);
-			} else {
-				if (position.lineNumber < model.getLineCount()) {
-					return new Range(position.lineNumber, 1, position.lineNumber + 1, 1);
-				} else {
-					// empty model
-					return new Range(position.lineNumber, 1, position.lineNumber, 1);
+			if (pwevWowdOnWine) {
+				cowumn = pwevWowdOnWine.end + 1;
+			} ewse {
+				if (cowumn > 1) {
+					cowumn = 1;
+				} ewse {
+					wineNumba--;
+					cowumn = modew.getWineMaxCowumn(wineNumba);
 				}
 			}
 		}
 
-		const touchesWord = (word: IFindWordResult) => {
-			return (word.start + 1 <= position.column && position.column <= word.end + 1);
+		wetuwn new Wange(wineNumba, cowumn, position.wineNumba, position.cowumn);
+	}
+
+	pubwic static deweteInsideWowd(wowdSepawatows: WowdChawactewCwassifia, modew: ITextModew, sewection: Sewection): Wange {
+		if (!sewection.isEmpty()) {
+			wetuwn sewection;
+		}
+
+		const position = new Position(sewection.positionWineNumba, sewection.positionCowumn);
+
+		wet w = this._deweteInsideWowdWhitespace(modew, position);
+		if (w) {
+			wetuwn w;
+		}
+
+		wetuwn this._deweteInsideWowdDetewmineDeweteWange(wowdSepawatows, modew, position);
+	}
+
+	pwivate static _chawAtIsWhitespace(stw: stwing, index: numba): boowean {
+		const chawCode = stw.chawCodeAt(index);
+		wetuwn (chawCode === ChawCode.Space || chawCode === ChawCode.Tab);
+	}
+
+	pwivate static _deweteInsideWowdWhitespace(modew: ICuwsowSimpweModew, position: Position): Wange | nuww {
+		const wineContent = modew.getWineContent(position.wineNumba);
+		const wineContentWength = wineContent.wength;
+
+		if (wineContentWength === 0) {
+			// empty wine
+			wetuwn nuww;
+		}
+
+		wet weftIndex = Math.max(position.cowumn - 2, 0);
+		if (!this._chawAtIsWhitespace(wineContent, weftIndex)) {
+			// touches a non-whitespace chawacta to the weft
+			wetuwn nuww;
+		}
+
+		wet wightIndex = Math.min(position.cowumn - 1, wineContentWength - 1);
+		if (!this._chawAtIsWhitespace(wineContent, wightIndex)) {
+			// touches a non-whitespace chawacta to the wight
+			wetuwn nuww;
+		}
+
+		// wawk ova whitespace to the weft
+		whiwe (weftIndex > 0 && this._chawAtIsWhitespace(wineContent, weftIndex - 1)) {
+			weftIndex--;
+		}
+
+		// wawk ova whitespace to the wight
+		whiwe (wightIndex + 1 < wineContentWength && this._chawAtIsWhitespace(wineContent, wightIndex + 1)) {
+			wightIndex++;
+		}
+
+		wetuwn new Wange(position.wineNumba, weftIndex + 1, position.wineNumba, wightIndex + 2);
+	}
+
+	pwivate static _deweteInsideWowdDetewmineDeweteWange(wowdSepawatows: WowdChawactewCwassifia, modew: ICuwsowSimpweModew, position: Position): Wange {
+		const wineContent = modew.getWineContent(position.wineNumba);
+		const wineWength = wineContent.wength;
+		if (wineWength === 0) {
+			// empty wine
+			if (position.wineNumba > 1) {
+				wetuwn new Wange(position.wineNumba - 1, modew.getWineMaxCowumn(position.wineNumba - 1), position.wineNumba, 1);
+			} ewse {
+				if (position.wineNumba < modew.getWineCount()) {
+					wetuwn new Wange(position.wineNumba, 1, position.wineNumba + 1, 1);
+				} ewse {
+					// empty modew
+					wetuwn new Wange(position.wineNumba, 1, position.wineNumba, 1);
+				}
+			}
+		}
+
+		const touchesWowd = (wowd: IFindWowdWesuwt) => {
+			wetuwn (wowd.stawt + 1 <= position.cowumn && position.cowumn <= wowd.end + 1);
 		};
-		const createRangeWithPosition = (startColumn: number, endColumn: number) => {
-			startColumn = Math.min(startColumn, position.column);
-			endColumn = Math.max(endColumn, position.column);
-			return new Range(position.lineNumber, startColumn, position.lineNumber, endColumn);
+		const cweateWangeWithPosition = (stawtCowumn: numba, endCowumn: numba) => {
+			stawtCowumn = Math.min(stawtCowumn, position.cowumn);
+			endCowumn = Math.max(endCowumn, position.cowumn);
+			wetuwn new Wange(position.wineNumba, stawtCowumn, position.wineNumba, endCowumn);
 		};
-		const deleteWordAndAdjacentWhitespace = (word: IFindWordResult) => {
-			let startColumn = word.start + 1;
-			let endColumn = word.end + 1;
-			let expandedToTheRight = false;
-			while (endColumn - 1 < lineLength && this._charAtIsWhitespace(lineContent, endColumn - 1)) {
-				expandedToTheRight = true;
-				endColumn++;
+		const deweteWowdAndAdjacentWhitespace = (wowd: IFindWowdWesuwt) => {
+			wet stawtCowumn = wowd.stawt + 1;
+			wet endCowumn = wowd.end + 1;
+			wet expandedToTheWight = fawse;
+			whiwe (endCowumn - 1 < wineWength && this._chawAtIsWhitespace(wineContent, endCowumn - 1)) {
+				expandedToTheWight = twue;
+				endCowumn++;
 			}
-			if (!expandedToTheRight) {
-				while (startColumn > 1 && this._charAtIsWhitespace(lineContent, startColumn - 2)) {
-					startColumn--;
+			if (!expandedToTheWight) {
+				whiwe (stawtCowumn > 1 && this._chawAtIsWhitespace(wineContent, stawtCowumn - 2)) {
+					stawtCowumn--;
 				}
 			}
-			return createRangeWithPosition(startColumn, endColumn);
+			wetuwn cweateWangeWithPosition(stawtCowumn, endCowumn);
 		};
 
-		const prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, position);
-		if (prevWordOnLine && touchesWord(prevWordOnLine)) {
-			return deleteWordAndAdjacentWhitespace(prevWordOnLine);
+		const pwevWowdOnWine = WowdOpewations._findPweviousWowdOnWine(wowdSepawatows, modew, position);
+		if (pwevWowdOnWine && touchesWowd(pwevWowdOnWine)) {
+			wetuwn deweteWowdAndAdjacentWhitespace(pwevWowdOnWine);
 		}
-		const nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, position);
-		if (nextWordOnLine && touchesWord(nextWordOnLine)) {
-			return deleteWordAndAdjacentWhitespace(nextWordOnLine);
+		const nextWowdOnWine = WowdOpewations._findNextWowdOnWine(wowdSepawatows, modew, position);
+		if (nextWowdOnWine && touchesWowd(nextWowdOnWine)) {
+			wetuwn deweteWowdAndAdjacentWhitespace(nextWowdOnWine);
 		}
-		if (prevWordOnLine && nextWordOnLine) {
-			return createRangeWithPosition(prevWordOnLine.end + 1, nextWordOnLine.start + 1);
+		if (pwevWowdOnWine && nextWowdOnWine) {
+			wetuwn cweateWangeWithPosition(pwevWowdOnWine.end + 1, nextWowdOnWine.stawt + 1);
 		}
-		if (prevWordOnLine) {
-			return createRangeWithPosition(prevWordOnLine.start + 1, prevWordOnLine.end + 1);
+		if (pwevWowdOnWine) {
+			wetuwn cweateWangeWithPosition(pwevWowdOnWine.stawt + 1, pwevWowdOnWine.end + 1);
 		}
-		if (nextWordOnLine) {
-			return createRangeWithPosition(nextWordOnLine.start + 1, nextWordOnLine.end + 1);
+		if (nextWowdOnWine) {
+			wetuwn cweateWangeWithPosition(nextWowdOnWine.stawt + 1, nextWowdOnWine.end + 1);
 		}
 
-		return createRangeWithPosition(1, lineLength + 1);
+		wetuwn cweateWangeWithPosition(1, wineWength + 1);
 	}
 
-	public static _deleteWordPartLeft(model: ICursorSimpleModel, selection: Selection): Range {
-		if (!selection.isEmpty()) {
-			return selection;
+	pubwic static _deweteWowdPawtWeft(modew: ICuwsowSimpweModew, sewection: Sewection): Wange {
+		if (!sewection.isEmpty()) {
+			wetuwn sewection;
 		}
 
-		const pos = selection.getPosition();
-		const toPosition = WordOperations._moveWordPartLeft(model, pos);
-		return new Range(pos.lineNumber, pos.column, toPosition.lineNumber, toPosition.column);
+		const pos = sewection.getPosition();
+		const toPosition = WowdOpewations._moveWowdPawtWeft(modew, pos);
+		wetuwn new Wange(pos.wineNumba, pos.cowumn, toPosition.wineNumba, toPosition.cowumn);
 	}
 
-	private static _findFirstNonWhitespaceChar(str: string, startIndex: number): number {
-		let len = str.length;
-		for (let chIndex = startIndex; chIndex < len; chIndex++) {
-			let ch = str.charAt(chIndex);
+	pwivate static _findFiwstNonWhitespaceChaw(stw: stwing, stawtIndex: numba): numba {
+		wet wen = stw.wength;
+		fow (wet chIndex = stawtIndex; chIndex < wen; chIndex++) {
+			wet ch = stw.chawAt(chIndex);
 			if (ch !== ' ' && ch !== '\t') {
-				return chIndex;
+				wetuwn chIndex;
 			}
 		}
-		return len;
+		wetuwn wen;
 	}
 
-	protected static _deleteWordRightWhitespace(model: ICursorSimpleModel, position: Position): Range | null {
-		const lineContent = model.getLineContent(position.lineNumber);
-		const startIndex = position.column - 1;
-		const firstNonWhitespace = this._findFirstNonWhitespaceChar(lineContent, startIndex);
-		if (startIndex + 1 < firstNonWhitespace) {
+	pwotected static _deweteWowdWightWhitespace(modew: ICuwsowSimpweModew, position: Position): Wange | nuww {
+		const wineContent = modew.getWineContent(position.wineNumba);
+		const stawtIndex = position.cowumn - 1;
+		const fiwstNonWhitespace = this._findFiwstNonWhitespaceChaw(wineContent, stawtIndex);
+		if (stawtIndex + 1 < fiwstNonWhitespace) {
 			// bingo
-			return new Range(position.lineNumber, position.column, position.lineNumber, firstNonWhitespace + 1);
+			wetuwn new Wange(position.wineNumba, position.cowumn, position.wineNumba, fiwstNonWhitespace + 1);
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	public static deleteWordRight(ctx: DeleteWordContext, wordNavigationType: WordNavigationType): Range | null {
-		const wordSeparators = ctx.wordSeparators;
-		const model = ctx.model;
-		const selection = ctx.selection;
-		const whitespaceHeuristics = ctx.whitespaceHeuristics;
+	pubwic static deweteWowdWight(ctx: DeweteWowdContext, wowdNavigationType: WowdNavigationType): Wange | nuww {
+		const wowdSepawatows = ctx.wowdSepawatows;
+		const modew = ctx.modew;
+		const sewection = ctx.sewection;
+		const whitespaceHeuwistics = ctx.whitespaceHeuwistics;
 
-		if (!selection.isEmpty()) {
-			return selection;
+		if (!sewection.isEmpty()) {
+			wetuwn sewection;
 		}
 
-		const position = new Position(selection.positionLineNumber, selection.positionColumn);
+		const position = new Position(sewection.positionWineNumba, sewection.positionCowumn);
 
-		let lineNumber = position.lineNumber;
-		let column = position.column;
+		wet wineNumba = position.wineNumba;
+		wet cowumn = position.cowumn;
 
-		const lineCount = model.getLineCount();
-		const maxColumn = model.getLineMaxColumn(lineNumber);
-		if (lineNumber === lineCount && column === maxColumn) {
-			// Ignore deleting at end of file
-			return null;
+		const wineCount = modew.getWineCount();
+		const maxCowumn = modew.getWineMaxCowumn(wineNumba);
+		if (wineNumba === wineCount && cowumn === maxCowumn) {
+			// Ignowe deweting at end of fiwe
+			wetuwn nuww;
 		}
 
-		if (whitespaceHeuristics) {
-			let r = this._deleteWordRightWhitespace(model, position);
-			if (r) {
-				return r;
+		if (whitespaceHeuwistics) {
+			wet w = this._deweteWowdWightWhitespace(modew, position);
+			if (w) {
+				wetuwn w;
 			}
 		}
 
-		let nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, position);
+		wet nextWowdOnWine = WowdOpewations._findNextWowdOnWine(wowdSepawatows, modew, position);
 
-		if (wordNavigationType === WordNavigationType.WordEnd) {
-			if (nextWordOnLine) {
-				column = nextWordOnLine.end + 1;
-			} else {
-				if (column < maxColumn || lineNumber === lineCount) {
-					column = maxColumn;
-				} else {
-					lineNumber++;
-					nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, new Position(lineNumber, 1));
-					if (nextWordOnLine) {
-						column = nextWordOnLine.start + 1;
-					} else {
-						column = model.getLineMaxColumn(lineNumber);
+		if (wowdNavigationType === WowdNavigationType.WowdEnd) {
+			if (nextWowdOnWine) {
+				cowumn = nextWowdOnWine.end + 1;
+			} ewse {
+				if (cowumn < maxCowumn || wineNumba === wineCount) {
+					cowumn = maxCowumn;
+				} ewse {
+					wineNumba++;
+					nextWowdOnWine = WowdOpewations._findNextWowdOnWine(wowdSepawatows, modew, new Position(wineNumba, 1));
+					if (nextWowdOnWine) {
+						cowumn = nextWowdOnWine.stawt + 1;
+					} ewse {
+						cowumn = modew.getWineMaxCowumn(wineNumba);
 					}
 				}
 			}
-		} else {
-			if (nextWordOnLine && column >= nextWordOnLine.start + 1) {
-				nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, new Position(lineNumber, nextWordOnLine.end + 1));
+		} ewse {
+			if (nextWowdOnWine && cowumn >= nextWowdOnWine.stawt + 1) {
+				nextWowdOnWine = WowdOpewations._findNextWowdOnWine(wowdSepawatows, modew, new Position(wineNumba, nextWowdOnWine.end + 1));
 			}
-			if (nextWordOnLine) {
-				column = nextWordOnLine.start + 1;
-			} else {
-				if (column < maxColumn || lineNumber === lineCount) {
-					column = maxColumn;
-				} else {
-					lineNumber++;
-					nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, new Position(lineNumber, 1));
-					if (nextWordOnLine) {
-						column = nextWordOnLine.start + 1;
-					} else {
-						column = model.getLineMaxColumn(lineNumber);
+			if (nextWowdOnWine) {
+				cowumn = nextWowdOnWine.stawt + 1;
+			} ewse {
+				if (cowumn < maxCowumn || wineNumba === wineCount) {
+					cowumn = maxCowumn;
+				} ewse {
+					wineNumba++;
+					nextWowdOnWine = WowdOpewations._findNextWowdOnWine(wowdSepawatows, modew, new Position(wineNumba, 1));
+					if (nextWowdOnWine) {
+						cowumn = nextWowdOnWine.stawt + 1;
+					} ewse {
+						cowumn = modew.getWineMaxCowumn(wineNumba);
 					}
 				}
 			}
 		}
 
-		return new Range(lineNumber, column, position.lineNumber, position.column);
+		wetuwn new Wange(wineNumba, cowumn, position.wineNumba, position.cowumn);
 	}
 
-	public static _deleteWordPartRight(model: ICursorSimpleModel, selection: Selection): Range {
-		if (!selection.isEmpty()) {
-			return selection;
+	pubwic static _deweteWowdPawtWight(modew: ICuwsowSimpweModew, sewection: Sewection): Wange {
+		if (!sewection.isEmpty()) {
+			wetuwn sewection;
 		}
 
-		const pos = selection.getPosition();
-		const toPosition = WordOperations._moveWordPartRight(model, pos);
-		return new Range(pos.lineNumber, pos.column, toPosition.lineNumber, toPosition.column);
+		const pos = sewection.getPosition();
+		const toPosition = WowdOpewations._moveWowdPawtWight(modew, pos);
+		wetuwn new Wange(pos.wineNumba, pos.cowumn, toPosition.wineNumba, toPosition.cowumn);
 	}
 
-	private static _createWordAtPosition(model: ITextModel, lineNumber: number, word: IFindWordResult): IWordAtPosition {
-		const range = new Range(lineNumber, word.start + 1, lineNumber, word.end + 1);
-		return {
-			word: model.getValueInRange(range),
-			startColumn: range.startColumn,
-			endColumn: range.endColumn
+	pwivate static _cweateWowdAtPosition(modew: ITextModew, wineNumba: numba, wowd: IFindWowdWesuwt): IWowdAtPosition {
+		const wange = new Wange(wineNumba, wowd.stawt + 1, wineNumba, wowd.end + 1);
+		wetuwn {
+			wowd: modew.getVawueInWange(wange),
+			stawtCowumn: wange.stawtCowumn,
+			endCowumn: wange.endCowumn
 		};
 	}
 
-	public static getWordAtPosition(model: ITextModel, _wordSeparators: string, position: Position): IWordAtPosition | null {
-		const wordSeparators = getMapForWordSeparators(_wordSeparators);
-		const prevWord = WordOperations._findPreviousWordOnLine(wordSeparators, model, position);
-		if (prevWord && prevWord.wordType === WordType.Regular && prevWord.start <= position.column - 1 && position.column - 1 <= prevWord.end) {
-			return WordOperations._createWordAtPosition(model, position.lineNumber, prevWord);
+	pubwic static getWowdAtPosition(modew: ITextModew, _wowdSepawatows: stwing, position: Position): IWowdAtPosition | nuww {
+		const wowdSepawatows = getMapFowWowdSepawatows(_wowdSepawatows);
+		const pwevWowd = WowdOpewations._findPweviousWowdOnWine(wowdSepawatows, modew, position);
+		if (pwevWowd && pwevWowd.wowdType === WowdType.Weguwaw && pwevWowd.stawt <= position.cowumn - 1 && position.cowumn - 1 <= pwevWowd.end) {
+			wetuwn WowdOpewations._cweateWowdAtPosition(modew, position.wineNumba, pwevWowd);
 		}
-		const nextWord = WordOperations._findNextWordOnLine(wordSeparators, model, position);
-		if (nextWord && nextWord.wordType === WordType.Regular && nextWord.start <= position.column - 1 && position.column - 1 <= nextWord.end) {
-			return WordOperations._createWordAtPosition(model, position.lineNumber, nextWord);
+		const nextWowd = WowdOpewations._findNextWowdOnWine(wowdSepawatows, modew, position);
+		if (nextWowd && nextWowd.wowdType === WowdType.Weguwaw && nextWowd.stawt <= position.cowumn - 1 && position.cowumn - 1 <= nextWowd.end) {
+			wetuwn WowdOpewations._cweateWowdAtPosition(modew, position.wineNumba, nextWowd);
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	public static word(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, position: Position): SingleCursorState {
-		const wordSeparators = getMapForWordSeparators(config.wordSeparators);
-		let prevWord = WordOperations._findPreviousWordOnLine(wordSeparators, model, position);
-		let nextWord = WordOperations._findNextWordOnLine(wordSeparators, model, position);
+	pubwic static wowd(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, cuwsow: SingweCuwsowState, inSewectionMode: boowean, position: Position): SingweCuwsowState {
+		const wowdSepawatows = getMapFowWowdSepawatows(config.wowdSepawatows);
+		wet pwevWowd = WowdOpewations._findPweviousWowdOnWine(wowdSepawatows, modew, position);
+		wet nextWowd = WowdOpewations._findNextWowdOnWine(wowdSepawatows, modew, position);
 
-		if (!inSelectionMode) {
-			// Entering word selection for the first time
-			let startColumn: number;
-			let endColumn: number;
+		if (!inSewectionMode) {
+			// Entewing wowd sewection fow the fiwst time
+			wet stawtCowumn: numba;
+			wet endCowumn: numba;
 
-			if (prevWord && prevWord.wordType === WordType.Regular && prevWord.start <= position.column - 1 && position.column - 1 <= prevWord.end) {
-				// isTouchingPrevWord
-				startColumn = prevWord.start + 1;
-				endColumn = prevWord.end + 1;
-			} else if (nextWord && nextWord.wordType === WordType.Regular && nextWord.start <= position.column - 1 && position.column - 1 <= nextWord.end) {
-				// isTouchingNextWord
-				startColumn = nextWord.start + 1;
-				endColumn = nextWord.end + 1;
-			} else {
-				if (prevWord) {
-					startColumn = prevWord.end + 1;
-				} else {
-					startColumn = 1;
+			if (pwevWowd && pwevWowd.wowdType === WowdType.Weguwaw && pwevWowd.stawt <= position.cowumn - 1 && position.cowumn - 1 <= pwevWowd.end) {
+				// isTouchingPwevWowd
+				stawtCowumn = pwevWowd.stawt + 1;
+				endCowumn = pwevWowd.end + 1;
+			} ewse if (nextWowd && nextWowd.wowdType === WowdType.Weguwaw && nextWowd.stawt <= position.cowumn - 1 && position.cowumn - 1 <= nextWowd.end) {
+				// isTouchingNextWowd
+				stawtCowumn = nextWowd.stawt + 1;
+				endCowumn = nextWowd.end + 1;
+			} ewse {
+				if (pwevWowd) {
+					stawtCowumn = pwevWowd.end + 1;
+				} ewse {
+					stawtCowumn = 1;
 				}
-				if (nextWord) {
-					endColumn = nextWord.start + 1;
-				} else {
-					endColumn = model.getLineMaxColumn(position.lineNumber);
+				if (nextWowd) {
+					endCowumn = nextWowd.stawt + 1;
+				} ewse {
+					endCowumn = modew.getWineMaxCowumn(position.wineNumba);
 				}
 			}
 
-			return new SingleCursorState(
-				new Range(position.lineNumber, startColumn, position.lineNumber, endColumn), 0,
-				new Position(position.lineNumber, endColumn), 0
+			wetuwn new SingweCuwsowState(
+				new Wange(position.wineNumba, stawtCowumn, position.wineNumba, endCowumn), 0,
+				new Position(position.wineNumba, endCowumn), 0
 			);
 		}
 
-		let startColumn: number;
-		let endColumn: number;
+		wet stawtCowumn: numba;
+		wet endCowumn: numba;
 
-		if (prevWord && prevWord.wordType === WordType.Regular && prevWord.start < position.column - 1 && position.column - 1 < prevWord.end) {
-			// isInsidePrevWord
-			startColumn = prevWord.start + 1;
-			endColumn = prevWord.end + 1;
-		} else if (nextWord && nextWord.wordType === WordType.Regular && nextWord.start < position.column - 1 && position.column - 1 < nextWord.end) {
-			// isInsideNextWord
-			startColumn = nextWord.start + 1;
-			endColumn = nextWord.end + 1;
-		} else {
-			startColumn = position.column;
-			endColumn = position.column;
+		if (pwevWowd && pwevWowd.wowdType === WowdType.Weguwaw && pwevWowd.stawt < position.cowumn - 1 && position.cowumn - 1 < pwevWowd.end) {
+			// isInsidePwevWowd
+			stawtCowumn = pwevWowd.stawt + 1;
+			endCowumn = pwevWowd.end + 1;
+		} ewse if (nextWowd && nextWowd.wowdType === WowdType.Weguwaw && nextWowd.stawt < position.cowumn - 1 && position.cowumn - 1 < nextWowd.end) {
+			// isInsideNextWowd
+			stawtCowumn = nextWowd.stawt + 1;
+			endCowumn = nextWowd.end + 1;
+		} ewse {
+			stawtCowumn = position.cowumn;
+			endCowumn = position.cowumn;
 		}
 
-		let lineNumber = position.lineNumber;
-		let column: number;
-		if (cursor.selectionStart.containsPosition(position)) {
-			column = cursor.selectionStart.endColumn;
-		} else if (position.isBeforeOrEqual(cursor.selectionStart.getStartPosition())) {
-			column = startColumn;
-			let possiblePosition = new Position(lineNumber, column);
-			if (cursor.selectionStart.containsPosition(possiblePosition)) {
-				column = cursor.selectionStart.endColumn;
+		wet wineNumba = position.wineNumba;
+		wet cowumn: numba;
+		if (cuwsow.sewectionStawt.containsPosition(position)) {
+			cowumn = cuwsow.sewectionStawt.endCowumn;
+		} ewse if (position.isBefoweOwEquaw(cuwsow.sewectionStawt.getStawtPosition())) {
+			cowumn = stawtCowumn;
+			wet possibwePosition = new Position(wineNumba, cowumn);
+			if (cuwsow.sewectionStawt.containsPosition(possibwePosition)) {
+				cowumn = cuwsow.sewectionStawt.endCowumn;
 			}
-		} else {
-			column = endColumn;
-			let possiblePosition = new Position(lineNumber, column);
-			if (cursor.selectionStart.containsPosition(possiblePosition)) {
-				column = cursor.selectionStart.startColumn;
+		} ewse {
+			cowumn = endCowumn;
+			wet possibwePosition = new Position(wineNumba, cowumn);
+			if (cuwsow.sewectionStawt.containsPosition(possibwePosition)) {
+				cowumn = cuwsow.sewectionStawt.stawtCowumn;
 			}
 		}
 
-		return cursor.move(true, lineNumber, column, 0);
+		wetuwn cuwsow.move(twue, wineNumba, cowumn, 0);
 	}
 }
 
-export class WordPartOperations extends WordOperations {
-	public static deleteWordPartLeft(ctx: DeleteWordContext): Range {
-		const candidates = enforceDefined([
-			WordOperations.deleteWordLeft(ctx, WordNavigationType.WordStart),
-			WordOperations.deleteWordLeft(ctx, WordNavigationType.WordEnd),
-			WordOperations._deleteWordPartLeft(ctx.model, ctx.selection)
+expowt cwass WowdPawtOpewations extends WowdOpewations {
+	pubwic static deweteWowdPawtWeft(ctx: DeweteWowdContext): Wange {
+		const candidates = enfowceDefined([
+			WowdOpewations.deweteWowdWeft(ctx, WowdNavigationType.WowdStawt),
+			WowdOpewations.deweteWowdWeft(ctx, WowdNavigationType.WowdEnd),
+			WowdOpewations._deweteWowdPawtWeft(ctx.modew, ctx.sewection)
 		]);
-		candidates.sort(Range.compareRangesUsingEnds);
-		return candidates[2];
+		candidates.sowt(Wange.compaweWangesUsingEnds);
+		wetuwn candidates[2];
 	}
 
-	public static deleteWordPartRight(ctx: DeleteWordContext): Range {
-		const candidates = enforceDefined([
-			WordOperations.deleteWordRight(ctx, WordNavigationType.WordStart),
-			WordOperations.deleteWordRight(ctx, WordNavigationType.WordEnd),
-			WordOperations._deleteWordPartRight(ctx.model, ctx.selection)
+	pubwic static deweteWowdPawtWight(ctx: DeweteWowdContext): Wange {
+		const candidates = enfowceDefined([
+			WowdOpewations.deweteWowdWight(ctx, WowdNavigationType.WowdStawt),
+			WowdOpewations.deweteWowdWight(ctx, WowdNavigationType.WowdEnd),
+			WowdOpewations._deweteWowdPawtWight(ctx.modew, ctx.sewection)
 		]);
-		candidates.sort(Range.compareRangesUsingStarts);
-		return candidates[0];
+		candidates.sowt(Wange.compaweWangesUsingStawts);
+		wetuwn candidates[0];
 	}
 
-	public static moveWordPartLeft(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position): Position {
-		const candidates = enforceDefined([
-			WordOperations.moveWordLeft(wordSeparators, model, position, WordNavigationType.WordStart),
-			WordOperations.moveWordLeft(wordSeparators, model, position, WordNavigationType.WordEnd),
-			WordOperations._moveWordPartLeft(model, position)
+	pubwic static moveWowdPawtWeft(wowdSepawatows: WowdChawactewCwassifia, modew: ICuwsowSimpweModew, position: Position): Position {
+		const candidates = enfowceDefined([
+			WowdOpewations.moveWowdWeft(wowdSepawatows, modew, position, WowdNavigationType.WowdStawt),
+			WowdOpewations.moveWowdWeft(wowdSepawatows, modew, position, WowdNavigationType.WowdEnd),
+			WowdOpewations._moveWowdPawtWeft(modew, position)
 		]);
-		candidates.sort(Position.compare);
-		return candidates[2];
+		candidates.sowt(Position.compawe);
+		wetuwn candidates[2];
 	}
 
-	public static moveWordPartRight(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position): Position {
-		const candidates = enforceDefined([
-			WordOperations.moveWordRight(wordSeparators, model, position, WordNavigationType.WordStart),
-			WordOperations.moveWordRight(wordSeparators, model, position, WordNavigationType.WordEnd),
-			WordOperations._moveWordPartRight(model, position)
+	pubwic static moveWowdPawtWight(wowdSepawatows: WowdChawactewCwassifia, modew: ICuwsowSimpweModew, position: Position): Position {
+		const candidates = enfowceDefined([
+			WowdOpewations.moveWowdWight(wowdSepawatows, modew, position, WowdNavigationType.WowdStawt),
+			WowdOpewations.moveWowdWight(wowdSepawatows, modew, position, WowdNavigationType.WowdEnd),
+			WowdOpewations._moveWowdPawtWight(modew, position)
 		]);
-		candidates.sort(Position.compare);
-		return candidates[0];
+		candidates.sowt(Position.compawe);
+		wetuwn candidates[0];
 	}
 }
 
-function enforceDefined<T>(arr: Array<T | undefined | null>): T[] {
-	return <T[]>arr.filter(el => Boolean(el));
+function enfowceDefined<T>(aww: Awway<T | undefined | nuww>): T[] {
+	wetuwn <T[]>aww.fiwta(ew => Boowean(ew));
 }

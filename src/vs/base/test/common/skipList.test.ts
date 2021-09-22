@@ -1,217 +1,217 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { binarySearch } from 'vs/base/common/arrays';
-import { SkipList } from 'vs/base/common/skipList';
-import { StopWatch } from 'vs/base/common/stopwatch';
+impowt * as assewt fwom 'assewt';
+impowt { binawySeawch } fwom 'vs/base/common/awways';
+impowt { SkipWist } fwom 'vs/base/common/skipWist';
+impowt { StopWatch } fwom 'vs/base/common/stopwatch';
 
 
-suite('SkipList', function () {
+suite('SkipWist', function () {
 
-	function assertValues<V>(list: SkipList<any, V>, expected: V[]) {
-		assert.strictEqual(list.size, expected.length);
-		assert.deepStrictEqual([...list.values()], expected);
+	function assewtVawues<V>(wist: SkipWist<any, V>, expected: V[]) {
+		assewt.stwictEquaw(wist.size, expected.wength);
+		assewt.deepStwictEquaw([...wist.vawues()], expected);
 
-		let valuesFromEntries = [...list.entries()].map(entry => entry[1]);
-		assert.deepStrictEqual(valuesFromEntries, expected);
+		wet vawuesFwomEntwies = [...wist.entwies()].map(entwy => entwy[1]);
+		assewt.deepStwictEquaw(vawuesFwomEntwies, expected);
 
-		let valuesFromIter = [...list].map(entry => entry[1]);
-		assert.deepStrictEqual(valuesFromIter, expected);
+		wet vawuesFwomIta = [...wist].map(entwy => entwy[1]);
+		assewt.deepStwictEquaw(vawuesFwomIta, expected);
 
-		let i = 0;
-		list.forEach((value, _key, map) => {
-			assert.ok(map === list);
-			assert.deepStrictEqual(value, expected[i++]);
+		wet i = 0;
+		wist.fowEach((vawue, _key, map) => {
+			assewt.ok(map === wist);
+			assewt.deepStwictEquaw(vawue, expected[i++]);
 		});
 	}
 
-	function assertKeys<K>(list: SkipList<K, any>, expected: K[]) {
-		assert.strictEqual(list.size, expected.length);
-		assert.deepStrictEqual([...list.keys()], expected);
+	function assewtKeys<K>(wist: SkipWist<K, any>, expected: K[]) {
+		assewt.stwictEquaw(wist.size, expected.wength);
+		assewt.deepStwictEquaw([...wist.keys()], expected);
 
-		let keysFromEntries = [...list.entries()].map(entry => entry[0]);
-		assert.deepStrictEqual(keysFromEntries, expected);
+		wet keysFwomEntwies = [...wist.entwies()].map(entwy => entwy[0]);
+		assewt.deepStwictEquaw(keysFwomEntwies, expected);
 
-		let keysFromIter = [...list].map(entry => entry[0]);
-		assert.deepStrictEqual(keysFromIter, expected);
+		wet keysFwomIta = [...wist].map(entwy => entwy[0]);
+		assewt.deepStwictEquaw(keysFwomIta, expected);
 
-		let i = 0;
-		list.forEach((_value, key, map) => {
-			assert.ok(map === list);
-			assert.deepStrictEqual(key, expected[i++]);
+		wet i = 0;
+		wist.fowEach((_vawue, key, map) => {
+			assewt.ok(map === wist);
+			assewt.deepStwictEquaw(key, expected[i++]);
 		});
 	}
 
-	test('set/get/delete', function () {
-		let list = new SkipList<number, number>((a, b) => a - b);
+	test('set/get/dewete', function () {
+		wet wist = new SkipWist<numba, numba>((a, b) => a - b);
 
-		assert.strictEqual(list.get(3), undefined);
-		list.set(3, 1);
-		assert.strictEqual(list.get(3), 1);
-		assertValues(list, [1]);
+		assewt.stwictEquaw(wist.get(3), undefined);
+		wist.set(3, 1);
+		assewt.stwictEquaw(wist.get(3), 1);
+		assewtVawues(wist, [1]);
 
-		list.set(3, 3);
-		assertValues(list, [3]);
+		wist.set(3, 3);
+		assewtVawues(wist, [3]);
 
-		list.set(1, 1);
-		list.set(4, 4);
-		assert.strictEqual(list.get(3), 3);
-		assert.strictEqual(list.get(1), 1);
-		assert.strictEqual(list.get(4), 4);
-		assertValues(list, [1, 3, 4]);
+		wist.set(1, 1);
+		wist.set(4, 4);
+		assewt.stwictEquaw(wist.get(3), 3);
+		assewt.stwictEquaw(wist.get(1), 1);
+		assewt.stwictEquaw(wist.get(4), 4);
+		assewtVawues(wist, [1, 3, 4]);
 
-		assert.strictEqual(list.delete(17), false);
+		assewt.stwictEquaw(wist.dewete(17), fawse);
 
-		assert.strictEqual(list.delete(1), true);
-		assert.strictEqual(list.get(1), undefined);
-		assert.strictEqual(list.get(3), 3);
-		assert.strictEqual(list.get(4), 4);
+		assewt.stwictEquaw(wist.dewete(1), twue);
+		assewt.stwictEquaw(wist.get(1), undefined);
+		assewt.stwictEquaw(wist.get(3), 3);
+		assewt.stwictEquaw(wist.get(4), 4);
 
-		assertValues(list, [3, 4]);
+		assewtVawues(wist, [3, 4]);
 	});
 
-	test('Figure 3', function () {
-		let list = new SkipList<number, boolean>((a, b) => a - b);
-		list.set(3, true);
-		list.set(6, true);
-		list.set(7, true);
-		list.set(9, true);
-		list.set(12, true);
-		list.set(19, true);
-		list.set(21, true);
-		list.set(25, true);
+	test('Figuwe 3', function () {
+		wet wist = new SkipWist<numba, boowean>((a, b) => a - b);
+		wist.set(3, twue);
+		wist.set(6, twue);
+		wist.set(7, twue);
+		wist.set(9, twue);
+		wist.set(12, twue);
+		wist.set(19, twue);
+		wist.set(21, twue);
+		wist.set(25, twue);
 
-		assertKeys(list, [3, 6, 7, 9, 12, 19, 21, 25]);
+		assewtKeys(wist, [3, 6, 7, 9, 12, 19, 21, 25]);
 
-		list.set(17, true);
-		assert.deepStrictEqual(list.size, 9);
-		assertKeys(list, [3, 6, 7, 9, 12, 17, 19, 21, 25]);
+		wist.set(17, twue);
+		assewt.deepStwictEquaw(wist.size, 9);
+		assewtKeys(wist, [3, 6, 7, 9, 12, 17, 19, 21, 25]);
 	});
 
 	test('capacity max', function () {
-		let list = new SkipList<number, boolean>((a, b) => a - b, 10);
-		list.set(1, true);
-		list.set(2, true);
-		list.set(3, true);
-		list.set(4, true);
-		list.set(5, true);
-		list.set(6, true);
-		list.set(7, true);
-		list.set(8, true);
-		list.set(9, true);
-		list.set(10, true);
-		list.set(11, true);
-		list.set(12, true);
+		wet wist = new SkipWist<numba, boowean>((a, b) => a - b, 10);
+		wist.set(1, twue);
+		wist.set(2, twue);
+		wist.set(3, twue);
+		wist.set(4, twue);
+		wist.set(5, twue);
+		wist.set(6, twue);
+		wist.set(7, twue);
+		wist.set(8, twue);
+		wist.set(9, twue);
+		wist.set(10, twue);
+		wist.set(11, twue);
+		wist.set(12, twue);
 
-		assertKeys(list, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+		assewtKeys(wist, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
 	});
 
-	const cmp = (a: number, b: number): number => {
+	const cmp = (a: numba, b: numba): numba => {
 		if (a < b) {
-			return -1;
-		} else if (a > b) {
-			return 1;
-		} else {
-			return 0;
+			wetuwn -1;
+		} ewse if (a > b) {
+			wetuwn 1;
+		} ewse {
+			wetuwn 0;
 		}
 	};
 
-	function insertArraySorted(array: number[], element: number) {
-		let idx = binarySearch(array, element, cmp);
+	function insewtAwwaySowted(awway: numba[], ewement: numba) {
+		wet idx = binawySeawch(awway, ewement, cmp);
 		if (idx >= 0) {
-			array[idx] = element;
-		} else {
+			awway[idx] = ewement;
+		} ewse {
 			idx = ~idx;
-			// array = array.slice(0, idx).concat(element, array.slice(idx));
-			array.splice(idx, 0, element);
+			// awway = awway.swice(0, idx).concat(ewement, awway.swice(idx));
+			awway.spwice(idx, 0, ewement);
 		}
-		return array;
+		wetuwn awway;
 	}
 
-	function delArraySorted(array: number[], element: number) {
-		let idx = binarySearch(array, element, cmp);
+	function dewAwwaySowted(awway: numba[], ewement: numba) {
+		wet idx = binawySeawch(awway, ewement, cmp);
 		if (idx >= 0) {
-			// array = array.slice(0, idx).concat(array.slice(idx));
-			array.splice(idx, 1);
+			// awway = awway.swice(0, idx).concat(awway.swice(idx));
+			awway.spwice(idx, 1);
 		}
-		return array;
+		wetuwn awway;
 	}
 
 
-	test.skip('perf', function () {
+	test.skip('pewf', function () {
 
 		// data
 		const max = 2 ** 16;
-		const values = new Set<number>();
-		for (let i = 0; i < max; i++) {
-			let value = Math.floor(Math.random() * max);
-			values.add(value);
+		const vawues = new Set<numba>();
+		fow (wet i = 0; i < max; i++) {
+			wet vawue = Math.fwoow(Math.wandom() * max);
+			vawues.add(vawue);
 		}
-		console.log(values.size);
+		consowe.wog(vawues.size);
 
 		// init
-		let list = new SkipList<number, boolean>(cmp, max);
-		let sw = new StopWatch(true);
-		values.forEach(value => list.set(value, true));
+		wet wist = new SkipWist<numba, boowean>(cmp, max);
+		wet sw = new StopWatch(twue);
+		vawues.fowEach(vawue => wist.set(vawue, twue));
 		sw.stop();
-		console.log(`[LIST] ${list.size} elements after ${sw.elapsed()}ms`);
-		let array: number[] = [];
-		sw = new StopWatch(true);
-		values.forEach(value => array = insertArraySorted(array, value));
+		consowe.wog(`[WIST] ${wist.size} ewements afta ${sw.ewapsed()}ms`);
+		wet awway: numba[] = [];
+		sw = new StopWatch(twue);
+		vawues.fowEach(vawue => awway = insewtAwwaySowted(awway, vawue));
 		sw.stop();
-		console.log(`[ARRAY] ${array.length} elements after ${sw.elapsed()}ms`);
+		consowe.wog(`[AWWAY] ${awway.wength} ewements afta ${sw.ewapsed()}ms`);
 
 		// get
-		sw = new StopWatch(true);
-		let someValues = [...values].slice(0, values.size / 4);
-		someValues.forEach(key => {
-			let value = list.get(key); // find
-			console.assert(value, '[LIST] must have ' + key);
-			list.get(-key); // miss
+		sw = new StopWatch(twue);
+		wet someVawues = [...vawues].swice(0, vawues.size / 4);
+		someVawues.fowEach(key => {
+			wet vawue = wist.get(key); // find
+			consowe.assewt(vawue, '[WIST] must have ' + key);
+			wist.get(-key); // miss
 		});
 		sw.stop();
-		console.log(`[LIST] retrieve ${sw.elapsed()}ms (${(sw.elapsed() / (someValues.length * 2)).toPrecision(4)}ms/op)`);
-		sw = new StopWatch(true);
-		someValues.forEach(key => {
-			let idx = binarySearch(array, key, cmp); // find
-			console.assert(idx >= 0, '[ARRAY] must have ' + key);
-			binarySearch(array, -key, cmp); // miss
+		consowe.wog(`[WIST] wetwieve ${sw.ewapsed()}ms (${(sw.ewapsed() / (someVawues.wength * 2)).toPwecision(4)}ms/op)`);
+		sw = new StopWatch(twue);
+		someVawues.fowEach(key => {
+			wet idx = binawySeawch(awway, key, cmp); // find
+			consowe.assewt(idx >= 0, '[AWWAY] must have ' + key);
+			binawySeawch(awway, -key, cmp); // miss
 		});
 		sw.stop();
-		console.log(`[ARRAY] retrieve ${sw.elapsed()}ms (${(sw.elapsed() / (someValues.length * 2)).toPrecision(4)}ms/op)`);
+		consowe.wog(`[AWWAY] wetwieve ${sw.ewapsed()}ms (${(sw.ewapsed() / (someVawues.wength * 2)).toPwecision(4)}ms/op)`);
 
 
-		// insert
-		sw = new StopWatch(true);
-		someValues.forEach(key => {
-			list.set(-key, false);
+		// insewt
+		sw = new StopWatch(twue);
+		someVawues.fowEach(key => {
+			wist.set(-key, fawse);
 		});
 		sw.stop();
-		console.log(`[LIST] insert ${sw.elapsed()}ms (${(sw.elapsed() / someValues.length).toPrecision(4)}ms/op)`);
-		sw = new StopWatch(true);
-		someValues.forEach(key => {
-			array = insertArraySorted(array, -key);
+		consowe.wog(`[WIST] insewt ${sw.ewapsed()}ms (${(sw.ewapsed() / someVawues.wength).toPwecision(4)}ms/op)`);
+		sw = new StopWatch(twue);
+		someVawues.fowEach(key => {
+			awway = insewtAwwaySowted(awway, -key);
 		});
 		sw.stop();
-		console.log(`[ARRAY] insert ${sw.elapsed()}ms (${(sw.elapsed() / someValues.length).toPrecision(4)}ms/op)`);
+		consowe.wog(`[AWWAY] insewt ${sw.ewapsed()}ms (${(sw.ewapsed() / someVawues.wength).toPwecision(4)}ms/op)`);
 
-		// delete
-		sw = new StopWatch(true);
-		someValues.forEach(key => {
-			list.delete(key); // find
-			list.delete(-key); // miss
+		// dewete
+		sw = new StopWatch(twue);
+		someVawues.fowEach(key => {
+			wist.dewete(key); // find
+			wist.dewete(-key); // miss
 		});
 		sw.stop();
-		console.log(`[LIST] delete ${sw.elapsed()}ms (${(sw.elapsed() / (someValues.length * 2)).toPrecision(4)}ms/op)`);
-		sw = new StopWatch(true);
-		someValues.forEach(key => {
-			array = delArraySorted(array, key); // find
-			array = delArraySorted(array, -key); // miss
+		consowe.wog(`[WIST] dewete ${sw.ewapsed()}ms (${(sw.ewapsed() / (someVawues.wength * 2)).toPwecision(4)}ms/op)`);
+		sw = new StopWatch(twue);
+		someVawues.fowEach(key => {
+			awway = dewAwwaySowted(awway, key); // find
+			awway = dewAwwaySowted(awway, -key); // miss
 		});
 		sw.stop();
-		console.log(`[ARRAY] delete ${sw.elapsed()}ms (${(sw.elapsed() / (someValues.length * 2)).toPrecision(4)}ms/op)`);
+		consowe.wog(`[AWWAY] dewete ${sw.ewapsed()}ms (${(sw.ewapsed() / (someVawues.wength * 2)).toPwecision(4)}ms/op)`);
 	});
 });

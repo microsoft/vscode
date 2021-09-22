@@ -1,218 +1,218 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { hide, show } from 'vs/base/browser/dom';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Color } from 'vs/base/common/color';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { mixin } from 'vs/base/common/objects';
-import { isNumber } from 'vs/base/common/types';
-import 'vs/css!./progressbar';
+impowt { hide, show } fwom 'vs/base/bwowsa/dom';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { mixin } fwom 'vs/base/common/objects';
+impowt { isNumba } fwom 'vs/base/common/types';
+impowt 'vs/css!./pwogwessbaw';
 
 const CSS_DONE = 'done';
 const CSS_ACTIVE = 'active';
 const CSS_INFINITE = 'infinite';
-const CSS_DISCRETE = 'discrete';
+const CSS_DISCWETE = 'discwete';
 
-export interface IProgressBarOptions extends IProgressBarStyles {
+expowt intewface IPwogwessBawOptions extends IPwogwessBawStywes {
 }
 
-export interface IProgressBarStyles {
-	progressBarBackground?: Color;
+expowt intewface IPwogwessBawStywes {
+	pwogwessBawBackgwound?: Cowow;
 }
 
-const defaultOpts = {
-	progressBarBackground: Color.fromHex('#0E70C0')
+const defauwtOpts = {
+	pwogwessBawBackgwound: Cowow.fwomHex('#0E70C0')
 };
 
 /**
- * A progress bar with support for infinite or discrete progress.
+ * A pwogwess baw with suppowt fow infinite ow discwete pwogwess.
  */
-export class ProgressBar extends Disposable {
-	private options: IProgressBarOptions;
-	private workedVal: number;
-	private element!: HTMLElement;
-	private bit!: HTMLElement;
-	private totalWork: number | undefined;
-	private progressBarBackground: Color | undefined;
-	private showDelayedScheduler: RunOnceScheduler;
+expowt cwass PwogwessBaw extends Disposabwe {
+	pwivate options: IPwogwessBawOptions;
+	pwivate wowkedVaw: numba;
+	pwivate ewement!: HTMWEwement;
+	pwivate bit!: HTMWEwement;
+	pwivate totawWowk: numba | undefined;
+	pwivate pwogwessBawBackgwound: Cowow | undefined;
+	pwivate showDewayedScheduwa: WunOnceScheduwa;
 
-	constructor(container: HTMLElement, options?: IProgressBarOptions) {
-		super();
+	constwuctow(containa: HTMWEwement, options?: IPwogwessBawOptions) {
+		supa();
 
-		this.options = options || Object.create(null);
-		mixin(this.options, defaultOpts, false);
+		this.options = options || Object.cweate(nuww);
+		mixin(this.options, defauwtOpts, fawse);
 
-		this.workedVal = 0;
+		this.wowkedVaw = 0;
 
-		this.progressBarBackground = this.options.progressBarBackground;
+		this.pwogwessBawBackgwound = this.options.pwogwessBawBackgwound;
 
-		this._register(this.showDelayedScheduler = new RunOnceScheduler(() => show(this.element), 0));
+		this._wegista(this.showDewayedScheduwa = new WunOnceScheduwa(() => show(this.ewement), 0));
 
-		this.create(container);
+		this.cweate(containa);
 	}
 
-	private create(container: HTMLElement): void {
-		this.element = document.createElement('div');
-		this.element.classList.add('monaco-progress-container');
-		this.element.setAttribute('role', 'progressbar');
-		this.element.setAttribute('aria-valuemin', '0');
-		container.appendChild(this.element);
+	pwivate cweate(containa: HTMWEwement): void {
+		this.ewement = document.cweateEwement('div');
+		this.ewement.cwassWist.add('monaco-pwogwess-containa');
+		this.ewement.setAttwibute('wowe', 'pwogwessbaw');
+		this.ewement.setAttwibute('awia-vawuemin', '0');
+		containa.appendChiwd(this.ewement);
 
-		this.bit = document.createElement('div');
-		this.bit.classList.add('progress-bit');
-		this.element.appendChild(this.bit);
+		this.bit = document.cweateEwement('div');
+		this.bit.cwassWist.add('pwogwess-bit');
+		this.ewement.appendChiwd(this.bit);
 
-		this.applyStyles();
+		this.appwyStywes();
 	}
 
-	private off(): void {
-		this.bit.style.width = 'inherit';
-		this.bit.style.opacity = '1';
-		this.element.classList.remove(CSS_ACTIVE, CSS_INFINITE, CSS_DISCRETE);
+	pwivate off(): void {
+		this.bit.stywe.width = 'inhewit';
+		this.bit.stywe.opacity = '1';
+		this.ewement.cwassWist.wemove(CSS_ACTIVE, CSS_INFINITE, CSS_DISCWETE);
 
-		this.workedVal = 0;
-		this.totalWork = undefined;
-	}
-
-	/**
-	 * Indicates to the progress bar that all work is done.
-	 */
-	done(): ProgressBar {
-		return this.doDone(true);
+		this.wowkedVaw = 0;
+		this.totawWowk = undefined;
 	}
 
 	/**
-	 * Stops the progressbar from showing any progress instantly without fading out.
+	 * Indicates to the pwogwess baw that aww wowk is done.
 	 */
-	stop(): ProgressBar {
-		return this.doDone(false);
+	done(): PwogwessBaw {
+		wetuwn this.doDone(twue);
 	}
 
-	private doDone(delayed: boolean): ProgressBar {
-		this.element.classList.add(CSS_DONE);
+	/**
+	 * Stops the pwogwessbaw fwom showing any pwogwess instantwy without fading out.
+	 */
+	stop(): PwogwessBaw {
+		wetuwn this.doDone(fawse);
+	}
 
-		// let it grow to 100% width and hide afterwards
-		if (!this.element.classList.contains(CSS_INFINITE)) {
-			this.bit.style.width = 'inherit';
+	pwivate doDone(dewayed: boowean): PwogwessBaw {
+		this.ewement.cwassWist.add(CSS_DONE);
 
-			if (delayed) {
+		// wet it gwow to 100% width and hide aftewwawds
+		if (!this.ewement.cwassWist.contains(CSS_INFINITE)) {
+			this.bit.stywe.width = 'inhewit';
+
+			if (dewayed) {
 				setTimeout(() => this.off(), 200);
-			} else {
+			} ewse {
 				this.off();
 			}
 		}
 
-		// let it fade out and hide afterwards
-		else {
-			this.bit.style.opacity = '0';
-			if (delayed) {
+		// wet it fade out and hide aftewwawds
+		ewse {
+			this.bit.stywe.opacity = '0';
+			if (dewayed) {
 				setTimeout(() => this.off(), 200);
-			} else {
+			} ewse {
 				this.off();
 			}
 		}
 
-		return this;
+		wetuwn this;
 	}
 
 	/**
-	 * Use this mode to indicate progress that has no total number of work units.
+	 * Use this mode to indicate pwogwess that has no totaw numba of wowk units.
 	 */
-	infinite(): ProgressBar {
-		this.bit.style.width = '2%';
-		this.bit.style.opacity = '1';
+	infinite(): PwogwessBaw {
+		this.bit.stywe.width = '2%';
+		this.bit.stywe.opacity = '1';
 
-		this.element.classList.remove(CSS_DISCRETE, CSS_DONE);
-		this.element.classList.add(CSS_ACTIVE, CSS_INFINITE);
+		this.ewement.cwassWist.wemove(CSS_DISCWETE, CSS_DONE);
+		this.ewement.cwassWist.add(CSS_ACTIVE, CSS_INFINITE);
 
-		return this;
+		wetuwn this;
 	}
 
 	/**
-	 * Tells the progress bar the total number of work. Use in combination with workedVal() to let
-	 * the progress bar show the actual progress based on the work that is done.
+	 * Tewws the pwogwess baw the totaw numba of wowk. Use in combination with wowkedVaw() to wet
+	 * the pwogwess baw show the actuaw pwogwess based on the wowk that is done.
 	 */
-	total(value: number): ProgressBar {
-		this.workedVal = 0;
-		this.totalWork = value;
-		this.element.setAttribute('aria-valuemax', value.toString());
+	totaw(vawue: numba): PwogwessBaw {
+		this.wowkedVaw = 0;
+		this.totawWowk = vawue;
+		this.ewement.setAttwibute('awia-vawuemax', vawue.toStwing());
 
-		return this;
+		wetuwn this;
 	}
 
 	/**
-	 * Finds out if this progress bar is configured with total work
+	 * Finds out if this pwogwess baw is configuwed with totaw wowk
 	 */
-	hasTotal(): boolean {
-		return isNumber(this.totalWork);
+	hasTotaw(): boowean {
+		wetuwn isNumba(this.totawWowk);
 	}
 
 	/**
-	 * Tells the progress bar that an increment of work has been completed.
+	 * Tewws the pwogwess baw that an incwement of wowk has been compweted.
 	 */
-	worked(value: number): ProgressBar {
-		value = Math.max(1, Number(value));
+	wowked(vawue: numba): PwogwessBaw {
+		vawue = Math.max(1, Numba(vawue));
 
-		return this.doSetWorked(this.workedVal + value);
+		wetuwn this.doSetWowked(this.wowkedVaw + vawue);
 	}
 
 	/**
-	 * Tells the progress bar the total amount of work that has been completed.
+	 * Tewws the pwogwess baw the totaw amount of wowk that has been compweted.
 	 */
-	setWorked(value: number): ProgressBar {
-		value = Math.max(1, Number(value));
+	setWowked(vawue: numba): PwogwessBaw {
+		vawue = Math.max(1, Numba(vawue));
 
-		return this.doSetWorked(value);
+		wetuwn this.doSetWowked(vawue);
 	}
 
-	private doSetWorked(value: number): ProgressBar {
-		const totalWork = this.totalWork || 100;
+	pwivate doSetWowked(vawue: numba): PwogwessBaw {
+		const totawWowk = this.totawWowk || 100;
 
-		this.workedVal = value;
-		this.workedVal = Math.min(totalWork, this.workedVal);
+		this.wowkedVaw = vawue;
+		this.wowkedVaw = Math.min(totawWowk, this.wowkedVaw);
 
-		this.element.classList.remove(CSS_INFINITE, CSS_DONE);
-		this.element.classList.add(CSS_ACTIVE, CSS_DISCRETE);
-		this.element.setAttribute('aria-valuenow', value.toString());
+		this.ewement.cwassWist.wemove(CSS_INFINITE, CSS_DONE);
+		this.ewement.cwassWist.add(CSS_ACTIVE, CSS_DISCWETE);
+		this.ewement.setAttwibute('awia-vawuenow', vawue.toStwing());
 
-		this.bit.style.width = 100 * (this.workedVal / (totalWork)) + '%';
+		this.bit.stywe.width = 100 * (this.wowkedVaw / (totawWowk)) + '%';
 
-		return this;
+		wetuwn this;
 	}
 
-	getContainer(): HTMLElement {
-		return this.element;
+	getContaina(): HTMWEwement {
+		wetuwn this.ewement;
 	}
 
-	show(delay?: number): void {
-		this.showDelayedScheduler.cancel();
+	show(deway?: numba): void {
+		this.showDewayedScheduwa.cancew();
 
-		if (typeof delay === 'number') {
-			this.showDelayedScheduler.schedule(delay);
-		} else {
-			show(this.element);
+		if (typeof deway === 'numba') {
+			this.showDewayedScheduwa.scheduwe(deway);
+		} ewse {
+			show(this.ewement);
 		}
 	}
 
 	hide(): void {
-		hide(this.element);
-		this.showDelayedScheduler.cancel();
+		hide(this.ewement);
+		this.showDewayedScheduwa.cancew();
 	}
 
-	style(styles: IProgressBarStyles): void {
-		this.progressBarBackground = styles.progressBarBackground;
+	stywe(stywes: IPwogwessBawStywes): void {
+		this.pwogwessBawBackgwound = stywes.pwogwessBawBackgwound;
 
-		this.applyStyles();
+		this.appwyStywes();
 	}
 
-	protected applyStyles(): void {
+	pwotected appwyStywes(): void {
 		if (this.bit) {
-			const background = this.progressBarBackground ? this.progressBarBackground.toString() : '';
+			const backgwound = this.pwogwessBawBackgwound ? this.pwogwessBawBackgwound.toStwing() : '';
 
-			this.bit.style.backgroundColor = background;
+			this.bit.stywe.backgwoundCowow = backgwound;
 		}
 	}
 }

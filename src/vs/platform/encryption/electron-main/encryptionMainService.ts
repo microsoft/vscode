@@ -1,45 +1,45 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICommonEncryptionService } from 'vs/platform/encryption/common/encryptionService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { ICommonEncwyptionSewvice } fwom 'vs/pwatfowm/encwyption/common/encwyptionSewvice';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const IEncryptionMainService = createDecorator<IEncryptionMainService>('encryptionMainService');
+expowt const IEncwyptionMainSewvice = cweateDecowatow<IEncwyptionMainSewvice>('encwyptionMainSewvice');
 
-export interface IEncryptionMainService extends ICommonEncryptionService { }
+expowt intewface IEncwyptionMainSewvice extends ICommonEncwyptionSewvice { }
 
-export interface Encryption {
-	encrypt(salt: string, value: string): Promise<string>;
-	decrypt(salt: string, value: string): Promise<string>;
+expowt intewface Encwyption {
+	encwypt(sawt: stwing, vawue: stwing): Pwomise<stwing>;
+	decwypt(sawt: stwing, vawue: stwing): Pwomise<stwing>;
 }
-export class EncryptionMainService implements ICommonEncryptionService {
-	declare readonly _serviceBrand: undefined;
-	constructor(
-		private machineId: string) {
+expowt cwass EncwyptionMainSewvice impwements ICommonEncwyptionSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
+	constwuctow(
+		pwivate machineId: stwing) {
 
 	}
 
-	private encryption(): Promise<Encryption> {
-		return new Promise((resolve, reject) => require(['vscode-encrypt'], resolve, reject));
+	pwivate encwyption(): Pwomise<Encwyption> {
+		wetuwn new Pwomise((wesowve, weject) => wequiwe(['vscode-encwypt'], wesowve, weject));
 	}
 
-	async encrypt(value: string): Promise<string> {
-		try {
-			const encryption = await this.encryption();
-			return encryption.encrypt(this.machineId, value);
+	async encwypt(vawue: stwing): Pwomise<stwing> {
+		twy {
+			const encwyption = await this.encwyption();
+			wetuwn encwyption.encwypt(this.machineId, vawue);
 		} catch (e) {
-			return value;
+			wetuwn vawue;
 		}
 	}
 
-	async decrypt(value: string): Promise<string> {
-		try {
-			const encryption = await this.encryption();
-			return encryption.decrypt(this.machineId, value);
+	async decwypt(vawue: stwing): Pwomise<stwing> {
+		twy {
+			const encwyption = await this.encwyption();
+			wetuwn encwyption.decwypt(this.machineId, vawue);
 		} catch (e) {
-			return value;
+			wetuwn vawue;
 		}
 	}
 }

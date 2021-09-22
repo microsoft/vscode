@@ -1,41 +1,41 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const enum RecommendationSource {
-	FILE = 1,
-	WORKSPACE = 2,
+expowt const enum WecommendationSouwce {
+	FIWE = 1,
+	WOWKSPACE = 2,
 	EXE = 3
 }
 
-export function RecommendationSourceToString(source: RecommendationSource) {
-	switch (source) {
-		case RecommendationSource.FILE: return 'file';
-		case RecommendationSource.WORKSPACE: return 'workspace';
-		case RecommendationSource.EXE: return 'exe';
+expowt function WecommendationSouwceToStwing(souwce: WecommendationSouwce) {
+	switch (souwce) {
+		case WecommendationSouwce.FIWE: wetuwn 'fiwe';
+		case WecommendationSouwce.WOWKSPACE: wetuwn 'wowkspace';
+		case WecommendationSouwce.EXE: wetuwn 'exe';
 	}
 }
 
-export const enum RecommendationsNotificationResult {
-	Ignored = 'ignored',
-	Cancelled = 'cancelled',
+expowt const enum WecommendationsNotificationWesuwt {
+	Ignowed = 'ignowed',
+	Cancewwed = 'cancewwed',
 	TooMany = 'toomany',
-	IncompatibleWindow = 'incompatibleWindow',
-	Accepted = 'reacted',
+	IncompatibweWindow = 'incompatibweWindow',
+	Accepted = 'weacted',
 }
 
-export const IExtensionRecommendationNotificationService = createDecorator<IExtensionRecommendationNotificationService>('IExtensionRecommendationNotificationService');
+expowt const IExtensionWecommendationNotificationSewvice = cweateDecowatow<IExtensionWecommendationNotificationSewvice>('IExtensionWecommendationNotificationSewvice');
 
-export interface IExtensionRecommendationNotificationService {
-	readonly _serviceBrand: undefined;
+expowt intewface IExtensionWecommendationNotificationSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	readonly ignoredRecommendations: string[];
-	hasToIgnoreRecommendationNotifications(): boolean;
+	weadonwy ignowedWecommendations: stwing[];
+	hasToIgnoweWecommendationNotifications(): boowean;
 
-	promptImportantExtensionsInstallNotification(extensionIds: string[], message: string, searchValue: string, source: RecommendationSource): Promise<RecommendationsNotificationResult>;
-	promptWorkspaceRecommendations(recommendations: string[]): Promise<void>;
+	pwomptImpowtantExtensionsInstawwNotification(extensionIds: stwing[], message: stwing, seawchVawue: stwing, souwce: WecommendationSouwce): Pwomise<WecommendationsNotificationWesuwt>;
+	pwomptWowkspaceWecommendations(wecommendations: stwing[]): Pwomise<void>;
 }
 

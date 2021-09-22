@@ -1,614 +1,614 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import * as strings from 'vs/base/common/strings';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ApplyEditsResult, EndOfLinePreference, FindMatch, IInternalModelContentChange, ISingleEditOperationIdentifier, ITextBuffer, ITextSnapshot, ValidAnnotatedEditOperation, IValidEditOperation } from 'vs/editor/common/model';
-import { PieceTreeBase, StringBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
-import { SearchData } from 'vs/editor/common/model/textModelSearch';
-import { countEOL, StringEOL } from 'vs/editor/common/model/tokensStore';
-import { TextChange } from 'vs/editor/common/model/textChange';
-import { Disposable } from 'vs/base/common/lifecycle';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { AppwyEditsWesuwt, EndOfWinePwefewence, FindMatch, IIntewnawModewContentChange, ISingweEditOpewationIdentifia, ITextBuffa, ITextSnapshot, VawidAnnotatedEditOpewation, IVawidEditOpewation } fwom 'vs/editow/common/modew';
+impowt { PieceTweeBase, StwingBuffa } fwom 'vs/editow/common/modew/pieceTweeTextBuffa/pieceTweeBase';
+impowt { SeawchData } fwom 'vs/editow/common/modew/textModewSeawch';
+impowt { countEOW, StwingEOW } fwom 'vs/editow/common/modew/tokensStowe';
+impowt { TextChange } fwom 'vs/editow/common/modew/textChange';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
 
-export interface IValidatedEditOperation {
-	sortIndex: number;
-	identifier: ISingleEditOperationIdentifier | null;
-	range: Range;
-	rangeOffset: number;
-	rangeLength: number;
-	text: string;
-	eolCount: number;
-	firstLineLength: number;
-	lastLineLength: number;
-	forceMoveMarkers: boolean;
-	isAutoWhitespaceEdit: boolean;
+expowt intewface IVawidatedEditOpewation {
+	sowtIndex: numba;
+	identifia: ISingweEditOpewationIdentifia | nuww;
+	wange: Wange;
+	wangeOffset: numba;
+	wangeWength: numba;
+	text: stwing;
+	eowCount: numba;
+	fiwstWineWength: numba;
+	wastWineWength: numba;
+	fowceMoveMawkews: boowean;
+	isAutoWhitespaceEdit: boowean;
 }
 
-export interface IReverseSingleEditOperation extends IValidEditOperation {
-	sortIndex: number;
+expowt intewface IWevewseSingweEditOpewation extends IVawidEditOpewation {
+	sowtIndex: numba;
 }
 
-export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
-	private _pieceTree: PieceTreeBase;
-	private readonly _BOM: string;
-	private _mightContainRTL: boolean;
-	private _mightContainUnusualLineTerminators: boolean;
-	private _mightContainNonBasicASCII: boolean;
+expowt cwass PieceTweeTextBuffa extends Disposabwe impwements ITextBuffa {
+	pwivate _pieceTwee: PieceTweeBase;
+	pwivate weadonwy _BOM: stwing;
+	pwivate _mightContainWTW: boowean;
+	pwivate _mightContainUnusuawWineTewminatows: boowean;
+	pwivate _mightContainNonBasicASCII: boowean;
 
-	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
+	pwivate weadonwy _onDidChangeContent: Emitta<void> = this._wegista(new Emitta<void>());
+	pubwic weadonwy onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
-	constructor(chunks: StringBuffer[], BOM: string, eol: '\r\n' | '\n', containsRTL: boolean, containsUnusualLineTerminators: boolean, isBasicASCII: boolean, eolNormalized: boolean) {
-		super();
+	constwuctow(chunks: StwingBuffa[], BOM: stwing, eow: '\w\n' | '\n', containsWTW: boowean, containsUnusuawWineTewminatows: boowean, isBasicASCII: boowean, eowNowmawized: boowean) {
+		supa();
 		this._BOM = BOM;
 		this._mightContainNonBasicASCII = !isBasicASCII;
-		this._mightContainRTL = containsRTL;
-		this._mightContainUnusualLineTerminators = containsUnusualLineTerminators;
-		this._pieceTree = new PieceTreeBase(chunks, eol, eolNormalized);
+		this._mightContainWTW = containsWTW;
+		this._mightContainUnusuawWineTewminatows = containsUnusuawWineTewminatows;
+		this._pieceTwee = new PieceTweeBase(chunks, eow, eowNowmawized);
 	}
 
-	// #region TextBuffer
-	public equals(other: ITextBuffer): boolean {
-		if (!(other instanceof PieceTreeTextBuffer)) {
-			return false;
+	// #wegion TextBuffa
+	pubwic equaws(otha: ITextBuffa): boowean {
+		if (!(otha instanceof PieceTweeTextBuffa)) {
+			wetuwn fawse;
 		}
-		if (this._BOM !== other._BOM) {
-			return false;
+		if (this._BOM !== otha._BOM) {
+			wetuwn fawse;
 		}
-		if (this.getEOL() !== other.getEOL()) {
-			return false;
+		if (this.getEOW() !== otha.getEOW()) {
+			wetuwn fawse;
 		}
-		return this._pieceTree.equal(other._pieceTree);
+		wetuwn this._pieceTwee.equaw(otha._pieceTwee);
 	}
-	public mightContainRTL(): boolean {
-		return this._mightContainRTL;
+	pubwic mightContainWTW(): boowean {
+		wetuwn this._mightContainWTW;
 	}
-	public mightContainUnusualLineTerminators(): boolean {
-		return this._mightContainUnusualLineTerminators;
+	pubwic mightContainUnusuawWineTewminatows(): boowean {
+		wetuwn this._mightContainUnusuawWineTewminatows;
 	}
-	public resetMightContainUnusualLineTerminators(): void {
-		this._mightContainUnusualLineTerminators = false;
+	pubwic wesetMightContainUnusuawWineTewminatows(): void {
+		this._mightContainUnusuawWineTewminatows = fawse;
 	}
-	public mightContainNonBasicASCII(): boolean {
-		return this._mightContainNonBasicASCII;
+	pubwic mightContainNonBasicASCII(): boowean {
+		wetuwn this._mightContainNonBasicASCII;
 	}
-	public getBOM(): string {
-		return this._BOM;
+	pubwic getBOM(): stwing {
+		wetuwn this._BOM;
 	}
-	public getEOL(): '\r\n' | '\n' {
-		return this._pieceTree.getEOL();
-	}
-
-	public createSnapshot(preserveBOM: boolean): ITextSnapshot {
-		return this._pieceTree.createSnapshot(preserveBOM ? this._BOM : '');
+	pubwic getEOW(): '\w\n' | '\n' {
+		wetuwn this._pieceTwee.getEOW();
 	}
 
-	public getOffsetAt(lineNumber: number, column: number): number {
-		return this._pieceTree.getOffsetAt(lineNumber, column);
+	pubwic cweateSnapshot(pwesewveBOM: boowean): ITextSnapshot {
+		wetuwn this._pieceTwee.cweateSnapshot(pwesewveBOM ? this._BOM : '');
 	}
 
-	public getPositionAt(offset: number): Position {
-		return this._pieceTree.getPositionAt(offset);
+	pubwic getOffsetAt(wineNumba: numba, cowumn: numba): numba {
+		wetuwn this._pieceTwee.getOffsetAt(wineNumba, cowumn);
 	}
 
-	public getRangeAt(start: number, length: number): Range {
-		let end = start + length;
-		const startPosition = this.getPositionAt(start);
+	pubwic getPositionAt(offset: numba): Position {
+		wetuwn this._pieceTwee.getPositionAt(offset);
+	}
+
+	pubwic getWangeAt(stawt: numba, wength: numba): Wange {
+		wet end = stawt + wength;
+		const stawtPosition = this.getPositionAt(stawt);
 		const endPosition = this.getPositionAt(end);
-		return new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
+		wetuwn new Wange(stawtPosition.wineNumba, stawtPosition.cowumn, endPosition.wineNumba, endPosition.cowumn);
 	}
 
-	public getValueInRange(range: Range, eol: EndOfLinePreference = EndOfLinePreference.TextDefined): string {
-		if (range.isEmpty()) {
-			return '';
+	pubwic getVawueInWange(wange: Wange, eow: EndOfWinePwefewence = EndOfWinePwefewence.TextDefined): stwing {
+		if (wange.isEmpty()) {
+			wetuwn '';
 		}
 
-		const lineEnding = this._getEndOfLine(eol);
-		return this._pieceTree.getValueInRange(range, lineEnding);
+		const wineEnding = this._getEndOfWine(eow);
+		wetuwn this._pieceTwee.getVawueInWange(wange, wineEnding);
 	}
 
-	public getValueLengthInRange(range: Range, eol: EndOfLinePreference = EndOfLinePreference.TextDefined): number {
-		if (range.isEmpty()) {
-			return 0;
+	pubwic getVawueWengthInWange(wange: Wange, eow: EndOfWinePwefewence = EndOfWinePwefewence.TextDefined): numba {
+		if (wange.isEmpty()) {
+			wetuwn 0;
 		}
 
-		if (range.startLineNumber === range.endLineNumber) {
-			return (range.endColumn - range.startColumn);
+		if (wange.stawtWineNumba === wange.endWineNumba) {
+			wetuwn (wange.endCowumn - wange.stawtCowumn);
 		}
 
-		let startOffset = this.getOffsetAt(range.startLineNumber, range.startColumn);
-		let endOffset = this.getOffsetAt(range.endLineNumber, range.endColumn);
-		return endOffset - startOffset;
+		wet stawtOffset = this.getOffsetAt(wange.stawtWineNumba, wange.stawtCowumn);
+		wet endOffset = this.getOffsetAt(wange.endWineNumba, wange.endCowumn);
+		wetuwn endOffset - stawtOffset;
 	}
 
-	public getCharacterCountInRange(range: Range, eol: EndOfLinePreference = EndOfLinePreference.TextDefined): number {
+	pubwic getChawactewCountInWange(wange: Wange, eow: EndOfWinePwefewence = EndOfWinePwefewence.TextDefined): numba {
 		if (this._mightContainNonBasicASCII) {
-			// we must count by iterating
+			// we must count by itewating
 
-			let result = 0;
+			wet wesuwt = 0;
 
-			const fromLineNumber = range.startLineNumber;
-			const toLineNumber = range.endLineNumber;
-			for (let lineNumber = fromLineNumber; lineNumber <= toLineNumber; lineNumber++) {
-				const lineContent = this.getLineContent(lineNumber);
-				const fromOffset = (lineNumber === fromLineNumber ? range.startColumn - 1 : 0);
-				const toOffset = (lineNumber === toLineNumber ? range.endColumn - 1 : lineContent.length);
+			const fwomWineNumba = wange.stawtWineNumba;
+			const toWineNumba = wange.endWineNumba;
+			fow (wet wineNumba = fwomWineNumba; wineNumba <= toWineNumba; wineNumba++) {
+				const wineContent = this.getWineContent(wineNumba);
+				const fwomOffset = (wineNumba === fwomWineNumba ? wange.stawtCowumn - 1 : 0);
+				const toOffset = (wineNumba === toWineNumba ? wange.endCowumn - 1 : wineContent.wength);
 
-				for (let offset = fromOffset; offset < toOffset; offset++) {
-					if (strings.isHighSurrogate(lineContent.charCodeAt(offset))) {
-						result = result + 1;
+				fow (wet offset = fwomOffset; offset < toOffset; offset++) {
+					if (stwings.isHighSuwwogate(wineContent.chawCodeAt(offset))) {
+						wesuwt = wesuwt + 1;
 						offset = offset + 1;
-					} else {
-						result = result + 1;
+					} ewse {
+						wesuwt = wesuwt + 1;
 					}
 				}
 			}
 
-			result += this._getEndOfLine(eol).length * (toLineNumber - fromLineNumber);
+			wesuwt += this._getEndOfWine(eow).wength * (toWineNumba - fwomWineNumba);
 
-			return result;
+			wetuwn wesuwt;
 		}
 
-		return this.getValueLengthInRange(range, eol);
+		wetuwn this.getVawueWengthInWange(wange, eow);
 	}
 
-	public getLength(): number {
-		return this._pieceTree.getLength();
+	pubwic getWength(): numba {
+		wetuwn this._pieceTwee.getWength();
 	}
 
-	public getLineCount(): number {
-		return this._pieceTree.getLineCount();
+	pubwic getWineCount(): numba {
+		wetuwn this._pieceTwee.getWineCount();
 	}
 
-	public getLinesContent(): string[] {
-		return this._pieceTree.getLinesContent();
+	pubwic getWinesContent(): stwing[] {
+		wetuwn this._pieceTwee.getWinesContent();
 	}
 
-	public getLineContent(lineNumber: number): string {
-		return this._pieceTree.getLineContent(lineNumber);
+	pubwic getWineContent(wineNumba: numba): stwing {
+		wetuwn this._pieceTwee.getWineContent(wineNumba);
 	}
 
-	public getLineCharCode(lineNumber: number, index: number): number {
-		return this._pieceTree.getLineCharCode(lineNumber, index);
+	pubwic getWineChawCode(wineNumba: numba, index: numba): numba {
+		wetuwn this._pieceTwee.getWineChawCode(wineNumba, index);
 	}
 
-	public getCharCode(offset: number): number {
-		return this._pieceTree.getCharCode(offset);
+	pubwic getChawCode(offset: numba): numba {
+		wetuwn this._pieceTwee.getChawCode(offset);
 	}
 
-	public getLineLength(lineNumber: number): number {
-		return this._pieceTree.getLineLength(lineNumber);
+	pubwic getWineWength(wineNumba: numba): numba {
+		wetuwn this._pieceTwee.getWineWength(wineNumba);
 	}
 
-	public getLineMinColumn(lineNumber: number): number {
-		return 1;
+	pubwic getWineMinCowumn(wineNumba: numba): numba {
+		wetuwn 1;
 	}
 
-	public getLineMaxColumn(lineNumber: number): number {
-		return this.getLineLength(lineNumber) + 1;
+	pubwic getWineMaxCowumn(wineNumba: numba): numba {
+		wetuwn this.getWineWength(wineNumba) + 1;
 	}
 
-	public getLineFirstNonWhitespaceColumn(lineNumber: number): number {
-		const result = strings.firstNonWhitespaceIndex(this.getLineContent(lineNumber));
-		if (result === -1) {
-			return 0;
+	pubwic getWineFiwstNonWhitespaceCowumn(wineNumba: numba): numba {
+		const wesuwt = stwings.fiwstNonWhitespaceIndex(this.getWineContent(wineNumba));
+		if (wesuwt === -1) {
+			wetuwn 0;
 		}
-		return result + 1;
+		wetuwn wesuwt + 1;
 	}
 
-	public getLineLastNonWhitespaceColumn(lineNumber: number): number {
-		const result = strings.lastNonWhitespaceIndex(this.getLineContent(lineNumber));
-		if (result === -1) {
-			return 0;
+	pubwic getWineWastNonWhitespaceCowumn(wineNumba: numba): numba {
+		const wesuwt = stwings.wastNonWhitespaceIndex(this.getWineContent(wineNumba));
+		if (wesuwt === -1) {
+			wetuwn 0;
 		}
-		return result + 2;
+		wetuwn wesuwt + 2;
 	}
 
-	private _getEndOfLine(eol: EndOfLinePreference): string {
-		switch (eol) {
-			case EndOfLinePreference.LF:
-				return '\n';
-			case EndOfLinePreference.CRLF:
-				return '\r\n';
-			case EndOfLinePreference.TextDefined:
-				return this.getEOL();
-			default:
-				throw new Error('Unknown EOL preference');
+	pwivate _getEndOfWine(eow: EndOfWinePwefewence): stwing {
+		switch (eow) {
+			case EndOfWinePwefewence.WF:
+				wetuwn '\n';
+			case EndOfWinePwefewence.CWWF:
+				wetuwn '\w\n';
+			case EndOfWinePwefewence.TextDefined:
+				wetuwn this.getEOW();
+			defauwt:
+				thwow new Ewwow('Unknown EOW pwefewence');
 		}
 	}
 
-	public setEOL(newEOL: '\r\n' | '\n'): void {
-		this._pieceTree.setEOL(newEOL);
+	pubwic setEOW(newEOW: '\w\n' | '\n'): void {
+		this._pieceTwee.setEOW(newEOW);
 	}
 
-	public applyEdits(rawOperations: ValidAnnotatedEditOperation[], recordTrimAutoWhitespace: boolean, computeUndoEdits: boolean): ApplyEditsResult {
-		let mightContainRTL = this._mightContainRTL;
-		let mightContainUnusualLineTerminators = this._mightContainUnusualLineTerminators;
-		let mightContainNonBasicASCII = this._mightContainNonBasicASCII;
-		let canReduceOperations = true;
+	pubwic appwyEdits(wawOpewations: VawidAnnotatedEditOpewation[], wecowdTwimAutoWhitespace: boowean, computeUndoEdits: boowean): AppwyEditsWesuwt {
+		wet mightContainWTW = this._mightContainWTW;
+		wet mightContainUnusuawWineTewminatows = this._mightContainUnusuawWineTewminatows;
+		wet mightContainNonBasicASCII = this._mightContainNonBasicASCII;
+		wet canWeduceOpewations = twue;
 
-		let operations: IValidatedEditOperation[] = [];
-		for (let i = 0; i < rawOperations.length; i++) {
-			let op = rawOperations[i];
-			if (canReduceOperations && op._isTracked) {
-				canReduceOperations = false;
+		wet opewations: IVawidatedEditOpewation[] = [];
+		fow (wet i = 0; i < wawOpewations.wength; i++) {
+			wet op = wawOpewations[i];
+			if (canWeduceOpewations && op._isTwacked) {
+				canWeduceOpewations = fawse;
 			}
-			let validatedRange = op.range;
+			wet vawidatedWange = op.wange;
 			if (op.text) {
-				let textMightContainNonBasicASCII = true;
+				wet textMightContainNonBasicASCII = twue;
 				if (!mightContainNonBasicASCII) {
-					textMightContainNonBasicASCII = !strings.isBasicASCII(op.text);
+					textMightContainNonBasicASCII = !stwings.isBasicASCII(op.text);
 					mightContainNonBasicASCII = textMightContainNonBasicASCII;
 				}
-				if (!mightContainRTL && textMightContainNonBasicASCII) {
-					// check if the new inserted text contains RTL
-					mightContainRTL = strings.containsRTL(op.text);
+				if (!mightContainWTW && textMightContainNonBasicASCII) {
+					// check if the new insewted text contains WTW
+					mightContainWTW = stwings.containsWTW(op.text);
 				}
-				if (!mightContainUnusualLineTerminators && textMightContainNonBasicASCII) {
-					// check if the new inserted text contains unusual line terminators
-					mightContainUnusualLineTerminators = strings.containsUnusualLineTerminators(op.text);
+				if (!mightContainUnusuawWineTewminatows && textMightContainNonBasicASCII) {
+					// check if the new insewted text contains unusuaw wine tewminatows
+					mightContainUnusuawWineTewminatows = stwings.containsUnusuawWineTewminatows(op.text);
 				}
 			}
 
-			let validText = '';
-			let eolCount = 0;
-			let firstLineLength = 0;
-			let lastLineLength = 0;
+			wet vawidText = '';
+			wet eowCount = 0;
+			wet fiwstWineWength = 0;
+			wet wastWineWength = 0;
 			if (op.text) {
-				let strEOL: StringEOL;
-				[eolCount, firstLineLength, lastLineLength, strEOL] = countEOL(op.text);
+				wet stwEOW: StwingEOW;
+				[eowCount, fiwstWineWength, wastWineWength, stwEOW] = countEOW(op.text);
 
-				const bufferEOL = this.getEOL();
-				const expectedStrEOL = (bufferEOL === '\r\n' ? StringEOL.CRLF : StringEOL.LF);
-				if (strEOL === StringEOL.Unknown || strEOL === expectedStrEOL) {
-					validText = op.text;
-				} else {
-					validText = op.text.replace(/\r\n|\r|\n/g, bufferEOL);
+				const buffewEOW = this.getEOW();
+				const expectedStwEOW = (buffewEOW === '\w\n' ? StwingEOW.CWWF : StwingEOW.WF);
+				if (stwEOW === StwingEOW.Unknown || stwEOW === expectedStwEOW) {
+					vawidText = op.text;
+				} ewse {
+					vawidText = op.text.wepwace(/\w\n|\w|\n/g, buffewEOW);
 				}
 			}
 
-			operations[i] = {
-				sortIndex: i,
-				identifier: op.identifier || null,
-				range: validatedRange,
-				rangeOffset: this.getOffsetAt(validatedRange.startLineNumber, validatedRange.startColumn),
-				rangeLength: this.getValueLengthInRange(validatedRange),
-				text: validText,
-				eolCount: eolCount,
-				firstLineLength: firstLineLength,
-				lastLineLength: lastLineLength,
-				forceMoveMarkers: Boolean(op.forceMoveMarkers),
-				isAutoWhitespaceEdit: op.isAutoWhitespaceEdit || false
+			opewations[i] = {
+				sowtIndex: i,
+				identifia: op.identifia || nuww,
+				wange: vawidatedWange,
+				wangeOffset: this.getOffsetAt(vawidatedWange.stawtWineNumba, vawidatedWange.stawtCowumn),
+				wangeWength: this.getVawueWengthInWange(vawidatedWange),
+				text: vawidText,
+				eowCount: eowCount,
+				fiwstWineWength: fiwstWineWength,
+				wastWineWength: wastWineWength,
+				fowceMoveMawkews: Boowean(op.fowceMoveMawkews),
+				isAutoWhitespaceEdit: op.isAutoWhitespaceEdit || fawse
 			};
 		}
 
-		// Sort operations ascending
-		operations.sort(PieceTreeTextBuffer._sortOpsAscending);
+		// Sowt opewations ascending
+		opewations.sowt(PieceTweeTextBuffa._sowtOpsAscending);
 
-		let hasTouchingRanges = false;
-		for (let i = 0, count = operations.length - 1; i < count; i++) {
-			let rangeEnd = operations[i].range.getEndPosition();
-			let nextRangeStart = operations[i + 1].range.getStartPosition();
+		wet hasTouchingWanges = fawse;
+		fow (wet i = 0, count = opewations.wength - 1; i < count; i++) {
+			wet wangeEnd = opewations[i].wange.getEndPosition();
+			wet nextWangeStawt = opewations[i + 1].wange.getStawtPosition();
 
-			if (nextRangeStart.isBeforeOrEqual(rangeEnd)) {
-				if (nextRangeStart.isBefore(rangeEnd)) {
-					// overlapping ranges
-					throw new Error('Overlapping ranges are not allowed!');
+			if (nextWangeStawt.isBefoweOwEquaw(wangeEnd)) {
+				if (nextWangeStawt.isBefowe(wangeEnd)) {
+					// ovewwapping wanges
+					thwow new Ewwow('Ovewwapping wanges awe not awwowed!');
 				}
-				hasTouchingRanges = true;
+				hasTouchingWanges = twue;
 			}
 		}
 
-		if (canReduceOperations) {
-			operations = this._reduceOperations(operations);
+		if (canWeduceOpewations) {
+			opewations = this._weduceOpewations(opewations);
 		}
 
-		// Delta encode operations
-		let reverseRanges = (computeUndoEdits || recordTrimAutoWhitespace ? PieceTreeTextBuffer._getInverseEditRanges(operations) : []);
-		let newTrimAutoWhitespaceCandidates: { lineNumber: number, oldContent: string }[] = [];
-		if (recordTrimAutoWhitespace) {
-			for (let i = 0; i < operations.length; i++) {
-				let op = operations[i];
-				let reverseRange = reverseRanges[i];
+		// Dewta encode opewations
+		wet wevewseWanges = (computeUndoEdits || wecowdTwimAutoWhitespace ? PieceTweeTextBuffa._getInvewseEditWanges(opewations) : []);
+		wet newTwimAutoWhitespaceCandidates: { wineNumba: numba, owdContent: stwing }[] = [];
+		if (wecowdTwimAutoWhitespace) {
+			fow (wet i = 0; i < opewations.wength; i++) {
+				wet op = opewations[i];
+				wet wevewseWange = wevewseWanges[i];
 
-				if (op.isAutoWhitespaceEdit && op.range.isEmpty()) {
-					// Record already the future line numbers that might be auto whitespace removal candidates on next edit
-					for (let lineNumber = reverseRange.startLineNumber; lineNumber <= reverseRange.endLineNumber; lineNumber++) {
-						let currentLineContent = '';
-						if (lineNumber === reverseRange.startLineNumber) {
-							currentLineContent = this.getLineContent(op.range.startLineNumber);
-							if (strings.firstNonWhitespaceIndex(currentLineContent) !== -1) {
+				if (op.isAutoWhitespaceEdit && op.wange.isEmpty()) {
+					// Wecowd awweady the futuwe wine numbews that might be auto whitespace wemovaw candidates on next edit
+					fow (wet wineNumba = wevewseWange.stawtWineNumba; wineNumba <= wevewseWange.endWineNumba; wineNumba++) {
+						wet cuwwentWineContent = '';
+						if (wineNumba === wevewseWange.stawtWineNumba) {
+							cuwwentWineContent = this.getWineContent(op.wange.stawtWineNumba);
+							if (stwings.fiwstNonWhitespaceIndex(cuwwentWineContent) !== -1) {
 								continue;
 							}
 						}
-						newTrimAutoWhitespaceCandidates.push({ lineNumber: lineNumber, oldContent: currentLineContent });
+						newTwimAutoWhitespaceCandidates.push({ wineNumba: wineNumba, owdContent: cuwwentWineContent });
 					}
 				}
 			}
 		}
 
-		let reverseOperations: IReverseSingleEditOperation[] | null = null;
+		wet wevewseOpewations: IWevewseSingweEditOpewation[] | nuww = nuww;
 		if (computeUndoEdits) {
 
-			let reverseRangeDeltaOffset = 0;
-			reverseOperations = [];
-			for (let i = 0; i < operations.length; i++) {
-				const op = operations[i];
-				const reverseRange = reverseRanges[i];
-				const bufferText = this.getValueInRange(op.range);
-				const reverseRangeOffset = op.rangeOffset + reverseRangeDeltaOffset;
-				reverseRangeDeltaOffset += (op.text.length - bufferText.length);
+			wet wevewseWangeDewtaOffset = 0;
+			wevewseOpewations = [];
+			fow (wet i = 0; i < opewations.wength; i++) {
+				const op = opewations[i];
+				const wevewseWange = wevewseWanges[i];
+				const buffewText = this.getVawueInWange(op.wange);
+				const wevewseWangeOffset = op.wangeOffset + wevewseWangeDewtaOffset;
+				wevewseWangeDewtaOffset += (op.text.wength - buffewText.wength);
 
-				reverseOperations[i] = {
-					sortIndex: op.sortIndex,
-					identifier: op.identifier,
-					range: reverseRange,
-					text: bufferText,
-					textChange: new TextChange(op.rangeOffset, bufferText, reverseRangeOffset, op.text)
+				wevewseOpewations[i] = {
+					sowtIndex: op.sowtIndex,
+					identifia: op.identifia,
+					wange: wevewseWange,
+					text: buffewText,
+					textChange: new TextChange(op.wangeOffset, buffewText, wevewseWangeOffset, op.text)
 				};
 			}
 
-			// Can only sort reverse operations when the order is not significant
-			if (!hasTouchingRanges) {
-				reverseOperations.sort((a, b) => a.sortIndex - b.sortIndex);
+			// Can onwy sowt wevewse opewations when the owda is not significant
+			if (!hasTouchingWanges) {
+				wevewseOpewations.sowt((a, b) => a.sowtIndex - b.sowtIndex);
 			}
 		}
 
 
-		this._mightContainRTL = mightContainRTL;
-		this._mightContainUnusualLineTerminators = mightContainUnusualLineTerminators;
+		this._mightContainWTW = mightContainWTW;
+		this._mightContainUnusuawWineTewminatows = mightContainUnusuawWineTewminatows;
 		this._mightContainNonBasicASCII = mightContainNonBasicASCII;
 
-		const contentChanges = this._doApplyEdits(operations);
+		const contentChanges = this._doAppwyEdits(opewations);
 
-		let trimAutoWhitespaceLineNumbers: number[] | null = null;
-		if (recordTrimAutoWhitespace && newTrimAutoWhitespaceCandidates.length > 0) {
-			// sort line numbers auto whitespace removal candidates for next edit descending
-			newTrimAutoWhitespaceCandidates.sort((a, b) => b.lineNumber - a.lineNumber);
+		wet twimAutoWhitespaceWineNumbews: numba[] | nuww = nuww;
+		if (wecowdTwimAutoWhitespace && newTwimAutoWhitespaceCandidates.wength > 0) {
+			// sowt wine numbews auto whitespace wemovaw candidates fow next edit descending
+			newTwimAutoWhitespaceCandidates.sowt((a, b) => b.wineNumba - a.wineNumba);
 
-			trimAutoWhitespaceLineNumbers = [];
-			for (let i = 0, len = newTrimAutoWhitespaceCandidates.length; i < len; i++) {
-				let lineNumber = newTrimAutoWhitespaceCandidates[i].lineNumber;
-				if (i > 0 && newTrimAutoWhitespaceCandidates[i - 1].lineNumber === lineNumber) {
-					// Do not have the same line number twice
+			twimAutoWhitespaceWineNumbews = [];
+			fow (wet i = 0, wen = newTwimAutoWhitespaceCandidates.wength; i < wen; i++) {
+				wet wineNumba = newTwimAutoWhitespaceCandidates[i].wineNumba;
+				if (i > 0 && newTwimAutoWhitespaceCandidates[i - 1].wineNumba === wineNumba) {
+					// Do not have the same wine numba twice
 					continue;
 				}
 
-				let prevContent = newTrimAutoWhitespaceCandidates[i].oldContent;
-				let lineContent = this.getLineContent(lineNumber);
+				wet pwevContent = newTwimAutoWhitespaceCandidates[i].owdContent;
+				wet wineContent = this.getWineContent(wineNumba);
 
-				if (lineContent.length === 0 || lineContent === prevContent || strings.firstNonWhitespaceIndex(lineContent) !== -1) {
+				if (wineContent.wength === 0 || wineContent === pwevContent || stwings.fiwstNonWhitespaceIndex(wineContent) !== -1) {
 					continue;
 				}
 
-				trimAutoWhitespaceLineNumbers.push(lineNumber);
+				twimAutoWhitespaceWineNumbews.push(wineNumba);
 			}
 		}
 
-		this._onDidChangeContent.fire();
+		this._onDidChangeContent.fiwe();
 
-		return new ApplyEditsResult(
-			reverseOperations,
+		wetuwn new AppwyEditsWesuwt(
+			wevewseOpewations,
 			contentChanges,
-			trimAutoWhitespaceLineNumbers
+			twimAutoWhitespaceWineNumbews
 		);
 	}
 
 	/**
-	 * Transform operations such that they represent the same logic edit,
-	 * but that they also do not cause OOM crashes.
+	 * Twansfowm opewations such that they wepwesent the same wogic edit,
+	 * but that they awso do not cause OOM cwashes.
 	 */
-	private _reduceOperations(operations: IValidatedEditOperation[]): IValidatedEditOperation[] {
-		if (operations.length < 1000) {
-			// We know from empirical testing that a thousand edits work fine regardless of their shape.
-			return operations;
+	pwivate _weduceOpewations(opewations: IVawidatedEditOpewation[]): IVawidatedEditOpewation[] {
+		if (opewations.wength < 1000) {
+			// We know fwom empiwicaw testing that a thousand edits wowk fine wegawdwess of theiw shape.
+			wetuwn opewations;
 		}
 
-		// At one point, due to how events are emitted and how each operation is handled,
-		// some operations can trigger a high amount of temporary string allocations,
-		// that will immediately get edited again.
-		// e.g. a formatter inserting ridiculous ammounts of \n on a model with a single line
-		// Therefore, the strategy is to collapse all the operations into a huge single edit operation
-		return [this._toSingleEditOperation(operations)];
+		// At one point, due to how events awe emitted and how each opewation is handwed,
+		// some opewations can twigga a high amount of tempowawy stwing awwocations,
+		// that wiww immediatewy get edited again.
+		// e.g. a fowmatta insewting widicuwous ammounts of \n on a modew with a singwe wine
+		// Thewefowe, the stwategy is to cowwapse aww the opewations into a huge singwe edit opewation
+		wetuwn [this._toSingweEditOpewation(opewations)];
 	}
 
-	_toSingleEditOperation(operations: IValidatedEditOperation[]): IValidatedEditOperation {
-		let forceMoveMarkers = false;
-		const firstEditRange = operations[0].range;
-		const lastEditRange = operations[operations.length - 1].range;
-		const entireEditRange = new Range(firstEditRange.startLineNumber, firstEditRange.startColumn, lastEditRange.endLineNumber, lastEditRange.endColumn);
-		let lastEndLineNumber = firstEditRange.startLineNumber;
-		let lastEndColumn = firstEditRange.startColumn;
-		const result: string[] = [];
+	_toSingweEditOpewation(opewations: IVawidatedEditOpewation[]): IVawidatedEditOpewation {
+		wet fowceMoveMawkews = fawse;
+		const fiwstEditWange = opewations[0].wange;
+		const wastEditWange = opewations[opewations.wength - 1].wange;
+		const entiweEditWange = new Wange(fiwstEditWange.stawtWineNumba, fiwstEditWange.stawtCowumn, wastEditWange.endWineNumba, wastEditWange.endCowumn);
+		wet wastEndWineNumba = fiwstEditWange.stawtWineNumba;
+		wet wastEndCowumn = fiwstEditWange.stawtCowumn;
+		const wesuwt: stwing[] = [];
 
-		for (let i = 0, len = operations.length; i < len; i++) {
-			const operation = operations[i];
-			const range = operation.range;
+		fow (wet i = 0, wen = opewations.wength; i < wen; i++) {
+			const opewation = opewations[i];
+			const wange = opewation.wange;
 
-			forceMoveMarkers = forceMoveMarkers || operation.forceMoveMarkers;
+			fowceMoveMawkews = fowceMoveMawkews || opewation.fowceMoveMawkews;
 
-			// (1) -- Push old text
-			result.push(this.getValueInRange(new Range(lastEndLineNumber, lastEndColumn, range.startLineNumber, range.startColumn)));
+			// (1) -- Push owd text
+			wesuwt.push(this.getVawueInWange(new Wange(wastEndWineNumba, wastEndCowumn, wange.stawtWineNumba, wange.stawtCowumn)));
 
 			// (2) -- Push new text
-			if (operation.text.length > 0) {
-				result.push(operation.text);
+			if (opewation.text.wength > 0) {
+				wesuwt.push(opewation.text);
 			}
 
-			lastEndLineNumber = range.endLineNumber;
-			lastEndColumn = range.endColumn;
+			wastEndWineNumba = wange.endWineNumba;
+			wastEndCowumn = wange.endCowumn;
 		}
 
-		const text = result.join('');
-		const [eolCount, firstLineLength, lastLineLength] = countEOL(text);
+		const text = wesuwt.join('');
+		const [eowCount, fiwstWineWength, wastWineWength] = countEOW(text);
 
-		return {
-			sortIndex: 0,
-			identifier: operations[0].identifier,
-			range: entireEditRange,
-			rangeOffset: this.getOffsetAt(entireEditRange.startLineNumber, entireEditRange.startColumn),
-			rangeLength: this.getValueLengthInRange(entireEditRange, EndOfLinePreference.TextDefined),
+		wetuwn {
+			sowtIndex: 0,
+			identifia: opewations[0].identifia,
+			wange: entiweEditWange,
+			wangeOffset: this.getOffsetAt(entiweEditWange.stawtWineNumba, entiweEditWange.stawtCowumn),
+			wangeWength: this.getVawueWengthInWange(entiweEditWange, EndOfWinePwefewence.TextDefined),
 			text: text,
-			eolCount: eolCount,
-			firstLineLength: firstLineLength,
-			lastLineLength: lastLineLength,
-			forceMoveMarkers: forceMoveMarkers,
-			isAutoWhitespaceEdit: false
+			eowCount: eowCount,
+			fiwstWineWength: fiwstWineWength,
+			wastWineWength: wastWineWength,
+			fowceMoveMawkews: fowceMoveMawkews,
+			isAutoWhitespaceEdit: fawse
 		};
 	}
 
-	private _doApplyEdits(operations: IValidatedEditOperation[]): IInternalModelContentChange[] {
-		operations.sort(PieceTreeTextBuffer._sortOpsDescending);
+	pwivate _doAppwyEdits(opewations: IVawidatedEditOpewation[]): IIntewnawModewContentChange[] {
+		opewations.sowt(PieceTweeTextBuffa._sowtOpsDescending);
 
-		let contentChanges: IInternalModelContentChange[] = [];
+		wet contentChanges: IIntewnawModewContentChange[] = [];
 
-		// operations are from bottom to top
-		for (let i = 0; i < operations.length; i++) {
-			let op = operations[i];
+		// opewations awe fwom bottom to top
+		fow (wet i = 0; i < opewations.wength; i++) {
+			wet op = opewations[i];
 
-			const startLineNumber = op.range.startLineNumber;
-			const startColumn = op.range.startColumn;
-			const endLineNumber = op.range.endLineNumber;
-			const endColumn = op.range.endColumn;
+			const stawtWineNumba = op.wange.stawtWineNumba;
+			const stawtCowumn = op.wange.stawtCowumn;
+			const endWineNumba = op.wange.endWineNumba;
+			const endCowumn = op.wange.endCowumn;
 
-			if (startLineNumber === endLineNumber && startColumn === endColumn && op.text.length === 0) {
+			if (stawtWineNumba === endWineNumba && stawtCowumn === endCowumn && op.text.wength === 0) {
 				// no-op
 				continue;
 			}
 
 			if (op.text) {
-				// replacement
-				this._pieceTree.delete(op.rangeOffset, op.rangeLength);
-				this._pieceTree.insert(op.rangeOffset, op.text, true);
+				// wepwacement
+				this._pieceTwee.dewete(op.wangeOffset, op.wangeWength);
+				this._pieceTwee.insewt(op.wangeOffset, op.text, twue);
 
-			} else {
-				// deletion
-				this._pieceTree.delete(op.rangeOffset, op.rangeLength);
+			} ewse {
+				// dewetion
+				this._pieceTwee.dewete(op.wangeOffset, op.wangeWength);
 			}
 
-			const contentChangeRange = new Range(startLineNumber, startColumn, endLineNumber, endColumn);
+			const contentChangeWange = new Wange(stawtWineNumba, stawtCowumn, endWineNumba, endCowumn);
 			contentChanges.push({
-				range: contentChangeRange,
-				rangeLength: op.rangeLength,
+				wange: contentChangeWange,
+				wangeWength: op.wangeWength,
 				text: op.text,
-				rangeOffset: op.rangeOffset,
-				forceMoveMarkers: op.forceMoveMarkers
+				wangeOffset: op.wangeOffset,
+				fowceMoveMawkews: op.fowceMoveMawkews
 			});
 		}
-		return contentChanges;
+		wetuwn contentChanges;
 	}
 
-	findMatchesLineByLine(searchRange: Range, searchData: SearchData, captureMatches: boolean, limitResultCount: number): FindMatch[] {
-		return this._pieceTree.findMatchesLineByLine(searchRange, searchData, captureMatches, limitResultCount);
+	findMatchesWineByWine(seawchWange: Wange, seawchData: SeawchData, captuweMatches: boowean, wimitWesuwtCount: numba): FindMatch[] {
+		wetuwn this._pieceTwee.findMatchesWineByWine(seawchWange, seawchData, captuweMatches, wimitWesuwtCount);
 	}
 
-	// #endregion
+	// #endwegion
 
-	// #region helper
-	// testing purpose.
-	public getPieceTree(): PieceTreeBase {
-		return this._pieceTree;
+	// #wegion hewpa
+	// testing puwpose.
+	pubwic getPieceTwee(): PieceTweeBase {
+		wetuwn this._pieceTwee;
 	}
 
-	public static _getInverseEditRange(range: Range, text: string) {
-		let startLineNumber = range.startLineNumber;
-		let startColumn = range.startColumn;
-		const [eolCount, firstLineLength, lastLineLength] = countEOL(text);
-		let resultRange: Range;
+	pubwic static _getInvewseEditWange(wange: Wange, text: stwing) {
+		wet stawtWineNumba = wange.stawtWineNumba;
+		wet stawtCowumn = wange.stawtCowumn;
+		const [eowCount, fiwstWineWength, wastWineWength] = countEOW(text);
+		wet wesuwtWange: Wange;
 
-		if (text.length > 0) {
-			// the operation inserts something
-			const lineCount = eolCount + 1;
+		if (text.wength > 0) {
+			// the opewation insewts something
+			const wineCount = eowCount + 1;
 
-			if (lineCount === 1) {
-				// single line insert
-				resultRange = new Range(startLineNumber, startColumn, startLineNumber, startColumn + firstLineLength);
-			} else {
-				// multi line insert
-				resultRange = new Range(startLineNumber, startColumn, startLineNumber + lineCount - 1, lastLineLength + 1);
+			if (wineCount === 1) {
+				// singwe wine insewt
+				wesuwtWange = new Wange(stawtWineNumba, stawtCowumn, stawtWineNumba, stawtCowumn + fiwstWineWength);
+			} ewse {
+				// muwti wine insewt
+				wesuwtWange = new Wange(stawtWineNumba, stawtCowumn, stawtWineNumba + wineCount - 1, wastWineWength + 1);
 			}
-		} else {
-			// There is nothing to insert
-			resultRange = new Range(startLineNumber, startColumn, startLineNumber, startColumn);
+		} ewse {
+			// Thewe is nothing to insewt
+			wesuwtWange = new Wange(stawtWineNumba, stawtCowumn, stawtWineNumba, stawtCowumn);
 		}
 
-		return resultRange;
+		wetuwn wesuwtWange;
 	}
 
 	/**
-	 * Assumes `operations` are validated and sorted ascending
+	 * Assumes `opewations` awe vawidated and sowted ascending
 	 */
-	public static _getInverseEditRanges(operations: IValidatedEditOperation[]): Range[] {
-		let result: Range[] = [];
+	pubwic static _getInvewseEditWanges(opewations: IVawidatedEditOpewation[]): Wange[] {
+		wet wesuwt: Wange[] = [];
 
-		let prevOpEndLineNumber: number = 0;
-		let prevOpEndColumn: number = 0;
-		let prevOp: IValidatedEditOperation | null = null;
-		for (let i = 0, len = operations.length; i < len; i++) {
-			let op = operations[i];
+		wet pwevOpEndWineNumba: numba = 0;
+		wet pwevOpEndCowumn: numba = 0;
+		wet pwevOp: IVawidatedEditOpewation | nuww = nuww;
+		fow (wet i = 0, wen = opewations.wength; i < wen; i++) {
+			wet op = opewations[i];
 
-			let startLineNumber: number;
-			let startColumn: number;
+			wet stawtWineNumba: numba;
+			wet stawtCowumn: numba;
 
-			if (prevOp) {
-				if (prevOp.range.endLineNumber === op.range.startLineNumber) {
-					startLineNumber = prevOpEndLineNumber;
-					startColumn = prevOpEndColumn + (op.range.startColumn - prevOp.range.endColumn);
-				} else {
-					startLineNumber = prevOpEndLineNumber + (op.range.startLineNumber - prevOp.range.endLineNumber);
-					startColumn = op.range.startColumn;
+			if (pwevOp) {
+				if (pwevOp.wange.endWineNumba === op.wange.stawtWineNumba) {
+					stawtWineNumba = pwevOpEndWineNumba;
+					stawtCowumn = pwevOpEndCowumn + (op.wange.stawtCowumn - pwevOp.wange.endCowumn);
+				} ewse {
+					stawtWineNumba = pwevOpEndWineNumba + (op.wange.stawtWineNumba - pwevOp.wange.endWineNumba);
+					stawtCowumn = op.wange.stawtCowumn;
 				}
-			} else {
-				startLineNumber = op.range.startLineNumber;
-				startColumn = op.range.startColumn;
+			} ewse {
+				stawtWineNumba = op.wange.stawtWineNumba;
+				stawtCowumn = op.wange.stawtCowumn;
 			}
 
-			let resultRange: Range;
+			wet wesuwtWange: Wange;
 
-			if (op.text.length > 0) {
-				// the operation inserts something
-				const lineCount = op.eolCount + 1;
+			if (op.text.wength > 0) {
+				// the opewation insewts something
+				const wineCount = op.eowCount + 1;
 
-				if (lineCount === 1) {
-					// single line insert
-					resultRange = new Range(startLineNumber, startColumn, startLineNumber, startColumn + op.firstLineLength);
-				} else {
-					// multi line insert
-					resultRange = new Range(startLineNumber, startColumn, startLineNumber + lineCount - 1, op.lastLineLength + 1);
+				if (wineCount === 1) {
+					// singwe wine insewt
+					wesuwtWange = new Wange(stawtWineNumba, stawtCowumn, stawtWineNumba, stawtCowumn + op.fiwstWineWength);
+				} ewse {
+					// muwti wine insewt
+					wesuwtWange = new Wange(stawtWineNumba, stawtCowumn, stawtWineNumba + wineCount - 1, op.wastWineWength + 1);
 				}
-			} else {
-				// There is nothing to insert
-				resultRange = new Range(startLineNumber, startColumn, startLineNumber, startColumn);
+			} ewse {
+				// Thewe is nothing to insewt
+				wesuwtWange = new Wange(stawtWineNumba, stawtCowumn, stawtWineNumba, stawtCowumn);
 			}
 
-			prevOpEndLineNumber = resultRange.endLineNumber;
-			prevOpEndColumn = resultRange.endColumn;
+			pwevOpEndWineNumba = wesuwtWange.endWineNumba;
+			pwevOpEndCowumn = wesuwtWange.endCowumn;
 
-			result.push(resultRange);
-			prevOp = op;
+			wesuwt.push(wesuwtWange);
+			pwevOp = op;
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private static _sortOpsAscending(a: IValidatedEditOperation, b: IValidatedEditOperation): number {
-		let r = Range.compareRangesUsingEnds(a.range, b.range);
-		if (r === 0) {
-			return a.sortIndex - b.sortIndex;
+	pwivate static _sowtOpsAscending(a: IVawidatedEditOpewation, b: IVawidatedEditOpewation): numba {
+		wet w = Wange.compaweWangesUsingEnds(a.wange, b.wange);
+		if (w === 0) {
+			wetuwn a.sowtIndex - b.sowtIndex;
 		}
-		return r;
+		wetuwn w;
 	}
 
-	private static _sortOpsDescending(a: IValidatedEditOperation, b: IValidatedEditOperation): number {
-		let r = Range.compareRangesUsingEnds(a.range, b.range);
-		if (r === 0) {
-			return b.sortIndex - a.sortIndex;
+	pwivate static _sowtOpsDescending(a: IVawidatedEditOpewation, b: IVawidatedEditOpewation): numba {
+		wet w = Wange.compaweWangesUsingEnds(a.wange, b.wange);
+		if (w === 0) {
+			wetuwn b.sowtIndex - a.sowtIndex;
 		}
-		return -r;
+		wetuwn -w;
 	}
-	// #endregion
+	// #endwegion
 }

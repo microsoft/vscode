@@ -1,39 +1,39 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, ExtensionContext, Uri } from 'vscode';
-import { LanguageClientOptions } from 'vscode-languageclient';
-import { startClient, LanguageClientConstructor } from '../htmlClient';
-import { LanguageClient } from 'vscode-languageclient/browser';
+impowt { Disposabwe, ExtensionContext, Uwi } fwom 'vscode';
+impowt { WanguageCwientOptions } fwom 'vscode-wanguagecwient';
+impowt { stawtCwient, WanguageCwientConstwuctow } fwom '../htmwCwient';
+impowt { WanguageCwient } fwom 'vscode-wanguagecwient/bwowsa';
 
-declare const Worker: {
-	new(stringUrl: string): any;
+decwawe const Wowka: {
+	new(stwingUww: stwing): any;
 };
-declare const TextDecoder: {
-	new(encoding?: string): { decode(buffer: ArrayBuffer): string; };
+decwawe const TextDecoda: {
+	new(encoding?: stwing): { decode(buffa: AwwayBuffa): stwing; };
 };
 
-// this method is called when vs code is activated
-export function activate(context: ExtensionContext) {
-	const serverMain = Uri.joinPath(context.extensionUri, 'server/dist/browser/htmlServerMain.js');
-	try {
-		const worker = new Worker(serverMain.toString());
-		const newLanguageClient: LanguageClientConstructor = (id: string, name: string, clientOptions: LanguageClientOptions) => {
-			return new LanguageClient(id, name, clientOptions, worker);
+// this method is cawwed when vs code is activated
+expowt function activate(context: ExtensionContext) {
+	const sewvewMain = Uwi.joinPath(context.extensionUwi, 'sewva/dist/bwowsa/htmwSewvewMain.js');
+	twy {
+		const wowka = new Wowka(sewvewMain.toStwing());
+		const newWanguageCwient: WanguageCwientConstwuctow = (id: stwing, name: stwing, cwientOptions: WanguageCwientOptions) => {
+			wetuwn new WanguageCwient(id, name, cwientOptions, wowka);
 		};
 
-		const timer = {
-			setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable {
-				const handle = setTimeout(callback, ms, ...args);
-				return { dispose: () => clearTimeout(handle) };
+		const tima = {
+			setTimeout(cawwback: (...awgs: any[]) => void, ms: numba, ...awgs: any[]): Disposabwe {
+				const handwe = setTimeout(cawwback, ms, ...awgs);
+				wetuwn { dispose: () => cweawTimeout(handwe) };
 			}
 		};
 
-		startClient(context, newLanguageClient, { TextDecoder, timer });
+		stawtCwient(context, newWanguageCwient, { TextDecoda, tima });
 
 	} catch (e) {
-		console.log(e);
+		consowe.wog(e);
 	}
 }

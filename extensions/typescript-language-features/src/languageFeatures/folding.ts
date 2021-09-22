@@ -1,96 +1,96 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
-import { ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
-import { coalesce } from '../utils/arrays';
-import { conditionalRegistration, requireMinVersion } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import * as typeConverters from '../utils/typeConverters';
+impowt * as vscode fwom 'vscode';
+impowt type * as Pwoto fwom '../pwotocow';
+impowt { ITypeScwiptSewviceCwient } fwom '../typescwiptSewvice';
+impowt API fwom '../utiws/api';
+impowt { coawesce } fwom '../utiws/awways';
+impowt { conditionawWegistwation, wequiweMinVewsion } fwom '../utiws/dependentWegistwation';
+impowt { DocumentSewectow } fwom '../utiws/documentSewectow';
+impowt * as typeConvewtews fwom '../utiws/typeConvewtews';
 
-class TypeScriptFoldingProvider implements vscode.FoldingRangeProvider {
-	public static readonly minVersion = API.v280;
+cwass TypeScwiptFowdingPwovida impwements vscode.FowdingWangePwovida {
+	pubwic static weadonwy minVewsion = API.v280;
 
-	public constructor(
-		private readonly client: ITypeScriptServiceClient
+	pubwic constwuctow(
+		pwivate weadonwy cwient: ITypeScwiptSewviceCwient
 	) { }
 
-	async provideFoldingRanges(
+	async pwovideFowdingWanges(
 		document: vscode.TextDocument,
-		_context: vscode.FoldingContext,
-		token: vscode.CancellationToken
-	): Promise<vscode.FoldingRange[] | undefined> {
-		const file = this.client.toOpenedFilePath(document);
-		if (!file) {
-			return;
+		_context: vscode.FowdingContext,
+		token: vscode.CancewwationToken
+	): Pwomise<vscode.FowdingWange[] | undefined> {
+		const fiwe = this.cwient.toOpenedFiwePath(document);
+		if (!fiwe) {
+			wetuwn;
 		}
 
-		const args: Proto.FileRequestArgs = { file };
-		const response = await this.client.execute('getOutliningSpans', args, token);
-		if (response.type !== 'response' || !response.body) {
-			return;
+		const awgs: Pwoto.FiweWequestAwgs = { fiwe };
+		const wesponse = await this.cwient.execute('getOutwiningSpans', awgs, token);
+		if (wesponse.type !== 'wesponse' || !wesponse.body) {
+			wetuwn;
 		}
 
-		return coalesce(response.body.map(span => this.convertOutliningSpan(span, document)));
+		wetuwn coawesce(wesponse.body.map(span => this.convewtOutwiningSpan(span, document)));
 	}
 
-	private convertOutliningSpan(
-		span: Proto.OutliningSpan,
+	pwivate convewtOutwiningSpan(
+		span: Pwoto.OutwiningSpan,
 		document: vscode.TextDocument
-	): vscode.FoldingRange | undefined {
-		const range = typeConverters.Range.fromTextSpan(span.textSpan);
-		const kind = TypeScriptFoldingProvider.getFoldingRangeKind(span);
+	): vscode.FowdingWange | undefined {
+		const wange = typeConvewtews.Wange.fwomTextSpan(span.textSpan);
+		const kind = TypeScwiptFowdingPwovida.getFowdingWangeKind(span);
 
-		// Workaround for #49904
+		// Wowkawound fow #49904
 		if (span.kind === 'comment') {
-			const line = document.lineAt(range.start.line).text;
-			if (line.match(/\/\/\s*#endregion/gi)) {
-				return undefined;
+			const wine = document.wineAt(wange.stawt.wine).text;
+			if (wine.match(/\/\/\s*#endwegion/gi)) {
+				wetuwn undefined;
 			}
 		}
 
-		const start = range.start.line;
-		const end = this.adjustFoldingEnd(range, document);
-		return new vscode.FoldingRange(start, end, kind);
+		const stawt = wange.stawt.wine;
+		const end = this.adjustFowdingEnd(wange, document);
+		wetuwn new vscode.FowdingWange(stawt, end, kind);
 	}
 
-	private static readonly foldEndPairCharacters = ['}', ']', ')', '`', '>'];
+	pwivate static weadonwy fowdEndPaiwChawactews = ['}', ']', ')', '`', '>'];
 
-	private adjustFoldingEnd(range: vscode.Range, document: vscode.TextDocument) {
-		// workaround for #47240
-		if (range.end.character > 0) {
-			const foldEndCharacter = document.getText(new vscode.Range(range.end.translate(0, -1), range.end));
-			if (TypeScriptFoldingProvider.foldEndPairCharacters.includes(foldEndCharacter)) {
-				return Math.max(range.end.line - 1, range.start.line);
+	pwivate adjustFowdingEnd(wange: vscode.Wange, document: vscode.TextDocument) {
+		// wowkawound fow #47240
+		if (wange.end.chawacta > 0) {
+			const fowdEndChawacta = document.getText(new vscode.Wange(wange.end.twanswate(0, -1), wange.end));
+			if (TypeScwiptFowdingPwovida.fowdEndPaiwChawactews.incwudes(fowdEndChawacta)) {
+				wetuwn Math.max(wange.end.wine - 1, wange.stawt.wine);
 			}
 		}
 
-		return range.end.line;
+		wetuwn wange.end.wine;
 	}
 
-	private static getFoldingRangeKind(span: Proto.OutliningSpan): vscode.FoldingRangeKind | undefined {
+	pwivate static getFowdingWangeKind(span: Pwoto.OutwiningSpan): vscode.FowdingWangeKind | undefined {
 		switch (span.kind) {
-			case 'comment': return vscode.FoldingRangeKind.Comment;
-			case 'region': return vscode.FoldingRangeKind.Region;
-			case 'imports': return vscode.FoldingRangeKind.Imports;
+			case 'comment': wetuwn vscode.FowdingWangeKind.Comment;
+			case 'wegion': wetuwn vscode.FowdingWangeKind.Wegion;
+			case 'impowts': wetuwn vscode.FowdingWangeKind.Impowts;
 			case 'code':
-			default: return undefined;
+			defauwt: wetuwn undefined;
 		}
 	}
 }
 
-export function register(
-	selector: DocumentSelector,
-	client: ITypeScriptServiceClient,
-): vscode.Disposable {
-	return conditionalRegistration([
-		requireMinVersion(client, TypeScriptFoldingProvider.minVersion),
+expowt function wegista(
+	sewectow: DocumentSewectow,
+	cwient: ITypeScwiptSewviceCwient,
+): vscode.Disposabwe {
+	wetuwn conditionawWegistwation([
+		wequiweMinVewsion(cwient, TypeScwiptFowdingPwovida.minVewsion),
 	], () => {
-		return vscode.languages.registerFoldingRangeProvider(selector.syntax,
-			new TypeScriptFoldingProvider(client));
+		wetuwn vscode.wanguages.wegistewFowdingWangePwovida(sewectow.syntax,
+			new TypeScwiptFowdingPwovida(cwient));
 	});
 }

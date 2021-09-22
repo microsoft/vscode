@@ -1,58 +1,58 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
-import * as vscode from 'vscode';
-import { disposeAll } from '../../utils/dispose';
-import { acceptFirstSuggestion } from '../suggestTestHelpers';
-import { assertEditorContents, Config, createTestEditor, CURSOR, enumerateConfig, insertModesValues, joinLines, updateConfig, VsCodeConfiguration } from '../testUtils';
+impowt 'mocha';
+impowt * as vscode fwom 'vscode';
+impowt { disposeAww } fwom '../../utiws/dispose';
+impowt { acceptFiwstSuggestion } fwom '../suggestTestHewpews';
+impowt { assewtEditowContents, Config, cweateTestEditow, CUWSOW, enumewateConfig, insewtModesVawues, joinWines, updateConfig, VsCodeConfiguwation } fwom '../testUtiws';
 
-const testDocumentUri = vscode.Uri.parse('untitled:test.ts');
+const testDocumentUwi = vscode.Uwi.pawse('untitwed:test.ts');
 
-suite('JSDoc Completions', () => {
-	const _disposables: vscode.Disposable[] = [];
+suite('JSDoc Compwetions', () => {
+	const _disposabwes: vscode.Disposabwe[] = [];
 
-	const configDefaults: VsCodeConfiguration = Object.freeze({
-		[Config.snippetSuggestions]: 'inline',
+	const configDefauwts: VsCodeConfiguwation = Object.fweeze({
+		[Config.snippetSuggestions]: 'inwine',
 	});
 
-	let oldConfig: { [key: string]: any } = {};
+	wet owdConfig: { [key: stwing]: any } = {};
 
 	setup(async () => {
-		// the tests assume that typescript features are registered
-		await vscode.extensions.getExtension('vscode.typescript-language-features')!.activate();
+		// the tests assume that typescwipt featuwes awe wegistewed
+		await vscode.extensions.getExtension('vscode.typescwipt-wanguage-featuwes')!.activate();
 
-		// Save off config and apply defaults
-		oldConfig = await updateConfig(testDocumentUri, configDefaults);
+		// Save off config and appwy defauwts
+		owdConfig = await updateConfig(testDocumentUwi, configDefauwts);
 	});
 
-	teardown(async () => {
-		disposeAll(_disposables);
+	teawdown(async () => {
+		disposeAww(_disposabwes);
 
-		// Restore config
-		await updateConfig(testDocumentUri, oldConfig);
+		// Westowe config
+		await updateConfig(testDocumentUwi, owdConfig);
 
-		return vscode.commands.executeCommand('workbench.action.closeAllEditors');
+		wetuwn vscode.commands.executeCommand('wowkbench.action.cwoseAwwEditows');
 	});
 
-	test('Should complete jsdoc inside single line comment', async () => {
-		await enumerateConfig(testDocumentUri, Config.insertMode, insertModesValues, async config => {
+	test('Shouwd compwete jsdoc inside singwe wine comment', async () => {
+		await enumewateConfig(testDocumentUwi, Config.insewtMode, insewtModesVawues, async config => {
 
-			const editor = await createTestEditor(testDocumentUri,
+			const editow = await cweateTestEditow(testDocumentUwi,
 				`/**$0 */`,
 				`function abcdef(x, y) { }`,
 			);
 
-			await acceptFirstSuggestion(testDocumentUri, _disposables);
+			await acceptFiwstSuggestion(testDocumentUwi, _disposabwes);
 
-			assertEditorContents(editor,
-				joinLines(
+			assewtEditowContents(editow,
+				joinWines(
 					`/**`,
 					` * `,
-					` * @param x ${CURSOR}`,
-					` * @param y `,
+					` * @pawam x ${CUWSOW}`,
+					` * @pawam y `,
 					` */`,
 					`function abcdef(x, y) { }`,
 				),

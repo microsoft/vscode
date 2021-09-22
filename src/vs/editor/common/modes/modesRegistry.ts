@@ -1,90 +1,90 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Emitter, Event } from 'vs/base/common/event';
-import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Mimes } from 'vs/base/common/mime';
+impowt * as nws fwom 'vs/nws';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { WanguageId, WanguageIdentifia } fwom 'vs/editow/common/modes';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { IWanguageExtensionPoint } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Mimes } fwom 'vs/base/common/mime';
 
 // Define extension point ids
-export const Extensions = {
-	ModesRegistry: 'editor.modesRegistry'
+expowt const Extensions = {
+	ModesWegistwy: 'editow.modesWegistwy'
 };
 
-export class EditorModesRegistry {
+expowt cwass EditowModesWegistwy {
 
-	private readonly _languages: ILanguageExtensionPoint[];
-	private _dynamicLanguages: ILanguageExtensionPoint[];
+	pwivate weadonwy _wanguages: IWanguageExtensionPoint[];
+	pwivate _dynamicWanguages: IWanguageExtensionPoint[];
 
-	private readonly _onDidChangeLanguages = new Emitter<void>();
-	public readonly onDidChangeLanguages: Event<void> = this._onDidChangeLanguages.event;
+	pwivate weadonwy _onDidChangeWanguages = new Emitta<void>();
+	pubwic weadonwy onDidChangeWanguages: Event<void> = this._onDidChangeWanguages.event;
 
-	constructor() {
-		this._languages = [];
-		this._dynamicLanguages = [];
+	constwuctow() {
+		this._wanguages = [];
+		this._dynamicWanguages = [];
 	}
 
-	// --- languages
+	// --- wanguages
 
-	public registerLanguage(def: ILanguageExtensionPoint): IDisposable {
-		this._languages.push(def);
-		this._onDidChangeLanguages.fire(undefined);
-		return {
+	pubwic wegistewWanguage(def: IWanguageExtensionPoint): IDisposabwe {
+		this._wanguages.push(def);
+		this._onDidChangeWanguages.fiwe(undefined);
+		wetuwn {
 			dispose: () => {
-				for (let i = 0, len = this._languages.length; i < len; i++) {
-					if (this._languages[i] === def) {
-						this._languages.splice(i, 1);
-						return;
+				fow (wet i = 0, wen = this._wanguages.wength; i < wen; i++) {
+					if (this._wanguages[i] === def) {
+						this._wanguages.spwice(i, 1);
+						wetuwn;
 					}
 				}
 			}
 		};
 	}
-	public setDynamicLanguages(def: ILanguageExtensionPoint[]): void {
-		this._dynamicLanguages = def;
-		this._onDidChangeLanguages.fire(undefined);
+	pubwic setDynamicWanguages(def: IWanguageExtensionPoint[]): void {
+		this._dynamicWanguages = def;
+		this._onDidChangeWanguages.fiwe(undefined);
 	}
-	public getLanguages(): ILanguageExtensionPoint[] {
-		return (<ILanguageExtensionPoint[]>[]).concat(this._languages).concat(this._dynamicLanguages);
+	pubwic getWanguages(): IWanguageExtensionPoint[] {
+		wetuwn (<IWanguageExtensionPoint[]>[]).concat(this._wanguages).concat(this._dynamicWanguages);
 	}
 }
 
-export const ModesRegistry = new EditorModesRegistry();
-Registry.add(Extensions.ModesRegistry, ModesRegistry);
+expowt const ModesWegistwy = new EditowModesWegistwy();
+Wegistwy.add(Extensions.ModesWegistwy, ModesWegistwy);
 
-export const PLAINTEXT_MODE_ID = 'plaintext';
-export const PLAINTEXT_EXTENSION = '.txt';
-export const PLAINTEXT_LANGUAGE_IDENTIFIER = new LanguageIdentifier(PLAINTEXT_MODE_ID, LanguageId.PlainText);
+expowt const PWAINTEXT_MODE_ID = 'pwaintext';
+expowt const PWAINTEXT_EXTENSION = '.txt';
+expowt const PWAINTEXT_WANGUAGE_IDENTIFIa = new WanguageIdentifia(PWAINTEXT_MODE_ID, WanguageId.PwainText);
 
-ModesRegistry.registerLanguage({
-	id: PLAINTEXT_MODE_ID,
-	extensions: [PLAINTEXT_EXTENSION],
-	aliases: [nls.localize('plainText.alias', "Plain Text"), 'text'],
+ModesWegistwy.wegistewWanguage({
+	id: PWAINTEXT_MODE_ID,
+	extensions: [PWAINTEXT_EXTENSION],
+	awiases: [nws.wocawize('pwainText.awias', "Pwain Text"), 'text'],
 	mimetypes: [Mimes.text]
 });
-LanguageConfigurationRegistry.register(PLAINTEXT_LANGUAGE_IDENTIFIER, {
-	brackets: [
+WanguageConfiguwationWegistwy.wegista(PWAINTEXT_WANGUAGE_IDENTIFIa, {
+	bwackets: [
 		['(', ')'],
 		['[', ']'],
 		['{', '}'],
 	],
-	surroundingPairs: [
-		{ open: '{', close: '}' },
-		{ open: '[', close: ']' },
-		{ open: '(', close: ')' },
-		{ open: '<', close: '>' },
-		{ open: '\"', close: '\"' },
-		{ open: '\'', close: '\'' },
-		{ open: '`', close: '`' },
+	suwwoundingPaiws: [
+		{ open: '{', cwose: '}' },
+		{ open: '[', cwose: ']' },
+		{ open: '(', cwose: ')' },
+		{ open: '<', cwose: '>' },
+		{ open: '\"', cwose: '\"' },
+		{ open: '\'', cwose: '\'' },
+		{ open: '`', cwose: '`' },
 	],
-	colorizedBracketPairs: [],
-	folding: {
-		offSide: true
+	cowowizedBwacketPaiws: [],
+	fowding: {
+		offSide: twue
 	}
 }, 0);

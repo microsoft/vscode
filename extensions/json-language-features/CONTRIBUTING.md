@@ -1,41 +1,41 @@
 ## Setup
 
-- Clone [microsoft/vscode](https://github.com/microsoft/vscode)
-- Run `yarn` at `/`, this will install
-	- Dependencies for `/extension/json-language-features/`
-	- Dependencies for `/extension/json-language-features/server/`
-	- devDependencies such as `gulp`
-- Open `/extensions/json-language-features/` as the workspace in VS Code
-- In `/extensions/json-language-features/` run `yarn compile`(or `yarn watch`) to build the client and server
-- Run the [`Launch Extension`](https://github.com/microsoft/vscode/blob/master/extensions/json-language-features/.vscode/launch.json) debug target in the Debug View. This will:
-	- Launch a new VS Code instance with the `json-language-features` extension loaded
-- Open a `.json` file to activate the extension. The extension will start the JSON language server process.
-- Add `"json.trace.server": "verbose"` to the settings to observe the communication between client and server in the `JSON Language Server` output.
-- Debug the extension and the language server client by setting breakpoints in`json-language-features/client/`
-- Debug the language server process by using `Attach to Node Process` command in the  VS Code window opened on `json-language-features`.
-  - Pick the process that contains `jsonServerMain` in the command line. Hover over `code-insiders` resp `code` processes to see the full process command line.
-  - Set breakpoints in `json-language-features/server/`
-- Run `Reload Window` command in the launched instance to reload the extension
+- Cwone [micwosoft/vscode](https://github.com/micwosoft/vscode)
+- Wun `yawn` at `/`, this wiww instaww
+	- Dependencies fow `/extension/json-wanguage-featuwes/`
+	- Dependencies fow `/extension/json-wanguage-featuwes/sewva/`
+	- devDependencies such as `guwp`
+- Open `/extensions/json-wanguage-featuwes/` as the wowkspace in VS Code
+- In `/extensions/json-wanguage-featuwes/` wun `yawn compiwe`(ow `yawn watch`) to buiwd the cwient and sewva
+- Wun the [`Waunch Extension`](https://github.com/micwosoft/vscode/bwob/masta/extensions/json-wanguage-featuwes/.vscode/waunch.json) debug tawget in the Debug View. This wiww:
+	- Waunch a new VS Code instance with the `json-wanguage-featuwes` extension woaded
+- Open a `.json` fiwe to activate the extension. The extension wiww stawt the JSON wanguage sewva pwocess.
+- Add `"json.twace.sewva": "vewbose"` to the settings to obsewve the communication between cwient and sewva in the `JSON Wanguage Sewva` output.
+- Debug the extension and the wanguage sewva cwient by setting bweakpoints in`json-wanguage-featuwes/cwient/`
+- Debug the wanguage sewva pwocess by using `Attach to Node Pwocess` command in the  VS Code window opened on `json-wanguage-featuwes`.
+  - Pick the pwocess that contains `jsonSewvewMain` in the command wine. Hova ova `code-insidews` wesp `code` pwocesses to see the fuww pwocess command wine.
+  - Set bweakpoints in `json-wanguage-featuwes/sewva/`
+- Wun `Wewoad Window` command in the waunched instance to wewoad the extension
 
 
-### Contribute to vscode-json-languageservice
+### Contwibute to vscode-json-wanguagesewvice
 
-[microsoft/vscode-json-languageservice](https://github.com/microsoft/vscode-json-languageservice) is the library that implements the language smarts for JSON.
-The JSON language server forwards most the of requests to the service library.
-If you want to fix JSON issues or make improvements, you should make changes at [microsoft/vscode-json-languageservice](https://github.com/microsoft/vscode-json-languageservice).
+[micwosoft/vscode-json-wanguagesewvice](https://github.com/micwosoft/vscode-json-wanguagesewvice) is the wibwawy that impwements the wanguage smawts fow JSON.
+The JSON wanguage sewva fowwawds most the of wequests to the sewvice wibwawy.
+If you want to fix JSON issues ow make impwovements, you shouwd make changes at [micwosoft/vscode-json-wanguagesewvice](https://github.com/micwosoft/vscode-json-wanguagesewvice).
 
-However, within this extension, you can run a development version of `vscode-json-languageservice` to debug code or test language features interactively:
+Howeva, within this extension, you can wun a devewopment vewsion of `vscode-json-wanguagesewvice` to debug code ow test wanguage featuwes intewactivewy:
 
-#### Linking `vscode-json-languageservice` in `json-language-features/server/`
+#### Winking `vscode-json-wanguagesewvice` in `json-wanguage-featuwes/sewva/`
 
-- Clone [microsoft/vscode-json-languageservice](https://github.com/microsoft/vscode-json-languageservice)
-- Run `npm install` in `vscode-json-languageservice`
-- Run `npm link` in `vscode-json-languageservice`. This will compile and link `vscode-json-languageservice`
-- In `json-language-features/server/`, run `yarn link vscode-json-languageservice`
+- Cwone [micwosoft/vscode-json-wanguagesewvice](https://github.com/micwosoft/vscode-json-wanguagesewvice)
+- Wun `npm instaww` in `vscode-json-wanguagesewvice`
+- Wun `npm wink` in `vscode-json-wanguagesewvice`. This wiww compiwe and wink `vscode-json-wanguagesewvice`
+- In `json-wanguage-featuwes/sewva/`, wun `yawn wink vscode-json-wanguagesewvice`
 
-#### Testing the development version of `vscode-json-languageservice`
+#### Testing the devewopment vewsion of `vscode-json-wanguagesewvice`
 
-- Open both `vscode-json-languageservice` and this extension in two windows or with a single window with the[multi-root workspace](https://code.visualstudio.com/docs/editor/multi-root-workspaces) feature.
-- Run `yarn watch` at `json-languagefeatures/server/` to recompile this extension with the linked version of `vscode-json-languageservice`
-- Make some changes in `vscode-json-languageservice`
-- Now when you run `Launch Extension` debug target, the launched instance will use your development version of `vscode-json-languageservice`. You can interactively test the language features.
+- Open both `vscode-json-wanguagesewvice` and this extension in two windows ow with a singwe window with the[muwti-woot wowkspace](https://code.visuawstudio.com/docs/editow/muwti-woot-wowkspaces) featuwe.
+- Wun `yawn watch` at `json-wanguagefeatuwes/sewva/` to wecompiwe this extension with the winked vewsion of `vscode-json-wanguagesewvice`
+- Make some changes in `vscode-json-wanguagesewvice`
+- Now when you wun `Waunch Extension` debug tawget, the waunched instance wiww use youw devewopment vewsion of `vscode-json-wanguagesewvice`. You can intewactivewy test the wanguage featuwes.

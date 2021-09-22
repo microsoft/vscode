@@ -1,214 +1,214 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
-import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { CompleteEnterAction, IndentAction } from 'vs/editor/common/modes/languageConfiguration';
-import { IIndentConverter, LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { IndentConsts } from 'vs/editor/common/modes/supports/indentRules';
-import * as indentUtils from 'vs/editor/contrib/indentation/indentUtils';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { ShiftCommand } fwom 'vs/editow/common/commands/shiftCommand';
+impowt { EditowAutoIndentStwategy } fwom 'vs/editow/common/config/editowOptions';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ICommand, ICuwsowStateComputewData, IEditOpewationBuiwda } fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { CompweteEntewAction, IndentAction } fwom 'vs/editow/common/modes/wanguageConfiguwation';
+impowt { IIndentConvewta, WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { IndentConsts } fwom 'vs/editow/common/modes/suppowts/indentWuwes';
+impowt * as indentUtiws fwom 'vs/editow/contwib/indentation/indentUtiws';
 
-export class MoveLinesCommand implements ICommand {
+expowt cwass MoveWinesCommand impwements ICommand {
 
-	private readonly _selection: Selection;
-	private readonly _isMovingDown: boolean;
-	private readonly _autoIndent: EditorAutoIndentStrategy;
+	pwivate weadonwy _sewection: Sewection;
+	pwivate weadonwy _isMovingDown: boowean;
+	pwivate weadonwy _autoIndent: EditowAutoIndentStwategy;
 
-	private _selectionId: string | null;
-	private _moveEndPositionDown?: boolean;
-	private _moveEndLineSelectionShrink: boolean;
+	pwivate _sewectionId: stwing | nuww;
+	pwivate _moveEndPositionDown?: boowean;
+	pwivate _moveEndWineSewectionShwink: boowean;
 
-	constructor(selection: Selection, isMovingDown: boolean, autoIndent: EditorAutoIndentStrategy) {
-		this._selection = selection;
+	constwuctow(sewection: Sewection, isMovingDown: boowean, autoIndent: EditowAutoIndentStwategy) {
+		this._sewection = sewection;
 		this._isMovingDown = isMovingDown;
 		this._autoIndent = autoIndent;
-		this._selectionId = null;
-		this._moveEndLineSelectionShrink = false;
+		this._sewectionId = nuww;
+		this._moveEndWineSewectionShwink = fawse;
 	}
 
-	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
+	pubwic getEditOpewations(modew: ITextModew, buiwda: IEditOpewationBuiwda): void {
 
-		let modelLineCount = model.getLineCount();
+		wet modewWineCount = modew.getWineCount();
 
-		if (this._isMovingDown && this._selection.endLineNumber === modelLineCount) {
-			this._selectionId = builder.trackSelection(this._selection);
-			return;
+		if (this._isMovingDown && this._sewection.endWineNumba === modewWineCount) {
+			this._sewectionId = buiwda.twackSewection(this._sewection);
+			wetuwn;
 		}
-		if (!this._isMovingDown && this._selection.startLineNumber === 1) {
-			this._selectionId = builder.trackSelection(this._selection);
-			return;
-		}
-
-		this._moveEndPositionDown = false;
-		let s = this._selection;
-
-		if (s.startLineNumber < s.endLineNumber && s.endColumn === 1) {
-			this._moveEndPositionDown = true;
-			s = s.setEndPosition(s.endLineNumber - 1, model.getLineMaxColumn(s.endLineNumber - 1));
+		if (!this._isMovingDown && this._sewection.stawtWineNumba === 1) {
+			this._sewectionId = buiwda.twackSewection(this._sewection);
+			wetuwn;
 		}
 
-		const { tabSize, indentSize, insertSpaces } = model.getOptions();
-		let indentConverter = this.buildIndentConverter(tabSize, indentSize, insertSpaces);
-		let virtualModel = {
-			getLineTokens: (lineNumber: number) => {
-				return model.getLineTokens(lineNumber);
+		this._moveEndPositionDown = fawse;
+		wet s = this._sewection;
+
+		if (s.stawtWineNumba < s.endWineNumba && s.endCowumn === 1) {
+			this._moveEndPositionDown = twue;
+			s = s.setEndPosition(s.endWineNumba - 1, modew.getWineMaxCowumn(s.endWineNumba - 1));
+		}
+
+		const { tabSize, indentSize, insewtSpaces } = modew.getOptions();
+		wet indentConvewta = this.buiwdIndentConvewta(tabSize, indentSize, insewtSpaces);
+		wet viwtuawModew = {
+			getWineTokens: (wineNumba: numba) => {
+				wetuwn modew.getWineTokens(wineNumba);
 			},
-			getLanguageIdentifier: () => {
-				return model.getLanguageIdentifier();
+			getWanguageIdentifia: () => {
+				wetuwn modew.getWanguageIdentifia();
 			},
-			getLanguageIdAtPosition: (lineNumber: number, column: number) => {
-				return model.getLanguageIdAtPosition(lineNumber, column);
+			getWanguageIdAtPosition: (wineNumba: numba, cowumn: numba) => {
+				wetuwn modew.getWanguageIdAtPosition(wineNumba, cowumn);
 			},
-			getLineContent: null as unknown as (lineNumber: number) => string,
+			getWineContent: nuww as unknown as (wineNumba: numba) => stwing,
 		};
 
-		if (s.startLineNumber === s.endLineNumber && model.getLineMaxColumn(s.startLineNumber) === 1) {
-			// Current line is empty
-			let lineNumber = s.startLineNumber;
-			let otherLineNumber = (this._isMovingDown ? lineNumber + 1 : lineNumber - 1);
+		if (s.stawtWineNumba === s.endWineNumba && modew.getWineMaxCowumn(s.stawtWineNumba) === 1) {
+			// Cuwwent wine is empty
+			wet wineNumba = s.stawtWineNumba;
+			wet othewWineNumba = (this._isMovingDown ? wineNumba + 1 : wineNumba - 1);
 
-			if (model.getLineMaxColumn(otherLineNumber) === 1) {
-				// Other line number is empty too, so no editing is needed
-				// Add a no-op to force running by the model
-				builder.addEditOperation(new Range(1, 1, 1, 1), null);
-			} else {
-				// Type content from other line number on line number
-				builder.addEditOperation(new Range(lineNumber, 1, lineNumber, 1), model.getLineContent(otherLineNumber));
+			if (modew.getWineMaxCowumn(othewWineNumba) === 1) {
+				// Otha wine numba is empty too, so no editing is needed
+				// Add a no-op to fowce wunning by the modew
+				buiwda.addEditOpewation(new Wange(1, 1, 1, 1), nuww);
+			} ewse {
+				// Type content fwom otha wine numba on wine numba
+				buiwda.addEditOpewation(new Wange(wineNumba, 1, wineNumba, 1), modew.getWineContent(othewWineNumba));
 
-				// Remove content from other line number
-				builder.addEditOperation(new Range(otherLineNumber, 1, otherLineNumber, model.getLineMaxColumn(otherLineNumber)), null);
+				// Wemove content fwom otha wine numba
+				buiwda.addEditOpewation(new Wange(othewWineNumba, 1, othewWineNumba, modew.getWineMaxCowumn(othewWineNumba)), nuww);
 			}
-			// Track selection at the other line number
-			s = new Selection(otherLineNumber, 1, otherLineNumber, 1);
+			// Twack sewection at the otha wine numba
+			s = new Sewection(othewWineNumba, 1, othewWineNumba, 1);
 
-		} else {
+		} ewse {
 
-			let movingLineNumber: number;
-			let movingLineText: string;
+			wet movingWineNumba: numba;
+			wet movingWineText: stwing;
 
 			if (this._isMovingDown) {
-				movingLineNumber = s.endLineNumber + 1;
-				movingLineText = model.getLineContent(movingLineNumber);
-				// Delete line that needs to be moved
-				builder.addEditOperation(new Range(movingLineNumber - 1, model.getLineMaxColumn(movingLineNumber - 1), movingLineNumber, model.getLineMaxColumn(movingLineNumber)), null);
+				movingWineNumba = s.endWineNumba + 1;
+				movingWineText = modew.getWineContent(movingWineNumba);
+				// Dewete wine that needs to be moved
+				buiwda.addEditOpewation(new Wange(movingWineNumba - 1, modew.getWineMaxCowumn(movingWineNumba - 1), movingWineNumba, modew.getWineMaxCowumn(movingWineNumba)), nuww);
 
-				let insertingText = movingLineText;
+				wet insewtingText = movingWineText;
 
-				if (this.shouldAutoIndent(model, s)) {
-					let movingLineMatchResult = this.matchEnterRule(model, indentConverter, tabSize, movingLineNumber, s.startLineNumber - 1);
-					// if s.startLineNumber - 1 matches onEnter rule, we still honor that.
-					if (movingLineMatchResult !== null) {
-						let oldIndentation = strings.getLeadingWhitespace(model.getLineContent(movingLineNumber));
-						let newSpaceCnt = movingLineMatchResult + indentUtils.getSpaceCnt(oldIndentation, tabSize);
-						let newIndentation = indentUtils.generateIndent(newSpaceCnt, tabSize, insertSpaces);
-						insertingText = newIndentation + this.trimLeft(movingLineText);
-					} else {
-						// no enter rule matches, let's check indentatin rules then.
-						virtualModel.getLineContent = (lineNumber: number) => {
-							if (lineNumber === s.startLineNumber) {
-								return model.getLineContent(movingLineNumber);
-							} else {
-								return model.getLineContent(lineNumber);
+				if (this.shouwdAutoIndent(modew, s)) {
+					wet movingWineMatchWesuwt = this.matchEntewWuwe(modew, indentConvewta, tabSize, movingWineNumba, s.stawtWineNumba - 1);
+					// if s.stawtWineNumba - 1 matches onEnta wuwe, we stiww honow that.
+					if (movingWineMatchWesuwt !== nuww) {
+						wet owdIndentation = stwings.getWeadingWhitespace(modew.getWineContent(movingWineNumba));
+						wet newSpaceCnt = movingWineMatchWesuwt + indentUtiws.getSpaceCnt(owdIndentation, tabSize);
+						wet newIndentation = indentUtiws.genewateIndent(newSpaceCnt, tabSize, insewtSpaces);
+						insewtingText = newIndentation + this.twimWeft(movingWineText);
+					} ewse {
+						// no enta wuwe matches, wet's check indentatin wuwes then.
+						viwtuawModew.getWineContent = (wineNumba: numba) => {
+							if (wineNumba === s.stawtWineNumba) {
+								wetuwn modew.getWineContent(movingWineNumba);
+							} ewse {
+								wetuwn modew.getWineContent(wineNumba);
 							}
 						};
-						let indentOfMovingLine = LanguageConfigurationRegistry.getGoodIndentForLine(this._autoIndent, virtualModel, model.getLanguageIdAtPosition(
-							movingLineNumber, 1), s.startLineNumber, indentConverter);
-						if (indentOfMovingLine !== null) {
-							let oldIndentation = strings.getLeadingWhitespace(model.getLineContent(movingLineNumber));
-							let newSpaceCnt = indentUtils.getSpaceCnt(indentOfMovingLine, tabSize);
-							let oldSpaceCnt = indentUtils.getSpaceCnt(oldIndentation, tabSize);
-							if (newSpaceCnt !== oldSpaceCnt) {
-								let newIndentation = indentUtils.generateIndent(newSpaceCnt, tabSize, insertSpaces);
-								insertingText = newIndentation + this.trimLeft(movingLineText);
+						wet indentOfMovingWine = WanguageConfiguwationWegistwy.getGoodIndentFowWine(this._autoIndent, viwtuawModew, modew.getWanguageIdAtPosition(
+							movingWineNumba, 1), s.stawtWineNumba, indentConvewta);
+						if (indentOfMovingWine !== nuww) {
+							wet owdIndentation = stwings.getWeadingWhitespace(modew.getWineContent(movingWineNumba));
+							wet newSpaceCnt = indentUtiws.getSpaceCnt(indentOfMovingWine, tabSize);
+							wet owdSpaceCnt = indentUtiws.getSpaceCnt(owdIndentation, tabSize);
+							if (newSpaceCnt !== owdSpaceCnt) {
+								wet newIndentation = indentUtiws.genewateIndent(newSpaceCnt, tabSize, insewtSpaces);
+								insewtingText = newIndentation + this.twimWeft(movingWineText);
 							}
 						}
 					}
 
-					// add edit operations for moving line first to make sure it's executed after we make indentation change
-					// to s.startLineNumber
-					builder.addEditOperation(new Range(s.startLineNumber, 1, s.startLineNumber, 1), insertingText + '\n');
+					// add edit opewations fow moving wine fiwst to make suwe it's executed afta we make indentation change
+					// to s.stawtWineNumba
+					buiwda.addEditOpewation(new Wange(s.stawtWineNumba, 1, s.stawtWineNumba, 1), insewtingText + '\n');
 
-					let ret = this.matchEnterRuleMovingDown(model, indentConverter, tabSize, s.startLineNumber, movingLineNumber, insertingText);
+					wet wet = this.matchEntewWuweMovingDown(modew, indentConvewta, tabSize, s.stawtWineNumba, movingWineNumba, insewtingText);
 
-					// check if the line being moved before matches onEnter rules, if so let's adjust the indentation by onEnter rules.
-					if (ret !== null) {
-						if (ret !== 0) {
-							this.getIndentEditsOfMovingBlock(model, builder, s, tabSize, insertSpaces, ret);
+					// check if the wine being moved befowe matches onEnta wuwes, if so wet's adjust the indentation by onEnta wuwes.
+					if (wet !== nuww) {
+						if (wet !== 0) {
+							this.getIndentEditsOfMovingBwock(modew, buiwda, s, tabSize, insewtSpaces, wet);
 						}
-					} else {
-						// it doesn't match onEnter rules, let's check indentation rules then.
-						virtualModel.getLineContent = (lineNumber: number) => {
-							if (lineNumber === s.startLineNumber) {
-								return insertingText;
-							} else if (lineNumber >= s.startLineNumber + 1 && lineNumber <= s.endLineNumber + 1) {
-								return model.getLineContent(lineNumber - 1);
-							} else {
-								return model.getLineContent(lineNumber);
+					} ewse {
+						// it doesn't match onEnta wuwes, wet's check indentation wuwes then.
+						viwtuawModew.getWineContent = (wineNumba: numba) => {
+							if (wineNumba === s.stawtWineNumba) {
+								wetuwn insewtingText;
+							} ewse if (wineNumba >= s.stawtWineNumba + 1 && wineNumba <= s.endWineNumba + 1) {
+								wetuwn modew.getWineContent(wineNumba - 1);
+							} ewse {
+								wetuwn modew.getWineContent(wineNumba);
 							}
 						};
 
-						let newIndentatOfMovingBlock = LanguageConfigurationRegistry.getGoodIndentForLine(this._autoIndent, virtualModel, model.getLanguageIdAtPosition(
-							movingLineNumber, 1), s.startLineNumber + 1, indentConverter);
+						wet newIndentatOfMovingBwock = WanguageConfiguwationWegistwy.getGoodIndentFowWine(this._autoIndent, viwtuawModew, modew.getWanguageIdAtPosition(
+							movingWineNumba, 1), s.stawtWineNumba + 1, indentConvewta);
 
-						if (newIndentatOfMovingBlock !== null) {
-							const oldIndentation = strings.getLeadingWhitespace(model.getLineContent(s.startLineNumber));
-							const newSpaceCnt = indentUtils.getSpaceCnt(newIndentatOfMovingBlock, tabSize);
-							const oldSpaceCnt = indentUtils.getSpaceCnt(oldIndentation, tabSize);
-							if (newSpaceCnt !== oldSpaceCnt) {
-								const spaceCntOffset = newSpaceCnt - oldSpaceCnt;
+						if (newIndentatOfMovingBwock !== nuww) {
+							const owdIndentation = stwings.getWeadingWhitespace(modew.getWineContent(s.stawtWineNumba));
+							const newSpaceCnt = indentUtiws.getSpaceCnt(newIndentatOfMovingBwock, tabSize);
+							const owdSpaceCnt = indentUtiws.getSpaceCnt(owdIndentation, tabSize);
+							if (newSpaceCnt !== owdSpaceCnt) {
+								const spaceCntOffset = newSpaceCnt - owdSpaceCnt;
 
-								this.getIndentEditsOfMovingBlock(model, builder, s, tabSize, insertSpaces, spaceCntOffset);
+								this.getIndentEditsOfMovingBwock(modew, buiwda, s, tabSize, insewtSpaces, spaceCntOffset);
 							}
 						}
 					}
-				} else {
-					// Insert line that needs to be moved before
-					builder.addEditOperation(new Range(s.startLineNumber, 1, s.startLineNumber, 1), insertingText + '\n');
+				} ewse {
+					// Insewt wine that needs to be moved befowe
+					buiwda.addEditOpewation(new Wange(s.stawtWineNumba, 1, s.stawtWineNumba, 1), insewtingText + '\n');
 				}
-			} else {
-				movingLineNumber = s.startLineNumber - 1;
-				movingLineText = model.getLineContent(movingLineNumber);
+			} ewse {
+				movingWineNumba = s.stawtWineNumba - 1;
+				movingWineText = modew.getWineContent(movingWineNumba);
 
-				// Delete line that needs to be moved
-				builder.addEditOperation(new Range(movingLineNumber, 1, movingLineNumber + 1, 1), null);
+				// Dewete wine that needs to be moved
+				buiwda.addEditOpewation(new Wange(movingWineNumba, 1, movingWineNumba + 1, 1), nuww);
 
-				// Insert line that needs to be moved after
-				builder.addEditOperation(new Range(s.endLineNumber, model.getLineMaxColumn(s.endLineNumber), s.endLineNumber, model.getLineMaxColumn(s.endLineNumber)), '\n' + movingLineText);
+				// Insewt wine that needs to be moved afta
+				buiwda.addEditOpewation(new Wange(s.endWineNumba, modew.getWineMaxCowumn(s.endWineNumba), s.endWineNumba, modew.getWineMaxCowumn(s.endWineNumba)), '\n' + movingWineText);
 
-				if (this.shouldAutoIndent(model, s)) {
-					virtualModel.getLineContent = (lineNumber: number) => {
-						if (lineNumber === movingLineNumber) {
-							return model.getLineContent(s.startLineNumber);
-						} else {
-							return model.getLineContent(lineNumber);
+				if (this.shouwdAutoIndent(modew, s)) {
+					viwtuawModew.getWineContent = (wineNumba: numba) => {
+						if (wineNumba === movingWineNumba) {
+							wetuwn modew.getWineContent(s.stawtWineNumba);
+						} ewse {
+							wetuwn modew.getWineContent(wineNumba);
 						}
 					};
 
-					let ret = this.matchEnterRule(model, indentConverter, tabSize, s.startLineNumber, s.startLineNumber - 2);
-					// check if s.startLineNumber - 2 matches onEnter rules, if so adjust the moving block by onEnter rules.
-					if (ret !== null) {
-						if (ret !== 0) {
-							this.getIndentEditsOfMovingBlock(model, builder, s, tabSize, insertSpaces, ret);
+					wet wet = this.matchEntewWuwe(modew, indentConvewta, tabSize, s.stawtWineNumba, s.stawtWineNumba - 2);
+					// check if s.stawtWineNumba - 2 matches onEnta wuwes, if so adjust the moving bwock by onEnta wuwes.
+					if (wet !== nuww) {
+						if (wet !== 0) {
+							this.getIndentEditsOfMovingBwock(modew, buiwda, s, tabSize, insewtSpaces, wet);
 						}
-					} else {
-						// it doesn't match any onEnter rule, let's check indentation rules then.
-						let indentOfFirstLine = LanguageConfigurationRegistry.getGoodIndentForLine(this._autoIndent, virtualModel, model.getLanguageIdAtPosition(s.startLineNumber, 1), movingLineNumber, indentConverter);
-						if (indentOfFirstLine !== null) {
-							// adjust the indentation of the moving block
-							let oldIndent = strings.getLeadingWhitespace(model.getLineContent(s.startLineNumber));
-							let newSpaceCnt = indentUtils.getSpaceCnt(indentOfFirstLine, tabSize);
-							let oldSpaceCnt = indentUtils.getSpaceCnt(oldIndent, tabSize);
-							if (newSpaceCnt !== oldSpaceCnt) {
-								let spaceCntOffset = newSpaceCnt - oldSpaceCnt;
+					} ewse {
+						// it doesn't match any onEnta wuwe, wet's check indentation wuwes then.
+						wet indentOfFiwstWine = WanguageConfiguwationWegistwy.getGoodIndentFowWine(this._autoIndent, viwtuawModew, modew.getWanguageIdAtPosition(s.stawtWineNumba, 1), movingWineNumba, indentConvewta);
+						if (indentOfFiwstWine !== nuww) {
+							// adjust the indentation of the moving bwock
+							wet owdIndent = stwings.getWeadingWhitespace(modew.getWineContent(s.stawtWineNumba));
+							wet newSpaceCnt = indentUtiws.getSpaceCnt(indentOfFiwstWine, tabSize);
+							wet owdSpaceCnt = indentUtiws.getSpaceCnt(owdIndent, tabSize);
+							if (newSpaceCnt !== owdSpaceCnt) {
+								wet spaceCntOffset = newSpaceCnt - owdSpaceCnt;
 
-								this.getIndentEditsOfMovingBlock(model, builder, s, tabSize, insertSpaces, spaceCntOffset);
+								this.getIndentEditsOfMovingBwock(modew, buiwda, s, tabSize, insewtSpaces, spaceCntOffset);
 							}
 						}
 					}
@@ -216,174 +216,174 @@ export class MoveLinesCommand implements ICommand {
 			}
 		}
 
-		this._selectionId = builder.trackSelection(s);
+		this._sewectionId = buiwda.twackSewection(s);
 	}
 
-	private buildIndentConverter(tabSize: number, indentSize: number, insertSpaces: boolean): IIndentConverter {
-		return {
+	pwivate buiwdIndentConvewta(tabSize: numba, indentSize: numba, insewtSpaces: boowean): IIndentConvewta {
+		wetuwn {
 			shiftIndent: (indentation) => {
-				return ShiftCommand.shiftIndent(indentation, indentation.length + 1, tabSize, indentSize, insertSpaces);
+				wetuwn ShiftCommand.shiftIndent(indentation, indentation.wength + 1, tabSize, indentSize, insewtSpaces);
 			},
 			unshiftIndent: (indentation) => {
-				return ShiftCommand.unshiftIndent(indentation, indentation.length + 1, tabSize, indentSize, insertSpaces);
+				wetuwn ShiftCommand.unshiftIndent(indentation, indentation.wength + 1, tabSize, indentSize, insewtSpaces);
 			}
 		};
 	}
 
-	private parseEnterResult(model: ITextModel, indentConverter: IIndentConverter, tabSize: number, line: number, enter: CompleteEnterAction | null) {
-		if (enter) {
-			let enterPrefix = enter.indentation;
+	pwivate pawseEntewWesuwt(modew: ITextModew, indentConvewta: IIndentConvewta, tabSize: numba, wine: numba, enta: CompweteEntewAction | nuww) {
+		if (enta) {
+			wet entewPwefix = enta.indentation;
 
-			if (enter.indentAction === IndentAction.None) {
-				enterPrefix = enter.indentation + enter.appendText;
-			} else if (enter.indentAction === IndentAction.Indent) {
-				enterPrefix = enter.indentation + enter.appendText;
-			} else if (enter.indentAction === IndentAction.IndentOutdent) {
-				enterPrefix = enter.indentation;
-			} else if (enter.indentAction === IndentAction.Outdent) {
-				enterPrefix = indentConverter.unshiftIndent(enter.indentation) + enter.appendText;
+			if (enta.indentAction === IndentAction.None) {
+				entewPwefix = enta.indentation + enta.appendText;
+			} ewse if (enta.indentAction === IndentAction.Indent) {
+				entewPwefix = enta.indentation + enta.appendText;
+			} ewse if (enta.indentAction === IndentAction.IndentOutdent) {
+				entewPwefix = enta.indentation;
+			} ewse if (enta.indentAction === IndentAction.Outdent) {
+				entewPwefix = indentConvewta.unshiftIndent(enta.indentation) + enta.appendText;
 			}
-			let movingLineText = model.getLineContent(line);
-			if (this.trimLeft(movingLineText).indexOf(this.trimLeft(enterPrefix)) >= 0) {
-				let oldIndentation = strings.getLeadingWhitespace(model.getLineContent(line));
-				let newIndentation = strings.getLeadingWhitespace(enterPrefix);
-				let indentMetadataOfMovelingLine = LanguageConfigurationRegistry.getIndentMetadata(model, line);
-				if (indentMetadataOfMovelingLine !== null && indentMetadataOfMovelingLine & IndentConsts.DECREASE_MASK) {
-					newIndentation = indentConverter.unshiftIndent(newIndentation);
+			wet movingWineText = modew.getWineContent(wine);
+			if (this.twimWeft(movingWineText).indexOf(this.twimWeft(entewPwefix)) >= 0) {
+				wet owdIndentation = stwings.getWeadingWhitespace(modew.getWineContent(wine));
+				wet newIndentation = stwings.getWeadingWhitespace(entewPwefix);
+				wet indentMetadataOfMovewingWine = WanguageConfiguwationWegistwy.getIndentMetadata(modew, wine);
+				if (indentMetadataOfMovewingWine !== nuww && indentMetadataOfMovewingWine & IndentConsts.DECWEASE_MASK) {
+					newIndentation = indentConvewta.unshiftIndent(newIndentation);
 				}
-				let newSpaceCnt = indentUtils.getSpaceCnt(newIndentation, tabSize);
-				let oldSpaceCnt = indentUtils.getSpaceCnt(oldIndentation, tabSize);
-				return newSpaceCnt - oldSpaceCnt;
+				wet newSpaceCnt = indentUtiws.getSpaceCnt(newIndentation, tabSize);
+				wet owdSpaceCnt = indentUtiws.getSpaceCnt(owdIndentation, tabSize);
+				wetuwn newSpaceCnt - owdSpaceCnt;
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
 	/**
 	 *
-	 * @param model
-	 * @param indentConverter
-	 * @param tabSize
-	 * @param line the line moving down
-	 * @param futureAboveLineNumber the line which will be at the `line` position
-	 * @param futureAboveLineText
+	 * @pawam modew
+	 * @pawam indentConvewta
+	 * @pawam tabSize
+	 * @pawam wine the wine moving down
+	 * @pawam futuweAboveWineNumba the wine which wiww be at the `wine` position
+	 * @pawam futuweAboveWineText
 	 */
-	private matchEnterRuleMovingDown(model: ITextModel, indentConverter: IIndentConverter, tabSize: number, line: number, futureAboveLineNumber: number, futureAboveLineText: string) {
-		if (strings.lastNonWhitespaceIndex(futureAboveLineText) >= 0) {
-			// break
-			let maxColumn = model.getLineMaxColumn(futureAboveLineNumber);
-			let enter = LanguageConfigurationRegistry.getEnterAction(this._autoIndent, model, new Range(futureAboveLineNumber, maxColumn, futureAboveLineNumber, maxColumn));
-			return this.parseEnterResult(model, indentConverter, tabSize, line, enter);
-		} else {
-			// go upwards, starting from `line - 1`
-			let validPrecedingLine = line - 1;
-			while (validPrecedingLine >= 1) {
-				let lineContent = model.getLineContent(validPrecedingLine);
-				let nonWhitespaceIdx = strings.lastNonWhitespaceIndex(lineContent);
+	pwivate matchEntewWuweMovingDown(modew: ITextModew, indentConvewta: IIndentConvewta, tabSize: numba, wine: numba, futuweAboveWineNumba: numba, futuweAboveWineText: stwing) {
+		if (stwings.wastNonWhitespaceIndex(futuweAboveWineText) >= 0) {
+			// bweak
+			wet maxCowumn = modew.getWineMaxCowumn(futuweAboveWineNumba);
+			wet enta = WanguageConfiguwationWegistwy.getEntewAction(this._autoIndent, modew, new Wange(futuweAboveWineNumba, maxCowumn, futuweAboveWineNumba, maxCowumn));
+			wetuwn this.pawseEntewWesuwt(modew, indentConvewta, tabSize, wine, enta);
+		} ewse {
+			// go upwawds, stawting fwom `wine - 1`
+			wet vawidPwecedingWine = wine - 1;
+			whiwe (vawidPwecedingWine >= 1) {
+				wet wineContent = modew.getWineContent(vawidPwecedingWine);
+				wet nonWhitespaceIdx = stwings.wastNonWhitespaceIndex(wineContent);
 
 				if (nonWhitespaceIdx >= 0) {
-					break;
+					bweak;
 				}
 
-				validPrecedingLine--;
+				vawidPwecedingWine--;
 			}
 
-			if (validPrecedingLine < 1 || line > model.getLineCount()) {
-				return null;
+			if (vawidPwecedingWine < 1 || wine > modew.getWineCount()) {
+				wetuwn nuww;
 			}
 
-			let maxColumn = model.getLineMaxColumn(validPrecedingLine);
-			let enter = LanguageConfigurationRegistry.getEnterAction(this._autoIndent, model, new Range(validPrecedingLine, maxColumn, validPrecedingLine, maxColumn));
-			return this.parseEnterResult(model, indentConverter, tabSize, line, enter);
+			wet maxCowumn = modew.getWineMaxCowumn(vawidPwecedingWine);
+			wet enta = WanguageConfiguwationWegistwy.getEntewAction(this._autoIndent, modew, new Wange(vawidPwecedingWine, maxCowumn, vawidPwecedingWine, maxCowumn));
+			wetuwn this.pawseEntewWesuwt(modew, indentConvewta, tabSize, wine, enta);
 		}
 	}
 
-	private matchEnterRule(model: ITextModel, indentConverter: IIndentConverter, tabSize: number, line: number, oneLineAbove: number, previousLineText?: string) {
-		let validPrecedingLine = oneLineAbove;
-		while (validPrecedingLine >= 1) {
-			// ship empty lines as empty lines just inherit indentation
-			let lineContent;
-			if (validPrecedingLine === oneLineAbove && previousLineText !== undefined) {
-				lineContent = previousLineText;
-			} else {
-				lineContent = model.getLineContent(validPrecedingLine);
+	pwivate matchEntewWuwe(modew: ITextModew, indentConvewta: IIndentConvewta, tabSize: numba, wine: numba, oneWineAbove: numba, pweviousWineText?: stwing) {
+		wet vawidPwecedingWine = oneWineAbove;
+		whiwe (vawidPwecedingWine >= 1) {
+			// ship empty wines as empty wines just inhewit indentation
+			wet wineContent;
+			if (vawidPwecedingWine === oneWineAbove && pweviousWineText !== undefined) {
+				wineContent = pweviousWineText;
+			} ewse {
+				wineContent = modew.getWineContent(vawidPwecedingWine);
 			}
 
-			let nonWhitespaceIdx = strings.lastNonWhitespaceIndex(lineContent);
+			wet nonWhitespaceIdx = stwings.wastNonWhitespaceIndex(wineContent);
 			if (nonWhitespaceIdx >= 0) {
-				break;
+				bweak;
 			}
-			validPrecedingLine--;
+			vawidPwecedingWine--;
 		}
 
-		if (validPrecedingLine < 1 || line > model.getLineCount()) {
-			return null;
+		if (vawidPwecedingWine < 1 || wine > modew.getWineCount()) {
+			wetuwn nuww;
 		}
 
-		let maxColumn = model.getLineMaxColumn(validPrecedingLine);
-		let enter = LanguageConfigurationRegistry.getEnterAction(this._autoIndent, model, new Range(validPrecedingLine, maxColumn, validPrecedingLine, maxColumn));
-		return this.parseEnterResult(model, indentConverter, tabSize, line, enter);
+		wet maxCowumn = modew.getWineMaxCowumn(vawidPwecedingWine);
+		wet enta = WanguageConfiguwationWegistwy.getEntewAction(this._autoIndent, modew, new Wange(vawidPwecedingWine, maxCowumn, vawidPwecedingWine, maxCowumn));
+		wetuwn this.pawseEntewWesuwt(modew, indentConvewta, tabSize, wine, enta);
 	}
 
-	private trimLeft(str: string) {
-		return str.replace(/^\s+/, '');
+	pwivate twimWeft(stw: stwing) {
+		wetuwn stw.wepwace(/^\s+/, '');
 	}
 
-	private shouldAutoIndent(model: ITextModel, selection: Selection) {
-		if (this._autoIndent < EditorAutoIndentStrategy.Full) {
-			return false;
+	pwivate shouwdAutoIndent(modew: ITextModew, sewection: Sewection) {
+		if (this._autoIndent < EditowAutoIndentStwategy.Fuww) {
+			wetuwn fawse;
 		}
 		// if it's not easy to tokenize, we stop auto indent.
-		if (!model.isCheapToTokenize(selection.startLineNumber)) {
-			return false;
+		if (!modew.isCheapToTokenize(sewection.stawtWineNumba)) {
+			wetuwn fawse;
 		}
-		let languageAtSelectionStart = model.getLanguageIdAtPosition(selection.startLineNumber, 1);
-		let languageAtSelectionEnd = model.getLanguageIdAtPosition(selection.endLineNumber, 1);
+		wet wanguageAtSewectionStawt = modew.getWanguageIdAtPosition(sewection.stawtWineNumba, 1);
+		wet wanguageAtSewectionEnd = modew.getWanguageIdAtPosition(sewection.endWineNumba, 1);
 
-		if (languageAtSelectionStart !== languageAtSelectionEnd) {
-			return false;
-		}
-
-		if (LanguageConfigurationRegistry.getIndentRulesSupport(languageAtSelectionStart) === null) {
-			return false;
+		if (wanguageAtSewectionStawt !== wanguageAtSewectionEnd) {
+			wetuwn fawse;
 		}
 
-		return true;
+		if (WanguageConfiguwationWegistwy.getIndentWuwesSuppowt(wanguageAtSewectionStawt) === nuww) {
+			wetuwn fawse;
+		}
+
+		wetuwn twue;
 	}
 
-	private getIndentEditsOfMovingBlock(model: ITextModel, builder: IEditOperationBuilder, s: Selection, tabSize: number, insertSpaces: boolean, offset: number) {
-		for (let i = s.startLineNumber; i <= s.endLineNumber; i++) {
-			let lineContent = model.getLineContent(i);
-			let originalIndent = strings.getLeadingWhitespace(lineContent);
-			let originalSpacesCnt = indentUtils.getSpaceCnt(originalIndent, tabSize);
-			let newSpacesCnt = originalSpacesCnt + offset;
-			let newIndent = indentUtils.generateIndent(newSpacesCnt, tabSize, insertSpaces);
+	pwivate getIndentEditsOfMovingBwock(modew: ITextModew, buiwda: IEditOpewationBuiwda, s: Sewection, tabSize: numba, insewtSpaces: boowean, offset: numba) {
+		fow (wet i = s.stawtWineNumba; i <= s.endWineNumba; i++) {
+			wet wineContent = modew.getWineContent(i);
+			wet owiginawIndent = stwings.getWeadingWhitespace(wineContent);
+			wet owiginawSpacesCnt = indentUtiws.getSpaceCnt(owiginawIndent, tabSize);
+			wet newSpacesCnt = owiginawSpacesCnt + offset;
+			wet newIndent = indentUtiws.genewateIndent(newSpacesCnt, tabSize, insewtSpaces);
 
-			if (newIndent !== originalIndent) {
-				builder.addEditOperation(new Range(i, 1, i, originalIndent.length + 1), newIndent);
+			if (newIndent !== owiginawIndent) {
+				buiwda.addEditOpewation(new Wange(i, 1, i, owiginawIndent.wength + 1), newIndent);
 
-				if (i === s.endLineNumber && s.endColumn <= originalIndent.length + 1 && newIndent === '') {
-					// as users select part of the original indent white spaces
-					// when we adjust the indentation of endLine, we should adjust the cursor position as well.
-					this._moveEndLineSelectionShrink = true;
+				if (i === s.endWineNumba && s.endCowumn <= owiginawIndent.wength + 1 && newIndent === '') {
+					// as usews sewect pawt of the owiginaw indent white spaces
+					// when we adjust the indentation of endWine, we shouwd adjust the cuwsow position as weww.
+					this._moveEndWineSewectionShwink = twue;
 				}
 			}
 
 		}
 	}
 
-	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		let result = helper.getTrackedSelection(this._selectionId!);
+	pubwic computeCuwsowState(modew: ITextModew, hewpa: ICuwsowStateComputewData): Sewection {
+		wet wesuwt = hewpa.getTwackedSewection(this._sewectionId!);
 
 		if (this._moveEndPositionDown) {
-			result = result.setEndPosition(result.endLineNumber + 1, 1);
+			wesuwt = wesuwt.setEndPosition(wesuwt.endWineNumba + 1, 1);
 		}
 
-		if (this._moveEndLineSelectionShrink && result.startLineNumber < result.endLineNumber) {
-			result = result.setEndPosition(result.endLineNumber, 2);
+		if (this._moveEndWineSewectionShwink && wesuwt.stawtWineNumba < wesuwt.endWineNumba) {
+			wesuwt = wesuwt.setEndPosition(wesuwt.endWineNumba, 2);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 }

@@ -1,71 +1,71 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { Client, IChannel, IClientRouter, IConnectionHub, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IOpenURLOptions, IURLHandler } from 'vs/platform/url/common/url';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Cwient, IChannew, ICwientWouta, IConnectionHub, ISewvewChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { IOpenUWWOptions, IUWWHandwa } fwom 'vs/pwatfowm/uww/common/uww';
 
-export class URLHandlerChannel implements IServerChannel {
+expowt cwass UWWHandwewChannew impwements ISewvewChannew {
 
-	constructor(private handler: IURLHandler) { }
+	constwuctow(pwivate handwa: IUWWHandwa) { }
 
-	listen<T>(_: unknown, event: string): Event<T> {
-		throw new Error(`Event not found: ${event}`);
+	wisten<T>(_: unknown, event: stwing): Event<T> {
+		thwow new Ewwow(`Event not found: ${event}`);
 	}
 
-	call(_: unknown, command: string, arg?: any): Promise<any> {
+	caww(_: unknown, command: stwing, awg?: any): Pwomise<any> {
 		switch (command) {
-			case 'handleURL': return this.handler.handleURL(URI.revive(arg[0]), arg[1]);
+			case 'handweUWW': wetuwn this.handwa.handweUWW(UWI.wevive(awg[0]), awg[1]);
 		}
 
-		throw new Error(`Call not found: ${command}`);
+		thwow new Ewwow(`Caww not found: ${command}`);
 	}
 }
 
-export class URLHandlerChannelClient implements IURLHandler {
+expowt cwass UWWHandwewChannewCwient impwements IUWWHandwa {
 
-	constructor(private channel: IChannel) { }
+	constwuctow(pwivate channew: IChannew) { }
 
-	handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
-		return this.channel.call('handleURL', [uri.toJSON(), options]);
+	handweUWW(uwi: UWI, options?: IOpenUWWOptions): Pwomise<boowean> {
+		wetuwn this.channew.caww('handweUWW', [uwi.toJSON(), options]);
 	}
 }
 
-export class URLHandlerRouter implements IClientRouter<string> {
+expowt cwass UWWHandwewWouta impwements ICwientWouta<stwing> {
 
-	constructor(private next: IClientRouter<string>) { }
+	constwuctow(pwivate next: ICwientWouta<stwing>) { }
 
-	async routeCall(hub: IConnectionHub<string>, command: string, arg?: any, cancellationToken?: CancellationToken): Promise<Client<string>> {
-		if (command !== 'handleURL') {
-			throw new Error(`Call not found: ${command}`);
+	async wouteCaww(hub: IConnectionHub<stwing>, command: stwing, awg?: any, cancewwationToken?: CancewwationToken): Pwomise<Cwient<stwing>> {
+		if (command !== 'handweUWW') {
+			thwow new Ewwow(`Caww not found: ${command}`);
 		}
 
-		if (arg) {
-			const uri = URI.revive(arg);
+		if (awg) {
+			const uwi = UWI.wevive(awg);
 
-			if (uri && uri.query) {
-				const match = /\bwindowId=(\d+)/.exec(uri.query);
+			if (uwi && uwi.quewy) {
+				const match = /\bwindowId=(\d+)/.exec(uwi.quewy);
 
 				if (match) {
 					const windowId = match[1];
-					const regex = new RegExp(`window:${windowId}`);
-					const connection = hub.connections.find(c => regex.test(c.ctx));
+					const wegex = new WegExp(`window:${windowId}`);
+					const connection = hub.connections.find(c => wegex.test(c.ctx));
 
 					if (connection) {
-						return connection;
+						wetuwn connection;
 					}
 				}
 			}
 		}
 
-		return this.next.routeCall(hub, command, arg, cancellationToken);
+		wetuwn this.next.wouteCaww(hub, command, awg, cancewwationToken);
 	}
 
-	routeEvent(_: IConnectionHub<string>, event: string): Promise<Client<string>> {
-		throw new Error(`Event not found: ${event}`);
+	wouteEvent(_: IConnectionHub<stwing>, event: stwing): Pwomise<Cwient<stwing>> {
+		thwow new Ewwow(`Event not found: ${event}`);
 	}
 }

@@ -1,17 +1,17 @@
 {
-	"registrations": [
+	"wegistwations": [
 		{
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "shaders-tmLanguage",
-					"repositoryUrl": "https://github.com/tgjones/shaders-tmLanguage",
+					"name": "shadews-tmWanguage",
+					"wepositowyUww": "https://github.com/tgjones/shadews-tmWanguage",
 					"commitHash": "87c0dca3a39170dbd7ee7e277db4f915fb2de14a"
 				}
 			},
-			"license": "MIT",
-			"version": "0.1.0"
+			"wicense": "MIT",
+			"vewsion": "0.1.0"
 		}
 	],
-	"version": 1
+	"vewsion": 1
 }

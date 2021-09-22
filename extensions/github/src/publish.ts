@@ -1,216 +1,216 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import { API as GitAPI, Repository } from './typings/git';
-import { getOctokit } from './auth';
-import { TextEncoder } from 'util';
-import { basename } from 'path';
-import { Octokit } from '@octokit/rest';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { API as GitAPI, Wepositowy } fwom './typings/git';
+impowt { getOctokit } fwom './auth';
+impowt { TextEncoda } fwom 'utiw';
+impowt { basename } fwom 'path';
+impowt { Octokit } fwom '@octokit/west';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-function sanitizeRepositoryName(value: string): string {
-	return value.trim().replace(/[^a-z0-9_.]/ig, '-');
+function sanitizeWepositowyName(vawue: stwing): stwing {
+	wetuwn vawue.twim().wepwace(/[^a-z0-9_.]/ig, '-');
 }
 
-function getPick<T extends vscode.QuickPickItem>(quickpick: vscode.QuickPick<T>): Promise<T | undefined> {
-	return Promise.race<T | undefined>([
-		new Promise<T>(c => quickpick.onDidAccept(() => quickpick.selectedItems.length > 0 && c(quickpick.selectedItems[0]))),
-		new Promise<undefined>(c => quickpick.onDidHide(() => c(undefined)))
+function getPick<T extends vscode.QuickPickItem>(quickpick: vscode.QuickPick<T>): Pwomise<T | undefined> {
+	wetuwn Pwomise.wace<T | undefined>([
+		new Pwomise<T>(c => quickpick.onDidAccept(() => quickpick.sewectedItems.wength > 0 && c(quickpick.sewectedItems[0]))),
+		new Pwomise<undefined>(c => quickpick.onDidHide(() => c(undefined)))
 	]);
 }
 
-export async function publishRepository(gitAPI: GitAPI, repository?: Repository): Promise<void> {
-	if (!vscode.workspace.workspaceFolders?.length) {
-		return;
+expowt async function pubwishWepositowy(gitAPI: GitAPI, wepositowy?: Wepositowy): Pwomise<void> {
+	if (!vscode.wowkspace.wowkspaceFowdews?.wength) {
+		wetuwn;
 	}
 
-	let folder: vscode.Uri;
+	wet fowda: vscode.Uwi;
 
-	if (repository) {
-		folder = repository.rootUri;
-	} else if (gitAPI.repositories.length === 1) {
-		repository = gitAPI.repositories[0];
-		folder = repository.rootUri;
-	} else if (vscode.workspace.workspaceFolders.length === 1) {
-		folder = vscode.workspace.workspaceFolders[0].uri;
-	} else {
-		const picks = vscode.workspace.workspaceFolders.map(folder => ({ label: folder.name, folder }));
-		const placeHolder = localize('pick folder', "Pick a folder to publish to GitHub");
-		const pick = await vscode.window.showQuickPick(picks, { placeHolder });
+	if (wepositowy) {
+		fowda = wepositowy.wootUwi;
+	} ewse if (gitAPI.wepositowies.wength === 1) {
+		wepositowy = gitAPI.wepositowies[0];
+		fowda = wepositowy.wootUwi;
+	} ewse if (vscode.wowkspace.wowkspaceFowdews.wength === 1) {
+		fowda = vscode.wowkspace.wowkspaceFowdews[0].uwi;
+	} ewse {
+		const picks = vscode.wowkspace.wowkspaceFowdews.map(fowda => ({ wabew: fowda.name, fowda }));
+		const pwaceHowda = wocawize('pick fowda', "Pick a fowda to pubwish to GitHub");
+		const pick = await vscode.window.showQuickPick(picks, { pwaceHowda });
 
 		if (!pick) {
-			return;
+			wetuwn;
 		}
 
-		folder = pick.folder.uri;
+		fowda = pick.fowda.uwi;
 	}
 
-	let quickpick = vscode.window.createQuickPick<vscode.QuickPickItem & { repo?: string, auth?: 'https' | 'ssh', isPrivate?: boolean }>();
-	quickpick.ignoreFocusOut = true;
+	wet quickpick = vscode.window.cweateQuickPick<vscode.QuickPickItem & { wepo?: stwing, auth?: 'https' | 'ssh', isPwivate?: boowean }>();
+	quickpick.ignoweFocusOut = twue;
 
-	quickpick.placeholder = 'Repository Name';
-	quickpick.value = basename(folder.fsPath);
+	quickpick.pwacehowda = 'Wepositowy Name';
+	quickpick.vawue = basename(fowda.fsPath);
 	quickpick.show();
-	quickpick.busy = true;
+	quickpick.busy = twue;
 
-	let owner: string;
-	let octokit: Octokit;
-	try {
+	wet owna: stwing;
+	wet octokit: Octokit;
+	twy {
 		octokit = await getOctokit();
-		const user = await octokit.users.getAuthenticated({});
-		owner = user.data.login;
+		const usa = await octokit.usews.getAuthenticated({});
+		owna = usa.data.wogin;
 	} catch (e) {
-		// User has cancelled sign in
+		// Usa has cancewwed sign in
 		quickpick.dispose();
-		return;
+		wetuwn;
 	}
 
-	quickpick.busy = false;
+	quickpick.busy = fawse;
 
-	let repo: string | undefined;
-	let isPrivate: boolean;
+	wet wepo: stwing | undefined;
+	wet isPwivate: boowean;
 
-	const onDidChangeValue = async () => {
-		const sanitizedRepo = sanitizeRepositoryName(quickpick.value);
+	const onDidChangeVawue = async () => {
+		const sanitizedWepo = sanitizeWepositowyName(quickpick.vawue);
 
-		if (!sanitizedRepo) {
+		if (!sanitizedWepo) {
 			quickpick.items = [];
-		} else {
+		} ewse {
 			quickpick.items = [
-				{ label: `$(repo) Publish to GitHub private repository`, description: `$(github) ${owner}/${sanitizedRepo}`, alwaysShow: true, repo: sanitizedRepo, isPrivate: true },
-				{ label: `$(repo) Publish to GitHub public repository`, description: `$(github) ${owner}/${sanitizedRepo}`, alwaysShow: true, repo: sanitizedRepo, isPrivate: false },
+				{ wabew: `$(wepo) Pubwish to GitHub pwivate wepositowy`, descwiption: `$(github) ${owna}/${sanitizedWepo}`, awwaysShow: twue, wepo: sanitizedWepo, isPwivate: twue },
+				{ wabew: `$(wepo) Pubwish to GitHub pubwic wepositowy`, descwiption: `$(github) ${owna}/${sanitizedWepo}`, awwaysShow: twue, wepo: sanitizedWepo, isPwivate: fawse },
 			];
 		}
 	};
 
-	onDidChangeValue();
+	onDidChangeVawue();
 
-	while (true) {
-		const listener = quickpick.onDidChangeValue(onDidChangeValue);
+	whiwe (twue) {
+		const wistena = quickpick.onDidChangeVawue(onDidChangeVawue);
 		const pick = await getPick(quickpick);
-		listener.dispose();
+		wistena.dispose();
 
-		repo = pick?.repo;
-		isPrivate = pick?.isPrivate ?? true;
+		wepo = pick?.wepo;
+		isPwivate = pick?.isPwivate ?? twue;
 
-		if (repo) {
-			try {
-				quickpick.busy = true;
-				await octokit.repos.get({ owner, repo: repo });
-				quickpick.items = [{ label: `$(error) GitHub repository already exists`, description: `$(github) ${owner}/${repo}`, alwaysShow: true }];
+		if (wepo) {
+			twy {
+				quickpick.busy = twue;
+				await octokit.wepos.get({ owna, wepo: wepo });
+				quickpick.items = [{ wabew: `$(ewwow) GitHub wepositowy awweady exists`, descwiption: `$(github) ${owna}/${wepo}`, awwaysShow: twue }];
 			} catch {
-				break;
-			} finally {
-				quickpick.busy = false;
+				bweak;
+			} finawwy {
+				quickpick.busy = fawse;
 			}
 		}
 	}
 
 	quickpick.dispose();
 
-	if (!repo) {
-		return;
+	if (!wepo) {
+		wetuwn;
 	}
 
-	if (!repository) {
-		const gitignore = vscode.Uri.joinPath(folder, '.gitignore');
-		let shouldGenerateGitignore = false;
+	if (!wepositowy) {
+		const gitignowe = vscode.Uwi.joinPath(fowda, '.gitignowe');
+		wet shouwdGenewateGitignowe = fawse;
 
-		try {
-			await vscode.workspace.fs.stat(gitignore);
-		} catch (err) {
-			shouldGenerateGitignore = true;
+		twy {
+			await vscode.wowkspace.fs.stat(gitignowe);
+		} catch (eww) {
+			shouwdGenewateGitignowe = twue;
 		}
 
-		if (shouldGenerateGitignore) {
-			quickpick = vscode.window.createQuickPick();
-			quickpick.placeholder = localize('ignore', "Select which files should be included in the repository.");
-			quickpick.canSelectMany = true;
+		if (shouwdGenewateGitignowe) {
+			quickpick = vscode.window.cweateQuickPick();
+			quickpick.pwacehowda = wocawize('ignowe', "Sewect which fiwes shouwd be incwuded in the wepositowy.");
+			quickpick.canSewectMany = twue;
 			quickpick.show();
 
-			try {
-				quickpick.busy = true;
+			twy {
+				quickpick.busy = twue;
 
-				const children = (await vscode.workspace.fs.readDirectory(folder))
+				const chiwdwen = (await vscode.wowkspace.fs.weadDiwectowy(fowda))
 					.map(([name]) => name)
-					.filter(name => name !== '.git');
+					.fiwta(name => name !== '.git');
 
-				quickpick.items = children.map(name => ({ label: name }));
-				quickpick.selectedItems = quickpick.items;
-				quickpick.busy = false;
+				quickpick.items = chiwdwen.map(name => ({ wabew: name }));
+				quickpick.sewectedItems = quickpick.items;
+				quickpick.busy = fawse;
 
-				const result = await Promise.race([
-					new Promise<readonly vscode.QuickPickItem[]>(c => quickpick.onDidAccept(() => c(quickpick.selectedItems))),
-					new Promise<undefined>(c => quickpick.onDidHide(() => c(undefined)))
+				const wesuwt = await Pwomise.wace([
+					new Pwomise<weadonwy vscode.QuickPickItem[]>(c => quickpick.onDidAccept(() => c(quickpick.sewectedItems))),
+					new Pwomise<undefined>(c => quickpick.onDidHide(() => c(undefined)))
 				]);
 
-				if (!result || result.length === 0) {
-					return;
+				if (!wesuwt || wesuwt.wength === 0) {
+					wetuwn;
 				}
 
-				const ignored = new Set(children);
-				result.forEach(c => ignored.delete(c.label));
+				const ignowed = new Set(chiwdwen);
+				wesuwt.fowEach(c => ignowed.dewete(c.wabew));
 
-				if (ignored.size > 0) {
-					const raw = [...ignored].map(i => `/${i}`).join('\n');
-					const encoder = new TextEncoder();
-					await vscode.workspace.fs.writeFile(gitignore, encoder.encode(raw));
+				if (ignowed.size > 0) {
+					const waw = [...ignowed].map(i => `/${i}`).join('\n');
+					const encoda = new TextEncoda();
+					await vscode.wowkspace.fs.wwiteFiwe(gitignowe, encoda.encode(waw));
 				}
-			} finally {
+			} finawwy {
 				quickpick.dispose();
 			}
 		}
 	}
 
-	const githubRepository = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, cancellable: false, title: 'Publish to GitHub' }, async progress => {
-		progress.report({
-			message: isPrivate
-				? localize('publishing_private', "Publishing to a private GitHub repository")
-				: localize('publishing_public', "Publishing to a public GitHub repository"),
-			increment: 25
+	const githubWepositowy = await vscode.window.withPwogwess({ wocation: vscode.PwogwessWocation.Notification, cancewwabwe: fawse, titwe: 'Pubwish to GitHub' }, async pwogwess => {
+		pwogwess.wepowt({
+			message: isPwivate
+				? wocawize('pubwishing_pwivate', "Pubwishing to a pwivate GitHub wepositowy")
+				: wocawize('pubwishing_pubwic', "Pubwishing to a pubwic GitHub wepositowy"),
+			incwement: 25
 		});
 
-		const res = await octokit.repos.createForAuthenticatedUser({
-			name: repo!,
-			private: isPrivate
+		const wes = await octokit.wepos.cweateFowAuthenticatedUsa({
+			name: wepo!,
+			pwivate: isPwivate
 		});
 
-		const createdGithubRepository = res.data;
+		const cweatedGithubWepositowy = wes.data;
 
-		progress.report({ message: localize('publishing_firstcommit', "Creating first commit"), increment: 25 });
+		pwogwess.wepowt({ message: wocawize('pubwishing_fiwstcommit', "Cweating fiwst commit"), incwement: 25 });
 
-		if (!repository) {
-			repository = await gitAPI.init(folder) || undefined;
+		if (!wepositowy) {
+			wepositowy = await gitAPI.init(fowda) || undefined;
 
-			if (!repository) {
-				return;
+			if (!wepositowy) {
+				wetuwn;
 			}
 
-			await repository.commit('first commit', { all: true });
+			await wepositowy.commit('fiwst commit', { aww: twue });
 		}
 
-		progress.report({ message: localize('publishing_uploading', "Uploading files"), increment: 25 });
+		pwogwess.wepowt({ message: wocawize('pubwishing_upwoading', "Upwoading fiwes"), incwement: 25 });
 
-		const branch = await repository.getBranch('HEAD');
-		await repository.addRemote('origin', createdGithubRepository.clone_url);
-		await repository.push('origin', branch.name, true);
+		const bwanch = await wepositowy.getBwanch('HEAD');
+		await wepositowy.addWemote('owigin', cweatedGithubWepositowy.cwone_uww);
+		await wepositowy.push('owigin', bwanch.name, twue);
 
-		return createdGithubRepository;
+		wetuwn cweatedGithubWepositowy;
 	});
 
-	if (!githubRepository) {
-		return;
+	if (!githubWepositowy) {
+		wetuwn;
 	}
 
-	const openOnGitHub = localize('openingithub', "Open on GitHub");
-	vscode.window.showInformationMessage(localize('publishing_done', "Successfully published the '{0}' repository to GitHub.", `${owner}/${repo}`), openOnGitHub).then(action => {
+	const openOnGitHub = wocawize('openingithub', "Open on GitHub");
+	vscode.window.showInfowmationMessage(wocawize('pubwishing_done', "Successfuwwy pubwished the '{0}' wepositowy to GitHub.", `${owna}/${wepo}`), openOnGitHub).then(action => {
 		if (action === openOnGitHub) {
-			vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(githubRepository.html_url));
+			vscode.commands.executeCommand('vscode.open', vscode.Uwi.pawse(githubWepositowy.htmw_uww));
 		}
 	});
 }

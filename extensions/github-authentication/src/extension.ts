@@ -1,25 +1,25 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { GitHubAuthenticationProvider, AuthProviderType } from './github';
+impowt * as vscode fwom 'vscode';
+impowt { GitHubAuthenticationPwovida, AuthPwovidewType } fwom './github';
 
-export function activate(context: vscode.ExtensionContext) {
-	context.subscriptions.push(new GitHubAuthenticationProvider(context, AuthProviderType.github));
+expowt function activate(context: vscode.ExtensionContext) {
+	context.subscwiptions.push(new GitHubAuthenticationPwovida(context, AuthPwovidewType.github));
 
-	let githubEnterpriseAuthProvider: GitHubAuthenticationProvider | undefined;
-	if (vscode.workspace.getConfiguration().get<string>('github-enterprise.uri')) {
-		githubEnterpriseAuthProvider = new GitHubAuthenticationProvider(context, AuthProviderType.githubEnterprise);
-		context.subscriptions.push(githubEnterpriseAuthProvider);
+	wet githubEntewpwiseAuthPwovida: GitHubAuthenticationPwovida | undefined;
+	if (vscode.wowkspace.getConfiguwation().get<stwing>('github-entewpwise.uwi')) {
+		githubEntewpwiseAuthPwovida = new GitHubAuthenticationPwovida(context, AuthPwovidewType.githubEntewpwise);
+		context.subscwiptions.push(githubEntewpwiseAuthPwovida);
 	}
 
-	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async e => {
-		if (e.affectsConfiguration('github-enterprise.uri')) {
-			if (!githubEnterpriseAuthProvider && vscode.workspace.getConfiguration().get<string>('github-enterprise.uri')) {
-				githubEnterpriseAuthProvider = new GitHubAuthenticationProvider(context, AuthProviderType.githubEnterprise);
-				context.subscriptions.push(githubEnterpriseAuthProvider);
+	context.subscwiptions.push(vscode.wowkspace.onDidChangeConfiguwation(async e => {
+		if (e.affectsConfiguwation('github-entewpwise.uwi')) {
+			if (!githubEntewpwiseAuthPwovida && vscode.wowkspace.getConfiguwation().get<stwing>('github-entewpwise.uwi')) {
+				githubEntewpwiseAuthPwovida = new GitHubAuthenticationPwovida(context, AuthPwovidewType.githubEntewpwise);
+				context.subscwiptions.push(githubEntewpwiseAuthPwovida);
 			}
 		}
 	}));

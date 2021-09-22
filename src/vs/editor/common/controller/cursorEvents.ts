@@ -1,95 +1,95 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
 
 /**
- * Describes the reason the cursor has changed its position.
+ * Descwibes the weason the cuwsow has changed its position.
  */
-export const enum CursorChangeReason {
+expowt const enum CuwsowChangeWeason {
 	/**
-	 * Unknown or not set.
+	 * Unknown ow not set.
 	 */
 	NotSet = 0,
 	/**
-	 * A `model.setValue()` was called.
+	 * A `modew.setVawue()` was cawwed.
 	 */
-	ContentFlush = 1,
+	ContentFwush = 1,
 	/**
-	 * The `model` has been changed outside of this cursor and the cursor recovers its position from associated markers.
+	 * The `modew` has been changed outside of this cuwsow and the cuwsow wecovews its position fwom associated mawkews.
 	 */
-	RecoverFromMarkers = 2,
+	WecovewFwomMawkews = 2,
 	/**
-	 * There was an explicit user gesture.
+	 * Thewe was an expwicit usa gestuwe.
 	 */
-	Explicit = 3,
+	Expwicit = 3,
 	/**
-	 * There was a Paste.
+	 * Thewe was a Paste.
 	 */
 	Paste = 4,
 	/**
-	 * There was an Undo.
+	 * Thewe was an Undo.
 	 */
 	Undo = 5,
 	/**
-	 * There was a Redo.
+	 * Thewe was a Wedo.
 	 */
-	Redo = 6,
+	Wedo = 6,
 }
 /**
- * An event describing that the cursor position has changed.
+ * An event descwibing that the cuwsow position has changed.
  */
-export interface ICursorPositionChangedEvent {
+expowt intewface ICuwsowPositionChangedEvent {
 	/**
-	 * Primary cursor's position.
+	 * Pwimawy cuwsow's position.
 	 */
-	readonly position: Position;
+	weadonwy position: Position;
 	/**
-	 * Secondary cursors' position.
+	 * Secondawy cuwsows' position.
 	 */
-	readonly secondaryPositions: Position[];
+	weadonwy secondawyPositions: Position[];
 	/**
-	 * Reason.
+	 * Weason.
 	 */
-	readonly reason: CursorChangeReason;
+	weadonwy weason: CuwsowChangeWeason;
 	/**
-	 * Source of the call that caused the event.
+	 * Souwce of the caww that caused the event.
 	 */
-	readonly source: string;
+	weadonwy souwce: stwing;
 }
 /**
- * An event describing that the cursor selection has changed.
+ * An event descwibing that the cuwsow sewection has changed.
  */
-export interface ICursorSelectionChangedEvent {
+expowt intewface ICuwsowSewectionChangedEvent {
 	/**
-	 * The primary selection.
+	 * The pwimawy sewection.
 	 */
-	readonly selection: Selection;
+	weadonwy sewection: Sewection;
 	/**
-	 * The secondary selections.
+	 * The secondawy sewections.
 	 */
-	readonly secondarySelections: Selection[];
+	weadonwy secondawySewections: Sewection[];
 	/**
-	 * The model version id.
+	 * The modew vewsion id.
 	 */
-	readonly modelVersionId: number;
+	weadonwy modewVewsionId: numba;
 	/**
-	 * The old selections.
+	 * The owd sewections.
 	 */
-	readonly oldSelections: Selection[] | null;
+	weadonwy owdSewections: Sewection[] | nuww;
 	/**
-	 * The model version id the that `oldSelections` refer to.
+	 * The modew vewsion id the that `owdSewections` wefa to.
 	 */
-	readonly oldModelVersionId: number;
+	weadonwy owdModewVewsionId: numba;
 	/**
-	 * Source of the call that caused the event.
+	 * Souwce of the caww that caused the event.
 	 */
-	readonly source: string;
+	weadonwy souwce: stwing;
 	/**
-	 * Reason.
+	 * Weason.
 	 */
-	readonly reason: CursorChangeReason;
+	weadonwy weason: CuwsowChangeWeason;
 }

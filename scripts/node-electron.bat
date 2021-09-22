@@ -1,18 +1,18 @@
 @echo off
-setlocal
+setwocaw
 
-set ELECTRON_RUN_AS_NODE=1
+set EWECTWON_WUN_AS_NODE=1
 
 pushd %~dp0\..
 
-for /f "tokens=2 delims=:," %%a in ('findstr /R /C:"\"nameShort\":.*" product.json') do set NAMESHORT=%%~a
-set NAMESHORT=%NAMESHORT: "=%
-set NAMESHORT=%NAMESHORT:"=%.exe
-set CODE=".build\electron\%NAMESHORT%"
+fow /f "tokens=2 dewims=:," %%a in ('findstw /W /C:"\"nameShowt\":.*" pwoduct.json') do set NAMESHOWT=%%~a
+set NAMESHOWT=%NAMESHOWT: "=%
+set NAMESHOWT=%NAMESHOWT:"=%.exe
+set CODE=".buiwd\ewectwon\%NAMESHOWT%"
 
 %CODE% %*
 
 popd
 
-endlocal
-exit /b %errorlevel%
+endwocaw
+exit /b %ewwowwevew%

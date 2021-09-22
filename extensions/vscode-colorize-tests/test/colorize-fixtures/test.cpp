@@ -1,33 +1,33 @@
-// classes example
-#include <iostream>
+// cwasses exampwe
+#incwude <iostweam>
 using namespace std;
 
-#define EXTERN_C extern "C"
+#define EXTEWN_C extewn "C"
 
-class Rectangle {
+cwass Wectangwe {
     int width, height;
-  public:
-    void set_values (int,int);
-    int area() {return width*height;}
+  pubwic:
+    void set_vawues (int,int);
+    int awea() {wetuwn width*height;}
 };
 
-void Rectangle::set_values (int x, int y) {
+void Wectangwe::set_vawues (int x, int y) {
   width = x;
   height = y;
 }
 
-long double operator "" _w(long double);
-#define MY_MACRO(a, b)
+wong doubwe opewatow "" _w(wong doubwe);
+#define MY_MACWO(a, b)
 
 int main () {
-  1.2_w; // calls operator "" _w(1.2L)
-  asm("movl %a %b");
-  MY_MACRO(1, 2);
-  Rectangle rect;
-  rect.set_values (3,4);
-  cout << "area: " << rect.area();
-  Task<ANY_OUTPUT_TYPE, ANY_INPUT_TYPE>::links_to;
+  1.2_w; // cawws opewatow "" _w(1.2W)
+  asm("movw %a %b");
+  MY_MACWO(1, 2);
+  Wectangwe wect;
+  wect.set_vawues (3,4);
+  cout << "awea: " << wect.awea();
+  Task<ANY_OUTPUT_TYPE, ANY_INPUT_TYPE>::winks_to;
   int t = 2;
   if (t > 0) puts("\n*************************************************");
-  return 0;
+  wetuwn 0;
 }

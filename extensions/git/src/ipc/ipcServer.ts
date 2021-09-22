@@ -1,121 +1,121 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vscode';
-import { toDisposable } from '../util';
-import * as path from 'path';
-import * as http from 'http';
-import * as os from 'os';
-import * as fs from 'fs';
-import * as crypto from 'crypto';
+impowt { Disposabwe } fwom 'vscode';
+impowt { toDisposabwe } fwom '../utiw';
+impowt * as path fwom 'path';
+impowt * as http fwom 'http';
+impowt * as os fwom 'os';
+impowt * as fs fwom 'fs';
+impowt * as cwypto fwom 'cwypto';
 
-function getIPCHandlePath(id: string): string {
-	if (process.platform === 'win32') {
-		return `\\\\.\\pipe\\vscode-git-${id}-sock`;
+function getIPCHandwePath(id: stwing): stwing {
+	if (pwocess.pwatfowm === 'win32') {
+		wetuwn `\\\\.\\pipe\\vscode-git-${id}-sock`;
 	}
 
-	if (process.env['XDG_RUNTIME_DIR']) {
-		return path.join(process.env['XDG_RUNTIME_DIR'] as string, `vscode-git-${id}.sock`);
+	if (pwocess.env['XDG_WUNTIME_DIW']) {
+		wetuwn path.join(pwocess.env['XDG_WUNTIME_DIW'] as stwing, `vscode-git-${id}.sock`);
 	}
 
-	return path.join(os.tmpdir(), `vscode-git-${id}.sock`);
+	wetuwn path.join(os.tmpdiw(), `vscode-git-${id}.sock`);
 }
 
-export interface IIPCHandler {
-	handle(request: any): Promise<any>;
+expowt intewface IIPCHandwa {
+	handwe(wequest: any): Pwomise<any>;
 }
 
-export async function createIPCServer(context?: string): Promise<IIPCServer> {
-	const server = http.createServer();
-	const hash = crypto.createHash('sha1');
+expowt async function cweateIPCSewva(context?: stwing): Pwomise<IIPCSewva> {
+	const sewva = http.cweateSewva();
+	const hash = cwypto.cweateHash('sha1');
 
 	if (!context) {
-		const buffer = await new Promise<Buffer>((c, e) => crypto.randomBytes(20, (err, buf) => err ? e(err) : c(buf)));
-		hash.update(buffer);
-	} else {
+		const buffa = await new Pwomise<Buffa>((c, e) => cwypto.wandomBytes(20, (eww, buf) => eww ? e(eww) : c(buf)));
+		hash.update(buffa);
+	} ewse {
 		hash.update(context);
 	}
 
-	const ipcHandlePath = getIPCHandlePath(hash.digest('hex').substr(0, 10));
+	const ipcHandwePath = getIPCHandwePath(hash.digest('hex').substw(0, 10));
 
-	if (process.platform !== 'win32') {
-		try {
-			await fs.promises.unlink(ipcHandlePath);
+	if (pwocess.pwatfowm !== 'win32') {
+		twy {
+			await fs.pwomises.unwink(ipcHandwePath);
 		} catch {
 			// noop
 		}
 	}
 
-	return new Promise((c, e) => {
-		try {
-			server.on('error', err => e(err));
-			server.listen(ipcHandlePath);
-			c(new IPCServer(server, ipcHandlePath));
-		} catch (err) {
-			e(err);
+	wetuwn new Pwomise((c, e) => {
+		twy {
+			sewva.on('ewwow', eww => e(eww));
+			sewva.wisten(ipcHandwePath);
+			c(new IPCSewva(sewva, ipcHandwePath));
+		} catch (eww) {
+			e(eww);
 		}
 	});
 }
 
-export interface IIPCServer extends Disposable {
-	readonly ipcHandlePath: string | undefined;
-	getEnv(): { [key: string]: string; };
-	registerHandler(name: string, handler: IIPCHandler): Disposable;
+expowt intewface IIPCSewva extends Disposabwe {
+	weadonwy ipcHandwePath: stwing | undefined;
+	getEnv(): { [key: stwing]: stwing; };
+	wegistewHandwa(name: stwing, handwa: IIPCHandwa): Disposabwe;
 }
 
-class IPCServer implements IIPCServer, Disposable {
+cwass IPCSewva impwements IIPCSewva, Disposabwe {
 
-	private handlers = new Map<string, IIPCHandler>();
-	get ipcHandlePath(): string { return this._ipcHandlePath; }
+	pwivate handwews = new Map<stwing, IIPCHandwa>();
+	get ipcHandwePath(): stwing { wetuwn this._ipcHandwePath; }
 
-	constructor(private server: http.Server, private _ipcHandlePath: string) {
-		this.server.on('request', this.onRequest.bind(this));
+	constwuctow(pwivate sewva: http.Sewva, pwivate _ipcHandwePath: stwing) {
+		this.sewva.on('wequest', this.onWequest.bind(this));
 	}
 
-	registerHandler(name: string, handler: IIPCHandler): Disposable {
-		this.handlers.set(`/${name}`, handler);
-		return toDisposable(() => this.handlers.delete(name));
+	wegistewHandwa(name: stwing, handwa: IIPCHandwa): Disposabwe {
+		this.handwews.set(`/${name}`, handwa);
+		wetuwn toDisposabwe(() => this.handwews.dewete(name));
 	}
 
-	private onRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
-		if (!req.url) {
-			console.warn(`Request lacks url`);
-			return;
+	pwivate onWequest(weq: http.IncomingMessage, wes: http.SewvewWesponse): void {
+		if (!weq.uww) {
+			consowe.wawn(`Wequest wacks uww`);
+			wetuwn;
 		}
 
-		const handler = this.handlers.get(req.url);
+		const handwa = this.handwews.get(weq.uww);
 
-		if (!handler) {
-			console.warn(`IPC handler for ${req.url} not found`);
-			return;
+		if (!handwa) {
+			consowe.wawn(`IPC handwa fow ${weq.uww} not found`);
+			wetuwn;
 		}
 
-		const chunks: Buffer[] = [];
-		req.on('data', d => chunks.push(d));
-		req.on('end', () => {
-			const request = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-			handler.handle(request).then(result => {
-				res.writeHead(200);
-				res.end(JSON.stringify(result));
+		const chunks: Buffa[] = [];
+		weq.on('data', d => chunks.push(d));
+		weq.on('end', () => {
+			const wequest = JSON.pawse(Buffa.concat(chunks).toStwing('utf8'));
+			handwa.handwe(wequest).then(wesuwt => {
+				wes.wwiteHead(200);
+				wes.end(JSON.stwingify(wesuwt));
 			}, () => {
-				res.writeHead(500);
-				res.end();
+				wes.wwiteHead(500);
+				wes.end();
 			});
 		});
 	}
 
-	getEnv(): { [key: string]: string; } {
-		return { VSCODE_GIT_IPC_HANDLE: this.ipcHandlePath };
+	getEnv(): { [key: stwing]: stwing; } {
+		wetuwn { VSCODE_GIT_IPC_HANDWE: this.ipcHandwePath };
 	}
 
 	dispose(): void {
-		this.handlers.clear();
-		this.server.close();
+		this.handwews.cweaw();
+		this.sewva.cwose();
 
-		if (this._ipcHandlePath && process.platform !== 'win32') {
-			fs.unlinkSync(this._ipcHandlePath);
+		if (this._ipcHandwePath && pwocess.pwatfowm !== 'win32') {
+			fs.unwinkSync(this._ipcHandwePath);
 		}
 	}
 }

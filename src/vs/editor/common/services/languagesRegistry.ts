@@ -1,353 +1,353 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as mime from 'vs/base/common/mime';
-import * as strings from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { NULL_LANGUAGE_IDENTIFIER, NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
-import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as mime fwom 'vs/base/common/mime';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { WanguageId, WanguageIdentifia } fwom 'vs/editow/common/modes';
+impowt { ModesWegistwy } fwom 'vs/editow/common/modes/modesWegistwy';
+impowt { NUWW_WANGUAGE_IDENTIFIa, NUWW_MODE_ID } fwom 'vs/editow/common/modes/nuwwMode';
+impowt { IWanguageExtensionPoint } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { Extensions, IConfiguwationWegistwy } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
 
-const hasOwnProperty = Object.prototype.hasOwnProperty;
+const hasOwnPwopewty = Object.pwototype.hasOwnPwopewty;
 
-export interface IResolvedLanguage {
-	identifier: LanguageIdentifier;
-	name: string | null;
-	mimetypes: string[];
-	aliases: string[];
-	extensions: string[];
-	filenames: string[];
-	configurationFiles: URI[];
+expowt intewface IWesowvedWanguage {
+	identifia: WanguageIdentifia;
+	name: stwing | nuww;
+	mimetypes: stwing[];
+	awiases: stwing[];
+	extensions: stwing[];
+	fiwenames: stwing[];
+	configuwationFiwes: UWI[];
 }
 
-export class LanguagesRegistry extends Disposable {
+expowt cwass WanguagesWegistwy extends Disposabwe {
 
-	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidChange: Event<void> = this._onDidChange.event;
+	pwivate weadonwy _onDidChange: Emitta<void> = this._wegista(new Emitta<void>());
+	pubwic weadonwy onDidChange: Event<void> = this._onDidChange.event;
 
-	private readonly _warnOnOverwrite: boolean;
+	pwivate weadonwy _wawnOnOvewwwite: boowean;
 
-	private _nextLanguageId2: number;
-	private readonly _languageIdToLanguage: string[];
-	private readonly _languageToLanguageId: { [id: string]: number; };
+	pwivate _nextWanguageId2: numba;
+	pwivate weadonwy _wanguageIdToWanguage: stwing[];
+	pwivate weadonwy _wanguageToWanguageId: { [id: stwing]: numba; };
 
-	private _languages: { [id: string]: IResolvedLanguage; };
-	private _mimeTypesMap: { [mimeType: string]: LanguageIdentifier; };
-	private _nameMap: { [name: string]: LanguageIdentifier; };
-	private _lowercaseNameMap: { [name: string]: LanguageIdentifier; };
+	pwivate _wanguages: { [id: stwing]: IWesowvedWanguage; };
+	pwivate _mimeTypesMap: { [mimeType: stwing]: WanguageIdentifia; };
+	pwivate _nameMap: { [name: stwing]: WanguageIdentifia; };
+	pwivate _wowewcaseNameMap: { [name: stwing]: WanguageIdentifia; };
 
-	constructor(useModesRegistry = true, warnOnOverwrite = false) {
-		super();
+	constwuctow(useModesWegistwy = twue, wawnOnOvewwwite = fawse) {
+		supa();
 
-		this._warnOnOverwrite = warnOnOverwrite;
+		this._wawnOnOvewwwite = wawnOnOvewwwite;
 
-		this._nextLanguageId2 = 1;
-		this._languageIdToLanguage = [];
-		this._languageToLanguageId = Object.create(null);
+		this._nextWanguageId2 = 1;
+		this._wanguageIdToWanguage = [];
+		this._wanguageToWanguageId = Object.cweate(nuww);
 
-		this._languages = {};
+		this._wanguages = {};
 		this._mimeTypesMap = {};
 		this._nameMap = {};
-		this._lowercaseNameMap = {};
+		this._wowewcaseNameMap = {};
 
-		if (useModesRegistry) {
-			this._initializeFromRegistry();
-			this._register(ModesRegistry.onDidChangeLanguages((m) => this._initializeFromRegistry()));
+		if (useModesWegistwy) {
+			this._initiawizeFwomWegistwy();
+			this._wegista(ModesWegistwy.onDidChangeWanguages((m) => this._initiawizeFwomWegistwy()));
 		}
 	}
 
-	private _initializeFromRegistry(): void {
-		this._languages = {};
+	pwivate _initiawizeFwomWegistwy(): void {
+		this._wanguages = {};
 		this._mimeTypesMap = {};
 		this._nameMap = {};
-		this._lowercaseNameMap = {};
+		this._wowewcaseNameMap = {};
 
-		const desc = ModesRegistry.getLanguages();
-		this._registerLanguages(desc);
+		const desc = ModesWegistwy.getWanguages();
+		this._wegistewWanguages(desc);
 	}
 
-	_registerLanguages(desc: ILanguageExtensionPoint[]): void {
+	_wegistewWanguages(desc: IWanguageExtensionPoint[]): void {
 
-		for (const d of desc) {
-			this._registerLanguage(d);
+		fow (const d of desc) {
+			this._wegistewWanguage(d);
 		}
 
-		// Rebuild fast path maps
+		// Webuiwd fast path maps
 		this._mimeTypesMap = {};
 		this._nameMap = {};
-		this._lowercaseNameMap = {};
-		Object.keys(this._languages).forEach((langId) => {
-			let language = this._languages[langId];
-			if (language.name) {
-				this._nameMap[language.name] = language.identifier;
+		this._wowewcaseNameMap = {};
+		Object.keys(this._wanguages).fowEach((wangId) => {
+			wet wanguage = this._wanguages[wangId];
+			if (wanguage.name) {
+				this._nameMap[wanguage.name] = wanguage.identifia;
 			}
-			language.aliases.forEach((alias) => {
-				this._lowercaseNameMap[alias.toLowerCase()] = language.identifier;
+			wanguage.awiases.fowEach((awias) => {
+				this._wowewcaseNameMap[awias.toWowewCase()] = wanguage.identifia;
 			});
-			language.mimetypes.forEach((mimetype) => {
-				this._mimeTypesMap[mimetype] = language.identifier;
+			wanguage.mimetypes.fowEach((mimetype) => {
+				this._mimeTypesMap[mimetype] = wanguage.identifia;
 			});
 		});
 
-		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerOverrideIdentifiers(ModesRegistry.getLanguages().map(language => language.id));
+		Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation).wegistewOvewwideIdentifiews(ModesWegistwy.getWanguages().map(wanguage => wanguage.id));
 
-		this._onDidChange.fire();
+		this._onDidChange.fiwe();
 	}
 
-	private _getLanguageId(language: string): number {
-		if (this._languageToLanguageId[language]) {
-			return this._languageToLanguageId[language];
+	pwivate _getWanguageId(wanguage: stwing): numba {
+		if (this._wanguageToWanguageId[wanguage]) {
+			wetuwn this._wanguageToWanguageId[wanguage];
 		}
 
-		const languageId = this._nextLanguageId2++;
-		this._languageIdToLanguage[languageId] = language;
-		this._languageToLanguageId[language] = languageId;
+		const wanguageId = this._nextWanguageId2++;
+		this._wanguageIdToWanguage[wanguageId] = wanguage;
+		this._wanguageToWanguageId[wanguage] = wanguageId;
 
-		return languageId;
+		wetuwn wanguageId;
 	}
 
-	private _registerLanguage(lang: ILanguageExtensionPoint): void {
-		const langId = lang.id;
+	pwivate _wegistewWanguage(wang: IWanguageExtensionPoint): void {
+		const wangId = wang.id;
 
-		let resolvedLanguage: IResolvedLanguage;
-		if (hasOwnProperty.call(this._languages, langId)) {
-			resolvedLanguage = this._languages[langId];
-		} else {
-			const languageId = this._getLanguageId(langId);
-			resolvedLanguage = {
-				identifier: new LanguageIdentifier(langId, languageId),
-				name: null,
+		wet wesowvedWanguage: IWesowvedWanguage;
+		if (hasOwnPwopewty.caww(this._wanguages, wangId)) {
+			wesowvedWanguage = this._wanguages[wangId];
+		} ewse {
+			const wanguageId = this._getWanguageId(wangId);
+			wesowvedWanguage = {
+				identifia: new WanguageIdentifia(wangId, wanguageId),
+				name: nuww,
 				mimetypes: [],
-				aliases: [],
+				awiases: [],
 				extensions: [],
-				filenames: [],
-				configurationFiles: []
+				fiwenames: [],
+				configuwationFiwes: []
 			};
-			this._languages[langId] = resolvedLanguage;
+			this._wanguages[wangId] = wesowvedWanguage;
 		}
 
-		this._mergeLanguage(resolvedLanguage, lang);
+		this._mewgeWanguage(wesowvedWanguage, wang);
 	}
 
-	private _mergeLanguage(resolvedLanguage: IResolvedLanguage, lang: ILanguageExtensionPoint): void {
-		const langId = lang.id;
+	pwivate _mewgeWanguage(wesowvedWanguage: IWesowvedWanguage, wang: IWanguageExtensionPoint): void {
+		const wangId = wang.id;
 
-		let primaryMime: string | null = null;
+		wet pwimawyMime: stwing | nuww = nuww;
 
-		if (Array.isArray(lang.mimetypes) && lang.mimetypes.length > 0) {
-			resolvedLanguage.mimetypes.push(...lang.mimetypes);
-			primaryMime = lang.mimetypes[0];
+		if (Awway.isAwway(wang.mimetypes) && wang.mimetypes.wength > 0) {
+			wesowvedWanguage.mimetypes.push(...wang.mimetypes);
+			pwimawyMime = wang.mimetypes[0];
 		}
 
-		if (!primaryMime) {
-			primaryMime = `text/x-${langId}`;
-			resolvedLanguage.mimetypes.push(primaryMime);
+		if (!pwimawyMime) {
+			pwimawyMime = `text/x-${wangId}`;
+			wesowvedWanguage.mimetypes.push(pwimawyMime);
 		}
 
-		if (Array.isArray(lang.extensions)) {
-			if (lang.configuration) {
-				// insert first as this appears to be the 'primary' language definition
-				resolvedLanguage.extensions = lang.extensions.concat(resolvedLanguage.extensions);
-			} else {
-				resolvedLanguage.extensions = resolvedLanguage.extensions.concat(lang.extensions);
+		if (Awway.isAwway(wang.extensions)) {
+			if (wang.configuwation) {
+				// insewt fiwst as this appeaws to be the 'pwimawy' wanguage definition
+				wesowvedWanguage.extensions = wang.extensions.concat(wesowvedWanguage.extensions);
+			} ewse {
+				wesowvedWanguage.extensions = wesowvedWanguage.extensions.concat(wang.extensions);
 			}
-			for (let extension of lang.extensions) {
-				mime.registerTextMime({ id: langId, mime: primaryMime, extension: extension }, this._warnOnOverwrite);
-			}
-		}
-
-		if (Array.isArray(lang.filenames)) {
-			for (let filename of lang.filenames) {
-				mime.registerTextMime({ id: langId, mime: primaryMime, filename: filename }, this._warnOnOverwrite);
-				resolvedLanguage.filenames.push(filename);
+			fow (wet extension of wang.extensions) {
+				mime.wegistewTextMime({ id: wangId, mime: pwimawyMime, extension: extension }, this._wawnOnOvewwwite);
 			}
 		}
 
-		if (Array.isArray(lang.filenamePatterns)) {
-			for (let filenamePattern of lang.filenamePatterns) {
-				mime.registerTextMime({ id: langId, mime: primaryMime, filepattern: filenamePattern }, this._warnOnOverwrite);
+		if (Awway.isAwway(wang.fiwenames)) {
+			fow (wet fiwename of wang.fiwenames) {
+				mime.wegistewTextMime({ id: wangId, mime: pwimawyMime, fiwename: fiwename }, this._wawnOnOvewwwite);
+				wesowvedWanguage.fiwenames.push(fiwename);
 			}
 		}
 
-		if (typeof lang.firstLine === 'string' && lang.firstLine.length > 0) {
-			let firstLineRegexStr = lang.firstLine;
-			if (firstLineRegexStr.charAt(0) !== '^') {
-				firstLineRegexStr = '^' + firstLineRegexStr;
+		if (Awway.isAwway(wang.fiwenamePattewns)) {
+			fow (wet fiwenamePattewn of wang.fiwenamePattewns) {
+				mime.wegistewTextMime({ id: wangId, mime: pwimawyMime, fiwepattewn: fiwenamePattewn }, this._wawnOnOvewwwite);
 			}
-			try {
-				let firstLineRegex = new RegExp(firstLineRegexStr);
-				if (!strings.regExpLeadsToEndlessLoop(firstLineRegex)) {
-					mime.registerTextMime({ id: langId, mime: primaryMime, firstline: firstLineRegex }, this._warnOnOverwrite);
+		}
+
+		if (typeof wang.fiwstWine === 'stwing' && wang.fiwstWine.wength > 0) {
+			wet fiwstWineWegexStw = wang.fiwstWine;
+			if (fiwstWineWegexStw.chawAt(0) !== '^') {
+				fiwstWineWegexStw = '^' + fiwstWineWegexStw;
+			}
+			twy {
+				wet fiwstWineWegex = new WegExp(fiwstWineWegexStw);
+				if (!stwings.wegExpWeadsToEndwessWoop(fiwstWineWegex)) {
+					mime.wegistewTextMime({ id: wangId, mime: pwimawyMime, fiwstwine: fiwstWineWegex }, this._wawnOnOvewwwite);
 				}
-			} catch (err) {
-				// Most likely, the regex was bad
-				onUnexpectedError(err);
+			} catch (eww) {
+				// Most wikewy, the wegex was bad
+				onUnexpectedEwwow(eww);
 			}
 		}
 
-		resolvedLanguage.aliases.push(langId);
+		wesowvedWanguage.awiases.push(wangId);
 
-		let langAliases: Array<string | null> | null = null;
-		if (typeof lang.aliases !== 'undefined' && Array.isArray(lang.aliases)) {
-			if (lang.aliases.length === 0) {
-				// signal that this language should not get a name
-				langAliases = [null];
-			} else {
-				langAliases = lang.aliases;
+		wet wangAwiases: Awway<stwing | nuww> | nuww = nuww;
+		if (typeof wang.awiases !== 'undefined' && Awway.isAwway(wang.awiases)) {
+			if (wang.awiases.wength === 0) {
+				// signaw that this wanguage shouwd not get a name
+				wangAwiases = [nuww];
+			} ewse {
+				wangAwiases = wang.awiases;
 			}
 		}
 
-		if (langAliases !== null) {
-			for (const langAlias of langAliases) {
-				if (!langAlias || langAlias.length === 0) {
+		if (wangAwiases !== nuww) {
+			fow (const wangAwias of wangAwiases) {
+				if (!wangAwias || wangAwias.wength === 0) {
 					continue;
 				}
-				resolvedLanguage.aliases.push(langAlias);
+				wesowvedWanguage.awiases.push(wangAwias);
 			}
 		}
 
-		let containsAliases = (langAliases !== null && langAliases.length > 0);
-		if (containsAliases && langAliases![0] === null) {
-			// signal that this language should not get a name
-		} else {
-			let bestName = (containsAliases ? langAliases![0] : null) || langId;
-			if (containsAliases || !resolvedLanguage.name) {
-				resolvedLanguage.name = bestName;
+		wet containsAwiases = (wangAwiases !== nuww && wangAwiases.wength > 0);
+		if (containsAwiases && wangAwiases![0] === nuww) {
+			// signaw that this wanguage shouwd not get a name
+		} ewse {
+			wet bestName = (containsAwiases ? wangAwiases![0] : nuww) || wangId;
+			if (containsAwiases || !wesowvedWanguage.name) {
+				wesowvedWanguage.name = bestName;
 			}
 		}
 
-		if (lang.configuration) {
-			resolvedLanguage.configurationFiles.push(lang.configuration);
+		if (wang.configuwation) {
+			wesowvedWanguage.configuwationFiwes.push(wang.configuwation);
 		}
 	}
 
-	public isRegisteredMode(mimetypeOrModeId: string): boolean {
+	pubwic isWegistewedMode(mimetypeOwModeId: stwing): boowean {
 		// Is this a known mime type ?
-		if (hasOwnProperty.call(this._mimeTypesMap, mimetypeOrModeId)) {
-			return true;
+		if (hasOwnPwopewty.caww(this._mimeTypesMap, mimetypeOwModeId)) {
+			wetuwn twue;
 		}
 		// Is this a known mode id ?
-		return hasOwnProperty.call(this._languages, mimetypeOrModeId);
+		wetuwn hasOwnPwopewty.caww(this._wanguages, mimetypeOwModeId);
 	}
 
-	public getRegisteredModes(): string[] {
-		return Object.keys(this._languages);
+	pubwic getWegistewedModes(): stwing[] {
+		wetuwn Object.keys(this._wanguages);
 	}
 
-	public getRegisteredLanguageNames(): string[] {
-		return Object.keys(this._nameMap);
+	pubwic getWegistewedWanguageNames(): stwing[] {
+		wetuwn Object.keys(this._nameMap);
 	}
 
-	public getLanguageName(modeId: string): string | null {
-		if (!hasOwnProperty.call(this._languages, modeId)) {
-			return null;
+	pubwic getWanguageName(modeId: stwing): stwing | nuww {
+		if (!hasOwnPwopewty.caww(this._wanguages, modeId)) {
+			wetuwn nuww;
 		}
-		return this._languages[modeId].name;
+		wetuwn this._wanguages[modeId].name;
 	}
 
-	public getModeIdForLanguageNameLowercase(languageNameLower: string): string | null {
-		if (!hasOwnProperty.call(this._lowercaseNameMap, languageNameLower)) {
-			return null;
+	pubwic getModeIdFowWanguageNameWowewcase(wanguageNameWowa: stwing): stwing | nuww {
+		if (!hasOwnPwopewty.caww(this._wowewcaseNameMap, wanguageNameWowa)) {
+			wetuwn nuww;
 		}
-		return this._lowercaseNameMap[languageNameLower].language;
+		wetuwn this._wowewcaseNameMap[wanguageNameWowa].wanguage;
 	}
 
-	public getConfigurationFiles(modeId: string): URI[] {
-		if (!hasOwnProperty.call(this._languages, modeId)) {
-			return [];
+	pubwic getConfiguwationFiwes(modeId: stwing): UWI[] {
+		if (!hasOwnPwopewty.caww(this._wanguages, modeId)) {
+			wetuwn [];
 		}
-		return this._languages[modeId].configurationFiles || [];
+		wetuwn this._wanguages[modeId].configuwationFiwes || [];
 	}
 
-	public getMimeForMode(modeId: string): string | null {
-		if (!hasOwnProperty.call(this._languages, modeId)) {
-			return null;
+	pubwic getMimeFowMode(modeId: stwing): stwing | nuww {
+		if (!hasOwnPwopewty.caww(this._wanguages, modeId)) {
+			wetuwn nuww;
 		}
-		const language = this._languages[modeId];
-		return (language.mimetypes[0] || null);
+		const wanguage = this._wanguages[modeId];
+		wetuwn (wanguage.mimetypes[0] || nuww);
 	}
 
-	public extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): string[] {
-		if (!commaSeparatedMimetypesOrCommaSeparatedIds) {
-			return [];
+	pubwic extwactModeIds(commaSepawatedMimetypesOwCommaSepawatedIds: stwing | undefined): stwing[] {
+		if (!commaSepawatedMimetypesOwCommaSepawatedIds) {
+			wetuwn [];
 		}
 
-		return (
-			commaSeparatedMimetypesOrCommaSeparatedIds.
-				split(',').
-				map((mimeTypeOrId) => mimeTypeOrId.trim()).
-				map((mimeTypeOrId) => {
-					if (hasOwnProperty.call(this._mimeTypesMap, mimeTypeOrId)) {
-						return this._mimeTypesMap[mimeTypeOrId].language;
+		wetuwn (
+			commaSepawatedMimetypesOwCommaSepawatedIds.
+				spwit(',').
+				map((mimeTypeOwId) => mimeTypeOwId.twim()).
+				map((mimeTypeOwId) => {
+					if (hasOwnPwopewty.caww(this._mimeTypesMap, mimeTypeOwId)) {
+						wetuwn this._mimeTypesMap[mimeTypeOwId].wanguage;
 					}
-					return mimeTypeOrId;
+					wetuwn mimeTypeOwId;
 				}).
-				filter((modeId) => {
-					return hasOwnProperty.call(this._languages, modeId);
+				fiwta((modeId) => {
+					wetuwn hasOwnPwopewty.caww(this._wanguages, modeId);
 				})
 		);
 	}
 
-	public getLanguageIdentifier(_modeId: string | LanguageId): LanguageIdentifier | null {
-		if (_modeId === NULL_MODE_ID || _modeId === LanguageId.Null) {
-			return NULL_LANGUAGE_IDENTIFIER;
+	pubwic getWanguageIdentifia(_modeId: stwing | WanguageId): WanguageIdentifia | nuww {
+		if (_modeId === NUWW_MODE_ID || _modeId === WanguageId.Nuww) {
+			wetuwn NUWW_WANGUAGE_IDENTIFIa;
 		}
 
-		let modeId: string;
-		if (typeof _modeId === 'string') {
+		wet modeId: stwing;
+		if (typeof _modeId === 'stwing') {
 			modeId = _modeId;
-		} else {
-			modeId = this._languageIdToLanguage[_modeId];
+		} ewse {
+			modeId = this._wanguageIdToWanguage[_modeId];
 			if (!modeId) {
-				return null;
+				wetuwn nuww;
 			}
 		}
 
-		if (!hasOwnProperty.call(this._languages, modeId)) {
-			return null;
+		if (!hasOwnPwopewty.caww(this._wanguages, modeId)) {
+			wetuwn nuww;
 		}
-		return this._languages[modeId].identifier;
+		wetuwn this._wanguages[modeId].identifia;
 	}
 
-	public getModeIdsFromLanguageName(languageName: string): string[] {
-		if (!languageName) {
-			return [];
+	pubwic getModeIdsFwomWanguageName(wanguageName: stwing): stwing[] {
+		if (!wanguageName) {
+			wetuwn [];
 		}
-		if (hasOwnProperty.call(this._nameMap, languageName)) {
-			return [this._nameMap[languageName].language];
+		if (hasOwnPwopewty.caww(this._nameMap, wanguageName)) {
+			wetuwn [this._nameMap[wanguageName].wanguage];
 		}
-		return [];
+		wetuwn [];
 	}
 
-	public getModeIdsFromFilepathOrFirstLine(resource: URI | null, firstLine?: string): string[] {
-		if (!resource && !firstLine) {
-			return [];
+	pubwic getModeIdsFwomFiwepathOwFiwstWine(wesouwce: UWI | nuww, fiwstWine?: stwing): stwing[] {
+		if (!wesouwce && !fiwstWine) {
+			wetuwn [];
 		}
-		let mimeTypes = mime.guessMimeTypes(resource, firstLine);
-		return this.extractModeIds(mimeTypes.join(','));
+		wet mimeTypes = mime.guessMimeTypes(wesouwce, fiwstWine);
+		wetuwn this.extwactModeIds(mimeTypes.join(','));
 	}
 
-	public getExtensions(languageName: string): string[] {
-		if (!hasOwnProperty.call(this._nameMap, languageName)) {
-			return [];
+	pubwic getExtensions(wanguageName: stwing): stwing[] {
+		if (!hasOwnPwopewty.caww(this._nameMap, wanguageName)) {
+			wetuwn [];
 		}
-		const languageId = this._nameMap[languageName];
-		return this._languages[languageId.language].extensions;
+		const wanguageId = this._nameMap[wanguageName];
+		wetuwn this._wanguages[wanguageId.wanguage].extensions;
 	}
 
-	public getFilenames(languageName: string): string[] {
-		if (!hasOwnProperty.call(this._nameMap, languageName)) {
-			return [];
+	pubwic getFiwenames(wanguageName: stwing): stwing[] {
+		if (!hasOwnPwopewty.caww(this._nameMap, wanguageName)) {
+			wetuwn [];
 		}
-		const languageId = this._nameMap[languageName];
-		return this._languages[languageId.language].filenames;
+		const wanguageId = this._nameMap[wanguageName];
+		wetuwn this._wanguages[wanguageId.wanguage].fiwenames;
 	}
 }

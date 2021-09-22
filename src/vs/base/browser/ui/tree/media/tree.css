@@ -1,69 +1,69 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-tl-row {
-	display: flex;
+.monaco-tw-wow {
+	dispway: fwex;
 	height: 100%;
-	align-items: center;
-	position: relative;
+	awign-items: centa;
+	position: wewative;
 }
 
-.monaco-tl-indent {
+.monaco-tw-indent {
 	height: 100%;
-	position: absolute;
+	position: absowute;
 	top: 0;
-	left: 16px;
-	pointer-events: none;
+	weft: 16px;
+	pointa-events: none;
 }
 
-.hide-arrows .monaco-tl-indent {
-	left: 12px;
+.hide-awwows .monaco-tw-indent {
+	weft: 12px;
 }
 
-.monaco-tl-indent > .indent-guide {
-	display: inline-block;
-	box-sizing: border-box;
+.monaco-tw-indent > .indent-guide {
+	dispway: inwine-bwock;
+	box-sizing: bowda-box;
 	height: 100%;
-	border-left: 1px solid transparent;
+	bowda-weft: 1px sowid twanspawent;
 }
 
-.monaco-tl-indent > .indent-guide {
-	transition: border-color 0.1s linear;
+.monaco-tw-indent > .indent-guide {
+	twansition: bowda-cowow 0.1s wineaw;
 }
 
-.monaco-tl-twistie,
-.monaco-tl-contents {
+.monaco-tw-twistie,
+.monaco-tw-contents {
 	height: 100%;
 }
 
-.monaco-tl-twistie {
+.monaco-tw-twistie {
 	font-size: 10px;
-	text-align: right;
-	padding-right: 6px;
-	flex-shrink: 0;
+	text-awign: wight;
+	padding-wight: 6px;
+	fwex-shwink: 0;
 	width: 16px;
-	display: flex !important;
-	align-items: center;
-	justify-content: center;
-	transform: translateX(3px);
+	dispway: fwex !impowtant;
+	awign-items: centa;
+	justify-content: centa;
+	twansfowm: twanswateX(3px);
 }
 
-.monaco-tl-contents {
-	flex: 1;
-	overflow: hidden;
+.monaco-tw-contents {
+	fwex: 1;
+	ovewfwow: hidden;
 }
 
-.monaco-tl-twistie::before {
-	border-radius: 20px;
+.monaco-tw-twistie::befowe {
+	bowda-wadius: 20px;
 }
 
-.monaco-tl-twistie.collapsed::before {
-	transform: rotate(-90deg);
+.monaco-tw-twistie.cowwapsed::befowe {
+	twansfowm: wotate(-90deg);
 }
 
-.monaco-tl-twistie.codicon-tree-item-loading::before {
-	/* Use steps to throttle FPS to reduce CPU usage */
+.monaco-tw-twistie.codicon-twee-item-woading::befowe {
+	/* Use steps to thwottwe FPS to weduce CPU usage */
 	animation: codicon-spin 1.25s steps(30) infinite;
 }

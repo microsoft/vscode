@@ -1,61 +1,61 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorZoom } from 'vs/editor/common/config/editorZoom';
-import * as nls from 'vs/nls';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, wegistewEditowAction, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { EditowZoom } fwom 'vs/editow/common/config/editowZoom';
+impowt * as nws fwom 'vs/nws';
 
-class EditorFontZoomIn extends EditorAction {
+cwass EditowFontZoomIn extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.fontZoomIn',
-			label: nls.localize('EditorFontZoomIn.label', "Editor Font Zoom In"),
-			alias: 'Editor Font Zoom In',
-			precondition: undefined
+	constwuctow() {
+		supa({
+			id: 'editow.action.fontZoomIn',
+			wabew: nws.wocawize('EditowFontZoomIn.wabew', "Editow Font Zoom In"),
+			awias: 'Editow Font Zoom In',
+			pwecondition: undefined
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		EditorZoom.setZoomLevel(EditorZoom.getZoomLevel() + 1);
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		EditowZoom.setZoomWevew(EditowZoom.getZoomWevew() + 1);
 	}
 }
 
-class EditorFontZoomOut extends EditorAction {
+cwass EditowFontZoomOut extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.fontZoomOut',
-			label: nls.localize('EditorFontZoomOut.label', "Editor Font Zoom Out"),
-			alias: 'Editor Font Zoom Out',
-			precondition: undefined
+	constwuctow() {
+		supa({
+			id: 'editow.action.fontZoomOut',
+			wabew: nws.wocawize('EditowFontZoomOut.wabew', "Editow Font Zoom Out"),
+			awias: 'Editow Font Zoom Out',
+			pwecondition: undefined
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		EditorZoom.setZoomLevel(EditorZoom.getZoomLevel() - 1);
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		EditowZoom.setZoomWevew(EditowZoom.getZoomWevew() - 1);
 	}
 }
 
-class EditorFontZoomReset extends EditorAction {
+cwass EditowFontZoomWeset extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.fontZoomReset',
-			label: nls.localize('EditorFontZoomReset.label', "Editor Font Zoom Reset"),
-			alias: 'Editor Font Zoom Reset',
-			precondition: undefined
+	constwuctow() {
+		supa({
+			id: 'editow.action.fontZoomWeset',
+			wabew: nws.wocawize('EditowFontZoomWeset.wabew', "Editow Font Zoom Weset"),
+			awias: 'Editow Font Zoom Weset',
+			pwecondition: undefined
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		EditorZoom.setZoomLevel(0);
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		EditowZoom.setZoomWevew(0);
 	}
 }
 
-registerEditorAction(EditorFontZoomIn);
-registerEditorAction(EditorFontZoomOut);
-registerEditorAction(EditorFontZoomReset);
+wegistewEditowAction(EditowFontZoomIn);
+wegistewEditowAction(EditowFontZoomOut);
+wegistewEditowAction(EditowFontZoomWeset);

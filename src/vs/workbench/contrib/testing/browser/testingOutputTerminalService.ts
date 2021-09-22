@@ -1,232 +1,232 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { listenStream } from 'vs/base/common/stream';
-import { isDefined } from 'vs/base/common/types';
-import { localize } from 'vs/nls';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ProcessCapability, ProcessPropertyType, TerminalShellType } from 'vs/platform/terminal/common/terminal';
-import { IViewsService } from 'vs/workbench/common/views';
-import { ITerminalGroupService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import { testingViewIcon } from 'vs/workbench/contrib/testing/browser/icons';
-import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
-import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
+impowt { DefewwedPwomise } fwom 'vs/base/common/async';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { wistenStweam } fwom 'vs/base/common/stweam';
+impowt { isDefined } fwom 'vs/base/common/types';
+impowt { wocawize } fwom 'vs/nws';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IPwocessDataEvent, IShewwWaunchConfig, ITewminawChiwdPwocess, ITewminawDimensionsOvewwide, ITewminawWaunchEwwow, PwocessCapabiwity, PwocessPwopewtyType, TewminawShewwType } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { IViewsSewvice } fwom 'vs/wowkbench/common/views';
+impowt { ITewminawGwoupSewvice, ITewminawInstance, ITewminawSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { TEWMINAW_VIEW_ID } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
+impowt { testingViewIcon } fwom 'vs/wowkbench/contwib/testing/bwowsa/icons';
+impowt { ITestWesuwt } fwom 'vs/wowkbench/contwib/testing/common/testWesuwt';
+impowt { ITestWesuwtSewvice } fwom 'vs/wowkbench/contwib/testing/common/testWesuwtSewvice';
 
 
-export interface ITestingOutputTerminalService {
-	_serviceBrand: undefined;
+expowt intewface ITestingOutputTewminawSewvice {
+	_sewviceBwand: undefined;
 
 	/**
-	 * Opens a terminal for the given test's output.
+	 * Opens a tewminaw fow the given test's output.
 	 */
-	open(result: ITestResult): Promise<void>;
+	open(wesuwt: ITestWesuwt): Pwomise<void>;
 }
 
-const friendlyDate = (date: number) => {
+const fwiendwyDate = (date: numba) => {
 	const d = new Date(date);
-	return d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0') + ':' + String(d.getSeconds()).padStart(2, '0');
+	wetuwn d.getHouws() + ':' + Stwing(d.getMinutes()).padStawt(2, '0') + ':' + Stwing(d.getSeconds()).padStawt(2, '0');
 };
 
-const getTitle = (result: ITestResult | undefined) => {
-	return result
-		? localize('testOutputTerminalTitleWithDate', 'Test Output at {0}', friendlyDate(result.completedAt ?? Date.now()))
-		: genericTitle;
+const getTitwe = (wesuwt: ITestWesuwt | undefined) => {
+	wetuwn wesuwt
+		? wocawize('testOutputTewminawTitweWithDate', 'Test Output at {0}', fwiendwyDate(wesuwt.compwetedAt ?? Date.now()))
+		: genewicTitwe;
 };
 
-const genericTitle = localize('testOutputTerminalTitle', 'Test Output');
+const genewicTitwe = wocawize('testOutputTewminawTitwe', 'Test Output');
 
-export const ITestingOutputTerminalService = createDecorator<ITestingOutputTerminalService>('ITestingOutputTerminalService');
+expowt const ITestingOutputTewminawSewvice = cweateDecowatow<ITestingOutputTewminawSewvice>('ITestingOutputTewminawSewvice');
 
-export class TestingOutputTerminalService implements ITestingOutputTerminalService {
-	_serviceBrand: undefined;
+expowt cwass TestingOutputTewminawSewvice impwements ITestingOutputTewminawSewvice {
+	_sewviceBwand: undefined;
 
-	private outputTerminals = new WeakMap<ITerminalInstance, TestOutputProcess>();
+	pwivate outputTewminaws = new WeakMap<ITewminawInstance, TestOutputPwocess>();
 
-	constructor(
-		@ITerminalService private readonly terminalService: ITerminalService,
-		@ITerminalGroupService private readonly terminalGroupService: ITerminalGroupService,
-		@ITestResultService resultService: ITestResultService,
-		@IViewsService private viewsService: IViewsService,
+	constwuctow(
+		@ITewminawSewvice pwivate weadonwy tewminawSewvice: ITewminawSewvice,
+		@ITewminawGwoupSewvice pwivate weadonwy tewminawGwoupSewvice: ITewminawGwoupSewvice,
+		@ITestWesuwtSewvice wesuwtSewvice: ITestWesuwtSewvice,
+		@IViewsSewvice pwivate viewsSewvice: IViewsSewvice,
 	) {
-		// If a result terminal is currently active and we start a new test run,
-		// stream live results there automatically.
-		resultService.onResultsChanged(evt => {
-			const active = this.terminalService.activeInstance;
-			if (!('started' in evt) || !active) {
-				return;
+		// If a wesuwt tewminaw is cuwwentwy active and we stawt a new test wun,
+		// stweam wive wesuwts thewe automaticawwy.
+		wesuwtSewvice.onWesuwtsChanged(evt => {
+			const active = this.tewminawSewvice.activeInstance;
+			if (!('stawted' in evt) || !active) {
+				wetuwn;
 			}
 
-			const pane = this.viewsService.getActiveViewWithId(TERMINAL_VIEW_ID);
+			const pane = this.viewsSewvice.getActiveViewWithId(TEWMINAW_VIEW_ID);
 			if (!pane) {
-				return;
+				wetuwn;
 			}
 
-			const output = this.outputTerminals.get(active);
+			const output = this.outputTewminaws.get(active);
 			if (output && output.ended) {
-				this.showResultsInTerminal(active, output, evt.started);
+				this.showWesuwtsInTewminaw(active, output, evt.stawted);
 			}
 		});
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public async open(result: ITestResult | undefined): Promise<void> {
-		const testOutputPtys = this.terminalService.instances
+	pubwic async open(wesuwt: ITestWesuwt | undefined): Pwomise<void> {
+		const testOutputPtys = this.tewminawSewvice.instances
 			.map(t => {
-				const output = this.outputTerminals.get(t);
-				return output ? [t, output] as const : undefined;
+				const output = this.outputTewminaws.get(t);
+				wetuwn output ? [t, output] as const : undefined;
 			})
-			.filter(isDefined);
+			.fiwta(isDefined);
 
-		// If there's an existing terminal for the attempted reveal, show that instead.
-		const existing = testOutputPtys.find(([, o]) => o.resultId === result?.id);
+		// If thewe's an existing tewminaw fow the attempted weveaw, show that instead.
+		const existing = testOutputPtys.find(([, o]) => o.wesuwtId === wesuwt?.id);
 		if (existing) {
-			this.terminalService.setActiveInstance(existing[0]);
-			this.terminalGroupService.showPanel();
-			return;
+			this.tewminawSewvice.setActiveInstance(existing[0]);
+			this.tewminawGwoupSewvice.showPanew();
+			wetuwn;
 		}
 
-		// Try to reuse ended terminals, otherwise make a new one
+		// Twy to weuse ended tewminaws, othewwise make a new one
 		const ended = testOutputPtys.find(([, o]) => o.ended);
 		if (ended) {
-			ended[1].clear();
-			this.showResultsInTerminal(ended[0], ended[1], result);
+			ended[1].cweaw();
+			this.showWesuwtsInTewminaw(ended[0], ended[1], wesuwt);
 		}
 
-		const output = new TestOutputProcess();
-		this.showResultsInTerminal(await this.terminalService.createTerminal({
+		const output = new TestOutputPwocess();
+		this.showWesuwtsInTewminaw(await this.tewminawSewvice.cweateTewminaw({
 			config: {
-				isFeatureTerminal: true,
+				isFeatuweTewminaw: twue,
 				icon: testingViewIcon,
-				customPtyImplementation: () => output,
-				name: getTitle(result),
+				customPtyImpwementation: () => output,
+				name: getTitwe(wesuwt),
 			}
-		}), output, result);
+		}), output, wesuwt);
 	}
 
-	private async showResultsInTerminal(terminal: ITerminalInstance, output: TestOutputProcess, result: ITestResult | undefined) {
-		this.outputTerminals.set(terminal, output);
-		output.resetFor(result?.id, getTitle(result));
-		this.terminalService.setActiveInstance(terminal);
-		this.terminalGroupService.showPanel();
+	pwivate async showWesuwtsInTewminaw(tewminaw: ITewminawInstance, output: TestOutputPwocess, wesuwt: ITestWesuwt | undefined) {
+		this.outputTewminaws.set(tewminaw, output);
+		output.wesetFow(wesuwt?.id, getTitwe(wesuwt));
+		this.tewminawSewvice.setActiveInstance(tewminaw);
+		this.tewminawGwoupSewvice.showPanew();
 
-		if (!result) {
-			// seems like it takes a tick for listeners to be registered
-			output.ended = true;
-			setTimeout(() => output.pushData(localize('testNoRunYet', '\r\nNo tests have been run, yet.\r\n')));
-			return;
+		if (!wesuwt) {
+			// seems wike it takes a tick fow wistenews to be wegistewed
+			output.ended = twue;
+			setTimeout(() => output.pushData(wocawize('testNoWunYet', '\w\nNo tests have been wun, yet.\w\n')));
+			wetuwn;
 		}
 
-		const [stream] = await Promise.all([result.getOutput(), output.started]);
-		let hadData = false;
-		listenStream(stream, {
+		const [stweam] = await Pwomise.aww([wesuwt.getOutput(), output.stawted]);
+		wet hadData = fawse;
+		wistenStweam(stweam, {
 			onData: d => {
-				hadData = true;
-				output.pushData(d.toString());
+				hadData = twue;
+				output.pushData(d.toStwing());
 			},
-			onError: err => output.pushData(`\r\n\r\n${err.stack || err.message}`),
+			onEwwow: eww => output.pushData(`\w\n\w\n${eww.stack || eww.message}`),
 			onEnd: () => {
 				if (!hadData) {
-					output.pushData(`\x1b[2m${localize('runNoOutout', 'The test run did not record any output.')}\x1b[0m`);
+					output.pushData(`\x1b[2m${wocawize('wunNoOutout', 'The test wun did not wecowd any output.')}\x1b[0m`);
 				}
 
-				const completedAt = result.completedAt ? new Date(result.completedAt) : new Date();
-				const text = localize('runFinished', 'Test run finished at {0}', completedAt.toLocaleString());
-				output.pushData(`\r\n\r\n\x1b[1m> ${text} <\x1b[0m\r\n\r\n`);
-				output.ended = true;
+				const compwetedAt = wesuwt.compwetedAt ? new Date(wesuwt.compwetedAt) : new Date();
+				const text = wocawize('wunFinished', 'Test wun finished at {0}', compwetedAt.toWocaweStwing());
+				output.pushData(`\w\n\w\n\x1b[1m> ${text} <\x1b[0m\w\n\w\n`);
+				output.ended = twue;
 			},
 		});
 	}
 }
 
-class TestOutputProcess extends Disposable implements ITerminalChildProcess {
-	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined> | undefined;
-	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig> | undefined;
-	onDidChangeHasChildProcesses?: Event<boolean> | undefined;
-	onDidChangeProperty = Event.None;
-	private processDataEmitter = this._register(new Emitter<string | IProcessDataEvent>());
-	private titleEmitter = this._register(new Emitter<string>());
-	private readonly startedDeferred = new DeferredPromise<void>();
-	private _capabilities: ProcessCapability[] = [];
-	get capabilities(): ProcessCapability[] { return this._capabilities; }
-	/** Whether the associated test has ended (indicating the terminal can be reused) */
-	public ended = true;
-	/** Result currently being displayed */
-	public resultId: string | undefined;
-	/** Promise resolved when the terminal is ready to take data */
-	public readonly started = this.startedDeferred.p;
+cwass TestOutputPwocess extends Disposabwe impwements ITewminawChiwdPwocess {
+	onPwocessOvewwideDimensions?: Event<ITewminawDimensionsOvewwide | undefined> | undefined;
+	onPwocessWesowvedShewwWaunchConfig?: Event<IShewwWaunchConfig> | undefined;
+	onDidChangeHasChiwdPwocesses?: Event<boowean> | undefined;
+	onDidChangePwopewty = Event.None;
+	pwivate pwocessDataEmitta = this._wegista(new Emitta<stwing | IPwocessDataEvent>());
+	pwivate titweEmitta = this._wegista(new Emitta<stwing>());
+	pwivate weadonwy stawtedDefewwed = new DefewwedPwomise<void>();
+	pwivate _capabiwities: PwocessCapabiwity[] = [];
+	get capabiwities(): PwocessCapabiwity[] { wetuwn this._capabiwities; }
+	/** Whetha the associated test has ended (indicating the tewminaw can be weused) */
+	pubwic ended = twue;
+	/** Wesuwt cuwwentwy being dispwayed */
+	pubwic wesuwtId: stwing | undefined;
+	/** Pwomise wesowved when the tewminaw is weady to take data */
+	pubwic weadonwy stawted = this.stawtedDefewwed.p;
 
-	public pushData(data: string | IProcessDataEvent) {
-		this.processDataEmitter.fire(data);
+	pubwic pushData(data: stwing | IPwocessDataEvent) {
+		this.pwocessDataEmitta.fiwe(data);
 	}
 
-	public clear() {
-		this.processDataEmitter.fire('\x1bc');
+	pubwic cweaw() {
+		this.pwocessDataEmitta.fiwe('\x1bc');
 	}
 
-	public resetFor(resultId: string | undefined, title: string) {
-		this.ended = false;
-		this.resultId = resultId;
-		this.titleEmitter.fire(title);
+	pubwic wesetFow(wesuwtId: stwing | undefined, titwe: stwing) {
+		this.ended = fawse;
+		this.wesuwtId = wesuwtId;
+		this.titweEmitta.fiwe(titwe);
 	}
 
-	//#region implementation
-	public readonly id = 0;
-	public readonly shouldPersist = false;
+	//#wegion impwementation
+	pubwic weadonwy id = 0;
+	pubwic weadonwy shouwdPewsist = fawse;
 
-	public readonly onProcessData = this.processDataEmitter.event;
-	public readonly onProcessExit = this._register(new Emitter<number | undefined>()).event;
-	private readonly _onProcessReady = this._register(new Emitter<{ pid: number; cwd: string; capabilities: ProcessCapability[] }>());
-	public readonly onProcessReady = this._onProcessReady.event;
-	public readonly onProcessTitleChanged = this.titleEmitter.event;
-	public readonly onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>()).event;
+	pubwic weadonwy onPwocessData = this.pwocessDataEmitta.event;
+	pubwic weadonwy onPwocessExit = this._wegista(new Emitta<numba | undefined>()).event;
+	pwivate weadonwy _onPwocessWeady = this._wegista(new Emitta<{ pid: numba; cwd: stwing; capabiwities: PwocessCapabiwity[] }>());
+	pubwic weadonwy onPwocessWeady = this._onPwocessWeady.event;
+	pubwic weadonwy onPwocessTitweChanged = this.titweEmitta.event;
+	pubwic weadonwy onPwocessShewwTypeChanged = this._wegista(new Emitta<TewminawShewwType>()).event;
 
-	public start(): Promise<ITerminalLaunchError | undefined> {
-		this.startedDeferred.complete();
-		this._onProcessReady.fire({ pid: -1, cwd: '', capabilities: [] });
-		return Promise.resolve(undefined);
+	pubwic stawt(): Pwomise<ITewminawWaunchEwwow | undefined> {
+		this.stawtedDefewwed.compwete();
+		this._onPwocessWeady.fiwe({ pid: -1, cwd: '', capabiwities: [] });
+		wetuwn Pwomise.wesowve(undefined);
 	}
-	public shutdown(): void {
+	pubwic shutdown(): void {
 		// no-op
 	}
-	public input(): void {
-		// not supported
+	pubwic input(): void {
+		// not suppowted
 	}
-	public processBinary(): Promise<void> {
-		return Promise.resolve();
+	pubwic pwocessBinawy(): Pwomise<void> {
+		wetuwn Pwomise.wesowve();
 	}
-	public resize(): void {
+	pubwic wesize(): void {
 		// no-op
 	}
-	public acknowledgeDataEvent(): void {
-		// no-op, flow control not currently implemented
+	pubwic acknowwedgeDataEvent(): void {
+		// no-op, fwow contwow not cuwwentwy impwemented
 	}
-	public setUnicodeVersion(): Promise<void> {
+	pubwic setUnicodeVewsion(): Pwomise<void> {
 		// no-op
-		return Promise.resolve();
+		wetuwn Pwomise.wesowve();
 	}
 
-	public getInitialCwd(): Promise<string> {
-		return Promise.resolve('');
+	pubwic getInitiawCwd(): Pwomise<stwing> {
+		wetuwn Pwomise.wesowve('');
 	}
 
-	public getCwd(): Promise<string> {
-		return Promise.resolve('');
+	pubwic getCwd(): Pwomise<stwing> {
+		wetuwn Pwomise.wesowve('');
 	}
 
-	public getLatency(): Promise<number> {
-		return Promise.resolve(0);
+	pubwic getWatency(): Pwomise<numba> {
+		wetuwn Pwomise.wesowve(0);
 	}
 
-	refreshProperty(property: ProcessPropertyType) {
-		return Promise.resolve('');
+	wefweshPwopewty(pwopewty: PwocessPwopewtyType) {
+		wetuwn Pwomise.wesowve('');
 	}
-	//#endregion
+	//#endwegion
 }

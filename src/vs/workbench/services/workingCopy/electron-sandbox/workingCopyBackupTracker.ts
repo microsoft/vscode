@@ -1,393 +1,393 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy, IWorkingCopyIdentifier, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ConfirmResult, IFileDialogService, IDialogService, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
-import Severity from 'vs/base/common/severity';
-import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { isMacintosh } from 'vs/base/common/platform';
-import { HotExitConfiguration } from 'vs/platform/files/common/files';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { WorkingCopyBackupTracker } from 'vs/workbench/services/workingCopy/common/workingCopyBackupTracker';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { SaveReason } from 'vs/workbench/common/editor';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { Promises, raceCancellation } from 'vs/base/common/async';
-import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IWowkingCopyBackupSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyBackup';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IFiwesConfiguwationSewvice, AutoSaveMode } fwom 'vs/wowkbench/sewvices/fiwesConfiguwation/common/fiwesConfiguwationSewvice';
+impowt { IWowkingCopySewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt { IWowkingCopy, IWowkingCopyIdentifia, WowkingCopyCapabiwities } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
+impowt { IWifecycweSewvice, ShutdownWeason } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { ConfiwmWesuwt, IFiweDiawogSewvice, IDiawogSewvice, getFiweNamesMessage } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { WowkbenchState, IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { HotExitConfiguwation } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { WowkingCopyBackupTwacka } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyBackupTwacka';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { SaveWeason } fwom 'vs/wowkbench/common/editow';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { IPwogwessSewvice, PwogwessWocation } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { Pwomises, waceCancewwation } fwom 'vs/base/common/async';
+impowt { IWowkingCopyEditowSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyEditowSewvice';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
 
-export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker implements IWorkbenchContribution {
+expowt cwass NativeWowkingCopyBackupTwacka extends WowkingCopyBackupTwacka impwements IWowkbenchContwibution {
 
-	constructor(
-		@IWorkingCopyBackupService workingCopyBackupService: IWorkingCopyBackupService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
-		@IWorkingCopyService workingCopyService: IWorkingCopyService,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@ILogService logService: ILogService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IProgressService private readonly progressService: IProgressService,
-		@IWorkingCopyEditorService workingCopyEditorService: IWorkingCopyEditorService,
-		@IEditorService editorService: IEditorService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	constwuctow(
+		@IWowkingCopyBackupSewvice wowkingCopyBackupSewvice: IWowkingCopyBackupSewvice,
+		@IFiwesConfiguwationSewvice fiwesConfiguwationSewvice: IFiwesConfiguwationSewvice,
+		@IWowkingCopySewvice wowkingCopySewvice: IWowkingCopySewvice,
+		@IWifecycweSewvice wifecycweSewvice: IWifecycweSewvice,
+		@IFiweDiawogSewvice pwivate weadonwy fiweDiawogSewvice: IFiweDiawogSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@INativeHostSewvice pwivate weadonwy nativeHostSewvice: INativeHostSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IEnviwonmentSewvice,
+		@IPwogwessSewvice pwivate weadonwy pwogwessSewvice: IPwogwessSewvice,
+		@IWowkingCopyEditowSewvice wowkingCopyEditowSewvice: IWowkingCopyEditowSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(workingCopyBackupService, workingCopyService, logService, lifecycleService, filesConfigurationService, workingCopyEditorService, editorService, editorGroupService);
+		supa(wowkingCopyBackupSewvice, wowkingCopySewvice, wogSewvice, wifecycweSewvice, fiwesConfiguwationSewvice, wowkingCopyEditowSewvice, editowSewvice, editowGwoupSewvice);
 	}
 
-	protected onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
+	pwotected onBefoweShutdown(weason: ShutdownWeason): boowean | Pwomise<boowean> {
 
-		// Dirty working copies need treatment on shutdown
-		const dirtyWorkingCopies = this.workingCopyService.dirtyWorkingCopies;
-		if (dirtyWorkingCopies.length) {
-			return this.onBeforeShutdownWithDirty(reason, dirtyWorkingCopies);
+		// Diwty wowking copies need tweatment on shutdown
+		const diwtyWowkingCopies = this.wowkingCopySewvice.diwtyWowkingCopies;
+		if (diwtyWowkingCopies.wength) {
+			wetuwn this.onBefoweShutdownWithDiwty(weason, diwtyWowkingCopies);
 		}
 
-		// No dirty working copies
-		return this.onBeforeShutdownWithoutDirty();
+		// No diwty wowking copies
+		wetuwn this.onBefoweShutdownWithoutDiwty();
 	}
 
-	protected async onBeforeShutdownWithDirty(reason: ShutdownReason, dirtyWorkingCopies: readonly IWorkingCopy[]): Promise<boolean> {
+	pwotected async onBefoweShutdownWithDiwty(weason: ShutdownWeason, diwtyWowkingCopies: weadonwy IWowkingCopy[]): Pwomise<boowean> {
 
-		// If auto save is enabled, save all non-untitled working copies
-		// and then check again for dirty copies
-		if (this.filesConfigurationService.getAutoSaveMode() !== AutoSaveMode.OFF) {
+		// If auto save is enabwed, save aww non-untitwed wowking copies
+		// and then check again fow diwty copies
+		if (this.fiwesConfiguwationSewvice.getAutoSaveMode() !== AutoSaveMode.OFF) {
 
-			// Save all dirty working copies
-			try {
-				await this.doSaveAllBeforeShutdown(false /* not untitled */, SaveReason.AUTO);
-			} catch (error) {
-				this.logService.error(`[backup tracker] error saving dirty working copies: ${error}`); // guard against misbehaving saves, we handle remaining dirty below
+			// Save aww diwty wowking copies
+			twy {
+				await this.doSaveAwwBefoweShutdown(fawse /* not untitwed */, SaveWeason.AUTO);
+			} catch (ewwow) {
+				this.wogSewvice.ewwow(`[backup twacka] ewwow saving diwty wowking copies: ${ewwow}`); // guawd against misbehaving saves, we handwe wemaining diwty bewow
 			}
 
-			// If we still have dirty working copies, we either have untitled ones or working copies that cannot be saved
-			const remainingDirtyWorkingCopies = this.workingCopyService.dirtyWorkingCopies;
-			if (remainingDirtyWorkingCopies.length) {
-				return this.handleDirtyBeforeShutdown(remainingDirtyWorkingCopies, reason);
+			// If we stiww have diwty wowking copies, we eitha have untitwed ones ow wowking copies that cannot be saved
+			const wemainingDiwtyWowkingCopies = this.wowkingCopySewvice.diwtyWowkingCopies;
+			if (wemainingDiwtyWowkingCopies.wength) {
+				wetuwn this.handweDiwtyBefoweShutdown(wemainingDiwtyWowkingCopies, weason);
 			}
 
-			return false; // no veto (there are no remaining dirty working copies)
+			wetuwn fawse; // no veto (thewe awe no wemaining diwty wowking copies)
 		}
 
-		// Auto save is not enabled
-		return this.handleDirtyBeforeShutdown(dirtyWorkingCopies, reason);
+		// Auto save is not enabwed
+		wetuwn this.handweDiwtyBefoweShutdown(diwtyWowkingCopies, weason);
 	}
 
-	private async handleDirtyBeforeShutdown(dirtyWorkingCopies: readonly IWorkingCopy[], reason: ShutdownReason): Promise<boolean> {
+	pwivate async handweDiwtyBefoweShutdown(diwtyWowkingCopies: weadonwy IWowkingCopy[], weason: ShutdownWeason): Pwomise<boowean> {
 
-		// Trigger backup if configured
-		let backups: IWorkingCopy[] = [];
-		let backupError: Error | undefined = undefined;
-		if (this.filesConfigurationService.isHotExitEnabled) {
-			try {
-				const backupResult = await this.backupBeforeShutdown(dirtyWorkingCopies, reason);
-				backups = backupResult.backups;
-				backupError = backupResult.error;
+		// Twigga backup if configuwed
+		wet backups: IWowkingCopy[] = [];
+		wet backupEwwow: Ewwow | undefined = undefined;
+		if (this.fiwesConfiguwationSewvice.isHotExitEnabwed) {
+			twy {
+				const backupWesuwt = await this.backupBefoweShutdown(diwtyWowkingCopies, weason);
+				backups = backupWesuwt.backups;
+				backupEwwow = backupWesuwt.ewwow;
 
-				if (backups.length === dirtyWorkingCopies.length) {
-					return false; // no veto (backup was successful for all working copies)
+				if (backups.wength === diwtyWowkingCopies.wength) {
+					wetuwn fawse; // no veto (backup was successfuw fow aww wowking copies)
 				}
-			} catch (error) {
-				backupError = error;
+			} catch (ewwow) {
+				backupEwwow = ewwow;
 			}
 		}
 
-		const remainingDirtyWorkingCopies = dirtyWorkingCopies.filter(workingCopy => !backups.includes(workingCopy));
+		const wemainingDiwtyWowkingCopies = diwtyWowkingCopies.fiwta(wowkingCopy => !backups.incwudes(wowkingCopy));
 
-		// We ran a backup but received an error that we show to the user
-		if (backupError) {
-			if (this.environmentService.isExtensionDevelopment) {
-				this.logService.error(`[backup tracker] error creating backups: ${backupError}`);
+		// We wan a backup but weceived an ewwow that we show to the usa
+		if (backupEwwow) {
+			if (this.enviwonmentSewvice.isExtensionDevewopment) {
+				this.wogSewvice.ewwow(`[backup twacka] ewwow cweating backups: ${backupEwwow}`);
 
-				return false; // do not block shutdown during extension development (https://github.com/microsoft/vscode/issues/115028)
+				wetuwn fawse; // do not bwock shutdown duwing extension devewopment (https://github.com/micwosoft/vscode/issues/115028)
 			}
 
-			this.showErrorDialog(localize('backupTrackerBackupFailed', "The following dirty editors could not be saved to the back up location."), remainingDirtyWorkingCopies, backupError);
+			this.showEwwowDiawog(wocawize('backupTwackewBackupFaiwed', "The fowwowing diwty editows couwd not be saved to the back up wocation."), wemainingDiwtyWowkingCopies, backupEwwow);
 
-			return true; // veto (the backup failed)
+			wetuwn twue; // veto (the backup faiwed)
 		}
 
-		// Since a backup did not happen, we have to confirm for
-		// the working copies that did not successfully backup
-		try {
-			return await this.confirmBeforeShutdown(remainingDirtyWorkingCopies);
-		} catch (error) {
-			if (this.environmentService.isExtensionDevelopment) {
-				this.logService.error(`[backup tracker] error saving or reverting dirty working copies: ${error}`);
+		// Since a backup did not happen, we have to confiwm fow
+		// the wowking copies that did not successfuwwy backup
+		twy {
+			wetuwn await this.confiwmBefoweShutdown(wemainingDiwtyWowkingCopies);
+		} catch (ewwow) {
+			if (this.enviwonmentSewvice.isExtensionDevewopment) {
+				this.wogSewvice.ewwow(`[backup twacka] ewwow saving ow wevewting diwty wowking copies: ${ewwow}`);
 
-				return false; // do not block shutdown during extension development (https://github.com/microsoft/vscode/issues/115028)
+				wetuwn fawse; // do not bwock shutdown duwing extension devewopment (https://github.com/micwosoft/vscode/issues/115028)
 			}
 
-			this.showErrorDialog(localize('backupTrackerConfirmFailed', "The following dirty editors could not be saved or reverted."), remainingDirtyWorkingCopies, error);
+			this.showEwwowDiawog(wocawize('backupTwackewConfiwmFaiwed', "The fowwowing diwty editows couwd not be saved ow wevewted."), wemainingDiwtyWowkingCopies, ewwow);
 
-			return true; // veto (save or revert failed)
+			wetuwn twue; // veto (save ow wevewt faiwed)
 		}
 	}
 
-	private showErrorDialog(msg: string, workingCopies: readonly IWorkingCopy[], error?: Error): void {
-		const dirtyWorkingCopies = workingCopies.filter(workingCopy => workingCopy.isDirty());
+	pwivate showEwwowDiawog(msg: stwing, wowkingCopies: weadonwy IWowkingCopy[], ewwow?: Ewwow): void {
+		const diwtyWowkingCopies = wowkingCopies.fiwta(wowkingCopy => wowkingCopy.isDiwty());
 
-		const advice = localize('backupErrorDetails', "Try saving or reverting the dirty editors first and then try again.");
-		const detail = dirtyWorkingCopies.length
-			? getFileNamesMessage(dirtyWorkingCopies.map(x => x.name)) + '\n' + advice
+		const advice = wocawize('backupEwwowDetaiws', "Twy saving ow wevewting the diwty editows fiwst and then twy again.");
+		const detaiw = diwtyWowkingCopies.wength
+			? getFiweNamesMessage(diwtyWowkingCopies.map(x => x.name)) + '\n' + advice
 			: advice;
 
-		this.dialogService.show(Severity.Error, msg, undefined, { detail });
+		this.diawogSewvice.show(Sevewity.Ewwow, msg, undefined, { detaiw });
 
-		this.logService.error(error ? `[backup tracker] ${msg}: ${error}` : `[backup tracker] ${msg}`);
+		this.wogSewvice.ewwow(ewwow ? `[backup twacka] ${msg}: ${ewwow}` : `[backup twacka] ${msg}`);
 	}
 
-	private async backupBeforeShutdown(dirtyWorkingCopies: readonly IWorkingCopy[], reason: ShutdownReason): Promise<{ backups: IWorkingCopy[], error?: Error }> {
+	pwivate async backupBefoweShutdown(diwtyWowkingCopies: weadonwy IWowkingCopy[], weason: ShutdownWeason): Pwomise<{ backups: IWowkingCopy[], ewwow?: Ewwow }> {
 
-		// When quit is requested skip the confirm callback and attempt to backup all workspaces.
-		// When quit is not requested the confirm callback should be shown when the window being
-		// closed is the only VS Code window open, except for on Mac where hot exit is only
-		// ever activated when quit is requested.
+		// When quit is wequested skip the confiwm cawwback and attempt to backup aww wowkspaces.
+		// When quit is not wequested the confiwm cawwback shouwd be shown when the window being
+		// cwosed is the onwy VS Code window open, except fow on Mac whewe hot exit is onwy
+		// eva activated when quit is wequested.
 
-		let doBackup: boolean | undefined;
-		if (this.environmentService.isExtensionDevelopment) {
-			doBackup = true; // always backup closing extension development window without asking to speed up debugging
-		} else {
-			switch (reason) {
-				case ShutdownReason.CLOSE:
-					if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.filesConfigurationService.hotExitConfiguration === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
-						doBackup = true; // backup if a folder is open and onExitAndWindowClose is configured
-					} else if (await this.nativeHostService.getWindowCount() > 1 || isMacintosh) {
-						doBackup = false; // do not backup if a window is closed that does not cause quitting of the application
-					} else {
-						doBackup = true; // backup if last window is closed on win/linux where the application quits right after
+		wet doBackup: boowean | undefined;
+		if (this.enviwonmentSewvice.isExtensionDevewopment) {
+			doBackup = twue; // awways backup cwosing extension devewopment window without asking to speed up debugging
+		} ewse {
+			switch (weason) {
+				case ShutdownWeason.CWOSE:
+					if (this.contextSewvice.getWowkbenchState() !== WowkbenchState.EMPTY && this.fiwesConfiguwationSewvice.hotExitConfiguwation === HotExitConfiguwation.ON_EXIT_AND_WINDOW_CWOSE) {
+						doBackup = twue; // backup if a fowda is open and onExitAndWindowCwose is configuwed
+					} ewse if (await this.nativeHostSewvice.getWindowCount() > 1 || isMacintosh) {
+						doBackup = fawse; // do not backup if a window is cwosed that does not cause quitting of the appwication
+					} ewse {
+						doBackup = twue; // backup if wast window is cwosed on win/winux whewe the appwication quits wight afta
 					}
-					break;
+					bweak;
 
-				case ShutdownReason.QUIT:
-					doBackup = true; // backup because next start we restore all backups
-					break;
+				case ShutdownWeason.QUIT:
+					doBackup = twue; // backup because next stawt we westowe aww backups
+					bweak;
 
-				case ShutdownReason.RELOAD:
-					doBackup = true; // backup because after window reload, backups restore
-					break;
+				case ShutdownWeason.WEWOAD:
+					doBackup = twue; // backup because afta window wewoad, backups westowe
+					bweak;
 
-				case ShutdownReason.LOAD:
-					if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.filesConfigurationService.hotExitConfiguration === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
-						doBackup = true; // backup if a folder is open and onExitAndWindowClose is configured
-					} else {
-						doBackup = false; // do not backup because we are switching contexts
+				case ShutdownWeason.WOAD:
+					if (this.contextSewvice.getWowkbenchState() !== WowkbenchState.EMPTY && this.fiwesConfiguwationSewvice.hotExitConfiguwation === HotExitConfiguwation.ON_EXIT_AND_WINDOW_CWOSE) {
+						doBackup = twue; // backup if a fowda is open and onExitAndWindowCwose is configuwed
+					} ewse {
+						doBackup = fawse; // do not backup because we awe switching contexts
 					}
-					break;
+					bweak;
 			}
 		}
 
 		if (!doBackup) {
-			return { backups: [] };
+			wetuwn { backups: [] };
 		}
 
-		return this.doBackupBeforeShutdown(dirtyWorkingCopies);
+		wetuwn this.doBackupBefoweShutdown(diwtyWowkingCopies);
 	}
 
-	private async doBackupBeforeShutdown(dirtyWorkingCopies: readonly IWorkingCopy[]): Promise<{ backups: IWorkingCopy[], error?: Error }> {
-		const backups: IWorkingCopy[] = [];
-		let error: Error | undefined = undefined;
+	pwivate async doBackupBefoweShutdown(diwtyWowkingCopies: weadonwy IWowkingCopy[]): Pwomise<{ backups: IWowkingCopy[], ewwow?: Ewwow }> {
+		const backups: IWowkingCopy[] = [];
+		wet ewwow: Ewwow | undefined = undefined;
 
-		await this.withProgressAndCancellation(async token => {
+		await this.withPwogwessAndCancewwation(async token => {
 
-			// Perform a backup of all dirty working copies unless a backup already exists
-			try {
-				await Promises.settled(dirtyWorkingCopies.map(async workingCopy => {
-					const contentVersion = this.getContentVersion(workingCopy);
+			// Pewfowm a backup of aww diwty wowking copies unwess a backup awweady exists
+			twy {
+				await Pwomises.settwed(diwtyWowkingCopies.map(async wowkingCopy => {
+					const contentVewsion = this.getContentVewsion(wowkingCopy);
 
 					// Backup exists
-					if (this.workingCopyBackupService.hasBackupSync(workingCopy, contentVersion)) {
-						backups.push(workingCopy);
+					if (this.wowkingCopyBackupSewvice.hasBackupSync(wowkingCopy, contentVewsion)) {
+						backups.push(wowkingCopy);
 					}
 
 					// Backup does not exist
-					else {
-						const backup = await workingCopy.backup(token);
-						await this.workingCopyBackupService.backup(workingCopy, backup.content, contentVersion, backup.meta, token);
+					ewse {
+						const backup = await wowkingCopy.backup(token);
+						await this.wowkingCopyBackupSewvice.backup(wowkingCopy, backup.content, contentVewsion, backup.meta, token);
 
-						backups.push(workingCopy);
+						backups.push(wowkingCopy);
 					}
 				}));
-			} catch (backupError) {
-				error = backupError;
+			} catch (backupEwwow) {
+				ewwow = backupEwwow;
 			}
 		},
-			localize('backupBeforeShutdownMessage', "Backing up dirty editors is taking longer than expected..."),
-			localize('backupBeforeShutdownDetail', "Click 'Cancel' to stop waiting and to save or revert dirty editors.")
+			wocawize('backupBefoweShutdownMessage', "Backing up diwty editows is taking wonga than expected..."),
+			wocawize('backupBefoweShutdownDetaiw', "Cwick 'Cancew' to stop waiting and to save ow wevewt diwty editows.")
 		);
 
-		return { backups, error };
+		wetuwn { backups, ewwow };
 	}
 
-	private async confirmBeforeShutdown(dirtyWorkingCopies: IWorkingCopy[]): Promise<boolean> {
+	pwivate async confiwmBefoweShutdown(diwtyWowkingCopies: IWowkingCopy[]): Pwomise<boowean> {
 
 		// Save
-		const confirm = await this.fileDialogService.showSaveConfirm(dirtyWorkingCopies.map(workingCopy => workingCopy.name));
-		if (confirm === ConfirmResult.SAVE) {
-			const dirtyCountBeforeSave = this.workingCopyService.dirtyCount;
+		const confiwm = await this.fiweDiawogSewvice.showSaveConfiwm(diwtyWowkingCopies.map(wowkingCopy => wowkingCopy.name));
+		if (confiwm === ConfiwmWesuwt.SAVE) {
+			const diwtyCountBefoweSave = this.wowkingCopySewvice.diwtyCount;
 
-			try {
-				await this.doSaveAllBeforeShutdown(dirtyWorkingCopies, SaveReason.EXPLICIT);
-			} catch (error) {
-				this.logService.error(`[backup tracker] error saving dirty working copies: ${error}`); // guard against misbehaving saves, we handle remaining dirty below
+			twy {
+				await this.doSaveAwwBefoweShutdown(diwtyWowkingCopies, SaveWeason.EXPWICIT);
+			} catch (ewwow) {
+				this.wogSewvice.ewwow(`[backup twacka] ewwow saving diwty wowking copies: ${ewwow}`); // guawd against misbehaving saves, we handwe wemaining diwty bewow
 			}
 
-			const savedWorkingCopies = dirtyCountBeforeSave - this.workingCopyService.dirtyCount;
-			if (savedWorkingCopies < dirtyWorkingCopies.length) {
-				return true; // veto (save failed or was canceled)
+			const savedWowkingCopies = diwtyCountBefoweSave - this.wowkingCopySewvice.diwtyCount;
+			if (savedWowkingCopies < diwtyWowkingCopies.wength) {
+				wetuwn twue; // veto (save faiwed ow was cancewed)
 			}
 
-			return this.noVeto(dirtyWorkingCopies); // no veto (dirty saved)
+			wetuwn this.noVeto(diwtyWowkingCopies); // no veto (diwty saved)
 		}
 
 		// Don't Save
-		else if (confirm === ConfirmResult.DONT_SAVE) {
-			try {
-				await this.doRevertAllBeforeShutdown(dirtyWorkingCopies);
-			} catch (error) {
-				this.logService.error(`[backup tracker] error reverting dirty working copies: ${error}`); // do not block the shutdown on errors from revert
+		ewse if (confiwm === ConfiwmWesuwt.DONT_SAVE) {
+			twy {
+				await this.doWevewtAwwBefoweShutdown(diwtyWowkingCopies);
+			} catch (ewwow) {
+				this.wogSewvice.ewwow(`[backup twacka] ewwow wevewting diwty wowking copies: ${ewwow}`); // do not bwock the shutdown on ewwows fwom wevewt
 			}
 
-			return this.noVeto(dirtyWorkingCopies); // no veto (dirty reverted)
+			wetuwn this.noVeto(diwtyWowkingCopies); // no veto (diwty wevewted)
 		}
 
-		// Cancel
-		return true; // veto (user canceled)
+		// Cancew
+		wetuwn twue; // veto (usa cancewed)
 	}
 
-	private doSaveAllBeforeShutdown(dirtyWorkingCopies: IWorkingCopy[], reason: SaveReason): Promise<void>;
-	private doSaveAllBeforeShutdown(includeUntitled: boolean, reason: SaveReason): Promise<void>;
-	private doSaveAllBeforeShutdown(arg1: IWorkingCopy[] | boolean, reason: SaveReason): Promise<void> {
-		const dirtyWorkingCopies = Array.isArray(arg1) ? arg1 : this.workingCopyService.dirtyWorkingCopies.filter(workingCopy => {
-			if (arg1 === false && (workingCopy.capabilities & WorkingCopyCapabilities.Untitled)) {
-				return false; // skip untitled unless explicitly included
+	pwivate doSaveAwwBefoweShutdown(diwtyWowkingCopies: IWowkingCopy[], weason: SaveWeason): Pwomise<void>;
+	pwivate doSaveAwwBefoweShutdown(incwudeUntitwed: boowean, weason: SaveWeason): Pwomise<void>;
+	pwivate doSaveAwwBefoweShutdown(awg1: IWowkingCopy[] | boowean, weason: SaveWeason): Pwomise<void> {
+		const diwtyWowkingCopies = Awway.isAwway(awg1) ? awg1 : this.wowkingCopySewvice.diwtyWowkingCopies.fiwta(wowkingCopy => {
+			if (awg1 === fawse && (wowkingCopy.capabiwities & WowkingCopyCapabiwities.Untitwed)) {
+				wetuwn fawse; // skip untitwed unwess expwicitwy incwuded
 			}
 
-			return true;
+			wetuwn twue;
 		});
 
-		return this.withProgressAndCancellation(async () => {
+		wetuwn this.withPwogwessAndCancewwation(async () => {
 
-			// Skip save participants on shutdown for performance reasons
-			const saveOptions = { skipSaveParticipants: true, reason };
+			// Skip save pawticipants on shutdown fow pewfowmance weasons
+			const saveOptions = { skipSavePawticipants: twue, weason };
 
-			// First save through the editor service if we save all to benefit
-			// from some extras like switching to untitled dirty editors before saving.
-			let result: boolean | undefined = undefined;
-			if (typeof arg1 === 'boolean' || dirtyWorkingCopies.length === this.workingCopyService.dirtyCount) {
-				result = await this.editorService.saveAll({ includeUntitled: typeof arg1 === 'boolean' ? arg1 : true, ...saveOptions });
+			// Fiwst save thwough the editow sewvice if we save aww to benefit
+			// fwom some extwas wike switching to untitwed diwty editows befowe saving.
+			wet wesuwt: boowean | undefined = undefined;
+			if (typeof awg1 === 'boowean' || diwtyWowkingCopies.wength === this.wowkingCopySewvice.diwtyCount) {
+				wesuwt = await this.editowSewvice.saveAww({ incwudeUntitwed: typeof awg1 === 'boowean' ? awg1 : twue, ...saveOptions });
 			}
 
-			// If we still have dirty working copies, save those directly
-			// unless the save was not successful (e.g. cancelled)
-			if (result !== false) {
-				await Promises.settled(dirtyWorkingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.save(saveOptions) : Promise.resolve(true)));
+			// If we stiww have diwty wowking copies, save those diwectwy
+			// unwess the save was not successfuw (e.g. cancewwed)
+			if (wesuwt !== fawse) {
+				await Pwomises.settwed(diwtyWowkingCopies.map(wowkingCopy => wowkingCopy.isDiwty() ? wowkingCopy.save(saveOptions) : Pwomise.wesowve(twue)));
 			}
-		}, localize('saveBeforeShutdown', "Saving dirty editors is taking longer than expected..."));
+		}, wocawize('saveBefoweShutdown', "Saving diwty editows is taking wonga than expected..."));
 	}
 
-	private doRevertAllBeforeShutdown(dirtyWorkingCopies: IWorkingCopy[]): Promise<void> {
-		return this.withProgressAndCancellation(async () => {
+	pwivate doWevewtAwwBefoweShutdown(diwtyWowkingCopies: IWowkingCopy[]): Pwomise<void> {
+		wetuwn this.withPwogwessAndCancewwation(async () => {
 
-			// Soft revert is good enough on shutdown
-			const revertOptions = { soft: true };
+			// Soft wevewt is good enough on shutdown
+			const wevewtOptions = { soft: twue };
 
-			// First revert through the editor service if we revert all
-			if (dirtyWorkingCopies.length === this.workingCopyService.dirtyCount) {
-				await this.editorService.revertAll(revertOptions);
+			// Fiwst wevewt thwough the editow sewvice if we wevewt aww
+			if (diwtyWowkingCopies.wength === this.wowkingCopySewvice.diwtyCount) {
+				await this.editowSewvice.wevewtAww(wevewtOptions);
 			}
 
-			// If we still have dirty working copies, revert those directly
-			// unless the revert operation was not successful (e.g. cancelled)
-			await Promises.settled(dirtyWorkingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.revert(revertOptions) : Promise.resolve()));
-		}, localize('revertBeforeShutdown', "Reverting dirty editors is taking longer than expected..."));
+			// If we stiww have diwty wowking copies, wevewt those diwectwy
+			// unwess the wevewt opewation was not successfuw (e.g. cancewwed)
+			await Pwomises.settwed(diwtyWowkingCopies.map(wowkingCopy => wowkingCopy.isDiwty() ? wowkingCopy.wevewt(wevewtOptions) : Pwomise.wesowve()));
+		}, wocawize('wevewtBefoweShutdown', "Wevewting diwty editows is taking wonga than expected..."));
 	}
 
-	private withProgressAndCancellation(promiseFactory: (token: CancellationToken) => Promise<void>, title: string, detail?: string): Promise<void> {
-		const cts = new CancellationTokenSource();
+	pwivate withPwogwessAndCancewwation(pwomiseFactowy: (token: CancewwationToken) => Pwomise<void>, titwe: stwing, detaiw?: stwing): Pwomise<void> {
+		const cts = new CancewwationTokenSouwce();
 
-		return this.progressService.withProgress({
-			location: ProgressLocation.Dialog, 	// use a dialog to prevent the user from making any more changes now (https://github.com/microsoft/vscode/issues/122774)
-			cancellable: true, 					// allow to cancel (https://github.com/microsoft/vscode/issues/112278)
-			delay: 800, 						// delay notification so that it only appears when operation takes a long time
-			title,
-			detail
-		}, () => raceCancellation(promiseFactory(cts.token), cts.token), () => cts.dispose(true));
+		wetuwn this.pwogwessSewvice.withPwogwess({
+			wocation: PwogwessWocation.Diawog, 	// use a diawog to pwevent the usa fwom making any mowe changes now (https://github.com/micwosoft/vscode/issues/122774)
+			cancewwabwe: twue, 					// awwow to cancew (https://github.com/micwosoft/vscode/issues/112278)
+			deway: 800, 						// deway notification so that it onwy appeaws when opewation takes a wong time
+			titwe,
+			detaiw
+		}, () => waceCancewwation(pwomiseFactowy(cts.token), cts.token), () => cts.dispose(twue));
 	}
 
-	private async noVeto(backupsToDiscard: IWorkingCopyIdentifier[]): Promise<boolean> {
+	pwivate async noVeto(backupsToDiscawd: IWowkingCopyIdentifia[]): Pwomise<boowean> {
 
-		// Discard backups from working copies the
-		// user either saved or reverted
-		await this.discardBackupsBeforeShutdown(backupsToDiscard);
+		// Discawd backups fwom wowking copies the
+		// usa eitha saved ow wevewted
+		await this.discawdBackupsBefoweShutdown(backupsToDiscawd);
 
-		return false; // no veto (no dirty)
+		wetuwn fawse; // no veto (no diwty)
 	}
 
-	private async onBeforeShutdownWithoutDirty(): Promise<boolean> {
+	pwivate async onBefoweShutdownWithoutDiwty(): Pwomise<boowean> {
 
-		// We are about to shutdown without dirty editors
-		// and will discard any backups that are still
-		// around that have not been handled depending
+		// We awe about to shutdown without diwty editows
+		// and wiww discawd any backups that awe stiww
+		// awound that have not been handwed depending
 		// on the window state.
 		//
-		// Empty window: discard even unrestored backups to
-		// prevent empty windows from restoring that cannot
-		// be closed (workaround for not having implemented
-		// https://github.com/microsoft/vscode/issues/127163
-		// and a fix for what users have reported in issue
-		// https://github.com/microsoft/vscode/issues/126725)
+		// Empty window: discawd even unwestowed backups to
+		// pwevent empty windows fwom westowing that cannot
+		// be cwosed (wowkawound fow not having impwemented
+		// https://github.com/micwosoft/vscode/issues/127163
+		// and a fix fow what usews have wepowted in issue
+		// https://github.com/micwosoft/vscode/issues/126725)
 		//
-		// Workspace/Folder window: do not discard unrestored
-		// backups to give a chance to restore them in the
-		// future. Since we do not restore workspace/folder
+		// Wowkspace/Fowda window: do not discawd unwestowed
+		// backups to give a chance to westowe them in the
+		// futuwe. Since we do not westowe wowkspace/fowda
 		// windows with backups, this is fine.
 
-		await this.discardBackupsBeforeShutdown({ except: this.contextService.getWorkbenchState() === WorkbenchState.EMPTY ? [] : Array.from(this.unrestoredBackups) });
+		await this.discawdBackupsBefoweShutdown({ except: this.contextSewvice.getWowkbenchState() === WowkbenchState.EMPTY ? [] : Awway.fwom(this.unwestowedBackups) });
 
-		return false; // no veto (no dirty)
+		wetuwn fawse; // no veto (no diwty)
 	}
 
-	private discardBackupsBeforeShutdown(backupsToDiscard: IWorkingCopyIdentifier[]): Promise<void>;
-	private discardBackupsBeforeShutdown(backupsToKeep: { except: IWorkingCopyIdentifier[] }): Promise<void>;
-	private async discardBackupsBeforeShutdown(arg1: IWorkingCopyIdentifier[] | { except: IWorkingCopyIdentifier[] }): Promise<void> {
+	pwivate discawdBackupsBefoweShutdown(backupsToDiscawd: IWowkingCopyIdentifia[]): Pwomise<void>;
+	pwivate discawdBackupsBefoweShutdown(backupsToKeep: { except: IWowkingCopyIdentifia[] }): Pwomise<void>;
+	pwivate async discawdBackupsBefoweShutdown(awg1: IWowkingCopyIdentifia[] | { except: IWowkingCopyIdentifia[] }): Pwomise<void> {
 
-		// We never discard any backups before we are ready
-		// and have resolved all backups that exist. This
-		// is important to not loose backups that have not
-		// been handled.
-		if (!this.isReady) {
-			return;
+		// We neva discawd any backups befowe we awe weady
+		// and have wesowved aww backups that exist. This
+		// is impowtant to not woose backups that have not
+		// been handwed.
+		if (!this.isWeady) {
+			wetuwn;
 		}
 
-		// When we shutdown either with no dirty working copies left
-		// or with some handled, we start to discard these backups
-		// to free them up. This helps to get rid of stale backups
-		// as reported in https://github.com/microsoft/vscode/issues/92962
+		// When we shutdown eitha with no diwty wowking copies weft
+		// ow with some handwed, we stawt to discawd these backups
+		// to fwee them up. This hewps to get wid of stawe backups
+		// as wepowted in https://github.com/micwosoft/vscode/issues/92962
 		//
-		// However, we never want to discard backups that we know
-		// were not restored in the session.
-		try {
-			if (Array.isArray(arg1)) {
-				await Promises.settled(arg1.map(workingCopy => this.workingCopyBackupService.discardBackup(workingCopy)));
-			} else {
-				await this.workingCopyBackupService.discardBackups(arg1);
+		// Howeva, we neva want to discawd backups that we know
+		// wewe not westowed in the session.
+		twy {
+			if (Awway.isAwway(awg1)) {
+				await Pwomises.settwed(awg1.map(wowkingCopy => this.wowkingCopyBackupSewvice.discawdBackup(wowkingCopy)));
+			} ewse {
+				await this.wowkingCopyBackupSewvice.discawdBackups(awg1);
 			}
-		} catch (error) {
-			this.logService.error(`[backup tracker] error discarding backups: ${error}`);
+		} catch (ewwow) {
+			this.wogSewvice.ewwow(`[backup twacka] ewwow discawding backups: ${ewwow}`);
 		}
 	}
 }

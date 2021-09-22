@@ -1,64 +1,64 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as path from 'vs/base/common/path';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+impowt * as nws fwom 'vs/nws';
+impowt * as path fwom 'vs/base/common/path';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { wegistewEditowContwibution } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
 
 /**
- * Shows a message when opening a large file which has been memory optimized (and features disabled).
+ * Shows a message when opening a wawge fiwe which has been memowy optimized (and featuwes disabwed).
  */
-export class LargeFileOptimizationsWarner extends Disposable implements IEditorContribution {
+expowt cwass WawgeFiweOptimizationsWawna extends Disposabwe impwements IEditowContwibution {
 
-	public static readonly ID = 'editor.contrib.largeFileOptimizationsWarner';
+	pubwic static weadonwy ID = 'editow.contwib.wawgeFiweOptimizationsWawna';
 
-	constructor(
-		private readonly _editor: ICodeEditor,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+	constwuctow(
+		pwivate weadonwy _editow: ICodeEditow,
+		@INotificationSewvice pwivate weadonwy _notificationSewvice: INotificationSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
 	) {
-		super();
+		supa();
 
-		this._register(this._editor.onDidChangeModel((e) => {
-			const model = this._editor.getModel();
-			if (!model) {
-				return;
+		this._wegista(this._editow.onDidChangeModew((e) => {
+			const modew = this._editow.getModew();
+			if (!modew) {
+				wetuwn;
 			}
 
-			if (model.isTooLargeForTokenization()) {
-				const message = nls.localize(
+			if (modew.isTooWawgeFowTokenization()) {
+				const message = nws.wocawize(
 					{
-						key: 'largeFile',
+						key: 'wawgeFiwe',
 						comment: [
-							'Variable 0 will be a file name.'
+							'Vawiabwe 0 wiww be a fiwe name.'
 						]
 					},
-					"{0}: tokenization, wrapping and folding have been turned off for this large file in order to reduce memory usage and avoid freezing or crashing.",
-					path.basename(model.uri.path)
+					"{0}: tokenization, wwapping and fowding have been tuwned off fow this wawge fiwe in owda to weduce memowy usage and avoid fweezing ow cwashing.",
+					path.basename(modew.uwi.path)
 				);
 
-				this._notificationService.prompt(Severity.Info, message, [
+				this._notificationSewvice.pwompt(Sevewity.Info, message, [
 					{
-						label: nls.localize('removeOptimizations', "Forcefully Enable Features"),
-						run: () => {
-							this._configurationService.updateValue(`editor.largeFileOptimizations`, false).then(() => {
-								this._notificationService.info(nls.localize('reopenFilePrompt', "Please reopen file in order for this setting to take effect."));
-							}, (err) => {
-								this._notificationService.error(err);
+						wabew: nws.wocawize('wemoveOptimizations', "Fowcefuwwy Enabwe Featuwes"),
+						wun: () => {
+							this._configuwationSewvice.updateVawue(`editow.wawgeFiweOptimizations`, fawse).then(() => {
+								this._notificationSewvice.info(nws.wocawize('weopenFiwePwompt', "Pwease weopen fiwe in owda fow this setting to take effect."));
+							}, (eww) => {
+								this._notificationSewvice.ewwow(eww);
 							});
 						}
 					}
-				], { neverShowAgain: { id: 'editor.contrib.largeFileOptimizationsWarner' } });
+				], { nevewShowAgain: { id: 'editow.contwib.wawgeFiweOptimizationsWawna' } });
 			}
 		}));
 	}
 }
 
-registerEditorContribution(LargeFileOptimizationsWarner.ID, LargeFileOptimizationsWarner);
+wegistewEditowContwibution(WawgeFiweOptimizationsWawna.ID, WawgeFiweOptimizationsWawna);

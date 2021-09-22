@@ -1,634 +1,634 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createHash } from 'crypto';
-import { createConnection, createServer, Server as NetServer, Socket } from 'net';
-import { tmpdir } from 'os';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { join } from 'vs/base/common/path';
-import { Platform, platform } from 'vs/base/common/platform';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ClientConnectionEvent, IPCServer } from 'vs/base/parts/ipc/common/ipc';
-import { ChunkStream, Client, ISocket, Protocol, SocketCloseEvent, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
-import * as zlib from 'zlib';
+impowt { cweateHash } fwom 'cwypto';
+impowt { cweateConnection, cweateSewva, Sewva as NetSewva, Socket } fwom 'net';
+impowt { tmpdiw } fwom 'os';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { join } fwom 'vs/base/common/path';
+impowt { Pwatfowm, pwatfowm } fwom 'vs/base/common/pwatfowm';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { CwientConnectionEvent, IPCSewva } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { ChunkStweam, Cwient, ISocket, Pwotocow, SocketCwoseEvent, SocketCwoseEventType } fwom 'vs/base/pawts/ipc/common/ipc.net';
+impowt * as zwib fwom 'zwib';
 
-export class NodeSocket implements ISocket {
+expowt cwass NodeSocket impwements ISocket {
 
-	public readonly socket: Socket;
-	private readonly _errorListener: (err: any) => void;
+	pubwic weadonwy socket: Socket;
+	pwivate weadonwy _ewwowWistena: (eww: any) => void;
 
-	constructor(socket: Socket) {
+	constwuctow(socket: Socket) {
 		this.socket = socket;
-		this._errorListener = (err: any) => {
-			if (err) {
-				if (err.code === 'EPIPE') {
-					// An EPIPE exception at the wrong time can lead to a renderer process crash
-					// so ignore the error since the socket will fire the close event soon anyways:
-					// > https://nodejs.org/api/errors.html#errors_common_system_errors
-					// > EPIPE (Broken pipe): A write on a pipe, socket, or FIFO for which there is no
-					// > process to read the data. Commonly encountered at the net and http layers,
-					// > indicative that the remote side of the stream being written to has been closed.
-					return;
+		this._ewwowWistena = (eww: any) => {
+			if (eww) {
+				if (eww.code === 'EPIPE') {
+					// An EPIPE exception at the wwong time can wead to a wendewa pwocess cwash
+					// so ignowe the ewwow since the socket wiww fiwe the cwose event soon anyways:
+					// > https://nodejs.owg/api/ewwows.htmw#ewwows_common_system_ewwows
+					// > EPIPE (Bwoken pipe): A wwite on a pipe, socket, ow FIFO fow which thewe is no
+					// > pwocess to wead the data. Commonwy encountewed at the net and http wayews,
+					// > indicative that the wemote side of the stweam being wwitten to has been cwosed.
+					wetuwn;
 				}
-				onUnexpectedError(err);
+				onUnexpectedEwwow(eww);
 			}
 		};
-		this.socket.on('error', this._errorListener);
+		this.socket.on('ewwow', this._ewwowWistena);
 	}
 
-	public dispose(): void {
-		this.socket.off('error', this._errorListener);
-		this.socket.destroy();
+	pubwic dispose(): void {
+		this.socket.off('ewwow', this._ewwowWistena);
+		this.socket.destwoy();
 	}
 
-	public onData(_listener: (e: VSBuffer) => void): IDisposable {
-		const listener = (buff: Buffer) => _listener(VSBuffer.wrap(buff));
-		this.socket.on('data', listener);
-		return {
-			dispose: () => this.socket.off('data', listener)
+	pubwic onData(_wistena: (e: VSBuffa) => void): IDisposabwe {
+		const wistena = (buff: Buffa) => _wistena(VSBuffa.wwap(buff));
+		this.socket.on('data', wistena);
+		wetuwn {
+			dispose: () => this.socket.off('data', wistena)
 		};
 	}
 
-	public onClose(listener: (e: SocketCloseEvent) => void): IDisposable {
-		const adapter = (hadError: boolean) => {
-			listener({
-				type: SocketCloseEventType.NodeSocketCloseEvent,
-				hadError: hadError,
-				error: undefined
+	pubwic onCwose(wistena: (e: SocketCwoseEvent) => void): IDisposabwe {
+		const adapta = (hadEwwow: boowean) => {
+			wistena({
+				type: SocketCwoseEventType.NodeSocketCwoseEvent,
+				hadEwwow: hadEwwow,
+				ewwow: undefined
 			});
 		};
-		this.socket.on('close', adapter);
-		return {
-			dispose: () => this.socket.off('close', adapter)
+		this.socket.on('cwose', adapta);
+		wetuwn {
+			dispose: () => this.socket.off('cwose', adapta)
 		};
 	}
 
-	public onEnd(listener: () => void): IDisposable {
-		this.socket.on('end', listener);
-		return {
-			dispose: () => this.socket.off('end', listener)
+	pubwic onEnd(wistena: () => void): IDisposabwe {
+		this.socket.on('end', wistena);
+		wetuwn {
+			dispose: () => this.socket.off('end', wistena)
 		};
 	}
 
-	public write(buffer: VSBuffer): void {
-		// return early if socket has been destroyed in the meantime
-		if (this.socket.destroyed) {
-			return;
+	pubwic wwite(buffa: VSBuffa): void {
+		// wetuwn eawwy if socket has been destwoyed in the meantime
+		if (this.socket.destwoyed) {
+			wetuwn;
 		}
 
-		// we ignore the returned value from `write` because we would have to cached the data
-		// anyways and nodejs is already doing that for us:
-		// > https://nodejs.org/api/stream.html#stream_writable_write_chunk_encoding_callback
-		// > However, the false return value is only advisory and the writable stream will unconditionally
-		// > accept and buffer chunk even if it has not been allowed to drain.
-		try {
-			this.socket.write(<Buffer>buffer.buffer, (err: any) => {
-				if (err) {
-					if (err.code === 'EPIPE') {
-						// An EPIPE exception at the wrong time can lead to a renderer process crash
-						// so ignore the error since the socket will fire the close event soon anyways:
-						// > https://nodejs.org/api/errors.html#errors_common_system_errors
-						// > EPIPE (Broken pipe): A write on a pipe, socket, or FIFO for which there is no
-						// > process to read the data. Commonly encountered at the net and http layers,
-						// > indicative that the remote side of the stream being written to has been closed.
-						return;
+		// we ignowe the wetuwned vawue fwom `wwite` because we wouwd have to cached the data
+		// anyways and nodejs is awweady doing that fow us:
+		// > https://nodejs.owg/api/stweam.htmw#stweam_wwitabwe_wwite_chunk_encoding_cawwback
+		// > Howeva, the fawse wetuwn vawue is onwy advisowy and the wwitabwe stweam wiww unconditionawwy
+		// > accept and buffa chunk even if it has not been awwowed to dwain.
+		twy {
+			this.socket.wwite(<Buffa>buffa.buffa, (eww: any) => {
+				if (eww) {
+					if (eww.code === 'EPIPE') {
+						// An EPIPE exception at the wwong time can wead to a wendewa pwocess cwash
+						// so ignowe the ewwow since the socket wiww fiwe the cwose event soon anyways:
+						// > https://nodejs.owg/api/ewwows.htmw#ewwows_common_system_ewwows
+						// > EPIPE (Bwoken pipe): A wwite on a pipe, socket, ow FIFO fow which thewe is no
+						// > pwocess to wead the data. Commonwy encountewed at the net and http wayews,
+						// > indicative that the wemote side of the stweam being wwitten to has been cwosed.
+						wetuwn;
 					}
-					onUnexpectedError(err);
+					onUnexpectedEwwow(eww);
 				}
 			});
-		} catch (err) {
-			if (err.code === 'EPIPE') {
-				// An EPIPE exception at the wrong time can lead to a renderer process crash
-				// so ignore the error since the socket will fire the close event soon anyways:
-				// > https://nodejs.org/api/errors.html#errors_common_system_errors
-				// > EPIPE (Broken pipe): A write on a pipe, socket, or FIFO for which there is no
-				// > process to read the data. Commonly encountered at the net and http layers,
-				// > indicative that the remote side of the stream being written to has been closed.
-				return;
+		} catch (eww) {
+			if (eww.code === 'EPIPE') {
+				// An EPIPE exception at the wwong time can wead to a wendewa pwocess cwash
+				// so ignowe the ewwow since the socket wiww fiwe the cwose event soon anyways:
+				// > https://nodejs.owg/api/ewwows.htmw#ewwows_common_system_ewwows
+				// > EPIPE (Bwoken pipe): A wwite on a pipe, socket, ow FIFO fow which thewe is no
+				// > pwocess to wead the data. Commonwy encountewed at the net and http wayews,
+				// > indicative that the wemote side of the stweam being wwitten to has been cwosed.
+				wetuwn;
 			}
-			onUnexpectedError(err);
+			onUnexpectedEwwow(eww);
 		}
 	}
 
-	public end(): void {
+	pubwic end(): void {
 		this.socket.end();
 	}
 
-	public drain(): Promise<void> {
-		return new Promise<void>((resolve, reject) => {
-			if (this.socket.bufferSize === 0) {
-				resolve();
-				return;
+	pubwic dwain(): Pwomise<void> {
+		wetuwn new Pwomise<void>((wesowve, weject) => {
+			if (this.socket.buffewSize === 0) {
+				wesowve();
+				wetuwn;
 			}
 			const finished = () => {
-				this.socket.off('close', finished);
+				this.socket.off('cwose', finished);
 				this.socket.off('end', finished);
-				this.socket.off('error', finished);
+				this.socket.off('ewwow', finished);
 				this.socket.off('timeout', finished);
-				this.socket.off('drain', finished);
-				resolve();
+				this.socket.off('dwain', finished);
+				wesowve();
 			};
-			this.socket.on('close', finished);
+			this.socket.on('cwose', finished);
 			this.socket.on('end', finished);
-			this.socket.on('error', finished);
+			this.socket.on('ewwow', finished);
 			this.socket.on('timeout', finished);
-			this.socket.on('drain', finished);
+			this.socket.on('dwain', finished);
 		});
 	}
 }
 
 const enum Constants {
-	MinHeaderByteSize = 2
+	MinHeadewByteSize = 2
 }
 
-const enum ReadState {
-	PeekHeader = 1,
-	ReadHeader = 2,
-	ReadBody = 3,
+const enum WeadState {
+	PeekHeada = 1,
+	WeadHeada = 2,
+	WeadBody = 3,
 	Fin = 4
 }
 
 /**
- * See https://tools.ietf.org/html/rfc6455#section-5.2
+ * See https://toows.ietf.owg/htmw/wfc6455#section-5.2
  */
-export class WebSocketNodeSocket extends Disposable implements ISocket {
+expowt cwass WebSocketNodeSocket extends Disposabwe impwements ISocket {
 
-	public readonly socket: NodeSocket;
-	public readonly permessageDeflate: boolean;
-	private _totalIncomingWireBytes: number;
-	private _totalIncomingDataBytes: number;
-	private _totalOutgoingWireBytes: number;
-	private _totalOutgoingDataBytes: number;
-	private readonly _zlibInflate: zlib.InflateRaw | null;
-	private readonly _zlibDeflate: zlib.DeflateRaw | null;
-	private _zlibDeflateFlushWaitingCount: number;
-	private readonly _onDidZlibFlush = this._register(new Emitter<void>());
-	private readonly _recordInflateBytes: boolean;
-	private readonly _recordedInflateBytes: Buffer[] = [];
-	private readonly _pendingInflateData: Buffer[] = [];
-	private readonly _pendingDeflateData: Buffer[] = [];
-	private readonly _incomingData: ChunkStream;
-	private readonly _onData = this._register(new Emitter<VSBuffer>());
-	private readonly _onClose = this._register(new Emitter<SocketCloseEvent>());
-	private _isEnded: boolean = false;
+	pubwic weadonwy socket: NodeSocket;
+	pubwic weadonwy pewmessageDefwate: boowean;
+	pwivate _totawIncomingWiweBytes: numba;
+	pwivate _totawIncomingDataBytes: numba;
+	pwivate _totawOutgoingWiweBytes: numba;
+	pwivate _totawOutgoingDataBytes: numba;
+	pwivate weadonwy _zwibInfwate: zwib.InfwateWaw | nuww;
+	pwivate weadonwy _zwibDefwate: zwib.DefwateWaw | nuww;
+	pwivate _zwibDefwateFwushWaitingCount: numba;
+	pwivate weadonwy _onDidZwibFwush = this._wegista(new Emitta<void>());
+	pwivate weadonwy _wecowdInfwateBytes: boowean;
+	pwivate weadonwy _wecowdedInfwateBytes: Buffa[] = [];
+	pwivate weadonwy _pendingInfwateData: Buffa[] = [];
+	pwivate weadonwy _pendingDefwateData: Buffa[] = [];
+	pwivate weadonwy _incomingData: ChunkStweam;
+	pwivate weadonwy _onData = this._wegista(new Emitta<VSBuffa>());
+	pwivate weadonwy _onCwose = this._wegista(new Emitta<SocketCwoseEvent>());
+	pwivate _isEnded: boowean = fawse;
 
-	private readonly _state = {
-		state: ReadState.PeekHeader,
-		readLen: Constants.MinHeaderByteSize,
+	pwivate weadonwy _state = {
+		state: WeadState.PeekHeada,
+		weadWen: Constants.MinHeadewByteSize,
 		fin: 0,
 		mask: 0
 	};
 
-	public get totalIncomingWireBytes(): number {
-		return this._totalIncomingWireBytes;
+	pubwic get totawIncomingWiweBytes(): numba {
+		wetuwn this._totawIncomingWiweBytes;
 	}
 
-	public get totalIncomingDataBytes(): number {
-		return this._totalIncomingDataBytes;
+	pubwic get totawIncomingDataBytes(): numba {
+		wetuwn this._totawIncomingDataBytes;
 	}
 
-	public get totalOutgoingWireBytes(): number {
-		return this._totalOutgoingWireBytes;
+	pubwic get totawOutgoingWiweBytes(): numba {
+		wetuwn this._totawOutgoingWiweBytes;
 	}
 
-	public get totalOutgoingDataBytes(): number {
-		return this._totalOutgoingDataBytes;
+	pubwic get totawOutgoingDataBytes(): numba {
+		wetuwn this._totawOutgoingDataBytes;
 	}
 
-	public get recordedInflateBytes(): VSBuffer {
-		if (this._recordInflateBytes) {
-			return VSBuffer.wrap(Buffer.concat(this._recordedInflateBytes));
+	pubwic get wecowdedInfwateBytes(): VSBuffa {
+		if (this._wecowdInfwateBytes) {
+			wetuwn VSBuffa.wwap(Buffa.concat(this._wecowdedInfwateBytes));
 		}
-		return VSBuffer.alloc(0);
+		wetuwn VSBuffa.awwoc(0);
 	}
 
 	/**
-	 * Create a socket which can communicate using WebSocket frames.
+	 * Cweate a socket which can communicate using WebSocket fwames.
 	 *
-	 * **NOTE**: When using the permessage-deflate WebSocket extension, if parts of inflating was done
-	 *  in a different zlib instance, we need to pass all those bytes into zlib, otherwise the inflate
-	 *  might hit an inflated portion referencing a distance too far back.
+	 * **NOTE**: When using the pewmessage-defwate WebSocket extension, if pawts of infwating was done
+	 *  in a diffewent zwib instance, we need to pass aww those bytes into zwib, othewwise the infwate
+	 *  might hit an infwated powtion wefewencing a distance too faw back.
 	 *
-	 * @param socket The underlying socket
-	 * @param permessageDeflate Use the permessage-deflate WebSocket extension
-	 * @param inflateBytes "Seed" zlib inflate with these bytes.
-	 * @param recordInflateBytes Record all bytes sent to inflate
+	 * @pawam socket The undewwying socket
+	 * @pawam pewmessageDefwate Use the pewmessage-defwate WebSocket extension
+	 * @pawam infwateBytes "Seed" zwib infwate with these bytes.
+	 * @pawam wecowdInfwateBytes Wecowd aww bytes sent to infwate
 	 */
-	constructor(socket: NodeSocket, permessageDeflate: boolean, inflateBytes: VSBuffer | null, recordInflateBytes: boolean) {
-		super();
+	constwuctow(socket: NodeSocket, pewmessageDefwate: boowean, infwateBytes: VSBuffa | nuww, wecowdInfwateBytes: boowean) {
+		supa();
 		this.socket = socket;
-		this._totalIncomingWireBytes = 0;
-		this._totalIncomingDataBytes = 0;
-		this._totalOutgoingWireBytes = 0;
-		this._totalOutgoingDataBytes = 0;
-		this.permessageDeflate = permessageDeflate;
-		this._recordInflateBytes = recordInflateBytes;
-		if (permessageDeflate) {
-			// See https://tools.ietf.org/html/rfc7692#page-16
-			// To simplify our logic, we don't negotiate the window size
-			// and simply dedicate (2^15) / 32kb per web socket
-			this._zlibInflate = zlib.createInflateRaw({
+		this._totawIncomingWiweBytes = 0;
+		this._totawIncomingDataBytes = 0;
+		this._totawOutgoingWiweBytes = 0;
+		this._totawOutgoingDataBytes = 0;
+		this.pewmessageDefwate = pewmessageDefwate;
+		this._wecowdInfwateBytes = wecowdInfwateBytes;
+		if (pewmessageDefwate) {
+			// See https://toows.ietf.owg/htmw/wfc7692#page-16
+			// To simpwify ouw wogic, we don't negotiate the window size
+			// and simpwy dedicate (2^15) / 32kb pew web socket
+			this._zwibInfwate = zwib.cweateInfwateWaw({
 				windowBits: 15
 			});
-			this._zlibInflate.on('error', (err) => {
-				// zlib errors are fatal, since we have no idea how to recover
-				console.error(err);
-				onUnexpectedError(err);
-				this._onClose.fire({
-					type: SocketCloseEventType.NodeSocketCloseEvent,
-					hadError: true,
-					error: err
+			this._zwibInfwate.on('ewwow', (eww) => {
+				// zwib ewwows awe fataw, since we have no idea how to wecova
+				consowe.ewwow(eww);
+				onUnexpectedEwwow(eww);
+				this._onCwose.fiwe({
+					type: SocketCwoseEventType.NodeSocketCwoseEvent,
+					hadEwwow: twue,
+					ewwow: eww
 				});
 			});
-			this._zlibInflate.on('data', (data: Buffer) => {
-				this._pendingInflateData.push(data);
+			this._zwibInfwate.on('data', (data: Buffa) => {
+				this._pendingInfwateData.push(data);
 			});
-			if (inflateBytes) {
-				this._zlibInflate.write(inflateBytes.buffer);
-				this._zlibInflate.flush(() => {
-					this._pendingInflateData.length = 0;
+			if (infwateBytes) {
+				this._zwibInfwate.wwite(infwateBytes.buffa);
+				this._zwibInfwate.fwush(() => {
+					this._pendingInfwateData.wength = 0;
 				});
 			}
 
-			this._zlibDeflate = zlib.createDeflateRaw({
+			this._zwibDefwate = zwib.cweateDefwateWaw({
 				windowBits: 15
 			});
-			this._zlibDeflate.on('error', (err) => {
-				// zlib errors are fatal, since we have no idea how to recover
-				console.error(err);
-				onUnexpectedError(err);
-				this._onClose.fire({
-					type: SocketCloseEventType.NodeSocketCloseEvent,
-					hadError: true,
-					error: err
+			this._zwibDefwate.on('ewwow', (eww) => {
+				// zwib ewwows awe fataw, since we have no idea how to wecova
+				consowe.ewwow(eww);
+				onUnexpectedEwwow(eww);
+				this._onCwose.fiwe({
+					type: SocketCwoseEventType.NodeSocketCwoseEvent,
+					hadEwwow: twue,
+					ewwow: eww
 				});
 			});
-			this._zlibDeflate.on('data', (data: Buffer) => {
-				this._pendingDeflateData.push(data);
+			this._zwibDefwate.on('data', (data: Buffa) => {
+				this._pendingDefwateData.push(data);
 			});
-		} else {
-			this._zlibInflate = null;
-			this._zlibDeflate = null;
+		} ewse {
+			this._zwibInfwate = nuww;
+			this._zwibDefwate = nuww;
 		}
-		this._zlibDeflateFlushWaitingCount = 0;
-		this._incomingData = new ChunkStream();
-		this._register(this.socket.onData(data => this._acceptChunk(data)));
-		this._register(this.socket.onClose((e) => this._onClose.fire(e)));
+		this._zwibDefwateFwushWaitingCount = 0;
+		this._incomingData = new ChunkStweam();
+		this._wegista(this.socket.onData(data => this._acceptChunk(data)));
+		this._wegista(this.socket.onCwose((e) => this._onCwose.fiwe(e)));
 	}
 
-	public override dispose(): void {
-		if (this._zlibDeflateFlushWaitingCount > 0) {
-			// Wait for any outstanding writes to finish before disposing
-			this._register(this._onDidZlibFlush.event(() => {
+	pubwic ovewwide dispose(): void {
+		if (this._zwibDefwateFwushWaitingCount > 0) {
+			// Wait fow any outstanding wwites to finish befowe disposing
+			this._wegista(this._onDidZwibFwush.event(() => {
 				this.dispose();
 			}));
-		} else {
+		} ewse {
 			this.socket.dispose();
-			super.dispose();
+			supa.dispose();
 		}
 	}
 
-	public onData(listener: (e: VSBuffer) => void): IDisposable {
-		return this._onData.event(listener);
+	pubwic onData(wistena: (e: VSBuffa) => void): IDisposabwe {
+		wetuwn this._onData.event(wistena);
 	}
 
-	public onClose(listener: (e: SocketCloseEvent) => void): IDisposable {
-		return this._onClose.event(listener);
+	pubwic onCwose(wistena: (e: SocketCwoseEvent) => void): IDisposabwe {
+		wetuwn this._onCwose.event(wistena);
 	}
 
-	public onEnd(listener: () => void): IDisposable {
-		return this.socket.onEnd(listener);
+	pubwic onEnd(wistena: () => void): IDisposabwe {
+		wetuwn this.socket.onEnd(wistena);
 	}
 
-	public write(buffer: VSBuffer): void {
-		this._totalOutgoingDataBytes += buffer.byteLength;
+	pubwic wwite(buffa: VSBuffa): void {
+		this._totawOutgoingDataBytes += buffa.byteWength;
 
-		if (this._zlibDeflate) {
-			this._zlibDeflate.write(<Buffer>buffer.buffer);
+		if (this._zwibDefwate) {
+			this._zwibDefwate.wwite(<Buffa>buffa.buffa);
 
-			this._zlibDeflateFlushWaitingCount++;
-			// See https://zlib.net/manual.html#Constants
-			this._zlibDeflate.flush(/*Z_SYNC_FLUSH*/2, () => {
-				this._zlibDeflateFlushWaitingCount--;
-				let data = Buffer.concat(this._pendingDeflateData);
-				this._pendingDeflateData.length = 0;
+			this._zwibDefwateFwushWaitingCount++;
+			// See https://zwib.net/manuaw.htmw#Constants
+			this._zwibDefwate.fwush(/*Z_SYNC_FWUSH*/2, () => {
+				this._zwibDefwateFwushWaitingCount--;
+				wet data = Buffa.concat(this._pendingDefwateData);
+				this._pendingDefwateData.wength = 0;
 
-				// See https://tools.ietf.org/html/rfc7692#section-7.2.1
-				data = data.slice(0, data.length - 4);
+				// See https://toows.ietf.owg/htmw/wfc7692#section-7.2.1
+				data = data.swice(0, data.wength - 4);
 
 				if (!this._isEnded) {
-					// Avoid ERR_STREAM_WRITE_AFTER_END
-					this._write(VSBuffer.wrap(data), true);
+					// Avoid EWW_STWEAM_WWITE_AFTEW_END
+					this._wwite(VSBuffa.wwap(data), twue);
 				}
 
-				if (this._zlibDeflateFlushWaitingCount === 0) {
-					this._onDidZlibFlush.fire();
+				if (this._zwibDefwateFwushWaitingCount === 0) {
+					this._onDidZwibFwush.fiwe();
 				}
 			});
-		} else {
-			this._write(buffer, false);
+		} ewse {
+			this._wwite(buffa, fawse);
 		}
 	}
 
-	private _write(buffer: VSBuffer, compressed: boolean): void {
-		let headerLen = Constants.MinHeaderByteSize;
-		if (buffer.byteLength < 126) {
-			headerLen += 0;
-		} else if (buffer.byteLength < 2 ** 16) {
-			headerLen += 2;
-		} else {
-			headerLen += 8;
+	pwivate _wwite(buffa: VSBuffa, compwessed: boowean): void {
+		wet headewWen = Constants.MinHeadewByteSize;
+		if (buffa.byteWength < 126) {
+			headewWen += 0;
+		} ewse if (buffa.byteWength < 2 ** 16) {
+			headewWen += 2;
+		} ewse {
+			headewWen += 8;
 		}
-		const header = VSBuffer.alloc(headerLen);
+		const heada = VSBuffa.awwoc(headewWen);
 
-		if (compressed) {
-			// The RSV1 bit indicates a compressed frame
-			header.writeUInt8(0b11000010, 0);
-		} else {
-			header.writeUInt8(0b10000010, 0);
+		if (compwessed) {
+			// The WSV1 bit indicates a compwessed fwame
+			heada.wwiteUInt8(0b11000010, 0);
+		} ewse {
+			heada.wwiteUInt8(0b10000010, 0);
 		}
-		if (buffer.byteLength < 126) {
-			header.writeUInt8(buffer.byteLength, 1);
-		} else if (buffer.byteLength < 2 ** 16) {
-			header.writeUInt8(126, 1);
-			let offset = 1;
-			header.writeUInt8((buffer.byteLength >>> 8) & 0b11111111, ++offset);
-			header.writeUInt8((buffer.byteLength >>> 0) & 0b11111111, ++offset);
-		} else {
-			header.writeUInt8(127, 1);
-			let offset = 1;
-			header.writeUInt8(0, ++offset);
-			header.writeUInt8(0, ++offset);
-			header.writeUInt8(0, ++offset);
-			header.writeUInt8(0, ++offset);
-			header.writeUInt8((buffer.byteLength >>> 24) & 0b11111111, ++offset);
-			header.writeUInt8((buffer.byteLength >>> 16) & 0b11111111, ++offset);
-			header.writeUInt8((buffer.byteLength >>> 8) & 0b11111111, ++offset);
-			header.writeUInt8((buffer.byteLength >>> 0) & 0b11111111, ++offset);
+		if (buffa.byteWength < 126) {
+			heada.wwiteUInt8(buffa.byteWength, 1);
+		} ewse if (buffa.byteWength < 2 ** 16) {
+			heada.wwiteUInt8(126, 1);
+			wet offset = 1;
+			heada.wwiteUInt8((buffa.byteWength >>> 8) & 0b11111111, ++offset);
+			heada.wwiteUInt8((buffa.byteWength >>> 0) & 0b11111111, ++offset);
+		} ewse {
+			heada.wwiteUInt8(127, 1);
+			wet offset = 1;
+			heada.wwiteUInt8(0, ++offset);
+			heada.wwiteUInt8(0, ++offset);
+			heada.wwiteUInt8(0, ++offset);
+			heada.wwiteUInt8(0, ++offset);
+			heada.wwiteUInt8((buffa.byteWength >>> 24) & 0b11111111, ++offset);
+			heada.wwiteUInt8((buffa.byteWength >>> 16) & 0b11111111, ++offset);
+			heada.wwiteUInt8((buffa.byteWength >>> 8) & 0b11111111, ++offset);
+			heada.wwiteUInt8((buffa.byteWength >>> 0) & 0b11111111, ++offset);
 		}
 
-		this._totalOutgoingWireBytes += header.byteLength + buffer.byteLength;
-		this.socket.write(VSBuffer.concat([header, buffer]));
+		this._totawOutgoingWiweBytes += heada.byteWength + buffa.byteWength;
+		this.socket.wwite(VSBuffa.concat([heada, buffa]));
 	}
 
-	public end(): void {
-		this._isEnded = true;
+	pubwic end(): void {
+		this._isEnded = twue;
 		this.socket.end();
 	}
 
-	private _acceptChunk(data: VSBuffer): void {
-		if (data.byteLength === 0) {
-			return;
+	pwivate _acceptChunk(data: VSBuffa): void {
+		if (data.byteWength === 0) {
+			wetuwn;
 		}
-		this._totalIncomingWireBytes += data.byteLength;
+		this._totawIncomingWiweBytes += data.byteWength;
 
 		this._incomingData.acceptChunk(data);
 
-		while (this._incomingData.byteLength >= this._state.readLen) {
+		whiwe (this._incomingData.byteWength >= this._state.weadWen) {
 
-			if (this._state.state === ReadState.PeekHeader) {
-				// peek to see if we can read the entire header
-				const peekHeader = this._incomingData.peek(this._state.readLen);
-				const firstByte = peekHeader.readUInt8(0);
-				const finBit = (firstByte & 0b10000000) >>> 7;
-				const secondByte = peekHeader.readUInt8(1);
+			if (this._state.state === WeadState.PeekHeada) {
+				// peek to see if we can wead the entiwe heada
+				const peekHeada = this._incomingData.peek(this._state.weadWen);
+				const fiwstByte = peekHeada.weadUInt8(0);
+				const finBit = (fiwstByte & 0b10000000) >>> 7;
+				const secondByte = peekHeada.weadUInt8(1);
 				const hasMask = (secondByte & 0b10000000) >>> 7;
-				const len = (secondByte & 0b01111111);
+				const wen = (secondByte & 0b01111111);
 
-				this._state.state = ReadState.ReadHeader;
-				this._state.readLen = Constants.MinHeaderByteSize + (hasMask ? 4 : 0) + (len === 126 ? 2 : 0) + (len === 127 ? 8 : 0);
+				this._state.state = WeadState.WeadHeada;
+				this._state.weadWen = Constants.MinHeadewByteSize + (hasMask ? 4 : 0) + (wen === 126 ? 2 : 0) + (wen === 127 ? 8 : 0);
 				this._state.fin = finBit;
 				this._state.mask = 0;
 
-			} else if (this._state.state === ReadState.ReadHeader) {
-				// read entire header
-				const header = this._incomingData.read(this._state.readLen);
-				const secondByte = header.readUInt8(1);
+			} ewse if (this._state.state === WeadState.WeadHeada) {
+				// wead entiwe heada
+				const heada = this._incomingData.wead(this._state.weadWen);
+				const secondByte = heada.weadUInt8(1);
 				const hasMask = (secondByte & 0b10000000) >>> 7;
-				let len = (secondByte & 0b01111111);
+				wet wen = (secondByte & 0b01111111);
 
-				let offset = 1;
-				if (len === 126) {
-					len = (
-						header.readUInt8(++offset) * 2 ** 8
-						+ header.readUInt8(++offset)
+				wet offset = 1;
+				if (wen === 126) {
+					wen = (
+						heada.weadUInt8(++offset) * 2 ** 8
+						+ heada.weadUInt8(++offset)
 					);
-				} else if (len === 127) {
-					len = (
-						header.readUInt8(++offset) * 0
-						+ header.readUInt8(++offset) * 0
-						+ header.readUInt8(++offset) * 0
-						+ header.readUInt8(++offset) * 0
-						+ header.readUInt8(++offset) * 2 ** 24
-						+ header.readUInt8(++offset) * 2 ** 16
-						+ header.readUInt8(++offset) * 2 ** 8
-						+ header.readUInt8(++offset)
+				} ewse if (wen === 127) {
+					wen = (
+						heada.weadUInt8(++offset) * 0
+						+ heada.weadUInt8(++offset) * 0
+						+ heada.weadUInt8(++offset) * 0
+						+ heada.weadUInt8(++offset) * 0
+						+ heada.weadUInt8(++offset) * 2 ** 24
+						+ heada.weadUInt8(++offset) * 2 ** 16
+						+ heada.weadUInt8(++offset) * 2 ** 8
+						+ heada.weadUInt8(++offset)
 					);
 				}
 
-				let mask = 0;
+				wet mask = 0;
 				if (hasMask) {
 					mask = (
-						header.readUInt8(++offset) * 2 ** 24
-						+ header.readUInt8(++offset) * 2 ** 16
-						+ header.readUInt8(++offset) * 2 ** 8
-						+ header.readUInt8(++offset)
+						heada.weadUInt8(++offset) * 2 ** 24
+						+ heada.weadUInt8(++offset) * 2 ** 16
+						+ heada.weadUInt8(++offset) * 2 ** 8
+						+ heada.weadUInt8(++offset)
 					);
 				}
 
-				this._state.state = ReadState.ReadBody;
-				this._state.readLen = len;
+				this._state.state = WeadState.WeadBody;
+				this._state.weadWen = wen;
 				this._state.mask = mask;
 
-			} else if (this._state.state === ReadState.ReadBody) {
-				// read body
+			} ewse if (this._state.state === WeadState.WeadBody) {
+				// wead body
 
-				const body = this._incomingData.read(this._state.readLen);
+				const body = this._incomingData.wead(this._state.weadWen);
 				unmask(body, this._state.mask);
 
-				this._state.state = ReadState.PeekHeader;
-				this._state.readLen = Constants.MinHeaderByteSize;
+				this._state.state = WeadState.PeekHeada;
+				this._state.weadWen = Constants.MinHeadewByteSize;
 				this._state.mask = 0;
 
-				if (this._zlibInflate) {
-					// See https://tools.ietf.org/html/rfc7692#section-7.2.2
-					if (this._recordInflateBytes) {
-						this._recordedInflateBytes.push(Buffer.from(<Buffer>body.buffer));
+				if (this._zwibInfwate) {
+					// See https://toows.ietf.owg/htmw/wfc7692#section-7.2.2
+					if (this._wecowdInfwateBytes) {
+						this._wecowdedInfwateBytes.push(Buffa.fwom(<Buffa>body.buffa));
 					}
-					this._zlibInflate.write(<Buffer>body.buffer);
+					this._zwibInfwate.wwite(<Buffa>body.buffa);
 					if (this._state.fin) {
-						if (this._recordInflateBytes) {
-							this._recordedInflateBytes.push(Buffer.from([0x00, 0x00, 0xff, 0xff]));
+						if (this._wecowdInfwateBytes) {
+							this._wecowdedInfwateBytes.push(Buffa.fwom([0x00, 0x00, 0xff, 0xff]));
 						}
-						this._zlibInflate.write(Buffer.from([0x00, 0x00, 0xff, 0xff]));
+						this._zwibInfwate.wwite(Buffa.fwom([0x00, 0x00, 0xff, 0xff]));
 					}
-					this._zlibInflate.flush(() => {
-						const data = Buffer.concat(this._pendingInflateData);
-						this._pendingInflateData.length = 0;
-						this._totalIncomingDataBytes += data.length;
-						this._onData.fire(VSBuffer.wrap(data));
+					this._zwibInfwate.fwush(() => {
+						const data = Buffa.concat(this._pendingInfwateData);
+						this._pendingInfwateData.wength = 0;
+						this._totawIncomingDataBytes += data.wength;
+						this._onData.fiwe(VSBuffa.wwap(data));
 					});
-				} else {
-					this._totalIncomingDataBytes += body.byteLength;
-					this._onData.fire(body);
+				} ewse {
+					this._totawIncomingDataBytes += body.byteWength;
+					this._onData.fiwe(body);
 				}
 			}
 		}
 	}
 
-	public async drain(): Promise<void> {
-		if (this._zlibDeflateFlushWaitingCount > 0) {
-			await Event.toPromise(this._onDidZlibFlush.event);
+	pubwic async dwain(): Pwomise<void> {
+		if (this._zwibDefwateFwushWaitingCount > 0) {
+			await Event.toPwomise(this._onDidZwibFwush.event);
 		}
-		await this.socket.drain();
+		await this.socket.dwain();
 	}
 }
 
-function unmask(buffer: VSBuffer, mask: number): void {
+function unmask(buffa: VSBuffa, mask: numba): void {
 	if (mask === 0) {
-		return;
+		wetuwn;
 	}
-	let cnt = buffer.byteLength >>> 2;
-	for (let i = 0; i < cnt; i++) {
-		const v = buffer.readUInt32BE(i * 4);
-		buffer.writeUInt32BE(v ^ mask, i * 4);
+	wet cnt = buffa.byteWength >>> 2;
+	fow (wet i = 0; i < cnt; i++) {
+		const v = buffa.weadUInt32BE(i * 4);
+		buffa.wwiteUInt32BE(v ^ mask, i * 4);
 	}
-	let offset = cnt * 4;
-	let bytesLeft = buffer.byteLength - offset;
+	wet offset = cnt * 4;
+	wet bytesWeft = buffa.byteWength - offset;
 	const m3 = (mask >>> 24) & 0b11111111;
 	const m2 = (mask >>> 16) & 0b11111111;
 	const m1 = (mask >>> 8) & 0b11111111;
-	if (bytesLeft >= 1) {
-		buffer.writeUInt8(buffer.readUInt8(offset) ^ m3, offset);
+	if (bytesWeft >= 1) {
+		buffa.wwiteUInt8(buffa.weadUInt8(offset) ^ m3, offset);
 	}
-	if (bytesLeft >= 2) {
-		buffer.writeUInt8(buffer.readUInt8(offset + 1) ^ m2, offset + 1);
+	if (bytesWeft >= 2) {
+		buffa.wwiteUInt8(buffa.weadUInt8(offset + 1) ^ m2, offset + 1);
 	}
-	if (bytesLeft >= 3) {
-		buffer.writeUInt8(buffer.readUInt8(offset + 2) ^ m1, offset + 2);
+	if (bytesWeft >= 3) {
+		buffa.wwiteUInt8(buffa.weadUInt8(offset + 2) ^ m1, offset + 2);
 	}
 }
 
-// Read this before there's any chance it is overwritten
-// Related to https://github.com/microsoft/vscode/issues/30624
-export const XDG_RUNTIME_DIR = <string | undefined>process.env['XDG_RUNTIME_DIR'];
+// Wead this befowe thewe's any chance it is ovewwwitten
+// Wewated to https://github.com/micwosoft/vscode/issues/30624
+expowt const XDG_WUNTIME_DIW = <stwing | undefined>pwocess.env['XDG_WUNTIME_DIW'];
 
-const safeIpcPathLengths: { [platform: number]: number } = {
-	[Platform.Linux]: 107,
-	[Platform.Mac]: 103
+const safeIpcPathWengths: { [pwatfowm: numba]: numba } = {
+	[Pwatfowm.Winux]: 107,
+	[Pwatfowm.Mac]: 103
 };
 
-export function createRandomIPCHandle(): string {
-	const randomSuffix = generateUuid();
+expowt function cweateWandomIPCHandwe(): stwing {
+	const wandomSuffix = genewateUuid();
 
 	// Windows: use named pipe
-	if (process.platform === 'win32') {
-		return `\\\\.\\pipe\\vscode-ipc-${randomSuffix}-sock`;
+	if (pwocess.pwatfowm === 'win32') {
+		wetuwn `\\\\.\\pipe\\vscode-ipc-${wandomSuffix}-sock`;
 	}
 
-	// Mac/Unix: use socket file and prefer
-	// XDG_RUNTIME_DIR over tmpDir
-	let result: string;
-	if (XDG_RUNTIME_DIR) {
-		result = join(XDG_RUNTIME_DIR, `vscode-ipc-${randomSuffix}.sock`);
-	} else {
-		result = join(tmpdir(), `vscode-ipc-${randomSuffix}.sock`);
+	// Mac/Unix: use socket fiwe and pwefa
+	// XDG_WUNTIME_DIW ova tmpDiw
+	wet wesuwt: stwing;
+	if (XDG_WUNTIME_DIW) {
+		wesuwt = join(XDG_WUNTIME_DIW, `vscode-ipc-${wandomSuffix}.sock`);
+	} ewse {
+		wesuwt = join(tmpdiw(), `vscode-ipc-${wandomSuffix}.sock`);
 	}
 
-	// Validate length
-	validateIPCHandleLength(result);
+	// Vawidate wength
+	vawidateIPCHandweWength(wesuwt);
 
-	return result;
+	wetuwn wesuwt;
 }
 
-export function createStaticIPCHandle(directoryPath: string, type: string, version: string): string {
-	const scope = createHash('md5').update(directoryPath).digest('hex');
+expowt function cweateStaticIPCHandwe(diwectowyPath: stwing, type: stwing, vewsion: stwing): stwing {
+	const scope = cweateHash('md5').update(diwectowyPath).digest('hex');
 
 	// Windows: use named pipe
-	if (process.platform === 'win32') {
-		return `\\\\.\\pipe\\${scope}-${version}-${type}-sock`;
+	if (pwocess.pwatfowm === 'win32') {
+		wetuwn `\\\\.\\pipe\\${scope}-${vewsion}-${type}-sock`;
 	}
 
-	// Mac/Unix: use socket file and prefer
-	// XDG_RUNTIME_DIR over user data path
-	// unless portable
-	let result: string;
-	if (XDG_RUNTIME_DIR && !process.env['VSCODE_PORTABLE']) {
-		result = join(XDG_RUNTIME_DIR, `vscode-${scope.substr(0, 8)}-${version}-${type}.sock`);
-	} else {
-		result = join(directoryPath, `${version}-${type}.sock`);
+	// Mac/Unix: use socket fiwe and pwefa
+	// XDG_WUNTIME_DIW ova usa data path
+	// unwess powtabwe
+	wet wesuwt: stwing;
+	if (XDG_WUNTIME_DIW && !pwocess.env['VSCODE_POWTABWE']) {
+		wesuwt = join(XDG_WUNTIME_DIW, `vscode-${scope.substw(0, 8)}-${vewsion}-${type}.sock`);
+	} ewse {
+		wesuwt = join(diwectowyPath, `${vewsion}-${type}.sock`);
 	}
 
-	// Validate length
-	validateIPCHandleLength(result);
+	// Vawidate wength
+	vawidateIPCHandweWength(wesuwt);
 
-	return result;
+	wetuwn wesuwt;
 }
 
-function validateIPCHandleLength(handle: string): void {
-	const limit = safeIpcPathLengths[platform];
-	if (typeof limit === 'number' && handle.length >= limit) {
-		// https://nodejs.org/api/net.html#net_identifying_paths_for_ipc_connections
-		console.warn(`WARNING: IPC handle "${handle}" is longer than ${limit} chars, try a shorter --user-data-dir`);
+function vawidateIPCHandweWength(handwe: stwing): void {
+	const wimit = safeIpcPathWengths[pwatfowm];
+	if (typeof wimit === 'numba' && handwe.wength >= wimit) {
+		// https://nodejs.owg/api/net.htmw#net_identifying_paths_fow_ipc_connections
+		consowe.wawn(`WAWNING: IPC handwe "${handwe}" is wonga than ${wimit} chaws, twy a showta --usa-data-diw`);
 	}
 }
 
-export class Server extends IPCServer {
+expowt cwass Sewva extends IPCSewva {
 
-	private static toClientConnectionEvent(server: NetServer): Event<ClientConnectionEvent> {
-		const onConnection = Event.fromNodeEventEmitter<Socket>(server, 'connection');
+	pwivate static toCwientConnectionEvent(sewva: NetSewva): Event<CwientConnectionEvent> {
+		const onConnection = Event.fwomNodeEventEmitta<Socket>(sewva, 'connection');
 
-		return Event.map(onConnection, socket => ({
-			protocol: new Protocol(new NodeSocket(socket)),
-			onDidClientDisconnect: Event.once(Event.fromNodeEventEmitter<void>(socket, 'close'))
+		wetuwn Event.map(onConnection, socket => ({
+			pwotocow: new Pwotocow(new NodeSocket(socket)),
+			onDidCwientDisconnect: Event.once(Event.fwomNodeEventEmitta<void>(socket, 'cwose'))
 		}));
 	}
 
-	private server: NetServer | null;
+	pwivate sewva: NetSewva | nuww;
 
-	constructor(server: NetServer) {
-		super(Server.toClientConnectionEvent(server));
-		this.server = server;
+	constwuctow(sewva: NetSewva) {
+		supa(Sewva.toCwientConnectionEvent(sewva));
+		this.sewva = sewva;
 	}
 
-	override dispose(): void {
-		super.dispose();
-		if (this.server) {
-			this.server.close();
-			this.server = null;
+	ovewwide dispose(): void {
+		supa.dispose();
+		if (this.sewva) {
+			this.sewva.cwose();
+			this.sewva = nuww;
 		}
 	}
 }
 
-export function serve(port: number): Promise<Server>;
-export function serve(namedPipe: string): Promise<Server>;
-export function serve(hook: any): Promise<Server> {
-	return new Promise<Server>((c, e) => {
-		const server = createServer();
+expowt function sewve(powt: numba): Pwomise<Sewva>;
+expowt function sewve(namedPipe: stwing): Pwomise<Sewva>;
+expowt function sewve(hook: any): Pwomise<Sewva> {
+	wetuwn new Pwomise<Sewva>((c, e) => {
+		const sewva = cweateSewva();
 
-		server.on('error', e);
-		server.listen(hook, () => {
-			server.removeListener('error', e);
-			c(new Server(server));
+		sewva.on('ewwow', e);
+		sewva.wisten(hook, () => {
+			sewva.wemoveWistena('ewwow', e);
+			c(new Sewva(sewva));
 		});
 	});
 }
 
-export function connect(options: { host: string, port: number }, clientId: string): Promise<Client>;
-export function connect(port: number, clientId: string): Promise<Client>;
-export function connect(namedPipe: string, clientId: string): Promise<Client>;
-export function connect(hook: any, clientId: string): Promise<Client> {
-	return new Promise<Client>((c, e) => {
-		const socket = createConnection(hook, () => {
-			socket.removeListener('error', e);
-			c(Client.fromSocket(new NodeSocket(socket), clientId));
+expowt function connect(options: { host: stwing, powt: numba }, cwientId: stwing): Pwomise<Cwient>;
+expowt function connect(powt: numba, cwientId: stwing): Pwomise<Cwient>;
+expowt function connect(namedPipe: stwing, cwientId: stwing): Pwomise<Cwient>;
+expowt function connect(hook: any, cwientId: stwing): Pwomise<Cwient> {
+	wetuwn new Pwomise<Cwient>((c, e) => {
+		const socket = cweateConnection(hook, () => {
+			socket.wemoveWistena('ewwow', e);
+			c(Cwient.fwomSocket(new NodeSocket(socket), cwientId));
 		});
 
-		socket.once('error', e);
+		socket.once('ewwow', e);
 	});
 }

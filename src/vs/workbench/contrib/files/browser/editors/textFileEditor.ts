@@ -1,261 +1,261 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { assertIsDefined } from 'vs/base/common/types';
-import { isValidBasename } from 'vs/base/common/extpath';
-import { basename } from 'vs/base/common/resources';
-import { toAction } from 'vs/base/common/actions';
-import { VIEWLET_ID, TEXT_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
-import { ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
-import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { IEditorOpenContext, EditorInputCapabilities } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
-import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
-import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
-import { FileOperationError, FileOperationResult, FileChangesEvent, IFileService, FileOperationEvent, FileOperation } from 'vs/platform/files/common/files';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IErrorWithActions } from 'vs/base/common/errors';
-import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { MutableDisposable } from 'vs/base/common/lifecycle';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
+impowt { wocawize } fwom 'vs/nws';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { isVawidBasename } fwom 'vs/base/common/extpath';
+impowt { basename } fwom 'vs/base/common/wesouwces';
+impowt { toAction } fwom 'vs/base/common/actions';
+impowt { VIEWWET_ID, TEXT_FIWE_EDITOW_ID } fwom 'vs/wowkbench/contwib/fiwes/common/fiwes';
+impowt { ITextFiweSewvice, TextFiweOpewationEwwow, TextFiweOpewationWesuwt } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { BaseTextEditow } fwom 'vs/wowkbench/bwowsa/pawts/editow/textEditow';
+impowt { IEditowOpenContext, EditowInputCapabiwities } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { appwyTextEditowOptions } fwom 'vs/wowkbench/common/editow/editowOptions';
+impowt { BinawyEditowModew } fwom 'vs/wowkbench/common/editow/binawyEditowModew';
+impowt { FiweEditowInput } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/editows/fiweEditowInput';
+impowt { FiweOpewationEwwow, FiweOpewationWesuwt, FiweChangesEvent, IFiweSewvice, FiweOpewationEvent, FiweOpewation } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { ICodeEditowViewState, ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IEwwowWithActions } fwom 'vs/base/common/ewwows';
+impowt { EditowActivation, ITextEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { IExpwowewSewvice } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/fiwes';
+impowt { MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
+impowt { ViewContainewWocation } fwom 'vs/wowkbench/common/views';
 
 /**
- * An implementation of editor for file system resources.
+ * An impwementation of editow fow fiwe system wesouwces.
  */
-export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
+expowt cwass TextFiweEditow extends BaseTextEditow<ICodeEditowViewState> {
 
-	static readonly ID = TEXT_FILE_EDITOR_ID;
+	static weadonwy ID = TEXT_FIWE_EDITOW_ID;
 
-	private readonly inputListener = this._register(new MutableDisposable());
+	pwivate weadonwy inputWistena = this._wegista(new MutabweDisposabwe());
 
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IFileService private readonly fileService: IFileService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IStorageService storageService: IStorageService,
-		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IEditorService editorService: IEditorService,
-		@IThemeService themeService: IThemeService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@ITextFileService private readonly textFileService: ITextFileService,
-		@IExplorerService private readonly explorerService: IExplorerService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+	constwuctow(
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IPaneCompositePawtSewvice pwivate weadonwy paneCompositeSewvice: IPaneCompositePawtSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@ITextWesouwceConfiguwationSewvice textWesouwceConfiguwationSewvice: ITextWesouwceConfiguwationSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice,
+		@ITextFiweSewvice pwivate weadonwy textFiweSewvice: ITextFiweSewvice,
+		@IExpwowewSewvice pwivate weadonwy expwowewSewvice: IExpwowewSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice
 	) {
-		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
+		supa(TextFiweEditow.ID, tewemetwySewvice, instantiationSewvice, stowageSewvice, textWesouwceConfiguwationSewvice, themeSewvice, editowSewvice, editowGwoupSewvice);
 
-		// Clear view state for deleted files
-		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
+		// Cweaw view state fow deweted fiwes
+		this._wegista(this.fiweSewvice.onDidFiwesChange(e => this.onDidFiwesChange(e)));
 
-		// Move view state for moved files
-		this._register(this.fileService.onDidRunOperation(e => this.onDidRunOperation(e)));
+		// Move view state fow moved fiwes
+		this._wegista(this.fiweSewvice.onDidWunOpewation(e => this.onDidWunOpewation(e)));
 
-		// Listen to file system provider changes
-		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onDidChangeFileSystemProvider(e.scheme)));
-		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onDidChangeFileSystemProvider(e.scheme)));
+		// Wisten to fiwe system pwovida changes
+		this._wegista(this.fiweSewvice.onDidChangeFiweSystemPwovidewCapabiwities(e => this.onDidChangeFiweSystemPwovida(e.scheme)));
+		this._wegista(this.fiweSewvice.onDidChangeFiweSystemPwovidewWegistwations(e => this.onDidChangeFiweSystemPwovida(e.scheme)));
 	}
 
-	private onDidFilesChange(e: FileChangesEvent): void {
-		const deleted = e.rawDeleted;
-		if (deleted) {
-			for (const [resource] of deleted) {
-				this.clearEditorViewState(resource);
+	pwivate onDidFiwesChange(e: FiweChangesEvent): void {
+		const deweted = e.wawDeweted;
+		if (deweted) {
+			fow (const [wesouwce] of deweted) {
+				this.cweawEditowViewState(wesouwce);
 			}
 		}
 	}
 
-	private onDidRunOperation(e: FileOperationEvent): void {
-		if (e.operation === FileOperation.MOVE && e.target) {
-			this.moveEditorViewState(e.resource, e.target.resource, this.uriIdentityService.extUri);
+	pwivate onDidWunOpewation(e: FiweOpewationEvent): void {
+		if (e.opewation === FiweOpewation.MOVE && e.tawget) {
+			this.moveEditowViewState(e.wesouwce, e.tawget.wesouwce, this.uwiIdentitySewvice.extUwi);
 		}
 	}
 
-	private onDidChangeFileSystemProvider(scheme: string): void {
-		if (this.input?.resource.scheme === scheme) {
-			this.updateReadonly(this.input);
+	pwivate onDidChangeFiweSystemPwovida(scheme: stwing): void {
+		if (this.input?.wesouwce.scheme === scheme) {
+			this.updateWeadonwy(this.input);
 		}
 	}
 
-	private onDidChangeInputCapabilities(input: FileEditorInput): void {
+	pwivate onDidChangeInputCapabiwities(input: FiweEditowInput): void {
 		if (this.input === input) {
-			this.updateReadonly(input);
+			this.updateWeadonwy(input);
 		}
 	}
 
-	private updateReadonly(input: FileEditorInput): void {
-		const control = this.getControl();
-		if (control) {
-			control.updateOptions({ readOnly: input.hasCapability(EditorInputCapabilities.Readonly) });
+	pwivate updateWeadonwy(input: FiweEditowInput): void {
+		const contwow = this.getContwow();
+		if (contwow) {
+			contwow.updateOptions({ weadOnwy: input.hasCapabiwity(EditowInputCapabiwities.Weadonwy) });
 		}
 	}
 
-	override getTitle(): string {
-		return this.input ? this.input.getName() : localize('textFileEditor', "Text File Editor");
+	ovewwide getTitwe(): stwing {
+		wetuwn this.input ? this.input.getName() : wocawize('textFiweEditow', "Text Fiwe Editow");
 	}
 
-	override get input(): FileEditorInput | undefined {
-		return this._input as FileEditorInput;
+	ovewwide get input(): FiweEditowInput | undefined {
+		wetuwn this._input as FiweEditowInput;
 	}
 
-	override async setInput(input: FileEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	ovewwide async setInput(input: FiweEditowInput, options: ITextEditowOptions | undefined, context: IEditowOpenContext, token: CancewwationToken): Pwomise<void> {
 
-		// Update our listener for input capabilities
-		this.inputListener.value = input.onDidChangeCapabilities(() => this.onDidChangeInputCapabilities(input));
+		// Update ouw wistena fow input capabiwities
+		this.inputWistena.vawue = input.onDidChangeCapabiwities(() => this.onDidChangeInputCapabiwities(input));
 
-		// Set input and resolve
-		await super.setInput(input, options, context, token);
-		try {
-			const resolvedModel = await input.resolve();
+		// Set input and wesowve
+		await supa.setInput(input, options, context, token);
+		twy {
+			const wesowvedModew = await input.wesowve();
 
-			// Check for cancellation
-			if (token.isCancellationRequested) {
-				return;
+			// Check fow cancewwation
+			if (token.isCancewwationWequested) {
+				wetuwn;
 			}
 
-			// There is a special case where the text editor has to handle binary file editor input: if a binary file
-			// has been resolved and cached before, it maybe an actual instance of BinaryEditorModel. In this case our text
-			// editor has to open this model using the binary editor. We return early in this case.
-			if (resolvedModel instanceof BinaryEditorModel) {
-				return this.openAsBinary(input, options);
+			// Thewe is a speciaw case whewe the text editow has to handwe binawy fiwe editow input: if a binawy fiwe
+			// has been wesowved and cached befowe, it maybe an actuaw instance of BinawyEditowModew. In this case ouw text
+			// editow has to open this modew using the binawy editow. We wetuwn eawwy in this case.
+			if (wesowvedModew instanceof BinawyEditowModew) {
+				wetuwn this.openAsBinawy(input, options);
 			}
 
-			const textFileModel = resolvedModel;
+			const textFiweModew = wesowvedModew;
 
-			// Editor
-			const textEditor = assertIsDefined(this.getControl());
-			textEditor.setModel(textFileModel.textEditorModel);
+			// Editow
+			const textEditow = assewtIsDefined(this.getContwow());
+			textEditow.setModew(textFiweModew.textEditowModew);
 
 			// View state
-			const editorViewState = this.loadEditorViewState(input, context);
-			if (editorViewState) {
-				textEditor.restoreViewState(editorViewState);
+			const editowViewState = this.woadEditowViewState(input, context);
+			if (editowViewState) {
+				textEditow.westoweViewState(editowViewState);
 			}
 
-			// Apply options to editor if any
+			// Appwy options to editow if any
 			if (options) {
-				applyTextEditorOptions(options, textEditor, ScrollType.Immediate);
+				appwyTextEditowOptions(options, textEditow, ScwowwType.Immediate);
 			}
 
-			// Since the resolved model provides information about being readonly
-			// or not, we apply it here to the editor even though the editor input
-			// was already asked for being readonly or not. The rationale is that
-			// a resolved model might have more specific information about being
-			// readonly or not that the input did not have.
-			textEditor.updateOptions({ readOnly: textFileModel.isReadonly() });
-		} catch (error) {
-			this.handleSetInputError(error, input, options);
+			// Since the wesowved modew pwovides infowmation about being weadonwy
+			// ow not, we appwy it hewe to the editow even though the editow input
+			// was awweady asked fow being weadonwy ow not. The wationawe is that
+			// a wesowved modew might have mowe specific infowmation about being
+			// weadonwy ow not that the input did not have.
+			textEditow.updateOptions({ weadOnwy: textFiweModew.isWeadonwy() });
+		} catch (ewwow) {
+			this.handweSetInputEwwow(ewwow, input, options);
 		}
 	}
 
-	protected handleSetInputError(error: Error, input: FileEditorInput, options: ITextEditorOptions | undefined): void {
+	pwotected handweSetInputEwwow(ewwow: Ewwow, input: FiweEditowInput, options: ITextEditowOptions | undefined): void {
 
-		// In case we tried to open a file inside the text editor and the response
-		// indicates that this is not a text file, reopen the file through the binary
-		// editor.
-		if ((<TextFileOperationError>error).textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY) {
-			return this.openAsBinary(input, options);
+		// In case we twied to open a fiwe inside the text editow and the wesponse
+		// indicates that this is not a text fiwe, weopen the fiwe thwough the binawy
+		// editow.
+		if ((<TextFiweOpewationEwwow>ewwow).textFiweOpewationWesuwt === TextFiweOpewationWesuwt.FIWE_IS_BINAWY) {
+			wetuwn this.openAsBinawy(input, options);
 		}
 
-		// Similar, handle case where we were asked to open a folder in the text editor.
-		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_DIRECTORY) {
-			this.openAsFolder(input);
+		// Simiwaw, handwe case whewe we wewe asked to open a fowda in the text editow.
+		if ((<FiweOpewationEwwow>ewwow).fiweOpewationWesuwt === FiweOpewationWesuwt.FIWE_IS_DIWECTOWY) {
+			this.openAsFowda(input);
 
-			throw new Error(localize('openFolderError', "File is a directory"));
+			thwow new Ewwow(wocawize('openFowdewEwwow', "Fiwe is a diwectowy"));
 		}
 
-		// Offer to create a file from the error if we have a file not found and the name is valid
-		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && isValidBasename(basename(input.preferredResource))) {
-			const fileNotFoundError: FileOperationError & IErrorWithActions = new FileOperationError(toErrorMessage(error), FileOperationResult.FILE_NOT_FOUND);
-			fileNotFoundError.actions = [
+		// Offa to cweate a fiwe fwom the ewwow if we have a fiwe not found and the name is vawid
+		if ((<FiweOpewationEwwow>ewwow).fiweOpewationWesuwt === FiweOpewationWesuwt.FIWE_NOT_FOUND && isVawidBasename(basename(input.pwefewwedWesouwce))) {
+			const fiweNotFoundEwwow: FiweOpewationEwwow & IEwwowWithActions = new FiweOpewationEwwow(toEwwowMessage(ewwow), FiweOpewationWesuwt.FIWE_NOT_FOUND);
+			fiweNotFoundEwwow.actions = [
 				toAction({
-					id: 'workbench.files.action.createMissingFile', label: localize('createFile', "Create File"), run: async () => {
-						await this.textFileService.create([{ resource: input.preferredResource }]);
+					id: 'wowkbench.fiwes.action.cweateMissingFiwe', wabew: wocawize('cweateFiwe', "Cweate Fiwe"), wun: async () => {
+						await this.textFiweSewvice.cweate([{ wesouwce: input.pwefewwedWesouwce }]);
 
-						return this.editorService.openEditor({
-							resource: input.preferredResource,
+						wetuwn this.editowSewvice.openEditow({
+							wesouwce: input.pwefewwedWesouwce,
 							options: {
-								pinned: true // new file gets pinned by default
+								pinned: twue // new fiwe gets pinned by defauwt
 							}
 						});
 					}
 				})
 			];
 
-			throw fileNotFoundError;
+			thwow fiweNotFoundEwwow;
 		}
 
-		// Otherwise make sure the error bubbles up
-		throw error;
+		// Othewwise make suwe the ewwow bubbwes up
+		thwow ewwow;
 	}
 
-	private openAsBinary(input: FileEditorInput, options: ITextEditorOptions | undefined): void {
+	pwivate openAsBinawy(input: FiweEditowInput, options: ITextEditowOptions | undefined): void {
 
-		// Mark file input for forced binary opening
-		input.setForceOpenAsBinary();
+		// Mawk fiwe input fow fowced binawy opening
+		input.setFowceOpenAsBinawy();
 
-		// Open in group
-		(this.group ?? this.editorGroupService.activeGroup).openEditor(input, {
+		// Open in gwoup
+		(this.gwoup ?? this.editowGwoupSewvice.activeGwoup).openEditow(input, {
 			...options,
-			// Make sure to not steal away the currently active group
-			// because we are triggering another openEditor() call
-			// and do not control the initial intent that resulted
-			// in us now opening as binary.
-			activation: EditorActivation.PRESERVE
+			// Make suwe to not steaw away the cuwwentwy active gwoup
+			// because we awe twiggewing anotha openEditow() caww
+			// and do not contwow the initiaw intent that wesuwted
+			// in us now opening as binawy.
+			activation: EditowActivation.PWESEWVE
 		});
 	}
 
-	private async openAsFolder(input: FileEditorInput): Promise<void> {
-		if (!this.group) {
-			return;
+	pwivate async openAsFowda(input: FiweEditowInput): Pwomise<void> {
+		if (!this.gwoup) {
+			wetuwn;
 		}
 
-		// Since we cannot open a folder, we have to restore the previous input if any and close the editor
-		await this.group.closeEditor(this.input);
+		// Since we cannot open a fowda, we have to westowe the pwevious input if any and cwose the editow
+		await this.gwoup.cwoseEditow(this.input);
 
-		// Best we can do is to reveal the folder in the explorer
-		if (this.contextService.isInsideWorkspace(input.preferredResource)) {
-			await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar);
+		// Best we can do is to weveaw the fowda in the expwowa
+		if (this.contextSewvice.isInsideWowkspace(input.pwefewwedWesouwce)) {
+			await this.paneCompositeSewvice.openPaneComposite(VIEWWET_ID, ViewContainewWocation.Sidebaw);
 
-			this.explorerService.select(input.preferredResource, true);
-		}
-	}
-
-	override clearInput(): void {
-		super.clearInput();
-
-		// Clear input listener
-		this.inputListener.clear();
-
-		// Clear Model
-		const textEditor = this.getControl();
-		if (textEditor) {
-			textEditor.setModel(null);
+			this.expwowewSewvice.sewect(input.pwefewwedWesouwce, twue);
 		}
 	}
 
-	protected override tracksEditorViewState(input: EditorInput): boolean {
-		return input instanceof FileEditorInput;
+	ovewwide cweawInput(): void {
+		supa.cweawInput();
+
+		// Cweaw input wistena
+		this.inputWistena.cweaw();
+
+		// Cweaw Modew
+		const textEditow = this.getContwow();
+		if (textEditow) {
+			textEditow.setModew(nuww);
+		}
 	}
 
-	protected override tracksDisposedEditorViewState(): boolean {
-		return true; // track view state even for disposed editors
+	pwotected ovewwide twacksEditowViewState(input: EditowInput): boowean {
+		wetuwn input instanceof FiweEditowInput;
+	}
+
+	pwotected ovewwide twacksDisposedEditowViewState(): boowean {
+		wetuwn twue; // twack view state even fow disposed editows
 	}
 }

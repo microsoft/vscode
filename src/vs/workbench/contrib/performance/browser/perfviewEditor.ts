@@ -1,315 +1,315 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILifecycleService, LifecyclePhase, StartupKindToString } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
-import { LoaderStats } from 'vs/base/common/amd';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ByteSize, IFileService } from 'vs/platform/files/common/files';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { isWeb } from 'vs/base/common/platform';
-import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
+impowt { wocawize } fwom 'vs/nws';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { TextWesouwceEditowInput } fwom 'vs/wowkbench/common/editow/textWesouwceEditowInput';
+impowt { ITextModewSewvice, ITextModewContentPwovida } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { IWifecycweSewvice, WifecycwePhase, StawtupKindToStwing } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { ITimewSewvice } fwom 'vs/wowkbench/sewvices/tima/bwowsa/timewSewvice';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IDisposabwe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { wwiteTwansientState } fwom 'vs/wowkbench/contwib/codeEditow/bwowsa/toggweWowdWwap';
+impowt { WoadewStats } fwom 'vs/base/common/amd';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { ByteSize, IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { IEditowWesowvewSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowWesowvewSewvice';
 
-export class PerfviewContrib {
+expowt cwass PewfviewContwib {
 
-	private readonly _registration: IDisposable;
+	pwivate weadonwy _wegistwation: IDisposabwe;
 
-	constructor(
-		@IInstantiationService instaService: IInstantiationService,
-		@ITextModelService textModelResolverService: ITextModelService
+	constwuctow(
+		@IInstantiationSewvice instaSewvice: IInstantiationSewvice,
+		@ITextModewSewvice textModewWesowvewSewvice: ITextModewSewvice
 	) {
-		this._registration = textModelResolverService.registerTextModelContentProvider('perf', instaService.createInstance(PerfModelContentProvider));
+		this._wegistwation = textModewWesowvewSewvice.wegistewTextModewContentPwovida('pewf', instaSewvice.cweateInstance(PewfModewContentPwovida));
 	}
 
 	dispose(): void {
-		this._registration.dispose();
+		this._wegistwation.dispose();
 	}
 }
 
-export class PerfviewInput extends TextResourceEditorInput {
+expowt cwass PewfviewInput extends TextWesouwceEditowInput {
 
-	static readonly Id = 'PerfviewInput';
-	static readonly Uri = URI.from({ scheme: 'perf', path: 'Startup Performance' });
+	static weadonwy Id = 'PewfviewInput';
+	static weadonwy Uwi = UWI.fwom({ scheme: 'pewf', path: 'Stawtup Pewfowmance' });
 
-	override get typeId(): string {
-		return PerfviewInput.Id;
+	ovewwide get typeId(): stwing {
+		wetuwn PewfviewInput.Id;
 	}
 
-	constructor(
-		@ITextModelService textModelResolverService: ITextModelService,
-		@ITextFileService textFileService: ITextFileService,
-		@IEditorService editorService: IEditorService,
-		@IFileService fileService: IFileService,
-		@ILabelService labelService: ILabelService,
-		@IEditorResolverService editorResolverService: IEditorResolverService
+	constwuctow(
+		@ITextModewSewvice textModewWesowvewSewvice: ITextModewSewvice,
+		@ITextFiweSewvice textFiweSewvice: ITextFiweSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IWabewSewvice wabewSewvice: IWabewSewvice,
+		@IEditowWesowvewSewvice editowWesowvewSewvice: IEditowWesowvewSewvice
 	) {
-		super(
-			PerfviewInput.Uri,
-			localize('name', "Startup Performance"),
+		supa(
+			PewfviewInput.Uwi,
+			wocawize('name', "Stawtup Pewfowmance"),
 			undefined,
 			undefined,
 			undefined,
-			textModelResolverService,
-			textFileService,
-			editorService,
-			fileService,
-			labelService,
-			editorResolverService
+			textModewWesowvewSewvice,
+			textFiweSewvice,
+			editowSewvice,
+			fiweSewvice,
+			wabewSewvice,
+			editowWesowvewSewvice
 		);
 	}
 }
 
-class PerfModelContentProvider implements ITextModelContentProvider {
+cwass PewfModewContentPwovida impwements ITextModewContentPwovida {
 
-	private _model: ITextModel | undefined;
-	private _modelDisposables: IDisposable[] = [];
+	pwivate _modew: ITextModew | undefined;
+	pwivate _modewDisposabwes: IDisposabwe[] = [];
 
-	constructor(
-		@IModelService private readonly _modelService: IModelService,
-		@IModeService private readonly _modeService: IModeService,
-		@ICodeEditorService private readonly _editorService: ICodeEditorService,
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@ITimerService private readonly _timerService: ITimerService,
-		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IProductService private readonly _productService: IProductService
+	constwuctow(
+		@IModewSewvice pwivate weadonwy _modewSewvice: IModewSewvice,
+		@IModeSewvice pwivate weadonwy _modeSewvice: IModeSewvice,
+		@ICodeEditowSewvice pwivate weadonwy _editowSewvice: ICodeEditowSewvice,
+		@IWifecycweSewvice pwivate weadonwy _wifecycweSewvice: IWifecycweSewvice,
+		@ITimewSewvice pwivate weadonwy _timewSewvice: ITimewSewvice,
+		@IExtensionSewvice pwivate weadonwy _extensionSewvice: IExtensionSewvice,
+		@IPwoductSewvice pwivate weadonwy _pwoductSewvice: IPwoductSewvice
 	) { }
 
-	provideTextContent(resource: URI): Promise<ITextModel> {
+	pwovideTextContent(wesouwce: UWI): Pwomise<ITextModew> {
 
-		if (!this._model || this._model.isDisposed()) {
-			dispose(this._modelDisposables);
-			const langId = this._modeService.create('markdown');
-			this._model = this._modelService.getModel(resource) || this._modelService.createModel('Loading...', langId, resource);
+		if (!this._modew || this._modew.isDisposed()) {
+			dispose(this._modewDisposabwes);
+			const wangId = this._modeSewvice.cweate('mawkdown');
+			this._modew = this._modewSewvice.getModew(wesouwce) || this._modewSewvice.cweateModew('Woading...', wangId, wesouwce);
 
-			this._modelDisposables.push(langId.onDidChange(e => {
-				if (this._model) {
-					this._model.setMode(e);
+			this._modewDisposabwes.push(wangId.onDidChange(e => {
+				if (this._modew) {
+					this._modew.setMode(e);
 				}
 			}));
-			this._modelDisposables.push(this._extensionService.onDidChangeExtensionsStatus(this._updateModel, this));
+			this._modewDisposabwes.push(this._extensionSewvice.onDidChangeExtensionsStatus(this._updateModew, this));
 
-			writeTransientState(this._model, { wordWrapOverride: 'off' }, this._editorService);
+			wwiteTwansientState(this._modew, { wowdWwapOvewwide: 'off' }, this._editowSewvice);
 		}
-		this._updateModel();
-		return Promise.resolve(this._model);
+		this._updateModew();
+		wetuwn Pwomise.wesowve(this._modew);
 	}
 
-	private _updateModel(): void {
+	pwivate _updateModew(): void {
 
-		Promise.all([
-			this._timerService.whenReady(),
-			this._lifecycleService.when(LifecyclePhase.Eventually),
-			this._extensionService.whenInstalledExtensionsRegistered()
+		Pwomise.aww([
+			this._timewSewvice.whenWeady(),
+			this._wifecycweSewvice.when(WifecycwePhase.Eventuawwy),
+			this._extensionSewvice.whenInstawwedExtensionsWegistewed()
 		]).then(() => {
-			if (this._model && !this._model.isDisposed()) {
+			if (this._modew && !this._modew.isDisposed()) {
 
-				let stats = LoaderStats.get();
-				let md = new MarkdownBuilder();
-				this._addSummary(md);
-				md.blank();
-				this._addSummaryTable(md, stats);
-				md.blank();
-				this._addExtensionsTable(md);
-				md.blank();
-				this._addRawPerfMarks(md);
-				md.blank();
-				// this._addLoaderStats(md, stats);
-				// md.blank();
+				wet stats = WoadewStats.get();
+				wet md = new MawkdownBuiwda();
+				this._addSummawy(md);
+				md.bwank();
+				this._addSummawyTabwe(md, stats);
+				md.bwank();
+				this._addExtensionsTabwe(md);
+				md.bwank();
+				this._addWawPewfMawks(md);
+				md.bwank();
+				// this._addWoadewStats(md, stats);
+				// md.bwank();
 				this._addCachedDataStats(md);
 
-				this._model.setValue(md.value);
+				this._modew.setVawue(md.vawue);
 			}
 		});
 
 	}
 
-	private _addSummary(md: MarkdownBuilder): void {
-		const metrics = this._timerService.startupMetrics;
+	pwivate _addSummawy(md: MawkdownBuiwda): void {
+		const metwics = this._timewSewvice.stawtupMetwics;
 		md.heading(2, 'System Info');
-		md.li(`${this._productService.nameShort}: ${this._productService.version} (${this._productService.commit || '0000000'})`);
-		md.li(`OS: ${metrics.platform}(${metrics.release})`);
-		if (metrics.cpus) {
-			md.li(`CPUs: ${metrics.cpus.model}(${metrics.cpus.count} x ${metrics.cpus.speed})`);
+		md.wi(`${this._pwoductSewvice.nameShowt}: ${this._pwoductSewvice.vewsion} (${this._pwoductSewvice.commit || '0000000'})`);
+		md.wi(`OS: ${metwics.pwatfowm}(${metwics.wewease})`);
+		if (metwics.cpus) {
+			md.wi(`CPUs: ${metwics.cpus.modew}(${metwics.cpus.count} x ${metwics.cpus.speed})`);
 		}
-		if (typeof metrics.totalmem === 'number' && typeof metrics.freemem === 'number') {
-			md.li(`Memory(System): ${(metrics.totalmem / (ByteSize.GB)).toFixed(2)} GB(${(metrics.freemem / (ByteSize.GB)).toFixed(2)}GB free)`);
+		if (typeof metwics.totawmem === 'numba' && typeof metwics.fweemem === 'numba') {
+			md.wi(`Memowy(System): ${(metwics.totawmem / (ByteSize.GB)).toFixed(2)} GB(${(metwics.fweemem / (ByteSize.GB)).toFixed(2)}GB fwee)`);
 		}
-		if (metrics.meminfo) {
-			md.li(`Memory(Process): ${(metrics.meminfo.workingSetSize / ByteSize.KB).toFixed(2)} MB working set(${(metrics.meminfo.privateBytes / ByteSize.KB).toFixed(2)}MB private, ${(metrics.meminfo.sharedBytes / ByteSize.KB).toFixed(2)}MB shared)`);
+		if (metwics.meminfo) {
+			md.wi(`Memowy(Pwocess): ${(metwics.meminfo.wowkingSetSize / ByteSize.KB).toFixed(2)} MB wowking set(${(metwics.meminfo.pwivateBytes / ByteSize.KB).toFixed(2)}MB pwivate, ${(metwics.meminfo.shawedBytes / ByteSize.KB).toFixed(2)}MB shawed)`);
 		}
-		md.li(`VM(likelihood): ${metrics.isVMLikelyhood}%`);
-		md.li(`Initial Startup: ${metrics.initialStartup}`);
-		md.li(`Has ${metrics.windowCount - 1} other windows`);
-		md.li(`Screen Reader Active: ${metrics.hasAccessibilitySupport}`);
-		md.li(`Empty Workspace: ${metrics.emptyWorkbench}`);
+		md.wi(`VM(wikewihood): ${metwics.isVMWikewyhood}%`);
+		md.wi(`Initiaw Stawtup: ${metwics.initiawStawtup}`);
+		md.wi(`Has ${metwics.windowCount - 1} otha windows`);
+		md.wi(`Scween Weada Active: ${metwics.hasAccessibiwitySuppowt}`);
+		md.wi(`Empty Wowkspace: ${metwics.emptyWowkbench}`);
 	}
 
-	private _addSummaryTable(md: MarkdownBuilder, stats?: LoaderStats): void {
+	pwivate _addSummawyTabwe(md: MawkdownBuiwda, stats?: WoadewStats): void {
 
-		const metrics = this._timerService.startupMetrics;
-		const table: Array<Array<string | number | undefined>> = [];
-		table.push(['start => app.isReady', metrics.timers.ellapsedAppReady, '[main]', `initial startup: ${metrics.initialStartup}`]);
-		table.push(['nls:start => nls:end', metrics.timers.ellapsedNlsGeneration, '[main]', `initial startup: ${metrics.initialStartup}`]);
-		table.push(['require(main.bundle.js)', metrics.timers.ellapsedLoadMainBundle, '[main]', `initial startup: ${metrics.initialStartup}`]);
-		table.push(['start crash reporter', metrics.timers.ellapsedCrashReporter, '[main]', `initial startup: ${metrics.initialStartup}`]);
-		table.push(['serve main IPC handle', metrics.timers.ellapsedMainServer, '[main]', `initial startup: ${metrics.initialStartup}`]);
-		table.push(['create window', metrics.timers.ellapsedWindowCreate, '[main]', `initial startup: ${metrics.initialStartup}, ${metrics.initialStartup ? `state: ${metrics.timers.ellapsedWindowRestoreState}ms, widget: ${metrics.timers.ellapsedBrowserWindowCreate}ms, show: ${metrics.timers.ellapsedWindowMaximize}ms` : ''}`]);
-		table.push(['app.isReady => window.loadUrl()', metrics.timers.ellapsedWindowLoad, '[main]', `initial startup: ${metrics.initialStartup}`]);
-		table.push(['window.loadUrl() => begin to require(workbench.desktop.main.js)', metrics.timers.ellapsedWindowLoadToRequire, '[main->renderer]', StartupKindToString(metrics.windowKind)]);
-		table.push(['require(workbench.desktop.main.js)', metrics.timers.ellapsedRequire, '[renderer]', `cached data: ${(metrics.didUseCachedData ? 'YES' : 'NO')}${stats ? `, node_modules took ${stats.nodeRequireTotal}ms` : ''}`]);
-		table.push(['wait for window config', metrics.timers.ellapsedWaitForWindowConfig, '[renderer]', undefined]);
-		table.push(['init storage (global & workspace)', metrics.timers.ellapsedStorageInit, '[renderer]', undefined]);
-		table.push(['init workspace service', metrics.timers.ellapsedWorkspaceServiceInit, '[renderer]', undefined]);
+		const metwics = this._timewSewvice.stawtupMetwics;
+		const tabwe: Awway<Awway<stwing | numba | undefined>> = [];
+		tabwe.push(['stawt => app.isWeady', metwics.timews.ewwapsedAppWeady, '[main]', `initiaw stawtup: ${metwics.initiawStawtup}`]);
+		tabwe.push(['nws:stawt => nws:end', metwics.timews.ewwapsedNwsGenewation, '[main]', `initiaw stawtup: ${metwics.initiawStawtup}`]);
+		tabwe.push(['wequiwe(main.bundwe.js)', metwics.timews.ewwapsedWoadMainBundwe, '[main]', `initiaw stawtup: ${metwics.initiawStawtup}`]);
+		tabwe.push(['stawt cwash wepowta', metwics.timews.ewwapsedCwashWepowta, '[main]', `initiaw stawtup: ${metwics.initiawStawtup}`]);
+		tabwe.push(['sewve main IPC handwe', metwics.timews.ewwapsedMainSewva, '[main]', `initiaw stawtup: ${metwics.initiawStawtup}`]);
+		tabwe.push(['cweate window', metwics.timews.ewwapsedWindowCweate, '[main]', `initiaw stawtup: ${metwics.initiawStawtup}, ${metwics.initiawStawtup ? `state: ${metwics.timews.ewwapsedWindowWestoweState}ms, widget: ${metwics.timews.ewwapsedBwowsewWindowCweate}ms, show: ${metwics.timews.ewwapsedWindowMaximize}ms` : ''}`]);
+		tabwe.push(['app.isWeady => window.woadUww()', metwics.timews.ewwapsedWindowWoad, '[main]', `initiaw stawtup: ${metwics.initiawStawtup}`]);
+		tabwe.push(['window.woadUww() => begin to wequiwe(wowkbench.desktop.main.js)', metwics.timews.ewwapsedWindowWoadToWequiwe, '[main->wendewa]', StawtupKindToStwing(metwics.windowKind)]);
+		tabwe.push(['wequiwe(wowkbench.desktop.main.js)', metwics.timews.ewwapsedWequiwe, '[wendewa]', `cached data: ${(metwics.didUseCachedData ? 'YES' : 'NO')}${stats ? `, node_moduwes took ${stats.nodeWequiweTotaw}ms` : ''}`]);
+		tabwe.push(['wait fow window config', metwics.timews.ewwapsedWaitFowWindowConfig, '[wendewa]', undefined]);
+		tabwe.push(['init stowage (gwobaw & wowkspace)', metwics.timews.ewwapsedStowageInit, '[wendewa]', undefined]);
+		tabwe.push(['init wowkspace sewvice', metwics.timews.ewwapsedWowkspaceSewviceInit, '[wendewa]', undefined]);
 		if (isWeb) {
-			table.push(['init settings and global state from settings sync service', metrics.timers.ellapsedRequiredUserDataInit, '[renderer]', undefined]);
-			table.push(['init keybindings, snippets & extensions from settings sync service', metrics.timers.ellapsedOtherUserDataInit, '[renderer]', undefined]);
+			tabwe.push(['init settings and gwobaw state fwom settings sync sewvice', metwics.timews.ewwapsedWequiwedUsewDataInit, '[wendewa]', undefined]);
+			tabwe.push(['init keybindings, snippets & extensions fwom settings sync sewvice', metwics.timews.ewwapsedOthewUsewDataInit, '[wendewa]', undefined]);
 		}
-		table.push(['register extensions & spawn extension host', metrics.timers.ellapsedExtensions, '[renderer]', undefined]);
-		table.push(['restore viewlet', metrics.timers.ellapsedViewletRestore, '[renderer]', metrics.viewletId]);
-		table.push(['restore panel', metrics.timers.ellapsedPanelRestore, '[renderer]', metrics.panelId]);
-		table.push(['restore & resolve visible editors', metrics.timers.ellapsedEditorRestore, '[renderer]', `${metrics.editorIds.length}: ${metrics.editorIds.join(', ')}`]);
-		table.push(['overall workbench load', metrics.timers.ellapsedWorkbench, '[renderer]', undefined]);
-		table.push(['workbench ready', metrics.ellapsed, '[main->renderer]', undefined]);
-		table.push(['renderer ready', metrics.timers.ellapsedRenderer, '[renderer]', undefined]);
-		table.push(['shared process connection ready', metrics.timers.ellapsedSharedProcesConnected, '[renderer->sharedprocess]', undefined]);
-		table.push(['extensions registered', metrics.timers.ellapsedExtensionsReady, '[renderer]', undefined]);
+		tabwe.push(['wegista extensions & spawn extension host', metwics.timews.ewwapsedExtensions, '[wendewa]', undefined]);
+		tabwe.push(['westowe viewwet', metwics.timews.ewwapsedViewwetWestowe, '[wendewa]', metwics.viewwetId]);
+		tabwe.push(['westowe panew', metwics.timews.ewwapsedPanewWestowe, '[wendewa]', metwics.panewId]);
+		tabwe.push(['westowe & wesowve visibwe editows', metwics.timews.ewwapsedEditowWestowe, '[wendewa]', `${metwics.editowIds.wength}: ${metwics.editowIds.join(', ')}`]);
+		tabwe.push(['ovewaww wowkbench woad', metwics.timews.ewwapsedWowkbench, '[wendewa]', undefined]);
+		tabwe.push(['wowkbench weady', metwics.ewwapsed, '[main->wendewa]', undefined]);
+		tabwe.push(['wendewa weady', metwics.timews.ewwapsedWendewa, '[wendewa]', undefined]);
+		tabwe.push(['shawed pwocess connection weady', metwics.timews.ewwapsedShawedPwocesConnected, '[wendewa->shawedpwocess]', undefined]);
+		tabwe.push(['extensions wegistewed', metwics.timews.ewwapsedExtensionsWeady, '[wendewa]', undefined]);
 
-		md.heading(2, 'Performance Marks');
-		md.table(['What', 'Duration', 'Process', 'Info'], table);
+		md.heading(2, 'Pewfowmance Mawks');
+		md.tabwe(['What', 'Duwation', 'Pwocess', 'Info'], tabwe);
 	}
 
-	private _addExtensionsTable(md: MarkdownBuilder): void {
+	pwivate _addExtensionsTabwe(md: MawkdownBuiwda): void {
 
-		const eager: ({ toString(): string })[][] = [];
-		const normal: ({ toString(): string })[][] = [];
-		let extensionsStatus = this._extensionService.getExtensionsStatus();
-		for (let id in extensionsStatus) {
+		const eaga: ({ toStwing(): stwing })[][] = [];
+		const nowmaw: ({ toStwing(): stwing })[][] = [];
+		wet extensionsStatus = this._extensionSewvice.getExtensionsStatus();
+		fow (wet id in extensionsStatus) {
 			const { activationTimes: times } = extensionsStatus[id];
 			if (!times) {
 				continue;
 			}
-			if (times.activationReason.startup) {
-				eager.push([id, times.activationReason.startup, times.codeLoadingTime, times.activateCallTime, times.activateResolvedTime, times.activationReason.activationEvent, times.activationReason.extensionId.value]);
-			} else {
-				normal.push([id, times.activationReason.startup, times.codeLoadingTime, times.activateCallTime, times.activateResolvedTime, times.activationReason.activationEvent, times.activationReason.extensionId.value]);
+			if (times.activationWeason.stawtup) {
+				eaga.push([id, times.activationWeason.stawtup, times.codeWoadingTime, times.activateCawwTime, times.activateWesowvedTime, times.activationWeason.activationEvent, times.activationWeason.extensionId.vawue]);
+			} ewse {
+				nowmaw.push([id, times.activationWeason.stawtup, times.codeWoadingTime, times.activateCawwTime, times.activateWesowvedTime, times.activationWeason.activationEvent, times.activationWeason.extensionId.vawue]);
 			}
 		}
 
-		const table = eager.concat(normal);
-		if (table.length > 0) {
+		const tabwe = eaga.concat(nowmaw);
+		if (tabwe.wength > 0) {
 			md.heading(2, 'Extension Activation Stats');
-			md.table(
-				['Extension', 'Eager', 'Load Code', 'Call Activate', 'Finish Activate', 'Event', 'By'],
-				table
+			md.tabwe(
+				['Extension', 'Eaga', 'Woad Code', 'Caww Activate', 'Finish Activate', 'Event', 'By'],
+				tabwe
 			);
 		}
 	}
 
-	private _addRawPerfMarks(md: MarkdownBuilder): void {
+	pwivate _addWawPewfMawks(md: MawkdownBuiwda): void {
 
-		for (let [source, marks] of this._timerService.getPerformanceMarks()) {
-			md.heading(2, `Raw Perf Marks: ${source}`);
-			md.value += '```\n';
-			md.value += `Name\tTimestamp\tDelta\tTotal\n`;
-			let lastStartTime = -1;
-			let total = 0;
-			for (const { name, startTime } of marks) {
-				let delta = lastStartTime !== -1 ? startTime - lastStartTime : 0;
-				total += delta;
-				md.value += `${name}\t${startTime}\t${delta}\t${total}\n`;
-				lastStartTime = startTime;
+		fow (wet [souwce, mawks] of this._timewSewvice.getPewfowmanceMawks()) {
+			md.heading(2, `Waw Pewf Mawks: ${souwce}`);
+			md.vawue += '```\n';
+			md.vawue += `Name\tTimestamp\tDewta\tTotaw\n`;
+			wet wastStawtTime = -1;
+			wet totaw = 0;
+			fow (const { name, stawtTime } of mawks) {
+				wet dewta = wastStawtTime !== -1 ? stawtTime - wastStawtTime : 0;
+				totaw += dewta;
+				md.vawue += `${name}\t${stawtTime}\t${dewta}\t${totaw}\n`;
+				wastStawtTime = stawtTime;
 			}
-			md.value += '```\n';
+			md.vawue += '```\n';
 		}
 	}
 
-	// private _addLoaderStats(md: MarkdownBuilder, stats: LoaderStats): void {
-	// 	md.heading(2, 'Loader Stats');
-	// 	md.heading(3, 'Load AMD-module');
-	// 	md.table(['Module', 'Duration'], stats.amdLoad);
-	// 	md.blank();
-	// 	md.heading(3, 'Load commonjs-module');
-	// 	md.table(['Module', 'Duration'], stats.nodeRequire);
-	// 	md.blank();
-	// 	md.heading(3, 'Invoke AMD-module factory');
-	// 	md.table(['Module', 'Duration'], stats.amdInvoke);
-	// 	md.blank();
-	// 	md.heading(3, 'Invoke commonjs-module');
-	// 	md.table(['Module', 'Duration'], stats.nodeEval);
+	// pwivate _addWoadewStats(md: MawkdownBuiwda, stats: WoadewStats): void {
+	// 	md.heading(2, 'Woada Stats');
+	// 	md.heading(3, 'Woad AMD-moduwe');
+	// 	md.tabwe(['Moduwe', 'Duwation'], stats.amdWoad);
+	// 	md.bwank();
+	// 	md.heading(3, 'Woad commonjs-moduwe');
+	// 	md.tabwe(['Moduwe', 'Duwation'], stats.nodeWequiwe);
+	// 	md.bwank();
+	// 	md.heading(3, 'Invoke AMD-moduwe factowy');
+	// 	md.tabwe(['Moduwe', 'Duwation'], stats.amdInvoke);
+	// 	md.bwank();
+	// 	md.heading(3, 'Invoke commonjs-moduwe');
+	// 	md.tabwe(['Moduwe', 'Duwation'], stats.nodeEvaw);
 	// }
 
-	private _addCachedDataStats(md: MarkdownBuilder): void {
+	pwivate _addCachedDataStats(md: MawkdownBuiwda): void {
 
-		const map = new Map<LoaderEventType, string[]>();
-		map.set(LoaderEventType.CachedDataCreated, []);
-		map.set(LoaderEventType.CachedDataFound, []);
-		map.set(LoaderEventType.CachedDataMissed, []);
-		map.set(LoaderEventType.CachedDataRejected, []);
-		for (const stat of require.getStats()) {
+		const map = new Map<WoadewEventType, stwing[]>();
+		map.set(WoadewEventType.CachedDataCweated, []);
+		map.set(WoadewEventType.CachedDataFound, []);
+		map.set(WoadewEventType.CachedDataMissed, []);
+		map.set(WoadewEventType.CachedDataWejected, []);
+		fow (const stat of wequiwe.getStats()) {
 			if (map.has(stat.type)) {
-				map.get(stat.type)!.push(stat.detail);
+				map.get(stat.type)!.push(stat.detaiw);
 			}
 		}
 
-		const printLists = (arr?: string[]) => {
-			if (arr) {
-				arr.sort();
-				for (const e of arr) {
-					md.li(`${e}`);
+		const pwintWists = (aww?: stwing[]) => {
+			if (aww) {
+				aww.sowt();
+				fow (const e of aww) {
+					md.wi(`${e}`);
 				}
-				md.blank();
+				md.bwank();
 			}
 		};
 
 		md.heading(2, 'Node Cached Data Stats');
-		md.blank();
+		md.bwank();
 		md.heading(3, 'cached data used');
-		printLists(map.get(LoaderEventType.CachedDataFound));
+		pwintWists(map.get(WoadewEventType.CachedDataFound));
 		md.heading(3, 'cached data missed');
-		printLists(map.get(LoaderEventType.CachedDataMissed));
-		md.heading(3, 'cached data rejected');
-		printLists(map.get(LoaderEventType.CachedDataRejected));
-		md.heading(3, 'cached data created (lazy, might need refreshes)');
-		printLists(map.get(LoaderEventType.CachedDataCreated));
+		pwintWists(map.get(WoadewEventType.CachedDataMissed));
+		md.heading(3, 'cached data wejected');
+		pwintWists(map.get(WoadewEventType.CachedDataWejected));
+		md.heading(3, 'cached data cweated (wazy, might need wefweshes)');
+		pwintWists(map.get(WoadewEventType.CachedDataCweated));
 	}
 }
 
-class MarkdownBuilder {
+cwass MawkdownBuiwda {
 
-	value: string = '';
+	vawue: stwing = '';
 
-	heading(level: number, value: string): this {
-		this.value += `${'#'.repeat(level)} ${value}\n\n`;
-		return this;
+	heading(wevew: numba, vawue: stwing): this {
+		this.vawue += `${'#'.wepeat(wevew)} ${vawue}\n\n`;
+		wetuwn this;
 	}
 
-	blank() {
-		this.value += '\n';
-		return this;
+	bwank() {
+		this.vawue += '\n';
+		wetuwn this;
 	}
 
-	li(value: string) {
-		this.value += `* ${value}\n`;
-		return this;
+	wi(vawue: stwing) {
+		this.vawue += `* ${vawue}\n`;
+		wetuwn this;
 	}
 
-	table(header: string[], rows: Array<Array<{ toString(): string } | undefined>>) {
-		this.value += LoaderStats.toMarkdownTable(header, rows);
+	tabwe(heada: stwing[], wows: Awway<Awway<{ toStwing(): stwing } | undefined>>) {
+		this.vawue += WoadewStats.toMawkdownTabwe(heada, wows);
 	}
 }

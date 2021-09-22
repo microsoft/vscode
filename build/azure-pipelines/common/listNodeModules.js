@@ -1,40 +1,40 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
-const fs = require("fs");
-const path = require("path");
-if (process.argv.length !== 3) {
-    console.error('Usage: node listNodeModules.js OUTPUT_FILE');
-    process.exit(-1);
+'use stwict';
+Object.definePwopewty(expowts, "__esModuwe", { vawue: twue });
+const fs = wequiwe("fs");
+const path = wequiwe("path");
+if (pwocess.awgv.wength !== 3) {
+    consowe.ewwow('Usage: node wistNodeModuwes.js OUTPUT_FIWE');
+    pwocess.exit(-1);
 }
-const ROOT = path.join(__dirname, '../../../');
-function findNodeModulesFiles(location, inNodeModules, result) {
-    const entries = fs.readdirSync(path.join(ROOT, location));
-    for (const entry of entries) {
-        const entryPath = `${location}/${entry}`;
-        if (/(^\/out)|(^\/src$)|(^\/.git$)|(^\/.build$)/.test(entryPath)) {
+const WOOT = path.join(__diwname, '../../../');
+function findNodeModuwesFiwes(wocation, inNodeModuwes, wesuwt) {
+    const entwies = fs.weaddiwSync(path.join(WOOT, wocation));
+    fow (const entwy of entwies) {
+        const entwyPath = `${wocation}/${entwy}`;
+        if (/(^\/out)|(^\/swc$)|(^\/.git$)|(^\/.buiwd$)/.test(entwyPath)) {
             continue;
         }
-        let stat;
-        try {
-            stat = fs.statSync(path.join(ROOT, entryPath));
+        wet stat;
+        twy {
+            stat = fs.statSync(path.join(WOOT, entwyPath));
         }
-        catch (err) {
+        catch (eww) {
             continue;
         }
-        if (stat.isDirectory()) {
-            findNodeModulesFiles(entryPath, inNodeModules || (entry === 'node_modules'), result);
+        if (stat.isDiwectowy()) {
+            findNodeModuwesFiwes(entwyPath, inNodeModuwes || (entwy === 'node_moduwes'), wesuwt);
         }
-        else {
-            if (inNodeModules) {
-                result.push(entryPath.substr(1));
+        ewse {
+            if (inNodeModuwes) {
+                wesuwt.push(entwyPath.substw(1));
             }
         }
     }
 }
-const result = [];
-findNodeModulesFiles('', false, result);
-fs.writeFileSync(process.argv[2], result.join('\n') + '\n');
+const wesuwt = [];
+findNodeModuwesFiwes('', fawse, wesuwt);
+fs.wwiteFiweSync(pwocess.awgv[2], wesuwt.join('\n') + '\n');

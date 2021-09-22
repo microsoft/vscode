@@ -1,317 +1,317 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/remoteViewlet';
-import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
-import { URI } from 'vs/base/common/uri';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { AutomaticPortForwarding, ForwardedPortsView, PortRestore, VIEWLET_ID } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IViewDescriptor, IViewsRegistry, Extensions, ViewContainerLocation, IViewContainersRegistry, IViewDescriptorService } from 'vs/workbench/common/views';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { registerAction2 } from 'vs/platform/actions/common/actions';
-import { IProgress, IProgressStep, IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ReconnectionWaitEvent, PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
-import Severity from 'vs/base/common/severity';
-import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { SwitchRemoteViewItem, SwitchRemoteAction } from 'vs/workbench/contrib/remote/browser/explorerViewItems';
-import { Action } from 'vs/base/common/actions';
-import { isStringArray } from 'vs/base/common/types';
-import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
-import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Event } from 'vs/base/common/event';
-import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { RemoteStatusIndicator } from 'vs/workbench/contrib/remote/browser/remoteIndicator';
-import * as icons from 'vs/workbench/contrib/remote/browser/remoteIcons';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
-import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+impowt 'vs/css!./media/wemoteViewwet';
+impowt * as nws fwom 'vs/nws';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWowkbenchWayoutSewvice } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IThemeSewvice, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { FiwtewViewPaneContaina } fwom 'vs/wowkbench/bwowsa/pawts/views/viewsViewwet';
+impowt { AutomaticPowtFowwawding, FowwawdedPowtsView, PowtWestowe, VIEWWET_ID } fwom 'vs/wowkbench/contwib/wemote/bwowsa/wemoteExpwowa';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IViewDescwiptow, IViewsWegistwy, Extensions, ViewContainewWocation, IViewContainewsWegistwy, IViewDescwiptowSewvice } fwom 'vs/wowkbench/common/views';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IPwogwess, IPwogwessStep, IPwogwessSewvice, PwogwessWocation } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy, Extensions as WowkbenchExtensions } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { WeconnectionWaitEvent, PewsistentConnectionEventType } fwom 'vs/pwatfowm/wemote/common/wemoteAgentConnection';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { WewoadWindowAction } fwom 'vs/wowkbench/bwowsa/actions/windowActions';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { SwitchWemoteViewItem, SwitchWemoteAction } fwom 'vs/wowkbench/contwib/wemote/bwowsa/expwowewViewItems';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { isStwingAwway } fwom 'vs/base/common/types';
+impowt { IWemoteExpwowewSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteExpwowewSewvice';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { ViewPane, IViewPaneOptions } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPane';
+impowt { IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { ITweeWendewa, ITweeNode, IAsyncDataSouwce } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { WowkbenchAsyncDataTwee } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { ExtensionsWegistwy, IExtensionPointUsa } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { WemoteStatusIndicatow } fwom 'vs/wowkbench/contwib/wemote/bwowsa/wemoteIndicatow';
+impowt * as icons fwom 'vs/wowkbench/contwib/wemote/bwowsa/wemoteIcons';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { ITimewSewvice } fwom 'vs/wowkbench/sewvices/tima/bwowsa/timewSewvice';
+impowt { getWemoteName } fwom 'vs/pwatfowm/wemote/common/wemoteHosts';
+impowt { IActionViewItem } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
 
 
-export interface HelpInformation {
-	extensionDescription: IExtensionDescription;
-	getStarted?: string;
-	documentation?: string;
-	feedback?: string;
-	issues?: string;
-	remoteName?: string[] | string;
+expowt intewface HewpInfowmation {
+	extensionDescwiption: IExtensionDescwiption;
+	getStawted?: stwing;
+	documentation?: stwing;
+	feedback?: stwing;
+	issues?: stwing;
+	wemoteName?: stwing[] | stwing;
 }
 
-const remoteHelpExtPoint = ExtensionsRegistry.registerExtensionPoint<HelpInformation>({
-	extensionPoint: 'remoteHelp',
+const wemoteHewpExtPoint = ExtensionsWegistwy.wegistewExtensionPoint<HewpInfowmation>({
+	extensionPoint: 'wemoteHewp',
 	jsonSchema: {
-		description: nls.localize('RemoteHelpInformationExtPoint', 'Contributes help information for Remote'),
+		descwiption: nws.wocawize('WemoteHewpInfowmationExtPoint', 'Contwibutes hewp infowmation fow Wemote'),
 		type: 'object',
-		properties: {
-			'getStarted': {
-				description: nls.localize('RemoteHelpInformationExtPoint.getStarted', "The url, or a command that returns the url, to your project's Getting Started page"),
-				type: 'string'
+		pwopewties: {
+			'getStawted': {
+				descwiption: nws.wocawize('WemoteHewpInfowmationExtPoint.getStawted', "The uww, ow a command that wetuwns the uww, to youw pwoject's Getting Stawted page"),
+				type: 'stwing'
 			},
 			'documentation': {
-				description: nls.localize('RemoteHelpInformationExtPoint.documentation', "The url, or a command that returns the url, to your project's documentation page"),
-				type: 'string'
+				descwiption: nws.wocawize('WemoteHewpInfowmationExtPoint.documentation', "The uww, ow a command that wetuwns the uww, to youw pwoject's documentation page"),
+				type: 'stwing'
 			},
 			'feedback': {
-				description: nls.localize('RemoteHelpInformationExtPoint.feedback', "The url, or a command that returns the url, to your project's feedback reporter"),
-				type: 'string'
+				descwiption: nws.wocawize('WemoteHewpInfowmationExtPoint.feedback', "The uww, ow a command that wetuwns the uww, to youw pwoject's feedback wepowta"),
+				type: 'stwing'
 			},
 			'issues': {
-				description: nls.localize('RemoteHelpInformationExtPoint.issues', "The url, or a command that returns the url, to your project's issues list"),
-				type: 'string'
+				descwiption: nws.wocawize('WemoteHewpInfowmationExtPoint.issues', "The uww, ow a command that wetuwns the uww, to youw pwoject's issues wist"),
+				type: 'stwing'
 			}
 		}
 	}
 });
 
-interface IViewModel {
-	helpInformation: HelpInformation[];
+intewface IViewModew {
+	hewpInfowmation: HewpInfowmation[];
 }
 
-class HelpTreeVirtualDelegate implements IListVirtualDelegate<IHelpItem> {
-	getHeight(element: IHelpItem): number {
-		return 22;
+cwass HewpTweeViwtuawDewegate impwements IWistViwtuawDewegate<IHewpItem> {
+	getHeight(ewement: IHewpItem): numba {
+		wetuwn 22;
 	}
 
-	getTemplateId(element: IHelpItem): string {
-		return 'HelpItemTemplate';
+	getTempwateId(ewement: IHewpItem): stwing {
+		wetuwn 'HewpItemTempwate';
 	}
 }
 
-interface IHelpItemTemplateData {
-	parent: HTMLElement;
-	icon: HTMLElement;
+intewface IHewpItemTempwateData {
+	pawent: HTMWEwement;
+	icon: HTMWEwement;
 }
 
-class HelpTreeRenderer implements ITreeRenderer<HelpModel | IHelpItem, IHelpItem, IHelpItemTemplateData> {
-	templateId: string = 'HelpItemTemplate';
+cwass HewpTweeWendewa impwements ITweeWendewa<HewpModew | IHewpItem, IHewpItem, IHewpItemTempwateData> {
+	tempwateId: stwing = 'HewpItemTempwate';
 
-	renderTemplate(container: HTMLElement): IHelpItemTemplateData {
-		container.classList.add('remote-help-tree-node-item');
-		const icon = dom.append(container, dom.$('.remote-help-tree-node-item-icon'));
-		const data = <IHelpItemTemplateData>Object.create(null);
-		data.parent = container;
+	wendewTempwate(containa: HTMWEwement): IHewpItemTempwateData {
+		containa.cwassWist.add('wemote-hewp-twee-node-item');
+		const icon = dom.append(containa, dom.$('.wemote-hewp-twee-node-item-icon'));
+		const data = <IHewpItemTempwateData>Object.cweate(nuww);
+		data.pawent = containa;
 		data.icon = icon;
-		return data;
+		wetuwn data;
 	}
 
-	renderElement(element: ITreeNode<IHelpItem, IHelpItem>, index: number, templateData: IHelpItemTemplateData, height: number | undefined): void {
-		const container = templateData.parent;
-		dom.append(container, templateData.icon);
-		templateData.icon.classList.add(...element.element.iconClasses);
-		const labelContainer = dom.append(container, dom.$('.help-item-label'));
-		labelContainer.innerText = element.element.label;
+	wendewEwement(ewement: ITweeNode<IHewpItem, IHewpItem>, index: numba, tempwateData: IHewpItemTempwateData, height: numba | undefined): void {
+		const containa = tempwateData.pawent;
+		dom.append(containa, tempwateData.icon);
+		tempwateData.icon.cwassWist.add(...ewement.ewement.iconCwasses);
+		const wabewContaina = dom.append(containa, dom.$('.hewp-item-wabew'));
+		wabewContaina.innewText = ewement.ewement.wabew;
 	}
 
-	disposeTemplate(templateData: IHelpItemTemplateData): void {
+	disposeTempwate(tempwateData: IHewpItemTempwateData): void {
 
 	}
 }
 
-class HelpDataSource implements IAsyncDataSource<HelpModel, IHelpItem> {
-	hasChildren(element: HelpModel) {
-		return element instanceof HelpModel;
+cwass HewpDataSouwce impwements IAsyncDataSouwce<HewpModew, IHewpItem> {
+	hasChiwdwen(ewement: HewpModew) {
+		wetuwn ewement instanceof HewpModew;
 	}
 
-	getChildren(element: HelpModel) {
-		if (element instanceof HelpModel && element.items) {
-			return element.items;
+	getChiwdwen(ewement: HewpModew) {
+		if (ewement instanceof HewpModew && ewement.items) {
+			wetuwn ewement.items;
 		}
 
-		return [];
+		wetuwn [];
 	}
 }
-interface IHelpItem {
+intewface IHewpItem {
 	icon: ThemeIcon,
-	iconClasses: string[];
-	label: string;
-	handleClick(): Promise<void>;
+	iconCwasses: stwing[];
+	wabew: stwing;
+	handweCwick(): Pwomise<void>;
 }
 
-class HelpModel {
-	items: IHelpItem[] | undefined;
+cwass HewpModew {
+	items: IHewpItem[] | undefined;
 
-	constructor(
-		viewModel: IViewModel,
-		openerService: IOpenerService,
-		quickInputService: IQuickInputService,
-		commandService: ICommandService,
-		remoteExplorerService: IRemoteExplorerService,
-		environmentService: IWorkbenchEnvironmentService
+	constwuctow(
+		viewModew: IViewModew,
+		openewSewvice: IOpenewSewvice,
+		quickInputSewvice: IQuickInputSewvice,
+		commandSewvice: ICommandSewvice,
+		wemoteExpwowewSewvice: IWemoteExpwowewSewvice,
+		enviwonmentSewvice: IWowkbenchEnviwonmentSewvice
 	) {
-		let helpItems: IHelpItem[] = [];
-		const getStarted = viewModel.helpInformation.filter(info => info.getStarted);
+		wet hewpItems: IHewpItem[] = [];
+		const getStawted = viewModew.hewpInfowmation.fiwta(info => info.getStawted);
 
-		if (getStarted.length) {
-			helpItems.push(new HelpItem(
-				icons.getStartedIcon,
-				nls.localize('remote.help.getStarted', "Get Started"),
-				getStarted.map((info: HelpInformation) => (new HelpItemValue(commandService,
-					info.extensionDescription,
-					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName,
-					info.getStarted!)
+		if (getStawted.wength) {
+			hewpItems.push(new HewpItem(
+				icons.getStawtedIcon,
+				nws.wocawize('wemote.hewp.getStawted', "Get Stawted"),
+				getStawted.map((info: HewpInfowmation) => (new HewpItemVawue(commandSewvice,
+					info.extensionDescwiption,
+					(typeof info.wemoteName === 'stwing') ? [info.wemoteName] : info.wemoteName,
+					info.getStawted!)
 				)),
-				quickInputService,
-				environmentService,
-				openerService,
-				remoteExplorerService
+				quickInputSewvice,
+				enviwonmentSewvice,
+				openewSewvice,
+				wemoteExpwowewSewvice
 			));
 		}
 
-		const documentation = viewModel.helpInformation.filter(info => info.documentation);
+		const documentation = viewModew.hewpInfowmation.fiwta(info => info.documentation);
 
-		if (documentation.length) {
-			helpItems.push(new HelpItem(
+		if (documentation.wength) {
+			hewpItems.push(new HewpItem(
 				icons.documentationIcon,
-				nls.localize('remote.help.documentation', "Read Documentation"),
-				documentation.map((info: HelpInformation) => (new HelpItemValue(commandService,
-					info.extensionDescription,
-					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName,
+				nws.wocawize('wemote.hewp.documentation', "Wead Documentation"),
+				documentation.map((info: HewpInfowmation) => (new HewpItemVawue(commandSewvice,
+					info.extensionDescwiption,
+					(typeof info.wemoteName === 'stwing') ? [info.wemoteName] : info.wemoteName,
 					info.documentation!)
 				)),
-				quickInputService,
-				environmentService,
-				openerService,
-				remoteExplorerService
+				quickInputSewvice,
+				enviwonmentSewvice,
+				openewSewvice,
+				wemoteExpwowewSewvice
 			));
 		}
 
-		const feedback = viewModel.helpInformation.filter(info => info.feedback);
+		const feedback = viewModew.hewpInfowmation.fiwta(info => info.feedback);
 
-		if (feedback.length) {
-			helpItems.push(new HelpItem(
+		if (feedback.wength) {
+			hewpItems.push(new HewpItem(
 				icons.feedbackIcon,
-				nls.localize('remote.help.feedback', "Provide Feedback"),
-				feedback.map((info: HelpInformation) => (new HelpItemValue(commandService,
-					info.extensionDescription,
-					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName,
+				nws.wocawize('wemote.hewp.feedback', "Pwovide Feedback"),
+				feedback.map((info: HewpInfowmation) => (new HewpItemVawue(commandSewvice,
+					info.extensionDescwiption,
+					(typeof info.wemoteName === 'stwing') ? [info.wemoteName] : info.wemoteName,
 					info.feedback!)
 				)),
-				quickInputService,
-				environmentService,
-				openerService,
-				remoteExplorerService
+				quickInputSewvice,
+				enviwonmentSewvice,
+				openewSewvice,
+				wemoteExpwowewSewvice
 			));
 		}
 
-		const issues = viewModel.helpInformation.filter(info => info.issues);
+		const issues = viewModew.hewpInfowmation.fiwta(info => info.issues);
 
-		if (issues.length) {
-			helpItems.push(new HelpItem(
-				icons.reviewIssuesIcon,
-				nls.localize('remote.help.issues', "Review Issues"),
-				issues.map((info: HelpInformation) => (new HelpItemValue(commandService,
-					info.extensionDescription,
-					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName,
+		if (issues.wength) {
+			hewpItems.push(new HewpItem(
+				icons.weviewIssuesIcon,
+				nws.wocawize('wemote.hewp.issues', "Weview Issues"),
+				issues.map((info: HewpInfowmation) => (new HewpItemVawue(commandSewvice,
+					info.extensionDescwiption,
+					(typeof info.wemoteName === 'stwing') ? [info.wemoteName] : info.wemoteName,
 					info.issues!)
 				)),
-				quickInputService,
-				environmentService,
-				openerService,
-				remoteExplorerService
+				quickInputSewvice,
+				enviwonmentSewvice,
+				openewSewvice,
+				wemoteExpwowewSewvice
 			));
 		}
 
-		if (helpItems.length) {
-			helpItems.push(new IssueReporterItem(
-				icons.reportIssuesIcon,
-				nls.localize('remote.help.report', "Report Issue"),
-				viewModel.helpInformation.map(info => (new HelpItemValue(commandService,
-					info.extensionDescription,
-					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName
+		if (hewpItems.wength) {
+			hewpItems.push(new IssueWepowtewItem(
+				icons.wepowtIssuesIcon,
+				nws.wocawize('wemote.hewp.wepowt', "Wepowt Issue"),
+				viewModew.hewpInfowmation.map(info => (new HewpItemVawue(commandSewvice,
+					info.extensionDescwiption,
+					(typeof info.wemoteName === 'stwing') ? [info.wemoteName] : info.wemoteName
 				))),
-				quickInputService,
-				environmentService,
-				commandService,
-				remoteExplorerService
+				quickInputSewvice,
+				enviwonmentSewvice,
+				commandSewvice,
+				wemoteExpwowewSewvice
 			));
 		}
 
-		if (helpItems.length) {
-			this.items = helpItems;
+		if (hewpItems.wength) {
+			this.items = hewpItems;
 		}
 	}
 }
 
-class HelpItemValue {
-	private _url: string | undefined;
-	constructor(private commandService: ICommandService, public extensionDescription: IExtensionDescription, public remoteAuthority: string[] | undefined, private urlOrCommand?: string) { }
+cwass HewpItemVawue {
+	pwivate _uww: stwing | undefined;
+	constwuctow(pwivate commandSewvice: ICommandSewvice, pubwic extensionDescwiption: IExtensionDescwiption, pubwic wemoteAuthowity: stwing[] | undefined, pwivate uwwOwCommand?: stwing) { }
 
-	get url(): Promise<string> {
-		return new Promise<string>(async (resolve) => {
-			if (this._url === undefined) {
-				if (this.urlOrCommand) {
-					let url = URI.parse(this.urlOrCommand);
-					if (url.authority) {
-						this._url = this.urlOrCommand;
-					} else {
-						const urlCommand: Promise<string | undefined> = this.commandService.executeCommand(this.urlOrCommand);
-						// We must be defensive. The command may never return, meaning that no help at all is ever shown!
-						const emptyString: Promise<string> = new Promise(resolve => setTimeout(() => resolve(''), 500));
-						this._url = await Promise.race([urlCommand, emptyString]);
+	get uww(): Pwomise<stwing> {
+		wetuwn new Pwomise<stwing>(async (wesowve) => {
+			if (this._uww === undefined) {
+				if (this.uwwOwCommand) {
+					wet uww = UWI.pawse(this.uwwOwCommand);
+					if (uww.authowity) {
+						this._uww = this.uwwOwCommand;
+					} ewse {
+						const uwwCommand: Pwomise<stwing | undefined> = this.commandSewvice.executeCommand(this.uwwOwCommand);
+						// We must be defensive. The command may neva wetuwn, meaning that no hewp at aww is eva shown!
+						const emptyStwing: Pwomise<stwing> = new Pwomise(wesowve => setTimeout(() => wesowve(''), 500));
+						this._uww = await Pwomise.wace([uwwCommand, emptyStwing]);
 					}
 				}
 			}
-			if (this._url === undefined) {
-				this._url = '';
+			if (this._uww === undefined) {
+				this._uww = '';
 			}
-			resolve(this._url);
+			wesowve(this._uww);
 		});
 	}
 }
 
-abstract class HelpItemBase implements IHelpItem {
-	public iconClasses: string[] = [];
-	constructor(
-		public icon: ThemeIcon,
-		public label: string,
-		public values: HelpItemValue[],
-		private quickInputService: IQuickInputService,
-		private environmentService: IWorkbenchEnvironmentService,
-		private remoteExplorerService: IRemoteExplorerService
+abstwact cwass HewpItemBase impwements IHewpItem {
+	pubwic iconCwasses: stwing[] = [];
+	constwuctow(
+		pubwic icon: ThemeIcon,
+		pubwic wabew: stwing,
+		pubwic vawues: HewpItemVawue[],
+		pwivate quickInputSewvice: IQuickInputSewvice,
+		pwivate enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		pwivate wemoteExpwowewSewvice: IWemoteExpwowewSewvice
 	) {
-		this.iconClasses.push(...ThemeIcon.asClassNameArray(icon));
-		this.iconClasses.push('remote-help-tree-node-item-icon');
+		this.iconCwasses.push(...ThemeIcon.asCwassNameAwway(icon));
+		this.iconCwasses.push('wemote-hewp-twee-node-item-icon');
 	}
 
-	async handleClick() {
-		const remoteAuthority = this.environmentService.remoteAuthority;
-		if (remoteAuthority) {
-			for (let i = 0; i < this.remoteExplorerService.targetType.length; i++) {
-				if (remoteAuthority.startsWith(this.remoteExplorerService.targetType[i])) {
-					for (let value of this.values) {
-						if (value.remoteAuthority) {
-							for (let authority of value.remoteAuthority) {
-								if (remoteAuthority.startsWith(authority)) {
-									await this.takeAction(value.extensionDescription, await value.url);
-									return;
+	async handweCwick() {
+		const wemoteAuthowity = this.enviwonmentSewvice.wemoteAuthowity;
+		if (wemoteAuthowity) {
+			fow (wet i = 0; i < this.wemoteExpwowewSewvice.tawgetType.wength; i++) {
+				if (wemoteAuthowity.stawtsWith(this.wemoteExpwowewSewvice.tawgetType[i])) {
+					fow (wet vawue of this.vawues) {
+						if (vawue.wemoteAuthowity) {
+							fow (wet authowity of vawue.wemoteAuthowity) {
+								if (wemoteAuthowity.stawtsWith(authowity)) {
+									await this.takeAction(vawue.extensionDescwiption, await vawue.uww);
+									wetuwn;
 								}
 							}
 						}
@@ -320,652 +320,652 @@ abstract class HelpItemBase implements IHelpItem {
 			}
 		}
 
-		if (this.values.length > 1) {
-			let actions = (await Promise.all(this.values.map(async (value) => {
-				return {
-					label: value.extensionDescription.displayName || value.extensionDescription.identifier.value,
-					description: await value.url,
-					extensionDescription: value.extensionDescription
+		if (this.vawues.wength > 1) {
+			wet actions = (await Pwomise.aww(this.vawues.map(async (vawue) => {
+				wetuwn {
+					wabew: vawue.extensionDescwiption.dispwayName || vawue.extensionDescwiption.identifia.vawue,
+					descwiption: await vawue.uww,
+					extensionDescwiption: vawue.extensionDescwiption
 				};
-			}))).filter(item => item.description);
+			}))).fiwta(item => item.descwiption);
 
-			const action = await this.quickInputService.pick(actions, { placeHolder: nls.localize('pickRemoteExtension', "Select url to open") });
+			const action = await this.quickInputSewvice.pick(actions, { pwaceHowda: nws.wocawize('pickWemoteExtension', "Sewect uww to open") });
 
 			if (action) {
-				await this.takeAction(action.extensionDescription, action.description);
+				await this.takeAction(action.extensionDescwiption, action.descwiption);
 			}
-		} else {
-			await this.takeAction(this.values[0].extensionDescription, await this.values[0].url);
+		} ewse {
+			await this.takeAction(this.vawues[0].extensionDescwiption, await this.vawues[0].uww);
 		}
 	}
 
-	protected abstract takeAction(extensionDescription: IExtensionDescription, url?: string): Promise<void>;
+	pwotected abstwact takeAction(extensionDescwiption: IExtensionDescwiption, uww?: stwing): Pwomise<void>;
 }
 
-class HelpItem extends HelpItemBase {
-	constructor(
+cwass HewpItem extends HewpItemBase {
+	constwuctow(
 		icon: ThemeIcon,
-		label: string,
-		values: HelpItemValue[],
-		quickInputService: IQuickInputService,
-		environmentService: IWorkbenchEnvironmentService,
-		private openerService: IOpenerService,
-		remoteExplorerService: IRemoteExplorerService
+		wabew: stwing,
+		vawues: HewpItemVawue[],
+		quickInputSewvice: IQuickInputSewvice,
+		enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		pwivate openewSewvice: IOpenewSewvice,
+		wemoteExpwowewSewvice: IWemoteExpwowewSewvice
 	) {
-		super(icon, label, values, quickInputService, environmentService, remoteExplorerService);
+		supa(icon, wabew, vawues, quickInputSewvice, enviwonmentSewvice, wemoteExpwowewSewvice);
 	}
 
-	protected async takeAction(extensionDescription: IExtensionDescription, url: string): Promise<void> {
-		await this.openerService.open(URI.parse(url), { allowCommands: true });
+	pwotected async takeAction(extensionDescwiption: IExtensionDescwiption, uww: stwing): Pwomise<void> {
+		await this.openewSewvice.open(UWI.pawse(uww), { awwowCommands: twue });
 	}
 }
 
-class IssueReporterItem extends HelpItemBase {
-	constructor(
+cwass IssueWepowtewItem extends HewpItemBase {
+	constwuctow(
 		icon: ThemeIcon,
-		label: string,
-		values: HelpItemValue[],
-		quickInputService: IQuickInputService,
-		environmentService: IWorkbenchEnvironmentService,
-		private commandService: ICommandService,
-		remoteExplorerService: IRemoteExplorerService
+		wabew: stwing,
+		vawues: HewpItemVawue[],
+		quickInputSewvice: IQuickInputSewvice,
+		enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		pwivate commandSewvice: ICommandSewvice,
+		wemoteExpwowewSewvice: IWemoteExpwowewSewvice
 	) {
-		super(icon, label, values, quickInputService, environmentService, remoteExplorerService);
+		supa(icon, wabew, vawues, quickInputSewvice, enviwonmentSewvice, wemoteExpwowewSewvice);
 	}
 
-	protected async takeAction(extensionDescription: IExtensionDescription): Promise<void> {
-		await this.commandService.executeCommand('workbench.action.openIssueReporter', [extensionDescription.identifier.value]);
+	pwotected async takeAction(extensionDescwiption: IExtensionDescwiption): Pwomise<void> {
+		await this.commandSewvice.executeCommand('wowkbench.action.openIssueWepowta', [extensionDescwiption.identifia.vawue]);
 	}
 }
 
-class HelpPanel extends ViewPane {
-	static readonly ID = '~remote.helpPanel';
-	static readonly TITLE = nls.localize('remote.help', "Help and feedback");
-	private tree!: WorkbenchAsyncDataTree<HelpModel, IHelpItem, IHelpItem>;
+cwass HewpPanew extends ViewPane {
+	static weadonwy ID = '~wemote.hewpPanew';
+	static weadonwy TITWE = nws.wocawize('wemote.hewp', "Hewp and feedback");
+	pwivate twee!: WowkbenchAsyncDataTwee<HewpModew, IHewpItem, IHewpItem>;
 
-	constructor(
-		protected viewModel: IViewModel,
+	constwuctow(
+		pwotected viewModew: IViewModew,
 		options: IViewPaneOptions,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IOpenerService openerService: IOpenerService,
-		@IQuickInputService protected quickInputService: IQuickInputService,
-		@ICommandService protected commandService: ICommandService,
-		@IRemoteExplorerService protected readonly remoteExplorerService: IRemoteExplorerService,
-		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
-		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@IQuickInputSewvice pwotected quickInputSewvice: IQuickInputSewvice,
+		@ICommandSewvice pwotected commandSewvice: ICommandSewvice,
+		@IWemoteExpwowewSewvice pwotected weadonwy wemoteExpwowewSewvice: IWemoteExpwowewSewvice,
+		@IWowkbenchEnviwonmentSewvice pwotected weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		supa(options, keybindingSewvice, contextMenuSewvice, configuwationSewvice, contextKeySewvice, viewDescwiptowSewvice, instantiationSewvice, openewSewvice, themeSewvice, tewemetwySewvice);
 	}
 
-	protected override renderBody(container: HTMLElement): void {
-		super.renderBody(container);
+	pwotected ovewwide wendewBody(containa: HTMWEwement): void {
+		supa.wendewBody(containa);
 
-		container.classList.add('remote-help');
-		const treeContainer = document.createElement('div');
-		treeContainer.classList.add('remote-help-content');
-		container.appendChild(treeContainer);
+		containa.cwassWist.add('wemote-hewp');
+		const tweeContaina = document.cweateEwement('div');
+		tweeContaina.cwassWist.add('wemote-hewp-content');
+		containa.appendChiwd(tweeContaina);
 
-		this.tree = <WorkbenchAsyncDataTree<HelpModel, IHelpItem, IHelpItem>>this.instantiationService.createInstance(WorkbenchAsyncDataTree,
-			'RemoteHelp',
-			treeContainer,
-			new HelpTreeVirtualDelegate(),
-			[new HelpTreeRenderer()],
-			new HelpDataSource(),
+		this.twee = <WowkbenchAsyncDataTwee<HewpModew, IHewpItem, IHewpItem>>this.instantiationSewvice.cweateInstance(WowkbenchAsyncDataTwee,
+			'WemoteHewp',
+			tweeContaina,
+			new HewpTweeViwtuawDewegate(),
+			[new HewpTweeWendewa()],
+			new HewpDataSouwce(),
 			{
-				accessibilityProvider: {
-					getAriaLabel: (item: HelpItemBase) => {
-						return item.label;
+				accessibiwityPwovida: {
+					getAwiaWabew: (item: HewpItemBase) => {
+						wetuwn item.wabew;
 					},
-					getWidgetAriaLabel: () => nls.localize('remotehelp', "Remote Help")
+					getWidgetAwiaWabew: () => nws.wocawize('wemotehewp', "Wemote Hewp")
 				}
 			}
 		);
 
-		const model = new HelpModel(this.viewModel, this.openerService, this.quickInputService, this.commandService, this.remoteExplorerService, this.environmentService);
+		const modew = new HewpModew(this.viewModew, this.openewSewvice, this.quickInputSewvice, this.commandSewvice, this.wemoteExpwowewSewvice, this.enviwonmentSewvice);
 
-		this.tree.setInput(model);
+		this.twee.setInput(modew);
 
-		this._register(Event.debounce(this.tree.onDidOpen, (last, event) => event, 75, true)(e => {
-			e.element?.handleClick();
+		this._wegista(Event.debounce(this.twee.onDidOpen, (wast, event) => event, 75, twue)(e => {
+			e.ewement?.handweCwick();
 		}));
 	}
 
-	protected override layoutBody(height: number, width: number): void {
-		super.layoutBody(height, width);
-		this.tree.layout(height, width);
+	pwotected ovewwide wayoutBody(height: numba, width: numba): void {
+		supa.wayoutBody(height, width);
+		this.twee.wayout(height, width);
 	}
 }
 
-class HelpPanelDescriptor implements IViewDescriptor {
-	readonly id = HelpPanel.ID;
-	readonly name = HelpPanel.TITLE;
-	readonly ctorDescriptor: SyncDescriptor<HelpPanel>;
-	readonly canToggleVisibility = true;
-	readonly hideByDefault = false;
-	readonly group = 'help@50';
-	readonly order = -10;
+cwass HewpPanewDescwiptow impwements IViewDescwiptow {
+	weadonwy id = HewpPanew.ID;
+	weadonwy name = HewpPanew.TITWE;
+	weadonwy ctowDescwiptow: SyncDescwiptow<HewpPanew>;
+	weadonwy canToggweVisibiwity = twue;
+	weadonwy hideByDefauwt = fawse;
+	weadonwy gwoup = 'hewp@50';
+	weadonwy owda = -10;
 
-	constructor(viewModel: IViewModel) {
-		this.ctorDescriptor = new SyncDescriptor(HelpPanel, [viewModel]);
+	constwuctow(viewModew: IViewModew) {
+		this.ctowDescwiptow = new SyncDescwiptow(HewpPanew, [viewModew]);
 	}
 }
 
-export class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewModel {
-	private helpPanelDescriptor = new HelpPanelDescriptor(this);
-	helpInformation: HelpInformation[] = [];
-	private hasSetSwitchForConnection: boolean = false;
+expowt cwass WemoteViewPaneContaina extends FiwtewViewPaneContaina impwements IViewModew {
+	pwivate hewpPanewDescwiptow = new HewpPanewDescwiptow(this);
+	hewpInfowmation: HewpInfowmation[] = [];
+	pwivate hasSetSwitchFowConnection: boowean = fawse;
 
-	constructor(
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IStorageService storageService: IStorageService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IExtensionService extensionService: IExtensionService,
-		@IRemoteExplorerService readonly remoteExplorerService: IRemoteExplorerService,
-		@IWorkbenchEnvironmentService readonly environmentService: IWorkbenchEnvironmentService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
+	constwuctow(
+		@IWowkbenchWayoutSewvice wayoutSewvice: IWowkbenchWayoutSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IWowkspaceContextSewvice contextSewvice: IWowkspaceContextSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IExtensionSewvice extensionSewvice: IExtensionSewvice,
+		@IWemoteExpwowewSewvice weadonwy wemoteExpwowewSewvice: IWemoteExpwowewSewvice,
+		@IWowkbenchEnviwonmentSewvice weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice
 	) {
-		super(VIEWLET_ID, remoteExplorerService.onDidChangeTargetType, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, viewDescriptorService);
-		this.addConstantViewDescriptors([this.helpPanelDescriptor]);
-		remoteHelpExtPoint.setHandler((extensions) => {
-			let helpInformation: HelpInformation[] = [];
-			for (let extension of extensions) {
-				this._handleRemoteInfoExtensionPoint(extension, helpInformation);
+		supa(VIEWWET_ID, wemoteExpwowewSewvice.onDidChangeTawgetType, configuwationSewvice, wayoutSewvice, tewemetwySewvice, stowageSewvice, instantiationSewvice, themeSewvice, contextMenuSewvice, extensionSewvice, contextSewvice, viewDescwiptowSewvice);
+		this.addConstantViewDescwiptows([this.hewpPanewDescwiptow]);
+		wemoteHewpExtPoint.setHandwa((extensions) => {
+			wet hewpInfowmation: HewpInfowmation[] = [];
+			fow (wet extension of extensions) {
+				this._handweWemoteInfoExtensionPoint(extension, hewpInfowmation);
 			}
 
-			this.helpInformation = helpInformation;
+			this.hewpInfowmation = hewpInfowmation;
 
-			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
-			if (this.helpInformation.length) {
-				viewsRegistry.registerViews([this.helpPanelDescriptor], this.viewContainer);
-			} else {
-				viewsRegistry.deregisterViews([this.helpPanelDescriptor], this.viewContainer);
+			const viewsWegistwy = Wegistwy.as<IViewsWegistwy>(Extensions.ViewsWegistwy);
+			if (this.hewpInfowmation.wength) {
+				viewsWegistwy.wegistewViews([this.hewpPanewDescwiptow], this.viewContaina);
+			} ewse {
+				viewsWegistwy.dewegistewViews([this.hewpPanewDescwiptow], this.viewContaina);
 			}
 		});
 	}
 
-	private _handleRemoteInfoExtensionPoint(extension: IExtensionPointUser<HelpInformation>, helpInformation: HelpInformation[]) {
-		if (!extension.description.enableProposedApi) {
-			return;
+	pwivate _handweWemoteInfoExtensionPoint(extension: IExtensionPointUsa<HewpInfowmation>, hewpInfowmation: HewpInfowmation[]) {
+		if (!extension.descwiption.enabwePwoposedApi) {
+			wetuwn;
 		}
 
-		if (!extension.value.documentation && !extension.value.feedback && !extension.value.getStarted && !extension.value.issues) {
-			return;
+		if (!extension.vawue.documentation && !extension.vawue.feedback && !extension.vawue.getStawted && !extension.vawue.issues) {
+			wetuwn;
 		}
 
-		helpInformation.push({
-			extensionDescription: extension.description,
-			getStarted: extension.value.getStarted,
-			documentation: extension.value.documentation,
-			feedback: extension.value.feedback,
-			issues: extension.value.issues,
-			remoteName: extension.value.remoteName
+		hewpInfowmation.push({
+			extensionDescwiption: extension.descwiption,
+			getStawted: extension.vawue.getStawted,
+			documentation: extension.vawue.documentation,
+			feedback: extension.vawue.feedback,
+			issues: extension.vawue.issues,
+			wemoteName: extension.vawue.wemoteName
 		});
 	}
 
-	protected getFilterOn(viewDescriptor: IViewDescriptor): string | undefined {
-		return isStringArray(viewDescriptor.remoteAuthority) ? viewDescriptor.remoteAuthority[0] : viewDescriptor.remoteAuthority;
+	pwotected getFiwtewOn(viewDescwiptow: IViewDescwiptow): stwing | undefined {
+		wetuwn isStwingAwway(viewDescwiptow.wemoteAuthowity) ? viewDescwiptow.wemoteAuthowity[0] : viewDescwiptow.wemoteAuthowity;
 	}
 
-	protected setFilter(viewDescriptor: IViewDescriptor): void {
-		this.remoteExplorerService.targetType = isStringArray(viewDescriptor.remoteAuthority) ? viewDescriptor.remoteAuthority : [viewDescriptor.remoteAuthority!];
+	pwotected setFiwta(viewDescwiptow: IViewDescwiptow): void {
+		this.wemoteExpwowewSewvice.tawgetType = isStwingAwway(viewDescwiptow.wemoteAuthowity) ? viewDescwiptow.wemoteAuthowity : [viewDescwiptow.wemoteAuthowity!];
 	}
 
-	public override getActionViewItem(action: Action): IActionViewItem | undefined {
-		if (action.id === SwitchRemoteAction.ID) {
-			const optionItems = SwitchRemoteViewItem.createOptionItems(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getViews(this.viewContainer), this.contextKeyService);
-			const item = this.instantiationService.createInstance(SwitchRemoteViewItem, action, optionItems);
-			if (!this.hasSetSwitchForConnection) {
-				this.hasSetSwitchForConnection = item.setSelectionForConnection();
-			} else {
-				item.setSelection();
+	pubwic ovewwide getActionViewItem(action: Action): IActionViewItem | undefined {
+		if (action.id === SwitchWemoteAction.ID) {
+			const optionItems = SwitchWemoteViewItem.cweateOptionItems(Wegistwy.as<IViewsWegistwy>(Extensions.ViewsWegistwy).getViews(this.viewContaina), this.contextKeySewvice);
+			const item = this.instantiationSewvice.cweateInstance(SwitchWemoteViewItem, action, optionItems);
+			if (!this.hasSetSwitchFowConnection) {
+				this.hasSetSwitchFowConnection = item.setSewectionFowConnection();
+			} ewse {
+				item.setSewection();
 			}
-			return item;
+			wetuwn item;
 		}
 
-		return super.getActionViewItem(action);
+		wetuwn supa.getActionViewItem(action);
 	}
 
-	getTitle(): string {
-		const title = nls.localize('remote.explorer', "Remote Explorer");
-		return title;
+	getTitwe(): stwing {
+		const titwe = nws.wocawize('wemote.expwowa', "Wemote Expwowa");
+		wetuwn titwe;
 	}
 }
 
-registerAction2(SwitchRemoteAction);
+wegistewAction2(SwitchWemoteAction);
 
-Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
+Wegistwy.as<IViewContainewsWegistwy>(Extensions.ViewContainewsWegistwy).wegistewViewContaina(
 	{
-		id: VIEWLET_ID,
-		title: nls.localize('remote.explorer', "Remote Explorer"),
-		ctorDescriptor: new SyncDescriptor(RemoteViewPaneContainer),
-		hideIfEmpty: true,
-		viewOrderDelegate: {
-			getOrder: (group?: string) => {
-				if (!group) {
-					return;
+		id: VIEWWET_ID,
+		titwe: nws.wocawize('wemote.expwowa', "Wemote Expwowa"),
+		ctowDescwiptow: new SyncDescwiptow(WemoteViewPaneContaina),
+		hideIfEmpty: twue,
+		viewOwdewDewegate: {
+			getOwda: (gwoup?: stwing) => {
+				if (!gwoup) {
+					wetuwn;
 				}
 
-				let matches = /^targets@(\d+)$/.exec(group);
+				wet matches = /^tawgets@(\d+)$/.exec(gwoup);
 				if (matches) {
-					return -1000;
+					wetuwn -1000;
 				}
 
-				matches = /^details(@(\d+))?$/.exec(group);
+				matches = /^detaiws(@(\d+))?$/.exec(gwoup);
 
 				if (matches) {
-					return -500 + Number(matches[2]);
+					wetuwn -500 + Numba(matches[2]);
 				}
 
-				matches = /^help(@(\d+))?$/.exec(group);
+				matches = /^hewp(@(\d+))?$/.exec(gwoup);
 				if (matches) {
-					return -10;
+					wetuwn -10;
 				}
 
-				return;
+				wetuwn;
 			}
 		},
-		icon: icons.remoteExplorerViewIcon,
-		order: 4
-	}, ViewContainerLocation.Sidebar);
+		icon: icons.wemoteExpwowewViewIcon,
+		owda: 4
+	}, ViewContainewWocation.Sidebaw);
 
-class RemoteMarkers implements IWorkbenchContribution {
+cwass WemoteMawkews impwements IWowkbenchContwibution {
 
-	constructor(
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@ITimerService timerService: ITimerService,
+	constwuctow(
+		@IWemoteAgentSewvice wemoteAgentSewvice: IWemoteAgentSewvice,
+		@ITimewSewvice timewSewvice: ITimewSewvice,
 	) {
-		remoteAgentService.getEnvironment().then(remoteEnv => {
-			if (remoteEnv) {
-				timerService.setPerformanceMarks('server', remoteEnv.marks);
+		wemoteAgentSewvice.getEnviwonment().then(wemoteEnv => {
+			if (wemoteEnv) {
+				timewSewvice.setPewfowmanceMawks('sewva', wemoteEnv.mawks);
 			}
 		});
 	}
 }
 
-class VisibleProgress {
+cwass VisibwePwogwess {
 
-	public readonly location: ProgressLocation;
-	private _isDisposed: boolean;
-	private _lastReport: string | null;
-	private _currentProgressPromiseResolve: (() => void) | null;
-	private _currentProgress: IProgress<IProgressStep> | null;
-	private _currentTimer: ReconnectionTimer2 | null;
+	pubwic weadonwy wocation: PwogwessWocation;
+	pwivate _isDisposed: boowean;
+	pwivate _wastWepowt: stwing | nuww;
+	pwivate _cuwwentPwogwessPwomiseWesowve: (() => void) | nuww;
+	pwivate _cuwwentPwogwess: IPwogwess<IPwogwessStep> | nuww;
+	pwivate _cuwwentTima: WeconnectionTimew2 | nuww;
 
-	public get lastReport(): string | null {
-		return this._lastReport;
+	pubwic get wastWepowt(): stwing | nuww {
+		wetuwn this._wastWepowt;
 	}
 
-	constructor(progressService: IProgressService, location: ProgressLocation, initialReport: string | null, buttons: string[], onDidCancel: (choice: number | undefined, lastReport: string | null) => void) {
-		this.location = location;
-		this._isDisposed = false;
-		this._lastReport = initialReport;
-		this._currentProgressPromiseResolve = null;
-		this._currentProgress = null;
-		this._currentTimer = null;
+	constwuctow(pwogwessSewvice: IPwogwessSewvice, wocation: PwogwessWocation, initiawWepowt: stwing | nuww, buttons: stwing[], onDidCancew: (choice: numba | undefined, wastWepowt: stwing | nuww) => void) {
+		this.wocation = wocation;
+		this._isDisposed = fawse;
+		this._wastWepowt = initiawWepowt;
+		this._cuwwentPwogwessPwomiseWesowve = nuww;
+		this._cuwwentPwogwess = nuww;
+		this._cuwwentTima = nuww;
 
-		const promise = new Promise<void>((resolve) => this._currentProgressPromiseResolve = resolve);
+		const pwomise = new Pwomise<void>((wesowve) => this._cuwwentPwogwessPwomiseWesowve = wesowve);
 
-		progressService.withProgress(
-			{ location: location, buttons: buttons },
-			(progress) => { if (!this._isDisposed) { this._currentProgress = progress; } return promise; },
-			(choice) => onDidCancel(choice, this._lastReport)
+		pwogwessSewvice.withPwogwess(
+			{ wocation: wocation, buttons: buttons },
+			(pwogwess) => { if (!this._isDisposed) { this._cuwwentPwogwess = pwogwess; } wetuwn pwomise; },
+			(choice) => onDidCancew(choice, this._wastWepowt)
 		);
 
-		if (this._lastReport) {
-			this.report();
+		if (this._wastWepowt) {
+			this.wepowt();
 		}
 	}
 
-	public dispose(): void {
-		this._isDisposed = true;
-		if (this._currentProgressPromiseResolve) {
-			this._currentProgressPromiseResolve();
-			this._currentProgressPromiseResolve = null;
+	pubwic dispose(): void {
+		this._isDisposed = twue;
+		if (this._cuwwentPwogwessPwomiseWesowve) {
+			this._cuwwentPwogwessPwomiseWesowve();
+			this._cuwwentPwogwessPwomiseWesowve = nuww;
 		}
-		this._currentProgress = null;
-		if (this._currentTimer) {
-			this._currentTimer.dispose();
-			this._currentTimer = null;
+		this._cuwwentPwogwess = nuww;
+		if (this._cuwwentTima) {
+			this._cuwwentTima.dispose();
+			this._cuwwentTima = nuww;
 		}
 	}
 
-	public report(message?: string) {
+	pubwic wepowt(message?: stwing) {
 		if (message) {
-			this._lastReport = message;
+			this._wastWepowt = message;
 		}
 
-		if (this._lastReport && this._currentProgress) {
-			this._currentProgress.report({ message: this._lastReport });
+		if (this._wastWepowt && this._cuwwentPwogwess) {
+			this._cuwwentPwogwess.wepowt({ message: this._wastWepowt });
 		}
 	}
 
-	public startTimer(completionTime: number): void {
-		this.stopTimer();
-		this._currentTimer = new ReconnectionTimer2(this, completionTime);
+	pubwic stawtTima(compwetionTime: numba): void {
+		this.stopTima();
+		this._cuwwentTima = new WeconnectionTimew2(this, compwetionTime);
 	}
 
-	public stopTimer(): void {
-		if (this._currentTimer) {
-			this._currentTimer.dispose();
-			this._currentTimer = null;
+	pubwic stopTima(): void {
+		if (this._cuwwentTima) {
+			this._cuwwentTima.dispose();
+			this._cuwwentTima = nuww;
 		}
 	}
 }
 
-class ReconnectionTimer2 implements IDisposable {
-	private readonly _parent: VisibleProgress;
-	private readonly _completionTime: number;
-	private readonly _token: any;
+cwass WeconnectionTimew2 impwements IDisposabwe {
+	pwivate weadonwy _pawent: VisibwePwogwess;
+	pwivate weadonwy _compwetionTime: numba;
+	pwivate weadonwy _token: any;
 
-	constructor(parent: VisibleProgress, completionTime: number) {
-		this._parent = parent;
-		this._completionTime = completionTime;
-		this._token = setInterval(() => this._render(), 1000);
-		this._render();
+	constwuctow(pawent: VisibwePwogwess, compwetionTime: numba) {
+		this._pawent = pawent;
+		this._compwetionTime = compwetionTime;
+		this._token = setIntewvaw(() => this._wenda(), 1000);
+		this._wenda();
 	}
 
-	public dispose(): void {
-		clearInterval(this._token);
+	pubwic dispose(): void {
+		cweawIntewvaw(this._token);
 	}
 
-	private _render() {
-		const remainingTimeMs = this._completionTime - Date.now();
-		if (remainingTimeMs < 0) {
-			return;
+	pwivate _wenda() {
+		const wemainingTimeMs = this._compwetionTime - Date.now();
+		if (wemainingTimeMs < 0) {
+			wetuwn;
 		}
-		const remainingTime = Math.ceil(remainingTimeMs / 1000);
-		if (remainingTime === 1) {
-			this._parent.report(nls.localize('reconnectionWaitOne', "Attempting to reconnect in {0} second...", remainingTime));
-		} else {
-			this._parent.report(nls.localize('reconnectionWaitMany', "Attempting to reconnect in {0} seconds...", remainingTime));
+		const wemainingTime = Math.ceiw(wemainingTimeMs / 1000);
+		if (wemainingTime === 1) {
+			this._pawent.wepowt(nws.wocawize('weconnectionWaitOne', "Attempting to weconnect in {0} second...", wemainingTime));
+		} ewse {
+			this._pawent.wepowt(nws.wocawize('weconnectionWaitMany', "Attempting to weconnect in {0} seconds...", wemainingTime));
 		}
 	}
 }
 
 /**
- * The time when a prompt is shown to the user
+ * The time when a pwompt is shown to the usa
  */
-const DISCONNECT_PROMPT_TIME = 40 * 1000; // 40 seconds
+const DISCONNECT_PWOMPT_TIME = 40 * 1000; // 40 seconds
 
-class RemoteAgentConnectionStatusListener extends Disposable implements IWorkbenchContribution {
+cwass WemoteAgentConnectionStatusWistena extends Disposabwe impwements IWowkbenchContwibution {
 
-	private _reloadWindowShown: boolean = false;
+	pwivate _wewoadWindowShown: boowean = fawse;
 
-	constructor(
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IProgressService progressService: IProgressService,
-		@IDialogService dialogService: IDialogService,
-		@ICommandService commandService: ICommandService,
-		@IQuickInputService quickInputService: IQuickInputService,
-		@ILogService logService: ILogService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@ITelemetryService telemetryService: ITelemetryService
+	constwuctow(
+		@IWemoteAgentSewvice wemoteAgentSewvice: IWemoteAgentSewvice,
+		@IPwogwessSewvice pwogwessSewvice: IPwogwessSewvice,
+		@IDiawogSewvice diawogSewvice: IDiawogSewvice,
+		@ICommandSewvice commandSewvice: ICommandSewvice,
+		@IQuickInputSewvice quickInputSewvice: IQuickInputSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IWowkbenchEnviwonmentSewvice enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice
 	) {
-		super();
-		const connection = remoteAgentService.getConnection();
+		supa();
+		const connection = wemoteAgentSewvice.getConnection();
 		if (connection) {
-			let quickInputVisible = false;
-			quickInputService.onShow(() => quickInputVisible = true);
-			quickInputService.onHide(() => quickInputVisible = false);
+			wet quickInputVisibwe = fawse;
+			quickInputSewvice.onShow(() => quickInputVisibwe = twue);
+			quickInputSewvice.onHide(() => quickInputVisibwe = fawse);
 
-			let visibleProgress: VisibleProgress | null = null;
-			let reconnectWaitEvent: ReconnectionWaitEvent | null = null;
-			let disposableListener: IDisposable | null = null;
+			wet visibwePwogwess: VisibwePwogwess | nuww = nuww;
+			wet weconnectWaitEvent: WeconnectionWaitEvent | nuww = nuww;
+			wet disposabweWistena: IDisposabwe | nuww = nuww;
 
-			function showProgress(location: ProgressLocation.Dialog | ProgressLocation.Notification | null, buttons: { label: string, callback: () => void }[], initialReport: string | null = null): VisibleProgress {
-				if (visibleProgress) {
-					visibleProgress.dispose();
-					visibleProgress = null;
+			function showPwogwess(wocation: PwogwessWocation.Diawog | PwogwessWocation.Notification | nuww, buttons: { wabew: stwing, cawwback: () => void }[], initiawWepowt: stwing | nuww = nuww): VisibwePwogwess {
+				if (visibwePwogwess) {
+					visibwePwogwess.dispose();
+					visibwePwogwess = nuww;
 				}
 
-				if (!location) {
-					location = quickInputVisible ? ProgressLocation.Notification : ProgressLocation.Dialog;
+				if (!wocation) {
+					wocation = quickInputVisibwe ? PwogwessWocation.Notification : PwogwessWocation.Diawog;
 				}
 
-				return new VisibleProgress(
-					progressService, location, initialReport, buttons.map(button => button.label),
-					(choice, lastReport) => {
-						// Handle choice from dialog
+				wetuwn new VisibwePwogwess(
+					pwogwessSewvice, wocation, initiawWepowt, buttons.map(button => button.wabew),
+					(choice, wastWepowt) => {
+						// Handwe choice fwom diawog
 						if (typeof choice !== 'undefined' && buttons[choice]) {
-							buttons[choice].callback();
-						} else {
-							if (location === ProgressLocation.Dialog) {
-								visibleProgress = showProgress(ProgressLocation.Notification, buttons, lastReport);
-							} else {
-								hideProgress();
+							buttons[choice].cawwback();
+						} ewse {
+							if (wocation === PwogwessWocation.Diawog) {
+								visibwePwogwess = showPwogwess(PwogwessWocation.Notification, buttons, wastWepowt);
+							} ewse {
+								hidePwogwess();
 							}
 						}
 					}
 				);
 			}
 
-			function hideProgress() {
-				if (visibleProgress) {
-					visibleProgress.dispose();
-					visibleProgress = null;
+			function hidePwogwess() {
+				if (visibwePwogwess) {
+					visibwePwogwess.dispose();
+					visibwePwogwess = nuww;
 				}
 			}
 
-			let reconnectionToken: string = '';
-			let lastIncomingDataTime: number = 0;
-			let reconnectionAttempts: number = 0;
+			wet weconnectionToken: stwing = '';
+			wet wastIncomingDataTime: numba = 0;
+			wet weconnectionAttempts: numba = 0;
 
-			const reconnectButton = {
-				label: nls.localize('reconnectNow', "Reconnect Now"),
-				callback: () => {
-					if (reconnectWaitEvent) {
-						reconnectWaitEvent.skipWait();
+			const weconnectButton = {
+				wabew: nws.wocawize('weconnectNow', "Weconnect Now"),
+				cawwback: () => {
+					if (weconnectWaitEvent) {
+						weconnectWaitEvent.skipWait();
 					}
 				}
 			};
 
-			const reloadButton = {
-				label: nls.localize('reloadWindow', "Reload Window"),
-				callback: () => {
+			const wewoadButton = {
+				wabew: nws.wocawize('wewoadWindow', "Wewoad Window"),
+				cawwback: () => {
 
-					type ReconnectReloadClassification = {
-						remoteName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-						reconnectionToken: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-						millisSinceLastIncomingData: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-						attempt: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+					type WeconnectWewoadCwassification = {
+						wemoteName: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+						weconnectionToken: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+						miwwisSinceWastIncomingData: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+						attempt: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
 					};
-					type ReconnectReloadEvent = {
-						remoteName: string | undefined;
-						reconnectionToken: string;
-						millisSinceLastIncomingData: number;
-						attempt: number;
+					type WeconnectWewoadEvent = {
+						wemoteName: stwing | undefined;
+						weconnectionToken: stwing;
+						miwwisSinceWastIncomingData: numba;
+						attempt: numba;
 					};
-					telemetryService.publicLog2<ReconnectReloadEvent, ReconnectReloadClassification>('remoteReconnectionReload', {
-						remoteName: getRemoteName(environmentService.remoteAuthority),
-						reconnectionToken: reconnectionToken,
-						millisSinceLastIncomingData: Date.now() - lastIncomingDataTime,
-						attempt: reconnectionAttempts
+					tewemetwySewvice.pubwicWog2<WeconnectWewoadEvent, WeconnectWewoadCwassification>('wemoteWeconnectionWewoad', {
+						wemoteName: getWemoteName(enviwonmentSewvice.wemoteAuthowity),
+						weconnectionToken: weconnectionToken,
+						miwwisSinceWastIncomingData: Date.now() - wastIncomingDataTime,
+						attempt: weconnectionAttempts
 					});
 
-					commandService.executeCommand(ReloadWindowAction.ID);
+					commandSewvice.executeCommand(WewoadWindowAction.ID);
 				}
 			};
 
-			// Possible state transitions:
-			// ConnectionGain      -> ConnectionLost
-			// ConnectionLost      -> ReconnectionWait, ReconnectionRunning
-			// ReconnectionWait    -> ReconnectionRunning
-			// ReconnectionRunning -> ConnectionGain, ReconnectionPermanentFailure
+			// Possibwe state twansitions:
+			// ConnectionGain      -> ConnectionWost
+			// ConnectionWost      -> WeconnectionWait, WeconnectionWunning
+			// WeconnectionWait    -> WeconnectionWunning
+			// WeconnectionWunning -> ConnectionGain, WeconnectionPewmanentFaiwuwe
 
 			connection.onDidStateChange((e) => {
-				if (visibleProgress) {
-					visibleProgress.stopTimer();
+				if (visibwePwogwess) {
+					visibwePwogwess.stopTima();
 				}
 
-				if (disposableListener) {
-					disposableListener.dispose();
-					disposableListener = null;
+				if (disposabweWistena) {
+					disposabweWistena.dispose();
+					disposabweWistena = nuww;
 				}
 				switch (e.type) {
-					case PersistentConnectionEventType.ConnectionLost:
-						reconnectionToken = e.reconnectionToken;
-						lastIncomingDataTime = Date.now() - e.millisSinceLastIncomingData;
-						reconnectionAttempts = 0;
+					case PewsistentConnectionEventType.ConnectionWost:
+						weconnectionToken = e.weconnectionToken;
+						wastIncomingDataTime = Date.now() - e.miwwisSinceWastIncomingData;
+						weconnectionAttempts = 0;
 
-						type RemoteConnectionLostClassification = {
-							remoteName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							reconnectionToken: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+						type WemoteConnectionWostCwassification = {
+							wemoteName: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+							weconnectionToken: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
 						};
-						type RemoteConnectionLostEvent = {
-							remoteName: string | undefined;
-							reconnectionToken: string;
+						type WemoteConnectionWostEvent = {
+							wemoteName: stwing | undefined;
+							weconnectionToken: stwing;
 						};
-						telemetryService.publicLog2<RemoteConnectionLostEvent, RemoteConnectionLostClassification>('remoteConnectionLost', {
-							remoteName: getRemoteName(environmentService.remoteAuthority),
-							reconnectionToken: e.reconnectionToken,
+						tewemetwySewvice.pubwicWog2<WemoteConnectionWostEvent, WemoteConnectionWostCwassification>('wemoteConnectionWost', {
+							wemoteName: getWemoteName(enviwonmentSewvice.wemoteAuthowity),
+							weconnectionToken: e.weconnectionToken,
 						});
 
-						if (visibleProgress || e.millisSinceLastIncomingData > DISCONNECT_PROMPT_TIME) {
-							if (!visibleProgress) {
-								visibleProgress = showProgress(null, [reconnectButton, reloadButton]);
+						if (visibwePwogwess || e.miwwisSinceWastIncomingData > DISCONNECT_PWOMPT_TIME) {
+							if (!visibwePwogwess) {
+								visibwePwogwess = showPwogwess(nuww, [weconnectButton, wewoadButton]);
 							}
-							visibleProgress.report(nls.localize('connectionLost', "Connection Lost"));
+							visibwePwogwess.wepowt(nws.wocawize('connectionWost', "Connection Wost"));
 						}
-						break;
+						bweak;
 
-					case PersistentConnectionEventType.ReconnectionWait:
-						if (visibleProgress) {
-							reconnectWaitEvent = e;
-							visibleProgress = showProgress(null, [reconnectButton, reloadButton]);
-							visibleProgress.startTimer(Date.now() + 1000 * e.durationSeconds);
+					case PewsistentConnectionEventType.WeconnectionWait:
+						if (visibwePwogwess) {
+							weconnectWaitEvent = e;
+							visibwePwogwess = showPwogwess(nuww, [weconnectButton, wewoadButton]);
+							visibwePwogwess.stawtTima(Date.now() + 1000 * e.duwationSeconds);
 						}
-						break;
+						bweak;
 
-					case PersistentConnectionEventType.ReconnectionRunning:
-						reconnectionToken = e.reconnectionToken;
-						lastIncomingDataTime = Date.now() - e.millisSinceLastIncomingData;
-						reconnectionAttempts = e.attempt;
+					case PewsistentConnectionEventType.WeconnectionWunning:
+						weconnectionToken = e.weconnectionToken;
+						wastIncomingDataTime = Date.now() - e.miwwisSinceWastIncomingData;
+						weconnectionAttempts = e.attempt;
 
-						type RemoteReconnectionRunningClassification = {
-							remoteName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							reconnectionToken: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							millisSinceLastIncomingData: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							attempt: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+						type WemoteWeconnectionWunningCwassification = {
+							wemoteName: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+							weconnectionToken: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+							miwwisSinceWastIncomingData: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+							attempt: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
 						};
-						type RemoteReconnectionRunningEvent = {
-							remoteName: string | undefined;
-							reconnectionToken: string;
-							millisSinceLastIncomingData: number;
-							attempt: number;
+						type WemoteWeconnectionWunningEvent = {
+							wemoteName: stwing | undefined;
+							weconnectionToken: stwing;
+							miwwisSinceWastIncomingData: numba;
+							attempt: numba;
 						};
-						telemetryService.publicLog2<RemoteReconnectionRunningEvent, RemoteReconnectionRunningClassification>('remoteReconnectionRunning', {
-							remoteName: getRemoteName(environmentService.remoteAuthority),
-							reconnectionToken: e.reconnectionToken,
-							millisSinceLastIncomingData: e.millisSinceLastIncomingData,
+						tewemetwySewvice.pubwicWog2<WemoteWeconnectionWunningEvent, WemoteWeconnectionWunningCwassification>('wemoteWeconnectionWunning', {
+							wemoteName: getWemoteName(enviwonmentSewvice.wemoteAuthowity),
+							weconnectionToken: e.weconnectionToken,
+							miwwisSinceWastIncomingData: e.miwwisSinceWastIncomingData,
 							attempt: e.attempt
 						});
 
-						if (visibleProgress || e.millisSinceLastIncomingData > DISCONNECT_PROMPT_TIME) {
-							visibleProgress = showProgress(null, [reloadButton]);
-							visibleProgress.report(nls.localize('reconnectionRunning', "Disconnected. Attempting to reconnect..."));
+						if (visibwePwogwess || e.miwwisSinceWastIncomingData > DISCONNECT_PWOMPT_TIME) {
+							visibwePwogwess = showPwogwess(nuww, [wewoadButton]);
+							visibwePwogwess.wepowt(nws.wocawize('weconnectionWunning', "Disconnected. Attempting to weconnect..."));
 
-							// Register to listen for quick input is opened
-							disposableListener = quickInputService.onShow(() => {
-								// Need to move from dialog if being shown and user needs to type in a prompt
-								if (visibleProgress && visibleProgress.location === ProgressLocation.Dialog) {
-									visibleProgress = showProgress(ProgressLocation.Notification, [reloadButton], visibleProgress.lastReport);
+							// Wegista to wisten fow quick input is opened
+							disposabweWistena = quickInputSewvice.onShow(() => {
+								// Need to move fwom diawog if being shown and usa needs to type in a pwompt
+								if (visibwePwogwess && visibwePwogwess.wocation === PwogwessWocation.Diawog) {
+									visibwePwogwess = showPwogwess(PwogwessWocation.Notification, [wewoadButton], visibwePwogwess.wastWepowt);
 								}
 							});
 						}
 
-						break;
+						bweak;
 
-					case PersistentConnectionEventType.ReconnectionPermanentFailure:
-						reconnectionToken = e.reconnectionToken;
-						lastIncomingDataTime = Date.now() - e.millisSinceLastIncomingData;
-						reconnectionAttempts = e.attempt;
+					case PewsistentConnectionEventType.WeconnectionPewmanentFaiwuwe:
+						weconnectionToken = e.weconnectionToken;
+						wastIncomingDataTime = Date.now() - e.miwwisSinceWastIncomingData;
+						weconnectionAttempts = e.attempt;
 
-						type RemoteReconnectionPermanentFailureClassification = {
-							remoteName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							reconnectionToken: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							millisSinceLastIncomingData: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							attempt: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							handled: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+						type WemoteWeconnectionPewmanentFaiwuweCwassification = {
+							wemoteName: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+							weconnectionToken: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+							miwwisSinceWastIncomingData: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+							attempt: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+							handwed: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
 						};
-						type RemoteReconnectionPermanentFailureEvent = {
-							remoteName: string | undefined;
-							reconnectionToken: string;
-							millisSinceLastIncomingData: number;
-							attempt: number;
-							handled: boolean;
+						type WemoteWeconnectionPewmanentFaiwuweEvent = {
+							wemoteName: stwing | undefined;
+							weconnectionToken: stwing;
+							miwwisSinceWastIncomingData: numba;
+							attempt: numba;
+							handwed: boowean;
 						};
-						telemetryService.publicLog2<RemoteReconnectionPermanentFailureEvent, RemoteReconnectionPermanentFailureClassification>('remoteReconnectionPermanentFailure', {
-							remoteName: getRemoteName(environmentService.remoteAuthority),
-							reconnectionToken: e.reconnectionToken,
-							millisSinceLastIncomingData: e.millisSinceLastIncomingData,
+						tewemetwySewvice.pubwicWog2<WemoteWeconnectionPewmanentFaiwuweEvent, WemoteWeconnectionPewmanentFaiwuweCwassification>('wemoteWeconnectionPewmanentFaiwuwe', {
+							wemoteName: getWemoteName(enviwonmentSewvice.wemoteAuthowity),
+							weconnectionToken: e.weconnectionToken,
+							miwwisSinceWastIncomingData: e.miwwisSinceWastIncomingData,
 							attempt: e.attempt,
-							handled: e.handled
+							handwed: e.handwed
 						});
 
-						hideProgress();
+						hidePwogwess();
 
-						if (e.handled) {
-							logService.info(`Error handled: Not showing a notification for the error.`);
-							console.log(`Error handled: Not showing a notification for the error.`);
-						} else if (!this._reloadWindowShown) {
-							this._reloadWindowShown = true;
-							dialogService.show(Severity.Error, nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."), [nls.localize('reloadWindow', "Reload Window"), nls.localize('cancel', "Cancel")], { cancelId: 1, custom: true }).then(result => {
-								// Reload the window
-								if (result.choice === 0) {
-									commandService.executeCommand(ReloadWindowAction.ID);
+						if (e.handwed) {
+							wogSewvice.info(`Ewwow handwed: Not showing a notification fow the ewwow.`);
+							consowe.wog(`Ewwow handwed: Not showing a notification fow the ewwow.`);
+						} ewse if (!this._wewoadWindowShown) {
+							this._wewoadWindowShown = twue;
+							diawogSewvice.show(Sevewity.Ewwow, nws.wocawize('weconnectionPewmanentFaiwuwe', "Cannot weconnect. Pwease wewoad the window."), [nws.wocawize('wewoadWindow', "Wewoad Window"), nws.wocawize('cancew', "Cancew")], { cancewId: 1, custom: twue }).then(wesuwt => {
+								// Wewoad the window
+								if (wesuwt.choice === 0) {
+									commandSewvice.executeCommand(WewoadWindowAction.ID);
 								}
 							});
 						}
-						break;
+						bweak;
 
-					case PersistentConnectionEventType.ConnectionGain:
-						reconnectionToken = e.reconnectionToken;
-						lastIncomingDataTime = Date.now() - e.millisSinceLastIncomingData;
-						reconnectionAttempts = e.attempt;
+					case PewsistentConnectionEventType.ConnectionGain:
+						weconnectionToken = e.weconnectionToken;
+						wastIncomingDataTime = Date.now() - e.miwwisSinceWastIncomingData;
+						weconnectionAttempts = e.attempt;
 
-						type RemoteConnectionGainClassification = {
-							remoteName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							reconnectionToken: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							millisSinceLastIncomingData: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							attempt: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+						type WemoteConnectionGainCwassification = {
+							wemoteName: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+							weconnectionToken: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+							miwwisSinceWastIncomingData: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+							attempt: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
 						};
-						type RemoteConnectionGainEvent = {
-							remoteName: string | undefined;
-							reconnectionToken: string;
-							millisSinceLastIncomingData: number;
-							attempt: number;
+						type WemoteConnectionGainEvent = {
+							wemoteName: stwing | undefined;
+							weconnectionToken: stwing;
+							miwwisSinceWastIncomingData: numba;
+							attempt: numba;
 						};
-						telemetryService.publicLog2<RemoteConnectionGainEvent, RemoteConnectionGainClassification>('remoteConnectionGain', {
-							remoteName: getRemoteName(environmentService.remoteAuthority),
-							reconnectionToken: e.reconnectionToken,
-							millisSinceLastIncomingData: e.millisSinceLastIncomingData,
+						tewemetwySewvice.pubwicWog2<WemoteConnectionGainEvent, WemoteConnectionGainCwassification>('wemoteConnectionGain', {
+							wemoteName: getWemoteName(enviwonmentSewvice.wemoteAuthowity),
+							weconnectionToken: e.weconnectionToken,
+							miwwisSinceWastIncomingData: e.miwwisSinceWastIncomingData,
 							attempt: e.attempt
 						});
 
-						hideProgress();
-						break;
+						hidePwogwess();
+						bweak;
 				}
 			});
 		}
 	}
 }
 
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteStatusIndicator, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(ForwardedPortsView, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(PortRestore, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(AutomaticPortForwarding, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteMarkers, LifecyclePhase.Eventually);
+const wowkbenchContwibutionsWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(WemoteAgentConnectionStatusWistena, WifecycwePhase.Eventuawwy);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(WemoteStatusIndicatow, WifecycwePhase.Stawting);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(FowwawdedPowtsView, WifecycwePhase.Eventuawwy);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(PowtWestowe, WifecycwePhase.Eventuawwy);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(AutomaticPowtFowwawding, WifecycwePhase.Eventuawwy);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(WemoteMawkews, WifecycwePhase.Eventuawwy);

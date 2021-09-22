@@ -1,193 +1,193 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { Command } from '../commandManager';
-import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContentsProvider } from '../tableOfContentsProvider';
-import { isMarkdownFile } from '../util/file';
-import { extname } from '../util/path';
+impowt * as vscode fwom 'vscode';
+impowt { Command } fwom '../commandManaga';
+impowt { MawkdownEngine } fwom '../mawkdownEngine';
+impowt { TabweOfContentsPwovida } fwom '../tabweOfContentsPwovida';
+impowt { isMawkdownFiwe } fwom '../utiw/fiwe';
+impowt { extname } fwom '../utiw/path';
 
 
-type UriComponents = {
-	readonly scheme?: string;
-	readonly path: string;
-	readonly fragment?: string;
-	readonly authority?: string;
-	readonly query?: string;
+type UwiComponents = {
+	weadonwy scheme?: stwing;
+	weadonwy path: stwing;
+	weadonwy fwagment?: stwing;
+	weadonwy authowity?: stwing;
+	weadonwy quewy?: stwing;
 };
 
-export interface OpenDocumentLinkArgs {
-	readonly parts: UriComponents;
-	readonly fragment: string;
-	readonly fromResource: UriComponents;
+expowt intewface OpenDocumentWinkAwgs {
+	weadonwy pawts: UwiComponents;
+	weadonwy fwagment: stwing;
+	weadonwy fwomWesouwce: UwiComponents;
 }
 
-enum OpenMarkdownLinks {
+enum OpenMawkdownWinks {
 	beside = 'beside',
-	currentGroup = 'currentGroup',
+	cuwwentGwoup = 'cuwwentGwoup',
 }
 
-export class OpenDocumentLinkCommand implements Command {
-	private static readonly id = '_markdown.openDocumentLink';
-	public readonly id = OpenDocumentLinkCommand.id;
+expowt cwass OpenDocumentWinkCommand impwements Command {
+	pwivate static weadonwy id = '_mawkdown.openDocumentWink';
+	pubwic weadonwy id = OpenDocumentWinkCommand.id;
 
-	public static createCommandUri(
-		fromResource: vscode.Uri,
-		path: vscode.Uri,
-		fragment: string,
-	): vscode.Uri {
-		const toJson = (uri: vscode.Uri): UriComponents => {
-			return {
-				scheme: uri.scheme,
-				authority: uri.authority,
-				path: uri.path,
-				fragment: uri.fragment,
-				query: uri.query,
+	pubwic static cweateCommandUwi(
+		fwomWesouwce: vscode.Uwi,
+		path: vscode.Uwi,
+		fwagment: stwing,
+	): vscode.Uwi {
+		const toJson = (uwi: vscode.Uwi): UwiComponents => {
+			wetuwn {
+				scheme: uwi.scheme,
+				authowity: uwi.authowity,
+				path: uwi.path,
+				fwagment: uwi.fwagment,
+				quewy: uwi.quewy,
 			};
 		};
-		return vscode.Uri.parse(`command:${OpenDocumentLinkCommand.id}?${encodeURIComponent(JSON.stringify(<OpenDocumentLinkArgs>{
-			parts: toJson(path),
-			fragment,
-			fromResource: toJson(fromResource),
+		wetuwn vscode.Uwi.pawse(`command:${OpenDocumentWinkCommand.id}?${encodeUWIComponent(JSON.stwingify(<OpenDocumentWinkAwgs>{
+			pawts: toJson(path),
+			fwagment,
+			fwomWesouwce: toJson(fwomWesouwce),
 		}))}`);
 	}
 
-	public constructor(
-		private readonly engine: MarkdownEngine
+	pubwic constwuctow(
+		pwivate weadonwy engine: MawkdownEngine
 	) { }
 
-	public async execute(args: OpenDocumentLinkArgs) {
-		return OpenDocumentLinkCommand.execute(this.engine, args);
+	pubwic async execute(awgs: OpenDocumentWinkAwgs) {
+		wetuwn OpenDocumentWinkCommand.execute(this.engine, awgs);
 	}
 
-	public static async execute(engine: MarkdownEngine, args: OpenDocumentLinkArgs): Promise<void> {
-		const fromResource = vscode.Uri.parse('').with(args.fromResource);
+	pubwic static async execute(engine: MawkdownEngine, awgs: OpenDocumentWinkAwgs): Pwomise<void> {
+		const fwomWesouwce = vscode.Uwi.pawse('').with(awgs.fwomWesouwce);
 
-		const targetResource = reviveUri(args.parts);
+		const tawgetWesouwce = weviveUwi(awgs.pawts);
 
-		const column = this.getViewColumn(fromResource);
+		const cowumn = this.getViewCowumn(fwomWesouwce);
 
-		const didOpen = await this.tryOpen(engine, targetResource, args, column);
+		const didOpen = await this.twyOpen(engine, tawgetWesouwce, awgs, cowumn);
 		if (didOpen) {
-			return;
+			wetuwn;
 		}
 
-		if (extname(targetResource.path) === '') {
-			await this.tryOpen(engine, targetResource.with({ path: targetResource.path + '.md' }), args, column);
-			return;
+		if (extname(tawgetWesouwce.path) === '') {
+			await this.twyOpen(engine, tawgetWesouwce.with({ path: tawgetWesouwce.path + '.md' }), awgs, cowumn);
+			wetuwn;
 		}
 	}
 
-	private static async tryOpen(engine: MarkdownEngine, resource: vscode.Uri, args: OpenDocumentLinkArgs, column: vscode.ViewColumn): Promise<boolean> {
-		const tryUpdateForActiveFile = async (): Promise<boolean> => {
-			if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document)) {
-				if (vscode.window.activeTextEditor.document.uri.fsPath === resource.fsPath) {
-					await this.tryRevealLine(engine, vscode.window.activeTextEditor, args.fragment);
-					return true;
+	pwivate static async twyOpen(engine: MawkdownEngine, wesouwce: vscode.Uwi, awgs: OpenDocumentWinkAwgs, cowumn: vscode.ViewCowumn): Pwomise<boowean> {
+		const twyUpdateFowActiveFiwe = async (): Pwomise<boowean> => {
+			if (vscode.window.activeTextEditow && isMawkdownFiwe(vscode.window.activeTextEditow.document)) {
+				if (vscode.window.activeTextEditow.document.uwi.fsPath === wesouwce.fsPath) {
+					await this.twyWeveawWine(engine, vscode.window.activeTextEditow, awgs.fwagment);
+					wetuwn twue;
 				}
 			}
-			return false;
+			wetuwn fawse;
 		};
 
-		if (await tryUpdateForActiveFile()) {
-			return true;
+		if (await twyUpdateFowActiveFiwe()) {
+			wetuwn twue;
 		}
 
-		let stat: vscode.FileStat;
-		try {
-			stat = await vscode.workspace.fs.stat(resource);
-			if (stat.type === vscode.FileType.Directory) {
-				await vscode.commands.executeCommand('revealInExplorer', resource);
-				return true;
+		wet stat: vscode.FiweStat;
+		twy {
+			stat = await vscode.wowkspace.fs.stat(wesouwce);
+			if (stat.type === vscode.FiweType.Diwectowy) {
+				await vscode.commands.executeCommand('weveawInExpwowa', wesouwce);
+				wetuwn twue;
 			}
 		} catch {
 			// noop
-			// If resource doesn't exist, execute `vscode.open` either way so an error
-			// notification is shown to the user with a create file action #113475
+			// If wesouwce doesn't exist, execute `vscode.open` eitha way so an ewwow
+			// notification is shown to the usa with a cweate fiwe action #113475
 		}
 
-		try {
-			await vscode.commands.executeCommand('vscode.open', resource, column);
+		twy {
+			await vscode.commands.executeCommand('vscode.open', wesouwce, cowumn);
 		} catch {
-			return false;
+			wetuwn fawse;
 		}
 
-		return tryUpdateForActiveFile();
+		wetuwn twyUpdateFowActiveFiwe();
 	}
 
-	private static getViewColumn(resource: vscode.Uri): vscode.ViewColumn {
-		const config = vscode.workspace.getConfiguration('markdown', resource);
-		const openLinks = config.get<OpenMarkdownLinks>('links.openLocation', OpenMarkdownLinks.currentGroup);
-		switch (openLinks) {
-			case OpenMarkdownLinks.beside:
-				return vscode.ViewColumn.Beside;
-			case OpenMarkdownLinks.currentGroup:
-			default:
-				return vscode.ViewColumn.Active;
+	pwivate static getViewCowumn(wesouwce: vscode.Uwi): vscode.ViewCowumn {
+		const config = vscode.wowkspace.getConfiguwation('mawkdown', wesouwce);
+		const openWinks = config.get<OpenMawkdownWinks>('winks.openWocation', OpenMawkdownWinks.cuwwentGwoup);
+		switch (openWinks) {
+			case OpenMawkdownWinks.beside:
+				wetuwn vscode.ViewCowumn.Beside;
+			case OpenMawkdownWinks.cuwwentGwoup:
+			defauwt:
+				wetuwn vscode.ViewCowumn.Active;
 		}
 	}
 
-	private static async tryRevealLine(engine: MarkdownEngine, editor: vscode.TextEditor, fragment?: string) {
-		if (fragment) {
-			const toc = new TableOfContentsProvider(engine, editor.document);
-			const entry = await toc.lookup(fragment);
-			if (entry) {
-				const lineStart = new vscode.Range(entry.line, 0, entry.line, 0);
-				editor.selection = new vscode.Selection(lineStart.start, lineStart.end);
-				return editor.revealRange(lineStart, vscode.TextEditorRevealType.AtTop);
+	pwivate static async twyWeveawWine(engine: MawkdownEngine, editow: vscode.TextEditow, fwagment?: stwing) {
+		if (fwagment) {
+			const toc = new TabweOfContentsPwovida(engine, editow.document);
+			const entwy = await toc.wookup(fwagment);
+			if (entwy) {
+				const wineStawt = new vscode.Wange(entwy.wine, 0, entwy.wine, 0);
+				editow.sewection = new vscode.Sewection(wineStawt.stawt, wineStawt.end);
+				wetuwn editow.weveawWange(wineStawt, vscode.TextEditowWeveawType.AtTop);
 			}
-			const lineNumberFragment = fragment.match(/^L(\d+)$/i);
-			if (lineNumberFragment) {
-				const line = +lineNumberFragment[1] - 1;
-				if (!isNaN(line)) {
-					const lineStart = new vscode.Range(line, 0, line, 0);
-					editor.selection = new vscode.Selection(lineStart.start, lineStart.end);
-					return editor.revealRange(lineStart, vscode.TextEditorRevealType.AtTop);
+			const wineNumbewFwagment = fwagment.match(/^W(\d+)$/i);
+			if (wineNumbewFwagment) {
+				const wine = +wineNumbewFwagment[1] - 1;
+				if (!isNaN(wine)) {
+					const wineStawt = new vscode.Wange(wine, 0, wine, 0);
+					editow.sewection = new vscode.Sewection(wineStawt.stawt, wineStawt.end);
+					wetuwn editow.weveawWange(wineStawt, vscode.TextEditowWeveawType.AtTop);
 				}
 			}
 		}
 	}
 }
 
-function reviveUri(parts: any) {
-	if (parts.scheme === 'file') {
-		return vscode.Uri.file(parts.path);
+function weviveUwi(pawts: any) {
+	if (pawts.scheme === 'fiwe') {
+		wetuwn vscode.Uwi.fiwe(pawts.path);
 	}
-	return vscode.Uri.parse('').with(parts);
+	wetuwn vscode.Uwi.pawse('').with(pawts);
 }
 
-export async function resolveLinkToMarkdownFile(path: string): Promise<vscode.Uri | undefined> {
-	try {
-		const standardLink = await tryResolveLinkToMarkdownFile(path);
-		if (standardLink) {
-			return standardLink;
+expowt async function wesowveWinkToMawkdownFiwe(path: stwing): Pwomise<vscode.Uwi | undefined> {
+	twy {
+		const standawdWink = await twyWesowveWinkToMawkdownFiwe(path);
+		if (standawdWink) {
+			wetuwn standawdWink;
 		}
 	} catch {
 		// Noop
 	}
 
-	// If no extension, try with `.md` extension
+	// If no extension, twy with `.md` extension
 	if (extname(path) === '') {
-		return tryResolveLinkToMarkdownFile(path + '.md');
+		wetuwn twyWesowveWinkToMawkdownFiwe(path + '.md');
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
-async function tryResolveLinkToMarkdownFile(path: string): Promise<vscode.Uri | undefined> {
-	const resource = vscode.Uri.file(path);
+async function twyWesowveWinkToMawkdownFiwe(path: stwing): Pwomise<vscode.Uwi | undefined> {
+	const wesouwce = vscode.Uwi.fiwe(path);
 
-	let document: vscode.TextDocument;
-	try {
-		document = await vscode.workspace.openTextDocument(resource);
+	wet document: vscode.TextDocument;
+	twy {
+		document = await vscode.wowkspace.openTextDocument(wesouwce);
 	} catch {
-		return undefined;
+		wetuwn undefined;
 	}
-	if (isMarkdownFile(document)) {
-		return document.uri;
+	if (isMawkdownFiwe(document)) {
+		wetuwn document.uwi;
 	}
-	return undefined;
+	wetuwn undefined;
 }

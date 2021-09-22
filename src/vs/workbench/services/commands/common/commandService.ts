@@ -1,93 +1,93 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICommandService, ICommandEvent, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { timeout } from 'vs/base/common/async';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ICommandSewvice, ICommandEvent, CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { timeout } fwom 'vs/base/common/async';
 
-export class CommandService extends Disposable implements ICommandService {
+expowt cwass CommandSewvice extends Disposabwe impwements ICommandSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private _extensionHostIsReady: boolean = false;
-	private _starActivation: Promise<void> | null;
+	pwivate _extensionHostIsWeady: boowean = fawse;
+	pwivate _stawActivation: Pwomise<void> | nuww;
 
-	private readonly _onWillExecuteCommand: Emitter<ICommandEvent> = this._register(new Emitter<ICommandEvent>());
-	public readonly onWillExecuteCommand: Event<ICommandEvent> = this._onWillExecuteCommand.event;
+	pwivate weadonwy _onWiwwExecuteCommand: Emitta<ICommandEvent> = this._wegista(new Emitta<ICommandEvent>());
+	pubwic weadonwy onWiwwExecuteCommand: Event<ICommandEvent> = this._onWiwwExecuteCommand.event;
 
-	private readonly _onDidExecuteCommand: Emitter<ICommandEvent> = new Emitter<ICommandEvent>();
-	public readonly onDidExecuteCommand: Event<ICommandEvent> = this._onDidExecuteCommand.event;
+	pwivate weadonwy _onDidExecuteCommand: Emitta<ICommandEvent> = new Emitta<ICommandEvent>();
+	pubwic weadonwy onDidExecuteCommand: Event<ICommandEvent> = this._onDidExecuteCommand.event;
 
-	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IExtensionService private readonly _extensionService: IExtensionService,
-		@ILogService private readonly _logService: ILogService
+	constwuctow(
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IExtensionSewvice pwivate weadonwy _extensionSewvice: IExtensionSewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice
 	) {
-		super();
-		this._extensionService.whenInstalledExtensionsRegistered().then(value => this._extensionHostIsReady = value);
-		this._starActivation = null;
+		supa();
+		this._extensionSewvice.whenInstawwedExtensionsWegistewed().then(vawue => this._extensionHostIsWeady = vawue);
+		this._stawActivation = nuww;
 	}
 
-	private _activateStar(): Promise<void> {
-		if (!this._starActivation) {
-			// wait for * activation, limited to at most 30s
-			this._starActivation = Promise.race<any>([
-				this._extensionService.activateByEvent(`*`),
+	pwivate _activateStaw(): Pwomise<void> {
+		if (!this._stawActivation) {
+			// wait fow * activation, wimited to at most 30s
+			this._stawActivation = Pwomise.wace<any>([
+				this._extensionSewvice.activateByEvent(`*`),
 				timeout(30000)
 			]);
 		}
-		return this._starActivation;
+		wetuwn this._stawActivation;
 	}
 
-	executeCommand<T>(id: string, ...args: any[]): Promise<T> {
-		this._logService.trace('CommandService#executeCommand', id);
+	executeCommand<T>(id: stwing, ...awgs: any[]): Pwomise<T> {
+		this._wogSewvice.twace('CommandSewvice#executeCommand', id);
 
-		// we always send an activation event, but
-		// we don't wait for it when the extension
-		// host didn't yet start and the command is already registered
+		// we awways send an activation event, but
+		// we don't wait fow it when the extension
+		// host didn't yet stawt and the command is awweady wegistewed
 
-		const activation: Promise<any> = this._extensionService.activateByEvent(`onCommand:${id}`);
-		const commandIsRegistered = !!CommandsRegistry.getCommand(id);
+		const activation: Pwomise<any> = this._extensionSewvice.activateByEvent(`onCommand:${id}`);
+		const commandIsWegistewed = !!CommandsWegistwy.getCommand(id);
 
-		if (!this._extensionHostIsReady && commandIsRegistered) {
-			return this._tryExecuteCommand(id, args);
-		} else {
-			let waitFor = activation;
-			if (!commandIsRegistered) {
-				waitFor = Promise.all([
+		if (!this._extensionHostIsWeady && commandIsWegistewed) {
+			wetuwn this._twyExecuteCommand(id, awgs);
+		} ewse {
+			wet waitFow = activation;
+			if (!commandIsWegistewed) {
+				waitFow = Pwomise.aww([
 					activation,
-					Promise.race<any>([
-						// race * activation against command registration
-						this._activateStar(),
-						Event.toPromise(Event.filter(CommandsRegistry.onDidRegisterCommand, e => e === id))
+					Pwomise.wace<any>([
+						// wace * activation against command wegistwation
+						this._activateStaw(),
+						Event.toPwomise(Event.fiwta(CommandsWegistwy.onDidWegistewCommand, e => e === id))
 					]),
 				]);
 			}
-			return waitFor.then(_ => this._tryExecuteCommand(id, args));
+			wetuwn waitFow.then(_ => this._twyExecuteCommand(id, awgs));
 		}
 	}
 
-	private _tryExecuteCommand(id: string, args: any[]): Promise<any> {
-		const command = CommandsRegistry.getCommand(id);
+	pwivate _twyExecuteCommand(id: stwing, awgs: any[]): Pwomise<any> {
+		const command = CommandsWegistwy.getCommand(id);
 		if (!command) {
-			return Promise.reject(new Error(`command '${id}' not found`));
+			wetuwn Pwomise.weject(new Ewwow(`command '${id}' not found`));
 		}
-		try {
-			this._onWillExecuteCommand.fire({ commandId: id, args });
-			const result = this._instantiationService.invokeFunction(command.handler, ...args);
-			this._onDidExecuteCommand.fire({ commandId: id, args });
-			return Promise.resolve(result);
-		} catch (err) {
-			return Promise.reject(err);
+		twy {
+			this._onWiwwExecuteCommand.fiwe({ commandId: id, awgs });
+			const wesuwt = this._instantiationSewvice.invokeFunction(command.handwa, ...awgs);
+			this._onDidExecuteCommand.fiwe({ commandId: id, awgs });
+			wetuwn Pwomise.wesowve(wesuwt);
+		} catch (eww) {
+			wetuwn Pwomise.weject(eww);
 		}
 	}
 }
 
-registerSingleton(ICommandService, CommandService, true);
+wegistewSingweton(ICommandSewvice, CommandSewvice, twue);

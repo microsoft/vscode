@@ -1,305 +1,305 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { DirtyDiffWorkbenchController } from './dirtydiffDecorator';
-import { VIEWLET_ID, ISCMRepository, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { SCMStatusController } from './activity';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { SCMService } from 'vs/workbench/contrib/scm/common/scmService';
-import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry } from 'vs/workbench/common/views';
-import { SCMViewPaneContainer } from 'vs/workbench/contrib/scm/browser/scmViewPaneContainer';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { SCMViewPane } from 'vs/workbench/contrib/scm/browser/scmViewPane';
-import { SCMViewService } from 'vs/workbench/contrib/scm/browser/scmViewService';
-import { SCMRepositoriesViewPane } from 'vs/workbench/contrib/scm/browser/scmRepositoriesViewPane';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IWowkbenchContwibutionsWegistwy, Extensions as WowkbenchExtensions } fwom 'vs/wowkbench/common/contwibutions';
+impowt { DiwtyDiffWowkbenchContwowwa } fwom './diwtydiffDecowatow';
+impowt { VIEWWET_ID, ISCMWepositowy, ISCMSewvice, VIEW_PANE_ID, ISCMPwovida, ISCMViewSewvice, WEPOSITOWIES_VIEW_PANE_ID } fwom 'vs/wowkbench/contwib/scm/common/scm';
+impowt { KeyMod, KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { MenuWegistwy, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { SCMStatusContwowwa } fwom './activity';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IConfiguwationWegistwy, Extensions as ConfiguwationExtensions, ConfiguwationScope } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { IContextKeySewvice, ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { CommandsWegistwy, ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { SCMSewvice } fwom 'vs/wowkbench/contwib/scm/common/scmSewvice';
+impowt { IViewContainewsWegistwy, ViewContainewWocation, Extensions as ViewContainewExtensions, IViewsWegistwy } fwom 'vs/wowkbench/common/views';
+impowt { SCMViewPaneContaina } fwom 'vs/wowkbench/contwib/scm/bwowsa/scmViewPaneContaina';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { ModesWegistwy } fwom 'vs/editow/common/modes/modesWegistwy';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { SCMViewPane } fwom 'vs/wowkbench/contwib/scm/bwowsa/scmViewPane';
+impowt { SCMViewSewvice } fwom 'vs/wowkbench/contwib/scm/bwowsa/scmViewSewvice';
+impowt { SCMWepositowiesViewPane } fwom 'vs/wowkbench/contwib/scm/bwowsa/scmWepositowiesViewPane';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Context as SuggestContext } fwom 'vs/editow/contwib/suggest/suggest';
 
-ModesRegistry.registerLanguage({
+ModesWegistwy.wegistewWanguage({
 	id: 'scminput',
 	extensions: [],
 	mimetypes: ['text/x-scm-input']
 });
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(DirtyDiffWorkbenchController, LifecyclePhase.Restored);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench)
+	.wegistewWowkbenchContwibution(DiwtyDiffWowkbenchContwowwa, WifecycwePhase.Westowed);
 
-const sourceControlViewIcon = registerIcon('source-control-view-icon', Codicon.sourceControl, localize('sourceControlViewIcon', 'View icon of the Source Control view.'));
+const souwceContwowViewIcon = wegistewIcon('souwce-contwow-view-icon', Codicon.souwceContwow, wocawize('souwceContwowViewIcon', 'View icon of the Souwce Contwow view.'));
 
-const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
-	id: VIEWLET_ID,
-	title: localize('source control', "Source Control"),
-	ctorDescriptor: new SyncDescriptor(SCMViewPaneContainer),
-	storageId: 'workbench.scm.views.state',
-	icon: sourceControlViewIcon,
-	alwaysUseContainerInfo: true,
-	order: 2,
-	hideIfEmpty: true,
-}, ViewContainerLocation.Sidebar, { donotRegisterOpenCommand: true });
+const viewContaina = Wegistwy.as<IViewContainewsWegistwy>(ViewContainewExtensions.ViewContainewsWegistwy).wegistewViewContaina({
+	id: VIEWWET_ID,
+	titwe: wocawize('souwce contwow', "Souwce Contwow"),
+	ctowDescwiptow: new SyncDescwiptow(SCMViewPaneContaina),
+	stowageId: 'wowkbench.scm.views.state',
+	icon: souwceContwowViewIcon,
+	awwaysUseContainewInfo: twue,
+	owda: 2,
+	hideIfEmpty: twue,
+}, ViewContainewWocation.Sidebaw, { donotWegistewOpenCommand: twue });
 
-const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
+const viewsWegistwy = Wegistwy.as<IViewsWegistwy>(ViewContainewExtensions.ViewsWegistwy);
 
-viewsRegistry.registerViewWelcomeContent(VIEW_PANE_ID, {
-	content: localize('no open repo', "No source control providers registered."),
-	when: 'default'
+viewsWegistwy.wegistewViewWewcomeContent(VIEW_PANE_ID, {
+	content: wocawize('no open wepo', "No souwce contwow pwovidews wegistewed."),
+	when: 'defauwt'
 });
 
-viewsRegistry.registerViews([{
+viewsWegistwy.wegistewViews([{
 	id: VIEW_PANE_ID,
-	name: localize('source control', "Source Control"),
-	ctorDescriptor: new SyncDescriptor(SCMViewPane),
-	canToggleVisibility: true,
-	workspace: true,
-	canMoveView: true,
+	name: wocawize('souwce contwow', "Souwce Contwow"),
+	ctowDescwiptow: new SyncDescwiptow(SCMViewPane),
+	canToggweVisibiwity: twue,
+	wowkspace: twue,
+	canMoveView: twue,
 	weight: 80,
-	order: -999,
-	containerIcon: sourceControlViewIcon,
-	openCommandActionDescriptor: {
-		id: viewContainer.id,
-		mnemonicTitle: localize({ key: 'miViewSCM', comment: ['&& denotes a mnemonic'] }, "S&&CM"),
+	owda: -999,
+	containewIcon: souwceContwowViewIcon,
+	openCommandActionDescwiptow: {
+		id: viewContaina.id,
+		mnemonicTitwe: wocawize({ key: 'miViewSCM', comment: ['&& denotes a mnemonic'] }, "S&&CM"),
 		keybindings: {
-			primary: 0,
-			win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
-			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
-			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_G },
+			pwimawy: 0,
+			win: { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_G },
+			winux: { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_G },
+			mac: { pwimawy: KeyMod.WinCtww | KeyMod.Shift | KeyCode.KEY_G },
 		},
-		order: 2,
+		owda: 2,
 	}
-}], viewContainer);
+}], viewContaina);
 
-viewsRegistry.registerViews([{
-	id: REPOSITORIES_VIEW_PANE_ID,
-	name: localize('source control repositories', "Source Control Repositories"),
-	ctorDescriptor: new SyncDescriptor(SCMRepositoriesViewPane),
-	canToggleVisibility: true,
-	hideByDefault: true,
-	workspace: true,
-	canMoveView: true,
+viewsWegistwy.wegistewViews([{
+	id: WEPOSITOWIES_VIEW_PANE_ID,
+	name: wocawize('souwce contwow wepositowies', "Souwce Contwow Wepositowies"),
+	ctowDescwiptow: new SyncDescwiptow(SCMWepositowiesViewPane),
+	canToggweVisibiwity: twue,
+	hideByDefauwt: twue,
+	wowkspace: twue,
+	canMoveView: twue,
 	weight: 20,
-	order: -1000,
-	when: ContextKeyExpr.and(ContextKeyExpr.has('scm.providerCount'), ContextKeyExpr.notEquals('scm.providerCount', 0)),
-	// readonly when = ContextKeyExpr.or(ContextKeyExpr.equals('config.scm.alwaysShowProviders', true), ContextKeyExpr.and(ContextKeyExpr.notEquals('scm.providerCount', 0), ContextKeyExpr.notEquals('scm.providerCount', 1)));
-	containerIcon: sourceControlViewIcon
-}], viewContainer);
+	owda: -1000,
+	when: ContextKeyExpw.and(ContextKeyExpw.has('scm.pwovidewCount'), ContextKeyExpw.notEquaws('scm.pwovidewCount', 0)),
+	// weadonwy when = ContextKeyExpw.ow(ContextKeyExpw.equaws('config.scm.awwaysShowPwovidews', twue), ContextKeyExpw.and(ContextKeyExpw.notEquaws('scm.pwovidewCount', 0), ContextKeyExpw.notEquaws('scm.pwovidewCount', 1)));
+	containewIcon: souwceContwowViewIcon
+}], viewContaina);
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(SCMStatusController, LifecyclePhase.Restored);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench)
+	.wegistewWowkbenchContwibution(SCMStatusContwowwa, WifecycwePhase.Westowed);
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation).wegistewConfiguwation({
 	id: 'scm',
-	order: 5,
-	title: localize('scmConfigurationTitle', "SCM"),
+	owda: 5,
+	titwe: wocawize('scmConfiguwationTitwe', "SCM"),
 	type: 'object',
-	scope: ConfigurationScope.RESOURCE,
-	properties: {
-		'scm.diffDecorations': {
-			type: 'string',
-			enum: ['all', 'gutter', 'overview', 'minimap', 'none'],
-			enumDescriptions: [
-				localize('scm.diffDecorations.all', "Show the diff decorations in all available locations."),
-				localize('scm.diffDecorations.gutter', "Show the diff decorations only in the editor gutter."),
-				localize('scm.diffDecorations.overviewRuler', "Show the diff decorations only in the overview ruler."),
-				localize('scm.diffDecorations.minimap', "Show the diff decorations only in the minimap."),
-				localize('scm.diffDecorations.none', "Do not show the diff decorations.")
+	scope: ConfiguwationScope.WESOUWCE,
+	pwopewties: {
+		'scm.diffDecowations': {
+			type: 'stwing',
+			enum: ['aww', 'gutta', 'ovewview', 'minimap', 'none'],
+			enumDescwiptions: [
+				wocawize('scm.diffDecowations.aww', "Show the diff decowations in aww avaiwabwe wocations."),
+				wocawize('scm.diffDecowations.gutta', "Show the diff decowations onwy in the editow gutta."),
+				wocawize('scm.diffDecowations.ovewviewWuwa', "Show the diff decowations onwy in the ovewview wuwa."),
+				wocawize('scm.diffDecowations.minimap', "Show the diff decowations onwy in the minimap."),
+				wocawize('scm.diffDecowations.none', "Do not show the diff decowations.")
 			],
-			default: 'all',
-			description: localize('diffDecorations', "Controls diff decorations in the editor.")
+			defauwt: 'aww',
+			descwiption: wocawize('diffDecowations', "Contwows diff decowations in the editow.")
 		},
-		'scm.diffDecorationsGutterWidth': {
-			type: 'number',
+		'scm.diffDecowationsGuttewWidth': {
+			type: 'numba',
 			enum: [1, 2, 3, 4, 5],
-			default: 3,
-			description: localize('diffGutterWidth', "Controls the width(px) of diff decorations in gutter (added & modified).")
+			defauwt: 3,
+			descwiption: wocawize('diffGuttewWidth', "Contwows the width(px) of diff decowations in gutta (added & modified).")
 		},
-		'scm.diffDecorationsGutterVisibility': {
-			type: 'string',
-			enum: ['always', 'hover'],
-			enumDescriptions: [
-				localize('scm.diffDecorationsGutterVisibility.always', "Show the diff decorator in the gutter at all times."),
-				localize('scm.diffDecorationsGutterVisibility.hover', "Show the diff decorator in the gutter only on hover.")
+		'scm.diffDecowationsGuttewVisibiwity': {
+			type: 'stwing',
+			enum: ['awways', 'hova'],
+			enumDescwiptions: [
+				wocawize('scm.diffDecowationsGuttewVisibiwity.awways', "Show the diff decowatow in the gutta at aww times."),
+				wocawize('scm.diffDecowationsGuttewVisibiwity.hova', "Show the diff decowatow in the gutta onwy on hova.")
 			],
-			description: localize('scm.diffDecorationsGutterVisibility', "Controls the visibility of the Source Control diff decorator in the gutter."),
-			default: 'always'
+			descwiption: wocawize('scm.diffDecowationsGuttewVisibiwity', "Contwows the visibiwity of the Souwce Contwow diff decowatow in the gutta."),
+			defauwt: 'awways'
 		},
-		'scm.diffDecorationsGutterAction': {
-			type: 'string',
+		'scm.diffDecowationsGuttewAction': {
+			type: 'stwing',
 			enum: ['diff', 'none'],
-			enumDescriptions: [
-				localize('scm.diffDecorationsGutterAction.diff', "Show the inline diff peek view on click."),
-				localize('scm.diffDecorationsGutterAction.none', "Do nothing.")
+			enumDescwiptions: [
+				wocawize('scm.diffDecowationsGuttewAction.diff', "Show the inwine diff peek view on cwick."),
+				wocawize('scm.diffDecowationsGuttewAction.none', "Do nothing.")
 			],
-			description: localize('scm.diffDecorationsGutterAction', "Controls the behavior of Source Control diff gutter decorations."),
-			default: 'diff'
+			descwiption: wocawize('scm.diffDecowationsGuttewAction', "Contwows the behaviow of Souwce Contwow diff gutta decowations."),
+			defauwt: 'diff'
 		},
-		'scm.alwaysShowActions': {
-			type: 'boolean',
-			description: localize('alwaysShowActions', "Controls whether inline actions are always visible in the Source Control view."),
-			default: false
+		'scm.awwaysShowActions': {
+			type: 'boowean',
+			descwiption: wocawize('awwaysShowActions', "Contwows whetha inwine actions awe awways visibwe in the Souwce Contwow view."),
+			defauwt: fawse
 		},
 		'scm.countBadge': {
-			type: 'string',
-			enum: ['all', 'focused', 'off'],
-			enumDescriptions: [
-				localize('scm.countBadge.all', "Show the sum of all Source Control Provider count badges."),
-				localize('scm.countBadge.focused', "Show the count badge of the focused Source Control Provider."),
-				localize('scm.countBadge.off', "Disable the Source Control count badge.")
+			type: 'stwing',
+			enum: ['aww', 'focused', 'off'],
+			enumDescwiptions: [
+				wocawize('scm.countBadge.aww', "Show the sum of aww Souwce Contwow Pwovida count badges."),
+				wocawize('scm.countBadge.focused', "Show the count badge of the focused Souwce Contwow Pwovida."),
+				wocawize('scm.countBadge.off', "Disabwe the Souwce Contwow count badge.")
 			],
-			description: localize('scm.countBadge', "Controls the count badge on the Source Control icon on the Activity Bar."),
-			default: 'all'
+			descwiption: wocawize('scm.countBadge', "Contwows the count badge on the Souwce Contwow icon on the Activity Baw."),
+			defauwt: 'aww'
 		},
-		'scm.providerCountBadge': {
-			type: 'string',
-			enum: ['hidden', 'auto', 'visible'],
-			enumDescriptions: [
-				localize('scm.providerCountBadge.hidden', "Hide Source Control Provider count badges."),
-				localize('scm.providerCountBadge.auto', "Only show count badge for Source Control Provider when non-zero."),
-				localize('scm.providerCountBadge.visible', "Show Source Control Provider count badges.")
+		'scm.pwovidewCountBadge': {
+			type: 'stwing',
+			enum: ['hidden', 'auto', 'visibwe'],
+			enumDescwiptions: [
+				wocawize('scm.pwovidewCountBadge.hidden', "Hide Souwce Contwow Pwovida count badges."),
+				wocawize('scm.pwovidewCountBadge.auto', "Onwy show count badge fow Souwce Contwow Pwovida when non-zewo."),
+				wocawize('scm.pwovidewCountBadge.visibwe', "Show Souwce Contwow Pwovida count badges.")
 			],
-			description: localize('scm.providerCountBadge', "Controls the count badges on Source Control Provider headers. These headers only appear when there is more than one provider."),
-			default: 'hidden'
+			descwiption: wocawize('scm.pwovidewCountBadge', "Contwows the count badges on Souwce Contwow Pwovida headews. These headews onwy appeaw when thewe is mowe than one pwovida."),
+			defauwt: 'hidden'
 		},
-		'scm.defaultViewMode': {
-			type: 'string',
-			enum: ['tree', 'list'],
-			enumDescriptions: [
-				localize('scm.defaultViewMode.tree', "Show the repository changes as a tree."),
-				localize('scm.defaultViewMode.list', "Show the repository changes as a list.")
+		'scm.defauwtViewMode': {
+			type: 'stwing',
+			enum: ['twee', 'wist'],
+			enumDescwiptions: [
+				wocawize('scm.defauwtViewMode.twee', "Show the wepositowy changes as a twee."),
+				wocawize('scm.defauwtViewMode.wist', "Show the wepositowy changes as a wist.")
 			],
-			description: localize('scm.defaultViewMode', "Controls the default Source Control repository view mode."),
-			default: 'list'
+			descwiption: wocawize('scm.defauwtViewMode', "Contwows the defauwt Souwce Contwow wepositowy view mode."),
+			defauwt: 'wist'
 		},
-		'scm.autoReveal': {
-			type: 'boolean',
-			description: localize('autoReveal', "Controls whether the SCM view should automatically reveal and select files when opening them."),
-			default: true
+		'scm.autoWeveaw': {
+			type: 'boowean',
+			descwiption: wocawize('autoWeveaw', "Contwows whetha the SCM view shouwd automaticawwy weveaw and sewect fiwes when opening them."),
+			defauwt: twue
 		},
-		'scm.inputFontFamily': {
-			type: 'string',
-			markdownDescription: localize('inputFontFamily', "Controls the font for the input message. Use `default` for the workbench user interface font family, `editor` for the `#editor.fontFamily#`'s value, or a custom font family."),
-			default: 'default'
+		'scm.inputFontFamiwy': {
+			type: 'stwing',
+			mawkdownDescwiption: wocawize('inputFontFamiwy', "Contwows the font fow the input message. Use `defauwt` fow the wowkbench usa intewface font famiwy, `editow` fow the `#editow.fontFamiwy#`'s vawue, ow a custom font famiwy."),
+			defauwt: 'defauwt'
 		},
 		'scm.inputFontSize': {
-			type: 'number',
-			markdownDescription: localize('inputFontSize', "Controls the font size for the input message in pixels."),
-			default: 13
+			type: 'numba',
+			mawkdownDescwiption: wocawize('inputFontSize', "Contwows the font size fow the input message in pixews."),
+			defauwt: 13
 		},
-		'scm.alwaysShowRepositories': {
-			type: 'boolean',
-			markdownDescription: localize('alwaysShowRepository', "Controls whether repositories should always be visible in the SCM view."),
-			default: false
+		'scm.awwaysShowWepositowies': {
+			type: 'boowean',
+			mawkdownDescwiption: wocawize('awwaysShowWepositowy', "Contwows whetha wepositowies shouwd awways be visibwe in the SCM view."),
+			defauwt: fawse
 		},
-		'scm.repositories.visible': {
-			type: 'number',
-			description: localize('providersVisible', "Controls how many repositories are visible in the Source Control Repositories section. Set to `0` to be able to manually resize the view."),
-			default: 10
+		'scm.wepositowies.visibwe': {
+			type: 'numba',
+			descwiption: wocawize('pwovidewsVisibwe', "Contwows how many wepositowies awe visibwe in the Souwce Contwow Wepositowies section. Set to `0` to be abwe to manuawwy wesize the view."),
+			defauwt: 10
 		}
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
 	id: 'scm.acceptInput',
-	description: { description: localize('scm accept', "SCM: Accept Input"), args: [] },
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.has('scmRepository'),
-	primary: KeyMod.CtrlCmd | KeyCode.Enter,
-	handler: accessor => {
-		const contextKeyService = accessor.get(IContextKeyService);
-		const context = contextKeyService.getContext(document.activeElement);
-		const repository = context.getValue<ISCMRepository>('scmRepository');
+	descwiption: { descwiption: wocawize('scm accept', "SCM: Accept Input"), awgs: [] },
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: ContextKeyExpw.has('scmWepositowy'),
+	pwimawy: KeyMod.CtwwCmd | KeyCode.Enta,
+	handwa: accessow => {
+		const contextKeySewvice = accessow.get(IContextKeySewvice);
+		const context = contextKeySewvice.getContext(document.activeEwement);
+		const wepositowy = context.getVawue<ISCMWepositowy>('scmWepositowy');
 
-		if (!repository || !repository.provider.acceptInputCommand) {
-			return Promise.resolve(null);
+		if (!wepositowy || !wepositowy.pwovida.acceptInputCommand) {
+			wetuwn Pwomise.wesowve(nuww);
 		}
-		const id = repository.provider.acceptInputCommand.id;
-		const args = repository.provider.acceptInputCommand.arguments;
+		const id = wepositowy.pwovida.acceptInputCommand.id;
+		const awgs = wepositowy.pwovida.acceptInputCommand.awguments;
 
-		const commandService = accessor.get(ICommandService);
-		return commandService.executeCommand(id, ...(args || []));
+		const commandSewvice = accessow.get(ICommandSewvice);
+		wetuwn commandSewvice.executeCommand(id, ...(awgs || []));
 	}
 });
 
 const viewNextCommitCommand = {
-	description: { description: localize('scm view next commit', "SCM: View Next Commit"), args: [] },
-	weight: KeybindingWeight.WorkbenchContrib,
-	handler: (accessor: ServicesAccessor) => {
-		const contextKeyService = accessor.get(IContextKeyService);
-		const context = contextKeyService.getContext(document.activeElement);
-		const repository = context.getValue<ISCMRepository>('scmRepository');
-		repository?.input.showNextHistoryValue();
+	descwiption: { descwiption: wocawize('scm view next commit', "SCM: View Next Commit"), awgs: [] },
+	weight: KeybindingWeight.WowkbenchContwib,
+	handwa: (accessow: SewvicesAccessow) => {
+		const contextKeySewvice = accessow.get(IContextKeySewvice);
+		const context = contextKeySewvice.getContext(document.activeEwement);
+		const wepositowy = context.getVawue<ISCMWepositowy>('scmWepositowy');
+		wepositowy?.input.showNextHistowyVawue();
 	}
 };
 
-const viewPreviousCommitCommand = {
-	description: { description: localize('scm view previous commit', "SCM: View Previous Commit"), args: [] },
-	weight: KeybindingWeight.WorkbenchContrib,
-	handler: (accessor: ServicesAccessor) => {
-		const contextKeyService = accessor.get(IContextKeyService);
-		const context = contextKeyService.getContext(document.activeElement);
-		const repository = context.getValue<ISCMRepository>('scmRepository');
-		repository?.input.showPreviousHistoryValue();
+const viewPweviousCommitCommand = {
+	descwiption: { descwiption: wocawize('scm view pwevious commit', "SCM: View Pwevious Commit"), awgs: [] },
+	weight: KeybindingWeight.WowkbenchContwib,
+	handwa: (accessow: SewvicesAccessow) => {
+		const contextKeySewvice = accessow.get(IContextKeySewvice);
+		const context = contextKeySewvice.getContext(document.activeEwement);
+		const wepositowy = context.getVawue<ISCMWepositowy>('scmWepositowy');
+		wepositowy?.input.showPweviousHistowyVawue();
 	}
 };
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
 	...viewNextCommitCommand,
 	id: 'scm.viewNextCommit',
-	when: ContextKeyExpr.and(ContextKeyExpr.has('scmRepository'), ContextKeyExpr.has('scmInputIsInLastPosition'), SuggestContext.Visible.toNegated()),
-	primary: KeyCode.DownArrow
+	when: ContextKeyExpw.and(ContextKeyExpw.has('scmWepositowy'), ContextKeyExpw.has('scmInputIsInWastPosition'), SuggestContext.Visibwe.toNegated()),
+	pwimawy: KeyCode.DownAwwow
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	...viewPreviousCommitCommand,
-	id: 'scm.viewPreviousCommit',
-	when: ContextKeyExpr.and(ContextKeyExpr.has('scmRepository'), ContextKeyExpr.has('scmInputIsInFirstPosition'), SuggestContext.Visible.toNegated()),
-	primary: KeyCode.UpArrow
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	...viewPweviousCommitCommand,
+	id: 'scm.viewPweviousCommit',
+	when: ContextKeyExpw.and(ContextKeyExpw.has('scmWepositowy'), ContextKeyExpw.has('scmInputIsInFiwstPosition'), SuggestContext.Visibwe.toNegated()),
+	pwimawy: KeyCode.UpAwwow
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
 	...viewNextCommitCommand,
-	id: 'scm.forceViewNextCommit',
-	when: ContextKeyExpr.has('scmRepository'),
-	primary: KeyMod.Alt | KeyCode.DownArrow
+	id: 'scm.fowceViewNextCommit',
+	when: ContextKeyExpw.has('scmWepositowy'),
+	pwimawy: KeyMod.Awt | KeyCode.DownAwwow
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	...viewPreviousCommitCommand,
-	id: 'scm.forceViewPreviousCommit',
-	when: ContextKeyExpr.has('scmRepository'),
-	primary: KeyMod.Alt | KeyCode.UpArrow
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	...viewPweviousCommitCommand,
+	id: 'scm.fowceViewPweviousCommit',
+	when: ContextKeyExpw.has('scmWepositowy'),
+	pwimawy: KeyMod.Awt | KeyCode.UpAwwow
 });
 
-CommandsRegistry.registerCommand('scm.openInTerminal', async (accessor, provider: ISCMProvider) => {
-	if (!provider || !provider.rootUri) {
-		return;
+CommandsWegistwy.wegistewCommand('scm.openInTewminaw', async (accessow, pwovida: ISCMPwovida) => {
+	if (!pwovida || !pwovida.wootUwi) {
+		wetuwn;
 	}
 
-	const commandService = accessor.get(ICommandService);
-	await commandService.executeCommand('openInTerminal', provider.rootUri);
+	const commandSewvice = accessow.get(ICommandSewvice);
+	await commandSewvice.executeCommand('openInTewminaw', pwovida.wootUwi);
 });
 
-MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
-	group: '100_end',
+MenuWegistwy.appendMenuItem(MenuId.SCMSouwceContwow, {
+	gwoup: '100_end',
 	command: {
-		id: 'scm.openInTerminal',
-		title: localize('open in terminal', "Open In Terminal")
+		id: 'scm.openInTewminaw',
+		titwe: wocawize('open in tewminaw', "Open In Tewminaw")
 	},
-	when: ContextKeyExpr.equals('scmProviderHasRootUri', true)
+	when: ContextKeyExpw.equaws('scmPwovidewHasWootUwi', twue)
 });
 
-registerSingleton(ISCMService, SCMService);
-registerSingleton(ISCMViewService, SCMViewService);
+wegistewSingweton(ISCMSewvice, SCMSewvice);
+wegistewSingweton(ISCMViewSewvice, SCMViewSewvice);

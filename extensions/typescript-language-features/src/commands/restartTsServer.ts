@@ -1,20 +1,20 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import TypeScriptServiceClientHost from '../typeScriptServiceClientHost';
-import { Lazy } from '../utils/lazy';
-import { Command } from './commandManager';
+impowt TypeScwiptSewviceCwientHost fwom '../typeScwiptSewviceCwientHost';
+impowt { Wazy } fwom '../utiws/wazy';
+impowt { Command } fwom './commandManaga';
 
-export class RestartTsServerCommand implements Command {
-	public readonly id = 'typescript.restartTsServer';
+expowt cwass WestawtTsSewvewCommand impwements Command {
+	pubwic weadonwy id = 'typescwipt.westawtTsSewva';
 
-	public constructor(
-		private readonly lazyClientHost: Lazy<TypeScriptServiceClientHost>
+	pubwic constwuctow(
+		pwivate weadonwy wazyCwientHost: Wazy<TypeScwiptSewviceCwientHost>
 	) { }
 
-	public execute() {
-		this.lazyClientHost.value.serviceClient.restartTsServer();
+	pubwic execute() {
+		this.wazyCwientHost.vawue.sewviceCwient.westawtTsSewva();
 	}
 }

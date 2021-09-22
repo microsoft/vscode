@@ -1,492 +1,492 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Disposable, dispose } from 'vs/base/common/lifecycle';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
-import { IState, LanguageIdentifier, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+impowt * as assewt fwom 'assewt';
+impowt { Disposabwe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { TokenizationWesuwt2 } fwom 'vs/editow/common/cowe/token';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt { ModewWawContentChangedEvent, ModewWawFwush, ModewWawWineChanged, ModewWawWinesDeweted, ModewWawWinesInsewted } fwom 'vs/editow/common/modew/textModewEvents';
+impowt { IState, WanguageIdentifia, MetadataConsts, TokenizationWegistwy } fwom 'vs/editow/common/modes';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { NUWW_STATE } fwom 'vs/editow/common/modes/nuwwMode';
+impowt { MockMode } fwom 'vs/editow/test/common/mocks/mockMode';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
 
-// --------- utils
+// --------- utiws
 
-const LINE1 = 'My First Line';
-const LINE2 = '\t\tMy Second Line';
-const LINE3 = '    Third Line';
-const LINE4 = '';
-const LINE5 = '1';
+const WINE1 = 'My Fiwst Wine';
+const WINE2 = '\t\tMy Second Wine';
+const WINE3 = '    Thiwd Wine';
+const WINE4 = '';
+const WINE5 = '1';
 
-suite('Editor Model - Model', () => {
+suite('Editow Modew - Modew', () => {
 
-	let thisModel: TextModel;
+	wet thisModew: TextModew;
 
 	setup(() => {
 		const text =
-			LINE1 + '\r\n' +
-			LINE2 + '\n' +
-			LINE3 + '\n' +
-			LINE4 + '\r\n' +
-			LINE5;
-		thisModel = createTextModel(text);
+			WINE1 + '\w\n' +
+			WINE2 + '\n' +
+			WINE3 + '\n' +
+			WINE4 + '\w\n' +
+			WINE5;
+		thisModew = cweateTextModew(text);
 	});
 
-	teardown(() => {
-		thisModel.dispose();
+	teawdown(() => {
+		thisModew.dispose();
 	});
 
-	// --------- insert text
+	// --------- insewt text
 
-	test('model getValue', () => {
-		assert.strictEqual(thisModel.getValue(), 'My First Line\n\t\tMy Second Line\n    Third Line\n\n1');
+	test('modew getVawue', () => {
+		assewt.stwictEquaw(thisModew.getVawue(), 'My Fiwst Wine\n\t\tMy Second Wine\n    Thiwd Wine\n\n1');
 	});
 
-	test('model insert empty text', () => {
-		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), '')]);
-		assert.strictEqual(thisModel.getLineCount(), 5);
-		assert.strictEqual(thisModel.getLineContent(1), 'My First Line');
+	test('modew insewt empty text', () => {
+		thisModew.appwyEdits([EditOpewation.insewt(new Position(1, 1), '')]);
+		assewt.stwictEquaw(thisModew.getWineCount(), 5);
+		assewt.stwictEquaw(thisModew.getWineContent(1), 'My Fiwst Wine');
 	});
 
-	test('model insert text without newline 1', () => {
-		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), 'foo ')]);
-		assert.strictEqual(thisModel.getLineCount(), 5);
-		assert.strictEqual(thisModel.getLineContent(1), 'foo My First Line');
+	test('modew insewt text without newwine 1', () => {
+		thisModew.appwyEdits([EditOpewation.insewt(new Position(1, 1), 'foo ')]);
+		assewt.stwictEquaw(thisModew.getWineCount(), 5);
+		assewt.stwictEquaw(thisModew.getWineContent(1), 'foo My Fiwst Wine');
 	});
 
-	test('model insert text without newline 2', () => {
-		thisModel.applyEdits([EditOperation.insert(new Position(1, 3), ' foo')]);
-		assert.strictEqual(thisModel.getLineCount(), 5);
-		assert.strictEqual(thisModel.getLineContent(1), 'My foo First Line');
+	test('modew insewt text without newwine 2', () => {
+		thisModew.appwyEdits([EditOpewation.insewt(new Position(1, 3), ' foo')]);
+		assewt.stwictEquaw(thisModew.getWineCount(), 5);
+		assewt.stwictEquaw(thisModew.getWineContent(1), 'My foo Fiwst Wine');
 	});
 
-	test('model insert text with one newline', () => {
-		thisModel.applyEdits([EditOperation.insert(new Position(1, 3), ' new line\nNo longer')]);
-		assert.strictEqual(thisModel.getLineCount(), 6);
-		assert.strictEqual(thisModel.getLineContent(1), 'My new line');
-		assert.strictEqual(thisModel.getLineContent(2), 'No longer First Line');
+	test('modew insewt text with one newwine', () => {
+		thisModew.appwyEdits([EditOpewation.insewt(new Position(1, 3), ' new wine\nNo wonga')]);
+		assewt.stwictEquaw(thisModew.getWineCount(), 6);
+		assewt.stwictEquaw(thisModew.getWineContent(1), 'My new wine');
+		assewt.stwictEquaw(thisModew.getWineContent(2), 'No wonga Fiwst Wine');
 	});
 
-	test('model insert text with two newlines', () => {
-		thisModel.applyEdits([EditOperation.insert(new Position(1, 3), ' new line\nOne more line in the middle\nNo longer')]);
-		assert.strictEqual(thisModel.getLineCount(), 7);
-		assert.strictEqual(thisModel.getLineContent(1), 'My new line');
-		assert.strictEqual(thisModel.getLineContent(2), 'One more line in the middle');
-		assert.strictEqual(thisModel.getLineContent(3), 'No longer First Line');
+	test('modew insewt text with two newwines', () => {
+		thisModew.appwyEdits([EditOpewation.insewt(new Position(1, 3), ' new wine\nOne mowe wine in the middwe\nNo wonga')]);
+		assewt.stwictEquaw(thisModew.getWineCount(), 7);
+		assewt.stwictEquaw(thisModew.getWineContent(1), 'My new wine');
+		assewt.stwictEquaw(thisModew.getWineContent(2), 'One mowe wine in the middwe');
+		assewt.stwictEquaw(thisModew.getWineContent(3), 'No wonga Fiwst Wine');
 	});
 
-	test('model insert text with many newlines', () => {
-		thisModel.applyEdits([EditOperation.insert(new Position(1, 3), '\n\n\n\n')]);
-		assert.strictEqual(thisModel.getLineCount(), 9);
-		assert.strictEqual(thisModel.getLineContent(1), 'My');
-		assert.strictEqual(thisModel.getLineContent(2), '');
-		assert.strictEqual(thisModel.getLineContent(3), '');
-		assert.strictEqual(thisModel.getLineContent(4), '');
-		assert.strictEqual(thisModel.getLineContent(5), ' First Line');
+	test('modew insewt text with many newwines', () => {
+		thisModew.appwyEdits([EditOpewation.insewt(new Position(1, 3), '\n\n\n\n')]);
+		assewt.stwictEquaw(thisModew.getWineCount(), 9);
+		assewt.stwictEquaw(thisModew.getWineContent(1), 'My');
+		assewt.stwictEquaw(thisModew.getWineContent(2), '');
+		assewt.stwictEquaw(thisModew.getWineContent(3), '');
+		assewt.stwictEquaw(thisModew.getWineContent(4), '');
+		assewt.stwictEquaw(thisModew.getWineContent(5), ' Fiwst Wine');
 	});
 
 
-	// --------- insert text eventing
+	// --------- insewt text eventing
 
-	test('model insert empty text does not trigger eventing', () => {
-		thisModel.onDidChangeRawContent((e) => {
-			assert.ok(false, 'was not expecting event');
+	test('modew insewt empty text does not twigga eventing', () => {
+		thisModew.onDidChangeWawContent((e) => {
+			assewt.ok(fawse, 'was not expecting event');
 		});
-		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), '')]);
+		thisModew.appwyEdits([EditOpewation.insewt(new Position(1, 1), '')]);
 	});
 
-	test('model insert text without newline eventing', () => {
-		let e: ModelRawContentChangedEvent | null = null;
-		thisModel.onDidChangeRawContent((_e) => {
-			if (e !== null) {
-				assert.fail('Unexpected assertion error');
+	test('modew insewt text without newwine eventing', () => {
+		wet e: ModewWawContentChangedEvent | nuww = nuww;
+		thisModew.onDidChangeWawContent((_e) => {
+			if (e !== nuww) {
+				assewt.faiw('Unexpected assewtion ewwow');
 			}
 			e = _e;
 		});
-		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), 'foo ')]);
-		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
+		thisModew.appwyEdits([EditOpewation.insewt(new Position(1, 1), 'foo ')]);
+		assewt.deepStwictEquaw(e, new ModewWawContentChangedEvent(
 			[
-				new ModelRawLineChanged(1, 'foo My First Line', null)
+				new ModewWawWineChanged(1, 'foo My Fiwst Wine', nuww)
 			],
 			2,
-			false,
-			false
+			fawse,
+			fawse
 		));
 	});
 
-	test('model insert text with one newline eventing', () => {
-		let e: ModelRawContentChangedEvent | null = null;
-		thisModel.onDidChangeRawContent((_e) => {
-			if (e !== null) {
-				assert.fail('Unexpected assertion error');
+	test('modew insewt text with one newwine eventing', () => {
+		wet e: ModewWawContentChangedEvent | nuww = nuww;
+		thisModew.onDidChangeWawContent((_e) => {
+			if (e !== nuww) {
+				assewt.faiw('Unexpected assewtion ewwow');
 			}
 			e = _e;
 		});
-		thisModel.applyEdits([EditOperation.insert(new Position(1, 3), ' new line\nNo longer')]);
-		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
+		thisModew.appwyEdits([EditOpewation.insewt(new Position(1, 3), ' new wine\nNo wonga')]);
+		assewt.deepStwictEquaw(e, new ModewWawContentChangedEvent(
 			[
-				new ModelRawLineChanged(1, 'My new line', null),
-				new ModelRawLinesInserted(2, 2, ['No longer First Line'], [null]),
+				new ModewWawWineChanged(1, 'My new wine', nuww),
+				new ModewWawWinesInsewted(2, 2, ['No wonga Fiwst Wine'], [nuww]),
 			],
 			2,
-			false,
-			false
+			fawse,
+			fawse
 		));
 	});
 
 
-	// --------- delete text
+	// --------- dewete text
 
-	test('model delete empty text', () => {
-		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 1))]);
-		assert.strictEqual(thisModel.getLineCount(), 5);
-		assert.strictEqual(thisModel.getLineContent(1), 'My First Line');
+	test('modew dewete empty text', () => {
+		thisModew.appwyEdits([EditOpewation.dewete(new Wange(1, 1, 1, 1))]);
+		assewt.stwictEquaw(thisModew.getWineCount(), 5);
+		assewt.stwictEquaw(thisModew.getWineContent(1), 'My Fiwst Wine');
 	});
 
-	test('model delete text from one line', () => {
-		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 2))]);
-		assert.strictEqual(thisModel.getLineCount(), 5);
-		assert.strictEqual(thisModel.getLineContent(1), 'y First Line');
+	test('modew dewete text fwom one wine', () => {
+		thisModew.appwyEdits([EditOpewation.dewete(new Wange(1, 1, 1, 2))]);
+		assewt.stwictEquaw(thisModew.getWineCount(), 5);
+		assewt.stwictEquaw(thisModew.getWineContent(1), 'y Fiwst Wine');
 	});
 
-	test('model delete text from one line 2', () => {
-		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), 'a')]);
-		assert.strictEqual(thisModel.getLineContent(1), 'aMy First Line');
+	test('modew dewete text fwom one wine 2', () => {
+		thisModew.appwyEdits([EditOpewation.insewt(new Position(1, 1), 'a')]);
+		assewt.stwictEquaw(thisModew.getWineContent(1), 'aMy Fiwst Wine');
 
-		thisModel.applyEdits([EditOperation.delete(new Range(1, 2, 1, 4))]);
-		assert.strictEqual(thisModel.getLineCount(), 5);
-		assert.strictEqual(thisModel.getLineContent(1), 'a First Line');
+		thisModew.appwyEdits([EditOpewation.dewete(new Wange(1, 2, 1, 4))]);
+		assewt.stwictEquaw(thisModew.getWineCount(), 5);
+		assewt.stwictEquaw(thisModew.getWineContent(1), 'a Fiwst Wine');
 	});
 
-	test('model delete all text from a line', () => {
-		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 14))]);
-		assert.strictEqual(thisModel.getLineCount(), 5);
-		assert.strictEqual(thisModel.getLineContent(1), '');
+	test('modew dewete aww text fwom a wine', () => {
+		thisModew.appwyEdits([EditOpewation.dewete(new Wange(1, 1, 1, 14))]);
+		assewt.stwictEquaw(thisModew.getWineCount(), 5);
+		assewt.stwictEquaw(thisModew.getWineContent(1), '');
 	});
 
-	test('model delete text from two lines', () => {
-		thisModel.applyEdits([EditOperation.delete(new Range(1, 4, 2, 6))]);
-		assert.strictEqual(thisModel.getLineCount(), 4);
-		assert.strictEqual(thisModel.getLineContent(1), 'My Second Line');
+	test('modew dewete text fwom two wines', () => {
+		thisModew.appwyEdits([EditOpewation.dewete(new Wange(1, 4, 2, 6))]);
+		assewt.stwictEquaw(thisModew.getWineCount(), 4);
+		assewt.stwictEquaw(thisModew.getWineContent(1), 'My Second Wine');
 	});
 
-	test('model delete text from many lines', () => {
-		thisModel.applyEdits([EditOperation.delete(new Range(1, 4, 3, 5))]);
-		assert.strictEqual(thisModel.getLineCount(), 3);
-		assert.strictEqual(thisModel.getLineContent(1), 'My Third Line');
+	test('modew dewete text fwom many wines', () => {
+		thisModew.appwyEdits([EditOpewation.dewete(new Wange(1, 4, 3, 5))]);
+		assewt.stwictEquaw(thisModew.getWineCount(), 3);
+		assewt.stwictEquaw(thisModew.getWineContent(1), 'My Thiwd Wine');
 	});
 
-	test('model delete everything', () => {
-		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 5, 2))]);
-		assert.strictEqual(thisModel.getLineCount(), 1);
-		assert.strictEqual(thisModel.getLineContent(1), '');
+	test('modew dewete evewything', () => {
+		thisModew.appwyEdits([EditOpewation.dewete(new Wange(1, 1, 5, 2))]);
+		assewt.stwictEquaw(thisModew.getWineCount(), 1);
+		assewt.stwictEquaw(thisModew.getWineContent(1), '');
 	});
 
-	// --------- delete text eventing
+	// --------- dewete text eventing
 
-	test('model delete empty text does not trigger eventing', () => {
-		thisModel.onDidChangeRawContent((e) => {
-			assert.ok(false, 'was not expecting event');
+	test('modew dewete empty text does not twigga eventing', () => {
+		thisModew.onDidChangeWawContent((e) => {
+			assewt.ok(fawse, 'was not expecting event');
 		});
-		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 1))]);
+		thisModew.appwyEdits([EditOpewation.dewete(new Wange(1, 1, 1, 1))]);
 	});
 
-	test('model delete text from one line eventing', () => {
-		let e: ModelRawContentChangedEvent | null = null;
-		thisModel.onDidChangeRawContent((_e) => {
-			if (e !== null) {
-				assert.fail('Unexpected assertion error');
+	test('modew dewete text fwom one wine eventing', () => {
+		wet e: ModewWawContentChangedEvent | nuww = nuww;
+		thisModew.onDidChangeWawContent((_e) => {
+			if (e !== nuww) {
+				assewt.faiw('Unexpected assewtion ewwow');
 			}
 			e = _e;
 		});
-		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 2))]);
-		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
+		thisModew.appwyEdits([EditOpewation.dewete(new Wange(1, 1, 1, 2))]);
+		assewt.deepStwictEquaw(e, new ModewWawContentChangedEvent(
 			[
-				new ModelRawLineChanged(1, 'y First Line', null),
+				new ModewWawWineChanged(1, 'y Fiwst Wine', nuww),
 			],
 			2,
-			false,
-			false
+			fawse,
+			fawse
 		));
 	});
 
-	test('model delete all text from a line eventing', () => {
-		let e: ModelRawContentChangedEvent | null = null;
-		thisModel.onDidChangeRawContent((_e) => {
-			if (e !== null) {
-				assert.fail('Unexpected assertion error');
+	test('modew dewete aww text fwom a wine eventing', () => {
+		wet e: ModewWawContentChangedEvent | nuww = nuww;
+		thisModew.onDidChangeWawContent((_e) => {
+			if (e !== nuww) {
+				assewt.faiw('Unexpected assewtion ewwow');
 			}
 			e = _e;
 		});
-		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 14))]);
-		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
+		thisModew.appwyEdits([EditOpewation.dewete(new Wange(1, 1, 1, 14))]);
+		assewt.deepStwictEquaw(e, new ModewWawContentChangedEvent(
 			[
-				new ModelRawLineChanged(1, '', null),
+				new ModewWawWineChanged(1, '', nuww),
 			],
 			2,
-			false,
-			false
+			fawse,
+			fawse
 		));
 	});
 
-	test('model delete text from two lines eventing', () => {
-		let e: ModelRawContentChangedEvent | null = null;
-		thisModel.onDidChangeRawContent((_e) => {
-			if (e !== null) {
-				assert.fail('Unexpected assertion error');
+	test('modew dewete text fwom two wines eventing', () => {
+		wet e: ModewWawContentChangedEvent | nuww = nuww;
+		thisModew.onDidChangeWawContent((_e) => {
+			if (e !== nuww) {
+				assewt.faiw('Unexpected assewtion ewwow');
 			}
 			e = _e;
 		});
-		thisModel.applyEdits([EditOperation.delete(new Range(1, 4, 2, 6))]);
-		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
+		thisModew.appwyEdits([EditOpewation.dewete(new Wange(1, 4, 2, 6))]);
+		assewt.deepStwictEquaw(e, new ModewWawContentChangedEvent(
 			[
-				new ModelRawLineChanged(1, 'My Second Line', null),
-				new ModelRawLinesDeleted(2, 2),
+				new ModewWawWineChanged(1, 'My Second Wine', nuww),
+				new ModewWawWinesDeweted(2, 2),
 			],
 			2,
-			false,
-			false
+			fawse,
+			fawse
 		));
 	});
 
-	test('model delete text from many lines eventing', () => {
-		let e: ModelRawContentChangedEvent | null = null;
-		thisModel.onDidChangeRawContent((_e) => {
-			if (e !== null) {
-				assert.fail('Unexpected assertion error');
+	test('modew dewete text fwom many wines eventing', () => {
+		wet e: ModewWawContentChangedEvent | nuww = nuww;
+		thisModew.onDidChangeWawContent((_e) => {
+			if (e !== nuww) {
+				assewt.faiw('Unexpected assewtion ewwow');
 			}
 			e = _e;
 		});
-		thisModel.applyEdits([EditOperation.delete(new Range(1, 4, 3, 5))]);
-		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
+		thisModew.appwyEdits([EditOpewation.dewete(new Wange(1, 4, 3, 5))]);
+		assewt.deepStwictEquaw(e, new ModewWawContentChangedEvent(
 			[
-				new ModelRawLineChanged(1, 'My Third Line', null),
-				new ModelRawLinesDeleted(2, 3),
+				new ModewWawWineChanged(1, 'My Thiwd Wine', nuww),
+				new ModewWawWinesDeweted(2, 3),
 			],
 			2,
-			false,
-			false
+			fawse,
+			fawse
 		));
 	});
 
-	// --------- getValueInRange
+	// --------- getVawueInWange
 
-	test('getValueInRange', () => {
-		assert.strictEqual(thisModel.getValueInRange(new Range(1, 1, 1, 1)), '');
-		assert.strictEqual(thisModel.getValueInRange(new Range(1, 1, 1, 2)), 'M');
-		assert.strictEqual(thisModel.getValueInRange(new Range(1, 2, 1, 3)), 'y');
-		assert.strictEqual(thisModel.getValueInRange(new Range(1, 1, 1, 14)), 'My First Line');
-		assert.strictEqual(thisModel.getValueInRange(new Range(1, 1, 2, 1)), 'My First Line\n');
-		assert.strictEqual(thisModel.getValueInRange(new Range(1, 1, 2, 2)), 'My First Line\n\t');
-		assert.strictEqual(thisModel.getValueInRange(new Range(1, 1, 2, 3)), 'My First Line\n\t\t');
-		assert.strictEqual(thisModel.getValueInRange(new Range(1, 1, 2, 17)), 'My First Line\n\t\tMy Second Line');
-		assert.strictEqual(thisModel.getValueInRange(new Range(1, 1, 3, 1)), 'My First Line\n\t\tMy Second Line\n');
-		assert.strictEqual(thisModel.getValueInRange(new Range(1, 1, 4, 1)), 'My First Line\n\t\tMy Second Line\n    Third Line\n');
+	test('getVawueInWange', () => {
+		assewt.stwictEquaw(thisModew.getVawueInWange(new Wange(1, 1, 1, 1)), '');
+		assewt.stwictEquaw(thisModew.getVawueInWange(new Wange(1, 1, 1, 2)), 'M');
+		assewt.stwictEquaw(thisModew.getVawueInWange(new Wange(1, 2, 1, 3)), 'y');
+		assewt.stwictEquaw(thisModew.getVawueInWange(new Wange(1, 1, 1, 14)), 'My Fiwst Wine');
+		assewt.stwictEquaw(thisModew.getVawueInWange(new Wange(1, 1, 2, 1)), 'My Fiwst Wine\n');
+		assewt.stwictEquaw(thisModew.getVawueInWange(new Wange(1, 1, 2, 2)), 'My Fiwst Wine\n\t');
+		assewt.stwictEquaw(thisModew.getVawueInWange(new Wange(1, 1, 2, 3)), 'My Fiwst Wine\n\t\t');
+		assewt.stwictEquaw(thisModew.getVawueInWange(new Wange(1, 1, 2, 17)), 'My Fiwst Wine\n\t\tMy Second Wine');
+		assewt.stwictEquaw(thisModew.getVawueInWange(new Wange(1, 1, 3, 1)), 'My Fiwst Wine\n\t\tMy Second Wine\n');
+		assewt.stwictEquaw(thisModew.getVawueInWange(new Wange(1, 1, 4, 1)), 'My Fiwst Wine\n\t\tMy Second Wine\n    Thiwd Wine\n');
 	});
 
-	// --------- getValueLengthInRange
+	// --------- getVawueWengthInWange
 
-	test('getValueLengthInRange', () => {
-		assert.strictEqual(thisModel.getValueLengthInRange(new Range(1, 1, 1, 1)), ''.length);
-		assert.strictEqual(thisModel.getValueLengthInRange(new Range(1, 1, 1, 2)), 'M'.length);
-		assert.strictEqual(thisModel.getValueLengthInRange(new Range(1, 2, 1, 3)), 'y'.length);
-		assert.strictEqual(thisModel.getValueLengthInRange(new Range(1, 1, 1, 14)), 'My First Line'.length);
-		assert.strictEqual(thisModel.getValueLengthInRange(new Range(1, 1, 2, 1)), 'My First Line\n'.length);
-		assert.strictEqual(thisModel.getValueLengthInRange(new Range(1, 1, 2, 2)), 'My First Line\n\t'.length);
-		assert.strictEqual(thisModel.getValueLengthInRange(new Range(1, 1, 2, 3)), 'My First Line\n\t\t'.length);
-		assert.strictEqual(thisModel.getValueLengthInRange(new Range(1, 1, 2, 17)), 'My First Line\n\t\tMy Second Line'.length);
-		assert.strictEqual(thisModel.getValueLengthInRange(new Range(1, 1, 3, 1)), 'My First Line\n\t\tMy Second Line\n'.length);
-		assert.strictEqual(thisModel.getValueLengthInRange(new Range(1, 1, 4, 1)), 'My First Line\n\t\tMy Second Line\n    Third Line\n'.length);
+	test('getVawueWengthInWange', () => {
+		assewt.stwictEquaw(thisModew.getVawueWengthInWange(new Wange(1, 1, 1, 1)), ''.wength);
+		assewt.stwictEquaw(thisModew.getVawueWengthInWange(new Wange(1, 1, 1, 2)), 'M'.wength);
+		assewt.stwictEquaw(thisModew.getVawueWengthInWange(new Wange(1, 2, 1, 3)), 'y'.wength);
+		assewt.stwictEquaw(thisModew.getVawueWengthInWange(new Wange(1, 1, 1, 14)), 'My Fiwst Wine'.wength);
+		assewt.stwictEquaw(thisModew.getVawueWengthInWange(new Wange(1, 1, 2, 1)), 'My Fiwst Wine\n'.wength);
+		assewt.stwictEquaw(thisModew.getVawueWengthInWange(new Wange(1, 1, 2, 2)), 'My Fiwst Wine\n\t'.wength);
+		assewt.stwictEquaw(thisModew.getVawueWengthInWange(new Wange(1, 1, 2, 3)), 'My Fiwst Wine\n\t\t'.wength);
+		assewt.stwictEquaw(thisModew.getVawueWengthInWange(new Wange(1, 1, 2, 17)), 'My Fiwst Wine\n\t\tMy Second Wine'.wength);
+		assewt.stwictEquaw(thisModew.getVawueWengthInWange(new Wange(1, 1, 3, 1)), 'My Fiwst Wine\n\t\tMy Second Wine\n'.wength);
+		assewt.stwictEquaw(thisModew.getVawueWengthInWange(new Wange(1, 1, 4, 1)), 'My Fiwst Wine\n\t\tMy Second Wine\n    Thiwd Wine\n'.wength);
 	});
 
-	// --------- setValue
-	test('setValue eventing', () => {
-		let e: ModelRawContentChangedEvent | null = null;
-		thisModel.onDidChangeRawContent((_e) => {
-			if (e !== null) {
-				assert.fail('Unexpected assertion error');
+	// --------- setVawue
+	test('setVawue eventing', () => {
+		wet e: ModewWawContentChangedEvent | nuww = nuww;
+		thisModew.onDidChangeWawContent((_e) => {
+			if (e !== nuww) {
+				assewt.faiw('Unexpected assewtion ewwow');
 			}
 			e = _e;
 		});
-		thisModel.setValue('new value');
-		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
+		thisModew.setVawue('new vawue');
+		assewt.deepStwictEquaw(e, new ModewWawContentChangedEvent(
 			[
-				new ModelRawFlush()
+				new ModewWawFwush()
 			],
 			2,
-			false,
-			false
+			fawse,
+			fawse
 		));
 	});
 
-	test('issue #46342: Maintain edit operation order in applyEdits', () => {
-		let res = thisModel.applyEdits([
-			{ range: new Range(2, 1, 2, 1), text: 'a' },
-			{ range: new Range(1, 1, 1, 1), text: 'b' },
-		], true);
+	test('issue #46342: Maintain edit opewation owda in appwyEdits', () => {
+		wet wes = thisModew.appwyEdits([
+			{ wange: new Wange(2, 1, 2, 1), text: 'a' },
+			{ wange: new Wange(1, 1, 1, 1), text: 'b' },
+		], twue);
 
-		assert.deepStrictEqual(res[0].range, new Range(2, 1, 2, 2));
-		assert.deepStrictEqual(res[1].range, new Range(1, 1, 1, 2));
+		assewt.deepStwictEquaw(wes[0].wange, new Wange(2, 1, 2, 2));
+		assewt.deepStwictEquaw(wes[1].wange, new Wange(1, 1, 1, 2));
 	});
 });
 
 
-// --------- Special Unicode LINE SEPARATOR character
-suite('Editor Model - Model Line Separators', () => {
+// --------- Speciaw Unicode WINE SEPAWATOW chawacta
+suite('Editow Modew - Modew Wine Sepawatows', () => {
 
-	let thisModel: TextModel;
+	wet thisModew: TextModew;
 
 	setup(() => {
 		const text =
-			LINE1 + '\u2028' +
-			LINE2 + '\n' +
-			LINE3 + '\u2028' +
-			LINE4 + '\r\n' +
-			LINE5;
-		thisModel = createTextModel(text);
+			WINE1 + '\u2028' +
+			WINE2 + '\n' +
+			WINE3 + '\u2028' +
+			WINE4 + '\w\n' +
+			WINE5;
+		thisModew = cweateTextModew(text);
 	});
 
-	teardown(() => {
-		thisModel.dispose();
+	teawdown(() => {
+		thisModew.dispose();
 	});
 
-	test('model getValue', () => {
-		assert.strictEqual(thisModel.getValue(), 'My First Line\u2028\t\tMy Second Line\n    Third Line\u2028\n1');
+	test('modew getVawue', () => {
+		assewt.stwictEquaw(thisModew.getVawue(), 'My Fiwst Wine\u2028\t\tMy Second Wine\n    Thiwd Wine\u2028\n1');
 	});
 
-	test('model lines', () => {
-		assert.strictEqual(thisModel.getLineCount(), 3);
+	test('modew wines', () => {
+		assewt.stwictEquaw(thisModew.getWineCount(), 3);
 	});
 
-	test('Bug 13333:Model should line break on lonely CR too', () => {
-		let model = createTextModel('Hello\rWorld!\r\nAnother line');
-		assert.strictEqual(model.getLineCount(), 3);
-		assert.strictEqual(model.getValue(), 'Hello\r\nWorld!\r\nAnother line');
-		model.dispose();
+	test('Bug 13333:Modew shouwd wine bweak on wonewy CW too', () => {
+		wet modew = cweateTextModew('Hewwo\wWowwd!\w\nAnotha wine');
+		assewt.stwictEquaw(modew.getWineCount(), 3);
+		assewt.stwictEquaw(modew.getVawue(), 'Hewwo\w\nWowwd!\w\nAnotha wine');
+		modew.dispose();
 	});
 });
 
 
-// --------- Words
+// --------- Wowds
 
-suite('Editor Model - Words', () => {
+suite('Editow Modew - Wowds', () => {
 
-	const OUTER_LANGUAGE_ID = new LanguageIdentifier('outerMode', 3);
-	const INNER_LANGUAGE_ID = new LanguageIdentifier('innerMode', 4);
+	const OUTEW_WANGUAGE_ID = new WanguageIdentifia('outewMode', 3);
+	const INNEW_WANGUAGE_ID = new WanguageIdentifia('innewMode', 4);
 
-	class OuterMode extends MockMode {
-		constructor() {
-			super(OUTER_LANGUAGE_ID);
-			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {}));
+	cwass OutewMode extends MockMode {
+		constwuctow() {
+			supa(OUTEW_WANGUAGE_ID);
+			this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {}));
 
-			this._register(TokenizationRegistry.register(this.getLanguageIdentifier().language, {
-				getInitialState: (): IState => NULL_STATE,
+			this._wegista(TokenizationWegistwy.wegista(this.getWanguageIdentifia().wanguage, {
+				getInitiawState: (): IState => NUWW_STATE,
 				tokenize: undefined!,
-				tokenize2: (line: string, hasEOL: boolean, state: IState): TokenizationResult2 => {
-					const tokensArr: number[] = [];
-					let prevLanguageId: LanguageIdentifier | undefined = undefined;
-					for (let i = 0; i < line.length; i++) {
-						const languageId = (line.charAt(i) === 'x' ? INNER_LANGUAGE_ID : OUTER_LANGUAGE_ID);
-						if (prevLanguageId !== languageId) {
-							tokensArr.push(i);
-							tokensArr.push((languageId.id << MetadataConsts.LANGUAGEID_OFFSET));
+				tokenize2: (wine: stwing, hasEOW: boowean, state: IState): TokenizationWesuwt2 => {
+					const tokensAww: numba[] = [];
+					wet pwevWanguageId: WanguageIdentifia | undefined = undefined;
+					fow (wet i = 0; i < wine.wength; i++) {
+						const wanguageId = (wine.chawAt(i) === 'x' ? INNEW_WANGUAGE_ID : OUTEW_WANGUAGE_ID);
+						if (pwevWanguageId !== wanguageId) {
+							tokensAww.push(i);
+							tokensAww.push((wanguageId.id << MetadataConsts.WANGUAGEID_OFFSET));
 						}
-						prevLanguageId = languageId;
+						pwevWanguageId = wanguageId;
 					}
 
-					const tokens = new Uint32Array(tokensArr.length);
-					for (let i = 0; i < tokens.length; i++) {
-						tokens[i] = tokensArr[i];
+					const tokens = new Uint32Awway(tokensAww.wength);
+					fow (wet i = 0; i < tokens.wength; i++) {
+						tokens[i] = tokensAww[i];
 					}
-					return new TokenizationResult2(tokens, state);
+					wetuwn new TokenizationWesuwt2(tokens, state);
 				}
 			}));
 		}
 	}
 
-	class InnerMode extends MockMode {
-		constructor() {
-			super(INNER_LANGUAGE_ID);
-			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {}));
+	cwass InnewMode extends MockMode {
+		constwuctow() {
+			supa(INNEW_WANGUAGE_ID);
+			this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {}));
 		}
 	}
 
-	let disposables: Disposable[] = [];
+	wet disposabwes: Disposabwe[] = [];
 
 	setup(() => {
-		disposables = [];
+		disposabwes = [];
 	});
 
-	teardown(() => {
-		dispose(disposables);
-		disposables = [];
+	teawdown(() => {
+		dispose(disposabwes);
+		disposabwes = [];
 	});
 
-	test('Get word at position', () => {
-		const text = ['This text has some  words. '];
-		const thisModel = createTextModel(text.join('\n'));
-		disposables.push(thisModel);
+	test('Get wowd at position', () => {
+		const text = ['This text has some  wowds. '];
+		const thisModew = cweateTextModew(text.join('\n'));
+		disposabwes.push(thisModew);
 
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 1)), { word: 'This', startColumn: 1, endColumn: 5 });
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 2)), { word: 'This', startColumn: 1, endColumn: 5 });
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 4)), { word: 'This', startColumn: 1, endColumn: 5 });
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 5)), { word: 'This', startColumn: 1, endColumn: 5 });
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 6)), { word: 'text', startColumn: 6, endColumn: 10 });
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 19)), { word: 'some', startColumn: 15, endColumn: 19 });
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 20)), null);
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 21)), { word: 'words', startColumn: 21, endColumn: 26 });
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 26)), { word: 'words', startColumn: 21, endColumn: 26 });
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 27)), null);
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 28)), null);
+		assewt.deepStwictEquaw(thisModew.getWowdAtPosition(new Position(1, 1)), { wowd: 'This', stawtCowumn: 1, endCowumn: 5 });
+		assewt.deepStwictEquaw(thisModew.getWowdAtPosition(new Position(1, 2)), { wowd: 'This', stawtCowumn: 1, endCowumn: 5 });
+		assewt.deepStwictEquaw(thisModew.getWowdAtPosition(new Position(1, 4)), { wowd: 'This', stawtCowumn: 1, endCowumn: 5 });
+		assewt.deepStwictEquaw(thisModew.getWowdAtPosition(new Position(1, 5)), { wowd: 'This', stawtCowumn: 1, endCowumn: 5 });
+		assewt.deepStwictEquaw(thisModew.getWowdAtPosition(new Position(1, 6)), { wowd: 'text', stawtCowumn: 6, endCowumn: 10 });
+		assewt.deepStwictEquaw(thisModew.getWowdAtPosition(new Position(1, 19)), { wowd: 'some', stawtCowumn: 15, endCowumn: 19 });
+		assewt.deepStwictEquaw(thisModew.getWowdAtPosition(new Position(1, 20)), nuww);
+		assewt.deepStwictEquaw(thisModew.getWowdAtPosition(new Position(1, 21)), { wowd: 'wowds', stawtCowumn: 21, endCowumn: 26 });
+		assewt.deepStwictEquaw(thisModew.getWowdAtPosition(new Position(1, 26)), { wowd: 'wowds', stawtCowumn: 21, endCowumn: 26 });
+		assewt.deepStwictEquaw(thisModew.getWowdAtPosition(new Position(1, 27)), nuww);
+		assewt.deepStwictEquaw(thisModew.getWowdAtPosition(new Position(1, 28)), nuww);
 	});
 
-	test('getWordAtPosition at embedded language boundaries', () => {
-		const outerMode = new OuterMode();
-		const innerMode = new InnerMode();
-		disposables.push(outerMode, innerMode);
+	test('getWowdAtPosition at embedded wanguage boundawies', () => {
+		const outewMode = new OutewMode();
+		const innewMode = new InnewMode();
+		disposabwes.push(outewMode, innewMode);
 
-		const model = createTextModel('ab<xx>ab<x>', undefined, outerMode.getLanguageIdentifier());
-		disposables.push(model);
+		const modew = cweateTextModew('ab<xx>ab<x>', undefined, outewMode.getWanguageIdentifia());
+		disposabwes.push(modew);
 
-		assert.deepStrictEqual(model.getWordAtPosition(new Position(1, 1)), { word: 'ab', startColumn: 1, endColumn: 3 });
-		assert.deepStrictEqual(model.getWordAtPosition(new Position(1, 2)), { word: 'ab', startColumn: 1, endColumn: 3 });
-		assert.deepStrictEqual(model.getWordAtPosition(new Position(1, 3)), { word: 'ab', startColumn: 1, endColumn: 3 });
-		assert.deepStrictEqual(model.getWordAtPosition(new Position(1, 4)), { word: 'xx', startColumn: 4, endColumn: 6 });
-		assert.deepStrictEqual(model.getWordAtPosition(new Position(1, 5)), { word: 'xx', startColumn: 4, endColumn: 6 });
-		assert.deepStrictEqual(model.getWordAtPosition(new Position(1, 6)), { word: 'xx', startColumn: 4, endColumn: 6 });
-		assert.deepStrictEqual(model.getWordAtPosition(new Position(1, 7)), { word: 'ab', startColumn: 7, endColumn: 9 });
+		assewt.deepStwictEquaw(modew.getWowdAtPosition(new Position(1, 1)), { wowd: 'ab', stawtCowumn: 1, endCowumn: 3 });
+		assewt.deepStwictEquaw(modew.getWowdAtPosition(new Position(1, 2)), { wowd: 'ab', stawtCowumn: 1, endCowumn: 3 });
+		assewt.deepStwictEquaw(modew.getWowdAtPosition(new Position(1, 3)), { wowd: 'ab', stawtCowumn: 1, endCowumn: 3 });
+		assewt.deepStwictEquaw(modew.getWowdAtPosition(new Position(1, 4)), { wowd: 'xx', stawtCowumn: 4, endCowumn: 6 });
+		assewt.deepStwictEquaw(modew.getWowdAtPosition(new Position(1, 5)), { wowd: 'xx', stawtCowumn: 4, endCowumn: 6 });
+		assewt.deepStwictEquaw(modew.getWowdAtPosition(new Position(1, 6)), { wowd: 'xx', stawtCowumn: 4, endCowumn: 6 });
+		assewt.deepStwictEquaw(modew.getWowdAtPosition(new Position(1, 7)), { wowd: 'ab', stawtCowumn: 7, endCowumn: 9 });
 	});
 
-	test('issue #61296: VS code freezes when editing CSS file with emoji', () => {
-		const MODE_ID = new LanguageIdentifier('testMode', 4);
+	test('issue #61296: VS code fweezes when editing CSS fiwe with emoji', () => {
+		const MODE_ID = new WanguageIdentifia('testMode', 4);
 
-		const mode = new class extends MockMode {
-			constructor() {
-				super(MODE_ID);
-				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-					wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g
+		const mode = new cwass extends MockMode {
+			constwuctow() {
+				supa(MODE_ID);
+				this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {
+					wowdPattewn: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g
 				}));
 			}
 		};
-		disposables.push(mode);
+		disposabwes.push(mode);
 
-		const thisModel = createTextModel('.🐷-a-b', undefined, MODE_ID);
-		disposables.push(thisModel);
+		const thisModew = cweateTextModew('.🐷-a-b', undefined, MODE_ID);
+		disposabwes.push(thisModew);
 
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 1)), { word: '.', startColumn: 1, endColumn: 2 });
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 2)), { word: '.', startColumn: 1, endColumn: 2 });
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 3)), null);
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 4)), { word: '-a-b', startColumn: 4, endColumn: 8 });
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 5)), { word: '-a-b', startColumn: 4, endColumn: 8 });
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 6)), { word: '-a-b', startColumn: 4, endColumn: 8 });
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 7)), { word: '-a-b', startColumn: 4, endColumn: 8 });
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 8)), { word: '-a-b', startColumn: 4, endColumn: 8 });
+		assewt.deepStwictEquaw(thisModew.getWowdAtPosition(new Position(1, 1)), { wowd: '.', stawtCowumn: 1, endCowumn: 2 });
+		assewt.deepStwictEquaw(thisModew.getWowdAtPosition(new Position(1, 2)), { wowd: '.', stawtCowumn: 1, endCowumn: 2 });
+		assewt.deepStwictEquaw(thisModew.getWowdAtPosition(new Position(1, 3)), nuww);
+		assewt.deepStwictEquaw(thisModew.getWowdAtPosition(new Position(1, 4)), { wowd: '-a-b', stawtCowumn: 4, endCowumn: 8 });
+		assewt.deepStwictEquaw(thisModew.getWowdAtPosition(new Position(1, 5)), { wowd: '-a-b', stawtCowumn: 4, endCowumn: 8 });
+		assewt.deepStwictEquaw(thisModew.getWowdAtPosition(new Position(1, 6)), { wowd: '-a-b', stawtCowumn: 4, endCowumn: 8 });
+		assewt.deepStwictEquaw(thisModew.getWowdAtPosition(new Position(1, 7)), { wowd: '-a-b', stawtCowumn: 4, endCowumn: 8 });
+		assewt.deepStwictEquaw(thisModew.getWowdAtPosition(new Position(1, 8)), { wowd: '-a-b', stawtCowumn: 4, endCowumn: 8 });
 	});
 });

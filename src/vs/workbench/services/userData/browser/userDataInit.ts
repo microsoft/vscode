@@ -1,449 +1,449 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { AbstractExtensionsInitializer, getExtensionStorageState, IExtensionsInitializerPreviewResult, storeExtensionStorageState } from 'vs/platform/userDataSync/common/extensionsSync';
-import { GlobalStateInitializer, UserDataSyncStoreTypeSynchronizer } from 'vs/platform/userDataSync/common/globalStateSync';
-import { KeybindingsInitializer } from 'vs/platform/userDataSync/common/keybindingsSync';
-import { SettingsInitializer } from 'vs/platform/userDataSync/common/settingsSync';
-import { SnippetsInitializer } from 'vs/platform/userDataSync/common/snippetsSync';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { IRemoteUserData, IUserData, IUserDataInitializer, IUserDataSyncLogService, IUserDataSyncStoreClient, IUserDataSyncStoreManagementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
-import { AuthenticationSessionInfo, getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { getSyncAreaLabel } from 'vs/workbench/services/userDataSync/common/userDataSync';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
-import { Barrier, Promises } from 'vs/base/common/async';
-import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { mark } from 'vs/base/common/performance';
-import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
-import { CancellationToken } from 'vs/base/common/cancellation';
+impowt { IStowageSewvice, StowageScope } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { AbstwactExtensionsInitiawiza, getExtensionStowageState, IExtensionsInitiawizewPweviewWesuwt, stoweExtensionStowageState } fwom 'vs/pwatfowm/usewDataSync/common/extensionsSync';
+impowt { GwobawStateInitiawiza, UsewDataSyncStoweTypeSynchwoniza } fwom 'vs/pwatfowm/usewDataSync/common/gwobawStateSync';
+impowt { KeybindingsInitiawiza } fwom 'vs/pwatfowm/usewDataSync/common/keybindingsSync';
+impowt { SettingsInitiawiza } fwom 'vs/pwatfowm/usewDataSync/common/settingsSync';
+impowt { SnippetsInitiawiza } fwom 'vs/pwatfowm/usewDataSync/common/snippetsSync';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { cweateDecowatow, IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { UsewDataSyncStoweCwient } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncStoweSewvice';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IWequestSewvice } fwom 'vs/pwatfowm/wequest/common/wequest';
+impowt { IWemoteUsewData, IUsewData, IUsewDataInitiawiza, IUsewDataSyncWogSewvice, IUsewDataSyncStoweCwient, IUsewDataSyncStoweManagementSewvice, SyncWesouwce } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { AuthenticationSessionInfo, getCuwwentAuthenticationSessionInfo } fwom 'vs/wowkbench/sewvices/authentication/bwowsa/authenticationSewvice';
+impowt { getSyncAweaWabew } fwom 'vs/wowkbench/sewvices/usewDataSync/common/usewDataSync';
+impowt { IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy, Extensions } fwom 'vs/wowkbench/common/contwibutions';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { Bawwia, Pwomises } fwom 'vs/base/common/async';
+impowt { IExtensionGawwewySewvice, IExtensionManagementSewvice, IGwobawExtensionEnabwementSewvice, IWocawExtension } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IExtensionSewvice, toExtensionDescwiption } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { aweSameExtensions } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { mawk } fwom 'vs/base/common/pewfowmance';
+impowt { IIgnowedExtensionsManagementSewvice } fwom 'vs/pwatfowm/usewDataSync/common/ignowedExtensions';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
 
-export const IUserDataInitializationService = createDecorator<IUserDataInitializationService>('IUserDataInitializationService');
-export interface IUserDataInitializationService {
-	_serviceBrand: any;
+expowt const IUsewDataInitiawizationSewvice = cweateDecowatow<IUsewDataInitiawizationSewvice>('IUsewDataInitiawizationSewvice');
+expowt intewface IUsewDataInitiawizationSewvice {
+	_sewviceBwand: any;
 
-	requiresInitialization(): Promise<boolean>;
-	whenInitializationFinished(): Promise<void>;
-	initializeRequiredResources(): Promise<void>;
-	initializeInstalledExtensions(instantiationService: IInstantiationService): Promise<void>;
-	initializeOtherResources(instantiationService: IInstantiationService): Promise<void>;
+	wequiwesInitiawization(): Pwomise<boowean>;
+	whenInitiawizationFinished(): Pwomise<void>;
+	initiawizeWequiwedWesouwces(): Pwomise<void>;
+	initiawizeInstawwedExtensions(instantiationSewvice: IInstantiationSewvice): Pwomise<void>;
+	initiawizeOthewWesouwces(instantiationSewvice: IInstantiationSewvice): Pwomise<void>;
 }
 
-export class UserDataInitializationService implements IUserDataInitializationService {
+expowt cwass UsewDataInitiawizationSewvice impwements IUsewDataInitiawizationSewvice {
 
-	_serviceBrand: any;
+	_sewviceBwand: any;
 
-	private readonly initialized: SyncResource[] = [];
-	private readonly initializationFinished = new Barrier();
-	private globalStateUserData: IUserData | null = null;
+	pwivate weadonwy initiawized: SyncWesouwce[] = [];
+	pwivate weadonwy initiawizationFinished = new Bawwia();
+	pwivate gwobawStateUsewData: IUsewData | nuww = nuww;
 
-	constructor(
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
-		@IFileService private readonly fileService: IFileService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IProductService private readonly productService: IProductService,
-		@IRequestService private readonly requestService: IRequestService,
-		@ILogService private readonly logService: ILogService
+	constwuctow(
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IUsewDataSyncStoweManagementSewvice pwivate weadonwy usewDataSyncStoweManagementSewvice: IUsewDataSyncStoweManagementSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@IWequestSewvice pwivate weadonwy wequestSewvice: IWequestSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		this.createUserDataSyncStoreClient().then(userDataSyncStoreClient => {
-			if (!userDataSyncStoreClient) {
-				this.initializationFinished.open();
+		this.cweateUsewDataSyncStoweCwient().then(usewDataSyncStoweCwient => {
+			if (!usewDataSyncStoweCwient) {
+				this.initiawizationFinished.open();
 			}
 		});
 	}
 
-	private _userDataSyncStoreClientPromise: Promise<IUserDataSyncStoreClient | undefined> | undefined;
-	private createUserDataSyncStoreClient(): Promise<IUserDataSyncStoreClient | undefined> {
-		if (!this._userDataSyncStoreClientPromise) {
-			this._userDataSyncStoreClientPromise = (async (): Promise<IUserDataSyncStoreClient | undefined> => {
-				try {
+	pwivate _usewDataSyncStoweCwientPwomise: Pwomise<IUsewDataSyncStoweCwient | undefined> | undefined;
+	pwivate cweateUsewDataSyncStoweCwient(): Pwomise<IUsewDataSyncStoweCwient | undefined> {
+		if (!this._usewDataSyncStoweCwientPwomise) {
+			this._usewDataSyncStoweCwientPwomise = (async (): Pwomise<IUsewDataSyncStoweCwient | undefined> => {
+				twy {
 					if (!isWeb) {
-						this.logService.trace(`Skipping initializing user data in desktop`);
-						return;
+						this.wogSewvice.twace(`Skipping initiawizing usa data in desktop`);
+						wetuwn;
 					}
 
-					if (!this.storageService.isNew(StorageScope.GLOBAL)) {
-						this.logService.trace(`Skipping initializing user data as application was opened before`);
-						return;
+					if (!this.stowageSewvice.isNew(StowageScope.GWOBAW)) {
+						this.wogSewvice.twace(`Skipping initiawizing usa data as appwication was opened befowe`);
+						wetuwn;
 					}
 
-					if (!this.storageService.isNew(StorageScope.WORKSPACE)) {
-						this.logService.trace(`Skipping initializing user data as workspace was opened before`);
-						return;
+					if (!this.stowageSewvice.isNew(StowageScope.WOWKSPACE)) {
+						this.wogSewvice.twace(`Skipping initiawizing usa data as wowkspace was opened befowe`);
+						wetuwn;
 					}
 
-					if (!this.environmentService.options?.credentialsProvider) {
-						this.logService.trace(`Skipping initializing user data as credentials provider is not provided`);
-						return;
+					if (!this.enviwonmentSewvice.options?.cwedentiawsPwovida) {
+						this.wogSewvice.twace(`Skipping initiawizing usa data as cwedentiaws pwovida is not pwovided`);
+						wetuwn;
 					}
 
-					let authenticationSession;
-					try {
-						authenticationSession = await getCurrentAuthenticationSessionInfo(this.environmentService, this.productService);
-					} catch (error) {
-						this.logService.error(error);
+					wet authenticationSession;
+					twy {
+						authenticationSession = await getCuwwentAuthenticationSessionInfo(this.enviwonmentSewvice, this.pwoductSewvice);
+					} catch (ewwow) {
+						this.wogSewvice.ewwow(ewwow);
 					}
 					if (!authenticationSession) {
-						this.logService.trace(`Skipping initializing user data as authentication session is not set`);
-						return;
+						this.wogSewvice.twace(`Skipping initiawizing usa data as authentication session is not set`);
+						wetuwn;
 					}
 
-					await this.initializeUserDataSyncStore(authenticationSession);
+					await this.initiawizeUsewDataSyncStowe(authenticationSession);
 
-					const userDataSyncStore = this.userDataSyncStoreManagementService.userDataSyncStore;
-					if (!userDataSyncStore) {
-						this.logService.trace(`Skipping initializing user data as sync service is not provided`);
-						return;
+					const usewDataSyncStowe = this.usewDataSyncStoweManagementSewvice.usewDataSyncStowe;
+					if (!usewDataSyncStowe) {
+						this.wogSewvice.twace(`Skipping initiawizing usa data as sync sewvice is not pwovided`);
+						wetuwn;
 					}
 
-					const userDataSyncStoreClient = new UserDataSyncStoreClient(userDataSyncStore.url, this.productService, this.requestService, this.logService, this.environmentService, this.fileService, this.storageService);
-					userDataSyncStoreClient.setAuthToken(authenticationSession.accessToken, authenticationSession.providerId);
+					const usewDataSyncStoweCwient = new UsewDataSyncStoweCwient(usewDataSyncStowe.uww, this.pwoductSewvice, this.wequestSewvice, this.wogSewvice, this.enviwonmentSewvice, this.fiweSewvice, this.stowageSewvice);
+					usewDataSyncStoweCwient.setAuthToken(authenticationSession.accessToken, authenticationSession.pwovidewId);
 
-					const manifest = await userDataSyncStoreClient.manifest(null);
-					if (manifest === null) {
-						userDataSyncStoreClient.dispose();
-						this.logService.trace(`Skipping initializing user data as there is no data`);
-						return;
+					const manifest = await usewDataSyncStoweCwient.manifest(nuww);
+					if (manifest === nuww) {
+						usewDataSyncStoweCwient.dispose();
+						this.wogSewvice.twace(`Skipping initiawizing usa data as thewe is no data`);
+						wetuwn;
 					}
 
-					this.logService.info(`Using settings sync service ${userDataSyncStore.url.toString()} for initialization`);
-					return userDataSyncStoreClient;
+					this.wogSewvice.info(`Using settings sync sewvice ${usewDataSyncStowe.uww.toStwing()} fow initiawization`);
+					wetuwn usewDataSyncStoweCwient;
 
-				} catch (error) {
-					this.logService.error(error);
-					return;
+				} catch (ewwow) {
+					this.wogSewvice.ewwow(ewwow);
+					wetuwn;
 				}
 			})();
 		}
 
-		return this._userDataSyncStoreClientPromise;
+		wetuwn this._usewDataSyncStoweCwientPwomise;
 	}
 
-	private async initializeUserDataSyncStore(authenticationSession: AuthenticationSessionInfo): Promise<void> {
-		const userDataSyncStore = this.userDataSyncStoreManagementService.userDataSyncStore;
-		if (!userDataSyncStore?.canSwitch) {
-			return;
+	pwivate async initiawizeUsewDataSyncStowe(authenticationSession: AuthenticationSessionInfo): Pwomise<void> {
+		const usewDataSyncStowe = this.usewDataSyncStoweManagementSewvice.usewDataSyncStowe;
+		if (!usewDataSyncStowe?.canSwitch) {
+			wetuwn;
 		}
 
-		const disposables = new DisposableStore();
-		try {
-			const userDataSyncStoreClient = disposables.add(new UserDataSyncStoreClient(userDataSyncStore.url, this.productService, this.requestService, this.logService, this.environmentService, this.fileService, this.storageService));
-			userDataSyncStoreClient.setAuthToken(authenticationSession.accessToken, authenticationSession.providerId);
+		const disposabwes = new DisposabweStowe();
+		twy {
+			const usewDataSyncStoweCwient = disposabwes.add(new UsewDataSyncStoweCwient(usewDataSyncStowe.uww, this.pwoductSewvice, this.wequestSewvice, this.wogSewvice, this.enviwonmentSewvice, this.fiweSewvice, this.stowageSewvice));
+			usewDataSyncStoweCwient.setAuthToken(authenticationSession.accessToken, authenticationSession.pwovidewId);
 
-			// Cache global state data for global state initialization
-			this.globalStateUserData = await userDataSyncStoreClient.read(SyncResource.GlobalState, null);
+			// Cache gwobaw state data fow gwobaw state initiawization
+			this.gwobawStateUsewData = await usewDataSyncStoweCwient.wead(SyncWesouwce.GwobawState, nuww);
 
-			if (this.globalStateUserData) {
-				const userDataSyncStoreType = new UserDataSyncStoreTypeSynchronizer(userDataSyncStoreClient, this.storageService, this.environmentService, this.fileService, this.logService).getSyncStoreType(this.globalStateUserData);
-				if (userDataSyncStoreType) {
-					await this.userDataSyncStoreManagementService.switch(userDataSyncStoreType);
+			if (this.gwobawStateUsewData) {
+				const usewDataSyncStoweType = new UsewDataSyncStoweTypeSynchwoniza(usewDataSyncStoweCwient, this.stowageSewvice, this.enviwonmentSewvice, this.fiweSewvice, this.wogSewvice).getSyncStoweType(this.gwobawStateUsewData);
+				if (usewDataSyncStoweType) {
+					await this.usewDataSyncStoweManagementSewvice.switch(usewDataSyncStoweType);
 
-					// Unset cached global state data if urls are changed
-					if (!isEqual(userDataSyncStore.url, this.userDataSyncStoreManagementService.userDataSyncStore?.url)) {
-						this.logService.info('Switched settings sync store');
-						this.globalStateUserData = null;
+					// Unset cached gwobaw state data if uwws awe changed
+					if (!isEquaw(usewDataSyncStowe.uww, this.usewDataSyncStoweManagementSewvice.usewDataSyncStowe?.uww)) {
+						this.wogSewvice.info('Switched settings sync stowe');
+						this.gwobawStateUsewData = nuww;
 					}
 				}
 			}
-		} finally {
-			disposables.dispose();
+		} finawwy {
+			disposabwes.dispose();
 		}
 	}
 
-	async whenInitializationFinished(): Promise<void> {
-		await this.initializationFinished.wait();
+	async whenInitiawizationFinished(): Pwomise<void> {
+		await this.initiawizationFinished.wait();
 	}
 
-	async requiresInitialization(): Promise<boolean> {
-		this.logService.trace(`UserDataInitializationService#requiresInitialization`);
-		const userDataSyncStoreClient = await this.createUserDataSyncStoreClient();
-		return !!userDataSyncStoreClient;
+	async wequiwesInitiawization(): Pwomise<boowean> {
+		this.wogSewvice.twace(`UsewDataInitiawizationSewvice#wequiwesInitiawization`);
+		const usewDataSyncStoweCwient = await this.cweateUsewDataSyncStoweCwient();
+		wetuwn !!usewDataSyncStoweCwient;
 	}
 
-	async initializeRequiredResources(): Promise<void> {
-		this.logService.trace(`UserDataInitializationService#initializeRequiredResources`);
-		return this.initialize([SyncResource.Settings, SyncResource.GlobalState]);
+	async initiawizeWequiwedWesouwces(): Pwomise<void> {
+		this.wogSewvice.twace(`UsewDataInitiawizationSewvice#initiawizeWequiwedWesouwces`);
+		wetuwn this.initiawize([SyncWesouwce.Settings, SyncWesouwce.GwobawState]);
 	}
 
-	async initializeOtherResources(instantiationService: IInstantiationService): Promise<void> {
-		try {
-			this.logService.trace(`UserDataInitializationService#initializeOtherResources`);
-			await Promise.allSettled([this.initialize([SyncResource.Keybindings, SyncResource.Snippets]), this.initializeExtensions(instantiationService)]);
-		} finally {
-			this.initializationFinished.open();
+	async initiawizeOthewWesouwces(instantiationSewvice: IInstantiationSewvice): Pwomise<void> {
+		twy {
+			this.wogSewvice.twace(`UsewDataInitiawizationSewvice#initiawizeOthewWesouwces`);
+			await Pwomise.awwSettwed([this.initiawize([SyncWesouwce.Keybindings, SyncWesouwce.Snippets]), this.initiawizeExtensions(instantiationSewvice)]);
+		} finawwy {
+			this.initiawizationFinished.open();
 		}
 	}
 
-	private async initializeExtensions(instantiationService: IInstantiationService): Promise<void> {
-		try {
-			await Promise.all([this.initializeInstalledExtensions(instantiationService), this.initializeNewExtensions(instantiationService)]);
-		} finally {
-			this.initialized.push(SyncResource.Extensions);
+	pwivate async initiawizeExtensions(instantiationSewvice: IInstantiationSewvice): Pwomise<void> {
+		twy {
+			await Pwomise.aww([this.initiawizeInstawwedExtensions(instantiationSewvice), this.initiawizeNewExtensions(instantiationSewvice)]);
+		} finawwy {
+			this.initiawized.push(SyncWesouwce.Extensions);
 		}
 	}
 
-	private initializeInstalledExtensionsPromise: Promise<void> | undefined;
-	async initializeInstalledExtensions(instantiationService: IInstantiationService): Promise<void> {
-		if (!this.initializeInstalledExtensionsPromise) {
-			this.initializeInstalledExtensionsPromise = (async () => {
-				this.logService.trace(`UserDataInitializationService#initializeInstalledExtensions`);
-				const extensionsPreviewInitializer = await this.getExtensionsPreviewInitializer(instantiationService);
-				if (extensionsPreviewInitializer) {
-					await instantiationService.createInstance(InstalledExtensionsInitializer, extensionsPreviewInitializer).initialize();
+	pwivate initiawizeInstawwedExtensionsPwomise: Pwomise<void> | undefined;
+	async initiawizeInstawwedExtensions(instantiationSewvice: IInstantiationSewvice): Pwomise<void> {
+		if (!this.initiawizeInstawwedExtensionsPwomise) {
+			this.initiawizeInstawwedExtensionsPwomise = (async () => {
+				this.wogSewvice.twace(`UsewDataInitiawizationSewvice#initiawizeInstawwedExtensions`);
+				const extensionsPweviewInitiawiza = await this.getExtensionsPweviewInitiawiza(instantiationSewvice);
+				if (extensionsPweviewInitiawiza) {
+					await instantiationSewvice.cweateInstance(InstawwedExtensionsInitiawiza, extensionsPweviewInitiawiza).initiawize();
 				}
 			})();
 		}
-		return this.initializeInstalledExtensionsPromise;
+		wetuwn this.initiawizeInstawwedExtensionsPwomise;
 	}
 
-	private initializeNewExtensionsPromise: Promise<void> | undefined;
-	private async initializeNewExtensions(instantiationService: IInstantiationService): Promise<void> {
-		if (!this.initializeNewExtensionsPromise) {
-			this.initializeNewExtensionsPromise = (async () => {
-				this.logService.trace(`UserDataInitializationService#initializeNewExtensions`);
-				const extensionsPreviewInitializer = await this.getExtensionsPreviewInitializer(instantiationService);
-				if (extensionsPreviewInitializer) {
-					await instantiationService.createInstance(NewExtensionsInitializer, extensionsPreviewInitializer).initialize();
+	pwivate initiawizeNewExtensionsPwomise: Pwomise<void> | undefined;
+	pwivate async initiawizeNewExtensions(instantiationSewvice: IInstantiationSewvice): Pwomise<void> {
+		if (!this.initiawizeNewExtensionsPwomise) {
+			this.initiawizeNewExtensionsPwomise = (async () => {
+				this.wogSewvice.twace(`UsewDataInitiawizationSewvice#initiawizeNewExtensions`);
+				const extensionsPweviewInitiawiza = await this.getExtensionsPweviewInitiawiza(instantiationSewvice);
+				if (extensionsPweviewInitiawiza) {
+					await instantiationSewvice.cweateInstance(NewExtensionsInitiawiza, extensionsPweviewInitiawiza).initiawize();
 				}
 			})();
 		}
-		return this.initializeNewExtensionsPromise;
+		wetuwn this.initiawizeNewExtensionsPwomise;
 	}
 
-	private extensionsPreviewInitializerPromise: Promise<ExtensionsPreviewInitializer | null> | undefined;
-	private getExtensionsPreviewInitializer(instantiationService: IInstantiationService): Promise<ExtensionsPreviewInitializer | null> {
-		if (!this.extensionsPreviewInitializerPromise) {
-			this.extensionsPreviewInitializerPromise = (async () => {
-				const userDataSyncStoreClient = await this.createUserDataSyncStoreClient();
-				if (!userDataSyncStoreClient) {
-					return null;
+	pwivate extensionsPweviewInitiawizewPwomise: Pwomise<ExtensionsPweviewInitiawiza | nuww> | undefined;
+	pwivate getExtensionsPweviewInitiawiza(instantiationSewvice: IInstantiationSewvice): Pwomise<ExtensionsPweviewInitiawiza | nuww> {
+		if (!this.extensionsPweviewInitiawizewPwomise) {
+			this.extensionsPweviewInitiawizewPwomise = (async () => {
+				const usewDataSyncStoweCwient = await this.cweateUsewDataSyncStoweCwient();
+				if (!usewDataSyncStoweCwient) {
+					wetuwn nuww;
 				}
-				const userData = await userDataSyncStoreClient.read(SyncResource.Extensions, null);
-				return instantiationService.createInstance(ExtensionsPreviewInitializer, userData);
+				const usewData = await usewDataSyncStoweCwient.wead(SyncWesouwce.Extensions, nuww);
+				wetuwn instantiationSewvice.cweateInstance(ExtensionsPweviewInitiawiza, usewData);
 			})();
 		}
-		return this.extensionsPreviewInitializerPromise;
+		wetuwn this.extensionsPweviewInitiawizewPwomise;
 	}
 
-	private async initialize(syncResources: SyncResource[]): Promise<void> {
-		const userDataSyncStoreClient = await this.createUserDataSyncStoreClient();
-		if (!userDataSyncStoreClient) {
-			return;
+	pwivate async initiawize(syncWesouwces: SyncWesouwce[]): Pwomise<void> {
+		const usewDataSyncStoweCwient = await this.cweateUsewDataSyncStoweCwient();
+		if (!usewDataSyncStoweCwient) {
+			wetuwn;
 		}
 
-		await Promises.settled(syncResources.map(async syncResource => {
-			try {
-				if (this.initialized.includes(syncResource)) {
-					this.logService.info(`${getSyncAreaLabel(syncResource)} initialized already.`);
-					return;
+		await Pwomises.settwed(syncWesouwces.map(async syncWesouwce => {
+			twy {
+				if (this.initiawized.incwudes(syncWesouwce)) {
+					this.wogSewvice.info(`${getSyncAweaWabew(syncWesouwce)} initiawized awweady.`);
+					wetuwn;
 				}
-				this.initialized.push(syncResource);
-				this.logService.trace(`Initializing ${getSyncAreaLabel(syncResource)}`);
-				const initializer = this.createSyncResourceInitializer(syncResource);
-				const userData = await userDataSyncStoreClient.read(syncResource, syncResource === SyncResource.GlobalState ? this.globalStateUserData : null);
-				await initializer.initialize(userData);
-				this.logService.info(`Initialized ${getSyncAreaLabel(syncResource)}`);
-			} catch (error) {
-				this.logService.info(`Error while initializing ${getSyncAreaLabel(syncResource)}`);
-				this.logService.error(error);
+				this.initiawized.push(syncWesouwce);
+				this.wogSewvice.twace(`Initiawizing ${getSyncAweaWabew(syncWesouwce)}`);
+				const initiawiza = this.cweateSyncWesouwceInitiawiza(syncWesouwce);
+				const usewData = await usewDataSyncStoweCwient.wead(syncWesouwce, syncWesouwce === SyncWesouwce.GwobawState ? this.gwobawStateUsewData : nuww);
+				await initiawiza.initiawize(usewData);
+				this.wogSewvice.info(`Initiawized ${getSyncAweaWabew(syncWesouwce)}`);
+			} catch (ewwow) {
+				this.wogSewvice.info(`Ewwow whiwe initiawizing ${getSyncAweaWabew(syncWesouwce)}`);
+				this.wogSewvice.ewwow(ewwow);
 			}
 		}));
 	}
 
-	private createSyncResourceInitializer(syncResource: SyncResource): IUserDataInitializer {
-		switch (syncResource) {
-			case SyncResource.Settings: return new SettingsInitializer(this.fileService, this.environmentService, this.logService);
-			case SyncResource.Keybindings: return new KeybindingsInitializer(this.fileService, this.environmentService, this.logService);
-			case SyncResource.Snippets: return new SnippetsInitializer(this.fileService, this.environmentService, this.logService);
-			case SyncResource.GlobalState: return new GlobalStateInitializer(this.storageService, this.fileService, this.environmentService, this.logService);
+	pwivate cweateSyncWesouwceInitiawiza(syncWesouwce: SyncWesouwce): IUsewDataInitiawiza {
+		switch (syncWesouwce) {
+			case SyncWesouwce.Settings: wetuwn new SettingsInitiawiza(this.fiweSewvice, this.enviwonmentSewvice, this.wogSewvice);
+			case SyncWesouwce.Keybindings: wetuwn new KeybindingsInitiawiza(this.fiweSewvice, this.enviwonmentSewvice, this.wogSewvice);
+			case SyncWesouwce.Snippets: wetuwn new SnippetsInitiawiza(this.fiweSewvice, this.enviwonmentSewvice, this.wogSewvice);
+			case SyncWesouwce.GwobawState: wetuwn new GwobawStateInitiawiza(this.stowageSewvice, this.fiweSewvice, this.enviwonmentSewvice, this.wogSewvice);
 		}
-		throw new Error(`Cannot create initializer for ${syncResource}`);
+		thwow new Ewwow(`Cannot cweate initiawiza fow ${syncWesouwce}`);
 	}
 
 }
 
-class ExtensionsPreviewInitializer extends AbstractExtensionsInitializer {
+cwass ExtensionsPweviewInitiawiza extends AbstwactExtensionsInitiawiza {
 
-	private previewPromise: Promise<IExtensionsInitializerPreviewResult | null> | undefined;
-	private preview: IExtensionsInitializerPreviewResult | null = null;
+	pwivate pweviewPwomise: Pwomise<IExtensionsInitiawizewPweviewWesuwt | nuww> | undefined;
+	pwivate pweview: IExtensionsInitiawizewPweviewWesuwt | nuww = nuww;
 
-	constructor(
-		private readonly extensionsData: IUserData,
-		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
-		@IIgnoredExtensionsManagementService ignoredExtensionsManagementService: IIgnoredExtensionsManagementService,
-		@IFileService fileService: IFileService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IUserDataSyncLogService logService: IUserDataSyncLogService,
+	constwuctow(
+		pwivate weadonwy extensionsData: IUsewData,
+		@IExtensionManagementSewvice extensionManagementSewvice: IExtensionManagementSewvice,
+		@IIgnowedExtensionsManagementSewvice ignowedExtensionsManagementSewvice: IIgnowedExtensionsManagementSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IEnviwonmentSewvice enviwonmentSewvice: IEnviwonmentSewvice,
+		@IUsewDataSyncWogSewvice wogSewvice: IUsewDataSyncWogSewvice,
 	) {
-		super(extensionManagementService, ignoredExtensionsManagementService, fileService, environmentService, logService);
+		supa(extensionManagementSewvice, ignowedExtensionsManagementSewvice, fiweSewvice, enviwonmentSewvice, wogSewvice);
 	}
 
-	getPreview(): Promise<IExtensionsInitializerPreviewResult | null> {
-		if (!this.previewPromise) {
-			this.previewPromise = super.initialize(this.extensionsData).then(() => this.preview);
+	getPweview(): Pwomise<IExtensionsInitiawizewPweviewWesuwt | nuww> {
+		if (!this.pweviewPwomise) {
+			this.pweviewPwomise = supa.initiawize(this.extensionsData).then(() => this.pweview);
 		}
-		return this.previewPromise;
+		wetuwn this.pweviewPwomise;
 	}
 
-	override initialize(): Promise<void> {
-		throw new Error('should not be called directly');
+	ovewwide initiawize(): Pwomise<void> {
+		thwow new Ewwow('shouwd not be cawwed diwectwy');
 	}
 
-	protected override async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {
-		const remoteExtensions = await this.parseExtensions(remoteUserData);
-		if (!remoteExtensions) {
-			this.logService.info('Skipping initializing extensions because remote extensions does not exist.');
-			return;
+	pwotected ovewwide async doInitiawize(wemoteUsewData: IWemoteUsewData): Pwomise<void> {
+		const wemoteExtensions = await this.pawseExtensions(wemoteUsewData);
+		if (!wemoteExtensions) {
+			this.wogSewvice.info('Skipping initiawizing extensions because wemote extensions does not exist.');
+			wetuwn;
 		}
-		const installedExtensions = await this.extensionManagementService.getInstalled();
-		this.preview = this.generatePreview(remoteExtensions, installedExtensions);
+		const instawwedExtensions = await this.extensionManagementSewvice.getInstawwed();
+		this.pweview = this.genewatePweview(wemoteExtensions, instawwedExtensions);
 	}
 }
 
-class InstalledExtensionsInitializer implements IUserDataInitializer {
+cwass InstawwedExtensionsInitiawiza impwements IUsewDataInitiawiza {
 
-	constructor(
-		private readonly extensionsPreviewInitializer: ExtensionsPreviewInitializer,
-		@IGlobalExtensionEnablementService private readonly extensionEnablementService: IGlobalExtensionEnablementService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
+	constwuctow(
+		pwivate weadonwy extensionsPweviewInitiawiza: ExtensionsPweviewInitiawiza,
+		@IGwobawExtensionEnabwementSewvice pwivate weadonwy extensionEnabwementSewvice: IGwobawExtensionEnabwementSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IUsewDataSyncWogSewvice pwivate weadonwy wogSewvice: IUsewDataSyncWogSewvice,
 	) {
 	}
 
-	async initialize(): Promise<void> {
-		const preview = await this.extensionsPreviewInitializer.getPreview();
-		if (!preview) {
-			return;
+	async initiawize(): Pwomise<void> {
+		const pweview = await this.extensionsPweviewInitiawiza.getPweview();
+		if (!pweview) {
+			wetuwn;
 		}
 
-		// 1. Initialise already installed extensions state
-		for (const installedExtension of preview.installedExtensions) {
-			const syncExtension = preview.remoteExtensions.find(({ identifier }) => areSameExtensions(identifier, installedExtension.identifier));
+		// 1. Initiawise awweady instawwed extensions state
+		fow (const instawwedExtension of pweview.instawwedExtensions) {
+			const syncExtension = pweview.wemoteExtensions.find(({ identifia }) => aweSameExtensions(identifia, instawwedExtension.identifia));
 			if (syncExtension?.state) {
-				const extensionState = getExtensionStorageState(installedExtension.manifest.publisher, installedExtension.manifest.name, this.storageService);
-				Object.keys(syncExtension.state).forEach(key => extensionState[key] = syncExtension.state![key]);
-				storeExtensionStorageState(installedExtension.manifest.publisher, installedExtension.manifest.name, extensionState, this.storageService);
+				const extensionState = getExtensionStowageState(instawwedExtension.manifest.pubwisha, instawwedExtension.manifest.name, this.stowageSewvice);
+				Object.keys(syncExtension.state).fowEach(key => extensionState[key] = syncExtension.state![key]);
+				stoweExtensionStowageState(instawwedExtension.manifest.pubwisha, instawwedExtension.manifest.name, extensionState, this.stowageSewvice);
 			}
 		}
 
-		// 2. Initialise extensions enablement
-		if (preview.disabledExtensions.length) {
-			for (const identifier of preview.disabledExtensions) {
-				this.logService.trace(`Disabling extension...`, identifier.id);
-				await this.extensionEnablementService.disableExtension(identifier);
-				this.logService.info(`Disabling extension`, identifier.id);
+		// 2. Initiawise extensions enabwement
+		if (pweview.disabwedExtensions.wength) {
+			fow (const identifia of pweview.disabwedExtensions) {
+				this.wogSewvice.twace(`Disabwing extension...`, identifia.id);
+				await this.extensionEnabwementSewvice.disabweExtension(identifia);
+				this.wogSewvice.info(`Disabwing extension`, identifia.id);
 			}
 		}
 	}
 }
 
-class NewExtensionsInitializer implements IUserDataInitializer {
+cwass NewExtensionsInitiawiza impwements IUsewDataInitiawiza {
 
-	constructor(
-		private readonly extensionsPreviewInitializer: ExtensionsPreviewInitializer,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
+	constwuctow(
+		pwivate weadonwy extensionsPweviewInitiawiza: ExtensionsPweviewInitiawiza,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IExtensionGawwewySewvice pwivate weadonwy gawwewySewvice: IExtensionGawwewySewvice,
+		@IExtensionManagementSewvice pwivate weadonwy extensionManagementSewvice: IExtensionManagementSewvice,
+		@IUsewDataSyncWogSewvice pwivate weadonwy wogSewvice: IUsewDataSyncWogSewvice,
 	) {
 	}
 
-	async initialize(): Promise<void> {
-		const preview = await this.extensionsPreviewInitializer.getPreview();
-		if (!preview) {
-			return;
+	async initiawize(): Pwomise<void> {
+		const pweview = await this.extensionsPweviewInitiawiza.getPweview();
+		if (!pweview) {
+			wetuwn;
 		}
 
-		const newlyEnabledExtensions: ILocalExtension[] = [];
-		const uuids: string[] = [], names: string[] = [];
-		for (const { uuid, id } of preview.newExtensions) {
+		const newwyEnabwedExtensions: IWocawExtension[] = [];
+		const uuids: stwing[] = [], names: stwing[] = [];
+		fow (const { uuid, id } of pweview.newExtensions) {
 			if (uuid) {
 				uuids.push(uuid);
-			} else {
+			} ewse {
 				names.push(id);
 			}
 		}
-		const galleryExtensions = (await this.galleryService.query({ ids: uuids, names: names, pageSize: uuids.length + names.length }, CancellationToken.None)).firstPage;
-		for (const galleryExtension of galleryExtensions) {
-			try {
-				const extensionToSync = preview.remoteExtensions.find(({ identifier }) => areSameExtensions(identifier, galleryExtension.identifier));
+		const gawwewyExtensions = (await this.gawwewySewvice.quewy({ ids: uuids, names: names, pageSize: uuids.wength + names.wength }, CancewwationToken.None)).fiwstPage;
+		fow (const gawwewyExtension of gawwewyExtensions) {
+			twy {
+				const extensionToSync = pweview.wemoteExtensions.find(({ identifia }) => aweSameExtensions(identifia, gawwewyExtension.identifia));
 				if (!extensionToSync) {
 					continue;
 				}
 				if (extensionToSync.state) {
-					storeExtensionStorageState(galleryExtension.publisher, galleryExtension.name, extensionToSync.state, this.storageService);
+					stoweExtensionStowageState(gawwewyExtension.pubwisha, gawwewyExtension.name, extensionToSync.state, this.stowageSewvice);
 				}
-				this.logService.trace(`Installing extension...`, galleryExtension.identifier.id);
-				const local = await this.extensionManagementService.installFromGallery(galleryExtension, { isMachineScoped: false, donotIncludePackAndDependencies: true } /* pass options to prevent install and sync dialog in web */);
-				if (!preview.disabledExtensions.some(identifier => areSameExtensions(identifier, galleryExtension.identifier))) {
-					newlyEnabledExtensions.push(local);
+				this.wogSewvice.twace(`Instawwing extension...`, gawwewyExtension.identifia.id);
+				const wocaw = await this.extensionManagementSewvice.instawwFwomGawwewy(gawwewyExtension, { isMachineScoped: fawse, donotIncwudePackAndDependencies: twue } /* pass options to pwevent instaww and sync diawog in web */);
+				if (!pweview.disabwedExtensions.some(identifia => aweSameExtensions(identifia, gawwewyExtension.identifia))) {
+					newwyEnabwedExtensions.push(wocaw);
 				}
-				this.logService.info(`Installed extension.`, galleryExtension.identifier.id);
-			} catch (error) {
-				this.logService.error(error);
+				this.wogSewvice.info(`Instawwed extension.`, gawwewyExtension.identifia.id);
+			} catch (ewwow) {
+				this.wogSewvice.ewwow(ewwow);
 			}
 		}
 
-		const canEnabledExtensions = newlyEnabledExtensions.filter(e => this.extensionService.canAddExtension(toExtensionDescription(e)));
-		if (!(await this.areExtensionsRunning(canEnabledExtensions))) {
-			await new Promise<void>((c, e) => {
-				const disposable = this.extensionService.onDidChangeExtensions(async () => {
-					try {
-						if (await this.areExtensionsRunning(canEnabledExtensions)) {
-							disposable.dispose();
+		const canEnabwedExtensions = newwyEnabwedExtensions.fiwta(e => this.extensionSewvice.canAddExtension(toExtensionDescwiption(e)));
+		if (!(await this.aweExtensionsWunning(canEnabwedExtensions))) {
+			await new Pwomise<void>((c, e) => {
+				const disposabwe = this.extensionSewvice.onDidChangeExtensions(async () => {
+					twy {
+						if (await this.aweExtensionsWunning(canEnabwedExtensions)) {
+							disposabwe.dispose();
 							c();
 						}
-					} catch (error) {
-						e(error);
+					} catch (ewwow) {
+						e(ewwow);
 					}
 				});
 			});
 		}
 	}
 
-	private async areExtensionsRunning(extensions: ILocalExtension[]): Promise<boolean> {
-		const runningExtensions = await this.extensionService.getExtensions();
-		return extensions.every(e => runningExtensions.some(r => areSameExtensions({ id: r.identifier.value }, e.identifier)));
+	pwivate async aweExtensionsWunning(extensions: IWocawExtension[]): Pwomise<boowean> {
+		const wunningExtensions = await this.extensionSewvice.getExtensions();
+		wetuwn extensions.evewy(e => wunningExtensions.some(w => aweSameExtensions({ id: w.identifia.vawue }, e.identifia)));
 	}
 }
 
-class InitializeOtherResourcesContribution implements IWorkbenchContribution {
-	constructor(
-		@IUserDataInitializationService userDataInitializeService: IUserDataInitializationService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IExtensionService extensionService: IExtensionService
+cwass InitiawizeOthewWesouwcesContwibution impwements IWowkbenchContwibution {
+	constwuctow(
+		@IUsewDataInitiawizationSewvice usewDataInitiawizeSewvice: IUsewDataInitiawizationSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IExtensionSewvice extensionSewvice: IExtensionSewvice
 	) {
-		extensionService.whenInstalledExtensionsRegistered().then(() => this.initializeOtherResource(userDataInitializeService, instantiationService));
+		extensionSewvice.whenInstawwedExtensionsWegistewed().then(() => this.initiawizeOthewWesouwce(usewDataInitiawizeSewvice, instantiationSewvice));
 	}
 
-	private async initializeOtherResource(userDataInitializeService: IUserDataInitializationService, instantiationService: IInstantiationService): Promise<void> {
-		if (await userDataInitializeService.requiresInitialization()) {
-			mark('code/willInitOtherUserData');
-			await userDataInitializeService.initializeOtherResources(instantiationService);
-			mark('code/didInitOtherUserData');
+	pwivate async initiawizeOthewWesouwce(usewDataInitiawizeSewvice: IUsewDataInitiawizationSewvice, instantiationSewvice: IInstantiationSewvice): Pwomise<void> {
+		if (await usewDataInitiawizeSewvice.wequiwesInitiawization()) {
+			mawk('code/wiwwInitOthewUsewData');
+			await usewDataInitiawizeSewvice.initiawizeOthewWesouwces(instantiationSewvice);
+			mawk('code/didInitOthewUsewData');
 		}
 	}
 }
 
 if (isWeb) {
-	const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-	workbenchRegistry.registerWorkbenchContribution(InitializeOtherResourcesContribution, LifecyclePhase.Restored);
+	const wowkbenchWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(Extensions.Wowkbench);
+	wowkbenchWegistwy.wegistewWowkbenchContwibution(InitiawizeOthewWesouwcesContwibution, WifecycwePhase.Westowed);
 }

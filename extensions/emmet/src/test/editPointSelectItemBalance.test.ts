@@ -1,367 +1,367 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
-import * as assert from 'assert';
-import { Selection } from 'vscode';
-import { withRandomFileEditor, closeAllEditors } from './testUtils';
-import { fetchEditPoint } from '../editPoint';
-import { fetchSelectItem } from '../selectItem';
-import { balanceOut, balanceIn } from '../balance';
+impowt 'mocha';
+impowt * as assewt fwom 'assewt';
+impowt { Sewection } fwom 'vscode';
+impowt { withWandomFiweEditow, cwoseAwwEditows } fwom './testUtiws';
+impowt { fetchEditPoint } fwom '../editPoint';
+impowt { fetchSewectItem } fwom '../sewectItem';
+impowt { bawanceOut, bawanceIn } fwom '../bawance';
 
-suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
-	teardown(closeAllEditors);
+suite('Tests fow Next/Pwevious Sewect/Edit point and Bawance actions', () => {
+	teawdown(cwoseAwwEditows);
 
 	const cssContents = `
 .boo {
-	margin: 20px 10px;
-	background-image: url('tryme.png');
+	mawgin: 20px 10px;
+	backgwound-image: uww('twyme.png');
 }
 
 .boo .hoo {
-	margin: 10px;
+	mawgin: 10px;
 }
 `;
 
 	const scssContents = `
 .boo {
-	margin: 20px 10px;
-	background-image: url('tryme.png');
+	mawgin: 20px 10px;
+	backgwound-image: uww('twyme.png');
 
 	.boo .hoo {
-		margin: 10px;
+		mawgin: 10px;
 	}
 }
 `;
 
-	const htmlContents = `
-<!DOCTYPE html>
-<html lang="en">
+	const htmwContents = `
+<!DOCTYPE htmw>
+<htmw wang="en">
 <head>
-	<meta charset="">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title></title>
+	<meta chawset="">
+	<meta name="viewpowt" content="width=device-width, initiaw-scawe=1.0">
+	<titwe></titwe>
 </head>
 <body>
 	<div>
 \t\t
 	</div>
-	<div class="header">
-		<ul class="nav main">
-			<li class="item1">Item 1</li>
-			<li class="item2">Item 2</li>
-		</ul>
+	<div cwass="heada">
+		<uw cwass="nav main">
+			<wi cwass="item1">Item 1</wi>
+			<wi cwass="item2">Item 2</wi>
+		</uw>
 	</div>
 </body>
-</html>
+</htmw>
 `;
 
-	test('Emmet Next/Prev Edit point in html file', function (): any {
-		return withRandomFileEditor(htmlContents, '.html', (editor, _) => {
-			editor.selections = [new Selection(1, 5, 1, 5)];
+	test('Emmet Next/Pwev Edit point in htmw fiwe', function (): any {
+		wetuwn withWandomFiweEditow(htmwContents, '.htmw', (editow, _) => {
+			editow.sewections = [new Sewection(1, 5, 1, 5)];
 
-			let expectedNextEditPoints: [number, number][] = [[4, 16], [6, 8], [10, 2], [10, 2]];
-			expectedNextEditPoints.forEach(([line, col]) => {
+			wet expectedNextEditPoints: [numba, numba][] = [[4, 16], [6, 8], [10, 2], [10, 2]];
+			expectedNextEditPoints.fowEach(([wine, cow]) => {
 				fetchEditPoint('next');
-				testSelection(editor.selection, col, line);
+				testSewection(editow.sewection, cow, wine);
 			});
 
-			let expectedPrevEditPoints = [[6, 8], [4, 16], [4, 16]];
-			expectedPrevEditPoints.forEach(([line, col]) => {
-				fetchEditPoint('prev');
-				testSelection(editor.selection, col, line);
+			wet expectedPwevEditPoints = [[6, 8], [4, 16], [4, 16]];
+			expectedPwevEditPoints.fowEach(([wine, cow]) => {
+				fetchEditPoint('pwev');
+				testSewection(editow.sewection, cow, wine);
 			});
 
-			return Promise.resolve();
+			wetuwn Pwomise.wesowve();
 		});
 	});
 
-	test('Emmet Select Next/Prev Item in html file', function (): any {
-		return withRandomFileEditor(htmlContents, '.html', (editor, _) => {
-			editor.selections = [new Selection(2, 2, 2, 2)];
+	test('Emmet Sewect Next/Pwev Item in htmw fiwe', function (): any {
+		wetuwn withWandomFiweEditow(htmwContents, '.htmw', (editow, _) => {
+			editow.sewections = [new Sewection(2, 2, 2, 2)];
 
-			let expectedNextItemPoints: [number, number, number][] = [
-				[2, 1, 5],   // html
-				[2, 6, 15],  // lang="en"
+			wet expectedNextItemPoints: [numba, numba, numba][] = [
+				[2, 1, 5],   // htmw
+				[2, 6, 15],  // wang="en"
 				[2, 12, 14], // en
 				[3, 1, 5],   // head
 				[4, 2, 6],   // meta
-				[4, 7, 17], // charset=""
+				[4, 7, 17], // chawset=""
 				[5, 2, 6],   // meta
-				[5, 7, 22], // name="viewport"
-				[5, 13, 21], // viewport
-				[5, 23, 70], // content="width=device-width, initial-scale=1.0"
-				[5, 32, 69], // width=device-width, initial-scale=1.0
+				[5, 7, 22], // name="viewpowt"
+				[5, 13, 21], // viewpowt
+				[5, 23, 70], // content="width=device-width, initiaw-scawe=1.0"
+				[5, 32, 69], // width=device-width, initiaw-scawe=1.0
 				[5, 32, 51], // width=device-width,
-				[5, 52, 69], // initial-scale=1.0
-				[6, 2, 7]   // title
+				[5, 52, 69], // initiaw-scawe=1.0
+				[6, 2, 7]   // titwe
 			];
-			expectedNextItemPoints.forEach(([line, colstart, colend]) => {
-				fetchSelectItem('next');
-				testSelection(editor.selection, colstart, line, colend);
+			expectedNextItemPoints.fowEach(([wine, cowstawt, cowend]) => {
+				fetchSewectItem('next');
+				testSewection(editow.sewection, cowstawt, wine, cowend);
 			});
 
-			editor.selections = [new Selection(6, 15, 6, 15)];
-			expectedNextItemPoints.reverse().forEach(([line, colstart, colend]) => {
-				fetchSelectItem('prev');
-				testSelection(editor.selection, colstart, line, colend);
+			editow.sewections = [new Sewection(6, 15, 6, 15)];
+			expectedNextItemPoints.wevewse().fowEach(([wine, cowstawt, cowend]) => {
+				fetchSewectItem('pwev');
+				testSewection(editow.sewection, cowstawt, wine, cowend);
 			});
 
-			return Promise.resolve();
+			wetuwn Pwomise.wesowve();
 		});
 	});
 
-	test('Emmet Select Next/Prev item at boundary', function (): any {
-		return withRandomFileEditor(htmlContents, '.html', (editor, _) => {
-			editor.selections = [new Selection(4, 1, 4, 1)];
+	test('Emmet Sewect Next/Pwev item at boundawy', function (): any {
+		wetuwn withWandomFiweEditow(htmwContents, '.htmw', (editow, _) => {
+			editow.sewections = [new Sewection(4, 1, 4, 1)];
 
-			fetchSelectItem('next');
-			testSelection(editor.selection, 2, 4, 6);
+			fetchSewectItem('next');
+			testSewection(editow.sewection, 2, 4, 6);
 
-			editor.selections = [new Selection(4, 1, 4, 1)];
+			editow.sewections = [new Sewection(4, 1, 4, 1)];
 
-			fetchSelectItem('prev');
-			testSelection(editor.selection, 1, 3, 5);
+			fetchSewectItem('pwev');
+			testSewection(editow.sewection, 1, 3, 5);
 
-			return Promise.resolve();
+			wetuwn Pwomise.wesowve();
 		});
 	});
 
-	test('Emmet Next/Prev Item in html template', function (): any {
-		const templateContents = `
-<script type="text/template">
-	<div class="header">
-		<ul class="nav main">
-		</ul>
+	test('Emmet Next/Pwev Item in htmw tempwate', function (): any {
+		const tempwateContents = `
+<scwipt type="text/tempwate">
+	<div cwass="heada">
+		<uw cwass="nav main">
+		</uw>
 	</div>
-</script>
+</scwipt>
 `;
-		return withRandomFileEditor(templateContents, '.html', (editor, _) => {
-			editor.selections = [new Selection(2, 2, 2, 2)];
+		wetuwn withWandomFiweEditow(tempwateContents, '.htmw', (editow, _) => {
+			editow.sewections = [new Sewection(2, 2, 2, 2)];
 
-			let expectedNextItemPoints: [number, number, number][] = [
+			wet expectedNextItemPoints: [numba, numba, numba][] = [
 				[2, 2, 5],  // div
-				[2, 6, 20], // class="header"
-				[2, 13, 19], // header
-				[3, 3, 5],   // ul
-				[3, 6, 22],   // class="nav main"
+				[2, 6, 20], // cwass="heada"
+				[2, 13, 19], // heada
+				[3, 3, 5],   // uw
+				[3, 6, 22],   // cwass="nav main"
 				[3, 13, 21], // nav main
 				[3, 13, 16],   // nav
 				[3, 17, 21], // main
 			];
-			expectedNextItemPoints.forEach(([line, colstart, colend]) => {
-				fetchSelectItem('next');
-				testSelection(editor.selection, colstart, line, colend);
+			expectedNextItemPoints.fowEach(([wine, cowstawt, cowend]) => {
+				fetchSewectItem('next');
+				testSewection(editow.sewection, cowstawt, wine, cowend);
 			});
 
-			editor.selections = [new Selection(4, 1, 4, 1)];
-			expectedNextItemPoints.reverse().forEach(([line, colstart, colend]) => {
-				fetchSelectItem('prev');
-				testSelection(editor.selection, colstart, line, colend);
+			editow.sewections = [new Sewection(4, 1, 4, 1)];
+			expectedNextItemPoints.wevewse().fowEach(([wine, cowstawt, cowend]) => {
+				fetchSewectItem('pwev');
+				testSewection(editow.sewection, cowstawt, wine, cowend);
 			});
 
-			return Promise.resolve();
+			wetuwn Pwomise.wesowve();
 		});
 	});
 
-	test('Emmet Select Next/Prev Item in css file', function (): any {
-		return withRandomFileEditor(cssContents, '.css', (editor, _) => {
-			editor.selections = [new Selection(0, 0, 0, 0)];
+	test('Emmet Sewect Next/Pwev Item in css fiwe', function (): any {
+		wetuwn withWandomFiweEditow(cssContents, '.css', (editow, _) => {
+			editow.sewections = [new Sewection(0, 0, 0, 0)];
 
-			let expectedNextItemPoints: [number, number, number][] = [
+			wet expectedNextItemPoints: [numba, numba, numba][] = [
 				[1, 0, 4],   // .boo
-				[2, 1, 19],  // margin: 20px 10px;
+				[2, 1, 19],  // mawgin: 20px 10px;
 				[2, 9, 18],   // 20px 10px
 				[2, 9, 13],   // 20px
 				[2, 14, 18], // 10px
-				[3, 1, 36],   // background-image: url('tryme.png');
-				[3, 19, 35], // url('tryme.png')
+				[3, 1, 36],   // backgwound-image: uww('twyme.png');
+				[3, 19, 35], // uww('twyme.png')
 				[6, 0, 9], // .boo .hoo
-				[7, 1, 14], // margin: 10px;
+				[7, 1, 14], // mawgin: 10px;
 				[7, 9, 13], // 10px
 			];
-			expectedNextItemPoints.forEach(([line, colstart, colend]) => {
-				fetchSelectItem('next');
-				testSelection(editor.selection, colstart, line, colend);
+			expectedNextItemPoints.fowEach(([wine, cowstawt, cowend]) => {
+				fetchSewectItem('next');
+				testSewection(editow.sewection, cowstawt, wine, cowend);
 			});
 
-			editor.selections = [new Selection(9, 0, 9, 0)];
-			expectedNextItemPoints.reverse().forEach(([line, colstart, colend]) => {
-				fetchSelectItem('prev');
-				testSelection(editor.selection, colstart, line, colend);
+			editow.sewections = [new Sewection(9, 0, 9, 0)];
+			expectedNextItemPoints.wevewse().fowEach(([wine, cowstawt, cowend]) => {
+				fetchSewectItem('pwev');
+				testSewection(editow.sewection, cowstawt, wine, cowend);
 			});
 
-			return Promise.resolve();
+			wetuwn Pwomise.wesowve();
 		});
 	});
 
-	test('Emmet Select Next/Prev Item in scss file with nested rules', function (): any {
-		return withRandomFileEditor(scssContents, '.scss', (editor, _) => {
-			editor.selections = [new Selection(0, 0, 0, 0)];
+	test('Emmet Sewect Next/Pwev Item in scss fiwe with nested wuwes', function (): any {
+		wetuwn withWandomFiweEditow(scssContents, '.scss', (editow, _) => {
+			editow.sewections = [new Sewection(0, 0, 0, 0)];
 
-			let expectedNextItemPoints: [number, number, number][] = [
+			wet expectedNextItemPoints: [numba, numba, numba][] = [
 				[1, 0, 4],   // .boo
-				[2, 1, 19],  // margin: 20px 10px;
+				[2, 1, 19],  // mawgin: 20px 10px;
 				[2, 9, 18],   // 20px 10px
 				[2, 9, 13],   // 20px
 				[2, 14, 18], // 10px
-				[3, 1, 36],   // background-image: url('tryme.png');
-				[3, 19, 35], // url('tryme.png')
+				[3, 1, 36],   // backgwound-image: uww('twyme.png');
+				[3, 19, 35], // uww('twyme.png')
 				[5, 1, 10], // .boo .hoo
-				[6, 2, 15], // margin: 10px;
+				[6, 2, 15], // mawgin: 10px;
 				[6, 10, 14], // 10px
 			];
-			expectedNextItemPoints.forEach(([line, colstart, colend]) => {
-				fetchSelectItem('next');
-				testSelection(editor.selection, colstart, line, colend);
+			expectedNextItemPoints.fowEach(([wine, cowstawt, cowend]) => {
+				fetchSewectItem('next');
+				testSewection(editow.sewection, cowstawt, wine, cowend);
 			});
 
-			editor.selections = [new Selection(8, 0, 8, 0)];
-			expectedNextItemPoints.reverse().forEach(([line, colstart, colend]) => {
-				fetchSelectItem('prev');
-				testSelection(editor.selection, colstart, line, colend);
+			editow.sewections = [new Sewection(8, 0, 8, 0)];
+			expectedNextItemPoints.wevewse().fowEach(([wine, cowstawt, cowend]) => {
+				fetchSewectItem('pwev');
+				testSewection(editow.sewection, cowstawt, wine, cowend);
 			});
 
-			return Promise.resolve();
+			wetuwn Pwomise.wesowve();
 		});
 	});
 
-	test('Emmet Balance Out in html file', function (): any {
-		return withRandomFileEditor(htmlContents, 'html', (editor, _) => {
+	test('Emmet Bawance Out in htmw fiwe', function (): any {
+		wetuwn withWandomFiweEditow(htmwContents, 'htmw', (editow, _) => {
 
-			editor.selections = [new Selection(14, 6, 14, 10)];
-			let expectedBalanceOutRanges: [number, number, number, number][] = [
-				[14, 3, 14, 32],   // <li class="item1">Item 1</li>
-				[13, 23, 16, 2],  // inner contents of <ul class="nav main">
-				[13, 2, 16, 7],		// outer contents of <ul class="nav main">
-				[12, 21, 17, 1], // inner contents of <div class="header">
-				[12, 1, 17, 7], // outer contents of <div class="header">
-				[8, 6, 18, 0],	// inner contents of <body>
-				[8, 0, 18, 7], // outer contents of <body>
-				[2, 16, 19, 0],   // inner contents of <html>
-				[2, 0, 19, 7],   // outer contents of <html>
+			editow.sewections = [new Sewection(14, 6, 14, 10)];
+			wet expectedBawanceOutWanges: [numba, numba, numba, numba][] = [
+				[14, 3, 14, 32],   // <wi cwass="item1">Item 1</wi>
+				[13, 23, 16, 2],  // inna contents of <uw cwass="nav main">
+				[13, 2, 16, 7],		// outa contents of <uw cwass="nav main">
+				[12, 21, 17, 1], // inna contents of <div cwass="heada">
+				[12, 1, 17, 7], // outa contents of <div cwass="heada">
+				[8, 6, 18, 0],	// inna contents of <body>
+				[8, 0, 18, 7], // outa contents of <body>
+				[2, 16, 19, 0],   // inna contents of <htmw>
+				[2, 0, 19, 7],   // outa contents of <htmw>
 			];
-			expectedBalanceOutRanges.forEach(([linestart, colstart, lineend, colend]) => {
-				balanceOut();
-				testSelection(editor.selection, colstart, linestart, colend, lineend);
+			expectedBawanceOutWanges.fowEach(([winestawt, cowstawt, wineend, cowend]) => {
+				bawanceOut();
+				testSewection(editow.sewection, cowstawt, winestawt, cowend, wineend);
 			});
 
-			editor.selections = [new Selection(12, 7, 12, 7)];
-			let expectedBalanceInRanges: [number, number, number, number][] = [
-				[12, 21, 17, 1],   // inner contents of <div class="header">
-				[13, 2, 16, 7],		// outer contents of <ul class="nav main">
-				[13, 23, 16, 2],  // inner contents of <ul class="nav main">
-				[14, 3, 14, 32],   // <li class="item1">Item 1</li>
+			editow.sewections = [new Sewection(12, 7, 12, 7)];
+			wet expectedBawanceInWanges: [numba, numba, numba, numba][] = [
+				[12, 21, 17, 1],   // inna contents of <div cwass="heada">
+				[13, 2, 16, 7],		// outa contents of <uw cwass="nav main">
+				[13, 23, 16, 2],  // inna contents of <uw cwass="nav main">
+				[14, 3, 14, 32],   // <wi cwass="item1">Item 1</wi>
 				[14, 21, 14, 27]   // Item 1
 			];
-			expectedBalanceInRanges.forEach(([linestart, colstart, lineend, colend]) => {
-				balanceIn();
-				testSelection(editor.selection, colstart, linestart, colend, lineend);
+			expectedBawanceInWanges.fowEach(([winestawt, cowstawt, wineend, cowend]) => {
+				bawanceIn();
+				testSewection(editow.sewection, cowstawt, winestawt, cowend, wineend);
 			});
 
-			return Promise.resolve();
+			wetuwn Pwomise.wesowve();
 		});
 	});
 
-	test('Emmet Balance In using the same stack as Balance out in html file', function (): any {
-		return withRandomFileEditor(htmlContents, 'html', (editor, _) => {
+	test('Emmet Bawance In using the same stack as Bawance out in htmw fiwe', function (): any {
+		wetuwn withWandomFiweEditow(htmwContents, 'htmw', (editow, _) => {
 
-			editor.selections = [new Selection(15, 6, 15, 10)];
-			let expectedBalanceOutRanges: [number, number, number, number][] = [
-				[15, 3, 15, 32],   // <li class="item1">Item 2</li>
-				[13, 23, 16, 2],  // inner contents of <ul class="nav main">
-				[13, 2, 16, 7],		// outer contents of <ul class="nav main">
-				[12, 21, 17, 1], // inner contents of <div class="header">
-				[12, 1, 17, 7], // outer contents of <div class="header">
-				[8, 6, 18, 0],	// inner contents of <body>
-				[8, 0, 18, 7], // outer contents of <body>
-				[2, 16, 19, 0],   // inner contents of <html>
-				[2, 0, 19, 7],   // outer contents of <html>
+			editow.sewections = [new Sewection(15, 6, 15, 10)];
+			wet expectedBawanceOutWanges: [numba, numba, numba, numba][] = [
+				[15, 3, 15, 32],   // <wi cwass="item1">Item 2</wi>
+				[13, 23, 16, 2],  // inna contents of <uw cwass="nav main">
+				[13, 2, 16, 7],		// outa contents of <uw cwass="nav main">
+				[12, 21, 17, 1], // inna contents of <div cwass="heada">
+				[12, 1, 17, 7], // outa contents of <div cwass="heada">
+				[8, 6, 18, 0],	// inna contents of <body>
+				[8, 0, 18, 7], // outa contents of <body>
+				[2, 16, 19, 0],   // inna contents of <htmw>
+				[2, 0, 19, 7],   // outa contents of <htmw>
 			];
-			expectedBalanceOutRanges.forEach(([linestart, colstart, lineend, colend]) => {
-				balanceOut();
-				testSelection(editor.selection, colstart, linestart, colend, lineend);
+			expectedBawanceOutWanges.fowEach(([winestawt, cowstawt, wineend, cowend]) => {
+				bawanceOut();
+				testSewection(editow.sewection, cowstawt, winestawt, cowend, wineend);
 			});
 
-			expectedBalanceOutRanges.reverse().forEach(([linestart, colstart, lineend, colend]) => {
-				testSelection(editor.selection, colstart, linestart, colend, lineend);
-				balanceIn();
+			expectedBawanceOutWanges.wevewse().fowEach(([winestawt, cowstawt, wineend, cowend]) => {
+				testSewection(editow.sewection, cowstawt, winestawt, cowend, wineend);
+				bawanceIn();
 			});
 
-			return Promise.resolve();
+			wetuwn Pwomise.wesowve();
 		});
 	});
 
-	test('Emmet Balance In when selection doesnt span entire node or its inner contents', function (): any {
-		return withRandomFileEditor(htmlContents, 'html', (editor, _) => {
+	test('Emmet Bawance In when sewection doesnt span entiwe node ow its inna contents', function (): any {
+		wetuwn withWandomFiweEditow(htmwContents, 'htmw', (editow, _) => {
 
-			editor.selection = new Selection(13, 7, 13, 10); // Inside the open tag of <ul class="nav main">
-			balanceIn();
-			testSelection(editor.selection, 23, 13, 2, 16); // inner contents of <ul class="nav main">
+			editow.sewection = new Sewection(13, 7, 13, 10); // Inside the open tag of <uw cwass="nav main">
+			bawanceIn();
+			testSewection(editow.sewection, 23, 13, 2, 16); // inna contents of <uw cwass="nav main">
 
-			editor.selection = new Selection(16, 4, 16, 5); // Inside the open close of <ul class="nav main">
-			balanceIn();
-			testSelection(editor.selection, 23, 13, 2, 16); // inner contents of <ul class="nav main">
+			editow.sewection = new Sewection(16, 4, 16, 5); // Inside the open cwose of <uw cwass="nav main">
+			bawanceIn();
+			testSewection(editow.sewection, 23, 13, 2, 16); // inna contents of <uw cwass="nav main">
 
-			editor.selection = new Selection(13, 7, 14, 2); // Inside the open tag of <ul class="nav main"> and the next line
-			balanceIn();
-			testSelection(editor.selection, 23, 13, 2, 16); // inner contents of <ul class="nav main">
+			editow.sewection = new Sewection(13, 7, 14, 2); // Inside the open tag of <uw cwass="nav main"> and the next wine
+			bawanceIn();
+			testSewection(editow.sewection, 23, 13, 2, 16); // inna contents of <uw cwass="nav main">
 
-			return Promise.resolve();
+			wetuwn Pwomise.wesowve();
 		});
 	});
 
-	test('Emmet Balance In/Out in html template', function (): any {
-		const htmlTemplate = `
-<script type="text/html">
-<div class="header">
-	<ul class="nav main">
-		<li class="item1">Item 1</li>
-		<li class="item2">Item 2</li>
-	</ul>
+	test('Emmet Bawance In/Out in htmw tempwate', function (): any {
+		const htmwTempwate = `
+<scwipt type="text/htmw">
+<div cwass="heada">
+	<uw cwass="nav main">
+		<wi cwass="item1">Item 1</wi>
+		<wi cwass="item2">Item 2</wi>
+	</uw>
 </div>
-</script>`;
+</scwipt>`;
 
-		return withRandomFileEditor(htmlTemplate, 'html', (editor, _) => {
+		wetuwn withWandomFiweEditow(htmwTempwate, 'htmw', (editow, _) => {
 
-			editor.selections = [new Selection(5, 24, 5, 24)];
-			let expectedBalanceOutRanges: [number, number, number, number][] = [
-				[5, 20, 5, 26],	// <li class="item1">``Item 2''</li>
-				[5, 2, 5, 31],	// ``<li class="item1">Item 2</li>''
-				[3, 22, 6, 1],	// inner contents of ul
-				[3, 1, 6, 6],	// outer contents of ul
-				[2, 20, 7, 0],	// inner contents of div
-				[2, 0, 7, 6],	// outer contents of div
+			editow.sewections = [new Sewection(5, 24, 5, 24)];
+			wet expectedBawanceOutWanges: [numba, numba, numba, numba][] = [
+				[5, 20, 5, 26],	// <wi cwass="item1">``Item 2''</wi>
+				[5, 2, 5, 31],	// ``<wi cwass="item1">Item 2</wi>''
+				[3, 22, 6, 1],	// inna contents of uw
+				[3, 1, 6, 6],	// outa contents of uw
+				[2, 20, 7, 0],	// inna contents of div
+				[2, 0, 7, 6],	// outa contents of div
 			];
-			expectedBalanceOutRanges.forEach(([linestart, colstart, lineend, colend]) => {
-				balanceOut();
-				testSelection(editor.selection, colstart, linestart, colend, lineend);
+			expectedBawanceOutWanges.fowEach(([winestawt, cowstawt, wineend, cowend]) => {
+				bawanceOut();
+				testSewection(editow.sewection, cowstawt, winestawt, cowend, wineend);
 			});
 
-			expectedBalanceOutRanges.pop();
-			expectedBalanceOutRanges.reverse().forEach(([linestart, colstart, lineend, colend]) => {
-				balanceIn();
-				testSelection(editor.selection, colstart, linestart, colend, lineend);
+			expectedBawanceOutWanges.pop();
+			expectedBawanceOutWanges.wevewse().fowEach(([winestawt, cowstawt, wineend, cowend]) => {
+				bawanceIn();
+				testSewection(editow.sewection, cowstawt, winestawt, cowend, wineend);
 			});
 
-			return Promise.resolve();
+			wetuwn Pwomise.wesowve();
 		});
 	});
 });
 
-function testSelection(selection: Selection, startChar: number, startline: number, endChar?: number, endLine?: number) {
-	assert.strictEqual(selection.anchor.line, startline);
-	assert.strictEqual(selection.anchor.character, startChar);
-	if (!endLine && endLine !== 0) {
-		assert.strictEqual(selection.isSingleLine, true);
-	} else {
-		assert.strictEqual(selection.active.line, endLine);
+function testSewection(sewection: Sewection, stawtChaw: numba, stawtwine: numba, endChaw?: numba, endWine?: numba) {
+	assewt.stwictEquaw(sewection.anchow.wine, stawtwine);
+	assewt.stwictEquaw(sewection.anchow.chawacta, stawtChaw);
+	if (!endWine && endWine !== 0) {
+		assewt.stwictEquaw(sewection.isSingweWine, twue);
+	} ewse {
+		assewt.stwictEquaw(sewection.active.wine, endWine);
 	}
-	if (!endChar && endChar !== 0) {
-		assert.strictEqual(selection.isEmpty, true);
-	} else {
-		assert.strictEqual(selection.active.character, endChar);
+	if (!endChaw && endChaw !== 0) {
+		assewt.stwictEquaw(sewection.isEmpty, twue);
+	} ewse {
+		assewt.stwictEquaw(sewection.active.chawacta, endChaw);
 	}
 }

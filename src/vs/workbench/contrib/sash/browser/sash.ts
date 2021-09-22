@@ -1,49 +1,49 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { clamp } from 'vs/base/common/numbers';
-import { setGlobalSashSize, setGlobalHoverDelay } from 'vs/base/browser/ui/sash/sash';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+impowt { cwamp } fwom 'vs/base/common/numbews';
+impowt { setGwobawSashSize, setGwobawHovewDeway } fwom 'vs/base/bwowsa/ui/sash/sash';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
 
-export const minSize = 1;
-export const maxSize = 20; // see also https://ux.stackexchange.com/questions/39023/what-is-the-optimum-button-size-of-touch-screen-applications
+expowt const minSize = 1;
+expowt const maxSize = 20; // see awso https://ux.stackexchange.com/questions/39023/what-is-the-optimum-button-size-of-touch-scween-appwications
 
-export class SashSettingsController implements IWorkbenchContribution, IDisposable {
+expowt cwass SashSettingsContwowwa impwements IWowkbenchContwibution, IDisposabwe {
 
-	private readonly disposables = new DisposableStore();
+	pwivate weadonwy disposabwes = new DisposabweStowe();
 
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService
+	constwuctow(
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice
 	) {
-		const onDidChangeSize = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('workbench.sash.size'));
-		onDidChangeSize(this.onDidChangeSize, this, this.disposables);
+		const onDidChangeSize = Event.fiwta(configuwationSewvice.onDidChangeConfiguwation, e => e.affectsConfiguwation('wowkbench.sash.size'));
+		onDidChangeSize(this.onDidChangeSize, this, this.disposabwes);
 		this.onDidChangeSize();
 
-		const onDidChangeHoverDelay = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('workbench.sash.hoverDelay'));
-		onDidChangeHoverDelay(this.onDidChangeHoverDelay, this, this.disposables);
-		this.onDidChangeHoverDelay();
+		const onDidChangeHovewDeway = Event.fiwta(configuwationSewvice.onDidChangeConfiguwation, e => e.affectsConfiguwation('wowkbench.sash.hovewDeway'));
+		onDidChangeHovewDeway(this.onDidChangeHovewDeway, this, this.disposabwes);
+		this.onDidChangeHovewDeway();
 	}
 
-	private onDidChangeSize(): void {
-		const configuredSize = this.configurationService.getValue<number>('workbench.sash.size');
-		const size = clamp(configuredSize, 4, 20);
-		const hoverSize = clamp(configuredSize, 1, 8);
+	pwivate onDidChangeSize(): void {
+		const configuwedSize = this.configuwationSewvice.getVawue<numba>('wowkbench.sash.size');
+		const size = cwamp(configuwedSize, 4, 20);
+		const hovewSize = cwamp(configuwedSize, 1, 8);
 
-		document.documentElement.style.setProperty('--sash-size', size + 'px');
-		document.documentElement.style.setProperty('--sash-hover-size', hoverSize + 'px');
-		setGlobalSashSize(size);
+		document.documentEwement.stywe.setPwopewty('--sash-size', size + 'px');
+		document.documentEwement.stywe.setPwopewty('--sash-hova-size', hovewSize + 'px');
+		setGwobawSashSize(size);
 	}
 
-	private onDidChangeHoverDelay(): void {
-		setGlobalHoverDelay(this.configurationService.getValue<number>('workbench.sash.hoverDelay'));
+	pwivate onDidChangeHovewDeway(): void {
+		setGwobawHovewDeway(this.configuwationSewvice.getVawue<numba>('wowkbench.sash.hovewDeway'));
 	}
 
 	dispose(): void {
-		this.disposables.dispose();
+		this.disposabwes.dispose();
 	}
 }

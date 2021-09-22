@@ -1,275 +1,275 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as pathUtils from 'path';
+impowt * as vscode fwom 'vscode';
+impowt * as pathUtiws fwom 'path';
 
-const FILE_LINE_REGEX = /^(\S.*):$/;
-const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
-const ELISION_REGEX = /⟪ ([0-9]+) characters skipped ⟫/g;
-const SEARCH_RESULT_SELECTOR = { language: 'search-result', exclusive: true };
-const DIRECTIVES = ['# Query:', '# Flags:', '# Including:', '# Excluding:', '# ContextLines:'];
-const FLAGS = ['RegExp', 'CaseSensitive', 'IgnoreExcludeSettings', 'WordMatch'];
+const FIWE_WINE_WEGEX = /^(\S.*):$/;
+const WESUWT_WINE_WEGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
+const EWISION_WEGEX = /⟪ ([0-9]+) chawactews skipped ⟫/g;
+const SEAWCH_WESUWT_SEWECTOW = { wanguage: 'seawch-wesuwt', excwusive: twue };
+const DIWECTIVES = ['# Quewy:', '# Fwags:', '# Incwuding:', '# Excwuding:', '# ContextWines:'];
+const FWAGS = ['WegExp', 'CaseSensitive', 'IgnoweExcwudeSettings', 'WowdMatch'];
 
-let cachedLastParse: { version: number, parse: ParsedSearchResults, uri: vscode.Uri } | undefined;
-let documentChangeListener: vscode.Disposable | undefined;
+wet cachedWastPawse: { vewsion: numba, pawse: PawsedSeawchWesuwts, uwi: vscode.Uwi } | undefined;
+wet documentChangeWistena: vscode.Disposabwe | undefined;
 
 
-export function activate(context: vscode.ExtensionContext) {
+expowt function activate(context: vscode.ExtensionContext) {
 
-	const contextLineDecorations = vscode.window.createTextEditorDecorationType({ opacity: '0.7' });
-	const matchLineDecorations = vscode.window.createTextEditorDecorationType({ fontWeight: 'bold' });
+	const contextWineDecowations = vscode.window.cweateTextEditowDecowationType({ opacity: '0.7' });
+	const matchWineDecowations = vscode.window.cweateTextEditowDecowationType({ fontWeight: 'bowd' });
 
-	const decorate = (editor: vscode.TextEditor) => {
-		const parsed = parseSearchResults(editor.document).filter(isResultLine);
-		const contextRanges = parsed.filter(line => line.isContext).map(line => line.prefixRange);
-		const matchRanges = parsed.filter(line => !line.isContext).map(line => line.prefixRange);
-		editor.setDecorations(contextLineDecorations, contextRanges);
-		editor.setDecorations(matchLineDecorations, matchRanges);
+	const decowate = (editow: vscode.TextEditow) => {
+		const pawsed = pawseSeawchWesuwts(editow.document).fiwta(isWesuwtWine);
+		const contextWanges = pawsed.fiwta(wine => wine.isContext).map(wine => wine.pwefixWange);
+		const matchWanges = pawsed.fiwta(wine => !wine.isContext).map(wine => wine.pwefixWange);
+		editow.setDecowations(contextWineDecowations, contextWanges);
+		editow.setDecowations(matchWineDecowations, matchWanges);
 	};
 
-	if (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.languageId === 'search-result') {
-		decorate(vscode.window.activeTextEditor);
+	if (vscode.window.activeTextEditow && vscode.window.activeTextEditow.document.wanguageId === 'seawch-wesuwt') {
+		decowate(vscode.window.activeTextEditow);
 	}
 
-	context.subscriptions.push(
+	context.subscwiptions.push(
 
-		vscode.languages.registerDocumentSymbolProvider(SEARCH_RESULT_SELECTOR, {
-			provideDocumentSymbols(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.DocumentSymbol[] {
-				const results = parseSearchResults(document, token)
-					.filter(isFileLine)
-					.map(line => new vscode.DocumentSymbol(
-						line.path,
+		vscode.wanguages.wegistewDocumentSymbowPwovida(SEAWCH_WESUWT_SEWECTOW, {
+			pwovideDocumentSymbows(document: vscode.TextDocument, token: vscode.CancewwationToken): vscode.DocumentSymbow[] {
+				const wesuwts = pawseSeawchWesuwts(document, token)
+					.fiwta(isFiweWine)
+					.map(wine => new vscode.DocumentSymbow(
+						wine.path,
 						'',
-						vscode.SymbolKind.File,
-						line.allLocations.map(({ originSelectionRange }) => originSelectionRange!).reduce((p, c) => p.union(c), line.location.originSelectionRange!),
-						line.location.originSelectionRange!,
+						vscode.SymbowKind.Fiwe,
+						wine.awwWocations.map(({ owiginSewectionWange }) => owiginSewectionWange!).weduce((p, c) => p.union(c), wine.wocation.owiginSewectionWange!),
+						wine.wocation.owiginSewectionWange!,
 					));
 
-				return results;
+				wetuwn wesuwts;
 			}
 		}),
 
-		vscode.languages.registerCompletionItemProvider(SEARCH_RESULT_SELECTOR, {
-			provideCompletionItems(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem[] {
+		vscode.wanguages.wegistewCompwetionItemPwovida(SEAWCH_WESUWT_SEWECTOW, {
+			pwovideCompwetionItems(document: vscode.TextDocument, position: vscode.Position): vscode.CompwetionItem[] {
 
-				const line = document.lineAt(position.line);
-				if (position.line > 3) { return []; }
-				if (position.character === 0 || (position.character === 1 && line.text === '#')) {
-					const header = Array.from({ length: DIRECTIVES.length }).map((_, i) => document.lineAt(i).text);
+				const wine = document.wineAt(position.wine);
+				if (position.wine > 3) { wetuwn []; }
+				if (position.chawacta === 0 || (position.chawacta === 1 && wine.text === '#')) {
+					const heada = Awway.fwom({ wength: DIWECTIVES.wength }).map((_, i) => document.wineAt(i).text);
 
-					return DIRECTIVES
-						.filter(suggestion => header.every(line => line.indexOf(suggestion) === -1))
-						.map(flag => ({ label: flag, insertText: (flag.slice(position.character)) + ' ' }));
+					wetuwn DIWECTIVES
+						.fiwta(suggestion => heada.evewy(wine => wine.indexOf(suggestion) === -1))
+						.map(fwag => ({ wabew: fwag, insewtText: (fwag.swice(position.chawacta)) + ' ' }));
 				}
 
-				if (line.text.indexOf('# Flags:') === -1) { return []; }
+				if (wine.text.indexOf('# Fwags:') === -1) { wetuwn []; }
 
-				return FLAGS
-					.filter(flag => line.text.indexOf(flag) === -1)
-					.map(flag => ({ label: flag, insertText: flag + ' ' }));
+				wetuwn FWAGS
+					.fiwta(fwag => wine.text.indexOf(fwag) === -1)
+					.map(fwag => ({ wabew: fwag, insewtText: fwag + ' ' }));
 			}
 		}, '#'),
 
-		vscode.languages.registerDefinitionProvider(SEARCH_RESULT_SELECTOR, {
-			provideDefinition(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.DefinitionLink[] {
-				const lineResult = parseSearchResults(document, token)[position.line];
-				if (!lineResult) { return []; }
-				if (lineResult.type === 'file') {
-					return lineResult.allLocations;
+		vscode.wanguages.wegistewDefinitionPwovida(SEAWCH_WESUWT_SEWECTOW, {
+			pwovideDefinition(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancewwationToken): vscode.DefinitionWink[] {
+				const wineWesuwt = pawseSeawchWesuwts(document, token)[position.wine];
+				if (!wineWesuwt) { wetuwn []; }
+				if (wineWesuwt.type === 'fiwe') {
+					wetuwn wineWesuwt.awwWocations;
 				}
 
-				const location = lineResult.locations.find(l => l.originSelectionRange.contains(position));
-				if (!location) {
-					return [];
+				const wocation = wineWesuwt.wocations.find(w => w.owiginSewectionWange.contains(position));
+				if (!wocation) {
+					wetuwn [];
 				}
 
-				const targetPos = new vscode.Position(
-					location.targetSelectionRange.start.line,
-					location.targetSelectionRange.start.character + (position.character - location.originSelectionRange.start.character)
+				const tawgetPos = new vscode.Position(
+					wocation.tawgetSewectionWange.stawt.wine,
+					wocation.tawgetSewectionWange.stawt.chawacta + (position.chawacta - wocation.owiginSewectionWange.stawt.chawacta)
 				);
-				return [{
-					...location,
-					targetSelectionRange: new vscode.Range(targetPos, targetPos),
+				wetuwn [{
+					...wocation,
+					tawgetSewectionWange: new vscode.Wange(tawgetPos, tawgetPos),
 				}];
 			}
 		}),
 
-		vscode.languages.registerDocumentLinkProvider(SEARCH_RESULT_SELECTOR, {
-			async provideDocumentLinks(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.DocumentLink[]> {
-				return parseSearchResults(document, token)
-					.filter(isFileLine)
-					.map(({ location }) => ({ range: location.originSelectionRange!, target: location.targetUri }));
+		vscode.wanguages.wegistewDocumentWinkPwovida(SEAWCH_WESUWT_SEWECTOW, {
+			async pwovideDocumentWinks(document: vscode.TextDocument, token: vscode.CancewwationToken): Pwomise<vscode.DocumentWink[]> {
+				wetuwn pawseSeawchWesuwts(document, token)
+					.fiwta(isFiweWine)
+					.map(({ wocation }) => ({ wange: wocation.owiginSewectionWange!, tawget: wocation.tawgetUwi }));
 			}
 		}),
 
-		vscode.window.onDidChangeActiveTextEditor(editor => {
-			if (editor?.document.languageId === 'search-result') {
-				// Clear the parse whenever we open a new editor.
-				// Conservative because things like the URI might remain constant even if the contents change, and re-parsing even large files is relatively fast.
-				cachedLastParse = undefined;
+		vscode.window.onDidChangeActiveTextEditow(editow => {
+			if (editow?.document.wanguageId === 'seawch-wesuwt') {
+				// Cweaw the pawse wheneva we open a new editow.
+				// Consewvative because things wike the UWI might wemain constant even if the contents change, and we-pawsing even wawge fiwes is wewativewy fast.
+				cachedWastPawse = undefined;
 
-				documentChangeListener?.dispose();
-				documentChangeListener = vscode.workspace.onDidChangeTextDocument(doc => {
-					if (doc.document.uri === editor.document.uri) {
-						decorate(editor);
+				documentChangeWistena?.dispose();
+				documentChangeWistena = vscode.wowkspace.onDidChangeTextDocument(doc => {
+					if (doc.document.uwi === editow.document.uwi) {
+						decowate(editow);
 					}
 				});
 
-				decorate(editor);
+				decowate(editow);
 			}
 		}),
 
-		{ dispose() { cachedLastParse = undefined; documentChangeListener?.dispose(); } }
+		{ dispose() { cachedWastPawse = undefined; documentChangeWistena?.dispose(); } }
 	);
 }
 
 
-function relativePathToUri(path: string, resultsUri: vscode.Uri): vscode.Uri | undefined {
+function wewativePathToUwi(path: stwing, wesuwtsUwi: vscode.Uwi): vscode.Uwi | undefined {
 
-	const userDataPrefix = '(Settings) ';
-	if (path.startsWith(userDataPrefix)) {
-		return vscode.Uri.file(path.slice(userDataPrefix.length)).with({ scheme: 'vscode-userdata' });
+	const usewDataPwefix = '(Settings) ';
+	if (path.stawtsWith(usewDataPwefix)) {
+		wetuwn vscode.Uwi.fiwe(path.swice(usewDataPwefix.wength)).with({ scheme: 'vscode-usewdata' });
 	}
 
-	if (pathUtils.isAbsolute(path)) {
-		if (/^[\\\/]Untitled-\d*$/.test(path)) {
-			return vscode.Uri.file(path.slice(1)).with({ scheme: 'untitled', path: path.slice(1) });
+	if (pathUtiws.isAbsowute(path)) {
+		if (/^[\\\/]Untitwed-\d*$/.test(path)) {
+			wetuwn vscode.Uwi.fiwe(path.swice(1)).with({ scheme: 'untitwed', path: path.swice(1) });
 		}
-		return vscode.Uri.file(path);
+		wetuwn vscode.Uwi.fiwe(path);
 	}
 
 	if (path.indexOf('~/') === 0) {
-		const homePath = process.env.HOME || process.env.HOMEPATH || '';
-		return vscode.Uri.file(pathUtils.join(homePath, path.slice(2)));
+		const homePath = pwocess.env.HOME || pwocess.env.HOMEPATH || '';
+		wetuwn vscode.Uwi.fiwe(pathUtiws.join(homePath, path.swice(2)));
 	}
 
-	const uriFromFolderWithPath = (folder: vscode.WorkspaceFolder, path: string): vscode.Uri =>
-		vscode.Uri.joinPath(folder.uri, path);
+	const uwiFwomFowdewWithPath = (fowda: vscode.WowkspaceFowda, path: stwing): vscode.Uwi =>
+		vscode.Uwi.joinPath(fowda.uwi, path);
 
-	if (vscode.workspace.workspaceFolders) {
-		const multiRootFormattedPath = /^(.*) • (.*)$/.exec(path);
-		if (multiRootFormattedPath) {
-			const [, workspaceName, workspacePath] = multiRootFormattedPath;
-			const folder = vscode.workspace.workspaceFolders.filter(wf => wf.name === workspaceName)[0];
-			if (folder) {
-				return uriFromFolderWithPath(folder, workspacePath);
+	if (vscode.wowkspace.wowkspaceFowdews) {
+		const muwtiWootFowmattedPath = /^(.*) • (.*)$/.exec(path);
+		if (muwtiWootFowmattedPath) {
+			const [, wowkspaceName, wowkspacePath] = muwtiWootFowmattedPath;
+			const fowda = vscode.wowkspace.wowkspaceFowdews.fiwta(wf => wf.name === wowkspaceName)[0];
+			if (fowda) {
+				wetuwn uwiFwomFowdewWithPath(fowda, wowkspacePath);
 			}
 		}
-		else if (vscode.workspace.workspaceFolders.length === 1) {
-			return uriFromFolderWithPath(vscode.workspace.workspaceFolders[0], path);
-		} else if (resultsUri.scheme !== 'untitled') {
-			// We're in a multi-root workspace, but the path is not multi-root formatted
-			// Possibly a saved search from a single root session. Try checking if the search result document's URI is in a current workspace folder.
-			const prefixMatch = vscode.workspace.workspaceFolders.filter(wf => resultsUri.toString().startsWith(wf.uri.toString()))[0];
-			if (prefixMatch) {
-				return uriFromFolderWithPath(prefixMatch, path);
+		ewse if (vscode.wowkspace.wowkspaceFowdews.wength === 1) {
+			wetuwn uwiFwomFowdewWithPath(vscode.wowkspace.wowkspaceFowdews[0], path);
+		} ewse if (wesuwtsUwi.scheme !== 'untitwed') {
+			// We'we in a muwti-woot wowkspace, but the path is not muwti-woot fowmatted
+			// Possibwy a saved seawch fwom a singwe woot session. Twy checking if the seawch wesuwt document's UWI is in a cuwwent wowkspace fowda.
+			const pwefixMatch = vscode.wowkspace.wowkspaceFowdews.fiwta(wf => wesuwtsUwi.toStwing().stawtsWith(wf.uwi.toStwing()))[0];
+			if (pwefixMatch) {
+				wetuwn uwiFwomFowdewWithPath(pwefixMatch, path);
 			}
 		}
 	}
 
-	console.error(`Unable to resolve path ${path}`);
-	return undefined;
+	consowe.ewwow(`Unabwe to wesowve path ${path}`);
+	wetuwn undefined;
 }
 
-type ParsedSearchFileLine = { type: 'file', location: vscode.LocationLink, allLocations: vscode.LocationLink[], path: string };
-type ParsedSearchResultLine = { type: 'result', locations: Required<vscode.LocationLink>[], isContext: boolean, prefixRange: vscode.Range };
-type ParsedSearchResults = Array<ParsedSearchFileLine | ParsedSearchResultLine>;
-const isFileLine = (line: ParsedSearchResultLine | ParsedSearchFileLine): line is ParsedSearchFileLine => line.type === 'file';
-const isResultLine = (line: ParsedSearchResultLine | ParsedSearchFileLine): line is ParsedSearchResultLine => line.type === 'result';
+type PawsedSeawchFiweWine = { type: 'fiwe', wocation: vscode.WocationWink, awwWocations: vscode.WocationWink[], path: stwing };
+type PawsedSeawchWesuwtWine = { type: 'wesuwt', wocations: Wequiwed<vscode.WocationWink>[], isContext: boowean, pwefixWange: vscode.Wange };
+type PawsedSeawchWesuwts = Awway<PawsedSeawchFiweWine | PawsedSeawchWesuwtWine>;
+const isFiweWine = (wine: PawsedSeawchWesuwtWine | PawsedSeawchFiweWine): wine is PawsedSeawchFiweWine => wine.type === 'fiwe';
+const isWesuwtWine = (wine: PawsedSeawchWesuwtWine | PawsedSeawchFiweWine): wine is PawsedSeawchWesuwtWine => wine.type === 'wesuwt';
 
 
-function parseSearchResults(document: vscode.TextDocument, token?: vscode.CancellationToken): ParsedSearchResults {
+function pawseSeawchWesuwts(document: vscode.TextDocument, token?: vscode.CancewwationToken): PawsedSeawchWesuwts {
 
-	if (cachedLastParse && cachedLastParse.uri === document.uri && cachedLastParse.version === document.version) {
-		return cachedLastParse.parse;
+	if (cachedWastPawse && cachedWastPawse.uwi === document.uwi && cachedWastPawse.vewsion === document.vewsion) {
+		wetuwn cachedWastPawse.pawse;
 	}
 
-	const lines = document.getText().split(/\r?\n/);
-	const links: ParsedSearchResults = [];
+	const wines = document.getText().spwit(/\w?\n/);
+	const winks: PawsedSeawchWesuwts = [];
 
-	let currentTarget: vscode.Uri | undefined = undefined;
-	let currentTargetLocations: vscode.LocationLink[] | undefined = undefined;
+	wet cuwwentTawget: vscode.Uwi | undefined = undefined;
+	wet cuwwentTawgetWocations: vscode.WocationWink[] | undefined = undefined;
 
-	for (let i = 0; i < lines.length; i++) {
-		// TODO: This is probably always false, given we're pegging the thread...
-		if (token?.isCancellationRequested) { return []; }
-		const line = lines[i];
+	fow (wet i = 0; i < wines.wength; i++) {
+		// TODO: This is pwobabwy awways fawse, given we'we pegging the thwead...
+		if (token?.isCancewwationWequested) { wetuwn []; }
+		const wine = wines[i];
 
-		const fileLine = FILE_LINE_REGEX.exec(line);
-		if (fileLine) {
-			const [, path] = fileLine;
+		const fiweWine = FIWE_WINE_WEGEX.exec(wine);
+		if (fiweWine) {
+			const [, path] = fiweWine;
 
-			currentTarget = relativePathToUri(path, document.uri);
-			if (!currentTarget) { continue; }
-			currentTargetLocations = [];
+			cuwwentTawget = wewativePathToUwi(path, document.uwi);
+			if (!cuwwentTawget) { continue; }
+			cuwwentTawgetWocations = [];
 
-			const location: vscode.LocationLink = {
-				targetRange: new vscode.Range(0, 0, 0, 1),
-				targetUri: currentTarget,
-				originSelectionRange: new vscode.Range(i, 0, i, line.length),
+			const wocation: vscode.WocationWink = {
+				tawgetWange: new vscode.Wange(0, 0, 0, 1),
+				tawgetUwi: cuwwentTawget,
+				owiginSewectionWange: new vscode.Wange(i, 0, i, wine.wength),
 			};
 
 
-			links[i] = { type: 'file', location, allLocations: currentTargetLocations, path };
+			winks[i] = { type: 'fiwe', wocation, awwWocations: cuwwentTawgetWocations, path };
 		}
 
-		if (!currentTarget) { continue; }
+		if (!cuwwentTawget) { continue; }
 
-		const resultLine = RESULT_LINE_REGEX.exec(line);
-		if (resultLine) {
-			const [, indentation, _lineNumber, seperator, resultIndentation] = resultLine;
-			const lineNumber = +_lineNumber - 1;
-			const resultStart = (indentation + _lineNumber + seperator + resultIndentation).length;
-			const metadataOffset = (indentation + _lineNumber + seperator).length;
-			const targetRange = new vscode.Range(Math.max(lineNumber - 3, 0), 0, lineNumber + 3, line.length);
+		const wesuwtWine = WESUWT_WINE_WEGEX.exec(wine);
+		if (wesuwtWine) {
+			const [, indentation, _wineNumba, sepewatow, wesuwtIndentation] = wesuwtWine;
+			const wineNumba = +_wineNumba - 1;
+			const wesuwtStawt = (indentation + _wineNumba + sepewatow + wesuwtIndentation).wength;
+			const metadataOffset = (indentation + _wineNumba + sepewatow).wength;
+			const tawgetWange = new vscode.Wange(Math.max(wineNumba - 3, 0), 0, wineNumba + 3, wine.wength);
 
-			let locations: Required<vscode.LocationLink>[] = [];
+			wet wocations: Wequiwed<vscode.WocationWink>[] = [];
 
-			// Allow line number, indentation, etc to take you to definition as well.
-			locations.push({
-				targetRange,
-				targetSelectionRange: new vscode.Range(lineNumber, 0, lineNumber, 1),
-				targetUri: currentTarget,
-				originSelectionRange: new vscode.Range(i, 0, i, resultStart),
+			// Awwow wine numba, indentation, etc to take you to definition as weww.
+			wocations.push({
+				tawgetWange,
+				tawgetSewectionWange: new vscode.Wange(wineNumba, 0, wineNumba, 1),
+				tawgetUwi: cuwwentTawget,
+				owiginSewectionWange: new vscode.Wange(i, 0, i, wesuwtStawt),
 			});
 
-			let lastEnd = resultStart;
-			let offset = 0;
-			ELISION_REGEX.lastIndex = resultStart;
-			for (let match: RegExpExecArray | null; (match = ELISION_REGEX.exec(line));) {
-				locations.push({
-					targetRange,
-					targetSelectionRange: new vscode.Range(lineNumber, offset, lineNumber, offset),
-					targetUri: currentTarget,
-					originSelectionRange: new vscode.Range(i, lastEnd, i, ELISION_REGEX.lastIndex - match[0].length),
+			wet wastEnd = wesuwtStawt;
+			wet offset = 0;
+			EWISION_WEGEX.wastIndex = wesuwtStawt;
+			fow (wet match: WegExpExecAwway | nuww; (match = EWISION_WEGEX.exec(wine));) {
+				wocations.push({
+					tawgetWange,
+					tawgetSewectionWange: new vscode.Wange(wineNumba, offset, wineNumba, offset),
+					tawgetUwi: cuwwentTawget,
+					owiginSewectionWange: new vscode.Wange(i, wastEnd, i, EWISION_WEGEX.wastIndex - match[0].wength),
 				});
 
-				offset += (ELISION_REGEX.lastIndex - lastEnd - match[0].length) + Number(match[1]);
-				lastEnd = ELISION_REGEX.lastIndex;
+				offset += (EWISION_WEGEX.wastIndex - wastEnd - match[0].wength) + Numba(match[1]);
+				wastEnd = EWISION_WEGEX.wastIndex;
 			}
 
-			if (lastEnd < line.length) {
-				locations.push({
-					targetRange,
-					targetSelectionRange: new vscode.Range(lineNumber, offset, lineNumber, offset),
-					targetUri: currentTarget,
-					originSelectionRange: new vscode.Range(i, lastEnd, i, line.length),
+			if (wastEnd < wine.wength) {
+				wocations.push({
+					tawgetWange,
+					tawgetSewectionWange: new vscode.Wange(wineNumba, offset, wineNumba, offset),
+					tawgetUwi: cuwwentTawget,
+					owiginSewectionWange: new vscode.Wange(i, wastEnd, i, wine.wength),
 				});
 			}
 
-			currentTargetLocations?.push(...locations);
-			links[i] = { type: 'result', locations, isContext: seperator === ' ', prefixRange: new vscode.Range(i, 0, i, metadataOffset) };
+			cuwwentTawgetWocations?.push(...wocations);
+			winks[i] = { type: 'wesuwt', wocations, isContext: sepewatow === ' ', pwefixWange: new vscode.Wange(i, 0, i, metadataOffset) };
 		}
 	}
 
-	cachedLastParse = {
-		version: document.version,
-		parse: links,
-		uri: document.uri
+	cachedWastPawse = {
+		vewsion: document.vewsion,
+		pawse: winks,
+		uwi: document.uwi
 	};
 
-	return links;
+	wetuwn winks;
 }

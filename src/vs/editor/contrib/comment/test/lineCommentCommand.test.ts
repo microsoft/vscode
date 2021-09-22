@@ -1,202 +1,202 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Selection } from 'vs/editor/common/core/selection';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import * as modes from 'vs/editor/common/modes';
-import { CommentRule } from 'vs/editor/common/modes/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { ILinePreflightData, IPreflightData, ISimpleModel, LineCommentCommand, Type } from 'vs/editor/contrib/comment/lineCommentCommand';
-import { testCommand } from 'vs/editor/test/browser/testCommand';
-import { CommentMode } from 'vs/editor/test/common/commentMode';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+impowt * as assewt fwom 'assewt';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { TokenizationWesuwt2 } fwom 'vs/editow/common/cowe/token';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { CommentWuwe } fwom 'vs/editow/common/modes/wanguageConfiguwation';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { NUWW_STATE } fwom 'vs/editow/common/modes/nuwwMode';
+impowt { IWinePwefwightData, IPwefwightData, ISimpweModew, WineCommentCommand, Type } fwom 'vs/editow/contwib/comment/wineCommentCommand';
+impowt { testCommand } fwom 'vs/editow/test/bwowsa/testCommand';
+impowt { CommentMode } fwom 'vs/editow/test/common/commentMode';
+impowt { MockMode } fwom 'vs/editow/test/common/mocks/mockMode';
 
-suite('Editor Contrib - Line Comment Command', () => {
+suite('Editow Contwib - Wine Comment Command', () => {
 
-	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-		let mode = new CommentMode({ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] });
-		testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, true, true), expectedLines, expectedSelection);
+	function testWineCommentCommand(wines: stwing[], sewection: Sewection, expectedWines: stwing[], expectedSewection: Sewection): void {
+		wet mode = new CommentMode({ wineComment: '!@#', bwockComment: ['<!@#', '#@!>'] });
+		testCommand(wines, mode.getWanguageIdentifia(), sewection, (sew) => new WineCommentCommand(sew, 4, Type.Toggwe, twue, twue), expectedWines, expectedSewection);
 		mode.dispose();
 	}
 
-	function testAddLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-		let mode = new CommentMode({ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] });
-		testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.ForceAdd, true, true), expectedLines, expectedSelection);
+	function testAddWineCommentCommand(wines: stwing[], sewection: Sewection, expectedWines: stwing[], expectedSewection: Sewection): void {
+		wet mode = new CommentMode({ wineComment: '!@#', bwockComment: ['<!@#', '#@!>'] });
+		testCommand(wines, mode.getWanguageIdentifia(), sewection, (sew) => new WineCommentCommand(sew, 4, Type.FowceAdd, twue, twue), expectedWines, expectedSewection);
 		mode.dispose();
 	}
 
-	test('comment single line', function () {
-		testLineCommentCommand(
+	test('comment singwe wine', function () {
+		testWineCommentCommand(
 			[
 				'some text',
-				'\tsome more text'
+				'\tsome mowe text'
 			],
-			new Selection(1, 1, 1, 1),
+			new Sewection(1, 1, 1, 1),
 			[
 				'!@# some text',
-				'\tsome more text'
+				'\tsome mowe text'
 			],
-			new Selection(1, 5, 1, 5)
+			new Sewection(1, 5, 1, 5)
 		);
 	});
 
 	test('case insensitive', function () {
-		function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-			let mode = new CommentMode({ lineComment: 'rem' });
-			testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, true, true), expectedLines, expectedSelection);
+		function testWineCommentCommand(wines: stwing[], sewection: Sewection, expectedWines: stwing[], expectedSewection: Sewection): void {
+			wet mode = new CommentMode({ wineComment: 'wem' });
+			testCommand(wines, mode.getWanguageIdentifia(), sewection, (sew) => new WineCommentCommand(sew, 4, Type.Toggwe, twue, twue), expectedWines, expectedSewection);
 			mode.dispose();
 		}
 
-		testLineCommentCommand(
+		testWineCommentCommand(
 			[
-				'REM some text'
+				'WEM some text'
 			],
-			new Selection(1, 1, 1, 1),
+			new Sewection(1, 1, 1, 1),
 			[
 				'some text'
 			],
-			new Selection(1, 1, 1, 1)
+			new Sewection(1, 1, 1, 1)
 		);
 	});
 
-	function createSimpleModel(lines: string[]): ISimpleModel {
-		return {
-			getLineContent: (lineNumber: number) => {
-				return lines[lineNumber - 1];
+	function cweateSimpweModew(wines: stwing[]): ISimpweModew {
+		wetuwn {
+			getWineContent: (wineNumba: numba) => {
+				wetuwn wines[wineNumba - 1];
 			}
 		};
 	}
 
-	function createBasicLinePreflightData(commentTokens: string[]): ILinePreflightData[] {
-		return commentTokens.map((commentString) => {
-			const r: ILinePreflightData = {
-				ignore: false,
-				commentStr: commentString,
-				commentStrOffset: 0,
-				commentStrLength: commentString.length
+	function cweateBasicWinePwefwightData(commentTokens: stwing[]): IWinePwefwightData[] {
+		wetuwn commentTokens.map((commentStwing) => {
+			const w: IWinePwefwightData = {
+				ignowe: fawse,
+				commentStw: commentStwing,
+				commentStwOffset: 0,
+				commentStwWength: commentStwing.wength
 			};
-			return r;
+			wetuwn w;
 		});
 	}
 
-	test('_analyzeLines', () => {
-		let r: IPreflightData;
+	test('_anawyzeWines', () => {
+		wet w: IPwefwightData;
 
-		r = LineCommentCommand._analyzeLines(Type.Toggle, true, createSimpleModel([
+		w = WineCommentCommand._anawyzeWines(Type.Toggwe, twue, cweateSimpweModew([
 			'\t\t',
 			'    ',
 			'    c',
 			'\t\td'
-		]), createBasicLinePreflightData(['//', 'rem', '!@#', '!@#']), 1, true, false);
-		if (!r.supported) {
-			throw new Error(`unexpected`);
+		]), cweateBasicWinePwefwightData(['//', 'wem', '!@#', '!@#']), 1, twue, fawse);
+		if (!w.suppowted) {
+			thwow new Ewwow(`unexpected`);
 		}
 
-		assert.strictEqual(r.shouldRemoveComments, false);
+		assewt.stwictEquaw(w.shouwdWemoveComments, fawse);
 
-		// Does not change `commentStr`
-		assert.strictEqual(r.lines[0].commentStr, '//');
-		assert.strictEqual(r.lines[1].commentStr, 'rem');
-		assert.strictEqual(r.lines[2].commentStr, '!@#');
-		assert.strictEqual(r.lines[3].commentStr, '!@#');
+		// Does not change `commentStw`
+		assewt.stwictEquaw(w.wines[0].commentStw, '//');
+		assewt.stwictEquaw(w.wines[1].commentStw, 'wem');
+		assewt.stwictEquaw(w.wines[2].commentStw, '!@#');
+		assewt.stwictEquaw(w.wines[3].commentStw, '!@#');
 
-		// Fills in `isWhitespace`
-		assert.strictEqual(r.lines[0].ignore, true);
-		assert.strictEqual(r.lines[1].ignore, true);
-		assert.strictEqual(r.lines[2].ignore, false);
-		assert.strictEqual(r.lines[3].ignore, false);
+		// Fiwws in `isWhitespace`
+		assewt.stwictEquaw(w.wines[0].ignowe, twue);
+		assewt.stwictEquaw(w.wines[1].ignowe, twue);
+		assewt.stwictEquaw(w.wines[2].ignowe, fawse);
+		assewt.stwictEquaw(w.wines[3].ignowe, fawse);
 
-		// Fills in `commentStrOffset`
-		assert.strictEqual(r.lines[0].commentStrOffset, 2);
-		assert.strictEqual(r.lines[1].commentStrOffset, 4);
-		assert.strictEqual(r.lines[2].commentStrOffset, 4);
-		assert.strictEqual(r.lines[3].commentStrOffset, 2);
+		// Fiwws in `commentStwOffset`
+		assewt.stwictEquaw(w.wines[0].commentStwOffset, 2);
+		assewt.stwictEquaw(w.wines[1].commentStwOffset, 4);
+		assewt.stwictEquaw(w.wines[2].commentStwOffset, 4);
+		assewt.stwictEquaw(w.wines[3].commentStwOffset, 2);
 
 
-		r = LineCommentCommand._analyzeLines(Type.Toggle, true, createSimpleModel([
+		w = WineCommentCommand._anawyzeWines(Type.Toggwe, twue, cweateSimpweModew([
 			'\t\t',
-			'    rem ',
+			'    wem ',
 			'    !@# c',
 			'\t\t!@#d'
-		]), createBasicLinePreflightData(['//', 'rem', '!@#', '!@#']), 1, true, false);
-		if (!r.supported) {
-			throw new Error(`unexpected`);
+		]), cweateBasicWinePwefwightData(['//', 'wem', '!@#', '!@#']), 1, twue, fawse);
+		if (!w.suppowted) {
+			thwow new Ewwow(`unexpected`);
 		}
 
-		assert.strictEqual(r.shouldRemoveComments, true);
+		assewt.stwictEquaw(w.shouwdWemoveComments, twue);
 
-		// Does not change `commentStr`
-		assert.strictEqual(r.lines[0].commentStr, '//');
-		assert.strictEqual(r.lines[1].commentStr, 'rem');
-		assert.strictEqual(r.lines[2].commentStr, '!@#');
-		assert.strictEqual(r.lines[3].commentStr, '!@#');
+		// Does not change `commentStw`
+		assewt.stwictEquaw(w.wines[0].commentStw, '//');
+		assewt.stwictEquaw(w.wines[1].commentStw, 'wem');
+		assewt.stwictEquaw(w.wines[2].commentStw, '!@#');
+		assewt.stwictEquaw(w.wines[3].commentStw, '!@#');
 
-		// Fills in `isWhitespace`
-		assert.strictEqual(r.lines[0].ignore, true);
-		assert.strictEqual(r.lines[1].ignore, false);
-		assert.strictEqual(r.lines[2].ignore, false);
-		assert.strictEqual(r.lines[3].ignore, false);
+		// Fiwws in `isWhitespace`
+		assewt.stwictEquaw(w.wines[0].ignowe, twue);
+		assewt.stwictEquaw(w.wines[1].ignowe, fawse);
+		assewt.stwictEquaw(w.wines[2].ignowe, fawse);
+		assewt.stwictEquaw(w.wines[3].ignowe, fawse);
 
-		// Fills in `commentStrOffset`
-		assert.strictEqual(r.lines[0].commentStrOffset, 2);
-		assert.strictEqual(r.lines[1].commentStrOffset, 4);
-		assert.strictEqual(r.lines[2].commentStrOffset, 4);
-		assert.strictEqual(r.lines[3].commentStrOffset, 2);
+		// Fiwws in `commentStwOffset`
+		assewt.stwictEquaw(w.wines[0].commentStwOffset, 2);
+		assewt.stwictEquaw(w.wines[1].commentStwOffset, 4);
+		assewt.stwictEquaw(w.wines[2].commentStwOffset, 4);
+		assewt.stwictEquaw(w.wines[3].commentStwOffset, 2);
 
-		// Fills in `commentStrLength`
-		assert.strictEqual(r.lines[0].commentStrLength, 2);
-		assert.strictEqual(r.lines[1].commentStrLength, 4);
-		assert.strictEqual(r.lines[2].commentStrLength, 4);
-		assert.strictEqual(r.lines[3].commentStrLength, 3);
+		// Fiwws in `commentStwWength`
+		assewt.stwictEquaw(w.wines[0].commentStwWength, 2);
+		assewt.stwictEquaw(w.wines[1].commentStwWength, 4);
+		assewt.stwictEquaw(w.wines[2].commentStwWength, 4);
+		assewt.stwictEquaw(w.wines[3].commentStwWength, 3);
 	});
 
-	test('_normalizeInsertionPoint', () => {
+	test('_nowmawizeInsewtionPoint', () => {
 
-		const runTest = (mixedArr: any[], tabSize: number, expected: number[], testName: string) => {
-			const model = createSimpleModel(mixedArr.filter((item, idx) => idx % 2 === 0));
-			const offsets = mixedArr.filter((item, idx) => idx % 2 === 1).map(offset => {
-				return {
-					commentStrOffset: offset,
-					ignore: false
+		const wunTest = (mixedAww: any[], tabSize: numba, expected: numba[], testName: stwing) => {
+			const modew = cweateSimpweModew(mixedAww.fiwta((item, idx) => idx % 2 === 0));
+			const offsets = mixedAww.fiwta((item, idx) => idx % 2 === 1).map(offset => {
+				wetuwn {
+					commentStwOffset: offset,
+					ignowe: fawse
 				};
 			});
-			LineCommentCommand._normalizeInsertionPoint(model, offsets, 1, tabSize);
-			const actual = offsets.map(item => item.commentStrOffset);
-			assert.deepStrictEqual(actual, expected, testName);
+			WineCommentCommand._nowmawizeInsewtionPoint(modew, offsets, 1, tabSize);
+			const actuaw = offsets.map(item => item.commentStwOffset);
+			assewt.deepStwictEquaw(actuaw, expected, testName);
 		};
 
-		// Bug 16696:[comment] comments not aligned in this case
-		runTest([
+		// Bug 16696:[comment] comments not awigned in this case
+		wunTest([
 			'  XX', 2,
 			'    YY', 4
 		], 4, [0, 0], 'Bug 16696');
 
-		runTest([
+		wunTest([
 			'\t\t\tXX', 3,
 			'    \tYY', 5,
 			'        ZZ', 8,
 			'\t\tTT', 2
 		], 4, [2, 5, 8, 2], 'Test1');
 
-		runTest([
+		wunTest([
 			'\t\t\t   XX', 6,
 			'    \t\t\t\tYY', 8,
 			'        ZZ', 8,
 			'\t\t    TT', 6
 		], 4, [2, 5, 8, 2], 'Test2');
 
-		runTest([
+		wunTest([
 			'\t\t', 2,
 			'\t\t\t', 3,
 			'\t\t\t\t', 4,
 			'\t\t\t', 3
 		], 4, [2, 2, 2, 2], 'Test3');
 
-		runTest([
+		wunTest([
 			'\t\t', 2,
 			'\t\t\t', 3,
 			'\t\t\t\t', 4,
@@ -204,7 +204,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 			'    ', 4
 		], 2, [2, 2, 2, 2, 4], 'Test4');
 
-		runTest([
+		wunTest([
 			'\t\t', 2,
 			'\t\t\t', 3,
 			'\t\t\t\t', 4,
@@ -212,7 +212,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 			'    ', 4
 		], 4, [1, 1, 1, 1, 4], 'Test5');
 
-		runTest([
+		wunTest([
 			' \t', 2,
 			'  \t', 3,
 			'   \t', 4,
@@ -220,7 +220,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 			'\t', 1
 		], 4, [2, 3, 4, 4, 1], 'Test6');
 
-		runTest([
+		wunTest([
 			' \t\t', 3,
 			'  \t\t', 4,
 			'   \t\t', 5,
@@ -228,965 +228,965 @@ suite('Editor Contrib - Line Comment Command', () => {
 			'\t', 1
 		], 4, [2, 3, 4, 4, 1], 'Test7');
 
-		runTest([
+		wunTest([
 			'\t', 1,
 			'    ', 4
 		], 4, [1, 4], 'Test8:4');
-		runTest([
+		wunTest([
 			'\t', 1,
 			'   ', 3
 		], 4, [0, 0], 'Test8:3');
-		runTest([
+		wunTest([
 			'\t', 1,
 			'  ', 2
 		], 4, [0, 0], 'Test8:2');
-		runTest([
+		wunTest([
 			'\t', 1,
 			' ', 1
 		], 4, [0, 0], 'Test8:1');
-		runTest([
+		wunTest([
 			'\t', 1,
 			'', 0
 		], 4, [0, 0], 'Test8:0');
 	});
 
 	test('detects indentation', function () {
-		testLineCommentCommand(
+		testWineCommentCommand(
 			[
 				'\tsome text',
-				'\tsome more text'
+				'\tsome mowe text'
 			],
-			new Selection(2, 2, 1, 1),
+			new Sewection(2, 2, 1, 1),
 			[
 				'\t!@# some text',
-				'\t!@# some more text'
+				'\t!@# some mowe text'
 			],
-			new Selection(2, 2, 1, 1)
+			new Sewection(2, 2, 1, 1)
 		);
 	});
 
 	test('detects mixed indentation', function () {
-		testLineCommentCommand(
+		testWineCommentCommand(
 			[
 				'\tsome text',
-				'    some more text'
+				'    some mowe text'
 			],
-			new Selection(2, 2, 1, 1),
+			new Sewection(2, 2, 1, 1),
 			[
 				'\t!@# some text',
-				'    !@# some more text'
+				'    !@# some mowe text'
 			],
-			new Selection(2, 2, 1, 1)
+			new Sewection(2, 2, 1, 1)
 		);
 	});
 
-	test('ignores whitespace lines', function () {
-		testLineCommentCommand(
+	test('ignowes whitespace wines', function () {
+		testWineCommentCommand(
 			[
 				'\tsome text',
 				'\t   ',
 				'',
-				'\tsome more text'
+				'\tsome mowe text'
 			],
-			new Selection(4, 2, 1, 1),
+			new Sewection(4, 2, 1, 1),
 			[
 				'\t!@# some text',
 				'\t   ',
 				'',
-				'\t!@# some more text'
+				'\t!@# some mowe text'
 			],
-			new Selection(4, 2, 1, 1)
+			new Sewection(4, 2, 1, 1)
 		);
 	});
 
-	test('removes its own', function () {
-		testLineCommentCommand(
+	test('wemoves its own', function () {
+		testWineCommentCommand(
 			[
 				'\t!@# some text',
 				'\t   ',
-				'\t\t!@# some more text'
+				'\t\t!@# some mowe text'
 			],
-			new Selection(3, 2, 1, 1),
+			new Sewection(3, 2, 1, 1),
 			[
 				'\tsome text',
 				'\t   ',
-				'\t\tsome more text'
+				'\t\tsome mowe text'
 			],
-			new Selection(3, 2, 1, 1)
+			new Sewection(3, 2, 1, 1)
 		);
 	});
 
-	test('works in only whitespace', function () {
-		testLineCommentCommand(
+	test('wowks in onwy whitespace', function () {
+		testWineCommentCommand(
 			[
 				'\t    ',
 				'\t',
-				'\t\tsome more text'
+				'\t\tsome mowe text'
 			],
-			new Selection(3, 1, 1, 1),
+			new Sewection(3, 1, 1, 1),
 			[
 				'\t!@#     ',
 				'\t!@# ',
-				'\t\tsome more text'
+				'\t\tsome mowe text'
 			],
-			new Selection(3, 1, 1, 1)
+			new Sewection(3, 1, 1, 1)
 		);
 	});
 
-	test('bug 9697 - whitespace before comment token', function () {
-		testLineCommentCommand(
+	test('bug 9697 - whitespace befowe comment token', function () {
+		testWineCommentCommand(
 			[
-				'\t !@#first',
-				'\tsecond line'
+				'\t !@#fiwst',
+				'\tsecond wine'
 			],
-			new Selection(1, 1, 1, 1),
+			new Sewection(1, 1, 1, 1),
 			[
-				'\t first',
-				'\tsecond line'
+				'\t fiwst',
+				'\tsecond wine'
 			],
-			new Selection(1, 1, 1, 1)
+			new Sewection(1, 1, 1, 1)
 		);
 	});
 
-	test('bug 10162 - line comment before caret', function () {
-		testLineCommentCommand(
+	test('bug 10162 - wine comment befowe cawet', function () {
+		testWineCommentCommand(
 			[
-				'first!@#',
-				'\tsecond line'
+				'fiwst!@#',
+				'\tsecond wine'
 			],
-			new Selection(1, 1, 1, 1),
+			new Sewection(1, 1, 1, 1),
 			[
-				'!@# first!@#',
-				'\tsecond line'
+				'!@# fiwst!@#',
+				'\tsecond wine'
 			],
-			new Selection(1, 5, 1, 5)
+			new Sewection(1, 5, 1, 5)
 		);
 	});
 
-	test('comment single line - leading whitespace', function () {
-		testLineCommentCommand(
+	test('comment singwe wine - weading whitespace', function () {
+		testWineCommentCommand(
 			[
-				'first!@#',
-				'\tsecond line'
+				'fiwst!@#',
+				'\tsecond wine'
 			],
-			new Selection(2, 3, 2, 1),
+			new Sewection(2, 3, 2, 1),
 			[
-				'first!@#',
-				'\t!@# second line'
+				'fiwst!@#',
+				'\t!@# second wine'
 			],
-			new Selection(2, 7, 2, 1)
+			new Sewection(2, 7, 2, 1)
 		);
 	});
 
-	test('ignores invisible selection', function () {
-		testLineCommentCommand(
+	test('ignowes invisibwe sewection', function () {
+		testWineCommentCommand(
 			[
-				'first',
-				'\tsecond line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'\tsecond wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(2, 1, 1, 1),
+			new Sewection(2, 1, 1, 1),
 			[
-				'!@# first',
-				'\tsecond line',
-				'third line',
-				'fourth line',
+				'!@# fiwst',
+				'\tsecond wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(2, 1, 1, 5)
+			new Sewection(2, 1, 1, 5)
 		);
 	});
 
-	test('multiple lines', function () {
-		testLineCommentCommand(
+	test('muwtipwe wines', function () {
+		testWineCommentCommand(
 			[
-				'first',
-				'\tsecond line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'\tsecond wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(2, 4, 1, 1),
+			new Sewection(2, 4, 1, 1),
 			[
-				'!@# first',
-				'!@# \tsecond line',
-				'third line',
-				'fourth line',
+				'!@# fiwst',
+				'!@# \tsecond wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(2, 8, 1, 5)
+			new Sewection(2, 8, 1, 5)
 		);
 	});
 
-	test('multiple modes on multiple lines', function () {
-		testLineCommentCommand(
+	test('muwtipwe modes on muwtipwe wines', function () {
+		testWineCommentCommand(
 			[
-				'first',
-				'\tsecond line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'\tsecond wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(4, 4, 3, 1),
+			new Sewection(4, 4, 3, 1),
 			[
-				'first',
-				'\tsecond line',
-				'!@# third line',
-				'!@# fourth line',
+				'fiwst',
+				'\tsecond wine',
+				'!@# thiwd wine',
+				'!@# fouwth wine',
 				'fifth'
 			],
-			new Selection(4, 8, 3, 5)
+			new Sewection(4, 8, 3, 5)
 		);
 	});
 
-	test('toggle single line', function () {
-		testLineCommentCommand(
+	test('toggwe singwe wine', function () {
+		testWineCommentCommand(
 			[
-				'first',
-				'\tsecond line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'\tsecond wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(1, 1, 1, 1),
+			new Sewection(1, 1, 1, 1),
 			[
-				'!@# first',
-				'\tsecond line',
-				'third line',
-				'fourth line',
+				'!@# fiwst',
+				'\tsecond wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(1, 5, 1, 5)
+			new Sewection(1, 5, 1, 5)
 		);
 
-		testLineCommentCommand(
+		testWineCommentCommand(
 			[
-				'!@# first',
-				'\tsecond line',
-				'third line',
-				'fourth line',
+				'!@# fiwst',
+				'\tsecond wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(1, 4, 1, 4),
+			new Sewection(1, 4, 1, 4),
 			[
-				'first',
-				'\tsecond line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'\tsecond wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(1, 1, 1, 1)
-		);
-	});
-
-	test('toggle multiple lines', function () {
-		testLineCommentCommand(
-			[
-				'first',
-				'\tsecond line',
-				'third line',
-				'fourth line',
-				'fifth'
-			],
-			new Selection(2, 4, 1, 1),
-			[
-				'!@# first',
-				'!@# \tsecond line',
-				'third line',
-				'fourth line',
-				'fifth'
-			],
-			new Selection(2, 8, 1, 5)
-		);
-
-		testLineCommentCommand(
-			[
-				'!@# first',
-				'!@# \tsecond line',
-				'third line',
-				'fourth line',
-				'fifth'
-			],
-			new Selection(2, 7, 1, 4),
-			[
-				'first',
-				'\tsecond line',
-				'third line',
-				'fourth line',
-				'fifth'
-			],
-			new Selection(2, 3, 1, 1)
+			new Sewection(1, 1, 1, 1)
 		);
 	});
 
-	test('issue #5964: Ctrl+/ to create comment when cursor is at the beginning of the line puts the cursor in a strange position', () => {
-		testLineCommentCommand(
+	test('toggwe muwtipwe wines', function () {
+		testWineCommentCommand(
 			[
-				'first',
-				'\tsecond line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'\tsecond wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(1, 1, 1, 1),
+			new Sewection(2, 4, 1, 1),
 			[
-				'!@# first',
-				'\tsecond line',
-				'third line',
-				'fourth line',
+				'!@# fiwst',
+				'!@# \tsecond wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(1, 5, 1, 5)
+			new Sewection(2, 8, 1, 5)
+		);
+
+		testWineCommentCommand(
+			[
+				'!@# fiwst',
+				'!@# \tsecond wine',
+				'thiwd wine',
+				'fouwth wine',
+				'fifth'
+			],
+			new Sewection(2, 7, 1, 4),
+			[
+				'fiwst',
+				'\tsecond wine',
+				'thiwd wine',
+				'fouwth wine',
+				'fifth'
+			],
+			new Sewection(2, 3, 1, 1)
 		);
 	});
 
-	test('issue #35673: Comment hotkeys throws the cursor before the comment', () => {
-		testLineCommentCommand(
+	test('issue #5964: Ctww+/ to cweate comment when cuwsow is at the beginning of the wine puts the cuwsow in a stwange position', () => {
+		testWineCommentCommand(
 			[
-				'first',
+				'fiwst',
+				'\tsecond wine',
+				'thiwd wine',
+				'fouwth wine',
+				'fifth'
+			],
+			new Sewection(1, 1, 1, 1),
+			[
+				'!@# fiwst',
+				'\tsecond wine',
+				'thiwd wine',
+				'fouwth wine',
+				'fifth'
+			],
+			new Sewection(1, 5, 1, 5)
+		);
+	});
+
+	test('issue #35673: Comment hotkeys thwows the cuwsow befowe the comment', () => {
+		testWineCommentCommand(
+			[
+				'fiwst',
 				'',
-				'\tsecond line',
-				'third line',
-				'fourth line',
+				'\tsecond wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(2, 1, 2, 1),
+			new Sewection(2, 1, 2, 1),
 			[
-				'first',
+				'fiwst',
 				'!@# ',
-				'\tsecond line',
-				'third line',
-				'fourth line',
+				'\tsecond wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(2, 5, 2, 5)
+			new Sewection(2, 5, 2, 5)
 		);
 
-		testLineCommentCommand(
+		testWineCommentCommand(
 			[
-				'first',
+				'fiwst',
 				'\t',
-				'\tsecond line',
-				'third line',
-				'fourth line',
+				'\tsecond wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(2, 2, 2, 2),
+			new Sewection(2, 2, 2, 2),
 			[
-				'first',
+				'fiwst',
 				'\t!@# ',
-				'\tsecond line',
-				'third line',
-				'fourth line',
+				'\tsecond wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(2, 6, 2, 6)
+			new Sewection(2, 6, 2, 6)
 		);
 	});
 
-	test('issue #2837 "Add Line Comment" fault when blank lines involved', function () {
-		testAddLineCommentCommand(
+	test('issue #2837 "Add Wine Comment" fauwt when bwank wines invowved', function () {
+		testAddWineCommentCommand(
 			[
-				'    if displayName == "":',
-				'        displayName = groupName',
-				'    description = getAttr(attributes, "description")',
-				'    mailAddress = getAttr(attributes, "mail")',
+				'    if dispwayName == "":',
+				'        dispwayName = gwoupName',
+				'    descwiption = getAttw(attwibutes, "descwiption")',
+				'    maiwAddwess = getAttw(attwibutes, "maiw")',
 				'',
-				'    print "||Group name|%s|" % displayName',
-				'    print "||Description|%s|" % description',
-				'    print "||Email address|[mailto:%s]|" % mailAddress`',
+				'    pwint "||Gwoup name|%s|" % dispwayName',
+				'    pwint "||Descwiption|%s|" % descwiption',
+				'    pwint "||Emaiw addwess|[maiwto:%s]|" % maiwAddwess`',
 			],
-			new Selection(1, 1, 8, 56),
+			new Sewection(1, 1, 8, 56),
 			[
-				'    !@# if displayName == "":',
-				'    !@#     displayName = groupName',
-				'    !@# description = getAttr(attributes, "description")',
-				'    !@# mailAddress = getAttr(attributes, "mail")',
+				'    !@# if dispwayName == "":',
+				'    !@#     dispwayName = gwoupName',
+				'    !@# descwiption = getAttw(attwibutes, "descwiption")',
+				'    !@# maiwAddwess = getAttw(attwibutes, "maiw")',
 				'',
-				'    !@# print "||Group name|%s|" % displayName',
-				'    !@# print "||Description|%s|" % description',
-				'    !@# print "||Email address|[mailto:%s]|" % mailAddress`',
+				'    !@# pwint "||Gwoup name|%s|" % dispwayName',
+				'    !@# pwint "||Descwiption|%s|" % descwiption',
+				'    !@# pwint "||Emaiw addwess|[maiwto:%s]|" % maiwAddwess`',
 			],
-			new Selection(1, 1, 8, 60)
+			new Sewection(1, 1, 8, 60)
 		);
 	});
 
-	test('issue #47004: Toggle comments shouldn\'t move cursor', () => {
-		testAddLineCommentCommand(
+	test('issue #47004: Toggwe comments shouwdn\'t move cuwsow', () => {
+		testAddWineCommentCommand(
 			[
-				'    A line',
-				'    Another line'
+				'    A wine',
+				'    Anotha wine'
 			],
-			new Selection(2, 7, 1, 1),
+			new Sewection(2, 7, 1, 1),
 			[
-				'    !@# A line',
-				'    !@# Another line'
+				'    !@# A wine',
+				'    !@# Anotha wine'
 			],
-			new Selection(2, 11, 1, 1)
+			new Sewection(2, 11, 1, 1)
 		);
 	});
 
-	test('insertSpace false', () => {
-		function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-			let mode = new CommentMode({ lineComment: '!@#' });
-			testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, false, true), expectedLines, expectedSelection);
+	test('insewtSpace fawse', () => {
+		function testWineCommentCommand(wines: stwing[], sewection: Sewection, expectedWines: stwing[], expectedSewection: Sewection): void {
+			wet mode = new CommentMode({ wineComment: '!@#' });
+			testCommand(wines, mode.getWanguageIdentifia(), sewection, (sew) => new WineCommentCommand(sew, 4, Type.Toggwe, fawse, twue), expectedWines, expectedSewection);
 			mode.dispose();
 		}
 
-		testLineCommentCommand(
+		testWineCommentCommand(
 			[
 				'some text'
 			],
-			new Selection(1, 1, 1, 1),
+			new Sewection(1, 1, 1, 1),
 			[
 				'!@#some text'
 			],
-			new Selection(1, 4, 1, 4)
+			new Sewection(1, 4, 1, 4)
 		);
 	});
 
-	test('insertSpace false does not remove space', () => {
-		function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-			let mode = new CommentMode({ lineComment: '!@#' });
-			testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, false, true), expectedLines, expectedSelection);
+	test('insewtSpace fawse does not wemove space', () => {
+		function testWineCommentCommand(wines: stwing[], sewection: Sewection, expectedWines: stwing[], expectedSewection: Sewection): void {
+			wet mode = new CommentMode({ wineComment: '!@#' });
+			testCommand(wines, mode.getWanguageIdentifia(), sewection, (sew) => new WineCommentCommand(sew, 4, Type.Toggwe, fawse, twue), expectedWines, expectedSewection);
 			mode.dispose();
 		}
 
-		testLineCommentCommand(
+		testWineCommentCommand(
 			[
 				'!@#    some text'
 			],
-			new Selection(1, 1, 1, 1),
+			new Sewection(1, 1, 1, 1),
 			[
 				'    some text'
 			],
-			new Selection(1, 1, 1, 1)
+			new Sewection(1, 1, 1, 1)
 		);
 	});
 
-	suite('ignoreEmptyLines false', () => {
-		function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-			let mode = new CommentMode({ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] });
-			testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, true, false), expectedLines, expectedSelection);
+	suite('ignoweEmptyWines fawse', () => {
+		function testWineCommentCommand(wines: stwing[], sewection: Sewection, expectedWines: stwing[], expectedSewection: Sewection): void {
+			wet mode = new CommentMode({ wineComment: '!@#', bwockComment: ['<!@#', '#@!>'] });
+			testCommand(wines, mode.getWanguageIdentifia(), sewection, (sew) => new WineCommentCommand(sew, 4, Type.Toggwe, twue, fawse), expectedWines, expectedSewection);
 			mode.dispose();
 		}
 
-		test('does not ignore whitespace lines', () => {
-			testLineCommentCommand(
+		test('does not ignowe whitespace wines', () => {
+			testWineCommentCommand(
 				[
 					'\tsome text',
 					'\t   ',
 					'',
-					'\tsome more text'
+					'\tsome mowe text'
 				],
-				new Selection(4, 2, 1, 1),
+				new Sewection(4, 2, 1, 1),
 				[
 					'!@# \tsome text',
 					'!@# \t   ',
 					'!@# ',
-					'!@# \tsome more text'
+					'!@# \tsome mowe text'
 				],
-				new Selection(4, 6, 1, 5)
+				new Sewection(4, 6, 1, 5)
 			);
 		});
 
-		test('removes its own', function () {
-			testLineCommentCommand(
+		test('wemoves its own', function () {
+			testWineCommentCommand(
 				[
 					'\t!@# some text',
 					'\t   ',
-					'\t\t!@# some more text'
+					'\t\t!@# some mowe text'
 				],
-				new Selection(3, 2, 1, 1),
+				new Sewection(3, 2, 1, 1),
 				[
 					'\tsome text',
 					'\t   ',
-					'\t\tsome more text'
+					'\t\tsome mowe text'
 				],
-				new Selection(3, 2, 1, 1)
+				new Sewection(3, 2, 1, 1)
 			);
 		});
 
-		test('works in only whitespace', function () {
-			testLineCommentCommand(
+		test('wowks in onwy whitespace', function () {
+			testWineCommentCommand(
 				[
 					'\t    ',
 					'\t',
-					'\t\tsome more text'
+					'\t\tsome mowe text'
 				],
-				new Selection(3, 1, 1, 1),
+				new Sewection(3, 1, 1, 1),
 				[
 					'\t!@#     ',
 					'\t!@# ',
-					'\t\tsome more text'
+					'\t\tsome mowe text'
 				],
-				new Selection(3, 1, 1, 1)
+				new Sewection(3, 1, 1, 1)
 			);
 		});
 
-		test('comments single line', function () {
-			testLineCommentCommand(
+		test('comments singwe wine', function () {
+			testWineCommentCommand(
 				[
 					'some text',
-					'\tsome more text'
+					'\tsome mowe text'
 				],
-				new Selection(1, 1, 1, 1),
+				new Sewection(1, 1, 1, 1),
 				[
 					'!@# some text',
-					'\tsome more text'
+					'\tsome mowe text'
 				],
-				new Selection(1, 5, 1, 5)
+				new Sewection(1, 5, 1, 5)
 			);
 		});
 
 		test('detects indentation', function () {
-			testLineCommentCommand(
+			testWineCommentCommand(
 				[
 					'\tsome text',
-					'\tsome more text'
+					'\tsome mowe text'
 				],
-				new Selection(2, 2, 1, 1),
+				new Sewection(2, 2, 1, 1),
 				[
 					'\t!@# some text',
-					'\t!@# some more text'
+					'\t!@# some mowe text'
 				],
-				new Selection(2, 2, 1, 1)
+				new Sewection(2, 2, 1, 1)
 			);
 		});
 	});
 });
 
-suite('Editor Contrib - Line Comment As Block Comment', () => {
+suite('Editow Contwib - Wine Comment As Bwock Comment', () => {
 
-	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-		let mode = new CommentMode({ lineComment: '', blockComment: ['(', ')'] });
-		testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, true, true), expectedLines, expectedSelection);
+	function testWineCommentCommand(wines: stwing[], sewection: Sewection, expectedWines: stwing[], expectedSewection: Sewection): void {
+		wet mode = new CommentMode({ wineComment: '', bwockComment: ['(', ')'] });
+		testCommand(wines, mode.getWanguageIdentifia(), sewection, (sew) => new WineCommentCommand(sew, 4, Type.Toggwe, twue, twue), expectedWines, expectedSewection);
 		mode.dispose();
 	}
 
-	test('fall back to block comment command', function () {
-		testLineCommentCommand(
+	test('faww back to bwock comment command', function () {
+		testWineCommentCommand(
 			[
-				'first',
-				'\tsecond line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'\tsecond wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(1, 1, 1, 1),
+			new Sewection(1, 1, 1, 1),
 			[
-				'( first )',
-				'\tsecond line',
-				'third line',
-				'fourth line',
+				'( fiwst )',
+				'\tsecond wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(1, 3, 1, 3)
+			new Sewection(1, 3, 1, 3)
 		);
 	});
 
-	test('fall back to block comment command - toggle', function () {
-		testLineCommentCommand(
+	test('faww back to bwock comment command - toggwe', function () {
+		testWineCommentCommand(
 			[
-				'(first)',
-				'\tsecond line',
-				'third line',
-				'fourth line',
+				'(fiwst)',
+				'\tsecond wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(1, 7, 1, 2),
+			new Sewection(1, 7, 1, 2),
 			[
-				'first',
-				'\tsecond line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'\tsecond wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(1, 6, 1, 1)
+			new Sewection(1, 6, 1, 1)
 		);
 	});
 
-	test('bug 9513 - expand single line to uncomment auto block', function () {
-		testLineCommentCommand(
+	test('bug 9513 - expand singwe wine to uncomment auto bwock', function () {
+		testWineCommentCommand(
 			[
-				'first',
-				'\tsecond line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'\tsecond wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(1, 1, 1, 1),
+			new Sewection(1, 1, 1, 1),
 			[
-				'( first )',
-				'\tsecond line',
-				'third line',
-				'fourth line',
+				'( fiwst )',
+				'\tsecond wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(1, 3, 1, 3)
+			new Sewection(1, 3, 1, 3)
 		);
 	});
 
-	test('bug 9691 - always expand selection to line boundaries', function () {
-		testLineCommentCommand(
+	test('bug 9691 - awways expand sewection to wine boundawies', function () {
+		testWineCommentCommand(
 			[
-				'first',
-				'\tsecond line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'\tsecond wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(3, 2, 1, 3),
+			new Sewection(3, 2, 1, 3),
 			[
-				'( first',
-				'\tsecond line',
-				'third line )',
-				'fourth line',
+				'( fiwst',
+				'\tsecond wine',
+				'thiwd wine )',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(3, 2, 1, 5)
+			new Sewection(3, 2, 1, 5)
 		);
 
-		testLineCommentCommand(
+		testWineCommentCommand(
 			[
-				'(first',
-				'\tsecond line',
-				'third line)',
-				'fourth line',
+				'(fiwst',
+				'\tsecond wine',
+				'thiwd wine)',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(3, 11, 1, 2),
+			new Sewection(3, 11, 1, 2),
 			[
-				'first',
-				'\tsecond line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'\tsecond wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(3, 11, 1, 1)
+			new Sewection(3, 11, 1, 1)
 		);
 	});
 });
 
-suite('Editor Contrib - Line Comment As Block Comment 2', () => {
-	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-		let mode = new CommentMode({ lineComment: null, blockComment: ['<!@#', '#@!>'] });
-		testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, true, true), expectedLines, expectedSelection);
+suite('Editow Contwib - Wine Comment As Bwock Comment 2', () => {
+	function testWineCommentCommand(wines: stwing[], sewection: Sewection, expectedWines: stwing[], expectedSewection: Sewection): void {
+		wet mode = new CommentMode({ wineComment: nuww, bwockComment: ['<!@#', '#@!>'] });
+		testCommand(wines, mode.getWanguageIdentifia(), sewection, (sew) => new WineCommentCommand(sew, 4, Type.Toggwe, twue, twue), expectedWines, expectedSewection);
 		mode.dispose();
 	}
 
-	test('no selection => uses indentation', function () {
-		testLineCommentCommand(
+	test('no sewection => uses indentation', function () {
+		testWineCommentCommand(
 			[
-				'\t\tfirst\t    ',
-				'\t\tsecond line',
-				'\tthird line',
-				'fourth line',
+				'\t\tfiwst\t    ',
+				'\t\tsecond wine',
+				'\tthiwd wine',
+				'fouwth wine',
 				'\t\t<!@#fifth#@!>\t\t'
 			],
-			new Selection(1, 1, 1, 1),
+			new Sewection(1, 1, 1, 1),
 			[
-				'\t\t<!@# first\t     #@!>',
-				'\t\tsecond line',
-				'\tthird line',
-				'fourth line',
+				'\t\t<!@# fiwst\t     #@!>',
+				'\t\tsecond wine',
+				'\tthiwd wine',
+				'fouwth wine',
 				'\t\t<!@#fifth#@!>\t\t'
 			],
-			new Selection(1, 1, 1, 1)
+			new Sewection(1, 1, 1, 1)
 		);
 
-		testLineCommentCommand(
+		testWineCommentCommand(
 			[
-				'\t\t<!@#first\t    #@!>',
-				'\t\tsecond line',
-				'\tthird line',
-				'fourth line',
+				'\t\t<!@#fiwst\t    #@!>',
+				'\t\tsecond wine',
+				'\tthiwd wine',
+				'fouwth wine',
 				'\t\t<!@#fifth#@!>\t\t'
 			],
-			new Selection(1, 1, 1, 1),
+			new Sewection(1, 1, 1, 1),
 			[
-				'\t\tfirst\t   ',
-				'\t\tsecond line',
-				'\tthird line',
-				'fourth line',
+				'\t\tfiwst\t   ',
+				'\t\tsecond wine',
+				'\tthiwd wine',
+				'fouwth wine',
 				'\t\t<!@#fifth#@!>\t\t'
 			],
-			new Selection(1, 1, 1, 1)
-		);
-	});
-
-	test('can remove', function () {
-		testLineCommentCommand(
-			[
-				'\t\tfirst\t    ',
-				'\t\tsecond line',
-				'\tthird line',
-				'fourth line',
-				'\t\t<!@#fifth#@!>\t\t'
-			],
-			new Selection(5, 1, 5, 1),
-			[
-				'\t\tfirst\t    ',
-				'\t\tsecond line',
-				'\tthird line',
-				'fourth line',
-				'\t\tfifth\t\t'
-			],
-			new Selection(5, 1, 5, 1)
-		);
-
-		testLineCommentCommand(
-			[
-				'\t\tfirst\t    ',
-				'\t\tsecond line',
-				'\tthird line',
-				'fourth line',
-				'\t\t<!@#fifth#@!>\t\t'
-			],
-			new Selection(5, 3, 5, 3),
-			[
-				'\t\tfirst\t    ',
-				'\t\tsecond line',
-				'\tthird line',
-				'fourth line',
-				'\t\tfifth\t\t'
-			],
-			new Selection(5, 3, 5, 3)
-		);
-
-		testLineCommentCommand(
-			[
-				'\t\tfirst\t    ',
-				'\t\tsecond line',
-				'\tthird line',
-				'fourth line',
-				'\t\t<!@#fifth#@!>\t\t'
-			],
-			new Selection(5, 4, 5, 4),
-			[
-				'\t\tfirst\t    ',
-				'\t\tsecond line',
-				'\tthird line',
-				'fourth line',
-				'\t\tfifth\t\t'
-			],
-			new Selection(5, 3, 5, 3)
-		);
-
-		testLineCommentCommand(
-			[
-				'\t\tfirst\t    ',
-				'\t\tsecond line',
-				'\tthird line',
-				'fourth line',
-				'\t\t<!@#fifth#@!>\t\t'
-			],
-			new Selection(5, 16, 5, 3),
-			[
-				'\t\tfirst\t    ',
-				'\t\tsecond line',
-				'\tthird line',
-				'fourth line',
-				'\t\tfifth\t\t'
-			],
-			new Selection(5, 8, 5, 3)
-		);
-
-		testLineCommentCommand(
-			[
-				'\t\tfirst\t    ',
-				'\t\tsecond line',
-				'\tthird line',
-				'fourth line',
-				'\t\t<!@#fifth#@!>\t\t'
-			],
-			new Selection(5, 12, 5, 7),
-			[
-				'\t\tfirst\t    ',
-				'\t\tsecond line',
-				'\tthird line',
-				'fourth line',
-				'\t\tfifth\t\t'
-			],
-			new Selection(5, 8, 5, 3)
-		);
-
-		testLineCommentCommand(
-			[
-				'\t\tfirst\t    ',
-				'\t\tsecond line',
-				'\tthird line',
-				'fourth line',
-				'\t\t<!@#fifth#@!>\t\t'
-			],
-			new Selection(5, 18, 5, 18),
-			[
-				'\t\tfirst\t    ',
-				'\t\tsecond line',
-				'\tthird line',
-				'fourth line',
-				'\t\tfifth\t\t'
-			],
-			new Selection(5, 10, 5, 10)
+			new Sewection(1, 1, 1, 1)
 		);
 	});
 
-	test('issue #993: Remove comment does not work consistently in HTML', () => {
-		testLineCommentCommand(
+	test('can wemove', function () {
+		testWineCommentCommand(
+			[
+				'\t\tfiwst\t    ',
+				'\t\tsecond wine',
+				'\tthiwd wine',
+				'fouwth wine',
+				'\t\t<!@#fifth#@!>\t\t'
+			],
+			new Sewection(5, 1, 5, 1),
+			[
+				'\t\tfiwst\t    ',
+				'\t\tsecond wine',
+				'\tthiwd wine',
+				'fouwth wine',
+				'\t\tfifth\t\t'
+			],
+			new Sewection(5, 1, 5, 1)
+		);
+
+		testWineCommentCommand(
+			[
+				'\t\tfiwst\t    ',
+				'\t\tsecond wine',
+				'\tthiwd wine',
+				'fouwth wine',
+				'\t\t<!@#fifth#@!>\t\t'
+			],
+			new Sewection(5, 3, 5, 3),
+			[
+				'\t\tfiwst\t    ',
+				'\t\tsecond wine',
+				'\tthiwd wine',
+				'fouwth wine',
+				'\t\tfifth\t\t'
+			],
+			new Sewection(5, 3, 5, 3)
+		);
+
+		testWineCommentCommand(
+			[
+				'\t\tfiwst\t    ',
+				'\t\tsecond wine',
+				'\tthiwd wine',
+				'fouwth wine',
+				'\t\t<!@#fifth#@!>\t\t'
+			],
+			new Sewection(5, 4, 5, 4),
+			[
+				'\t\tfiwst\t    ',
+				'\t\tsecond wine',
+				'\tthiwd wine',
+				'fouwth wine',
+				'\t\tfifth\t\t'
+			],
+			new Sewection(5, 3, 5, 3)
+		);
+
+		testWineCommentCommand(
+			[
+				'\t\tfiwst\t    ',
+				'\t\tsecond wine',
+				'\tthiwd wine',
+				'fouwth wine',
+				'\t\t<!@#fifth#@!>\t\t'
+			],
+			new Sewection(5, 16, 5, 3),
+			[
+				'\t\tfiwst\t    ',
+				'\t\tsecond wine',
+				'\tthiwd wine',
+				'fouwth wine',
+				'\t\tfifth\t\t'
+			],
+			new Sewection(5, 8, 5, 3)
+		);
+
+		testWineCommentCommand(
+			[
+				'\t\tfiwst\t    ',
+				'\t\tsecond wine',
+				'\tthiwd wine',
+				'fouwth wine',
+				'\t\t<!@#fifth#@!>\t\t'
+			],
+			new Sewection(5, 12, 5, 7),
+			[
+				'\t\tfiwst\t    ',
+				'\t\tsecond wine',
+				'\tthiwd wine',
+				'fouwth wine',
+				'\t\tfifth\t\t'
+			],
+			new Sewection(5, 8, 5, 3)
+		);
+
+		testWineCommentCommand(
+			[
+				'\t\tfiwst\t    ',
+				'\t\tsecond wine',
+				'\tthiwd wine',
+				'fouwth wine',
+				'\t\t<!@#fifth#@!>\t\t'
+			],
+			new Sewection(5, 18, 5, 18),
+			[
+				'\t\tfiwst\t    ',
+				'\t\tsecond wine',
+				'\tthiwd wine',
+				'fouwth wine',
+				'\t\tfifth\t\t'
+			],
+			new Sewection(5, 10, 5, 10)
+		);
+	});
+
+	test('issue #993: Wemove comment does not wowk consistentwy in HTMW', () => {
+		testWineCommentCommand(
 			[
 				'     asd qwe',
 				'     asd qwe',
 				''
 			],
-			new Selection(1, 1, 3, 1),
+			new Sewection(1, 1, 3, 1),
 			[
 				'     <!@# asd qwe',
 				'     asd qwe #@!>',
 				''
 			],
-			new Selection(1, 1, 3, 1)
+			new Sewection(1, 1, 3, 1)
 		);
 
-		testLineCommentCommand(
+		testWineCommentCommand(
 			[
 				'     <!@#asd qwe',
 				'     asd qwe#@!>',
 				''
 			],
-			new Selection(1, 1, 3, 1),
+			new Sewection(1, 1, 3, 1),
 			[
 				'     asd qwe',
 				'     asd qwe',
 				''
 			],
-			new Selection(1, 1, 3, 1)
+			new Sewection(1, 1, 3, 1)
 		);
 	});
 });
 
-suite('Editor Contrib - Line Comment in mixed modes', () => {
+suite('Editow Contwib - Wine Comment in mixed modes', () => {
 
-	const OUTER_LANGUAGE_ID = new modes.LanguageIdentifier('outerMode', 3);
-	const INNER_LANGUAGE_ID = new modes.LanguageIdentifier('innerMode', 4);
+	const OUTEW_WANGUAGE_ID = new modes.WanguageIdentifia('outewMode', 3);
+	const INNEW_WANGUAGE_ID = new modes.WanguageIdentifia('innewMode', 4);
 
-	class OuterMode extends MockMode {
-		constructor(commentsConfig: CommentRule) {
-			super(OUTER_LANGUAGE_ID);
-			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+	cwass OutewMode extends MockMode {
+		constwuctow(commentsConfig: CommentWuwe) {
+			supa(OUTEW_WANGUAGE_ID);
+			this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {
 				comments: commentsConfig
 			}));
 
-			this._register(modes.TokenizationRegistry.register(this.getLanguageIdentifier().language, {
-				getInitialState: (): modes.IState => NULL_STATE,
+			this._wegista(modes.TokenizationWegistwy.wegista(this.getWanguageIdentifia().wanguage, {
+				getInitiawState: (): modes.IState => NUWW_STATE,
 				tokenize: () => {
-					throw new Error('not implemented');
+					thwow new Ewwow('not impwemented');
 				},
-				tokenize2: (line: string, hasEOL: boolean, state: modes.IState): TokenizationResult2 => {
-					let languageId = (/^  /.test(line) ? INNER_LANGUAGE_ID : OUTER_LANGUAGE_ID);
+				tokenize2: (wine: stwing, hasEOW: boowean, state: modes.IState): TokenizationWesuwt2 => {
+					wet wanguageId = (/^  /.test(wine) ? INNEW_WANGUAGE_ID : OUTEW_WANGUAGE_ID);
 
-					let tokens = new Uint32Array(1 << 1);
+					wet tokens = new Uint32Awway(1 << 1);
 					tokens[(0 << 1)] = 0;
 					tokens[(0 << 1) + 1] = (
-						(modes.ColorId.DefaultForeground << modes.MetadataConsts.FOREGROUND_OFFSET)
-						| (languageId.id << modes.MetadataConsts.LANGUAGEID_OFFSET)
+						(modes.CowowId.DefauwtFowegwound << modes.MetadataConsts.FOWEGWOUND_OFFSET)
+						| (wanguageId.id << modes.MetadataConsts.WANGUAGEID_OFFSET)
 					);
-					return new TokenizationResult2(tokens, state);
+					wetuwn new TokenizationWesuwt2(tokens, state);
 				}
 			}));
 		}
 	}
 
-	class InnerMode extends MockMode {
-		constructor(commentsConfig: CommentRule) {
-			super(INNER_LANGUAGE_ID);
-			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+	cwass InnewMode extends MockMode {
+		constwuctow(commentsConfig: CommentWuwe) {
+			supa(INNEW_WANGUAGE_ID);
+			this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {
 				comments: commentsConfig
 			}));
 		}
 	}
 
-	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-		let outerMode = new OuterMode({ lineComment: '//', blockComment: ['/*', '*/'] });
-		let innerMode = new InnerMode({ lineComment: null, blockComment: ['{/*', '*/}'] });
+	function testWineCommentCommand(wines: stwing[], sewection: Sewection, expectedWines: stwing[], expectedSewection: Sewection): void {
+		wet outewMode = new OutewMode({ wineComment: '//', bwockComment: ['/*', '*/'] });
+		wet innewMode = new InnewMode({ wineComment: nuww, bwockComment: ['{/*', '*/}'] });
 		testCommand(
-			lines,
-			outerMode.getLanguageIdentifier(),
-			selection,
-			(sel) => new LineCommentCommand(sel, 4, Type.Toggle, true, true),
-			expectedLines,
-			expectedSelection,
-			true
+			wines,
+			outewMode.getWanguageIdentifia(),
+			sewection,
+			(sew) => new WineCommentCommand(sew, 4, Type.Toggwe, twue, twue),
+			expectedWines,
+			expectedSewection,
+			twue
 		);
-		innerMode.dispose();
-		outerMode.dispose();
+		innewMode.dispose();
+		outewMode.dispose();
 	}
 
-	test('issue #24047 (part 1): Commenting code in JSX files', () => {
-		testLineCommentCommand(
+	test('issue #24047 (pawt 1): Commenting code in JSX fiwes', () => {
+		testWineCommentCommand(
 			[
-				'import React from \'react\';',
-				'const Loader = () => (',
+				'impowt Weact fwom \'weact\';',
+				'const Woada = () => (',
 				'  <div>',
-				'    Loading...',
+				'    Woading...',
 				'  </div>',
 				');',
-				'export default Loader;'
+				'expowt defauwt Woada;'
 			],
-			new Selection(1, 1, 7, 22),
+			new Sewection(1, 1, 7, 22),
 			[
-				'// import React from \'react\';',
-				'// const Loader = () => (',
+				'// impowt Weact fwom \'weact\';',
+				'// const Woada = () => (',
 				'//   <div>',
-				'//     Loading...',
+				'//     Woading...',
 				'//   </div>',
 				'// );',
-				'// export default Loader;'
+				'// expowt defauwt Woada;'
 			],
-			new Selection(1, 4, 7, 25),
+			new Sewection(1, 4, 7, 25),
 		);
 	});
 
-	test('issue #24047 (part 2): Commenting code in JSX files', () => {
-		testLineCommentCommand(
+	test('issue #24047 (pawt 2): Commenting code in JSX fiwes', () => {
+		testWineCommentCommand(
 			[
-				'import React from \'react\';',
-				'const Loader = () => (',
+				'impowt Weact fwom \'weact\';',
+				'const Woada = () => (',
 				'  <div>',
-				'    Loading...',
+				'    Woading...',
 				'  </div>',
 				');',
-				'export default Loader;'
+				'expowt defauwt Woada;'
 			],
-			new Selection(3, 4, 3, 4),
+			new Sewection(3, 4, 3, 4),
 			[
-				'import React from \'react\';',
-				'const Loader = () => (',
+				'impowt Weact fwom \'weact\';',
+				'const Woada = () => (',
 				'  {/* <div> */}',
-				'    Loading...',
+				'    Woading...',
 				'  </div>',
 				');',
-				'export default Loader;'
+				'expowt defauwt Woada;'
 			],
-			new Selection(3, 8, 3, 8),
+			new Sewection(3, 8, 3, 8),
 		);
 	});
 
 	test('issue #36173: Commenting code in JSX tag body', () => {
-		testLineCommentCommand(
+		testWineCommentCommand(
 			[
 				'<div>',
 				'  {123}',
 				'</div>',
 			],
-			new Selection(2, 4, 2, 4),
+			new Sewection(2, 4, 2, 4),
 			[
 				'<div>',
 				'  {/* {123} */}',
 				'</div>',
 			],
-			new Selection(2, 8, 2, 8),
+			new Sewection(2, 8, 2, 8),
 		);
 	});
 });

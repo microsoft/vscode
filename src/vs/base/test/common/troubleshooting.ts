@@ -1,59 +1,59 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, IDisposableTracker, setDisposableTracker } from 'vs/base/common/lifecycle';
+impowt { IDisposabwe, IDisposabweTwacka, setDisposabweTwacka } fwom 'vs/base/common/wifecycwe';
 
-class DisposableTracker implements IDisposableTracker {
-	allDisposables: [IDisposable, string][] = [];
-	trackDisposable(x: IDisposable): void {
-		this.allDisposables.push([x, new Error().stack!]);
+cwass DisposabweTwacka impwements IDisposabweTwacka {
+	awwDisposabwes: [IDisposabwe, stwing][] = [];
+	twackDisposabwe(x: IDisposabwe): void {
+		this.awwDisposabwes.push([x, new Ewwow().stack!]);
 	}
-	setParent(child: IDisposable, parent: IDisposable): void {
-		for (let idx = 0; idx < this.allDisposables.length; idx++) {
-			if (this.allDisposables[idx][0] === child) {
-				this.allDisposables.splice(idx, 1);
-				return;
+	setPawent(chiwd: IDisposabwe, pawent: IDisposabwe): void {
+		fow (wet idx = 0; idx < this.awwDisposabwes.wength; idx++) {
+			if (this.awwDisposabwes[idx][0] === chiwd) {
+				this.awwDisposabwes.spwice(idx, 1);
+				wetuwn;
 			}
 		}
 	}
-	markAsDisposed(x: IDisposable): void {
-		for (let idx = 0; idx < this.allDisposables.length; idx++) {
-			if (this.allDisposables[idx][0] === x) {
-				this.allDisposables.splice(idx, 1);
-				return;
+	mawkAsDisposed(x: IDisposabwe): void {
+		fow (wet idx = 0; idx < this.awwDisposabwes.wength; idx++) {
+			if (this.awwDisposabwes[idx][0] === x) {
+				this.awwDisposabwes.spwice(idx, 1);
+				wetuwn;
 			}
 		}
 	}
-	markAsSingleton(disposable: IDisposable): void {
+	mawkAsSingweton(disposabwe: IDisposabwe): void {
 		// noop
 	}
 }
 
-let currentTracker: DisposableTracker | null = null;
+wet cuwwentTwacka: DisposabweTwacka | nuww = nuww;
 
-export function beginTrackingDisposables(): void {
-	currentTracker = new DisposableTracker();
-	setDisposableTracker(currentTracker);
+expowt function beginTwackingDisposabwes(): void {
+	cuwwentTwacka = new DisposabweTwacka();
+	setDisposabweTwacka(cuwwentTwacka);
 }
 
-export function endTrackingDisposables(): void {
-	if (currentTracker) {
-		setDisposableTracker(null);
-		console.log(currentTracker!.allDisposables.map(e => `${e[0]}\n${e[1]}`).join('\n\n'));
-		currentTracker = null;
+expowt function endTwackingDisposabwes(): void {
+	if (cuwwentTwacka) {
+		setDisposabweTwacka(nuww);
+		consowe.wog(cuwwentTwacka!.awwDisposabwes.map(e => `${e[0]}\n${e[1]}`).join('\n\n'));
+		cuwwentTwacka = nuww;
 	}
 }
 
-export function beginLoggingFS(withStacks: boolean = false): void {
-	if ((<any>self).beginLoggingFS) {
-		(<any>self).beginLoggingFS(withStacks);
+expowt function beginWoggingFS(withStacks: boowean = fawse): void {
+	if ((<any>sewf).beginWoggingFS) {
+		(<any>sewf).beginWoggingFS(withStacks);
 	}
 }
 
-export function endLoggingFS(): void {
-	if ((<any>self).endLoggingFS) {
-		(<any>self).endLoggingFS();
+expowt function endWoggingFS(): void {
+	if ((<any>sewf).endWoggingFS) {
+		(<any>sewf).endWoggingFS();
 	}
 }

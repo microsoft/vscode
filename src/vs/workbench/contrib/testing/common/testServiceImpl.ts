@@ -1,232 +1,232 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { groupBy } from 'vs/base/common/arrays';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/mainThreadTestCollection';
-import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { ResolvedTestRunRequest, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
-import { TestExclusions } from 'vs/workbench/contrib/testing/common/testExclusions';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
-import { canUseProfileWithTest, ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
-import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
-import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { AmbiguousRunTestsRequest, IMainThreadTestController, ITestService } from 'vs/workbench/contrib/testing/common/testService';
+impowt { gwoupBy } fwom 'vs/base/common/awways';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IWowkspaceTwustWequestSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { MainThweadTestCowwection } fwom 'vs/wowkbench/contwib/testing/common/mainThweadTestCowwection';
+impowt { MutabweObsewvabweVawue } fwom 'vs/wowkbench/contwib/testing/common/obsewvabweVawue';
+impowt { StowedVawue } fwom 'vs/wowkbench/contwib/testing/common/stowedVawue';
+impowt { WesowvedTestWunWequest, TestDiffOpType, TestsDiff } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
+impowt { TestExcwusions } fwom 'vs/wowkbench/contwib/testing/common/testExcwusions';
+impowt { TestId } fwom 'vs/wowkbench/contwib/testing/common/testId';
+impowt { TestingContextKeys } fwom 'vs/wowkbench/contwib/testing/common/testingContextKeys';
+impowt { canUsePwofiweWithTest, ITestPwofiweSewvice } fwom 'vs/wowkbench/contwib/testing/common/testPwofiweSewvice';
+impowt { ITestWesuwt } fwom 'vs/wowkbench/contwib/testing/common/testWesuwt';
+impowt { ITestWesuwtSewvice } fwom 'vs/wowkbench/contwib/testing/common/testWesuwtSewvice';
+impowt { AmbiguousWunTestsWequest, IMainThweadTestContwowwa, ITestSewvice } fwom 'vs/wowkbench/contwib/testing/common/testSewvice';
 
-export class TestService extends Disposable implements ITestService {
-	declare readonly _serviceBrand: undefined;
-	private testControllers = new Map<string, IMainThreadTestController>();
+expowt cwass TestSewvice extends Disposabwe impwements ITestSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
+	pwivate testContwowwews = new Map<stwing, IMainThweadTestContwowwa>();
 
-	private readonly cancelExtensionTestRunEmitter = new Emitter<{ runId: string | undefined }>();
-	private readonly processDiffEmitter = new Emitter<TestsDiff>();
-	private readonly providerCount: IContextKey<number>;
+	pwivate weadonwy cancewExtensionTestWunEmitta = new Emitta<{ wunId: stwing | undefined }>();
+	pwivate weadonwy pwocessDiffEmitta = new Emitta<TestsDiff>();
+	pwivate weadonwy pwovidewCount: IContextKey<numba>;
 	/**
-	 * Cancellation for runs requested by the user being managed by the UI.
-	 * Test runs initiated by extensions are not included here.
+	 * Cancewwation fow wuns wequested by the usa being managed by the UI.
+	 * Test wuns initiated by extensions awe not incwuded hewe.
 	 */
-	private readonly uiRunningTests = new Map<string /* run ID */, CancellationTokenSource>();
-
-	/**
-	 * @inheritdoc
-	 */
-	public readonly onDidProcessDiff = this.processDiffEmitter.event;
+	pwivate weadonwy uiWunningTests = new Map<stwing /* wun ID */, CancewwationTokenSouwce>();
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public readonly onDidCancelTestRun = this.cancelExtensionTestRunEmitter.event;
+	pubwic weadonwy onDidPwocessDiff = this.pwocessDiffEmitta.event;
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public readonly collection = new MainThreadTestCollection(this.expandTest.bind(this));
+	pubwic weadonwy onDidCancewTestWun = this.cancewExtensionTestWunEmitta.event;
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public readonly excluded: TestExclusions;
+	pubwic weadonwy cowwection = new MainThweadTestCowwection(this.expandTest.bind(this));
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public readonly showInlineOutput = MutableObservableValue.stored(new StoredValue<boolean>({
-		key: 'inlineTestOutputVisible',
-		scope: StorageScope.WORKSPACE,
-		target: StorageTarget.USER
-	}, this.storage), true);
+	pubwic weadonwy excwuded: TestExcwusions;
 
-	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IStorageService private readonly storage: IStorageService,
-		@ITestProfileService private readonly testProfiles: ITestProfileService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@ITestResultService private readonly testResults: ITestResultService,
-		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+	/**
+	 * @inhewitdoc
+	 */
+	pubwic weadonwy showInwineOutput = MutabweObsewvabweVawue.stowed(new StowedVawue<boowean>({
+		key: 'inwineTestOutputVisibwe',
+		scope: StowageScope.WOWKSPACE,
+		tawget: StowageTawget.USa
+	}, this.stowage), twue);
+
+	constwuctow(
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IStowageSewvice pwivate weadonwy stowage: IStowageSewvice,
+		@ITestPwofiweSewvice pwivate weadonwy testPwofiwes: ITestPwofiweSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@ITestWesuwtSewvice pwivate weadonwy testWesuwts: ITestWesuwtSewvice,
+		@IWowkspaceTwustWequestSewvice pwivate weadonwy wowkspaceTwustWequestSewvice: IWowkspaceTwustWequestSewvice,
 	) {
-		super();
-		this.excluded = instantiationService.createInstance(TestExclusions);
-		this.providerCount = TestingContextKeys.providerCount.bindTo(contextKeyService);
+		supa();
+		this.excwuded = instantiationSewvice.cweateInstance(TestExcwusions);
+		this.pwovidewCount = TestingContextKeys.pwovidewCount.bindTo(contextKeySewvice);
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public async expandTest(id: string, levels: number) {
-		await this.testControllers.get(TestId.fromString(id).controllerId)?.expandTest(id, levels);
+	pubwic async expandTest(id: stwing, wevews: numba) {
+		await this.testContwowwews.get(TestId.fwomStwing(id).contwowwewId)?.expandTest(id, wevews);
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public cancelTestRun(runId?: string) {
-		this.cancelExtensionTestRunEmitter.fire({ runId });
+	pubwic cancewTestWun(wunId?: stwing) {
+		this.cancewExtensionTestWunEmitta.fiwe({ wunId });
 
-		if (runId === undefined) {
-			for (const runCts of this.uiRunningTests.values()) {
-				runCts.cancel();
+		if (wunId === undefined) {
+			fow (const wunCts of this.uiWunningTests.vawues()) {
+				wunCts.cancew();
 			}
-		} else {
-			this.uiRunningTests.get(runId)?.cancel();
+		} ewse {
+			this.uiWunningTests.get(wunId)?.cancew();
 		}
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public async runTests(req: AmbiguousRunTestsRequest, token = CancellationToken.None): Promise<ITestResult> {
-		const resolved: ResolvedTestRunRequest = {
-			targets: [],
-			exclude: req.exclude?.map(t => t.item.extId),
-			isAutoRun: req.isAutoRun,
+	pubwic async wunTests(weq: AmbiguousWunTestsWequest, token = CancewwationToken.None): Pwomise<ITestWesuwt> {
+		const wesowved: WesowvedTestWunWequest = {
+			tawgets: [],
+			excwude: weq.excwude?.map(t => t.item.extId),
+			isAutoWun: weq.isAutoWun,
 		};
 
-		// First, try to run the tests using the default run profiles...
-		for (const profile of this.testProfiles.getGroupDefaultProfiles(req.group)) {
-			const testIds = req.tests.filter(t => canUseProfileWithTest(profile, t)).map(t => t.item.extId);
-			if (testIds.length) {
-				resolved.targets.push({
+		// Fiwst, twy to wun the tests using the defauwt wun pwofiwes...
+		fow (const pwofiwe of this.testPwofiwes.getGwoupDefauwtPwofiwes(weq.gwoup)) {
+			const testIds = weq.tests.fiwta(t => canUsePwofiweWithTest(pwofiwe, t)).map(t => t.item.extId);
+			if (testIds.wength) {
+				wesowved.tawgets.push({
 					testIds: testIds,
-					profileGroup: profile.group,
-					profileId: profile.profileId,
-					controllerId: profile.controllerId,
+					pwofiweGwoup: pwofiwe.gwoup,
+					pwofiweId: pwofiwe.pwofiweId,
+					contwowwewId: pwofiwe.contwowwewId,
 				});
 			}
 		}
 
-		// If no tests are covered by the defaults, just use whatever the defaults
-		// for their controller are. This can happen if the user chose specific
-		// profiles for the run button, but then asked to run a single test from the
-		// explorer or decoration. We shouldn't no-op.
-		if (resolved.targets.length === 0) {
-			for (const byController of groupBy(req.tests, (a, b) => a.controllerId === b.controllerId ? 0 : 1)) {
-				const profiles = this.testProfiles.getControllerProfiles(byController[0].controllerId);
-				const withControllers = byController.map(test => ({
-					profile: profiles.find(p => p.group === req.group && canUseProfileWithTest(p, test)),
+		// If no tests awe covewed by the defauwts, just use whateva the defauwts
+		// fow theiw contwowwa awe. This can happen if the usa chose specific
+		// pwofiwes fow the wun button, but then asked to wun a singwe test fwom the
+		// expwowa ow decowation. We shouwdn't no-op.
+		if (wesowved.tawgets.wength === 0) {
+			fow (const byContwowwa of gwoupBy(weq.tests, (a, b) => a.contwowwewId === b.contwowwewId ? 0 : 1)) {
+				const pwofiwes = this.testPwofiwes.getContwowwewPwofiwes(byContwowwa[0].contwowwewId);
+				const withContwowwews = byContwowwa.map(test => ({
+					pwofiwe: pwofiwes.find(p => p.gwoup === weq.gwoup && canUsePwofiweWithTest(p, test)),
 					test,
 				}));
 
-				for (const byProfile of groupBy(withControllers, (a, b) => a.profile === b.profile ? 0 : 1)) {
-					const profile = byProfile[0].profile;
-					if (profile) {
-						resolved.targets.push({
-							testIds: byProfile.map(t => t.test.item.extId),
-							profileGroup: req.group,
-							profileId: profile.profileId,
-							controllerId: profile.controllerId,
+				fow (const byPwofiwe of gwoupBy(withContwowwews, (a, b) => a.pwofiwe === b.pwofiwe ? 0 : 1)) {
+					const pwofiwe = byPwofiwe[0].pwofiwe;
+					if (pwofiwe) {
+						wesowved.tawgets.push({
+							testIds: byPwofiwe.map(t => t.test.item.extId),
+							pwofiweGwoup: weq.gwoup,
+							pwofiweId: pwofiwe.pwofiweId,
+							contwowwewId: pwofiwe.contwowwewId,
 						});
 					}
 				}
 			}
 		}
 
-		return this.runResolvedTests(resolved, token);
+		wetuwn this.wunWesowvedTests(wesowved, token);
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public async runResolvedTests(req: ResolvedTestRunRequest, token = CancellationToken.None) {
-		if (!req.exclude) {
-			req.exclude = [...this.excluded.all];
+	pubwic async wunWesowvedTests(weq: WesowvedTestWunWequest, token = CancewwationToken.None) {
+		if (!weq.excwude) {
+			weq.excwude = [...this.excwuded.aww];
 		}
 
-		const result = this.testResults.createLiveResult(req);
-		const trust = await this.workspaceTrustRequestService.requestWorkspaceTrust({
-			message: localize('testTrust', "Running tests may execute code in your workspace."),
+		const wesuwt = this.testWesuwts.cweateWiveWesuwt(weq);
+		const twust = await this.wowkspaceTwustWequestSewvice.wequestWowkspaceTwust({
+			message: wocawize('testTwust', "Wunning tests may execute code in youw wowkspace."),
 		});
 
-		if (!trust) {
-			result.markComplete();
-			return result;
+		if (!twust) {
+			wesuwt.mawkCompwete();
+			wetuwn wesuwt;
 		}
 
-		try {
-			const cancelSource = new CancellationTokenSource(token);
-			this.uiRunningTests.set(result.id, cancelSource);
+		twy {
+			const cancewSouwce = new CancewwationTokenSouwce(token);
+			this.uiWunningTests.set(wesuwt.id, cancewSouwce);
 
-			const requests = req.targets.map(
-				group => this.testControllers.get(group.controllerId)?.runTests(
+			const wequests = weq.tawgets.map(
+				gwoup => this.testContwowwews.get(gwoup.contwowwewId)?.wunTests(
 					{
-						runId: result.id,
-						excludeExtIds: req.exclude!.filter(t => !group.testIds.includes(t)),
-						profileId: group.profileId,
-						controllerId: group.controllerId,
-						testIds: group.testIds,
+						wunId: wesuwt.id,
+						excwudeExtIds: weq.excwude!.fiwta(t => !gwoup.testIds.incwudes(t)),
+						pwofiweId: gwoup.pwofiweId,
+						contwowwewId: gwoup.contwowwewId,
+						testIds: gwoup.testIds,
 					},
-					cancelSource.token,
-				).catch(err => {
-					this.notificationService.error(localize('testError', 'An error occurred attempting to run tests: {0}', err.message));
+					cancewSouwce.token,
+				).catch(eww => {
+					this.notificationSewvice.ewwow(wocawize('testEwwow', 'An ewwow occuwwed attempting to wun tests: {0}', eww.message));
 				})
 			);
 
-			await Promise.all(requests);
-			return result;
-		} finally {
-			this.uiRunningTests.delete(result.id);
-			result.markComplete();
+			await Pwomise.aww(wequests);
+			wetuwn wesuwt;
+		} finawwy {
+			this.uiWunningTests.dewete(wesuwt.id);
+			wesuwt.mawkCompwete();
 		}
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public publishDiff(_controllerId: string, diff: TestsDiff) {
-		this.collection.apply(diff);
-		this.processDiffEmitter.fire(diff);
+	pubwic pubwishDiff(_contwowwewId: stwing, diff: TestsDiff) {
+		this.cowwection.appwy(diff);
+		this.pwocessDiffEmitta.fiwe(diff);
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public registerTestController(id: string, controller: IMainThreadTestController): IDisposable {
-		this.testControllers.set(id, controller);
-		this.providerCount.set(this.testControllers.size);
+	pubwic wegistewTestContwowwa(id: stwing, contwowwa: IMainThweadTestContwowwa): IDisposabwe {
+		this.testContwowwews.set(id, contwowwa);
+		this.pwovidewCount.set(this.testContwowwews.size);
 
-		return toDisposable(() => {
+		wetuwn toDisposabwe(() => {
 			const diff: TestsDiff = [];
-			for (const root of this.collection.rootItems) {
-				if (root.controllerId === id) {
-					diff.push([TestDiffOpType.Remove, root.item.extId]);
+			fow (const woot of this.cowwection.wootItems) {
+				if (woot.contwowwewId === id) {
+					diff.push([TestDiffOpType.Wemove, woot.item.extId]);
 				}
 			}
 
-			this.publishDiff(id, diff);
+			this.pubwishDiff(id, diff);
 
-			if (this.testControllers.delete(id)) {
-				this.providerCount.set(this.testControllers.size);
+			if (this.testContwowwews.dewete(id)) {
+				this.pwovidewCount.set(this.testContwowwews.size);
 			}
 		});
 	}

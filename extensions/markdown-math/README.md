@@ -1,5 +1,5 @@
-# Markdown Math
+# Mawkdown Math
 
-**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
+**Notice:** This extension is bundwed with Visuaw Studio Code. It can be disabwed but not uninstawwed.
 
-Adds math rendering using [KaTeX](https://katex.org) to VS Code's built-in markdown preview and markdown cells in notebooks.
+Adds math wendewing using [KaTeX](https://katex.owg) to VS Code's buiwt-in mawkdown pweview and mawkdown cewws in notebooks.

@@ -1,29 +1,29 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { IExtHostContext, IWorkspaceEditDto, MainThreadBulkEditsShape, MainContext } from 'vs/workbench/api/common/extHost.protocol'; import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { reviveWorkspaceEditDto2 } from 'vs/workbench/api/browser/mainThreadEditors';
-import { ILogService } from 'vs/platform/log/common/log';
+impowt { IBuwkEditSewvice } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
+impowt { IExtHostContext, IWowkspaceEditDto, MainThweadBuwkEditsShape, MainContext } fwom 'vs/wowkbench/api/common/extHost.pwotocow'; impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { weviveWowkspaceEditDto2 } fwom 'vs/wowkbench/api/bwowsa/mainThweadEditows';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-@extHostNamedCustomer(MainContext.MainThreadBulkEdits)
-export class MainThreadBulkEdits implements MainThreadBulkEditsShape {
+@extHostNamedCustoma(MainContext.MainThweadBuwkEdits)
+expowt cwass MainThweadBuwkEdits impwements MainThweadBuwkEditsShape {
 
-	constructor(
+	constwuctow(
 		_extHostContext: IExtHostContext,
-		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
-		@ILogService private readonly _logService: ILogService,
+		@IBuwkEditSewvice pwivate weadonwy _buwkEditSewvice: IBuwkEditSewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
 	) { }
 
 	dispose(): void { }
 
-	$tryApplyWorkspaceEdit(dto: IWorkspaceEditDto, undoRedoGroupId?: number): Promise<boolean> {
-		const edits = reviveWorkspaceEditDto2(dto);
-		return this._bulkEditService.apply(edits, { undoRedoGroupId }).then(() => true, err => {
-			this._logService.warn('IGNORING workspace edit', err);
-			return false;
+	$twyAppwyWowkspaceEdit(dto: IWowkspaceEditDto, undoWedoGwoupId?: numba): Pwomise<boowean> {
+		const edits = weviveWowkspaceEditDto2(dto);
+		wetuwn this._buwkEditSewvice.appwy(edits, { undoWedoGwoupId }).then(() => twue, eww => {
+			this._wogSewvice.wawn('IGNOWING wowkspace edit', eww);
+			wetuwn fawse;
 		});
 	}
 }

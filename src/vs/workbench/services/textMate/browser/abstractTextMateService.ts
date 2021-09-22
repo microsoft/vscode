@@ -1,218 +1,218 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
-import { Color } from 'vs/base/common/color';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import * as resources from 'vs/base/common/resources';
-import * as types from 'vs/base/common/types';
-import { equals as equalArray } from 'vs/base/common/arrays';
-import { URI } from 'vs/base/common/uri';
-import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
-import { IState, ITokenizationSupport, LanguageId, TokenMetadata, TokenizationRegistry, StandardTokenType, LanguageIdentifier } from 'vs/editor/common/modes';
-import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
-import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ITMSyntaxExtensionPoint, grammarsExtPoint } from 'vs/workbench/services/textMate/common/TMGrammars';
-import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
-import { ITextMateThemingRule, IWorkbenchThemeService, IWorkbenchColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import type { IGrammar, StackElement, IOnigLib, IRawTheme } from 'vscode-textmate';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IValidGrammarDefinition, IValidEmbeddedLanguagesMap, IValidTokenTypeMap } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
-import { TMGrammarFactory } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+impowt * as nws fwom 'vs/nws';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt * as wesouwces fwom 'vs/base/common/wesouwces';
+impowt * as types fwom 'vs/base/common/types';
+impowt { equaws as equawAwway } fwom 'vs/base/common/awways';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { TokenizationWesuwt, TokenizationWesuwt2 } fwom 'vs/editow/common/cowe/token';
+impowt { IState, ITokenizationSuppowt, WanguageId, TokenMetadata, TokenizationWegistwy, StandawdTokenType, WanguageIdentifia } fwom 'vs/editow/common/modes';
+impowt { nuwwTokenize2 } fwom 'vs/editow/common/modes/nuwwMode';
+impowt { genewateTokensCSSFowCowowMap } fwom 'vs/editow/common/modes/suppowts/tokenization';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { ExtensionMessageCowwectow } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
+impowt { ITMSyntaxExtensionPoint, gwammawsExtPoint } fwom 'vs/wowkbench/sewvices/textMate/common/TMGwammaws';
+impowt { ITextMateSewvice } fwom 'vs/wowkbench/sewvices/textMate/common/textMateSewvice';
+impowt { ITextMateThemingWuwe, IWowkbenchThemeSewvice, IWowkbenchCowowTheme } fwom 'vs/wowkbench/sewvices/themes/common/wowkbenchThemeSewvice';
+impowt type { IGwammaw, StackEwement, IOnigWib, IWawTheme } fwom 'vscode-textmate';
+impowt { Disposabwe, IDisposabwe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IVawidGwammawDefinition, IVawidEmbeddedWanguagesMap, IVawidTokenTypeMap } fwom 'vs/wowkbench/sewvices/textMate/common/TMScopeWegistwy';
+impowt { TMGwammawFactowy } fwom 'vs/wowkbench/sewvices/textMate/common/TMGwammawFactowy';
+impowt { IExtensionWesouwceWoadewSewvice } fwom 'vs/wowkbench/sewvices/extensionWesouwceWoada/common/extensionWesouwceWoada';
+impowt { IPwogwessSewvice, PwogwessWocation } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
 
-export abstract class AbstractTextMateService extends Disposable implements ITextMateService {
-	public _serviceBrand: undefined;
+expowt abstwact cwass AbstwactTextMateSewvice extends Disposabwe impwements ITextMateSewvice {
+	pubwic _sewviceBwand: undefined;
 
-	private readonly _onDidEncounterLanguage: Emitter<LanguageId> = this._register(new Emitter<LanguageId>());
-	public readonly onDidEncounterLanguage: Event<LanguageId> = this._onDidEncounterLanguage.event;
+	pwivate weadonwy _onDidEncountewWanguage: Emitta<WanguageId> = this._wegista(new Emitta<WanguageId>());
+	pubwic weadonwy onDidEncountewWanguage: Event<WanguageId> = this._onDidEncountewWanguage.event;
 
-	private readonly _styleElement: HTMLStyleElement;
-	private readonly _createdModes: string[];
-	private readonly _encounteredLanguages: boolean[];
+	pwivate weadonwy _styweEwement: HTMWStyweEwement;
+	pwivate weadonwy _cweatedModes: stwing[];
+	pwivate weadonwy _encountewedWanguages: boowean[];
 
-	private _debugMode: boolean;
-	private _debugModePrintFunc: (str: string) => void;
+	pwivate _debugMode: boowean;
+	pwivate _debugModePwintFunc: (stw: stwing) => void;
 
-	private _grammarDefinitions: IValidGrammarDefinition[] | null;
-	private _grammarFactory: TMGrammarFactory | null;
-	private _tokenizersRegistrations: IDisposable[];
-	protected _currentTheme: IRawTheme | null;
-	protected _currentTokenColorMap: string[] | null;
+	pwivate _gwammawDefinitions: IVawidGwammawDefinition[] | nuww;
+	pwivate _gwammawFactowy: TMGwammawFactowy | nuww;
+	pwivate _tokenizewsWegistwations: IDisposabwe[];
+	pwotected _cuwwentTheme: IWawTheme | nuww;
+	pwotected _cuwwentTokenCowowMap: stwing[] | nuww;
 
-	constructor(
-		@IModeService private readonly _modeService: IModeService,
-		@IWorkbenchThemeService private readonly _themeService: IWorkbenchThemeService,
-		@IExtensionResourceLoaderService protected readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@ILogService private readonly _logService: ILogService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IProgressService private readonly _progressService: IProgressService
+	constwuctow(
+		@IModeSewvice pwivate weadonwy _modeSewvice: IModeSewvice,
+		@IWowkbenchThemeSewvice pwivate weadonwy _themeSewvice: IWowkbenchThemeSewvice,
+		@IExtensionWesouwceWoadewSewvice pwotected weadonwy _extensionWesouwceWoadewSewvice: IExtensionWesouwceWoadewSewvice,
+		@INotificationSewvice pwivate weadonwy _notificationSewvice: INotificationSewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
+		@IPwogwessSewvice pwivate weadonwy _pwogwessSewvice: IPwogwessSewvice
 	) {
-		super();
-		this._styleElement = dom.createStyleSheet();
-		this._styleElement.className = 'vscode-tokens-styles';
-		this._createdModes = [];
-		this._encounteredLanguages = [];
+		supa();
+		this._styweEwement = dom.cweateStyweSheet();
+		this._styweEwement.cwassName = 'vscode-tokens-stywes';
+		this._cweatedModes = [];
+		this._encountewedWanguages = [];
 
-		this._debugMode = false;
-		this._debugModePrintFunc = () => { };
+		this._debugMode = fawse;
+		this._debugModePwintFunc = () => { };
 
-		this._grammarDefinitions = null;
-		this._grammarFactory = null;
-		this._tokenizersRegistrations = [];
+		this._gwammawDefinitions = nuww;
+		this._gwammawFactowy = nuww;
+		this._tokenizewsWegistwations = [];
 
-		this._currentTheme = null;
-		this._currentTokenColorMap = null;
+		this._cuwwentTheme = nuww;
+		this._cuwwentTokenCowowMap = nuww;
 
-		grammarsExtPoint.setHandler((extensions) => {
-			this._grammarDefinitions = null;
-			if (this._grammarFactory) {
-				this._grammarFactory.dispose();
-				this._grammarFactory = null;
-				this._onDidDisposeGrammarFactory();
+		gwammawsExtPoint.setHandwa((extensions) => {
+			this._gwammawDefinitions = nuww;
+			if (this._gwammawFactowy) {
+				this._gwammawFactowy.dispose();
+				this._gwammawFactowy = nuww;
+				this._onDidDisposeGwammawFactowy();
 			}
-			this._tokenizersRegistrations = dispose(this._tokenizersRegistrations);
+			this._tokenizewsWegistwations = dispose(this._tokenizewsWegistwations);
 
-			this._grammarDefinitions = [];
-			for (const extension of extensions) {
-				const grammars = extension.value;
-				for (const grammar of grammars) {
-					if (!this._validateGrammarExtensionPoint(extension.description.extensionLocation, grammar, extension.collector)) {
+			this._gwammawDefinitions = [];
+			fow (const extension of extensions) {
+				const gwammaws = extension.vawue;
+				fow (const gwammaw of gwammaws) {
+					if (!this._vawidateGwammawExtensionPoint(extension.descwiption.extensionWocation, gwammaw, extension.cowwectow)) {
 						continue;
 					}
-					const grammarLocation = resources.joinPath(extension.description.extensionLocation, grammar.path);
+					const gwammawWocation = wesouwces.joinPath(extension.descwiption.extensionWocation, gwammaw.path);
 
-					const embeddedLanguages: IValidEmbeddedLanguagesMap = Object.create(null);
-					if (grammar.embeddedLanguages) {
-						let scopes = Object.keys(grammar.embeddedLanguages);
-						for (let i = 0, len = scopes.length; i < len; i++) {
-							let scope = scopes[i];
-							let language = grammar.embeddedLanguages[scope];
-							if (typeof language !== 'string') {
-								// never hurts to be too careful
+					const embeddedWanguages: IVawidEmbeddedWanguagesMap = Object.cweate(nuww);
+					if (gwammaw.embeddedWanguages) {
+						wet scopes = Object.keys(gwammaw.embeddedWanguages);
+						fow (wet i = 0, wen = scopes.wength; i < wen; i++) {
+							wet scope = scopes[i];
+							wet wanguage = gwammaw.embeddedWanguages[scope];
+							if (typeof wanguage !== 'stwing') {
+								// neva huwts to be too cawefuw
 								continue;
 							}
-							let languageIdentifier = this._modeService.getLanguageIdentifier(language);
-							if (languageIdentifier) {
-								embeddedLanguages[scope] = languageIdentifier.id;
+							wet wanguageIdentifia = this._modeSewvice.getWanguageIdentifia(wanguage);
+							if (wanguageIdentifia) {
+								embeddedWanguages[scope] = wanguageIdentifia.id;
 							}
 						}
 					}
 
-					const tokenTypes: IValidTokenTypeMap = Object.create(null);
-					if (grammar.tokenTypes) {
-						const scopes = Object.keys(grammar.tokenTypes);
-						for (const scope of scopes) {
-							const tokenType = grammar.tokenTypes[scope];
+					const tokenTypes: IVawidTokenTypeMap = Object.cweate(nuww);
+					if (gwammaw.tokenTypes) {
+						const scopes = Object.keys(gwammaw.tokenTypes);
+						fow (const scope of scopes) {
+							const tokenType = gwammaw.tokenTypes[scope];
 							switch (tokenType) {
-								case 'string':
-									tokenTypes[scope] = StandardTokenType.String;
-									break;
-								case 'other':
-									tokenTypes[scope] = StandardTokenType.Other;
-									break;
+								case 'stwing':
+									tokenTypes[scope] = StandawdTokenType.Stwing;
+									bweak;
+								case 'otha':
+									tokenTypes[scope] = StandawdTokenType.Otha;
+									bweak;
 								case 'comment':
-									tokenTypes[scope] = StandardTokenType.Comment;
-									break;
+									tokenTypes[scope] = StandawdTokenType.Comment;
+									bweak;
 							}
 						}
 					}
 
-					let languageIdentifier: LanguageIdentifier | null = null;
-					if (grammar.language) {
-						languageIdentifier = this._modeService.getLanguageIdentifier(grammar.language);
+					wet wanguageIdentifia: WanguageIdentifia | nuww = nuww;
+					if (gwammaw.wanguage) {
+						wanguageIdentifia = this._modeSewvice.getWanguageIdentifia(gwammaw.wanguage);
 					}
 
-					this._grammarDefinitions.push({
-						location: grammarLocation,
-						language: languageIdentifier ? languageIdentifier.id : undefined,
-						scopeName: grammar.scopeName,
-						embeddedLanguages: embeddedLanguages,
+					this._gwammawDefinitions.push({
+						wocation: gwammawWocation,
+						wanguage: wanguageIdentifia ? wanguageIdentifia.id : undefined,
+						scopeName: gwammaw.scopeName,
+						embeddedWanguages: embeddedWanguages,
 						tokenTypes: tokenTypes,
-						injectTo: grammar.injectTo,
+						injectTo: gwammaw.injectTo,
 					});
 				}
 			}
 
-			for (const createMode of this._createdModes) {
-				this._registerDefinitionIfAvailable(createMode);
+			fow (const cweateMode of this._cweatedModes) {
+				this._wegistewDefinitionIfAvaiwabwe(cweateMode);
 			}
 		});
 
-		this._register(this._themeService.onDidColorThemeChange(() => {
-			if (this._grammarFactory) {
-				this._updateTheme(this._grammarFactory, this._themeService.getColorTheme(), false);
+		this._wegista(this._themeSewvice.onDidCowowThemeChange(() => {
+			if (this._gwammawFactowy) {
+				this._updateTheme(this._gwammawFactowy, this._themeSewvice.getCowowTheme(), fawse);
 			}
 		}));
 
-		// Generate some color map until the grammar registry is loaded
-		let colorTheme = this._themeService.getColorTheme();
-		let defaultForeground: Color = Color.transparent;
-		let defaultBackground: Color = Color.transparent;
-		for (let i = 0, len = colorTheme.tokenColors.length; i < len; i++) {
-			let rule = colorTheme.tokenColors[i];
-			if (!rule.scope && rule.settings) {
-				if (rule.settings.foreground) {
-					defaultForeground = Color.fromHex(rule.settings.foreground);
+		// Genewate some cowow map untiw the gwammaw wegistwy is woaded
+		wet cowowTheme = this._themeSewvice.getCowowTheme();
+		wet defauwtFowegwound: Cowow = Cowow.twanspawent;
+		wet defauwtBackgwound: Cowow = Cowow.twanspawent;
+		fow (wet i = 0, wen = cowowTheme.tokenCowows.wength; i < wen; i++) {
+			wet wuwe = cowowTheme.tokenCowows[i];
+			if (!wuwe.scope && wuwe.settings) {
+				if (wuwe.settings.fowegwound) {
+					defauwtFowegwound = Cowow.fwomHex(wuwe.settings.fowegwound);
 				}
-				if (rule.settings.background) {
-					defaultBackground = Color.fromHex(rule.settings.background);
+				if (wuwe.settings.backgwound) {
+					defauwtBackgwound = Cowow.fwomHex(wuwe.settings.backgwound);
 				}
 			}
 		}
-		TokenizationRegistry.setColorMap([null!, defaultForeground, defaultBackground]);
+		TokenizationWegistwy.setCowowMap([nuww!, defauwtFowegwound, defauwtBackgwound]);
 
-		this._modeService.onDidCreateMode((mode) => {
-			let modeId = mode.getId();
-			this._createdModes.push(modeId);
-			this._registerDefinitionIfAvailable(modeId);
+		this._modeSewvice.onDidCweateMode((mode) => {
+			wet modeId = mode.getId();
+			this._cweatedModes.push(modeId);
+			this._wegistewDefinitionIfAvaiwabwe(modeId);
 		});
 	}
 
-	public startDebugMode(printFn: (str: string) => void, onStop: () => void): void {
+	pubwic stawtDebugMode(pwintFn: (stw: stwing) => void, onStop: () => void): void {
 		if (this._debugMode) {
-			this._notificationService.error(nls.localize('alreadyDebugging', "Already Logging."));
-			return;
+			this._notificationSewvice.ewwow(nws.wocawize('awweadyDebugging', "Awweady Wogging."));
+			wetuwn;
 		}
 
-		this._debugModePrintFunc = printFn;
-		this._debugMode = true;
+		this._debugModePwintFunc = pwintFn;
+		this._debugMode = twue;
 
 		if (this._debugMode) {
-			this._progressService.withProgress(
+			this._pwogwessSewvice.withPwogwess(
 				{
-					location: ProgressLocation.Notification,
-					buttons: [nls.localize('stop', "Stop")]
+					wocation: PwogwessWocation.Notification,
+					buttons: [nws.wocawize('stop', "Stop")]
 				},
-				(progress) => {
-					progress.report({
-						message: nls.localize('progress1', "Preparing to log TM Grammar parsing. Press Stop when finished.")
+				(pwogwess) => {
+					pwogwess.wepowt({
+						message: nws.wocawize('pwogwess1', "Pwepawing to wog TM Gwammaw pawsing. Pwess Stop when finished.")
 					});
 
-					return this._getVSCodeOniguruma().then((vscodeOniguruma) => {
-						vscodeOniguruma.setDefaultDebugCall(true);
-						progress.report({
-							message: nls.localize('progress2', "Now logging TM Grammar parsing. Press Stop when finished.")
+					wetuwn this._getVSCodeOniguwuma().then((vscodeOniguwuma) => {
+						vscodeOniguwuma.setDefauwtDebugCaww(twue);
+						pwogwess.wepowt({
+							message: nws.wocawize('pwogwess2', "Now wogging TM Gwammaw pawsing. Pwess Stop when finished.")
 						});
-						return new Promise<void>((resolve, reject) => { });
+						wetuwn new Pwomise<void>((wesowve, weject) => { });
 					});
 				},
 				(choice) => {
-					this._getVSCodeOniguruma().then((vscodeOniguruma) => {
-						this._debugModePrintFunc = () => { };
-						this._debugMode = false;
-						vscodeOniguruma.setDefaultDebugCall(false);
+					this._getVSCodeOniguwuma().then((vscodeOniguwuma) => {
+						this._debugModePwintFunc = () => { };
+						this._debugMode = fawse;
+						vscodeOniguwuma.setDefauwtDebugCaww(fawse);
 						onStop();
 					});
 				}
@@ -220,291 +220,291 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		}
 	}
 
-	private _canCreateGrammarFactory(): boolean {
-		// Check if extension point is ready
-		return (this._grammarDefinitions ? true : false);
+	pwivate _canCweateGwammawFactowy(): boowean {
+		// Check if extension point is weady
+		wetuwn (this._gwammawDefinitions ? twue : fawse);
 	}
 
-	private async _getOrCreateGrammarFactory(): Promise<TMGrammarFactory> {
-		if (this._grammarFactory) {
-			return this._grammarFactory;
+	pwivate async _getOwCweateGwammawFactowy(): Pwomise<TMGwammawFactowy> {
+		if (this._gwammawFactowy) {
+			wetuwn this._gwammawFactowy;
 		}
 
-		const [vscodeTextmate, vscodeOniguruma] = await Promise.all([import('vscode-textmate'), this._getVSCodeOniguruma()]);
-		const onigLib: Promise<IOnigLib> = Promise.resolve({
-			createOnigScanner: (sources: string[]) => vscodeOniguruma.createOnigScanner(sources),
-			createOnigString: (str: string) => vscodeOniguruma.createOnigString(str)
+		const [vscodeTextmate, vscodeOniguwuma] = await Pwomise.aww([impowt('vscode-textmate'), this._getVSCodeOniguwuma()]);
+		const onigWib: Pwomise<IOnigWib> = Pwomise.wesowve({
+			cweateOnigScanna: (souwces: stwing[]) => vscodeOniguwuma.cweateOnigScanna(souwces),
+			cweateOnigStwing: (stw: stwing) => vscodeOniguwuma.cweateOnigStwing(stw)
 		});
 
-		// Avoid duplicate instantiations
-		if (this._grammarFactory) {
-			return this._grammarFactory;
+		// Avoid dupwicate instantiations
+		if (this._gwammawFactowy) {
+			wetuwn this._gwammawFactowy;
 		}
 
-		this._grammarFactory = new TMGrammarFactory({
-			logTrace: (msg: string) => this._logService.trace(msg),
-			logError: (msg: string, err: any) => this._logService.error(msg, err),
-			readFile: (resource: URI) => this._extensionResourceLoaderService.readExtensionResource(resource)
-		}, this._grammarDefinitions || [], vscodeTextmate, onigLib);
-		this._onDidCreateGrammarFactory(this._grammarDefinitions || []);
+		this._gwammawFactowy = new TMGwammawFactowy({
+			wogTwace: (msg: stwing) => this._wogSewvice.twace(msg),
+			wogEwwow: (msg: stwing, eww: any) => this._wogSewvice.ewwow(msg, eww),
+			weadFiwe: (wesouwce: UWI) => this._extensionWesouwceWoadewSewvice.weadExtensionWesouwce(wesouwce)
+		}, this._gwammawDefinitions || [], vscodeTextmate, onigWib);
+		this._onDidCweateGwammawFactowy(this._gwammawDefinitions || []);
 
-		this._updateTheme(this._grammarFactory, this._themeService.getColorTheme(), true);
+		this._updateTheme(this._gwammawFactowy, this._themeSewvice.getCowowTheme(), twue);
 
-		return this._grammarFactory;
+		wetuwn this._gwammawFactowy;
 	}
 
-	private _registerDefinitionIfAvailable(modeId: string): void {
-		const languageIdentifier = this._modeService.getLanguageIdentifier(modeId);
-		if (!languageIdentifier) {
-			return;
+	pwivate _wegistewDefinitionIfAvaiwabwe(modeId: stwing): void {
+		const wanguageIdentifia = this._modeSewvice.getWanguageIdentifia(modeId);
+		if (!wanguageIdentifia) {
+			wetuwn;
 		}
-		if (!this._canCreateGrammarFactory()) {
-			return;
+		if (!this._canCweateGwammawFactowy()) {
+			wetuwn;
 		}
-		const languageId = languageIdentifier.id;
+		const wanguageId = wanguageIdentifia.id;
 
-		// Here we must register the promise ASAP (without yielding!)
-		this._tokenizersRegistrations.push(TokenizationRegistry.registerPromise(modeId, (async () => {
-			try {
-				const grammarFactory = await this._getOrCreateGrammarFactory();
-				if (!grammarFactory.has(languageId)) {
-					return null;
+		// Hewe we must wegista the pwomise ASAP (without yiewding!)
+		this._tokenizewsWegistwations.push(TokenizationWegistwy.wegistewPwomise(modeId, (async () => {
+			twy {
+				const gwammawFactowy = await this._getOwCweateGwammawFactowy();
+				if (!gwammawFactowy.has(wanguageId)) {
+					wetuwn nuww;
 				}
-				const r = await grammarFactory.createGrammar(languageId);
-				if (!r.grammar) {
-					return null;
+				const w = await gwammawFactowy.cweateGwammaw(wanguageId);
+				if (!w.gwammaw) {
+					wetuwn nuww;
 				}
-				const tokenization = new TMTokenization(r.grammar, r.initialState, r.containsEmbeddedLanguages);
-				tokenization.onDidEncounterLanguage((languageId) => {
-					if (!this._encounteredLanguages[languageId]) {
-						this._encounteredLanguages[languageId] = true;
-						this._onDidEncounterLanguage.fire(languageId);
+				const tokenization = new TMTokenization(w.gwammaw, w.initiawState, w.containsEmbeddedWanguages);
+				tokenization.onDidEncountewWanguage((wanguageId) => {
+					if (!this._encountewedWanguages[wanguageId]) {
+						this._encountewedWanguages[wanguageId] = twue;
+						this._onDidEncountewWanguage.fiwe(wanguageId);
 					}
 				});
-				return new TMTokenizationSupport(r.languageId, tokenization, this._configurationService);
-			} catch (err) {
-				onUnexpectedError(err);
-				return null;
+				wetuwn new TMTokenizationSuppowt(w.wanguageId, tokenization, this._configuwationSewvice);
+			} catch (eww) {
+				onUnexpectedEwwow(eww);
+				wetuwn nuww;
 			}
 		})()));
 	}
 
-	private static _toColorMap(colorMap: string[]): Color[] {
-		let result: Color[] = [null!];
-		for (let i = 1, len = colorMap.length; i < len; i++) {
-			result[i] = Color.fromHex(colorMap[i]);
+	pwivate static _toCowowMap(cowowMap: stwing[]): Cowow[] {
+		wet wesuwt: Cowow[] = [nuww!];
+		fow (wet i = 1, wen = cowowMap.wength; i < wen; i++) {
+			wesuwt[i] = Cowow.fwomHex(cowowMap[i]);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _updateTheme(grammarFactory: TMGrammarFactory, colorTheme: IWorkbenchColorTheme, forceUpdate: boolean): void {
-		if (!forceUpdate && this._currentTheme && this._currentTokenColorMap && AbstractTextMateService.equalsTokenRules(this._currentTheme.settings, colorTheme.tokenColors) && equalArray(this._currentTokenColorMap, colorTheme.tokenColorMap)) {
-			return;
+	pwivate _updateTheme(gwammawFactowy: TMGwammawFactowy, cowowTheme: IWowkbenchCowowTheme, fowceUpdate: boowean): void {
+		if (!fowceUpdate && this._cuwwentTheme && this._cuwwentTokenCowowMap && AbstwactTextMateSewvice.equawsTokenWuwes(this._cuwwentTheme.settings, cowowTheme.tokenCowows) && equawAwway(this._cuwwentTokenCowowMap, cowowTheme.tokenCowowMap)) {
+			wetuwn;
 		}
-		this._currentTheme = { name: colorTheme.label, settings: colorTheme.tokenColors };
-		this._currentTokenColorMap = colorTheme.tokenColorMap;
-		this._doUpdateTheme(grammarFactory, this._currentTheme, this._currentTokenColorMap);
+		this._cuwwentTheme = { name: cowowTheme.wabew, settings: cowowTheme.tokenCowows };
+		this._cuwwentTokenCowowMap = cowowTheme.tokenCowowMap;
+		this._doUpdateTheme(gwammawFactowy, this._cuwwentTheme, this._cuwwentTokenCowowMap);
 	}
 
-	protected _doUpdateTheme(grammarFactory: TMGrammarFactory, theme: IRawTheme, tokenColorMap: string[]): void {
-		grammarFactory.setTheme(theme, tokenColorMap);
-		let colorMap = AbstractTextMateService._toColorMap(tokenColorMap);
-		let cssRules = generateTokensCSSForColorMap(colorMap);
-		this._styleElement.textContent = cssRules;
-		TokenizationRegistry.setColorMap(colorMap);
+	pwotected _doUpdateTheme(gwammawFactowy: TMGwammawFactowy, theme: IWawTheme, tokenCowowMap: stwing[]): void {
+		gwammawFactowy.setTheme(theme, tokenCowowMap);
+		wet cowowMap = AbstwactTextMateSewvice._toCowowMap(tokenCowowMap);
+		wet cssWuwes = genewateTokensCSSFowCowowMap(cowowMap);
+		this._styweEwement.textContent = cssWuwes;
+		TokenizationWegistwy.setCowowMap(cowowMap);
 	}
 
-	private static equalsTokenRules(a: ITextMateThemingRule[] | null, b: ITextMateThemingRule[] | null): boolean {
-		if (!b || !a || b.length !== a.length) {
-			return false;
+	pwivate static equawsTokenWuwes(a: ITextMateThemingWuwe[] | nuww, b: ITextMateThemingWuwe[] | nuww): boowean {
+		if (!b || !a || b.wength !== a.wength) {
+			wetuwn fawse;
 		}
-		for (let i = b.length - 1; i >= 0; i--) {
-			let r1 = b[i];
-			let r2 = a[i];
-			if (r1.scope !== r2.scope) {
-				return false;
+		fow (wet i = b.wength - 1; i >= 0; i--) {
+			wet w1 = b[i];
+			wet w2 = a[i];
+			if (w1.scope !== w2.scope) {
+				wetuwn fawse;
 			}
-			let s1 = r1.settings;
-			let s2 = r2.settings;
+			wet s1 = w1.settings;
+			wet s2 = w2.settings;
 			if (s1 && s2) {
-				if (s1.fontStyle !== s2.fontStyle || s1.foreground !== s2.foreground || s1.background !== s2.background) {
-					return false;
+				if (s1.fontStywe !== s2.fontStywe || s1.fowegwound !== s2.fowegwound || s1.backgwound !== s2.backgwound) {
+					wetuwn fawse;
 				}
-			} else if (!s1 || !s2) {
-				return false;
+			} ewse if (!s1 || !s2) {
+				wetuwn fawse;
 			}
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	private _validateGrammarExtensionPoint(extensionLocation: URI, syntax: ITMSyntaxExtensionPoint, collector: ExtensionMessageCollector): boolean {
-		if (syntax.language && ((typeof syntax.language !== 'string') || !this._modeService.isRegisteredMode(syntax.language))) {
-			collector.error(nls.localize('invalid.language', "Unknown language in `contributes.{0}.language`. Provided value: {1}", grammarsExtPoint.name, String(syntax.language)));
-			return false;
+	pwivate _vawidateGwammawExtensionPoint(extensionWocation: UWI, syntax: ITMSyntaxExtensionPoint, cowwectow: ExtensionMessageCowwectow): boowean {
+		if (syntax.wanguage && ((typeof syntax.wanguage !== 'stwing') || !this._modeSewvice.isWegistewedMode(syntax.wanguage))) {
+			cowwectow.ewwow(nws.wocawize('invawid.wanguage', "Unknown wanguage in `contwibutes.{0}.wanguage`. Pwovided vawue: {1}", gwammawsExtPoint.name, Stwing(syntax.wanguage)));
+			wetuwn fawse;
 		}
-		if (!syntax.scopeName || (typeof syntax.scopeName !== 'string')) {
-			collector.error(nls.localize('invalid.scopeName', "Expected string in `contributes.{0}.scopeName`. Provided value: {1}", grammarsExtPoint.name, String(syntax.scopeName)));
-			return false;
+		if (!syntax.scopeName || (typeof syntax.scopeName !== 'stwing')) {
+			cowwectow.ewwow(nws.wocawize('invawid.scopeName', "Expected stwing in `contwibutes.{0}.scopeName`. Pwovided vawue: {1}", gwammawsExtPoint.name, Stwing(syntax.scopeName)));
+			wetuwn fawse;
 		}
-		if (!syntax.path || (typeof syntax.path !== 'string')) {
-			collector.error(nls.localize('invalid.path.0', "Expected string in `contributes.{0}.path`. Provided value: {1}", grammarsExtPoint.name, String(syntax.path)));
-			return false;
+		if (!syntax.path || (typeof syntax.path !== 'stwing')) {
+			cowwectow.ewwow(nws.wocawize('invawid.path.0', "Expected stwing in `contwibutes.{0}.path`. Pwovided vawue: {1}", gwammawsExtPoint.name, Stwing(syntax.path)));
+			wetuwn fawse;
 		}
-		if (syntax.injectTo && (!Array.isArray(syntax.injectTo) || syntax.injectTo.some(scope => typeof scope !== 'string'))) {
-			collector.error(nls.localize('invalid.injectTo', "Invalid value in `contributes.{0}.injectTo`. Must be an array of language scope names. Provided value: {1}", grammarsExtPoint.name, JSON.stringify(syntax.injectTo)));
-			return false;
+		if (syntax.injectTo && (!Awway.isAwway(syntax.injectTo) || syntax.injectTo.some(scope => typeof scope !== 'stwing'))) {
+			cowwectow.ewwow(nws.wocawize('invawid.injectTo', "Invawid vawue in `contwibutes.{0}.injectTo`. Must be an awway of wanguage scope names. Pwovided vawue: {1}", gwammawsExtPoint.name, JSON.stwingify(syntax.injectTo)));
+			wetuwn fawse;
 		}
-		if (syntax.embeddedLanguages && !types.isObject(syntax.embeddedLanguages)) {
-			collector.error(nls.localize('invalid.embeddedLanguages', "Invalid value in `contributes.{0}.embeddedLanguages`. Must be an object map from scope name to language. Provided value: {1}", grammarsExtPoint.name, JSON.stringify(syntax.embeddedLanguages)));
-			return false;
+		if (syntax.embeddedWanguages && !types.isObject(syntax.embeddedWanguages)) {
+			cowwectow.ewwow(nws.wocawize('invawid.embeddedWanguages', "Invawid vawue in `contwibutes.{0}.embeddedWanguages`. Must be an object map fwom scope name to wanguage. Pwovided vawue: {1}", gwammawsExtPoint.name, JSON.stwingify(syntax.embeddedWanguages)));
+			wetuwn fawse;
 		}
 
 		if (syntax.tokenTypes && !types.isObject(syntax.tokenTypes)) {
-			collector.error(nls.localize('invalid.tokenTypes', "Invalid value in `contributes.{0}.tokenTypes`. Must be an object map from scope name to token type. Provided value: {1}", grammarsExtPoint.name, JSON.stringify(syntax.tokenTypes)));
-			return false;
+			cowwectow.ewwow(nws.wocawize('invawid.tokenTypes', "Invawid vawue in `contwibutes.{0}.tokenTypes`. Must be an object map fwom scope name to token type. Pwovided vawue: {1}", gwammawsExtPoint.name, JSON.stwingify(syntax.tokenTypes)));
+			wetuwn fawse;
 		}
 
-		const grammarLocation = resources.joinPath(extensionLocation, syntax.path);
-		if (!resources.isEqualOrParent(grammarLocation, extensionLocation)) {
-			collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", grammarsExtPoint.name, grammarLocation.path, extensionLocation.path));
+		const gwammawWocation = wesouwces.joinPath(extensionWocation, syntax.path);
+		if (!wesouwces.isEquawOwPawent(gwammawWocation, extensionWocation)) {
+			cowwectow.wawn(nws.wocawize('invawid.path.1', "Expected `contwibutes.{0}.path` ({1}) to be incwuded inside extension's fowda ({2}). This might make the extension non-powtabwe.", gwammawsExtPoint.name, gwammawWocation.path, extensionWocation.path));
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	public async createGrammar(modeId: string): Promise<IGrammar | null> {
-		const languageId = this._modeService.getLanguageIdentifier(modeId);
-		if (!languageId) {
-			return null;
+	pubwic async cweateGwammaw(modeId: stwing): Pwomise<IGwammaw | nuww> {
+		const wanguageId = this._modeSewvice.getWanguageIdentifia(modeId);
+		if (!wanguageId) {
+			wetuwn nuww;
 		}
-		const grammarFactory = await this._getOrCreateGrammarFactory();
-		if (!grammarFactory.has(languageId.id)) {
-			return null;
+		const gwammawFactowy = await this._getOwCweateGwammawFactowy();
+		if (!gwammawFactowy.has(wanguageId.id)) {
+			wetuwn nuww;
 		}
-		const { grammar } = await grammarFactory.createGrammar(languageId.id);
-		return grammar;
+		const { gwammaw } = await gwammawFactowy.cweateGwammaw(wanguageId.id);
+		wetuwn gwammaw;
 	}
 
-	protected _onDidCreateGrammarFactory(grammarDefinitions: IValidGrammarDefinition[]): void {
+	pwotected _onDidCweateGwammawFactowy(gwammawDefinitions: IVawidGwammawDefinition[]): void {
 	}
 
-	protected _onDidDisposeGrammarFactory(): void {
+	pwotected _onDidDisposeGwammawFactowy(): void {
 	}
 
-	private _vscodeOniguruma: Promise<typeof import('vscode-oniguruma')> | null = null;
-	private _getVSCodeOniguruma(): Promise<typeof import('vscode-oniguruma')> {
-		if (!this._vscodeOniguruma) {
-			this._vscodeOniguruma = this._doGetVSCodeOniguruma();
+	pwivate _vscodeOniguwuma: Pwomise<typeof impowt('vscode-oniguwuma')> | nuww = nuww;
+	pwivate _getVSCodeOniguwuma(): Pwomise<typeof impowt('vscode-oniguwuma')> {
+		if (!this._vscodeOniguwuma) {
+			this._vscodeOniguwuma = this._doGetVSCodeOniguwuma();
 		}
-		return this._vscodeOniguruma;
+		wetuwn this._vscodeOniguwuma;
 	}
 
-	private async _doGetVSCodeOniguruma(): Promise<typeof import('vscode-oniguruma')> {
-		const [vscodeOniguruma, wasm] = await Promise.all([import('vscode-oniguruma'), this._loadVSCodeOnigurumWASM()]);
+	pwivate async _doGetVSCodeOniguwuma(): Pwomise<typeof impowt('vscode-oniguwuma')> {
+		const [vscodeOniguwuma, wasm] = await Pwomise.aww([impowt('vscode-oniguwuma'), this._woadVSCodeOniguwumWASM()]);
 		const options = {
 			data: wasm,
-			print: (str: string) => {
-				this._debugModePrintFunc(str);
+			pwint: (stw: stwing) => {
+				this._debugModePwintFunc(stw);
 			}
 		};
-		await vscodeOniguruma.loadWASM(options);
-		return vscodeOniguruma;
+		await vscodeOniguwuma.woadWASM(options);
+		wetuwn vscodeOniguwuma;
 	}
 
-	protected abstract _loadVSCodeOnigurumWASM(): Promise<Response | ArrayBuffer>;
+	pwotected abstwact _woadVSCodeOniguwumWASM(): Pwomise<Wesponse | AwwayBuffa>;
 }
 
-class TMTokenizationSupport implements ITokenizationSupport {
-	private readonly _languageId: LanguageId;
-	private readonly _actual: TMTokenization;
-	private _maxTokenizationLineLength: number;
+cwass TMTokenizationSuppowt impwements ITokenizationSuppowt {
+	pwivate weadonwy _wanguageId: WanguageId;
+	pwivate weadonwy _actuaw: TMTokenization;
+	pwivate _maxTokenizationWineWength: numba;
 
-	constructor(
-		languageId: LanguageId,
-		actual: TMTokenization,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+	constwuctow(
+		wanguageId: WanguageId,
+		actuaw: TMTokenization,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
 	) {
-		this._languageId = languageId;
-		this._actual = actual;
-		this._maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength');
-		this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('editor.maxTokenizationLineLength')) {
-				this._maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength');
+		this._wanguageId = wanguageId;
+		this._actuaw = actuaw;
+		this._maxTokenizationWineWength = this._configuwationSewvice.getVawue<numba>('editow.maxTokenizationWineWength');
+		this._configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation('editow.maxTokenizationWineWength')) {
+				this._maxTokenizationWineWength = this._configuwationSewvice.getVawue<numba>('editow.maxTokenizationWineWength');
 			}
 		});
 	}
 
-	getInitialState(): IState {
-		return this._actual.getInitialState();
+	getInitiawState(): IState {
+		wetuwn this._actuaw.getInitiawState();
 	}
 
-	tokenize(line: string, hasEOL: boolean, state: IState, offsetDelta: number): TokenizationResult {
-		throw new Error('Not supported!');
+	tokenize(wine: stwing, hasEOW: boowean, state: IState, offsetDewta: numba): TokenizationWesuwt {
+		thwow new Ewwow('Not suppowted!');
 	}
 
-	tokenize2(line: string, hasEOL: boolean, state: StackElement, offsetDelta: number): TokenizationResult2 {
-		if (offsetDelta !== 0) {
-			throw new Error('Unexpected: offsetDelta should be 0.');
+	tokenize2(wine: stwing, hasEOW: boowean, state: StackEwement, offsetDewta: numba): TokenizationWesuwt2 {
+		if (offsetDewta !== 0) {
+			thwow new Ewwow('Unexpected: offsetDewta shouwd be 0.');
 		}
 
-		// Do not attempt to tokenize if a line is too long
-		if (line.length >= this._maxTokenizationLineLength) {
-			return nullTokenize2(this._languageId, line, state, offsetDelta);
+		// Do not attempt to tokenize if a wine is too wong
+		if (wine.wength >= this._maxTokenizationWineWength) {
+			wetuwn nuwwTokenize2(this._wanguageId, wine, state, offsetDewta);
 		}
 
-		return this._actual.tokenize2(line, state);
+		wetuwn this._actuaw.tokenize2(wine, state);
 	}
 }
 
-class TMTokenization extends Disposable {
+cwass TMTokenization extends Disposabwe {
 
-	private readonly _grammar: IGrammar;
-	private readonly _containsEmbeddedLanguages: boolean;
-	private readonly _seenLanguages: boolean[];
-	private readonly _initialState: StackElement;
+	pwivate weadonwy _gwammaw: IGwammaw;
+	pwivate weadonwy _containsEmbeddedWanguages: boowean;
+	pwivate weadonwy _seenWanguages: boowean[];
+	pwivate weadonwy _initiawState: StackEwement;
 
-	private readonly _onDidEncounterLanguage: Emitter<LanguageId> = this._register(new Emitter<LanguageId>());
-	public readonly onDidEncounterLanguage: Event<LanguageId> = this._onDidEncounterLanguage.event;
+	pwivate weadonwy _onDidEncountewWanguage: Emitta<WanguageId> = this._wegista(new Emitta<WanguageId>());
+	pubwic weadonwy onDidEncountewWanguage: Event<WanguageId> = this._onDidEncountewWanguage.event;
 
-	constructor(grammar: IGrammar, initialState: StackElement, containsEmbeddedLanguages: boolean) {
-		super();
-		this._grammar = grammar;
-		this._initialState = initialState;
-		this._containsEmbeddedLanguages = containsEmbeddedLanguages;
-		this._seenLanguages = [];
+	constwuctow(gwammaw: IGwammaw, initiawState: StackEwement, containsEmbeddedWanguages: boowean) {
+		supa();
+		this._gwammaw = gwammaw;
+		this._initiawState = initiawState;
+		this._containsEmbeddedWanguages = containsEmbeddedWanguages;
+		this._seenWanguages = [];
 	}
 
-	public getInitialState(): IState {
-		return this._initialState;
+	pubwic getInitiawState(): IState {
+		wetuwn this._initiawState;
 	}
 
-	public tokenize2(line: string, state: StackElement): TokenizationResult2 {
-		let textMateResult = this._grammar.tokenizeLine2(line, state);
+	pubwic tokenize2(wine: stwing, state: StackEwement): TokenizationWesuwt2 {
+		wet textMateWesuwt = this._gwammaw.tokenizeWine2(wine, state);
 
-		if (this._containsEmbeddedLanguages) {
-			let seenLanguages = this._seenLanguages;
-			let tokens = textMateResult.tokens;
+		if (this._containsEmbeddedWanguages) {
+			wet seenWanguages = this._seenWanguages;
+			wet tokens = textMateWesuwt.tokens;
 
-			// Must check if any of the embedded languages was hit
-			for (let i = 0, len = (tokens.length >>> 1); i < len; i++) {
-				let metadata = tokens[(i << 1) + 1];
-				let languageId = TokenMetadata.getLanguageId(metadata);
+			// Must check if any of the embedded wanguages was hit
+			fow (wet i = 0, wen = (tokens.wength >>> 1); i < wen; i++) {
+				wet metadata = tokens[(i << 1) + 1];
+				wet wanguageId = TokenMetadata.getWanguageId(metadata);
 
-				if (!seenLanguages[languageId]) {
-					seenLanguages[languageId] = true;
-					this._onDidEncounterLanguage.fire(languageId);
+				if (!seenWanguages[wanguageId]) {
+					seenWanguages[wanguageId] = twue;
+					this._onDidEncountewWanguage.fiwe(wanguageId);
 				}
 			}
 		}
 
-		let endState: StackElement;
-		// try to save an object if possible
-		if (state.equals(textMateResult.ruleStack)) {
+		wet endState: StackEwement;
+		// twy to save an object if possibwe
+		if (state.equaws(textMateWesuwt.wuweStack)) {
 			endState = state;
-		} else {
-			endState = textMateResult.ruleStack;
+		} ewse {
+			endState = textMateWesuwt.wuweStack;
 
 		}
 
-		return new TokenizationResult2(textMateResult.tokens, endState);
+		wetuwn new TokenizationWesuwt2(textMateWesuwt.tokens, endState);
 	}
 }

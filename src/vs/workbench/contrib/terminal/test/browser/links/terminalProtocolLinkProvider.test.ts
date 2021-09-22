@@ -1,89 +1,89 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { TerminalProtocolLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalProtocolLinkProvider';
-import { Terminal, ILink } from 'xterm';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { URI } from 'vs/base/common/uri';
+impowt * as assewt fwom 'assewt';
+impowt { TewminawPwotocowWinkPwovida } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/winks/tewminawPwotocowWinkPwovida';
+impowt { Tewminaw, IWink } fwom 'xtewm';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-suite('Workbench - TerminalProtocolLinkProvider', () => {
-	let instantiationService: TestInstantiationService;
+suite('Wowkbench - TewminawPwotocowWinkPwovida', () => {
+	wet instantiationSewvice: TestInstantiationSewvice;
 
 	setup(() => {
-		instantiationService = new TestInstantiationService();
-		instantiationService.stub(IConfigurationService, TestConfigurationService);
+		instantiationSewvice = new TestInstantiationSewvice();
+		instantiationSewvice.stub(IConfiguwationSewvice, TestConfiguwationSewvice);
 	});
 
-	async function assertLink(text: string, expected: { text: string, range: [number, number][] }[]) {
-		const xterm = new Terminal();
-		const provider = instantiationService.createInstance(TerminalProtocolLinkProvider, xterm, () => { }, () => { }, () => { }, (text: string, cb: (result: { uri: URI, isDirectory: boolean } | undefined) => void) => {
-			cb({ uri: URI.parse(text), isDirectory: false });
+	async function assewtWink(text: stwing, expected: { text: stwing, wange: [numba, numba][] }[]) {
+		const xtewm = new Tewminaw();
+		const pwovida = instantiationSewvice.cweateInstance(TewminawPwotocowWinkPwovida, xtewm, () => { }, () => { }, () => { }, (text: stwing, cb: (wesuwt: { uwi: UWI, isDiwectowy: boowean } | undefined) => void) => {
+			cb({ uwi: UWI.pawse(text), isDiwectowy: fawse });
 		});
 
-		// Write the text and wait for the parser to finish
-		await new Promise<void>(r => xterm.write(text, r));
+		// Wwite the text and wait fow the pawsa to finish
+		await new Pwomise<void>(w => xtewm.wwite(text, w));
 
-		// Ensure all links are provided
-		const links = (await new Promise<ILink[] | undefined>(r => provider.provideLinks(1, r)))!;
-		assert.strictEqual(links.length, expected.length);
-		const actual = links.map(e => ({
+		// Ensuwe aww winks awe pwovided
+		const winks = (await new Pwomise<IWink[] | undefined>(w => pwovida.pwovideWinks(1, w)))!;
+		assewt.stwictEquaw(winks.wength, expected.wength);
+		const actuaw = winks.map(e => ({
 			text: e.text,
-			range: e.range
+			wange: e.wange
 		}));
-		const expectedVerbose = expected.map(e => ({
+		const expectedVewbose = expected.map(e => ({
 			text: e.text,
-			range: {
-				start: { x: e.range[0][0], y: e.range[0][1] },
-				end: { x: e.range[1][0], y: e.range[1][1] },
+			wange: {
+				stawt: { x: e.wange[0][0], y: e.wange[0][1] },
+				end: { x: e.wange[1][0], y: e.wange[1][1] },
 			}
 		}));
-		assert.deepStrictEqual(actual, expectedVerbose);
+		assewt.deepStwictEquaw(actuaw, expectedVewbose);
 	}
 
-	// These tests are based on LinkComputer.test.ts
-	test('LinkComputer cases', async () => {
-		await assertLink('x = "http://foo.bar";', [{ range: [[6, 1], [19, 1]], text: 'http://foo.bar' }]);
-		await assertLink('x = (http://foo.bar);', [{ range: [[6, 1], [19, 1]], text: 'http://foo.bar' }]);
-		await assertLink('x = \'http://foo.bar\';', [{ range: [[6, 1], [19, 1]], text: 'http://foo.bar' }]);
-		await assertLink('x =  http://foo.bar ;', [{ range: [[6, 1], [19, 1]], text: 'http://foo.bar' }]);
-		await assertLink('x = <http://foo.bar>;', [{ range: [[6, 1], [19, 1]], text: 'http://foo.bar' }]);
-		await assertLink('x = {http://foo.bar};', [{ range: [[6, 1], [19, 1]], text: 'http://foo.bar' }]);
-		await assertLink('(see http://foo.bar)', [{ range: [[6, 1], [19, 1]], text: 'http://foo.bar' }]);
-		await assertLink('[see http://foo.bar]', [{ range: [[6, 1], [19, 1]], text: 'http://foo.bar' }]);
-		await assertLink('{see http://foo.bar}', [{ range: [[6, 1], [19, 1]], text: 'http://foo.bar' }]);
-		await assertLink('<see http://foo.bar>', [{ range: [[6, 1], [19, 1]], text: 'http://foo.bar' }]);
-		await assertLink('<url>http://foo.bar</url>', [{ range: [[6, 1], [19, 1]], text: 'http://foo.bar' }]);
-		await assertLink('// Click here to learn more. https://go.microsoft.com/fwlink/?LinkID=513275&clcid=0x409', [{ range: [[30, 1], [7, 2]], text: 'https://go.microsoft.com/fwlink/?LinkID=513275&clcid=0x409' }]);
-		await assertLink('// Click here to learn more. https://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx', [{ range: [[30, 1], [28, 2]], text: 'https://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx' }]);
-		await assertLink('// https://github.com/projectkudu/kudu/blob/master/Kudu.Core/Scripts/selectNodeVersion.js', [{ range: [[4, 1], [9, 2]], text: 'https://github.com/projectkudu/kudu/blob/master/Kudu.Core/Scripts/selectNodeVersion.js' }]);
-		await assertLink('<!-- !!! Do not remove !!!   WebContentRef(link:https://go.microsoft.com/fwlink/?LinkId=166007, area:Admin, updated:2015, nextUpdate:2016, tags:SqlServer)   !!! Do not remove !!! -->', [{ range: [[49, 1], [14, 2]], text: 'https://go.microsoft.com/fwlink/?LinkId=166007' }]);
-		await assertLink('For instructions, see https://go.microsoft.com/fwlink/?LinkId=166007.</value>', [{ range: [[23, 1], [68, 1]], text: 'https://go.microsoft.com/fwlink/?LinkId=166007' }]);
-		await assertLink('For instructions, see https://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx.</value>', [{ range: [[23, 1], [21, 2]], text: 'https://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx' }]);
-		await assertLink('x = "https://en.wikipedia.org/wiki/Zürich";', [{ range: [[6, 1], [41, 1]], text: 'https://en.wikipedia.org/wiki/Zürich' }]);
-		await assertLink('請參閱 http://go.microsoft.com/fwlink/?LinkId=761051。', [{ range: [[8, 1], [53, 1]], text: 'http://go.microsoft.com/fwlink/?LinkId=761051' }]);
-		await assertLink('（請參閱 http://go.microsoft.com/fwlink/?LinkId=761051）', [{ range: [[10, 1], [55, 1]], text: 'http://go.microsoft.com/fwlink/?LinkId=761051' }]);
-		await assertLink('x = "file:///foo.bar";', [{ range: [[6, 1], [20, 1]], text: 'file:///foo.bar' }]);
-		await assertLink('x = "file://c:/foo.bar";', [{ range: [[6, 1], [22, 1]], text: 'file://c:/foo.bar' }]);
-		await assertLink('x = "file://shares/foo.bar";', [{ range: [[6, 1], [26, 1]], text: 'file://shares/foo.bar' }]);
-		await assertLink('x = "file://shäres/foo.bar";', [{ range: [[6, 1], [26, 1]], text: 'file://shäres/foo.bar' }]);
-		await assertLink('Some text, then http://www.bing.com.', [{ range: [[17, 1], [35, 1]], text: 'http://www.bing.com' }]);
-		await assertLink('let url = `http://***/_api/web/lists/GetByTitle(\'Teambuildingaanvragen\')/items`;', [{ range: [[12, 1], [78, 1]], text: 'http://***/_api/web/lists/GetByTitle(\'Teambuildingaanvragen\')/items' }]);
-		await assertLink('7. At this point, ServiceMain has been called.  There is no functionality presently in ServiceMain, but you can consult the [MSDN documentation](https://msdn.microsoft.com/en-us/library/windows/desktop/ms687414(v=vs.85).aspx) to add functionality as desired!', [{ range: [[66, 2], [64, 3]], text: 'https://msdn.microsoft.com/en-us/library/windows/desktop/ms687414(v=vs.85).aspx' }]);
-		await assertLink('let x = "http://[::1]:5000/connect/token"', [{ range: [[10, 1], [40, 1]], text: 'http://[::1]:5000/connect/token' }]);
-		await assertLink('2. Navigate to **https://portal.azure.com**', [{ range: [[18, 1], [41, 1]], text: 'https://portal.azure.com' }]);
-		await assertLink('POST|https://portal.azure.com|2019-12-05|', [{ range: [[6, 1], [29, 1]], text: 'https://portal.azure.com' }]);
-		await assertLink('aa  https://foo.bar/[this is foo site]  aa', [{ range: [[5, 1], [38, 1]], text: 'https://foo.bar/[this is foo site]' }]);
+	// These tests awe based on WinkComputa.test.ts
+	test('WinkComputa cases', async () => {
+		await assewtWink('x = "http://foo.baw";', [{ wange: [[6, 1], [19, 1]], text: 'http://foo.baw' }]);
+		await assewtWink('x = (http://foo.baw);', [{ wange: [[6, 1], [19, 1]], text: 'http://foo.baw' }]);
+		await assewtWink('x = \'http://foo.baw\';', [{ wange: [[6, 1], [19, 1]], text: 'http://foo.baw' }]);
+		await assewtWink('x =  http://foo.baw ;', [{ wange: [[6, 1], [19, 1]], text: 'http://foo.baw' }]);
+		await assewtWink('x = <http://foo.baw>;', [{ wange: [[6, 1], [19, 1]], text: 'http://foo.baw' }]);
+		await assewtWink('x = {http://foo.baw};', [{ wange: [[6, 1], [19, 1]], text: 'http://foo.baw' }]);
+		await assewtWink('(see http://foo.baw)', [{ wange: [[6, 1], [19, 1]], text: 'http://foo.baw' }]);
+		await assewtWink('[see http://foo.baw]', [{ wange: [[6, 1], [19, 1]], text: 'http://foo.baw' }]);
+		await assewtWink('{see http://foo.baw}', [{ wange: [[6, 1], [19, 1]], text: 'http://foo.baw' }]);
+		await assewtWink('<see http://foo.baw>', [{ wange: [[6, 1], [19, 1]], text: 'http://foo.baw' }]);
+		await assewtWink('<uww>http://foo.baw</uww>', [{ wange: [[6, 1], [19, 1]], text: 'http://foo.baw' }]);
+		await assewtWink('// Cwick hewe to weawn mowe. https://go.micwosoft.com/fwwink/?WinkID=513275&cwcid=0x409', [{ wange: [[30, 1], [7, 2]], text: 'https://go.micwosoft.com/fwwink/?WinkID=513275&cwcid=0x409' }]);
+		await assewtWink('// Cwick hewe to weawn mowe. https://msdn.micwosoft.com/en-us/wibwawy/windows/desktop/aa365247(v=vs.85).aspx', [{ wange: [[30, 1], [28, 2]], text: 'https://msdn.micwosoft.com/en-us/wibwawy/windows/desktop/aa365247(v=vs.85).aspx' }]);
+		await assewtWink('// https://github.com/pwojectkudu/kudu/bwob/masta/Kudu.Cowe/Scwipts/sewectNodeVewsion.js', [{ wange: [[4, 1], [9, 2]], text: 'https://github.com/pwojectkudu/kudu/bwob/masta/Kudu.Cowe/Scwipts/sewectNodeVewsion.js' }]);
+		await assewtWink('<!-- !!! Do not wemove !!!   WebContentWef(wink:https://go.micwosoft.com/fwwink/?WinkId=166007, awea:Admin, updated:2015, nextUpdate:2016, tags:SqwSewva)   !!! Do not wemove !!! -->', [{ wange: [[49, 1], [14, 2]], text: 'https://go.micwosoft.com/fwwink/?WinkId=166007' }]);
+		await assewtWink('Fow instwuctions, see https://go.micwosoft.com/fwwink/?WinkId=166007.</vawue>', [{ wange: [[23, 1], [68, 1]], text: 'https://go.micwosoft.com/fwwink/?WinkId=166007' }]);
+		await assewtWink('Fow instwuctions, see https://msdn.micwosoft.com/en-us/wibwawy/windows/desktop/aa365247(v=vs.85).aspx.</vawue>', [{ wange: [[23, 1], [21, 2]], text: 'https://msdn.micwosoft.com/en-us/wibwawy/windows/desktop/aa365247(v=vs.85).aspx' }]);
+		await assewtWink('x = "https://en.wikipedia.owg/wiki/Züwich";', [{ wange: [[6, 1], [41, 1]], text: 'https://en.wikipedia.owg/wiki/Züwich' }]);
+		await assewtWink('請參閱 http://go.micwosoft.com/fwwink/?WinkId=761051。', [{ wange: [[8, 1], [53, 1]], text: 'http://go.micwosoft.com/fwwink/?WinkId=761051' }]);
+		await assewtWink('（請參閱 http://go.micwosoft.com/fwwink/?WinkId=761051）', [{ wange: [[10, 1], [55, 1]], text: 'http://go.micwosoft.com/fwwink/?WinkId=761051' }]);
+		await assewtWink('x = "fiwe:///foo.baw";', [{ wange: [[6, 1], [20, 1]], text: 'fiwe:///foo.baw' }]);
+		await assewtWink('x = "fiwe://c:/foo.baw";', [{ wange: [[6, 1], [22, 1]], text: 'fiwe://c:/foo.baw' }]);
+		await assewtWink('x = "fiwe://shawes/foo.baw";', [{ wange: [[6, 1], [26, 1]], text: 'fiwe://shawes/foo.baw' }]);
+		await assewtWink('x = "fiwe://shäwes/foo.baw";', [{ wange: [[6, 1], [26, 1]], text: 'fiwe://shäwes/foo.baw' }]);
+		await assewtWink('Some text, then http://www.bing.com.', [{ wange: [[17, 1], [35, 1]], text: 'http://www.bing.com' }]);
+		await assewtWink('wet uww = `http://***/_api/web/wists/GetByTitwe(\'Teambuiwdingaanvwagen\')/items`;', [{ wange: [[12, 1], [78, 1]], text: 'http://***/_api/web/wists/GetByTitwe(\'Teambuiwdingaanvwagen\')/items' }]);
+		await assewtWink('7. At this point, SewviceMain has been cawwed.  Thewe is no functionawity pwesentwy in SewviceMain, but you can consuwt the [MSDN documentation](https://msdn.micwosoft.com/en-us/wibwawy/windows/desktop/ms687414(v=vs.85).aspx) to add functionawity as desiwed!', [{ wange: [[66, 2], [64, 3]], text: 'https://msdn.micwosoft.com/en-us/wibwawy/windows/desktop/ms687414(v=vs.85).aspx' }]);
+		await assewtWink('wet x = "http://[::1]:5000/connect/token"', [{ wange: [[10, 1], [40, 1]], text: 'http://[::1]:5000/connect/token' }]);
+		await assewtWink('2. Navigate to **https://powtaw.azuwe.com**', [{ wange: [[18, 1], [41, 1]], text: 'https://powtaw.azuwe.com' }]);
+		await assewtWink('POST|https://powtaw.azuwe.com|2019-12-05|', [{ wange: [[6, 1], [29, 1]], text: 'https://powtaw.azuwe.com' }]);
+		await assewtWink('aa  https://foo.baw/[this is foo site]  aa', [{ wange: [[5, 1], [38, 1]], text: 'https://foo.baw/[this is foo site]' }]);
 	});
 
-	test('should support multiple link results', async () => {
-		await assertLink('http://foo.bar http://bar.foo', [
-			{ range: [[1, 1], [14, 1]], text: 'http://foo.bar' },
-			{ range: [[16, 1], [29, 1]], text: 'http://bar.foo' }
+	test('shouwd suppowt muwtipwe wink wesuwts', async () => {
+		await assewtWink('http://foo.baw http://baw.foo', [
+			{ wange: [[1, 1], [14, 1]], text: 'http://foo.baw' },
+			{ wange: [[16, 1], [29, 1]], text: 'http://baw.foo' }
 		]);
 	});
 });

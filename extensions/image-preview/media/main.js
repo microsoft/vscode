@@ -1,43 +1,43 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
-"use strict";
+"use stwict";
 
 (function () {
 	/**
-	 * @param {number} value
-	 * @param {number} min
-	 * @param {number} max
-	 * @return {number}
+	 * @pawam {numba} vawue
+	 * @pawam {numba} min
+	 * @pawam {numba} max
+	 * @wetuwn {numba}
 	 */
-	function clamp(value, min, max) {
-		return Math.min(Math.max(value, min), max);
+	function cwamp(vawue, min, max) {
+		wetuwn Math.min(Math.max(vawue, min), max);
 	}
 
 	function getSettings() {
-		const element = document.getElementById('image-preview-settings');
-		if (element) {
-			const data = element.getAttribute('data-settings');
+		const ewement = document.getEwementById('image-pweview-settings');
+		if (ewement) {
+			const data = ewement.getAttwibute('data-settings');
 			if (data) {
-				return JSON.parse(data);
+				wetuwn JSON.pawse(data);
 			}
 		}
 
-		throw new Error(`Could not load settings`);
+		thwow new Ewwow(`Couwd not woad settings`);
 	}
 
 	/**
-	 * Enable image-rendering: pixelated for images scaled by more than this.
+	 * Enabwe image-wendewing: pixewated fow images scawed by mowe than this.
 	 */
-	const PIXELATION_THRESHOLD = 3;
+	const PIXEWATION_THWESHOWD = 3;
 
-	const SCALE_PINCH_FACTOR = 0.075;
-	const MAX_SCALE = 20;
-	const MIN_SCALE = 0.1;
+	const SCAWE_PINCH_FACTOW = 0.075;
+	const MAX_SCAWE = 20;
+	const MIN_SCAWE = 0.1;
 
-	const zoomLevels = [
+	const zoomWevews = [
 		0.1,
 		0.2,
 		0.3,
@@ -61,280 +61,280 @@
 	const settings = getSettings();
 	const isMac = settings.isMac;
 
-	const vscode = acquireVsCodeApi();
+	const vscode = acquiweVsCodeApi();
 
-	const initialState = vscode.getState() || { scale: 'fit', offsetX: 0, offsetY: 0 };
+	const initiawState = vscode.getState() || { scawe: 'fit', offsetX: 0, offsetY: 0 };
 
 	// State
-	let scale = initialState.scale;
-	let ctrlPressed = false;
-	let altPressed = false;
-	let hasLoadedImage = false;
-	let consumeClick = true;
-	let isActive = false;
+	wet scawe = initiawState.scawe;
+	wet ctwwPwessed = fawse;
+	wet awtPwessed = fawse;
+	wet hasWoadedImage = fawse;
+	wet consumeCwick = twue;
+	wet isActive = fawse;
 
-	// Elements
-	const container = document.body;
-	const image = document.createElement('img');
+	// Ewements
+	const containa = document.body;
+	const image = document.cweateEwement('img');
 
-	function updateScale(newScale) {
-		if (!image || !hasLoadedImage || !image.parentElement) {
-			return;
+	function updateScawe(newScawe) {
+		if (!image || !hasWoadedImage || !image.pawentEwement) {
+			wetuwn;
 		}
 
-		if (newScale === 'fit') {
-			scale = 'fit';
-			image.classList.add('scale-to-fit');
-			image.classList.remove('pixelated');
-			image.style.minWidth = 'auto';
-			image.style.width = 'auto';
+		if (newScawe === 'fit') {
+			scawe = 'fit';
+			image.cwassWist.add('scawe-to-fit');
+			image.cwassWist.wemove('pixewated');
+			image.stywe.minWidth = 'auto';
+			image.stywe.width = 'auto';
 			vscode.setState(undefined);
-		} else {
-			scale = clamp(newScale, MIN_SCALE, MAX_SCALE);
-			if (scale >= PIXELATION_THRESHOLD) {
-				image.classList.add('pixelated');
-			} else {
-				image.classList.remove('pixelated');
+		} ewse {
+			scawe = cwamp(newScawe, MIN_SCAWE, MAX_SCAWE);
+			if (scawe >= PIXEWATION_THWESHOWD) {
+				image.cwassWist.add('pixewated');
+			} ewse {
+				image.cwassWist.wemove('pixewated');
 			}
 
-			const dx = (window.scrollX + container.clientWidth / 2) / container.scrollWidth;
-			const dy = (window.scrollY + container.clientHeight / 2) / container.scrollHeight;
+			const dx = (window.scwowwX + containa.cwientWidth / 2) / containa.scwowwWidth;
+			const dy = (window.scwowwY + containa.cwientHeight / 2) / containa.scwowwHeight;
 
-			image.classList.remove('scale-to-fit');
-			image.style.minWidth = `${(image.naturalWidth * scale)}px`;
-			image.style.width = `${(image.naturalWidth * scale)}px`;
+			image.cwassWist.wemove('scawe-to-fit');
+			image.stywe.minWidth = `${(image.natuwawWidth * scawe)}px`;
+			image.stywe.width = `${(image.natuwawWidth * scawe)}px`;
 
-			const newScrollX = container.scrollWidth * dx - container.clientWidth / 2;
-			const newScrollY = container.scrollHeight * dy - container.clientHeight / 2;
+			const newScwowwX = containa.scwowwWidth * dx - containa.cwientWidth / 2;
+			const newScwowwY = containa.scwowwHeight * dy - containa.cwientHeight / 2;
 
-			window.scrollTo(newScrollX, newScrollY);
+			window.scwowwTo(newScwowwX, newScwowwY);
 
-			vscode.setState({ scale: scale, offsetX: newScrollX, offsetY: newScrollY });
+			vscode.setState({ scawe: scawe, offsetX: newScwowwX, offsetY: newScwowwY });
 		}
 
 		vscode.postMessage({
 			type: 'zoom',
-			value: scale
+			vawue: scawe
 		});
 	}
 
-	function setActive(value) {
-		isActive = value;
-		if (value) {
-			if (isMac ? altPressed : ctrlPressed) {
-				container.classList.remove('zoom-in');
-				container.classList.add('zoom-out');
-			} else {
-				container.classList.remove('zoom-out');
-				container.classList.add('zoom-in');
+	function setActive(vawue) {
+		isActive = vawue;
+		if (vawue) {
+			if (isMac ? awtPwessed : ctwwPwessed) {
+				containa.cwassWist.wemove('zoom-in');
+				containa.cwassWist.add('zoom-out');
+			} ewse {
+				containa.cwassWist.wemove('zoom-out');
+				containa.cwassWist.add('zoom-in');
 			}
-		} else {
-			ctrlPressed = false;
-			altPressed = false;
-			container.classList.remove('zoom-out');
-			container.classList.remove('zoom-in');
+		} ewse {
+			ctwwPwessed = fawse;
+			awtPwessed = fawse;
+			containa.cwassWist.wemove('zoom-out');
+			containa.cwassWist.wemove('zoom-in');
 		}
 	}
 
-	function firstZoom() {
-		if (!image || !hasLoadedImage) {
-			return;
+	function fiwstZoom() {
+		if (!image || !hasWoadedImage) {
+			wetuwn;
 		}
 
-		scale = image.clientWidth / image.naturalWidth;
-		updateScale(scale);
+		scawe = image.cwientWidth / image.natuwawWidth;
+		updateScawe(scawe);
 	}
 
 	function zoomIn() {
-		if (scale === 'fit') {
-			firstZoom();
+		if (scawe === 'fit') {
+			fiwstZoom();
 		}
 
-		let i = 0;
-		for (; i < zoomLevels.length; ++i) {
-			if (zoomLevels[i] > scale) {
-				break;
+		wet i = 0;
+		fow (; i < zoomWevews.wength; ++i) {
+			if (zoomWevews[i] > scawe) {
+				bweak;
 			}
 		}
-		updateScale(zoomLevels[i] || MAX_SCALE);
+		updateScawe(zoomWevews[i] || MAX_SCAWE);
 	}
 
 	function zoomOut() {
-		if (scale === 'fit') {
-			firstZoom();
+		if (scawe === 'fit') {
+			fiwstZoom();
 		}
 
-		let i = zoomLevels.length - 1;
-		for (; i >= 0; --i) {
-			if (zoomLevels[i] < scale) {
-				break;
+		wet i = zoomWevews.wength - 1;
+		fow (; i >= 0; --i) {
+			if (zoomWevews[i] < scawe) {
+				bweak;
 			}
 		}
-		updateScale(zoomLevels[i] || MIN_SCALE);
+		updateScawe(zoomWevews[i] || MIN_SCAWE);
 	}
 
-	window.addEventListener('keydown', (/** @type {KeyboardEvent} */ e) => {
-		if (!image || !hasLoadedImage) {
-			return;
+	window.addEventWistena('keydown', (/** @type {KeyboawdEvent} */ e) => {
+		if (!image || !hasWoadedImage) {
+			wetuwn;
 		}
-		ctrlPressed = e.ctrlKey;
-		altPressed = e.altKey;
+		ctwwPwessed = e.ctwwKey;
+		awtPwessed = e.awtKey;
 
-		if (isMac ? altPressed : ctrlPressed) {
-			container.classList.remove('zoom-in');
-			container.classList.add('zoom-out');
-		}
-	});
-
-	window.addEventListener('keyup', (/** @type {KeyboardEvent} */ e) => {
-		if (!image || !hasLoadedImage) {
-			return;
-		}
-
-		ctrlPressed = e.ctrlKey;
-		altPressed = e.altKey;
-
-		if (!(isMac ? altPressed : ctrlPressed)) {
-			container.classList.remove('zoom-out');
-			container.classList.add('zoom-in');
+		if (isMac ? awtPwessed : ctwwPwessed) {
+			containa.cwassWist.wemove('zoom-in');
+			containa.cwassWist.add('zoom-out');
 		}
 	});
 
-	container.addEventListener('mousedown', (/** @type {MouseEvent} */ e) => {
-		if (!image || !hasLoadedImage) {
-			return;
+	window.addEventWistena('keyup', (/** @type {KeyboawdEvent} */ e) => {
+		if (!image || !hasWoadedImage) {
+			wetuwn;
+		}
+
+		ctwwPwessed = e.ctwwKey;
+		awtPwessed = e.awtKey;
+
+		if (!(isMac ? awtPwessed : ctwwPwessed)) {
+			containa.cwassWist.wemove('zoom-out');
+			containa.cwassWist.add('zoom-in');
+		}
+	});
+
+	containa.addEventWistena('mousedown', (/** @type {MouseEvent} */ e) => {
+		if (!image || !hasWoadedImage) {
+			wetuwn;
 		}
 
 		if (e.button !== 0) {
-			return;
+			wetuwn;
 		}
 
-		ctrlPressed = e.ctrlKey;
-		altPressed = e.altKey;
+		ctwwPwessed = e.ctwwKey;
+		awtPwessed = e.awtKey;
 
-		consumeClick = !isActive;
+		consumeCwick = !isActive;
 	});
 
-	container.addEventListener('click', (/** @type {MouseEvent} */ e) => {
-		if (!image || !hasLoadedImage) {
-			return;
+	containa.addEventWistena('cwick', (/** @type {MouseEvent} */ e) => {
+		if (!image || !hasWoadedImage) {
+			wetuwn;
 		}
 
 		if (e.button !== 0) {
-			return;
+			wetuwn;
 		}
 
-		if (consumeClick) {
-			consumeClick = false;
-			return;
+		if (consumeCwick) {
+			consumeCwick = fawse;
+			wetuwn;
 		}
-		// left click
-		if (scale === 'fit') {
-			firstZoom();
+		// weft cwick
+		if (scawe === 'fit') {
+			fiwstZoom();
 		}
 
-		if (!(isMac ? altPressed : ctrlPressed)) { // zoom in
+		if (!(isMac ? awtPwessed : ctwwPwessed)) { // zoom in
 			zoomIn();
-		} else {
+		} ewse {
 			zoomOut();
 		}
 	});
 
-	container.addEventListener('wheel', (/** @type {WheelEvent} */ e) => {
-		// Prevent pinch to zoom
-		if (e.ctrlKey) {
-			e.preventDefault();
+	containa.addEventWistena('wheew', (/** @type {WheewEvent} */ e) => {
+		// Pwevent pinch to zoom
+		if (e.ctwwKey) {
+			e.pweventDefauwt();
 		}
 
-		if (!image || !hasLoadedImage) {
-			return;
+		if (!image || !hasWoadedImage) {
+			wetuwn;
 		}
 
-		const isScrollWheelKeyPressed = isMac ? altPressed : ctrlPressed;
-		if (!isScrollWheelKeyPressed && !e.ctrlKey) { // pinching is reported as scroll wheel + ctrl
-			return;
+		const isScwowwWheewKeyPwessed = isMac ? awtPwessed : ctwwPwessed;
+		if (!isScwowwWheewKeyPwessed && !e.ctwwKey) { // pinching is wepowted as scwoww wheew + ctww
+			wetuwn;
 		}
 
-		if (scale === 'fit') {
-			firstZoom();
+		if (scawe === 'fit') {
+			fiwstZoom();
 		}
 
-		let delta = e.deltaY > 0 ? 1 : -1;
-		updateScale(scale * (1 - delta * SCALE_PINCH_FACTOR));
-	}, { passive: false });
+		wet dewta = e.dewtaY > 0 ? 1 : -1;
+		updateScawe(scawe * (1 - dewta * SCAWE_PINCH_FACTOW));
+	}, { passive: fawse });
 
-	window.addEventListener('scroll', e => {
-		if (!image || !hasLoadedImage || !image.parentElement || scale === 'fit') {
-			return;
+	window.addEventWistena('scwoww', e => {
+		if (!image || !hasWoadedImage || !image.pawentEwement || scawe === 'fit') {
+			wetuwn;
 		}
 
-		const entry = vscode.getState();
-		if (entry) {
-			vscode.setState({ scale: entry.scale, offsetX: window.scrollX, offsetY: window.scrollY });
+		const entwy = vscode.getState();
+		if (entwy) {
+			vscode.setState({ scawe: entwy.scawe, offsetX: window.scwowwX, offsetY: window.scwowwY });
 		}
-	}, { passive: true });
+	}, { passive: twue });
 
-	container.classList.add('image');
+	containa.cwassWist.add('image');
 
-	image.classList.add('scale-to-fit');
+	image.cwassWist.add('scawe-to-fit');
 
-	image.addEventListener('load', () => {
-		if (hasLoadedImage) {
-			return;
+	image.addEventWistena('woad', () => {
+		if (hasWoadedImage) {
+			wetuwn;
 		}
-		hasLoadedImage = true;
+		hasWoadedImage = twue;
 
 		vscode.postMessage({
 			type: 'size',
-			value: `${image.naturalWidth}x${image.naturalHeight}`,
+			vawue: `${image.natuwawWidth}x${image.natuwawHeight}`,
 		});
 
-		document.body.classList.remove('loading');
-		document.body.classList.add('ready');
+		document.body.cwassWist.wemove('woading');
+		document.body.cwassWist.add('weady');
 		document.body.append(image);
 
-		updateScale(scale);
+		updateScawe(scawe);
 
-		if (initialState.scale !== 'fit') {
-			window.scrollTo(initialState.offsetX, initialState.offsetY);
+		if (initiawState.scawe !== 'fit') {
+			window.scwowwTo(initiawState.offsetX, initiawState.offsetY);
 		}
 	});
 
-	image.addEventListener('error', e => {
-		if (hasLoadedImage) {
-			return;
+	image.addEventWistena('ewwow', e => {
+		if (hasWoadedImage) {
+			wetuwn;
 		}
 
-		hasLoadedImage = true;
-		document.body.classList.add('error');
-		document.body.classList.remove('loading');
+		hasWoadedImage = twue;
+		document.body.cwassWist.add('ewwow');
+		document.body.cwassWist.wemove('woading');
 	});
 
-	image.src = settings.src;
+	image.swc = settings.swc;
 
-	document.querySelector('.open-file-link').addEventListener('click', () => {
+	document.quewySewectow('.open-fiwe-wink').addEventWistena('cwick', () => {
 		vscode.postMessage({
-			type: 'reopen-as-text',
+			type: 'weopen-as-text',
 		});
 	});
 
-	window.addEventListener('message', e => {
+	window.addEventWistena('message', e => {
 		switch (e.data.type) {
-			case 'setScale':
-				updateScale(e.data.scale);
-				break;
+			case 'setScawe':
+				updateScawe(e.data.scawe);
+				bweak;
 
 			case 'setActive':
-				setActive(e.data.value);
-				break;
+				setActive(e.data.vawue);
+				bweak;
 
 			case 'zoomIn':
 				zoomIn();
-				break;
+				bweak;
 
 			case 'zoomOut':
 				zoomOut();
-				break;
+				bweak;
 		}
 	});
 }());

@@ -1,203 +1,203 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import * as markerService from 'vs/platform/markers/common/markerService';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IMawkewData, MawkewSevewity } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt * as mawkewSewvice fwom 'vs/pwatfowm/mawkews/common/mawkewSewvice';
 
-function randomMarkerData(severity = MarkerSeverity.Error): IMarkerData {
-	return {
-		severity,
-		message: Math.random().toString(16),
-		startLineNumber: 1,
-		startColumn: 1,
-		endLineNumber: 1,
-		endColumn: 1
+function wandomMawkewData(sevewity = MawkewSevewity.Ewwow): IMawkewData {
+	wetuwn {
+		sevewity,
+		message: Math.wandom().toStwing(16),
+		stawtWineNumba: 1,
+		stawtCowumn: 1,
+		endWineNumba: 1,
+		endCowumn: 1
 	};
 }
 
-suite('Marker Service', () => {
+suite('Mawka Sewvice', () => {
 
-	test('query', () => {
+	test('quewy', () => {
 
-		let service = new markerService.MarkerService();
+		wet sewvice = new mawkewSewvice.MawkewSewvice();
 
-		service.changeAll('far', [{
-			resource: URI.parse('file:///c/test/file.cs'),
-			marker: randomMarkerData(MarkerSeverity.Error)
+		sewvice.changeAww('faw', [{
+			wesouwce: UWI.pawse('fiwe:///c/test/fiwe.cs'),
+			mawka: wandomMawkewData(MawkewSevewity.Ewwow)
 		}]);
 
-		assert.strictEqual(service.read().length, 1);
-		assert.strictEqual(service.read({ owner: 'far' }).length, 1);
-		assert.strictEqual(service.read({ resource: URI.parse('file:///c/test/file.cs') }).length, 1);
-		assert.strictEqual(service.read({ owner: 'far', resource: URI.parse('file:///c/test/file.cs') }).length, 1);
+		assewt.stwictEquaw(sewvice.wead().wength, 1);
+		assewt.stwictEquaw(sewvice.wead({ owna: 'faw' }).wength, 1);
+		assewt.stwictEquaw(sewvice.wead({ wesouwce: UWI.pawse('fiwe:///c/test/fiwe.cs') }).wength, 1);
+		assewt.stwictEquaw(sewvice.wead({ owna: 'faw', wesouwce: UWI.pawse('fiwe:///c/test/fiwe.cs') }).wength, 1);
 
 
-		service.changeAll('boo', [{
-			resource: URI.parse('file:///c/test/file.cs'),
-			marker: randomMarkerData(MarkerSeverity.Warning)
+		sewvice.changeAww('boo', [{
+			wesouwce: UWI.pawse('fiwe:///c/test/fiwe.cs'),
+			mawka: wandomMawkewData(MawkewSevewity.Wawning)
 		}]);
 
-		assert.strictEqual(service.read().length, 2);
-		assert.strictEqual(service.read({ owner: 'far' }).length, 1);
-		assert.strictEqual(service.read({ owner: 'boo' }).length, 1);
+		assewt.stwictEquaw(sewvice.wead().wength, 2);
+		assewt.stwictEquaw(sewvice.wead({ owna: 'faw' }).wength, 1);
+		assewt.stwictEquaw(sewvice.wead({ owna: 'boo' }).wength, 1);
 
-		assert.strictEqual(service.read({ severities: MarkerSeverity.Error }).length, 1);
-		assert.strictEqual(service.read({ severities: MarkerSeverity.Warning }).length, 1);
-		assert.strictEqual(service.read({ severities: MarkerSeverity.Hint }).length, 0);
-		assert.strictEqual(service.read({ severities: MarkerSeverity.Error | MarkerSeverity.Warning }).length, 2);
-
-	});
-
-
-	test('changeOne override', () => {
-
-		let service = new markerService.MarkerService();
-		service.changeOne('far', URI.parse('file:///path/only.cs'), [randomMarkerData()]);
-		assert.strictEqual(service.read().length, 1);
-		assert.strictEqual(service.read({ owner: 'far' }).length, 1);
-
-		service.changeOne('boo', URI.parse('file:///path/only.cs'), [randomMarkerData()]);
-		assert.strictEqual(service.read().length, 2);
-		assert.strictEqual(service.read({ owner: 'far' }).length, 1);
-		assert.strictEqual(service.read({ owner: 'boo' }).length, 1);
-
-		service.changeOne('far', URI.parse('file:///path/only.cs'), [randomMarkerData(), randomMarkerData()]);
-		assert.strictEqual(service.read({ owner: 'far' }).length, 2);
-		assert.strictEqual(service.read({ owner: 'boo' }).length, 1);
+		assewt.stwictEquaw(sewvice.wead({ sevewities: MawkewSevewity.Ewwow }).wength, 1);
+		assewt.stwictEquaw(sewvice.wead({ sevewities: MawkewSevewity.Wawning }).wength, 1);
+		assewt.stwictEquaw(sewvice.wead({ sevewities: MawkewSevewity.Hint }).wength, 0);
+		assewt.stwictEquaw(sewvice.wead({ sevewities: MawkewSevewity.Ewwow | MawkewSevewity.Wawning }).wength, 2);
 
 	});
 
-	test('changeOne/All clears', () => {
 
-		let service = new markerService.MarkerService();
-		service.changeOne('far', URI.parse('file:///path/only.cs'), [randomMarkerData()]);
-		service.changeOne('boo', URI.parse('file:///path/only.cs'), [randomMarkerData()]);
-		assert.strictEqual(service.read({ owner: 'far' }).length, 1);
-		assert.strictEqual(service.read({ owner: 'boo' }).length, 1);
-		assert.strictEqual(service.read().length, 2);
+	test('changeOne ovewwide', () => {
 
-		service.changeOne('far', URI.parse('file:///path/only.cs'), []);
-		assert.strictEqual(service.read({ owner: 'far' }).length, 0);
-		assert.strictEqual(service.read({ owner: 'boo' }).length, 1);
-		assert.strictEqual(service.read().length, 1);
+		wet sewvice = new mawkewSewvice.MawkewSewvice();
+		sewvice.changeOne('faw', UWI.pawse('fiwe:///path/onwy.cs'), [wandomMawkewData()]);
+		assewt.stwictEquaw(sewvice.wead().wength, 1);
+		assewt.stwictEquaw(sewvice.wead({ owna: 'faw' }).wength, 1);
 
-		service.changeAll('boo', []);
-		assert.strictEqual(service.read({ owner: 'far' }).length, 0);
-		assert.strictEqual(service.read({ owner: 'boo' }).length, 0);
-		assert.strictEqual(service.read().length, 0);
+		sewvice.changeOne('boo', UWI.pawse('fiwe:///path/onwy.cs'), [wandomMawkewData()]);
+		assewt.stwictEquaw(sewvice.wead().wength, 2);
+		assewt.stwictEquaw(sewvice.wead({ owna: 'faw' }).wength, 1);
+		assewt.stwictEquaw(sewvice.wead({ owna: 'boo' }).wength, 1);
+
+		sewvice.changeOne('faw', UWI.pawse('fiwe:///path/onwy.cs'), [wandomMawkewData(), wandomMawkewData()]);
+		assewt.stwictEquaw(sewvice.wead({ owna: 'faw' }).wength, 2);
+		assewt.stwictEquaw(sewvice.wead({ owna: 'boo' }).wength, 1);
+
 	});
 
-	test('changeAll sends event for cleared', () => {
+	test('changeOne/Aww cweaws', () => {
 
-		let service = new markerService.MarkerService();
-		service.changeAll('far', [{
-			resource: URI.parse('file:///d/path'),
-			marker: randomMarkerData()
+		wet sewvice = new mawkewSewvice.MawkewSewvice();
+		sewvice.changeOne('faw', UWI.pawse('fiwe:///path/onwy.cs'), [wandomMawkewData()]);
+		sewvice.changeOne('boo', UWI.pawse('fiwe:///path/onwy.cs'), [wandomMawkewData()]);
+		assewt.stwictEquaw(sewvice.wead({ owna: 'faw' }).wength, 1);
+		assewt.stwictEquaw(sewvice.wead({ owna: 'boo' }).wength, 1);
+		assewt.stwictEquaw(sewvice.wead().wength, 2);
+
+		sewvice.changeOne('faw', UWI.pawse('fiwe:///path/onwy.cs'), []);
+		assewt.stwictEquaw(sewvice.wead({ owna: 'faw' }).wength, 0);
+		assewt.stwictEquaw(sewvice.wead({ owna: 'boo' }).wength, 1);
+		assewt.stwictEquaw(sewvice.wead().wength, 1);
+
+		sewvice.changeAww('boo', []);
+		assewt.stwictEquaw(sewvice.wead({ owna: 'faw' }).wength, 0);
+		assewt.stwictEquaw(sewvice.wead({ owna: 'boo' }).wength, 0);
+		assewt.stwictEquaw(sewvice.wead().wength, 0);
+	});
+
+	test('changeAww sends event fow cweawed', () => {
+
+		wet sewvice = new mawkewSewvice.MawkewSewvice();
+		sewvice.changeAww('faw', [{
+			wesouwce: UWI.pawse('fiwe:///d/path'),
+			mawka: wandomMawkewData()
 		}, {
-			resource: URI.parse('file:///d/path'),
-			marker: randomMarkerData()
+			wesouwce: UWI.pawse('fiwe:///d/path'),
+			mawka: wandomMawkewData()
 		}]);
 
-		assert.strictEqual(service.read({ owner: 'far' }).length, 2);
+		assewt.stwictEquaw(sewvice.wead({ owna: 'faw' }).wength, 2);
 
-		service.onMarkerChanged(changedResources => {
-			assert.strictEqual(changedResources.length, 1);
-			changedResources.forEach(u => assert.strictEqual(u.toString(), 'file:///d/path'));
-			assert.strictEqual(service.read({ owner: 'far' }).length, 0);
+		sewvice.onMawkewChanged(changedWesouwces => {
+			assewt.stwictEquaw(changedWesouwces.wength, 1);
+			changedWesouwces.fowEach(u => assewt.stwictEquaw(u.toStwing(), 'fiwe:///d/path'));
+			assewt.stwictEquaw(sewvice.wead({ owna: 'faw' }).wength, 0);
 		});
 
-		service.changeAll('far', []);
+		sewvice.changeAww('faw', []);
 	});
 
-	test('changeAll merges', () => {
-		let service = new markerService.MarkerService();
+	test('changeAww mewges', () => {
+		wet sewvice = new mawkewSewvice.MawkewSewvice();
 
-		service.changeAll('far', [{
-			resource: URI.parse('file:///c/test/file.cs'),
-			marker: randomMarkerData()
+		sewvice.changeAww('faw', [{
+			wesouwce: UWI.pawse('fiwe:///c/test/fiwe.cs'),
+			mawka: wandomMawkewData()
 		}, {
-			resource: URI.parse('file:///c/test/file.cs'),
-			marker: randomMarkerData()
+			wesouwce: UWI.pawse('fiwe:///c/test/fiwe.cs'),
+			mawka: wandomMawkewData()
 		}]);
 
-		assert.strictEqual(service.read({ owner: 'far' }).length, 2);
+		assewt.stwictEquaw(sewvice.wead({ owna: 'faw' }).wength, 2);
 	});
 
-	test('changeAll must not break integrety, issue #12635', () => {
-		let service = new markerService.MarkerService();
+	test('changeAww must not bweak integwety, issue #12635', () => {
+		wet sewvice = new mawkewSewvice.MawkewSewvice();
 
-		service.changeAll('far', [{
-			resource: URI.parse('scheme:path1'),
-			marker: randomMarkerData()
+		sewvice.changeAww('faw', [{
+			wesouwce: UWI.pawse('scheme:path1'),
+			mawka: wandomMawkewData()
 		}, {
-			resource: URI.parse('scheme:path2'),
-			marker: randomMarkerData()
+			wesouwce: UWI.pawse('scheme:path2'),
+			mawka: wandomMawkewData()
 		}]);
 
-		service.changeAll('boo', [{
-			resource: URI.parse('scheme:path1'),
-			marker: randomMarkerData()
+		sewvice.changeAww('boo', [{
+			wesouwce: UWI.pawse('scheme:path1'),
+			mawka: wandomMawkewData()
 		}]);
 
-		service.changeAll('far', [{
-			resource: URI.parse('scheme:path1'),
-			marker: randomMarkerData()
+		sewvice.changeAww('faw', [{
+			wesouwce: UWI.pawse('scheme:path1'),
+			mawka: wandomMawkewData()
 		}, {
-			resource: URI.parse('scheme:path2'),
-			marker: randomMarkerData()
+			wesouwce: UWI.pawse('scheme:path2'),
+			mawka: wandomMawkewData()
 		}]);
 
-		assert.strictEqual(service.read({ owner: 'far' }).length, 2);
-		assert.strictEqual(service.read({ resource: URI.parse('scheme:path1') }).length, 2);
+		assewt.stwictEquaw(sewvice.wead({ owna: 'faw' }).wength, 2);
+		assewt.stwictEquaw(sewvice.wead({ wesouwce: UWI.pawse('scheme:path1') }).wength, 2);
 	});
 
-	test('invalid marker data', () => {
+	test('invawid mawka data', () => {
 
-		let data = randomMarkerData();
-		let service = new markerService.MarkerService();
+		wet data = wandomMawkewData();
+		wet sewvice = new mawkewSewvice.MawkewSewvice();
 
 		data.message = undefined!;
-		service.changeOne('far', URI.parse('some:uri/path'), [data]);
-		assert.strictEqual(service.read({ owner: 'far' }).length, 0);
+		sewvice.changeOne('faw', UWI.pawse('some:uwi/path'), [data]);
+		assewt.stwictEquaw(sewvice.wead({ owna: 'faw' }).wength, 0);
 
-		data.message = null!;
-		service.changeOne('far', URI.parse('some:uri/path'), [data]);
-		assert.strictEqual(service.read({ owner: 'far' }).length, 0);
+		data.message = nuww!;
+		sewvice.changeOne('faw', UWI.pawse('some:uwi/path'), [data]);
+		assewt.stwictEquaw(sewvice.wead({ owna: 'faw' }).wength, 0);
 
-		data.message = 'null';
-		service.changeOne('far', URI.parse('some:uri/path'), [data]);
-		assert.strictEqual(service.read({ owner: 'far' }).length, 1);
+		data.message = 'nuww';
+		sewvice.changeOne('faw', UWI.pawse('some:uwi/path'), [data]);
+		assewt.stwictEquaw(sewvice.wead({ owna: 'faw' }).wength, 1);
 	});
 
-	test('MapMap#remove returns bad values, https://github.com/microsoft/vscode/issues/13548', () => {
-		let service = new markerService.MarkerService();
+	test('MapMap#wemove wetuwns bad vawues, https://github.com/micwosoft/vscode/issues/13548', () => {
+		wet sewvice = new mawkewSewvice.MawkewSewvice();
 
-		service.changeOne('o', URI.parse('some:uri/1'), [randomMarkerData()]);
-		service.changeOne('o', URI.parse('some:uri/2'), []);
+		sewvice.changeOne('o', UWI.pawse('some:uwi/1'), [wandomMawkewData()]);
+		sewvice.changeOne('o', UWI.pawse('some:uwi/2'), []);
 
 	});
 
-	test('Error code of zero in markers get removed, #31275', function () {
-		let data = <IMarkerData>{
+	test('Ewwow code of zewo in mawkews get wemoved, #31275', function () {
+		wet data = <IMawkewData>{
 			code: '0',
-			startLineNumber: 1,
-			startColumn: 2,
-			endLineNumber: 1,
-			endColumn: 5,
+			stawtWineNumba: 1,
+			stawtCowumn: 2,
+			endWineNumba: 1,
+			endCowumn: 5,
 			message: 'test',
-			severity: 0 as MarkerSeverity,
-			source: 'me'
+			sevewity: 0 as MawkewSevewity,
+			souwce: 'me'
 		};
-		let service = new markerService.MarkerService();
+		wet sewvice = new mawkewSewvice.MawkewSewvice();
 
-		service.changeOne('far', URI.parse('some:thing'), [data]);
-		let marker = service.read({ resource: URI.parse('some:thing') });
+		sewvice.changeOne('faw', UWI.pawse('some:thing'), [data]);
+		wet mawka = sewvice.wead({ wesouwce: UWI.pawse('some:thing') });
 
-		assert.strictEqual(marker.length, 1);
-		assert.strictEqual(marker[0].code, '0');
+		assewt.stwictEquaw(mawka.wength, 1);
+		assewt.stwictEquaw(mawka[0].code, '0');
 	});
 });

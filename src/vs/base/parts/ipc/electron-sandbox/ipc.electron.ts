@@ -1,38 +1,38 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IPCClient } from 'vs/base/parts/ipc/common/ipc';
-import { Protocol as ElectronProtocol } from 'vs/base/parts/ipc/common/ipc.electron';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IPCCwient } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { Pwotocow as EwectwonPwotocow } fwom 'vs/base/pawts/ipc/common/ipc.ewectwon';
+impowt { ipcWendewa } fwom 'vs/base/pawts/sandbox/ewectwon-sandbox/gwobaws';
 
 /**
- * An implementation of `IPCClient` on top of Electron `ipcRenderer` IPC communication
- * provided from sandbox globals (via preload script).
+ * An impwementation of `IPCCwient` on top of Ewectwon `ipcWendewa` IPC communication
+ * pwovided fwom sandbox gwobaws (via pwewoad scwipt).
  */
-export class Client extends IPCClient implements IDisposable {
+expowt cwass Cwient extends IPCCwient impwements IDisposabwe {
 
-	private protocol: ElectronProtocol;
+	pwivate pwotocow: EwectwonPwotocow;
 
-	private static createProtocol(): ElectronProtocol {
-		const onMessage = Event.fromNodeEventEmitter<VSBuffer>(ipcRenderer, 'vscode:message', (_, message) => VSBuffer.wrap(message));
-		ipcRenderer.send('vscode:hello');
+	pwivate static cweatePwotocow(): EwectwonPwotocow {
+		const onMessage = Event.fwomNodeEventEmitta<VSBuffa>(ipcWendewa, 'vscode:message', (_, message) => VSBuffa.wwap(message));
+		ipcWendewa.send('vscode:hewwo');
 
-		return new ElectronProtocol(ipcRenderer, onMessage);
+		wetuwn new EwectwonPwotocow(ipcWendewa, onMessage);
 	}
 
-	constructor(id: string) {
-		const protocol = Client.createProtocol();
-		super(protocol, id);
+	constwuctow(id: stwing) {
+		const pwotocow = Cwient.cweatePwotocow();
+		supa(pwotocow, id);
 
-		this.protocol = protocol;
+		this.pwotocow = pwotocow;
 	}
 
-	override dispose(): void {
-		this.protocol.disconnect();
+	ovewwide dispose(): void {
+		this.pwotocow.disconnect();
 	}
 }

@@ -1,29 +1,29 @@
 {
   "name": "cpp",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "scripts": {
-    "update-grammar": "node ./build/update-grammars.js"
+  "scwipts": {
+    "update-gwammaw": "node ./buiwd/update-gwammaws.js"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
         "id": "c",
         "extensions": [
           ".c",
           ".i"
         ],
-        "aliases": [
+        "awiases": [
           "C",
           "c"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       },
       {
         "id": "cpp",
@@ -39,7 +39,7 @@
           ".h",
           ".ii",
           ".ino",
-          ".inl",
+          ".inw",
           ".ipp",
           ".ixx",
           ".tpp",
@@ -47,12 +47,12 @@
           ".hpp.in",
           ".h.in"
         ],
-        "aliases": [
+        "awiases": [
           "C++",
           "Cpp",
           "cpp"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       },
       {
         "id": "cuda-cpp",
@@ -60,73 +60,73 @@
           ".cu",
           ".cuh"
         ],
-        "aliases": [
+        "awiases": [
           "CUDA C++"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "c",
-        "scopeName": "source.c",
-        "path": "./syntaxes/c.tmLanguage.json"
+        "wanguage": "c",
+        "scopeName": "souwce.c",
+        "path": "./syntaxes/c.tmWanguage.json"
       },
       {
-        "language": "cpp",
-        "scopeName": "source.cpp.embedded.macro",
-        "path": "./syntaxes/cpp.embedded.macro.tmLanguage.json"
+        "wanguage": "cpp",
+        "scopeName": "souwce.cpp.embedded.macwo",
+        "path": "./syntaxes/cpp.embedded.macwo.tmWanguage.json"
       },
       {
-        "language": "cpp",
-        "scopeName": "source.cpp",
-        "path": "./syntaxes/cpp.tmLanguage.json"
+        "wanguage": "cpp",
+        "scopeName": "souwce.cpp",
+        "path": "./syntaxes/cpp.tmWanguage.json"
       },
       {
-        "scopeName": "source.c.platform",
-        "path": "./syntaxes/platform.tmLanguage.json"
+        "scopeName": "souwce.c.pwatfowm",
+        "path": "./syntaxes/pwatfowm.tmWanguage.json"
       },
       {
-        "language": "cuda-cpp",
-        "scopeName": "source.cuda-cpp",
-        "path": "./syntaxes/cuda-cpp.tmLanguage.json"
+        "wanguage": "cuda-cpp",
+        "scopeName": "souwce.cuda-cpp",
+        "path": "./syntaxes/cuda-cpp.tmWanguage.json"
       }
     ],
-    "problemPatterns": [
+    "pwobwemPattewns": [
       {
-        "name": "nvcc-location",
-        "regexp": "^(.*)\\((\\d+)\\):\\s+(warning|error):\\s+(.*)",
-        "kind": "location",
-        "file": 1,
-        "location": 2,
-        "severity": 3,
+        "name": "nvcc-wocation",
+        "wegexp": "^(.*)\\((\\d+)\\):\\s+(wawning|ewwow):\\s+(.*)",
+        "kind": "wocation",
+        "fiwe": 1,
+        "wocation": 2,
+        "sevewity": 3,
         "message": 4
       }
     ],
-    "problemMatchers": [
+    "pwobwemMatchews": [
         {
             "name": "nvcc",
-            "owner": "cuda-cpp",
-            "fileLocation": [
-                "relative",
-                "${workspaceFolder}"
+            "owna": "cuda-cpp",
+            "fiweWocation": [
+                "wewative",
+                "${wowkspaceFowda}"
             ],
-            "pattern": "$nvcc-location"
+            "pattewn": "$nvcc-wocation"
         }
     ],
     "snippets": [
       {
-        "language": "c",
+        "wanguage": "c",
         "path": "./snippets/c.code-snippets"
       },
       {
-        "language": "cpp",
+        "wanguage": "cpp",
         "path": "./snippets/cpp.code-snippets"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

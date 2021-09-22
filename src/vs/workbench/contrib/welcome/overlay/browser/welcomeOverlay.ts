@@ -1,282 +1,282 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./welcomeOverlay';
-import * as dom from 'vs/base/browser/dom';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ShowAllCommandsAction } from 'vs/workbench/contrib/quickaccess/browser/commandsQuickAccess';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { localize } from 'vs/nls';
-import { Action } from 'vs/base/common/actions';
-import { IWorkbenchActionRegistry, Extensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { textPreformatForeground, foreground } from 'vs/platform/theme/common/colorRegistry';
-import { Color } from 'vs/base/common/color';
-import { Codicon } from 'vs/base/common/codicons';
+impowt 'vs/css!./wewcomeOvewway';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { ShowAwwCommandsAction } fwom 'vs/wowkbench/contwib/quickaccess/bwowsa/commandsQuickAccess';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IWayoutSewvice } fwom 'vs/pwatfowm/wayout/bwowsa/wayoutSewvice';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { IWowkbenchActionWegistwy, Extensions, CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { SyncActionDescwiptow } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { WawContextKey, IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { textPwefowmatFowegwound, fowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Codicon } fwom 'vs/base/common/codicons';
 
 const $ = dom.$;
 
-interface Key {
-	id: string;
-	arrow?: string;
-	label: string;
-	command?: string;
-	arrowLast?: boolean;
-	withEditor?: boolean;
+intewface Key {
+	id: stwing;
+	awwow?: stwing;
+	wabew: stwing;
+	command?: stwing;
+	awwowWast?: boowean;
+	withEditow?: boowean;
 }
 
 const keys: Key[] = [
 	{
-		id: 'explorer',
-		arrow: '\u2190', // &larr;
-		label: localize('welcomeOverlay.explorer', "File explorer"),
-		command: 'workbench.view.explorer'
+		id: 'expwowa',
+		awwow: '\u2190', // &waww;
+		wabew: wocawize('wewcomeOvewway.expwowa', "Fiwe expwowa"),
+		command: 'wowkbench.view.expwowa'
 	},
 	{
-		id: 'search',
-		arrow: '\u2190', // &larr;
-		label: localize('welcomeOverlay.search', "Search across files"),
-		command: 'workbench.view.search'
+		id: 'seawch',
+		awwow: '\u2190', // &waww;
+		wabew: wocawize('wewcomeOvewway.seawch', "Seawch acwoss fiwes"),
+		command: 'wowkbench.view.seawch'
 	},
 	{
 		id: 'git',
-		arrow: '\u2190', // &larr;
-		label: localize('welcomeOverlay.git', "Source code management"),
-		command: 'workbench.view.scm'
+		awwow: '\u2190', // &waww;
+		wabew: wocawize('wewcomeOvewway.git', "Souwce code management"),
+		command: 'wowkbench.view.scm'
 	},
 	{
 		id: 'debug',
-		arrow: '\u2190', // &larr;
-		label: localize('welcomeOverlay.debug', "Launch and debug"),
-		command: 'workbench.view.debug'
+		awwow: '\u2190', // &waww;
+		wabew: wocawize('wewcomeOvewway.debug', "Waunch and debug"),
+		command: 'wowkbench.view.debug'
 	},
 	{
 		id: 'extensions',
-		arrow: '\u2190', // &larr;
-		label: localize('welcomeOverlay.extensions', "Manage extensions"),
-		command: 'workbench.view.extensions'
+		awwow: '\u2190', // &waww;
+		wabew: wocawize('wewcomeOvewway.extensions', "Manage extensions"),
+		command: 'wowkbench.view.extensions'
 	},
 	// {
-	// 	id: 'watermark',
-	// 	arrow: '&larrpl;',
-	// 	label: localize('welcomeOverlay.watermark', "Command Hints"),
-	// 	withEditor: false
+	// 	id: 'watewmawk',
+	// 	awwow: '&wawwpw;',
+	// 	wabew: wocawize('wewcomeOvewway.watewmawk', "Command Hints"),
+	// 	withEditow: fawse
 	// },
 	{
-		id: 'problems',
-		arrow: '\u2939', // &larrpl;
-		label: localize('welcomeOverlay.problems', "View errors and warnings"),
-		command: 'workbench.actions.view.problems'
+		id: 'pwobwems',
+		awwow: '\u2939', // &wawwpw;
+		wabew: wocawize('wewcomeOvewway.pwobwems', "View ewwows and wawnings"),
+		command: 'wowkbench.actions.view.pwobwems'
 	},
 	{
-		id: 'terminal',
-		label: localize('welcomeOverlay.terminal', "Toggle integrated terminal"),
-		command: 'workbench.action.terminal.toggleTerminal'
+		id: 'tewminaw',
+		wabew: wocawize('wewcomeOvewway.tewminaw', "Toggwe integwated tewminaw"),
+		command: 'wowkbench.action.tewminaw.toggweTewminaw'
 	},
 	// {
-	// 	id: 'openfile',
-	// 	arrow: '&cudarrl;',
-	// 	label: localize('welcomeOverlay.openfile', "File Properties"),
-	// 	arrowLast: true,
-	// 	withEditor: true
+	// 	id: 'openfiwe',
+	// 	awwow: '&cudawww;',
+	// 	wabew: wocawize('wewcomeOvewway.openfiwe', "Fiwe Pwopewties"),
+	// 	awwowWast: twue,
+	// 	withEditow: twue
 	// },
 	{
-		id: 'commandPalette',
-		arrow: '\u2196', // &nwarr;
-		label: localize('welcomeOverlay.commandPalette', "Find and run all commands"),
-		command: ShowAllCommandsAction.ID
+		id: 'commandPawette',
+		awwow: '\u2196', // &nwaww;
+		wabew: wocawize('wewcomeOvewway.commandPawette', "Find and wun aww commands"),
+		command: ShowAwwCommandsAction.ID
 	},
 	{
 		id: 'notifications',
-		arrow: '\u2935', // &cudarrr;
-		arrowLast: true,
-		label: localize('welcomeOverlay.notifications', "Show notifications"),
-		command: 'notifications.showList'
+		awwow: '\u2935', // &cudawww;
+		awwowWast: twue,
+		wabew: wocawize('wewcomeOvewway.notifications', "Show notifications"),
+		command: 'notifications.showWist'
 	}
 ];
 
-const OVERLAY_VISIBLE = new RawContextKey<boolean>('interfaceOverviewVisible', false);
+const OVEWWAY_VISIBWE = new WawContextKey<boowean>('intewfaceOvewviewVisibwe', fawse);
 
-let welcomeOverlay: WelcomeOverlay;
+wet wewcomeOvewway: WewcomeOvewway;
 
-export class WelcomeOverlayAction extends Action {
+expowt cwass WewcomeOvewwayAction extends Action {
 
-	public static readonly ID = 'workbench.action.showInterfaceOverview';
-	public static readonly LABEL = localize('welcomeOverlay', "User Interface Overview");
+	pubwic static weadonwy ID = 'wowkbench.action.showIntewfaceOvewview';
+	pubwic static weadonwy WABEW = wocawize('wewcomeOvewway', "Usa Intewface Ovewview");
 
-	constructor(
-		id: string,
-		label: string,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	public override run(): Promise<void> {
-		if (!welcomeOverlay) {
-			welcomeOverlay = this.instantiationService.createInstance(WelcomeOverlay);
+	pubwic ovewwide wun(): Pwomise<void> {
+		if (!wewcomeOvewway) {
+			wewcomeOvewway = this.instantiationSewvice.cweateInstance(WewcomeOvewway);
 		}
-		welcomeOverlay.show();
-		return Promise.resolve();
+		wewcomeOvewway.show();
+		wetuwn Pwomise.wesowve();
 	}
 }
 
-export class HideWelcomeOverlayAction extends Action {
+expowt cwass HideWewcomeOvewwayAction extends Action {
 
-	public static readonly ID = 'workbench.action.hideInterfaceOverview';
-	public static readonly LABEL = localize('hideWelcomeOverlay', "Hide Interface Overview");
+	pubwic static weadonwy ID = 'wowkbench.action.hideIntewfaceOvewview';
+	pubwic static weadonwy WABEW = wocawize('hideWewcomeOvewway', "Hide Intewface Ovewview");
 
-	constructor(
-		id: string,
-		label: string
+	constwuctow(
+		id: stwing,
+		wabew: stwing
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	public override run(): Promise<void> {
-		if (welcomeOverlay) {
-			welcomeOverlay.hide();
+	pubwic ovewwide wun(): Pwomise<void> {
+		if (wewcomeOvewway) {
+			wewcomeOvewway.hide();
 		}
-		return Promise.resolve();
+		wetuwn Pwomise.wesowve();
 	}
 }
 
-class WelcomeOverlay extends Disposable {
+cwass WewcomeOvewway extends Disposabwe {
 
-	private _overlayVisible: IContextKey<boolean>;
-	private _overlay!: HTMLElement;
+	pwivate _ovewwayVisibwe: IContextKey<boowean>;
+	pwivate _ovewway!: HTMWEwement;
 
-	constructor(
-		@ILayoutService private readonly layoutService: ILayoutService,
-		@IEditorService private readonly editorService: IEditorService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+	constwuctow(
+		@IWayoutSewvice pwivate weadonwy wayoutSewvice: IWayoutSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
+		@IContextKeySewvice pwivate weadonwy _contextKeySewvice: IContextKeySewvice,
+		@IKeybindingSewvice pwivate weadonwy keybindingSewvice: IKeybindingSewvice
 	) {
-		super();
-		this._overlayVisible = OVERLAY_VISIBLE.bindTo(this._contextKeyService);
-		this.create();
+		supa();
+		this._ovewwayVisibwe = OVEWWAY_VISIBWE.bindTo(this._contextKeySewvice);
+		this.cweate();
 	}
 
-	private create(): void {
-		const offset = this.layoutService.offset?.top ?? 0;
-		this._overlay = dom.append(this.layoutService.container, $('.welcomeOverlay'));
-		this._overlay.style.top = `${offset}px`;
-		this._overlay.style.height = `calc(100% - ${offset}px)`;
-		this._overlay.style.display = 'none';
-		this._overlay.tabIndex = -1;
+	pwivate cweate(): void {
+		const offset = this.wayoutSewvice.offset?.top ?? 0;
+		this._ovewway = dom.append(this.wayoutSewvice.containa, $('.wewcomeOvewway'));
+		this._ovewway.stywe.top = `${offset}px`;
+		this._ovewway.stywe.height = `cawc(100% - ${offset}px)`;
+		this._ovewway.stywe.dispway = 'none';
+		this._ovewway.tabIndex = -1;
 
-		this._register(dom.addStandardDisposableListener(this._overlay, 'click', () => this.hide()));
-		this.commandService.onWillExecuteCommand(() => this.hide());
+		this._wegista(dom.addStandawdDisposabweWistena(this._ovewway, 'cwick', () => this.hide()));
+		this.commandSewvice.onWiwwExecuteCommand(() => this.hide());
 
-		dom.append(this._overlay, $('.commandPalettePlaceholder'));
+		dom.append(this._ovewway, $('.commandPawettePwacehowda'));
 
-		const editorOpen = !!this.editorService.visibleEditors.length;
-		keys.filter(key => !('withEditor' in key) || key.withEditor === editorOpen)
-			.forEach(({ id, arrow, label, command, arrowLast }) => {
-				const div = dom.append(this._overlay, $(`.key.${id}`));
-				if (arrow && !arrowLast) {
-					dom.append(div, $('span.arrow', undefined, arrow));
+		const editowOpen = !!this.editowSewvice.visibweEditows.wength;
+		keys.fiwta(key => !('withEditow' in key) || key.withEditow === editowOpen)
+			.fowEach(({ id, awwow, wabew, command, awwowWast }) => {
+				const div = dom.append(this._ovewway, $(`.key.${id}`));
+				if (awwow && !awwowWast) {
+					dom.append(div, $('span.awwow', undefined, awwow));
 				}
-				dom.append(div, $('span.label')).textContent = label;
+				dom.append(div, $('span.wabew')).textContent = wabew;
 				if (command) {
-					const shortcut = this.keybindingService.lookupKeybinding(command);
-					if (shortcut) {
-						dom.append(div, $('span.shortcut')).textContent = shortcut.getLabel();
+					const showtcut = this.keybindingSewvice.wookupKeybinding(command);
+					if (showtcut) {
+						dom.append(div, $('span.showtcut')).textContent = showtcut.getWabew();
 					}
 				}
-				if (arrow && arrowLast) {
-					dom.append(div, $('span.arrow', undefined, arrow));
+				if (awwow && awwowWast) {
+					dom.append(div, $('span.awwow', undefined, awwow));
 				}
 			});
 	}
 
-	public show() {
-		if (this._overlay.style.display !== 'block') {
-			this._overlay.style.display = 'block';
-			const workbench = document.querySelector('.monaco-workbench') as HTMLElement;
-			workbench.classList.add('blur-background');
-			this._overlayVisible.set(true);
-			this.updateProblemsKey();
-			this.updateActivityBarKeys();
-			this._overlay.focus();
+	pubwic show() {
+		if (this._ovewway.stywe.dispway !== 'bwock') {
+			this._ovewway.stywe.dispway = 'bwock';
+			const wowkbench = document.quewySewectow('.monaco-wowkbench') as HTMWEwement;
+			wowkbench.cwassWist.add('bwuw-backgwound');
+			this._ovewwayVisibwe.set(twue);
+			this.updatePwobwemsKey();
+			this.updateActivityBawKeys();
+			this._ovewway.focus();
 		}
 	}
 
-	private updateProblemsKey() {
-		const problems = document.querySelector(`footer[id="workbench.parts.statusbar"] .statusbar-item.left ${Codicon.warning.cssSelector}`);
-		const key = this._overlay.querySelector('.key.problems') as HTMLElement;
-		if (problems instanceof HTMLElement) {
-			const target = problems.getBoundingClientRect();
-			const bounds = this._overlay.getBoundingClientRect();
-			const bottom = bounds.bottom - target.top + 3;
-			const left = (target.left + target.right) / 2 - bounds.left;
-			key.style.bottom = bottom + 'px';
-			key.style.left = left + 'px';
-		} else {
-			key.style.bottom = '';
-			key.style.left = '';
+	pwivate updatePwobwemsKey() {
+		const pwobwems = document.quewySewectow(`foota[id="wowkbench.pawts.statusbaw"] .statusbaw-item.weft ${Codicon.wawning.cssSewectow}`);
+		const key = this._ovewway.quewySewectow('.key.pwobwems') as HTMWEwement;
+		if (pwobwems instanceof HTMWEwement) {
+			const tawget = pwobwems.getBoundingCwientWect();
+			const bounds = this._ovewway.getBoundingCwientWect();
+			const bottom = bounds.bottom - tawget.top + 3;
+			const weft = (tawget.weft + tawget.wight) / 2 - bounds.weft;
+			key.stywe.bottom = bottom + 'px';
+			key.stywe.weft = weft + 'px';
+		} ewse {
+			key.stywe.bottom = '';
+			key.stywe.weft = '';
 		}
 	}
 
-	private updateActivityBarKeys() {
-		const ids = ['explorer', 'search', 'git', 'debug', 'extensions'];
-		const activityBar = document.querySelector('.activitybar .composite-bar');
-		if (activityBar instanceof HTMLElement) {
-			const target = activityBar.getBoundingClientRect();
-			const bounds = this._overlay.getBoundingClientRect();
-			for (let i = 0; i < ids.length; i++) {
-				const key = this._overlay.querySelector(`.key.${ids[i]}`) as HTMLElement;
-				const top = target.top - bounds.top + 50 * i + 13;
-				key.style.top = top + 'px';
+	pwivate updateActivityBawKeys() {
+		const ids = ['expwowa', 'seawch', 'git', 'debug', 'extensions'];
+		const activityBaw = document.quewySewectow('.activitybaw .composite-baw');
+		if (activityBaw instanceof HTMWEwement) {
+			const tawget = activityBaw.getBoundingCwientWect();
+			const bounds = this._ovewway.getBoundingCwientWect();
+			fow (wet i = 0; i < ids.wength; i++) {
+				const key = this._ovewway.quewySewectow(`.key.${ids[i]}`) as HTMWEwement;
+				const top = tawget.top - bounds.top + 50 * i + 13;
+				key.stywe.top = top + 'px';
 			}
-		} else {
-			for (let i = 0; i < ids.length; i++) {
-				const key = this._overlay.querySelector(`.key.${ids[i]}`) as HTMLElement;
-				key.style.top = '';
+		} ewse {
+			fow (wet i = 0; i < ids.wength; i++) {
+				const key = this._ovewway.quewySewectow(`.key.${ids[i]}`) as HTMWEwement;
+				key.stywe.top = '';
 			}
 		}
 	}
 
-	public hide() {
-		if (this._overlay.style.display !== 'none') {
-			this._overlay.style.display = 'none';
-			const workbench = document.querySelector('.monaco-workbench') as HTMLElement;
-			workbench.classList.remove('blur-background');
-			this._overlayVisible.reset();
+	pubwic hide() {
+		if (this._ovewway.stywe.dispway !== 'none') {
+			this._ovewway.stywe.dispway = 'none';
+			const wowkbench = document.quewySewectow('.monaco-wowkbench') as HTMWEwement;
+			wowkbench.cwassWist.wemove('bwuw-backgwound');
+			this._ovewwayVisibwe.weset();
 		}
 	}
 }
 
-Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
-	.registerWorkbenchAction(SyncActionDescriptor.from(WelcomeOverlayAction), 'Help: User Interface Overview', CATEGORIES.Help.value);
+Wegistwy.as<IWowkbenchActionWegistwy>(Extensions.WowkbenchActions)
+	.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(WewcomeOvewwayAction), 'Hewp: Usa Intewface Ovewview', CATEGOWIES.Hewp.vawue);
 
-Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
-	.registerWorkbenchAction(SyncActionDescriptor.from(HideWelcomeOverlayAction, { primary: KeyCode.Escape }, OVERLAY_VISIBLE), 'Help: Hide Interface Overview', CATEGORIES.Help.value);
+Wegistwy.as<IWowkbenchActionWegistwy>(Extensions.WowkbenchActions)
+	.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(HideWewcomeOvewwayAction, { pwimawy: KeyCode.Escape }, OVEWWAY_VISIBWE), 'Hewp: Hide Intewface Ovewview', CATEGOWIES.Hewp.vawue);
 
 // theming
 
-registerThemingParticipant((theme, collector) => {
-	const key = theme.getColor(foreground);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const key = theme.getCowow(fowegwound);
 	if (key) {
-		collector.addRule(`.monaco-workbench > .welcomeOverlay > .key { color: ${key}; }`);
+		cowwectow.addWuwe(`.monaco-wowkbench > .wewcomeOvewway > .key { cowow: ${key}; }`);
 	}
-	const backgroundColor = Color.fromHex(theme.type === 'light' ? '#FFFFFF85' : '#00000085');
-	if (backgroundColor) {
-		collector.addRule(`.monaco-workbench > .welcomeOverlay { background: ${backgroundColor}; }`);
+	const backgwoundCowow = Cowow.fwomHex(theme.type === 'wight' ? '#FFFFFF85' : '#00000085');
+	if (backgwoundCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench > .wewcomeOvewway { backgwound: ${backgwoundCowow}; }`);
 	}
-	const shortcut = theme.getColor(textPreformatForeground);
-	if (shortcut) {
-		collector.addRule(`.monaco-workbench > .welcomeOverlay > .key > .shortcut { color: ${shortcut}; }`);
+	const showtcut = theme.getCowow(textPwefowmatFowegwound);
+	if (showtcut) {
+		cowwectow.addWuwe(`.monaco-wowkbench > .wewcomeOvewway > .key > .showtcut { cowow: ${showtcut}; }`);
 	}
 });

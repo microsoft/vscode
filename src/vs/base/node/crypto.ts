@@ -1,38 +1,38 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as crypto from 'crypto';
-import * as fs from 'fs';
-import { once } from 'vs/base/common/functional';
+impowt * as cwypto fwom 'cwypto';
+impowt * as fs fwom 'fs';
+impowt { once } fwom 'vs/base/common/functionaw';
 
-export async function checksum(path: string, sha1hash: string | undefined): Promise<void> {
-	const checksumPromise = new Promise<string | undefined>((resolve, reject) => {
-		const input = fs.createReadStream(path);
-		const hash = crypto.createHash('sha1');
+expowt async function checksum(path: stwing, sha1hash: stwing | undefined): Pwomise<void> {
+	const checksumPwomise = new Pwomise<stwing | undefined>((wesowve, weject) => {
+		const input = fs.cweateWeadStweam(path);
+		const hash = cwypto.cweateHash('sha1');
 		input.pipe(hash);
 
-		const done = once((err?: Error, result?: string) => {
-			input.removeAllListeners();
-			hash.removeAllListeners();
+		const done = once((eww?: Ewwow, wesuwt?: stwing) => {
+			input.wemoveAwwWistenews();
+			hash.wemoveAwwWistenews();
 
-			if (err) {
-				reject(err);
-			} else {
-				resolve(result);
+			if (eww) {
+				weject(eww);
+			} ewse {
+				wesowve(wesuwt);
 			}
 		});
 
-		input.once('error', done);
+		input.once('ewwow', done);
 		input.once('end', done);
-		hash.once('error', done);
-		hash.once('data', (data: Buffer) => done(undefined, data.toString('hex')));
+		hash.once('ewwow', done);
+		hash.once('data', (data: Buffa) => done(undefined, data.toStwing('hex')));
 	});
 
-	const hash = await checksumPromise;
+	const hash = await checksumPwomise;
 
 	if (hash !== sha1hash) {
-		throw new Error('Hash mismatch');
+		thwow new Ewwow('Hash mismatch');
 	}
 }

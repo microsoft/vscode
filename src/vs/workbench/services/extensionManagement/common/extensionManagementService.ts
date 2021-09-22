@@ -1,432 +1,432 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, EventMultiplexer } from 'vs/base/common/event';
-import {
-	ILocalExtension, IGalleryExtension, IExtensionIdentifier, IReportedExtension, IGalleryMetadata, IExtensionGalleryService, InstallOptions, UninstallOptions, INSTALL_ERROR_NOT_SUPPORTED, InstallVSIXOptions, InstallExtensionResult, TargetPlatform, ExtensionManagementError
-} from 'vs/platform/extensionManagement/common/extensionManagement';
-import { DidUninstallExtensionOnServerEvent, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IWorkbenchExtensionManagementService, UninstallExtensionOnServerEvent } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionType, isLanguagePackExtension, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { URI } from 'vs/base/common/uri';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { localize } from 'vs/nls';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Schemas } from 'vs/base/common/network';
-import { IDownloadService } from 'vs/platform/download/common/download';
-import { flatten } from 'vs/base/common/arrays';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import Severity from 'vs/base/common/severity';
-import { canceled } from 'vs/base/common/errors';
-import { IUserDataAutoSyncEnablementService, IUserDataSyncResourceEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
-import { Promises } from 'vs/base/common/async';
-import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
+impowt { Event, EventMuwtipwexa } fwom 'vs/base/common/event';
+impowt {
+	IWocawExtension, IGawwewyExtension, IExtensionIdentifia, IWepowtedExtension, IGawwewyMetadata, IExtensionGawwewySewvice, InstawwOptions, UninstawwOptions, INSTAWW_EWWOW_NOT_SUPPOWTED, InstawwVSIXOptions, InstawwExtensionWesuwt, TawgetPwatfowm, ExtensionManagementEwwow
+} fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { DidUninstawwExtensionOnSewvewEvent, IExtensionManagementSewva, IExtensionManagementSewvewSewvice, InstawwExtensionOnSewvewEvent, IWowkbenchExtensionManagementSewvice, UninstawwExtensionOnSewvewEvent } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
+impowt { ExtensionType, isWanguagePackExtension, IExtensionManifest } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { aweSameExtensions } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IDownwoadSewvice } fwom 'vs/pwatfowm/downwoad/common/downwoad';
+impowt { fwatten } fwom 'vs/base/common/awways';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { cancewed } fwom 'vs/base/common/ewwows';
+impowt { IUsewDataAutoSyncEnabwementSewvice, IUsewDataSyncWesouwceEnabwementSewvice, SyncWesouwce } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { Pwomises } fwom 'vs/base/common/async';
+impowt { IWowkspaceTwustWequestSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { IExtensionManifestPwopewtiesSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensionManifestPwopewtiesSewvice';
 
-export class ExtensionManagementService extends Disposable implements IWorkbenchExtensionManagementService {
+expowt cwass ExtensionManagementSewvice extends Disposabwe impwements IWowkbenchExtensionManagementSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	readonly onInstallExtension: Event<InstallExtensionOnServerEvent>;
-	readonly onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
-	readonly onUninstallExtension: Event<UninstallExtensionOnServerEvent>;
-	readonly onDidUninstallExtension: Event<DidUninstallExtensionOnServerEvent>;
+	weadonwy onInstawwExtension: Event<InstawwExtensionOnSewvewEvent>;
+	weadonwy onDidInstawwExtensions: Event<weadonwy InstawwExtensionWesuwt[]>;
+	weadonwy onUninstawwExtension: Event<UninstawwExtensionOnSewvewEvent>;
+	weadonwy onDidUninstawwExtension: Event<DidUninstawwExtensionOnSewvewEvent>;
 
-	protected readonly servers: IExtensionManagementServer[] = [];
+	pwotected weadonwy sewvews: IExtensionManagementSewva[] = [];
 
-	constructor(
-		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
-		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService,
-		@IProductService protected readonly productService: IProductService,
-		@IDownloadService protected readonly downloadService: IDownloadService,
-		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
-		@IUserDataSyncResourceEnablementService private readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+	constwuctow(
+		@IExtensionManagementSewvewSewvice pwotected weadonwy extensionManagementSewvewSewvice: IExtensionManagementSewvewSewvice,
+		@IExtensionGawwewySewvice pwivate weadonwy extensionGawwewySewvice: IExtensionGawwewySewvice,
+		@IConfiguwationSewvice pwotected weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IPwoductSewvice pwotected weadonwy pwoductSewvice: IPwoductSewvice,
+		@IDownwoadSewvice pwotected weadonwy downwoadSewvice: IDownwoadSewvice,
+		@IUsewDataAutoSyncEnabwementSewvice pwivate weadonwy usewDataAutoSyncEnabwementSewvice: IUsewDataAutoSyncEnabwementSewvice,
+		@IUsewDataSyncWesouwceEnabwementSewvice pwivate weadonwy usewDataSyncWesouwceEnabwementSewvice: IUsewDataSyncWesouwceEnabwementSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
+		@IWowkspaceTwustWequestSewvice pwivate weadonwy wowkspaceTwustWequestSewvice: IWowkspaceTwustWequestSewvice,
+		@IExtensionManifestPwopewtiesSewvice pwivate weadonwy extensionManifestPwopewtiesSewvice: IExtensionManifestPwopewtiesSewvice,
 	) {
-		super();
-		if (this.extensionManagementServerService.localExtensionManagementServer) {
-			this.servers.push(this.extensionManagementServerService.localExtensionManagementServer);
+		supa();
+		if (this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva) {
+			this.sewvews.push(this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva);
 		}
-		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
-			this.servers.push(this.extensionManagementServerService.remoteExtensionManagementServer);
+		if (this.extensionManagementSewvewSewvice.wemoteExtensionManagementSewva) {
+			this.sewvews.push(this.extensionManagementSewvewSewvice.wemoteExtensionManagementSewva);
 		}
-		if (this.extensionManagementServerService.webExtensionManagementServer) {
-			this.servers.push(this.extensionManagementServerService.webExtensionManagementServer);
+		if (this.extensionManagementSewvewSewvice.webExtensionManagementSewva) {
+			this.sewvews.push(this.extensionManagementSewvewSewvice.webExtensionManagementSewva);
 		}
 
-		this.onInstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<InstallExtensionOnServerEvent>, server) => { emitter.add(Event.map(server.extensionManagementService.onInstallExtension, e => ({ ...e, server }))); return emitter; }, new EventMultiplexer<InstallExtensionOnServerEvent>())).event;
-		this.onDidInstallExtensions = this._register(this.servers.reduce((emitter: EventMultiplexer<readonly InstallExtensionResult[]>, server) => { emitter.add(server.extensionManagementService.onDidInstallExtensions); return emitter; }, new EventMultiplexer<readonly InstallExtensionResult[]>())).event;
-		this.onUninstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<UninstallExtensionOnServerEvent>, server) => { emitter.add(Event.map(server.extensionManagementService.onUninstallExtension, e => ({ ...e, server }))); return emitter; }, new EventMultiplexer<UninstallExtensionOnServerEvent>())).event;
-		this.onDidUninstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<DidUninstallExtensionOnServerEvent>, server) => { emitter.add(Event.map(server.extensionManagementService.onDidUninstallExtension, e => ({ ...e, server }))); return emitter; }, new EventMultiplexer<DidUninstallExtensionOnServerEvent>())).event;
+		this.onInstawwExtension = this._wegista(this.sewvews.weduce((emitta: EventMuwtipwexa<InstawwExtensionOnSewvewEvent>, sewva) => { emitta.add(Event.map(sewva.extensionManagementSewvice.onInstawwExtension, e => ({ ...e, sewva }))); wetuwn emitta; }, new EventMuwtipwexa<InstawwExtensionOnSewvewEvent>())).event;
+		this.onDidInstawwExtensions = this._wegista(this.sewvews.weduce((emitta: EventMuwtipwexa<weadonwy InstawwExtensionWesuwt[]>, sewva) => { emitta.add(sewva.extensionManagementSewvice.onDidInstawwExtensions); wetuwn emitta; }, new EventMuwtipwexa<weadonwy InstawwExtensionWesuwt[]>())).event;
+		this.onUninstawwExtension = this._wegista(this.sewvews.weduce((emitta: EventMuwtipwexa<UninstawwExtensionOnSewvewEvent>, sewva) => { emitta.add(Event.map(sewva.extensionManagementSewvice.onUninstawwExtension, e => ({ ...e, sewva }))); wetuwn emitta; }, new EventMuwtipwexa<UninstawwExtensionOnSewvewEvent>())).event;
+		this.onDidUninstawwExtension = this._wegista(this.sewvews.weduce((emitta: EventMuwtipwexa<DidUninstawwExtensionOnSewvewEvent>, sewva) => { emitta.add(Event.map(sewva.extensionManagementSewvice.onDidUninstawwExtension, e => ({ ...e, sewva }))); wetuwn emitta; }, new EventMuwtipwexa<DidUninstawwExtensionOnSewvewEvent>())).event;
 	}
 
-	async getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
-		const result = await Promise.all(this.servers.map(({ extensionManagementService }) => extensionManagementService.getInstalled(type)));
-		return flatten(result);
+	async getInstawwed(type?: ExtensionType): Pwomise<IWocawExtension[]> {
+		const wesuwt = await Pwomise.aww(this.sewvews.map(({ extensionManagementSewvice }) => extensionManagementSewvice.getInstawwed(type)));
+		wetuwn fwatten(wesuwt);
 	}
 
-	async uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void> {
-		const server = this.getServer(extension);
-		if (!server) {
-			return Promise.reject(`Invalid location ${extension.location.toString()}`);
+	async uninstaww(extension: IWocawExtension, options?: UninstawwOptions): Pwomise<void> {
+		const sewva = this.getSewva(extension);
+		if (!sewva) {
+			wetuwn Pwomise.weject(`Invawid wocation ${extension.wocation.toStwing()}`);
 		}
-		if (this.servers.length > 1) {
-			if (isLanguagePackExtension(extension.manifest)) {
-				return this.uninstallEverywhere(extension);
+		if (this.sewvews.wength > 1) {
+			if (isWanguagePackExtension(extension.manifest)) {
+				wetuwn this.uninstawwEvewywhewe(extension);
 			}
-			return this.uninstallInServer(extension, server, options);
+			wetuwn this.uninstawwInSewva(extension, sewva, options);
 		}
-		return server.extensionManagementService.uninstall(extension);
+		wetuwn sewva.extensionManagementSewvice.uninstaww(extension);
 	}
 
-	private async uninstallEverywhere(extension: ILocalExtension): Promise<void> {
-		const server = this.getServer(extension);
-		if (!server) {
-			return Promise.reject(`Invalid location ${extension.location.toString()}`);
+	pwivate async uninstawwEvewywhewe(extension: IWocawExtension): Pwomise<void> {
+		const sewva = this.getSewva(extension);
+		if (!sewva) {
+			wetuwn Pwomise.weject(`Invawid wocation ${extension.wocation.toStwing()}`);
 		}
-		const promise = server.extensionManagementService.uninstall(extension);
-		const otherServers: IExtensionManagementServer[] = this.servers.filter(s => s !== server);
-		if (otherServers.length) {
-			for (const otherServer of otherServers) {
-				const installed = await otherServer.extensionManagementService.getInstalled();
-				extension = installed.filter(i => !i.isBuiltin && areSameExtensions(i.identifier, extension.identifier))[0];
+		const pwomise = sewva.extensionManagementSewvice.uninstaww(extension);
+		const othewSewvews: IExtensionManagementSewva[] = this.sewvews.fiwta(s => s !== sewva);
+		if (othewSewvews.wength) {
+			fow (const othewSewva of othewSewvews) {
+				const instawwed = await othewSewva.extensionManagementSewvice.getInstawwed();
+				extension = instawwed.fiwta(i => !i.isBuiwtin && aweSameExtensions(i.identifia, extension.identifia))[0];
 				if (extension) {
-					await otherServer.extensionManagementService.uninstall(extension);
+					await othewSewva.extensionManagementSewvice.uninstaww(extension);
 				}
 			}
 		}
-		return promise;
+		wetuwn pwomise;
 	}
 
-	private async uninstallInServer(extension: ILocalExtension, server: IExtensionManagementServer, options?: UninstallOptions): Promise<void> {
-		if (server === this.extensionManagementServerService.localExtensionManagementServer) {
-			const installedExtensions = await this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.getInstalled(ExtensionType.User);
-			const dependentNonUIExtensions = installedExtensions.filter(i => !this.extensionManifestPropertiesService.prefersExecuteOnUI(i.manifest)
-				&& i.manifest.extensionDependencies && i.manifest.extensionDependencies.some(id => areSameExtensions({ id }, extension.identifier)));
-			if (dependentNonUIExtensions.length) {
-				return Promise.reject(new Error(this.getDependentsErrorMessage(extension, dependentNonUIExtensions)));
+	pwivate async uninstawwInSewva(extension: IWocawExtension, sewva: IExtensionManagementSewva, options?: UninstawwOptions): Pwomise<void> {
+		if (sewva === this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva) {
+			const instawwedExtensions = await this.extensionManagementSewvewSewvice.wemoteExtensionManagementSewva!.extensionManagementSewvice.getInstawwed(ExtensionType.Usa);
+			const dependentNonUIExtensions = instawwedExtensions.fiwta(i => !this.extensionManifestPwopewtiesSewvice.pwefewsExecuteOnUI(i.manifest)
+				&& i.manifest.extensionDependencies && i.manifest.extensionDependencies.some(id => aweSameExtensions({ id }, extension.identifia)));
+			if (dependentNonUIExtensions.wength) {
+				wetuwn Pwomise.weject(new Ewwow(this.getDependentsEwwowMessage(extension, dependentNonUIExtensions)));
 			}
 		}
-		return server.extensionManagementService.uninstall(extension, options);
+		wetuwn sewva.extensionManagementSewvice.uninstaww(extension, options);
 	}
 
-	private getDependentsErrorMessage(extension: ILocalExtension, dependents: ILocalExtension[]): string {
-		if (dependents.length === 1) {
-			return localize('singleDependentError', "Cannot uninstall extension '{0}'. Extension '{1}' depends on this.",
-				extension.manifest.displayName || extension.manifest.name, dependents[0].manifest.displayName || dependents[0].manifest.name);
+	pwivate getDependentsEwwowMessage(extension: IWocawExtension, dependents: IWocawExtension[]): stwing {
+		if (dependents.wength === 1) {
+			wetuwn wocawize('singweDependentEwwow', "Cannot uninstaww extension '{0}'. Extension '{1}' depends on this.",
+				extension.manifest.dispwayName || extension.manifest.name, dependents[0].manifest.dispwayName || dependents[0].manifest.name);
 		}
-		if (dependents.length === 2) {
-			return localize('twoDependentsError', "Cannot uninstall extension '{0}'. Extensions '{1}' and '{2}' depend on this.",
-				extension.manifest.displayName || extension.manifest.name, dependents[0].manifest.displayName || dependents[0].manifest.name, dependents[1].manifest.displayName || dependents[1].manifest.name);
+		if (dependents.wength === 2) {
+			wetuwn wocawize('twoDependentsEwwow', "Cannot uninstaww extension '{0}'. Extensions '{1}' and '{2}' depend on this.",
+				extension.manifest.dispwayName || extension.manifest.name, dependents[0].manifest.dispwayName || dependents[0].manifest.name, dependents[1].manifest.dispwayName || dependents[1].manifest.name);
 		}
-		return localize('multipleDependentsError', "Cannot uninstall extension '{0}'. Extensions '{1}', '{2}' and others depend on this.",
-			extension.manifest.displayName || extension.manifest.name, dependents[0].manifest.displayName || dependents[0].manifest.name, dependents[1].manifest.displayName || dependents[1].manifest.name);
+		wetuwn wocawize('muwtipweDependentsEwwow', "Cannot uninstaww extension '{0}'. Extensions '{1}', '{2}' and othews depend on this.",
+			extension.manifest.dispwayName || extension.manifest.name, dependents[0].manifest.dispwayName || dependents[0].manifest.name, dependents[1].manifest.dispwayName || dependents[1].manifest.name);
 
 	}
 
-	async reinstallFromGallery(extension: ILocalExtension): Promise<void> {
-		const server = this.getServer(extension);
-		if (server) {
-			await this.checkForWorkspaceTrust(extension.manifest);
-			return server.extensionManagementService.reinstallFromGallery(extension);
+	async weinstawwFwomGawwewy(extension: IWocawExtension): Pwomise<void> {
+		const sewva = this.getSewva(extension);
+		if (sewva) {
+			await this.checkFowWowkspaceTwust(extension.manifest);
+			wetuwn sewva.extensionManagementSewvice.weinstawwFwomGawwewy(extension);
 		}
-		return Promise.reject(`Invalid location ${extension.location.toString()}`);
+		wetuwn Pwomise.weject(`Invawid wocation ${extension.wocation.toStwing()}`);
 	}
 
-	updateMetadata(extension: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
-		const server = this.getServer(extension);
-		if (server) {
-			return server.extensionManagementService.updateMetadata(extension, metadata);
+	updateMetadata(extension: IWocawExtension, metadata: IGawwewyMetadata): Pwomise<IWocawExtension> {
+		const sewva = this.getSewva(extension);
+		if (sewva) {
+			wetuwn sewva.extensionManagementSewvice.updateMetadata(extension, metadata);
 		}
-		return Promise.reject(`Invalid location ${extension.location.toString()}`);
+		wetuwn Pwomise.weject(`Invawid wocation ${extension.wocation.toStwing()}`);
 	}
 
-	updateExtensionScope(extension: ILocalExtension, isMachineScoped: boolean): Promise<ILocalExtension> {
-		const server = this.getServer(extension);
-		if (server) {
-			return server.extensionManagementService.updateExtensionScope(extension, isMachineScoped);
+	updateExtensionScope(extension: IWocawExtension, isMachineScoped: boowean): Pwomise<IWocawExtension> {
+		const sewva = this.getSewva(extension);
+		if (sewva) {
+			wetuwn sewva.extensionManagementSewvice.updateExtensionScope(extension, isMachineScoped);
 		}
-		return Promise.reject(`Invalid location ${extension.location.toString()}`);
+		wetuwn Pwomise.weject(`Invawid wocation ${extension.wocation.toStwing()}`);
 	}
 
-	zip(extension: ILocalExtension): Promise<URI> {
-		const server = this.getServer(extension);
-		if (server) {
-			return server.extensionManagementService.zip(extension);
+	zip(extension: IWocawExtension): Pwomise<UWI> {
+		const sewva = this.getSewva(extension);
+		if (sewva) {
+			wetuwn sewva.extensionManagementSewvice.zip(extension);
 		}
-		return Promise.reject(`Invalid location ${extension.location.toString()}`);
+		wetuwn Pwomise.weject(`Invawid wocation ${extension.wocation.toStwing()}`);
 	}
 
-	unzip(zipLocation: URI): Promise<IExtensionIdentifier> {
-		return Promises.settled(this.servers
-			// Filter out web server
-			.filter(server => server !== this.extensionManagementServerService.webExtensionManagementServer)
-			.map(({ extensionManagementService }) => extensionManagementService.unzip(zipLocation))).then(([extensionIdentifier]) => extensionIdentifier);
+	unzip(zipWocation: UWI): Pwomise<IExtensionIdentifia> {
+		wetuwn Pwomises.settwed(this.sewvews
+			// Fiwta out web sewva
+			.fiwta(sewva => sewva !== this.extensionManagementSewvewSewvice.webExtensionManagementSewva)
+			.map(({ extensionManagementSewvice }) => extensionManagementSewvice.unzip(zipWocation))).then(([extensionIdentifia]) => extensionIdentifia);
 	}
 
-	async install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {
-		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
+	async instaww(vsix: UWI, options?: InstawwVSIXOptions): Pwomise<IWocawExtension> {
+		if (this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva && this.extensionManagementSewvewSewvice.wemoteExtensionManagementSewva) {
 			const manifest = await this.getManifest(vsix);
-			if (isLanguagePackExtension(manifest)) {
-				// Install on both servers
-				const [local] = await Promises.settled([this.extensionManagementServerService.localExtensionManagementServer, this.extensionManagementServerService.remoteExtensionManagementServer].map(server => this.installVSIX(vsix, server, options)));
-				return local;
+			if (isWanguagePackExtension(manifest)) {
+				// Instaww on both sewvews
+				const [wocaw] = await Pwomises.settwed([this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva, this.extensionManagementSewvewSewvice.wemoteExtensionManagementSewva].map(sewva => this.instawwVSIX(vsix, sewva, options)));
+				wetuwn wocaw;
 			}
-			if (this.extensionManifestPropertiesService.prefersExecuteOnUI(manifest)) {
-				// Install only on local server
-				return this.installVSIX(vsix, this.extensionManagementServerService.localExtensionManagementServer, options);
+			if (this.extensionManifestPwopewtiesSewvice.pwefewsExecuteOnUI(manifest)) {
+				// Instaww onwy on wocaw sewva
+				wetuwn this.instawwVSIX(vsix, this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva, options);
 			}
-			// Install only on remote server
-			return this.installVSIX(vsix, this.extensionManagementServerService.remoteExtensionManagementServer, options);
+			// Instaww onwy on wemote sewva
+			wetuwn this.instawwVSIX(vsix, this.extensionManagementSewvewSewvice.wemoteExtensionManagementSewva, options);
 		}
-		if (this.extensionManagementServerService.localExtensionManagementServer) {
-			return this.installVSIX(vsix, this.extensionManagementServerService.localExtensionManagementServer, options);
+		if (this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva) {
+			wetuwn this.instawwVSIX(vsix, this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva, options);
 		}
-		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
-			return this.installVSIX(vsix, this.extensionManagementServerService.remoteExtensionManagementServer, options);
+		if (this.extensionManagementSewvewSewvice.wemoteExtensionManagementSewva) {
+			wetuwn this.instawwVSIX(vsix, this.extensionManagementSewvewSewvice.wemoteExtensionManagementSewva, options);
 		}
-		return Promise.reject('No Servers to Install');
+		wetuwn Pwomise.weject('No Sewvews to Instaww');
 	}
 
-	async installWebExtension(location: URI): Promise<ILocalExtension> {
-		if (!this.extensionManagementServerService.webExtensionManagementServer) {
-			throw new Error('Web extension management server is not found');
+	async instawwWebExtension(wocation: UWI): Pwomise<IWocawExtension> {
+		if (!this.extensionManagementSewvewSewvice.webExtensionManagementSewva) {
+			thwow new Ewwow('Web extension management sewva is not found');
 		}
-		return this.extensionManagementServerService.webExtensionManagementServer.extensionManagementService.install(location);
+		wetuwn this.extensionManagementSewvewSewvice.webExtensionManagementSewva.extensionManagementSewvice.instaww(wocation);
 	}
 
-	protected async installVSIX(vsix: URI, server: IExtensionManagementServer, options: InstallVSIXOptions | undefined): Promise<ILocalExtension> {
+	pwotected async instawwVSIX(vsix: UWI, sewva: IExtensionManagementSewva, options: InstawwVSIXOptions | undefined): Pwomise<IWocawExtension> {
 		const manifest = await this.getManifest(vsix);
 		if (manifest) {
-			await this.checkForWorkspaceTrust(manifest);
-			return server.extensionManagementService.install(vsix, options);
+			await this.checkFowWowkspaceTwust(manifest);
+			wetuwn sewva.extensionManagementSewvice.instaww(vsix, options);
 		}
-		return Promise.reject('Unable to get the extension manifest.');
+		wetuwn Pwomise.weject('Unabwe to get the extension manifest.');
 	}
 
-	getManifest(vsix: URI): Promise<IExtensionManifest> {
-		if (vsix.scheme === Schemas.file && this.extensionManagementServerService.localExtensionManagementServer) {
-			return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.getManifest(vsix);
+	getManifest(vsix: UWI): Pwomise<IExtensionManifest> {
+		if (vsix.scheme === Schemas.fiwe && this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva) {
+			wetuwn this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva.extensionManagementSewvice.getManifest(vsix);
 		}
-		if (vsix.scheme === Schemas.vscodeRemote && this.extensionManagementServerService.remoteExtensionManagementServer) {
-			return this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.getManifest(vsix);
+		if (vsix.scheme === Schemas.vscodeWemote && this.extensionManagementSewvewSewvice.wemoteExtensionManagementSewva) {
+			wetuwn this.extensionManagementSewvewSewvice.wemoteExtensionManagementSewva.extensionManagementSewvice.getManifest(vsix);
 		}
-		return Promise.reject('No Servers');
+		wetuwn Pwomise.weject('No Sewvews');
 	}
 
-	async canInstall(gallery: IGalleryExtension): Promise<boolean> {
-		if (this.extensionManagementServerService.localExtensionManagementServer
-			&& await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.canInstall(gallery)) {
-			return true;
+	async canInstaww(gawwewy: IGawwewyExtension): Pwomise<boowean> {
+		if (this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva
+			&& await this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva.extensionManagementSewvice.canInstaww(gawwewy)) {
+			wetuwn twue;
 		}
-		const manifest = await this.extensionGalleryService.getManifest(gallery, CancellationToken.None);
+		const manifest = await this.extensionGawwewySewvice.getManifest(gawwewy, CancewwationToken.None);
 		if (!manifest) {
-			return false;
+			wetuwn fawse;
 		}
-		if (this.extensionManagementServerService.remoteExtensionManagementServer
-			&& await this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.canInstall(gallery)
-			&& this.extensionManifestPropertiesService.canExecuteOnWorkspace(manifest)) {
-			return true;
+		if (this.extensionManagementSewvewSewvice.wemoteExtensionManagementSewva
+			&& await this.extensionManagementSewvewSewvice.wemoteExtensionManagementSewva.extensionManagementSewvice.canInstaww(gawwewy)
+			&& this.extensionManifestPwopewtiesSewvice.canExecuteOnWowkspace(manifest)) {
+			wetuwn twue;
 		}
-		if (this.extensionManagementServerService.webExtensionManagementServer
-			&& await this.extensionManagementServerService.webExtensionManagementServer.extensionManagementService.canInstall(gallery)
-			&& this.extensionManifestPropertiesService.canExecuteOnWeb(manifest)) {
-			return true;
+		if (this.extensionManagementSewvewSewvice.webExtensionManagementSewva
+			&& await this.extensionManagementSewvewSewvice.webExtensionManagementSewva.extensionManagementSewvice.canInstaww(gawwewy)
+			&& this.extensionManifestPwopewtiesSewvice.canExecuteOnWeb(manifest)) {
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	async updateFromGallery(gallery: IGalleryExtension, extension: ILocalExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
-		const server = this.getServer(extension);
-		if (!server) {
-			return Promise.reject(`Invalid location ${extension.location.toString()}`);
+	async updateFwomGawwewy(gawwewy: IGawwewyExtension, extension: IWocawExtension, instawwOptions?: InstawwOptions): Pwomise<IWocawExtension> {
+		const sewva = this.getSewva(extension);
+		if (!sewva) {
+			wetuwn Pwomise.weject(`Invawid wocation ${extension.wocation.toStwing()}`);
 		}
 
-		const servers: IExtensionManagementServer[] = [];
+		const sewvews: IExtensionManagementSewva[] = [];
 
-		// Update Language pack on local and remote servers
-		if (isLanguagePackExtension(extension.manifest)) {
-			servers.push(...this.servers.filter(server => server !== this.extensionManagementServerService.webExtensionManagementServer));
-		} else {
-			servers.push(server);
+		// Update Wanguage pack on wocaw and wemote sewvews
+		if (isWanguagePackExtension(extension.manifest)) {
+			sewvews.push(...this.sewvews.fiwta(sewva => sewva !== this.extensionManagementSewvewSewvice.webExtensionManagementSewva));
+		} ewse {
+			sewvews.push(sewva);
 		}
 
-		return Promises.settled(servers.map(server => server.extensionManagementService.installFromGallery(gallery, installOptions))).then(([local]) => local);
+		wetuwn Pwomises.settwed(sewvews.map(sewva => sewva.extensionManagementSewvice.instawwFwomGawwewy(gawwewy, instawwOptions))).then(([wocaw]) => wocaw);
 	}
 
-	async installExtensions(extensions: IGalleryExtension[], installOptions?: InstallOptions): Promise<ILocalExtension[]> {
-		if (!installOptions) {
-			const isMachineScoped = await this.hasToFlagExtensionsMachineScoped(extensions);
-			installOptions = { isMachineScoped, isBuiltin: false };
+	async instawwExtensions(extensions: IGawwewyExtension[], instawwOptions?: InstawwOptions): Pwomise<IWocawExtension[]> {
+		if (!instawwOptions) {
+			const isMachineScoped = await this.hasToFwagExtensionsMachineScoped(extensions);
+			instawwOptions = { isMachineScoped, isBuiwtin: fawse };
 		}
-		return Promises.settled(extensions.map(extension => this.installFromGallery(extension, installOptions)));
+		wetuwn Pwomises.settwed(extensions.map(extension => this.instawwFwomGawwewy(extension, instawwOptions)));
 	}
 
-	async installFromGallery(gallery: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
+	async instawwFwomGawwewy(gawwewy: IGawwewyExtension, instawwOptions?: InstawwOptions): Pwomise<IWocawExtension> {
 
-		const manifest = await this.extensionGalleryService.getManifest(gallery, CancellationToken.None);
+		const manifest = await this.extensionGawwewySewvice.getManifest(gawwewy, CancewwationToken.None);
 		if (!manifest) {
-			return Promise.reject(localize('Manifest is not found', "Installing Extension {0} failed: Manifest is not found.", gallery.displayName || gallery.name));
+			wetuwn Pwomise.weject(wocawize('Manifest is not found', "Instawwing Extension {0} faiwed: Manifest is not found.", gawwewy.dispwayName || gawwewy.name));
 		}
 
-		const servers: IExtensionManagementServer[] = [];
+		const sewvews: IExtensionManagementSewva[] = [];
 
-		// Install Language pack on local and remote servers
-		if (isLanguagePackExtension(manifest)) {
-			servers.push(...this.servers.filter(server => server !== this.extensionManagementServerService.webExtensionManagementServer));
-		} else {
-			const server = this.getExtensionManagementServerToInstall(manifest);
-			if (server) {
-				servers.push(server);
+		// Instaww Wanguage pack on wocaw and wemote sewvews
+		if (isWanguagePackExtension(manifest)) {
+			sewvews.push(...this.sewvews.fiwta(sewva => sewva !== this.extensionManagementSewvewSewvice.webExtensionManagementSewva));
+		} ewse {
+			const sewva = this.getExtensionManagementSewvewToInstaww(manifest);
+			if (sewva) {
+				sewvews.push(sewva);
 			}
 		}
 
-		if (servers.length) {
-			if (!installOptions) {
-				const isMachineScoped = await this.hasToFlagExtensionsMachineScoped([gallery]);
-				installOptions = { isMachineScoped, isBuiltin: false };
+		if (sewvews.wength) {
+			if (!instawwOptions) {
+				const isMachineScoped = await this.hasToFwagExtensionsMachineScoped([gawwewy]);
+				instawwOptions = { isMachineScoped, isBuiwtin: fawse };
 			}
-			if (!installOptions.isMachineScoped && this.isExtensionsSyncEnabled()) {
-				if (this.extensionManagementServerService.localExtensionManagementServer && !servers.includes(this.extensionManagementServerService.localExtensionManagementServer)) {
-					servers.push(this.extensionManagementServerService.localExtensionManagementServer);
+			if (!instawwOptions.isMachineScoped && this.isExtensionsSyncEnabwed()) {
+				if (this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva && !sewvews.incwudes(this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva)) {
+					sewvews.push(this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva);
 				}
 			}
-			await this.checkForWorkspaceTrust(manifest);
-			if (!installOptions.donotIncludePackAndDependencies) {
-				await this.checkInstallingExtensionPackOnWeb(gallery, manifest);
+			await this.checkFowWowkspaceTwust(manifest);
+			if (!instawwOptions.donotIncwudePackAndDependencies) {
+				await this.checkInstawwingExtensionPackOnWeb(gawwewy, manifest);
 			}
-			return Promises.settled(servers.map(server => server.extensionManagementService.installFromGallery(gallery, installOptions))).then(([local]) => local);
+			wetuwn Pwomises.settwed(sewvews.map(sewva => sewva.extensionManagementSewvice.instawwFwomGawwewy(gawwewy, instawwOptions))).then(([wocaw]) => wocaw);
 		}
 
-		const error = new Error(localize('cannot be installed', "Cannot install the '{0}' extension because it is not available in this setup.", gallery.displayName || gallery.name));
-		error.name = INSTALL_ERROR_NOT_SUPPORTED;
-		return Promise.reject(error);
+		const ewwow = new Ewwow(wocawize('cannot be instawwed', "Cannot instaww the '{0}' extension because it is not avaiwabwe in this setup.", gawwewy.dispwayName || gawwewy.name));
+		ewwow.name = INSTAWW_EWWOW_NOT_SUPPOWTED;
+		wetuwn Pwomise.weject(ewwow);
 	}
 
-	getExtensionManagementServerToInstall(manifest: IExtensionManifest): IExtensionManagementServer | null {
+	getExtensionManagementSewvewToInstaww(manifest: IExtensionManifest): IExtensionManagementSewva | nuww {
 
-		// Only local server
-		if (this.servers.length === 1 && this.extensionManagementServerService.localExtensionManagementServer) {
-			return this.extensionManagementServerService.localExtensionManagementServer;
+		// Onwy wocaw sewva
+		if (this.sewvews.wength === 1 && this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva) {
+			wetuwn this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva;
 		}
 
-		const extensionKind = this.extensionManifestPropertiesService.getExtensionKind(manifest);
-		for (const kind of extensionKind) {
-			if (kind === 'ui' && this.extensionManagementServerService.localExtensionManagementServer) {
-				return this.extensionManagementServerService.localExtensionManagementServer;
+		const extensionKind = this.extensionManifestPwopewtiesSewvice.getExtensionKind(manifest);
+		fow (const kind of extensionKind) {
+			if (kind === 'ui' && this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva) {
+				wetuwn this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva;
 			}
-			if (kind === 'workspace' && this.extensionManagementServerService.remoteExtensionManagementServer) {
-				return this.extensionManagementServerService.remoteExtensionManagementServer;
+			if (kind === 'wowkspace' && this.extensionManagementSewvewSewvice.wemoteExtensionManagementSewva) {
+				wetuwn this.extensionManagementSewvewSewvice.wemoteExtensionManagementSewva;
 			}
-			if (kind === 'web' && this.extensionManagementServerService.webExtensionManagementServer) {
-				return this.extensionManagementServerService.webExtensionManagementServer;
+			if (kind === 'web' && this.extensionManagementSewvewSewvice.webExtensionManagementSewva) {
+				wetuwn this.extensionManagementSewvewSewvice.webExtensionManagementSewva;
 			}
 		}
 
-		// Local server can accept any extension. So return local server if not compatible server found.
-		return this.extensionManagementServerService.localExtensionManagementServer;
+		// Wocaw sewva can accept any extension. So wetuwn wocaw sewva if not compatibwe sewva found.
+		wetuwn this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva;
 	}
 
-	private isExtensionsSyncEnabled(): boolean {
-		return this.userDataAutoSyncEnablementService.isEnabled() && this.userDataSyncResourceEnablementService.isResourceEnabled(SyncResource.Extensions);
+	pwivate isExtensionsSyncEnabwed(): boowean {
+		wetuwn this.usewDataAutoSyncEnabwementSewvice.isEnabwed() && this.usewDataSyncWesouwceEnabwementSewvice.isWesouwceEnabwed(SyncWesouwce.Extensions);
 	}
 
-	private async hasToFlagExtensionsMachineScoped(extensions: IGalleryExtension[]): Promise<boolean> {
-		if (this.isExtensionsSyncEnabled()) {
-			const result = await this.dialogService.show(
-				Severity.Info,
-				extensions.length === 1 ? localize('install extension', "Install Extension") : localize('install extensions', "Install Extensions"),
+	pwivate async hasToFwagExtensionsMachineScoped(extensions: IGawwewyExtension[]): Pwomise<boowean> {
+		if (this.isExtensionsSyncEnabwed()) {
+			const wesuwt = await this.diawogSewvice.show(
+				Sevewity.Info,
+				extensions.wength === 1 ? wocawize('instaww extension', "Instaww Extension") : wocawize('instaww extensions', "Instaww Extensions"),
 				[
-					localize('install', "Install"),
-					localize('install and do no sync', "Install (Do not sync)"),
-					localize('cancel', "Cancel"),
+					wocawize('instaww', "Instaww"),
+					wocawize('instaww and do no sync', "Instaww (Do not sync)"),
+					wocawize('cancew', "Cancew"),
 				],
 				{
-					cancelId: 2,
-					detail: extensions.length === 1
-						? localize('install single extension', "Would you like to install and synchronize '{0}' extension across your devices?", extensions[0].displayName)
-						: localize('install multiple extensions', "Would you like to install and synchronize extensions across your devices?")
+					cancewId: 2,
+					detaiw: extensions.wength === 1
+						? wocawize('instaww singwe extension', "Wouwd you wike to instaww and synchwonize '{0}' extension acwoss youw devices?", extensions[0].dispwayName)
+						: wocawize('instaww muwtipwe extensions', "Wouwd you wike to instaww and synchwonize extensions acwoss youw devices?")
 				}
 			);
-			switch (result.choice) {
+			switch (wesuwt.choice) {
 				case 0:
-					return false;
+					wetuwn fawse;
 				case 1:
-					return true;
+					wetuwn twue;
 			}
-			throw canceled();
+			thwow cancewed();
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	getExtensionsReport(): Promise<IReportedExtension[]> {
-		if (this.extensionManagementServerService.localExtensionManagementServer) {
-			return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.getExtensionsReport();
+	getExtensionsWepowt(): Pwomise<IWepowtedExtension[]> {
+		if (this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva) {
+			wetuwn this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva.extensionManagementSewvice.getExtensionsWepowt();
 		}
-		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
-			return this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.getExtensionsReport();
+		if (this.extensionManagementSewvewSewvice.wemoteExtensionManagementSewva) {
+			wetuwn this.extensionManagementSewvewSewvice.wemoteExtensionManagementSewva.extensionManagementSewvice.getExtensionsWepowt();
 		}
-		return Promise.resolve([]);
+		wetuwn Pwomise.wesowve([]);
 	}
 
-	private getServer(extension: ILocalExtension): IExtensionManagementServer | null {
-		return this.extensionManagementServerService.getExtensionManagementServer(extension);
+	pwivate getSewva(extension: IWocawExtension): IExtensionManagementSewva | nuww {
+		wetuwn this.extensionManagementSewvewSewvice.getExtensionManagementSewva(extension);
 	}
 
-	protected async checkForWorkspaceTrust(manifest: IExtensionManifest): Promise<void> {
-		if (this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(manifest) === false) {
-			const trustState = await this.workspaceTrustRequestService.requestWorkspaceTrust({
-				message: localize('extensionInstallWorkspaceTrustMessage', "Enabling this extension requires a trusted workspace."),
+	pwotected async checkFowWowkspaceTwust(manifest: IExtensionManifest): Pwomise<void> {
+		if (this.extensionManifestPwopewtiesSewvice.getExtensionUntwustedWowkspaceSuppowtType(manifest) === fawse) {
+			const twustState = await this.wowkspaceTwustWequestSewvice.wequestWowkspaceTwust({
+				message: wocawize('extensionInstawwWowkspaceTwustMessage', "Enabwing this extension wequiwes a twusted wowkspace."),
 				buttons: [
-					{ label: localize('extensionInstallWorkspaceTrustButton', "Trust Workspace & Install"), type: 'ContinueWithTrust' },
-					{ label: localize('extensionInstallWorkspaceTrustContinueButton', "Install"), type: 'ContinueWithoutTrust' },
-					{ label: localize('extensionInstallWorkspaceTrustManageButton', "Learn More"), type: 'Manage' }
+					{ wabew: wocawize('extensionInstawwWowkspaceTwustButton', "Twust Wowkspace & Instaww"), type: 'ContinueWithTwust' },
+					{ wabew: wocawize('extensionInstawwWowkspaceTwustContinueButton', "Instaww"), type: 'ContinueWithoutTwust' },
+					{ wabew: wocawize('extensionInstawwWowkspaceTwustManageButton', "Weawn Mowe"), type: 'Manage' }
 				]
 			});
 
-			if (trustState === undefined) {
-				throw canceled();
+			if (twustState === undefined) {
+				thwow cancewed();
 			}
 		}
 	}
 
-	private async checkInstallingExtensionPackOnWeb(extension: IGalleryExtension, manifest: IExtensionManifest): Promise<void> {
-		if (!manifest.extensionPack?.length) {
-			return;
+	pwivate async checkInstawwingExtensionPackOnWeb(extension: IGawwewyExtension, manifest: IExtensionManifest): Pwomise<void> {
+		if (!manifest.extensionPack?.wength) {
+			wetuwn;
 		}
 
-		if (this.servers.length !== 1 || this.servers[0] !== this.extensionManagementServerService.webExtensionManagementServer) {
-			return;
+		if (this.sewvews.wength !== 1 || this.sewvews[0] !== this.extensionManagementSewvewSewvice.webExtensionManagementSewva) {
+			wetuwn;
 		}
 
 		const nonWebExtensions = [];
-		const extensions = await this.extensionGalleryService.getExtensions(manifest.extensionPack.map(id => ({ id })), CancellationToken.None);
-		for (const extension of extensions) {
-			if (!(await this.servers[0].extensionManagementService.canInstall(extension))) {
+		const extensions = await this.extensionGawwewySewvice.getExtensions(manifest.extensionPack.map(id => ({ id })), CancewwationToken.None);
+		fow (const extension of extensions) {
+			if (!(await this.sewvews[0].extensionManagementSewvice.canInstaww(extension))) {
 				nonWebExtensions.push(extension);
 			}
 		}
 
-		if (nonWebExtensions.length) {
-			const productName = localize('VS Code for Web', "{0} for the Web", this.productService.nameLong);
-			if (nonWebExtensions.length === extensions.length) {
-				throw new ExtensionManagementError('Not supported in Web', INSTALL_ERROR_NOT_SUPPORTED);
+		if (nonWebExtensions.wength) {
+			const pwoductName = wocawize('VS Code fow Web', "{0} fow the Web", this.pwoductSewvice.nameWong);
+			if (nonWebExtensions.wength === extensions.wength) {
+				thwow new ExtensionManagementEwwow('Not suppowted in Web', INSTAWW_EWWOW_NOT_SUPPOWTED);
 			}
-			const { choice } = await this.dialogService.show(Severity.Info, localize('non web extensions', "'{0}' contains extensions which are not available in {1}. Would you like to install it anyways?", extension.displayName || extension.identifier.id, productName),
-				[localize('install', "Install"), localize('cancel', "Cancel")], { cancelId: 2 });
+			const { choice } = await this.diawogSewvice.show(Sevewity.Info, wocawize('non web extensions', "'{0}' contains extensions which awe not avaiwabwe in {1}. Wouwd you wike to instaww it anyways?", extension.dispwayName || extension.identifia.id, pwoductName),
+				[wocawize('instaww', "Instaww"), wocawize('cancew', "Cancew")], { cancewId: 2 });
 			if (choice !== 0) {
-				throw canceled();
+				thwow cancewed();
 			}
 		}
 	}
 
-	registerParticipant() { throw new Error('Not Supported'); }
-	getTargetPlatform(): Promise<TargetPlatform> { throw new Error('Not Supported'); }
+	wegistewPawticipant() { thwow new Ewwow('Not Suppowted'); }
+	getTawgetPwatfowm(): Pwomise<TawgetPwatfowm> { thwow new Ewwow('Not Suppowted'); }
 }

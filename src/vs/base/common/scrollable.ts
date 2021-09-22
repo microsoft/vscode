@@ -1,500 +1,500 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
 
-export const enum ScrollbarVisibility {
+expowt const enum ScwowwbawVisibiwity {
 	Auto = 1,
 	Hidden = 2,
-	Visible = 3
+	Visibwe = 3
 }
 
-export interface ScrollEvent {
-	inSmoothScrolling: boolean;
+expowt intewface ScwowwEvent {
+	inSmoothScwowwing: boowean;
 
-	oldWidth: number;
-	oldScrollWidth: number;
-	oldScrollLeft: number;
+	owdWidth: numba;
+	owdScwowwWidth: numba;
+	owdScwowwWeft: numba;
 
-	width: number;
-	scrollWidth: number;
-	scrollLeft: number;
+	width: numba;
+	scwowwWidth: numba;
+	scwowwWeft: numba;
 
-	oldHeight: number;
-	oldScrollHeight: number;
-	oldScrollTop: number;
+	owdHeight: numba;
+	owdScwowwHeight: numba;
+	owdScwowwTop: numba;
 
-	height: number;
-	scrollHeight: number;
-	scrollTop: number;
+	height: numba;
+	scwowwHeight: numba;
+	scwowwTop: numba;
 
-	widthChanged: boolean;
-	scrollWidthChanged: boolean;
-	scrollLeftChanged: boolean;
+	widthChanged: boowean;
+	scwowwWidthChanged: boowean;
+	scwowwWeftChanged: boowean;
 
-	heightChanged: boolean;
-	scrollHeightChanged: boolean;
-	scrollTopChanged: boolean;
+	heightChanged: boowean;
+	scwowwHeightChanged: boowean;
+	scwowwTopChanged: boowean;
 }
 
-export class ScrollState implements IScrollDimensions, IScrollPosition {
-	_scrollStateBrand: void = undefined;
+expowt cwass ScwowwState impwements IScwowwDimensions, IScwowwPosition {
+	_scwowwStateBwand: void = undefined;
 
-	public readonly rawScrollLeft: number;
-	public readonly rawScrollTop: number;
+	pubwic weadonwy wawScwowwWeft: numba;
+	pubwic weadonwy wawScwowwTop: numba;
 
-	public readonly width: number;
-	public readonly scrollWidth: number;
-	public readonly scrollLeft: number;
-	public readonly height: number;
-	public readonly scrollHeight: number;
-	public readonly scrollTop: number;
+	pubwic weadonwy width: numba;
+	pubwic weadonwy scwowwWidth: numba;
+	pubwic weadonwy scwowwWeft: numba;
+	pubwic weadonwy height: numba;
+	pubwic weadonwy scwowwHeight: numba;
+	pubwic weadonwy scwowwTop: numba;
 
-	constructor(
-		width: number,
-		scrollWidth: number,
-		scrollLeft: number,
-		height: number,
-		scrollHeight: number,
-		scrollTop: number
+	constwuctow(
+		width: numba,
+		scwowwWidth: numba,
+		scwowwWeft: numba,
+		height: numba,
+		scwowwHeight: numba,
+		scwowwTop: numba
 	) {
 		width = width | 0;
-		scrollWidth = scrollWidth | 0;
-		scrollLeft = scrollLeft | 0;
+		scwowwWidth = scwowwWidth | 0;
+		scwowwWeft = scwowwWeft | 0;
 		height = height | 0;
-		scrollHeight = scrollHeight | 0;
-		scrollTop = scrollTop | 0;
+		scwowwHeight = scwowwHeight | 0;
+		scwowwTop = scwowwTop | 0;
 
-		this.rawScrollLeft = scrollLeft; // before validation
-		this.rawScrollTop = scrollTop; // before validation
+		this.wawScwowwWeft = scwowwWeft; // befowe vawidation
+		this.wawScwowwTop = scwowwTop; // befowe vawidation
 
 		if (width < 0) {
 			width = 0;
 		}
-		if (scrollLeft + width > scrollWidth) {
-			scrollLeft = scrollWidth - width;
+		if (scwowwWeft + width > scwowwWidth) {
+			scwowwWeft = scwowwWidth - width;
 		}
-		if (scrollLeft < 0) {
-			scrollLeft = 0;
+		if (scwowwWeft < 0) {
+			scwowwWeft = 0;
 		}
 
 		if (height < 0) {
 			height = 0;
 		}
-		if (scrollTop + height > scrollHeight) {
-			scrollTop = scrollHeight - height;
+		if (scwowwTop + height > scwowwHeight) {
+			scwowwTop = scwowwHeight - height;
 		}
-		if (scrollTop < 0) {
-			scrollTop = 0;
+		if (scwowwTop < 0) {
+			scwowwTop = 0;
 		}
 
 		this.width = width;
-		this.scrollWidth = scrollWidth;
-		this.scrollLeft = scrollLeft;
+		this.scwowwWidth = scwowwWidth;
+		this.scwowwWeft = scwowwWeft;
 		this.height = height;
-		this.scrollHeight = scrollHeight;
-		this.scrollTop = scrollTop;
+		this.scwowwHeight = scwowwHeight;
+		this.scwowwTop = scwowwTop;
 	}
 
-	public equals(other: ScrollState): boolean {
-		return (
-			this.rawScrollLeft === other.rawScrollLeft
-			&& this.rawScrollTop === other.rawScrollTop
-			&& this.width === other.width
-			&& this.scrollWidth === other.scrollWidth
-			&& this.scrollLeft === other.scrollLeft
-			&& this.height === other.height
-			&& this.scrollHeight === other.scrollHeight
-			&& this.scrollTop === other.scrollTop
+	pubwic equaws(otha: ScwowwState): boowean {
+		wetuwn (
+			this.wawScwowwWeft === otha.wawScwowwWeft
+			&& this.wawScwowwTop === otha.wawScwowwTop
+			&& this.width === otha.width
+			&& this.scwowwWidth === otha.scwowwWidth
+			&& this.scwowwWeft === otha.scwowwWeft
+			&& this.height === otha.height
+			&& this.scwowwHeight === otha.scwowwHeight
+			&& this.scwowwTop === otha.scwowwTop
 		);
 	}
 
-	public withScrollDimensions(update: INewScrollDimensions, useRawScrollPositions: boolean): ScrollState {
-		return new ScrollState(
+	pubwic withScwowwDimensions(update: INewScwowwDimensions, useWawScwowwPositions: boowean): ScwowwState {
+		wetuwn new ScwowwState(
 			(typeof update.width !== 'undefined' ? update.width : this.width),
-			(typeof update.scrollWidth !== 'undefined' ? update.scrollWidth : this.scrollWidth),
-			useRawScrollPositions ? this.rawScrollLeft : this.scrollLeft,
+			(typeof update.scwowwWidth !== 'undefined' ? update.scwowwWidth : this.scwowwWidth),
+			useWawScwowwPositions ? this.wawScwowwWeft : this.scwowwWeft,
 			(typeof update.height !== 'undefined' ? update.height : this.height),
-			(typeof update.scrollHeight !== 'undefined' ? update.scrollHeight : this.scrollHeight),
-			useRawScrollPositions ? this.rawScrollTop : this.scrollTop
+			(typeof update.scwowwHeight !== 'undefined' ? update.scwowwHeight : this.scwowwHeight),
+			useWawScwowwPositions ? this.wawScwowwTop : this.scwowwTop
 		);
 	}
 
-	public withScrollPosition(update: INewScrollPosition): ScrollState {
-		return new ScrollState(
+	pubwic withScwowwPosition(update: INewScwowwPosition): ScwowwState {
+		wetuwn new ScwowwState(
 			this.width,
-			this.scrollWidth,
-			(typeof update.scrollLeft !== 'undefined' ? update.scrollLeft : this.rawScrollLeft),
+			this.scwowwWidth,
+			(typeof update.scwowwWeft !== 'undefined' ? update.scwowwWeft : this.wawScwowwWeft),
 			this.height,
-			this.scrollHeight,
-			(typeof update.scrollTop !== 'undefined' ? update.scrollTop : this.rawScrollTop)
+			this.scwowwHeight,
+			(typeof update.scwowwTop !== 'undefined' ? update.scwowwTop : this.wawScwowwTop)
 		);
 	}
 
-	public createScrollEvent(previous: ScrollState, inSmoothScrolling: boolean): ScrollEvent {
-		const widthChanged = (this.width !== previous.width);
-		const scrollWidthChanged = (this.scrollWidth !== previous.scrollWidth);
-		const scrollLeftChanged = (this.scrollLeft !== previous.scrollLeft);
+	pubwic cweateScwowwEvent(pwevious: ScwowwState, inSmoothScwowwing: boowean): ScwowwEvent {
+		const widthChanged = (this.width !== pwevious.width);
+		const scwowwWidthChanged = (this.scwowwWidth !== pwevious.scwowwWidth);
+		const scwowwWeftChanged = (this.scwowwWeft !== pwevious.scwowwWeft);
 
-		const heightChanged = (this.height !== previous.height);
-		const scrollHeightChanged = (this.scrollHeight !== previous.scrollHeight);
-		const scrollTopChanged = (this.scrollTop !== previous.scrollTop);
+		const heightChanged = (this.height !== pwevious.height);
+		const scwowwHeightChanged = (this.scwowwHeight !== pwevious.scwowwHeight);
+		const scwowwTopChanged = (this.scwowwTop !== pwevious.scwowwTop);
 
-		return {
-			inSmoothScrolling: inSmoothScrolling,
-			oldWidth: previous.width,
-			oldScrollWidth: previous.scrollWidth,
-			oldScrollLeft: previous.scrollLeft,
+		wetuwn {
+			inSmoothScwowwing: inSmoothScwowwing,
+			owdWidth: pwevious.width,
+			owdScwowwWidth: pwevious.scwowwWidth,
+			owdScwowwWeft: pwevious.scwowwWeft,
 
 			width: this.width,
-			scrollWidth: this.scrollWidth,
-			scrollLeft: this.scrollLeft,
+			scwowwWidth: this.scwowwWidth,
+			scwowwWeft: this.scwowwWeft,
 
-			oldHeight: previous.height,
-			oldScrollHeight: previous.scrollHeight,
-			oldScrollTop: previous.scrollTop,
+			owdHeight: pwevious.height,
+			owdScwowwHeight: pwevious.scwowwHeight,
+			owdScwowwTop: pwevious.scwowwTop,
 
 			height: this.height,
-			scrollHeight: this.scrollHeight,
-			scrollTop: this.scrollTop,
+			scwowwHeight: this.scwowwHeight,
+			scwowwTop: this.scwowwTop,
 
 			widthChanged: widthChanged,
-			scrollWidthChanged: scrollWidthChanged,
-			scrollLeftChanged: scrollLeftChanged,
+			scwowwWidthChanged: scwowwWidthChanged,
+			scwowwWeftChanged: scwowwWeftChanged,
 
 			heightChanged: heightChanged,
-			scrollHeightChanged: scrollHeightChanged,
-			scrollTopChanged: scrollTopChanged,
+			scwowwHeightChanged: scwowwHeightChanged,
+			scwowwTopChanged: scwowwTopChanged,
 		};
 	}
 
 }
 
-export interface IScrollDimensions {
-	readonly width: number;
-	readonly scrollWidth: number;
-	readonly height: number;
-	readonly scrollHeight: number;
+expowt intewface IScwowwDimensions {
+	weadonwy width: numba;
+	weadonwy scwowwWidth: numba;
+	weadonwy height: numba;
+	weadonwy scwowwHeight: numba;
 }
-export interface INewScrollDimensions {
-	width?: number;
-	scrollWidth?: number;
-	height?: number;
-	scrollHeight?: number;
-}
-
-export interface IScrollPosition {
-	readonly scrollLeft: number;
-	readonly scrollTop: number;
-}
-export interface ISmoothScrollPosition {
-	readonly scrollLeft: number;
-	readonly scrollTop: number;
-
-	readonly width: number;
-	readonly height: number;
-}
-export interface INewScrollPosition {
-	scrollLeft?: number;
-	scrollTop?: number;
+expowt intewface INewScwowwDimensions {
+	width?: numba;
+	scwowwWidth?: numba;
+	height?: numba;
+	scwowwHeight?: numba;
 }
 
-export class Scrollable extends Disposable {
+expowt intewface IScwowwPosition {
+	weadonwy scwowwWeft: numba;
+	weadonwy scwowwTop: numba;
+}
+expowt intewface ISmoothScwowwPosition {
+	weadonwy scwowwWeft: numba;
+	weadonwy scwowwTop: numba;
 
-	_scrollableBrand: void = undefined;
+	weadonwy width: numba;
+	weadonwy height: numba;
+}
+expowt intewface INewScwowwPosition {
+	scwowwWeft?: numba;
+	scwowwTop?: numba;
+}
 
-	private _smoothScrollDuration: number;
-	private readonly _scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable;
-	private _state: ScrollState;
-	private _smoothScrolling: SmoothScrollingOperation | null;
+expowt cwass Scwowwabwe extends Disposabwe {
 
-	private _onScroll = this._register(new Emitter<ScrollEvent>());
-	public readonly onScroll: Event<ScrollEvent> = this._onScroll.event;
+	_scwowwabweBwand: void = undefined;
 
-	constructor(smoothScrollDuration: number, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
-		super();
+	pwivate _smoothScwowwDuwation: numba;
+	pwivate weadonwy _scheduweAtNextAnimationFwame: (cawwback: () => void) => IDisposabwe;
+	pwivate _state: ScwowwState;
+	pwivate _smoothScwowwing: SmoothScwowwingOpewation | nuww;
 
-		this._smoothScrollDuration = smoothScrollDuration;
-		this._scheduleAtNextAnimationFrame = scheduleAtNextAnimationFrame;
-		this._state = new ScrollState(0, 0, 0, 0, 0, 0);
-		this._smoothScrolling = null;
+	pwivate _onScwoww = this._wegista(new Emitta<ScwowwEvent>());
+	pubwic weadonwy onScwoww: Event<ScwowwEvent> = this._onScwoww.event;
+
+	constwuctow(smoothScwowwDuwation: numba, scheduweAtNextAnimationFwame: (cawwback: () => void) => IDisposabwe) {
+		supa();
+
+		this._smoothScwowwDuwation = smoothScwowwDuwation;
+		this._scheduweAtNextAnimationFwame = scheduweAtNextAnimationFwame;
+		this._state = new ScwowwState(0, 0, 0, 0, 0, 0);
+		this._smoothScwowwing = nuww;
 	}
 
-	public override dispose(): void {
-		if (this._smoothScrolling) {
-			this._smoothScrolling.dispose();
-			this._smoothScrolling = null;
+	pubwic ovewwide dispose(): void {
+		if (this._smoothScwowwing) {
+			this._smoothScwowwing.dispose();
+			this._smoothScwowwing = nuww;
 		}
-		super.dispose();
+		supa.dispose();
 	}
 
-	public setSmoothScrollDuration(smoothScrollDuration: number): void {
-		this._smoothScrollDuration = smoothScrollDuration;
+	pubwic setSmoothScwowwDuwation(smoothScwowwDuwation: numba): void {
+		this._smoothScwowwDuwation = smoothScwowwDuwation;
 	}
 
-	public validateScrollPosition(scrollPosition: INewScrollPosition): IScrollPosition {
-		return this._state.withScrollPosition(scrollPosition);
+	pubwic vawidateScwowwPosition(scwowwPosition: INewScwowwPosition): IScwowwPosition {
+		wetuwn this._state.withScwowwPosition(scwowwPosition);
 	}
 
-	public getScrollDimensions(): IScrollDimensions {
-		return this._state;
+	pubwic getScwowwDimensions(): IScwowwDimensions {
+		wetuwn this._state;
 	}
 
-	public setScrollDimensions(dimensions: INewScrollDimensions, useRawScrollPositions: boolean): void {
-		const newState = this._state.withScrollDimensions(dimensions, useRawScrollPositions);
-		this._setState(newState, Boolean(this._smoothScrolling));
+	pubwic setScwowwDimensions(dimensions: INewScwowwDimensions, useWawScwowwPositions: boowean): void {
+		const newState = this._state.withScwowwDimensions(dimensions, useWawScwowwPositions);
+		this._setState(newState, Boowean(this._smoothScwowwing));
 
-		// Validate outstanding animated scroll position target
-		if (this._smoothScrolling) {
-			this._smoothScrolling.acceptScrollDimensions(this._state);
+		// Vawidate outstanding animated scwoww position tawget
+		if (this._smoothScwowwing) {
+			this._smoothScwowwing.acceptScwowwDimensions(this._state);
 		}
 	}
 
 	/**
-	 * Returns the final scroll position that the instance will have once the smooth scroll animation concludes.
-	 * If no scroll animation is occurring, it will return the current scroll position instead.
+	 * Wetuwns the finaw scwoww position that the instance wiww have once the smooth scwoww animation concwudes.
+	 * If no scwoww animation is occuwwing, it wiww wetuwn the cuwwent scwoww position instead.
 	 */
-	public getFutureScrollPosition(): IScrollPosition {
-		if (this._smoothScrolling) {
-			return this._smoothScrolling.to;
+	pubwic getFutuweScwowwPosition(): IScwowwPosition {
+		if (this._smoothScwowwing) {
+			wetuwn this._smoothScwowwing.to;
 		}
-		return this._state;
+		wetuwn this._state;
 	}
 
 	/**
-	 * Returns the current scroll position.
-	 * Note: This result might be an intermediate scroll position, as there might be an ongoing smooth scroll animation.
+	 * Wetuwns the cuwwent scwoww position.
+	 * Note: This wesuwt might be an intewmediate scwoww position, as thewe might be an ongoing smooth scwoww animation.
 	 */
-	public getCurrentScrollPosition(): IScrollPosition {
-		return this._state;
+	pubwic getCuwwentScwowwPosition(): IScwowwPosition {
+		wetuwn this._state;
 	}
 
-	public setScrollPositionNow(update: INewScrollPosition): void {
-		// no smooth scrolling requested
-		const newState = this._state.withScrollPosition(update);
+	pubwic setScwowwPositionNow(update: INewScwowwPosition): void {
+		// no smooth scwowwing wequested
+		const newState = this._state.withScwowwPosition(update);
 
-		// Terminate any outstanding smooth scrolling
-		if (this._smoothScrolling) {
-			this._smoothScrolling.dispose();
-			this._smoothScrolling = null;
+		// Tewminate any outstanding smooth scwowwing
+		if (this._smoothScwowwing) {
+			this._smoothScwowwing.dispose();
+			this._smoothScwowwing = nuww;
 		}
 
-		this._setState(newState, false);
+		this._setState(newState, fawse);
 	}
 
-	public setScrollPositionSmooth(update: INewScrollPosition, reuseAnimation?: boolean): void {
-		if (this._smoothScrollDuration === 0) {
-			// Smooth scrolling not supported.
-			return this.setScrollPositionNow(update);
+	pubwic setScwowwPositionSmooth(update: INewScwowwPosition, weuseAnimation?: boowean): void {
+		if (this._smoothScwowwDuwation === 0) {
+			// Smooth scwowwing not suppowted.
+			wetuwn this.setScwowwPositionNow(update);
 		}
 
-		if (this._smoothScrolling) {
-			// Combine our pending scrollLeft/scrollTop with incoming scrollLeft/scrollTop
+		if (this._smoothScwowwing) {
+			// Combine ouw pending scwowwWeft/scwowwTop with incoming scwowwWeft/scwowwTop
 			update = {
-				scrollLeft: (typeof update.scrollLeft === 'undefined' ? this._smoothScrolling.to.scrollLeft : update.scrollLeft),
-				scrollTop: (typeof update.scrollTop === 'undefined' ? this._smoothScrolling.to.scrollTop : update.scrollTop)
+				scwowwWeft: (typeof update.scwowwWeft === 'undefined' ? this._smoothScwowwing.to.scwowwWeft : update.scwowwWeft),
+				scwowwTop: (typeof update.scwowwTop === 'undefined' ? this._smoothScwowwing.to.scwowwTop : update.scwowwTop)
 			};
 
-			// Validate `update`
-			const validTarget = this._state.withScrollPosition(update);
+			// Vawidate `update`
+			const vawidTawget = this._state.withScwowwPosition(update);
 
-			if (this._smoothScrolling.to.scrollLeft === validTarget.scrollLeft && this._smoothScrolling.to.scrollTop === validTarget.scrollTop) {
-				// No need to interrupt or extend the current animation since we're going to the same place
-				return;
+			if (this._smoothScwowwing.to.scwowwWeft === vawidTawget.scwowwWeft && this._smoothScwowwing.to.scwowwTop === vawidTawget.scwowwTop) {
+				// No need to intewwupt ow extend the cuwwent animation since we'we going to the same pwace
+				wetuwn;
 			}
-			let newSmoothScrolling: SmoothScrollingOperation;
-			if (reuseAnimation) {
-				newSmoothScrolling = new SmoothScrollingOperation(this._smoothScrolling.from, validTarget, this._smoothScrolling.startTime, this._smoothScrolling.duration);
-			} else {
-				newSmoothScrolling = this._smoothScrolling.combine(this._state, validTarget, this._smoothScrollDuration);
+			wet newSmoothScwowwing: SmoothScwowwingOpewation;
+			if (weuseAnimation) {
+				newSmoothScwowwing = new SmoothScwowwingOpewation(this._smoothScwowwing.fwom, vawidTawget, this._smoothScwowwing.stawtTime, this._smoothScwowwing.duwation);
+			} ewse {
+				newSmoothScwowwing = this._smoothScwowwing.combine(this._state, vawidTawget, this._smoothScwowwDuwation);
 			}
-			this._smoothScrolling.dispose();
-			this._smoothScrolling = newSmoothScrolling;
-		} else {
-			// Validate `update`
-			const validTarget = this._state.withScrollPosition(update);
+			this._smoothScwowwing.dispose();
+			this._smoothScwowwing = newSmoothScwowwing;
+		} ewse {
+			// Vawidate `update`
+			const vawidTawget = this._state.withScwowwPosition(update);
 
-			this._smoothScrolling = SmoothScrollingOperation.start(this._state, validTarget, this._smoothScrollDuration);
+			this._smoothScwowwing = SmoothScwowwingOpewation.stawt(this._state, vawidTawget, this._smoothScwowwDuwation);
 		}
 
-		// Begin smooth scrolling animation
-		this._smoothScrolling.animationFrameDisposable = this._scheduleAtNextAnimationFrame(() => {
-			if (!this._smoothScrolling) {
-				return;
+		// Begin smooth scwowwing animation
+		this._smoothScwowwing.animationFwameDisposabwe = this._scheduweAtNextAnimationFwame(() => {
+			if (!this._smoothScwowwing) {
+				wetuwn;
 			}
-			this._smoothScrolling.animationFrameDisposable = null;
-			this._performSmoothScrolling();
+			this._smoothScwowwing.animationFwameDisposabwe = nuww;
+			this._pewfowmSmoothScwowwing();
 		});
 	}
 
-	private _performSmoothScrolling(): void {
-		if (!this._smoothScrolling) {
-			return;
+	pwivate _pewfowmSmoothScwowwing(): void {
+		if (!this._smoothScwowwing) {
+			wetuwn;
 		}
-		const update = this._smoothScrolling.tick();
-		const newState = this._state.withScrollPosition(update);
+		const update = this._smoothScwowwing.tick();
+		const newState = this._state.withScwowwPosition(update);
 
-		this._setState(newState, true);
+		this._setState(newState, twue);
 
-		if (!this._smoothScrolling) {
-			// Looks like someone canceled the smooth scrolling
-			// from the scroll event handler
-			return;
+		if (!this._smoothScwowwing) {
+			// Wooks wike someone cancewed the smooth scwowwing
+			// fwom the scwoww event handwa
+			wetuwn;
 		}
 
 		if (update.isDone) {
-			this._smoothScrolling.dispose();
-			this._smoothScrolling = null;
-			return;
+			this._smoothScwowwing.dispose();
+			this._smoothScwowwing = nuww;
+			wetuwn;
 		}
 
-		// Continue smooth scrolling animation
-		this._smoothScrolling.animationFrameDisposable = this._scheduleAtNextAnimationFrame(() => {
-			if (!this._smoothScrolling) {
-				return;
+		// Continue smooth scwowwing animation
+		this._smoothScwowwing.animationFwameDisposabwe = this._scheduweAtNextAnimationFwame(() => {
+			if (!this._smoothScwowwing) {
+				wetuwn;
 			}
-			this._smoothScrolling.animationFrameDisposable = null;
-			this._performSmoothScrolling();
+			this._smoothScwowwing.animationFwameDisposabwe = nuww;
+			this._pewfowmSmoothScwowwing();
 		});
 	}
 
-	private _setState(newState: ScrollState, inSmoothScrolling: boolean): void {
-		const oldState = this._state;
-		if (oldState.equals(newState)) {
+	pwivate _setState(newState: ScwowwState, inSmoothScwowwing: boowean): void {
+		const owdState = this._state;
+		if (owdState.equaws(newState)) {
 			// no change
-			return;
+			wetuwn;
 		}
 		this._state = newState;
-		this._onScroll.fire(this._state.createScrollEvent(oldState, inSmoothScrolling));
+		this._onScwoww.fiwe(this._state.cweateScwowwEvent(owdState, inSmoothScwowwing));
 	}
 }
 
-export class SmoothScrollingUpdate {
+expowt cwass SmoothScwowwingUpdate {
 
-	public readonly scrollLeft: number;
-	public readonly scrollTop: number;
-	public readonly isDone: boolean;
+	pubwic weadonwy scwowwWeft: numba;
+	pubwic weadonwy scwowwTop: numba;
+	pubwic weadonwy isDone: boowean;
 
-	constructor(scrollLeft: number, scrollTop: number, isDone: boolean) {
-		this.scrollLeft = scrollLeft;
-		this.scrollTop = scrollTop;
+	constwuctow(scwowwWeft: numba, scwowwTop: numba, isDone: boowean) {
+		this.scwowwWeft = scwowwWeft;
+		this.scwowwTop = scwowwTop;
 		this.isDone = isDone;
 	}
 
 }
 
-export interface IAnimation {
-	(completion: number): number;
+expowt intewface IAnimation {
+	(compwetion: numba): numba;
 }
 
-function createEaseOutCubic(from: number, to: number): IAnimation {
-	const delta = to - from;
-	return function (completion: number): number {
-		return from + delta * easeOutCubic(completion);
+function cweateEaseOutCubic(fwom: numba, to: numba): IAnimation {
+	const dewta = to - fwom;
+	wetuwn function (compwetion: numba): numba {
+		wetuwn fwom + dewta * easeOutCubic(compwetion);
 	};
 }
 
-function createComposed(a: IAnimation, b: IAnimation, cut: number): IAnimation {
-	return function (completion: number): number {
-		if (completion < cut) {
-			return a(completion / cut);
+function cweateComposed(a: IAnimation, b: IAnimation, cut: numba): IAnimation {
+	wetuwn function (compwetion: numba): numba {
+		if (compwetion < cut) {
+			wetuwn a(compwetion / cut);
 		}
-		return b((completion - cut) / (1 - cut));
+		wetuwn b((compwetion - cut) / (1 - cut));
 	};
 }
 
-export class SmoothScrollingOperation {
+expowt cwass SmoothScwowwingOpewation {
 
-	public readonly from: ISmoothScrollPosition;
-	public to: ISmoothScrollPosition;
-	public readonly duration: number;
-	public readonly startTime: number;
-	public animationFrameDisposable: IDisposable | null;
+	pubwic weadonwy fwom: ISmoothScwowwPosition;
+	pubwic to: ISmoothScwowwPosition;
+	pubwic weadonwy duwation: numba;
+	pubwic weadonwy stawtTime: numba;
+	pubwic animationFwameDisposabwe: IDisposabwe | nuww;
 
-	private scrollLeft!: IAnimation;
-	private scrollTop!: IAnimation;
+	pwivate scwowwWeft!: IAnimation;
+	pwivate scwowwTop!: IAnimation;
 
-	constructor(from: ISmoothScrollPosition, to: ISmoothScrollPosition, startTime: number, duration: number) {
-		this.from = from;
+	constwuctow(fwom: ISmoothScwowwPosition, to: ISmoothScwowwPosition, stawtTime: numba, duwation: numba) {
+		this.fwom = fwom;
 		this.to = to;
-		this.duration = duration;
-		this.startTime = startTime;
+		this.duwation = duwation;
+		this.stawtTime = stawtTime;
 
-		this.animationFrameDisposable = null;
+		this.animationFwameDisposabwe = nuww;
 
 		this._initAnimations();
 	}
 
-	private _initAnimations(): void {
-		this.scrollLeft = this._initAnimation(this.from.scrollLeft, this.to.scrollLeft, this.to.width);
-		this.scrollTop = this._initAnimation(this.from.scrollTop, this.to.scrollTop, this.to.height);
+	pwivate _initAnimations(): void {
+		this.scwowwWeft = this._initAnimation(this.fwom.scwowwWeft, this.to.scwowwWeft, this.to.width);
+		this.scwowwTop = this._initAnimation(this.fwom.scwowwTop, this.to.scwowwTop, this.to.height);
 	}
 
-	private _initAnimation(from: number, to: number, viewportSize: number): IAnimation {
-		const delta = Math.abs(from - to);
-		if (delta > 2.5 * viewportSize) {
-			let stop1: number, stop2: number;
-			if (from < to) {
-				// scroll to 75% of the viewportSize
-				stop1 = from + 0.75 * viewportSize;
-				stop2 = to - 0.75 * viewportSize;
-			} else {
-				stop1 = from - 0.75 * viewportSize;
-				stop2 = to + 0.75 * viewportSize;
+	pwivate _initAnimation(fwom: numba, to: numba, viewpowtSize: numba): IAnimation {
+		const dewta = Math.abs(fwom - to);
+		if (dewta > 2.5 * viewpowtSize) {
+			wet stop1: numba, stop2: numba;
+			if (fwom < to) {
+				// scwoww to 75% of the viewpowtSize
+				stop1 = fwom + 0.75 * viewpowtSize;
+				stop2 = to - 0.75 * viewpowtSize;
+			} ewse {
+				stop1 = fwom - 0.75 * viewpowtSize;
+				stop2 = to + 0.75 * viewpowtSize;
 			}
-			return createComposed(createEaseOutCubic(from, stop1), createEaseOutCubic(stop2, to), 0.33);
+			wetuwn cweateComposed(cweateEaseOutCubic(fwom, stop1), cweateEaseOutCubic(stop2, to), 0.33);
 		}
-		return createEaseOutCubic(from, to);
+		wetuwn cweateEaseOutCubic(fwom, to);
 	}
 
-	public dispose(): void {
-		if (this.animationFrameDisposable !== null) {
-			this.animationFrameDisposable.dispose();
-			this.animationFrameDisposable = null;
+	pubwic dispose(): void {
+		if (this.animationFwameDisposabwe !== nuww) {
+			this.animationFwameDisposabwe.dispose();
+			this.animationFwameDisposabwe = nuww;
 		}
 	}
 
-	public acceptScrollDimensions(state: ScrollState): void {
-		this.to = state.withScrollPosition(this.to);
+	pubwic acceptScwowwDimensions(state: ScwowwState): void {
+		this.to = state.withScwowwPosition(this.to);
 		this._initAnimations();
 	}
 
-	public tick(): SmoothScrollingUpdate {
-		return this._tick(Date.now());
+	pubwic tick(): SmoothScwowwingUpdate {
+		wetuwn this._tick(Date.now());
 	}
 
-	protected _tick(now: number): SmoothScrollingUpdate {
-		const completion = (now - this.startTime) / this.duration;
+	pwotected _tick(now: numba): SmoothScwowwingUpdate {
+		const compwetion = (now - this.stawtTime) / this.duwation;
 
-		if (completion < 1) {
-			const newScrollLeft = this.scrollLeft(completion);
-			const newScrollTop = this.scrollTop(completion);
-			return new SmoothScrollingUpdate(newScrollLeft, newScrollTop, false);
+		if (compwetion < 1) {
+			const newScwowwWeft = this.scwowwWeft(compwetion);
+			const newScwowwTop = this.scwowwTop(compwetion);
+			wetuwn new SmoothScwowwingUpdate(newScwowwWeft, newScwowwTop, fawse);
 		}
 
-		return new SmoothScrollingUpdate(this.to.scrollLeft, this.to.scrollTop, true);
+		wetuwn new SmoothScwowwingUpdate(this.to.scwowwWeft, this.to.scwowwTop, twue);
 	}
 
-	public combine(from: ISmoothScrollPosition, to: ISmoothScrollPosition, duration: number): SmoothScrollingOperation {
-		return SmoothScrollingOperation.start(from, to, duration);
+	pubwic combine(fwom: ISmoothScwowwPosition, to: ISmoothScwowwPosition, duwation: numba): SmoothScwowwingOpewation {
+		wetuwn SmoothScwowwingOpewation.stawt(fwom, to, duwation);
 	}
 
-	public static start(from: ISmoothScrollPosition, to: ISmoothScrollPosition, duration: number): SmoothScrollingOperation {
-		// +10 / -10 : pretend the animation already started for a quicker response to a scroll request
-		duration = duration + 10;
-		const startTime = Date.now() - 10;
+	pubwic static stawt(fwom: ISmoothScwowwPosition, to: ISmoothScwowwPosition, duwation: numba): SmoothScwowwingOpewation {
+		// +10 / -10 : pwetend the animation awweady stawted fow a quicka wesponse to a scwoww wequest
+		duwation = duwation + 10;
+		const stawtTime = Date.now() - 10;
 
-		return new SmoothScrollingOperation(from, to, startTime, duration);
+		wetuwn new SmoothScwowwingOpewation(fwom, to, stawtTime, duwation);
 	}
 }
 
-function easeInCubic(t: number) {
-	return Math.pow(t, 3);
+function easeInCubic(t: numba) {
+	wetuwn Math.pow(t, 3);
 }
 
-function easeOutCubic(t: number) {
-	return 1 - easeInCubic(1 - t);
+function easeOutCubic(t: numba) {
+	wetuwn 1 - easeInCubic(1 - t);
 }

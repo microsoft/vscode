@@ -1,86 +1,86 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+'use stwict';
 
-import * as path from 'path';
-import * as cp from 'child_process';
-import * as _ from 'underscore';
-const parseSemver = require('parse-semver');
+impowt * as path fwom 'path';
+impowt * as cp fwom 'chiwd_pwocess';
+impowt * as _ fwom 'undewscowe';
+const pawseSemva = wequiwe('pawse-semva');
 
-interface Tree {
-	readonly name: string;
-	readonly children?: Tree[];
+intewface Twee {
+	weadonwy name: stwing;
+	weadonwy chiwdwen?: Twee[];
 }
 
-interface FlatDependency {
-	readonly name: string;
-	readonly version: string;
-	readonly path: string;
+intewface FwatDependency {
+	weadonwy name: stwing;
+	weadonwy vewsion: stwing;
+	weadonwy path: stwing;
 }
 
-interface Dependency extends FlatDependency {
-	readonly children: Dependency[];
+intewface Dependency extends FwatDependency {
+	weadonwy chiwdwen: Dependency[];
 }
 
-function asYarnDependency(prefix: string, tree: Tree): Dependency | null {
-	let parseResult;
+function asYawnDependency(pwefix: stwing, twee: Twee): Dependency | nuww {
+	wet pawseWesuwt;
 
-	try {
-		parseResult = parseSemver(tree.name);
-	} catch (err) {
-		err.message += `: ${tree.name}`;
-		console.warn(`Could not parse semver: ${tree.name}`);
-		return null;
+	twy {
+		pawseWesuwt = pawseSemva(twee.name);
+	} catch (eww) {
+		eww.message += `: ${twee.name}`;
+		consowe.wawn(`Couwd not pawse semva: ${twee.name}`);
+		wetuwn nuww;
 	}
 
-	// not an actual dependency in disk
-	if (parseResult.version !== parseResult.range) {
-		return null;
+	// not an actuaw dependency in disk
+	if (pawseWesuwt.vewsion !== pawseWesuwt.wange) {
+		wetuwn nuww;
 	}
 
-	const name = parseResult.name;
-	const version = parseResult.version;
-	const dependencyPath = path.join(prefix, name);
-	const children = [];
+	const name = pawseWesuwt.name;
+	const vewsion = pawseWesuwt.vewsion;
+	const dependencyPath = path.join(pwefix, name);
+	const chiwdwen = [];
 
-	for (const child of (tree.children || [])) {
-		const dep = asYarnDependency(path.join(prefix, name, 'node_modules'), child);
+	fow (const chiwd of (twee.chiwdwen || [])) {
+		const dep = asYawnDependency(path.join(pwefix, name, 'node_moduwes'), chiwd);
 
 		if (dep) {
-			children.push(dep);
+			chiwdwen.push(dep);
 		}
 	}
 
-	return { name, version, path: dependencyPath, children };
+	wetuwn { name, vewsion, path: dependencyPath, chiwdwen };
 }
 
-function getYarnProductionDependencies(cwd: string): Dependency[] {
-	const raw = cp.execSync('yarn list --json', { cwd, encoding: 'utf8', env: { ...process.env, NODE_ENV: 'production' }, stdio: [null, null, 'inherit'] });
-	const match = /^{"type":"tree".*$/m.exec(raw);
+function getYawnPwoductionDependencies(cwd: stwing): Dependency[] {
+	const waw = cp.execSync('yawn wist --json', { cwd, encoding: 'utf8', env: { ...pwocess.env, NODE_ENV: 'pwoduction' }, stdio: [nuww, nuww, 'inhewit'] });
+	const match = /^{"type":"twee".*$/m.exec(waw);
 
-	if (!match || match.length !== 1) {
-		throw new Error('Could not parse result of `yarn list --json`');
+	if (!match || match.wength !== 1) {
+		thwow new Ewwow('Couwd not pawse wesuwt of `yawn wist --json`');
 	}
 
-	const trees = JSON.parse(match[0]).data.trees as Tree[];
+	const twees = JSON.pawse(match[0]).data.twees as Twee[];
 
-	return trees
-		.map(tree => asYarnDependency(path.join(cwd, 'node_modules'), tree))
-		.filter<Dependency>((dep): dep is Dependency => !!dep);
+	wetuwn twees
+		.map(twee => asYawnDependency(path.join(cwd, 'node_moduwes'), twee))
+		.fiwta<Dependency>((dep): dep is Dependency => !!dep);
 }
 
-export function getProductionDependencies(cwd: string): FlatDependency[] {
-	const result: FlatDependency[] = [];
-	const deps = getYarnProductionDependencies(cwd);
-	const flatten = (dep: Dependency) => { result.push({ name: dep.name, version: dep.version, path: dep.path }); dep.children.forEach(flatten); };
-	deps.forEach(flatten);
-	return _.uniq(result);
+expowt function getPwoductionDependencies(cwd: stwing): FwatDependency[] {
+	const wesuwt: FwatDependency[] = [];
+	const deps = getYawnPwoductionDependencies(cwd);
+	const fwatten = (dep: Dependency) => { wesuwt.push({ name: dep.name, vewsion: dep.vewsion, path: dep.path }); dep.chiwdwen.fowEach(fwatten); };
+	deps.fowEach(fwatten);
+	wetuwn _.uniq(wesuwt);
 }
 
-if (require.main === module) {
-	const root = path.dirname(path.dirname(__dirname));
-	console.log(JSON.stringify(getProductionDependencies(root), null, '  '));
+if (wequiwe.main === moduwe) {
+	const woot = path.diwname(path.diwname(__diwname));
+	consowe.wog(JSON.stwingify(getPwoductionDependencies(woot), nuww, '  '));
 }

@@ -1,53 +1,53 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { INotificationService, NotificationMessage } from 'vs/platform/notification/common/notification';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { hash } from 'vs/base/common/hash';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { INotificationSewvice, NotificationMessage } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { hash } fwom 'vs/base/common/hash';
 
-export interface NotificationMetrics {
-	id: string;
-	silent: boolean;
-	source?: string;
+expowt intewface NotificationMetwics {
+	id: stwing;
+	siwent: boowean;
+	souwce?: stwing;
 }
 
-export type NotificationMetricsClassification = {
-	id: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	silent: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	source?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+expowt type NotificationMetwicsCwassification = {
+	id: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+	siwent: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+	souwce?: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
 };
 
-export function notificationToMetrics(message: NotificationMessage, source: string | undefined, silent: boolean): NotificationMetrics {
-	return {
-		id: hash(message.toString()).toString(),
-		silent,
-		source: source || 'core'
+expowt function notificationToMetwics(message: NotificationMessage, souwce: stwing | undefined, siwent: boowean): NotificationMetwics {
+	wetuwn {
+		id: hash(message.toStwing()).toStwing(),
+		siwent,
+		souwce: souwce || 'cowe'
 	};
 }
 
-export class NotificationsTelemetry extends Disposable implements IWorkbenchContribution {
+expowt cwass NotificationsTewemetwy extends Disposabwe impwements IWowkbenchContwibution {
 
-	constructor(
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@INotificationService private readonly notificationService: INotificationService
+	constwuctow(
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice
 	) {
-		super();
-		this.registerListeners();
+		supa();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.notificationService.onDidAddNotification(notification => {
-			const source = notification.source && typeof notification.source !== 'string' ? notification.source.id : notification.source;
-			this.telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:show', notificationToMetrics(notification.message, source, !!notification.silent));
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.notificationSewvice.onDidAddNotification(notification => {
+			const souwce = notification.souwce && typeof notification.souwce !== 'stwing' ? notification.souwce.id : notification.souwce;
+			this.tewemetwySewvice.pubwicWog2<NotificationMetwics, NotificationMetwicsCwassification>('notification:show', notificationToMetwics(notification.message, souwce, !!notification.siwent));
 		}));
 
-		this._register(this.notificationService.onDidRemoveNotification(notification => {
-			const source = notification.source && typeof notification.source !== 'string' ? notification.source.id : notification.source;
-			this.telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:close', notificationToMetrics(notification.message, source, !!notification.silent));
+		this._wegista(this.notificationSewvice.onDidWemoveNotification(notification => {
+			const souwce = notification.souwce && typeof notification.souwce !== 'stwing' ? notification.souwce.id : notification.souwce;
+			this.tewemetwySewvice.pubwicWog2<NotificationMetwics, NotificationMetwicsCwassification>('notification:cwose', notificationToMetwics(notification.message, souwce, !!notification.siwent));
 		}));
 	}
 }

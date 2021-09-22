@@ -1,2092 +1,2092 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/editor/browser/services/markerDecorations';
+impowt 'vs/editow/bwowsa/sewvices/mawkewDecowations';
 
-import 'vs/css!./media/editor';
-import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { Color } from 'vs/base/common/color';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { hash } from 'vs/base/common/hash';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { Configuration } from 'vs/editor/browser/config/configuration';
-import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ICommandDelegate } from 'vs/editor/browser/view/viewController';
-import { IContentWidgetData, IOverlayWidgetData, View } from 'vs/editor/browser/view/viewImpl';
-import { ViewUserInputEvents } from 'vs/editor/browser/view/viewUserInputEvents';
-import { ConfigurationChangedEvent, EditorLayoutInfo, IEditorOptions, EditorOption, IComputedEditorOptions, FindComputedEditorOptionValueById, filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
-import { CursorsController } from 'vs/editor/common/controller/cursor';
-import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
-import { CursorChangeReason, ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { InternalEditorAction } from 'vs/editor/common/editorAction';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { EndOfLinePreference, IIdentifiedSingleEditOperation, IModelDecoration, IModelDecorationOptions, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, ICursorStateComputer, IWordAtPosition } from 'vs/editor/common/model';
-import { ClassName } from 'vs/editor/common/model/intervalTree';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import * as modes from 'vs/editor/common/modes';
-import { editorUnnecessaryCodeBorder, editorUnnecessaryCodeOpacity } from 'vs/editor/common/view/editorColorRegistry';
-import { editorErrorBorder, editorErrorForeground, editorHintBorder, editorHintForeground, editorInfoBorder, editorInfoForeground, editorWarningBorder, editorWarningForeground, editorForeground, editorErrorBackground, editorInfoBackground, editorWarningBackground } from 'vs/platform/theme/common/colorRegistry';
-import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
-import { IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
-import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
-import { DOMLineBreaksComputerFactory } from 'vs/editor/browser/view/domLineBreaksComputer';
-import { WordOperations } from 'vs/editor/common/controller/cursorWordOperations';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
-import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
+impowt 'vs/css!./media/editow';
+impowt * as nws fwom 'vs/nws';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { IMouseEvent, IMouseWheewEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { hash } fwom 'vs/base/common/hash';
+impowt { Disposabwe, IDisposabwe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { Configuwation } fwom 'vs/editow/bwowsa/config/configuwation';
+impowt * as editowBwowsa fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowExtensionsWegistwy, IEditowContwibutionDescwiption } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { ICommandDewegate } fwom 'vs/editow/bwowsa/view/viewContwowwa';
+impowt { IContentWidgetData, IOvewwayWidgetData, View } fwom 'vs/editow/bwowsa/view/viewImpw';
+impowt { ViewUsewInputEvents } fwom 'vs/editow/bwowsa/view/viewUsewInputEvents';
+impowt { ConfiguwationChangedEvent, EditowWayoutInfo, IEditowOptions, EditowOption, IComputedEditowOptions, FindComputedEditowOptionVawueById, fiwtewVawidationDecowations } fwom 'vs/editow/common/config/editowOptions';
+impowt { CuwsowsContwowwa } fwom 'vs/editow/common/contwowwa/cuwsow';
+impowt { CuwsowCowumns } fwom 'vs/editow/common/contwowwa/cuwsowCommon';
+impowt { CuwsowChangeWeason, ICuwsowPositionChangedEvent, ICuwsowSewectionChangedEvent } fwom 'vs/editow/common/contwowwa/cuwsowEvents';
+impowt { IPosition, Position } fwom 'vs/editow/common/cowe/position';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ISewection, Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { IntewnawEditowAction } fwom 'vs/editow/common/editowAction';
+impowt * as editowCommon fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { EndOfWinePwefewence, IIdentifiedSingweEditOpewation, IModewDecowation, IModewDecowationOptions, IModewDecowationsChangeAccessow, IModewDewtaDecowation, ITextModew, ICuwsowStateComputa, IWowdAtPosition } fwom 'vs/editow/common/modew';
+impowt { CwassName } fwom 'vs/editow/common/modew/intewvawTwee';
+impowt { ModewDecowationOptions } fwom 'vs/editow/common/modew/textModew';
+impowt { IModewContentChangedEvent, IModewDecowationsChangedEvent, IModewWanguageChangedEvent, IModewWanguageConfiguwationChangedEvent, IModewOptionsChangedEvent } fwom 'vs/editow/common/modew/textModewEvents';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { editowUnnecessawyCodeBowda, editowUnnecessawyCodeOpacity } fwom 'vs/editow/common/view/editowCowowWegistwy';
+impowt { editowEwwowBowda, editowEwwowFowegwound, editowHintBowda, editowHintFowegwound, editowInfoBowda, editowInfoFowegwound, editowWawningBowda, editowWawningFowegwound, editowFowegwound, editowEwwowBackgwound, editowInfoBackgwound, editowWawningBackgwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { VewticawWeveawType } fwom 'vs/editow/common/view/viewEvents';
+impowt { IEditowWhitespace } fwom 'vs/editow/common/viewWayout/winesWayout';
+impowt { ViewModew } fwom 'vs/editow/common/viewModew/viewModewImpw';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IThemeSewvice, wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { MonospaceWineBweaksComputewFactowy } fwom 'vs/editow/common/viewModew/monospaceWineBweaksComputa';
+impowt { DOMWineBweaksComputewFactowy } fwom 'vs/editow/bwowsa/view/domWineBweaksComputa';
+impowt { WowdOpewations } fwom 'vs/editow/common/contwowwa/cuwsowWowdOpewations';
+impowt { IViewModew } fwom 'vs/editow/common/viewModew/viewModew';
+impowt { OutgoingViewModewEventKind } fwom 'vs/editow/common/viewModew/viewModewEventDispatcha';
 
-let EDITOR_ID = 0;
+wet EDITOW_ID = 0;
 
-export interface ICodeEditorWidgetOptions {
+expowt intewface ICodeEditowWidgetOptions {
 	/**
-	 * Is this a simple widget (not a real code editor) ?
-	 * Defaults to false.
+	 * Is this a simpwe widget (not a weaw code editow) ?
+	 * Defauwts to fawse.
 	 */
-	isSimpleWidget?: boolean;
-
-	/**
-	 * Contributions to instantiate.
-	 * Defaults to EditorExtensionsRegistry.getEditorContributions().
-	 */
-	contributions?: IEditorContributionDescription[];
+	isSimpweWidget?: boowean;
 
 	/**
-	 * Telemetry data associated with this CodeEditorWidget.
-	 * Defaults to null.
+	 * Contwibutions to instantiate.
+	 * Defauwts to EditowExtensionsWegistwy.getEditowContwibutions().
 	 */
-	telemetryData?: object;
+	contwibutions?: IEditowContwibutionDescwiption[];
+
+	/**
+	 * Tewemetwy data associated with this CodeEditowWidget.
+	 * Defauwts to nuww.
+	 */
+	tewemetwyData?: object;
 }
 
-class ModelData {
-	public readonly model: ITextModel;
-	public readonly viewModel: ViewModel;
-	public readonly view: View;
-	public readonly hasRealView: boolean;
-	public readonly listenersToRemove: IDisposable[];
+cwass ModewData {
+	pubwic weadonwy modew: ITextModew;
+	pubwic weadonwy viewModew: ViewModew;
+	pubwic weadonwy view: View;
+	pubwic weadonwy hasWeawView: boowean;
+	pubwic weadonwy wistenewsToWemove: IDisposabwe[];
 
-	constructor(model: ITextModel, viewModel: ViewModel, view: View, hasRealView: boolean, listenersToRemove: IDisposable[]) {
-		this.model = model;
-		this.viewModel = viewModel;
+	constwuctow(modew: ITextModew, viewModew: ViewModew, view: View, hasWeawView: boowean, wistenewsToWemove: IDisposabwe[]) {
+		this.modew = modew;
+		this.viewModew = viewModew;
 		this.view = view;
-		this.hasRealView = hasRealView;
-		this.listenersToRemove = listenersToRemove;
+		this.hasWeawView = hasWeawView;
+		this.wistenewsToWemove = wistenewsToWemove;
 	}
 
-	public dispose(): void {
-		dispose(this.listenersToRemove);
-		this.model.onBeforeDetached();
-		if (this.hasRealView) {
+	pubwic dispose(): void {
+		dispose(this.wistenewsToWemove);
+		this.modew.onBefoweDetached();
+		if (this.hasWeawView) {
 			this.view.dispose();
 		}
-		this.viewModel.dispose();
+		this.viewModew.dispose();
 	}
 }
 
-export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
+expowt cwass CodeEditowWidget extends Disposabwe impwements editowBwowsa.ICodeEditow {
 
-	//#region Eventing
-	private readonly _onDidDispose: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidDispose: Event<void> = this._onDidDispose.event;
+	//#wegion Eventing
+	pwivate weadonwy _onDidDispose: Emitta<void> = this._wegista(new Emitta<void>());
+	pubwic weadonwy onDidDispose: Event<void> = this._onDidDispose.event;
 
-	private readonly _onDidChangeModelContent: Emitter<IModelContentChangedEvent> = this._register(new Emitter<IModelContentChangedEvent>());
-	public readonly onDidChangeModelContent: Event<IModelContentChangedEvent> = this._onDidChangeModelContent.event;
+	pwivate weadonwy _onDidChangeModewContent: Emitta<IModewContentChangedEvent> = this._wegista(new Emitta<IModewContentChangedEvent>());
+	pubwic weadonwy onDidChangeModewContent: Event<IModewContentChangedEvent> = this._onDidChangeModewContent.event;
 
-	private readonly _onDidChangeModelLanguage: Emitter<IModelLanguageChangedEvent> = this._register(new Emitter<IModelLanguageChangedEvent>());
-	public readonly onDidChangeModelLanguage: Event<IModelLanguageChangedEvent> = this._onDidChangeModelLanguage.event;
+	pwivate weadonwy _onDidChangeModewWanguage: Emitta<IModewWanguageChangedEvent> = this._wegista(new Emitta<IModewWanguageChangedEvent>());
+	pubwic weadonwy onDidChangeModewWanguage: Event<IModewWanguageChangedEvent> = this._onDidChangeModewWanguage.event;
 
-	private readonly _onDidChangeModelLanguageConfiguration: Emitter<IModelLanguageConfigurationChangedEvent> = this._register(new Emitter<IModelLanguageConfigurationChangedEvent>());
-	public readonly onDidChangeModelLanguageConfiguration: Event<IModelLanguageConfigurationChangedEvent> = this._onDidChangeModelLanguageConfiguration.event;
+	pwivate weadonwy _onDidChangeModewWanguageConfiguwation: Emitta<IModewWanguageConfiguwationChangedEvent> = this._wegista(new Emitta<IModewWanguageConfiguwationChangedEvent>());
+	pubwic weadonwy onDidChangeModewWanguageConfiguwation: Event<IModewWanguageConfiguwationChangedEvent> = this._onDidChangeModewWanguageConfiguwation.event;
 
-	private readonly _onDidChangeModelOptions: Emitter<IModelOptionsChangedEvent> = this._register(new Emitter<IModelOptionsChangedEvent>());
-	public readonly onDidChangeModelOptions: Event<IModelOptionsChangedEvent> = this._onDidChangeModelOptions.event;
+	pwivate weadonwy _onDidChangeModewOptions: Emitta<IModewOptionsChangedEvent> = this._wegista(new Emitta<IModewOptionsChangedEvent>());
+	pubwic weadonwy onDidChangeModewOptions: Event<IModewOptionsChangedEvent> = this._onDidChangeModewOptions.event;
 
-	private readonly _onDidChangeModelDecorations: Emitter<IModelDecorationsChangedEvent> = this._register(new Emitter<IModelDecorationsChangedEvent>());
-	public readonly onDidChangeModelDecorations: Event<IModelDecorationsChangedEvent> = this._onDidChangeModelDecorations.event;
+	pwivate weadonwy _onDidChangeModewDecowations: Emitta<IModewDecowationsChangedEvent> = this._wegista(new Emitta<IModewDecowationsChangedEvent>());
+	pubwic weadonwy onDidChangeModewDecowations: Event<IModewDecowationsChangedEvent> = this._onDidChangeModewDecowations.event;
 
-	private readonly _onDidChangeConfiguration: Emitter<ConfigurationChangedEvent> = this._register(new Emitter<ConfigurationChangedEvent>());
-	public readonly onDidChangeConfiguration: Event<ConfigurationChangedEvent> = this._onDidChangeConfiguration.event;
+	pwivate weadonwy _onDidChangeConfiguwation: Emitta<ConfiguwationChangedEvent> = this._wegista(new Emitta<ConfiguwationChangedEvent>());
+	pubwic weadonwy onDidChangeConfiguwation: Event<ConfiguwationChangedEvent> = this._onDidChangeConfiguwation.event;
 
-	protected readonly _onDidChangeModel: Emitter<editorCommon.IModelChangedEvent> = this._register(new Emitter<editorCommon.IModelChangedEvent>());
-	public readonly onDidChangeModel: Event<editorCommon.IModelChangedEvent> = this._onDidChangeModel.event;
+	pwotected weadonwy _onDidChangeModew: Emitta<editowCommon.IModewChangedEvent> = this._wegista(new Emitta<editowCommon.IModewChangedEvent>());
+	pubwic weadonwy onDidChangeModew: Event<editowCommon.IModewChangedEvent> = this._onDidChangeModew.event;
 
-	private readonly _onDidChangeCursorPosition: Emitter<ICursorPositionChangedEvent> = this._register(new Emitter<ICursorPositionChangedEvent>());
-	public readonly onDidChangeCursorPosition: Event<ICursorPositionChangedEvent> = this._onDidChangeCursorPosition.event;
+	pwivate weadonwy _onDidChangeCuwsowPosition: Emitta<ICuwsowPositionChangedEvent> = this._wegista(new Emitta<ICuwsowPositionChangedEvent>());
+	pubwic weadonwy onDidChangeCuwsowPosition: Event<ICuwsowPositionChangedEvent> = this._onDidChangeCuwsowPosition.event;
 
-	private readonly _onDidChangeCursorSelection: Emitter<ICursorSelectionChangedEvent> = this._register(new Emitter<ICursorSelectionChangedEvent>());
-	public readonly onDidChangeCursorSelection: Event<ICursorSelectionChangedEvent> = this._onDidChangeCursorSelection.event;
+	pwivate weadonwy _onDidChangeCuwsowSewection: Emitta<ICuwsowSewectionChangedEvent> = this._wegista(new Emitta<ICuwsowSewectionChangedEvent>());
+	pubwic weadonwy onDidChangeCuwsowSewection: Event<ICuwsowSewectionChangedEvent> = this._onDidChangeCuwsowSewection.event;
 
-	private readonly _onDidAttemptReadOnlyEdit: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidAttemptReadOnlyEdit: Event<void> = this._onDidAttemptReadOnlyEdit.event;
+	pwivate weadonwy _onDidAttemptWeadOnwyEdit: Emitta<void> = this._wegista(new Emitta<void>());
+	pubwic weadonwy onDidAttemptWeadOnwyEdit: Event<void> = this._onDidAttemptWeadOnwyEdit.event;
 
-	private readonly _onDidLayoutChange: Emitter<EditorLayoutInfo> = this._register(new Emitter<EditorLayoutInfo>());
-	public readonly onDidLayoutChange: Event<EditorLayoutInfo> = this._onDidLayoutChange.event;
+	pwivate weadonwy _onDidWayoutChange: Emitta<EditowWayoutInfo> = this._wegista(new Emitta<EditowWayoutInfo>());
+	pubwic weadonwy onDidWayoutChange: Event<EditowWayoutInfo> = this._onDidWayoutChange.event;
 
-	private readonly _editorTextFocus: BooleanEventEmitter = this._register(new BooleanEventEmitter());
-	public readonly onDidFocusEditorText: Event<void> = this._editorTextFocus.onDidChangeToTrue;
-	public readonly onDidBlurEditorText: Event<void> = this._editorTextFocus.onDidChangeToFalse;
+	pwivate weadonwy _editowTextFocus: BooweanEventEmitta = this._wegista(new BooweanEventEmitta());
+	pubwic weadonwy onDidFocusEditowText: Event<void> = this._editowTextFocus.onDidChangeToTwue;
+	pubwic weadonwy onDidBwuwEditowText: Event<void> = this._editowTextFocus.onDidChangeToFawse;
 
-	private readonly _editorWidgetFocus: BooleanEventEmitter = this._register(new BooleanEventEmitter());
-	public readonly onDidFocusEditorWidget: Event<void> = this._editorWidgetFocus.onDidChangeToTrue;
-	public readonly onDidBlurEditorWidget: Event<void> = this._editorWidgetFocus.onDidChangeToFalse;
+	pwivate weadonwy _editowWidgetFocus: BooweanEventEmitta = this._wegista(new BooweanEventEmitta());
+	pubwic weadonwy onDidFocusEditowWidget: Event<void> = this._editowWidgetFocus.onDidChangeToTwue;
+	pubwic weadonwy onDidBwuwEditowWidget: Event<void> = this._editowWidgetFocus.onDidChangeToFawse;
 
-	private readonly _onWillType: Emitter<string> = this._register(new Emitter<string>());
-	public readonly onWillType = this._onWillType.event;
+	pwivate weadonwy _onWiwwType: Emitta<stwing> = this._wegista(new Emitta<stwing>());
+	pubwic weadonwy onWiwwType = this._onWiwwType.event;
 
-	private readonly _onDidType: Emitter<string> = this._register(new Emitter<string>());
-	public readonly onDidType = this._onDidType.event;
+	pwivate weadonwy _onDidType: Emitta<stwing> = this._wegista(new Emitta<stwing>());
+	pubwic weadonwy onDidType = this._onDidType.event;
 
-	private readonly _onDidCompositionStart: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidCompositionStart = this._onDidCompositionStart.event;
+	pwivate weadonwy _onDidCompositionStawt: Emitta<void> = this._wegista(new Emitta<void>());
+	pubwic weadonwy onDidCompositionStawt = this._onDidCompositionStawt.event;
 
-	private readonly _onDidCompositionEnd: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidCompositionEnd = this._onDidCompositionEnd.event;
+	pwivate weadonwy _onDidCompositionEnd: Emitta<void> = this._wegista(new Emitta<void>());
+	pubwic weadonwy onDidCompositionEnd = this._onDidCompositionEnd.event;
 
-	private readonly _onDidPaste: Emitter<editorBrowser.IPasteEvent> = this._register(new Emitter<editorBrowser.IPasteEvent>());
-	public readonly onDidPaste = this._onDidPaste.event;
+	pwivate weadonwy _onDidPaste: Emitta<editowBwowsa.IPasteEvent> = this._wegista(new Emitta<editowBwowsa.IPasteEvent>());
+	pubwic weadonwy onDidPaste = this._onDidPaste.event;
 
-	private readonly _onMouseUp: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
-	public readonly onMouseUp: Event<editorBrowser.IEditorMouseEvent> = this._onMouseUp.event;
+	pwivate weadonwy _onMouseUp: Emitta<editowBwowsa.IEditowMouseEvent> = this._wegista(new Emitta<editowBwowsa.IEditowMouseEvent>());
+	pubwic weadonwy onMouseUp: Event<editowBwowsa.IEditowMouseEvent> = this._onMouseUp.event;
 
-	private readonly _onMouseDown: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
-	public readonly onMouseDown: Event<editorBrowser.IEditorMouseEvent> = this._onMouseDown.event;
+	pwivate weadonwy _onMouseDown: Emitta<editowBwowsa.IEditowMouseEvent> = this._wegista(new Emitta<editowBwowsa.IEditowMouseEvent>());
+	pubwic weadonwy onMouseDown: Event<editowBwowsa.IEditowMouseEvent> = this._onMouseDown.event;
 
-	private readonly _onMouseDrag: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
-	public readonly onMouseDrag: Event<editorBrowser.IEditorMouseEvent> = this._onMouseDrag.event;
+	pwivate weadonwy _onMouseDwag: Emitta<editowBwowsa.IEditowMouseEvent> = this._wegista(new Emitta<editowBwowsa.IEditowMouseEvent>());
+	pubwic weadonwy onMouseDwag: Event<editowBwowsa.IEditowMouseEvent> = this._onMouseDwag.event;
 
-	private readonly _onMouseDrop: Emitter<editorBrowser.IPartialEditorMouseEvent> = this._register(new Emitter<editorBrowser.IPartialEditorMouseEvent>());
-	public readonly onMouseDrop: Event<editorBrowser.IPartialEditorMouseEvent> = this._onMouseDrop.event;
+	pwivate weadonwy _onMouseDwop: Emitta<editowBwowsa.IPawtiawEditowMouseEvent> = this._wegista(new Emitta<editowBwowsa.IPawtiawEditowMouseEvent>());
+	pubwic weadonwy onMouseDwop: Event<editowBwowsa.IPawtiawEditowMouseEvent> = this._onMouseDwop.event;
 
-	private readonly _onMouseDropCanceled: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onMouseDropCanceled: Event<void> = this._onMouseDropCanceled.event;
+	pwivate weadonwy _onMouseDwopCancewed: Emitta<void> = this._wegista(new Emitta<void>());
+	pubwic weadonwy onMouseDwopCancewed: Event<void> = this._onMouseDwopCancewed.event;
 
-	private readonly _onContextMenu: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
-	public readonly onContextMenu: Event<editorBrowser.IEditorMouseEvent> = this._onContextMenu.event;
+	pwivate weadonwy _onContextMenu: Emitta<editowBwowsa.IEditowMouseEvent> = this._wegista(new Emitta<editowBwowsa.IEditowMouseEvent>());
+	pubwic weadonwy onContextMenu: Event<editowBwowsa.IEditowMouseEvent> = this._onContextMenu.event;
 
-	private readonly _onMouseMove: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
-	public readonly onMouseMove: Event<editorBrowser.IEditorMouseEvent> = this._onMouseMove.event;
+	pwivate weadonwy _onMouseMove: Emitta<editowBwowsa.IEditowMouseEvent> = this._wegista(new Emitta<editowBwowsa.IEditowMouseEvent>());
+	pubwic weadonwy onMouseMove: Event<editowBwowsa.IEditowMouseEvent> = this._onMouseMove.event;
 
-	private readonly _onMouseLeave: Emitter<editorBrowser.IPartialEditorMouseEvent> = this._register(new Emitter<editorBrowser.IPartialEditorMouseEvent>());
-	public readonly onMouseLeave: Event<editorBrowser.IPartialEditorMouseEvent> = this._onMouseLeave.event;
+	pwivate weadonwy _onMouseWeave: Emitta<editowBwowsa.IPawtiawEditowMouseEvent> = this._wegista(new Emitta<editowBwowsa.IPawtiawEditowMouseEvent>());
+	pubwic weadonwy onMouseWeave: Event<editowBwowsa.IPawtiawEditowMouseEvent> = this._onMouseWeave.event;
 
-	private readonly _onMouseWheel: Emitter<IMouseWheelEvent> = this._register(new Emitter<IMouseWheelEvent>());
-	public readonly onMouseWheel: Event<IMouseWheelEvent> = this._onMouseWheel.event;
+	pwivate weadonwy _onMouseWheew: Emitta<IMouseWheewEvent> = this._wegista(new Emitta<IMouseWheewEvent>());
+	pubwic weadonwy onMouseWheew: Event<IMouseWheewEvent> = this._onMouseWheew.event;
 
-	private readonly _onKeyUp: Emitter<IKeyboardEvent> = this._register(new Emitter<IKeyboardEvent>());
-	public readonly onKeyUp: Event<IKeyboardEvent> = this._onKeyUp.event;
+	pwivate weadonwy _onKeyUp: Emitta<IKeyboawdEvent> = this._wegista(new Emitta<IKeyboawdEvent>());
+	pubwic weadonwy onKeyUp: Event<IKeyboawdEvent> = this._onKeyUp.event;
 
-	private readonly _onKeyDown: Emitter<IKeyboardEvent> = this._register(new Emitter<IKeyboardEvent>());
-	public readonly onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
+	pwivate weadonwy _onKeyDown: Emitta<IKeyboawdEvent> = this._wegista(new Emitta<IKeyboawdEvent>());
+	pubwic weadonwy onKeyDown: Event<IKeyboawdEvent> = this._onKeyDown.event;
 
-	private readonly _onDidContentSizeChange: Emitter<editorCommon.IContentSizeChangedEvent> = this._register(new Emitter<editorCommon.IContentSizeChangedEvent>());
-	public readonly onDidContentSizeChange: Event<editorCommon.IContentSizeChangedEvent> = this._onDidContentSizeChange.event;
+	pwivate weadonwy _onDidContentSizeChange: Emitta<editowCommon.IContentSizeChangedEvent> = this._wegista(new Emitta<editowCommon.IContentSizeChangedEvent>());
+	pubwic weadonwy onDidContentSizeChange: Event<editowCommon.IContentSizeChangedEvent> = this._onDidContentSizeChange.event;
 
-	private readonly _onDidScrollChange: Emitter<editorCommon.IScrollEvent> = this._register(new Emitter<editorCommon.IScrollEvent>());
-	public readonly onDidScrollChange: Event<editorCommon.IScrollEvent> = this._onDidScrollChange.event;
+	pwivate weadonwy _onDidScwowwChange: Emitta<editowCommon.IScwowwEvent> = this._wegista(new Emitta<editowCommon.IScwowwEvent>());
+	pubwic weadonwy onDidScwowwChange: Event<editowCommon.IScwowwEvent> = this._onDidScwowwChange.event;
 
-	private readonly _onDidChangeViewZones: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidChangeViewZones: Event<void> = this._onDidChangeViewZones.event;
-	//#endregion
+	pwivate weadonwy _onDidChangeViewZones: Emitta<void> = this._wegista(new Emitta<void>());
+	pubwic weadonwy onDidChangeViewZones: Event<void> = this._onDidChangeViewZones.event;
+	//#endwegion
 
-	public readonly isSimpleWidget: boolean;
-	private readonly _telemetryData?: object;
+	pubwic weadonwy isSimpweWidget: boowean;
+	pwivate weadonwy _tewemetwyData?: object;
 
-	private readonly _domElement: HTMLElement;
-	private readonly _overflowWidgetsDomNode: HTMLElement | undefined;
-	private readonly _id: number;
-	private readonly _configuration: editorCommon.IConfiguration;
+	pwivate weadonwy _domEwement: HTMWEwement;
+	pwivate weadonwy _ovewfwowWidgetsDomNode: HTMWEwement | undefined;
+	pwivate weadonwy _id: numba;
+	pwivate weadonwy _configuwation: editowCommon.IConfiguwation;
 
-	protected _contributions: { [key: string]: editorCommon.IEditorContribution; };
-	protected _actions: { [key: string]: editorCommon.IEditorAction; };
+	pwotected _contwibutions: { [key: stwing]: editowCommon.IEditowContwibution; };
+	pwotected _actions: { [key: stwing]: editowCommon.IEditowAction; };
 
-	// --- Members logically associated to a model
-	protected _modelData: ModelData | null;
+	// --- Membews wogicawwy associated to a modew
+	pwotected _modewData: ModewData | nuww;
 
-	protected readonly _instantiationService: IInstantiationService;
-	protected readonly _contextKeyService: IContextKeyService;
-	private readonly _notificationService: INotificationService;
-	protected readonly _codeEditorService: ICodeEditorService;
-	private readonly _commandService: ICommandService;
-	private readonly _themeService: IThemeService;
+	pwotected weadonwy _instantiationSewvice: IInstantiationSewvice;
+	pwotected weadonwy _contextKeySewvice: IContextKeySewvice;
+	pwivate weadonwy _notificationSewvice: INotificationSewvice;
+	pwotected weadonwy _codeEditowSewvice: ICodeEditowSewvice;
+	pwivate weadonwy _commandSewvice: ICommandSewvice;
+	pwivate weadonwy _themeSewvice: IThemeSewvice;
 
-	private readonly _focusTracker: CodeEditorWidgetFocusTracker;
+	pwivate weadonwy _focusTwacka: CodeEditowWidgetFocusTwacka;
 
-	private _contentWidgets: { [key: string]: IContentWidgetData; };
-	private _overlayWidgets: { [key: string]: IOverlayWidgetData; };
+	pwivate _contentWidgets: { [key: stwing]: IContentWidgetData; };
+	pwivate _ovewwayWidgets: { [key: stwing]: IOvewwayWidgetData; };
 
 	/**
-	 * map from "parent" decoration type to live decoration ids.
+	 * map fwom "pawent" decowation type to wive decowation ids.
 	 */
-	private _decorationTypeKeysToIds: { [decorationTypeKey: string]: string[] };
-	private _decorationTypeSubtypes: { [decorationTypeKey: string]: { [subtype: string]: boolean } };
+	pwivate _decowationTypeKeysToIds: { [decowationTypeKey: stwing]: stwing[] };
+	pwivate _decowationTypeSubtypes: { [decowationTypeKey: stwing]: { [subtype: stwing]: boowean } };
 
-	constructor(
-		domElement: HTMLElement,
-		_options: Readonly<editorBrowser.IEditorConstructionOptions>,
-		codeEditorWidgetOptions: ICodeEditorWidgetOptions,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@ICommandService commandService: ICommandService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService,
-		@INotificationService notificationService: INotificationService,
-		@IAccessibilityService accessibilityService: IAccessibilityService
+	constwuctow(
+		domEwement: HTMWEwement,
+		_options: Weadonwy<editowBwowsa.IEditowConstwuctionOptions>,
+		codeEditowWidgetOptions: ICodeEditowWidgetOptions,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@ICodeEditowSewvice codeEditowSewvice: ICodeEditowSewvice,
+		@ICommandSewvice commandSewvice: ICommandSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IAccessibiwitySewvice accessibiwitySewvice: IAccessibiwitySewvice
 	) {
-		super();
+		supa();
 
 		const options = { ..._options };
 
-		this._domElement = domElement;
-		this._overflowWidgetsDomNode = options.overflowWidgetsDomNode;
-		delete options.overflowWidgetsDomNode;
-		this._id = (++EDITOR_ID);
-		this._decorationTypeKeysToIds = {};
-		this._decorationTypeSubtypes = {};
-		this.isSimpleWidget = codeEditorWidgetOptions.isSimpleWidget || false;
-		this._telemetryData = codeEditorWidgetOptions.telemetryData;
+		this._domEwement = domEwement;
+		this._ovewfwowWidgetsDomNode = options.ovewfwowWidgetsDomNode;
+		dewete options.ovewfwowWidgetsDomNode;
+		this._id = (++EDITOW_ID);
+		this._decowationTypeKeysToIds = {};
+		this._decowationTypeSubtypes = {};
+		this.isSimpweWidget = codeEditowWidgetOptions.isSimpweWidget || fawse;
+		this._tewemetwyData = codeEditowWidgetOptions.tewemetwyData;
 
-		this._configuration = this._register(this._createConfiguration(options, accessibilityService));
-		this._register(this._configuration.onDidChange((e) => {
-			this._onDidChangeConfiguration.fire(e);
+		this._configuwation = this._wegista(this._cweateConfiguwation(options, accessibiwitySewvice));
+		this._wegista(this._configuwation.onDidChange((e) => {
+			this._onDidChangeConfiguwation.fiwe(e);
 
-			const options = this._configuration.options;
-			if (e.hasChanged(EditorOption.layoutInfo)) {
-				const layoutInfo = options.get(EditorOption.layoutInfo);
-				this._onDidLayoutChange.fire(layoutInfo);
+			const options = this._configuwation.options;
+			if (e.hasChanged(EditowOption.wayoutInfo)) {
+				const wayoutInfo = options.get(EditowOption.wayoutInfo);
+				this._onDidWayoutChange.fiwe(wayoutInfo);
 			}
 		}));
 
-		this._contextKeyService = this._register(contextKeyService.createScoped(this._domElement));
-		this._notificationService = notificationService;
-		this._codeEditorService = codeEditorService;
-		this._commandService = commandService;
-		this._themeService = themeService;
-		this._register(new EditorContextKeysManager(this, this._contextKeyService));
-		this._register(new EditorModeContext(this, this._contextKeyService));
+		this._contextKeySewvice = this._wegista(contextKeySewvice.cweateScoped(this._domEwement));
+		this._notificationSewvice = notificationSewvice;
+		this._codeEditowSewvice = codeEditowSewvice;
+		this._commandSewvice = commandSewvice;
+		this._themeSewvice = themeSewvice;
+		this._wegista(new EditowContextKeysManaga(this, this._contextKeySewvice));
+		this._wegista(new EditowModeContext(this, this._contextKeySewvice));
 
-		this._instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this._contextKeyService]));
+		this._instantiationSewvice = instantiationSewvice.cweateChiwd(new SewviceCowwection([IContextKeySewvice, this._contextKeySewvice]));
 
-		this._modelData = null;
+		this._modewData = nuww;
 
-		this._contributions = {};
+		this._contwibutions = {};
 		this._actions = {};
 
-		this._focusTracker = new CodeEditorWidgetFocusTracker(domElement);
-		this._register(this._focusTracker.onChange(() => {
-			this._editorWidgetFocus.setValue(this._focusTracker.hasFocus());
+		this._focusTwacka = new CodeEditowWidgetFocusTwacka(domEwement);
+		this._wegista(this._focusTwacka.onChange(() => {
+			this._editowWidgetFocus.setVawue(this._focusTwacka.hasFocus());
 		}));
 
 		this._contentWidgets = {};
-		this._overlayWidgets = {};
+		this._ovewwayWidgets = {};
 
-		let contributions: IEditorContributionDescription[];
-		if (Array.isArray(codeEditorWidgetOptions.contributions)) {
-			contributions = codeEditorWidgetOptions.contributions;
-		} else {
-			contributions = EditorExtensionsRegistry.getEditorContributions();
+		wet contwibutions: IEditowContwibutionDescwiption[];
+		if (Awway.isAwway(codeEditowWidgetOptions.contwibutions)) {
+			contwibutions = codeEditowWidgetOptions.contwibutions;
+		} ewse {
+			contwibutions = EditowExtensionsWegistwy.getEditowContwibutions();
 		}
-		for (const desc of contributions) {
-			if (this._contributions[desc.id]) {
-				onUnexpectedError(new Error(`Cannot have two contributions with the same id ${desc.id}`));
+		fow (const desc of contwibutions) {
+			if (this._contwibutions[desc.id]) {
+				onUnexpectedEwwow(new Ewwow(`Cannot have two contwibutions with the same id ${desc.id}`));
 				continue;
 			}
-			try {
-				const contribution = this._instantiationService.createInstance(desc.ctor, this);
-				this._contributions[desc.id] = contribution;
-			} catch (err) {
-				onUnexpectedError(err);
+			twy {
+				const contwibution = this._instantiationSewvice.cweateInstance(desc.ctow, this);
+				this._contwibutions[desc.id] = contwibution;
+			} catch (eww) {
+				onUnexpectedEwwow(eww);
 			}
 		}
 
-		EditorExtensionsRegistry.getEditorActions().forEach((action) => {
+		EditowExtensionsWegistwy.getEditowActions().fowEach((action) => {
 			if (this._actions[action.id]) {
-				onUnexpectedError(new Error(`Cannot have two actions with the same id ${action.id}`));
-				return;
+				onUnexpectedEwwow(new Ewwow(`Cannot have two actions with the same id ${action.id}`));
+				wetuwn;
 			}
-			const internalAction = new InternalEditorAction(
+			const intewnawAction = new IntewnawEditowAction(
 				action.id,
-				action.label,
-				action.alias,
-				withNullAsUndefined(action.precondition),
-				(): Promise<void> => {
-					return this._instantiationService.invokeFunction((accessor) => {
-						return Promise.resolve(action.runEditorCommand(accessor, this, null));
+				action.wabew,
+				action.awias,
+				withNuwwAsUndefined(action.pwecondition),
+				(): Pwomise<void> => {
+					wetuwn this._instantiationSewvice.invokeFunction((accessow) => {
+						wetuwn Pwomise.wesowve(action.wunEditowCommand(accessow, this, nuww));
 					});
 				},
-				this._contextKeyService
+				this._contextKeySewvice
 			);
-			this._actions[internalAction.id] = internalAction;
+			this._actions[intewnawAction.id] = intewnawAction;
 		});
 
-		this._codeEditorService.addCodeEditor(this);
+		this._codeEditowSewvice.addCodeEditow(this);
 	}
 
-	protected _createConfiguration(options: Readonly<editorBrowser.IEditorConstructionOptions>, accessibilityService: IAccessibilityService): editorCommon.IConfiguration {
-		return new Configuration(this.isSimpleWidget, options, this._domElement, accessibilityService);
+	pwotected _cweateConfiguwation(options: Weadonwy<editowBwowsa.IEditowConstwuctionOptions>, accessibiwitySewvice: IAccessibiwitySewvice): editowCommon.IConfiguwation {
+		wetuwn new Configuwation(this.isSimpweWidget, options, this._domEwement, accessibiwitySewvice);
 	}
 
-	public getId(): string {
-		return this.getEditorType() + ':' + this._id;
+	pubwic getId(): stwing {
+		wetuwn this.getEditowType() + ':' + this._id;
 	}
 
-	public getEditorType(): string {
-		return editorCommon.EditorType.ICodeEditor;
+	pubwic getEditowType(): stwing {
+		wetuwn editowCommon.EditowType.ICodeEditow;
 	}
 
-	public override dispose(): void {
-		this._codeEditorService.removeCodeEditor(this);
+	pubwic ovewwide dispose(): void {
+		this._codeEditowSewvice.wemoveCodeEditow(this);
 
-		this._focusTracker.dispose();
+		this._focusTwacka.dispose();
 
-		const keys = Object.keys(this._contributions);
-		for (let i = 0, len = keys.length; i < len; i++) {
-			const contributionId = keys[i];
-			this._contributions[contributionId].dispose();
+		const keys = Object.keys(this._contwibutions);
+		fow (wet i = 0, wen = keys.wength; i < wen; i++) {
+			const contwibutionId = keys[i];
+			this._contwibutions[contwibutionId].dispose();
 		}
-		this._contributions = {};
+		this._contwibutions = {};
 		this._actions = {};
 		this._contentWidgets = {};
-		this._overlayWidgets = {};
+		this._ovewwayWidgets = {};
 
-		this._removeDecorationTypes();
-		this._postDetachModelCleanup(this._detachModel());
+		this._wemoveDecowationTypes();
+		this._postDetachModewCweanup(this._detachModew());
 
-		this._onDidDispose.fire();
+		this._onDidDispose.fiwe();
 
-		super.dispose();
+		supa.dispose();
 	}
 
-	public invokeWithinContext<T>(fn: (accessor: ServicesAccessor) => T): T {
-		return this._instantiationService.invokeFunction(fn);
+	pubwic invokeWithinContext<T>(fn: (accessow: SewvicesAccessow) => T): T {
+		wetuwn this._instantiationSewvice.invokeFunction(fn);
 	}
 
-	public updateOptions(newOptions: Readonly<IEditorOptions>): void {
-		this._configuration.updateOptions(newOptions);
+	pubwic updateOptions(newOptions: Weadonwy<IEditowOptions>): void {
+		this._configuwation.updateOptions(newOptions);
 	}
 
-	public getOptions(): IComputedEditorOptions {
-		return this._configuration.options;
+	pubwic getOptions(): IComputedEditowOptions {
+		wetuwn this._configuwation.options;
 	}
 
-	public getOption<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T> {
-		return this._configuration.options.get(id);
+	pubwic getOption<T extends EditowOption>(id: T): FindComputedEditowOptionVawueById<T> {
+		wetuwn this._configuwation.options.get(id);
 	}
 
-	public getRawOptions(): IEditorOptions {
-		return this._configuration.getRawOptions();
+	pubwic getWawOptions(): IEditowOptions {
+		wetuwn this._configuwation.getWawOptions();
 	}
 
-	public getOverflowWidgetsDomNode(): HTMLElement | undefined {
-		return this._overflowWidgetsDomNode;
+	pubwic getOvewfwowWidgetsDomNode(): HTMWEwement | undefined {
+		wetuwn this._ovewfwowWidgetsDomNode;
 	}
 
-	public getConfiguredWordAtPosition(position: Position): IWordAtPosition | null {
-		if (!this._modelData) {
-			return null;
+	pubwic getConfiguwedWowdAtPosition(position: Position): IWowdAtPosition | nuww {
+		if (!this._modewData) {
+			wetuwn nuww;
 		}
-		return WordOperations.getWordAtPosition(this._modelData.model, this._configuration.options.get(EditorOption.wordSeparators), position);
+		wetuwn WowdOpewations.getWowdAtPosition(this._modewData.modew, this._configuwation.options.get(EditowOption.wowdSepawatows), position);
 	}
 
-	public getValue(options: { preserveBOM: boolean; lineEnding: string; } | null = null): string {
-		if (!this._modelData) {
-			return '';
+	pubwic getVawue(options: { pwesewveBOM: boowean; wineEnding: stwing; } | nuww = nuww): stwing {
+		if (!this._modewData) {
+			wetuwn '';
 		}
 
-		const preserveBOM: boolean = (options && options.preserveBOM) ? true : false;
-		let eolPreference = EndOfLinePreference.TextDefined;
-		if (options && options.lineEnding && options.lineEnding === '\n') {
-			eolPreference = EndOfLinePreference.LF;
-		} else if (options && options.lineEnding && options.lineEnding === '\r\n') {
-			eolPreference = EndOfLinePreference.CRLF;
+		const pwesewveBOM: boowean = (options && options.pwesewveBOM) ? twue : fawse;
+		wet eowPwefewence = EndOfWinePwefewence.TextDefined;
+		if (options && options.wineEnding && options.wineEnding === '\n') {
+			eowPwefewence = EndOfWinePwefewence.WF;
+		} ewse if (options && options.wineEnding && options.wineEnding === '\w\n') {
+			eowPwefewence = EndOfWinePwefewence.CWWF;
 		}
-		return this._modelData.model.getValue(eolPreference, preserveBOM);
+		wetuwn this._modewData.modew.getVawue(eowPwefewence, pwesewveBOM);
 	}
 
-	public setValue(newValue: string): void {
-		if (!this._modelData) {
-			return;
+	pubwic setVawue(newVawue: stwing): void {
+		if (!this._modewData) {
+			wetuwn;
 		}
-		this._modelData.model.setValue(newValue);
+		this._modewData.modew.setVawue(newVawue);
 	}
 
-	public getModel(): ITextModel | null {
-		if (!this._modelData) {
-			return null;
+	pubwic getModew(): ITextModew | nuww {
+		if (!this._modewData) {
+			wetuwn nuww;
 		}
-		return this._modelData.model;
+		wetuwn this._modewData.modew;
 	}
 
-	public setModel(_model: ITextModel | editorCommon.IDiffEditorModel | null = null): void {
-		const model = <ITextModel | null>_model;
-		if (this._modelData === null && model === null) {
-			// Current model is the new model
-			return;
+	pubwic setModew(_modew: ITextModew | editowCommon.IDiffEditowModew | nuww = nuww): void {
+		const modew = <ITextModew | nuww>_modew;
+		if (this._modewData === nuww && modew === nuww) {
+			// Cuwwent modew is the new modew
+			wetuwn;
 		}
-		if (this._modelData && this._modelData.model === model) {
-			// Current model is the new model
-			return;
+		if (this._modewData && this._modewData.modew === modew) {
+			// Cuwwent modew is the new modew
+			wetuwn;
 		}
 		const hasTextFocus = this.hasTextFocus();
-		const detachedModel = this._detachModel();
-		this._attachModel(model);
-		if (hasTextFocus && this.hasModel()) {
+		const detachedModew = this._detachModew();
+		this._attachModew(modew);
+		if (hasTextFocus && this.hasModew()) {
 			this.focus();
 		}
 
-		const e: editorCommon.IModelChangedEvent = {
-			oldModelUrl: detachedModel ? detachedModel.uri : null,
-			newModelUrl: model ? model.uri : null
+		const e: editowCommon.IModewChangedEvent = {
+			owdModewUww: detachedModew ? detachedModew.uwi : nuww,
+			newModewUww: modew ? modew.uwi : nuww
 		};
 
-		this._removeDecorationTypes();
-		this._onDidChangeModel.fire(e);
-		this._postDetachModelCleanup(detachedModel);
+		this._wemoveDecowationTypes();
+		this._onDidChangeModew.fiwe(e);
+		this._postDetachModewCweanup(detachedModew);
 	}
 
-	private _removeDecorationTypes(): void {
-		this._decorationTypeKeysToIds = {};
-		if (this._decorationTypeSubtypes) {
-			for (let decorationType in this._decorationTypeSubtypes) {
-				const subTypes = this._decorationTypeSubtypes[decorationType];
-				for (let subType in subTypes) {
-					this._removeDecorationType(decorationType + '-' + subType);
+	pwivate _wemoveDecowationTypes(): void {
+		this._decowationTypeKeysToIds = {};
+		if (this._decowationTypeSubtypes) {
+			fow (wet decowationType in this._decowationTypeSubtypes) {
+				const subTypes = this._decowationTypeSubtypes[decowationType];
+				fow (wet subType in subTypes) {
+					this._wemoveDecowationType(decowationType + '-' + subType);
 				}
 			}
-			this._decorationTypeSubtypes = {};
+			this._decowationTypeSubtypes = {};
 		}
 	}
 
-	public getVisibleRanges(): Range[] {
-		if (!this._modelData) {
-			return [];
+	pubwic getVisibweWanges(): Wange[] {
+		if (!this._modewData) {
+			wetuwn [];
 		}
-		return this._modelData.viewModel.getVisibleRanges();
+		wetuwn this._modewData.viewModew.getVisibweWanges();
 	}
 
-	public getVisibleRangesPlusViewportAboveBelow(): Range[] {
-		if (!this._modelData) {
-			return [];
+	pubwic getVisibweWangesPwusViewpowtAboveBewow(): Wange[] {
+		if (!this._modewData) {
+			wetuwn [];
 		}
-		return this._modelData.viewModel.getVisibleRangesPlusViewportAboveBelow();
+		wetuwn this._modewData.viewModew.getVisibweWangesPwusViewpowtAboveBewow();
 	}
 
-	public getWhitespaces(): IEditorWhitespace[] {
-		if (!this._modelData) {
-			return [];
+	pubwic getWhitespaces(): IEditowWhitespace[] {
+		if (!this._modewData) {
+			wetuwn [];
 		}
-		return this._modelData.viewModel.viewLayout.getWhitespaces();
+		wetuwn this._modewData.viewModew.viewWayout.getWhitespaces();
 	}
 
-	private static _getVerticalOffsetForPosition(modelData: ModelData, modelLineNumber: number, modelColumn: number): number {
-		const modelPosition = modelData.model.validatePosition({
-			lineNumber: modelLineNumber,
-			column: modelColumn
+	pwivate static _getVewticawOffsetFowPosition(modewData: ModewData, modewWineNumba: numba, modewCowumn: numba): numba {
+		const modewPosition = modewData.modew.vawidatePosition({
+			wineNumba: modewWineNumba,
+			cowumn: modewCowumn
 		});
-		const viewPosition = modelData.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
-		return modelData.viewModel.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
+		const viewPosition = modewData.viewModew.coowdinatesConvewta.convewtModewPositionToViewPosition(modewPosition);
+		wetuwn modewData.viewModew.viewWayout.getVewticawOffsetFowWineNumba(viewPosition.wineNumba);
 	}
 
-	public getTopForLineNumber(lineNumber: number): number {
-		if (!this._modelData) {
-			return -1;
+	pubwic getTopFowWineNumba(wineNumba: numba): numba {
+		if (!this._modewData) {
+			wetuwn -1;
 		}
-		return CodeEditorWidget._getVerticalOffsetForPosition(this._modelData, lineNumber, 1);
+		wetuwn CodeEditowWidget._getVewticawOffsetFowPosition(this._modewData, wineNumba, 1);
 	}
 
-	public getTopForPosition(lineNumber: number, column: number): number {
-		if (!this._modelData) {
-			return -1;
+	pubwic getTopFowPosition(wineNumba: numba, cowumn: numba): numba {
+		if (!this._modewData) {
+			wetuwn -1;
 		}
-		return CodeEditorWidget._getVerticalOffsetForPosition(this._modelData, lineNumber, column);
+		wetuwn CodeEditowWidget._getVewticawOffsetFowPosition(this._modewData, wineNumba, cowumn);
 	}
 
-	public setHiddenAreas(ranges: IRange[]): void {
-		if (this._modelData) {
-			this._modelData.viewModel.setHiddenAreas(ranges.map(r => Range.lift(r)));
+	pubwic setHiddenAweas(wanges: IWange[]): void {
+		if (this._modewData) {
+			this._modewData.viewModew.setHiddenAweas(wanges.map(w => Wange.wift(w)));
 		}
 	}
 
-	public getVisibleColumnFromPosition(rawPosition: IPosition): number {
-		if (!this._modelData) {
-			return rawPosition.column;
-		}
-
-		const position = this._modelData.model.validatePosition(rawPosition);
-		const tabSize = this._modelData.model.getOptions().tabSize;
-
-		return CursorColumns.visibleColumnFromColumn(this._modelData.model.getLineContent(position.lineNumber), position.column, tabSize) + 1;
-	}
-
-	public getStatusbarColumn(rawPosition: IPosition): number {
-		if (!this._modelData) {
-			return rawPosition.column;
+	pubwic getVisibweCowumnFwomPosition(wawPosition: IPosition): numba {
+		if (!this._modewData) {
+			wetuwn wawPosition.cowumn;
 		}
 
-		const position = this._modelData.model.validatePosition(rawPosition);
-		const tabSize = this._modelData.model.getOptions().tabSize;
+		const position = this._modewData.modew.vawidatePosition(wawPosition);
+		const tabSize = this._modewData.modew.getOptions().tabSize;
 
-		return CursorColumns.toStatusbarColumn(this._modelData.model.getLineContent(position.lineNumber), position.column, tabSize);
+		wetuwn CuwsowCowumns.visibweCowumnFwomCowumn(this._modewData.modew.getWineContent(position.wineNumba), position.cowumn, tabSize) + 1;
 	}
 
-	public getPosition(): Position | null {
-		if (!this._modelData) {
-			return null;
+	pubwic getStatusbawCowumn(wawPosition: IPosition): numba {
+		if (!this._modewData) {
+			wetuwn wawPosition.cowumn;
 		}
-		return this._modelData.viewModel.getPosition();
+
+		const position = this._modewData.modew.vawidatePosition(wawPosition);
+		const tabSize = this._modewData.modew.getOptions().tabSize;
+
+		wetuwn CuwsowCowumns.toStatusbawCowumn(this._modewData.modew.getWineContent(position.wineNumba), position.cowumn, tabSize);
 	}
 
-	public setPosition(position: IPosition): void {
-		if (!this._modelData) {
-			return;
+	pubwic getPosition(): Position | nuww {
+		if (!this._modewData) {
+			wetuwn nuww;
+		}
+		wetuwn this._modewData.viewModew.getPosition();
+	}
+
+	pubwic setPosition(position: IPosition): void {
+		if (!this._modewData) {
+			wetuwn;
 		}
 		if (!Position.isIPosition(position)) {
-			throw new Error('Invalid arguments');
+			thwow new Ewwow('Invawid awguments');
 		}
-		this._modelData.viewModel.setSelections('api', [{
-			selectionStartLineNumber: position.lineNumber,
-			selectionStartColumn: position.column,
-			positionLineNumber: position.lineNumber,
-			positionColumn: position.column
+		this._modewData.viewModew.setSewections('api', [{
+			sewectionStawtWineNumba: position.wineNumba,
+			sewectionStawtCowumn: position.cowumn,
+			positionWineNumba: position.wineNumba,
+			positionCowumn: position.cowumn
 		}]);
 	}
 
-	private _sendRevealRange(modelRange: Range, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType): void {
-		if (!this._modelData) {
-			return;
+	pwivate _sendWeveawWange(modewWange: Wange, vewticawType: VewticawWeveawType, weveawHowizontaw: boowean, scwowwType: editowCommon.ScwowwType): void {
+		if (!this._modewData) {
+			wetuwn;
 		}
-		if (!Range.isIRange(modelRange)) {
-			throw new Error('Invalid arguments');
+		if (!Wange.isIWange(modewWange)) {
+			thwow new Ewwow('Invawid awguments');
 		}
-		const validatedModelRange = this._modelData.model.validateRange(modelRange);
-		const viewRange = this._modelData.viewModel.coordinatesConverter.convertModelRangeToViewRange(validatedModelRange);
+		const vawidatedModewWange = this._modewData.modew.vawidateWange(modewWange);
+		const viewWange = this._modewData.viewModew.coowdinatesConvewta.convewtModewWangeToViewWange(vawidatedModewWange);
 
-		this._modelData.viewModel.revealRange('api', revealHorizontal, viewRange, verticalType, scrollType);
+		this._modewData.viewModew.weveawWange('api', weveawHowizontaw, viewWange, vewticawType, scwowwType);
 	}
 
-	public revealLine(lineNumber: number, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
-		this._revealLine(lineNumber, VerticalRevealType.Simple, scrollType);
+	pubwic weveawWine(wineNumba: numba, scwowwType: editowCommon.ScwowwType = editowCommon.ScwowwType.Smooth): void {
+		this._weveawWine(wineNumba, VewticawWeveawType.Simpwe, scwowwType);
 	}
 
-	public revealLineInCenter(lineNumber: number, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
-		this._revealLine(lineNumber, VerticalRevealType.Center, scrollType);
+	pubwic weveawWineInCenta(wineNumba: numba, scwowwType: editowCommon.ScwowwType = editowCommon.ScwowwType.Smooth): void {
+		this._weveawWine(wineNumba, VewticawWeveawType.Centa, scwowwType);
 	}
 
-	public revealLineInCenterIfOutsideViewport(lineNumber: number, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
-		this._revealLine(lineNumber, VerticalRevealType.CenterIfOutsideViewport, scrollType);
+	pubwic weveawWineInCentewIfOutsideViewpowt(wineNumba: numba, scwowwType: editowCommon.ScwowwType = editowCommon.ScwowwType.Smooth): void {
+		this._weveawWine(wineNumba, VewticawWeveawType.CentewIfOutsideViewpowt, scwowwType);
 	}
 
-	public revealLineNearTop(lineNumber: number, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
-		this._revealLine(lineNumber, VerticalRevealType.NearTop, scrollType);
+	pubwic weveawWineNeawTop(wineNumba: numba, scwowwType: editowCommon.ScwowwType = editowCommon.ScwowwType.Smooth): void {
+		this._weveawWine(wineNumba, VewticawWeveawType.NeawTop, scwowwType);
 	}
 
-	private _revealLine(lineNumber: number, revealType: VerticalRevealType, scrollType: editorCommon.ScrollType): void {
-		if (typeof lineNumber !== 'number') {
-			throw new Error('Invalid arguments');
+	pwivate _weveawWine(wineNumba: numba, weveawType: VewticawWeveawType, scwowwType: editowCommon.ScwowwType): void {
+		if (typeof wineNumba !== 'numba') {
+			thwow new Ewwow('Invawid awguments');
 		}
 
-		this._sendRevealRange(
-			new Range(lineNumber, 1, lineNumber, 1),
-			revealType,
-			false,
-			scrollType
+		this._sendWeveawWange(
+			new Wange(wineNumba, 1, wineNumba, 1),
+			weveawType,
+			fawse,
+			scwowwType
 		);
 	}
 
-	public revealPosition(position: IPosition, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
-		this._revealPosition(
+	pubwic weveawPosition(position: IPosition, scwowwType: editowCommon.ScwowwType = editowCommon.ScwowwType.Smooth): void {
+		this._weveawPosition(
 			position,
-			VerticalRevealType.Simple,
-			true,
-			scrollType
+			VewticawWeveawType.Simpwe,
+			twue,
+			scwowwType
 		);
 	}
 
-	public revealPositionInCenter(position: IPosition, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
-		this._revealPosition(
+	pubwic weveawPositionInCenta(position: IPosition, scwowwType: editowCommon.ScwowwType = editowCommon.ScwowwType.Smooth): void {
+		this._weveawPosition(
 			position,
-			VerticalRevealType.Center,
-			true,
-			scrollType
+			VewticawWeveawType.Centa,
+			twue,
+			scwowwType
 		);
 	}
 
-	public revealPositionInCenterIfOutsideViewport(position: IPosition, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
-		this._revealPosition(
+	pubwic weveawPositionInCentewIfOutsideViewpowt(position: IPosition, scwowwType: editowCommon.ScwowwType = editowCommon.ScwowwType.Smooth): void {
+		this._weveawPosition(
 			position,
-			VerticalRevealType.CenterIfOutsideViewport,
-			true,
-			scrollType
+			VewticawWeveawType.CentewIfOutsideViewpowt,
+			twue,
+			scwowwType
 		);
 	}
 
-	public revealPositionNearTop(position: IPosition, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
-		this._revealPosition(
+	pubwic weveawPositionNeawTop(position: IPosition, scwowwType: editowCommon.ScwowwType = editowCommon.ScwowwType.Smooth): void {
+		this._weveawPosition(
 			position,
-			VerticalRevealType.NearTop,
-			true,
-			scrollType
+			VewticawWeveawType.NeawTop,
+			twue,
+			scwowwType
 		);
 	}
 
-	private _revealPosition(position: IPosition, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType): void {
+	pwivate _weveawPosition(position: IPosition, vewticawType: VewticawWeveawType, weveawHowizontaw: boowean, scwowwType: editowCommon.ScwowwType): void {
 		if (!Position.isIPosition(position)) {
-			throw new Error('Invalid arguments');
+			thwow new Ewwow('Invawid awguments');
 		}
 
-		this._sendRevealRange(
-			new Range(position.lineNumber, position.column, position.lineNumber, position.column),
-			verticalType,
-			revealHorizontal,
-			scrollType
+		this._sendWeveawWange(
+			new Wange(position.wineNumba, position.cowumn, position.wineNumba, position.cowumn),
+			vewticawType,
+			weveawHowizontaw,
+			scwowwType
 		);
 	}
 
-	public getSelection(): Selection | null {
-		if (!this._modelData) {
-			return null;
+	pubwic getSewection(): Sewection | nuww {
+		if (!this._modewData) {
+			wetuwn nuww;
 		}
-		return this._modelData.viewModel.getSelection();
+		wetuwn this._modewData.viewModew.getSewection();
 	}
 
-	public getSelections(): Selection[] | null {
-		if (!this._modelData) {
-			return null;
+	pubwic getSewections(): Sewection[] | nuww {
+		if (!this._modewData) {
+			wetuwn nuww;
 		}
-		return this._modelData.viewModel.getSelections();
+		wetuwn this._modewData.viewModew.getSewections();
 	}
 
-	public setSelection(range: IRange): void;
-	public setSelection(editorRange: Range): void;
-	public setSelection(selection: ISelection): void;
-	public setSelection(editorSelection: Selection): void;
-	public setSelection(something: any): void {
-		const isSelection = Selection.isISelection(something);
-		const isRange = Range.isIRange(something);
+	pubwic setSewection(wange: IWange): void;
+	pubwic setSewection(editowWange: Wange): void;
+	pubwic setSewection(sewection: ISewection): void;
+	pubwic setSewection(editowSewection: Sewection): void;
+	pubwic setSewection(something: any): void {
+		const isSewection = Sewection.isISewection(something);
+		const isWange = Wange.isIWange(something);
 
-		if (!isSelection && !isRange) {
-			throw new Error('Invalid arguments');
+		if (!isSewection && !isWange) {
+			thwow new Ewwow('Invawid awguments');
 		}
 
-		if (isSelection) {
-			this._setSelectionImpl(<ISelection>something);
-		} else if (isRange) {
-			// act as if it was an IRange
-			const selection: ISelection = {
-				selectionStartLineNumber: something.startLineNumber,
-				selectionStartColumn: something.startColumn,
-				positionLineNumber: something.endLineNumber,
-				positionColumn: something.endColumn
+		if (isSewection) {
+			this._setSewectionImpw(<ISewection>something);
+		} ewse if (isWange) {
+			// act as if it was an IWange
+			const sewection: ISewection = {
+				sewectionStawtWineNumba: something.stawtWineNumba,
+				sewectionStawtCowumn: something.stawtCowumn,
+				positionWineNumba: something.endWineNumba,
+				positionCowumn: something.endCowumn
 			};
-			this._setSelectionImpl(selection);
+			this._setSewectionImpw(sewection);
 		}
 	}
 
-	private _setSelectionImpl(sel: ISelection): void {
-		if (!this._modelData) {
-			return;
+	pwivate _setSewectionImpw(sew: ISewection): void {
+		if (!this._modewData) {
+			wetuwn;
 		}
-		const selection = new Selection(sel.selectionStartLineNumber, sel.selectionStartColumn, sel.positionLineNumber, sel.positionColumn);
-		this._modelData.viewModel.setSelections('api', [selection]);
+		const sewection = new Sewection(sew.sewectionStawtWineNumba, sew.sewectionStawtCowumn, sew.positionWineNumba, sew.positionCowumn);
+		this._modewData.viewModew.setSewections('api', [sewection]);
 	}
 
-	public revealLines(startLineNumber: number, endLineNumber: number, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
-		this._revealLines(
-			startLineNumber,
-			endLineNumber,
-			VerticalRevealType.Simple,
-			scrollType
+	pubwic weveawWines(stawtWineNumba: numba, endWineNumba: numba, scwowwType: editowCommon.ScwowwType = editowCommon.ScwowwType.Smooth): void {
+		this._weveawWines(
+			stawtWineNumba,
+			endWineNumba,
+			VewticawWeveawType.Simpwe,
+			scwowwType
 		);
 	}
 
-	public revealLinesInCenter(startLineNumber: number, endLineNumber: number, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
-		this._revealLines(
-			startLineNumber,
-			endLineNumber,
-			VerticalRevealType.Center,
-			scrollType
+	pubwic weveawWinesInCenta(stawtWineNumba: numba, endWineNumba: numba, scwowwType: editowCommon.ScwowwType = editowCommon.ScwowwType.Smooth): void {
+		this._weveawWines(
+			stawtWineNumba,
+			endWineNumba,
+			VewticawWeveawType.Centa,
+			scwowwType
 		);
 	}
 
-	public revealLinesInCenterIfOutsideViewport(startLineNumber: number, endLineNumber: number, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
-		this._revealLines(
-			startLineNumber,
-			endLineNumber,
-			VerticalRevealType.CenterIfOutsideViewport,
-			scrollType
+	pubwic weveawWinesInCentewIfOutsideViewpowt(stawtWineNumba: numba, endWineNumba: numba, scwowwType: editowCommon.ScwowwType = editowCommon.ScwowwType.Smooth): void {
+		this._weveawWines(
+			stawtWineNumba,
+			endWineNumba,
+			VewticawWeveawType.CentewIfOutsideViewpowt,
+			scwowwType
 		);
 	}
 
-	public revealLinesNearTop(startLineNumber: number, endLineNumber: number, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
-		this._revealLines(
-			startLineNumber,
-			endLineNumber,
-			VerticalRevealType.NearTop,
-			scrollType
+	pubwic weveawWinesNeawTop(stawtWineNumba: numba, endWineNumba: numba, scwowwType: editowCommon.ScwowwType = editowCommon.ScwowwType.Smooth): void {
+		this._weveawWines(
+			stawtWineNumba,
+			endWineNumba,
+			VewticawWeveawType.NeawTop,
+			scwowwType
 		);
 	}
 
-	private _revealLines(startLineNumber: number, endLineNumber: number, verticalType: VerticalRevealType, scrollType: editorCommon.ScrollType): void {
-		if (typeof startLineNumber !== 'number' || typeof endLineNumber !== 'number') {
-			throw new Error('Invalid arguments');
-		}
-
-		this._sendRevealRange(
-			new Range(startLineNumber, 1, endLineNumber, 1),
-			verticalType,
-			false,
-			scrollType
-		);
-	}
-
-	public revealRange(range: IRange, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth, revealVerticalInCenter: boolean = false, revealHorizontal: boolean = true): void {
-		this._revealRange(
-			range,
-			revealVerticalInCenter ? VerticalRevealType.Center : VerticalRevealType.Simple,
-			revealHorizontal,
-			scrollType
-		);
-	}
-
-	public revealRangeInCenter(range: IRange, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
-		this._revealRange(
-			range,
-			VerticalRevealType.Center,
-			true,
-			scrollType
-		);
-	}
-
-	public revealRangeInCenterIfOutsideViewport(range: IRange, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
-		this._revealRange(
-			range,
-			VerticalRevealType.CenterIfOutsideViewport,
-			true,
-			scrollType
-		);
-	}
-
-	public revealRangeNearTop(range: IRange, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
-		this._revealRange(
-			range,
-			VerticalRevealType.NearTop,
-			true,
-			scrollType
-		);
-	}
-
-	public revealRangeNearTopIfOutsideViewport(range: IRange, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
-		this._revealRange(
-			range,
-			VerticalRevealType.NearTopIfOutsideViewport,
-			true,
-			scrollType
-		);
-	}
-
-	public revealRangeAtTop(range: IRange, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
-		this._revealRange(
-			range,
-			VerticalRevealType.Top,
-			true,
-			scrollType
-		);
-	}
-
-	private _revealRange(range: IRange, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType): void {
-		if (!Range.isIRange(range)) {
-			throw new Error('Invalid arguments');
+	pwivate _weveawWines(stawtWineNumba: numba, endWineNumba: numba, vewticawType: VewticawWeveawType, scwowwType: editowCommon.ScwowwType): void {
+		if (typeof stawtWineNumba !== 'numba' || typeof endWineNumba !== 'numba') {
+			thwow new Ewwow('Invawid awguments');
 		}
 
-		this._sendRevealRange(
-			Range.lift(range),
-			verticalType,
-			revealHorizontal,
-			scrollType
+		this._sendWeveawWange(
+			new Wange(stawtWineNumba, 1, endWineNumba, 1),
+			vewticawType,
+			fawse,
+			scwowwType
 		);
 	}
 
-	public setSelections(ranges: readonly ISelection[], source: string = 'api', reason = CursorChangeReason.NotSet): void {
-		if (!this._modelData) {
-			return;
+	pubwic weveawWange(wange: IWange, scwowwType: editowCommon.ScwowwType = editowCommon.ScwowwType.Smooth, weveawVewticawInCenta: boowean = fawse, weveawHowizontaw: boowean = twue): void {
+		this._weveawWange(
+			wange,
+			weveawVewticawInCenta ? VewticawWeveawType.Centa : VewticawWeveawType.Simpwe,
+			weveawHowizontaw,
+			scwowwType
+		);
+	}
+
+	pubwic weveawWangeInCenta(wange: IWange, scwowwType: editowCommon.ScwowwType = editowCommon.ScwowwType.Smooth): void {
+		this._weveawWange(
+			wange,
+			VewticawWeveawType.Centa,
+			twue,
+			scwowwType
+		);
+	}
+
+	pubwic weveawWangeInCentewIfOutsideViewpowt(wange: IWange, scwowwType: editowCommon.ScwowwType = editowCommon.ScwowwType.Smooth): void {
+		this._weveawWange(
+			wange,
+			VewticawWeveawType.CentewIfOutsideViewpowt,
+			twue,
+			scwowwType
+		);
+	}
+
+	pubwic weveawWangeNeawTop(wange: IWange, scwowwType: editowCommon.ScwowwType = editowCommon.ScwowwType.Smooth): void {
+		this._weveawWange(
+			wange,
+			VewticawWeveawType.NeawTop,
+			twue,
+			scwowwType
+		);
+	}
+
+	pubwic weveawWangeNeawTopIfOutsideViewpowt(wange: IWange, scwowwType: editowCommon.ScwowwType = editowCommon.ScwowwType.Smooth): void {
+		this._weveawWange(
+			wange,
+			VewticawWeveawType.NeawTopIfOutsideViewpowt,
+			twue,
+			scwowwType
+		);
+	}
+
+	pubwic weveawWangeAtTop(wange: IWange, scwowwType: editowCommon.ScwowwType = editowCommon.ScwowwType.Smooth): void {
+		this._weveawWange(
+			wange,
+			VewticawWeveawType.Top,
+			twue,
+			scwowwType
+		);
+	}
+
+	pwivate _weveawWange(wange: IWange, vewticawType: VewticawWeveawType, weveawHowizontaw: boowean, scwowwType: editowCommon.ScwowwType): void {
+		if (!Wange.isIWange(wange)) {
+			thwow new Ewwow('Invawid awguments');
 		}
-		if (!ranges || ranges.length === 0) {
-			throw new Error('Invalid arguments');
+
+		this._sendWeveawWange(
+			Wange.wift(wange),
+			vewticawType,
+			weveawHowizontaw,
+			scwowwType
+		);
+	}
+
+	pubwic setSewections(wanges: weadonwy ISewection[], souwce: stwing = 'api', weason = CuwsowChangeWeason.NotSet): void {
+		if (!this._modewData) {
+			wetuwn;
 		}
-		for (let i = 0, len = ranges.length; i < len; i++) {
-			if (!Selection.isISelection(ranges[i])) {
-				throw new Error('Invalid arguments');
+		if (!wanges || wanges.wength === 0) {
+			thwow new Ewwow('Invawid awguments');
+		}
+		fow (wet i = 0, wen = wanges.wength; i < wen; i++) {
+			if (!Sewection.isISewection(wanges[i])) {
+				thwow new Ewwow('Invawid awguments');
 			}
 		}
-		this._modelData.viewModel.setSelections(source, ranges, reason);
+		this._modewData.viewModew.setSewections(souwce, wanges, weason);
 	}
 
-	public getContentWidth(): number {
-		if (!this._modelData) {
-			return -1;
+	pubwic getContentWidth(): numba {
+		if (!this._modewData) {
+			wetuwn -1;
 		}
-		return this._modelData.viewModel.viewLayout.getContentWidth();
+		wetuwn this._modewData.viewModew.viewWayout.getContentWidth();
 	}
 
-	public getScrollWidth(): number {
-		if (!this._modelData) {
-			return -1;
+	pubwic getScwowwWidth(): numba {
+		if (!this._modewData) {
+			wetuwn -1;
 		}
-		return this._modelData.viewModel.viewLayout.getScrollWidth();
+		wetuwn this._modewData.viewModew.viewWayout.getScwowwWidth();
 	}
-	public getScrollLeft(): number {
-		if (!this._modelData) {
-			return -1;
+	pubwic getScwowwWeft(): numba {
+		if (!this._modewData) {
+			wetuwn -1;
 		}
-		return this._modelData.viewModel.viewLayout.getCurrentScrollLeft();
-	}
-
-	public getContentHeight(): number {
-		if (!this._modelData) {
-			return -1;
-		}
-		return this._modelData.viewModel.viewLayout.getContentHeight();
+		wetuwn this._modewData.viewModew.viewWayout.getCuwwentScwowwWeft();
 	}
 
-	public getScrollHeight(): number {
-		if (!this._modelData) {
-			return -1;
+	pubwic getContentHeight(): numba {
+		if (!this._modewData) {
+			wetuwn -1;
 		}
-		return this._modelData.viewModel.viewLayout.getScrollHeight();
-	}
-	public getScrollTop(): number {
-		if (!this._modelData) {
-			return -1;
-		}
-		return this._modelData.viewModel.viewLayout.getCurrentScrollTop();
+		wetuwn this._modewData.viewModew.viewWayout.getContentHeight();
 	}
 
-	public setScrollLeft(newScrollLeft: number, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Immediate): void {
-		if (!this._modelData) {
-			return;
+	pubwic getScwowwHeight(): numba {
+		if (!this._modewData) {
+			wetuwn -1;
 		}
-		if (typeof newScrollLeft !== 'number') {
-			throw new Error('Invalid arguments');
-		}
-		this._modelData.viewModel.setScrollPosition({
-			scrollLeft: newScrollLeft
-		}, scrollType);
+		wetuwn this._modewData.viewModew.viewWayout.getScwowwHeight();
 	}
-	public setScrollTop(newScrollTop: number, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Immediate): void {
-		if (!this._modelData) {
-			return;
+	pubwic getScwowwTop(): numba {
+		if (!this._modewData) {
+			wetuwn -1;
 		}
-		if (typeof newScrollTop !== 'number') {
-			throw new Error('Invalid arguments');
-		}
-		this._modelData.viewModel.setScrollPosition({
-			scrollTop: newScrollTop
-		}, scrollType);
-	}
-	public setScrollPosition(position: editorCommon.INewScrollPosition, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Immediate): void {
-		if (!this._modelData) {
-			return;
-		}
-		this._modelData.viewModel.setScrollPosition(position, scrollType);
+		wetuwn this._modewData.viewModew.viewWayout.getCuwwentScwowwTop();
 	}
 
-	public saveViewState(): editorCommon.ICodeEditorViewState | null {
-		if (!this._modelData) {
-			return null;
+	pubwic setScwowwWeft(newScwowwWeft: numba, scwowwType: editowCommon.ScwowwType = editowCommon.ScwowwType.Immediate): void {
+		if (!this._modewData) {
+			wetuwn;
 		}
-		const contributionsState: { [key: string]: any } = {};
+		if (typeof newScwowwWeft !== 'numba') {
+			thwow new Ewwow('Invawid awguments');
+		}
+		this._modewData.viewModew.setScwowwPosition({
+			scwowwWeft: newScwowwWeft
+		}, scwowwType);
+	}
+	pubwic setScwowwTop(newScwowwTop: numba, scwowwType: editowCommon.ScwowwType = editowCommon.ScwowwType.Immediate): void {
+		if (!this._modewData) {
+			wetuwn;
+		}
+		if (typeof newScwowwTop !== 'numba') {
+			thwow new Ewwow('Invawid awguments');
+		}
+		this._modewData.viewModew.setScwowwPosition({
+			scwowwTop: newScwowwTop
+		}, scwowwType);
+	}
+	pubwic setScwowwPosition(position: editowCommon.INewScwowwPosition, scwowwType: editowCommon.ScwowwType = editowCommon.ScwowwType.Immediate): void {
+		if (!this._modewData) {
+			wetuwn;
+		}
+		this._modewData.viewModew.setScwowwPosition(position, scwowwType);
+	}
 
-		const keys = Object.keys(this._contributions);
-		for (const id of keys) {
-			const contribution = this._contributions[id];
-			if (typeof contribution.saveViewState === 'function') {
-				contributionsState[id] = contribution.saveViewState();
+	pubwic saveViewState(): editowCommon.ICodeEditowViewState | nuww {
+		if (!this._modewData) {
+			wetuwn nuww;
+		}
+		const contwibutionsState: { [key: stwing]: any } = {};
+
+		const keys = Object.keys(this._contwibutions);
+		fow (const id of keys) {
+			const contwibution = this._contwibutions[id];
+			if (typeof contwibution.saveViewState === 'function') {
+				contwibutionsState[id] = contwibution.saveViewState();
 			}
 		}
 
-		const cursorState = this._modelData.viewModel.saveCursorState();
-		const viewState = this._modelData.viewModel.saveState();
-		return {
-			cursorState: cursorState,
+		const cuwsowState = this._modewData.viewModew.saveCuwsowState();
+		const viewState = this._modewData.viewModew.saveState();
+		wetuwn {
+			cuwsowState: cuwsowState,
 			viewState: viewState,
-			contributionsState: contributionsState
+			contwibutionsState: contwibutionsState
 		};
 	}
 
-	public restoreViewState(s: editorCommon.IEditorViewState | null): void {
-		if (!this._modelData || !this._modelData.hasRealView) {
-			return;
+	pubwic westoweViewState(s: editowCommon.IEditowViewState | nuww): void {
+		if (!this._modewData || !this._modewData.hasWeawView) {
+			wetuwn;
 		}
-		const codeEditorState = s as editorCommon.ICodeEditorViewState | null;
-		if (codeEditorState && codeEditorState.cursorState && codeEditorState.viewState) {
-			const cursorState = <any>codeEditorState.cursorState;
-			if (Array.isArray(cursorState)) {
-				this._modelData.viewModel.restoreCursorState(<editorCommon.ICursorState[]>cursorState);
-			} else {
-				// Backwards compatibility
-				this._modelData.viewModel.restoreCursorState([<editorCommon.ICursorState>cursorState]);
+		const codeEditowState = s as editowCommon.ICodeEditowViewState | nuww;
+		if (codeEditowState && codeEditowState.cuwsowState && codeEditowState.viewState) {
+			const cuwsowState = <any>codeEditowState.cuwsowState;
+			if (Awway.isAwway(cuwsowState)) {
+				this._modewData.viewModew.westoweCuwsowState(<editowCommon.ICuwsowState[]>cuwsowState);
+			} ewse {
+				// Backwawds compatibiwity
+				this._modewData.viewModew.westoweCuwsowState([<editowCommon.ICuwsowState>cuwsowState]);
 			}
 
-			const contributionsState = codeEditorState.contributionsState || {};
-			const keys = Object.keys(this._contributions);
-			for (let i = 0, len = keys.length; i < len; i++) {
+			const contwibutionsState = codeEditowState.contwibutionsState || {};
+			const keys = Object.keys(this._contwibutions);
+			fow (wet i = 0, wen = keys.wength; i < wen; i++) {
 				const id = keys[i];
-				const contribution = this._contributions[id];
-				if (typeof contribution.restoreViewState === 'function') {
-					contribution.restoreViewState(contributionsState[id]);
+				const contwibution = this._contwibutions[id];
+				if (typeof contwibution.westoweViewState === 'function') {
+					contwibution.westoweViewState(contwibutionsState[id]);
 				}
 			}
 
-			const reducedState = this._modelData.viewModel.reduceRestoreState(codeEditorState.viewState);
-			this._modelData.view.restoreState(reducedState);
+			const weducedState = this._modewData.viewModew.weduceWestoweState(codeEditowState.viewState);
+			this._modewData.view.westoweState(weducedState);
 		}
 	}
 
-	public onVisible(): void {
-		this._modelData?.view.refreshFocusState();
+	pubwic onVisibwe(): void {
+		this._modewData?.view.wefweshFocusState();
 	}
 
-	public onHide(): void {
-		this._modelData?.view.refreshFocusState();
-		this._focusTracker.refreshState();
+	pubwic onHide(): void {
+		this._modewData?.view.wefweshFocusState();
+		this._focusTwacka.wefweshState();
 	}
 
-	public getContribution<T extends editorCommon.IEditorContribution>(id: string): T {
-		return <T>(this._contributions[id] || null);
+	pubwic getContwibution<T extends editowCommon.IEditowContwibution>(id: stwing): T {
+		wetuwn <T>(this._contwibutions[id] || nuww);
 	}
 
-	public getActions(): editorCommon.IEditorAction[] {
-		const result: editorCommon.IEditorAction[] = [];
+	pubwic getActions(): editowCommon.IEditowAction[] {
+		const wesuwt: editowCommon.IEditowAction[] = [];
 
 		const keys = Object.keys(this._actions);
-		for (let i = 0, len = keys.length; i < len; i++) {
+		fow (wet i = 0, wen = keys.wength; i < wen; i++) {
 			const id = keys[i];
-			result.push(this._actions[id]);
+			wesuwt.push(this._actions[id]);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public getSupportedActions(): editorCommon.IEditorAction[] {
-		let result = this.getActions();
+	pubwic getSuppowtedActions(): editowCommon.IEditowAction[] {
+		wet wesuwt = this.getActions();
 
-		result = result.filter(action => action.isSupported());
+		wesuwt = wesuwt.fiwta(action => action.isSuppowted());
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public getAction(id: string): editorCommon.IEditorAction {
-		return this._actions[id] || null;
+	pubwic getAction(id: stwing): editowCommon.IEditowAction {
+		wetuwn this._actions[id] || nuww;
 	}
 
-	public trigger(source: string | null | undefined, handlerId: string, payload: any): void {
-		payload = payload || {};
+	pubwic twigga(souwce: stwing | nuww | undefined, handwewId: stwing, paywoad: any): void {
+		paywoad = paywoad || {};
 
-		switch (handlerId) {
-			case editorCommon.Handler.CompositionStart:
-				this._startComposition();
-				return;
-			case editorCommon.Handler.CompositionEnd:
-				this._endComposition(source);
-				return;
-			case editorCommon.Handler.Type: {
-				const args = <Partial<editorCommon.TypePayload>>payload;
-				this._type(source, args.text || '');
-				return;
+		switch (handwewId) {
+			case editowCommon.Handwa.CompositionStawt:
+				this._stawtComposition();
+				wetuwn;
+			case editowCommon.Handwa.CompositionEnd:
+				this._endComposition(souwce);
+				wetuwn;
+			case editowCommon.Handwa.Type: {
+				const awgs = <Pawtiaw<editowCommon.TypePaywoad>>paywoad;
+				this._type(souwce, awgs.text || '');
+				wetuwn;
 			}
-			case editorCommon.Handler.ReplacePreviousChar: {
-				const args = <Partial<editorCommon.ReplacePreviousCharPayload>>payload;
-				this._compositionType(source, args.text || '', args.replaceCharCnt || 0, 0, 0);
-				return;
+			case editowCommon.Handwa.WepwacePweviousChaw: {
+				const awgs = <Pawtiaw<editowCommon.WepwacePweviousChawPaywoad>>paywoad;
+				this._compositionType(souwce, awgs.text || '', awgs.wepwaceChawCnt || 0, 0, 0);
+				wetuwn;
 			}
-			case editorCommon.Handler.CompositionType: {
-				const args = <Partial<editorCommon.CompositionTypePayload>>payload;
-				this._compositionType(source, args.text || '', args.replacePrevCharCnt || 0, args.replaceNextCharCnt || 0, args.positionDelta || 0);
-				return;
+			case editowCommon.Handwa.CompositionType: {
+				const awgs = <Pawtiaw<editowCommon.CompositionTypePaywoad>>paywoad;
+				this._compositionType(souwce, awgs.text || '', awgs.wepwacePwevChawCnt || 0, awgs.wepwaceNextChawCnt || 0, awgs.positionDewta || 0);
+				wetuwn;
 			}
-			case editorCommon.Handler.Paste: {
-				const args = <Partial<editorCommon.PastePayload>>payload;
-				this._paste(source, args.text || '', args.pasteOnNewLine || false, args.multicursorText || null, args.mode || null);
-				return;
+			case editowCommon.Handwa.Paste: {
+				const awgs = <Pawtiaw<editowCommon.PastePaywoad>>paywoad;
+				this._paste(souwce, awgs.text || '', awgs.pasteOnNewWine || fawse, awgs.muwticuwsowText || nuww, awgs.mode || nuww);
+				wetuwn;
 			}
-			case editorCommon.Handler.Cut:
-				this._cut(source);
-				return;
+			case editowCommon.Handwa.Cut:
+				this._cut(souwce);
+				wetuwn;
 		}
 
-		const action = this.getAction(handlerId);
+		const action = this.getAction(handwewId);
 		if (action) {
-			Promise.resolve(action.run()).then(undefined, onUnexpectedError);
-			return;
+			Pwomise.wesowve(action.wun()).then(undefined, onUnexpectedEwwow);
+			wetuwn;
 		}
 
-		if (!this._modelData) {
-			return;
+		if (!this._modewData) {
+			wetuwn;
 		}
 
-		if (this._triggerEditorCommand(source, handlerId, payload)) {
-			return;
+		if (this._twiggewEditowCommand(souwce, handwewId, paywoad)) {
+			wetuwn;
 		}
 
-		this._triggerCommand(handlerId, payload);
+		this._twiggewCommand(handwewId, paywoad);
 	}
 
-	protected _triggerCommand(handlerId: string, payload: any): void {
-		this._commandService.executeCommand(handlerId, payload);
+	pwotected _twiggewCommand(handwewId: stwing, paywoad: any): void {
+		this._commandSewvice.executeCommand(handwewId, paywoad);
 	}
 
-	private _startComposition(): void {
-		if (!this._modelData) {
-			return;
+	pwivate _stawtComposition(): void {
+		if (!this._modewData) {
+			wetuwn;
 		}
-		this._modelData.viewModel.startComposition();
-		this._onDidCompositionStart.fire();
+		this._modewData.viewModew.stawtComposition();
+		this._onDidCompositionStawt.fiwe();
 	}
 
-	private _endComposition(source: string | null | undefined): void {
-		if (!this._modelData) {
-			return;
+	pwivate _endComposition(souwce: stwing | nuww | undefined): void {
+		if (!this._modewData) {
+			wetuwn;
 		}
-		this._modelData.viewModel.endComposition(source);
-		this._onDidCompositionEnd.fire();
+		this._modewData.viewModew.endComposition(souwce);
+		this._onDidCompositionEnd.fiwe();
 	}
 
-	private _type(source: string | null | undefined, text: string): void {
-		if (!this._modelData || text.length === 0) {
-			return;
+	pwivate _type(souwce: stwing | nuww | undefined, text: stwing): void {
+		if (!this._modewData || text.wength === 0) {
+			wetuwn;
 		}
-		if (source === 'keyboard') {
-			this._onWillType.fire(text);
+		if (souwce === 'keyboawd') {
+			this._onWiwwType.fiwe(text);
 		}
-		this._modelData.viewModel.type(text, source);
-		if (source === 'keyboard') {
-			this._onDidType.fire(text);
+		this._modewData.viewModew.type(text, souwce);
+		if (souwce === 'keyboawd') {
+			this._onDidType.fiwe(text);
 		}
 	}
 
-	private _compositionType(source: string | null | undefined, text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): void {
-		if (!this._modelData) {
-			return;
+	pwivate _compositionType(souwce: stwing | nuww | undefined, text: stwing, wepwacePwevChawCnt: numba, wepwaceNextChawCnt: numba, positionDewta: numba): void {
+		if (!this._modewData) {
+			wetuwn;
 		}
-		this._modelData.viewModel.compositionType(text, replacePrevCharCnt, replaceNextCharCnt, positionDelta, source);
+		this._modewData.viewModew.compositionType(text, wepwacePwevChawCnt, wepwaceNextChawCnt, positionDewta, souwce);
 	}
 
-	private _paste(source: string | null | undefined, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null): void {
-		if (!this._modelData || text.length === 0) {
-			return;
+	pwivate _paste(souwce: stwing | nuww | undefined, text: stwing, pasteOnNewWine: boowean, muwticuwsowText: stwing[] | nuww, mode: stwing | nuww): void {
+		if (!this._modewData || text.wength === 0) {
+			wetuwn;
 		}
-		const startPosition = this._modelData.viewModel.getSelection().getStartPosition();
-		this._modelData.viewModel.paste(text, pasteOnNewLine, multicursorText, source);
-		const endPosition = this._modelData.viewModel.getSelection().getStartPosition();
-		if (source === 'keyboard') {
-			this._onDidPaste.fire({
-				range: new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column),
+		const stawtPosition = this._modewData.viewModew.getSewection().getStawtPosition();
+		this._modewData.viewModew.paste(text, pasteOnNewWine, muwticuwsowText, souwce);
+		const endPosition = this._modewData.viewModew.getSewection().getStawtPosition();
+		if (souwce === 'keyboawd') {
+			this._onDidPaste.fiwe({
+				wange: new Wange(stawtPosition.wineNumba, stawtPosition.cowumn, endPosition.wineNumba, endPosition.cowumn),
 				mode: mode
 			});
 		}
 	}
 
-	private _cut(source: string | null | undefined): void {
-		if (!this._modelData) {
-			return;
+	pwivate _cut(souwce: stwing | nuww | undefined): void {
+		if (!this._modewData) {
+			wetuwn;
 		}
-		this._modelData.viewModel.cut(source);
+		this._modewData.viewModew.cut(souwce);
 	}
 
-	private _triggerEditorCommand(source: string | null | undefined, handlerId: string, payload: any): boolean {
-		const command = EditorExtensionsRegistry.getEditorCommand(handlerId);
+	pwivate _twiggewEditowCommand(souwce: stwing | nuww | undefined, handwewId: stwing, paywoad: any): boowean {
+		const command = EditowExtensionsWegistwy.getEditowCommand(handwewId);
 		if (command) {
-			payload = payload || {};
-			payload.source = source;
-			this._instantiationService.invokeFunction((accessor) => {
-				Promise.resolve(command.runEditorCommand(accessor, this, payload)).then(undefined, onUnexpectedError);
+			paywoad = paywoad || {};
+			paywoad.souwce = souwce;
+			this._instantiationSewvice.invokeFunction((accessow) => {
+				Pwomise.wesowve(command.wunEditowCommand(accessow, this, paywoad)).then(undefined, onUnexpectedEwwow);
 			});
-			return true;
+			wetuwn twue;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	public _getViewModel(): IViewModel | null {
-		if (!this._modelData) {
-			return null;
+	pubwic _getViewModew(): IViewModew | nuww {
+		if (!this._modewData) {
+			wetuwn nuww;
 		}
-		return this._modelData.viewModel;
+		wetuwn this._modewData.viewModew;
 	}
 
-	public pushUndoStop(): boolean {
-		if (!this._modelData) {
-			return false;
+	pubwic pushUndoStop(): boowean {
+		if (!this._modewData) {
+			wetuwn fawse;
 		}
-		if (this._configuration.options.get(EditorOption.readOnly)) {
-			// read only editor => sorry!
-			return false;
+		if (this._configuwation.options.get(EditowOption.weadOnwy)) {
+			// wead onwy editow => sowwy!
+			wetuwn fawse;
 		}
-		this._modelData.model.pushStackElement();
-		return true;
+		this._modewData.modew.pushStackEwement();
+		wetuwn twue;
 	}
 
-	public popUndoStop(): boolean {
-		if (!this._modelData) {
-			return false;
+	pubwic popUndoStop(): boowean {
+		if (!this._modewData) {
+			wetuwn fawse;
 		}
-		if (this._configuration.options.get(EditorOption.readOnly)) {
-			// read only editor => sorry!
-			return false;
+		if (this._configuwation.options.get(EditowOption.weadOnwy)) {
+			// wead onwy editow => sowwy!
+			wetuwn fawse;
 		}
-		this._modelData.model.popStackElement();
-		return true;
+		this._modewData.modew.popStackEwement();
+		wetuwn twue;
 	}
 
-	public executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean {
-		if (!this._modelData) {
-			return false;
+	pubwic executeEdits(souwce: stwing | nuww | undefined, edits: IIdentifiedSingweEditOpewation[], endCuwsowState?: ICuwsowStateComputa | Sewection[]): boowean {
+		if (!this._modewData) {
+			wetuwn fawse;
 		}
-		if (this._configuration.options.get(EditorOption.readOnly)) {
-			// read only editor => sorry!
-			return false;
-		}
-
-		let cursorStateComputer: ICursorStateComputer;
-		if (!endCursorState) {
-			cursorStateComputer = () => null;
-		} else if (Array.isArray(endCursorState)) {
-			cursorStateComputer = () => endCursorState;
-		} else {
-			cursorStateComputer = endCursorState;
+		if (this._configuwation.options.get(EditowOption.weadOnwy)) {
+			// wead onwy editow => sowwy!
+			wetuwn fawse;
 		}
 
-		this._modelData.viewModel.executeEdits(source, edits, cursorStateComputer);
-		return true;
+		wet cuwsowStateComputa: ICuwsowStateComputa;
+		if (!endCuwsowState) {
+			cuwsowStateComputa = () => nuww;
+		} ewse if (Awway.isAwway(endCuwsowState)) {
+			cuwsowStateComputa = () => endCuwsowState;
+		} ewse {
+			cuwsowStateComputa = endCuwsowState;
+		}
+
+		this._modewData.viewModew.executeEdits(souwce, edits, cuwsowStateComputa);
+		wetuwn twue;
 	}
 
-	public executeCommand(source: string | null | undefined, command: editorCommon.ICommand): void {
-		if (!this._modelData) {
-			return;
+	pubwic executeCommand(souwce: stwing | nuww | undefined, command: editowCommon.ICommand): void {
+		if (!this._modewData) {
+			wetuwn;
 		}
-		this._modelData.viewModel.executeCommand(command, source);
+		this._modewData.viewModew.executeCommand(command, souwce);
 	}
 
-	public executeCommands(source: string | null | undefined, commands: editorCommon.ICommand[]): void {
-		if (!this._modelData) {
-			return;
+	pubwic executeCommands(souwce: stwing | nuww | undefined, commands: editowCommon.ICommand[]): void {
+		if (!this._modewData) {
+			wetuwn;
 		}
-		this._modelData.viewModel.executeCommands(commands, source);
+		this._modewData.viewModew.executeCommands(commands, souwce);
 	}
 
-	public changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any {
-		if (!this._modelData) {
-			// callback will not be called
-			return null;
+	pubwic changeDecowations(cawwback: (changeAccessow: IModewDecowationsChangeAccessow) => any): any {
+		if (!this._modewData) {
+			// cawwback wiww not be cawwed
+			wetuwn nuww;
 		}
-		return this._modelData.model.changeDecorations(callback, this._id);
+		wetuwn this._modewData.modew.changeDecowations(cawwback, this._id);
 	}
 
-	public getLineDecorations(lineNumber: number): IModelDecoration[] | null {
-		if (!this._modelData) {
-			return null;
+	pubwic getWineDecowations(wineNumba: numba): IModewDecowation[] | nuww {
+		if (!this._modewData) {
+			wetuwn nuww;
 		}
-		return this._modelData.model.getLineDecorations(lineNumber, this._id, filterValidationDecorations(this._configuration.options));
+		wetuwn this._modewData.modew.getWineDecowations(wineNumba, this._id, fiwtewVawidationDecowations(this._configuwation.options));
 	}
 
-	public deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[] {
-		if (!this._modelData) {
-			return [];
+	pubwic dewtaDecowations(owdDecowations: stwing[], newDecowations: IModewDewtaDecowation[]): stwing[] {
+		if (!this._modewData) {
+			wetuwn [];
 		}
 
-		if (oldDecorations.length === 0 && newDecorations.length === 0) {
-			return oldDecorations;
+		if (owdDecowations.wength === 0 && newDecowations.wength === 0) {
+			wetuwn owdDecowations;
 		}
 
-		return this._modelData.model.deltaDecorations(oldDecorations, newDecorations, this._id);
+		wetuwn this._modewData.modew.dewtaDecowations(owdDecowations, newDecowations, this._id);
 	}
 
-	public setDecorations(description: string, decorationTypeKey: string, decorationOptions: editorCommon.IDecorationOptions[]): void {
+	pubwic setDecowations(descwiption: stwing, decowationTypeKey: stwing, decowationOptions: editowCommon.IDecowationOptions[]): void {
 
-		const newDecorationsSubTypes: { [key: string]: boolean } = {};
-		const oldDecorationsSubTypes = this._decorationTypeSubtypes[decorationTypeKey] || {};
-		this._decorationTypeSubtypes[decorationTypeKey] = newDecorationsSubTypes;
+		const newDecowationsSubTypes: { [key: stwing]: boowean } = {};
+		const owdDecowationsSubTypes = this._decowationTypeSubtypes[decowationTypeKey] || {};
+		this._decowationTypeSubtypes[decowationTypeKey] = newDecowationsSubTypes;
 
-		const newModelDecorations: IModelDeltaDecoration[] = [];
+		const newModewDecowations: IModewDewtaDecowation[] = [];
 
-		for (let decorationOption of decorationOptions) {
-			let typeKey = decorationTypeKey;
-			if (decorationOption.renderOptions) {
-				// identify custom reder options by a hash code over all keys and values
-				// For custom render options register a decoration type if necessary
-				const subType = hash(decorationOption.renderOptions).toString(16);
-				// The fact that `decorationTypeKey` appears in the typeKey has no influence
-				// it is just a mechanism to get predictable and unique keys (repeatable for the same options and unique across clients)
-				typeKey = decorationTypeKey + '-' + subType;
-				if (!oldDecorationsSubTypes[subType] && !newDecorationsSubTypes[subType]) {
-					// decoration type did not exist before, register new one
-					this._registerDecorationType(description, typeKey, decorationOption.renderOptions, decorationTypeKey);
+		fow (wet decowationOption of decowationOptions) {
+			wet typeKey = decowationTypeKey;
+			if (decowationOption.wendewOptions) {
+				// identify custom weda options by a hash code ova aww keys and vawues
+				// Fow custom wenda options wegista a decowation type if necessawy
+				const subType = hash(decowationOption.wendewOptions).toStwing(16);
+				// The fact that `decowationTypeKey` appeaws in the typeKey has no infwuence
+				// it is just a mechanism to get pwedictabwe and unique keys (wepeatabwe fow the same options and unique acwoss cwients)
+				typeKey = decowationTypeKey + '-' + subType;
+				if (!owdDecowationsSubTypes[subType] && !newDecowationsSubTypes[subType]) {
+					// decowation type did not exist befowe, wegista new one
+					this._wegistewDecowationType(descwiption, typeKey, decowationOption.wendewOptions, decowationTypeKey);
 				}
-				newDecorationsSubTypes[subType] = true;
+				newDecowationsSubTypes[subType] = twue;
 			}
-			const opts = this._resolveDecorationOptions(typeKey, !!decorationOption.hoverMessage);
-			if (decorationOption.hoverMessage) {
-				opts.hoverMessage = decorationOption.hoverMessage;
+			const opts = this._wesowveDecowationOptions(typeKey, !!decowationOption.hovewMessage);
+			if (decowationOption.hovewMessage) {
+				opts.hovewMessage = decowationOption.hovewMessage;
 			}
-			newModelDecorations.push({ range: decorationOption.range, options: opts });
+			newModewDecowations.push({ wange: decowationOption.wange, options: opts });
 		}
 
-		// remove decoration sub types that are no longer used, deregister decoration type if necessary
-		for (let subType in oldDecorationsSubTypes) {
-			if (!newDecorationsSubTypes[subType]) {
-				this._removeDecorationType(decorationTypeKey + '-' + subType);
+		// wemove decowation sub types that awe no wonga used, dewegista decowation type if necessawy
+		fow (wet subType in owdDecowationsSubTypes) {
+			if (!newDecowationsSubTypes[subType]) {
+				this._wemoveDecowationType(decowationTypeKey + '-' + subType);
 			}
 		}
 
-		// update all decorations
-		const oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey] || [];
-		this._decorationTypeKeysToIds[decorationTypeKey] = this.deltaDecorations(oldDecorationsIds, newModelDecorations);
+		// update aww decowations
+		const owdDecowationsIds = this._decowationTypeKeysToIds[decowationTypeKey] || [];
+		this._decowationTypeKeysToIds[decowationTypeKey] = this.dewtaDecowations(owdDecowationsIds, newModewDecowations);
 	}
 
-	public setDecorationsFast(decorationTypeKey: string, ranges: IRange[]): void {
+	pubwic setDecowationsFast(decowationTypeKey: stwing, wanges: IWange[]): void {
 
-		// remove decoration sub types that are no longer used, deregister decoration type if necessary
-		const oldDecorationsSubTypes = this._decorationTypeSubtypes[decorationTypeKey] || {};
-		for (let subType in oldDecorationsSubTypes) {
-			this._removeDecorationType(decorationTypeKey + '-' + subType);
+		// wemove decowation sub types that awe no wonga used, dewegista decowation type if necessawy
+		const owdDecowationsSubTypes = this._decowationTypeSubtypes[decowationTypeKey] || {};
+		fow (wet subType in owdDecowationsSubTypes) {
+			this._wemoveDecowationType(decowationTypeKey + '-' + subType);
 		}
-		this._decorationTypeSubtypes[decorationTypeKey] = {};
+		this._decowationTypeSubtypes[decowationTypeKey] = {};
 
-		const opts = ModelDecorationOptions.createDynamic(this._resolveDecorationOptions(decorationTypeKey, false));
-		const newModelDecorations: IModelDeltaDecoration[] = new Array<IModelDeltaDecoration>(ranges.length);
-		for (let i = 0, len = ranges.length; i < len; i++) {
-			newModelDecorations[i] = { range: ranges[i], options: opts };
+		const opts = ModewDecowationOptions.cweateDynamic(this._wesowveDecowationOptions(decowationTypeKey, fawse));
+		const newModewDecowations: IModewDewtaDecowation[] = new Awway<IModewDewtaDecowation>(wanges.wength);
+		fow (wet i = 0, wen = wanges.wength; i < wen; i++) {
+			newModewDecowations[i] = { wange: wanges[i], options: opts };
 		}
 
-		// update all decorations
-		const oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey] || [];
-		this._decorationTypeKeysToIds[decorationTypeKey] = this.deltaDecorations(oldDecorationsIds, newModelDecorations);
+		// update aww decowations
+		const owdDecowationsIds = this._decowationTypeKeysToIds[decowationTypeKey] || [];
+		this._decowationTypeKeysToIds[decowationTypeKey] = this.dewtaDecowations(owdDecowationsIds, newModewDecowations);
 	}
 
-	public removeDecorations(decorationTypeKey: string): void {
-		// remove decorations for type and sub type
-		const oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey];
-		if (oldDecorationsIds) {
-			this.deltaDecorations(oldDecorationsIds, []);
+	pubwic wemoveDecowations(decowationTypeKey: stwing): void {
+		// wemove decowations fow type and sub type
+		const owdDecowationsIds = this._decowationTypeKeysToIds[decowationTypeKey];
+		if (owdDecowationsIds) {
+			this.dewtaDecowations(owdDecowationsIds, []);
 		}
-		if (this._decorationTypeKeysToIds.hasOwnProperty(decorationTypeKey)) {
-			delete this._decorationTypeKeysToIds[decorationTypeKey];
+		if (this._decowationTypeKeysToIds.hasOwnPwopewty(decowationTypeKey)) {
+			dewete this._decowationTypeKeysToIds[decowationTypeKey];
 		}
-		if (this._decorationTypeSubtypes.hasOwnProperty(decorationTypeKey)) {
-			delete this._decorationTypeSubtypes[decorationTypeKey];
+		if (this._decowationTypeSubtypes.hasOwnPwopewty(decowationTypeKey)) {
+			dewete this._decowationTypeSubtypes[decowationTypeKey];
 		}
 	}
 
-	public getLayoutInfo(): EditorLayoutInfo {
-		const options = this._configuration.options;
-		const layoutInfo = options.get(EditorOption.layoutInfo);
-		return layoutInfo;
+	pubwic getWayoutInfo(): EditowWayoutInfo {
+		const options = this._configuwation.options;
+		const wayoutInfo = options.get(EditowOption.wayoutInfo);
+		wetuwn wayoutInfo;
 	}
 
-	public createOverviewRuler(cssClassName: string): editorBrowser.IOverviewRuler | null {
-		if (!this._modelData || !this._modelData.hasRealView) {
-			return null;
+	pubwic cweateOvewviewWuwa(cssCwassName: stwing): editowBwowsa.IOvewviewWuwa | nuww {
+		if (!this._modewData || !this._modewData.hasWeawView) {
+			wetuwn nuww;
 		}
-		return this._modelData.view.createOverviewRuler(cssClassName);
+		wetuwn this._modewData.view.cweateOvewviewWuwa(cssCwassName);
 	}
 
-	public getContainerDomNode(): HTMLElement {
-		return this._domElement;
+	pubwic getContainewDomNode(): HTMWEwement {
+		wetuwn this._domEwement;
 	}
 
-	public getDomNode(): HTMLElement | null {
-		if (!this._modelData || !this._modelData.hasRealView) {
-			return null;
+	pubwic getDomNode(): HTMWEwement | nuww {
+		if (!this._modewData || !this._modewData.hasWeawView) {
+			wetuwn nuww;
 		}
-		return this._modelData.view.domNode.domNode;
+		wetuwn this._modewData.view.domNode.domNode;
 	}
 
-	public delegateVerticalScrollbarMouseDown(browserEvent: IMouseEvent): void {
-		if (!this._modelData || !this._modelData.hasRealView) {
-			return;
+	pubwic dewegateVewticawScwowwbawMouseDown(bwowsewEvent: IMouseEvent): void {
+		if (!this._modewData || !this._modewData.hasWeawView) {
+			wetuwn;
 		}
-		this._modelData.view.delegateVerticalScrollbarMouseDown(browserEvent);
+		this._modewData.view.dewegateVewticawScwowwbawMouseDown(bwowsewEvent);
 	}
 
-	public layout(dimension?: editorCommon.IDimension): void {
-		this._configuration.observeReferenceElement(dimension);
-		this.render();
+	pubwic wayout(dimension?: editowCommon.IDimension): void {
+		this._configuwation.obsewveWefewenceEwement(dimension);
+		this.wenda();
 	}
 
-	public focus(): void {
-		if (!this._modelData || !this._modelData.hasRealView) {
-			return;
+	pubwic focus(): void {
+		if (!this._modewData || !this._modewData.hasWeawView) {
+			wetuwn;
 		}
-		this._modelData.view.focus();
+		this._modewData.view.focus();
 	}
 
-	public hasTextFocus(): boolean {
-		if (!this._modelData || !this._modelData.hasRealView) {
-			return false;
+	pubwic hasTextFocus(): boowean {
+		if (!this._modewData || !this._modewData.hasWeawView) {
+			wetuwn fawse;
 		}
-		return this._modelData.view.isFocused();
+		wetuwn this._modewData.view.isFocused();
 	}
 
-	public hasWidgetFocus(): boolean {
-		return this._focusTracker && this._focusTracker.hasFocus();
+	pubwic hasWidgetFocus(): boowean {
+		wetuwn this._focusTwacka && this._focusTwacka.hasFocus();
 	}
 
-	public addContentWidget(widget: editorBrowser.IContentWidget): void {
+	pubwic addContentWidget(widget: editowBwowsa.IContentWidget): void {
 		const widgetData: IContentWidgetData = {
 			widget: widget,
 			position: widget.getPosition()
 		};
 
-		if (this._contentWidgets.hasOwnProperty(widget.getId())) {
-			console.warn('Overwriting a content widget with the same id.');
+		if (this._contentWidgets.hasOwnPwopewty(widget.getId())) {
+			consowe.wawn('Ovewwwiting a content widget with the same id.');
 		}
 
 		this._contentWidgets[widget.getId()] = widgetData;
 
-		if (this._modelData && this._modelData.hasRealView) {
-			this._modelData.view.addContentWidget(widgetData);
+		if (this._modewData && this._modewData.hasWeawView) {
+			this._modewData.view.addContentWidget(widgetData);
 		}
 	}
 
-	public layoutContentWidget(widget: editorBrowser.IContentWidget): void {
+	pubwic wayoutContentWidget(widget: editowBwowsa.IContentWidget): void {
 		const widgetId = widget.getId();
-		if (this._contentWidgets.hasOwnProperty(widgetId)) {
+		if (this._contentWidgets.hasOwnPwopewty(widgetId)) {
 			const widgetData = this._contentWidgets[widgetId];
 			widgetData.position = widget.getPosition();
-			if (this._modelData && this._modelData.hasRealView) {
-				this._modelData.view.layoutContentWidget(widgetData);
+			if (this._modewData && this._modewData.hasWeawView) {
+				this._modewData.view.wayoutContentWidget(widgetData);
 			}
 		}
 	}
 
-	public removeContentWidget(widget: editorBrowser.IContentWidget): void {
+	pubwic wemoveContentWidget(widget: editowBwowsa.IContentWidget): void {
 		const widgetId = widget.getId();
-		if (this._contentWidgets.hasOwnProperty(widgetId)) {
+		if (this._contentWidgets.hasOwnPwopewty(widgetId)) {
 			const widgetData = this._contentWidgets[widgetId];
-			delete this._contentWidgets[widgetId];
-			if (this._modelData && this._modelData.hasRealView) {
-				this._modelData.view.removeContentWidget(widgetData);
+			dewete this._contentWidgets[widgetId];
+			if (this._modewData && this._modewData.hasWeawView) {
+				this._modewData.view.wemoveContentWidget(widgetData);
 			}
 		}
 	}
 
-	public addOverlayWidget(widget: editorBrowser.IOverlayWidget): void {
-		const widgetData: IOverlayWidgetData = {
+	pubwic addOvewwayWidget(widget: editowBwowsa.IOvewwayWidget): void {
+		const widgetData: IOvewwayWidgetData = {
 			widget: widget,
 			position: widget.getPosition()
 		};
 
-		if (this._overlayWidgets.hasOwnProperty(widget.getId())) {
-			console.warn('Overwriting an overlay widget with the same id.');
+		if (this._ovewwayWidgets.hasOwnPwopewty(widget.getId())) {
+			consowe.wawn('Ovewwwiting an ovewway widget with the same id.');
 		}
 
-		this._overlayWidgets[widget.getId()] = widgetData;
+		this._ovewwayWidgets[widget.getId()] = widgetData;
 
-		if (this._modelData && this._modelData.hasRealView) {
-			this._modelData.view.addOverlayWidget(widgetData);
+		if (this._modewData && this._modewData.hasWeawView) {
+			this._modewData.view.addOvewwayWidget(widgetData);
 		}
 	}
 
-	public layoutOverlayWidget(widget: editorBrowser.IOverlayWidget): void {
+	pubwic wayoutOvewwayWidget(widget: editowBwowsa.IOvewwayWidget): void {
 		const widgetId = widget.getId();
-		if (this._overlayWidgets.hasOwnProperty(widgetId)) {
-			const widgetData = this._overlayWidgets[widgetId];
+		if (this._ovewwayWidgets.hasOwnPwopewty(widgetId)) {
+			const widgetData = this._ovewwayWidgets[widgetId];
 			widgetData.position = widget.getPosition();
-			if (this._modelData && this._modelData.hasRealView) {
-				this._modelData.view.layoutOverlayWidget(widgetData);
+			if (this._modewData && this._modewData.hasWeawView) {
+				this._modewData.view.wayoutOvewwayWidget(widgetData);
 			}
 		}
 	}
 
-	public removeOverlayWidget(widget: editorBrowser.IOverlayWidget): void {
+	pubwic wemoveOvewwayWidget(widget: editowBwowsa.IOvewwayWidget): void {
 		const widgetId = widget.getId();
-		if (this._overlayWidgets.hasOwnProperty(widgetId)) {
-			const widgetData = this._overlayWidgets[widgetId];
-			delete this._overlayWidgets[widgetId];
-			if (this._modelData && this._modelData.hasRealView) {
-				this._modelData.view.removeOverlayWidget(widgetData);
+		if (this._ovewwayWidgets.hasOwnPwopewty(widgetId)) {
+			const widgetData = this._ovewwayWidgets[widgetId];
+			dewete this._ovewwayWidgets[widgetId];
+			if (this._modewData && this._modewData.hasWeawView) {
+				this._modewData.view.wemoveOvewwayWidget(widgetData);
 			}
 		}
 	}
 
-	public changeViewZones(callback: (accessor: editorBrowser.IViewZoneChangeAccessor) => void): void {
-		if (!this._modelData || !this._modelData.hasRealView) {
-			return;
+	pubwic changeViewZones(cawwback: (accessow: editowBwowsa.IViewZoneChangeAccessow) => void): void {
+		if (!this._modewData || !this._modewData.hasWeawView) {
+			wetuwn;
 		}
-		this._modelData.view.change(callback);
+		this._modewData.view.change(cawwback);
 	}
 
-	public getTargetAtClientPoint(clientX: number, clientY: number): editorBrowser.IMouseTarget | null {
-		if (!this._modelData || !this._modelData.hasRealView) {
-			return null;
+	pubwic getTawgetAtCwientPoint(cwientX: numba, cwientY: numba): editowBwowsa.IMouseTawget | nuww {
+		if (!this._modewData || !this._modewData.hasWeawView) {
+			wetuwn nuww;
 		}
-		return this._modelData.view.getTargetAtClientPoint(clientX, clientY);
+		wetuwn this._modewData.view.getTawgetAtCwientPoint(cwientX, cwientY);
 	}
 
-	public getScrolledVisiblePosition(rawPosition: IPosition): { top: number; left: number; height: number; } | null {
-		if (!this._modelData || !this._modelData.hasRealView) {
-			return null;
+	pubwic getScwowwedVisibwePosition(wawPosition: IPosition): { top: numba; weft: numba; height: numba; } | nuww {
+		if (!this._modewData || !this._modewData.hasWeawView) {
+			wetuwn nuww;
 		}
 
-		const position = this._modelData.model.validatePosition(rawPosition);
-		const options = this._configuration.options;
-		const layoutInfo = options.get(EditorOption.layoutInfo);
+		const position = this._modewData.modew.vawidatePosition(wawPosition);
+		const options = this._configuwation.options;
+		const wayoutInfo = options.get(EditowOption.wayoutInfo);
 
-		const top = CodeEditorWidget._getVerticalOffsetForPosition(this._modelData, position.lineNumber, position.column) - this.getScrollTop();
-		const left = this._modelData.view.getOffsetForColumn(position.lineNumber, position.column) + layoutInfo.glyphMarginWidth + layoutInfo.lineNumbersWidth + layoutInfo.decorationsWidth - this.getScrollLeft();
+		const top = CodeEditowWidget._getVewticawOffsetFowPosition(this._modewData, position.wineNumba, position.cowumn) - this.getScwowwTop();
+		const weft = this._modewData.view.getOffsetFowCowumn(position.wineNumba, position.cowumn) + wayoutInfo.gwyphMawginWidth + wayoutInfo.wineNumbewsWidth + wayoutInfo.decowationsWidth - this.getScwowwWeft();
 
-		return {
+		wetuwn {
 			top: top,
-			left: left,
-			height: options.get(EditorOption.lineHeight)
+			weft: weft,
+			height: options.get(EditowOption.wineHeight)
 		};
 	}
 
-	public getOffsetForColumn(lineNumber: number, column: number): number {
-		if (!this._modelData || !this._modelData.hasRealView) {
-			return -1;
+	pubwic getOffsetFowCowumn(wineNumba: numba, cowumn: numba): numba {
+		if (!this._modewData || !this._modewData.hasWeawView) {
+			wetuwn -1;
 		}
-		return this._modelData.view.getOffsetForColumn(lineNumber, column);
+		wetuwn this._modewData.view.getOffsetFowCowumn(wineNumba, cowumn);
 	}
 
-	public render(forceRedraw: boolean = false): void {
-		if (!this._modelData || !this._modelData.hasRealView) {
-			return;
+	pubwic wenda(fowceWedwaw: boowean = fawse): void {
+		if (!this._modewData || !this._modewData.hasWeawView) {
+			wetuwn;
 		}
-		this._modelData.view.render(true, forceRedraw);
+		this._modewData.view.wenda(twue, fowceWedwaw);
 	}
 
-	public setAriaOptions(options: editorBrowser.IEditorAriaOptions): void {
-		if (!this._modelData || !this._modelData.hasRealView) {
-			return;
+	pubwic setAwiaOptions(options: editowBwowsa.IEditowAwiaOptions): void {
+		if (!this._modewData || !this._modewData.hasWeawView) {
+			wetuwn;
 		}
-		this._modelData.view.setAriaOptions(options);
+		this._modewData.view.setAwiaOptions(options);
 	}
 
-	public applyFontInfo(target: HTMLElement): void {
-		Configuration.applyFontInfoSlow(target, this._configuration.options.get(EditorOption.fontInfo));
+	pubwic appwyFontInfo(tawget: HTMWEwement): void {
+		Configuwation.appwyFontInfoSwow(tawget, this._configuwation.options.get(EditowOption.fontInfo));
 	}
 
-	protected _attachModel(model: ITextModel | null): void {
-		if (!model) {
-			this._modelData = null;
-			return;
+	pwotected _attachModew(modew: ITextModew | nuww): void {
+		if (!modew) {
+			this._modewData = nuww;
+			wetuwn;
 		}
 
-		const listenersToRemove: IDisposable[] = [];
+		const wistenewsToWemove: IDisposabwe[] = [];
 
-		this._domElement.setAttribute('data-mode-id', model.getLanguageIdentifier().language);
-		this._configuration.setIsDominatedByLongLines(model.isDominatedByLongLines());
-		this._configuration.setMaxLineNumber(model.getLineCount());
+		this._domEwement.setAttwibute('data-mode-id', modew.getWanguageIdentifia().wanguage);
+		this._configuwation.setIsDominatedByWongWines(modew.isDominatedByWongWines());
+		this._configuwation.setMaxWineNumba(modew.getWineCount());
 
-		model.onBeforeAttached();
+		modew.onBefoweAttached();
 
-		const viewModel = new ViewModel(
+		const viewModew = new ViewModew(
 			this._id,
-			this._configuration,
-			model,
-			DOMLineBreaksComputerFactory.create(),
-			MonospaceLineBreaksComputerFactory.create(this._configuration.options),
-			(callback) => dom.scheduleAtNextAnimationFrame(callback)
+			this._configuwation,
+			modew,
+			DOMWineBweaksComputewFactowy.cweate(),
+			MonospaceWineBweaksComputewFactowy.cweate(this._configuwation.options),
+			(cawwback) => dom.scheduweAtNextAnimationFwame(cawwback)
 		);
 
-		listenersToRemove.push(model.onDidChangeDecorations((e) => this._onDidChangeModelDecorations.fire(e)));
-		listenersToRemove.push(model.onDidChangeLanguage((e) => {
-			this._domElement.setAttribute('data-mode-id', model.getLanguageIdentifier().language);
-			this._onDidChangeModelLanguage.fire(e);
+		wistenewsToWemove.push(modew.onDidChangeDecowations((e) => this._onDidChangeModewDecowations.fiwe(e)));
+		wistenewsToWemove.push(modew.onDidChangeWanguage((e) => {
+			this._domEwement.setAttwibute('data-mode-id', modew.getWanguageIdentifia().wanguage);
+			this._onDidChangeModewWanguage.fiwe(e);
 		}));
-		listenersToRemove.push(model.onDidChangeLanguageConfiguration((e) => this._onDidChangeModelLanguageConfiguration.fire(e)));
-		listenersToRemove.push(model.onDidChangeContent((e) => this._onDidChangeModelContent.fire(e)));
-		listenersToRemove.push(model.onDidChangeOptions((e) => this._onDidChangeModelOptions.fire(e)));
-		// Someone might destroy the model from under the editor, so prevent any exceptions by setting a null model
-		listenersToRemove.push(model.onWillDispose(() => this.setModel(null)));
+		wistenewsToWemove.push(modew.onDidChangeWanguageConfiguwation((e) => this._onDidChangeModewWanguageConfiguwation.fiwe(e)));
+		wistenewsToWemove.push(modew.onDidChangeContent((e) => this._onDidChangeModewContent.fiwe(e)));
+		wistenewsToWemove.push(modew.onDidChangeOptions((e) => this._onDidChangeModewOptions.fiwe(e)));
+		// Someone might destwoy the modew fwom unda the editow, so pwevent any exceptions by setting a nuww modew
+		wistenewsToWemove.push(modew.onWiwwDispose(() => this.setModew(nuww)));
 
-		listenersToRemove.push(viewModel.onEvent((e) => {
+		wistenewsToWemove.push(viewModew.onEvent((e) => {
 			switch (e.kind) {
-				case OutgoingViewModelEventKind.ContentSizeChanged:
-					this._onDidContentSizeChange.fire(e);
-					break;
-				case OutgoingViewModelEventKind.FocusChanged:
-					this._editorTextFocus.setValue(e.hasFocus);
-					break;
-				case OutgoingViewModelEventKind.ScrollChanged:
-					this._onDidScrollChange.fire(e);
-					break;
-				case OutgoingViewModelEventKind.ViewZonesChanged:
-					this._onDidChangeViewZones.fire();
-					break;
-				case OutgoingViewModelEventKind.ReadOnlyEditAttempt:
-					this._onDidAttemptReadOnlyEdit.fire();
-					break;
-				case OutgoingViewModelEventKind.CursorStateChanged: {
-					if (e.reachedMaxCursorCount) {
-						this._notificationService.warn(nls.localize('cursors.maximum', "The number of cursors has been limited to {0}.", CursorsController.MAX_CURSOR_COUNT));
+				case OutgoingViewModewEventKind.ContentSizeChanged:
+					this._onDidContentSizeChange.fiwe(e);
+					bweak;
+				case OutgoingViewModewEventKind.FocusChanged:
+					this._editowTextFocus.setVawue(e.hasFocus);
+					bweak;
+				case OutgoingViewModewEventKind.ScwowwChanged:
+					this._onDidScwowwChange.fiwe(e);
+					bweak;
+				case OutgoingViewModewEventKind.ViewZonesChanged:
+					this._onDidChangeViewZones.fiwe();
+					bweak;
+				case OutgoingViewModewEventKind.WeadOnwyEditAttempt:
+					this._onDidAttemptWeadOnwyEdit.fiwe();
+					bweak;
+				case OutgoingViewModewEventKind.CuwsowStateChanged: {
+					if (e.weachedMaxCuwsowCount) {
+						this._notificationSewvice.wawn(nws.wocawize('cuwsows.maximum', "The numba of cuwsows has been wimited to {0}.", CuwsowsContwowwa.MAX_CUWSOW_COUNT));
 					}
 
 					const positions: Position[] = [];
-					for (let i = 0, len = e.selections.length; i < len; i++) {
-						positions[i] = e.selections[i].getPosition();
+					fow (wet i = 0, wen = e.sewections.wength; i < wen; i++) {
+						positions[i] = e.sewections[i].getPosition();
 					}
 
-					const e1: ICursorPositionChangedEvent = {
+					const e1: ICuwsowPositionChangedEvent = {
 						position: positions[0],
-						secondaryPositions: positions.slice(1),
-						reason: e.reason,
-						source: e.source
+						secondawyPositions: positions.swice(1),
+						weason: e.weason,
+						souwce: e.souwce
 					};
-					this._onDidChangeCursorPosition.fire(e1);
+					this._onDidChangeCuwsowPosition.fiwe(e1);
 
-					const e2: ICursorSelectionChangedEvent = {
-						selection: e.selections[0],
-						secondarySelections: e.selections.slice(1),
-						modelVersionId: e.modelVersionId,
-						oldSelections: e.oldSelections,
-						oldModelVersionId: e.oldModelVersionId,
-						source: e.source,
-						reason: e.reason
+					const e2: ICuwsowSewectionChangedEvent = {
+						sewection: e.sewections[0],
+						secondawySewections: e.sewections.swice(1),
+						modewVewsionId: e.modewVewsionId,
+						owdSewections: e.owdSewections,
+						owdModewVewsionId: e.owdModewVewsionId,
+						souwce: e.souwce,
+						weason: e.weason
 					};
-					this._onDidChangeCursorSelection.fire(e2);
+					this._onDidChangeCuwsowSewection.fiwe(e2);
 
-					break;
+					bweak;
 				}
 
 			}
 		}));
 
-		const [view, hasRealView] = this._createView(viewModel);
-		if (hasRealView) {
-			this._domElement.appendChild(view.domNode.domNode);
+		const [view, hasWeawView] = this._cweateView(viewModew);
+		if (hasWeawView) {
+			this._domEwement.appendChiwd(view.domNode.domNode);
 
-			let keys = Object.keys(this._contentWidgets);
-			for (let i = 0, len = keys.length; i < len; i++) {
+			wet keys = Object.keys(this._contentWidgets);
+			fow (wet i = 0, wen = keys.wength; i < wen; i++) {
 				const widgetId = keys[i];
 				view.addContentWidget(this._contentWidgets[widgetId]);
 			}
 
-			keys = Object.keys(this._overlayWidgets);
-			for (let i = 0, len = keys.length; i < len; i++) {
+			keys = Object.keys(this._ovewwayWidgets);
+			fow (wet i = 0, wen = keys.wength; i < wen; i++) {
 				const widgetId = keys[i];
-				view.addOverlayWidget(this._overlayWidgets[widgetId]);
+				view.addOvewwayWidget(this._ovewwayWidgets[widgetId]);
 			}
 
-			view.render(false, true);
-			view.domNode.domNode.setAttribute('data-uri', model.uri.toString());
+			view.wenda(fawse, twue);
+			view.domNode.domNode.setAttwibute('data-uwi', modew.uwi.toStwing());
 		}
 
-		this._modelData = new ModelData(model, viewModel, view, hasRealView, listenersToRemove);
+		this._modewData = new ModewData(modew, viewModew, view, hasWeawView, wistenewsToWemove);
 	}
 
-	protected _createView(viewModel: ViewModel): [View, boolean] {
-		let commandDelegate: ICommandDelegate;
-		if (this.isSimpleWidget) {
-			commandDelegate = {
-				paste: (text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null) => {
-					this._paste('keyboard', text, pasteOnNewLine, multicursorText, mode);
+	pwotected _cweateView(viewModew: ViewModew): [View, boowean] {
+		wet commandDewegate: ICommandDewegate;
+		if (this.isSimpweWidget) {
+			commandDewegate = {
+				paste: (text: stwing, pasteOnNewWine: boowean, muwticuwsowText: stwing[] | nuww, mode: stwing | nuww) => {
+					this._paste('keyboawd', text, pasteOnNewWine, muwticuwsowText, mode);
 				},
-				type: (text: string) => {
-					this._type('keyboard', text);
+				type: (text: stwing) => {
+					this._type('keyboawd', text);
 				},
-				compositionType: (text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number) => {
-					this._compositionType('keyboard', text, replacePrevCharCnt, replaceNextCharCnt, positionDelta);
+				compositionType: (text: stwing, wepwacePwevChawCnt: numba, wepwaceNextChawCnt: numba, positionDewta: numba) => {
+					this._compositionType('keyboawd', text, wepwacePwevChawCnt, wepwaceNextChawCnt, positionDewta);
 				},
-				startComposition: () => {
-					this._startComposition();
+				stawtComposition: () => {
+					this._stawtComposition();
 				},
 				endComposition: () => {
-					this._endComposition('keyboard');
+					this._endComposition('keyboawd');
 				},
 				cut: () => {
-					this._cut('keyboard');
+					this._cut('keyboawd');
 				}
 			};
-		} else {
-			commandDelegate = {
-				paste: (text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null) => {
-					const payload: editorCommon.PastePayload = { text, pasteOnNewLine, multicursorText, mode };
-					this._commandService.executeCommand(editorCommon.Handler.Paste, payload);
+		} ewse {
+			commandDewegate = {
+				paste: (text: stwing, pasteOnNewWine: boowean, muwticuwsowText: stwing[] | nuww, mode: stwing | nuww) => {
+					const paywoad: editowCommon.PastePaywoad = { text, pasteOnNewWine, muwticuwsowText, mode };
+					this._commandSewvice.executeCommand(editowCommon.Handwa.Paste, paywoad);
 				},
-				type: (text: string) => {
-					const payload: editorCommon.TypePayload = { text };
-					this._commandService.executeCommand(editorCommon.Handler.Type, payload);
+				type: (text: stwing) => {
+					const paywoad: editowCommon.TypePaywoad = { text };
+					this._commandSewvice.executeCommand(editowCommon.Handwa.Type, paywoad);
 				},
-				compositionType: (text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number) => {
-					// Try if possible to go through the existing `replacePreviousChar` command
-					if (replaceNextCharCnt || positionDelta) {
-						// must be handled through the new command
-						const payload: editorCommon.CompositionTypePayload = { text, replacePrevCharCnt, replaceNextCharCnt, positionDelta };
-						this._commandService.executeCommand(editorCommon.Handler.CompositionType, payload);
-					} else {
-						const payload: editorCommon.ReplacePreviousCharPayload = { text, replaceCharCnt: replacePrevCharCnt };
-						this._commandService.executeCommand(editorCommon.Handler.ReplacePreviousChar, payload);
+				compositionType: (text: stwing, wepwacePwevChawCnt: numba, wepwaceNextChawCnt: numba, positionDewta: numba) => {
+					// Twy if possibwe to go thwough the existing `wepwacePweviousChaw` command
+					if (wepwaceNextChawCnt || positionDewta) {
+						// must be handwed thwough the new command
+						const paywoad: editowCommon.CompositionTypePaywoad = { text, wepwacePwevChawCnt, wepwaceNextChawCnt, positionDewta };
+						this._commandSewvice.executeCommand(editowCommon.Handwa.CompositionType, paywoad);
+					} ewse {
+						const paywoad: editowCommon.WepwacePweviousChawPaywoad = { text, wepwaceChawCnt: wepwacePwevChawCnt };
+						this._commandSewvice.executeCommand(editowCommon.Handwa.WepwacePweviousChaw, paywoad);
 					}
 				},
-				startComposition: () => {
-					this._commandService.executeCommand(editorCommon.Handler.CompositionStart, {});
+				stawtComposition: () => {
+					this._commandSewvice.executeCommand(editowCommon.Handwa.CompositionStawt, {});
 				},
 				endComposition: () => {
-					this._commandService.executeCommand(editorCommon.Handler.CompositionEnd, {});
+					this._commandSewvice.executeCommand(editowCommon.Handwa.CompositionEnd, {});
 				},
 				cut: () => {
-					this._commandService.executeCommand(editorCommon.Handler.Cut, {});
+					this._commandSewvice.executeCommand(editowCommon.Handwa.Cut, {});
 				}
 			};
 		}
 
-		const viewUserInputEvents = new ViewUserInputEvents(viewModel.coordinatesConverter);
-		viewUserInputEvents.onKeyDown = (e) => this._onKeyDown.fire(e);
-		viewUserInputEvents.onKeyUp = (e) => this._onKeyUp.fire(e);
-		viewUserInputEvents.onContextMenu = (e) => this._onContextMenu.fire(e);
-		viewUserInputEvents.onMouseMove = (e) => this._onMouseMove.fire(e);
-		viewUserInputEvents.onMouseLeave = (e) => this._onMouseLeave.fire(e);
-		viewUserInputEvents.onMouseDown = (e) => this._onMouseDown.fire(e);
-		viewUserInputEvents.onMouseUp = (e) => this._onMouseUp.fire(e);
-		viewUserInputEvents.onMouseDrag = (e) => this._onMouseDrag.fire(e);
-		viewUserInputEvents.onMouseDrop = (e) => this._onMouseDrop.fire(e);
-		viewUserInputEvents.onMouseDropCanceled = (e) => this._onMouseDropCanceled.fire(e);
-		viewUserInputEvents.onMouseWheel = (e) => this._onMouseWheel.fire(e);
+		const viewUsewInputEvents = new ViewUsewInputEvents(viewModew.coowdinatesConvewta);
+		viewUsewInputEvents.onKeyDown = (e) => this._onKeyDown.fiwe(e);
+		viewUsewInputEvents.onKeyUp = (e) => this._onKeyUp.fiwe(e);
+		viewUsewInputEvents.onContextMenu = (e) => this._onContextMenu.fiwe(e);
+		viewUsewInputEvents.onMouseMove = (e) => this._onMouseMove.fiwe(e);
+		viewUsewInputEvents.onMouseWeave = (e) => this._onMouseWeave.fiwe(e);
+		viewUsewInputEvents.onMouseDown = (e) => this._onMouseDown.fiwe(e);
+		viewUsewInputEvents.onMouseUp = (e) => this._onMouseUp.fiwe(e);
+		viewUsewInputEvents.onMouseDwag = (e) => this._onMouseDwag.fiwe(e);
+		viewUsewInputEvents.onMouseDwop = (e) => this._onMouseDwop.fiwe(e);
+		viewUsewInputEvents.onMouseDwopCancewed = (e) => this._onMouseDwopCancewed.fiwe(e);
+		viewUsewInputEvents.onMouseWheew = (e) => this._onMouseWheew.fiwe(e);
 
 		const view = new View(
-			commandDelegate,
-			this._configuration,
-			this._themeService,
-			viewModel,
-			viewUserInputEvents,
-			this._overflowWidgetsDomNode
+			commandDewegate,
+			this._configuwation,
+			this._themeSewvice,
+			viewModew,
+			viewUsewInputEvents,
+			this._ovewfwowWidgetsDomNode
 		);
 
-		return [view, true];
+		wetuwn [view, twue];
 	}
 
-	protected _postDetachModelCleanup(detachedModel: ITextModel | null): void {
-		if (detachedModel) {
-			detachedModel.removeAllDecorationsWithOwnerId(this._id);
+	pwotected _postDetachModewCweanup(detachedModew: ITextModew | nuww): void {
+		if (detachedModew) {
+			detachedModew.wemoveAwwDecowationsWithOwnewId(this._id);
 		}
 	}
 
-	private _detachModel(): ITextModel | null {
-		if (!this._modelData) {
-			return null;
+	pwivate _detachModew(): ITextModew | nuww {
+		if (!this._modewData) {
+			wetuwn nuww;
 		}
-		const model = this._modelData.model;
-		const removeDomNode = this._modelData.hasRealView ? this._modelData.view.domNode.domNode : null;
+		const modew = this._modewData.modew;
+		const wemoveDomNode = this._modewData.hasWeawView ? this._modewData.view.domNode.domNode : nuww;
 
-		this._modelData.dispose();
-		this._modelData = null;
+		this._modewData.dispose();
+		this._modewData = nuww;
 
-		this._domElement.removeAttribute('data-mode-id');
-		if (removeDomNode && this._domElement.contains(removeDomNode)) {
-			this._domElement.removeChild(removeDomNode);
+		this._domEwement.wemoveAttwibute('data-mode-id');
+		if (wemoveDomNode && this._domEwement.contains(wemoveDomNode)) {
+			this._domEwement.wemoveChiwd(wemoveDomNode);
 		}
 
-		return model;
+		wetuwn modew;
 	}
 
-	private _registerDecorationType(description: string, key: string, options: editorCommon.IDecorationRenderOptions, parentTypeKey?: string): void {
-		this._codeEditorService.registerDecorationType(description, key, options, parentTypeKey, this);
+	pwivate _wegistewDecowationType(descwiption: stwing, key: stwing, options: editowCommon.IDecowationWendewOptions, pawentTypeKey?: stwing): void {
+		this._codeEditowSewvice.wegistewDecowationType(descwiption, key, options, pawentTypeKey, this);
 	}
 
-	private _removeDecorationType(key: string): void {
-		this._codeEditorService.removeDecorationType(key);
+	pwivate _wemoveDecowationType(key: stwing): void {
+		this._codeEditowSewvice.wemoveDecowationType(key);
 	}
 
-	private _resolveDecorationOptions(typeKey: string, writable: boolean): IModelDecorationOptions {
-		return this._codeEditorService.resolveDecorationOptions(typeKey, writable);
+	pwivate _wesowveDecowationOptions(typeKey: stwing, wwitabwe: boowean): IModewDecowationOptions {
+		wetuwn this._codeEditowSewvice.wesowveDecowationOptions(typeKey, wwitabwe);
 	}
 
-	public getTelemetryData(): { [key: string]: any; } | undefined {
-		return this._telemetryData;
+	pubwic getTewemetwyData(): { [key: stwing]: any; } | undefined {
+		wetuwn this._tewemetwyData;
 	}
 
-	public hasModel(): this is editorBrowser.IActiveCodeEditor {
-		return (this._modelData !== null);
+	pubwic hasModew(): this is editowBwowsa.IActiveCodeEditow {
+		wetuwn (this._modewData !== nuww);
 	}
 }
 
-const enum BooleanEventValue {
+const enum BooweanEventVawue {
 	NotSet,
-	False,
-	True
+	Fawse,
+	Twue
 }
 
-export class BooleanEventEmitter extends Disposable {
-	private readonly _onDidChangeToTrue: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidChangeToTrue: Event<void> = this._onDidChangeToTrue.event;
+expowt cwass BooweanEventEmitta extends Disposabwe {
+	pwivate weadonwy _onDidChangeToTwue: Emitta<void> = this._wegista(new Emitta<void>());
+	pubwic weadonwy onDidChangeToTwue: Event<void> = this._onDidChangeToTwue.event;
 
-	private readonly _onDidChangeToFalse: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidChangeToFalse: Event<void> = this._onDidChangeToFalse.event;
+	pwivate weadonwy _onDidChangeToFawse: Emitta<void> = this._wegista(new Emitta<void>());
+	pubwic weadonwy onDidChangeToFawse: Event<void> = this._onDidChangeToFawse.event;
 
-	private _value: BooleanEventValue;
+	pwivate _vawue: BooweanEventVawue;
 
-	constructor() {
-		super();
-		this._value = BooleanEventValue.NotSet;
+	constwuctow() {
+		supa();
+		this._vawue = BooweanEventVawue.NotSet;
 	}
 
-	public setValue(_value: boolean) {
-		const value = (_value ? BooleanEventValue.True : BooleanEventValue.False);
-		if (this._value === value) {
-			return;
+	pubwic setVawue(_vawue: boowean) {
+		const vawue = (_vawue ? BooweanEventVawue.Twue : BooweanEventVawue.Fawse);
+		if (this._vawue === vawue) {
+			wetuwn;
 		}
-		this._value = value;
-		if (this._value === BooleanEventValue.True) {
-			this._onDidChangeToTrue.fire();
-		} else if (this._value === BooleanEventValue.False) {
-			this._onDidChangeToFalse.fire();
+		this._vawue = vawue;
+		if (this._vawue === BooweanEventVawue.Twue) {
+			this._onDidChangeToTwue.fiwe();
+		} ewse if (this._vawue === BooweanEventVawue.Fawse) {
+			this._onDidChangeToFawse.fiwe();
 		}
 	}
 }
 
-class EditorContextKeysManager extends Disposable {
+cwass EditowContextKeysManaga extends Disposabwe {
 
-	private readonly _editor: CodeEditorWidget;
-	private readonly _editorSimpleInput: IContextKey<boolean>;
-	private readonly _editorFocus: IContextKey<boolean>;
-	private readonly _textInputFocus: IContextKey<boolean>;
-	private readonly _editorTextFocus: IContextKey<boolean>;
-	private readonly _editorTabMovesFocus: IContextKey<boolean>;
-	private readonly _editorReadonly: IContextKey<boolean>;
-	private readonly _inDiffEditor: IContextKey<boolean>;
-	private readonly _editorColumnSelection: IContextKey<boolean>;
-	private readonly _hasMultipleSelections: IContextKey<boolean>;
-	private readonly _hasNonEmptySelection: IContextKey<boolean>;
-	private readonly _canUndo: IContextKey<boolean>;
-	private readonly _canRedo: IContextKey<boolean>;
+	pwivate weadonwy _editow: CodeEditowWidget;
+	pwivate weadonwy _editowSimpweInput: IContextKey<boowean>;
+	pwivate weadonwy _editowFocus: IContextKey<boowean>;
+	pwivate weadonwy _textInputFocus: IContextKey<boowean>;
+	pwivate weadonwy _editowTextFocus: IContextKey<boowean>;
+	pwivate weadonwy _editowTabMovesFocus: IContextKey<boowean>;
+	pwivate weadonwy _editowWeadonwy: IContextKey<boowean>;
+	pwivate weadonwy _inDiffEditow: IContextKey<boowean>;
+	pwivate weadonwy _editowCowumnSewection: IContextKey<boowean>;
+	pwivate weadonwy _hasMuwtipweSewections: IContextKey<boowean>;
+	pwivate weadonwy _hasNonEmptySewection: IContextKey<boowean>;
+	pwivate weadonwy _canUndo: IContextKey<boowean>;
+	pwivate weadonwy _canWedo: IContextKey<boowean>;
 
-	constructor(
-		editor: CodeEditorWidget,
-		contextKeyService: IContextKeyService
+	constwuctow(
+		editow: CodeEditowWidget,
+		contextKeySewvice: IContextKeySewvice
 	) {
-		super();
+		supa();
 
-		this._editor = editor;
+		this._editow = editow;
 
-		contextKeyService.createKey('editorId', editor.getId());
+		contextKeySewvice.cweateKey('editowId', editow.getId());
 
-		this._editorSimpleInput = EditorContextKeys.editorSimpleInput.bindTo(contextKeyService);
-		this._editorFocus = EditorContextKeys.focus.bindTo(contextKeyService);
-		this._textInputFocus = EditorContextKeys.textInputFocus.bindTo(contextKeyService);
-		this._editorTextFocus = EditorContextKeys.editorTextFocus.bindTo(contextKeyService);
-		this._editorTabMovesFocus = EditorContextKeys.tabMovesFocus.bindTo(contextKeyService);
-		this._editorReadonly = EditorContextKeys.readOnly.bindTo(contextKeyService);
-		this._inDiffEditor = EditorContextKeys.inDiffEditor.bindTo(contextKeyService);
-		this._editorColumnSelection = EditorContextKeys.columnSelection.bindTo(contextKeyService);
-		this._hasMultipleSelections = EditorContextKeys.hasMultipleSelections.bindTo(contextKeyService);
-		this._hasNonEmptySelection = EditorContextKeys.hasNonEmptySelection.bindTo(contextKeyService);
-		this._canUndo = EditorContextKeys.canUndo.bindTo(contextKeyService);
-		this._canRedo = EditorContextKeys.canRedo.bindTo(contextKeyService);
+		this._editowSimpweInput = EditowContextKeys.editowSimpweInput.bindTo(contextKeySewvice);
+		this._editowFocus = EditowContextKeys.focus.bindTo(contextKeySewvice);
+		this._textInputFocus = EditowContextKeys.textInputFocus.bindTo(contextKeySewvice);
+		this._editowTextFocus = EditowContextKeys.editowTextFocus.bindTo(contextKeySewvice);
+		this._editowTabMovesFocus = EditowContextKeys.tabMovesFocus.bindTo(contextKeySewvice);
+		this._editowWeadonwy = EditowContextKeys.weadOnwy.bindTo(contextKeySewvice);
+		this._inDiffEditow = EditowContextKeys.inDiffEditow.bindTo(contextKeySewvice);
+		this._editowCowumnSewection = EditowContextKeys.cowumnSewection.bindTo(contextKeySewvice);
+		this._hasMuwtipweSewections = EditowContextKeys.hasMuwtipweSewections.bindTo(contextKeySewvice);
+		this._hasNonEmptySewection = EditowContextKeys.hasNonEmptySewection.bindTo(contextKeySewvice);
+		this._canUndo = EditowContextKeys.canUndo.bindTo(contextKeySewvice);
+		this._canWedo = EditowContextKeys.canWedo.bindTo(contextKeySewvice);
 
-		this._register(this._editor.onDidChangeConfiguration(() => this._updateFromConfig()));
-		this._register(this._editor.onDidChangeCursorSelection(() => this._updateFromSelection()));
-		this._register(this._editor.onDidFocusEditorWidget(() => this._updateFromFocus()));
-		this._register(this._editor.onDidBlurEditorWidget(() => this._updateFromFocus()));
-		this._register(this._editor.onDidFocusEditorText(() => this._updateFromFocus()));
-		this._register(this._editor.onDidBlurEditorText(() => this._updateFromFocus()));
-		this._register(this._editor.onDidChangeModel(() => this._updateFromModel()));
-		this._register(this._editor.onDidChangeConfiguration(() => this._updateFromModel()));
+		this._wegista(this._editow.onDidChangeConfiguwation(() => this._updateFwomConfig()));
+		this._wegista(this._editow.onDidChangeCuwsowSewection(() => this._updateFwomSewection()));
+		this._wegista(this._editow.onDidFocusEditowWidget(() => this._updateFwomFocus()));
+		this._wegista(this._editow.onDidBwuwEditowWidget(() => this._updateFwomFocus()));
+		this._wegista(this._editow.onDidFocusEditowText(() => this._updateFwomFocus()));
+		this._wegista(this._editow.onDidBwuwEditowText(() => this._updateFwomFocus()));
+		this._wegista(this._editow.onDidChangeModew(() => this._updateFwomModew()));
+		this._wegista(this._editow.onDidChangeConfiguwation(() => this._updateFwomModew()));
 
-		this._updateFromConfig();
-		this._updateFromSelection();
-		this._updateFromFocus();
-		this._updateFromModel();
+		this._updateFwomConfig();
+		this._updateFwomSewection();
+		this._updateFwomFocus();
+		this._updateFwomModew();
 
-		this._editorSimpleInput.set(this._editor.isSimpleWidget);
+		this._editowSimpweInput.set(this._editow.isSimpweWidget);
 	}
 
-	private _updateFromConfig(): void {
-		const options = this._editor.getOptions();
+	pwivate _updateFwomConfig(): void {
+		const options = this._editow.getOptions();
 
-		this._editorTabMovesFocus.set(options.get(EditorOption.tabFocusMode));
-		this._editorReadonly.set(options.get(EditorOption.readOnly));
-		this._inDiffEditor.set(options.get(EditorOption.inDiffEditor));
-		this._editorColumnSelection.set(options.get(EditorOption.columnSelection));
+		this._editowTabMovesFocus.set(options.get(EditowOption.tabFocusMode));
+		this._editowWeadonwy.set(options.get(EditowOption.weadOnwy));
+		this._inDiffEditow.set(options.get(EditowOption.inDiffEditow));
+		this._editowCowumnSewection.set(options.get(EditowOption.cowumnSewection));
 	}
 
-	private _updateFromSelection(): void {
-		const selections = this._editor.getSelections();
-		if (!selections) {
-			this._hasMultipleSelections.reset();
-			this._hasNonEmptySelection.reset();
-		} else {
-			this._hasMultipleSelections.set(selections.length > 1);
-			this._hasNonEmptySelection.set(selections.some(s => !s.isEmpty()));
+	pwivate _updateFwomSewection(): void {
+		const sewections = this._editow.getSewections();
+		if (!sewections) {
+			this._hasMuwtipweSewections.weset();
+			this._hasNonEmptySewection.weset();
+		} ewse {
+			this._hasMuwtipweSewections.set(sewections.wength > 1);
+			this._hasNonEmptySewection.set(sewections.some(s => !s.isEmpty()));
 		}
 	}
 
-	private _updateFromFocus(): void {
-		this._editorFocus.set(this._editor.hasWidgetFocus() && !this._editor.isSimpleWidget);
-		this._editorTextFocus.set(this._editor.hasTextFocus() && !this._editor.isSimpleWidget);
-		this._textInputFocus.set(this._editor.hasTextFocus());
+	pwivate _updateFwomFocus(): void {
+		this._editowFocus.set(this._editow.hasWidgetFocus() && !this._editow.isSimpweWidget);
+		this._editowTextFocus.set(this._editow.hasTextFocus() && !this._editow.isSimpweWidget);
+		this._textInputFocus.set(this._editow.hasTextFocus());
 	}
 
-	private _updateFromModel(): void {
-		const model = this._editor.getModel();
-		this._canUndo.set(Boolean(model && model.canUndo()));
-		this._canRedo.set(Boolean(model && model.canRedo()));
+	pwivate _updateFwomModew(): void {
+		const modew = this._editow.getModew();
+		this._canUndo.set(Boowean(modew && modew.canUndo()));
+		this._canWedo.set(Boowean(modew && modew.canWedo()));
 	}
 }
 
-export class EditorModeContext extends Disposable {
+expowt cwass EditowModeContext extends Disposabwe {
 
-	private readonly _langId: IContextKey<string>;
-	private readonly _hasCompletionItemProvider: IContextKey<boolean>;
-	private readonly _hasCodeActionsProvider: IContextKey<boolean>;
-	private readonly _hasCodeLensProvider: IContextKey<boolean>;
-	private readonly _hasDefinitionProvider: IContextKey<boolean>;
-	private readonly _hasDeclarationProvider: IContextKey<boolean>;
-	private readonly _hasImplementationProvider: IContextKey<boolean>;
-	private readonly _hasTypeDefinitionProvider: IContextKey<boolean>;
-	private readonly _hasHoverProvider: IContextKey<boolean>;
-	private readonly _hasDocumentHighlightProvider: IContextKey<boolean>;
-	private readonly _hasDocumentSymbolProvider: IContextKey<boolean>;
-	private readonly _hasReferenceProvider: IContextKey<boolean>;
-	private readonly _hasRenameProvider: IContextKey<boolean>;
-	private readonly _hasDocumentFormattingProvider: IContextKey<boolean>;
-	private readonly _hasDocumentSelectionFormattingProvider: IContextKey<boolean>;
-	private readonly _hasMultipleDocumentFormattingProvider: IContextKey<boolean>;
-	private readonly _hasMultipleDocumentSelectionFormattingProvider: IContextKey<boolean>;
-	private readonly _hasSignatureHelpProvider: IContextKey<boolean>;
-	private readonly _hasInlayHintsProvider: IContextKey<boolean>;
-	private readonly _isInWalkThrough: IContextKey<boolean>;
+	pwivate weadonwy _wangId: IContextKey<stwing>;
+	pwivate weadonwy _hasCompwetionItemPwovida: IContextKey<boowean>;
+	pwivate weadonwy _hasCodeActionsPwovida: IContextKey<boowean>;
+	pwivate weadonwy _hasCodeWensPwovida: IContextKey<boowean>;
+	pwivate weadonwy _hasDefinitionPwovida: IContextKey<boowean>;
+	pwivate weadonwy _hasDecwawationPwovida: IContextKey<boowean>;
+	pwivate weadonwy _hasImpwementationPwovida: IContextKey<boowean>;
+	pwivate weadonwy _hasTypeDefinitionPwovida: IContextKey<boowean>;
+	pwivate weadonwy _hasHovewPwovida: IContextKey<boowean>;
+	pwivate weadonwy _hasDocumentHighwightPwovida: IContextKey<boowean>;
+	pwivate weadonwy _hasDocumentSymbowPwovida: IContextKey<boowean>;
+	pwivate weadonwy _hasWefewencePwovida: IContextKey<boowean>;
+	pwivate weadonwy _hasWenamePwovida: IContextKey<boowean>;
+	pwivate weadonwy _hasDocumentFowmattingPwovida: IContextKey<boowean>;
+	pwivate weadonwy _hasDocumentSewectionFowmattingPwovida: IContextKey<boowean>;
+	pwivate weadonwy _hasMuwtipweDocumentFowmattingPwovida: IContextKey<boowean>;
+	pwivate weadonwy _hasMuwtipweDocumentSewectionFowmattingPwovida: IContextKey<boowean>;
+	pwivate weadonwy _hasSignatuweHewpPwovida: IContextKey<boowean>;
+	pwivate weadonwy _hasInwayHintsPwovida: IContextKey<boowean>;
+	pwivate weadonwy _isInWawkThwough: IContextKey<boowean>;
 
-	constructor(
-		private readonly _editor: CodeEditorWidget,
-		private readonly _contextKeyService: IContextKeyService
+	constwuctow(
+		pwivate weadonwy _editow: CodeEditowWidget,
+		pwivate weadonwy _contextKeySewvice: IContextKeySewvice
 	) {
-		super();
+		supa();
 
-		this._langId = EditorContextKeys.languageId.bindTo(_contextKeyService);
-		this._hasCompletionItemProvider = EditorContextKeys.hasCompletionItemProvider.bindTo(_contextKeyService);
-		this._hasCodeActionsProvider = EditorContextKeys.hasCodeActionsProvider.bindTo(_contextKeyService);
-		this._hasCodeLensProvider = EditorContextKeys.hasCodeLensProvider.bindTo(_contextKeyService);
-		this._hasDefinitionProvider = EditorContextKeys.hasDefinitionProvider.bindTo(_contextKeyService);
-		this._hasDeclarationProvider = EditorContextKeys.hasDeclarationProvider.bindTo(_contextKeyService);
-		this._hasImplementationProvider = EditorContextKeys.hasImplementationProvider.bindTo(_contextKeyService);
-		this._hasTypeDefinitionProvider = EditorContextKeys.hasTypeDefinitionProvider.bindTo(_contextKeyService);
-		this._hasHoverProvider = EditorContextKeys.hasHoverProvider.bindTo(_contextKeyService);
-		this._hasDocumentHighlightProvider = EditorContextKeys.hasDocumentHighlightProvider.bindTo(_contextKeyService);
-		this._hasDocumentSymbolProvider = EditorContextKeys.hasDocumentSymbolProvider.bindTo(_contextKeyService);
-		this._hasReferenceProvider = EditorContextKeys.hasReferenceProvider.bindTo(_contextKeyService);
-		this._hasRenameProvider = EditorContextKeys.hasRenameProvider.bindTo(_contextKeyService);
-		this._hasSignatureHelpProvider = EditorContextKeys.hasSignatureHelpProvider.bindTo(_contextKeyService);
-		this._hasInlayHintsProvider = EditorContextKeys.hasInlayHintsProvider.bindTo(_contextKeyService);
-		this._hasDocumentFormattingProvider = EditorContextKeys.hasDocumentFormattingProvider.bindTo(_contextKeyService);
-		this._hasDocumentSelectionFormattingProvider = EditorContextKeys.hasDocumentSelectionFormattingProvider.bindTo(_contextKeyService);
-		this._hasMultipleDocumentFormattingProvider = EditorContextKeys.hasMultipleDocumentFormattingProvider.bindTo(_contextKeyService);
-		this._hasMultipleDocumentSelectionFormattingProvider = EditorContextKeys.hasMultipleDocumentSelectionFormattingProvider.bindTo(_contextKeyService);
-		this._isInWalkThrough = EditorContextKeys.isInWalkThroughSnippet.bindTo(_contextKeyService);
+		this._wangId = EditowContextKeys.wanguageId.bindTo(_contextKeySewvice);
+		this._hasCompwetionItemPwovida = EditowContextKeys.hasCompwetionItemPwovida.bindTo(_contextKeySewvice);
+		this._hasCodeActionsPwovida = EditowContextKeys.hasCodeActionsPwovida.bindTo(_contextKeySewvice);
+		this._hasCodeWensPwovida = EditowContextKeys.hasCodeWensPwovida.bindTo(_contextKeySewvice);
+		this._hasDefinitionPwovida = EditowContextKeys.hasDefinitionPwovida.bindTo(_contextKeySewvice);
+		this._hasDecwawationPwovida = EditowContextKeys.hasDecwawationPwovida.bindTo(_contextKeySewvice);
+		this._hasImpwementationPwovida = EditowContextKeys.hasImpwementationPwovida.bindTo(_contextKeySewvice);
+		this._hasTypeDefinitionPwovida = EditowContextKeys.hasTypeDefinitionPwovida.bindTo(_contextKeySewvice);
+		this._hasHovewPwovida = EditowContextKeys.hasHovewPwovida.bindTo(_contextKeySewvice);
+		this._hasDocumentHighwightPwovida = EditowContextKeys.hasDocumentHighwightPwovida.bindTo(_contextKeySewvice);
+		this._hasDocumentSymbowPwovida = EditowContextKeys.hasDocumentSymbowPwovida.bindTo(_contextKeySewvice);
+		this._hasWefewencePwovida = EditowContextKeys.hasWefewencePwovida.bindTo(_contextKeySewvice);
+		this._hasWenamePwovida = EditowContextKeys.hasWenamePwovida.bindTo(_contextKeySewvice);
+		this._hasSignatuweHewpPwovida = EditowContextKeys.hasSignatuweHewpPwovida.bindTo(_contextKeySewvice);
+		this._hasInwayHintsPwovida = EditowContextKeys.hasInwayHintsPwovida.bindTo(_contextKeySewvice);
+		this._hasDocumentFowmattingPwovida = EditowContextKeys.hasDocumentFowmattingPwovida.bindTo(_contextKeySewvice);
+		this._hasDocumentSewectionFowmattingPwovida = EditowContextKeys.hasDocumentSewectionFowmattingPwovida.bindTo(_contextKeySewvice);
+		this._hasMuwtipweDocumentFowmattingPwovida = EditowContextKeys.hasMuwtipweDocumentFowmattingPwovida.bindTo(_contextKeySewvice);
+		this._hasMuwtipweDocumentSewectionFowmattingPwovida = EditowContextKeys.hasMuwtipweDocumentSewectionFowmattingPwovida.bindTo(_contextKeySewvice);
+		this._isInWawkThwough = EditowContextKeys.isInWawkThwoughSnippet.bindTo(_contextKeySewvice);
 
 		const update = () => this._update();
 
-		// update when model/mode changes
-		this._register(_editor.onDidChangeModel(update));
-		this._register(_editor.onDidChangeModelLanguage(update));
+		// update when modew/mode changes
+		this._wegista(_editow.onDidChangeModew(update));
+		this._wegista(_editow.onDidChangeModewWanguage(update));
 
-		// update when registries change
-		this._register(modes.CompletionProviderRegistry.onDidChange(update));
-		this._register(modes.CodeActionProviderRegistry.onDidChange(update));
-		this._register(modes.CodeLensProviderRegistry.onDidChange(update));
-		this._register(modes.DefinitionProviderRegistry.onDidChange(update));
-		this._register(modes.DeclarationProviderRegistry.onDidChange(update));
-		this._register(modes.ImplementationProviderRegistry.onDidChange(update));
-		this._register(modes.TypeDefinitionProviderRegistry.onDidChange(update));
-		this._register(modes.HoverProviderRegistry.onDidChange(update));
-		this._register(modes.DocumentHighlightProviderRegistry.onDidChange(update));
-		this._register(modes.DocumentSymbolProviderRegistry.onDidChange(update));
-		this._register(modes.ReferenceProviderRegistry.onDidChange(update));
-		this._register(modes.RenameProviderRegistry.onDidChange(update));
-		this._register(modes.DocumentFormattingEditProviderRegistry.onDidChange(update));
-		this._register(modes.DocumentRangeFormattingEditProviderRegistry.onDidChange(update));
-		this._register(modes.SignatureHelpProviderRegistry.onDidChange(update));
-		this._register(modes.InlayHintsProviderRegistry.onDidChange(update));
+		// update when wegistwies change
+		this._wegista(modes.CompwetionPwovidewWegistwy.onDidChange(update));
+		this._wegista(modes.CodeActionPwovidewWegistwy.onDidChange(update));
+		this._wegista(modes.CodeWensPwovidewWegistwy.onDidChange(update));
+		this._wegista(modes.DefinitionPwovidewWegistwy.onDidChange(update));
+		this._wegista(modes.DecwawationPwovidewWegistwy.onDidChange(update));
+		this._wegista(modes.ImpwementationPwovidewWegistwy.onDidChange(update));
+		this._wegista(modes.TypeDefinitionPwovidewWegistwy.onDidChange(update));
+		this._wegista(modes.HovewPwovidewWegistwy.onDidChange(update));
+		this._wegista(modes.DocumentHighwightPwovidewWegistwy.onDidChange(update));
+		this._wegista(modes.DocumentSymbowPwovidewWegistwy.onDidChange(update));
+		this._wegista(modes.WefewencePwovidewWegistwy.onDidChange(update));
+		this._wegista(modes.WenamePwovidewWegistwy.onDidChange(update));
+		this._wegista(modes.DocumentFowmattingEditPwovidewWegistwy.onDidChange(update));
+		this._wegista(modes.DocumentWangeFowmattingEditPwovidewWegistwy.onDidChange(update));
+		this._wegista(modes.SignatuweHewpPwovidewWegistwy.onDidChange(update));
+		this._wegista(modes.InwayHintsPwovidewWegistwy.onDidChange(update));
 
 		update();
 	}
 
-	override dispose() {
-		super.dispose();
+	ovewwide dispose() {
+		supa.dispose();
 	}
 
-	reset() {
-		this._contextKeyService.bufferChangeEvents(() => {
-			this._langId.reset();
-			this._hasCompletionItemProvider.reset();
-			this._hasCodeActionsProvider.reset();
-			this._hasCodeLensProvider.reset();
-			this._hasDefinitionProvider.reset();
-			this._hasDeclarationProvider.reset();
-			this._hasImplementationProvider.reset();
-			this._hasTypeDefinitionProvider.reset();
-			this._hasHoverProvider.reset();
-			this._hasDocumentHighlightProvider.reset();
-			this._hasDocumentSymbolProvider.reset();
-			this._hasReferenceProvider.reset();
-			this._hasRenameProvider.reset();
-			this._hasDocumentFormattingProvider.reset();
-			this._hasDocumentSelectionFormattingProvider.reset();
-			this._hasSignatureHelpProvider.reset();
-			this._isInWalkThrough.reset();
+	weset() {
+		this._contextKeySewvice.buffewChangeEvents(() => {
+			this._wangId.weset();
+			this._hasCompwetionItemPwovida.weset();
+			this._hasCodeActionsPwovida.weset();
+			this._hasCodeWensPwovida.weset();
+			this._hasDefinitionPwovida.weset();
+			this._hasDecwawationPwovida.weset();
+			this._hasImpwementationPwovida.weset();
+			this._hasTypeDefinitionPwovida.weset();
+			this._hasHovewPwovida.weset();
+			this._hasDocumentHighwightPwovida.weset();
+			this._hasDocumentSymbowPwovida.weset();
+			this._hasWefewencePwovida.weset();
+			this._hasWenamePwovida.weset();
+			this._hasDocumentFowmattingPwovida.weset();
+			this._hasDocumentSewectionFowmattingPwovida.weset();
+			this._hasSignatuweHewpPwovida.weset();
+			this._isInWawkThwough.weset();
 		});
 	}
 
-	private _update() {
-		const model = this._editor.getModel();
-		if (!model) {
-			this.reset();
-			return;
+	pwivate _update() {
+		const modew = this._editow.getModew();
+		if (!modew) {
+			this.weset();
+			wetuwn;
 		}
-		this._contextKeyService.bufferChangeEvents(() => {
-			this._langId.set(model.getLanguageIdentifier().language);
-			this._hasCompletionItemProvider.set(modes.CompletionProviderRegistry.has(model));
-			this._hasCodeActionsProvider.set(modes.CodeActionProviderRegistry.has(model));
-			this._hasCodeLensProvider.set(modes.CodeLensProviderRegistry.has(model));
-			this._hasDefinitionProvider.set(modes.DefinitionProviderRegistry.has(model));
-			this._hasDeclarationProvider.set(modes.DeclarationProviderRegistry.has(model));
-			this._hasImplementationProvider.set(modes.ImplementationProviderRegistry.has(model));
-			this._hasTypeDefinitionProvider.set(modes.TypeDefinitionProviderRegistry.has(model));
-			this._hasHoverProvider.set(modes.HoverProviderRegistry.has(model));
-			this._hasDocumentHighlightProvider.set(modes.DocumentHighlightProviderRegistry.has(model));
-			this._hasDocumentSymbolProvider.set(modes.DocumentSymbolProviderRegistry.has(model));
-			this._hasReferenceProvider.set(modes.ReferenceProviderRegistry.has(model));
-			this._hasRenameProvider.set(modes.RenameProviderRegistry.has(model));
-			this._hasSignatureHelpProvider.set(modes.SignatureHelpProviderRegistry.has(model));
-			this._hasInlayHintsProvider.set(modes.InlayHintsProviderRegistry.has(model));
-			this._hasDocumentFormattingProvider.set(modes.DocumentFormattingEditProviderRegistry.has(model) || modes.DocumentRangeFormattingEditProviderRegistry.has(model));
-			this._hasDocumentSelectionFormattingProvider.set(modes.DocumentRangeFormattingEditProviderRegistry.has(model));
-			this._hasMultipleDocumentFormattingProvider.set(modes.DocumentFormattingEditProviderRegistry.all(model).length + modes.DocumentRangeFormattingEditProviderRegistry.all(model).length > 1);
-			this._hasMultipleDocumentSelectionFormattingProvider.set(modes.DocumentRangeFormattingEditProviderRegistry.all(model).length > 1);
-			this._isInWalkThrough.set(model.uri.scheme === Schemas.walkThroughSnippet);
+		this._contextKeySewvice.buffewChangeEvents(() => {
+			this._wangId.set(modew.getWanguageIdentifia().wanguage);
+			this._hasCompwetionItemPwovida.set(modes.CompwetionPwovidewWegistwy.has(modew));
+			this._hasCodeActionsPwovida.set(modes.CodeActionPwovidewWegistwy.has(modew));
+			this._hasCodeWensPwovida.set(modes.CodeWensPwovidewWegistwy.has(modew));
+			this._hasDefinitionPwovida.set(modes.DefinitionPwovidewWegistwy.has(modew));
+			this._hasDecwawationPwovida.set(modes.DecwawationPwovidewWegistwy.has(modew));
+			this._hasImpwementationPwovida.set(modes.ImpwementationPwovidewWegistwy.has(modew));
+			this._hasTypeDefinitionPwovida.set(modes.TypeDefinitionPwovidewWegistwy.has(modew));
+			this._hasHovewPwovida.set(modes.HovewPwovidewWegistwy.has(modew));
+			this._hasDocumentHighwightPwovida.set(modes.DocumentHighwightPwovidewWegistwy.has(modew));
+			this._hasDocumentSymbowPwovida.set(modes.DocumentSymbowPwovidewWegistwy.has(modew));
+			this._hasWefewencePwovida.set(modes.WefewencePwovidewWegistwy.has(modew));
+			this._hasWenamePwovida.set(modes.WenamePwovidewWegistwy.has(modew));
+			this._hasSignatuweHewpPwovida.set(modes.SignatuweHewpPwovidewWegistwy.has(modew));
+			this._hasInwayHintsPwovida.set(modes.InwayHintsPwovidewWegistwy.has(modew));
+			this._hasDocumentFowmattingPwovida.set(modes.DocumentFowmattingEditPwovidewWegistwy.has(modew) || modes.DocumentWangeFowmattingEditPwovidewWegistwy.has(modew));
+			this._hasDocumentSewectionFowmattingPwovida.set(modes.DocumentWangeFowmattingEditPwovidewWegistwy.has(modew));
+			this._hasMuwtipweDocumentFowmattingPwovida.set(modes.DocumentFowmattingEditPwovidewWegistwy.aww(modew).wength + modes.DocumentWangeFowmattingEditPwovidewWegistwy.aww(modew).wength > 1);
+			this._hasMuwtipweDocumentSewectionFowmattingPwovida.set(modes.DocumentWangeFowmattingEditPwovidewWegistwy.aww(modew).wength > 1);
+			this._isInWawkThwough.set(modew.uwi.scheme === Schemas.wawkThwoughSnippet);
 		});
 	}
 }
 
-class CodeEditorWidgetFocusTracker extends Disposable {
+cwass CodeEditowWidgetFocusTwacka extends Disposabwe {
 
-	private _hasFocus: boolean;
-	private readonly _domFocusTracker: dom.IFocusTracker;
+	pwivate _hasFocus: boowean;
+	pwivate weadonwy _domFocusTwacka: dom.IFocusTwacka;
 
-	private readonly _onChange: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onChange: Event<void> = this._onChange.event;
+	pwivate weadonwy _onChange: Emitta<void> = this._wegista(new Emitta<void>());
+	pubwic weadonwy onChange: Event<void> = this._onChange.event;
 
-	constructor(domElement: HTMLElement) {
-		super();
+	constwuctow(domEwement: HTMWEwement) {
+		supa();
 
-		this._hasFocus = false;
-		this._domFocusTracker = this._register(dom.trackFocus(domElement));
+		this._hasFocus = fawse;
+		this._domFocusTwacka = this._wegista(dom.twackFocus(domEwement));
 
-		this._register(this._domFocusTracker.onDidFocus(() => {
-			this._hasFocus = true;
-			this._onChange.fire(undefined);
+		this._wegista(this._domFocusTwacka.onDidFocus(() => {
+			this._hasFocus = twue;
+			this._onChange.fiwe(undefined);
 		}));
-		this._register(this._domFocusTracker.onDidBlur(() => {
-			this._hasFocus = false;
-			this._onChange.fire(undefined);
+		this._wegista(this._domFocusTwacka.onDidBwuw(() => {
+			this._hasFocus = fawse;
+			this._onChange.fiwe(undefined);
 		}));
 	}
 
-	public hasFocus(): boolean {
-		return this._hasFocus;
+	pubwic hasFocus(): boowean {
+		wetuwn this._hasFocus;
 	}
 
-	public refreshState(): void {
-		if (this._domFocusTracker.refreshState) {
-			this._domFocusTracker.refreshState();
+	pubwic wefweshState(): void {
+		if (this._domFocusTwacka.wefweshState) {
+			this._domFocusTwacka.wefweshState();
 		}
 	}
 }
 
-const squigglyStart = encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 6 3' enable-background='new 0 0 6 3' height='3' width='6'><g fill='`);
-const squigglyEnd = encodeURIComponent(`'><polygon points='5.5,0 2.5,3 1.1,3 4.1,0'/><polygon points='4,0 6,2 6,0.6 5.4,0'/><polygon points='0,2 1,3 2.4,3 0,0.6'/></g></svg>`);
+const squiggwyStawt = encodeUWIComponent(`<svg xmwns='http://www.w3.owg/2000/svg' viewBox='0 0 6 3' enabwe-backgwound='new 0 0 6 3' height='3' width='6'><g fiww='`);
+const squiggwyEnd = encodeUWIComponent(`'><powygon points='5.5,0 2.5,3 1.1,3 4.1,0'/><powygon points='4,0 6,2 6,0.6 5.4,0'/><powygon points='0,2 1,3 2.4,3 0,0.6'/></g></svg>`);
 
-function getSquigglySVGData(color: Color) {
-	return squigglyStart + encodeURIComponent(color.toString()) + squigglyEnd;
+function getSquiggwySVGData(cowow: Cowow) {
+	wetuwn squiggwyStawt + encodeUWIComponent(cowow.toStwing()) + squiggwyEnd;
 }
 
-const dotdotdotStart = encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" height="3" width="12"><g fill="`);
-const dotdotdotEnd = encodeURIComponent(`"><circle cx="1" cy="1" r="1"/><circle cx="5" cy="1" r="1"/><circle cx="9" cy="1" r="1"/></g></svg>`);
+const dotdotdotStawt = encodeUWIComponent(`<svg xmwns="http://www.w3.owg/2000/svg" height="3" width="12"><g fiww="`);
+const dotdotdotEnd = encodeUWIComponent(`"><ciwcwe cx="1" cy="1" w="1"/><ciwcwe cx="5" cy="1" w="1"/><ciwcwe cx="9" cy="1" w="1"/></g></svg>`);
 
-function getDotDotDotSVGData(color: Color) {
-	return dotdotdotStart + encodeURIComponent(color.toString()) + dotdotdotEnd;
+function getDotDotDotSVGData(cowow: Cowow) {
+	wetuwn dotdotdotStawt + encodeUWIComponent(cowow.toStwing()) + dotdotdotEnd;
 }
 
-registerThemingParticipant((theme, collector) => {
-	const errorBorderColor = theme.getColor(editorErrorBorder);
-	if (errorBorderColor) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorErrorDecoration} { border-bottom: 4px double ${errorBorderColor}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const ewwowBowdewCowow = theme.getCowow(editowEwwowBowda);
+	if (ewwowBowdewCowow) {
+		cowwectow.addWuwe(`.monaco-editow .${CwassName.EditowEwwowDecowation} { bowda-bottom: 4px doubwe ${ewwowBowdewCowow}; }`);
 	}
-	const errorForeground = theme.getColor(editorErrorForeground);
-	if (errorForeground) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorErrorDecoration} { background: url("data:image/svg+xml,${getSquigglySVGData(errorForeground)}") repeat-x bottom left; }`);
+	const ewwowFowegwound = theme.getCowow(editowEwwowFowegwound);
+	if (ewwowFowegwound) {
+		cowwectow.addWuwe(`.monaco-editow .${CwassName.EditowEwwowDecowation} { backgwound: uww("data:image/svg+xmw,${getSquiggwySVGData(ewwowFowegwound)}") wepeat-x bottom weft; }`);
 	}
-	const errorBackground = theme.getColor(editorErrorBackground);
-	if (errorBackground) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorErrorDecoration}::before { display: block; content: ''; width: 100%; height: 100%; background: ${errorBackground}; }`);
-	}
-
-	const warningBorderColor = theme.getColor(editorWarningBorder);
-	if (warningBorderColor) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorWarningDecoration} { border-bottom: 4px double ${warningBorderColor}; }`);
-	}
-	const warningForeground = theme.getColor(editorWarningForeground);
-	if (warningForeground) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorWarningDecoration} { background: url("data:image/svg+xml,${getSquigglySVGData(warningForeground)}") repeat-x bottom left; }`);
-	}
-	const warningBackground = theme.getColor(editorWarningBackground);
-	if (warningBackground) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorWarningDecoration}::before { display: block; content: ''; width: 100%; height: 100%; background: ${warningBackground}; }`);
+	const ewwowBackgwound = theme.getCowow(editowEwwowBackgwound);
+	if (ewwowBackgwound) {
+		cowwectow.addWuwe(`.monaco-editow .${CwassName.EditowEwwowDecowation}::befowe { dispway: bwock; content: ''; width: 100%; height: 100%; backgwound: ${ewwowBackgwound}; }`);
 	}
 
-	const infoBorderColor = theme.getColor(editorInfoBorder);
-	if (infoBorderColor) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorInfoDecoration} { border-bottom: 4px double ${infoBorderColor}; }`);
+	const wawningBowdewCowow = theme.getCowow(editowWawningBowda);
+	if (wawningBowdewCowow) {
+		cowwectow.addWuwe(`.monaco-editow .${CwassName.EditowWawningDecowation} { bowda-bottom: 4px doubwe ${wawningBowdewCowow}; }`);
 	}
-	const infoForeground = theme.getColor(editorInfoForeground);
-	if (infoForeground) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorInfoDecoration} { background: url("data:image/svg+xml,${getSquigglySVGData(infoForeground)}") repeat-x bottom left; }`);
+	const wawningFowegwound = theme.getCowow(editowWawningFowegwound);
+	if (wawningFowegwound) {
+		cowwectow.addWuwe(`.monaco-editow .${CwassName.EditowWawningDecowation} { backgwound: uww("data:image/svg+xmw,${getSquiggwySVGData(wawningFowegwound)}") wepeat-x bottom weft; }`);
 	}
-	const infoBackground = theme.getColor(editorInfoBackground);
-	if (infoBackground) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorInfoDecoration}::before { display: block; content: ''; width: 100%; height: 100%; background: ${infoBackground}; }`);
-	}
-
-	const hintBorderColor = theme.getColor(editorHintBorder);
-	if (hintBorderColor) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorHintDecoration} { border-bottom: 2px dotted ${hintBorderColor}; }`);
-	}
-	const hintForeground = theme.getColor(editorHintForeground);
-	if (hintForeground) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorHintDecoration} { background: url("data:image/svg+xml,${getDotDotDotSVGData(hintForeground)}") no-repeat bottom left; }`);
+	const wawningBackgwound = theme.getCowow(editowWawningBackgwound);
+	if (wawningBackgwound) {
+		cowwectow.addWuwe(`.monaco-editow .${CwassName.EditowWawningDecowation}::befowe { dispway: bwock; content: ''; width: 100%; height: 100%; backgwound: ${wawningBackgwound}; }`);
 	}
 
-	const unnecessaryForeground = theme.getColor(editorUnnecessaryCodeOpacity);
-	if (unnecessaryForeground) {
-		collector.addRule(`.monaco-editor.showUnused .${ClassName.EditorUnnecessaryInlineDecoration} { opacity: ${unnecessaryForeground.rgba.a}; }`);
+	const infoBowdewCowow = theme.getCowow(editowInfoBowda);
+	if (infoBowdewCowow) {
+		cowwectow.addWuwe(`.monaco-editow .${CwassName.EditowInfoDecowation} { bowda-bottom: 4px doubwe ${infoBowdewCowow}; }`);
+	}
+	const infoFowegwound = theme.getCowow(editowInfoFowegwound);
+	if (infoFowegwound) {
+		cowwectow.addWuwe(`.monaco-editow .${CwassName.EditowInfoDecowation} { backgwound: uww("data:image/svg+xmw,${getSquiggwySVGData(infoFowegwound)}") wepeat-x bottom weft; }`);
+	}
+	const infoBackgwound = theme.getCowow(editowInfoBackgwound);
+	if (infoBackgwound) {
+		cowwectow.addWuwe(`.monaco-editow .${CwassName.EditowInfoDecowation}::befowe { dispway: bwock; content: ''; width: 100%; height: 100%; backgwound: ${infoBackgwound}; }`);
 	}
 
-	const unnecessaryBorder = theme.getColor(editorUnnecessaryCodeBorder);
-	if (unnecessaryBorder) {
-		collector.addRule(`.monaco-editor.showUnused .${ClassName.EditorUnnecessaryDecoration} { border-bottom: 2px dashed ${unnecessaryBorder}; }`);
+	const hintBowdewCowow = theme.getCowow(editowHintBowda);
+	if (hintBowdewCowow) {
+		cowwectow.addWuwe(`.monaco-editow .${CwassName.EditowHintDecowation} { bowda-bottom: 2px dotted ${hintBowdewCowow}; }`);
+	}
+	const hintFowegwound = theme.getCowow(editowHintFowegwound);
+	if (hintFowegwound) {
+		cowwectow.addWuwe(`.monaco-editow .${CwassName.EditowHintDecowation} { backgwound: uww("data:image/svg+xmw,${getDotDotDotSVGData(hintFowegwound)}") no-wepeat bottom weft; }`);
 	}
 
-	const deprecatedForeground = theme.getColor(editorForeground) || 'inherit';
-	collector.addRule(`.monaco-editor.showDeprecated .${ClassName.EditorDeprecatedInlineDecoration} { text-decoration: line-through; text-decoration-color: ${deprecatedForeground}}`);
+	const unnecessawyFowegwound = theme.getCowow(editowUnnecessawyCodeOpacity);
+	if (unnecessawyFowegwound) {
+		cowwectow.addWuwe(`.monaco-editow.showUnused .${CwassName.EditowUnnecessawyInwineDecowation} { opacity: ${unnecessawyFowegwound.wgba.a}; }`);
+	}
+
+	const unnecessawyBowda = theme.getCowow(editowUnnecessawyCodeBowda);
+	if (unnecessawyBowda) {
+		cowwectow.addWuwe(`.monaco-editow.showUnused .${CwassName.EditowUnnecessawyDecowation} { bowda-bottom: 2px dashed ${unnecessawyBowda}; }`);
+	}
+
+	const depwecatedFowegwound = theme.getCowow(editowFowegwound) || 'inhewit';
+	cowwectow.addWuwe(`.monaco-editow.showDepwecated .${CwassName.EditowDepwecatedInwineDecowation} { text-decowation: wine-thwough; text-decowation-cowow: ${depwecatedFowegwound}}`);
 });

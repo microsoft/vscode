@@ -1,207 +1,207 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorCommand } from 'vs/editor/browser/editorExtensions';
-import { Position } from 'vs/editor/common/core/position';
-import { deserializePipePositions, serializePipePositions, testRepeatedActionAndExtractPositions } from 'vs/editor/contrib/wordOperations/test/wordTestUtils';
-import { CursorWordPartLeft, CursorWordPartLeftSelect, CursorWordPartRight, CursorWordPartRightSelect, DeleteWordPartLeft, DeleteWordPartRight } from 'vs/editor/contrib/wordPartOperations/wordPartOperations';
+impowt * as assewt fwom 'assewt';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowCommand } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { desewiawizePipePositions, sewiawizePipePositions, testWepeatedActionAndExtwactPositions } fwom 'vs/editow/contwib/wowdOpewations/test/wowdTestUtiws';
+impowt { CuwsowWowdPawtWeft, CuwsowWowdPawtWeftSewect, CuwsowWowdPawtWight, CuwsowWowdPawtWightSewect, DeweteWowdPawtWeft, DeweteWowdPawtWight } fwom 'vs/editow/contwib/wowdPawtOpewations/wowdPawtOpewations';
 
-suite('WordPartOperations', () => {
-	const _deleteWordPartLeft = new DeleteWordPartLeft();
-	const _deleteWordPartRight = new DeleteWordPartRight();
-	const _cursorWordPartLeft = new CursorWordPartLeft();
-	const _cursorWordPartLeftSelect = new CursorWordPartLeftSelect();
-	const _cursorWordPartRight = new CursorWordPartRight();
-	const _cursorWordPartRightSelect = new CursorWordPartRightSelect();
+suite('WowdPawtOpewations', () => {
+	const _deweteWowdPawtWeft = new DeweteWowdPawtWeft();
+	const _deweteWowdPawtWight = new DeweteWowdPawtWight();
+	const _cuwsowWowdPawtWeft = new CuwsowWowdPawtWeft();
+	const _cuwsowWowdPawtWeftSewect = new CuwsowWowdPawtWeftSewect();
+	const _cuwsowWowdPawtWight = new CuwsowWowdPawtWight();
+	const _cuwsowWowdPawtWightSewect = new CuwsowWowdPawtWightSewect();
 
-	function runEditorCommand(editor: ICodeEditor, command: EditorCommand): void {
-		command.runEditorCommand(null, editor, null);
+	function wunEditowCommand(editow: ICodeEditow, command: EditowCommand): void {
+		command.wunEditowCommand(nuww, editow, nuww);
 	}
-	function cursorWordPartLeft(editor: ICodeEditor, inSelectionmode: boolean = false): void {
-		runEditorCommand(editor, inSelectionmode ? _cursorWordPartLeftSelect : _cursorWordPartLeft);
+	function cuwsowWowdPawtWeft(editow: ICodeEditow, inSewectionmode: boowean = fawse): void {
+		wunEditowCommand(editow, inSewectionmode ? _cuwsowWowdPawtWeftSewect : _cuwsowWowdPawtWeft);
 	}
-	function cursorWordPartRight(editor: ICodeEditor, inSelectionmode: boolean = false): void {
-		runEditorCommand(editor, inSelectionmode ? _cursorWordPartRightSelect : _cursorWordPartRight);
+	function cuwsowWowdPawtWight(editow: ICodeEditow, inSewectionmode: boowean = fawse): void {
+		wunEditowCommand(editow, inSewectionmode ? _cuwsowWowdPawtWightSewect : _cuwsowWowdPawtWight);
 	}
-	function deleteWordPartLeft(editor: ICodeEditor): void {
-		runEditorCommand(editor, _deleteWordPartLeft);
+	function deweteWowdPawtWeft(editow: ICodeEditow): void {
+		wunEditowCommand(editow, _deweteWowdPawtWeft);
 	}
-	function deleteWordPartRight(editor: ICodeEditor): void {
-		runEditorCommand(editor, _deleteWordPartRight);
+	function deweteWowdPawtWight(editow: ICodeEditow): void {
+		wunEditowCommand(editow, _deweteWowdPawtWight);
 	}
 
-	test('cursorWordPartLeft - basic', () => {
+	test('cuwsowWowdPawtWeft - basic', () => {
 		const EXPECTED = [
-			'|start| |line|',
-			'|this|Is|A|Camel|Case|Var|  |this_|is_|a_|snake_|case_|var| |THIS_|IS_|CAPS_|SNAKE| |this_|IS|Mixed|Use|',
-			'|end| |line'
+			'|stawt| |wine|',
+			'|this|Is|A|Camew|Case|Vaw|  |this_|is_|a_|snake_|case_|vaw| |THIS_|IS_|CAPS_|SNAKE| |this_|IS|Mixed|Use|',
+			'|end| |wine'
 		].join('\n');
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1000, 1000),
-			ed => cursorWordPartLeft(ed),
+			ed => cuwsowWowdPawtWeft(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(1, 1))
+			ed => ed.getPosition()!.equaws(new Position(1, 1))
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('cursorWordPartLeft - issue #53899: whitespace', () => {
-		const EXPECTED = '|myvar| |=| |\'|demonstration|     |of| |selection| |with| |space|\'';
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+	test('cuwsowWowdPawtWeft - issue #53899: whitespace', () => {
+		const EXPECTED = '|myvaw| |=| |\'|demonstwation|     |of| |sewection| |with| |space|\'';
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1000, 1000),
-			ed => cursorWordPartLeft(ed),
+			ed => cuwsowWowdPawtWeft(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(1, 1))
+			ed => ed.getPosition()!.equaws(new Position(1, 1))
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('cursorWordPartLeft - issue #53899: underscores', () => {
-		const EXPECTED = '|myvar| |=| |\'|demonstration_____|of| |selection| |with| |space|\'';
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+	test('cuwsowWowdPawtWeft - issue #53899: undewscowes', () => {
+		const EXPECTED = '|myvaw| |=| |\'|demonstwation_____|of| |sewection| |with| |space|\'';
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1000, 1000),
-			ed => cursorWordPartLeft(ed),
+			ed => cuwsowWowdPawtWeft(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(1, 1))
+			ed => ed.getPosition()!.equaws(new Position(1, 1))
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('cursorWordPartRight - basic', () => {
+	test('cuwsowWowdPawtWight - basic', () => {
 		const EXPECTED = [
-			'start| |line|',
-			'|this|Is|A|Camel|Case|Var|  |this|_is|_a|_snake|_case|_var| |THIS|_IS|_CAPS|_SNAKE| |this|_IS|Mixed|Use|',
-			'|end| |line|'
+			'stawt| |wine|',
+			'|this|Is|A|Camew|Case|Vaw|  |this|_is|_a|_snake|_case|_vaw| |THIS|_IS|_CAPS|_SNAKE| |this|_IS|Mixed|Use|',
+			'|end| |wine|'
 		].join('\n');
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1, 1),
-			ed => cursorWordPartRight(ed),
+			ed => cuwsowWowdPawtWight(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(3, 9))
+			ed => ed.getPosition()!.equaws(new Position(3, 9))
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('cursorWordPartRight - issue #53899: whitespace', () => {
-		const EXPECTED = 'myvar| |=| |\'|demonstration|     |of| |selection| |with| |space|\'|';
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+	test('cuwsowWowdPawtWight - issue #53899: whitespace', () => {
+		const EXPECTED = 'myvaw| |=| |\'|demonstwation|     |of| |sewection| |with| |space|\'|';
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1, 1),
-			ed => cursorWordPartRight(ed),
+			ed => cuwsowWowdPawtWight(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(1, 52))
+			ed => ed.getPosition()!.equaws(new Position(1, 52))
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('cursorWordPartRight - issue #53899: underscores', () => {
-		const EXPECTED = 'myvar| |=| |\'|demonstration|_____of| |selection| |with| |space|\'|';
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+	test('cuwsowWowdPawtWight - issue #53899: undewscowes', () => {
+		const EXPECTED = 'myvaw| |=| |\'|demonstwation|_____of| |sewection| |with| |space|\'|';
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1, 1),
-			ed => cursorWordPartRight(ed),
+			ed => cuwsowWowdPawtWight(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(1, 52))
+			ed => ed.getPosition()!.equaws(new Position(1, 52))
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('cursorWordPartRight - issue #53899: second case', () => {
+	test('cuwsowWowdPawtWight - issue #53899: second case', () => {
 		const EXPECTED = [
 			';| |--| |1|',
 			'|;|        |--| |2|',
 			'|;|    |#|3|',
 			'|;|   |#|4|'
 		].join('\n');
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1, 1),
-			ed => cursorWordPartRight(ed),
+			ed => cuwsowWowdPawtWight(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(4, 7))
+			ed => ed.getPosition()!.equaws(new Position(4, 7))
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('issue #93239 - cursorWordPartRight', () => {
+	test('issue #93239 - cuwsowWowdPawtWight', () => {
 		const EXPECTED = [
-			'foo|_bar|',
+			'foo|_baw|',
 		].join('\n');
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1, 1),
-			ed => cursorWordPartRight(ed),
+			ed => cuwsowWowdPawtWight(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(1, 8))
+			ed => ed.getPosition()!.equaws(new Position(1, 8))
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('issue #93239 - cursorWordPartLeft', () => {
+	test('issue #93239 - cuwsowWowdPawtWeft', () => {
 		const EXPECTED = [
-			'|foo_|bar',
+			'|foo_|baw',
 		].join('\n');
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1, 8),
-			ed => cursorWordPartLeft(ed),
+			ed => cuwsowWowdPawtWeft(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(1, 1))
+			ed => ed.getPosition()!.equaws(new Position(1, 1))
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('deleteWordPartLeft - basic', () => {
-		const EXPECTED = '|   |/*| |Just| |some| |text| |a|+=| |3| |+|5|-|3| |*/|  |this|Is|A|Camel|Case|Var|  |this_|is_|a_|snake_|case_|var| |THIS_|IS_|CAPS_|SNAKE| |this_|IS|Mixed|Use';
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+	test('deweteWowdPawtWeft - basic', () => {
+		const EXPECTED = '|   |/*| |Just| |some| |text| |a|+=| |3| |+|5|-|3| |*/|  |this|Is|A|Camew|Case|Vaw|  |this_|is_|a_|snake_|case_|vaw| |THIS_|IS_|CAPS_|SNAKE| |this_|IS|Mixed|Use';
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1, 1000),
-			ed => deleteWordPartLeft(ed),
+			ed => deweteWowdPawtWeft(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getValue().length === 0
+			ed => ed.getVawue().wength === 0
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('deleteWordPartRight - basic', () => {
-		const EXPECTED = '   |/*| |Just| |some| |text| |a|+=| |3| |+|5|-|3| |*/|  |this|Is|A|Camel|Case|Var|  |this|_is|_a|_snake|_case|_var| |THIS|_IS|_CAPS|_SNAKE| |this|_IS|Mixed|Use|';
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+	test('deweteWowdPawtWight - basic', () => {
+		const EXPECTED = '   |/*| |Just| |some| |text| |a|+=| |3| |+|5|-|3| |*/|  |this|Is|A|Camew|Case|Vaw|  |this|_is|_a|_snake|_case|_vaw| |THIS|_IS|_CAPS|_SNAKE| |this|_IS|Mixed|Use|';
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1, 1),
-			ed => deleteWordPartRight(ed),
-			ed => new Position(1, text.length - ed.getValue().length + 1),
-			ed => ed.getValue().length === 0
+			ed => deweteWowdPawtWight(ed),
+			ed => new Position(1, text.wength - ed.getVawue().wength + 1),
+			ed => ed.getVawue().wength === 0
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 });

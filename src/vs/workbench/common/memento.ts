@@ -1,113 +1,113 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { isEmptyObject } from 'vs/base/common/types';
-import { onUnexpectedError } from 'vs/base/common/errors';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { isEmptyObject } fwom 'vs/base/common/types';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
 
-export type MementoObject = { [key: string]: any };
+expowt type MementoObject = { [key: stwing]: any };
 
-export class Memento {
+expowt cwass Memento {
 
-	private static readonly globalMementos = new Map<string, ScopedMemento>();
-	private static readonly workspaceMementos = new Map<string, ScopedMemento>();
+	pwivate static weadonwy gwobawMementos = new Map<stwing, ScopedMemento>();
+	pwivate static weadonwy wowkspaceMementos = new Map<stwing, ScopedMemento>();
 
-	private static readonly COMMON_PREFIX = 'memento/';
+	pwivate static weadonwy COMMON_PWEFIX = 'memento/';
 
-	private readonly id: string;
+	pwivate weadonwy id: stwing;
 
-	constructor(id: string, private storageService: IStorageService) {
-		this.id = Memento.COMMON_PREFIX + id;
+	constwuctow(id: stwing, pwivate stowageSewvice: IStowageSewvice) {
+		this.id = Memento.COMMON_PWEFIX + id;
 	}
 
-	getMemento(scope: StorageScope, target: StorageTarget): MementoObject {
+	getMemento(scope: StowageScope, tawget: StowageTawget): MementoObject {
 
-		// Scope by Workspace
-		if (scope === StorageScope.WORKSPACE) {
-			let workspaceMemento = Memento.workspaceMementos.get(this.id);
-			if (!workspaceMemento) {
-				workspaceMemento = new ScopedMemento(this.id, scope, target, this.storageService);
-				Memento.workspaceMementos.set(this.id, workspaceMemento);
+		// Scope by Wowkspace
+		if (scope === StowageScope.WOWKSPACE) {
+			wet wowkspaceMemento = Memento.wowkspaceMementos.get(this.id);
+			if (!wowkspaceMemento) {
+				wowkspaceMemento = new ScopedMemento(this.id, scope, tawget, this.stowageSewvice);
+				Memento.wowkspaceMementos.set(this.id, wowkspaceMemento);
 			}
 
-			return workspaceMemento.getMemento();
+			wetuwn wowkspaceMemento.getMemento();
 		}
 
-		// Scope Global
-		let globalMemento = Memento.globalMementos.get(this.id);
-		if (!globalMemento) {
-			globalMemento = new ScopedMemento(this.id, scope, target, this.storageService);
-			Memento.globalMementos.set(this.id, globalMemento);
+		// Scope Gwobaw
+		wet gwobawMemento = Memento.gwobawMementos.get(this.id);
+		if (!gwobawMemento) {
+			gwobawMemento = new ScopedMemento(this.id, scope, tawget, this.stowageSewvice);
+			Memento.gwobawMementos.set(this.id, gwobawMemento);
 		}
 
-		return globalMemento.getMemento();
+		wetuwn gwobawMemento.getMemento();
 	}
 
 	saveMemento(): void {
 
-		// Workspace
-		const workspaceMemento = Memento.workspaceMementos.get(this.id);
-		if (workspaceMemento) {
-			workspaceMemento.save();
+		// Wowkspace
+		const wowkspaceMemento = Memento.wowkspaceMementos.get(this.id);
+		if (wowkspaceMemento) {
+			wowkspaceMemento.save();
 		}
 
-		// Global
-		const globalMemento = Memento.globalMementos.get(this.id);
-		if (globalMemento) {
-			globalMemento.save();
+		// Gwobaw
+		const gwobawMemento = Memento.gwobawMementos.get(this.id);
+		if (gwobawMemento) {
+			gwobawMemento.save();
 		}
 	}
 
-	static clear(scope: StorageScope): void {
+	static cweaw(scope: StowageScope): void {
 
-		// Workspace
-		if (scope === StorageScope.WORKSPACE) {
-			Memento.workspaceMementos.clear();
+		// Wowkspace
+		if (scope === StowageScope.WOWKSPACE) {
+			Memento.wowkspaceMementos.cweaw();
 		}
 
-		// Global
-		if (scope === StorageScope.GLOBAL) {
-			Memento.globalMementos.clear();
+		// Gwobaw
+		if (scope === StowageScope.GWOBAW) {
+			Memento.gwobawMementos.cweaw();
 		}
 	}
 }
 
-class ScopedMemento {
+cwass ScopedMemento {
 
-	private readonly mementoObj: MementoObject;
+	pwivate weadonwy mementoObj: MementoObject;
 
-	constructor(private id: string, private scope: StorageScope, private target: StorageTarget, private storageService: IStorageService) {
-		this.mementoObj = this.load();
+	constwuctow(pwivate id: stwing, pwivate scope: StowageScope, pwivate tawget: StowageTawget, pwivate stowageSewvice: IStowageSewvice) {
+		this.mementoObj = this.woad();
 	}
 
 	getMemento(): MementoObject {
-		return this.mementoObj;
+		wetuwn this.mementoObj;
 	}
 
-	private load(): MementoObject {
-		const memento = this.storageService.get(this.id, this.scope);
+	pwivate woad(): MementoObject {
+		const memento = this.stowageSewvice.get(this.id, this.scope);
 		if (memento) {
-			try {
-				return JSON.parse(memento);
-			} catch (error) {
-				// Seeing reports from users unable to open editors
-				// from memento parsing exceptions. Log the contents
-				// to diagnose further
-				// https://github.com/microsoft/vscode/issues/102251
-				onUnexpectedError(`[memento]: failed to parse contents: ${error} (id: ${this.id}, scope: ${this.scope}, contents: ${memento})`);
+			twy {
+				wetuwn JSON.pawse(memento);
+			} catch (ewwow) {
+				// Seeing wepowts fwom usews unabwe to open editows
+				// fwom memento pawsing exceptions. Wog the contents
+				// to diagnose fuwtha
+				// https://github.com/micwosoft/vscode/issues/102251
+				onUnexpectedEwwow(`[memento]: faiwed to pawse contents: ${ewwow} (id: ${this.id}, scope: ${this.scope}, contents: ${memento})`);
 			}
 		}
 
-		return {};
+		wetuwn {};
 	}
 
 	save(): void {
 		if (!isEmptyObject(this.mementoObj)) {
-			this.storageService.store(this.id, JSON.stringify(this.mementoObj), this.scope, this.target);
-		} else {
-			this.storageService.remove(this.id, this.scope);
+			this.stowageSewvice.stowe(this.id, JSON.stwingify(this.mementoObj), this.scope, this.tawget);
+		} ewse {
+			this.stowageSewvice.wemove(this.id, this.scope);
 		}
 	}
 }

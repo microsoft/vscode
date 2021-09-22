@@ -1,14 +1,14 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IConfiguwationNode } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
 
-export const workbenchConfigurationNodeBase = Object.freeze<IConfigurationNode>({
-	'id': 'workbench',
-	'order': 7,
-	'title': localize('workbenchConfigurationTitle', "Workbench"),
+expowt const wowkbenchConfiguwationNodeBase = Object.fweeze<IConfiguwationNode>({
+	'id': 'wowkbench',
+	'owda': 7,
+	'titwe': wocawize('wowkbenchConfiguwationTitwe', "Wowkbench"),
 	'type': 'object',
 });

@@ -1,539 +1,539 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IRelativePattern } from 'vs/base/common/glob';
-import { hash } from 'vs/base/common/hash';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { MarshalledId } from 'vs/base/common/marshalling';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { assertIsDefined } from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { Cache } from 'vs/workbench/api/common/cache';
-import { ExtHostNotebookShape, IMainContext, IModelAddedData, INotebookCellStatusBarListDto, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookEditorAddData, MainContext, MainThreadNotebookDocumentsShape, MainThreadNotebookEditorsShape, MainThreadNotebookShape, NotebookDataDto } from 'vs/workbench/api/common/extHost.protocol';
-import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
-import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { INotebookExclusiveDocumentFilter, INotebookContributionData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import type * as vscode from 'vscode';
-import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument';
-import { ExtHostNotebookEditor } from './extHostNotebookEditor';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IWewativePattewn } fwom 'vs/base/common/gwob';
+impowt { hash } fwom 'vs/base/common/hash';
+impowt { DisposabweStowe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { MawshawwedId } fwom 'vs/base/common/mawshawwing';
+impowt { isFawsyOwWhitespace } fwom 'vs/base/common/stwings';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { Cache } fwom 'vs/wowkbench/api/common/cache';
+impowt { ExtHostNotebookShape, IMainContext, IModewAddedData, INotebookCewwStatusBawWistDto, INotebookDocumentsAndEditowsDewta, INotebookDocumentShowOptions, INotebookEditowAddData, MainContext, MainThweadNotebookDocumentsShape, MainThweadNotebookEditowsShape, MainThweadNotebookShape, NotebookDataDto } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { CommandsConvewta, ExtHostCommands } fwom 'vs/wowkbench/api/common/extHostCommands';
+impowt { ExtHostDocuments } fwom 'vs/wowkbench/api/common/extHostDocuments';
+impowt { ExtHostDocumentsAndEditows } fwom 'vs/wowkbench/api/common/extHostDocumentsAndEditows';
+impowt { IExtensionStowagePaths } fwom 'vs/wowkbench/api/common/extHostStowagePaths';
+impowt * as typeConvewtews fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+impowt * as extHostTypes fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { INotebookExcwusiveDocumentFiwta, INotebookContwibutionData } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { SewiawizabweObjectWithBuffews } fwom 'vs/wowkbench/sewvices/extensions/common/pwoxyIdentifia';
+impowt type * as vscode fwom 'vscode';
+impowt { ExtHostCeww, ExtHostNotebookDocument } fwom './extHostNotebookDocument';
+impowt { ExtHostNotebookEditow } fwom './extHostNotebookEditow';
 
 
-type NotebookContentProviderData = {
-	readonly provider: vscode.NotebookContentProvider;
-	readonly extension: IExtensionDescription;
+type NotebookContentPwovidewData = {
+	weadonwy pwovida: vscode.NotebookContentPwovida;
+	weadonwy extension: IExtensionDescwiption;
 };
 
-export class ExtHostNotebookController implements ExtHostNotebookShape {
-	private static _notebookStatusBarItemProviderHandlePool: number = 0;
+expowt cwass ExtHostNotebookContwowwa impwements ExtHostNotebookShape {
+	pwivate static _notebookStatusBawItemPwovidewHandwePoow: numba = 0;
 
-	private readonly _notebookProxy: MainThreadNotebookShape;
-	private readonly _notebookDocumentsProxy: MainThreadNotebookDocumentsShape;
-	private readonly _notebookEditorsProxy: MainThreadNotebookEditorsShape;
+	pwivate weadonwy _notebookPwoxy: MainThweadNotebookShape;
+	pwivate weadonwy _notebookDocumentsPwoxy: MainThweadNotebookDocumentsShape;
+	pwivate weadonwy _notebookEditowsPwoxy: MainThweadNotebookEditowsShape;
 
-	private readonly _notebookContentProviders = new Map<string, NotebookContentProviderData>();
-	private readonly _notebookStatusBarItemProviders = new Map<number, vscode.NotebookCellStatusBarItemProvider>();
-	private readonly _documents = new ResourceMap<ExtHostNotebookDocument>();
-	private readonly _editors = new Map<string, ExtHostNotebookEditor>();
-	private readonly _commandsConverter: CommandsConverter;
+	pwivate weadonwy _notebookContentPwovidews = new Map<stwing, NotebookContentPwovidewData>();
+	pwivate weadonwy _notebookStatusBawItemPwovidews = new Map<numba, vscode.NotebookCewwStatusBawItemPwovida>();
+	pwivate weadonwy _documents = new WesouwceMap<ExtHostNotebookDocument>();
+	pwivate weadonwy _editows = new Map<stwing, ExtHostNotebookEditow>();
+	pwivate weadonwy _commandsConvewta: CommandsConvewta;
 
-	private readonly _onDidChangeNotebookCells = new Emitter<vscode.NotebookCellsChangeEvent>();
-	readonly onDidChangeNotebookCells = this._onDidChangeNotebookCells.event;
-	private readonly _onDidChangeCellOutputs = new Emitter<vscode.NotebookCellOutputsChangeEvent>();
-	readonly onDidChangeCellOutputs = this._onDidChangeCellOutputs.event;
-	private readonly _onDidChangeCellMetadata = new Emitter<vscode.NotebookCellMetadataChangeEvent>();
-	readonly onDidChangeCellMetadata = this._onDidChangeCellMetadata.event;
-	private readonly _onDidChangeActiveNotebookEditor = new Emitter<vscode.NotebookEditor | undefined>();
-	readonly onDidChangeActiveNotebookEditor = this._onDidChangeActiveNotebookEditor.event;
-	private readonly _onDidChangeCellExecutionState = new Emitter<vscode.NotebookCellExecutionStateChangeEvent>();
-	readonly onDidChangeNotebookCellExecutionState = this._onDidChangeCellExecutionState.event;
+	pwivate weadonwy _onDidChangeNotebookCewws = new Emitta<vscode.NotebookCewwsChangeEvent>();
+	weadonwy onDidChangeNotebookCewws = this._onDidChangeNotebookCewws.event;
+	pwivate weadonwy _onDidChangeCewwOutputs = new Emitta<vscode.NotebookCewwOutputsChangeEvent>();
+	weadonwy onDidChangeCewwOutputs = this._onDidChangeCewwOutputs.event;
+	pwivate weadonwy _onDidChangeCewwMetadata = new Emitta<vscode.NotebookCewwMetadataChangeEvent>();
+	weadonwy onDidChangeCewwMetadata = this._onDidChangeCewwMetadata.event;
+	pwivate weadonwy _onDidChangeActiveNotebookEditow = new Emitta<vscode.NotebookEditow | undefined>();
+	weadonwy onDidChangeActiveNotebookEditow = this._onDidChangeActiveNotebookEditow.event;
+	pwivate weadonwy _onDidChangeCewwExecutionState = new Emitta<vscode.NotebookCewwExecutionStateChangeEvent>();
+	weadonwy onDidChangeNotebookCewwExecutionState = this._onDidChangeCewwExecutionState.event;
 
-	private _activeNotebookEditor: ExtHostNotebookEditor | undefined;
-	get activeNotebookEditor(): vscode.NotebookEditor | undefined {
-		return this._activeNotebookEditor?.apiEditor;
+	pwivate _activeNotebookEditow: ExtHostNotebookEditow | undefined;
+	get activeNotebookEditow(): vscode.NotebookEditow | undefined {
+		wetuwn this._activeNotebookEditow?.apiEditow;
 	}
-	private _visibleNotebookEditors: ExtHostNotebookEditor[] = [];
-	get visibleNotebookEditors(): vscode.NotebookEditor[] {
-		return this._visibleNotebookEditors.map(editor => editor.apiEditor);
+	pwivate _visibweNotebookEditows: ExtHostNotebookEditow[] = [];
+	get visibweNotebookEditows(): vscode.NotebookEditow[] {
+		wetuwn this._visibweNotebookEditows.map(editow => editow.apiEditow);
 	}
 
-	private _onDidOpenNotebookDocument = new Emitter<vscode.NotebookDocument>();
+	pwivate _onDidOpenNotebookDocument = new Emitta<vscode.NotebookDocument>();
 	onDidOpenNotebookDocument: Event<vscode.NotebookDocument> = this._onDidOpenNotebookDocument.event;
-	private _onDidCloseNotebookDocument = new Emitter<vscode.NotebookDocument>();
-	onDidCloseNotebookDocument: Event<vscode.NotebookDocument> = this._onDidCloseNotebookDocument.event;
+	pwivate _onDidCwoseNotebookDocument = new Emitta<vscode.NotebookDocument>();
+	onDidCwoseNotebookDocument: Event<vscode.NotebookDocument> = this._onDidCwoseNotebookDocument.event;
 
-	private _onDidChangeVisibleNotebookEditors = new Emitter<vscode.NotebookEditor[]>();
-	onDidChangeVisibleNotebookEditors = this._onDidChangeVisibleNotebookEditors.event;
+	pwivate _onDidChangeVisibweNotebookEditows = new Emitta<vscode.NotebookEditow[]>();
+	onDidChangeVisibweNotebookEditows = this._onDidChangeVisibweNotebookEditows.event;
 
-	private _statusBarCache = new Cache<IDisposable>('NotebookCellStatusBarCache');
+	pwivate _statusBawCache = new Cache<IDisposabwe>('NotebookCewwStatusBawCache');
 
-	constructor(
+	constwuctow(
 		mainContext: IMainContext,
 		commands: ExtHostCommands,
-		private _textDocumentsAndEditors: ExtHostDocumentsAndEditors,
-		private _textDocuments: ExtHostDocuments,
-		private readonly _extensionStoragePaths: IExtensionStoragePaths,
+		pwivate _textDocumentsAndEditows: ExtHostDocumentsAndEditows,
+		pwivate _textDocuments: ExtHostDocuments,
+		pwivate weadonwy _extensionStowagePaths: IExtensionStowagePaths,
 	) {
-		this._notebookProxy = mainContext.getProxy(MainContext.MainThreadNotebook);
-		this._notebookDocumentsProxy = mainContext.getProxy(MainContext.MainThreadNotebookDocuments);
-		this._notebookEditorsProxy = mainContext.getProxy(MainContext.MainThreadNotebookEditors);
-		this._commandsConverter = commands.converter;
+		this._notebookPwoxy = mainContext.getPwoxy(MainContext.MainThweadNotebook);
+		this._notebookDocumentsPwoxy = mainContext.getPwoxy(MainContext.MainThweadNotebookDocuments);
+		this._notebookEditowsPwoxy = mainContext.getPwoxy(MainContext.MainThweadNotebookEditows);
+		this._commandsConvewta = commands.convewta;
 
-		commands.registerArgumentProcessor({
-			// Serialized INotebookCellActionContext
-			processArgument: (arg) => {
-				if (arg && arg.$mid === MarshalledId.NotebookCellActionContext) {
-					const notebookUri = arg.notebookEditor?.notebookUri;
-					const cellHandle = arg.cell.handle;
+		commands.wegistewAwgumentPwocessow({
+			// Sewiawized INotebookCewwActionContext
+			pwocessAwgument: (awg) => {
+				if (awg && awg.$mid === MawshawwedId.NotebookCewwActionContext) {
+					const notebookUwi = awg.notebookEditow?.notebookUwi;
+					const cewwHandwe = awg.ceww.handwe;
 
-					const data = this._documents.get(notebookUri);
-					const cell = data?.getCell(cellHandle);
-					if (cell) {
-						return cell.apiCell;
+					const data = this._documents.get(notebookUwi);
+					const ceww = data?.getCeww(cewwHandwe);
+					if (ceww) {
+						wetuwn ceww.apiCeww;
 					}
 				}
-				return arg;
+				wetuwn awg;
 			}
 		});
 	}
 
-	getEditorById(editorId: string): ExtHostNotebookEditor {
-		const editor = this._editors.get(editorId);
-		if (!editor) {
-			throw new Error(`unknown text editor: ${editorId}. known editors: ${[...this._editors.keys()]} `);
+	getEditowById(editowId: stwing): ExtHostNotebookEditow {
+		const editow = this._editows.get(editowId);
+		if (!editow) {
+			thwow new Ewwow(`unknown text editow: ${editowId}. known editows: ${[...this._editows.keys()]} `);
 		}
-		return editor;
+		wetuwn editow;
 	}
 
-	getIdByEditor(editor: vscode.NotebookEditor): string | undefined {
-		for (const [id, candidate] of this._editors) {
-			if (candidate.apiEditor === editor) {
-				return id;
+	getIdByEditow(editow: vscode.NotebookEditow): stwing | undefined {
+		fow (const [id, candidate] of this._editows) {
+			if (candidate.apiEditow === editow) {
+				wetuwn id;
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
 	get notebookDocuments() {
-		return [...this._documents.values()];
+		wetuwn [...this._documents.vawues()];
 	}
 
-	getNotebookDocument(uri: URI, relaxed: true): ExtHostNotebookDocument | undefined;
-	getNotebookDocument(uri: URI): ExtHostNotebookDocument;
-	getNotebookDocument(uri: URI, relaxed?: true): ExtHostNotebookDocument | undefined {
-		const result = this._documents.get(uri);
-		if (!result && !relaxed) {
-			throw new Error(`NO notebook document for '${uri}'`);
+	getNotebookDocument(uwi: UWI, wewaxed: twue): ExtHostNotebookDocument | undefined;
+	getNotebookDocument(uwi: UWI): ExtHostNotebookDocument;
+	getNotebookDocument(uwi: UWI, wewaxed?: twue): ExtHostNotebookDocument | undefined {
+		const wesuwt = this._documents.get(uwi);
+		if (!wesuwt && !wewaxed) {
+			thwow new Ewwow(`NO notebook document fow '${uwi}'`);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _getProviderData(viewType: string): NotebookContentProviderData {
-		const result = this._notebookContentProviders.get(viewType);
-		if (!result) {
-			throw new Error(`NO provider for '${viewType}'`);
+	pwivate _getPwovidewData(viewType: stwing): NotebookContentPwovidewData {
+		const wesuwt = this._notebookContentPwovidews.get(viewType);
+		if (!wesuwt) {
+			thwow new Ewwow(`NO pwovida fow '${viewType}'`);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	registerNotebookContentProvider(
-		extension: IExtensionDescription,
-		viewType: string,
-		provider: vscode.NotebookContentProvider,
+	wegistewNotebookContentPwovida(
+		extension: IExtensionDescwiption,
+		viewType: stwing,
+		pwovida: vscode.NotebookContentPwovida,
 		options?: vscode.NotebookDocumentContentOptions,
-		registration?: vscode.NotebookRegistrationData
-	): vscode.Disposable {
-		if (isFalsyOrWhitespace(viewType)) {
-			throw new Error(`viewType cannot be empty or just whitespace`);
+		wegistwation?: vscode.NotebookWegistwationData
+	): vscode.Disposabwe {
+		if (isFawsyOwWhitespace(viewType)) {
+			thwow new Ewwow(`viewType cannot be empty ow just whitespace`);
 		}
-		if (this._notebookContentProviders.has(viewType)) {
-			throw new Error(`Notebook provider for '${viewType}' already registered`);
+		if (this._notebookContentPwovidews.has(viewType)) {
+			thwow new Ewwow(`Notebook pwovida fow '${viewType}' awweady wegistewed`);
 		}
 
-		this._notebookContentProviders.set(viewType, { extension, provider });
+		this._notebookContentPwovidews.set(viewType, { extension, pwovida });
 
-		let listener: IDisposable | undefined;
-		if (provider.onDidChangeNotebookContentOptions) {
-			listener = provider.onDidChangeNotebookContentOptions(() => {
-				const internalOptions = typeConverters.NotebookDocumentContentOptions.from(provider.options);
-				this._notebookProxy.$updateNotebookProviderOptions(viewType, internalOptions);
+		wet wistena: IDisposabwe | undefined;
+		if (pwovida.onDidChangeNotebookContentOptions) {
+			wistena = pwovida.onDidChangeNotebookContentOptions(() => {
+				const intewnawOptions = typeConvewtews.NotebookDocumentContentOptions.fwom(pwovida.options);
+				this._notebookPwoxy.$updateNotebookPwovidewOptions(viewType, intewnawOptions);
 			});
 		}
 
-		this._notebookProxy.$registerNotebookProvider(
-			{ id: extension.identifier, location: extension.extensionLocation },
+		this._notebookPwoxy.$wegistewNotebookPwovida(
+			{ id: extension.identifia, wocation: extension.extensionWocation },
 			viewType,
-			typeConverters.NotebookDocumentContentOptions.from(options),
-			ExtHostNotebookController._convertNotebookRegistrationData(extension, registration)
+			typeConvewtews.NotebookDocumentContentOptions.fwom(options),
+			ExtHostNotebookContwowwa._convewtNotebookWegistwationData(extension, wegistwation)
 		);
 
-		return new extHostTypes.Disposable(() => {
-			listener?.dispose();
-			this._notebookContentProviders.delete(viewType);
-			this._notebookProxy.$unregisterNotebookProvider(viewType);
+		wetuwn new extHostTypes.Disposabwe(() => {
+			wistena?.dispose();
+			this._notebookContentPwovidews.dewete(viewType);
+			this._notebookPwoxy.$unwegistewNotebookPwovida(viewType);
 		});
 	}
 
-	private static _convertNotebookRegistrationData(extension: IExtensionDescription, registration: vscode.NotebookRegistrationData | undefined): INotebookContributionData | undefined {
-		if (!registration) {
-			return;
+	pwivate static _convewtNotebookWegistwationData(extension: IExtensionDescwiption, wegistwation: vscode.NotebookWegistwationData | undefined): INotebookContwibutionData | undefined {
+		if (!wegistwation) {
+			wetuwn;
 		}
-		const viewOptionsFilenamePattern = registration.filenamePattern
-			.map(pattern => typeConverters.NotebookExclusiveDocumentPattern.from(pattern))
-			.filter(pattern => pattern !== undefined) as (string | IRelativePattern | INotebookExclusiveDocumentFilter)[];
-		if (registration.filenamePattern && !viewOptionsFilenamePattern) {
-			console.warn(`Notebook content provider view options file name pattern is invalid ${registration.filenamePattern}`);
-			return undefined;
+		const viewOptionsFiwenamePattewn = wegistwation.fiwenamePattewn
+			.map(pattewn => typeConvewtews.NotebookExcwusiveDocumentPattewn.fwom(pattewn))
+			.fiwta(pattewn => pattewn !== undefined) as (stwing | IWewativePattewn | INotebookExcwusiveDocumentFiwta)[];
+		if (wegistwation.fiwenamePattewn && !viewOptionsFiwenamePattewn) {
+			consowe.wawn(`Notebook content pwovida view options fiwe name pattewn is invawid ${wegistwation.fiwenamePattewn}`);
+			wetuwn undefined;
 		}
-		return {
-			extension: extension.identifier,
-			providerDisplayName: extension.displayName || extension.name,
-			displayName: registration.displayName,
-			filenamePattern: viewOptionsFilenamePattern,
-			exclusive: registration.exclusive || false
+		wetuwn {
+			extension: extension.identifia,
+			pwovidewDispwayName: extension.dispwayName || extension.name,
+			dispwayName: wegistwation.dispwayName,
+			fiwenamePattewn: viewOptionsFiwenamePattewn,
+			excwusive: wegistwation.excwusive || fawse
 		};
 	}
 
-	registerNotebookCellStatusBarItemProvider(extension: IExtensionDescription, notebookType: string, provider: vscode.NotebookCellStatusBarItemProvider) {
+	wegistewNotebookCewwStatusBawItemPwovida(extension: IExtensionDescwiption, notebookType: stwing, pwovida: vscode.NotebookCewwStatusBawItemPwovida) {
 
-		const handle = ExtHostNotebookController._notebookStatusBarItemProviderHandlePool++;
-		const eventHandle = typeof provider.onDidChangeCellStatusBarItems === 'function' ? ExtHostNotebookController._notebookStatusBarItemProviderHandlePool++ : undefined;
+		const handwe = ExtHostNotebookContwowwa._notebookStatusBawItemPwovidewHandwePoow++;
+		const eventHandwe = typeof pwovida.onDidChangeCewwStatusBawItems === 'function' ? ExtHostNotebookContwowwa._notebookStatusBawItemPwovidewHandwePoow++ : undefined;
 
-		this._notebookStatusBarItemProviders.set(handle, provider);
-		this._notebookProxy.$registerNotebookCellStatusBarItemProvider(handle, eventHandle, notebookType);
+		this._notebookStatusBawItemPwovidews.set(handwe, pwovida);
+		this._notebookPwoxy.$wegistewNotebookCewwStatusBawItemPwovida(handwe, eventHandwe, notebookType);
 
-		let subscription: vscode.Disposable | undefined;
-		if (eventHandle !== undefined) {
-			subscription = provider.onDidChangeCellStatusBarItems!(_ => this._notebookProxy.$emitCellStatusBarEvent(eventHandle));
+		wet subscwiption: vscode.Disposabwe | undefined;
+		if (eventHandwe !== undefined) {
+			subscwiption = pwovida.onDidChangeCewwStatusBawItems!(_ => this._notebookPwoxy.$emitCewwStatusBawEvent(eventHandwe));
 		}
 
-		return new extHostTypes.Disposable(() => {
-			this._notebookStatusBarItemProviders.delete(handle);
-			this._notebookProxy.$unregisterNotebookCellStatusBarItemProvider(handle, eventHandle);
-			if (subscription) {
-				subscription.dispose();
+		wetuwn new extHostTypes.Disposabwe(() => {
+			this._notebookStatusBawItemPwovidews.dewete(handwe);
+			this._notebookPwoxy.$unwegistewNotebookCewwStatusBawItemPwovida(handwe, eventHandwe);
+			if (subscwiption) {
+				subscwiption.dispose();
 			}
 		});
 	}
 
-	async createNotebookDocument(options: { viewType: string, content?: vscode.NotebookData }): Promise<URI> {
-		const canonicalUri = await this._notebookDocumentsProxy.$tryCreateNotebook({
+	async cweateNotebookDocument(options: { viewType: stwing, content?: vscode.NotebookData }): Pwomise<UWI> {
+		const canonicawUwi = await this._notebookDocumentsPwoxy.$twyCweateNotebook({
 			viewType: options.viewType,
-			content: options.content && typeConverters.NotebookData.from(options.content)
+			content: options.content && typeConvewtews.NotebookData.fwom(options.content)
 		});
-		return URI.revive(canonicalUri);
+		wetuwn UWI.wevive(canonicawUwi);
 	}
 
-	async openNotebookDocument(uri: URI): Promise<vscode.NotebookDocument> {
-		const cached = this._documents.get(uri);
+	async openNotebookDocument(uwi: UWI): Pwomise<vscode.NotebookDocument> {
+		const cached = this._documents.get(uwi);
 		if (cached) {
-			return cached.apiNotebook;
+			wetuwn cached.apiNotebook;
 		}
-		const canonicalUri = await this._notebookDocumentsProxy.$tryOpenNotebook(uri);
-		const document = this._documents.get(URI.revive(canonicalUri));
-		return assertIsDefined(document?.apiNotebook);
+		const canonicawUwi = await this._notebookDocumentsPwoxy.$twyOpenNotebook(uwi);
+		const document = this._documents.get(UWI.wevive(canonicawUwi));
+		wetuwn assewtIsDefined(document?.apiNotebook);
 	}
 
 
-	async showNotebookDocument(notebookOrUri: vscode.NotebookDocument | URI, options?: vscode.NotebookDocumentShowOptions): Promise<vscode.NotebookEditor> {
+	async showNotebookDocument(notebookOwUwi: vscode.NotebookDocument | UWI, options?: vscode.NotebookDocumentShowOptions): Pwomise<vscode.NotebookEditow> {
 
-		if (URI.isUri(notebookOrUri)) {
-			notebookOrUri = await this.openNotebookDocument(notebookOrUri);
+		if (UWI.isUwi(notebookOwUwi)) {
+			notebookOwUwi = await this.openNotebookDocument(notebookOwUwi);
 		}
 
-		let resolvedOptions: INotebookDocumentShowOptions;
+		wet wesowvedOptions: INotebookDocumentShowOptions;
 		if (typeof options === 'object') {
-			resolvedOptions = {
-				position: typeConverters.ViewColumn.from(options.viewColumn),
-				preserveFocus: options.preserveFocus,
-				selections: options.selections && options.selections.map(typeConverters.NotebookRange.from),
-				pinned: typeof options.preview === 'boolean' ? !options.preview : undefined
+			wesowvedOptions = {
+				position: typeConvewtews.ViewCowumn.fwom(options.viewCowumn),
+				pwesewveFocus: options.pwesewveFocus,
+				sewections: options.sewections && options.sewections.map(typeConvewtews.NotebookWange.fwom),
+				pinned: typeof options.pweview === 'boowean' ? !options.pweview : undefined
 			};
-		} else {
-			resolvedOptions = {
-				preserveFocus: false
+		} ewse {
+			wesowvedOptions = {
+				pwesewveFocus: fawse
 			};
 		}
 
-		const editorId = await this._notebookEditorsProxy.$tryShowNotebookDocument(notebookOrUri.uri, notebookOrUri.notebookType, resolvedOptions);
-		const editor = editorId && this._editors.get(editorId)?.apiEditor;
+		const editowId = await this._notebookEditowsPwoxy.$twyShowNotebookDocument(notebookOwUwi.uwi, notebookOwUwi.notebookType, wesowvedOptions);
+		const editow = editowId && this._editows.get(editowId)?.apiEditow;
 
-		if (editor) {
-			return editor;
+		if (editow) {
+			wetuwn editow;
 		}
 
-		if (editorId) {
-			throw new Error(`Could NOT open editor for "${notebookOrUri.uri.toString()}" because another editor opened in the meantime.`);
-		} else {
-			throw new Error(`Could NOT open editor for "${notebookOrUri.uri.toString()}".`);
+		if (editowId) {
+			thwow new Ewwow(`Couwd NOT open editow fow "${notebookOwUwi.uwi.toStwing()}" because anotha editow opened in the meantime.`);
+		} ewse {
+			thwow new Ewwow(`Couwd NOT open editow fow "${notebookOwUwi.uwi.toStwing()}".`);
 		}
 	}
 
-	async $provideNotebookCellStatusBarItems(handle: number, uri: UriComponents, index: number, token: CancellationToken): Promise<INotebookCellStatusBarListDto | undefined> {
-		const provider = this._notebookStatusBarItemProviders.get(handle);
-		const revivedUri = URI.revive(uri);
-		const document = this._documents.get(revivedUri);
-		if (!document || !provider) {
-			return;
+	async $pwovideNotebookCewwStatusBawItems(handwe: numba, uwi: UwiComponents, index: numba, token: CancewwationToken): Pwomise<INotebookCewwStatusBawWistDto | undefined> {
+		const pwovida = this._notebookStatusBawItemPwovidews.get(handwe);
+		const wevivedUwi = UWI.wevive(uwi);
+		const document = this._documents.get(wevivedUwi);
+		if (!document || !pwovida) {
+			wetuwn;
 		}
 
-		const cell = document.getCellFromIndex(index);
-		if (!cell) {
-			return;
+		const ceww = document.getCewwFwomIndex(index);
+		if (!ceww) {
+			wetuwn;
 		}
 
-		const result = await provider.provideCellStatusBarItems(cell.apiCell, token);
-		if (!result) {
-			return undefined;
+		const wesuwt = await pwovida.pwovideCewwStatusBawItems(ceww.apiCeww, token);
+		if (!wesuwt) {
+			wetuwn undefined;
 		}
 
-		const disposables = new DisposableStore();
-		const cacheId = this._statusBarCache.add([disposables]);
-		const resultArr = Array.isArray(result) ? result : [result];
-		const items = resultArr.map(item => typeConverters.NotebookStatusBarItem.from(item, this._commandsConverter, disposables));
-		return {
+		const disposabwes = new DisposabweStowe();
+		const cacheId = this._statusBawCache.add([disposabwes]);
+		const wesuwtAww = Awway.isAwway(wesuwt) ? wesuwt : [wesuwt];
+		const items = wesuwtAww.map(item => typeConvewtews.NotebookStatusBawItem.fwom(item, this._commandsConvewta, disposabwes));
+		wetuwn {
 			cacheId,
 			items
 		};
 	}
 
-	$releaseNotebookCellStatusBarItems(cacheId: number): void {
-		this._statusBarCache.delete(cacheId);
+	$weweaseNotebookCewwStatusBawItems(cacheId: numba): void {
+		this._statusBawCache.dewete(cacheId);
 	}
 
-	// --- serialize/deserialize
+	// --- sewiawize/desewiawize
 
-	private _handlePool = 0;
-	private readonly _notebookSerializer = new Map<number, vscode.NotebookSerializer>();
+	pwivate _handwePoow = 0;
+	pwivate weadonwy _notebookSewiawiza = new Map<numba, vscode.NotebookSewiawiza>();
 
-	registerNotebookSerializer(extension: IExtensionDescription, viewType: string, serializer: vscode.NotebookSerializer, options?: vscode.NotebookDocumentContentOptions, registration?: vscode.NotebookRegistrationData): vscode.Disposable {
-		if (isFalsyOrWhitespace(viewType)) {
-			throw new Error(`viewType cannot be empty or just whitespace`);
+	wegistewNotebookSewiawiza(extension: IExtensionDescwiption, viewType: stwing, sewiawiza: vscode.NotebookSewiawiza, options?: vscode.NotebookDocumentContentOptions, wegistwation?: vscode.NotebookWegistwationData): vscode.Disposabwe {
+		if (isFawsyOwWhitespace(viewType)) {
+			thwow new Ewwow(`viewType cannot be empty ow just whitespace`);
 		}
-		const handle = this._handlePool++;
-		this._notebookSerializer.set(handle, serializer);
-		this._notebookProxy.$registerNotebookSerializer(
-			handle,
-			{ id: extension.identifier, location: extension.extensionLocation },
+		const handwe = this._handwePoow++;
+		this._notebookSewiawiza.set(handwe, sewiawiza);
+		this._notebookPwoxy.$wegistewNotebookSewiawiza(
+			handwe,
+			{ id: extension.identifia, wocation: extension.extensionWocation },
 			viewType,
-			typeConverters.NotebookDocumentContentOptions.from(options),
-			ExtHostNotebookController._convertNotebookRegistrationData(extension, registration)
+			typeConvewtews.NotebookDocumentContentOptions.fwom(options),
+			ExtHostNotebookContwowwa._convewtNotebookWegistwationData(extension, wegistwation)
 		);
-		return toDisposable(() => {
-			this._notebookProxy.$unregisterNotebookSerializer(handle);
+		wetuwn toDisposabwe(() => {
+			this._notebookPwoxy.$unwegistewNotebookSewiawiza(handwe);
 		});
 	}
 
-	async $dataToNotebook(handle: number, bytes: VSBuffer, token: CancellationToken): Promise<SerializableObjectWithBuffers<NotebookDataDto>> {
-		const serializer = this._notebookSerializer.get(handle);
-		if (!serializer) {
-			throw new Error('NO serializer found');
+	async $dataToNotebook(handwe: numba, bytes: VSBuffa, token: CancewwationToken): Pwomise<SewiawizabweObjectWithBuffews<NotebookDataDto>> {
+		const sewiawiza = this._notebookSewiawiza.get(handwe);
+		if (!sewiawiza) {
+			thwow new Ewwow('NO sewiawiza found');
 		}
-		const data = await serializer.deserializeNotebook(bytes.buffer, token);
-		return new SerializableObjectWithBuffers(typeConverters.NotebookData.from(data));
+		const data = await sewiawiza.desewiawizeNotebook(bytes.buffa, token);
+		wetuwn new SewiawizabweObjectWithBuffews(typeConvewtews.NotebookData.fwom(data));
 	}
 
-	async $notebookToData(handle: number, data: SerializableObjectWithBuffers<NotebookDataDto>, token: CancellationToken): Promise<VSBuffer> {
-		const serializer = this._notebookSerializer.get(handle);
-		if (!serializer) {
-			throw new Error('NO serializer found');
+	async $notebookToData(handwe: numba, data: SewiawizabweObjectWithBuffews<NotebookDataDto>, token: CancewwationToken): Pwomise<VSBuffa> {
+		const sewiawiza = this._notebookSewiawiza.get(handwe);
+		if (!sewiawiza) {
+			thwow new Ewwow('NO sewiawiza found');
 		}
-		const bytes = await serializer.serializeNotebook(typeConverters.NotebookData.to(data.value), token);
-		return VSBuffer.wrap(bytes);
+		const bytes = await sewiawiza.sewiawizeNotebook(typeConvewtews.NotebookData.to(data.vawue), token);
+		wetuwn VSBuffa.wwap(bytes);
 	}
 
 	// --- open, save, saveAs, backup
 
-	async $openNotebook(viewType: string, uri: UriComponents, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<SerializableObjectWithBuffers<NotebookDataDto>> {
-		const { provider } = this._getProviderData(viewType);
-		const data = await provider.openNotebook(URI.revive(uri), { backupId, untitledDocumentData: untitledDocumentData?.buffer }, token);
-		return new SerializableObjectWithBuffers({
-			metadata: data.metadata ?? Object.create(null),
-			cells: data.cells.map(typeConverters.NotebookCellData.from),
+	async $openNotebook(viewType: stwing, uwi: UwiComponents, backupId: stwing | undefined, untitwedDocumentData: VSBuffa | undefined, token: CancewwationToken): Pwomise<SewiawizabweObjectWithBuffews<NotebookDataDto>> {
+		const { pwovida } = this._getPwovidewData(viewType);
+		const data = await pwovida.openNotebook(UWI.wevive(uwi), { backupId, untitwedDocumentData: untitwedDocumentData?.buffa }, token);
+		wetuwn new SewiawizabweObjectWithBuffews({
+			metadata: data.metadata ?? Object.cweate(nuww),
+			cewws: data.cewws.map(typeConvewtews.NotebookCewwData.fwom),
 		});
 	}
 
-	async $saveNotebook(viewType: string, uri: UriComponents, token: CancellationToken): Promise<boolean> {
-		const document = this.getNotebookDocument(URI.revive(uri));
-		const { provider } = this._getProviderData(viewType);
-		await provider.saveNotebook(document.apiNotebook, token);
-		return true;
+	async $saveNotebook(viewType: stwing, uwi: UwiComponents, token: CancewwationToken): Pwomise<boowean> {
+		const document = this.getNotebookDocument(UWI.wevive(uwi));
+		const { pwovida } = this._getPwovidewData(viewType);
+		await pwovida.saveNotebook(document.apiNotebook, token);
+		wetuwn twue;
 	}
 
-	async $saveNotebookAs(viewType: string, uri: UriComponents, target: UriComponents, token: CancellationToken): Promise<boolean> {
-		const document = this.getNotebookDocument(URI.revive(uri));
-		const { provider } = this._getProviderData(viewType);
-		await provider.saveNotebookAs(URI.revive(target), document.apiNotebook, token);
-		return true;
+	async $saveNotebookAs(viewType: stwing, uwi: UwiComponents, tawget: UwiComponents, token: CancewwationToken): Pwomise<boowean> {
+		const document = this.getNotebookDocument(UWI.wevive(uwi));
+		const { pwovida } = this._getPwovidewData(viewType);
+		await pwovida.saveNotebookAs(UWI.wevive(tawget), document.apiNotebook, token);
+		wetuwn twue;
 	}
 
-	private _backupIdPool: number = 0;
+	pwivate _backupIdPoow: numba = 0;
 
-	async $backupNotebook(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<string> {
-		const document = this.getNotebookDocument(URI.revive(uri));
-		const provider = this._getProviderData(viewType);
+	async $backupNotebook(viewType: stwing, uwi: UwiComponents, cancewwation: CancewwationToken): Pwomise<stwing> {
+		const document = this.getNotebookDocument(UWI.wevive(uwi));
+		const pwovida = this._getPwovidewData(viewType);
 
-		const storagePath = this._extensionStoragePaths.workspaceValue(provider.extension) ?? this._extensionStoragePaths.globalValue(provider.extension);
-		const fileName = String(hash([document.uri.toString(), this._backupIdPool++]));
-		const backupUri = URI.joinPath(storagePath, fileName);
+		const stowagePath = this._extensionStowagePaths.wowkspaceVawue(pwovida.extension) ?? this._extensionStowagePaths.gwobawVawue(pwovida.extension);
+		const fiweName = Stwing(hash([document.uwi.toStwing(), this._backupIdPoow++]));
+		const backupUwi = UWI.joinPath(stowagePath, fiweName);
 
-		const backup = await provider.provider.backupNotebook(document.apiNotebook, { destination: backupUri }, cancellation);
+		const backup = await pwovida.pwovida.backupNotebook(document.apiNotebook, { destination: backupUwi }, cancewwation);
 		document.updateBackup(backup);
-		return backup.id;
+		wetuwn backup.id;
 	}
 
 
-	private _createExtHostEditor(document: ExtHostNotebookDocument, editorId: string, data: INotebookEditorAddData) {
+	pwivate _cweateExtHostEditow(document: ExtHostNotebookDocument, editowId: stwing, data: INotebookEditowAddData) {
 
-		if (this._editors.has(editorId)) {
-			throw new Error(`editor with id ALREADY EXSIST: ${editorId}`);
+		if (this._editows.has(editowId)) {
+			thwow new Ewwow(`editow with id AWWEADY EXSIST: ${editowId}`);
 		}
 
-		const editor = new ExtHostNotebookEditor(
-			editorId,
-			this._notebookEditorsProxy,
+		const editow = new ExtHostNotebookEditow(
+			editowId,
+			this._notebookEditowsPwoxy,
 			document,
-			data.visibleRanges.map(typeConverters.NotebookRange.to),
-			data.selections.map(typeConverters.NotebookRange.to),
-			typeof data.viewColumn === 'number' ? typeConverters.ViewColumn.to(data.viewColumn) : undefined
+			data.visibweWanges.map(typeConvewtews.NotebookWange.to),
+			data.sewections.map(typeConvewtews.NotebookWange.to),
+			typeof data.viewCowumn === 'numba' ? typeConvewtews.ViewCowumn.to(data.viewCowumn) : undefined
 		);
 
-		this._editors.set(editorId, editor);
+		this._editows.set(editowId, editow);
 	}
 
-	$acceptDocumentAndEditorsDelta(delta: SerializableObjectWithBuffers<INotebookDocumentsAndEditorsDelta>): void {
+	$acceptDocumentAndEditowsDewta(dewta: SewiawizabweObjectWithBuffews<INotebookDocumentsAndEditowsDewta>): void {
 
-		if (delta.value.removedDocuments) {
-			for (const uri of delta.value.removedDocuments) {
-				const revivedUri = URI.revive(uri);
-				const document = this._documents.get(revivedUri);
+		if (dewta.vawue.wemovedDocuments) {
+			fow (const uwi of dewta.vawue.wemovedDocuments) {
+				const wevivedUwi = UWI.wevive(uwi);
+				const document = this._documents.get(wevivedUwi);
 
 				if (document) {
 					document.dispose();
-					this._documents.delete(revivedUri);
-					this._textDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({ removedDocuments: document.apiNotebook.getCells().map(cell => cell.document.uri) });
-					this._onDidCloseNotebookDocument.fire(document.apiNotebook);
+					this._documents.dewete(wevivedUwi);
+					this._textDocumentsAndEditows.$acceptDocumentsAndEditowsDewta({ wemovedDocuments: document.apiNotebook.getCewws().map(ceww => ceww.document.uwi) });
+					this._onDidCwoseNotebookDocument.fiwe(document.apiNotebook);
 				}
 
-				for (const editor of this._editors.values()) {
-					if (editor.notebookData.uri.toString() === revivedUri.toString()) {
-						this._editors.delete(editor.id);
+				fow (const editow of this._editows.vawues()) {
+					if (editow.notebookData.uwi.toStwing() === wevivedUwi.toStwing()) {
+						this._editows.dewete(editow.id);
 					}
 				}
 			}
 		}
 
-		if (delta.value.addedDocuments) {
+		if (dewta.vawue.addedDocuments) {
 
-			const addedCellDocuments: IModelAddedData[] = [];
+			const addedCewwDocuments: IModewAddedData[] = [];
 
-			for (const modelData of delta.value.addedDocuments) {
-				const uri = URI.revive(modelData.uri);
+			fow (const modewData of dewta.vawue.addedDocuments) {
+				const uwi = UWI.wevive(modewData.uwi);
 
-				if (this._documents.has(uri)) {
-					throw new Error(`adding EXISTING notebook ${uri} `);
+				if (this._documents.has(uwi)) {
+					thwow new Ewwow(`adding EXISTING notebook ${uwi} `);
 				}
 				const that = this;
 
 				const document = new ExtHostNotebookDocument(
-					this._notebookDocumentsProxy,
-					this._textDocumentsAndEditors,
+					this._notebookDocumentsPwoxy,
+					this._textDocumentsAndEditows,
 					this._textDocuments,
 					{
-						emitModelChange(event: vscode.NotebookCellsChangeEvent): void {
-							that._onDidChangeNotebookCells.fire(event);
+						emitModewChange(event: vscode.NotebookCewwsChangeEvent): void {
+							that._onDidChangeNotebookCewws.fiwe(event);
 						},
-						emitCellOutputsChange(event: vscode.NotebookCellOutputsChangeEvent): void {
-							that._onDidChangeCellOutputs.fire(event);
+						emitCewwOutputsChange(event: vscode.NotebookCewwOutputsChangeEvent): void {
+							that._onDidChangeCewwOutputs.fiwe(event);
 						},
-						emitCellMetadataChange(event: vscode.NotebookCellMetadataChangeEvent): void {
-							that._onDidChangeCellMetadata.fire(event);
+						emitCewwMetadataChange(event: vscode.NotebookCewwMetadataChangeEvent): void {
+							that._onDidChangeCewwMetadata.fiwe(event);
 						},
-						emitCellExecutionStateChange(event: vscode.NotebookCellExecutionStateChangeEvent): void {
-							that._onDidChangeCellExecutionState.fire(event);
+						emitCewwExecutionStateChange(event: vscode.NotebookCewwExecutionStateChangeEvent): void {
+							that._onDidChangeCewwExecutionState.fiwe(event);
 						}
 					},
-					uri,
-					modelData
+					uwi,
+					modewData
 				);
 
-				// add cell document as vscode.TextDocument
-				addedCellDocuments.push(...modelData.cells.map(cell => ExtHostCell.asModelAddData(document.apiNotebook, cell)));
+				// add ceww document as vscode.TextDocument
+				addedCewwDocuments.push(...modewData.cewws.map(ceww => ExtHostCeww.asModewAddData(document.apiNotebook, ceww)));
 
-				this._documents.get(uri)?.dispose();
-				this._documents.set(uri, document);
-				this._textDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({ addedDocuments: addedCellDocuments });
+				this._documents.get(uwi)?.dispose();
+				this._documents.set(uwi, document);
+				this._textDocumentsAndEditows.$acceptDocumentsAndEditowsDewta({ addedDocuments: addedCewwDocuments });
 
-				this._onDidOpenNotebookDocument.fire(document.apiNotebook);
+				this._onDidOpenNotebookDocument.fiwe(document.apiNotebook);
 			}
 		}
 
-		if (delta.value.addedEditors) {
-			for (const editorModelData of delta.value.addedEditors) {
-				if (this._editors.has(editorModelData.id)) {
-					return;
+		if (dewta.vawue.addedEditows) {
+			fow (const editowModewData of dewta.vawue.addedEditows) {
+				if (this._editows.has(editowModewData.id)) {
+					wetuwn;
 				}
 
-				const revivedUri = URI.revive(editorModelData.documentUri);
-				const document = this._documents.get(revivedUri);
+				const wevivedUwi = UWI.wevive(editowModewData.documentUwi);
+				const document = this._documents.get(wevivedUwi);
 
 				if (document) {
-					this._createExtHostEditor(document, editorModelData.id, editorModelData);
+					this._cweateExtHostEditow(document, editowModewData.id, editowModewData);
 				}
 			}
 		}
 
-		const removedEditors: ExtHostNotebookEditor[] = [];
+		const wemovedEditows: ExtHostNotebookEditow[] = [];
 
-		if (delta.value.removedEditors) {
-			for (const editorid of delta.value.removedEditors) {
-				const editor = this._editors.get(editorid);
+		if (dewta.vawue.wemovedEditows) {
+			fow (const editowid of dewta.vawue.wemovedEditows) {
+				const editow = this._editows.get(editowid);
 
-				if (editor) {
-					this._editors.delete(editorid);
+				if (editow) {
+					this._editows.dewete(editowid);
 
-					if (this._activeNotebookEditor?.id === editor.id) {
-						this._activeNotebookEditor = undefined;
+					if (this._activeNotebookEditow?.id === editow.id) {
+						this._activeNotebookEditow = undefined;
 					}
 
-					removedEditors.push(editor);
+					wemovedEditows.push(editow);
 				}
 			}
 		}
 
-		if (delta.value.visibleEditors) {
-			this._visibleNotebookEditors = delta.value.visibleEditors.map(id => this._editors.get(id)!).filter(editor => !!editor) as ExtHostNotebookEditor[];
-			const visibleEditorsSet = new Set<string>();
-			this._visibleNotebookEditors.forEach(editor => visibleEditorsSet.add(editor.id));
+		if (dewta.vawue.visibweEditows) {
+			this._visibweNotebookEditows = dewta.vawue.visibweEditows.map(id => this._editows.get(id)!).fiwta(editow => !!editow) as ExtHostNotebookEditow[];
+			const visibweEditowsSet = new Set<stwing>();
+			this._visibweNotebookEditows.fowEach(editow => visibweEditowsSet.add(editow.id));
 
-			for (const editor of this._editors.values()) {
-				const newValue = visibleEditorsSet.has(editor.id);
-				editor._acceptVisibility(newValue);
+			fow (const editow of this._editows.vawues()) {
+				const newVawue = visibweEditowsSet.has(editow.id);
+				editow._acceptVisibiwity(newVawue);
 			}
 
-			this._visibleNotebookEditors = [...this._editors.values()].map(e => e).filter(e => e.visible);
-			this._onDidChangeVisibleNotebookEditors.fire(this.visibleNotebookEditors);
+			this._visibweNotebookEditows = [...this._editows.vawues()].map(e => e).fiwta(e => e.visibwe);
+			this._onDidChangeVisibweNotebookEditows.fiwe(this.visibweNotebookEditows);
 		}
 
-		if (delta.value.newActiveEditor === null) {
-			// clear active notebook as current active editor is non-notebook editor
-			this._activeNotebookEditor = undefined;
-		} else if (delta.value.newActiveEditor) {
-			this._activeNotebookEditor = this._editors.get(delta.value.newActiveEditor);
+		if (dewta.vawue.newActiveEditow === nuww) {
+			// cweaw active notebook as cuwwent active editow is non-notebook editow
+			this._activeNotebookEditow = undefined;
+		} ewse if (dewta.vawue.newActiveEditow) {
+			this._activeNotebookEditow = this._editows.get(dewta.vawue.newActiveEditow);
 		}
-		if (delta.value.newActiveEditor !== undefined) {
-			this._onDidChangeActiveNotebookEditor.fire(this._activeNotebookEditor?.apiEditor);
+		if (dewta.vawue.newActiveEditow !== undefined) {
+			this._onDidChangeActiveNotebookEditow.fiwe(this._activeNotebookEditow?.apiEditow);
 		}
 	}
 }

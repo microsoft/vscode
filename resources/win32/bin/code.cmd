@@ -1,6 +1,6 @@
 @echo off
-setlocal
+setwocaw
 set VSCODE_DEV=
-set ELECTRON_RUN_AS_NODE=1
-"%~dp0..\@@NAME@@.exe" "%~dp0..\resources\app\out\cli.js" %*
-endlocal
+set EWECTWON_WUN_AS_NODE=1
+"%~dp0..\@@NAME@@.exe" "%~dp0..\wesouwces\app\out\cwi.js" %*
+endwocaw

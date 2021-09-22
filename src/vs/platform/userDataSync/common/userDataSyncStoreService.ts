@@ -1,593 +1,593 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Mimes } from 'vs/base/common/mime';
-import { isWeb } from 'vs/base/common/platform';
-import { ConfigurationSyncStore } from 'vs/base/common/product';
-import { joinPath, relativePath } from 'vs/base/common/resources';
-import { isArray, isObject, isString } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { asJson, asText, IRequestService, isSuccess as isSuccessContext } from 'vs/platform/request/common/request';
-import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { CONFIGURATION_SYNC_STORE_KEY, HEADER_EXECUTION_ID, HEADER_OPERATION_ID, IAuthenticationProvider, IResourceRefHandle, IUserData, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncStore, IUserDataSyncStoreClient, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, ServerResource, SYNC_SERVICE_URL_TYPE, UserDataSyncErrorCode, UserDataSyncStoreError, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
+impowt { CancewabwePwomise, cweateCancewabwePwomise, timeout } fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { getEwwowMessage, isPwomiseCancewedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Mimes } fwom 'vs/base/common/mime';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { ConfiguwationSyncStowe } fwom 'vs/base/common/pwoduct';
+impowt { joinPath, wewativePath } fwom 'vs/base/common/wesouwces';
+impowt { isAwway, isObject, isStwing } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { IHeadews, IWequestContext, IWequestOptions } fwom 'vs/base/pawts/wequest/common/wequest';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { asJson, asText, IWequestSewvice, isSuccess as isSuccessContext } fwom 'vs/pwatfowm/wequest/common/wequest';
+impowt { getSewviceMachineId } fwom 'vs/pwatfowm/sewviceMachineId/common/sewviceMachineId';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { CONFIGUWATION_SYNC_STOWE_KEY, HEADEW_EXECUTION_ID, HEADEW_OPEWATION_ID, IAuthenticationPwovida, IWesouwceWefHandwe, IUsewData, IUsewDataManifest, IUsewDataSyncWogSewvice, IUsewDataSyncStowe, IUsewDataSyncStoweCwient, IUsewDataSyncStoweManagementSewvice, IUsewDataSyncStoweSewvice, SewvewWesouwce, SYNC_SEWVICE_UWW_TYPE, UsewDataSyncEwwowCode, UsewDataSyncStoweEwwow, UsewDataSyncStoweType } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
 
-const SYNC_PREVIOUS_STORE = 'sync.previous.store';
-const DONOT_MAKE_REQUESTS_UNTIL_KEY = 'sync.donot-make-requests-until';
-const USER_SESSION_ID_KEY = 'sync.user-session-id';
+const SYNC_PWEVIOUS_STOWE = 'sync.pwevious.stowe';
+const DONOT_MAKE_WEQUESTS_UNTIW_KEY = 'sync.donot-make-wequests-untiw';
+const USEW_SESSION_ID_KEY = 'sync.usa-session-id';
 const MACHINE_SESSION_ID_KEY = 'sync.machine-session-id';
-const REQUEST_SESSION_LIMIT = 100;
-const REQUEST_SESSION_INTERVAL = 1000 * 60 * 5; /* 5 minutes */
+const WEQUEST_SESSION_WIMIT = 100;
+const WEQUEST_SESSION_INTEWVAW = 1000 * 60 * 5; /* 5 minutes */
 
-type UserDataSyncStore = IUserDataSyncStore & { defaultType: UserDataSyncStoreType; };
+type UsewDataSyncStowe = IUsewDataSyncStowe & { defauwtType: UsewDataSyncStoweType; };
 
-export abstract class AbstractUserDataSyncStoreManagementService extends Disposable implements IUserDataSyncStoreManagementService {
+expowt abstwact cwass AbstwactUsewDataSyncStoweManagementSewvice extends Disposabwe impwements IUsewDataSyncStoweManagementSewvice {
 
-	_serviceBrand: any;
+	_sewviceBwand: any;
 
-	private readonly _onDidChangeUserDataSyncStore = this._register(new Emitter<void>());
-	readonly onDidChangeUserDataSyncStore = this._onDidChangeUserDataSyncStore.event;
-	private _userDataSyncStore: UserDataSyncStore | undefined;
-	get userDataSyncStore(): UserDataSyncStore | undefined { return this._userDataSyncStore; }
+	pwivate weadonwy _onDidChangeUsewDataSyncStowe = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeUsewDataSyncStowe = this._onDidChangeUsewDataSyncStowe.event;
+	pwivate _usewDataSyncStowe: UsewDataSyncStowe | undefined;
+	get usewDataSyncStowe(): UsewDataSyncStowe | undefined { wetuwn this._usewDataSyncStowe; }
 
-	protected get userDataSyncStoreType(): UserDataSyncStoreType | undefined {
-		return this.storageService.get(SYNC_SERVICE_URL_TYPE, StorageScope.GLOBAL) as UserDataSyncStoreType;
+	pwotected get usewDataSyncStoweType(): UsewDataSyncStoweType | undefined {
+		wetuwn this.stowageSewvice.get(SYNC_SEWVICE_UWW_TYPE, StowageScope.GWOBAW) as UsewDataSyncStoweType;
 	}
-	protected set userDataSyncStoreType(type: UserDataSyncStoreType | undefined) {
-		this.storageService.store(SYNC_SERVICE_URL_TYPE, type, StorageScope.GLOBAL, isWeb ? StorageTarget.USER /* sync in web */ : StorageTarget.MACHINE);
+	pwotected set usewDataSyncStoweType(type: UsewDataSyncStoweType | undefined) {
+		this.stowageSewvice.stowe(SYNC_SEWVICE_UWW_TYPE, type, StowageScope.GWOBAW, isWeb ? StowageTawget.USa /* sync in web */ : StowageTawget.MACHINE);
 	}
 
-	constructor(
-		@IProductService protected readonly productService: IProductService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService,
-		@IStorageService protected readonly storageService: IStorageService,
+	constwuctow(
+		@IPwoductSewvice pwotected weadonwy pwoductSewvice: IPwoductSewvice,
+		@IConfiguwationSewvice pwotected weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IStowageSewvice pwotected weadonwy stowageSewvice: IStowageSewvice,
 	) {
-		super();
-		this.updateUserDataSyncStore();
-		this._register(Event.filter(storageService.onDidChangeValue, e => e.key === SYNC_SERVICE_URL_TYPE && e.scope === StorageScope.GLOBAL && this.userDataSyncStoreType !== this.userDataSyncStore?.type)(() => this.updateUserDataSyncStore()));
+		supa();
+		this.updateUsewDataSyncStowe();
+		this._wegista(Event.fiwta(stowageSewvice.onDidChangeVawue, e => e.key === SYNC_SEWVICE_UWW_TYPE && e.scope === StowageScope.GWOBAW && this.usewDataSyncStoweType !== this.usewDataSyncStowe?.type)(() => this.updateUsewDataSyncStowe()));
 	}
 
-	protected updateUserDataSyncStore(): void {
-		this._userDataSyncStore = this.toUserDataSyncStore(this.productService[CONFIGURATION_SYNC_STORE_KEY], this.configurationService.getValue<ConfigurationSyncStore>(CONFIGURATION_SYNC_STORE_KEY));
-		this._onDidChangeUserDataSyncStore.fire();
+	pwotected updateUsewDataSyncStowe(): void {
+		this._usewDataSyncStowe = this.toUsewDataSyncStowe(this.pwoductSewvice[CONFIGUWATION_SYNC_STOWE_KEY], this.configuwationSewvice.getVawue<ConfiguwationSyncStowe>(CONFIGUWATION_SYNC_STOWE_KEY));
+		this._onDidChangeUsewDataSyncStowe.fiwe();
 	}
 
-	protected toUserDataSyncStore(productStore: ConfigurationSyncStore & { web?: ConfigurationSyncStore } | undefined, configuredStore?: ConfigurationSyncStore): UserDataSyncStore | undefined {
-		// Check for web overrides for backward compatibility while reading previous store
-		productStore = isWeb && productStore?.web ? { ...productStore, ...productStore.web } : productStore;
-		const value: Partial<ConfigurationSyncStore> = { ...(productStore || {}), ...(configuredStore || {}) };
-		if (value
-			&& isString(value.url)
-			&& isObject(value.authenticationProviders)
-			&& Object.keys(value.authenticationProviders).every(authenticationProviderId => isArray(value!.authenticationProviders![authenticationProviderId].scopes))
+	pwotected toUsewDataSyncStowe(pwoductStowe: ConfiguwationSyncStowe & { web?: ConfiguwationSyncStowe } | undefined, configuwedStowe?: ConfiguwationSyncStowe): UsewDataSyncStowe | undefined {
+		// Check fow web ovewwides fow backwawd compatibiwity whiwe weading pwevious stowe
+		pwoductStowe = isWeb && pwoductStowe?.web ? { ...pwoductStowe, ...pwoductStowe.web } : pwoductStowe;
+		const vawue: Pawtiaw<ConfiguwationSyncStowe> = { ...(pwoductStowe || {}), ...(configuwedStowe || {}) };
+		if (vawue
+			&& isStwing(vawue.uww)
+			&& isObject(vawue.authenticationPwovidews)
+			&& Object.keys(vawue.authenticationPwovidews).evewy(authenticationPwovidewId => isAwway(vawue!.authenticationPwovidews![authenticationPwovidewId].scopes))
 		) {
-			const syncStore = value as ConfigurationSyncStore;
-			const canSwitch = !!syncStore.canSwitch && !configuredStore?.url;
-			const defaultType: UserDataSyncStoreType = syncStore.url === syncStore.insidersUrl ? 'insiders' : 'stable';
-			const type: UserDataSyncStoreType = (canSwitch ? this.userDataSyncStoreType : undefined) || defaultType;
-			const url = configuredStore?.url ||
-				(type === 'insiders' ? syncStore.insidersUrl
-					: type === 'stable' ? syncStore.stableUrl
-						: syncStore.url);
-			return {
-				url: URI.parse(url),
+			const syncStowe = vawue as ConfiguwationSyncStowe;
+			const canSwitch = !!syncStowe.canSwitch && !configuwedStowe?.uww;
+			const defauwtType: UsewDataSyncStoweType = syncStowe.uww === syncStowe.insidewsUww ? 'insidews' : 'stabwe';
+			const type: UsewDataSyncStoweType = (canSwitch ? this.usewDataSyncStoweType : undefined) || defauwtType;
+			const uww = configuwedStowe?.uww ||
+				(type === 'insidews' ? syncStowe.insidewsUww
+					: type === 'stabwe' ? syncStowe.stabweUww
+						: syncStowe.uww);
+			wetuwn {
+				uww: UWI.pawse(uww),
 				type,
-				defaultType,
-				defaultUrl: URI.parse(syncStore.url),
-				stableUrl: URI.parse(syncStore.stableUrl),
-				insidersUrl: URI.parse(syncStore.insidersUrl),
+				defauwtType,
+				defauwtUww: UWI.pawse(syncStowe.uww),
+				stabweUww: UWI.pawse(syncStowe.stabweUww),
+				insidewsUww: UWI.pawse(syncStowe.insidewsUww),
 				canSwitch,
-				authenticationProviders: Object.keys(syncStore.authenticationProviders).reduce<IAuthenticationProvider[]>((result, id) => {
-					result.push({ id, scopes: syncStore!.authenticationProviders[id].scopes });
-					return result;
+				authenticationPwovidews: Object.keys(syncStowe.authenticationPwovidews).weduce<IAuthenticationPwovida[]>((wesuwt, id) => {
+					wesuwt.push({ id, scopes: syncStowe!.authenticationPwovidews[id].scopes });
+					wetuwn wesuwt;
 				}, [])
 			};
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	abstract switch(type: UserDataSyncStoreType): Promise<void>;
-	abstract getPreviousUserDataSyncStore(): Promise<IUserDataSyncStore | undefined>;
+	abstwact switch(type: UsewDataSyncStoweType): Pwomise<void>;
+	abstwact getPweviousUsewDataSyncStowe(): Pwomise<IUsewDataSyncStowe | undefined>;
 
 }
 
-export class UserDataSyncStoreManagementService extends AbstractUserDataSyncStoreManagementService implements IUserDataSyncStoreManagementService {
+expowt cwass UsewDataSyncStoweManagementSewvice extends AbstwactUsewDataSyncStoweManagementSewvice impwements IUsewDataSyncStoweManagementSewvice {
 
-	private readonly previousConfigurationSyncStore: ConfigurationSyncStore | undefined;
+	pwivate weadonwy pweviousConfiguwationSyncStowe: ConfiguwationSyncStowe | undefined;
 
-	constructor(
-		@IProductService productService: IProductService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IStorageService storageService: IStorageService,
+	constwuctow(
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
 	) {
-		super(productService, configurationService, storageService);
+		supa(pwoductSewvice, configuwationSewvice, stowageSewvice);
 
-		const previousConfigurationSyncStore = this.storageService.get(SYNC_PREVIOUS_STORE, StorageScope.GLOBAL);
-		if (previousConfigurationSyncStore) {
-			this.previousConfigurationSyncStore = JSON.parse(previousConfigurationSyncStore);
+		const pweviousConfiguwationSyncStowe = this.stowageSewvice.get(SYNC_PWEVIOUS_STOWE, StowageScope.GWOBAW);
+		if (pweviousConfiguwationSyncStowe) {
+			this.pweviousConfiguwationSyncStowe = JSON.pawse(pweviousConfiguwationSyncStowe);
 		}
 
-		const syncStore = this.productService[CONFIGURATION_SYNC_STORE_KEY];
-		if (syncStore) {
-			this.storageService.store(SYNC_PREVIOUS_STORE, JSON.stringify(syncStore), StorageScope.GLOBAL, StorageTarget.MACHINE);
-		} else {
-			this.storageService.remove(SYNC_PREVIOUS_STORE, StorageScope.GLOBAL);
-		}
-	}
-
-	async switch(type: UserDataSyncStoreType): Promise<void> {
-		if (type !== this.userDataSyncStoreType) {
-			this.userDataSyncStoreType = type;
-			this.updateUserDataSyncStore();
+		const syncStowe = this.pwoductSewvice[CONFIGUWATION_SYNC_STOWE_KEY];
+		if (syncStowe) {
+			this.stowageSewvice.stowe(SYNC_PWEVIOUS_STOWE, JSON.stwingify(syncStowe), StowageScope.GWOBAW, StowageTawget.MACHINE);
+		} ewse {
+			this.stowageSewvice.wemove(SYNC_PWEVIOUS_STOWE, StowageScope.GWOBAW);
 		}
 	}
 
-	async getPreviousUserDataSyncStore(): Promise<IUserDataSyncStore | undefined> {
-		return this.toUserDataSyncStore(this.previousConfigurationSyncStore);
+	async switch(type: UsewDataSyncStoweType): Pwomise<void> {
+		if (type !== this.usewDataSyncStoweType) {
+			this.usewDataSyncStoweType = type;
+			this.updateUsewDataSyncStowe();
+		}
+	}
+
+	async getPweviousUsewDataSyncStowe(): Pwomise<IUsewDataSyncStowe | undefined> {
+		wetuwn this.toUsewDataSyncStowe(this.pweviousConfiguwationSyncStowe);
 	}
 }
 
-export class UserDataSyncStoreClient extends Disposable implements IUserDataSyncStoreClient {
+expowt cwass UsewDataSyncStoweCwient extends Disposabwe impwements IUsewDataSyncStoweCwient {
 
-	private userDataSyncStoreUrl: URI | undefined;
+	pwivate usewDataSyncStoweUww: UWI | undefined;
 
-	private authToken: { token: string, type: string } | undefined;
-	private readonly commonHeadersPromise: Promise<{ [key: string]: string; }>;
-	private readonly session: RequestsSession;
+	pwivate authToken: { token: stwing, type: stwing } | undefined;
+	pwivate weadonwy commonHeadewsPwomise: Pwomise<{ [key: stwing]: stwing; }>;
+	pwivate weadonwy session: WequestsSession;
 
-	private _onTokenFailed: Emitter<void> = this._register(new Emitter<void>());
-	readonly onTokenFailed: Event<void> = this._onTokenFailed.event;
+	pwivate _onTokenFaiwed: Emitta<void> = this._wegista(new Emitta<void>());
+	weadonwy onTokenFaiwed: Event<void> = this._onTokenFaiwed.event;
 
-	private _onTokenSucceed: Emitter<void> = this._register(new Emitter<void>());
-	readonly onTokenSucceed: Event<void> = this._onTokenSucceed.event;
+	pwivate _onTokenSucceed: Emitta<void> = this._wegista(new Emitta<void>());
+	weadonwy onTokenSucceed: Event<void> = this._onTokenSucceed.event;
 
-	private _donotMakeRequestsUntil: Date | undefined = undefined;
-	get donotMakeRequestsUntil() { return this._donotMakeRequestsUntil; }
-	private _onDidChangeDonotMakeRequestsUntil = this._register(new Emitter<void>());
-	readonly onDidChangeDonotMakeRequestsUntil = this._onDidChangeDonotMakeRequestsUntil.event;
+	pwivate _donotMakeWequestsUntiw: Date | undefined = undefined;
+	get donotMakeWequestsUntiw() { wetuwn this._donotMakeWequestsUntiw; }
+	pwivate _onDidChangeDonotMakeWequestsUntiw = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeDonotMakeWequestsUntiw = this._onDidChangeDonotMakeWequestsUntiw.event;
 
-	constructor(
-		userDataSyncStoreUrl: URI | undefined,
-		@IProductService productService: IProductService,
-		@IRequestService private readonly requestService: IRequestService,
-		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IFileService fileService: IFileService,
-		@IStorageService private readonly storageService: IStorageService,
+	constwuctow(
+		usewDataSyncStoweUww: UWI | undefined,
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice,
+		@IWequestSewvice pwivate weadonwy wequestSewvice: IWequestSewvice,
+		@IUsewDataSyncWogSewvice pwivate weadonwy wogSewvice: IUsewDataSyncWogSewvice,
+		@IEnviwonmentSewvice enviwonmentSewvice: IEnviwonmentSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
 	) {
-		super();
-		this.updateUserDataSyncStoreUrl(userDataSyncStoreUrl);
-		this.commonHeadersPromise = getServiceMachineId(environmentService, fileService, storageService)
+		supa();
+		this.updateUsewDataSyncStoweUww(usewDataSyncStoweUww);
+		this.commonHeadewsPwomise = getSewviceMachineId(enviwonmentSewvice, fiweSewvice, stowageSewvice)
 			.then(uuid => {
-				const headers: IHeaders = {
-					'X-Client-Name': `${productService.applicationName}${isWeb ? '-web' : ''}`,
-					'X-Client-Version': productService.version,
+				const headews: IHeadews = {
+					'X-Cwient-Name': `${pwoductSewvice.appwicationName}${isWeb ? '-web' : ''}`,
+					'X-Cwient-Vewsion': pwoductSewvice.vewsion,
 				};
-				if (productService.commit) {
-					headers['X-Client-Commit'] = productService.commit;
+				if (pwoductSewvice.commit) {
+					headews['X-Cwient-Commit'] = pwoductSewvice.commit;
 				}
-				return headers;
+				wetuwn headews;
 			});
 
-		/* A requests session that limits requests per sessions */
-		this.session = new RequestsSession(REQUEST_SESSION_LIMIT, REQUEST_SESSION_INTERVAL, this.requestService, this.logService);
-		this.initDonotMakeRequestsUntil();
-		this._register(toDisposable(() => {
-			if (this.resetDonotMakeRequestsUntilPromise) {
-				this.resetDonotMakeRequestsUntilPromise.cancel();
-				this.resetDonotMakeRequestsUntilPromise = undefined;
+		/* A wequests session that wimits wequests pew sessions */
+		this.session = new WequestsSession(WEQUEST_SESSION_WIMIT, WEQUEST_SESSION_INTEWVAW, this.wequestSewvice, this.wogSewvice);
+		this.initDonotMakeWequestsUntiw();
+		this._wegista(toDisposabwe(() => {
+			if (this.wesetDonotMakeWequestsUntiwPwomise) {
+				this.wesetDonotMakeWequestsUntiwPwomise.cancew();
+				this.wesetDonotMakeWequestsUntiwPwomise = undefined;
 			}
 		}));
 	}
 
-	setAuthToken(token: string, type: string): void {
+	setAuthToken(token: stwing, type: stwing): void {
 		this.authToken = { token, type };
 	}
 
-	protected updateUserDataSyncStoreUrl(userDataSyncStoreUrl: URI | undefined): void {
-		this.userDataSyncStoreUrl = userDataSyncStoreUrl ? joinPath(userDataSyncStoreUrl, 'v1') : undefined;
+	pwotected updateUsewDataSyncStoweUww(usewDataSyncStoweUww: UWI | undefined): void {
+		this.usewDataSyncStoweUww = usewDataSyncStoweUww ? joinPath(usewDataSyncStoweUww, 'v1') : undefined;
 	}
 
-	private initDonotMakeRequestsUntil(): void {
-		const donotMakeRequestsUntil = this.storageService.getNumber(DONOT_MAKE_REQUESTS_UNTIL_KEY, StorageScope.GLOBAL);
-		if (donotMakeRequestsUntil && Date.now() < donotMakeRequestsUntil) {
-			this.setDonotMakeRequestsUntil(new Date(donotMakeRequestsUntil));
+	pwivate initDonotMakeWequestsUntiw(): void {
+		const donotMakeWequestsUntiw = this.stowageSewvice.getNumba(DONOT_MAKE_WEQUESTS_UNTIW_KEY, StowageScope.GWOBAW);
+		if (donotMakeWequestsUntiw && Date.now() < donotMakeWequestsUntiw) {
+			this.setDonotMakeWequestsUntiw(new Date(donotMakeWequestsUntiw));
 		}
 	}
 
-	private resetDonotMakeRequestsUntilPromise: CancelablePromise<void> | undefined = undefined;
-	private setDonotMakeRequestsUntil(donotMakeRequestsUntil: Date | undefined): void {
-		if (this._donotMakeRequestsUntil?.getTime() !== donotMakeRequestsUntil?.getTime()) {
-			this._donotMakeRequestsUntil = donotMakeRequestsUntil;
+	pwivate wesetDonotMakeWequestsUntiwPwomise: CancewabwePwomise<void> | undefined = undefined;
+	pwivate setDonotMakeWequestsUntiw(donotMakeWequestsUntiw: Date | undefined): void {
+		if (this._donotMakeWequestsUntiw?.getTime() !== donotMakeWequestsUntiw?.getTime()) {
+			this._donotMakeWequestsUntiw = donotMakeWequestsUntiw;
 
-			if (this.resetDonotMakeRequestsUntilPromise) {
-				this.resetDonotMakeRequestsUntilPromise.cancel();
-				this.resetDonotMakeRequestsUntilPromise = undefined;
+			if (this.wesetDonotMakeWequestsUntiwPwomise) {
+				this.wesetDonotMakeWequestsUntiwPwomise.cancew();
+				this.wesetDonotMakeWequestsUntiwPwomise = undefined;
 			}
 
-			if (this._donotMakeRequestsUntil) {
-				this.storageService.store(DONOT_MAKE_REQUESTS_UNTIL_KEY, this._donotMakeRequestsUntil.getTime(), StorageScope.GLOBAL, StorageTarget.MACHINE);
-				this.resetDonotMakeRequestsUntilPromise = createCancelablePromise(token => timeout(this._donotMakeRequestsUntil!.getTime() - Date.now(), token).then(() => this.setDonotMakeRequestsUntil(undefined)));
-				this.resetDonotMakeRequestsUntilPromise.then(null, e => null /* ignore error */);
-			} else {
-				this.storageService.remove(DONOT_MAKE_REQUESTS_UNTIL_KEY, StorageScope.GLOBAL);
+			if (this._donotMakeWequestsUntiw) {
+				this.stowageSewvice.stowe(DONOT_MAKE_WEQUESTS_UNTIW_KEY, this._donotMakeWequestsUntiw.getTime(), StowageScope.GWOBAW, StowageTawget.MACHINE);
+				this.wesetDonotMakeWequestsUntiwPwomise = cweateCancewabwePwomise(token => timeout(this._donotMakeWequestsUntiw!.getTime() - Date.now(), token).then(() => this.setDonotMakeWequestsUntiw(undefined)));
+				this.wesetDonotMakeWequestsUntiwPwomise.then(nuww, e => nuww /* ignowe ewwow */);
+			} ewse {
+				this.stowageSewvice.wemove(DONOT_MAKE_WEQUESTS_UNTIW_KEY, StowageScope.GWOBAW);
 			}
 
-			this._onDidChangeDonotMakeRequestsUntil.fire();
+			this._onDidChangeDonotMakeWequestsUntiw.fiwe();
 		}
 	}
 
-	async getAllRefs(resource: ServerResource): Promise<IResourceRefHandle[]> {
-		if (!this.userDataSyncStoreUrl) {
-			throw new Error('No settings sync store url configured.');
+	async getAwwWefs(wesouwce: SewvewWesouwce): Pwomise<IWesouwceWefHandwe[]> {
+		if (!this.usewDataSyncStoweUww) {
+			thwow new Ewwow('No settings sync stowe uww configuwed.');
 		}
 
-		const uri = joinPath(this.userDataSyncStoreUrl, 'resource', resource);
-		const headers: IHeaders = {};
+		const uwi = joinPath(this.usewDataSyncStoweUww, 'wesouwce', wesouwce);
+		const headews: IHeadews = {};
 
-		const context = await this.request(uri.toString(), { type: 'GET', headers }, [], CancellationToken.None);
+		const context = await this.wequest(uwi.toStwing(), { type: 'GET', headews }, [], CancewwationToken.None);
 
-		const result = await asJson<{ url: string, created: number }[]>(context) || [];
-		return result.map(({ url, created }) => ({ ref: relativePath(uri, uri.with({ path: url }))!, created: created * 1000 /* Server returns in seconds */ }));
+		const wesuwt = await asJson<{ uww: stwing, cweated: numba }[]>(context) || [];
+		wetuwn wesuwt.map(({ uww, cweated }) => ({ wef: wewativePath(uwi, uwi.with({ path: uww }))!, cweated: cweated * 1000 /* Sewva wetuwns in seconds */ }));
 	}
 
-	async resolveContent(resource: ServerResource, ref: string): Promise<string | null> {
-		if (!this.userDataSyncStoreUrl) {
-			throw new Error('No settings sync store url configured.');
+	async wesowveContent(wesouwce: SewvewWesouwce, wef: stwing): Pwomise<stwing | nuww> {
+		if (!this.usewDataSyncStoweUww) {
+			thwow new Ewwow('No settings sync stowe uww configuwed.');
 		}
 
-		const url = joinPath(this.userDataSyncStoreUrl, 'resource', resource, ref).toString();
-		const headers: IHeaders = {};
-		headers['Cache-Control'] = 'no-cache';
+		const uww = joinPath(this.usewDataSyncStoweUww, 'wesouwce', wesouwce, wef).toStwing();
+		const headews: IHeadews = {};
+		headews['Cache-Contwow'] = 'no-cache';
 
-		const context = await this.request(url, { type: 'GET', headers }, [], CancellationToken.None);
+		const context = await this.wequest(uww, { type: 'GET', headews }, [], CancewwationToken.None);
 		const content = await asText(context);
-		return content;
+		wetuwn content;
 	}
 
-	async delete(resource: ServerResource): Promise<void> {
-		if (!this.userDataSyncStoreUrl) {
-			throw new Error('No settings sync store url configured.');
+	async dewete(wesouwce: SewvewWesouwce): Pwomise<void> {
+		if (!this.usewDataSyncStoweUww) {
+			thwow new Ewwow('No settings sync stowe uww configuwed.');
 		}
 
-		const url = joinPath(this.userDataSyncStoreUrl, 'resource', resource).toString();
-		const headers: IHeaders = {};
+		const uww = joinPath(this.usewDataSyncStoweUww, 'wesouwce', wesouwce).toStwing();
+		const headews: IHeadews = {};
 
-		await this.request(url, { type: 'DELETE', headers }, [], CancellationToken.None);
+		await this.wequest(uww, { type: 'DEWETE', headews }, [], CancewwationToken.None);
 	}
 
-	async read(resource: ServerResource, oldValue: IUserData | null, headers: IHeaders = {}): Promise<IUserData> {
-		if (!this.userDataSyncStoreUrl) {
-			throw new Error('No settings sync store url configured.');
+	async wead(wesouwce: SewvewWesouwce, owdVawue: IUsewData | nuww, headews: IHeadews = {}): Pwomise<IUsewData> {
+		if (!this.usewDataSyncStoweUww) {
+			thwow new Ewwow('No settings sync stowe uww configuwed.');
 		}
 
-		const url = joinPath(this.userDataSyncStoreUrl, 'resource', resource, 'latest').toString();
-		headers = { ...headers };
-		// Disable caching as they are cached by synchronisers
-		headers['Cache-Control'] = 'no-cache';
-		if (oldValue) {
-			headers['If-None-Match'] = oldValue.ref;
+		const uww = joinPath(this.usewDataSyncStoweUww, 'wesouwce', wesouwce, 'watest').toStwing();
+		headews = { ...headews };
+		// Disabwe caching as they awe cached by synchwonisews
+		headews['Cache-Contwow'] = 'no-cache';
+		if (owdVawue) {
+			headews['If-None-Match'] = owdVawue.wef;
 		}
 
-		const context = await this.request(url, { type: 'GET', headers }, [304], CancellationToken.None);
+		const context = await this.wequest(uww, { type: 'GET', headews }, [304], CancewwationToken.None);
 
-		let userData: IUserData | null = null;
-		if (context.res.statusCode === 304) {
-			userData = oldValue;
+		wet usewData: IUsewData | nuww = nuww;
+		if (context.wes.statusCode === 304) {
+			usewData = owdVawue;
 		}
 
-		if (userData === null) {
-			const ref = context.res.headers['etag'];
-			if (!ref) {
-				throw new UserDataSyncStoreError('Server did not return the ref', url, UserDataSyncErrorCode.NoRef, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
+		if (usewData === nuww) {
+			const wef = context.wes.headews['etag'];
+			if (!wef) {
+				thwow new UsewDataSyncStoweEwwow('Sewva did not wetuwn the wef', uww, UsewDataSyncEwwowCode.NoWef, context.wes.statusCode, context.wes.headews[HEADEW_OPEWATION_ID]);
 			}
 
 			const content = await asText(context);
-			if (!content && context.res.statusCode === 304) {
-				throw new UserDataSyncStoreError('Empty response', url, UserDataSyncErrorCode.EmptyResponse, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
+			if (!content && context.wes.statusCode === 304) {
+				thwow new UsewDataSyncStoweEwwow('Empty wesponse', uww, UsewDataSyncEwwowCode.EmptyWesponse, context.wes.statusCode, context.wes.headews[HEADEW_OPEWATION_ID]);
 			}
 
-			userData = { ref, content };
+			usewData = { wef, content };
 		}
 
-		return userData;
+		wetuwn usewData;
 	}
 
-	async write(resource: ServerResource, data: string, ref: string | null, headers: IHeaders = {}): Promise<string> {
-		if (!this.userDataSyncStoreUrl) {
-			throw new Error('No settings sync store url configured.');
+	async wwite(wesouwce: SewvewWesouwce, data: stwing, wef: stwing | nuww, headews: IHeadews = {}): Pwomise<stwing> {
+		if (!this.usewDataSyncStoweUww) {
+			thwow new Ewwow('No settings sync stowe uww configuwed.');
 		}
 
-		const url = joinPath(this.userDataSyncStoreUrl, 'resource', resource).toString();
-		headers = { ...headers };
-		headers['Content-Type'] = Mimes.text;
-		if (ref) {
-			headers['If-Match'] = ref;
+		const uww = joinPath(this.usewDataSyncStoweUww, 'wesouwce', wesouwce).toStwing();
+		headews = { ...headews };
+		headews['Content-Type'] = Mimes.text;
+		if (wef) {
+			headews['If-Match'] = wef;
 		}
 
-		const context = await this.request(url, { type: 'POST', data, headers }, [], CancellationToken.None);
+		const context = await this.wequest(uww, { type: 'POST', data, headews }, [], CancewwationToken.None);
 
-		const newRef = context.res.headers['etag'];
-		if (!newRef) {
-			throw new UserDataSyncStoreError('Server did not return the ref', url, UserDataSyncErrorCode.NoRef, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
+		const newWef = context.wes.headews['etag'];
+		if (!newWef) {
+			thwow new UsewDataSyncStoweEwwow('Sewva did not wetuwn the wef', uww, UsewDataSyncEwwowCode.NoWef, context.wes.statusCode, context.wes.headews[HEADEW_OPEWATION_ID]);
 		}
-		return newRef;
+		wetuwn newWef;
 	}
 
-	async manifest(oldValue: IUserDataManifest | null, headers: IHeaders = {}): Promise<IUserDataManifest | null> {
-		if (!this.userDataSyncStoreUrl) {
-			throw new Error('No settings sync store url configured.');
+	async manifest(owdVawue: IUsewDataManifest | nuww, headews: IHeadews = {}): Pwomise<IUsewDataManifest | nuww> {
+		if (!this.usewDataSyncStoweUww) {
+			thwow new Ewwow('No settings sync stowe uww configuwed.');
 		}
 
-		const url = joinPath(this.userDataSyncStoreUrl, 'manifest').toString();
-		headers = { ...headers };
-		headers['Content-Type'] = 'application/json';
-		if (oldValue) {
-			headers['If-None-Match'] = oldValue.ref;
+		const uww = joinPath(this.usewDataSyncStoweUww, 'manifest').toStwing();
+		headews = { ...headews };
+		headews['Content-Type'] = 'appwication/json';
+		if (owdVawue) {
+			headews['If-None-Match'] = owdVawue.wef;
 		}
 
-		const context = await this.request(url, { type: 'GET', headers }, [304], CancellationToken.None);
+		const context = await this.wequest(uww, { type: 'GET', headews }, [304], CancewwationToken.None);
 
-		let manifest: IUserDataManifest | null = null;
-		if (context.res.statusCode === 304) {
-			manifest = oldValue;
+		wet manifest: IUsewDataManifest | nuww = nuww;
+		if (context.wes.statusCode === 304) {
+			manifest = owdVawue;
 		}
 
 		if (!manifest) {
-			const ref = context.res.headers['etag'];
-			if (!ref) {
-				throw new UserDataSyncStoreError('Server did not return the ref', url, UserDataSyncErrorCode.NoRef, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
+			const wef = context.wes.headews['etag'];
+			if (!wef) {
+				thwow new UsewDataSyncStoweEwwow('Sewva did not wetuwn the wef', uww, UsewDataSyncEwwowCode.NoWef, context.wes.statusCode, context.wes.headews[HEADEW_OPEWATION_ID]);
 			}
 
 			const content = await asText(context);
-			if (!content && context.res.statusCode === 304) {
-				throw new UserDataSyncStoreError('Empty response', url, UserDataSyncErrorCode.EmptyResponse, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
+			if (!content && context.wes.statusCode === 304) {
+				thwow new UsewDataSyncStoweEwwow('Empty wesponse', uww, UsewDataSyncEwwowCode.EmptyWesponse, context.wes.statusCode, context.wes.headews[HEADEW_OPEWATION_ID]);
 			}
 
 			if (content) {
-				manifest = { ...JSON.parse(content), ref };
+				manifest = { ...JSON.pawse(content), wef };
 			}
 		}
 
-		const currentSessionId = this.storageService.get(USER_SESSION_ID_KEY, StorageScope.GLOBAL);
+		const cuwwentSessionId = this.stowageSewvice.get(USEW_SESSION_ID_KEY, StowageScope.GWOBAW);
 
-		if (currentSessionId && manifest && currentSessionId !== manifest.session) {
-			// Server session is different from client session so clear cached session.
-			this.clearSession();
+		if (cuwwentSessionId && manifest && cuwwentSessionId !== manifest.session) {
+			// Sewva session is diffewent fwom cwient session so cweaw cached session.
+			this.cweawSession();
 		}
 
-		if (manifest === null && currentSessionId) {
-			// server session is cleared so clear cached session.
-			this.clearSession();
+		if (manifest === nuww && cuwwentSessionId) {
+			// sewva session is cweawed so cweaw cached session.
+			this.cweawSession();
 		}
 
 		if (manifest) {
 			// update session
-			this.storageService.store(USER_SESSION_ID_KEY, manifest.session, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.stowageSewvice.stowe(USEW_SESSION_ID_KEY, manifest.session, StowageScope.GWOBAW, StowageTawget.MACHINE);
 		}
 
-		return manifest;
+		wetuwn manifest;
 	}
 
-	async clear(): Promise<void> {
-		if (!this.userDataSyncStoreUrl) {
-			throw new Error('No settings sync store url configured.');
+	async cweaw(): Pwomise<void> {
+		if (!this.usewDataSyncStoweUww) {
+			thwow new Ewwow('No settings sync stowe uww configuwed.');
 		}
 
-		const url = joinPath(this.userDataSyncStoreUrl, 'resource').toString();
-		const headers: IHeaders = { 'Content-Type': Mimes.text };
+		const uww = joinPath(this.usewDataSyncStoweUww, 'wesouwce').toStwing();
+		const headews: IHeadews = { 'Content-Type': Mimes.text };
 
-		await this.request(url, { type: 'DELETE', headers }, [], CancellationToken.None);
+		await this.wequest(uww, { type: 'DEWETE', headews }, [], CancewwationToken.None);
 
-		// clear cached session.
-		this.clearSession();
+		// cweaw cached session.
+		this.cweawSession();
 	}
 
-	private clearSession(): void {
-		this.storageService.remove(USER_SESSION_ID_KEY, StorageScope.GLOBAL);
-		this.storageService.remove(MACHINE_SESSION_ID_KEY, StorageScope.GLOBAL);
+	pwivate cweawSession(): void {
+		this.stowageSewvice.wemove(USEW_SESSION_ID_KEY, StowageScope.GWOBAW);
+		this.stowageSewvice.wemove(MACHINE_SESSION_ID_KEY, StowageScope.GWOBAW);
 	}
 
-	private async request(url: string, options: IRequestOptions, successCodes: number[], token: CancellationToken): Promise<IRequestContext> {
+	pwivate async wequest(uww: stwing, options: IWequestOptions, successCodes: numba[], token: CancewwationToken): Pwomise<IWequestContext> {
 		if (!this.authToken) {
-			throw new UserDataSyncStoreError('No Auth Token Available', url, UserDataSyncErrorCode.Unauthorized, undefined, undefined);
+			thwow new UsewDataSyncStoweEwwow('No Auth Token Avaiwabwe', uww, UsewDataSyncEwwowCode.Unauthowized, undefined, undefined);
 		}
 
-		if (this._donotMakeRequestsUntil && Date.now() < this._donotMakeRequestsUntil.getTime()) {
-			throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because of too many requests (429).`, url, UserDataSyncErrorCode.TooManyRequestsAndRetryAfter, undefined, undefined);
+		if (this._donotMakeWequestsUntiw && Date.now() < this._donotMakeWequestsUntiw.getTime()) {
+			thwow new UsewDataSyncStoweEwwow(`${options.type} wequest '${uww}' faiwed because of too many wequests (429).`, uww, UsewDataSyncEwwowCode.TooManyWequestsAndWetwyAfta, undefined, undefined);
 		}
-		this.setDonotMakeRequestsUntil(undefined);
+		this.setDonotMakeWequestsUntiw(undefined);
 
-		const commonHeaders = await this.commonHeadersPromise;
-		options.headers = {
-			...(options.headers || {}),
-			...commonHeaders,
+		const commonHeadews = await this.commonHeadewsPwomise;
+		options.headews = {
+			...(options.headews || {}),
+			...commonHeadews,
 			'X-Account-Type': this.authToken.type,
-			'authorization': `Bearer ${this.authToken.token}`,
+			'authowization': `Beawa ${this.authToken.token}`,
 		};
 
-		// Add session headers
-		this.addSessionHeaders(options.headers);
+		// Add session headews
+		this.addSessionHeadews(options.headews);
 
-		this.logService.trace('Sending request to server', { url, type: options.type, headers: { ...options.headers, ...{ authorization: undefined } } });
+		this.wogSewvice.twace('Sending wequest to sewva', { uww, type: options.type, headews: { ...options.headews, ...{ authowization: undefined } } });
 
-		let context;
-		try {
-			context = await this.session.request(url, options, token);
+		wet context;
+		twy {
+			context = await this.session.wequest(uww, options, token);
 		} catch (e) {
-			if (!(e instanceof UserDataSyncStoreError)) {
-				let code = UserDataSyncErrorCode.RequestFailed;
-				const errorMessage = getErrorMessage(e).toLowerCase();
+			if (!(e instanceof UsewDataSyncStoweEwwow)) {
+				wet code = UsewDataSyncEwwowCode.WequestFaiwed;
+				const ewwowMessage = getEwwowMessage(e).toWowewCase();
 
-				// Request timed out
-				if (errorMessage.includes('xhr timeout')) {
-					code = UserDataSyncErrorCode.RequestTimeout;
+				// Wequest timed out
+				if (ewwowMessage.incwudes('xhw timeout')) {
+					code = UsewDataSyncEwwowCode.WequestTimeout;
 				}
 
-				// Request protocol not supported
-				else if (errorMessage.includes('protocol') && errorMessage.includes('not supported')) {
-					code = UserDataSyncErrorCode.RequestProtocolNotSupported;
+				// Wequest pwotocow not suppowted
+				ewse if (ewwowMessage.incwudes('pwotocow') && ewwowMessage.incwudes('not suppowted')) {
+					code = UsewDataSyncEwwowCode.WequestPwotocowNotSuppowted;
 				}
 
-				// Request path not escaped
-				else if (errorMessage.includes('request path contains unescaped characters')) {
-					code = UserDataSyncErrorCode.RequestPathNotEscaped;
+				// Wequest path not escaped
+				ewse if (ewwowMessage.incwudes('wequest path contains unescaped chawactews')) {
+					code = UsewDataSyncEwwowCode.WequestPathNotEscaped;
 				}
 
-				// Request header not an object
-				else if (errorMessage.includes('headers must be an object')) {
-					code = UserDataSyncErrorCode.RequestHeadersNotObject;
+				// Wequest heada not an object
+				ewse if (ewwowMessage.incwudes('headews must be an object')) {
+					code = UsewDataSyncEwwowCode.WequestHeadewsNotObject;
 				}
 
-				// Request canceled
-				else if (isPromiseCanceledError(e)) {
-					code = UserDataSyncErrorCode.RequestCanceled;
+				// Wequest cancewed
+				ewse if (isPwomiseCancewedEwwow(e)) {
+					code = UsewDataSyncEwwowCode.WequestCancewed;
 				}
 
-				e = new UserDataSyncStoreError(`Connection refused for the request '${url}'.`, url, code, undefined, undefined);
+				e = new UsewDataSyncStoweEwwow(`Connection wefused fow the wequest '${uww}'.`, uww, code, undefined, undefined);
 			}
-			this.logService.info('Request failed', url);
-			throw e;
+			this.wogSewvice.info('Wequest faiwed', uww);
+			thwow e;
 		}
 
-		const operationId = context.res.headers[HEADER_OPERATION_ID];
-		const requestInfo = { url, status: context.res.statusCode, 'execution-id': options.headers[HEADER_EXECUTION_ID], 'operation-id': operationId };
-		const isSuccess = isSuccessContext(context) || (context.res.statusCode && successCodes.indexOf(context.res.statusCode) !== -1);
+		const opewationId = context.wes.headews[HEADEW_OPEWATION_ID];
+		const wequestInfo = { uww, status: context.wes.statusCode, 'execution-id': options.headews[HEADEW_EXECUTION_ID], 'opewation-id': opewationId };
+		const isSuccess = isSuccessContext(context) || (context.wes.statusCode && successCodes.indexOf(context.wes.statusCode) !== -1);
 		if (isSuccess) {
-			this.logService.trace('Request succeeded', requestInfo);
-		} else {
-			this.logService.info('Request failed', requestInfo);
+			this.wogSewvice.twace('Wequest succeeded', wequestInfo);
+		} ewse {
+			this.wogSewvice.info('Wequest faiwed', wequestInfo);
 		}
 
-		if (context.res.statusCode === 401) {
+		if (context.wes.statusCode === 401) {
 			this.authToken = undefined;
-			this._onTokenFailed.fire();
-			throw new UserDataSyncStoreError(`Request '${url}' failed because of Unauthorized (401).`, url, UserDataSyncErrorCode.Unauthorized, context.res.statusCode, operationId);
+			this._onTokenFaiwed.fiwe();
+			thwow new UsewDataSyncStoweEwwow(`Wequest '${uww}' faiwed because of Unauthowized (401).`, uww, UsewDataSyncEwwowCode.Unauthowized, context.wes.statusCode, opewationId);
 		}
 
-		this._onTokenSucceed.fire();
+		this._onTokenSucceed.fiwe();
 
-		if (context.res.statusCode === 409) {
-			throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because of Conflict (409). There is new data for this resource. Make the request again with latest data.`, url, UserDataSyncErrorCode.Conflict, context.res.statusCode, operationId);
+		if (context.wes.statusCode === 409) {
+			thwow new UsewDataSyncStoweEwwow(`${options.type} wequest '${uww}' faiwed because of Confwict (409). Thewe is new data fow this wesouwce. Make the wequest again with watest data.`, uww, UsewDataSyncEwwowCode.Confwict, context.wes.statusCode, opewationId);
 		}
 
-		if (context.res.statusCode === 410) {
-			throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because the requested resource is not longer available (410).`, url, UserDataSyncErrorCode.Gone, context.res.statusCode, operationId);
+		if (context.wes.statusCode === 410) {
+			thwow new UsewDataSyncStoweEwwow(`${options.type} wequest '${uww}' faiwed because the wequested wesouwce is not wonga avaiwabwe (410).`, uww, UsewDataSyncEwwowCode.Gone, context.wes.statusCode, opewationId);
 		}
 
-		if (context.res.statusCode === 412) {
-			throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because of Precondition Failed (412). There is new data for this resource. Make the request again with latest data.`, url, UserDataSyncErrorCode.PreconditionFailed, context.res.statusCode, operationId);
+		if (context.wes.statusCode === 412) {
+			thwow new UsewDataSyncStoweEwwow(`${options.type} wequest '${uww}' faiwed because of Pwecondition Faiwed (412). Thewe is new data fow this wesouwce. Make the wequest again with watest data.`, uww, UsewDataSyncEwwowCode.PweconditionFaiwed, context.wes.statusCode, opewationId);
 		}
 
-		if (context.res.statusCode === 413) {
-			throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because of too large payload (413).`, url, UserDataSyncErrorCode.TooLarge, context.res.statusCode, operationId);
+		if (context.wes.statusCode === 413) {
+			thwow new UsewDataSyncStoweEwwow(`${options.type} wequest '${uww}' faiwed because of too wawge paywoad (413).`, uww, UsewDataSyncEwwowCode.TooWawge, context.wes.statusCode, opewationId);
 		}
 
-		if (context.res.statusCode === 426) {
-			throw new UserDataSyncStoreError(`${options.type} request '${url}' failed with status Upgrade Required (426). Please upgrade the client and try again.`, url, UserDataSyncErrorCode.UpgradeRequired, context.res.statusCode, operationId);
+		if (context.wes.statusCode === 426) {
+			thwow new UsewDataSyncStoweEwwow(`${options.type} wequest '${uww}' faiwed with status Upgwade Wequiwed (426). Pwease upgwade the cwient and twy again.`, uww, UsewDataSyncEwwowCode.UpgwadeWequiwed, context.wes.statusCode, opewationId);
 		}
 
-		if (context.res.statusCode === 429) {
-			const retryAfter = context.res.headers['retry-after'];
-			if (retryAfter) {
-				this.setDonotMakeRequestsUntil(new Date(Date.now() + (parseInt(retryAfter) * 1000)));
-				throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because of too many requests (429).`, url, UserDataSyncErrorCode.TooManyRequestsAndRetryAfter, context.res.statusCode, operationId);
-			} else {
-				throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because of too many requests (429).`, url, UserDataSyncErrorCode.TooManyRequests, context.res.statusCode, operationId);
+		if (context.wes.statusCode === 429) {
+			const wetwyAfta = context.wes.headews['wetwy-afta'];
+			if (wetwyAfta) {
+				this.setDonotMakeWequestsUntiw(new Date(Date.now() + (pawseInt(wetwyAfta) * 1000)));
+				thwow new UsewDataSyncStoweEwwow(`${options.type} wequest '${uww}' faiwed because of too many wequests (429).`, uww, UsewDataSyncEwwowCode.TooManyWequestsAndWetwyAfta, context.wes.statusCode, opewationId);
+			} ewse {
+				thwow new UsewDataSyncStoweEwwow(`${options.type} wequest '${uww}' faiwed because of too many wequests (429).`, uww, UsewDataSyncEwwowCode.TooManyWequests, context.wes.statusCode, opewationId);
 			}
 		}
 
 		if (!isSuccess) {
-			throw new UserDataSyncStoreError('Server returned ' + context.res.statusCode, url, UserDataSyncErrorCode.Unknown, context.res.statusCode, operationId);
+			thwow new UsewDataSyncStoweEwwow('Sewva wetuwned ' + context.wes.statusCode, uww, UsewDataSyncEwwowCode.Unknown, context.wes.statusCode, opewationId);
 		}
 
-		return context;
+		wetuwn context;
 	}
 
-	private addSessionHeaders(headers: IHeaders): void {
-		let machineSessionId = this.storageService.get(MACHINE_SESSION_ID_KEY, StorageScope.GLOBAL);
+	pwivate addSessionHeadews(headews: IHeadews): void {
+		wet machineSessionId = this.stowageSewvice.get(MACHINE_SESSION_ID_KEY, StowageScope.GWOBAW);
 		if (machineSessionId === undefined) {
-			machineSessionId = generateUuid();
-			this.storageService.store(MACHINE_SESSION_ID_KEY, machineSessionId, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			machineSessionId = genewateUuid();
+			this.stowageSewvice.stowe(MACHINE_SESSION_ID_KEY, machineSessionId, StowageScope.GWOBAW, StowageTawget.MACHINE);
 		}
-		headers['X-Machine-Session-Id'] = machineSessionId;
+		headews['X-Machine-Session-Id'] = machineSessionId;
 
-		const userSessionId = this.storageService.get(USER_SESSION_ID_KEY, StorageScope.GLOBAL);
-		if (userSessionId !== undefined) {
-			headers['X-User-Session-Id'] = userSessionId;
+		const usewSessionId = this.stowageSewvice.get(USEW_SESSION_ID_KEY, StowageScope.GWOBAW);
+		if (usewSessionId !== undefined) {
+			headews['X-Usa-Session-Id'] = usewSessionId;
 		}
 	}
 
 }
 
-export class UserDataSyncStoreService extends UserDataSyncStoreClient implements IUserDataSyncStoreService {
+expowt cwass UsewDataSyncStoweSewvice extends UsewDataSyncStoweCwient impwements IUsewDataSyncStoweSewvice {
 
-	_serviceBrand: any;
+	_sewviceBwand: any;
 
-	constructor(
-		@IUserDataSyncStoreManagementService userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
-		@IProductService productService: IProductService,
-		@IRequestService requestService: IRequestService,
-		@IUserDataSyncLogService logService: IUserDataSyncLogService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IFileService fileService: IFileService,
-		@IStorageService storageService: IStorageService,
+	constwuctow(
+		@IUsewDataSyncStoweManagementSewvice usewDataSyncStoweManagementSewvice: IUsewDataSyncStoweManagementSewvice,
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice,
+		@IWequestSewvice wequestSewvice: IWequestSewvice,
+		@IUsewDataSyncWogSewvice wogSewvice: IUsewDataSyncWogSewvice,
+		@IEnviwonmentSewvice enviwonmentSewvice: IEnviwonmentSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
 	) {
-		super(userDataSyncStoreManagementService.userDataSyncStore?.url, productService, requestService, logService, environmentService, fileService, storageService);
-		this._register(userDataSyncStoreManagementService.onDidChangeUserDataSyncStore(() => this.updateUserDataSyncStoreUrl(userDataSyncStoreManagementService.userDataSyncStore?.url)));
+		supa(usewDataSyncStoweManagementSewvice.usewDataSyncStowe?.uww, pwoductSewvice, wequestSewvice, wogSewvice, enviwonmentSewvice, fiweSewvice, stowageSewvice);
+		this._wegista(usewDataSyncStoweManagementSewvice.onDidChangeUsewDataSyncStowe(() => this.updateUsewDataSyncStoweUww(usewDataSyncStoweManagementSewvice.usewDataSyncStowe?.uww)));
 	}
 }
 
-export class RequestsSession {
+expowt cwass WequestsSession {
 
-	private requests: string[] = [];
-	private startTime: Date | undefined = undefined;
+	pwivate wequests: stwing[] = [];
+	pwivate stawtTime: Date | undefined = undefined;
 
-	constructor(
-		private readonly limit: number,
-		private readonly interval: number, /* in ms */
-		private readonly requestService: IRequestService,
-		private readonly logService: IUserDataSyncLogService,
+	constwuctow(
+		pwivate weadonwy wimit: numba,
+		pwivate weadonwy intewvaw: numba, /* in ms */
+		pwivate weadonwy wequestSewvice: IWequestSewvice,
+		pwivate weadonwy wogSewvice: IUsewDataSyncWogSewvice,
 	) { }
 
-	request(url: string, options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		if (this.isExpired()) {
-			this.reset();
+	wequest(uww: stwing, options: IWequestOptions, token: CancewwationToken): Pwomise<IWequestContext> {
+		if (this.isExpiwed()) {
+			this.weset();
 		}
 
-		options.url = url;
+		options.uww = uww;
 
-		if (this.requests.length >= this.limit) {
-			this.logService.info('Too many requests', ...this.requests);
-			throw new UserDataSyncStoreError(`Too many requests. Only ${this.limit} requests allowed in ${this.interval / (1000 * 60)} minutes.`, url, UserDataSyncErrorCode.LocalTooManyRequests, undefined, undefined);
+		if (this.wequests.wength >= this.wimit) {
+			this.wogSewvice.info('Too many wequests', ...this.wequests);
+			thwow new UsewDataSyncStoweEwwow(`Too many wequests. Onwy ${this.wimit} wequests awwowed in ${this.intewvaw / (1000 * 60)} minutes.`, uww, UsewDataSyncEwwowCode.WocawTooManyWequests, undefined, undefined);
 		}
 
-		this.startTime = this.startTime || new Date();
-		this.requests.push(url);
+		this.stawtTime = this.stawtTime || new Date();
+		this.wequests.push(uww);
 
-		return this.requestService.request(options, token);
+		wetuwn this.wequestSewvice.wequest(options, token);
 	}
 
-	private isExpired(): boolean {
-		return this.startTime !== undefined && new Date().getTime() - this.startTime.getTime() > this.interval;
+	pwivate isExpiwed(): boowean {
+		wetuwn this.stawtTime !== undefined && new Date().getTime() - this.stawtTime.getTime() > this.intewvaw;
 	}
 
-	private reset(): void {
-		this.requests = [];
-		this.startTime = undefined;
+	pwivate weset(): void {
+		this.wequests = [];
+		this.stawtTime = undefined;
 	}
 
 }

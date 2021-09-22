@@ -1,14 +1,14 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export const OpenIssueReporterActionId = 'workbench.action.openIssueReporter';
+expowt const OpenIssueWepowtewActionId = 'wowkbench.action.openIssueWepowta';
 
-export const OpenIssueReporterApiCommandId = 'vscode.openIssueReporter';
+expowt const OpenIssueWepowtewApiCommandId = 'vscode.openIssueWepowta';
 
-export interface OpenIssueReporterArgs {
-	readonly extensionId?: string;
-	readonly issueTitle?: string;
-	readonly issueBody?: string;
+expowt intewface OpenIssueWepowtewAwgs {
+	weadonwy extensionId?: stwing;
+	weadonwy issueTitwe?: stwing;
+	weadonwy issueBody?: stwing;
 }

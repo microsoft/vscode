@@ -1,144 +1,144 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .part.statusbar {
-	box-sizing: border-box;
-	cursor: default;
+.monaco-wowkbench .pawt.statusbaw {
+	box-sizing: bowda-box;
+	cuwsow: defauwt;
 	width: 100%;
 	height: 22px;
 	font-size: 12px;
-	display: flex;
-	overflow: visible;
+	dispway: fwex;
+	ovewfwow: visibwe;
 }
 
-.monaco-workbench .part.statusbar.status-border-top::after {
+.monaco-wowkbench .pawt.statusbaw.status-bowda-top::afta {
 	content: '';
-	position: absolute;
+	position: absowute;
 	top: 0;
-	left: 0;
+	weft: 0;
 	z-index: 5;
-	pointer-events: none;
-	background-color: var(--status-border-top-color);
+	pointa-events: none;
+	backgwound-cowow: vaw(--status-bowda-top-cowow);
 	width: 100%;
 	height: 1px;
 }
 
-.monaco-workbench .part.statusbar > .left-items,
-.monaco-workbench .part.statusbar > .right-items {
-	display: flex;
+.monaco-wowkbench .pawt.statusbaw > .weft-items,
+.monaco-wowkbench .pawt.statusbaw > .wight-items {
+	dispway: fwex;
 }
 
-.monaco-workbench .part.statusbar > .right-items {
-	flex-direction: row-reverse;
-	flex-wrap: wrap /* ensures that the most right elements wrap last when space is little */;
+.monaco-wowkbench .pawt.statusbaw > .wight-items {
+	fwex-diwection: wow-wevewse;
+	fwex-wwap: wwap /* ensuwes that the most wight ewements wwap wast when space is wittwe */;
 }
 
-.monaco-workbench .part.statusbar > .left-items {
-	flex-grow: 1; /* left items push right items to the far right end */
+.monaco-wowkbench .pawt.statusbaw > .weft-items {
+	fwex-gwow: 1; /* weft items push wight items to the faw wight end */
 }
 
-.monaco-workbench  .part.statusbar > .items-container > .statusbar-item {
-	display: inline-block;
-	line-height: 22px;
+.monaco-wowkbench  .pawt.statusbaw > .items-containa > .statusbaw-item {
+	dispway: inwine-bwock;
+	wine-height: 22px;
 	height: 100%;
-	vertical-align: top;
+	vewticaw-awign: top;
 	max-width: 40vw;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak {
-	position: relative;
+.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item.has-beak {
+	position: wewative;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before {
+.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item.has-beak:befowe {
 	content: '';
-	position: absolute;
-	left: 10px;
+	position: absowute;
+	weft: 10px;
 	top: -5px;
-	border-bottom-width: 5px;
-	border-bottom-style: solid;
-	border-left: 5px solid transparent;
-	border-right: 5px solid transparent;
+	bowda-bottom-width: 5px;
+	bowda-bottom-stywe: sowid;
+	bowda-weft: 5px sowid twanspawent;
+	bowda-wight: 5px sowid twanspawent;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item > :first-child {
-	margin-right: 3px;
-	margin-left: 3px;
+.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item > :fiwst-chiwd {
+	mawgin-wight: 3px;
+	mawgin-weft: 3px;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-left > :first-child {
-	margin-right: 3px;
-	margin-left: 0;
+.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item.compact-weft > :fiwst-chiwd {
+	mawgin-wight: 3px;
+	mawgin-weft: 0;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-right > :first-child {
-	margin-right: 0;
-	margin-left: 3px;
+.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item.compact-wight > :fiwst-chiwd {
+	mawgin-wight: 0;
+	mawgin-weft: 3px;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.left.first-visible-item {
-	padding-left: 7px; /* Add padding to the most left status bar item */
+.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item.weft.fiwst-visibwe-item {
+	padding-weft: 7px; /* Add padding to the most weft status baw item */
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.right.last-visible-item {
-	padding-right: 7px; /* Add padding to the most right status bar item */
+.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item.wight.wast-visibwe-item {
+	padding-wight: 7px; /* Add padding to the most wight status baw item */
 }
 
-/* Tweak appearance for items with background to improve hover feedback */
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-background-color.left.first-visible-item,
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-background-color.right.last-visible-item {
-	padding-right: 0;
-	padding-left: 0;
+/* Tweak appeawance fow items with backgwound to impwove hova feedback */
+.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item.has-backgwound-cowow.weft.fiwst-visibwe-item,
+.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item.has-backgwound-cowow.wight.wast-visibwe-item {
+	padding-wight: 0;
+	padding-weft: 0;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-background-color > :first-child {
-	margin-right: 0;
-	margin-left: 0;
-	padding-left: 10px;
-	padding-right: 10px;
+.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item.has-backgwound-cowow > :fiwst-chiwd {
+	mawgin-wight: 0;
+	mawgin-weft: 0;
+	padding-weft: 10px;
+	padding-wight: 10px;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-left.has-background-color > :first-child {
-	padding-left: 3px;
-	padding-right: 10px;
+.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item.compact-weft.has-backgwound-cowow > :fiwst-chiwd {
+	padding-weft: 3px;
+	padding-wight: 10px;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-right.has-background-color > :first-child {
-	padding-left: 10px;
-	padding-right: 3px;
+.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item.compact-wight.has-backgwound-cowow > :fiwst-chiwd {
+	padding-weft: 10px;
+	padding-wight: 3px;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item > a {
-	cursor: pointer;
-	display: flex;
+.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item > a {
+	cuwsow: pointa;
+	dispway: fwex;
 	height: 100%;
 	padding: 0 5px 0 5px;
-	white-space: pre; /* gives some degree of styling */
-	align-items: center;
-	text-overflow: ellipsis;
-	overflow: hidden;
-	outline-width: 0px; /* do not render focus outline, we already have background */
+	white-space: pwe; /* gives some degwee of stywing */
+	awign-items: centa;
+	text-ovewfwow: ewwipsis;
+	ovewfwow: hidden;
+	outwine-width: 0px; /* do not wenda focus outwine, we awweady have backgwound */
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-left > a {
+.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item.compact-weft > a {
 	padding: 0 5px 0 3px;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-right > a {
+.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item.compact-wight > a {
 	padding: 0 3px 0 5px;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item > a:hover:not(.disabled) {
-	text-decoration: none;
+.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item > a:hova:not(.disabwed) {
+	text-decowation: none;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item > a.disabled {
-	cursor: default;
+.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item > a.disabwed {
+	cuwsow: defauwt;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item  span.codicon {
-	text-align: center;
+.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item  span.codicon {
+	text-awign: centa;
 	font-size: 14px;
-	color: inherit;
+	cowow: inhewit;
 }

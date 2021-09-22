@@ -1,418 +1,418 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { Codicon } from 'vs/base/common/codicons';
-import { Event } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { assertIsDefined } from 'vs/base/common/types';
-import 'vs/css!./parameterHints';
-import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import * as modes from 'vs/editor/common/modes';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ParameterHintsModel, TriggerContext } from 'vs/editor/contrib/parameterHints/parameterHintsModel';
-import { Context } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
-import * as nls from 'vs/nls';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorHoverBackground, editorHoverBorder, editorHoverForeground, textCodeBlockBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt * as awia fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt { DomScwowwabweEwement } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwabweEwement';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IMawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { escapeWegExpChawactews } fwom 'vs/base/common/stwings';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt 'vs/css!./pawametewHints';
+impowt { IMawkdownWendewWesuwt, MawkdownWendewa } fwom 'vs/editow/bwowsa/cowe/mawkdownWendewa';
+impowt { ContentWidgetPositionPwefewence, ICodeEditow, IContentWidget, IContentWidgetPosition } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { ConfiguwationChangedEvent, EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { PawametewHintsModew, TwiggewContext } fwom 'vs/editow/contwib/pawametewHints/pawametewHintsModew';
+impowt { Context } fwom 'vs/editow/contwib/pawametewHints/pwovideSignatuweHewp';
+impowt * as nws fwom 'vs/nws';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { editowHovewBackgwound, editowHovewBowda, editowHovewFowegwound, textCodeBwockBackgwound, textWinkActiveFowegwound, textWinkFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { CowowScheme } fwom 'vs/pwatfowm/theme/common/theme';
+impowt { wegistewThemingPawticipant, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
 const $ = dom.$;
 
-const parameterHintsNextIcon = registerIcon('parameter-hints-next', Codicon.chevronDown, nls.localize('parameterHintsNextIcon', 'Icon for show next parameter hint.'));
-const parameterHintsPreviousIcon = registerIcon('parameter-hints-previous', Codicon.chevronUp, nls.localize('parameterHintsPreviousIcon', 'Icon for show previous parameter hint.'));
+const pawametewHintsNextIcon = wegistewIcon('pawameta-hints-next', Codicon.chevwonDown, nws.wocawize('pawametewHintsNextIcon', 'Icon fow show next pawameta hint.'));
+const pawametewHintsPweviousIcon = wegistewIcon('pawameta-hints-pwevious', Codicon.chevwonUp, nws.wocawize('pawametewHintsPweviousIcon', 'Icon fow show pwevious pawameta hint.'));
 
-export class ParameterHintsWidget extends Disposable implements IContentWidget {
+expowt cwass PawametewHintsWidget extends Disposabwe impwements IContentWidget {
 
-	private static readonly ID = 'editor.widget.parameterHintsWidget';
+	pwivate static weadonwy ID = 'editow.widget.pawametewHintsWidget';
 
-	private readonly markdownRenderer: MarkdownRenderer;
-	private readonly renderDisposeables = this._register(new DisposableStore());
-	private readonly model: ParameterHintsModel;
-	private readonly keyVisible: IContextKey<boolean>;
-	private readonly keyMultipleSignatures: IContextKey<boolean>;
+	pwivate weadonwy mawkdownWendewa: MawkdownWendewa;
+	pwivate weadonwy wendewDisposeabwes = this._wegista(new DisposabweStowe());
+	pwivate weadonwy modew: PawametewHintsModew;
+	pwivate weadonwy keyVisibwe: IContextKey<boowean>;
+	pwivate weadonwy keyMuwtipweSignatuwes: IContextKey<boowean>;
 
-	private domNodes?: {
-		readonly element: HTMLElement;
-		readonly signature: HTMLElement;
-		readonly docs: HTMLElement;
-		readonly overloads: HTMLElement;
-		readonly scrollbar: DomScrollableElement;
+	pwivate domNodes?: {
+		weadonwy ewement: HTMWEwement;
+		weadonwy signatuwe: HTMWEwement;
+		weadonwy docs: HTMWEwement;
+		weadonwy ovewwoads: HTMWEwement;
+		weadonwy scwowwbaw: DomScwowwabweEwement;
 	};
 
-	private visible: boolean = false;
-	private announcedLabel: string | null = null;
+	pwivate visibwe: boowean = fawse;
+	pwivate announcedWabew: stwing | nuww = nuww;
 
-	// Editor.IContentWidget.allowEditorOverflow
-	allowEditorOverflow = true;
+	// Editow.IContentWidget.awwowEditowOvewfwow
+	awwowEditowOvewfwow = twue;
 
-	constructor(
-		private readonly editor: ICodeEditor,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IOpenerService openerService: IOpenerService,
-		@IModeService modeService: IModeService,
+	constwuctow(
+		pwivate weadonwy editow: ICodeEditow,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@IModeSewvice modeSewvice: IModeSewvice,
 	) {
-		super();
-		this.markdownRenderer = this._register(new MarkdownRenderer({ editor }, modeService, openerService));
-		this.model = this._register(new ParameterHintsModel(editor));
-		this.keyVisible = Context.Visible.bindTo(contextKeyService);
-		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
+		supa();
+		this.mawkdownWendewa = this._wegista(new MawkdownWendewa({ editow }, modeSewvice, openewSewvice));
+		this.modew = this._wegista(new PawametewHintsModew(editow));
+		this.keyVisibwe = Context.Visibwe.bindTo(contextKeySewvice);
+		this.keyMuwtipweSignatuwes = Context.MuwtipweSignatuwes.bindTo(contextKeySewvice);
 
-		this._register(this.model.onChangedHints(newParameterHints => {
-			if (newParameterHints) {
+		this._wegista(this.modew.onChangedHints(newPawametewHints => {
+			if (newPawametewHints) {
 				this.show();
-				this.render(newParameterHints);
-			} else {
+				this.wenda(newPawametewHints);
+			} ewse {
 				this.hide();
 			}
 		}));
 	}
 
-	private createParameterHintDOMNodes() {
-		const element = $('.editor-widget.parameter-hints-widget');
-		const wrapper = dom.append(element, $('.phwrapper'));
-		wrapper.tabIndex = -1;
+	pwivate cweatePawametewHintDOMNodes() {
+		const ewement = $('.editow-widget.pawameta-hints-widget');
+		const wwappa = dom.append(ewement, $('.phwwappa'));
+		wwappa.tabIndex = -1;
 
-		const controls = dom.append(wrapper, $('.controls'));
-		const previous = dom.append(controls, $('.button' + ThemeIcon.asCSSSelector(parameterHintsPreviousIcon)));
-		const overloads = dom.append(controls, $('.overloads'));
-		const next = dom.append(controls, $('.button' + ThemeIcon.asCSSSelector(parameterHintsNextIcon)));
+		const contwows = dom.append(wwappa, $('.contwows'));
+		const pwevious = dom.append(contwows, $('.button' + ThemeIcon.asCSSSewectow(pawametewHintsPweviousIcon)));
+		const ovewwoads = dom.append(contwows, $('.ovewwoads'));
+		const next = dom.append(contwows, $('.button' + ThemeIcon.asCSSSewectow(pawametewHintsNextIcon)));
 
-		this._register(dom.addDisposableListener(previous, 'click', e => {
-			dom.EventHelper.stop(e);
-			this.previous();
+		this._wegista(dom.addDisposabweWistena(pwevious, 'cwick', e => {
+			dom.EventHewpa.stop(e);
+			this.pwevious();
 		}));
 
-		this._register(dom.addDisposableListener(next, 'click', e => {
-			dom.EventHelper.stop(e);
+		this._wegista(dom.addDisposabweWistena(next, 'cwick', e => {
+			dom.EventHewpa.stop(e);
 			this.next();
 		}));
 
 		const body = $('.body');
-		const scrollbar = new DomScrollableElement(body, {});
-		this._register(scrollbar);
-		wrapper.appendChild(scrollbar.getDomNode());
+		const scwowwbaw = new DomScwowwabweEwement(body, {});
+		this._wegista(scwowwbaw);
+		wwappa.appendChiwd(scwowwbaw.getDomNode());
 
-		const signature = dom.append(body, $('.signature'));
+		const signatuwe = dom.append(body, $('.signatuwe'));
 		const docs = dom.append(body, $('.docs'));
 
-		element.style.userSelect = 'text';
+		ewement.stywe.usewSewect = 'text';
 
 		this.domNodes = {
-			element,
-			signature,
-			overloads,
+			ewement,
+			signatuwe,
+			ovewwoads,
 			docs,
-			scrollbar,
+			scwowwbaw,
 		};
 
-		this.editor.addContentWidget(this);
+		this.editow.addContentWidget(this);
 		this.hide();
 
-		this._register(this.editor.onDidChangeCursorSelection(e => {
-			if (this.visible) {
-				this.editor.layoutContentWidget(this);
+		this._wegista(this.editow.onDidChangeCuwsowSewection(e => {
+			if (this.visibwe) {
+				this.editow.wayoutContentWidget(this);
 			}
 		}));
 
 		const updateFont = () => {
 			if (!this.domNodes) {
-				return;
+				wetuwn;
 			}
-			const fontInfo = this.editor.getOption(EditorOption.fontInfo);
-			this.domNodes.element.style.fontSize = `${fontInfo.fontSize}px`;
+			const fontInfo = this.editow.getOption(EditowOption.fontInfo);
+			this.domNodes.ewement.stywe.fontSize = `${fontInfo.fontSize}px`;
 		};
 
 		updateFont();
 
-		this._register(Event.chain<ConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
-			.filter(e => e.hasChanged(EditorOption.fontInfo))
-			.on(updateFont, null));
+		this._wegista(Event.chain<ConfiguwationChangedEvent>(this.editow.onDidChangeConfiguwation.bind(this.editow))
+			.fiwta(e => e.hasChanged(EditowOption.fontInfo))
+			.on(updateFont, nuww));
 
-		this._register(this.editor.onDidLayoutChange(e => this.updateMaxHeight()));
+		this._wegista(this.editow.onDidWayoutChange(e => this.updateMaxHeight()));
 		this.updateMaxHeight();
 	}
 
-	private show(): void {
-		if (this.visible) {
-			return;
+	pwivate show(): void {
+		if (this.visibwe) {
+			wetuwn;
 		}
 
 		if (!this.domNodes) {
-			this.createParameterHintDOMNodes();
+			this.cweatePawametewHintDOMNodes();
 		}
 
-		this.keyVisible.set(true);
-		this.visible = true;
+		this.keyVisibwe.set(twue);
+		this.visibwe = twue;
 		setTimeout(() => {
 			if (this.domNodes) {
-				this.domNodes.element.classList.add('visible');
+				this.domNodes.ewement.cwassWist.add('visibwe');
 			}
 		}, 100);
-		this.editor.layoutContentWidget(this);
+		this.editow.wayoutContentWidget(this);
 	}
 
-	private hide(): void {
-		this.renderDisposeables.clear();
+	pwivate hide(): void {
+		this.wendewDisposeabwes.cweaw();
 
-		if (!this.visible) {
-			return;
+		if (!this.visibwe) {
+			wetuwn;
 		}
 
-		this.keyVisible.reset();
-		this.visible = false;
-		this.announcedLabel = null;
+		this.keyVisibwe.weset();
+		this.visibwe = fawse;
+		this.announcedWabew = nuww;
 		if (this.domNodes) {
-			this.domNodes.element.classList.remove('visible');
+			this.domNodes.ewement.cwassWist.wemove('visibwe');
 		}
-		this.editor.layoutContentWidget(this);
+		this.editow.wayoutContentWidget(this);
 	}
 
-	getPosition(): IContentWidgetPosition | null {
-		if (this.visible) {
-			return {
-				position: this.editor.getPosition(),
-				preference: [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW]
+	getPosition(): IContentWidgetPosition | nuww {
+		if (this.visibwe) {
+			wetuwn {
+				position: this.editow.getPosition(),
+				pwefewence: [ContentWidgetPositionPwefewence.ABOVE, ContentWidgetPositionPwefewence.BEWOW]
 			};
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private render(hints: modes.SignatureHelp): void {
-		this.renderDisposeables.clear();
+	pwivate wenda(hints: modes.SignatuweHewp): void {
+		this.wendewDisposeabwes.cweaw();
 
 		if (!this.domNodes) {
-			return;
+			wetuwn;
 		}
 
-		const multiple = hints.signatures.length > 1;
-		this.domNodes.element.classList.toggle('multiple', multiple);
-		this.keyMultipleSignatures.set(multiple);
+		const muwtipwe = hints.signatuwes.wength > 1;
+		this.domNodes.ewement.cwassWist.toggwe('muwtipwe', muwtipwe);
+		this.keyMuwtipweSignatuwes.set(muwtipwe);
 
-		this.domNodes.signature.innerText = '';
-		this.domNodes.docs.innerText = '';
+		this.domNodes.signatuwe.innewText = '';
+		this.domNodes.docs.innewText = '';
 
-		const signature = hints.signatures[hints.activeSignature];
-		if (!signature) {
-			return;
+		const signatuwe = hints.signatuwes[hints.activeSignatuwe];
+		if (!signatuwe) {
+			wetuwn;
 		}
 
-		const code = dom.append(this.domNodes.signature, $('.code'));
-		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
-		code.style.fontSize = `${fontInfo.fontSize}px`;
-		code.style.fontFamily = fontInfo.fontFamily;
+		const code = dom.append(this.domNodes.signatuwe, $('.code'));
+		const fontInfo = this.editow.getOption(EditowOption.fontInfo);
+		code.stywe.fontSize = `${fontInfo.fontSize}px`;
+		code.stywe.fontFamiwy = fontInfo.fontFamiwy;
 
-		const hasParameters = signature.parameters.length > 0;
-		const activeParameterIndex = signature.activeParameter ?? hints.activeParameter;
+		const hasPawametews = signatuwe.pawametews.wength > 0;
+		const activePawametewIndex = signatuwe.activePawameta ?? hints.activePawameta;
 
-		if (!hasParameters) {
-			const label = dom.append(code, $('span'));
-			label.textContent = signature.label;
-		} else {
-			this.renderParameters(code, signature, activeParameterIndex);
+		if (!hasPawametews) {
+			const wabew = dom.append(code, $('span'));
+			wabew.textContent = signatuwe.wabew;
+		} ewse {
+			this.wendewPawametews(code, signatuwe, activePawametewIndex);
 		}
 
-		const activeParameter: modes.ParameterInformation | undefined = signature.parameters[activeParameterIndex];
-		if (activeParameter?.documentation) {
+		const activePawameta: modes.PawametewInfowmation | undefined = signatuwe.pawametews[activePawametewIndex];
+		if (activePawameta?.documentation) {
 			const documentation = $('span.documentation');
-			if (typeof activeParameter.documentation === 'string') {
-				documentation.textContent = activeParameter.documentation;
-			} else {
-				const renderedContents = this.renderMarkdownDocs(activeParameter.documentation);
-				documentation.appendChild(renderedContents.element);
+			if (typeof activePawameta.documentation === 'stwing') {
+				documentation.textContent = activePawameta.documentation;
+			} ewse {
+				const wendewedContents = this.wendewMawkdownDocs(activePawameta.documentation);
+				documentation.appendChiwd(wendewedContents.ewement);
 			}
 			dom.append(this.domNodes.docs, $('p', {}, documentation));
 		}
 
-		if (signature.documentation === undefined) {
+		if (signatuwe.documentation === undefined) {
 			/** no op */
-		} else if (typeof signature.documentation === 'string') {
-			dom.append(this.domNodes.docs, $('p', {}, signature.documentation));
-		} else {
-			const renderedContents = this.renderMarkdownDocs(signature.documentation);
-			dom.append(this.domNodes.docs, renderedContents.element);
+		} ewse if (typeof signatuwe.documentation === 'stwing') {
+			dom.append(this.domNodes.docs, $('p', {}, signatuwe.documentation));
+		} ewse {
+			const wendewedContents = this.wendewMawkdownDocs(signatuwe.documentation);
+			dom.append(this.domNodes.docs, wendewedContents.ewement);
 		}
 
-		const hasDocs = this.hasDocs(signature, activeParameter);
+		const hasDocs = this.hasDocs(signatuwe, activePawameta);
 
-		this.domNodes.signature.classList.toggle('has-docs', hasDocs);
-		this.domNodes.docs.classList.toggle('empty', !hasDocs);
+		this.domNodes.signatuwe.cwassWist.toggwe('has-docs', hasDocs);
+		this.domNodes.docs.cwassWist.toggwe('empty', !hasDocs);
 
-		this.domNodes.overloads.textContent =
-			String(hints.activeSignature + 1).padStart(hints.signatures.length.toString().length, '0') + '/' + hints.signatures.length;
+		this.domNodes.ovewwoads.textContent =
+			Stwing(hints.activeSignatuwe + 1).padStawt(hints.signatuwes.wength.toStwing().wength, '0') + '/' + hints.signatuwes.wength;
 
-		if (activeParameter) {
-			let labelToAnnounce = '';
-			const param = signature.parameters[activeParameterIndex];
-			if (Array.isArray(param.label)) {
-				labelToAnnounce = signature.label.substring(param.label[0], param.label[1]);
-			} else {
-				labelToAnnounce = param.label;
+		if (activePawameta) {
+			wet wabewToAnnounce = '';
+			const pawam = signatuwe.pawametews[activePawametewIndex];
+			if (Awway.isAwway(pawam.wabew)) {
+				wabewToAnnounce = signatuwe.wabew.substwing(pawam.wabew[0], pawam.wabew[1]);
+			} ewse {
+				wabewToAnnounce = pawam.wabew;
 			}
-			if (param.documentation) {
-				labelToAnnounce += typeof param.documentation === 'string' ? `, ${param.documentation}` : `, ${param.documentation.value}`;
+			if (pawam.documentation) {
+				wabewToAnnounce += typeof pawam.documentation === 'stwing' ? `, ${pawam.documentation}` : `, ${pawam.documentation.vawue}`;
 			}
-			if (signature.documentation) {
-				labelToAnnounce += typeof signature.documentation === 'string' ? `, ${signature.documentation}` : `, ${signature.documentation.value}`;
+			if (signatuwe.documentation) {
+				wabewToAnnounce += typeof signatuwe.documentation === 'stwing' ? `, ${signatuwe.documentation}` : `, ${signatuwe.documentation.vawue}`;
 			}
 
-			// Select method gets called on every user type while parameter hints are visible.
-			// We do not want to spam the user with same announcements, so we only announce if the current parameter changed.
+			// Sewect method gets cawwed on evewy usa type whiwe pawameta hints awe visibwe.
+			// We do not want to spam the usa with same announcements, so we onwy announce if the cuwwent pawameta changed.
 
-			if (this.announcedLabel !== labelToAnnounce) {
-				aria.alert(nls.localize('hint', "{0}, hint", labelToAnnounce));
-				this.announcedLabel = labelToAnnounce;
+			if (this.announcedWabew !== wabewToAnnounce) {
+				awia.awewt(nws.wocawize('hint', "{0}, hint", wabewToAnnounce));
+				this.announcedWabew = wabewToAnnounce;
 			}
 		}
 
-		this.editor.layoutContentWidget(this);
-		this.domNodes.scrollbar.scanDomNode();
+		this.editow.wayoutContentWidget(this);
+		this.domNodes.scwowwbaw.scanDomNode();
 	}
 
-	private renderMarkdownDocs(markdown: IMarkdownString | undefined): IMarkdownRenderResult {
-		const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(markdown, {
-			asyncRenderCallback: () => {
-				this.domNodes?.scrollbar.scanDomNode();
+	pwivate wendewMawkdownDocs(mawkdown: IMawkdownStwing | undefined): IMawkdownWendewWesuwt {
+		const wendewedContents = this.wendewDisposeabwes.add(this.mawkdownWendewa.wenda(mawkdown, {
+			asyncWendewCawwback: () => {
+				this.domNodes?.scwowwbaw.scanDomNode();
 			}
 		}));
-		renderedContents.element.classList.add('markdown-docs');
-		return renderedContents;
+		wendewedContents.ewement.cwassWist.add('mawkdown-docs');
+		wetuwn wendewedContents;
 	}
 
-	private hasDocs(signature: modes.SignatureInformation, activeParameter: modes.ParameterInformation | undefined): boolean {
-		if (activeParameter && typeof activeParameter.documentation === 'string' && assertIsDefined(activeParameter.documentation).length > 0) {
-			return true;
+	pwivate hasDocs(signatuwe: modes.SignatuweInfowmation, activePawameta: modes.PawametewInfowmation | undefined): boowean {
+		if (activePawameta && typeof activePawameta.documentation === 'stwing' && assewtIsDefined(activePawameta.documentation).wength > 0) {
+			wetuwn twue;
 		}
-		if (activeParameter && typeof activeParameter.documentation === 'object' && assertIsDefined(activeParameter.documentation).value.length > 0) {
-			return true;
+		if (activePawameta && typeof activePawameta.documentation === 'object' && assewtIsDefined(activePawameta.documentation).vawue.wength > 0) {
+			wetuwn twue;
 		}
-		if (signature.documentation && typeof signature.documentation === 'string' && assertIsDefined(signature.documentation).length > 0) {
-			return true;
+		if (signatuwe.documentation && typeof signatuwe.documentation === 'stwing' && assewtIsDefined(signatuwe.documentation).wength > 0) {
+			wetuwn twue;
 		}
-		if (signature.documentation && typeof signature.documentation === 'object' && assertIsDefined(signature.documentation.value).length > 0) {
-			return true;
+		if (signatuwe.documentation && typeof signatuwe.documentation === 'object' && assewtIsDefined(signatuwe.documentation.vawue).wength > 0) {
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private renderParameters(parent: HTMLElement, signature: modes.SignatureInformation, activeParameterIndex: number): void {
-		const [start, end] = this.getParameterLabelOffsets(signature, activeParameterIndex);
+	pwivate wendewPawametews(pawent: HTMWEwement, signatuwe: modes.SignatuweInfowmation, activePawametewIndex: numba): void {
+		const [stawt, end] = this.getPawametewWabewOffsets(signatuwe, activePawametewIndex);
 
-		const beforeSpan = document.createElement('span');
-		beforeSpan.textContent = signature.label.substring(0, start);
+		const befoweSpan = document.cweateEwement('span');
+		befoweSpan.textContent = signatuwe.wabew.substwing(0, stawt);
 
-		const paramSpan = document.createElement('span');
-		paramSpan.textContent = signature.label.substring(start, end);
-		paramSpan.className = 'parameter active';
+		const pawamSpan = document.cweateEwement('span');
+		pawamSpan.textContent = signatuwe.wabew.substwing(stawt, end);
+		pawamSpan.cwassName = 'pawameta active';
 
-		const afterSpan = document.createElement('span');
-		afterSpan.textContent = signature.label.substring(end);
+		const aftewSpan = document.cweateEwement('span');
+		aftewSpan.textContent = signatuwe.wabew.substwing(end);
 
-		dom.append(parent, beforeSpan, paramSpan, afterSpan);
+		dom.append(pawent, befoweSpan, pawamSpan, aftewSpan);
 	}
 
-	private getParameterLabelOffsets(signature: modes.SignatureInformation, paramIdx: number): [number, number] {
-		const param = signature.parameters[paramIdx];
-		if (!param) {
-			return [0, 0];
-		} else if (Array.isArray(param.label)) {
-			return param.label;
-		} else if (!param.label.length) {
-			return [0, 0];
-		} else {
-			const regex = new RegExp(`(\\W|^)${escapeRegExpCharacters(param.label)}(?=\\W|$)`, 'g');
-			regex.test(signature.label);
-			const idx = regex.lastIndex - param.label.length;
-			return idx >= 0
-				? [idx, regex.lastIndex]
+	pwivate getPawametewWabewOffsets(signatuwe: modes.SignatuweInfowmation, pawamIdx: numba): [numba, numba] {
+		const pawam = signatuwe.pawametews[pawamIdx];
+		if (!pawam) {
+			wetuwn [0, 0];
+		} ewse if (Awway.isAwway(pawam.wabew)) {
+			wetuwn pawam.wabew;
+		} ewse if (!pawam.wabew.wength) {
+			wetuwn [0, 0];
+		} ewse {
+			const wegex = new WegExp(`(\\W|^)${escapeWegExpChawactews(pawam.wabew)}(?=\\W|$)`, 'g');
+			wegex.test(signatuwe.wabew);
+			const idx = wegex.wastIndex - pawam.wabew.wength;
+			wetuwn idx >= 0
+				? [idx, wegex.wastIndex]
 				: [0, 0];
 		}
 	}
 
 	next(): void {
-		this.editor.focus();
-		this.model.next();
+		this.editow.focus();
+		this.modew.next();
 	}
 
-	previous(): void {
-		this.editor.focus();
-		this.model.previous();
+	pwevious(): void {
+		this.editow.focus();
+		this.modew.pwevious();
 	}
 
-	cancel(): void {
-		this.model.cancel();
+	cancew(): void {
+		this.modew.cancew();
 	}
 
-	getDomNode(): HTMLElement {
+	getDomNode(): HTMWEwement {
 		if (!this.domNodes) {
-			this.createParameterHintDOMNodes();
+			this.cweatePawametewHintDOMNodes();
 		}
-		return this.domNodes!.element;
+		wetuwn this.domNodes!.ewement;
 	}
 
-	getId(): string {
-		return ParameterHintsWidget.ID;
+	getId(): stwing {
+		wetuwn PawametewHintsWidget.ID;
 	}
 
-	trigger(context: TriggerContext): void {
-		this.model.trigger(context, 0);
+	twigga(context: TwiggewContext): void {
+		this.modew.twigga(context, 0);
 	}
 
-	private updateMaxHeight(): void {
+	pwivate updateMaxHeight(): void {
 		if (!this.domNodes) {
-			return;
+			wetuwn;
 		}
-		const height = Math.max(this.editor.getLayoutInfo().height / 4, 250);
+		const height = Math.max(this.editow.getWayoutInfo().height / 4, 250);
 		const maxHeight = `${height}px`;
-		this.domNodes.element.style.maxHeight = maxHeight;
-		const wrapper = this.domNodes.element.getElementsByClassName('phwrapper') as HTMLCollectionOf<HTMLElement>;
-		if (wrapper.length) {
-			wrapper[0].style.maxHeight = maxHeight;
+		this.domNodes.ewement.stywe.maxHeight = maxHeight;
+		const wwappa = this.domNodes.ewement.getEwementsByCwassName('phwwappa') as HTMWCowwectionOf<HTMWEwement>;
+		if (wwappa.wength) {
+			wwappa[0].stywe.maxHeight = maxHeight;
 		}
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const border = theme.getColor(editorHoverBorder);
-	if (border) {
-		const borderWidth = theme.type === ColorScheme.HIGH_CONTRAST ? 2 : 1;
-		collector.addRule(`.monaco-editor .parameter-hints-widget { border: ${borderWidth}px solid ${border}; }`);
-		collector.addRule(`.monaco-editor .parameter-hints-widget.multiple .body { border-left: 1px solid ${border.transparent(0.5)}; }`);
-		collector.addRule(`.monaco-editor .parameter-hints-widget .signature.has-docs { border-bottom: 1px solid ${border.transparent(0.5)}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const bowda = theme.getCowow(editowHovewBowda);
+	if (bowda) {
+		const bowdewWidth = theme.type === CowowScheme.HIGH_CONTWAST ? 2 : 1;
+		cowwectow.addWuwe(`.monaco-editow .pawameta-hints-widget { bowda: ${bowdewWidth}px sowid ${bowda}; }`);
+		cowwectow.addWuwe(`.monaco-editow .pawameta-hints-widget.muwtipwe .body { bowda-weft: 1px sowid ${bowda.twanspawent(0.5)}; }`);
+		cowwectow.addWuwe(`.monaco-editow .pawameta-hints-widget .signatuwe.has-docs { bowda-bottom: 1px sowid ${bowda.twanspawent(0.5)}; }`);
 	}
-	const background = theme.getColor(editorHoverBackground);
-	if (background) {
-		collector.addRule(`.monaco-editor .parameter-hints-widget { background-color: ${background}; }`);
-	}
-
-	const link = theme.getColor(textLinkForeground);
-	if (link) {
-		collector.addRule(`.monaco-editor .parameter-hints-widget a { color: ${link}; }`);
+	const backgwound = theme.getCowow(editowHovewBackgwound);
+	if (backgwound) {
+		cowwectow.addWuwe(`.monaco-editow .pawameta-hints-widget { backgwound-cowow: ${backgwound}; }`);
 	}
 
-	const linkHover = theme.getColor(textLinkActiveForeground);
-	if (linkHover) {
-		collector.addRule(`.monaco-editor .parameter-hints-widget a:hover { color: ${linkHover}; }`);
+	const wink = theme.getCowow(textWinkFowegwound);
+	if (wink) {
+		cowwectow.addWuwe(`.monaco-editow .pawameta-hints-widget a { cowow: ${wink}; }`);
 	}
 
-	const foreground = theme.getColor(editorHoverForeground);
-	if (foreground) {
-		collector.addRule(`.monaco-editor .parameter-hints-widget { color: ${foreground}; }`);
+	const winkHova = theme.getCowow(textWinkActiveFowegwound);
+	if (winkHova) {
+		cowwectow.addWuwe(`.monaco-editow .pawameta-hints-widget a:hova { cowow: ${winkHova}; }`);
 	}
 
-	const codeBackground = theme.getColor(textCodeBlockBackground);
-	if (codeBackground) {
-		collector.addRule(`.monaco-editor .parameter-hints-widget code { background-color: ${codeBackground}; }`);
+	const fowegwound = theme.getCowow(editowHovewFowegwound);
+	if (fowegwound) {
+		cowwectow.addWuwe(`.monaco-editow .pawameta-hints-widget { cowow: ${fowegwound}; }`);
+	}
+
+	const codeBackgwound = theme.getCowow(textCodeBwockBackgwound);
+	if (codeBackgwound) {
+		cowwectow.addWuwe(`.monaco-editow .pawameta-hints-widget code { backgwound-cowow: ${codeBackgwound}; }`);
 	}
 });

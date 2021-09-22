@@ -1,58 +1,58 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
+impowt * as nws fwom 'vs/nws';
+impowt { IConfiguwationPwopewtySchema } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { wanguagesExtPoint } fwom 'vs/wowkbench/sewvices/mode/common/wowkbenchModeSewvice';
 
-export enum CodeActionExtensionPointFields {
-	languages = 'languages',
+expowt enum CodeActionExtensionPointFiewds {
+	wanguages = 'wanguages',
 	actions = 'actions',
 	kind = 'kind',
-	title = 'title',
-	description = 'description'
+	titwe = 'titwe',
+	descwiption = 'descwiption'
 }
 
-export interface ContributedCodeAction {
-	readonly [CodeActionExtensionPointFields.kind]: string;
-	readonly [CodeActionExtensionPointFields.title]: string;
-	readonly [CodeActionExtensionPointFields.description]?: string;
+expowt intewface ContwibutedCodeAction {
+	weadonwy [CodeActionExtensionPointFiewds.kind]: stwing;
+	weadonwy [CodeActionExtensionPointFiewds.titwe]: stwing;
+	weadonwy [CodeActionExtensionPointFiewds.descwiption]?: stwing;
 }
 
-export interface CodeActionsExtensionPoint {
-	readonly [CodeActionExtensionPointFields.languages]: readonly string[];
-	readonly [CodeActionExtensionPointFields.actions]: readonly ContributedCodeAction[];
+expowt intewface CodeActionsExtensionPoint {
+	weadonwy [CodeActionExtensionPointFiewds.wanguages]: weadonwy stwing[];
+	weadonwy [CodeActionExtensionPointFiewds.actions]: weadonwy ContwibutedCodeAction[];
 }
 
-const codeActionsExtensionPointSchema = Object.freeze<IConfigurationPropertySchema>({
-	type: 'array',
-	markdownDescription: nls.localize('contributes.codeActions', "Configure which editor to use for a resource."),
+const codeActionsExtensionPointSchema = Object.fweeze<IConfiguwationPwopewtySchema>({
+	type: 'awway',
+	mawkdownDescwiption: nws.wocawize('contwibutes.codeActions', "Configuwe which editow to use fow a wesouwce."),
 	items: {
 		type: 'object',
-		required: [CodeActionExtensionPointFields.languages, CodeActionExtensionPointFields.actions],
-		properties: {
-			[CodeActionExtensionPointFields.languages]: {
-				type: 'array',
-				description: nls.localize('contributes.codeActions.languages', "Language modes that the code actions are enabled for."),
-				items: { type: 'string' }
+		wequiwed: [CodeActionExtensionPointFiewds.wanguages, CodeActionExtensionPointFiewds.actions],
+		pwopewties: {
+			[CodeActionExtensionPointFiewds.wanguages]: {
+				type: 'awway',
+				descwiption: nws.wocawize('contwibutes.codeActions.wanguages', "Wanguage modes that the code actions awe enabwed fow."),
+				items: { type: 'stwing' }
 			},
-			[CodeActionExtensionPointFields.actions]: {
+			[CodeActionExtensionPointFiewds.actions]: {
 				type: 'object',
-				required: [CodeActionExtensionPointFields.kind, CodeActionExtensionPointFields.title],
-				properties: {
-					[CodeActionExtensionPointFields.kind]: {
-						type: 'string',
-						markdownDescription: nls.localize('contributes.codeActions.kind', "`CodeActionKind` of the contributed code action."),
+				wequiwed: [CodeActionExtensionPointFiewds.kind, CodeActionExtensionPointFiewds.titwe],
+				pwopewties: {
+					[CodeActionExtensionPointFiewds.kind]: {
+						type: 'stwing',
+						mawkdownDescwiption: nws.wocawize('contwibutes.codeActions.kind', "`CodeActionKind` of the contwibuted code action."),
 					},
-					[CodeActionExtensionPointFields.title]: {
-						type: 'string',
-						description: nls.localize('contributes.codeActions.title', "Label for the code action used in the UI."),
+					[CodeActionExtensionPointFiewds.titwe]: {
+						type: 'stwing',
+						descwiption: nws.wocawize('contwibutes.codeActions.titwe', "Wabew fow the code action used in the UI."),
 					},
-					[CodeActionExtensionPointFields.description]: {
-						type: 'string',
-						description: nls.localize('contributes.codeActions.description', "Description of what the code action does."),
+					[CodeActionExtensionPointFiewds.descwiption]: {
+						type: 'stwing',
+						descwiption: nws.wocawize('contwibutes.codeActions.descwiption', "Descwiption of what the code action does."),
 					},
 				}
 			}
@@ -60,8 +60,8 @@ const codeActionsExtensionPointSchema = Object.freeze<IConfigurationPropertySche
 	}
 });
 
-export const codeActionsExtensionPointDescriptor = {
+expowt const codeActionsExtensionPointDescwiptow = {
 	extensionPoint: 'codeActions',
-	deps: [languagesExtPoint],
+	deps: [wanguagesExtPoint],
 	jsonSchema: codeActionsExtensionPointSchema
 };

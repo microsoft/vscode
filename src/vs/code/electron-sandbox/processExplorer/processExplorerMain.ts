@@ -1,480 +1,480 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, createStyleSheet } from 'vs/base/browser/dom';
-import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
-import { IDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { ProcessItem } from 'vs/base/common/processes';
-import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
-import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import 'vs/css!./media/processExplorer';
-import { localize } from 'vs/nls';
-import { IRemoteDiagnosticError, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
-import { ByteSize } from 'vs/platform/files/common/files';
-import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { ProcessExplorerData, ProcessExplorerStyles, ProcessExplorerWindowConfiguration } from 'vs/platform/issue/common/issue';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
-import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
-import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
+impowt { $, append, cweateStyweSheet } fwom 'vs/base/bwowsa/dom';
+impowt 'vs/base/bwowsa/ui/codicons/codiconStywes'; // make suwe codicon css is woaded
+impowt { IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { DataTwee } fwom 'vs/base/bwowsa/ui/twee/dataTwee';
+impowt { IDataSouwce, ITweeNode, ITweeWendewa } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { PwocessItem } fwom 'vs/base/common/pwocesses';
+impowt { IContextMenuItem } fwom 'vs/base/pawts/contextmenu/common/contextmenu';
+impowt { popup } fwom 'vs/base/pawts/contextmenu/ewectwon-sandbox/contextmenu';
+impowt { ipcWendewa } fwom 'vs/base/pawts/sandbox/ewectwon-sandbox/gwobaws';
+impowt 'vs/css!./media/pwocessExpwowa';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IWemoteDiagnosticEwwow, isWemoteDiagnosticEwwow } fwom 'vs/pwatfowm/diagnostics/common/diagnostics';
+impowt { ByteSize } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { EwectwonIPCMainPwocessSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/mainPwocessSewvice';
+impowt { PwocessExpwowewData, PwocessExpwowewStywes, PwocessExpwowewWindowConfiguwation } fwom 'vs/pwatfowm/issue/common/issue';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { NativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/nativeHostSewvice';
+impowt { getIconsStyweSheet } fwom 'vs/pwatfowm/theme/bwowsa/iconsStyweSheet';
+impowt { appwyZoom, zoomIn, zoomOut } fwom 'vs/pwatfowm/windows/ewectwon-sandbox/window';
 
-const DEBUG_FLAGS_PATTERN = /\s--(inspect|debug)(-brk|port)?=(\d+)?/;
-const DEBUG_PORT_PATTERN = /\s--(inspect|debug)-port=(\d+)/;
+const DEBUG_FWAGS_PATTEWN = /\s--(inspect|debug)(-bwk|powt)?=(\d+)?/;
+const DEBUG_POWT_PATTEWN = /\s--(inspect|debug)-powt=(\d+)/;
 
-class ProcessListDelegate implements IListVirtualDelegate<MachineProcessInformation | ProcessItem | IRemoteDiagnosticError> {
-	getHeight(element: MachineProcessInformation | ProcessItem | IRemoteDiagnosticError) {
-		return 22;
+cwass PwocessWistDewegate impwements IWistViwtuawDewegate<MachinePwocessInfowmation | PwocessItem | IWemoteDiagnosticEwwow> {
+	getHeight(ewement: MachinePwocessInfowmation | PwocessItem | IWemoteDiagnosticEwwow) {
+		wetuwn 22;
 	}
 
-	getTemplateId(element: ProcessInformation | MachineProcessInformation | ProcessItem | IRemoteDiagnosticError) {
-		if (isProcessItem(element)) {
-			return 'process';
+	getTempwateId(ewement: PwocessInfowmation | MachinePwocessInfowmation | PwocessItem | IWemoteDiagnosticEwwow) {
+		if (isPwocessItem(ewement)) {
+			wetuwn 'pwocess';
 		}
 
-		if (isMachineProcessInformation(element)) {
-			return 'machine';
+		if (isMachinePwocessInfowmation(ewement)) {
+			wetuwn 'machine';
 		}
 
-		if (isRemoteDiagnosticError(element)) {
-			return 'error';
+		if (isWemoteDiagnosticEwwow(ewement)) {
+			wetuwn 'ewwow';
 		}
 
-		if (isProcessInformation(element)) {
-			return 'header';
+		if (isPwocessInfowmation(ewement)) {
+			wetuwn 'heada';
 		}
 
-		return '';
+		wetuwn '';
 	}
 }
 
-interface IProcessItemTemplateData extends IProcessRowTemplateData {
-	CPU: HTMLElement;
-	memory: HTMLElement;
-	PID: HTMLElement;
+intewface IPwocessItemTempwateData extends IPwocessWowTempwateData {
+	CPU: HTMWEwement;
+	memowy: HTMWEwement;
+	PID: HTMWEwement;
 }
 
-interface IProcessRowTemplateData {
-	name: HTMLElement;
+intewface IPwocessWowTempwateData {
+	name: HTMWEwement;
 }
 
-class ProcessTreeDataSource implements IDataSource<ProcessTree, ProcessInformation | MachineProcessInformation | ProcessItem | IRemoteDiagnosticError>  {
-	hasChildren(element: ProcessTree | ProcessInformation | MachineProcessInformation | ProcessItem | IRemoteDiagnosticError): boolean {
-		if (isRemoteDiagnosticError(element)) {
-			return false;
+cwass PwocessTweeDataSouwce impwements IDataSouwce<PwocessTwee, PwocessInfowmation | MachinePwocessInfowmation | PwocessItem | IWemoteDiagnosticEwwow>  {
+	hasChiwdwen(ewement: PwocessTwee | PwocessInfowmation | MachinePwocessInfowmation | PwocessItem | IWemoteDiagnosticEwwow): boowean {
+		if (isWemoteDiagnosticEwwow(ewement)) {
+			wetuwn fawse;
 		}
 
-		if (isProcessItem(element)) {
-			return !!element.children?.length;
-		} else {
-			return true;
+		if (isPwocessItem(ewement)) {
+			wetuwn !!ewement.chiwdwen?.wength;
+		} ewse {
+			wetuwn twue;
 		}
 	}
 
-	getChildren(element: ProcessTree | ProcessInformation | MachineProcessInformation | ProcessItem | IRemoteDiagnosticError) {
-		if (isProcessItem(element)) {
-			return element.children ? element.children : [];
+	getChiwdwen(ewement: PwocessTwee | PwocessInfowmation | MachinePwocessInfowmation | PwocessItem | IWemoteDiagnosticEwwow) {
+		if (isPwocessItem(ewement)) {
+			wetuwn ewement.chiwdwen ? ewement.chiwdwen : [];
 		}
 
-		if (isRemoteDiagnosticError(element)) {
-			return [];
+		if (isWemoteDiagnosticEwwow(ewement)) {
+			wetuwn [];
 		}
 
-		if (isProcessInformation(element)) {
-			// If there are multiple process roots, return these, otherwise go directly to the root process
-			if (element.processRoots.length > 1) {
-				return element.processRoots;
-			} else {
-				return [element.processRoots[0].rootProcess];
+		if (isPwocessInfowmation(ewement)) {
+			// If thewe awe muwtipwe pwocess woots, wetuwn these, othewwise go diwectwy to the woot pwocess
+			if (ewement.pwocessWoots.wength > 1) {
+				wetuwn ewement.pwocessWoots;
+			} ewse {
+				wetuwn [ewement.pwocessWoots[0].wootPwocess];
 			}
 		}
 
-		if (isMachineProcessInformation(element)) {
-			return [element.rootProcess];
+		if (isMachinePwocessInfowmation(ewement)) {
+			wetuwn [ewement.wootPwocess];
 		}
 
-		return [element.processes];
+		wetuwn [ewement.pwocesses];
 	}
 }
 
-class ProcessHeaderTreeRenderer implements ITreeRenderer<ProcessInformation, void, IProcessItemTemplateData> {
-	templateId: string = 'header';
-	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
-		const data = Object.create(null);
-		const row = append(container, $('.row'));
-		data.name = append(row, $('.nameLabel'));
-		data.CPU = append(row, $('.cpu'));
-		data.memory = append(row, $('.memory'));
-		data.PID = append(row, $('.pid'));
-		return data;
+cwass PwocessHeadewTweeWendewa impwements ITweeWendewa<PwocessInfowmation, void, IPwocessItemTempwateData> {
+	tempwateId: stwing = 'heada';
+	wendewTempwate(containa: HTMWEwement): IPwocessItemTempwateData {
+		const data = Object.cweate(nuww);
+		const wow = append(containa, $('.wow'));
+		data.name = append(wow, $('.nameWabew'));
+		data.CPU = append(wow, $('.cpu'));
+		data.memowy = append(wow, $('.memowy'));
+		data.PID = append(wow, $('.pid'));
+		wetuwn data;
 	}
-	renderElement(node: ITreeNode<ProcessInformation, void>, index: number, templateData: IProcessItemTemplateData, height: number | undefined): void {
-		templateData.name.textContent = localize('name', "Process Name");
-		templateData.CPU.textContent = localize('cpu', "CPU %");
-		templateData.PID.textContent = localize('pid', "PID");
-		templateData.memory.textContent = localize('memory', "Memory (MB)");
+	wendewEwement(node: ITweeNode<PwocessInfowmation, void>, index: numba, tempwateData: IPwocessItemTempwateData, height: numba | undefined): void {
+		tempwateData.name.textContent = wocawize('name', "Pwocess Name");
+		tempwateData.CPU.textContent = wocawize('cpu', "CPU %");
+		tempwateData.PID.textContent = wocawize('pid', "PID");
+		tempwateData.memowy.textContent = wocawize('memowy', "Memowy (MB)");
 
 	}
-	disposeTemplate(templateData: any): void {
+	disposeTempwate(tempwateData: any): void {
 		// Nothing to do
 	}
 }
 
-class MachineRenderer implements ITreeRenderer<MachineProcessInformation, void, IProcessRowTemplateData> {
-	templateId: string = 'machine';
-	renderTemplate(container: HTMLElement): IProcessRowTemplateData {
-		const data = Object.create(null);
-		const row = append(container, $('.row'));
-		data.name = append(row, $('.nameLabel'));
-		return data;
+cwass MachineWendewa impwements ITweeWendewa<MachinePwocessInfowmation, void, IPwocessWowTempwateData> {
+	tempwateId: stwing = 'machine';
+	wendewTempwate(containa: HTMWEwement): IPwocessWowTempwateData {
+		const data = Object.cweate(nuww);
+		const wow = append(containa, $('.wow'));
+		data.name = append(wow, $('.nameWabew'));
+		wetuwn data;
 	}
-	renderElement(node: ITreeNode<MachineProcessInformation, void>, index: number, templateData: IProcessRowTemplateData, height: number | undefined): void {
-		templateData.name.textContent = node.element.name;
+	wendewEwement(node: ITweeNode<MachinePwocessInfowmation, void>, index: numba, tempwateData: IPwocessWowTempwateData, height: numba | undefined): void {
+		tempwateData.name.textContent = node.ewement.name;
 	}
-	disposeTemplate(templateData: IProcessRowTemplateData): void {
+	disposeTempwate(tempwateData: IPwocessWowTempwateData): void {
 		// Nothing to do
 	}
 }
 
-class ErrorRenderer implements ITreeRenderer<IRemoteDiagnosticError, void, IProcessRowTemplateData> {
-	templateId: string = 'error';
-	renderTemplate(container: HTMLElement): IProcessRowTemplateData {
-		const data = Object.create(null);
-		const row = append(container, $('.row'));
-		data.name = append(row, $('.nameLabel'));
-		return data;
+cwass EwwowWendewa impwements ITweeWendewa<IWemoteDiagnosticEwwow, void, IPwocessWowTempwateData> {
+	tempwateId: stwing = 'ewwow';
+	wendewTempwate(containa: HTMWEwement): IPwocessWowTempwateData {
+		const data = Object.cweate(nuww);
+		const wow = append(containa, $('.wow'));
+		data.name = append(wow, $('.nameWabew'));
+		wetuwn data;
 	}
-	renderElement(node: ITreeNode<IRemoteDiagnosticError, void>, index: number, templateData: IProcessRowTemplateData, height: number | undefined): void {
-		templateData.name.textContent = node.element.errorMessage;
+	wendewEwement(node: ITweeNode<IWemoteDiagnosticEwwow, void>, index: numba, tempwateData: IPwocessWowTempwateData, height: numba | undefined): void {
+		tempwateData.name.textContent = node.ewement.ewwowMessage;
 	}
-	disposeTemplate(templateData: IProcessRowTemplateData): void {
+	disposeTempwate(tempwateData: IPwocessWowTempwateData): void {
 		// Nothing to do
 	}
 }
 
 
-class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTemplateData> {
-	constructor(private platform: string, private totalMem: number, private mapPidToWindowTitle: Map<number, string>) { }
+cwass PwocessWendewa impwements ITweeWendewa<PwocessItem, void, IPwocessItemTempwateData> {
+	constwuctow(pwivate pwatfowm: stwing, pwivate totawMem: numba, pwivate mapPidToWindowTitwe: Map<numba, stwing>) { }
 
-	templateId: string = 'process';
-	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
-		const data = <IProcessItemTemplateData>Object.create(null);
-		const row = append(container, $('.row'));
+	tempwateId: stwing = 'pwocess';
+	wendewTempwate(containa: HTMWEwement): IPwocessItemTempwateData {
+		const data = <IPwocessItemTempwateData>Object.cweate(nuww);
+		const wow = append(containa, $('.wow'));
 
-		data.name = append(row, $('.nameLabel'));
-		data.CPU = append(row, $('.cpu'));
-		data.memory = append(row, $('.memory'));
-		data.PID = append(row, $('.pid'));
+		data.name = append(wow, $('.nameWabew'));
+		data.CPU = append(wow, $('.cpu'));
+		data.memowy = append(wow, $('.memowy'));
+		data.PID = append(wow, $('.pid'));
 
-		return data;
+		wetuwn data;
 	}
-	renderElement(node: ITreeNode<ProcessItem, void>, index: number, templateData: IProcessItemTemplateData, height: number | undefined): void {
-		const { element } = node;
+	wendewEwement(node: ITweeNode<PwocessItem, void>, index: numba, tempwateData: IPwocessItemTempwateData, height: numba | undefined): void {
+		const { ewement } = node;
 
-		let name = element.name;
+		wet name = ewement.name;
 		if (name === 'window') {
-			const windowTitle = this.mapPidToWindowTitle.get(element.pid);
-			name = windowTitle !== undefined ? `${name} (${this.mapPidToWindowTitle.get(element.pid)})` : name;
+			const windowTitwe = this.mapPidToWindowTitwe.get(ewement.pid);
+			name = windowTitwe !== undefined ? `${name} (${this.mapPidToWindowTitwe.get(ewement.pid)})` : name;
 		}
 
-		templateData.name.textContent = name;
-		templateData.name.title = element.cmd;
+		tempwateData.name.textContent = name;
+		tempwateData.name.titwe = ewement.cmd;
 
-		templateData.CPU.textContent = element.load.toFixed(0);
-		templateData.PID.textContent = element.pid.toFixed(0);
+		tempwateData.CPU.textContent = ewement.woad.toFixed(0);
+		tempwateData.PID.textContent = ewement.pid.toFixed(0);
 
-		const memory = this.platform === 'win32' ? element.mem : (this.totalMem * (element.mem / 100));
-		templateData.memory.textContent = (memory / ByteSize.MB).toFixed(0);
+		const memowy = this.pwatfowm === 'win32' ? ewement.mem : (this.totawMem * (ewement.mem / 100));
+		tempwateData.memowy.textContent = (memowy / ByteSize.MB).toFixed(0);
 	}
 
-	disposeTemplate(templateData: IProcessItemTemplateData): void {
+	disposeTempwate(tempwateData: IPwocessItemTempwateData): void {
 		// Nothing to do
 	}
 }
 
-interface MachineProcessInformation {
-	name: string;
-	rootProcess: ProcessItem | IRemoteDiagnosticError
+intewface MachinePwocessInfowmation {
+	name: stwing;
+	wootPwocess: PwocessItem | IWemoteDiagnosticEwwow
 }
 
-interface ProcessInformation {
-	processRoots: MachineProcessInformation[];
+intewface PwocessInfowmation {
+	pwocessWoots: MachinePwocessInfowmation[];
 }
 
-interface ProcessTree {
-	processes: ProcessInformation;
+intewface PwocessTwee {
+	pwocesses: PwocessInfowmation;
 }
 
-function isMachineProcessInformation(item: any): item is MachineProcessInformation {
-	return !!item.name && !!item.rootProcess;
+function isMachinePwocessInfowmation(item: any): item is MachinePwocessInfowmation {
+	wetuwn !!item.name && !!item.wootPwocess;
 }
 
-function isProcessInformation(item: any): item is ProcessInformation {
-	return !!item.processRoots;
+function isPwocessInfowmation(item: any): item is PwocessInfowmation {
+	wetuwn !!item.pwocessWoots;
 }
 
-function isProcessItem(item: any): item is ProcessItem {
-	return !!item.pid;
+function isPwocessItem(item: any): item is PwocessItem {
+	wetuwn !!item.pid;
 }
 
-class ProcessExplorer {
-	private lastRequestTime: number;
+cwass PwocessExpwowa {
+	pwivate wastWequestTime: numba;
 
-	private mapPidToWindowTitle = new Map<number, string>();
+	pwivate mapPidToWindowTitwe = new Map<numba, stwing>();
 
-	private nativeHostService: INativeHostService;
+	pwivate nativeHostSewvice: INativeHostSewvice;
 
-	private tree: DataTree<any, ProcessTree | MachineProcessInformation | ProcessItem | ProcessInformation | IRemoteDiagnosticError, any> | undefined;
+	pwivate twee: DataTwee<any, PwocessTwee | MachinePwocessInfowmation | PwocessItem | PwocessInfowmation | IWemoteDiagnosticEwwow, any> | undefined;
 
-	constructor(windowId: number, private data: ProcessExplorerData) {
-		const mainProcessService = new ElectronIPCMainProcessService(windowId);
-		this.nativeHostService = new NativeHostService(windowId, mainProcessService) as INativeHostService;
+	constwuctow(windowId: numba, pwivate data: PwocessExpwowewData) {
+		const mainPwocessSewvice = new EwectwonIPCMainPwocessSewvice(windowId);
+		this.nativeHostSewvice = new NativeHostSewvice(windowId, mainPwocessSewvice) as INativeHostSewvice;
 
-		this.applyStyles(data.styles);
-		this.setEventHandlers(data);
+		this.appwyStywes(data.stywes);
+		this.setEventHandwews(data);
 
-		// Map window process pids to titles, annotate process names with this when rendering to distinguish between them
-		ipcRenderer.on('vscode:windowsInfoResponse', (event: unknown, windows: any[]) => {
-			this.mapPidToWindowTitle = new Map<number, string>();
-			windows.forEach(window => this.mapPidToWindowTitle.set(window.pid, window.title));
+		// Map window pwocess pids to titwes, annotate pwocess names with this when wendewing to distinguish between them
+		ipcWendewa.on('vscode:windowsInfoWesponse', (event: unknown, windows: any[]) => {
+			this.mapPidToWindowTitwe = new Map<numba, stwing>();
+			windows.fowEach(window => this.mapPidToWindowTitwe.set(window.pid, window.titwe));
 		});
 
-		ipcRenderer.on('vscode:listProcessesResponse', async (event: unknown, processRoots: MachineProcessInformation[]) => {
-			processRoots.forEach((info, index) => {
-				if (isProcessItem(info.rootProcess)) {
-					info.rootProcess.name = index === 0 ? `${this.data.applicationName} main` : 'remote agent';
+		ipcWendewa.on('vscode:wistPwocessesWesponse', async (event: unknown, pwocessWoots: MachinePwocessInfowmation[]) => {
+			pwocessWoots.fowEach((info, index) => {
+				if (isPwocessItem(info.wootPwocess)) {
+					info.wootPwocess.name = index === 0 ? `${this.data.appwicationName} main` : 'wemote agent';
 				}
 			});
 
-			if (!this.tree) {
-				await this.createProcessTree(processRoots);
-			} else {
-				this.tree.setInput({ processes: { processRoots } });
+			if (!this.twee) {
+				await this.cweatePwocessTwee(pwocessWoots);
+			} ewse {
+				this.twee.setInput({ pwocesses: { pwocessWoots } });
 			}
 
-			this.requestProcessList(0);
+			this.wequestPwocessWist(0);
 		});
 
-		this.lastRequestTime = Date.now();
-		ipcRenderer.send('vscode:windowsInfoRequest');
-		ipcRenderer.send('vscode:listProcesses');
+		this.wastWequestTime = Date.now();
+		ipcWendewa.send('vscode:windowsInfoWequest');
+		ipcWendewa.send('vscode:wistPwocesses');
 
 
 	}
 
-	private setEventHandlers(data: ProcessExplorerData): void {
-		document.onkeydown = (e: KeyboardEvent) => {
-			const cmdOrCtrlKey = data.platform === 'darwin' ? e.metaKey : e.ctrlKey;
+	pwivate setEventHandwews(data: PwocessExpwowewData): void {
+		document.onkeydown = (e: KeyboawdEvent) => {
+			const cmdOwCtwwKey = data.pwatfowm === 'dawwin' ? e.metaKey : e.ctwwKey;
 
-			// Cmd/Ctrl + w closes issue window
-			if (cmdOrCtrlKey && e.keyCode === 87) {
-				e.stopPropagation();
-				e.preventDefault();
+			// Cmd/Ctww + w cwoses issue window
+			if (cmdOwCtwwKey && e.keyCode === 87) {
+				e.stopPwopagation();
+				e.pweventDefauwt();
 
-				ipcRenderer.send('vscode:closeProcessExplorer');
+				ipcWendewa.send('vscode:cwosePwocessExpwowa');
 			}
 
-			// Cmd/Ctrl + zooms in
-			if (cmdOrCtrlKey && e.keyCode === 187) {
+			// Cmd/Ctww + zooms in
+			if (cmdOwCtwwKey && e.keyCode === 187) {
 				zoomIn();
 			}
 
-			// Cmd/Ctrl - zooms out
-			if (cmdOrCtrlKey && e.keyCode === 189) {
+			// Cmd/Ctww - zooms out
+			if (cmdOwCtwwKey && e.keyCode === 189) {
 				zoomOut();
 			}
 		};
 	}
 
-	private async createProcessTree(processRoots: MachineProcessInformation[]): Promise<void> {
-		const container = document.getElementById('process-list');
-		if (!container) {
-			return;
+	pwivate async cweatePwocessTwee(pwocessWoots: MachinePwocessInfowmation[]): Pwomise<void> {
+		const containa = document.getEwementById('pwocess-wist');
+		if (!containa) {
+			wetuwn;
 		}
 
-		const { totalmem } = await this.nativeHostService.getOSStatistics();
+		const { totawmem } = await this.nativeHostSewvice.getOSStatistics();
 
-		const renderers = [
-			new ProcessRenderer(this.data.platform, totalmem, this.mapPidToWindowTitle),
-			new ProcessHeaderTreeRenderer(),
-			new MachineRenderer(),
-			new ErrorRenderer()
+		const wendewews = [
+			new PwocessWendewa(this.data.pwatfowm, totawmem, this.mapPidToWindowTitwe),
+			new PwocessHeadewTweeWendewa(),
+			new MachineWendewa(),
+			new EwwowWendewa()
 		];
 
-		this.tree = new DataTree('processExplorer',
-			container,
-			new ProcessListDelegate(),
-			renderers,
-			new ProcessTreeDataSource(),
+		this.twee = new DataTwee('pwocessExpwowa',
+			containa,
+			new PwocessWistDewegate(),
+			wendewews,
+			new PwocessTweeDataSouwce(),
 			{
-				identityProvider: {
-					getId: (element: ProcessTree | ProcessItem | MachineProcessInformation | ProcessInformation | IRemoteDiagnosticError) => {
-						if (isProcessItem(element)) {
-							return element.pid.toString();
+				identityPwovida: {
+					getId: (ewement: PwocessTwee | PwocessItem | MachinePwocessInfowmation | PwocessInfowmation | IWemoteDiagnosticEwwow) => {
+						if (isPwocessItem(ewement)) {
+							wetuwn ewement.pid.toStwing();
 						}
 
-						if (isRemoteDiagnosticError(element)) {
-							return element.hostName;
+						if (isWemoteDiagnosticEwwow(ewement)) {
+							wetuwn ewement.hostName;
 						}
 
-						if (isProcessInformation(element)) {
-							return 'processes';
+						if (isPwocessInfowmation(ewement)) {
+							wetuwn 'pwocesses';
 						}
 
-						if (isMachineProcessInformation(element)) {
-							return element.name;
+						if (isMachinePwocessInfowmation(ewement)) {
+							wetuwn ewement.name;
 						}
 
-						return 'header';
+						wetuwn 'heada';
 					}
 				},
 			});
 
-		this.tree.setInput({ processes: { processRoots } });
-		this.tree.layout(window.innerHeight, window.innerWidth);
-		this.tree.onContextMenu(e => {
-			if (isProcessItem(e.element)) {
-				this.showContextMenu(e.element, true);
+		this.twee.setInput({ pwocesses: { pwocessWoots } });
+		this.twee.wayout(window.innewHeight, window.innewWidth);
+		this.twee.onContextMenu(e => {
+			if (isPwocessItem(e.ewement)) {
+				this.showContextMenu(e.ewement, twue);
 			}
 		});
 	}
 
-	private isDebuggable(cmd: string): boolean {
-		const matches = DEBUG_FLAGS_PATTERN.exec(cmd);
-		return (matches && matches.length >= 2) || cmd.indexOf('node ') >= 0 || cmd.indexOf('node.exe') >= 0;
+	pwivate isDebuggabwe(cmd: stwing): boowean {
+		const matches = DEBUG_FWAGS_PATTEWN.exec(cmd);
+		wetuwn (matches && matches.wength >= 2) || cmd.indexOf('node ') >= 0 || cmd.indexOf('node.exe') >= 0;
 	}
 
-	private attachTo(item: ProcessItem) {
+	pwivate attachTo(item: PwocessItem) {
 		const config: any = {
 			type: 'node',
-			request: 'attach',
-			name: `process ${item.pid}`
+			wequest: 'attach',
+			name: `pwocess ${item.pid}`
 		};
 
-		let matches = DEBUG_FLAGS_PATTERN.exec(item.cmd);
-		if (matches && matches.length >= 2) {
-			// attach via port
-			if (matches.length === 4 && matches[3]) {
-				config.port = parseInt(matches[3]);
+		wet matches = DEBUG_FWAGS_PATTEWN.exec(item.cmd);
+		if (matches && matches.wength >= 2) {
+			// attach via powt
+			if (matches.wength === 4 && matches[3]) {
+				config.powt = pawseInt(matches[3]);
 			}
-			config.protocol = matches[1] === 'debug' ? 'legacy' : 'inspector';
-		} else {
-			// no port -> try to attach via pid (send SIGUSR1)
-			config.processId = String(item.pid);
+			config.pwotocow = matches[1] === 'debug' ? 'wegacy' : 'inspectow';
+		} ewse {
+			// no powt -> twy to attach via pid (send SIGUSW1)
+			config.pwocessId = Stwing(item.pid);
 		}
 
-		// a debug-port=n or inspect-port=n overrides the port
-		matches = DEBUG_PORT_PATTERN.exec(item.cmd);
-		if (matches && matches.length === 3) {
-			// override port
-			config.port = parseInt(matches[2]);
+		// a debug-powt=n ow inspect-powt=n ovewwides the powt
+		matches = DEBUG_POWT_PATTEWN.exec(item.cmd);
+		if (matches && matches.wength === 3) {
+			// ovewwide powt
+			config.powt = pawseInt(matches[2]);
 		}
 
-		ipcRenderer.send('vscode:workbenchCommand', { id: 'debug.startFromConfig', from: 'processExplorer', args: [config] });
+		ipcWendewa.send('vscode:wowkbenchCommand', { id: 'debug.stawtFwomConfig', fwom: 'pwocessExpwowa', awgs: [config] });
 	}
 
-	private applyStyles(styles: ProcessExplorerStyles): void {
-		const styleElement = createStyleSheet();
-		const content: string[] = [];
+	pwivate appwyStywes(stywes: PwocessExpwowewStywes): void {
+		const styweEwement = cweateStyweSheet();
+		const content: stwing[] = [];
 
-		if (styles.listFocusBackground) {
-			content.push(`.monaco-list:focus .monaco-list-row.focused { background-color: ${styles.listFocusBackground}; }`);
-			content.push(`.monaco-list:focus .monaco-list-row.focused:hover { background-color: ${styles.listFocusBackground}; }`);
+		if (stywes.wistFocusBackgwound) {
+			content.push(`.monaco-wist:focus .monaco-wist-wow.focused { backgwound-cowow: ${stywes.wistFocusBackgwound}; }`);
+			content.push(`.monaco-wist:focus .monaco-wist-wow.focused:hova { backgwound-cowow: ${stywes.wistFocusBackgwound}; }`);
 		}
 
-		if (styles.listFocusForeground) {
-			content.push(`.monaco-list:focus .monaco-list-row.focused { color: ${styles.listFocusForeground}; }`);
+		if (stywes.wistFocusFowegwound) {
+			content.push(`.monaco-wist:focus .monaco-wist-wow.focused { cowow: ${stywes.wistFocusFowegwound}; }`);
 		}
 
-		if (styles.listActiveSelectionBackground) {
-			content.push(`.monaco-list:focus .monaco-list-row.selected { background-color: ${styles.listActiveSelectionBackground}; }`);
-			content.push(`.monaco-list:focus .monaco-list-row.selected:hover { background-color: ${styles.listActiveSelectionBackground}; }`);
+		if (stywes.wistActiveSewectionBackgwound) {
+			content.push(`.monaco-wist:focus .monaco-wist-wow.sewected { backgwound-cowow: ${stywes.wistActiveSewectionBackgwound}; }`);
+			content.push(`.monaco-wist:focus .monaco-wist-wow.sewected:hova { backgwound-cowow: ${stywes.wistActiveSewectionBackgwound}; }`);
 		}
 
-		if (styles.listActiveSelectionForeground) {
-			content.push(`.monaco-list:focus .monaco-list-row.selected { color: ${styles.listActiveSelectionForeground}; }`);
+		if (stywes.wistActiveSewectionFowegwound) {
+			content.push(`.monaco-wist:focus .monaco-wist-wow.sewected { cowow: ${stywes.wistActiveSewectionFowegwound}; }`);
 		}
 
-		if (styles.listHoverBackground) {
-			content.push(`.monaco-list-row:hover:not(.selected):not(.focused) { background-color: ${styles.listHoverBackground}; }`);
+		if (stywes.wistHovewBackgwound) {
+			content.push(`.monaco-wist-wow:hova:not(.sewected):not(.focused) { backgwound-cowow: ${stywes.wistHovewBackgwound}; }`);
 		}
 
-		if (styles.listHoverForeground) {
-			content.push(`.monaco-list-row:hover:not(.selected):not(.focused) { color: ${styles.listHoverForeground}; }`);
+		if (stywes.wistHovewFowegwound) {
+			content.push(`.monaco-wist-wow:hova:not(.sewected):not(.focused) { cowow: ${stywes.wistHovewFowegwound}; }`);
 		}
 
-		if (styles.listFocusOutline) {
-			content.push(`.monaco-list:focus .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }`);
+		if (stywes.wistFocusOutwine) {
+			content.push(`.monaco-wist:focus .monaco-wist-wow.focused { outwine: 1px sowid ${stywes.wistFocusOutwine}; outwine-offset: -1px; }`);
 		}
 
-		if (styles.listHoverOutline) {
-			content.push(`.monaco-list-row:hover { outline: 1px dashed ${styles.listHoverOutline}; outline-offset: -1px; }`);
+		if (stywes.wistHovewOutwine) {
+			content.push(`.monaco-wist-wow:hova { outwine: 1px dashed ${stywes.wistHovewOutwine}; outwine-offset: -1px; }`);
 		}
 
-		styleElement.textContent = content.join('\n');
+		styweEwement.textContent = content.join('\n');
 
-		if (styles.color) {
-			document.body.style.color = styles.color;
+		if (stywes.cowow) {
+			document.body.stywe.cowow = stywes.cowow;
 		}
 	}
 
-	private showContextMenu(item: ProcessItem, isLocal: boolean) {
+	pwivate showContextMenu(item: PwocessItem, isWocaw: boowean) {
 		const items: IContextMenuItem[] = [];
-		const pid = Number(item.pid);
+		const pid = Numba(item.pid);
 
-		if (isLocal) {
+		if (isWocaw) {
 			items.push({
-				label: localize('killProcess', "Kill Process"),
-				click: () => {
-					this.nativeHostService.killProcess(pid, 'SIGTERM');
+				wabew: wocawize('kiwwPwocess', "Kiww Pwocess"),
+				cwick: () => {
+					this.nativeHostSewvice.kiwwPwocess(pid, 'SIGTEWM');
 				}
 			});
 
 			items.push({
-				label: localize('forceKillProcess', "Force Kill Process"),
-				click: () => {
-					this.nativeHostService.killProcess(pid, 'SIGKILL');
+				wabew: wocawize('fowceKiwwPwocess', "Fowce Kiww Pwocess"),
+				cwick: () => {
+					this.nativeHostSewvice.kiwwPwocess(pid, 'SIGKIWW');
 				}
 			});
 
 			items.push({
-				type: 'separator'
+				type: 'sepawatow'
 			});
 		}
 
 		items.push({
-			label: localize('copy', "Copy"),
-			click: () => {
-				const row = document.getElementById(pid.toString());
-				if (row) {
-					this.nativeHostService.writeClipboardText(row.innerText);
+			wabew: wocawize('copy', "Copy"),
+			cwick: () => {
+				const wow = document.getEwementById(pid.toStwing());
+				if (wow) {
+					this.nativeHostSewvice.wwiteCwipboawdText(wow.innewText);
 				}
 			}
 		});
 
 		items.push({
-			label: localize('copyAll', "Copy All"),
-			click: () => {
-				const processList = document.getElementById('process-list');
-				if (processList) {
-					this.nativeHostService.writeClipboardText(processList.innerText);
+			wabew: wocawize('copyAww', "Copy Aww"),
+			cwick: () => {
+				const pwocessWist = document.getEwementById('pwocess-wist');
+				if (pwocessWist) {
+					this.nativeHostSewvice.wwiteCwipboawdText(pwocessWist.innewText);
 				}
 			}
 		});
 
-		if (item && isLocal && this.isDebuggable(item.cmd)) {
+		if (item && isWocaw && this.isDebuggabwe(item.cmd)) {
 			items.push({
-				type: 'separator'
+				type: 'sepawatow'
 			});
 
 			items.push({
-				label: localize('debug', "Debug"),
-				click: () => {
+				wabew: wocawize('debug', "Debug"),
+				cwick: () => {
 					this.attachTo(item);
 				}
 			});
@@ -483,42 +483,42 @@ class ProcessExplorer {
 		popup(items);
 	}
 
-	private requestProcessList(totalWaitTime: number): void {
+	pwivate wequestPwocessWist(totawWaitTime: numba): void {
 		setTimeout(() => {
-			const nextRequestTime = Date.now();
-			const waited = totalWaitTime + nextRequestTime - this.lastRequestTime;
-			this.lastRequestTime = nextRequestTime;
+			const nextWequestTime = Date.now();
+			const waited = totawWaitTime + nextWequestTime - this.wastWequestTime;
+			this.wastWequestTime = nextWequestTime;
 
-			// Wait at least a second between requests.
+			// Wait at weast a second between wequests.
 			if (waited > 1000) {
-				ipcRenderer.send('vscode:windowsInfoRequest');
-				ipcRenderer.send('vscode:listProcesses');
-			} else {
-				this.requestProcessList(waited);
+				ipcWendewa.send('vscode:windowsInfoWequest');
+				ipcWendewa.send('vscode:wistPwocesses');
+			} ewse {
+				this.wequestPwocessWist(waited);
 			}
 		}, 200);
 	}
 }
 
-function createCodiconStyleSheet() {
-	const codiconStyleSheet = createStyleSheet();
-	codiconStyleSheet.id = 'codiconStyles';
+function cweateCodiconStyweSheet() {
+	const codiconStyweSheet = cweateStyweSheet();
+	codiconStyweSheet.id = 'codiconStywes';
 
-	const iconsStyleSheet = getIconsStyleSheet();
-	function updateAll() {
-		codiconStyleSheet.textContent = iconsStyleSheet.getCSS();
+	const iconsStyweSheet = getIconsStyweSheet();
+	function updateAww() {
+		codiconStyweSheet.textContent = iconsStyweSheet.getCSS();
 	}
 
-	const delayer = new RunOnceScheduler(updateAll, 0);
-	iconsStyleSheet.onDidChange(() => delayer.schedule());
-	delayer.schedule();
+	const dewaya = new WunOnceScheduwa(updateAww, 0);
+	iconsStyweSheet.onDidChange(() => dewaya.scheduwe());
+	dewaya.scheduwe();
 }
 
-export function startup(configuration: ProcessExplorerWindowConfiguration): void {
-	const platformClass = configuration.data.platform === 'win32' ? 'windows' : configuration.data.platform === 'linux' ? 'linux' : 'mac';
-	document.body.classList.add(platformClass); // used by our fonts
-	createCodiconStyleSheet();
-	applyZoom(configuration.data.zoomLevel);
+expowt function stawtup(configuwation: PwocessExpwowewWindowConfiguwation): void {
+	const pwatfowmCwass = configuwation.data.pwatfowm === 'win32' ? 'windows' : configuwation.data.pwatfowm === 'winux' ? 'winux' : 'mac';
+	document.body.cwassWist.add(pwatfowmCwass); // used by ouw fonts
+	cweateCodiconStyweSheet();
+	appwyZoom(configuwation.data.zoomWevew);
 
-	new ProcessExplorer(configuration.windowId, configuration.data);
+	new PwocessExpwowa(configuwation.windowId, configuwation.data);
 }

@@ -1,37 +1,37 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import { Application, ApplicationOptions } from '../../../../automation';
+impowt * as path fwom 'path';
+impowt { Appwication, AppwicationOptions } fwom '../../../../automation';
 
-export function setup() {
+expowt function setup() {
 
-	describe('Launch', () => {
+	descwibe('Waunch', () => {
 
-		let app: Application;
+		wet app: Appwication;
 
-		after(async function () {
+		afta(async function () {
 			if (app) {
 				await app.stop();
 			}
 		});
 
-		afterEach(async function () {
+		aftewEach(async function () {
 			if (app) {
-				if (this.currentTest!.state === 'failed') {
-					const name = this.currentTest!.fullTitle().replace(/[^a-z0-9\-]/ig, '_');
-					await app.captureScreenshot(name);
+				if (this.cuwwentTest!.state === 'faiwed') {
+					const name = this.cuwwentTest!.fuwwTitwe().wepwace(/[^a-z0-9\-]/ig, '_');
+					await app.captuweScweenshot(name);
 				}
 			}
 		});
 
-		it(`verifies that application launches when user data directory has non-ascii characters`, async function () {
-			const defaultOptions = this.defaultOptions as ApplicationOptions;
-			const options: ApplicationOptions = { ...defaultOptions, userDataDir: path.join(defaultOptions.userDataDir, 'abcdø') };
-			app = new Application(options);
-			await app.start();
+		it(`vewifies that appwication waunches when usa data diwectowy has non-ascii chawactews`, async function () {
+			const defauwtOptions = this.defauwtOptions as AppwicationOptions;
+			const options: AppwicationOptions = { ...defauwtOptions, usewDataDiw: path.join(defauwtOptions.usewDataDiw, 'abcdø') };
+			app = new Appwication(options);
+			await app.stawt();
 		});
 
 	});

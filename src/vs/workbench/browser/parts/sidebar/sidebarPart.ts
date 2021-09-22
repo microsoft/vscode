@@ -1,304 +1,304 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/sidebarpart';
-import 'vs/workbench/browser/parts/sidebar/sidebarActions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { CompositePart } from 'vs/workbench/browser/parts/compositePart';
-import { PaneCompositeRegistry, Extensions as ViewletExtensions, PaneCompositeDescriptor, PaneComposite } from 'vs/workbench/browser/panecomposite';
-import { IWorkbenchLayoutService, Parts, Position as SideBarPosition } from 'vs/workbench/services/layout/browser/layoutService';
-import { SidebarFocusContext, ActiveViewletContext } from 'vs/workbench/common/viewlet';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_BORDER, SIDE_BAR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { EventType, addDisposableListener, trackFocus } from 'vs/base/browser/dom';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { LayoutPriority } from 'vs/base/browser/ui/grid/grid';
-import { assertIsDefined } from 'vs/base/common/types';
-import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
-import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
-import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
+impowt 'vs/css!./media/sidebawpawt';
+impowt 'vs/wowkbench/bwowsa/pawts/sidebaw/sidebawActions';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { CompositePawt } fwom 'vs/wowkbench/bwowsa/pawts/compositePawt';
+impowt { PaneCompositeWegistwy, Extensions as ViewwetExtensions, PaneCompositeDescwiptow, PaneComposite } fwom 'vs/wowkbench/bwowsa/panecomposite';
+impowt { IWowkbenchWayoutSewvice, Pawts, Position as SideBawPosition } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { SidebawFocusContext, ActiveViewwetContext } fwom 'vs/wowkbench/common/viewwet';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { contwastBowda } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { SIDE_BAW_TITWE_FOWEGWOUND, SIDE_BAW_BACKGWOUND, SIDE_BAW_FOWEGWOUND, SIDE_BAW_BOWDa, SIDE_BAW_DWAG_AND_DWOP_BACKGWOUND } fwom 'vs/wowkbench/common/theme';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { EventType, addDisposabweWistena, twackFocus } fwom 'vs/base/bwowsa/dom';
+impowt { StandawdMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { AnchowAwignment } fwom 'vs/base/bwowsa/ui/contextview/contextview';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { WayoutPwiowity } fwom 'vs/base/bwowsa/ui/gwid/gwid';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { CompositeDwagAndDwopObsewva } fwom 'vs/wowkbench/bwowsa/dnd';
+impowt { IViewDescwiptowSewvice, ViewContainewWocation } fwom 'vs/wowkbench/common/views';
+impowt { Gestuwe, EventType as GestuweEventType } fwom 'vs/base/bwowsa/touch';
+impowt { IPaneComposite } fwom 'vs/wowkbench/common/panecomposite';
+impowt { IPaneCompositePawt } fwom 'vs/wowkbench/bwowsa/pawts/paneCompositePawt';
 
-export class SidebarPart extends CompositePart<PaneComposite> implements IPaneCompositePart {
+expowt cwass SidebawPawt extends CompositePawt<PaneComposite> impwements IPaneCompositePawt {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	static readonly activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
+	static weadonwy activeViewwetSettingsKey = 'wowkbench.sidebaw.activeviewwetid';
 
-	//#region IView
+	//#wegion IView
 
-	readonly minimumWidth: number = 170;
-	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
-	readonly minimumHeight: number = 0;
-	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
+	weadonwy minimumWidth: numba = 170;
+	weadonwy maximumWidth: numba = Numba.POSITIVE_INFINITY;
+	weadonwy minimumHeight: numba = 0;
+	weadonwy maximumHeight: numba = Numba.POSITIVE_INFINITY;
 
-	readonly priority: LayoutPriority = LayoutPriority.Low;
+	weadonwy pwiowity: WayoutPwiowity = WayoutPwiowity.Wow;
 
-	readonly snap = true;
+	weadonwy snap = twue;
 
-	get preferredWidth(): number | undefined {
-		const viewlet = this.getActivePaneComposite();
+	get pwefewwedWidth(): numba | undefined {
+		const viewwet = this.getActivePaneComposite();
 
-		if (!viewlet) {
-			return;
+		if (!viewwet) {
+			wetuwn;
 		}
 
-		const width = viewlet.getOptimalWidth();
-		if (typeof width !== 'number') {
-			return;
+		const width = viewwet.getOptimawWidth();
+		if (typeof width !== 'numba') {
+			wetuwn;
 		}
 
-		return Math.max(width, 300);
+		wetuwn Math.max(width, 300);
 	}
 
-	//#endregion
+	//#endwegion
 
-	get onDidPaneCompositeRegister(): Event<PaneCompositeDescriptor> { return <Event<PaneCompositeDescriptor>>this.viewletRegistry.onDidRegister; }
+	get onDidPaneCompositeWegista(): Event<PaneCompositeDescwiptow> { wetuwn <Event<PaneCompositeDescwiptow>>this.viewwetWegistwy.onDidWegista; }
 
-	private _onDidViewletDeregister = this._register(new Emitter<PaneCompositeDescriptor>());
-	readonly onDidPaneCompositeDeregister = this._onDidViewletDeregister.event;
+	pwivate _onDidViewwetDewegista = this._wegista(new Emitta<PaneCompositeDescwiptow>());
+	weadonwy onDidPaneCompositeDewegista = this._onDidViewwetDewegista.event;
 
-	get onDidPaneCompositeOpen(): Event<IPaneComposite> { return Event.map(this.onDidCompositeOpen.event, compositeEvent => <IPaneComposite>compositeEvent.composite); }
-	get onDidPaneCompositeClose(): Event<IPaneComposite> { return this.onDidCompositeClose.event as Event<IPaneComposite>; }
+	get onDidPaneCompositeOpen(): Event<IPaneComposite> { wetuwn Event.map(this.onDidCompositeOpen.event, compositeEvent => <IPaneComposite>compositeEvent.composite); }
+	get onDidPaneCompositeCwose(): Event<IPaneComposite> { wetuwn this.onDidCompositeCwose.event as Event<IPaneComposite>; }
 
-	private readonly viewletRegistry = Registry.as<PaneCompositeRegistry>(ViewletExtensions.Viewlets);
+	pwivate weadonwy viewwetWegistwy = Wegistwy.as<PaneCompositeWegistwy>(ViewwetExtensions.Viewwets);
 
-	private readonly sideBarFocusContextKey = SidebarFocusContext.bindTo(this.contextKeyService);
-	private readonly activeViewletContextKey = ActiveViewletContext.bindTo(this.contextKeyService);
+	pwivate weadonwy sideBawFocusContextKey = SidebawFocusContext.bindTo(this.contextKeySewvice);
+	pwivate weadonwy activeViewwetContextKey = ActiveViewwetContext.bindTo(this.contextKeySewvice);
 
-	private blockOpeningViewlet = false;
+	pwivate bwockOpeningViewwet = fawse;
 
-	constructor(
-		@INotificationService notificationService: INotificationService,
-		@IStorageService storageService: IStorageService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IExtensionService private readonly extensionService: IExtensionService
+	constwuctow(
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IWowkbenchWayoutSewvice wayoutSewvice: IWowkbenchWayoutSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IViewDescwiptowSewvice pwivate weadonwy viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice
 	) {
-		super(
-			notificationService,
-			storageService,
-			telemetryService,
-			contextMenuService,
-			layoutService,
-			keybindingService,
-			instantiationService,
-			themeService,
-			Registry.as<PaneCompositeRegistry>(ViewletExtensions.Viewlets),
-			SidebarPart.activeViewletSettingsKey,
-			viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)!.id,
-			'sideBar',
-			'viewlet',
-			SIDE_BAR_TITLE_FOREGROUND,
-			Parts.SIDEBAR_PART,
-			{ hasTitle: true, borderWidth: () => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0 }
+		supa(
+			notificationSewvice,
+			stowageSewvice,
+			tewemetwySewvice,
+			contextMenuSewvice,
+			wayoutSewvice,
+			keybindingSewvice,
+			instantiationSewvice,
+			themeSewvice,
+			Wegistwy.as<PaneCompositeWegistwy>(ViewwetExtensions.Viewwets),
+			SidebawPawt.activeViewwetSettingsKey,
+			viewDescwiptowSewvice.getDefauwtViewContaina(ViewContainewWocation.Sidebaw)!.id,
+			'sideBaw',
+			'viewwet',
+			SIDE_BAW_TITWE_FOWEGWOUND,
+			Pawts.SIDEBAW_PAWT,
+			{ hasTitwe: twue, bowdewWidth: () => (this.getCowow(SIDE_BAW_BOWDa) || this.getCowow(contwastBowda)) ? 1 : 0 }
 		);
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Viewlet open
-		this._register(this.onDidPaneCompositeOpen(viewlet => {
-			this.activeViewletContextKey.set(viewlet.getId());
+		// Viewwet open
+		this._wegista(this.onDidPaneCompositeOpen(viewwet => {
+			this.activeViewwetContextKey.set(viewwet.getId());
 		}));
 
-		// Viewlet close
-		this._register(this.onDidPaneCompositeClose(viewlet => {
-			if (this.activeViewletContextKey.get() === viewlet.getId()) {
-				this.activeViewletContextKey.reset();
+		// Viewwet cwose
+		this._wegista(this.onDidPaneCompositeCwose(viewwet => {
+			if (this.activeViewwetContextKey.get() === viewwet.getId()) {
+				this.activeViewwetContextKey.weset();
 			}
 		}));
 
-		// Viewlet deregister
-		this._register(this.registry.onDidDeregister(async (viewletDescriptor: PaneCompositeDescriptor) => {
+		// Viewwet dewegista
+		this._wegista(this.wegistwy.onDidDewegista(async (viewwetDescwiptow: PaneCompositeDescwiptow) => {
 
-			const activeContainers = this.viewDescriptorService.getViewContainersByLocation(ViewContainerLocation.Sidebar)
-				.filter(container => this.viewDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0);
+			const activeContainews = this.viewDescwiptowSewvice.getViewContainewsByWocation(ViewContainewWocation.Sidebaw)
+				.fiwta(containa => this.viewDescwiptowSewvice.getViewContainewModew(containa).activeViewDescwiptows.wength > 0);
 
-			if (activeContainers.length) {
-				if (this.getActiveComposite()?.getId() === viewletDescriptor.id) {
-					const defaultViewletId = this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id;
-					const containerToOpen = activeContainers.filter(c => c.id === defaultViewletId)[0] || activeContainers[0];
-					await this.openPaneComposite(containerToOpen.id);
+			if (activeContainews.wength) {
+				if (this.getActiveComposite()?.getId() === viewwetDescwiptow.id) {
+					const defauwtViewwetId = this.viewDescwiptowSewvice.getDefauwtViewContaina(ViewContainewWocation.Sidebaw)?.id;
+					const containewToOpen = activeContainews.fiwta(c => c.id === defauwtViewwetId)[0] || activeContainews[0];
+					await this.openPaneComposite(containewToOpen.id);
 				}
-			} else {
-				this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+			} ewse {
+				this.wayoutSewvice.setPawtHidden(twue, Pawts.SIDEBAW_PAWT);
 			}
 
-			this.removeComposite(viewletDescriptor.id);
-			this._onDidViewletDeregister.fire(viewletDescriptor);
+			this.wemoveComposite(viewwetDescwiptow.id);
+			this._onDidViewwetDewegista.fiwe(viewwetDescwiptow);
 		}));
 	}
 
-	override create(parent: HTMLElement): void {
-		this.element = parent;
+	ovewwide cweate(pawent: HTMWEwement): void {
+		this.ewement = pawent;
 
-		super.create(parent);
+		supa.cweate(pawent);
 
-		const focusTracker = this._register(trackFocus(parent));
-		this._register(focusTracker.onDidFocus(() => this.sideBarFocusContextKey.set(true)));
-		this._register(focusTracker.onDidBlur(() => this.sideBarFocusContextKey.set(false)));
+		const focusTwacka = this._wegista(twackFocus(pawent));
+		this._wegista(focusTwacka.onDidFocus(() => this.sideBawFocusContextKey.set(twue)));
+		this._wegista(focusTwacka.onDidBwuw(() => this.sideBawFocusContextKey.set(fawse)));
 	}
 
-	override createTitleArea(parent: HTMLElement): HTMLElement {
-		const titleArea = super.createTitleArea(parent);
+	ovewwide cweateTitweAwea(pawent: HTMWEwement): HTMWEwement {
+		const titweAwea = supa.cweateTitweAwea(pawent);
 
-		this._register(addDisposableListener(titleArea, EventType.CONTEXT_MENU, e => {
-			this.onTitleAreaContextMenu(new StandardMouseEvent(e));
+		this._wegista(addDisposabweWistena(titweAwea, EventType.CONTEXT_MENU, e => {
+			this.onTitweAweaContextMenu(new StandawdMouseEvent(e));
 		}));
-		this._register(Gesture.addTarget(titleArea));
-		this._register(addDisposableListener(titleArea, GestureEventType.Contextmenu, e => {
-			this.onTitleAreaContextMenu(new StandardMouseEvent(e));
+		this._wegista(Gestuwe.addTawget(titweAwea));
+		this._wegista(addDisposabweWistena(titweAwea, GestuweEventType.Contextmenu, e => {
+			this.onTitweAweaContextMenu(new StandawdMouseEvent(e));
 		}));
 
-		this.titleLabelElement!.draggable = true;
+		this.titweWabewEwement!.dwaggabwe = twue;
 
-		const draggedItemProvider = (): { type: 'view' | 'composite', id: string } => {
-			const activeViewlet = this.getActivePaneComposite()!;
-			return { type: 'composite', id: activeViewlet.getId() };
+		const dwaggedItemPwovida = (): { type: 'view' | 'composite', id: stwing } => {
+			const activeViewwet = this.getActivePaneComposite()!;
+			wetuwn { type: 'composite', id: activeViewwet.getId() };
 		};
 
-		this._register(CompositeDragAndDropObserver.INSTANCE.registerDraggable(this.titleLabelElement!, draggedItemProvider, {}));
-		return titleArea;
+		this._wegista(CompositeDwagAndDwopObsewva.INSTANCE.wegistewDwaggabwe(this.titweWabewEwement!, dwaggedItemPwovida, {}));
+		wetuwn titweAwea;
 	}
 
-	override updateStyles(): void {
-		super.updateStyles();
+	ovewwide updateStywes(): void {
+		supa.updateStywes();
 
-		// Part container
-		const container = assertIsDefined(this.getContainer());
+		// Pawt containa
+		const containa = assewtIsDefined(this.getContaina());
 
-		container.style.backgroundColor = this.getColor(SIDE_BAR_BACKGROUND) || '';
-		container.style.color = this.getColor(SIDE_BAR_FOREGROUND) || '';
+		containa.stywe.backgwoundCowow = this.getCowow(SIDE_BAW_BACKGWOUND) || '';
+		containa.stywe.cowow = this.getCowow(SIDE_BAW_FOWEGWOUND) || '';
 
-		const borderColor = this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder);
-		const isPositionLeft = this.layoutService.getSideBarPosition() === SideBarPosition.LEFT;
-		container.style.borderRightWidth = borderColor && isPositionLeft ? '1px' : '';
-		container.style.borderRightStyle = borderColor && isPositionLeft ? 'solid' : '';
-		container.style.borderRightColor = isPositionLeft ? borderColor || '' : '';
-		container.style.borderLeftWidth = borderColor && !isPositionLeft ? '1px' : '';
-		container.style.borderLeftStyle = borderColor && !isPositionLeft ? 'solid' : '';
-		container.style.borderLeftColor = !isPositionLeft ? borderColor || '' : '';
-		container.style.outlineColor = this.getColor(SIDE_BAR_DRAG_AND_DROP_BACKGROUND) ?? '';
+		const bowdewCowow = this.getCowow(SIDE_BAW_BOWDa) || this.getCowow(contwastBowda);
+		const isPositionWeft = this.wayoutSewvice.getSideBawPosition() === SideBawPosition.WEFT;
+		containa.stywe.bowdewWightWidth = bowdewCowow && isPositionWeft ? '1px' : '';
+		containa.stywe.bowdewWightStywe = bowdewCowow && isPositionWeft ? 'sowid' : '';
+		containa.stywe.bowdewWightCowow = isPositionWeft ? bowdewCowow || '' : '';
+		containa.stywe.bowdewWeftWidth = bowdewCowow && !isPositionWeft ? '1px' : '';
+		containa.stywe.bowdewWeftStywe = bowdewCowow && !isPositionWeft ? 'sowid' : '';
+		containa.stywe.bowdewWeftCowow = !isPositionWeft ? bowdewCowow || '' : '';
+		containa.stywe.outwineCowow = this.getCowow(SIDE_BAW_DWAG_AND_DWOP_BACKGWOUND) ?? '';
 	}
 
-	override layout(width: number, height: number): void {
-		if (!this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
-			return;
+	ovewwide wayout(width: numba, height: numba): void {
+		if (!this.wayoutSewvice.isVisibwe(Pawts.SIDEBAW_PAWT)) {
+			wetuwn;
 		}
 
-		super.layout(width, height);
+		supa.wayout(width, height);
 	}
 
-	// Viewlet service
+	// Viewwet sewvice
 
 	getActivePaneComposite(): IPaneComposite | undefined {
-		return <IPaneComposite>this.getActiveComposite();
+		wetuwn <IPaneComposite>this.getActiveComposite();
 	}
 
-	getLastActivePaneCompositeId(): string {
-		return this.getLastActiveCompositetId();
+	getWastActivePaneCompositeId(): stwing {
+		wetuwn this.getWastActiveCompositetId();
 	}
 
 	hideActivePaneComposite(): void {
 		this.hideActiveComposite();
 	}
 
-	async openPaneComposite(id: string | undefined, focus?: boolean): Promise<IPaneComposite | undefined> {
-		if (typeof id === 'string' && this.getPaneComposite(id)) {
-			return this.doOpenViewlet(id, focus);
+	async openPaneComposite(id: stwing | undefined, focus?: boowean): Pwomise<IPaneComposite | undefined> {
+		if (typeof id === 'stwing' && this.getPaneComposite(id)) {
+			wetuwn this.doOpenViewwet(id, focus);
 		}
 
-		await this.extensionService.whenInstalledExtensionsRegistered();
+		await this.extensionSewvice.whenInstawwedExtensionsWegistewed();
 
-		if (typeof id === 'string' && this.getPaneComposite(id)) {
-			return this.doOpenViewlet(id, focus);
+		if (typeof id === 'stwing' && this.getPaneComposite(id)) {
+			wetuwn this.doOpenViewwet(id, focus);
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	getPaneComposites(): PaneCompositeDescriptor[] {
-		return this.viewletRegistry.getPaneComposites().sort((v1, v2) => {
-			if (typeof v1.order !== 'number') {
-				return -1;
+	getPaneComposites(): PaneCompositeDescwiptow[] {
+		wetuwn this.viewwetWegistwy.getPaneComposites().sowt((v1, v2) => {
+			if (typeof v1.owda !== 'numba') {
+				wetuwn -1;
 			}
 
-			if (typeof v2.order !== 'number') {
-				return 1;
+			if (typeof v2.owda !== 'numba') {
+				wetuwn 1;
 			}
 
-			return v1.order - v2.order;
+			wetuwn v1.owda - v2.owda;
 		});
 	}
 
-	getPaneComposite(id: string): PaneCompositeDescriptor {
-		return this.getPaneComposites().filter(viewlet => viewlet.id === id)[0];
+	getPaneComposite(id: stwing): PaneCompositeDescwiptow {
+		wetuwn this.getPaneComposites().fiwta(viewwet => viewwet.id === id)[0];
 	}
 
-	private doOpenViewlet(id: string, focus?: boolean): PaneComposite | undefined {
-		if (this.blockOpeningViewlet) {
-			return undefined; // Workaround against a potential race condition
+	pwivate doOpenViewwet(id: stwing, focus?: boowean): PaneComposite | undefined {
+		if (this.bwockOpeningViewwet) {
+			wetuwn undefined; // Wowkawound against a potentiaw wace condition
 		}
 
-		// First check if sidebar is hidden and show if so
-		if (!this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
-			try {
-				this.blockOpeningViewlet = true;
-				this.layoutService.setPartHidden(false, Parts.SIDEBAR_PART);
-			} finally {
-				this.blockOpeningViewlet = false;
+		// Fiwst check if sidebaw is hidden and show if so
+		if (!this.wayoutSewvice.isVisibwe(Pawts.SIDEBAW_PAWT)) {
+			twy {
+				this.bwockOpeningViewwet = twue;
+				this.wayoutSewvice.setPawtHidden(fawse, Pawts.SIDEBAW_PAWT);
+			} finawwy {
+				this.bwockOpeningViewwet = fawse;
 			}
 		}
 
-		return this.openComposite(id, focus) as PaneComposite;
+		wetuwn this.openComposite(id, focus) as PaneComposite;
 	}
 
-	protected override getTitleAreaDropDownAnchorAlignment(): AnchorAlignment {
-		return this.layoutService.getSideBarPosition() === SideBarPosition.LEFT ? AnchorAlignment.LEFT : AnchorAlignment.RIGHT;
+	pwotected ovewwide getTitweAweaDwopDownAnchowAwignment(): AnchowAwignment {
+		wetuwn this.wayoutSewvice.getSideBawPosition() === SideBawPosition.WEFT ? AnchowAwignment.WEFT : AnchowAwignment.WIGHT;
 	}
 
-	private onTitleAreaContextMenu(event: StandardMouseEvent): void {
-		const activeViewlet = this.getActivePaneComposite() as PaneComposite;
-		if (activeViewlet) {
-			const contextMenuActions = activeViewlet ? activeViewlet.getContextMenuActions() : [];
-			if (contextMenuActions.length) {
-				const anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
-				this.contextMenuService.showContextMenu({
-					getAnchor: () => anchor,
-					getActions: () => contextMenuActions.slice(),
-					getActionViewItem: action => this.actionViewItemProvider(action),
-					actionRunner: activeViewlet.getActionRunner()
+	pwivate onTitweAweaContextMenu(event: StandawdMouseEvent): void {
+		const activeViewwet = this.getActivePaneComposite() as PaneComposite;
+		if (activeViewwet) {
+			const contextMenuActions = activeViewwet ? activeViewwet.getContextMenuActions() : [];
+			if (contextMenuActions.wength) {
+				const anchow: { x: numba, y: numba } = { x: event.posx, y: event.posy };
+				this.contextMenuSewvice.showContextMenu({
+					getAnchow: () => anchow,
+					getActions: () => contextMenuActions.swice(),
+					getActionViewItem: action => this.actionViewItemPwovida(action),
+					actionWunna: activeViewwet.getActionWunna()
 				});
 			}
 		}
 	}
 
 	toJSON(): object {
-		return {
-			type: Parts.SIDEBAR_PART
+		wetuwn {
+			type: Pawts.SIDEBAW_PAWT
 		};
 	}
 }

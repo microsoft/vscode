@@ -1,42 +1,42 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import TypeScriptServiceClientHost from '../typeScriptServiceClientHost';
-import { ActiveJsTsEditorTracker } from '../utils/activeJsTsEditorTracker';
-import { Lazy } from '../utils/lazy';
-import { openProjectConfigForFile, ProjectType } from '../utils/tsconfig';
-import { Command } from './commandManager';
+impowt TypeScwiptSewviceCwientHost fwom '../typeScwiptSewviceCwientHost';
+impowt { ActiveJsTsEditowTwacka } fwom '../utiws/activeJsTsEditowTwacka';
+impowt { Wazy } fwom '../utiws/wazy';
+impowt { openPwojectConfigFowFiwe, PwojectType } fwom '../utiws/tsconfig';
+impowt { Command } fwom './commandManaga';
 
-export class TypeScriptGoToProjectConfigCommand implements Command {
-	public readonly id = 'typescript.goToProjectConfig';
+expowt cwass TypeScwiptGoToPwojectConfigCommand impwements Command {
+	pubwic weadonwy id = 'typescwipt.goToPwojectConfig';
 
-	public constructor(
-		private readonly activeJsTsEditorTracker: ActiveJsTsEditorTracker,
-		private readonly lazyClientHost: Lazy<TypeScriptServiceClientHost>,
+	pubwic constwuctow(
+		pwivate weadonwy activeJsTsEditowTwacka: ActiveJsTsEditowTwacka,
+		pwivate weadonwy wazyCwientHost: Wazy<TypeScwiptSewviceCwientHost>,
 	) { }
 
-	public execute() {
-		const editor = this.activeJsTsEditorTracker.activeJsTsEditor;
-		if (editor) {
-			openProjectConfigForFile(ProjectType.TypeScript, this.lazyClientHost.value.serviceClient, editor.document.uri);
+	pubwic execute() {
+		const editow = this.activeJsTsEditowTwacka.activeJsTsEditow;
+		if (editow) {
+			openPwojectConfigFowFiwe(PwojectType.TypeScwipt, this.wazyCwientHost.vawue.sewviceCwient, editow.document.uwi);
 		}
 	}
 }
 
-export class JavaScriptGoToProjectConfigCommand implements Command {
-	public readonly id = 'javascript.goToProjectConfig';
+expowt cwass JavaScwiptGoToPwojectConfigCommand impwements Command {
+	pubwic weadonwy id = 'javascwipt.goToPwojectConfig';
 
-	public constructor(
-		private readonly activeJsTsEditorTracker: ActiveJsTsEditorTracker,
-		private readonly lazyClientHost: Lazy<TypeScriptServiceClientHost>,
+	pubwic constwuctow(
+		pwivate weadonwy activeJsTsEditowTwacka: ActiveJsTsEditowTwacka,
+		pwivate weadonwy wazyCwientHost: Wazy<TypeScwiptSewviceCwientHost>,
 	) { }
 
-	public execute() {
-		const editor = this.activeJsTsEditorTracker.activeJsTsEditor;
-		if (editor) {
-			openProjectConfigForFile(ProjectType.JavaScript, this.lazyClientHost.value.serviceClient, editor.document.uri);
+	pubwic execute() {
+		const editow = this.activeJsTsEditowTwacka.activeJsTsEditow;
+		if (editow) {
+			openPwojectConfigFowFiwe(PwojectType.JavaScwipt, this.wazyCwientHost.vawue.sewviceCwient, editow.document.uwi);
 		}
 	}
 }

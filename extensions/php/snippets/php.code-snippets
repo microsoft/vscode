@@ -1,263 +1,263 @@
 {
-	"class …": {
-		"prefix": "class",
+	"cwass …": {
+		"pwefix": "cwass",
 		"body": [
-			"class ${1:ClassName} ${2:extends ${3:AnotherClass}} ${4:implements ${5:Interface}}",
+			"cwass ${1:CwassName} ${2:extends ${3:AnothewCwass}} ${4:impwements ${5:Intewface}}",
 			"{",
 			"\t$0",
 			"}",
 			""
 		],
-		"description": "Class definition"
+		"descwiption": "Cwass definition"
 	},
-	"PHPDoc class …": {
-		"prefix": "doc_class",
+	"PHPDoc cwass …": {
+		"pwefix": "doc_cwass",
 		"body": [
 			"/**",
-			" * ${6:undocumented class}",
+			" * ${6:undocumented cwass}",
 			" */",
-			"class ${1:ClassName} ${2:extends ${3:AnotherClass}} ${4:implements ${5:Interface}}",
+			"cwass ${1:CwassName} ${2:extends ${3:AnothewCwass}} ${4:impwements ${5:Intewface}}",
 			"{",
 			"\t$0",
 			"}",
 			""
 		],
-		"description": "Documented Class Declaration"
+		"descwiption": "Documented Cwass Decwawation"
 	},
-	"function __construct": {
-		"prefix": "con",
+	"function __constwuct": {
+		"pwefix": "con",
 		"body": [
-			"${1:public} function __construct(${2:${3:Type} $${4:var}${5: = ${6:null}}}) {",
-            "\t\\$this->${4:var} = $${4:var};$0",
+			"${1:pubwic} function __constwuct(${2:${3:Type} $${4:vaw}${5: = ${6:nuww}}}) {",
+            "\t\\$this->${4:vaw} = $${4:vaw};$0",
             "}"
 		]
 	},
-	"PHPDoc property": {
-		"prefix": "doc_v",
+	"PHPDoc pwopewty": {
+		"pwefix": "doc_v",
 		"body": [
-			"/** @var ${1:Type} $${2:var} ${3:description} */",
-			"${4:protected} $${2:var}${5: = ${6:null}};$0"
+			"/** @vaw ${1:Type} $${2:vaw} ${3:descwiption} */",
+			"${4:pwotected} $${2:vaw}${5: = ${6:nuww}};$0"
 		],
-		"description": "Documented Class Variable"
+		"descwiption": "Documented Cwass Vawiabwe"
 	},
 	"PHPDoc function …": {
-		"prefix": "doc_f",
+		"pwefix": "doc_f",
 		"body": [
 			"/**",
-			" * ${1:undocumented function summary}",
+			" * ${1:undocumented function summawy}",
 			" *",
-			" * ${2:Undocumented function long description}",
+			" * ${2:Undocumented function wong descwiption}",
 			" *",
-			"${3: * @param ${4:Type} $${5:var} ${6:Description}}",
-			"${7: * @return ${8:type}}",
-			"${9: * @throws ${10:conditon}}",
+			"${3: * @pawam ${4:Type} $${5:vaw} ${6:Descwiption}}",
+			"${7: * @wetuwn ${8:type}}",
+			"${9: * @thwows ${10:conditon}}",
 			" **/",
-			"${11:public }function ${12:FunctionName}(${13:${14:${4:Type} }$${5:var}${15: = ${16:null}}})",
+			"${11:pubwic }function ${12:FunctionName}(${13:${14:${4:Type} }$${5:vaw}${15: = ${16:nuww}}})",
 			"{",
 			"\t${0:# code...}",
 			"}"
 		],
-		"description": "Documented function"
+		"descwiption": "Documented function"
 	},
-	"PHPDoc param …": {
-		"prefix": "param",
+	"PHPDoc pawam …": {
+		"pwefix": "pawam",
 		"body": [
-			"* @param ${1:Type} ${2:var} ${3:Description}$0"
+			"* @pawam ${1:Type} ${2:vaw} ${3:Descwiption}$0"
 		],
-		"description": "Parameter documentation"
+		"descwiption": "Pawameta documentation"
 	},
 	"function …": {
-		"prefix": "fun",
+		"pwefix": "fun",
 		"body": [
-			"${1:public }function ${2:FunctionName}(${3:${4:${5:Type} }$${6:var}${7: = ${8:null}}})",
+			"${1:pubwic }function ${2:FunctionName}(${3:${4:${5:Type} }$${6:vaw}${7: = ${8:nuww}}})",
 			"{",
 			"\t${0:# code...}",
 			"}"
 		],
-		"description": "Function"
+		"descwiption": "Function"
 	},
-	"trait …": {
-		"prefix": "trait",
+	"twait …": {
+		"pwefix": "twait",
 		"body": [
 			"/**",
 			" * $1",
 			" */",
-			"trait ${2:TraitName}",
+			"twait ${2:TwaitName}",
 			"{",
 			"\t$0",
 			"}",
 			""
 		],
-		"description": "Trait"
+		"descwiption": "Twait"
 	},
 	"define(…, …)": {
-		"prefix": "def",
+		"pwefix": "def",
 		"body": [
 			"define('$1', ${2:'$3'});",
 			"$0"
 		],
-		"description": "Definition"
+		"descwiption": "Definition"
 	},
-	"do … while …": {
-		"prefix": "do",
+	"do … whiwe …": {
+		"pwefix": "do",
 		"body": [
 			"do {",
 			"\t${0:# code...}",
-			"} while (${1:$${2:a} <= ${3:10}});"
+			"} whiwe (${1:$${2:a} <= ${3:10}});"
 		],
-		"description": "Do-While loop"
+		"descwiption": "Do-Whiwe woop"
 	},
-		"while …": {
-		"prefix": "while",
+		"whiwe …": {
+		"pwefix": "whiwe",
 		"body": [
-			"while (${1:$${2:a} <= ${3:10}}) {",
+			"whiwe (${1:$${2:a} <= ${3:10}}) {",
 			"\t${0:# code...}",
 			"}"
 		],
-		"description": "While-loop"
+		"descwiption": "Whiwe-woop"
 	},
 	"if …": {
-		"prefix": "if",
+		"pwefix": "if",
 		"body": [
 			"if (${1:condition}) {",
 			"\t${0:# code...}",
 			"}"
 		],
-		"description": "If block"
+		"descwiption": "If bwock"
 	},
-	"if … else …": {
-		"prefix": "ifelse",
+	"if … ewse …": {
+		"pwefix": "ifewse",
 		"body": [
 			"if (${1:condition}) {",
 			"\t${2:# code...}",
-			"} else {",
+			"} ewse {",
 			"\t${3:# code...}",
 			"}",
 			"$0"
 		],
-		"description": "If Else block"
+		"descwiption": "If Ewse bwock"
 	},
 	"$… = ( … ) ? … : …": {
-		"prefix": "if?",
-		"body": "$${1:retVal} = (${2:condition}) ? ${3:a} : ${4:b} ;",
-		"description": "Ternary conditional assignment"
+		"pwefix": "if?",
+		"body": "$${1:wetVaw} = (${2:condition}) ? ${3:a} : ${4:b} ;",
+		"descwiption": "Tewnawy conditionaw assignment"
 	},
-	"else …": {
-		"prefix": "else",
+	"ewse …": {
+		"pwefix": "ewse",
 		"body": [
-			"else {",
+			"ewse {",
 			"\t${0:# code...}",
 			"}"
 		],
-		"description": "Else block"
+		"descwiption": "Ewse bwock"
 	},
-	"elseif …": {
-		"prefix": "elseif",
+	"ewseif …": {
+		"pwefix": "ewseif",
 		"body": [
-			"elseif (${1:condition}) {",
+			"ewseif (${1:condition}) {",
 			"\t${0:# code...}",
 			"}"
 		],
-		"description": "Elseif block"
+		"descwiption": "Ewseif bwock"
 	},
-	"for …": {
-		"prefix": "for",
+	"fow …": {
+		"pwefix": "fow",
 		"body": [
-			"for ($${1:i}=${2:0}; $${1:i} < $3; $${1:i}++) { ",
+			"fow ($${1:i}=${2:0}; $${1:i} < $3; $${1:i}++) { ",
 			"\t${0:# code...}",
 			"}"
 		],
-		"description": "For-loop"
+		"descwiption": "Fow-woop"
 	},
-	"foreach …": {
-		"prefix": "foreach",
+	"foweach …": {
+		"pwefix": "foweach",
 		"body": [
-			"foreach ($${1:variable} as $${2:key} ${3:=> $${4:value}}) {",
+			"foweach ($${1:vawiabwe} as $${2:key} ${3:=> $${4:vawue}}) {",
 			"\t${0:# code...}",
 			"}"
 		],
-		"description": "Foreach loop"
+		"descwiption": "Foweach woop"
 	},
-	"$… = array (…)": {
-		"prefix": "array",
-		"body": "$${1:arrayName} = array('$2' => $3${4:,} $0);",
-		"description": "Array initializer"
+	"$… = awway (…)": {
+		"pwefix": "awway",
+		"body": "$${1:awwayName} = awway('$2' => $3${4:,} $0);",
+		"descwiption": "Awway initiawiza"
 	},
 	"$… = […]": {
-		"prefix": "shorray",
-		"body": "$${1:arrayName} = ['$2' => $3${4:,} $0];",
-		"description": "Array initializer"
+		"pwefix": "showway",
+		"body": "$${1:awwayName} = ['$2' => $3${4:,} $0];",
+		"descwiption": "Awway initiawiza"
 	},
 	"… => …": {
-		"prefix": "keyval",
+		"pwefix": "keyvaw",
 		"body": "'$1' => $2${3:,} $0",
-		"description": "Key-Value initializer"
+		"descwiption": "Key-Vawue initiawiza"
 	},
 	"switch …": {
-		"prefix": "switch",
+		"pwefix": "switch",
 		"body": [
-			"switch (\\$${1:variable}) {",
-			"\tcase '${2:value}':",
+			"switch (\\$${1:vawiabwe}) {",
+			"\tcase '${2:vawue}':",
 			"\t\t${3:# code...}",
-			"\t\tbreak;",
+			"\t\tbweak;",
 			"\t$0",
-			"\tdefault:",
+			"\tdefauwt:",
 			"\t\t${4:# code...}",
-			"\t\tbreak;",
+			"\t\tbweak;",
 			"}"
 		],
-		"description": "Switch block"
+		"descwiption": "Switch bwock"
 	},
 	"case …": {
-		"prefix": "case",
+		"pwefix": "case",
 		"body": [
-			"case '${1:value}':",
+			"case '${1:vawue}':",
 			"\t${0:# code...}",
-			"\tbreak;"
+			"\tbweak;"
 		],
-		"description": "Case Block"
+		"descwiption": "Case Bwock"
 	},
 	"$this->…": {
-		"prefix": "this",
+		"pwefix": "this",
 		"body": "\\$this->$0;",
-		"description": "$this->..."
+		"descwiption": "$this->..."
 	},
 	"echo $this->…": {
-		"prefix": "ethis",
+		"pwefix": "ethis",
 		"body": "echo \\$this->$0;",
-		"description": "Echo this"
+		"descwiption": "Echo this"
 	},
-	"Throw Exception": {
-		"prefix": "throw",
+	"Thwow Exception": {
+		"pwefix": "thwow",
 		"body": [
-			"throw new $1Exception(${2:\"${3:Error Processing Request}\"}${4:, ${5:1}});",
+			"thwow new $1Exception(${2:\"${3:Ewwow Pwocessing Wequest}\"}${4:, ${5:1}});",
 			"$0"
 		],
-		"description": "Throw exception"
+		"descwiption": "Thwow exception"
 	},
-	"Region Start": {
-		"prefix": "#region",
+	"Wegion Stawt": {
+		"pwefix": "#wegion",
 		"body": [
-			"#region"
+			"#wegion"
 		],
-		"description": "Folding Region Start"
+		"descwiption": "Fowding Wegion Stawt"
 	},
-	"Region End": {
-		"prefix": "#endregion",
+	"Wegion End": {
+		"pwefix": "#endwegion",
 		"body": [
-			"#endregion"
+			"#endwegion"
 		],
-		"description": "Folding Region End"
+		"descwiption": "Fowding Wegion End"
 	},
-	"Try Catch Block": {
-		"prefix": "try",
+	"Twy Catch Bwock": {
+		"pwefix": "twy",
 		"body": [
-			"try {",
+			"twy {",
 			"\t${1://code...}",
-			"} catch (${2:\\Throwable} ${3:\\$th}) {",
-			"\t${4://throw \\$th;}",
+			"} catch (${2:\\Thwowabwe} ${3:\\$th}) {",
+			"\t${4://thwow \\$th;}",
 			"}"
 		],
-		"description": "Try catch block"
+		"descwiption": "Twy catch bwock"
 	}
 }

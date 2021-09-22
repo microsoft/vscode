@@ -1,416 +1,416 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { Location } from 'vs/editor/common/modes';
-import { getOuterEditor, PeekContext } from 'vs/editor/contrib/peekView/peekView';
-import * as nls from 'vs/nls';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IListService, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { OneReference, ReferencesModel } from '../referencesModel';
-import { LayoutData, ReferenceWidget } from './referencesWidget';
+impowt { CancewabwePwomise, cweateCancewabwePwomise } fwom 'vs/base/common/async';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { KeyChowd, KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { Wocation } fwom 'vs/editow/common/modes';
+impowt { getOutewEditow, PeekContext } fwom 'vs/editow/contwib/peekView/peekView';
+impowt * as nws fwom 'vs/nws';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ContextKeyExpw, IContextKey, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { IWistSewvice, WowkbenchWistFocusContextKey } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { OneWefewence, WefewencesModew } fwom '../wefewencesModew';
+impowt { WayoutData, WefewenceWidget } fwom './wefewencesWidget';
 
-export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false, nls.localize('referenceSearchVisible', "Whether reference peek is visible, like 'Peek References' or 'Peek Definition'"));
+expowt const ctxWefewenceSeawchVisibwe = new WawContextKey<boowean>('wefewenceSeawchVisibwe', fawse, nws.wocawize('wefewenceSeawchVisibwe', "Whetha wefewence peek is visibwe, wike 'Peek Wefewences' ow 'Peek Definition'"));
 
-export abstract class ReferencesController implements IEditorContribution {
+expowt abstwact cwass WefewencesContwowwa impwements IEditowContwibution {
 
-	static readonly ID = 'editor.contrib.referencesController';
+	static weadonwy ID = 'editow.contwib.wefewencesContwowwa';
 
-	private readonly _disposables = new DisposableStore();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
 
-	private _widget?: ReferenceWidget;
-	private _model?: ReferencesModel;
-	private _peekMode?: boolean;
-	private _requestIdPool = 0;
-	private _ignoreModelChangeEvent = false;
+	pwivate _widget?: WefewenceWidget;
+	pwivate _modew?: WefewencesModew;
+	pwivate _peekMode?: boowean;
+	pwivate _wequestIdPoow = 0;
+	pwivate _ignoweModewChangeEvent = fawse;
 
-	private readonly _referenceSearchVisible: IContextKey<boolean>;
+	pwivate weadonwy _wefewenceSeawchVisibwe: IContextKey<boowean>;
 
-	static get(editor: ICodeEditor): ReferencesController {
-		return editor.getContribution<ReferencesController>(ReferencesController.ID);
+	static get(editow: ICodeEditow): WefewencesContwowwa {
+		wetuwn editow.getContwibution<WefewencesContwowwa>(WefewencesContwowwa.ID);
 	}
 
-	constructor(
-		private readonly _defaultTreeKeyboardSupport: boolean,
-		private readonly _editor: ICodeEditor,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICodeEditorService private readonly _editorService: ICodeEditorService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IStorageService private readonly _storageService: IStorageService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+	constwuctow(
+		pwivate weadonwy _defauwtTweeKeyboawdSuppowt: boowean,
+		pwivate weadonwy _editow: ICodeEditow,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@ICodeEditowSewvice pwivate weadonwy _editowSewvice: ICodeEditowSewvice,
+		@INotificationSewvice pwivate weadonwy _notificationSewvice: INotificationSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IStowageSewvice pwivate weadonwy _stowageSewvice: IStowageSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
 	) {
 
-		this._referenceSearchVisible = ctxReferenceSearchVisible.bindTo(contextKeyService);
+		this._wefewenceSeawchVisibwe = ctxWefewenceSeawchVisibwe.bindTo(contextKeySewvice);
 	}
 
 	dispose(): void {
-		this._referenceSearchVisible.reset();
-		this._disposables.dispose();
+		this._wefewenceSeawchVisibwe.weset();
+		this._disposabwes.dispose();
 		this._widget?.dispose();
-		this._model?.dispose();
+		this._modew?.dispose();
 		this._widget = undefined;
-		this._model = undefined;
+		this._modew = undefined;
 	}
 
-	toggleWidget(range: Range, modelPromise: CancelablePromise<ReferencesModel>, peekMode: boolean): void {
+	toggweWidget(wange: Wange, modewPwomise: CancewabwePwomise<WefewencesModew>, peekMode: boowean): void {
 
-		// close current widget and return early is position didn't change
-		let widgetPosition: Position | undefined;
+		// cwose cuwwent widget and wetuwn eawwy is position didn't change
+		wet widgetPosition: Position | undefined;
 		if (this._widget) {
 			widgetPosition = this._widget.position;
 		}
-		this.closeWidget();
-		if (!!widgetPosition && range.containsPosition(widgetPosition)) {
-			return;
+		this.cwoseWidget();
+		if (!!widgetPosition && wange.containsPosition(widgetPosition)) {
+			wetuwn;
 		}
 
 		this._peekMode = peekMode;
-		this._referenceSearchVisible.set(true);
+		this._wefewenceSeawchVisibwe.set(twue);
 
-		// close the widget on model/mode changes
-		this._disposables.add(this._editor.onDidChangeModelLanguage(() => { this.closeWidget(); }));
-		this._disposables.add(this._editor.onDidChangeModel(() => {
-			if (!this._ignoreModelChangeEvent) {
-				this.closeWidget();
+		// cwose the widget on modew/mode changes
+		this._disposabwes.add(this._editow.onDidChangeModewWanguage(() => { this.cwoseWidget(); }));
+		this._disposabwes.add(this._editow.onDidChangeModew(() => {
+			if (!this._ignoweModewChangeEvent) {
+				this.cwoseWidget();
 			}
 		}));
-		const storageKey = 'peekViewLayout';
-		const data = LayoutData.fromJSON(this._storageService.get(storageKey, StorageScope.GLOBAL, '{}'));
-		this._widget = this._instantiationService.createInstance(ReferenceWidget, this._editor, this._defaultTreeKeyboardSupport, data);
-		this._widget.setTitle(nls.localize('labelLoading', "Loading..."));
-		this._widget.show(range);
+		const stowageKey = 'peekViewWayout';
+		const data = WayoutData.fwomJSON(this._stowageSewvice.get(stowageKey, StowageScope.GWOBAW, '{}'));
+		this._widget = this._instantiationSewvice.cweateInstance(WefewenceWidget, this._editow, this._defauwtTweeKeyboawdSuppowt, data);
+		this._widget.setTitwe(nws.wocawize('wabewWoading', "Woading..."));
+		this._widget.show(wange);
 
-		this._disposables.add(this._widget.onDidClose(() => {
-			modelPromise.cancel();
+		this._disposabwes.add(this._widget.onDidCwose(() => {
+			modewPwomise.cancew();
 			if (this._widget) {
-				this._storageService.store(storageKey, JSON.stringify(this._widget.layoutData), StorageScope.GLOBAL, StorageTarget.MACHINE);
+				this._stowageSewvice.stowe(stowageKey, JSON.stwingify(this._widget.wayoutData), StowageScope.GWOBAW, StowageTawget.MACHINE);
 				this._widget = undefined;
 			}
-			this.closeWidget();
+			this.cwoseWidget();
 		}));
 
-		this._disposables.add(this._widget.onDidSelectReference(event => {
-			let { element, kind } = event;
-			if (!element) {
-				return;
+		this._disposabwes.add(this._widget.onDidSewectWefewence(event => {
+			wet { ewement, kind } = event;
+			if (!ewement) {
+				wetuwn;
 			}
 			switch (kind) {
 				case 'open':
-					if (event.source !== 'editor' || !this._configurationService.getValue('editor.stablePeek')) {
-						// when stable peek is configured we don't close
-						// the peek window on selecting the editor
-						this.openReference(element, false, false);
+					if (event.souwce !== 'editow' || !this._configuwationSewvice.getVawue('editow.stabwePeek')) {
+						// when stabwe peek is configuwed we don't cwose
+						// the peek window on sewecting the editow
+						this.openWefewence(ewement, fawse, fawse);
 					}
-					break;
+					bweak;
 				case 'side':
-					this.openReference(element, true, false);
-					break;
+					this.openWefewence(ewement, twue, fawse);
+					bweak;
 				case 'goto':
 					if (peekMode) {
-						this._gotoReference(element);
-					} else {
-						this.openReference(element, false, true);
+						this._gotoWefewence(ewement);
+					} ewse {
+						this.openWefewence(ewement, fawse, twue);
 					}
-					break;
+					bweak;
 			}
 		}));
 
-		const requestId = ++this._requestIdPool;
+		const wequestId = ++this._wequestIdPoow;
 
-		modelPromise.then(model => {
+		modewPwomise.then(modew => {
 
-			// still current request? widget still open?
-			if (requestId !== this._requestIdPool || !this._widget) {
-				model.dispose();
-				return undefined;
+			// stiww cuwwent wequest? widget stiww open?
+			if (wequestId !== this._wequestIdPoow || !this._widget) {
+				modew.dispose();
+				wetuwn undefined;
 			}
 
-			this._model?.dispose();
-			this._model = model;
+			this._modew?.dispose();
+			this._modew = modew;
 
 			// show widget
-			return this._widget.setModel(this._model).then(() => {
-				if (this._widget && this._model && this._editor.hasModel()) { // might have been closed
+			wetuwn this._widget.setModew(this._modew).then(() => {
+				if (this._widget && this._modew && this._editow.hasModew()) { // might have been cwosed
 
-					// set title
-					if (!this._model.isEmpty) {
-						this._widget.setMetaTitle(nls.localize('metaTitle.N', "{0} ({1})", this._model.title, this._model.references.length));
-					} else {
-						this._widget.setMetaTitle('');
+					// set titwe
+					if (!this._modew.isEmpty) {
+						this._widget.setMetaTitwe(nws.wocawize('metaTitwe.N', "{0} ({1})", this._modew.titwe, this._modew.wefewences.wength));
+					} ewse {
+						this._widget.setMetaTitwe('');
 					}
 
-					// set 'best' selection
-					let uri = this._editor.getModel().uri;
-					let pos = new Position(range.startLineNumber, range.startColumn);
-					let selection = this._model.nearestReference(uri, pos);
-					if (selection) {
-						return this._widget.setSelection(selection).then(() => {
-							if (this._widget && this._editor.getOption(EditorOption.peekWidgetDefaultFocus) === 'editor') {
-								this._widget.focusOnPreviewEditor();
+					// set 'best' sewection
+					wet uwi = this._editow.getModew().uwi;
+					wet pos = new Position(wange.stawtWineNumba, wange.stawtCowumn);
+					wet sewection = this._modew.neawestWefewence(uwi, pos);
+					if (sewection) {
+						wetuwn this._widget.setSewection(sewection).then(() => {
+							if (this._widget && this._editow.getOption(EditowOption.peekWidgetDefauwtFocus) === 'editow') {
+								this._widget.focusOnPweviewEditow();
 							}
 						});
 					}
 				}
-				return undefined;
+				wetuwn undefined;
 			});
 
-		}, error => {
-			this._notificationService.error(error);
+		}, ewwow => {
+			this._notificationSewvice.ewwow(ewwow);
 		});
 	}
 
-	changeFocusBetweenPreviewAndReferences() {
+	changeFocusBetweenPweviewAndWefewences() {
 		if (!this._widget) {
-			// can be called while still resolving...
-			return;
+			// can be cawwed whiwe stiww wesowving...
+			wetuwn;
 		}
-		if (this._widget.isPreviewEditorFocused()) {
-			this._widget.focusOnReferenceTree();
-		} else {
-			this._widget.focusOnPreviewEditor();
-		}
-	}
-
-	async goToNextOrPreviousReference(fwd: boolean) {
-		if (!this._editor.hasModel() || !this._model || !this._widget) {
-			// can be called while still resolving...
-			return;
-		}
-		const currentPosition = this._widget.position;
-		if (!currentPosition) {
-			return;
-		}
-		const source = this._model.nearestReference(this._editor.getModel().uri, currentPosition);
-		if (!source) {
-			return;
-		}
-		const target = this._model.nextOrPreviousReference(source, fwd);
-		const editorFocus = this._editor.hasTextFocus();
-		const previewEditorFocus = this._widget.isPreviewEditorFocused();
-		await this._widget.setSelection(target);
-		await this._gotoReference(target);
-		if (editorFocus) {
-			this._editor.focus();
-		} else if (this._widget && previewEditorFocus) {
-			this._widget.focusOnPreviewEditor();
+		if (this._widget.isPweviewEditowFocused()) {
+			this._widget.focusOnWefewenceTwee();
+		} ewse {
+			this._widget.focusOnPweviewEditow();
 		}
 	}
 
-	async revealReference(reference: OneReference): Promise<void> {
-		if (!this._editor.hasModel() || !this._model || !this._widget) {
-			// can be called while still resolving...
-			return;
+	async goToNextOwPweviousWefewence(fwd: boowean) {
+		if (!this._editow.hasModew() || !this._modew || !this._widget) {
+			// can be cawwed whiwe stiww wesowving...
+			wetuwn;
 		}
-
-		await this._widget.revealReference(reference);
+		const cuwwentPosition = this._widget.position;
+		if (!cuwwentPosition) {
+			wetuwn;
+		}
+		const souwce = this._modew.neawestWefewence(this._editow.getModew().uwi, cuwwentPosition);
+		if (!souwce) {
+			wetuwn;
+		}
+		const tawget = this._modew.nextOwPweviousWefewence(souwce, fwd);
+		const editowFocus = this._editow.hasTextFocus();
+		const pweviewEditowFocus = this._widget.isPweviewEditowFocused();
+		await this._widget.setSewection(tawget);
+		await this._gotoWefewence(tawget);
+		if (editowFocus) {
+			this._editow.focus();
+		} ewse if (this._widget && pweviewEditowFocus) {
+			this._widget.focusOnPweviewEditow();
+		}
 	}
 
-	closeWidget(focusEditor = true): void {
+	async weveawWefewence(wefewence: OneWefewence): Pwomise<void> {
+		if (!this._editow.hasModew() || !this._modew || !this._widget) {
+			// can be cawwed whiwe stiww wesowving...
+			wetuwn;
+		}
+
+		await this._widget.weveawWefewence(wefewence);
+	}
+
+	cwoseWidget(focusEditow = twue): void {
 		this._widget?.dispose();
-		this._model?.dispose();
-		this._referenceSearchVisible.reset();
-		this._disposables.clear();
+		this._modew?.dispose();
+		this._wefewenceSeawchVisibwe.weset();
+		this._disposabwes.cweaw();
 		this._widget = undefined;
-		this._model = undefined;
-		if (focusEditor) {
-			this._editor.focus();
+		this._modew = undefined;
+		if (focusEditow) {
+			this._editow.focus();
 		}
-		this._requestIdPool += 1; // Cancel pending requests
+		this._wequestIdPoow += 1; // Cancew pending wequests
 	}
 
-	private _gotoReference(ref: Location): Promise<any> {
+	pwivate _gotoWefewence(wef: Wocation): Pwomise<any> {
 		if (this._widget) {
 			this._widget.hide();
 		}
 
-		this._ignoreModelChangeEvent = true;
-		const range = Range.lift(ref.range).collapseToStart();
+		this._ignoweModewChangeEvent = twue;
+		const wange = Wange.wift(wef.wange).cowwapseToStawt();
 
-		return this._editorService.openCodeEditor({
-			resource: ref.uri,
-			options: { selection: range }
-		}, this._editor).then(openedEditor => {
-			this._ignoreModelChangeEvent = false;
+		wetuwn this._editowSewvice.openCodeEditow({
+			wesouwce: wef.uwi,
+			options: { sewection: wange }
+		}, this._editow).then(openedEditow => {
+			this._ignoweModewChangeEvent = fawse;
 
-			if (!openedEditor || !this._widget) {
-				// something went wrong...
-				this.closeWidget();
-				return;
+			if (!openedEditow || !this._widget) {
+				// something went wwong...
+				this.cwoseWidget();
+				wetuwn;
 			}
 
-			if (this._editor === openedEditor) {
+			if (this._editow === openedEditow) {
 				//
-				this._widget.show(range);
-				this._widget.focusOnReferenceTree();
+				this._widget.show(wange);
+				this._widget.focusOnWefewenceTwee();
 
-			} else {
-				// we opened a different editor instance which means a different controller instance.
-				// therefore we stop with this controller and continue with the other
-				const other = ReferencesController.get(openedEditor);
-				const model = this._model!.clone();
+			} ewse {
+				// we opened a diffewent editow instance which means a diffewent contwowwa instance.
+				// thewefowe we stop with this contwowwa and continue with the otha
+				const otha = WefewencesContwowwa.get(openedEditow);
+				const modew = this._modew!.cwone();
 
-				this.closeWidget();
-				openedEditor.focus();
+				this.cwoseWidget();
+				openedEditow.focus();
 
-				other.toggleWidget(
-					range,
-					createCancelablePromise(_ => Promise.resolve(model)),
-					this._peekMode ?? false
+				otha.toggweWidget(
+					wange,
+					cweateCancewabwePwomise(_ => Pwomise.wesowve(modew)),
+					this._peekMode ?? fawse
 				);
 			}
 
-		}, (err) => {
-			this._ignoreModelChangeEvent = false;
-			onUnexpectedError(err);
+		}, (eww) => {
+			this._ignoweModewChangeEvent = fawse;
+			onUnexpectedEwwow(eww);
 		});
 	}
 
-	openReference(ref: Location, sideBySide: boolean, pinned: boolean): void {
-		// clear stage
+	openWefewence(wef: Wocation, sideBySide: boowean, pinned: boowean): void {
+		// cweaw stage
 		if (!sideBySide) {
-			this.closeWidget();
+			this.cwoseWidget();
 		}
 
-		const { uri, range } = ref;
-		this._editorService.openCodeEditor({
-			resource: uri,
-			options: { selection: range, pinned }
-		}, this._editor, sideBySide);
+		const { uwi, wange } = wef;
+		this._editowSewvice.openCodeEditow({
+			wesouwce: uwi,
+			options: { sewection: wange, pinned }
+		}, this._editow, sideBySide);
 	}
 }
 
-function withController(accessor: ServicesAccessor, fn: (controller: ReferencesController) => void): void {
-	const outerEditor = getOuterEditor(accessor);
-	if (!outerEditor) {
-		return;
+function withContwowwa(accessow: SewvicesAccessow, fn: (contwowwa: WefewencesContwowwa) => void): void {
+	const outewEditow = getOutewEditow(accessow);
+	if (!outewEditow) {
+		wetuwn;
 	}
-	let controller = ReferencesController.get(outerEditor);
-	if (controller) {
-		fn(controller);
+	wet contwowwa = WefewencesContwowwa.get(outewEditow);
+	if (contwowwa) {
+		fn(contwowwa);
 	}
 }
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'togglePeekWidgetFocus',
-	weight: KeybindingWeight.EditorContrib,
-	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.F2),
-	when: ContextKeyExpr.or(ctxReferenceSearchVisible, PeekContext.inPeekEditor),
-	handler(accessor) {
-		withController(accessor, controller => {
-			controller.changeFocusBetweenPreviewAndReferences();
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'toggwePeekWidgetFocus',
+	weight: KeybindingWeight.EditowContwib,
+	pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyCode.F2),
+	when: ContextKeyExpw.ow(ctxWefewenceSeawchVisibwe, PeekContext.inPeekEditow),
+	handwa(accessow) {
+		withContwowwa(accessow, contwowwa => {
+			contwowwa.changeFocusBetweenPweviewAndWefewences();
 		});
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'goToNextReference',
-	weight: KeybindingWeight.EditorContrib - 10,
-	primary: KeyCode.F4,
-	secondary: [KeyCode.F12],
-	when: ContextKeyExpr.or(ctxReferenceSearchVisible, PeekContext.inPeekEditor),
-	handler(accessor) {
-		withController(accessor, controller => {
-			controller.goToNextOrPreviousReference(true);
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'goToNextWefewence',
+	weight: KeybindingWeight.EditowContwib - 10,
+	pwimawy: KeyCode.F4,
+	secondawy: [KeyCode.F12],
+	when: ContextKeyExpw.ow(ctxWefewenceSeawchVisibwe, PeekContext.inPeekEditow),
+	handwa(accessow) {
+		withContwowwa(accessow, contwowwa => {
+			contwowwa.goToNextOwPweviousWefewence(twue);
 		});
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'goToPreviousReference',
-	weight: KeybindingWeight.EditorContrib - 10,
-	primary: KeyMod.Shift | KeyCode.F4,
-	secondary: [KeyMod.Shift | KeyCode.F12],
-	when: ContextKeyExpr.or(ctxReferenceSearchVisible, PeekContext.inPeekEditor),
-	handler(accessor) {
-		withController(accessor, controller => {
-			controller.goToNextOrPreviousReference(false);
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'goToPweviousWefewence',
+	weight: KeybindingWeight.EditowContwib - 10,
+	pwimawy: KeyMod.Shift | KeyCode.F4,
+	secondawy: [KeyMod.Shift | KeyCode.F12],
+	when: ContextKeyExpw.ow(ctxWefewenceSeawchVisibwe, PeekContext.inPeekEditow),
+	handwa(accessow) {
+		withContwowwa(accessow, contwowwa => {
+			contwowwa.goToNextOwPweviousWefewence(fawse);
 		});
 	}
 });
 
-// commands that aren't needed anymore because there is now ContextKeyExpr.OR
-CommandsRegistry.registerCommandAlias('goToNextReferenceFromEmbeddedEditor', 'goToNextReference');
-CommandsRegistry.registerCommandAlias('goToPreviousReferenceFromEmbeddedEditor', 'goToPreviousReference');
+// commands that awen't needed anymowe because thewe is now ContextKeyExpw.OW
+CommandsWegistwy.wegistewCommandAwias('goToNextWefewenceFwomEmbeddedEditow', 'goToNextWefewence');
+CommandsWegistwy.wegistewCommandAwias('goToPweviousWefewenceFwomEmbeddedEditow', 'goToPweviousWefewence');
 
-// close
-CommandsRegistry.registerCommandAlias('closeReferenceSearchEditor', 'closeReferenceSearch');
-CommandsRegistry.registerCommand(
-	'closeReferenceSearch',
-	accessor => withController(accessor, controller => controller.closeWidget())
+// cwose
+CommandsWegistwy.wegistewCommandAwias('cwoseWefewenceSeawchEditow', 'cwoseWefewenceSeawch');
+CommandsWegistwy.wegistewCommand(
+	'cwoseWefewenceSeawch',
+	accessow => withContwowwa(accessow, contwowwa => contwowwa.cwoseWidget())
 );
-KeybindingsRegistry.registerKeybindingRule({
-	id: 'closeReferenceSearch',
-	weight: KeybindingWeight.EditorContrib - 101,
-	primary: KeyCode.Escape,
-	secondary: [KeyMod.Shift | KeyCode.Escape],
-	when: ContextKeyExpr.and(PeekContext.inPeekEditor, ContextKeyExpr.not('config.editor.stablePeek'))
+KeybindingsWegistwy.wegistewKeybindingWuwe({
+	id: 'cwoseWefewenceSeawch',
+	weight: KeybindingWeight.EditowContwib - 101,
+	pwimawy: KeyCode.Escape,
+	secondawy: [KeyMod.Shift | KeyCode.Escape],
+	when: ContextKeyExpw.and(PeekContext.inPeekEditow, ContextKeyExpw.not('config.editow.stabwePeek'))
 });
-KeybindingsRegistry.registerKeybindingRule({
-	id: 'closeReferenceSearch',
-	weight: KeybindingWeight.WorkbenchContrib + 50,
-	primary: KeyCode.Escape,
-	secondary: [KeyMod.Shift | KeyCode.Escape],
-	when: ContextKeyExpr.and(ctxReferenceSearchVisible, ContextKeyExpr.not('config.editor.stablePeek'))
+KeybindingsWegistwy.wegistewKeybindingWuwe({
+	id: 'cwoseWefewenceSeawch',
+	weight: KeybindingWeight.WowkbenchContwib + 50,
+	pwimawy: KeyCode.Escape,
+	secondawy: [KeyMod.Shift | KeyCode.Escape],
+	when: ContextKeyExpw.and(ctxWefewenceSeawchVisibwe, ContextKeyExpw.not('config.editow.stabwePeek'))
 });
 
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'revealReference',
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyCode.Enter,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'weveawWefewence',
+	weight: KeybindingWeight.WowkbenchContwib,
+	pwimawy: KeyCode.Enta,
 	mac: {
-		primary: KeyCode.Enter,
-		secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow]
+		pwimawy: KeyCode.Enta,
+		secondawy: [KeyMod.CtwwCmd | KeyCode.DownAwwow]
 	},
-	when: ContextKeyExpr.and(ctxReferenceSearchVisible, WorkbenchListFocusContextKey),
-	handler(accessor: ServicesAccessor) {
-		const listService = accessor.get(IListService);
-		const focus = <any[]>listService.lastFocusedList?.getFocus();
-		if (Array.isArray(focus) && focus[0] instanceof OneReference) {
-			withController(accessor, controller => controller.revealReference(focus[0]));
+	when: ContextKeyExpw.and(ctxWefewenceSeawchVisibwe, WowkbenchWistFocusContextKey),
+	handwa(accessow: SewvicesAccessow) {
+		const wistSewvice = accessow.get(IWistSewvice);
+		const focus = <any[]>wistSewvice.wastFocusedWist?.getFocus();
+		if (Awway.isAwway(focus) && focus[0] instanceof OneWefewence) {
+			withContwowwa(accessow, contwowwa => contwowwa.weveawWefewence(focus[0]));
 		}
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'openReferenceToSide',
-	weight: KeybindingWeight.EditorContrib,
-	primary: KeyMod.CtrlCmd | KeyCode.Enter,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'openWefewenceToSide',
+	weight: KeybindingWeight.EditowContwib,
+	pwimawy: KeyMod.CtwwCmd | KeyCode.Enta,
 	mac: {
-		primary: KeyMod.WinCtrl | KeyCode.Enter
+		pwimawy: KeyMod.WinCtww | KeyCode.Enta
 	},
-	when: ContextKeyExpr.and(ctxReferenceSearchVisible, WorkbenchListFocusContextKey),
-	handler(accessor: ServicesAccessor) {
-		const listService = accessor.get(IListService);
-		const focus = <any[]>listService.lastFocusedList?.getFocus();
-		if (Array.isArray(focus) && focus[0] instanceof OneReference) {
-			withController(accessor, controller => controller.openReference(focus[0], true, true));
+	when: ContextKeyExpw.and(ctxWefewenceSeawchVisibwe, WowkbenchWistFocusContextKey),
+	handwa(accessow: SewvicesAccessow) {
+		const wistSewvice = accessow.get(IWistSewvice);
+		const focus = <any[]>wistSewvice.wastFocusedWist?.getFocus();
+		if (Awway.isAwway(focus) && focus[0] instanceof OneWefewence) {
+			withContwowwa(accessow, contwowwa => contwowwa.openWefewence(focus[0], twue, twue));
 		}
 	}
 });
 
-CommandsRegistry.registerCommand('openReference', (accessor) => {
-	const listService = accessor.get(IListService);
-	const focus = <any[]>listService.lastFocusedList?.getFocus();
-	if (Array.isArray(focus) && focus[0] instanceof OneReference) {
-		withController(accessor, controller => controller.openReference(focus[0], false, true));
+CommandsWegistwy.wegistewCommand('openWefewence', (accessow) => {
+	const wistSewvice = accessow.get(IWistSewvice);
+	const focus = <any[]>wistSewvice.wastFocusedWist?.getFocus();
+	if (Awway.isAwway(focus) && focus[0] instanceof OneWefewence) {
+		withContwowwa(accessow, contwowwa => contwowwa.openWefewence(focus[0], fawse, twue));
 	}
 });

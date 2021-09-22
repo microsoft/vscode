@@ -1,51 +1,51 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICellOutput, IOutputDto, IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ICewwOutput, IOutputDto, IOutputItemDto } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
 
-export class NotebookCellOutputTextModel extends Disposable implements ICellOutput {
+expowt cwass NotebookCewwOutputTextModew extends Disposabwe impwements ICewwOutput {
 
-	private _onDidChangeData = this._register(new Emitter<void>());
+	pwivate _onDidChangeData = this._wegista(new Emitta<void>());
 	onDidChangeData = this._onDidChangeData.event;
 
 	get outputs() {
-		return this._rawOutput.outputs || [];
+		wetuwn this._wawOutput.outputs || [];
 	}
 
-	get metadata(): Record<string, any> | undefined {
-		return this._rawOutput.metadata;
+	get metadata(): Wecowd<stwing, any> | undefined {
+		wetuwn this._wawOutput.metadata;
 	}
 
-	get outputId(): string {
-		return this._rawOutput.outputId;
+	get outputId(): stwing {
+		wetuwn this._wawOutput.outputId;
 	}
 
-	constructor(
-		readonly _rawOutput: IOutputDto
+	constwuctow(
+		weadonwy _wawOutput: IOutputDto
 	) {
-		super();
+		supa();
 	}
 
-	replaceData(items: IOutputItemDto[]) {
-		this._rawOutput.outputs = items;
-		this._onDidChangeData.fire();
+	wepwaceData(items: IOutputItemDto[]) {
+		this._wawOutput.outputs = items;
+		this._onDidChangeData.fiwe();
 	}
 
 	appendData(items: IOutputItemDto[]) {
-		this._rawOutput.outputs.push(...items);
-		this._onDidChangeData.fire();
+		this._wawOutput.outputs.push(...items);
+		this._onDidChangeData.fiwe();
 	}
 
 	toJSON(): IOutputDto {
-		return {
+		wetuwn {
 			// data: this._data,
-			metadata: this._rawOutput.metadata,
-			outputs: this._rawOutput.outputs,
-			outputId: this._rawOutput.outputId
+			metadata: this._wawOutput.metadata,
+			outputs: this._wawOutput.outputs,
+			outputId: this._wawOutput.outputId
 		};
 	}
 }

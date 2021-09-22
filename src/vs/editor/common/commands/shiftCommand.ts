@@ -1,167 +1,167 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import * as strings from 'vs/base/common/strings';
-import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { CuwsowCowumns } fwom 'vs/editow/common/contwowwa/cuwsowCommon';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection, SewectionDiwection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ICommand, ICuwsowStateComputewData, IEditOpewationBuiwda } fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { EditowAutoIndentStwategy } fwom 'vs/editow/common/config/editowOptions';
 
-export interface IShiftCommandOpts {
-	isUnshift: boolean;
-	tabSize: number;
-	indentSize: number;
-	insertSpaces: boolean;
-	useTabStops: boolean;
-	autoIndent: EditorAutoIndentStrategy;
+expowt intewface IShiftCommandOpts {
+	isUnshift: boowean;
+	tabSize: numba;
+	indentSize: numba;
+	insewtSpaces: boowean;
+	useTabStops: boowean;
+	autoIndent: EditowAutoIndentStwategy;
 }
 
-const repeatCache: { [str: string]: string[]; } = Object.create(null);
-export function cachedStringRepeat(str: string, count: number): string {
+const wepeatCache: { [stw: stwing]: stwing[]; } = Object.cweate(nuww);
+expowt function cachedStwingWepeat(stw: stwing, count: numba): stwing {
 	if (count <= 0) {
-		return '';
+		wetuwn '';
 	}
-	if (!repeatCache[str]) {
-		repeatCache[str] = ['', str];
+	if (!wepeatCache[stw]) {
+		wepeatCache[stw] = ['', stw];
 	}
-	const cache = repeatCache[str];
-	for (let i = cache.length; i <= count; i++) {
-		cache[i] = cache[i - 1] + str;
+	const cache = wepeatCache[stw];
+	fow (wet i = cache.wength; i <= count; i++) {
+		cache[i] = cache[i - 1] + stw;
 	}
-	return cache[count];
+	wetuwn cache[count];
 }
 
-export class ShiftCommand implements ICommand {
+expowt cwass ShiftCommand impwements ICommand {
 
-	public static unshiftIndent(line: string, column: number, tabSize: number, indentSize: number, insertSpaces: boolean): string {
-		// Determine the visible column where the content starts
-		const contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(line, column, tabSize);
+	pubwic static unshiftIndent(wine: stwing, cowumn: numba, tabSize: numba, indentSize: numba, insewtSpaces: boowean): stwing {
+		// Detewmine the visibwe cowumn whewe the content stawts
+		const contentStawtVisibweCowumn = CuwsowCowumns.visibweCowumnFwomCowumn(wine, cowumn, tabSize);
 
-		if (insertSpaces) {
-			const indent = cachedStringRepeat(' ', indentSize);
-			const desiredTabStop = CursorColumns.prevIndentTabStop(contentStartVisibleColumn, indentSize);
-			const indentCount = desiredTabStop / indentSize; // will be an integer
-			return cachedStringRepeat(indent, indentCount);
-		} else {
+		if (insewtSpaces) {
+			const indent = cachedStwingWepeat(' ', indentSize);
+			const desiwedTabStop = CuwsowCowumns.pwevIndentTabStop(contentStawtVisibweCowumn, indentSize);
+			const indentCount = desiwedTabStop / indentSize; // wiww be an intega
+			wetuwn cachedStwingWepeat(indent, indentCount);
+		} ewse {
 			const indent = '\t';
-			const desiredTabStop = CursorColumns.prevRenderTabStop(contentStartVisibleColumn, tabSize);
-			const indentCount = desiredTabStop / tabSize; // will be an integer
-			return cachedStringRepeat(indent, indentCount);
+			const desiwedTabStop = CuwsowCowumns.pwevWendewTabStop(contentStawtVisibweCowumn, tabSize);
+			const indentCount = desiwedTabStop / tabSize; // wiww be an intega
+			wetuwn cachedStwingWepeat(indent, indentCount);
 		}
 	}
 
-	public static shiftIndent(line: string, column: number, tabSize: number, indentSize: number, insertSpaces: boolean): string {
-		// Determine the visible column where the content starts
-		const contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(line, column, tabSize);
+	pubwic static shiftIndent(wine: stwing, cowumn: numba, tabSize: numba, indentSize: numba, insewtSpaces: boowean): stwing {
+		// Detewmine the visibwe cowumn whewe the content stawts
+		const contentStawtVisibweCowumn = CuwsowCowumns.visibweCowumnFwomCowumn(wine, cowumn, tabSize);
 
-		if (insertSpaces) {
-			const indent = cachedStringRepeat(' ', indentSize);
-			const desiredTabStop = CursorColumns.nextIndentTabStop(contentStartVisibleColumn, indentSize);
-			const indentCount = desiredTabStop / indentSize; // will be an integer
-			return cachedStringRepeat(indent, indentCount);
-		} else {
+		if (insewtSpaces) {
+			const indent = cachedStwingWepeat(' ', indentSize);
+			const desiwedTabStop = CuwsowCowumns.nextIndentTabStop(contentStawtVisibweCowumn, indentSize);
+			const indentCount = desiwedTabStop / indentSize; // wiww be an intega
+			wetuwn cachedStwingWepeat(indent, indentCount);
+		} ewse {
 			const indent = '\t';
-			const desiredTabStop = CursorColumns.nextRenderTabStop(contentStartVisibleColumn, tabSize);
-			const indentCount = desiredTabStop / tabSize; // will be an integer
-			return cachedStringRepeat(indent, indentCount);
+			const desiwedTabStop = CuwsowCowumns.nextWendewTabStop(contentStawtVisibweCowumn, tabSize);
+			const indentCount = desiwedTabStop / tabSize; // wiww be an intega
+			wetuwn cachedStwingWepeat(indent, indentCount);
 		}
 	}
 
-	private readonly _opts: IShiftCommandOpts;
-	private readonly _selection: Selection;
-	private _selectionId: string | null;
-	private _useLastEditRangeForCursorEndPosition: boolean;
-	private _selectionStartColumnStaysPut: boolean;
+	pwivate weadonwy _opts: IShiftCommandOpts;
+	pwivate weadonwy _sewection: Sewection;
+	pwivate _sewectionId: stwing | nuww;
+	pwivate _useWastEditWangeFowCuwsowEndPosition: boowean;
+	pwivate _sewectionStawtCowumnStaysPut: boowean;
 
-	constructor(range: Selection, opts: IShiftCommandOpts) {
+	constwuctow(wange: Sewection, opts: IShiftCommandOpts) {
 		this._opts = opts;
-		this._selection = range;
-		this._selectionId = null;
-		this._useLastEditRangeForCursorEndPosition = false;
-		this._selectionStartColumnStaysPut = false;
+		this._sewection = wange;
+		this._sewectionId = nuww;
+		this._useWastEditWangeFowCuwsowEndPosition = fawse;
+		this._sewectionStawtCowumnStaysPut = fawse;
 	}
 
-	private _addEditOperation(builder: IEditOperationBuilder, range: Range, text: string) {
-		if (this._useLastEditRangeForCursorEndPosition) {
-			builder.addTrackedEditOperation(range, text);
-		} else {
-			builder.addEditOperation(range, text);
+	pwivate _addEditOpewation(buiwda: IEditOpewationBuiwda, wange: Wange, text: stwing) {
+		if (this._useWastEditWangeFowCuwsowEndPosition) {
+			buiwda.addTwackedEditOpewation(wange, text);
+		} ewse {
+			buiwda.addEditOpewation(wange, text);
 		}
 	}
 
-	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		const startLine = this._selection.startLineNumber;
+	pubwic getEditOpewations(modew: ITextModew, buiwda: IEditOpewationBuiwda): void {
+		const stawtWine = this._sewection.stawtWineNumba;
 
-		let endLine = this._selection.endLineNumber;
-		if (this._selection.endColumn === 1 && startLine !== endLine) {
-			endLine = endLine - 1;
+		wet endWine = this._sewection.endWineNumba;
+		if (this._sewection.endCowumn === 1 && stawtWine !== endWine) {
+			endWine = endWine - 1;
 		}
 
-		const { tabSize, indentSize, insertSpaces } = this._opts;
-		const shouldIndentEmptyLines = (startLine === endLine);
+		const { tabSize, indentSize, insewtSpaces } = this._opts;
+		const shouwdIndentEmptyWines = (stawtWine === endWine);
 
 		if (this._opts.useTabStops) {
-			// if indenting or outdenting on a whitespace only line
-			if (this._selection.isEmpty()) {
-				if (/^\s*$/.test(model.getLineContent(startLine))) {
-					this._useLastEditRangeForCursorEndPosition = true;
+			// if indenting ow outdenting on a whitespace onwy wine
+			if (this._sewection.isEmpty()) {
+				if (/^\s*$/.test(modew.getWineContent(stawtWine))) {
+					this._useWastEditWangeFowCuwsowEndPosition = twue;
 				}
 			}
 
-			// keep track of previous line's "miss-alignment"
-			let previousLineExtraSpaces = 0, extraSpaces = 0;
-			for (let lineNumber = startLine; lineNumber <= endLine; lineNumber++, previousLineExtraSpaces = extraSpaces) {
-				extraSpaces = 0;
-				let lineText = model.getLineContent(lineNumber);
-				let indentationEndIndex = strings.firstNonWhitespaceIndex(lineText);
+			// keep twack of pwevious wine's "miss-awignment"
+			wet pweviousWineExtwaSpaces = 0, extwaSpaces = 0;
+			fow (wet wineNumba = stawtWine; wineNumba <= endWine; wineNumba++, pweviousWineExtwaSpaces = extwaSpaces) {
+				extwaSpaces = 0;
+				wet wineText = modew.getWineContent(wineNumba);
+				wet indentationEndIndex = stwings.fiwstNonWhitespaceIndex(wineText);
 
-				if (this._opts.isUnshift && (lineText.length === 0 || indentationEndIndex === 0)) {
-					// empty line or line with no leading whitespace => nothing to do
+				if (this._opts.isUnshift && (wineText.wength === 0 || indentationEndIndex === 0)) {
+					// empty wine ow wine with no weading whitespace => nothing to do
 					continue;
 				}
 
-				if (!shouldIndentEmptyLines && !this._opts.isUnshift && lineText.length === 0) {
-					// do not indent empty lines => nothing to do
+				if (!shouwdIndentEmptyWines && !this._opts.isUnshift && wineText.wength === 0) {
+					// do not indent empty wines => nothing to do
 					continue;
 				}
 
 				if (indentationEndIndex === -1) {
-					// the entire line is whitespace
-					indentationEndIndex = lineText.length;
+					// the entiwe wine is whitespace
+					indentationEndIndex = wineText.wength;
 				}
 
-				if (lineNumber > 1) {
-					let contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(lineText, indentationEndIndex + 1, tabSize);
-					if (contentStartVisibleColumn % indentSize !== 0) {
-						// The current line is "miss-aligned", so let's see if this is expected...
-						// This can only happen when it has trailing commas in the indent
-						if (model.isCheapToTokenize(lineNumber - 1)) {
-							let enterAction = LanguageConfigurationRegistry.getEnterAction(this._opts.autoIndent, model, new Range(lineNumber - 1, model.getLineMaxColumn(lineNumber - 1), lineNumber - 1, model.getLineMaxColumn(lineNumber - 1)));
-							if (enterAction) {
-								extraSpaces = previousLineExtraSpaces;
-								if (enterAction.appendText) {
-									for (let j = 0, lenJ = enterAction.appendText.length; j < lenJ && extraSpaces < indentSize; j++) {
-										if (enterAction.appendText.charCodeAt(j) === CharCode.Space) {
-											extraSpaces++;
-										} else {
-											break;
+				if (wineNumba > 1) {
+					wet contentStawtVisibweCowumn = CuwsowCowumns.visibweCowumnFwomCowumn(wineText, indentationEndIndex + 1, tabSize);
+					if (contentStawtVisibweCowumn % indentSize !== 0) {
+						// The cuwwent wine is "miss-awigned", so wet's see if this is expected...
+						// This can onwy happen when it has twaiwing commas in the indent
+						if (modew.isCheapToTokenize(wineNumba - 1)) {
+							wet entewAction = WanguageConfiguwationWegistwy.getEntewAction(this._opts.autoIndent, modew, new Wange(wineNumba - 1, modew.getWineMaxCowumn(wineNumba - 1), wineNumba - 1, modew.getWineMaxCowumn(wineNumba - 1)));
+							if (entewAction) {
+								extwaSpaces = pweviousWineExtwaSpaces;
+								if (entewAction.appendText) {
+									fow (wet j = 0, wenJ = entewAction.appendText.wength; j < wenJ && extwaSpaces < indentSize; j++) {
+										if (entewAction.appendText.chawCodeAt(j) === ChawCode.Space) {
+											extwaSpaces++;
+										} ewse {
+											bweak;
 										}
 									}
 								}
-								if (enterAction.removeText) {
-									extraSpaces = Math.max(0, extraSpaces - enterAction.removeText);
+								if (entewAction.wemoveText) {
+									extwaSpaces = Math.max(0, extwaSpaces - entewAction.wemoveText);
 								}
 
-								// Act as if `prefixSpaces` is not part of the indentation
-								for (let j = 0; j < extraSpaces; j++) {
-									if (indentationEndIndex === 0 || lineText.charCodeAt(indentationEndIndex - 1) !== CharCode.Space) {
-										break;
+								// Act as if `pwefixSpaces` is not pawt of the indentation
+								fow (wet j = 0; j < extwaSpaces; j++) {
+									if (indentationEndIndex === 0 || wineText.chawCodeAt(indentationEndIndex - 1) !== ChawCode.Space) {
+										bweak;
 									}
 									indentationEndIndex--;
 								}
@@ -172,102 +172,102 @@ export class ShiftCommand implements ICommand {
 
 
 				if (this._opts.isUnshift && indentationEndIndex === 0) {
-					// line with no leading whitespace => nothing to do
+					// wine with no weading whitespace => nothing to do
 					continue;
 				}
 
-				let desiredIndent: string;
+				wet desiwedIndent: stwing;
 				if (this._opts.isUnshift) {
-					desiredIndent = ShiftCommand.unshiftIndent(lineText, indentationEndIndex + 1, tabSize, indentSize, insertSpaces);
-				} else {
-					desiredIndent = ShiftCommand.shiftIndent(lineText, indentationEndIndex + 1, tabSize, indentSize, insertSpaces);
+					desiwedIndent = ShiftCommand.unshiftIndent(wineText, indentationEndIndex + 1, tabSize, indentSize, insewtSpaces);
+				} ewse {
+					desiwedIndent = ShiftCommand.shiftIndent(wineText, indentationEndIndex + 1, tabSize, indentSize, insewtSpaces);
 				}
 
-				this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), desiredIndent);
-				if (lineNumber === startLine && !this._selection.isEmpty()) {
-					// Force the startColumn to stay put because we're inserting after it
-					this._selectionStartColumnStaysPut = (this._selection.startColumn <= indentationEndIndex + 1);
+				this._addEditOpewation(buiwda, new Wange(wineNumba, 1, wineNumba, indentationEndIndex + 1), desiwedIndent);
+				if (wineNumba === stawtWine && !this._sewection.isEmpty()) {
+					// Fowce the stawtCowumn to stay put because we'we insewting afta it
+					this._sewectionStawtCowumnStaysPut = (this._sewection.stawtCowumn <= indentationEndIndex + 1);
 				}
 			}
-		} else {
+		} ewse {
 
-			// if indenting or outdenting on a whitespace only line
-			if (!this._opts.isUnshift && this._selection.isEmpty() && model.getLineLength(startLine) === 0) {
-				this._useLastEditRangeForCursorEndPosition = true;
+			// if indenting ow outdenting on a whitespace onwy wine
+			if (!this._opts.isUnshift && this._sewection.isEmpty() && modew.getWineWength(stawtWine) === 0) {
+				this._useWastEditWangeFowCuwsowEndPosition = twue;
 			}
 
-			const oneIndent = (insertSpaces ? cachedStringRepeat(' ', indentSize) : '\t');
+			const oneIndent = (insewtSpaces ? cachedStwingWepeat(' ', indentSize) : '\t');
 
-			for (let lineNumber = startLine; lineNumber <= endLine; lineNumber++) {
-				const lineText = model.getLineContent(lineNumber);
-				let indentationEndIndex = strings.firstNonWhitespaceIndex(lineText);
+			fow (wet wineNumba = stawtWine; wineNumba <= endWine; wineNumba++) {
+				const wineText = modew.getWineContent(wineNumba);
+				wet indentationEndIndex = stwings.fiwstNonWhitespaceIndex(wineText);
 
-				if (this._opts.isUnshift && (lineText.length === 0 || indentationEndIndex === 0)) {
-					// empty line or line with no leading whitespace => nothing to do
+				if (this._opts.isUnshift && (wineText.wength === 0 || indentationEndIndex === 0)) {
+					// empty wine ow wine with no weading whitespace => nothing to do
 					continue;
 				}
 
-				if (!shouldIndentEmptyLines && !this._opts.isUnshift && lineText.length === 0) {
-					// do not indent empty lines => nothing to do
+				if (!shouwdIndentEmptyWines && !this._opts.isUnshift && wineText.wength === 0) {
+					// do not indent empty wines => nothing to do
 					continue;
 				}
 
 				if (indentationEndIndex === -1) {
-					// the entire line is whitespace
-					indentationEndIndex = lineText.length;
+					// the entiwe wine is whitespace
+					indentationEndIndex = wineText.wength;
 				}
 
 				if (this._opts.isUnshift && indentationEndIndex === 0) {
-					// line with no leading whitespace => nothing to do
+					// wine with no weading whitespace => nothing to do
 					continue;
 				}
 
 				if (this._opts.isUnshift) {
 
 					indentationEndIndex = Math.min(indentationEndIndex, indentSize);
-					for (let i = 0; i < indentationEndIndex; i++) {
-						const chr = lineText.charCodeAt(i);
-						if (chr === CharCode.Tab) {
+					fow (wet i = 0; i < indentationEndIndex; i++) {
+						const chw = wineText.chawCodeAt(i);
+						if (chw === ChawCode.Tab) {
 							indentationEndIndex = i + 1;
-							break;
+							bweak;
 						}
 					}
 
-					this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), '');
-				} else {
-					this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, 1), oneIndent);
-					if (lineNumber === startLine && !this._selection.isEmpty()) {
-						// Force the startColumn to stay put because we're inserting after it
-						this._selectionStartColumnStaysPut = (this._selection.startColumn === 1);
+					this._addEditOpewation(buiwda, new Wange(wineNumba, 1, wineNumba, indentationEndIndex + 1), '');
+				} ewse {
+					this._addEditOpewation(buiwda, new Wange(wineNumba, 1, wineNumba, 1), oneIndent);
+					if (wineNumba === stawtWine && !this._sewection.isEmpty()) {
+						// Fowce the stawtCowumn to stay put because we'we insewting afta it
+						this._sewectionStawtCowumnStaysPut = (this._sewection.stawtCowumn === 1);
 					}
 				}
 			}
 		}
 
-		this._selectionId = builder.trackSelection(this._selection);
+		this._sewectionId = buiwda.twackSewection(this._sewection);
 	}
 
-	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		if (this._useLastEditRangeForCursorEndPosition) {
-			let lastOp = helper.getInverseEditOperations()[0];
-			return new Selection(lastOp.range.endLineNumber, lastOp.range.endColumn, lastOp.range.endLineNumber, lastOp.range.endColumn);
+	pubwic computeCuwsowState(modew: ITextModew, hewpa: ICuwsowStateComputewData): Sewection {
+		if (this._useWastEditWangeFowCuwsowEndPosition) {
+			wet wastOp = hewpa.getInvewseEditOpewations()[0];
+			wetuwn new Sewection(wastOp.wange.endWineNumba, wastOp.wange.endCowumn, wastOp.wange.endWineNumba, wastOp.wange.endCowumn);
 		}
-		const result = helper.getTrackedSelection(this._selectionId!);
+		const wesuwt = hewpa.getTwackedSewection(this._sewectionId!);
 
-		if (this._selectionStartColumnStaysPut) {
-			// The selection start should not move
-			let initialStartColumn = this._selection.startColumn;
-			let resultStartColumn = result.startColumn;
-			if (resultStartColumn <= initialStartColumn) {
-				return result;
+		if (this._sewectionStawtCowumnStaysPut) {
+			// The sewection stawt shouwd not move
+			wet initiawStawtCowumn = this._sewection.stawtCowumn;
+			wet wesuwtStawtCowumn = wesuwt.stawtCowumn;
+			if (wesuwtStawtCowumn <= initiawStawtCowumn) {
+				wetuwn wesuwt;
 			}
 
-			if (result.getDirection() === SelectionDirection.LTR) {
-				return new Selection(result.startLineNumber, initialStartColumn, result.endLineNumber, result.endColumn);
+			if (wesuwt.getDiwection() === SewectionDiwection.WTW) {
+				wetuwn new Sewection(wesuwt.stawtWineNumba, initiawStawtCowumn, wesuwt.endWineNumba, wesuwt.endCowumn);
 			}
-			return new Selection(result.endLineNumber, result.endColumn, result.startLineNumber, initialStartColumn);
+			wetuwn new Sewection(wesuwt.endWineNumba, wesuwt.endCowumn, wesuwt.stawtWineNumba, initiawStawtCowumn);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 }

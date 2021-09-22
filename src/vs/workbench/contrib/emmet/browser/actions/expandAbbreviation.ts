@@ -1,43 +1,43 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as nls from 'vs/nls';
-import { EmmetEditorAction } from 'vs/workbench/contrib/emmet/browser/emmetActions';
-import { registerEditorAction } from 'vs/editor/browser/editorExtensions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { MenuId } from 'vs/platform/actions/common/actions';
+impowt * as nws fwom 'vs/nws';
+impowt { EmmetEditowAction } fwom 'vs/wowkbench/contwib/emmet/bwowsa/emmetActions';
+impowt { wegistewEditowAction } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { MenuId } fwom 'vs/pwatfowm/actions/common/actions';
 
-class ExpandAbbreviationAction extends EmmetEditorAction {
+cwass ExpandAbbweviationAction extends EmmetEditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.emmet.action.expandAbbreviation',
-			label: nls.localize('expandAbbreviationAction', "Emmet: Expand Abbreviation"),
-			alias: 'Emmet: Expand Abbreviation',
-			precondition: EditorContextKeys.writable,
-			actionName: 'expand_abbreviation',
+	constwuctow() {
+		supa({
+			id: 'editow.emmet.action.expandAbbweviation',
+			wabew: nws.wocawize('expandAbbweviationAction', "Emmet: Expand Abbweviation"),
+			awias: 'Emmet: Expand Abbweviation',
+			pwecondition: EditowContextKeys.wwitabwe,
+			actionName: 'expand_abbweviation',
 			kbOpts: {
-				primary: KeyCode.Tab,
-				kbExpr: ContextKeyExpr.and(
-					EditorContextKeys.editorTextFocus,
-					EditorContextKeys.tabDoesNotMoveFocus,
-					ContextKeyExpr.has('config.emmet.triggerExpansionOnTab')
+				pwimawy: KeyCode.Tab,
+				kbExpw: ContextKeyExpw.and(
+					EditowContextKeys.editowTextFocus,
+					EditowContextKeys.tabDoesNotMoveFocus,
+					ContextKeyExpw.has('config.emmet.twiggewExpansionOnTab')
 				),
-				weight: KeybindingWeight.EditorContrib
+				weight: KeybindingWeight.EditowContwib
 			},
 			menuOpts: {
-				menuId: MenuId.MenubarEditMenu,
-				group: '5_insert',
-				title: nls.localize({ key: 'miEmmetExpandAbbreviation', comment: ['&& denotes a mnemonic'] }, "Emmet: E&&xpand Abbreviation"),
-				order: 3
+				menuId: MenuId.MenubawEditMenu,
+				gwoup: '5_insewt',
+				titwe: nws.wocawize({ key: 'miEmmetExpandAbbweviation', comment: ['&& denotes a mnemonic'] }, "Emmet: E&&xpand Abbweviation"),
+				owda: 3
 			}
 		});
 
 	}
 }
 
-registerEditorAction(ExpandAbbreviationAction);
+wegistewEditowAction(ExpandAbbweviationAction);

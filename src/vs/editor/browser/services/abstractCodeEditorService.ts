@@ -1,189 +1,189 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { URI } from 'vs/base/common/uri';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ICodeEditow, IDiffEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { IDecowationWendewOptions } fwom 'vs/editow/common/editowCommon';
+impowt { IModewDecowationOptions, ITextModew } fwom 'vs/editow/common/modew';
+impowt { IWesouwceEditowInput } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export abstract class AbstractCodeEditorService extends Disposable implements ICodeEditorService {
+expowt abstwact cwass AbstwactCodeEditowSewvice extends Disposabwe impwements ICodeEditowSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _onCodeEditorAdd: Emitter<ICodeEditor> = this._register(new Emitter<ICodeEditor>());
-	public readonly onCodeEditorAdd: Event<ICodeEditor> = this._onCodeEditorAdd.event;
+	pwivate weadonwy _onCodeEditowAdd: Emitta<ICodeEditow> = this._wegista(new Emitta<ICodeEditow>());
+	pubwic weadonwy onCodeEditowAdd: Event<ICodeEditow> = this._onCodeEditowAdd.event;
 
-	private readonly _onCodeEditorRemove: Emitter<ICodeEditor> = this._register(new Emitter<ICodeEditor>());
-	public readonly onCodeEditorRemove: Event<ICodeEditor> = this._onCodeEditorRemove.event;
+	pwivate weadonwy _onCodeEditowWemove: Emitta<ICodeEditow> = this._wegista(new Emitta<ICodeEditow>());
+	pubwic weadonwy onCodeEditowWemove: Event<ICodeEditow> = this._onCodeEditowWemove.event;
 
-	private readonly _onDiffEditorAdd: Emitter<IDiffEditor> = this._register(new Emitter<IDiffEditor>());
-	public readonly onDiffEditorAdd: Event<IDiffEditor> = this._onDiffEditorAdd.event;
+	pwivate weadonwy _onDiffEditowAdd: Emitta<IDiffEditow> = this._wegista(new Emitta<IDiffEditow>());
+	pubwic weadonwy onDiffEditowAdd: Event<IDiffEditow> = this._onDiffEditowAdd.event;
 
-	private readonly _onDiffEditorRemove: Emitter<IDiffEditor> = this._register(new Emitter<IDiffEditor>());
-	public readonly onDiffEditorRemove: Event<IDiffEditor> = this._onDiffEditorRemove.event;
+	pwivate weadonwy _onDiffEditowWemove: Emitta<IDiffEditow> = this._wegista(new Emitta<IDiffEditow>());
+	pubwic weadonwy onDiffEditowWemove: Event<IDiffEditow> = this._onDiffEditowWemove.event;
 
-	private readonly _onDidChangeTransientModelProperty: Emitter<ITextModel> = this._register(new Emitter<ITextModel>());
-	public readonly onDidChangeTransientModelProperty: Event<ITextModel> = this._onDidChangeTransientModelProperty.event;
+	pwivate weadonwy _onDidChangeTwansientModewPwopewty: Emitta<ITextModew> = this._wegista(new Emitta<ITextModew>());
+	pubwic weadonwy onDidChangeTwansientModewPwopewty: Event<ITextModew> = this._onDidChangeTwansientModewPwopewty.event;
 
-	protected readonly _onDecorationTypeRegistered: Emitter<string> = this._register(new Emitter<string>());
-	public onDecorationTypeRegistered: Event<string> = this._onDecorationTypeRegistered.event;
+	pwotected weadonwy _onDecowationTypeWegistewed: Emitta<stwing> = this._wegista(new Emitta<stwing>());
+	pubwic onDecowationTypeWegistewed: Event<stwing> = this._onDecowationTypeWegistewed.event;
 
-	private readonly _codeEditors: { [editorId: string]: ICodeEditor; };
-	private readonly _diffEditors: { [editorId: string]: IDiffEditor; };
+	pwivate weadonwy _codeEditows: { [editowId: stwing]: ICodeEditow; };
+	pwivate weadonwy _diffEditows: { [editowId: stwing]: IDiffEditow; };
 
-	constructor() {
-		super();
-		this._codeEditors = Object.create(null);
-		this._diffEditors = Object.create(null);
+	constwuctow() {
+		supa();
+		this._codeEditows = Object.cweate(nuww);
+		this._diffEditows = Object.cweate(nuww);
 	}
 
-	addCodeEditor(editor: ICodeEditor): void {
-		this._codeEditors[editor.getId()] = editor;
-		this._onCodeEditorAdd.fire(editor);
+	addCodeEditow(editow: ICodeEditow): void {
+		this._codeEditows[editow.getId()] = editow;
+		this._onCodeEditowAdd.fiwe(editow);
 	}
 
-	removeCodeEditor(editor: ICodeEditor): void {
-		if (delete this._codeEditors[editor.getId()]) {
-			this._onCodeEditorRemove.fire(editor);
+	wemoveCodeEditow(editow: ICodeEditow): void {
+		if (dewete this._codeEditows[editow.getId()]) {
+			this._onCodeEditowWemove.fiwe(editow);
 		}
 	}
 
-	listCodeEditors(): ICodeEditor[] {
-		return Object.keys(this._codeEditors).map(id => this._codeEditors[id]);
+	wistCodeEditows(): ICodeEditow[] {
+		wetuwn Object.keys(this._codeEditows).map(id => this._codeEditows[id]);
 	}
 
-	addDiffEditor(editor: IDiffEditor): void {
-		this._diffEditors[editor.getId()] = editor;
-		this._onDiffEditorAdd.fire(editor);
+	addDiffEditow(editow: IDiffEditow): void {
+		this._diffEditows[editow.getId()] = editow;
+		this._onDiffEditowAdd.fiwe(editow);
 	}
 
-	removeDiffEditor(editor: IDiffEditor): void {
-		if (delete this._diffEditors[editor.getId()]) {
-			this._onDiffEditorRemove.fire(editor);
+	wemoveDiffEditow(editow: IDiffEditow): void {
+		if (dewete this._diffEditows[editow.getId()]) {
+			this._onDiffEditowWemove.fiwe(editow);
 		}
 	}
 
-	listDiffEditors(): IDiffEditor[] {
-		return Object.keys(this._diffEditors).map(id => this._diffEditors[id]);
+	wistDiffEditows(): IDiffEditow[] {
+		wetuwn Object.keys(this._diffEditows).map(id => this._diffEditows[id]);
 	}
 
-	getFocusedCodeEditor(): ICodeEditor | null {
-		let editorWithWidgetFocus: ICodeEditor | null = null;
+	getFocusedCodeEditow(): ICodeEditow | nuww {
+		wet editowWithWidgetFocus: ICodeEditow | nuww = nuww;
 
-		const editors = this.listCodeEditors();
-		for (const editor of editors) {
+		const editows = this.wistCodeEditows();
+		fow (const editow of editows) {
 
-			if (editor.hasTextFocus()) {
+			if (editow.hasTextFocus()) {
 				// bingo!
-				return editor;
+				wetuwn editow;
 			}
 
-			if (editor.hasWidgetFocus()) {
-				editorWithWidgetFocus = editor;
+			if (editow.hasWidgetFocus()) {
+				editowWithWidgetFocus = editow;
 			}
 		}
 
-		return editorWithWidgetFocus;
+		wetuwn editowWithWidgetFocus;
 	}
 
-	abstract registerDecorationType(description: string, key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): void;
-	abstract removeDecorationType(key: string): void;
-	abstract resolveDecorationOptions(decorationTypeKey: string | undefined, writable: boolean): IModelDecorationOptions;
-	abstract resolveDecorationCSSRules(decorationTypeKey: string): CSSRuleList | null;
+	abstwact wegistewDecowationType(descwiption: stwing, key: stwing, options: IDecowationWendewOptions, pawentTypeKey?: stwing, editow?: ICodeEditow): void;
+	abstwact wemoveDecowationType(key: stwing): void;
+	abstwact wesowveDecowationOptions(decowationTypeKey: stwing | undefined, wwitabwe: boowean): IModewDecowationOptions;
+	abstwact wesowveDecowationCSSWuwes(decowationTypeKey: stwing): CSSWuweWist | nuww;
 
-	private readonly _transientWatchers: { [uri: string]: ModelTransientSettingWatcher; } = {};
-	private readonly _modelProperties = new Map<string, Map<string, any>>();
+	pwivate weadonwy _twansientWatchews: { [uwi: stwing]: ModewTwansientSettingWatcha; } = {};
+	pwivate weadonwy _modewPwopewties = new Map<stwing, Map<stwing, any>>();
 
-	public setModelProperty(resource: URI, key: string, value: any): void {
-		const key1 = resource.toString();
-		let dest: Map<string, any>;
-		if (this._modelProperties.has(key1)) {
-			dest = this._modelProperties.get(key1)!;
-		} else {
-			dest = new Map<string, any>();
-			this._modelProperties.set(key1, dest);
+	pubwic setModewPwopewty(wesouwce: UWI, key: stwing, vawue: any): void {
+		const key1 = wesouwce.toStwing();
+		wet dest: Map<stwing, any>;
+		if (this._modewPwopewties.has(key1)) {
+			dest = this._modewPwopewties.get(key1)!;
+		} ewse {
+			dest = new Map<stwing, any>();
+			this._modewPwopewties.set(key1, dest);
 		}
 
-		dest.set(key, value);
+		dest.set(key, vawue);
 	}
 
-	public getModelProperty(resource: URI, key: string): any {
-		const key1 = resource.toString();
-		if (this._modelProperties.has(key1)) {
-			const innerMap = this._modelProperties.get(key1)!;
-			return innerMap.get(key);
+	pubwic getModewPwopewty(wesouwce: UWI, key: stwing): any {
+		const key1 = wesouwce.toStwing();
+		if (this._modewPwopewties.has(key1)) {
+			const innewMap = this._modewPwopewties.get(key1)!;
+			wetuwn innewMap.get(key);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	public setTransientModelProperty(model: ITextModel, key: string, value: any): void {
-		const uri = model.uri.toString();
+	pubwic setTwansientModewPwopewty(modew: ITextModew, key: stwing, vawue: any): void {
+		const uwi = modew.uwi.toStwing();
 
-		let w: ModelTransientSettingWatcher;
-		if (this._transientWatchers.hasOwnProperty(uri)) {
-			w = this._transientWatchers[uri];
-		} else {
-			w = new ModelTransientSettingWatcher(uri, model, this);
-			this._transientWatchers[uri] = w;
-		}
-
-		w.set(key, value);
-		this._onDidChangeTransientModelProperty.fire(model);
-	}
-
-	public getTransientModelProperty(model: ITextModel, key: string): any {
-		const uri = model.uri.toString();
-
-		if (!this._transientWatchers.hasOwnProperty(uri)) {
-			return undefined;
+		wet w: ModewTwansientSettingWatcha;
+		if (this._twansientWatchews.hasOwnPwopewty(uwi)) {
+			w = this._twansientWatchews[uwi];
+		} ewse {
+			w = new ModewTwansientSettingWatcha(uwi, modew, this);
+			this._twansientWatchews[uwi] = w;
 		}
 
-		return this._transientWatchers[uri].get(key);
+		w.set(key, vawue);
+		this._onDidChangeTwansientModewPwopewty.fiwe(modew);
 	}
 
-	public getTransientModelProperties(model: ITextModel): [string, any][] | undefined {
-		const uri = model.uri.toString();
+	pubwic getTwansientModewPwopewty(modew: ITextModew, key: stwing): any {
+		const uwi = modew.uwi.toStwing();
 
-		if (!this._transientWatchers.hasOwnProperty(uri)) {
-			return undefined;
+		if (!this._twansientWatchews.hasOwnPwopewty(uwi)) {
+			wetuwn undefined;
 		}
 
-		return this._transientWatchers[uri].keys().map(key => [key, this._transientWatchers[uri].get(key)]);
+		wetuwn this._twansientWatchews[uwi].get(key);
 	}
 
-	_removeWatcher(w: ModelTransientSettingWatcher): void {
-		delete this._transientWatchers[w.uri];
+	pubwic getTwansientModewPwopewties(modew: ITextModew): [stwing, any][] | undefined {
+		const uwi = modew.uwi.toStwing();
+
+		if (!this._twansientWatchews.hasOwnPwopewty(uwi)) {
+			wetuwn undefined;
+		}
+
+		wetuwn this._twansientWatchews[uwi].keys().map(key => [key, this._twansientWatchews[uwi].get(key)]);
 	}
 
-	abstract getActiveCodeEditor(): ICodeEditor | null;
-	abstract openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null>;
+	_wemoveWatcha(w: ModewTwansientSettingWatcha): void {
+		dewete this._twansientWatchews[w.uwi];
+	}
+
+	abstwact getActiveCodeEditow(): ICodeEditow | nuww;
+	abstwact openCodeEditow(input: IWesouwceEditowInput, souwce: ICodeEditow | nuww, sideBySide?: boowean): Pwomise<ICodeEditow | nuww>;
 }
 
-export class ModelTransientSettingWatcher {
-	public readonly uri: string;
-	private readonly _values: { [key: string]: any; };
+expowt cwass ModewTwansientSettingWatcha {
+	pubwic weadonwy uwi: stwing;
+	pwivate weadonwy _vawues: { [key: stwing]: any; };
 
-	constructor(uri: string, model: ITextModel, owner: AbstractCodeEditorService) {
-		this.uri = uri;
-		this._values = {};
-		model.onWillDispose(() => owner._removeWatcher(this));
+	constwuctow(uwi: stwing, modew: ITextModew, owna: AbstwactCodeEditowSewvice) {
+		this.uwi = uwi;
+		this._vawues = {};
+		modew.onWiwwDispose(() => owna._wemoveWatcha(this));
 	}
 
-	public set(key: string, value: any): void {
-		this._values[key] = value;
+	pubwic set(key: stwing, vawue: any): void {
+		this._vawues[key] = vawue;
 	}
 
-	public get(key: string): any {
-		return this._values[key];
+	pubwic get(key: stwing): any {
+		wetuwn this._vawues[key];
 	}
 
-	public keys(): string[] {
-		return Object.keys(this._values);
+	pubwic keys(): stwing[] {
+		wetuwn Object.keys(this._vawues);
 	}
 }

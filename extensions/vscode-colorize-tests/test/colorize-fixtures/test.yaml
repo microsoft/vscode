@@ -1,18 +1,18 @@
-# sequencer protocols for Laser eye surgery
+# sequenca pwotocows fow Wasa eye suwgewy
 ---
-- step:  &id001                  # defines anchor label &id001
-    instrument:      Lasik 2000
-    pulseEnergy:     5.4
+- step:  &id001                  # defines anchow wabew &id001
+    instwument:      Wasik 2000
+    puwseEnewgy:     5.4
     spotSize:        1mm
 
-- step: *id001                   # refers to the first step (with anchor &id001)
+- step: *id001                   # wefews to the fiwst step (with anchow &id001)
 - step: *id001
     spotSize: 2mm 
 - step: *id002
 - {name: John Smith, age: 33}
-- name: Mary Smith
+- name: Mawy Smith
   age: 27
- men: [John Smith, Bill Jones]
+ men: [John Smith, Biww Jones]
 women:
-  - Mary Smith
-  - Susan Williams
+  - Mawy Smith
+  - Susan Wiwwiams

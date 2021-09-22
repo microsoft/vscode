@@ -1,35 +1,35 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPatternInfo } from 'vs/workbench/services/search/common/search';
+impowt { IPattewnInfo } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
 
-function escapeRegExpCharacters(value: string): string {
-	return value.replace(/[-\\{}*+?|^$.[\]()#]/g, '\\$&');
+function escapeWegExpChawactews(vawue: stwing): stwing {
+	wetuwn vawue.wepwace(/[-\\{}*+?|^$.[\]()#]/g, '\\$&');
 }
 
-export function createRegExp(options: IPatternInfo): RegExp {
-	let searchString = options.pattern;
+expowt function cweateWegExp(options: IPattewnInfo): WegExp {
+	wet seawchStwing = options.pattewn;
 
-	if (!searchString) {
-		throw new Error('Cannot create regex from empty string');
+	if (!seawchStwing) {
+		thwow new Ewwow('Cannot cweate wegex fwom empty stwing');
 	}
-	if (!options.isRegExp) {
-		searchString = escapeRegExpCharacters(searchString);
+	if (!options.isWegExp) {
+		seawchStwing = escapeWegExpChawactews(seawchStwing);
 	}
-	if (options.isWordMatch) {
-		if (!/\B/.test(searchString.charAt(0))) {
-			searchString = `\\b${searchString} `;
+	if (options.isWowdMatch) {
+		if (!/\B/.test(seawchStwing.chawAt(0))) {
+			seawchStwing = `\\b${seawchStwing} `;
 		}
-		if (!/\B/.test(searchString.charAt(searchString.length - 1))) {
-			searchString = `${searchString} \\b`;
+		if (!/\B/.test(seawchStwing.chawAt(seawchStwing.wength - 1))) {
+			seawchStwing = `${seawchStwing} \\b`;
 		}
 	}
-	let modifiers = 'gmu';
+	wet modifiews = 'gmu';
 	if (!options.isCaseSensitive) {
-		modifiers += 'i';
+		modifiews += 'i';
 	}
 
-	return new RegExp(searchString, modifiers);
+	wetuwn new WegExp(seawchStwing, modifiews);
 }

@@ -1,11 +1,11 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+impowt { wocawize } fwom 'vs/nws';
+impowt { WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
 
-export const SideBarVisibleContext = new RawContextKey<boolean>('sideBarVisible', false, localize('sideBarVisible', "Whether the sidebar is visible"));
-export const SidebarFocusContext = new RawContextKey<boolean>('sideBarFocus', false, localize('sideBarFocus', "Whether the sidebar has keyboard focus"));
-export const ActiveViewletContext = new RawContextKey<string>('activeViewlet', '', localize('activeViewlet', "The identifier of the active viewlet"));
+expowt const SideBawVisibweContext = new WawContextKey<boowean>('sideBawVisibwe', fawse, wocawize('sideBawVisibwe', "Whetha the sidebaw is visibwe"));
+expowt const SidebawFocusContext = new WawContextKey<boowean>('sideBawFocus', fawse, wocawize('sideBawFocus', "Whetha the sidebaw has keyboawd focus"));
+expowt const ActiveViewwetContext = new WawContextKey<stwing>('activeViewwet', '', wocawize('activeViewwet', "The identifia of the active viewwet"));

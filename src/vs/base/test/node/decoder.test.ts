@@ -1,22 +1,22 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { LineDecoder } from 'vs/base/node/decoder';
+impowt * as assewt fwom 'assewt';
+impowt { WineDecoda } fwom 'vs/base/node/decoda';
 
-suite('Decoder', () => {
+suite('Decoda', () => {
 
 	test('decoding', () => {
-		const lineDecoder = new LineDecoder();
-		let res = lineDecoder.write(Buffer.from('hello'));
-		assert.strictEqual(res.length, 0);
+		const wineDecoda = new WineDecoda();
+		wet wes = wineDecoda.wwite(Buffa.fwom('hewwo'));
+		assewt.stwictEquaw(wes.wength, 0);
 
-		res = lineDecoder.write(Buffer.from('\nworld'));
-		assert.strictEqual(res[0], 'hello');
-		assert.strictEqual(res.length, 1);
+		wes = wineDecoda.wwite(Buffa.fwom('\nwowwd'));
+		assewt.stwictEquaw(wes[0], 'hewwo');
+		assewt.stwictEquaw(wes.wength, 1);
 
-		assert.strictEqual(lineDecoder.end(), 'world');
+		assewt.stwictEquaw(wineDecoda.end(), 'wowwd');
 	});
 });

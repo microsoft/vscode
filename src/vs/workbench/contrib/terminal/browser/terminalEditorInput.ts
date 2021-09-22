@@ -1,237 +1,237 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import Severity from 'vs/base/common/severity';
-import { dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IEditorIdentifier, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
-import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IShellLaunchConfig, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ConfirmOnKill } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { Emitter } from 'vs/base/common/event';
+impowt { wocawize } fwom 'vs/nws';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { dispose, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IEditowIdentifia, IUntypedEditowInput } fwom 'vs/wowkbench/common/editow';
+impowt { IThemeSewvice, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { ITewminawInstance, ITewminawInstanceSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { TewminawEditow } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawEditow';
+impowt { getCowowCwass, getUwiCwasses } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawIcon';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IShewwWaunchConfig, TewminawWocation, TewminawSettingId } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { IEditowGwoup } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { ConfiwmOnKiww } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { TewminawContextKeys } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawContextKey';
+impowt { ConfiwmWesuwt, IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { Emitta } fwom 'vs/base/common/event';
 
-export class TerminalEditorInput extends EditorInput {
+expowt cwass TewminawEditowInput extends EditowInput {
 
-	protected readonly _onDidRequestAttach = this._register(new Emitter<ITerminalInstance>());
-	readonly onDidRequestAttach = this._onDidRequestAttach.event;
+	pwotected weadonwy _onDidWequestAttach = this._wegista(new Emitta<ITewminawInstance>());
+	weadonwy onDidWequestAttach = this._onDidWequestAttach.event;
 
-	static readonly ID = 'workbench.editors.terminal';
+	static weadonwy ID = 'wowkbench.editows.tewminaw';
 
-	private _isDetached = false;
-	private _isShuttingDown = false;
-	private _isReverted = false;
-	private _copyLaunchConfig?: IShellLaunchConfig;
-	private _terminalEditorFocusContextKey: IContextKey<boolean>;
+	pwivate _isDetached = fawse;
+	pwivate _isShuttingDown = fawse;
+	pwivate _isWevewted = fawse;
+	pwivate _copyWaunchConfig?: IShewwWaunchConfig;
+	pwivate _tewminawEditowFocusContextKey: IContextKey<boowean>;
 
-	private _group: IEditorGroup | undefined;
+	pwivate _gwoup: IEditowGwoup | undefined;
 
-	setGroup(group: IEditorGroup | undefined) {
-		this._group = group;
+	setGwoup(gwoup: IEditowGwoup | undefined) {
+		this._gwoup = gwoup;
 	}
 
-	get group(): IEditorGroup | undefined {
-		return this._group;
+	get gwoup(): IEditowGwoup | undefined {
+		wetuwn this._gwoup;
 	}
 
-	override get typeId(): string {
-		return TerminalEditorInput.ID;
+	ovewwide get typeId(): stwing {
+		wetuwn TewminawEditowInput.ID;
 	}
 
-	override get editorId(): string | undefined {
-		return TerminalEditor.ID;
+	ovewwide get editowId(): stwing | undefined {
+		wetuwn TewminawEditow.ID;
 	}
 
-	setTerminalInstance(instance: ITerminalInstance): void {
-		if (this._terminalInstance) {
-			throw new Error('cannot set instance that has already been set');
+	setTewminawInstance(instance: ITewminawInstance): void {
+		if (this._tewminawInstance) {
+			thwow new Ewwow('cannot set instance that has awweady been set');
 		}
-		this._terminalInstance = instance;
-		this._setupInstanceListeners();
+		this._tewminawInstance = instance;
+		this._setupInstanceWistenews();
 
-		// Refresh dirty state when the confirm on kill setting is changed
-		this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSettingId.ConfirmOnKill)) {
-				this._onDidChangeDirty.fire();
+		// Wefwesh diwty state when the confiwm on kiww setting is changed
+		this._configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation(TewminawSettingId.ConfiwmOnKiww)) {
+				this._onDidChangeDiwty.fiwe();
 			}
 		});
 	}
 
-	override copy(): EditorInput {
-		const instance = this._terminalInstanceService.createInstance(this._copyLaunchConfig || {}, TerminalLocation.Editor);
-		instance.focusWhenReady();
-		this._copyLaunchConfig = undefined;
-		return this._instantiationService.createInstance(TerminalEditorInput, instance.resource, instance);
+	ovewwide copy(): EditowInput {
+		const instance = this._tewminawInstanceSewvice.cweateInstance(this._copyWaunchConfig || {}, TewminawWocation.Editow);
+		instance.focusWhenWeady();
+		this._copyWaunchConfig = undefined;
+		wetuwn this._instantiationSewvice.cweateInstance(TewminawEditowInput, instance.wesouwce, instance);
 	}
 
 	/**
-	 * Sets the launch config to use for the next call to EditorInput.copy, which will be used when
-	 * the editor's split command is run.
+	 * Sets the waunch config to use fow the next caww to EditowInput.copy, which wiww be used when
+	 * the editow's spwit command is wun.
 	 */
-	setCopyLaunchConfig(launchConfig: IShellLaunchConfig) {
-		this._copyLaunchConfig = launchConfig;
+	setCopyWaunchConfig(waunchConfig: IShewwWaunchConfig) {
+		this._copyWaunchConfig = waunchConfig;
 	}
 
 	/**
-	 * Returns the terminal instance for this input if it has not yet been detached from the input.
+	 * Wetuwns the tewminaw instance fow this input if it has not yet been detached fwom the input.
 	 */
-	get terminalInstance(): ITerminalInstance | undefined {
-		return this._isDetached ? undefined : this._terminalInstance;
+	get tewminawInstance(): ITewminawInstance | undefined {
+		wetuwn this._isDetached ? undefined : this._tewminawInstance;
 	}
 
-	override isDirty(): boolean {
-		if (this._isReverted) {
-			return false;
+	ovewwide isDiwty(): boowean {
+		if (this._isWevewted) {
+			wetuwn fawse;
 		}
-		const confirmOnKill = this._configurationService.getValue<ConfirmOnKill>(TerminalSettingId.ConfirmOnKill);
-		if (confirmOnKill === 'editor' || confirmOnKill === 'always') {
-			return this._terminalInstance?.hasChildProcesses || false;
+		const confiwmOnKiww = this._configuwationSewvice.getVawue<ConfiwmOnKiww>(TewminawSettingId.ConfiwmOnKiww);
+		if (confiwmOnKiww === 'editow' || confiwmOnKiww === 'awways') {
+			wetuwn this._tewminawInstance?.hasChiwdPwocesses || fawse;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	override async confirm(terminals?: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult> {
-		const { choice } = await this._dialogService.show(
-			Severity.Warning,
-			localize('confirmDirtyTerminal.message', "Do you want to terminate running processes?"),
+	ovewwide async confiwm(tewminaws?: WeadonwyAwway<IEditowIdentifia>): Pwomise<ConfiwmWesuwt> {
+		const { choice } = await this._diawogSewvice.show(
+			Sevewity.Wawning,
+			wocawize('confiwmDiwtyTewminaw.message', "Do you want to tewminate wunning pwocesses?"),
 			[
-				localize({ key: 'confirmDirtyTerminal.button', comment: ['&& denotes a mnemonic'] }, "&&Terminate"),
-				localize('cancel', "Cancel")
+				wocawize({ key: 'confiwmDiwtyTewminaw.button', comment: ['&& denotes a mnemonic'] }, "&&Tewminate"),
+				wocawize('cancew', "Cancew")
 			],
 			{
-				cancelId: 1,
-				detail: terminals && terminals.length > 1 ?
-					terminals.map(terminal => terminal.editor.getName()).join('\n') + '\n\n' + localize('confirmDirtyTerminals.detail', "Closing will terminate the running processes in the terminals.") :
-					localize('confirmDirtyTerminal.detail', "Closing will terminate the running processes in this terminal.")
+				cancewId: 1,
+				detaiw: tewminaws && tewminaws.wength > 1 ?
+					tewminaws.map(tewminaw => tewminaw.editow.getName()).join('\n') + '\n\n' + wocawize('confiwmDiwtyTewminaws.detaiw', "Cwosing wiww tewminate the wunning pwocesses in the tewminaws.") :
+					wocawize('confiwmDiwtyTewminaw.detaiw', "Cwosing wiww tewminate the wunning pwocesses in this tewminaw.")
 			}
 		);
 
 		switch (choice) {
-			case 0: return ConfirmResult.DONT_SAVE;
-			default: return ConfirmResult.CANCEL;
+			case 0: wetuwn ConfiwmWesuwt.DONT_SAVE;
+			defauwt: wetuwn ConfiwmWesuwt.CANCEW;
 		}
 	}
 
-	override async revert(): Promise<void> {
-		// On revert just treat the terminal as permanently non-dirty
-		this._isReverted = true;
+	ovewwide async wevewt(): Pwomise<void> {
+		// On wevewt just tweat the tewminaw as pewmanentwy non-diwty
+		this._isWevewted = twue;
 	}
 
-	constructor(
-		public readonly resource: URI,
-		private _terminalInstance: ITerminalInstance | undefined,
-		@IThemeService private readonly _themeService: IThemeService,
-		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IContextKeyService _contextKeyService: IContextKeyService,
-		@IDialogService private readonly _dialogService: IDialogService
+	constwuctow(
+		pubwic weadonwy wesouwce: UWI,
+		pwivate _tewminawInstance: ITewminawInstance | undefined,
+		@IThemeSewvice pwivate weadonwy _themeSewvice: IThemeSewvice,
+		@ITewminawInstanceSewvice pwivate weadonwy _tewminawInstanceSewvice: ITewminawInstanceSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
+		@IWifecycweSewvice pwivate weadonwy _wifecycweSewvice: IWifecycweSewvice,
+		@IContextKeySewvice _contextKeySewvice: IContextKeySewvice,
+		@IDiawogSewvice pwivate weadonwy _diawogSewvice: IDiawogSewvice
 	) {
-		super();
+		supa();
 
-		this._terminalEditorFocusContextKey = TerminalContextKeys.editorFocus.bindTo(_contextKeyService);
+		this._tewminawEditowFocusContextKey = TewminawContextKeys.editowFocus.bindTo(_contextKeySewvice);
 
-		// Refresh dirty state when the confirm on kill setting is changed
-		this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSettingId.ConfirmOnKill)) {
-				this._onDidChangeDirty.fire();
+		// Wefwesh diwty state when the confiwm on kiww setting is changed
+		this._configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation(TewminawSettingId.ConfiwmOnKiww)) {
+				this._onDidChangeDiwty.fiwe();
 			}
 		});
-		if (_terminalInstance) {
-			this._setupInstanceListeners();
+		if (_tewminawInstance) {
+			this._setupInstanceWistenews();
 		}
 	}
 
-	private _setupInstanceListeners(): void {
-		const instance = this._terminalInstance;
+	pwivate _setupInstanceWistenews(): void {
+		const instance = this._tewminawInstance;
 		if (!instance) {
-			return;
+			wetuwn;
 		}
 
-		this._register(toDisposable(() => {
+		this._wegista(toDisposabwe(() => {
 			if (!this._isDetached && !this._isShuttingDown) {
 				instance.dispose();
 			}
 		}));
 
-		const disposeListeners = [
+		const disposeWistenews = [
 			instance.onExit(() => this.dispose()),
 			instance.onDisposed(() => this.dispose()),
-			instance.onTitleChanged(() => this._onDidChangeLabel.fire()),
-			instance.onIconChanged(() => this._onDidChangeLabel.fire()),
-			instance.onDidFocus(() => this._terminalEditorFocusContextKey.set(true)),
-			instance.onDidBlur(() => this._terminalEditorFocusContextKey.reset()),
-			instance.onDidChangeHasChildProcesses(() => this._onDidChangeDirty.fire()),
-			instance.statusList.onDidChangePrimaryStatus(() => this._onDidChangeLabel.fire())
+			instance.onTitweChanged(() => this._onDidChangeWabew.fiwe()),
+			instance.onIconChanged(() => this._onDidChangeWabew.fiwe()),
+			instance.onDidFocus(() => this._tewminawEditowFocusContextKey.set(twue)),
+			instance.onDidBwuw(() => this._tewminawEditowFocusContextKey.weset()),
+			instance.onDidChangeHasChiwdPwocesses(() => this._onDidChangeDiwty.fiwe()),
+			instance.statusWist.onDidChangePwimawyStatus(() => this._onDidChangeWabew.fiwe())
 		];
 
-		// Don't dispose editor when instance is torn down on shutdown to avoid extra work and so
-		// the editor/tabs don't disappear
-		this._lifecycleService.onWillShutdown(() => {
-			this._isShuttingDown = true;
-			dispose(disposeListeners);
+		// Don't dispose editow when instance is town down on shutdown to avoid extwa wowk and so
+		// the editow/tabs don't disappeaw
+		this._wifecycweSewvice.onWiwwShutdown(() => {
+			this._isShuttingDown = twue;
+			dispose(disposeWistenews);
 		});
 	}
 
-	override getName() {
-		return this._terminalInstance?.title || this.resource.fragment;
+	ovewwide getName() {
+		wetuwn this._tewminawInstance?.titwe || this.wesouwce.fwagment;
 	}
 
-	override getLabelExtraClasses(): string[] {
-		if (!this._terminalInstance) {
-			return [];
+	ovewwide getWabewExtwaCwasses(): stwing[] {
+		if (!this._tewminawInstance) {
+			wetuwn [];
 		}
-		const extraClasses: string[] = ['terminal-tab'];
-		const colorClass = getColorClass(this._terminalInstance);
-		if (colorClass) {
-			extraClasses.push(colorClass);
+		const extwaCwasses: stwing[] = ['tewminaw-tab'];
+		const cowowCwass = getCowowCwass(this._tewminawInstance);
+		if (cowowCwass) {
+			extwaCwasses.push(cowowCwass);
 		}
-		const uriClasses = getUriClasses(this._terminalInstance, this._themeService.getColorTheme().type);
-		if (uriClasses) {
-			extraClasses.push(...uriClasses);
+		const uwiCwasses = getUwiCwasses(this._tewminawInstance, this._themeSewvice.getCowowTheme().type);
+		if (uwiCwasses) {
+			extwaCwasses.push(...uwiCwasses);
 		}
-		if (ThemeIcon.isThemeIcon(this._terminalInstance.icon)) {
-			extraClasses.push(`codicon-${this._terminalInstance.icon.id}`);
+		if (ThemeIcon.isThemeIcon(this._tewminawInstance.icon)) {
+			extwaCwasses.push(`codicon-${this._tewminawInstance.icon.id}`);
 		}
-		return extraClasses;
+		wetuwn extwaCwasses;
 	}
 
 	/**
-	 * Detach the instance from the input such that when the input is disposed it will not dispose
-	 * of the terminal instance/process.
+	 * Detach the instance fwom the input such that when the input is disposed it wiww not dispose
+	 * of the tewminaw instance/pwocess.
 	 */
 	detachInstance() {
 		if (!this._isShuttingDown) {
-			this._terminalInstance?.detachFromElement();
-			this._isDetached = true;
+			this._tewminawInstance?.detachFwomEwement();
+			this._isDetached = twue;
 		}
 	}
 
-	public override getDescription(): string | undefined {
-		return this._terminalInstance?.description || this._terminalInstance?.shellLaunchConfig.description;
+	pubwic ovewwide getDescwiption(): stwing | undefined {
+		wetuwn this._tewminawInstance?.descwiption || this._tewminawInstance?.shewwWaunchConfig.descwiption;
 	}
 
-	public override toUntyped(): IUntypedEditorInput {
-		return {
-			resource: this.resource,
+	pubwic ovewwide toUntyped(): IUntypedEditowInput {
+		wetuwn {
+			wesouwce: this.wesouwce,
 			options: {
-				override: TerminalEditor.ID,
-				pinned: true,
-				forceReload: true
+				ovewwide: TewminawEditow.ID,
+				pinned: twue,
+				fowceWewoad: twue
 			}
 		};
 	}

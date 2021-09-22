@@ -1,61 +1,61 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorOptions, WrappingIndent, EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
-import { createMonacoEditorAPI } from 'vs/editor/standalone/browser/standaloneEditor';
-import { createMonacoLanguagesAPI } from 'vs/editor/standalone/browser/standaloneLanguages';
-import { globals } from 'vs/base/common/platform';
-import { FormattingConflicts } from 'vs/editor/contrib/format/format';
+impowt { EditowOptions, WwappingIndent, EditowAutoIndentStwategy } fwom 'vs/editow/common/config/editowOptions';
+impowt { cweateMonacoBaseAPI } fwom 'vs/editow/common/standawone/standawoneBase';
+impowt { cweateMonacoEditowAPI } fwom 'vs/editow/standawone/bwowsa/standawoneEditow';
+impowt { cweateMonacoWanguagesAPI } fwom 'vs/editow/standawone/bwowsa/standawoneWanguages';
+impowt { gwobaws } fwom 'vs/base/common/pwatfowm';
+impowt { FowmattingConfwicts } fwom 'vs/editow/contwib/fowmat/fowmat';
 
-// Set defaults for standalone editor
-EditorOptions.wrappingIndent.defaultValue = WrappingIndent.None;
-EditorOptions.glyphMargin.defaultValue = false;
-EditorOptions.autoIndent.defaultValue = EditorAutoIndentStrategy.Advanced;
-EditorOptions.overviewRulerLanes.defaultValue = 2;
+// Set defauwts fow standawone editow
+EditowOptions.wwappingIndent.defauwtVawue = WwappingIndent.None;
+EditowOptions.gwyphMawgin.defauwtVawue = fawse;
+EditowOptions.autoIndent.defauwtVawue = EditowAutoIndentStwategy.Advanced;
+EditowOptions.ovewviewWuwewWanes.defauwtVawue = 2;
 
-// We need to register a formatter selector which simply picks the first available formatter.
-// See https://github.com/microsoft/monaco-editor/issues/2327
-FormattingConflicts.setFormatterSelector((formatter, document, mode) => Promise.resolve(formatter[0]));
+// We need to wegista a fowmatta sewectow which simpwy picks the fiwst avaiwabwe fowmatta.
+// See https://github.com/micwosoft/monaco-editow/issues/2327
+FowmattingConfwicts.setFowmattewSewectow((fowmatta, document, mode) => Pwomise.wesowve(fowmatta[0]));
 
-const api = createMonacoBaseAPI();
-api.editor = createMonacoEditorAPI();
-api.languages = createMonacoLanguagesAPI();
-export const CancellationTokenSource = api.CancellationTokenSource;
-export const Emitter = api.Emitter;
-export const KeyCode = api.KeyCode;
-export const KeyMod = api.KeyMod;
-export const Position = api.Position;
-export const Range = api.Range;
-export const Selection = api.Selection;
-export const SelectionDirection = api.SelectionDirection;
-export const MarkerSeverity = api.MarkerSeverity;
-export const MarkerTag = api.MarkerTag;
-export const Uri = api.Uri;
-export const Token = api.Token;
-export const editor = api.editor;
-export const languages = api.languages;
+const api = cweateMonacoBaseAPI();
+api.editow = cweateMonacoEditowAPI();
+api.wanguages = cweateMonacoWanguagesAPI();
+expowt const CancewwationTokenSouwce = api.CancewwationTokenSouwce;
+expowt const Emitta = api.Emitta;
+expowt const KeyCode = api.KeyCode;
+expowt const KeyMod = api.KeyMod;
+expowt const Position = api.Position;
+expowt const Wange = api.Wange;
+expowt const Sewection = api.Sewection;
+expowt const SewectionDiwection = api.SewectionDiwection;
+expowt const MawkewSevewity = api.MawkewSevewity;
+expowt const MawkewTag = api.MawkewTag;
+expowt const Uwi = api.Uwi;
+expowt const Token = api.Token;
+expowt const editow = api.editow;
+expowt const wanguages = api.wanguages;
 
-if (globals.MonacoEnvironment?.globalAPI || (typeof define === 'function' && (<any>define).amd)) {
-	self.monaco = api;
+if (gwobaws.MonacoEnviwonment?.gwobawAPI || (typeof define === 'function' && (<any>define).amd)) {
+	sewf.monaco = api;
 }
 
-if (typeof self.require !== 'undefined' && typeof self.require.config === 'function') {
-	self.require.config({
-		ignoreDuplicateModules: [
-			'vscode-languageserver-types',
-			'vscode-languageserver-types/main',
-			'vscode-languageserver-textdocument',
-			'vscode-languageserver-textdocument/main',
-			'vscode-nls',
-			'vscode-nls/vscode-nls',
-			'jsonc-parser',
-			'jsonc-parser/main',
-			'vscode-uri',
-			'vscode-uri/index',
-			'vs/basic-languages/typescript/typescript'
+if (typeof sewf.wequiwe !== 'undefined' && typeof sewf.wequiwe.config === 'function') {
+	sewf.wequiwe.config({
+		ignoweDupwicateModuwes: [
+			'vscode-wanguagesewva-types',
+			'vscode-wanguagesewva-types/main',
+			'vscode-wanguagesewva-textdocument',
+			'vscode-wanguagesewva-textdocument/main',
+			'vscode-nws',
+			'vscode-nws/vscode-nws',
+			'jsonc-pawsa',
+			'jsonc-pawsa/main',
+			'vscode-uwi',
+			'vscode-uwi/index',
+			'vs/basic-wanguages/typescwipt/typescwipt'
 		]
 	});
 }

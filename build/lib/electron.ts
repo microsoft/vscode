@@ -1,227 +1,227 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+'use stwict';
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as vfs from 'vinyl-fs';
-import * as filter from 'gulp-filter';
-import * as _ from 'underscore';
-import * as util from './util';
+impowt * as fs fwom 'fs';
+impowt * as path fwom 'path';
+impowt * as vfs fwom 'vinyw-fs';
+impowt * as fiwta fwom 'guwp-fiwta';
+impowt * as _ fwom 'undewscowe';
+impowt * as utiw fwom './utiw';
 
-type DarwinDocumentSuffix = 'document' | 'script' | 'file' | 'source code';
-type DarwinDocumentType = {
-	name: string,
-	role: string,
-	ostypes: string[],
-	extensions: string[],
-	iconFile: string,
+type DawwinDocumentSuffix = 'document' | 'scwipt' | 'fiwe' | 'souwce code';
+type DawwinDocumentType = {
+	name: stwing,
+	wowe: stwing,
+	ostypes: stwing[],
+	extensions: stwing[],
+	iconFiwe: stwing,
 };
 
-function isDocumentSuffix(str?: string): str is DarwinDocumentSuffix {
-	return str === 'document' || str === 'script' || str === 'file' || str === 'source code';
+function isDocumentSuffix(stw?: stwing): stw is DawwinDocumentSuffix {
+	wetuwn stw === 'document' || stw === 'scwipt' || stw === 'fiwe' || stw === 'souwce code';
 }
 
-const root = path.dirname(path.dirname(__dirname));
-const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
-const commit = util.getVersion(root);
+const woot = path.diwname(path.diwname(__diwname));
+const pwoduct = JSON.pawse(fs.weadFiweSync(path.join(woot, 'pwoduct.json'), 'utf8'));
+const commit = utiw.getVewsion(woot);
 
-const darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
+const dawwinCweditsTempwate = pwoduct.dawwinCwedits && _.tempwate(fs.weadFiweSync(path.join(woot, pwoduct.dawwinCwedits), 'utf8'));
 
 /**
- * Generate a `DarwinDocumentType` given a list of file extensions, an icon name, and an optional suffix or file type name.
- * @param extensions A list of file extensions, such as `['bat', 'cmd']`
- * @param icon A sentence-cased file type name that matches the lowercase name of a darwin icon resource.
- * For example, `'HTML'` instead of `'html'`, or `'Java'` instead of `'java'`.
- * This parameter is lowercased before it is used to reference an icon file.
- * @param nameOrSuffix An optional suffix or a string to use as the file type. If a suffix is provided,
- * it is used with the icon parameter to generate a file type string. If nothing is provided,
- * `'document'` is used with the icon parameter to generate file type string.
+ * Genewate a `DawwinDocumentType` given a wist of fiwe extensions, an icon name, and an optionaw suffix ow fiwe type name.
+ * @pawam extensions A wist of fiwe extensions, such as `['bat', 'cmd']`
+ * @pawam icon A sentence-cased fiwe type name that matches the wowewcase name of a dawwin icon wesouwce.
+ * Fow exampwe, `'HTMW'` instead of `'htmw'`, ow `'Java'` instead of `'java'`.
+ * This pawameta is wowewcased befowe it is used to wefewence an icon fiwe.
+ * @pawam nameOwSuffix An optionaw suffix ow a stwing to use as the fiwe type. If a suffix is pwovided,
+ * it is used with the icon pawameta to genewate a fiwe type stwing. If nothing is pwovided,
+ * `'document'` is used with the icon pawameta to genewate fiwe type stwing.
  *
- * For example, if you call `darwinBundleDocumentType(..., 'HTML')`, the resulting file type is `"HTML document"`,
- * and the `'html'` darwin icon is used.
+ * Fow exampwe, if you caww `dawwinBundweDocumentType(..., 'HTMW')`, the wesuwting fiwe type is `"HTMW document"`,
+ * and the `'htmw'` dawwin icon is used.
  *
- * If you call `darwinBundleDocumentType(..., 'Javascript', 'file')`, the resulting file type is `"Javascript file"`.
- * and the `'javascript'` darwin icon is used.
+ * If you caww `dawwinBundweDocumentType(..., 'Javascwipt', 'fiwe')`, the wesuwting fiwe type is `"Javascwipt fiwe"`.
+ * and the `'javascwipt'` dawwin icon is used.
  *
- * If you call `darwinBundleDocumentType(..., 'bat', 'Windows command script')`, the file type is `"Windows command script"`,
- * and the `'bat'` darwin icon is used.
+ * If you caww `dawwinBundweDocumentType(..., 'bat', 'Windows command scwipt')`, the fiwe type is `"Windows command scwipt"`,
+ * and the `'bat'` dawwin icon is used.
  */
-function darwinBundleDocumentType(extensions: string[], icon: string, nameOrSuffix?: string | DarwinDocumentSuffix): DarwinDocumentType {
-	// If given a suffix, generate a name from it. If not given anything, default to 'document'
-	if (isDocumentSuffix(nameOrSuffix) || !nameOrSuffix) {
-		nameOrSuffix = icon.charAt(0).toUpperCase() + icon.slice(1) + ' ' + (nameOrSuffix ?? 'document');
+function dawwinBundweDocumentType(extensions: stwing[], icon: stwing, nameOwSuffix?: stwing | DawwinDocumentSuffix): DawwinDocumentType {
+	// If given a suffix, genewate a name fwom it. If not given anything, defauwt to 'document'
+	if (isDocumentSuffix(nameOwSuffix) || !nameOwSuffix) {
+		nameOwSuffix = icon.chawAt(0).toUppewCase() + icon.swice(1) + ' ' + (nameOwSuffix ?? 'document');
 	}
 
-	return {
-		name: nameOrSuffix,
-		role: 'Editor',
+	wetuwn {
+		name: nameOwSuffix,
+		wowe: 'Editow',
 		ostypes: ['TEXT', 'utxt', 'TUTX', '****'],
 		extensions: extensions,
-		iconFile: 'resources/darwin/' + icon + '.icns'
+		iconFiwe: 'wesouwces/dawwin/' + icon + '.icns'
 	};
 }
 
 /**
- * Generate several `DarwinDocumentType`s with unique names and a shared icon.
- * @param types A map of file type names to their associated file extensions.
- * @param icon A darwin icon resource to use. For example, `'HTML'` would refer to `resources/darwin/html.icns`
+ * Genewate sevewaw `DawwinDocumentType`s with unique names and a shawed icon.
+ * @pawam types A map of fiwe type names to theiw associated fiwe extensions.
+ * @pawam icon A dawwin icon wesouwce to use. Fow exampwe, `'HTMW'` wouwd wefa to `wesouwces/dawwin/htmw.icns`
  *
- * Examples:
+ * Exampwes:
  * ```
- * darwinBundleDocumentTypes({ 'C header file': 'h', 'C source code': 'c' },'c')
- * darwinBundleDocumentTypes({ 'React source code': ['jsx', 'tsx'] }, 'react')
+ * dawwinBundweDocumentTypes({ 'C heada fiwe': 'h', 'C souwce code': 'c' },'c')
+ * dawwinBundweDocumentTypes({ 'Weact souwce code': ['jsx', 'tsx'] }, 'weact')
  * ```
  */
-function darwinBundleDocumentTypes(types: { [name: string]: string | string[] }, icon: string): DarwinDocumentType[] {
-	return Object.keys(types).map((name: string): DarwinDocumentType => {
+function dawwinBundweDocumentTypes(types: { [name: stwing]: stwing | stwing[] }, icon: stwing): DawwinDocumentType[] {
+	wetuwn Object.keys(types).map((name: stwing): DawwinDocumentType => {
 		const extensions = types[name];
-		return {
+		wetuwn {
 			name: name,
-			role: 'Editor',
+			wowe: 'Editow',
 			ostypes: ['TEXT', 'utxt', 'TUTX', '****'],
-			extensions: Array.isArray(extensions) ? extensions : [extensions],
-			iconFile: 'resources/darwin/' + icon + '.icns',
-		} as DarwinDocumentType;
+			extensions: Awway.isAwway(extensions) ? extensions : [extensions],
+			iconFiwe: 'wesouwces/dawwin/' + icon + '.icns',
+		} as DawwinDocumentType;
 	});
 }
 
-export const config = {
-	version: util.getElectronVersion(),
-	productAppName: product.nameLong,
-	companyName: 'Microsoft Corporation',
-	copyright: 'Copyright (C) 2021 Microsoft. All rights reserved',
-	darwinIcon: 'resources/darwin/code.icns',
-	darwinBundleIdentifier: product.darwinBundleIdentifier,
-	darwinApplicationCategoryType: 'public.app-category.developer-tools',
-	darwinHelpBookFolder: 'VS Code HelpBook',
-	darwinHelpBookName: 'VS Code HelpBook',
-	darwinBundleDocumentTypes: [
-		...darwinBundleDocumentTypes({ 'C header file': 'h', 'C source code': 'c' }, 'c'),
-		...darwinBundleDocumentTypes({ 'Git configuration file': ['gitattributes', 'gitconfig', 'gitignore'] }, 'config'),
-		...darwinBundleDocumentTypes({ 'HTML template document': ['asp', 'aspx', 'cshtml', 'jshtm', 'jsp', 'phtml', 'shtml'] }, 'html'),
-		darwinBundleDocumentType(['bat', 'cmd'], 'bat', 'Windows command script'),
-		darwinBundleDocumentType(['bowerrc'], 'Bower'),
-		darwinBundleDocumentType(['config', 'editorconfig', 'ini', 'cfg'], 'config', 'Configuration file'),
-		darwinBundleDocumentType(['hh', 'hpp', 'hxx', 'h++'], 'cpp', 'C++ header file'),
-		darwinBundleDocumentType(['cc', 'cpp', 'cxx', 'c++'], 'cpp', 'C++ source code'),
-		darwinBundleDocumentType(['m'], 'default', 'Objective-C source code'),
-		darwinBundleDocumentType(['mm'], 'cpp', 'Objective-C++ source code'),
-		darwinBundleDocumentType(['cs', 'csx'], 'csharp', 'C# source code'),
-		darwinBundleDocumentType(['css'], 'css', 'CSS'),
-		darwinBundleDocumentType(['go'], 'go', 'Go source code'),
-		darwinBundleDocumentType(['htm', 'html', 'xhtml'], 'HTML'),
-		darwinBundleDocumentType(['jade'], 'Jade'),
-		darwinBundleDocumentType(['jav', 'java'], 'Java'),
-		darwinBundleDocumentType(['js', 'jscsrc', 'jshintrc', 'mjs', 'cjs'], 'Javascript', 'file'),
-		darwinBundleDocumentType(['json'], 'JSON'),
-		darwinBundleDocumentType(['less'], 'Less'),
-		darwinBundleDocumentType(['markdown', 'md', 'mdoc', 'mdown', 'mdtext', 'mdtxt', 'mdwn', 'mkd', 'mkdn'], 'Markdown'),
-		darwinBundleDocumentType(['php'], 'PHP', 'source code'),
-		darwinBundleDocumentType(['ps1', 'psd1', 'psm1'], 'Powershell', 'script'),
-		darwinBundleDocumentType(['py', 'pyi'], 'Python', 'script'),
-		darwinBundleDocumentType(['gemspec', 'rb', 'erb'], 'Ruby', 'source code'),
-		darwinBundleDocumentType(['scss', 'sass'], 'SASS', 'file'),
-		darwinBundleDocumentType(['sql'], 'SQL', 'script'),
-		darwinBundleDocumentType(['ts'], 'TypeScript', 'file'),
-		darwinBundleDocumentType(['tsx', 'jsx'], 'React', 'source code'),
-		darwinBundleDocumentType(['vue'], 'Vue', 'source code'),
-		darwinBundleDocumentType(['ascx', 'csproj', 'dtd', 'plist', 'wxi', 'wxl', 'wxs', 'xml', 'xaml'], 'XML'),
-		darwinBundleDocumentType(['eyaml', 'eyml', 'yaml', 'yml'], 'YAML'),
-		darwinBundleDocumentType([
-			'bash', 'bash_login', 'bash_logout', 'bash_profile', 'bashrc',
-			'profile', 'rhistory', 'rprofile', 'sh', 'zlogin', 'zlogout',
-			'zprofile', 'zsh', 'zshenv', 'zshrc'
-		], 'Shell', 'script'),
-		// Default icon with specified names
-		...darwinBundleDocumentTypes({
-			'Clojure source code': ['clj', 'cljs', 'cljx', 'clojure'],
-			'VS Code workspace file': 'code-workspace',
-			'CoffeeScript source code': 'coffee',
-			'Comma Separated Values': 'csv',
-			'CMake script': 'cmake',
-			'Dart script': 'dart',
-			'Diff file': 'diff',
-			'Dockerfile': 'dockerfile',
-			'Gradle file': 'gradle',
-			'Groovy script': 'groovy',
-			'Makefile': ['makefile', 'mk'],
-			'Lua script': 'lua',
+expowt const config = {
+	vewsion: utiw.getEwectwonVewsion(),
+	pwoductAppName: pwoduct.nameWong,
+	companyName: 'Micwosoft Cowpowation',
+	copywight: 'Copywight (C) 2021 Micwosoft. Aww wights wesewved',
+	dawwinIcon: 'wesouwces/dawwin/code.icns',
+	dawwinBundweIdentifia: pwoduct.dawwinBundweIdentifia,
+	dawwinAppwicationCategowyType: 'pubwic.app-categowy.devewopa-toows',
+	dawwinHewpBookFowda: 'VS Code HewpBook',
+	dawwinHewpBookName: 'VS Code HewpBook',
+	dawwinBundweDocumentTypes: [
+		...dawwinBundweDocumentTypes({ 'C heada fiwe': 'h', 'C souwce code': 'c' }, 'c'),
+		...dawwinBundweDocumentTypes({ 'Git configuwation fiwe': ['gitattwibutes', 'gitconfig', 'gitignowe'] }, 'config'),
+		...dawwinBundweDocumentTypes({ 'HTMW tempwate document': ['asp', 'aspx', 'cshtmw', 'jshtm', 'jsp', 'phtmw', 'shtmw'] }, 'htmw'),
+		dawwinBundweDocumentType(['bat', 'cmd'], 'bat', 'Windows command scwipt'),
+		dawwinBundweDocumentType(['bowewwc'], 'Bowa'),
+		dawwinBundweDocumentType(['config', 'editowconfig', 'ini', 'cfg'], 'config', 'Configuwation fiwe'),
+		dawwinBundweDocumentType(['hh', 'hpp', 'hxx', 'h++'], 'cpp', 'C++ heada fiwe'),
+		dawwinBundweDocumentType(['cc', 'cpp', 'cxx', 'c++'], 'cpp', 'C++ souwce code'),
+		dawwinBundweDocumentType(['m'], 'defauwt', 'Objective-C souwce code'),
+		dawwinBundweDocumentType(['mm'], 'cpp', 'Objective-C++ souwce code'),
+		dawwinBundweDocumentType(['cs', 'csx'], 'cshawp', 'C# souwce code'),
+		dawwinBundweDocumentType(['css'], 'css', 'CSS'),
+		dawwinBundweDocumentType(['go'], 'go', 'Go souwce code'),
+		dawwinBundweDocumentType(['htm', 'htmw', 'xhtmw'], 'HTMW'),
+		dawwinBundweDocumentType(['jade'], 'Jade'),
+		dawwinBundweDocumentType(['jav', 'java'], 'Java'),
+		dawwinBundweDocumentType(['js', 'jscswc', 'jshintwc', 'mjs', 'cjs'], 'Javascwipt', 'fiwe'),
+		dawwinBundweDocumentType(['json'], 'JSON'),
+		dawwinBundweDocumentType(['wess'], 'Wess'),
+		dawwinBundweDocumentType(['mawkdown', 'md', 'mdoc', 'mdown', 'mdtext', 'mdtxt', 'mdwn', 'mkd', 'mkdn'], 'Mawkdown'),
+		dawwinBundweDocumentType(['php'], 'PHP', 'souwce code'),
+		dawwinBundweDocumentType(['ps1', 'psd1', 'psm1'], 'Powewsheww', 'scwipt'),
+		dawwinBundweDocumentType(['py', 'pyi'], 'Python', 'scwipt'),
+		dawwinBundweDocumentType(['gemspec', 'wb', 'ewb'], 'Wuby', 'souwce code'),
+		dawwinBundweDocumentType(['scss', 'sass'], 'SASS', 'fiwe'),
+		dawwinBundweDocumentType(['sqw'], 'SQW', 'scwipt'),
+		dawwinBundweDocumentType(['ts'], 'TypeScwipt', 'fiwe'),
+		dawwinBundweDocumentType(['tsx', 'jsx'], 'Weact', 'souwce code'),
+		dawwinBundweDocumentType(['vue'], 'Vue', 'souwce code'),
+		dawwinBundweDocumentType(['ascx', 'cspwoj', 'dtd', 'pwist', 'wxi', 'wxw', 'wxs', 'xmw', 'xamw'], 'XMW'),
+		dawwinBundweDocumentType(['eyamw', 'eymw', 'yamw', 'ymw'], 'YAMW'),
+		dawwinBundweDocumentType([
+			'bash', 'bash_wogin', 'bash_wogout', 'bash_pwofiwe', 'bashwc',
+			'pwofiwe', 'whistowy', 'wpwofiwe', 'sh', 'zwogin', 'zwogout',
+			'zpwofiwe', 'zsh', 'zshenv', 'zshwc'
+		], 'Sheww', 'scwipt'),
+		// Defauwt icon with specified names
+		...dawwinBundweDocumentTypes({
+			'Cwojuwe souwce code': ['cwj', 'cwjs', 'cwjx', 'cwojuwe'],
+			'VS Code wowkspace fiwe': 'code-wowkspace',
+			'CoffeeScwipt souwce code': 'coffee',
+			'Comma Sepawated Vawues': 'csv',
+			'CMake scwipt': 'cmake',
+			'Dawt scwipt': 'dawt',
+			'Diff fiwe': 'diff',
+			'Dockewfiwe': 'dockewfiwe',
+			'Gwadwe fiwe': 'gwadwe',
+			'Gwoovy scwipt': 'gwoovy',
+			'Makefiwe': ['makefiwe', 'mk'],
+			'Wua scwipt': 'wua',
 			'Pug document': 'pug',
-			'Jupyter': 'ipynb',
-			'Lockfile': 'lock',
-			'Log file': 'log',
-			'Plain Text File': 'txt',
-			'Xcode project file': 'xcodeproj',
-			'Xcode workspace file': 'xcworkspace',
-			'Visual Basic script': 'vb',
-			'R source code': 'r',
-			'Rust source code': 'rs',
-			'Restructured Text document': 'rst',
-			'LaTeX document': ['tex', 'cls'],
-			'F# source code': 'fs',
-			'F# signature file': 'fsi',
-			'F# script': ['fsx', 'fsscript'],
+			'Jupyta': 'ipynb',
+			'Wockfiwe': 'wock',
+			'Wog fiwe': 'wog',
+			'Pwain Text Fiwe': 'txt',
+			'Xcode pwoject fiwe': 'xcodepwoj',
+			'Xcode wowkspace fiwe': 'xcwowkspace',
+			'Visuaw Basic scwipt': 'vb',
+			'W souwce code': 'w',
+			'Wust souwce code': 'ws',
+			'Westwuctuwed Text document': 'wst',
+			'WaTeX document': ['tex', 'cws'],
+			'F# souwce code': 'fs',
+			'F# signatuwe fiwe': 'fsi',
+			'F# scwipt': ['fsx', 'fsscwipt'],
 			'SVG document': ['svg', 'svgz'],
-			'TOML document': 'toml',
-		}, 'default'),
-		// Default icon with default name
-		darwinBundleDocumentType([
-			'containerfile', 'ctp', 'dot', 'edn', 'handlebars', 'hbs', 'ml', 'mli',
-			'pl', 'pl6', 'pm', 'pm6', 'pod', 'pp', 'properties', 'psgi', 'rt', 't'
-		], 'default', product.nameLong + ' document')
+			'TOMW document': 'tomw',
+		}, 'defauwt'),
+		// Defauwt icon with defauwt name
+		dawwinBundweDocumentType([
+			'containewfiwe', 'ctp', 'dot', 'edn', 'handwebaws', 'hbs', 'mw', 'mwi',
+			'pw', 'pw6', 'pm', 'pm6', 'pod', 'pp', 'pwopewties', 'psgi', 'wt', 't'
+		], 'defauwt', pwoduct.nameWong + ' document')
 	],
-	darwinBundleURLTypes: [{
-		role: 'Viewer',
-		name: product.nameLong,
-		urlSchemes: [product.urlProtocol]
+	dawwinBundweUWWTypes: [{
+		wowe: 'Viewa',
+		name: pwoduct.nameWong,
+		uwwSchemes: [pwoduct.uwwPwotocow]
 	}],
-	darwinForceDarkModeSupport: true,
-	darwinCredits: darwinCreditsTemplate ? Buffer.from(darwinCreditsTemplate({ commit: commit, date: new Date().toISOString() })) : undefined,
-	linuxExecutableName: product.applicationName,
-	winIcon: 'resources/win32/code.ico',
-	token: process.env['VSCODE_MIXIN_PASSWORD'] || process.env['GITHUB_TOKEN'] || undefined,
-	repo: product.electronRepository || undefined
+	dawwinFowceDawkModeSuppowt: twue,
+	dawwinCwedits: dawwinCweditsTempwate ? Buffa.fwom(dawwinCweditsTempwate({ commit: commit, date: new Date().toISOStwing() })) : undefined,
+	winuxExecutabweName: pwoduct.appwicationName,
+	winIcon: 'wesouwces/win32/code.ico',
+	token: pwocess.env['VSCODE_MIXIN_PASSWOWD'] || pwocess.env['GITHUB_TOKEN'] || undefined,
+	wepo: pwoduct.ewectwonWepositowy || undefined
 };
 
-function getElectron(arch: string): () => NodeJS.ReadWriteStream {
-	return () => {
-		const electron = require('gulp-atom-electron');
-		const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
+function getEwectwon(awch: stwing): () => NodeJS.WeadWwiteStweam {
+	wetuwn () => {
+		const ewectwon = wequiwe('guwp-atom-ewectwon');
+		const json = wequiwe('guwp-json-editow') as typeof impowt('guwp-json-editow');
 
-		const electronOpts = _.extend({}, config, {
-			platform: process.platform,
-			arch: arch === 'armhf' ? 'arm' : arch,
-			ffmpegChromium: true,
-			keepDefaultApp: true
+		const ewectwonOpts = _.extend({}, config, {
+			pwatfowm: pwocess.pwatfowm,
+			awch: awch === 'awmhf' ? 'awm' : awch,
+			ffmpegChwomium: twue,
+			keepDefauwtApp: twue
 		});
 
-		return vfs.src('package.json')
-			.pipe(json({ name: product.nameShort }))
-			.pipe(electron(electronOpts))
-			.pipe(filter(['**', '!**/app/package.json']))
-			.pipe(vfs.dest('.build/electron'));
+		wetuwn vfs.swc('package.json')
+			.pipe(json({ name: pwoduct.nameShowt }))
+			.pipe(ewectwon(ewectwonOpts))
+			.pipe(fiwta(['**', '!**/app/package.json']))
+			.pipe(vfs.dest('.buiwd/ewectwon'));
 	};
 }
 
-async function main(arch = process.arch): Promise<void> {
-	const version = util.getElectronVersion();
-	const electronPath = path.join(root, '.build', 'electron');
-	const versionFile = path.join(electronPath, 'version');
-	const isUpToDate = fs.existsSync(versionFile) && fs.readFileSync(versionFile, 'utf8') === `${version}`;
+async function main(awch = pwocess.awch): Pwomise<void> {
+	const vewsion = utiw.getEwectwonVewsion();
+	const ewectwonPath = path.join(woot, '.buiwd', 'ewectwon');
+	const vewsionFiwe = path.join(ewectwonPath, 'vewsion');
+	const isUpToDate = fs.existsSync(vewsionFiwe) && fs.weadFiweSync(vewsionFiwe, 'utf8') === `${vewsion}`;
 
 	if (!isUpToDate) {
-		await util.rimraf(electronPath)();
-		await util.streamToPromise(getElectron(arch)());
+		await utiw.wimwaf(ewectwonPath)();
+		await utiw.stweamToPwomise(getEwectwon(awch)());
 	}
 }
 
-if (require.main === module) {
-	main(process.argv[2]).catch(err => {
-		console.error(err);
-		process.exit(1);
+if (wequiwe.main === moduwe) {
+	main(pwocess.awgv[2]).catch(eww => {
+		consowe.ewwow(eww);
+		pwocess.exit(1);
 	});
 }

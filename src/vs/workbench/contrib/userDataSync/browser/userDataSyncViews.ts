@@ -1,637 +1,637 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IViewsRegistry, Extensions, ITreeViewDescriptor, ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState, TreeViewItemHandleArg, ViewContainer } from 'vs/workbench/common/views';
-import { localize } from 'vs/nls';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { TreeView, TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle as IResourceHandle, SyncStatus, IUserDataSyncResourceEnablementService, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, IUserDataAutoSyncEnablementService, getLastSyncResourceUri } from 'vs/platform/userDataSync/common/userDataSync';
-import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { URI } from 'vs/base/common/uri';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { FolderThemeIcon } from 'vs/platform/theme/common/themeService';
-import { fromNow } from 'vs/base/common/date';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Codicon } from 'vs/base/common/codicons';
-import { Action } from 'vs/base/common/actions';
-import { IUserDataSyncWorkbenchService, CONTEXT_SYNC_STATE, getSyncAreaLabel, CONTEXT_ACCOUNT_STATE, AccountStatus, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_MERGES_VIEW_ID, CONTEXT_ENABLE_SYNC_MERGES_VIEW, SYNC_TITLE } from 'vs/workbench/services/userDataSync/common/userDataSync';
-import { IUserDataSyncMachinesService, IUserDataSyncMachine } from 'vs/platform/userDataSync/common/userDataSyncMachines';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { flatten } from 'vs/base/common/arrays';
-import { UserDataSyncMergesViewPane } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncMergesView';
-import { basename } from 'vs/base/common/resources';
-import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IViewsWegistwy, Extensions, ITweeViewDescwiptow, ITweeViewDataPwovida, ITweeItem, TweeItemCowwapsibweState, TweeViewItemHandweAwg, ViewContaina } fwom 'vs/wowkbench/common/views';
+impowt { wocawize } fwom 'vs/nws';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { TweeView, TweeViewPane } fwom 'vs/wowkbench/bwowsa/pawts/views/tweeView';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { AWW_SYNC_WESOUWCES, SyncWesouwce, IUsewDataSyncSewvice, ISyncWesouwceHandwe as IWesouwceHandwe, SyncStatus, IUsewDataSyncWesouwceEnabwementSewvice, IUsewDataAutoSyncSewvice, UsewDataSyncEwwow, UsewDataSyncEwwowCode, IUsewDataAutoSyncEnabwementSewvice, getWastSyncWesouwceUwi } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { wegistewAction2, Action2, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { FowdewThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { fwomNow } fwom 'vs/base/common/date';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { IUsewDataSyncWowkbenchSewvice, CONTEXT_SYNC_STATE, getSyncAweaWabew, CONTEXT_ACCOUNT_STATE, AccountStatus, CONTEXT_ENABWE_ACTIVITY_VIEWS, SYNC_MEWGES_VIEW_ID, CONTEXT_ENABWE_SYNC_MEWGES_VIEW, SYNC_TITWE } fwom 'vs/wowkbench/sewvices/usewDataSync/common/usewDataSync';
+impowt { IUsewDataSyncMachinesSewvice, IUsewDataSyncMachine } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncMachines';
+impowt { IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { fwatten } fwom 'vs/base/common/awways';
+impowt { UsewDataSyncMewgesViewPane } fwom 'vs/wowkbench/contwib/usewDataSync/bwowsa/usewDataSyncMewgesView';
+impowt { basename } fwom 'vs/base/common/wesouwces';
+impowt { API_OPEN_DIFF_EDITOW_COMMAND_ID, API_OPEN_EDITOW_COMMAND_ID } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowCommands';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
 
-export class UserDataSyncDataViews extends Disposable {
+expowt cwass UsewDataSyncDataViews extends Disposabwe {
 
-	constructor(
-		container: ViewContainer,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
-		@IUserDataSyncResourceEnablementService private readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
-		@IUserDataSyncMachinesService private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
-		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
+	constwuctow(
+		containa: ViewContaina,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IUsewDataAutoSyncEnabwementSewvice pwivate weadonwy usewDataAutoSyncEnabwementSewvice: IUsewDataAutoSyncEnabwementSewvice,
+		@IUsewDataSyncWesouwceEnabwementSewvice pwivate weadonwy usewDataSyncWesouwceEnabwementSewvice: IUsewDataSyncWesouwceEnabwementSewvice,
+		@IUsewDataSyncMachinesSewvice pwivate weadonwy usewDataSyncMachinesSewvice: IUsewDataSyncMachinesSewvice,
+		@IUsewDataSyncSewvice pwivate weadonwy usewDataSyncSewvice: IUsewDataSyncSewvice,
 	) {
-		super();
-		this.registerViews(container);
+		supa();
+		this.wegistewViews(containa);
 	}
 
-	private registerViews(container: ViewContainer): void {
-		this.registerMergesView(container);
+	pwivate wegistewViews(containa: ViewContaina): void {
+		this.wegistewMewgesView(containa);
 
-		this.registerActivityView(container, true);
-		this.registerMachinesView(container);
+		this.wegistewActivityView(containa, twue);
+		this.wegistewMachinesView(containa);
 
-		this.registerActivityView(container, false);
-		this.registerTroubleShootView(container);
+		this.wegistewActivityView(containa, fawse);
+		this.wegistewTwoubweShootView(containa);
 	}
 
-	private registerMergesView(container: ViewContainer): void {
-		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
-		const viewName = localize('merges', "Merges");
-		viewsRegistry.registerViews([<ITreeViewDescriptor>{
-			id: SYNC_MERGES_VIEW_ID,
+	pwivate wegistewMewgesView(containa: ViewContaina): void {
+		const viewsWegistwy = Wegistwy.as<IViewsWegistwy>(Extensions.ViewsWegistwy);
+		const viewName = wocawize('mewges', "Mewges");
+		viewsWegistwy.wegistewViews([<ITweeViewDescwiptow>{
+			id: SYNC_MEWGES_VIEW_ID,
 			name: viewName,
-			ctorDescriptor: new SyncDescriptor(UserDataSyncMergesViewPane),
-			when: CONTEXT_ENABLE_SYNC_MERGES_VIEW,
-			canToggleVisibility: false,
-			canMoveView: false,
-			treeView: this.instantiationService.createInstance(TreeView, SYNC_MERGES_VIEW_ID, viewName),
-			collapsed: false,
-			order: 100,
-		}], container);
+			ctowDescwiptow: new SyncDescwiptow(UsewDataSyncMewgesViewPane),
+			when: CONTEXT_ENABWE_SYNC_MEWGES_VIEW,
+			canToggweVisibiwity: fawse,
+			canMoveView: fawse,
+			tweeView: this.instantiationSewvice.cweateInstance(TweeView, SYNC_MEWGES_VIEW_ID, viewName),
+			cowwapsed: fawse,
+			owda: 100,
+		}], containa);
 	}
 
-	private registerMachinesView(container: ViewContainer): void {
-		const id = `workbench.views.sync.machines`;
-		const name = localize('synced machines', "Synced Machines");
-		const treeView = this.instantiationService.createInstance(TreeView, id, name);
-		const dataProvider = this.instantiationService.createInstance(UserDataSyncMachinesViewDataProvider, treeView);
-		treeView.showRefreshAction = true;
-		const disposable = treeView.onDidChangeVisibility(visible => {
-			if (visible && !treeView.dataProvider) {
-				disposable.dispose();
-				treeView.dataProvider = dataProvider;
+	pwivate wegistewMachinesView(containa: ViewContaina): void {
+		const id = `wowkbench.views.sync.machines`;
+		const name = wocawize('synced machines', "Synced Machines");
+		const tweeView = this.instantiationSewvice.cweateInstance(TweeView, id, name);
+		const dataPwovida = this.instantiationSewvice.cweateInstance(UsewDataSyncMachinesViewDataPwovida, tweeView);
+		tweeView.showWefweshAction = twue;
+		const disposabwe = tweeView.onDidChangeVisibiwity(visibwe => {
+			if (visibwe && !tweeView.dataPwovida) {
+				disposabwe.dispose();
+				tweeView.dataPwovida = dataPwovida;
 			}
 		});
-		this._register(Event.any(this.userDataSyncMachinesService.onDidChange, this.userDataSyncService.onDidResetRemote)(() => treeView.refresh()));
-		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
-		viewsRegistry.registerViews([<ITreeViewDescriptor>{
+		this._wegista(Event.any(this.usewDataSyncMachinesSewvice.onDidChange, this.usewDataSyncSewvice.onDidWesetWemote)(() => tweeView.wefwesh()));
+		const viewsWegistwy = Wegistwy.as<IViewsWegistwy>(Extensions.ViewsWegistwy);
+		viewsWegistwy.wegistewViews([<ITweeViewDescwiptow>{
 			id,
 			name,
-			ctorDescriptor: new SyncDescriptor(TreeViewPane),
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available), CONTEXT_ENABLE_ACTIVITY_VIEWS),
-			canToggleVisibility: true,
-			canMoveView: false,
-			treeView,
-			collapsed: false,
-			order: 300,
-		}], container);
+			ctowDescwiptow: new SyncDescwiptow(TweeViewPane),
+			when: ContextKeyExpw.and(CONTEXT_SYNC_STATE.notEquawsTo(SyncStatus.Uninitiawized), CONTEXT_ACCOUNT_STATE.isEquawTo(AccountStatus.Avaiwabwe), CONTEXT_ENABWE_ACTIVITY_VIEWS),
+			canToggweVisibiwity: twue,
+			canMoveView: fawse,
+			tweeView,
+			cowwapsed: fawse,
+			owda: 300,
+		}], containa);
 
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: `workbench.actions.sync.editMachineName`,
-					title: localize('workbench.actions.sync.editMachineName', "Edit Name"),
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: `wowkbench.actions.sync.editMachineName`,
+					titwe: wocawize('wowkbench.actions.sync.editMachineName', "Edit Name"),
 					icon: Codicon.edit,
 					menu: {
 						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', id)),
-						group: 'inline',
+						when: ContextKeyExpw.and(ContextKeyExpw.equaws('view', id)),
+						gwoup: 'inwine',
 					},
 				});
 			}
-			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
-				const changed = await dataProvider.rename(handle.$treeItemHandle);
+			async wun(accessow: SewvicesAccessow, handwe: TweeViewItemHandweAwg): Pwomise<void> {
+				const changed = await dataPwovida.wename(handwe.$tweeItemHandwe);
 				if (changed) {
-					await treeView.refresh();
+					await tweeView.wefwesh();
 				}
 			}
 		});
 
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: `workbench.actions.sync.turnOffSyncOnMachine`,
-					title: localize('workbench.actions.sync.turnOffSyncOnMachine', "Turn off Settings Sync"),
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: `wowkbench.actions.sync.tuwnOffSyncOnMachine`,
+					titwe: wocawize('wowkbench.actions.sync.tuwnOffSyncOnMachine', "Tuwn off Settings Sync"),
 					menu: {
 						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', id), ContextKeyExpr.equals('viewItem', 'sync-machine')),
+						when: ContextKeyExpw.and(ContextKeyExpw.equaws('view', id), ContextKeyExpw.equaws('viewItem', 'sync-machine')),
 					},
 				});
 			}
-			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
-				if (await dataProvider.disable(handle.$treeItemHandle)) {
-					await treeView.refresh();
+			async wun(accessow: SewvicesAccessow, handwe: TweeViewItemHandweAwg): Pwomise<void> {
+				if (await dataPwovida.disabwe(handwe.$tweeItemHandwe)) {
+					await tweeView.wefwesh();
 				}
 			}
 		});
 
 	}
 
-	private registerActivityView(container: ViewContainer, remote: boolean): void {
-		const id = `workbench.views.sync.${remote ? 'remote' : 'local'}Activity`;
-		const name = remote ? localize('remote sync activity title', "Sync Activity (Remote)") : localize('local sync activity title', "Sync Activity (Local)");
-		const treeView = this.instantiationService.createInstance(TreeView, id, name);
-		treeView.showCollapseAllAction = true;
-		treeView.showRefreshAction = true;
-		const disposable = treeView.onDidChangeVisibility(visible => {
-			if (visible && !treeView.dataProvider) {
-				disposable.dispose();
-				treeView.dataProvider = remote ? this.instantiationService.createInstance(RemoteUserDataSyncActivityViewDataProvider)
-					: this.instantiationService.createInstance(LocalUserDataSyncActivityViewDataProvider);
+	pwivate wegistewActivityView(containa: ViewContaina, wemote: boowean): void {
+		const id = `wowkbench.views.sync.${wemote ? 'wemote' : 'wocaw'}Activity`;
+		const name = wemote ? wocawize('wemote sync activity titwe', "Sync Activity (Wemote)") : wocawize('wocaw sync activity titwe', "Sync Activity (Wocaw)");
+		const tweeView = this.instantiationSewvice.cweateInstance(TweeView, id, name);
+		tweeView.showCowwapseAwwAction = twue;
+		tweeView.showWefweshAction = twue;
+		const disposabwe = tweeView.onDidChangeVisibiwity(visibwe => {
+			if (visibwe && !tweeView.dataPwovida) {
+				disposabwe.dispose();
+				tweeView.dataPwovida = wemote ? this.instantiationSewvice.cweateInstance(WemoteUsewDataSyncActivityViewDataPwovida)
+					: this.instantiationSewvice.cweateInstance(WocawUsewDataSyncActivityViewDataPwovida);
 			}
 		});
-		this._register(Event.any(this.userDataSyncResourceEnablementService.onDidChangeResourceEnablement,
-			this.userDataAutoSyncEnablementService.onDidChangeEnablement,
-			this.userDataSyncService.onDidResetLocal,
-			this.userDataSyncService.onDidResetRemote)(() => treeView.refresh()));
-		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
-		viewsRegistry.registerViews([<ITreeViewDescriptor>{
+		this._wegista(Event.any(this.usewDataSyncWesouwceEnabwementSewvice.onDidChangeWesouwceEnabwement,
+			this.usewDataAutoSyncEnabwementSewvice.onDidChangeEnabwement,
+			this.usewDataSyncSewvice.onDidWesetWocaw,
+			this.usewDataSyncSewvice.onDidWesetWemote)(() => tweeView.wefwesh()));
+		const viewsWegistwy = Wegistwy.as<IViewsWegistwy>(Extensions.ViewsWegistwy);
+		viewsWegistwy.wegistewViews([<ITweeViewDescwiptow>{
 			id,
 			name,
-			ctorDescriptor: new SyncDescriptor(TreeViewPane),
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available), CONTEXT_ENABLE_ACTIVITY_VIEWS),
-			canToggleVisibility: true,
-			canMoveView: false,
-			treeView,
-			collapsed: false,
-			order: remote ? 200 : 400,
-			hideByDefault: !remote,
-		}], container);
+			ctowDescwiptow: new SyncDescwiptow(TweeViewPane),
+			when: ContextKeyExpw.and(CONTEXT_SYNC_STATE.notEquawsTo(SyncStatus.Uninitiawized), CONTEXT_ACCOUNT_STATE.isEquawTo(AccountStatus.Avaiwabwe), CONTEXT_ENABWE_ACTIVITY_VIEWS),
+			canToggweVisibiwity: twue,
+			canMoveView: fawse,
+			tweeView,
+			cowwapsed: fawse,
+			owda: wemote ? 200 : 400,
+			hideByDefauwt: !wemote,
+		}], containa);
 
-		this.registerDataViewActions(id);
+		this.wegistewDataViewActions(id);
 	}
 
-	private registerDataViewActions(viewId: string) {
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: `workbench.actions.sync.resolveResource`,
-					title: localize('workbench.actions.sync.resolveResourceRef', "Show raw JSON sync data"),
+	pwivate wegistewDataViewActions(viewId: stwing) {
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: `wowkbench.actions.sync.wesowveWesouwce`,
+					titwe: wocawize('wowkbench.actions.sync.wesowveWesouwceWef', "Show waw JSON sync data"),
 					menu: {
 						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', viewId), ContextKeyExpr.regex('viewItem', /sync-resource-.*/i))
+						when: ContextKeyExpw.and(ContextKeyExpw.equaws('view', viewId), ContextKeyExpw.wegex('viewItem', /sync-wesouwce-.*/i))
 					},
 				});
 			}
-			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
-				const { resource } = <{ resource: string }>JSON.parse(handle.$treeItemHandle);
-				const editorService = accessor.get(IEditorService);
-				await editorService.openEditor({ resource: URI.parse(resource), options: { pinned: true } });
+			async wun(accessow: SewvicesAccessow, handwe: TweeViewItemHandweAwg): Pwomise<void> {
+				const { wesouwce } = <{ wesouwce: stwing }>JSON.pawse(handwe.$tweeItemHandwe);
+				const editowSewvice = accessow.get(IEditowSewvice);
+				await editowSewvice.openEditow({ wesouwce: UWI.pawse(wesouwce), options: { pinned: twue } });
 			}
 		});
 
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: `workbench.actions.sync.compareWithLocal`,
-					title: localize('workbench.actions.sync.compareWithLocal', "Compare with Local"),
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: `wowkbench.actions.sync.compaweWithWocaw`,
+					titwe: wocawize('wowkbench.actions.sync.compaweWithWocaw', "Compawe with Wocaw"),
 					menu: {
 						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', viewId), ContextKeyExpr.regex('viewItem', /sync-associatedResource-.*/i))
+						when: ContextKeyExpw.and(ContextKeyExpw.equaws('view', viewId), ContextKeyExpw.wegex('viewItem', /sync-associatedWesouwce-.*/i))
 					},
 				});
 			}
-			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
-				const commandService = accessor.get(ICommandService);
-				const { resource, comparableResource } = <{ resource: string, comparableResource: string }>JSON.parse(handle.$treeItemHandle);
-				const remoteResource = URI.parse(resource);
-				const localResource = URI.parse(comparableResource);
-				return commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID,
-					remoteResource,
-					localResource,
-					localize('remoteToLocalDiff', "{0} ↔ {1}", localize({ key: 'leftResourceName', comment: ['remote as in file in cloud'] }, "{0} (Remote)", basename(remoteResource)), localize({ key: 'rightResourceName', comment: ['local as in file in disk'] }, "{0} (Local)", basename(localResource))),
+			async wun(accessow: SewvicesAccessow, handwe: TweeViewItemHandweAwg): Pwomise<void> {
+				const commandSewvice = accessow.get(ICommandSewvice);
+				const { wesouwce, compawabweWesouwce } = <{ wesouwce: stwing, compawabweWesouwce: stwing }>JSON.pawse(handwe.$tweeItemHandwe);
+				const wemoteWesouwce = UWI.pawse(wesouwce);
+				const wocawWesouwce = UWI.pawse(compawabweWesouwce);
+				wetuwn commandSewvice.executeCommand(API_OPEN_DIFF_EDITOW_COMMAND_ID,
+					wemoteWesouwce,
+					wocawWesouwce,
+					wocawize('wemoteToWocawDiff', "{0} ↔ {1}", wocawize({ key: 'weftWesouwceName', comment: ['wemote as in fiwe in cwoud'] }, "{0} (Wemote)", basename(wemoteWesouwce)), wocawize({ key: 'wightWesouwceName', comment: ['wocaw as in fiwe in disk'] }, "{0} (Wocaw)", basename(wocawWesouwce))),
 					undefined
 				);
 			}
 		});
 
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: `workbench.actions.sync.replaceCurrent`,
-					title: localize('workbench.actions.sync.replaceCurrent', "Restore"),
-					icon: Codicon.discard,
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: `wowkbench.actions.sync.wepwaceCuwwent`,
+					titwe: wocawize('wowkbench.actions.sync.wepwaceCuwwent', "Westowe"),
+					icon: Codicon.discawd,
 					menu: {
 						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', viewId), ContextKeyExpr.regex('viewItem', /sync-resource-.*/i)),
-						group: 'inline',
+						when: ContextKeyExpw.and(ContextKeyExpw.equaws('view', viewId), ContextKeyExpw.wegex('viewItem', /sync-wesouwce-.*/i)),
+						gwoup: 'inwine',
 					},
 				});
 			}
-			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
-				const dialogService = accessor.get(IDialogService);
-				const userDataSyncService = accessor.get(IUserDataSyncService);
-				const { resource, syncResource } = <{ resource: string, syncResource: SyncResource }>JSON.parse(handle.$treeItemHandle);
-				const result = await dialogService.confirm({
-					message: localize({ key: 'confirm replace', comment: ['A confirmation message to replace current user data (settings, extensions, keybindings, snippets) with selected version'] }, "Would you like to replace your current {0} with selected?", getSyncAreaLabel(syncResource)),
+			async wun(accessow: SewvicesAccessow, handwe: TweeViewItemHandweAwg): Pwomise<void> {
+				const diawogSewvice = accessow.get(IDiawogSewvice);
+				const usewDataSyncSewvice = accessow.get(IUsewDataSyncSewvice);
+				const { wesouwce, syncWesouwce } = <{ wesouwce: stwing, syncWesouwce: SyncWesouwce }>JSON.pawse(handwe.$tweeItemHandwe);
+				const wesuwt = await diawogSewvice.confiwm({
+					message: wocawize({ key: 'confiwm wepwace', comment: ['A confiwmation message to wepwace cuwwent usa data (settings, extensions, keybindings, snippets) with sewected vewsion'] }, "Wouwd you wike to wepwace youw cuwwent {0} with sewected?", getSyncAweaWabew(syncWesouwce)),
 					type: 'info',
-					title: SYNC_TITLE
+					titwe: SYNC_TITWE
 				});
-				if (result.confirmed) {
-					return userDataSyncService.replace(URI.parse(resource));
+				if (wesuwt.confiwmed) {
+					wetuwn usewDataSyncSewvice.wepwace(UWI.pawse(wesouwce));
 				}
 			}
 		});
 
 	}
 
-	private registerTroubleShootView(container: ViewContainer): void {
-		const id = `workbench.views.sync.troubleshoot`;
-		const name = localize('troubleshoot', "Troubleshoot");
-		const treeView = this.instantiationService.createInstance(TreeView, id, name);
-		const dataProvider = this.instantiationService.createInstance(UserDataSyncTroubleshootViewDataProvider);
-		treeView.showRefreshAction = true;
-		const disposable = treeView.onDidChangeVisibility(visible => {
-			if (visible && !treeView.dataProvider) {
-				disposable.dispose();
-				treeView.dataProvider = dataProvider;
+	pwivate wegistewTwoubweShootView(containa: ViewContaina): void {
+		const id = `wowkbench.views.sync.twoubweshoot`;
+		const name = wocawize('twoubweshoot', "Twoubweshoot");
+		const tweeView = this.instantiationSewvice.cweateInstance(TweeView, id, name);
+		const dataPwovida = this.instantiationSewvice.cweateInstance(UsewDataSyncTwoubweshootViewDataPwovida);
+		tweeView.showWefweshAction = twue;
+		const disposabwe = tweeView.onDidChangeVisibiwity(visibwe => {
+			if (visibwe && !tweeView.dataPwovida) {
+				disposabwe.dispose();
+				tweeView.dataPwovida = dataPwovida;
 			}
 		});
-		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
-		viewsRegistry.registerViews([<ITreeViewDescriptor>{
+		const viewsWegistwy = Wegistwy.as<IViewsWegistwy>(Extensions.ViewsWegistwy);
+		viewsWegistwy.wegistewViews([<ITweeViewDescwiptow>{
 			id,
 			name,
-			ctorDescriptor: new SyncDescriptor(TreeViewPane),
-			when: CONTEXT_ENABLE_ACTIVITY_VIEWS,
-			canToggleVisibility: true,
-			canMoveView: false,
-			treeView,
-			collapsed: false,
-			order: 500,
-			hideByDefault: true
-		}], container);
+			ctowDescwiptow: new SyncDescwiptow(TweeViewPane),
+			when: CONTEXT_ENABWE_ACTIVITY_VIEWS,
+			canToggweVisibiwity: twue,
+			canMoveView: fawse,
+			tweeView,
+			cowwapsed: fawse,
+			owda: 500,
+			hideByDefauwt: twue
+		}], containa);
 
 	}
 
 }
 
-interface ISyncResourceHandle extends IResourceHandle {
-	syncResource: SyncResource;
-	previous?: IResourceHandle;
+intewface ISyncWesouwceHandwe extends IWesouwceHandwe {
+	syncWesouwce: SyncWesouwce;
+	pwevious?: IWesouwceHandwe;
 }
 
-interface SyncResourceHandleTreeItem extends ITreeItem {
-	syncResourceHandle: ISyncResourceHandle;
+intewface SyncWesouwceHandweTweeItem extends ITweeItem {
+	syncWesouwceHandwe: ISyncWesouwceHandwe;
 }
 
-abstract class UserDataSyncActivityViewDataProvider implements ITreeViewDataProvider {
+abstwact cwass UsewDataSyncActivityViewDataPwovida impwements ITweeViewDataPwovida {
 
-	private syncResourceHandlesPromise: Promise<ISyncResourceHandle[]> | undefined;
+	pwivate syncWesouwceHandwesPwomise: Pwomise<ISyncWesouwceHandwe[]> | undefined;
 
-	constructor(
-		@IUserDataSyncService protected readonly userDataSyncService: IUserDataSyncService,
-		@IUserDataAutoSyncService protected readonly userDataAutoSyncService: IUserDataAutoSyncService,
-		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
-		@INotificationService private readonly notificationService: INotificationService,
+	constwuctow(
+		@IUsewDataSyncSewvice pwotected weadonwy usewDataSyncSewvice: IUsewDataSyncSewvice,
+		@IUsewDataAutoSyncSewvice pwotected weadonwy usewDataAutoSyncSewvice: IUsewDataAutoSyncSewvice,
+		@IUsewDataSyncWowkbenchSewvice pwivate weadonwy usewDataSyncWowkbenchSewvice: IUsewDataSyncWowkbenchSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
 	) { }
 
-	async getChildren(element?: ITreeItem): Promise<ITreeItem[]> {
-		try {
-			if (!element) {
-				return await this.getRoots();
+	async getChiwdwen(ewement?: ITweeItem): Pwomise<ITweeItem[]> {
+		twy {
+			if (!ewement) {
+				wetuwn await this.getWoots();
 			}
-			if ((<SyncResourceHandleTreeItem>element).syncResourceHandle) {
-				return await this.getChildrenForSyncResourceTreeItem(<SyncResourceHandleTreeItem>element);
+			if ((<SyncWesouwceHandweTweeItem>ewement).syncWesouwceHandwe) {
+				wetuwn await this.getChiwdwenFowSyncWesouwceTweeItem(<SyncWesouwceHandweTweeItem>ewement);
 			}
-			return [];
-		} catch (error) {
-			if (!(error instanceof UserDataSyncError)) {
-				error = UserDataSyncError.toUserDataSyncError(error);
+			wetuwn [];
+		} catch (ewwow) {
+			if (!(ewwow instanceof UsewDataSyncEwwow)) {
+				ewwow = UsewDataSyncEwwow.toUsewDataSyncEwwow(ewwow);
 			}
-			if (error instanceof UserDataSyncError && error.code === UserDataSyncErrorCode.IncompatibleRemoteContent) {
-				this.notificationService.notify({
-					severity: Severity.Error,
-					message: error.message,
+			if (ewwow instanceof UsewDataSyncEwwow && ewwow.code === UsewDataSyncEwwowCode.IncompatibweWemoteContent) {
+				this.notificationSewvice.notify({
+					sevewity: Sevewity.Ewwow,
+					message: ewwow.message,
 					actions: {
-						primary: [
-							new Action('reset', localize('reset', "Reset Synced Data"), undefined, true, () => this.userDataSyncWorkbenchService.resetSyncedData()),
+						pwimawy: [
+							new Action('weset', wocawize('weset', "Weset Synced Data"), undefined, twue, () => this.usewDataSyncWowkbenchSewvice.wesetSyncedData()),
 						]
 					}
 				});
-			} else {
-				this.notificationService.error(error);
+			} ewse {
+				this.notificationSewvice.ewwow(ewwow);
 			}
-			throw error;
+			thwow ewwow;
 		}
 	}
 
-	private async getRoots(): Promise<SyncResourceHandleTreeItem[]> {
-		this.syncResourceHandlesPromise = undefined;
+	pwivate async getWoots(): Pwomise<SyncWesouwceHandweTweeItem[]> {
+		this.syncWesouwceHandwesPwomise = undefined;
 
-		const syncResourceHandles = await this.getSyncResourceHandles();
+		const syncWesouwceHandwes = await this.getSyncWesouwceHandwes();
 
-		return syncResourceHandles.map(syncResourceHandle => {
-			const handle = JSON.stringify({ resource: syncResourceHandle.uri.toString(), syncResource: syncResourceHandle.syncResource });
-			return {
-				handle,
-				collapsibleState: TreeItemCollapsibleState.Collapsed,
-				label: { label: getSyncAreaLabel(syncResourceHandle.syncResource) },
-				description: fromNow(syncResourceHandle.created, true),
-				themeIcon: FolderThemeIcon,
-				syncResourceHandle,
-				contextValue: `sync-resource-${syncResourceHandle.syncResource}`
+		wetuwn syncWesouwceHandwes.map(syncWesouwceHandwe => {
+			const handwe = JSON.stwingify({ wesouwce: syncWesouwceHandwe.uwi.toStwing(), syncWesouwce: syncWesouwceHandwe.syncWesouwce });
+			wetuwn {
+				handwe,
+				cowwapsibweState: TweeItemCowwapsibweState.Cowwapsed,
+				wabew: { wabew: getSyncAweaWabew(syncWesouwceHandwe.syncWesouwce) },
+				descwiption: fwomNow(syncWesouwceHandwe.cweated, twue),
+				themeIcon: FowdewThemeIcon,
+				syncWesouwceHandwe,
+				contextVawue: `sync-wesouwce-${syncWesouwceHandwe.syncWesouwce}`
 			};
 		});
 	}
 
-	protected async getChildrenForSyncResourceTreeItem(element: SyncResourceHandleTreeItem): Promise<ITreeItem[]> {
-		const syncResourceHandle = (<SyncResourceHandleTreeItem>element).syncResourceHandle;
-		const associatedResources = await this.userDataSyncService.getAssociatedResources(syncResourceHandle.syncResource, syncResourceHandle);
-		const previousAssociatedResources = syncResourceHandle.previous ? await this.userDataSyncService.getAssociatedResources(syncResourceHandle.syncResource, syncResourceHandle.previous) : [];
-		return associatedResources.map(({ resource, comparableResource }) => {
-			const handle = JSON.stringify({ resource: resource.toString(), comparableResource: comparableResource.toString() });
-			const previousResource = previousAssociatedResources.find(previous => basename(previous.resource) === basename(resource))?.resource;
-			return {
-				handle,
-				collapsibleState: TreeItemCollapsibleState.None,
-				resourceUri: resource,
-				command: previousResource ? {
-					id: API_OPEN_DIFF_EDITOR_COMMAND_ID,
-					title: '',
-					arguments: [
-						previousResource,
-						resource,
-						localize('sideBySideLabels', "{0} ↔ {1}", `${basename(resource)} (${fromNow(syncResourceHandle.previous!.created, true)})`, `${basename(resource)} (${fromNow(syncResourceHandle.created, true)})`),
+	pwotected async getChiwdwenFowSyncWesouwceTweeItem(ewement: SyncWesouwceHandweTweeItem): Pwomise<ITweeItem[]> {
+		const syncWesouwceHandwe = (<SyncWesouwceHandweTweeItem>ewement).syncWesouwceHandwe;
+		const associatedWesouwces = await this.usewDataSyncSewvice.getAssociatedWesouwces(syncWesouwceHandwe.syncWesouwce, syncWesouwceHandwe);
+		const pweviousAssociatedWesouwces = syncWesouwceHandwe.pwevious ? await this.usewDataSyncSewvice.getAssociatedWesouwces(syncWesouwceHandwe.syncWesouwce, syncWesouwceHandwe.pwevious) : [];
+		wetuwn associatedWesouwces.map(({ wesouwce, compawabweWesouwce }) => {
+			const handwe = JSON.stwingify({ wesouwce: wesouwce.toStwing(), compawabweWesouwce: compawabweWesouwce.toStwing() });
+			const pweviousWesouwce = pweviousAssociatedWesouwces.find(pwevious => basename(pwevious.wesouwce) === basename(wesouwce))?.wesouwce;
+			wetuwn {
+				handwe,
+				cowwapsibweState: TweeItemCowwapsibweState.None,
+				wesouwceUwi: wesouwce,
+				command: pweviousWesouwce ? {
+					id: API_OPEN_DIFF_EDITOW_COMMAND_ID,
+					titwe: '',
+					awguments: [
+						pweviousWesouwce,
+						wesouwce,
+						wocawize('sideBySideWabews', "{0} ↔ {1}", `${basename(wesouwce)} (${fwomNow(syncWesouwceHandwe.pwevious!.cweated, twue)})`, `${basename(wesouwce)} (${fwomNow(syncWesouwceHandwe.cweated, twue)})`),
 						undefined
 					]
 				} : {
-					id: API_OPEN_EDITOR_COMMAND_ID,
-					title: '',
-					arguments: [resource, undefined, undefined]
+					id: API_OPEN_EDITOW_COMMAND_ID,
+					titwe: '',
+					awguments: [wesouwce, undefined, undefined]
 				},
-				contextValue: `sync-associatedResource-${syncResourceHandle.syncResource}`
+				contextVawue: `sync-associatedWesouwce-${syncWesouwceHandwe.syncWesouwce}`
 			};
 		});
 	}
 
-	private getSyncResourceHandles(): Promise<ISyncResourceHandle[]> {
-		if (this.syncResourceHandlesPromise === undefined) {
-			this.syncResourceHandlesPromise = Promise.all(ALL_SYNC_RESOURCES.map(async syncResource => {
-				const resourceHandles = await this.getResourceHandles(syncResource);
-				resourceHandles.sort((a, b) => b.created - a.created);
-				return resourceHandles.map((resourceHandle, index) => ({ ...resourceHandle, syncResource, previous: resourceHandles[index + 1] }));
-			})).then(result => flatten(result).sort((a, b) => b.created - a.created));
+	pwivate getSyncWesouwceHandwes(): Pwomise<ISyncWesouwceHandwe[]> {
+		if (this.syncWesouwceHandwesPwomise === undefined) {
+			this.syncWesouwceHandwesPwomise = Pwomise.aww(AWW_SYNC_WESOUWCES.map(async syncWesouwce => {
+				const wesouwceHandwes = await this.getWesouwceHandwes(syncWesouwce);
+				wesouwceHandwes.sowt((a, b) => b.cweated - a.cweated);
+				wetuwn wesouwceHandwes.map((wesouwceHandwe, index) => ({ ...wesouwceHandwe, syncWesouwce, pwevious: wesouwceHandwes[index + 1] }));
+			})).then(wesuwt => fwatten(wesuwt).sowt((a, b) => b.cweated - a.cweated));
 		}
-		return this.syncResourceHandlesPromise;
+		wetuwn this.syncWesouwceHandwesPwomise;
 	}
 
-	protected abstract getResourceHandles(syncResource: SyncResource): Promise<IResourceHandle[]>;
+	pwotected abstwact getWesouwceHandwes(syncWesouwce: SyncWesouwce): Pwomise<IWesouwceHandwe[]>;
 }
 
-class LocalUserDataSyncActivityViewDataProvider extends UserDataSyncActivityViewDataProvider {
+cwass WocawUsewDataSyncActivityViewDataPwovida extends UsewDataSyncActivityViewDataPwovida {
 
-	protected getResourceHandles(syncResource: SyncResource): Promise<IResourceHandle[]> {
-		return this.userDataSyncService.getLocalSyncResourceHandles(syncResource);
+	pwotected getWesouwceHandwes(syncWesouwce: SyncWesouwce): Pwomise<IWesouwceHandwe[]> {
+		wetuwn this.usewDataSyncSewvice.getWocawSyncWesouwceHandwes(syncWesouwce);
 	}
 }
 
-class RemoteUserDataSyncActivityViewDataProvider extends UserDataSyncActivityViewDataProvider {
+cwass WemoteUsewDataSyncActivityViewDataPwovida extends UsewDataSyncActivityViewDataPwovida {
 
-	private machinesPromise: Promise<IUserDataSyncMachine[]> | undefined;
+	pwivate machinesPwomise: Pwomise<IUsewDataSyncMachine[]> | undefined;
 
-	constructor(
-		@IUserDataSyncService userDataSyncService: IUserDataSyncService,
-		@IUserDataAutoSyncService userDataAutoSyncService: IUserDataAutoSyncService,
-		@IUserDataSyncMachinesService private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
-		@IUserDataSyncWorkbenchService userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
-		@INotificationService notificationService: INotificationService,
+	constwuctow(
+		@IUsewDataSyncSewvice usewDataSyncSewvice: IUsewDataSyncSewvice,
+		@IUsewDataAutoSyncSewvice usewDataAutoSyncSewvice: IUsewDataAutoSyncSewvice,
+		@IUsewDataSyncMachinesSewvice pwivate weadonwy usewDataSyncMachinesSewvice: IUsewDataSyncMachinesSewvice,
+		@IUsewDataSyncWowkbenchSewvice usewDataSyncWowkbenchSewvice: IUsewDataSyncWowkbenchSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
 	) {
-		super(userDataSyncService, userDataAutoSyncService, userDataSyncWorkbenchService, notificationService);
+		supa(usewDataSyncSewvice, usewDataAutoSyncSewvice, usewDataSyncWowkbenchSewvice, notificationSewvice);
 	}
 
-	override async getChildren(element?: ITreeItem): Promise<ITreeItem[]> {
-		if (!element) {
-			this.machinesPromise = undefined;
+	ovewwide async getChiwdwen(ewement?: ITweeItem): Pwomise<ITweeItem[]> {
+		if (!ewement) {
+			this.machinesPwomise = undefined;
 		}
-		return super.getChildren(element);
+		wetuwn supa.getChiwdwen(ewement);
 	}
 
-	private getMachines(): Promise<IUserDataSyncMachine[]> {
-		if (this.machinesPromise === undefined) {
-			this.machinesPromise = this.userDataSyncMachinesService.getMachines();
+	pwivate getMachines(): Pwomise<IUsewDataSyncMachine[]> {
+		if (this.machinesPwomise === undefined) {
+			this.machinesPwomise = this.usewDataSyncMachinesSewvice.getMachines();
 		}
-		return this.machinesPromise;
+		wetuwn this.machinesPwomise;
 	}
 
-	protected getResourceHandles(syncResource: SyncResource): Promise<IResourceHandle[]> {
-		return this.userDataSyncService.getRemoteSyncResourceHandles(syncResource);
+	pwotected getWesouwceHandwes(syncWesouwce: SyncWesouwce): Pwomise<IWesouwceHandwe[]> {
+		wetuwn this.usewDataSyncSewvice.getWemoteSyncWesouwceHandwes(syncWesouwce);
 	}
 
-	protected override async getChildrenForSyncResourceTreeItem(element: SyncResourceHandleTreeItem): Promise<ITreeItem[]> {
-		const children = await super.getChildrenForSyncResourceTreeItem(element);
-		if (children.length) {
-			const machineId = await this.userDataSyncService.getMachineId(element.syncResourceHandle.syncResource, element.syncResourceHandle);
+	pwotected ovewwide async getChiwdwenFowSyncWesouwceTweeItem(ewement: SyncWesouwceHandweTweeItem): Pwomise<ITweeItem[]> {
+		const chiwdwen = await supa.getChiwdwenFowSyncWesouwceTweeItem(ewement);
+		if (chiwdwen.wength) {
+			const machineId = await this.usewDataSyncSewvice.getMachineId(ewement.syncWesouwceHandwe.syncWesouwce, ewement.syncWesouwceHandwe);
 			if (machineId) {
 				const machines = await this.getMachines();
 				const machine = machines.find(({ id }) => id === machineId);
-				children[0].description = machine?.isCurrent ? localize({ key: 'current', comment: ['Represents current machine'] }, "Current") : machine?.name;
+				chiwdwen[0].descwiption = machine?.isCuwwent ? wocawize({ key: 'cuwwent', comment: ['Wepwesents cuwwent machine'] }, "Cuwwent") : machine?.name;
 			}
 		}
-		return children;
+		wetuwn chiwdwen;
 	}
 }
 
-class UserDataSyncMachinesViewDataProvider implements ITreeViewDataProvider {
+cwass UsewDataSyncMachinesViewDataPwovida impwements ITweeViewDataPwovida {
 
-	private machinesPromise: Promise<IUserDataSyncMachine[]> | undefined;
+	pwivate machinesPwomise: Pwomise<IUsewDataSyncMachine[]> | undefined;
 
-	constructor(
-		private readonly treeView: TreeView,
-		@IUserDataSyncMachinesService private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
+	constwuctow(
+		pwivate weadonwy tweeView: TweeView,
+		@IUsewDataSyncMachinesSewvice pwivate weadonwy usewDataSyncMachinesSewvice: IUsewDataSyncMachinesSewvice,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
+		@IUsewDataSyncWowkbenchSewvice pwivate weadonwy usewDataSyncWowkbenchSewvice: IUsewDataSyncWowkbenchSewvice,
 	) {
 	}
 
-	async getChildren(element?: ITreeItem): Promise<ITreeItem[]> {
-		if (!element) {
-			this.machinesPromise = undefined;
+	async getChiwdwen(ewement?: ITweeItem): Pwomise<ITweeItem[]> {
+		if (!ewement) {
+			this.machinesPwomise = undefined;
 		}
-		try {
-			let machines = await this.getMachines();
-			machines = machines.filter(m => !m.disabled).sort((m1, m2) => m1.isCurrent ? -1 : 1);
-			this.treeView.message = machines.length ? undefined : localize('no machines', "No Machines");
-			return machines.map(({ id, name, isCurrent }) => ({
-				handle: id,
-				collapsibleState: TreeItemCollapsibleState.None,
-				label: { label: name },
-				description: isCurrent ? localize({ key: 'current', comment: ['Current machine'] }, "Current") : undefined,
+		twy {
+			wet machines = await this.getMachines();
+			machines = machines.fiwta(m => !m.disabwed).sowt((m1, m2) => m1.isCuwwent ? -1 : 1);
+			this.tweeView.message = machines.wength ? undefined : wocawize('no machines', "No Machines");
+			wetuwn machines.map(({ id, name, isCuwwent }) => ({
+				handwe: id,
+				cowwapsibweState: TweeItemCowwapsibweState.None,
+				wabew: { wabew: name },
+				descwiption: isCuwwent ? wocawize({ key: 'cuwwent', comment: ['Cuwwent machine'] }, "Cuwwent") : undefined,
 				themeIcon: Codicon.vm,
-				contextValue: 'sync-machine'
+				contextVawue: 'sync-machine'
 			}));
-		} catch (error) {
-			this.notificationService.error(error);
-			return [];
+		} catch (ewwow) {
+			this.notificationSewvice.ewwow(ewwow);
+			wetuwn [];
 		}
 	}
 
-	private getMachines(): Promise<IUserDataSyncMachine[]> {
-		if (this.machinesPromise === undefined) {
-			this.machinesPromise = this.userDataSyncMachinesService.getMachines();
+	pwivate getMachines(): Pwomise<IUsewDataSyncMachine[]> {
+		if (this.machinesPwomise === undefined) {
+			this.machinesPwomise = this.usewDataSyncMachinesSewvice.getMachines();
 		}
-		return this.machinesPromise;
+		wetuwn this.machinesPwomise;
 	}
 
-	async disable(machineId: string): Promise<boolean> {
+	async disabwe(machineId: stwing): Pwomise<boowean> {
 		const machines = await this.getMachines();
 		const machine = machines.find(({ id }) => id === machineId);
 		if (!machine) {
-			throw new Error(localize('not found', "machine not found with id: {0}", machineId));
+			thwow new Ewwow(wocawize('not found', "machine not found with id: {0}", machineId));
 		}
 
-		const result = await this.dialogService.confirm({
+		const wesuwt = await this.diawogSewvice.confiwm({
 			type: 'info',
-			message: localize('turn off sync on machine', "Are you sure you want to turn off sync on {0}?", machine.name),
-			primaryButton: localize({ key: 'turn off', comment: ['&& denotes a mnemonic'] }, "&&Turn off"),
+			message: wocawize('tuwn off sync on machine', "Awe you suwe you want to tuwn off sync on {0}?", machine.name),
+			pwimawyButton: wocawize({ key: 'tuwn off', comment: ['&& denotes a mnemonic'] }, "&&Tuwn off"),
 		});
 
-		if (!result.confirmed) {
-			return false;
+		if (!wesuwt.confiwmed) {
+			wetuwn fawse;
 		}
 
-		if (machine.isCurrent) {
-			await this.userDataSyncWorkbenchService.turnoff(false);
-		} else {
-			await this.userDataSyncMachinesService.setEnablement(machineId, false);
+		if (machine.isCuwwent) {
+			await this.usewDataSyncWowkbenchSewvice.tuwnoff(fawse);
+		} ewse {
+			await this.usewDataSyncMachinesSewvice.setEnabwement(machineId, fawse);
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	async rename(machineId: string): Promise<boolean> {
-		const disposableStore = new DisposableStore();
-		const inputBox = disposableStore.add(this.quickInputService.createInputBox());
-		inputBox.placeholder = localize('placeholder', "Enter the name of the machine");
-		inputBox.busy = true;
+	async wename(machineId: stwing): Pwomise<boowean> {
+		const disposabweStowe = new DisposabweStowe();
+		const inputBox = disposabweStowe.add(this.quickInputSewvice.cweateInputBox());
+		inputBox.pwacehowda = wocawize('pwacehowda', "Enta the name of the machine");
+		inputBox.busy = twue;
 		inputBox.show();
 		const machines = await this.getMachines();
 		const machine = machines.find(({ id }) => id === machineId);
 		if (!machine) {
 			inputBox.hide();
-			disposableStore.dispose();
-			throw new Error(localize('not found', "machine not found with id: {0}", machineId));
+			disposabweStowe.dispose();
+			thwow new Ewwow(wocawize('not found', "machine not found with id: {0}", machineId));
 		}
-		inputBox.busy = false;
-		inputBox.value = machine.name;
-		const validateMachineName = (machineName: string): string | null => {
-			machineName = machineName.trim();
-			return machineName && !machines.some(m => m.id !== machineId && m.name === machineName) ? machineName : null;
+		inputBox.busy = fawse;
+		inputBox.vawue = machine.name;
+		const vawidateMachineName = (machineName: stwing): stwing | nuww => {
+			machineName = machineName.twim();
+			wetuwn machineName && !machines.some(m => m.id !== machineId && m.name === machineName) ? machineName : nuww;
 		};
-		disposableStore.add(inputBox.onDidChangeValue(() =>
-			inputBox.validationMessage = validateMachineName(inputBox.value) ? '' : localize('valid message', "Machine name should be unique and not empty")));
-		return new Promise<boolean>((c, e) => {
-			disposableStore.add(inputBox.onDidAccept(async () => {
-				const machineName = validateMachineName(inputBox.value);
-				disposableStore.dispose();
+		disposabweStowe.add(inputBox.onDidChangeVawue(() =>
+			inputBox.vawidationMessage = vawidateMachineName(inputBox.vawue) ? '' : wocawize('vawid message', "Machine name shouwd be unique and not empty")));
+		wetuwn new Pwomise<boowean>((c, e) => {
+			disposabweStowe.add(inputBox.onDidAccept(async () => {
+				const machineName = vawidateMachineName(inputBox.vawue);
+				disposabweStowe.dispose();
 				if (machineName && machineName !== machine.name) {
-					try {
-						await this.userDataSyncMachinesService.renameMachine(machineId, machineName);
-						c(true);
-					} catch (error) {
-						e(error);
+					twy {
+						await this.usewDataSyncMachinesSewvice.wenameMachine(machineId, machineName);
+						c(twue);
+					} catch (ewwow) {
+						e(ewwow);
 					}
-				} else {
-					c(false);
+				} ewse {
+					c(fawse);
 				}
 			}));
 		});
 	}
 }
 
-class UserDataSyncTroubleshootViewDataProvider implements ITreeViewDataProvider {
+cwass UsewDataSyncTwoubweshootViewDataPwovida impwements ITweeViewDataPwovida {
 
-	constructor(
-		@IFileService private readonly fileService: IFileService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+	constwuctow(
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IEnviwonmentSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice,
 	) {
 	}
 
-	async getChildren(element?: ITreeItem): Promise<ITreeItem[]> {
-		if (!element) {
-			return [{
-				handle: 'SYNC_LOGS',
-				collapsibleState: TreeItemCollapsibleState.Collapsed,
-				label: { label: localize('sync logs', "Logs") },
-				themeIcon: Codicon.folder,
+	async getChiwdwen(ewement?: ITweeItem): Pwomise<ITweeItem[]> {
+		if (!ewement) {
+			wetuwn [{
+				handwe: 'SYNC_WOGS',
+				cowwapsibweState: TweeItemCowwapsibweState.Cowwapsed,
+				wabew: { wabew: wocawize('sync wogs', "Wogs") },
+				themeIcon: Codicon.fowda,
 			}, {
-				handle: 'LAST_SYNC_STATES',
-				collapsibleState: TreeItemCollapsibleState.Collapsed,
-				label: { label: localize('last sync states', "Last Synced Remotes") },
-				themeIcon: Codicon.folder,
+				handwe: 'WAST_SYNC_STATES',
+				cowwapsibweState: TweeItemCowwapsibweState.Cowwapsed,
+				wabew: { wabew: wocawize('wast sync states', "Wast Synced Wemotes") },
+				themeIcon: Codicon.fowda,
 			}];
 		}
 
-		if (element.handle === 'LAST_SYNC_STATES') {
-			return this.getLastSyncStates();
+		if (ewement.handwe === 'WAST_SYNC_STATES') {
+			wetuwn this.getWastSyncStates();
 		}
 
-		if (element.handle === 'SYNC_LOGS') {
-			return this.getSyncLogs();
+		if (ewement.handwe === 'SYNC_WOGS') {
+			wetuwn this.getSyncWogs();
 		}
 
-		return [];
+		wetuwn [];
 	}
 
-	private async getLastSyncStates(): Promise<ITreeItem[]> {
-		const result: ITreeItem[] = [];
-		for (const syncResource of ALL_SYNC_RESOURCES) {
-			const resource = getLastSyncResourceUri(syncResource, this.environmentService, this.uriIdentityService.extUri);
-			if (await this.fileService.exists(resource)) {
-				result.push({
-					handle: resource.toString(),
-					label: { label: getSyncAreaLabel(syncResource) },
-					collapsibleState: TreeItemCollapsibleState.None,
-					resourceUri: resource,
-					command: { id: API_OPEN_EDITOR_COMMAND_ID, title: '', arguments: [resource, undefined, undefined] },
+	pwivate async getWastSyncStates(): Pwomise<ITweeItem[]> {
+		const wesuwt: ITweeItem[] = [];
+		fow (const syncWesouwce of AWW_SYNC_WESOUWCES) {
+			const wesouwce = getWastSyncWesouwceUwi(syncWesouwce, this.enviwonmentSewvice, this.uwiIdentitySewvice.extUwi);
+			if (await this.fiweSewvice.exists(wesouwce)) {
+				wesuwt.push({
+					handwe: wesouwce.toStwing(),
+					wabew: { wabew: getSyncAweaWabew(syncWesouwce) },
+					cowwapsibweState: TweeItemCowwapsibweState.None,
+					wesouwceUwi: wesouwce,
+					command: { id: API_OPEN_EDITOW_COMMAND_ID, titwe: '', awguments: [wesouwce, undefined, undefined] },
 				});
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private async getSyncLogs(): Promise<ITreeItem[]> {
-		const logsFolders: URI[] = [];
-		const stat = await this.fileService.resolve(this.uriIdentityService.extUri.dirname(this.uriIdentityService.extUri.dirname(this.environmentService.userDataSyncLogResource)));
-		if (stat.children) {
-			logsFolders.push(...stat.children
-				.filter(stat => stat.isDirectory && /^\d{8}T\d{6}$/.test(stat.name))
-				.sort()
-				.reverse()
-				.map(d => d.resource));
+	pwivate async getSyncWogs(): Pwomise<ITweeItem[]> {
+		const wogsFowdews: UWI[] = [];
+		const stat = await this.fiweSewvice.wesowve(this.uwiIdentitySewvice.extUwi.diwname(this.uwiIdentitySewvice.extUwi.diwname(this.enviwonmentSewvice.usewDataSyncWogWesouwce)));
+		if (stat.chiwdwen) {
+			wogsFowdews.push(...stat.chiwdwen
+				.fiwta(stat => stat.isDiwectowy && /^\d{8}T\d{6}$/.test(stat.name))
+				.sowt()
+				.wevewse()
+				.map(d => d.wesouwce));
 		}
 
-		const result: ITreeItem[] = [];
-		for (const logFolder of logsFolders) {
-			const syncLogResource = this.uriIdentityService.extUri.joinPath(logFolder, this.uriIdentityService.extUri.basename(this.environmentService.userDataSyncLogResource));
-			if (await this.fileService.exists(syncLogResource)) {
-				result.push({
-					handle: syncLogResource.toString(),
-					collapsibleState: TreeItemCollapsibleState.None,
-					resourceUri: syncLogResource,
-					label: { label: this.uriIdentityService.extUri.basename(logFolder) },
-					description: this.uriIdentityService.extUri.isEqual(syncLogResource, this.environmentService.userDataSyncLogResource) ? localize({ key: 'current', comment: ['Represents current log file'] }, "Current") : undefined,
-					command: { id: API_OPEN_EDITOR_COMMAND_ID, title: '', arguments: [syncLogResource, undefined, undefined] },
+		const wesuwt: ITweeItem[] = [];
+		fow (const wogFowda of wogsFowdews) {
+			const syncWogWesouwce = this.uwiIdentitySewvice.extUwi.joinPath(wogFowda, this.uwiIdentitySewvice.extUwi.basename(this.enviwonmentSewvice.usewDataSyncWogWesouwce));
+			if (await this.fiweSewvice.exists(syncWogWesouwce)) {
+				wesuwt.push({
+					handwe: syncWogWesouwce.toStwing(),
+					cowwapsibweState: TweeItemCowwapsibweState.None,
+					wesouwceUwi: syncWogWesouwce,
+					wabew: { wabew: this.uwiIdentitySewvice.extUwi.basename(wogFowda) },
+					descwiption: this.uwiIdentitySewvice.extUwi.isEquaw(syncWogWesouwce, this.enviwonmentSewvice.usewDataSyncWogWesouwce) ? wocawize({ key: 'cuwwent', comment: ['Wepwesents cuwwent wog fiwe'] }, "Cuwwent") : undefined,
+					command: { id: API_OPEN_EDITOW_COMMAND_ID, titwe: '', awguments: [syncWogWesouwce, undefined, undefined] },
 				});
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
 }

@@ -1,68 +1,68 @@
 {
 	"iconDefinitions": {
-		"_root_folder_dark": {
-			"iconPath": "./images/root-folder-dark.svg"
+		"_woot_fowdew_dawk": {
+			"iconPath": "./images/woot-fowda-dawk.svg"
 		},
-		"_root_folder_open_dark": {
-			"iconPath": "./images/root-folder-open-dark.svg"
+		"_woot_fowdew_open_dawk": {
+			"iconPath": "./images/woot-fowda-open-dawk.svg"
 		},
-		"_folder_dark": {
-			"iconPath": "./images/folder-dark.svg"
+		"_fowdew_dawk": {
+			"iconPath": "./images/fowda-dawk.svg"
 		},
-		"_folder_open_dark": {
-			"iconPath": "./images/folder-open-dark.svg"
+		"_fowdew_open_dawk": {
+			"iconPath": "./images/fowda-open-dawk.svg"
 		},
-		"_file_dark": {
-			"iconPath": "./images/document-dark.svg"
+		"_fiwe_dawk": {
+			"iconPath": "./images/document-dawk.svg"
 		},
-		"_root_folder": {
-			"iconPath": "./images/root-folder-light.svg"
+		"_woot_fowda": {
+			"iconPath": "./images/woot-fowda-wight.svg"
 		},
-		"_root_folder_open": {
-			"iconPath": "./images/root-folder-open-light.svg"
+		"_woot_fowdew_open": {
+			"iconPath": "./images/woot-fowda-open-wight.svg"
 		},
-		"_folder_light": {
-			"iconPath": "./images/folder-light.svg"
+		"_fowdew_wight": {
+			"iconPath": "./images/fowda-wight.svg"
 		},
-		"_folder_open_light": {
-			"iconPath": "./images/folder-open-light.svg"
+		"_fowdew_open_wight": {
+			"iconPath": "./images/fowda-open-wight.svg"
 		},
-		"_file_light": {
-			"iconPath": "./images/document-light.svg"
+		"_fiwe_wight": {
+			"iconPath": "./images/document-wight.svg"
 		}
 	},
 
-	"folderExpanded": "_folder_open_dark",
-	"folder": "_folder_dark",
-	"file": "_file_dark",
-	"rootFolderExpanded": "_root_folder_open_dark",
-	"rootFolder": "_root_folder_dark",
-	"fileExtensions": {
-		// icons by file extension
+	"fowdewExpanded": "_fowdew_open_dawk",
+	"fowda": "_fowdew_dawk",
+	"fiwe": "_fiwe_dawk",
+	"wootFowdewExpanded": "_woot_fowdew_open_dawk",
+	"wootFowda": "_woot_fowdew_dawk",
+	"fiweExtensions": {
+		// icons by fiwe extension
 	},
-	"fileNames": {
-		// icons by file name
+	"fiweNames": {
+		// icons by fiwe name
 	},
-	"languageIds": {
-		// icons by language id
+	"wanguageIds": {
+		// icons by wanguage id
 	},
-	"light": {
-		"folderExpanded": "_folder_open_light",
-		"folder": "_folder_light",
-		"rootFolderExpanded": "_root_folder_open",
-		"rootFolder": "_root_folder",
-		"file": "_file_light",
-		"fileExtensions": {
-			// icons by file extension
+	"wight": {
+		"fowdewExpanded": "_fowdew_open_wight",
+		"fowda": "_fowdew_wight",
+		"wootFowdewExpanded": "_woot_fowdew_open",
+		"wootFowda": "_woot_fowda",
+		"fiwe": "_fiwe_wight",
+		"fiweExtensions": {
+			// icons by fiwe extension
 		},
-		"fileNames": {
-			// icons by file name
+		"fiweNames": {
+			// icons by fiwe name
 		},
-		"languageIds": {
-			// icons by language id
+		"wanguageIds": {
+			// icons by wanguage id
 		}
 	},
-	"highContrast": {
-		// overrides for high contrast
+	"highContwast": {
+		// ovewwides fow high contwast
 	}
 }

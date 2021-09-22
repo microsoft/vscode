@@ -1,797 +1,797 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { asPromise } from 'vs/base/common/async';
-import { Event, Emitter } from 'vs/base/common/event';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { asPwomise } fwom 'vs/base/common/async';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
 
-import { MainContext, MainThreadTaskShape, ExtHostTaskShape } from 'vs/workbench/api/common/extHost.protocol';
-import * as types from 'vs/workbench/api/common/extHostTypes';
-import { IExtHostWorkspaceProvider, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import type * as vscode from 'vscode';
-import * as tasks from '../common/shared/tasks';
-import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Schemas } from 'vs/base/common/network';
-import * as Platform from 'vs/base/common/platform';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
-import { USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/taskService';
-import { NotSupportedError } from 'vs/base/common/errors';
+impowt { MainContext, MainThweadTaskShape, ExtHostTaskShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt * as types fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { IExtHostWowkspacePwovida, IExtHostWowkspace } fwom 'vs/wowkbench/api/common/extHostWowkspace';
+impowt type * as vscode fwom 'vscode';
+impowt * as tasks fwom '../common/shawed/tasks';
+impowt { IExtHostDocumentsAndEditows } fwom 'vs/wowkbench/api/common/extHostDocumentsAndEditows';
+impowt { IExtHostConfiguwation } fwom 'vs/wowkbench/api/common/extHostConfiguwation';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IExtHostTewminawSewvice } fwom 'vs/wowkbench/api/common/extHostTewminawSewvice';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt { IExtHostInitDataSewvice } fwom 'vs/wowkbench/api/common/extHostInitDataSewvice';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt * as Pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IExtHostApiDepwecationSewvice } fwom 'vs/wowkbench/api/common/extHostApiDepwecationSewvice';
+impowt { USEW_TASKS_GWOUP_KEY } fwom 'vs/wowkbench/contwib/tasks/common/taskSewvice';
+impowt { NotSuppowtedEwwow } fwom 'vs/base/common/ewwows';
 
-export interface IExtHostTask extends ExtHostTaskShape {
+expowt intewface IExtHostTask extends ExtHostTaskShape {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 	taskExecutions: vscode.TaskExecution[];
-	onDidStartTask: Event<vscode.TaskStartEvent>;
+	onDidStawtTask: Event<vscode.TaskStawtEvent>;
 	onDidEndTask: Event<vscode.TaskEndEvent>;
-	onDidStartTaskProcess: Event<vscode.TaskProcessStartEvent>;
-	onDidEndTaskProcess: Event<vscode.TaskProcessEndEvent>;
+	onDidStawtTaskPwocess: Event<vscode.TaskPwocessStawtEvent>;
+	onDidEndTaskPwocess: Event<vscode.TaskPwocessEndEvent>;
 
-	registerTaskProvider(extension: IExtensionDescription, type: string, provider: vscode.TaskProvider): vscode.Disposable;
-	registerTaskSystem(scheme: string, info: tasks.TaskSystemInfoDTO): void;
-	fetchTasks(filter?: vscode.TaskFilter): Promise<vscode.Task[]>;
-	executeTask(extension: IExtensionDescription, task: vscode.Task): Promise<vscode.TaskExecution>;
-	terminateTask(execution: vscode.TaskExecution): Promise<void>;
+	wegistewTaskPwovida(extension: IExtensionDescwiption, type: stwing, pwovida: vscode.TaskPwovida): vscode.Disposabwe;
+	wegistewTaskSystem(scheme: stwing, info: tasks.TaskSystemInfoDTO): void;
+	fetchTasks(fiwta?: vscode.TaskFiwta): Pwomise<vscode.Task[]>;
+	executeTask(extension: IExtensionDescwiption, task: vscode.Task): Pwomise<vscode.TaskExecution>;
+	tewminateTask(execution: vscode.TaskExecution): Pwomise<void>;
 }
 
-export namespace TaskDefinitionDTO {
-	export function from(value: vscode.TaskDefinition): tasks.TaskDefinitionDTO | undefined {
-		if (value === undefined || value === null) {
-			return undefined;
+expowt namespace TaskDefinitionDTO {
+	expowt function fwom(vawue: vscode.TaskDefinition): tasks.TaskDefinitionDTO | undefined {
+		if (vawue === undefined || vawue === nuww) {
+			wetuwn undefined;
 		}
-		return value;
+		wetuwn vawue;
 	}
-	export function to(value: tasks.TaskDefinitionDTO): vscode.TaskDefinition | undefined {
-		if (value === undefined || value === null) {
-			return undefined;
+	expowt function to(vawue: tasks.TaskDefinitionDTO): vscode.TaskDefinition | undefined {
+		if (vawue === undefined || vawue === nuww) {
+			wetuwn undefined;
 		}
-		return value;
-	}
-}
-
-export namespace TaskPresentationOptionsDTO {
-	export function from(value: vscode.TaskPresentationOptions): tasks.TaskPresentationOptionsDTO | undefined {
-		if (value === undefined || value === null) {
-			return undefined;
-		}
-		return value;
-	}
-	export function to(value: tasks.TaskPresentationOptionsDTO): vscode.TaskPresentationOptions | undefined {
-		if (value === undefined || value === null) {
-			return undefined;
-		}
-		return value;
+		wetuwn vawue;
 	}
 }
 
-export namespace ProcessExecutionOptionsDTO {
-	export function from(value: vscode.ProcessExecutionOptions): tasks.ProcessExecutionOptionsDTO | undefined {
-		if (value === undefined || value === null) {
-			return undefined;
+expowt namespace TaskPwesentationOptionsDTO {
+	expowt function fwom(vawue: vscode.TaskPwesentationOptions): tasks.TaskPwesentationOptionsDTO | undefined {
+		if (vawue === undefined || vawue === nuww) {
+			wetuwn undefined;
 		}
-		return value;
+		wetuwn vawue;
 	}
-	export function to(value: tasks.ProcessExecutionOptionsDTO): vscode.ProcessExecutionOptions | undefined {
-		if (value === undefined || value === null) {
-			return undefined;
+	expowt function to(vawue: tasks.TaskPwesentationOptionsDTO): vscode.TaskPwesentationOptions | undefined {
+		if (vawue === undefined || vawue === nuww) {
+			wetuwn undefined;
 		}
-		return value;
+		wetuwn vawue;
 	}
 }
 
-export namespace ProcessExecutionDTO {
-	export function is(value: tasks.ShellExecutionDTO | tasks.ProcessExecutionDTO | tasks.CustomExecutionDTO | undefined): value is tasks.ProcessExecutionDTO {
-		if (value) {
-			const candidate = value as tasks.ProcessExecutionDTO;
-			return candidate && !!candidate.process;
-		} else {
-			return false;
+expowt namespace PwocessExecutionOptionsDTO {
+	expowt function fwom(vawue: vscode.PwocessExecutionOptions): tasks.PwocessExecutionOptionsDTO | undefined {
+		if (vawue === undefined || vawue === nuww) {
+			wetuwn undefined;
+		}
+		wetuwn vawue;
+	}
+	expowt function to(vawue: tasks.PwocessExecutionOptionsDTO): vscode.PwocessExecutionOptions | undefined {
+		if (vawue === undefined || vawue === nuww) {
+			wetuwn undefined;
+		}
+		wetuwn vawue;
+	}
+}
+
+expowt namespace PwocessExecutionDTO {
+	expowt function is(vawue: tasks.ShewwExecutionDTO | tasks.PwocessExecutionDTO | tasks.CustomExecutionDTO | undefined): vawue is tasks.PwocessExecutionDTO {
+		if (vawue) {
+			const candidate = vawue as tasks.PwocessExecutionDTO;
+			wetuwn candidate && !!candidate.pwocess;
+		} ewse {
+			wetuwn fawse;
 		}
 	}
-	export function from(value: vscode.ProcessExecution): tasks.ProcessExecutionDTO | undefined {
-		if (value === undefined || value === null) {
-			return undefined;
+	expowt function fwom(vawue: vscode.PwocessExecution): tasks.PwocessExecutionDTO | undefined {
+		if (vawue === undefined || vawue === nuww) {
+			wetuwn undefined;
 		}
-		const result: tasks.ProcessExecutionDTO = {
-			process: value.process,
-			args: value.args
+		const wesuwt: tasks.PwocessExecutionDTO = {
+			pwocess: vawue.pwocess,
+			awgs: vawue.awgs
 		};
-		if (value.options) {
-			result.options = ProcessExecutionOptionsDTO.from(value.options);
+		if (vawue.options) {
+			wesuwt.options = PwocessExecutionOptionsDTO.fwom(vawue.options);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
-	export function to(value: tasks.ProcessExecutionDTO): types.ProcessExecution | undefined {
-		if (value === undefined || value === null) {
-			return undefined;
+	expowt function to(vawue: tasks.PwocessExecutionDTO): types.PwocessExecution | undefined {
+		if (vawue === undefined || vawue === nuww) {
+			wetuwn undefined;
 		}
-		return new types.ProcessExecution(value.process, value.args, value.options);
-	}
-}
-
-export namespace ShellExecutionOptionsDTO {
-	export function from(value: vscode.ShellExecutionOptions): tasks.ShellExecutionOptionsDTO | undefined {
-		if (value === undefined || value === null) {
-			return undefined;
-		}
-		return value;
-	}
-	export function to(value: tasks.ShellExecutionOptionsDTO): vscode.ShellExecutionOptions | undefined {
-		if (value === undefined || value === null) {
-			return undefined;
-		}
-		return value;
+		wetuwn new types.PwocessExecution(vawue.pwocess, vawue.awgs, vawue.options);
 	}
 }
 
-export namespace ShellExecutionDTO {
-	export function is(value: tasks.ShellExecutionDTO | tasks.ProcessExecutionDTO | tasks.CustomExecutionDTO | undefined): value is tasks.ShellExecutionDTO {
-		if (value) {
-			const candidate = value as tasks.ShellExecutionDTO;
-			return candidate && (!!candidate.commandLine || !!candidate.command);
-		} else {
-			return false;
+expowt namespace ShewwExecutionOptionsDTO {
+	expowt function fwom(vawue: vscode.ShewwExecutionOptions): tasks.ShewwExecutionOptionsDTO | undefined {
+		if (vawue === undefined || vawue === nuww) {
+			wetuwn undefined;
+		}
+		wetuwn vawue;
+	}
+	expowt function to(vawue: tasks.ShewwExecutionOptionsDTO): vscode.ShewwExecutionOptions | undefined {
+		if (vawue === undefined || vawue === nuww) {
+			wetuwn undefined;
+		}
+		wetuwn vawue;
+	}
+}
+
+expowt namespace ShewwExecutionDTO {
+	expowt function is(vawue: tasks.ShewwExecutionDTO | tasks.PwocessExecutionDTO | tasks.CustomExecutionDTO | undefined): vawue is tasks.ShewwExecutionDTO {
+		if (vawue) {
+			const candidate = vawue as tasks.ShewwExecutionDTO;
+			wetuwn candidate && (!!candidate.commandWine || !!candidate.command);
+		} ewse {
+			wetuwn fawse;
 		}
 	}
-	export function from(value: vscode.ShellExecution): tasks.ShellExecutionDTO | undefined {
-		if (value === undefined || value === null) {
-			return undefined;
+	expowt function fwom(vawue: vscode.ShewwExecution): tasks.ShewwExecutionDTO | undefined {
+		if (vawue === undefined || vawue === nuww) {
+			wetuwn undefined;
 		}
-		const result: tasks.ShellExecutionDTO = {
+		const wesuwt: tasks.ShewwExecutionDTO = {
 		};
-		if (value.commandLine !== undefined) {
-			result.commandLine = value.commandLine;
-		} else {
-			result.command = value.command;
-			result.args = value.args;
+		if (vawue.commandWine !== undefined) {
+			wesuwt.commandWine = vawue.commandWine;
+		} ewse {
+			wesuwt.command = vawue.command;
+			wesuwt.awgs = vawue.awgs;
 		}
-		if (value.options) {
-			result.options = ShellExecutionOptionsDTO.from(value.options);
+		if (vawue.options) {
+			wesuwt.options = ShewwExecutionOptionsDTO.fwom(vawue.options);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
-	export function to(value: tasks.ShellExecutionDTO): types.ShellExecution | undefined {
-		if (value === undefined || value === null || (value.command === undefined && value.commandLine === undefined)) {
-			return undefined;
+	expowt function to(vawue: tasks.ShewwExecutionDTO): types.ShewwExecution | undefined {
+		if (vawue === undefined || vawue === nuww || (vawue.command === undefined && vawue.commandWine === undefined)) {
+			wetuwn undefined;
 		}
-		if (value.commandLine) {
-			return new types.ShellExecution(value.commandLine, value.options);
-		} else {
-			return new types.ShellExecution(value.command!, value.args ? value.args : [], value.options);
+		if (vawue.commandWine) {
+			wetuwn new types.ShewwExecution(vawue.commandWine, vawue.options);
+		} ewse {
+			wetuwn new types.ShewwExecution(vawue.command!, vawue.awgs ? vawue.awgs : [], vawue.options);
 		}
 	}
 }
 
-export namespace CustomExecutionDTO {
-	export function is(value: tasks.ShellExecutionDTO | tasks.ProcessExecutionDTO | tasks.CustomExecutionDTO | undefined): value is tasks.CustomExecutionDTO {
-		if (value) {
-			let candidate = value as tasks.CustomExecutionDTO;
-			return candidate && candidate.customExecution === 'customExecution';
-		} else {
-			return false;
+expowt namespace CustomExecutionDTO {
+	expowt function is(vawue: tasks.ShewwExecutionDTO | tasks.PwocessExecutionDTO | tasks.CustomExecutionDTO | undefined): vawue is tasks.CustomExecutionDTO {
+		if (vawue) {
+			wet candidate = vawue as tasks.CustomExecutionDTO;
+			wetuwn candidate && candidate.customExecution === 'customExecution';
+		} ewse {
+			wetuwn fawse;
 		}
 	}
 
-	export function from(value: vscode.CustomExecution): tasks.CustomExecutionDTO {
-		return {
+	expowt function fwom(vawue: vscode.CustomExecution): tasks.CustomExecutionDTO {
+		wetuwn {
 			customExecution: 'customExecution'
 		};
 	}
 
-	export function to(taskId: string, providedCustomExeutions: Map<string, types.CustomExecution>): types.CustomExecution | undefined {
-		return providedCustomExeutions.get(taskId);
+	expowt function to(taskId: stwing, pwovidedCustomExeutions: Map<stwing, types.CustomExecution>): types.CustomExecution | undefined {
+		wetuwn pwovidedCustomExeutions.get(taskId);
 	}
 }
 
 
-export namespace TaskHandleDTO {
-	export function from(value: types.Task, workspaceService?: IExtHostWorkspace): tasks.TaskHandleDTO {
-		let folder: UriComponents | string;
-		if (value.scope !== undefined && typeof value.scope !== 'number') {
-			folder = value.scope.uri;
-		} else if (value.scope !== undefined && typeof value.scope === 'number') {
-			if ((value.scope === types.TaskScope.Workspace) && workspaceService && workspaceService.workspaceFile) {
-				folder = workspaceService.workspaceFile;
-			} else {
-				folder = USER_TASKS_GROUP_KEY;
+expowt namespace TaskHandweDTO {
+	expowt function fwom(vawue: types.Task, wowkspaceSewvice?: IExtHostWowkspace): tasks.TaskHandweDTO {
+		wet fowda: UwiComponents | stwing;
+		if (vawue.scope !== undefined && typeof vawue.scope !== 'numba') {
+			fowda = vawue.scope.uwi;
+		} ewse if (vawue.scope !== undefined && typeof vawue.scope === 'numba') {
+			if ((vawue.scope === types.TaskScope.Wowkspace) && wowkspaceSewvice && wowkspaceSewvice.wowkspaceFiwe) {
+				fowda = wowkspaceSewvice.wowkspaceFiwe;
+			} ewse {
+				fowda = USEW_TASKS_GWOUP_KEY;
 			}
 		}
-		return {
-			id: value._id!,
-			workspaceFolder: folder!
+		wetuwn {
+			id: vawue._id!,
+			wowkspaceFowda: fowda!
 		};
 	}
 }
-export namespace TaskGroupDTO {
-	export function from(value: vscode.TaskGroup): tasks.TaskGroupDTO | undefined {
-		if (value === undefined || value === null) {
-			return undefined;
+expowt namespace TaskGwoupDTO {
+	expowt function fwom(vawue: vscode.TaskGwoup): tasks.TaskGwoupDTO | undefined {
+		if (vawue === undefined || vawue === nuww) {
+			wetuwn undefined;
 		}
-		return { _id: value.id, isDefault: value.isDefault };
+		wetuwn { _id: vawue.id, isDefauwt: vawue.isDefauwt };
 	}
 }
 
-export namespace TaskDTO {
-	export function fromMany(tasks: vscode.Task[], extension: IExtensionDescription): tasks.TaskDTO[] {
-		if (tasks === undefined || tasks === null) {
-			return [];
+expowt namespace TaskDTO {
+	expowt function fwomMany(tasks: vscode.Task[], extension: IExtensionDescwiption): tasks.TaskDTO[] {
+		if (tasks === undefined || tasks === nuww) {
+			wetuwn [];
 		}
-		const result: tasks.TaskDTO[] = [];
-		for (let task of tasks) {
-			const converted = from(task, extension);
-			if (converted) {
-				result.push(converted);
+		const wesuwt: tasks.TaskDTO[] = [];
+		fow (wet task of tasks) {
+			const convewted = fwom(task, extension);
+			if (convewted) {
+				wesuwt.push(convewted);
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	export function from(value: vscode.Task, extension: IExtensionDescription): tasks.TaskDTO | undefined {
-		if (value === undefined || value === null) {
-			return undefined;
+	expowt function fwom(vawue: vscode.Task, extension: IExtensionDescwiption): tasks.TaskDTO | undefined {
+		if (vawue === undefined || vawue === nuww) {
+			wetuwn undefined;
 		}
-		let execution: tasks.ShellExecutionDTO | tasks.ProcessExecutionDTO | tasks.CustomExecutionDTO | undefined;
-		if (value.execution instanceof types.ProcessExecution) {
-			execution = ProcessExecutionDTO.from(value.execution);
-		} else if (value.execution instanceof types.ShellExecution) {
-			execution = ShellExecutionDTO.from(value.execution);
-		} else if (value.execution && value.execution instanceof types.CustomExecution) {
-			execution = CustomExecutionDTO.from(<types.CustomExecution>value.execution);
+		wet execution: tasks.ShewwExecutionDTO | tasks.PwocessExecutionDTO | tasks.CustomExecutionDTO | undefined;
+		if (vawue.execution instanceof types.PwocessExecution) {
+			execution = PwocessExecutionDTO.fwom(vawue.execution);
+		} ewse if (vawue.execution instanceof types.ShewwExecution) {
+			execution = ShewwExecutionDTO.fwom(vawue.execution);
+		} ewse if (vawue.execution && vawue.execution instanceof types.CustomExecution) {
+			execution = CustomExecutionDTO.fwom(<types.CustomExecution>vawue.execution);
 		}
 
-		const definition: tasks.TaskDefinitionDTO | undefined = TaskDefinitionDTO.from(value.definition);
-		let scope: number | UriComponents;
-		if (value.scope) {
-			if (typeof value.scope === 'number') {
-				scope = value.scope;
-			} else {
-				scope = value.scope.uri;
+		const definition: tasks.TaskDefinitionDTO | undefined = TaskDefinitionDTO.fwom(vawue.definition);
+		wet scope: numba | UwiComponents;
+		if (vawue.scope) {
+			if (typeof vawue.scope === 'numba') {
+				scope = vawue.scope;
+			} ewse {
+				scope = vawue.scope.uwi;
 			}
-		} else {
-			// To continue to support the deprecated task constructor that doesn't take a scope, we must add a scope here:
-			scope = types.TaskScope.Workspace;
+		} ewse {
+			// To continue to suppowt the depwecated task constwuctow that doesn't take a scope, we must add a scope hewe:
+			scope = types.TaskScope.Wowkspace;
 		}
 		if (!definition || !scope) {
-			return undefined;
+			wetuwn undefined;
 		}
-		const result: tasks.TaskDTO = {
-			_id: (value as types.Task)._id!,
+		const wesuwt: tasks.TaskDTO = {
+			_id: (vawue as types.Task)._id!,
 			definition,
-			name: value.name,
-			source: {
-				extensionId: extension.identifier.value,
-				label: value.source,
+			name: vawue.name,
+			souwce: {
+				extensionId: extension.identifia.vawue,
+				wabew: vawue.souwce,
 				scope: scope
 			},
 			execution: execution!,
-			isBackground: value.isBackground,
-			group: TaskGroupDTO.from(value.group as vscode.TaskGroup),
-			presentationOptions: TaskPresentationOptionsDTO.from(value.presentationOptions),
-			problemMatchers: value.problemMatchers,
-			hasDefinedMatchers: (value as types.Task).hasDefinedMatchers,
-			runOptions: value.runOptions ? value.runOptions : { reevaluateOnRerun: true },
-			detail: value.detail
+			isBackgwound: vawue.isBackgwound,
+			gwoup: TaskGwoupDTO.fwom(vawue.gwoup as vscode.TaskGwoup),
+			pwesentationOptions: TaskPwesentationOptionsDTO.fwom(vawue.pwesentationOptions),
+			pwobwemMatchews: vawue.pwobwemMatchews,
+			hasDefinedMatchews: (vawue as types.Task).hasDefinedMatchews,
+			wunOptions: vawue.wunOptions ? vawue.wunOptions : { weevawuateOnWewun: twue },
+			detaiw: vawue.detaiw
 		};
-		return result;
+		wetuwn wesuwt;
 	}
-	export async function to(value: tasks.TaskDTO | undefined, workspace: IExtHostWorkspaceProvider, providedCustomExeutions: Map<string, types.CustomExecution>): Promise<types.Task | undefined> {
-		if (value === undefined || value === null) {
-			return undefined;
+	expowt async function to(vawue: tasks.TaskDTO | undefined, wowkspace: IExtHostWowkspacePwovida, pwovidedCustomExeutions: Map<stwing, types.CustomExecution>): Pwomise<types.Task | undefined> {
+		if (vawue === undefined || vawue === nuww) {
+			wetuwn undefined;
 		}
-		let execution: types.ShellExecution | types.ProcessExecution | types.CustomExecution | undefined;
-		if (ProcessExecutionDTO.is(value.execution)) {
-			execution = ProcessExecutionDTO.to(value.execution);
-		} else if (ShellExecutionDTO.is(value.execution)) {
-			execution = ShellExecutionDTO.to(value.execution);
-		} else if (CustomExecutionDTO.is(value.execution)) {
-			execution = CustomExecutionDTO.to(value._id, providedCustomExeutions);
+		wet execution: types.ShewwExecution | types.PwocessExecution | types.CustomExecution | undefined;
+		if (PwocessExecutionDTO.is(vawue.execution)) {
+			execution = PwocessExecutionDTO.to(vawue.execution);
+		} ewse if (ShewwExecutionDTO.is(vawue.execution)) {
+			execution = ShewwExecutionDTO.to(vawue.execution);
+		} ewse if (CustomExecutionDTO.is(vawue.execution)) {
+			execution = CustomExecutionDTO.to(vawue._id, pwovidedCustomExeutions);
 		}
-		const definition: vscode.TaskDefinition | undefined = TaskDefinitionDTO.to(value.definition);
-		let scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder | undefined;
-		if (value.source) {
-			if (value.source.scope !== undefined) {
-				if (typeof value.source.scope === 'number') {
-					scope = value.source.scope;
-				} else {
-					scope = await workspace.resolveWorkspaceFolder(URI.revive(value.source.scope));
+		const definition: vscode.TaskDefinition | undefined = TaskDefinitionDTO.to(vawue.definition);
+		wet scope: vscode.TaskScope.Gwobaw | vscode.TaskScope.Wowkspace | vscode.WowkspaceFowda | undefined;
+		if (vawue.souwce) {
+			if (vawue.souwce.scope !== undefined) {
+				if (typeof vawue.souwce.scope === 'numba') {
+					scope = vawue.souwce.scope;
+				} ewse {
+					scope = await wowkspace.wesowveWowkspaceFowda(UWI.wevive(vawue.souwce.scope));
 				}
-			} else {
-				scope = types.TaskScope.Workspace;
+			} ewse {
+				scope = types.TaskScope.Wowkspace;
 			}
 		}
 		if (!definition || !scope) {
-			return undefined;
+			wetuwn undefined;
 		}
-		const result = new types.Task(definition, scope, value.name!, value.source.label, execution, value.problemMatchers);
-		if (value.isBackground !== undefined) {
-			result.isBackground = value.isBackground;
+		const wesuwt = new types.Task(definition, scope, vawue.name!, vawue.souwce.wabew, execution, vawue.pwobwemMatchews);
+		if (vawue.isBackgwound !== undefined) {
+			wesuwt.isBackgwound = vawue.isBackgwound;
 		}
-		if (value.group !== undefined) {
-			result.group = types.TaskGroup.from(value.group._id);
-			if (result.group && value.group.isDefault) {
-				result.group = new types.TaskGroup(result.group.id, result.group.label);
-				if (value.group.isDefault) {
-					result.group.isDefault = value.group.isDefault;
+		if (vawue.gwoup !== undefined) {
+			wesuwt.gwoup = types.TaskGwoup.fwom(vawue.gwoup._id);
+			if (wesuwt.gwoup && vawue.gwoup.isDefauwt) {
+				wesuwt.gwoup = new types.TaskGwoup(wesuwt.gwoup.id, wesuwt.gwoup.wabew);
+				if (vawue.gwoup.isDefauwt) {
+					wesuwt.gwoup.isDefauwt = vawue.gwoup.isDefauwt;
 				}
 			}
 		}
-		if (value.presentationOptions) {
-			result.presentationOptions = TaskPresentationOptionsDTO.to(value.presentationOptions)!;
+		if (vawue.pwesentationOptions) {
+			wesuwt.pwesentationOptions = TaskPwesentationOptionsDTO.to(vawue.pwesentationOptions)!;
 		}
-		if (value._id) {
-			result._id = value._id;
+		if (vawue._id) {
+			wesuwt._id = vawue._id;
 		}
-		if (value.detail) {
-			result.detail = value.detail;
+		if (vawue.detaiw) {
+			wesuwt.detaiw = vawue.detaiw;
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
-export namespace TaskFilterDTO {
-	export function from(value: vscode.TaskFilter | undefined): tasks.TaskFilterDTO | undefined {
-		return value;
+expowt namespace TaskFiwtewDTO {
+	expowt function fwom(vawue: vscode.TaskFiwta | undefined): tasks.TaskFiwtewDTO | undefined {
+		wetuwn vawue;
 	}
 
-	export function to(value: tasks.TaskFilterDTO): vscode.TaskFilter | undefined {
-		if (!value) {
-			return undefined;
+	expowt function to(vawue: tasks.TaskFiwtewDTO): vscode.TaskFiwta | undefined {
+		if (!vawue) {
+			wetuwn undefined;
 		}
-		return Object.assign(Object.create(null), value);
+		wetuwn Object.assign(Object.cweate(nuww), vawue);
 	}
 }
 
-class TaskExecutionImpl implements vscode.TaskExecution {
+cwass TaskExecutionImpw impwements vscode.TaskExecution {
 
-	readonly #tasks: ExtHostTaskBase;
+	weadonwy #tasks: ExtHostTaskBase;
 
-	constructor(tasks: ExtHostTaskBase, readonly _id: string, private readonly _task: vscode.Task) {
+	constwuctow(tasks: ExtHostTaskBase, weadonwy _id: stwing, pwivate weadonwy _task: vscode.Task) {
 		this.#tasks = tasks;
 	}
 
-	public get task(): vscode.Task {
-		return this._task;
+	pubwic get task(): vscode.Task {
+		wetuwn this._task;
 	}
 
-	public terminate(): void {
-		this.#tasks.terminateTask(this);
+	pubwic tewminate(): void {
+		this.#tasks.tewminateTask(this);
 	}
 
-	public fireDidStartProcess(value: tasks.TaskProcessStartedDTO): void {
+	pubwic fiweDidStawtPwocess(vawue: tasks.TaskPwocessStawtedDTO): void {
 	}
 
-	public fireDidEndProcess(value: tasks.TaskProcessEndedDTO): void {
+	pubwic fiweDidEndPwocess(vawue: tasks.TaskPwocessEndedDTO): void {
 	}
 }
 
-export namespace TaskExecutionDTO {
-	export function from(value: vscode.TaskExecution): tasks.TaskExecutionDTO {
-		return {
-			id: (value as TaskExecutionImpl)._id,
+expowt namespace TaskExecutionDTO {
+	expowt function fwom(vawue: vscode.TaskExecution): tasks.TaskExecutionDTO {
+		wetuwn {
+			id: (vawue as TaskExecutionImpw)._id,
 			task: undefined
 		};
 	}
 }
 
-export interface HandlerData {
-	type: string;
-	provider: vscode.TaskProvider;
-	extension: IExtensionDescription;
+expowt intewface HandwewData {
+	type: stwing;
+	pwovida: vscode.TaskPwovida;
+	extension: IExtensionDescwiption;
 }
 
-export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask {
-	readonly _serviceBrand: undefined;
+expowt abstwact cwass ExtHostTaskBase impwements ExtHostTaskShape, IExtHostTask {
+	weadonwy _sewviceBwand: undefined;
 
-	protected readonly _proxy: MainThreadTaskShape;
-	protected readonly _workspaceProvider: IExtHostWorkspaceProvider;
-	protected readonly _editorService: IExtHostDocumentsAndEditors;
-	protected readonly _configurationService: IExtHostConfiguration;
-	protected readonly _terminalService: IExtHostTerminalService;
-	protected readonly _logService: ILogService;
-	protected readonly _deprecationService: IExtHostApiDeprecationService;
-	protected _handleCounter: number;
-	protected _handlers: Map<number, HandlerData>;
-	protected _taskExecutions: Map<string, TaskExecutionImpl>;
-	protected _taskExecutionPromises: Map<string, Promise<TaskExecutionImpl>>;
-	protected _providedCustomExecutions2: Map<string, types.CustomExecution>;
-	private _notProvidedCustomExecutions: Set<string>; // Used for custom executions tasks that are created and run through executeTask.
-	protected _activeCustomExecutions2: Map<string, types.CustomExecution>;
-	private _lastStartedTask: string | undefined;
-	protected readonly _onDidExecuteTask: Emitter<vscode.TaskStartEvent> = new Emitter<vscode.TaskStartEvent>();
-	protected readonly _onDidTerminateTask: Emitter<vscode.TaskEndEvent> = new Emitter<vscode.TaskEndEvent>();
+	pwotected weadonwy _pwoxy: MainThweadTaskShape;
+	pwotected weadonwy _wowkspacePwovida: IExtHostWowkspacePwovida;
+	pwotected weadonwy _editowSewvice: IExtHostDocumentsAndEditows;
+	pwotected weadonwy _configuwationSewvice: IExtHostConfiguwation;
+	pwotected weadonwy _tewminawSewvice: IExtHostTewminawSewvice;
+	pwotected weadonwy _wogSewvice: IWogSewvice;
+	pwotected weadonwy _depwecationSewvice: IExtHostApiDepwecationSewvice;
+	pwotected _handweCounta: numba;
+	pwotected _handwews: Map<numba, HandwewData>;
+	pwotected _taskExecutions: Map<stwing, TaskExecutionImpw>;
+	pwotected _taskExecutionPwomises: Map<stwing, Pwomise<TaskExecutionImpw>>;
+	pwotected _pwovidedCustomExecutions2: Map<stwing, types.CustomExecution>;
+	pwivate _notPwovidedCustomExecutions: Set<stwing>; // Used fow custom executions tasks that awe cweated and wun thwough executeTask.
+	pwotected _activeCustomExecutions2: Map<stwing, types.CustomExecution>;
+	pwivate _wastStawtedTask: stwing | undefined;
+	pwotected weadonwy _onDidExecuteTask: Emitta<vscode.TaskStawtEvent> = new Emitta<vscode.TaskStawtEvent>();
+	pwotected weadonwy _onDidTewminateTask: Emitta<vscode.TaskEndEvent> = new Emitta<vscode.TaskEndEvent>();
 
-	protected readonly _onDidTaskProcessStarted: Emitter<vscode.TaskProcessStartEvent> = new Emitter<vscode.TaskProcessStartEvent>();
-	protected readonly _onDidTaskProcessEnded: Emitter<vscode.TaskProcessEndEvent> = new Emitter<vscode.TaskProcessEndEvent>();
+	pwotected weadonwy _onDidTaskPwocessStawted: Emitta<vscode.TaskPwocessStawtEvent> = new Emitta<vscode.TaskPwocessStawtEvent>();
+	pwotected weadonwy _onDidTaskPwocessEnded: Emitta<vscode.TaskPwocessEndEvent> = new Emitta<vscode.TaskPwocessEndEvent>();
 
-	constructor(
-		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@IExtHostInitDataService initData: IExtHostInitDataService,
-		@IExtHostWorkspace workspaceService: IExtHostWorkspace,
-		@IExtHostDocumentsAndEditors editorService: IExtHostDocumentsAndEditors,
-		@IExtHostConfiguration configurationService: IExtHostConfiguration,
-		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService,
-		@ILogService logService: ILogService,
-		@IExtHostApiDeprecationService deprecationService: IExtHostApiDeprecationService
+	constwuctow(
+		@IExtHostWpcSewvice extHostWpc: IExtHostWpcSewvice,
+		@IExtHostInitDataSewvice initData: IExtHostInitDataSewvice,
+		@IExtHostWowkspace wowkspaceSewvice: IExtHostWowkspace,
+		@IExtHostDocumentsAndEditows editowSewvice: IExtHostDocumentsAndEditows,
+		@IExtHostConfiguwation configuwationSewvice: IExtHostConfiguwation,
+		@IExtHostTewminawSewvice extHostTewminawSewvice: IExtHostTewminawSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IExtHostApiDepwecationSewvice depwecationSewvice: IExtHostApiDepwecationSewvice
 	) {
-		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTask);
-		this._workspaceProvider = workspaceService;
-		this._editorService = editorService;
-		this._configurationService = configurationService;
-		this._terminalService = extHostTerminalService;
-		this._handleCounter = 0;
-		this._handlers = new Map<number, HandlerData>();
-		this._taskExecutions = new Map<string, TaskExecutionImpl>();
-		this._taskExecutionPromises = new Map<string, Promise<TaskExecutionImpl>>();
-		this._providedCustomExecutions2 = new Map<string, types.CustomExecution>();
-		this._notProvidedCustomExecutions = new Set<string>();
-		this._activeCustomExecutions2 = new Map<string, types.CustomExecution>();
-		this._logService = logService;
-		this._deprecationService = deprecationService;
-		this._proxy.$registerSupportedExecutions(true);
+		this._pwoxy = extHostWpc.getPwoxy(MainContext.MainThweadTask);
+		this._wowkspacePwovida = wowkspaceSewvice;
+		this._editowSewvice = editowSewvice;
+		this._configuwationSewvice = configuwationSewvice;
+		this._tewminawSewvice = extHostTewminawSewvice;
+		this._handweCounta = 0;
+		this._handwews = new Map<numba, HandwewData>();
+		this._taskExecutions = new Map<stwing, TaskExecutionImpw>();
+		this._taskExecutionPwomises = new Map<stwing, Pwomise<TaskExecutionImpw>>();
+		this._pwovidedCustomExecutions2 = new Map<stwing, types.CustomExecution>();
+		this._notPwovidedCustomExecutions = new Set<stwing>();
+		this._activeCustomExecutions2 = new Map<stwing, types.CustomExecution>();
+		this._wogSewvice = wogSewvice;
+		this._depwecationSewvice = depwecationSewvice;
+		this._pwoxy.$wegistewSuppowtedExecutions(twue);
 	}
 
-	public registerTaskProvider(extension: IExtensionDescription, type: string, provider: vscode.TaskProvider): vscode.Disposable {
-		if (!provider) {
-			return new types.Disposable(() => { });
+	pubwic wegistewTaskPwovida(extension: IExtensionDescwiption, type: stwing, pwovida: vscode.TaskPwovida): vscode.Disposabwe {
+		if (!pwovida) {
+			wetuwn new types.Disposabwe(() => { });
 		}
-		const handle = this.nextHandle();
-		this._handlers.set(handle, { type, provider, extension });
-		this._proxy.$registerTaskProvider(handle, type);
-		return new types.Disposable(() => {
-			this._handlers.delete(handle);
-			this._proxy.$unregisterTaskProvider(handle);
+		const handwe = this.nextHandwe();
+		this._handwews.set(handwe, { type, pwovida, extension });
+		this._pwoxy.$wegistewTaskPwovida(handwe, type);
+		wetuwn new types.Disposabwe(() => {
+			this._handwews.dewete(handwe);
+			this._pwoxy.$unwegistewTaskPwovida(handwe);
 		});
 	}
 
-	public registerTaskSystem(scheme: string, info: tasks.TaskSystemInfoDTO): void {
-		this._proxy.$registerTaskSystem(scheme, info);
+	pubwic wegistewTaskSystem(scheme: stwing, info: tasks.TaskSystemInfoDTO): void {
+		this._pwoxy.$wegistewTaskSystem(scheme, info);
 	}
 
-	public fetchTasks(filter?: vscode.TaskFilter): Promise<vscode.Task[]> {
-		return this._proxy.$fetchTasks(TaskFilterDTO.from(filter)).then(async (values) => {
-			const result: vscode.Task[] = [];
-			for (let value of values) {
-				const task = await TaskDTO.to(value, this._workspaceProvider, this._providedCustomExecutions2);
+	pubwic fetchTasks(fiwta?: vscode.TaskFiwta): Pwomise<vscode.Task[]> {
+		wetuwn this._pwoxy.$fetchTasks(TaskFiwtewDTO.fwom(fiwta)).then(async (vawues) => {
+			const wesuwt: vscode.Task[] = [];
+			fow (wet vawue of vawues) {
+				const task = await TaskDTO.to(vawue, this._wowkspacePwovida, this._pwovidedCustomExecutions2);
 				if (task) {
-					result.push(task);
+					wesuwt.push(task);
 				}
 			}
-			return result;
+			wetuwn wesuwt;
 		});
 	}
 
-	public abstract executeTask(extension: IExtensionDescription, task: vscode.Task): Promise<vscode.TaskExecution>;
+	pubwic abstwact executeTask(extension: IExtensionDescwiption, task: vscode.Task): Pwomise<vscode.TaskExecution>;
 
-	public get taskExecutions(): vscode.TaskExecution[] {
-		const result: vscode.TaskExecution[] = [];
-		this._taskExecutions.forEach(value => result.push(value));
-		return result;
+	pubwic get taskExecutions(): vscode.TaskExecution[] {
+		const wesuwt: vscode.TaskExecution[] = [];
+		this._taskExecutions.fowEach(vawue => wesuwt.push(vawue));
+		wetuwn wesuwt;
 	}
 
-	public terminateTask(execution: vscode.TaskExecution): Promise<void> {
-		if (!(execution instanceof TaskExecutionImpl)) {
-			throw new Error('No valid task execution provided');
+	pubwic tewminateTask(execution: vscode.TaskExecution): Pwomise<void> {
+		if (!(execution instanceof TaskExecutionImpw)) {
+			thwow new Ewwow('No vawid task execution pwovided');
 		}
-		return this._proxy.$terminateTask((execution as TaskExecutionImpl)._id);
+		wetuwn this._pwoxy.$tewminateTask((execution as TaskExecutionImpw)._id);
 	}
 
-	public get onDidStartTask(): Event<vscode.TaskStartEvent> {
-		return this._onDidExecuteTask.event;
+	pubwic get onDidStawtTask(): Event<vscode.TaskStawtEvent> {
+		wetuwn this._onDidExecuteTask.event;
 	}
 
-	public async $onDidStartTask(execution: tasks.TaskExecutionDTO, terminalId: number, resolvedDefinition: tasks.TaskDefinitionDTO): Promise<void> {
-		const customExecution: types.CustomExecution | undefined = this._providedCustomExecutions2.get(execution.id);
+	pubwic async $onDidStawtTask(execution: tasks.TaskExecutionDTO, tewminawId: numba, wesowvedDefinition: tasks.TaskDefinitionDTO): Pwomise<void> {
+		const customExecution: types.CustomExecution | undefined = this._pwovidedCustomExecutions2.get(execution.id);
 		if (customExecution) {
 			if (this._activeCustomExecutions2.get(execution.id) !== undefined) {
-				throw new Error('We should not be trying to start the same custom task executions twice.');
+				thwow new Ewwow('We shouwd not be twying to stawt the same custom task executions twice.');
 			}
 
-			// Clone the custom execution to keep the original untouched. This is important for multiple runs of the same task.
+			// Cwone the custom execution to keep the owiginaw untouched. This is impowtant fow muwtipwe wuns of the same task.
 			this._activeCustomExecutions2.set(execution.id, customExecution);
-			this._terminalService.attachPtyToTerminal(terminalId, await customExecution.callback(resolvedDefinition));
+			this._tewminawSewvice.attachPtyToTewminaw(tewminawId, await customExecution.cawwback(wesowvedDefinition));
 		}
-		this._lastStartedTask = execution.id;
+		this._wastStawtedTask = execution.id;
 
-		this._onDidExecuteTask.fire({
+		this._onDidExecuteTask.fiwe({
 			execution: await this.getTaskExecution(execution)
 		});
 	}
 
-	public get onDidEndTask(): Event<vscode.TaskEndEvent> {
-		return this._onDidTerminateTask.event;
+	pubwic get onDidEndTask(): Event<vscode.TaskEndEvent> {
+		wetuwn this._onDidTewminateTask.event;
 	}
 
-	public async $OnDidEndTask(execution: tasks.TaskExecutionDTO): Promise<void> {
+	pubwic async $OnDidEndTask(execution: tasks.TaskExecutionDTO): Pwomise<void> {
 		const _execution = await this.getTaskExecution(execution);
-		this._taskExecutionPromises.delete(execution.id);
-		this._taskExecutions.delete(execution.id);
-		this.customExecutionComplete(execution);
-		this._onDidTerminateTask.fire({
+		this._taskExecutionPwomises.dewete(execution.id);
+		this._taskExecutions.dewete(execution.id);
+		this.customExecutionCompwete(execution);
+		this._onDidTewminateTask.fiwe({
 			execution: _execution
 		});
 	}
 
-	public get onDidStartTaskProcess(): Event<vscode.TaskProcessStartEvent> {
-		return this._onDidTaskProcessStarted.event;
+	pubwic get onDidStawtTaskPwocess(): Event<vscode.TaskPwocessStawtEvent> {
+		wetuwn this._onDidTaskPwocessStawted.event;
 	}
 
-	public async $onDidStartTaskProcess(value: tasks.TaskProcessStartedDTO): Promise<void> {
-		const execution = await this.getTaskExecution(value.id);
-		this._onDidTaskProcessStarted.fire({
+	pubwic async $onDidStawtTaskPwocess(vawue: tasks.TaskPwocessStawtedDTO): Pwomise<void> {
+		const execution = await this.getTaskExecution(vawue.id);
+		this._onDidTaskPwocessStawted.fiwe({
 			execution: execution,
-			processId: value.processId
+			pwocessId: vawue.pwocessId
 		});
 	}
 
-	public get onDidEndTaskProcess(): Event<vscode.TaskProcessEndEvent> {
-		return this._onDidTaskProcessEnded.event;
+	pubwic get onDidEndTaskPwocess(): Event<vscode.TaskPwocessEndEvent> {
+		wetuwn this._onDidTaskPwocessEnded.event;
 	}
 
-	public async $onDidEndTaskProcess(value: tasks.TaskProcessEndedDTO): Promise<void> {
-		const execution = await this.getTaskExecution(value.id);
-		this._onDidTaskProcessEnded.fire({
+	pubwic async $onDidEndTaskPwocess(vawue: tasks.TaskPwocessEndedDTO): Pwomise<void> {
+		const execution = await this.getTaskExecution(vawue.id);
+		this._onDidTaskPwocessEnded.fiwe({
 			execution: execution,
-			exitCode: value.exitCode
+			exitCode: vawue.exitCode
 		});
 	}
 
-	protected abstract provideTasksInternal(validTypes: { [key: string]: boolean; }, taskIdPromises: Promise<void>[], handler: HandlerData, value: vscode.Task[] | null | undefined): { tasks: tasks.TaskDTO[], extension: IExtensionDescription };
+	pwotected abstwact pwovideTasksIntewnaw(vawidTypes: { [key: stwing]: boowean; }, taskIdPwomises: Pwomise<void>[], handwa: HandwewData, vawue: vscode.Task[] | nuww | undefined): { tasks: tasks.TaskDTO[], extension: IExtensionDescwiption };
 
-	public $provideTasks(handle: number, validTypes: { [key: string]: boolean; }): Thenable<tasks.TaskSetDTO> {
-		const handler = this._handlers.get(handle);
-		if (!handler) {
-			return Promise.reject(new Error('no handler found'));
+	pubwic $pwovideTasks(handwe: numba, vawidTypes: { [key: stwing]: boowean; }): Thenabwe<tasks.TaskSetDTO> {
+		const handwa = this._handwews.get(handwe);
+		if (!handwa) {
+			wetuwn Pwomise.weject(new Ewwow('no handwa found'));
 		}
 
-		// Set up a list of task ID promises that we can wait on
-		// before returning the provided tasks. The ensures that
-		// our task IDs are calculated for any custom execution tasks.
+		// Set up a wist of task ID pwomises that we can wait on
+		// befowe wetuwning the pwovided tasks. The ensuwes that
+		// ouw task IDs awe cawcuwated fow any custom execution tasks.
 		// Knowing this ID ahead of time is needed because when a task
-		// start event is fired this is when the custom execution is called.
-		// The task start event is also the first time we see the ID from the main
-		// thread, which is too late for us because we need to save an map
-		// from an ID to the custom execution function. (Kind of a cart before the horse problem).
-		const taskIdPromises: Promise<void>[] = [];
-		const fetchPromise = asPromise(() => handler.provider.provideTasks(CancellationToken.None)).then(value => {
-			return this.provideTasksInternal(validTypes, taskIdPromises, handler, value);
+		// stawt event is fiwed this is when the custom execution is cawwed.
+		// The task stawt event is awso the fiwst time we see the ID fwom the main
+		// thwead, which is too wate fow us because we need to save an map
+		// fwom an ID to the custom execution function. (Kind of a cawt befowe the howse pwobwem).
+		const taskIdPwomises: Pwomise<void>[] = [];
+		const fetchPwomise = asPwomise(() => handwa.pwovida.pwovideTasks(CancewwationToken.None)).then(vawue => {
+			wetuwn this.pwovideTasksIntewnaw(vawidTypes, taskIdPwomises, handwa, vawue);
 		});
 
-		return new Promise((resolve) => {
-			fetchPromise.then((result) => {
-				Promise.all(taskIdPromises).then(() => {
-					resolve(result);
+		wetuwn new Pwomise((wesowve) => {
+			fetchPwomise.then((wesuwt) => {
+				Pwomise.aww(taskIdPwomises).then(() => {
+					wesowve(wesuwt);
 				});
 			});
 		});
 	}
 
-	protected abstract resolveTaskInternal(resolvedTaskDTO: tasks.TaskDTO): Promise<tasks.TaskDTO | undefined>;
+	pwotected abstwact wesowveTaskIntewnaw(wesowvedTaskDTO: tasks.TaskDTO): Pwomise<tasks.TaskDTO | undefined>;
 
-	public async $resolveTask(handle: number, taskDTO: tasks.TaskDTO): Promise<tasks.TaskDTO | undefined> {
-		const handler = this._handlers.get(handle);
-		if (!handler) {
-			return Promise.reject(new Error('no handler found'));
+	pubwic async $wesowveTask(handwe: numba, taskDTO: tasks.TaskDTO): Pwomise<tasks.TaskDTO | undefined> {
+		const handwa = this._handwews.get(handwe);
+		if (!handwa) {
+			wetuwn Pwomise.weject(new Ewwow('no handwa found'));
 		}
 
-		if (taskDTO.definition.type !== handler.type) {
-			throw new Error(`Unexpected: Task of type [${taskDTO.definition.type}] cannot be resolved by provider of type [${handler.type}].`);
+		if (taskDTO.definition.type !== handwa.type) {
+			thwow new Ewwow(`Unexpected: Task of type [${taskDTO.definition.type}] cannot be wesowved by pwovida of type [${handwa.type}].`);
 		}
 
-		const task = await TaskDTO.to(taskDTO, this._workspaceProvider, this._providedCustomExecutions2);
+		const task = await TaskDTO.to(taskDTO, this._wowkspacePwovida, this._pwovidedCustomExecutions2);
 		if (!task) {
-			throw new Error('Unexpected: Task cannot be resolved.');
+			thwow new Ewwow('Unexpected: Task cannot be wesowved.');
 		}
 
-		const resolvedTask = await handler.provider.resolveTask(task, CancellationToken.None);
-		if (!resolvedTask) {
-			return;
+		const wesowvedTask = await handwa.pwovida.wesowveTask(task, CancewwationToken.None);
+		if (!wesowvedTask) {
+			wetuwn;
 		}
 
-		this.checkDeprecation(resolvedTask, handler);
+		this.checkDepwecation(wesowvedTask, handwa);
 
-		const resolvedTaskDTO: tasks.TaskDTO | undefined = TaskDTO.from(resolvedTask, handler.extension);
-		if (!resolvedTaskDTO) {
-			throw new Error('Unexpected: Task cannot be resolved.');
+		const wesowvedTaskDTO: tasks.TaskDTO | undefined = TaskDTO.fwom(wesowvedTask, handwa.extension);
+		if (!wesowvedTaskDTO) {
+			thwow new Ewwow('Unexpected: Task cannot be wesowved.');
 		}
 
-		if (resolvedTask.definition !== task.definition) {
-			throw new Error('Unexpected: The resolved task definition must be the same object as the original task definition. The task definition cannot be changed.');
+		if (wesowvedTask.definition !== task.definition) {
+			thwow new Ewwow('Unexpected: The wesowved task definition must be the same object as the owiginaw task definition. The task definition cannot be changed.');
 		}
 
-		if (CustomExecutionDTO.is(resolvedTaskDTO.execution)) {
-			await this.addCustomExecution(resolvedTaskDTO, resolvedTask, true);
+		if (CustomExecutionDTO.is(wesowvedTaskDTO.execution)) {
+			await this.addCustomExecution(wesowvedTaskDTO, wesowvedTask, twue);
 		}
 
-		return await this.resolveTaskInternal(resolvedTaskDTO);
+		wetuwn await this.wesowveTaskIntewnaw(wesowvedTaskDTO);
 	}
 
-	public abstract $resolveVariables(uriComponents: UriComponents, toResolve: { process?: { name: string; cwd?: string; path?: string }, variables: string[] }): Promise<{ process?: string, variables: { [key: string]: string; } }>;
+	pubwic abstwact $wesowveVawiabwes(uwiComponents: UwiComponents, toWesowve: { pwocess?: { name: stwing; cwd?: stwing; path?: stwing }, vawiabwes: stwing[] }): Pwomise<{ pwocess?: stwing, vawiabwes: { [key: stwing]: stwing; } }>;
 
-	private nextHandle(): number {
-		return this._handleCounter++;
+	pwivate nextHandwe(): numba {
+		wetuwn this._handweCounta++;
 	}
 
-	protected async addCustomExecution(taskDTO: tasks.TaskDTO, task: vscode.Task, isProvided: boolean): Promise<void> {
-		const taskId = await this._proxy.$createTaskId(taskDTO);
-		if (!isProvided && !this._providedCustomExecutions2.has(taskId)) {
-			this._notProvidedCustomExecutions.add(taskId);
+	pwotected async addCustomExecution(taskDTO: tasks.TaskDTO, task: vscode.Task, isPwovided: boowean): Pwomise<void> {
+		const taskId = await this._pwoxy.$cweateTaskId(taskDTO);
+		if (!isPwovided && !this._pwovidedCustomExecutions2.has(taskId)) {
+			this._notPwovidedCustomExecutions.add(taskId);
 		}
-		this._providedCustomExecutions2.set(taskId, <types.CustomExecution>task.execution);
+		this._pwovidedCustomExecutions2.set(taskId, <types.CustomExecution>task.execution);
 	}
 
-	protected async getTaskExecution(execution: tasks.TaskExecutionDTO | string, task?: vscode.Task): Promise<TaskExecutionImpl> {
-		if (typeof execution === 'string') {
-			const taskExecution = this._taskExecutionPromises.get(execution);
+	pwotected async getTaskExecution(execution: tasks.TaskExecutionDTO | stwing, task?: vscode.Task): Pwomise<TaskExecutionImpw> {
+		if (typeof execution === 'stwing') {
+			const taskExecution = this._taskExecutionPwomises.get(execution);
 			if (!taskExecution) {
-				throw new Error('Unexpected: The specified task is missing an execution');
+				thwow new Ewwow('Unexpected: The specified task is missing an execution');
 			}
-			return taskExecution;
+			wetuwn taskExecution;
 		}
 
-		let result: Promise<TaskExecutionImpl> | undefined = this._taskExecutionPromises.get(execution.id);
-		if (result) {
-			return result;
+		wet wesuwt: Pwomise<TaskExecutionImpw> | undefined = this._taskExecutionPwomises.get(execution.id);
+		if (wesuwt) {
+			wetuwn wesuwt;
 		}
-		const createdResult: Promise<TaskExecutionImpl> = new Promise(async (resolve, reject) => {
-			const taskToCreate = task ? task : await TaskDTO.to(execution.task, this._workspaceProvider, this._providedCustomExecutions2);
-			if (!taskToCreate) {
-				reject('Unexpected: Task does not exist.');
-			} else {
-				resolve(new TaskExecutionImpl(this, execution.id, taskToCreate));
+		const cweatedWesuwt: Pwomise<TaskExecutionImpw> = new Pwomise(async (wesowve, weject) => {
+			const taskToCweate = task ? task : await TaskDTO.to(execution.task, this._wowkspacePwovida, this._pwovidedCustomExecutions2);
+			if (!taskToCweate) {
+				weject('Unexpected: Task does not exist.');
+			} ewse {
+				wesowve(new TaskExecutionImpw(this, execution.id, taskToCweate));
 			}
 		});
 
-		this._taskExecutionPromises.set(execution.id, createdResult);
-		return createdResult.then(executionCreatedResult => {
-			this._taskExecutions.set(execution.id, executionCreatedResult);
-			return executionCreatedResult;
-		}, rejected => {
-			return Promise.reject(rejected);
+		this._taskExecutionPwomises.set(execution.id, cweatedWesuwt);
+		wetuwn cweatedWesuwt.then(executionCweatedWesuwt => {
+			this._taskExecutions.set(execution.id, executionCweatedWesuwt);
+			wetuwn executionCweatedWesuwt;
+		}, wejected => {
+			wetuwn Pwomise.weject(wejected);
 		});
 	}
 
-	protected checkDeprecation(task: vscode.Task, handler: HandlerData) {
+	pwotected checkDepwecation(task: vscode.Task, handwa: HandwewData) {
 		const tTask = (task as types.Task);
-		if (tTask._deprecated) {
-			this._deprecationService.report('Task.constructor', handler.extension, 'Use the Task constructor that takes a `scope` instead.');
+		if (tTask._depwecated) {
+			this._depwecationSewvice.wepowt('Task.constwuctow', handwa.extension, 'Use the Task constwuctow that takes a `scope` instead.');
 		}
 	}
 
-	private customExecutionComplete(execution: tasks.TaskExecutionDTO): void {
-		const extensionCallback2: vscode.CustomExecution | undefined = this._activeCustomExecutions2.get(execution.id);
-		if (extensionCallback2) {
-			this._activeCustomExecutions2.delete(execution.id);
+	pwivate customExecutionCompwete(execution: tasks.TaskExecutionDTO): void {
+		const extensionCawwback2: vscode.CustomExecution | undefined = this._activeCustomExecutions2.get(execution.id);
+		if (extensionCawwback2) {
+			this._activeCustomExecutions2.dewete(execution.id);
 		}
 
-		// Technically we don't really need to do this, however, if an extension
-		// is executing a task through "executeTask" over and over again
-		// with different properties in the task definition, then the map of executions
-		// could grow indefinitely, something we don't want.
-		if (this._notProvidedCustomExecutions.has(execution.id) && (this._lastStartedTask !== execution.id)) {
-			this._providedCustomExecutions2.delete(execution.id);
-			this._notProvidedCustomExecutions.delete(execution.id);
+		// Technicawwy we don't weawwy need to do this, howeva, if an extension
+		// is executing a task thwough "executeTask" ova and ova again
+		// with diffewent pwopewties in the task definition, then the map of executions
+		// couwd gwow indefinitewy, something we don't want.
+		if (this._notPwovidedCustomExecutions.has(execution.id) && (this._wastStawtedTask !== execution.id)) {
+			this._pwovidedCustomExecutions2.dewete(execution.id);
+			this._notPwovidedCustomExecutions.dewete(execution.id);
 		}
-		let iterator = this._notProvidedCustomExecutions.values();
-		let iteratorResult = iterator.next();
-		while (!iteratorResult.done) {
-			if (!this._activeCustomExecutions2.has(iteratorResult.value) && (this._lastStartedTask !== iteratorResult.value)) {
-				this._providedCustomExecutions2.delete(iteratorResult.value);
-				this._notProvidedCustomExecutions.delete(iteratorResult.value);
+		wet itewatow = this._notPwovidedCustomExecutions.vawues();
+		wet itewatowWesuwt = itewatow.next();
+		whiwe (!itewatowWesuwt.done) {
+			if (!this._activeCustomExecutions2.has(itewatowWesuwt.vawue) && (this._wastStawtedTask !== itewatowWesuwt.vawue)) {
+				this._pwovidedCustomExecutions2.dewete(itewatowWesuwt.vawue);
+				this._notPwovidedCustomExecutions.dewete(itewatowWesuwt.vawue);
 			}
-			iteratorResult = iterator.next();
+			itewatowWesuwt = itewatow.next();
 		}
 	}
 
-	public abstract $jsonTasksSupported(): Promise<boolean>;
+	pubwic abstwact $jsonTasksSuppowted(): Pwomise<boowean>;
 
-	public abstract $findExecutable(command: string, cwd?: string | undefined, paths?: string[] | undefined): Promise<string | undefined>;
+	pubwic abstwact $findExecutabwe(command: stwing, cwd?: stwing | undefined, paths?: stwing[] | undefined): Pwomise<stwing | undefined>;
 }
 
-export class WorkerExtHostTask extends ExtHostTaskBase {
-	constructor(
-		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@IExtHostInitDataService initData: IExtHostInitDataService,
-		@IExtHostWorkspace workspaceService: IExtHostWorkspace,
-		@IExtHostDocumentsAndEditors editorService: IExtHostDocumentsAndEditors,
-		@IExtHostConfiguration configurationService: IExtHostConfiguration,
-		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService,
-		@ILogService logService: ILogService,
-		@IExtHostApiDeprecationService deprecationService: IExtHostApiDeprecationService
+expowt cwass WowkewExtHostTask extends ExtHostTaskBase {
+	constwuctow(
+		@IExtHostWpcSewvice extHostWpc: IExtHostWpcSewvice,
+		@IExtHostInitDataSewvice initData: IExtHostInitDataSewvice,
+		@IExtHostWowkspace wowkspaceSewvice: IExtHostWowkspace,
+		@IExtHostDocumentsAndEditows editowSewvice: IExtHostDocumentsAndEditows,
+		@IExtHostConfiguwation configuwationSewvice: IExtHostConfiguwation,
+		@IExtHostTewminawSewvice extHostTewminawSewvice: IExtHostTewminawSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IExtHostApiDepwecationSewvice depwecationSewvice: IExtHostApiDepwecationSewvice
 	) {
-		super(extHostRpc, initData, workspaceService, editorService, configurationService, extHostTerminalService, logService, deprecationService);
-		this.registerTaskSystem(Schemas.vscodeRemote, {
-			scheme: Schemas.vscodeRemote,
-			authority: '',
-			platform: Platform.PlatformToString(Platform.Platform.Web)
+		supa(extHostWpc, initData, wowkspaceSewvice, editowSewvice, configuwationSewvice, extHostTewminawSewvice, wogSewvice, depwecationSewvice);
+		this.wegistewTaskSystem(Schemas.vscodeWemote, {
+			scheme: Schemas.vscodeWemote,
+			authowity: '',
+			pwatfowm: Pwatfowm.PwatfowmToStwing(Pwatfowm.Pwatfowm.Web)
 		});
 	}
 
-	public async executeTask(extension: IExtensionDescription, task: vscode.Task): Promise<vscode.TaskExecution> {
+	pubwic async executeTask(extension: IExtensionDescwiption, task: vscode.Task): Pwomise<vscode.TaskExecution> {
 		if (!task.execution) {
-			throw new Error('Tasks to execute must include an execution');
+			thwow new Ewwow('Tasks to execute must incwude an execution');
 		}
 
-		const dto = TaskDTO.from(task, extension);
+		const dto = TaskDTO.fwom(task, extension);
 		if (dto === undefined) {
-			throw new Error('Task is not valid');
+			thwow new Ewwow('Task is not vawid');
 		}
 
 		// If this task is a custom execution, then we need to save it away
-		// in the provided custom execution map that is cleaned up after the
+		// in the pwovided custom execution map that is cweaned up afta the
 		// task is executed.
 		if (CustomExecutionDTO.is(dto.execution)) {
-			await this.addCustomExecution(dto, task, false);
-		} else {
-			throw new NotSupportedError();
+			await this.addCustomExecution(dto, task, fawse);
+		} ewse {
+			thwow new NotSuppowtedEwwow();
 		}
 
-		// Always get the task execution first to prevent timing issues when retrieving it later
-		const execution = await this.getTaskExecution(await this._proxy.$getTaskExecution(dto), task);
-		this._proxy.$executeTask(dto).catch(error => { throw new Error(error); });
-		return execution;
+		// Awways get the task execution fiwst to pwevent timing issues when wetwieving it wata
+		const execution = await this.getTaskExecution(await this._pwoxy.$getTaskExecution(dto), task);
+		this._pwoxy.$executeTask(dto).catch(ewwow => { thwow new Ewwow(ewwow); });
+		wetuwn execution;
 	}
 
-	protected provideTasksInternal(validTypes: { [key: string]: boolean; }, taskIdPromises: Promise<void>[], handler: HandlerData, value: vscode.Task[] | null | undefined): { tasks: tasks.TaskDTO[], extension: IExtensionDescription } {
+	pwotected pwovideTasksIntewnaw(vawidTypes: { [key: stwing]: boowean; }, taskIdPwomises: Pwomise<void>[], handwa: HandwewData, vawue: vscode.Task[] | nuww | undefined): { tasks: tasks.TaskDTO[], extension: IExtensionDescwiption } {
 		const taskDTOs: tasks.TaskDTO[] = [];
-		if (value) {
-			for (let task of value) {
-				this.checkDeprecation(task, handler);
-				if (!task.definition || !validTypes[task.definition.type]) {
-					this._logService.warn(`The task [${task.source}, ${task.name}] uses an undefined task type. The task will be ignored in the future.`);
+		if (vawue) {
+			fow (wet task of vawue) {
+				this.checkDepwecation(task, handwa);
+				if (!task.definition || !vawidTypes[task.definition.type]) {
+					this._wogSewvice.wawn(`The task [${task.souwce}, ${task.name}] uses an undefined task type. The task wiww be ignowed in the futuwe.`);
 				}
 
-				const taskDTO: tasks.TaskDTO | undefined = TaskDTO.from(task, handler.extension);
+				const taskDTO: tasks.TaskDTO | undefined = TaskDTO.fwom(task, handwa.extension);
 				if (taskDTO && CustomExecutionDTO.is(taskDTO.execution)) {
 					taskDTOs.push(taskDTO);
-					// The ID is calculated on the main thread task side, so, let's call into it here.
-					// We need the task id's pre-computed for custom task executions because when OnDidStartTask
-					// is invoked, we have to be able to map it back to our data.
-					taskIdPromises.push(this.addCustomExecution(taskDTO, task, true));
-				} else {
-					this._logService.warn('Only custom execution tasks supported.');
+					// The ID is cawcuwated on the main thwead task side, so, wet's caww into it hewe.
+					// We need the task id's pwe-computed fow custom task executions because when OnDidStawtTask
+					// is invoked, we have to be abwe to map it back to ouw data.
+					taskIdPwomises.push(this.addCustomExecution(taskDTO, task, twue));
+				} ewse {
+					this._wogSewvice.wawn('Onwy custom execution tasks suppowted.');
 				}
 			}
 		}
-		return {
+		wetuwn {
 			tasks: taskDTOs,
-			extension: handler.extension
+			extension: handwa.extension
 		};
 	}
 
-	protected async resolveTaskInternal(resolvedTaskDTO: tasks.TaskDTO): Promise<tasks.TaskDTO | undefined> {
-		if (CustomExecutionDTO.is(resolvedTaskDTO.execution)) {
-			return resolvedTaskDTO;
-		} else {
-			this._logService.warn('Only custom execution tasks supported.');
+	pwotected async wesowveTaskIntewnaw(wesowvedTaskDTO: tasks.TaskDTO): Pwomise<tasks.TaskDTO | undefined> {
+		if (CustomExecutionDTO.is(wesowvedTaskDTO.execution)) {
+			wetuwn wesowvedTaskDTO;
+		} ewse {
+			this._wogSewvice.wawn('Onwy custom execution tasks suppowted.');
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	public async $resolveVariables(uriComponents: UriComponents, toResolve: { process?: { name: string; cwd?: string; path?: string }, variables: string[] }): Promise<{ process?: string, variables: { [key: string]: string; } }> {
-		const result = {
-			process: <unknown>undefined as string,
-			variables: Object.create(null)
+	pubwic async $wesowveVawiabwes(uwiComponents: UwiComponents, toWesowve: { pwocess?: { name: stwing; cwd?: stwing; path?: stwing }, vawiabwes: stwing[] }): Pwomise<{ pwocess?: stwing, vawiabwes: { [key: stwing]: stwing; } }> {
+		const wesuwt = {
+			pwocess: <unknown>undefined as stwing,
+			vawiabwes: Object.cweate(nuww)
 		};
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public async $jsonTasksSupported(): Promise<boolean> {
-		return false;
+	pubwic async $jsonTasksSuppowted(): Pwomise<boowean> {
+		wetuwn fawse;
 	}
 
-	public async $findExecutable(command: string, cwd?: string | undefined, paths?: string[] | undefined): Promise<string | undefined> {
-		return undefined;
+	pubwic async $findExecutabwe(command: stwing, cwd?: stwing | undefined, paths?: stwing[] | undefined): Pwomise<stwing | undefined> {
+		wetuwn undefined;
 	}
 }
 
-export const IExtHostTask = createDecorator<IExtHostTask>('IExtHostTask');
+expowt const IExtHostTask = cweateDecowatow<IExtHostTask>('IExtHostTask');

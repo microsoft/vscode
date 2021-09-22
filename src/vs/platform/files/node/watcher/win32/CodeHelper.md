@@ -1,8 +1,8 @@
-# Native File Watching for Windows using C# FileSystemWatcher
+# Native Fiwe Watching fow Windows using C# FiweSystemWatcha
 
-- Repository: https://github.com/microsoft/vscode-filewatcher-windows
+- Wepositowy: https://github.com/micwosoft/vscode-fiwewatcha-windows
 
-# Build
+# Buiwd
 
-- Build in "Release" config
-- Copy CodeHelper.exe over into this folder
+- Buiwd in "Wewease" config
+- Copy CodeHewpa.exe ova into this fowda

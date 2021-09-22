@@ -1,114 +1,114 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IOutputService, IOutputChannel, OUTPUT_VIEW_ID } from 'vs/workbench/contrib/output/common/output';
-import { Extensions, IOutputChannelRegistry } from 'vs/workbench/services/output/common/output';
-import { MainThreadOutputServiceShape, MainContext, IExtHostContext, ExtHostOutputServiceShape, ExtHostContext } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { UriComponents, URI } from 'vs/base/common/uri';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import { IViewsService } from 'vs/workbench/common/views';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IOutputSewvice, IOutputChannew, OUTPUT_VIEW_ID } fwom 'vs/wowkbench/contwib/output/common/output';
+impowt { Extensions, IOutputChannewWegistwy } fwom 'vs/wowkbench/sewvices/output/common/output';
+impowt { MainThweadOutputSewviceShape, MainContext, IExtHostContext, ExtHostOutputSewviceShape, ExtHostContext } fwom '../common/extHost.pwotocow';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { UwiComponents, UWI } fwom 'vs/base/common/uwi';
+impowt { Disposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IViewsSewvice } fwom 'vs/wowkbench/common/views';
 
-@extHostNamedCustomer(MainContext.MainThreadOutputService)
-export class MainThreadOutputService extends Disposable implements MainThreadOutputServiceShape {
+@extHostNamedCustoma(MainContext.MainThweadOutputSewvice)
+expowt cwass MainThweadOutputSewvice extends Disposabwe impwements MainThweadOutputSewviceShape {
 
-	private static _idPool = 1;
-	private static _extensionIdPool = new Map<string, number>();
+	pwivate static _idPoow = 1;
+	pwivate static _extensionIdPoow = new Map<stwing, numba>();
 
-	private readonly _proxy: ExtHostOutputServiceShape;
-	private readonly _outputService: IOutputService;
-	private readonly _viewsService: IViewsService;
+	pwivate weadonwy _pwoxy: ExtHostOutputSewviceShape;
+	pwivate weadonwy _outputSewvice: IOutputSewvice;
+	pwivate weadonwy _viewsSewvice: IViewsSewvice;
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@IOutputService outputService: IOutputService,
-		@IViewsService viewsService: IViewsService
+		@IOutputSewvice outputSewvice: IOutputSewvice,
+		@IViewsSewvice viewsSewvice: IViewsSewvice
 	) {
-		super();
-		this._outputService = outputService;
-		this._viewsService = viewsService;
+		supa();
+		this._outputSewvice = outputSewvice;
+		this._viewsSewvice = viewsSewvice;
 
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostOutputService);
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostOutputSewvice);
 
-		const setVisibleChannel = () => {
-			const visibleChannel = this._viewsService.isViewVisible(OUTPUT_VIEW_ID) ? this._outputService.getActiveChannel() : undefined;
-			this._proxy.$setVisibleChannel(visibleChannel ? visibleChannel.id : null);
+		const setVisibweChannew = () => {
+			const visibweChannew = this._viewsSewvice.isViewVisibwe(OUTPUT_VIEW_ID) ? this._outputSewvice.getActiveChannew() : undefined;
+			this._pwoxy.$setVisibweChannew(visibweChannew ? visibweChannew.id : nuww);
 		};
-		this._register(Event.any<any>(this._outputService.onActiveOutputChannel, Event.filter(this._viewsService.onDidChangeViewVisibility, ({ id }) => id === OUTPUT_VIEW_ID))(() => setVisibleChannel()));
-		setVisibleChannel();
+		this._wegista(Event.any<any>(this._outputSewvice.onActiveOutputChannew, Event.fiwta(this._viewsSewvice.onDidChangeViewVisibiwity, ({ id }) => id === OUTPUT_VIEW_ID))(() => setVisibweChannew()));
+		setVisibweChannew();
 	}
 
-	public $register(label: string, log: boolean, file?: UriComponents, extensionId?: string): Promise<string> {
-		let id: string;
+	pubwic $wegista(wabew: stwing, wog: boowean, fiwe?: UwiComponents, extensionId?: stwing): Pwomise<stwing> {
+		wet id: stwing;
 		if (extensionId) {
-			const idCounter = (MainThreadOutputService._extensionIdPool.get(extensionId) || 0) + 1;
-			MainThreadOutputService._extensionIdPool.set(extensionId, idCounter);
-			id = `extension-output-${extensionId}-#${idCounter}`;
-		} else {
-			id = `extension-output-#${(MainThreadOutputService._idPool++)}`;
+			const idCounta = (MainThweadOutputSewvice._extensionIdPoow.get(extensionId) || 0) + 1;
+			MainThweadOutputSewvice._extensionIdPoow.set(extensionId, idCounta);
+			id = `extension-output-${extensionId}-#${idCounta}`;
+		} ewse {
+			id = `extension-output-#${(MainThweadOutputSewvice._idPoow++)}`;
 		}
 
-		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label, file: file ? URI.revive(file) : undefined, log });
-		this._register(toDisposable(() => this.$dispose(id)));
-		return Promise.resolve(id);
+		Wegistwy.as<IOutputChannewWegistwy>(Extensions.OutputChannews).wegistewChannew({ id, wabew, fiwe: fiwe ? UWI.wevive(fiwe) : undefined, wog });
+		this._wegista(toDisposabwe(() => this.$dispose(id)));
+		wetuwn Pwomise.wesowve(id);
 	}
 
-	public $append(channelId: string, value: string): Promise<void> | undefined {
-		const channel = this._getChannel(channelId);
-		if (channel) {
-			channel.append(value);
+	pubwic $append(channewId: stwing, vawue: stwing): Pwomise<void> | undefined {
+		const channew = this._getChannew(channewId);
+		if (channew) {
+			channew.append(vawue);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	public $update(channelId: string): Promise<void> | undefined {
-		const channel = this._getChannel(channelId);
-		if (channel) {
-			channel.update();
+	pubwic $update(channewId: stwing): Pwomise<void> | undefined {
+		const channew = this._getChannew(channewId);
+		if (channew) {
+			channew.update();
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	public $clear(channelId: string, till: number): Promise<void> | undefined {
-		const channel = this._getChannel(channelId);
-		if (channel) {
-			channel.clear(till);
+	pubwic $cweaw(channewId: stwing, tiww: numba): Pwomise<void> | undefined {
+		const channew = this._getChannew(channewId);
+		if (channew) {
+			channew.cweaw(tiww);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	public $reveal(channelId: string, preserveFocus: boolean): Promise<void> | undefined {
-		const channel = this._getChannel(channelId);
-		if (channel) {
-			this._outputService.showChannel(channel.id, preserveFocus);
+	pubwic $weveaw(channewId: stwing, pwesewveFocus: boowean): Pwomise<void> | undefined {
+		const channew = this._getChannew(channewId);
+		if (channew) {
+			this._outputSewvice.showChannew(channew.id, pwesewveFocus);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	public $close(channelId: string): Promise<void> | undefined {
-		if (this._viewsService.isViewVisible(OUTPUT_VIEW_ID)) {
-			const activeChannel = this._outputService.getActiveChannel();
-			if (activeChannel && channelId === activeChannel.id) {
-				this._viewsService.closeView(OUTPUT_VIEW_ID);
+	pubwic $cwose(channewId: stwing): Pwomise<void> | undefined {
+		if (this._viewsSewvice.isViewVisibwe(OUTPUT_VIEW_ID)) {
+			const activeChannew = this._outputSewvice.getActiveChannew();
+			if (activeChannew && channewId === activeChannew.id) {
+				this._viewsSewvice.cwoseView(OUTPUT_VIEW_ID);
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	public $dispose(channelId: string): Promise<void> | undefined {
-		const channel = this._getChannel(channelId);
-		if (channel) {
-			channel.dispose();
+	pubwic $dispose(channewId: stwing): Pwomise<void> | undefined {
+		const channew = this._getChannew(channewId);
+		if (channew) {
+			channew.dispose();
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private _getChannel(channelId: string): IOutputChannel | undefined {
-		return this._outputService.getChannel(channelId);
+	pwivate _getChannew(channewId: stwing): IOutputChannew | undefined {
+		wetuwn this._outputSewvice.getChannew(channewId);
 	}
 }

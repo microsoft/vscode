@@ -1,81 +1,81 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { URI } from 'vs/base/common/uri';
-import { isMacintosh } from 'vs/base/common/platform';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { VSBuffer } from 'vs/base/common/buffer';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
 
-export class NativeClipboardService implements IClipboardService {
+expowt cwass NativeCwipboawdSewvice impwements ICwipboawdSewvice {
 
-	private static readonly FILE_FORMAT = 'code/file-list'; // Clipboard format for files
+	pwivate static weadonwy FIWE_FOWMAT = 'code/fiwe-wist'; // Cwipboawd fowmat fow fiwes
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(
-		@INativeHostService private readonly nativeHostService: INativeHostService
+	constwuctow(
+		@INativeHostSewvice pwivate weadonwy nativeHostSewvice: INativeHostSewvice
 	) { }
 
-	async writeText(text: string, type?: 'selection' | 'clipboard'): Promise<void> {
-		return this.nativeHostService.writeClipboardText(text, type);
+	async wwiteText(text: stwing, type?: 'sewection' | 'cwipboawd'): Pwomise<void> {
+		wetuwn this.nativeHostSewvice.wwiteCwipboawdText(text, type);
 	}
 
-	async readText(type?: 'selection' | 'clipboard'): Promise<string> {
-		return this.nativeHostService.readClipboardText(type);
+	async weadText(type?: 'sewection' | 'cwipboawd'): Pwomise<stwing> {
+		wetuwn this.nativeHostSewvice.weadCwipboawdText(type);
 	}
 
-	async readFindText(): Promise<string> {
+	async weadFindText(): Pwomise<stwing> {
 		if (isMacintosh) {
-			return this.nativeHostService.readClipboardFindText();
+			wetuwn this.nativeHostSewvice.weadCwipboawdFindText();
 		}
 
-		return '';
+		wetuwn '';
 	}
 
-	async writeFindText(text: string): Promise<void> {
+	async wwiteFindText(text: stwing): Pwomise<void> {
 		if (isMacintosh) {
-			return this.nativeHostService.writeClipboardFindText(text);
+			wetuwn this.nativeHostSewvice.wwiteCwipboawdFindText(text);
 		}
 	}
 
-	async writeResources(resources: URI[]): Promise<void> {
-		if (resources.length) {
-			return this.nativeHostService.writeClipboardBuffer(NativeClipboardService.FILE_FORMAT, this.resourcesToBuffer(resources));
+	async wwiteWesouwces(wesouwces: UWI[]): Pwomise<void> {
+		if (wesouwces.wength) {
+			wetuwn this.nativeHostSewvice.wwiteCwipboawdBuffa(NativeCwipboawdSewvice.FIWE_FOWMAT, this.wesouwcesToBuffa(wesouwces));
 		}
 	}
 
-	async readResources(): Promise<URI[]> {
-		return this.bufferToResources(await this.nativeHostService.readClipboardBuffer(NativeClipboardService.FILE_FORMAT));
+	async weadWesouwces(): Pwomise<UWI[]> {
+		wetuwn this.buffewToWesouwces(await this.nativeHostSewvice.weadCwipboawdBuffa(NativeCwipboawdSewvice.FIWE_FOWMAT));
 	}
 
-	async hasResources(): Promise<boolean> {
-		return this.nativeHostService.hasClipboard(NativeClipboardService.FILE_FORMAT);
+	async hasWesouwces(): Pwomise<boowean> {
+		wetuwn this.nativeHostSewvice.hasCwipboawd(NativeCwipboawdSewvice.FIWE_FOWMAT);
 	}
 
-	private resourcesToBuffer(resources: URI[]): Uint8Array {
-		return VSBuffer.fromString(resources.map(r => r.toString()).join('\n')).buffer;
+	pwivate wesouwcesToBuffa(wesouwces: UWI[]): Uint8Awway {
+		wetuwn VSBuffa.fwomStwing(wesouwces.map(w => w.toStwing()).join('\n')).buffa;
 	}
 
-	private bufferToResources(buffer: Uint8Array): URI[] {
-		if (!buffer) {
-			return [];
+	pwivate buffewToWesouwces(buffa: Uint8Awway): UWI[] {
+		if (!buffa) {
+			wetuwn [];
 		}
 
-		const bufferValue = buffer.toString();
-		if (!bufferValue) {
-			return [];
+		const buffewVawue = buffa.toStwing();
+		if (!buffewVawue) {
+			wetuwn [];
 		}
 
-		try {
-			return bufferValue.split('\n').map(f => URI.parse(f));
-		} catch (error) {
-			return []; // do not trust clipboard data
+		twy {
+			wetuwn buffewVawue.spwit('\n').map(f => UWI.pawse(f));
+		} catch (ewwow) {
+			wetuwn []; // do not twust cwipboawd data
 		}
 	}
 }
 
-registerSingleton(IClipboardService, NativeClipboardService, true);
+wegistewSingweton(ICwipboawdSewvice, NativeCwipboawdSewvice, twue);

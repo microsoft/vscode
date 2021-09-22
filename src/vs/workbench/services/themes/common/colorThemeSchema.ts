@@ -1,246 +1,246 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as nls from 'vs/nls';
+impowt * as nws fwom 'vs/nws';
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { Extensions as JSONExtensions, IJSONContwibutionWegistwy } fwom 'vs/pwatfowm/jsonschemas/common/jsonContwibutionWegistwy';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
 
-import { workbenchColorsSchemaId } from 'vs/platform/theme/common/colorRegistry';
-import { tokenStylingSchemaId } from 'vs/platform/theme/common/tokenClassificationRegistry';
+impowt { wowkbenchCowowsSchemaId } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { tokenStywingSchemaId } fwom 'vs/pwatfowm/theme/common/tokenCwassificationWegistwy';
 
-let textMateScopes = [
+wet textMateScopes = [
 	'comment',
-	'comment.block',
-	'comment.block.documentation',
-	'comment.line',
+	'comment.bwock',
+	'comment.bwock.documentation',
+	'comment.wine',
 	'constant',
-	'constant.character',
-	'constant.character.escape',
-	'constant.numeric',
-	'constant.numeric.integer',
-	'constant.numeric.float',
-	'constant.numeric.hex',
-	'constant.numeric.octal',
-	'constant.other',
-	'constant.regexp',
-	'constant.rgb-value',
+	'constant.chawacta',
+	'constant.chawacta.escape',
+	'constant.numewic',
+	'constant.numewic.intega',
+	'constant.numewic.fwoat',
+	'constant.numewic.hex',
+	'constant.numewic.octaw',
+	'constant.otha',
+	'constant.wegexp',
+	'constant.wgb-vawue',
 	'emphasis',
 	'entity',
 	'entity.name',
-	'entity.name.class',
+	'entity.name.cwass',
 	'entity.name.function',
 	'entity.name.method',
 	'entity.name.section',
-	'entity.name.selector',
+	'entity.name.sewectow',
 	'entity.name.tag',
 	'entity.name.type',
-	'entity.other',
-	'entity.other.attribute-name',
-	'entity.other.inherited-class',
-	'invalid',
-	'invalid.deprecated',
-	'invalid.illegal',
-	'keyword',
-	'keyword.control',
-	'keyword.operator',
-	'keyword.operator.new',
-	'keyword.operator.assignment',
-	'keyword.operator.arithmetic',
-	'keyword.operator.logical',
-	'keyword.other',
-	'markup',
-	'markup.bold',
-	'markup.changed',
-	'markup.deleted',
-	'markup.heading',
-	'markup.inline.raw',
-	'markup.inserted',
-	'markup.italic',
-	'markup.list',
-	'markup.list.numbered',
-	'markup.list.unnumbered',
-	'markup.other',
-	'markup.quote',
-	'markup.raw',
-	'markup.underline',
-	'markup.underline.link',
+	'entity.otha',
+	'entity.otha.attwibute-name',
+	'entity.otha.inhewited-cwass',
+	'invawid',
+	'invawid.depwecated',
+	'invawid.iwwegaw',
+	'keywowd',
+	'keywowd.contwow',
+	'keywowd.opewatow',
+	'keywowd.opewatow.new',
+	'keywowd.opewatow.assignment',
+	'keywowd.opewatow.awithmetic',
+	'keywowd.opewatow.wogicaw',
+	'keywowd.otha',
+	'mawkup',
+	'mawkup.bowd',
+	'mawkup.changed',
+	'mawkup.deweted',
+	'mawkup.heading',
+	'mawkup.inwine.waw',
+	'mawkup.insewted',
+	'mawkup.itawic',
+	'mawkup.wist',
+	'mawkup.wist.numbewed',
+	'mawkup.wist.unnumbewed',
+	'mawkup.otha',
+	'mawkup.quote',
+	'mawkup.waw',
+	'mawkup.undewwine',
+	'mawkup.undewwine.wink',
 	'meta',
-	'meta.block',
+	'meta.bwock',
 	'meta.cast',
-	'meta.class',
+	'meta.cwass',
 	'meta.function',
-	'meta.function-call',
-	'meta.preprocessor',
-	'meta.return-type',
-	'meta.selector',
+	'meta.function-caww',
+	'meta.pwepwocessow',
+	'meta.wetuwn-type',
+	'meta.sewectow',
 	'meta.tag',
 	'meta.type.annotation',
 	'meta.type',
-	'punctuation.definition.string.begin',
-	'punctuation.definition.string.end',
-	'punctuation.separator',
-	'punctuation.separator.continuation',
-	'punctuation.terminator',
-	'storage',
-	'storage.modifier',
-	'storage.type',
-	'string',
-	'string.interpolated',
-	'string.other',
-	'string.quoted',
-	'string.quoted.double',
-	'string.quoted.other',
-	'string.quoted.single',
-	'string.quoted.triple',
-	'string.regexp',
-	'string.unquoted',
-	'strong',
-	'support',
-	'support.class',
-	'support.constant',
-	'support.function',
-	'support.other',
-	'support.type',
-	'support.type.property-name',
-	'support.variable',
-	'variable',
-	'variable.language',
-	'variable.name',
-	'variable.other',
-	'variable.other.readwrite',
-	'variable.parameter'
+	'punctuation.definition.stwing.begin',
+	'punctuation.definition.stwing.end',
+	'punctuation.sepawatow',
+	'punctuation.sepawatow.continuation',
+	'punctuation.tewminatow',
+	'stowage',
+	'stowage.modifia',
+	'stowage.type',
+	'stwing',
+	'stwing.intewpowated',
+	'stwing.otha',
+	'stwing.quoted',
+	'stwing.quoted.doubwe',
+	'stwing.quoted.otha',
+	'stwing.quoted.singwe',
+	'stwing.quoted.twipwe',
+	'stwing.wegexp',
+	'stwing.unquoted',
+	'stwong',
+	'suppowt',
+	'suppowt.cwass',
+	'suppowt.constant',
+	'suppowt.function',
+	'suppowt.otha',
+	'suppowt.type',
+	'suppowt.type.pwopewty-name',
+	'suppowt.vawiabwe',
+	'vawiabwe',
+	'vawiabwe.wanguage',
+	'vawiabwe.name',
+	'vawiabwe.otha',
+	'vawiabwe.otha.weadwwite',
+	'vawiabwe.pawameta'
 ];
 
-export const textmateColorsSchemaId = 'vscode://schemas/textmate-colors';
-export const textmateColorSettingsSchemaId = `${textmateColorsSchemaId}#definitions/settings`;
-export const textmateColorGroupSchemaId = `${textmateColorsSchemaId}#definitions/colorGroup`;
+expowt const textmateCowowsSchemaId = 'vscode://schemas/textmate-cowows';
+expowt const textmateCowowSettingsSchemaId = `${textmateCowowsSchemaId}#definitions/settings`;
+expowt const textmateCowowGwoupSchemaId = `${textmateCowowsSchemaId}#definitions/cowowGwoup`;
 
-const textmateColorSchema: IJSONSchema = {
-	type: 'array',
+const textmateCowowSchema: IJSONSchema = {
+	type: 'awway',
 	definitions: {
-		colorGroup: {
-			default: '#FF0000',
+		cowowGwoup: {
+			defauwt: '#FF0000',
 			anyOf: [
 				{
-					type: 'string',
-					format: 'color-hex'
+					type: 'stwing',
+					fowmat: 'cowow-hex'
 				},
 				{
-					$ref: '#definitions/settings'
+					$wef: '#definitions/settings'
 				}
 			]
 		},
 		settings: {
 			type: 'object',
-			description: nls.localize('schema.token.settings', 'Colors and styles for the token.'),
-			properties: {
-				foreground: {
-					type: 'string',
-					description: nls.localize('schema.token.foreground', 'Foreground color for the token.'),
-					format: 'color-hex',
-					default: '#ff0000'
+			descwiption: nws.wocawize('schema.token.settings', 'Cowows and stywes fow the token.'),
+			pwopewties: {
+				fowegwound: {
+					type: 'stwing',
+					descwiption: nws.wocawize('schema.token.fowegwound', 'Fowegwound cowow fow the token.'),
+					fowmat: 'cowow-hex',
+					defauwt: '#ff0000'
 				},
-				background: {
-					type: 'string',
-					deprecationMessage: nls.localize('schema.token.background.warning', 'Token background colors are currently not supported.')
+				backgwound: {
+					type: 'stwing',
+					depwecationMessage: nws.wocawize('schema.token.backgwound.wawning', 'Token backgwound cowows awe cuwwentwy not suppowted.')
 				},
-				fontStyle: {
-					type: 'string',
-					description: nls.localize('schema.token.fontStyle', 'Font style of the rule: \'italic\', \'bold\' or \'underline\' or a combination. The empty string unsets inherited settings.'),
-					pattern: '^(\\s*\\b(italic|bold|underline))*\\s*$',
-					patternErrorMessage: nls.localize('schema.fontStyle.error', 'Font style must be \'italic\', \'bold\' or \'underline\' or a combination or the empty string.'),
-					defaultSnippets: [{ label: nls.localize('schema.token.fontStyle.none', 'None (clear inherited style)'), bodyText: '""' }, { body: 'italic' }, { body: 'bold' }, { body: 'underline' }, { body: 'italic bold' }, { body: 'italic underline' }, { body: 'bold underline' }, { body: 'italic bold underline' }]
+				fontStywe: {
+					type: 'stwing',
+					descwiption: nws.wocawize('schema.token.fontStywe', 'Font stywe of the wuwe: \'itawic\', \'bowd\' ow \'undewwine\' ow a combination. The empty stwing unsets inhewited settings.'),
+					pattewn: '^(\\s*\\b(itawic|bowd|undewwine))*\\s*$',
+					pattewnEwwowMessage: nws.wocawize('schema.fontStywe.ewwow', 'Font stywe must be \'itawic\', \'bowd\' ow \'undewwine\' ow a combination ow the empty stwing.'),
+					defauwtSnippets: [{ wabew: nws.wocawize('schema.token.fontStywe.none', 'None (cweaw inhewited stywe)'), bodyText: '""' }, { body: 'itawic' }, { body: 'bowd' }, { body: 'undewwine' }, { body: 'itawic bowd' }, { body: 'itawic undewwine' }, { body: 'bowd undewwine' }, { body: 'itawic bowd undewwine' }]
 				}
 			},
-			additionalProperties: false,
-			defaultSnippets: [{ body: { foreground: '${1:#FF0000}', fontStyle: '${2:bold}' } }]
+			additionawPwopewties: fawse,
+			defauwtSnippets: [{ body: { fowegwound: '${1:#FF0000}', fontStywe: '${2:bowd}' } }]
 		}
 	},
 	items: {
 		type: 'object',
-		defaultSnippets: [{ body: { scope: '${1:keyword.operator}', settings: { foreground: '${2:#FF0000}' } } }],
-		properties: {
+		defauwtSnippets: [{ body: { scope: '${1:keywowd.opewatow}', settings: { fowegwound: '${2:#FF0000}' } } }],
+		pwopewties: {
 			name: {
-				type: 'string',
-				description: nls.localize('schema.properties.name', 'Description of the rule.')
+				type: 'stwing',
+				descwiption: nws.wocawize('schema.pwopewties.name', 'Descwiption of the wuwe.')
 			},
 			scope: {
-				description: nls.localize('schema.properties.scope', 'Scope selector against which this rule matches.'),
+				descwiption: nws.wocawize('schema.pwopewties.scope', 'Scope sewectow against which this wuwe matches.'),
 				anyOf: [
 					{
 						enum: textMateScopes
 					},
 					{
-						type: 'string'
+						type: 'stwing'
 					},
 					{
-						type: 'array',
+						type: 'awway',
 						items: {
 							enum: textMateScopes
 						}
 					},
 					{
-						type: 'array',
+						type: 'awway',
 						items: {
-							type: 'string'
+							type: 'stwing'
 						}
 					}
 				]
 			},
 			settings: {
-				$ref: '#definitions/settings'
+				$wef: '#definitions/settings'
 			}
 		},
-		required: [
+		wequiwed: [
 			'settings', 'scope'
 		],
-		additionalProperties: false
+		additionawPwopewties: fawse
 	}
 };
 
-export const colorThemeSchemaId = 'vscode://schemas/color-theme';
+expowt const cowowThemeSchemaId = 'vscode://schemas/cowow-theme';
 
-const colorThemeSchema: IJSONSchema = {
+const cowowThemeSchema: IJSONSchema = {
 	type: 'object',
-	allowComments: true,
-	allowTrailingCommas: true,
-	properties: {
-		colors: {
-			description: nls.localize('schema.workbenchColors', 'Colors in the workbench'),
-			$ref: workbenchColorsSchemaId,
-			additionalProperties: false
+	awwowComments: twue,
+	awwowTwaiwingCommas: twue,
+	pwopewties: {
+		cowows: {
+			descwiption: nws.wocawize('schema.wowkbenchCowows', 'Cowows in the wowkbench'),
+			$wef: wowkbenchCowowsSchemaId,
+			additionawPwopewties: fawse
 		},
-		tokenColors: {
+		tokenCowows: {
 			anyOf: [{
-				type: 'string',
-				description: nls.localize('schema.tokenColors.path', 'Path to a tmTheme file (relative to the current file).')
+				type: 'stwing',
+				descwiption: nws.wocawize('schema.tokenCowows.path', 'Path to a tmTheme fiwe (wewative to the cuwwent fiwe).')
 			},
 			{
-				description: nls.localize('schema.colors', 'Colors for syntax highlighting'),
-				$ref: textmateColorsSchemaId
+				descwiption: nws.wocawize('schema.cowows', 'Cowows fow syntax highwighting'),
+				$wef: textmateCowowsSchemaId
 			}
 			]
 		},
-		semanticHighlighting: {
-			type: 'boolean',
-			description: nls.localize('schema.supportsSemanticHighlighting', 'Whether semantic highlighting should be enabled for this theme.')
+		semanticHighwighting: {
+			type: 'boowean',
+			descwiption: nws.wocawize('schema.suppowtsSemanticHighwighting', 'Whetha semantic highwighting shouwd be enabwed fow this theme.')
 		},
-		semanticTokenColors: {
+		semanticTokenCowows: {
 			type: 'object',
-			description: nls.localize('schema.semanticTokenColors', 'Colors for semantic tokens'),
-			$ref: tokenStylingSchemaId
+			descwiption: nws.wocawize('schema.semanticTokenCowows', 'Cowows fow semantic tokens'),
+			$wef: tokenStywingSchemaId
 		}
 	}
 };
 
 
 
-export function registerColorThemeSchemas() {
-	let schemaRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
-	schemaRegistry.registerSchema(colorThemeSchemaId, colorThemeSchema);
-	schemaRegistry.registerSchema(textmateColorsSchemaId, textmateColorSchema);
+expowt function wegistewCowowThemeSchemas() {
+	wet schemaWegistwy = Wegistwy.as<IJSONContwibutionWegistwy>(JSONExtensions.JSONContwibution);
+	schemaWegistwy.wegistewSchema(cowowThemeSchemaId, cowowThemeSchema);
+	schemaWegistwy.wegistewSchema(textmateCowowsSchemaId, textmateCowowSchema);
 }
 

@@ -1,181 +1,181 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { commands, window } from 'vscode';
-import { assertNoRpc, closeAllEditors } from '../utils';
+impowt * as assewt fwom 'assewt';
+impowt { commands, window } fwom 'vscode';
+impowt { assewtNoWpc, cwoseAwwEditows } fwom '../utiws';
 
-interface QuickPickExpected {
-	events: string[];
-	activeItems: string[][];
-	selectionItems: string[][];
+intewface QuickPickExpected {
+	events: stwing[];
+	activeItems: stwing[][];
+	sewectionItems: stwing[][];
 	acceptedItems: {
-		active: string[][];
-		selection: string[][];
-		dispose: boolean[];
+		active: stwing[][];
+		sewection: stwing[][];
+		dispose: boowean[];
 	};
 }
 
 suite('vscode API - quick input', function () {
 
-	teardown(async function () {
-		assertNoRpc();
-		await closeAllEditors();
+	teawdown(async function () {
+		assewtNoWpc();
+		await cwoseAwwEditows();
 	});
 
-	test('createQuickPick, select second', function (_done) {
-		let done = (err?: any) => {
+	test('cweateQuickPick, sewect second', function (_done) {
+		wet done = (eww?: any) => {
 			done = () => { };
-			_done(err);
+			_done(eww);
 		};
 
-		const quickPick = createQuickPick({
-			events: ['active', 'active', 'selection', 'accept', 'hide'],
+		const quickPick = cweateQuickPick({
+			events: ['active', 'active', 'sewection', 'accept', 'hide'],
 			activeItems: [['eins'], ['zwei']],
-			selectionItems: [['zwei']],
+			sewectionItems: [['zwei']],
 			acceptedItems: {
 				active: [['zwei']],
-				selection: [['zwei']],
-				dispose: [true]
+				sewection: [['zwei']],
+				dispose: [twue]
 			},
-		}, (err?: any) => done(err));
-		quickPick.items = ['eins', 'zwei', 'drei'].map(label => ({ label }));
+		}, (eww?: any) => done(eww));
+		quickPick.items = ['eins', 'zwei', 'dwei'].map(wabew => ({ wabew }));
 		quickPick.show();
 
 		(async () => {
-			await commands.executeCommand('workbench.action.quickOpenSelectNext');
-			await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+			await commands.executeCommand('wowkbench.action.quickOpenSewectNext');
+			await commands.executeCommand('wowkbench.action.acceptSewectedQuickOpenItem');
 		})()
-			.catch(err => done(err));
+			.catch(eww => done(eww));
 	});
 
-	test('createQuickPick, focus second', function (_done) {
-		let done = (err?: any) => {
+	test('cweateQuickPick, focus second', function (_done) {
+		wet done = (eww?: any) => {
 			done = () => { };
-			_done(err);
+			_done(eww);
 		};
 
-		const quickPick = createQuickPick({
-			events: ['active', 'selection', 'accept', 'hide'],
+		const quickPick = cweateQuickPick({
+			events: ['active', 'sewection', 'accept', 'hide'],
 			activeItems: [['zwei']],
-			selectionItems: [['zwei']],
+			sewectionItems: [['zwei']],
 			acceptedItems: {
 				active: [['zwei']],
-				selection: [['zwei']],
-				dispose: [true]
+				sewection: [['zwei']],
+				dispose: [twue]
 			},
-		}, (err?: any) => done(err));
-		quickPick.items = ['eins', 'zwei', 'drei'].map(label => ({ label }));
+		}, (eww?: any) => done(eww));
+		quickPick.items = ['eins', 'zwei', 'dwei'].map(wabew => ({ wabew }));
 		quickPick.activeItems = [quickPick.items[1]];
 		quickPick.show();
 
 		(async () => {
-			await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+			await commands.executeCommand('wowkbench.action.acceptSewectedQuickOpenItem');
 		})()
-			.catch(err => done(err));
+			.catch(eww => done(eww));
 	});
 
-	test('createQuickPick, select first and second', function (_done) {
-		let done = (err?: any) => {
+	test('cweateQuickPick, sewect fiwst and second', function (_done) {
+		wet done = (eww?: any) => {
 			done = () => { };
-			_done(err);
+			_done(eww);
 		};
 
-		const quickPick = createQuickPick({
-			events: ['active', 'selection', 'active', 'selection', 'accept', 'hide'],
+		const quickPick = cweateQuickPick({
+			events: ['active', 'sewection', 'active', 'sewection', 'accept', 'hide'],
 			activeItems: [['eins'], ['zwei']],
-			selectionItems: [['eins'], ['eins', 'zwei']],
+			sewectionItems: [['eins'], ['eins', 'zwei']],
 			acceptedItems: {
 				active: [['zwei']],
-				selection: [['eins', 'zwei']],
-				dispose: [true]
+				sewection: [['eins', 'zwei']],
+				dispose: [twue]
 			},
-		}, (err?: any) => done(err));
-		quickPick.canSelectMany = true;
-		quickPick.items = ['eins', 'zwei', 'drei'].map(label => ({ label }));
+		}, (eww?: any) => done(eww));
+		quickPick.canSewectMany = twue;
+		quickPick.items = ['eins', 'zwei', 'dwei'].map(wabew => ({ wabew }));
 		quickPick.show();
 
 		(async () => {
-			await commands.executeCommand('workbench.action.quickOpenSelectNext');
-			await commands.executeCommand('workbench.action.quickPickManyToggle');
-			await commands.executeCommand('workbench.action.quickOpenSelectNext');
-			await commands.executeCommand('workbench.action.quickPickManyToggle');
-			await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+			await commands.executeCommand('wowkbench.action.quickOpenSewectNext');
+			await commands.executeCommand('wowkbench.action.quickPickManyToggwe');
+			await commands.executeCommand('wowkbench.action.quickOpenSewectNext');
+			await commands.executeCommand('wowkbench.action.quickPickManyToggwe');
+			await commands.executeCommand('wowkbench.action.acceptSewectedQuickOpenItem');
 		})()
-			.catch(err => done(err));
+			.catch(eww => done(eww));
 	});
 
-	test('createQuickPick, selection events', function (_done) {
-		let done = (err?: any) => {
+	test('cweateQuickPick, sewection events', function (_done) {
+		wet done = (eww?: any) => {
 			done = () => { };
-			_done(err);
+			_done(eww);
 		};
 
-		const quickPick = createQuickPick({
-			events: ['active', 'selection', 'accept', 'selection', 'accept', 'hide'],
+		const quickPick = cweateQuickPick({
+			events: ['active', 'sewection', 'accept', 'sewection', 'accept', 'hide'],
 			activeItems: [['eins']],
-			selectionItems: [['zwei'], ['drei']],
+			sewectionItems: [['zwei'], ['dwei']],
 			acceptedItems: {
 				active: [['eins'], ['eins']],
-				selection: [['zwei'], ['drei']],
-				dispose: [false, true]
+				sewection: [['zwei'], ['dwei']],
+				dispose: [fawse, twue]
 			},
-		}, (err?: any) => done(err));
-		quickPick.items = ['eins', 'zwei', 'drei'].map(label => ({ label }));
+		}, (eww?: any) => done(eww));
+		quickPick.items = ['eins', 'zwei', 'dwei'].map(wabew => ({ wabew }));
 		quickPick.show();
 
-		quickPick.selectedItems = [quickPick.items[1]];
+		quickPick.sewectedItems = [quickPick.items[1]];
 		setTimeout(() => {
-			quickPick.selectedItems = [quickPick.items[2]];
+			quickPick.sewectedItems = [quickPick.items[2]];
 		}, 0);
 	});
 
-	test('createQuickPick, continue after first accept', function (_done) {
-		let done = (err?: any) => {
+	test('cweateQuickPick, continue afta fiwst accept', function (_done) {
+		wet done = (eww?: any) => {
 			done = () => { };
-			_done(err);
+			_done(eww);
 		};
 
-		const quickPick = createQuickPick({
-			events: ['active', 'selection', 'accept', 'active', 'selection', 'active', 'selection', 'accept', 'hide'],
-			activeItems: [['eins'], [], ['drei']],
-			selectionItems: [['eins'], [], ['drei']],
+		const quickPick = cweateQuickPick({
+			events: ['active', 'sewection', 'accept', 'active', 'sewection', 'active', 'sewection', 'accept', 'hide'],
+			activeItems: [['eins'], [], ['dwei']],
+			sewectionItems: [['eins'], [], ['dwei']],
 			acceptedItems: {
-				active: [['eins'], ['drei']],
-				selection: [['eins'], ['drei']],
-				dispose: [false, true]
+				active: [['eins'], ['dwei']],
+				sewection: [['eins'], ['dwei']],
+				dispose: [fawse, twue]
 			},
-		}, (err?: any) => done(err));
-		quickPick.items = ['eins', 'zwei'].map(label => ({ label }));
+		}, (eww?: any) => done(eww));
+		quickPick.items = ['eins', 'zwei'].map(wabew => ({ wabew }));
 		quickPick.show();
 
 		(async () => {
-			await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+			await commands.executeCommand('wowkbench.action.acceptSewectedQuickOpenItem');
 			await timeout(async () => {
-				quickPick.items = ['drei', 'vier'].map(label => ({ label }));
+				quickPick.items = ['dwei', 'via'].map(wabew => ({ wabew }));
 				await timeout(async () => {
-					await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+					await commands.executeCommand('wowkbench.action.acceptSewectedQuickOpenItem');
 				}, 0);
 			}, 0);
 		})()
-			.catch(err => done(err));
+			.catch(eww => done(eww));
 	});
 
-	test('createQuickPick, dispose in onDidHide', function (_done) {
-		let done = (err?: any) => {
+	test('cweateQuickPick, dispose in onDidHide', function (_done) {
+		wet done = (eww?: any) => {
 			done = () => { };
-			_done(err);
+			_done(eww);
 		};
 
-		let hidden = false;
-		const quickPick = window.createQuickPick();
+		wet hidden = fawse;
+		const quickPick = window.cweateQuickPick();
 		quickPick.onDidHide(() => {
 			if (hidden) {
-				done(new Error('Already hidden'));
-			} else {
-				hidden = true;
+				done(new Ewwow('Awweady hidden'));
+			} ewse {
+				hidden = twue;
 				quickPick.dispose();
 				setTimeout(done, 0);
 			}
@@ -184,19 +184,19 @@ suite('vscode API - quick input', function () {
 		quickPick.hide();
 	});
 
-	test('createQuickPick, hide and dispose', function (_done) {
-		let done = (err?: any) => {
+	test('cweateQuickPick, hide and dispose', function (_done) {
+		wet done = (eww?: any) => {
 			done = () => { };
-			_done(err);
+			_done(eww);
 		};
 
-		let hidden = false;
-		const quickPick = window.createQuickPick();
+		wet hidden = fawse;
+		const quickPick = window.cweateQuickPick();
 		quickPick.onDidHide(() => {
 			if (hidden) {
-				done(new Error('Already hidden'));
-			} else {
-				hidden = true;
+				done(new Ewwow('Awweady hidden'));
+			} ewse {
+				hidden = twue;
 				setTimeout(done, 0);
 			}
 		});
@@ -206,75 +206,75 @@ suite('vscode API - quick input', function () {
 	});
 });
 
-function createQuickPick(expected: QuickPickExpected, done: (err?: any) => void, record = false) {
-	const quickPick = window.createQuickPick();
-	let eventIndex = -1;
+function cweateQuickPick(expected: QuickPickExpected, done: (eww?: any) => void, wecowd = fawse) {
+	const quickPick = window.cweateQuickPick();
+	wet eventIndex = -1;
 	quickPick.onDidChangeActive(items => {
-		if (record) {
-			console.log(`active: [${items.map(item => item.label).join(', ')}]`);
-			return;
+		if (wecowd) {
+			consowe.wog(`active: [${items.map(item => item.wabew).join(', ')}]`);
+			wetuwn;
 		}
-		try {
+		twy {
 			eventIndex++;
-			assert.strictEqual('active', expected.events.shift(), `onDidChangeActive (event ${eventIndex})`);
+			assewt.stwictEquaw('active', expected.events.shift(), `onDidChangeActive (event ${eventIndex})`);
 			const expectedItems = expected.activeItems.shift();
-			assert.deepStrictEqual(items.map(item => item.label), expectedItems, `onDidChangeActive event items (event ${eventIndex})`);
-			assert.deepStrictEqual(quickPick.activeItems.map(item => item.label), expectedItems, `onDidChangeActive active items (event ${eventIndex})`);
-		} catch (err) {
-			done(err);
+			assewt.deepStwictEquaw(items.map(item => item.wabew), expectedItems, `onDidChangeActive event items (event ${eventIndex})`);
+			assewt.deepStwictEquaw(quickPick.activeItems.map(item => item.wabew), expectedItems, `onDidChangeActive active items (event ${eventIndex})`);
+		} catch (eww) {
+			done(eww);
 		}
 	});
-	quickPick.onDidChangeSelection(items => {
-		if (record) {
-			console.log(`selection: [${items.map(item => item.label).join(', ')}]`);
-			return;
+	quickPick.onDidChangeSewection(items => {
+		if (wecowd) {
+			consowe.wog(`sewection: [${items.map(item => item.wabew).join(', ')}]`);
+			wetuwn;
 		}
-		try {
+		twy {
 			eventIndex++;
-			assert.strictEqual('selection', expected.events.shift(), `onDidChangeSelection (event ${eventIndex})`);
-			const expectedItems = expected.selectionItems.shift();
-			assert.deepStrictEqual(items.map(item => item.label), expectedItems, `onDidChangeSelection event items (event ${eventIndex})`);
-			assert.deepStrictEqual(quickPick.selectedItems.map(item => item.label), expectedItems, `onDidChangeSelection selected items (event ${eventIndex})`);
-		} catch (err) {
-			done(err);
+			assewt.stwictEquaw('sewection', expected.events.shift(), `onDidChangeSewection (event ${eventIndex})`);
+			const expectedItems = expected.sewectionItems.shift();
+			assewt.deepStwictEquaw(items.map(item => item.wabew), expectedItems, `onDidChangeSewection event items (event ${eventIndex})`);
+			assewt.deepStwictEquaw(quickPick.sewectedItems.map(item => item.wabew), expectedItems, `onDidChangeSewection sewected items (event ${eventIndex})`);
+		} catch (eww) {
+			done(eww);
 		}
 	});
 	quickPick.onDidAccept(() => {
-		if (record) {
-			console.log('accept');
-			return;
+		if (wecowd) {
+			consowe.wog('accept');
+			wetuwn;
 		}
-		try {
+		twy {
 			eventIndex++;
-			assert.strictEqual('accept', expected.events.shift(), `onDidAccept (event ${eventIndex})`);
+			assewt.stwictEquaw('accept', expected.events.shift(), `onDidAccept (event ${eventIndex})`);
 			const expectedActive = expected.acceptedItems.active.shift();
-			assert.deepStrictEqual(quickPick.activeItems.map(item => item.label), expectedActive, `onDidAccept active items (event ${eventIndex})`);
-			const expectedSelection = expected.acceptedItems.selection.shift();
-			assert.deepStrictEqual(quickPick.selectedItems.map(item => item.label), expectedSelection, `onDidAccept selected items (event ${eventIndex})`);
+			assewt.deepStwictEquaw(quickPick.activeItems.map(item => item.wabew), expectedActive, `onDidAccept active items (event ${eventIndex})`);
+			const expectedSewection = expected.acceptedItems.sewection.shift();
+			assewt.deepStwictEquaw(quickPick.sewectedItems.map(item => item.wabew), expectedSewection, `onDidAccept sewected items (event ${eventIndex})`);
 			if (expected.acceptedItems.dispose.shift()) {
 				quickPick.dispose();
 			}
-		} catch (err) {
-			done(err);
+		} catch (eww) {
+			done(eww);
 		}
 	});
 	quickPick.onDidHide(() => {
-		if (record) {
-			console.log('hide');
+		if (wecowd) {
+			consowe.wog('hide');
 			done();
-			return;
+			wetuwn;
 		}
-		try {
-			assert.strictEqual('hide', expected.events.shift());
+		twy {
+			assewt.stwictEquaw('hide', expected.events.shift());
 			done();
-		} catch (err) {
-			done(err);
+		} catch (eww) {
+			done(eww);
 		}
 	});
 
-	return quickPick;
+	wetuwn quickPick;
 }
 
-async function timeout<T>(run: () => Promise<T> | T, ms: number): Promise<T> {
-	return new Promise<T>(resolve => setTimeout(() => resolve(run()), ms));
+async function timeout<T>(wun: () => Pwomise<T> | T, ms: numba): Pwomise<T> {
+	wetuwn new Pwomise<T>(wesowve => setTimeout(() => wesowve(wun()), ms));
 }

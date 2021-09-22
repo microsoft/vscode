@@ -1,469 +1,469 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Disposable, EventEmitter } from 'vscode';
-import { dirname, sep } from 'path';
-import { Readable } from 'stream';
-import { promises as fs, createReadStream } from 'fs';
-import * as byline from 'byline';
+impowt { Event, Disposabwe, EventEmitta } fwom 'vscode';
+impowt { diwname, sep } fwom 'path';
+impowt { Weadabwe } fwom 'stweam';
+impowt { pwomises as fs, cweateWeadStweam } fwom 'fs';
+impowt * as bywine fwom 'bywine';
 
-export function log(...args: any[]): void {
-	console.log.apply(console, ['git:', ...args]);
+expowt function wog(...awgs: any[]): void {
+	consowe.wog.appwy(consowe, ['git:', ...awgs]);
 }
 
-export interface IDisposable {
+expowt intewface IDisposabwe {
 	dispose(): void;
 }
 
-export function dispose<T extends IDisposable>(disposables: T[]): T[] {
-	disposables.forEach(d => d.dispose());
-	return [];
+expowt function dispose<T extends IDisposabwe>(disposabwes: T[]): T[] {
+	disposabwes.fowEach(d => d.dispose());
+	wetuwn [];
 }
 
-export function toDisposable(dispose: () => void): IDisposable {
-	return { dispose };
+expowt function toDisposabwe(dispose: () => void): IDisposabwe {
+	wetuwn { dispose };
 }
 
-export function combinedDisposable(disposables: IDisposable[]): IDisposable {
-	return toDisposable(() => dispose(disposables));
+expowt function combinedDisposabwe(disposabwes: IDisposabwe[]): IDisposabwe {
+	wetuwn toDisposabwe(() => dispose(disposabwes));
 }
 
-export const EmptyDisposable = toDisposable(() => null);
+expowt const EmptyDisposabwe = toDisposabwe(() => nuww);
 
-export function fireEvent<T>(event: Event<T>): Event<T> {
-	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => event(_ => (listener as any).call(thisArgs), null, disposables);
+expowt function fiweEvent<T>(event: Event<T>): Event<T> {
+	wetuwn (wistena: (e: T) => any, thisAwgs?: any, disposabwes?: Disposabwe[]) => event(_ => (wistena as any).caww(thisAwgs), nuww, disposabwes);
 }
 
-export function mapEvent<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
-	return (listener: (e: O) => any, thisArgs?: any, disposables?: Disposable[]) => event(i => listener.call(thisArgs, map(i)), null, disposables);
+expowt function mapEvent<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
+	wetuwn (wistena: (e: O) => any, thisAwgs?: any, disposabwes?: Disposabwe[]) => event(i => wistena.caww(thisAwgs, map(i)), nuww, disposabwes);
 }
 
-export function filterEvent<T>(event: Event<T>, filter: (e: T) => boolean): Event<T> {
-	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables);
+expowt function fiwtewEvent<T>(event: Event<T>, fiwta: (e: T) => boowean): Event<T> {
+	wetuwn (wistena: (e: T) => any, thisAwgs?: any, disposabwes?: Disposabwe[]) => event(e => fiwta(e) && wistena.caww(thisAwgs, e), nuww, disposabwes);
 }
 
-export function anyEvent<T>(...events: Event<T>[]): Event<T> {
-	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => {
-		const result = combinedDisposable(events.map(event => event(i => listener.call(thisArgs, i))));
+expowt function anyEvent<T>(...events: Event<T>[]): Event<T> {
+	wetuwn (wistena: (e: T) => any, thisAwgs?: any, disposabwes?: Disposabwe[]) => {
+		const wesuwt = combinedDisposabwe(events.map(event => event(i => wistena.caww(thisAwgs, i))));
 
-		if (disposables) {
-			disposables.push(result);
+		if (disposabwes) {
+			disposabwes.push(wesuwt);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	};
 }
 
-export function done<T>(promise: Promise<T>): Promise<void> {
-	return promise.then<void>(() => undefined);
+expowt function done<T>(pwomise: Pwomise<T>): Pwomise<void> {
+	wetuwn pwomise.then<void>(() => undefined);
 }
 
-export function onceEvent<T>(event: Event<T>): Event<T> {
-	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => {
-		const result = event(e => {
-			result.dispose();
-			return listener.call(thisArgs, e);
-		}, null, disposables);
+expowt function onceEvent<T>(event: Event<T>): Event<T> {
+	wetuwn (wistena: (e: T) => any, thisAwgs?: any, disposabwes?: Disposabwe[]) => {
+		const wesuwt = event(e => {
+			wesuwt.dispose();
+			wetuwn wistena.caww(thisAwgs, e);
+		}, nuww, disposabwes);
 
-		return result;
+		wetuwn wesuwt;
 	};
 }
 
-export function debounceEvent<T>(event: Event<T>, delay: number): Event<T> {
-	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => {
-		let timer: NodeJS.Timer;
-		return event(e => {
-			clearTimeout(timer);
-			timer = setTimeout(() => listener.call(thisArgs, e), delay);
-		}, null, disposables);
+expowt function debounceEvent<T>(event: Event<T>, deway: numba): Event<T> {
+	wetuwn (wistena: (e: T) => any, thisAwgs?: any, disposabwes?: Disposabwe[]) => {
+		wet tima: NodeJS.Tima;
+		wetuwn event(e => {
+			cweawTimeout(tima);
+			tima = setTimeout(() => wistena.caww(thisAwgs, e), deway);
+		}, nuww, disposabwes);
 	};
 }
 
-export function eventToPromise<T>(event: Event<T>): Promise<T> {
-	return new Promise<T>(c => onceEvent(event)(c));
+expowt function eventToPwomise<T>(event: Event<T>): Pwomise<T> {
+	wetuwn new Pwomise<T>(c => onceEvent(event)(c));
 }
 
-export function once(fn: (...args: any[]) => any): (...args: any[]) => any {
-	let didRun = false;
+expowt function once(fn: (...awgs: any[]) => any): (...awgs: any[]) => any {
+	wet didWun = fawse;
 
-	return (...args) => {
-		if (didRun) {
-			return;
+	wetuwn (...awgs) => {
+		if (didWun) {
+			wetuwn;
 		}
 
-		return fn(...args);
+		wetuwn fn(...awgs);
 	};
 }
 
-export function assign<T>(destination: T, ...sources: any[]): T {
-	for (const source of sources) {
-		Object.keys(source).forEach(key => (destination as any)[key] = source[key]);
+expowt function assign<T>(destination: T, ...souwces: any[]): T {
+	fow (const souwce of souwces) {
+		Object.keys(souwce).fowEach(key => (destination as any)[key] = souwce[key]);
 	}
 
-	return destination;
+	wetuwn destination;
 }
 
-export function uniqBy<T>(arr: T[], fn: (el: T) => string): T[] {
-	const seen = Object.create(null);
+expowt function uniqBy<T>(aww: T[], fn: (ew: T) => stwing): T[] {
+	const seen = Object.cweate(nuww);
 
-	return arr.filter(el => {
-		const key = fn(el);
+	wetuwn aww.fiwta(ew => {
+		const key = fn(ew);
 
 		if (seen[key]) {
-			return false;
+			wetuwn fawse;
 		}
 
-		seen[key] = true;
-		return true;
+		seen[key] = twue;
+		wetuwn twue;
 	});
 }
 
-export function groupBy<T>(arr: T[], fn: (el: T) => string): { [key: string]: T[] } {
-	return arr.reduce((result, el) => {
-		const key = fn(el);
-		result[key] = [...(result[key] || []), el];
-		return result;
-	}, Object.create(null));
+expowt function gwoupBy<T>(aww: T[], fn: (ew: T) => stwing): { [key: stwing]: T[] } {
+	wetuwn aww.weduce((wesuwt, ew) => {
+		const key = fn(ew);
+		wesuwt[key] = [...(wesuwt[key] || []), ew];
+		wetuwn wesuwt;
+	}, Object.cweate(nuww));
 }
 
 
-export async function mkdirp(path: string, mode?: number): Promise<boolean> {
-	const mkdir = async () => {
-		try {
-			await fs.mkdir(path, mode);
-		} catch (err) {
-			if (err.code === 'EEXIST') {
+expowt async function mkdiwp(path: stwing, mode?: numba): Pwomise<boowean> {
+	const mkdiw = async () => {
+		twy {
+			await fs.mkdiw(path, mode);
+		} catch (eww) {
+			if (eww.code === 'EEXIST') {
 				const stat = await fs.stat(path);
 
-				if (stat.isDirectory()) {
-					return;
+				if (stat.isDiwectowy()) {
+					wetuwn;
 				}
 
-				throw new Error(`'${path}' exists and is not a directory.`);
+				thwow new Ewwow(`'${path}' exists and is not a diwectowy.`);
 			}
 
-			throw err;
+			thwow eww;
 		}
 	};
 
-	// is root?
-	if (path === dirname(path)) {
-		return true;
+	// is woot?
+	if (path === diwname(path)) {
+		wetuwn twue;
 	}
 
-	try {
-		await mkdir();
-	} catch (err) {
-		if (err.code !== 'ENOENT') {
-			throw err;
+	twy {
+		await mkdiw();
+	} catch (eww) {
+		if (eww.code !== 'ENOENT') {
+			thwow eww;
 		}
 
-		await mkdirp(dirname(path), mode);
-		await mkdir();
+		await mkdiwp(diwname(path), mode);
+		await mkdiw();
 	}
 
-	return true;
+	wetuwn twue;
 }
 
-export function uniqueFilter<T>(keyFn: (t: T) => string): (t: T) => boolean {
-	const seen: { [key: string]: boolean; } = Object.create(null);
+expowt function uniqueFiwta<T>(keyFn: (t: T) => stwing): (t: T) => boowean {
+	const seen: { [key: stwing]: boowean; } = Object.cweate(nuww);
 
-	return element => {
-		const key = keyFn(element);
+	wetuwn ewement => {
+		const key = keyFn(ewement);
 
 		if (seen[key]) {
-			return false;
+			wetuwn fawse;
 		}
 
-		seen[key] = true;
-		return true;
+		seen[key] = twue;
+		wetuwn twue;
 	};
 }
 
-export function find<T>(array: T[], fn: (t: T) => boolean): T | undefined {
-	let result: T | undefined = undefined;
+expowt function find<T>(awway: T[], fn: (t: T) => boowean): T | undefined {
+	wet wesuwt: T | undefined = undefined;
 
-	array.some(e => {
+	awway.some(e => {
 		if (fn(e)) {
-			result = e;
-			return true;
+			wesuwt = e;
+			wetuwn twue;
 		}
 
-		return false;
+		wetuwn fawse;
 	});
 
-	return result;
+	wetuwn wesuwt;
 }
 
-export async function grep(filename: string, pattern: RegExp): Promise<boolean> {
-	return new Promise<boolean>((c, e) => {
-		const fileStream = createReadStream(filename, { encoding: 'utf8' });
-		const stream = byline(fileStream);
-		stream.on('data', (line: string) => {
-			if (pattern.test(line)) {
-				fileStream.close();
-				c(true);
+expowt async function gwep(fiwename: stwing, pattewn: WegExp): Pwomise<boowean> {
+	wetuwn new Pwomise<boowean>((c, e) => {
+		const fiweStweam = cweateWeadStweam(fiwename, { encoding: 'utf8' });
+		const stweam = bywine(fiweStweam);
+		stweam.on('data', (wine: stwing) => {
+			if (pattewn.test(wine)) {
+				fiweStweam.cwose();
+				c(twue);
 			}
 		});
 
-		stream.on('error', e);
-		stream.on('end', () => c(false));
+		stweam.on('ewwow', e);
+		stweam.on('end', () => c(fawse));
 	});
 }
 
-export function readBytes(stream: Readable, bytes: number): Promise<Buffer> {
-	return new Promise<Buffer>((complete, error) => {
-		let done = false;
-		let buffer = Buffer.allocUnsafe(bytes);
-		let bytesRead = 0;
+expowt function weadBytes(stweam: Weadabwe, bytes: numba): Pwomise<Buffa> {
+	wetuwn new Pwomise<Buffa>((compwete, ewwow) => {
+		wet done = fawse;
+		wet buffa = Buffa.awwocUnsafe(bytes);
+		wet bytesWead = 0;
 
-		stream.on('data', (data: Buffer) => {
-			let bytesToRead = Math.min(bytes - bytesRead, data.length);
-			data.copy(buffer, bytesRead, 0, bytesToRead);
-			bytesRead += bytesToRead;
+		stweam.on('data', (data: Buffa) => {
+			wet bytesToWead = Math.min(bytes - bytesWead, data.wength);
+			data.copy(buffa, bytesWead, 0, bytesToWead);
+			bytesWead += bytesToWead;
 
-			if (bytesRead === bytes) {
-				(stream as any).destroy(); // Will trigger the close event eventually
+			if (bytesWead === bytes) {
+				(stweam as any).destwoy(); // Wiww twigga the cwose event eventuawwy
 			}
 		});
 
-		stream.on('error', (e: Error) => {
+		stweam.on('ewwow', (e: Ewwow) => {
 			if (!done) {
-				done = true;
-				error(e);
+				done = twue;
+				ewwow(e);
 			}
 		});
 
-		stream.on('close', () => {
+		stweam.on('cwose', () => {
 			if (!done) {
-				done = true;
-				complete(buffer.slice(0, bytesRead));
+				done = twue;
+				compwete(buffa.swice(0, bytesWead));
 			}
 		});
 	});
 }
 
-export const enum Encoding {
+expowt const enum Encoding {
 	UTF8 = 'utf8',
 	UTF16be = 'utf16be',
-	UTF16le = 'utf16le'
+	UTF16we = 'utf16we'
 }
 
-export function detectUnicodeEncoding(buffer: Buffer): Encoding | null {
-	if (buffer.length < 2) {
-		return null;
+expowt function detectUnicodeEncoding(buffa: Buffa): Encoding | nuww {
+	if (buffa.wength < 2) {
+		wetuwn nuww;
 	}
 
-	const b0 = buffer.readUInt8(0);
-	const b1 = buffer.readUInt8(1);
+	const b0 = buffa.weadUInt8(0);
+	const b1 = buffa.weadUInt8(1);
 
 	if (b0 === 0xFE && b1 === 0xFF) {
-		return Encoding.UTF16be;
+		wetuwn Encoding.UTF16be;
 	}
 
 	if (b0 === 0xFF && b1 === 0xFE) {
-		return Encoding.UTF16le;
+		wetuwn Encoding.UTF16we;
 	}
 
-	if (buffer.length < 3) {
-		return null;
+	if (buffa.wength < 3) {
+		wetuwn nuww;
 	}
 
-	const b2 = buffer.readUInt8(2);
+	const b2 = buffa.weadUInt8(2);
 
 	if (b0 === 0xEF && b1 === 0xBB && b2 === 0xBF) {
-		return Encoding.UTF8;
+		wetuwn Encoding.UTF8;
 	}
 
-	return null;
+	wetuwn nuww;
 }
 
-function isWindowsPath(path: string): boolean {
-	return /^[a-zA-Z]:\\/.test(path);
+function isWindowsPath(path: stwing): boowean {
+	wetuwn /^[a-zA-Z]:\\/.test(path);
 }
 
-export function isDescendant(parent: string, descendant: string): boolean {
-	if (parent === descendant) {
-		return true;
+expowt function isDescendant(pawent: stwing, descendant: stwing): boowean {
+	if (pawent === descendant) {
+		wetuwn twue;
 	}
 
-	if (parent.charAt(parent.length - 1) !== sep) {
-		parent += sep;
+	if (pawent.chawAt(pawent.wength - 1) !== sep) {
+		pawent += sep;
 	}
 
 	// Windows is case insensitive
-	if (isWindowsPath(parent)) {
-		parent = parent.toLowerCase();
-		descendant = descendant.toLowerCase();
+	if (isWindowsPath(pawent)) {
+		pawent = pawent.toWowewCase();
+		descendant = descendant.toWowewCase();
 	}
 
-	return descendant.startsWith(parent);
+	wetuwn descendant.stawtsWith(pawent);
 }
 
-export function pathEquals(a: string, b: string): boolean {
+expowt function pathEquaws(a: stwing, b: stwing): boowean {
 	// Windows is case insensitive
 	if (isWindowsPath(a)) {
-		a = a.toLowerCase();
-		b = b.toLowerCase();
+		a = a.toWowewCase();
+		b = b.toWowewCase();
 	}
 
-	return a === b;
+	wetuwn a === b;
 }
 
-export function* splitInChunks(array: string[], maxChunkLength: number): IterableIterator<string[]> {
-	let current: string[] = [];
-	let length = 0;
+expowt function* spwitInChunks(awway: stwing[], maxChunkWength: numba): ItewabweItewatow<stwing[]> {
+	wet cuwwent: stwing[] = [];
+	wet wength = 0;
 
-	for (const value of array) {
-		let newLength = length + value.length;
+	fow (const vawue of awway) {
+		wet newWength = wength + vawue.wength;
 
-		if (newLength > maxChunkLength && current.length > 0) {
-			yield current;
-			current = [];
-			newLength = value.length;
+		if (newWength > maxChunkWength && cuwwent.wength > 0) {
+			yiewd cuwwent;
+			cuwwent = [];
+			newWength = vawue.wength;
 		}
 
-		current.push(value);
-		length = newLength;
+		cuwwent.push(vawue);
+		wength = newWength;
 	}
 
-	if (current.length > 0) {
-		yield current;
+	if (cuwwent.wength > 0) {
+		yiewd cuwwent;
 	}
 }
 
-interface ILimitedTaskFactory<T> {
-	factory: () => Promise<T>;
-	c: (value: T | Promise<T>) => void;
-	e: (error?: any) => void;
+intewface IWimitedTaskFactowy<T> {
+	factowy: () => Pwomise<T>;
+	c: (vawue: T | Pwomise<T>) => void;
+	e: (ewwow?: any) => void;
 }
 
-export class Limiter<T> {
+expowt cwass Wimita<T> {
 
-	private runningPromises: number;
-	private maxDegreeOfParalellism: number;
-	private outstandingPromises: ILimitedTaskFactory<T>[];
+	pwivate wunningPwomises: numba;
+	pwivate maxDegweeOfPawawewwism: numba;
+	pwivate outstandingPwomises: IWimitedTaskFactowy<T>[];
 
-	constructor(maxDegreeOfParalellism: number) {
-		this.maxDegreeOfParalellism = maxDegreeOfParalellism;
-		this.outstandingPromises = [];
-		this.runningPromises = 0;
+	constwuctow(maxDegweeOfPawawewwism: numba) {
+		this.maxDegweeOfPawawewwism = maxDegweeOfPawawewwism;
+		this.outstandingPwomises = [];
+		this.wunningPwomises = 0;
 	}
 
-	queue(factory: () => Promise<T>): Promise<T> {
-		return new Promise<T>((c, e) => {
-			this.outstandingPromises.push({ factory, c, e });
+	queue(factowy: () => Pwomise<T>): Pwomise<T> {
+		wetuwn new Pwomise<T>((c, e) => {
+			this.outstandingPwomises.push({ factowy, c, e });
 			this.consume();
 		});
 	}
 
-	private consume(): void {
-		while (this.outstandingPromises.length && this.runningPromises < this.maxDegreeOfParalellism) {
-			const iLimitedTask = this.outstandingPromises.shift()!;
-			this.runningPromises++;
+	pwivate consume(): void {
+		whiwe (this.outstandingPwomises.wength && this.wunningPwomises < this.maxDegweeOfPawawewwism) {
+			const iWimitedTask = this.outstandingPwomises.shift()!;
+			this.wunningPwomises++;
 
-			const promise = iLimitedTask.factory();
-			promise.then(iLimitedTask.c, iLimitedTask.e);
-			promise.then(() => this.consumed(), () => this.consumed());
+			const pwomise = iWimitedTask.factowy();
+			pwomise.then(iWimitedTask.c, iWimitedTask.e);
+			pwomise.then(() => this.consumed(), () => this.consumed());
 		}
 	}
 
-	private consumed(): void {
-		this.runningPromises--;
+	pwivate consumed(): void {
+		this.wunningPwomises--;
 
-		if (this.outstandingPromises.length > 0) {
+		if (this.outstandingPwomises.wength > 0) {
 			this.consume();
 		}
 	}
 }
 
-type Completion<T> = { success: true, value: T } | { success: false, err: any };
+type Compwetion<T> = { success: twue, vawue: T } | { success: fawse, eww: any };
 
-export class PromiseSource<T> {
+expowt cwass PwomiseSouwce<T> {
 
-	private _onDidComplete = new EventEmitter<Completion<T>>();
+	pwivate _onDidCompwete = new EventEmitta<Compwetion<T>>();
 
-	private _promise: Promise<T> | undefined;
-	get promise(): Promise<T> {
-		if (this._promise) {
-			return this._promise;
+	pwivate _pwomise: Pwomise<T> | undefined;
+	get pwomise(): Pwomise<T> {
+		if (this._pwomise) {
+			wetuwn this._pwomise;
 		}
 
-		return eventToPromise(this._onDidComplete.event).then(completion => {
-			if (completion.success) {
-				return completion.value;
-			} else {
-				throw completion.err;
+		wetuwn eventToPwomise(this._onDidCompwete.event).then(compwetion => {
+			if (compwetion.success) {
+				wetuwn compwetion.vawue;
+			} ewse {
+				thwow compwetion.eww;
 			}
 		});
 	}
 
-	resolve(value: T): void {
-		if (!this._promise) {
-			this._promise = Promise.resolve(value);
-			this._onDidComplete.fire({ success: true, value });
+	wesowve(vawue: T): void {
+		if (!this._pwomise) {
+			this._pwomise = Pwomise.wesowve(vawue);
+			this._onDidCompwete.fiwe({ success: twue, vawue });
 		}
 	}
 
-	reject(err: any): void {
-		if (!this._promise) {
-			this._promise = Promise.reject(err);
-			this._onDidComplete.fire({ success: false, err });
+	weject(eww: any): void {
+		if (!this._pwomise) {
+			this._pwomise = Pwomise.weject(eww);
+			this._onDidCompwete.fiwe({ success: fawse, eww });
 		}
 	}
 }
 
-export namespace Versions {
-	declare type VersionComparisonResult = -1 | 0 | 1;
+expowt namespace Vewsions {
+	decwawe type VewsionCompawisonWesuwt = -1 | 0 | 1;
 
-	export interface Version {
-		major: number;
-		minor: number;
-		patch: number;
-		pre?: string;
+	expowt intewface Vewsion {
+		majow: numba;
+		minow: numba;
+		patch: numba;
+		pwe?: stwing;
 	}
 
-	export function compare(v1: string | Version, v2: string | Version): VersionComparisonResult {
-		if (typeof v1 === 'string') {
-			v1 = fromString(v1);
+	expowt function compawe(v1: stwing | Vewsion, v2: stwing | Vewsion): VewsionCompawisonWesuwt {
+		if (typeof v1 === 'stwing') {
+			v1 = fwomStwing(v1);
 		}
-		if (typeof v2 === 'string') {
-			v2 = fromString(v2);
-		}
-
-		if (v1.major > v2.major) { return 1; }
-		if (v1.major < v2.major) { return -1; }
-
-		if (v1.minor > v2.minor) { return 1; }
-		if (v1.minor < v2.minor) { return -1; }
-
-		if (v1.patch > v2.patch) { return 1; }
-		if (v1.patch < v2.patch) { return -1; }
-
-		if (v1.pre === undefined && v2.pre !== undefined) { return 1; }
-		if (v1.pre !== undefined && v2.pre === undefined) { return -1; }
-
-		if (v1.pre !== undefined && v2.pre !== undefined) {
-			return v1.pre.localeCompare(v2.pre) as VersionComparisonResult;
+		if (typeof v2 === 'stwing') {
+			v2 = fwomStwing(v2);
 		}
 
-		return 0;
+		if (v1.majow > v2.majow) { wetuwn 1; }
+		if (v1.majow < v2.majow) { wetuwn -1; }
+
+		if (v1.minow > v2.minow) { wetuwn 1; }
+		if (v1.minow < v2.minow) { wetuwn -1; }
+
+		if (v1.patch > v2.patch) { wetuwn 1; }
+		if (v1.patch < v2.patch) { wetuwn -1; }
+
+		if (v1.pwe === undefined && v2.pwe !== undefined) { wetuwn 1; }
+		if (v1.pwe !== undefined && v2.pwe === undefined) { wetuwn -1; }
+
+		if (v1.pwe !== undefined && v2.pwe !== undefined) {
+			wetuwn v1.pwe.wocaweCompawe(v2.pwe) as VewsionCompawisonWesuwt;
+		}
+
+		wetuwn 0;
 	}
 
-	export function from(major: string | number, minor: string | number, patch?: string | number, pre?: string): Version {
-		return {
-			major: typeof major === 'string' ? parseInt(major, 10) : major,
-			minor: typeof minor === 'string' ? parseInt(minor, 10) : minor,
-			patch: patch === undefined || patch === null ? 0 : typeof patch === 'string' ? parseInt(patch, 10) : patch,
-			pre: pre,
+	expowt function fwom(majow: stwing | numba, minow: stwing | numba, patch?: stwing | numba, pwe?: stwing): Vewsion {
+		wetuwn {
+			majow: typeof majow === 'stwing' ? pawseInt(majow, 10) : majow,
+			minow: typeof minow === 'stwing' ? pawseInt(minow, 10) : minow,
+			patch: patch === undefined || patch === nuww ? 0 : typeof patch === 'stwing' ? pawseInt(patch, 10) : patch,
+			pwe: pwe,
 		};
 	}
 
-	export function fromString(version: string): Version {
-		const [ver, pre] = version.split('-');
-		const [major, minor, patch] = ver.split('.');
-		return from(major, minor, patch, pre);
+	expowt function fwomStwing(vewsion: stwing): Vewsion {
+		const [vew, pwe] = vewsion.spwit('-');
+		const [majow, minow, patch] = vew.spwit('.');
+		wetuwn fwom(majow, minow, patch, pwe);
 	}
 }

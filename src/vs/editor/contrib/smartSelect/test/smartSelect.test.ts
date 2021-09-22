@@ -1,407 +1,407 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { LanguageIdentifier, SelectionRangeProvider, SelectionRangeRegistry } from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bracketSelections';
-import { provideSelectionRanges } from 'vs/editor/contrib/smartSelect/smartSelect';
-import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/wordSelections';
-import { MockMode, StaticLanguageSelector } from 'vs/editor/test/common/mocks/mockMode';
-import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
-import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
+impowt * as assewt fwom 'assewt';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { WanguageIdentifia, SewectionWangePwovida, SewectionWangeWegistwy } fwom 'vs/editow/common/modes';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { ModewSewviceImpw } fwom 'vs/editow/common/sewvices/modewSewviceImpw';
+impowt { BwacketSewectionWangePwovida } fwom 'vs/editow/contwib/smawtSewect/bwacketSewections';
+impowt { pwovideSewectionWanges } fwom 'vs/editow/contwib/smawtSewect/smawtSewect';
+impowt { WowdSewectionWangePwovida } fwom 'vs/editow/contwib/smawtSewect/wowdSewections';
+impowt { MockMode, StaticWanguageSewectow } fwom 'vs/editow/test/common/mocks/mockMode';
+impowt { javascwiptOnEntewWuwes } fwom 'vs/editow/test/common/modes/suppowts/javascwiptOnEntewWuwes';
+impowt { TestTextWesouwcePwopewtiesSewvice } fwom 'vs/editow/test/common/sewvices/testTextWesouwcePwopewtiesSewvice';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { TestDiawogSewvice } fwom 'vs/pwatfowm/diawogs/test/common/testDiawogSewvice';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { TestNotificationSewvice } fwom 'vs/pwatfowm/notification/test/common/testNotificationSewvice';
+impowt { TestThemeSewvice } fwom 'vs/pwatfowm/theme/test/common/testThemeSewvice';
+impowt { UndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedoSewvice';
 
-class MockJSMode extends MockMode {
+cwass MockJSMode extends MockMode {
 
-	private static readonly _id = new LanguageIdentifier('mockJSMode', 3);
+	pwivate static weadonwy _id = new WanguageIdentifia('mockJSMode', 3);
 
-	constructor() {
-		super(MockJSMode._id);
+	constwuctow() {
+		supa(MockJSMode._id);
 
-		this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-			brackets: [
+		this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {
+			bwackets: [
 				['(', ')'],
 				['{', '}'],
 				['[', ']']
 			],
 
-			onEnterRules: javascriptOnEnterRules,
-			wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\#\$\%\^\&\*\(\)\=\+\[\{\]\}\\\;\:\'\"\,\.\<\>\/\?\s]+)/g
+			onEntewWuwes: javascwiptOnEntewWuwes,
+			wowdPattewn: /(-?\d*\.\d\w*)|([^\`\~\!\@\#\$\%\^\&\*\(\)\=\+\[\{\]\}\\\;\:\'\"\,\.\<\>\/\?\s]+)/g
 		}));
 	}
 }
 
-suite('SmartSelect', () => {
+suite('SmawtSewect', () => {
 
-	const OriginalBracketSelectionRangeProviderMaxDuration = BracketSelectionRangeProvider._maxDuration;
+	const OwiginawBwacketSewectionWangePwovidewMaxDuwation = BwacketSewectionWangePwovida._maxDuwation;
 
 	suiteSetup(() => {
-		BracketSelectionRangeProvider._maxDuration = 5000; // 5 seconds
+		BwacketSewectionWangePwovida._maxDuwation = 5000; // 5 seconds
 	});
 
-	suiteTeardown(() => {
-		BracketSelectionRangeProvider._maxDuration = OriginalBracketSelectionRangeProviderMaxDuration;
+	suiteTeawdown(() => {
+		BwacketSewectionWangePwovida._maxDuwation = OwiginawBwacketSewectionWangePwovidewMaxDuwation;
 	});
 
-	let modelService: ModelServiceImpl;
-	let mode: MockJSMode;
+	wet modewSewvice: ModewSewviceImpw;
+	wet mode: MockJSMode;
 
 	setup(() => {
-		const configurationService = new TestConfigurationService();
-		const dialogService = new TestDialogService();
-		modelService = new ModelServiceImpl(configurationService, new TestTextResourcePropertiesService(configurationService), new TestThemeService(), new NullLogService(), new UndoRedoService(dialogService, new TestNotificationService()));
+		const configuwationSewvice = new TestConfiguwationSewvice();
+		const diawogSewvice = new TestDiawogSewvice();
+		modewSewvice = new ModewSewviceImpw(configuwationSewvice, new TestTextWesouwcePwopewtiesSewvice(configuwationSewvice), new TestThemeSewvice(), new NuwwWogSewvice(), new UndoWedoSewvice(diawogSewvice, new TestNotificationSewvice()));
 		mode = new MockJSMode();
 	});
 
-	teardown(() => {
-		modelService.dispose();
+	teawdown(() => {
+		modewSewvice.dispose();
 		mode.dispose();
 	});
 
-	async function assertGetRangesToPosition(text: string[], lineNumber: number, column: number, ranges: Range[], selectLeadingAndTrailingWhitespace = true): Promise<void> {
-		let uri = URI.file('test.js');
-		let model = modelService.createModel(text.join('\n'), new StaticLanguageSelector(mode.getLanguageIdentifier()), uri);
-		let [actual] = await provideSelectionRanges(model, [new Position(lineNumber, column)], { selectLeadingAndTrailingWhitespace }, CancellationToken.None);
-		let actualStr = actual!.map(r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn).toString());
-		let desiredStr = ranges.reverse().map(r => String(r));
+	async function assewtGetWangesToPosition(text: stwing[], wineNumba: numba, cowumn: numba, wanges: Wange[], sewectWeadingAndTwaiwingWhitespace = twue): Pwomise<void> {
+		wet uwi = UWI.fiwe('test.js');
+		wet modew = modewSewvice.cweateModew(text.join('\n'), new StaticWanguageSewectow(mode.getWanguageIdentifia()), uwi);
+		wet [actuaw] = await pwovideSewectionWanges(modew, [new Position(wineNumba, cowumn)], { sewectWeadingAndTwaiwingWhitespace }, CancewwationToken.None);
+		wet actuawStw = actuaw!.map(w => new Wange(w.stawtWineNumba, w.stawtCowumn, w.endWineNumba, w.endCowumn).toStwing());
+		wet desiwedStw = wanges.wevewse().map(w => Stwing(w));
 
-		assert.deepStrictEqual(actualStr, desiredStr, `\nA: ${actualStr} VS \nE: ${desiredStr}`);
-		modelService.destroyModel(uri);
+		assewt.deepStwictEquaw(actuawStw, desiwedStw, `\nA: ${actuawStw} VS \nE: ${desiwedStw}`);
+		modewSewvice.destwoyModew(uwi);
 	}
 
-	test('getRangesToPosition #1', () => {
+	test('getWangesToPosition #1', () => {
 
-		return assertGetRangesToPosition([
-			'function a(bar, foo){',
-			'\tif (bar) {',
-			'\t\treturn (bar + (2 * foo))',
+		wetuwn assewtGetWangesToPosition([
+			'function a(baw, foo){',
+			'\tif (baw) {',
+			'\t\twetuwn (baw + (2 * foo))',
 			'\t}',
 			'}'
 		], 3, 20, [
-			new Range(1, 1, 5, 2), // all
-			new Range(1, 21, 5, 2), // {} outside
-			new Range(1, 22, 5, 1), // {} inside
-			new Range(2, 1, 4, 3), // block
-			new Range(2, 1, 4, 3),
-			new Range(2, 2, 4, 3),
-			new Range(2, 11, 4, 3),
-			new Range(2, 12, 4, 2),
-			new Range(3, 1, 3, 27), // line w/ triva
-			new Range(3, 3, 3, 27), // line w/o triva
-			new Range(3, 10, 3, 27), // () outside
-			new Range(3, 11, 3, 26), // () inside
-			new Range(3, 17, 3, 26), // () outside
-			new Range(3, 18, 3, 25), // () inside
+			new Wange(1, 1, 5, 2), // aww
+			new Wange(1, 21, 5, 2), // {} outside
+			new Wange(1, 22, 5, 1), // {} inside
+			new Wange(2, 1, 4, 3), // bwock
+			new Wange(2, 1, 4, 3),
+			new Wange(2, 2, 4, 3),
+			new Wange(2, 11, 4, 3),
+			new Wange(2, 12, 4, 2),
+			new Wange(3, 1, 3, 27), // wine w/ twiva
+			new Wange(3, 3, 3, 27), // wine w/o twiva
+			new Wange(3, 10, 3, 27), // () outside
+			new Wange(3, 11, 3, 26), // () inside
+			new Wange(3, 17, 3, 26), // () outside
+			new Wange(3, 18, 3, 25), // () inside
 		]);
 	});
 
-	test('config: selectLeadingAndTrailingWhitespace', async () => {
+	test('config: sewectWeadingAndTwaiwingWhitespace', async () => {
 
-		await assertGetRangesToPosition([
+		await assewtGetWangesToPosition([
 			'aaa',
 			'\tbbb',
 			''
 		], 2, 3, [
-			new Range(1, 1, 3, 1), // all
-			new Range(2, 1, 2, 5), // line w/ triva
-			new Range(2, 2, 2, 5), // bbb
-		], true);
+			new Wange(1, 1, 3, 1), // aww
+			new Wange(2, 1, 2, 5), // wine w/ twiva
+			new Wange(2, 2, 2, 5), // bbb
+		], twue);
 
-		await assertGetRangesToPosition([
+		await assewtGetWangesToPosition([
 			'aaa',
 			'\tbbb',
 			''
 		], 2, 3, [
-			new Range(1, 1, 3, 1), // all
-			new Range(2, 2, 2, 5), // () inside
-		], false);
+			new Wange(1, 1, 3, 1), // aww
+			new Wange(2, 2, 2, 5), // () inside
+		], fawse);
 	});
 
-	test('getRangesToPosition #56886. Skip empty lines correctly.', () => {
+	test('getWangesToPosition #56886. Skip empty wines cowwectwy.', () => {
 
-		return assertGetRangesToPosition([
-			'function a(bar, foo){',
-			'\tif (bar) {',
+		wetuwn assewtGetWangesToPosition([
+			'function a(baw, foo){',
+			'\tif (baw) {',
 			'',
 			'\t}',
 			'}'
 		], 3, 1, [
-			new Range(1, 1, 5, 2),
-			new Range(1, 21, 5, 2),
-			new Range(1, 22, 5, 1),
-			new Range(2, 1, 4, 3),
-			new Range(2, 1, 4, 3),
-			new Range(2, 2, 4, 3),
-			new Range(2, 11, 4, 3),
-			new Range(2, 12, 4, 2),
+			new Wange(1, 1, 5, 2),
+			new Wange(1, 21, 5, 2),
+			new Wange(1, 22, 5, 1),
+			new Wange(2, 1, 4, 3),
+			new Wange(2, 1, 4, 3),
+			new Wange(2, 2, 4, 3),
+			new Wange(2, 11, 4, 3),
+			new Wange(2, 12, 4, 2),
 		]);
 	});
 
-	test('getRangesToPosition #56886. Do not skip lines with only whitespaces.', () => {
+	test('getWangesToPosition #56886. Do not skip wines with onwy whitespaces.', () => {
 
-		return assertGetRangesToPosition([
-			'function a(bar, foo){',
-			'\tif (bar) {',
+		wetuwn assewtGetWangesToPosition([
+			'function a(baw, foo){',
+			'\tif (baw) {',
 			' ',
 			'\t}',
 			'}'
 		], 3, 1, [
-			new Range(1, 1, 5, 2), // all
-			new Range(1, 21, 5, 2), // {} outside
-			new Range(1, 22, 5, 1), // {} inside
-			new Range(2, 1, 4, 3),
-			new Range(2, 1, 4, 3),
-			new Range(2, 2, 4, 3),
-			new Range(2, 11, 4, 3),
-			new Range(2, 12, 4, 2),
-			new Range(3, 1, 3, 2), // block
-			new Range(3, 1, 3, 2) // empty line
+			new Wange(1, 1, 5, 2), // aww
+			new Wange(1, 21, 5, 2), // {} outside
+			new Wange(1, 22, 5, 1), // {} inside
+			new Wange(2, 1, 4, 3),
+			new Wange(2, 1, 4, 3),
+			new Wange(2, 2, 4, 3),
+			new Wange(2, 11, 4, 3),
+			new Wange(2, 12, 4, 2),
+			new Wange(3, 1, 3, 2), // bwock
+			new Wange(3, 1, 3, 2) // empty wine
 		]);
 	});
 
-	test('getRangesToPosition #40658. Cursor at first position inside brackets should select line inside.', () => {
+	test('getWangesToPosition #40658. Cuwsow at fiwst position inside bwackets shouwd sewect wine inside.', () => {
 
-		return assertGetRangesToPosition([
+		wetuwn assewtGetWangesToPosition([
 			' [ ]',
 			' { } ',
 			'( ) '
 		], 2, 3, [
-			new Range(1, 1, 3, 5),
-			new Range(2, 1, 2, 6), // line w/ triava
-			new Range(2, 2, 2, 5), // {} inside, line w/o triva
-			new Range(2, 3, 2, 4) // {} inside
+			new Wange(1, 1, 3, 5),
+			new Wange(2, 1, 2, 6), // wine w/ twiava
+			new Wange(2, 2, 2, 5), // {} inside, wine w/o twiva
+			new Wange(2, 3, 2, 4) // {} inside
 		]);
 	});
 
-	test('getRangesToPosition #40658. Cursor in empty brackets should reveal brackets first.', () => {
+	test('getWangesToPosition #40658. Cuwsow in empty bwackets shouwd weveaw bwackets fiwst.', () => {
 
-		return assertGetRangesToPosition([
+		wetuwn assewtGetWangesToPosition([
 			' [] ',
 			' { } ',
 			'  ( ) '
 		], 1, 3, [
-			new Range(1, 1, 3, 7), // all
-			new Range(1, 1, 1, 5), // line w/ trival
-			new Range(1, 2, 1, 4), // [] outside, line w/o trival
-			new Range(1, 3, 1, 3), // [] inside
+			new Wange(1, 1, 3, 7), // aww
+			new Wange(1, 1, 1, 5), // wine w/ twivaw
+			new Wange(1, 2, 1, 4), // [] outside, wine w/o twivaw
+			new Wange(1, 3, 1, 3), // [] inside
 		]);
 	});
 
-	test('getRangesToPosition #40658. Tokens before bracket will be revealed first.', () => {
+	test('getWangesToPosition #40658. Tokens befowe bwacket wiww be weveawed fiwst.', () => {
 
-		return assertGetRangesToPosition([
+		wetuwn assewtGetWangesToPosition([
 			'  [] ',
 			' { } ',
-			'selectthis( ) '
+			'sewectthis( ) '
 		], 3, 11, [
-			new Range(1, 1, 3, 15), // all
-			new Range(3, 1, 3, 15), // line w/ trivia
-			new Range(3, 1, 3, 14), // line w/o trivia
-			new Range(3, 1, 3, 11) // word
+			new Wange(1, 1, 3, 15), // aww
+			new Wange(3, 1, 3, 15), // wine w/ twivia
+			new Wange(3, 1, 3, 14), // wine w/o twivia
+			new Wange(3, 1, 3, 11) // wowd
 		]);
 	});
 
-	// -- bracket selections
+	// -- bwacket sewections
 
-	async function assertRanges(provider: SelectionRangeProvider, value: string, ...expected: IRange[]): Promise<void> {
-		let index = value.indexOf('|');
-		value = value.replace('|', '');
+	async function assewtWanges(pwovida: SewectionWangePwovida, vawue: stwing, ...expected: IWange[]): Pwomise<void> {
+		wet index = vawue.indexOf('|');
+		vawue = vawue.wepwace('|', '');
 
-		let model = modelService.createModel(value, new StaticLanguageSelector(mode.getLanguageIdentifier()), URI.parse('fake:lang'));
-		let pos = model.getPositionAt(index);
-		let all = await provider.provideSelectionRanges(model, [pos], CancellationToken.None);
-		let ranges = all![0];
+		wet modew = modewSewvice.cweateModew(vawue, new StaticWanguageSewectow(mode.getWanguageIdentifia()), UWI.pawse('fake:wang'));
+		wet pos = modew.getPositionAt(index);
+		wet aww = await pwovida.pwovideSewectionWanges(modew, [pos], CancewwationToken.None);
+		wet wanges = aww![0];
 
-		modelService.destroyModel(model.uri);
+		modewSewvice.destwoyModew(modew.uwi);
 
-		assert.strictEqual(expected.length, ranges!.length);
-		for (const range of ranges!) {
-			let exp = expected.shift() || null;
-			assert.ok(Range.equalsRange(range.range, exp), `A=${range.range} <> E=${exp}`);
+		assewt.stwictEquaw(expected.wength, wanges!.wength);
+		fow (const wange of wanges!) {
+			wet exp = expected.shift() || nuww;
+			assewt.ok(Wange.equawsWange(wange.wange, exp), `A=${wange.wange} <> E=${exp}`);
 		}
 	}
 
-	test('bracket selection', async () => {
-		await assertRanges(new BracketSelectionRangeProvider(), '(|)',
-			new Range(1, 2, 1, 2), new Range(1, 1, 1, 3)
+	test('bwacket sewection', async () => {
+		await assewtWanges(new BwacketSewectionWangePwovida(), '(|)',
+			new Wange(1, 2, 1, 2), new Wange(1, 1, 1, 3)
 		);
 
-		await assertRanges(new BracketSelectionRangeProvider(), '[[[](|)]]',
-			new Range(1, 6, 1, 6), new Range(1, 5, 1, 7), // ()
-			new Range(1, 3, 1, 7), new Range(1, 2, 1, 8), // [[]()]
-			new Range(1, 2, 1, 8), new Range(1, 1, 1, 9), // [[[]()]]
+		await assewtWanges(new BwacketSewectionWangePwovida(), '[[[](|)]]',
+			new Wange(1, 6, 1, 6), new Wange(1, 5, 1, 7), // ()
+			new Wange(1, 3, 1, 7), new Wange(1, 2, 1, 8), // [[]()]
+			new Wange(1, 2, 1, 8), new Wange(1, 1, 1, 9), // [[[]()]]
 		);
 
-		await assertRanges(new BracketSelectionRangeProvider(), '[a[](|)a]',
-			new Range(1, 6, 1, 6), new Range(1, 5, 1, 7),
-			new Range(1, 2, 1, 8), new Range(1, 1, 1, 9),
+		await assewtWanges(new BwacketSewectionWangePwovida(), '[a[](|)a]',
+			new Wange(1, 6, 1, 6), new Wange(1, 5, 1, 7),
+			new Wange(1, 2, 1, 8), new Wange(1, 1, 1, 9),
 		);
 
-		// no bracket
-		await assertRanges(new BracketSelectionRangeProvider(), 'fofof|fofo');
+		// no bwacket
+		await assewtWanges(new BwacketSewectionWangePwovida(), 'fofof|fofo');
 
 		// empty
-		await assertRanges(new BracketSelectionRangeProvider(), '[[[]()]]|');
-		await assertRanges(new BracketSelectionRangeProvider(), '|[[[]()]]');
+		await assewtWanges(new BwacketSewectionWangePwovida(), '[[[]()]]|');
+		await assewtWanges(new BwacketSewectionWangePwovida(), '|[[[]()]]');
 
 		// edge
-		await assertRanges(new BracketSelectionRangeProvider(), '[|[[]()]]', new Range(1, 2, 1, 8), new Range(1, 1, 1, 9));
-		await assertRanges(new BracketSelectionRangeProvider(), '[[[]()]|]', new Range(1, 2, 1, 8), new Range(1, 1, 1, 9));
+		await assewtWanges(new BwacketSewectionWangePwovida(), '[|[[]()]]', new Wange(1, 2, 1, 8), new Wange(1, 1, 1, 9));
+		await assewtWanges(new BwacketSewectionWangePwovida(), '[[[]()]|]', new Wange(1, 2, 1, 8), new Wange(1, 1, 1, 9));
 
-		await assertRanges(new BracketSelectionRangeProvider(), 'aaa(aaa)bbb(b|b)ccc(ccc)', new Range(1, 13, 1, 15), new Range(1, 12, 1, 16));
-		await assertRanges(new BracketSelectionRangeProvider(), '(aaa(aaa)bbb(b|b)ccc(ccc))', new Range(1, 14, 1, 16), new Range(1, 13, 1, 17), new Range(1, 2, 1, 25), new Range(1, 1, 1, 26));
+		await assewtWanges(new BwacketSewectionWangePwovida(), 'aaa(aaa)bbb(b|b)ccc(ccc)', new Wange(1, 13, 1, 15), new Wange(1, 12, 1, 16));
+		await assewtWanges(new BwacketSewectionWangePwovida(), '(aaa(aaa)bbb(b|b)ccc(ccc))', new Wange(1, 14, 1, 16), new Wange(1, 13, 1, 17), new Wange(1, 2, 1, 25), new Wange(1, 1, 1, 26));
 	});
 
-	test('bracket with leading/trailing', async () => {
+	test('bwacket with weading/twaiwing', async () => {
 
-		await assertRanges(new BracketSelectionRangeProvider(), 'for(a of b){\n  foo(|);\n}',
-			new Range(2, 7, 2, 7), new Range(2, 6, 2, 8),
-			new Range(1, 13, 3, 1), new Range(1, 12, 3, 2),
-			new Range(1, 1, 3, 2), new Range(1, 1, 3, 2),
+		await assewtWanges(new BwacketSewectionWangePwovida(), 'fow(a of b){\n  foo(|);\n}',
+			new Wange(2, 7, 2, 7), new Wange(2, 6, 2, 8),
+			new Wange(1, 13, 3, 1), new Wange(1, 12, 3, 2),
+			new Wange(1, 1, 3, 2), new Wange(1, 1, 3, 2),
 		);
 
-		await assertRanges(new BracketSelectionRangeProvider(), 'for(a of b)\n{\n  foo(|);\n}',
-			new Range(3, 7, 3, 7), new Range(3, 6, 3, 8),
-			new Range(2, 2, 4, 1), new Range(2, 1, 4, 2),
-			new Range(1, 1, 4, 2), new Range(1, 1, 4, 2),
-		);
-	});
-
-	test('in-word ranges', async () => {
-
-		await assertRanges(new WordSelectionRangeProvider(), 'f|ooBar',
-			new Range(1, 1, 1, 4), // foo
-			new Range(1, 1, 1, 7), // fooBar
-			new Range(1, 1, 1, 7), // doc
-		);
-
-		await assertRanges(new WordSelectionRangeProvider(), 'f|oo_Ba',
-			new Range(1, 1, 1, 4),
-			new Range(1, 1, 1, 7),
-			new Range(1, 1, 1, 7),
-		);
-
-		await assertRanges(new WordSelectionRangeProvider(), 'f|oo-Ba',
-			new Range(1, 1, 1, 4),
-			new Range(1, 1, 1, 7),
-			new Range(1, 1, 1, 7),
+		await assewtWanges(new BwacketSewectionWangePwovida(), 'fow(a of b)\n{\n  foo(|);\n}',
+			new Wange(3, 7, 3, 7), new Wange(3, 6, 3, 8),
+			new Wange(2, 2, 4, 1), new Wange(2, 1, 4, 2),
+			new Wange(1, 1, 4, 2), new Wange(1, 1, 4, 2),
 		);
 	});
 
-	test('Default selection should select current word/hump first in camelCase #67493', async function () {
+	test('in-wowd wanges', async () => {
 
-		await assertRanges(new WordSelectionRangeProvider(), 'Abs|tractSmartSelect',
-			new Range(1, 1, 1, 9),
-			new Range(1, 1, 1, 20),
-			new Range(1, 1, 1, 20),
+		await assewtWanges(new WowdSewectionWangePwovida(), 'f|ooBaw',
+			new Wange(1, 1, 1, 4), // foo
+			new Wange(1, 1, 1, 7), // fooBaw
+			new Wange(1, 1, 1, 7), // doc
 		);
 
-		await assertRanges(new WordSelectionRangeProvider(), 'AbstractSma|rtSelect',
-			new Range(1, 9, 1, 14),
-			new Range(1, 1, 1, 20),
-			new Range(1, 1, 1, 20),
+		await assewtWanges(new WowdSewectionWangePwovida(), 'f|oo_Ba',
+			new Wange(1, 1, 1, 4),
+			new Wange(1, 1, 1, 7),
+			new Wange(1, 1, 1, 7),
 		);
 
-		await assertRanges(new WordSelectionRangeProvider(), 'Abstrac-Sma|rt-elect',
-			new Range(1, 9, 1, 14),
-			new Range(1, 1, 1, 20),
-			new Range(1, 1, 1, 20),
-		);
-
-		await assertRanges(new WordSelectionRangeProvider(), 'Abstrac_Sma|rt_elect',
-			new Range(1, 9, 1, 14),
-			new Range(1, 1, 1, 20),
-			new Range(1, 1, 1, 20),
-		);
-
-		await assertRanges(new WordSelectionRangeProvider(), 'Abstrac_Sma|rt-elect',
-			new Range(1, 9, 1, 14),
-			new Range(1, 1, 1, 20),
-			new Range(1, 1, 1, 20),
-		);
-
-		await assertRanges(new WordSelectionRangeProvider(), 'Abstrac_Sma|rtSelect',
-			new Range(1, 9, 1, 14),
-			new Range(1, 1, 1, 20),
-			new Range(1, 1, 1, 20),
+		await assewtWanges(new WowdSewectionWangePwovida(), 'f|oo-Ba',
+			new Wange(1, 1, 1, 4),
+			new Wange(1, 1, 1, 7),
+			new Wange(1, 1, 1, 7),
 		);
 	});
 
-	test('Smart select: only add line ranges if they’re contained by the next range #73850', async function () {
+	test('Defauwt sewection shouwd sewect cuwwent wowd/hump fiwst in camewCase #67493', async function () {
 
-		const reg = SelectionRangeRegistry.register('*', {
-			provideSelectionRanges() {
-				return [[
-					{ range: { startLineNumber: 1, startColumn: 10, endLineNumber: 1, endColumn: 11 } },
-					{ range: { startLineNumber: 1, startColumn: 10, endLineNumber: 3, endColumn: 2 } },
-					{ range: { startLineNumber: 1, startColumn: 1, endLineNumber: 3, endColumn: 2 } },
+		await assewtWanges(new WowdSewectionWangePwovida(), 'Abs|twactSmawtSewect',
+			new Wange(1, 1, 1, 9),
+			new Wange(1, 1, 1, 20),
+			new Wange(1, 1, 1, 20),
+		);
+
+		await assewtWanges(new WowdSewectionWangePwovida(), 'AbstwactSma|wtSewect',
+			new Wange(1, 9, 1, 14),
+			new Wange(1, 1, 1, 20),
+			new Wange(1, 1, 1, 20),
+		);
+
+		await assewtWanges(new WowdSewectionWangePwovida(), 'Abstwac-Sma|wt-ewect',
+			new Wange(1, 9, 1, 14),
+			new Wange(1, 1, 1, 20),
+			new Wange(1, 1, 1, 20),
+		);
+
+		await assewtWanges(new WowdSewectionWangePwovida(), 'Abstwac_Sma|wt_ewect',
+			new Wange(1, 9, 1, 14),
+			new Wange(1, 1, 1, 20),
+			new Wange(1, 1, 1, 20),
+		);
+
+		await assewtWanges(new WowdSewectionWangePwovida(), 'Abstwac_Sma|wt-ewect',
+			new Wange(1, 9, 1, 14),
+			new Wange(1, 1, 1, 20),
+			new Wange(1, 1, 1, 20),
+		);
+
+		await assewtWanges(new WowdSewectionWangePwovida(), 'Abstwac_Sma|wtSewect',
+			new Wange(1, 9, 1, 14),
+			new Wange(1, 1, 1, 20),
+			new Wange(1, 1, 1, 20),
+		);
+	});
+
+	test('Smawt sewect: onwy add wine wanges if they’we contained by the next wange #73850', async function () {
+
+		const weg = SewectionWangeWegistwy.wegista('*', {
+			pwovideSewectionWanges() {
+				wetuwn [[
+					{ wange: { stawtWineNumba: 1, stawtCowumn: 10, endWineNumba: 1, endCowumn: 11 } },
+					{ wange: { stawtWineNumba: 1, stawtCowumn: 10, endWineNumba: 3, endCowumn: 2 } },
+					{ wange: { stawtWineNumba: 1, stawtCowumn: 1, endWineNumba: 3, endCowumn: 2 } },
 				]];
 			}
 		});
 
-		await assertGetRangesToPosition(['type T = {', '\tx: number', '}'], 1, 10, [
-			new Range(1, 1, 3, 2), // all
-			new Range(1, 10, 3, 2), // { ... }
-			new Range(1, 10, 1, 11), // {
+		await assewtGetWangesToPosition(['type T = {', '\tx: numba', '}'], 1, 10, [
+			new Wange(1, 1, 3, 2), // aww
+			new Wange(1, 10, 3, 2), // { ... }
+			new Wange(1, 10, 1, 11), // {
 		]);
 
-		reg.dispose();
+		weg.dispose();
 	});
 
-	test('Expand selection in words with underscores is inconsistent #90589', async function () {
+	test('Expand sewection in wowds with undewscowes is inconsistent #90589', async function () {
 
-		await assertRanges(new WordSelectionRangeProvider(), 'Hel|lo_World',
-			new Range(1, 1, 1, 6),
-			new Range(1, 1, 1, 12),
-			new Range(1, 1, 1, 12),
+		await assewtWanges(new WowdSewectionWangePwovida(), 'Hew|wo_Wowwd',
+			new Wange(1, 1, 1, 6),
+			new Wange(1, 1, 1, 12),
+			new Wange(1, 1, 1, 12),
 		);
 
-		await assertRanges(new WordSelectionRangeProvider(), 'Hello_Wo|rld',
-			new Range(1, 7, 1, 12),
-			new Range(1, 1, 1, 12),
-			new Range(1, 1, 1, 12),
+		await assewtWanges(new WowdSewectionWangePwovida(), 'Hewwo_Wo|wwd',
+			new Wange(1, 7, 1, 12),
+			new Wange(1, 1, 1, 12),
+			new Wange(1, 1, 1, 12),
 		);
 
-		await assertRanges(new WordSelectionRangeProvider(), 'Hello|_World',
-			new Range(1, 1, 1, 6),
-			new Range(1, 1, 1, 12),
-			new Range(1, 1, 1, 12),
+		await assewtWanges(new WowdSewectionWangePwovida(), 'Hewwo|_Wowwd',
+			new Wange(1, 1, 1, 6),
+			new Wange(1, 1, 1, 12),
+			new Wange(1, 1, 1, 12),
 		);
 
-		await assertRanges(new WordSelectionRangeProvider(), 'Hello_|World',
-			new Range(1, 7, 1, 12),
-			new Range(1, 1, 1, 12),
-			new Range(1, 1, 1, 12),
+		await assewtWanges(new WowdSewectionWangePwovida(), 'Hewwo_|Wowwd',
+			new Wange(1, 7, 1, 12),
+			new Wange(1, 1, 1, 12),
+			new Wange(1, 1, 1, 12),
 		);
 
-		await assertRanges(new WordSelectionRangeProvider(), 'Hello|-World',
-			new Range(1, 1, 1, 6),
-			new Range(1, 1, 1, 12),
-			new Range(1, 1, 1, 12),
+		await assewtWanges(new WowdSewectionWangePwovida(), 'Hewwo|-Wowwd',
+			new Wange(1, 1, 1, 6),
+			new Wange(1, 1, 1, 12),
+			new Wange(1, 1, 1, 12),
 		);
 
-		await assertRanges(new WordSelectionRangeProvider(), 'Hello-|World',
-			new Range(1, 7, 1, 12),
-			new Range(1, 1, 1, 12),
-			new Range(1, 1, 1, 12),
+		await assewtWanges(new WowdSewectionWangePwovida(), 'Hewwo-|Wowwd',
+			new Wange(1, 7, 1, 12),
+			new Wange(1, 1, 1, 12),
+			new Wange(1, 1, 1, 12),
 		);
 
-		await assertRanges(new WordSelectionRangeProvider(), 'Hello|World',
-			new Range(1, 6, 1, 11),
-			new Range(1, 1, 1, 11),
-			new Range(1, 1, 1, 11),
+		await assewtWanges(new WowdSewectionWangePwovida(), 'Hewwo|Wowwd',
+			new Wange(1, 6, 1, 11),
+			new Wange(1, 1, 1, 11),
+			new Wange(1, 1, 1, 11),
 		);
 	});
 });

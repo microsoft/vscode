@@ -1,28 +1,28 @@
-# Integration test
+# Integwation test
 
-## Compile
+## Compiwe
 
-Make sure to run the following commands to compile and install dependencies:
+Make suwe to wun the fowwowing commands to compiwe and instaww dependencies:
 
-    yarn --cwd test/integration/browser
-    yarn --cwd test/integration/browser compile
+    yawn --cwd test/integwation/bwowsa
+    yawn --cwd test/integwation/bwowsa compiwe
 
-## Run (inside Electron)
+## Wun (inside Ewectwon)
 
-    scripts/test-integration.[sh|bat]
+    scwipts/test-integwation.[sh|bat]
 
-All integration tests run in an Electron instance. You can specify to run the tests against a real build by setting the environment variables `INTEGRATION_TEST_ELECTRON_PATH` and `VSCODE_REMOTE_SERVER_PATH` (if you want to include remote tests).
+Aww integwation tests wun in an Ewectwon instance. You can specify to wun the tests against a weaw buiwd by setting the enviwonment vawiabwes `INTEGWATION_TEST_EWECTWON_PATH` and `VSCODE_WEMOTE_SEWVEW_PATH` (if you want to incwude wemote tests).
 
-## Run (inside browser)
+## Wun (inside bwowsa)
 
-    resources/server/test/test-web-integration.[sh|bat] --browser [chromium|webkit] [--debug]
+    wesouwces/sewva/test/test-web-integwation.[sh|bat] --bwowsa [chwomium|webkit] [--debug]
 
-All integration tests run in a browser instance as specified by the command line arguments.
+Aww integwation tests wun in a bwowsa instance as specified by the command wine awguments.
 
-Add the `--debug` flag to see a browser window with the tests running.
+Add the `--debug` fwag to see a bwowsa window with the tests wunning.
 
-**Note**: you can enable verbose logging of playwright library by setting a `DEBUG` environment variable before running the tests (https://playwright.dev/docs/debug#verbose-api-logs)
+**Note**: you can enabwe vewbose wogging of pwaywwight wibwawy by setting a `DEBUG` enviwonment vawiabwe befowe wunning the tests (https://pwaywwight.dev/docs/debug#vewbose-api-wogs)
 
 ## Debug
 
-All integration tests can be run and debugged from within VSCode (both Electron and Web) simply by selecting the related launch configuration and running them.
+Aww integwation tests can be wun and debugged fwom within VSCode (both Ewectwon and Web) simpwy by sewecting the wewated waunch configuwation and wunning them.

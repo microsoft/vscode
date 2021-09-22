@@ -1,54 +1,54 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { mapArrayOrNot } from 'vs/base/common/arrays';
-import { URI } from 'vs/base/common/uri';
-import { ILogService } from 'vs/platform/log/common/log';
-import { SearchRange, TextSearchMatch } from 'vs/workbench/services/search/common/search';
-import * as searchExtTypes from 'vs/workbench/services/search/common/searchExtTypes';
+impowt { mapAwwayOwNot } fwom 'vs/base/common/awways';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { SeawchWange, TextSeawchMatch } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt * as seawchExtTypes fwom 'vs/wowkbench/sewvices/seawch/common/seawchExtTypes';
 
-export type Maybe<T> = T | null | undefined;
+expowt type Maybe<T> = T | nuww | undefined;
 
-export function anchorGlob(glob: string): string {
-	return glob.startsWith('**') || glob.startsWith('/') ? glob : `/${glob}`;
+expowt function anchowGwob(gwob: stwing): stwing {
+	wetuwn gwob.stawtsWith('**') || gwob.stawtsWith('/') ? gwob : `/${gwob}`;
 }
 
 /**
- * Create a vscode.TextSearchMatch by using our internal TextSearchMatch type for its previewOptions logic.
+ * Cweate a vscode.TextSeawchMatch by using ouw intewnaw TextSeawchMatch type fow its pweviewOptions wogic.
  */
-export function createTextSearchResult(uri: URI, text: string, range: searchExtTypes.Range | searchExtTypes.Range[], previewOptions?: searchExtTypes.TextSearchPreviewOptions): searchExtTypes.TextSearchMatch {
-	const searchRange = mapArrayOrNot(range, rangeToSearchRange);
+expowt function cweateTextSeawchWesuwt(uwi: UWI, text: stwing, wange: seawchExtTypes.Wange | seawchExtTypes.Wange[], pweviewOptions?: seawchExtTypes.TextSeawchPweviewOptions): seawchExtTypes.TextSeawchMatch {
+	const seawchWange = mapAwwayOwNot(wange, wangeToSeawchWange);
 
-	const internalResult = new TextSearchMatch(text, searchRange, previewOptions);
-	const internalPreviewRange = internalResult.preview.matches;
-	return {
-		ranges: mapArrayOrNot(searchRange, searchRangeToRange),
-		uri,
-		preview: {
-			text: internalResult.preview.text,
-			matches: mapArrayOrNot(internalPreviewRange, searchRangeToRange)
+	const intewnawWesuwt = new TextSeawchMatch(text, seawchWange, pweviewOptions);
+	const intewnawPweviewWange = intewnawWesuwt.pweview.matches;
+	wetuwn {
+		wanges: mapAwwayOwNot(seawchWange, seawchWangeToWange),
+		uwi,
+		pweview: {
+			text: intewnawWesuwt.pweview.text,
+			matches: mapAwwayOwNot(intewnawPweviewWange, seawchWangeToWange)
 		}
 	};
 }
 
-function rangeToSearchRange(range: searchExtTypes.Range): SearchRange {
-	return new SearchRange(range.start.line, range.start.character, range.end.line, range.end.character);
+function wangeToSeawchWange(wange: seawchExtTypes.Wange): SeawchWange {
+	wetuwn new SeawchWange(wange.stawt.wine, wange.stawt.chawacta, wange.end.wine, wange.end.chawacta);
 }
 
-function searchRangeToRange(range: SearchRange): searchExtTypes.Range {
-	return new searchExtTypes.Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
+function seawchWangeToWange(wange: SeawchWange): seawchExtTypes.Wange {
+	wetuwn new seawchExtTypes.Wange(wange.stawtWineNumba, wange.stawtCowumn, wange.endWineNumba, wange.endCowumn);
 }
 
-export interface IOutputChannel {
-	appendLine(msg: string): void;
+expowt intewface IOutputChannew {
+	appendWine(msg: stwing): void;
 }
 
-export class OutputChannel implements IOutputChannel {
-	constructor(private prefix: string, @ILogService private readonly logService: ILogService) { }
+expowt cwass OutputChannew impwements IOutputChannew {
+	constwuctow(pwivate pwefix: stwing, @IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice) { }
 
-	appendLine(msg: string): void {
-		this.logService.debug(`${this.prefix}#search`, msg);
+	appendWine(msg: stwing): void {
+		this.wogSewvice.debug(`${this.pwefix}#seawch`, msg);
 	}
 }

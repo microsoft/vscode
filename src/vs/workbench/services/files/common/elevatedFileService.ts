@@ -1,27 +1,27 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
-import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { IFileStatWithMetadata, IWriteFileOptions } from 'vs/platform/files/common/files';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { VSBuffa, VSBuffewWeadabwe, VSBuffewWeadabweStweam } fwom 'vs/base/common/buffa';
+impowt { IFiweStatWithMetadata, IWwiteFiweOptions } fwom 'vs/pwatfowm/fiwes/common/fiwes';
 
-export const IElevatedFileService = createDecorator<IElevatedFileService>('elevatedFileService');
+expowt const IEwevatedFiweSewvice = cweateDecowatow<IEwevatedFiweSewvice>('ewevatedFiweSewvice');
 
-export interface IElevatedFileService {
+expowt intewface IEwevatedFiweSewvice {
 
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * Whether saving elevated is supported for the provided resource.
-	 */
-	isSupported(resource: URI): boolean;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Attempts to write to the target resource elevated. This may bring
-	 * up a dialog to ask for admin username / password.
+	 * Whetha saving ewevated is suppowted fow the pwovided wesouwce.
 	 */
-	writeFileElevated(resource: URI, value: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions): Promise<IFileStatWithMetadata>;
+	isSuppowted(wesouwce: UWI): boowean;
+
+	/**
+	 * Attempts to wwite to the tawget wesouwce ewevated. This may bwing
+	 * up a diawog to ask fow admin usewname / passwowd.
+	 */
+	wwiteFiweEwevated(wesouwce: UWI, vawue: VSBuffa | VSBuffewWeadabwe | VSBuffewWeadabweStweam, options?: IWwiteFiweOptions): Pwomise<IFiweStatWithMetadata>;
 }

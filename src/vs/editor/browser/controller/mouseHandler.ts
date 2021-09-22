@@ -1,400 +1,400 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { StandardWheelEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { TimeoutTimer } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import { HitTestContext, IViewZoneData, MouseTarget, MouseTargetFactory, PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
-import { IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { ClientCoordinates, EditorMouseEvent, EditorMouseEventFactory, GlobalEditorMouseMoveMonitor, createEditorPagePosition } from 'vs/editor/browser/editorDom';
-import { ViewController } from 'vs/editor/browser/view/viewController';
-import { EditorZoom } from 'vs/editor/common/config/editorZoom';
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { HorizontalPosition } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { StandawdWheewEvent, IMouseWheewEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { TimeoutTima } fwom 'vs/base/common/async';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { HitTestContext, IViewZoneData, MouseTawget, MouseTawgetFactowy, PointewHandwewWastWendewData } fwom 'vs/editow/bwowsa/contwowwa/mouseTawget';
+impowt { IMouseTawget, MouseTawgetType } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { CwientCoowdinates, EditowMouseEvent, EditowMouseEventFactowy, GwobawEditowMouseMoveMonitow, cweateEditowPagePosition } fwom 'vs/editow/bwowsa/editowDom';
+impowt { ViewContwowwa } fwom 'vs/editow/bwowsa/view/viewContwowwa';
+impowt { EditowZoom } fwom 'vs/editow/common/config/editowZoom';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { HowizontawPosition } fwom 'vs/editow/common/view/wendewingContext';
+impowt { ViewContext } fwom 'vs/editow/common/view/viewContext';
+impowt * as viewEvents fwom 'vs/editow/common/view/viewEvents';
+impowt { ViewEventHandwa } fwom 'vs/editow/common/viewModew/viewEventHandwa';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
 
 /**
- * Merges mouse events when mouse move events are throttled
+ * Mewges mouse events when mouse move events awe thwottwed
  */
-export function createMouseMoveEventMerger(mouseTargetFactory: MouseTargetFactory | null) {
-	return function (lastEvent: EditorMouseEvent | null, currentEvent: EditorMouseEvent): EditorMouseEvent {
-		let targetIsWidget = false;
-		if (mouseTargetFactory) {
-			targetIsWidget = mouseTargetFactory.mouseTargetIsWidget(currentEvent);
+expowt function cweateMouseMoveEventMewga(mouseTawgetFactowy: MouseTawgetFactowy | nuww) {
+	wetuwn function (wastEvent: EditowMouseEvent | nuww, cuwwentEvent: EditowMouseEvent): EditowMouseEvent {
+		wet tawgetIsWidget = fawse;
+		if (mouseTawgetFactowy) {
+			tawgetIsWidget = mouseTawgetFactowy.mouseTawgetIsWidget(cuwwentEvent);
 		}
-		if (!targetIsWidget) {
-			currentEvent.preventDefault();
+		if (!tawgetIsWidget) {
+			cuwwentEvent.pweventDefauwt();
 		}
-		return currentEvent;
+		wetuwn cuwwentEvent;
 	};
 }
 
-export interface IPointerHandlerHelper {
-	viewDomNode: HTMLElement;
-	linesContentDomNode: HTMLElement;
+expowt intewface IPointewHandwewHewpa {
+	viewDomNode: HTMWEwement;
+	winesContentDomNode: HTMWEwement;
 
-	focusTextArea(): void;
-	dispatchTextAreaEvent(event: CustomEvent): void;
-
-	/**
-	 * Get the last rendered information for cursors & textarea.
-	 */
-	getLastRenderData(): PointerHandlerLastRenderData;
-
-	shouldSuppressMouseDownOnViewZone(viewZoneId: string): boolean;
-	shouldSuppressMouseDownOnWidget(widgetId: string): boolean;
+	focusTextAwea(): void;
+	dispatchTextAweaEvent(event: CustomEvent): void;
 
 	/**
-	 * Decode a position from a rendered dom node
+	 * Get the wast wendewed infowmation fow cuwsows & textawea.
 	 */
-	getPositionFromDOMInfo(spanNode: HTMLElement, offset: number): Position | null;
+	getWastWendewData(): PointewHandwewWastWendewData;
 
-	visibleRangeForPosition(lineNumber: number, column: number): HorizontalPosition | null;
-	getLineWidth(lineNumber: number): number;
+	shouwdSuppwessMouseDownOnViewZone(viewZoneId: stwing): boowean;
+	shouwdSuppwessMouseDownOnWidget(widgetId: stwing): boowean;
+
+	/**
+	 * Decode a position fwom a wendewed dom node
+	 */
+	getPositionFwomDOMInfo(spanNode: HTMWEwement, offset: numba): Position | nuww;
+
+	visibweWangeFowPosition(wineNumba: numba, cowumn: numba): HowizontawPosition | nuww;
+	getWineWidth(wineNumba: numba): numba;
 }
 
-export class MouseHandler extends ViewEventHandler {
+expowt cwass MouseHandwa extends ViewEventHandwa {
 
-	static readonly MOUSE_MOVE_MINIMUM_TIME = 100; // ms
+	static weadonwy MOUSE_MOVE_MINIMUM_TIME = 100; // ms
 
-	protected _context: ViewContext;
-	protected viewController: ViewController;
-	protected viewHelper: IPointerHandlerHelper;
-	protected mouseTargetFactory: MouseTargetFactory;
-	protected readonly _mouseDownOperation: MouseDownOperation;
-	private lastMouseLeaveTime: number;
-	private _height: number;
+	pwotected _context: ViewContext;
+	pwotected viewContwowwa: ViewContwowwa;
+	pwotected viewHewpa: IPointewHandwewHewpa;
+	pwotected mouseTawgetFactowy: MouseTawgetFactowy;
+	pwotected weadonwy _mouseDownOpewation: MouseDownOpewation;
+	pwivate wastMouseWeaveTime: numba;
+	pwivate _height: numba;
 
-	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
-		super();
+	constwuctow(context: ViewContext, viewContwowwa: ViewContwowwa, viewHewpa: IPointewHandwewHewpa) {
+		supa();
 
 		this._context = context;
-		this.viewController = viewController;
-		this.viewHelper = viewHelper;
-		this.mouseTargetFactory = new MouseTargetFactory(this._context, viewHelper);
+		this.viewContwowwa = viewContwowwa;
+		this.viewHewpa = viewHewpa;
+		this.mouseTawgetFactowy = new MouseTawgetFactowy(this._context, viewHewpa);
 
-		this._mouseDownOperation = this._register(new MouseDownOperation(
+		this._mouseDownOpewation = this._wegista(new MouseDownOpewation(
 			this._context,
-			this.viewController,
-			this.viewHelper,
-			(e, testEventTarget) => this._createMouseTarget(e, testEventTarget),
-			(e) => this._getMouseColumn(e)
+			this.viewContwowwa,
+			this.viewHewpa,
+			(e, testEventTawget) => this._cweateMouseTawget(e, testEventTawget),
+			(e) => this._getMouseCowumn(e)
 		));
 
-		this.lastMouseLeaveTime = -1;
-		this._height = this._context.configuration.options.get(EditorOption.layoutInfo).height;
+		this.wastMouseWeaveTime = -1;
+		this._height = this._context.configuwation.options.get(EditowOption.wayoutInfo).height;
 
-		const mouseEvents = new EditorMouseEventFactory(this.viewHelper.viewDomNode);
+		const mouseEvents = new EditowMouseEventFactowy(this.viewHewpa.viewDomNode);
 
-		this._register(mouseEvents.onContextMenu(this.viewHelper.viewDomNode, (e) => this._onContextMenu(e, true)));
+		this._wegista(mouseEvents.onContextMenu(this.viewHewpa.viewDomNode, (e) => this._onContextMenu(e, twue)));
 
-		this._register(mouseEvents.onMouseMoveThrottled(this.viewHelper.viewDomNode,
+		this._wegista(mouseEvents.onMouseMoveThwottwed(this.viewHewpa.viewDomNode,
 			(e) => this._onMouseMove(e),
-			createMouseMoveEventMerger(this.mouseTargetFactory), MouseHandler.MOUSE_MOVE_MINIMUM_TIME));
+			cweateMouseMoveEventMewga(this.mouseTawgetFactowy), MouseHandwa.MOUSE_MOVE_MINIMUM_TIME));
 
-		this._register(mouseEvents.onMouseUp(this.viewHelper.viewDomNode, (e) => this._onMouseUp(e)));
+		this._wegista(mouseEvents.onMouseUp(this.viewHewpa.viewDomNode, (e) => this._onMouseUp(e)));
 
-		this._register(mouseEvents.onMouseLeave(this.viewHelper.viewDomNode, (e) => this._onMouseLeave(e)));
+		this._wegista(mouseEvents.onMouseWeave(this.viewHewpa.viewDomNode, (e) => this._onMouseWeave(e)));
 
-		this._register(mouseEvents.onMouseDown(this.viewHelper.viewDomNode, (e) => this._onMouseDown(e)));
+		this._wegista(mouseEvents.onMouseDown(this.viewHewpa.viewDomNode, (e) => this._onMouseDown(e)));
 
-		const onMouseWheel = (browserEvent: IMouseWheelEvent) => {
-			this.viewController.emitMouseWheel(browserEvent);
+		const onMouseWheew = (bwowsewEvent: IMouseWheewEvent) => {
+			this.viewContwowwa.emitMouseWheew(bwowsewEvent);
 
-			if (!this._context.configuration.options.get(EditorOption.mouseWheelZoom)) {
-				return;
+			if (!this._context.configuwation.options.get(EditowOption.mouseWheewZoom)) {
+				wetuwn;
 			}
-			const e = new StandardWheelEvent(browserEvent);
-			const doMouseWheelZoom = (
-				platform.isMacintosh
-					// on macOS we support cmd + two fingers scroll (`metaKey` set)
-					// and also the two fingers pinch gesture (`ctrKey` set)
-					? ((browserEvent.metaKey || browserEvent.ctrlKey) && !browserEvent.shiftKey && !browserEvent.altKey)
-					: (browserEvent.ctrlKey && !browserEvent.metaKey && !browserEvent.shiftKey && !browserEvent.altKey)
+			const e = new StandawdWheewEvent(bwowsewEvent);
+			const doMouseWheewZoom = (
+				pwatfowm.isMacintosh
+					// on macOS we suppowt cmd + two fingews scwoww (`metaKey` set)
+					// and awso the two fingews pinch gestuwe (`ctwKey` set)
+					? ((bwowsewEvent.metaKey || bwowsewEvent.ctwwKey) && !bwowsewEvent.shiftKey && !bwowsewEvent.awtKey)
+					: (bwowsewEvent.ctwwKey && !bwowsewEvent.metaKey && !bwowsewEvent.shiftKey && !bwowsewEvent.awtKey)
 			);
-			if (doMouseWheelZoom) {
-				const zoomLevel: number = EditorZoom.getZoomLevel();
-				const delta = e.deltaY > 0 ? 1 : -1;
-				EditorZoom.setZoomLevel(zoomLevel + delta);
-				e.preventDefault();
-				e.stopPropagation();
+			if (doMouseWheewZoom) {
+				const zoomWevew: numba = EditowZoom.getZoomWevew();
+				const dewta = e.dewtaY > 0 ? 1 : -1;
+				EditowZoom.setZoomWevew(zoomWevew + dewta);
+				e.pweventDefauwt();
+				e.stopPwopagation();
 			}
 		};
-		this._register(dom.addDisposableListener(this.viewHelper.viewDomNode, dom.EventType.MOUSE_WHEEL, onMouseWheel, { capture: true, passive: false }));
+		this._wegista(dom.addDisposabweWistena(this.viewHewpa.viewDomNode, dom.EventType.MOUSE_WHEEW, onMouseWheew, { captuwe: twue, passive: fawse }));
 
-		this._context.addEventHandler(this);
+		this._context.addEventHandwa(this);
 	}
 
-	public override dispose(): void {
-		this._context.removeEventHandler(this);
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		this._context.wemoveEventHandwa(this);
+		supa.dispose();
 	}
 
-	// --- begin event handlers
-	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.hasChanged(EditorOption.layoutInfo)) {
-			// layout change
-			const height = this._context.configuration.options.get(EditorOption.layoutInfo).height;
+	// --- begin event handwews
+	pubwic ovewwide onConfiguwationChanged(e: viewEvents.ViewConfiguwationChangedEvent): boowean {
+		if (e.hasChanged(EditowOption.wayoutInfo)) {
+			// wayout change
+			const height = this._context.configuwation.options.get(EditowOption.wayoutInfo).height;
 			if (this._height !== height) {
 				this._height = height;
-				this._mouseDownOperation.onHeightChanged();
+				this._mouseDownOpewation.onHeightChanged();
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
-	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
-		this._mouseDownOperation.onCursorStateChanged(e);
-		return false;
+	pubwic ovewwide onCuwsowStateChanged(e: viewEvents.ViewCuwsowStateChangedEvent): boowean {
+		this._mouseDownOpewation.onCuwsowStateChanged(e);
+		wetuwn fawse;
 	}
-	public override onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
-		return false;
+	pubwic ovewwide onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boowean {
+		wetuwn fawse;
 	}
-	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		this._mouseDownOperation.onScrollChanged();
-		return false;
+	pubwic ovewwide onScwowwChanged(e: viewEvents.ViewScwowwChangedEvent): boowean {
+		this._mouseDownOpewation.onScwowwChanged();
+		wetuwn fawse;
 	}
-	// --- end event handlers
+	// --- end event handwews
 
-	public getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget | null {
-		const clientPos = new ClientCoordinates(clientX, clientY);
-		const pos = clientPos.toPageCoordinates();
-		const editorPos = createEditorPagePosition(this.viewHelper.viewDomNode);
+	pubwic getTawgetAtCwientPoint(cwientX: numba, cwientY: numba): IMouseTawget | nuww {
+		const cwientPos = new CwientCoowdinates(cwientX, cwientY);
+		const pos = cwientPos.toPageCoowdinates();
+		const editowPos = cweateEditowPagePosition(this.viewHewpa.viewDomNode);
 
-		if (pos.y < editorPos.y || pos.y > editorPos.y + editorPos.height || pos.x < editorPos.x || pos.x > editorPos.x + editorPos.width) {
-			return null;
+		if (pos.y < editowPos.y || pos.y > editowPos.y + editowPos.height || pos.x < editowPos.x || pos.x > editowPos.x + editowPos.width) {
+			wetuwn nuww;
 		}
 
-		return this.mouseTargetFactory.createMouseTarget(this.viewHelper.getLastRenderData(), editorPos, pos, null);
+		wetuwn this.mouseTawgetFactowy.cweateMouseTawget(this.viewHewpa.getWastWendewData(), editowPos, pos, nuww);
 	}
 
-	protected _createMouseTarget(e: EditorMouseEvent, testEventTarget: boolean): IMouseTarget {
-		let target = e.target;
-		if (!this.viewHelper.viewDomNode.contains(target)) {
-			const shadowRoot = dom.getShadowRoot(this.viewHelper.viewDomNode);
-			if (shadowRoot) {
-				target = (<any>shadowRoot).elementsFromPoint(e.posx, e.posy).find(
-					(el: Element) => this.viewHelper.viewDomNode.contains(el)
+	pwotected _cweateMouseTawget(e: EditowMouseEvent, testEventTawget: boowean): IMouseTawget {
+		wet tawget = e.tawget;
+		if (!this.viewHewpa.viewDomNode.contains(tawget)) {
+			const shadowWoot = dom.getShadowWoot(this.viewHewpa.viewDomNode);
+			if (shadowWoot) {
+				tawget = (<any>shadowWoot).ewementsFwomPoint(e.posx, e.posy).find(
+					(ew: Ewement) => this.viewHewpa.viewDomNode.contains(ew)
 				);
 			}
 		}
-		return this.mouseTargetFactory.createMouseTarget(this.viewHelper.getLastRenderData(), e.editorPos, e.pos, testEventTarget ? target : null);
+		wetuwn this.mouseTawgetFactowy.cweateMouseTawget(this.viewHewpa.getWastWendewData(), e.editowPos, e.pos, testEventTawget ? tawget : nuww);
 	}
 
-	private _getMouseColumn(e: EditorMouseEvent): number {
-		return this.mouseTargetFactory.getMouseColumn(e.editorPos, e.pos);
+	pwivate _getMouseCowumn(e: EditowMouseEvent): numba {
+		wetuwn this.mouseTawgetFactowy.getMouseCowumn(e.editowPos, e.pos);
 	}
 
-	protected _onContextMenu(e: EditorMouseEvent, testEventTarget: boolean): void {
-		this.viewController.emitContextMenu({
+	pwotected _onContextMenu(e: EditowMouseEvent, testEventTawget: boowean): void {
+		this.viewContwowwa.emitContextMenu({
 			event: e,
-			target: this._createMouseTarget(e, testEventTarget)
+			tawget: this._cweateMouseTawget(e, testEventTawget)
 		});
 	}
 
-	public _onMouseMove(e: EditorMouseEvent): void {
-		if (this._mouseDownOperation.isActive()) {
-			// In selection/drag operation
-			return;
+	pubwic _onMouseMove(e: EditowMouseEvent): void {
+		if (this._mouseDownOpewation.isActive()) {
+			// In sewection/dwag opewation
+			wetuwn;
 		}
-		const actualMouseMoveTime = e.timestamp;
-		if (actualMouseMoveTime < this.lastMouseLeaveTime) {
-			// Due to throttling, this event occurred before the mouse left the editor, therefore ignore it.
-			return;
+		const actuawMouseMoveTime = e.timestamp;
+		if (actuawMouseMoveTime < this.wastMouseWeaveTime) {
+			// Due to thwottwing, this event occuwwed befowe the mouse weft the editow, thewefowe ignowe it.
+			wetuwn;
 		}
 
-		this.viewController.emitMouseMove({
+		this.viewContwowwa.emitMouseMove({
 			event: e,
-			target: this._createMouseTarget(e, true)
+			tawget: this._cweateMouseTawget(e, twue)
 		});
 	}
 
-	public _onMouseLeave(e: EditorMouseEvent): void {
-		this.lastMouseLeaveTime = (new Date()).getTime();
-		this.viewController.emitMouseLeave({
+	pubwic _onMouseWeave(e: EditowMouseEvent): void {
+		this.wastMouseWeaveTime = (new Date()).getTime();
+		this.viewContwowwa.emitMouseWeave({
 			event: e,
-			target: null
+			tawget: nuww
 		});
 	}
 
-	public _onMouseUp(e: EditorMouseEvent): void {
-		this.viewController.emitMouseUp({
+	pubwic _onMouseUp(e: EditowMouseEvent): void {
+		this.viewContwowwa.emitMouseUp({
 			event: e,
-			target: this._createMouseTarget(e, true)
+			tawget: this._cweateMouseTawget(e, twue)
 		});
 	}
 
-	public _onMouseDown(e: EditorMouseEvent): void {
-		const t = this._createMouseTarget(e, true);
+	pubwic _onMouseDown(e: EditowMouseEvent): void {
+		const t = this._cweateMouseTawget(e, twue);
 
-		const targetIsContent = (t.type === MouseTargetType.CONTENT_TEXT || t.type === MouseTargetType.CONTENT_EMPTY);
-		const targetIsGutter = (t.type === MouseTargetType.GUTTER_GLYPH_MARGIN || t.type === MouseTargetType.GUTTER_LINE_NUMBERS || t.type === MouseTargetType.GUTTER_LINE_DECORATIONS);
-		const targetIsLineNumbers = (t.type === MouseTargetType.GUTTER_LINE_NUMBERS);
-		const selectOnLineNumbers = this._context.configuration.options.get(EditorOption.selectOnLineNumbers);
-		const targetIsViewZone = (t.type === MouseTargetType.CONTENT_VIEW_ZONE || t.type === MouseTargetType.GUTTER_VIEW_ZONE);
-		const targetIsWidget = (t.type === MouseTargetType.CONTENT_WIDGET);
+		const tawgetIsContent = (t.type === MouseTawgetType.CONTENT_TEXT || t.type === MouseTawgetType.CONTENT_EMPTY);
+		const tawgetIsGutta = (t.type === MouseTawgetType.GUTTEW_GWYPH_MAWGIN || t.type === MouseTawgetType.GUTTEW_WINE_NUMBEWS || t.type === MouseTawgetType.GUTTEW_WINE_DECOWATIONS);
+		const tawgetIsWineNumbews = (t.type === MouseTawgetType.GUTTEW_WINE_NUMBEWS);
+		const sewectOnWineNumbews = this._context.configuwation.options.get(EditowOption.sewectOnWineNumbews);
+		const tawgetIsViewZone = (t.type === MouseTawgetType.CONTENT_VIEW_ZONE || t.type === MouseTawgetType.GUTTEW_VIEW_ZONE);
+		const tawgetIsWidget = (t.type === MouseTawgetType.CONTENT_WIDGET);
 
-		let shouldHandle = e.leftButton || e.middleButton;
-		if (platform.isMacintosh && e.leftButton && e.ctrlKey) {
-			shouldHandle = false;
+		wet shouwdHandwe = e.weftButton || e.middweButton;
+		if (pwatfowm.isMacintosh && e.weftButton && e.ctwwKey) {
+			shouwdHandwe = fawse;
 		}
 
 		const focus = () => {
-			e.preventDefault();
-			this.viewHelper.focusTextArea();
+			e.pweventDefauwt();
+			this.viewHewpa.focusTextAwea();
 		};
 
-		if (shouldHandle && (targetIsContent || (targetIsLineNumbers && selectOnLineNumbers))) {
+		if (shouwdHandwe && (tawgetIsContent || (tawgetIsWineNumbews && sewectOnWineNumbews))) {
 			focus();
-			this._mouseDownOperation.start(t.type, e);
+			this._mouseDownOpewation.stawt(t.type, e);
 
-		} else if (targetIsGutter) {
-			// Do not steal focus
-			e.preventDefault();
-		} else if (targetIsViewZone) {
-			const viewZoneData = <IViewZoneData>t.detail;
-			if (this.viewHelper.shouldSuppressMouseDownOnViewZone(viewZoneData.viewZoneId)) {
+		} ewse if (tawgetIsGutta) {
+			// Do not steaw focus
+			e.pweventDefauwt();
+		} ewse if (tawgetIsViewZone) {
+			const viewZoneData = <IViewZoneData>t.detaiw;
+			if (this.viewHewpa.shouwdSuppwessMouseDownOnViewZone(viewZoneData.viewZoneId)) {
 				focus();
-				this._mouseDownOperation.start(t.type, e);
-				e.preventDefault();
+				this._mouseDownOpewation.stawt(t.type, e);
+				e.pweventDefauwt();
 			}
-		} else if (targetIsWidget && this.viewHelper.shouldSuppressMouseDownOnWidget(<string>t.detail)) {
+		} ewse if (tawgetIsWidget && this.viewHewpa.shouwdSuppwessMouseDownOnWidget(<stwing>t.detaiw)) {
 			focus();
-			e.preventDefault();
+			e.pweventDefauwt();
 		}
 
-		this.viewController.emitMouseDown({
+		this.viewContwowwa.emitMouseDown({
 			event: e,
-			target: t
+			tawget: t
 		});
 	}
 
-	public _onMouseWheel(e: IMouseWheelEvent): void {
-		this.viewController.emitMouseWheel(e);
+	pubwic _onMouseWheew(e: IMouseWheewEvent): void {
+		this.viewContwowwa.emitMouseWheew(e);
 	}
 }
 
-class MouseDownOperation extends Disposable {
+cwass MouseDownOpewation extends Disposabwe {
 
-	private readonly _context: ViewContext;
-	private readonly _viewController: ViewController;
-	private readonly _viewHelper: IPointerHandlerHelper;
-	private readonly _createMouseTarget: (e: EditorMouseEvent, testEventTarget: boolean) => IMouseTarget;
-	private readonly _getMouseColumn: (e: EditorMouseEvent) => number;
+	pwivate weadonwy _context: ViewContext;
+	pwivate weadonwy _viewContwowwa: ViewContwowwa;
+	pwivate weadonwy _viewHewpa: IPointewHandwewHewpa;
+	pwivate weadonwy _cweateMouseTawget: (e: EditowMouseEvent, testEventTawget: boowean) => IMouseTawget;
+	pwivate weadonwy _getMouseCowumn: (e: EditowMouseEvent) => numba;
 
-	private readonly _mouseMoveMonitor: GlobalEditorMouseMoveMonitor;
-	private readonly _onScrollTimeout: TimeoutTimer;
-	private readonly _mouseState: MouseDownState;
+	pwivate weadonwy _mouseMoveMonitow: GwobawEditowMouseMoveMonitow;
+	pwivate weadonwy _onScwowwTimeout: TimeoutTima;
+	pwivate weadonwy _mouseState: MouseDownState;
 
-	private _currentSelection: Selection;
-	private _isActive: boolean;
-	private _lastMouseEvent: EditorMouseEvent | null;
+	pwivate _cuwwentSewection: Sewection;
+	pwivate _isActive: boowean;
+	pwivate _wastMouseEvent: EditowMouseEvent | nuww;
 
-	constructor(
+	constwuctow(
 		context: ViewContext,
-		viewController: ViewController,
-		viewHelper: IPointerHandlerHelper,
-		createMouseTarget: (e: EditorMouseEvent, testEventTarget: boolean) => IMouseTarget,
-		getMouseColumn: (e: EditorMouseEvent) => number
+		viewContwowwa: ViewContwowwa,
+		viewHewpa: IPointewHandwewHewpa,
+		cweateMouseTawget: (e: EditowMouseEvent, testEventTawget: boowean) => IMouseTawget,
+		getMouseCowumn: (e: EditowMouseEvent) => numba
 	) {
-		super();
+		supa();
 		this._context = context;
-		this._viewController = viewController;
-		this._viewHelper = viewHelper;
-		this._createMouseTarget = createMouseTarget;
-		this._getMouseColumn = getMouseColumn;
+		this._viewContwowwa = viewContwowwa;
+		this._viewHewpa = viewHewpa;
+		this._cweateMouseTawget = cweateMouseTawget;
+		this._getMouseCowumn = getMouseCowumn;
 
-		this._mouseMoveMonitor = this._register(new GlobalEditorMouseMoveMonitor(this._viewHelper.viewDomNode));
-		this._onScrollTimeout = this._register(new TimeoutTimer());
+		this._mouseMoveMonitow = this._wegista(new GwobawEditowMouseMoveMonitow(this._viewHewpa.viewDomNode));
+		this._onScwowwTimeout = this._wegista(new TimeoutTima());
 		this._mouseState = new MouseDownState();
 
-		this._currentSelection = new Selection(1, 1, 1, 1);
-		this._isActive = false;
-		this._lastMouseEvent = null;
+		this._cuwwentSewection = new Sewection(1, 1, 1, 1);
+		this._isActive = fawse;
+		this._wastMouseEvent = nuww;
 	}
 
-	public override dispose(): void {
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		supa.dispose();
 	}
 
-	public isActive(): boolean {
-		return this._isActive;
+	pubwic isActive(): boowean {
+		wetuwn this._isActive;
 	}
 
-	private _onMouseDownThenMove(e: EditorMouseEvent): void {
-		this._lastMouseEvent = e;
-		this._mouseState.setModifiers(e);
+	pwivate _onMouseDownThenMove(e: EditowMouseEvent): void {
+		this._wastMouseEvent = e;
+		this._mouseState.setModifiews(e);
 
-		const position = this._findMousePosition(e, true);
+		const position = this._findMousePosition(e, twue);
 		if (!position) {
-			// Ignoring because position is unknown
-			return;
+			// Ignowing because position is unknown
+			wetuwn;
 		}
 
-		if (this._mouseState.isDragAndDrop) {
-			this._viewController.emitMouseDrag({
+		if (this._mouseState.isDwagAndDwop) {
+			this._viewContwowwa.emitMouseDwag({
 				event: e,
-				target: position
+				tawget: position
 			});
-		} else {
-			this._dispatchMouse(position, true);
+		} ewse {
+			this._dispatchMouse(position, twue);
 		}
 	}
 
-	public start(targetType: MouseTargetType, e: EditorMouseEvent): void {
-		this._lastMouseEvent = e;
+	pubwic stawt(tawgetType: MouseTawgetType, e: EditowMouseEvent): void {
+		this._wastMouseEvent = e;
 
-		this._mouseState.setStartedOnLineNumbers(targetType === MouseTargetType.GUTTER_LINE_NUMBERS);
-		this._mouseState.setStartButtons(e);
-		this._mouseState.setModifiers(e);
-		const position = this._findMousePosition(e, true);
+		this._mouseState.setStawtedOnWineNumbews(tawgetType === MouseTawgetType.GUTTEW_WINE_NUMBEWS);
+		this._mouseState.setStawtButtons(e);
+		this._mouseState.setModifiews(e);
+		const position = this._findMousePosition(e, twue);
 		if (!position || !position.position) {
-			// Ignoring because position is unknown
-			return;
+			// Ignowing because position is unknown
+			wetuwn;
 		}
 
-		this._mouseState.trySetCount(e.detail, position.position);
+		this._mouseState.twySetCount(e.detaiw, position.position);
 
-		// Overwrite the detail of the MouseEvent, as it will be sent out in an event and contributions might rely on it.
-		e.detail = this._mouseState.count;
+		// Ovewwwite the detaiw of the MouseEvent, as it wiww be sent out in an event and contwibutions might wewy on it.
+		e.detaiw = this._mouseState.count;
 
-		const options = this._context.configuration.options;
+		const options = this._context.configuwation.options;
 
-		if (!options.get(EditorOption.readOnly)
-			&& options.get(EditorOption.dragAndDrop)
-			&& !options.get(EditorOption.columnSelection)
-			&& !this._mouseState.altKey // we don't support multiple mouse
-			&& e.detail < 2 // only single click on a selection can work
+		if (!options.get(EditowOption.weadOnwy)
+			&& options.get(EditowOption.dwagAndDwop)
+			&& !options.get(EditowOption.cowumnSewection)
+			&& !this._mouseState.awtKey // we don't suppowt muwtipwe mouse
+			&& e.detaiw < 2 // onwy singwe cwick on a sewection can wowk
 			&& !this._isActive // the mouse is not down yet
-			&& !this._currentSelection.isEmpty() // we don't drag single cursor
-			&& (position.type === MouseTargetType.CONTENT_TEXT) // single click on text
-			&& position.position && this._currentSelection.containsPosition(position.position) // single click on a selection
+			&& !this._cuwwentSewection.isEmpty() // we don't dwag singwe cuwsow
+			&& (position.type === MouseTawgetType.CONTENT_TEXT) // singwe cwick on text
+			&& position.position && this._cuwwentSewection.containsPosition(position.position) // singwe cwick on a sewection
 		) {
-			this._mouseState.isDragAndDrop = true;
-			this._isActive = true;
+			this._mouseState.isDwagAndDwop = twue;
+			this._isActive = twue;
 
-			this._mouseMoveMonitor.startMonitoring(
-				e.target,
+			this._mouseMoveMonitow.stawtMonitowing(
+				e.tawget,
 				e.buttons,
-				createMouseMoveEventMerger(null),
+				cweateMouseMoveEventMewga(nuww),
 				(e) => this._onMouseDownThenMove(e),
-				(browserEvent?: MouseEvent | KeyboardEvent) => {
-					const position = this._findMousePosition(this._lastMouseEvent!, true);
+				(bwowsewEvent?: MouseEvent | KeyboawdEvent) => {
+					const position = this._findMousePosition(this._wastMouseEvent!, twue);
 
-					if (browserEvent && browserEvent instanceof KeyboardEvent) {
-						// cancel
-						this._viewController.emitMouseDropCanceled();
-					} else {
-						this._viewController.emitMouseDrop({
-							event: this._lastMouseEvent!,
-							target: (position ? this._createMouseTarget(this._lastMouseEvent!, true) : null) // Ignoring because position is unknown, e.g., Content View Zone
+					if (bwowsewEvent && bwowsewEvent instanceof KeyboawdEvent) {
+						// cancew
+						this._viewContwowwa.emitMouseDwopCancewed();
+					} ewse {
+						this._viewContwowwa.emitMouseDwop({
+							event: this._wastMouseEvent!,
+							tawget: (position ? this._cweateMouseTawget(this._wastMouseEvent!, twue) : nuww) // Ignowing because position is unknown, e.g., Content View Zone
 						});
 					}
 
@@ -402,255 +402,255 @@ class MouseDownOperation extends Disposable {
 				}
 			);
 
-			return;
+			wetuwn;
 		}
 
-		this._mouseState.isDragAndDrop = false;
+		this._mouseState.isDwagAndDwop = fawse;
 		this._dispatchMouse(position, e.shiftKey);
 
 		if (!this._isActive) {
-			this._isActive = true;
-			this._mouseMoveMonitor.startMonitoring(
-				e.target,
+			this._isActive = twue;
+			this._mouseMoveMonitow.stawtMonitowing(
+				e.tawget,
 				e.buttons,
-				createMouseMoveEventMerger(null),
+				cweateMouseMoveEventMewga(nuww),
 				(e) => this._onMouseDownThenMove(e),
 				() => this._stop()
 			);
 		}
 	}
 
-	private _stop(): void {
-		this._isActive = false;
-		this._onScrollTimeout.cancel();
+	pwivate _stop(): void {
+		this._isActive = fawse;
+		this._onScwowwTimeout.cancew();
 	}
 
-	public onHeightChanged(): void {
-		this._mouseMoveMonitor.stopMonitoring();
+	pubwic onHeightChanged(): void {
+		this._mouseMoveMonitow.stopMonitowing();
 	}
 
-	public onScrollChanged(): void {
+	pubwic onScwowwChanged(): void {
 		if (!this._isActive) {
-			return;
+			wetuwn;
 		}
-		this._onScrollTimeout.setIfNotSet(() => {
-			if (!this._lastMouseEvent) {
-				return;
+		this._onScwowwTimeout.setIfNotSet(() => {
+			if (!this._wastMouseEvent) {
+				wetuwn;
 			}
-			const position = this._findMousePosition(this._lastMouseEvent, false);
+			const position = this._findMousePosition(this._wastMouseEvent, fawse);
 			if (!position) {
-				// Ignoring because position is unknown
-				return;
+				// Ignowing because position is unknown
+				wetuwn;
 			}
-			if (this._mouseState.isDragAndDrop) {
-				// Ignoring because users are dragging the text
-				return;
+			if (this._mouseState.isDwagAndDwop) {
+				// Ignowing because usews awe dwagging the text
+				wetuwn;
 			}
-			this._dispatchMouse(position, true);
+			this._dispatchMouse(position, twue);
 		}, 10);
 	}
 
-	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): void {
-		this._currentSelection = e.selections[0];
+	pubwic onCuwsowStateChanged(e: viewEvents.ViewCuwsowStateChangedEvent): void {
+		this._cuwwentSewection = e.sewections[0];
 	}
 
-	private _getPositionOutsideEditor(e: EditorMouseEvent): MouseTarget | null {
-		const editorContent = e.editorPos;
-		const model = this._context.model;
-		const viewLayout = this._context.viewLayout;
+	pwivate _getPositionOutsideEditow(e: EditowMouseEvent): MouseTawget | nuww {
+		const editowContent = e.editowPos;
+		const modew = this._context.modew;
+		const viewWayout = this._context.viewWayout;
 
-		const mouseColumn = this._getMouseColumn(e);
+		const mouseCowumn = this._getMouseCowumn(e);
 
-		if (e.posy < editorContent.y) {
-			const verticalOffset = Math.max(viewLayout.getCurrentScrollTop() - (editorContent.y - e.posy), 0);
-			const viewZoneData = HitTestContext.getZoneAtCoord(this._context, verticalOffset);
+		if (e.posy < editowContent.y) {
+			const vewticawOffset = Math.max(viewWayout.getCuwwentScwowwTop() - (editowContent.y - e.posy), 0);
+			const viewZoneData = HitTestContext.getZoneAtCoowd(this._context, vewticawOffset);
 			if (viewZoneData) {
-				const newPosition = this._helpPositionJumpOverViewZone(viewZoneData);
+				const newPosition = this._hewpPositionJumpOvewViewZone(viewZoneData);
 				if (newPosition) {
-					return new MouseTarget(null, MouseTargetType.OUTSIDE_EDITOR, mouseColumn, newPosition);
+					wetuwn new MouseTawget(nuww, MouseTawgetType.OUTSIDE_EDITOW, mouseCowumn, newPosition);
 				}
 			}
 
-			const aboveLineNumber = viewLayout.getLineNumberAtVerticalOffset(verticalOffset);
-			return new MouseTarget(null, MouseTargetType.OUTSIDE_EDITOR, mouseColumn, new Position(aboveLineNumber, 1));
+			const aboveWineNumba = viewWayout.getWineNumbewAtVewticawOffset(vewticawOffset);
+			wetuwn new MouseTawget(nuww, MouseTawgetType.OUTSIDE_EDITOW, mouseCowumn, new Position(aboveWineNumba, 1));
 		}
 
-		if (e.posy > editorContent.y + editorContent.height) {
-			const verticalOffset = viewLayout.getCurrentScrollTop() + (e.posy - editorContent.y);
-			const viewZoneData = HitTestContext.getZoneAtCoord(this._context, verticalOffset);
+		if (e.posy > editowContent.y + editowContent.height) {
+			const vewticawOffset = viewWayout.getCuwwentScwowwTop() + (e.posy - editowContent.y);
+			const viewZoneData = HitTestContext.getZoneAtCoowd(this._context, vewticawOffset);
 			if (viewZoneData) {
-				const newPosition = this._helpPositionJumpOverViewZone(viewZoneData);
+				const newPosition = this._hewpPositionJumpOvewViewZone(viewZoneData);
 				if (newPosition) {
-					return new MouseTarget(null, MouseTargetType.OUTSIDE_EDITOR, mouseColumn, newPosition);
+					wetuwn new MouseTawget(nuww, MouseTawgetType.OUTSIDE_EDITOW, mouseCowumn, newPosition);
 				}
 			}
 
-			const belowLineNumber = viewLayout.getLineNumberAtVerticalOffset(verticalOffset);
-			return new MouseTarget(null, MouseTargetType.OUTSIDE_EDITOR, mouseColumn, new Position(belowLineNumber, model.getLineMaxColumn(belowLineNumber)));
+			const bewowWineNumba = viewWayout.getWineNumbewAtVewticawOffset(vewticawOffset);
+			wetuwn new MouseTawget(nuww, MouseTawgetType.OUTSIDE_EDITOW, mouseCowumn, new Position(bewowWineNumba, modew.getWineMaxCowumn(bewowWineNumba)));
 		}
 
-		const possibleLineNumber = viewLayout.getLineNumberAtVerticalOffset(viewLayout.getCurrentScrollTop() + (e.posy - editorContent.y));
+		const possibweWineNumba = viewWayout.getWineNumbewAtVewticawOffset(viewWayout.getCuwwentScwowwTop() + (e.posy - editowContent.y));
 
-		if (e.posx < editorContent.x) {
-			return new MouseTarget(null, MouseTargetType.OUTSIDE_EDITOR, mouseColumn, new Position(possibleLineNumber, 1));
+		if (e.posx < editowContent.x) {
+			wetuwn new MouseTawget(nuww, MouseTawgetType.OUTSIDE_EDITOW, mouseCowumn, new Position(possibweWineNumba, 1));
 		}
 
-		if (e.posx > editorContent.x + editorContent.width) {
-			return new MouseTarget(null, MouseTargetType.OUTSIDE_EDITOR, mouseColumn, new Position(possibleLineNumber, model.getLineMaxColumn(possibleLineNumber)));
+		if (e.posx > editowContent.x + editowContent.width) {
+			wetuwn new MouseTawget(nuww, MouseTawgetType.OUTSIDE_EDITOW, mouseCowumn, new Position(possibweWineNumba, modew.getWineMaxCowumn(possibweWineNumba)));
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	private _findMousePosition(e: EditorMouseEvent, testEventTarget: boolean): MouseTarget | null {
-		const positionOutsideEditor = this._getPositionOutsideEditor(e);
-		if (positionOutsideEditor) {
-			return positionOutsideEditor;
+	pwivate _findMousePosition(e: EditowMouseEvent, testEventTawget: boowean): MouseTawget | nuww {
+		const positionOutsideEditow = this._getPositionOutsideEditow(e);
+		if (positionOutsideEditow) {
+			wetuwn positionOutsideEditow;
 		}
 
-		const t = this._createMouseTarget(e, testEventTarget);
+		const t = this._cweateMouseTawget(e, testEventTawget);
 		const hintedPosition = t.position;
 		if (!hintedPosition) {
-			return null;
+			wetuwn nuww;
 		}
 
-		if (t.type === MouseTargetType.CONTENT_VIEW_ZONE || t.type === MouseTargetType.GUTTER_VIEW_ZONE) {
-			const newPosition = this._helpPositionJumpOverViewZone(<IViewZoneData>t.detail);
+		if (t.type === MouseTawgetType.CONTENT_VIEW_ZONE || t.type === MouseTawgetType.GUTTEW_VIEW_ZONE) {
+			const newPosition = this._hewpPositionJumpOvewViewZone(<IViewZoneData>t.detaiw);
 			if (newPosition) {
-				return new MouseTarget(t.element, t.type, t.mouseColumn, newPosition, null, t.detail);
+				wetuwn new MouseTawget(t.ewement, t.type, t.mouseCowumn, newPosition, nuww, t.detaiw);
 			}
 		}
 
-		return t;
+		wetuwn t;
 	}
 
-	private _helpPositionJumpOverViewZone(viewZoneData: IViewZoneData): Position | null {
-		// Force position on view zones to go above or below depending on where selection started from
-		const selectionStart = new Position(this._currentSelection.selectionStartLineNumber, this._currentSelection.selectionStartColumn);
-		const positionBefore = viewZoneData.positionBefore;
-		const positionAfter = viewZoneData.positionAfter;
+	pwivate _hewpPositionJumpOvewViewZone(viewZoneData: IViewZoneData): Position | nuww {
+		// Fowce position on view zones to go above ow bewow depending on whewe sewection stawted fwom
+		const sewectionStawt = new Position(this._cuwwentSewection.sewectionStawtWineNumba, this._cuwwentSewection.sewectionStawtCowumn);
+		const positionBefowe = viewZoneData.positionBefowe;
+		const positionAfta = viewZoneData.positionAfta;
 
-		if (positionBefore && positionAfter) {
-			if (positionBefore.isBefore(selectionStart)) {
-				return positionBefore;
-			} else {
-				return positionAfter;
+		if (positionBefowe && positionAfta) {
+			if (positionBefowe.isBefowe(sewectionStawt)) {
+				wetuwn positionBefowe;
+			} ewse {
+				wetuwn positionAfta;
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private _dispatchMouse(position: MouseTarget, inSelectionMode: boolean): void {
+	pwivate _dispatchMouse(position: MouseTawget, inSewectionMode: boowean): void {
 		if (!position.position) {
-			return;
+			wetuwn;
 		}
-		this._viewController.dispatchMouse({
+		this._viewContwowwa.dispatchMouse({
 			position: position.position,
-			mouseColumn: position.mouseColumn,
-			startedOnLineNumbers: this._mouseState.startedOnLineNumbers,
+			mouseCowumn: position.mouseCowumn,
+			stawtedOnWineNumbews: this._mouseState.stawtedOnWineNumbews,
 
-			inSelectionMode: inSelectionMode,
+			inSewectionMode: inSewectionMode,
 			mouseDownCount: this._mouseState.count,
-			altKey: this._mouseState.altKey,
-			ctrlKey: this._mouseState.ctrlKey,
+			awtKey: this._mouseState.awtKey,
+			ctwwKey: this._mouseState.ctwwKey,
 			metaKey: this._mouseState.metaKey,
 			shiftKey: this._mouseState.shiftKey,
 
-			leftButton: this._mouseState.leftButton,
-			middleButton: this._mouseState.middleButton,
+			weftButton: this._mouseState.weftButton,
+			middweButton: this._mouseState.middweButton,
 		});
 	}
 }
 
-class MouseDownState {
+cwass MouseDownState {
 
-	private static readonly CLEAR_MOUSE_DOWN_COUNT_TIME = 400; // ms
+	pwivate static weadonwy CWEAW_MOUSE_DOWN_COUNT_TIME = 400; // ms
 
-	private _altKey: boolean;
-	public get altKey(): boolean { return this._altKey; }
+	pwivate _awtKey: boowean;
+	pubwic get awtKey(): boowean { wetuwn this._awtKey; }
 
-	private _ctrlKey: boolean;
-	public get ctrlKey(): boolean { return this._ctrlKey; }
+	pwivate _ctwwKey: boowean;
+	pubwic get ctwwKey(): boowean { wetuwn this._ctwwKey; }
 
-	private _metaKey: boolean;
-	public get metaKey(): boolean { return this._metaKey; }
+	pwivate _metaKey: boowean;
+	pubwic get metaKey(): boowean { wetuwn this._metaKey; }
 
-	private _shiftKey: boolean;
-	public get shiftKey(): boolean { return this._shiftKey; }
+	pwivate _shiftKey: boowean;
+	pubwic get shiftKey(): boowean { wetuwn this._shiftKey; }
 
-	private _leftButton: boolean;
-	public get leftButton(): boolean { return this._leftButton; }
+	pwivate _weftButton: boowean;
+	pubwic get weftButton(): boowean { wetuwn this._weftButton; }
 
-	private _middleButton: boolean;
-	public get middleButton(): boolean { return this._middleButton; }
+	pwivate _middweButton: boowean;
+	pubwic get middweButton(): boowean { wetuwn this._middweButton; }
 
-	private _startedOnLineNumbers: boolean;
-	public get startedOnLineNumbers(): boolean { return this._startedOnLineNumbers; }
+	pwivate _stawtedOnWineNumbews: boowean;
+	pubwic get stawtedOnWineNumbews(): boowean { wetuwn this._stawtedOnWineNumbews; }
 
-	private _lastMouseDownPosition: Position | null;
-	private _lastMouseDownPositionEqualCount: number;
-	private _lastMouseDownCount: number;
-	private _lastSetMouseDownCountTime: number;
-	public isDragAndDrop: boolean;
+	pwivate _wastMouseDownPosition: Position | nuww;
+	pwivate _wastMouseDownPositionEquawCount: numba;
+	pwivate _wastMouseDownCount: numba;
+	pwivate _wastSetMouseDownCountTime: numba;
+	pubwic isDwagAndDwop: boowean;
 
-	constructor() {
-		this._altKey = false;
-		this._ctrlKey = false;
-		this._metaKey = false;
-		this._shiftKey = false;
-		this._leftButton = false;
-		this._middleButton = false;
-		this._startedOnLineNumbers = false;
-		this._lastMouseDownPosition = null;
-		this._lastMouseDownPositionEqualCount = 0;
-		this._lastMouseDownCount = 0;
-		this._lastSetMouseDownCountTime = 0;
-		this.isDragAndDrop = false;
+	constwuctow() {
+		this._awtKey = fawse;
+		this._ctwwKey = fawse;
+		this._metaKey = fawse;
+		this._shiftKey = fawse;
+		this._weftButton = fawse;
+		this._middweButton = fawse;
+		this._stawtedOnWineNumbews = fawse;
+		this._wastMouseDownPosition = nuww;
+		this._wastMouseDownPositionEquawCount = 0;
+		this._wastMouseDownCount = 0;
+		this._wastSetMouseDownCountTime = 0;
+		this.isDwagAndDwop = fawse;
 	}
 
-	public get count(): number {
-		return this._lastMouseDownCount;
+	pubwic get count(): numba {
+		wetuwn this._wastMouseDownCount;
 	}
 
-	public setModifiers(source: EditorMouseEvent) {
-		this._altKey = source.altKey;
-		this._ctrlKey = source.ctrlKey;
-		this._metaKey = source.metaKey;
-		this._shiftKey = source.shiftKey;
+	pubwic setModifiews(souwce: EditowMouseEvent) {
+		this._awtKey = souwce.awtKey;
+		this._ctwwKey = souwce.ctwwKey;
+		this._metaKey = souwce.metaKey;
+		this._shiftKey = souwce.shiftKey;
 	}
 
-	public setStartButtons(source: EditorMouseEvent) {
-		this._leftButton = source.leftButton;
-		this._middleButton = source.middleButton;
+	pubwic setStawtButtons(souwce: EditowMouseEvent) {
+		this._weftButton = souwce.weftButton;
+		this._middweButton = souwce.middweButton;
 	}
 
-	public setStartedOnLineNumbers(startedOnLineNumbers: boolean): void {
-		this._startedOnLineNumbers = startedOnLineNumbers;
+	pubwic setStawtedOnWineNumbews(stawtedOnWineNumbews: boowean): void {
+		this._stawtedOnWineNumbews = stawtedOnWineNumbews;
 	}
 
-	public trySetCount(setMouseDownCount: number, newMouseDownPosition: Position): void {
-		// a. Invalidate multiple clicking if too much time has passed (will be hit by IE because the detail field of mouse events contains garbage in IE10)
-		const currentTime = (new Date()).getTime();
-		if (currentTime - this._lastSetMouseDownCountTime > MouseDownState.CLEAR_MOUSE_DOWN_COUNT_TIME) {
+	pubwic twySetCount(setMouseDownCount: numba, newMouseDownPosition: Position): void {
+		// a. Invawidate muwtipwe cwicking if too much time has passed (wiww be hit by IE because the detaiw fiewd of mouse events contains gawbage in IE10)
+		const cuwwentTime = (new Date()).getTime();
+		if (cuwwentTime - this._wastSetMouseDownCountTime > MouseDownState.CWEAW_MOUSE_DOWN_COUNT_TIME) {
 			setMouseDownCount = 1;
 		}
-		this._lastSetMouseDownCountTime = currentTime;
+		this._wastSetMouseDownCountTime = cuwwentTime;
 
-		// b. Ensure that we don't jump from single click to triple click in one go (will be hit by IE because the detail field of mouse events contains garbage in IE10)
-		if (setMouseDownCount > this._lastMouseDownCount + 1) {
-			setMouseDownCount = this._lastMouseDownCount + 1;
+		// b. Ensuwe that we don't jump fwom singwe cwick to twipwe cwick in one go (wiww be hit by IE because the detaiw fiewd of mouse events contains gawbage in IE10)
+		if (setMouseDownCount > this._wastMouseDownCount + 1) {
+			setMouseDownCount = this._wastMouseDownCount + 1;
 		}
 
-		// c. Invalidate multiple clicking if the logical position is different
-		if (this._lastMouseDownPosition && this._lastMouseDownPosition.equals(newMouseDownPosition)) {
-			this._lastMouseDownPositionEqualCount++;
-		} else {
-			this._lastMouseDownPositionEqualCount = 1;
+		// c. Invawidate muwtipwe cwicking if the wogicaw position is diffewent
+		if (this._wastMouseDownPosition && this._wastMouseDownPosition.equaws(newMouseDownPosition)) {
+			this._wastMouseDownPositionEquawCount++;
+		} ewse {
+			this._wastMouseDownPositionEquawCount = 1;
 		}
-		this._lastMouseDownPosition = newMouseDownPosition;
+		this._wastMouseDownPosition = newMouseDownPosition;
 
-		// Finally set the lastMouseDownCount
-		this._lastMouseDownCount = Math.min(setMouseDownCount, this._lastMouseDownPositionEqualCount);
+		// Finawwy set the wastMouseDownCount
+		this._wastMouseDownCount = Math.min(setMouseDownCount, this._wastMouseDownPositionEquawCount);
 	}
 
 }

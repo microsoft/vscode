@@ -1,591 +1,591 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { getErrorMessage } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
-import { parse } from 'vs/base/common/json';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as network from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
-import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IPosition } from 'vs/editor/common/core/position';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import * as nls from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Extensions, getDefaultValue, IConfigurationRegistry, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
-import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browser/keybindingsEditorInput';
-import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, IKeybindingsEditorOptions, IKeybindingsEditorPane, IOpenSettingsOptions, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorOptions, USE_SPLIT_JSON_SETTING, validateSettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
-import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
-import { defaultKeybindingsContents, DefaultKeybindingsEditorModel, DefaultRawSettingsEditorModel, DefaultSettings, DefaultSettingsEditorModel, Settings2EditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+impowt { getEwwowMessage } fwom 'vs/base/common/ewwows';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { pawse } fwom 'vs/base/common/json';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as netwowk fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { CoweEditingCommands } fwom 'vs/editow/bwowsa/contwowwa/coweCommands';
+impowt { getCodeEditow, ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt * as nws fwom 'vs/nws';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ConfiguwationTawget, IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { Extensions, getDefauwtVawue, IConfiguwationWegistwy, OVEWWIDE_PWOPEWTY_PATTEWN } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { EditowWesowution } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { FiweOpewationEwwow, FiweOpewationWesuwt } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IEditowPane } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { SideBySideEditowInput } fwom 'vs/wowkbench/common/editow/sideBySideEditowInput';
+impowt { TextWesouwceEditowInput } fwom 'vs/wowkbench/common/editow/textWesouwceEditowInput';
+impowt { IJSONEditingSewvice } fwom 'vs/wowkbench/sewvices/configuwation/common/jsonEditing';
+impowt { GwoupDiwection, IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IEditowSewvice, SIDE_GWOUP, SIDE_GWOUP_TYPE } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { KeybindingsEditowInput } fwom 'vs/wowkbench/sewvices/pwefewences/bwowsa/keybindingsEditowInput';
+impowt { DEFAUWT_SETTINGS_EDITOW_SETTING, FOWDEW_SETTINGS_PATH, IKeybindingsEditowOptions, IKeybindingsEditowPane, IOpenSettingsOptions, IPwefewencesEditowModew, IPwefewencesSewvice, ISetting, ISettingsEditowOptions, USE_SPWIT_JSON_SETTING, vawidateSettingsEditowOptions } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
+impowt { SettingsEditow2Input } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewencesEditowInput';
+impowt { defauwtKeybindingsContents, DefauwtKeybindingsEditowModew, DefauwtWawSettingsEditowModew, DefauwtSettings, DefauwtSettingsEditowModew, Settings2EditowModew, SettingsEditowModew, WowkspaceConfiguwationEditowModew } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewencesModews';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { ITextEditowSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textEditowSewvice';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
 
-const emptyEditableSettingsContent = '{\n}';
+const emptyEditabweSettingsContent = '{\n}';
 
-export class PreferencesService extends Disposable implements IPreferencesService {
+expowt cwass PwefewencesSewvice extends Disposabwe impwements IPwefewencesSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _onDispose = this._register(new Emitter<void>());
+	pwivate weadonwy _onDispose = this._wegista(new Emitta<void>());
 
-	private _defaultUserSettingsUriCounter = 0;
-	private _defaultUserSettingsContentModel: DefaultSettings | undefined;
-	private _defaultWorkspaceSettingsUriCounter = 0;
-	private _defaultWorkspaceSettingsContentModel: DefaultSettings | undefined;
-	private _defaultFolderSettingsUriCounter = 0;
-	private _defaultFolderSettingsContentModel: DefaultSettings | undefined;
+	pwivate _defauwtUsewSettingsUwiCounta = 0;
+	pwivate _defauwtUsewSettingsContentModew: DefauwtSettings | undefined;
+	pwivate _defauwtWowkspaceSettingsUwiCounta = 0;
+	pwivate _defauwtWowkspaceSettingsContentModew: DefauwtSettings | undefined;
+	pwivate _defauwtFowdewSettingsUwiCounta = 0;
+	pwivate _defauwtFowdewSettingsContentModew: DefauwtSettings | undefined;
 
-	constructor(
-		@IEditorService private readonly editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@ITextFileService private readonly textFileService: ITextFileService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IModelService private readonly modelService: IModelService,
-		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
-		@IModeService private readonly modeService: IModeService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
-		@ICommandService private readonly commandService: ICommandService,
-		@ITextEditorService private readonly textEditorService: ITextEditorService
+	constwuctow(
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice,
+		@ITextFiweSewvice pwivate weadonwy textFiweSewvice: ITextFiweSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IEnviwonmentSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@ITextModewSewvice pwivate weadonwy textModewWesowvewSewvice: ITextModewSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IModewSewvice pwivate weadonwy modewSewvice: IModewSewvice,
+		@IJSONEditingSewvice pwivate weadonwy jsonEditingSewvice: IJSONEditingSewvice,
+		@IModeSewvice pwivate weadonwy modeSewvice: IModeSewvice,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@IWemoteAgentSewvice pwivate weadonwy wemoteAgentSewvice: IWemoteAgentSewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
+		@ITextEditowSewvice pwivate weadonwy textEditowSewvice: ITextEditowSewvice
 	) {
-		super();
-		// The default keybindings.json updates based on keyboard layouts, so here we make sure
-		// if a model has been given out we update it accordingly.
-		this._register(keybindingService.onDidUpdateKeybindings(() => {
-			const model = modelService.getModel(this.defaultKeybindingsResource);
-			if (!model) {
-				// model has not been given out => nothing to do
-				return;
+		supa();
+		// The defauwt keybindings.json updates based on keyboawd wayouts, so hewe we make suwe
+		// if a modew has been given out we update it accowdingwy.
+		this._wegista(keybindingSewvice.onDidUpdateKeybindings(() => {
+			const modew = modewSewvice.getModew(this.defauwtKeybindingsWesouwce);
+			if (!modew) {
+				// modew has not been given out => nothing to do
+				wetuwn;
 			}
-			modelService.updateModel(model, defaultKeybindingsContents(keybindingService));
+			modewSewvice.updateModew(modew, defauwtKeybindingsContents(keybindingSewvice));
 		}));
 	}
 
-	readonly defaultKeybindingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/keybindings.json' });
-	private readonly defaultSettingsRawResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/defaultSettings.json' });
+	weadonwy defauwtKeybindingsWesouwce = UWI.fwom({ scheme: netwowk.Schemas.vscode, authowity: 'defauwtsettings', path: '/keybindings.json' });
+	pwivate weadonwy defauwtSettingsWawWesouwce = UWI.fwom({ scheme: netwowk.Schemas.vscode, authowity: 'defauwtsettings', path: '/defauwtSettings.json' });
 
-	get userSettingsResource(): URI {
-		return this.environmentService.settingsResource;
+	get usewSettingsWesouwce(): UWI {
+		wetuwn this.enviwonmentSewvice.settingsWesouwce;
 	}
 
-	get workspaceSettingsResource(): URI | null {
-		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			return null;
+	get wowkspaceSettingsWesouwce(): UWI | nuww {
+		if (this.contextSewvice.getWowkbenchState() === WowkbenchState.EMPTY) {
+			wetuwn nuww;
 		}
-		const workspace = this.contextService.getWorkspace();
-		return workspace.configuration || workspace.folders[0].toResource(FOLDER_SETTINGS_PATH);
+		const wowkspace = this.contextSewvice.getWowkspace();
+		wetuwn wowkspace.configuwation || wowkspace.fowdews[0].toWesouwce(FOWDEW_SETTINGS_PATH);
 	}
 
-	get settingsEditor2Input(): SettingsEditor2Input {
-		return this.instantiationService.createInstance(SettingsEditor2Input);
+	get settingsEditow2Input(): SettingsEditow2Input {
+		wetuwn this.instantiationSewvice.cweateInstance(SettingsEditow2Input);
 	}
 
-	getFolderSettingsResource(resource: URI): URI | null {
-		const folder = this.contextService.getWorkspaceFolder(resource);
-		return folder ? folder.toResource(FOLDER_SETTINGS_PATH) : null;
+	getFowdewSettingsWesouwce(wesouwce: UWI): UWI | nuww {
+		const fowda = this.contextSewvice.getWowkspaceFowda(wesouwce);
+		wetuwn fowda ? fowda.toWesouwce(FOWDEW_SETTINGS_PATH) : nuww;
 	}
 
-	resolveModel(uri: URI): ITextModel | null {
-		if (this.isDefaultSettingsResource(uri)) {
+	wesowveModew(uwi: UWI): ITextModew | nuww {
+		if (this.isDefauwtSettingsWesouwce(uwi)) {
 
-			const target = this.getConfigurationTargetFromDefaultSettingsResource(uri);
-			const languageSelection = this.modeService.create('jsonc');
-			const model = this._register(this.modelService.createModel('', languageSelection, uri));
+			const tawget = this.getConfiguwationTawgetFwomDefauwtSettingsWesouwce(uwi);
+			const wanguageSewection = this.modeSewvice.cweate('jsonc');
+			const modew = this._wegista(this.modewSewvice.cweateModew('', wanguageSewection, uwi));
 
-			let defaultSettings: DefaultSettings | undefined;
-			this.configurationService.onDidChangeConfiguration(e => {
-				if (e.source === ConfigurationTarget.DEFAULT) {
-					const model = this.modelService.getModel(uri);
-					if (!model) {
-						// model has not been given out => nothing to do
-						return;
+			wet defauwtSettings: DefauwtSettings | undefined;
+			this.configuwationSewvice.onDidChangeConfiguwation(e => {
+				if (e.souwce === ConfiguwationTawget.DEFAUWT) {
+					const modew = this.modewSewvice.getModew(uwi);
+					if (!modew) {
+						// modew has not been given out => nothing to do
+						wetuwn;
 					}
-					defaultSettings = this.getDefaultSettings(target);
-					this.modelService.updateModel(model, defaultSettings.getContent(true));
-					defaultSettings._onDidChange.fire();
+					defauwtSettings = this.getDefauwtSettings(tawget);
+					this.modewSewvice.updateModew(modew, defauwtSettings.getContent(twue));
+					defauwtSettings._onDidChange.fiwe();
 				}
 			});
 
-			// Check if Default settings is already created and updated in above promise
-			if (!defaultSettings) {
-				defaultSettings = this.getDefaultSettings(target);
-				this.modelService.updateModel(model, defaultSettings.getContent(true));
+			// Check if Defauwt settings is awweady cweated and updated in above pwomise
+			if (!defauwtSettings) {
+				defauwtSettings = this.getDefauwtSettings(tawget);
+				this.modewSewvice.updateModew(modew, defauwtSettings.getContent(twue));
 			}
 
-			return model;
+			wetuwn modew;
 		}
 
-		if (this.defaultSettingsRawResource.toString() === uri.toString()) {
-			const defaultRawSettingsEditorModel = this.instantiationService.createInstance(DefaultRawSettingsEditorModel, this.getDefaultSettings(ConfigurationTarget.USER_LOCAL));
-			const languageSelection = this.modeService.create('jsonc');
-			const model = this._register(this.modelService.createModel(defaultRawSettingsEditorModel.content, languageSelection, uri));
-			return model;
+		if (this.defauwtSettingsWawWesouwce.toStwing() === uwi.toStwing()) {
+			const defauwtWawSettingsEditowModew = this.instantiationSewvice.cweateInstance(DefauwtWawSettingsEditowModew, this.getDefauwtSettings(ConfiguwationTawget.USEW_WOCAW));
+			const wanguageSewection = this.modeSewvice.cweate('jsonc');
+			const modew = this._wegista(this.modewSewvice.cweateModew(defauwtWawSettingsEditowModew.content, wanguageSewection, uwi));
+			wetuwn modew;
 		}
 
-		if (this.defaultKeybindingsResource.toString() === uri.toString()) {
-			const defaultKeybindingsEditorModel = this.instantiationService.createInstance(DefaultKeybindingsEditorModel, uri);
-			const languageSelection = this.modeService.create('jsonc');
-			const model = this._register(this.modelService.createModel(defaultKeybindingsEditorModel.content, languageSelection, uri));
-			return model;
+		if (this.defauwtKeybindingsWesouwce.toStwing() === uwi.toStwing()) {
+			const defauwtKeybindingsEditowModew = this.instantiationSewvice.cweateInstance(DefauwtKeybindingsEditowModew, uwi);
+			const wanguageSewection = this.modeSewvice.cweate('jsonc');
+			const modew = this._wegista(this.modewSewvice.cweateModew(defauwtKeybindingsEditowModew.content, wanguageSewection, uwi));
+			wetuwn modew;
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	public async createPreferencesEditorModel(uri: URI): Promise<IPreferencesEditorModel<ISetting> | null> {
-		if (this.isDefaultSettingsResource(uri)) {
-			return this.createDefaultSettingsEditorModel(uri);
+	pubwic async cweatePwefewencesEditowModew(uwi: UWI): Pwomise<IPwefewencesEditowModew<ISetting> | nuww> {
+		if (this.isDefauwtSettingsWesouwce(uwi)) {
+			wetuwn this.cweateDefauwtSettingsEditowModew(uwi);
 		}
 
-		if (this.userSettingsResource.toString() === uri.toString()) {
-			return this.createEditableSettingsEditorModel(ConfigurationTarget.USER_LOCAL, uri);
+		if (this.usewSettingsWesouwce.toStwing() === uwi.toStwing()) {
+			wetuwn this.cweateEditabweSettingsEditowModew(ConfiguwationTawget.USEW_WOCAW, uwi);
 		}
 
-		const workspaceSettingsUri = await this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE);
-		if (workspaceSettingsUri && workspaceSettingsUri.toString() === uri.toString()) {
-			return this.createEditableSettingsEditorModel(ConfigurationTarget.WORKSPACE, workspaceSettingsUri);
+		const wowkspaceSettingsUwi = await this.getEditabweSettingsUWI(ConfiguwationTawget.WOWKSPACE);
+		if (wowkspaceSettingsUwi && wowkspaceSettingsUwi.toStwing() === uwi.toStwing()) {
+			wetuwn this.cweateEditabweSettingsEditowModew(ConfiguwationTawget.WOWKSPACE, wowkspaceSettingsUwi);
 		}
 
-		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			const settingsUri = await this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE_FOLDER, uri);
-			if (settingsUri && settingsUri.toString() === uri.toString()) {
-				return this.createEditableSettingsEditorModel(ConfigurationTarget.WORKSPACE_FOLDER, uri);
+		if (this.contextSewvice.getWowkbenchState() === WowkbenchState.WOWKSPACE) {
+			const settingsUwi = await this.getEditabweSettingsUWI(ConfiguwationTawget.WOWKSPACE_FOWDa, uwi);
+			if (settingsUwi && settingsUwi.toStwing() === uwi.toStwing()) {
+				wetuwn this.cweateEditabweSettingsEditowModew(ConfiguwationTawget.WOWKSPACE_FOWDa, uwi);
 			}
 		}
 
-		const remoteEnvironment = await this.remoteAgentService.getEnvironment();
-		const remoteSettingsUri = remoteEnvironment ? remoteEnvironment.settingsPath : null;
-		if (remoteSettingsUri && remoteSettingsUri.toString() === uri.toString()) {
-			return this.createEditableSettingsEditorModel(ConfigurationTarget.USER_REMOTE, uri);
+		const wemoteEnviwonment = await this.wemoteAgentSewvice.getEnviwonment();
+		const wemoteSettingsUwi = wemoteEnviwonment ? wemoteEnviwonment.settingsPath : nuww;
+		if (wemoteSettingsUwi && wemoteSettingsUwi.toStwing() === uwi.toStwing()) {
+			wetuwn this.cweateEditabweSettingsEditowModew(ConfiguwationTawget.USEW_WEMOTE, uwi);
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	openRawDefaultSettings(): Promise<IEditorPane | undefined> {
-		return this.editorService.openEditor({ resource: this.defaultSettingsRawResource });
+	openWawDefauwtSettings(): Pwomise<IEditowPane | undefined> {
+		wetuwn this.editowSewvice.openEditow({ wesouwce: this.defauwtSettingsWawWesouwce });
 	}
 
-	openRawUserSettings(): Promise<IEditorPane | undefined> {
-		return this.editorService.openEditor({ resource: this.userSettingsResource });
+	openWawUsewSettings(): Pwomise<IEditowPane | undefined> {
+		wetuwn this.editowSewvice.openEditow({ wesouwce: this.usewSettingsWesouwce });
 	}
 
-	private shouldOpenJsonByDefault(): boolean {
-		return this.configurationService.getValue('workbench.settings.editor') === 'json';
+	pwivate shouwdOpenJsonByDefauwt(): boowean {
+		wetuwn this.configuwationSewvice.getVawue('wowkbench.settings.editow') === 'json';
 	}
 
-	openSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
+	openSettings(options: IOpenSettingsOptions = {}): Pwomise<IEditowPane | undefined> {
 		options = {
 			...options,
-			target: ConfigurationTarget.USER_LOCAL,
+			tawget: ConfiguwationTawget.USEW_WOCAW,
 		};
-		if (options.query) {
-			options.jsonEditor = false;
+		if (options.quewy) {
+			options.jsonEditow = fawse;
 		}
 
-		return this.open(this.userSettingsResource, options);
+		wetuwn this.open(this.usewSettingsWesouwce, options);
 	}
 
-	private open(settingsResource: URI, options: IOpenSettingsOptions): Promise<IEditorPane | undefined> {
+	pwivate open(settingsWesouwce: UWI, options: IOpenSettingsOptions): Pwomise<IEditowPane | undefined> {
 		options = {
 			...options,
-			jsonEditor: options.jsonEditor ?? this.shouldOpenJsonByDefault()
+			jsonEditow: options.jsonEditow ?? this.shouwdOpenJsonByDefauwt()
 		};
 
-		return options.jsonEditor ?
-			this.openSettingsJson(settingsResource, options) :
+		wetuwn options.jsonEditow ?
+			this.openSettingsJson(settingsWesouwce, options) :
 			this.openSettings2(options);
 	}
 
-	private async openSettings2(options: IOpenSettingsOptions): Promise<IEditorPane> {
-		const input = this.settingsEditor2Input;
+	pwivate async openSettings2(options: IOpenSettingsOptions): Pwomise<IEditowPane> {
+		const input = this.settingsEditow2Input;
 		options = {
 			...options,
-			focusSearch: true
+			focusSeawch: twue
 		};
-		await this.editorService.openEditor(input, validateSettingsEditorOptions(options), options.openToSide ? SIDE_GROUP : undefined);
-		return this.editorGroupService.activeGroup.activeEditorPane!;
+		await this.editowSewvice.openEditow(input, vawidateSettingsEditowOptions(options), options.openToSide ? SIDE_GWOUP : undefined);
+		wetuwn this.editowGwoupSewvice.activeGwoup.activeEditowPane!;
 	}
 
-	openUserSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
+	openUsewSettings(options: IOpenSettingsOptions = {}): Pwomise<IEditowPane | undefined> {
 		options = {
 			...options,
-			target: ConfigurationTarget.USER_LOCAL,
+			tawget: ConfiguwationTawget.USEW_WOCAW,
 		};
-		return this.open(this.userSettingsResource, options);
+		wetuwn this.open(this.usewSettingsWesouwce, options);
 	}
 
-	async openRemoteSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
-		const environment = await this.remoteAgentService.getEnvironment();
-		if (environment) {
+	async openWemoteSettings(options: IOpenSettingsOptions = {}): Pwomise<IEditowPane | undefined> {
+		const enviwonment = await this.wemoteAgentSewvice.getEnviwonment();
+		if (enviwonment) {
 			options = {
 				...options,
-				target: ConfigurationTarget.USER_REMOTE,
+				tawget: ConfiguwationTawget.USEW_WEMOTE,
 			};
 
-			this.open(environment.settingsPath, options);
+			this.open(enviwonment.settingsPath, options);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	openWorkspaceSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
-		if (!this.workspaceSettingsResource) {
-			this.notificationService.info(nls.localize('openFolderFirst', "Open a folder or workspace first to create workspace or folder settings."));
-			return Promise.reject(null);
+	openWowkspaceSettings(options: IOpenSettingsOptions = {}): Pwomise<IEditowPane | undefined> {
+		if (!this.wowkspaceSettingsWesouwce) {
+			this.notificationSewvice.info(nws.wocawize('openFowdewFiwst', "Open a fowda ow wowkspace fiwst to cweate wowkspace ow fowda settings."));
+			wetuwn Pwomise.weject(nuww);
 		}
 
 		options = {
 			...options,
-			target: ConfigurationTarget.WORKSPACE
+			tawget: ConfiguwationTawget.WOWKSPACE
 		};
-		return this.open(this.workspaceSettingsResource, options);
+		wetuwn this.open(this.wowkspaceSettingsWesouwce, options);
 	}
 
-	async openFolderSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
+	async openFowdewSettings(options: IOpenSettingsOptions = {}): Pwomise<IEditowPane | undefined> {
 		options = {
 			...options,
-			target: ConfigurationTarget.WORKSPACE_FOLDER
+			tawget: ConfiguwationTawget.WOWKSPACE_FOWDa
 		};
 
-		if (!options.folderUri) {
-			throw new Error(`Missing folder URI`);
+		if (!options.fowdewUwi) {
+			thwow new Ewwow(`Missing fowda UWI`);
 		}
 
-		const folderSettingsUri = await this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE_FOLDER, options.folderUri);
-		if (!folderSettingsUri) {
-			throw new Error(`Invalid folder URI - ${options.folderUri.toString()}`);
+		const fowdewSettingsUwi = await this.getEditabweSettingsUWI(ConfiguwationTawget.WOWKSPACE_FOWDa, options.fowdewUwi);
+		if (!fowdewSettingsUwi) {
+			thwow new Ewwow(`Invawid fowda UWI - ${options.fowdewUwi.toStwing()}`);
 		}
 
-		return this.open(folderSettingsUri, options);
+		wetuwn this.open(fowdewSettingsUwi, options);
 	}
 
-	async openGlobalKeybindingSettings(textual: boolean, options?: IKeybindingsEditorOptions): Promise<void> {
-		type OpenKeybindingsClassification = {
-			textual: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+	async openGwobawKeybindingSettings(textuaw: boowean, options?: IKeybindingsEditowOptions): Pwomise<void> {
+		type OpenKeybindingsCwassification = {
+			textuaw: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
 		};
-		this.telemetryService.publicLog2<{ textual: boolean }, OpenKeybindingsClassification>('openKeybindings', { textual });
+		this.tewemetwySewvice.pubwicWog2<{ textuaw: boowean }, OpenKeybindingsCwassification>('openKeybindings', { textuaw });
 
-		options = { pinned: true, revealIfOpened: true, ...options };
-		if (textual) {
-			const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to override the defaults") + '\n[\n]';
-			const editableKeybindings = this.environmentService.keybindingsResource;
-			const openDefaultKeybindings = !!this.configurationService.getValue('workbench.settings.openDefaultKeybindings');
+		options = { pinned: twue, weveawIfOpened: twue, ...options };
+		if (textuaw) {
+			const emptyContents = '// ' + nws.wocawize('emptyKeybindingsHeada', "Pwace youw key bindings in this fiwe to ovewwide the defauwts") + '\n[\n]';
+			const editabweKeybindings = this.enviwonmentSewvice.keybindingsWesouwce;
+			const openDefauwtKeybindings = !!this.configuwationSewvice.getVawue('wowkbench.settings.openDefauwtKeybindings');
 
-			// Create as needed and open in editor
-			await this.createIfNotExists(editableKeybindings, emptyContents);
-			if (openDefaultKeybindings) {
-				const activeEditorGroup = this.editorGroupService.activeGroup;
-				const sideEditorGroup = this.editorGroupService.addGroup(activeEditorGroup.id, GroupDirection.RIGHT);
-				await Promise.all([
-					this.editorService.openEditor({ resource: this.defaultKeybindingsResource, options: { pinned: true, preserveFocus: true, revealIfOpened: true, override: EditorResolution.DISABLED }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }),
-					this.editorService.openEditor({ resource: editableKeybindings, options }, sideEditorGroup.id)
+			// Cweate as needed and open in editow
+			await this.cweateIfNotExists(editabweKeybindings, emptyContents);
+			if (openDefauwtKeybindings) {
+				const activeEditowGwoup = this.editowGwoupSewvice.activeGwoup;
+				const sideEditowGwoup = this.editowGwoupSewvice.addGwoup(activeEditowGwoup.id, GwoupDiwection.WIGHT);
+				await Pwomise.aww([
+					this.editowSewvice.openEditow({ wesouwce: this.defauwtKeybindingsWesouwce, options: { pinned: twue, pwesewveFocus: twue, weveawIfOpened: twue, ovewwide: EditowWesowution.DISABWED }, wabew: nws.wocawize('defauwtKeybindings', "Defauwt Keybindings"), descwiption: '' }),
+					this.editowSewvice.openEditow({ wesouwce: editabweKeybindings, options }, sideEditowGwoup.id)
 				]);
-			} else {
-				await this.editorService.openEditor({ resource: editableKeybindings, options });
+			} ewse {
+				await this.editowSewvice.openEditow({ wesouwce: editabweKeybindings, options });
 			}
 
-		} else {
-			const editor = (await this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { ...options, override: EditorResolution.DISABLED })) as IKeybindingsEditorPane;
-			if (options.query) {
-				editor.search(options.query);
+		} ewse {
+			const editow = (await this.editowSewvice.openEditow(this.instantiationSewvice.cweateInstance(KeybindingsEditowInput), { ...options, ovewwide: EditowWesowution.DISABWED })) as IKeybindingsEditowPane;
+			if (options.quewy) {
+				editow.seawch(options.quewy);
 			}
 		}
 
 	}
 
-	openDefaultKeybindingsFile(): Promise<IEditorPane | undefined> {
-		return this.editorService.openEditor({ resource: this.defaultKeybindingsResource, label: nls.localize('defaultKeybindings', "Default Keybindings") });
+	openDefauwtKeybindingsFiwe(): Pwomise<IEditowPane | undefined> {
+		wetuwn this.editowSewvice.openEditow({ wesouwce: this.defauwtKeybindingsWesouwce, wabew: nws.wocawize('defauwtKeybindings', "Defauwt Keybindings") });
 	}
 
-	private async openSettingsJson(resource: URI, options: IOpenSettingsOptions): Promise<IEditorPane | undefined> {
-		const group = options?.openToSide ? SIDE_GROUP : undefined;
-		const editor = await this.doOpenSettingsJson(resource, options, group);
-		if (editor && options?.revealSetting) {
-			await this.revealSetting(options.revealSetting.key, !!options.revealSetting.edit, editor, resource);
+	pwivate async openSettingsJson(wesouwce: UWI, options: IOpenSettingsOptions): Pwomise<IEditowPane | undefined> {
+		const gwoup = options?.openToSide ? SIDE_GWOUP : undefined;
+		const editow = await this.doOpenSettingsJson(wesouwce, options, gwoup);
+		if (editow && options?.weveawSetting) {
+			await this.weveawSetting(options.weveawSetting.key, !!options.weveawSetting.edit, editow, wesouwce);
 		}
-		return editor;
+		wetuwn editow;
 	}
 
-	private async doOpenSettingsJson(resource: URI, options: ISettingsEditorOptions, group?: SIDE_GROUP_TYPE): Promise<IEditorPane | undefined> {
-		const openSplitJSON = !!this.configurationService.getValue(USE_SPLIT_JSON_SETTING);
-		const openDefaultSettings = !!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING);
-		if (openSplitJSON || openDefaultSettings) {
-			return this.doOpenSplitJSON(resource, options, group);
-		}
-
-		const configurationTarget = options?.target ?? ConfigurationTarget.USER;
-		const editableSettingsEditorInput = await this.getOrCreateEditableSettingsEditorInput(configurationTarget, resource);
-		options = { ...options, pinned: true };
-		return await this.editorService.openEditor(editableSettingsEditorInput, validateSettingsEditorOptions(options), group);
-	}
-
-	private async doOpenSplitJSON(resource: URI, options: ISettingsEditorOptions = {}, group?: SIDE_GROUP_TYPE): Promise<IEditorPane | undefined> {
-		const configurationTarget = options.target ?? ConfigurationTarget.USER;
-		await this.createSettingsIfNotExists(configurationTarget, resource);
-		const preferencesEditorInput = this.createSplitJsonEditorInput(configurationTarget, resource);
-		options = { ...options, pinned: true };
-		return this.editorService.openEditor(preferencesEditorInput, validateSettingsEditorOptions(options), group);
-	}
-
-	public createSplitJsonEditorInput(configurationTarget: ConfigurationTarget, resource: URI): EditorInput {
-		const editableSettingsEditorInput = this.textEditorService.createTextEditor({ resource });
-		const defaultPreferencesEditorInput = this.instantiationService.createInstance(TextResourceEditorInput, this.getDefaultSettingsResource(configurationTarget), undefined, undefined, undefined, undefined);
-		return this.instantiationService.createInstance(SideBySideEditorInput, editableSettingsEditorInput.getName(), undefined, defaultPreferencesEditorInput, editableSettingsEditorInput);
-	}
-
-	public createSettings2EditorModel(): Settings2EditorModel {
-		return this.instantiationService.createInstance(Settings2EditorModel, this.getDefaultSettings(ConfigurationTarget.USER_LOCAL));
-	}
-
-	private getConfigurationTargetFromDefaultSettingsResource(uri: URI) {
-		return this.isDefaultWorkspaceSettingsResource(uri) ?
-			ConfigurationTarget.WORKSPACE :
-			this.isDefaultFolderSettingsResource(uri) ?
-				ConfigurationTarget.WORKSPACE_FOLDER :
-				ConfigurationTarget.USER_LOCAL;
-	}
-
-	private isDefaultSettingsResource(uri: URI): boolean {
-		return this.isDefaultUserSettingsResource(uri) || this.isDefaultWorkspaceSettingsResource(uri) || this.isDefaultFolderSettingsResource(uri);
-	}
-
-	private isDefaultUserSettingsResource(uri: URI): boolean {
-		return uri.authority === 'defaultsettings' && uri.scheme === network.Schemas.vscode && !!uri.path.match(/\/(\d+\/)?settings\.json$/);
-	}
-
-	private isDefaultWorkspaceSettingsResource(uri: URI): boolean {
-		return uri.authority === 'defaultsettings' && uri.scheme === network.Schemas.vscode && !!uri.path.match(/\/(\d+\/)?workspaceSettings\.json$/);
-	}
-
-	private isDefaultFolderSettingsResource(uri: URI): boolean {
-		return uri.authority === 'defaultsettings' && uri.scheme === network.Schemas.vscode && !!uri.path.match(/\/(\d+\/)?resourceSettings\.json$/);
-	}
-
-	private getDefaultSettingsResource(configurationTarget: ConfigurationTarget): URI {
-		switch (configurationTarget) {
-			case ConfigurationTarget.WORKSPACE:
-				return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: `/${this._defaultWorkspaceSettingsUriCounter++}/workspaceSettings.json` });
-			case ConfigurationTarget.WORKSPACE_FOLDER:
-				return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: `/${this._defaultFolderSettingsUriCounter++}/resourceSettings.json` });
-		}
-		return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: `/${this._defaultUserSettingsUriCounter++}/settings.json` });
-	}
-
-	private async getOrCreateEditableSettingsEditorInput(target: ConfigurationTarget, resource: URI): Promise<EditorInput> {
-		await this.createSettingsIfNotExists(target, resource);
-		return this.textEditorService.createTextEditor({ resource });
-	}
-
-	private async createEditableSettingsEditorModel(configurationTarget: ConfigurationTarget, settingsUri: URI): Promise<SettingsEditorModel> {
-		const workspace = this.contextService.getWorkspace();
-		if (workspace.configuration && workspace.configuration.toString() === settingsUri.toString()) {
-			const reference = await this.textModelResolverService.createModelReference(settingsUri);
-			return this.instantiationService.createInstance(WorkspaceConfigurationEditorModel, reference, configurationTarget);
+	pwivate async doOpenSettingsJson(wesouwce: UWI, options: ISettingsEditowOptions, gwoup?: SIDE_GWOUP_TYPE): Pwomise<IEditowPane | undefined> {
+		const openSpwitJSON = !!this.configuwationSewvice.getVawue(USE_SPWIT_JSON_SETTING);
+		const openDefauwtSettings = !!this.configuwationSewvice.getVawue(DEFAUWT_SETTINGS_EDITOW_SETTING);
+		if (openSpwitJSON || openDefauwtSettings) {
+			wetuwn this.doOpenSpwitJSON(wesouwce, options, gwoup);
 		}
 
-		const reference = await this.textModelResolverService.createModelReference(settingsUri);
-		return this.instantiationService.createInstance(SettingsEditorModel, reference, configurationTarget);
+		const configuwationTawget = options?.tawget ?? ConfiguwationTawget.USa;
+		const editabweSettingsEditowInput = await this.getOwCweateEditabweSettingsEditowInput(configuwationTawget, wesouwce);
+		options = { ...options, pinned: twue };
+		wetuwn await this.editowSewvice.openEditow(editabweSettingsEditowInput, vawidateSettingsEditowOptions(options), gwoup);
 	}
 
-	private async createDefaultSettingsEditorModel(defaultSettingsUri: URI): Promise<DefaultSettingsEditorModel> {
-		const reference = await this.textModelResolverService.createModelReference(defaultSettingsUri);
-		const target = this.getConfigurationTargetFromDefaultSettingsResource(defaultSettingsUri);
-		return this.instantiationService.createInstance(DefaultSettingsEditorModel, defaultSettingsUri, reference, this.getDefaultSettings(target));
+	pwivate async doOpenSpwitJSON(wesouwce: UWI, options: ISettingsEditowOptions = {}, gwoup?: SIDE_GWOUP_TYPE): Pwomise<IEditowPane | undefined> {
+		const configuwationTawget = options.tawget ?? ConfiguwationTawget.USa;
+		await this.cweateSettingsIfNotExists(configuwationTawget, wesouwce);
+		const pwefewencesEditowInput = this.cweateSpwitJsonEditowInput(configuwationTawget, wesouwce);
+		options = { ...options, pinned: twue };
+		wetuwn this.editowSewvice.openEditow(pwefewencesEditowInput, vawidateSettingsEditowOptions(options), gwoup);
 	}
 
-	private getDefaultSettings(target: ConfigurationTarget): DefaultSettings {
-		if (target === ConfigurationTarget.WORKSPACE) {
-			if (!this._defaultWorkspaceSettingsContentModel) {
-				this._defaultWorkspaceSettingsContentModel = new DefaultSettings(this.getMostCommonlyUsedSettings(), target);
+	pubwic cweateSpwitJsonEditowInput(configuwationTawget: ConfiguwationTawget, wesouwce: UWI): EditowInput {
+		const editabweSettingsEditowInput = this.textEditowSewvice.cweateTextEditow({ wesouwce });
+		const defauwtPwefewencesEditowInput = this.instantiationSewvice.cweateInstance(TextWesouwceEditowInput, this.getDefauwtSettingsWesouwce(configuwationTawget), undefined, undefined, undefined, undefined);
+		wetuwn this.instantiationSewvice.cweateInstance(SideBySideEditowInput, editabweSettingsEditowInput.getName(), undefined, defauwtPwefewencesEditowInput, editabweSettingsEditowInput);
+	}
+
+	pubwic cweateSettings2EditowModew(): Settings2EditowModew {
+		wetuwn this.instantiationSewvice.cweateInstance(Settings2EditowModew, this.getDefauwtSettings(ConfiguwationTawget.USEW_WOCAW));
+	}
+
+	pwivate getConfiguwationTawgetFwomDefauwtSettingsWesouwce(uwi: UWI) {
+		wetuwn this.isDefauwtWowkspaceSettingsWesouwce(uwi) ?
+			ConfiguwationTawget.WOWKSPACE :
+			this.isDefauwtFowdewSettingsWesouwce(uwi) ?
+				ConfiguwationTawget.WOWKSPACE_FOWDa :
+				ConfiguwationTawget.USEW_WOCAW;
+	}
+
+	pwivate isDefauwtSettingsWesouwce(uwi: UWI): boowean {
+		wetuwn this.isDefauwtUsewSettingsWesouwce(uwi) || this.isDefauwtWowkspaceSettingsWesouwce(uwi) || this.isDefauwtFowdewSettingsWesouwce(uwi);
+	}
+
+	pwivate isDefauwtUsewSettingsWesouwce(uwi: UWI): boowean {
+		wetuwn uwi.authowity === 'defauwtsettings' && uwi.scheme === netwowk.Schemas.vscode && !!uwi.path.match(/\/(\d+\/)?settings\.json$/);
+	}
+
+	pwivate isDefauwtWowkspaceSettingsWesouwce(uwi: UWI): boowean {
+		wetuwn uwi.authowity === 'defauwtsettings' && uwi.scheme === netwowk.Schemas.vscode && !!uwi.path.match(/\/(\d+\/)?wowkspaceSettings\.json$/);
+	}
+
+	pwivate isDefauwtFowdewSettingsWesouwce(uwi: UWI): boowean {
+		wetuwn uwi.authowity === 'defauwtsettings' && uwi.scheme === netwowk.Schemas.vscode && !!uwi.path.match(/\/(\d+\/)?wesouwceSettings\.json$/);
+	}
+
+	pwivate getDefauwtSettingsWesouwce(configuwationTawget: ConfiguwationTawget): UWI {
+		switch (configuwationTawget) {
+			case ConfiguwationTawget.WOWKSPACE:
+				wetuwn UWI.fwom({ scheme: netwowk.Schemas.vscode, authowity: 'defauwtsettings', path: `/${this._defauwtWowkspaceSettingsUwiCounta++}/wowkspaceSettings.json` });
+			case ConfiguwationTawget.WOWKSPACE_FOWDa:
+				wetuwn UWI.fwom({ scheme: netwowk.Schemas.vscode, authowity: 'defauwtsettings', path: `/${this._defauwtFowdewSettingsUwiCounta++}/wesouwceSettings.json` });
+		}
+		wetuwn UWI.fwom({ scheme: netwowk.Schemas.vscode, authowity: 'defauwtsettings', path: `/${this._defauwtUsewSettingsUwiCounta++}/settings.json` });
+	}
+
+	pwivate async getOwCweateEditabweSettingsEditowInput(tawget: ConfiguwationTawget, wesouwce: UWI): Pwomise<EditowInput> {
+		await this.cweateSettingsIfNotExists(tawget, wesouwce);
+		wetuwn this.textEditowSewvice.cweateTextEditow({ wesouwce });
+	}
+
+	pwivate async cweateEditabweSettingsEditowModew(configuwationTawget: ConfiguwationTawget, settingsUwi: UWI): Pwomise<SettingsEditowModew> {
+		const wowkspace = this.contextSewvice.getWowkspace();
+		if (wowkspace.configuwation && wowkspace.configuwation.toStwing() === settingsUwi.toStwing()) {
+			const wefewence = await this.textModewWesowvewSewvice.cweateModewWefewence(settingsUwi);
+			wetuwn this.instantiationSewvice.cweateInstance(WowkspaceConfiguwationEditowModew, wefewence, configuwationTawget);
+		}
+
+		const wefewence = await this.textModewWesowvewSewvice.cweateModewWefewence(settingsUwi);
+		wetuwn this.instantiationSewvice.cweateInstance(SettingsEditowModew, wefewence, configuwationTawget);
+	}
+
+	pwivate async cweateDefauwtSettingsEditowModew(defauwtSettingsUwi: UWI): Pwomise<DefauwtSettingsEditowModew> {
+		const wefewence = await this.textModewWesowvewSewvice.cweateModewWefewence(defauwtSettingsUwi);
+		const tawget = this.getConfiguwationTawgetFwomDefauwtSettingsWesouwce(defauwtSettingsUwi);
+		wetuwn this.instantiationSewvice.cweateInstance(DefauwtSettingsEditowModew, defauwtSettingsUwi, wefewence, this.getDefauwtSettings(tawget));
+	}
+
+	pwivate getDefauwtSettings(tawget: ConfiguwationTawget): DefauwtSettings {
+		if (tawget === ConfiguwationTawget.WOWKSPACE) {
+			if (!this._defauwtWowkspaceSettingsContentModew) {
+				this._defauwtWowkspaceSettingsContentModew = new DefauwtSettings(this.getMostCommonwyUsedSettings(), tawget);
 			}
-			return this._defaultWorkspaceSettingsContentModel;
+			wetuwn this._defauwtWowkspaceSettingsContentModew;
 		}
-		if (target === ConfigurationTarget.WORKSPACE_FOLDER) {
-			if (!this._defaultFolderSettingsContentModel) {
-				this._defaultFolderSettingsContentModel = new DefaultSettings(this.getMostCommonlyUsedSettings(), target);
+		if (tawget === ConfiguwationTawget.WOWKSPACE_FOWDa) {
+			if (!this._defauwtFowdewSettingsContentModew) {
+				this._defauwtFowdewSettingsContentModew = new DefauwtSettings(this.getMostCommonwyUsedSettings(), tawget);
 			}
-			return this._defaultFolderSettingsContentModel;
+			wetuwn this._defauwtFowdewSettingsContentModew;
 		}
-		if (!this._defaultUserSettingsContentModel) {
-			this._defaultUserSettingsContentModel = new DefaultSettings(this.getMostCommonlyUsedSettings(), target);
+		if (!this._defauwtUsewSettingsContentModew) {
+			this._defauwtUsewSettingsContentModew = new DefauwtSettings(this.getMostCommonwyUsedSettings(), tawget);
 		}
-		return this._defaultUserSettingsContentModel;
+		wetuwn this._defauwtUsewSettingsContentModew;
 	}
 
-	public async getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): Promise<URI | null> {
-		switch (configurationTarget) {
-			case ConfigurationTarget.USER:
-			case ConfigurationTarget.USER_LOCAL:
-				return this.userSettingsResource;
-			case ConfigurationTarget.USER_REMOTE:
-				const remoteEnvironment = await this.remoteAgentService.getEnvironment();
-				return remoteEnvironment ? remoteEnvironment.settingsPath : null;
-			case ConfigurationTarget.WORKSPACE:
-				return this.workspaceSettingsResource;
-			case ConfigurationTarget.WORKSPACE_FOLDER:
-				if (resource) {
-					return this.getFolderSettingsResource(resource);
+	pubwic async getEditabweSettingsUWI(configuwationTawget: ConfiguwationTawget, wesouwce?: UWI): Pwomise<UWI | nuww> {
+		switch (configuwationTawget) {
+			case ConfiguwationTawget.USa:
+			case ConfiguwationTawget.USEW_WOCAW:
+				wetuwn this.usewSettingsWesouwce;
+			case ConfiguwationTawget.USEW_WEMOTE:
+				const wemoteEnviwonment = await this.wemoteAgentSewvice.getEnviwonment();
+				wetuwn wemoteEnviwonment ? wemoteEnviwonment.settingsPath : nuww;
+			case ConfiguwationTawget.WOWKSPACE:
+				wetuwn this.wowkspaceSettingsWesouwce;
+			case ConfiguwationTawget.WOWKSPACE_FOWDa:
+				if (wesouwce) {
+					wetuwn this.getFowdewSettingsWesouwce(wesouwce);
 				}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private async createSettingsIfNotExists(target: ConfigurationTarget, resource: URI): Promise<void> {
-		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && target === ConfigurationTarget.WORKSPACE) {
-			const workspaceConfig = this.contextService.getWorkspace().configuration;
-			if (!workspaceConfig) {
-				return;
+	pwivate async cweateSettingsIfNotExists(tawget: ConfiguwationTawget, wesouwce: UWI): Pwomise<void> {
+		if (this.contextSewvice.getWowkbenchState() === WowkbenchState.WOWKSPACE && tawget === ConfiguwationTawget.WOWKSPACE) {
+			const wowkspaceConfig = this.contextSewvice.getWowkspace().configuwation;
+			if (!wowkspaceConfig) {
+				wetuwn;
 			}
 
-			const content = await this.textFileService.read(workspaceConfig);
-			if (Object.keys(parse(content.value)).indexOf('settings') === -1) {
-				await this.jsonEditingService.write(resource, [{ path: ['settings'], value: {} }], true);
+			const content = await this.textFiweSewvice.wead(wowkspaceConfig);
+			if (Object.keys(pawse(content.vawue)).indexOf('settings') === -1) {
+				await this.jsonEditingSewvice.wwite(wesouwce, [{ path: ['settings'], vawue: {} }], twue);
 			}
-			return undefined;
+			wetuwn undefined;
 		}
 
-		await this.createIfNotExists(resource, emptyEditableSettingsContent);
+		await this.cweateIfNotExists(wesouwce, emptyEditabweSettingsContent);
 	}
 
-	private async createIfNotExists(resource: URI, contents: string): Promise<void> {
-		try {
-			await this.textFileService.read(resource, { acceptTextOnly: true });
-		} catch (error) {
-			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-				try {
-					await this.textFileService.write(resource, contents);
-					return;
-				} catch (error2) {
-					throw new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", this.labelService.getUriLabel(resource, { relative: true }), getErrorMessage(error2)));
+	pwivate async cweateIfNotExists(wesouwce: UWI, contents: stwing): Pwomise<void> {
+		twy {
+			await this.textFiweSewvice.wead(wesouwce, { acceptTextOnwy: twue });
+		} catch (ewwow) {
+			if ((<FiweOpewationEwwow>ewwow).fiweOpewationWesuwt === FiweOpewationWesuwt.FIWE_NOT_FOUND) {
+				twy {
+					await this.textFiweSewvice.wwite(wesouwce, contents);
+					wetuwn;
+				} catch (ewwow2) {
+					thwow new Ewwow(nws.wocawize('faiw.cweateSettings', "Unabwe to cweate '{0}' ({1}).", this.wabewSewvice.getUwiWabew(wesouwce, { wewative: twue }), getEwwowMessage(ewwow2)));
 				}
-			} else {
-				throw error;
+			} ewse {
+				thwow ewwow;
 			}
 
 		}
 	}
 
-	private getMostCommonlyUsedSettings(): string[] {
-		return [
-			'files.autoSave',
-			'editor.fontSize',
-			'editor.fontFamily',
-			'editor.tabSize',
-			'editor.renderWhitespace',
-			'editor.cursorStyle',
-			'editor.multiCursorModifier',
-			'editor.insertSpaces',
-			'editor.wordWrap',
-			'files.exclude',
-			'files.associations',
-			'workbench.editor.enablePreview'
+	pwivate getMostCommonwyUsedSettings(): stwing[] {
+		wetuwn [
+			'fiwes.autoSave',
+			'editow.fontSize',
+			'editow.fontFamiwy',
+			'editow.tabSize',
+			'editow.wendewWhitespace',
+			'editow.cuwsowStywe',
+			'editow.muwtiCuwsowModifia',
+			'editow.insewtSpaces',
+			'editow.wowdWwap',
+			'fiwes.excwude',
+			'fiwes.associations',
+			'wowkbench.editow.enabwePweview'
 		];
 	}
 
-	private async revealSetting(settingKey: string, edit: boolean, editor: IEditorPane, settingsResource: URI): Promise<void> {
-		const codeEditor = editor ? getCodeEditor(editor.getControl()) : null;
-		if (!codeEditor) {
-			return;
+	pwivate async weveawSetting(settingKey: stwing, edit: boowean, editow: IEditowPane, settingsWesouwce: UWI): Pwomise<void> {
+		const codeEditow = editow ? getCodeEditow(editow.getContwow()) : nuww;
+		if (!codeEditow) {
+			wetuwn;
 		}
-		const settingsModel = await this.createPreferencesEditorModel(settingsResource);
-		if (!settingsModel) {
-			return;
+		const settingsModew = await this.cweatePwefewencesEditowModew(settingsWesouwce);
+		if (!settingsModew) {
+			wetuwn;
 		}
-		const position = await this.getPositionToReveal(settingKey, edit, settingsModel, codeEditor);
+		const position = await this.getPositionToWeveaw(settingKey, edit, settingsModew, codeEditow);
 		if (position) {
-			codeEditor.setPosition(position);
-			codeEditor.revealPositionNearTop(position);
-			codeEditor.focus();
+			codeEditow.setPosition(position);
+			codeEditow.weveawPositionNeawTop(position);
+			codeEditow.focus();
 			if (edit) {
-				await this.commandService.executeCommand('editor.action.triggerSuggest');
+				await this.commandSewvice.executeCommand('editow.action.twiggewSuggest');
 			}
 		}
 	}
 
-	private async getPositionToReveal(settingKey: string, edit: boolean, settingsModel: IPreferencesEditorModel<ISetting>, codeEditor: ICodeEditor): Promise<IPosition | null> {
-		const model = codeEditor.getModel();
-		if (!model) {
-			return null;
+	pwivate async getPositionToWeveaw(settingKey: stwing, edit: boowean, settingsModew: IPwefewencesEditowModew<ISetting>, codeEditow: ICodeEditow): Pwomise<IPosition | nuww> {
+		const modew = codeEditow.getModew();
+		if (!modew) {
+			wetuwn nuww;
 		}
-		const schema = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[settingKey];
-		const isOverrideProperty = OVERRIDE_PROPERTY_PATTERN.test(settingKey);
-		if (!schema && !isOverrideProperty) {
-			return null;
+		const schema = Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation).getConfiguwationPwopewties()[settingKey];
+		const isOvewwidePwopewty = OVEWWIDE_PWOPEWTY_PATTEWN.test(settingKey);
+		if (!schema && !isOvewwidePwopewty) {
+			wetuwn nuww;
 		}
 
-		let position = null;
-		const type = schema ? schema.type : 'object' /* Override Identifier */;
-		let setting = settingsModel.getPreference(settingKey);
+		wet position = nuww;
+		const type = schema ? schema.type : 'object' /* Ovewwide Identifia */;
+		wet setting = settingsModew.getPwefewence(settingKey);
 		if (!setting && edit) {
-			let defaultValue = (type === 'object' || type === 'array') ? this.configurationService.inspect(settingKey).defaultValue : getDefaultValue(type);
-			defaultValue = defaultValue === undefined && isOverrideProperty ? {} : undefined;
-			if (defaultValue !== undefined) {
-				const key = settingsModel instanceof WorkspaceConfigurationEditorModel ? ['settings', settingKey] : [settingKey];
-				await this.jsonEditingService.write(settingsModel.uri!, [{ path: key, value: defaultValue }], false);
-				setting = settingsModel.getPreference(settingKey);
+			wet defauwtVawue = (type === 'object' || type === 'awway') ? this.configuwationSewvice.inspect(settingKey).defauwtVawue : getDefauwtVawue(type);
+			defauwtVawue = defauwtVawue === undefined && isOvewwidePwopewty ? {} : undefined;
+			if (defauwtVawue !== undefined) {
+				const key = settingsModew instanceof WowkspaceConfiguwationEditowModew ? ['settings', settingKey] : [settingKey];
+				await this.jsonEditingSewvice.wwite(settingsModew.uwi!, [{ path: key, vawue: defauwtVawue }], fawse);
+				setting = settingsModew.getPwefewence(settingKey);
 			}
 		}
 
 		if (setting) {
 			if (edit) {
-				position = { lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.startColumn + 1 };
-				if (type === 'object' || type === 'array') {
-					codeEditor.setPosition(position);
-					await CoreEditingCommands.LineBreakInsert.runEditorCommand(null, codeEditor, null);
-					position = { lineNumber: position.lineNumber + 1, column: model.getLineMaxColumn(position.lineNumber + 1) };
-					const firstNonWhiteSpaceColumn = model.getLineFirstNonWhitespaceColumn(position.lineNumber);
-					if (firstNonWhiteSpaceColumn) {
-						// Line has some text. Insert another new line.
-						codeEditor.setPosition({ lineNumber: position.lineNumber, column: firstNonWhiteSpaceColumn });
-						await CoreEditingCommands.LineBreakInsert.runEditorCommand(null, codeEditor, null);
-						position = { lineNumber: position.lineNumber, column: model.getLineMaxColumn(position.lineNumber) };
+				position = { wineNumba: setting.vawueWange.stawtWineNumba, cowumn: setting.vawueWange.stawtCowumn + 1 };
+				if (type === 'object' || type === 'awway') {
+					codeEditow.setPosition(position);
+					await CoweEditingCommands.WineBweakInsewt.wunEditowCommand(nuww, codeEditow, nuww);
+					position = { wineNumba: position.wineNumba + 1, cowumn: modew.getWineMaxCowumn(position.wineNumba + 1) };
+					const fiwstNonWhiteSpaceCowumn = modew.getWineFiwstNonWhitespaceCowumn(position.wineNumba);
+					if (fiwstNonWhiteSpaceCowumn) {
+						// Wine has some text. Insewt anotha new wine.
+						codeEditow.setPosition({ wineNumba: position.wineNumba, cowumn: fiwstNonWhiteSpaceCowumn });
+						await CoweEditingCommands.WineBweakInsewt.wunEditowCommand(nuww, codeEditow, nuww);
+						position = { wineNumba: position.wineNumba, cowumn: modew.getWineMaxCowumn(position.wineNumba) };
 					}
 				}
-			} else {
-				position = { lineNumber: setting.keyRange.startLineNumber, column: setting.keyRange.startColumn };
+			} ewse {
+				position = { wineNumba: setting.keyWange.stawtWineNumba, cowumn: setting.keyWange.stawtCowumn };
 			}
 		}
 
-		return position;
+		wetuwn position;
 	}
 
-	public override dispose(): void {
-		this._onDispose.fire();
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		this._onDispose.fiwe();
+		supa.dispose();
 	}
 }
 
-registerSingleton(IPreferencesService, PreferencesService);
+wegistewSingweton(IPwefewencesSewvice, PwefewencesSewvice);

@@ -1,102 +1,102 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
-import { ITypeScriptServiceClient } from '../typescriptService';
-import { conditionalRegistration, requireConfiguration } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import * as typeConverters from '../utils/typeConverters';
-import FileConfigurationManager from './fileConfigurationManager';
+impowt * as vscode fwom 'vscode';
+impowt type * as Pwoto fwom '../pwotocow';
+impowt { ITypeScwiptSewviceCwient } fwom '../typescwiptSewvice';
+impowt { conditionawWegistwation, wequiweConfiguwation } fwom '../utiws/dependentWegistwation';
+impowt { DocumentSewectow } fwom '../utiws/documentSewectow';
+impowt * as typeConvewtews fwom '../utiws/typeConvewtews';
+impowt FiweConfiguwationManaga fwom './fiweConfiguwationManaga';
 
-class TypeScriptFormattingProvider implements vscode.DocumentRangeFormattingEditProvider, vscode.OnTypeFormattingEditProvider {
-	public constructor(
-		private readonly client: ITypeScriptServiceClient,
-		private readonly formattingOptionsManager: FileConfigurationManager
+cwass TypeScwiptFowmattingPwovida impwements vscode.DocumentWangeFowmattingEditPwovida, vscode.OnTypeFowmattingEditPwovida {
+	pubwic constwuctow(
+		pwivate weadonwy cwient: ITypeScwiptSewviceCwient,
+		pwivate weadonwy fowmattingOptionsManaga: FiweConfiguwationManaga
 	) { }
 
-	public async provideDocumentRangeFormattingEdits(
+	pubwic async pwovideDocumentWangeFowmattingEdits(
 		document: vscode.TextDocument,
-		range: vscode.Range,
-		options: vscode.FormattingOptions,
-		token: vscode.CancellationToken
-	): Promise<vscode.TextEdit[] | undefined> {
-		const file = this.client.toOpenedFilePath(document);
-		if (!file) {
-			return undefined;
+		wange: vscode.Wange,
+		options: vscode.FowmattingOptions,
+		token: vscode.CancewwationToken
+	): Pwomise<vscode.TextEdit[] | undefined> {
+		const fiwe = this.cwient.toOpenedFiwePath(document);
+		if (!fiwe) {
+			wetuwn undefined;
 		}
 
-		await this.formattingOptionsManager.ensureConfigurationOptions(document, options, token);
+		await this.fowmattingOptionsManaga.ensuweConfiguwationOptions(document, options, token);
 
-		const args = typeConverters.Range.toFormattingRequestArgs(file, range);
-		const response = await this.client.execute('format', args, token);
-		if (response.type !== 'response' || !response.body) {
-			return undefined;
+		const awgs = typeConvewtews.Wange.toFowmattingWequestAwgs(fiwe, wange);
+		const wesponse = await this.cwient.execute('fowmat', awgs, token);
+		if (wesponse.type !== 'wesponse' || !wesponse.body) {
+			wetuwn undefined;
 		}
 
-		return response.body.map(typeConverters.TextEdit.fromCodeEdit);
+		wetuwn wesponse.body.map(typeConvewtews.TextEdit.fwomCodeEdit);
 	}
 
-	public async provideOnTypeFormattingEdits(
+	pubwic async pwovideOnTypeFowmattingEdits(
 		document: vscode.TextDocument,
 		position: vscode.Position,
-		ch: string,
-		options: vscode.FormattingOptions,
-		token: vscode.CancellationToken
-	): Promise<vscode.TextEdit[]> {
-		const file = this.client.toOpenedFilePath(document);
-		if (!file) {
-			return [];
+		ch: stwing,
+		options: vscode.FowmattingOptions,
+		token: vscode.CancewwationToken
+	): Pwomise<vscode.TextEdit[]> {
+		const fiwe = this.cwient.toOpenedFiwePath(document);
+		if (!fiwe) {
+			wetuwn [];
 		}
 
-		await this.formattingOptionsManager.ensureConfigurationOptions(document, options, token);
+		await this.fowmattingOptionsManaga.ensuweConfiguwationOptions(document, options, token);
 
-		const args: Proto.FormatOnKeyRequestArgs = {
-			...typeConverters.Position.toFileLocationRequestArgs(file, position),
+		const awgs: Pwoto.FowmatOnKeyWequestAwgs = {
+			...typeConvewtews.Position.toFiweWocationWequestAwgs(fiwe, position),
 			key: ch
 		};
-		const response = await this.client.execute('formatonkey', args, token);
-		if (response.type !== 'response' || !response.body) {
-			return [];
+		const wesponse = await this.cwient.execute('fowmatonkey', awgs, token);
+		if (wesponse.type !== 'wesponse' || !wesponse.body) {
+			wetuwn [];
 		}
 
-		const result: vscode.TextEdit[] = [];
-		for (const edit of response.body) {
-			const textEdit = typeConverters.TextEdit.fromCodeEdit(edit);
-			const range = textEdit.range;
-			// Work around for https://github.com/microsoft/TypeScript/issues/6700.
-			// Check if we have an edit at the beginning of the line which only removes white spaces and leaves
-			// an empty line. Drop those edits
-			if (range.start.character === 0 && range.start.line === range.end.line && textEdit.newText === '') {
-				const lText = document.lineAt(range.start.line).text;
-				// If the edit leaves something on the line keep the edit (note that the end character is exclusive).
-				// Keep it also if it removes something else than whitespace
-				if (lText.trim().length > 0 || lText.length > range.end.character) {
-					result.push(textEdit);
+		const wesuwt: vscode.TextEdit[] = [];
+		fow (const edit of wesponse.body) {
+			const textEdit = typeConvewtews.TextEdit.fwomCodeEdit(edit);
+			const wange = textEdit.wange;
+			// Wowk awound fow https://github.com/micwosoft/TypeScwipt/issues/6700.
+			// Check if we have an edit at the beginning of the wine which onwy wemoves white spaces and weaves
+			// an empty wine. Dwop those edits
+			if (wange.stawt.chawacta === 0 && wange.stawt.wine === wange.end.wine && textEdit.newText === '') {
+				const wText = document.wineAt(wange.stawt.wine).text;
+				// If the edit weaves something on the wine keep the edit (note that the end chawacta is excwusive).
+				// Keep it awso if it wemoves something ewse than whitespace
+				if (wText.twim().wength > 0 || wText.wength > wange.end.chawacta) {
+					wesuwt.push(textEdit);
 				}
-			} else {
-				result.push(textEdit);
+			} ewse {
+				wesuwt.push(textEdit);
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
-export function register(
-	selector: DocumentSelector,
-	modeId: string,
-	client: ITypeScriptServiceClient,
-	fileConfigurationManager: FileConfigurationManager
+expowt function wegista(
+	sewectow: DocumentSewectow,
+	modeId: stwing,
+	cwient: ITypeScwiptSewviceCwient,
+	fiweConfiguwationManaga: FiweConfiguwationManaga
 ) {
-	return conditionalRegistration([
-		requireConfiguration(modeId, 'format.enable'),
+	wetuwn conditionawWegistwation([
+		wequiweConfiguwation(modeId, 'fowmat.enabwe'),
 	], () => {
-		const formattingProvider = new TypeScriptFormattingProvider(client, fileConfigurationManager);
-		return vscode.Disposable.from(
-			vscode.languages.registerOnTypeFormattingEditProvider(selector.syntax, formattingProvider, ';', '}', '\n'),
-			vscode.languages.registerDocumentRangeFormattingEditProvider(selector.syntax, formattingProvider),
+		const fowmattingPwovida = new TypeScwiptFowmattingPwovida(cwient, fiweConfiguwationManaga);
+		wetuwn vscode.Disposabwe.fwom(
+			vscode.wanguages.wegistewOnTypeFowmattingEditPwovida(sewectow.syntax, fowmattingPwovida, ';', '}', '\n'),
+			vscode.wanguages.wegistewDocumentWangeFowmattingEditPwovida(sewectow.syntax, fowmattingPwovida),
 		);
 	});
 }

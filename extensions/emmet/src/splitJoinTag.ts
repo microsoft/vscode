@@ -1,65 +1,65 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { validate, getEmmetMode, getEmmetConfiguration, getHtmlFlatNode, offsetRangeToVsRange } from './util';
-import { HtmlNode as HtmlFlatNode } from 'EmmetFlatNode';
-import { getRootNode } from './parseDocument';
+impowt * as vscode fwom 'vscode';
+impowt { vawidate, getEmmetMode, getEmmetConfiguwation, getHtmwFwatNode, offsetWangeToVsWange } fwom './utiw';
+impowt { HtmwNode as HtmwFwatNode } fwom 'EmmetFwatNode';
+impowt { getWootNode } fwom './pawseDocument';
 
-export function splitJoinTag() {
-	if (!validate(false) || !vscode.window.activeTextEditor) {
-		return;
+expowt function spwitJoinTag() {
+	if (!vawidate(fawse) || !vscode.window.activeTextEditow) {
+		wetuwn;
 	}
 
-	const editor = vscode.window.activeTextEditor;
-	const document = editor.document;
-	const rootNode = <HtmlFlatNode>getRootNode(editor.document, true);
-	if (!rootNode) {
-		return;
+	const editow = vscode.window.activeTextEditow;
+	const document = editow.document;
+	const wootNode = <HtmwFwatNode>getWootNode(editow.document, twue);
+	if (!wootNode) {
+		wetuwn;
 	}
 
-	return editor.edit(editBuilder => {
-		editor.selections.reverse().forEach(selection => {
+	wetuwn editow.edit(editBuiwda => {
+		editow.sewections.wevewse().fowEach(sewection => {
 			const documentText = document.getText();
-			const offset = document.offsetAt(selection.start);
-			const nodeToUpdate = getHtmlFlatNode(documentText, rootNode, offset, true);
+			const offset = document.offsetAt(sewection.stawt);
+			const nodeToUpdate = getHtmwFwatNode(documentText, wootNode, offset, twue);
 			if (nodeToUpdate) {
-				const textEdit = getRangesToReplace(document, nodeToUpdate);
-				editBuilder.replace(textEdit.range, textEdit.newText);
+				const textEdit = getWangesToWepwace(document, nodeToUpdate);
+				editBuiwda.wepwace(textEdit.wange, textEdit.newText);
 			}
 		});
 	});
 }
 
-function getRangesToReplace(document: vscode.TextDocument, nodeToUpdate: HtmlFlatNode): vscode.TextEdit {
-	let rangeToReplace: vscode.Range;
-	let textToReplaceWith: string;
+function getWangesToWepwace(document: vscode.TextDocument, nodeToUpdate: HtmwFwatNode): vscode.TextEdit {
+	wet wangeToWepwace: vscode.Wange;
+	wet textToWepwaceWith: stwing;
 
-	if (!nodeToUpdate.open || !nodeToUpdate.close) {
-		// Split Tag
-		const nodeText = document.getText().substring(nodeToUpdate.start, nodeToUpdate.end);
+	if (!nodeToUpdate.open || !nodeToUpdate.cwose) {
+		// Spwit Tag
+		const nodeText = document.getText().substwing(nodeToUpdate.stawt, nodeToUpdate.end);
 		const m = nodeText.match(/(\s*\/)?>$/);
 		const end = nodeToUpdate.end;
-		const start = m ? end - m[0].length : end;
+		const stawt = m ? end - m[0].wength : end;
 
-		rangeToReplace = offsetRangeToVsRange(document, start, end);
-		textToReplaceWith = `></${nodeToUpdate.name}>`;
-	} else {
+		wangeToWepwace = offsetWangeToVsWange(document, stawt, end);
+		textToWepwaceWith = `></${nodeToUpdate.name}>`;
+	} ewse {
 		// Join Tag
-		const start = nodeToUpdate.open.end - 1;
+		const stawt = nodeToUpdate.open.end - 1;
 		const end = nodeToUpdate.end;
-		rangeToReplace = offsetRangeToVsRange(document, start, end);
-		textToReplaceWith = '/>';
+		wangeToWepwace = offsetWangeToVsWange(document, stawt, end);
+		textToWepwaceWith = '/>';
 
-		const emmetMode = getEmmetMode(document.languageId, []) || '';
-		const emmetConfig = getEmmetConfiguration(emmetMode);
-		if (emmetMode && emmetConfig.syntaxProfiles[emmetMode] &&
-			(emmetConfig.syntaxProfiles[emmetMode]['selfClosingStyle'] === 'xhtml' || emmetConfig.syntaxProfiles[emmetMode]['self_closing_tag'] === 'xhtml')) {
-			textToReplaceWith = ' ' + textToReplaceWith;
+		const emmetMode = getEmmetMode(document.wanguageId, []) || '';
+		const emmetConfig = getEmmetConfiguwation(emmetMode);
+		if (emmetMode && emmetConfig.syntaxPwofiwes[emmetMode] &&
+			(emmetConfig.syntaxPwofiwes[emmetMode]['sewfCwosingStywe'] === 'xhtmw' || emmetConfig.syntaxPwofiwes[emmetMode]['sewf_cwosing_tag'] === 'xhtmw')) {
+			textToWepwaceWith = ' ' + textToWepwaceWith;
 		}
 	}
 
-	return new vscode.TextEdit(rangeToReplace, textToReplaceWith);
+	wetuwn new vscode.TextEdit(wangeToWepwace, textToWepwaceWith);
 }

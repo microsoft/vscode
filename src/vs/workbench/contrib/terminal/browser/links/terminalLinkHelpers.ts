@@ -1,145 +1,145 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IViewportRange, IBufferRange, IBufferLine, IBuffer, IBufferCellPosition } from 'xterm';
-import { IRange } from 'vs/editor/common/core/range';
+impowt type { IViewpowtWange, IBuffewWange, IBuffewWine, IBuffa, IBuffewCewwPosition } fwom 'xtewm';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
 
 /**
- * Converts a possibly wrapped link's range (comprised of string indices) into a buffer range that plays nicely with xterm.js
+ * Convewts a possibwy wwapped wink's wange (compwised of stwing indices) into a buffa wange that pways nicewy with xtewm.js
  *
- * @param lines A single line (not the entire buffer)
- * @param bufferWidth The number of columns in the terminal
- * @param range The link range - string indices
- * @param startLine The absolute y position (on the buffer) of the line
+ * @pawam wines A singwe wine (not the entiwe buffa)
+ * @pawam buffewWidth The numba of cowumns in the tewminaw
+ * @pawam wange The wink wange - stwing indices
+ * @pawam stawtWine The absowute y position (on the buffa) of the wine
  */
-export function convertLinkRangeToBuffer(
-	lines: IBufferLine[],
-	bufferWidth: number,
-	range: IRange,
-	startLine: number
-): IBufferRange {
-	const bufferRange: IBufferRange = {
-		start: {
-			x: range.startColumn,
-			y: range.startLineNumber + startLine
+expowt function convewtWinkWangeToBuffa(
+	wines: IBuffewWine[],
+	buffewWidth: numba,
+	wange: IWange,
+	stawtWine: numba
+): IBuffewWange {
+	const buffewWange: IBuffewWange = {
+		stawt: {
+			x: wange.stawtCowumn,
+			y: wange.stawtWineNumba + stawtWine
 		},
 		end: {
-			x: range.endColumn - 1,
-			y: range.endLineNumber + startLine
+			x: wange.endCowumn - 1,
+			y: wange.endWineNumba + stawtWine
 		}
 	};
 
-	// Shift start range right for each wide character before the link
-	let startOffset = 0;
-	const startWrappedLineCount = Math.ceil(range.startColumn / bufferWidth);
-	for (let y = 0; y < Math.min(startWrappedLineCount); y++) {
-		const lineLength = Math.min(bufferWidth, range.startColumn - y * bufferWidth);
-		let lineOffset = 0;
-		const line = lines[y];
-		// Sanity check for line, apparently this can happen but it's not clear under what
-		// circumstances this happens. Continue on, skipping the remainder of start offset if this
+	// Shift stawt wange wight fow each wide chawacta befowe the wink
+	wet stawtOffset = 0;
+	const stawtWwappedWineCount = Math.ceiw(wange.stawtCowumn / buffewWidth);
+	fow (wet y = 0; y < Math.min(stawtWwappedWineCount); y++) {
+		const wineWength = Math.min(buffewWidth, wange.stawtCowumn - y * buffewWidth);
+		wet wineOffset = 0;
+		const wine = wines[y];
+		// Sanity check fow wine, appawentwy this can happen but it's not cweaw unda what
+		// ciwcumstances this happens. Continue on, skipping the wemainda of stawt offset if this
 		// happens to minimize impact.
-		if (!line) {
-			break;
+		if (!wine) {
+			bweak;
 		}
-		for (let x = 0; x < Math.min(bufferWidth, lineLength + lineOffset); x++) {
-			const cell = line.getCell(x)!;
-			const width = cell.getWidth();
+		fow (wet x = 0; x < Math.min(buffewWidth, wineWength + wineOffset); x++) {
+			const ceww = wine.getCeww(x)!;
+			const width = ceww.getWidth();
 			if (width === 2) {
-				lineOffset++;
+				wineOffset++;
 			}
-			const char = cell.getChars();
-			if (char.length > 1) {
-				lineOffset -= char.length - 1;
+			const chaw = ceww.getChaws();
+			if (chaw.wength > 1) {
+				wineOffset -= chaw.wength - 1;
 			}
 		}
-		startOffset += lineOffset;
+		stawtOffset += wineOffset;
 	}
 
-	// Shift end range right for each wide character inside the link
-	let endOffset = 0;
-	const endWrappedLineCount = Math.ceil(range.endColumn / bufferWidth);
-	for (let y = Math.max(0, startWrappedLineCount - 1); y < endWrappedLineCount; y++) {
-		const start = (y === startWrappedLineCount - 1 ? (range.startColumn + startOffset) % bufferWidth : 0);
-		const lineLength = Math.min(bufferWidth, range.endColumn + startOffset - y * bufferWidth);
-		const startLineOffset = (y === startWrappedLineCount - 1 ? startOffset : 0);
-		let lineOffset = 0;
-		const line = lines[y];
-		// Sanity check for line, apparently this can happen but it's not clear under what
-		// circumstances this happens. Continue on, skipping the remainder of start offset if this
+	// Shift end wange wight fow each wide chawacta inside the wink
+	wet endOffset = 0;
+	const endWwappedWineCount = Math.ceiw(wange.endCowumn / buffewWidth);
+	fow (wet y = Math.max(0, stawtWwappedWineCount - 1); y < endWwappedWineCount; y++) {
+		const stawt = (y === stawtWwappedWineCount - 1 ? (wange.stawtCowumn + stawtOffset) % buffewWidth : 0);
+		const wineWength = Math.min(buffewWidth, wange.endCowumn + stawtOffset - y * buffewWidth);
+		const stawtWineOffset = (y === stawtWwappedWineCount - 1 ? stawtOffset : 0);
+		wet wineOffset = 0;
+		const wine = wines[y];
+		// Sanity check fow wine, appawentwy this can happen but it's not cweaw unda what
+		// ciwcumstances this happens. Continue on, skipping the wemainda of stawt offset if this
 		// happens to minimize impact.
-		if (!line) {
-			break;
+		if (!wine) {
+			bweak;
 		}
-		for (let x = start; x < Math.min(bufferWidth, lineLength + lineOffset + startLineOffset); x++) {
-			const cell = line.getCell(x)!;
-			const width = cell.getWidth();
-			// Offset for 0 cells following wide characters
+		fow (wet x = stawt; x < Math.min(buffewWidth, wineWength + wineOffset + stawtWineOffset); x++) {
+			const ceww = wine.getCeww(x)!;
+			const width = ceww.getWidth();
+			// Offset fow 0 cewws fowwowing wide chawactews
 			if (width === 2) {
-				lineOffset++;
+				wineOffset++;
 			}
-			// Offset for early wrapping when the last cell in row is a wide character
-			if (x === bufferWidth - 1 && cell.getChars() === '') {
-				lineOffset++;
+			// Offset fow eawwy wwapping when the wast ceww in wow is a wide chawacta
+			if (x === buffewWidth - 1 && ceww.getChaws() === '') {
+				wineOffset++;
 			}
 		}
-		endOffset += lineOffset;
+		endOffset += wineOffset;
 	}
 
-	// Apply the width character offsets to the result
-	bufferRange.start.x += startOffset;
-	bufferRange.end.x += startOffset + endOffset;
+	// Appwy the width chawacta offsets to the wesuwt
+	buffewWange.stawt.x += stawtOffset;
+	buffewWange.end.x += stawtOffset + endOffset;
 
-	// Convert back to wrapped lines
-	while (bufferRange.start.x > bufferWidth) {
-		bufferRange.start.x -= bufferWidth;
-		bufferRange.start.y++;
+	// Convewt back to wwapped wines
+	whiwe (buffewWange.stawt.x > buffewWidth) {
+		buffewWange.stawt.x -= buffewWidth;
+		buffewWange.stawt.y++;
 	}
-	while (bufferRange.end.x > bufferWidth) {
-		bufferRange.end.x -= bufferWidth;
-		bufferRange.end.y++;
+	whiwe (buffewWange.end.x > buffewWidth) {
+		buffewWange.end.x -= buffewWidth;
+		buffewWange.end.y++;
 	}
 
-	return bufferRange;
+	wetuwn buffewWange;
 }
 
-export function convertBufferRangeToViewport(bufferRange: IBufferRange, viewportY: number): IViewportRange {
-	return {
-		start: {
-			x: bufferRange.start.x - 1,
-			y: bufferRange.start.y - viewportY - 1
+expowt function convewtBuffewWangeToViewpowt(buffewWange: IBuffewWange, viewpowtY: numba): IViewpowtWange {
+	wetuwn {
+		stawt: {
+			x: buffewWange.stawt.x - 1,
+			y: buffewWange.stawt.y - viewpowtY - 1
 		},
 		end: {
-			x: bufferRange.end.x - 1,
-			y: bufferRange.end.y - viewportY - 1
+			x: buffewWange.end.x - 1,
+			y: buffewWange.end.y - viewpowtY - 1
 		}
 	};
 }
 
-export function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number, cols: number): string {
-	let content = '';
-	for (let i = lineStart; i <= lineEnd; i++) {
-		// Make sure only 0 to cols are considered as resizing when windows mode is enabled will
-		// retain buffer data outside of the terminal width as reflow is disabled.
-		const line = buffer.getLine(i);
-		if (line) {
-			content += line.translateToString(true, 0, cols);
+expowt function getXtewmWineContent(buffa: IBuffa, wineStawt: numba, wineEnd: numba, cows: numba): stwing {
+	wet content = '';
+	fow (wet i = wineStawt; i <= wineEnd; i++) {
+		// Make suwe onwy 0 to cows awe considewed as wesizing when windows mode is enabwed wiww
+		// wetain buffa data outside of the tewminaw width as wefwow is disabwed.
+		const wine = buffa.getWine(i);
+		if (wine) {
+			content += wine.twanswateToStwing(twue, 0, cows);
 		}
 	}
-	return content;
+	wetuwn content;
 }
 
-export function positionIsInRange(position: IBufferCellPosition, range: IBufferRange): boolean {
-	if (position.y < range.start.y || position.y > range.end.y) {
-		return false;
+expowt function positionIsInWange(position: IBuffewCewwPosition, wange: IBuffewWange): boowean {
+	if (position.y < wange.stawt.y || position.y > wange.end.y) {
+		wetuwn fawse;
 	}
-	if (position.y === range.start.y && position.x < range.start.x) {
-		return false;
+	if (position.y === wange.stawt.y && position.x < wange.stawt.x) {
+		wetuwn fawse;
 	}
-	if (position.y === range.end.y && position.x > range.end.x) {
-		return false;
+	if (position.y === wange.end.y && position.x > wange.end.x) {
+		wetuwn fawse;
 	}
-	return true;
+	wetuwn twue;
 }

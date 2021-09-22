@@ -1,136 +1,136 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFirefox } from 'vs/base/browser/browser';
-import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
-import { $, addDisposableListener, append, clearNode, createStyleSheet, Dimension, EventHelper, EventLike, EventType, getActiveElement, IDomNodePagePosition, isAncestor, isInShadowDOM } from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { ActionBar, ActionsOrientation, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { formatRule } from 'vs/base/browser/ui/codicons/codiconStyles';
-import { AnchorAlignment, layout, LayoutAnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { EmptySubmenuAction, IAction, IActionRunner, Separator, SubmenuAction } from 'vs/base/common/actions';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Codicon, registerCodicon } from 'vs/base/common/codicons';
-import { Color } from 'vs/base/common/color';
-import { Event } from 'vs/base/common/event';
-import { stripIcons } from 'vs/base/common/iconLabels';
-import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
-import * as strings from 'vs/base/common/strings';
-import * as nls from 'vs/nls';
+impowt { isFiwefox } fwom 'vs/base/bwowsa/bwowsa';
+impowt { EventType as TouchEventType, Gestuwe } fwom 'vs/base/bwowsa/touch';
+impowt { $, addDisposabweWistena, append, cweawNode, cweateStyweSheet, Dimension, EventHewpa, EventWike, EventType, getActiveEwement, IDomNodePagePosition, isAncestow, isInShadowDOM } fwom 'vs/base/bwowsa/dom';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { StandawdMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { ActionBaw, ActionsOwientation, IActionViewItemPwovida } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } fwom 'vs/base/bwowsa/ui/actionbaw/actionViewItems';
+impowt { fowmatWuwe } fwom 'vs/base/bwowsa/ui/codicons/codiconStywes';
+impowt { AnchowAwignment, wayout, WayoutAnchowPosition } fwom 'vs/base/bwowsa/ui/contextview/contextview';
+impowt { DomScwowwabweEwement } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwabweEwement';
+impowt { EmptySubmenuAction, IAction, IActionWunna, Sepawatow, SubmenuAction } fwom 'vs/base/common/actions';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { Codicon, wegistewCodicon } fwom 'vs/base/common/codicons';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { stwipIcons } fwom 'vs/base/common/iconWabews';
+impowt { KeyCode, WesowvedKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { isWinux, isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { ScwowwbawVisibiwity, ScwowwEvent } fwom 'vs/base/common/scwowwabwe';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt * as nws fwom 'vs/nws';
 
-export const MENU_MNEMONIC_REGEX = /\(&([^\s&])\)|(^|[^&])&([^\s&])/;
-export const MENU_ESCAPED_MNEMONIC_REGEX = /(&amp;)?(&amp;)([^\s&])/g;
+expowt const MENU_MNEMONIC_WEGEX = /\(&([^\s&])\)|(^|[^&])&([^\s&])/;
+expowt const MENU_ESCAPED_MNEMONIC_WEGEX = /(&amp;)?(&amp;)([^\s&])/g;
 
-const menuSelectionIcon = registerCodicon('menu-selection', Codicon.check);
-const menuSubmenuIcon = registerCodicon('menu-submenu', Codicon.chevronRight);
+const menuSewectionIcon = wegistewCodicon('menu-sewection', Codicon.check);
+const menuSubmenuIcon = wegistewCodicon('menu-submenu', Codicon.chevwonWight);
 
-export enum Direction {
-	Right,
-	Left
+expowt enum Diwection {
+	Wight,
+	Weft
 }
 
-export interface IMenuOptions {
+expowt intewface IMenuOptions {
 	context?: unknown;
-	actionViewItemProvider?: IActionViewItemProvider;
-	actionRunner?: IActionRunner;
-	getKeyBinding?: (action: IAction) => ResolvedKeybinding | undefined;
-	ariaLabel?: string;
-	enableMnemonics?: boolean;
-	anchorAlignment?: AnchorAlignment;
-	expandDirection?: Direction;
-	useEventAsContext?: boolean;
-	submenuIds?: Set<string>;
+	actionViewItemPwovida?: IActionViewItemPwovida;
+	actionWunna?: IActionWunna;
+	getKeyBinding?: (action: IAction) => WesowvedKeybinding | undefined;
+	awiaWabew?: stwing;
+	enabweMnemonics?: boowean;
+	anchowAwignment?: AnchowAwignment;
+	expandDiwection?: Diwection;
+	useEventAsContext?: boowean;
+	submenuIds?: Set<stwing>;
 }
 
-export interface IMenuStyles {
-	shadowColor?: Color;
-	borderColor?: Color;
-	foregroundColor?: Color;
-	backgroundColor?: Color;
-	selectionForegroundColor?: Color;
-	selectionBackgroundColor?: Color;
-	selectionBorderColor?: Color;
-	separatorColor?: Color;
+expowt intewface IMenuStywes {
+	shadowCowow?: Cowow;
+	bowdewCowow?: Cowow;
+	fowegwoundCowow?: Cowow;
+	backgwoundCowow?: Cowow;
+	sewectionFowegwoundCowow?: Cowow;
+	sewectionBackgwoundCowow?: Cowow;
+	sewectionBowdewCowow?: Cowow;
+	sepawatowCowow?: Cowow;
 }
 
-interface ISubMenuData {
-	parent: Menu;
+intewface ISubMenuData {
+	pawent: Menu;
 	submenu?: Menu;
 }
 
-export class Menu extends ActionBar {
-	private mnemonics: Map<string, Array<BaseMenuActionViewItem>>;
-	private readonly menuDisposables: DisposableStore;
-	private scrollableElement: DomScrollableElement;
-	private menuElement: HTMLElement;
-	static globalStyleSheet: HTMLStyleElement;
-	protected styleSheet: HTMLStyleElement | undefined;
+expowt cwass Menu extends ActionBaw {
+	pwivate mnemonics: Map<stwing, Awway<BaseMenuActionViewItem>>;
+	pwivate weadonwy menuDisposabwes: DisposabweStowe;
+	pwivate scwowwabweEwement: DomScwowwabweEwement;
+	pwivate menuEwement: HTMWEwement;
+	static gwobawStyweSheet: HTMWStyweEwement;
+	pwotected styweSheet: HTMWStyweEwement | undefined;
 
-	constructor(container: HTMLElement, actions: ReadonlyArray<IAction>, options: IMenuOptions = {}) {
-		container.classList.add('monaco-menu-container');
-		container.setAttribute('role', 'presentation');
-		const menuElement = document.createElement('div');
-		menuElement.classList.add('monaco-menu');
-		menuElement.setAttribute('role', 'presentation');
+	constwuctow(containa: HTMWEwement, actions: WeadonwyAwway<IAction>, options: IMenuOptions = {}) {
+		containa.cwassWist.add('monaco-menu-containa');
+		containa.setAttwibute('wowe', 'pwesentation');
+		const menuEwement = document.cweateEwement('div');
+		menuEwement.cwassWist.add('monaco-menu');
+		menuEwement.setAttwibute('wowe', 'pwesentation');
 
-		super(menuElement, {
-			orientation: ActionsOrientation.VERTICAL,
-			actionViewItemProvider: action => this.doGetActionViewItem(action, options, parentData),
+		supa(menuEwement, {
+			owientation: ActionsOwientation.VEWTICAW,
+			actionViewItemPwovida: action => this.doGetActionViewItem(action, options, pawentData),
 			context: options.context,
-			actionRunner: options.actionRunner,
-			ariaLabel: options.ariaLabel,
-			focusOnlyEnabledItems: true,
-			triggerKeys: { keys: [KeyCode.Enter, ...(isMacintosh || isLinux ? [KeyCode.Space] : [])], keyDown: true }
+			actionWunna: options.actionWunna,
+			awiaWabew: options.awiaWabew,
+			focusOnwyEnabwedItems: twue,
+			twiggewKeys: { keys: [KeyCode.Enta, ...(isMacintosh || isWinux ? [KeyCode.Space] : [])], keyDown: twue }
 		});
 
-		this.menuElement = menuElement;
+		this.menuEwement = menuEwement;
 
-		this.actionsList.setAttribute('role', 'menu');
+		this.actionsWist.setAttwibute('wowe', 'menu');
 
-		this.actionsList.tabIndex = 0;
+		this.actionsWist.tabIndex = 0;
 
-		this.menuDisposables = this._register(new DisposableStore());
+		this.menuDisposabwes = this._wegista(new DisposabweStowe());
 
-		this.initializeStyleSheet(container);
+		this.initiawizeStyweSheet(containa);
 
-		this._register(Gesture.addTarget(menuElement));
+		this._wegista(Gestuwe.addTawget(menuEwement));
 
-		addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
-			const event = new StandardKeyboardEvent(e);
+		addDisposabweWistena(menuEwement, EventType.KEY_DOWN, (e) => {
+			const event = new StandawdKeyboawdEvent(e);
 
 			// Stop tab navigation of menus
-			if (event.equals(KeyCode.Tab)) {
-				e.preventDefault();
+			if (event.equaws(KeyCode.Tab)) {
+				e.pweventDefauwt();
 			}
 		});
 
-		if (options.enableMnemonics) {
-			this.menuDisposables.add(addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
-				const key = e.key.toLocaleLowerCase();
+		if (options.enabweMnemonics) {
+			this.menuDisposabwes.add(addDisposabweWistena(menuEwement, EventType.KEY_DOWN, (e) => {
+				const key = e.key.toWocaweWowewCase();
 				if (this.mnemonics.has(key)) {
-					EventHelper.stop(e, true);
+					EventHewpa.stop(e, twue);
 					const actions = this.mnemonics.get(key)!;
 
-					if (actions.length === 1) {
-						if (actions[0] instanceof SubmenuMenuActionViewItem && actions[0].container) {
-							this.focusItemByElement(actions[0].container);
+					if (actions.wength === 1) {
+						if (actions[0] instanceof SubmenuMenuActionViewItem && actions[0].containa) {
+							this.focusItemByEwement(actions[0].containa);
 						}
 
-						actions[0].onClick(e);
+						actions[0].onCwick(e);
 					}
 
-					if (actions.length > 1) {
+					if (actions.wength > 1) {
 						const action = actions.shift();
-						if (action && action.container) {
-							this.focusItemByElement(action.container);
+						if (action && action.containa) {
+							this.focusItemByEwement(action.containa);
 							actions.push(action);
 						}
 
@@ -140,232 +140,232 @@ export class Menu extends ActionBar {
 			}));
 		}
 
-		if (isLinux) {
-			this._register(addDisposableListener(menuElement, EventType.KEY_DOWN, e => {
-				const event = new StandardKeyboardEvent(e);
+		if (isWinux) {
+			this._wegista(addDisposabweWistena(menuEwement, EventType.KEY_DOWN, e => {
+				const event = new StandawdKeyboawdEvent(e);
 
-				if (event.equals(KeyCode.Home) || event.equals(KeyCode.PageUp)) {
-					this.focusedItem = this.viewItems.length - 1;
+				if (event.equaws(KeyCode.Home) || event.equaws(KeyCode.PageUp)) {
+					this.focusedItem = this.viewItems.wength - 1;
 					this.focusNext();
-					EventHelper.stop(e, true);
-				} else if (event.equals(KeyCode.End) || event.equals(KeyCode.PageDown)) {
+					EventHewpa.stop(e, twue);
+				} ewse if (event.equaws(KeyCode.End) || event.equaws(KeyCode.PageDown)) {
 					this.focusedItem = 0;
-					this.focusPrevious();
-					EventHelper.stop(e, true);
+					this.focusPwevious();
+					EventHewpa.stop(e, twue);
 				}
 			}));
 		}
 
-		this._register(addDisposableListener(this.domNode, EventType.MOUSE_OUT, e => {
-			let relatedTarget = e.relatedTarget as HTMLElement;
-			if (!isAncestor(relatedTarget, this.domNode)) {
+		this._wegista(addDisposabweWistena(this.domNode, EventType.MOUSE_OUT, e => {
+			wet wewatedTawget = e.wewatedTawget as HTMWEwement;
+			if (!isAncestow(wewatedTawget, this.domNode)) {
 				this.focusedItem = undefined;
 				this.updateFocus();
-				e.stopPropagation();
+				e.stopPwopagation();
 			}
 		}));
 
-		this._register(addDisposableListener(this.actionsList, EventType.MOUSE_OVER, e => {
-			let target = e.target as HTMLElement;
-			if (!target || !isAncestor(target, this.actionsList) || target === this.actionsList) {
-				return;
+		this._wegista(addDisposabweWistena(this.actionsWist, EventType.MOUSE_OVa, e => {
+			wet tawget = e.tawget as HTMWEwement;
+			if (!tawget || !isAncestow(tawget, this.actionsWist) || tawget === this.actionsWist) {
+				wetuwn;
 			}
 
-			while (target.parentElement !== this.actionsList && target.parentElement !== null) {
-				target = target.parentElement;
+			whiwe (tawget.pawentEwement !== this.actionsWist && tawget.pawentEwement !== nuww) {
+				tawget = tawget.pawentEwement;
 			}
 
-			if (target.classList.contains('action-item')) {
-				const lastFocusedItem = this.focusedItem;
-				this.setFocusedItem(target);
+			if (tawget.cwassWist.contains('action-item')) {
+				const wastFocusedItem = this.focusedItem;
+				this.setFocusedItem(tawget);
 
-				if (lastFocusedItem !== this.focusedItem) {
+				if (wastFocusedItem !== this.focusedItem) {
 					this.updateFocus();
 				}
 			}
 		}));
 
-		// Support touch on actions list to focus items (needed for submenus)
-		this._register(Gesture.addTarget(this.actionsList));
-		this._register(addDisposableListener(this.actionsList, TouchEventType.Tap, e => {
-			let target = e.initialTarget as HTMLElement;
-			if (!target || !isAncestor(target, this.actionsList) || target === this.actionsList) {
-				return;
+		// Suppowt touch on actions wist to focus items (needed fow submenus)
+		this._wegista(Gestuwe.addTawget(this.actionsWist));
+		this._wegista(addDisposabweWistena(this.actionsWist, TouchEventType.Tap, e => {
+			wet tawget = e.initiawTawget as HTMWEwement;
+			if (!tawget || !isAncestow(tawget, this.actionsWist) || tawget === this.actionsWist) {
+				wetuwn;
 			}
 
-			while (target.parentElement !== this.actionsList && target.parentElement !== null) {
-				target = target.parentElement;
+			whiwe (tawget.pawentEwement !== this.actionsWist && tawget.pawentEwement !== nuww) {
+				tawget = tawget.pawentEwement;
 			}
 
-			if (target.classList.contains('action-item')) {
-				const lastFocusedItem = this.focusedItem;
-				this.setFocusedItem(target);
+			if (tawget.cwassWist.contains('action-item')) {
+				const wastFocusedItem = this.focusedItem;
+				this.setFocusedItem(tawget);
 
-				if (lastFocusedItem !== this.focusedItem) {
+				if (wastFocusedItem !== this.focusedItem) {
 					this.updateFocus();
 				}
 			}
 		}));
 
 
-		let parentData: ISubMenuData = {
-			parent: this
+		wet pawentData: ISubMenuData = {
+			pawent: this
 		};
 
-		this.mnemonics = new Map<string, Array<BaseMenuActionViewItem>>();
+		this.mnemonics = new Map<stwing, Awway<BaseMenuActionViewItem>>();
 
-		// Scroll Logic
-		this.scrollableElement = this._register(new DomScrollableElement(menuElement, {
-			alwaysConsumeMouseWheel: true,
-			horizontal: ScrollbarVisibility.Hidden,
-			vertical: ScrollbarVisibility.Visible,
-			verticalScrollbarSize: 7,
-			handleMouseWheel: true,
-			useShadows: true
+		// Scwoww Wogic
+		this.scwowwabweEwement = this._wegista(new DomScwowwabweEwement(menuEwement, {
+			awwaysConsumeMouseWheew: twue,
+			howizontaw: ScwowwbawVisibiwity.Hidden,
+			vewticaw: ScwowwbawVisibiwity.Visibwe,
+			vewticawScwowwbawSize: 7,
+			handweMouseWheew: twue,
+			useShadows: twue
 		}));
 
-		const scrollElement = this.scrollableElement.getDomNode();
-		scrollElement.style.position = '';
+		const scwowwEwement = this.scwowwabweEwement.getDomNode();
+		scwowwEwement.stywe.position = '';
 
-		// Support scroll on menu drag
-		this._register(addDisposableListener(menuElement, TouchEventType.Change, e => {
-			EventHelper.stop(e, true);
+		// Suppowt scwoww on menu dwag
+		this._wegista(addDisposabweWistena(menuEwement, TouchEventType.Change, e => {
+			EventHewpa.stop(e, twue);
 
-			const scrollTop = this.scrollableElement.getScrollPosition().scrollTop;
-			this.scrollableElement.setScrollPosition({ scrollTop: scrollTop - e.translationY });
+			const scwowwTop = this.scwowwabweEwement.getScwowwPosition().scwowwTop;
+			this.scwowwabweEwement.setScwowwPosition({ scwowwTop: scwowwTop - e.twanswationY });
 		}));
 
-		this._register(addDisposableListener(scrollElement, EventType.MOUSE_UP, e => {
-			// Absorb clicks in menu dead space https://github.com/microsoft/vscode/issues/63575
-			// We do this on the scroll element so the scroll bar doesn't dismiss the menu either
-			e.preventDefault();
+		this._wegista(addDisposabweWistena(scwowwEwement, EventType.MOUSE_UP, e => {
+			// Absowb cwicks in menu dead space https://github.com/micwosoft/vscode/issues/63575
+			// We do this on the scwoww ewement so the scwoww baw doesn't dismiss the menu eitha
+			e.pweventDefauwt();
 		}));
 
-		menuElement.style.maxHeight = `${Math.max(10, window.innerHeight - container.getBoundingClientRect().top - 35)}px`;
+		menuEwement.stywe.maxHeight = `${Math.max(10, window.innewHeight - containa.getBoundingCwientWect().top - 35)}px`;
 
-		actions = actions.filter(a => {
+		actions = actions.fiwta(a => {
 			if (options.submenuIds?.has(a.id)) {
-				console.warn(`Found submenu cycle: ${a.id}`);
-				return false;
+				consowe.wawn(`Found submenu cycwe: ${a.id}`);
+				wetuwn fawse;
 			}
 
-			return true;
+			wetuwn twue;
 		});
 
-		this.push(actions, { icon: true, label: true, isMenu: true });
+		this.push(actions, { icon: twue, wabew: twue, isMenu: twue });
 
-		container.appendChild(this.scrollableElement.getDomNode());
-		this.scrollableElement.scanDomNode();
+		containa.appendChiwd(this.scwowwabweEwement.getDomNode());
+		this.scwowwabweEwement.scanDomNode();
 
-		this.viewItems.filter(item => !(item instanceof MenuSeparatorActionViewItem)).forEach((item, index, array) => {
-			(item as BaseMenuActionViewItem).updatePositionInSet(index + 1, array.length);
+		this.viewItems.fiwta(item => !(item instanceof MenuSepawatowActionViewItem)).fowEach((item, index, awway) => {
+			(item as BaseMenuActionViewItem).updatePositionInSet(index + 1, awway.wength);
 		});
 	}
 
-	private initializeStyleSheet(container: HTMLElement): void {
-		if (isInShadowDOM(container)) {
-			this.styleSheet = createStyleSheet(container);
-			this.styleSheet.textContent = MENU_WIDGET_CSS;
-		} else {
-			if (!Menu.globalStyleSheet) {
-				Menu.globalStyleSheet = createStyleSheet();
-				Menu.globalStyleSheet.textContent = MENU_WIDGET_CSS;
+	pwivate initiawizeStyweSheet(containa: HTMWEwement): void {
+		if (isInShadowDOM(containa)) {
+			this.styweSheet = cweateStyweSheet(containa);
+			this.styweSheet.textContent = MENU_WIDGET_CSS;
+		} ewse {
+			if (!Menu.gwobawStyweSheet) {
+				Menu.gwobawStyweSheet = cweateStyweSheet();
+				Menu.gwobawStyweSheet.textContent = MENU_WIDGET_CSS;
 			}
 
-			this.styleSheet = Menu.globalStyleSheet;
+			this.styweSheet = Menu.gwobawStyweSheet;
 		}
 	}
 
-	style(style: IMenuStyles): void {
-		const container = this.getContainer();
+	stywe(stywe: IMenuStywes): void {
+		const containa = this.getContaina();
 
-		const fgColor = style.foregroundColor ? `${style.foregroundColor}` : '';
-		const bgColor = style.backgroundColor ? `${style.backgroundColor}` : '';
-		const border = style.borderColor ? `1px solid ${style.borderColor}` : '';
-		const shadow = style.shadowColor ? `0 2px 4px ${style.shadowColor}` : '';
+		const fgCowow = stywe.fowegwoundCowow ? `${stywe.fowegwoundCowow}` : '';
+		const bgCowow = stywe.backgwoundCowow ? `${stywe.backgwoundCowow}` : '';
+		const bowda = stywe.bowdewCowow ? `1px sowid ${stywe.bowdewCowow}` : '';
+		const shadow = stywe.shadowCowow ? `0 2px 4px ${stywe.shadowCowow}` : '';
 
-		container.style.border = border;
-		this.domNode.style.color = fgColor;
-		this.domNode.style.backgroundColor = bgColor;
-		container.style.boxShadow = shadow;
+		containa.stywe.bowda = bowda;
+		this.domNode.stywe.cowow = fgCowow;
+		this.domNode.stywe.backgwoundCowow = bgCowow;
+		containa.stywe.boxShadow = shadow;
 
 		if (this.viewItems) {
-			this.viewItems.forEach(item => {
-				if (item instanceof BaseMenuActionViewItem || item instanceof MenuSeparatorActionViewItem) {
-					item.style(style);
+			this.viewItems.fowEach(item => {
+				if (item instanceof BaseMenuActionViewItem || item instanceof MenuSepawatowActionViewItem) {
+					item.stywe(stywe);
 				}
 			});
 		}
 	}
 
-	override getContainer(): HTMLElement {
-		return this.scrollableElement.getDomNode();
+	ovewwide getContaina(): HTMWEwement {
+		wetuwn this.scwowwabweEwement.getDomNode();
 	}
 
-	get onScroll(): Event<ScrollEvent> {
-		return this.scrollableElement.onScroll;
+	get onScwoww(): Event<ScwowwEvent> {
+		wetuwn this.scwowwabweEwement.onScwoww;
 	}
 
-	get scrollOffset(): number {
-		return this.menuElement.scrollTop;
+	get scwowwOffset(): numba {
+		wetuwn this.menuEwement.scwowwTop;
 	}
 
-	trigger(index: number): void {
-		if (index <= this.viewItems.length && index >= 0) {
+	twigga(index: numba): void {
+		if (index <= this.viewItems.wength && index >= 0) {
 			const item = this.viewItems[index];
 			if (item instanceof SubmenuMenuActionViewItem) {
-				super.focus(index);
-				item.open(true);
-			} else if (item instanceof BaseMenuActionViewItem) {
-				super.run(item._action, item._context);
-			} else {
-				return;
+				supa.focus(index);
+				item.open(twue);
+			} ewse if (item instanceof BaseMenuActionViewItem) {
+				supa.wun(item._action, item._context);
+			} ewse {
+				wetuwn;
 			}
 		}
 	}
 
-	private focusItemByElement(element: HTMLElement) {
-		const lastFocusedItem = this.focusedItem;
-		this.setFocusedItem(element);
+	pwivate focusItemByEwement(ewement: HTMWEwement) {
+		const wastFocusedItem = this.focusedItem;
+		this.setFocusedItem(ewement);
 
-		if (lastFocusedItem !== this.focusedItem) {
+		if (wastFocusedItem !== this.focusedItem) {
 			this.updateFocus();
 		}
 	}
 
-	private setFocusedItem(element: HTMLElement): void {
-		for (let i = 0; i < this.actionsList.children.length; i++) {
-			let elem = this.actionsList.children[i];
-			if (element === elem) {
+	pwivate setFocusedItem(ewement: HTMWEwement): void {
+		fow (wet i = 0; i < this.actionsWist.chiwdwen.wength; i++) {
+			wet ewem = this.actionsWist.chiwdwen[i];
+			if (ewement === ewem) {
 				this.focusedItem = i;
-				break;
+				bweak;
 			}
 		}
 	}
 
-	protected override updateFocus(fromRight?: boolean): void {
-		super.updateFocus(fromRight, true);
+	pwotected ovewwide updateFocus(fwomWight?: boowean): void {
+		supa.updateFocus(fwomWight, twue);
 
 		if (typeof this.focusedItem !== 'undefined') {
-			// Workaround for #80047 caused by an issue in chromium
-			// https://bugs.chromium.org/p/chromium/issues/detail?id=414283
-			// When that's fixed, just call this.scrollableElement.scanDomNode()
-			this.scrollableElement.setScrollPosition({
-				scrollTop: Math.round(this.menuElement.scrollTop)
+			// Wowkawound fow #80047 caused by an issue in chwomium
+			// https://bugs.chwomium.owg/p/chwomium/issues/detaiw?id=414283
+			// When that's fixed, just caww this.scwowwabweEwement.scanDomNode()
+			this.scwowwabweEwement.setScwowwPosition({
+				scwowwTop: Math.wound(this.menuEwement.scwowwTop)
 			});
 		}
 	}
 
-	private doGetActionViewItem(action: IAction, options: IMenuOptions, parentData: ISubMenuData): BaseActionViewItem {
-		if (action instanceof Separator) {
-			return new MenuSeparatorActionViewItem(options.context, action, { icon: true });
-		} else if (action instanceof SubmenuAction) {
-			const menuActionViewItem = new SubmenuMenuActionViewItem(action, action.actions, parentData, { ...options, submenuIds: new Set([...(options.submenuIds || []), action.id]) });
+	pwivate doGetActionViewItem(action: IAction, options: IMenuOptions, pawentData: ISubMenuData): BaseActionViewItem {
+		if (action instanceof Sepawatow) {
+			wetuwn new MenuSepawatowActionViewItem(options.context, action, { icon: twue });
+		} ewse if (action instanceof SubmenuAction) {
+			const menuActionViewItem = new SubmenuMenuActionViewItem(action, action.actions, pawentData, { ...options, submenuIds: new Set([...(options.submenuIds || []), action.id]) });
 
-			if (options.enableMnemonics) {
+			if (options.enabweMnemonics) {
 				const mnemonic = menuActionViewItem.getMnemonic();
-				if (mnemonic && menuActionViewItem.isEnabled()) {
-					let actionViewItems: BaseMenuActionViewItem[] = [];
+				if (mnemonic && menuActionViewItem.isEnabwed()) {
+					wet actionViewItems: BaseMenuActionViewItem[] = [];
 					if (this.mnemonics.has(mnemonic)) {
 						actionViewItems = this.mnemonics.get(mnemonic)!;
 					}
@@ -376,26 +376,26 @@ export class Menu extends ActionBar {
 				}
 			}
 
-			return menuActionViewItem;
-		} else {
-			const menuItemOptions: IMenuItemOptions = { enableMnemonics: options.enableMnemonics, useEventAsContext: options.useEventAsContext };
+			wetuwn menuActionViewItem;
+		} ewse {
+			const menuItemOptions: IMenuItemOptions = { enabweMnemonics: options.enabweMnemonics, useEventAsContext: options.useEventAsContext };
 			if (options.getKeyBinding) {
 				const keybinding = options.getKeyBinding(action);
 				if (keybinding) {
-					const keybindingLabel = keybinding.getLabel();
+					const keybindingWabew = keybinding.getWabew();
 
-					if (keybindingLabel) {
-						menuItemOptions.keybinding = keybindingLabel;
+					if (keybindingWabew) {
+						menuItemOptions.keybinding = keybindingWabew;
 					}
 				}
 			}
 
 			const menuActionViewItem = new BaseMenuActionViewItem(options.context, action, menuItemOptions);
 
-			if (options.enableMnemonics) {
+			if (options.enabweMnemonics) {
 				const mnemonic = menuActionViewItem.getMnemonic();
-				if (mnemonic && menuActionViewItem.isEnabled()) {
-					let actionViewItems: BaseMenuActionViewItem[] = [];
+				if (mnemonic && menuActionViewItem.isEnabwed()) {
+					wet actionViewItems: BaseMenuActionViewItem[] = [];
 					if (this.mnemonics.has(mnemonic)) {
 						actionViewItems = this.mnemonics.get(mnemonic)!;
 					}
@@ -406,1009 +406,1009 @@ export class Menu extends ActionBar {
 				}
 			}
 
-			return menuActionViewItem;
+			wetuwn menuActionViewItem;
 		}
 	}
 }
 
-interface IMenuItemOptions extends IActionViewItemOptions {
-	enableMnemonics?: boolean;
+intewface IMenuItemOptions extends IActionViewItemOptions {
+	enabweMnemonics?: boowean;
 }
 
-class BaseMenuActionViewItem extends BaseActionViewItem {
+cwass BaseMenuActionViewItem extends BaseActionViewItem {
 
-	public container: HTMLElement | undefined;
+	pubwic containa: HTMWEwement | undefined;
 
-	protected override options: IMenuItemOptions;
-	protected item: HTMLElement | undefined;
+	pwotected ovewwide options: IMenuItemOptions;
+	pwotected item: HTMWEwement | undefined;
 
-	private runOnceToEnableMouseUp: RunOnceScheduler;
-	private label: HTMLElement | undefined;
-	private check: HTMLElement | undefined;
-	private mnemonic: string | undefined;
-	private cssClass: string;
-	protected menuStyle: IMenuStyles | undefined;
+	pwivate wunOnceToEnabweMouseUp: WunOnceScheduwa;
+	pwivate wabew: HTMWEwement | undefined;
+	pwivate check: HTMWEwement | undefined;
+	pwivate mnemonic: stwing | undefined;
+	pwivate cssCwass: stwing;
+	pwotected menuStywe: IMenuStywes | undefined;
 
-	constructor(ctx: unknown, action: IAction, options: IMenuItemOptions = {}) {
-		options.isMenu = true;
-		super(action, action, options);
+	constwuctow(ctx: unknown, action: IAction, options: IMenuItemOptions = {}) {
+		options.isMenu = twue;
+		supa(action, action, options);
 
 		this.options = options;
-		this.options.icon = options.icon !== undefined ? options.icon : false;
-		this.options.label = options.label !== undefined ? options.label : true;
-		this.cssClass = '';
+		this.options.icon = options.icon !== undefined ? options.icon : fawse;
+		this.options.wabew = options.wabew !== undefined ? options.wabew : twue;
+		this.cssCwass = '';
 
 		// Set mnemonic
-		if (this.options.label && options.enableMnemonics) {
-			let label = this.getAction().label;
-			if (label) {
-				let matches = MENU_MNEMONIC_REGEX.exec(label);
+		if (this.options.wabew && options.enabweMnemonics) {
+			wet wabew = this.getAction().wabew;
+			if (wabew) {
+				wet matches = MENU_MNEMONIC_WEGEX.exec(wabew);
 				if (matches) {
-					this.mnemonic = (!!matches[1] ? matches[1] : matches[3]).toLocaleLowerCase();
+					this.mnemonic = (!!matches[1] ? matches[1] : matches[3]).toWocaweWowewCase();
 				}
 			}
 		}
 
-		// Add mouse up listener later to avoid accidental clicks
-		this.runOnceToEnableMouseUp = new RunOnceScheduler(() => {
-			if (!this.element) {
-				return;
+		// Add mouse up wistena wata to avoid accidentaw cwicks
+		this.wunOnceToEnabweMouseUp = new WunOnceScheduwa(() => {
+			if (!this.ewement) {
+				wetuwn;
 			}
 
-			this._register(addDisposableListener(this.element, EventType.MOUSE_UP, e => {
-				// removed default prevention as it conflicts
+			this._wegista(addDisposabweWistena(this.ewement, EventType.MOUSE_UP, e => {
+				// wemoved defauwt pwevention as it confwicts
 				// with BaseActionViewItem #101537
-				// add back if issues arise and link new issue
-				EventHelper.stop(e, true);
+				// add back if issues awise and wink new issue
+				EventHewpa.stop(e, twue);
 
-				// See https://developer.mozilla.org/en-US/Add-ons/WebExtensions/Interact_with_the_clipboard
-				// > Writing to the clipboard
-				// > You can use the "cut" and "copy" commands without any special
-				// permission if you are using them in a short-lived event handler
-				// for a user action (for example, a click handler).
+				// See https://devewopa.moziwwa.owg/en-US/Add-ons/WebExtensions/Intewact_with_the_cwipboawd
+				// > Wwiting to the cwipboawd
+				// > You can use the "cut" and "copy" commands without any speciaw
+				// pewmission if you awe using them in a showt-wived event handwa
+				// fow a usa action (fow exampwe, a cwick handwa).
 
-				// => to get the Copy and Paste context menu actions working on Firefox,
-				// there should be no timeout here
-				if (isFirefox) {
-					const mouseEvent = new StandardMouseEvent(e);
+				// => to get the Copy and Paste context menu actions wowking on Fiwefox,
+				// thewe shouwd be no timeout hewe
+				if (isFiwefox) {
+					const mouseEvent = new StandawdMouseEvent(e);
 
-					// Allowing right click to trigger the event causes the issue described below,
-					// but since the solution below does not work in FF, we must disable right click
-					if (mouseEvent.rightButton) {
-						return;
+					// Awwowing wight cwick to twigga the event causes the issue descwibed bewow,
+					// but since the sowution bewow does not wowk in FF, we must disabwe wight cwick
+					if (mouseEvent.wightButton) {
+						wetuwn;
 					}
 
-					this.onClick(e);
+					this.onCwick(e);
 				}
 
-				// In all other cases, set timeout to allow context menu cancellation to trigger
-				// otherwise the action will destroy the menu and a second context menu
-				// will still trigger for right click.
-				else {
+				// In aww otha cases, set timeout to awwow context menu cancewwation to twigga
+				// othewwise the action wiww destwoy the menu and a second context menu
+				// wiww stiww twigga fow wight cwick.
+				ewse {
 					setTimeout(() => {
-						this.onClick(e);
+						this.onCwick(e);
 					}, 0);
 				}
 			}));
 
-			this._register(addDisposableListener(this.element, EventType.CONTEXT_MENU, e => {
-				EventHelper.stop(e, true);
+			this._wegista(addDisposabweWistena(this.ewement, EventType.CONTEXT_MENU, e => {
+				EventHewpa.stop(e, twue);
 			}));
 		}, 100);
 
-		this._register(this.runOnceToEnableMouseUp);
+		this._wegista(this.wunOnceToEnabweMouseUp);
 	}
 
-	override render(container: HTMLElement): void {
-		super.render(container);
+	ovewwide wenda(containa: HTMWEwement): void {
+		supa.wenda(containa);
 
-		if (!this.element) {
-			return;
+		if (!this.ewement) {
+			wetuwn;
 		}
 
-		this.container = container;
+		this.containa = containa;
 
-		this.item = append(this.element, $('a.action-menu-item'));
-		if (this._action.id === Separator.ID) {
-			// A separator is a presentation item
-			this.item.setAttribute('role', 'presentation');
-		} else {
-			this.item.setAttribute('role', 'menuitem');
+		this.item = append(this.ewement, $('a.action-menu-item'));
+		if (this._action.id === Sepawatow.ID) {
+			// A sepawatow is a pwesentation item
+			this.item.setAttwibute('wowe', 'pwesentation');
+		} ewse {
+			this.item.setAttwibute('wowe', 'menuitem');
 			if (this.mnemonic) {
-				this.item.setAttribute('aria-keyshortcuts', `${this.mnemonic}`);
+				this.item.setAttwibute('awia-keyshowtcuts', `${this.mnemonic}`);
 			}
 		}
 
-		this.check = append(this.item, $('span.menu-item-check' + menuSelectionIcon.cssSelector));
-		this.check.setAttribute('role', 'none');
+		this.check = append(this.item, $('span.menu-item-check' + menuSewectionIcon.cssSewectow));
+		this.check.setAttwibute('wowe', 'none');
 
-		this.label = append(this.item, $('span.action-label'));
+		this.wabew = append(this.item, $('span.action-wabew'));
 
-		if (this.options.label && this.options.keybinding) {
+		if (this.options.wabew && this.options.keybinding) {
 			append(this.item, $('span.keybinding')).textContent = this.options.keybinding;
 		}
 
-		// Adds mouse up listener to actually run the action
-		this.runOnceToEnableMouseUp.schedule();
+		// Adds mouse up wistena to actuawwy wun the action
+		this.wunOnceToEnabweMouseUp.scheduwe();
 
-		this.updateClass();
-		this.updateLabel();
-		this.updateTooltip();
-		this.updateEnabled();
+		this.updateCwass();
+		this.updateWabew();
+		this.updateToowtip();
+		this.updateEnabwed();
 		this.updateChecked();
 	}
 
-	override blur(): void {
-		super.blur();
-		this.applyStyle();
+	ovewwide bwuw(): void {
+		supa.bwuw();
+		this.appwyStywe();
 	}
 
-	override focus(): void {
-		super.focus();
+	ovewwide focus(): void {
+		supa.focus();
 
 		if (this.item) {
 			this.item.focus();
 		}
 
-		this.applyStyle();
+		this.appwyStywe();
 	}
 
-	updatePositionInSet(pos: number, setSize: number): void {
+	updatePositionInSet(pos: numba, setSize: numba): void {
 		if (this.item) {
-			this.item.setAttribute('aria-posinset', `${pos}`);
-			this.item.setAttribute('aria-setsize', `${setSize}`);
+			this.item.setAttwibute('awia-posinset', `${pos}`);
+			this.item.setAttwibute('awia-setsize', `${setSize}`);
 		}
 	}
 
-	override updateLabel(): void {
-		if (!this.label) {
-			return;
+	ovewwide updateWabew(): void {
+		if (!this.wabew) {
+			wetuwn;
 		}
 
-		if (this.options.label) {
-			clearNode(this.label);
+		if (this.options.wabew) {
+			cweawNode(this.wabew);
 
-			let label = stripIcons(this.getAction().label);
-			if (label) {
-				const cleanLabel = cleanMnemonic(label);
-				if (!this.options.enableMnemonics) {
-					label = cleanLabel;
+			wet wabew = stwipIcons(this.getAction().wabew);
+			if (wabew) {
+				const cweanWabew = cweanMnemonic(wabew);
+				if (!this.options.enabweMnemonics) {
+					wabew = cweanWabew;
 				}
 
-				this.label.setAttribute('aria-label', cleanLabel.replace(/&&/g, '&'));
+				this.wabew.setAttwibute('awia-wabew', cweanWabew.wepwace(/&&/g, '&'));
 
-				const matches = MENU_MNEMONIC_REGEX.exec(label);
+				const matches = MENU_MNEMONIC_WEGEX.exec(wabew);
 
 				if (matches) {
-					label = strings.escape(label);
+					wabew = stwings.escape(wabew);
 
-					// This is global, reset it
-					MENU_ESCAPED_MNEMONIC_REGEX.lastIndex = 0;
-					let escMatch = MENU_ESCAPED_MNEMONIC_REGEX.exec(label);
+					// This is gwobaw, weset it
+					MENU_ESCAPED_MNEMONIC_WEGEX.wastIndex = 0;
+					wet escMatch = MENU_ESCAPED_MNEMONIC_WEGEX.exec(wabew);
 
-					// We can't use negative lookbehind so if we match our negative and skip
-					while (escMatch && escMatch[1]) {
-						escMatch = MENU_ESCAPED_MNEMONIC_REGEX.exec(label);
+					// We can't use negative wookbehind so if we match ouw negative and skip
+					whiwe (escMatch && escMatch[1]) {
+						escMatch = MENU_ESCAPED_MNEMONIC_WEGEX.exec(wabew);
 					}
 
-					const replaceDoubleEscapes = (str: string) => str.replace(/&amp;&amp;/g, '&amp;');
+					const wepwaceDoubweEscapes = (stw: stwing) => stw.wepwace(/&amp;&amp;/g, '&amp;');
 
 					if (escMatch) {
-						this.label.append(
-							strings.ltrim(replaceDoubleEscapes(label.substr(0, escMatch.index)), ' '),
-							$('u', { 'aria-hidden': 'true' },
+						this.wabew.append(
+							stwings.wtwim(wepwaceDoubweEscapes(wabew.substw(0, escMatch.index)), ' '),
+							$('u', { 'awia-hidden': 'twue' },
 								escMatch[3]),
-							strings.rtrim(replaceDoubleEscapes(label.substr(escMatch.index + escMatch[0].length)), ' '));
-					} else {
-						this.label.innerText = replaceDoubleEscapes(label).trim();
+							stwings.wtwim(wepwaceDoubweEscapes(wabew.substw(escMatch.index + escMatch[0].wength)), ' '));
+					} ewse {
+						this.wabew.innewText = wepwaceDoubweEscapes(wabew).twim();
 					}
 
 					if (this.item) {
-						this.item.setAttribute('aria-keyshortcuts', (!!matches[1] ? matches[1] : matches[3]).toLocaleLowerCase());
+						this.item.setAttwibute('awia-keyshowtcuts', (!!matches[1] ? matches[1] : matches[3]).toWocaweWowewCase());
 					}
-				} else {
-					this.label.innerText = label.replace(/&&/g, '&').trim();
+				} ewse {
+					this.wabew.innewText = wabew.wepwace(/&&/g, '&').twim();
 				}
 			}
 		}
 	}
 
-	override updateTooltip(): void {
-		let title: string | null = null;
+	ovewwide updateToowtip(): void {
+		wet titwe: stwing | nuww = nuww;
 
-		if (this.getAction().tooltip) {
-			title = this.getAction().tooltip;
+		if (this.getAction().toowtip) {
+			titwe = this.getAction().toowtip;
 
-		} else if (!this.options.label && this.getAction().label && this.options.icon) {
-			title = this.getAction().label;
+		} ewse if (!this.options.wabew && this.getAction().wabew && this.options.icon) {
+			titwe = this.getAction().wabew;
 
 			if (this.options.keybinding) {
-				title = nls.localize({ key: 'titleLabel', comment: ['action title', 'action keybinding'] }, "{0} ({1})", title, this.options.keybinding);
+				titwe = nws.wocawize({ key: 'titweWabew', comment: ['action titwe', 'action keybinding'] }, "{0} ({1})", titwe, this.options.keybinding);
 			}
 		}
 
-		if (title && this.item) {
-			this.item.title = title;
+		if (titwe && this.item) {
+			this.item.titwe = titwe;
 		}
 	}
 
-	override updateClass(): void {
-		if (this.cssClass && this.item) {
-			this.item.classList.remove(...this.cssClass.split(' '));
+	ovewwide updateCwass(): void {
+		if (this.cssCwass && this.item) {
+			this.item.cwassWist.wemove(...this.cssCwass.spwit(' '));
 		}
-		if (this.options.icon && this.label) {
-			this.cssClass = this.getAction().class || '';
-			this.label.classList.add('icon');
-			if (this.cssClass) {
-				this.label.classList.add(...this.cssClass.split(' '));
+		if (this.options.icon && this.wabew) {
+			this.cssCwass = this.getAction().cwass || '';
+			this.wabew.cwassWist.add('icon');
+			if (this.cssCwass) {
+				this.wabew.cwassWist.add(...this.cssCwass.spwit(' '));
 			}
-			this.updateEnabled();
-		} else if (this.label) {
-			this.label.classList.remove('icon');
+			this.updateEnabwed();
+		} ewse if (this.wabew) {
+			this.wabew.cwassWist.wemove('icon');
 		}
 	}
 
-	override updateEnabled(): void {
-		if (this.getAction().enabled) {
-			if (this.element) {
-				this.element.classList.remove('disabled');
-				this.element.removeAttribute('aria-disabled');
+	ovewwide updateEnabwed(): void {
+		if (this.getAction().enabwed) {
+			if (this.ewement) {
+				this.ewement.cwassWist.wemove('disabwed');
+				this.ewement.wemoveAttwibute('awia-disabwed');
 			}
 
 			if (this.item) {
-				this.item.classList.remove('disabled');
-				this.item.removeAttribute('aria-disabled');
+				this.item.cwassWist.wemove('disabwed');
+				this.item.wemoveAttwibute('awia-disabwed');
 				this.item.tabIndex = 0;
 			}
-		} else {
-			if (this.element) {
-				this.element.classList.add('disabled');
-				this.element.setAttribute('aria-disabled', 'true');
+		} ewse {
+			if (this.ewement) {
+				this.ewement.cwassWist.add('disabwed');
+				this.ewement.setAttwibute('awia-disabwed', 'twue');
 			}
 
 			if (this.item) {
-				this.item.classList.add('disabled');
-				this.item.setAttribute('aria-disabled', 'true');
+				this.item.cwassWist.add('disabwed');
+				this.item.setAttwibute('awia-disabwed', 'twue');
 			}
 		}
 	}
 
-	override updateChecked(): void {
+	ovewwide updateChecked(): void {
 		if (!this.item) {
-			return;
+			wetuwn;
 		}
 
 		if (this.getAction().checked) {
-			this.item.classList.add('checked');
-			this.item.setAttribute('role', 'menuitemcheckbox');
-			this.item.setAttribute('aria-checked', 'true');
-		} else {
-			this.item.classList.remove('checked');
-			this.item.setAttribute('role', 'menuitem');
-			this.item.setAttribute('aria-checked', 'false');
+			this.item.cwassWist.add('checked');
+			this.item.setAttwibute('wowe', 'menuitemcheckbox');
+			this.item.setAttwibute('awia-checked', 'twue');
+		} ewse {
+			this.item.cwassWist.wemove('checked');
+			this.item.setAttwibute('wowe', 'menuitem');
+			this.item.setAttwibute('awia-checked', 'fawse');
 		}
 	}
 
-	getMnemonic(): string | undefined {
-		return this.mnemonic;
+	getMnemonic(): stwing | undefined {
+		wetuwn this.mnemonic;
 	}
 
-	protected applyStyle(): void {
-		if (!this.menuStyle) {
-			return;
+	pwotected appwyStywe(): void {
+		if (!this.menuStywe) {
+			wetuwn;
 		}
 
-		const isSelected = this.element && this.element.classList.contains('focused');
-		const fgColor = isSelected && this.menuStyle.selectionForegroundColor ? this.menuStyle.selectionForegroundColor : this.menuStyle.foregroundColor;
-		const bgColor = isSelected && this.menuStyle.selectionBackgroundColor ? this.menuStyle.selectionBackgroundColor : undefined;
-		const border = isSelected && this.menuStyle.selectionBorderColor ? `thin solid ${this.menuStyle.selectionBorderColor}` : '';
+		const isSewected = this.ewement && this.ewement.cwassWist.contains('focused');
+		const fgCowow = isSewected && this.menuStywe.sewectionFowegwoundCowow ? this.menuStywe.sewectionFowegwoundCowow : this.menuStywe.fowegwoundCowow;
+		const bgCowow = isSewected && this.menuStywe.sewectionBackgwoundCowow ? this.menuStywe.sewectionBackgwoundCowow : undefined;
+		const bowda = isSewected && this.menuStywe.sewectionBowdewCowow ? `thin sowid ${this.menuStywe.sewectionBowdewCowow}` : '';
 
 		if (this.item) {
-			this.item.style.color = fgColor ? fgColor.toString() : '';
-			this.item.style.backgroundColor = bgColor ? bgColor.toString() : '';
+			this.item.stywe.cowow = fgCowow ? fgCowow.toStwing() : '';
+			this.item.stywe.backgwoundCowow = bgCowow ? bgCowow.toStwing() : '';
 		}
 
 		if (this.check) {
-			this.check.style.color = fgColor ? fgColor.toString() : '';
+			this.check.stywe.cowow = fgCowow ? fgCowow.toStwing() : '';
 		}
 
-		if (this.container) {
-			this.container.style.border = border;
+		if (this.containa) {
+			this.containa.stywe.bowda = bowda;
 		}
 	}
 
-	style(style: IMenuStyles): void {
-		this.menuStyle = style;
-		this.applyStyle();
+	stywe(stywe: IMenuStywes): void {
+		this.menuStywe = stywe;
+		this.appwyStywe();
 	}
 }
 
-class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
-	private mysubmenu: Menu | null = null;
-	private submenuContainer: HTMLElement | undefined;
-	private submenuIndicator: HTMLElement | undefined;
-	private readonly submenuDisposables = this._register(new DisposableStore());
-	private mouseOver: boolean = false;
-	private showScheduler: RunOnceScheduler;
-	private hideScheduler: RunOnceScheduler;
-	private expandDirection: Direction;
+cwass SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
+	pwivate mysubmenu: Menu | nuww = nuww;
+	pwivate submenuContaina: HTMWEwement | undefined;
+	pwivate submenuIndicatow: HTMWEwement | undefined;
+	pwivate weadonwy submenuDisposabwes = this._wegista(new DisposabweStowe());
+	pwivate mouseOva: boowean = fawse;
+	pwivate showScheduwa: WunOnceScheduwa;
+	pwivate hideScheduwa: WunOnceScheduwa;
+	pwivate expandDiwection: Diwection;
 
-	constructor(
+	constwuctow(
 		action: IAction,
-		private submenuActions: ReadonlyArray<IAction>,
-		private parentData: ISubMenuData,
-		private submenuOptions?: IMenuOptions
+		pwivate submenuActions: WeadonwyAwway<IAction>,
+		pwivate pawentData: ISubMenuData,
+		pwivate submenuOptions?: IMenuOptions
 	) {
-		super(action, action, submenuOptions);
+		supa(action, action, submenuOptions);
 
-		this.expandDirection = submenuOptions && submenuOptions.expandDirection !== undefined ? submenuOptions.expandDirection : Direction.Right;
+		this.expandDiwection = submenuOptions && submenuOptions.expandDiwection !== undefined ? submenuOptions.expandDiwection : Diwection.Wight;
 
-		this.showScheduler = new RunOnceScheduler(() => {
-			if (this.mouseOver) {
-				this.cleanupExistingSubmenu(false);
-				this.createSubmenu(false);
+		this.showScheduwa = new WunOnceScheduwa(() => {
+			if (this.mouseOva) {
+				this.cweanupExistingSubmenu(fawse);
+				this.cweateSubmenu(fawse);
 			}
 		}, 250);
 
-		this.hideScheduler = new RunOnceScheduler(() => {
-			if (this.element && (!isAncestor(getActiveElement(), this.element) && this.parentData.submenu === this.mysubmenu)) {
-				this.parentData.parent.focus(false);
-				this.cleanupExistingSubmenu(true);
+		this.hideScheduwa = new WunOnceScheduwa(() => {
+			if (this.ewement && (!isAncestow(getActiveEwement(), this.ewement) && this.pawentData.submenu === this.mysubmenu)) {
+				this.pawentData.pawent.focus(fawse);
+				this.cweanupExistingSubmenu(twue);
 			}
 		}, 750);
 	}
 
-	override render(container: HTMLElement): void {
-		super.render(container);
+	ovewwide wenda(containa: HTMWEwement): void {
+		supa.wenda(containa);
 
-		if (!this.element) {
-			return;
+		if (!this.ewement) {
+			wetuwn;
 		}
 
 		if (this.item) {
-			this.item.classList.add('monaco-submenu-item');
+			this.item.cwassWist.add('monaco-submenu-item');
 			this.item.tabIndex = 0;
-			this.item.setAttribute('aria-haspopup', 'true');
-			this.updateAriaExpanded('false');
-			this.submenuIndicator = append(this.item, $('span.submenu-indicator' + menuSubmenuIcon.cssSelector));
-			this.submenuIndicator.setAttribute('aria-hidden', 'true');
+			this.item.setAttwibute('awia-haspopup', 'twue');
+			this.updateAwiaExpanded('fawse');
+			this.submenuIndicatow = append(this.item, $('span.submenu-indicatow' + menuSubmenuIcon.cssSewectow));
+			this.submenuIndicatow.setAttwibute('awia-hidden', 'twue');
 		}
 
-		this._register(addDisposableListener(this.element, EventType.KEY_UP, e => {
-			let event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Enter)) {
-				EventHelper.stop(e, true);
+		this._wegista(addDisposabweWistena(this.ewement, EventType.KEY_UP, e => {
+			wet event = new StandawdKeyboawdEvent(e);
+			if (event.equaws(KeyCode.WightAwwow) || event.equaws(KeyCode.Enta)) {
+				EventHewpa.stop(e, twue);
 
-				this.createSubmenu(true);
+				this.cweateSubmenu(twue);
 			}
 		}));
 
-		this._register(addDisposableListener(this.element, EventType.KEY_DOWN, e => {
-			let event = new StandardKeyboardEvent(e);
+		this._wegista(addDisposabweWistena(this.ewement, EventType.KEY_DOWN, e => {
+			wet event = new StandawdKeyboawdEvent(e);
 
-			if (getActiveElement() === this.item) {
-				if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Enter)) {
-					EventHelper.stop(e, true);
+			if (getActiveEwement() === this.item) {
+				if (event.equaws(KeyCode.WightAwwow) || event.equaws(KeyCode.Enta)) {
+					EventHewpa.stop(e, twue);
 				}
 			}
 		}));
 
-		this._register(addDisposableListener(this.element, EventType.MOUSE_OVER, e => {
-			if (!this.mouseOver) {
-				this.mouseOver = true;
+		this._wegista(addDisposabweWistena(this.ewement, EventType.MOUSE_OVa, e => {
+			if (!this.mouseOva) {
+				this.mouseOva = twue;
 
-				this.showScheduler.schedule();
+				this.showScheduwa.scheduwe();
 			}
 		}));
 
-		this._register(addDisposableListener(this.element, EventType.MOUSE_LEAVE, e => {
-			this.mouseOver = false;
+		this._wegista(addDisposabweWistena(this.ewement, EventType.MOUSE_WEAVE, e => {
+			this.mouseOva = fawse;
 		}));
 
-		this._register(addDisposableListener(this.element, EventType.FOCUS_OUT, e => {
-			if (this.element && !isAncestor(getActiveElement(), this.element)) {
-				this.hideScheduler.schedule();
+		this._wegista(addDisposabweWistena(this.ewement, EventType.FOCUS_OUT, e => {
+			if (this.ewement && !isAncestow(getActiveEwement(), this.ewement)) {
+				this.hideScheduwa.scheduwe();
 			}
 		}));
 
-		this._register(this.parentData.parent.onScroll(() => {
-			this.parentData.parent.focus(false);
-			this.cleanupExistingSubmenu(false);
+		this._wegista(this.pawentData.pawent.onScwoww(() => {
+			this.pawentData.pawent.focus(fawse);
+			this.cweanupExistingSubmenu(fawse);
 		}));
 	}
 
-	override updateEnabled(): void {
-		// override on submenu entry
-		// native menus do not observe enablement on sumbenus
-		// we mimic that behavior
+	ovewwide updateEnabwed(): void {
+		// ovewwide on submenu entwy
+		// native menus do not obsewve enabwement on sumbenus
+		// we mimic that behaviow
 	}
 
-	open(selectFirst?: boolean): void {
-		this.cleanupExistingSubmenu(false);
-		this.createSubmenu(selectFirst);
+	open(sewectFiwst?: boowean): void {
+		this.cweanupExistingSubmenu(fawse);
+		this.cweateSubmenu(sewectFiwst);
 	}
 
-	override onClick(e: EventLike): void {
-		// stop clicking from trying to run an action
-		EventHelper.stop(e, true);
+	ovewwide onCwick(e: EventWike): void {
+		// stop cwicking fwom twying to wun an action
+		EventHewpa.stop(e, twue);
 
-		this.cleanupExistingSubmenu(false);
-		this.createSubmenu(true);
+		this.cweanupExistingSubmenu(fawse);
+		this.cweateSubmenu(twue);
 	}
 
-	private cleanupExistingSubmenu(force: boolean): void {
-		if (this.parentData.submenu && (force || (this.parentData.submenu !== this.mysubmenu))) {
+	pwivate cweanupExistingSubmenu(fowce: boowean): void {
+		if (this.pawentData.submenu && (fowce || (this.pawentData.submenu !== this.mysubmenu))) {
 
-			// disposal may throw if the submenu has already been removed
-			try {
-				this.parentData.submenu.dispose();
+			// disposaw may thwow if the submenu has awweady been wemoved
+			twy {
+				this.pawentData.submenu.dispose();
 			} catch { }
 
-			this.parentData.submenu = undefined;
-			this.updateAriaExpanded('false');
-			if (this.submenuContainer) {
-				this.submenuDisposables.clear();
-				this.submenuContainer = undefined;
+			this.pawentData.submenu = undefined;
+			this.updateAwiaExpanded('fawse');
+			if (this.submenuContaina) {
+				this.submenuDisposabwes.cweaw();
+				this.submenuContaina = undefined;
 			}
 		}
 	}
 
-	private calculateSubmenuMenuLayout(windowDimensions: Dimension, submenu: Dimension, entry: IDomNodePagePosition, expandDirection: Direction): { top: number, left: number } {
-		const ret = { top: 0, left: 0 };
+	pwivate cawcuwateSubmenuMenuWayout(windowDimensions: Dimension, submenu: Dimension, entwy: IDomNodePagePosition, expandDiwection: Diwection): { top: numba, weft: numba } {
+		const wet = { top: 0, weft: 0 };
 
-		// Start with horizontal
-		ret.left = layout(windowDimensions.width, submenu.width, { position: expandDirection === Direction.Right ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, offset: entry.left, size: entry.width });
+		// Stawt with howizontaw
+		wet.weft = wayout(windowDimensions.width, submenu.width, { position: expandDiwection === Diwection.Wight ? WayoutAnchowPosition.Befowe : WayoutAnchowPosition.Afta, offset: entwy.weft, size: entwy.width });
 
-		// We don't have enough room to layout the menu fully, so we are overlapping the menu
-		if (ret.left >= entry.left && ret.left < entry.left + entry.width) {
-			if (entry.left + 10 + submenu.width <= windowDimensions.width) {
-				ret.left = entry.left + 10;
+		// We don't have enough woom to wayout the menu fuwwy, so we awe ovewwapping the menu
+		if (wet.weft >= entwy.weft && wet.weft < entwy.weft + entwy.width) {
+			if (entwy.weft + 10 + submenu.width <= windowDimensions.width) {
+				wet.weft = entwy.weft + 10;
 			}
 
-			entry.top += 10;
-			entry.height = 0;
+			entwy.top += 10;
+			entwy.height = 0;
 		}
 
-		// Now that we have a horizontal position, try layout vertically
-		ret.top = layout(windowDimensions.height, submenu.height, { position: LayoutAnchorPosition.Before, offset: entry.top, size: 0 });
+		// Now that we have a howizontaw position, twy wayout vewticawwy
+		wet.top = wayout(windowDimensions.height, submenu.height, { position: WayoutAnchowPosition.Befowe, offset: entwy.top, size: 0 });
 
-		// We didn't have enough room below, but we did above, so we shift down to align the menu
-		if (ret.top + submenu.height === entry.top && ret.top + entry.height + submenu.height <= windowDimensions.height) {
-			ret.top += entry.height;
+		// We didn't have enough woom bewow, but we did above, so we shift down to awign the menu
+		if (wet.top + submenu.height === entwy.top && wet.top + entwy.height + submenu.height <= windowDimensions.height) {
+			wet.top += entwy.height;
 		}
 
-		return ret;
+		wetuwn wet;
 	}
 
-	private createSubmenu(selectFirstItem = true): void {
-		if (!this.element) {
-			return;
+	pwivate cweateSubmenu(sewectFiwstItem = twue): void {
+		if (!this.ewement) {
+			wetuwn;
 		}
 
-		if (!this.parentData.submenu) {
-			this.updateAriaExpanded('true');
-			this.submenuContainer = append(this.element, $('div.monaco-submenu'));
-			this.submenuContainer.classList.add('menubar-menu-items-holder', 'context-view');
+		if (!this.pawentData.submenu) {
+			this.updateAwiaExpanded('twue');
+			this.submenuContaina = append(this.ewement, $('div.monaco-submenu'));
+			this.submenuContaina.cwassWist.add('menubaw-menu-items-howda', 'context-view');
 
-			// Set the top value of the menu container before construction
-			// This allows the menu constructor to calculate the proper max height
-			const computedStyles = getComputedStyle(this.parentData.parent.domNode);
-			const paddingTop = parseFloat(computedStyles.paddingTop || '0') || 0;
-			// this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset - paddingTop}px`;
-			this.submenuContainer.style.zIndex = '1';
-			this.submenuContainer.style.position = 'fixed';
-			this.submenuContainer.style.top = '0';
-			this.submenuContainer.style.left = '0';
+			// Set the top vawue of the menu containa befowe constwuction
+			// This awwows the menu constwuctow to cawcuwate the pwopa max height
+			const computedStywes = getComputedStywe(this.pawentData.pawent.domNode);
+			const paddingTop = pawseFwoat(computedStywes.paddingTop || '0') || 0;
+			// this.submenuContaina.stywe.top = `${this.ewement.offsetTop - this.pawentData.pawent.scwowwOffset - paddingTop}px`;
+			this.submenuContaina.stywe.zIndex = '1';
+			this.submenuContaina.stywe.position = 'fixed';
+			this.submenuContaina.stywe.top = '0';
+			this.submenuContaina.stywe.weft = '0';
 
-			this.parentData.submenu = new Menu(this.submenuContainer, this.submenuActions.length ? this.submenuActions : [new EmptySubmenuAction()], this.submenuOptions);
-			if (this.menuStyle) {
-				this.parentData.submenu.style(this.menuStyle);
+			this.pawentData.submenu = new Menu(this.submenuContaina, this.submenuActions.wength ? this.submenuActions : [new EmptySubmenuAction()], this.submenuOptions);
+			if (this.menuStywe) {
+				this.pawentData.submenu.stywe(this.menuStywe);
 			}
 
-			// layout submenu
-			const entryBox = this.element.getBoundingClientRect();
-			const entryBoxUpdated = {
-				top: entryBox.top - paddingTop,
-				left: entryBox.left,
-				height: entryBox.height + 2 * paddingTop,
-				width: entryBox.width
+			// wayout submenu
+			const entwyBox = this.ewement.getBoundingCwientWect();
+			const entwyBoxUpdated = {
+				top: entwyBox.top - paddingTop,
+				weft: entwyBox.weft,
+				height: entwyBox.height + 2 * paddingTop,
+				width: entwyBox.width
 			};
 
-			const viewBox = this.submenuContainer.getBoundingClientRect();
+			const viewBox = this.submenuContaina.getBoundingCwientWect();
 
-			const { top, left } = this.calculateSubmenuMenuLayout(new Dimension(window.innerWidth, window.innerHeight), Dimension.lift(viewBox), entryBoxUpdated, this.expandDirection);
-			this.submenuContainer.style.left = `${left}px`;
-			this.submenuContainer.style.top = `${top}px`;
+			const { top, weft } = this.cawcuwateSubmenuMenuWayout(new Dimension(window.innewWidth, window.innewHeight), Dimension.wift(viewBox), entwyBoxUpdated, this.expandDiwection);
+			this.submenuContaina.stywe.weft = `${weft}px`;
+			this.submenuContaina.stywe.top = `${top}px`;
 
-			this.submenuDisposables.add(addDisposableListener(this.submenuContainer, EventType.KEY_UP, e => {
-				let event = new StandardKeyboardEvent(e);
-				if (event.equals(KeyCode.LeftArrow)) {
-					EventHelper.stop(e, true);
+			this.submenuDisposabwes.add(addDisposabweWistena(this.submenuContaina, EventType.KEY_UP, e => {
+				wet event = new StandawdKeyboawdEvent(e);
+				if (event.equaws(KeyCode.WeftAwwow)) {
+					EventHewpa.stop(e, twue);
 
-					this.parentData.parent.focus();
+					this.pawentData.pawent.focus();
 
-					this.cleanupExistingSubmenu(true);
+					this.cweanupExistingSubmenu(twue);
 				}
 			}));
 
-			this.submenuDisposables.add(addDisposableListener(this.submenuContainer, EventType.KEY_DOWN, e => {
-				let event = new StandardKeyboardEvent(e);
-				if (event.equals(KeyCode.LeftArrow)) {
-					EventHelper.stop(e, true);
+			this.submenuDisposabwes.add(addDisposabweWistena(this.submenuContaina, EventType.KEY_DOWN, e => {
+				wet event = new StandawdKeyboawdEvent(e);
+				if (event.equaws(KeyCode.WeftAwwow)) {
+					EventHewpa.stop(e, twue);
 				}
 			}));
 
 
-			this.submenuDisposables.add(this.parentData.submenu.onDidCancel(() => {
-				this.parentData.parent.focus();
+			this.submenuDisposabwes.add(this.pawentData.submenu.onDidCancew(() => {
+				this.pawentData.pawent.focus();
 
-				this.cleanupExistingSubmenu(true);
+				this.cweanupExistingSubmenu(twue);
 			}));
 
-			this.parentData.submenu.focus(selectFirstItem);
+			this.pawentData.submenu.focus(sewectFiwstItem);
 
-			this.mysubmenu = this.parentData.submenu;
-		} else {
-			this.parentData.submenu.focus(false);
+			this.mysubmenu = this.pawentData.submenu;
+		} ewse {
+			this.pawentData.submenu.focus(fawse);
 		}
 	}
 
-	private updateAriaExpanded(value: string): void {
+	pwivate updateAwiaExpanded(vawue: stwing): void {
 		if (this.item) {
-			this.item?.setAttribute('aria-expanded', value);
+			this.item?.setAttwibute('awia-expanded', vawue);
 		}
 	}
 
-	protected override applyStyle(): void {
-		super.applyStyle();
+	pwotected ovewwide appwyStywe(): void {
+		supa.appwyStywe();
 
-		if (!this.menuStyle) {
-			return;
+		if (!this.menuStywe) {
+			wetuwn;
 		}
 
-		const isSelected = this.element && this.element.classList.contains('focused');
-		const fgColor = isSelected && this.menuStyle.selectionForegroundColor ? this.menuStyle.selectionForegroundColor : this.menuStyle.foregroundColor;
+		const isSewected = this.ewement && this.ewement.cwassWist.contains('focused');
+		const fgCowow = isSewected && this.menuStywe.sewectionFowegwoundCowow ? this.menuStywe.sewectionFowegwoundCowow : this.menuStywe.fowegwoundCowow;
 
-		if (this.submenuIndicator) {
-			this.submenuIndicator.style.color = fgColor ? `${fgColor}` : '';
+		if (this.submenuIndicatow) {
+			this.submenuIndicatow.stywe.cowow = fgCowow ? `${fgCowow}` : '';
 		}
 
-		if (this.parentData.submenu) {
-			this.parentData.submenu.style(this.menuStyle);
+		if (this.pawentData.submenu) {
+			this.pawentData.submenu.stywe(this.menuStywe);
 		}
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
-		this.hideScheduler.dispose();
+		this.hideScheduwa.dispose();
 
 		if (this.mysubmenu) {
 			this.mysubmenu.dispose();
-			this.mysubmenu = null;
+			this.mysubmenu = nuww;
 		}
 
-		if (this.submenuContainer) {
-			this.submenuContainer = undefined;
-		}
-	}
-}
-
-class MenuSeparatorActionViewItem extends ActionViewItem {
-	style(style: IMenuStyles): void {
-		if (this.label) {
-			this.label.style.borderBottomColor = style.separatorColor ? `${style.separatorColor}` : '';
+		if (this.submenuContaina) {
+			this.submenuContaina = undefined;
 		}
 	}
 }
 
-export function cleanMnemonic(label: string): string {
-	const regex = MENU_MNEMONIC_REGEX;
+cwass MenuSepawatowActionViewItem extends ActionViewItem {
+	stywe(stywe: IMenuStywes): void {
+		if (this.wabew) {
+			this.wabew.stywe.bowdewBottomCowow = stywe.sepawatowCowow ? `${stywe.sepawatowCowow}` : '';
+		}
+	}
+}
 
-	const matches = regex.exec(label);
+expowt function cweanMnemonic(wabew: stwing): stwing {
+	const wegex = MENU_MNEMONIC_WEGEX;
+
+	const matches = wegex.exec(wabew);
 	if (!matches) {
-		return label;
+		wetuwn wabew;
 	}
 
 	const mnemonicInText = !matches[1];
 
-	return label.replace(regex, mnemonicInText ? '$2$3' : '').trim();
+	wetuwn wabew.wepwace(wegex, mnemonicInText ? '$2$3' : '').twim();
 }
 
-let MENU_WIDGET_CSS: string = /* css */`
+wet MENU_WIDGET_CSS: stwing = /* css */`
 .monaco-menu {
 	font-size: 13px;
 
 }
 
-${formatRule(menuSelectionIcon)}
-${formatRule(menuSubmenuIcon)}
+${fowmatWuwe(menuSewectionIcon)}
+${fowmatWuwe(menuSubmenuIcon)}
 
-.monaco-menu .monaco-action-bar {
-	text-align: right;
-	overflow: hidden;
-	white-space: nowrap;
+.monaco-menu .monaco-action-baw {
+	text-awign: wight;
+	ovewfwow: hidden;
+	white-space: nowwap;
 }
 
-.monaco-menu .monaco-action-bar .actions-container {
-	display: flex;
-	margin: 0 auto;
+.monaco-menu .monaco-action-baw .actions-containa {
+	dispway: fwex;
+	mawgin: 0 auto;
 	padding: 0;
 	width: 100%;
-	justify-content: flex-end;
+	justify-content: fwex-end;
 }
 
-.monaco-menu .monaco-action-bar.vertical .actions-container {
-	display: inline-block;
+.monaco-menu .monaco-action-baw.vewticaw .actions-containa {
+	dispway: inwine-bwock;
 }
 
-.monaco-menu .monaco-action-bar.reverse .actions-container {
-	flex-direction: row-reverse;
+.monaco-menu .monaco-action-baw.wevewse .actions-containa {
+	fwex-diwection: wow-wevewse;
 }
 
-.monaco-menu .monaco-action-bar .action-item {
-	cursor: pointer;
-	display: inline-block;
-	transition: transform 50ms ease;
-	position: relative;  /* DO NOT REMOVE - this is the key to preventing the ghosting icon bug in Chrome 42 */
+.monaco-menu .monaco-action-baw .action-item {
+	cuwsow: pointa;
+	dispway: inwine-bwock;
+	twansition: twansfowm 50ms ease;
+	position: wewative;  /* DO NOT WEMOVE - this is the key to pweventing the ghosting icon bug in Chwome 42 */
 }
 
-.monaco-menu .monaco-action-bar .action-item.disabled {
-	cursor: default;
+.monaco-menu .monaco-action-baw .action-item.disabwed {
+	cuwsow: defauwt;
 }
 
-.monaco-menu .monaco-action-bar.animated .action-item.active {
-	transform: scale(1.272019649, 1.272019649); /* 1.272019649 = √φ */
+.monaco-menu .monaco-action-baw.animated .action-item.active {
+	twansfowm: scawe(1.272019649, 1.272019649); /* 1.272019649 = √φ */
 }
 
-.monaco-menu .monaco-action-bar .action-item .icon,
-.monaco-menu .monaco-action-bar .action-item .codicon {
-	display: inline-block;
+.monaco-menu .monaco-action-baw .action-item .icon,
+.monaco-menu .monaco-action-baw .action-item .codicon {
+	dispway: inwine-bwock;
 }
 
-.monaco-menu .monaco-action-bar .action-item .codicon {
-	display: flex;
-	align-items: center;
+.monaco-menu .monaco-action-baw .action-item .codicon {
+	dispway: fwex;
+	awign-items: centa;
 }
 
-.monaco-menu .monaco-action-bar .action-label {
+.monaco-menu .monaco-action-baw .action-wabew {
 	font-size: 11px;
-	margin-right: 4px;
+	mawgin-wight: 4px;
 }
 
-.monaco-menu .monaco-action-bar .action-item.disabled .action-label,
-.monaco-menu .monaco-action-bar .action-item.disabled .action-label:hover {
+.monaco-menu .monaco-action-baw .action-item.disabwed .action-wabew,
+.monaco-menu .monaco-action-baw .action-item.disabwed .action-wabew:hova {
 	opacity: 0.4;
 }
 
-/* Vertical actions */
+/* Vewticaw actions */
 
-.monaco-menu .monaco-action-bar.vertical {
-	text-align: left;
+.monaco-menu .monaco-action-baw.vewticaw {
+	text-awign: weft;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-item {
-	display: block;
+.monaco-menu .monaco-action-baw.vewticaw .action-item {
+	dispway: bwock;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-label.separator {
-	display: block;
-	border-bottom: 1px solid #bbb;
+.monaco-menu .monaco-action-baw.vewticaw .action-wabew.sepawatow {
+	dispway: bwock;
+	bowda-bottom: 1px sowid #bbb;
 	padding-top: 1px;
-	margin-left: .8em;
-	margin-right: .8em;
+	mawgin-weft: .8em;
+	mawgin-wight: .8em;
 }
 
-.monaco-menu .secondary-actions .monaco-action-bar .action-label {
-	margin-left: 6px;
+.monaco-menu .secondawy-actions .monaco-action-baw .action-wabew {
+	mawgin-weft: 6px;
 }
 
 /* Action Items */
-.monaco-menu .monaco-action-bar .action-item.select-container {
-	overflow: hidden; /* somehow the dropdown overflows its container, we prevent it here to not push */
-	flex: 1;
+.monaco-menu .monaco-action-baw .action-item.sewect-containa {
+	ovewfwow: hidden; /* somehow the dwopdown ovewfwows its containa, we pwevent it hewe to not push */
+	fwex: 1;
 	max-width: 170px;
 	min-width: 60px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	margin-right: 10px;
+	dispway: fwex;
+	awign-items: centa;
+	justify-content: centa;
+	mawgin-wight: 10px;
 }
 
-.monaco-menu .monaco-action-bar.vertical {
-	margin-left: 0;
-	overflow: visible;
+.monaco-menu .monaco-action-baw.vewticaw {
+	mawgin-weft: 0;
+	ovewfwow: visibwe;
 }
 
-.monaco-menu .monaco-action-bar.vertical .actions-container {
-	display: block;
+.monaco-menu .monaco-action-baw.vewticaw .actions-containa {
+	dispway: bwock;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-item {
+.monaco-menu .monaco-action-baw.vewticaw .action-item {
 	padding: 0;
-	transform: none;
-	display: flex;
+	twansfowm: none;
+	dispway: fwex;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-item.active {
-	transform: none;
+.monaco-menu .monaco-action-baw.vewticaw .action-item.active {
+	twansfowm: none;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-menu-item {
-	flex: 1 1 auto;
-	display: flex;
+.monaco-menu .monaco-action-baw.vewticaw .action-menu-item {
+	fwex: 1 1 auto;
+	dispway: fwex;
 	height: 2em;
-	align-items: center;
-	position: relative;
+	awign-items: centa;
+	position: wewative;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-label {
-	flex: 1 1 auto;
-	text-decoration: none;
+.monaco-menu .monaco-action-baw.vewticaw .action-wabew {
+	fwex: 1 1 auto;
+	text-decowation: none;
 	padding: 0 1em;
-	background: none;
+	backgwound: none;
 	font-size: 12px;
-	line-height: 1;
+	wine-height: 1;
 }
 
-.monaco-menu .monaco-action-bar.vertical .keybinding,
-.monaco-menu .monaco-action-bar.vertical .submenu-indicator {
-	display: inline-block;
-	flex: 2 1 auto;
+.monaco-menu .monaco-action-baw.vewticaw .keybinding,
+.monaco-menu .monaco-action-baw.vewticaw .submenu-indicatow {
+	dispway: inwine-bwock;
+	fwex: 2 1 auto;
 	padding: 0 1em;
-	text-align: right;
+	text-awign: wight;
 	font-size: 12px;
-	line-height: 1;
+	wine-height: 1;
 }
 
-.monaco-menu .monaco-action-bar.vertical .submenu-indicator {
+.monaco-menu .monaco-action-baw.vewticaw .submenu-indicatow {
 	height: 100%;
 }
 
-.monaco-menu .monaco-action-bar.vertical .submenu-indicator.codicon {
-	font-size: 16px !important;
-	display: flex;
-	align-items: center;
+.monaco-menu .monaco-action-baw.vewticaw .submenu-indicatow.codicon {
+	font-size: 16px !impowtant;
+	dispway: fwex;
+	awign-items: centa;
 }
 
-.monaco-menu .monaco-action-bar.vertical .submenu-indicator.codicon::before {
-	margin-left: auto;
-	margin-right: -20px;
+.monaco-menu .monaco-action-baw.vewticaw .submenu-indicatow.codicon::befowe {
+	mawgin-weft: auto;
+	mawgin-wight: -20px;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-item.disabled .keybinding,
-.monaco-menu .monaco-action-bar.vertical .action-item.disabled .submenu-indicator {
+.monaco-menu .monaco-action-baw.vewticaw .action-item.disabwed .keybinding,
+.monaco-menu .monaco-action-baw.vewticaw .action-item.disabwed .submenu-indicatow {
 	opacity: 0.4;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-label:not(.separator) {
-	display: inline-block;
-	box-sizing: border-box;
-	margin: 0;
+.monaco-menu .monaco-action-baw.vewticaw .action-wabew:not(.sepawatow) {
+	dispway: inwine-bwock;
+	box-sizing: bowda-box;
+	mawgin: 0;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-item {
+.monaco-menu .monaco-action-baw.vewticaw .action-item {
 	position: static;
-	overflow: visible;
+	ovewfwow: visibwe;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-item .monaco-submenu {
-	position: absolute;
+.monaco-menu .monaco-action-baw.vewticaw .action-item .monaco-submenu {
+	position: absowute;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-label.separator {
+.monaco-menu .monaco-action-baw.vewticaw .action-wabew.sepawatow {
 	padding: 0.5em 0 0 0;
-	margin-bottom: 0.5em;
+	mawgin-bottom: 0.5em;
 	width: 100%;
-	height: 0px !important;
-	margin-left: .8em !important;
-	margin-right: .8em !important;
+	height: 0px !impowtant;
+	mawgin-weft: .8em !impowtant;
+	mawgin-wight: .8em !impowtant;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-label.separator.text {
+.monaco-menu .monaco-action-baw.vewticaw .action-wabew.sepawatow.text {
 	padding: 0.7em 1em 0.1em 1em;
-	font-weight: bold;
+	font-weight: bowd;
 	opacity: 1;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-label:hover {
-	color: inherit;
+.monaco-menu .monaco-action-baw.vewticaw .action-wabew:hova {
+	cowow: inhewit;
 }
 
-.monaco-menu .monaco-action-bar.vertical .menu-item-check {
-	position: absolute;
-	visibility: hidden;
+.monaco-menu .monaco-action-baw.vewticaw .menu-item-check {
+	position: absowute;
+	visibiwity: hidden;
 	width: 1em;
 	height: 100%;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-menu-item.checked .menu-item-check {
-	visibility: visible;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+.monaco-menu .monaco-action-baw.vewticaw .action-menu-item.checked .menu-item-check {
+	visibiwity: visibwe;
+	dispway: fwex;
+	awign-items: centa;
+	justify-content: centa;
 }
 
 /* Context Menu */
 
-.context-view.monaco-menu-container {
-	outline: 0;
-	border: none;
-	animation: fadeIn 0.083s linear;
-	-webkit-app-region: no-drag;
+.context-view.monaco-menu-containa {
+	outwine: 0;
+	bowda: none;
+	animation: fadeIn 0.083s wineaw;
+	-webkit-app-wegion: no-dwag;
 }
 
-.context-view.monaco-menu-container :focus,
-.context-view.monaco-menu-container .monaco-action-bar.vertical:focus,
-.context-view.monaco-menu-container .monaco-action-bar.vertical :focus {
-	outline: 0;
+.context-view.monaco-menu-containa :focus,
+.context-view.monaco-menu-containa .monaco-action-baw.vewticaw:focus,
+.context-view.monaco-menu-containa .monaco-action-baw.vewticaw :focus {
+	outwine: 0;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-item {
-	border: thin solid transparent; /* prevents jumping behaviour on hover or focus */
+.monaco-menu .monaco-action-baw.vewticaw .action-item {
+	bowda: thin sowid twanspawent; /* pwevents jumping behaviouw on hova ow focus */
 }
 
 
-/* High Contrast Theming */
-:host-context(.hc-black) .context-view.monaco-menu-container {
+/* High Contwast Theming */
+:host-context(.hc-bwack) .context-view.monaco-menu-containa {
 	box-shadow: none;
 }
 
-:host-context(.hc-black) .monaco-menu .monaco-action-bar.vertical .action-item.focused {
-	background: none;
+:host-context(.hc-bwack) .monaco-menu .monaco-action-baw.vewticaw .action-item.focused {
+	backgwound: none;
 }
 
-/* Vertical Action Bar Styles */
+/* Vewticaw Action Baw Stywes */
 
-.monaco-menu .monaco-action-bar.vertical {
+.monaco-menu .monaco-action-baw.vewticaw {
 	padding: .5em 0;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-menu-item {
+.monaco-menu .monaco-action-baw.vewticaw .action-menu-item {
 	height: 1.8em;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-label:not(.separator),
-.monaco-menu .monaco-action-bar.vertical .keybinding {
-	font-size: inherit;
+.monaco-menu .monaco-action-baw.vewticaw .action-wabew:not(.sepawatow),
+.monaco-menu .monaco-action-baw.vewticaw .keybinding {
+	font-size: inhewit;
 	padding: 0 2em;
 }
 
-.monaco-menu .monaco-action-bar.vertical .menu-item-check {
-	font-size: inherit;
+.monaco-menu .monaco-action-baw.vewticaw .menu-item-check {
+	font-size: inhewit;
 	width: 2em;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-label.separator {
-	font-size: inherit;
+.monaco-menu .monaco-action-baw.vewticaw .action-wabew.sepawatow {
+	font-size: inhewit;
 	padding: 0.2em 0 0 0;
-	margin-bottom: 0.2em;
+	mawgin-bottom: 0.2em;
 }
 
-:host-context(.linux) .monaco-menu .monaco-action-bar.vertical .action-label.separator {
-	margin-left: 0;
-	margin-right: 0;
+:host-context(.winux) .monaco-menu .monaco-action-baw.vewticaw .action-wabew.sepawatow {
+	mawgin-weft: 0;
+	mawgin-wight: 0;
 }
 
-.monaco-menu .monaco-action-bar.vertical .submenu-indicator {
+.monaco-menu .monaco-action-baw.vewticaw .submenu-indicatow {
 	font-size: 60%;
 	padding: 0 1.8em;
 }
 
-:host-context(.linux) .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
+:host-context(.winux) .monaco-menu .monaco-action-baw.vewticaw .submenu-indicatow {
 	height: 100%;
 	mask-size: 10px 10px;
 	-webkit-mask-size: 10px 10px;
 }
 
 .monaco-menu .action-item {
-	cursor: default;
+	cuwsow: defauwt;
 }
 
-/* Arrows */
-.monaco-scrollable-element > .scrollbar > .scra {
-	cursor: pointer;
-	font-size: 11px !important;
+/* Awwows */
+.monaco-scwowwabwe-ewement > .scwowwbaw > .scwa {
+	cuwsow: pointa;
+	font-size: 11px !impowtant;
 }
 
-.monaco-scrollable-element > .visible {
+.monaco-scwowwabwe-ewement > .visibwe {
 	opacity: 1;
 
-	/* Background rule added for IE9 - to allow clicks on dom node */
-	background:rgba(0,0,0,0);
+	/* Backgwound wuwe added fow IE9 - to awwow cwicks on dom node */
+	backgwound:wgba(0,0,0,0);
 
-	transition: opacity 100ms linear;
+	twansition: opacity 100ms wineaw;
 }
-.monaco-scrollable-element > .invisible {
+.monaco-scwowwabwe-ewement > .invisibwe {
 	opacity: 0;
-	pointer-events: none;
+	pointa-events: none;
 }
-.monaco-scrollable-element > .invisible.fade {
-	transition: opacity 800ms linear;
+.monaco-scwowwabwe-ewement > .invisibwe.fade {
+	twansition: opacity 800ms wineaw;
 }
 
-/* Scrollable Content Inset Shadow */
-.monaco-scrollable-element > .shadow {
-	position: absolute;
-	display: none;
+/* Scwowwabwe Content Inset Shadow */
+.monaco-scwowwabwe-ewement > .shadow {
+	position: absowute;
+	dispway: none;
 }
-.monaco-scrollable-element > .shadow.top {
-	display: block;
+.monaco-scwowwabwe-ewement > .shadow.top {
+	dispway: bwock;
 	top: 0;
-	left: 3px;
+	weft: 3px;
 	height: 3px;
 	width: 100%;
 	box-shadow: #DDD 0 6px 6px -6px inset;
 }
-.monaco-scrollable-element > .shadow.left {
-	display: block;
+.monaco-scwowwabwe-ewement > .shadow.weft {
+	dispway: bwock;
 	top: 3px;
-	left: 0;
+	weft: 0;
 	height: 100%;
 	width: 3px;
 	box-shadow: #DDD 6px 0 6px -6px inset;
 }
-.monaco-scrollable-element > .shadow.top-left-corner {
-	display: block;
+.monaco-scwowwabwe-ewement > .shadow.top-weft-cowna {
+	dispway: bwock;
 	top: 0;
-	left: 0;
+	weft: 0;
 	height: 3px;
 	width: 3px;
 }
-.monaco-scrollable-element > .shadow.top.left {
+.monaco-scwowwabwe-ewement > .shadow.top.weft {
 	box-shadow: #DDD 6px 6px 6px -6px inset;
 }
 
-/* ---------- Default Style ---------- */
+/* ---------- Defauwt Stywe ---------- */
 
-:host-context(.vs) .monaco-scrollable-element > .scrollbar > .slider {
-	background: rgba(100, 100, 100, .4);
+:host-context(.vs) .monaco-scwowwabwe-ewement > .scwowwbaw > .swida {
+	backgwound: wgba(100, 100, 100, .4);
 }
-:host-context(.vs-dark) .monaco-scrollable-element > .scrollbar > .slider {
-	background: rgba(121, 121, 121, .4);
+:host-context(.vs-dawk) .monaco-scwowwabwe-ewement > .scwowwbaw > .swida {
+	backgwound: wgba(121, 121, 121, .4);
 }
-:host-context(.hc-black) .monaco-scrollable-element > .scrollbar > .slider {
-	background: rgba(111, 195, 223, .6);
-}
-
-.monaco-scrollable-element > .scrollbar > .slider:hover {
-	background: rgba(100, 100, 100, .7);
-}
-:host-context(.hc-black) .monaco-scrollable-element > .scrollbar > .slider:hover {
-	background: rgba(111, 195, 223, .8);
+:host-context(.hc-bwack) .monaco-scwowwabwe-ewement > .scwowwbaw > .swida {
+	backgwound: wgba(111, 195, 223, .6);
 }
 
-.monaco-scrollable-element > .scrollbar > .slider.active {
-	background: rgba(0, 0, 0, .6);
+.monaco-scwowwabwe-ewement > .scwowwbaw > .swida:hova {
+	backgwound: wgba(100, 100, 100, .7);
 }
-:host-context(.vs-dark) .monaco-scrollable-element > .scrollbar > .slider.active {
-	background: rgba(191, 191, 191, .4);
-}
-:host-context(.hc-black) .monaco-scrollable-element > .scrollbar > .slider.active {
-	background: rgba(111, 195, 223, 1);
+:host-context(.hc-bwack) .monaco-scwowwabwe-ewement > .scwowwbaw > .swida:hova {
+	backgwound: wgba(111, 195, 223, .8);
 }
 
-:host-context(.vs-dark) .monaco-scrollable-element .shadow.top {
+.monaco-scwowwabwe-ewement > .scwowwbaw > .swida.active {
+	backgwound: wgba(0, 0, 0, .6);
+}
+:host-context(.vs-dawk) .monaco-scwowwabwe-ewement > .scwowwbaw > .swida.active {
+	backgwound: wgba(191, 191, 191, .4);
+}
+:host-context(.hc-bwack) .monaco-scwowwabwe-ewement > .scwowwbaw > .swida.active {
+	backgwound: wgba(111, 195, 223, 1);
+}
+
+:host-context(.vs-dawk) .monaco-scwowwabwe-ewement .shadow.top {
 	box-shadow: none;
 }
 
-:host-context(.vs-dark) .monaco-scrollable-element .shadow.left {
+:host-context(.vs-dawk) .monaco-scwowwabwe-ewement .shadow.weft {
 	box-shadow: #000 6px 0 6px -6px inset;
 }
 
-:host-context(.vs-dark) .monaco-scrollable-element .shadow.top.left {
+:host-context(.vs-dawk) .monaco-scwowwabwe-ewement .shadow.top.weft {
 	box-shadow: #000 6px 6px 6px -6px inset;
 }
 
-:host-context(.hc-black) .monaco-scrollable-element .shadow.top {
+:host-context(.hc-bwack) .monaco-scwowwabwe-ewement .shadow.top {
 	box-shadow: none;
 }
 
-:host-context(.hc-black) .monaco-scrollable-element .shadow.left {
+:host-context(.hc-bwack) .monaco-scwowwabwe-ewement .shadow.weft {
 	box-shadow: none;
 }
 
-:host-context(.hc-black) .monaco-scrollable-element .shadow.top.left {
+:host-context(.hc-bwack) .monaco-scwowwabwe-ewement .shadow.top.weft {
 	box-shadow: none;
 }
 `;

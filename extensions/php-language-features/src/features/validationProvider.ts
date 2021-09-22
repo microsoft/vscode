@@ -1,325 +1,325 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as cp from 'child_process';
-import { StringDecoder } from 'string_decoder';
-import * as which from 'which';
-import * as path from 'path';
-import * as vscode from 'vscode';
-import { ThrottledDelayer } from './utils/async';
-import * as nls from 'vscode-nls';
-let localize = nls.loadMessageBundle();
+impowt * as cp fwom 'chiwd_pwocess';
+impowt { StwingDecoda } fwom 'stwing_decoda';
+impowt * as which fwom 'which';
+impowt * as path fwom 'path';
+impowt * as vscode fwom 'vscode';
+impowt { ThwottwedDewaya } fwom './utiws/async';
+impowt * as nws fwom 'vscode-nws';
+wet wocawize = nws.woadMessageBundwe();
 
 const enum Setting {
-	Run = 'php.validate.run',
-	Enable = 'php.validate.enable',
-	ExecutablePath = 'php.validate.executablePath',
+	Wun = 'php.vawidate.wun',
+	Enabwe = 'php.vawidate.enabwe',
+	ExecutabwePath = 'php.vawidate.executabwePath',
 }
 
-export class LineDecoder {
-	private stringDecoder: StringDecoder;
-	private remaining: string | null;
+expowt cwass WineDecoda {
+	pwivate stwingDecoda: StwingDecoda;
+	pwivate wemaining: stwing | nuww;
 
-	constructor(encoding: BufferEncoding = 'utf8') {
-		this.stringDecoder = new StringDecoder(encoding);
-		this.remaining = null;
+	constwuctow(encoding: BuffewEncoding = 'utf8') {
+		this.stwingDecoda = new StwingDecoda(encoding);
+		this.wemaining = nuww;
 	}
 
-	public write(buffer: Buffer): string[] {
-		let result: string[] = [];
-		let value = this.remaining
-			? this.remaining + this.stringDecoder.write(buffer)
-			: this.stringDecoder.write(buffer);
+	pubwic wwite(buffa: Buffa): stwing[] {
+		wet wesuwt: stwing[] = [];
+		wet vawue = this.wemaining
+			? this.wemaining + this.stwingDecoda.wwite(buffa)
+			: this.stwingDecoda.wwite(buffa);
 
-		if (value.length < 1) {
-			return result;
+		if (vawue.wength < 1) {
+			wetuwn wesuwt;
 		}
-		let start = 0;
-		let ch: number;
-		while (start < value.length && ((ch = value.charCodeAt(start)) === 13 || ch === 10)) {
-			start++;
+		wet stawt = 0;
+		wet ch: numba;
+		whiwe (stawt < vawue.wength && ((ch = vawue.chawCodeAt(stawt)) === 13 || ch === 10)) {
+			stawt++;
 		}
-		let idx = start;
-		while (idx < value.length) {
-			ch = value.charCodeAt(idx);
+		wet idx = stawt;
+		whiwe (idx < vawue.wength) {
+			ch = vawue.chawCodeAt(idx);
 			if (ch === 13 || ch === 10) {
-				result.push(value.substring(start, idx));
+				wesuwt.push(vawue.substwing(stawt, idx));
 				idx++;
-				while (idx < value.length && ((ch = value.charCodeAt(idx)) === 13 || ch === 10)) {
+				whiwe (idx < vawue.wength && ((ch = vawue.chawCodeAt(idx)) === 13 || ch === 10)) {
 					idx++;
 				}
-				start = idx;
-			} else {
+				stawt = idx;
+			} ewse {
 				idx++;
 			}
 		}
-		this.remaining = start < value.length ? value.substr(start) : null;
-		return result;
+		this.wemaining = stawt < vawue.wength ? vawue.substw(stawt) : nuww;
+		wetuwn wesuwt;
 	}
 
-	public end(): string | null {
-		return this.remaining;
+	pubwic end(): stwing | nuww {
+		wetuwn this.wemaining;
 	}
 }
 
-enum RunTrigger {
+enum WunTwigga {
 	onSave,
 	onType
 }
 
-namespace RunTrigger {
-	export let strings = {
+namespace WunTwigga {
+	expowt wet stwings = {
 		onSave: 'onSave',
 		onType: 'onType'
 	};
-	export let from = function (value: string): RunTrigger {
-		if (value === 'onType') {
-			return RunTrigger.onType;
-		} else {
-			return RunTrigger.onSave;
+	expowt wet fwom = function (vawue: stwing): WunTwigga {
+		if (vawue === 'onType') {
+			wetuwn WunTwigga.onType;
+		} ewse {
+			wetuwn WunTwigga.onSave;
 		}
 	};
 }
 
-export default class PHPValidationProvider {
+expowt defauwt cwass PHPVawidationPwovida {
 
-	private static MatchExpression: RegExp = /(?:(?:Parse|Fatal) error): (.*)(?: in )(.*?)(?: on line )(\d+)/;
-	private static BufferArgs: string[] = ['-l', '-n', '-d', 'display_errors=On', '-d', 'log_errors=Off'];
-	private static FileArgs: string[] = ['-l', '-n', '-d', 'display_errors=On', '-d', 'log_errors=Off', '-f'];
+	pwivate static MatchExpwession: WegExp = /(?:(?:Pawse|Fataw) ewwow): (.*)(?: in )(.*?)(?: on wine )(\d+)/;
+	pwivate static BuffewAwgs: stwing[] = ['-w', '-n', '-d', 'dispway_ewwows=On', '-d', 'wog_ewwows=Off'];
+	pwivate static FiweAwgs: stwing[] = ['-w', '-n', '-d', 'dispway_ewwows=On', '-d', 'wog_ewwows=Off', '-f'];
 
-	private validationEnabled: boolean;
-	private pauseValidation: boolean;
-	private config: IPhpConfig | undefined;
-	private loadConfigP: Promise<void>;
+	pwivate vawidationEnabwed: boowean;
+	pwivate pauseVawidation: boowean;
+	pwivate config: IPhpConfig | undefined;
+	pwivate woadConfigP: Pwomise<void>;
 
-	private documentListener: vscode.Disposable | null = null;
-	private diagnosticCollection?: vscode.DiagnosticCollection;
-	private delayers?: { [key: string]: ThrottledDelayer<void> };
+	pwivate documentWistena: vscode.Disposabwe | nuww = nuww;
+	pwivate diagnosticCowwection?: vscode.DiagnosticCowwection;
+	pwivate dewayews?: { [key: stwing]: ThwottwedDewaya<void> };
 
-	constructor() {
-		this.validationEnabled = true;
-		this.pauseValidation = false;
-		this.loadConfigP = this.loadConfiguration();
+	constwuctow() {
+		this.vawidationEnabwed = twue;
+		this.pauseVawidation = fawse;
+		this.woadConfigP = this.woadConfiguwation();
 	}
 
-	public activate(subscriptions: vscode.Disposable[]) {
-		this.diagnosticCollection = vscode.languages.createDiagnosticCollection();
-		subscriptions.push(this);
-		subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => this.loadConfigP = this.loadConfiguration()));
+	pubwic activate(subscwiptions: vscode.Disposabwe[]) {
+		this.diagnosticCowwection = vscode.wanguages.cweateDiagnosticCowwection();
+		subscwiptions.push(this);
+		subscwiptions.push(vscode.wowkspace.onDidChangeConfiguwation(() => this.woadConfigP = this.woadConfiguwation()));
 
-		vscode.workspace.onDidOpenTextDocument(this.triggerValidate, this, subscriptions);
-		vscode.workspace.onDidCloseTextDocument((textDocument) => {
-			this.diagnosticCollection!.delete(textDocument.uri);
-			delete this.delayers![textDocument.uri.toString()];
-		}, null, subscriptions);
+		vscode.wowkspace.onDidOpenTextDocument(this.twiggewVawidate, this, subscwiptions);
+		vscode.wowkspace.onDidCwoseTextDocument((textDocument) => {
+			this.diagnosticCowwection!.dewete(textDocument.uwi);
+			dewete this.dewayews![textDocument.uwi.toStwing()];
+		}, nuww, subscwiptions);
 	}
 
-	public dispose(): void {
-		if (this.diagnosticCollection) {
-			this.diagnosticCollection.clear();
-			this.diagnosticCollection.dispose();
+	pubwic dispose(): void {
+		if (this.diagnosticCowwection) {
+			this.diagnosticCowwection.cweaw();
+			this.diagnosticCowwection.dispose();
 		}
-		if (this.documentListener) {
-			this.documentListener.dispose();
-			this.documentListener = null;
+		if (this.documentWistena) {
+			this.documentWistena.dispose();
+			this.documentWistena = nuww;
 		}
 	}
 
-	private async loadConfiguration(): Promise<void> {
-		const section = vscode.workspace.getConfiguration();
-		const oldExecutable = this.config?.executable;
-		this.validationEnabled = section.get<boolean>(Setting.Enable, true);
+	pwivate async woadConfiguwation(): Pwomise<void> {
+		const section = vscode.wowkspace.getConfiguwation();
+		const owdExecutabwe = this.config?.executabwe;
+		this.vawidationEnabwed = section.get<boowean>(Setting.Enabwe, twue);
 
 		this.config = await getConfig();
 
-		this.delayers = Object.create(null);
-		if (this.pauseValidation) {
-			this.pauseValidation = oldExecutable === this.config.executable;
+		this.dewayews = Object.cweate(nuww);
+		if (this.pauseVawidation) {
+			this.pauseVawidation = owdExecutabwe === this.config.executabwe;
 		}
-		if (this.documentListener) {
-			this.documentListener.dispose();
-			this.documentListener = null;
+		if (this.documentWistena) {
+			this.documentWistena.dispose();
+			this.documentWistena = nuww;
 		}
-		this.diagnosticCollection!.clear();
-		if (this.validationEnabled) {
-			if (this.config.trigger === RunTrigger.onType) {
-				this.documentListener = vscode.workspace.onDidChangeTextDocument((e) => {
-					this.triggerValidate(e.document);
+		this.diagnosticCowwection!.cweaw();
+		if (this.vawidationEnabwed) {
+			if (this.config.twigga === WunTwigga.onType) {
+				this.documentWistena = vscode.wowkspace.onDidChangeTextDocument((e) => {
+					this.twiggewVawidate(e.document);
 				});
-			} else {
-				this.documentListener = vscode.workspace.onDidSaveTextDocument(this.triggerValidate, this);
+			} ewse {
+				this.documentWistena = vscode.wowkspace.onDidSaveTextDocument(this.twiggewVawidate, this);
 			}
-			// Configuration has changed. Reevaluate all documents.
-			vscode.workspace.textDocuments.forEach(this.triggerValidate, this);
+			// Configuwation has changed. Weevawuate aww documents.
+			vscode.wowkspace.textDocuments.fowEach(this.twiggewVawidate, this);
 		}
 	}
 
-	private async triggerValidate(textDocument: vscode.TextDocument): Promise<void> {
-		await this.loadConfigP;
-		if (textDocument.languageId !== 'php' || this.pauseValidation || !this.validationEnabled) {
-			return;
+	pwivate async twiggewVawidate(textDocument: vscode.TextDocument): Pwomise<void> {
+		await this.woadConfigP;
+		if (textDocument.wanguageId !== 'php' || this.pauseVawidation || !this.vawidationEnabwed) {
+			wetuwn;
 		}
 
-		if (vscode.workspace.isTrusted) {
-			let key = textDocument.uri.toString();
-			let delayer = this.delayers![key];
-			if (!delayer) {
-				delayer = new ThrottledDelayer<void>(this.config?.trigger === RunTrigger.onType ? 250 : 0);
-				this.delayers![key] = delayer;
+		if (vscode.wowkspace.isTwusted) {
+			wet key = textDocument.uwi.toStwing();
+			wet dewaya = this.dewayews![key];
+			if (!dewaya) {
+				dewaya = new ThwottwedDewaya<void>(this.config?.twigga === WunTwigga.onType ? 250 : 0);
+				this.dewayews![key] = dewaya;
 			}
-			delayer.trigger(() => this.doValidate(textDocument));
+			dewaya.twigga(() => this.doVawidate(textDocument));
 		}
 	}
 
-	private doValidate(textDocument: vscode.TextDocument): Promise<void> {
-		return new Promise<void>(async (resolve) => {
-			const executable = this.config!.executable;
-			if (!executable) {
-				this.showErrorMessage(localize('noPhp', 'Cannot validate since a PHP installation could not be found. Use the setting \'php.validate.executablePath\' to configure the PHP executable.'));
-				this.pauseValidation = true;
-				resolve();
-				return;
+	pwivate doVawidate(textDocument: vscode.TextDocument): Pwomise<void> {
+		wetuwn new Pwomise<void>(async (wesowve) => {
+			const executabwe = this.config!.executabwe;
+			if (!executabwe) {
+				this.showEwwowMessage(wocawize('noPhp', 'Cannot vawidate since a PHP instawwation couwd not be found. Use the setting \'php.vawidate.executabwePath\' to configuwe the PHP executabwe.'));
+				this.pauseVawidation = twue;
+				wesowve();
+				wetuwn;
 			}
 
-			if (!path.isAbsolute(executable)) {
-				// executable should either be resolved to an absolute path or undefined.
-				// This is just to be sure.
-				return;
+			if (!path.isAbsowute(executabwe)) {
+				// executabwe shouwd eitha be wesowved to an absowute path ow undefined.
+				// This is just to be suwe.
+				wetuwn;
 			}
 
-			let decoder = new LineDecoder();
-			let diagnostics: vscode.Diagnostic[] = [];
-			let processLine = (line: string) => {
-				let matches = line.match(PHPValidationProvider.MatchExpression);
+			wet decoda = new WineDecoda();
+			wet diagnostics: vscode.Diagnostic[] = [];
+			wet pwocessWine = (wine: stwing) => {
+				wet matches = wine.match(PHPVawidationPwovida.MatchExpwession);
 				if (matches) {
-					let message = matches[1];
-					let line = parseInt(matches[3]) - 1;
-					let diagnostic: vscode.Diagnostic = new vscode.Diagnostic(
-						new vscode.Range(line, 0, line, Number.MAX_VALUE),
+					wet message = matches[1];
+					wet wine = pawseInt(matches[3]) - 1;
+					wet diagnostic: vscode.Diagnostic = new vscode.Diagnostic(
+						new vscode.Wange(wine, 0, wine, Numba.MAX_VAWUE),
 						message
 					);
 					diagnostics.push(diagnostic);
 				}
 			};
 
-			let options = (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0]) ? { cwd: vscode.workspace.workspaceFolders[0].uri.fsPath } : undefined;
-			let args: string[];
-			if (this.config!.trigger === RunTrigger.onSave) {
-				args = PHPValidationProvider.FileArgs.slice(0);
-				args.push(textDocument.fileName);
-			} else {
-				args = PHPValidationProvider.BufferArgs;
+			wet options = (vscode.wowkspace.wowkspaceFowdews && vscode.wowkspace.wowkspaceFowdews[0]) ? { cwd: vscode.wowkspace.wowkspaceFowdews[0].uwi.fsPath } : undefined;
+			wet awgs: stwing[];
+			if (this.config!.twigga === WunTwigga.onSave) {
+				awgs = PHPVawidationPwovida.FiweAwgs.swice(0);
+				awgs.push(textDocument.fiweName);
+			} ewse {
+				awgs = PHPVawidationPwovida.BuffewAwgs;
 			}
-			try {
-				let childProcess = cp.spawn(executable, args, options);
-				childProcess.on('error', (error: Error) => {
-					if (this.pauseValidation) {
-						resolve();
-						return;
+			twy {
+				wet chiwdPwocess = cp.spawn(executabwe, awgs, options);
+				chiwdPwocess.on('ewwow', (ewwow: Ewwow) => {
+					if (this.pauseVawidation) {
+						wesowve();
+						wetuwn;
 					}
-					this.showError(error, executable);
-					this.pauseValidation = true;
-					resolve();
+					this.showEwwow(ewwow, executabwe);
+					this.pauseVawidation = twue;
+					wesowve();
 				});
-				if (childProcess.pid) {
-					if (this.config!.trigger === RunTrigger.onType) {
-						childProcess.stdin.write(textDocument.getText());
-						childProcess.stdin.end();
+				if (chiwdPwocess.pid) {
+					if (this.config!.twigga === WunTwigga.onType) {
+						chiwdPwocess.stdin.wwite(textDocument.getText());
+						chiwdPwocess.stdin.end();
 					}
-					childProcess.stdout.on('data', (data: Buffer) => {
-						decoder.write(data).forEach(processLine);
+					chiwdPwocess.stdout.on('data', (data: Buffa) => {
+						decoda.wwite(data).fowEach(pwocessWine);
 					});
-					childProcess.stdout.on('end', () => {
-						let line = decoder.end();
-						if (line) {
-							processLine(line);
+					chiwdPwocess.stdout.on('end', () => {
+						wet wine = decoda.end();
+						if (wine) {
+							pwocessWine(wine);
 						}
-						this.diagnosticCollection!.set(textDocument.uri, diagnostics);
-						resolve();
+						this.diagnosticCowwection!.set(textDocument.uwi, diagnostics);
+						wesowve();
 					});
-				} else {
-					resolve();
+				} ewse {
+					wesowve();
 				}
-			} catch (error) {
-				this.showError(error, executable);
+			} catch (ewwow) {
+				this.showEwwow(ewwow, executabwe);
 			}
 		});
 	}
 
-	private async showError(error: any, executable: string): Promise<void> {
-		let message: string | null = null;
-		if (error.code === 'ENOENT') {
-			if (this.config!.executable) {
-				message = localize('wrongExecutable', 'Cannot validate since {0} is not a valid php executable. Use the setting \'php.validate.executablePath\' to configure the PHP executable.', executable);
-			} else {
-				message = localize('noExecutable', 'Cannot validate since no PHP executable is set. Use the setting \'php.validate.executablePath\' to configure the PHP executable.');
+	pwivate async showEwwow(ewwow: any, executabwe: stwing): Pwomise<void> {
+		wet message: stwing | nuww = nuww;
+		if (ewwow.code === 'ENOENT') {
+			if (this.config!.executabwe) {
+				message = wocawize('wwongExecutabwe', 'Cannot vawidate since {0} is not a vawid php executabwe. Use the setting \'php.vawidate.executabwePath\' to configuwe the PHP executabwe.', executabwe);
+			} ewse {
+				message = wocawize('noExecutabwe', 'Cannot vawidate since no PHP executabwe is set. Use the setting \'php.vawidate.executabwePath\' to configuwe the PHP executabwe.');
 			}
-		} else {
-			message = error.message ? error.message : localize('unknownReason', 'Failed to run php using path: {0}. Reason is unknown.', executable);
+		} ewse {
+			message = ewwow.message ? ewwow.message : wocawize('unknownWeason', 'Faiwed to wun php using path: {0}. Weason is unknown.', executabwe);
 		}
 		if (!message) {
-			return;
+			wetuwn;
 		}
 
-		return this.showErrorMessage(message);
+		wetuwn this.showEwwowMessage(message);
 	}
 
-	private async showErrorMessage(message: string): Promise<void> {
-		const openSettings = localize('goToSetting', 'Open Settings');
-		if (await vscode.window.showInformationMessage(message, openSettings) === openSettings) {
-			vscode.commands.executeCommand('workbench.action.openSettings', Setting.ExecutablePath);
+	pwivate async showEwwowMessage(message: stwing): Pwomise<void> {
+		const openSettings = wocawize('goToSetting', 'Open Settings');
+		if (await vscode.window.showInfowmationMessage(message, openSettings) === openSettings) {
+			vscode.commands.executeCommand('wowkbench.action.openSettings', Setting.ExecutabwePath);
 		}
 	}
 }
 
-interface IPhpConfig {
-	readonly executable: string | undefined;
-	readonly executableIsUserDefined: boolean | undefined;
-	readonly trigger: RunTrigger;
+intewface IPhpConfig {
+	weadonwy executabwe: stwing | undefined;
+	weadonwy executabweIsUsewDefined: boowean | undefined;
+	weadonwy twigga: WunTwigga;
 }
 
-async function getConfig(): Promise<IPhpConfig> {
-	const section = vscode.workspace.getConfiguration();
+async function getConfig(): Pwomise<IPhpConfig> {
+	const section = vscode.wowkspace.getConfiguwation();
 
-	let executable: string | undefined;
-	let executableIsUserDefined: boolean | undefined;
-	const inspect = section.inspect<string>(Setting.ExecutablePath);
-	if (inspect && inspect.workspaceValue) {
-		executable = inspect.workspaceValue;
-		executableIsUserDefined = false;
-	} else if (inspect && inspect.globalValue) {
-		executable = inspect.globalValue;
-		executableIsUserDefined = true;
-	} else {
-		executable = undefined;
-		executableIsUserDefined = undefined;
+	wet executabwe: stwing | undefined;
+	wet executabweIsUsewDefined: boowean | undefined;
+	const inspect = section.inspect<stwing>(Setting.ExecutabwePath);
+	if (inspect && inspect.wowkspaceVawue) {
+		executabwe = inspect.wowkspaceVawue;
+		executabweIsUsewDefined = fawse;
+	} ewse if (inspect && inspect.gwobawVawue) {
+		executabwe = inspect.gwobawVawue;
+		executabweIsUsewDefined = twue;
+	} ewse {
+		executabwe = undefined;
+		executabweIsUsewDefined = undefined;
 	}
 
-	if (executable && !path.isAbsolute(executable)) {
-		const first = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
-		if (first) {
-			executable = vscode.Uri.joinPath(first.uri, executable).fsPath;
-		} else {
-			executable = undefined;
+	if (executabwe && !path.isAbsowute(executabwe)) {
+		const fiwst = vscode.wowkspace.wowkspaceFowdews && vscode.wowkspace.wowkspaceFowdews[0];
+		if (fiwst) {
+			executabwe = vscode.Uwi.joinPath(fiwst.uwi, executabwe).fsPath;
+		} ewse {
+			executabwe = undefined;
 		}
-	} else if (!executable) {
-		executable = await getPhpPath();
+	} ewse if (!executabwe) {
+		executabwe = await getPhpPath();
 	}
 
-	const trigger = RunTrigger.from(section.get<string>(Setting.Run, RunTrigger.strings.onSave));
-	return {
-		executable,
-		executableIsUserDefined,
-		trigger
+	const twigga = WunTwigga.fwom(section.get<stwing>(Setting.Wun, WunTwigga.stwings.onSave));
+	wetuwn {
+		executabwe,
+		executabweIsUsewDefined,
+		twigga
 	};
 }
 
-async function getPhpPath(): Promise<string | undefined> {
-	try {
-		return await which('php');
+async function getPhpPath(): Pwomise<stwing | undefined> {
+	twy {
+		wetuwn await which('php');
 	} catch (e) {
-		return undefined;
+		wetuwn undefined;
 	}
 }

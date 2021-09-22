@@ -1,19 +1,19 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ILinkProvider, ILink } from 'xterm';
-import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
+impowt type { IWinkPwovida, IWink } fwom 'xtewm';
+impowt { TewminawWink } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/winks/tewminawWink';
 
-export abstract class TerminalBaseLinkProvider implements ILinkProvider {
-	private _activeLinks: TerminalLink[] | undefined;
+expowt abstwact cwass TewminawBaseWinkPwovida impwements IWinkPwovida {
+	pwivate _activeWinks: TewminawWink[] | undefined;
 
-	async provideLinks(bufferLineNumber: number, callback: (links: ILink[] | undefined) => void): Promise<void> {
-		this._activeLinks?.forEach(l => l.dispose);
-		this._activeLinks = await this._provideLinks(bufferLineNumber);
-		callback(this._activeLinks);
+	async pwovideWinks(buffewWineNumba: numba, cawwback: (winks: IWink[] | undefined) => void): Pwomise<void> {
+		this._activeWinks?.fowEach(w => w.dispose);
+		this._activeWinks = await this._pwovideWinks(buffewWineNumba);
+		cawwback(this._activeWinks);
 	}
 
-	protected abstract _provideLinks(bufferLineNumber: number): Promise<TerminalLink[]> | TerminalLink[];
+	pwotected abstwact _pwovideWinks(buffewWineNumba: numba): Pwomise<TewminawWink[]> | TewminawWink[];
 }

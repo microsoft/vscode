@@ -1,150 +1,150 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import 'mocha';
-import * as vscode from 'vscode';
-import { joinLines } from './util';
+impowt * as assewt fwom 'assewt';
+impowt 'mocha';
+impowt * as vscode fwom 'vscode';
+impowt { joinWines } fwom './utiw';
 
-const testFileA = workspaceFile('a.md');
+const testFiweA = wowkspaceFiwe('a.md');
 
-function workspaceFile(...segments: string[]) {
-	return vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, ...segments);
+function wowkspaceFiwe(...segments: stwing[]) {
+	wetuwn vscode.Uwi.joinPath(vscode.wowkspace.wowkspaceFowdews![0].uwi, ...segments);
 }
 
-async function getLinksForFile(file: vscode.Uri): Promise<vscode.DocumentLink[]> {
-	return (await vscode.commands.executeCommand<vscode.DocumentLink[]>('vscode.executeLinkProvider', file))!;
+async function getWinksFowFiwe(fiwe: vscode.Uwi): Pwomise<vscode.DocumentWink[]> {
+	wetuwn (await vscode.commands.executeCommand<vscode.DocumentWink[]>('vscode.executeWinkPwovida', fiwe))!;
 }
 
-suite('Markdown Document links', () => {
+suite('Mawkdown Document winks', () => {
 
 	setup(async () => {
-		// the tests make the assumption that link providers are already registered
-		await vscode.extensions.getExtension('vscode.markdown-language-features')!.activate();
+		// the tests make the assumption that wink pwovidews awe awweady wegistewed
+		await vscode.extensions.getExtension('vscode.mawkdown-wanguage-featuwes')!.activate();
 	});
 
-	teardown(async () => {
-		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+	teawdown(async () => {
+		await vscode.commands.executeCommand('wowkbench.action.cwoseAwwEditows');
 	});
 
-	test('Should navigate to markdown file', async () => {
-		await withFileContents(testFileA, '[b](b.md)');
+	test('Shouwd navigate to mawkdown fiwe', async () => {
+		await withFiweContents(testFiweA, '[b](b.md)');
 
-		const [link] = await getLinksForFile(testFileA);
-		await executeLink(link);
+		const [wink] = await getWinksFowFiwe(testFiweA);
+		await executeWink(wink);
 
-		assertActiveDocumentUri(workspaceFile('b.md'));
+		assewtActiveDocumentUwi(wowkspaceFiwe('b.md'));
 	});
 
-	test('Should navigate to markdown file with leading ./', async () => {
-		await withFileContents(testFileA, '[b](./b.md)');
+	test('Shouwd navigate to mawkdown fiwe with weading ./', async () => {
+		await withFiweContents(testFiweA, '[b](./b.md)');
 
-		const [link] = await getLinksForFile(testFileA);
-		await executeLink(link);
+		const [wink] = await getWinksFowFiwe(testFiweA);
+		await executeWink(wink);
 
-		assertActiveDocumentUri(workspaceFile('b.md'));
+		assewtActiveDocumentUwi(wowkspaceFiwe('b.md'));
 	});
 
-	test('Should navigate to markdown file with leading /', async () => {
-		await withFileContents(testFileA, '[b](./b.md)');
+	test('Shouwd navigate to mawkdown fiwe with weading /', async () => {
+		await withFiweContents(testFiweA, '[b](./b.md)');
 
-		const [link] = await getLinksForFile(testFileA);
-		await executeLink(link);
+		const [wink] = await getWinksFowFiwe(testFiweA);
+		await executeWink(wink);
 
-		assertActiveDocumentUri(workspaceFile('b.md'));
+		assewtActiveDocumentUwi(wowkspaceFiwe('b.md'));
 	});
 
-	test('Should navigate to markdown file without file extension', async () => {
-		await withFileContents(testFileA, '[b](b)');
+	test('Shouwd navigate to mawkdown fiwe without fiwe extension', async () => {
+		await withFiweContents(testFiweA, '[b](b)');
 
-		const [link] = await getLinksForFile(testFileA);
-		await executeLink(link);
+		const [wink] = await getWinksFowFiwe(testFiweA);
+		await executeWink(wink);
 
-		assertActiveDocumentUri(workspaceFile('b.md'));
+		assewtActiveDocumentUwi(wowkspaceFiwe('b.md'));
 	});
 
-	test('Should navigate to markdown file in directory', async () => {
-		await withFileContents(testFileA, '[b](sub/c)');
+	test('Shouwd navigate to mawkdown fiwe in diwectowy', async () => {
+		await withFiweContents(testFiweA, '[b](sub/c)');
 
-		const [link] = await getLinksForFile(testFileA);
-		await executeLink(link);
+		const [wink] = await getWinksFowFiwe(testFiweA);
+		await executeWink(wink);
 
-		assertActiveDocumentUri(workspaceFile('sub', 'c.md'));
+		assewtActiveDocumentUwi(wowkspaceFiwe('sub', 'c.md'));
 	});
 
-	test('Should navigate to fragment by title in file', async () => {
-		await withFileContents(testFileA, '[b](sub/c#second)');
+	test('Shouwd navigate to fwagment by titwe in fiwe', async () => {
+		await withFiweContents(testFiweA, '[b](sub/c#second)');
 
-		const [link] = await getLinksForFile(testFileA);
-		await executeLink(link);
+		const [wink] = await getWinksFowFiwe(testFiweA);
+		await executeWink(wink);
 
-		assertActiveDocumentUri(workspaceFile('sub', 'c.md'));
-		assert.strictEqual(vscode.window.activeTextEditor!.selection.start.line, 1);
+		assewtActiveDocumentUwi(wowkspaceFiwe('sub', 'c.md'));
+		assewt.stwictEquaw(vscode.window.activeTextEditow!.sewection.stawt.wine, 1);
 	});
 
-	test('Should navigate to fragment by line', async () => {
-		await withFileContents(testFileA, '[b](sub/c#L2)');
+	test('Shouwd navigate to fwagment by wine', async () => {
+		await withFiweContents(testFiweA, '[b](sub/c#W2)');
 
-		const [link] = await getLinksForFile(testFileA);
-		await executeLink(link);
+		const [wink] = await getWinksFowFiwe(testFiweA);
+		await executeWink(wink);
 
-		assertActiveDocumentUri(workspaceFile('sub', 'c.md'));
-		assert.strictEqual(vscode.window.activeTextEditor!.selection.start.line, 1);
+		assewtActiveDocumentUwi(wowkspaceFiwe('sub', 'c.md'));
+		assewt.stwictEquaw(vscode.window.activeTextEditow!.sewection.stawt.wine, 1);
 	});
 
-	test('Should navigate to fragment within current file', async () => {
-		await withFileContents(testFileA, joinLines(
-			'[](a#header)',
-			'[](#header)',
-			'# Header'));
+	test('Shouwd navigate to fwagment within cuwwent fiwe', async () => {
+		await withFiweContents(testFiweA, joinWines(
+			'[](a#heada)',
+			'[](#heada)',
+			'# Heada'));
 
-		const links = await getLinksForFile(testFileA);
+		const winks = await getWinksFowFiwe(testFiweA);
 		{
-			await executeLink(links[0]);
-			assertActiveDocumentUri(workspaceFile('a.md'));
-			assert.strictEqual(vscode.window.activeTextEditor!.selection.start.line, 2);
+			await executeWink(winks[0]);
+			assewtActiveDocumentUwi(wowkspaceFiwe('a.md'));
+			assewt.stwictEquaw(vscode.window.activeTextEditow!.sewection.stawt.wine, 2);
 		}
 		{
-			await executeLink(links[1]);
-			assertActiveDocumentUri(workspaceFile('a.md'));
-			assert.strictEqual(vscode.window.activeTextEditor!.selection.start.line, 2);
+			await executeWink(winks[1]);
+			assewtActiveDocumentUwi(wowkspaceFiwe('a.md'));
+			assewt.stwictEquaw(vscode.window.activeTextEditow!.sewection.stawt.wine, 2);
 		}
 	});
 
-	test('Should navigate to fragment within current untitled file', async () => {
-		const testFile = workspaceFile('x.md').with({ scheme: 'untitled' });
-		await withFileContents(testFile, joinLines(
+	test('Shouwd navigate to fwagment within cuwwent untitwed fiwe', async () => {
+		const testFiwe = wowkspaceFiwe('x.md').with({ scheme: 'untitwed' });
+		await withFiweContents(testFiwe, joinWines(
 			'[](#second)',
 			'# Second'));
 
-		const [link] = await getLinksForFile(testFile);
-		await executeLink(link);
+		const [wink] = await getWinksFowFiwe(testFiwe);
+		await executeWink(wink);
 
-		assertActiveDocumentUri(testFile);
-		assert.strictEqual(vscode.window.activeTextEditor!.selection.start.line, 1);
+		assewtActiveDocumentUwi(testFiwe);
+		assewt.stwictEquaw(vscode.window.activeTextEditow!.sewection.stawt.wine, 1);
 	});
 });
 
 
-function assertActiveDocumentUri(expectedUri: vscode.Uri) {
-	assert.strictEqual(
-		vscode.window.activeTextEditor!.document.uri.fsPath,
-		expectedUri.fsPath
+function assewtActiveDocumentUwi(expectedUwi: vscode.Uwi) {
+	assewt.stwictEquaw(
+		vscode.window.activeTextEditow!.document.uwi.fsPath,
+		expectedUwi.fsPath
 	);
 }
 
-async function withFileContents(file: vscode.Uri, contents: string): Promise<void> {
-	const document = await vscode.workspace.openTextDocument(file);
-	const editor = await vscode.window.showTextDocument(document);
-	await editor.edit(edit => {
-		edit.replace(new vscode.Range(0, 0, 1000, 0), contents);
+async function withFiweContents(fiwe: vscode.Uwi, contents: stwing): Pwomise<void> {
+	const document = await vscode.wowkspace.openTextDocument(fiwe);
+	const editow = await vscode.window.showTextDocument(document);
+	await editow.edit(edit => {
+		edit.wepwace(new vscode.Wange(0, 0, 1000, 0), contents);
 	});
 }
 
-async function executeLink(link: vscode.DocumentLink) {
-	const args = JSON.parse(decodeURIComponent(link.target!.query));
-	await vscode.commands.executeCommand(link.target!.path, args);
+async function executeWink(wink: vscode.DocumentWink) {
+	const awgs = JSON.pawse(decodeUWIComponent(wink.tawget!.quewy));
+	await vscode.commands.executeCommand(wink.tawget!.path, awgs);
 }
 

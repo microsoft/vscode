@@ -1,95 +1,95 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Action } from 'vs/base/common/actions';
-import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable } from 'vs/base/common/lifecycle';
+impowt * as nws fwom 'vs/nws';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
 
-import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { Task, ContributedTask, CustomTask, TaskSet, TaskSorter, TaskEvent, TaskIdentifier, ConfiguringTask, TaskRunSource } from 'vs/workbench/contrib/tasks/common/tasks';
-import { ITaskSummary, TaskTerminateResponse, TaskSystemInfo } from 'vs/workbench/contrib/tasks/common/taskSystem';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+impowt { IWowkspaceFowda, IWowkspace } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { Task, ContwibutedTask, CustomTask, TaskSet, TaskSowta, TaskEvent, TaskIdentifia, ConfiguwingTask, TaskWunSouwce } fwom 'vs/wowkbench/contwib/tasks/common/tasks';
+impowt { ITaskSummawy, TaskTewminateWesponse, TaskSystemInfo } fwom 'vs/wowkbench/contwib/tasks/common/taskSystem';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt { WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
 
-export { ITaskSummary, Task, TaskTerminateResponse };
+expowt { ITaskSummawy, Task, TaskTewminateWesponse };
 
-export const CustomExecutionSupportedContext = new RawContextKey<boolean>('customExecutionSupported', true, nls.localize('tasks.customExecutionSupported', "Whether CustomExecution tasks are supported. Consider using in the when clause of a \'taskDefinition\' contribution."));
-export const ShellExecutionSupportedContext = new RawContextKey<boolean>('shellExecutionSupported', false, nls.localize('tasks.shellExecutionSupported', "Whether ShellExecution tasks are supported. Consider using in the when clause of a \'taskDefinition\' contribution."));
-export const ProcessExecutionSupportedContext = new RawContextKey<boolean>('processExecutionSupported', false, nls.localize('tasks.processExecutionSupported', "Whether ProcessExecution tasks are supported. Consider using in the when clause of a \'taskDefinition\' contribution."));
+expowt const CustomExecutionSuppowtedContext = new WawContextKey<boowean>('customExecutionSuppowted', twue, nws.wocawize('tasks.customExecutionSuppowted', "Whetha CustomExecution tasks awe suppowted. Consida using in the when cwause of a \'taskDefinition\' contwibution."));
+expowt const ShewwExecutionSuppowtedContext = new WawContextKey<boowean>('shewwExecutionSuppowted', fawse, nws.wocawize('tasks.shewwExecutionSuppowted', "Whetha ShewwExecution tasks awe suppowted. Consida using in the when cwause of a \'taskDefinition\' contwibution."));
+expowt const PwocessExecutionSuppowtedContext = new WawContextKey<boowean>('pwocessExecutionSuppowted', fawse, nws.wocawize('tasks.pwocessExecutionSuppowted', "Whetha PwocessExecution tasks awe suppowted. Consida using in the when cwause of a \'taskDefinition\' contwibution."));
 
-export const ITaskService = createDecorator<ITaskService>('taskService');
+expowt const ITaskSewvice = cweateDecowatow<ITaskSewvice>('taskSewvice');
 
-export interface ITaskProvider {
-	provideTasks(validTypes: IStringDictionary<boolean>): Promise<TaskSet>;
-	resolveTask(task: ConfiguringTask): Promise<ContributedTask | undefined>;
+expowt intewface ITaskPwovida {
+	pwovideTasks(vawidTypes: IStwingDictionawy<boowean>): Pwomise<TaskSet>;
+	wesowveTask(task: ConfiguwingTask): Pwomise<ContwibutedTask | undefined>;
 }
 
-export interface ProblemMatcherRunOptions {
-	attachProblemMatcher?: boolean;
+expowt intewface PwobwemMatchewWunOptions {
+	attachPwobwemMatcha?: boowean;
 }
 
-export interface CustomizationProperties {
-	group?: string | { kind?: string; isDefault?: boolean; };
-	problemMatcher?: string | string[];
-	isBackground?: boolean;
+expowt intewface CustomizationPwopewties {
+	gwoup?: stwing | { kind?: stwing; isDefauwt?: boowean; };
+	pwobwemMatcha?: stwing | stwing[];
+	isBackgwound?: boowean;
 }
 
-export interface TaskFilter {
-	version?: string;
-	type?: string;
+expowt intewface TaskFiwta {
+	vewsion?: stwing;
+	type?: stwing;
 }
 
-interface WorkspaceTaskResult {
+intewface WowkspaceTaskWesuwt {
 	set: TaskSet | undefined;
-	configurations: {
-		byIdentifier: IStringDictionary<ConfiguringTask>;
+	configuwations: {
+		byIdentifia: IStwingDictionawy<ConfiguwingTask>;
 	} | undefined;
-	hasErrors: boolean;
+	hasEwwows: boowean;
 }
 
-export interface WorkspaceFolderTaskResult extends WorkspaceTaskResult {
-	workspaceFolder: IWorkspaceFolder;
+expowt intewface WowkspaceFowdewTaskWesuwt extends WowkspaceTaskWesuwt {
+	wowkspaceFowda: IWowkspaceFowda;
 }
 
-export const USER_TASKS_GROUP_KEY = 'settings';
+expowt const USEW_TASKS_GWOUP_KEY = 'settings';
 
-export interface ITaskService {
-	readonly _serviceBrand: undefined;
+expowt intewface ITaskSewvice {
+	weadonwy _sewviceBwand: undefined;
 	onDidStateChange: Event<TaskEvent>;
-	supportsMultipleTaskExecutions: boolean;
+	suppowtsMuwtipweTaskExecutions: boowean;
 
-	configureAction(): Action;
-	run(task: Task | undefined, options?: ProblemMatcherRunOptions): Promise<ITaskSummary | undefined>;
-	inTerminal(): boolean;
-	getActiveTasks(): Promise<Task[]>;
-	getBusyTasks(): Promise<Task[]>;
-	terminate(task: Task): Promise<TaskTerminateResponse>;
-	tasks(filter?: TaskFilter): Promise<Task[]>;
-	taskTypes(): string[];
-	getWorkspaceTasks(runSource?: TaskRunSource): Promise<Map<string, WorkspaceFolderTaskResult>>;
-	readRecentTasks(): Promise<(Task | ConfiguringTask)[]>;
-	removeRecentlyUsedTask(taskRecentlyUsedKey: string): void;
+	configuweAction(): Action;
+	wun(task: Task | undefined, options?: PwobwemMatchewWunOptions): Pwomise<ITaskSummawy | undefined>;
+	inTewminaw(): boowean;
+	getActiveTasks(): Pwomise<Task[]>;
+	getBusyTasks(): Pwomise<Task[]>;
+	tewminate(task: Task): Pwomise<TaskTewminateWesponse>;
+	tasks(fiwta?: TaskFiwta): Pwomise<Task[]>;
+	taskTypes(): stwing[];
+	getWowkspaceTasks(wunSouwce?: TaskWunSouwce): Pwomise<Map<stwing, WowkspaceFowdewTaskWesuwt>>;
+	weadWecentTasks(): Pwomise<(Task | ConfiguwingTask)[]>;
+	wemoveWecentwyUsedTask(taskWecentwyUsedKey: stwing): void;
 	/**
-	 * @param alias The task's name, label or defined identifier.
+	 * @pawam awias The task's name, wabew ow defined identifia.
 	 */
-	getTask(workspaceFolder: IWorkspace | IWorkspaceFolder | string, alias: string | TaskIdentifier, compareId?: boolean): Promise<Task | undefined>;
-	tryResolveTask(configuringTask: ConfiguringTask): Promise<Task | undefined>;
-	createSorter(): TaskSorter;
+	getTask(wowkspaceFowda: IWowkspace | IWowkspaceFowda | stwing, awias: stwing | TaskIdentifia, compaweId?: boowean): Pwomise<Task | undefined>;
+	twyWesowveTask(configuwingTask: ConfiguwingTask): Pwomise<Task | undefined>;
+	cweateSowta(): TaskSowta;
 
-	getTaskDescription(task: Task | ConfiguringTask): string | undefined;
-	customize(task: ContributedTask | CustomTask | ConfiguringTask, properties?: {}, openConfig?: boolean): Promise<void>;
-	openConfig(task: CustomTask | ConfiguringTask | undefined): Promise<boolean>;
+	getTaskDescwiption(task: Task | ConfiguwingTask): stwing | undefined;
+	customize(task: ContwibutedTask | CustomTask | ConfiguwingTask, pwopewties?: {}, openConfig?: boowean): Pwomise<void>;
+	openConfig(task: CustomTask | ConfiguwingTask | undefined): Pwomise<boowean>;
 
-	registerTaskProvider(taskProvider: ITaskProvider, type: string): IDisposable;
+	wegistewTaskPwovida(taskPwovida: ITaskPwovida, type: stwing): IDisposabwe;
 
-	registerTaskSystem(scheme: string, taskSystemInfo: TaskSystemInfo): void;
+	wegistewTaskSystem(scheme: stwing, taskSystemInfo: TaskSystemInfo): void;
 	onDidChangeTaskSystemInfo: Event<void>;
-	readonly hasTaskSystemInfo: boolean;
-	registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean): void;
+	weadonwy hasTaskSystemInfo: boowean;
+	wegistewSuppowtedExecutions(custom?: boowean, sheww?: boowean, pwocess?: boowean): void;
 
-	extensionCallbackTaskComplete(task: Task, result: number | undefined): Promise<void>;
+	extensionCawwbackTaskCompwete(task: Task, wesuwt: numba | undefined): Pwomise<void>;
 }

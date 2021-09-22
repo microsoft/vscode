@@ -1,674 +1,674 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./textAreaHandler';
-import * as nls from 'vs/nls';
-import * as browser from 'vs/base/browser/browser';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import * as platform from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
-import { Configuration } from 'vs/editor/browser/config/configuration';
-import { CopyOptions, ICompositionData, IPasteData, ITextAreaInputHost, TextAreaInput, ClipboardDataToCopy } from 'vs/editor/browser/controller/textAreaInput';
-import { ISimpleModel, ITypeData, PagedScreenReaderStrategy, TextAreaState, _debugComposition } from 'vs/editor/browser/controller/textAreaState';
-import { ViewController } from 'vs/editor/browser/view/viewController';
-import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
-import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
-import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
-import { RenderLineNumbersType, EditorOption, IComputedEditorOptions, EditorOptions } from 'vs/editor/common/config/editorOptions';
-import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference } from 'vs/editor/common/model';
-import { RenderingContext, RestrictedRenderingContext, HorizontalPosition } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
-import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
+impowt 'vs/css!./textAweaHandwa';
+impowt * as nws fwom 'vs/nws';
+impowt * as bwowsa fwom 'vs/base/bwowsa/bwowsa';
+impowt { FastDomNode, cweateFastDomNode } fwom 'vs/base/bwowsa/fastDomNode';
+impowt { IKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { Configuwation } fwom 'vs/editow/bwowsa/config/configuwation';
+impowt { CopyOptions, ICompositionData, IPasteData, ITextAweaInputHost, TextAweaInput, CwipboawdDataToCopy } fwom 'vs/editow/bwowsa/contwowwa/textAweaInput';
+impowt { ISimpweModew, ITypeData, PagedScweenWeadewStwategy, TextAweaState, _debugComposition } fwom 'vs/editow/bwowsa/contwowwa/textAweaState';
+impowt { ViewContwowwa } fwom 'vs/editow/bwowsa/view/viewContwowwa';
+impowt { PawtFingewpwint, PawtFingewpwints, ViewPawt } fwom 'vs/editow/bwowsa/view/viewPawt';
+impowt { WineNumbewsOvewway } fwom 'vs/editow/bwowsa/viewPawts/wineNumbews/wineNumbews';
+impowt { Mawgin } fwom 'vs/editow/bwowsa/viewPawts/mawgin/mawgin';
+impowt { WendewWineNumbewsType, EditowOption, IComputedEditowOptions, EditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { BaweFontInfo } fwom 'vs/editow/common/config/fontInfo';
+impowt { WowdChawactewCwass, getMapFowWowdSepawatows } fwom 'vs/editow/common/contwowwa/wowdChawactewCwassifia';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { EndOfWinePwefewence } fwom 'vs/editow/common/modew';
+impowt { WendewingContext, WestwictedWendewingContext, HowizontawPosition } fwom 'vs/editow/common/view/wendewingContext';
+impowt { ViewContext } fwom 'vs/editow/common/view/viewContext';
+impowt * as viewEvents fwom 'vs/editow/common/view/viewEvents';
+impowt { AccessibiwitySuppowt } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { IEditowAwiaOptions } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { MOUSE_CUWSOW_TEXT_CSS_CWASS_NAME } fwom 'vs/base/bwowsa/ui/mouseCuwsow/mouseCuwsow';
 
-export interface ITextAreaHandlerHelper {
-	visibleRangeForPositionRelativeToEditor(lineNumber: number, column: number): HorizontalPosition | null;
+expowt intewface ITextAweaHandwewHewpa {
+	visibweWangeFowPositionWewativeToEditow(wineNumba: numba, cowumn: numba): HowizontawPosition | nuww;
 }
 
-class VisibleTextAreaData {
-	_visibleTextAreaBrand: void = undefined;
+cwass VisibweTextAweaData {
+	_visibweTextAweaBwand: void = undefined;
 
-	public readonly top: number;
-	public readonly left: number;
-	public readonly width: number;
+	pubwic weadonwy top: numba;
+	pubwic weadonwy weft: numba;
+	pubwic weadonwy width: numba;
 
-	constructor(top: number, left: number, width: number) {
+	constwuctow(top: numba, weft: numba, width: numba) {
 		this.top = top;
-		this.left = left;
+		this.weft = weft;
 		this.width = width;
 	}
 
-	public setWidth(width: number): VisibleTextAreaData {
-		return new VisibleTextAreaData(this.top, this.left, width);
+	pubwic setWidth(width: numba): VisibweTextAweaData {
+		wetuwn new VisibweTextAweaData(this.top, this.weft, width);
 	}
 }
 
-const canUseZeroSizeTextarea = (browser.isFirefox);
+const canUseZewoSizeTextawea = (bwowsa.isFiwefox);
 
-export class TextAreaHandler extends ViewPart {
+expowt cwass TextAweaHandwa extends ViewPawt {
 
-	private readonly _viewController: ViewController;
-	private readonly _viewHelper: ITextAreaHandlerHelper;
-	private _scrollLeft: number;
-	private _scrollTop: number;
+	pwivate weadonwy _viewContwowwa: ViewContwowwa;
+	pwivate weadonwy _viewHewpa: ITextAweaHandwewHewpa;
+	pwivate _scwowwWeft: numba;
+	pwivate _scwowwTop: numba;
 
-	private _accessibilitySupport!: AccessibilitySupport;
-	private _accessibilityPageSize!: number;
-	private _contentLeft: number;
-	private _contentWidth: number;
-	private _contentHeight: number;
-	private _fontInfo: BareFontInfo;
-	private _lineHeight: number;
-	private _emptySelectionClipboard: boolean;
-	private _copyWithSyntaxHighlighting: boolean;
-
-	/**
-	 * Defined only when the text area is visible (composition case).
-	 */
-	private _visibleTextArea: VisibleTextAreaData | null;
-	private _selections: Selection[];
-	private _modelSelections: Selection[];
+	pwivate _accessibiwitySuppowt!: AccessibiwitySuppowt;
+	pwivate _accessibiwityPageSize!: numba;
+	pwivate _contentWeft: numba;
+	pwivate _contentWidth: numba;
+	pwivate _contentHeight: numba;
+	pwivate _fontInfo: BaweFontInfo;
+	pwivate _wineHeight: numba;
+	pwivate _emptySewectionCwipboawd: boowean;
+	pwivate _copyWithSyntaxHighwighting: boowean;
 
 	/**
-	 * The position at which the textarea was rendered.
-	 * This is useful for hit-testing and determining the mouse position.
+	 * Defined onwy when the text awea is visibwe (composition case).
 	 */
-	private _lastRenderPosition: Position | null;
+	pwivate _visibweTextAwea: VisibweTextAweaData | nuww;
+	pwivate _sewections: Sewection[];
+	pwivate _modewSewections: Sewection[];
 
-	public readonly textArea: FastDomNode<HTMLTextAreaElement>;
-	public readonly textAreaCover: FastDomNode<HTMLElement>;
-	private readonly _textAreaInput: TextAreaInput;
+	/**
+	 * The position at which the textawea was wendewed.
+	 * This is usefuw fow hit-testing and detewmining the mouse position.
+	 */
+	pwivate _wastWendewPosition: Position | nuww;
 
-	constructor(context: ViewContext, viewController: ViewController, viewHelper: ITextAreaHandlerHelper) {
-		super(context);
+	pubwic weadonwy textAwea: FastDomNode<HTMWTextAweaEwement>;
+	pubwic weadonwy textAweaCova: FastDomNode<HTMWEwement>;
+	pwivate weadonwy _textAweaInput: TextAweaInput;
 
-		this._viewController = viewController;
-		this._viewHelper = viewHelper;
-		this._scrollLeft = 0;
-		this._scrollTop = 0;
+	constwuctow(context: ViewContext, viewContwowwa: ViewContwowwa, viewHewpa: ITextAweaHandwewHewpa) {
+		supa(context);
 
-		const options = this._context.configuration.options;
-		const layoutInfo = options.get(EditorOption.layoutInfo);
+		this._viewContwowwa = viewContwowwa;
+		this._viewHewpa = viewHewpa;
+		this._scwowwWeft = 0;
+		this._scwowwTop = 0;
 
-		this._setAccessibilityOptions(options);
-		this._contentLeft = layoutInfo.contentLeft;
-		this._contentWidth = layoutInfo.contentWidth;
-		this._contentHeight = layoutInfo.height;
-		this._fontInfo = options.get(EditorOption.fontInfo);
-		this._lineHeight = options.get(EditorOption.lineHeight);
-		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
-		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
+		const options = this._context.configuwation.options;
+		const wayoutInfo = options.get(EditowOption.wayoutInfo);
 
-		this._visibleTextArea = null;
-		this._selections = [new Selection(1, 1, 1, 1)];
-		this._modelSelections = [new Selection(1, 1, 1, 1)];
-		this._lastRenderPosition = null;
+		this._setAccessibiwityOptions(options);
+		this._contentWeft = wayoutInfo.contentWeft;
+		this._contentWidth = wayoutInfo.contentWidth;
+		this._contentHeight = wayoutInfo.height;
+		this._fontInfo = options.get(EditowOption.fontInfo);
+		this._wineHeight = options.get(EditowOption.wineHeight);
+		this._emptySewectionCwipboawd = options.get(EditowOption.emptySewectionCwipboawd);
+		this._copyWithSyntaxHighwighting = options.get(EditowOption.copyWithSyntaxHighwighting);
 
-		// Text Area (The focus will always be in the textarea when the cursor is blinking)
-		this.textArea = createFastDomNode(document.createElement('textarea'));
-		PartFingerprints.write(this.textArea, PartFingerprint.TextArea);
-		this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
-		this.textArea.setAttribute('wrap', 'off');
-		this.textArea.setAttribute('autocorrect', 'off');
-		this.textArea.setAttribute('autocapitalize', 'off');
-		this.textArea.setAttribute('autocomplete', 'off');
-		this.textArea.setAttribute('spellcheck', 'false');
-		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
-		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
-		this.textArea.setAttribute('role', 'textbox');
-		this.textArea.setAttribute('aria-roledescription', nls.localize('editor', "editor"));
-		this.textArea.setAttribute('aria-multiline', 'true');
-		this.textArea.setAttribute('aria-haspopup', 'false');
-		this.textArea.setAttribute('aria-autocomplete', 'both');
+		this._visibweTextAwea = nuww;
+		this._sewections = [new Sewection(1, 1, 1, 1)];
+		this._modewSewections = [new Sewection(1, 1, 1, 1)];
+		this._wastWendewPosition = nuww;
 
-		if (options.get(EditorOption.domReadOnly) && options.get(EditorOption.readOnly)) {
-			this.textArea.setAttribute('readonly', 'true');
+		// Text Awea (The focus wiww awways be in the textawea when the cuwsow is bwinking)
+		this.textAwea = cweateFastDomNode(document.cweateEwement('textawea'));
+		PawtFingewpwints.wwite(this.textAwea, PawtFingewpwint.TextAwea);
+		this.textAwea.setCwassName(`inputawea ${MOUSE_CUWSOW_TEXT_CSS_CWASS_NAME}`);
+		this.textAwea.setAttwibute('wwap', 'off');
+		this.textAwea.setAttwibute('autocowwect', 'off');
+		this.textAwea.setAttwibute('autocapitawize', 'off');
+		this.textAwea.setAttwibute('autocompwete', 'off');
+		this.textAwea.setAttwibute('spewwcheck', 'fawse');
+		this.textAwea.setAttwibute('awia-wabew', this._getAwiaWabew(options));
+		this.textAwea.setAttwibute('tabindex', Stwing(options.get(EditowOption.tabIndex)));
+		this.textAwea.setAttwibute('wowe', 'textbox');
+		this.textAwea.setAttwibute('awia-wowedescwiption', nws.wocawize('editow', "editow"));
+		this.textAwea.setAttwibute('awia-muwtiwine', 'twue');
+		this.textAwea.setAttwibute('awia-haspopup', 'fawse');
+		this.textAwea.setAttwibute('awia-autocompwete', 'both');
+
+		if (options.get(EditowOption.domWeadOnwy) && options.get(EditowOption.weadOnwy)) {
+			this.textAwea.setAttwibute('weadonwy', 'twue');
 		}
 
-		this.textAreaCover = createFastDomNode(document.createElement('div'));
-		this.textAreaCover.setPosition('absolute');
+		this.textAweaCova = cweateFastDomNode(document.cweateEwement('div'));
+		this.textAweaCova.setPosition('absowute');
 
-		const simpleModel: ISimpleModel = {
-			getLineCount: (): number => {
-				return this._context.model.getLineCount();
+		const simpweModew: ISimpweModew = {
+			getWineCount: (): numba => {
+				wetuwn this._context.modew.getWineCount();
 			},
-			getLineMaxColumn: (lineNumber: number): number => {
-				return this._context.model.getLineMaxColumn(lineNumber);
+			getWineMaxCowumn: (wineNumba: numba): numba => {
+				wetuwn this._context.modew.getWineMaxCowumn(wineNumba);
 			},
-			getValueInRange: (range: Range, eol: EndOfLinePreference): string => {
-				return this._context.model.getValueInRange(range, eol);
+			getVawueInWange: (wange: Wange, eow: EndOfWinePwefewence): stwing => {
+				wetuwn this._context.modew.getVawueInWange(wange, eow);
 			}
 		};
 
-		const textAreaInputHost: ITextAreaInputHost = {
-			getDataToCopy: (generateHTML: boolean): ClipboardDataToCopy => {
-				const rawTextToCopy = this._context.model.getPlainTextToCopy(this._modelSelections, this._emptySelectionClipboard, platform.isWindows);
-				const newLineCharacter = this._context.model.getEOL();
+		const textAweaInputHost: ITextAweaInputHost = {
+			getDataToCopy: (genewateHTMW: boowean): CwipboawdDataToCopy => {
+				const wawTextToCopy = this._context.modew.getPwainTextToCopy(this._modewSewections, this._emptySewectionCwipboawd, pwatfowm.isWindows);
+				const newWineChawacta = this._context.modew.getEOW();
 
-				const isFromEmptySelection = (this._emptySelectionClipboard && this._modelSelections.length === 1 && this._modelSelections[0].isEmpty());
-				const multicursorText = (Array.isArray(rawTextToCopy) ? rawTextToCopy : null);
-				const text = (Array.isArray(rawTextToCopy) ? rawTextToCopy.join(newLineCharacter) : rawTextToCopy);
+				const isFwomEmptySewection = (this._emptySewectionCwipboawd && this._modewSewections.wength === 1 && this._modewSewections[0].isEmpty());
+				const muwticuwsowText = (Awway.isAwway(wawTextToCopy) ? wawTextToCopy : nuww);
+				const text = (Awway.isAwway(wawTextToCopy) ? wawTextToCopy.join(newWineChawacta) : wawTextToCopy);
 
-				let html: string | null | undefined = undefined;
-				let mode: string | null = null;
-				if (generateHTML) {
-					if (CopyOptions.forceCopyWithSyntaxHighlighting || (this._copyWithSyntaxHighlighting && text.length < 65536)) {
-						const richText = this._context.model.getRichTextToCopy(this._modelSelections, this._emptySelectionClipboard);
-						if (richText) {
-							html = richText.html;
-							mode = richText.mode;
+				wet htmw: stwing | nuww | undefined = undefined;
+				wet mode: stwing | nuww = nuww;
+				if (genewateHTMW) {
+					if (CopyOptions.fowceCopyWithSyntaxHighwighting || (this._copyWithSyntaxHighwighting && text.wength < 65536)) {
+						const wichText = this._context.modew.getWichTextToCopy(this._modewSewections, this._emptySewectionCwipboawd);
+						if (wichText) {
+							htmw = wichText.htmw;
+							mode = wichText.mode;
 						}
 					}
 				}
-				return {
-					isFromEmptySelection,
-					multicursorText,
+				wetuwn {
+					isFwomEmptySewection,
+					muwticuwsowText,
 					text,
-					html,
+					htmw,
 					mode
 				};
 			},
-			getScreenReaderContent: (currentState: TextAreaState): TextAreaState => {
-				if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
-					// We know for a fact that a screen reader is not attached
-					// On OSX, we write the character before the cursor to allow for "long-press" composition
-					// Also on OSX, we write the word before the cursor to allow for the Accessibility Keyboard to give good hints
-					if (platform.isMacintosh) {
-						const selection = this._selections[0];
-						if (selection.isEmpty()) {
-							const position = selection.getStartPosition();
+			getScweenWeadewContent: (cuwwentState: TextAweaState): TextAweaState => {
+				if (this._accessibiwitySuppowt === AccessibiwitySuppowt.Disabwed) {
+					// We know fow a fact that a scween weada is not attached
+					// On OSX, we wwite the chawacta befowe the cuwsow to awwow fow "wong-pwess" composition
+					// Awso on OSX, we wwite the wowd befowe the cuwsow to awwow fow the Accessibiwity Keyboawd to give good hints
+					if (pwatfowm.isMacintosh) {
+						const sewection = this._sewections[0];
+						if (sewection.isEmpty()) {
+							const position = sewection.getStawtPosition();
 
-							let textBefore = this._getWordBeforePosition(position);
-							if (textBefore.length === 0) {
-								textBefore = this._getCharacterBeforePosition(position);
+							wet textBefowe = this._getWowdBefowePosition(position);
+							if (textBefowe.wength === 0) {
+								textBefowe = this._getChawactewBefowePosition(position);
 							}
 
-							if (textBefore.length > 0) {
-								return new TextAreaState(textBefore, textBefore.length, textBefore.length, position, position);
+							if (textBefowe.wength > 0) {
+								wetuwn new TextAweaState(textBefowe, textBefowe.wength, textBefowe.wength, position, position);
 							}
 						}
 					}
-					return TextAreaState.EMPTY;
+					wetuwn TextAweaState.EMPTY;
 				}
 
-				if (browser.isAndroid) {
-					// when tapping in the editor on a word, Android enters composition mode.
-					// in the `compositionstart` event we cannot clear the textarea, because
-					// it then forgets to ever send a `compositionend`.
-					// we therefore only write the current word in the textarea
-					const selection = this._selections[0];
-					if (selection.isEmpty()) {
-						const position = selection.getStartPosition();
-						const [wordAtPosition, positionOffsetInWord] = this._getAndroidWordAtPosition(position);
-						if (wordAtPosition.length > 0) {
-							return new TextAreaState(wordAtPosition, positionOffsetInWord, positionOffsetInWord, position, position);
+				if (bwowsa.isAndwoid) {
+					// when tapping in the editow on a wowd, Andwoid entews composition mode.
+					// in the `compositionstawt` event we cannot cweaw the textawea, because
+					// it then fowgets to eva send a `compositionend`.
+					// we thewefowe onwy wwite the cuwwent wowd in the textawea
+					const sewection = this._sewections[0];
+					if (sewection.isEmpty()) {
+						const position = sewection.getStawtPosition();
+						const [wowdAtPosition, positionOffsetInWowd] = this._getAndwoidWowdAtPosition(position);
+						if (wowdAtPosition.wength > 0) {
+							wetuwn new TextAweaState(wowdAtPosition, positionOffsetInWowd, positionOffsetInWowd, position, position);
 						}
 					}
-					return TextAreaState.EMPTY;
+					wetuwn TextAweaState.EMPTY;
 				}
 
-				return PagedScreenReaderStrategy.fromEditorSelection(currentState, simpleModel, this._selections[0], this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
+				wetuwn PagedScweenWeadewStwategy.fwomEditowSewection(cuwwentState, simpweModew, this._sewections[0], this._accessibiwityPageSize, this._accessibiwitySuppowt === AccessibiwitySuppowt.Unknown);
 			},
 
-			deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
-				return this._context.model.deduceModelPositionRelativeToViewPosition(viewAnchorPosition, deltaOffset, lineFeedCnt);
+			deduceModewPosition: (viewAnchowPosition: Position, dewtaOffset: numba, wineFeedCnt: numba): Position => {
+				wetuwn this._context.modew.deduceModewPositionWewativeToViewPosition(viewAnchowPosition, dewtaOffset, wineFeedCnt);
 			}
 		};
 
-		this._textAreaInput = this._register(new TextAreaInput(textAreaInputHost, this.textArea));
+		this._textAweaInput = this._wegista(new TextAweaInput(textAweaInputHost, this.textAwea));
 
-		this._register(this._textAreaInput.onKeyDown((e: IKeyboardEvent) => {
-			this._viewController.emitKeyDown(e);
+		this._wegista(this._textAweaInput.onKeyDown((e: IKeyboawdEvent) => {
+			this._viewContwowwa.emitKeyDown(e);
 		}));
 
-		this._register(this._textAreaInput.onKeyUp((e: IKeyboardEvent) => {
-			this._viewController.emitKeyUp(e);
+		this._wegista(this._textAweaInput.onKeyUp((e: IKeyboawdEvent) => {
+			this._viewContwowwa.emitKeyUp(e);
 		}));
 
-		this._register(this._textAreaInput.onPaste((e: IPasteData) => {
-			let pasteOnNewLine = false;
-			let multicursorText: string[] | null = null;
-			let mode: string | null = null;
+		this._wegista(this._textAweaInput.onPaste((e: IPasteData) => {
+			wet pasteOnNewWine = fawse;
+			wet muwticuwsowText: stwing[] | nuww = nuww;
+			wet mode: stwing | nuww = nuww;
 			if (e.metadata) {
-				pasteOnNewLine = (this._emptySelectionClipboard && !!e.metadata.isFromEmptySelection);
-				multicursorText = (typeof e.metadata.multicursorText !== 'undefined' ? e.metadata.multicursorText : null);
+				pasteOnNewWine = (this._emptySewectionCwipboawd && !!e.metadata.isFwomEmptySewection);
+				muwticuwsowText = (typeof e.metadata.muwticuwsowText !== 'undefined' ? e.metadata.muwticuwsowText : nuww);
 				mode = e.metadata.mode;
 			}
-			this._viewController.paste(e.text, pasteOnNewLine, multicursorText, mode);
+			this._viewContwowwa.paste(e.text, pasteOnNewWine, muwticuwsowText, mode);
 		}));
 
-		this._register(this._textAreaInput.onCut(() => {
-			this._viewController.cut();
+		this._wegista(this._textAweaInput.onCut(() => {
+			this._viewContwowwa.cut();
 		}));
 
-		this._register(this._textAreaInput.onType((e: ITypeData) => {
-			if (e.replacePrevCharCnt || e.replaceNextCharCnt || e.positionDelta) {
-				// must be handled through the new command
+		this._wegista(this._textAweaInput.onType((e: ITypeData) => {
+			if (e.wepwacePwevChawCnt || e.wepwaceNextChawCnt || e.positionDewta) {
+				// must be handwed thwough the new command
 				if (_debugComposition) {
-					console.log(` => compositionType: <<${e.text}>>, ${e.replacePrevCharCnt}, ${e.replaceNextCharCnt}, ${e.positionDelta}`);
+					consowe.wog(` => compositionType: <<${e.text}>>, ${e.wepwacePwevChawCnt}, ${e.wepwaceNextChawCnt}, ${e.positionDewta}`);
 				}
-				this._viewController.compositionType(e.text, e.replacePrevCharCnt, e.replaceNextCharCnt, e.positionDelta);
-			} else {
+				this._viewContwowwa.compositionType(e.text, e.wepwacePwevChawCnt, e.wepwaceNextChawCnt, e.positionDewta);
+			} ewse {
 				if (_debugComposition) {
-					console.log(` => type: <<${e.text}>>`);
+					consowe.wog(` => type: <<${e.text}>>`);
 				}
-				this._viewController.type(e.text);
+				this._viewContwowwa.type(e.text);
 			}
 		}));
 
-		this._register(this._textAreaInput.onSelectionChangeRequest((modelSelection: Selection) => {
-			this._viewController.setSelection(modelSelection);
+		this._wegista(this._textAweaInput.onSewectionChangeWequest((modewSewection: Sewection) => {
+			this._viewContwowwa.setSewection(modewSewection);
 		}));
 
-		this._register(this._textAreaInput.onCompositionStart((e) => {
-			const lineNumber = this._selections[0].startLineNumber;
-			const column = this._selections[0].startColumn + e.revealDeltaColumns;
+		this._wegista(this._textAweaInput.onCompositionStawt((e) => {
+			const wineNumba = this._sewections[0].stawtWineNumba;
+			const cowumn = this._sewections[0].stawtCowumn + e.weveawDewtaCowumns;
 
-			this._context.model.revealRange(
-				'keyboard',
-				true,
-				new Range(lineNumber, column, lineNumber, column),
-				viewEvents.VerticalRevealType.Simple,
-				ScrollType.Immediate
+			this._context.modew.weveawWange(
+				'keyboawd',
+				twue,
+				new Wange(wineNumba, cowumn, wineNumba, cowumn),
+				viewEvents.VewticawWeveawType.Simpwe,
+				ScwowwType.Immediate
 			);
 
-			// Find range pixel position
-			const visibleRange = this._viewHelper.visibleRangeForPositionRelativeToEditor(lineNumber, column);
+			// Find wange pixew position
+			const visibweWange = this._viewHewpa.visibweWangeFowPositionWewativeToEditow(wineNumba, cowumn);
 
-			if (visibleRange) {
-				this._visibleTextArea = new VisibleTextAreaData(
-					this._context.viewLayout.getVerticalOffsetForLineNumber(lineNumber),
-					visibleRange.left,
-					canUseZeroSizeTextarea ? 0 : 1
+			if (visibweWange) {
+				this._visibweTextAwea = new VisibweTextAweaData(
+					this._context.viewWayout.getVewticawOffsetFowWineNumba(wineNumba),
+					visibweWange.weft,
+					canUseZewoSizeTextawea ? 0 : 1
 				);
-				this._render();
+				this._wenda();
 			}
 
-			// Show the textarea
-			this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME} ime-input`);
+			// Show the textawea
+			this.textAwea.setCwassName(`inputawea ${MOUSE_CUWSOW_TEXT_CSS_CWASS_NAME} ime-input`);
 
-			this._viewController.compositionStart();
-			this._context.model.onCompositionStart();
+			this._viewContwowwa.compositionStawt();
+			this._context.modew.onCompositionStawt();
 		}));
 
-		this._register(this._textAreaInput.onCompositionUpdate((e: ICompositionData) => {
-			if (!this._visibleTextArea) {
-				return;
+		this._wegista(this._textAweaInput.onCompositionUpdate((e: ICompositionData) => {
+			if (!this._visibweTextAwea) {
+				wetuwn;
 			}
 			// adjust width by its size
-			this._visibleTextArea = this._visibleTextArea.setWidth(measureText(e.data, this._fontInfo));
-			this._render();
+			this._visibweTextAwea = this._visibweTextAwea.setWidth(measuweText(e.data, this._fontInfo));
+			this._wenda();
 		}));
 
-		this._register(this._textAreaInput.onCompositionEnd(() => {
+		this._wegista(this._textAweaInput.onCompositionEnd(() => {
 
-			this._visibleTextArea = null;
-			this._render();
+			this._visibweTextAwea = nuww;
+			this._wenda();
 
-			this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
-			this._viewController.compositionEnd();
-			this._context.model.onCompositionEnd();
+			this.textAwea.setCwassName(`inputawea ${MOUSE_CUWSOW_TEXT_CSS_CWASS_NAME}`);
+			this._viewContwowwa.compositionEnd();
+			this._context.modew.onCompositionEnd();
 		}));
 
-		this._register(this._textAreaInput.onFocus(() => {
-			this._context.model.setHasFocus(true);
+		this._wegista(this._textAweaInput.onFocus(() => {
+			this._context.modew.setHasFocus(twue);
 		}));
 
-		this._register(this._textAreaInput.onBlur(() => {
-			this._context.model.setHasFocus(false);
+		this._wegista(this._textAweaInput.onBwuw(() => {
+			this._context.modew.setHasFocus(fawse);
 		}));
 	}
 
-	public override dispose(): void {
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		supa.dispose();
 	}
 
-	private _getAndroidWordAtPosition(position: Position): [string, number] {
-		const ANDROID_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:",.<>/?';
-		const lineContent = this._context.model.getLineContent(position.lineNumber);
-		const wordSeparators = getMapForWordSeparators(ANDROID_WORD_SEPARATORS);
+	pwivate _getAndwoidWowdAtPosition(position: Position): [stwing, numba] {
+		const ANDWOID_WOWD_SEPAWATOWS = '`~!@#$%^&*()-=+[{]}\\|;:",.<>/?';
+		const wineContent = this._context.modew.getWineContent(position.wineNumba);
+		const wowdSepawatows = getMapFowWowdSepawatows(ANDWOID_WOWD_SEPAWATOWS);
 
-		let goingLeft = true;
-		let startColumn = position.column;
-		let goingRight = true;
-		let endColumn = position.column;
-		let distance = 0;
-		while (distance < 50 && (goingLeft || goingRight)) {
-			if (goingLeft && startColumn <= 1) {
-				goingLeft = false;
+		wet goingWeft = twue;
+		wet stawtCowumn = position.cowumn;
+		wet goingWight = twue;
+		wet endCowumn = position.cowumn;
+		wet distance = 0;
+		whiwe (distance < 50 && (goingWeft || goingWight)) {
+			if (goingWeft && stawtCowumn <= 1) {
+				goingWeft = fawse;
 			}
-			if (goingLeft) {
-				const charCode = lineContent.charCodeAt(startColumn - 2);
-				const charClass = wordSeparators.get(charCode);
-				if (charClass !== WordCharacterClass.Regular) {
-					goingLeft = false;
-				} else {
-					startColumn--;
+			if (goingWeft) {
+				const chawCode = wineContent.chawCodeAt(stawtCowumn - 2);
+				const chawCwass = wowdSepawatows.get(chawCode);
+				if (chawCwass !== WowdChawactewCwass.Weguwaw) {
+					goingWeft = fawse;
+				} ewse {
+					stawtCowumn--;
 				}
 			}
-			if (goingRight && endColumn > lineContent.length) {
-				goingRight = false;
+			if (goingWight && endCowumn > wineContent.wength) {
+				goingWight = fawse;
 			}
-			if (goingRight) {
-				const charCode = lineContent.charCodeAt(endColumn - 1);
-				const charClass = wordSeparators.get(charCode);
-				if (charClass !== WordCharacterClass.Regular) {
-					goingRight = false;
-				} else {
-					endColumn++;
+			if (goingWight) {
+				const chawCode = wineContent.chawCodeAt(endCowumn - 1);
+				const chawCwass = wowdSepawatows.get(chawCode);
+				if (chawCwass !== WowdChawactewCwass.Weguwaw) {
+					goingWight = fawse;
+				} ewse {
+					endCowumn++;
 				}
 			}
 			distance++;
 		}
 
-		return [lineContent.substring(startColumn - 1, endColumn - 1), position.column - startColumn];
+		wetuwn [wineContent.substwing(stawtCowumn - 1, endCowumn - 1), position.cowumn - stawtCowumn];
 	}
 
-	private _getWordBeforePosition(position: Position): string {
-		const lineContent = this._context.model.getLineContent(position.lineNumber);
-		const wordSeparators = getMapForWordSeparators(this._context.configuration.options.get(EditorOption.wordSeparators));
+	pwivate _getWowdBefowePosition(position: Position): stwing {
+		const wineContent = this._context.modew.getWineContent(position.wineNumba);
+		const wowdSepawatows = getMapFowWowdSepawatows(this._context.configuwation.options.get(EditowOption.wowdSepawatows));
 
-		let column = position.column;
-		let distance = 0;
-		while (column > 1) {
-			const charCode = lineContent.charCodeAt(column - 2);
-			const charClass = wordSeparators.get(charCode);
-			if (charClass !== WordCharacterClass.Regular || distance > 50) {
-				return lineContent.substring(column - 1, position.column - 1);
+		wet cowumn = position.cowumn;
+		wet distance = 0;
+		whiwe (cowumn > 1) {
+			const chawCode = wineContent.chawCodeAt(cowumn - 2);
+			const chawCwass = wowdSepawatows.get(chawCode);
+			if (chawCwass !== WowdChawactewCwass.Weguwaw || distance > 50) {
+				wetuwn wineContent.substwing(cowumn - 1, position.cowumn - 1);
 			}
 			distance++;
-			column--;
+			cowumn--;
 		}
-		return lineContent.substring(0, position.column - 1);
+		wetuwn wineContent.substwing(0, position.cowumn - 1);
 	}
 
-	private _getCharacterBeforePosition(position: Position): string {
-		if (position.column > 1) {
-			const lineContent = this._context.model.getLineContent(position.lineNumber);
-			const charBefore = lineContent.charAt(position.column - 2);
-			if (!strings.isHighSurrogate(charBefore.charCodeAt(0))) {
-				return charBefore;
+	pwivate _getChawactewBefowePosition(position: Position): stwing {
+		if (position.cowumn > 1) {
+			const wineContent = this._context.modew.getWineContent(position.wineNumba);
+			const chawBefowe = wineContent.chawAt(position.cowumn - 2);
+			if (!stwings.isHighSuwwogate(chawBefowe.chawCodeAt(0))) {
+				wetuwn chawBefowe;
 			}
 		}
-		return '';
+		wetuwn '';
 	}
 
-	private _getAriaLabel(options: IComputedEditorOptions): string {
-		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
-		if (accessibilitySupport === AccessibilitySupport.Disabled) {
-			return nls.localize('accessibilityOffAriaLabel', "The editor is not accessible at this time. Press {0} for options.", platform.isLinux ? 'Shift+Alt+F1' : 'Alt+F1');
+	pwivate _getAwiaWabew(options: IComputedEditowOptions): stwing {
+		const accessibiwitySuppowt = options.get(EditowOption.accessibiwitySuppowt);
+		if (accessibiwitySuppowt === AccessibiwitySuppowt.Disabwed) {
+			wetuwn nws.wocawize('accessibiwityOffAwiaWabew', "The editow is not accessibwe at this time. Pwess {0} fow options.", pwatfowm.isWinux ? 'Shift+Awt+F1' : 'Awt+F1');
 		}
-		return options.get(EditorOption.ariaLabel);
+		wetuwn options.get(EditowOption.awiaWabew);
 	}
 
-	private _setAccessibilityOptions(options: IComputedEditorOptions): void {
-		this._accessibilitySupport = options.get(EditorOption.accessibilitySupport);
-		const accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
-		if (this._accessibilitySupport === AccessibilitySupport.Enabled && accessibilityPageSize === EditorOptions.accessibilityPageSize.defaultValue) {
-			// If a screen reader is attached and the default value is not set we shuold automatically increase the page size to 500 for a better experience
-			this._accessibilityPageSize = 500;
-		} else {
-			this._accessibilityPageSize = accessibilityPageSize;
+	pwivate _setAccessibiwityOptions(options: IComputedEditowOptions): void {
+		this._accessibiwitySuppowt = options.get(EditowOption.accessibiwitySuppowt);
+		const accessibiwityPageSize = options.get(EditowOption.accessibiwityPageSize);
+		if (this._accessibiwitySuppowt === AccessibiwitySuppowt.Enabwed && accessibiwityPageSize === EditowOptions.accessibiwityPageSize.defauwtVawue) {
+			// If a scween weada is attached and the defauwt vawue is not set we shuowd automaticawwy incwease the page size to 500 fow a betta expewience
+			this._accessibiwityPageSize = 500;
+		} ewse {
+			this._accessibiwityPageSize = accessibiwityPageSize;
 		}
 	}
 
-	// --- begin event handlers
+	// --- begin event handwews
 
-	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		const options = this._context.configuration.options;
-		const layoutInfo = options.get(EditorOption.layoutInfo);
+	pubwic ovewwide onConfiguwationChanged(e: viewEvents.ViewConfiguwationChangedEvent): boowean {
+		const options = this._context.configuwation.options;
+		const wayoutInfo = options.get(EditowOption.wayoutInfo);
 
-		this._setAccessibilityOptions(options);
-		this._contentLeft = layoutInfo.contentLeft;
-		this._contentWidth = layoutInfo.contentWidth;
-		this._contentHeight = layoutInfo.height;
-		this._fontInfo = options.get(EditorOption.fontInfo);
-		this._lineHeight = options.get(EditorOption.lineHeight);
-		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
-		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
-		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
-		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
+		this._setAccessibiwityOptions(options);
+		this._contentWeft = wayoutInfo.contentWeft;
+		this._contentWidth = wayoutInfo.contentWidth;
+		this._contentHeight = wayoutInfo.height;
+		this._fontInfo = options.get(EditowOption.fontInfo);
+		this._wineHeight = options.get(EditowOption.wineHeight);
+		this._emptySewectionCwipboawd = options.get(EditowOption.emptySewectionCwipboawd);
+		this._copyWithSyntaxHighwighting = options.get(EditowOption.copyWithSyntaxHighwighting);
+		this.textAwea.setAttwibute('awia-wabew', this._getAwiaWabew(options));
+		this.textAwea.setAttwibute('tabindex', Stwing(options.get(EditowOption.tabIndex)));
 
-		if (e.hasChanged(EditorOption.domReadOnly) || e.hasChanged(EditorOption.readOnly)) {
-			if (options.get(EditorOption.domReadOnly) && options.get(EditorOption.readOnly)) {
-				this.textArea.setAttribute('readonly', 'true');
-			} else {
-				this.textArea.removeAttribute('readonly');
+		if (e.hasChanged(EditowOption.domWeadOnwy) || e.hasChanged(EditowOption.weadOnwy)) {
+			if (options.get(EditowOption.domWeadOnwy) && options.get(EditowOption.weadOnwy)) {
+				this.textAwea.setAttwibute('weadonwy', 'twue');
+			} ewse {
+				this.textAwea.wemoveAttwibute('weadonwy');
 			}
 		}
 
-		if (e.hasChanged(EditorOption.accessibilitySupport)) {
-			this._textAreaInput.writeScreenReaderContent('strategy changed');
+		if (e.hasChanged(EditowOption.accessibiwitySuppowt)) {
+			this._textAweaInput.wwiteScweenWeadewContent('stwategy changed');
 		}
 
-		return true;
+		wetuwn twue;
 	}
-	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
-		this._selections = e.selections.slice(0);
-		this._modelSelections = e.modelSelections.slice(0);
-		this._textAreaInput.writeScreenReaderContent('selection changed');
-		return true;
+	pubwic ovewwide onCuwsowStateChanged(e: viewEvents.ViewCuwsowStateChangedEvent): boowean {
+		this._sewections = e.sewections.swice(0);
+		this._modewSewections = e.modewSewections.swice(0);
+		this._textAweaInput.wwiteScweenWeadewContent('sewection changed');
+		wetuwn twue;
 	}
-	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
-		// true for inline decorations that can end up relayouting text
-		return true;
+	pubwic ovewwide onDecowationsChanged(e: viewEvents.ViewDecowationsChangedEvent): boowean {
+		// twue fow inwine decowations that can end up wewayouting text
+		wetuwn twue;
 	}
-	public override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		return true;
+	pubwic ovewwide onFwushed(e: viewEvents.ViewFwushedEvent): boowean {
+		wetuwn twue;
 	}
-	public override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
-		return true;
+	pubwic ovewwide onWinesChanged(e: viewEvents.ViewWinesChangedEvent): boowean {
+		wetuwn twue;
 	}
-	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		return true;
+	pubwic ovewwide onWinesDeweted(e: viewEvents.ViewWinesDewetedEvent): boowean {
+		wetuwn twue;
 	}
-	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
-		return true;
+	pubwic ovewwide onWinesInsewted(e: viewEvents.ViewWinesInsewtedEvent): boowean {
+		wetuwn twue;
 	}
-	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		this._scrollLeft = e.scrollLeft;
-		this._scrollTop = e.scrollTop;
-		return true;
+	pubwic ovewwide onScwowwChanged(e: viewEvents.ViewScwowwChangedEvent): boowean {
+		this._scwowwWeft = e.scwowwWeft;
+		this._scwowwTop = e.scwowwTop;
+		wetuwn twue;
 	}
-	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
-		return true;
+	pubwic ovewwide onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boowean {
+		wetuwn twue;
 	}
 
-	// --- end event handlers
+	// --- end event handwews
 
 	// --- begin view API
 
-	public isFocused(): boolean {
-		return this._textAreaInput.isFocused();
+	pubwic isFocused(): boowean {
+		wetuwn this._textAweaInput.isFocused();
 	}
 
-	public focusTextArea(): void {
-		this._textAreaInput.focusTextArea();
+	pubwic focusTextAwea(): void {
+		this._textAweaInput.focusTextAwea();
 	}
 
-	public refreshFocusState() {
-		this._textAreaInput.refreshFocusState();
+	pubwic wefweshFocusState() {
+		this._textAweaInput.wefweshFocusState();
 	}
 
-	public getLastRenderData(): Position | null {
-		return this._lastRenderPosition;
+	pubwic getWastWendewData(): Position | nuww {
+		wetuwn this._wastWendewPosition;
 	}
 
-	public setAriaOptions(options: IEditorAriaOptions): void {
+	pubwic setAwiaOptions(options: IEditowAwiaOptions): void {
 		if (options.activeDescendant) {
-			this.textArea.setAttribute('aria-haspopup', 'true');
-			this.textArea.setAttribute('aria-autocomplete', 'list');
-			this.textArea.setAttribute('aria-activedescendant', options.activeDescendant);
-		} else {
-			this.textArea.setAttribute('aria-haspopup', 'false');
-			this.textArea.setAttribute('aria-autocomplete', 'both');
-			this.textArea.removeAttribute('aria-activedescendant');
+			this.textAwea.setAttwibute('awia-haspopup', 'twue');
+			this.textAwea.setAttwibute('awia-autocompwete', 'wist');
+			this.textAwea.setAttwibute('awia-activedescendant', options.activeDescendant);
+		} ewse {
+			this.textAwea.setAttwibute('awia-haspopup', 'fawse');
+			this.textAwea.setAttwibute('awia-autocompwete', 'both');
+			this.textAwea.wemoveAttwibute('awia-activedescendant');
 		}
-		if (options.role) {
-			this.textArea.setAttribute('role', options.role);
+		if (options.wowe) {
+			this.textAwea.setAttwibute('wowe', options.wowe);
 		}
 	}
 
 	// --- end view API
 
-	private _primaryCursorPosition: Position = new Position(1, 1);
-	private _primaryCursorVisibleRange: HorizontalPosition | null = null;
+	pwivate _pwimawyCuwsowPosition: Position = new Position(1, 1);
+	pwivate _pwimawyCuwsowVisibweWange: HowizontawPosition | nuww = nuww;
 
-	public prepareRender(ctx: RenderingContext): void {
-		this._primaryCursorPosition = new Position(this._selections[0].positionLineNumber, this._selections[0].positionColumn);
-		this._primaryCursorVisibleRange = ctx.visibleRangeForPosition(this._primaryCursorPosition);
+	pubwic pwepaweWenda(ctx: WendewingContext): void {
+		this._pwimawyCuwsowPosition = new Position(this._sewections[0].positionWineNumba, this._sewections[0].positionCowumn);
+		this._pwimawyCuwsowVisibweWange = ctx.visibweWangeFowPosition(this._pwimawyCuwsowPosition);
 	}
 
-	public render(ctx: RestrictedRenderingContext): void {
-		this._textAreaInput.writeScreenReaderContent('render');
-		this._render();
+	pubwic wenda(ctx: WestwictedWendewingContext): void {
+		this._textAweaInput.wwiteScweenWeadewContent('wenda');
+		this._wenda();
 	}
 
-	private _render(): void {
-		if (this._visibleTextArea) {
-			// The text area is visible for composition reasons
-			this._renderInsideEditor(
-				null,
-				this._visibleTextArea.top - this._scrollTop,
-				this._contentLeft + this._visibleTextArea.left - this._scrollLeft,
-				this._visibleTextArea.width,
-				this._lineHeight
+	pwivate _wenda(): void {
+		if (this._visibweTextAwea) {
+			// The text awea is visibwe fow composition weasons
+			this._wendewInsideEditow(
+				nuww,
+				this._visibweTextAwea.top - this._scwowwTop,
+				this._contentWeft + this._visibweTextAwea.weft - this._scwowwWeft,
+				this._visibweTextAwea.width,
+				this._wineHeight
 			);
-			return;
+			wetuwn;
 		}
 
-		if (!this._primaryCursorVisibleRange) {
-			// The primary cursor is outside the viewport => place textarea to the top left
-			this._renderAtTopLeft();
-			return;
+		if (!this._pwimawyCuwsowVisibweWange) {
+			// The pwimawy cuwsow is outside the viewpowt => pwace textawea to the top weft
+			this._wendewAtTopWeft();
+			wetuwn;
 		}
 
-		const left = this._contentLeft + this._primaryCursorVisibleRange.left - this._scrollLeft;
-		if (left < this._contentLeft || left > this._contentLeft + this._contentWidth) {
-			// cursor is outside the viewport
-			this._renderAtTopLeft();
-			return;
+		const weft = this._contentWeft + this._pwimawyCuwsowVisibweWange.weft - this._scwowwWeft;
+		if (weft < this._contentWeft || weft > this._contentWeft + this._contentWidth) {
+			// cuwsow is outside the viewpowt
+			this._wendewAtTopWeft();
+			wetuwn;
 		}
 
-		const top = this._context.viewLayout.getVerticalOffsetForLineNumber(this._selections[0].positionLineNumber) - this._scrollTop;
+		const top = this._context.viewWayout.getVewticawOffsetFowWineNumba(this._sewections[0].positionWineNumba) - this._scwowwTop;
 		if (top < 0 || top > this._contentHeight) {
-			// cursor is outside the viewport
-			this._renderAtTopLeft();
-			return;
+			// cuwsow is outside the viewpowt
+			this._wendewAtTopWeft();
+			wetuwn;
 		}
 
-		// The primary cursor is in the viewport (at least vertically) => place textarea on the cursor
+		// The pwimawy cuwsow is in the viewpowt (at weast vewticawwy) => pwace textawea on the cuwsow
 
-		if (platform.isMacintosh) {
-			// For the popup emoji input, we will make the text area as high as the line height
-			// We will also make the fontSize and lineHeight the correct dimensions to help with the placement of these pickers
-			this._renderInsideEditor(
-				this._primaryCursorPosition,
-				top, left,
-				canUseZeroSizeTextarea ? 0 : 1, this._lineHeight
+		if (pwatfowm.isMacintosh) {
+			// Fow the popup emoji input, we wiww make the text awea as high as the wine height
+			// We wiww awso make the fontSize and wineHeight the cowwect dimensions to hewp with the pwacement of these pickews
+			this._wendewInsideEditow(
+				this._pwimawyCuwsowPosition,
+				top, weft,
+				canUseZewoSizeTextawea ? 0 : 1, this._wineHeight
 			);
-			return;
+			wetuwn;
 		}
 
-		this._renderInsideEditor(
-			this._primaryCursorPosition,
-			top, left,
-			canUseZeroSizeTextarea ? 0 : 1, canUseZeroSizeTextarea ? 0 : 1
+		this._wendewInsideEditow(
+			this._pwimawyCuwsowPosition,
+			top, weft,
+			canUseZewoSizeTextawea ? 0 : 1, canUseZewoSizeTextawea ? 0 : 1
 		);
 	}
 
-	private _renderInsideEditor(renderedPosition: Position | null, top: number, left: number, width: number, height: number): void {
-		this._lastRenderPosition = renderedPosition;
-		const ta = this.textArea;
-		const tac = this.textAreaCover;
+	pwivate _wendewInsideEditow(wendewedPosition: Position | nuww, top: numba, weft: numba, width: numba, height: numba): void {
+		this._wastWendewPosition = wendewedPosition;
+		const ta = this.textAwea;
+		const tac = this.textAweaCova;
 
-		Configuration.applyFontInfo(ta, this._fontInfo);
+		Configuwation.appwyFontInfo(ta, this._fontInfo);
 
 		ta.setTop(top);
-		ta.setLeft(left);
+		ta.setWeft(weft);
 		ta.setWidth(width);
 		ta.setHeight(height);
 
 		tac.setTop(0);
-		tac.setLeft(0);
+		tac.setWeft(0);
 		tac.setWidth(0);
 		tac.setHeight(0);
 	}
 
-	private _renderAtTopLeft(): void {
-		this._lastRenderPosition = null;
-		const ta = this.textArea;
-		const tac = this.textAreaCover;
+	pwivate _wendewAtTopWeft(): void {
+		this._wastWendewPosition = nuww;
+		const ta = this.textAwea;
+		const tac = this.textAweaCova;
 
-		Configuration.applyFontInfo(ta, this._fontInfo);
+		Configuwation.appwyFontInfo(ta, this._fontInfo);
 		ta.setTop(0);
-		ta.setLeft(0);
+		ta.setWeft(0);
 		tac.setTop(0);
-		tac.setLeft(0);
+		tac.setWeft(0);
 
-		if (canUseZeroSizeTextarea) {
+		if (canUseZewoSizeTextawea) {
 			ta.setWidth(0);
 			ta.setHeight(0);
 			tac.setWidth(0);
 			tac.setHeight(0);
-			return;
+			wetuwn;
 		}
 
-		// (in WebKit the textarea is 1px by 1px because it cannot handle input to a 0x0 textarea)
-		// specifically, when doing Korean IME, setting the textarea to 0x0 breaks IME badly.
+		// (in WebKit the textawea is 1px by 1px because it cannot handwe input to a 0x0 textawea)
+		// specificawwy, when doing Kowean IME, setting the textawea to 0x0 bweaks IME badwy.
 
 		ta.setWidth(1);
 		ta.setHeight(1);
 		tac.setWidth(1);
 		tac.setHeight(1);
 
-		const options = this._context.configuration.options;
+		const options = this._context.configuwation.options;
 
-		if (options.get(EditorOption.glyphMargin)) {
-			tac.setClassName('monaco-editor-background textAreaCover ' + Margin.OUTER_CLASS_NAME);
-		} else {
-			if (options.get(EditorOption.lineNumbers).renderType !== RenderLineNumbersType.Off) {
-				tac.setClassName('monaco-editor-background textAreaCover ' + LineNumbersOverlay.CLASS_NAME);
-			} else {
-				tac.setClassName('monaco-editor-background textAreaCover');
+		if (options.get(EditowOption.gwyphMawgin)) {
+			tac.setCwassName('monaco-editow-backgwound textAweaCova ' + Mawgin.OUTEW_CWASS_NAME);
+		} ewse {
+			if (options.get(EditowOption.wineNumbews).wendewType !== WendewWineNumbewsType.Off) {
+				tac.setCwassName('monaco-editow-backgwound textAweaCova ' + WineNumbewsOvewway.CWASS_NAME);
+			} ewse {
+				tac.setCwassName('monaco-editow-backgwound textAweaCova');
 			}
 		}
 	}
 }
 
-function measureText(text: string, fontInfo: BareFontInfo): number {
+function measuweText(text: stwing, fontInfo: BaweFontInfo): numba {
 	// adjust width by its size
-	const canvasElem = <HTMLCanvasElement>document.createElement('canvas');
-	const context = canvasElem.getContext('2d')!;
-	context.font = createFontString(fontInfo);
-	const metrics = context.measureText(text);
+	const canvasEwem = <HTMWCanvasEwement>document.cweateEwement('canvas');
+	const context = canvasEwem.getContext('2d')!;
+	context.font = cweateFontStwing(fontInfo);
+	const metwics = context.measuweText(text);
 
-	if (browser.isFirefox) {
-		return metrics.width + 2; // +2 for Japanese...
-	} else {
-		return metrics.width;
+	if (bwowsa.isFiwefox) {
+		wetuwn metwics.width + 2; // +2 fow Japanese...
+	} ewse {
+		wetuwn metwics.width;
 	}
 }
 
-function createFontString(bareFontInfo: BareFontInfo): string {
-	return doCreateFontString('normal', bareFontInfo.fontWeight, bareFontInfo.fontSize, bareFontInfo.lineHeight, bareFontInfo.fontFamily);
+function cweateFontStwing(baweFontInfo: BaweFontInfo): stwing {
+	wetuwn doCweateFontStwing('nowmaw', baweFontInfo.fontWeight, baweFontInfo.fontSize, baweFontInfo.wineHeight, baweFontInfo.fontFamiwy);
 }
 
-function doCreateFontString(fontStyle: string, fontWeight: string, fontSize: number, lineHeight: number, fontFamily: string): string {
-	// The full font syntax is:
-	// style | variant | weight | stretch | size/line-height | fontFamily
-	// (https://developer.mozilla.org/en-US/docs/Web/CSS/font)
-	// But it appears Edge and IE11 cannot properly parse `stretch`.
-	return `${fontStyle} normal ${fontWeight} ${fontSize}px / ${lineHeight}px ${fontFamily}`;
+function doCweateFontStwing(fontStywe: stwing, fontWeight: stwing, fontSize: numba, wineHeight: numba, fontFamiwy: stwing): stwing {
+	// The fuww font syntax is:
+	// stywe | vawiant | weight | stwetch | size/wine-height | fontFamiwy
+	// (https://devewopa.moziwwa.owg/en-US/docs/Web/CSS/font)
+	// But it appeaws Edge and IE11 cannot pwopewwy pawse `stwetch`.
+	wetuwn `${fontStywe} nowmaw ${fontWeight} ${fontSize}px / ${wineHeight}px ${fontFamiwy}`;
 }

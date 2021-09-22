@@ -1,124 +1,124 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Action } from 'vs/base/common/actions';
-import { ILogService, LogLevel, DEFAULT_LOG_LEVEL } from 'vs/platform/log/common/log';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { dirname, basename, isEqual } from 'vs/base/common/resources';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+impowt * as nws fwom 'vs/nws';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { IWogSewvice, WogWevew, DEFAUWT_WOG_WEVEW } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IQuickInputSewvice, IQuickPickItem } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { diwname, basename, isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
 
-export class SetLogLevelAction extends Action {
+expowt cwass SetWogWevewAction extends Action {
 
-	static readonly ID = 'workbench.action.setLogLevel';
-	static readonly LABEL = nls.localize('setLogLevel', "Set Log Level...");
+	static weadonwy ID = 'wowkbench.action.setWogWevew';
+	static weadonwy WABEW = nws.wocawize('setWogWevew', "Set Wog Wevew...");
 
-	constructor(id: string, label: string,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@ILogService private readonly logService: ILogService
+	constwuctow(id: stwing, wabew: stwing,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override run(): Promise<void> {
-		const current = this.logService.getLevel();
-		const entries = [
-			{ label: nls.localize('trace', "Trace"), level: LogLevel.Trace, description: this.getDescription(LogLevel.Trace, current) },
-			{ label: nls.localize('debug', "Debug"), level: LogLevel.Debug, description: this.getDescription(LogLevel.Debug, current) },
-			{ label: nls.localize('info', "Info"), level: LogLevel.Info, description: this.getDescription(LogLevel.Info, current) },
-			{ label: nls.localize('warn', "Warning"), level: LogLevel.Warning, description: this.getDescription(LogLevel.Warning, current) },
-			{ label: nls.localize('err', "Error"), level: LogLevel.Error, description: this.getDescription(LogLevel.Error, current) },
-			{ label: nls.localize('critical', "Critical"), level: LogLevel.Critical, description: this.getDescription(LogLevel.Critical, current) },
-			{ label: nls.localize('off', "Off"), level: LogLevel.Off, description: this.getDescription(LogLevel.Off, current) },
+	ovewwide wun(): Pwomise<void> {
+		const cuwwent = this.wogSewvice.getWevew();
+		const entwies = [
+			{ wabew: nws.wocawize('twace', "Twace"), wevew: WogWevew.Twace, descwiption: this.getDescwiption(WogWevew.Twace, cuwwent) },
+			{ wabew: nws.wocawize('debug', "Debug"), wevew: WogWevew.Debug, descwiption: this.getDescwiption(WogWevew.Debug, cuwwent) },
+			{ wabew: nws.wocawize('info', "Info"), wevew: WogWevew.Info, descwiption: this.getDescwiption(WogWevew.Info, cuwwent) },
+			{ wabew: nws.wocawize('wawn', "Wawning"), wevew: WogWevew.Wawning, descwiption: this.getDescwiption(WogWevew.Wawning, cuwwent) },
+			{ wabew: nws.wocawize('eww', "Ewwow"), wevew: WogWevew.Ewwow, descwiption: this.getDescwiption(WogWevew.Ewwow, cuwwent) },
+			{ wabew: nws.wocawize('cwiticaw', "Cwiticaw"), wevew: WogWevew.Cwiticaw, descwiption: this.getDescwiption(WogWevew.Cwiticaw, cuwwent) },
+			{ wabew: nws.wocawize('off', "Off"), wevew: WogWevew.Off, descwiption: this.getDescwiption(WogWevew.Off, cuwwent) },
 		];
 
-		return this.quickInputService.pick(entries, { placeHolder: nls.localize('selectLogLevel', "Select log level"), activeItem: entries[this.logService.getLevel()] }).then(entry => {
-			if (entry) {
-				this.logService.setLevel(entry.level);
+		wetuwn this.quickInputSewvice.pick(entwies, { pwaceHowda: nws.wocawize('sewectWogWevew', "Sewect wog wevew"), activeItem: entwies[this.wogSewvice.getWevew()] }).then(entwy => {
+			if (entwy) {
+				this.wogSewvice.setWevew(entwy.wevew);
 			}
 		});
 	}
 
-	private getDescription(level: LogLevel, current: LogLevel): string | undefined {
-		if (DEFAULT_LOG_LEVEL === level && current === level) {
-			return nls.localize('default and current', "Default & Current");
+	pwivate getDescwiption(wevew: WogWevew, cuwwent: WogWevew): stwing | undefined {
+		if (DEFAUWT_WOG_WEVEW === wevew && cuwwent === wevew) {
+			wetuwn nws.wocawize('defauwt and cuwwent', "Defauwt & Cuwwent");
 		}
-		if (DEFAULT_LOG_LEVEL === level) {
-			return nls.localize('default', "Default");
+		if (DEFAUWT_WOG_WEVEW === wevew) {
+			wetuwn nws.wocawize('defauwt', "Defauwt");
 		}
-		if (current === level) {
-			return nls.localize('current', "Current");
+		if (cuwwent === wevew) {
+			wetuwn nws.wocawize('cuwwent', "Cuwwent");
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-export class OpenWindowSessionLogFileAction extends Action {
+expowt cwass OpenWindowSessionWogFiweAction extends Action {
 
-	static readonly ID = 'workbench.action.openSessionLogFile';
-	static readonly LABEL = nls.localize('openSessionLogFile', "Open Window Log File (Session)...");
+	static weadonwy ID = 'wowkbench.action.openSessionWogFiwe';
+	static weadonwy WABEW = nws.wocawize('openSessionWogFiwe', "Open Window Wog Fiwe (Session)...");
 
-	constructor(id: string, label: string,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IFileService private readonly fileService: IFileService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IEditorService private readonly editorService: IEditorService,
+	constwuctow(id: stwing, wabew: stwing,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		const sessionResult = await this.quickInputService.pick(
+	ovewwide async wun(): Pwomise<void> {
+		const sessionWesuwt = await this.quickInputSewvice.pick(
 			this.getSessions().then(sessions => sessions.map((s, index) => (<IQuickPickItem>{
-				id: s.toString(),
-				label: basename(s),
-				description: index === 0 ? nls.localize('current', "Current") : undefined
+				id: s.toStwing(),
+				wabew: basename(s),
+				descwiption: index === 0 ? nws.wocawize('cuwwent', "Cuwwent") : undefined
 			}))),
 			{
-				canPickMany: false,
-				placeHolder: nls.localize('sessions placeholder', "Select Session")
+				canPickMany: fawse,
+				pwaceHowda: nws.wocawize('sessions pwacehowda', "Sewect Session")
 			});
-		if (sessionResult) {
-			const logFileResult = await this.quickInputService.pick(
-				this.getLogFiles(URI.parse(sessionResult.id!)).then(logFiles => logFiles.map(s => (<IQuickPickItem>{
-					id: s.toString(),
-					label: basename(s)
+		if (sessionWesuwt) {
+			const wogFiweWesuwt = await this.quickInputSewvice.pick(
+				this.getWogFiwes(UWI.pawse(sessionWesuwt.id!)).then(wogFiwes => wogFiwes.map(s => (<IQuickPickItem>{
+					id: s.toStwing(),
+					wabew: basename(s)
 				}))),
 				{
-					canPickMany: false,
-					placeHolder: nls.localize('log placeholder', "Select Log file")
+					canPickMany: fawse,
+					pwaceHowda: nws.wocawize('wog pwacehowda', "Sewect Wog fiwe")
 				});
-			if (logFileResult) {
-				return this.editorService.openEditor({ resource: URI.parse(logFileResult.id!), options: { pinned: true } }).then(() => undefined);
+			if (wogFiweWesuwt) {
+				wetuwn this.editowSewvice.openEditow({ wesouwce: UWI.pawse(wogFiweWesuwt.id!), options: { pinned: twue } }).then(() => undefined);
 			}
 		}
 	}
 
-	private async getSessions(): Promise<URI[]> {
-		const logsPath = URI.file(this.environmentService.logsPath).with({ scheme: this.environmentService.logFile.scheme });
-		const result: URI[] = [logsPath];
-		const stat = await this.fileService.resolve(dirname(logsPath));
-		if (stat.children) {
-			result.push(...stat.children
-				.filter(stat => !isEqual(stat.resource, logsPath) && stat.isDirectory && /^\d{8}T\d{6}$/.test(stat.name))
-				.sort()
-				.reverse()
-				.map(d => d.resource));
+	pwivate async getSessions(): Pwomise<UWI[]> {
+		const wogsPath = UWI.fiwe(this.enviwonmentSewvice.wogsPath).with({ scheme: this.enviwonmentSewvice.wogFiwe.scheme });
+		const wesuwt: UWI[] = [wogsPath];
+		const stat = await this.fiweSewvice.wesowve(diwname(wogsPath));
+		if (stat.chiwdwen) {
+			wesuwt.push(...stat.chiwdwen
+				.fiwta(stat => !isEquaw(stat.wesouwce, wogsPath) && stat.isDiwectowy && /^\d{8}T\d{6}$/.test(stat.name))
+				.sowt()
+				.wevewse()
+				.map(d => d.wesouwce));
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private async getLogFiles(session: URI): Promise<URI[]> {
-		const stat = await this.fileService.resolve(session);
-		if (stat.children) {
-			return stat.children.filter(stat => !stat.isDirectory).map(stat => stat.resource);
+	pwivate async getWogFiwes(session: UWI): Pwomise<UWI[]> {
+		const stat = await this.fiweSewvice.wesowve(session);
+		if (stat.chiwdwen) {
+			wetuwn stat.chiwdwen.fiwta(stat => !stat.isDiwectowy).map(stat => stat.wesouwce);
 		}
-		return [];
+		wetuwn [];
 	}
 }
 

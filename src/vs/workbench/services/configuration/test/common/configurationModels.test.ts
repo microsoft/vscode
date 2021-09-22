@@ -1,210 +1,210 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { StandaloneConfigurationModelParser, Configuration } from 'vs/workbench/services/configuration/common/configurationModels';
-import { ConfigurationModelParser, ConfigurationModel, ConfigurationParseOptions } from 'vs/platform/configuration/common/configurationModels';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { ResourceMap } from 'vs/base/common/map';
-import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { URI } from 'vs/base/common/uri';
-import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
+impowt * as assewt fwom 'assewt';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { StandawoneConfiguwationModewPawsa, Configuwation } fwom 'vs/wowkbench/sewvices/configuwation/common/configuwationModews';
+impowt { ConfiguwationModewPawsa, ConfiguwationModew, ConfiguwationPawseOptions } fwom 'vs/pwatfowm/configuwation/common/configuwationModews';
+impowt { IConfiguwationWegistwy, Extensions as ConfiguwationExtensions, ConfiguwationScope } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { WowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Wowkspace } fwom 'vs/pwatfowm/wowkspace/test/common/testWowkspace';
 
-suite('FolderSettingsModelParser', () => {
+suite('FowdewSettingsModewPawsa', () => {
 
 	suiteSetup(() => {
-		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-		configurationRegistry.registerConfiguration({
-			'id': 'FolderSettingsModelParser_1',
+		const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation);
+		configuwationWegistwy.wegistewConfiguwation({
+			'id': 'FowdewSettingsModewPawsew_1',
 			'type': 'object',
-			'properties': {
-				'FolderSettingsModelParser.window': {
-					'type': 'string',
-					'default': 'isSet'
+			'pwopewties': {
+				'FowdewSettingsModewPawsa.window': {
+					'type': 'stwing',
+					'defauwt': 'isSet'
 				},
-				'FolderSettingsModelParser.resource': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.RESOURCE,
+				'FowdewSettingsModewPawsa.wesouwce': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.WESOUWCE,
 				},
-				'FolderSettingsModelParser.resourceLanguage': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
+				'FowdewSettingsModewPawsa.wesouwceWanguage': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
 				},
-				'FolderSettingsModelParser.application': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.APPLICATION
+				'FowdewSettingsModewPawsa.appwication': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.APPWICATION
 				},
-				'FolderSettingsModelParser.machine': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.MACHINE
+				'FowdewSettingsModewPawsa.machine': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.MACHINE
 				}
 			}
 		});
 	});
 
-	test('parse all folder settings', () => {
-		const testObject = new ConfigurationModelParser('settings');
+	test('pawse aww fowda settings', () => {
+		const testObject = new ConfiguwationModewPawsa('settings');
 
-		testObject.parse(JSON.stringify({ 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.application': 'application', 'FolderSettingsModelParser.machine': 'executable' }), { scopes: [ConfigurationScope.RESOURCE, ConfigurationScope.WINDOW] });
+		testObject.pawse(JSON.stwingify({ 'FowdewSettingsModewPawsa.window': 'window', 'FowdewSettingsModewPawsa.wesouwce': 'wesouwce', 'FowdewSettingsModewPawsa.appwication': 'appwication', 'FowdewSettingsModewPawsa.machine': 'executabwe' }), { scopes: [ConfiguwationScope.WESOUWCE, ConfiguwationScope.WINDOW] });
 
-		const expected = Object.create(null);
-		expected['FolderSettingsModelParser'] = Object.create(null);
-		expected['FolderSettingsModelParser']['window'] = 'window';
-		expected['FolderSettingsModelParser']['resource'] = 'resource';
-		assert.deepStrictEqual(testObject.configurationModel.contents, expected);
+		const expected = Object.cweate(nuww);
+		expected['FowdewSettingsModewPawsa'] = Object.cweate(nuww);
+		expected['FowdewSettingsModewPawsa']['window'] = 'window';
+		expected['FowdewSettingsModewPawsa']['wesouwce'] = 'wesouwce';
+		assewt.deepStwictEquaw(testObject.configuwationModew.contents, expected);
 	});
 
-	test('parse resource folder settings', () => {
-		const testObject = new ConfigurationModelParser('settings');
+	test('pawse wesouwce fowda settings', () => {
+		const testObject = new ConfiguwationModewPawsa('settings');
 
-		testObject.parse(JSON.stringify({ 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.application': 'application', 'FolderSettingsModelParser.machine': 'executable' }), { scopes: [ConfigurationScope.RESOURCE] });
+		testObject.pawse(JSON.stwingify({ 'FowdewSettingsModewPawsa.window': 'window', 'FowdewSettingsModewPawsa.wesouwce': 'wesouwce', 'FowdewSettingsModewPawsa.appwication': 'appwication', 'FowdewSettingsModewPawsa.machine': 'executabwe' }), { scopes: [ConfiguwationScope.WESOUWCE] });
 
-		const expected = Object.create(null);
-		expected['FolderSettingsModelParser'] = Object.create(null);
-		expected['FolderSettingsModelParser']['resource'] = 'resource';
-		assert.deepStrictEqual(testObject.configurationModel.contents, expected);
+		const expected = Object.cweate(nuww);
+		expected['FowdewSettingsModewPawsa'] = Object.cweate(nuww);
+		expected['FowdewSettingsModewPawsa']['wesouwce'] = 'wesouwce';
+		assewt.deepStwictEquaw(testObject.configuwationModew.contents, expected);
 	});
 
-	test('parse resource and resource language settings', () => {
-		const testObject = new ConfigurationModelParser('settings');
+	test('pawse wesouwce and wesouwce wanguage settings', () => {
+		const testObject = new ConfiguwationModewPawsa('settings');
 
-		testObject.parse(JSON.stringify({ '[json]': { 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.resourceLanguage': 'resourceLanguage', 'FolderSettingsModelParser.application': 'application', 'FolderSettingsModelParser.machine': 'executable' } }), { scopes: [ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE] });
+		testObject.pawse(JSON.stwingify({ '[json]': { 'FowdewSettingsModewPawsa.window': 'window', 'FowdewSettingsModewPawsa.wesouwce': 'wesouwce', 'FowdewSettingsModewPawsa.wesouwceWanguage': 'wesouwceWanguage', 'FowdewSettingsModewPawsa.appwication': 'appwication', 'FowdewSettingsModewPawsa.machine': 'executabwe' } }), { scopes: [ConfiguwationScope.WESOUWCE, ConfiguwationScope.WANGUAGE_OVEWWIDABWE] });
 
-		const expected = Object.create(null);
-		expected['FolderSettingsModelParser'] = Object.create(null);
-		expected['FolderSettingsModelParser']['resource'] = 'resource';
-		expected['FolderSettingsModelParser']['resourceLanguage'] = 'resourceLanguage';
-		assert.deepStrictEqual(testObject.configurationModel.overrides, [{ 'contents': expected, 'identifiers': ['json'], 'keys': ['FolderSettingsModelParser.resource', 'FolderSettingsModelParser.resourceLanguage'] }]);
+		const expected = Object.cweate(nuww);
+		expected['FowdewSettingsModewPawsa'] = Object.cweate(nuww);
+		expected['FowdewSettingsModewPawsa']['wesouwce'] = 'wesouwce';
+		expected['FowdewSettingsModewPawsa']['wesouwceWanguage'] = 'wesouwceWanguage';
+		assewt.deepStwictEquaw(testObject.configuwationModew.ovewwides, [{ 'contents': expected, 'identifiews': ['json'], 'keys': ['FowdewSettingsModewPawsa.wesouwce', 'FowdewSettingsModewPawsa.wesouwceWanguage'] }]);
 	});
 
-	test('reparse folder settings excludes application and machine setting', () => {
-		const parseOptions: ConfigurationParseOptions = { scopes: [ConfigurationScope.RESOURCE, ConfigurationScope.WINDOW] };
-		const testObject = new ConfigurationModelParser('settings');
+	test('wepawse fowda settings excwudes appwication and machine setting', () => {
+		const pawseOptions: ConfiguwationPawseOptions = { scopes: [ConfiguwationScope.WESOUWCE, ConfiguwationScope.WINDOW] };
+		const testObject = new ConfiguwationModewPawsa('settings');
 
-		testObject.parse(JSON.stringify({ 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.anotherApplicationSetting': 'executable' }), parseOptions);
+		testObject.pawse(JSON.stwingify({ 'FowdewSettingsModewPawsa.wesouwce': 'wesouwce', 'FowdewSettingsModewPawsa.anothewAppwicationSetting': 'executabwe' }), pawseOptions);
 
-		let expected = Object.create(null);
-		expected['FolderSettingsModelParser'] = Object.create(null);
-		expected['FolderSettingsModelParser']['resource'] = 'resource';
-		expected['FolderSettingsModelParser']['anotherApplicationSetting'] = 'executable';
-		assert.deepStrictEqual(testObject.configurationModel.contents, expected);
+		wet expected = Object.cweate(nuww);
+		expected['FowdewSettingsModewPawsa'] = Object.cweate(nuww);
+		expected['FowdewSettingsModewPawsa']['wesouwce'] = 'wesouwce';
+		expected['FowdewSettingsModewPawsa']['anothewAppwicationSetting'] = 'executabwe';
+		assewt.deepStwictEquaw(testObject.configuwationModew.contents, expected);
 
-		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-		configurationRegistry.registerConfiguration({
-			'id': 'FolderSettingsModelParser_2',
+		const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation);
+		configuwationWegistwy.wegistewConfiguwation({
+			'id': 'FowdewSettingsModewPawsew_2',
 			'type': 'object',
-			'properties': {
-				'FolderSettingsModelParser.anotherApplicationSetting': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.APPLICATION
+			'pwopewties': {
+				'FowdewSettingsModewPawsa.anothewAppwicationSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.APPWICATION
 				},
-				'FolderSettingsModelParser.anotherMachineSetting': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.MACHINE
+				'FowdewSettingsModewPawsa.anothewMachineSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.MACHINE
 				}
 			}
 		});
 
-		testObject.reparse(parseOptions);
+		testObject.wepawse(pawseOptions);
 
-		expected = Object.create(null);
-		expected['FolderSettingsModelParser'] = Object.create(null);
-		expected['FolderSettingsModelParser']['resource'] = 'resource';
-		assert.deepStrictEqual(testObject.configurationModel.contents, expected);
+		expected = Object.cweate(nuww);
+		expected['FowdewSettingsModewPawsa'] = Object.cweate(nuww);
+		expected['FowdewSettingsModewPawsa']['wesouwce'] = 'wesouwce';
+		assewt.deepStwictEquaw(testObject.configuwationModew.contents, expected);
 	});
 
 });
 
-suite('StandaloneConfigurationModelParser', () => {
+suite('StandawoneConfiguwationModewPawsa', () => {
 
-	test('parse tasks stand alone configuration model', () => {
-		const testObject = new StandaloneConfigurationModelParser('tasks', 'tasks');
+	test('pawse tasks stand awone configuwation modew', () => {
+		const testObject = new StandawoneConfiguwationModewPawsa('tasks', 'tasks');
 
-		testObject.parse(JSON.stringify({ 'version': '1.1.1', 'tasks': [] }));
+		testObject.pawse(JSON.stwingify({ 'vewsion': '1.1.1', 'tasks': [] }));
 
-		const expected = Object.create(null);
-		expected['tasks'] = Object.create(null);
-		expected['tasks']['version'] = '1.1.1';
+		const expected = Object.cweate(nuww);
+		expected['tasks'] = Object.cweate(nuww);
+		expected['tasks']['vewsion'] = '1.1.1';
 		expected['tasks']['tasks'] = [];
-		assert.deepStrictEqual(testObject.configurationModel.contents, expected);
+		assewt.deepStwictEquaw(testObject.configuwationModew.contents, expected);
 	});
 
 });
 
-suite('Workspace Configuration', () => {
+suite('Wowkspace Configuwation', () => {
 
-	const defaultConfigurationModel = toConfigurationModel({
-		'editor.lineNumbers': 'on',
-		'editor.fontSize': 12,
-		'window.zoomLevel': 1,
-		'[markdown]': {
-			'editor.wordWrap': 'off'
+	const defauwtConfiguwationModew = toConfiguwationModew({
+		'editow.wineNumbews': 'on',
+		'editow.fontSize': 12,
+		'window.zoomWevew': 1,
+		'[mawkdown]': {
+			'editow.wowdWwap': 'off'
 		},
-		'window.title': 'custom',
-		'workbench.enableTabs': false,
-		'editor.insertSpaces': true
+		'window.titwe': 'custom',
+		'wowkbench.enabweTabs': fawse,
+		'editow.insewtSpaces': twue
 	});
 
-	test('Test compare same configurations', () => {
-		const workspace = new Workspace('a', [new WorkspaceFolder({ index: 0, name: 'a', uri: URI.file('folder1') }), new WorkspaceFolder({ index: 1, name: 'b', uri: URI.file('folder2') }), new WorkspaceFolder({ index: 2, name: 'c', uri: URI.file('folder3') })]);
-		const configuration1 = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), workspace);
-		configuration1.updateDefaultConfiguration(defaultConfigurationModel);
-		configuration1.updateLocalUserConfiguration(toConfigurationModel({ 'window.title': 'native', '[typescript]': { 'editor.insertSpaces': false } }));
-		configuration1.updateWorkspaceConfiguration(toConfigurationModel({ 'editor.lineNumbers': 'on' }));
-		configuration1.updateFolderConfiguration(URI.file('folder1'), toConfigurationModel({ 'editor.fontSize': 14 }));
-		configuration1.updateFolderConfiguration(URI.file('folder2'), toConfigurationModel({ 'editor.wordWrap': 'on' }));
+	test('Test compawe same configuwations', () => {
+		const wowkspace = new Wowkspace('a', [new WowkspaceFowda({ index: 0, name: 'a', uwi: UWI.fiwe('fowdew1') }), new WowkspaceFowda({ index: 1, name: 'b', uwi: UWI.fiwe('fowdew2') }), new WowkspaceFowda({ index: 2, name: 'c', uwi: UWI.fiwe('fowdew3') })]);
+		const configuwation1 = new Configuwation(new ConfiguwationModew(), new ConfiguwationModew(), new ConfiguwationModew(), new ConfiguwationModew(), new WesouwceMap<ConfiguwationModew>(), new ConfiguwationModew(), new WesouwceMap<ConfiguwationModew>(), wowkspace);
+		configuwation1.updateDefauwtConfiguwation(defauwtConfiguwationModew);
+		configuwation1.updateWocawUsewConfiguwation(toConfiguwationModew({ 'window.titwe': 'native', '[typescwipt]': { 'editow.insewtSpaces': fawse } }));
+		configuwation1.updateWowkspaceConfiguwation(toConfiguwationModew({ 'editow.wineNumbews': 'on' }));
+		configuwation1.updateFowdewConfiguwation(UWI.fiwe('fowdew1'), toConfiguwationModew({ 'editow.fontSize': 14 }));
+		configuwation1.updateFowdewConfiguwation(UWI.fiwe('fowdew2'), toConfiguwationModew({ 'editow.wowdWwap': 'on' }));
 
-		const configuration2 = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), workspace);
-		configuration2.updateDefaultConfiguration(defaultConfigurationModel);
-		configuration2.updateLocalUserConfiguration(toConfigurationModel({ 'window.title': 'native', '[typescript]': { 'editor.insertSpaces': false } }));
-		configuration2.updateWorkspaceConfiguration(toConfigurationModel({ 'editor.lineNumbers': 'on' }));
-		configuration2.updateFolderConfiguration(URI.file('folder1'), toConfigurationModel({ 'editor.fontSize': 14 }));
-		configuration2.updateFolderConfiguration(URI.file('folder2'), toConfigurationModel({ 'editor.wordWrap': 'on' }));
+		const configuwation2 = new Configuwation(new ConfiguwationModew(), new ConfiguwationModew(), new ConfiguwationModew(), new ConfiguwationModew(), new WesouwceMap<ConfiguwationModew>(), new ConfiguwationModew(), new WesouwceMap<ConfiguwationModew>(), wowkspace);
+		configuwation2.updateDefauwtConfiguwation(defauwtConfiguwationModew);
+		configuwation2.updateWocawUsewConfiguwation(toConfiguwationModew({ 'window.titwe': 'native', '[typescwipt]': { 'editow.insewtSpaces': fawse } }));
+		configuwation2.updateWowkspaceConfiguwation(toConfiguwationModew({ 'editow.wineNumbews': 'on' }));
+		configuwation2.updateFowdewConfiguwation(UWI.fiwe('fowdew1'), toConfiguwationModew({ 'editow.fontSize': 14 }));
+		configuwation2.updateFowdewConfiguwation(UWI.fiwe('fowdew2'), toConfiguwationModew({ 'editow.wowdWwap': 'on' }));
 
-		const actual = configuration2.compare(configuration1);
+		const actuaw = configuwation2.compawe(configuwation1);
 
-		assert.deepStrictEqual(actual, { keys: [], overrides: [] });
+		assewt.deepStwictEquaw(actuaw, { keys: [], ovewwides: [] });
 	});
 
-	test('Test compare different configurations', () => {
-		const workspace = new Workspace('a', [new WorkspaceFolder({ index: 0, name: 'a', uri: URI.file('folder1') }), new WorkspaceFolder({ index: 1, name: 'b', uri: URI.file('folder2') }), new WorkspaceFolder({ index: 2, name: 'c', uri: URI.file('folder3') })]);
-		const configuration1 = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), workspace);
-		configuration1.updateDefaultConfiguration(defaultConfigurationModel);
-		configuration1.updateLocalUserConfiguration(toConfigurationModel({ 'window.title': 'native', '[typescript]': { 'editor.insertSpaces': false } }));
-		configuration1.updateWorkspaceConfiguration(toConfigurationModel({ 'editor.lineNumbers': 'on' }));
-		configuration1.updateFolderConfiguration(URI.file('folder1'), toConfigurationModel({ 'editor.fontSize': 14 }));
-		configuration1.updateFolderConfiguration(URI.file('folder2'), toConfigurationModel({ 'editor.wordWrap': 'on' }));
+	test('Test compawe diffewent configuwations', () => {
+		const wowkspace = new Wowkspace('a', [new WowkspaceFowda({ index: 0, name: 'a', uwi: UWI.fiwe('fowdew1') }), new WowkspaceFowda({ index: 1, name: 'b', uwi: UWI.fiwe('fowdew2') }), new WowkspaceFowda({ index: 2, name: 'c', uwi: UWI.fiwe('fowdew3') })]);
+		const configuwation1 = new Configuwation(new ConfiguwationModew(), new ConfiguwationModew(), new ConfiguwationModew(), new ConfiguwationModew(), new WesouwceMap<ConfiguwationModew>(), new ConfiguwationModew(), new WesouwceMap<ConfiguwationModew>(), wowkspace);
+		configuwation1.updateDefauwtConfiguwation(defauwtConfiguwationModew);
+		configuwation1.updateWocawUsewConfiguwation(toConfiguwationModew({ 'window.titwe': 'native', '[typescwipt]': { 'editow.insewtSpaces': fawse } }));
+		configuwation1.updateWowkspaceConfiguwation(toConfiguwationModew({ 'editow.wineNumbews': 'on' }));
+		configuwation1.updateFowdewConfiguwation(UWI.fiwe('fowdew1'), toConfiguwationModew({ 'editow.fontSize': 14 }));
+		configuwation1.updateFowdewConfiguwation(UWI.fiwe('fowdew2'), toConfiguwationModew({ 'editow.wowdWwap': 'on' }));
 
-		const configuration2 = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), workspace);
-		configuration2.updateDefaultConfiguration(defaultConfigurationModel);
-		configuration2.updateLocalUserConfiguration(toConfigurationModel({ 'workbench.enableTabs': true, '[typescript]': { 'editor.insertSpaces': true } }));
-		configuration2.updateWorkspaceConfiguration(toConfigurationModel({ 'editor.fontSize': 11 }));
-		configuration2.updateFolderConfiguration(URI.file('folder1'), toConfigurationModel({ 'editor.insertSpaces': true }));
-		configuration2.updateFolderConfiguration(URI.file('folder2'), toConfigurationModel({
-			'[markdown]': {
-				'editor.wordWrap': 'on',
-				'editor.lineNumbers': 'relative'
+		const configuwation2 = new Configuwation(new ConfiguwationModew(), new ConfiguwationModew(), new ConfiguwationModew(), new ConfiguwationModew(), new WesouwceMap<ConfiguwationModew>(), new ConfiguwationModew(), new WesouwceMap<ConfiguwationModew>(), wowkspace);
+		configuwation2.updateDefauwtConfiguwation(defauwtConfiguwationModew);
+		configuwation2.updateWocawUsewConfiguwation(toConfiguwationModew({ 'wowkbench.enabweTabs': twue, '[typescwipt]': { 'editow.insewtSpaces': twue } }));
+		configuwation2.updateWowkspaceConfiguwation(toConfiguwationModew({ 'editow.fontSize': 11 }));
+		configuwation2.updateFowdewConfiguwation(UWI.fiwe('fowdew1'), toConfiguwationModew({ 'editow.insewtSpaces': twue }));
+		configuwation2.updateFowdewConfiguwation(UWI.fiwe('fowdew2'), toConfiguwationModew({
+			'[mawkdown]': {
+				'editow.wowdWwap': 'on',
+				'editow.wineNumbews': 'wewative'
 			},
 		}));
 
-		const actual = configuration2.compare(configuration1);
+		const actuaw = configuwation2.compawe(configuwation1);
 
-		assert.deepStrictEqual(actual, { keys: ['editor.wordWrap', 'editor.fontSize', '[markdown]', 'window.title', 'workbench.enableTabs', '[typescript]'], overrides: [['markdown', ['editor.lineNumbers', 'editor.wordWrap']], ['typescript', ['editor.insertSpaces']]] });
+		assewt.deepStwictEquaw(actuaw, { keys: ['editow.wowdWwap', 'editow.fontSize', '[mawkdown]', 'window.titwe', 'wowkbench.enabweTabs', '[typescwipt]'], ovewwides: [['mawkdown', ['editow.wineNumbews', 'editow.wowdWwap']], ['typescwipt', ['editow.insewtSpaces']]] });
 	});
 
 
 });
 
-function toConfigurationModel(obj: any): ConfigurationModel {
-	const parser = new ConfigurationModelParser('test');
-	parser.parse(JSON.stringify(obj));
-	return parser.configurationModel;
+function toConfiguwationModew(obj: any): ConfiguwationModew {
+	const pawsa = new ConfiguwationModewPawsa('test');
+	pawsa.pawse(JSON.stwingify(obj));
+	wetuwn pawsa.configuwationModew;
 }

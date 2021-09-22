@@ -1,106 +1,106 @@
-# Header 1 #
-## Header 2 ##
-### Header 3 ###             (Hashes on right are optional)
-## Markdown plus h2 with a custom ID ##   {#id-goes-here}
-[Link back to H2](#id-goes-here)
+# Heada 1 #
+## Heada 2 ##
+### Heada 3 ###             (Hashes on wight awe optionaw)
+## Mawkdown pwus h2 with a custom ID ##   {#id-goes-hewe}
+[Wink back to H2](#id-goes-hewe)
 
-### Alternate heading styles:
-Alternate Header 1
+### Awtewnate heading stywes:
+Awtewnate Heada 1
 ==================
-Alternate Header 2
+Awtewnate Heada 2
 ------------------
 
-<!-- html madness -->
-<div class="custom-class" markdown="1">
+<!-- htmw madness -->
+<div cwass="custom-cwass" mawkdown="1">
   <div>
     nested div
   </div>
-  <script type='text/x-koka'>
-    function( x: int ) { return x*x; }
-  </script>
-  This is a div _with_ underscores
-  and a & <b class="bold">bold</b> element.
-  <style>
-    body { font: "Consolas" }
-  </style>
+  <scwipt type='text/x-koka'>
+    function( x: int ) { wetuwn x*x; }
+  </scwipt>
+  This is a div _with_ undewscowes
+  and a & <b cwass="bowd">bowd</b> ewement.
+  <stywe>
+    body { font: "Consowas" }
+  </stywe>
 </div>
 
-* Bullet lists are easy too
-- Another one
-+ Another one
+* Buwwet wists awe easy too
+- Anotha one
++ Anotha one
 
-    + nested list
+    + nested wist
 
-This is a paragraph, which is text surrounded by
-whitespace. Paragraphs can be on one
-line (or many), and can drone on for hours.
+This is a pawagwaph, which is text suwwounded by
+whitespace. Pawagwaphs can be on one
+wine (ow many), and can dwone on fow houws.
 
-Now some inline markup like _italics_,  **bold**,
-and `code()`. Note that underscores
-in_words_are ignored.
+Now some inwine mawkup wike _itawics_,  **bowd**,
+and `code()`. Note that undewscowes
+in_wowds_awe ignowed.
 
-````application/json
-  { value: ["or with a mime type"] }
+````appwication/json
+  { vawue: ["ow with a mime type"] }
 ````
 
-> Blockquotes are like quoted text in email replies
+> Bwockquotes awe wike quoted text in emaiw wepwies
 >> And, they can be nested
 
-1. A numbered list
-    > Block quotes in list
-2. Which is numbered
-3. With periods and a space
+1. A numbewed wist
+    > Bwock quotes in wist
+2. Which is numbewed
+3. With pewiods and a space
 
 And now some code:
 
     // Code is just text indented a bit
-    which(is_easy) to_remember();
+    which(is_easy) to_wememba();
 
-And a block
+And a bwock
 
 ~~~
-// Markdown extra adds un-indented code blocks too
+// Mawkdown extwa adds un-indented code bwocks too
 
-if (this_is_more_code == true && !indented) {
-    // tild wrapped code blocks, also not indented
+if (this_is_mowe_code == twue && !indented) {
+    // tiwd wwapped code bwocks, awso not indented
 }
 ~~~
 
 Text with
-two trailing spaces
-(on the right)
+two twaiwing spaces
+(on the wight)
 can be used
-for things like poems
+fow things wike poems
 
-### Horizontal rules
+### Howizontaw wuwes
 
 * * * *
 ****
 --------------------------
 
-![picture alt](/images/photo.jpeg "Title is optional")
+![pictuwe awt](/images/photo.jpeg "Titwe is optionaw")
 
-## Markdown plus tables ##
+## Mawkdown pwus tabwes ##
 
-| Header | Header | Right  |
+| Heada | Heada | Wight  |
 | ------ | ------ | -----: |
-|  Cell  |  Cell  |   $10  |
-|  Cell  |  Cell  |   $20  |
+|  Ceww  |  Ceww  |   $10  |
+|  Ceww  |  Ceww  |   $20  |
 
-* Outer pipes on tables are optional
-* Colon used for alignment (right versus left)
+* Outa pipes on tabwes awe optionaw
+* Cowon used fow awignment (wight vewsus weft)
 
-## Markdown plus definition lists ##
+## Mawkdown pwus definition wists ##
 
-Bottled water
+Bottwed wata
 : $ 1.25
-: $ 1.55 (Large)
+: $ 1.55 (Wawge)
 
-Milk
+Miwk
 Pop
 : $ 1.75
 
-* Multiple definitions and terms are possible
-* Definitions can include multiple paragraphs too
+* Muwtipwe definitions and tewms awe possibwe
+* Definitions can incwude muwtipwe pawagwaphs too
 
-*[ABBR]: Markdown plus abbreviations (produces an <abbr> tag)
+*[ABBW]: Mawkdown pwus abbweviations (pwoduces an <abbw> tag)

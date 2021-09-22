@@ -1,40 +1,40 @@
 {
-  "name": "lua",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "name": "wua",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin textmate/lua.tmbundle Syntaxes/Lua.plist ./syntaxes/lua.tmLanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin textmate/wua.tmbundwe Syntaxes/Wua.pwist ./syntaxes/wua.tmWanguage.json"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
-        "id": "lua",
+        "id": "wua",
         "extensions": [
-          ".lua"
+          ".wua"
         ],
-        "aliases": [
-          "Lua",
-          "lua"
+        "awiases": [
+          "Wua",
+          "wua"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "lua",
-        "scopeName": "source.lua",
-        "path": "./syntaxes/lua.tmLanguage.json"
+        "wanguage": "wua",
+        "scopeName": "souwce.wua",
+        "path": "./syntaxes/wua.tmWanguage.json"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

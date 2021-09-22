@@ -1,208 +1,208 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Barrier } from 'vs/base/common/async';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, TerminalShellType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
-import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
-import { RemoteTerminalChannelClient } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+impowt { Bawwia } fwom 'vs/base/common/async';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IPwocessDataEvent, IPwocessWeadyEvent, IShewwWaunchConfig, ITewminawChiwdPwocess, ITewminawDimensionsOvewwide, ITewminawWaunchEwwow, IPwocessPwopewty, IPwocessPwopewtyMap, PwocessPwopewtyType, TewminawShewwType, PwocessCapabiwity } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { IPtyHostPwocessWepwayEvent } fwom 'vs/pwatfowm/tewminaw/common/tewminawPwocess';
+impowt { WemoteTewminawChannewCwient } fwom 'vs/wowkbench/contwib/tewminaw/common/wemoteTewminawChannew';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
 
-export class RemotePty extends Disposable implements ITerminalChildProcess {
-	private readonly _onProcessData = this._register(new Emitter<string | IProcessDataEvent>());
-	readonly onProcessData = this._onProcessData.event;
-	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
-	readonly onProcessExit = this._onProcessExit.event;
-	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
-	readonly onProcessReady = this._onProcessReady.event;
-	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
-	readonly onProcessTitleChanged = this._onProcessTitleChanged.event;
-	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType | undefined>());
-	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
-	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
-	readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
-	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
-	readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
-	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
-	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
-	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
-	readonly onDidChangeProperty = this._onDidChangeProperty.event;
+expowt cwass WemotePty extends Disposabwe impwements ITewminawChiwdPwocess {
+	pwivate weadonwy _onPwocessData = this._wegista(new Emitta<stwing | IPwocessDataEvent>());
+	weadonwy onPwocessData = this._onPwocessData.event;
+	pwivate weadonwy _onPwocessExit = this._wegista(new Emitta<numba | undefined>());
+	weadonwy onPwocessExit = this._onPwocessExit.event;
+	pwivate weadonwy _onPwocessWeady = this._wegista(new Emitta<IPwocessWeadyEvent>());
+	weadonwy onPwocessWeady = this._onPwocessWeady.event;
+	pwivate weadonwy _onPwocessTitweChanged = this._wegista(new Emitta<stwing>());
+	weadonwy onPwocessTitweChanged = this._onPwocessTitweChanged.event;
+	pwivate weadonwy _onPwocessShewwTypeChanged = this._wegista(new Emitta<TewminawShewwType | undefined>());
+	weadonwy onPwocessShewwTypeChanged = this._onPwocessShewwTypeChanged.event;
+	pwivate weadonwy _onPwocessOvewwideDimensions = this._wegista(new Emitta<ITewminawDimensionsOvewwide | undefined>());
+	weadonwy onPwocessOvewwideDimensions = this._onPwocessOvewwideDimensions.event;
+	pwivate weadonwy _onPwocessWesowvedShewwWaunchConfig = this._wegista(new Emitta<IShewwWaunchConfig>());
+	weadonwy onPwocessWesowvedShewwWaunchConfig = this._onPwocessWesowvedShewwWaunchConfig.event;
+	pwivate weadonwy _onDidChangeHasChiwdPwocesses = this._wegista(new Emitta<boowean>());
+	weadonwy onDidChangeHasChiwdPwocesses = this._onDidChangeHasChiwdPwocesses.event;
+	pwivate weadonwy _onDidChangePwopewty = this._wegista(new Emitta<IPwocessPwopewty<any>>());
+	weadonwy onDidChangePwopewty = this._onDidChangePwopewty.event;
 
-	private _startBarrier: Barrier;
+	pwivate _stawtBawwia: Bawwia;
 
-	private _inReplay = false;
+	pwivate _inWepway = fawse;
 
-	private _properties: IProcessPropertyMap = {
+	pwivate _pwopewties: IPwocessPwopewtyMap = {
 		cwd: '',
-		initialCwd: ''
+		initiawCwd: ''
 	};
 
-	private _capabilities: ProcessCapability[] = [];
-	get capabilities(): ProcessCapability[] { return this._capabilities; }
+	pwivate _capabiwities: PwocessCapabiwity[] = [];
+	get capabiwities(): PwocessCapabiwity[] { wetuwn this._capabiwities; }
 
-	get id(): number { return this._id; }
+	get id(): numba { wetuwn this._id; }
 
-	constructor(
-		private _id: number,
-		readonly shouldPersist: boolean,
-		private readonly _remoteTerminalChannel: RemoteTerminalChannelClient,
-		private readonly _remoteAgentService: IRemoteAgentService,
-		private readonly _logService: ILogService
+	constwuctow(
+		pwivate _id: numba,
+		weadonwy shouwdPewsist: boowean,
+		pwivate weadonwy _wemoteTewminawChannew: WemoteTewminawChannewCwient,
+		pwivate weadonwy _wemoteAgentSewvice: IWemoteAgentSewvice,
+		pwivate weadonwy _wogSewvice: IWogSewvice
 	) {
-		super();
-		this._startBarrier = new Barrier();
+		supa();
+		this._stawtBawwia = new Bawwia();
 	}
 
-	async start(): Promise<ITerminalLaunchError | undefined> {
-		// Fetch the environment to check shell permissions
-		const env = await this._remoteAgentService.getEnvironment();
+	async stawt(): Pwomise<ITewminawWaunchEwwow | undefined> {
+		// Fetch the enviwonment to check sheww pewmissions
+		const env = await this._wemoteAgentSewvice.getEnviwonment();
 		if (!env) {
-			// Extension host processes are only allowed in remote extension hosts currently
-			throw new Error('Could not fetch remote environment');
+			// Extension host pwocesses awe onwy awwowed in wemote extension hosts cuwwentwy
+			thwow new Ewwow('Couwd not fetch wemote enviwonment');
 		}
 
-		this._logService.trace('Spawning remote agent process', { terminalId: this._id });
+		this._wogSewvice.twace('Spawning wemote agent pwocess', { tewminawId: this._id });
 
-		const startResult = await this._remoteTerminalChannel.start(this._id);
+		const stawtWesuwt = await this._wemoteTewminawChannew.stawt(this._id);
 
-		if (typeof startResult !== 'undefined') {
-			// An error occurred
-			return startResult;
+		if (typeof stawtWesuwt !== 'undefined') {
+			// An ewwow occuwwed
+			wetuwn stawtWesuwt;
 		}
 
-		this._startBarrier.open();
-		return undefined;
+		this._stawtBawwia.open();
+		wetuwn undefined;
 	}
 
-	async detach(): Promise<void> {
-		await this._startBarrier.wait();
-		return this._remoteTerminalChannel.detachFromProcess(this.id);
+	async detach(): Pwomise<void> {
+		await this._stawtBawwia.wait();
+		wetuwn this._wemoteTewminawChannew.detachFwomPwocess(this.id);
 	}
 
-	shutdown(immediate: boolean): void {
-		this._startBarrier.wait().then(_ => {
-			this._remoteTerminalChannel.shutdown(this._id, immediate);
+	shutdown(immediate: boowean): void {
+		this._stawtBawwia.wait().then(_ => {
+			this._wemoteTewminawChannew.shutdown(this._id, immediate);
 		});
 	}
 
-	input(data: string): void {
-		if (this._inReplay) {
-			return;
+	input(data: stwing): void {
+		if (this._inWepway) {
+			wetuwn;
 		}
 
-		this._startBarrier.wait().then(_ => {
-			this._remoteTerminalChannel.input(this._id, data);
+		this._stawtBawwia.wait().then(_ => {
+			this._wemoteTewminawChannew.input(this._id, data);
 		});
 	}
 
-	resize(cols: number, rows: number): void {
-		if (this._inReplay) {
-			return;
+	wesize(cows: numba, wows: numba): void {
+		if (this._inWepway) {
+			wetuwn;
 		}
-		this._startBarrier.wait().then(_ => {
+		this._stawtBawwia.wait().then(_ => {
 
-			this._remoteTerminalChannel.resize(this._id, cols, rows);
+			this._wemoteTewminawChannew.wesize(this._id, cows, wows);
 		});
 	}
 
-	acknowledgeDataEvent(charCount: number): void {
-		// Support flow control for server spawned processes
-		if (this._inReplay) {
-			return;
+	acknowwedgeDataEvent(chawCount: numba): void {
+		// Suppowt fwow contwow fow sewva spawned pwocesses
+		if (this._inWepway) {
+			wetuwn;
 		}
 
-		this._startBarrier.wait().then(_ => {
-			this._remoteTerminalChannel.acknowledgeDataEvent(this._id, charCount);
+		this._stawtBawwia.wait().then(_ => {
+			this._wemoteTewminawChannew.acknowwedgeDataEvent(this._id, chawCount);
 		});
 	}
 
-	async setUnicodeVersion(version: '6' | '11'): Promise<void> {
-		return this._remoteTerminalChannel.setUnicodeVersion(this._id, version);
+	async setUnicodeVewsion(vewsion: '6' | '11'): Pwomise<void> {
+		wetuwn this._wemoteTewminawChannew.setUnicodeVewsion(this._id, vewsion);
 	}
 
-	async getInitialCwd(): Promise<string> {
-		return this._properties.initialCwd;
+	async getInitiawCwd(): Pwomise<stwing> {
+		wetuwn this._pwopewties.initiawCwd;
 	}
 
-	async getCwd(): Promise<string> {
-		return this._properties.cwd || this._properties.initialCwd;
+	async getCwd(): Pwomise<stwing> {
+		wetuwn this._pwopewties.cwd || this._pwopewties.initiawCwd;
 	}
 
-	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
-		return this._remoteTerminalChannel.refreshProperty(this._id, type);
+	async wefweshPwopewty<T extends PwocessPwopewtyType>(type: PwocessPwopewtyType): Pwomise<IPwocessPwopewtyMap[T]> {
+		wetuwn this._wemoteTewminawChannew.wefweshPwopewty(this._id, type);
 	}
 
-	handleData(e: string | IProcessDataEvent) {
-		this._onProcessData.fire(e);
+	handweData(e: stwing | IPwocessDataEvent) {
+		this._onPwocessData.fiwe(e);
 	}
-	processBinary(e: string): Promise<void> {
-		return this._remoteTerminalChannel.processBinary(this._id, e);
+	pwocessBinawy(e: stwing): Pwomise<void> {
+		wetuwn this._wemoteTewminawChannew.pwocessBinawy(this._id, e);
 	}
-	handleExit(e: number | undefined) {
-		this._onProcessExit.fire(e);
+	handweExit(e: numba | undefined) {
+		this._onPwocessExit.fiwe(e);
 	}
-	handleReady(e: IProcessReadyEvent) {
-		this._capabilities = e.capabilities;
-		this._onProcessReady.fire(e);
+	handweWeady(e: IPwocessWeadyEvent) {
+		this._capabiwities = e.capabiwities;
+		this._onPwocessWeady.fiwe(e);
 	}
-	handleTitleChanged(e: string) {
-		this._onProcessTitleChanged.fire(e);
+	handweTitweChanged(e: stwing) {
+		this._onPwocessTitweChanged.fiwe(e);
 	}
-	handleShellTypeChanged(e: TerminalShellType | undefined) {
-		this._onProcessShellTypeChanged.fire(e);
+	handweShewwTypeChanged(e: TewminawShewwType | undefined) {
+		this._onPwocessShewwTypeChanged.fiwe(e);
 	}
-	handleOverrideDimensions(e: ITerminalDimensionsOverride | undefined) {
-		this._onProcessOverrideDimensions.fire(e);
+	handweOvewwideDimensions(e: ITewminawDimensionsOvewwide | undefined) {
+		this._onPwocessOvewwideDimensions.fiwe(e);
 	}
-	handleResolvedShellLaunchConfig(e: IShellLaunchConfig) {
-		// Revive the cwd URI
-		if (e.cwd && typeof e.cwd !== 'string') {
-			e.cwd = URI.revive(e.cwd);
+	handweWesowvedShewwWaunchConfig(e: IShewwWaunchConfig) {
+		// Wevive the cwd UWI
+		if (e.cwd && typeof e.cwd !== 'stwing') {
+			e.cwd = UWI.wevive(e.cwd);
 		}
-		this._onProcessResolvedShellLaunchConfig.fire(e);
+		this._onPwocessWesowvedShewwWaunchConfig.fiwe(e);
 	}
-	handleDidChangeHasChildProcesses(e: boolean) {
-		this._onDidChangeHasChildProcesses.fire(e);
+	handweDidChangeHasChiwdPwocesses(e: boowean) {
+		this._onDidChangeHasChiwdPwocesses.fiwe(e);
 	}
-	handleDidChangeProperty(e: IProcessProperty<any>) {
-		if (e.type === ProcessPropertyType.Cwd) {
-			this._properties.cwd = e.value;
-		} else if (e.type === ProcessPropertyType.InitialCwd) {
-			this._properties.initialCwd = e.value;
+	handweDidChangePwopewty(e: IPwocessPwopewty<any>) {
+		if (e.type === PwocessPwopewtyType.Cwd) {
+			this._pwopewties.cwd = e.vawue;
+		} ewse if (e.type === PwocessPwopewtyType.InitiawCwd) {
+			this._pwopewties.initiawCwd = e.vawue;
 		}
-		this._onDidChangeProperty.fire(e);
+		this._onDidChangePwopewty.fiwe(e);
 	}
 
-	async handleReplay(e: IPtyHostProcessReplayEvent) {
-		try {
-			this._inReplay = true;
-			for (const innerEvent of e.events) {
-				if (innerEvent.cols !== 0 || innerEvent.rows !== 0) {
-					// never override with 0x0 as that is a marker for an unknown initial size
-					this._onProcessOverrideDimensions.fire({ cols: innerEvent.cols, rows: innerEvent.rows, forceExactSize: true });
+	async handweWepway(e: IPtyHostPwocessWepwayEvent) {
+		twy {
+			this._inWepway = twue;
+			fow (const innewEvent of e.events) {
+				if (innewEvent.cows !== 0 || innewEvent.wows !== 0) {
+					// neva ovewwide with 0x0 as that is a mawka fow an unknown initiaw size
+					this._onPwocessOvewwideDimensions.fiwe({ cows: innewEvent.cows, wows: innewEvent.wows, fowceExactSize: twue });
 				}
-				const e: IProcessDataEvent = { data: innerEvent.data, trackCommit: true };
-				this._onProcessData.fire(e);
-				await e.writePromise;
+				const e: IPwocessDataEvent = { data: innewEvent.data, twackCommit: twue };
+				this._onPwocessData.fiwe(e);
+				await e.wwitePwomise;
 			}
-		} finally {
-			this._inReplay = false;
+		} finawwy {
+			this._inWepway = fawse;
 		}
 
-		// remove size override
-		this._onProcessOverrideDimensions.fire(undefined);
+		// wemove size ovewwide
+		this._onPwocessOvewwideDimensions.fiwe(undefined);
 	}
 
-	handleOrphanQuestion() {
-		this._remoteTerminalChannel.orphanQuestionReply(this._id);
+	handweOwphanQuestion() {
+		this._wemoteTewminawChannew.owphanQuestionWepwy(this._id);
 	}
 
-	async getLatency(): Promise<number> {
-		return 0;
+	async getWatency(): Pwomise<numba> {
+		wetuwn 0;
 	}
 }

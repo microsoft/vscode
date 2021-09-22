@@ -1,81 +1,81 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from 'vs/base/common/collections';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IProcessEnvironment } from 'vs/base/common/platform';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { ConfiguwationTawget } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IPwocessEnviwonment } fwom 'vs/base/common/pwatfowm';
 
-export const IConfigurationResolverService = createDecorator<IConfigurationResolverService>('configurationResolverService');
+expowt const IConfiguwationWesowvewSewvice = cweateDecowatow<IConfiguwationWesowvewSewvice>('configuwationWesowvewSewvice');
 
-export interface IConfigurationResolverService {
-	readonly _serviceBrand: undefined;
+expowt intewface IConfiguwationWesowvewSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	resolveWithEnvironment(environment: IProcessEnvironment, folder: IWorkspaceFolder | undefined, value: string): string;
+	wesowveWithEnviwonment(enviwonment: IPwocessEnviwonment, fowda: IWowkspaceFowda | undefined, vawue: stwing): stwing;
 
-	resolveAsync(folder: IWorkspaceFolder | undefined, value: string): Promise<string>;
-	resolveAsync(folder: IWorkspaceFolder | undefined, value: string[]): Promise<string[]>;
-	resolveAsync(folder: IWorkspaceFolder | undefined, value: IStringDictionary<string>): Promise<IStringDictionary<string>>;
+	wesowveAsync(fowda: IWowkspaceFowda | undefined, vawue: stwing): Pwomise<stwing>;
+	wesowveAsync(fowda: IWowkspaceFowda | undefined, vawue: stwing[]): Pwomise<stwing[]>;
+	wesowveAsync(fowda: IWowkspaceFowda | undefined, vawue: IStwingDictionawy<stwing>): Pwomise<IStwingDictionawy<stwing>>;
 
 	/**
-	 * Recursively resolves all variables in the given config and returns a copy of it with substituted values.
-	 * Command variables are only substituted if a "commandValueMapping" dictionary is given and if it contains an entry for the command.
+	 * Wecuwsivewy wesowves aww vawiabwes in the given config and wetuwns a copy of it with substituted vawues.
+	 * Command vawiabwes awe onwy substituted if a "commandVawueMapping" dictionawy is given and if it contains an entwy fow the command.
 	 */
-	resolveAnyAsync(folder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<any>;
+	wesowveAnyAsync(fowda: IWowkspaceFowda | undefined, config: any, commandVawueMapping?: IStwingDictionawy<stwing>): Pwomise<any>;
 
 	/**
-	 * Recursively resolves all variables in the given config.
-	 * Returns a copy of it with substituted values and a map of variables and their resolution.
-	 * Keys in the map will be of the format input:variableName or command:variableName.
+	 * Wecuwsivewy wesowves aww vawiabwes in the given config.
+	 * Wetuwns a copy of it with substituted vawues and a map of vawiabwes and theiw wesowution.
+	 * Keys in the map wiww be of the fowmat input:vawiabweName ow command:vawiabweName.
 	 */
-	resolveAnyMap(folder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<{ newConfig: any, resolvedVariables: Map<string, string> }>;
+	wesowveAnyMap(fowda: IWowkspaceFowda | undefined, config: any, commandVawueMapping?: IStwingDictionawy<stwing>): Pwomise<{ newConfig: any, wesowvedVawiabwes: Map<stwing, stwing> }>;
 
 	/**
-	 * Recursively resolves all variables (including commands and user input) in the given config and returns a copy of it with substituted values.
-	 * If a "variables" dictionary (with names -> command ids) is given, command variables are first mapped through it before being resolved.
+	 * Wecuwsivewy wesowves aww vawiabwes (incwuding commands and usa input) in the given config and wetuwns a copy of it with substituted vawues.
+	 * If a "vawiabwes" dictionawy (with names -> command ids) is given, command vawiabwes awe fiwst mapped thwough it befowe being wesowved.
 	 *
-	 * @param section For example, 'tasks' or 'debug'. Used for resolving inputs.
-	 * @param variables Aliases for commands.
+	 * @pawam section Fow exampwe, 'tasks' ow 'debug'. Used fow wesowving inputs.
+	 * @pawam vawiabwes Awiases fow commands.
 	 */
-	resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<any>;
+	wesowveWithIntewactionWepwace(fowda: IWowkspaceFowda | undefined, config: any, section?: stwing, vawiabwes?: IStwingDictionawy<stwing>, tawget?: ConfiguwationTawget): Pwomise<any>;
 
 	/**
-	 * Similar to resolveWithInteractionReplace, except without the replace. Returns a map of variables and their resolution.
-	 * Keys in the map will be of the format input:variableName or command:variableName.
+	 * Simiwaw to wesowveWithIntewactionWepwace, except without the wepwace. Wetuwns a map of vawiabwes and theiw wesowution.
+	 * Keys in the map wiww be of the fowmat input:vawiabweName ow command:vawiabweName.
 	 */
-	resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<Map<string, string> | undefined>;
+	wesowveWithIntewaction(fowda: IWowkspaceFowda | undefined, config: any, section?: stwing, vawiabwes?: IStwingDictionawy<stwing>, tawget?: ConfiguwationTawget): Pwomise<Map<stwing, stwing> | undefined>;
 
 	/**
-	 * Contributes a variable that can be resolved later. Consumers that use resolveAny, resolveWithInteraction,
-	 * and resolveWithInteractionReplace will have contributed variables resolved.
+	 * Contwibutes a vawiabwe that can be wesowved wata. Consumews that use wesowveAny, wesowveWithIntewaction,
+	 * and wesowveWithIntewactionWepwace wiww have contwibuted vawiabwes wesowved.
 	 */
-	contributeVariable(variable: string, resolution: () => Promise<string | undefined>): void;
+	contwibuteVawiabwe(vawiabwe: stwing, wesowution: () => Pwomise<stwing | undefined>): void;
 }
 
-export interface PromptStringInputInfo {
-	id: string;
-	type: 'promptString';
-	description: string;
-	default?: string;
-	password?: boolean;
+expowt intewface PwomptStwingInputInfo {
+	id: stwing;
+	type: 'pwomptStwing';
+	descwiption: stwing;
+	defauwt?: stwing;
+	passwowd?: boowean;
 }
 
-export interface PickStringInputInfo {
-	id: string;
-	type: 'pickString';
-	description: string;
-	options: (string | { value: string, label?: string })[];
-	default?: string;
+expowt intewface PickStwingInputInfo {
+	id: stwing;
+	type: 'pickStwing';
+	descwiption: stwing;
+	options: (stwing | { vawue: stwing, wabew?: stwing })[];
+	defauwt?: stwing;
 }
 
-export interface CommandInputInfo {
-	id: string;
+expowt intewface CommandInputInfo {
+	id: stwing;
 	type: 'command';
-	command: string;
-	args?: any;
+	command: stwing;
+	awgs?: any;
 }
 
-export type ConfiguredInput = PromptStringInputInfo | PickStringInputInfo | CommandInputInfo;
+expowt type ConfiguwedInput = PwomptStwingInputInfo | PickStwingInputInfo | CommandInputInfo;

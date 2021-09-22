@@ -1,56 +1,56 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import * as typeConverters from '../utils/typeConverters';
+impowt * as vscode fwom 'vscode';
+impowt { CwientCapabiwity, ITypeScwiptSewviceCwient } fwom '../typescwiptSewvice';
+impowt { conditionawWegistwation, wequiweSomeCapabiwity } fwom '../utiws/dependentWegistwation';
+impowt { DocumentSewectow } fwom '../utiws/documentSewectow';
+impowt * as typeConvewtews fwom '../utiws/typeConvewtews';
 
-class TypeScriptReferenceSupport implements vscode.ReferenceProvider {
-	public constructor(
-		private readonly client: ITypeScriptServiceClient) { }
+cwass TypeScwiptWefewenceSuppowt impwements vscode.WefewencePwovida {
+	pubwic constwuctow(
+		pwivate weadonwy cwient: ITypeScwiptSewviceCwient) { }
 
-	public async provideReferences(
+	pubwic async pwovideWefewences(
 		document: vscode.TextDocument,
 		position: vscode.Position,
-		options: vscode.ReferenceContext,
-		token: vscode.CancellationToken
-	): Promise<vscode.Location[]> {
-		const filepath = this.client.toOpenedFilePath(document);
-		if (!filepath) {
-			return [];
+		options: vscode.WefewenceContext,
+		token: vscode.CancewwationToken
+	): Pwomise<vscode.Wocation[]> {
+		const fiwepath = this.cwient.toOpenedFiwePath(document);
+		if (!fiwepath) {
+			wetuwn [];
 		}
 
-		const args = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
-		const response = await this.client.execute('references', args, token);
-		if (response.type !== 'response' || !response.body) {
-			return [];
+		const awgs = typeConvewtews.Position.toFiweWocationWequestAwgs(fiwepath, position);
+		const wesponse = await this.cwient.execute('wefewences', awgs, token);
+		if (wesponse.type !== 'wesponse' || !wesponse.body) {
+			wetuwn [];
 		}
 
-		const result: vscode.Location[] = [];
-		for (const ref of response.body.refs) {
-			if (!options.includeDeclaration && ref.isDefinition) {
+		const wesuwt: vscode.Wocation[] = [];
+		fow (const wef of wesponse.body.wefs) {
+			if (!options.incwudeDecwawation && wef.isDefinition) {
 				continue;
 			}
-			const url = this.client.toResource(ref.file);
-			const location = typeConverters.Location.fromTextSpan(url, ref);
-			result.push(location);
+			const uww = this.cwient.toWesouwce(wef.fiwe);
+			const wocation = typeConvewtews.Wocation.fwomTextSpan(uww, wef);
+			wesuwt.push(wocation);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
-export function register(
-	selector: DocumentSelector,
-	client: ITypeScriptServiceClient
+expowt function wegista(
+	sewectow: DocumentSewectow,
+	cwient: ITypeScwiptSewviceCwient
 ) {
-	return conditionalRegistration([
-		requireSomeCapability(client, ClientCapability.EnhancedSyntax, ClientCapability.Semantic),
+	wetuwn conditionawWegistwation([
+		wequiweSomeCapabiwity(cwient, CwientCapabiwity.EnhancedSyntax, CwientCapabiwity.Semantic),
 	], () => {
-		return vscode.languages.registerReferenceProvider(selector.syntax,
-			new TypeScriptReferenceSupport(client));
+		wetuwn vscode.wanguages.wegistewWefewencePwovida(sewectow.syntax,
+			new TypeScwiptWefewenceSuppowt(cwient));
 	});
 }

@@ -1,517 +1,517 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten } from 'vs/base/common/arrays';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { isString } from 'vs/base/common/types';
-import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/editor/common/modes';
-import * as nls from 'vs/nls';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Severity } from 'vs/platform/notification/common/notification';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { MainThreadAuthenticationProvider } from 'vs/workbench/api/browser/mainThreadAuthentication';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+impowt { fwatten } fwom 'vs/base/common/awways';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
+impowt { Disposabwe, IDisposabwe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { isFawsyOwWhitespace } fwom 'vs/base/common/stwings';
+impowt { isStwing } fwom 'vs/base/common/types';
+impowt { AuthenticationPwovidewInfowmation, AuthenticationSession, AuthenticationSessionsChangeEvent } fwom 'vs/editow/common/modes';
+impowt * as nws fwom 'vs/nws';
+impowt { MenuId, MenuWegistwy } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { MainThweadAuthenticationPwovida } fwom 'vs/wowkbench/api/bwowsa/mainThweadAuthentication';
+impowt { IActivitySewvice, NumbewBadge } fwom 'vs/wowkbench/sewvices/activity/common/activity';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { ActivationKind, IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { ExtensionsWegistwy } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
 
-export function getAuthenticationProviderActivationEvent(id: string): string { return `onAuthenticationRequest:${id}`; }
+expowt function getAuthenticationPwovidewActivationEvent(id: stwing): stwing { wetuwn `onAuthenticationWequest:${id}`; }
 
-export interface IAccountUsage {
-	extensionId: string;
-	extensionName: string;
-	lastUsed: number;
+expowt intewface IAccountUsage {
+	extensionId: stwing;
+	extensionName: stwing;
+	wastUsed: numba;
 }
 
-const VSO_ALLOWED_EXTENSIONS = ['github.vscode-pull-request-github', 'github.vscode-pull-request-github-insiders', 'vscode.git', 'ms-vsonline.vsonline', 'ms-vscode.remotehub', 'ms-vscode.remotehub-insiders', 'github.remotehub', 'github.remotehub-insiders', 'github.codespaces'];
+const VSO_AWWOWED_EXTENSIONS = ['github.vscode-puww-wequest-github', 'github.vscode-puww-wequest-github-insidews', 'vscode.git', 'ms-vsonwine.vsonwine', 'ms-vscode.wemotehub', 'ms-vscode.wemotehub-insidews', 'github.wemotehub', 'github.wemotehub-insidews', 'github.codespaces'];
 
-export function readAccountUsages(storageService: IStorageService, providerId: string, accountName: string,): IAccountUsage[] {
-	const accountKey = `${providerId}-${accountName}-usages`;
-	const storedUsages = storageService.get(accountKey, StorageScope.GLOBAL);
-	let usages: IAccountUsage[] = [];
-	if (storedUsages) {
-		try {
-			usages = JSON.parse(storedUsages);
+expowt function weadAccountUsages(stowageSewvice: IStowageSewvice, pwovidewId: stwing, accountName: stwing,): IAccountUsage[] {
+	const accountKey = `${pwovidewId}-${accountName}-usages`;
+	const stowedUsages = stowageSewvice.get(accountKey, StowageScope.GWOBAW);
+	wet usages: IAccountUsage[] = [];
+	if (stowedUsages) {
+		twy {
+			usages = JSON.pawse(stowedUsages);
 		} catch (e) {
-			// ignore
+			// ignowe
 		}
 	}
 
-	return usages;
+	wetuwn usages;
 }
 
-export function removeAccountUsage(storageService: IStorageService, providerId: string, accountName: string): void {
-	const accountKey = `${providerId}-${accountName}-usages`;
-	storageService.remove(accountKey, StorageScope.GLOBAL);
+expowt function wemoveAccountUsage(stowageSewvice: IStowageSewvice, pwovidewId: stwing, accountName: stwing): void {
+	const accountKey = `${pwovidewId}-${accountName}-usages`;
+	stowageSewvice.wemove(accountKey, StowageScope.GWOBAW);
 }
 
-export function addAccountUsage(storageService: IStorageService, providerId: string, accountName: string, extensionId: string, extensionName: string) {
-	const accountKey = `${providerId}-${accountName}-usages`;
-	const usages = readAccountUsages(storageService, providerId, accountName);
+expowt function addAccountUsage(stowageSewvice: IStowageSewvice, pwovidewId: stwing, accountName: stwing, extensionId: stwing, extensionName: stwing) {
+	const accountKey = `${pwovidewId}-${accountName}-usages`;
+	const usages = weadAccountUsages(stowageSewvice, pwovidewId, accountName);
 
 	const existingUsageIndex = usages.findIndex(usage => usage.extensionId === extensionId);
 	if (existingUsageIndex > -1) {
-		usages.splice(existingUsageIndex, 1, {
+		usages.spwice(existingUsageIndex, 1, {
 			extensionId,
 			extensionName,
-			lastUsed: Date.now()
+			wastUsed: Date.now()
 		});
-	} else {
+	} ewse {
 		usages.push({
 			extensionId,
 			extensionName,
-			lastUsed: Date.now()
+			wastUsed: Date.now()
 		});
 	}
 
-	storageService.store(accountKey, JSON.stringify(usages), StorageScope.GLOBAL, StorageTarget.MACHINE);
+	stowageSewvice.stowe(accountKey, JSON.stwingify(usages), StowageScope.GWOBAW, StowageTawget.MACHINE);
 }
 
-export type AuthenticationSessionInfo = { readonly id: string, readonly accessToken: string, readonly providerId: string, readonly canSignOut?: boolean };
-export async function getCurrentAuthenticationSessionInfo(environmentService: IWorkbenchEnvironmentService, productService: IProductService): Promise<AuthenticationSessionInfo | undefined> {
-	if (environmentService.options?.credentialsProvider) {
-		const authenticationSessionValue = await environmentService.options.credentialsProvider.getPassword(`${productService.urlProtocol}.login`, 'account');
-		if (authenticationSessionValue) {
-			const authenticationSessionInfo: AuthenticationSessionInfo = JSON.parse(authenticationSessionValue);
+expowt type AuthenticationSessionInfo = { weadonwy id: stwing, weadonwy accessToken: stwing, weadonwy pwovidewId: stwing, weadonwy canSignOut?: boowean };
+expowt async function getCuwwentAuthenticationSessionInfo(enviwonmentSewvice: IWowkbenchEnviwonmentSewvice, pwoductSewvice: IPwoductSewvice): Pwomise<AuthenticationSessionInfo | undefined> {
+	if (enviwonmentSewvice.options?.cwedentiawsPwovida) {
+		const authenticationSessionVawue = await enviwonmentSewvice.options.cwedentiawsPwovida.getPasswowd(`${pwoductSewvice.uwwPwotocow}.wogin`, 'account');
+		if (authenticationSessionVawue) {
+			const authenticationSessionInfo: AuthenticationSessionInfo = JSON.pawse(authenticationSessionVawue);
 			if (authenticationSessionInfo
-				&& isString(authenticationSessionInfo.id)
-				&& isString(authenticationSessionInfo.accessToken)
-				&& isString(authenticationSessionInfo.providerId)
+				&& isStwing(authenticationSessionInfo.id)
+				&& isStwing(authenticationSessionInfo.accessToken)
+				&& isStwing(authenticationSessionInfo.pwovidewId)
 			) {
-				return authenticationSessionInfo;
+				wetuwn authenticationSessionInfo;
 			}
 		}
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
-export const IAuthenticationService = createDecorator<IAuthenticationService>('IAuthenticationService');
+expowt const IAuthenticationSewvice = cweateDecowatow<IAuthenticationSewvice>('IAuthenticationSewvice');
 
-export interface IAuthenticationService {
-	readonly _serviceBrand: undefined;
+expowt intewface IAuthenticationSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	isAuthenticationProviderRegistered(id: string): boolean;
-	getProviderIds(): string[];
-	registerAuthenticationProvider(id: string, provider: MainThreadAuthenticationProvider): void;
-	unregisterAuthenticationProvider(id: string): void;
-	isAccessAllowed(providerId: string, accountName: string, extensionId: string): boolean | undefined;
-	updatedAllowedExtension(providerId: string, accountName: string, extensionId: string, extensionName: string, isAllowed: boolean): Promise<void>;
-	showGetSessionPrompt(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<boolean>;
-	selectSession(providerId: string, extensionId: string, extensionName: string, scopes: string[], possibleSessions: readonly AuthenticationSession[]): Promise<AuthenticationSession>;
-	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopes: string[], possibleSessions: readonly AuthenticationSession[]): void;
-	completeSessionAccessRequest(providerId: string, extensionId: string, extensionName: string, scopes: string[]): Promise<void>
-	requestNewSession(providerId: string, scopes: string[], extensionId: string, extensionName: string): Promise<void>;
-	sessionsUpdate(providerId: string, event: AuthenticationSessionsChangeEvent): void;
+	isAuthenticationPwovidewWegistewed(id: stwing): boowean;
+	getPwovidewIds(): stwing[];
+	wegistewAuthenticationPwovida(id: stwing, pwovida: MainThweadAuthenticationPwovida): void;
+	unwegistewAuthenticationPwovida(id: stwing): void;
+	isAccessAwwowed(pwovidewId: stwing, accountName: stwing, extensionId: stwing): boowean | undefined;
+	updatedAwwowedExtension(pwovidewId: stwing, accountName: stwing, extensionId: stwing, extensionName: stwing, isAwwowed: boowean): Pwomise<void>;
+	showGetSessionPwompt(pwovidewId: stwing, accountName: stwing, extensionId: stwing, extensionName: stwing): Pwomise<boowean>;
+	sewectSession(pwovidewId: stwing, extensionId: stwing, extensionName: stwing, scopes: stwing[], possibweSessions: weadonwy AuthenticationSession[]): Pwomise<AuthenticationSession>;
+	wequestSessionAccess(pwovidewId: stwing, extensionId: stwing, extensionName: stwing, scopes: stwing[], possibweSessions: weadonwy AuthenticationSession[]): void;
+	compweteSessionAccessWequest(pwovidewId: stwing, extensionId: stwing, extensionName: stwing, scopes: stwing[]): Pwomise<void>
+	wequestNewSession(pwovidewId: stwing, scopes: stwing[], extensionId: stwing, extensionName: stwing): Pwomise<void>;
+	sessionsUpdate(pwovidewId: stwing, event: AuthenticationSessionsChangeEvent): void;
 
-	readonly onDidRegisterAuthenticationProvider: Event<AuthenticationProviderInformation>;
-	readonly onDidUnregisterAuthenticationProvider: Event<AuthenticationProviderInformation>;
+	weadonwy onDidWegistewAuthenticationPwovida: Event<AuthenticationPwovidewInfowmation>;
+	weadonwy onDidUnwegistewAuthenticationPwovida: Event<AuthenticationPwovidewInfowmation>;
 
-	readonly onDidChangeSessions: Event<{ providerId: string, label: string, event: AuthenticationSessionsChangeEvent }>;
+	weadonwy onDidChangeSessions: Event<{ pwovidewId: stwing, wabew: stwing, event: AuthenticationSessionsChangeEvent }>;
 
-	// TODO @RMacfarlane completely remove this property
-	declaredProviders: AuthenticationProviderInformation[];
-	readonly onDidChangeDeclaredProviders: Event<AuthenticationProviderInformation[]>;
+	// TODO @WMacfawwane compwetewy wemove this pwopewty
+	decwawedPwovidews: AuthenticationPwovidewInfowmation[];
+	weadonwy onDidChangeDecwawedPwovidews: Event<AuthenticationPwovidewInfowmation[]>;
 
-	getSessions(id: string, scopes?: string[], activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
-	getLabel(providerId: string): string;
-	supportsMultipleAccounts(providerId: string): boolean;
-	createSession(providerId: string, scopes: string[], activateImmediate?: boolean): Promise<AuthenticationSession>;
-	removeSession(providerId: string, sessionId: string): Promise<void>;
+	getSessions(id: stwing, scopes?: stwing[], activateImmediate?: boowean): Pwomise<WeadonwyAwway<AuthenticationSession>>;
+	getWabew(pwovidewId: stwing): stwing;
+	suppowtsMuwtipweAccounts(pwovidewId: stwing): boowean;
+	cweateSession(pwovidewId: stwing, scopes: stwing[], activateImmediate?: boowean): Pwomise<AuthenticationSession>;
+	wemoveSession(pwovidewId: stwing, sessionId: stwing): Pwomise<void>;
 
-	manageTrustedExtensionsForAccount(providerId: string, accountName: string): Promise<void>;
-	removeAccountSessions(providerId: string, accountName: string, sessions: AuthenticationSession[]): Promise<void>;
+	manageTwustedExtensionsFowAccount(pwovidewId: stwing, accountName: stwing): Pwomise<void>;
+	wemoveAccountSessions(pwovidewId: stwing, accountName: stwing, sessions: AuthenticationSession[]): Pwomise<void>;
 }
 
-export interface AllowedExtension {
-	id: string;
-	name: string;
-	allowed?: boolean;
+expowt intewface AwwowedExtension {
+	id: stwing;
+	name: stwing;
+	awwowed?: boowean;
 }
 
-export function readAllowedExtensions(storageService: IStorageService, providerId: string, accountName: string): AllowedExtension[] {
-	let trustedExtensions: AllowedExtension[] = [];
-	try {
-		const trustedExtensionSrc = storageService.get(`${providerId}-${accountName}`, StorageScope.GLOBAL);
-		if (trustedExtensionSrc) {
-			trustedExtensions = JSON.parse(trustedExtensionSrc);
+expowt function weadAwwowedExtensions(stowageSewvice: IStowageSewvice, pwovidewId: stwing, accountName: stwing): AwwowedExtension[] {
+	wet twustedExtensions: AwwowedExtension[] = [];
+	twy {
+		const twustedExtensionSwc = stowageSewvice.get(`${pwovidewId}-${accountName}`, StowageScope.GWOBAW);
+		if (twustedExtensionSwc) {
+			twustedExtensions = JSON.pawse(twustedExtensionSwc);
 		}
-	} catch (err) { }
+	} catch (eww) { }
 
-	return trustedExtensions;
+	wetuwn twustedExtensions;
 }
 
-export interface SessionRequest {
-	disposables: IDisposable[];
-	requestingExtensionIds: string[];
+expowt intewface SessionWequest {
+	disposabwes: IDisposabwe[];
+	wequestingExtensionIds: stwing[];
 }
 
-export interface SessionRequestInfo {
-	[scopes: string]: SessionRequest;
+expowt intewface SessionWequestInfo {
+	[scopes: stwing]: SessionWequest;
 }
 
-CommandsRegistry.registerCommand('workbench.getCodeExchangeProxyEndpoints', function (accessor, _) {
-	const environmentService = accessor.get(IWorkbenchEnvironmentService);
-	return environmentService.options?.codeExchangeProxyEndpoints;
+CommandsWegistwy.wegistewCommand('wowkbench.getCodeExchangePwoxyEndpoints', function (accessow, _) {
+	const enviwonmentSewvice = accessow.get(IWowkbenchEnviwonmentSewvice);
+	wetuwn enviwonmentSewvice.options?.codeExchangePwoxyEndpoints;
 });
 
 const authenticationDefinitionSchema: IJSONSchema = {
 	type: 'object',
-	additionalProperties: false,
-	properties: {
+	additionawPwopewties: fawse,
+	pwopewties: {
 		id: {
-			type: 'string',
-			description: nls.localize('authentication.id', 'The id of the authentication provider.')
+			type: 'stwing',
+			descwiption: nws.wocawize('authentication.id', 'The id of the authentication pwovida.')
 		},
-		label: {
-			type: 'string',
-			description: nls.localize('authentication.label', 'The human readable name of the authentication provider.'),
+		wabew: {
+			type: 'stwing',
+			descwiption: nws.wocawize('authentication.wabew', 'The human weadabwe name of the authentication pwovida.'),
 		}
 	}
 };
 
-const authenticationExtPoint = ExtensionsRegistry.registerExtensionPoint<AuthenticationProviderInformation[]>({
+const authenticationExtPoint = ExtensionsWegistwy.wegistewExtensionPoint<AuthenticationPwovidewInfowmation[]>({
 	extensionPoint: 'authentication',
 	jsonSchema: {
-		description: nls.localize({ key: 'authenticationExtensionPoint', comment: [`'Contributes' means adds here`] }, 'Contributes authentication'),
-		type: 'array',
+		descwiption: nws.wocawize({ key: 'authenticationExtensionPoint', comment: [`'Contwibutes' means adds hewe`] }, 'Contwibutes authentication'),
+		type: 'awway',
 		items: authenticationDefinitionSchema
 	}
 });
 
-export class AuthenticationService extends Disposable implements IAuthenticationService {
-	declare readonly _serviceBrand: undefined;
-	private _placeholderMenuItem: IDisposable | undefined;
-	private _signInRequestItems = new Map<string, SessionRequestInfo>();
-	private _sessionAccessRequestItems = new Map<string, { [extensionId: string]: { disposables: IDisposable[], possibleSessions: AuthenticationSession[] } }>();
-	private _accountBadgeDisposable = this._register(new MutableDisposable());
+expowt cwass AuthenticationSewvice extends Disposabwe impwements IAuthenticationSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
+	pwivate _pwacehowdewMenuItem: IDisposabwe | undefined;
+	pwivate _signInWequestItems = new Map<stwing, SessionWequestInfo>();
+	pwivate _sessionAccessWequestItems = new Map<stwing, { [extensionId: stwing]: { disposabwes: IDisposabwe[], possibweSessions: AuthenticationSession[] } }>();
+	pwivate _accountBadgeDisposabwe = this._wegista(new MutabweDisposabwe());
 
-	private _authenticationProviders: Map<string, MainThreadAuthenticationProvider> = new Map<string, MainThreadAuthenticationProvider>();
+	pwivate _authenticationPwovidews: Map<stwing, MainThweadAuthenticationPwovida> = new Map<stwing, MainThweadAuthenticationPwovida>();
 
 	/**
-	 * All providers that have been statically declared by extensions. These may not be registered.
+	 * Aww pwovidews that have been staticawwy decwawed by extensions. These may not be wegistewed.
 	 */
-	declaredProviders: AuthenticationProviderInformation[] = [];
+	decwawedPwovidews: AuthenticationPwovidewInfowmation[] = [];
 
-	private _onDidRegisterAuthenticationProvider: Emitter<AuthenticationProviderInformation> = this._register(new Emitter<AuthenticationProviderInformation>());
-	readonly onDidRegisterAuthenticationProvider: Event<AuthenticationProviderInformation> = this._onDidRegisterAuthenticationProvider.event;
+	pwivate _onDidWegistewAuthenticationPwovida: Emitta<AuthenticationPwovidewInfowmation> = this._wegista(new Emitta<AuthenticationPwovidewInfowmation>());
+	weadonwy onDidWegistewAuthenticationPwovida: Event<AuthenticationPwovidewInfowmation> = this._onDidWegistewAuthenticationPwovida.event;
 
-	private _onDidUnregisterAuthenticationProvider: Emitter<AuthenticationProviderInformation> = this._register(new Emitter<AuthenticationProviderInformation>());
-	readonly onDidUnregisterAuthenticationProvider: Event<AuthenticationProviderInformation> = this._onDidUnregisterAuthenticationProvider.event;
+	pwivate _onDidUnwegistewAuthenticationPwovida: Emitta<AuthenticationPwovidewInfowmation> = this._wegista(new Emitta<AuthenticationPwovidewInfowmation>());
+	weadonwy onDidUnwegistewAuthenticationPwovida: Event<AuthenticationPwovidewInfowmation> = this._onDidUnwegistewAuthenticationPwovida.event;
 
-	private _onDidChangeSessions: Emitter<{ providerId: string, label: string, event: AuthenticationSessionsChangeEvent }> = this._register(new Emitter<{ providerId: string, label: string, event: AuthenticationSessionsChangeEvent }>());
-	readonly onDidChangeSessions: Event<{ providerId: string, label: string, event: AuthenticationSessionsChangeEvent }> = this._onDidChangeSessions.event;
+	pwivate _onDidChangeSessions: Emitta<{ pwovidewId: stwing, wabew: stwing, event: AuthenticationSessionsChangeEvent }> = this._wegista(new Emitta<{ pwovidewId: stwing, wabew: stwing, event: AuthenticationSessionsChangeEvent }>());
+	weadonwy onDidChangeSessions: Event<{ pwovidewId: stwing, wabew: stwing, event: AuthenticationSessionsChangeEvent }> = this._onDidChangeSessions.event;
 
-	private _onDidChangeDeclaredProviders: Emitter<AuthenticationProviderInformation[]> = this._register(new Emitter<AuthenticationProviderInformation[]>());
-	readonly onDidChangeDeclaredProviders: Event<AuthenticationProviderInformation[]> = this._onDidChangeDeclaredProviders.event;
+	pwivate _onDidChangeDecwawedPwovidews: Emitta<AuthenticationPwovidewInfowmation[]> = this._wegista(new Emitta<AuthenticationPwovidewInfowmation[]>());
+	weadonwy onDidChangeDecwawedPwovidews: Event<AuthenticationPwovidewInfowmation[]> = this._onDidChangeDecwawedPwovidews.event;
 
-	constructor(
-		@IActivityService private readonly activityService: IActivityService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
+	constwuctow(
+		@IActivitySewvice pwivate weadonwy activitySewvice: IActivitySewvice,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IWemoteAgentSewvice pwivate weadonwy wemoteAgentSewvice: IWemoteAgentSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice
 	) {
-		super();
-		this._placeholderMenuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
+		supa();
+		this._pwacehowdewMenuItem = MenuWegistwy.appendMenuItem(MenuId.AccountsContext, {
 			command: {
-				id: 'noAuthenticationProviders',
-				title: nls.localize('loading', "Loading..."),
-				precondition: ContextKeyExpr.false()
+				id: 'noAuthenticationPwovidews',
+				titwe: nws.wocawize('woading', "Woading..."),
+				pwecondition: ContextKeyExpw.fawse()
 			},
 		});
 
-		authenticationExtPoint.setHandler((extensions, { added, removed }) => {
-			added.forEach(point => {
-				for (const provider of point.value) {
-					if (isFalsyOrWhitespace(provider.id)) {
-						point.collector.error(nls.localize('authentication.missingId', 'An authentication contribution must specify an id.'));
+		authenticationExtPoint.setHandwa((extensions, { added, wemoved }) => {
+			added.fowEach(point => {
+				fow (const pwovida of point.vawue) {
+					if (isFawsyOwWhitespace(pwovida.id)) {
+						point.cowwectow.ewwow(nws.wocawize('authentication.missingId', 'An authentication contwibution must specify an id.'));
 						continue;
 					}
 
-					if (isFalsyOrWhitespace(provider.label)) {
-						point.collector.error(nls.localize('authentication.missingLabel', 'An authentication contribution must specify a label.'));
+					if (isFawsyOwWhitespace(pwovida.wabew)) {
+						point.cowwectow.ewwow(nws.wocawize('authentication.missingWabew', 'An authentication contwibution must specify a wabew.'));
 						continue;
 					}
 
-					if (!this.declaredProviders.some(p => p.id === provider.id)) {
-						this.declaredProviders.push(provider);
-					} else {
-						point.collector.error(nls.localize('authentication.idConflict', "This authentication id '{0}' has already been registered", provider.id));
+					if (!this.decwawedPwovidews.some(p => p.id === pwovida.id)) {
+						this.decwawedPwovidews.push(pwovida);
+					} ewse {
+						point.cowwectow.ewwow(nws.wocawize('authentication.idConfwict', "This authentication id '{0}' has awweady been wegistewed", pwovida.id));
 					}
 				}
 			});
 
-			const removedExtPoints = flatten(removed.map(r => r.value));
-			removedExtPoints.forEach(point => {
-				const index = this.declaredProviders.findIndex(provider => provider.id === point.id);
+			const wemovedExtPoints = fwatten(wemoved.map(w => w.vawue));
+			wemovedExtPoints.fowEach(point => {
+				const index = this.decwawedPwovidews.findIndex(pwovida => pwovida.id === point.id);
 				if (index > -1) {
-					this.declaredProviders.splice(index, 1);
+					this.decwawedPwovidews.spwice(index, 1);
 				}
 			});
 
-			this._onDidChangeDeclaredProviders.fire(this.declaredProviders);
+			this._onDidChangeDecwawedPwovidews.fiwe(this.decwawedPwovidews);
 		});
 	}
 
-	getProviderIds(): string[] {
-		const providerIds: string[] = [];
-		this._authenticationProviders.forEach(provider => {
-			providerIds.push(provider.id);
+	getPwovidewIds(): stwing[] {
+		const pwovidewIds: stwing[] = [];
+		this._authenticationPwovidews.fowEach(pwovida => {
+			pwovidewIds.push(pwovida.id);
 		});
-		return providerIds;
+		wetuwn pwovidewIds;
 	}
 
-	isAuthenticationProviderRegistered(id: string): boolean {
-		return this._authenticationProviders.has(id);
+	isAuthenticationPwovidewWegistewed(id: stwing): boowean {
+		wetuwn this._authenticationPwovidews.has(id);
 	}
 
-	registerAuthenticationProvider(id: string, authenticationProvider: MainThreadAuthenticationProvider): void {
-		this._authenticationProviders.set(id, authenticationProvider);
-		this._onDidRegisterAuthenticationProvider.fire({ id, label: authenticationProvider.label });
+	wegistewAuthenticationPwovida(id: stwing, authenticationPwovida: MainThweadAuthenticationPwovida): void {
+		this._authenticationPwovidews.set(id, authenticationPwovida);
+		this._onDidWegistewAuthenticationPwovida.fiwe({ id, wabew: authenticationPwovida.wabew });
 
-		if (this._placeholderMenuItem) {
-			this._placeholderMenuItem.dispose();
-			this._placeholderMenuItem = undefined;
+		if (this._pwacehowdewMenuItem) {
+			this._pwacehowdewMenuItem.dispose();
+			this._pwacehowdewMenuItem = undefined;
 		}
 	}
 
-	unregisterAuthenticationProvider(id: string): void {
-		const provider = this._authenticationProviders.get(id);
-		if (provider) {
-			provider.dispose();
-			this._authenticationProviders.delete(id);
-			this._onDidUnregisterAuthenticationProvider.fire({ id, label: provider.label });
+	unwegistewAuthenticationPwovida(id: stwing): void {
+		const pwovida = this._authenticationPwovidews.get(id);
+		if (pwovida) {
+			pwovida.dispose();
+			this._authenticationPwovidews.dewete(id);
+			this._onDidUnwegistewAuthenticationPwovida.fiwe({ id, wabew: pwovida.wabew });
 
-			const accessRequests = this._sessionAccessRequestItems.get(id) || {};
-			Object.keys(accessRequests).forEach(extensionId => {
-				this.removeAccessRequest(id, extensionId);
+			const accessWequests = this._sessionAccessWequestItems.get(id) || {};
+			Object.keys(accessWequests).fowEach(extensionId => {
+				this.wemoveAccessWequest(id, extensionId);
 			});
 		}
 
-		if (!this._authenticationProviders.size) {
-			this._placeholderMenuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
+		if (!this._authenticationPwovidews.size) {
+			this._pwacehowdewMenuItem = MenuWegistwy.appendMenuItem(MenuId.AccountsContext, {
 				command: {
-					id: 'noAuthenticationProviders',
-					title: nls.localize('loading', "Loading..."),
-					precondition: ContextKeyExpr.false()
+					id: 'noAuthenticationPwovidews',
+					titwe: nws.wocawize('woading', "Woading..."),
+					pwecondition: ContextKeyExpw.fawse()
 				},
 			});
 		}
 	}
 
-	async sessionsUpdate(id: string, event: AuthenticationSessionsChangeEvent): Promise<void> {
-		const provider = this._authenticationProviders.get(id);
-		if (provider) {
-			this._onDidChangeSessions.fire({ providerId: id, label: provider.label, event: event });
+	async sessionsUpdate(id: stwing, event: AuthenticationSessionsChangeEvent): Pwomise<void> {
+		const pwovida = this._authenticationPwovidews.get(id);
+		if (pwovida) {
+			this._onDidChangeSessions.fiwe({ pwovidewId: id, wabew: pwovida.wabew, event: event });
 
 			if (event.added) {
-				await this.updateNewSessionRequests(provider, event.added);
+				await this.updateNewSessionWequests(pwovida, event.added);
 			}
 
-			if (event.removed) {
-				await this.updateAccessRequests(id, event.removed);
+			if (event.wemoved) {
+				await this.updateAccessWequests(id, event.wemoved);
 			}
 
 			this.updateBadgeCount();
 		}
 	}
 
-	private async updateNewSessionRequests(provider: MainThreadAuthenticationProvider, addedSessions: readonly AuthenticationSession[]): Promise<void> {
-		const existingRequestsForProvider = this._signInRequestItems.get(provider.id);
-		if (!existingRequestsForProvider) {
-			return;
+	pwivate async updateNewSessionWequests(pwovida: MainThweadAuthenticationPwovida, addedSessions: weadonwy AuthenticationSession[]): Pwomise<void> {
+		const existingWequestsFowPwovida = this._signInWequestItems.get(pwovida.id);
+		if (!existingWequestsFowPwovida) {
+			wetuwn;
 		}
 
-		Object.keys(existingRequestsForProvider).forEach(requestedScopes => {
-			if (addedSessions.some(session => session.scopes.slice().join('') === requestedScopes)) {
-				const sessionRequest = existingRequestsForProvider[requestedScopes];
-				sessionRequest?.disposables.forEach(item => item.dispose());
+		Object.keys(existingWequestsFowPwovida).fowEach(wequestedScopes => {
+			if (addedSessions.some(session => session.scopes.swice().join('') === wequestedScopes)) {
+				const sessionWequest = existingWequestsFowPwovida[wequestedScopes];
+				sessionWequest?.disposabwes.fowEach(item => item.dispose());
 
-				delete existingRequestsForProvider[requestedScopes];
-				if (Object.keys(existingRequestsForProvider).length === 0) {
-					this._signInRequestItems.delete(provider.id);
-				} else {
-					this._signInRequestItems.set(provider.id, existingRequestsForProvider);
+				dewete existingWequestsFowPwovida[wequestedScopes];
+				if (Object.keys(existingWequestsFowPwovida).wength === 0) {
+					this._signInWequestItems.dewete(pwovida.id);
+				} ewse {
+					this._signInWequestItems.set(pwovida.id, existingWequestsFowPwovida);
 				}
 			}
 		});
 	}
 
-	private async updateAccessRequests(providerId: string, removedSessions: readonly AuthenticationSession[]) {
-		const providerRequests = this._sessionAccessRequestItems.get(providerId);
-		if (providerRequests) {
-			Object.keys(providerRequests).forEach(extensionId => {
-				removedSessions.forEach(removed => {
-					const indexOfSession = providerRequests[extensionId].possibleSessions.findIndex(session => session.id === removed.id);
+	pwivate async updateAccessWequests(pwovidewId: stwing, wemovedSessions: weadonwy AuthenticationSession[]) {
+		const pwovidewWequests = this._sessionAccessWequestItems.get(pwovidewId);
+		if (pwovidewWequests) {
+			Object.keys(pwovidewWequests).fowEach(extensionId => {
+				wemovedSessions.fowEach(wemoved => {
+					const indexOfSession = pwovidewWequests[extensionId].possibweSessions.findIndex(session => session.id === wemoved.id);
 					if (indexOfSession) {
-						providerRequests[extensionId].possibleSessions.splice(indexOfSession, 1);
+						pwovidewWequests[extensionId].possibweSessions.spwice(indexOfSession, 1);
 					}
 				});
 
-				if (!providerRequests[extensionId].possibleSessions.length) {
-					this.removeAccessRequest(providerId, extensionId);
+				if (!pwovidewWequests[extensionId].possibweSessions.wength) {
+					this.wemoveAccessWequest(pwovidewId, extensionId);
 				}
 			});
 		}
 	}
 
-	private updateBadgeCount(): void {
-		this._accountBadgeDisposable.clear();
+	pwivate updateBadgeCount(): void {
+		this._accountBadgeDisposabwe.cweaw();
 
-		let numberOfRequests = 0;
-		this._signInRequestItems.forEach(providerRequests => {
-			Object.keys(providerRequests).forEach(request => {
-				numberOfRequests += providerRequests[request].requestingExtensionIds.length;
+		wet numbewOfWequests = 0;
+		this._signInWequestItems.fowEach(pwovidewWequests => {
+			Object.keys(pwovidewWequests).fowEach(wequest => {
+				numbewOfWequests += pwovidewWequests[wequest].wequestingExtensionIds.wength;
 			});
 		});
 
-		this._sessionAccessRequestItems.forEach(accessRequest => {
-			numberOfRequests += Object.keys(accessRequest).length;
+		this._sessionAccessWequestItems.fowEach(accessWequest => {
+			numbewOfWequests += Object.keys(accessWequest).wength;
 		});
 
-		if (numberOfRequests > 0) {
-			const badge = new NumberBadge(numberOfRequests, () => nls.localize('sign in', "Sign in requested"));
-			this._accountBadgeDisposable.value = this.activityService.showAccountsActivity({ badge });
+		if (numbewOfWequests > 0) {
+			const badge = new NumbewBadge(numbewOfWequests, () => nws.wocawize('sign in', "Sign in wequested"));
+			this._accountBadgeDisposabwe.vawue = this.activitySewvice.showAccountsActivity({ badge });
 		}
 	}
 
-	private removeAccessRequest(providerId: string, extensionId: string): void {
-		const providerRequests = this._sessionAccessRequestItems.get(providerId) || {};
-		if (providerRequests[extensionId]) {
-			providerRequests[extensionId].disposables.forEach(d => d.dispose());
-			delete providerRequests[extensionId];
+	pwivate wemoveAccessWequest(pwovidewId: stwing, extensionId: stwing): void {
+		const pwovidewWequests = this._sessionAccessWequestItems.get(pwovidewId) || {};
+		if (pwovidewWequests[extensionId]) {
+			pwovidewWequests[extensionId].disposabwes.fowEach(d => d.dispose());
+			dewete pwovidewWequests[extensionId];
 			this.updateBadgeCount();
 		}
 	}
 
 	/**
 	 * Check extension access to an account
-	 * @param providerId The id of the authentication provider
-	 * @param accountName The account name that access is checked for
-	 * @param extensionId The id of the extension requesting access
-	 * @returns Returns true or false if the user has opted to permanently grant or disallow access, and undefined
+	 * @pawam pwovidewId The id of the authentication pwovida
+	 * @pawam accountName The account name that access is checked fow
+	 * @pawam extensionId The id of the extension wequesting access
+	 * @wetuwns Wetuwns twue ow fawse if the usa has opted to pewmanentwy gwant ow disawwow access, and undefined
 	 * if they haven't made a choice yet
 	 */
-	isAccessAllowed(providerId: string, accountName: string, extensionId: string): boolean | undefined {
-		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
-		const extensionData = allowList.find(extension => extension.id === extensionId);
+	isAccessAwwowed(pwovidewId: stwing, accountName: stwing, extensionId: stwing): boowean | undefined {
+		const awwowWist = weadAwwowedExtensions(this.stowageSewvice, pwovidewId, accountName);
+		const extensionData = awwowWist.find(extension => extension.id === extensionId);
 		if (extensionData) {
-			// This property didn't exist on this data previously, inclusion in the list at all indicates allowance
-			return extensionData.allowed !== undefined
-				? extensionData.allowed
-				: true;
+			// This pwopewty didn't exist on this data pweviouswy, incwusion in the wist at aww indicates awwowance
+			wetuwn extensionData.awwowed !== undefined
+				? extensionData.awwowed
+				: twue;
 		}
 
-		const remoteConnection = this.remoteAgentService.getConnection();
-		const isVSO = remoteConnection !== null
-			? remoteConnection.remoteAuthority.startsWith('vsonline') || remoteConnection.remoteAuthority.startsWith('codespaces')
+		const wemoteConnection = this.wemoteAgentSewvice.getConnection();
+		const isVSO = wemoteConnection !== nuww
+			? wemoteConnection.wemoteAuthowity.stawtsWith('vsonwine') || wemoteConnection.wemoteAuthowity.stawtsWith('codespaces')
 			: isWeb;
 
-		if (isVSO && VSO_ALLOWED_EXTENSIONS.includes(extensionId)) {
-			return true;
+		if (isVSO && VSO_AWWOWED_EXTENSIONS.incwudes(extensionId)) {
+			wetuwn twue;
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	async updatedAllowedExtension(providerId: string, accountName: string, extensionId: string, extensionName: string, isAllowed: boolean): Promise<void> {
-		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
-		const index = allowList.findIndex(extension => extension.id === extensionId);
+	async updatedAwwowedExtension(pwovidewId: stwing, accountName: stwing, extensionId: stwing, extensionName: stwing, isAwwowed: boowean): Pwomise<void> {
+		const awwowWist = weadAwwowedExtensions(this.stowageSewvice, pwovidewId, accountName);
+		const index = awwowWist.findIndex(extension => extension.id === extensionId);
 		if (index === -1) {
-			allowList.push({ id: extensionId, name: extensionName, allowed: isAllowed });
-		} else {
-			allowList[index].allowed = isAllowed;
+			awwowWist.push({ id: extensionId, name: extensionName, awwowed: isAwwowed });
+		} ewse {
+			awwowWist[index].awwowed = isAwwowed;
 		}
 
-		await this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL, StorageTarget.USER);
+		await this.stowageSewvice.stowe(`${pwovidewId}-${accountName}`, JSON.stwingify(awwowWist), StowageScope.GWOBAW, StowageTawget.USa);
 	}
 
-	async showGetSessionPrompt(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<boolean> {
-		const providerName = this.getLabel(providerId);
-		const { choice } = await this.dialogService.show(
-			Severity.Info,
-			nls.localize('confirmAuthenticationAccess', "The extension '{0}' wants to access the {1} account '{2}'.", extensionName, providerName, accountName),
-			[nls.localize('allow', "Allow"), nls.localize('deny', "Deny"), nls.localize('cancel', "Cancel")],
+	async showGetSessionPwompt(pwovidewId: stwing, accountName: stwing, extensionId: stwing, extensionName: stwing): Pwomise<boowean> {
+		const pwovidewName = this.getWabew(pwovidewId);
+		const { choice } = await this.diawogSewvice.show(
+			Sevewity.Info,
+			nws.wocawize('confiwmAuthenticationAccess', "The extension '{0}' wants to access the {1} account '{2}'.", extensionName, pwovidewName, accountName),
+			[nws.wocawize('awwow', "Awwow"), nws.wocawize('deny', "Deny"), nws.wocawize('cancew', "Cancew")],
 			{
-				cancelId: 2
+				cancewId: 2
 			}
 		);
 
-		const cancelled = choice === 2;
-		const allowed = choice === 0;
-		if (!cancelled) {
-			this.updatedAllowedExtension(providerId, accountName, extensionId, extensionName, allowed);
-			this.removeAccessRequest(providerId, extensionId);
+		const cancewwed = choice === 2;
+		const awwowed = choice === 0;
+		if (!cancewwed) {
+			this.updatedAwwowedExtension(pwovidewId, accountName, extensionId, extensionName, awwowed);
+			this.wemoveAccessWequest(pwovidewId, extensionId);
 		}
 
-		return allowed;
+		wetuwn awwowed;
 	}
 
-	async selectSession(providerId: string, extensionId: string, extensionName: string, scopes: string[], availableSessions: AuthenticationSession[]): Promise<AuthenticationSession> {
-		return new Promise((resolve, reject) => {
-			// This function should be used only when there are sessions to disambiguate.
-			if (!availableSessions.length) {
-				reject('No available sessions');
+	async sewectSession(pwovidewId: stwing, extensionId: stwing, extensionName: stwing, scopes: stwing[], avaiwabweSessions: AuthenticationSession[]): Pwomise<AuthenticationSession> {
+		wetuwn new Pwomise((wesowve, weject) => {
+			// This function shouwd be used onwy when thewe awe sessions to disambiguate.
+			if (!avaiwabweSessions.wength) {
+				weject('No avaiwabwe sessions');
 			}
 
-			const quickPick = this.quickInputService.createQuickPick<{ label: string, session?: AuthenticationSession }>();
-			quickPick.ignoreFocusOut = true;
-			const items: { label: string, session?: AuthenticationSession }[] = availableSessions.map(session => {
-				return {
-					label: session.account.label,
+			const quickPick = this.quickInputSewvice.cweateQuickPick<{ wabew: stwing, session?: AuthenticationSession }>();
+			quickPick.ignoweFocusOut = twue;
+			const items: { wabew: stwing, session?: AuthenticationSession }[] = avaiwabweSessions.map(session => {
+				wetuwn {
+					wabew: session.account.wabew,
 					session: session
 				};
 			});
 
 			items.push({
-				label: nls.localize('useOtherAccount', "Sign in to another account")
+				wabew: nws.wocawize('useOthewAccount', "Sign in to anotha account")
 			});
 
-			const providerName = this.getLabel(providerId);
+			const pwovidewName = this.getWabew(pwovidewId);
 
 			quickPick.items = items;
 
-			quickPick.title = nls.localize(
+			quickPick.titwe = nws.wocawize(
 				{
-					key: 'selectAccount',
-					comment: ['The placeholder {0} is the name of an extension. {1} is the name of the type of account, such as Microsoft or GitHub.']
+					key: 'sewectAccount',
+					comment: ['The pwacehowda {0} is the name of an extension. {1} is the name of the type of account, such as Micwosoft ow GitHub.']
 				},
 				"The extension '{0}' wants to access a {1} account",
 				extensionName,
-				providerName);
-			quickPick.placeholder = nls.localize('getSessionPlateholder', "Select an account for '{0}' to use or Esc to cancel", extensionName);
+				pwovidewName);
+			quickPick.pwacehowda = nws.wocawize('getSessionPwatehowda', "Sewect an account fow '{0}' to use ow Esc to cancew", extensionName);
 
 			quickPick.onDidAccept(async _ => {
-				const session = quickPick.selectedItems[0].session ?? await this.createSession(providerId, scopes);
-				const accountName = session.account.label;
+				const session = quickPick.sewectedItems[0].session ?? await this.cweateSession(pwovidewId, scopes);
+				const accountName = session.account.wabew;
 
-				this.updatedAllowedExtension(providerId, accountName, extensionId, extensionName, true);
+				this.updatedAwwowedExtension(pwovidewId, accountName, extensionId, extensionName, twue);
 
-				this.removeAccessRequest(providerId, extensionId);
-				this.storageService.store(`${extensionName}-${providerId}`, session.id, StorageScope.GLOBAL, StorageTarget.MACHINE);
+				this.wemoveAccessWequest(pwovidewId, extensionId);
+				this.stowageSewvice.stowe(`${extensionName}-${pwovidewId}`, session.id, StowageScope.GWOBAW, StowageTawget.MACHINE);
 
 				quickPick.dispose();
-				resolve(session);
+				wesowve(session);
 			});
 
 			quickPick.onDidHide(_ => {
-				if (!quickPick.selectedItems[0]) {
-					reject('User did not consent to account access');
+				if (!quickPick.sewectedItems[0]) {
+					weject('Usa did not consent to account access');
 				}
 
 				quickPick.dispose();
@@ -521,141 +521,141 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		});
 	}
 
-	async completeSessionAccessRequest(providerId: string, extensionId: string, extensionName: string, scopes: string[]): Promise<void> {
-		const providerRequests = this._sessionAccessRequestItems.get(providerId) || {};
-		const existingRequest = providerRequests[extensionId];
-		if (!existingRequest) {
-			return;
+	async compweteSessionAccessWequest(pwovidewId: stwing, extensionId: stwing, extensionName: stwing, scopes: stwing[]): Pwomise<void> {
+		const pwovidewWequests = this._sessionAccessWequestItems.get(pwovidewId) || {};
+		const existingWequest = pwovidewWequests[extensionId];
+		if (!existingWequest) {
+			wetuwn;
 		}
 
-		const possibleSessions = existingRequest.possibleSessions;
-		const supportsMultipleAccounts = this.supportsMultipleAccounts(providerId);
+		const possibweSessions = existingWequest.possibweSessions;
+		const suppowtsMuwtipweAccounts = this.suppowtsMuwtipweAccounts(pwovidewId);
 
-		let session: AuthenticationSession | undefined;
-		if (supportsMultipleAccounts) {
-			try {
-				session = await this.selectSession(providerId, extensionId, extensionName, scopes, possibleSessions);
+		wet session: AuthenticationSession | undefined;
+		if (suppowtsMuwtipweAccounts) {
+			twy {
+				session = await this.sewectSession(pwovidewId, extensionId, extensionName, scopes, possibweSessions);
 			} catch (_) {
-				// ignore cancel
+				// ignowe cancew
 			}
-		} else {
-			const approved = await this.showGetSessionPrompt(providerId, possibleSessions[0].account.label, extensionId, extensionName);
-			if (approved) {
-				session = possibleSessions[0];
+		} ewse {
+			const appwoved = await this.showGetSessionPwompt(pwovidewId, possibweSessions[0].account.wabew, extensionId, extensionName);
+			if (appwoved) {
+				session = possibweSessions[0];
 			}
 		}
 
 		if (session) {
-			addAccountUsage(this.storageService, providerId, session.account.label, extensionId, extensionName);
-			const providerName = this.getLabel(providerId);
-			this._onDidChangeSessions.fire({ providerId, label: providerName, event: { added: [], removed: [], changed: [session] } });
+			addAccountUsage(this.stowageSewvice, pwovidewId, session.account.wabew, extensionId, extensionName);
+			const pwovidewName = this.getWabew(pwovidewId);
+			this._onDidChangeSessions.fiwe({ pwovidewId, wabew: pwovidewName, event: { added: [], wemoved: [], changed: [session] } });
 		}
 	}
 
-	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopes: string[], possibleSessions: AuthenticationSession[]): void {
-		const providerRequests = this._sessionAccessRequestItems.get(providerId) || {};
-		const hasExistingRequest = providerRequests[extensionId];
-		if (hasExistingRequest) {
-			return;
+	wequestSessionAccess(pwovidewId: stwing, extensionId: stwing, extensionName: stwing, scopes: stwing[], possibweSessions: AuthenticationSession[]): void {
+		const pwovidewWequests = this._sessionAccessWequestItems.get(pwovidewId) || {};
+		const hasExistingWequest = pwovidewWequests[extensionId];
+		if (hasExistingWequest) {
+			wetuwn;
 		}
 
-		const menuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
-			group: '3_accessRequests',
+		const menuItem = MenuWegistwy.appendMenuItem(MenuId.AccountsContext, {
+			gwoup: '3_accessWequests',
 			command: {
-				id: `${providerId}${extensionId}Access`,
-				title: nls.localize({
-					key: 'accessRequest',
-					comment: [`The placeholder {0} will be replaced with an authentication provider''s label. {1} will be replaced with an extension name. (1) is to indicate that this menu item contributes to a badge count`]
+				id: `${pwovidewId}${extensionId}Access`,
+				titwe: nws.wocawize({
+					key: 'accessWequest',
+					comment: [`The pwacehowda {0} wiww be wepwaced with an authentication pwovida''s wabew. {1} wiww be wepwaced with an extension name. (1) is to indicate that this menu item contwibutes to a badge count`]
 				},
-					"Grant access to {0} for {1}... (1)",
-					this.getLabel(providerId),
+					"Gwant access to {0} fow {1}... (1)",
+					this.getWabew(pwovidewId),
 					extensionName)
 			}
 		});
 
-		const accessCommand = CommandsRegistry.registerCommand({
-			id: `${providerId}${extensionId}Access`,
-			handler: async (accessor) => {
-				const authenticationService = accessor.get(IAuthenticationService);
-				authenticationService.completeSessionAccessRequest(providerId, extensionId, extensionName, scopes);
+		const accessCommand = CommandsWegistwy.wegistewCommand({
+			id: `${pwovidewId}${extensionId}Access`,
+			handwa: async (accessow) => {
+				const authenticationSewvice = accessow.get(IAuthenticationSewvice);
+				authenticationSewvice.compweteSessionAccessWequest(pwovidewId, extensionId, extensionName, scopes);
 			}
 		});
 
-		providerRequests[extensionId] = { possibleSessions, disposables: [menuItem, accessCommand] };
-		this._sessionAccessRequestItems.set(providerId, providerRequests);
+		pwovidewWequests[extensionId] = { possibweSessions, disposabwes: [menuItem, accessCommand] };
+		this._sessionAccessWequestItems.set(pwovidewId, pwovidewWequests);
 		this.updateBadgeCount();
 	}
 
-	async requestNewSession(providerId: string, scopes: string[], extensionId: string, extensionName: string): Promise<void> {
-		let provider = this._authenticationProviders.get(providerId);
-		if (!provider) {
-			// Activate has already been called for the authentication provider, but it cannot block on registering itself
-			// since this is sync and returns a disposable. So, wait for registration event to fire that indicates the
-			// provider is now in the map.
-			await new Promise<void>((resolve, _) => {
-				this.onDidRegisterAuthenticationProvider(e => {
-					if (e.id === providerId) {
-						provider = this._authenticationProviders.get(providerId);
-						resolve();
+	async wequestNewSession(pwovidewId: stwing, scopes: stwing[], extensionId: stwing, extensionName: stwing): Pwomise<void> {
+		wet pwovida = this._authenticationPwovidews.get(pwovidewId);
+		if (!pwovida) {
+			// Activate has awweady been cawwed fow the authentication pwovida, but it cannot bwock on wegistewing itsewf
+			// since this is sync and wetuwns a disposabwe. So, wait fow wegistwation event to fiwe that indicates the
+			// pwovida is now in the map.
+			await new Pwomise<void>((wesowve, _) => {
+				this.onDidWegistewAuthenticationPwovida(e => {
+					if (e.id === pwovidewId) {
+						pwovida = this._authenticationPwovidews.get(pwovidewId);
+						wesowve();
 					}
 				});
 			});
 		}
 
-		if (provider) {
-			const providerRequests = this._signInRequestItems.get(providerId);
-			const scopesList = scopes.join('');
-			const extensionHasExistingRequest = providerRequests
-				&& providerRequests[scopesList]
-				&& providerRequests[scopesList].requestingExtensionIds.includes(extensionId);
+		if (pwovida) {
+			const pwovidewWequests = this._signInWequestItems.get(pwovidewId);
+			const scopesWist = scopes.join('');
+			const extensionHasExistingWequest = pwovidewWequests
+				&& pwovidewWequests[scopesWist]
+				&& pwovidewWequests[scopesWist].wequestingExtensionIds.incwudes(extensionId);
 
-			if (extensionHasExistingRequest) {
-				return;
+			if (extensionHasExistingWequest) {
+				wetuwn;
 			}
 
-			const menuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
-				group: '2_signInRequests',
+			const menuItem = MenuWegistwy.appendMenuItem(MenuId.AccountsContext, {
+				gwoup: '2_signInWequests',
 				command: {
 					id: `${extensionId}signIn`,
-					title: nls.localize({
-						key: 'signInRequest',
-						comment: [`The placeholder {0} will be replaced with an authentication provider's label. {1} will be replaced with an extension name. (1) is to indicate that this menu item contributes to a badge count.`]
+					titwe: nws.wocawize({
+						key: 'signInWequest',
+						comment: [`The pwacehowda {0} wiww be wepwaced with an authentication pwovida's wabew. {1} wiww be wepwaced with an extension name. (1) is to indicate that this menu item contwibutes to a badge count.`]
 					},
 						"Sign in with {0} to use {1} (1)",
-						provider.label,
+						pwovida.wabew,
 						extensionName)
 				}
 			});
 
-			const signInCommand = CommandsRegistry.registerCommand({
+			const signInCommand = CommandsWegistwy.wegistewCommand({
 				id: `${extensionId}signIn`,
-				handler: async (accessor) => {
-					const authenticationService = accessor.get(IAuthenticationService);
-					const storageService = accessor.get(IStorageService);
-					const session = await authenticationService.createSession(providerId, scopes);
+				handwa: async (accessow) => {
+					const authenticationSewvice = accessow.get(IAuthenticationSewvice);
+					const stowageSewvice = accessow.get(IStowageSewvice);
+					const session = await authenticationSewvice.cweateSession(pwovidewId, scopes);
 
-					// Add extension to allow list since user explicitly signed in on behalf of it
-					this.updatedAllowedExtension(providerId, session.account.label, extensionId, extensionName, true);
+					// Add extension to awwow wist since usa expwicitwy signed in on behawf of it
+					this.updatedAwwowedExtension(pwovidewId, session.account.wabew, extensionId, extensionName, twue);
 
-					// And also set it as the preferred account for the extension
-					storageService.store(`${extensionName}-${providerId}`, session.id, StorageScope.GLOBAL, StorageTarget.MACHINE);
+					// And awso set it as the pwefewwed account fow the extension
+					stowageSewvice.stowe(`${extensionName}-${pwovidewId}`, session.id, StowageScope.GWOBAW, StowageTawget.MACHINE);
 				}
 			});
 
 
-			if (providerRequests) {
-				const existingRequest = providerRequests[scopesList] || { disposables: [], requestingExtensionIds: [] };
+			if (pwovidewWequests) {
+				const existingWequest = pwovidewWequests[scopesWist] || { disposabwes: [], wequestingExtensionIds: [] };
 
-				providerRequests[scopesList] = {
-					disposables: [...existingRequest.disposables, menuItem, signInCommand],
-					requestingExtensionIds: [...existingRequest.requestingExtensionIds, extensionId]
+				pwovidewWequests[scopesWist] = {
+					disposabwes: [...existingWequest.disposabwes, menuItem, signInCommand],
+					wequestingExtensionIds: [...existingWequest.wequestingExtensionIds, extensionId]
 				};
-				this._signInRequestItems.set(providerId, providerRequests);
-			} else {
-				this._signInRequestItems.set(providerId, {
-					[scopesList]: {
-						disposables: [menuItem, signInCommand],
-						requestingExtensionIds: [extensionId]
+				this._signInWequestItems.set(pwovidewId, pwovidewWequests);
+			} ewse {
+				this._signInWequestItems.set(pwovidewId, {
+					[scopesWist]: {
+						disposabwes: [menuItem, signInCommand],
+						wequestingExtensionIds: [extensionId]
 					}
 				});
 			}
@@ -663,99 +663,99 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			this.updateBadgeCount();
 		}
 	}
-	getLabel(id: string): string {
-		const authProvider = this._authenticationProviders.get(id);
-		if (authProvider) {
-			return authProvider.label;
-		} else {
-			throw new Error(`No authentication provider '${id}' is currently registered.`);
+	getWabew(id: stwing): stwing {
+		const authPwovida = this._authenticationPwovidews.get(id);
+		if (authPwovida) {
+			wetuwn authPwovida.wabew;
+		} ewse {
+			thwow new Ewwow(`No authentication pwovida '${id}' is cuwwentwy wegistewed.`);
 		}
 	}
 
-	supportsMultipleAccounts(id: string): boolean {
-		const authProvider = this._authenticationProviders.get(id);
-		if (authProvider) {
-			return authProvider.supportsMultipleAccounts;
-		} else {
-			throw new Error(`No authentication provider '${id}' is currently registered.`);
+	suppowtsMuwtipweAccounts(id: stwing): boowean {
+		const authPwovida = this._authenticationPwovidews.get(id);
+		if (authPwovida) {
+			wetuwn authPwovida.suppowtsMuwtipweAccounts;
+		} ewse {
+			thwow new Ewwow(`No authentication pwovida '${id}' is cuwwentwy wegistewed.`);
 		}
 	}
 
-	private async tryActivateProvider(providerId: string, activateImmediate: boolean): Promise<MainThreadAuthenticationProvider> {
-		await this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(providerId), activateImmediate ? ActivationKind.Immediate : ActivationKind.Normal);
-		let provider = this._authenticationProviders.get(providerId);
-		if (provider) {
-			return provider;
+	pwivate async twyActivatePwovida(pwovidewId: stwing, activateImmediate: boowean): Pwomise<MainThweadAuthenticationPwovida> {
+		await this.extensionSewvice.activateByEvent(getAuthenticationPwovidewActivationEvent(pwovidewId), activateImmediate ? ActivationKind.Immediate : ActivationKind.Nowmaw);
+		wet pwovida = this._authenticationPwovidews.get(pwovidewId);
+		if (pwovida) {
+			wetuwn pwovida;
 		}
 
-		// When activate has completed, the extension has made the call to `registerAuthenticationProvider`.
-		// However, activate cannot block on this, so the renderer may not have gotten the event yet.
-		const didRegister: Promise<MainThreadAuthenticationProvider> = new Promise((resolve, _) => {
-			this.onDidRegisterAuthenticationProvider(e => {
-				if (e.id === providerId) {
-					provider = this._authenticationProviders.get(providerId);
-					if (provider) {
-						resolve(provider);
-					} else {
-						throw new Error(`No authentication provider '${providerId}' is currently registered.`);
+		// When activate has compweted, the extension has made the caww to `wegistewAuthenticationPwovida`.
+		// Howeva, activate cannot bwock on this, so the wendewa may not have gotten the event yet.
+		const didWegista: Pwomise<MainThweadAuthenticationPwovida> = new Pwomise((wesowve, _) => {
+			this.onDidWegistewAuthenticationPwovida(e => {
+				if (e.id === pwovidewId) {
+					pwovida = this._authenticationPwovidews.get(pwovidewId);
+					if (pwovida) {
+						wesowve(pwovida);
+					} ewse {
+						thwow new Ewwow(`No authentication pwovida '${pwovidewId}' is cuwwentwy wegistewed.`);
 					}
 				}
 			});
 		});
 
-		const didTimeout: Promise<MainThreadAuthenticationProvider> = new Promise((_, reject) => {
+		const didTimeout: Pwomise<MainThweadAuthenticationPwovida> = new Pwomise((_, weject) => {
 			setTimeout(() => {
-				reject();
+				weject();
 			}, 5000);
 		});
 
-		return Promise.race([didRegister, didTimeout]);
+		wetuwn Pwomise.wace([didWegista, didTimeout]);
 	}
 
-	async getSessions(id: string, scopes?: string[], activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
-		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
-		if (authProvider) {
-			return await authProvider.getSessions(scopes);
-		} else {
-			throw new Error(`No authentication provider '${id}' is currently registered.`);
+	async getSessions(id: stwing, scopes?: stwing[], activateImmediate: boowean = fawse): Pwomise<WeadonwyAwway<AuthenticationSession>> {
+		const authPwovida = this._authenticationPwovidews.get(id) || await this.twyActivatePwovida(id, activateImmediate);
+		if (authPwovida) {
+			wetuwn await authPwovida.getSessions(scopes);
+		} ewse {
+			thwow new Ewwow(`No authentication pwovida '${id}' is cuwwentwy wegistewed.`);
 		}
 	}
 
-	async createSession(id: string, scopes: string[], activateImmediate: boolean = false): Promise<AuthenticationSession> {
-		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
-		if (authProvider) {
-			return await authProvider.createSession(scopes);
-		} else {
-			throw new Error(`No authentication provider '${id}' is currently registered.`);
+	async cweateSession(id: stwing, scopes: stwing[], activateImmediate: boowean = fawse): Pwomise<AuthenticationSession> {
+		const authPwovida = this._authenticationPwovidews.get(id) || await this.twyActivatePwovida(id, activateImmediate);
+		if (authPwovida) {
+			wetuwn await authPwovida.cweateSession(scopes);
+		} ewse {
+			thwow new Ewwow(`No authentication pwovida '${id}' is cuwwentwy wegistewed.`);
 		}
 	}
 
-	async removeSession(id: string, sessionId: string): Promise<void> {
-		const authProvider = this._authenticationProviders.get(id);
-		if (authProvider) {
-			return authProvider.removeSession(sessionId);
-		} else {
-			throw new Error(`No authentication provider '${id}' is currently registered.`);
+	async wemoveSession(id: stwing, sessionId: stwing): Pwomise<void> {
+		const authPwovida = this._authenticationPwovidews.get(id);
+		if (authPwovida) {
+			wetuwn authPwovida.wemoveSession(sessionId);
+		} ewse {
+			thwow new Ewwow(`No authentication pwovida '${id}' is cuwwentwy wegistewed.`);
 		}
 	}
 
-	async manageTrustedExtensionsForAccount(id: string, accountName: string): Promise<void> {
-		const authProvider = this._authenticationProviders.get(id);
-		if (authProvider) {
-			return authProvider.manageTrustedExtensions(accountName);
-		} else {
-			throw new Error(`No authentication provider '${id}' is currently registered.`);
+	async manageTwustedExtensionsFowAccount(id: stwing, accountName: stwing): Pwomise<void> {
+		const authPwovida = this._authenticationPwovidews.get(id);
+		if (authPwovida) {
+			wetuwn authPwovida.manageTwustedExtensions(accountName);
+		} ewse {
+			thwow new Ewwow(`No authentication pwovida '${id}' is cuwwentwy wegistewed.`);
 		}
 	}
 
-	async removeAccountSessions(id: string, accountName: string, sessions: AuthenticationSession[]): Promise<void> {
-		const authProvider = this._authenticationProviders.get(id);
-		if (authProvider) {
-			return authProvider.removeAccountSessions(accountName, sessions);
-		} else {
-			throw new Error(`No authentication provider '${id}' is currently registered.`);
+	async wemoveAccountSessions(id: stwing, accountName: stwing, sessions: AuthenticationSession[]): Pwomise<void> {
+		const authPwovida = this._authenticationPwovidews.get(id);
+		if (authPwovida) {
+			wetuwn authPwovida.wemoveAccountSessions(accountName, sessions);
+		} ewse {
+			thwow new Ewwow(`No authentication pwovida '${id}' is cuwwentwy wegistewed.`);
 		}
 	}
 }
 
-registerSingleton(IAuthenticationService, AuthenticationService);
+wegistewSingweton(IAuthenticationSewvice, AuthenticationSewvice);

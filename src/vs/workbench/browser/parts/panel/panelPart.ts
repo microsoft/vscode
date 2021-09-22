@@ -1,966 +1,966 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/panelpart';
-import { localize } from 'vs/nls';
-import { IAction, Separator, toAction } from 'vs/base/common/actions';
-import { Event } from 'vs/base/common/event';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ActivePanelContext, PanelFocusContext } from 'vs/workbench/common/panel';
-import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/compositePart';
-import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { PanelActivityAction, TogglePanelAction, PlaceHolderPanelActivityAction, PlaceHolderToggleCompositePinnedAction, PositionPanelActionConfigs, SetPanelPositionAction } from 'vs/workbench/browser/parts/panel/panelActions';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_INPUT_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
-import { activeContrastBorder, focusBorder, contrastBorder, editorBackground, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
-import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
-import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
-import { IBadge } from 'vs/workbench/services/activity/common/activity';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Dimension, trackFocus, EventHelper, $ } from 'vs/base/browser/dom';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ViewContainer, IViewDescriptorService, IViewContainerModel, ViewContainerLocation, getEnabledViewContainerContextKey } from 'vs/workbench/common/views';
-import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { Before2D, CompositeDragAndDropObserver, ICompositeDragAndDrop, toggleDropEffect } from 'vs/workbench/browser/dnd';
-import { IActivity } from 'vs/workbench/common/activity';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { Extensions as PaneCompositeExtensions, PaneComposite, PaneCompositeDescriptor, PaneCompositeRegistry } from 'vs/workbench/browser/panecomposite';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { CompositeMenuActions } from 'vs/workbench/browser/actions';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IComposite } from 'vs/workbench/common/composite';
-import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/browser/parts/paneCompositePart';
+impowt 'vs/css!./media/panewpawt';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IAction, Sepawatow, toAction } fwom 'vs/base/common/actions';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { ActionsOwientation, pwepaweActions } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { ActivePanewContext, PanewFocusContext } fwom 'vs/wowkbench/common/panew';
+impowt { CompositePawt, ICompositeTitweWabew } fwom 'vs/wowkbench/bwowsa/pawts/compositePawt';
+impowt { IWowkbenchWayoutSewvice, Pawts, Position } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { IStowageSewvice, StowageScope, IStowageVawueChangeEvent, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { PanewActivityAction, ToggwePanewAction, PwaceHowdewPanewActivityAction, PwaceHowdewToggweCompositePinnedAction, PositionPanewActionConfigs, SetPanewPositionAction } fwom 'vs/wowkbench/bwowsa/pawts/panew/panewActions';
+impowt { IThemeSewvice, wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { PANEW_BACKGWOUND, PANEW_BOWDa, PANEW_ACTIVE_TITWE_FOWEGWOUND, PANEW_INACTIVE_TITWE_FOWEGWOUND, PANEW_ACTIVE_TITWE_BOWDa, PANEW_INPUT_BOWDa, EDITOW_DWAG_AND_DWOP_BACKGWOUND, PANEW_DWAG_AND_DWOP_BOWDa } fwom 'vs/wowkbench/common/theme';
+impowt { activeContwastBowda, focusBowda, contwastBowda, editowBackgwound, badgeBackgwound, badgeFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { CompositeBaw, ICompositeBawItem, CompositeDwagAndDwop } fwom 'vs/wowkbench/bwowsa/pawts/compositeBaw';
+impowt { ToggweCompositePinnedAction } fwom 'vs/wowkbench/bwowsa/pawts/compositeBawActions';
+impowt { IBadge } fwom 'vs/wowkbench/sewvices/activity/common/activity';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { Dimension, twackFocus, EventHewpa, $ } fwom 'vs/base/bwowsa/dom';
+impowt { IDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IContextKey, IContextKeySewvice, ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { isUndefinedOwNuww, assewtIsDefined } fwom 'vs/base/common/types';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { ViewContaina, IViewDescwiptowSewvice, IViewContainewModew, ViewContainewWocation, getEnabwedViewContainewContextKey } fwom 'vs/wowkbench/common/views';
+impowt { IPaneComposite } fwom 'vs/wowkbench/common/panecomposite';
+impowt { Befowe2D, CompositeDwagAndDwopObsewva, ICompositeDwagAndDwop, toggweDwopEffect } fwom 'vs/wowkbench/bwowsa/dnd';
+impowt { IActivity } fwom 'vs/wowkbench/common/activity';
+impowt { HovewPosition } fwom 'vs/base/bwowsa/ui/hova/hovewWidget';
+impowt { Extensions as PaneCompositeExtensions, PaneComposite, PaneCompositeDescwiptow, PaneCompositeWegistwy } fwom 'vs/wowkbench/bwowsa/panecomposite';
+impowt { ToowBaw } fwom 'vs/base/bwowsa/ui/toowbaw/toowbaw';
+impowt { CompositeMenuActions } fwom 'vs/wowkbench/bwowsa/actions';
+impowt { MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IComposite } fwom 'vs/wowkbench/common/composite';
+impowt { IPaneCompositePawt, IPaneCompositeSewectowPawt } fwom 'vs/wowkbench/bwowsa/pawts/paneCompositePawt';
 
-interface ICachedPanel {
-	id: string;
-	name?: string;
-	pinned: boolean;
-	order?: number;
-	visible: boolean;
-	views?: { when?: string; }[];
+intewface ICachedPanew {
+	id: stwing;
+	name?: stwing;
+	pinned: boowean;
+	owda?: numba;
+	visibwe: boowean;
+	views?: { when?: stwing; }[];
 }
 
-interface IPlaceholderViewContainer {
-	id: string;
-	name?: string;
+intewface IPwacehowdewViewContaina {
+	id: stwing;
+	name?: stwing;
 }
 
-export abstract class BasePanelPart extends CompositePart<PaneComposite> implements IPaneCompositePart, IPaneCompositeSelectorPart {
-	private static readonly MIN_COMPOSITE_BAR_WIDTH = 50;
+expowt abstwact cwass BasePanewPawt extends CompositePawt<PaneComposite> impwements IPaneCompositePawt, IPaneCompositeSewectowPawt {
+	pwivate static weadonwy MIN_COMPOSITE_BAW_WIDTH = 50;
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	//#region IView
+	//#wegion IView
 
-	readonly minimumWidth: number = 300;
-	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
-	readonly minimumHeight: number = 77;
-	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
+	weadonwy minimumWidth: numba = 300;
+	weadonwy maximumWidth: numba = Numba.POSITIVE_INFINITY;
+	weadonwy minimumHeight: numba = 77;
+	weadonwy maximumHeight: numba = Numba.POSITIVE_INFINITY;
 
-	readonly snap = true;
+	weadonwy snap = twue;
 
-	get preferredHeight(): number | undefined {
-		// Don't worry about titlebar or statusbar visibility
-		// The difference is minimal and keeps this function clean
-		return this.layoutService.dimension.height * 0.4;
+	get pwefewwedHeight(): numba | undefined {
+		// Don't wowwy about titwebaw ow statusbaw visibiwity
+		// The diffewence is minimaw and keeps this function cwean
+		wetuwn this.wayoutSewvice.dimension.height * 0.4;
 	}
 
-	get preferredWidth(): number | undefined {
-		return this.layoutService.dimension.width * 0.4;
+	get pwefewwedWidth(): numba | undefined {
+		wetuwn this.wayoutSewvice.dimension.width * 0.4;
 	}
 
-	//#endregion
+	//#endwegion
 
-	get onDidPaneCompositeOpen(): Event<IPaneComposite> { return Event.map(this.onDidCompositeOpen.event, compositeEvent => <IPaneComposite>compositeEvent.composite); }
-	readonly onDidPaneCompositeClose = this.onDidCompositeClose.event as Event<IPaneComposite>;
+	get onDidPaneCompositeOpen(): Event<IPaneComposite> { wetuwn Event.map(this.onDidCompositeOpen.event, compositeEvent => <IPaneComposite>compositeEvent.composite); }
+	weadonwy onDidPaneCompositeCwose = this.onDidCompositeCwose.event as Event<IPaneComposite>;
 
-	private compositeBar: CompositeBar;
-	private readonly compositeActions = new Map<string, { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction; }>();
+	pwivate compositeBaw: CompositeBaw;
+	pwivate weadonwy compositeActions = new Map<stwing, { activityAction: PanewActivityAction, pinnedAction: ToggweCompositePinnedAction; }>();
 
-	private readonly panelDisposables: Map<string, IDisposable> = new Map<string, IDisposable>();
+	pwivate weadonwy panewDisposabwes: Map<stwing, IDisposabwe> = new Map<stwing, IDisposabwe>();
 
-	private blockOpeningPanel = false;
-	private contentDimension: Dimension | undefined;
+	pwivate bwockOpeningPanew = fawse;
+	pwivate contentDimension: Dimension | undefined;
 
-	private extensionsRegistered = false;
+	pwivate extensionsWegistewed = fawse;
 
-	private panelRegistry: PaneCompositeRegistry;
+	pwivate panewWegistwy: PaneCompositeWegistwy;
 
-	private dndHandler: ICompositeDragAndDrop;
+	pwivate dndHandwa: ICompositeDwagAndDwop;
 
-	private readonly enabledViewContainersContextKeys: Map<string, IContextKey<boolean>> = new Map<string, IContextKey<boolean>>();
+	pwivate weadonwy enabwedViewContainewsContextKeys: Map<stwing, IContextKey<boowean>> = new Map<stwing, IContextKey<boowean>>();
 
-	constructor(
-		private readonly partId: Parts.PANEL_PART | Parts.AUXILIARYBAR_PART,
-		activePanelSettingsKey: string,
-		protected readonly pinnedPanelsKey: string,
-		protected readonly placeholdeViewContainersKey: string,
-		panelRegistryId: string,
-		private readonly backgroundColor: string,
-		private readonly viewContainerLocation: ViewContainerLocation,
-		private readonly activePanelContextKey: IContextKey<string>,
-		private panelFocusContextKey: IContextKey<boolean>,
-		@INotificationService notificationService: INotificationService,
-		@IStorageService storageService: IStorageService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IExtensionService private readonly extensionService: IExtensionService,
+	constwuctow(
+		pwivate weadonwy pawtId: Pawts.PANEW_PAWT | Pawts.AUXIWIAWYBAW_PAWT,
+		activePanewSettingsKey: stwing,
+		pwotected weadonwy pinnedPanewsKey: stwing,
+		pwotected weadonwy pwacehowdeViewContainewsKey: stwing,
+		panewWegistwyId: stwing,
+		pwivate weadonwy backgwoundCowow: stwing,
+		pwivate weadonwy viewContainewWocation: ViewContainewWocation,
+		pwivate weadonwy activePanewContextKey: IContextKey<stwing>,
+		pwivate panewFocusContextKey: IContextKey<boowean>,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IWowkbenchWayoutSewvice wayoutSewvice: IWowkbenchWayoutSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IViewDescwiptowSewvice pwivate weadonwy viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice,
 	) {
-		super(
-			notificationService,
-			storageService,
-			telemetryService,
-			contextMenuService,
-			layoutService,
-			keybindingService,
-			instantiationService,
-			themeService,
-			Registry.as<PaneCompositeRegistry>(panelRegistryId),
-			activePanelSettingsKey,
-			viewDescriptorService.getDefaultViewContainer(viewContainerLocation)?.id || '',
-			'panel',
-			'panel',
+		supa(
+			notificationSewvice,
+			stowageSewvice,
+			tewemetwySewvice,
+			contextMenuSewvice,
+			wayoutSewvice,
+			keybindingSewvice,
+			instantiationSewvice,
+			themeSewvice,
+			Wegistwy.as<PaneCompositeWegistwy>(panewWegistwyId),
+			activePanewSettingsKey,
+			viewDescwiptowSewvice.getDefauwtViewContaina(viewContainewWocation)?.id || '',
+			'panew',
+			'panew',
 			undefined,
-			partId,
-			{ hasTitle: true }
+			pawtId,
+			{ hasTitwe: twue }
 		);
 
-		this.panelRegistry = Registry.as<PaneCompositeRegistry>(panelRegistryId);
+		this.panewWegistwy = Wegistwy.as<PaneCompositeWegistwy>(panewWegistwyId);
 
-		this.dndHandler = new CompositeDragAndDrop(this.viewDescriptorService, this.viewContainerLocation,
-			(id: string, focus?: boolean) => (this.openPaneComposite(id, focus) as Promise<IPaneComposite | undefined>).then(panel => panel || null),
-			(from: string, to: string, before?: Before2D) => this.compositeBar.move(from, to, before?.horizontallyBefore),
-			() => this.compositeBar.getCompositeBarItems()
+		this.dndHandwa = new CompositeDwagAndDwop(this.viewDescwiptowSewvice, this.viewContainewWocation,
+			(id: stwing, focus?: boowean) => (this.openPaneComposite(id, focus) as Pwomise<IPaneComposite | undefined>).then(panew => panew || nuww),
+			(fwom: stwing, to: stwing, befowe?: Befowe2D) => this.compositeBaw.move(fwom, to, befowe?.howizontawwyBefowe),
+			() => this.compositeBaw.getCompositeBawItems()
 		);
 
-		this.compositeBar = this._register(this.instantiationService.createInstance(CompositeBar, this.getCachedPanels(), {
-			icon: false,
-			orientation: ActionsOrientation.HORIZONTAL,
-			activityHoverOptions: {
-				position: () => this.layoutService.getPanelPosition() === Position.BOTTOM && !this.layoutService.isPanelMaximized() ? HoverPosition.ABOVE : HoverPosition.BELOW,
+		this.compositeBaw = this._wegista(this.instantiationSewvice.cweateInstance(CompositeBaw, this.getCachedPanews(), {
+			icon: fawse,
+			owientation: ActionsOwientation.HOWIZONTAW,
+			activityHovewOptions: {
+				position: () => this.wayoutSewvice.getPanewPosition() === Position.BOTTOM && !this.wayoutSewvice.isPanewMaximized() ? HovewPosition.ABOVE : HovewPosition.BEWOW,
 			},
-			openComposite: (compositeId, preserveFocus) => this.openPaneComposite(compositeId, !preserveFocus).then(panel => panel || null),
+			openComposite: (compositeId, pwesewveFocus) => this.openPaneComposite(compositeId, !pwesewveFocus).then(panew => panew || nuww),
 			getActivityAction: compositeId => this.getCompositeActions(compositeId).activityAction,
 			getCompositePinnedAction: compositeId => this.getCompositeActions(compositeId).pinnedAction,
-			getOnCompositeClickAction: compositeId => this.instantiationService.createInstance(PanelActivityAction, assertIsDefined(this.getPaneComposite(compositeId)), this.viewContainerLocation),
-			fillExtraContextMenuActions: actions => {
+			getOnCompositeCwickAction: compositeId => this.instantiationSewvice.cweateInstance(PanewActivityAction, assewtIsDefined(this.getPaneComposite(compositeId)), this.viewContainewWocation),
+			fiwwExtwaContextMenuActions: actions => {
 				actions.push(...[
-					new Separator(),
-					...PositionPanelActionConfigs
-						// show the contextual menu item if it is not in that position
-						.filter(({ when }) => contextKeyService.contextMatchesRules(when))
-						.map(({ id, label }) => this.instantiationService.createInstance(SetPanelPositionAction, id, label)),
-					this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, localize('hidePanel', "Hide Panel"))
+					new Sepawatow(),
+					...PositionPanewActionConfigs
+						// show the contextuaw menu item if it is not in that position
+						.fiwta(({ when }) => contextKeySewvice.contextMatchesWuwes(when))
+						.map(({ id, wabew }) => this.instantiationSewvice.cweateInstance(SetPanewPositionAction, id, wabew)),
+					this.instantiationSewvice.cweateInstance(ToggwePanewAction, ToggwePanewAction.ID, wocawize('hidePanew', "Hide Panew"))
 				]);
 			},
-			getContextMenuActionsForComposite: compositeId => this.getContextMenuActionsForComposite(compositeId),
-			getDefaultCompositeId: () => viewDescriptorService.getDefaultViewContainer(this.viewContainerLocation)!.id,
-			hidePart: () => this.layoutService.setPartHidden(true, this.partId),
-			dndHandler: this.dndHandler,
+			getContextMenuActionsFowComposite: compositeId => this.getContextMenuActionsFowComposite(compositeId),
+			getDefauwtCompositeId: () => viewDescwiptowSewvice.getDefauwtViewContaina(this.viewContainewWocation)!.id,
+			hidePawt: () => this.wayoutSewvice.setPawtHidden(twue, this.pawtId),
+			dndHandwa: this.dndHandwa,
 			compositeSize: 0,
-			overflowActionSize: 44,
-			colors: theme => ({
-				activeBackgroundColor: theme.getColor(this.backgroundColor), // Background color for overflow action
-				inactiveBackgroundColor: theme.getColor(this.backgroundColor), // Background color for overflow action
-				activeBorderBottomColor: theme.getColor(PANEL_ACTIVE_TITLE_BORDER),
-				activeForegroundColor: theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND),
-				inactiveForegroundColor: theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND),
-				badgeBackground: theme.getColor(badgeBackground),
-				badgeForeground: theme.getColor(badgeForeground),
-				dragAndDropBorder: theme.getColor(PANEL_DRAG_AND_DROP_BORDER)
+			ovewfwowActionSize: 44,
+			cowows: theme => ({
+				activeBackgwoundCowow: theme.getCowow(this.backgwoundCowow), // Backgwound cowow fow ovewfwow action
+				inactiveBackgwoundCowow: theme.getCowow(this.backgwoundCowow), // Backgwound cowow fow ovewfwow action
+				activeBowdewBottomCowow: theme.getCowow(PANEW_ACTIVE_TITWE_BOWDa),
+				activeFowegwoundCowow: theme.getCowow(PANEW_ACTIVE_TITWE_FOWEGWOUND),
+				inactiveFowegwoundCowow: theme.getCowow(PANEW_INACTIVE_TITWE_FOWEGWOUND),
+				badgeBackgwound: theme.getCowow(badgeBackgwound),
+				badgeFowegwound: theme.getCowow(badgeFowegwound),
+				dwagAndDwopBowda: theme.getCowow(PANEW_DWAG_AND_DWOP_BOWDa)
 			})
 		}));
 
-		this.registerListeners();
-		this.onDidRegisterPanels([...this.getPaneComposites()]);
+		this.wegistewWistenews();
+		this.onDidWegistewPanews([...this.getPaneComposites()]);
 	}
 
-	private getContextMenuActionsForComposite(compositeId: string): IAction[] {
-		const result: IAction[] = [];
-		const viewContainer = this.viewDescriptorService.getViewContainerById(compositeId)!;
-		const defaultLocation = this.viewDescriptorService.getDefaultViewContainerLocation(viewContainer)!;
-		if (defaultLocation !== this.viewDescriptorService.getViewContainerLocation(viewContainer)) {
-			result.push(toAction({ id: 'resetLocationAction', label: localize('resetLocation', "Reset Location"), run: () => this.viewDescriptorService.moveViewContainerToLocation(viewContainer, defaultLocation) }));
-		} else {
-			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-			if (viewContainerModel.allViewDescriptors.length === 1) {
-				const viewToReset = viewContainerModel.allViewDescriptors[0];
-				const defaultContainer = this.viewDescriptorService.getDefaultContainerById(viewToReset.id)!;
-				if (defaultContainer !== viewContainer) {
-					result.push(toAction({ id: 'resetLocationAction', label: localize('resetLocation', "Reset Location"), run: () => this.viewDescriptorService.moveViewsToContainer([viewToReset], defaultContainer) }));
+	pwivate getContextMenuActionsFowComposite(compositeId: stwing): IAction[] {
+		const wesuwt: IAction[] = [];
+		const viewContaina = this.viewDescwiptowSewvice.getViewContainewById(compositeId)!;
+		const defauwtWocation = this.viewDescwiptowSewvice.getDefauwtViewContainewWocation(viewContaina)!;
+		if (defauwtWocation !== this.viewDescwiptowSewvice.getViewContainewWocation(viewContaina)) {
+			wesuwt.push(toAction({ id: 'wesetWocationAction', wabew: wocawize('wesetWocation', "Weset Wocation"), wun: () => this.viewDescwiptowSewvice.moveViewContainewToWocation(viewContaina, defauwtWocation) }));
+		} ewse {
+			const viewContainewModew = this.viewDescwiptowSewvice.getViewContainewModew(viewContaina);
+			if (viewContainewModew.awwViewDescwiptows.wength === 1) {
+				const viewToWeset = viewContainewModew.awwViewDescwiptows[0];
+				const defauwtContaina = this.viewDescwiptowSewvice.getDefauwtContainewById(viewToWeset.id)!;
+				if (defauwtContaina !== viewContaina) {
+					wesuwt.push(toAction({ id: 'wesetWocationAction', wabew: wocawize('wesetWocation', "Weset Wocation"), wun: () => this.viewDescwiptowSewvice.moveViewsToContaina([viewToWeset], defauwtContaina) }));
 				}
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private onDidRegisterPanels(panels: PaneCompositeDescriptor[]): void {
-		const cachedPanels = this.getCachedPanels();
-		for (const panel of panels) {
-			const cachedPanel = cachedPanels.filter(({ id }) => id === panel.id)[0];
-			const activePanel = this.getActivePaneComposite();
+	pwivate onDidWegistewPanews(panews: PaneCompositeDescwiptow[]): void {
+		const cachedPanews = this.getCachedPanews();
+		fow (const panew of panews) {
+			const cachedPanew = cachedPanews.fiwta(({ id }) => id === panew.id)[0];
+			const activePanew = this.getActivePaneComposite();
 			const isActive =
-				activePanel?.getId() === panel.id ||
-				(!activePanel && this.getLastActivePaneCompositeId() === panel.id) ||
-				(this.extensionsRegistered && this.compositeBar.getVisibleComposites().length === 0);
+				activePanew?.getId() === panew.id ||
+				(!activePanew && this.getWastActivePaneCompositeId() === panew.id) ||
+				(this.extensionsWegistewed && this.compositeBaw.getVisibweComposites().wength === 0);
 
-			if (isActive || !this.shouldBeHidden(panel.id, cachedPanel)) {
+			if (isActive || !this.shouwdBeHidden(panew.id, cachedPanew)) {
 
-				// Override order
-				const newPanel = {
-					id: panel.id,
-					name: panel.name,
-					order: panel.order,
-					requestedIndex: panel.requestedIndex
+				// Ovewwide owda
+				const newPanew = {
+					id: panew.id,
+					name: panew.name,
+					owda: panew.owda,
+					wequestedIndex: panew.wequestedIndex
 				};
 
-				this.compositeBar.addComposite(newPanel);
+				this.compositeBaw.addComposite(newPanew);
 
-				// Pin it by default if it is new
-				if (!cachedPanel) {
-					this.compositeBar.pin(panel.id);
+				// Pin it by defauwt if it is new
+				if (!cachedPanew) {
+					this.compositeBaw.pin(panew.id);
 				}
 
 				if (isActive) {
-					// Only try to open the panel if it has been created and visible
-					if (!activePanel && this.element && this.layoutService.isVisible(this.partId)) {
-						this.doOpenPanel(panel.id);
+					// Onwy twy to open the panew if it has been cweated and visibwe
+					if (!activePanew && this.ewement && this.wayoutSewvice.isVisibwe(this.pawtId)) {
+						this.doOpenPanew(panew.id);
 					}
 
-					this.compositeBar.activateComposite(panel.id);
+					this.compositeBaw.activateComposite(panew.id);
 				}
 			}
 		}
 
-		for (const panel of panels) {
-			const viewContainer = this.getViewContainer(panel.id)!;
-			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-			this.updateActivity(viewContainer, viewContainerModel);
-			this.showOrHideViewContainer(viewContainer, viewContainerModel);
+		fow (const panew of panews) {
+			const viewContaina = this.getViewContaina(panew.id)!;
+			const viewContainewModew = this.viewDescwiptowSewvice.getViewContainewModew(viewContaina);
+			this.updateActivity(viewContaina, viewContainewModew);
+			this.showOwHideViewContaina(viewContaina, viewContainewModew);
 
-			const disposables = new DisposableStore();
-			disposables.add(viewContainerModel.onDidChangeActiveViewDescriptors(() => this.showOrHideViewContainer(viewContainer, viewContainerModel)));
-			disposables.add(viewContainerModel.onDidChangeContainerInfo(() => this.updateActivity(viewContainer, viewContainerModel)));
+			const disposabwes = new DisposabweStowe();
+			disposabwes.add(viewContainewModew.onDidChangeActiveViewDescwiptows(() => this.showOwHideViewContaina(viewContaina, viewContainewModew)));
+			disposabwes.add(viewContainewModew.onDidChangeContainewInfo(() => this.updateActivity(viewContaina, viewContainewModew)));
 
-			this.panelDisposables.set(panel.id, disposables);
+			this.panewDisposabwes.set(panew.id, disposabwes);
 		}
 	}
 
-	private async onDidDeregisterPanel(panelId: string): Promise<void> {
-		const disposable = this.panelDisposables.get(panelId);
-		if (disposable) {
-			disposable.dispose();
+	pwivate async onDidDewegistewPanew(panewId: stwing): Pwomise<void> {
+		const disposabwe = this.panewDisposabwes.get(panewId);
+		if (disposabwe) {
+			disposabwe.dispose();
 		}
-		this.panelDisposables.delete(panelId);
+		this.panewDisposabwes.dewete(panewId);
 
-		const activeContainers = this.viewDescriptorService.getViewContainersByLocation(this.viewContainerLocation)
-			.filter(container => this.viewDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0);
+		const activeContainews = this.viewDescwiptowSewvice.getViewContainewsByWocation(this.viewContainewWocation)
+			.fiwta(containa => this.viewDescwiptowSewvice.getViewContainewModew(containa).activeViewDescwiptows.wength > 0);
 
-		if (activeContainers.length) {
-			if (this.getActivePaneComposite()?.getId() === panelId) {
-				const defaultPanelId = this.viewDescriptorService.getDefaultViewContainer(this.viewContainerLocation)!.id;
-				const containerToOpen = activeContainers.filter(c => c.id === defaultPanelId)[0] || activeContainers[0];
-				await this.openPaneComposite(containerToOpen.id);
+		if (activeContainews.wength) {
+			if (this.getActivePaneComposite()?.getId() === panewId) {
+				const defauwtPanewId = this.viewDescwiptowSewvice.getDefauwtViewContaina(this.viewContainewWocation)!.id;
+				const containewToOpen = activeContainews.fiwta(c => c.id === defauwtPanewId)[0] || activeContainews[0];
+				await this.openPaneComposite(containewToOpen.id);
 			}
-		} else {
-			this.layoutService.setPartHidden(true, this.partId);
+		} ewse {
+			this.wayoutSewvice.setPawtHidden(twue, this.pawtId);
 		}
 
-		this.removeComposite(panelId);
+		this.wemoveComposite(panewId);
 	}
 
-	private updateActivity(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
-		const cachedTitle = this.getPlaceholderViewContainers().filter(panel => panel.id === viewContainer.id)[0]?.name;
+	pwivate updateActivity(viewContaina: ViewContaina, viewContainewModew: IViewContainewModew): void {
+		const cachedTitwe = this.getPwacehowdewViewContainews().fiwta(panew => panew.id === viewContaina.id)[0]?.name;
 
 		const activity: IActivity = {
-			id: viewContainer.id,
-			name: this.extensionsRegistered || cachedTitle === undefined ? viewContainerModel.title : cachedTitle,
-			keybindingId: viewContainerModel.keybindingId
+			id: viewContaina.id,
+			name: this.extensionsWegistewed || cachedTitwe === undefined ? viewContainewModew.titwe : cachedTitwe,
+			keybindingId: viewContainewModew.keybindingId
 		};
 
-		const { activityAction, pinnedAction } = this.getCompositeActions(viewContainer.id);
+		const { activityAction, pinnedAction } = this.getCompositeActions(viewContaina.id);
 		activityAction.setActivity(activity);
 
-		if (pinnedAction instanceof PlaceHolderToggleCompositePinnedAction) {
+		if (pinnedAction instanceof PwaceHowdewToggweCompositePinnedAction) {
 			pinnedAction.setActivity(activity);
 		}
 
-		// only update our cached panel info after extensions are done registering
-		if (this.extensionsRegistered) {
-			this.saveCachedPanels();
+		// onwy update ouw cached panew info afta extensions awe done wegistewing
+		if (this.extensionsWegistewed) {
+			this.saveCachedPanews();
 		}
 	}
 
-	private showOrHideViewContainer(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
-		let contextKey = this.enabledViewContainersContextKeys.get(viewContainer.id);
+	pwivate showOwHideViewContaina(viewContaina: ViewContaina, viewContainewModew: IViewContainewModew): void {
+		wet contextKey = this.enabwedViewContainewsContextKeys.get(viewContaina.id);
 		if (!contextKey) {
-			contextKey = this.contextKeyService.createKey(getEnabledViewContainerContextKey(viewContainer.id), false);
-			this.enabledViewContainersContextKeys.set(viewContainer.id, contextKey);
+			contextKey = this.contextKeySewvice.cweateKey(getEnabwedViewContainewContextKey(viewContaina.id), fawse);
+			this.enabwedViewContainewsContextKeys.set(viewContaina.id, contextKey);
 		}
-		if (viewContainerModel.activeViewDescriptors.length) {
-			contextKey.set(true);
-			this.compositeBar.addComposite({ id: viewContainer.id, name: viewContainer.title, order: viewContainer.order, requestedIndex: viewContainer.requestedIndex });
-		} else if (viewContainer.hideIfEmpty) {
-			contextKey.set(false);
-			this.hideComposite(viewContainer.id);
+		if (viewContainewModew.activeViewDescwiptows.wength) {
+			contextKey.set(twue);
+			this.compositeBaw.addComposite({ id: viewContaina.id, name: viewContaina.titwe, owda: viewContaina.owda, wequestedIndex: viewContaina.wequestedIndex });
+		} ewse if (viewContaina.hideIfEmpty) {
+			contextKey.set(fawse);
+			this.hideComposite(viewContaina.id);
 		}
 	}
 
-	private shouldBeHidden(panelId: string, cachedPanel?: ICachedPanel): boolean {
-		const viewContainer = this.getViewContainer(panelId);
-		if (!viewContainer || !viewContainer.hideIfEmpty) {
-			return false;
+	pwivate shouwdBeHidden(panewId: stwing, cachedPanew?: ICachedPanew): boowean {
+		const viewContaina = this.getViewContaina(panewId);
+		if (!viewContaina || !viewContaina.hideIfEmpty) {
+			wetuwn fawse;
 		}
 
-		return cachedPanel?.views && cachedPanel.views.length
-			? cachedPanel.views.every(({ when }) => !!when && !this.contextKeyService.contextMatchesRules(ContextKeyExpr.deserialize(when)))
-			: false;
+		wetuwn cachedPanew?.views && cachedPanew.views.wength
+			? cachedPanew.views.evewy(({ when }) => !!when && !this.contextKeySewvice.contextMatchesWuwes(ContextKeyExpw.desewiawize(when)))
+			: fawse;
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Panel registration
-		this._register(this.registry.onDidRegister(panel => this.onDidRegisterPanels([panel])));
-		this._register(this.registry.onDidDeregister(panel => this.onDidDeregisterPanel(panel.id)));
+		// Panew wegistwation
+		this._wegista(this.wegistwy.onDidWegista(panew => this.onDidWegistewPanews([panew])));
+		this._wegista(this.wegistwy.onDidDewegista(panew => this.onDidDewegistewPanew(panew.id)));
 
-		// Activate on panel open
-		this._register(this.onDidPaneCompositeOpen(panel => this.onPanelOpen(panel)));
+		// Activate on panew open
+		this._wegista(this.onDidPaneCompositeOpen(panew => this.onPanewOpen(panew)));
 
-		// Deactivate on panel close
-		this._register(this.onDidPaneCompositeClose(this.onPanelClose, this));
+		// Deactivate on panew cwose
+		this._wegista(this.onDidPaneCompositeCwose(this.onPanewCwose, this));
 
-		// Extension registration
-		let disposables = this._register(new DisposableStore());
-		this._register(this.extensionService.onDidRegisterExtensions(() => {
-			disposables.clear();
-			this.onDidRegisterExtensions();
-			this.compositeBar.onDidChange(() => this.saveCachedPanels(), this, disposables);
-			this.storageService.onDidChangeValue(e => this.onDidStorageValueChange(e), this, disposables);
+		// Extension wegistwation
+		wet disposabwes = this._wegista(new DisposabweStowe());
+		this._wegista(this.extensionSewvice.onDidWegistewExtensions(() => {
+			disposabwes.cweaw();
+			this.onDidWegistewExtensions();
+			this.compositeBaw.onDidChange(() => this.saveCachedPanews(), this, disposabwes);
+			this.stowageSewvice.onDidChangeVawue(e => this.onDidStowageVawueChange(e), this, disposabwes);
 		}));
 
 	}
 
-	private onDidRegisterExtensions(): void {
-		this.extensionsRegistered = true;
-		this.removeNotExistingComposites();
+	pwivate onDidWegistewExtensions(): void {
+		this.extensionsWegistewed = twue;
+		this.wemoveNotExistingComposites();
 
-		this.saveCachedPanels();
+		this.saveCachedPanews();
 	}
 
-	private removeNotExistingComposites(): void {
-		const panels = this.getPaneComposites();
-		for (const { id } of this.getCachedPanels()) { // should this value match viewlet (load on ctor)
-			if (panels.every(panel => panel.id !== id)) {
+	pwivate wemoveNotExistingComposites(): void {
+		const panews = this.getPaneComposites();
+		fow (const { id } of this.getCachedPanews()) { // shouwd this vawue match viewwet (woad on ctow)
+			if (panews.evewy(panew => panew.id !== id)) {
 				this.hideComposite(id);
 			}
 		}
 	}
 
-	private hideComposite(compositeId: string): void {
-		this.compositeBar.hideComposite(compositeId);
+	pwivate hideComposite(compositeId: stwing): void {
+		this.compositeBaw.hideComposite(compositeId);
 
 		const compositeActions = this.compositeActions.get(compositeId);
 		if (compositeActions) {
 			compositeActions.activityAction.dispose();
 			compositeActions.pinnedAction.dispose();
-			this.compositeActions.delete(compositeId);
+			this.compositeActions.dewete(compositeId);
 		}
 	}
 
-	private onPanelOpen(panel: IComposite): void {
-		this.activePanelContextKey.set(panel.getId());
+	pwivate onPanewOpen(panew: IComposite): void {
+		this.activePanewContextKey.set(panew.getId());
 
-		const foundPanel = this.panelRegistry.getPaneComposite(panel.getId());
-		if (foundPanel) {
-			this.compositeBar.addComposite(foundPanel);
+		const foundPanew = this.panewWegistwy.getPaneComposite(panew.getId());
+		if (foundPanew) {
+			this.compositeBaw.addComposite(foundPanew);
 		}
 
 		// Activate composite when opened
-		this.compositeBar.activateComposite(panel.getId());
+		this.compositeBaw.activateComposite(panew.getId());
 
-		const panelDescriptor = this.panelRegistry.getPaneComposite(panel.getId());
-		if (panelDescriptor) {
-			const viewContainer = this.getViewContainer(panelDescriptor.id);
-			if (viewContainer?.hideIfEmpty) {
-				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-				if (viewContainerModel.activeViewDescriptors.length === 0 && this.compositeBar.getPinnedComposites().length > 1) {
-					this.hideComposite(panelDescriptor.id); // Update the composite bar by hiding
+		const panewDescwiptow = this.panewWegistwy.getPaneComposite(panew.getId());
+		if (panewDescwiptow) {
+			const viewContaina = this.getViewContaina(panewDescwiptow.id);
+			if (viewContaina?.hideIfEmpty) {
+				const viewContainewModew = this.viewDescwiptowSewvice.getViewContainewModew(viewContaina);
+				if (viewContainewModew.activeViewDescwiptows.wength === 0 && this.compositeBaw.getPinnedComposites().wength > 1) {
+					this.hideComposite(panewDescwiptow.id); // Update the composite baw by hiding
 				}
 			}
 		}
 
-		this.layoutCompositeBar(); // Need to relayout composite bar since different panels have different action bar width
-		this.layoutEmptyMessage();
+		this.wayoutCompositeBaw(); // Need to wewayout composite baw since diffewent panews have diffewent action baw width
+		this.wayoutEmptyMessage();
 	}
 
-	private onPanelClose(panel: IComposite): void {
-		const id = panel.getId();
+	pwivate onPanewCwose(panew: IComposite): void {
+		const id = panew.getId();
 
-		if (this.activePanelContextKey.get() === id) {
-			this.activePanelContextKey.reset();
+		if (this.activePanewContextKey.get() === id) {
+			this.activePanewContextKey.weset();
 		}
 
-		this.compositeBar.deactivateComposite(panel.getId());
-		this.layoutEmptyMessage();
+		this.compositeBaw.deactivateComposite(panew.getId());
+		this.wayoutEmptyMessage();
 	}
 
-	override create(parent: HTMLElement): void {
-		this.element = parent;
+	ovewwide cweate(pawent: HTMWEwement): void {
+		this.ewement = pawent;
 
-		super.create(parent);
+		supa.cweate(pawent);
 
-		this.createEmptyPanelMessage();
+		this.cweateEmptyPanewMessage();
 
-		const focusTracker = this._register(trackFocus(parent));
-		this._register(focusTracker.onDidFocus(() => this.panelFocusContextKey.set(true)));
-		this._register(focusTracker.onDidBlur(() => this.panelFocusContextKey.set(false)));
+		const focusTwacka = this._wegista(twackFocus(pawent));
+		this._wegista(focusTwacka.onDidFocus(() => this.panewFocusContextKey.set(twue)));
+		this._wegista(focusTwacka.onDidBwuw(() => this.panewFocusContextKey.set(fawse)));
 	}
 
-	private createEmptyPanelMessage(): void {
-		const contentArea = this.getContentArea()!;
-		this.emptyPanelMessageElement = document.createElement('div');
-		this.emptyPanelMessageElement.classList.add('empty-panel-message-area');
+	pwivate cweateEmptyPanewMessage(): void {
+		const contentAwea = this.getContentAwea()!;
+		this.emptyPanewMessageEwement = document.cweateEwement('div');
+		this.emptyPanewMessageEwement.cwassWist.add('empty-panew-message-awea');
 
-		const messageElement = document.createElement('div');
-		messageElement.classList.add('empty-panel-message');
-		messageElement.innerText = localize('panel.emptyMessage', "Drag a view into the panel to display.");
+		const messageEwement = document.cweateEwement('div');
+		messageEwement.cwassWist.add('empty-panew-message');
+		messageEwement.innewText = wocawize('panew.emptyMessage', "Dwag a view into the panew to dispway.");
 
-		this.emptyPanelMessageElement.appendChild(messageElement);
-		contentArea.appendChild(this.emptyPanelMessageElement);
+		this.emptyPanewMessageEwement.appendChiwd(messageEwement);
+		contentAwea.appendChiwd(this.emptyPanewMessageEwement);
 
-		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(this.emptyPanelMessageElement, {
-			onDragOver: (e) => {
-				EventHelper.stop(e.eventData, true);
-				const validDropTarget = this.dndHandler.onDragEnter(e.dragAndDropData, undefined, e.eventData);
-				toggleDropEffect(e.eventData.dataTransfer, 'move', validDropTarget);
+		this._wegista(CompositeDwagAndDwopObsewva.INSTANCE.wegistewTawget(this.emptyPanewMessageEwement, {
+			onDwagOva: (e) => {
+				EventHewpa.stop(e.eventData, twue);
+				const vawidDwopTawget = this.dndHandwa.onDwagEnta(e.dwagAndDwopData, undefined, e.eventData);
+				toggweDwopEffect(e.eventData.dataTwansfa, 'move', vawidDwopTawget);
 			},
-			onDragEnter: (e) => {
-				EventHelper.stop(e.eventData, true);
+			onDwagEnta: (e) => {
+				EventHewpa.stop(e.eventData, twue);
 
-				const validDropTarget = this.dndHandler.onDragEnter(e.dragAndDropData, undefined, e.eventData);
-				this.emptyPanelMessageElement!.style.backgroundColor = validDropTarget ? this.theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND)?.toString() || '' : '';
+				const vawidDwopTawget = this.dndHandwa.onDwagEnta(e.dwagAndDwopData, undefined, e.eventData);
+				this.emptyPanewMessageEwement!.stywe.backgwoundCowow = vawidDwopTawget ? this.theme.getCowow(EDITOW_DWAG_AND_DWOP_BACKGWOUND)?.toStwing() || '' : '';
 			},
-			onDragLeave: (e) => {
-				EventHelper.stop(e.eventData, true);
-				this.emptyPanelMessageElement!.style.backgroundColor = '';
+			onDwagWeave: (e) => {
+				EventHewpa.stop(e.eventData, twue);
+				this.emptyPanewMessageEwement!.stywe.backgwoundCowow = '';
 			},
-			onDragEnd: (e) => {
-				EventHelper.stop(e.eventData, true);
-				this.emptyPanelMessageElement!.style.backgroundColor = '';
+			onDwagEnd: (e) => {
+				EventHewpa.stop(e.eventData, twue);
+				this.emptyPanewMessageEwement!.stywe.backgwoundCowow = '';
 			},
-			onDrop: (e) => {
-				EventHelper.stop(e.eventData, true);
-				this.emptyPanelMessageElement!.style.backgroundColor = '';
+			onDwop: (e) => {
+				EventHewpa.stop(e.eventData, twue);
+				this.emptyPanewMessageEwement!.stywe.backgwoundCowow = '';
 
-				this.dndHandler.drop(e.dragAndDropData, undefined, e.eventData);
+				this.dndHandwa.dwop(e.dwagAndDwopData, undefined, e.eventData);
 			},
 		}));
 	}
 
-	override updateStyles(): void {
-		super.updateStyles();
+	ovewwide updateStywes(): void {
+		supa.updateStywes();
 
-		const container = assertIsDefined(this.getContainer());
-		container.style.backgroundColor = this.getColor(this.backgroundColor) || '';
-		const borderColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder) || '';
-		container.style.borderLeftColor = borderColor;
-		container.style.borderRightColor = borderColor;
+		const containa = assewtIsDefined(this.getContaina());
+		containa.stywe.backgwoundCowow = this.getCowow(this.backgwoundCowow) || '';
+		const bowdewCowow = this.getCowow(PANEW_BOWDa) || this.getCowow(contwastBowda) || '';
+		containa.stywe.bowdewWeftCowow = bowdewCowow;
+		containa.stywe.bowdewWightCowow = bowdewCowow;
 
-		const title = this.getTitleArea();
-		if (title) {
-			title.style.borderTopColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder) || '';
+		const titwe = this.getTitweAwea();
+		if (titwe) {
+			titwe.stywe.bowdewTopCowow = this.getCowow(PANEW_BOWDa) || this.getCowow(contwastBowda) || '';
 		}
 	}
 
-	doOpenPanel(id: string, focus?: boolean): PaneComposite | undefined {
-		if (this.blockOpeningPanel) {
-			return undefined; // Workaround against a potential race condition
+	doOpenPanew(id: stwing, focus?: boowean): PaneComposite | undefined {
+		if (this.bwockOpeningPanew) {
+			wetuwn undefined; // Wowkawound against a potentiaw wace condition
 		}
 
-		// First check if panel is hidden and show if so
-		if (!this.layoutService.isVisible(this.partId)) {
-			try {
-				this.blockOpeningPanel = true;
-				this.layoutService.setPartHidden(false, this.partId);
-			} finally {
-				this.blockOpeningPanel = false;
+		// Fiwst check if panew is hidden and show if so
+		if (!this.wayoutSewvice.isVisibwe(this.pawtId)) {
+			twy {
+				this.bwockOpeningPanew = twue;
+				this.wayoutSewvice.setPawtHidden(fawse, this.pawtId);
+			} finawwy {
+				this.bwockOpeningPanew = fawse;
 			}
 		}
 
-		return this.openComposite(id, focus) as PaneComposite;
+		wetuwn this.openComposite(id, focus) as PaneComposite;
 	}
 
-	async openPaneComposite(id?: string, focus?: boolean): Promise<PaneComposite | undefined> {
-		if (typeof id === 'string' && this.getPaneComposite(id)) {
-			return this.doOpenPanel(id, focus);
+	async openPaneComposite(id?: stwing, focus?: boowean): Pwomise<PaneComposite | undefined> {
+		if (typeof id === 'stwing' && this.getPaneComposite(id)) {
+			wetuwn this.doOpenPanew(id, focus);
 		}
 
-		await this.extensionService.whenInstalledExtensionsRegistered();
+		await this.extensionSewvice.whenInstawwedExtensionsWegistewed();
 
-		if (typeof id === 'string' && this.getPaneComposite(id)) {
-			return this.doOpenPanel(id, focus);
+		if (typeof id === 'stwing' && this.getPaneComposite(id)) {
+			wetuwn this.doOpenPanew(id, focus);
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable {
-		return this.compositeBar.showActivity(panelId, badge, clazz);
+	showActivity(panewId: stwing, badge: IBadge, cwazz?: stwing): IDisposabwe {
+		wetuwn this.compositeBaw.showActivity(panewId, badge, cwazz);
 	}
 
-	getPaneComposite(panelId: string): PaneCompositeDescriptor | undefined {
-		return this.panelRegistry.getPaneComposite(panelId);
+	getPaneComposite(panewId: stwing): PaneCompositeDescwiptow | undefined {
+		wetuwn this.panewWegistwy.getPaneComposite(panewId);
 	}
 
-	getPaneComposites(): PaneCompositeDescriptor[] {
-		return this.panelRegistry.getPaneComposites()
-			.sort((v1, v2) => {
-				if (typeof v1.order !== 'number') {
-					return 1;
+	getPaneComposites(): PaneCompositeDescwiptow[] {
+		wetuwn this.panewWegistwy.getPaneComposites()
+			.sowt((v1, v2) => {
+				if (typeof v1.owda !== 'numba') {
+					wetuwn 1;
 				}
 
-				if (typeof v2.order !== 'number') {
-					return -1;
+				if (typeof v2.owda !== 'numba') {
+					wetuwn -1;
 				}
 
-				return v1.order - v2.order;
+				wetuwn v1.owda - v2.owda;
 			});
 	}
 
-	getPinnedPaneCompositeIds(): string[] {
-		const pinnedCompositeIds = this.compositeBar.getPinnedComposites().map(c => c.id);
-		return this.getPaneComposites()
-			.filter(p => pinnedCompositeIds.includes(p.id))
-			.sort((p1, p2) => pinnedCompositeIds.indexOf(p1.id) - pinnedCompositeIds.indexOf(p2.id))
+	getPinnedPaneCompositeIds(): stwing[] {
+		const pinnedCompositeIds = this.compositeBaw.getPinnedComposites().map(c => c.id);
+		wetuwn this.getPaneComposites()
+			.fiwta(p => pinnedCompositeIds.incwudes(p.id))
+			.sowt((p1, p2) => pinnedCompositeIds.indexOf(p1.id) - pinnedCompositeIds.indexOf(p2.id))
 			.map(p => p.id);
 	}
 
-	getVisiblePaneCompositeIds(): string[] {
-		return this.compositeBar.getVisibleComposites()
-			.filter(v => this.getActivePaneComposite()?.getId() === v.id || this.compositeBar.isPinned(v.id))
+	getVisibwePaneCompositeIds(): stwing[] {
+		wetuwn this.compositeBaw.getVisibweComposites()
+			.fiwta(v => this.getActivePaneComposite()?.getId() === v.id || this.compositeBaw.isPinned(v.id))
 			.map(v => v.id);
 	}
 
 	getActivePaneComposite(): IPaneComposite | undefined {
-		return <IPaneComposite>this.getActiveComposite();
+		wetuwn <IPaneComposite>this.getActiveComposite();
 	}
 
-	getLastActivePaneCompositeId(): string {
-		return this.getLastActiveCompositetId();
+	getWastActivePaneCompositeId(): stwing {
+		wetuwn this.getWastActiveCompositetId();
 	}
 
 	hideActivePaneComposite(): void {
-		// First check if panel is visible and hide if so
-		if (this.layoutService.isVisible(this.partId)) {
-			this.layoutService.setPartHidden(true, this.partId);
+		// Fiwst check if panew is visibwe and hide if so
+		if (this.wayoutSewvice.isVisibwe(this.pawtId)) {
+			this.wayoutSewvice.setPawtHidden(twue, this.pawtId);
 		}
 
 		this.hideActiveComposite();
 	}
 
-	protected override createTitleLabel(parent: HTMLElement): ICompositeTitleLabel {
-		const titleArea = this.compositeBar.create(parent);
-		titleArea.classList.add('panel-switcher-container');
+	pwotected ovewwide cweateTitweWabew(pawent: HTMWEwement): ICompositeTitweWabew {
+		const titweAwea = this.compositeBaw.cweate(pawent);
+		titweAwea.cwassWist.add('panew-switcha-containa');
 
-		return {
-			updateTitle: (id, title, keybinding) => {
-				const action = this.compositeBar.getAction(id);
+		wetuwn {
+			updateTitwe: (id, titwe, keybinding) => {
+				const action = this.compositeBaw.getAction(id);
 				if (action) {
-					action.label = title;
+					action.wabew = titwe;
 				}
 			},
-			updateStyles: () => {
-				// Handled via theming participant
+			updateStywes: () => {
+				// Handwed via theming pawticipant
 			}
 		};
 	}
 
-	override layout(width: number, height: number): void {
-		if (!this.layoutService.isVisible(this.partId)) {
-			return;
+	ovewwide wayout(width: numba, height: numba): void {
+		if (!this.wayoutSewvice.isVisibwe(this.pawtId)) {
+			wetuwn;
 		}
 
-		if (this.layoutService.getPanelPosition() === Position.RIGHT) {
-			this.contentDimension = new Dimension(width - 1, height); // Take into account the 1px border when layouting
-		} else {
+		if (this.wayoutSewvice.getPanewPosition() === Position.WIGHT) {
+			this.contentDimension = new Dimension(width - 1, height); // Take into account the 1px bowda when wayouting
+		} ewse {
 			this.contentDimension = new Dimension(width, height);
 		}
 
-		// Layout contents
-		super.layout(this.contentDimension.width, this.contentDimension.height);
+		// Wayout contents
+		supa.wayout(this.contentDimension.width, this.contentDimension.height);
 
-		// Layout composite bar
-		this.layoutCompositeBar();
+		// Wayout composite baw
+		this.wayoutCompositeBaw();
 
-		// Add empty panel message
-		this.layoutEmptyMessage();
+		// Add empty panew message
+		this.wayoutEmptyMessage();
 	}
 
-	private layoutCompositeBar(): void {
+	pwivate wayoutCompositeBaw(): void {
 		if (this.contentDimension && this.dimension) {
-			let availableWidth = this.contentDimension.width - 40; // take padding into account
-			if (this.toolBar) {
-				availableWidth = Math.max(PanelPart.MIN_COMPOSITE_BAR_WIDTH, availableWidth - this.getToolbarWidth()); // adjust height for global actions showing
+			wet avaiwabweWidth = this.contentDimension.width - 40; // take padding into account
+			if (this.toowBaw) {
+				avaiwabweWidth = Math.max(PanewPawt.MIN_COMPOSITE_BAW_WIDTH, avaiwabweWidth - this.getToowbawWidth()); // adjust height fow gwobaw actions showing
 			}
 
-			this.compositeBar.layout(new Dimension(availableWidth, this.dimension.height));
+			this.compositeBaw.wayout(new Dimension(avaiwabweWidth, this.dimension.height));
 		}
 	}
 
-	private emptyPanelMessageElement: HTMLElement | undefined;
-	private layoutEmptyMessage(): void {
-		if (this.emptyPanelMessageElement) {
-			this.emptyPanelMessageElement.classList.toggle('visible', this.compositeBar.getVisibleComposites().length === 0);
+	pwivate emptyPanewMessageEwement: HTMWEwement | undefined;
+	pwivate wayoutEmptyMessage(): void {
+		if (this.emptyPanewMessageEwement) {
+			this.emptyPanewMessageEwement.cwassWist.toggwe('visibwe', this.compositeBaw.getVisibweComposites().wength === 0);
 		}
 	}
 
-	private getCompositeActions(compositeId: string): { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction; } {
-		let compositeActions = this.compositeActions.get(compositeId);
+	pwivate getCompositeActions(compositeId: stwing): { activityAction: PanewActivityAction, pinnedAction: ToggweCompositePinnedAction; } {
+		wet compositeActions = this.compositeActions.get(compositeId);
 		if (!compositeActions) {
-			const panel = this.getPaneComposite(compositeId);
+			const panew = this.getPaneComposite(compositeId);
 
-			if (panel) {
+			if (panew) {
 				compositeActions = {
-					activityAction: this.instantiationService.createInstance(PanelActivityAction, assertIsDefined(this.getPaneComposite(compositeId)), this.viewContainerLocation),
-					pinnedAction: new ToggleCompositePinnedAction(this.getPaneComposite(compositeId), this.compositeBar)
+					activityAction: this.instantiationSewvice.cweateInstance(PanewActivityAction, assewtIsDefined(this.getPaneComposite(compositeId)), this.viewContainewWocation),
+					pinnedAction: new ToggweCompositePinnedAction(this.getPaneComposite(compositeId), this.compositeBaw)
 				};
-			} else {
+			} ewse {
 				compositeActions = {
-					activityAction: this.instantiationService.createInstance(PlaceHolderPanelActivityAction, compositeId, this.viewContainerLocation),
-					pinnedAction: new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar)
+					activityAction: this.instantiationSewvice.cweateInstance(PwaceHowdewPanewActivityAction, compositeId, this.viewContainewWocation),
+					pinnedAction: new PwaceHowdewToggweCompositePinnedAction(compositeId, this.compositeBaw)
 				};
 			}
 
 			this.compositeActions.set(compositeId, compositeActions);
 		}
 
-		return compositeActions;
+		wetuwn compositeActions;
 	}
 
-	protected override removeComposite(compositeId: string): boolean {
-		if (super.removeComposite(compositeId)) {
-			this.compositeBar.removeComposite(compositeId);
+	pwotected ovewwide wemoveComposite(compositeId: stwing): boowean {
+		if (supa.wemoveComposite(compositeId)) {
+			this.compositeBaw.wemoveComposite(compositeId);
 			const compositeActions = this.compositeActions.get(compositeId);
 			if (compositeActions) {
 				compositeActions.activityAction.dispose();
 				compositeActions.pinnedAction.dispose();
-				this.compositeActions.delete(compositeId);
+				this.compositeActions.dewete(compositeId);
 			}
 
-			return true;
+			wetuwn twue;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	private getToolbarWidth(): number {
-		const activePanel = this.getActivePaneComposite();
-		if (!activePanel || !this.toolBar) {
-			return 0;
+	pwivate getToowbawWidth(): numba {
+		const activePanew = this.getActivePaneComposite();
+		if (!activePanew || !this.toowBaw) {
+			wetuwn 0;
 		}
 
-		return this.toolBar.getItemsWidth();
+		wetuwn this.toowBaw.getItemsWidth();
 	}
 
-	private onDidStorageValueChange(e: IStorageValueChangeEvent): void {
-		if (e.key === this.pinnedPanelsKey && e.scope === StorageScope.GLOBAL
-			&& this.cachedPanelsValue !== this.getStoredCachedPanelsValue() /* This checks if current window changed the value or not */) {
-			this._cachedPanelsValue = undefined;
-			const newCompositeItems: ICompositeBarItem[] = [];
-			const compositeItems = this.compositeBar.getCompositeBarItems();
-			const cachedPanels = this.getCachedPanels();
+	pwivate onDidStowageVawueChange(e: IStowageVawueChangeEvent): void {
+		if (e.key === this.pinnedPanewsKey && e.scope === StowageScope.GWOBAW
+			&& this.cachedPanewsVawue !== this.getStowedCachedPanewsVawue() /* This checks if cuwwent window changed the vawue ow not */) {
+			this._cachedPanewsVawue = undefined;
+			const newCompositeItems: ICompositeBawItem[] = [];
+			const compositeItems = this.compositeBaw.getCompositeBawItems();
+			const cachedPanews = this.getCachedPanews();
 
-			for (const cachedPanel of cachedPanels) {
-				// copy behavior from activity bar
+			fow (const cachedPanew of cachedPanews) {
+				// copy behaviow fwom activity baw
 				newCompositeItems.push({
-					id: cachedPanel.id,
-					name: cachedPanel.name,
-					order: cachedPanel.order,
-					pinned: cachedPanel.pinned,
-					visible: !!compositeItems.find(({ id }) => id === cachedPanel.id)
+					id: cachedPanew.id,
+					name: cachedPanew.name,
+					owda: cachedPanew.owda,
+					pinned: cachedPanew.pinned,
+					visibwe: !!compositeItems.find(({ id }) => id === cachedPanew.id)
 				});
 			}
 
-			for (let index = 0; index < compositeItems.length; index++) {
-				// Add items currently exists but does not exist in new.
+			fow (wet index = 0; index < compositeItems.wength; index++) {
+				// Add items cuwwentwy exists but does not exist in new.
 				if (!newCompositeItems.some(({ id }) => id === compositeItems[index].id)) {
-					newCompositeItems.splice(index, 0, compositeItems[index]);
+					newCompositeItems.spwice(index, 0, compositeItems[index]);
 				}
 			}
 
-			this.compositeBar.setCompositeBarItems(newCompositeItems);
+			this.compositeBaw.setCompositeBawItems(newCompositeItems);
 		}
 	}
 
-	private saveCachedPanels(): void {
-		const state: ICachedPanel[] = [];
-		const placeholders: IPlaceholderViewContainer[] = [];
+	pwivate saveCachedPanews(): void {
+		const state: ICachedPanew[] = [];
+		const pwacehowdews: IPwacehowdewViewContaina[] = [];
 
-		const compositeItems = this.compositeBar.getCompositeBarItems();
-		for (const compositeItem of compositeItems) {
-			const viewContainer = this.getViewContainer(compositeItem.id);
-			if (viewContainer) {
-				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-				state.push({ id: compositeItem.id, name: viewContainerModel.title, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
-				placeholders.push({ id: compositeItem.id, name: this.getCompositeActions(compositeItem.id).activityAction.label });
+		const compositeItems = this.compositeBaw.getCompositeBawItems();
+		fow (const compositeItem of compositeItems) {
+			const viewContaina = this.getViewContaina(compositeItem.id);
+			if (viewContaina) {
+				const viewContainewModew = this.viewDescwiptowSewvice.getViewContainewModew(viewContaina);
+				state.push({ id: compositeItem.id, name: viewContainewModew.titwe, pinned: compositeItem.pinned, owda: compositeItem.owda, visibwe: compositeItem.visibwe });
+				pwacehowdews.push({ id: compositeItem.id, name: this.getCompositeActions(compositeItem.id).activityAction.wabew });
 			}
 		}
 
-		this.cachedPanelsValue = JSON.stringify(state);
-		this.setPlaceholderViewContainers(placeholders);
+		this.cachedPanewsVawue = JSON.stwingify(state);
+		this.setPwacehowdewViewContainews(pwacehowdews);
 	}
 
-	private getCachedPanels(): ICachedPanel[] {
-		const registeredPanels = this.getPaneComposites();
+	pwivate getCachedPanews(): ICachedPanew[] {
+		const wegistewedPanews = this.getPaneComposites();
 
-		const storedStates: Array<string | ICachedPanel> = JSON.parse(this.cachedPanelsValue);
-		const cachedPanels = storedStates.map(c => {
-			const serialized: ICachedPanel = typeof c === 'string' /* migration from pinned states to composites states */ ? { id: c, pinned: true, order: undefined, visible: true } : c;
-			const registered = registeredPanels.some(p => p.id === serialized.id);
-			serialized.visible = registered ? isUndefinedOrNull(serialized.visible) ? true : serialized.visible : false;
-			return serialized;
+		const stowedStates: Awway<stwing | ICachedPanew> = JSON.pawse(this.cachedPanewsVawue);
+		const cachedPanews = stowedStates.map(c => {
+			const sewiawized: ICachedPanew = typeof c === 'stwing' /* migwation fwom pinned states to composites states */ ? { id: c, pinned: twue, owda: undefined, visibwe: twue } : c;
+			const wegistewed = wegistewedPanews.some(p => p.id === sewiawized.id);
+			sewiawized.visibwe = wegistewed ? isUndefinedOwNuww(sewiawized.visibwe) ? twue : sewiawized.visibwe : fawse;
+			wetuwn sewiawized;
 		});
 
-		for (const placeholderViewContainer of this.getPlaceholderViewContainers()) {
-			const cachedViewContainer = cachedPanels.filter(cached => cached.id === placeholderViewContainer.id)[0];
-			if (cachedViewContainer) {
-				cachedViewContainer.name = placeholderViewContainer.name;
+		fow (const pwacehowdewViewContaina of this.getPwacehowdewViewContainews()) {
+			const cachedViewContaina = cachedPanews.fiwta(cached => cached.id === pwacehowdewViewContaina.id)[0];
+			if (cachedViewContaina) {
+				cachedViewContaina.name = pwacehowdewViewContaina.name;
 			}
 		}
 
-		return cachedPanels;
+		wetuwn cachedPanews;
 	}
 
-	private _cachedPanelsValue: string | undefined;
-	private get cachedPanelsValue(): string {
-		if (!this._cachedPanelsValue) {
-			this._cachedPanelsValue = this.getStoredCachedPanelsValue();
+	pwivate _cachedPanewsVawue: stwing | undefined;
+	pwivate get cachedPanewsVawue(): stwing {
+		if (!this._cachedPanewsVawue) {
+			this._cachedPanewsVawue = this.getStowedCachedPanewsVawue();
 		}
 
-		return this._cachedPanelsValue;
+		wetuwn this._cachedPanewsVawue;
 	}
 
-	private set cachedPanelsValue(cachedViewletsValue: string) {
-		if (this.cachedPanelsValue !== cachedViewletsValue) {
-			this._cachedPanelsValue = cachedViewletsValue;
-			this.setStoredCachedViewletsValue(cachedViewletsValue);
-		}
-	}
-
-	private getStoredCachedPanelsValue(): string {
-		return this.storageService.get(this.pinnedPanelsKey, StorageScope.GLOBAL, '[]');
-	}
-
-	private setStoredCachedViewletsValue(value: string): void {
-		this.storageService.store(this.pinnedPanelsKey, value, StorageScope.GLOBAL, StorageTarget.USER);
-	}
-
-	private getPlaceholderViewContainers(): IPlaceholderViewContainer[] {
-		return JSON.parse(this.placeholderViewContainersValue);
-	}
-
-	private setPlaceholderViewContainers(placeholderViewContainers: IPlaceholderViewContainer[]): void {
-		this.placeholderViewContainersValue = JSON.stringify(placeholderViewContainers);
-	}
-
-	private _placeholderViewContainersValue: string | undefined;
-	private get placeholderViewContainersValue(): string {
-		if (!this._placeholderViewContainersValue) {
-			this._placeholderViewContainersValue = this.getStoredPlaceholderViewContainersValue();
-		}
-
-		return this._placeholderViewContainersValue;
-	}
-
-	private set placeholderViewContainersValue(placeholderViewContainesValue: string) {
-		if (this.placeholderViewContainersValue !== placeholderViewContainesValue) {
-			this._placeholderViewContainersValue = placeholderViewContainesValue;
-			this.setStoredPlaceholderViewContainersValue(placeholderViewContainesValue);
+	pwivate set cachedPanewsVawue(cachedViewwetsVawue: stwing) {
+		if (this.cachedPanewsVawue !== cachedViewwetsVawue) {
+			this._cachedPanewsVawue = cachedViewwetsVawue;
+			this.setStowedCachedViewwetsVawue(cachedViewwetsVawue);
 		}
 	}
 
-	private getStoredPlaceholderViewContainersValue(): string {
-		return this.storageService.get(this.placeholdeViewContainersKey, StorageScope.WORKSPACE, '[]');
+	pwivate getStowedCachedPanewsVawue(): stwing {
+		wetuwn this.stowageSewvice.get(this.pinnedPanewsKey, StowageScope.GWOBAW, '[]');
 	}
 
-	private setStoredPlaceholderViewContainersValue(value: string): void {
-		this.storageService.store(this.placeholdeViewContainersKey, value, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	pwivate setStowedCachedViewwetsVawue(vawue: stwing): void {
+		this.stowageSewvice.stowe(this.pinnedPanewsKey, vawue, StowageScope.GWOBAW, StowageTawget.USa);
 	}
 
-	private getViewContainer(panelId: string): ViewContainer | undefined {
-		return this.viewDescriptorService.getViewContainerById(panelId) || undefined;
+	pwivate getPwacehowdewViewContainews(): IPwacehowdewViewContaina[] {
+		wetuwn JSON.pawse(this.pwacehowdewViewContainewsVawue);
+	}
+
+	pwivate setPwacehowdewViewContainews(pwacehowdewViewContainews: IPwacehowdewViewContaina[]): void {
+		this.pwacehowdewViewContainewsVawue = JSON.stwingify(pwacehowdewViewContainews);
+	}
+
+	pwivate _pwacehowdewViewContainewsVawue: stwing | undefined;
+	pwivate get pwacehowdewViewContainewsVawue(): stwing {
+		if (!this._pwacehowdewViewContainewsVawue) {
+			this._pwacehowdewViewContainewsVawue = this.getStowedPwacehowdewViewContainewsVawue();
+		}
+
+		wetuwn this._pwacehowdewViewContainewsVawue;
+	}
+
+	pwivate set pwacehowdewViewContainewsVawue(pwacehowdewViewContainesVawue: stwing) {
+		if (this.pwacehowdewViewContainewsVawue !== pwacehowdewViewContainesVawue) {
+			this._pwacehowdewViewContainewsVawue = pwacehowdewViewContainesVawue;
+			this.setStowedPwacehowdewViewContainewsVawue(pwacehowdewViewContainesVawue);
+		}
+	}
+
+	pwivate getStowedPwacehowdewViewContainewsVawue(): stwing {
+		wetuwn this.stowageSewvice.get(this.pwacehowdeViewContainewsKey, StowageScope.WOWKSPACE, '[]');
+	}
+
+	pwivate setStowedPwacehowdewViewContainewsVawue(vawue: stwing): void {
+		this.stowageSewvice.stowe(this.pwacehowdeViewContainewsKey, vawue, StowageScope.WOWKSPACE, StowageTawget.MACHINE);
+	}
+
+	pwivate getViewContaina(panewId: stwing): ViewContaina | undefined {
+		wetuwn this.viewDescwiptowSewvice.getViewContainewById(panewId) || undefined;
 	}
 }
 
-export class PanelPart extends BasePanelPart {
-	static readonly activePanelSettingsKey = 'workbench.panelpart.activepanelid';
-	static readonly pinnedPanelsKey = 'workbench.panel.pinnedPanels';
-	static readonly placeholdeViewContainersKey = 'workbench.panel.placeholderPanels';
+expowt cwass PanewPawt extends BasePanewPawt {
+	static weadonwy activePanewSettingsKey = 'wowkbench.panewpawt.activepanewid';
+	static weadonwy pinnedPanewsKey = 'wowkbench.panew.pinnedPanews';
+	static weadonwy pwacehowdeViewContainewsKey = 'wowkbench.panew.pwacehowdewPanews';
 
-	private globalToolBar: ToolBar | undefined;
-	private globalActions: CompositeMenuActions;
+	pwivate gwobawToowBaw: ToowBaw | undefined;
+	pwivate gwobawActions: CompositeMenuActions;
 
-	constructor(
-		@INotificationService notificationService: INotificationService,
-		@IStorageService storageService: IStorageService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IExtensionService extensionService: IExtensionService,
+	constwuctow(
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IWowkbenchWayoutSewvice wayoutSewvice: IWowkbenchWayoutSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IExtensionSewvice extensionSewvice: IExtensionSewvice,
 	) {
-		super(
-			Parts.PANEL_PART,
-			PanelPart.activePanelSettingsKey,
-			PanelPart.pinnedPanelsKey,
-			PanelPart.placeholdeViewContainersKey,
-			PaneCompositeExtensions.Panels,
-			PANEL_BACKGROUND,
-			ViewContainerLocation.Panel,
-			ActivePanelContext.bindTo(contextKeyService),
-			PanelFocusContext.bindTo(contextKeyService),
-			notificationService,
-			storageService,
-			telemetryService,
-			contextMenuService,
-			layoutService,
-			keybindingService,
-			instantiationService,
-			themeService,
-			viewDescriptorService,
-			contextKeyService,
-			extensionService,
+		supa(
+			Pawts.PANEW_PAWT,
+			PanewPawt.activePanewSettingsKey,
+			PanewPawt.pinnedPanewsKey,
+			PanewPawt.pwacehowdeViewContainewsKey,
+			PaneCompositeExtensions.Panews,
+			PANEW_BACKGWOUND,
+			ViewContainewWocation.Panew,
+			ActivePanewContext.bindTo(contextKeySewvice),
+			PanewFocusContext.bindTo(contextKeySewvice),
+			notificationSewvice,
+			stowageSewvice,
+			tewemetwySewvice,
+			contextMenuSewvice,
+			wayoutSewvice,
+			keybindingSewvice,
+			instantiationSewvice,
+			themeSewvice,
+			viewDescwiptowSewvice,
+			contextKeySewvice,
+			extensionSewvice,
 		);
 
-		// Global Panel Actions
-		this.globalActions = this._register(this.instantiationService.createInstance(CompositeMenuActions, MenuId.PanelTitle, undefined, undefined));
-		this._register(this.globalActions.onDidChange(() => this.updateGlobalToolbarActions()));
+		// Gwobaw Panew Actions
+		this.gwobawActions = this._wegista(this.instantiationSewvice.cweateInstance(CompositeMenuActions, MenuId.PanewTitwe, undefined, undefined));
+		this._wegista(this.gwobawActions.onDidChange(() => this.updateGwobawToowbawActions()));
 	}
 
-	override createTitleArea(parent: HTMLElement): HTMLElement {
-		const element = super.createTitleArea(parent);
-		const globalTitleActionsContainer = element.appendChild($('.global-actions'));
+	ovewwide cweateTitweAwea(pawent: HTMWEwement): HTMWEwement {
+		const ewement = supa.cweateTitweAwea(pawent);
+		const gwobawTitweActionsContaina = ewement.appendChiwd($('.gwobaw-actions'));
 
-		// Global Actions Toolbar
-		this.globalToolBar = this._register(new ToolBar(globalTitleActionsContainer, this.contextMenuService, {
-			actionViewItemProvider: action => this.actionViewItemProvider(action),
-			orientation: ActionsOrientation.HORIZONTAL,
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
-			toggleMenuTitle: localize('moreActions', "More Actions...")
+		// Gwobaw Actions Toowbaw
+		this.gwobawToowBaw = this._wegista(new ToowBaw(gwobawTitweActionsContaina, this.contextMenuSewvice, {
+			actionViewItemPwovida: action => this.actionViewItemPwovida(action),
+			owientation: ActionsOwientation.HOWIZONTAW,
+			getKeyBinding: action => this.keybindingSewvice.wookupKeybinding(action.id),
+			anchowAwignmentPwovida: () => this.getTitweAweaDwopDownAnchowAwignment(),
+			toggweMenuTitwe: wocawize('moweActions', "Mowe Actions...")
 		}));
 
-		this.updateGlobalToolbarActions();
+		this.updateGwobawToowbawActions();
 
-		return element;
+		wetuwn ewement;
 	}
 
-	private updateGlobalToolbarActions(): void {
-		const primaryActions = this.globalActions.getPrimaryActions();
-		const secondaryActions = this.globalActions.getSecondaryActions();
+	pwivate updateGwobawToowbawActions(): void {
+		const pwimawyActions = this.gwobawActions.getPwimawyActions();
+		const secondawyActions = this.gwobawActions.getSecondawyActions();
 
-		if (this.globalToolBar) {
-			this.globalToolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
+		if (this.gwobawToowBaw) {
+			this.gwobawToowBaw.setActions(pwepaweActions(pwimawyActions), pwepaweActions(secondawyActions));
 		}
 	}
 
 	toJSON(): object {
-		return {
-			type: Parts.PANEL_PART
+		wetuwn {
+			type: Pawts.PANEW_PAWT
 		};
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
+wegistewThemingPawticipant((theme, cowwectow) => {
 
-	// Panel Background: since panels can host editors, we apply a background rule if the panel background
-	// color is different from the editor background color. This is a bit of a hack though. The better way
-	// would be to have a way to push the background color onto each editor widget itself somehow.
-	const panelBackground = theme.getColor(PANEL_BACKGROUND);
-	if (panelBackground && panelBackground !== theme.getColor(editorBackground)) {
-		collector.addRule(`
-			.monaco-workbench .part.panel > .content .monaco-editor,
-			.monaco-workbench .part.panel > .content .monaco-editor .margin,
-			.monaco-workbench .part.panel > .content .monaco-editor .monaco-editor-background {
-				background-color: ${panelBackground};
+	// Panew Backgwound: since panews can host editows, we appwy a backgwound wuwe if the panew backgwound
+	// cowow is diffewent fwom the editow backgwound cowow. This is a bit of a hack though. The betta way
+	// wouwd be to have a way to push the backgwound cowow onto each editow widget itsewf somehow.
+	const panewBackgwound = theme.getCowow(PANEW_BACKGWOUND);
+	if (panewBackgwound && panewBackgwound !== theme.getCowow(editowBackgwound)) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .pawt.panew > .content .monaco-editow,
+			.monaco-wowkbench .pawt.panew > .content .monaco-editow .mawgin,
+			.monaco-wowkbench .pawt.panew > .content .monaco-editow .monaco-editow-backgwound {
+				backgwound-cowow: ${panewBackgwound};
 			}
 		`);
 	}
 
-	// Title Active
-	const titleActive = theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND);
-	const titleActiveBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);
-	if (titleActive || titleActiveBorder) {
-		collector.addRule(`
-			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
-				color: ${titleActive} !important;
-				border-bottom-color: ${titleActiveBorder} !important;
+	// Titwe Active
+	const titweActive = theme.getCowow(PANEW_ACTIVE_TITWE_FOWEGWOUND);
+	const titweActiveBowda = theme.getCowow(PANEW_ACTIVE_TITWE_BOWDa);
+	if (titweActive || titweActiveBowda) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .pawt.panew > .titwe > .panew-switcha-containa > .monaco-action-baw .action-item:hova .action-wabew {
+				cowow: ${titweActive} !impowtant;
+				bowda-bottom-cowow: ${titweActiveBowda} !impowtant;
 			}
 		`);
 	}
 
-	// Title focus
-	const focusBorderColor = theme.getColor(focusBorder);
-	if (focusBorderColor) {
-		collector.addRule(`
-			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .action-label {
-				color: ${titleActive} !important;
-				border-bottom-color: ${focusBorderColor} !important;
-				border-bottom: 1px solid;
+	// Titwe focus
+	const focusBowdewCowow = theme.getCowow(focusBowda);
+	if (focusBowdewCowow) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .pawt.panew > .titwe > .panew-switcha-containa > .monaco-action-baw .action-item:focus .action-wabew {
+				cowow: ${titweActive} !impowtant;
+				bowda-bottom-cowow: ${focusBowdewCowow} !impowtant;
+				bowda-bottom: 1px sowid;
 			}
 			`);
-		collector.addRule(`
-			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus {
-				outline: none;
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .pawt.panew > .titwe > .panew-switcha-containa > .monaco-action-baw .action-item:focus {
+				outwine: none;
 			}
 			`);
 	}
 
-	// Styling with Outline color (e.g. high contrast theme)
-	const outline = theme.getColor(activeContrastBorder);
-	if (outline) {
-		collector.addRule(`
-			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label,
-			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
-				outline-color: ${outline};
-				outline-width: 1px;
-				outline-style: solid;
-				border-bottom: none;
-				outline-offset: -2px;
+	// Stywing with Outwine cowow (e.g. high contwast theme)
+	const outwine = theme.getCowow(activeContwastBowda);
+	if (outwine) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .pawt.panew > .titwe > .panew-switcha-containa > .monaco-action-baw .action-item.checked .action-wabew,
+			.monaco-wowkbench .pawt.panew > .titwe > .panew-switcha-containa > .monaco-action-baw .action-item:hova .action-wabew {
+				outwine-cowow: ${outwine};
+				outwine-width: 1px;
+				outwine-stywe: sowid;
+				bowda-bottom: none;
+				outwine-offset: -2px;
 			}
 
-			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:not(.checked):hover .action-label {
-				outline-style: dashed;
+			.monaco-wowkbench .pawt.panew > .titwe > .panew-switcha-containa > .monaco-action-baw .action-item:not(.checked):hova .action-wabew {
+				outwine-stywe: dashed;
 			}
 		`);
 	}
 
-	const inputBorder = theme.getColor(PANEL_INPUT_BORDER);
-	if (inputBorder) {
-		collector.addRule(`
-			.monaco-workbench .part.panel .monaco-inputbox {
-				border-color: ${inputBorder}
+	const inputBowda = theme.getCowow(PANEW_INPUT_BOWDa);
+	if (inputBowda) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .pawt.panew .monaco-inputbox {
+				bowda-cowow: ${inputBowda}
 			}
 		`);
 	}

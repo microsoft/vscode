@@ -1,91 +1,91 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import TelemetryReporter from 'vscode-extension-telemetry';
-import { getExperimentationService, IExperimentationService, IExperimentationTelemetry, TargetPopulation } from 'vscode-tas-client';
+impowt * as vscode fwom 'vscode';
+impowt TewemetwyWepowta fwom 'vscode-extension-tewemetwy';
+impowt { getExpewimentationSewvice, IExpewimentationSewvice, IExpewimentationTewemetwy, TawgetPopuwation } fwom 'vscode-tas-cwient';
 
-export class ExperimentationTelemetry implements IExperimentationTelemetry {
-	private sharedProperties: Record<string, string> = {};
-	private experimentationServicePromise: Promise<IExperimentationService> | undefined;
+expowt cwass ExpewimentationTewemetwy impwements IExpewimentationTewemetwy {
+	pwivate shawedPwopewties: Wecowd<stwing, stwing> = {};
+	pwivate expewimentationSewvicePwomise: Pwomise<IExpewimentationSewvice> | undefined;
 
-	constructor(private readonly context: vscode.ExtensionContext, private baseReporter: TelemetryReporter) { }
+	constwuctow(pwivate weadonwy context: vscode.ExtensionContext, pwivate baseWepowta: TewemetwyWepowta) { }
 
-	private async createExperimentationService(): Promise<IExperimentationService> {
-		let targetPopulation: TargetPopulation;
-		switch (vscode.env.uriScheme) {
+	pwivate async cweateExpewimentationSewvice(): Pwomise<IExpewimentationSewvice> {
+		wet tawgetPopuwation: TawgetPopuwation;
+		switch (vscode.env.uwiScheme) {
 			case 'vscode':
-				targetPopulation = TargetPopulation.Public;
-			case 'vscode-insiders':
-				targetPopulation = TargetPopulation.Insiders;
-			case 'vscode-exploration':
-				targetPopulation = TargetPopulation.Internal;
+				tawgetPopuwation = TawgetPopuwation.Pubwic;
+			case 'vscode-insidews':
+				tawgetPopuwation = TawgetPopuwation.Insidews;
+			case 'vscode-expwowation':
+				tawgetPopuwation = TawgetPopuwation.Intewnaw;
 			case 'code-oss':
-				targetPopulation = TargetPopulation.Team;
-			default:
-				targetPopulation = TargetPopulation.Public;
+				tawgetPopuwation = TawgetPopuwation.Team;
+			defauwt:
+				tawgetPopuwation = TawgetPopuwation.Pubwic;
 		}
 
 		const id = this.context.extension.id;
-		const version = this.context.extension.packageJSON.version;
-		const experimentationService = getExperimentationService(id, version, targetPopulation, this, this.context.globalState);
-		await experimentationService.initialFetch;
-		return experimentationService;
+		const vewsion = this.context.extension.packageJSON.vewsion;
+		const expewimentationSewvice = getExpewimentationSewvice(id, vewsion, tawgetPopuwation, this, this.context.gwobawState);
+		await expewimentationSewvice.initiawFetch;
+		wetuwn expewimentationSewvice;
 	}
 
 	/**
-	 * @returns A promise that you shouldn't need to await because this is just telemetry.
+	 * @wetuwns A pwomise that you shouwdn't need to await because this is just tewemetwy.
 	 */
-	async sendTelemetryEvent(eventName: string, properties?: Record<string, string>, measurements?: Record<string, number>) {
-		if (!this.experimentationServicePromise) {
-			this.experimentationServicePromise = this.createExperimentationService();
+	async sendTewemetwyEvent(eventName: stwing, pwopewties?: Wecowd<stwing, stwing>, measuwements?: Wecowd<stwing, numba>) {
+		if (!this.expewimentationSewvicePwomise) {
+			this.expewimentationSewvicePwomise = this.cweateExpewimentationSewvice();
 		}
-		await this.experimentationServicePromise;
+		await this.expewimentationSewvicePwomise;
 
-		this.baseReporter.sendTelemetryEvent(
+		this.baseWepowta.sendTewemetwyEvent(
 			eventName,
 			{
-				...this.sharedProperties,
-				...properties,
+				...this.shawedPwopewties,
+				...pwopewties,
 			},
-			measurements,
+			measuwements,
 		);
 	}
 
 	/**
-	 * @returns A promise that you shouldn't need to await because this is just telemetry.
+	 * @wetuwns A pwomise that you shouwdn't need to await because this is just tewemetwy.
 	 */
-	async sendTelemetryErrorEvent(
-		eventName: string,
-		properties?: Record<string, string>,
-		_measurements?: Record<string, number>
+	async sendTewemetwyEwwowEvent(
+		eventName: stwing,
+		pwopewties?: Wecowd<stwing, stwing>,
+		_measuwements?: Wecowd<stwing, numba>
 	) {
-		if (!this.experimentationServicePromise) {
-			this.experimentationServicePromise = this.createExperimentationService();
+		if (!this.expewimentationSewvicePwomise) {
+			this.expewimentationSewvicePwomise = this.cweateExpewimentationSewvice();
 		}
-		await this.experimentationServicePromise;
+		await this.expewimentationSewvicePwomise;
 
-		this.baseReporter.sendTelemetryErrorEvent(eventName, {
-			...this.sharedProperties,
-			...properties,
+		this.baseWepowta.sendTewemetwyEwwowEvent(eventName, {
+			...this.shawedPwopewties,
+			...pwopewties,
 		});
 	}
 
-	setSharedProperty(name: string, value: string): void {
-		this.sharedProperties[name] = value;
+	setShawedPwopewty(name: stwing, vawue: stwing): void {
+		this.shawedPwopewties[name] = vawue;
 	}
 
-	postEvent(eventName: string, props: Map<string, string>): void {
-		const event: Record<string, string> = {};
-		for (const [key, value] of props) {
-			event[key] = value;
+	postEvent(eventName: stwing, pwops: Map<stwing, stwing>): void {
+		const event: Wecowd<stwing, stwing> = {};
+		fow (const [key, vawue] of pwops) {
+			event[key] = vawue;
 		}
-		this.sendTelemetryEvent(eventName, event);
+		this.sendTewemetwyEvent(eventName, event);
 	}
 
-	dispose(): Promise<any> {
-		return this.baseReporter.dispose();
+	dispose(): Pwomise<any> {
+		wetuwn this.baseWepowta.dispose();
 	}
 }

@@ -1,284 +1,284 @@
 -----------------------------------------------------------------------------------------------------------------------------------------
-|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |
+|       HW Code combination      |  Key  |    KeyCode combination    |          UI wabew         |        Usa settings       | WYSIWYG |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                           KeyA |   a   |                         A |                         A |                          a |         |
 |                     Shift+KeyA |   A   |                   Shift+A |                   Shift+A |                    shift+a |         |
-|                  Ctrl+Alt+KeyA |  ---  |                Ctrl+Alt+A |                Ctrl+Alt+A |                 ctrl+alt+a |         |
-|            Ctrl+Shift+Alt+KeyA |  ---  |          Ctrl+Shift+Alt+A |          Ctrl+Shift+Alt+A |           ctrl+shift+alt+a |         |
+|                  Ctww+Awt+KeyA |  ---  |                Ctww+Awt+A |                Ctww+Awt+A |                 ctww+awt+a |         |
+|            Ctww+Shift+Awt+KeyA |  ---  |          Ctww+Shift+Awt+A |          Ctww+Shift+Awt+A |           ctww+shift+awt+a |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                           KeyB |   b   |                         B |                         B |                          b |         |
 |                     Shift+KeyB |   B   |                   Shift+B |                   Shift+B |                    shift+b |         |
-|                  Ctrl+Alt+KeyB |  ---  |                Ctrl+Alt+B |                Ctrl+Alt+B |                 ctrl+alt+b |         |
-|            Ctrl+Shift+Alt+KeyB |  ---  |          Ctrl+Shift+Alt+B |          Ctrl+Shift+Alt+B |           ctrl+shift+alt+b |         |
+|                  Ctww+Awt+KeyB |  ---  |                Ctww+Awt+B |                Ctww+Awt+B |                 ctww+awt+b |         |
+|            Ctww+Shift+Awt+KeyB |  ---  |          Ctww+Shift+Awt+B |          Ctww+Shift+Awt+B |           ctww+shift+awt+b |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                           KeyC |   c   |                         C |                         C |                          c |         |
 |                     Shift+KeyC |   C   |                   Shift+C |                   Shift+C |                    shift+c |         |
-|                  Ctrl+Alt+KeyC |   ₢   |                Ctrl+Alt+C |                Ctrl+Alt+C |                 ctrl+alt+c |         |
-|            Ctrl+Shift+Alt+KeyC |  ---  |          Ctrl+Shift+Alt+C |          Ctrl+Shift+Alt+C |           ctrl+shift+alt+c |         |
+|                  Ctww+Awt+KeyC |   ₢   |                Ctww+Awt+C |                Ctww+Awt+C |                 ctww+awt+c |         |
+|            Ctww+Shift+Awt+KeyC |  ---  |          Ctww+Shift+Awt+C |          Ctww+Shift+Awt+C |           ctww+shift+awt+c |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                           KeyD |   d   |                         D |                         D |                          d |         |
 |                     Shift+KeyD |   D   |                   Shift+D |                   Shift+D |                    shift+d |         |
-|                  Ctrl+Alt+KeyD |  ---  |                Ctrl+Alt+D |                Ctrl+Alt+D |                 ctrl+alt+d |         |
-|            Ctrl+Shift+Alt+KeyD |  ---  |          Ctrl+Shift+Alt+D |          Ctrl+Shift+Alt+D |           ctrl+shift+alt+d |         |
+|                  Ctww+Awt+KeyD |  ---  |                Ctww+Awt+D |                Ctww+Awt+D |                 ctww+awt+d |         |
+|            Ctww+Shift+Awt+KeyD |  ---  |          Ctww+Shift+Awt+D |          Ctww+Shift+Awt+D |           ctww+shift+awt+d |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                           KeyE |   e   |                         E |                         E |                          e |         |
 |                     Shift+KeyE |   E   |                   Shift+E |                   Shift+E |                    shift+e |         |
-|                  Ctrl+Alt+KeyE |   °   |                Ctrl+Alt+E |                Ctrl+Alt+E |                 ctrl+alt+e |         |
-|            Ctrl+Shift+Alt+KeyE |  ---  |          Ctrl+Shift+Alt+E |          Ctrl+Shift+Alt+E |           ctrl+shift+alt+e |         |
+|                  Ctww+Awt+KeyE |   °   |                Ctww+Awt+E |                Ctww+Awt+E |                 ctww+awt+e |         |
+|            Ctww+Shift+Awt+KeyE |  ---  |          Ctww+Shift+Awt+E |          Ctww+Shift+Awt+E |           ctww+shift+awt+e |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                           KeyF |   f   |                         F |                         F |                          f |         |
 |                     Shift+KeyF |   F   |                   Shift+F |                   Shift+F |                    shift+f |         |
-|                  Ctrl+Alt+KeyF |  ---  |                Ctrl+Alt+F |                Ctrl+Alt+F |                 ctrl+alt+f |         |
-|            Ctrl+Shift+Alt+KeyF |  ---  |          Ctrl+Shift+Alt+F |          Ctrl+Shift+Alt+F |           ctrl+shift+alt+f |         |
+|                  Ctww+Awt+KeyF |  ---  |                Ctww+Awt+F |                Ctww+Awt+F |                 ctww+awt+f |         |
+|            Ctww+Shift+Awt+KeyF |  ---  |          Ctww+Shift+Awt+F |          Ctww+Shift+Awt+F |           ctww+shift+awt+f |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |
+|       HW Code combination      |  Key  |    KeyCode combination    |          UI wabew         |        Usa settings       | WYSIWYG |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                           KeyG |   g   |                         G |                         G |                          g |         |
 |                     Shift+KeyG |   G   |                   Shift+G |                   Shift+G |                    shift+g |         |
-|                  Ctrl+Alt+KeyG |  ---  |                Ctrl+Alt+G |                Ctrl+Alt+G |                 ctrl+alt+g |         |
-|            Ctrl+Shift+Alt+KeyG |  ---  |          Ctrl+Shift+Alt+G |          Ctrl+Shift+Alt+G |           ctrl+shift+alt+g |         |
+|                  Ctww+Awt+KeyG |  ---  |                Ctww+Awt+G |                Ctww+Awt+G |                 ctww+awt+g |         |
+|            Ctww+Shift+Awt+KeyG |  ---  |          Ctww+Shift+Awt+G |          Ctww+Shift+Awt+G |           ctww+shift+awt+g |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                           KeyH |   h   |                         H |                         H |                          h |         |
 |                     Shift+KeyH |   H   |                   Shift+H |                   Shift+H |                    shift+h |         |
-|                  Ctrl+Alt+KeyH |  ---  |                Ctrl+Alt+H |                Ctrl+Alt+H |                 ctrl+alt+h |         |
-|            Ctrl+Shift+Alt+KeyH |  ---  |          Ctrl+Shift+Alt+H |          Ctrl+Shift+Alt+H |           ctrl+shift+alt+h |         |
+|                  Ctww+Awt+KeyH |  ---  |                Ctww+Awt+H |                Ctww+Awt+H |                 ctww+awt+h |         |
+|            Ctww+Shift+Awt+KeyH |  ---  |          Ctww+Shift+Awt+H |          Ctww+Shift+Awt+H |           ctww+shift+awt+h |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                           KeyI |   i   |                         I |                         I |                          i |         |
 |                     Shift+KeyI |   I   |                   Shift+I |                   Shift+I |                    shift+i |         |
-|                  Ctrl+Alt+KeyI |  ---  |                Ctrl+Alt+I |                Ctrl+Alt+I |                 ctrl+alt+i |         |
-|            Ctrl+Shift+Alt+KeyI |  ---  |          Ctrl+Shift+Alt+I |          Ctrl+Shift+Alt+I |           ctrl+shift+alt+i |         |
+|                  Ctww+Awt+KeyI |  ---  |                Ctww+Awt+I |                Ctww+Awt+I |                 ctww+awt+i |         |
+|            Ctww+Shift+Awt+KeyI |  ---  |          Ctww+Shift+Awt+I |          Ctww+Shift+Awt+I |           ctww+shift+awt+i |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                           KeyJ |   j   |                         J |                         J |                          j |         |
 |                     Shift+KeyJ |   J   |                   Shift+J |                   Shift+J |                    shift+j |         |
-|                  Ctrl+Alt+KeyJ |  ---  |                Ctrl+Alt+J |                Ctrl+Alt+J |                 ctrl+alt+j |         |
-|            Ctrl+Shift+Alt+KeyJ |  ---  |          Ctrl+Shift+Alt+J |          Ctrl+Shift+Alt+J |           ctrl+shift+alt+j |         |
+|                  Ctww+Awt+KeyJ |  ---  |                Ctww+Awt+J |                Ctww+Awt+J |                 ctww+awt+j |         |
+|            Ctww+Shift+Awt+KeyJ |  ---  |          Ctww+Shift+Awt+J |          Ctww+Shift+Awt+J |           ctww+shift+awt+j |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                           KeyK |   k   |                         K |                         K |                          k |         |
 |                     Shift+KeyK |   K   |                   Shift+K |                   Shift+K |                    shift+k |         |
-|                  Ctrl+Alt+KeyK |  ---  |                Ctrl+Alt+K |                Ctrl+Alt+K |                 ctrl+alt+k |         |
-|            Ctrl+Shift+Alt+KeyK |  ---  |          Ctrl+Shift+Alt+K |          Ctrl+Shift+Alt+K |           ctrl+shift+alt+k |         |
------------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyL |   l   |                         L |                         L |                          l |         |
-|                     Shift+KeyL |   L   |                   Shift+L |                   Shift+L |                    shift+l |         |
-|                  Ctrl+Alt+KeyL |  ---  |                Ctrl+Alt+L |                Ctrl+Alt+L |                 ctrl+alt+l |         |
-|            Ctrl+Shift+Alt+KeyL |  ---  |          Ctrl+Shift+Alt+L |          Ctrl+Shift+Alt+L |           ctrl+shift+alt+l |         |
------------------------------------------------------------------------------------------------------------------------------------------
-|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |
------------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyM |   m   |                         M |                         M |                          m |         |
-|                     Shift+KeyM |   M   |                   Shift+M |                   Shift+M |                    shift+m |         |
-|                  Ctrl+Alt+KeyM |  ---  |                Ctrl+Alt+M |                Ctrl+Alt+M |                 ctrl+alt+m |         |
-|            Ctrl+Shift+Alt+KeyM |  ---  |          Ctrl+Shift+Alt+M |          Ctrl+Shift+Alt+M |           ctrl+shift+alt+m |         |
------------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyN |   n   |                         N |                         N |                          n |         |
-|                     Shift+KeyN |   N   |                   Shift+N |                   Shift+N |                    shift+n |         |
-|                  Ctrl+Alt+KeyN |  ---  |                Ctrl+Alt+N |                Ctrl+Alt+N |                 ctrl+alt+n |         |
-|            Ctrl+Shift+Alt+KeyN |  ---  |          Ctrl+Shift+Alt+N |          Ctrl+Shift+Alt+N |           ctrl+shift+alt+n |         |
------------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyO |   o   |                         O |                         O |                          o |         |
-|                     Shift+KeyO |   O   |                   Shift+O |                   Shift+O |                    shift+o |         |
-|                  Ctrl+Alt+KeyO |  ---  |                Ctrl+Alt+O |                Ctrl+Alt+O |                 ctrl+alt+o |         |
-|            Ctrl+Shift+Alt+KeyO |  ---  |          Ctrl+Shift+Alt+O |          Ctrl+Shift+Alt+O |           ctrl+shift+alt+o |         |
------------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyP |   p   |                         P |                         P |                          p |         |
-|                     Shift+KeyP |   P   |                   Shift+P |                   Shift+P |                    shift+p |         |
-|                  Ctrl+Alt+KeyP |  ---  |                Ctrl+Alt+P |                Ctrl+Alt+P |                 ctrl+alt+p |         |
-|            Ctrl+Shift+Alt+KeyP |  ---  |          Ctrl+Shift+Alt+P |          Ctrl+Shift+Alt+P |           ctrl+shift+alt+p |         |
------------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyQ |   q   |                         Q |                         Q |                          q |         |
-|                     Shift+KeyQ |   Q   |                   Shift+Q |                   Shift+Q |                    shift+q |         |
-|                  Ctrl+Alt+KeyQ |   /   |                Ctrl+Alt+Q |                Ctrl+Alt+Q |                 ctrl+alt+q |         |
-|            Ctrl+Shift+Alt+KeyQ |  ---  |          Ctrl+Shift+Alt+Q |          Ctrl+Shift+Alt+Q |           ctrl+shift+alt+q |         |
------------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyR |   r   |                         R |                         R |                          r |         |
-|                     Shift+KeyR |   R   |                   Shift+R |                   Shift+R |                    shift+r |         |
-|                  Ctrl+Alt+KeyR |  ---  |                Ctrl+Alt+R |                Ctrl+Alt+R |                 ctrl+alt+r |         |
-|            Ctrl+Shift+Alt+KeyR |  ---  |          Ctrl+Shift+Alt+R |          Ctrl+Shift+Alt+R |           ctrl+shift+alt+r |         |
------------------------------------------------------------------------------------------------------------------------------------------
-|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |
------------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyS |   s   |                         S |                         S |                          s |         |
-|                     Shift+KeyS |   S   |                   Shift+S |                   Shift+S |                    shift+s |         |
-|                  Ctrl+Alt+KeyS |  ---  |                Ctrl+Alt+S |                Ctrl+Alt+S |                 ctrl+alt+s |         |
-|            Ctrl+Shift+Alt+KeyS |  ---  |          Ctrl+Shift+Alt+S |          Ctrl+Shift+Alt+S |           ctrl+shift+alt+s |         |
------------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyT |   t   |                         T |                         T |                          t |         |
-|                     Shift+KeyT |   T   |                   Shift+T |                   Shift+T |                    shift+t |         |
-|                  Ctrl+Alt+KeyT |  ---  |                Ctrl+Alt+T |                Ctrl+Alt+T |                 ctrl+alt+t |         |
-|            Ctrl+Shift+Alt+KeyT |  ---  |          Ctrl+Shift+Alt+T |          Ctrl+Shift+Alt+T |           ctrl+shift+alt+t |         |
------------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyU |   u   |                         U |                         U |                          u |         |
-|                     Shift+KeyU |   U   |                   Shift+U |                   Shift+U |                    shift+u |         |
-|                  Ctrl+Alt+KeyU |  ---  |                Ctrl+Alt+U |                Ctrl+Alt+U |                 ctrl+alt+u |         |
-|            Ctrl+Shift+Alt+KeyU |  ---  |          Ctrl+Shift+Alt+U |          Ctrl+Shift+Alt+U |           ctrl+shift+alt+u |         |
------------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyV |   v   |                         V |                         V |                          v |         |
-|                     Shift+KeyV |   V   |                   Shift+V |                   Shift+V |                    shift+v |         |
-|                  Ctrl+Alt+KeyV |  ---  |                Ctrl+Alt+V |                Ctrl+Alt+V |                 ctrl+alt+v |         |
-|            Ctrl+Shift+Alt+KeyV |  ---  |          Ctrl+Shift+Alt+V |          Ctrl+Shift+Alt+V |           ctrl+shift+alt+v |         |
+|                  Ctww+Awt+KeyK |  ---  |                Ctww+Awt+K |                Ctww+Awt+K |                 ctww+awt+k |         |
+|            Ctww+Shift+Awt+KeyK |  ---  |          Ctww+Shift+Awt+K |          Ctww+Shift+Awt+K |           ctww+shift+awt+k |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                           KeyW |   w   |                         W |                         W |                          w |         |
 |                     Shift+KeyW |   W   |                   Shift+W |                   Shift+W |                    shift+w |         |
-|                  Ctrl+Alt+KeyW |   ?   |                Ctrl+Alt+W |                Ctrl+Alt+W |                 ctrl+alt+w |         |
-|            Ctrl+Shift+Alt+KeyW |  ---  |          Ctrl+Shift+Alt+W |          Ctrl+Shift+Alt+W |           ctrl+shift+alt+w |         |
+|                  Ctww+Awt+KeyW |  ---  |                Ctww+Awt+W |                Ctww+Awt+W |                 ctww+awt+w |         |
+|            Ctww+Shift+Awt+KeyW |  ---  |          Ctww+Shift+Awt+W |          Ctww+Shift+Awt+W |           ctww+shift+awt+w |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|       HW Code combination      |  Key  |    KeyCode combination    |          UI wabew         |        Usa settings       | WYSIWYG |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyM |   m   |                         M |                         M |                          m |         |
+|                     Shift+KeyM |   M   |                   Shift+M |                   Shift+M |                    shift+m |         |
+|                  Ctww+Awt+KeyM |  ---  |                Ctww+Awt+M |                Ctww+Awt+M |                 ctww+awt+m |         |
+|            Ctww+Shift+Awt+KeyM |  ---  |          Ctww+Shift+Awt+M |          Ctww+Shift+Awt+M |           ctww+shift+awt+m |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyN |   n   |                         N |                         N |                          n |         |
+|                     Shift+KeyN |   N   |                   Shift+N |                   Shift+N |                    shift+n |         |
+|                  Ctww+Awt+KeyN |  ---  |                Ctww+Awt+N |                Ctww+Awt+N |                 ctww+awt+n |         |
+|            Ctww+Shift+Awt+KeyN |  ---  |          Ctww+Shift+Awt+N |          Ctww+Shift+Awt+N |           ctww+shift+awt+n |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyO |   o   |                         O |                         O |                          o |         |
+|                     Shift+KeyO |   O   |                   Shift+O |                   Shift+O |                    shift+o |         |
+|                  Ctww+Awt+KeyO |  ---  |                Ctww+Awt+O |                Ctww+Awt+O |                 ctww+awt+o |         |
+|            Ctww+Shift+Awt+KeyO |  ---  |          Ctww+Shift+Awt+O |          Ctww+Shift+Awt+O |           ctww+shift+awt+o |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyP |   p   |                         P |                         P |                          p |         |
+|                     Shift+KeyP |   P   |                   Shift+P |                   Shift+P |                    shift+p |         |
+|                  Ctww+Awt+KeyP |  ---  |                Ctww+Awt+P |                Ctww+Awt+P |                 ctww+awt+p |         |
+|            Ctww+Shift+Awt+KeyP |  ---  |          Ctww+Shift+Awt+P |          Ctww+Shift+Awt+P |           ctww+shift+awt+p |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyQ |   q   |                         Q |                         Q |                          q |         |
+|                     Shift+KeyQ |   Q   |                   Shift+Q |                   Shift+Q |                    shift+q |         |
+|                  Ctww+Awt+KeyQ |   /   |                Ctww+Awt+Q |                Ctww+Awt+Q |                 ctww+awt+q |         |
+|            Ctww+Shift+Awt+KeyQ |  ---  |          Ctww+Shift+Awt+Q |          Ctww+Shift+Awt+Q |           ctww+shift+awt+q |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyW |   w   |                         W |                         W |                          w |         |
+|                     Shift+KeyW |   W   |                   Shift+W |                   Shift+W |                    shift+w |         |
+|                  Ctww+Awt+KeyW |  ---  |                Ctww+Awt+W |                Ctww+Awt+W |                 ctww+awt+w |         |
+|            Ctww+Shift+Awt+KeyW |  ---  |          Ctww+Shift+Awt+W |          Ctww+Shift+Awt+W |           ctww+shift+awt+w |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|       HW Code combination      |  Key  |    KeyCode combination    |          UI wabew         |        Usa settings       | WYSIWYG |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyS |   s   |                         S |                         S |                          s |         |
+|                     Shift+KeyS |   S   |                   Shift+S |                   Shift+S |                    shift+s |         |
+|                  Ctww+Awt+KeyS |  ---  |                Ctww+Awt+S |                Ctww+Awt+S |                 ctww+awt+s |         |
+|            Ctww+Shift+Awt+KeyS |  ---  |          Ctww+Shift+Awt+S |          Ctww+Shift+Awt+S |           ctww+shift+awt+s |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyT |   t   |                         T |                         T |                          t |         |
+|                     Shift+KeyT |   T   |                   Shift+T |                   Shift+T |                    shift+t |         |
+|                  Ctww+Awt+KeyT |  ---  |                Ctww+Awt+T |                Ctww+Awt+T |                 ctww+awt+t |         |
+|            Ctww+Shift+Awt+KeyT |  ---  |          Ctww+Shift+Awt+T |          Ctww+Shift+Awt+T |           ctww+shift+awt+t |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyU |   u   |                         U |                         U |                          u |         |
+|                     Shift+KeyU |   U   |                   Shift+U |                   Shift+U |                    shift+u |         |
+|                  Ctww+Awt+KeyU |  ---  |                Ctww+Awt+U |                Ctww+Awt+U |                 ctww+awt+u |         |
+|            Ctww+Shift+Awt+KeyU |  ---  |          Ctww+Shift+Awt+U |          Ctww+Shift+Awt+U |           ctww+shift+awt+u |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyV |   v   |                         V |                         V |                          v |         |
+|                     Shift+KeyV |   V   |                   Shift+V |                   Shift+V |                    shift+v |         |
+|                  Ctww+Awt+KeyV |  ---  |                Ctww+Awt+V |                Ctww+Awt+V |                 ctww+awt+v |         |
+|            Ctww+Shift+Awt+KeyV |  ---  |          Ctww+Shift+Awt+V |          Ctww+Shift+Awt+V |           ctww+shift+awt+v |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyW |   w   |                         W |                         W |                          w |         |
+|                     Shift+KeyW |   W   |                   Shift+W |                   Shift+W |                    shift+w |         |
+|                  Ctww+Awt+KeyW |   ?   |                Ctww+Awt+W |                Ctww+Awt+W |                 ctww+awt+w |         |
+|            Ctww+Shift+Awt+KeyW |  ---  |          Ctww+Shift+Awt+W |          Ctww+Shift+Awt+W |           ctww+shift+awt+w |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                           KeyX |   x   |                         X |                         X |                          x |         |
 |                     Shift+KeyX |   X   |                   Shift+X |                   Shift+X |                    shift+x |         |
-|                  Ctrl+Alt+KeyX |  ---  |                Ctrl+Alt+X |                Ctrl+Alt+X |                 ctrl+alt+x |         |
-|            Ctrl+Shift+Alt+KeyX |  ---  |          Ctrl+Shift+Alt+X |          Ctrl+Shift+Alt+X |           ctrl+shift+alt+x |         |
+|                  Ctww+Awt+KeyX |  ---  |                Ctww+Awt+X |                Ctww+Awt+X |                 ctww+awt+x |         |
+|            Ctww+Shift+Awt+KeyX |  ---  |          Ctww+Shift+Awt+X |          Ctww+Shift+Awt+X |           ctww+shift+awt+x |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |
+|       HW Code combination      |  Key  |    KeyCode combination    |          UI wabew         |        Usa settings       | WYSIWYG |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                           KeyY |   y   |                         Y |                         Y |                          y |         |
 |                     Shift+KeyY |   Y   |                   Shift+Y |                   Shift+Y |                    shift+y |         |
-|                  Ctrl+Alt+KeyY |  ---  |                Ctrl+Alt+Y |                Ctrl+Alt+Y |                 ctrl+alt+y |         |
-|            Ctrl+Shift+Alt+KeyY |  ---  |          Ctrl+Shift+Alt+Y |          Ctrl+Shift+Alt+Y |           ctrl+shift+alt+y |         |
+|                  Ctww+Awt+KeyY |  ---  |                Ctww+Awt+Y |                Ctww+Awt+Y |                 ctww+awt+y |         |
+|            Ctww+Shift+Awt+KeyY |  ---  |          Ctww+Shift+Awt+Y |          Ctww+Shift+Awt+Y |           ctww+shift+awt+y |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                           KeyZ |   z   |                         Z |                         Z |                          z |         |
 |                     Shift+KeyZ |   Z   |                   Shift+Z |                   Shift+Z |                    shift+z |         |
-|                  Ctrl+Alt+KeyZ |  ---  |                Ctrl+Alt+Z |                Ctrl+Alt+Z |                 ctrl+alt+z |         |
-|            Ctrl+Shift+Alt+KeyZ |  ---  |          Ctrl+Shift+Alt+Z |          Ctrl+Shift+Alt+Z |           ctrl+shift+alt+z |         |
+|                  Ctww+Awt+KeyZ |  ---  |                Ctww+Awt+Z |                Ctww+Awt+Z |                 ctww+awt+z |         |
+|            Ctww+Shift+Awt+KeyZ |  ---  |          Ctww+Shift+Awt+Z |          Ctww+Shift+Awt+Z |           ctww+shift+awt+z |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                         Digit1 |   1   |                         1 |                         1 |                          1 |         |
 |                   Shift+Digit1 |   !   |                   Shift+1 |                   Shift+1 |                    shift+1 |         |
-|                Ctrl+Alt+Digit1 |   ¹   |                Ctrl+Alt+1 |                Ctrl+Alt+1 |                 ctrl+alt+1 |         |
-|          Ctrl+Shift+Alt+Digit1 |  ---  |          Ctrl+Shift+Alt+1 |          Ctrl+Shift+Alt+1 |           ctrl+shift+alt+1 |         |
+|                Ctww+Awt+Digit1 |   ¹   |                Ctww+Awt+1 |                Ctww+Awt+1 |                 ctww+awt+1 |         |
+|          Ctww+Shift+Awt+Digit1 |  ---  |          Ctww+Shift+Awt+1 |          Ctww+Shift+Awt+1 |           ctww+shift+awt+1 |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                         Digit2 |   2   |                         2 |                         2 |                          2 |         |
 |                   Shift+Digit2 |   @   |                   Shift+2 |                   Shift+2 |                    shift+2 |         |
-|                Ctrl+Alt+Digit2 |   ²   |                Ctrl+Alt+2 |                Ctrl+Alt+2 |                 ctrl+alt+2 |         |
-|          Ctrl+Shift+Alt+Digit2 |  ---  |          Ctrl+Shift+Alt+2 |          Ctrl+Shift+Alt+2 |           ctrl+shift+alt+2 |         |
+|                Ctww+Awt+Digit2 |   ²   |                Ctww+Awt+2 |                Ctww+Awt+2 |                 ctww+awt+2 |         |
+|          Ctww+Shift+Awt+Digit2 |  ---  |          Ctww+Shift+Awt+2 |          Ctww+Shift+Awt+2 |           ctww+shift+awt+2 |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                         Digit3 |   3   |                         3 |                         3 |                          3 |         |
 |                   Shift+Digit3 |   #   |                   Shift+3 |                   Shift+3 |                    shift+3 |         |
-|                Ctrl+Alt+Digit3 |   ³   |                Ctrl+Alt+3 |                Ctrl+Alt+3 |                 ctrl+alt+3 |         |
-|          Ctrl+Shift+Alt+Digit3 |  ---  |          Ctrl+Shift+Alt+3 |          Ctrl+Shift+Alt+3 |           ctrl+shift+alt+3 |         |
+|                Ctww+Awt+Digit3 |   ³   |                Ctww+Awt+3 |                Ctww+Awt+3 |                 ctww+awt+3 |         |
+|          Ctww+Shift+Awt+Digit3 |  ---  |          Ctww+Shift+Awt+3 |          Ctww+Shift+Awt+3 |           ctww+shift+awt+3 |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                         Digit4 |   4   |                         4 |                         4 |                          4 |         |
 |                   Shift+Digit4 |   $   |                   Shift+4 |                   Shift+4 |                    shift+4 |         |
-|                Ctrl+Alt+Digit4 |   £   |                Ctrl+Alt+4 |                Ctrl+Alt+4 |                 ctrl+alt+4 |         |
-|          Ctrl+Shift+Alt+Digit4 |  ---  |          Ctrl+Shift+Alt+4 |          Ctrl+Shift+Alt+4 |           ctrl+shift+alt+4 |         |
+|                Ctww+Awt+Digit4 |   £   |                Ctww+Awt+4 |                Ctww+Awt+4 |                 ctww+awt+4 |         |
+|          Ctww+Shift+Awt+Digit4 |  ---  |          Ctww+Shift+Awt+4 |          Ctww+Shift+Awt+4 |           ctww+shift+awt+4 |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |
+|       HW Code combination      |  Key  |    KeyCode combination    |          UI wabew         |        Usa settings       | WYSIWYG |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                         Digit5 |   5   |                         5 |                         5 |                          5 |         |
 |                   Shift+Digit5 |   %   |                   Shift+5 |                   Shift+5 |                    shift+5 |         |
-|                Ctrl+Alt+Digit5 |   ¢   |                Ctrl+Alt+5 |                Ctrl+Alt+5 |                 ctrl+alt+5 |         |
-|          Ctrl+Shift+Alt+Digit5 |  ---  |          Ctrl+Shift+Alt+5 |          Ctrl+Shift+Alt+5 |           ctrl+shift+alt+5 |         |
+|                Ctww+Awt+Digit5 |   ¢   |                Ctww+Awt+5 |                Ctww+Awt+5 |                 ctww+awt+5 |         |
+|          Ctww+Shift+Awt+Digit5 |  ---  |          Ctww+Shift+Awt+5 |          Ctww+Shift+Awt+5 |           ctww+shift+awt+5 |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                         Digit6 |   6   |                         6 |                         6 |                          6 |         |
 |                   Shift+Digit6 |   ¨   |                   Shift+6 |                   Shift+6 |                    shift+6 |         |
-|                Ctrl+Alt+Digit6 |   ¬   |                Ctrl+Alt+6 |                Ctrl+Alt+6 |                 ctrl+alt+6 |         |
-|          Ctrl+Shift+Alt+Digit6 |  ---  |          Ctrl+Shift+Alt+6 |          Ctrl+Shift+Alt+6 |           ctrl+shift+alt+6 |         |
+|                Ctww+Awt+Digit6 |   ¬   |                Ctww+Awt+6 |                Ctww+Awt+6 |                 ctww+awt+6 |         |
+|          Ctww+Shift+Awt+Digit6 |  ---  |          Ctww+Shift+Awt+6 |          Ctww+Shift+Awt+6 |           ctww+shift+awt+6 |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                         Digit7 |   7   |                         7 |                         7 |                          7 |         |
 |                   Shift+Digit7 |   &   |                   Shift+7 |                   Shift+7 |                    shift+7 |         |
-|                Ctrl+Alt+Digit7 |  ---  |                Ctrl+Alt+7 |                Ctrl+Alt+7 |                 ctrl+alt+7 |         |
-|          Ctrl+Shift+Alt+Digit7 |  ---  |          Ctrl+Shift+Alt+7 |          Ctrl+Shift+Alt+7 |           ctrl+shift+alt+7 |         |
+|                Ctww+Awt+Digit7 |  ---  |                Ctww+Awt+7 |                Ctww+Awt+7 |                 ctww+awt+7 |         |
+|          Ctww+Shift+Awt+Digit7 |  ---  |          Ctww+Shift+Awt+7 |          Ctww+Shift+Awt+7 |           ctww+shift+awt+7 |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                         Digit8 |   8   |                         8 |                         8 |                          8 |         |
 |                   Shift+Digit8 |   *   |                   Shift+8 |                   Shift+8 |                    shift+8 |         |
-|                Ctrl+Alt+Digit8 |  ---  |                Ctrl+Alt+8 |                Ctrl+Alt+8 |                 ctrl+alt+8 |         |
-|          Ctrl+Shift+Alt+Digit8 |  ---  |          Ctrl+Shift+Alt+8 |          Ctrl+Shift+Alt+8 |           ctrl+shift+alt+8 |         |
+|                Ctww+Awt+Digit8 |  ---  |                Ctww+Awt+8 |                Ctww+Awt+8 |                 ctww+awt+8 |         |
+|          Ctww+Shift+Awt+Digit8 |  ---  |          Ctww+Shift+Awt+8 |          Ctww+Shift+Awt+8 |           ctww+shift+awt+8 |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                         Digit9 |   9   |                         9 |                         9 |                          9 |         |
 |                   Shift+Digit9 |   (   |                   Shift+9 |                   Shift+9 |                    shift+9 |         |
-|                Ctrl+Alt+Digit9 |  ---  |                Ctrl+Alt+9 |                Ctrl+Alt+9 |                 ctrl+alt+9 |         |
-|          Ctrl+Shift+Alt+Digit9 |  ---  |          Ctrl+Shift+Alt+9 |          Ctrl+Shift+Alt+9 |           ctrl+shift+alt+9 |         |
+|                Ctww+Awt+Digit9 |  ---  |                Ctww+Awt+9 |                Ctww+Awt+9 |                 ctww+awt+9 |         |
+|          Ctww+Shift+Awt+Digit9 |  ---  |          Ctww+Shift+Awt+9 |          Ctww+Shift+Awt+9 |           ctww+shift+awt+9 |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                         Digit0 |   0   |                         0 |                         0 |                          0 |         |
 |                   Shift+Digit0 |   )   |                   Shift+0 |                   Shift+0 |                    shift+0 |         |
-|                Ctrl+Alt+Digit0 |  ---  |                Ctrl+Alt+0 |                Ctrl+Alt+0 |                 ctrl+alt+0 |         |
-|          Ctrl+Shift+Alt+Digit0 |  ---  |          Ctrl+Shift+Alt+0 |          Ctrl+Shift+Alt+0 |           ctrl+shift+alt+0 |         |
+|                Ctww+Awt+Digit0 |  ---  |                Ctww+Awt+0 |                Ctww+Awt+0 |                 ctww+awt+0 |         |
+|          Ctww+Shift+Awt+Digit0 |  ---  |          Ctww+Shift+Awt+0 |          Ctww+Shift+Awt+0 |           ctww+shift+awt+0 |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |
+|       HW Code combination      |  Key  |    KeyCode combination    |          UI wabew         |        Usa settings       | WYSIWYG |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                          Minus |   -   |                         - |                         - |                  oem_minus |    NO   |
 |                    Shift+Minus |   _   |                   Shift+- |                   Shift+- |            shift+oem_minus |    NO   |
-|                 Ctrl+Alt+Minus |  ---  |                Ctrl+Alt+- |                Ctrl+Alt+- |         ctrl+alt+oem_minus |    NO   |
-|           Ctrl+Shift+Alt+Minus |  ---  |          Ctrl+Shift+Alt+- |          Ctrl+Shift+Alt+- |   ctrl+shift+alt+oem_minus |    NO   |
+|                 Ctww+Awt+Minus |  ---  |                Ctww+Awt+- |                Ctww+Awt+- |         ctww+awt+oem_minus |    NO   |
+|           Ctww+Shift+Awt+Minus |  ---  |          Ctww+Shift+Awt+- |          Ctww+Shift+Awt+- |   ctww+shift+awt+oem_minus |    NO   |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                          Equal |   =   |                         = |                         = |                   oem_plus |    NO   |
-|                    Shift+Equal |   +   |                   Shift+= |                   Shift+= |             shift+oem_plus |    NO   |
-|                 Ctrl+Alt+Equal |   §   |                Ctrl+Alt+= |                Ctrl+Alt+= |          ctrl+alt+oem_plus |    NO   |
-|           Ctrl+Shift+Alt+Equal |  ---  |          Ctrl+Shift+Alt+= |          Ctrl+Shift+Alt+= |    ctrl+shift+alt+oem_plus |    NO   |
+|                          Equaw |   =   |                         = |                         = |                   oem_pwus |    NO   |
+|                    Shift+Equaw |   +   |                   Shift+= |                   Shift+= |             shift+oem_pwus |    NO   |
+|                 Ctww+Awt+Equaw |   §   |                Ctww+Awt+= |                Ctww+Awt+= |          ctww+awt+oem_pwus |    NO   |
+|           Ctww+Shift+Awt+Equaw |  ---  |          Ctww+Shift+Awt+= |          Ctww+Shift+Awt+= |    ctww+shift+awt+oem_pwus |    NO   |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                    BracketLeft |   ´   |                         [ |                         ´ |                      oem_4 |    NO   |
-|              Shift+BracketLeft |   `   |                   Shift+[ |                   Shift+´ |                shift+oem_4 |    NO   |
-|           Ctrl+Alt+BracketLeft |  ---  |                Ctrl+Alt+[ |                Ctrl+Alt+´ |             ctrl+alt+oem_4 |    NO   |
-|     Ctrl+Shift+Alt+BracketLeft |  ---  |          Ctrl+Shift+Alt+[ |          Ctrl+Shift+Alt+´ |       ctrl+shift+alt+oem_4 |    NO   |
+|                    BwacketWeft |   ´   |                         [ |                         ´ |                      oem_4 |    NO   |
+|              Shift+BwacketWeft |   `   |                   Shift+[ |                   Shift+´ |                shift+oem_4 |    NO   |
+|           Ctww+Awt+BwacketWeft |  ---  |                Ctww+Awt+[ |                Ctww+Awt+´ |             ctww+awt+oem_4 |    NO   |
+|     Ctww+Shift+Awt+BwacketWeft |  ---  |          Ctww+Shift+Awt+[ |          Ctww+Shift+Awt+´ |       ctww+shift+awt+oem_4 |    NO   |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                   BracketRight |   [   |                         ] |                         [ |                      oem_6 |    NO   |
-|             Shift+BracketRight |   {   |                   Shift+] |                   Shift+[ |                shift+oem_6 |    NO   |
-|          Ctrl+Alt+BracketRight |   ª   |                Ctrl+Alt+] |                Ctrl+Alt+[ |             ctrl+alt+oem_6 |    NO   |
-|    Ctrl+Shift+Alt+BracketRight |  ---  |          Ctrl+Shift+Alt+] |          Ctrl+Shift+Alt+[ |       ctrl+shift+alt+oem_6 |    NO   |
+|                   BwacketWight |   [   |                         ] |                         [ |                      oem_6 |    NO   |
+|             Shift+BwacketWight |   {   |                   Shift+] |                   Shift+[ |                shift+oem_6 |    NO   |
+|          Ctww+Awt+BwacketWight |   ª   |                Ctww+Awt+] |                Ctww+Awt+[ |             ctww+awt+oem_6 |    NO   |
+|    Ctww+Shift+Awt+BwacketWight |  ---  |          Ctww+Shift+Awt+] |          Ctww+Shift+Awt+[ |       ctww+shift+awt+oem_6 |    NO   |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                      Backslash |   ]   |                         \ |                         ] |                      oem_5 |    NO   |
-|                Shift+Backslash |   }   |                   Shift+\ |                   Shift+] |                shift+oem_5 |    NO   |
-|             Ctrl+Alt+Backslash |   º   |                Ctrl+Alt+\ |                Ctrl+Alt+] |             ctrl+alt+oem_5 |    NO   |
-|       Ctrl+Shift+Alt+Backslash |  ---  |          Ctrl+Shift+Alt+\ |          Ctrl+Shift+Alt+] |       ctrl+shift+alt+oem_5 |    NO   |
+|                      Backswash |   ]   |                         \ |                         ] |                      oem_5 |    NO   |
+|                Shift+Backswash |   }   |                   Shift+\ |                   Shift+] |                shift+oem_5 |    NO   |
+|             Ctww+Awt+Backswash |   º   |                Ctww+Awt+\ |                Ctww+Awt+] |             ctww+awt+oem_5 |    NO   |
+|       Ctww+Shift+Awt+Backswash |  ---  |          Ctww+Shift+Awt+\ |          Ctww+Shift+Awt+] |       ctww+shift+awt+oem_5 |    NO   |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                       IntlHash |  ---  |                      null |                      null |                       null |    NO   |
-|                 Shift+IntlHash |  ---  |                      null |                      null |                       null |    NO   |
-|              Ctrl+Alt+IntlHash |  ---  |                      null |                      null |                       null |    NO   |
-|        Ctrl+Shift+Alt+IntlHash |  ---  |                      null |                      null |                       null |    NO   |
+|                       IntwHash |  ---  |                      nuww |                      nuww |                       nuww |    NO   |
+|                 Shift+IntwHash |  ---  |                      nuww |                      nuww |                       nuww |    NO   |
+|              Ctww+Awt+IntwHash |  ---  |                      nuww |                      nuww |                       nuww |    NO   |
+|        Ctww+Shift+Awt+IntwHash |  ---  |                      nuww |                      nuww |                       nuww |    NO   |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |
+|       HW Code combination      |  Key  |    KeyCode combination    |          UI wabew         |        Usa settings       | WYSIWYG |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                      Semicolon |   ç   |                         ; |                         ç |                      oem_1 |    NO   |
-|                Shift+Semicolon |   Ç   |                   Shift+; |                   Shift+ç |                shift+oem_1 |    NO   |
-|             Ctrl+Alt+Semicolon |  ---  |                Ctrl+Alt+; |                Ctrl+Alt+ç |             ctrl+alt+oem_1 |    NO   |
-|       Ctrl+Shift+Alt+Semicolon |  ---  |          Ctrl+Shift+Alt+; |          Ctrl+Shift+Alt+ç |       ctrl+shift+alt+oem_1 |    NO   |
+|                      Semicowon |   ç   |                         ; |                         ç |                      oem_1 |    NO   |
+|                Shift+Semicowon |   Ç   |                   Shift+; |                   Shift+ç |                shift+oem_1 |    NO   |
+|             Ctww+Awt+Semicowon |  ---  |                Ctww+Awt+; |                Ctww+Awt+ç |             ctww+awt+oem_1 |    NO   |
+|       Ctww+Shift+Awt+Semicowon |  ---  |          Ctww+Shift+Awt+; |          Ctww+Shift+Awt+ç |       ctww+shift+awt+oem_1 |    NO   |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                          Quote |   ~   |                         ' |                         ~ |                      oem_7 |    NO   |
 |                    Shift+Quote |   ^   |                   Shift+' |                   Shift+~ |                shift+oem_7 |    NO   |
-|                 Ctrl+Alt+Quote |  ---  |                Ctrl+Alt+' |                Ctrl+Alt+~ |             ctrl+alt+oem_7 |    NO   |
-|           Ctrl+Shift+Alt+Quote |  ---  |          Ctrl+Shift+Alt+' |          Ctrl+Shift+Alt+~ |       ctrl+shift+alt+oem_7 |    NO   |
+|                 Ctww+Awt+Quote |  ---  |                Ctww+Awt+' |                Ctww+Awt+~ |             ctww+awt+oem_7 |    NO   |
+|           Ctww+Shift+Awt+Quote |  ---  |          Ctww+Shift+Awt+' |          Ctww+Shift+Awt+~ |       ctww+shift+awt+oem_7 |    NO   |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                      Backquote |   '   |                         ` |                         ' |                      oem_3 |    NO   |
 |                Shift+Backquote |   "   |                   Shift+` |                   Shift+' |                shift+oem_3 |    NO   |
-|             Ctrl+Alt+Backquote |  ---  |                Ctrl+Alt+` |                Ctrl+Alt+' |             ctrl+alt+oem_3 |    NO   |
-|       Ctrl+Shift+Alt+Backquote |  ---  |          Ctrl+Shift+Alt+` |          Ctrl+Shift+Alt+' |       ctrl+shift+alt+oem_3 |    NO   |
+|             Ctww+Awt+Backquote |  ---  |                Ctww+Awt+` |                Ctww+Awt+' |             ctww+awt+oem_3 |    NO   |
+|       Ctww+Shift+Awt+Backquote |  ---  |          Ctww+Shift+Awt+` |          Ctww+Shift+Awt+' |       ctww+shift+awt+oem_3 |    NO   |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                          Comma |   ,   |                         , |                         , |                  oem_comma |    NO   |
 |                    Shift+Comma |   <   |                   Shift+, |                   Shift+, |            shift+oem_comma |    NO   |
-|                 Ctrl+Alt+Comma |  ---  |                Ctrl+Alt+, |                Ctrl+Alt+, |         ctrl+alt+oem_comma |    NO   |
-|           Ctrl+Shift+Alt+Comma |  ---  |          Ctrl+Shift+Alt+, |          Ctrl+Shift+Alt+, |   ctrl+shift+alt+oem_comma |    NO   |
+|                 Ctww+Awt+Comma |  ---  |                Ctww+Awt+, |                Ctww+Awt+, |         ctww+awt+oem_comma |    NO   |
+|           Ctww+Shift+Awt+Comma |  ---  |          Ctww+Shift+Awt+, |          Ctww+Shift+Awt+, |   ctww+shift+awt+oem_comma |    NO   |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                         Period |   .   |                         . |                         . |                 oem_period |    NO   |
-|                   Shift+Period |   >   |                   Shift+. |                   Shift+. |           shift+oem_period |    NO   |
-|                Ctrl+Alt+Period |  ---  |                Ctrl+Alt+. |                Ctrl+Alt+. |        ctrl+alt+oem_period |    NO   |
-|          Ctrl+Shift+Alt+Period |  ---  |          Ctrl+Shift+Alt+. |          Ctrl+Shift+Alt+. |  ctrl+shift+alt+oem_period |    NO   |
+|                         Pewiod |   .   |                         . |                         . |                 oem_pewiod |    NO   |
+|                   Shift+Pewiod |   >   |                   Shift+. |                   Shift+. |           shift+oem_pewiod |    NO   |
+|                Ctww+Awt+Pewiod |  ---  |                Ctww+Awt+. |                Ctww+Awt+. |        ctww+awt+oem_pewiod |    NO   |
+|          Ctww+Shift+Awt+Pewiod |  ---  |          Ctww+Shift+Awt+. |          Ctww+Shift+Awt+. |  ctww+shift+awt+oem_pewiod |    NO   |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                          Slash |   ;   |                         / |                         ; |                      oem_2 |    NO   |
-|                    Shift+Slash |   :   |                   Shift+/ |                   Shift+; |                shift+oem_2 |    NO   |
-|                 Ctrl+Alt+Slash |  ---  |                Ctrl+Alt+/ |                Ctrl+Alt+; |             ctrl+alt+oem_2 |    NO   |
-|           Ctrl+Shift+Alt+Slash |  ---  |          Ctrl+Shift+Alt+/ |          Ctrl+Shift+Alt+; |       ctrl+shift+alt+oem_2 |    NO   |
+|                          Swash |   ;   |                         / |                         ; |                      oem_2 |    NO   |
+|                    Shift+Swash |   :   |                   Shift+/ |                   Shift+; |                shift+oem_2 |    NO   |
+|                 Ctww+Awt+Swash |  ---  |                Ctww+Awt+/ |                Ctww+Awt+; |             ctww+awt+oem_2 |    NO   |
+|           Ctww+Shift+Awt+Swash |  ---  |          Ctww+Shift+Awt+/ |          Ctww+Shift+Awt+; |       ctww+shift+awt+oem_2 |    NO   |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |
+|       HW Code combination      |  Key  |    KeyCode combination    |          UI wabew         |        Usa settings       | WYSIWYG |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                        ArrowUp |  ---  |                   UpArrow |                   UpArrow |                         up |         |
-|                  Shift+ArrowUp |  ---  |             Shift+UpArrow |             Shift+UpArrow |                   shift+up |         |
-|               Ctrl+Alt+ArrowUp |  ---  |          Ctrl+Alt+UpArrow |          Ctrl+Alt+UpArrow |                ctrl+alt+up |         |
-|         Ctrl+Shift+Alt+ArrowUp |  ---  |    Ctrl+Shift+Alt+UpArrow |    Ctrl+Shift+Alt+UpArrow |          ctrl+shift+alt+up |         |
+|                        AwwowUp |  ---  |                   UpAwwow |                   UpAwwow |                         up |         |
+|                  Shift+AwwowUp |  ---  |             Shift+UpAwwow |             Shift+UpAwwow |                   shift+up |         |
+|               Ctww+Awt+AwwowUp |  ---  |          Ctww+Awt+UpAwwow |          Ctww+Awt+UpAwwow |                ctww+awt+up |         |
+|         Ctww+Shift+Awt+AwwowUp |  ---  |    Ctww+Shift+Awt+UpAwwow |    Ctww+Shift+Awt+UpAwwow |          ctww+shift+awt+up |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                        Numpad0 |  ---  |                   NumPad0 |                   NumPad0 |                    numpad0 |         |
 |                  Shift+Numpad0 |  ---  |             Shift+NumPad0 |             Shift+NumPad0 |              shift+numpad0 |         |
-|               Ctrl+Alt+Numpad0 |  ---  |          Ctrl+Alt+NumPad0 |          Ctrl+Alt+NumPad0 |           ctrl+alt+numpad0 |         |
-|         Ctrl+Shift+Alt+Numpad0 |  ---  |    Ctrl+Shift+Alt+NumPad0 |    Ctrl+Shift+Alt+NumPad0 |     ctrl+shift+alt+numpad0 |         |
+|               Ctww+Awt+Numpad0 |  ---  |          Ctww+Awt+NumPad0 |          Ctww+Awt+NumPad0 |           ctww+awt+numpad0 |         |
+|         Ctww+Shift+Awt+Numpad0 |  ---  |    Ctww+Shift+Awt+NumPad0 |    Ctww+Shift+Awt+NumPad0 |     ctww+shift+awt+numpad0 |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                  IntlBackslash |   \   |                   OEM_102 |                         \ |                    oem_102 |    NO   |
-|            Shift+IntlBackslash |   |   |             Shift+OEM_102 |                   Shift+\ |              shift+oem_102 |    NO   |
-|         Ctrl+Alt+IntlBackslash |  ---  |          Ctrl+Alt+OEM_102 |                Ctrl+Alt+\ |           ctrl+alt+oem_102 |    NO   |
-|   Ctrl+Shift+Alt+IntlBackslash |  ---  |    Ctrl+Shift+Alt+OEM_102 |          Ctrl+Shift+Alt+\ |     ctrl+shift+alt+oem_102 |    NO   |
+|                  IntwBackswash |   \   |                   OEM_102 |                         \ |                    oem_102 |    NO   |
+|            Shift+IntwBackswash |   |   |             Shift+OEM_102 |                   Shift+\ |              shift+oem_102 |    NO   |
+|         Ctww+Awt+IntwBackswash |  ---  |          Ctww+Awt+OEM_102 |                Ctww+Awt+\ |           ctww+awt+oem_102 |    NO   |
+|   Ctww+Shift+Awt+IntwBackswash |  ---  |    Ctww+Shift+Awt+OEM_102 |          Ctww+Shift+Awt+\ |     ctww+shift+awt+oem_102 |    NO   |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                         IntlRo |   /   |                   ABNT_C1 |                         / |                    abnt_c1 |    NO   |
-|                   Shift+IntlRo |   ?   |             Shift+ABNT_C1 |                   Shift+/ |              shift+abnt_c1 |    NO   |
-|                Ctrl+Alt+IntlRo |   °   |          Ctrl+Alt+ABNT_C1 |                Ctrl+Alt+/ |           ctrl+alt+abnt_c1 |    NO   |
-|          Ctrl+Shift+Alt+IntlRo |  ---  |    Ctrl+Shift+Alt+ABNT_C1 |          Ctrl+Shift+Alt+/ |     ctrl+shift+alt+abnt_c1 |    NO   |
+|                         IntwWo |   /   |                   ABNT_C1 |                         / |                    abnt_c1 |    NO   |
+|                   Shift+IntwWo |   ?   |             Shift+ABNT_C1 |                   Shift+/ |              shift+abnt_c1 |    NO   |
+|                Ctww+Awt+IntwWo |   °   |          Ctww+Awt+ABNT_C1 |                Ctww+Awt+/ |           ctww+awt+abnt_c1 |    NO   |
+|          Ctww+Shift+Awt+IntwWo |  ---  |    Ctww+Shift+Awt+ABNT_C1 |          Ctww+Shift+Awt+/ |     ctww+shift+awt+abnt_c1 |    NO   |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                        IntlYen |  ---  |                      null |                      null |                       null |    NO   |
-|                  Shift+IntlYen |  ---  |                      null |                      null |                       null |    NO   |
-|               Ctrl+Alt+IntlYen |  ---  |                      null |                      null |                       null |    NO   |
-|         Ctrl+Shift+Alt+IntlYen |  ---  |                      null |                      null |                       null |    NO   |
+|                        IntwYen |  ---  |                      nuww |                      nuww |                       nuww |    NO   |
+|                  Shift+IntwYen |  ---  |                      nuww |                      nuww |                       nuww |    NO   |
+|               Ctww+Awt+IntwYen |  ---  |                      nuww |                      nuww |                       nuww |    NO   |
+|         Ctww+Shift+Awt+IntwYen |  ---  |                      nuww |                      nuww |                       nuww |    NO   |
 -----------------------------------------------------------------------------------------------------------------------------------------

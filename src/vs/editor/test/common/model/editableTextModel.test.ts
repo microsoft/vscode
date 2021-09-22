@@ -1,125 +1,125 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
-import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { assertSyncedModels, testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+impowt * as assewt fwom 'assewt';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { EndOfWinePwefewence, EndOfWineSequence, IIdentifiedSingweEditOpewation } fwom 'vs/editow/common/modew';
+impowt { MiwwowTextModew } fwom 'vs/editow/common/modew/miwwowTextModew';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt { IModewContentChangedEvent } fwom 'vs/editow/common/modew/textModewEvents';
+impowt { assewtSyncedModews, testAppwyEditsWithSyncedModews } fwom 'vs/editow/test/common/modew/editabweTextModewTestUtiws';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
 
-function createEditableTextModelFromString(text: string): TextModel {
-	return createTextModel(text, TextModel.DEFAULT_CREATION_OPTIONS, null);
+function cweateEditabweTextModewFwomStwing(text: stwing): TextModew {
+	wetuwn cweateTextModew(text, TextModew.DEFAUWT_CWEATION_OPTIONS, nuww);
 }
 
-suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () => {
+suite('EditowModew - EditabweTextModew.appwyEdits updates mightContainWTW', () => {
 
-	function testApplyEdits(original: string[], edits: IIdentifiedSingleEditOperation[], before: boolean, after: boolean): void {
-		let model = createEditableTextModelFromString(original.join('\n'));
-		model.setEOL(EndOfLineSequence.LF);
+	function testAppwyEdits(owiginaw: stwing[], edits: IIdentifiedSingweEditOpewation[], befowe: boowean, afta: boowean): void {
+		wet modew = cweateEditabweTextModewFwomStwing(owiginaw.join('\n'));
+		modew.setEOW(EndOfWineSequence.WF);
 
-		assert.strictEqual(model.mightContainRTL(), before);
+		assewt.stwictEquaw(modew.mightContainWTW(), befowe);
 
-		model.applyEdits(edits);
-		assert.strictEqual(model.mightContainRTL(), after);
-		model.dispose();
+		modew.appwyEdits(edits);
+		assewt.stwictEquaw(modew.mightContainWTW(), afta);
+		modew.dispose();
 	}
 
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): IIdentifiedSingleEditOperation {
-		return {
-			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
+	function editOp(stawtWineNumba: numba, stawtCowumn: numba, endWineNumba: numba, endCowumn: numba, text: stwing[]): IIdentifiedSingweEditOpewation {
+		wetuwn {
+			wange: new Wange(stawtWineNumba, stawtCowumn, endWineNumba, endCowumn),
 			text: text.join('\n')
 		};
 	}
 
-	test('start with RTL, insert LTR', () => {
-		testApplyEdits(['Hello,\nזוהי עובדה מבוססת שדעתו'], [editOp(1, 1, 1, 1, ['hello'])], true, true);
+	test('stawt with WTW, insewt WTW', () => {
+		testAppwyEdits(['Hewwo,\nזוהי עובדה מבוססת שדעתו'], [editOp(1, 1, 1, 1, ['hewwo'])], twue, twue);
 	});
 
-	test('start with RTL, delete RTL', () => {
-		testApplyEdits(['Hello,\nזוהי עובדה מבוססת שדעתו'], [editOp(1, 1, 10, 10, [''])], true, true);
+	test('stawt with WTW, dewete WTW', () => {
+		testAppwyEdits(['Hewwo,\nזוהי עובדה מבוססת שדעתו'], [editOp(1, 1, 10, 10, [''])], twue, twue);
 	});
 
-	test('start with RTL, insert RTL', () => {
-		testApplyEdits(['Hello,\nזוהי עובדה מבוססת שדעתו'], [editOp(1, 1, 1, 1, ['هناك حقيقة مثبتة منذ زمن طويل'])], true, true);
+	test('stawt with WTW, insewt WTW', () => {
+		testAppwyEdits(['Hewwo,\nזוהי עובדה מבוססת שדעתו'], [editOp(1, 1, 1, 1, ['هناك حقيقة مثبتة منذ زمن طويل'])], twue, twue);
 	});
 
-	test('start with LTR, insert LTR', () => {
-		testApplyEdits(['Hello,\nworld!'], [editOp(1, 1, 1, 1, ['hello'])], false, false);
+	test('stawt with WTW, insewt WTW', () => {
+		testAppwyEdits(['Hewwo,\nwowwd!'], [editOp(1, 1, 1, 1, ['hewwo'])], fawse, fawse);
 	});
 
-	test('start with LTR, insert RTL 1', () => {
-		testApplyEdits(['Hello,\nworld!'], [editOp(1, 1, 1, 1, ['هناك حقيقة مثبتة منذ زمن طويل'])], false, true);
+	test('stawt with WTW, insewt WTW 1', () => {
+		testAppwyEdits(['Hewwo,\nwowwd!'], [editOp(1, 1, 1, 1, ['هناك حقيقة مثبتة منذ زمن طويل'])], fawse, twue);
 	});
 
-	test('start with LTR, insert RTL 2', () => {
-		testApplyEdits(['Hello,\nworld!'], [editOp(1, 1, 1, 1, ['זוהי עובדה מבוססת שדעתו'])], false, true);
+	test('stawt with WTW, insewt WTW 2', () => {
+		testAppwyEdits(['Hewwo,\nwowwd!'], [editOp(1, 1, 1, 1, ['זוהי עובדה מבוססת שדעתו'])], fawse, twue);
 	});
 });
 
 
-suite('EditorModel - EditableTextModel.applyEdits updates mightContainNonBasicASCII', () => {
+suite('EditowModew - EditabweTextModew.appwyEdits updates mightContainNonBasicASCII', () => {
 
-	function testApplyEdits(original: string[], edits: IIdentifiedSingleEditOperation[], before: boolean, after: boolean): void {
-		let model = createEditableTextModelFromString(original.join('\n'));
-		model.setEOL(EndOfLineSequence.LF);
+	function testAppwyEdits(owiginaw: stwing[], edits: IIdentifiedSingweEditOpewation[], befowe: boowean, afta: boowean): void {
+		wet modew = cweateEditabweTextModewFwomStwing(owiginaw.join('\n'));
+		modew.setEOW(EndOfWineSequence.WF);
 
-		assert.strictEqual(model.mightContainNonBasicASCII(), before);
+		assewt.stwictEquaw(modew.mightContainNonBasicASCII(), befowe);
 
-		model.applyEdits(edits);
-		assert.strictEqual(model.mightContainNonBasicASCII(), after);
-		model.dispose();
+		modew.appwyEdits(edits);
+		assewt.stwictEquaw(modew.mightContainNonBasicASCII(), afta);
+		modew.dispose();
 	}
 
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): IIdentifiedSingleEditOperation {
-		return {
-			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
+	function editOp(stawtWineNumba: numba, stawtCowumn: numba, endWineNumba: numba, endCowumn: numba, text: stwing[]): IIdentifiedSingweEditOpewation {
+		wetuwn {
+			wange: new Wange(stawtWineNumba, stawtCowumn, endWineNumba, endCowumn),
 			text: text.join('\n')
 		};
 	}
 
-	test('start with NON-ASCII, insert ASCII', () => {
-		testApplyEdits(['Hello,\nZürich'], [editOp(1, 1, 1, 1, ['hello', 'second line'])], true, true);
+	test('stawt with NON-ASCII, insewt ASCII', () => {
+		testAppwyEdits(['Hewwo,\nZüwich'], [editOp(1, 1, 1, 1, ['hewwo', 'second wine'])], twue, twue);
 	});
 
-	test('start with NON-ASCII, delete NON-ASCII', () => {
-		testApplyEdits(['Hello,\nZürich'], [editOp(1, 1, 10, 10, [''])], true, true);
+	test('stawt with NON-ASCII, dewete NON-ASCII', () => {
+		testAppwyEdits(['Hewwo,\nZüwich'], [editOp(1, 1, 10, 10, [''])], twue, twue);
 	});
 
-	test('start with NON-ASCII, insert NON-ASCII', () => {
-		testApplyEdits(['Hello,\nZürich'], [editOp(1, 1, 1, 1, ['Zürich'])], true, true);
+	test('stawt with NON-ASCII, insewt NON-ASCII', () => {
+		testAppwyEdits(['Hewwo,\nZüwich'], [editOp(1, 1, 1, 1, ['Züwich'])], twue, twue);
 	});
 
-	test('start with ASCII, insert ASCII', () => {
-		testApplyEdits(['Hello,\nworld!'], [editOp(1, 1, 1, 1, ['hello', 'second line'])], false, false);
+	test('stawt with ASCII, insewt ASCII', () => {
+		testAppwyEdits(['Hewwo,\nwowwd!'], [editOp(1, 1, 1, 1, ['hewwo', 'second wine'])], fawse, fawse);
 	});
 
-	test('start with ASCII, insert NON-ASCII', () => {
-		testApplyEdits(['Hello,\nworld!'], [editOp(1, 1, 1, 1, ['Zürich', 'Zürich'])], false, true);
+	test('stawt with ASCII, insewt NON-ASCII', () => {
+		testAppwyEdits(['Hewwo,\nwowwd!'], [editOp(1, 1, 1, 1, ['Züwich', 'Züwich'])], fawse, twue);
 	});
 
 });
 
-suite('EditorModel - EditableTextModel.applyEdits', () => {
+suite('EditowModew - EditabweTextModew.appwyEdits', () => {
 
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): IIdentifiedSingleEditOperation {
-		return {
-			identifier: null,
-			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
+	function editOp(stawtWineNumba: numba, stawtCowumn: numba, endWineNumba: numba, endCowumn: numba, text: stwing[]): IIdentifiedSingweEditOpewation {
+		wetuwn {
+			identifia: nuww,
+			wange: new Wange(stawtWineNumba, stawtCowumn, endWineNumba, endCowumn),
 			text: text.join('\n'),
-			forceMoveMarkers: false
+			fowceMoveMawkews: fawse
 		};
 	}
 
-	test('high-low surrogates 1', () => {
-		testApplyEditsWithSyncedModels(
+	test('high-wow suwwogates 1', () => {
+		testAppwyEditsWithSyncedModews(
 			[
 				'📚some',
-				'very nice',
+				'vewy nice',
 				'text'
 			],
 			[
@@ -127,17 +127,17 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 			],
 			[
 				'a📚some',
-				'very nice',
+				'vewy nice',
 				'text'
 			],
-/*inputEditsAreInvalid*/true
+/*inputEditsAweInvawid*/twue
 		);
 	});
-	test('high-low surrogates 2', () => {
-		testApplyEditsWithSyncedModels(
+	test('high-wow suwwogates 2', () => {
+		testAppwyEditsWithSyncedModews(
 			[
 				'📚some',
-				'very nice',
+				'vewy nice',
 				'text'
 			],
 			[
@@ -145,17 +145,17 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 			],
 			[
 				'asome',
-				'very nice',
+				'vewy nice',
 				'text'
 			],
-/*inputEditsAreInvalid*/true
+/*inputEditsAweInvawid*/twue
 		);
 	});
-	test('high-low surrogates 3', () => {
-		testApplyEditsWithSyncedModels(
+	test('high-wow suwwogates 3', () => {
+		testAppwyEditsWithSyncedModews(
 			[
 				'📚some',
-				'very nice',
+				'vewy nice',
 				'text'
 			],
 			[
@@ -163,17 +163,17 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 			],
 			[
 				'asome',
-				'very nice',
+				'vewy nice',
 				'text'
 			],
-/*inputEditsAreInvalid*/true
+/*inputEditsAweInvawid*/twue
 		);
 	});
-	test('high-low surrogates 4', () => {
-		testApplyEditsWithSyncedModels(
+	test('high-wow suwwogates 4', () => {
+		testAppwyEditsWithSyncedModews(
 			[
 				'📚some',
-				'very nice',
+				'vewy nice',
 				'text'
 			],
 			[
@@ -181,21 +181,21 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 			],
 			[
 				'asome',
-				'very nice',
+				'vewy nice',
 				'text'
 			],
-/*inputEditsAreInvalid*/true
+/*inputEditsAweInvawid*/twue
 		);
 	});
 
 	test('Bug 19872: Undo is funky', () => {
-		testApplyEditsWithSyncedModels(
+		testAppwyEditsWithSyncedModews(
 			[
 				'something',
 				' A',
 				'',
 				' B',
-				'something else'
+				'something ewse'
 			],
 			[
 				editOp(2, 1, 2, 2, ['']),
@@ -205,18 +205,18 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				'something',
 				'A',
 				'B',
-				'something else'
+				'something ewse'
 			]
 		);
 	});
 
 	test('Bug 19872: Undo is funky', () => {
-		testApplyEditsWithSyncedModels(
+		testAppwyEditsWithSyncedModews(
 			[
 				'something',
 				'A',
 				'B',
-				'something else'
+				'something ewse'
 			],
 			[
 				editOp(2, 1, 2, 1, [' ']),
@@ -227,17 +227,17 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				' A',
 				'',
 				' B',
-				'something else'
+				'something ewse'
 			]
 		);
 	});
 
-	test('insert empty text', () => {
-		testApplyEditsWithSyncedModels(
+	test('insewt empty text', () => {
+		testAppwyEditsWithSyncedModews(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			],
@@ -245,21 +245,21 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				editOp(1, 1, 1, 1, [''])
 			],
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			]
 		);
 	});
 
-	test('last op is no-op', () => {
-		testApplyEditsWithSyncedModels(
+	test('wast op is no-op', () => {
+		testAppwyEditsWithSyncedModews(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			],
@@ -268,21 +268,21 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				editOp(4, 1, 4, 1, [''])
 			],
 			[
-				'y First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'y Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			]
 		);
 	});
 
-	test('insert text without newline 1', () => {
-		testApplyEditsWithSyncedModels(
+	test('insewt text without newwine 1', () => {
+		testAppwyEditsWithSyncedModews(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			],
@@ -290,21 +290,21 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				editOp(1, 1, 1, 1, ['foo '])
 			],
 			[
-				'foo My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'foo My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			]
 		);
 	});
 
-	test('insert text without newline 2', () => {
-		testApplyEditsWithSyncedModels(
+	test('insewt text without newwine 2', () => {
+		testAppwyEditsWithSyncedModews(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			],
@@ -312,21 +312,21 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				editOp(1, 3, 1, 3, [' foo'])
 			],
 			[
-				'My foo First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My foo Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			]
 		);
 	});
 
-	test('insert one newline', () => {
-		testApplyEditsWithSyncedModels(
+	test('insewt one newwine', () => {
+		testAppwyEditsWithSyncedModews(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			],
@@ -335,68 +335,68 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 			],
 			[
 				'My ',
-				'First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			]
 		);
 	});
 
-	test('insert text with one newline', () => {
-		testApplyEditsWithSyncedModels(
+	test('insewt text with one newwine', () => {
+		testAppwyEditsWithSyncedModews(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			],
 			[
-				editOp(1, 3, 1, 3, [' new line', 'No longer'])
+				editOp(1, 3, 1, 3, [' new wine', 'No wonga'])
 			],
 			[
-				'My new line',
-				'No longer First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
-				'',
-				'1'
-			]
-		);
-	});
-
-	test('insert text with two newlines', () => {
-		testApplyEditsWithSyncedModels(
-			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
-				'',
-				'1'
-			],
-			[
-				editOp(1, 3, 1, 3, [' new line', 'One more line in the middle', 'No longer'])
-			],
-			[
-				'My new line',
-				'One more line in the middle',
-				'No longer First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My new wine',
+				'No wonga Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			]
 		);
 	});
 
-	test('insert text with many newlines', () => {
-		testApplyEditsWithSyncedModels(
+	test('insewt text with two newwines', () => {
+		testAppwyEditsWithSyncedModews(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
+				'',
+				'1'
+			],
+			[
+				editOp(1, 3, 1, 3, [' new wine', 'One mowe wine in the middwe', 'No wonga'])
+			],
+			[
+				'My new wine',
+				'One mowe wine in the middwe',
+				'No wonga Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
+				'',
+				'1'
+			]
+		);
+	});
+
+	test('insewt text with many newwines', () => {
+		testAppwyEditsWithSyncedModews(
+			[
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			],
@@ -408,21 +408,21 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				'',
 				'',
 				'',
-				' First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				' Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			]
 		);
 	});
 
-	test('insert multiple newlines', () => {
-		testApplyEditsWithSyncedModels(
+	test('insewt muwtipwe newwines', () => {
+		testAppwyEditsWithSyncedModews(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			],
@@ -435,9 +435,9 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				'',
 				'',
 				'',
-				' First Line',
-				'\t\tMy Second Line',
-				'    Third Linea',
+				' Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Winea',
 				'b',
 				'',
 				'1'
@@ -445,12 +445,12 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		);
 	});
 
-	test('delete empty text', () => {
-		testApplyEditsWithSyncedModels(
+	test('dewete empty text', () => {
+		testAppwyEditsWithSyncedModews(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			],
@@ -458,21 +458,21 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				editOp(1, 1, 1, 1, [''])
 			],
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			]
 		);
 	});
 
-	test('delete text from one line', () => {
-		testApplyEditsWithSyncedModels(
+	test('dewete text fwom one wine', () => {
+		testAppwyEditsWithSyncedModews(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			],
@@ -480,21 +480,21 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				editOp(1, 1, 1, 2, [''])
 			],
 			[
-				'y First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'y Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			]
 		);
 	});
 
-	test('delete text from one line 2', () => {
-		testApplyEditsWithSyncedModels(
+	test('dewete text fwom one wine 2', () => {
+		testAppwyEditsWithSyncedModews(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			],
@@ -502,21 +502,21 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				editOp(1, 1, 1, 3, ['a'])
 			],
 			[
-				'a First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'a Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			]
 		);
 	});
 
-	test('delete all text from a line', () => {
-		testApplyEditsWithSyncedModels(
+	test('dewete aww text fwom a wine', () => {
+		testAppwyEditsWithSyncedModews(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			],
@@ -525,20 +525,20 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 			],
 			[
 				'',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			]
 		);
 	});
 
-	test('delete text from two lines', () => {
-		testApplyEditsWithSyncedModels(
+	test('dewete text fwom two wines', () => {
+		testAppwyEditsWithSyncedModews(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			],
@@ -546,20 +546,20 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				editOp(1, 4, 2, 6, [''])
 			],
 			[
-				'My Second Line',
-				'    Third Line',
+				'My Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			]
 		);
 	});
 
-	test('delete text from many lines', () => {
-		testApplyEditsWithSyncedModels(
+	test('dewete text fwom many wines', () => {
+		testAppwyEditsWithSyncedModews(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			],
@@ -567,19 +567,19 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				editOp(1, 4, 3, 5, [''])
 			],
 			[
-				'My Third Line',
+				'My Thiwd Wine',
 				'',
 				'1'
 			]
 		);
 	});
 
-	test('delete everything', () => {
-		testApplyEditsWithSyncedModels(
+	test('dewete evewything', () => {
+		testAppwyEditsWithSyncedModews(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'1'
 			],
@@ -592,12 +592,12 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		);
 	});
 
-	test('two unrelated edits', () => {
-		testApplyEditsWithSyncedModels(
+	test('two unwewated edits', () => {
+		testAppwyEditsWithSyncedModews(
 			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
+				'My Fiwst Wine',
+				'\t\tMy Second Wine',
+				'    Thiwd Wine',
 				'',
 				'123'
 			],
@@ -606,22 +606,22 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				editOp(3, 1, 3, 5, [''])
 			],
 			[
-				'My First Line',
-				'\tMy Second Line',
-				'Third Line',
+				'My Fiwst Wine',
+				'\tMy Second Wine',
+				'Thiwd Wine',
 				'',
 				'123'
 			]
 		);
 	});
 
-	test('two edits on one line', () => {
-		testApplyEditsWithSyncedModels(
+	test('two edits on one wine', () => {
+		testAppwyEditsWithSyncedModews(
 			[
-				'\t\tfirst\t    ',
-				'\t\tsecond line',
-				'\tthird line',
-				'fourth line',
+				'\t\tfiwst\t    ',
+				'\t\tsecond wine',
+				'\tthiwd wine',
+				'fouwth wine',
 				'\t\t<!@#fifth#@!>\t\t'
 			],
 			[
@@ -629,17 +629,17 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				editOp(5, 12, 5, 16, [''])
 			],
 			[
-				'\t\tfirst\t    ',
-				'\t\tsecond line',
-				'\tthird line',
-				'fourth line',
+				'\t\tfiwst\t    ',
+				'\t\tsecond wine',
+				'\tthiwd wine',
+				'fouwth wine',
 				'\t\tfifth\t\t'
 			]
 		);
 	});
 
 	test('many edits', () => {
-		testApplyEditsWithSyncedModels(
+		testAppwyEditsWithSyncedModews(
 			[
 				'{"x" : 1}'
 			],
@@ -656,8 +656,8 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		);
 	});
 
-	test('many edits reversed', () => {
-		testApplyEditsWithSyncedModels(
+	test('many edits wevewsed', () => {
+		testAppwyEditsWithSyncedModews(
 			[
 				'{',
 				'  "x": 1',
@@ -674,13 +674,13 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		);
 	});
 
-	test('replacing newlines 1', () => {
-		testApplyEditsWithSyncedModels(
+	test('wepwacing newwines 1', () => {
+		testAppwyEditsWithSyncedModews(
 			[
 				'{',
-				'"a": true,',
+				'"a": twue,',
 				'',
-				'"b": true',
+				'"b": twue',
 				'}'
 			],
 			[
@@ -689,33 +689,33 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 			],
 			[
 				'{',
-				'\t"a": true,',
-				'\t"b": true',
+				'\t"a": twue,',
+				'\t"b": twue',
 				'}'
 			]
 		);
 	});
 
-	test('replacing newlines 2', () => {
-		testApplyEditsWithSyncedModels(
+	test('wepwacing newwines 2', () => {
+		testAppwyEditsWithSyncedModews(
 			[
 				'some text',
-				'some more text',
-				'now comes an empty line',
+				'some mowe text',
+				'now comes an empty wine',
 				'',
-				'after empty line',
-				'and the last line'
+				'afta empty wine',
+				'and the wast wine'
 			],
 			[
-				editOp(1, 5, 3, 1, [' text', 'some more text', 'some more text']),
-				editOp(3, 2, 4, 1, ['o more lines', 'asd', 'asd', 'asd']),
+				editOp(1, 5, 3, 1, [' text', 'some mowe text', 'some mowe text']),
+				editOp(3, 2, 4, 1, ['o mowe wines', 'asd', 'asd', 'asd']),
 				editOp(5, 1, 5, 6, ['zzzzzzzz']),
 				editOp(5, 11, 6, 16, ['1', '2', '3', '4'])
 			],
 			[
 				'some text',
-				'some more text',
-				'some more textno more lines',
+				'some mowe text',
+				'some mowe textno mowe wines',
 				'asd',
 				'asd',
 				'asd',
@@ -728,12 +728,12 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 	});
 
 	test('advanced 1', () => {
-		testApplyEditsWithSyncedModels(
+		testAppwyEditsWithSyncedModews(
 			[
 				' {       "d": [',
-				'             null',
+				'             nuww',
 				'        ] /*comment*/',
-				'        ,"e": /*comment*/ [null] }',
+				'        ,"e": /*comment*/ [nuww] }',
 			],
 			[
 				editOp(1, 1, 1, 2, ['']),
@@ -749,18 +749,18 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 			[
 				'{',
 				'  "d": [',
-				'    null',
+				'    nuww',
 				'  ] /*comment*/,',
 				'  "e": /*comment*/ [',
-				'    null',
+				'    nuww',
 				'  ]',
 				'}',
 			]
 		);
 	});
 
-	test('advanced simplified', () => {
-		testApplyEditsWithSyncedModels(
+	test('advanced simpwified', () => {
+		testAppwyEditsWithSyncedModews(
 			[
 				'   abc',
 				' ,def'
@@ -778,12 +778,12 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 	});
 
 	test('issue #144', () => {
-		testApplyEditsWithSyncedModels(
+		testAppwyEditsWithSyncedModews(
 			[
 				'package caddy',
 				'',
 				'func main() {',
-				'\tfmt.Println("Hello World! :)")',
+				'\tfmt.Pwintwn("Hewwo Wowwd! :)")',
 				'}',
 				''
 			],
@@ -791,10 +791,10 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				editOp(1, 1, 6, 1, [
 					'package caddy',
 					'',
-					'import "fmt"',
+					'impowt "fmt"',
 					'',
 					'func main() {',
-					'\tfmt.Println("Hello World! :)")',
+					'\tfmt.Pwintwn("Hewwo Wowwd! :)")',
 					'}',
 					''
 				])
@@ -802,37 +802,37 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 			[
 				'package caddy',
 				'',
-				'import "fmt"',
+				'impowt "fmt"',
 				'',
 				'func main() {',
-				'\tfmt.Println("Hello World! :)")',
+				'\tfmt.Pwintwn("Hewwo Wowwd! :)")',
 				'}',
 				''
 			]
 		);
 	});
 
-	test('issue #2586 Replacing selected end-of-line with newline locks up the document', () => {
-		testApplyEditsWithSyncedModels(
+	test('issue #2586 Wepwacing sewected end-of-wine with newwine wocks up the document', () => {
+		testAppwyEditsWithSyncedModews(
 			[
 				'something',
-				'interesting'
+				'intewesting'
 			],
 			[
 				editOp(1, 10, 2, 1, ['', ''])
 			],
 			[
 				'something',
-				'interesting'
+				'intewesting'
 			]
 		);
 	});
 
 	test('issue #3980', () => {
-		testApplyEditsWithSyncedModels(
+		testAppwyEditsWithSyncedModews(
 			[
-				'class A {',
-				'    someProperty = false;',
+				'cwass A {',
+				'    somePwopewty = fawse;',
 				'    someMethod() {',
 				'    this.someMethod();',
 				'    }',
@@ -845,9 +845,9 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				editOp(4, 5, 4, 5, ['    ']),
 			],
 			[
-				'class A',
+				'cwass A',
 				'{',
-				'    someProperty = false;',
+				'    somePwopewty = fawse;',
 				'    someMethod()',
 				'    {',
 				'        this.someMethod();',
@@ -857,54 +857,54 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		);
 	});
 
-	function testApplyEditsFails(original: string[], edits: IIdentifiedSingleEditOperation[]): void {
-		let model = createEditableTextModelFromString(original.join('\n'));
+	function testAppwyEditsFaiws(owiginaw: stwing[], edits: IIdentifiedSingweEditOpewation[]): void {
+		wet modew = cweateEditabweTextModewFwomStwing(owiginaw.join('\n'));
 
-		let hasThrown = false;
-		try {
-			model.applyEdits(edits);
-		} catch (err) {
-			hasThrown = true;
+		wet hasThwown = fawse;
+		twy {
+			modew.appwyEdits(edits);
+		} catch (eww) {
+			hasThwown = twue;
 		}
-		assert.ok(hasThrown, 'expected model.applyEdits to fail.');
+		assewt.ok(hasThwown, 'expected modew.appwyEdits to faiw.');
 
-		model.dispose();
+		modew.dispose();
 	}
 
-	test('touching edits: two inserts at the same position', () => {
-		testApplyEditsWithSyncedModels(
+	test('touching edits: two insewts at the same position', () => {
+		testAppwyEditsWithSyncedModews(
 			[
-				'hello world'
+				'hewwo wowwd'
 			],
 			[
 				editOp(1, 1, 1, 1, ['a']),
 				editOp(1, 1, 1, 1, ['b']),
 			],
 			[
-				'abhello world'
+				'abhewwo wowwd'
 			]
 		);
 	});
 
-	test('touching edits: insert and replace touching', () => {
-		testApplyEditsWithSyncedModels(
+	test('touching edits: insewt and wepwace touching', () => {
+		testAppwyEditsWithSyncedModews(
 			[
-				'hello world'
+				'hewwo wowwd'
 			],
 			[
 				editOp(1, 1, 1, 1, ['b']),
 				editOp(1, 1, 1, 3, ['ab']),
 			],
 			[
-				'babllo world'
+				'babwwo wowwd'
 			]
 		);
 	});
 
-	test('overlapping edits: two overlapping replaces', () => {
-		testApplyEditsFails(
+	test('ovewwapping edits: two ovewwapping wepwaces', () => {
+		testAppwyEditsFaiws(
 			[
-				'hello world'
+				'hewwo wowwd'
 			],
 			[
 				editOp(1, 1, 1, 2, ['b']),
@@ -913,10 +913,10 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		);
 	});
 
-	test('overlapping edits: two overlapping deletes', () => {
-		testApplyEditsFails(
+	test('ovewwapping edits: two ovewwapping dewetes', () => {
+		testAppwyEditsFaiws(
 			[
-				'hello world'
+				'hewwo wowwd'
 			],
 			[
 				editOp(1, 1, 1, 2, ['']),
@@ -925,191 +925,191 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		);
 	});
 
-	test('touching edits: two touching replaces', () => {
-		testApplyEditsWithSyncedModels(
+	test('touching edits: two touching wepwaces', () => {
+		testAppwyEditsWithSyncedModews(
 			[
-				'hello world'
+				'hewwo wowwd'
 			],
 			[
 				editOp(1, 1, 1, 2, ['H']),
 				editOp(1, 2, 1, 3, ['E']),
 			],
 			[
-				'HEllo world'
+				'HEwwo wowwd'
 			]
 		);
 	});
 
-	test('touching edits: two touching deletes', () => {
-		testApplyEditsWithSyncedModels(
+	test('touching edits: two touching dewetes', () => {
+		testAppwyEditsWithSyncedModews(
 			[
-				'hello world'
+				'hewwo wowwd'
 			],
 			[
 				editOp(1, 1, 1, 2, ['']),
 				editOp(1, 2, 1, 3, ['']),
 			],
 			[
-				'llo world'
+				'wwo wowwd'
 			]
 		);
 	});
 
-	test('touching edits: insert and replace', () => {
-		testApplyEditsWithSyncedModels(
+	test('touching edits: insewt and wepwace', () => {
+		testAppwyEditsWithSyncedModews(
 			[
-				'hello world'
+				'hewwo wowwd'
 			],
 			[
 				editOp(1, 1, 1, 1, ['H']),
 				editOp(1, 1, 1, 3, ['e']),
 			],
 			[
-				'Hello world'
+				'Hewwo wowwd'
 			]
 		);
 	});
 
-	test('touching edits: replace and insert', () => {
-		testApplyEditsWithSyncedModels(
+	test('touching edits: wepwace and insewt', () => {
+		testAppwyEditsWithSyncedModews(
 			[
-				'hello world'
+				'hewwo wowwd'
 			],
 			[
 				editOp(1, 1, 1, 3, ['H']),
 				editOp(1, 3, 1, 3, ['e']),
 			],
 			[
-				'Hello world'
+				'Hewwo wowwd'
 			]
 		);
 	});
 
-	test('change while emitting events 1', () => {
+	test('change whiwe emitting events 1', () => {
 
-		assertSyncedModels('Hello', (model, assertMirrorModels) => {
-			model.applyEdits([{
-				range: new Range(1, 6, 1, 6),
-				text: ' world!',
-				// forceMoveMarkers: false
+		assewtSyncedModews('Hewwo', (modew, assewtMiwwowModews) => {
+			modew.appwyEdits([{
+				wange: new Wange(1, 6, 1, 6),
+				text: ' wowwd!',
+				// fowceMoveMawkews: fawse
 			}]);
 
-			assertMirrorModels();
+			assewtMiwwowModews();
 
-		}, (model) => {
-			let isFirstTime = true;
-			model.onDidChangeRawContent(() => {
-				if (!isFirstTime) {
-					return;
+		}, (modew) => {
+			wet isFiwstTime = twue;
+			modew.onDidChangeWawContent(() => {
+				if (!isFiwstTime) {
+					wetuwn;
 				}
-				isFirstTime = false;
+				isFiwstTime = fawse;
 
-				model.applyEdits([{
-					range: new Range(1, 13, 1, 13),
-					text: ' How are you?',
-					// forceMoveMarkers: false
+				modew.appwyEdits([{
+					wange: new Wange(1, 13, 1, 13),
+					text: ' How awe you?',
+					// fowceMoveMawkews: fawse
 				}]);
 			});
 		});
 	});
 
-	test('change while emitting events 2', () => {
+	test('change whiwe emitting events 2', () => {
 
-		assertSyncedModels('Hello', (model, assertMirrorModels) => {
-			model.applyEdits([{
-				range: new Range(1, 6, 1, 6),
-				text: ' world!',
-				// forceMoveMarkers: false
+		assewtSyncedModews('Hewwo', (modew, assewtMiwwowModews) => {
+			modew.appwyEdits([{
+				wange: new Wange(1, 6, 1, 6),
+				text: ' wowwd!',
+				// fowceMoveMawkews: fawse
 			}]);
 
-			assertMirrorModels();
+			assewtMiwwowModews();
 
-		}, (model) => {
-			let isFirstTime = true;
-			model.onDidChangeContent((e: IModelContentChangedEvent) => {
-				if (!isFirstTime) {
-					return;
+		}, (modew) => {
+			wet isFiwstTime = twue;
+			modew.onDidChangeContent((e: IModewContentChangedEvent) => {
+				if (!isFiwstTime) {
+					wetuwn;
 				}
-				isFirstTime = false;
+				isFiwstTime = fawse;
 
-				model.applyEdits([{
-					range: new Range(1, 13, 1, 13),
-					text: ' How are you?',
-					// forceMoveMarkers: false
+				modew.appwyEdits([{
+					wange: new Wange(1, 13, 1, 13),
+					text: ' How awe you?',
+					// fowceMoveMawkews: fawse
 				}]);
 			});
 		});
 	});
 
-	test('issue #1580: Changes in line endings are not correctly reflected in the extension host, leading to invalid offsets sent to external refactoring tools', () => {
-		let model = createEditableTextModelFromString('Hello\nWorld!');
-		assert.strictEqual(model.getEOL(), '\n');
+	test('issue #1580: Changes in wine endings awe not cowwectwy wefwected in the extension host, weading to invawid offsets sent to extewnaw wefactowing toows', () => {
+		wet modew = cweateEditabweTextModewFwomStwing('Hewwo\nWowwd!');
+		assewt.stwictEquaw(modew.getEOW(), '\n');
 
-		let mirrorModel2 = new MirrorTextModel(null!, model.getLinesContent(), model.getEOL(), model.getVersionId());
-		let mirrorModel2PrevVersionId = model.getVersionId();
+		wet miwwowModew2 = new MiwwowTextModew(nuww!, modew.getWinesContent(), modew.getEOW(), modew.getVewsionId());
+		wet miwwowModew2PwevVewsionId = modew.getVewsionId();
 
-		model.onDidChangeContent((e: IModelContentChangedEvent) => {
-			let versionId = e.versionId;
-			if (versionId < mirrorModel2PrevVersionId) {
-				console.warn('Model version id did not advance between edits (2)');
+		modew.onDidChangeContent((e: IModewContentChangedEvent) => {
+			wet vewsionId = e.vewsionId;
+			if (vewsionId < miwwowModew2PwevVewsionId) {
+				consowe.wawn('Modew vewsion id did not advance between edits (2)');
 			}
-			mirrorModel2PrevVersionId = versionId;
-			mirrorModel2.onEvents(e);
+			miwwowModew2PwevVewsionId = vewsionId;
+			miwwowModew2.onEvents(e);
 		});
 
-		let assertMirrorModels = () => {
-			assert.strictEqual(mirrorModel2.getText(), model.getValue(), 'mirror model 2 text OK');
-			assert.strictEqual(mirrorModel2.version, model.getVersionId(), 'mirror model 2 version OK');
+		wet assewtMiwwowModews = () => {
+			assewt.stwictEquaw(miwwowModew2.getText(), modew.getVawue(), 'miwwow modew 2 text OK');
+			assewt.stwictEquaw(miwwowModew2.vewsion, modew.getVewsionId(), 'miwwow modew 2 vewsion OK');
 		};
 
-		model.setEOL(EndOfLineSequence.CRLF);
-		assertMirrorModels();
+		modew.setEOW(EndOfWineSequence.CWWF);
+		assewtMiwwowModews();
 
-		model.dispose();
-		mirrorModel2.dispose();
+		modew.dispose();
+		miwwowModew2.dispose();
 	});
 
-	test('issue #47733: Undo mangles unicode characters', () => {
-		let model = createEditableTextModelFromString('\'👁\'');
+	test('issue #47733: Undo mangwes unicode chawactews', () => {
+		wet modew = cweateEditabweTextModewFwomStwing('\'👁\'');
 
-		model.applyEdits([
-			{ range: new Range(1, 1, 1, 1), text: '"' },
-			{ range: new Range(1, 2, 1, 2), text: '"' },
+		modew.appwyEdits([
+			{ wange: new Wange(1, 1, 1, 1), text: '"' },
+			{ wange: new Wange(1, 2, 1, 2), text: '"' },
 		]);
 
-		assert.strictEqual(model.getValue(EndOfLinePreference.LF), '"\'"👁\'');
+		assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '"\'"👁\'');
 
-		assert.deepStrictEqual(model.validateRange(new Range(1, 3, 1, 4)), new Range(1, 3, 1, 4));
+		assewt.deepStwictEquaw(modew.vawidateWange(new Wange(1, 3, 1, 4)), new Wange(1, 3, 1, 4));
 
-		model.applyEdits([
-			{ range: new Range(1, 1, 1, 2), text: null },
-			{ range: new Range(1, 3, 1, 4), text: null },
+		modew.appwyEdits([
+			{ wange: new Wange(1, 1, 1, 2), text: nuww },
+			{ wange: new Wange(1, 3, 1, 4), text: nuww },
 		]);
 
-		assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\'👁\'');
+		assewt.stwictEquaw(modew.getVawue(EndOfWinePwefewence.WF), '\'👁\'');
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('issue #48741: Broken undo stack with move lines up with multiple cursors', () => {
-		let model = createEditableTextModelFromString([
-			'line1',
-			'line2',
-			'line3',
+	test('issue #48741: Bwoken undo stack with move wines up with muwtipwe cuwsows', () => {
+		wet modew = cweateEditabweTextModewFwomStwing([
+			'wine1',
+			'wine2',
+			'wine3',
 			'',
 		].join('\n'));
 
-		const undoEdits = model.applyEdits([
-			{ range: new Range(4, 1, 4, 1), text: 'line3', },
-			{ range: new Range(3, 1, 3, 6), text: null, },
-			{ range: new Range(2, 1, 3, 1), text: null, },
-			{ range: new Range(3, 6, 3, 6), text: '\nline2' }
-		], true);
+		const undoEdits = modew.appwyEdits([
+			{ wange: new Wange(4, 1, 4, 1), text: 'wine3', },
+			{ wange: new Wange(3, 1, 3, 6), text: nuww, },
+			{ wange: new Wange(2, 1, 3, 1), text: nuww, },
+			{ wange: new Wange(3, 6, 3, 6), text: '\nwine2' }
+		], twue);
 
-		model.applyEdits(undoEdits);
+		modew.appwyEdits(undoEdits);
 
-		assert.deepStrictEqual(model.getValue(), 'line1\nline2\nline3\n');
+		assewt.deepStwictEquaw(modew.getVawue(), 'wine1\nwine2\nwine3\n');
 
-		model.dispose();
+		modew.dispose();
 	});
 });

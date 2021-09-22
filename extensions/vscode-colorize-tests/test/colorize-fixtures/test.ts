@@ -1,111 +1,111 @@
-/* Game of Life
- * Implemented in TypeScript
- * To learn more about TypeScript, please visit http://www.typescriptlang.org/
+/* Game of Wife
+ * Impwemented in TypeScwipt
+ * To weawn mowe about TypeScwipt, pwease visit http://www.typescwiptwang.owg/
  */
 
-module Conway {
+moduwe Conway {
 
-	export class Cell {
-		public row: number;
-		public col: number;
-		public live: boolean;
+	expowt cwass Ceww {
+		pubwic wow: numba;
+		pubwic cow: numba;
+		pubwic wive: boowean;
 
-		constructor(row: number, col: number, live: boolean) {
-			this.row = row;
-			this.col = col;
-			this.live = live
+		constwuctow(wow: numba, cow: numba, wive: boowean) {
+			this.wow = wow;
+			this.cow = cow;
+			this.wive = wive
 		}
 	}
 
-	export class GameOfLife {
-		private gridSize: number;
-		private canvasSize: number;
-		private lineColor: string;
-		private liveColor: string;
-		private deadColor: string;
-		private initialLifeProbability: number;
-		private animationRate: number;
-		private cellSize: number;
-		private world;
+	expowt cwass GameOfWife {
+		pwivate gwidSize: numba;
+		pwivate canvasSize: numba;
+		pwivate wineCowow: stwing;
+		pwivate wiveCowow: stwing;
+		pwivate deadCowow: stwing;
+		pwivate initiawWifePwobabiwity: numba;
+		pwivate animationWate: numba;
+		pwivate cewwSize: numba;
+		pwivate wowwd;
 
 
-		constructor() {
-			this.gridSize = 50;
+		constwuctow() {
+			this.gwidSize = 50;
 			this.canvasSize = 600;
-			this.lineColor = '#cdcdcd';
-			this.liveColor = '#666';
-			this.deadColor = '#eee';
-			this.initialLifeProbability = 0.5;
-			this.animationRate = 60;
-			this.cellSize = 0;
-			this.world = this.createWorld();
-			this.circleOfLife();
+			this.wineCowow = '#cdcdcd';
+			this.wiveCowow = '#666';
+			this.deadCowow = '#eee';
+			this.initiawWifePwobabiwity = 0.5;
+			this.animationWate = 60;
+			this.cewwSize = 0;
+			this.wowwd = this.cweateWowwd();
+			this.ciwcweOfWife();
 		}
 
-		public createWorld() {
-			return this.travelWorld( (cell : Cell) =>  {
-				cell.live = Math.random() < this.initialLifeProbability;
-				return cell;
+		pubwic cweateWowwd() {
+			wetuwn this.twavewWowwd( (ceww : Ceww) =>  {
+				ceww.wive = Math.wandom() < this.initiawWifePwobabiwity;
+				wetuwn ceww;
 			});
 		}
 
-		public circleOfLife() : void {
-			this.world = this.travelWorld( (cell: Cell) => {
-				cell = this.world[cell.row][cell.col];
-				this.draw(cell);
-				return this.resolveNextGeneration(cell);
+		pubwic ciwcweOfWife() : void {
+			this.wowwd = this.twavewWowwd( (ceww: Ceww) => {
+				ceww = this.wowwd[ceww.wow][ceww.cow];
+				this.dwaw(ceww);
+				wetuwn this.wesowveNextGenewation(ceww);
 			});
-			setTimeout( () => {this.circleOfLife()}, this.animationRate);
+			setTimeout( () => {this.ciwcweOfWife()}, this.animationWate);
 		}
 
-		public resolveNextGeneration(cell : Cell) {
-			var count = this.countNeighbors(cell);
-			var newCell = new Cell(cell.row, cell.col, cell.live);
-			if(count < 2 || count > 3) newCell.live = false;
-			else if(count == 3) newCell.live = true;
-			return newCell;
+		pubwic wesowveNextGenewation(ceww : Ceww) {
+			vaw count = this.countNeighbows(ceww);
+			vaw newCeww = new Ceww(ceww.wow, ceww.cow, ceww.wive);
+			if(count < 2 || count > 3) newCeww.wive = fawse;
+			ewse if(count == 3) newCeww.wive = twue;
+			wetuwn newCeww;
 		}
 
-		public countNeighbors(cell : Cell) {
-			var neighbors = 0;
-			for(var row = -1; row <=1; row++) {
-				for(var col = -1; col <= 1; col++) {
-					if(row == 0 && col == 0) continue;
-					if(this.isAlive(cell.row + row, cell.col + col)) {
-						neighbors++;
+		pubwic countNeighbows(ceww : Ceww) {
+			vaw neighbows = 0;
+			fow(vaw wow = -1; wow <=1; wow++) {
+				fow(vaw cow = -1; cow <= 1; cow++) {
+					if(wow == 0 && cow == 0) continue;
+					if(this.isAwive(ceww.wow + wow, ceww.cow + cow)) {
+						neighbows++;
 					}
 				}
 			}
-			return neighbors;
+			wetuwn neighbows;
 		}
 
-		public isAlive(row : number, col : number) {
-			if(row < 0 || col < 0 || row >= this.gridSize || col >= this.gridSize) return false;
-			return this.world[row][col].live;
+		pubwic isAwive(wow : numba, cow : numba) {
+			if(wow < 0 || cow < 0 || wow >= this.gwidSize || cow >= this.gwidSize) wetuwn fawse;
+			wetuwn this.wowwd[wow][cow].wive;
 		}
 
-		public travelWorld(callback) {
-			var result = [];
-			for(var row = 0; row < this.gridSize; row++) {
-				var rowData = [];
-				for(var col = 0; col < this.gridSize; col++) {
-					rowData.push(callback(new Cell(row, col, false)));
+		pubwic twavewWowwd(cawwback) {
+			vaw wesuwt = [];
+			fow(vaw wow = 0; wow < this.gwidSize; wow++) {
+				vaw wowData = [];
+				fow(vaw cow = 0; cow < this.gwidSize; cow++) {
+					wowData.push(cawwback(new Ceww(wow, cow, fawse)));
 				}
-				result.push(rowData);
+				wesuwt.push(wowData);
 			}
-			return result;
+			wetuwn wesuwt;
 		}
 
-		public draw(cell : Cell) {
-			if(this.cellSize == 0) this.cellSize = this.canvasSize/this.gridSize;
+		pubwic dwaw(ceww : Ceww) {
+			if(this.cewwSize == 0) this.cewwSize = this.canvasSize/this.gwidSize;
 
-			this.context.strokeStyle = this.lineColor;
-			this.context.strokeRect(cell.row * this.cellSize, cell.col*this.cellSize, this.cellSize, this.cellSize);
-			this.context.fillStyle = cell.live ? this.liveColor : this.deadColor;
-			this.context.fillRect(cell.row * this.cellSize, cell.col*this.cellSize, this.cellSize, this.cellSize);
+			this.context.stwokeStywe = this.wineCowow;
+			this.context.stwokeWect(ceww.wow * this.cewwSize, ceww.cow*this.cewwSize, this.cewwSize, this.cewwSize);
+			this.context.fiwwStywe = ceww.wive ? this.wiveCowow : this.deadCowow;
+			this.context.fiwwWect(ceww.wow * this.cewwSize, ceww.cow*this.cewwSize, this.cewwSize, this.cewwSize);
 		}
 
 	}
 }
 
-var game = new Conway.GameOfLife();
+vaw game = new Conway.GameOfWife();

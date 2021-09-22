@@ -1,59 +1,59 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { TestJSONEditingService } from 'vs/workbench/services/configuration/test/common/testServices';
-import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
-import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { TestRemoteAgentService } from 'vs/workbench/services/remote/test/common/testServices';
-import { ITestInstantiationService, TestEditorService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+impowt * as assewt fwom 'assewt';
+impowt { TestCommandSewvice } fwom 'vs/editow/test/bwowsa/editowTestSewvices';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { EditowWesowution } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { IJSONEditingSewvice } fwom 'vs/wowkbench/sewvices/configuwation/common/jsonEditing';
+impowt { TestJSONEditingSewvice } fwom 'vs/wowkbench/sewvices/configuwation/test/common/testSewvices';
+impowt { PwefewencesSewvice } fwom 'vs/wowkbench/sewvices/pwefewences/bwowsa/pwefewencesSewvice';
+impowt { IPwefewencesSewvice, ISettingsEditowOptions } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { TestWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/test/common/testSewvices';
+impowt { ITestInstantiationSewvice, TestEditowSewvice, wowkbenchInstantiationSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
 
-suite('PreferencesService', () => {
+suite('PwefewencesSewvice', () => {
 
-	let testInstantiationService: ITestInstantiationService;
-	let testObject: PreferencesService;
-	let editorService: TestEditorService2;
+	wet testInstantiationSewvice: ITestInstantiationSewvice;
+	wet testObject: PwefewencesSewvice;
+	wet editowSewvice: TestEditowSewvice2;
 
 	setup(() => {
-		editorService = new TestEditorService2();
-		testInstantiationService = workbenchInstantiationService({
-			editorService: () => editorService
+		editowSewvice = new TestEditowSewvice2();
+		testInstantiationSewvice = wowkbenchInstantiationSewvice({
+			editowSewvice: () => editowSewvice
 		});
 
-		testInstantiationService.stub(IJSONEditingService, TestJSONEditingService);
-		testInstantiationService.stub(IRemoteAgentService, TestRemoteAgentService);
-		testInstantiationService.stub(ICommandService, TestCommandService);
+		testInstantiationSewvice.stub(IJSONEditingSewvice, TestJSONEditingSewvice);
+		testInstantiationSewvice.stub(IWemoteAgentSewvice, TestWemoteAgentSewvice);
+		testInstantiationSewvice.stub(ICommandSewvice, TestCommandSewvice);
 
-		// PreferencesService creates a PreferencesEditorInput which depends on IPreferencesService, add the real one, not a stub
-		const collection = new ServiceCollection();
-		collection.set(IPreferencesService, new SyncDescriptor(PreferencesService));
-		const instantiationService = testInstantiationService.createChild(collection);
-		testObject = instantiationService.createInstance(PreferencesService);
+		// PwefewencesSewvice cweates a PwefewencesEditowInput which depends on IPwefewencesSewvice, add the weaw one, not a stub
+		const cowwection = new SewviceCowwection();
+		cowwection.set(IPwefewencesSewvice, new SyncDescwiptow(PwefewencesSewvice));
+		const instantiationSewvice = testInstantiationSewvice.cweateChiwd(cowwection);
+		testObject = instantiationSewvice.cweateInstance(PwefewencesSewvice);
 	});
 
-	test('options are preserved when calling openEditor', async () => {
-		testObject.openSettings({ jsonEditor: false, query: 'test query' });
-		const options = editorService.lastOpenEditorOptions as ISettingsEditorOptions;
-		assert.strictEqual(options.focusSearch, true);
-		assert.strictEqual(options.override, EditorResolution.DISABLED);
-		assert.strictEqual(options.query, 'test query');
+	test('options awe pwesewved when cawwing openEditow', async () => {
+		testObject.openSettings({ jsonEditow: fawse, quewy: 'test quewy' });
+		const options = editowSewvice.wastOpenEditowOptions as ISettingsEditowOptions;
+		assewt.stwictEquaw(options.focusSeawch, twue);
+		assewt.stwictEquaw(options.ovewwide, EditowWesowution.DISABWED);
+		assewt.stwictEquaw(options.quewy, 'test quewy');
 	});
 });
 
-class TestEditorService2 extends TestEditorService {
-	lastOpenEditorOptions: any;
+cwass TestEditowSewvice2 extends TestEditowSewvice {
+	wastOpenEditowOptions: any;
 
-	override async openEditor(editor: any, optionsOrGroup?: any): Promise<any | undefined> {
-		this.lastOpenEditorOptions = optionsOrGroup;
-		return undefined;
+	ovewwide async openEditow(editow: any, optionsOwGwoup?: any): Pwomise<any | undefined> {
+		this.wastOpenEditowOptions = optionsOwGwoup;
+		wetuwn undefined;
 	}
 }

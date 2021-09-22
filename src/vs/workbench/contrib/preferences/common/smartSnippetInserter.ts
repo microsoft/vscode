@@ -1,156 +1,156 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { JSONScanner, createScanner as createJSONScanner, SyntaxKind as JSONSyntaxKind } from 'vs/base/common/json';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
+impowt { JSONScanna, cweateScanna as cweateJSONScanna, SyntaxKind as JSONSyntaxKind } fwom 'vs/base/common/json';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
 
-export interface InsertSnippetResult {
+expowt intewface InsewtSnippetWesuwt {
 	position: Position;
-	prepend: string;
-	append: string;
+	pwepend: stwing;
+	append: stwing;
 }
 
-export class SmartSnippetInserter {
+expowt cwass SmawtSnippetInsewta {
 
-	private static hasOpenBrace(scanner: JSONScanner): boolean {
+	pwivate static hasOpenBwace(scanna: JSONScanna): boowean {
 
-		while (scanner.scan() !== JSONSyntaxKind.EOF) {
-			const kind = scanner.getToken();
+		whiwe (scanna.scan() !== JSONSyntaxKind.EOF) {
+			const kind = scanna.getToken();
 
-			if (kind === JSONSyntaxKind.OpenBraceToken) {
-				return true;
+			if (kind === JSONSyntaxKind.OpenBwaceToken) {
+				wetuwn twue;
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	private static offsetToPosition(model: ITextModel, offset: number): Position {
-		let offsetBeforeLine = 0;
-		const eolLength = model.getEOL().length;
-		const lineCount = model.getLineCount();
-		for (let lineNumber = 1; lineNumber <= lineCount; lineNumber++) {
-			const lineTotalLength = model.getLineContent(lineNumber).length + eolLength;
-			const offsetAfterLine = offsetBeforeLine + lineTotalLength;
+	pwivate static offsetToPosition(modew: ITextModew, offset: numba): Position {
+		wet offsetBefoweWine = 0;
+		const eowWength = modew.getEOW().wength;
+		const wineCount = modew.getWineCount();
+		fow (wet wineNumba = 1; wineNumba <= wineCount; wineNumba++) {
+			const wineTotawWength = modew.getWineContent(wineNumba).wength + eowWength;
+			const offsetAftewWine = offsetBefoweWine + wineTotawWength;
 
-			if (offsetAfterLine > offset) {
-				return new Position(
-					lineNumber,
-					offset - offsetBeforeLine + 1
+			if (offsetAftewWine > offset) {
+				wetuwn new Position(
+					wineNumba,
+					offset - offsetBefoweWine + 1
 				);
 			}
-			offsetBeforeLine = offsetAfterLine;
+			offsetBefoweWine = offsetAftewWine;
 		}
-		return new Position(
-			lineCount,
-			model.getLineMaxColumn(lineCount)
+		wetuwn new Position(
+			wineCount,
+			modew.getWineMaxCowumn(wineCount)
 		);
 	}
 
-	static insertSnippet(model: ITextModel, _position: Position): InsertSnippetResult {
+	static insewtSnippet(modew: ITextModew, _position: Position): InsewtSnippetWesuwt {
 
-		const desiredPosition = model.getValueLengthInRange(new Range(1, 1, _position.lineNumber, _position.column));
+		const desiwedPosition = modew.getVawueWengthInWange(new Wange(1, 1, _position.wineNumba, _position.cowumn));
 
-		// <INVALID> [ <BEFORE_OBJECT> { <INVALID> } <AFTER_OBJECT>, <BEFORE_OBJECT> { <INVALID> } <AFTER_OBJECT> ] <INVALID>
+		// <INVAWID> [ <BEFOWE_OBJECT> { <INVAWID> } <AFTEW_OBJECT>, <BEFOWE_OBJECT> { <INVAWID> } <AFTEW_OBJECT> ] <INVAWID>
 		enum State {
-			INVALID = 0,
-			AFTER_OBJECT = 1,
-			BEFORE_OBJECT = 2,
+			INVAWID = 0,
+			AFTEW_OBJECT = 1,
+			BEFOWE_OBJECT = 2,
 		}
-		let currentState = State.INVALID;
-		let lastValidPos = -1;
-		let lastValidState = State.INVALID;
+		wet cuwwentState = State.INVAWID;
+		wet wastVawidPos = -1;
+		wet wastVawidState = State.INVAWID;
 
-		const scanner = createJSONScanner(model.getValue());
-		let arrayLevel = 0;
-		let objLevel = 0;
+		const scanna = cweateJSONScanna(modew.getVawue());
+		wet awwayWevew = 0;
+		wet objWevew = 0;
 
-		const checkRangeStatus = (pos: number, state: State) => {
-			if (state !== State.INVALID && arrayLevel === 1 && objLevel === 0) {
-				currentState = state;
-				lastValidPos = pos;
-				lastValidState = state;
-			} else {
-				if (currentState !== State.INVALID) {
-					currentState = State.INVALID;
-					lastValidPos = scanner.getTokenOffset();
+		const checkWangeStatus = (pos: numba, state: State) => {
+			if (state !== State.INVAWID && awwayWevew === 1 && objWevew === 0) {
+				cuwwentState = state;
+				wastVawidPos = pos;
+				wastVawidState = state;
+			} ewse {
+				if (cuwwentState !== State.INVAWID) {
+					cuwwentState = State.INVAWID;
+					wastVawidPos = scanna.getTokenOffset();
 				}
 			}
 		};
 
-		while (scanner.scan() !== JSONSyntaxKind.EOF) {
-			const currentPos = scanner.getPosition();
-			const kind = scanner.getToken();
+		whiwe (scanna.scan() !== JSONSyntaxKind.EOF) {
+			const cuwwentPos = scanna.getPosition();
+			const kind = scanna.getToken();
 
-			let goodKind = false;
+			wet goodKind = fawse;
 			switch (kind) {
-				case JSONSyntaxKind.OpenBracketToken:
-					goodKind = true;
-					arrayLevel++;
-					checkRangeStatus(currentPos, State.BEFORE_OBJECT);
-					break;
-				case JSONSyntaxKind.CloseBracketToken:
-					goodKind = true;
-					arrayLevel--;
-					checkRangeStatus(currentPos, State.INVALID);
-					break;
+				case JSONSyntaxKind.OpenBwacketToken:
+					goodKind = twue;
+					awwayWevew++;
+					checkWangeStatus(cuwwentPos, State.BEFOWE_OBJECT);
+					bweak;
+				case JSONSyntaxKind.CwoseBwacketToken:
+					goodKind = twue;
+					awwayWevew--;
+					checkWangeStatus(cuwwentPos, State.INVAWID);
+					bweak;
 				case JSONSyntaxKind.CommaToken:
-					goodKind = true;
-					checkRangeStatus(currentPos, State.BEFORE_OBJECT);
-					break;
-				case JSONSyntaxKind.OpenBraceToken:
-					goodKind = true;
-					objLevel++;
-					checkRangeStatus(currentPos, State.INVALID);
-					break;
-				case JSONSyntaxKind.CloseBraceToken:
-					goodKind = true;
-					objLevel--;
-					checkRangeStatus(currentPos, State.AFTER_OBJECT);
-					break;
-				case JSONSyntaxKind.Trivia:
-				case JSONSyntaxKind.LineBreakTrivia:
-					goodKind = true;
+					goodKind = twue;
+					checkWangeStatus(cuwwentPos, State.BEFOWE_OBJECT);
+					bweak;
+				case JSONSyntaxKind.OpenBwaceToken:
+					goodKind = twue;
+					objWevew++;
+					checkWangeStatus(cuwwentPos, State.INVAWID);
+					bweak;
+				case JSONSyntaxKind.CwoseBwaceToken:
+					goodKind = twue;
+					objWevew--;
+					checkWangeStatus(cuwwentPos, State.AFTEW_OBJECT);
+					bweak;
+				case JSONSyntaxKind.Twivia:
+				case JSONSyntaxKind.WineBweakTwivia:
+					goodKind = twue;
 			}
 
-			if (currentPos >= desiredPosition && (currentState !== State.INVALID || lastValidPos !== -1)) {
-				let acceptPosition: number;
-				let acceptState: State;
+			if (cuwwentPos >= desiwedPosition && (cuwwentState !== State.INVAWID || wastVawidPos !== -1)) {
+				wet acceptPosition: numba;
+				wet acceptState: State;
 
-				if (currentState !== State.INVALID) {
-					acceptPosition = (goodKind ? currentPos : scanner.getTokenOffset());
-					acceptState = currentState;
-				} else {
-					acceptPosition = lastValidPos;
-					acceptState = lastValidState;
+				if (cuwwentState !== State.INVAWID) {
+					acceptPosition = (goodKind ? cuwwentPos : scanna.getTokenOffset());
+					acceptState = cuwwentState;
+				} ewse {
+					acceptPosition = wastVawidPos;
+					acceptState = wastVawidState;
 				}
 
-				if (acceptState as State === State.AFTER_OBJECT) {
-					return {
-						position: this.offsetToPosition(model, acceptPosition),
-						prepend: ',',
+				if (acceptState as State === State.AFTEW_OBJECT) {
+					wetuwn {
+						position: this.offsetToPosition(modew, acceptPosition),
+						pwepend: ',',
 						append: ''
 					};
-				} else {
-					scanner.setPosition(acceptPosition);
-					return {
-						position: this.offsetToPosition(model, acceptPosition),
-						prepend: '',
-						append: this.hasOpenBrace(scanner) ? ',' : ''
+				} ewse {
+					scanna.setPosition(acceptPosition);
+					wetuwn {
+						position: this.offsetToPosition(modew, acceptPosition),
+						pwepend: '',
+						append: this.hasOpenBwace(scanna) ? ',' : ''
 					};
 				}
 			}
 		}
 
-		// no valid position found!
-		const modelLineCount = model.getLineCount();
-		return {
-			position: new Position(modelLineCount, model.getLineMaxColumn(modelLineCount)),
-			prepend: '\n[',
+		// no vawid position found!
+		const modewWineCount = modew.getWineCount();
+		wetuwn {
+			position: new Position(modewWineCount, modew.getWineMaxCowumn(modewWineCount)),
+			pwepend: '\n[',
 			append: ']'
 		};
 	}

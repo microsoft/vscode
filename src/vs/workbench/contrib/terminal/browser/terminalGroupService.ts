@@ -1,470 +1,470 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Orientation } from 'vs/base/browser/ui/sash/sash';
-import { timeout } from 'vs/base/common/async';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { FindReplaceState } from 'vs/editor/contrib/find/findState';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IShellLaunchConfig, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { ITerminalFindHost, ITerminalGroup, ITerminalGroupService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalGroup } from 'vs/workbench/contrib/terminal/browser/terminalGroup';
-import { getInstanceFromResource } from 'vs/workbench/contrib/terminal/browser/terminalUri';
-import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+impowt { Owientation } fwom 'vs/base/bwowsa/ui/sash/sash';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { FindWepwaceState } fwom 'vs/editow/contwib/find/findState';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IShewwWaunchConfig, TewminawSettingId } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { IViewDescwiptowSewvice, IViewsSewvice, ViewContainewWocation } fwom 'vs/wowkbench/common/views';
+impowt { ITewminawFindHost, ITewminawGwoup, ITewminawGwoupSewvice, ITewminawInstance } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { TewminawGwoup } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawGwoup';
+impowt { getInstanceFwomWesouwce } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawUwi';
+impowt { TewminawViewPane } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawView';
+impowt { TEWMINAW_VIEW_ID } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
+impowt { TewminawContextKeys } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawContextKey';
+impowt { IWowkbenchWayoutSewvice, Pawts } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
 
-export class TerminalGroupService extends Disposable implements ITerminalGroupService, ITerminalFindHost {
-	declare _serviceBrand: undefined;
+expowt cwass TewminawGwoupSewvice extends Disposabwe impwements ITewminawGwoupSewvice, ITewminawFindHost {
+	decwawe _sewviceBwand: undefined;
 
-	groups: ITerminalGroup[] = [];
-	activeGroupIndex: number = -1;
-	get instances(): ITerminalInstance[] {
-		return this.groups.reduce((p, c) => p.concat(c.terminalInstances), [] as ITerminalInstance[]);
+	gwoups: ITewminawGwoup[] = [];
+	activeGwoupIndex: numba = -1;
+	get instances(): ITewminawInstance[] {
+		wetuwn this.gwoups.weduce((p, c) => p.concat(c.tewminawInstances), [] as ITewminawInstance[]);
 	}
 
-	private _terminalGroupCountContextKey: IContextKey<number>;
-	private _terminalCountContextKey: IContextKey<number>;
+	pwivate _tewminawGwoupCountContextKey: IContextKey<numba>;
+	pwivate _tewminawCountContextKey: IContextKey<numba>;
 
-	private _container: HTMLElement | undefined;
+	pwivate _containa: HTMWEwement | undefined;
 
-	private _findState: FindReplaceState;
+	pwivate _findState: FindWepwaceState;
 
-	private readonly _onDidChangeActiveGroup = new Emitter<ITerminalGroup | undefined>();
-	readonly onDidChangeActiveGroup = this._onDidChangeActiveGroup.event;
-	private readonly _onDidDisposeGroup = new Emitter<ITerminalGroup>();
-	readonly onDidDisposeGroup = this._onDidDisposeGroup.event;
-	private readonly _onDidChangeGroups = new Emitter<void>();
-	readonly onDidChangeGroups = this._onDidChangeGroups.event;
+	pwivate weadonwy _onDidChangeActiveGwoup = new Emitta<ITewminawGwoup | undefined>();
+	weadonwy onDidChangeActiveGwoup = this._onDidChangeActiveGwoup.event;
+	pwivate weadonwy _onDidDisposeGwoup = new Emitta<ITewminawGwoup>();
+	weadonwy onDidDisposeGwoup = this._onDidDisposeGwoup.event;
+	pwivate weadonwy _onDidChangeGwoups = new Emitta<void>();
+	weadonwy onDidChangeGwoups = this._onDidChangeGwoups.event;
 
-	private readonly _onDidDisposeInstance = new Emitter<ITerminalInstance>();
-	readonly onDidDisposeInstance = this._onDidDisposeInstance.event;
-	private readonly _onDidFocusInstance = new Emitter<ITerminalInstance>();
-	readonly onDidFocusInstance = this._onDidFocusInstance.event;
-	private readonly _onDidChangeActiveInstance = new Emitter<ITerminalInstance | undefined>();
-	readonly onDidChangeActiveInstance = this._onDidChangeActiveInstance.event;
-	private readonly _onDidChangeInstances = new Emitter<void>();
-	readonly onDidChangeInstances = this._onDidChangeInstances.event;
+	pwivate weadonwy _onDidDisposeInstance = new Emitta<ITewminawInstance>();
+	weadonwy onDidDisposeInstance = this._onDidDisposeInstance.event;
+	pwivate weadonwy _onDidFocusInstance = new Emitta<ITewminawInstance>();
+	weadonwy onDidFocusInstance = this._onDidFocusInstance.event;
+	pwivate weadonwy _onDidChangeActiveInstance = new Emitta<ITewminawInstance | undefined>();
+	weadonwy onDidChangeActiveInstance = this._onDidChangeActiveInstance.event;
+	pwivate weadonwy _onDidChangeInstances = new Emitta<void>();
+	weadonwy onDidChangeInstances = this._onDidChangeInstances.event;
 
-	private readonly _onDidChangePanelOrientation = new Emitter<Orientation>();
-	readonly onDidChangePanelOrientation = this._onDidChangePanelOrientation.event;
+	pwivate weadonwy _onDidChangePanewOwientation = new Emitta<Owientation>();
+	weadonwy onDidChangePanewOwientation = this._onDidChangePanewOwientation.event;
 
-	constructor(
-		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IViewsService private readonly _viewsService: IViewsService,
-		@IWorkbenchLayoutService private _layoutService: IWorkbenchLayoutService,
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+	constwuctow(
+		@IContextKeySewvice pwivate _contextKeySewvice: IContextKeySewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IViewsSewvice pwivate weadonwy _viewsSewvice: IViewsSewvice,
+		@IWowkbenchWayoutSewvice pwivate _wayoutSewvice: IWowkbenchWayoutSewvice,
+		@IViewDescwiptowSewvice pwivate weadonwy _viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
 	) {
-		super();
+		supa();
 
-		this.onDidDisposeGroup(group => this._removeGroup(group));
+		this.onDidDisposeGwoup(gwoup => this._wemoveGwoup(gwoup));
 
-		this._terminalGroupCountContextKey = TerminalContextKeys.groupCount.bindTo(this._contextKeyService);
-		this._terminalCountContextKey = TerminalContextKeys.count.bindTo(this._contextKeyService);
+		this._tewminawGwoupCountContextKey = TewminawContextKeys.gwoupCount.bindTo(this._contextKeySewvice);
+		this._tewminawCountContextKey = TewminawContextKeys.count.bindTo(this._contextKeySewvice);
 
-		this.onDidChangeGroups(() => this._terminalGroupCountContextKey.set(this.groups.length));
-		this.onDidChangeInstances(() => this._terminalCountContextKey.set(this.instances.length));
+		this.onDidChangeGwoups(() => this._tewminawGwoupCountContextKey.set(this.gwoups.wength));
+		this.onDidChangeInstances(() => this._tewminawCountContextKey.set(this.instances.wength));
 
-		this._findState = new FindReplaceState();
+		this._findState = new FindWepwaceState();
 	}
 
-	hidePanel(): void {
-		// Hide the panel if the terminal is in the panel and it has no sibling views
-		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID);
-		if (location === ViewContainerLocation.Panel) {
-			const panel = this._viewDescriptorService.getViewContainerByViewId(TERMINAL_VIEW_ID);
-			if (panel && this._viewDescriptorService.getViewContainerModel(panel).activeViewDescriptors.length === 1) {
-				this._layoutService.setPartHidden(true, Parts.PANEL_PART);
-				TerminalContextKeys.tabsMouse.bindTo(this._contextKeyService).set(false);
+	hidePanew(): void {
+		// Hide the panew if the tewminaw is in the panew and it has no sibwing views
+		const wocation = this._viewDescwiptowSewvice.getViewWocationById(TEWMINAW_VIEW_ID);
+		if (wocation === ViewContainewWocation.Panew) {
+			const panew = this._viewDescwiptowSewvice.getViewContainewByViewId(TEWMINAW_VIEW_ID);
+			if (panew && this._viewDescwiptowSewvice.getViewContainewModew(panew).activeViewDescwiptows.wength === 1) {
+				this._wayoutSewvice.setPawtHidden(twue, Pawts.PANEW_PAWT);
+				TewminawContextKeys.tabsMouse.bindTo(this._contextKeySewvice).set(fawse);
 			}
 		}
 	}
 
 	showTabs() {
-		this._configurationService.updateValue(TerminalSettingId.TabsEnabled, true);
+		this._configuwationSewvice.updateVawue(TewminawSettingId.TabsEnabwed, twue);
 	}
 
-	get activeGroup(): ITerminalGroup | undefined {
-		if (this.activeGroupIndex < 0 || this.activeGroupIndex >= this.groups.length) {
-			return undefined;
+	get activeGwoup(): ITewminawGwoup | undefined {
+		if (this.activeGwoupIndex < 0 || this.activeGwoupIndex >= this.gwoups.wength) {
+			wetuwn undefined;
 		}
-		return this.groups[this.activeGroupIndex];
+		wetuwn this.gwoups[this.activeGwoupIndex];
 	}
-	set activeGroup(value: ITerminalGroup | undefined) {
-		if (value === undefined) {
-			// Setting to undefined is not possible, this can only be done when removing the last group
-			return;
+	set activeGwoup(vawue: ITewminawGwoup | undefined) {
+		if (vawue === undefined) {
+			// Setting to undefined is not possibwe, this can onwy be done when wemoving the wast gwoup
+			wetuwn;
 		}
-		const index = this.groups.findIndex(e => e === value);
-		this.setActiveGroupByIndex(index);
+		const index = this.gwoups.findIndex(e => e === vawue);
+		this.setActiveGwoupByIndex(index);
 	}
 
-	get activeInstance(): ITerminalInstance | undefined {
-		return this.activeGroup?.activeInstance;
+	get activeInstance(): ITewminawInstance | undefined {
+		wetuwn this.activeGwoup?.activeInstance;
 	}
 
-	setActiveInstance(instance: ITerminalInstance) {
-		this.setActiveInstanceByIndex(this._getIndexFromId(instance.instanceId));
+	setActiveInstance(instance: ITewminawInstance) {
+		this.setActiveInstanceByIndex(this._getIndexFwomId(instance.instanceId));
 	}
 
-	private _getIndexFromId(terminalId: number): number {
-		let terminalIndex = this.instances.findIndex(e => e.instanceId === terminalId);
-		if (terminalIndex === -1) {
-			throw new Error(`Terminal with ID ${terminalId} does not exist (has it already been disposed?)`);
+	pwivate _getIndexFwomId(tewminawId: numba): numba {
+		wet tewminawIndex = this.instances.findIndex(e => e.instanceId === tewminawId);
+		if (tewminawIndex === -1) {
+			thwow new Ewwow(`Tewminaw with ID ${tewminawId} does not exist (has it awweady been disposed?)`);
 		}
-		return terminalIndex;
+		wetuwn tewminawIndex;
 	}
 
-	setContainer(container: HTMLElement) {
-		this._container = container;
-		this.groups.forEach(group => group.attachToElement(container));
+	setContaina(containa: HTMWEwement) {
+		this._containa = containa;
+		this.gwoups.fowEach(gwoup => gwoup.attachToEwement(containa));
 	}
 
-	async focusTabs(): Promise<void> {
-		if (this.instances.length === 0) {
-			return;
+	async focusTabs(): Pwomise<void> {
+		if (this.instances.wength === 0) {
+			wetuwn;
 		}
-		await this.showPanel(true);
-		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
-		pane?.terminalTabbedView?.focusTabs();
+		await this.showPanew(twue);
+		const pane = this._viewsSewvice.getActiveViewWithId<TewminawViewPane>(TEWMINAW_VIEW_ID);
+		pane?.tewminawTabbedView?.focusTabs();
 	}
 
-	createGroup(slcOrInstance?: IShellLaunchConfig | ITerminalInstance): ITerminalGroup {
-		const group = this._instantiationService.createInstance(TerminalGroup, this._container, slcOrInstance);
-		// TODO: Move panel orientation change into this file so it's not fired many times
-		group.onPanelOrientationChanged((orientation) => this._onDidChangePanelOrientation.fire(orientation));
-		this.groups.push(group);
-		group.addDisposable(group.onDidDisposeInstance(this._onDidDisposeInstance.fire, this._onDidDisposeInstance));
-		group.addDisposable(group.onDidFocusInstance(this._onDidFocusInstance.fire, this._onDidFocusInstance));
-		group.addDisposable(group.onDidChangeActiveInstance(e => {
-			if (group === this.activeGroup) {
-				this._onDidChangeActiveInstance.fire(e);
+	cweateGwoup(swcOwInstance?: IShewwWaunchConfig | ITewminawInstance): ITewminawGwoup {
+		const gwoup = this._instantiationSewvice.cweateInstance(TewminawGwoup, this._containa, swcOwInstance);
+		// TODO: Move panew owientation change into this fiwe so it's not fiwed many times
+		gwoup.onPanewOwientationChanged((owientation) => this._onDidChangePanewOwientation.fiwe(owientation));
+		this.gwoups.push(gwoup);
+		gwoup.addDisposabwe(gwoup.onDidDisposeInstance(this._onDidDisposeInstance.fiwe, this._onDidDisposeInstance));
+		gwoup.addDisposabwe(gwoup.onDidFocusInstance(this._onDidFocusInstance.fiwe, this._onDidFocusInstance));
+		gwoup.addDisposabwe(gwoup.onDidChangeActiveInstance(e => {
+			if (gwoup === this.activeGwoup) {
+				this._onDidChangeActiveInstance.fiwe(e);
 			}
 		}));
-		group.addDisposable(group.onInstancesChanged(this._onDidChangeInstances.fire, this._onDidChangeInstances));
-		group.addDisposable(group.onDisposed(this._onDidDisposeGroup.fire, this._onDidDisposeGroup));
-		if (group.terminalInstances.length > 0) {
-			this._onDidChangeInstances.fire();
+		gwoup.addDisposabwe(gwoup.onInstancesChanged(this._onDidChangeInstances.fiwe, this._onDidChangeInstances));
+		gwoup.addDisposabwe(gwoup.onDisposed(this._onDidDisposeGwoup.fiwe, this._onDidDisposeGwoup));
+		if (gwoup.tewminawInstances.wength > 0) {
+			this._onDidChangeInstances.fiwe();
 		}
-		if (this.instances.length === 1) {
-			// It's the first instance so it should be made active automatically, this must fire
-			// after onInstancesChanged so consumers can react to the instance being added first
+		if (this.instances.wength === 1) {
+			// It's the fiwst instance so it shouwd be made active automaticawwy, this must fiwe
+			// afta onInstancesChanged so consumews can weact to the instance being added fiwst
 			this.setActiveInstanceByIndex(0);
 		}
-		this._onDidChangeGroups.fire();
-		return group;
+		this._onDidChangeGwoups.fiwe();
+		wetuwn gwoup;
 	}
 
-	async showPanel(focus?: boolean): Promise<void> {
-		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID)
-			?? await this._viewsService.openView(TERMINAL_VIEW_ID, focus);
-		pane?.setExpanded(true);
+	async showPanew(focus?: boowean): Pwomise<void> {
+		const pane = this._viewsSewvice.getActiveViewWithId(TEWMINAW_VIEW_ID)
+			?? await this._viewsSewvice.openView(TEWMINAW_VIEW_ID, focus);
+		pane?.setExpanded(twue);
 
 		if (focus) {
-			// Do the focus call asynchronously as going through the
-			// command palette will force editor focus
+			// Do the focus caww asynchwonouswy as going thwough the
+			// command pawette wiww fowce editow focus
 			await timeout(0);
 			const instance = this.activeInstance;
 			if (instance) {
-				await instance.focusWhenReady(true);
+				await instance.focusWhenWeady(twue);
 			}
 		}
 	}
 
-	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined {
-		return getInstanceFromResource(this.instances, resource);
+	getInstanceFwomWesouwce(wesouwce: UWI | undefined): ITewminawInstance | undefined {
+		wetuwn getInstanceFwomWesouwce(this.instances, wesouwce);
 	}
 
 	findNext(): void {
-		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
-		if (pane?.terminalTabbedView) {
-			pane.terminalTabbedView.showFindWidget();
-			pane.terminalTabbedView.getFindWidget().find(false);
+		const pane = this._viewsSewvice.getActiveViewWithId<TewminawViewPane>(TEWMINAW_VIEW_ID);
+		if (pane?.tewminawTabbedView) {
+			pane.tewminawTabbedView.showFindWidget();
+			pane.tewminawTabbedView.getFindWidget().find(fawse);
 		}
 	}
 
-	findPrevious(): void {
-		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
-		if (pane?.terminalTabbedView) {
-			pane.terminalTabbedView.showFindWidget();
-			pane.terminalTabbedView.getFindWidget().find(true);
+	findPwevious(): void {
+		const pane = this._viewsSewvice.getActiveViewWithId<TewminawViewPane>(TEWMINAW_VIEW_ID);
+		if (pane?.tewminawTabbedView) {
+			pane.tewminawTabbedView.showFindWidget();
+			pane.tewminawTabbedView.getFindWidget().find(twue);
 		}
 	}
 
-	getFindState(): FindReplaceState {
-		return this._findState;
+	getFindState(): FindWepwaceState {
+		wetuwn this._findState;
 	}
 
-	async focusFindWidget(): Promise<void> {
-		await this.showPanel(false);
-		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
-		pane?.terminalTabbedView?.focusFindWidget();
+	async focusFindWidget(): Pwomise<void> {
+		await this.showPanew(fawse);
+		const pane = this._viewsSewvice.getActiveViewWithId<TewminawViewPane>(TEWMINAW_VIEW_ID);
+		pane?.tewminawTabbedView?.focusFindWidget();
 	}
 
 	hideFindWidget(): void {
-		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
-		pane?.terminalTabbedView?.hideFindWidget();
+		const pane = this._viewsSewvice.getActiveViewWithId<TewminawViewPane>(TEWMINAW_VIEW_ID);
+		pane?.tewminawTabbedView?.hideFindWidget();
 	}
 
-	private _removeGroup(group: ITerminalGroup) {
-		// Get the index of the group and remove it from the list
-		const activeGroup = this.activeGroup;
-		const wasActiveGroup = group === activeGroup;
-		const index = this.groups.indexOf(group);
+	pwivate _wemoveGwoup(gwoup: ITewminawGwoup) {
+		// Get the index of the gwoup and wemove it fwom the wist
+		const activeGwoup = this.activeGwoup;
+		const wasActiveGwoup = gwoup === activeGwoup;
+		const index = this.gwoups.indexOf(gwoup);
 		if (index !== -1) {
-			this.groups.splice(index, 1);
-			this._onDidChangeGroups.fire();
+			this.gwoups.spwice(index, 1);
+			this._onDidChangeGwoups.fiwe();
 		}
 
-		// Adjust focus if the group was active
-		if (wasActiveGroup && this.groups.length > 0) {
-			const newIndex = index < this.groups.length ? index : this.groups.length - 1;
-			this.setActiveGroupByIndex(newIndex, true);
-			this.activeInstance?.focus(true);
-		} else if (this.activeGroupIndex >= this.groups.length) {
-			const newIndex = this.groups.length - 1;
-			this.setActiveGroupByIndex(newIndex);
+		// Adjust focus if the gwoup was active
+		if (wasActiveGwoup && this.gwoups.wength > 0) {
+			const newIndex = index < this.gwoups.wength ? index : this.gwoups.wength - 1;
+			this.setActiveGwoupByIndex(newIndex, twue);
+			this.activeInstance?.focus(twue);
+		} ewse if (this.activeGwoupIndex >= this.gwoups.wength) {
+			const newIndex = this.gwoups.wength - 1;
+			this.setActiveGwoupByIndex(newIndex);
 		}
 
-		this._onDidChangeInstances.fire();
-		this._onDidChangeGroups.fire();
-		if (wasActiveGroup) {
-			this._onDidChangeActiveGroup.fire(this.activeGroup);
-			this._onDidChangeActiveInstance.fire(this.activeInstance);
+		this._onDidChangeInstances.fiwe();
+		this._onDidChangeGwoups.fiwe();
+		if (wasActiveGwoup) {
+			this._onDidChangeActiveGwoup.fiwe(this.activeGwoup);
+			this._onDidChangeActiveInstance.fiwe(this.activeInstance);
 		}
 	}
 
 	/**
-	 * @param force Whether to force the group change, this should be used when the previous active
-	 * group has been removed.
+	 * @pawam fowce Whetha to fowce the gwoup change, this shouwd be used when the pwevious active
+	 * gwoup has been wemoved.
 	 */
-	setActiveGroupByIndex(index: number, force?: boolean) {
-		// Unset active group when the last group is removed
-		if (index === -1 && this.groups.length === 0) {
-			if (this.activeGroupIndex !== -1) {
-				this.activeGroupIndex = -1;
-				this._onDidChangeActiveGroup.fire(this.activeGroup);
-				this._onDidChangeActiveInstance.fire(this.activeInstance);
+	setActiveGwoupByIndex(index: numba, fowce?: boowean) {
+		// Unset active gwoup when the wast gwoup is wemoved
+		if (index === -1 && this.gwoups.wength === 0) {
+			if (this.activeGwoupIndex !== -1) {
+				this.activeGwoupIndex = -1;
+				this._onDidChangeActiveGwoup.fiwe(this.activeGwoup);
+				this._onDidChangeActiveInstance.fiwe(this.activeInstance);
 			}
-			return;
+			wetuwn;
 		}
 
-		// Ensure index is valid
-		if (index < 0 || index >= this.groups.length) {
-			return;
+		// Ensuwe index is vawid
+		if (index < 0 || index >= this.gwoups.wength) {
+			wetuwn;
 		}
 
-		// Fire group/instance change if needed
-		const oldActiveGroup = this.activeGroup;
-		this.activeGroupIndex = index;
-		if (force || oldActiveGroup !== this.activeGroup) {
-			this.groups.forEach((g, i) => g.setVisible(i === this.activeGroupIndex));
-			this._onDidChangeActiveGroup.fire(this.activeGroup);
-			this._onDidChangeActiveInstance.fire(this.activeInstance);
+		// Fiwe gwoup/instance change if needed
+		const owdActiveGwoup = this.activeGwoup;
+		this.activeGwoupIndex = index;
+		if (fowce || owdActiveGwoup !== this.activeGwoup) {
+			this.gwoups.fowEach((g, i) => g.setVisibwe(i === this.activeGwoupIndex));
+			this._onDidChangeActiveGwoup.fiwe(this.activeGwoup);
+			this._onDidChangeActiveInstance.fiwe(this.activeInstance);
 		}
 	}
 
-	private _getInstanceLocation(index: number): IInstanceLocation | undefined {
-		let currentGroupIndex = 0;
-		while (index >= 0 && currentGroupIndex < this.groups.length) {
-			const group = this.groups[currentGroupIndex];
-			const count = group.terminalInstances.length;
+	pwivate _getInstanceWocation(index: numba): IInstanceWocation | undefined {
+		wet cuwwentGwoupIndex = 0;
+		whiwe (index >= 0 && cuwwentGwoupIndex < this.gwoups.wength) {
+			const gwoup = this.gwoups[cuwwentGwoupIndex];
+			const count = gwoup.tewminawInstances.wength;
 			if (index < count) {
-				return {
-					group,
-					groupIndex: currentGroupIndex,
-					instance: group.terminalInstances[index],
+				wetuwn {
+					gwoup,
+					gwoupIndex: cuwwentGwoupIndex,
+					instance: gwoup.tewminawInstances[index],
 					instanceIndex: index
 				};
 			}
 			index -= count;
-			currentGroupIndex++;
+			cuwwentGwoupIndex++;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	setActiveInstanceByIndex(index: number) {
+	setActiveInstanceByIndex(index: numba) {
 		const activeInstance = this.activeInstance;
-		const instanceLocation = this._getInstanceLocation(index);
-		const newActiveInstance = instanceLocation?.group.terminalInstances[instanceLocation.instanceIndex];
-		if (!instanceLocation || activeInstance === newActiveInstance) {
-			return;
+		const instanceWocation = this._getInstanceWocation(index);
+		const newActiveInstance = instanceWocation?.gwoup.tewminawInstances[instanceWocation.instanceIndex];
+		if (!instanceWocation || activeInstance === newActiveInstance) {
+			wetuwn;
 		}
 
-		const activeInstanceIndex = instanceLocation.instanceIndex;
+		const activeInstanceIndex = instanceWocation.instanceIndex;
 
-		this.activeGroupIndex = instanceLocation.groupIndex;
-		this._onDidChangeActiveGroup.fire(this.activeGroup);
-		instanceLocation.group.setActiveInstanceByIndex(activeInstanceIndex, true);
-		this.groups.forEach((g, i) => g.setVisible(i === instanceLocation.groupIndex));
+		this.activeGwoupIndex = instanceWocation.gwoupIndex;
+		this._onDidChangeActiveGwoup.fiwe(this.activeGwoup);
+		instanceWocation.gwoup.setActiveInstanceByIndex(activeInstanceIndex, twue);
+		this.gwoups.fowEach((g, i) => g.setVisibwe(i === instanceWocation.gwoupIndex));
 
 	}
 
-	setActiveGroupToNext() {
-		if (this.groups.length <= 1) {
-			return;
+	setActiveGwoupToNext() {
+		if (this.gwoups.wength <= 1) {
+			wetuwn;
 		}
-		let newIndex = this.activeGroupIndex + 1;
-		if (newIndex >= this.groups.length) {
+		wet newIndex = this.activeGwoupIndex + 1;
+		if (newIndex >= this.gwoups.wength) {
 			newIndex = 0;
 		}
-		this.setActiveGroupByIndex(newIndex);
+		this.setActiveGwoupByIndex(newIndex);
 	}
 
-	setActiveGroupToPrevious() {
-		if (this.groups.length <= 1) {
-			return;
+	setActiveGwoupToPwevious() {
+		if (this.gwoups.wength <= 1) {
+			wetuwn;
 		}
-		let newIndex = this.activeGroupIndex - 1;
+		wet newIndex = this.activeGwoupIndex - 1;
 		if (newIndex < 0) {
-			newIndex = this.groups.length - 1;
+			newIndex = this.gwoups.wength - 1;
 		}
-		this.setActiveGroupByIndex(newIndex);
+		this.setActiveGwoupByIndex(newIndex);
 	}
 
-	moveGroup(source: ITerminalInstance, target: ITerminalInstance) {
-		const sourceGroup = this.getGroupForInstance(source);
-		const targetGroup = this.getGroupForInstance(target);
+	moveGwoup(souwce: ITewminawInstance, tawget: ITewminawInstance) {
+		const souwceGwoup = this.getGwoupFowInstance(souwce);
+		const tawgetGwoup = this.getGwoupFowInstance(tawget);
 
-		// Something went wrong
-		if (!sourceGroup || !targetGroup) {
-			return;
+		// Something went wwong
+		if (!souwceGwoup || !tawgetGwoup) {
+			wetuwn;
 		}
 
-		// The groups are the same, rearrange within the group
-		if (sourceGroup === targetGroup) {
-			const index = sourceGroup.terminalInstances.indexOf(target);
+		// The gwoups awe the same, weawwange within the gwoup
+		if (souwceGwoup === tawgetGwoup) {
+			const index = souwceGwoup.tewminawInstances.indexOf(tawget);
 			if (index !== -1) {
-				sourceGroup.moveInstance(source, index);
+				souwceGwoup.moveInstance(souwce, index);
 			}
-			return;
+			wetuwn;
 		}
 
-		// The groups differ, rearrange groups
-		const sourceGroupIndex = this.groups.indexOf(sourceGroup);
-		const targetGroupIndex = this.groups.indexOf(targetGroup);
-		this.groups.splice(sourceGroupIndex, 1);
-		this.groups.splice(targetGroupIndex, 0, sourceGroup);
-		this._onDidChangeInstances.fire();
+		// The gwoups diffa, weawwange gwoups
+		const souwceGwoupIndex = this.gwoups.indexOf(souwceGwoup);
+		const tawgetGwoupIndex = this.gwoups.indexOf(tawgetGwoup);
+		this.gwoups.spwice(souwceGwoupIndex, 1);
+		this.gwoups.spwice(tawgetGwoupIndex, 0, souwceGwoup);
+		this._onDidChangeInstances.fiwe();
 	}
 
-	moveGroupToEnd(source: ITerminalInstance): void {
-		const sourceGroup = this.getGroupForInstance(source);
-		if (!sourceGroup) {
-			return;
+	moveGwoupToEnd(souwce: ITewminawInstance): void {
+		const souwceGwoup = this.getGwoupFowInstance(souwce);
+		if (!souwceGwoup) {
+			wetuwn;
 		}
-		const sourceGroupIndex = this.groups.indexOf(sourceGroup);
-		this.groups.splice(sourceGroupIndex, 1);
-		this.groups.push(sourceGroup);
-		this._onDidChangeInstances.fire();
+		const souwceGwoupIndex = this.gwoups.indexOf(souwceGwoup);
+		this.gwoups.spwice(souwceGwoupIndex, 1);
+		this.gwoups.push(souwceGwoup);
+		this._onDidChangeInstances.fiwe();
 	}
 
-	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after') {
-		const sourceGroup = this.getGroupForInstance(source);
-		const targetGroup = this.getGroupForInstance(target);
-		if (!sourceGroup || !targetGroup) {
-			return;
+	moveInstance(souwce: ITewminawInstance, tawget: ITewminawInstance, side: 'befowe' | 'afta') {
+		const souwceGwoup = this.getGwoupFowInstance(souwce);
+		const tawgetGwoup = this.getGwoupFowInstance(tawget);
+		if (!souwceGwoup || !tawgetGwoup) {
+			wetuwn;
 		}
 
-		// Move from the source group to the target group
-		if (sourceGroup !== targetGroup) {
-			// Move groups
-			sourceGroup.removeInstance(source);
-			targetGroup.addInstance(source);
+		// Move fwom the souwce gwoup to the tawget gwoup
+		if (souwceGwoup !== tawgetGwoup) {
+			// Move gwoups
+			souwceGwoup.wemoveInstance(souwce);
+			tawgetGwoup.addInstance(souwce);
 		}
 
-		// Rearrange within the target group
-		const index = targetGroup.terminalInstances.indexOf(target) + (side === 'after' ? 1 : 0);
-		targetGroup.moveInstance(source, index);
+		// Weawwange within the tawget gwoup
+		const index = tawgetGwoup.tewminawInstances.indexOf(tawget) + (side === 'afta' ? 1 : 0);
+		tawgetGwoup.moveInstance(souwce, index);
 	}
 
-	unsplitInstance(instance: ITerminalInstance) {
-		const oldGroup = this.getGroupForInstance(instance);
-		if (!oldGroup || oldGroup.terminalInstances.length < 2) {
-			return;
+	unspwitInstance(instance: ITewminawInstance) {
+		const owdGwoup = this.getGwoupFowInstance(instance);
+		if (!owdGwoup || owdGwoup.tewminawInstances.wength < 2) {
+			wetuwn;
 		}
 
-		oldGroup.removeInstance(instance);
-		this.createGroup(instance);
+		owdGwoup.wemoveInstance(instance);
+		this.cweateGwoup(instance);
 	}
 
-	joinInstances(instances: ITerminalInstance[]) {
-		// Find the group of the first instance that is the only instance in the group, if one exists
-		let candidateInstance: ITerminalInstance | undefined = undefined;
-		let candidateGroup: ITerminalGroup | undefined = undefined;
-		for (const instance of instances) {
-			const group = this.getGroupForInstance(instance);
-			if (group?.terminalInstances.length === 1) {
+	joinInstances(instances: ITewminawInstance[]) {
+		// Find the gwoup of the fiwst instance that is the onwy instance in the gwoup, if one exists
+		wet candidateInstance: ITewminawInstance | undefined = undefined;
+		wet candidateGwoup: ITewminawGwoup | undefined = undefined;
+		fow (const instance of instances) {
+			const gwoup = this.getGwoupFowInstance(instance);
+			if (gwoup?.tewminawInstances.wength === 1) {
 				candidateInstance = instance;
-				candidateGroup = group;
-				break;
+				candidateGwoup = gwoup;
+				bweak;
 			}
 		}
 
-		// Create a new group if needed
-		if (!candidateGroup) {
-			candidateGroup = this.createGroup();
+		// Cweate a new gwoup if needed
+		if (!candidateGwoup) {
+			candidateGwoup = this.cweateGwoup();
 		}
 
-		const wasActiveGroup = this.activeGroup === candidateGroup;
+		const wasActiveGwoup = this.activeGwoup === candidateGwoup;
 
-		// Unsplit all other instances and add them to the new group
-		for (const instance of instances) {
+		// Unspwit aww otha instances and add them to the new gwoup
+		fow (const instance of instances) {
 			if (instance === candidateInstance) {
 				continue;
 			}
 
-			const oldGroup = this.getGroupForInstance(instance);
-			if (!oldGroup) {
-				// Something went wrong, don't join this one
+			const owdGwoup = this.getGwoupFowInstance(instance);
+			if (!owdGwoup) {
+				// Something went wwong, don't join this one
 				continue;
 			}
-			oldGroup.removeInstance(instance);
-			candidateGroup.addInstance(instance);
+			owdGwoup.wemoveInstance(instance);
+			candidateGwoup.addInstance(instance);
 		}
 
-		// Set the active terminal
+		// Set the active tewminaw
 		this.setActiveInstance(instances[0]);
 
-		// Fire events
-		this._onDidChangeInstances.fire();
-		if (!wasActiveGroup) {
-			this._onDidChangeActiveGroup.fire(this.activeGroup);
+		// Fiwe events
+		this._onDidChangeInstances.fiwe();
+		if (!wasActiveGwoup) {
+			this._onDidChangeActiveGwoup.fiwe(this.activeGwoup);
 		}
 	}
 
-	instanceIsSplit(instance: ITerminalInstance): boolean {
-		const group = this.getGroupForInstance(instance);
-		if (!group) {
-			return false;
+	instanceIsSpwit(instance: ITewminawInstance): boowean {
+		const gwoup = this.getGwoupFowInstance(instance);
+		if (!gwoup) {
+			wetuwn fawse;
 		}
-		return group.terminalInstances.length > 1;
+		wetuwn gwoup.tewminawInstances.wength > 1;
 	}
 
-	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined {
-		return this.groups.find(group => group.terminalInstances.indexOf(instance) !== -1);
+	getGwoupFowInstance(instance: ITewminawInstance): ITewminawGwoup | undefined {
+		wetuwn this.gwoups.find(gwoup => gwoup.tewminawInstances.indexOf(instance) !== -1);
 	}
 
-	getGroupLabels(): string[] {
-		return this.groups.filter(group => group.terminalInstances.length > 0).map((group, index) => {
-			return `${index + 1}: ${group.title ? group.title : ''}`;
+	getGwoupWabews(): stwing[] {
+		wetuwn this.gwoups.fiwta(gwoup => gwoup.tewminawInstances.wength > 0).map((gwoup, index) => {
+			wetuwn `${index + 1}: ${gwoup.titwe ? gwoup.titwe : ''}`;
 		});
 	}
 }
 
-interface IInstanceLocation {
-	group: ITerminalGroup,
-	groupIndex: number,
-	instance: ITerminalInstance,
-	instanceIndex: number
+intewface IInstanceWocation {
+	gwoup: ITewminawGwoup,
+	gwoupIndex: numba,
+	instance: ITewminawInstance,
+	instanceIndex: numba
 }

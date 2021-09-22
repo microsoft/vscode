@@ -1,62 +1,62 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-/* ---------- DiffEditor ---------- */
+/* ---------- DiffEditow ---------- */
 
-.monaco-diff-editor .diffOverview {
+.monaco-diff-editow .diffOvewview {
 	z-index: 9;
 }
 
-.monaco-diff-editor .diffOverview .diffViewport {
+.monaco-diff-editow .diffOvewview .diffViewpowt {
 	z-index: 10;
 }
 
-/* colors not externalized: using transparancy on background */
-.monaco-diff-editor.vs			.diffOverview { background: rgba(0, 0, 0, 0.03); }
-.monaco-diff-editor.vs-dark		.diffOverview { background: rgba(255, 255, 255, 0.01); }
+/* cowows not extewnawized: using twanspawancy on backgwound */
+.monaco-diff-editow.vs			.diffOvewview { backgwound: wgba(0, 0, 0, 0.03); }
+.monaco-diff-editow.vs-dawk		.diffOvewview { backgwound: wgba(255, 255, 255, 0.01); }
 
-.monaco-scrollable-element.modified-in-monaco-diff-editor.vs		.scrollbar { background: rgba(0,0,0,0); }
-.monaco-scrollable-element.modified-in-monaco-diff-editor.vs-dark	.scrollbar { background: rgba(0,0,0,0); }
-.monaco-scrollable-element.modified-in-monaco-diff-editor.hc-black	.scrollbar { background: none; }
+.monaco-scwowwabwe-ewement.modified-in-monaco-diff-editow.vs		.scwowwbaw { backgwound: wgba(0,0,0,0); }
+.monaco-scwowwabwe-ewement.modified-in-monaco-diff-editow.vs-dawk	.scwowwbaw { backgwound: wgba(0,0,0,0); }
+.monaco-scwowwabwe-ewement.modified-in-monaco-diff-editow.hc-bwack	.scwowwbaw { backgwound: none; }
 
-.monaco-scrollable-element.modified-in-monaco-diff-editor .slider {
+.monaco-scwowwabwe-ewement.modified-in-monaco-diff-editow .swida {
 	z-index: 10;
 }
-.modified-in-monaco-diff-editor				.slider.active { background: rgba(171, 171, 171, .4); }
-.modified-in-monaco-diff-editor.hc-black	.slider.active { background: none; }
+.modified-in-monaco-diff-editow				.swida.active { backgwound: wgba(171, 171, 171, .4); }
+.modified-in-monaco-diff-editow.hc-bwack	.swida.active { backgwound: none; }
 
 /* ---------- Diff ---------- */
 
-.monaco-editor .insert-sign,
-.monaco-diff-editor .insert-sign,
-.monaco-editor .delete-sign,
-.monaco-diff-editor .delete-sign {
-	font-size: 11px !important;
-	opacity: 0.7 !important;
-	display: flex !important;
-	align-items: center;
+.monaco-editow .insewt-sign,
+.monaco-diff-editow .insewt-sign,
+.monaco-editow .dewete-sign,
+.monaco-diff-editow .dewete-sign {
+	font-size: 11px !impowtant;
+	opacity: 0.7 !impowtant;
+	dispway: fwex !impowtant;
+	awign-items: centa;
 }
-.monaco-editor.hc-black .insert-sign,
-.monaco-diff-editor.hc-black .insert-sign,
-.monaco-editor.hc-black .delete-sign,
-.monaco-diff-editor.hc-black .delete-sign {
+.monaco-editow.hc-bwack .insewt-sign,
+.monaco-diff-editow.hc-bwack .insewt-sign,
+.monaco-editow.hc-bwack .dewete-sign,
+.monaco-diff-editow.hc-bwack .dewete-sign {
 	opacity: 1;
 }
 
-.monaco-editor .inline-deleted-margin-view-zone {
-	text-align: right;
+.monaco-editow .inwine-deweted-mawgin-view-zone {
+	text-awign: wight;
 }
-.monaco-editor .inline-added-margin-view-zone {
-	text-align: right;
-}
-
-/* ---------- Inline Diff ---------- */
-
-.monaco-editor .view-zones .view-lines .view-line span {
-	display: inline-block;
+.monaco-editow .inwine-added-mawgin-view-zone {
+	text-awign: wight;
 }
 
-.monaco-editor .margin-view-zones .lightbulb-glyph:hover {
-	cursor: pointer;
+/* ---------- Inwine Diff ---------- */
+
+.monaco-editow .view-zones .view-wines .view-wine span {
+	dispway: inwine-bwock;
+}
+
+.monaco-editow .mawgin-view-zones .wightbuwb-gwyph:hova {
+	cuwsow: pointa;
 }

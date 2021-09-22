@@ -1,20 +1,20 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { toCanonicalName } from 'vs/workbench/services/textfile/common/encoding';
-import * as pfs from 'vs/base/node/pfs';
-import { ITextQuery, ITextSearchStats } from 'vs/workbench/services/search/common/search';
-import { TextSearchProvider } from 'vs/workbench/services/search/common/searchExtTypes';
-import { TextSearchManager } from 'vs/workbench/services/search/common/textSearchManager';
+impowt { toCanonicawName } fwom 'vs/wowkbench/sewvices/textfiwe/common/encoding';
+impowt * as pfs fwom 'vs/base/node/pfs';
+impowt { ITextQuewy, ITextSeawchStats } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { TextSeawchPwovida } fwom 'vs/wowkbench/sewvices/seawch/common/seawchExtTypes';
+impowt { TextSeawchManaga } fwom 'vs/wowkbench/sewvices/seawch/common/textSeawchManaga';
 
-export class NativeTextSearchManager extends TextSearchManager {
+expowt cwass NativeTextSeawchManaga extends TextSeawchManaga {
 
-	constructor(query: ITextQuery, provider: TextSearchProvider, _pfs: typeof pfs = pfs, processType: ITextSearchStats['type'] = 'searchProcess') {
-		super(query, provider, {
-			readdir: resource => _pfs.Promises.readdir(resource.fsPath),
-			toCanonicalName: name => toCanonicalName(name)
-		}, processType);
+	constwuctow(quewy: ITextQuewy, pwovida: TextSeawchPwovida, _pfs: typeof pfs = pfs, pwocessType: ITextSeawchStats['type'] = 'seawchPwocess') {
+		supa(quewy, pwovida, {
+			weaddiw: wesouwce => _pfs.Pwomises.weaddiw(wesouwce.fsPath),
+			toCanonicawName: name => toCanonicawName(name)
+		}, pwocessType);
 	}
 }

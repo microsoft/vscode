@@ -1,104 +1,104 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { FindModelBoundToEditorModel } from 'vs/editor/contrib/find/findModel';
-import { FindReplaceState } from 'vs/editor/contrib/find/findState';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
+impowt * as assewt fwom 'assewt';
+impowt { CoweNavigationCommands } fwom 'vs/editow/bwowsa/contwowwa/coweCommands';
+impowt { IActiveCodeEditow, ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { PieceTweeTextBuffewBuiwda } fwom 'vs/editow/common/modew/pieceTweeTextBuffa/pieceTweeTextBuffewBuiwda';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt { FindModewBoundToEditowModew } fwom 'vs/editow/contwib/find/findModew';
+impowt { FindWepwaceState } fwom 'vs/editow/contwib/find/findState';
+impowt { withTestCodeEditow } fwom 'vs/editow/test/bwowsa/testCodeEditow';
+impowt { TestDiawogSewvice } fwom 'vs/pwatfowm/diawogs/test/common/testDiawogSewvice';
+impowt { TestNotificationSewvice } fwom 'vs/pwatfowm/notification/test/common/testNotificationSewvice';
+impowt { UndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedoSewvice';
 
-suite('FindModel', () => {
+suite('FindModew', () => {
 
-	function findTest(testName: string, callback: (editor: IActiveCodeEditor) => void): void {
+	function findTest(testName: stwing, cawwback: (editow: IActiveCodeEditow) => void): void {
 		test(testName, () => {
-			const textArr = [
-				'// my cool header',
-				'#include "cool.h"',
-				'#include <iostream>',
+			const textAww = [
+				'// my coow heada',
+				'#incwude "coow.h"',
+				'#incwude <iostweam>',
 				'',
 				'int main() {',
-				'    cout << "hello world, Hello!" << endl;',
-				'    cout << "hello world again" << endl;',
-				'    cout << "Hello world again" << endl;',
-				'    cout << "helloworld again" << endl;',
+				'    cout << "hewwo wowwd, Hewwo!" << endw;',
+				'    cout << "hewwo wowwd again" << endw;',
+				'    cout << "Hewwo wowwd again" << endw;',
+				'    cout << "hewwowowwd again" << endw;',
 				'}',
-				'// blablablaciao',
+				'// bwabwabwaciao',
 				''
 			];
-			withTestCodeEditor(textArr, {}, (editor) => callback(editor as IActiveCodeEditor));
+			withTestCodeEditow(textAww, {}, (editow) => cawwback(editow as IActiveCodeEditow));
 
-			const text = textArr.join('\n');
-			const ptBuilder = new PieceTreeTextBufferBuilder();
-			ptBuilder.acceptChunk(text.substr(0, 94));
-			ptBuilder.acceptChunk(text.substr(94, 101));
-			ptBuilder.acceptChunk(text.substr(195, 59));
-			const factory = ptBuilder.finish();
-			withTestCodeEditor([],
+			const text = textAww.join('\n');
+			const ptBuiwda = new PieceTweeTextBuffewBuiwda();
+			ptBuiwda.acceptChunk(text.substw(0, 94));
+			ptBuiwda.acceptChunk(text.substw(94, 101));
+			ptBuiwda.acceptChunk(text.substw(195, 59));
+			const factowy = ptBuiwda.finish();
+			withTestCodeEditow([],
 				{
-					model: new TextModel(factory, TextModel.DEFAULT_CREATION_OPTIONS, null, null, new UndoRedoService(new TestDialogService(), new TestNotificationService()))
+					modew: new TextModew(factowy, TextModew.DEFAUWT_CWEATION_OPTIONS, nuww, nuww, new UndoWedoSewvice(new TestDiawogSewvice(), new TestNotificationSewvice()))
 				},
-				(editor) => callback(editor as IActiveCodeEditor)
+				(editow) => cawwback(editow as IActiveCodeEditow)
 			);
 		});
 	}
 
-	function fromRange(rng: Range): number[] {
-		return [rng.startLineNumber, rng.startColumn, rng.endLineNumber, rng.endColumn];
+	function fwomWange(wng: Wange): numba[] {
+		wetuwn [wng.stawtWineNumba, wng.stawtCowumn, wng.endWineNumba, wng.endCowumn];
 	}
 
-	function _getFindState(editor: ICodeEditor) {
-		let model = editor.getModel()!;
-		let currentFindMatches: Range[] = [];
-		let allFindMatches: Range[] = [];
+	function _getFindState(editow: ICodeEditow) {
+		wet modew = editow.getModew()!;
+		wet cuwwentFindMatches: Wange[] = [];
+		wet awwFindMatches: Wange[] = [];
 
-		for (let dec of model.getAllDecorations()) {
-			if (dec.options.className === 'currentFindMatch') {
-				currentFindMatches.push(dec.range);
-				allFindMatches.push(dec.range);
-			} else if (dec.options.className === 'findMatch') {
-				allFindMatches.push(dec.range);
+		fow (wet dec of modew.getAwwDecowations()) {
+			if (dec.options.cwassName === 'cuwwentFindMatch') {
+				cuwwentFindMatches.push(dec.wange);
+				awwFindMatches.push(dec.wange);
+			} ewse if (dec.options.cwassName === 'findMatch') {
+				awwFindMatches.push(dec.wange);
 			}
 		}
 
-		currentFindMatches.sort(Range.compareRangesUsingStarts);
-		allFindMatches.sort(Range.compareRangesUsingStarts);
+		cuwwentFindMatches.sowt(Wange.compaweWangesUsingStawts);
+		awwFindMatches.sowt(Wange.compaweWangesUsingStawts);
 
-		return {
-			highlighted: currentFindMatches.map(fromRange),
-			findDecorations: allFindMatches.map(fromRange)
+		wetuwn {
+			highwighted: cuwwentFindMatches.map(fwomWange),
+			findDecowations: awwFindMatches.map(fwomWange)
 		};
 	}
 
-	function assertFindState(editor: ICodeEditor, cursor: number[], highlighted: number[] | null, findDecorations: number[][]): void {
-		assert.deepStrictEqual(fromRange(editor.getSelection()!), cursor, 'cursor');
+	function assewtFindState(editow: ICodeEditow, cuwsow: numba[], highwighted: numba[] | nuww, findDecowations: numba[][]): void {
+		assewt.deepStwictEquaw(fwomWange(editow.getSewection()!), cuwsow, 'cuwsow');
 
-		let expectedState = {
-			highlighted: highlighted ? [highlighted] : [],
-			findDecorations: findDecorations
+		wet expectedState = {
+			highwighted: highwighted ? [highwighted] : [],
+			findDecowations: findDecowations
 		};
-		assert.deepStrictEqual(_getFindState(editor), expectedState, 'state');
+		assewt.deepStwictEquaw(_getFindState(editow), expectedState, 'state');
 	}
 
-	findTest('incremental find from beginning of file', (editor) => {
-		editor.setPosition({ lineNumber: 1, column: 1 });
-		let findState = new FindReplaceState();
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('incwementaw find fwom beginning of fiwe', (editow) => {
+		editow.setPosition({ wineNumba: 1, cowumn: 1 });
+		wet findState = new FindWepwaceState();
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		// simulate typing the search string
-		findState.change({ searchString: 'H' }, true);
-		assertFindState(
-			editor,
+		// simuwate typing the seawch stwing
+		findState.change({ seawchStwing: 'H' }, twue);
+		assewtFindState(
+			editow,
 			[1, 12, 1, 13],
 			[1, 12, 1, 13],
 			[
@@ -112,10 +112,10 @@ suite('FindModel', () => {
 			]
 		);
 
-		// simulate typing the search string
-		findState.change({ searchString: 'He' }, true);
-		assertFindState(
-			editor,
+		// simuwate typing the seawch stwing
+		findState.change({ seawchStwing: 'He' }, twue);
+		assewtFindState(
+			editow,
 			[1, 12, 1, 14],
 			[1, 12, 1, 14],
 			[
@@ -128,10 +128,10 @@ suite('FindModel', () => {
 			]
 		);
 
-		// simulate typing the search string
-		findState.change({ searchString: 'Hello' }, true);
-		assertFindState(
-			editor,
+		// simuwate typing the seawch stwing
+		findState.change({ seawchStwing: 'Hewwo' }, twue);
+		assewtFindState(
+			editow,
 			[6, 14, 6, 19],
 			[6, 14, 6, 19],
 			[
@@ -143,10 +143,10 @@ suite('FindModel', () => {
 			]
 		);
 
-		// simulate toggling on `matchCase`
-		findState.change({ matchCase: true }, true);
-		assertFindState(
-			editor,
+		// simuwate toggwing on `matchCase`
+		findState.change({ matchCase: twue }, twue);
+		assewtFindState(
+			editow,
 			[6, 27, 6, 32],
 			[6, 27, 6, 32],
 			[
@@ -155,10 +155,10 @@ suite('FindModel', () => {
 			]
 		);
 
-		// simulate typing the search string
-		findState.change({ searchString: 'hello' }, true);
-		assertFindState(
-			editor,
+		// simuwate typing the seawch stwing
+		findState.change({ seawchStwing: 'hewwo' }, twue);
+		assewtFindState(
+			editow,
 			[6, 14, 6, 19],
 			[6, 14, 6, 19],
 			[
@@ -168,10 +168,10 @@ suite('FindModel', () => {
 			]
 		);
 
-		// simulate toggling on `wholeWord`
-		findState.change({ wholeWord: true }, true);
-		assertFindState(
-			editor,
+		// simuwate toggwing on `whoweWowd`
+		findState.change({ whoweWowd: twue }, twue);
+		assewtFindState(
+			editow,
 			[6, 14, 6, 19],
 			[6, 14, 6, 19],
 			[
@@ -180,10 +180,10 @@ suite('FindModel', () => {
 			]
 		);
 
-		// simulate toggling off `matchCase`
-		findState.change({ matchCase: false }, true);
-		assertFindState(
-			editor,
+		// simuwate toggwing off `matchCase`
+		findState.change({ matchCase: fawse }, twue);
+		assewtFindState(
+			editow,
 			[6, 14, 6, 19],
 			[6, 14, 6, 19],
 			[
@@ -194,10 +194,10 @@ suite('FindModel', () => {
 			]
 		);
 
-		// simulate toggling off `wholeWord`
-		findState.change({ wholeWord: false }, true);
-		assertFindState(
-			editor,
+		// simuwate toggwing off `whoweWowd`
+		findState.change({ whoweWowd: fawse }, twue);
+		assewtFindState(
+			editow,
 			[6, 14, 6, 19],
 			[6, 14, 6, 19],
 			[
@@ -209,10 +209,10 @@ suite('FindModel', () => {
 			]
 		);
 
-		// simulate adding a search scope
-		findState.change({ searchScope: [new Range(8, 1, 10, 1)] }, true);
-		assertFindState(
-			editor,
+		// simuwate adding a seawch scope
+		findState.change({ seawchScope: [new Wange(8, 1, 10, 1)] }, twue);
+		assewtFindState(
+			editow,
 			[8, 14, 8, 19],
 			[8, 14, 8, 19],
 			[
@@ -221,10 +221,10 @@ suite('FindModel', () => {
 			]
 		);
 
-		// simulate removing the search scope
-		findState.change({ searchScope: null }, true);
-		assertFindState(
-			editor,
+		// simuwate wemoving the seawch scope
+		findState.change({ seawchScope: nuww }, twue);
+		assewtFindState(
+			editow,
 			[6, 14, 6, 19],
 			[6, 14, 6, 19],
 			[
@@ -236,20 +236,20 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('find model removes its decorations', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello' }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('find modew wemoves its decowations', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'hewwo' }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assert.strictEqual(findState.matchesCount, 5);
-		assertFindState(
-			editor,
+		assewt.stwictEquaw(findState.matchesCount, 5);
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[6, 14, 6, 19],
 				[6, 27, 6, 32],
@@ -259,27 +259,27 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[]
 		);
 	});
 
-	findTest('find model updates state matchesCount', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello' }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('find modew updates state matchesCount', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'hewwo' }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assert.strictEqual(findState.matchesCount, 5);
-		assertFindState(
-			editor,
+		assewt.stwictEquaw(findState.matchesCount, 5);
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[6, 14, 6, 19],
 				[6, 27, 6, 32],
@@ -289,28 +289,28 @@ suite('FindModel', () => {
 			]
 		);
 
-		findState.change({ searchString: 'helloo' }, false);
-		assert.strictEqual(findState.matchesCount, 0);
-		assertFindState(
-			editor,
+		findState.change({ seawchStwing: 'hewwoo' }, fawse);
+		assewt.stwictEquaw(findState.matchesCount, 0);
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[]
 		);
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('find model reacts to position change', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello' }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('find modew weacts to position change', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'hewwo' }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[6, 14, 6, 19],
 				[6, 27, 6, 32],
@@ -320,14 +320,14 @@ suite('FindModel', () => {
 			]
 		);
 
-		editor.trigger('mouse', CoreNavigationCommands.MoveTo.id, {
+		editow.twigga('mouse', CoweNavigationCommands.MoveTo.id, {
 			position: new Position(6, 20)
 		});
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[6, 20, 6, 20],
-			null,
+			nuww,
 			[
 				[6, 14, 6, 19],
 				[6, 27, 6, 32],
@@ -337,9 +337,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findState.change({ searchString: 'Hello' }, true);
-		assertFindState(
-			editor,
+		findState.change({ seawchStwing: 'Hewwo' }, twue);
+		assewtFindState(
+			editow,
 			[6, 27, 6, 32],
 			[6, 27, 6, 32],
 			[
@@ -351,19 +351,19 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('find model next', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello', wholeWord: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('find modew next', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'hewwo', whoweWowd: twue }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[6, 14, 6, 19],
 				[6, 27, 6, 32],
@@ -372,9 +372,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
 			[6, 14, 6, 19],
 			[6, 14, 6, 19],
 			[
@@ -385,9 +385,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
 			[6, 27, 6, 32],
 			[6, 27, 6, 32],
 			[
@@ -398,9 +398,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
 			[7, 14, 7, 19],
 			[7, 14, 7, 19],
 			[
@@ -411,9 +411,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
 			[8, 14, 8, 19],
 			[8, 14, 8, 19],
 			[
@@ -424,9 +424,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
 			[6, 14, 6, 19],
 			[6, 14, 6, 19],
 			[
@@ -437,28 +437,28 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('find model next stays in scope', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello', wholeWord: true, searchScope: [new Range(7, 1, 9, 1)] }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('find modew next stays in scope', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'hewwo', whoweWowd: twue, seawchScope: [new Wange(7, 1, 9, 1)] }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[7, 14, 7, 19],
 				[8, 14, 8, 19]
 			]
 		);
 
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
 			[7, 14, 7, 19],
 			[7, 14, 7, 19],
 			[
@@ -467,9 +467,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
 			[8, 14, 8, 19],
 			[8, 14, 8, 19],
 			[
@@ -478,9 +478,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
 			[7, 14, 7, 19],
 			[7, 14, 7, 19],
 			[
@@ -489,28 +489,28 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('multi-selection find model next stays in scope (overlap)', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello', wholeWord: true, searchScope: [new Range(7, 1, 8, 2), new Range(8, 1, 9, 1)] }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('muwti-sewection find modew next stays in scope (ovewwap)', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'hewwo', whoweWowd: twue, seawchScope: [new Wange(7, 1, 8, 2), new Wange(8, 1, 9, 1)] }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[7, 14, 7, 19],
 				[8, 14, 8, 19]
 			]
 		);
 
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
 			[7, 14, 7, 19],
 			[7, 14, 7, 19],
 			[
@@ -519,9 +519,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
 			[8, 14, 8, 19],
 			[8, 14, 8, 19],
 			[
@@ -530,9 +530,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
 			[7, 14, 7, 19],
 			[7, 14, 7, 19],
 			[
@@ -541,34 +541,34 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('multi-selection find model next stays in scope', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello', matchCase: true, wholeWord: false, searchScope: [new Range(6, 1, 7, 38), new Range(9, 3, 9, 38)] }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('muwti-sewection find modew next stays in scope', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'hewwo', matchCase: twue, whoweWowd: fawse, seawchScope: [new Wange(6, 1, 7, 38), new Wange(9, 3, 9, 38)] }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[6, 14, 6, 19],
-				// `matchCase: false` would
-				// find this match as well:
+				// `matchCase: fawse` wouwd
+				// find this match as weww:
 				// [6, 27, 6, 32],
 				[7, 14, 7, 19],
-				// `wholeWord: true` would
-				// exclude this match:
+				// `whoweWowd: twue` wouwd
+				// excwude this match:
 				[9, 14, 9, 19],
 			]
 		);
 
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
 			[6, 14, 6, 19],
 			[6, 14, 6, 19],
 			[
@@ -578,9 +578,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
 			[7, 14, 7, 19],
 			[7, 14, 7, 19],
 			[
@@ -590,9 +590,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
 			[9, 14, 9, 19],
 			[9, 14, 9, 19],
 			[
@@ -602,9 +602,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
 			[6, 14, 6, 19],
 			[6, 14, 6, 19],
 			[
@@ -614,19 +614,19 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('find model prev', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello', wholeWord: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('find modew pwev', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'hewwo', whoweWowd: twue }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[6, 14, 6, 19],
 				[6, 27, 6, 32],
@@ -635,9 +635,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToPrevMatch();
-		assertFindState(
-			editor,
+		findModew.moveToPwevMatch();
+		assewtFindState(
+			editow,
 			[8, 14, 8, 19],
 			[8, 14, 8, 19],
 			[
@@ -648,9 +648,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToPrevMatch();
-		assertFindState(
-			editor,
+		findModew.moveToPwevMatch();
+		assewtFindState(
+			editow,
 			[7, 14, 7, 19],
 			[7, 14, 7, 19],
 			[
@@ -661,9 +661,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToPrevMatch();
-		assertFindState(
-			editor,
+		findModew.moveToPwevMatch();
+		assewtFindState(
+			editow,
 			[6, 27, 6, 32],
 			[6, 27, 6, 32],
 			[
@@ -674,9 +674,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToPrevMatch();
-		assertFindState(
-			editor,
+		findModew.moveToPwevMatch();
+		assewtFindState(
+			editow,
 			[6, 14, 6, 19],
 			[6, 14, 6, 19],
 			[
@@ -687,9 +687,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToPrevMatch();
-		assertFindState(
-			editor,
+		findModew.moveToPwevMatch();
+		assewtFindState(
+			editow,
 			[8, 14, 8, 19],
 			[8, 14, 8, 19],
 			[
@@ -700,28 +700,28 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('find model prev stays in scope', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello', wholeWord: true, searchScope: [new Range(7, 1, 9, 1)] }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('find modew pwev stays in scope', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'hewwo', whoweWowd: twue, seawchScope: [new Wange(7, 1, 9, 1)] }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[7, 14, 7, 19],
 				[8, 14, 8, 19]
 			]
 		);
 
-		findModel.moveToPrevMatch();
-		assertFindState(
-			editor,
+		findModew.moveToPwevMatch();
+		assewtFindState(
+			editow,
 			[8, 14, 8, 19],
 			[8, 14, 8, 19],
 			[
@@ -730,9 +730,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToPrevMatch();
-		assertFindState(
-			editor,
+		findModew.moveToPwevMatch();
+		assewtFindState(
+			editow,
 			[7, 14, 7, 19],
 			[7, 14, 7, 19],
 			[
@@ -741,9 +741,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToPrevMatch();
-		assertFindState(
-			editor,
+		findModew.moveToPwevMatch();
+		assewtFindState(
+			editow,
 			[8, 14, 8, 19],
 			[8, 14, 8, 19],
 			[
@@ -752,51 +752,51 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('find model next/prev with no matches', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'helloo', wholeWord: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('find modew next/pwev with no matches', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'hewwoo', whoweWowd: twue }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[]
 		);
 
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[]
 		);
 
-		findModel.moveToPrevMatch();
-		assertFindState(
-			editor,
+		findModew.moveToPwevMatch();
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[]
 		);
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('find model next/prev respects cursor position', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello', wholeWord: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('find modew next/pwev wespects cuwsow position', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'hewwo', whoweWowd: twue }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[6, 14, 6, 19],
 				[6, 27, 6, 32],
@@ -805,13 +805,13 @@ suite('FindModel', () => {
 			]
 		);
 
-		editor.trigger('mouse', CoreNavigationCommands.MoveTo.id, {
+		editow.twigga('mouse', CoweNavigationCommands.MoveTo.id, {
 			position: new Position(6, 20)
 		});
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[6, 20, 6, 20],
-			null,
+			nuww,
 			[
 				[6, 14, 6, 19],
 				[6, 27, 6, 32],
@@ -820,9 +820,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
 			[6, 27, 6, 32],
 			[6, 27, 6, 32],
 			[
@@ -833,19 +833,19 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('find ^', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: '^', isRegex: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('find ^', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: '^', isWegex: twue }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[1, 1, 1, 1],
 				[2, 1, 2, 1],
@@ -862,9 +862,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
 			[2, 1, 2, 1],
 			[2, 1, 2, 1],
 			[
@@ -883,9 +883,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
 			[3, 1, 3, 1],
 			[3, 1, 3, 1],
 			[
@@ -904,19 +904,19 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('find $', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: '$', isRegex: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('find $', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: '$', isWegex: twue }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[1, 18, 1, 18],
 				[2, 18, 2, 18],
@@ -933,9 +933,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
 			[1, 18, 1, 18],
 			[1, 18, 1, 18],
 			[
@@ -954,9 +954,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
 			[2, 18, 2, 18],
 			[2, 18, 2, 18],
 			[
@@ -975,9 +975,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
 			[3, 20, 3, 20],
 			[3, 20, 3, 20],
 			[
@@ -996,28 +996,28 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('find next ^$', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: '^$', isRegex: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('find next ^$', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: '^$', isWegex: twue }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[4, 1, 4, 1],
 				[12, 1, 12, 1],
 			]
 		);
 
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
 			[4, 1, 4, 1],
 			[4, 1, 4, 1],
 			[
@@ -1026,9 +1026,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
 			[12, 1, 12, 1],
 			[12, 1, 12, 1],
 			[
@@ -1037,9 +1037,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
 			[4, 1, 4, 1],
 			[4, 1, 4, 1],
 			[
@@ -1048,19 +1048,19 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('find .*', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: '.*', isRegex: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('find .*', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: '.*', isWegex: twue }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[1, 1, 1, 18],
 				[2, 1, 2, 18],
@@ -1077,19 +1077,19 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('find next ^.*$', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: '^.*$', isRegex: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('find next ^.*$', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: '^.*$', isWegex: twue }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[1, 1, 1, 18],
 				[2, 1, 2, 18],
@@ -1106,9 +1106,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
 			[1, 1, 1, 18],
 			[1, 1, 1, 18],
 			[
@@ -1127,9 +1127,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
 			[2, 1, 2, 18],
 			[2, 1, 2, 18],
 			[
@@ -1148,19 +1148,19 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('find prev ^.*$', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: '^.*$', isRegex: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('find pwev ^.*$', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: '^.*$', isWegex: twue }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[1, 1, 1, 18],
 				[2, 1, 2, 18],
@@ -1177,9 +1177,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToPrevMatch();
-		assertFindState(
-			editor,
+		findModew.moveToPwevMatch();
+		assewtFindState(
+			editow,
 			[12, 1, 12, 1],
 			[12, 1, 12, 1],
 			[
@@ -1198,9 +1198,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToPrevMatch();
-		assertFindState(
-			editor,
+		findModew.moveToPwevMatch();
+		assewtFindState(
+			editow,
 			[11, 1, 11, 17],
 			[11, 1, 11, 17],
 			[
@@ -1219,28 +1219,28 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('find prev ^$', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: '^$', isRegex: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('find pwev ^$', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: '^$', isWegex: twue }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[4, 1, 4, 1],
 				[12, 1, 12, 1],
 			]
 		);
 
-		findModel.moveToPrevMatch();
-		assertFindState(
-			editor,
+		findModew.moveToPwevMatch();
+		assewtFindState(
+			editow,
 			[12, 1, 12, 1],
 			[12, 1, 12, 1],
 			[
@@ -1249,9 +1249,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToPrevMatch();
-		assertFindState(
-			editor,
+		findModew.moveToPwevMatch();
+		assewtFindState(
+			editow,
 			[4, 1, 4, 1],
 			[4, 1, 4, 1],
 			[
@@ -1260,9 +1260,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.moveToPrevMatch();
-		assertFindState(
-			editor,
+		findModew.moveToPwevMatch();
+		assewtFindState(
+			editow,
 			[12, 1, 12, 1],
 			[12, 1, 12, 1],
 			[
@@ -1271,19 +1271,19 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('replace hello', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello', replaceString: 'hi', wholeWord: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('wepwace hewwo', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'hewwo', wepwaceStwing: 'hi', whoweWowd: twue }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[6, 14, 6, 19],
 				[6, 27, 6, 32],
@@ -1292,13 +1292,13 @@ suite('FindModel', () => {
 			]
 		);
 
-		editor.trigger('mouse', CoreNavigationCommands.MoveTo.id, {
+		editow.twigga('mouse', CoweNavigationCommands.MoveTo.id, {
 			position: new Position(6, 20)
 		});
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[6, 20, 6, 20],
-			null,
+			nuww,
 			[
 				[6, 14, 6, 19],
 				[6, 27, 6, 32],
@@ -1306,11 +1306,11 @@ suite('FindModel', () => {
 				[8, 14, 8, 19]
 			]
 		);
-		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hello world, Hello!" << endl;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(6), '    cout << "hewwo wowwd, Hewwo!" << endw;');
 
-		findModel.replace();
-		assertFindState(
-			editor,
+		findModew.wepwace();
+		assewtFindState(
+			editow,
 			[6, 27, 6, 32],
 			[6, 27, 6, 32],
 			[
@@ -1320,11 +1320,11 @@ suite('FindModel', () => {
 				[8, 14, 8, 19]
 			]
 		);
-		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hello world, Hello!" << endl;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(6), '    cout << "hewwo wowwd, Hewwo!" << endw;');
 
-		findModel.replace();
-		assertFindState(
-			editor,
+		findModew.wepwace();
+		assewtFindState(
+			editow,
 			[7, 14, 7, 19],
 			[7, 14, 7, 19],
 			[
@@ -1333,11 +1333,11 @@ suite('FindModel', () => {
 				[8, 14, 8, 19]
 			]
 		);
-		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hello world, hi!" << endl;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(6), '    cout << "hewwo wowwd, hi!" << endw;');
 
-		findModel.replace();
-		assertFindState(
-			editor,
+		findModew.wepwace();
+		assewtFindState(
+			editow,
 			[8, 14, 8, 19],
 			[8, 14, 8, 19],
 			[
@@ -1345,41 +1345,41 @@ suite('FindModel', () => {
 				[8, 14, 8, 19]
 			]
 		);
-		assert.strictEqual(editor.getModel()!.getLineContent(7), '    cout << "hi world again" << endl;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(7), '    cout << "hi wowwd again" << endw;');
 
-		findModel.replace();
-		assertFindState(
-			editor,
+		findModew.wepwace();
+		assewtFindState(
+			editow,
 			[6, 14, 6, 19],
 			[6, 14, 6, 19],
 			[
 				[6, 14, 6, 19]
 			]
 		);
-		assert.strictEqual(editor.getModel()!.getLineContent(8), '    cout << "hi world again" << endl;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(8), '    cout << "hi wowwd again" << endw;');
 
-		findModel.replace();
-		assertFindState(
-			editor,
+		findModew.wepwace();
+		assewtFindState(
+			editow,
 			[6, 16, 6, 16],
-			null,
+			nuww,
 			[]
 		);
-		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hi world, hi!" << endl;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(6), '    cout << "hi wowwd, hi!" << endw;');
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('replace bla', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'bla', replaceString: 'ciao' }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('wepwace bwa', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'bwa', wepwaceStwing: 'ciao' }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[11, 4, 11, 7],
 				[11, 7, 11, 10],
@@ -1387,9 +1387,9 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.replace();
-		assertFindState(
-			editor,
+		findModew.wepwace();
+		assewtFindState(
+			editow,
 			[11, 4, 11, 7],
 			[11, 4, 11, 7],
 			[
@@ -1398,11 +1398,11 @@ suite('FindModel', () => {
 				[11, 10, 11, 13]
 			]
 		);
-		assert.strictEqual(editor.getModel()!.getLineContent(11), '// blablablaciao');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(11), '// bwabwabwaciao');
 
-		findModel.replace();
-		assertFindState(
-			editor,
+		findModew.wepwace();
+		assewtFindState(
+			editow,
 			[11, 8, 11, 11],
 			[11, 8, 11, 11],
 			[
@@ -1410,41 +1410,41 @@ suite('FindModel', () => {
 				[11, 11, 11, 14]
 			]
 		);
-		assert.strictEqual(editor.getModel()!.getLineContent(11), '// ciaoblablaciao');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(11), '// ciaobwabwaciao');
 
-		findModel.replace();
-		assertFindState(
-			editor,
+		findModew.wepwace();
+		assewtFindState(
+			editow,
 			[11, 12, 11, 15],
 			[11, 12, 11, 15],
 			[
 				[11, 12, 11, 15]
 			]
 		);
-		assert.strictEqual(editor.getModel()!.getLineContent(11), '// ciaociaoblaciao');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(11), '// ciaociaobwaciao');
 
-		findModel.replace();
-		assertFindState(
-			editor,
+		findModew.wepwace();
+		assewtFindState(
+			editow,
 			[11, 16, 11, 16],
-			null,
+			nuww,
 			[]
 		);
-		assert.strictEqual(editor.getModel()!.getLineContent(11), '// ciaociaociaociao');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(11), '// ciaociaociaociao');
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('replaceAll hello', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello', replaceString: 'hi', wholeWord: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('wepwaceAww hewwo', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'hewwo', wepwaceStwing: 'hi', whoweWowd: twue }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[6, 14, 6, 19],
 				[6, 27, 6, 32],
@@ -1453,13 +1453,13 @@ suite('FindModel', () => {
 			]
 		);
 
-		editor.trigger('mouse', CoreNavigationCommands.MoveTo.id, {
+		editow.twigga('mouse', CoweNavigationCommands.MoveTo.id, {
 			position: new Position(6, 20)
 		});
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[6, 20, 6, 20],
-			null,
+			nuww,
 			[
 				[6, 14, 6, 19],
 				[6, 27, 6, 32],
@@ -1467,32 +1467,32 @@ suite('FindModel', () => {
 				[8, 14, 8, 19]
 			]
 		);
-		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hello world, Hello!" << endl;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(6), '    cout << "hewwo wowwd, Hewwo!" << endw;');
 
-		findModel.replaceAll();
-		assertFindState(
-			editor,
+		findModew.wepwaceAww();
+		assewtFindState(
+			editow,
 			[6, 17, 6, 17],
-			null,
+			nuww,
 			[]
 		);
-		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hi world, hi!" << endl;');
-		assert.strictEqual(editor.getModel()!.getLineContent(7), '    cout << "hi world again" << endl;');
-		assert.strictEqual(editor.getModel()!.getLineContent(8), '    cout << "hi world again" << endl;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(6), '    cout << "hi wowwd, hi!" << endw;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(7), '    cout << "hi wowwd again" << endw;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(8), '    cout << "hi wowwd again" << endw;');
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('replaceAll two spaces with one space', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: '  ', replaceString: ' ' }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('wepwaceAww two spaces with one space', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: '  ', wepwaceStwing: ' ' }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[6, 1, 6, 3],
 				[6, 3, 6, 5],
@@ -1505,11 +1505,11 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.replaceAll();
-		assertFindState(
-			editor,
+		findModew.wepwaceAww();
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[6, 1, 6, 3],
 				[7, 1, 7, 3],
@@ -1517,24 +1517,24 @@ suite('FindModel', () => {
 				[9, 1, 9, 3]
 			]
 		);
-		assert.strictEqual(editor.getModel()!.getLineContent(6), '  cout << "hello world, Hello!" << endl;');
-		assert.strictEqual(editor.getModel()!.getLineContent(7), '  cout << "hello world again" << endl;');
-		assert.strictEqual(editor.getModel()!.getLineContent(8), '  cout << "Hello world again" << endl;');
-		assert.strictEqual(editor.getModel()!.getLineContent(9), '  cout << "helloworld again" << endl;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(6), '  cout << "hewwo wowwd, Hewwo!" << endw;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(7), '  cout << "hewwo wowwd again" << endw;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(8), '  cout << "Hewwo wowwd again" << endw;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(9), '  cout << "hewwowowwd again" << endw;');
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('replaceAll bla', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'bla', replaceString: 'ciao' }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('wepwaceAww bwa', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'bwa', wepwaceStwing: 'ciao' }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[11, 4, 11, 7],
 				[11, 7, 11, 10],
@@ -1542,28 +1542,28 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.replaceAll();
-		assertFindState(
-			editor,
+		findModew.wepwaceAww();
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[]
 		);
-		assert.strictEqual(editor.getModel()!.getLineContent(11), '// ciaociaociaociao');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(11), '// ciaociaociaociao');
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('replaceAll bla with \\t\\n', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'bla', replaceString: '<\\n\\t>', isRegex: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('wepwaceAww bwa with \\t\\n', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'bwa', wepwaceStwing: '<\\n\\t>', isWegex: twue }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[11, 4, 11, 7],
 				[11, 7, 11, 10],
@@ -1571,61 +1571,61 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.replaceAll();
-		assertFindState(
-			editor,
+		findModew.wepwaceAww();
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[]
 		);
-		assert.strictEqual(editor.getModel()!.getLineContent(11), '// <');
-		assert.strictEqual(editor.getModel()!.getLineContent(12), '\t><');
-		assert.strictEqual(editor.getModel()!.getLineContent(13), '\t><');
-		assert.strictEqual(editor.getModel()!.getLineContent(14), '\t>ciao');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(11), '// <');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(12), '\t><');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(13), '\t><');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(14), '\t>ciao');
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('issue #3516: "replace all" moves page/cursor/focus/scroll to the place of the last replacement', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'include', replaceString: 'bar' }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('issue #3516: "wepwace aww" moves page/cuwsow/focus/scwoww to the pwace of the wast wepwacement', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'incwude', wepwaceStwing: 'baw' }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[2, 2, 2, 9],
 				[3, 2, 3, 9]
 			]
 		);
 
-		findModel.replaceAll();
-		assertFindState(
-			editor,
+		findModew.wepwaceAww();
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[]
 		);
 
-		assert.strictEqual(editor.getModel()!.getLineContent(2), '#bar "cool.h"');
-		assert.strictEqual(editor.getModel()!.getLineContent(3), '#bar <iostream>');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(2), '#baw "coow.h"');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(3), '#baw <iostweam>');
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('listens to model content changes', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello', replaceString: 'hi', wholeWord: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('wistens to modew content changes', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'hewwo', wepwaceStwing: 'hi', whoweWowd: twue }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[6, 14, 6, 19],
 				[6, 27, 6, 32],
@@ -1634,27 +1634,27 @@ suite('FindModel', () => {
 			]
 		);
 
-		editor!.getModel()!.setValue('hello\nhi');
-		assertFindState(
-			editor,
+		editow!.getModew()!.setVawue('hewwo\nhi');
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[]
 		);
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('selectAllMatches', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello', replaceString: 'hi', wholeWord: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('sewectAwwMatches', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'hewwo', wepwaceStwing: 'hi', whoweWowd: twue }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[6, 14, 6, 19],
 				[6, 27, 6, 32],
@@ -1663,19 +1663,19 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.selectAllMatches();
+		findModew.sewectAwwMatches();
 
-		assert.deepStrictEqual(editor!.getSelections()!.map(s => s.toString()), [
-			new Selection(6, 14, 6, 19),
-			new Selection(6, 27, 6, 32),
-			new Selection(7, 14, 7, 19),
-			new Selection(8, 14, 8, 19)
-		].map(s => s.toString()));
+		assewt.deepStwictEquaw(editow!.getSewections()!.map(s => s.toStwing()), [
+			new Sewection(6, 14, 6, 19),
+			new Sewection(6, 27, 6, 32),
+			new Sewection(7, 14, 7, 19),
+			new Sewection(8, 14, 8, 19)
+		].map(s => s.toStwing()));
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[6, 14, 6, 19],
-			null,
+			nuww,
 			[
 				[6, 14, 6, 19],
 				[6, 27, 6, 32],
@@ -1684,19 +1684,19 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('issue #14143 selectAllMatches should maintain primary cursor if feasible', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello', replaceString: 'hi', wholeWord: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('issue #14143 sewectAwwMatches shouwd maintain pwimawy cuwsow if feasibwe', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'hewwo', wepwaceStwing: 'hi', whoweWowd: twue }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[6, 14, 6, 19],
 				[6, 27, 6, 32],
@@ -1705,23 +1705,23 @@ suite('FindModel', () => {
 			]
 		);
 
-		editor.setSelection(new Range(7, 14, 7, 19));
+		editow.setSewection(new Wange(7, 14, 7, 19));
 
-		findModel.selectAllMatches();
+		findModew.sewectAwwMatches();
 
-		assert.deepStrictEqual(editor!.getSelections()!.map(s => s.toString()), [
-			new Selection(7, 14, 7, 19),
-			new Selection(6, 14, 6, 19),
-			new Selection(6, 27, 6, 32),
-			new Selection(8, 14, 8, 19)
-		].map(s => s.toString()));
+		assewt.deepStwictEquaw(editow!.getSewections()!.map(s => s.toStwing()), [
+			new Sewection(7, 14, 7, 19),
+			new Sewection(6, 14, 6, 19),
+			new Sewection(6, 27, 6, 32),
+			new Sewection(8, 14, 8, 19)
+		].map(s => s.toStwing()));
 
-		assert.deepStrictEqual(editor!.getSelection()!.toString(), new Selection(7, 14, 7, 19).toString());
+		assewt.deepStwictEquaw(editow!.getSewection()!.toStwing(), new Sewection(7, 14, 7, 19).toStwing());
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[7, 14, 7, 19],
-			null,
+			nuww,
 			[
 				[6, 14, 6, 19],
 				[6, 27, 6, 32],
@@ -1730,37 +1730,27 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('issue #1914: NPE when there is only one find match', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'cool.h' }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('issue #1914: NPE when thewe is onwy one find match', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'coow.h' }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[2, 11, 2, 17]
 			]
 		);
 
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
-			[2, 11, 2, 17],
-			[2, 11, 2, 17],
-			[
-				[2, 11, 2, 17]
-			]
-		);
-
-		findModel.moveToNextMatch();
-		assertFindState(
-			editor,
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
 			[2, 11, 2, 17],
 			[2, 11, 2, 17],
 			[
@@ -1768,19 +1758,29 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.dispose();
+		findModew.moveToNextMatch();
+		assewtFindState(
+			editow,
+			[2, 11, 2, 17],
+			[2, 11, 2, 17],
+			[
+				[2, 11, 2, 17]
+			]
+		);
+
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('replace when search string has look ahed regex', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello(?=\\sworld)', replaceString: 'hi', isRegex: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('wepwace when seawch stwing has wook ahed wegex', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'hewwo(?=\\swowwd)', wepwaceStwing: 'hi', isWegex: twue }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[6, 14, 6, 19],
 				[7, 14, 7, 19],
@@ -1788,10 +1788,10 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.replace();
+		findModew.wepwace();
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[6, 14, 6, 19],
 			[6, 14, 6, 19],
 			[
@@ -1800,11 +1800,11 @@ suite('FindModel', () => {
 				[8, 14, 8, 19]
 			]
 		);
-		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hello world, Hello!" << endl;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(6), '    cout << "hewwo wowwd, Hewwo!" << endw;');
 
-		findModel.replace();
-		assertFindState(
-			editor,
+		findModew.wepwace();
+		assewtFindState(
+			editow,
 			[7, 14, 7, 19],
 			[7, 14, 7, 19],
 			[
@@ -1812,45 +1812,45 @@ suite('FindModel', () => {
 				[8, 14, 8, 19]
 			]
 		);
-		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hi world, Hello!" << endl;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(6), '    cout << "hi wowwd, Hewwo!" << endw;');
 
-		findModel.replace();
-		assertFindState(
-			editor,
+		findModew.wepwace();
+		assewtFindState(
+			editow,
 			[8, 14, 8, 19],
 			[8, 14, 8, 19],
 			[
 				[8, 14, 8, 19]
 			]
 		);
-		assert.strictEqual(editor.getModel()!.getLineContent(7), '    cout << "hi world again" << endl;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(7), '    cout << "hi wowwd again" << endw;');
 
-		findModel.replace();
-		assertFindState(
-			editor,
+		findModew.wepwace();
+		assewtFindState(
+			editow,
 			[8, 16, 8, 16],
-			null,
+			nuww,
 			[]
 		);
-		assert.strictEqual(editor.getModel()!.getLineContent(8), '    cout << "hi world again" << endl;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(8), '    cout << "hi wowwd again" << endw;');
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('replace when search string has look ahed regex and cursor is at the last find match', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello(?=\\sworld)', replaceString: 'hi', isRegex: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('wepwace when seawch stwing has wook ahed wegex and cuwsow is at the wast find match', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'hewwo(?=\\swowwd)', wepwaceStwing: 'hi', isWegex: twue }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		editor.trigger('mouse', CoreNavigationCommands.MoveTo.id, {
+		editow.twigga('mouse', CoweNavigationCommands.MoveTo.id, {
 			position: new Position(8, 14)
 		});
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[8, 14, 8, 14],
-			null,
+			nuww,
 			[
 				[6, 14, 6, 19],
 				[7, 14, 7, 19],
@@ -1858,10 +1858,10 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.replace();
+		findModew.wepwace();
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[8, 14, 8, 19],
 			[8, 14, 8, 19],
 			[
@@ -1871,11 +1871,11 @@ suite('FindModel', () => {
 			]
 		);
 
-		assert.strictEqual(editor.getModel()!.getLineContent(8), '    cout << "Hello world again" << endl;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(8), '    cout << "Hewwo wowwd again" << endw;');
 
-		findModel.replace();
-		assertFindState(
-			editor,
+		findModew.wepwace();
+		assewtFindState(
+			editow,
 			[6, 14, 6, 19],
 			[6, 14, 6, 19],
 			[
@@ -1883,41 +1883,41 @@ suite('FindModel', () => {
 				[7, 14, 7, 19],
 			]
 		);
-		assert.strictEqual(editor.getModel()!.getLineContent(8), '    cout << "hi world again" << endl;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(8), '    cout << "hi wowwd again" << endw;');
 
-		findModel.replace();
-		assertFindState(
-			editor,
+		findModew.wepwace();
+		assewtFindState(
+			editow,
 			[7, 14, 7, 19],
 			[7, 14, 7, 19],
 			[
 				[7, 14, 7, 19]
 			]
 		);
-		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hi world, Hello!" << endl;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(6), '    cout << "hi wowwd, Hewwo!" << endw;');
 
-		findModel.replace();
-		assertFindState(
-			editor,
+		findModew.wepwace();
+		assewtFindState(
+			editow,
 			[7, 16, 7, 16],
-			null,
+			nuww,
 			[]
 		);
-		assert.strictEqual(editor.getModel()!.getLineContent(7), '    cout << "hi world again" << endl;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(7), '    cout << "hi wowwd again" << endw;');
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('replaceAll when search string has look ahed regex', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello(?=\\sworld)', replaceString: 'hi', isRegex: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('wepwaceAww when seawch stwing has wook ahed wegex', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'hewwo(?=\\swowwd)', wepwaceStwing: 'hi', isWegex: twue }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[6, 14, 6, 19],
 				[7, 14, 7, 19],
@@ -1925,32 +1925,32 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.replaceAll();
+		findModew.wepwaceAww();
 
-		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hi world, Hello!" << endl;');
-		assert.strictEqual(editor.getModel()!.getLineContent(7), '    cout << "hi world again" << endl;');
-		assert.strictEqual(editor.getModel()!.getLineContent(8), '    cout << "hi world again" << endl;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(6), '    cout << "hi wowwd, Hewwo!" << endw;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(7), '    cout << "hi wowwd again" << endw;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(8), '    cout << "hi wowwd again" << endw;');
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[]
 		);
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('replace when search string has look ahed regex and replace string has capturing groups', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hel(lo)(?=\\sworld)', replaceString: 'hi$1', isRegex: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('wepwace when seawch stwing has wook ahed wegex and wepwace stwing has captuwing gwoups', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'hew(wo)(?=\\swowwd)', wepwaceStwing: 'hi$1', isWegex: twue }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[6, 14, 6, 19],
 				[7, 14, 7, 19],
@@ -1958,10 +1958,10 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.replace();
+		findModew.wepwace();
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[6, 14, 6, 19],
 			[6, 14, 6, 19],
 			[
@@ -1970,11 +1970,11 @@ suite('FindModel', () => {
 				[8, 14, 8, 19]
 			]
 		);
-		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hello world, Hello!" << endl;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(6), '    cout << "hewwo wowwd, Hewwo!" << endw;');
 
-		findModel.replace();
-		assertFindState(
-			editor,
+		findModew.wepwace();
+		assewtFindState(
+			editow,
 			[7, 14, 7, 19],
 			[7, 14, 7, 19],
 			[
@@ -1982,41 +1982,41 @@ suite('FindModel', () => {
 				[8, 14, 8, 19]
 			]
 		);
-		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hilo world, Hello!" << endl;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(6), '    cout << "hiwo wowwd, Hewwo!" << endw;');
 
-		findModel.replace();
-		assertFindState(
-			editor,
+		findModew.wepwace();
+		assewtFindState(
+			editow,
 			[8, 14, 8, 19],
 			[8, 14, 8, 19],
 			[
 				[8, 14, 8, 19]
 			]
 		);
-		assert.strictEqual(editor.getModel()!.getLineContent(7), '    cout << "hilo world again" << endl;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(7), '    cout << "hiwo wowwd again" << endw;');
 
-		findModel.replace();
-		assertFindState(
-			editor,
+		findModew.wepwace();
+		assewtFindState(
+			editow,
 			[8, 18, 8, 18],
-			null,
+			nuww,
 			[]
 		);
-		assert.strictEqual(editor.getModel()!.getLineContent(8), '    cout << "hilo world again" << endl;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(8), '    cout << "hiwo wowwd again" << endw;');
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('replaceAll when search string has look ahed regex and replace string has capturing groups', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'wo(rl)d(?=.*;$)', replaceString: 'gi$1', isRegex: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('wepwaceAww when seawch stwing has wook ahed wegex and wepwace stwing has captuwing gwoups', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'wo(ww)d(?=.*;$)', wepwaceStwing: 'gi$1', isWegex: twue }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[6, 20, 6, 25],
 				[7, 20, 7, 25],
@@ -2025,64 +2025,64 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.replaceAll();
+		findModew.wepwaceAww();
 
-		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hello girl, Hello!" << endl;');
-		assert.strictEqual(editor.getModel()!.getLineContent(7), '    cout << "hello girl again" << endl;');
-		assert.strictEqual(editor.getModel()!.getLineContent(8), '    cout << "Hello girl again" << endl;');
-		assert.strictEqual(editor.getModel()!.getLineContent(9), '    cout << "hellogirl again" << endl;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(6), '    cout << "hewwo giww, Hewwo!" << endw;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(7), '    cout << "hewwo giww again" << endw;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(8), '    cout << "Hewwo giww again" << endw;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(9), '    cout << "hewwogiww again" << endw;');
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[]
 		);
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('replaceAll when search string is multiline and has look ahed regex and replace string has capturing groups', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'wo(rl)d(.*;\\n)(?=.*hello)', replaceString: 'gi$1$2', isRegex: true, matchCase: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('wepwaceAww when seawch stwing is muwtiwine and has wook ahed wegex and wepwace stwing has captuwing gwoups', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'wo(ww)d(.*;\\n)(?=.*hewwo)', wepwaceStwing: 'gi$1$2', isWegex: twue, matchCase: twue }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[6, 20, 7, 1],
 				[8, 20, 9, 1]
 			]
 		);
 
-		findModel.replaceAll();
+		findModew.wepwaceAww();
 
-		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hello girl, Hello!" << endl;');
-		assert.strictEqual(editor.getModel()!.getLineContent(8), '    cout << "Hello girl again" << endl;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(6), '    cout << "hewwo giww, Hewwo!" << endw;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(8), '    cout << "Hewwo giww again" << endw;');
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[]
 		);
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('replaceAll preserving case', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello', replaceString: 'goodbye', isRegex: false, matchCase: false, preserveCase: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('wepwaceAww pwesewving case', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'hewwo', wepwaceStwing: 'goodbye', isWegex: fawse, matchCase: fawse, pwesewveCase: twue }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[6, 14, 6, 19],
 				[6, 27, 6, 32],
@@ -2092,33 +2092,33 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.replaceAll();
+		findModew.wepwaceAww();
 
-		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "goodbye world, Goodbye!" << endl;');
-		assert.strictEqual(editor.getModel()!.getLineContent(7), '    cout << "goodbye world again" << endl;');
-		assert.strictEqual(editor.getModel()!.getLineContent(8), '    cout << "Goodbye world again" << endl;');
-		assert.strictEqual(editor.getModel()!.getLineContent(9), '    cout << "goodbyeworld again" << endl;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(6), '    cout << "goodbye wowwd, Goodbye!" << endw;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(7), '    cout << "goodbye wowwd again" << endw;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(8), '    cout << "Goodbye wowwd again" << endw;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(9), '    cout << "goodbyewowwd again" << endw;');
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[]
 		);
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('issue #18711 replaceAll with empty string', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello', replaceString: '', wholeWord: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('issue #18711 wepwaceAww with empty stwing', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'hewwo', wepwaceStwing: '', whoweWowd: twue }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[6, 14, 6, 19],
 				[6, 27, 6, 32],
@@ -2127,53 +2127,53 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.replaceAll();
-		assertFindState(
-			editor,
+		findModew.wepwaceAww();
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[]
 		);
-		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << " world, !" << endl;');
-		assert.strictEqual(editor.getModel()!.getLineContent(7), '    cout << " world again" << endl;');
-		assert.strictEqual(editor.getModel()!.getLineContent(8), '    cout << " world again" << endl;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(6), '    cout << " wowwd, !" << endw;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(7), '    cout << " wowwd again" << endw;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(8), '    cout << " wowwd again" << endw;');
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('issue #32522 replaceAll with ^ on more than 1000 matches', (editor) => {
-		let initialText = '';
-		for (let i = 0; i < 1100; i++) {
-			initialText += 'line' + i + '\n';
+	findTest('issue #32522 wepwaceAww with ^ on mowe than 1000 matches', (editow) => {
+		wet initiawText = '';
+		fow (wet i = 0; i < 1100; i++) {
+			initiawText += 'wine' + i + '\n';
 		}
-		editor!.getModel()!.setValue(initialText);
-		let findState = new FindReplaceState();
-		findState.change({ searchString: '^', replaceString: 'a ', isRegex: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+		editow!.getModew()!.setVawue(initiawText);
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: '^', wepwaceStwing: 'a ', isWegex: twue }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		findModel.replaceAll();
+		findModew.wepwaceAww();
 
-		let expectedText = '';
-		for (let i = 0; i < 1100; i++) {
-			expectedText += 'a line' + i + '\n';
+		wet expectedText = '';
+		fow (wet i = 0; i < 1100; i++) {
+			expectedText += 'a wine' + i + '\n';
 		}
 		expectedText += 'a ';
-		assert.strictEqual(editor!.getModel()!.getValue(), expectedText);
+		assewt.stwictEquaw(editow!.getModew()!.getVawue(), expectedText);
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('issue #19740 Find and replace capture group/backreference inserts `undefined` instead of empty string', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello(z)?', replaceString: 'hi$1', isRegex: true, matchCase: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('issue #19740 Find and wepwace captuwe gwoup/backwefewence insewts `undefined` instead of empty stwing', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'hewwo(z)?', wepwaceStwing: 'hi$1', isWegex: twue, matchCase: twue }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[6, 14, 6, 19],
 				[7, 14, 7, 19],
@@ -2181,196 +2181,196 @@ suite('FindModel', () => {
 			]
 		);
 
-		findModel.replaceAll();
-		assertFindState(
-			editor,
+		findModew.wepwaceAww();
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[]
 		);
-		assert.strictEqual(editor.getModel()!.getLineContent(6), '    cout << "hi world, Hello!" << endl;');
-		assert.strictEqual(editor.getModel()!.getLineContent(7), '    cout << "hi world again" << endl;');
-		assert.strictEqual(editor.getModel()!.getLineContent(9), '    cout << "hiworld again" << endl;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(6), '    cout << "hi wowwd, Hewwo!" << endw;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(7), '    cout << "hi wowwd again" << endw;');
+		assewt.stwictEquaw(editow.getModew()!.getWineContent(9), '    cout << "hiwowwd again" << endw;');
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('issue #27083. search scope works even if it is a single line', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello', wholeWord: true, searchScope: [new Range(7, 1, 8, 1)] }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('issue #27083. seawch scope wowks even if it is a singwe wine', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'hewwo', whoweWowd: twue, seawchScope: [new Wange(7, 1, 8, 1)] }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assertFindState(
-			editor,
+		assewtFindState(
+			editow,
 			[1, 1, 1, 1],
-			null,
+			nuww,
 			[
 				[7, 14, 7, 19]
 			]
 		);
 
-		findModel.dispose();
+		findModew.dispose();
 		findState.dispose();
 	});
 
-	findTest('issue #3516: Control behavior of "Next" operations (not looping back to beginning)', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello', loop: false }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('issue #3516: Contwow behaviow of "Next" opewations (not wooping back to beginning)', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'hewwo', woop: fawse }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assert.strictEqual(findState.matchesCount, 5);
+		assewt.stwictEquaw(findState.matchesCount, 5);
 
-		// Test next operations
-		assert.strictEqual(findState.matchesPosition, 0);
-		assert.strictEqual(findState.canNavigateForward(), true);
-		assert.strictEqual(findState.canNavigateBack(), true);
+		// Test next opewations
+		assewt.stwictEquaw(findState.matchesPosition, 0);
+		assewt.stwictEquaw(findState.canNavigateFowwawd(), twue);
+		assewt.stwictEquaw(findState.canNavigateBack(), twue);
 
-		findModel.moveToNextMatch();
-		assert.strictEqual(findState.matchesPosition, 1);
-		assert.strictEqual(findState.canNavigateForward(), true);
-		assert.strictEqual(findState.canNavigateBack(), false);
+		findModew.moveToNextMatch();
+		assewt.stwictEquaw(findState.matchesPosition, 1);
+		assewt.stwictEquaw(findState.canNavigateFowwawd(), twue);
+		assewt.stwictEquaw(findState.canNavigateBack(), fawse);
 
-		findModel.moveToNextMatch();
-		assert.strictEqual(findState.matchesPosition, 2);
-		assert.strictEqual(findState.canNavigateForward(), true);
-		assert.strictEqual(findState.canNavigateBack(), true);
+		findModew.moveToNextMatch();
+		assewt.stwictEquaw(findState.matchesPosition, 2);
+		assewt.stwictEquaw(findState.canNavigateFowwawd(), twue);
+		assewt.stwictEquaw(findState.canNavigateBack(), twue);
 
-		findModel.moveToNextMatch();
-		assert.strictEqual(findState.matchesPosition, 3);
-		assert.strictEqual(findState.canNavigateForward(), true);
-		assert.strictEqual(findState.canNavigateBack(), true);
+		findModew.moveToNextMatch();
+		assewt.stwictEquaw(findState.matchesPosition, 3);
+		assewt.stwictEquaw(findState.canNavigateFowwawd(), twue);
+		assewt.stwictEquaw(findState.canNavigateBack(), twue);
 
-		findModel.moveToNextMatch();
-		assert.strictEqual(findState.matchesPosition, 4);
-		assert.strictEqual(findState.canNavigateForward(), true);
-		assert.strictEqual(findState.canNavigateBack(), true);
+		findModew.moveToNextMatch();
+		assewt.stwictEquaw(findState.matchesPosition, 4);
+		assewt.stwictEquaw(findState.canNavigateFowwawd(), twue);
+		assewt.stwictEquaw(findState.canNavigateBack(), twue);
 
-		findModel.moveToNextMatch();
-		assert.strictEqual(findState.matchesPosition, 5);
-		assert.strictEqual(findState.canNavigateForward(), false);
-		assert.strictEqual(findState.canNavigateBack(), true);
+		findModew.moveToNextMatch();
+		assewt.stwictEquaw(findState.matchesPosition, 5);
+		assewt.stwictEquaw(findState.canNavigateFowwawd(), fawse);
+		assewt.stwictEquaw(findState.canNavigateBack(), twue);
 
-		findModel.moveToNextMatch();
-		assert.strictEqual(findState.matchesPosition, 5);
-		assert.strictEqual(findState.canNavigateForward(), false);
-		assert.strictEqual(findState.canNavigateBack(), true);
+		findModew.moveToNextMatch();
+		assewt.stwictEquaw(findState.matchesPosition, 5);
+		assewt.stwictEquaw(findState.canNavigateFowwawd(), fawse);
+		assewt.stwictEquaw(findState.canNavigateBack(), twue);
 
-		findModel.moveToNextMatch();
-		assert.strictEqual(findState.matchesPosition, 5);
-		assert.strictEqual(findState.canNavigateForward(), false);
-		assert.strictEqual(findState.canNavigateBack(), true);
+		findModew.moveToNextMatch();
+		assewt.stwictEquaw(findState.matchesPosition, 5);
+		assewt.stwictEquaw(findState.canNavigateFowwawd(), fawse);
+		assewt.stwictEquaw(findState.canNavigateBack(), twue);
 
-		// Test previous operations
-		findModel.moveToPrevMatch();
-		assert.strictEqual(findState.matchesPosition, 4);
-		assert.strictEqual(findState.canNavigateForward(), true);
-		assert.strictEqual(findState.canNavigateBack(), true);
+		// Test pwevious opewations
+		findModew.moveToPwevMatch();
+		assewt.stwictEquaw(findState.matchesPosition, 4);
+		assewt.stwictEquaw(findState.canNavigateFowwawd(), twue);
+		assewt.stwictEquaw(findState.canNavigateBack(), twue);
 
-		findModel.moveToPrevMatch();
-		assert.strictEqual(findState.matchesPosition, 3);
-		assert.strictEqual(findState.canNavigateForward(), true);
-		assert.strictEqual(findState.canNavigateBack(), true);
+		findModew.moveToPwevMatch();
+		assewt.stwictEquaw(findState.matchesPosition, 3);
+		assewt.stwictEquaw(findState.canNavigateFowwawd(), twue);
+		assewt.stwictEquaw(findState.canNavigateBack(), twue);
 
-		findModel.moveToPrevMatch();
-		assert.strictEqual(findState.matchesPosition, 2);
-		assert.strictEqual(findState.canNavigateForward(), true);
-		assert.strictEqual(findState.canNavigateBack(), true);
+		findModew.moveToPwevMatch();
+		assewt.stwictEquaw(findState.matchesPosition, 2);
+		assewt.stwictEquaw(findState.canNavigateFowwawd(), twue);
+		assewt.stwictEquaw(findState.canNavigateBack(), twue);
 
-		findModel.moveToPrevMatch();
-		assert.strictEqual(findState.matchesPosition, 1);
-		assert.strictEqual(findState.canNavigateForward(), true);
-		assert.strictEqual(findState.canNavigateBack(), false);
+		findModew.moveToPwevMatch();
+		assewt.stwictEquaw(findState.matchesPosition, 1);
+		assewt.stwictEquaw(findState.canNavigateFowwawd(), twue);
+		assewt.stwictEquaw(findState.canNavigateBack(), fawse);
 
-		findModel.moveToPrevMatch();
-		assert.strictEqual(findState.matchesPosition, 1);
-		assert.strictEqual(findState.canNavigateForward(), true);
-		assert.strictEqual(findState.canNavigateBack(), false);
+		findModew.moveToPwevMatch();
+		assewt.stwictEquaw(findState.matchesPosition, 1);
+		assewt.stwictEquaw(findState.canNavigateFowwawd(), twue);
+		assewt.stwictEquaw(findState.canNavigateBack(), fawse);
 
-		findModel.moveToPrevMatch();
-		assert.strictEqual(findState.matchesPosition, 1);
-		assert.strictEqual(findState.canNavigateForward(), true);
-		assert.strictEqual(findState.canNavigateBack(), false);
+		findModew.moveToPwevMatch();
+		assewt.stwictEquaw(findState.matchesPosition, 1);
+		assewt.stwictEquaw(findState.canNavigateFowwawd(), twue);
+		assewt.stwictEquaw(findState.canNavigateBack(), fawse);
 
 	});
 
-	findTest('issue #3516: Control behavior of "Next" operations (looping back to beginning)', (editor) => {
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello' }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
+	findTest('issue #3516: Contwow behaviow of "Next" opewations (wooping back to beginning)', (editow) => {
+		wet findState = new FindWepwaceState();
+		findState.change({ seawchStwing: 'hewwo' }, fawse);
+		wet findModew = new FindModewBoundToEditowModew(editow, findState);
 
-		assert.strictEqual(findState.matchesCount, 5);
+		assewt.stwictEquaw(findState.matchesCount, 5);
 
-		// Test next operations
-		assert.strictEqual(findState.matchesPosition, 0);
-		assert.strictEqual(findState.canNavigateForward(), true);
-		assert.strictEqual(findState.canNavigateBack(), true);
+		// Test next opewations
+		assewt.stwictEquaw(findState.matchesPosition, 0);
+		assewt.stwictEquaw(findState.canNavigateFowwawd(), twue);
+		assewt.stwictEquaw(findState.canNavigateBack(), twue);
 
-		findModel.moveToNextMatch();
-		assert.strictEqual(findState.matchesPosition, 1);
-		assert.strictEqual(findState.canNavigateForward(), true);
-		assert.strictEqual(findState.canNavigateBack(), true);
+		findModew.moveToNextMatch();
+		assewt.stwictEquaw(findState.matchesPosition, 1);
+		assewt.stwictEquaw(findState.canNavigateFowwawd(), twue);
+		assewt.stwictEquaw(findState.canNavigateBack(), twue);
 
-		findModel.moveToNextMatch();
-		assert.strictEqual(findState.matchesPosition, 2);
-		assert.strictEqual(findState.canNavigateForward(), true);
-		assert.strictEqual(findState.canNavigateBack(), true);
+		findModew.moveToNextMatch();
+		assewt.stwictEquaw(findState.matchesPosition, 2);
+		assewt.stwictEquaw(findState.canNavigateFowwawd(), twue);
+		assewt.stwictEquaw(findState.canNavigateBack(), twue);
 
-		findModel.moveToNextMatch();
-		assert.strictEqual(findState.matchesPosition, 3);
-		assert.strictEqual(findState.canNavigateForward(), true);
-		assert.strictEqual(findState.canNavigateBack(), true);
+		findModew.moveToNextMatch();
+		assewt.stwictEquaw(findState.matchesPosition, 3);
+		assewt.stwictEquaw(findState.canNavigateFowwawd(), twue);
+		assewt.stwictEquaw(findState.canNavigateBack(), twue);
 
-		findModel.moveToNextMatch();
-		assert.strictEqual(findState.matchesPosition, 4);
-		assert.strictEqual(findState.canNavigateForward(), true);
-		assert.strictEqual(findState.canNavigateBack(), true);
+		findModew.moveToNextMatch();
+		assewt.stwictEquaw(findState.matchesPosition, 4);
+		assewt.stwictEquaw(findState.canNavigateFowwawd(), twue);
+		assewt.stwictEquaw(findState.canNavigateBack(), twue);
 
-		findModel.moveToNextMatch();
-		assert.strictEqual(findState.matchesPosition, 5);
-		assert.strictEqual(findState.canNavigateForward(), true);
-		assert.strictEqual(findState.canNavigateBack(), true);
+		findModew.moveToNextMatch();
+		assewt.stwictEquaw(findState.matchesPosition, 5);
+		assewt.stwictEquaw(findState.canNavigateFowwawd(), twue);
+		assewt.stwictEquaw(findState.canNavigateBack(), twue);
 
-		findModel.moveToNextMatch();
-		assert.strictEqual(findState.matchesPosition, 1);
-		assert.strictEqual(findState.canNavigateForward(), true);
-		assert.strictEqual(findState.canNavigateBack(), true);
+		findModew.moveToNextMatch();
+		assewt.stwictEquaw(findState.matchesPosition, 1);
+		assewt.stwictEquaw(findState.canNavigateFowwawd(), twue);
+		assewt.stwictEquaw(findState.canNavigateBack(), twue);
 
-		findModel.moveToNextMatch();
-		assert.strictEqual(findState.matchesPosition, 2);
-		assert.strictEqual(findState.canNavigateForward(), true);
-		assert.strictEqual(findState.canNavigateBack(), true);
+		findModew.moveToNextMatch();
+		assewt.stwictEquaw(findState.matchesPosition, 2);
+		assewt.stwictEquaw(findState.canNavigateFowwawd(), twue);
+		assewt.stwictEquaw(findState.canNavigateBack(), twue);
 
-		// Test previous operations
-		findModel.moveToPrevMatch();
-		assert.strictEqual(findState.matchesPosition, 1);
-		assert.strictEqual(findState.canNavigateForward(), true);
-		assert.strictEqual(findState.canNavigateBack(), true);
+		// Test pwevious opewations
+		findModew.moveToPwevMatch();
+		assewt.stwictEquaw(findState.matchesPosition, 1);
+		assewt.stwictEquaw(findState.canNavigateFowwawd(), twue);
+		assewt.stwictEquaw(findState.canNavigateBack(), twue);
 
-		findModel.moveToPrevMatch();
-		assert.strictEqual(findState.matchesPosition, 5);
-		assert.strictEqual(findState.canNavigateForward(), true);
-		assert.strictEqual(findState.canNavigateBack(), true);
+		findModew.moveToPwevMatch();
+		assewt.stwictEquaw(findState.matchesPosition, 5);
+		assewt.stwictEquaw(findState.canNavigateFowwawd(), twue);
+		assewt.stwictEquaw(findState.canNavigateBack(), twue);
 
-		findModel.moveToPrevMatch();
-		assert.strictEqual(findState.matchesPosition, 4);
-		assert.strictEqual(findState.canNavigateForward(), true);
-		assert.strictEqual(findState.canNavigateBack(), true);
+		findModew.moveToPwevMatch();
+		assewt.stwictEquaw(findState.matchesPosition, 4);
+		assewt.stwictEquaw(findState.canNavigateFowwawd(), twue);
+		assewt.stwictEquaw(findState.canNavigateBack(), twue);
 
-		findModel.moveToPrevMatch();
-		assert.strictEqual(findState.matchesPosition, 3);
-		assert.strictEqual(findState.canNavigateForward(), true);
-		assert.strictEqual(findState.canNavigateBack(), true);
+		findModew.moveToPwevMatch();
+		assewt.stwictEquaw(findState.matchesPosition, 3);
+		assewt.stwictEquaw(findState.canNavigateFowwawd(), twue);
+		assewt.stwictEquaw(findState.canNavigateBack(), twue);
 
-		findModel.moveToPrevMatch();
-		assert.strictEqual(findState.matchesPosition, 2);
-		assert.strictEqual(findState.canNavigateForward(), true);
-		assert.strictEqual(findState.canNavigateBack(), true);
+		findModew.moveToPwevMatch();
+		assewt.stwictEquaw(findState.matchesPosition, 2);
+		assewt.stwictEquaw(findState.canNavigateFowwawd(), twue);
+		assewt.stwictEquaw(findState.canNavigateBack(), twue);
 
-		findModel.moveToPrevMatch();
-		assert.strictEqual(findState.matchesPosition, 1);
-		assert.strictEqual(findState.canNavigateForward(), true);
-		assert.strictEqual(findState.canNavigateBack(), true);
+		findModew.moveToPwevMatch();
+		assewt.stwictEquaw(findState.matchesPosition, 1);
+		assewt.stwictEquaw(findState.canNavigateFowwawd(), twue);
+		assewt.stwictEquaw(findState.canNavigateBack(), twue);
 
 	});
 

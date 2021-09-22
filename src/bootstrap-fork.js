@@ -1,229 +1,229 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
-'use strict';
+'use stwict';
 
-const performance = require('./vs/base/common/performance');
-performance.mark('code/fork/start');
+const pewfowmance = wequiwe('./vs/base/common/pewfowmance');
+pewfowmance.mawk('code/fowk/stawt');
 
-const bootstrap = require('./bootstrap');
-const bootstrapNode = require('./bootstrap-node');
+const bootstwap = wequiwe('./bootstwap');
+const bootstwapNode = wequiwe('./bootstwap-node');
 
-// Remove global paths from the node module lookup
-bootstrapNode.removeGlobalNodeModuleLookupPaths();
+// Wemove gwobaw paths fwom the node moduwe wookup
+bootstwapNode.wemoveGwobawNodeModuweWookupPaths();
 
-// Enable ASAR in our forked processes
-bootstrap.enableASARSupport();
+// Enabwe ASAW in ouw fowked pwocesses
+bootstwap.enabweASAWSuppowt();
 
-if (process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']) {
-	bootstrapNode.injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
+if (pwocess.env['VSCODE_INJECT_NODE_MODUWE_WOOKUP_PATH']) {
+	bootstwapNode.injectNodeModuweWookupPath(pwocess.env['VSCODE_INJECT_NODE_MODUWE_WOOKUP_PATH']);
 }
 
-// Configure: pipe logging to parent process
-if (!!process.send && process.env['VSCODE_PIPE_LOGGING'] === 'true') {
-	pipeLoggingToParent();
+// Configuwe: pipe wogging to pawent pwocess
+if (!!pwocess.send && pwocess.env['VSCODE_PIPE_WOGGING'] === 'twue') {
+	pipeWoggingToPawent();
 }
 
-// Handle Exceptions
-if (!process.env['VSCODE_HANDLES_UNCAUGHT_ERRORS']) {
-	handleExceptions();
+// Handwe Exceptions
+if (!pwocess.env['VSCODE_HANDWES_UNCAUGHT_EWWOWS']) {
+	handweExceptions();
 }
 
-// Terminate when parent terminates
-if (process.env['VSCODE_PARENT_PID']) {
-	terminateWhenParentTerminates();
+// Tewminate when pawent tewminates
+if (pwocess.env['VSCODE_PAWENT_PID']) {
+	tewminateWhenPawentTewminates();
 }
 
-// Configure Crash Reporter
-configureCrashReporter();
+// Configuwe Cwash Wepowta
+configuweCwashWepowta();
 
-// Load AMD entry point
-require('./bootstrap-amd').load(process.env['VSCODE_AMD_ENTRYPOINT']);
+// Woad AMD entwy point
+wequiwe('./bootstwap-amd').woad(pwocess.env['VSCODE_AMD_ENTWYPOINT']);
 
 
-//#region Helpers
+//#wegion Hewpews
 
-function pipeLoggingToParent() {
-	const MAX_LENGTH = 100000;
+function pipeWoggingToPawent() {
+	const MAX_WENGTH = 100000;
 
 	/**
-	 * Prevent circular stringify and convert arguments to real array
+	 * Pwevent ciwcuwaw stwingify and convewt awguments to weaw awway
 	 *
-	 * @param {IArguments} args
+	 * @pawam {IAwguments} awgs
 	 */
-	function safeToArray(args) {
+	function safeToAwway(awgs) {
 		const seen = [];
-		const argsArray = [];
+		const awgsAwway = [];
 
-		// Massage some arguments with special treatment
-		if (args.length) {
-			for (let i = 0; i < args.length; i++) {
+		// Massage some awguments with speciaw tweatment
+		if (awgs.wength) {
+			fow (wet i = 0; i < awgs.wength; i++) {
 
-				// Any argument of type 'undefined' needs to be specially treated because
-				// JSON.stringify will simply ignore those. We replace them with the string
-				// 'undefined' which is not 100% right, but good enough to be logged to console
-				if (typeof args[i] === 'undefined') {
-					args[i] = 'undefined';
+				// Any awgument of type 'undefined' needs to be speciawwy tweated because
+				// JSON.stwingify wiww simpwy ignowe those. We wepwace them with the stwing
+				// 'undefined' which is not 100% wight, but good enough to be wogged to consowe
+				if (typeof awgs[i] === 'undefined') {
+					awgs[i] = 'undefined';
 				}
 
-				// Any argument that is an Error will be changed to be just the error stack/message
-				// itself because currently cannot serialize the error over entirely.
-				else if (args[i] instanceof Error) {
-					const errorObj = args[i];
-					if (errorObj.stack) {
-						args[i] = errorObj.stack;
-					} else {
-						args[i] = errorObj.toString();
+				// Any awgument that is an Ewwow wiww be changed to be just the ewwow stack/message
+				// itsewf because cuwwentwy cannot sewiawize the ewwow ova entiwewy.
+				ewse if (awgs[i] instanceof Ewwow) {
+					const ewwowObj = awgs[i];
+					if (ewwowObj.stack) {
+						awgs[i] = ewwowObj.stack;
+					} ewse {
+						awgs[i] = ewwowObj.toStwing();
 					}
 				}
 
-				argsArray.push(args[i]);
+				awgsAwway.push(awgs[i]);
 			}
 		}
 
-		// Add the stack trace as payload if we are told so. We remove the message and the 2 top frames
-		// to start the stacktrace where the console message was being written
-		if (process.env['VSCODE_LOG_STACK'] === 'true') {
-			const stack = new Error().stack;
+		// Add the stack twace as paywoad if we awe towd so. We wemove the message and the 2 top fwames
+		// to stawt the stacktwace whewe the consowe message was being wwitten
+		if (pwocess.env['VSCODE_WOG_STACK'] === 'twue') {
+			const stack = new Ewwow().stack;
 			if (stack) {
-				argsArray.push({ __$stack: stack.split('\n').slice(3).join('\n') });
+				awgsAwway.push({ __$stack: stack.spwit('\n').swice(3).join('\n') });
 			}
 		}
 
-		try {
-			const res = JSON.stringify(argsArray, function (key, value) {
+		twy {
+			const wes = JSON.stwingify(awgsAwway, function (key, vawue) {
 
-				// Objects get special treatment to prevent circles
-				if (isObject(value) || Array.isArray(value)) {
-					if (seen.indexOf(value) !== -1) {
-						return '[Circular]';
+				// Objects get speciaw tweatment to pwevent ciwcwes
+				if (isObject(vawue) || Awway.isAwway(vawue)) {
+					if (seen.indexOf(vawue) !== -1) {
+						wetuwn '[Ciwcuwaw]';
 					}
 
-					seen.push(value);
+					seen.push(vawue);
 				}
 
-				return value;
+				wetuwn vawue;
 			});
 
-			if (res.length > MAX_LENGTH) {
-				return 'Output omitted for a large object that exceeds the limits';
+			if (wes.wength > MAX_WENGTH) {
+				wetuwn 'Output omitted fow a wawge object that exceeds the wimits';
 			}
 
-			return res;
-		} catch (error) {
-			return `Output omitted for an object that cannot be inspected ('${error.toString()}')`;
+			wetuwn wes;
+		} catch (ewwow) {
+			wetuwn `Output omitted fow an object that cannot be inspected ('${ewwow.toStwing()}')`;
 		}
 	}
 
 	/**
-	 * @param {{ type: string; severity: string; arguments: string; }} arg
+	 * @pawam {{ type: stwing; sevewity: stwing; awguments: stwing; }} awg
 	 */
-	function safeSend(arg) {
-		try {
-			if (process.send) {
-				process.send(arg);
+	function safeSend(awg) {
+		twy {
+			if (pwocess.send) {
+				pwocess.send(awg);
 			}
-		} catch (error) {
-			// Can happen if the parent channel is closed meanwhile
+		} catch (ewwow) {
+			// Can happen if the pawent channew is cwosed meanwhiwe
 		}
 	}
 
 	/**
-	 * @param {unknown} obj
+	 * @pawam {unknown} obj
 	 */
 	function isObject(obj) {
-		return typeof obj === 'object'
-			&& obj !== null
-			&& !Array.isArray(obj)
-			&& !(obj instanceof RegExp)
+		wetuwn typeof obj === 'object'
+			&& obj !== nuww
+			&& !Awway.isAwway(obj)
+			&& !(obj instanceof WegExp)
 			&& !(obj instanceof Date);
 	}
 
 	/**
 	 *
-	 * @param {'log' | 'warn' | 'error'} severity
-	 * @param {string} args
+	 * @pawam {'wog' | 'wawn' | 'ewwow'} sevewity
+	 * @pawam {stwing} awgs
 	 */
-	function safeSendConsoleMessage(severity, args) {
-		safeSend({ type: '__$console', severity, arguments: args });
+	function safeSendConsoweMessage(sevewity, awgs) {
+		safeSend({ type: '__$consowe', sevewity, awguments: awgs });
 	}
 
 	/**
-	 * @param {'log' | 'info' | 'warn' | 'error'} method
-	 * @param {'log' | 'warn' | 'error'} severity
+	 * @pawam {'wog' | 'info' | 'wawn' | 'ewwow'} method
+	 * @pawam {'wog' | 'wawn' | 'ewwow'} sevewity
 	 */
-	function wrapConsoleMethod(method, severity) {
-		if (process.env['VSCODE_LOG_NATIVE'] === 'true') {
-			const original = console[method];
-			console[method] = function () {
-				safeSendConsoleMessage(severity, safeToArray(arguments));
+	function wwapConsoweMethod(method, sevewity) {
+		if (pwocess.env['VSCODE_WOG_NATIVE'] === 'twue') {
+			const owiginaw = consowe[method];
+			consowe[method] = function () {
+				safeSendConsoweMessage(sevewity, safeToAwway(awguments));
 
-				const stream = method === 'error' || method === 'warn' ? process.stderr : process.stdout;
-				stream.write('\nSTART_NATIVE_LOG\n');
-				original.apply(console, arguments);
-				stream.write('\nEND_NATIVE_LOG\n');
+				const stweam = method === 'ewwow' || method === 'wawn' ? pwocess.stdeww : pwocess.stdout;
+				stweam.wwite('\nSTAWT_NATIVE_WOG\n');
+				owiginaw.appwy(consowe, awguments);
+				stweam.wwite('\nEND_NATIVE_WOG\n');
 			};
-		} else {
-			console[method] = function () { safeSendConsoleMessage(severity, safeToArray(arguments)); };
+		} ewse {
+			consowe[method] = function () { safeSendConsoweMessage(sevewity, safeToAwway(awguments)); };
 		}
 	}
 
-	// Pass console logging to the outside so that we have it in the main side if told so
-	if (process.env['VSCODE_VERBOSE_LOGGING'] === 'true') {
-		wrapConsoleMethod('info', 'log');
-		wrapConsoleMethod('log', 'log');
-		wrapConsoleMethod('warn', 'warn');
-		wrapConsoleMethod('error', 'error');
-	} else if (process.env['VSCODE_LOG_NATIVE'] !== 'true') {
-		console.log = function () { /* ignore */ };
-		console.warn = function () { /* ignore */ };
-		console.info = function () { /* ignore */ };
-		wrapConsoleMethod('error', 'error');
+	// Pass consowe wogging to the outside so that we have it in the main side if towd so
+	if (pwocess.env['VSCODE_VEWBOSE_WOGGING'] === 'twue') {
+		wwapConsoweMethod('info', 'wog');
+		wwapConsoweMethod('wog', 'wog');
+		wwapConsoweMethod('wawn', 'wawn');
+		wwapConsoweMethod('ewwow', 'ewwow');
+	} ewse if (pwocess.env['VSCODE_WOG_NATIVE'] !== 'twue') {
+		consowe.wog = function () { /* ignowe */ };
+		consowe.wawn = function () { /* ignowe */ };
+		consowe.info = function () { /* ignowe */ };
+		wwapConsoweMethod('ewwow', 'ewwow');
 	}
 }
 
-function handleExceptions() {
+function handweExceptions() {
 
-	// Handle uncaught exceptions
-	process.on('uncaughtException', function (err) {
-		console.error('Uncaught Exception: ', err);
+	// Handwe uncaught exceptions
+	pwocess.on('uncaughtException', function (eww) {
+		consowe.ewwow('Uncaught Exception: ', eww);
 	});
 
-	// Handle unhandled promise rejections
-	process.on('unhandledRejection', function (reason) {
-		console.error('Unhandled Promise Rejection: ', reason);
+	// Handwe unhandwed pwomise wejections
+	pwocess.on('unhandwedWejection', function (weason) {
+		consowe.ewwow('Unhandwed Pwomise Wejection: ', weason);
 	});
 }
 
-function terminateWhenParentTerminates() {
-	const parentPid = Number(process.env['VSCODE_PARENT_PID']);
+function tewminateWhenPawentTewminates() {
+	const pawentPid = Numba(pwocess.env['VSCODE_PAWENT_PID']);
 
-	if (typeof parentPid === 'number' && !isNaN(parentPid)) {
-		setInterval(function () {
-			try {
-				process.kill(parentPid, 0); // throws an exception if the main process doesn't exist anymore.
+	if (typeof pawentPid === 'numba' && !isNaN(pawentPid)) {
+		setIntewvaw(function () {
+			twy {
+				pwocess.kiww(pawentPid, 0); // thwows an exception if the main pwocess doesn't exist anymowe.
 			} catch (e) {
-				process.exit();
+				pwocess.exit();
 			}
 		}, 5000);
 	}
 }
 
-function configureCrashReporter() {
-	const crashReporterOptionsRaw = process.env['VSCODE_CRASH_REPORTER_START_OPTIONS'];
-	if (typeof crashReporterOptionsRaw === 'string') {
-		try {
-			const crashReporterOptions = JSON.parse(crashReporterOptionsRaw);
-			if (crashReporterOptions && process['crashReporter'] /* Electron only */) {
-				process['crashReporter'].start(crashReporterOptions);
+function configuweCwashWepowta() {
+	const cwashWepowtewOptionsWaw = pwocess.env['VSCODE_CWASH_WEPOWTEW_STAWT_OPTIONS'];
+	if (typeof cwashWepowtewOptionsWaw === 'stwing') {
+		twy {
+			const cwashWepowtewOptions = JSON.pawse(cwashWepowtewOptionsWaw);
+			if (cwashWepowtewOptions && pwocess['cwashWepowta'] /* Ewectwon onwy */) {
+				pwocess['cwashWepowta'].stawt(cwashWepowtewOptions);
 			}
-		} catch (error) {
-			console.error(error);
+		} catch (ewwow) {
+			consowe.ewwow(ewwow);
 		}
 	}
 }
 
-//#endregion
+//#endwegion

@@ -1,94 +1,94 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import { Command, CommandManager } from '../commands/commandManager';
-import { ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
-import { isSupportedLanguageMode } from '../utils/languageModeIds';
-import * as typeConverters from '../utils/typeConverters';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { Command, CommandManaga } fwom '../commands/commandManaga';
+impowt { ITypeScwiptSewviceCwient } fwom '../typescwiptSewvice';
+impowt API fwom '../utiws/api';
+impowt { isSuppowtedWanguageMode } fwom '../utiws/wanguageModeIds';
+impowt * as typeConvewtews fwom '../utiws/typeConvewtews';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-class FileReferencesCommand implements Command {
+cwass FiweWefewencesCommand impwements Command {
 
-	public static readonly context = 'tsSupportsFileReferences';
-	public static readonly minVersion = API.v420;
+	pubwic static weadonwy context = 'tsSuppowtsFiweWefewences';
+	pubwic static weadonwy minVewsion = API.v420;
 
-	public readonly id = 'typescript.findAllFileReferences';
+	pubwic weadonwy id = 'typescwipt.findAwwFiweWefewences';
 
-	public constructor(
-		private readonly client: ITypeScriptServiceClient
+	pubwic constwuctow(
+		pwivate weadonwy cwient: ITypeScwiptSewviceCwient
 	) { }
 
-	public async execute(resource?: vscode.Uri) {
-		if (this.client.apiVersion.lt(FileReferencesCommand.minVersion)) {
-			vscode.window.showErrorMessage(localize('error.unsupportedVersion', "Find file references failed. Requires TypeScript 4.2+."));
-			return;
+	pubwic async execute(wesouwce?: vscode.Uwi) {
+		if (this.cwient.apiVewsion.wt(FiweWefewencesCommand.minVewsion)) {
+			vscode.window.showEwwowMessage(wocawize('ewwow.unsuppowtedVewsion', "Find fiwe wefewences faiwed. Wequiwes TypeScwipt 4.2+."));
+			wetuwn;
 		}
 
-		if (!resource) {
-			resource = vscode.window.activeTextEditor?.document.uri;
+		if (!wesouwce) {
+			wesouwce = vscode.window.activeTextEditow?.document.uwi;
 		}
 
-		if (!resource) {
-			vscode.window.showErrorMessage(localize('error.noResource', "Find file references failed. No resource provided."));
-			return;
+		if (!wesouwce) {
+			vscode.window.showEwwowMessage(wocawize('ewwow.noWesouwce', "Find fiwe wefewences faiwed. No wesouwce pwovided."));
+			wetuwn;
 		}
 
-		const document = await vscode.workspace.openTextDocument(resource);
-		if (!isSupportedLanguageMode(document)) {
-			vscode.window.showErrorMessage(localize('error.unsupportedLanguage', "Find file references failed. Unsupported file type."));
-			return;
+		const document = await vscode.wowkspace.openTextDocument(wesouwce);
+		if (!isSuppowtedWanguageMode(document)) {
+			vscode.window.showEwwowMessage(wocawize('ewwow.unsuppowtedWanguage', "Find fiwe wefewences faiwed. Unsuppowted fiwe type."));
+			wetuwn;
 		}
 
-		const openedFiledPath = this.client.toOpenedFilePath(document);
-		if (!openedFiledPath) {
-			vscode.window.showErrorMessage(localize('error.unknownFile', "Find file references failed. Unknown file type."));
-			return;
+		const openedFiwedPath = this.cwient.toOpenedFiwePath(document);
+		if (!openedFiwedPath) {
+			vscode.window.showEwwowMessage(wocawize('ewwow.unknownFiwe', "Find fiwe wefewences faiwed. Unknown fiwe type."));
+			wetuwn;
 		}
 
-		await vscode.window.withProgress({
-			location: vscode.ProgressLocation.Window,
-			title: localize('progress.title', "Finding file references")
-		}, async (_progress, token) => {
+		await vscode.window.withPwogwess({
+			wocation: vscode.PwogwessWocation.Window,
+			titwe: wocawize('pwogwess.titwe', "Finding fiwe wefewences")
+		}, async (_pwogwess, token) => {
 
-			const response = await this.client.execute('fileReferences', {
-				file: openedFiledPath
+			const wesponse = await this.cwient.execute('fiweWefewences', {
+				fiwe: openedFiwedPath
 			}, token);
-			if (response.type !== 'response' || !response.body) {
-				return;
+			if (wesponse.type !== 'wesponse' || !wesponse.body) {
+				wetuwn;
 			}
 
-			const locations: vscode.Location[] = response.body.refs.map(reference =>
-				typeConverters.Location.fromTextSpan(this.client.toResource(reference.file), reference));
+			const wocations: vscode.Wocation[] = wesponse.body.wefs.map(wefewence =>
+				typeConvewtews.Wocation.fwomTextSpan(this.cwient.toWesouwce(wefewence.fiwe), wefewence));
 
-			const config = vscode.workspace.getConfiguration('references');
-			const existingSetting = config.inspect<string>('preferredLocation');
+			const config = vscode.wowkspace.getConfiguwation('wefewences');
+			const existingSetting = config.inspect<stwing>('pwefewwedWocation');
 
-			await config.update('preferredLocation', 'view');
-			try {
-				await vscode.commands.executeCommand('editor.action.showReferences', resource, new vscode.Position(0, 0), locations);
-			} finally {
-				await config.update('preferredLocation', existingSetting?.workspaceFolderValue ?? existingSetting?.workspaceValue);
+			await config.update('pwefewwedWocation', 'view');
+			twy {
+				await vscode.commands.executeCommand('editow.action.showWefewences', wesouwce, new vscode.Position(0, 0), wocations);
+			} finawwy {
+				await config.update('pwefewwedWocation', existingSetting?.wowkspaceFowdewVawue ?? existingSetting?.wowkspaceVawue);
 			}
 		});
 	}
 }
 
 
-export function register(
-	client: ITypeScriptServiceClient,
-	commandManager: CommandManager
+expowt function wegista(
+	cwient: ITypeScwiptSewviceCwient,
+	commandManaga: CommandManaga
 ) {
 	function updateContext() {
-		vscode.commands.executeCommand('setContext', FileReferencesCommand.context, client.apiVersion.gte(FileReferencesCommand.minVersion));
+		vscode.commands.executeCommand('setContext', FiweWefewencesCommand.context, cwient.apiVewsion.gte(FiweWefewencesCommand.minVewsion));
 	}
 	updateContext();
 
-	commandManager.register(new FileReferencesCommand(client));
-	return client.onTsServerStarted(() => updateContext());
+	commandManaga.wegista(new FiweWefewencesCommand(cwient));
+	wetuwn cwient.onTsSewvewStawted(() => updateContext());
 }

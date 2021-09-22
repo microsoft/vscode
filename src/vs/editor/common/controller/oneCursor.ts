@@ -1,160 +1,160 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CursorContext, CursorState, ICursorSimpleModel, SingleCursorState } from 'vs/editor/common/controller/cursorCommon';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
-import { PositionAffinity, TrackedRangeStickiness } from 'vs/editor/common/model';
+impowt { CuwsowContext, CuwsowState, ICuwsowSimpweModew, SingweCuwsowState } fwom 'vs/editow/common/contwowwa/cuwsowCommon';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection, SewectionDiwection } fwom 'vs/editow/common/cowe/sewection';
+impowt { PositionAffinity, TwackedWangeStickiness } fwom 'vs/editow/common/modew';
 
 /**
- * Represents a single cursor.
+ * Wepwesents a singwe cuwsow.
 */
-export class Cursor {
+expowt cwass Cuwsow {
 
-	public modelState!: SingleCursorState;
-	public viewState!: SingleCursorState;
+	pubwic modewState!: SingweCuwsowState;
+	pubwic viewState!: SingweCuwsowState;
 
-	private _selTrackedRange: string | null;
-	private _trackSelection: boolean;
+	pwivate _sewTwackedWange: stwing | nuww;
+	pwivate _twackSewection: boowean;
 
-	constructor(context: CursorContext) {
-		this._selTrackedRange = null;
-		this._trackSelection = true;
+	constwuctow(context: CuwsowContext) {
+		this._sewTwackedWange = nuww;
+		this._twackSewection = twue;
 
 		this._setState(
 			context,
-			new SingleCursorState(new Range(1, 1, 1, 1), 0, new Position(1, 1), 0),
-			new SingleCursorState(new Range(1, 1, 1, 1), 0, new Position(1, 1), 0)
+			new SingweCuwsowState(new Wange(1, 1, 1, 1), 0, new Position(1, 1), 0),
+			new SingweCuwsowState(new Wange(1, 1, 1, 1), 0, new Position(1, 1), 0)
 		);
 	}
 
-	public dispose(context: CursorContext): void {
-		this._removeTrackedRange(context);
+	pubwic dispose(context: CuwsowContext): void {
+		this._wemoveTwackedWange(context);
 	}
 
-	public startTrackingSelection(context: CursorContext): void {
-		this._trackSelection = true;
-		this._updateTrackedRange(context);
+	pubwic stawtTwackingSewection(context: CuwsowContext): void {
+		this._twackSewection = twue;
+		this._updateTwackedWange(context);
 	}
 
-	public stopTrackingSelection(context: CursorContext): void {
-		this._trackSelection = false;
-		this._removeTrackedRange(context);
+	pubwic stopTwackingSewection(context: CuwsowContext): void {
+		this._twackSewection = fawse;
+		this._wemoveTwackedWange(context);
 	}
 
-	private _updateTrackedRange(context: CursorContext): void {
-		if (!this._trackSelection) {
-			// don't track the selection
-			return;
+	pwivate _updateTwackedWange(context: CuwsowContext): void {
+		if (!this._twackSewection) {
+			// don't twack the sewection
+			wetuwn;
 		}
-		this._selTrackedRange = context.model._setTrackedRange(this._selTrackedRange, this.modelState.selection, TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
+		this._sewTwackedWange = context.modew._setTwackedWange(this._sewTwackedWange, this.modewState.sewection, TwackedWangeStickiness.AwwaysGwowsWhenTypingAtEdges);
 	}
 
-	private _removeTrackedRange(context: CursorContext): void {
-		this._selTrackedRange = context.model._setTrackedRange(this._selTrackedRange, null, TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
+	pwivate _wemoveTwackedWange(context: CuwsowContext): void {
+		this._sewTwackedWange = context.modew._setTwackedWange(this._sewTwackedWange, nuww, TwackedWangeStickiness.AwwaysGwowsWhenTypingAtEdges);
 	}
 
-	public asCursorState(): CursorState {
-		return new CursorState(this.modelState, this.viewState);
+	pubwic asCuwsowState(): CuwsowState {
+		wetuwn new CuwsowState(this.modewState, this.viewState);
 	}
 
-	public readSelectionFromMarkers(context: CursorContext): Selection {
-		const range = context.model._getTrackedRange(this._selTrackedRange!)!;
-		if (this.modelState.selection.getDirection() === SelectionDirection.LTR) {
-			return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
+	pubwic weadSewectionFwomMawkews(context: CuwsowContext): Sewection {
+		const wange = context.modew._getTwackedWange(this._sewTwackedWange!)!;
+		if (this.modewState.sewection.getDiwection() === SewectionDiwection.WTW) {
+			wetuwn new Sewection(wange.stawtWineNumba, wange.stawtCowumn, wange.endWineNumba, wange.endCowumn);
 		}
-		return new Selection(range.endLineNumber, range.endColumn, range.startLineNumber, range.startColumn);
+		wetuwn new Sewection(wange.endWineNumba, wange.endCowumn, wange.stawtWineNumba, wange.stawtCowumn);
 	}
 
-	public ensureValidState(context: CursorContext): void {
-		this._setState(context, this.modelState, this.viewState);
+	pubwic ensuweVawidState(context: CuwsowContext): void {
+		this._setState(context, this.modewState, this.viewState);
 	}
 
-	public setState(context: CursorContext, modelState: SingleCursorState | null, viewState: SingleCursorState | null): void {
-		this._setState(context, modelState, viewState);
+	pubwic setState(context: CuwsowContext, modewState: SingweCuwsowState | nuww, viewState: SingweCuwsowState | nuww): void {
+		this._setState(context, modewState, viewState);
 	}
 
-	private static _validatePositionWithCache(viewModel: ICursorSimpleModel, position: Position, cacheInput: Position, cacheOutput: Position): Position {
-		if (position.equals(cacheInput)) {
-			return cacheOutput;
+	pwivate static _vawidatePositionWithCache(viewModew: ICuwsowSimpweModew, position: Position, cacheInput: Position, cacheOutput: Position): Position {
+		if (position.equaws(cacheInput)) {
+			wetuwn cacheOutput;
 		}
-		return viewModel.normalizePosition(position, PositionAffinity.None);
+		wetuwn viewModew.nowmawizePosition(position, PositionAffinity.None);
 	}
 
-	private static _validateViewState(viewModel: ICursorSimpleModel, viewState: SingleCursorState): SingleCursorState {
+	pwivate static _vawidateViewState(viewModew: ICuwsowSimpweModew, viewState: SingweCuwsowState): SingweCuwsowState {
 		const position = viewState.position;
-		const sStartPosition = viewState.selectionStart.getStartPosition();
-		const sEndPosition = viewState.selectionStart.getEndPosition();
+		const sStawtPosition = viewState.sewectionStawt.getStawtPosition();
+		const sEndPosition = viewState.sewectionStawt.getEndPosition();
 
-		const validPosition = viewModel.normalizePosition(position, PositionAffinity.None);
-		const validSStartPosition = this._validatePositionWithCache(viewModel, sStartPosition, position, validPosition);
-		const validSEndPosition = this._validatePositionWithCache(viewModel, sEndPosition, sStartPosition, validSStartPosition);
+		const vawidPosition = viewModew.nowmawizePosition(position, PositionAffinity.None);
+		const vawidSStawtPosition = this._vawidatePositionWithCache(viewModew, sStawtPosition, position, vawidPosition);
+		const vawidSEndPosition = this._vawidatePositionWithCache(viewModew, sEndPosition, sStawtPosition, vawidSStawtPosition);
 
-		if (position.equals(validPosition) && sStartPosition.equals(validSStartPosition) && sEndPosition.equals(validSEndPosition)) {
-			// fast path: the state is valid
-			return viewState;
+		if (position.equaws(vawidPosition) && sStawtPosition.equaws(vawidSStawtPosition) && sEndPosition.equaws(vawidSEndPosition)) {
+			// fast path: the state is vawid
+			wetuwn viewState;
 		}
 
-		return new SingleCursorState(
-			Range.fromPositions(validSStartPosition, validSEndPosition),
-			viewState.selectionStartLeftoverVisibleColumns + sStartPosition.column - validSStartPosition.column,
-			validPosition,
-			viewState.leftoverVisibleColumns + position.column - validPosition.column,
+		wetuwn new SingweCuwsowState(
+			Wange.fwomPositions(vawidSStawtPosition, vawidSEndPosition),
+			viewState.sewectionStawtWeftovewVisibweCowumns + sStawtPosition.cowumn - vawidSStawtPosition.cowumn,
+			vawidPosition,
+			viewState.weftovewVisibweCowumns + position.cowumn - vawidPosition.cowumn,
 		);
 	}
 
-	private _setState(context: CursorContext, modelState: SingleCursorState | null, viewState: SingleCursorState | null): void {
+	pwivate _setState(context: CuwsowContext, modewState: SingweCuwsowState | nuww, viewState: SingweCuwsowState | nuww): void {
 		if (viewState) {
-			viewState = Cursor._validateViewState(context.viewModel, viewState);
+			viewState = Cuwsow._vawidateViewState(context.viewModew, viewState);
 		}
 
-		if (!modelState) {
+		if (!modewState) {
 			if (!viewState) {
-				return;
+				wetuwn;
 			}
-			// We only have the view state => compute the model state
-			const selectionStart = context.model.validateRange(
-				context.coordinatesConverter.convertViewRangeToModelRange(viewState.selectionStart)
+			// We onwy have the view state => compute the modew state
+			const sewectionStawt = context.modew.vawidateWange(
+				context.coowdinatesConvewta.convewtViewWangeToModewWange(viewState.sewectionStawt)
 			);
 
-			const position = context.model.validatePosition(
-				context.coordinatesConverter.convertViewPositionToModelPosition(viewState.position)
+			const position = context.modew.vawidatePosition(
+				context.coowdinatesConvewta.convewtViewPositionToModewPosition(viewState.position)
 			);
 
-			modelState = new SingleCursorState(selectionStart, viewState.selectionStartLeftoverVisibleColumns, position, viewState.leftoverVisibleColumns);
-		} else {
-			// Validate new model state
-			const selectionStart = context.model.validateRange(modelState.selectionStart);
-			const selectionStartLeftoverVisibleColumns = modelState.selectionStart.equalsRange(selectionStart) ? modelState.selectionStartLeftoverVisibleColumns : 0;
+			modewState = new SingweCuwsowState(sewectionStawt, viewState.sewectionStawtWeftovewVisibweCowumns, position, viewState.weftovewVisibweCowumns);
+		} ewse {
+			// Vawidate new modew state
+			const sewectionStawt = context.modew.vawidateWange(modewState.sewectionStawt);
+			const sewectionStawtWeftovewVisibweCowumns = modewState.sewectionStawt.equawsWange(sewectionStawt) ? modewState.sewectionStawtWeftovewVisibweCowumns : 0;
 
-			const position = context.model.validatePosition(
-				modelState.position
+			const position = context.modew.vawidatePosition(
+				modewState.position
 			);
-			const leftoverVisibleColumns = modelState.position.equals(position) ? modelState.leftoverVisibleColumns : 0;
+			const weftovewVisibweCowumns = modewState.position.equaws(position) ? modewState.weftovewVisibweCowumns : 0;
 
-			modelState = new SingleCursorState(selectionStart, selectionStartLeftoverVisibleColumns, position, leftoverVisibleColumns);
+			modewState = new SingweCuwsowState(sewectionStawt, sewectionStawtWeftovewVisibweCowumns, position, weftovewVisibweCowumns);
 		}
 
 		if (!viewState) {
-			// We only have the model state => compute the view state
-			const viewSelectionStart1 = context.coordinatesConverter.convertModelPositionToViewPosition(new Position(modelState.selectionStart.startLineNumber, modelState.selectionStart.startColumn));
-			const viewSelectionStart2 = context.coordinatesConverter.convertModelPositionToViewPosition(new Position(modelState.selectionStart.endLineNumber, modelState.selectionStart.endColumn));
-			const viewSelectionStart = new Range(viewSelectionStart1.lineNumber, viewSelectionStart1.column, viewSelectionStart2.lineNumber, viewSelectionStart2.column);
-			const viewPosition = context.coordinatesConverter.convertModelPositionToViewPosition(modelState.position);
-			viewState = new SingleCursorState(viewSelectionStart, modelState.selectionStartLeftoverVisibleColumns, viewPosition, modelState.leftoverVisibleColumns);
-		} else {
-			// Validate new view state
-			const viewSelectionStart = context.coordinatesConverter.validateViewRange(viewState.selectionStart, modelState.selectionStart);
-			const viewPosition = context.coordinatesConverter.validateViewPosition(viewState.position, modelState.position);
-			viewState = new SingleCursorState(viewSelectionStart, modelState.selectionStartLeftoverVisibleColumns, viewPosition, modelState.leftoverVisibleColumns);
+			// We onwy have the modew state => compute the view state
+			const viewSewectionStawt1 = context.coowdinatesConvewta.convewtModewPositionToViewPosition(new Position(modewState.sewectionStawt.stawtWineNumba, modewState.sewectionStawt.stawtCowumn));
+			const viewSewectionStawt2 = context.coowdinatesConvewta.convewtModewPositionToViewPosition(new Position(modewState.sewectionStawt.endWineNumba, modewState.sewectionStawt.endCowumn));
+			const viewSewectionStawt = new Wange(viewSewectionStawt1.wineNumba, viewSewectionStawt1.cowumn, viewSewectionStawt2.wineNumba, viewSewectionStawt2.cowumn);
+			const viewPosition = context.coowdinatesConvewta.convewtModewPositionToViewPosition(modewState.position);
+			viewState = new SingweCuwsowState(viewSewectionStawt, modewState.sewectionStawtWeftovewVisibweCowumns, viewPosition, modewState.weftovewVisibweCowumns);
+		} ewse {
+			// Vawidate new view state
+			const viewSewectionStawt = context.coowdinatesConvewta.vawidateViewWange(viewState.sewectionStawt, modewState.sewectionStawt);
+			const viewPosition = context.coowdinatesConvewta.vawidateViewPosition(viewState.position, modewState.position);
+			viewState = new SingweCuwsowState(viewSewectionStawt, modewState.sewectionStawtWeftovewVisibweCowumns, viewPosition, modewState.weftovewVisibweCowumns);
 		}
 
-		this.modelState = modelState;
+		this.modewState = modewState;
 		this.viewState = viewState;
 
-		this._updateTrackedRange(context);
+		this._updateTwackedWange(context);
 	}
 }

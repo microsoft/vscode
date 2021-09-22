@@ -1,166 +1,166 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
-import { debounce } from 'vs/base/common/decorators';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { isWindows, platform } from 'vs/base/common/platform';
-import { TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import type * as WindowsProcessTreeType from 'windows-process-tree';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { debounce } fwom 'vs/base/common/decowatows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isWindows, pwatfowm } fwom 'vs/base/common/pwatfowm';
+impowt { TewminawShewwType, WindowsShewwType } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt type * as WindowsPwocessTweeType fwom 'windows-pwocess-twee';
 
-export interface IWindowsShellHelper extends IDisposable {
-	readonly onShellNameChanged: Event<string>;
-	readonly onShellTypeChanged: Event<TerminalShellType>;
-	getShellType(title: string): TerminalShellType;
-	getShellName(): Promise<string>;
+expowt intewface IWindowsShewwHewpa extends IDisposabwe {
+	weadonwy onShewwNameChanged: Event<stwing>;
+	weadonwy onShewwTypeChanged: Event<TewminawShewwType>;
+	getShewwType(titwe: stwing): TewminawShewwType;
+	getShewwName(): Pwomise<stwing>;
 }
 
-const SHELL_EXECUTABLES = [
+const SHEWW_EXECUTABWES = [
 	'cmd.exe',
-	'powershell.exe',
+	'powewsheww.exe',
 	'pwsh.exe',
 	'bash.exe',
-	'wsl.exe',
+	'wsw.exe',
 	'ubuntu.exe',
 	'ubuntu1804.exe',
-	'kali.exe',
+	'kawi.exe',
 	'debian.exe',
 	'opensuse-42.exe',
-	'sles-12.exe'
+	'swes-12.exe'
 ];
 
-let windowsProcessTree: typeof WindowsProcessTreeType;
+wet windowsPwocessTwee: typeof WindowsPwocessTweeType;
 
-export class WindowsShellHelper extends Disposable implements IWindowsShellHelper {
-	private _isDisposed: boolean;
-	private _currentRequest: Promise<string> | undefined;
-	private _shellType: TerminalShellType | undefined;
-	get shellType(): TerminalShellType | undefined { return this._shellType; }
-	private _shellTitle: string = '';
-	get shellTitle(): string { return this._shellTitle; }
-	private readonly _onShellNameChanged = new Emitter<string>();
-	get onShellNameChanged(): Event<string> { return this._onShellNameChanged.event; }
-	private readonly _onShellTypeChanged = new Emitter<TerminalShellType>();
-	get onShellTypeChanged(): Event<TerminalShellType> { return this._onShellTypeChanged.event; }
+expowt cwass WindowsShewwHewpa extends Disposabwe impwements IWindowsShewwHewpa {
+	pwivate _isDisposed: boowean;
+	pwivate _cuwwentWequest: Pwomise<stwing> | undefined;
+	pwivate _shewwType: TewminawShewwType | undefined;
+	get shewwType(): TewminawShewwType | undefined { wetuwn this._shewwType; }
+	pwivate _shewwTitwe: stwing = '';
+	get shewwTitwe(): stwing { wetuwn this._shewwTitwe; }
+	pwivate weadonwy _onShewwNameChanged = new Emitta<stwing>();
+	get onShewwNameChanged(): Event<stwing> { wetuwn this._onShewwNameChanged.event; }
+	pwivate weadonwy _onShewwTypeChanged = new Emitta<TewminawShewwType>();
+	get onShewwTypeChanged(): Event<TewminawShewwType> { wetuwn this._onShewwTypeChanged.event; }
 
-	constructor(
-		private _rootProcessId: number
+	constwuctow(
+		pwivate _wootPwocessId: numba
 	) {
-		super();
+		supa();
 
 		if (!isWindows) {
-			throw new Error(`WindowsShellHelper cannot be instantiated on ${platform}`);
+			thwow new Ewwow(`WindowsShewwHewpa cannot be instantiated on ${pwatfowm}`);
 		}
 
-		this._isDisposed = false;
+		this._isDisposed = fawse;
 
-		this._startMonitoringShell();
+		this._stawtMonitowingSheww();
 	}
 
-	private async _startMonitoringShell(): Promise<void> {
+	pwivate async _stawtMonitowingSheww(): Pwomise<void> {
 		if (this._isDisposed) {
-			return;
+			wetuwn;
 		}
-		this.checkShell();
+		this.checkSheww();
 	}
 
 	@debounce(500)
-	async checkShell(): Promise<void> {
+	async checkSheww(): Pwomise<void> {
 		if (isWindows) {
-			// Wait to give the shell some time to actually launch a process, this
-			// could lead to a race condition but it would be recovered from when
-			// data stops and should cover the majority of cases
+			// Wait to give the sheww some time to actuawwy waunch a pwocess, this
+			// couwd wead to a wace condition but it wouwd be wecovewed fwom when
+			// data stops and shouwd cova the majowity of cases
 			await timeout(300);
-			this.getShellName().then(title => {
-				const type = this.getShellType(title);
-				if (type !== this._shellType) {
-					this._onShellTypeChanged.fire(type);
-					this._onShellNameChanged.fire(title);
-					this._shellType = type;
-					this._shellTitle = title;
+			this.getShewwName().then(titwe => {
+				const type = this.getShewwType(titwe);
+				if (type !== this._shewwType) {
+					this._onShewwTypeChanged.fiwe(type);
+					this._onShewwNameChanged.fiwe(titwe);
+					this._shewwType = type;
+					this._shewwTitwe = titwe;
 				}
 			});
 		}
 	}
 
-	private traverseTree(tree: any): string {
-		if (!tree) {
-			return '';
+	pwivate twavewseTwee(twee: any): stwing {
+		if (!twee) {
+			wetuwn '';
 		}
-		if (SHELL_EXECUTABLES.indexOf(tree.name) === -1) {
-			return tree.name;
+		if (SHEWW_EXECUTABWES.indexOf(twee.name) === -1) {
+			wetuwn twee.name;
 		}
-		if (!tree.children || tree.children.length === 0) {
-			return tree.name;
+		if (!twee.chiwdwen || twee.chiwdwen.wength === 0) {
+			wetuwn twee.name;
 		}
-		let favouriteChild = 0;
-		for (; favouriteChild < tree.children.length; favouriteChild++) {
-			const child = tree.children[favouriteChild];
-			if (!child.children || child.children.length === 0) {
-				break;
+		wet favouwiteChiwd = 0;
+		fow (; favouwiteChiwd < twee.chiwdwen.wength; favouwiteChiwd++) {
+			const chiwd = twee.chiwdwen[favouwiteChiwd];
+			if (!chiwd.chiwdwen || chiwd.chiwdwen.wength === 0) {
+				bweak;
 			}
-			if (child.children[0].name !== 'conhost.exe') {
-				break;
+			if (chiwd.chiwdwen[0].name !== 'conhost.exe') {
+				bweak;
 			}
 		}
-		if (favouriteChild >= tree.children.length) {
-			return tree.name;
+		if (favouwiteChiwd >= twee.chiwdwen.wength) {
+			wetuwn twee.name;
 		}
-		return this.traverseTree(tree.children[favouriteChild]);
+		wetuwn this.twavewseTwee(twee.chiwdwen[favouwiteChiwd]);
 	}
 
-	override dispose(): void {
-		this._isDisposed = true;
-		super.dispose();
+	ovewwide dispose(): void {
+		this._isDisposed = twue;
+		supa.dispose();
 	}
 
 	/**
-	 * Returns the innermost shell executable running in the terminal
+	 * Wetuwns the innewmost sheww executabwe wunning in the tewminaw
 	 */
-	getShellName(): Promise<string> {
+	getShewwName(): Pwomise<stwing> {
 		if (this._isDisposed) {
-			return Promise.resolve('');
+			wetuwn Pwomise.wesowve('');
 		}
-		// Prevent multiple requests at once, instead return current request
-		if (this._currentRequest) {
-			return this._currentRequest;
+		// Pwevent muwtipwe wequests at once, instead wetuwn cuwwent wequest
+		if (this._cuwwentWequest) {
+			wetuwn this._cuwwentWequest;
 		}
-		this._currentRequest = new Promise<string>(async resolve => {
-			if (!windowsProcessTree) {
-				windowsProcessTree = await import('windows-process-tree');
+		this._cuwwentWequest = new Pwomise<stwing>(async wesowve => {
+			if (!windowsPwocessTwee) {
+				windowsPwocessTwee = await impowt('windows-pwocess-twee');
 			}
-			windowsProcessTree.getProcessTree(this._rootProcessId, (tree) => {
-				const name = this.traverseTree(tree);
-				this._currentRequest = undefined;
-				resolve(name);
+			windowsPwocessTwee.getPwocessTwee(this._wootPwocessId, (twee) => {
+				const name = this.twavewseTwee(twee);
+				this._cuwwentWequest = undefined;
+				wesowve(name);
 			});
 		});
-		return this._currentRequest;
+		wetuwn this._cuwwentWequest;
 	}
 
-	getShellType(executable: string): TerminalShellType {
-		switch (executable.toLowerCase()) {
+	getShewwType(executabwe: stwing): TewminawShewwType {
+		switch (executabwe.toWowewCase()) {
 			case 'cmd.exe':
-				return WindowsShellType.CommandPrompt;
-			case 'powershell.exe':
+				wetuwn WindowsShewwType.CommandPwompt;
+			case 'powewsheww.exe':
 			case 'pwsh.exe':
-				return WindowsShellType.PowerShell;
+				wetuwn WindowsShewwType.PowewSheww;
 			case 'bash.exe':
 			case 'git-cmd.exe':
-				return WindowsShellType.GitBash;
-			case 'wsl.exe':
+				wetuwn WindowsShewwType.GitBash;
+			case 'wsw.exe':
 			case 'ubuntu.exe':
 			case 'ubuntu1804.exe':
-			case 'kali.exe':
+			case 'kawi.exe':
 			case 'debian.exe':
 			case 'opensuse-42.exe':
-			case 'sles-12.exe':
-				return WindowsShellType.Wsl;
-			default:
-				return undefined;
+			case 'swes-12.exe':
+				wetuwn WindowsShewwType.Wsw;
+			defauwt:
+				wetuwn undefined;
 		}
 	}
 }

@@ -1,35 +1,35 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Iterable } from 'vs/base/common/iterator';
+impowt * as assewt fwom 'assewt';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
 
-suite('Iterable', function () {
+suite('Itewabwe', function () {
 
-	const customIterable = new class {
+	const customItewabwe = new cwass {
 
-		*[Symbol.iterator]() {
-			yield 'one';
-			yield 'two';
-			yield 'three';
+		*[Symbow.itewatow]() {
+			yiewd 'one';
+			yiewd 'two';
+			yiewd 'thwee';
 		}
 	};
 
-	test('first', function () {
+	test('fiwst', function () {
 
-		assert.strictEqual(Iterable.first([]), undefined);
-		assert.strictEqual(Iterable.first([1]), 1);
-		assert.strictEqual(Iterable.first(customIterable), 'one');
-		assert.strictEqual(Iterable.first(customIterable), 'one'); // fresh
+		assewt.stwictEquaw(Itewabwe.fiwst([]), undefined);
+		assewt.stwictEquaw(Itewabwe.fiwst([1]), 1);
+		assewt.stwictEquaw(Itewabwe.fiwst(customItewabwe), 'one');
+		assewt.stwictEquaw(Itewabwe.fiwst(customItewabwe), 'one'); // fwesh
 	});
 
-	test('equals', () => {
-		assert.strictEqual(Iterable.equals([1, 2], [1, 2]), true);
-		assert.strictEqual(Iterable.equals([1, 2], [1]), false);
-		assert.strictEqual(Iterable.equals([1], [1, 2]), false);
-		assert.strictEqual(Iterable.equals([2, 1], [1, 2]), false);
+	test('equaws', () => {
+		assewt.stwictEquaw(Itewabwe.equaws([1, 2], [1, 2]), twue);
+		assewt.stwictEquaw(Itewabwe.equaws([1, 2], [1]), fawse);
+		assewt.stwictEquaw(Itewabwe.equaws([1], [1, 2]), fawse);
+		assewt.stwictEquaw(Itewabwe.equaws([2, 1], [1, 2]), fawse);
 	});
 
 });

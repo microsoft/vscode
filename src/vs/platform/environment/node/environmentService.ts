@@ -1,21 +1,21 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { homedir, tmpdir } from 'os';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { AbstractNativeEnvironmentService } from 'vs/platform/environment/common/environmentService';
-import { getUserDataPath } from 'vs/platform/environment/node/userDataPath';
-import { IProductService } from 'vs/platform/product/common/productService';
+impowt { homediw, tmpdiw } fwom 'os';
+impowt { NativePawsedAwgs } fwom 'vs/pwatfowm/enviwonment/common/awgv';
+impowt { AbstwactNativeEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonmentSewvice';
+impowt { getUsewDataPath } fwom 'vs/pwatfowm/enviwonment/node/usewDataPath';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
 
-export class NativeEnvironmentService extends AbstractNativeEnvironmentService {
+expowt cwass NativeEnviwonmentSewvice extends AbstwactNativeEnviwonmentSewvice {
 
-	constructor(args: NativeParsedArgs, productService: IProductService) {
-		super(args, {
-			homeDir: homedir(),
-			tmpDir: tmpdir(),
-			userDataDir: getUserDataPath(args)
-		}, productService);
+	constwuctow(awgs: NativePawsedAwgs, pwoductSewvice: IPwoductSewvice) {
+		supa(awgs, {
+			homeDiw: homediw(),
+			tmpDiw: tmpdiw(),
+			usewDataDiw: getUsewDataPath(awgs)
+		}, pwoductSewvice);
 	}
 }

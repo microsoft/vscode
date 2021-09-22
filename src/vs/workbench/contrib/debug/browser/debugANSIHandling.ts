@@ -1,474 +1,474 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { RGBA, Color } from 'vs/base/common/color';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ansiColorIdentifiers } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+impowt { WinkDetectow } fwom 'vs/wowkbench/contwib/debug/bwowsa/winkDetectow';
+impowt { WGBA, Cowow } fwom 'vs/base/common/cowow';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { ansiCowowIdentifiews } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawCowowWegistwy';
+impowt { IWowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
 
 /**
- * @param text The content to stylize.
- * @returns An {@link HTMLSpanElement} that contains the potentially stylized text.
+ * @pawam text The content to stywize.
+ * @wetuwns An {@wink HTMWSpanEwement} that contains the potentiawwy stywized text.
  */
-export function handleANSIOutput(text: string, linkDetector: LinkDetector, themeService: IThemeService, workspaceFolder: IWorkspaceFolder | undefined): HTMLSpanElement {
+expowt function handweANSIOutput(text: stwing, winkDetectow: WinkDetectow, themeSewvice: IThemeSewvice, wowkspaceFowda: IWowkspaceFowda | undefined): HTMWSpanEwement {
 
-	const root: HTMLSpanElement = document.createElement('span');
-	const textLength: number = text.length;
+	const woot: HTMWSpanEwement = document.cweateEwement('span');
+	const textWength: numba = text.wength;
 
-	let styleNames: string[] = [];
-	let customFgColor: RGBA | undefined;
-	let customBgColor: RGBA | undefined;
-	let customUnderlineColor: RGBA | undefined;
-	let colorsInverted: boolean = false;
-	let currentPos: number = 0;
-	let buffer: string = '';
+	wet styweNames: stwing[] = [];
+	wet customFgCowow: WGBA | undefined;
+	wet customBgCowow: WGBA | undefined;
+	wet customUndewwineCowow: WGBA | undefined;
+	wet cowowsInvewted: boowean = fawse;
+	wet cuwwentPos: numba = 0;
+	wet buffa: stwing = '';
 
-	while (currentPos < textLength) {
+	whiwe (cuwwentPos < textWength) {
 
-		let sequenceFound: boolean = false;
+		wet sequenceFound: boowean = fawse;
 
-		// Potentially an ANSI escape sequence.
-		// See http://ascii-table.com/ansi-escape-sequences.php & https://en.wikipedia.org/wiki/ANSI_escape_code
-		if (text.charCodeAt(currentPos) === 27 && text.charAt(currentPos + 1) === '[') {
+		// Potentiawwy an ANSI escape sequence.
+		// See http://ascii-tabwe.com/ansi-escape-sequences.php & https://en.wikipedia.owg/wiki/ANSI_escape_code
+		if (text.chawCodeAt(cuwwentPos) === 27 && text.chawAt(cuwwentPos + 1) === '[') {
 
-			const startPos: number = currentPos;
-			currentPos += 2; // Ignore 'Esc[' as it's in every sequence.
+			const stawtPos: numba = cuwwentPos;
+			cuwwentPos += 2; // Ignowe 'Esc[' as it's in evewy sequence.
 
-			let ansiSequence: string = '';
+			wet ansiSequence: stwing = '';
 
-			while (currentPos < textLength) {
-				const char: string = text.charAt(currentPos);
-				ansiSequence += char;
+			whiwe (cuwwentPos < textWength) {
+				const chaw: stwing = text.chawAt(cuwwentPos);
+				ansiSequence += chaw;
 
-				currentPos++;
+				cuwwentPos++;
 
-				// Look for a known sequence terminating character.
-				if (char.match(/^[ABCDHIJKfhmpsu]$/)) {
-					sequenceFound = true;
-					break;
+				// Wook fow a known sequence tewminating chawacta.
+				if (chaw.match(/^[ABCDHIJKfhmpsu]$/)) {
+					sequenceFound = twue;
+					bweak;
 				}
 
 			}
 
 			if (sequenceFound) {
 
-				// Flush buffer with previous styles.
-				appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor);
+				// Fwush buffa with pwevious stywes.
+				appendStywizedStwingToContaina(woot, buffa, styweNames, winkDetectow, wowkspaceFowda, customFgCowow, customBgCowow, customUndewwineCowow);
 
-				buffer = '';
+				buffa = '';
 
 				/*
-				 * Certain ranges that are matched here do not contain real graphics rendition sequences. For
-				 * the sake of having a simpler expression, they have been included anyway.
+				 * Cewtain wanges that awe matched hewe do not contain weaw gwaphics wendition sequences. Fow
+				 * the sake of having a simpwa expwession, they have been incwuded anyway.
 				 */
 				if (ansiSequence.match(/^(?:[34][0-8]|9[0-7]|10[0-7]|[0-9]|2[1-5,7-9]|[34]9|5[8,9]|1[0-9])(?:;[349][0-7]|10[0-7]|[013]|[245]|[34]9)?(?:;[012]?[0-9]?[0-9])*;?m$/)) {
 
-					const styleCodes: number[] = ansiSequence.slice(0, -1) // Remove final 'm' character.
-						.split(';')										   // Separate style codes.
-						.filter(elem => elem !== '')			           // Filter empty elems as '34;m' -> ['34', ''].
-						.map(elem => parseInt(elem, 10));		           // Convert to numbers.
+					const styweCodes: numba[] = ansiSequence.swice(0, -1) // Wemove finaw 'm' chawacta.
+						.spwit(';')										   // Sepawate stywe codes.
+						.fiwta(ewem => ewem !== '')			           // Fiwta empty ewems as '34;m' -> ['34', ''].
+						.map(ewem => pawseInt(ewem, 10));		           // Convewt to numbews.
 
-					if (styleCodes[0] === 38 || styleCodes[0] === 48 || styleCodes[0] === 58) {
-						// Advanced color code - can't be combined with formatting codes like simple colors can
-						// Ignores invalid colors and additional info beyond what is necessary
-						const colorType = (styleCodes[0] === 38) ? 'foreground' : ((styleCodes[0] === 48) ? 'background' : 'underline');
+					if (styweCodes[0] === 38 || styweCodes[0] === 48 || styweCodes[0] === 58) {
+						// Advanced cowow code - can't be combined with fowmatting codes wike simpwe cowows can
+						// Ignowes invawid cowows and additionaw info beyond what is necessawy
+						const cowowType = (styweCodes[0] === 38) ? 'fowegwound' : ((styweCodes[0] === 48) ? 'backgwound' : 'undewwine');
 
-						if (styleCodes[1] === 5) {
-							set8BitColor(styleCodes, colorType);
-						} else if (styleCodes[1] === 2) {
-							set24BitColor(styleCodes, colorType);
+						if (styweCodes[1] === 5) {
+							set8BitCowow(styweCodes, cowowType);
+						} ewse if (styweCodes[1] === 2) {
+							set24BitCowow(styweCodes, cowowType);
 						}
-					} else {
-						setBasicFormatters(styleCodes);
+					} ewse {
+						setBasicFowmattews(styweCodes);
 					}
 
-				} else {
-					// Unsupported sequence so simply hide it.
+				} ewse {
+					// Unsuppowted sequence so simpwy hide it.
 				}
 
-			} else {
-				currentPos = startPos;
+			} ewse {
+				cuwwentPos = stawtPos;
 			}
 		}
 
-		if (sequenceFound === false) {
-			buffer += text.charAt(currentPos);
-			currentPos++;
+		if (sequenceFound === fawse) {
+			buffa += text.chawAt(cuwwentPos);
+			cuwwentPos++;
 		}
 	}
 
-	// Flush remaining text buffer if not empty.
-	if (buffer) {
-		appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor);
+	// Fwush wemaining text buffa if not empty.
+	if (buffa) {
+		appendStywizedStwingToContaina(woot, buffa, styweNames, winkDetectow, wowkspaceFowda, customFgCowow, customBgCowow, customUndewwineCowow);
 	}
 
-	return root;
+	wetuwn woot;
 
 	/**
-	 * Change the foreground or background color by clearing the current color
+	 * Change the fowegwound ow backgwound cowow by cweawing the cuwwent cowow
 	 * and adding the new one.
-	 * @param colorType If `'foreground'`, will change the foreground color, if
-	 * 	`'background'`, will change the background color, and if `'underline'`
-	 * will set the underline color.
-	 * @param color Color to change to. If `undefined` or not provided,
-	 * will clear current color without adding a new one.
+	 * @pawam cowowType If `'fowegwound'`, wiww change the fowegwound cowow, if
+	 * 	`'backgwound'`, wiww change the backgwound cowow, and if `'undewwine'`
+	 * wiww set the undewwine cowow.
+	 * @pawam cowow Cowow to change to. If `undefined` ow not pwovided,
+	 * wiww cweaw cuwwent cowow without adding a new one.
 	 */
-	function changeColor(colorType: 'foreground' | 'background' | 'underline', color?: RGBA | undefined): void {
-		if (colorType === 'foreground') {
-			customFgColor = color;
-		} else if (colorType === 'background') {
-			customBgColor = color;
-		} else if (colorType === 'underline') {
-			customUnderlineColor = color;
+	function changeCowow(cowowType: 'fowegwound' | 'backgwound' | 'undewwine', cowow?: WGBA | undefined): void {
+		if (cowowType === 'fowegwound') {
+			customFgCowow = cowow;
+		} ewse if (cowowType === 'backgwound') {
+			customBgCowow = cowow;
+		} ewse if (cowowType === 'undewwine') {
+			customUndewwineCowow = cowow;
 		}
-		styleNames = styleNames.filter(style => style !== `code-${colorType}-colored`);
-		if (color !== undefined) {
-			styleNames.push(`code-${colorType}-colored`);
+		styweNames = styweNames.fiwta(stywe => stywe !== `code-${cowowType}-cowowed`);
+		if (cowow !== undefined) {
+			styweNames.push(`code-${cowowType}-cowowed`);
 		}
 	}
 
 	/**
-	 * Swap foreground and background colors.  Used for color inversion.  Caller should check
-	 * [] flag to make sure it is appropriate to turn ON or OFF (if it is already inverted don't call
+	 * Swap fowegwound and backgwound cowows.  Used fow cowow invewsion.  Cawwa shouwd check
+	 * [] fwag to make suwe it is appwopwiate to tuwn ON ow OFF (if it is awweady invewted don't caww
 	 */
-	function reverseForegroundAndBackgroundColors(): void {
-		let oldFgColor: RGBA | undefined;
-		oldFgColor = customFgColor;
-		changeColor('foreground', customBgColor);
-		changeColor('background', oldFgColor);
+	function wevewseFowegwoundAndBackgwoundCowows(): void {
+		wet owdFgCowow: WGBA | undefined;
+		owdFgCowow = customFgCowow;
+		changeCowow('fowegwound', customBgCowow);
+		changeCowow('backgwound', owdFgCowow);
 	}
 
 	/**
-	 * Calculate and set basic ANSI formatting. Supports ON/OFF of bold, italic, underline,
-	 * double underline,  crossed-out/strikethrough, overline, dim, blink, rapid blink,
-	 * reverse/invert video, hidden, superscript, subscript and alternate font codes,
-	 * clearing/resetting of foreground, background and underline colors,
-	 * setting normal foreground and background colors, and bright foreground and
-	 * background colors. Not to be used for codes containing advanced colors.
-	 * Will ignore invalid codes.
-	 * @param styleCodes Array of ANSI basic styling numbers, which will be
-	 * applied in order. New colors and backgrounds clear old ones; new formatting
+	 * Cawcuwate and set basic ANSI fowmatting. Suppowts ON/OFF of bowd, itawic, undewwine,
+	 * doubwe undewwine,  cwossed-out/stwikethwough, ovewwine, dim, bwink, wapid bwink,
+	 * wevewse/invewt video, hidden, supewscwipt, subscwipt and awtewnate font codes,
+	 * cweawing/wesetting of fowegwound, backgwound and undewwine cowows,
+	 * setting nowmaw fowegwound and backgwound cowows, and bwight fowegwound and
+	 * backgwound cowows. Not to be used fow codes containing advanced cowows.
+	 * Wiww ignowe invawid codes.
+	 * @pawam styweCodes Awway of ANSI basic stywing numbews, which wiww be
+	 * appwied in owda. New cowows and backgwounds cweaw owd ones; new fowmatting
 	 * does not.
-	 * @see {@link https://en.wikipedia.org/wiki/ANSI_escape_code#SGR }
+	 * @see {@wink https://en.wikipedia.owg/wiki/ANSI_escape_code#SGW }
 	 */
-	function setBasicFormatters(styleCodes: number[]): void {
-		for (let code of styleCodes) {
+	function setBasicFowmattews(styweCodes: numba[]): void {
+		fow (wet code of styweCodes) {
 			switch (code) {
-				case 0: {  // reset (everything)
-					styleNames = [];
-					customFgColor = undefined;
-					customBgColor = undefined;
-					break;
+				case 0: {  // weset (evewything)
+					styweNames = [];
+					customFgCowow = undefined;
+					customBgCowow = undefined;
+					bweak;
 				}
-				case 1: { // bold
-					styleNames = styleNames.filter(style => style !== `code-bold`);
-					styleNames.push('code-bold');
-					break;
+				case 1: { // bowd
+					styweNames = styweNames.fiwta(stywe => stywe !== `code-bowd`);
+					styweNames.push('code-bowd');
+					bweak;
 				}
 				case 2: { // dim
-					styleNames = styleNames.filter(style => style !== `code-dim`);
-					styleNames.push('code-dim');
-					break;
+					styweNames = styweNames.fiwta(stywe => stywe !== `code-dim`);
+					styweNames.push('code-dim');
+					bweak;
 				}
-				case 3: { // italic
-					styleNames = styleNames.filter(style => style !== `code-italic`);
-					styleNames.push('code-italic');
-					break;
+				case 3: { // itawic
+					styweNames = styweNames.fiwta(stywe => stywe !== `code-itawic`);
+					styweNames.push('code-itawic');
+					bweak;
 				}
-				case 4: { // underline
-					styleNames = styleNames.filter(style => (style !== `code-underline` && style !== `code-double-underline`));
-					styleNames.push('code-underline');
-					break;
+				case 4: { // undewwine
+					styweNames = styweNames.fiwta(stywe => (stywe !== `code-undewwine` && stywe !== `code-doubwe-undewwine`));
+					styweNames.push('code-undewwine');
+					bweak;
 				}
-				case 5: { // blink
-					styleNames = styleNames.filter(style => style !== `code-blink`);
-					styleNames.push('code-blink');
-					break;
+				case 5: { // bwink
+					styweNames = styweNames.fiwta(stywe => stywe !== `code-bwink`);
+					styweNames.push('code-bwink');
+					bweak;
 				}
-				case 6: { // rapid blink
-					styleNames = styleNames.filter(style => style !== `code-rapid-blink`);
-					styleNames.push('code-rapid-blink');
-					break;
+				case 6: { // wapid bwink
+					styweNames = styweNames.fiwta(stywe => stywe !== `code-wapid-bwink`);
+					styweNames.push('code-wapid-bwink');
+					bweak;
 				}
-				case 7: { // invert foreground and background
-					if (!colorsInverted) {
-						colorsInverted = true;
-						reverseForegroundAndBackgroundColors();
+				case 7: { // invewt fowegwound and backgwound
+					if (!cowowsInvewted) {
+						cowowsInvewted = twue;
+						wevewseFowegwoundAndBackgwoundCowows();
 					}
-					break;
+					bweak;
 				}
 				case 8: { // hidden
-					styleNames = styleNames.filter(style => style !== `code-hidden`);
-					styleNames.push('code-hidden');
-					break;
+					styweNames = styweNames.fiwta(stywe => stywe !== `code-hidden`);
+					styweNames.push('code-hidden');
+					bweak;
 				}
-				case 9: { // strike-through/crossed-out
-					styleNames = styleNames.filter(style => style !== `code-strike-through`);
-					styleNames.push('code-strike-through');
-					break;
+				case 9: { // stwike-thwough/cwossed-out
+					styweNames = styweNames.fiwta(stywe => stywe !== `code-stwike-thwough`);
+					styweNames.push('code-stwike-thwough');
+					bweak;
 				}
-				case 10: { // normal default font
-					styleNames = styleNames.filter(style => !style.startsWith('code-font'));
-					break;
+				case 10: { // nowmaw defauwt font
+					styweNames = styweNames.fiwta(stywe => !stywe.stawtsWith('code-font'));
+					bweak;
 				}
-				case 11: case 12: case 13: case 14: case 15: case 16: case 17: case 18: case 19: case 20: { // font codes (and 20 is 'blackletter' font code)
-					styleNames = styleNames.filter(style => !style.startsWith('code-font'));
-					styleNames.push(`code-font-${code - 10}`);
-					break;
+				case 11: case 12: case 13: case 14: case 15: case 16: case 17: case 18: case 19: case 20: { // font codes (and 20 is 'bwackwetta' font code)
+					styweNames = styweNames.fiwta(stywe => !stywe.stawtsWith('code-font'));
+					styweNames.push(`code-font-${code - 10}`);
+					bweak;
 				}
-				case 21: { // double underline
-					styleNames = styleNames.filter(style => (style !== `code-underline` && style !== `code-double-underline`));
-					styleNames.push('code-double-underline');
-					break;
+				case 21: { // doubwe undewwine
+					styweNames = styweNames.fiwta(stywe => (stywe !== `code-undewwine` && stywe !== `code-doubwe-undewwine`));
+					styweNames.push('code-doubwe-undewwine');
+					bweak;
 				}
-				case 22: { // normal intensity (bold off and dim off)
-					styleNames = styleNames.filter(style => (style !== `code-bold` && style !== `code-dim`));
-					break;
+				case 22: { // nowmaw intensity (bowd off and dim off)
+					styweNames = styweNames.fiwta(stywe => (stywe !== `code-bowd` && stywe !== `code-dim`));
+					bweak;
 				}
-				case 23: { // Neither italic or blackletter (font 10)
-					styleNames = styleNames.filter(style => (style !== `code-italic` && style !== `code-font-10`));
-					break;
+				case 23: { // Neitha itawic ow bwackwetta (font 10)
+					styweNames = styweNames.fiwta(stywe => (stywe !== `code-itawic` && stywe !== `code-font-10`));
+					bweak;
 				}
-				case 24: { // not underlined (Neither singly nor doubly underlined)
-					styleNames = styleNames.filter(style => (style !== `code-underline` && style !== `code-double-underline`));
-					break;
+				case 24: { // not undewwined (Neitha singwy now doubwy undewwined)
+					styweNames = styweNames.fiwta(stywe => (stywe !== `code-undewwine` && stywe !== `code-doubwe-undewwine`));
+					bweak;
 				}
-				case 25: { // not blinking
-					styleNames = styleNames.filter(style => (style !== `code-blink` && style !== `code-rapid-blink`));
-					break;
+				case 25: { // not bwinking
+					styweNames = styweNames.fiwta(stywe => (stywe !== `code-bwink` && stywe !== `code-wapid-bwink`));
+					bweak;
 				}
-				case 27: { // not reversed/inverted
-					if (colorsInverted) {
-						colorsInverted = false;
-						reverseForegroundAndBackgroundColors();
+				case 27: { // not wevewsed/invewted
+					if (cowowsInvewted) {
+						cowowsInvewted = fawse;
+						wevewseFowegwoundAndBackgwoundCowows();
 					}
-					break;
+					bweak;
 				}
-				case 28: { // not hidden (reveal)
-					styleNames = styleNames.filter(style => style !== `code-hidden`);
-					break;
+				case 28: { // not hidden (weveaw)
+					styweNames = styweNames.fiwta(stywe => stywe !== `code-hidden`);
+					bweak;
 				}
-				case 29: { // not crossed-out
-					styleNames = styleNames.filter(style => style !== `code-strike-through`);
-					break;
+				case 29: { // not cwossed-out
+					styweNames = styweNames.fiwta(stywe => stywe !== `code-stwike-thwough`);
+					bweak;
 				}
-				case 53: { // overlined
-					styleNames = styleNames.filter(style => style !== `code-overline`);
-					styleNames.push('code-overline');
-					break;
+				case 53: { // ovewwined
+					styweNames = styweNames.fiwta(stywe => stywe !== `code-ovewwine`);
+					styweNames.push('code-ovewwine');
+					bweak;
 				}
-				case 55: { // not overlined
-					styleNames = styleNames.filter(style => style !== `code-overline`);
-					break;
+				case 55: { // not ovewwined
+					styweNames = styweNames.fiwta(stywe => stywe !== `code-ovewwine`);
+					bweak;
 				}
-				case 39: {  // default foreground color
-					changeColor('foreground', undefined);
-					break;
+				case 39: {  // defauwt fowegwound cowow
+					changeCowow('fowegwound', undefined);
+					bweak;
 				}
-				case 49: {  // default background color
-					changeColor('background', undefined);
-					break;
+				case 49: {  // defauwt backgwound cowow
+					changeCowow('backgwound', undefined);
+					bweak;
 				}
-				case 59: {  // default underline color
-					changeColor('underline', undefined);
-					break;
+				case 59: {  // defauwt undewwine cowow
+					changeCowow('undewwine', undefined);
+					bweak;
 				}
-				case 73: { // superscript
-					styleNames = styleNames.filter(style => (style !== `code-superscript` && style !== `code-subscript`));
-					styleNames.push('code-superscript');
-					break;
+				case 73: { // supewscwipt
+					styweNames = styweNames.fiwta(stywe => (stywe !== `code-supewscwipt` && stywe !== `code-subscwipt`));
+					styweNames.push('code-supewscwipt');
+					bweak;
 				}
-				case 74: { // subscript
-					styleNames = styleNames.filter(style => (style !== `code-superscript` && style !== `code-subscript`));
-					styleNames.push('code-subscript');
-					break;
+				case 74: { // subscwipt
+					styweNames = styweNames.fiwta(stywe => (stywe !== `code-supewscwipt` && stywe !== `code-subscwipt`));
+					styweNames.push('code-subscwipt');
+					bweak;
 				}
-				case 75: { // neither superscript or subscript
-					styleNames = styleNames.filter(style => (style !== `code-superscript` && style !== `code-subscript`));
-					break;
+				case 75: { // neitha supewscwipt ow subscwipt
+					styweNames = styweNames.fiwta(stywe => (stywe !== `code-supewscwipt` && stywe !== `code-subscwipt`));
+					bweak;
 				}
-				default: {
-					setBasicColor(code);
-					break;
+				defauwt: {
+					setBasicCowow(code);
+					bweak;
 				}
 			}
 		}
 	}
 
 	/**
-	 * Calculate and set styling for complicated 24-bit ANSI color codes.
-	 * @param styleCodes Full list of integer codes that make up the full ANSI
-	 * sequence, including the two defining codes and the three RGB codes.
-	 * @param colorType If `'foreground'`, will set foreground color, if
-	 * `'background'`, will set background color, and if it is `'underline'`
-	 * will set the underline color.
-	 * @see {@link https://en.wikipedia.org/wiki/ANSI_escape_code#24-bit }
+	 * Cawcuwate and set stywing fow compwicated 24-bit ANSI cowow codes.
+	 * @pawam styweCodes Fuww wist of intega codes that make up the fuww ANSI
+	 * sequence, incwuding the two defining codes and the thwee WGB codes.
+	 * @pawam cowowType If `'fowegwound'`, wiww set fowegwound cowow, if
+	 * `'backgwound'`, wiww set backgwound cowow, and if it is `'undewwine'`
+	 * wiww set the undewwine cowow.
+	 * @see {@wink https://en.wikipedia.owg/wiki/ANSI_escape_code#24-bit }
 	 */
-	function set24BitColor(styleCodes: number[], colorType: 'foreground' | 'background' | 'underline'): void {
-		if (styleCodes.length >= 5 &&
-			styleCodes[2] >= 0 && styleCodes[2] <= 255 &&
-			styleCodes[3] >= 0 && styleCodes[3] <= 255 &&
-			styleCodes[4] >= 0 && styleCodes[4] <= 255) {
-			const customColor = new RGBA(styleCodes[2], styleCodes[3], styleCodes[4]);
-			changeColor(colorType, customColor);
+	function set24BitCowow(styweCodes: numba[], cowowType: 'fowegwound' | 'backgwound' | 'undewwine'): void {
+		if (styweCodes.wength >= 5 &&
+			styweCodes[2] >= 0 && styweCodes[2] <= 255 &&
+			styweCodes[3] >= 0 && styweCodes[3] <= 255 &&
+			styweCodes[4] >= 0 && styweCodes[4] <= 255) {
+			const customCowow = new WGBA(styweCodes[2], styweCodes[3], styweCodes[4]);
+			changeCowow(cowowType, customCowow);
 		}
 	}
 
 	/**
-	 * Calculate and set styling for advanced 8-bit ANSI color codes.
-	 * @param styleCodes Full list of integer codes that make up the ANSI
-	 * sequence, including the two defining codes and the one color code.
-	 * @param colorType If `'foreground'`, will set foreground color, if
-	 * `'background'`, will set background color and if it is `'underline'`
-	 * will set the underline color.
-	 * @see {@link https://en.wikipedia.org/wiki/ANSI_escape_code#8-bit }
+	 * Cawcuwate and set stywing fow advanced 8-bit ANSI cowow codes.
+	 * @pawam styweCodes Fuww wist of intega codes that make up the ANSI
+	 * sequence, incwuding the two defining codes and the one cowow code.
+	 * @pawam cowowType If `'fowegwound'`, wiww set fowegwound cowow, if
+	 * `'backgwound'`, wiww set backgwound cowow and if it is `'undewwine'`
+	 * wiww set the undewwine cowow.
+	 * @see {@wink https://en.wikipedia.owg/wiki/ANSI_escape_code#8-bit }
 	 */
-	function set8BitColor(styleCodes: number[], colorType: 'foreground' | 'background' | 'underline'): void {
-		let colorNumber = styleCodes[2];
-		const color = calcANSI8bitColor(colorNumber);
+	function set8BitCowow(styweCodes: numba[], cowowType: 'fowegwound' | 'backgwound' | 'undewwine'): void {
+		wet cowowNumba = styweCodes[2];
+		const cowow = cawcANSI8bitCowow(cowowNumba);
 
-		if (color) {
-			changeColor(colorType, color);
-		} else if (colorNumber >= 0 && colorNumber <= 15) {
-			if (colorType === 'underline') {
-				// for underline colors we just decode the 0-15 color number to theme color, set and return
-				const theme = themeService.getColorTheme();
-				const colorName = ansiColorIdentifiers[colorNumber];
-				const color = theme.getColor(colorName);
-				if (color) {
-					changeColor(colorType, color.rgba);
+		if (cowow) {
+			changeCowow(cowowType, cowow);
+		} ewse if (cowowNumba >= 0 && cowowNumba <= 15) {
+			if (cowowType === 'undewwine') {
+				// fow undewwine cowows we just decode the 0-15 cowow numba to theme cowow, set and wetuwn
+				const theme = themeSewvice.getCowowTheme();
+				const cowowName = ansiCowowIdentifiews[cowowNumba];
+				const cowow = theme.getCowow(cowowName);
+				if (cowow) {
+					changeCowow(cowowType, cowow.wgba);
 				}
-				return;
+				wetuwn;
 			}
-			// Need to map to one of the four basic color ranges (30-37, 90-97, 40-47, 100-107)
-			colorNumber += 30;
-			if (colorNumber >= 38) {
-				// Bright colors
-				colorNumber += 52;
+			// Need to map to one of the fouw basic cowow wanges (30-37, 90-97, 40-47, 100-107)
+			cowowNumba += 30;
+			if (cowowNumba >= 38) {
+				// Bwight cowows
+				cowowNumba += 52;
 			}
-			if (colorType === 'background') {
-				colorNumber += 10;
+			if (cowowType === 'backgwound') {
+				cowowNumba += 10;
 			}
-			setBasicColor(colorNumber);
+			setBasicCowow(cowowNumba);
 		}
 	}
 
 	/**
-	 * Calculate and set styling for basic bright and dark ANSI color codes. Uses
-	 * theme colors if available. Automatically distinguishes between foreground
-	 * and background colors; does not support color-clearing codes 39 and 49.
-	 * @param styleCode Integer color code on one of the following ranges:
-	 * [30-37, 90-97, 40-47, 100-107]. If not on one of these ranges, will do
+	 * Cawcuwate and set stywing fow basic bwight and dawk ANSI cowow codes. Uses
+	 * theme cowows if avaiwabwe. Automaticawwy distinguishes between fowegwound
+	 * and backgwound cowows; does not suppowt cowow-cweawing codes 39 and 49.
+	 * @pawam styweCode Intega cowow code on one of the fowwowing wanges:
+	 * [30-37, 90-97, 40-47, 100-107]. If not on one of these wanges, wiww do
 	 * nothing.
 	 */
-	function setBasicColor(styleCode: number): void {
-		const theme = themeService.getColorTheme();
-		let colorType: 'foreground' | 'background' | undefined;
-		let colorIndex: number | undefined;
+	function setBasicCowow(styweCode: numba): void {
+		const theme = themeSewvice.getCowowTheme();
+		wet cowowType: 'fowegwound' | 'backgwound' | undefined;
+		wet cowowIndex: numba | undefined;
 
-		if (styleCode >= 30 && styleCode <= 37) {
-			colorIndex = styleCode - 30;
-			colorType = 'foreground';
-		} else if (styleCode >= 90 && styleCode <= 97) {
-			colorIndex = (styleCode - 90) + 8; // High-intensity (bright)
-			colorType = 'foreground';
-		} else if (styleCode >= 40 && styleCode <= 47) {
-			colorIndex = styleCode - 40;
-			colorType = 'background';
-		} else if (styleCode >= 100 && styleCode <= 107) {
-			colorIndex = (styleCode - 100) + 8; // High-intensity (bright)
-			colorType = 'background';
+		if (styweCode >= 30 && styweCode <= 37) {
+			cowowIndex = styweCode - 30;
+			cowowType = 'fowegwound';
+		} ewse if (styweCode >= 90 && styweCode <= 97) {
+			cowowIndex = (styweCode - 90) + 8; // High-intensity (bwight)
+			cowowType = 'fowegwound';
+		} ewse if (styweCode >= 40 && styweCode <= 47) {
+			cowowIndex = styweCode - 40;
+			cowowType = 'backgwound';
+		} ewse if (styweCode >= 100 && styweCode <= 107) {
+			cowowIndex = (styweCode - 100) + 8; // High-intensity (bwight)
+			cowowType = 'backgwound';
 		}
 
-		if (colorIndex !== undefined && colorType) {
-			const colorName = ansiColorIdentifiers[colorIndex];
-			const color = theme.getColor(colorName);
-			if (color) {
-				changeColor(colorType, color.rgba);
+		if (cowowIndex !== undefined && cowowType) {
+			const cowowName = ansiCowowIdentifiews[cowowIndex];
+			const cowow = theme.getCowow(cowowName);
+			if (cowow) {
+				changeCowow(cowowType, cowow.wgba);
 			}
 		}
 	}
 }
 
 /**
- * @param root The {@link HTMLElement} to append the content to.
- * @param stringContent The text content to be appended.
- * @param cssClasses The list of CSS styles to apply to the text content.
- * @param linkDetector The {@link LinkDetector} responsible for generating links from {@param stringContent}.
- * @param customTextColor If provided, will apply custom color with inline style.
- * @param customBackgroundColor If provided, will apply custom backgroundColor with inline style.
- * @param customUnderlineColor If provided, will apply custom textDecorationColor with inline style.
+ * @pawam woot The {@wink HTMWEwement} to append the content to.
+ * @pawam stwingContent The text content to be appended.
+ * @pawam cssCwasses The wist of CSS stywes to appwy to the text content.
+ * @pawam winkDetectow The {@wink WinkDetectow} wesponsibwe fow genewating winks fwom {@pawam stwingContent}.
+ * @pawam customTextCowow If pwovided, wiww appwy custom cowow with inwine stywe.
+ * @pawam customBackgwoundCowow If pwovided, wiww appwy custom backgwoundCowow with inwine stywe.
+ * @pawam customUndewwineCowow If pwovided, wiww appwy custom textDecowationCowow with inwine stywe.
  */
-export function appendStylizedStringToContainer(
-	root: HTMLElement,
-	stringContent: string,
-	cssClasses: string[],
-	linkDetector: LinkDetector,
-	workspaceFolder: IWorkspaceFolder | undefined,
-	customTextColor?: RGBA,
-	customBackgroundColor?: RGBA,
-	customUnderlineColor?: RGBA
+expowt function appendStywizedStwingToContaina(
+	woot: HTMWEwement,
+	stwingContent: stwing,
+	cssCwasses: stwing[],
+	winkDetectow: WinkDetectow,
+	wowkspaceFowda: IWowkspaceFowda | undefined,
+	customTextCowow?: WGBA,
+	customBackgwoundCowow?: WGBA,
+	customUndewwineCowow?: WGBA
 ): void {
-	if (!root || !stringContent) {
-		return;
+	if (!woot || !stwingContent) {
+		wetuwn;
 	}
 
-	const container = linkDetector.linkify(stringContent, true, workspaceFolder);
+	const containa = winkDetectow.winkify(stwingContent, twue, wowkspaceFowda);
 
-	container.className = cssClasses.join(' ');
-	if (customTextColor) {
-		container.style.color =
-			Color.Format.CSS.formatRGB(new Color(customTextColor));
+	containa.cwassName = cssCwasses.join(' ');
+	if (customTextCowow) {
+		containa.stywe.cowow =
+			Cowow.Fowmat.CSS.fowmatWGB(new Cowow(customTextCowow));
 	}
-	if (customBackgroundColor) {
-		container.style.backgroundColor =
-			Color.Format.CSS.formatRGB(new Color(customBackgroundColor));
+	if (customBackgwoundCowow) {
+		containa.stywe.backgwoundCowow =
+			Cowow.Fowmat.CSS.fowmatWGB(new Cowow(customBackgwoundCowow));
 	}
-	if (customUnderlineColor) {
-		container.style.textDecorationColor =
-			Color.Format.CSS.formatRGB(new Color(customUnderlineColor));
+	if (customUndewwineCowow) {
+		containa.stywe.textDecowationCowow =
+			Cowow.Fowmat.CSS.fowmatWGB(new Cowow(customUndewwineCowow));
 	}
-	root.appendChild(container);
+	woot.appendChiwd(containa);
 }
 
 /**
- * Calculate the color from the color set defined in the ANSI 8-bit standard.
- * Standard and high intensity colors are not defined in the standard as specific
- * colors, so these and invalid colors return `undefined`.
- * @see {@link https://en.wikipedia.org/wiki/ANSI_escape_code#8-bit } for info.
- * @param colorNumber The number (ranging from 16 to 255) referring to the color
- * desired.
+ * Cawcuwate the cowow fwom the cowow set defined in the ANSI 8-bit standawd.
+ * Standawd and high intensity cowows awe not defined in the standawd as specific
+ * cowows, so these and invawid cowows wetuwn `undefined`.
+ * @see {@wink https://en.wikipedia.owg/wiki/ANSI_escape_code#8-bit } fow info.
+ * @pawam cowowNumba The numba (wanging fwom 16 to 255) wefewwing to the cowow
+ * desiwed.
  */
-export function calcANSI8bitColor(colorNumber: number): RGBA | undefined {
-	if (colorNumber % 1 !== 0) {
-		// Should be integer
-		return;
-	} if (colorNumber >= 16 && colorNumber <= 231) {
-		// Converts to one of 216 RGB colors
-		colorNumber -= 16;
+expowt function cawcANSI8bitCowow(cowowNumba: numba): WGBA | undefined {
+	if (cowowNumba % 1 !== 0) {
+		// Shouwd be intega
+		wetuwn;
+	} if (cowowNumba >= 16 && cowowNumba <= 231) {
+		// Convewts to one of 216 WGB cowows
+		cowowNumba -= 16;
 
-		let blue: number = colorNumber % 6;
-		colorNumber = (colorNumber - blue) / 6;
-		let green: number = colorNumber % 6;
-		colorNumber = (colorNumber - green) / 6;
-		let red: number = colorNumber;
+		wet bwue: numba = cowowNumba % 6;
+		cowowNumba = (cowowNumba - bwue) / 6;
+		wet gween: numba = cowowNumba % 6;
+		cowowNumba = (cowowNumba - gween) / 6;
+		wet wed: numba = cowowNumba;
 
-		// red, green, blue now range on [0, 5], need to map to [0,255]
-		const convFactor: number = 255 / 5;
-		blue = Math.round(blue * convFactor);
-		green = Math.round(green * convFactor);
-		red = Math.round(red * convFactor);
+		// wed, gween, bwue now wange on [0, 5], need to map to [0,255]
+		const convFactow: numba = 255 / 5;
+		bwue = Math.wound(bwue * convFactow);
+		gween = Math.wound(gween * convFactow);
+		wed = Math.wound(wed * convFactow);
 
-		return new RGBA(red, green, blue);
-	} else if (colorNumber >= 232 && colorNumber <= 255) {
-		// Converts to a grayscale value
-		colorNumber -= 232;
-		const colorLevel: number = Math.round(colorNumber / 23 * 255);
-		return new RGBA(colorLevel, colorLevel, colorLevel);
-	} else {
-		return;
+		wetuwn new WGBA(wed, gween, bwue);
+	} ewse if (cowowNumba >= 232 && cowowNumba <= 255) {
+		// Convewts to a gwayscawe vawue
+		cowowNumba -= 232;
+		const cowowWevew: numba = Math.wound(cowowNumba / 23 * 255);
+		wetuwn new WGBA(cowowWevew, cowowWevew, cowowWevew);
+	} ewse {
+		wetuwn;
 	}
 }

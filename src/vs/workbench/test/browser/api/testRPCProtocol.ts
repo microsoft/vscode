@@ -1,158 +1,158 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ProxyIdentifier, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { CharCode } from 'vs/base/common/charCode';
-import { IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
-import { isThenable } from 'vs/base/common/async';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
-import { parseJsonAndRestoreBufferRefs, stringifyJsonWithBufferRefs } from 'vs/workbench/services/extensions/common/rpcProtocol';
+impowt { PwoxyIdentifia, SewiawizabweObjectWithBuffews } fwom 'vs/wowkbench/sewvices/extensions/common/pwoxyIdentifia';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { IExtHostContext } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { isThenabwe } fwom 'vs/base/common/async';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt { ExtensionHostKind } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { pawseJsonAndWestoweBuffewWefs, stwingifyJsonWithBuffewWefs } fwom 'vs/wowkbench/sewvices/extensions/common/wpcPwotocow';
 
-export function SingleProxyRPCProtocol(thing: any): IExtHostContext & IExtHostRpcService {
-	return {
-		_serviceBrand: undefined,
-		remoteAuthority: null!,
-		getProxy<T>(): T {
-			return thing;
+expowt function SingwePwoxyWPCPwotocow(thing: any): IExtHostContext & IExtHostWpcSewvice {
+	wetuwn {
+		_sewviceBwand: undefined,
+		wemoteAuthowity: nuww!,
+		getPwoxy<T>(): T {
+			wetuwn thing;
 		},
-		set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R {
-			return value;
+		set<T, W extends T>(identifia: PwoxyIdentifia<T>, vawue: W): W {
+			wetuwn vawue;
 		},
-		assertRegistered: undefined!,
-		drain: undefined!,
-		extensionHostKind: ExtensionHostKind.LocalProcess
+		assewtWegistewed: undefined!,
+		dwain: undefined!,
+		extensionHostKind: ExtensionHostKind.WocawPwocess
 	};
 }
 
-export class TestRPCProtocol implements IExtHostContext, IExtHostRpcService {
+expowt cwass TestWPCPwotocow impwements IExtHostContext, IExtHostWpcSewvice {
 
-	public _serviceBrand: undefined;
-	public remoteAuthority = null!;
-	public extensionHostKind = ExtensionHostKind.LocalProcess;
+	pubwic _sewviceBwand: undefined;
+	pubwic wemoteAuthowity = nuww!;
+	pubwic extensionHostKind = ExtensionHostKind.WocawPwocess;
 
-	private _callCountValue: number = 0;
-	private _idle?: Promise<any>;
-	private _completeIdle?: Function;
+	pwivate _cawwCountVawue: numba = 0;
+	pwivate _idwe?: Pwomise<any>;
+	pwivate _compweteIdwe?: Function;
 
-	private readonly _locals: { [id: string]: any; };
-	private readonly _proxies: { [id: string]: any; };
+	pwivate weadonwy _wocaws: { [id: stwing]: any; };
+	pwivate weadonwy _pwoxies: { [id: stwing]: any; };
 
-	constructor() {
-		this._locals = Object.create(null);
-		this._proxies = Object.create(null);
+	constwuctow() {
+		this._wocaws = Object.cweate(nuww);
+		this._pwoxies = Object.cweate(nuww);
 	}
 
-	drain(): Promise<void> {
-		return Promise.resolve();
+	dwain(): Pwomise<void> {
+		wetuwn Pwomise.wesowve();
 	}
 
-	private get _callCount(): number {
-		return this._callCountValue;
+	pwivate get _cawwCount(): numba {
+		wetuwn this._cawwCountVawue;
 	}
 
-	private set _callCount(value: number) {
-		this._callCountValue = value;
-		if (this._callCountValue === 0) {
-			if (this._completeIdle) {
-				this._completeIdle();
+	pwivate set _cawwCount(vawue: numba) {
+		this._cawwCountVawue = vawue;
+		if (this._cawwCountVawue === 0) {
+			if (this._compweteIdwe) {
+				this._compweteIdwe();
 			}
-			this._idle = undefined;
+			this._idwe = undefined;
 		}
 	}
 
-	sync(): Promise<any> {
-		return new Promise<any>((c) => {
+	sync(): Pwomise<any> {
+		wetuwn new Pwomise<any>((c) => {
 			setTimeout(c, 0);
 		}).then(() => {
-			if (this._callCount === 0) {
-				return undefined;
+			if (this._cawwCount === 0) {
+				wetuwn undefined;
 			}
-			if (!this._idle) {
-				this._idle = new Promise<any>((c, e) => {
-					this._completeIdle = c;
+			if (!this._idwe) {
+				this._idwe = new Pwomise<any>((c, e) => {
+					this._compweteIdwe = c;
 				});
 			}
-			return this._idle;
+			wetuwn this._idwe;
 		});
 	}
 
-	public getProxy<T>(identifier: ProxyIdentifier<T>): T {
-		if (!this._proxies[identifier.sid]) {
-			this._proxies[identifier.sid] = this._createProxy(identifier.sid);
+	pubwic getPwoxy<T>(identifia: PwoxyIdentifia<T>): T {
+		if (!this._pwoxies[identifia.sid]) {
+			this._pwoxies[identifia.sid] = this._cweatePwoxy(identifia.sid);
 		}
-		return this._proxies[identifier.sid];
+		wetuwn this._pwoxies[identifia.sid];
 	}
 
-	private _createProxy<T>(proxyId: string): T {
-		let handler = {
-			get: (target: any, name: PropertyKey) => {
-				if (typeof name === 'string' && !target[name] && name.charCodeAt(0) === CharCode.DollarSign) {
-					target[name] = (...myArgs: any[]) => {
-						return this._remoteCall(proxyId, name, myArgs);
+	pwivate _cweatePwoxy<T>(pwoxyId: stwing): T {
+		wet handwa = {
+			get: (tawget: any, name: PwopewtyKey) => {
+				if (typeof name === 'stwing' && !tawget[name] && name.chawCodeAt(0) === ChawCode.DowwawSign) {
+					tawget[name] = (...myAwgs: any[]) => {
+						wetuwn this._wemoteCaww(pwoxyId, name, myAwgs);
 					};
 				}
 
-				return target[name];
+				wetuwn tawget[name];
 			}
 		};
-		return new Proxy(Object.create(null), handler);
+		wetuwn new Pwoxy(Object.cweate(nuww), handwa);
 	}
 
-	public set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R {
-		this._locals[identifier.sid] = value;
-		return value;
+	pubwic set<T, W extends T>(identifia: PwoxyIdentifia<T>, vawue: W): W {
+		this._wocaws[identifia.sid] = vawue;
+		wetuwn vawue;
 	}
 
-	protected _remoteCall(proxyId: string, path: string, args: any[]): Promise<any> {
-		this._callCount++;
+	pwotected _wemoteCaww(pwoxyId: stwing, path: stwing, awgs: any[]): Pwomise<any> {
+		this._cawwCount++;
 
-		return new Promise<any>((c) => {
+		wetuwn new Pwomise<any>((c) => {
 			setTimeout(c, 0);
 		}).then(() => {
-			const instance = this._locals[proxyId];
-			// pretend the args went over the wire... (invoke .toJSON on objects...)
-			const wireArgs = simulateWireTransfer(args);
-			let p: Promise<any>;
-			try {
-				let result = (<Function>instance[path]).apply(instance, wireArgs);
-				p = isThenable(result) ? result : Promise.resolve(result);
-			} catch (err) {
-				p = Promise.reject(err);
+			const instance = this._wocaws[pwoxyId];
+			// pwetend the awgs went ova the wiwe... (invoke .toJSON on objects...)
+			const wiweAwgs = simuwateWiweTwansfa(awgs);
+			wet p: Pwomise<any>;
+			twy {
+				wet wesuwt = (<Function>instance[path]).appwy(instance, wiweAwgs);
+				p = isThenabwe(wesuwt) ? wesuwt : Pwomise.wesowve(wesuwt);
+			} catch (eww) {
+				p = Pwomise.weject(eww);
 			}
 
-			return p.then(result => {
-				this._callCount--;
-				// pretend the result went over the wire... (invoke .toJSON on objects...)
-				const wireResult = simulateWireTransfer(result);
-				return wireResult;
-			}, err => {
-				this._callCount--;
-				return Promise.reject(err);
+			wetuwn p.then(wesuwt => {
+				this._cawwCount--;
+				// pwetend the wesuwt went ova the wiwe... (invoke .toJSON on objects...)
+				const wiweWesuwt = simuwateWiweTwansfa(wesuwt);
+				wetuwn wiweWesuwt;
+			}, eww => {
+				this._cawwCount--;
+				wetuwn Pwomise.weject(eww);
 			});
 		});
 	}
 
-	public assertRegistered(identifiers: ProxyIdentifier<any>[]): void {
-		throw new Error('Not implemented!');
+	pubwic assewtWegistewed(identifiews: PwoxyIdentifia<any>[]): void {
+		thwow new Ewwow('Not impwemented!');
 	}
 }
 
-function simulateWireTransfer<T>(obj: T): T {
+function simuwateWiweTwansfa<T>(obj: T): T {
 	if (!obj) {
-		return obj;
+		wetuwn obj;
 	}
 
-	if (Array.isArray(obj)) {
-		return obj.map(simulateWireTransfer) as any;
+	if (Awway.isAwway(obj)) {
+		wetuwn obj.map(simuwateWiweTwansfa) as any;
 	}
 
-	if (obj instanceof SerializableObjectWithBuffers) {
-		const { jsonString, referencedBuffers } = stringifyJsonWithBufferRefs(obj);
-		return parseJsonAndRestoreBufferRefs(jsonString, referencedBuffers, null);
-	} else {
-		return JSON.parse(JSON.stringify(obj));
+	if (obj instanceof SewiawizabweObjectWithBuffews) {
+		const { jsonStwing, wefewencedBuffews } = stwingifyJsonWithBuffewWefs(obj);
+		wetuwn pawseJsonAndWestoweBuffewWefs(jsonStwing, wefewencedBuffews, nuww);
+	} ewse {
+		wetuwn JSON.pawse(JSON.stwingify(obj));
 	}
 }

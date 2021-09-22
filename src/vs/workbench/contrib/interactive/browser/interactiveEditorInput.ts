@@ -1,173 +1,173 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import * as paths from 'vs/base/common/path';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IInteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
-import { IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+impowt { Event } fwom 'vs/base/common/event';
+impowt * as paths fwom 'vs/base/common/path';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IUntypedEditowInput } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { IIntewactiveDocumentSewvice } fwom 'vs/wowkbench/contwib/intewactive/bwowsa/intewactiveDocumentSewvice';
+impowt { IWesowvedNotebookEditowModew } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { ICompositeNotebookEditowInput, NotebookEditowInput } fwom 'vs/wowkbench/contwib/notebook/common/notebookEditowInput';
 
-export class InteractiveEditorInput extends EditorInput implements ICompositeNotebookEditorInput {
-	static create(instantiationService: IInstantiationService, resource: URI, inputResource: URI, title?: string) {
-		return instantiationService.createInstance(InteractiveEditorInput, resource, inputResource, title);
+expowt cwass IntewactiveEditowInput extends EditowInput impwements ICompositeNotebookEditowInput {
+	static cweate(instantiationSewvice: IInstantiationSewvice, wesouwce: UWI, inputWesouwce: UWI, titwe?: stwing) {
+		wetuwn instantiationSewvice.cweateInstance(IntewactiveEditowInput, wesouwce, inputWesouwce, titwe);
 	}
 
-	static readonly ID: string = 'workbench.input.interactive';
+	static weadonwy ID: stwing = 'wowkbench.input.intewactive';
 
-	override get typeId(): string {
-		return InteractiveEditorInput.ID;
+	ovewwide get typeId(): stwing {
+		wetuwn IntewactiveEditowInput.ID;
 	}
 
-	private _initTitle?: string;
+	pwivate _initTitwe?: stwing;
 
-	private _notebookEditorInput: NotebookEditorInput;
-	get notebookEditorInput() {
-		return this._notebookEditorInput;
+	pwivate _notebookEditowInput: NotebookEditowInput;
+	get notebookEditowInput() {
+		wetuwn this._notebookEditowInput;
 	}
 
-	get editorInputs() {
-		return [this._notebookEditorInput];
+	get editowInputs() {
+		wetuwn [this._notebookEditowInput];
 	}
 
-	override get resource() {
-		return this.primary.resource;
+	ovewwide get wesouwce() {
+		wetuwn this.pwimawy.wesouwce;
 	}
 
-	private _inputResource: URI;
+	pwivate _inputWesouwce: UWI;
 
-	get inputResource() {
-		return this._inputResource;
+	get inputWesouwce() {
+		wetuwn this._inputWesouwce;
 	}
-	private _inputResolver: Promise<IResolvedNotebookEditorModel | null> | null;
-	private _editorModelReference: IResolvedNotebookEditorModel | null;
+	pwivate _inputWesowva: Pwomise<IWesowvedNotebookEditowModew | nuww> | nuww;
+	pwivate _editowModewWefewence: IWesowvedNotebookEditowModew | nuww;
 
-	private _inputModel: ITextModel | null;
+	pwivate _inputModew: ITextModew | nuww;
 
-	get inputModel() {
-		return this._inputModel;
+	get inputModew() {
+		wetuwn this._inputModew;
 	}
 
-	get primary(): EditorInput {
-		return this._notebookEditorInput;
+	get pwimawy(): EditowInput {
+		wetuwn this._notebookEditowInput;
 	}
-	private _modelService: IModelService;
-	private _interactiveDocumentService: IInteractiveDocumentService;
+	pwivate _modewSewvice: IModewSewvice;
+	pwivate _intewactiveDocumentSewvice: IIntewactiveDocumentSewvice;
 
 
-	constructor(
-		resource: URI,
-		inputResource: URI,
-		title: string | undefined,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IModelService modelService: IModelService,
-		@IInteractiveDocumentService interactiveDocumentService: IInteractiveDocumentService
+	constwuctow(
+		wesouwce: UWI,
+		inputWesouwce: UWI,
+		titwe: stwing | undefined,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IModewSewvice modewSewvice: IModewSewvice,
+		@IIntewactiveDocumentSewvice intewactiveDocumentSewvice: IIntewactiveDocumentSewvice
 	) {
-		const input = NotebookEditorInput.create(instantiationService, resource, 'interactive', {});
-		super();
-		this._notebookEditorInput = input;
-		this._register(this._notebookEditorInput);
-		this._initTitle = title;
-		this._inputResource = inputResource;
-		this._inputResolver = null;
-		this._editorModelReference = null;
-		this._inputModel = null;
-		this._modelService = modelService;
-		this._interactiveDocumentService = interactiveDocumentService;
+		const input = NotebookEditowInput.cweate(instantiationSewvice, wesouwce, 'intewactive', {});
+		supa();
+		this._notebookEditowInput = input;
+		this._wegista(this._notebookEditowInput);
+		this._initTitwe = titwe;
+		this._inputWesouwce = inputWesouwce;
+		this._inputWesowva = nuww;
+		this._editowModewWefewence = nuww;
+		this._inputModew = nuww;
+		this._modewSewvice = modewSewvice;
+		this._intewactiveDocumentSewvice = intewactiveDocumentSewvice;
 
-		this._registerListeners();
+		this._wegistewWistenews();
 	}
 
-	private _registerListeners(): void {
-		const oncePrimaryDisposed = Event.once(this.primary.onWillDispose);
-		this._register(oncePrimaryDisposed(() => {
+	pwivate _wegistewWistenews(): void {
+		const oncePwimawyDisposed = Event.once(this.pwimawy.onWiwwDispose);
+		this._wegista(oncePwimawyDisposed(() => {
 			if (!this.isDisposed()) {
 				this.dispose();
 			}
 		}));
 
-		// Re-emit some events from the primary side to the outside
-		this._register(this.primary.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
-		this._register(this.primary.onDidChangeLabel(() => this._onDidChangeLabel.fire()));
+		// We-emit some events fwom the pwimawy side to the outside
+		this._wegista(this.pwimawy.onDidChangeDiwty(() => this._onDidChangeDiwty.fiwe()));
+		this._wegista(this.pwimawy.onDidChangeWabew(() => this._onDidChangeWabew.fiwe()));
 
-		// Re-emit some events from both sides to the outside
-		this._register(this.primary.onDidChangeCapabilities(() => this._onDidChangeCapabilities.fire()));
+		// We-emit some events fwom both sides to the outside
+		this._wegista(this.pwimawy.onDidChangeCapabiwities(() => this._onDidChangeCapabiwities.fiwe()));
 	}
 
-	override isDirty() {
-		return false;
+	ovewwide isDiwty() {
+		wetuwn fawse;
 	}
 
-	private async _resolveEditorModel() {
-		if (!this._editorModelReference) {
-			this._editorModelReference = await this._notebookEditorInput.resolve();
+	pwivate async _wesowveEditowModew() {
+		if (!this._editowModewWefewence) {
+			this._editowModewWefewence = await this._notebookEditowInput.wesowve();
 		}
 
-		return this._editorModelReference;
+		wetuwn this._editowModewWefewence;
 	}
 
-	override async resolve(): Promise<IResolvedNotebookEditorModel | null> {
-		if (this._editorModelReference) {
-			return this._editorModelReference;
+	ovewwide async wesowve(): Pwomise<IWesowvedNotebookEditowModew | nuww> {
+		if (this._editowModewWefewence) {
+			wetuwn this._editowModewWefewence;
 		}
 
-		if (this._inputResolver) {
-			return this._inputResolver;
+		if (this._inputWesowva) {
+			wetuwn this._inputWesowva;
 		}
 
-		this._inputResolver = this._resolveEditorModel();
-		return this._inputResolver;
+		this._inputWesowva = this._wesowveEditowModew();
+		wetuwn this._inputWesowva;
 	}
 
-	resolveInput(language: string) {
-		if (this._inputModel) {
-			return this._inputModel;
+	wesowveInput(wanguage: stwing) {
+		if (this._inputModew) {
+			wetuwn this._inputModew;
 		}
 
-		this._interactiveDocumentService.willCreateInteractiveDocument(this.resource!, this.inputResource, language);
-		this._inputModel = this._modelService.createModel('', null, this.inputResource, false);
-		return this._inputModel;
+		this._intewactiveDocumentSewvice.wiwwCweateIntewactiveDocument(this.wesouwce!, this.inputWesouwce, wanguage);
+		this._inputModew = this._modewSewvice.cweateModew('', nuww, this.inputWesouwce, fawse);
+		wetuwn this._inputModew;
 	}
 
-	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
-		if (super.matches(otherInput)) {
-			return true;
+	ovewwide matches(othewInput: EditowInput | IUntypedEditowInput): boowean {
+		if (supa.matches(othewInput)) {
+			wetuwn twue;
 		}
-		if (otherInput instanceof InteractiveEditorInput) {
-			return isEqual(this.resource, otherInput.resource);
+		if (othewInput instanceof IntewactiveEditowInput) {
+			wetuwn isEquaw(this.wesouwce, othewInput.wesouwce);
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	override getName() {
-		if (this._initTitle) {
-			return this._initTitle;
+	ovewwide getName() {
+		if (this._initTitwe) {
+			wetuwn this._initTitwe;
 		}
 
-		const p = this.primary.resource!.path;
+		const p = this.pwimawy.wesouwce!.path;
 		const basename = paths.basename(p);
 
-		return basename.substr(0, basename.length - paths.extname(p).length);
+		wetuwn basename.substw(0, basename.wength - paths.extname(p).wength);
 	}
 
-	override dispose() {
-		// we support closing the interactive window without prompt, so the editor model should not be dirty
-		this._editorModelReference?.revert({ soft: true });
+	ovewwide dispose() {
+		// we suppowt cwosing the intewactive window without pwompt, so the editow modew shouwd not be diwty
+		this._editowModewWefewence?.wevewt({ soft: twue });
 
-		this._notebookEditorInput?.dispose();
-		this._editorModelReference?.dispose();
-		this._editorModelReference = null;
-		this._interactiveDocumentService.willRemoveInteractiveDocument(this.resource!, this.inputResource);
-		this._inputModel?.dispose();
-		this._inputModel = null;
-		super.dispose();
+		this._notebookEditowInput?.dispose();
+		this._editowModewWefewence?.dispose();
+		this._editowModewWefewence = nuww;
+		this._intewactiveDocumentSewvice.wiwwWemoveIntewactiveDocument(this.wesouwce!, this.inputWesouwce);
+		this._inputModew?.dispose();
+		this._inputModew = nuww;
+		supa.dispose();
 	}
 }

@@ -1,192 +1,192 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { CodeEditorStateFlag, EditorState } from 'vs/editor/browser/core/editorState';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { editorBracketMatchBorder } from 'vs/editor/common/view/editorColorRegistry';
-import * as nls from 'vs/nls';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { InPlaceReplaceCommand } from './inPlaceReplaceCommand';
+impowt { CancewabwePwomise, cweateCancewabwePwomise, timeout } fwom 'vs/base/common/async';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { CodeEditowStateFwag, EditowState } fwom 'vs/editow/bwowsa/cowe/editowState';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, wegistewEditowAction, wegistewEditowContwibution, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { ModewDecowationOptions } fwom 'vs/editow/common/modew/textModew';
+impowt { IInpwaceWepwaceSuppowtWesuwt } fwom 'vs/editow/common/modes';
+impowt { IEditowWowkewSewvice } fwom 'vs/editow/common/sewvices/editowWowkewSewvice';
+impowt { editowBwacketMatchBowda } fwom 'vs/editow/common/view/editowCowowWegistwy';
+impowt * as nws fwom 'vs/nws';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { InPwaceWepwaceCommand } fwom './inPwaceWepwaceCommand';
 
-class InPlaceReplaceController implements IEditorContribution {
+cwass InPwaceWepwaceContwowwa impwements IEditowContwibution {
 
-	public static readonly ID = 'editor.contrib.inPlaceReplaceController';
+	pubwic static weadonwy ID = 'editow.contwib.inPwaceWepwaceContwowwa';
 
-	static get(editor: ICodeEditor): InPlaceReplaceController {
-		return editor.getContribution<InPlaceReplaceController>(InPlaceReplaceController.ID);
+	static get(editow: ICodeEditow): InPwaceWepwaceContwowwa {
+		wetuwn editow.getContwibution<InPwaceWepwaceContwowwa>(InPwaceWepwaceContwowwa.ID);
 	}
 
-	private static readonly DECORATION = ModelDecorationOptions.register({
-		description: 'in-place-replace',
-		className: 'valueSetReplacement'
+	pwivate static weadonwy DECOWATION = ModewDecowationOptions.wegista({
+		descwiption: 'in-pwace-wepwace',
+		cwassName: 'vawueSetWepwacement'
 	});
 
-	private readonly editor: ICodeEditor;
-	private readonly editorWorkerService: IEditorWorkerService;
-	private decorationIds: string[] = [];
-	private currentRequest?: CancelablePromise<IInplaceReplaceSupportResult | null>;
-	private decorationRemover?: CancelablePromise<void>;
+	pwivate weadonwy editow: ICodeEditow;
+	pwivate weadonwy editowWowkewSewvice: IEditowWowkewSewvice;
+	pwivate decowationIds: stwing[] = [];
+	pwivate cuwwentWequest?: CancewabwePwomise<IInpwaceWepwaceSuppowtWesuwt | nuww>;
+	pwivate decowationWemova?: CancewabwePwomise<void>;
 
-	constructor(
-		editor: ICodeEditor,
-		@IEditorWorkerService editorWorkerService: IEditorWorkerService
+	constwuctow(
+		editow: ICodeEditow,
+		@IEditowWowkewSewvice editowWowkewSewvice: IEditowWowkewSewvice
 	) {
-		this.editor = editor;
-		this.editorWorkerService = editorWorkerService;
+		this.editow = editow;
+		this.editowWowkewSewvice = editowWowkewSewvice;
 	}
 
-	public dispose(): void {
+	pubwic dispose(): void {
 	}
 
-	public run(source: string, up: boolean): Promise<void> | undefined {
+	pubwic wun(souwce: stwing, up: boowean): Pwomise<void> | undefined {
 
-		// cancel any pending request
-		if (this.currentRequest) {
-			this.currentRequest.cancel();
+		// cancew any pending wequest
+		if (this.cuwwentWequest) {
+			this.cuwwentWequest.cancew();
 		}
 
-		const editorSelection = this.editor.getSelection();
-		const model = this.editor.getModel();
-		if (!model || !editorSelection) {
-			return undefined;
+		const editowSewection = this.editow.getSewection();
+		const modew = this.editow.getModew();
+		if (!modew || !editowSewection) {
+			wetuwn undefined;
 		}
-		let selection = editorSelection;
-		if (selection.startLineNumber !== selection.endLineNumber) {
-			// Can't accept multiline selection
-			return undefined;
-		}
-
-		const state = new EditorState(this.editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
-		const modelURI = model.uri;
-		if (!this.editorWorkerService.canNavigateValueSet(modelURI)) {
-			return Promise.resolve(undefined);
+		wet sewection = editowSewection;
+		if (sewection.stawtWineNumba !== sewection.endWineNumba) {
+			// Can't accept muwtiwine sewection
+			wetuwn undefined;
 		}
 
-		this.currentRequest = createCancelablePromise(token => this.editorWorkerService.navigateValueSet(modelURI, selection!, up));
+		const state = new EditowState(this.editow, CodeEditowStateFwag.Vawue | CodeEditowStateFwag.Position);
+		const modewUWI = modew.uwi;
+		if (!this.editowWowkewSewvice.canNavigateVawueSet(modewUWI)) {
+			wetuwn Pwomise.wesowve(undefined);
+		}
 
-		return this.currentRequest.then(result => {
+		this.cuwwentWequest = cweateCancewabwePwomise(token => this.editowWowkewSewvice.navigateVawueSet(modewUWI, sewection!, up));
 
-			if (!result || !result.range || !result.value) {
-				// No proper result
-				return;
+		wetuwn this.cuwwentWequest.then(wesuwt => {
+
+			if (!wesuwt || !wesuwt.wange || !wesuwt.vawue) {
+				// No pwopa wesuwt
+				wetuwn;
 			}
 
-			if (!state.validate(this.editor)) {
+			if (!state.vawidate(this.editow)) {
 				// state has changed
-				return;
+				wetuwn;
 			}
 
-			// Selection
-			let editRange = Range.lift(result.range);
-			let highlightRange = result.range;
-			let diff = result.value.length - (selection!.endColumn - selection!.startColumn);
+			// Sewection
+			wet editWange = Wange.wift(wesuwt.wange);
+			wet highwightWange = wesuwt.wange;
+			wet diff = wesuwt.vawue.wength - (sewection!.endCowumn - sewection!.stawtCowumn);
 
-			// highlight
-			highlightRange = {
-				startLineNumber: highlightRange.startLineNumber,
-				startColumn: highlightRange.startColumn,
-				endLineNumber: highlightRange.endLineNumber,
-				endColumn: highlightRange.startColumn + result.value.length
+			// highwight
+			highwightWange = {
+				stawtWineNumba: highwightWange.stawtWineNumba,
+				stawtCowumn: highwightWange.stawtCowumn,
+				endWineNumba: highwightWange.endWineNumba,
+				endCowumn: highwightWange.stawtCowumn + wesuwt.vawue.wength
 			};
 			if (diff > 1) {
-				selection = new Selection(selection!.startLineNumber, selection!.startColumn, selection!.endLineNumber, selection!.endColumn + diff - 1);
+				sewection = new Sewection(sewection!.stawtWineNumba, sewection!.stawtCowumn, sewection!.endWineNumba, sewection!.endCowumn + diff - 1);
 			}
 
-			// Insert new text
-			const command = new InPlaceReplaceCommand(editRange, selection!, result.value);
+			// Insewt new text
+			const command = new InPwaceWepwaceCommand(editWange, sewection!, wesuwt.vawue);
 
-			this.editor.pushUndoStop();
-			this.editor.executeCommand(source, command);
-			this.editor.pushUndoStop();
+			this.editow.pushUndoStop();
+			this.editow.executeCommand(souwce, command);
+			this.editow.pushUndoStop();
 
-			// add decoration
-			this.decorationIds = this.editor.deltaDecorations(this.decorationIds, [{
-				range: highlightRange,
-				options: InPlaceReplaceController.DECORATION
+			// add decowation
+			this.decowationIds = this.editow.dewtaDecowations(this.decowationIds, [{
+				wange: highwightWange,
+				options: InPwaceWepwaceContwowwa.DECOWATION
 			}]);
 
-			// remove decoration after delay
-			if (this.decorationRemover) {
-				this.decorationRemover.cancel();
+			// wemove decowation afta deway
+			if (this.decowationWemova) {
+				this.decowationWemova.cancew();
 			}
-			this.decorationRemover = timeout(350);
-			this.decorationRemover.then(() => this.decorationIds = this.editor.deltaDecorations(this.decorationIds, [])).catch(onUnexpectedError);
+			this.decowationWemova = timeout(350);
+			this.decowationWemova.then(() => this.decowationIds = this.editow.dewtaDecowations(this.decowationIds, [])).catch(onUnexpectedEwwow);
 
-		}).catch(onUnexpectedError);
+		}).catch(onUnexpectedEwwow);
 	}
 }
 
-class InPlaceReplaceUp extends EditorAction {
+cwass InPwaceWepwaceUp extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.inPlaceReplace.up',
-			label: nls.localize('InPlaceReplaceAction.previous.label', "Replace with Previous Value"),
-			alias: 'Replace with Previous Value',
-			precondition: EditorContextKeys.writable,
+	constwuctow() {
+		supa({
+			id: 'editow.action.inPwaceWepwace.up',
+			wabew: nws.wocawize('InPwaceWepwaceAction.pwevious.wabew', "Wepwace with Pwevious Vawue"),
+			awias: 'Wepwace with Pwevious Vawue',
+			pwecondition: EditowContextKeys.wwitabwe,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_COMMA,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.US_COMMA,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> | undefined {
-		const controller = InPlaceReplaceController.get(editor);
-		if (!controller) {
-			return Promise.resolve(undefined);
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): Pwomise<void> | undefined {
+		const contwowwa = InPwaceWepwaceContwowwa.get(editow);
+		if (!contwowwa) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
-		return controller.run(this.id, true);
+		wetuwn contwowwa.wun(this.id, twue);
 	}
 }
 
-class InPlaceReplaceDown extends EditorAction {
+cwass InPwaceWepwaceDown extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.inPlaceReplace.down',
-			label: nls.localize('InPlaceReplaceAction.next.label', "Replace with Next Value"),
-			alias: 'Replace with Next Value',
-			precondition: EditorContextKeys.writable,
+	constwuctow() {
+		supa({
+			id: 'editow.action.inPwaceWepwace.down',
+			wabew: nws.wocawize('InPwaceWepwaceAction.next.wabew', "Wepwace with Next Vawue"),
+			awias: 'Wepwace with Next Vawue',
+			pwecondition: EditowContextKeys.wwitabwe,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.US_DOT,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> | undefined {
-		const controller = InPlaceReplaceController.get(editor);
-		if (!controller) {
-			return Promise.resolve(undefined);
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): Pwomise<void> | undefined {
+		const contwowwa = InPwaceWepwaceContwowwa.get(editow);
+		if (!contwowwa) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
-		return controller.run(this.id, false);
+		wetuwn contwowwa.wun(this.id, fawse);
 	}
 }
 
-registerEditorContribution(InPlaceReplaceController.ID, InPlaceReplaceController);
-registerEditorAction(InPlaceReplaceUp);
-registerEditorAction(InPlaceReplaceDown);
+wegistewEditowContwibution(InPwaceWepwaceContwowwa.ID, InPwaceWepwaceContwowwa);
+wegistewEditowAction(InPwaceWepwaceUp);
+wegistewEditowAction(InPwaceWepwaceDown);
 
-registerThemingParticipant((theme, collector) => {
-	const border = theme.getColor(editorBracketMatchBorder);
-	if (border) {
-		collector.addRule(`.monaco-editor.vs .valueSetReplacement { outline: solid 2px ${border}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const bowda = theme.getCowow(editowBwacketMatchBowda);
+	if (bowda) {
+		cowwectow.addWuwe(`.monaco-editow.vs .vawueSetWepwacement { outwine: sowid 2px ${bowda}; }`);
 	}
 });

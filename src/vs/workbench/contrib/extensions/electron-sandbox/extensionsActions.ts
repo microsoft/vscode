@@ -1,46 +1,46 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IFileService } from 'vs/platform/files/common/files';
-import { URI } from 'vs/base/common/uri';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { Schemas } from 'vs/base/common/network';
-import { Action2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ExtensionsLocalizedLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { INativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { Action2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ExtensionsWocawizedWabew } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
 
-export class OpenExtensionsFolderAction extends Action2 {
+expowt cwass OpenExtensionsFowdewAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.extensions.action.openExtensionsFolder',
-			title: { value: localize('openExtensionsFolder', "Open Extensions Folder"), original: 'Open Extensions Folder' },
-			category: ExtensionsLocalizedLabel,
-			f1: true
+	constwuctow() {
+		supa({
+			id: 'wowkbench.extensions.action.openExtensionsFowda',
+			titwe: { vawue: wocawize('openExtensionsFowda', "Open Extensions Fowda"), owiginaw: 'Open Extensions Fowda' },
+			categowy: ExtensionsWocawizedWabew,
+			f1: twue
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const nativeHostService = accessor.get(INativeHostService);
-		const fileService = accessor.get(IFileService);
-		const environmentService = accessor.get(INativeWorkbenchEnvironmentService);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const nativeHostSewvice = accessow.get(INativeHostSewvice);
+		const fiweSewvice = accessow.get(IFiweSewvice);
+		const enviwonmentSewvice = accessow.get(INativeWowkbenchEnviwonmentSewvice);
 
-		const extensionsHome = URI.file(environmentService.extensionsPath);
-		const file = await fileService.resolve(extensionsHome);
+		const extensionsHome = UWI.fiwe(enviwonmentSewvice.extensionsPath);
+		const fiwe = await fiweSewvice.wesowve(extensionsHome);
 
-		let itemToShow: URI;
-		if (file.children && file.children.length > 0) {
-			itemToShow = file.children[0].resource;
-		} else {
+		wet itemToShow: UWI;
+		if (fiwe.chiwdwen && fiwe.chiwdwen.wength > 0) {
+			itemToShow = fiwe.chiwdwen[0].wesouwce;
+		} ewse {
 			itemToShow = extensionsHome;
 		}
 
-		if (itemToShow.scheme === Schemas.file) {
-			return nativeHostService.showItemInFolder(itemToShow.fsPath);
+		if (itemToShow.scheme === Schemas.fiwe) {
+			wetuwn nativeHostSewvice.showItemInFowda(itemToShow.fsPath);
 		}
 	}
 }

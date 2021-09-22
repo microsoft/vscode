@@ -1,165 +1,165 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IDialogOptions, IConfirmation, IConfirmationResult, DialogType, IShowResult, IInputResult, ICheckbox, IInput, IDialogHandler, ICustomDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { ILogService } from 'vs/platform/log/common/log';
-import Severity from 'vs/base/common/severity';
-import { Dialog, IDialogResult } from 'vs/base/browser/ui/dialog/dialog';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachDialogStyler } from 'vs/platform/theme/common/styler';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { EventHelper } from 'vs/base/browser/dom';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { fromNow } from 'vs/base/common/date';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IDiawogOptions, IConfiwmation, IConfiwmationWesuwt, DiawogType, IShowWesuwt, IInputWesuwt, ICheckbox, IInput, IDiawogHandwa, ICustomDiawogOptions } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IWayoutSewvice } fwom 'vs/pwatfowm/wayout/bwowsa/wayoutSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { Diawog, IDiawogWesuwt } fwom 'vs/base/bwowsa/ui/diawog/diawog';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { attachDiawogStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { EventHewpa } fwom 'vs/base/bwowsa/dom';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { fwomNow } fwom 'vs/base/common/date';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { MawkdownWendewa } fwom 'vs/editow/bwowsa/cowe/mawkdownWendewa';
 
-export class BrowserDialogHandler implements IDialogHandler {
+expowt cwass BwowsewDiawogHandwa impwements IDiawogHandwa {
 
-	private static readonly ALLOWABLE_COMMANDS = [
+	pwivate static weadonwy AWWOWABWE_COMMANDS = [
 		'copy',
 		'cut',
-		'editor.action.selectAll',
-		'editor.action.clipboardCopyAction',
-		'editor.action.clipboardCutAction',
-		'editor.action.clipboardPasteAction'
+		'editow.action.sewectAww',
+		'editow.action.cwipboawdCopyAction',
+		'editow.action.cwipboawdCutAction',
+		'editow.action.cwipboawdPasteAction'
 	];
 
-	private readonly markdownRenderer: MarkdownRenderer;
+	pwivate weadonwy mawkdownWendewa: MawkdownWendewa;
 
-	constructor(
-		@ILogService private readonly logService: ILogService,
-		@ILayoutService private readonly layoutService: ILayoutService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IProductService private readonly productService: IProductService,
-		@IClipboardService private readonly clipboardService: IClipboardService
+	constwuctow(
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IWayoutSewvice pwivate weadonwy wayoutSewvice: IWayoutSewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
+		@IKeybindingSewvice pwivate weadonwy keybindingSewvice: IKeybindingSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@ICwipboawdSewvice pwivate weadonwy cwipboawdSewvice: ICwipboawdSewvice
 	) {
-		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+		this.mawkdownWendewa = this.instantiationSewvice.cweateInstance(MawkdownWendewa, {});
 	}
 
-	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
-		this.logService.trace('DialogService#confirm', confirmation.message);
+	async confiwm(confiwmation: IConfiwmation): Pwomise<IConfiwmationWesuwt> {
+		this.wogSewvice.twace('DiawogSewvice#confiwm', confiwmation.message);
 
-		const buttons: string[] = [];
-		if (confirmation.primaryButton) {
-			buttons.push(confirmation.primaryButton);
-		} else {
-			buttons.push(localize({ key: 'yesButton', comment: ['&& denotes a mnemonic'] }, "&&Yes"));
+		const buttons: stwing[] = [];
+		if (confiwmation.pwimawyButton) {
+			buttons.push(confiwmation.pwimawyButton);
+		} ewse {
+			buttons.push(wocawize({ key: 'yesButton', comment: ['&& denotes a mnemonic'] }, "&&Yes"));
 		}
 
-		if (confirmation.secondaryButton) {
-			buttons.push(confirmation.secondaryButton);
-		} else if (typeof confirmation.secondaryButton === 'undefined') {
-			buttons.push(localize('cancelButton', "Cancel"));
+		if (confiwmation.secondawyButton) {
+			buttons.push(confiwmation.secondawyButton);
+		} ewse if (typeof confiwmation.secondawyButton === 'undefined') {
+			buttons.push(wocawize('cancewButton', "Cancew"));
 		}
 
-		const result = await this.doShow(confirmation.type, confirmation.message, buttons, confirmation.detail, 1, confirmation.checkbox);
+		const wesuwt = await this.doShow(confiwmation.type, confiwmation.message, buttons, confiwmation.detaiw, 1, confiwmation.checkbox);
 
-		return { confirmed: result.button === 0, checkboxChecked: result.checkboxChecked };
+		wetuwn { confiwmed: wesuwt.button === 0, checkboxChecked: wesuwt.checkboxChecked };
 	}
 
-	private getDialogType(severity: Severity): DialogType {
-		return (severity === Severity.Info) ? 'question' : (severity === Severity.Error) ? 'error' : (severity === Severity.Warning) ? 'warning' : 'none';
+	pwivate getDiawogType(sevewity: Sevewity): DiawogType {
+		wetuwn (sevewity === Sevewity.Info) ? 'question' : (sevewity === Sevewity.Ewwow) ? 'ewwow' : (sevewity === Sevewity.Wawning) ? 'wawning' : 'none';
 	}
 
-	async show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult> {
-		this.logService.trace('DialogService#show', message);
+	async show(sevewity: Sevewity, message: stwing, buttons?: stwing[], options?: IDiawogOptions): Pwomise<IShowWesuwt> {
+		this.wogSewvice.twace('DiawogSewvice#show', message);
 
-		const result = await this.doShow(this.getDialogType(severity), message, buttons, options?.detail, options?.cancelId, options?.checkbox, undefined, typeof options?.custom === 'object' ? options.custom : undefined);
+		const wesuwt = await this.doShow(this.getDiawogType(sevewity), message, buttons, options?.detaiw, options?.cancewId, options?.checkbox, undefined, typeof options?.custom === 'object' ? options.custom : undefined);
 
-		return {
-			choice: result.button,
-			checkboxChecked: result.checkboxChecked
+		wetuwn {
+			choice: wesuwt.button,
+			checkboxChecked: wesuwt.checkboxChecked
 		};
 	}
 
-	private async doShow(type: 'none' | 'info' | 'error' | 'question' | 'warning' | 'pending' | undefined, message: string, buttons?: string[], detail?: string, cancelId?: number, checkbox?: ICheckbox, inputs?: IInput[], customOptions?: ICustomDialogOptions): Promise<IDialogResult> {
-		const dialogDisposables = new DisposableStore();
+	pwivate async doShow(type: 'none' | 'info' | 'ewwow' | 'question' | 'wawning' | 'pending' | undefined, message: stwing, buttons?: stwing[], detaiw?: stwing, cancewId?: numba, checkbox?: ICheckbox, inputs?: IInput[], customOptions?: ICustomDiawogOptions): Pwomise<IDiawogWesuwt> {
+		const diawogDisposabwes = new DisposabweStowe();
 
-		const renderBody = customOptions ? (parent: HTMLElement) => {
-			parent.classList.add(...(customOptions.classes || []));
-			(customOptions.markdownDetails || []).forEach(markdownDetail => {
-				const result = this.markdownRenderer.render(markdownDetail.markdown);
-				parent.appendChild(result.element);
-				result.element.classList.add(...(markdownDetail.classes || []));
-				dialogDisposables.add(result);
+		const wendewBody = customOptions ? (pawent: HTMWEwement) => {
+			pawent.cwassWist.add(...(customOptions.cwasses || []));
+			(customOptions.mawkdownDetaiws || []).fowEach(mawkdownDetaiw => {
+				const wesuwt = this.mawkdownWendewa.wenda(mawkdownDetaiw.mawkdown);
+				pawent.appendChiwd(wesuwt.ewement);
+				wesuwt.ewement.cwassWist.add(...(mawkdownDetaiw.cwasses || []));
+				diawogDisposabwes.add(wesuwt);
 			});
 		} : undefined;
 
-		const dialog = new Dialog(
-			this.layoutService.container,
+		const diawog = new Diawog(
+			this.wayoutSewvice.containa,
 			message,
 			buttons,
 			{
-				detail,
-				cancelId,
+				detaiw,
+				cancewId,
 				type,
-				keyEventProcessor: (event: StandardKeyboardEvent) => {
-					const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
-					if (resolved?.commandId) {
-						if (BrowserDialogHandler.ALLOWABLE_COMMANDS.indexOf(resolved.commandId) === -1) {
-							EventHelper.stop(event, true);
+				keyEventPwocessow: (event: StandawdKeyboawdEvent) => {
+					const wesowved = this.keybindingSewvice.softDispatch(event, this.wayoutSewvice.containa);
+					if (wesowved?.commandId) {
+						if (BwowsewDiawogHandwa.AWWOWABWE_COMMANDS.indexOf(wesowved.commandId) === -1) {
+							EventHewpa.stop(event, twue);
 						}
 					}
 				},
-				renderBody,
+				wendewBody,
 				icon: customOptions?.icon,
-				disableCloseAction: customOptions?.disableCloseAction,
-				buttonDetails: customOptions?.buttonDetails,
-				checkboxLabel: checkbox?.label,
+				disabweCwoseAction: customOptions?.disabweCwoseAction,
+				buttonDetaiws: customOptions?.buttonDetaiws,
+				checkboxWabew: checkbox?.wabew,
 				checkboxChecked: checkbox?.checked,
 				inputs
 			});
 
-		dialogDisposables.add(dialog);
-		dialogDisposables.add(attachDialogStyler(dialog, this.themeService));
+		diawogDisposabwes.add(diawog);
+		diawogDisposabwes.add(attachDiawogStywa(diawog, this.themeSewvice));
 
-		const result = await dialog.show();
-		dialogDisposables.dispose();
+		const wesuwt = await diawog.show();
+		diawogDisposabwes.dispose();
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	async input(severity: Severity, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult> {
-		this.logService.trace('DialogService#input', message);
+	async input(sevewity: Sevewity, message: stwing, buttons: stwing[], inputs: IInput[], options?: IDiawogOptions): Pwomise<IInputWesuwt> {
+		this.wogSewvice.twace('DiawogSewvice#input', message);
 
-		const result = await this.doShow(this.getDialogType(severity), message, buttons, options?.detail, options?.cancelId, options?.checkbox, inputs);
+		const wesuwt = await this.doShow(this.getDiawogType(sevewity), message, buttons, options?.detaiw, options?.cancewId, options?.checkbox, inputs);
 
-		return {
-			choice: result.button,
-			checkboxChecked: result.checkboxChecked,
-			values: result.values
+		wetuwn {
+			choice: wesuwt.button,
+			checkboxChecked: wesuwt.checkboxChecked,
+			vawues: wesuwt.vawues
 		};
 	}
 
-	async about(): Promise<void> {
-		const detailString = (useAgo: boolean): string => {
-			return localize('aboutDetail',
-				"Version: {0}\nCommit: {1}\nDate: {2}\nBrowser: {3}",
-				this.productService.version || 'Unknown',
-				this.productService.commit || 'Unknown',
-				this.productService.date ? `${this.productService.date}${useAgo ? ' (' + fromNow(new Date(this.productService.date), true) + ')' : ''}` : 'Unknown',
-				navigator.userAgent
+	async about(): Pwomise<void> {
+		const detaiwStwing = (useAgo: boowean): stwing => {
+			wetuwn wocawize('aboutDetaiw',
+				"Vewsion: {0}\nCommit: {1}\nDate: {2}\nBwowsa: {3}",
+				this.pwoductSewvice.vewsion || 'Unknown',
+				this.pwoductSewvice.commit || 'Unknown',
+				this.pwoductSewvice.date ? `${this.pwoductSewvice.date}${useAgo ? ' (' + fwomNow(new Date(this.pwoductSewvice.date), twue) + ')' : ''}` : 'Unknown',
+				navigatow.usewAgent
 			);
 		};
 
-		const detail = detailString(true);
-		const detailToCopy = detailString(false);
+		const detaiw = detaiwStwing(twue);
+		const detaiwToCopy = detaiwStwing(fawse);
 
 
-		const { choice } = await this.show(Severity.Info, this.productService.nameLong, [localize('copy', "Copy"), localize('ok', "OK")], { detail, cancelId: 1 });
+		const { choice } = await this.show(Sevewity.Info, this.pwoductSewvice.nameWong, [wocawize('copy', "Copy"), wocawize('ok', "OK")], { detaiw, cancewId: 1 });
 
 		if (choice === 0) {
-			this.clipboardService.writeText(detailToCopy);
+			this.cwipboawdSewvice.wwiteText(detaiwToCopy);
 		}
 	}
 }

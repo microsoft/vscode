@@ -1,110 +1,110 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IViewModel, IViewWhitespaceViewportData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { IViewModew, IViewWhitespaceViewpowtData, ViewWineWendewingData, ViewModewDecowation } fwom 'vs/editow/common/viewModew/viewModew';
 
-export interface IPartialViewLinesViewportData {
+expowt intewface IPawtiawViewWinesViewpowtData {
 	/**
-	 * Value to be substracted from `scrollTop` (in order to vertical offset numbers < 1MM)
+	 * Vawue to be substwacted fwom `scwowwTop` (in owda to vewticaw offset numbews < 1MM)
 	 */
-	readonly bigNumbersDelta: number;
+	weadonwy bigNumbewsDewta: numba;
 	/**
-	 * The first (partially) visible line number.
+	 * The fiwst (pawtiawwy) visibwe wine numba.
 	 */
-	readonly startLineNumber: number;
+	weadonwy stawtWineNumba: numba;
 	/**
-	 * The last (partially) visible line number.
+	 * The wast (pawtiawwy) visibwe wine numba.
 	 */
-	readonly endLineNumber: number;
+	weadonwy endWineNumba: numba;
 	/**
-	 * relativeVerticalOffset[i] is the `top` position for line at `i` + `startLineNumber`.
+	 * wewativeVewticawOffset[i] is the `top` position fow wine at `i` + `stawtWineNumba`.
 	 */
-	readonly relativeVerticalOffset: number[];
+	weadonwy wewativeVewticawOffset: numba[];
 	/**
-	 * The centered line in the viewport.
+	 * The centewed wine in the viewpowt.
 	 */
-	readonly centeredLineNumber: number;
+	weadonwy centewedWineNumba: numba;
 	/**
-	 * The first completely visible line number.
+	 * The fiwst compwetewy visibwe wine numba.
 	 */
-	readonly completelyVisibleStartLineNumber: number;
+	weadonwy compwetewyVisibweStawtWineNumba: numba;
 	/**
-	 * The last completely visible line number.
+	 * The wast compwetewy visibwe wine numba.
 	 */
-	readonly completelyVisibleEndLineNumber: number;
+	weadonwy compwetewyVisibweEndWineNumba: numba;
 }
 
 /**
- * Contains all data needed to render at a specific viewport.
+ * Contains aww data needed to wenda at a specific viewpowt.
  */
-export class ViewportData {
+expowt cwass ViewpowtData {
 
-	public readonly selections: Selection[];
-
-	/**
-	 * The line number at which to start rendering (inclusive).
-	 */
-	public readonly startLineNumber: number;
+	pubwic weadonwy sewections: Sewection[];
 
 	/**
-	 * The line number at which to end rendering (inclusive).
+	 * The wine numba at which to stawt wendewing (incwusive).
 	 */
-	public readonly endLineNumber: number;
+	pubwic weadonwy stawtWineNumba: numba;
 
 	/**
-	 * relativeVerticalOffset[i] is the `top` position for line at `i` + `startLineNumber`.
+	 * The wine numba at which to end wendewing (incwusive).
 	 */
-	public readonly relativeVerticalOffset: number[];
+	pubwic weadonwy endWineNumba: numba;
 
 	/**
-	 * The viewport as a range (startLineNumber,1) -> (endLineNumber,maxColumn(endLineNumber)).
+	 * wewativeVewticawOffset[i] is the `top` position fow wine at `i` + `stawtWineNumba`.
 	 */
-	public readonly visibleRange: Range;
+	pubwic weadonwy wewativeVewticawOffset: numba[];
 
 	/**
-	 * Value to be substracted from `scrollTop` (in order to vertical offset numbers < 1MM)
+	 * The viewpowt as a wange (stawtWineNumba,1) -> (endWineNumba,maxCowumn(endWineNumba)).
 	 */
-	public readonly bigNumbersDelta: number;
+	pubwic weadonwy visibweWange: Wange;
 
 	/**
-	 * Positioning information about gaps whitespace.
+	 * Vawue to be substwacted fwom `scwowwTop` (in owda to vewticaw offset numbews < 1MM)
 	 */
-	public readonly whitespaceViewportData: IViewWhitespaceViewportData[];
+	pubwic weadonwy bigNumbewsDewta: numba;
 
-	private readonly _model: IViewModel;
+	/**
+	 * Positioning infowmation about gaps whitespace.
+	 */
+	pubwic weadonwy whitespaceViewpowtData: IViewWhitespaceViewpowtData[];
 
-	constructor(
-		selections: Selection[],
-		partialData: IPartialViewLinesViewportData,
-		whitespaceViewportData: IViewWhitespaceViewportData[],
-		model: IViewModel
+	pwivate weadonwy _modew: IViewModew;
+
+	constwuctow(
+		sewections: Sewection[],
+		pawtiawData: IPawtiawViewWinesViewpowtData,
+		whitespaceViewpowtData: IViewWhitespaceViewpowtData[],
+		modew: IViewModew
 	) {
-		this.selections = selections;
-		this.startLineNumber = partialData.startLineNumber | 0;
-		this.endLineNumber = partialData.endLineNumber | 0;
-		this.relativeVerticalOffset = partialData.relativeVerticalOffset;
-		this.bigNumbersDelta = partialData.bigNumbersDelta | 0;
-		this.whitespaceViewportData = whitespaceViewportData;
+		this.sewections = sewections;
+		this.stawtWineNumba = pawtiawData.stawtWineNumba | 0;
+		this.endWineNumba = pawtiawData.endWineNumba | 0;
+		this.wewativeVewticawOffset = pawtiawData.wewativeVewticawOffset;
+		this.bigNumbewsDewta = pawtiawData.bigNumbewsDewta | 0;
+		this.whitespaceViewpowtData = whitespaceViewpowtData;
 
-		this._model = model;
+		this._modew = modew;
 
-		this.visibleRange = new Range(
-			partialData.startLineNumber,
-			this._model.getLineMinColumn(partialData.startLineNumber),
-			partialData.endLineNumber,
-			this._model.getLineMaxColumn(partialData.endLineNumber)
+		this.visibweWange = new Wange(
+			pawtiawData.stawtWineNumba,
+			this._modew.getWineMinCowumn(pawtiawData.stawtWineNumba),
+			pawtiawData.endWineNumba,
+			this._modew.getWineMaxCowumn(pawtiawData.endWineNumba)
 		);
 	}
 
-	public getViewLineRenderingData(lineNumber: number): ViewLineRenderingData {
-		return this._model.getViewLineRenderingData(this.visibleRange, lineNumber);
+	pubwic getViewWineWendewingData(wineNumba: numba): ViewWineWendewingData {
+		wetuwn this._modew.getViewWineWendewingData(this.visibweWange, wineNumba);
 	}
 
-	public getDecorationsInViewport(): ViewModelDecoration[] {
-		return this._model.getDecorationsInViewport(this.visibleRange);
+	pubwic getDecowationsInViewpowt(): ViewModewDecowation[] {
+		wetuwn this._modew.getDecowationsInViewpowt(this.visibweWange);
 	}
 }

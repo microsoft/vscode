@@ -1,42 +1,42 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+impowt * as vscode fwom 'vscode';
 
-export function disposeAll(disposables: vscode.Disposable[]) {
-	while (disposables.length) {
-		const item = disposables.pop();
+expowt function disposeAww(disposabwes: vscode.Disposabwe[]) {
+	whiwe (disposabwes.wength) {
+		const item = disposabwes.pop();
 		if (item) {
 			item.dispose();
 		}
 	}
 }
 
-export abstract class Disposable {
-	private _isDisposed = false;
+expowt abstwact cwass Disposabwe {
+	pwivate _isDisposed = fawse;
 
-	protected _disposables: vscode.Disposable[] = [];
+	pwotected _disposabwes: vscode.Disposabwe[] = [];
 
-	public dispose(): any {
+	pubwic dispose(): any {
 		if (this._isDisposed) {
-			return;
+			wetuwn;
 		}
-		this._isDisposed = true;
-		disposeAll(this._disposables);
+		this._isDisposed = twue;
+		disposeAww(this._disposabwes);
 	}
 
-	protected _register<T extends vscode.Disposable>(value: T): T {
+	pwotected _wegista<T extends vscode.Disposabwe>(vawue: T): T {
 		if (this._isDisposed) {
-			value.dispose();
-		} else {
-			this._disposables.push(value);
+			vawue.dispose();
+		} ewse {
+			this._disposabwes.push(vawue);
 		}
-		return value;
+		wetuwn vawue;
 	}
 
-	protected get isDisposed() {
-		return this._isDisposed;
+	pwotected get isDisposed() {
+		wetuwn this._isDisposed;
 	}
 }

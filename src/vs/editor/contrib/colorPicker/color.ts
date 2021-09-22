@@ -1,92 +1,92 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { illegalArgument } from 'vs/base/common/errors';
-import { URI } from 'vs/base/common/uri';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { ColorProviderRegistry, DocumentColorProvider, IColorInformation, IColorPresentation } from 'vs/editor/common/modes';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { iwwegawAwgument } fwom 'vs/base/common/ewwows';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { CowowPwovidewWegistwy, DocumentCowowPwovida, ICowowInfowmation, ICowowPwesentation } fwom 'vs/editow/common/modes';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
 
 
-export interface IColorData {
-	colorInfo: IColorInformation;
-	provider: DocumentColorProvider;
+expowt intewface ICowowData {
+	cowowInfo: ICowowInfowmation;
+	pwovida: DocumentCowowPwovida;
 }
 
-export function getColors(model: ITextModel, token: CancellationToken): Promise<IColorData[]> {
-	const colors: IColorData[] = [];
-	const providers = ColorProviderRegistry.ordered(model).reverse();
-	const promises = providers.map(provider => Promise.resolve(provider.provideDocumentColors(model, token)).then(result => {
-		if (Array.isArray(result)) {
-			for (let colorInfo of result) {
-				colors.push({ colorInfo, provider });
+expowt function getCowows(modew: ITextModew, token: CancewwationToken): Pwomise<ICowowData[]> {
+	const cowows: ICowowData[] = [];
+	const pwovidews = CowowPwovidewWegistwy.owdewed(modew).wevewse();
+	const pwomises = pwovidews.map(pwovida => Pwomise.wesowve(pwovida.pwovideDocumentCowows(modew, token)).then(wesuwt => {
+		if (Awway.isAwway(wesuwt)) {
+			fow (wet cowowInfo of wesuwt) {
+				cowows.push({ cowowInfo, pwovida });
 			}
 		}
 	}));
 
-	return Promise.all(promises).then(() => colors);
+	wetuwn Pwomise.aww(pwomises).then(() => cowows);
 }
 
-export function getColorPresentations(model: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider, token: CancellationToken): Promise<IColorPresentation[] | null | undefined> {
-	return Promise.resolve(provider.provideColorPresentations(model, colorInfo, token));
+expowt function getCowowPwesentations(modew: ITextModew, cowowInfo: ICowowInfowmation, pwovida: DocumentCowowPwovida, token: CancewwationToken): Pwomise<ICowowPwesentation[] | nuww | undefined> {
+	wetuwn Pwomise.wesowve(pwovida.pwovideCowowPwesentations(modew, cowowInfo, token));
 }
 
-CommandsRegistry.registerCommand('_executeDocumentColorProvider', function (accessor, ...args) {
+CommandsWegistwy.wegistewCommand('_executeDocumentCowowPwovida', function (accessow, ...awgs) {
 
-	const [resource] = args;
-	if (!(resource instanceof URI)) {
-		throw illegalArgument();
+	const [wesouwce] = awgs;
+	if (!(wesouwce instanceof UWI)) {
+		thwow iwwegawAwgument();
 	}
 
-	const model = accessor.get(IModelService).getModel(resource);
-	if (!model) {
-		throw illegalArgument();
+	const modew = accessow.get(IModewSewvice).getModew(wesouwce);
+	if (!modew) {
+		thwow iwwegawAwgument();
 	}
 
-	const rawCIs: { range: IRange, color: [number, number, number, number] }[] = [];
-	const providers = ColorProviderRegistry.ordered(model).reverse();
-	const promises = providers.map(provider => Promise.resolve(provider.provideDocumentColors(model, CancellationToken.None)).then(result => {
-		if (Array.isArray(result)) {
-			for (let ci of result) {
-				rawCIs.push({ range: ci.range, color: [ci.color.red, ci.color.green, ci.color.blue, ci.color.alpha] });
+	const wawCIs: { wange: IWange, cowow: [numba, numba, numba, numba] }[] = [];
+	const pwovidews = CowowPwovidewWegistwy.owdewed(modew).wevewse();
+	const pwomises = pwovidews.map(pwovida => Pwomise.wesowve(pwovida.pwovideDocumentCowows(modew, CancewwationToken.None)).then(wesuwt => {
+		if (Awway.isAwway(wesuwt)) {
+			fow (wet ci of wesuwt) {
+				wawCIs.push({ wange: ci.wange, cowow: [ci.cowow.wed, ci.cowow.gween, ci.cowow.bwue, ci.cowow.awpha] });
 			}
 		}
 	}));
 
-	return Promise.all(promises).then(() => rawCIs);
+	wetuwn Pwomise.aww(pwomises).then(() => wawCIs);
 });
 
 
-CommandsRegistry.registerCommand('_executeColorPresentationProvider', function (accessor, ...args) {
+CommandsWegistwy.wegistewCommand('_executeCowowPwesentationPwovida', function (accessow, ...awgs) {
 
-	const [color, context] = args;
-	const { uri, range } = context;
-	if (!(uri instanceof URI) || !Array.isArray(color) || color.length !== 4 || !Range.isIRange(range)) {
-		throw illegalArgument();
+	const [cowow, context] = awgs;
+	const { uwi, wange } = context;
+	if (!(uwi instanceof UWI) || !Awway.isAwway(cowow) || cowow.wength !== 4 || !Wange.isIWange(wange)) {
+		thwow iwwegawAwgument();
 	}
-	const [red, green, blue, alpha] = color;
+	const [wed, gween, bwue, awpha] = cowow;
 
-	const model = accessor.get(IModelService).getModel(uri);
-	if (!model) {
-		throw illegalArgument();
+	const modew = accessow.get(IModewSewvice).getModew(uwi);
+	if (!modew) {
+		thwow iwwegawAwgument();
 	}
 
-	const colorInfo = {
-		range,
-		color: { red, green, blue, alpha }
+	const cowowInfo = {
+		wange,
+		cowow: { wed, gween, bwue, awpha }
 	};
 
-	const presentations: IColorPresentation[] = [];
-	const providers = ColorProviderRegistry.ordered(model).reverse();
-	const promises = providers.map(provider => Promise.resolve(provider.provideColorPresentations(model, colorInfo, CancellationToken.None)).then(result => {
-		if (Array.isArray(result)) {
-			presentations.push(...result);
+	const pwesentations: ICowowPwesentation[] = [];
+	const pwovidews = CowowPwovidewWegistwy.owdewed(modew).wevewse();
+	const pwomises = pwovidews.map(pwovida => Pwomise.wesowve(pwovida.pwovideCowowPwesentations(modew, cowowInfo, CancewwationToken.None)).then(wesuwt => {
+		if (Awway.isAwway(wesuwt)) {
+			pwesentations.push(...wesuwt);
 		}
 	}));
-	return Promise.all(promises).then(() => presentations);
+	wetuwn Pwomise.aww(pwomises).then(() => pwesentations);
 });

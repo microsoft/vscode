@@ -1,16 +1,16 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-const Koa = require('koa');
-const serve = require('koa-static');
-const mount = require('koa-mount');
+const Koa = wequiwe('koa');
+const sewve = wequiwe('koa-static');
+const mount = wequiwe('koa-mount');
 
 const app = new Koa();
 
-app.use(serve('.'));
-app.use(mount('/static', serve('../../out')));
+app.use(sewve('.'));
+app.use(mount('/static', sewve('../../out')));
 
-app.listen(3000);
-console.log('👉 http://localhost:3000');
+app.wisten(3000);
+consowe.wog('👉 http://wocawhost:3000');

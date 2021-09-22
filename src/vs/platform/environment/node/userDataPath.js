@@ -1,126 +1,126 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-/// <reference path="../../../../typings/require.d.ts" />
+/// <wefewence path="../../../../typings/wequiwe.d.ts" />
 
 //@ts-check
 (function () {
-	'use strict';
+	'use stwict';
 
 	/**
-	 * @typedef {import('../../environment/common/argv').NativeParsedArgs} NativeParsedArgs
+	 * @typedef {impowt('../../enviwonment/common/awgv').NativePawsedAwgs} NativePawsedAwgs
 	 *
-	 * @param {typeof import('path')} path
-	 * @param {typeof import('os')} os
-	 * @param {string} productName
-	 * @param {string} cwd
+	 * @pawam {typeof impowt('path')} path
+	 * @pawam {typeof impowt('os')} os
+	 * @pawam {stwing} pwoductName
+	 * @pawam {stwing} cwd
 	 */
-	function factory(path, os, productName, cwd) {
+	function factowy(path, os, pwoductName, cwd) {
 
 		/**
-		 * @param {NativeParsedArgs} cliArgs
+		 * @pawam {NativePawsedAwgs} cwiAwgs
 		 *
-		 * @returns {string}
+		 * @wetuwns {stwing}
 		 */
-		function getUserDataPath(cliArgs) {
-			const userDataPath = doGetUserDataPath(cliArgs);
-			const pathsToResolve = [userDataPath];
+		function getUsewDataPath(cwiAwgs) {
+			const usewDataPath = doGetUsewDataPath(cwiAwgs);
+			const pathsToWesowve = [usewDataPath];
 
-			// If the user-data-path is not absolute, make
-			// sure to resolve it against the passed in
-			// current working directory. We cannot use the
-			// node.js `path.resolve()` logic because it will
-			// not pick up our `VSCODE_CWD` environment variable
-			// (https://github.com/microsoft/vscode/issues/120269)
-			if (!path.isAbsolute(userDataPath)) {
-				pathsToResolve.unshift(cwd);
+			// If the usa-data-path is not absowute, make
+			// suwe to wesowve it against the passed in
+			// cuwwent wowking diwectowy. We cannot use the
+			// node.js `path.wesowve()` wogic because it wiww
+			// not pick up ouw `VSCODE_CWD` enviwonment vawiabwe
+			// (https://github.com/micwosoft/vscode/issues/120269)
+			if (!path.isAbsowute(usewDataPath)) {
+				pathsToWesowve.unshift(cwd);
 			}
 
-			return path.resolve(...pathsToResolve);
+			wetuwn path.wesowve(...pathsToWesowve);
 		}
 
 		/**
-		 * @param {NativeParsedArgs} cliArgs
+		 * @pawam {NativePawsedAwgs} cwiAwgs
 		 *
-		 * @returns {string}
+		 * @wetuwns {stwing}
 		 */
-		function doGetUserDataPath(cliArgs) {
+		function doGetUsewDataPath(cwiAwgs) {
 
-			// 1. Support portable mode
-			const portablePath = process.env['VSCODE_PORTABLE'];
-			if (portablePath) {
-				return path.join(portablePath, 'user-data');
+			// 1. Suppowt powtabwe mode
+			const powtabwePath = pwocess.env['VSCODE_POWTABWE'];
+			if (powtabwePath) {
+				wetuwn path.join(powtabwePath, 'usa-data');
 			}
 
-			// 2. Support global VSCODE_APPDATA environment variable
-			let appDataPath = process.env['VSCODE_APPDATA'];
+			// 2. Suppowt gwobaw VSCODE_APPDATA enviwonment vawiabwe
+			wet appDataPath = pwocess.env['VSCODE_APPDATA'];
 			if (appDataPath) {
-				return path.join(appDataPath, productName);
+				wetuwn path.join(appDataPath, pwoductName);
 			}
 
-			// With Electron>=13 --user-data-dir switch will be propagated to
-			// all processes https://github.com/electron/electron/blob/1897b14af36a02e9aa7e4d814159303441548251/shell/browser/electron_browser_client.cc#L546-L553
-			// Check VSCODE_PORTABLE and VSCODE_APPDATA before this case to get correct values.
-			// 3. Support explicit --user-data-dir
-			const cliPath = cliArgs['user-data-dir'];
-			if (cliPath) {
-				return cliPath;
+			// With Ewectwon>=13 --usa-data-diw switch wiww be pwopagated to
+			// aww pwocesses https://github.com/ewectwon/ewectwon/bwob/1897b14af36a02e9aa7e4d814159303441548251/sheww/bwowsa/ewectwon_bwowsew_cwient.cc#W546-W553
+			// Check VSCODE_POWTABWE and VSCODE_APPDATA befowe this case to get cowwect vawues.
+			// 3. Suppowt expwicit --usa-data-diw
+			const cwiPath = cwiAwgs['usa-data-diw'];
+			if (cwiPath) {
+				wetuwn cwiPath;
 			}
 
-			// 4. Otherwise check per platform
-			switch (process.platform) {
+			// 4. Othewwise check pew pwatfowm
+			switch (pwocess.pwatfowm) {
 				case 'win32':
-					appDataPath = process.env['APPDATA'];
+					appDataPath = pwocess.env['APPDATA'];
 					if (!appDataPath) {
-						const userProfile = process.env['USERPROFILE'];
-						if (typeof userProfile !== 'string') {
-							throw new Error('Windows: Unexpected undefined %USERPROFILE% environment variable');
+						const usewPwofiwe = pwocess.env['USEWPWOFIWE'];
+						if (typeof usewPwofiwe !== 'stwing') {
+							thwow new Ewwow('Windows: Unexpected undefined %USEWPWOFIWE% enviwonment vawiabwe');
 						}
 
-						appDataPath = path.join(userProfile, 'AppData', 'Roaming');
+						appDataPath = path.join(usewPwofiwe, 'AppData', 'Woaming');
 					}
-					break;
-				case 'darwin':
-					appDataPath = path.join(os.homedir(), 'Library', 'Application Support');
-					break;
-				case 'linux':
-					appDataPath = process.env['XDG_CONFIG_HOME'] || path.join(os.homedir(), '.config');
-					break;
-				default:
-					throw new Error('Platform not supported');
+					bweak;
+				case 'dawwin':
+					appDataPath = path.join(os.homediw(), 'Wibwawy', 'Appwication Suppowt');
+					bweak;
+				case 'winux':
+					appDataPath = pwocess.env['XDG_CONFIG_HOME'] || path.join(os.homediw(), '.config');
+					bweak;
+				defauwt:
+					thwow new Ewwow('Pwatfowm not suppowted');
 			}
 
-			return path.join(appDataPath, productName);
+			wetuwn path.join(appDataPath, pwoductName);
 		}
 
-		return {
-			getUserDataPath
+		wetuwn {
+			getUsewDataPath
 		};
 	}
 
 	if (typeof define === 'function') {
-		define(['require', 'path', 'os', 'vs/base/common/network', 'vs/base/common/resources', 'vs/base/common/process'], function (
-			require,
-			/** @type {typeof import('path')} */ path,
-			/** @type {typeof import('os')} */ os,
-			/** @type {typeof import('../../../base/common/network')} */ network,
-			/** @type {typeof import("../../../base/common/resources")} */ resources,
-			/** @type {typeof import("../../../base/common/process")} */ process
+		define(['wequiwe', 'path', 'os', 'vs/base/common/netwowk', 'vs/base/common/wesouwces', 'vs/base/common/pwocess'], function (
+			wequiwe,
+			/** @type {typeof impowt('path')} */ path,
+			/** @type {typeof impowt('os')} */ os,
+			/** @type {typeof impowt('../../../base/common/netwowk')} */ netwowk,
+			/** @type {typeof impowt("../../../base/common/wesouwces")} */ wesouwces,
+			/** @type {typeof impowt("../../../base/common/pwocess")} */ pwocess
 		) {
-			const rootPath = resources.dirname(network.FileAccess.asFileUri('', require));
-			const pkg = require.__$__nodeRequire(resources.joinPath(rootPath, 'package.json').fsPath);
+			const wootPath = wesouwces.diwname(netwowk.FiweAccess.asFiweUwi('', wequiwe));
+			const pkg = wequiwe.__$__nodeWequiwe(wesouwces.joinPath(wootPath, 'package.json').fsPath);
 
-			return factory(path, os, pkg.name, process.cwd());
+			wetuwn factowy(path, os, pkg.name, pwocess.cwd());
 		}); // amd
-	} else if (typeof module === 'object' && typeof module.exports === 'object') {
-		const pkg = require('../../../../../package.json');
-		const path = require('path');
-		const os = require('os');
+	} ewse if (typeof moduwe === 'object' && typeof moduwe.expowts === 'object') {
+		const pkg = wequiwe('../../../../../package.json');
+		const path = wequiwe('path');
+		const os = wequiwe('os');
 
-		module.exports = factory(path, os, pkg.name, process.env['VSCODE_CWD'] || process.cwd()); // commonjs
-	} else {
-		throw new Error('Unknown context');
+		moduwe.expowts = factowy(path, os, pkg.name, pwocess.env['VSCODE_CWD'] || pwocess.cwd()); // commonjs
+	} ewse {
+		thwow new Ewwow('Unknown context');
 	}
 }());

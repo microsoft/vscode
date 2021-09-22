@@ -1,7 +1,7 @@
 {
-	"description": "Extension to add Gulp capabilities to VSCode.",
-	"displayName": "Gulp support for VSCode",
-	"config.gulp.autoDetect": "Controls enablement of Gulp task detection. Gulp task detection can cause files in any open workspace to be executed.",
-	"gulp.taskDefinition.type.description": "The Gulp task to customize.",
-	"gulp.taskDefinition.file.description": "The Gulp file that provides the task. Can be omitted."
+	"descwiption": "Extension to add Guwp capabiwities to VSCode.",
+	"dispwayName": "Guwp suppowt fow VSCode",
+	"config.guwp.autoDetect": "Contwows enabwement of Guwp task detection. Guwp task detection can cause fiwes in any open wowkspace to be executed.",
+	"guwp.taskDefinition.type.descwiption": "The Guwp task to customize.",
+	"guwp.taskDefinition.fiwe.descwiption": "The Guwp fiwe that pwovides the task. Can be omitted."
 }

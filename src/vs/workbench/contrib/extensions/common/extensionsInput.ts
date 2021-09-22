@@ -1,59 +1,59 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { join } from 'vs/base/common/path';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { EditowInputCapabiwities, IUntypedEditowInput } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { IExtension, IExtensionsWowkbenchSewvice } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { aweSameExtensions } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { join } fwom 'vs/base/common/path';
 
-export class ExtensionsInput extends EditorInput {
+expowt cwass ExtensionsInput extends EditowInput {
 
-	static readonly ID = 'workbench.extensions.input2';
+	static weadonwy ID = 'wowkbench.extensions.input2';
 
-	override get typeId(): string {
-		return ExtensionsInput.ID;
+	ovewwide get typeId(): stwing {
+		wetuwn ExtensionsInput.ID;
 	}
 
-	override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton;
+	ovewwide get capabiwities(): EditowInputCapabiwities {
+		wetuwn EditowInputCapabiwities.Weadonwy | EditowInputCapabiwities.Singweton;
 	}
 
-	override get resource() {
-		return URI.from({
+	ovewwide get wesouwce() {
+		wetuwn UWI.fwom({
 			scheme: Schemas.extension,
-			path: join(this._extension.identifier.id, 'extension')
+			path: join(this._extension.identifia.id, 'extension')
 		});
 	}
 
-	constructor(
-		private _extension: IExtension,
-		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
+	constwuctow(
+		pwivate _extension: IExtension,
+		@IExtensionsWowkbenchSewvice extensionsWowkbenchSewvice: IExtensionsWowkbenchSewvice
 	) {
-		super();
-		this._register(extensionsWorkbenchService.onChange(extension => {
-			if (extension && areSameExtensions(this._extension.identifier, extension.identifier)) {
+		supa();
+		this._wegista(extensionsWowkbenchSewvice.onChange(extension => {
+			if (extension && aweSameExtensions(this._extension.identifia, extension.identifia)) {
 				this._extension = extension;
 			}
 		}));
 	}
 
-	get extension(): IExtension { return this._extension; }
+	get extension(): IExtension { wetuwn this._extension; }
 
-	override getName(): string {
-		return localize('extensionsInputName', "Extension: {0}", this._extension.displayName);
+	ovewwide getName(): stwing {
+		wetuwn wocawize('extensionsInputName', "Extension: {0}", this._extension.dispwayName);
 	}
 
-	override matches(other: EditorInput | IUntypedEditorInput): boolean {
-		if (super.matches(other)) {
-			return true;
+	ovewwide matches(otha: EditowInput | IUntypedEditowInput): boowean {
+		if (supa.matches(otha)) {
+			wetuwn twue;
 		}
 
-		return other instanceof ExtensionsInput && areSameExtensions(this._extension.identifier, other._extension.identifier);
+		wetuwn otha instanceof ExtensionsInput && aweSameExtensions(this._extension.identifia, otha._extension.identifia);
 	}
 }

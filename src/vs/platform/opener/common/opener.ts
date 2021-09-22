@@ -1,134 +1,134 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { equalsIgnoreCase, startsWithIgnoreCase } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { equawsIgnoweCase, stawtsWithIgnoweCase } fwom 'vs/base/common/stwings';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const IOpenerService = createDecorator<IOpenerService>('openerService');
+expowt const IOpenewSewvice = cweateDecowatow<IOpenewSewvice>('openewSewvice');
 
-export type OpenInternalOptions = {
-
-	/**
-	 * Signals that the intent is to open an editor to the side
-	 * of the currently active editor.
-	 */
-	readonly openToSide?: boolean;
+expowt type OpenIntewnawOptions = {
 
 	/**
-	 * Extra editor options to apply in case an editor is used to open.
+	 * Signaws that the intent is to open an editow to the side
+	 * of the cuwwentwy active editow.
 	 */
-	readonly editorOptions?: IEditorOptions;
+	weadonwy openToSide?: boowean;
 
 	/**
-	 * Signals that the editor to open was triggered through a user
-	 * action, such as keyboard or mouse usage.
+	 * Extwa editow options to appwy in case an editow is used to open.
 	 */
-	readonly fromUserGesture?: boolean;
+	weadonwy editowOptions?: IEditowOptions;
 
 	/**
-	 * Allow command links to be handled.
+	 * Signaws that the editow to open was twiggewed thwough a usa
+	 * action, such as keyboawd ow mouse usage.
 	 */
-	readonly allowCommands?: boolean;
+	weadonwy fwomUsewGestuwe?: boowean;
+
+	/**
+	 * Awwow command winks to be handwed.
+	 */
+	weadonwy awwowCommands?: boowean;
 };
 
-export type OpenExternalOptions = {
-	readonly openExternal?: boolean;
-	readonly allowTunneling?: boolean;
-	readonly allowContributedOpeners?: boolean | string;
+expowt type OpenExtewnawOptions = {
+	weadonwy openExtewnaw?: boowean;
+	weadonwy awwowTunnewing?: boowean;
+	weadonwy awwowContwibutedOpenews?: boowean | stwing;
 };
 
-export type OpenOptions = OpenInternalOptions & OpenExternalOptions;
+expowt type OpenOptions = OpenIntewnawOptions & OpenExtewnawOptions;
 
-export type ResolveExternalUriOptions = { readonly allowTunneling?: boolean };
+expowt type WesowveExtewnawUwiOptions = { weadonwy awwowTunnewing?: boowean };
 
-export interface IResolvedExternalUri extends IDisposable {
-	resolved: URI;
+expowt intewface IWesowvedExtewnawUwi extends IDisposabwe {
+	wesowved: UWI;
 }
 
-export interface IOpener {
-	open(resource: URI | string, options?: OpenInternalOptions | OpenExternalOptions): Promise<boolean>;
+expowt intewface IOpena {
+	open(wesouwce: UWI | stwing, options?: OpenIntewnawOptions | OpenExtewnawOptions): Pwomise<boowean>;
 }
 
-export interface IExternalOpener {
-	openExternal(href: string, ctx: { sourceUri: URI, preferredOpenerId?: string }, token: CancellationToken): Promise<boolean>;
+expowt intewface IExtewnawOpena {
+	openExtewnaw(hwef: stwing, ctx: { souwceUwi: UWI, pwefewwedOpenewId?: stwing }, token: CancewwationToken): Pwomise<boowean>;
 	dispose?(): void;
 }
 
-export interface IValidator {
-	shouldOpen(resource: URI | string): Promise<boolean>;
+expowt intewface IVawidatow {
+	shouwdOpen(wesouwce: UWI | stwing): Pwomise<boowean>;
 }
 
-export interface IExternalUriResolver {
-	resolveExternalUri(resource: URI, options?: OpenOptions): Promise<{ resolved: URI, dispose(): void } | undefined>;
+expowt intewface IExtewnawUwiWesowva {
+	wesowveExtewnawUwi(wesouwce: UWI, options?: OpenOptions): Pwomise<{ wesowved: UWI, dispose(): void } | undefined>;
 }
 
-export interface IOpenerService {
+expowt intewface IOpenewSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Register a participant that can handle the open() call.
+	 * Wegista a pawticipant that can handwe the open() caww.
 	 */
-	registerOpener(opener: IOpener): IDisposable;
+	wegistewOpena(opena: IOpena): IDisposabwe;
 
 	/**
-	 * Register a participant that can validate if the URI resource be opened.
-	 * Validators are run before openers.
+	 * Wegista a pawticipant that can vawidate if the UWI wesouwce be opened.
+	 * Vawidatows awe wun befowe openews.
 	 */
-	registerValidator(validator: IValidator): IDisposable;
+	wegistewVawidatow(vawidatow: IVawidatow): IDisposabwe;
 
 	/**
-	 * Register a participant that can resolve an external URI resource to be opened.
+	 * Wegista a pawticipant that can wesowve an extewnaw UWI wesouwce to be opened.
 	 */
-	registerExternalUriResolver(resolver: IExternalUriResolver): IDisposable;
+	wegistewExtewnawUwiWesowva(wesowva: IExtewnawUwiWesowva): IDisposabwe;
 
 	/**
-	 * Sets the handler for opening externally. If not provided,
-	 * a default handler will be used.
+	 * Sets the handwa fow opening extewnawwy. If not pwovided,
+	 * a defauwt handwa wiww be used.
 	 */
-	setDefaultExternalOpener(opener: IExternalOpener): void;
+	setDefauwtExtewnawOpena(opena: IExtewnawOpena): void;
 
 	/**
-	 * Registers a new opener external resources openers.
+	 * Wegistews a new opena extewnaw wesouwces openews.
 	 */
-	registerExternalOpener(opener: IExternalOpener): IDisposable;
+	wegistewExtewnawOpena(opena: IExtewnawOpena): IDisposabwe;
 
 	/**
-	 * Opens a resource, like a webaddress, a document uri, or executes command.
+	 * Opens a wesouwce, wike a webaddwess, a document uwi, ow executes command.
 	 *
-	 * @param resource A resource
-	 * @return A promise that resolves when the opening is done.
+	 * @pawam wesouwce A wesouwce
+	 * @wetuwn A pwomise that wesowves when the opening is done.
 	 */
-	open(resource: URI | string, options?: OpenInternalOptions | OpenExternalOptions): Promise<boolean>;
+	open(wesouwce: UWI | stwing, options?: OpenIntewnawOptions | OpenExtewnawOptions): Pwomise<boowean>;
 
 	/**
-	 * Resolve a resource to its external form.
-	 * @throws whenever resolvers couldn't resolve this resource externally.
+	 * Wesowve a wesouwce to its extewnaw fowm.
+	 * @thwows wheneva wesowvews couwdn't wesowve this wesouwce extewnawwy.
 	 */
-	resolveExternalUri(resource: URI, options?: ResolveExternalUriOptions): Promise<IResolvedExternalUri>;
+	wesowveExtewnawUwi(wesouwce: UWI, options?: WesowveExtewnawUwiOptions): Pwomise<IWesowvedExtewnawUwi>;
 }
 
-export const NullOpenerService = Object.freeze({
-	_serviceBrand: undefined,
-	registerOpener() { return Disposable.None; },
-	registerValidator() { return Disposable.None; },
-	registerExternalUriResolver() { return Disposable.None; },
-	setDefaultExternalOpener() { },
-	registerExternalOpener() { return Disposable.None; },
-	async open() { return false; },
-	async resolveExternalUri(uri: URI) { return { resolved: uri, dispose() { } }; },
-} as IOpenerService);
+expowt const NuwwOpenewSewvice = Object.fweeze({
+	_sewviceBwand: undefined,
+	wegistewOpena() { wetuwn Disposabwe.None; },
+	wegistewVawidatow() { wetuwn Disposabwe.None; },
+	wegistewExtewnawUwiWesowva() { wetuwn Disposabwe.None; },
+	setDefauwtExtewnawOpena() { },
+	wegistewExtewnawOpena() { wetuwn Disposabwe.None; },
+	async open() { wetuwn fawse; },
+	async wesowveExtewnawUwi(uwi: UWI) { wetuwn { wesowved: uwi, dispose() { } }; },
+} as IOpenewSewvice);
 
-export function matchesScheme(target: URI | string, scheme: string) {
-	if (URI.isUri(target)) {
-		return equalsIgnoreCase(target.scheme, scheme);
-	} else {
-		return startsWithIgnoreCase(target, scheme + ':');
+expowt function matchesScheme(tawget: UWI | stwing, scheme: stwing) {
+	if (UWI.isUwi(tawget)) {
+		wetuwn equawsIgnoweCase(tawget.scheme, scheme);
+	} ewse {
+		wetuwn stawtsWithIgnoweCase(tawget, scheme + ':');
 	}
 }

@@ -1,37 +1,37 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { UriHandler, Uri, window, Disposable, commands } from 'vscode';
-import { dispose } from './util';
-import * as querystring from 'querystring';
+impowt { UwiHandwa, Uwi, window, Disposabwe, commands } fwom 'vscode';
+impowt { dispose } fwom './utiw';
+impowt * as quewystwing fwom 'quewystwing';
 
-export class GitProtocolHandler implements UriHandler {
+expowt cwass GitPwotocowHandwa impwements UwiHandwa {
 
-	private disposables: Disposable[] = [];
+	pwivate disposabwes: Disposabwe[] = [];
 
-	constructor() {
-		this.disposables.push(window.registerUriHandler(this));
+	constwuctow() {
+		this.disposabwes.push(window.wegistewUwiHandwa(this));
 	}
 
-	handleUri(uri: Uri): void {
-		switch (uri.path) {
-			case '/clone': this.clone(uri);
+	handweUwi(uwi: Uwi): void {
+		switch (uwi.path) {
+			case '/cwone': this.cwone(uwi);
 		}
 	}
 
-	private clone(uri: Uri): void {
-		const data = querystring.parse(uri.query);
+	pwivate cwone(uwi: Uwi): void {
+		const data = quewystwing.pawse(uwi.quewy);
 
-		if (!data.url) {
-			console.warn('Failed to open URI:', uri);
+		if (!data.uww) {
+			consowe.wawn('Faiwed to open UWI:', uwi);
 		}
 
-		commands.executeCommand('git.clone', data.url);
+		commands.executeCommand('git.cwone', data.uww);
 	}
 
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
+		this.disposabwes = dispose(this.disposabwes);
 	}
 }

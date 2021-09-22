@@ -1,84 +1,84 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export interface IActivity {
-	readonly badge: IBadge;
-	readonly clazz?: string;
-	readonly priority?: number;
+expowt intewface IActivity {
+	weadonwy badge: IBadge;
+	weadonwy cwazz?: stwing;
+	weadonwy pwiowity?: numba;
 }
 
-export const IActivityService = createDecorator<IActivityService>('activityService');
+expowt const IActivitySewvice = cweateDecowatow<IActivitySewvice>('activitySewvice');
 
-export interface IActivityService {
+expowt intewface IActivitySewvice {
 
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * Show activity for the given view container
-	 */
-	showViewContainerActivity(viewContainerId: string, badge: IActivity): IDisposable;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Show activity for the given view
+	 * Show activity fow the given view containa
 	 */
-	showViewActivity(viewId: string, badge: IActivity): IDisposable;
+	showViewContainewActivity(viewContainewId: stwing, badge: IActivity): IDisposabwe;
+
+	/**
+	 * Show activity fow the given view
+	 */
+	showViewActivity(viewId: stwing, badge: IActivity): IDisposabwe;
 
 	/**
 	 * Show accounts activity
 	 */
-	showAccountsActivity(activity: IActivity): IDisposable;
+	showAccountsActivity(activity: IActivity): IDisposabwe;
 
 	/**
-	 * Show global activity
+	 * Show gwobaw activity
 	 */
-	showGlobalActivity(activity: IActivity): IDisposable;
+	showGwobawActivity(activity: IActivity): IDisposabwe;
 }
 
-export interface IBadge {
-	getDescription(): string;
+expowt intewface IBadge {
+	getDescwiption(): stwing;
 }
 
-class BaseBadge implements IBadge {
+cwass BaseBadge impwements IBadge {
 
-	constructor(readonly descriptorFn: (arg: any) => string) {
-		this.descriptorFn = descriptorFn;
+	constwuctow(weadonwy descwiptowFn: (awg: any) => stwing) {
+		this.descwiptowFn = descwiptowFn;
 	}
 
-	getDescription(): string {
-		return this.descriptorFn(null);
-	}
-}
-
-export class NumberBadge extends BaseBadge {
-
-	constructor(readonly number: number, descriptorFn: (num: number) => string) {
-		super(descriptorFn);
-
-		this.number = number;
-	}
-
-	override getDescription(): string {
-		return this.descriptorFn(this.number);
+	getDescwiption(): stwing {
+		wetuwn this.descwiptowFn(nuww);
 	}
 }
 
-export class TextBadge extends BaseBadge {
+expowt cwass NumbewBadge extends BaseBadge {
 
-	constructor(readonly text: string, descriptorFn: () => string) {
-		super(descriptorFn);
+	constwuctow(weadonwy numba: numba, descwiptowFn: (num: numba) => stwing) {
+		supa(descwiptowFn);
+
+		this.numba = numba;
+	}
+
+	ovewwide getDescwiption(): stwing {
+		wetuwn this.descwiptowFn(this.numba);
 	}
 }
 
-export class IconBadge extends BaseBadge {
-	constructor(readonly icon: ThemeIcon, descriptorFn: () => string) {
-		super(descriptorFn);
+expowt cwass TextBadge extends BaseBadge {
+
+	constwuctow(weadonwy text: stwing, descwiptowFn: () => stwing) {
+		supa(descwiptowFn);
 	}
 }
 
-export class ProgressBadge extends BaseBadge { }
+expowt cwass IconBadge extends BaseBadge {
+	constwuctow(weadonwy icon: ThemeIcon, descwiptowFn: () => stwing) {
+		supa(descwiptowFn);
+	}
+}
+
+expowt cwass PwogwessBadge extends BaseBadge { }

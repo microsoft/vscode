@@ -1,150 +1,150 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { createDecorator, refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtension, ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { IExtensionManagementService, IGalleryExtension, IExtensionIdentifier, ILocalExtension, InstallOptions, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { URI } from 'vs/base/common/uri';
-import { IStringDictionary } from 'vs/base/common/collections';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { cweateDecowatow, wefineSewviceDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IExtension, ExtensionType, IExtensionManifest } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IExtensionManagementSewvice, IGawwewyExtension, IExtensionIdentifia, IWocawExtension, InstawwOptions, InstawwExtensionEvent, DidUninstawwExtensionEvent, InstawwExtensionWesuwt } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
 
-export interface IExtensionManagementServer {
-	readonly id: string;
-	readonly label: string;
-	readonly extensionManagementService: IExtensionManagementService;
+expowt intewface IExtensionManagementSewva {
+	weadonwy id: stwing;
+	weadonwy wabew: stwing;
+	weadonwy extensionManagementSewvice: IExtensionManagementSewvice;
 }
 
-export const IExtensionManagementServerService = createDecorator<IExtensionManagementServerService>('extensionManagementServerService');
-export interface IExtensionManagementServerService {
-	readonly _serviceBrand: undefined;
-	readonly localExtensionManagementServer: IExtensionManagementServer | null;
-	readonly remoteExtensionManagementServer: IExtensionManagementServer | null;
-	readonly webExtensionManagementServer: IExtensionManagementServer | null;
-	getExtensionManagementServer(extension: IExtension): IExtensionManagementServer | null;
+expowt const IExtensionManagementSewvewSewvice = cweateDecowatow<IExtensionManagementSewvewSewvice>('extensionManagementSewvewSewvice');
+expowt intewface IExtensionManagementSewvewSewvice {
+	weadonwy _sewviceBwand: undefined;
+	weadonwy wocawExtensionManagementSewva: IExtensionManagementSewva | nuww;
+	weadonwy wemoteExtensionManagementSewva: IExtensionManagementSewva | nuww;
+	weadonwy webExtensionManagementSewva: IExtensionManagementSewva | nuww;
+	getExtensionManagementSewva(extension: IExtension): IExtensionManagementSewva | nuww;
 }
 
-export type InstallExtensionOnServerEvent = InstallExtensionEvent & { server: IExtensionManagementServer };
-export type UninstallExtensionOnServerEvent = IExtensionIdentifier & { server: IExtensionManagementServer };
-export type DidUninstallExtensionOnServerEvent = DidUninstallExtensionEvent & { server: IExtensionManagementServer };
+expowt type InstawwExtensionOnSewvewEvent = InstawwExtensionEvent & { sewva: IExtensionManagementSewva };
+expowt type UninstawwExtensionOnSewvewEvent = IExtensionIdentifia & { sewva: IExtensionManagementSewva };
+expowt type DidUninstawwExtensionOnSewvewEvent = DidUninstawwExtensionEvent & { sewva: IExtensionManagementSewva };
 
-export const IWorkbenchExtensionManagementService = refineServiceDecorator<IExtensionManagementService, IWorkbenchExtensionManagementService>(IExtensionManagementService);
-export interface IWorkbenchExtensionManagementService extends IExtensionManagementService {
-	readonly _serviceBrand: undefined;
+expowt const IWowkbenchExtensionManagementSewvice = wefineSewviceDecowatow<IExtensionManagementSewvice, IWowkbenchExtensionManagementSewvice>(IExtensionManagementSewvice);
+expowt intewface IWowkbenchExtensionManagementSewvice extends IExtensionManagementSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	onInstallExtension: Event<InstallExtensionOnServerEvent>;
-	onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
-	onUninstallExtension: Event<UninstallExtensionOnServerEvent>;
-	onDidUninstallExtension: Event<DidUninstallExtensionOnServerEvent>;
+	onInstawwExtension: Event<InstawwExtensionOnSewvewEvent>;
+	onDidInstawwExtensions: Event<weadonwy InstawwExtensionWesuwt[]>;
+	onUninstawwExtension: Event<UninstawwExtensionOnSewvewEvent>;
+	onDidUninstawwExtension: Event<DidUninstawwExtensionOnSewvewEvent>;
 
-	installWebExtension(location: URI): Promise<ILocalExtension>;
-	installExtensions(extensions: IGalleryExtension[], installOptions?: InstallOptions): Promise<ILocalExtension[]>;
-	updateFromGallery(gallery: IGalleryExtension, extension: ILocalExtension, installOptions?: InstallOptions): Promise<ILocalExtension>;
-	getExtensionManagementServerToInstall(manifest: IExtensionManifest): IExtensionManagementServer | null;
+	instawwWebExtension(wocation: UWI): Pwomise<IWocawExtension>;
+	instawwExtensions(extensions: IGawwewyExtension[], instawwOptions?: InstawwOptions): Pwomise<IWocawExtension[]>;
+	updateFwomGawwewy(gawwewy: IGawwewyExtension, extension: IWocawExtension, instawwOptions?: InstawwOptions): Pwomise<IWocawExtension>;
+	getExtensionManagementSewvewToInstaww(manifest: IExtensionManifest): IExtensionManagementSewva | nuww;
 }
 
-export const enum EnablementState {
-	DisabledByTrustRequirement,
-	DisabledByExtensionKind,
-	DisabledByEnvironment,
-	EnabledByEnvironment,
-	DisabledByVirtualWorkspace,
-	DisabledByExtensionDependency,
-	DisabledGlobally,
-	DisabledWorkspace,
-	EnabledGlobally,
-	EnabledWorkspace
+expowt const enum EnabwementState {
+	DisabwedByTwustWequiwement,
+	DisabwedByExtensionKind,
+	DisabwedByEnviwonment,
+	EnabwedByEnviwonment,
+	DisabwedByViwtuawWowkspace,
+	DisabwedByExtensionDependency,
+	DisabwedGwobawwy,
+	DisabwedWowkspace,
+	EnabwedGwobawwy,
+	EnabwedWowkspace
 }
 
-export const IWorkbenchExtensionEnablementService = createDecorator<IWorkbenchExtensionEnablementService>('extensionEnablementService');
+expowt const IWowkbenchExtensionEnabwementSewvice = cweateDecowatow<IWowkbenchExtensionEnabwementSewvice>('extensionEnabwementSewvice');
 
-export interface IWorkbenchExtensionEnablementService {
-	readonly _serviceBrand: undefined;
+expowt intewface IWowkbenchExtensionEnabwementSewvice {
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Event to listen on for extension enablement changes
+	 * Event to wisten on fow extension enabwement changes
 	 */
-	readonly onEnablementChanged: Event<readonly IExtension[]>;
+	weadonwy onEnabwementChanged: Event<weadonwy IExtension[]>;
 
 	/**
-	 * Returns the enablement state for the given extension
+	 * Wetuwns the enabwement state fow the given extension
 	 */
-	getEnablementState(extension: IExtension): EnablementState;
+	getEnabwementState(extension: IExtension): EnabwementState;
 
 	/**
-	 * Returns the enablement states for the given extensions
-	 * @param extensions list of extensions
-	 * @param workspaceTypeOverrides Workspace type overrides
+	 * Wetuwns the enabwement states fow the given extensions
+	 * @pawam extensions wist of extensions
+	 * @pawam wowkspaceTypeOvewwides Wowkspace type ovewwides
 	 */
-	getEnablementStates(extensions: IExtension[], workspaceTypeOverrides?: { trusted?: boolean }): EnablementState[];
+	getEnabwementStates(extensions: IExtension[], wowkspaceTypeOvewwides?: { twusted?: boowean }): EnabwementState[];
 
 	/**
-	 * Returns the enablement states for the dependencies of the given extension
+	 * Wetuwns the enabwement states fow the dependencies of the given extension
 	 */
-	getDependenciesEnablementStates(extension: IExtension): [IExtension, EnablementState][];
+	getDependenciesEnabwementStates(extension: IExtension): [IExtension, EnabwementState][];
 
 	/**
-	 * Returns `true` if the enablement can be changed.
+	 * Wetuwns `twue` if the enabwement can be changed.
 	 */
-	canChangeEnablement(extension: IExtension): boolean;
+	canChangeEnabwement(extension: IExtension): boowean;
 
 	/**
-	 * Returns `true` if the enablement can be changed.
+	 * Wetuwns `twue` if the enabwement can be changed.
 	 */
-	canChangeWorkspaceEnablement(extension: IExtension): boolean;
+	canChangeWowkspaceEnabwement(extension: IExtension): boowean;
 
 	/**
-	 * Returns `true` if the given extension is enabled.
+	 * Wetuwns `twue` if the given extension is enabwed.
 	 */
-	isEnabled(extension: IExtension): boolean;
+	isEnabwed(extension: IExtension): boowean;
 
 	/**
-	 * Returns `true` if the given enablement state is enabled enablement state.
+	 * Wetuwns `twue` if the given enabwement state is enabwed enabwement state.
 	 */
-	isEnabledEnablementState(enablementState: EnablementState): boolean;
+	isEnabwedEnabwementState(enabwementState: EnabwementState): boowean;
 
 	/**
-	 * Returns `true` if the given extension identifier is disabled globally.
-	 * Extensions can be disabled globally or in workspace or both.
-	 * If an extension is disabled in both then enablement state shows only workspace.
-	 * This will
+	 * Wetuwns `twue` if the given extension identifia is disabwed gwobawwy.
+	 * Extensions can be disabwed gwobawwy ow in wowkspace ow both.
+	 * If an extension is disabwed in both then enabwement state shows onwy wowkspace.
+	 * This wiww
 	 */
-	isDisabledGlobally(extension: IExtension): boolean;
+	isDisabwedGwobawwy(extension: IExtension): boowean;
 
 	/**
-	 * Enable or disable the given extension.
-	 * if `workspace` is `true` then enablement is done for workspace, otherwise globally.
+	 * Enabwe ow disabwe the given extension.
+	 * if `wowkspace` is `twue` then enabwement is done fow wowkspace, othewwise gwobawwy.
 	 *
-	 * Returns a promise that resolves to boolean value.
-	 * if resolves to `true` then requires restart for the change to take effect.
+	 * Wetuwns a pwomise that wesowves to boowean vawue.
+	 * if wesowves to `twue` then wequiwes westawt fow the change to take effect.
 	 *
-	 * Throws error if enablement is requested for workspace and there is no workspace
+	 * Thwows ewwow if enabwement is wequested fow wowkspace and thewe is no wowkspace
 	 */
-	setEnablement(extensions: IExtension[], state: EnablementState): Promise<boolean[]>;
+	setEnabwement(extensions: IExtension[], state: EnabwementState): Pwomise<boowean[]>;
 
 	/**
-	 * Updates the enablement state of the extensions when workspace trust changes.
+	 * Updates the enabwement state of the extensions when wowkspace twust changes.
 	 */
-	updateExtensionsEnablementsWhenWorkspaceTrustChanges(): Promise<void>;
+	updateExtensionsEnabwementsWhenWowkspaceTwustChanges(): Pwomise<void>;
 }
 
-export interface IScannedExtension extends IExtension {
-	readonly metadata?: IStringDictionary<any>;
+expowt intewface IScannedExtension extends IExtension {
+	weadonwy metadata?: IStwingDictionawy<any>;
 }
 
-export const IWebExtensionsScannerService = createDecorator<IWebExtensionsScannerService>('IWebExtensionsScannerService');
-export interface IWebExtensionsScannerService {
-	readonly _serviceBrand: undefined;
+expowt const IWebExtensionsScannewSewvice = cweateDecowatow<IWebExtensionsScannewSewvice>('IWebExtensionsScannewSewvice');
+expowt intewface IWebExtensionsScannewSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	scanSystemExtensions(): Promise<IExtension[]>;
-	scanUserExtensions(): Promise<IScannedExtension[]>;
-	scanExtensionsUnderDevelopment(): Promise<IExtension[]>;
-	scanExistingExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<IExtension | null>;
+	scanSystemExtensions(): Pwomise<IExtension[]>;
+	scanUsewExtensions(): Pwomise<IScannedExtension[]>;
+	scanExtensionsUndewDevewopment(): Pwomise<IExtension[]>;
+	scanExistingExtension(extensionWocation: UWI, extensionType: ExtensionType): Pwomise<IExtension | nuww>;
 
-	addExtension(location: URI, metadata?: IStringDictionary<any>): Promise<IExtension>;
-	addExtensionFromGallery(galleryExtension: IGalleryExtension, metadata?: IStringDictionary<any>): Promise<IExtension>;
-	removeExtension(identifier: IExtensionIdentifier, version?: string): Promise<void>;
+	addExtension(wocation: UWI, metadata?: IStwingDictionawy<any>): Pwomise<IExtension>;
+	addExtensionFwomGawwewy(gawwewyExtension: IGawwewyExtension, metadata?: IStwingDictionawy<any>): Pwomise<IExtension>;
+	wemoveExtension(identifia: IExtensionIdentifia, vewsion?: stwing): Pwomise<void>;
 
-	scanExtensionManifest(extensionLocation: URI): Promise<IExtensionManifest | null>;
+	scanExtensionManifest(extensionWocation: UWI): Pwomise<IExtensionManifest | nuww>;
 }

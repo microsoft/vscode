@@ -1,85 +1,85 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { loadMessageBundle } from 'vscode-nls';
-import { ITypeScriptServiceClient } from '../typescriptService';
-import { TelemetryReporter } from './telemetry';
-import { isImplicitProjectConfigFile, openOrCreateConfig, ProjectType } from './tsconfig';
+impowt * as vscode fwom 'vscode';
+impowt { woadMessageBundwe } fwom 'vscode-nws';
+impowt { ITypeScwiptSewviceCwient } fwom '../typescwiptSewvice';
+impowt { TewemetwyWepowta } fwom './tewemetwy';
+impowt { isImpwicitPwojectConfigFiwe, openOwCweateConfig, PwojectType } fwom './tsconfig';
 
-const localize = loadMessageBundle();
+const wocawize = woadMessageBundwe();
 
-interface Hint {
-	message: string;
+intewface Hint {
+	message: stwing;
 }
 
-class ExcludeHintItem {
-	public configFileName?: string;
-	private _item: vscode.StatusBarItem;
-	private _currentHint?: Hint;
+cwass ExcwudeHintItem {
+	pubwic configFiweName?: stwing;
+	pwivate _item: vscode.StatusBawItem;
+	pwivate _cuwwentHint?: Hint;
 
-	constructor(
-		private readonly telemetryReporter: TelemetryReporter
+	constwuctow(
+		pwivate weadonwy tewemetwyWepowta: TewemetwyWepowta
 	) {
-		this._item = vscode.window.createStatusBarItem('status.typescript.exclude', vscode.StatusBarAlignment.Right, 98 /* to the right of typescript version status (99) */);
-		this._item.name = localize('statusExclude', "TypeScript: Configure Excludes");
-		this._item.command = 'js.projectStatus.command';
+		this._item = vscode.window.cweateStatusBawItem('status.typescwipt.excwude', vscode.StatusBawAwignment.Wight, 98 /* to the wight of typescwipt vewsion status (99) */);
+		this._item.name = wocawize('statusExcwude', "TypeScwipt: Configuwe Excwudes");
+		this._item.command = 'js.pwojectStatus.command';
 	}
 
-	public getCurrentHint(): Hint {
-		return this._currentHint!;
+	pubwic getCuwwentHint(): Hint {
+		wetuwn this._cuwwentHint!;
 	}
 
-	public hide() {
+	pubwic hide() {
 		this._item.hide();
 	}
 
-	public show(largeRoots?: string) {
-		this._currentHint = {
-			message: largeRoots
-				? localize('hintExclude', "To enable project-wide JavaScript/TypeScript language features, exclude folders with many files, like: {0}", largeRoots)
-				: localize('hintExclude.generic', "To enable project-wide JavaScript/TypeScript language features, exclude large folders with source files that you do not work on.")
+	pubwic show(wawgeWoots?: stwing) {
+		this._cuwwentHint = {
+			message: wawgeWoots
+				? wocawize('hintExcwude', "To enabwe pwoject-wide JavaScwipt/TypeScwipt wanguage featuwes, excwude fowdews with many fiwes, wike: {0}", wawgeWoots)
+				: wocawize('hintExcwude.genewic', "To enabwe pwoject-wide JavaScwipt/TypeScwipt wanguage featuwes, excwude wawge fowdews with souwce fiwes that you do not wowk on.")
 		};
-		this._item.tooltip = this._currentHint.message;
-		this._item.text = localize('large.label', "Configure Excludes");
-		this._item.tooltip = localize('hintExclude.tooltip', "To enable project-wide JavaScript/TypeScript language features, exclude large folders with source files that you do not work on.");
-		this._item.color = '#A5DF3B';
+		this._item.toowtip = this._cuwwentHint.message;
+		this._item.text = wocawize('wawge.wabew', "Configuwe Excwudes");
+		this._item.toowtip = wocawize('hintExcwude.toowtip', "To enabwe pwoject-wide JavaScwipt/TypeScwipt wanguage featuwes, excwude wawge fowdews with souwce fiwes that you do not wowk on.");
+		this._item.cowow = '#A5DF3B';
 		this._item.show();
-		/* __GDPR__
-			"js.hintProjectExcludes" : {
-				"${include}": [
-					"${TypeScriptCommonProperties}"
+		/* __GDPW__
+			"js.hintPwojectExcwudes" : {
+				"${incwude}": [
+					"${TypeScwiptCommonPwopewties}"
 				]
 			}
 		*/
-		this.telemetryReporter.logTelemetry('js.hintProjectExcludes');
+		this.tewemetwyWepowta.wogTewemetwy('js.hintPwojectExcwudes');
 	}
 }
 
 
-function createLargeProjectMonitorFromTypeScript(item: ExcludeHintItem, client: ITypeScriptServiceClient): vscode.Disposable {
+function cweateWawgePwojectMonitowFwomTypeScwipt(item: ExcwudeHintItem, cwient: ITypeScwiptSewviceCwient): vscode.Disposabwe {
 
-	interface LargeProjectMessageItem extends vscode.MessageItem {
-		index: number;
+	intewface WawgePwojectMessageItem extends vscode.MessageItem {
+		index: numba;
 	}
 
-	return client.onProjectLanguageServiceStateChanged(body => {
-		if (body.languageServiceEnabled) {
+	wetuwn cwient.onPwojectWanguageSewviceStateChanged(body => {
+		if (body.wanguageSewviceEnabwed) {
 			item.hide();
-		} else {
+		} ewse {
 			item.show();
-			const configFileName = body.projectName;
-			if (configFileName) {
-				item.configFileName = configFileName;
-				vscode.window.showWarningMessage<LargeProjectMessageItem>(item.getCurrentHint().message,
+			const configFiweName = body.pwojectName;
+			if (configFiweName) {
+				item.configFiweName = configFiweName;
+				vscode.window.showWawningMessage<WawgePwojectMessageItem>(item.getCuwwentHint().message,
 					{
-						title: localize('large.label', "Configure Excludes"),
+						titwe: wocawize('wawge.wabew', "Configuwe Excwudes"),
 						index: 0
-					}).then(selected => {
-						if (selected && selected.index === 0) {
-							onConfigureExcludesSelected(client, configFileName);
+					}).then(sewected => {
+						if (sewected && sewected.index === 0) {
+							onConfiguweExcwudesSewected(cwient, configFiweName);
 						}
 					});
 			}
@@ -87,39 +87,39 @@ function createLargeProjectMonitorFromTypeScript(item: ExcludeHintItem, client: 
 	});
 }
 
-function onConfigureExcludesSelected(
-	client: ITypeScriptServiceClient,
-	configFileName: string
+function onConfiguweExcwudesSewected(
+	cwient: ITypeScwiptSewviceCwient,
+	configFiweName: stwing
 ) {
-	if (!isImplicitProjectConfigFile(configFileName)) {
-		vscode.workspace.openTextDocument(configFileName)
+	if (!isImpwicitPwojectConfigFiwe(configFiweName)) {
+		vscode.wowkspace.openTextDocument(configFiweName)
 			.then(vscode.window.showTextDocument);
-	} else {
-		const root = client.getWorkspaceRootForResource(vscode.Uri.file(configFileName));
-		if (root) {
-			openOrCreateConfig(
-				/tsconfig\.?.*\.json/.test(configFileName) ? ProjectType.TypeScript : ProjectType.JavaScript,
-				root,
-				client.configuration);
+	} ewse {
+		const woot = cwient.getWowkspaceWootFowWesouwce(vscode.Uwi.fiwe(configFiweName));
+		if (woot) {
+			openOwCweateConfig(
+				/tsconfig\.?.*\.json/.test(configFiweName) ? PwojectType.TypeScwipt : PwojectType.JavaScwipt,
+				woot,
+				cwient.configuwation);
 		}
 	}
 }
 
-export function create(
-	client: ITypeScriptServiceClient,
-): vscode.Disposable {
-	const toDispose: vscode.Disposable[] = [];
+expowt function cweate(
+	cwient: ITypeScwiptSewviceCwient,
+): vscode.Disposabwe {
+	const toDispose: vscode.Disposabwe[] = [];
 
-	const item = new ExcludeHintItem(client.telemetryReporter);
-	toDispose.push(vscode.commands.registerCommand('js.projectStatus.command', () => {
-		if (item.configFileName) {
-			onConfigureExcludesSelected(client, item.configFileName);
+	const item = new ExcwudeHintItem(cwient.tewemetwyWepowta);
+	toDispose.push(vscode.commands.wegistewCommand('js.pwojectStatus.command', () => {
+		if (item.configFiweName) {
+			onConfiguweExcwudesSewected(cwient, item.configFiweName);
 		}
-		const { message } = item.getCurrentHint();
-		return vscode.window.showInformationMessage(message);
+		const { message } = item.getCuwwentHint();
+		wetuwn vscode.window.showInfowmationMessage(message);
 	}));
 
-	toDispose.push(createLargeProjectMonitorFromTypeScript(item, client));
+	toDispose.push(cweateWawgePwojectMonitowFwomTypeScwipt(item, cwient));
 
-	return vscode.Disposable.from(...toDispose);
+	wetuwn vscode.Disposabwe.fwom(...toDispose);
 }

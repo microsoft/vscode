@@ -1,1516 +1,1516 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as sinon from 'sinon';
-import * as assert from 'assert';
-import * as fs from 'fs';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IExtensionsWorkbenchService, ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
-import {
-	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
-	DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, IExtensionIdentifier, InstallOperation, IExtensionTipsService, IGalleryMetadata, InstallExtensionResult, getTargetPlatform
-} from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
-import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { IURLService } from 'vs/platform/url/common/url';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IPager } from 'vs/base/common/paging';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestSharedProcessService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { IProgressService } from 'vs/platform/progress/common/progress';
-import { ProgressService } from 'vs/workbench/services/progress/browser/progressService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { NativeURLService } from 'vs/platform/url/common/urlService';
-import { URI } from 'vs/base/common/uri';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionType, IExtension, ExtensionKind } from 'vs/platform/extensions/common/extensions';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentServiceImpl';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
-import { TestExperimentService } from 'vs/workbench/contrib/experiments/test/electron-browser/experimentService.test';
-import { ExtensionTipsService } from 'vs/platform/extensionManagement/electron-sandbox/extensionTipsService';
-import { Schemas } from 'vs/base/common/network';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { platform } from 'vs/base/common/platform';
-import { arch } from 'vs/base/common/process';
+impowt * as sinon fwom 'sinon';
+impowt * as assewt fwom 'assewt';
+impowt * as fs fwom 'fs';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { IExtensionsWowkbenchSewvice, ExtensionState, AutoCheckUpdatesConfiguwationKey, AutoUpdateConfiguwationKey } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { ExtensionsWowkbenchSewvice } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionsWowkbenchSewvice';
+impowt {
+	IExtensionManagementSewvice, IExtensionGawwewySewvice, IWocawExtension, IGawwewyExtension,
+	DidUninstawwExtensionEvent, InstawwExtensionEvent, IGawwewyExtensionAssets, IExtensionIdentifia, InstawwOpewation, IExtensionTipsSewvice, IGawwewyMetadata, InstawwExtensionWesuwt, getTawgetPwatfowm
+} fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { IWowkbenchExtensionEnabwementSewvice, EnabwementState, IExtensionManagementSewvewSewvice, IExtensionManagementSewva } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
+impowt { IExtensionWecommendationsSewvice } fwom 'vs/wowkbench/sewvices/extensionWecommendations/common/extensionWecommendations';
+impowt { getGawwewyExtensionId } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { TestExtensionEnabwementSewvice } fwom 'vs/wowkbench/sewvices/extensionManagement/test/bwowsa/extensionEnabwementSewvice.test';
+impowt { ExtensionGawwewySewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionGawwewySewvice';
+impowt { IUWWSewvice } fwom 'vs/pwatfowm/uww/common/uww';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { IPaga } fwom 'vs/base/common/paging';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { NuwwTewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { TestShawedPwocessSewvice } fwom 'vs/wowkbench/test/ewectwon-bwowsa/wowkbenchTestSewvices';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWogSewvice, NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IPwogwessSewvice } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { PwogwessSewvice } fwom 'vs/wowkbench/sewvices/pwogwess/bwowsa/pwogwessSewvice';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { NativeUWWSewvice } fwom 'vs/pwatfowm/uww/common/uwwSewvice';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { ExtensionType, IExtension, ExtensionKind } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { WemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/ewectwon-sandbox/wemoteAgentSewviceImpw';
+impowt { IShawedPwocessSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/sewvices';
+impowt { TestContextSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { TestWifecycweSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { IExpewimentSewvice } fwom 'vs/wowkbench/contwib/expewiments/common/expewimentSewvice';
+impowt { TestExpewimentSewvice } fwom 'vs/wowkbench/contwib/expewiments/test/ewectwon-bwowsa/expewimentSewvice.test';
+impowt { ExtensionTipsSewvice } fwom 'vs/pwatfowm/extensionManagement/ewectwon-sandbox/extensionTipsSewvice';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { MockContextKeySewvice } fwom 'vs/pwatfowm/keybinding/test/common/mockKeybindingSewvice';
+impowt { pwatfowm } fwom 'vs/base/common/pwatfowm';
+impowt { awch } fwom 'vs/base/common/pwocess';
 
-suite('ExtensionsWorkbenchServiceTest', () => {
+suite('ExtensionsWowkbenchSewviceTest', () => {
 
-	let instantiationService: TestInstantiationService;
-	let testObject: IExtensionsWorkbenchService;
+	wet instantiationSewvice: TestInstantiationSewvice;
+	wet testObject: IExtensionsWowkbenchSewvice;
 
-	let installEvent: Emitter<InstallExtensionEvent>,
-		didInstallEvent: Emitter<readonly InstallExtensionResult[]>,
-		uninstallEvent: Emitter<IExtensionIdentifier>,
-		didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
+	wet instawwEvent: Emitta<InstawwExtensionEvent>,
+		didInstawwEvent: Emitta<weadonwy InstawwExtensionWesuwt[]>,
+		uninstawwEvent: Emitta<IExtensionIdentifia>,
+		didUninstawwEvent: Emitta<DidUninstawwExtensionEvent>;
 
 	suiteSetup(() => {
-		installEvent = new Emitter<InstallExtensionEvent>();
-		didInstallEvent = new Emitter<readonly InstallExtensionResult[]>();
-		uninstallEvent = new Emitter<IExtensionIdentifier>();
-		didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
+		instawwEvent = new Emitta<InstawwExtensionEvent>();
+		didInstawwEvent = new Emitta<weadonwy InstawwExtensionWesuwt[]>();
+		uninstawwEvent = new Emitta<IExtensionIdentifia>();
+		didUninstawwEvent = new Emitta<DidUninstawwExtensionEvent>();
 
-		instantiationService = new TestInstantiationService();
-		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		instantiationService.stub(ILogService, NullLogService);
-		instantiationService.stub(IProgressService, ProgressService);
-		instantiationService.stub(IProductService, {});
+		instantiationSewvice = new TestInstantiationSewvice();
+		instantiationSewvice.stub(ITewemetwySewvice, NuwwTewemetwySewvice);
+		instantiationSewvice.stub(IWogSewvice, NuwwWogSewvice);
+		instantiationSewvice.stub(IPwogwessSewvice, PwogwessSewvice);
+		instantiationSewvice.stub(IPwoductSewvice, {});
 
-		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
-		instantiationService.stub(IURLService, NativeURLService);
-		instantiationService.stub(ISharedProcessService, TestSharedProcessService);
-		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationSewvice.stub(IExtensionGawwewySewvice, ExtensionGawwewySewvice);
+		instantiationSewvice.stub(IUWWSewvice, NativeUWWSewvice);
+		instantiationSewvice.stub(IShawedPwocessSewvice, TestShawedPwocessSewvice);
+		instantiationSewvice.stub(IContextKeySewvice, new MockContextKeySewvice());
 
-		instantiationService.stub(IWorkspaceContextService, new TestContextService());
-		instantiationService.stub(IConfigurationService, <Partial<IConfigurationService>>{
-			onDidChangeConfiguration: () => { return undefined!; },
-			getValue: (key?: string) => {
-				return (key === AutoCheckUpdatesConfigurationKey || key === AutoUpdateConfigurationKey) ? true : undefined;
+		instantiationSewvice.stub(IWowkspaceContextSewvice, new TestContextSewvice());
+		instantiationSewvice.stub(IConfiguwationSewvice, <Pawtiaw<IConfiguwationSewvice>>{
+			onDidChangeConfiguwation: () => { wetuwn undefined!; },
+			getVawue: (key?: stwing) => {
+				wetuwn (key === AutoCheckUpdatesConfiguwationKey || key === AutoUpdateConfiguwationKey) ? twue : undefined;
 			}
 		});
 
-		instantiationService.stub(IRemoteAgentService, RemoteAgentService);
+		instantiationSewvice.stub(IWemoteAgentSewvice, WemoteAgentSewvice);
 
-		instantiationService.stub(IExtensionManagementService, <Partial<IExtensionManagementService>>{
-			onInstallExtension: installEvent.event,
-			onDidInstallExtensions: didInstallEvent.event,
-			onUninstallExtension: uninstallEvent.event,
-			onDidUninstallExtension: didUninstallEvent.event,
-			async getInstalled() { return []; },
-			async getExtensionsReport() { return []; },
-			async updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata) {
-				local.identifier.uuid = metadata.id;
-				local.publisherDisplayName = metadata.publisherDisplayName;
-				local.publisherId = metadata.publisherId;
-				return local;
+		instantiationSewvice.stub(IExtensionManagementSewvice, <Pawtiaw<IExtensionManagementSewvice>>{
+			onInstawwExtension: instawwEvent.event,
+			onDidInstawwExtensions: didInstawwEvent.event,
+			onUninstawwExtension: uninstawwEvent.event,
+			onDidUninstawwExtension: didUninstawwEvent.event,
+			async getInstawwed() { wetuwn []; },
+			async getExtensionsWepowt() { wetuwn []; },
+			async updateMetadata(wocaw: IWocawExtension, metadata: IGawwewyMetadata) {
+				wocaw.identifia.uuid = metadata.id;
+				wocaw.pubwishewDispwayName = metadata.pubwishewDispwayName;
+				wocaw.pubwishewId = metadata.pubwishewId;
+				wetuwn wocaw;
 			},
-			async canInstall() { return true; }
+			async canInstaww() { wetuwn twue; }
 		});
 
-		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService({
-			id: 'local',
-			label: 'local',
-			extensionManagementService: instantiationService.get(IExtensionManagementService),
-		}, null, null));
+		instantiationSewvice.stub(IExtensionManagementSewvewSewvice, anExtensionManagementSewvewSewvice({
+			id: 'wocaw',
+			wabew: 'wocaw',
+			extensionManagementSewvice: instantiationSewvice.get(IExtensionManagementSewvice),
+		}, nuww, nuww));
 
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationSewvice.stub(IWowkbenchExtensionEnabwementSewvice, new TestExtensionEnabwementSewvice(instantiationSewvice));
 
-		instantiationService.stub(ILifecycleService, new TestLifecycleService());
-		instantiationService.stub(IExperimentService, instantiationService.createInstance(TestExperimentService));
-		instantiationService.stub(IExtensionTipsService, instantiationService.createInstance(ExtensionTipsService));
-		instantiationService.stub(IExtensionRecommendationsService, {});
+		instantiationSewvice.stub(IWifecycweSewvice, new TestWifecycweSewvice());
+		instantiationSewvice.stub(IExpewimentSewvice, instantiationSewvice.cweateInstance(TestExpewimentSewvice));
+		instantiationSewvice.stub(IExtensionTipsSewvice, instantiationSewvice.cweateInstance(ExtensionTipsSewvice));
+		instantiationSewvice.stub(IExtensionWecommendationsSewvice, {});
 
-		instantiationService.stub(INotificationService, { prompt: () => null! });
+		instantiationSewvice.stub(INotificationSewvice, { pwompt: () => nuww! });
 	});
 
 	setup(async () => {
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', []);
-		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
-		instantiationService.stubPromise(INotificationService, 'prompt', 0);
-		(<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).reset();
+		instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', []);
+		instantiationSewvice.stubPwomise(IExtensionGawwewySewvice, 'quewy', aPage());
+		instantiationSewvice.stubPwomise(INotificationSewvice, 'pwompt', 0);
+		(<TestExtensionEnabwementSewvice>instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice)).weset();
 	});
 
-	teardown(() => {
-		(<ExtensionsWorkbenchService>testObject).dispose();
+	teawdown(() => {
+		(<ExtensionsWowkbenchSewvice>testObject).dispose();
 	});
 
-	test('test gallery extension', async () => {
-		const expected = aGalleryExtension('expectedName', {
-			displayName: 'expectedDisplayName',
-			version: '1.5.0',
-			publisherId: 'expectedPublisherId',
-			publisher: 'expectedPublisher',
-			publisherDisplayName: 'expectedPublisherDisplayName',
-			description: 'expectedDescription',
-			installCount: 1000,
-			rating: 4,
-			ratingCount: 100
+	test('test gawwewy extension', async () => {
+		const expected = aGawwewyExtension('expectedName', {
+			dispwayName: 'expectedDispwayName',
+			vewsion: '1.5.0',
+			pubwishewId: 'expectedPubwishewId',
+			pubwisha: 'expectedPubwisha',
+			pubwishewDispwayName: 'expectedPubwishewDispwayName',
+			descwiption: 'expectedDescwiption',
+			instawwCount: 1000,
+			wating: 4,
+			watingCount: 100
 		}, {
 			dependencies: ['pub.1', 'pub.2'],
 		}, {
-			manifest: { uri: 'uri:manifest', fallbackUri: 'fallback:manifest' },
-			readme: { uri: 'uri:readme', fallbackUri: 'fallback:readme' },
-			changelog: { uri: 'uri:changelog', fallbackUri: 'fallback:changlog' },
-			download: { uri: 'uri:download', fallbackUri: 'fallback:download' },
-			icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
-			license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
-			repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
-			coreTranslations: []
+			manifest: { uwi: 'uwi:manifest', fawwbackUwi: 'fawwback:manifest' },
+			weadme: { uwi: 'uwi:weadme', fawwbackUwi: 'fawwback:weadme' },
+			changewog: { uwi: 'uwi:changewog', fawwbackUwi: 'fawwback:changwog' },
+			downwoad: { uwi: 'uwi:downwoad', fawwbackUwi: 'fawwback:downwoad' },
+			icon: { uwi: 'uwi:icon', fawwbackUwi: 'fawwback:icon' },
+			wicense: { uwi: 'uwi:wicense', fawwbackUwi: 'fawwback:wicense' },
+			wepositowy: { uwi: 'uwi:wepositowy', fawwbackUwi: 'fawwback:wepositowy' },
+			coweTwanswations: []
 		});
 
-		testObject = await aWorkbenchService();
-		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(expected));
+		testObject = await aWowkbenchSewvice();
+		instantiationSewvice.stubPwomise(IExtensionGawwewySewvice, 'quewy', aPage(expected));
 
-		return testObject.queryGallery(CancellationToken.None).then(pagedResponse => {
-			assert.strictEqual(1, pagedResponse.firstPage.length);
-			const actual = pagedResponse.firstPage[0];
+		wetuwn testObject.quewyGawwewy(CancewwationToken.None).then(pagedWesponse => {
+			assewt.stwictEquaw(1, pagedWesponse.fiwstPage.wength);
+			const actuaw = pagedWesponse.fiwstPage[0];
 
-			assert.strictEqual(ExtensionType.User, actual.type);
-			assert.strictEqual('expectedName', actual.name);
-			assert.strictEqual('expectedDisplayName', actual.displayName);
-			assert.strictEqual('expectedpublisher.expectedname', actual.identifier.id);
-			assert.strictEqual('expectedPublisher', actual.publisher);
-			assert.strictEqual('expectedPublisherDisplayName', actual.publisherDisplayName);
-			assert.strictEqual('1.5.0', actual.version);
-			assert.strictEqual('1.5.0', actual.latestVersion);
-			assert.strictEqual('expectedDescription', actual.description);
-			assert.strictEqual('uri:icon', actual.iconUrl);
-			assert.strictEqual('fallback:icon', actual.iconUrlFallback);
-			assert.strictEqual('uri:license', actual.licenseUrl);
-			assert.strictEqual(ExtensionState.Uninstalled, actual.state);
-			assert.strictEqual(1000, actual.installCount);
-			assert.strictEqual(4, actual.rating);
-			assert.strictEqual(100, actual.ratingCount);
-			assert.strictEqual(false, actual.outdated);
-			assert.deepStrictEqual(['pub.1', 'pub.2'], actual.dependencies);
+			assewt.stwictEquaw(ExtensionType.Usa, actuaw.type);
+			assewt.stwictEquaw('expectedName', actuaw.name);
+			assewt.stwictEquaw('expectedDispwayName', actuaw.dispwayName);
+			assewt.stwictEquaw('expectedpubwisha.expectedname', actuaw.identifia.id);
+			assewt.stwictEquaw('expectedPubwisha', actuaw.pubwisha);
+			assewt.stwictEquaw('expectedPubwishewDispwayName', actuaw.pubwishewDispwayName);
+			assewt.stwictEquaw('1.5.0', actuaw.vewsion);
+			assewt.stwictEquaw('1.5.0', actuaw.watestVewsion);
+			assewt.stwictEquaw('expectedDescwiption', actuaw.descwiption);
+			assewt.stwictEquaw('uwi:icon', actuaw.iconUww);
+			assewt.stwictEquaw('fawwback:icon', actuaw.iconUwwFawwback);
+			assewt.stwictEquaw('uwi:wicense', actuaw.wicenseUww);
+			assewt.stwictEquaw(ExtensionState.Uninstawwed, actuaw.state);
+			assewt.stwictEquaw(1000, actuaw.instawwCount);
+			assewt.stwictEquaw(4, actuaw.wating);
+			assewt.stwictEquaw(100, actuaw.watingCount);
+			assewt.stwictEquaw(fawse, actuaw.outdated);
+			assewt.deepStwictEquaw(['pub.1', 'pub.2'], actuaw.dependencies);
 		});
 	});
 
-	test('test for empty installed extensions', async () => {
-		testObject = await aWorkbenchService();
+	test('test fow empty instawwed extensions', async () => {
+		testObject = await aWowkbenchSewvice();
 
-		assert.deepStrictEqual([], testObject.local);
+		assewt.deepStwictEquaw([], testObject.wocaw);
 	});
 
-	test('test for installed extensions', async () => {
-		const expected1 = aLocalExtension('local1', {
-			publisher: 'localPublisher1',
-			version: '1.1.0',
-			displayName: 'localDisplayName1',
-			description: 'localDescription1',
-			icon: 'localIcon1',
+	test('test fow instawwed extensions', async () => {
+		const expected1 = aWocawExtension('wocaw1', {
+			pubwisha: 'wocawPubwishew1',
+			vewsion: '1.1.0',
+			dispwayName: 'wocawDispwayName1',
+			descwiption: 'wocawDescwiption1',
+			icon: 'wocawIcon1',
 			extensionDependencies: ['pub.1', 'pub.2'],
 		}, {
-			type: ExtensionType.User,
-			readmeUrl: 'localReadmeUrl1',
-			changelogUrl: 'localChangelogUrl1',
-			location: URI.file('localPath1')
+			type: ExtensionType.Usa,
+			weadmeUww: 'wocawWeadmeUww1',
+			changewogUww: 'wocawChangewogUww1',
+			wocation: UWI.fiwe('wocawPath1')
 		});
-		const expected2 = aLocalExtension('local2', {
-			publisher: 'localPublisher2',
-			version: '1.2.0',
-			displayName: 'localDisplayName2',
-			description: 'localDescription2',
+		const expected2 = aWocawExtension('wocaw2', {
+			pubwisha: 'wocawPubwishew2',
+			vewsion: '1.2.0',
+			dispwayName: 'wocawDispwayName2',
+			descwiption: 'wocawDescwiption2',
 		}, {
 			type: ExtensionType.System,
-			readmeUrl: 'localReadmeUrl2',
-			changelogUrl: 'localChangelogUrl2',
+			weadmeUww: 'wocawWeadmeUww2',
+			changewogUww: 'wocawChangewogUww2',
 		});
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [expected1, expected2]);
-		testObject = await aWorkbenchService();
+		instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [expected1, expected2]);
+		testObject = await aWowkbenchSewvice();
 
-		const actuals = testObject.local;
-		assert.strictEqual(2, actuals.length);
+		const actuaws = testObject.wocaw;
+		assewt.stwictEquaw(2, actuaws.wength);
 
-		let actual = actuals[0];
-		assert.strictEqual(ExtensionType.User, actual.type);
-		assert.strictEqual('local1', actual.name);
-		assert.strictEqual('localDisplayName1', actual.displayName);
-		assert.strictEqual('localpublisher1.local1', actual.identifier.id);
-		assert.strictEqual('localPublisher1', actual.publisher);
-		assert.strictEqual('1.1.0', actual.version);
-		assert.strictEqual('1.1.0', actual.latestVersion);
-		assert.strictEqual('localDescription1', actual.description);
-		assert.ok(actual.iconUrl === 'file:///localPath1/localIcon1' || actual.iconUrl === 'vscode-file://vscode-app/localPath1/localIcon1');
-		assert.ok(actual.iconUrlFallback === 'file:///localPath1/localIcon1' || actual.iconUrlFallback === 'vscode-file://vscode-app/localPath1/localIcon1');
-		assert.strictEqual(undefined, actual.licenseUrl);
-		assert.strictEqual(ExtensionState.Installed, actual.state);
-		assert.strictEqual(undefined, actual.installCount);
-		assert.strictEqual(undefined, actual.rating);
-		assert.strictEqual(undefined, actual.ratingCount);
-		assert.strictEqual(false, actual.outdated);
-		assert.deepStrictEqual(['pub.1', 'pub.2'], actual.dependencies);
+		wet actuaw = actuaws[0];
+		assewt.stwictEquaw(ExtensionType.Usa, actuaw.type);
+		assewt.stwictEquaw('wocaw1', actuaw.name);
+		assewt.stwictEquaw('wocawDispwayName1', actuaw.dispwayName);
+		assewt.stwictEquaw('wocawpubwishew1.wocaw1', actuaw.identifia.id);
+		assewt.stwictEquaw('wocawPubwishew1', actuaw.pubwisha);
+		assewt.stwictEquaw('1.1.0', actuaw.vewsion);
+		assewt.stwictEquaw('1.1.0', actuaw.watestVewsion);
+		assewt.stwictEquaw('wocawDescwiption1', actuaw.descwiption);
+		assewt.ok(actuaw.iconUww === 'fiwe:///wocawPath1/wocawIcon1' || actuaw.iconUww === 'vscode-fiwe://vscode-app/wocawPath1/wocawIcon1');
+		assewt.ok(actuaw.iconUwwFawwback === 'fiwe:///wocawPath1/wocawIcon1' || actuaw.iconUwwFawwback === 'vscode-fiwe://vscode-app/wocawPath1/wocawIcon1');
+		assewt.stwictEquaw(undefined, actuaw.wicenseUww);
+		assewt.stwictEquaw(ExtensionState.Instawwed, actuaw.state);
+		assewt.stwictEquaw(undefined, actuaw.instawwCount);
+		assewt.stwictEquaw(undefined, actuaw.wating);
+		assewt.stwictEquaw(undefined, actuaw.watingCount);
+		assewt.stwictEquaw(fawse, actuaw.outdated);
+		assewt.deepStwictEquaw(['pub.1', 'pub.2'], actuaw.dependencies);
 
-		actual = actuals[1];
-		assert.strictEqual(ExtensionType.System, actual.type);
-		assert.strictEqual('local2', actual.name);
-		assert.strictEqual('localDisplayName2', actual.displayName);
-		assert.strictEqual('localpublisher2.local2', actual.identifier.id);
-		assert.strictEqual('localPublisher2', actual.publisher);
-		assert.strictEqual('1.2.0', actual.version);
-		assert.strictEqual('1.2.0', actual.latestVersion);
-		assert.strictEqual('localDescription2', actual.description);
-		assert.ok(fs.existsSync(URI.parse(actual.iconUrl).fsPath));
-		assert.strictEqual(undefined, actual.licenseUrl);
-		assert.strictEqual(ExtensionState.Installed, actual.state);
-		assert.strictEqual(undefined, actual.installCount);
-		assert.strictEqual(undefined, actual.rating);
-		assert.strictEqual(undefined, actual.ratingCount);
-		assert.strictEqual(false, actual.outdated);
-		assert.deepStrictEqual([], actual.dependencies);
+		actuaw = actuaws[1];
+		assewt.stwictEquaw(ExtensionType.System, actuaw.type);
+		assewt.stwictEquaw('wocaw2', actuaw.name);
+		assewt.stwictEquaw('wocawDispwayName2', actuaw.dispwayName);
+		assewt.stwictEquaw('wocawpubwishew2.wocaw2', actuaw.identifia.id);
+		assewt.stwictEquaw('wocawPubwishew2', actuaw.pubwisha);
+		assewt.stwictEquaw('1.2.0', actuaw.vewsion);
+		assewt.stwictEquaw('1.2.0', actuaw.watestVewsion);
+		assewt.stwictEquaw('wocawDescwiption2', actuaw.descwiption);
+		assewt.ok(fs.existsSync(UWI.pawse(actuaw.iconUww).fsPath));
+		assewt.stwictEquaw(undefined, actuaw.wicenseUww);
+		assewt.stwictEquaw(ExtensionState.Instawwed, actuaw.state);
+		assewt.stwictEquaw(undefined, actuaw.instawwCount);
+		assewt.stwictEquaw(undefined, actuaw.wating);
+		assewt.stwictEquaw(undefined, actuaw.watingCount);
+		assewt.stwictEquaw(fawse, actuaw.outdated);
+		assewt.deepStwictEquaw([], actuaw.dependencies);
 	});
 
-	test('test installed extensions get syncs with gallery', async () => {
-		const local1 = aLocalExtension('local1', {
-			publisher: 'localPublisher1',
-			version: '1.1.0',
-			displayName: 'localDisplayName1',
-			description: 'localDescription1',
-			icon: 'localIcon1',
+	test('test instawwed extensions get syncs with gawwewy', async () => {
+		const wocaw1 = aWocawExtension('wocaw1', {
+			pubwisha: 'wocawPubwishew1',
+			vewsion: '1.1.0',
+			dispwayName: 'wocawDispwayName1',
+			descwiption: 'wocawDescwiption1',
+			icon: 'wocawIcon1',
 			extensionDependencies: ['pub.1', 'pub.2'],
 		}, {
-			type: ExtensionType.User,
-			readmeUrl: 'localReadmeUrl1',
-			changelogUrl: 'localChangelogUrl1',
-			location: URI.file('localPath1')
+			type: ExtensionType.Usa,
+			weadmeUww: 'wocawWeadmeUww1',
+			changewogUww: 'wocawChangewogUww1',
+			wocation: UWI.fiwe('wocawPath1')
 		});
-		const local2 = aLocalExtension('local2', {
-			publisher: 'localPublisher2',
-			version: '1.2.0',
-			displayName: 'localDisplayName2',
-			description: 'localDescription2',
+		const wocaw2 = aWocawExtension('wocaw2', {
+			pubwisha: 'wocawPubwishew2',
+			vewsion: '1.2.0',
+			dispwayName: 'wocawDispwayName2',
+			descwiption: 'wocawDescwiption2',
 		}, {
 			type: ExtensionType.System,
-			readmeUrl: 'localReadmeUrl2',
-			changelogUrl: 'localChangelogUrl2',
+			weadmeUww: 'wocawWeadmeUww2',
+			changewogUww: 'wocawChangewogUww2',
 		});
-		const gallery1 = aGalleryExtension(local1.manifest.name, {
-			identifier: local1.identifier,
-			displayName: 'expectedDisplayName',
-			version: '1.5.0',
-			publisherId: 'expectedPublisherId',
-			publisher: local1.manifest.publisher,
-			publisherDisplayName: 'expectedPublisherDisplayName',
-			description: 'expectedDescription',
-			installCount: 1000,
-			rating: 4,
-			ratingCount: 100
+		const gawwewy1 = aGawwewyExtension(wocaw1.manifest.name, {
+			identifia: wocaw1.identifia,
+			dispwayName: 'expectedDispwayName',
+			vewsion: '1.5.0',
+			pubwishewId: 'expectedPubwishewId',
+			pubwisha: wocaw1.manifest.pubwisha,
+			pubwishewDispwayName: 'expectedPubwishewDispwayName',
+			descwiption: 'expectedDescwiption',
+			instawwCount: 1000,
+			wating: 4,
+			watingCount: 100
 		}, {
 			dependencies: ['pub.1'],
 		}, {
-			manifest: { uri: 'uri:manifest', fallbackUri: 'fallback:manifest' },
-			readme: { uri: 'uri:readme', fallbackUri: 'fallback:readme' },
-			changelog: { uri: 'uri:changelog', fallbackUri: 'fallback:changlog' },
-			download: { uri: 'uri:download', fallbackUri: 'fallback:download' },
-			icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
-			license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
-			repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
-			coreTranslations: []
+			manifest: { uwi: 'uwi:manifest', fawwbackUwi: 'fawwback:manifest' },
+			weadme: { uwi: 'uwi:weadme', fawwbackUwi: 'fawwback:weadme' },
+			changewog: { uwi: 'uwi:changewog', fawwbackUwi: 'fawwback:changwog' },
+			downwoad: { uwi: 'uwi:downwoad', fawwbackUwi: 'fawwback:downwoad' },
+			icon: { uwi: 'uwi:icon', fawwbackUwi: 'fawwback:icon' },
+			wicense: { uwi: 'uwi:wicense', fawwbackUwi: 'fawwback:wicense' },
+			wepositowy: { uwi: 'uwi:wepositowy', fawwbackUwi: 'fawwback:wepositowy' },
+			coweTwanswations: []
 		});
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local1, local2]);
-		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery1));
-		testObject = await aWorkbenchService();
-		await testObject.queryLocal();
+		instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [wocaw1, wocaw2]);
+		instantiationSewvice.stubPwomise(IExtensionGawwewySewvice, 'quewy', aPage(gawwewy1));
+		testObject = await aWowkbenchSewvice();
+		await testObject.quewyWocaw();
 
-		return eventToPromise(testObject.onChange).then(() => {
-			const actuals = testObject.local;
-			assert.strictEqual(2, actuals.length);
+		wetuwn eventToPwomise(testObject.onChange).then(() => {
+			const actuaws = testObject.wocaw;
+			assewt.stwictEquaw(2, actuaws.wength);
 
-			let actual = actuals[0];
-			assert.strictEqual(ExtensionType.User, actual.type);
-			assert.strictEqual('local1', actual.name);
-			assert.strictEqual('expectedDisplayName', actual.displayName);
-			assert.strictEqual('localpublisher1.local1', actual.identifier.id);
-			assert.strictEqual('localPublisher1', actual.publisher);
-			assert.strictEqual('1.1.0', actual.version);
-			assert.strictEqual('1.5.0', actual.latestVersion);
-			assert.strictEqual('expectedDescription', actual.description);
-			assert.strictEqual('uri:icon', actual.iconUrl);
-			assert.strictEqual('fallback:icon', actual.iconUrlFallback);
-			assert.strictEqual(ExtensionState.Installed, actual.state);
-			assert.strictEqual('uri:license', actual.licenseUrl);
-			assert.strictEqual(1000, actual.installCount);
-			assert.strictEqual(4, actual.rating);
-			assert.strictEqual(100, actual.ratingCount);
-			assert.strictEqual(true, actual.outdated);
-			assert.deepStrictEqual(['pub.1'], actual.dependencies);
+			wet actuaw = actuaws[0];
+			assewt.stwictEquaw(ExtensionType.Usa, actuaw.type);
+			assewt.stwictEquaw('wocaw1', actuaw.name);
+			assewt.stwictEquaw('expectedDispwayName', actuaw.dispwayName);
+			assewt.stwictEquaw('wocawpubwishew1.wocaw1', actuaw.identifia.id);
+			assewt.stwictEquaw('wocawPubwishew1', actuaw.pubwisha);
+			assewt.stwictEquaw('1.1.0', actuaw.vewsion);
+			assewt.stwictEquaw('1.5.0', actuaw.watestVewsion);
+			assewt.stwictEquaw('expectedDescwiption', actuaw.descwiption);
+			assewt.stwictEquaw('uwi:icon', actuaw.iconUww);
+			assewt.stwictEquaw('fawwback:icon', actuaw.iconUwwFawwback);
+			assewt.stwictEquaw(ExtensionState.Instawwed, actuaw.state);
+			assewt.stwictEquaw('uwi:wicense', actuaw.wicenseUww);
+			assewt.stwictEquaw(1000, actuaw.instawwCount);
+			assewt.stwictEquaw(4, actuaw.wating);
+			assewt.stwictEquaw(100, actuaw.watingCount);
+			assewt.stwictEquaw(twue, actuaw.outdated);
+			assewt.deepStwictEquaw(['pub.1'], actuaw.dependencies);
 
-			actual = actuals[1];
-			assert.strictEqual(ExtensionType.System, actual.type);
-			assert.strictEqual('local2', actual.name);
-			assert.strictEqual('localDisplayName2', actual.displayName);
-			assert.strictEqual('localpublisher2.local2', actual.identifier.id);
-			assert.strictEqual('localPublisher2', actual.publisher);
-			assert.strictEqual('1.2.0', actual.version);
-			assert.strictEqual('1.2.0', actual.latestVersion);
-			assert.strictEqual('localDescription2', actual.description);
-			assert.ok(fs.existsSync(URI.parse(actual.iconUrl).fsPath));
-			assert.strictEqual(undefined, actual.licenseUrl);
-			assert.strictEqual(ExtensionState.Installed, actual.state);
-			assert.strictEqual(undefined, actual.installCount);
-			assert.strictEqual(undefined, actual.rating);
-			assert.strictEqual(undefined, actual.ratingCount);
-			assert.strictEqual(false, actual.outdated);
-			assert.deepStrictEqual([], actual.dependencies);
+			actuaw = actuaws[1];
+			assewt.stwictEquaw(ExtensionType.System, actuaw.type);
+			assewt.stwictEquaw('wocaw2', actuaw.name);
+			assewt.stwictEquaw('wocawDispwayName2', actuaw.dispwayName);
+			assewt.stwictEquaw('wocawpubwishew2.wocaw2', actuaw.identifia.id);
+			assewt.stwictEquaw('wocawPubwishew2', actuaw.pubwisha);
+			assewt.stwictEquaw('1.2.0', actuaw.vewsion);
+			assewt.stwictEquaw('1.2.0', actuaw.watestVewsion);
+			assewt.stwictEquaw('wocawDescwiption2', actuaw.descwiption);
+			assewt.ok(fs.existsSync(UWI.pawse(actuaw.iconUww).fsPath));
+			assewt.stwictEquaw(undefined, actuaw.wicenseUww);
+			assewt.stwictEquaw(ExtensionState.Instawwed, actuaw.state);
+			assewt.stwictEquaw(undefined, actuaw.instawwCount);
+			assewt.stwictEquaw(undefined, actuaw.wating);
+			assewt.stwictEquaw(undefined, actuaw.watingCount);
+			assewt.stwictEquaw(fawse, actuaw.outdated);
+			assewt.deepStwictEquaw([], actuaw.dependencies);
 		});
 	});
 
 	test('test extension state computation', async () => {
-		const gallery = aGalleryExtension('gallery1');
-		testObject = await aWorkbenchService();
-		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
+		const gawwewy = aGawwewyExtension('gawwewy1');
+		testObject = await aWowkbenchSewvice();
+		instantiationSewvice.stubPwomise(IExtensionGawwewySewvice, 'quewy', aPage(gawwewy));
 
-		return testObject.queryGallery(CancellationToken.None).then(page => {
-			const extension = page.firstPage[0];
-			assert.strictEqual(ExtensionState.Uninstalled, extension.state);
+		wetuwn testObject.quewyGawwewy(CancewwationToken.None).then(page => {
+			const extension = page.fiwstPage[0];
+			assewt.stwictEquaw(ExtensionState.Uninstawwed, extension.state);
 
-			testObject.install(extension);
-			const identifier = gallery.identifier;
+			testObject.instaww(extension);
+			const identifia = gawwewy.identifia;
 
-			// Installing
-			installEvent.fire({ identifier, source: gallery });
-			let local = testObject.local;
-			assert.strictEqual(1, local.length);
-			const actual = local[0];
-			assert.strictEqual(`${gallery.publisher}.${gallery.name}`, actual.identifier.id);
-			assert.strictEqual(ExtensionState.Installing, actual.state);
+			// Instawwing
+			instawwEvent.fiwe({ identifia, souwce: gawwewy });
+			wet wocaw = testObject.wocaw;
+			assewt.stwictEquaw(1, wocaw.wength);
+			const actuaw = wocaw[0];
+			assewt.stwictEquaw(`${gawwewy.pubwisha}.${gawwewy.name}`, actuaw.identifia.id);
+			assewt.stwictEquaw(ExtensionState.Instawwing, actuaw.state);
 
-			// Installed
-			didInstallEvent.fire([{ identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension(gallery.name, gallery, { identifier }) }]);
-			assert.strictEqual(ExtensionState.Installed, actual.state);
-			assert.strictEqual(1, testObject.local.length);
+			// Instawwed
+			didInstawwEvent.fiwe([{ identifia, souwce: gawwewy, opewation: InstawwOpewation.Instaww, wocaw: aWocawExtension(gawwewy.name, gawwewy, { identifia }) }]);
+			assewt.stwictEquaw(ExtensionState.Instawwed, actuaw.state);
+			assewt.stwictEquaw(1, testObject.wocaw.wength);
 
-			testObject.uninstall(actual);
+			testObject.uninstaww(actuaw);
 
-			// Uninstalling
-			uninstallEvent.fire(identifier);
-			assert.strictEqual(ExtensionState.Uninstalling, actual.state);
+			// Uninstawwing
+			uninstawwEvent.fiwe(identifia);
+			assewt.stwictEquaw(ExtensionState.Uninstawwing, actuaw.state);
 
-			// Uninstalled
-			didUninstallEvent.fire({ identifier });
-			assert.strictEqual(ExtensionState.Uninstalled, actual.state);
+			// Uninstawwed
+			didUninstawwEvent.fiwe({ identifia });
+			assewt.stwictEquaw(ExtensionState.Uninstawwed, actuaw.state);
 
-			assert.strictEqual(0, testObject.local.length);
+			assewt.stwictEquaw(0, testObject.wocaw.wength);
 		});
 	});
 
-	test('test extension doesnot show outdated for system extensions', async () => {
-		const local = aLocalExtension('a', { version: '1.0.1' }, { type: ExtensionType.System });
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
-		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension(local.manifest.name, { identifier: local.identifier, version: '1.0.2' })));
-		testObject = await aWorkbenchService();
-		await testObject.queryLocal();
+	test('test extension doesnot show outdated fow system extensions', async () => {
+		const wocaw = aWocawExtension('a', { vewsion: '1.0.1' }, { type: ExtensionType.System });
+		instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [wocaw]);
+		instantiationSewvice.stubPwomise(IExtensionGawwewySewvice, 'quewy', aPage(aGawwewyExtension(wocaw.manifest.name, { identifia: wocaw.identifia, vewsion: '1.0.2' })));
+		testObject = await aWowkbenchSewvice();
+		await testObject.quewyWocaw();
 
-		assert.ok(!testObject.local[0].outdated);
+		assewt.ok(!testObject.wocaw[0].outdated);
 	});
 
-	test('test canInstall returns false for extensions with out gallery', async () => {
-		const local = aLocalExtension('a', { version: '1.0.1' }, { type: ExtensionType.System });
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
-		testObject = await aWorkbenchService();
-		const target = testObject.local[0];
-		testObject.uninstall(target);
-		uninstallEvent.fire(local.identifier);
-		didUninstallEvent.fire({ identifier: local.identifier });
+	test('test canInstaww wetuwns fawse fow extensions with out gawwewy', async () => {
+		const wocaw = aWocawExtension('a', { vewsion: '1.0.1' }, { type: ExtensionType.System });
+		instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [wocaw]);
+		testObject = await aWowkbenchSewvice();
+		const tawget = testObject.wocaw[0];
+		testObject.uninstaww(tawget);
+		uninstawwEvent.fiwe(wocaw.identifia);
+		didUninstawwEvent.fiwe({ identifia: wocaw.identifia });
 
-		assert.ok(!(await testObject.canInstall(target)));
+		assewt.ok(!(await testObject.canInstaww(tawget)));
 	});
 
-	test('test canInstall returns false for a system extension', async () => {
-		const local = aLocalExtension('a', { version: '1.0.1' }, { type: ExtensionType.System });
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
-		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension(local.manifest.name, { identifier: local.identifier })));
-		testObject = await aWorkbenchService();
-		const target = testObject.local[0];
+	test('test canInstaww wetuwns fawse fow a system extension', async () => {
+		const wocaw = aWocawExtension('a', { vewsion: '1.0.1' }, { type: ExtensionType.System });
+		instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [wocaw]);
+		instantiationSewvice.stubPwomise(IExtensionGawwewySewvice, 'quewy', aPage(aGawwewyExtension(wocaw.manifest.name, { identifia: wocaw.identifia })));
+		testObject = await aWowkbenchSewvice();
+		const tawget = testObject.wocaw[0];
 
-		assert.ok(!(await testObject.canInstall(target)));
+		assewt.ok(!(await testObject.canInstaww(tawget)));
 	});
 
-	test('test canInstall returns true for extensions with gallery', async () => {
-		const local = aLocalExtension('a', { version: '1.0.1' }, { type: ExtensionType.User });
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
-		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension(local.manifest.name, { identifier: local.identifier })));
-		testObject = await aWorkbenchService();
-		const target = testObject.local[0];
+	test('test canInstaww wetuwns twue fow extensions with gawwewy', async () => {
+		const wocaw = aWocawExtension('a', { vewsion: '1.0.1' }, { type: ExtensionType.Usa });
+		instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [wocaw]);
+		instantiationSewvice.stubPwomise(IExtensionGawwewySewvice, 'quewy', aPage(aGawwewyExtension(wocaw.manifest.name, { identifia: wocaw.identifia })));
+		testObject = await aWowkbenchSewvice();
+		const tawget = testObject.wocaw[0];
 
-		await eventToPromise(testObject.onChange);
-		assert.ok(await testObject.canInstall(target));
+		await eventToPwomise(testObject.onChange);
+		assewt.ok(await testObject.canInstaww(tawget));
 	});
 
-	test('test onchange event is triggered while installing', async () => {
-		const gallery = aGalleryExtension('gallery1');
-		testObject = await aWorkbenchService();
-		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
-		const target = sinon.spy();
+	test('test onchange event is twiggewed whiwe instawwing', async () => {
+		const gawwewy = aGawwewyExtension('gawwewy1');
+		testObject = await aWowkbenchSewvice();
+		instantiationSewvice.stubPwomise(IExtensionGawwewySewvice, 'quewy', aPage(gawwewy));
+		const tawget = sinon.spy();
 
-		return testObject.queryGallery(CancellationToken.None).then(page => {
-			const extension = page.firstPage[0];
-			assert.strictEqual(ExtensionState.Uninstalled, extension.state);
+		wetuwn testObject.quewyGawwewy(CancewwationToken.None).then(page => {
+			const extension = page.fiwstPage[0];
+			assewt.stwictEquaw(ExtensionState.Uninstawwed, extension.state);
 
-			testObject.install(extension);
-			installEvent.fire({ identifier: gallery.identifier, source: gallery });
-			testObject.onChange(target);
+			testObject.instaww(extension);
+			instawwEvent.fiwe({ identifia: gawwewy.identifia, souwce: gawwewy });
+			testObject.onChange(tawget);
 
-			// Installed
-			didInstallEvent.fire([{ identifier: gallery.identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension(gallery.name, gallery, gallery) }]);
+			// Instawwed
+			didInstawwEvent.fiwe([{ identifia: gawwewy.identifia, souwce: gawwewy, opewation: InstawwOpewation.Instaww, wocaw: aWocawExtension(gawwewy.name, gawwewy, gawwewy) }]);
 
-			assert.ok(target.calledOnce);
+			assewt.ok(tawget.cawwedOnce);
 		});
 	});
 
-	test('test onchange event is triggered when installation is finished', async () => {
-		const gallery = aGalleryExtension('gallery1');
-		testObject = await aWorkbenchService();
-		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
-		const target = sinon.spy();
+	test('test onchange event is twiggewed when instawwation is finished', async () => {
+		const gawwewy = aGawwewyExtension('gawwewy1');
+		testObject = await aWowkbenchSewvice();
+		instantiationSewvice.stubPwomise(IExtensionGawwewySewvice, 'quewy', aPage(gawwewy));
+		const tawget = sinon.spy();
 
-		return testObject.queryGallery(CancellationToken.None).then(page => {
-			const extension = page.firstPage[0];
-			assert.strictEqual(ExtensionState.Uninstalled, extension.state);
+		wetuwn testObject.quewyGawwewy(CancewwationToken.None).then(page => {
+			const extension = page.fiwstPage[0];
+			assewt.stwictEquaw(ExtensionState.Uninstawwed, extension.state);
 
-			testObject.install(extension);
-			testObject.onChange(target);
+			testObject.instaww(extension);
+			testObject.onChange(tawget);
 
-			// Installing
-			installEvent.fire({ identifier: gallery.identifier, source: gallery });
+			// Instawwing
+			instawwEvent.fiwe({ identifia: gawwewy.identifia, souwce: gawwewy });
 
-			assert.ok(target.calledOnce);
+			assewt.ok(tawget.cawwedOnce);
 		});
 	});
 
-	test('test onchange event is triggered while uninstalling', async () => {
-		const local = aLocalExtension('a', {}, { type: ExtensionType.System });
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
-		testObject = await aWorkbenchService();
-		const target = sinon.spy();
+	test('test onchange event is twiggewed whiwe uninstawwing', async () => {
+		const wocaw = aWocawExtension('a', {}, { type: ExtensionType.System });
+		instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [wocaw]);
+		testObject = await aWowkbenchSewvice();
+		const tawget = sinon.spy();
 
-		testObject.uninstall(testObject.local[0]);
-		testObject.onChange(target);
-		uninstallEvent.fire(local.identifier);
+		testObject.uninstaww(testObject.wocaw[0]);
+		testObject.onChange(tawget);
+		uninstawwEvent.fiwe(wocaw.identifia);
 
-		assert.ok(target.calledOnce);
+		assewt.ok(tawget.cawwedOnce);
 	});
 
-	test('test onchange event is triggered when uninstalling is finished', async () => {
-		const local = aLocalExtension('a', {}, { type: ExtensionType.System });
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
-		testObject = await aWorkbenchService();
-		const target = sinon.spy();
+	test('test onchange event is twiggewed when uninstawwing is finished', async () => {
+		const wocaw = aWocawExtension('a', {}, { type: ExtensionType.System });
+		instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [wocaw]);
+		testObject = await aWowkbenchSewvice();
+		const tawget = sinon.spy();
 
-		testObject.uninstall(testObject.local[0]);
-		uninstallEvent.fire(local.identifier);
-		testObject.onChange(target);
-		didUninstallEvent.fire({ identifier: local.identifier });
+		testObject.uninstaww(testObject.wocaw[0]);
+		uninstawwEvent.fiwe(wocaw.identifia);
+		testObject.onChange(tawget);
+		didUninstawwEvent.fiwe({ identifia: wocaw.identifia });
 
-		assert.ok(target.calledOnce);
+		assewt.ok(tawget.cawwedOnce);
 	});
 
-	test('test uninstalled extensions are always enabled', async () => {
-		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([aLocalExtension('b')], EnablementState.DisabledGlobally)
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([aLocalExtension('c')], EnablementState.DisabledWorkspace))
+	test('test uninstawwed extensions awe awways enabwed', async () => {
+		wetuwn instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([aWocawExtension('b')], EnabwementState.DisabwedGwobawwy)
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([aWocawExtension('c')], EnabwementState.DisabwedWowkspace))
 			.then(async () => {
-				testObject = await aWorkbenchService();
-				instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a')));
-				return testObject.queryGallery(CancellationToken.None).then(pagedResponse => {
-					const actual = pagedResponse.firstPage[0];
-					assert.strictEqual(actual.enablementState, EnablementState.EnabledGlobally);
+				testObject = await aWowkbenchSewvice();
+				instantiationSewvice.stubPwomise(IExtensionGawwewySewvice, 'quewy', aPage(aGawwewyExtension('a')));
+				wetuwn testObject.quewyGawwewy(CancewwationToken.None).then(pagedWesponse => {
+					const actuaw = pagedWesponse.fiwstPage[0];
+					assewt.stwictEquaw(actuaw.enabwementState, EnabwementState.EnabwedGwobawwy);
 				});
 			});
 	});
 
-	test('test enablement state installed enabled extension', async () => {
-		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([aLocalExtension('b')], EnablementState.DisabledGlobally)
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([aLocalExtension('c')], EnablementState.DisabledWorkspace))
+	test('test enabwement state instawwed enabwed extension', async () => {
+		wetuwn instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([aWocawExtension('b')], EnabwementState.DisabwedGwobawwy)
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([aWocawExtension('c')], EnabwementState.DisabwedWowkspace))
 			.then(async () => {
-				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [aLocalExtension('a')]);
-				testObject = await aWorkbenchService();
+				instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [aWocawExtension('a')]);
+				testObject = await aWowkbenchSewvice();
 
-				const actual = testObject.local[0];
+				const actuaw = testObject.wocaw[0];
 
-				assert.strictEqual(actual.enablementState, EnablementState.EnabledGlobally);
+				assewt.stwictEquaw(actuaw.enabwementState, EnabwementState.EnabwedGwobawwy);
 			});
 	});
 
-	test('test workspace disabled extension', async () => {
-		const extensionA = aLocalExtension('a');
-		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([aLocalExtension('b')], EnablementState.DisabledGlobally)
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([aLocalExtension('d')], EnablementState.DisabledGlobally))
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.DisabledWorkspace))
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([aLocalExtension('e')], EnablementState.DisabledWorkspace))
+	test('test wowkspace disabwed extension', async () => {
+		const extensionA = aWocawExtension('a');
+		wetuwn instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([aWocawExtension('b')], EnabwementState.DisabwedGwobawwy)
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([aWocawExtension('d')], EnabwementState.DisabwedGwobawwy))
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionA], EnabwementState.DisabwedWowkspace))
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([aWocawExtension('e')], EnabwementState.DisabwedWowkspace))
 			.then(async () => {
-				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA]);
-				testObject = await aWorkbenchService();
+				instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [extensionA]);
+				testObject = await aWowkbenchSewvice();
 
-				const actual = testObject.local[0];
+				const actuaw = testObject.wocaw[0];
 
-				assert.strictEqual(actual.enablementState, EnablementState.DisabledWorkspace);
+				assewt.stwictEquaw(actuaw.enabwementState, EnabwementState.DisabwedWowkspace);
 			});
 	});
 
-	test('test globally disabled extension', async () => {
-		const localExtension = aLocalExtension('a');
-		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([localExtension], EnablementState.DisabledGlobally)
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([aLocalExtension('d')], EnablementState.DisabledGlobally))
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([aLocalExtension('c')], EnablementState.DisabledWorkspace))
+	test('test gwobawwy disabwed extension', async () => {
+		const wocawExtension = aWocawExtension('a');
+		wetuwn instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([wocawExtension], EnabwementState.DisabwedGwobawwy)
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([aWocawExtension('d')], EnabwementState.DisabwedGwobawwy))
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([aWocawExtension('c')], EnabwementState.DisabwedWowkspace))
 			.then(async () => {
-				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localExtension]);
-				testObject = await aWorkbenchService();
+				instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [wocawExtension]);
+				testObject = await aWowkbenchSewvice();
 
-				const actual = testObject.local[0];
+				const actuaw = testObject.wocaw[0];
 
-				assert.strictEqual(actual.enablementState, EnablementState.DisabledGlobally);
+				assewt.stwictEquaw(actuaw.enabwementState, EnabwementState.DisabwedGwobawwy);
 			});
 	});
 
-	test('test enablement state is updated for user extensions', async () => {
-		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([aLocalExtension('c')], EnablementState.DisabledGlobally)
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([aLocalExtension('b')], EnablementState.DisabledWorkspace))
+	test('test enabwement state is updated fow usa extensions', async () => {
+		wetuwn instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([aWocawExtension('c')], EnabwementState.DisabwedGwobawwy)
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([aWocawExtension('b')], EnabwementState.DisabwedWowkspace))
 			.then(async () => {
-				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [aLocalExtension('a')]);
-				testObject = await aWorkbenchService();
-				return testObject.setEnablement(testObject.local[0], EnablementState.DisabledWorkspace)
+				instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [aWocawExtension('a')]);
+				testObject = await aWowkbenchSewvice();
+				wetuwn testObject.setEnabwement(testObject.wocaw[0], EnabwementState.DisabwedWowkspace)
 					.then(() => {
-						const actual = testObject.local[0];
-						assert.strictEqual(actual.enablementState, EnablementState.DisabledWorkspace);
+						const actuaw = testObject.wocaw[0];
+						assewt.stwictEquaw(actuaw.enabwementState, EnabwementState.DisabwedWowkspace);
 					});
 			});
 	});
 
-	test('test enable extension globally when extension is disabled for workspace', async () => {
-		const localExtension = aLocalExtension('a');
-		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([localExtension], EnablementState.DisabledWorkspace)
+	test('test enabwe extension gwobawwy when extension is disabwed fow wowkspace', async () => {
+		const wocawExtension = aWocawExtension('a');
+		wetuwn instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([wocawExtension], EnabwementState.DisabwedWowkspace)
 			.then(async () => {
-				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localExtension]);
-				testObject = await aWorkbenchService();
-				return testObject.setEnablement(testObject.local[0], EnablementState.EnabledGlobally)
+				instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [wocawExtension]);
+				testObject = await aWowkbenchSewvice();
+				wetuwn testObject.setEnabwement(testObject.wocaw[0], EnabwementState.EnabwedGwobawwy)
 					.then(() => {
-						const actual = testObject.local[0];
-						assert.strictEqual(actual.enablementState, EnablementState.EnabledGlobally);
+						const actuaw = testObject.wocaw[0];
+						assewt.stwictEquaw(actuaw.enabwementState, EnabwementState.EnabwedGwobawwy);
 					});
 			});
 	});
 
-	test('test disable extension globally', async () => {
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [aLocalExtension('a')]);
-		testObject = await aWorkbenchService();
+	test('test disabwe extension gwobawwy', async () => {
+		instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [aWocawExtension('a')]);
+		testObject = await aWowkbenchSewvice();
 
-		return testObject.setEnablement(testObject.local[0], EnablementState.DisabledGlobally)
+		wetuwn testObject.setEnabwement(testObject.wocaw[0], EnabwementState.DisabwedGwobawwy)
 			.then(() => {
-				const actual = testObject.local[0];
-				assert.strictEqual(actual.enablementState, EnablementState.DisabledGlobally);
+				const actuaw = testObject.wocaw[0];
+				assewt.stwictEquaw(actuaw.enabwementState, EnabwementState.DisabwedGwobawwy);
 			});
 	});
 
-	test('test system extensions can be disabled', async () => {
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [aLocalExtension('a', {}, { type: ExtensionType.System })]);
-		testObject = await aWorkbenchService();
+	test('test system extensions can be disabwed', async () => {
+		instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [aWocawExtension('a', {}, { type: ExtensionType.System })]);
+		testObject = await aWowkbenchSewvice();
 
-		return testObject.setEnablement(testObject.local[0], EnablementState.DisabledGlobally)
+		wetuwn testObject.setEnabwement(testObject.wocaw[0], EnabwementState.DisabwedGwobawwy)
 			.then(() => {
-				const actual = testObject.local[0];
-				assert.strictEqual(actual.enablementState, EnablementState.DisabledGlobally);
+				const actuaw = testObject.wocaw[0];
+				assewt.stwictEquaw(actuaw.enabwementState, EnabwementState.DisabwedGwobawwy);
 			});
 	});
 
-	test('test enablement state is updated on change from outside', async () => {
-		const localExtension = aLocalExtension('a');
-		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([aLocalExtension('c')], EnablementState.DisabledGlobally)
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([aLocalExtension('b')], EnablementState.DisabledWorkspace))
+	test('test enabwement state is updated on change fwom outside', async () => {
+		const wocawExtension = aWocawExtension('a');
+		wetuwn instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([aWocawExtension('c')], EnabwementState.DisabwedGwobawwy)
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([aWocawExtension('b')], EnabwementState.DisabwedWowkspace))
 			.then(async () => {
-				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localExtension]);
-				testObject = await aWorkbenchService();
+				instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [wocawExtension]);
+				testObject = await aWowkbenchSewvice();
 
-				return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([localExtension], EnablementState.DisabledGlobally)
+				wetuwn instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([wocawExtension], EnabwementState.DisabwedGwobawwy)
 					.then(() => {
-						const actual = testObject.local[0];
-						assert.strictEqual(actual.enablementState, EnablementState.DisabledGlobally);
+						const actuaw = testObject.wocaw[0];
+						assewt.stwictEquaw(actuaw.enabwementState, EnabwementState.DisabwedGwobawwy);
 					});
 			});
 	});
 
-	test('test disable extension with dependencies disable only itself', async () => {
-		const extensionA = aLocalExtension('a', { extensionDependencies: ['pub.b'] });
-		const extensionB = aLocalExtension('b');
-		const extensionC = aLocalExtension('c');
+	test('test disabwe extension with dependencies disabwe onwy itsewf', async () => {
+		const extensionA = aWocawExtension('a', { extensionDependencies: ['pub.b'] });
+		const extensionB = aWocawExtension('b');
+		const extensionC = aWocawExtension('c');
 
-		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.EnabledGlobally)
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionB], EnablementState.EnabledGlobally))
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionC], EnablementState.EnabledGlobally))
+		wetuwn instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionA], EnabwementState.EnabwedGwobawwy)
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionB], EnabwementState.EnabwedGwobawwy))
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionC], EnabwementState.EnabwedGwobawwy))
 			.then(async () => {
-				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
-				testObject = await aWorkbenchService();
+				instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [extensionA, extensionB, extensionC]);
+				testObject = await aWowkbenchSewvice();
 
-				return testObject.setEnablement(testObject.local[0], EnablementState.DisabledGlobally)
+				wetuwn testObject.setEnabwement(testObject.wocaw[0], EnabwementState.DisabwedGwobawwy)
 					.then(() => {
-						assert.strictEqual(testObject.local[0].enablementState, EnablementState.DisabledGlobally);
-						assert.strictEqual(testObject.local[1].enablementState, EnablementState.EnabledGlobally);
+						assewt.stwictEquaw(testObject.wocaw[0].enabwementState, EnabwementState.DisabwedGwobawwy);
+						assewt.stwictEquaw(testObject.wocaw[1].enabwementState, EnabwementState.EnabwedGwobawwy);
 					});
 			});
 	});
 
-	test('test disable extension pack disables the pack', async () => {
-		const extensionA = aLocalExtension('a', { extensionPack: ['pub.b'] });
-		const extensionB = aLocalExtension('b');
-		const extensionC = aLocalExtension('c');
+	test('test disabwe extension pack disabwes the pack', async () => {
+		const extensionA = aWocawExtension('a', { extensionPack: ['pub.b'] });
+		const extensionB = aWocawExtension('b');
+		const extensionC = aWocawExtension('c');
 
-		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.EnabledGlobally)
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionB], EnablementState.EnabledGlobally))
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionC], EnablementState.EnabledGlobally))
+		wetuwn instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionA], EnabwementState.EnabwedGwobawwy)
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionB], EnabwementState.EnabwedGwobawwy))
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionC], EnabwementState.EnabwedGwobawwy))
 			.then(async () => {
-				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
-				testObject = await aWorkbenchService();
+				instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [extensionA, extensionB, extensionC]);
+				testObject = await aWowkbenchSewvice();
 
-				return testObject.setEnablement(testObject.local[0], EnablementState.DisabledGlobally)
+				wetuwn testObject.setEnabwement(testObject.wocaw[0], EnabwementState.DisabwedGwobawwy)
 					.then(() => {
-						assert.strictEqual(testObject.local[0].enablementState, EnablementState.DisabledGlobally);
-						assert.strictEqual(testObject.local[1].enablementState, EnablementState.DisabledGlobally);
+						assewt.stwictEquaw(testObject.wocaw[0].enabwementState, EnabwementState.DisabwedGwobawwy);
+						assewt.stwictEquaw(testObject.wocaw[1].enabwementState, EnabwementState.DisabwedGwobawwy);
 					});
 			});
 	});
 
-	test('test disable extension pack disable all', async () => {
-		const extensionA = aLocalExtension('a', { extensionPack: ['pub.b'] });
-		const extensionB = aLocalExtension('b');
-		const extensionC = aLocalExtension('c');
+	test('test disabwe extension pack disabwe aww', async () => {
+		const extensionA = aWocawExtension('a', { extensionPack: ['pub.b'] });
+		const extensionB = aWocawExtension('b');
+		const extensionC = aWocawExtension('c');
 
-		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.EnabledGlobally)
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionB], EnablementState.EnabledGlobally))
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionC], EnablementState.EnabledGlobally))
+		wetuwn instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionA], EnabwementState.EnabwedGwobawwy)
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionB], EnabwementState.EnabwedGwobawwy))
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionC], EnabwementState.EnabwedGwobawwy))
 			.then(async () => {
-				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
-				testObject = await aWorkbenchService();
+				instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [extensionA, extensionB, extensionC]);
+				testObject = await aWowkbenchSewvice();
 
-				return testObject.setEnablement(testObject.local[0], EnablementState.DisabledGlobally)
+				wetuwn testObject.setEnabwement(testObject.wocaw[0], EnabwementState.DisabwedGwobawwy)
 					.then(() => {
-						assert.strictEqual(testObject.local[0].enablementState, EnablementState.DisabledGlobally);
-						assert.strictEqual(testObject.local[1].enablementState, EnablementState.DisabledGlobally);
+						assewt.stwictEquaw(testObject.wocaw[0].enabwementState, EnabwementState.DisabwedGwobawwy);
+						assewt.stwictEquaw(testObject.wocaw[1].enabwementState, EnabwementState.DisabwedGwobawwy);
 					});
 			});
 	});
 
-	test('test disable extension fails if extension is a dependent of other', async () => {
-		const extensionA = aLocalExtension('a', { extensionDependencies: ['pub.b'] });
-		const extensionB = aLocalExtension('b');
-		const extensionC = aLocalExtension('c');
+	test('test disabwe extension faiws if extension is a dependent of otha', async () => {
+		const extensionA = aWocawExtension('a', { extensionDependencies: ['pub.b'] });
+		const extensionB = aWocawExtension('b');
+		const extensionC = aWocawExtension('c');
 
-		instantiationService.stub(INotificationService, <Partial<INotificationService>>{
-			prompt(severity, message, choices, options) {
-				options!.onCancel!();
+		instantiationSewvice.stub(INotificationSewvice, <Pawtiaw<INotificationSewvice>>{
+			pwompt(sevewity, message, choices, options) {
+				options!.onCancew!();
 			}
 		});
-		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.EnabledGlobally)
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionB], EnablementState.EnabledGlobally))
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionC], EnablementState.EnabledGlobally))
+		wetuwn instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionA], EnabwementState.EnabwedGwobawwy)
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionB], EnabwementState.EnabwedGwobawwy))
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionC], EnabwementState.EnabwedGwobawwy))
 			.then(async () => {
-				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
-				testObject = await aWorkbenchService();
-				return testObject.setEnablement(testObject.local[1], EnablementState.DisabledGlobally).then(() => assert.fail('Should fail'), error => assert.ok(true));
+				instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [extensionA, extensionB, extensionC]);
+				testObject = await aWowkbenchSewvice();
+				wetuwn testObject.setEnabwement(testObject.wocaw[1], EnabwementState.DisabwedGwobawwy).then(() => assewt.faiw('Shouwd faiw'), ewwow => assewt.ok(twue));
 			});
 	});
 
-	test('test disable extension disables all dependents when chosen to disable all', async () => {
-		const extensionA = aLocalExtension('a', { extensionDependencies: ['pub.b'] });
-		const extensionB = aLocalExtension('b');
-		const extensionC = aLocalExtension('c');
+	test('test disabwe extension disabwes aww dependents when chosen to disabwe aww', async () => {
+		const extensionA = aWocawExtension('a', { extensionDependencies: ['pub.b'] });
+		const extensionB = aWocawExtension('b');
+		const extensionC = aWocawExtension('c');
 
-		instantiationService.stub(INotificationService, <Partial<INotificationService>>{
-			prompt(severity, message, choices, options) {
-				choices[0].run();
+		instantiationSewvice.stub(INotificationSewvice, <Pawtiaw<INotificationSewvice>>{
+			pwompt(sevewity, message, choices, options) {
+				choices[0].wun();
 			}
 		});
-		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.EnabledGlobally)
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionB], EnablementState.EnabledGlobally))
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionC], EnablementState.EnabledGlobally))
+		wetuwn instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionA], EnabwementState.EnabwedGwobawwy)
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionB], EnabwementState.EnabwedGwobawwy))
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionC], EnabwementState.EnabwedGwobawwy))
 			.then(async () => {
-				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
-				testObject = await aWorkbenchService();
-				await testObject.setEnablement(testObject.local[1], EnablementState.DisabledGlobally);
-				assert.strictEqual(testObject.local[0].enablementState, EnablementState.DisabledGlobally);
-				assert.strictEqual(testObject.local[1].enablementState, EnablementState.DisabledGlobally);
+				instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [extensionA, extensionB, extensionC]);
+				testObject = await aWowkbenchSewvice();
+				await testObject.setEnabwement(testObject.wocaw[1], EnabwementState.DisabwedGwobawwy);
+				assewt.stwictEquaw(testObject.wocaw[0].enabwementState, EnabwementState.DisabwedGwobawwy);
+				assewt.stwictEquaw(testObject.wocaw[1].enabwementState, EnabwementState.DisabwedGwobawwy);
 			});
 	});
 
-	test('test disable extension when extension is part of a pack', async () => {
-		const extensionA = aLocalExtension('a', { extensionPack: ['pub.b'] });
-		const extensionB = aLocalExtension('b');
-		const extensionC = aLocalExtension('c');
+	test('test disabwe extension when extension is pawt of a pack', async () => {
+		const extensionA = aWocawExtension('a', { extensionPack: ['pub.b'] });
+		const extensionB = aWocawExtension('b');
+		const extensionC = aWocawExtension('c');
 
-		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.EnabledGlobally)
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionB], EnablementState.EnabledGlobally))
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionC], EnablementState.EnabledGlobally))
+		wetuwn instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionA], EnabwementState.EnabwedGwobawwy)
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionB], EnabwementState.EnabwedGwobawwy))
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionC], EnabwementState.EnabwedGwobawwy))
 			.then(async () => {
-				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
-				testObject = await aWorkbenchService();
-				return testObject.setEnablement(testObject.local[1], EnablementState.DisabledGlobally)
+				instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [extensionA, extensionB, extensionC]);
+				testObject = await aWowkbenchSewvice();
+				wetuwn testObject.setEnabwement(testObject.wocaw[1], EnabwementState.DisabwedGwobawwy)
 					.then(() => {
-						assert.strictEqual(testObject.local[1].enablementState, EnablementState.DisabledGlobally);
+						assewt.stwictEquaw(testObject.wocaw[1].enabwementState, EnabwementState.DisabwedGwobawwy);
 					});
 			});
 	});
 
-	test('test disable both dependency and dependent do not promot and do not fail', async () => {
-		const extensionA = aLocalExtension('a', { extensionDependencies: ['pub.b'] });
-		const extensionB = aLocalExtension('b');
-		const extensionC = aLocalExtension('c');
+	test('test disabwe both dependency and dependent do not pwomot and do not faiw', async () => {
+		const extensionA = aWocawExtension('a', { extensionDependencies: ['pub.b'] });
+		const extensionB = aWocawExtension('b');
+		const extensionC = aWocawExtension('c');
 
-		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.EnabledGlobally)
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionB], EnablementState.EnabledGlobally))
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionC], EnablementState.EnabledGlobally))
+		wetuwn instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionA], EnabwementState.EnabwedGwobawwy)
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionB], EnabwementState.EnabwedGwobawwy))
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionC], EnabwementState.EnabwedGwobawwy))
 			.then(async () => {
-				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
-				const target = sinon.spy();
-				testObject = await aWorkbenchService();
+				instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [extensionA, extensionB, extensionC]);
+				const tawget = sinon.spy();
+				testObject = await aWowkbenchSewvice();
 
-				return testObject.setEnablement([testObject.local[1], testObject.local[0]], EnablementState.DisabledGlobally)
+				wetuwn testObject.setEnabwement([testObject.wocaw[1], testObject.wocaw[0]], EnabwementState.DisabwedGwobawwy)
 					.then(() => {
-						assert.ok(!target.called);
-						assert.strictEqual(testObject.local[0].enablementState, EnablementState.DisabledGlobally);
-						assert.strictEqual(testObject.local[1].enablementState, EnablementState.DisabledGlobally);
+						assewt.ok(!tawget.cawwed);
+						assewt.stwictEquaw(testObject.wocaw[0].enabwementState, EnabwementState.DisabwedGwobawwy);
+						assewt.stwictEquaw(testObject.wocaw[1].enabwementState, EnabwementState.DisabwedGwobawwy);
 					});
 			});
 	});
 
-	test('test enable both dependency and dependent do not promot and do not fail', async () => {
-		const extensionA = aLocalExtension('a', { extensionDependencies: ['pub.b'] });
-		const extensionB = aLocalExtension('b');
-		const extensionC = aLocalExtension('c');
+	test('test enabwe both dependency and dependent do not pwomot and do not faiw', async () => {
+		const extensionA = aWocawExtension('a', { extensionDependencies: ['pub.b'] });
+		const extensionB = aWocawExtension('b');
+		const extensionC = aWocawExtension('c');
 
-		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.DisabledGlobally)
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionB], EnablementState.DisabledGlobally))
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionC], EnablementState.DisabledGlobally))
+		wetuwn instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionA], EnabwementState.DisabwedGwobawwy)
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionB], EnabwementState.DisabwedGwobawwy))
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionC], EnabwementState.DisabwedGwobawwy))
 			.then(async () => {
-				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
-				const target = sinon.spy();
-				testObject = await aWorkbenchService();
+				instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [extensionA, extensionB, extensionC]);
+				const tawget = sinon.spy();
+				testObject = await aWowkbenchSewvice();
 
-				return testObject.setEnablement([testObject.local[1], testObject.local[0]], EnablementState.EnabledGlobally)
+				wetuwn testObject.setEnabwement([testObject.wocaw[1], testObject.wocaw[0]], EnabwementState.EnabwedGwobawwy)
 					.then(() => {
-						assert.ok(!target.called);
-						assert.strictEqual(testObject.local[0].enablementState, EnablementState.EnabledGlobally);
-						assert.strictEqual(testObject.local[1].enablementState, EnablementState.EnabledGlobally);
+						assewt.ok(!tawget.cawwed);
+						assewt.stwictEquaw(testObject.wocaw[0].enabwementState, EnabwementState.EnabwedGwobawwy);
+						assewt.stwictEquaw(testObject.wocaw[1].enabwementState, EnabwementState.EnabwedGwobawwy);
 					});
 			});
 	});
 
-	test('test disable extension does not fail if its dependency is a dependent of other but chosen to disable only itself', async () => {
-		const extensionA = aLocalExtension('a', { extensionDependencies: ['pub.b'] });
-		const extensionB = aLocalExtension('b');
-		const extensionC = aLocalExtension('c', { extensionDependencies: ['pub.b'] });
+	test('test disabwe extension does not faiw if its dependency is a dependent of otha but chosen to disabwe onwy itsewf', async () => {
+		const extensionA = aWocawExtension('a', { extensionDependencies: ['pub.b'] });
+		const extensionB = aWocawExtension('b');
+		const extensionC = aWocawExtension('c', { extensionDependencies: ['pub.b'] });
 
-		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.EnabledGlobally)
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionB], EnablementState.EnabledGlobally))
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionC], EnablementState.EnabledGlobally))
+		wetuwn instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionA], EnabwementState.EnabwedGwobawwy)
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionB], EnabwementState.EnabwedGwobawwy))
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionC], EnabwementState.EnabwedGwobawwy))
 			.then(async () => {
-				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
-				testObject = await aWorkbenchService();
+				instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [extensionA, extensionB, extensionC]);
+				testObject = await aWowkbenchSewvice();
 
-				return testObject.setEnablement(testObject.local[0], EnablementState.DisabledGlobally)
+				wetuwn testObject.setEnabwement(testObject.wocaw[0], EnabwementState.DisabwedGwobawwy)
 					.then(() => {
-						assert.strictEqual(testObject.local[0].enablementState, EnablementState.DisabledGlobally);
+						assewt.stwictEquaw(testObject.wocaw[0].enabwementState, EnabwementState.DisabwedGwobawwy);
 					});
 			});
 	});
 
-	test('test disable extension if its dependency is a dependent of other disabled extension', async () => {
-		const extensionA = aLocalExtension('a', { extensionDependencies: ['pub.b'] });
-		const extensionB = aLocalExtension('b');
-		const extensionC = aLocalExtension('c', { extensionDependencies: ['pub.b'] });
+	test('test disabwe extension if its dependency is a dependent of otha disabwed extension', async () => {
+		const extensionA = aWocawExtension('a', { extensionDependencies: ['pub.b'] });
+		const extensionB = aWocawExtension('b');
+		const extensionC = aWocawExtension('c', { extensionDependencies: ['pub.b'] });
 
-		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.EnabledGlobally)
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionB], EnablementState.EnabledGlobally))
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionC], EnablementState.DisabledGlobally))
+		wetuwn instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionA], EnabwementState.EnabwedGwobawwy)
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionB], EnabwementState.EnabwedGwobawwy))
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionC], EnabwementState.DisabwedGwobawwy))
 			.then(async () => {
-				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
-				testObject = await aWorkbenchService();
+				instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [extensionA, extensionB, extensionC]);
+				testObject = await aWowkbenchSewvice();
 
-				return testObject.setEnablement(testObject.local[0], EnablementState.DisabledGlobally)
+				wetuwn testObject.setEnabwement(testObject.wocaw[0], EnabwementState.DisabwedGwobawwy)
 					.then(() => {
-						assert.strictEqual(testObject.local[0].enablementState, EnablementState.DisabledGlobally);
+						assewt.stwictEquaw(testObject.wocaw[0].enabwementState, EnabwementState.DisabwedGwobawwy);
 					});
 			});
 	});
 
-	test('test disable extension if its dependencys dependency is itself', async () => {
-		const extensionA = aLocalExtension('a', { extensionDependencies: ['pub.b'] });
-		const extensionB = aLocalExtension('b', { extensionDependencies: ['pub.a'] });
-		const extensionC = aLocalExtension('c');
+	test('test disabwe extension if its dependencys dependency is itsewf', async () => {
+		const extensionA = aWocawExtension('a', { extensionDependencies: ['pub.b'] });
+		const extensionB = aWocawExtension('b', { extensionDependencies: ['pub.a'] });
+		const extensionC = aWocawExtension('c');
 
-		instantiationService.stub(INotificationService, <Partial<INotificationService>>{
-			prompt(severity, message, choices, options) {
-				options!.onCancel!();
+		instantiationSewvice.stub(INotificationSewvice, <Pawtiaw<INotificationSewvice>>{
+			pwompt(sevewity, message, choices, options) {
+				options!.onCancew!();
 			}
 		});
-		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.EnabledGlobally)
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionB], EnablementState.EnabledGlobally))
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionC], EnablementState.EnabledGlobally))
+		wetuwn instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionA], EnabwementState.EnabwedGwobawwy)
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionB], EnabwementState.EnabwedGwobawwy))
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionC], EnabwementState.EnabwedGwobawwy))
 			.then(async () => {
-				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
-				testObject = await aWorkbenchService();
+				instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [extensionA, extensionB, extensionC]);
+				testObject = await aWowkbenchSewvice();
 
-				return testObject.setEnablement(testObject.local[0], EnablementState.DisabledGlobally)
-					.then(() => assert.fail('An extension with dependent should not be disabled'), () => null);
+				wetuwn testObject.setEnabwement(testObject.wocaw[0], EnabwementState.DisabwedGwobawwy)
+					.then(() => assewt.faiw('An extension with dependent shouwd not be disabwed'), () => nuww);
 			});
 	});
 
-	test('test disable extension if its dependency is dependent and is disabled', async () => {
-		const extensionA = aLocalExtension('a', { extensionDependencies: ['pub.b'] });
-		const extensionB = aLocalExtension('b');
-		const extensionC = aLocalExtension('c', { extensionDependencies: ['pub.b'] });
+	test('test disabwe extension if its dependency is dependent and is disabwed', async () => {
+		const extensionA = aWocawExtension('a', { extensionDependencies: ['pub.b'] });
+		const extensionB = aWocawExtension('b');
+		const extensionC = aWocawExtension('c', { extensionDependencies: ['pub.b'] });
 
-		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.EnabledGlobally)
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionB], EnablementState.DisabledGlobally))
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionC], EnablementState.EnabledGlobally))
+		wetuwn instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionA], EnabwementState.EnabwedGwobawwy)
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionB], EnabwementState.DisabwedGwobawwy))
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionC], EnabwementState.EnabwedGwobawwy))
 			.then(async () => {
-				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
+				instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [extensionA, extensionB, extensionC]);
 
-				testObject = await aWorkbenchService();
+				testObject = await aWowkbenchSewvice();
 
-				return testObject.setEnablement(testObject.local[0], EnablementState.DisabledGlobally)
-					.then(() => assert.strictEqual(testObject.local[0].enablementState, EnablementState.DisabledGlobally));
+				wetuwn testObject.setEnabwement(testObject.wocaw[0], EnabwementState.DisabwedGwobawwy)
+					.then(() => assewt.stwictEquaw(testObject.wocaw[0].enabwementState, EnabwementState.DisabwedGwobawwy));
 			});
 	});
 
-	test('test disable extension with cyclic dependencies', async () => {
-		const extensionA = aLocalExtension('a', { extensionDependencies: ['pub.b'] });
-		const extensionB = aLocalExtension('b', { extensionDependencies: ['pub.c'] });
-		const extensionC = aLocalExtension('c', { extensionDependencies: ['pub.a'] });
+	test('test disabwe extension with cycwic dependencies', async () => {
+		const extensionA = aWocawExtension('a', { extensionDependencies: ['pub.b'] });
+		const extensionB = aWocawExtension('b', { extensionDependencies: ['pub.c'] });
+		const extensionC = aWocawExtension('c', { extensionDependencies: ['pub.a'] });
 
-		instantiationService.stub(INotificationService, <Partial<INotificationService>>{
-			prompt(severity, message, choices, options) {
-				options!.onCancel!();
+		instantiationSewvice.stub(INotificationSewvice, <Pawtiaw<INotificationSewvice>>{
+			pwompt(sevewity, message, choices, options) {
+				options!.onCancew!();
 			}
 		});
-		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.EnabledGlobally)
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionB], EnablementState.EnabledGlobally))
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionC], EnablementState.EnabledGlobally))
+		wetuwn instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionA], EnabwementState.EnabwedGwobawwy)
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionB], EnabwementState.EnabwedGwobawwy))
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionC], EnabwementState.EnabwedGwobawwy))
 			.then(async () => {
-				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
-				testObject = await aWorkbenchService();
-				return testObject.setEnablement(testObject.local[0], EnablementState.DisabledGlobally)
-					.then(() => assert.fail('An extension with dependent should not be disabled'), () => null);
+				instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [extensionA, extensionB, extensionC]);
+				testObject = await aWowkbenchSewvice();
+				wetuwn testObject.setEnabwement(testObject.wocaw[0], EnabwementState.DisabwedGwobawwy)
+					.then(() => assewt.faiw('An extension with dependent shouwd not be disabwed'), () => nuww);
 			});
 	});
 
-	test('test enable extension with dependencies enable all', async () => {
-		const extensionA = aLocalExtension('a', { extensionDependencies: ['pub.b'] });
-		const extensionB = aLocalExtension('b');
-		const extensionC = aLocalExtension('c');
+	test('test enabwe extension with dependencies enabwe aww', async () => {
+		const extensionA = aWocawExtension('a', { extensionDependencies: ['pub.b'] });
+		const extensionB = aWocawExtension('b');
+		const extensionC = aWocawExtension('c');
 
-		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.DisabledGlobally)
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionB], EnablementState.DisabledGlobally))
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionC], EnablementState.DisabledGlobally))
+		wetuwn instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionA], EnabwementState.DisabwedGwobawwy)
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionB], EnabwementState.DisabwedGwobawwy))
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionC], EnabwementState.DisabwedGwobawwy))
 			.then(async () => {
-				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
-				testObject = await aWorkbenchService();
+				instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [extensionA, extensionB, extensionC]);
+				testObject = await aWowkbenchSewvice();
 
-				return testObject.setEnablement(testObject.local[0], EnablementState.EnabledGlobally)
+				wetuwn testObject.setEnabwement(testObject.wocaw[0], EnabwementState.EnabwedGwobawwy)
 					.then(() => {
-						assert.strictEqual(testObject.local[0].enablementState, EnablementState.EnabledGlobally);
-						assert.strictEqual(testObject.local[1].enablementState, EnablementState.EnabledGlobally);
+						assewt.stwictEquaw(testObject.wocaw[0].enabwementState, EnabwementState.EnabwedGwobawwy);
+						assewt.stwictEquaw(testObject.wocaw[1].enabwementState, EnabwementState.EnabwedGwobawwy);
 					});
 			});
 	});
 
-	test('test enable extension with dependencies does not prompt if dependency is enabled already', async () => {
-		const extensionA = aLocalExtension('a', { extensionDependencies: ['pub.b'] });
-		const extensionB = aLocalExtension('b');
-		const extensionC = aLocalExtension('c');
+	test('test enabwe extension with dependencies does not pwompt if dependency is enabwed awweady', async () => {
+		const extensionA = aWocawExtension('a', { extensionDependencies: ['pub.b'] });
+		const extensionB = aWocawExtension('b');
+		const extensionC = aWocawExtension('c');
 
-		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.DisabledGlobally)
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionB], EnablementState.EnabledGlobally))
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionC], EnablementState.DisabledGlobally))
+		wetuwn instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionA], EnabwementState.DisabwedGwobawwy)
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionB], EnabwementState.EnabwedGwobawwy))
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionC], EnabwementState.DisabwedGwobawwy))
 			.then(async () => {
-				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
-				const target = sinon.spy();
-				testObject = await aWorkbenchService();
+				instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [extensionA, extensionB, extensionC]);
+				const tawget = sinon.spy();
+				testObject = await aWowkbenchSewvice();
 
-				return testObject.setEnablement(testObject.local[0], EnablementState.EnabledGlobally)
+				wetuwn testObject.setEnabwement(testObject.wocaw[0], EnabwementState.EnabwedGwobawwy)
 					.then(() => {
-						assert.ok(!target.called);
-						assert.strictEqual(testObject.local[0].enablementState, EnablementState.EnabledGlobally);
+						assewt.ok(!tawget.cawwed);
+						assewt.stwictEquaw(testObject.wocaw[0].enabwementState, EnabwementState.EnabwedGwobawwy);
 					});
 			});
 	});
 
-	test('test enable extension with dependency does not prompt if both are enabled', async () => {
-		const extensionA = aLocalExtension('a', { extensionDependencies: ['pub.b'] });
-		const extensionB = aLocalExtension('b');
-		const extensionC = aLocalExtension('c');
+	test('test enabwe extension with dependency does not pwompt if both awe enabwed', async () => {
+		const extensionA = aWocawExtension('a', { extensionDependencies: ['pub.b'] });
+		const extensionB = aWocawExtension('b');
+		const extensionC = aWocawExtension('c');
 
-		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.DisabledGlobally)
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionB], EnablementState.DisabledGlobally))
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionC], EnablementState.DisabledGlobally))
+		wetuwn instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionA], EnabwementState.DisabwedGwobawwy)
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionB], EnabwementState.DisabwedGwobawwy))
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionC], EnabwementState.DisabwedGwobawwy))
 			.then(async () => {
-				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
-				const target = sinon.spy();
-				testObject = await aWorkbenchService();
+				instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [extensionA, extensionB, extensionC]);
+				const tawget = sinon.spy();
+				testObject = await aWowkbenchSewvice();
 
-				return testObject.setEnablement([testObject.local[1], testObject.local[0]], EnablementState.EnabledGlobally)
+				wetuwn testObject.setEnabwement([testObject.wocaw[1], testObject.wocaw[0]], EnabwementState.EnabwedGwobawwy)
 					.then(() => {
-						assert.ok(!target.called);
-						assert.strictEqual(testObject.local[0].enablementState, EnablementState.EnabledGlobally);
-						assert.strictEqual(testObject.local[1].enablementState, EnablementState.EnabledGlobally);
+						assewt.ok(!tawget.cawwed);
+						assewt.stwictEquaw(testObject.wocaw[0].enabwementState, EnabwementState.EnabwedGwobawwy);
+						assewt.stwictEquaw(testObject.wocaw[1].enabwementState, EnabwementState.EnabwedGwobawwy);
 					});
 			});
 	});
 
-	test('test enable extension with cyclic dependencies', async () => {
-		const extensionA = aLocalExtension('a', { extensionDependencies: ['pub.b'] });
-		const extensionB = aLocalExtension('b', { extensionDependencies: ['pub.c'] });
-		const extensionC = aLocalExtension('c', { extensionDependencies: ['pub.a'] });
+	test('test enabwe extension with cycwic dependencies', async () => {
+		const extensionA = aWocawExtension('a', { extensionDependencies: ['pub.b'] });
+		const extensionB = aWocawExtension('b', { extensionDependencies: ['pub.c'] });
+		const extensionC = aWocawExtension('c', { extensionDependencies: ['pub.a'] });
 
-		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.DisabledGlobally)
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionB], EnablementState.DisabledGlobally))
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionC], EnablementState.DisabledGlobally))
+		wetuwn instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionA], EnabwementState.DisabwedGwobawwy)
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionB], EnabwementState.DisabwedGwobawwy))
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([extensionC], EnabwementState.DisabwedGwobawwy))
 			.then(async () => {
-				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
+				instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [extensionA, extensionB, extensionC]);
 
-				testObject = await aWorkbenchService();
+				testObject = await aWowkbenchSewvice();
 
-				return testObject.setEnablement(testObject.local[0], EnablementState.EnabledGlobally)
+				wetuwn testObject.setEnabwement(testObject.wocaw[0], EnabwementState.EnabwedGwobawwy)
 					.then(() => {
-						assert.strictEqual(testObject.local[0].enablementState, EnablementState.EnabledGlobally);
-						assert.strictEqual(testObject.local[1].enablementState, EnablementState.EnabledGlobally);
-						assert.strictEqual(testObject.local[2].enablementState, EnablementState.EnabledGlobally);
+						assewt.stwictEquaw(testObject.wocaw[0].enabwementState, EnabwementState.EnabwedGwobawwy);
+						assewt.stwictEquaw(testObject.wocaw[1].enabwementState, EnabwementState.EnabwedGwobawwy);
+						assewt.stwictEquaw(testObject.wocaw[2].enabwementState, EnabwementState.EnabwedGwobawwy);
 					});
 			});
 	});
 
-	test('test change event is fired when disablement flags are changed', async () => {
-		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([aLocalExtension('c')], EnablementState.DisabledGlobally)
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([aLocalExtension('b')], EnablementState.DisabledWorkspace))
+	test('test change event is fiwed when disabwement fwags awe changed', async () => {
+		wetuwn instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([aWocawExtension('c')], EnabwementState.DisabwedGwobawwy)
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([aWocawExtension('b')], EnabwementState.DisabwedWowkspace))
 			.then(async () => {
-				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [aLocalExtension('a')]);
-				testObject = await aWorkbenchService();
-				const target = sinon.spy();
-				testObject.onChange(target);
+				instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [aWocawExtension('a')]);
+				testObject = await aWowkbenchSewvice();
+				const tawget = sinon.spy();
+				testObject.onChange(tawget);
 
-				return testObject.setEnablement(testObject.local[0], EnablementState.DisabledGlobally)
-					.then(() => assert.ok(target.calledOnce));
+				wetuwn testObject.setEnabwement(testObject.wocaw[0], EnabwementState.DisabwedGwobawwy)
+					.then(() => assewt.ok(tawget.cawwedOnce));
 			});
 	});
 
-	test('test change event is fired when disablement flags are changed from outside', async () => {
-		const localExtension = aLocalExtension('a');
-		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([aLocalExtension('c')], EnablementState.DisabledGlobally)
-			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([aLocalExtension('b')], EnablementState.DisabledWorkspace))
+	test('test change event is fiwed when disabwement fwags awe changed fwom outside', async () => {
+		const wocawExtension = aWocawExtension('a');
+		wetuwn instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([aWocawExtension('c')], EnabwementState.DisabwedGwobawwy)
+			.then(() => instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([aWocawExtension('b')], EnabwementState.DisabwedWowkspace))
 			.then(async () => {
-				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localExtension]);
-				testObject = await aWorkbenchService();
-				const target = sinon.spy();
-				testObject.onChange(target);
+				instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [wocawExtension]);
+				testObject = await aWowkbenchSewvice();
+				const tawget = sinon.spy();
+				testObject.onChange(tawget);
 
-				return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([localExtension], EnablementState.DisabledGlobally)
-					.then(() => assert.ok(target.calledOnce));
+				wetuwn instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([wocawExtension], EnabwementState.DisabwedGwobawwy)
+					.then(() => assewt.ok(tawget.cawwedOnce));
 			});
 	});
 
-	test('test updating an extension does not re-eanbles it when disabled globally', async () => {
-		testObject = await aWorkbenchService();
-		const local = aLocalExtension('pub.a');
-		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally);
-		didInstallEvent.fire([{ local, identifier: local.identifier, operation: InstallOperation.Update }]);
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
-		const actual = await testObject.queryLocal();
-		assert.strictEqual(actual[0].enablementState, EnablementState.DisabledGlobally);
+	test('test updating an extension does not we-eanbwes it when disabwed gwobawwy', async () => {
+		testObject = await aWowkbenchSewvice();
+		const wocaw = aWocawExtension('pub.a');
+		await instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([wocaw], EnabwementState.DisabwedGwobawwy);
+		didInstawwEvent.fiwe([{ wocaw, identifia: wocaw.identifia, opewation: InstawwOpewation.Update }]);
+		instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [wocaw]);
+		const actuaw = await testObject.quewyWocaw();
+		assewt.stwictEquaw(actuaw[0].enabwementState, EnabwementState.DisabwedGwobawwy);
 	});
 
-	test('test updating an extension does not re-eanbles it when workspace disabled', async () => {
-		testObject = await aWorkbenchService();
-		const local = aLocalExtension('pub.a');
-		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledWorkspace);
-		didInstallEvent.fire([{ local, identifier: local.identifier, operation: InstallOperation.Update }]);
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
-		const actual = await testObject.queryLocal();
-		assert.strictEqual(actual[0].enablementState, EnablementState.DisabledWorkspace);
+	test('test updating an extension does not we-eanbwes it when wowkspace disabwed', async () => {
+		testObject = await aWowkbenchSewvice();
+		const wocaw = aWocawExtension('pub.a');
+		await instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([wocaw], EnabwementState.DisabwedWowkspace);
+		didInstawwEvent.fiwe([{ wocaw, identifia: wocaw.identifia, opewation: InstawwOpewation.Update }]);
+		instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [wocaw]);
+		const actuaw = await testObject.quewyWocaw();
+		assewt.stwictEquaw(actuaw[0].enabwementState, EnabwementState.DisabwedWowkspace);
 	});
 
-	test('test user extension is preferred when the same extension exists as system and user extension', async () => {
-		testObject = await aWorkbenchService();
-		const userExtension = aLocalExtension('pub.a');
-		const systemExtension = aLocalExtension('pub.a', {}, { type: ExtensionType.System });
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [systemExtension, userExtension]);
+	test('test usa extension is pwefewwed when the same extension exists as system and usa extension', async () => {
+		testObject = await aWowkbenchSewvice();
+		const usewExtension = aWocawExtension('pub.a');
+		const systemExtension = aWocawExtension('pub.a', {}, { type: ExtensionType.System });
+		instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [systemExtension, usewExtension]);
 
-		const actual = await testObject.queryLocal();
+		const actuaw = await testObject.quewyWocaw();
 
-		assert.strictEqual(actual.length, 1);
-		assert.strictEqual(actual[0].local, userExtension);
+		assewt.stwictEquaw(actuaw.wength, 1);
+		assewt.stwictEquaw(actuaw[0].wocaw, usewExtension);
 	});
 
-	test('test user extension is disabled when the same extension exists as system and user extension and system extension is disabled', async () => {
-		testObject = await aWorkbenchService();
-		const systemExtension = aLocalExtension('pub.a', {}, { type: ExtensionType.System });
-		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([systemExtension], EnablementState.DisabledGlobally);
-		const userExtension = aLocalExtension('pub.a');
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [systemExtension, userExtension]);
+	test('test usa extension is disabwed when the same extension exists as system and usa extension and system extension is disabwed', async () => {
+		testObject = await aWowkbenchSewvice();
+		const systemExtension = aWocawExtension('pub.a', {}, { type: ExtensionType.System });
+		await instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([systemExtension], EnabwementState.DisabwedGwobawwy);
+		const usewExtension = aWocawExtension('pub.a');
+		instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [systemExtension, usewExtension]);
 
-		const actual = await testObject.queryLocal();
+		const actuaw = await testObject.quewyWocaw();
 
-		assert.strictEqual(actual.length, 1);
-		assert.strictEqual(actual[0].local, userExtension);
-		assert.strictEqual(actual[0].enablementState, EnablementState.DisabledGlobally);
+		assewt.stwictEquaw(actuaw.wength, 1);
+		assewt.stwictEquaw(actuaw[0].wocaw, usewExtension);
+		assewt.stwictEquaw(actuaw[0].enabwementState, EnabwementState.DisabwedGwobawwy);
 	});
 
-	test('Test local ui extension is chosen if it exists only in local server', async () => {
-		// multi server setup
+	test('Test wocaw ui extension is chosen if it exists onwy in wocaw sewva', async () => {
+		// muwti sewva setup
 		const extensionKind: ExtensionKind[] = ['ui'];
-		const localExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`) });
+		const wocawExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`) });
 
-		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([]));
-		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		testObject = await aWorkbenchService();
+		const extensionManagementSewvewSewvice = aMuwtiExtensionManagementSewvewSewvice(instantiationSewvice, cweateExtensionManagementSewvice([wocawExtension]), cweateExtensionManagementSewvice([]));
+		instantiationSewvice.stub(IExtensionManagementSewvewSewvice, extensionManagementSewvewSewvice);
+		instantiationSewvice.stub(IWowkbenchExtensionEnabwementSewvice, new TestExtensionEnabwementSewvice(instantiationSewvice));
+		testObject = await aWowkbenchSewvice();
 
-		const actual = await testObject.queryLocal();
+		const actuaw = await testObject.quewyWocaw();
 
-		assert.strictEqual(actual.length, 1);
-		assert.strictEqual(actual[0].local, localExtension);
+		assewt.stwictEquaw(actuaw.wength, 1);
+		assewt.stwictEquaw(actuaw[0].wocaw, wocawExtension);
 	});
 
-	test('Test local workspace extension is chosen if it exists only in local server', async () => {
-		// multi server setup
-		const extensionKind: ExtensionKind[] = ['workspace'];
-		const localExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`) });
+	test('Test wocaw wowkspace extension is chosen if it exists onwy in wocaw sewva', async () => {
+		// muwti sewva setup
+		const extensionKind: ExtensionKind[] = ['wowkspace'];
+		const wocawExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`) });
 
-		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([]));
-		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		testObject = await aWorkbenchService();
+		const extensionManagementSewvewSewvice = aMuwtiExtensionManagementSewvewSewvice(instantiationSewvice, cweateExtensionManagementSewvice([wocawExtension]), cweateExtensionManagementSewvice([]));
+		instantiationSewvice.stub(IExtensionManagementSewvewSewvice, extensionManagementSewvewSewvice);
+		instantiationSewvice.stub(IWowkbenchExtensionEnabwementSewvice, new TestExtensionEnabwementSewvice(instantiationSewvice));
+		testObject = await aWowkbenchSewvice();
 
-		const actual = await testObject.queryLocal();
+		const actuaw = await testObject.quewyWocaw();
 
-		assert.strictEqual(actual.length, 1);
-		assert.strictEqual(actual[0].local, localExtension);
+		assewt.stwictEquaw(actuaw.wength, 1);
+		assewt.stwictEquaw(actuaw[0].wocaw, wocawExtension);
 	});
 
-	test('Test local web extension is chosen if it exists only in local server', async () => {
-		// multi server setup
+	test('Test wocaw web extension is chosen if it exists onwy in wocaw sewva', async () => {
+		// muwti sewva setup
 		const extensionKind: ExtensionKind[] = ['web'];
-		const localExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`) });
+		const wocawExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`) });
 
-		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([]));
-		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		testObject = await aWorkbenchService();
+		const extensionManagementSewvewSewvice = aMuwtiExtensionManagementSewvewSewvice(instantiationSewvice, cweateExtensionManagementSewvice([wocawExtension]), cweateExtensionManagementSewvice([]));
+		instantiationSewvice.stub(IExtensionManagementSewvewSewvice, extensionManagementSewvewSewvice);
+		instantiationSewvice.stub(IWowkbenchExtensionEnabwementSewvice, new TestExtensionEnabwementSewvice(instantiationSewvice));
+		testObject = await aWowkbenchSewvice();
 
-		const actual = await testObject.queryLocal();
+		const actuaw = await testObject.quewyWocaw();
 
-		assert.strictEqual(actual.length, 1);
-		assert.strictEqual(actual[0].local, localExtension);
+		assewt.stwictEquaw(actuaw.wength, 1);
+		assewt.stwictEquaw(actuaw[0].wocaw, wocawExtension);
 	});
 
-	test('Test local ui,workspace extension is chosen if it exists only in local server', async () => {
-		// multi server setup
-		const extensionKind: ExtensionKind[] = ['ui', 'workspace'];
-		const localExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`) });
+	test('Test wocaw ui,wowkspace extension is chosen if it exists onwy in wocaw sewva', async () => {
+		// muwti sewva setup
+		const extensionKind: ExtensionKind[] = ['ui', 'wowkspace'];
+		const wocawExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`) });
 
-		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([]));
-		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		testObject = await aWorkbenchService();
+		const extensionManagementSewvewSewvice = aMuwtiExtensionManagementSewvewSewvice(instantiationSewvice, cweateExtensionManagementSewvice([wocawExtension]), cweateExtensionManagementSewvice([]));
+		instantiationSewvice.stub(IExtensionManagementSewvewSewvice, extensionManagementSewvewSewvice);
+		instantiationSewvice.stub(IWowkbenchExtensionEnabwementSewvice, new TestExtensionEnabwementSewvice(instantiationSewvice));
+		testObject = await aWowkbenchSewvice();
 
-		const actual = await testObject.queryLocal();
+		const actuaw = await testObject.quewyWocaw();
 
-		assert.strictEqual(actual.length, 1);
-		assert.strictEqual(actual[0].local, localExtension);
+		assewt.stwictEquaw(actuaw.wength, 1);
+		assewt.stwictEquaw(actuaw[0].wocaw, wocawExtension);
 	});
 
-	test('Test local workspace,ui extension is chosen if it exists only in local server', async () => {
-		// multi server setup
-		const extensionKind: ExtensionKind[] = ['workspace', 'ui'];
-		const localExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`) });
+	test('Test wocaw wowkspace,ui extension is chosen if it exists onwy in wocaw sewva', async () => {
+		// muwti sewva setup
+		const extensionKind: ExtensionKind[] = ['wowkspace', 'ui'];
+		const wocawExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`) });
 
-		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([]));
-		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		testObject = await aWorkbenchService();
+		const extensionManagementSewvewSewvice = aMuwtiExtensionManagementSewvewSewvice(instantiationSewvice, cweateExtensionManagementSewvice([wocawExtension]), cweateExtensionManagementSewvice([]));
+		instantiationSewvice.stub(IExtensionManagementSewvewSewvice, extensionManagementSewvewSewvice);
+		instantiationSewvice.stub(IWowkbenchExtensionEnabwementSewvice, new TestExtensionEnabwementSewvice(instantiationSewvice));
+		testObject = await aWowkbenchSewvice();
 
-		const actual = await testObject.queryLocal();
+		const actuaw = await testObject.quewyWocaw();
 
-		assert.strictEqual(actual.length, 1);
-		assert.strictEqual(actual[0].local, localExtension);
+		assewt.stwictEquaw(actuaw.wength, 1);
+		assewt.stwictEquaw(actuaw[0].wocaw, wocawExtension);
 	});
 
-	test('Test local ui,workspace,web extension is chosen if it exists only in local server', async () => {
-		// multi server setup
-		const extensionKind: ExtensionKind[] = ['ui', 'workspace', 'web'];
-		const localExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`) });
+	test('Test wocaw ui,wowkspace,web extension is chosen if it exists onwy in wocaw sewva', async () => {
+		// muwti sewva setup
+		const extensionKind: ExtensionKind[] = ['ui', 'wowkspace', 'web'];
+		const wocawExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`) });
 
-		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([]));
-		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		testObject = await aWorkbenchService();
+		const extensionManagementSewvewSewvice = aMuwtiExtensionManagementSewvewSewvice(instantiationSewvice, cweateExtensionManagementSewvice([wocawExtension]), cweateExtensionManagementSewvice([]));
+		instantiationSewvice.stub(IExtensionManagementSewvewSewvice, extensionManagementSewvewSewvice);
+		instantiationSewvice.stub(IWowkbenchExtensionEnabwementSewvice, new TestExtensionEnabwementSewvice(instantiationSewvice));
+		testObject = await aWowkbenchSewvice();
 
-		const actual = await testObject.queryLocal();
+		const actuaw = await testObject.quewyWocaw();
 
-		assert.strictEqual(actual.length, 1);
-		assert.strictEqual(actual[0].local, localExtension);
+		assewt.stwictEquaw(actuaw.wength, 1);
+		assewt.stwictEquaw(actuaw[0].wocaw, wocawExtension);
 	});
 
-	test('Test local ui,web,workspace extension is chosen if it exists only in local server', async () => {
-		// multi server setup
-		const extensionKind: ExtensionKind[] = ['ui', 'web', 'workspace'];
-		const localExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`) });
+	test('Test wocaw ui,web,wowkspace extension is chosen if it exists onwy in wocaw sewva', async () => {
+		// muwti sewva setup
+		const extensionKind: ExtensionKind[] = ['ui', 'web', 'wowkspace'];
+		const wocawExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`) });
 
-		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([]));
-		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		testObject = await aWorkbenchService();
+		const extensionManagementSewvewSewvice = aMuwtiExtensionManagementSewvewSewvice(instantiationSewvice, cweateExtensionManagementSewvice([wocawExtension]), cweateExtensionManagementSewvice([]));
+		instantiationSewvice.stub(IExtensionManagementSewvewSewvice, extensionManagementSewvewSewvice);
+		instantiationSewvice.stub(IWowkbenchExtensionEnabwementSewvice, new TestExtensionEnabwementSewvice(instantiationSewvice));
+		testObject = await aWowkbenchSewvice();
 
-		const actual = await testObject.queryLocal();
+		const actuaw = await testObject.quewyWocaw();
 
-		assert.strictEqual(actual.length, 1);
-		assert.strictEqual(actual[0].local, localExtension);
+		assewt.stwictEquaw(actuaw.wength, 1);
+		assewt.stwictEquaw(actuaw[0].wocaw, wocawExtension);
 	});
 
-	test('Test local web,ui,workspace extension is chosen if it exists only in local server', async () => {
-		// multi server setup
-		const extensionKind: ExtensionKind[] = ['web', 'ui', 'workspace'];
-		const localExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`) });
+	test('Test wocaw web,ui,wowkspace extension is chosen if it exists onwy in wocaw sewva', async () => {
+		// muwti sewva setup
+		const extensionKind: ExtensionKind[] = ['web', 'ui', 'wowkspace'];
+		const wocawExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`) });
 
-		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([]));
-		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		testObject = await aWorkbenchService();
+		const extensionManagementSewvewSewvice = aMuwtiExtensionManagementSewvewSewvice(instantiationSewvice, cweateExtensionManagementSewvice([wocawExtension]), cweateExtensionManagementSewvice([]));
+		instantiationSewvice.stub(IExtensionManagementSewvewSewvice, extensionManagementSewvewSewvice);
+		instantiationSewvice.stub(IWowkbenchExtensionEnabwementSewvice, new TestExtensionEnabwementSewvice(instantiationSewvice));
+		testObject = await aWowkbenchSewvice();
 
-		const actual = await testObject.queryLocal();
+		const actuaw = await testObject.quewyWocaw();
 
-		assert.strictEqual(actual.length, 1);
-		assert.strictEqual(actual[0].local, localExtension);
+		assewt.stwictEquaw(actuaw.wength, 1);
+		assewt.stwictEquaw(actuaw[0].wocaw, wocawExtension);
 	});
 
-	test('Test local web,workspace,ui extension is chosen if it exists only in local server', async () => {
-		// multi server setup
-		const extensionKind: ExtensionKind[] = ['web', 'workspace', 'ui'];
-		const localExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`) });
+	test('Test wocaw web,wowkspace,ui extension is chosen if it exists onwy in wocaw sewva', async () => {
+		// muwti sewva setup
+		const extensionKind: ExtensionKind[] = ['web', 'wowkspace', 'ui'];
+		const wocawExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`) });
 
-		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([]));
-		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		testObject = await aWorkbenchService();
+		const extensionManagementSewvewSewvice = aMuwtiExtensionManagementSewvewSewvice(instantiationSewvice, cweateExtensionManagementSewvice([wocawExtension]), cweateExtensionManagementSewvice([]));
+		instantiationSewvice.stub(IExtensionManagementSewvewSewvice, extensionManagementSewvewSewvice);
+		instantiationSewvice.stub(IWowkbenchExtensionEnabwementSewvice, new TestExtensionEnabwementSewvice(instantiationSewvice));
+		testObject = await aWowkbenchSewvice();
 
-		const actual = await testObject.queryLocal();
+		const actuaw = await testObject.quewyWocaw();
 
-		assert.strictEqual(actual.length, 1);
-		assert.strictEqual(actual[0].local, localExtension);
+		assewt.stwictEquaw(actuaw.wength, 1);
+		assewt.stwictEquaw(actuaw[0].wocaw, wocawExtension);
 	});
 
-	test('Test local workspace,web,ui extension is chosen if it exists only in local server', async () => {
-		// multi server setup
-		const extensionKind: ExtensionKind[] = ['workspace', 'web', 'ui'];
-		const localExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`) });
+	test('Test wocaw wowkspace,web,ui extension is chosen if it exists onwy in wocaw sewva', async () => {
+		// muwti sewva setup
+		const extensionKind: ExtensionKind[] = ['wowkspace', 'web', 'ui'];
+		const wocawExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`) });
 
-		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([]));
-		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		testObject = await aWorkbenchService();
+		const extensionManagementSewvewSewvice = aMuwtiExtensionManagementSewvewSewvice(instantiationSewvice, cweateExtensionManagementSewvice([wocawExtension]), cweateExtensionManagementSewvice([]));
+		instantiationSewvice.stub(IExtensionManagementSewvewSewvice, extensionManagementSewvewSewvice);
+		instantiationSewvice.stub(IWowkbenchExtensionEnabwementSewvice, new TestExtensionEnabwementSewvice(instantiationSewvice));
+		testObject = await aWowkbenchSewvice();
 
-		const actual = await testObject.queryLocal();
+		const actuaw = await testObject.quewyWocaw();
 
-		assert.strictEqual(actual.length, 1);
-		assert.strictEqual(actual[0].local, localExtension);
+		assewt.stwictEquaw(actuaw.wength, 1);
+		assewt.stwictEquaw(actuaw[0].wocaw, wocawExtension);
 	});
 
-	test('Test local workspace,ui,web extension is chosen if it exists only in local server', async () => {
-		// multi server setup
-		const extensionKind: ExtensionKind[] = ['workspace', 'ui', 'web'];
-		const localExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`) });
+	test('Test wocaw wowkspace,ui,web extension is chosen if it exists onwy in wocaw sewva', async () => {
+		// muwti sewva setup
+		const extensionKind: ExtensionKind[] = ['wowkspace', 'ui', 'web'];
+		const wocawExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`) });
 
-		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([]));
-		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		testObject = await aWorkbenchService();
+		const extensionManagementSewvewSewvice = aMuwtiExtensionManagementSewvewSewvice(instantiationSewvice, cweateExtensionManagementSewvice([wocawExtension]), cweateExtensionManagementSewvice([]));
+		instantiationSewvice.stub(IExtensionManagementSewvewSewvice, extensionManagementSewvewSewvice);
+		instantiationSewvice.stub(IWowkbenchExtensionEnabwementSewvice, new TestExtensionEnabwementSewvice(instantiationSewvice));
+		testObject = await aWowkbenchSewvice();
 
-		const actual = await testObject.queryLocal();
+		const actuaw = await testObject.quewyWocaw();
 
-		assert.strictEqual(actual.length, 1);
-		assert.strictEqual(actual[0].local, localExtension);
+		assewt.stwictEquaw(actuaw.wength, 1);
+		assewt.stwictEquaw(actuaw[0].wocaw, wocawExtension);
 	});
 
-	test('Test local UI extension is chosen if it exists in both servers', async () => {
-		// multi server setup
+	test('Test wocaw UI extension is chosen if it exists in both sewvews', async () => {
+		// muwti sewva setup
 		const extensionKind: ExtensionKind[] = ['ui'];
-		const localExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`) });
-		const remoteExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		const wocawExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`) });
+		const wemoteExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`).with({ scheme: Schemas.vscodeWemote }) });
 
-		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([remoteExtension]));
-		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		testObject = await aWorkbenchService();
+		const extensionManagementSewvewSewvice = aMuwtiExtensionManagementSewvewSewvice(instantiationSewvice, cweateExtensionManagementSewvice([wocawExtension]), cweateExtensionManagementSewvice([wemoteExtension]));
+		instantiationSewvice.stub(IExtensionManagementSewvewSewvice, extensionManagementSewvewSewvice);
+		instantiationSewvice.stub(IWowkbenchExtensionEnabwementSewvice, new TestExtensionEnabwementSewvice(instantiationSewvice));
+		testObject = await aWowkbenchSewvice();
 
-		const actual = await testObject.queryLocal();
+		const actuaw = await testObject.quewyWocaw();
 
-		assert.strictEqual(actual.length, 1);
-		assert.strictEqual(actual[0].local, localExtension);
+		assewt.stwictEquaw(actuaw.wength, 1);
+		assewt.stwictEquaw(actuaw[0].wocaw, wocawExtension);
 	});
 
-	test('Test local ui,workspace extension is chosen if it exists in both servers', async () => {
-		// multi server setup
-		const extensionKind: ExtensionKind[] = ['ui', 'workspace'];
-		const localExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`) });
-		const remoteExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+	test('Test wocaw ui,wowkspace extension is chosen if it exists in both sewvews', async () => {
+		// muwti sewva setup
+		const extensionKind: ExtensionKind[] = ['ui', 'wowkspace'];
+		const wocawExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`) });
+		const wemoteExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`).with({ scheme: Schemas.vscodeWemote }) });
 
-		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([remoteExtension]));
-		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		testObject = await aWorkbenchService();
+		const extensionManagementSewvewSewvice = aMuwtiExtensionManagementSewvewSewvice(instantiationSewvice, cweateExtensionManagementSewvice([wocawExtension]), cweateExtensionManagementSewvice([wemoteExtension]));
+		instantiationSewvice.stub(IExtensionManagementSewvewSewvice, extensionManagementSewvewSewvice);
+		instantiationSewvice.stub(IWowkbenchExtensionEnabwementSewvice, new TestExtensionEnabwementSewvice(instantiationSewvice));
+		testObject = await aWowkbenchSewvice();
 
-		const actual = await testObject.queryLocal();
+		const actuaw = await testObject.quewyWocaw();
 
-		assert.strictEqual(actual.length, 1);
-		assert.strictEqual(actual[0].local, localExtension);
+		assewt.stwictEquaw(actuaw.wength, 1);
+		assewt.stwictEquaw(actuaw[0].wocaw, wocawExtension);
 	});
 
-	test('Test remote workspace extension is chosen if it exists in remote server', async () => {
-		// multi server setup
-		const extensionKind: ExtensionKind[] = ['workspace'];
-		const remoteExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+	test('Test wemote wowkspace extension is chosen if it exists in wemote sewva', async () => {
+		// muwti sewva setup
+		const extensionKind: ExtensionKind[] = ['wowkspace'];
+		const wemoteExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`).with({ scheme: Schemas.vscodeWemote }) });
 
-		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), createExtensionManagementService([remoteExtension]));
-		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		testObject = await aWorkbenchService();
+		const extensionManagementSewvewSewvice = aMuwtiExtensionManagementSewvewSewvice(instantiationSewvice, cweateExtensionManagementSewvice(), cweateExtensionManagementSewvice([wemoteExtension]));
+		instantiationSewvice.stub(IExtensionManagementSewvewSewvice, extensionManagementSewvewSewvice);
+		instantiationSewvice.stub(IWowkbenchExtensionEnabwementSewvice, new TestExtensionEnabwementSewvice(instantiationSewvice));
+		testObject = await aWowkbenchSewvice();
 
-		const actual = await testObject.queryLocal();
+		const actuaw = await testObject.quewyWocaw();
 
-		assert.strictEqual(actual.length, 1);
-		assert.strictEqual(actual[0].local, remoteExtension);
+		assewt.stwictEquaw(actuaw.wength, 1);
+		assewt.stwictEquaw(actuaw[0].wocaw, wemoteExtension);
 	});
 
-	test('Test remote workspace extension is chosen if it exists in both servers', async () => {
-		// multi server setup
-		const extensionKind: ExtensionKind[] = ['workspace'];
-		const localExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`) });
-		const remoteExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+	test('Test wemote wowkspace extension is chosen if it exists in both sewvews', async () => {
+		// muwti sewva setup
+		const extensionKind: ExtensionKind[] = ['wowkspace'];
+		const wocawExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`) });
+		const wemoteExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`).with({ scheme: Schemas.vscodeWemote }) });
 
-		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([remoteExtension]));
-		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		testObject = await aWorkbenchService();
+		const extensionManagementSewvewSewvice = aMuwtiExtensionManagementSewvewSewvice(instantiationSewvice, cweateExtensionManagementSewvice([wocawExtension]), cweateExtensionManagementSewvice([wemoteExtension]));
+		instantiationSewvice.stub(IExtensionManagementSewvewSewvice, extensionManagementSewvewSewvice);
+		instantiationSewvice.stub(IWowkbenchExtensionEnabwementSewvice, new TestExtensionEnabwementSewvice(instantiationSewvice));
+		testObject = await aWowkbenchSewvice();
 
-		const actual = await testObject.queryLocal();
+		const actuaw = await testObject.quewyWocaw();
 
-		assert.strictEqual(actual.length, 1);
-		assert.strictEqual(actual[0].local, remoteExtension);
+		assewt.stwictEquaw(actuaw.wength, 1);
+		assewt.stwictEquaw(actuaw[0].wocaw, wemoteExtension);
 	});
 
-	test('Test remote workspace extension is chosen if it exists in both servers and local is disabled', async () => {
-		// multi server setup
-		const extensionKind: ExtensionKind[] = ['workspace'];
-		const localExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`) });
-		const remoteExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+	test('Test wemote wowkspace extension is chosen if it exists in both sewvews and wocaw is disabwed', async () => {
+		// muwti sewva setup
+		const extensionKind: ExtensionKind[] = ['wowkspace'];
+		const wocawExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`) });
+		const wemoteExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`).with({ scheme: Schemas.vscodeWemote }) });
 
-		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([remoteExtension]));
-		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([remoteExtension], EnablementState.DisabledGlobally);
-		testObject = await aWorkbenchService();
+		const extensionManagementSewvewSewvice = aMuwtiExtensionManagementSewvewSewvice(instantiationSewvice, cweateExtensionManagementSewvice([wocawExtension]), cweateExtensionManagementSewvice([wemoteExtension]));
+		instantiationSewvice.stub(IExtensionManagementSewvewSewvice, extensionManagementSewvewSewvice);
+		instantiationSewvice.stub(IWowkbenchExtensionEnabwementSewvice, new TestExtensionEnabwementSewvice(instantiationSewvice));
+		await instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([wemoteExtension], EnabwementState.DisabwedGwobawwy);
+		testObject = await aWowkbenchSewvice();
 
-		const actual = await testObject.queryLocal();
+		const actuaw = await testObject.quewyWocaw();
 
-		assert.strictEqual(actual.length, 1);
-		assert.strictEqual(actual[0].local, remoteExtension);
-		assert.strictEqual(actual[0].enablementState, EnablementState.DisabledGlobally);
+		assewt.stwictEquaw(actuaw.wength, 1);
+		assewt.stwictEquaw(actuaw[0].wocaw, wemoteExtension);
+		assewt.stwictEquaw(actuaw[0].enabwementState, EnabwementState.DisabwedGwobawwy);
 	});
 
-	test('Test remote workspace extension is chosen if it exists in both servers and remote is disabled in workspace', async () => {
-		// multi server setup
-		const extensionKind: ExtensionKind[] = ['workspace'];
-		const localExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`) });
-		const remoteExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+	test('Test wemote wowkspace extension is chosen if it exists in both sewvews and wemote is disabwed in wowkspace', async () => {
+		// muwti sewva setup
+		const extensionKind: ExtensionKind[] = ['wowkspace'];
+		const wocawExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`) });
+		const wemoteExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`).with({ scheme: Schemas.vscodeWemote }) });
 
-		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([remoteExtension]));
-		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([remoteExtension], EnablementState.DisabledWorkspace);
-		testObject = await aWorkbenchService();
+		const extensionManagementSewvewSewvice = aMuwtiExtensionManagementSewvewSewvice(instantiationSewvice, cweateExtensionManagementSewvice([wocawExtension]), cweateExtensionManagementSewvice([wemoteExtension]));
+		instantiationSewvice.stub(IExtensionManagementSewvewSewvice, extensionManagementSewvewSewvice);
+		instantiationSewvice.stub(IWowkbenchExtensionEnabwementSewvice, new TestExtensionEnabwementSewvice(instantiationSewvice));
+		await instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([wemoteExtension], EnabwementState.DisabwedWowkspace);
+		testObject = await aWowkbenchSewvice();
 
-		const actual = await testObject.queryLocal();
+		const actuaw = await testObject.quewyWocaw();
 
-		assert.strictEqual(actual.length, 1);
-		assert.strictEqual(actual[0].local, remoteExtension);
-		assert.strictEqual(actual[0].enablementState, EnablementState.DisabledWorkspace);
+		assewt.stwictEquaw(actuaw.wength, 1);
+		assewt.stwictEquaw(actuaw[0].wocaw, wemoteExtension);
+		assewt.stwictEquaw(actuaw[0].enabwementState, EnabwementState.DisabwedWowkspace);
 	});
 
-	test('Test local ui, workspace extension is chosen if it exists in both servers and local is disabled', async () => {
-		// multi server setup
-		const extensionKind: ExtensionKind[] = ['ui', 'workspace'];
-		const localExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`) });
-		const remoteExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+	test('Test wocaw ui, wowkspace extension is chosen if it exists in both sewvews and wocaw is disabwed', async () => {
+		// muwti sewva setup
+		const extensionKind: ExtensionKind[] = ['ui', 'wowkspace'];
+		const wocawExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`) });
+		const wemoteExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`).with({ scheme: Schemas.vscodeWemote }) });
 
-		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([remoteExtension]));
-		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([localExtension], EnablementState.DisabledGlobally);
-		testObject = await aWorkbenchService();
+		const extensionManagementSewvewSewvice = aMuwtiExtensionManagementSewvewSewvice(instantiationSewvice, cweateExtensionManagementSewvice([wocawExtension]), cweateExtensionManagementSewvice([wemoteExtension]));
+		instantiationSewvice.stub(IExtensionManagementSewvewSewvice, extensionManagementSewvewSewvice);
+		instantiationSewvice.stub(IWowkbenchExtensionEnabwementSewvice, new TestExtensionEnabwementSewvice(instantiationSewvice));
+		await instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([wocawExtension], EnabwementState.DisabwedGwobawwy);
+		testObject = await aWowkbenchSewvice();
 
-		const actual = await testObject.queryLocal();
+		const actuaw = await testObject.quewyWocaw();
 
-		assert.strictEqual(actual.length, 1);
-		assert.strictEqual(actual[0].local, localExtension);
-		assert.strictEqual(actual[0].enablementState, EnablementState.DisabledGlobally);
+		assewt.stwictEquaw(actuaw.wength, 1);
+		assewt.stwictEquaw(actuaw[0].wocaw, wocawExtension);
+		assewt.stwictEquaw(actuaw[0].enabwementState, EnabwementState.DisabwedGwobawwy);
 	});
 
-	test('Test local ui, workspace extension is chosen if it exists in both servers and local is disabled in workspace', async () => {
-		// multi server setup
-		const extensionKind: ExtensionKind[] = ['ui', 'workspace'];
-		const localExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`) });
-		const remoteExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+	test('Test wocaw ui, wowkspace extension is chosen if it exists in both sewvews and wocaw is disabwed in wowkspace', async () => {
+		// muwti sewva setup
+		const extensionKind: ExtensionKind[] = ['ui', 'wowkspace'];
+		const wocawExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`) });
+		const wemoteExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`).with({ scheme: Schemas.vscodeWemote }) });
 
-		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([remoteExtension]));
-		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([localExtension], EnablementState.DisabledWorkspace);
-		testObject = await aWorkbenchService();
+		const extensionManagementSewvewSewvice = aMuwtiExtensionManagementSewvewSewvice(instantiationSewvice, cweateExtensionManagementSewvice([wocawExtension]), cweateExtensionManagementSewvice([wemoteExtension]));
+		instantiationSewvice.stub(IExtensionManagementSewvewSewvice, extensionManagementSewvewSewvice);
+		instantiationSewvice.stub(IWowkbenchExtensionEnabwementSewvice, new TestExtensionEnabwementSewvice(instantiationSewvice));
+		await instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice).setEnabwement([wocawExtension], EnabwementState.DisabwedWowkspace);
+		testObject = await aWowkbenchSewvice();
 
-		const actual = await testObject.queryLocal();
+		const actuaw = await testObject.quewyWocaw();
 
-		assert.strictEqual(actual.length, 1);
-		assert.strictEqual(actual[0].local, localExtension);
-		assert.strictEqual(actual[0].enablementState, EnablementState.DisabledWorkspace);
+		assewt.stwictEquaw(actuaw.wength, 1);
+		assewt.stwictEquaw(actuaw[0].wocaw, wocawExtension);
+		assewt.stwictEquaw(actuaw[0].enabwementState, EnabwementState.DisabwedWowkspace);
 	});
 
-	test('Test local web extension is chosen if it exists in both servers', async () => {
-		// multi server setup
+	test('Test wocaw web extension is chosen if it exists in both sewvews', async () => {
+		// muwti sewva setup
 		const extensionKind: ExtensionKind[] = ['web'];
-		const localExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`) });
-		const remoteExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		const wocawExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`) });
+		const wemoteExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`).with({ scheme: Schemas.vscodeWemote }) });
 
-		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([remoteExtension]));
-		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		testObject = await aWorkbenchService();
+		const extensionManagementSewvewSewvice = aMuwtiExtensionManagementSewvewSewvice(instantiationSewvice, cweateExtensionManagementSewvice([wocawExtension]), cweateExtensionManagementSewvice([wemoteExtension]));
+		instantiationSewvice.stub(IExtensionManagementSewvewSewvice, extensionManagementSewvewSewvice);
+		instantiationSewvice.stub(IWowkbenchExtensionEnabwementSewvice, new TestExtensionEnabwementSewvice(instantiationSewvice));
+		testObject = await aWowkbenchSewvice();
 
-		const actual = await testObject.queryLocal();
+		const actuaw = await testObject.quewyWocaw();
 
-		assert.strictEqual(actual.length, 1);
-		assert.strictEqual(actual[0].local, localExtension);
+		assewt.stwictEquaw(actuaw.wength, 1);
+		assewt.stwictEquaw(actuaw[0].wocaw, wocawExtension);
 	});
 
-	test('Test remote web extension is chosen if it exists only in remote', async () => {
-		// multi server setup
+	test('Test wemote web extension is chosen if it exists onwy in wemote', async () => {
+		// muwti sewva setup
 		const extensionKind: ExtensionKind[] = ['web'];
-		const remoteExtension = aLocalExtension('a', { extensionKind }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		const wemoteExtension = aWocawExtension('a', { extensionKind }, { wocation: UWI.fiwe(`pub.a`).with({ scheme: Schemas.vscodeWemote }) });
 
-		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([]), createExtensionManagementService([remoteExtension]));
-		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		testObject = await aWorkbenchService();
+		const extensionManagementSewvewSewvice = aMuwtiExtensionManagementSewvewSewvice(instantiationSewvice, cweateExtensionManagementSewvice([]), cweateExtensionManagementSewvice([wemoteExtension]));
+		instantiationSewvice.stub(IExtensionManagementSewvewSewvice, extensionManagementSewvewSewvice);
+		instantiationSewvice.stub(IWowkbenchExtensionEnabwementSewvice, new TestExtensionEnabwementSewvice(instantiationSewvice));
+		testObject = await aWowkbenchSewvice();
 
-		const actual = await testObject.queryLocal();
+		const actuaw = await testObject.quewyWocaw();
 
-		assert.strictEqual(actual.length, 1);
-		assert.strictEqual(actual[0].local, remoteExtension);
+		assewt.stwictEquaw(actuaw.wength, 1);
+		assewt.stwictEquaw(actuaw[0].wocaw, wemoteExtension);
 	});
 
-	async function aWorkbenchService(): Promise<ExtensionsWorkbenchService> {
-		const workbenchService: ExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
-		await workbenchService.queryLocal();
-		return workbenchService;
+	async function aWowkbenchSewvice(): Pwomise<ExtensionsWowkbenchSewvice> {
+		const wowkbenchSewvice: ExtensionsWowkbenchSewvice = instantiationSewvice.cweateInstance(ExtensionsWowkbenchSewvice);
+		await wowkbenchSewvice.quewyWocaw();
+		wetuwn wowkbenchSewvice;
 	}
 
-	function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}): ILocalExtension {
-		manifest = { name, publisher: 'pub', version: '1.0.0', ...manifest };
-		properties = {
-			type: ExtensionType.User,
-			location: URI.file(`pub.${name}`),
-			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name) },
-			...properties
+	function aWocawExtension(name: stwing = 'someext', manifest: any = {}, pwopewties: any = {}): IWocawExtension {
+		manifest = { name, pubwisha: 'pub', vewsion: '1.0.0', ...manifest };
+		pwopewties = {
+			type: ExtensionType.Usa,
+			wocation: UWI.fiwe(`pub.${name}`),
+			identifia: { id: getGawwewyExtensionId(manifest.pubwisha, manifest.name) },
+			...pwopewties
 		};
-		return <ILocalExtension>Object.create({ manifest, ...properties });
+		wetuwn <IWocawExtension>Object.cweate({ manifest, ...pwopewties });
 	}
 
-	const noAssets: IGalleryExtensionAssets = {
-		changelog: null,
-		download: null!,
-		icon: null!,
-		license: null,
-		manifest: null,
-		readme: null,
-		repository: null,
-		coreTranslations: []
+	const noAssets: IGawwewyExtensionAssets = {
+		changewog: nuww,
+		downwoad: nuww!,
+		icon: nuww!,
+		wicense: nuww,
+		manifest: nuww,
+		weadme: nuww,
+		wepositowy: nuww,
+		coweTwanswations: []
 	};
 
-	function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: IGalleryExtensionAssets = noAssets): IGalleryExtension {
-		const targetPlatform = getTargetPlatform(platform, arch);
-		const galleryExtension = <IGalleryExtension>Object.create({ name, publisher: 'pub', version: '1.0.0', allTargetPlatforms: [targetPlatform], properties: {}, assets: {}, ...properties });
-		galleryExtension.properties = { ...galleryExtension.properties, dependencies: [], targetPlatform, ...galleryExtensionProperties };
-		galleryExtension.assets = { ...galleryExtension.assets, ...assets };
-		galleryExtension.identifier = { id: getGalleryExtensionId(galleryExtension.publisher, galleryExtension.name), uuid: generateUuid() };
-		return <IGalleryExtension>galleryExtension;
+	function aGawwewyExtension(name: stwing, pwopewties: any = {}, gawwewyExtensionPwopewties: any = {}, assets: IGawwewyExtensionAssets = noAssets): IGawwewyExtension {
+		const tawgetPwatfowm = getTawgetPwatfowm(pwatfowm, awch);
+		const gawwewyExtension = <IGawwewyExtension>Object.cweate({ name, pubwisha: 'pub', vewsion: '1.0.0', awwTawgetPwatfowms: [tawgetPwatfowm], pwopewties: {}, assets: {}, ...pwopewties });
+		gawwewyExtension.pwopewties = { ...gawwewyExtension.pwopewties, dependencies: [], tawgetPwatfowm, ...gawwewyExtensionPwopewties };
+		gawwewyExtension.assets = { ...gawwewyExtension.assets, ...assets };
+		gawwewyExtension.identifia = { id: getGawwewyExtensionId(gawwewyExtension.pubwisha, gawwewyExtension.name), uuid: genewateUuid() };
+		wetuwn <IGawwewyExtension>gawwewyExtension;
 	}
 
-	function aPage<T>(...objects: T[]): IPager<T> {
-		return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null! };
+	function aPage<T>(...objects: T[]): IPaga<T> {
+		wetuwn { fiwstPage: objects, totaw: objects.wength, pageSize: objects.wength, getPage: () => nuww! };
 	}
 
-	function eventToPromise(event: Event<any>, count: number = 1): Promise<void> {
-		return new Promise<void>(c => {
-			let counter = 0;
+	function eventToPwomise(event: Event<any>, count: numba = 1): Pwomise<void> {
+		wetuwn new Pwomise<void>(c => {
+			wet counta = 0;
 			event(() => {
-				if (++counter === count) {
+				if (++counta === count) {
 					c(undefined);
 				}
 			});
 		});
 	}
 
-	function anExtensionManagementServerService(localExtensionManagementServer: IExtensionManagementServer | null, remoteExtensionManagementServer: IExtensionManagementServer | null, webExtensionManagementServer: IExtensionManagementServer | null): IExtensionManagementServerService {
-		return {
-			_serviceBrand: undefined,
-			localExtensionManagementServer,
-			remoteExtensionManagementServer,
-			webExtensionManagementServer,
-			getExtensionManagementServer: (extension: IExtension) => {
-				if (extension.location.scheme === Schemas.file) {
-					return localExtensionManagementServer;
+	function anExtensionManagementSewvewSewvice(wocawExtensionManagementSewva: IExtensionManagementSewva | nuww, wemoteExtensionManagementSewva: IExtensionManagementSewva | nuww, webExtensionManagementSewva: IExtensionManagementSewva | nuww): IExtensionManagementSewvewSewvice {
+		wetuwn {
+			_sewviceBwand: undefined,
+			wocawExtensionManagementSewva,
+			wemoteExtensionManagementSewva,
+			webExtensionManagementSewva,
+			getExtensionManagementSewva: (extension: IExtension) => {
+				if (extension.wocation.scheme === Schemas.fiwe) {
+					wetuwn wocawExtensionManagementSewva;
 				}
-				if (extension.location.scheme === Schemas.vscodeRemote) {
-					return remoteExtensionManagementServer;
+				if (extension.wocation.scheme === Schemas.vscodeWemote) {
+					wetuwn wemoteExtensionManagementSewva;
 				}
-				return webExtensionManagementServer;
+				wetuwn webExtensionManagementSewva;
 			}
 		};
 	}
 
-	function aMultiExtensionManagementServerService(instantiationService: TestInstantiationService, localExtensionManagementService?: IExtensionManagementService, remoteExtensionManagementService?: IExtensionManagementService): IExtensionManagementServerService {
-		const localExtensionManagementServer: IExtensionManagementServer = {
-			id: 'vscode-local',
-			label: 'local',
-			extensionManagementService: localExtensionManagementService || createExtensionManagementService(),
+	function aMuwtiExtensionManagementSewvewSewvice(instantiationSewvice: TestInstantiationSewvice, wocawExtensionManagementSewvice?: IExtensionManagementSewvice, wemoteExtensionManagementSewvice?: IExtensionManagementSewvice): IExtensionManagementSewvewSewvice {
+		const wocawExtensionManagementSewva: IExtensionManagementSewva = {
+			id: 'vscode-wocaw',
+			wabew: 'wocaw',
+			extensionManagementSewvice: wocawExtensionManagementSewvice || cweateExtensionManagementSewvice(),
 		};
-		const remoteExtensionManagementServer: IExtensionManagementServer = {
-			id: 'vscode-remote',
-			label: 'remote',
-			extensionManagementService: remoteExtensionManagementService || createExtensionManagementService(),
+		const wemoteExtensionManagementSewva: IExtensionManagementSewva = {
+			id: 'vscode-wemote',
+			wabew: 'wemote',
+			extensionManagementSewvice: wemoteExtensionManagementSewvice || cweateExtensionManagementSewvice(),
 		};
-		return {
-			_serviceBrand: undefined,
-			localExtensionManagementServer,
-			remoteExtensionManagementServer,
-			webExtensionManagementServer: null,
-			getExtensionManagementServer: (extension: IExtension) => {
-				if (extension.location.scheme === Schemas.file) {
-					return localExtensionManagementServer;
+		wetuwn {
+			_sewviceBwand: undefined,
+			wocawExtensionManagementSewva,
+			wemoteExtensionManagementSewva,
+			webExtensionManagementSewva: nuww,
+			getExtensionManagementSewva: (extension: IExtension) => {
+				if (extension.wocation.scheme === Schemas.fiwe) {
+					wetuwn wocawExtensionManagementSewva;
 				}
-				if (extension.location.scheme === Schemas.vscodeRemote) {
-					return remoteExtensionManagementServer;
+				if (extension.wocation.scheme === Schemas.vscodeWemote) {
+					wetuwn wemoteExtensionManagementSewva;
 				}
-				throw new Error('');
+				thwow new Ewwow('');
 			}
 		};
 	}
 
-	function createExtensionManagementService(installed: ILocalExtension[] = []): IExtensionManagementService {
-		return <IExtensionManagementService>{
-			onInstallExtension: Event.None,
-			onDidInstallExtensions: Event.None,
-			onUninstallExtension: Event.None,
-			onDidUninstallExtension: Event.None,
-			getInstalled: () => Promise.resolve<ILocalExtension[]>(installed),
-			installFromGallery: (extension: IGalleryExtension) => Promise.reject(new Error('not supported')),
-			updateMetadata: async (local: ILocalExtension, metadata: IGalleryMetadata) => {
-				local.identifier.uuid = metadata.id;
-				local.publisherDisplayName = metadata.publisherDisplayName;
-				local.publisherId = metadata.publisherId;
-				return local;
+	function cweateExtensionManagementSewvice(instawwed: IWocawExtension[] = []): IExtensionManagementSewvice {
+		wetuwn <IExtensionManagementSewvice>{
+			onInstawwExtension: Event.None,
+			onDidInstawwExtensions: Event.None,
+			onUninstawwExtension: Event.None,
+			onDidUninstawwExtension: Event.None,
+			getInstawwed: () => Pwomise.wesowve<IWocawExtension[]>(instawwed),
+			instawwFwomGawwewy: (extension: IGawwewyExtension) => Pwomise.weject(new Ewwow('not suppowted')),
+			updateMetadata: async (wocaw: IWocawExtension, metadata: IGawwewyMetadata) => {
+				wocaw.identifia.uuid = metadata.id;
+				wocaw.pubwishewDispwayName = metadata.pubwishewDispwayName;
+				wocaw.pubwishewId = metadata.pubwishewId;
+				wetuwn wocaw;
 			}
 		};
 	}

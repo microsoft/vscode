@@ -1,1679 +1,1679 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
-import { ICompressedTreeElement, ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
-import { ITreeContextMenuEvent, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { Action, IAction, Separator } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Iterable } from 'vs/base/common/iterator';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { clamp } from 'vs/base/common/numbers';
-import { count } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { ICodeEditor, IDiffEditorConstructionOptions, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { getOuterEditor, IPeekViewService, peekViewResultsBackground, peekViewResultsMatchForeground, peekViewResultsSelectionBackground, peekViewResultsSelectionForeground, peekViewTitleForeground, peekViewTitleInfoForeground, PeekViewWidget } from 'vs/editor/contrib/peekView/peekView';
-import { localize } from 'vs/nls';
-import { createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { flatTestItemDelimiter } from 'vs/workbench/contrib/testing/browser/explorerProjections/display';
-import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
-import * as icons from 'vs/workbench/contrib/testing/browser/icons';
-import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
-import { testingPeekBorder, testingPeekHeaderBackground } from 'vs/workbench/contrib/testing/browser/theme';
-import { AutoOpenPeekViewWhen, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
-import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { IObservableValue, MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { IRichLocation, ITestErrorMessage, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
-import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
-import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
-import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
-import { buildTestUri, ParsedTestUri, parseTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
-import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
-import { ITestResult, maxCountPriority, resultItemParents, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
-import { ITestResultService, ResultChangeEvent } from 'vs/workbench/contrib/testing/common/testResultService';
-import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { wendewStwingAsPwaintext } fwom 'vs/base/bwowsa/mawkdownWendewa';
+impowt { ActionBaw } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { awewt } fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt { IIdentityPwovida } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { DomScwowwabweEwement } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwabweEwement';
+impowt { Owientation, Sizing, SpwitView } fwom 'vs/base/bwowsa/ui/spwitview/spwitview';
+impowt { ICompwessedTweeEwement, ICompwessedTweeNode } fwom 'vs/base/bwowsa/ui/twee/compwessedObjectTweeModew';
+impowt { ICompwessibweTweeWendewa } fwom 'vs/base/bwowsa/ui/twee/objectTwee';
+impowt { ITweeContextMenuEvent, ITweeNode } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { Action, IAction, Sepawatow } fwom 'vs/base/common/actions';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { FuzzyScowe } fwom 'vs/base/common/fiwtews';
+impowt { IMawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { Wazy } fwom 'vs/base/common/wazy';
+impowt { Disposabwe, DisposabweStowe, IDisposabwe, IWefewence, MutabweDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { cwamp } fwom 'vs/base/common/numbews';
+impowt { count } fwom 'vs/base/common/stwings';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { MawkdownWendewa } fwom 'vs/editow/bwowsa/cowe/mawkdownWendewa';
+impowt { ICodeEditow, IDiffEditowConstwuctionOptions, isCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction2 } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { EmbeddedCodeEditowWidget, EmbeddedDiffEditowWidget } fwom 'vs/editow/bwowsa/widget/embeddedCodeEditowWidget';
+impowt { IDiffEditowOptions, IEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IEditowContwibution, ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { IWesowvedTextEditowModew, ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { getOutewEditow, IPeekViewSewvice, peekViewWesuwtsBackgwound, peekViewWesuwtsMatchFowegwound, peekViewWesuwtsSewectionBackgwound, peekViewWesuwtsSewectionFowegwound, peekViewTitweFowegwound, peekViewTitweInfoFowegwound, PeekViewWidget } fwom 'vs/editow/contwib/peekView/peekView';
+impowt { wocawize } fwom 'vs/nws';
+impowt { cweateAndFiwwInActionBawActions, MenuEntwyActionViewItem } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { IMenuSewvice, MenuId, MenuItemAction } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ContextKeyExpw, IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { ITextEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { WowkbenchCompwessibweObjectTwee } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { textWinkActiveFowegwound, textWinkFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { ICowowTheme, IThemeSewvice, wegistewThemingPawticipant, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IWesouwceWabew, WesouwceWabews } fwom 'vs/wowkbench/bwowsa/wabews';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { EditowModew } fwom 'vs/wowkbench/common/editow/editowModew';
+impowt { fwatTestItemDewimita } fwom 'vs/wowkbench/contwib/testing/bwowsa/expwowewPwojections/dispway';
+impowt { getTestItemContextOvewway } fwom 'vs/wowkbench/contwib/testing/bwowsa/expwowewPwojections/testItemContextOvewway';
+impowt * as icons fwom 'vs/wowkbench/contwib/testing/bwowsa/icons';
+impowt { ITestingOutputTewminawSewvice } fwom 'vs/wowkbench/contwib/testing/bwowsa/testingOutputTewminawSewvice';
+impowt { testingPeekBowda, testingPeekHeadewBackgwound } fwom 'vs/wowkbench/contwib/testing/bwowsa/theme';
+impowt { AutoOpenPeekViewWhen, getTestingConfiguwation, TestingConfigKeys } fwom 'vs/wowkbench/contwib/testing/common/configuwation';
+impowt { Testing } fwom 'vs/wowkbench/contwib/testing/common/constants';
+impowt { IObsewvabweVawue, MutabweObsewvabweVawue } fwom 'vs/wowkbench/contwib/testing/common/obsewvabweVawue';
+impowt { StowedVawue } fwom 'vs/wowkbench/contwib/testing/common/stowedVawue';
+impowt { IWichWocation, ITestEwwowMessage, ITestItem, ITestMessage, ITestWunTask, ITestTaskState, TestMessageType, TestWesuwtItem, TestWesuwtState, TestWunPwofiweBitset } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
+impowt { ITestExpwowewFiwtewState } fwom 'vs/wowkbench/contwib/testing/common/testExpwowewFiwtewState';
+impowt { TestingContextKeys } fwom 'vs/wowkbench/contwib/testing/common/testingContextKeys';
+impowt { ITestingPeekOpena } fwom 'vs/wowkbench/contwib/testing/common/testingPeekOpena';
+impowt { isFaiwedState } fwom 'vs/wowkbench/contwib/testing/common/testingStates';
+impowt { buiwdTestUwi, PawsedTestUwi, pawseTestUwi, TestUwiType } fwom 'vs/wowkbench/contwib/testing/common/testingUwi';
+impowt { ITestPwofiweSewvice } fwom 'vs/wowkbench/contwib/testing/common/testPwofiweSewvice';
+impowt { ITestWesuwt, maxCountPwiowity, wesuwtItemPawents, TestWesuwtItemChange, TestWesuwtItemChangeWeason } fwom 'vs/wowkbench/contwib/testing/common/testWesuwt';
+impowt { ITestWesuwtSewvice, WesuwtChangeEvent } fwom 'vs/wowkbench/contwib/testing/common/testWesuwtSewvice';
+impowt { ITestSewvice } fwom 'vs/wowkbench/contwib/testing/common/testSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
 
-class TestDto {
-	public readonly test: ITestItem;
-	public readonly messages: ITestMessage[];
-	public readonly expectedUri: URI;
-	public readonly actualUri: URI;
-	public readonly messageUri: URI;
-	public readonly revealLocation: IRichLocation | undefined;
+cwass TestDto {
+	pubwic weadonwy test: ITestItem;
+	pubwic weadonwy messages: ITestMessage[];
+	pubwic weadonwy expectedUwi: UWI;
+	pubwic weadonwy actuawUwi: UWI;
+	pubwic weadonwy messageUwi: UWI;
+	pubwic weadonwy weveawWocation: IWichWocation | undefined;
 
-	public get isDiffable() {
+	pubwic get isDiffabwe() {
 		const message = this.messages[this.messageIndex];
-		return message.type === TestMessageType.Error && isDiffable(message);
+		wetuwn message.type === TestMessageType.Ewwow && isDiffabwe(message);
 	}
 
-	constructor(public readonly resultId: string, test: TestResultItem, public readonly taskIndex: number, public readonly messageIndex: number) {
+	constwuctow(pubwic weadonwy wesuwtId: stwing, test: TestWesuwtItem, pubwic weadonwy taskIndex: numba, pubwic weadonwy messageIndex: numba) {
 		this.test = test.item;
 		this.messages = test.tasks[taskIndex].messages;
 		this.messageIndex = messageIndex;
 
-		const parts = { messageIndex, resultId, taskIndex, testExtId: test.item.extId };
-		this.expectedUri = buildTestUri({ ...parts, type: TestUriType.ResultExpectedOutput });
-		this.actualUri = buildTestUri({ ...parts, type: TestUriType.ResultActualOutput });
-		this.messageUri = buildTestUri({ ...parts, type: TestUriType.ResultMessage });
+		const pawts = { messageIndex, wesuwtId, taskIndex, testExtId: test.item.extId };
+		this.expectedUwi = buiwdTestUwi({ ...pawts, type: TestUwiType.WesuwtExpectedOutput });
+		this.actuawUwi = buiwdTestUwi({ ...pawts, type: TestUwiType.WesuwtActuawOutput });
+		this.messageUwi = buiwdTestUwi({ ...pawts, type: TestUwiType.WesuwtMessage });
 
 		const message = this.messages[this.messageIndex];
-		this.revealLocation = message.location ?? (test.item.uri && test.item.range ? { uri: test.item.uri, range: Range.lift(test.item.range) } : undefined);
+		this.weveawWocation = message.wocation ?? (test.item.uwi && test.item.wange ? { uwi: test.item.uwi, wange: Wange.wift(test.item.wange) } : undefined);
 	}
 }
 
-/** Iterates through every message in every result */
-function* allMessages(results: readonly ITestResult[]) {
-	for (const result of results) {
-		for (const test of result.tests) {
-			for (let taskIndex = 0; taskIndex < test.tasks.length; taskIndex++) {
-				for (let messageIndex = 0; messageIndex < test.tasks[taskIndex].messages.length; messageIndex++) {
-					yield { result, test, taskIndex, messageIndex };
+/** Itewates thwough evewy message in evewy wesuwt */
+function* awwMessages(wesuwts: weadonwy ITestWesuwt[]) {
+	fow (const wesuwt of wesuwts) {
+		fow (const test of wesuwt.tests) {
+			fow (wet taskIndex = 0; taskIndex < test.tasks.wength; taskIndex++) {
+				fow (wet messageIndex = 0; messageIndex < test.tasks[taskIndex].messages.wength; messageIndex++) {
+					yiewd { wesuwt, test, taskIndex, messageIndex };
 				}
 			}
 		}
 	}
 }
 
-type TestUriWithDocument = ParsedTestUri & { documentUri: URI };
+type TestUwiWithDocument = PawsedTestUwi & { documentUwi: UWI };
 
-export class TestingPeekOpener extends Disposable implements ITestingPeekOpener {
-	declare _serviceBrand: undefined;
+expowt cwass TestingPeekOpena extends Disposabwe impwements ITestingPeekOpena {
+	decwawe _sewviceBwand: undefined;
 
-	private lastUri?: TestUriWithDocument;
+	pwivate wastUwi?: TestUwiWithDocument;
 
-	constructor(
-		@IConfigurationService private readonly configuration: IConfigurationService,
-		@IEditorService private readonly editorService: IEditorService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@ITestResultService private readonly testResults: ITestResultService,
-		@ITestService private readonly testService: ITestService,
+	constwuctow(
+		@IConfiguwationSewvice pwivate weadonwy configuwation: IConfiguwationSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@ICodeEditowSewvice pwivate weadonwy codeEditowSewvice: ICodeEditowSewvice,
+		@ITestWesuwtSewvice pwivate weadonwy testWesuwts: ITestWesuwtSewvice,
+		@ITestSewvice pwivate weadonwy testSewvice: ITestSewvice,
 	) {
-		super();
-		this._register(testResults.onTestChanged(this.openPeekOnFailure, this));
+		supa();
+		this._wegista(testWesuwts.onTestChanged(this.openPeekOnFaiwuwe, this));
 	}
 
-	/** @inheritdoc */
-	public async open() {
-		let uri: TestUriWithDocument | undefined;
-		const active = this.editorService.activeTextEditorControl;
-		if (isCodeEditor(active) && active.getModel()?.uri) {
-			const modelUri = active.getModel()?.uri;
-			if (modelUri) {
-				uri = await this.getFileCandidateMessage(modelUri, active.getPosition());
+	/** @inhewitdoc */
+	pubwic async open() {
+		wet uwi: TestUwiWithDocument | undefined;
+		const active = this.editowSewvice.activeTextEditowContwow;
+		if (isCodeEditow(active) && active.getModew()?.uwi) {
+			const modewUwi = active.getModew()?.uwi;
+			if (modewUwi) {
+				uwi = await this.getFiweCandidateMessage(modewUwi, active.getPosition());
 			}
 		}
 
-		if (!uri) {
-			uri = this.lastUri;
+		if (!uwi) {
+			uwi = this.wastUwi;
 		}
 
-		if (!uri) {
-			uri = this.getAnyCandidateMessage();
+		if (!uwi) {
+			uwi = this.getAnyCandidateMessage();
 		}
 
-		if (!uri) {
-			return false;
+		if (!uwi) {
+			wetuwn fawse;
 		}
 
-		return this.showPeekFromUri(uri);
+		wetuwn this.showPeekFwomUwi(uwi);
 	}
 
-	/** @inheritdoc */
-	public tryPeekFirstError(result: ITestResult, test: TestResultItem, options?: Partial<ITextEditorOptions>) {
-		const candidate = this.getFailedCandidateMessage(test);
+	/** @inhewitdoc */
+	pubwic twyPeekFiwstEwwow(wesuwt: ITestWesuwt, test: TestWesuwtItem, options?: Pawtiaw<ITextEditowOptions>) {
+		const candidate = this.getFaiwedCandidateMessage(test);
 		if (!candidate) {
-			return false;
+			wetuwn fawse;
 		}
 
 		const message = candidate.message;
-		this.showPeekFromUri({
-			type: TestUriType.ResultMessage,
-			documentUri: message.location!.uri,
+		this.showPeekFwomUwi({
+			type: TestUwiType.WesuwtMessage,
+			documentUwi: message.wocation!.uwi,
 			taskIndex: candidate.taskId,
 			messageIndex: candidate.index,
-			resultId: result.id,
+			wesuwtId: wesuwt.id,
 			testExtId: test.item.extId,
-		}, { selection: message.location!.range, ...options });
-		return true;
+		}, { sewection: message.wocation!.wange, ...options });
+		wetuwn twue;
 	}
 
-	/** @inheritdoc */
-	public closeAllPeeks() {
-		for (const editor of this.codeEditorService.listCodeEditors()) {
-			TestingOutputPeekController.get(editor)?.removePeek();
+	/** @inhewitdoc */
+	pubwic cwoseAwwPeeks() {
+		fow (const editow of this.codeEditowSewvice.wistCodeEditows()) {
+			TestingOutputPeekContwowwa.get(editow)?.wemovePeek();
 		}
 	}
 
-	private async showPeekFromUri(uri: TestUriWithDocument, options?: ITextEditorOptions) {
-		const pane = await this.editorService.openEditor({
-			resource: uri.documentUri,
-			options: { revealIfOpened: true, ...options }
+	pwivate async showPeekFwomUwi(uwi: TestUwiWithDocument, options?: ITextEditowOptions) {
+		const pane = await this.editowSewvice.openEditow({
+			wesouwce: uwi.documentUwi,
+			options: { weveawIfOpened: twue, ...options }
 		});
 
-		const control = pane?.getControl();
-		if (!isCodeEditor(control)) {
-			return false;
+		const contwow = pane?.getContwow();
+		if (!isCodeEditow(contwow)) {
+			wetuwn fawse;
 		}
 
-		this.lastUri = uri;
-		TestingOutputPeekController.get(control).show(buildTestUri(this.lastUri));
-		return true;
+		this.wastUwi = uwi;
+		TestingOutputPeekContwowwa.get(contwow).show(buiwdTestUwi(this.wastUwi));
+		wetuwn twue;
 	}
 
 	/**
-	 * Opens the peek view on a test failure, based on user preferences.
+	 * Opens the peek view on a test faiwuwe, based on usa pwefewences.
 	 */
-	private openPeekOnFailure(evt: TestResultItemChange) {
-		if (evt.reason !== TestResultItemChangeReason.OwnStateChange) {
-			return;
+	pwivate openPeekOnFaiwuwe(evt: TestWesuwtItemChange) {
+		if (evt.weason !== TestWesuwtItemChangeWeason.OwnStateChange) {
+			wetuwn;
 		}
 
-		const candidate = this.getFailedCandidateMessage(evt.item);
+		const candidate = this.getFaiwedCandidateMessage(evt.item);
 		if (!candidate) {
-			return;
+			wetuwn;
 		}
 
-		if (evt.result.request.isAutoRun && !getTestingConfiguration(this.configuration, TestingConfigKeys.AutoOpenPeekViewDuringAutoRun)) {
-			return;
+		if (evt.wesuwt.wequest.isAutoWun && !getTestingConfiguwation(this.configuwation, TestingConfigKeys.AutoOpenPeekViewDuwingAutoWun)) {
+			wetuwn;
 		}
 
-		const editors = this.codeEditorService.listCodeEditors();
-		const cfg = getTestingConfiguration(this.configuration, TestingConfigKeys.AutoOpenPeekView);
+		const editows = this.codeEditowSewvice.wistCodeEditows();
+		const cfg = getTestingConfiguwation(this.configuwation, TestingConfigKeys.AutoOpenPeekView);
 
-		// don't show the peek if the user asked to only auto-open peeks for visible tests,
-		// and this test is not in any of the editors' models.
+		// don't show the peek if the usa asked to onwy auto-open peeks fow visibwe tests,
+		// and this test is not in any of the editows' modews.
 		switch (cfg) {
-			case AutoOpenPeekViewWhen.FailureVisible:
-				const editorUris = new Set(editors.map(e => e.getModel()?.uri.toString()));
-				if (!Iterable.some(resultItemParents(evt.result, evt.item), i => i.item.uri && editorUris.has(i.item.uri.toString()))) {
-					return;
+			case AutoOpenPeekViewWhen.FaiwuweVisibwe:
+				const editowUwis = new Set(editows.map(e => e.getModew()?.uwi.toStwing()));
+				if (!Itewabwe.some(wesuwtItemPawents(evt.wesuwt, evt.item), i => i.item.uwi && editowUwis.has(i.item.uwi.toStwing()))) {
+					wetuwn;
 				}
-				break; //continue
+				bweak; //continue
 
-			case AutoOpenPeekViewWhen.FailureAnywhere:
-				break; //continue
+			case AutoOpenPeekViewWhen.FaiwuweAnywhewe:
+				bweak; //continue
 
-			default:
-				return; // never show
+			defauwt:
+				wetuwn; // neva show
 		}
 
-		const controllers = editors.map(TestingOutputPeekController.get);
-		if (controllers.some(c => c?.isVisible)) {
-			return;
+		const contwowwews = editows.map(TestingOutputPeekContwowwa.get);
+		if (contwowwews.some(c => c?.isVisibwe)) {
+			wetuwn;
 		}
 
-		this.tryPeekFirstError(evt.result, evt.item);
+		this.twyPeekFiwstEwwow(evt.wesuwt, evt.item);
 	}
 
 	/**
-	 * Gets the message closest to the given position from a test in the file.
+	 * Gets the message cwosest to the given position fwom a test in the fiwe.
 	 */
-	private async getFileCandidateMessage(uri: URI, position: Position | null) {
-		let best: TestUriWithDocument | undefined;
-		let bestDistance = Infinity;
+	pwivate async getFiweCandidateMessage(uwi: UWI, position: Position | nuww) {
+		wet best: TestUwiWithDocument | undefined;
+		wet bestDistance = Infinity;
 
-		// Get all tests for the document. In those, find one that has a test
-		// message closest to the cursor position.
-		const demandedUriStr = uri.toString();
-		for (const test of this.testService.collection.all) {
-			const result = this.testResults.getStateById(test.item.extId);
-			if (!result) {
+		// Get aww tests fow the document. In those, find one that has a test
+		// message cwosest to the cuwsow position.
+		const demandedUwiStw = uwi.toStwing();
+		fow (const test of this.testSewvice.cowwection.aww) {
+			const wesuwt = this.testWesuwts.getStateById(test.item.extId);
+			if (!wesuwt) {
 				continue;
 			}
 
-			mapFindTestMessage(result[1], (_task, message, messageIndex, taskIndex) => {
-				if (!message.location || message.location.uri.toString() !== demandedUriStr) {
-					return;
+			mapFindTestMessage(wesuwt[1], (_task, message, messageIndex, taskIndex) => {
+				if (!message.wocation || message.wocation.uwi.toStwing() !== demandedUwiStw) {
+					wetuwn;
 				}
 
-				const distance = position ? Math.abs(position.lineNumber - message.location.range.startLineNumber) : 0;
+				const distance = position ? Math.abs(position.wineNumba - message.wocation.wange.stawtWineNumba) : 0;
 				if (!best || distance <= bestDistance) {
 					bestDistance = distance;
 					best = {
-						type: TestUriType.ResultMessage,
-						testExtId: result[1].item.extId,
-						resultId: result[0].id,
+						type: TestUwiType.WesuwtMessage,
+						testExtId: wesuwt[1].item.extId,
+						wesuwtId: wesuwt[0].id,
 						taskIndex,
 						messageIndex,
-						documentUri: uri,
+						documentUwi: uwi,
 					};
 				}
 			});
 		}
 
-		return best;
+		wetuwn best;
 	}
 
 	/**
-	 * Gets any possible still-relevant message from the results.
+	 * Gets any possibwe stiww-wewevant message fwom the wesuwts.
 	 */
-	private getAnyCandidateMessage() {
-		const seen = new Set<string>();
-		for (const result of this.testResults.results) {
-			for (const test of result.tests) {
+	pwivate getAnyCandidateMessage() {
+		const seen = new Set<stwing>();
+		fow (const wesuwt of this.testWesuwts.wesuwts) {
+			fow (const test of wesuwt.tests) {
 				if (seen.has(test.item.extId)) {
 					continue;
 				}
 
 				seen.add(test.item.extId);
 				const found = mapFindTestMessage(test, (task, message, messageIndex, taskIndex) => (
-					message.location && {
-						type: TestUriType.ResultMessage,
+					message.wocation && {
+						type: TestUwiType.WesuwtMessage,
 						testExtId: test.item.extId,
-						resultId: result.id,
+						wesuwtId: wesuwt.id,
 						taskIndex,
 						messageIndex,
-						documentUri: message.location.uri,
+						documentUwi: message.wocation.uwi,
 					}
 				));
 
 				if (found) {
-					return found;
+					wetuwn found;
 				}
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
 	/**
-	 * Gets the first failed message that can be displayed from the result.
+	 * Gets the fiwst faiwed message that can be dispwayed fwom the wesuwt.
 	 */
-	private getFailedCandidateMessage(test: TestResultItem) {
-		return mapFindTestMessage(test, (task, message, messageIndex, taskId) =>
-			isFailedState(task.state) && message.location
+	pwivate getFaiwedCandidateMessage(test: TestWesuwtItem) {
+		wetuwn mapFindTestMessage(test, (task, message, messageIndex, taskId) =>
+			isFaiwedState(task.state) && message.wocation
 				? { taskId, index: messageIndex, message }
 				: undefined
 		);
 	}
 }
 
-const mapFindTestMessage = <T>(test: TestResultItem, fn: (task: ITestTaskState, message: ITestMessage, messageIndex: number, taskIndex: number) => T | undefined) => {
-	for (let taskIndex = 0; taskIndex < test.tasks.length; taskIndex++) {
+const mapFindTestMessage = <T>(test: TestWesuwtItem, fn: (task: ITestTaskState, message: ITestMessage, messageIndex: numba, taskIndex: numba) => T | undefined) => {
+	fow (wet taskIndex = 0; taskIndex < test.tasks.wength; taskIndex++) {
 		const task = test.tasks[taskIndex];
-		for (let messageIndex = 0; messageIndex < task.messages.length; messageIndex++) {
-			const r = fn(task, task.messages[messageIndex], messageIndex, taskIndex);
-			if (r !== undefined) {
-				return r;
+		fow (wet messageIndex = 0; messageIndex < task.messages.wength; messageIndex++) {
+			const w = fn(task, task.messages[messageIndex], messageIndex, taskIndex);
+			if (w !== undefined) {
+				wetuwn w;
 			}
 		}
 	}
 
-	return undefined;
+	wetuwn undefined;
 };
 
 /**
- * Adds output/message peek functionality to code editors.
+ * Adds output/message peek functionawity to code editows.
  */
-export class TestingOutputPeekController extends Disposable implements IEditorContribution {
+expowt cwass TestingOutputPeekContwowwa extends Disposabwe impwements IEditowContwibution {
 	/**
-	 * Gets the controller associated with the given code editor.
+	 * Gets the contwowwa associated with the given code editow.
 	 */
-	public static get(editor: ICodeEditor): TestingOutputPeekController {
-		return editor.getContribution<TestingOutputPeekController>(Testing.OutputPeekContributionId);
+	pubwic static get(editow: ICodeEditow): TestingOutputPeekContwowwa {
+		wetuwn editow.getContwibution<TestingOutputPeekContwowwa>(Testing.OutputPeekContwibutionId);
 	}
 
 	/**
-	 * Currently-shown peek view.
+	 * Cuwwentwy-shown peek view.
 	 */
-	private readonly peek = this._register(new MutableDisposable<TestingOutputPeek>());
+	pwivate weadonwy peek = this._wegista(new MutabweDisposabwe<TestingOutputPeek>());
 
 	/**
-	 * URI of the currently-visible peek, if any.
+	 * UWI of the cuwwentwy-visibwe peek, if any.
 	 */
-	private currentPeekUri: URI | undefined;
+	pwivate cuwwentPeekUwi: UWI | undefined;
 
 	/**
-	 * Context key updated when the peek is visible/hidden.
+	 * Context key updated when the peek is visibwe/hidden.
 	 */
-	private readonly visible: IContextKey<boolean>;
+	pwivate weadonwy visibwe: IContextKey<boowean>;
 
 	/**
-	 * Gets whether a peek is currently shown in the associated editor.
+	 * Gets whetha a peek is cuwwentwy shown in the associated editow.
 	 */
-	public get isVisible() {
-		return this.peek.value;
+	pubwic get isVisibwe() {
+		wetuwn this.peek.vawue;
 	}
 
 	/**
-	 * Whether the history part of the peek view should be visible.
+	 * Whetha the histowy pawt of the peek view shouwd be visibwe.
 	 */
-	public readonly historyVisible = MutableObservableValue.stored(new StoredValue<boolean>({
-		key: 'testHistoryVisibleInPeek',
-		scope: StorageScope.GLOBAL,
-		target: StorageTarget.USER,
-	}, this.storageService), true);
+	pubwic weadonwy histowyVisibwe = MutabweObsewvabweVawue.stowed(new StowedVawue<boowean>({
+		key: 'testHistowyVisibweInPeek',
+		scope: StowageScope.GWOBAW,
+		tawget: StowageTawget.USa,
+	}, this.stowageSewvice), twue);
 
-	constructor(
-		private readonly editor: ICodeEditor,
-		@IEditorService private readonly editorService: IEditorService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITestResultService private readonly testResults: ITestResultService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+	constwuctow(
+		pwivate weadonwy editow: ICodeEditow,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@ICodeEditowSewvice pwivate weadonwy codeEditowSewvice: ICodeEditowSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@ITestWesuwtSewvice pwivate weadonwy testWesuwts: ITestWesuwtSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
 	) {
-		super();
-		this.visible = TestingContextKeys.isPeekVisible.bindTo(contextKeyService);
-		this._register(editor.onDidChangeModel(() => this.peek.clear()));
-		this._register(testResults.onResultsChanged(this.closePeekOnCertainResultEvents, this));
-		this._register(testResults.onTestChanged(this.closePeekOnTestChange, this));
+		supa();
+		this.visibwe = TestingContextKeys.isPeekVisibwe.bindTo(contextKeySewvice);
+		this._wegista(editow.onDidChangeModew(() => this.peek.cweaw()));
+		this._wegista(testWesuwts.onWesuwtsChanged(this.cwosePeekOnCewtainWesuwtEvents, this));
+		this._wegista(testWesuwts.onTestChanged(this.cwosePeekOnTestChange, this));
 	}
 
 	/**
-	 * Toggles peek visibility for the URI.
+	 * Toggwes peek visibiwity fow the UWI.
 	 */
-	public toggle(uri: URI) {
-		if (this.currentPeekUri?.toString() === uri.toString()) {
-			this.peek.clear();
-		} else {
-			this.show(uri);
+	pubwic toggwe(uwi: UWI) {
+		if (this.cuwwentPeekUwi?.toStwing() === uwi.toStwing()) {
+			this.peek.cweaw();
+		} ewse {
+			this.show(uwi);
 		}
 	}
 
-	public openCurrentInEditor() {
-		const current = this.peek.value?.current;
-		if (!current) {
-			return;
+	pubwic openCuwwentInEditow() {
+		const cuwwent = this.peek.vawue?.cuwwent;
+		if (!cuwwent) {
+			wetuwn;
 		}
 
-		const options = { pinned: false, revealIfOpened: true };
+		const options = { pinned: fawse, weveawIfOpened: twue };
 
-		if (current.isDiffable) {
-			this.editorService.openEditor({
-				original: { resource: current.expectedUri },
-				modified: { resource: current.actualUri },
+		if (cuwwent.isDiffabwe) {
+			this.editowSewvice.openEditow({
+				owiginaw: { wesouwce: cuwwent.expectedUwi },
+				modified: { wesouwce: cuwwent.actuawUwi },
 				options,
 			});
-		} else {
-			this.editorService.openEditor({ resource: current.messageUri, options });
+		} ewse {
+			this.editowSewvice.openEditow({ wesouwce: cuwwent.messageUwi, options });
 		}
 	}
 
 	/**
-	 * Shows a peek for the message in the editor.
+	 * Shows a peek fow the message in the editow.
 	 */
-	public async show(uri: URI) {
-		const dto = this.retrieveTest(uri);
+	pubwic async show(uwi: UWI) {
+		const dto = this.wetwieveTest(uwi);
 		if (!dto) {
-			return;
+			wetuwn;
 		}
 
 		const message = dto.messages[dto.messageIndex];
-		if (!this.peek.value) {
-			this.peek.value = this.instantiationService.createInstance(TestingOutputPeek, this.editor, this.historyVisible);
-			this.peek.value.onDidClose(() => {
-				this.visible.set(false);
-				this.currentPeekUri = undefined;
-				this.peek.value = undefined;
+		if (!this.peek.vawue) {
+			this.peek.vawue = this.instantiationSewvice.cweateInstance(TestingOutputPeek, this.editow, this.histowyVisibwe);
+			this.peek.vawue.onDidCwose(() => {
+				this.visibwe.set(fawse);
+				this.cuwwentPeekUwi = undefined;
+				this.peek.vawue = undefined;
 			});
 
-			this.visible.set(true);
-			this.peek.value!.create();
+			this.visibwe.set(twue);
+			this.peek.vawue!.cweate();
 		}
 
-		alert(renderStringAsPlaintext(message.message));
-		this.peek.value!.setModel(dto);
-		this.currentPeekUri = uri;
+		awewt(wendewStwingAsPwaintext(message.message));
+		this.peek.vawue!.setModew(dto);
+		this.cuwwentPeekUwi = uwi;
 	}
 
-	public async openAndShow(uri: URI) {
-		const dto = this.retrieveTest(uri);
+	pubwic async openAndShow(uwi: UWI) {
+		const dto = this.wetwieveTest(uwi);
 		if (!dto) {
-			return;
+			wetuwn;
 		}
 
-		if (!dto.revealLocation || dto.revealLocation.uri.toString() === this.editor.getModel()?.uri.toString()) {
-			return this.show(uri);
+		if (!dto.weveawWocation || dto.weveawWocation.uwi.toStwing() === this.editow.getModew()?.uwi.toStwing()) {
+			wetuwn this.show(uwi);
 		}
 
-		const otherEditor = await this.codeEditorService.openCodeEditor({
-			resource: dto.revealLocation.uri,
-			options: { pinned: false, revealIfOpened: true }
-		}, this.editor);
+		const othewEditow = await this.codeEditowSewvice.openCodeEditow({
+			wesouwce: dto.weveawWocation.uwi,
+			options: { pinned: fawse, weveawIfOpened: twue }
+		}, this.editow);
 
-		if (otherEditor) {
-			TestingOutputPeekController.get(otherEditor).removePeek();
-			return TestingOutputPeekController.get(otherEditor).show(uri);
+		if (othewEditow) {
+			TestingOutputPeekContwowwa.get(othewEditow).wemovePeek();
+			wetuwn TestingOutputPeekContwowwa.get(othewEditow).show(uwi);
 		}
 	}
 
 	/**
 	 * Disposes the peek view, if any.
 	 */
-	public removePeek() {
-		this.peek.clear();
+	pubwic wemovePeek() {
+		this.peek.cweaw();
 	}
 
 	/**
-	 * Shows the next message in the peek, if possible.
+	 * Shows the next message in the peek, if possibwe.
 	 */
-	public next() {
-		const dto = this.peek.value?.current;
+	pubwic next() {
+		const dto = this.peek.vawue?.cuwwent;
 		if (!dto) {
-			return;
+			wetuwn;
 		}
 
-		let found = false;
-		for (const { messageIndex, taskIndex, result, test } of allMessages(this.testResults.results)) {
+		wet found = fawse;
+		fow (const { messageIndex, taskIndex, wesuwt, test } of awwMessages(this.testWesuwts.wesuwts)) {
 			if (found) {
-				this.openAndShow(buildTestUri({
-					type: TestUriType.ResultMessage,
+				this.openAndShow(buiwdTestUwi({
+					type: TestUwiType.WesuwtMessage,
 					messageIndex,
 					taskIndex,
-					resultId: result.id,
+					wesuwtId: wesuwt.id,
 					testExtId: test.item.extId
 				}));
-				return;
-			} else if (dto.test.extId === test.item.extId && dto.messageIndex === messageIndex && dto.taskIndex === taskIndex && dto.resultId === result.id) {
-				found = true;
+				wetuwn;
+			} ewse if (dto.test.extId === test.item.extId && dto.messageIndex === messageIndex && dto.taskIndex === taskIndex && dto.wesuwtId === wesuwt.id) {
+				found = twue;
 			}
 		}
 	}
 
 	/**
-	 * Shows the previous message in the peek, if possible.
+	 * Shows the pwevious message in the peek, if possibwe.
 	 */
-	public previous() {
-		const dto = this.peek.value?.current;
+	pubwic pwevious() {
+		const dto = this.peek.vawue?.cuwwent;
 		if (!dto) {
-			return;
+			wetuwn;
 		}
 
-		let previous: { messageIndex: number, taskIndex: number, result: ITestResult, test: TestResultItem } | undefined;
-		for (const m of allMessages(this.testResults.results)) {
-			if (dto.test.extId === m.test.item.extId && dto.messageIndex === m.messageIndex && dto.taskIndex === m.taskIndex && dto.resultId === m.result.id) {
-				if (!previous) {
-					return;
+		wet pwevious: { messageIndex: numba, taskIndex: numba, wesuwt: ITestWesuwt, test: TestWesuwtItem } | undefined;
+		fow (const m of awwMessages(this.testWesuwts.wesuwts)) {
+			if (dto.test.extId === m.test.item.extId && dto.messageIndex === m.messageIndex && dto.taskIndex === m.taskIndex && dto.wesuwtId === m.wesuwt.id) {
+				if (!pwevious) {
+					wetuwn;
 				}
 
-				this.openAndShow(buildTestUri({
-					type: TestUriType.ResultMessage,
-					messageIndex: previous.messageIndex,
-					taskIndex: previous.taskIndex,
-					resultId: previous.result.id,
-					testExtId: previous.test.item.extId
+				this.openAndShow(buiwdTestUwi({
+					type: TestUwiType.WesuwtMessage,
+					messageIndex: pwevious.messageIndex,
+					taskIndex: pwevious.taskIndex,
+					wesuwtId: pwevious.wesuwt.id,
+					testExtId: pwevious.test.item.extId
 				}));
-				return;
+				wetuwn;
 			}
 
-			previous = m;
+			pwevious = m;
 		}
 	}
 
 	/**
-	 * Removes the peek view if it's being displayed on the given test ID.
+	 * Wemoves the peek view if it's being dispwayed on the given test ID.
 	 */
-	public removeIfPeekingForTest(testId: string) {
-		if (this.peek.value?.current?.test.extId === testId) {
-			this.peek.clear();
+	pubwic wemoveIfPeekingFowTest(testId: stwing) {
+		if (this.peek.vawue?.cuwwent?.test.extId === testId) {
+			this.peek.cweaw();
 		}
 	}
 
 	/**
-	 * If the test we're currently showing has its state change to something
-	 * else, then clear the peek.
+	 * If the test we'we cuwwentwy showing has its state change to something
+	 * ewse, then cweaw the peek.
 	 */
-	private closePeekOnTestChange(evt: TestResultItemChange) {
-		if (evt.reason !== TestResultItemChangeReason.OwnStateChange || evt.previous === evt.item.ownComputedState) {
-			return;
+	pwivate cwosePeekOnTestChange(evt: TestWesuwtItemChange) {
+		if (evt.weason !== TestWesuwtItemChangeWeason.OwnStateChange || evt.pwevious === evt.item.ownComputedState) {
+			wetuwn;
 		}
 
-		this.removeIfPeekingForTest(evt.item.item.extId);
+		this.wemoveIfPeekingFowTest(evt.item.item.extId);
 	}
 
-	private closePeekOnCertainResultEvents(evt: ResultChangeEvent) {
-		if ('started' in evt) {
-			this.peek.clear(); // close peek when runs start
+	pwivate cwosePeekOnCewtainWesuwtEvents(evt: WesuwtChangeEvent) {
+		if ('stawted' in evt) {
+			this.peek.cweaw(); // cwose peek when wuns stawt
 		}
 
-		if ('removed' in evt && this.testResults.results.length === 0) {
-			this.peek.clear(); // close the peek if results are cleared
+		if ('wemoved' in evt && this.testWesuwts.wesuwts.wength === 0) {
+			this.peek.cweaw(); // cwose the peek if wesuwts awe cweawed
 		}
 	}
 
-	private retrieveTest(uri: URI): TestDto | undefined {
-		const parts = parseTestUri(uri);
-		if (!parts) {
-			return undefined;
+	pwivate wetwieveTest(uwi: UWI): TestDto | undefined {
+		const pawts = pawseTestUwi(uwi);
+		if (!pawts) {
+			wetuwn undefined;
 		}
 
-		const { resultId, testExtId, taskIndex, messageIndex } = parts;
-		const test = this.testResults.getResult(parts.resultId)?.getStateById(testExtId);
-		if (!test || !test.tasks[parts.taskIndex]) {
-			return;
+		const { wesuwtId, testExtId, taskIndex, messageIndex } = pawts;
+		const test = this.testWesuwts.getWesuwt(pawts.wesuwtId)?.getStateById(testExtId);
+		if (!test || !test.tasks[pawts.taskIndex]) {
+			wetuwn;
 		}
 
-		return new TestDto(resultId, test, taskIndex, messageIndex);
+		wetuwn new TestDto(wesuwtId, test, taskIndex, messageIndex);
 	}
 }
 
-class TestingOutputPeek extends PeekViewWidget {
-	private readonly visibilityChange = this._disposables.add(new Emitter<boolean>());
-	private readonly didReveal = this._disposables.add(new Emitter<TestDto>());
-	private dimension?: dom.Dimension;
-	private splitView!: SplitView;
-	private contentProviders!: IPeekOutputRenderer[];
+cwass TestingOutputPeek extends PeekViewWidget {
+	pwivate weadonwy visibiwityChange = this._disposabwes.add(new Emitta<boowean>());
+	pwivate weadonwy didWeveaw = this._disposabwes.add(new Emitta<TestDto>());
+	pwivate dimension?: dom.Dimension;
+	pwivate spwitView!: SpwitView;
+	pwivate contentPwovidews!: IPeekOutputWendewa[];
 
-	public current?: TestDto;
+	pubwic cuwwent?: TestDto;
 
-	constructor(
-		editor: ICodeEditor,
-		private readonly historyVisible: IObservableValue<boolean>,
-		@IThemeService themeService: IThemeService,
-		@IPeekViewService peekViewService: IPeekViewService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IMenuService private readonly menuService: IMenuService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ITextModelService protected readonly modelService: ITextModelService,
+	constwuctow(
+		editow: ICodeEditow,
+		pwivate weadonwy histowyVisibwe: IObsewvabweVawue<boowean>,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IPeekViewSewvice peekViewSewvice: IPeekViewSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IMenuSewvice pwivate weadonwy menuSewvice: IMenuSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@ITextModewSewvice pwotected weadonwy modewSewvice: ITextModewSewvice,
 	) {
-		super(editor, { showFrame: true, frameWidth: 1, showArrow: true, isResizeable: true, isAccessible: true, className: 'test-output-peek' }, instantiationService);
+		supa(editow, { showFwame: twue, fwameWidth: 1, showAwwow: twue, isWesizeabwe: twue, isAccessibwe: twue, cwassName: 'test-output-peek' }, instantiationSewvice);
 
-		TestingContextKeys.isInPeek.bindTo(contextKeyService);
-		this._disposables.add(themeService.onDidColorThemeChange(this.applyTheme, this));
-		this._disposables.add(this.onDidClose(() => this.visibilityChange.fire(false)));
-		this.applyTheme(themeService.getColorTheme());
-		peekViewService.addExclusiveWidget(editor, this);
+		TestingContextKeys.isInPeek.bindTo(contextKeySewvice);
+		this._disposabwes.add(themeSewvice.onDidCowowThemeChange(this.appwyTheme, this));
+		this._disposabwes.add(this.onDidCwose(() => this.visibiwityChange.fiwe(fawse)));
+		this.appwyTheme(themeSewvice.getCowowTheme());
+		peekViewSewvice.addExcwusiveWidget(editow, this);
 	}
 
-	private applyTheme(theme: IColorTheme) {
-		const borderColor = theme.getColor(testingPeekBorder) || Color.transparent;
-		const headerBg = theme.getColor(testingPeekHeaderBackground) || Color.transparent;
-		this.style({
-			arrowColor: borderColor,
-			frameColor: borderColor,
-			headerBackgroundColor: headerBg,
-			primaryHeadingColor: theme.getColor(peekViewTitleForeground),
-			secondaryHeadingColor: theme.getColor(peekViewTitleInfoForeground)
+	pwivate appwyTheme(theme: ICowowTheme) {
+		const bowdewCowow = theme.getCowow(testingPeekBowda) || Cowow.twanspawent;
+		const headewBg = theme.getCowow(testingPeekHeadewBackgwound) || Cowow.twanspawent;
+		this.stywe({
+			awwowCowow: bowdewCowow,
+			fwameCowow: bowdewCowow,
+			headewBackgwoundCowow: headewBg,
+			pwimawyHeadingCowow: theme.getCowow(peekViewTitweFowegwound),
+			secondawyHeadingCowow: theme.getCowow(peekViewTitweInfoFowegwound)
 		});
 	}
 
-	protected override _fillHead(container: HTMLElement): void {
-		super._fillHead(container);
+	pwotected ovewwide _fiwwHead(containa: HTMWEwement): void {
+		supa._fiwwHead(containa);
 
 		const actions: IAction[] = [];
-		const menu = this.menuService.createMenu(MenuId.TestPeekTitle, this.contextKeyService);
-		createAndFillInActionBarActions(menu, undefined, actions);
-		this._actionbarWidget!.push(actions, { label: false, icon: true, index: 0 });
+		const menu = this.menuSewvice.cweateMenu(MenuId.TestPeekTitwe, this.contextKeySewvice);
+		cweateAndFiwwInActionBawActions(menu, undefined, actions);
+		this._actionbawWidget!.push(actions, { wabew: fawse, icon: twue, index: 0 });
 		menu.dispose();
 	}
 
-	protected override _fillBody(containerElement: HTMLElement): void {
-		this.splitView = new SplitView(containerElement, { orientation: Orientation.HORIZONTAL });
+	pwotected ovewwide _fiwwBody(containewEwement: HTMWEwement): void {
+		this.spwitView = new SpwitView(containewEwement, { owientation: Owientation.HOWIZONTAW });
 
-		const messageContainer = dom.append(containerElement, dom.$('.test-output-peek-message-container'));
-		this.contentProviders = [
-			this._disposables.add(this.instantiationService.createInstance(DiffContentProvider, this.editor, messageContainer)),
-			this._disposables.add(this.instantiationService.createInstance(MarkdownTestMessagePeek, messageContainer)),
-			this._disposables.add(this.instantiationService.createInstance(PlainTextMessagePeek, this.editor, messageContainer)),
+		const messageContaina = dom.append(containewEwement, dom.$('.test-output-peek-message-containa'));
+		this.contentPwovidews = [
+			this._disposabwes.add(this.instantiationSewvice.cweateInstance(DiffContentPwovida, this.editow, messageContaina)),
+			this._disposabwes.add(this.instantiationSewvice.cweateInstance(MawkdownTestMessagePeek, messageContaina)),
+			this._disposabwes.add(this.instantiationSewvice.cweateInstance(PwainTextMessagePeek, this.editow, messageContaina)),
 		];
 
-		const treeContainer = dom.append(containerElement, dom.$('.test-output-peek-tree'));
-		const tree = this._disposables.add(this.instantiationService.createInstance(
-			OutputPeekTree,
-			this.editor,
-			treeContainer,
-			this.visibilityChange.event,
-			this.didReveal.event,
+		const tweeContaina = dom.append(containewEwement, dom.$('.test-output-peek-twee'));
+		const twee = this._disposabwes.add(this.instantiationSewvice.cweateInstance(
+			OutputPeekTwee,
+			this.editow,
+			tweeContaina,
+			this.visibiwityChange.event,
+			this.didWeveaw.event,
 		));
 
-		this.splitView.addView({
+		this.spwitView.addView({
 			onDidChange: Event.None,
-			element: messageContainer,
+			ewement: messageContaina,
 			minimumSize: 200,
-			maximumSize: Number.MAX_VALUE,
-			layout: width => {
+			maximumSize: Numba.MAX_VAWUE,
+			wayout: width => {
 				if (this.dimension) {
-					for (const provider of this.contentProviders) {
-						provider.layout({ height: this.dimension.height, width });
+					fow (const pwovida of this.contentPwovidews) {
+						pwovida.wayout({ height: this.dimension.height, width });
 					}
 				}
 			},
-		}, Sizing.Distribute);
+		}, Sizing.Distwibute);
 
-		this.splitView.addView({
+		this.spwitView.addView({
 			onDidChange: Event.None,
-			element: treeContainer,
+			ewement: tweeContaina,
 			minimumSize: 100,
-			maximumSize: Number.MAX_VALUE,
-			layout: width => {
+			maximumSize: Numba.MAX_VAWUE,
+			wayout: width => {
 				if (this.dimension) {
-					tree.layout(this.dimension.height, width);
+					twee.wayout(this.dimension.height, width);
 				}
 			},
-		}, Sizing.Distribute);
+		}, Sizing.Distwibute);
 
-		const historyViewIndex = 1;
-		this.splitView.setViewVisible(historyViewIndex, this.historyVisible.value);
-		this._disposables.add(this.historyVisible.onDidChange(visible => {
-			this.splitView.setViewVisible(historyViewIndex, visible);
+		const histowyViewIndex = 1;
+		this.spwitView.setViewVisibwe(histowyViewIndex, this.histowyVisibwe.vawue);
+		this._disposabwes.add(this.histowyVisibwe.onDidChange(visibwe => {
+			this.spwitView.setViewVisibwe(histowyViewIndex, visibwe);
 		}));
 	}
 
 	/**
 	 * Updates the test to be shown.
 	 */
-	public setModel(dto: TestDto): Promise<void> {
+	pubwic setModew(dto: TestDto): Pwomise<void> {
 		const message = dto.messages[dto.messageIndex];
-		const previous = this.current;
+		const pwevious = this.cuwwent;
 
-		if (message.type !== TestMessageType.Error) {
-			return Promise.resolve();
+		if (message.type !== TestMessageType.Ewwow) {
+			wetuwn Pwomise.wesowve();
 		}
 
-		if (!dto.revealLocation && !previous) {
-			return Promise.resolve();
+		if (!dto.weveawWocation && !pwevious) {
+			wetuwn Pwomise.wesowve();
 		}
 
-		this.current = dto;
-		if (!dto.revealLocation) {
-			return this.showInPlace(dto);
+		this.cuwwent = dto;
+		if (!dto.weveawWocation) {
+			wetuwn this.showInPwace(dto);
 		}
 
-		this.show(dto.revealLocation.range, hintMessagePeekHeight(message));
-		this.editor.revealPositionNearTop(dto.revealLocation.range.getStartPosition(), ScrollType.Smooth);
-		this.editor.focus();
+		this.show(dto.weveawWocation.wange, hintMessagePeekHeight(message));
+		this.editow.weveawPositionNeawTop(dto.weveawWocation.wange.getStawtPosition(), ScwowwType.Smooth);
+		this.editow.focus();
 
-		return this.showInPlace(dto);
+		wetuwn this.showInPwace(dto);
 	}
 
 	/**
-	 * Shows a message in-place without showing or changing the peek location.
-	 * This is mostly used if peeking a message without a location.
+	 * Shows a message in-pwace without showing ow changing the peek wocation.
+	 * This is mostwy used if peeking a message without a wocation.
 	 */
-	public async showInPlace(dto: TestDto) {
+	pubwic async showInPwace(dto: TestDto) {
 		const message = dto.messages[dto.messageIndex];
-		this.setTitle(firstLine(renderStringAsPlaintext(message.message)), dto.test.label);
-		this.didReveal.fire(dto);
-		this.visibilityChange.fire(true);
-		await Promise.all(this.contentProviders.map(p => p.update(dto, message)));
+		this.setTitwe(fiwstWine(wendewStwingAsPwaintext(message.message)), dto.test.wabew);
+		this.didWeveaw.fiwe(dto);
+		this.visibiwityChange.fiwe(twue);
+		await Pwomise.aww(this.contentPwovidews.map(p => p.update(dto, message)));
 	}
 
-	/** @override */
-	protected override _doLayoutBody(height: number, width: number) {
-		super._doLayoutBody(height, width);
+	/** @ovewwide */
+	pwotected ovewwide _doWayoutBody(height: numba, width: numba) {
+		supa._doWayoutBody(height, width);
 		this.dimension = new dom.Dimension(width, height);
-		this.splitView.layout(width);
+		this.spwitView.wayout(width);
 	}
 
-	/** @override */
-	protected override _onWidth(width: number) {
-		super._onWidth(width);
+	/** @ovewwide */
+	pwotected ovewwide _onWidth(width: numba) {
+		supa._onWidth(width);
 		if (this.dimension) {
 			this.dimension = new dom.Dimension(width, this.dimension.height);
 		}
 
-		this.splitView.layout(width);
+		this.spwitView.wayout(width);
 	}
 }
 
-interface IPeekOutputRenderer extends IDisposable {
-	/** Updates the displayed test. Should clear if it cannot display the test. */
+intewface IPeekOutputWendewa extends IDisposabwe {
+	/** Updates the dispwayed test. Shouwd cweaw if it cannot dispway the test. */
 	update(dto: TestDto, message: ITestMessage): void;
-	/** Recalculate content layout. */
-	layout(dimension: dom.IDimension): void;
-	/** Dispose the content provider. */
+	/** Wecawcuwate content wayout. */
+	wayout(dimension: dom.IDimension): void;
+	/** Dispose the content pwovida. */
 	dispose(): void;
 }
 
-const commonEditorOptions: IEditorOptions = {
-	scrollBeyondLastLine: false,
-	scrollbar: {
-		verticalScrollbarSize: 14,
-		horizontal: 'auto',
-		useShadows: true,
-		verticalHasArrows: false,
-		horizontalHasArrows: false,
-		alwaysConsumeMouseWheel: false
+const commonEditowOptions: IEditowOptions = {
+	scwowwBeyondWastWine: fawse,
+	scwowwbaw: {
+		vewticawScwowwbawSize: 14,
+		howizontaw: 'auto',
+		useShadows: twue,
+		vewticawHasAwwows: fawse,
+		howizontawHasAwwows: fawse,
+		awwaysConsumeMouseWheew: fawse
 	},
-	fixedOverflowWidgets: true,
-	readOnly: true,
+	fixedOvewfwowWidgets: twue,
+	weadOnwy: twue,
 	minimap: {
-		enabled: false
+		enabwed: fawse
 	},
 };
 
-const diffEditorOptions: IDiffEditorConstructionOptions = {
-	...commonEditorOptions,
-	enableSplitViewResizing: true,
-	isInEmbeddedEditor: true,
-	renderOverviewRuler: false,
-	ignoreTrimWhitespace: false,
-	renderSideBySide: true,
-	originalAriaLabel: localize('testingOutputExpected', 'Expected result'),
-	modifiedAriaLabel: localize('testingOutputActual', 'Actual result'),
+const diffEditowOptions: IDiffEditowConstwuctionOptions = {
+	...commonEditowOptions,
+	enabweSpwitViewWesizing: twue,
+	isInEmbeddedEditow: twue,
+	wendewOvewviewWuwa: fawse,
+	ignoweTwimWhitespace: fawse,
+	wendewSideBySide: twue,
+	owiginawAwiaWabew: wocawize('testingOutputExpected', 'Expected wesuwt'),
+	modifiedAwiaWabew: wocawize('testingOutputActuaw', 'Actuaw wesuwt'),
 };
 
-const isDiffable = (message: ITestErrorMessage): message is ITestErrorMessage & { actualOutput: string; expectedOutput: string } =>
-	message.actual !== undefined && message.expected !== undefined;
+const isDiffabwe = (message: ITestEwwowMessage): message is ITestEwwowMessage & { actuawOutput: stwing; expectedOutput: stwing } =>
+	message.actuaw !== undefined && message.expected !== undefined;
 
-class DiffContentProvider extends Disposable implements IPeekOutputRenderer {
-	private readonly widget = this._register(new MutableDisposable<EmbeddedDiffEditorWidget>());
-	private readonly model = this._register(new MutableDisposable());
-	private dimension?: dom.IDimension;
+cwass DiffContentPwovida extends Disposabwe impwements IPeekOutputWendewa {
+	pwivate weadonwy widget = this._wegista(new MutabweDisposabwe<EmbeddedDiffEditowWidget>());
+	pwivate weadonwy modew = this._wegista(new MutabweDisposabwe());
+	pwivate dimension?: dom.IDimension;
 
-	constructor(
-		private readonly editor: ICodeEditor,
-		private readonly container: HTMLElement,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITextModelService private readonly modelService: ITextModelService,
+	constwuctow(
+		pwivate weadonwy editow: ICodeEditow,
+		pwivate weadonwy containa: HTMWEwement,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@ITextModewSewvice pwivate weadonwy modewSewvice: ITextModewSewvice,
 	) {
-		super();
+		supa();
 	}
 
-	public async update({ expectedUri, actualUri }: TestDto, message: ITestErrorMessage) {
-		if (!isDiffable(message)) {
-			return this.clear();
+	pubwic async update({ expectedUwi, actuawUwi }: TestDto, message: ITestEwwowMessage) {
+		if (!isDiffabwe(message)) {
+			wetuwn this.cweaw();
 		}
 
-		const [original, modified] = await Promise.all([
-			this.modelService.createModelReference(expectedUri),
-			this.modelService.createModelReference(actualUri),
+		const [owiginaw, modified] = await Pwomise.aww([
+			this.modewSewvice.cweateModewWefewence(expectedUwi),
+			this.modewSewvice.cweateModewWefewence(actuawUwi),
 		]);
 
-		const model = this.model.value = new SimpleDiffEditorModel(original, modified);
-		if (!this.widget.value) {
-			this.widget.value = this.instantiationService.createInstance(
-				EmbeddedDiffEditorWidget,
-				this.container,
-				diffEditorOptions,
-				this.editor,
+		const modew = this.modew.vawue = new SimpweDiffEditowModew(owiginaw, modified);
+		if (!this.widget.vawue) {
+			this.widget.vawue = this.instantiationSewvice.cweateInstance(
+				EmbeddedDiffEditowWidget,
+				this.containa,
+				diffEditowOptions,
+				this.editow,
 			);
 
 			if (this.dimension) {
-				this.widget.value.layout(this.dimension);
+				this.widget.vawue.wayout(this.dimension);
 			}
 		}
 
-		this.widget.value.setModel(model);
-		this.widget.value.updateOptions(this.getOptions(
-			isMultiline(message.expected) || isMultiline(message.actual)
+		this.widget.vawue.setModew(modew);
+		this.widget.vawue.updateOptions(this.getOptions(
+			isMuwtiwine(message.expected) || isMuwtiwine(message.actuaw)
 		));
 	}
 
-	private clear() {
-		this.model.clear();
-		this.widget.clear();
+	pwivate cweaw() {
+		this.modew.cweaw();
+		this.widget.cweaw();
 	}
 
-	public layout(dimensions: dom.IDimension) {
+	pubwic wayout(dimensions: dom.IDimension) {
 		this.dimension = dimensions;
-		this.widget.value?.layout(dimensions);
+		this.widget.vawue?.wayout(dimensions);
 	}
 
-	protected getOptions(isMultiline: boolean): IDiffEditorOptions {
-		return isMultiline
-			? { ...diffEditorOptions, lineNumbers: 'on' }
-			: { ...diffEditorOptions, lineNumbers: 'off' };
-	}
-}
-
-class ScrollableMarkdownMessage extends Disposable {
-	private scrollable: DomScrollableElement;
-
-	constructor(container: HTMLElement, markdown: MarkdownRenderer, message: IMarkdownString) {
-		super();
-
-		const rendered = this._register(markdown.render(message, {}));
-		rendered.element.style.height = '100%';
-		container.appendChild(rendered.element);
-
-		this.scrollable = this._register(new DomScrollableElement(rendered.element, {
-			className: 'preview-text',
-		}));
-		container.appendChild(this.scrollable.getDomNode());
-
-		this._register(toDisposable(() => {
-			container.removeChild(this.scrollable.getDomNode());
-		}));
-
-		this.scrollable.scanDomNode();
-	}
-
-	public layout(height: number, width: number) {
-		this.scrollable.setScrollDimensions({ width, height });
+	pwotected getOptions(isMuwtiwine: boowean): IDiffEditowOptions {
+		wetuwn isMuwtiwine
+			? { ...diffEditowOptions, wineNumbews: 'on' }
+			: { ...diffEditowOptions, wineNumbews: 'off' };
 	}
 }
 
-class MarkdownTestMessagePeek extends Disposable implements IPeekOutputRenderer {
-	private readonly markdown = new Lazy(
-		() => this._register(this.instantiationService.createInstance(MarkdownRenderer, {})),
+cwass ScwowwabweMawkdownMessage extends Disposabwe {
+	pwivate scwowwabwe: DomScwowwabweEwement;
+
+	constwuctow(containa: HTMWEwement, mawkdown: MawkdownWendewa, message: IMawkdownStwing) {
+		supa();
+
+		const wendewed = this._wegista(mawkdown.wenda(message, {}));
+		wendewed.ewement.stywe.height = '100%';
+		containa.appendChiwd(wendewed.ewement);
+
+		this.scwowwabwe = this._wegista(new DomScwowwabweEwement(wendewed.ewement, {
+			cwassName: 'pweview-text',
+		}));
+		containa.appendChiwd(this.scwowwabwe.getDomNode());
+
+		this._wegista(toDisposabwe(() => {
+			containa.wemoveChiwd(this.scwowwabwe.getDomNode());
+		}));
+
+		this.scwowwabwe.scanDomNode();
+	}
+
+	pubwic wayout(height: numba, width: numba) {
+		this.scwowwabwe.setScwowwDimensions({ width, height });
+	}
+}
+
+cwass MawkdownTestMessagePeek extends Disposabwe impwements IPeekOutputWendewa {
+	pwivate weadonwy mawkdown = new Wazy(
+		() => this._wegista(this.instantiationSewvice.cweateInstance(MawkdownWendewa, {})),
 	);
 
-	private readonly textPreview = this._register(new MutableDisposable<ScrollableMarkdownMessage>());
+	pwivate weadonwy textPweview = this._wegista(new MutabweDisposabwe<ScwowwabweMawkdownMessage>());
 
-	constructor(private readonly container: HTMLElement, @IInstantiationService private readonly instantiationService: IInstantiationService) {
-		super();
+	constwuctow(pwivate weadonwy containa: HTMWEwement, @IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice) {
+		supa();
 	}
 
-	public update(_dto: TestDto, message: ITestErrorMessage): void {
-		if (isDiffable(message) || typeof message.message === 'string') {
-			return this.textPreview.clear();
+	pubwic update(_dto: TestDto, message: ITestEwwowMessage): void {
+		if (isDiffabwe(message) || typeof message.message === 'stwing') {
+			wetuwn this.textPweview.cweaw();
 		}
 
-		this.textPreview.value = new ScrollableMarkdownMessage(
-			this.container,
-			this.markdown.getValue(),
-			message.message as IMarkdownString,
+		this.textPweview.vawue = new ScwowwabweMawkdownMessage(
+			this.containa,
+			this.mawkdown.getVawue(),
+			message.message as IMawkdownStwing,
 		);
 	}
 
-	public layout(): void {
+	pubwic wayout(): void {
 		// no-op
 	}
 }
 
-class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
-	private readonly widget = this._register(new MutableDisposable<EmbeddedCodeEditorWidget>());
-	private readonly model = this._register(new MutableDisposable());
-	private dimension?: dom.IDimension;
+cwass PwainTextMessagePeek extends Disposabwe impwements IPeekOutputWendewa {
+	pwivate weadonwy widget = this._wegista(new MutabweDisposabwe<EmbeddedCodeEditowWidget>());
+	pwivate weadonwy modew = this._wegista(new MutabweDisposabwe());
+	pwivate dimension?: dom.IDimension;
 
-	constructor(
-		private readonly editor: ICodeEditor,
-		private readonly container: HTMLElement,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITextModelService private readonly modelService: ITextModelService,
+	constwuctow(
+		pwivate weadonwy editow: ICodeEditow,
+		pwivate weadonwy containa: HTMWEwement,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@ITextModewSewvice pwivate weadonwy modewSewvice: ITextModewSewvice,
 	) {
-		super();
+		supa();
 	}
 
-	public async update({ messageUri }: TestDto, message: ITestErrorMessage) {
-		if (isDiffable(message) || typeof message.message !== 'string') {
-			return this.clear();
+	pubwic async update({ messageUwi }: TestDto, message: ITestEwwowMessage) {
+		if (isDiffabwe(message) || typeof message.message !== 'stwing') {
+			wetuwn this.cweaw();
 		}
 
-		const modelRef = this.model.value = await this.modelService.createModelReference(messageUri);
-		if (!this.widget.value) {
-			this.widget.value = this.instantiationService.createInstance(
-				EmbeddedCodeEditorWidget,
-				this.container,
-				commonEditorOptions,
-				this.editor,
+		const modewWef = this.modew.vawue = await this.modewSewvice.cweateModewWefewence(messageUwi);
+		if (!this.widget.vawue) {
+			this.widget.vawue = this.instantiationSewvice.cweateInstance(
+				EmbeddedCodeEditowWidget,
+				this.containa,
+				commonEditowOptions,
+				this.editow,
 			);
 
 			if (this.dimension) {
-				this.widget.value.layout(this.dimension);
+				this.widget.vawue.wayout(this.dimension);
 			}
 		}
 
-		this.widget.value.setModel(modelRef.object.textEditorModel);
-		this.widget.value.updateOptions(this.getOptions(isMultiline(message.message)));
+		this.widget.vawue.setModew(modewWef.object.textEditowModew);
+		this.widget.vawue.updateOptions(this.getOptions(isMuwtiwine(message.message)));
 	}
 
-	private clear() {
-		this.model.clear();
-		this.widget.clear();
+	pwivate cweaw() {
+		this.modew.cweaw();
+		this.widget.cweaw();
 	}
 
-	public layout(dimensions: dom.IDimension) {
+	pubwic wayout(dimensions: dom.IDimension) {
 		this.dimension = dimensions;
-		this.widget.value?.layout(dimensions);
+		this.widget.vawue?.wayout(dimensions);
 	}
 
-	protected getOptions(isMultiline: boolean): IDiffEditorOptions {
-		return isMultiline
-			? { ...diffEditorOptions, lineNumbers: 'on' }
-			: { ...diffEditorOptions, lineNumbers: 'off' };
+	pwotected getOptions(isMuwtiwine: boowean): IDiffEditowOptions {
+		wetuwn isMuwtiwine
+			? { ...diffEditowOptions, wineNumbews: 'on' }
+			: { ...diffEditowOptions, wineNumbews: 'off' };
 	}
 }
 
-const hintMessagePeekHeight = (msg: ITestErrorMessage) =>
-	isDiffable(msg)
-		? Math.max(hintPeekStrHeight(msg.actual), hintPeekStrHeight(msg.expected))
-		: hintPeekStrHeight(typeof msg.message === 'string' ? msg.message : msg.message.value);
+const hintMessagePeekHeight = (msg: ITestEwwowMessage) =>
+	isDiffabwe(msg)
+		? Math.max(hintPeekStwHeight(msg.actuaw), hintPeekStwHeight(msg.expected))
+		: hintPeekStwHeight(typeof msg.message === 'stwing' ? msg.message : msg.message.vawue);
 
-const firstLine = (str: string) => {
-	const index = str.indexOf('\n');
-	return index === -1 ? str : str.slice(0, index);
+const fiwstWine = (stw: stwing) => {
+	const index = stw.indexOf('\n');
+	wetuwn index === -1 ? stw : stw.swice(0, index);
 };
 
-const isMultiline = (str: string | undefined) => !!str && str.includes('\n');
-const hintPeekStrHeight = (str: string | undefined) => clamp(count(str || '', '\n') + 3, 8, 20);
+const isMuwtiwine = (stw: stwing | undefined) => !!stw && stw.incwudes('\n');
+const hintPeekStwHeight = (stw: stwing | undefined) => cwamp(count(stw || '', '\n') + 3, 8, 20);
 
-class SimpleDiffEditorModel extends EditorModel {
-	public readonly original = this._original.object.textEditorModel;
-	public readonly modified = this._modified.object.textEditorModel;
+cwass SimpweDiffEditowModew extends EditowModew {
+	pubwic weadonwy owiginaw = this._owiginaw.object.textEditowModew;
+	pubwic weadonwy modified = this._modified.object.textEditowModew;
 
-	constructor(
-		private readonly _original: IReference<IResolvedTextEditorModel>,
-		private readonly _modified: IReference<IResolvedTextEditorModel>,
+	constwuctow(
+		pwivate weadonwy _owiginaw: IWefewence<IWesowvedTextEditowModew>,
+		pwivate weadonwy _modified: IWefewence<IWesowvedTextEditowModew>,
 	) {
-		super();
+		supa();
 	}
 
-	public override dispose() {
-		super.dispose();
-		this._original.dispose();
+	pubwic ovewwide dispose() {
+		supa.dispose();
+		this._owiginaw.dispose();
 		this._modified.dispose();
 	}
 }
 
-function getOuterEditorFromDiffEditor(accessor: ServicesAccessor): ICodeEditor | null {
-	const diffEditors = accessor.get(ICodeEditorService).listDiffEditors();
+function getOutewEditowFwomDiffEditow(accessow: SewvicesAccessow): ICodeEditow | nuww {
+	const diffEditows = accessow.get(ICodeEditowSewvice).wistDiffEditows();
 
-	for (const diffEditor of diffEditors) {
-		if (diffEditor.hasTextFocus() && diffEditor instanceof EmbeddedDiffEditorWidget) {
-			return diffEditor.getParentEditor();
+	fow (const diffEditow of diffEditows) {
+		if (diffEditow.hasTextFocus() && diffEditow instanceof EmbeddedDiffEditowWidget) {
+			wetuwn diffEditow.getPawentEditow();
 		}
 	}
 
-	return getOuterEditor(accessor);
+	wetuwn getOutewEditow(accessow);
 }
 
-export class CloseTestPeek extends EditorAction2 {
-	constructor() {
-		super({
-			id: 'editor.closeTestPeek',
-			title: localize('close', 'Close'),
-			icon: Codicon.close,
-			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.or(TestingContextKeys.isInPeek, TestingContextKeys.isPeekVisible),
-				ContextKeyExpr.not('config.editor.stablePeek')
+expowt cwass CwoseTestPeek extends EditowAction2 {
+	constwuctow() {
+		supa({
+			id: 'editow.cwoseTestPeek',
+			titwe: wocawize('cwose', 'Cwose'),
+			icon: Codicon.cwose,
+			pwecondition: ContextKeyExpw.and(
+				ContextKeyExpw.ow(TestingContextKeys.isInPeek, TestingContextKeys.isPeekVisibwe),
+				ContextKeyExpw.not('config.editow.stabwePeek')
 			),
 			keybinding: {
-				weight: KeybindingWeight.EditorContrib - 101,
-				primary: KeyCode.Escape
+				weight: KeybindingWeight.EditowContwib - 101,
+				pwimawy: KeyCode.Escape
 			}
 		});
 	}
 
-	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const parent = getOuterEditorFromDiffEditor(accessor);
-		TestingOutputPeekController.get(parent ?? editor).removePeek();
+	wunEditowCommand(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		const pawent = getOutewEditowFwomDiffEditow(accessow);
+		TestingOutputPeekContwowwa.get(pawent ?? editow).wemovePeek();
 	}
 }
 
-interface ITreeElement {
-	type: string;
+intewface ITweeEwement {
+	type: stwing;
 	context: unknown;
-	id: string;
-	label: string;
+	id: stwing;
+	wabew: stwing;
 	icon?: ThemeIcon;
-	description?: string;
-	ariaLabel?: string;
+	descwiption?: stwing;
+	awiaWabew?: stwing;
 }
 
-export class TestResultElement implements ITreeElement {
-	public readonly type = 'result';
-	public readonly context = this.value.id;
-	public readonly id = this.value.id;
-	public readonly label = this.value.name;
+expowt cwass TestWesuwtEwement impwements ITweeEwement {
+	pubwic weadonwy type = 'wesuwt';
+	pubwic weadonwy context = this.vawue.id;
+	pubwic weadonwy id = this.vawue.id;
+	pubwic weadonwy wabew = this.vawue.name;
 
-	public get icon() {
-		return icons.testingStatesToIcons.get(
-			this.value.completedAt === undefined
-				? TestResultState.Running
-				: maxCountPriority(this.value.counts)
+	pubwic get icon() {
+		wetuwn icons.testingStatesToIcons.get(
+			this.vawue.compwetedAt === undefined
+				? TestWesuwtState.Wunning
+				: maxCountPwiowity(this.vawue.counts)
 		);
 	}
 
-	constructor(public readonly value: ITestResult) { }
+	constwuctow(pubwic weadonwy vawue: ITestWesuwt) { }
 }
 
-export class TestCaseElement implements ITreeElement {
-	public readonly type = 'test';
-	public readonly context = this.test.item.extId;
-	public readonly id = `${this.results.id}/${this.test.item.extId}`;
-	public readonly label = this.test.item.label;
-	public readonly description?: string;
+expowt cwass TestCaseEwement impwements ITweeEwement {
+	pubwic weadonwy type = 'test';
+	pubwic weadonwy context = this.test.item.extId;
+	pubwic weadonwy id = `${this.wesuwts.id}/${this.test.item.extId}`;
+	pubwic weadonwy wabew = this.test.item.wabew;
+	pubwic weadonwy descwiption?: stwing;
 
-	public get icon() {
-		return icons.testingStatesToIcons.get(this.test.computedState);
+	pubwic get icon() {
+		wetuwn icons.testingStatesToIcons.get(this.test.computedState);
 	}
 
-	constructor(
-		private readonly results: ITestResult,
-		public readonly test: TestResultItem,
+	constwuctow(
+		pwivate weadonwy wesuwts: ITestWesuwt,
+		pubwic weadonwy test: TestWesuwtItem,
 	) {
-		for (const parent of resultItemParents(results, test)) {
-			if (parent !== test) {
-				this.description = this.description
-					? parent.item.label + flatTestItemDelimiter + this.description
-					: parent.item.label;
+		fow (const pawent of wesuwtItemPawents(wesuwts, test)) {
+			if (pawent !== test) {
+				this.descwiption = this.descwiption
+					? pawent.item.wabew + fwatTestItemDewimita + this.descwiption
+					: pawent.item.wabew;
 			}
 		}
 	}
 }
 
-class TestTaskElement implements ITreeElement {
-	public readonly type = 'task';
-	public readonly task: ITestRunTask;
-	public readonly context: string;
-	public readonly id: string;
-	public readonly label: string;
-	public readonly icon = undefined;
+cwass TestTaskEwement impwements ITweeEwement {
+	pubwic weadonwy type = 'task';
+	pubwic weadonwy task: ITestWunTask;
+	pubwic weadonwy context: stwing;
+	pubwic weadonwy id: stwing;
+	pubwic weadonwy wabew: stwing;
+	pubwic weadonwy icon = undefined;
 
-	constructor(results: ITestResult, public readonly test: TestResultItem, index: number) {
-		this.id = `${results.id}/${test.item.extId}/${index}`;
-		this.task = results.tasks[index];
-		this.context = String(index);
-		this.label = this.task.name ?? localize('testUnnamedTask', 'Unnamed Task');
+	constwuctow(wesuwts: ITestWesuwt, pubwic weadonwy test: TestWesuwtItem, index: numba) {
+		this.id = `${wesuwts.id}/${test.item.extId}/${index}`;
+		this.task = wesuwts.tasks[index];
+		this.context = Stwing(index);
+		this.wabew = this.task.name ?? wocawize('testUnnamedTask', 'Unnamed Task');
 	}
 }
 
-class TestMessageElement implements ITreeElement {
-	public readonly type = 'message';
-	public readonly context: URI;
-	public readonly id: string;
-	public readonly label: string;
-	public readonly uri: URI;
-	public readonly location: IRichLocation | undefined;
+cwass TestMessageEwement impwements ITweeEwement {
+	pubwic weadonwy type = 'message';
+	pubwic weadonwy context: UWI;
+	pubwic weadonwy id: stwing;
+	pubwic weadonwy wabew: stwing;
+	pubwic weadonwy uwi: UWI;
+	pubwic weadonwy wocation: IWichWocation | undefined;
 
-	constructor(
-		public readonly result: ITestResult,
-		public readonly test: TestResultItem,
-		public readonly taskIndex: number,
-		public readonly messageIndex: number,
+	constwuctow(
+		pubwic weadonwy wesuwt: ITestWesuwt,
+		pubwic weadonwy test: TestWesuwtItem,
+		pubwic weadonwy taskIndex: numba,
+		pubwic weadonwy messageIndex: numba,
 	) {
-		const { message, location } = test.tasks[taskIndex].messages[messageIndex];
+		const { message, wocation } = test.tasks[taskIndex].messages[messageIndex];
 
-		this.location = location;
-		this.uri = this.context = buildTestUri({
-			type: TestUriType.ResultMessage,
+		this.wocation = wocation;
+		this.uwi = this.context = buiwdTestUwi({
+			type: TestUwiType.WesuwtMessage,
 			messageIndex,
-			resultId: result.id,
+			wesuwtId: wesuwt.id,
 			taskIndex,
 			testExtId: test.item.extId
 		});
 
-		this.id = this.uri.toString();
-		this.label = firstLine(renderStringAsPlaintext(message));
+		this.id = this.uwi.toStwing();
+		this.wabew = fiwstWine(wendewStwingAsPwaintext(message));
 	}
 }
 
-type TreeElement = TestResultElement | TestCaseElement | TestMessageElement | TestTaskElement;
+type TweeEwement = TestWesuwtEwement | TestCaseEwement | TestMessageEwement | TestTaskEwement;
 
-class OutputPeekTree extends Disposable {
-	private disposed = false;
-	private readonly tree: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
-	private readonly treeActions: TreeActionsProvider;
+cwass OutputPeekTwee extends Disposabwe {
+	pwivate disposed = fawse;
+	pwivate weadonwy twee: WowkbenchCompwessibweObjectTwee<TweeEwement, FuzzyScowe>;
+	pwivate weadonwy tweeActions: TweeActionsPwovida;
 
-	constructor(
-		editor: ICodeEditor,
-		container: HTMLElement,
-		onDidChangeVisibility: Event<boolean>,
-		onDidReveal: Event<TestDto>,
-		peekController: TestingOutputPeek,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@ITestResultService results: ITestResultService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ITestExplorerFilterState explorerFilter: ITestExplorerFilterState,
+	constwuctow(
+		editow: ICodeEditow,
+		containa: HTMWEwement,
+		onDidChangeVisibiwity: Event<boowean>,
+		onDidWeveaw: Event<TestDto>,
+		peekContwowwa: TestingOutputPeek,
+		@IContextMenuSewvice pwivate weadonwy contextMenuSewvice: IContextMenuSewvice,
+		@ITestWesuwtSewvice wesuwts: ITestWesuwtSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@ITestExpwowewFiwtewState expwowewFiwta: ITestExpwowewFiwtewState,
 	) {
-		super();
+		supa();
 
-		this.treeActions = instantiationService.createInstance(TreeActionsProvider);
-		const labels = instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility });
-		const diffIdentityProvider: IIdentityProvider<TreeElement> = {
-			getId(e: TreeElement) {
-				return e.id;
+		this.tweeActions = instantiationSewvice.cweateInstance(TweeActionsPwovida);
+		const wabews = instantiationSewvice.cweateInstance(WesouwceWabews, { onDidChangeVisibiwity });
+		const diffIdentityPwovida: IIdentityPwovida<TweeEwement> = {
+			getId(e: TweeEwement) {
+				wetuwn e.id;
 			}
 		};
 
-		this.tree = this._register(instantiationService.createInstance(
-			WorkbenchCompressibleObjectTree,
+		this.twee = this._wegista(instantiationSewvice.cweateInstance(
+			WowkbenchCompwessibweObjectTwee,
 			'Test Output Peek',
-			container,
+			containa,
 			{
 				getHeight: () => 22,
-				getTemplateId: () => TestRunElementRenderer.ID,
+				getTempwateId: () => TestWunEwementWendewa.ID,
 			},
-			[instantiationService.createInstance(TestRunElementRenderer, labels, this.treeActions)],
+			[instantiationSewvice.cweateInstance(TestWunEwementWendewa, wabews, this.tweeActions)],
 			{
-				compressionEnabled: true,
-				hideTwistiesOfChildlessElements: true,
-				identityProvider: diffIdentityProvider,
-				accessibilityProvider: {
-					getAriaLabel(element: ITreeElement) {
-						return element.ariaLabel || element.label;
+				compwessionEnabwed: twue,
+				hideTwistiesOfChiwdwessEwements: twue,
+				identityPwovida: diffIdentityPwovida,
+				accessibiwityPwovida: {
+					getAwiaWabew(ewement: ITweeEwement) {
+						wetuwn ewement.awiaWabew || ewement.wabew;
 					},
-					getWidgetAriaLabel() {
-						return localize('testingPeekLabel', 'Test Result Messages');
+					getWidgetAwiaWabew() {
+						wetuwn wocawize('testingPeekWabew', 'Test Wesuwt Messages');
 					}
 				}
 			},
-		)) as WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
+		)) as WowkbenchCompwessibweObjectTwee<TweeEwement, FuzzyScowe>;
 
-		const creationCache = new WeakMap<object, TreeElement>();
-		const cachedCreate = <T extends TreeElement>(ref: object, factory: () => T): TreeElement => {
-			const existing = creationCache.get(ref);
+		const cweationCache = new WeakMap<object, TweeEwement>();
+		const cachedCweate = <T extends TweeEwement>(wef: object, factowy: () => T): TweeEwement => {
+			const existing = cweationCache.get(wef);
 			if (existing) {
-				return existing;
+				wetuwn existing;
 			}
 
-			const fresh = factory();
-			creationCache.set(ref, fresh);
-			return fresh;
+			const fwesh = factowy();
+			cweationCache.set(wef, fwesh);
+			wetuwn fwesh;
 		};
 
-		const getTaskChildren = (result: ITestResult, test: TestResultItem, taskId: number): Iterable<ICompressedTreeElement<TreeElement>> => {
-			return Iterable.map(test.tasks[0].messages, (m, messageIndex) => ({
-				element: cachedCreate(m, () => new TestMessageElement(result, test, taskId, messageIndex)),
-				incompressible: true,
+		const getTaskChiwdwen = (wesuwt: ITestWesuwt, test: TestWesuwtItem, taskId: numba): Itewabwe<ICompwessedTweeEwement<TweeEwement>> => {
+			wetuwn Itewabwe.map(test.tasks[0].messages, (m, messageIndex) => ({
+				ewement: cachedCweate(m, () => new TestMessageEwement(wesuwt, test, taskId, messageIndex)),
+				incompwessibwe: twue,
 			}));
 		};
 
-		const getTestChildren = (result: ITestResult, test: TestResultItem): Iterable<ICompressedTreeElement<TreeElement>> => {
-			const tasks = Iterable.filter(test.tasks, task => task.messages.length > 0);
-			return Iterable.map(tasks, (t, taskId) => ({
-				element: cachedCreate(t, () => new TestTaskElement(result, test, taskId)),
-				incompressible: false,
-				children: getTaskChildren(result, test, taskId),
+		const getTestChiwdwen = (wesuwt: ITestWesuwt, test: TestWesuwtItem): Itewabwe<ICompwessedTweeEwement<TweeEwement>> => {
+			const tasks = Itewabwe.fiwta(test.tasks, task => task.messages.wength > 0);
+			wetuwn Itewabwe.map(tasks, (t, taskId) => ({
+				ewement: cachedCweate(t, () => new TestTaskEwement(wesuwt, test, taskId)),
+				incompwessibwe: fawse,
+				chiwdwen: getTaskChiwdwen(wesuwt, test, taskId),
 			}));
 		};
 
-		const getResultChildren = (result: ITestResult): Iterable<ICompressedTreeElement<TreeElement>> => {
-			const tests = Iterable.filter(result.tests, test => test.tasks.some(t => t.messages.length > 0));
-			return Iterable.map(tests, test => ({
-				element: cachedCreate(test, () => new TestCaseElement(result, test)),
-				incompressible: true,
-				children: getTestChildren(result, test),
+		const getWesuwtChiwdwen = (wesuwt: ITestWesuwt): Itewabwe<ICompwessedTweeEwement<TweeEwement>> => {
+			const tests = Itewabwe.fiwta(wesuwt.tests, test => test.tasks.some(t => t.messages.wength > 0));
+			wetuwn Itewabwe.map(tests, test => ({
+				ewement: cachedCweate(test, () => new TestCaseEwement(wesuwt, test)),
+				incompwessibwe: twue,
+				chiwdwen: getTestChiwdwen(wesuwt, test),
 			}));
 		};
 
-		const getRootChildren = () => results.results.map(result => ({
-			element: cachedCreate(result, () => new TestResultElement(result)),
-			incompressible: true,
-			collapsed: true,
-			children: getResultChildren(result)
+		const getWootChiwdwen = () => wesuwts.wesuwts.map(wesuwt => ({
+			ewement: cachedCweate(wesuwt, () => new TestWesuwtEwement(wesuwt)),
+			incompwessibwe: twue,
+			cowwapsed: twue,
+			chiwdwen: getWesuwtChiwdwen(wesuwt)
 		}));
 
-		this._register(results.onTestChanged(e => {
-			const itemNode = creationCache.get(e.item);
-			if (itemNode && this.tree.hasElement(itemNode)) { // update to existing test message/state
-				this.tree.setChildren(itemNode, getTestChildren(e.result, e.item));
-				return;
+		this._wegista(wesuwts.onTestChanged(e => {
+			const itemNode = cweationCache.get(e.item);
+			if (itemNode && this.twee.hasEwement(itemNode)) { // update to existing test message/state
+				this.twee.setChiwdwen(itemNode, getTestChiwdwen(e.wesuwt, e.item));
+				wetuwn;
 			}
 
-			const resultNode = creationCache.get(e.result);
-			if (resultNode && this.tree.hasElement(resultNode)) { // new test
-				this.tree.setChildren(null, getRootChildren(), { diffIdentityProvider });
-				return;
+			const wesuwtNode = cweationCache.get(e.wesuwt);
+			if (wesuwtNode && this.twee.hasEwement(wesuwtNode)) { // new test
+				this.twee.setChiwdwen(nuww, getWootChiwdwen(), { diffIdentityPwovida });
+				wetuwn;
 			}
 
-			// should be unreachable?
-			this.tree.setChildren(null, getRootChildren(), { diffIdentityProvider });
+			// shouwd be unweachabwe?
+			this.twee.setChiwdwen(nuww, getWootChiwdwen(), { diffIdentityPwovida });
 		}));
 
-		this._register(results.onResultsChanged(e => {
-			// little hack here: a result change can cause the peek to be disposed,
-			// but this listener will still be queued. Doing stuff with the tree
-			// will cause errors.
+		this._wegista(wesuwts.onWesuwtsChanged(e => {
+			// wittwe hack hewe: a wesuwt change can cause the peek to be disposed,
+			// but this wistena wiww stiww be queued. Doing stuff with the twee
+			// wiww cause ewwows.
 			if (this.disposed) {
-				return;
+				wetuwn;
 			}
 
-			if ('completed' in e) {
-				const resultNode = creationCache.get(e.completed);
-				if (resultNode && this.tree.hasElement(resultNode)) {
-					this.tree.setChildren(resultNode, getResultChildren(e.completed));
-					return;
+			if ('compweted' in e) {
+				const wesuwtNode = cweationCache.get(e.compweted);
+				if (wesuwtNode && this.twee.hasEwement(wesuwtNode)) {
+					this.twee.setChiwdwen(wesuwtNode, getWesuwtChiwdwen(e.compweted));
+					wetuwn;
 				}
 			}
 
-			this.tree.setChildren(null, getRootChildren(), { diffIdentityProvider });
+			this.twee.setChiwdwen(nuww, getWootChiwdwen(), { diffIdentityPwovida });
 		}));
 
-		this._register(onDidReveal(dto => {
-			const messageNode = creationCache.get(dto.messages[dto.messageIndex]);
-			if (!messageNode || !this.tree.hasElement(messageNode)) {
-				return;
+		this._wegista(onDidWeveaw(dto => {
+			const messageNode = cweationCache.get(dto.messages[dto.messageIndex]);
+			if (!messageNode || !this.twee.hasEwement(messageNode)) {
+				wetuwn;
 			}
 
-			const parents: TreeElement[] = [];
-			for (let parent = this.tree.getParentElement(messageNode); parent; parent = this.tree.getParentElement(parent)) {
-				parents.unshift(parent);
+			const pawents: TweeEwement[] = [];
+			fow (wet pawent = this.twee.getPawentEwement(messageNode); pawent; pawent = this.twee.getPawentEwement(pawent)) {
+				pawents.unshift(pawent);
 			}
 
-			for (const parent of parents) {
-				this.tree.expand(parent);
+			fow (const pawent of pawents) {
+				this.twee.expand(pawent);
 			}
 
-			if (this.tree.getRelativeTop(messageNode) === null) {
-				this.tree.reveal(messageNode, 0.5);
+			if (this.twee.getWewativeTop(messageNode) === nuww) {
+				this.twee.weveaw(messageNode, 0.5);
 			}
 
-			this.tree.setFocus([messageNode]);
-			this.tree.setSelection([messageNode]);
+			this.twee.setFocus([messageNode]);
+			this.twee.setSewection([messageNode]);
 		}));
 
-		this._register(this.tree.onDidOpen(async e => {
-			if (!(e.element instanceof TestMessageElement)) {
-				return;
+		this._wegista(this.twee.onDidOpen(async e => {
+			if (!(e.ewement instanceof TestMessageEwement)) {
+				wetuwn;
 			}
 
-			const dto = new TestDto(e.element.result.id, e.element.test, e.element.taskIndex, e.element.messageIndex);
-			if (!dto.revealLocation) {
-				peekController.showInPlace(dto);
-			} else {
-				TestingOutputPeekController.get(editor).openAndShow(dto.messageUri);
+			const dto = new TestDto(e.ewement.wesuwt.id, e.ewement.test, e.ewement.taskIndex, e.ewement.messageIndex);
+			if (!dto.weveawWocation) {
+				peekContwowwa.showInPwace(dto);
+			} ewse {
+				TestingOutputPeekContwowwa.get(editow).openAndShow(dto.messageUwi);
 			}
 		}));
 
-		this._register(this.tree.onDidChangeSelection(evt => {
-			for (const element of evt.elements) {
-				if (element && 'test' in element) {
-					explorerFilter.reveal.value = element.test.item.extId;
-					break;
+		this._wegista(this.twee.onDidChangeSewection(evt => {
+			fow (const ewement of evt.ewements) {
+				if (ewement && 'test' in ewement) {
+					expwowewFiwta.weveaw.vawue = ewement.test.item.extId;
+					bweak;
 				}
 			}
 		}));
 
 
-		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
+		this._wegista(this.twee.onContextMenu(e => this.onContextMenu(e)));
 
-		this.tree.setChildren(null, getRootChildren());
+		this.twee.setChiwdwen(nuww, getWootChiwdwen());
 	}
 
-	public layout(height: number, width: number) {
-		this.tree.layout(height, width);
+	pubwic wayout(height: numba, width: numba) {
+		this.twee.wayout(height, width);
 	}
 
-	private onContextMenu(evt: ITreeContextMenuEvent<ITreeElement | null>) {
-		if (!evt.element) {
-			return;
+	pwivate onContextMenu(evt: ITweeContextMenuEvent<ITweeEwement | nuww>) {
+		if (!evt.ewement) {
+			wetuwn;
 		}
 
-		const actions = this.treeActions.provideActionBar(evt.element);
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => evt.anchor,
-			getActions: () => actions.value.secondary.length
-				? [...actions.value.primary, new Separator(), ...actions.value.secondary]
-				: actions.value.primary,
-			getActionsContext: () => evt.element?.context,
+		const actions = this.tweeActions.pwovideActionBaw(evt.ewement);
+		this.contextMenuSewvice.showContextMenu({
+			getAnchow: () => evt.anchow,
+			getActions: () => actions.vawue.secondawy.wength
+				? [...actions.vawue.pwimawy, new Sepawatow(), ...actions.vawue.secondawy]
+				: actions.vawue.pwimawy,
+			getActionsContext: () => evt.ewement?.context,
 			onHide: () => actions.dispose(),
 		});
 	}
 
-	public override dispose() {
-		super.dispose();
-		this.disposed = true;
+	pubwic ovewwide dispose() {
+		supa.dispose();
+		this.disposed = twue;
 	}
 }
 
-interface TemplateData {
-	label: IResourceLabel;
-	icon: HTMLElement;
-	actionBar: ActionBar;
-	elementDisposable: DisposableStore;
-	templateDisposable: DisposableStore;
+intewface TempwateData {
+	wabew: IWesouwceWabew;
+	icon: HTMWEwement;
+	actionBaw: ActionBaw;
+	ewementDisposabwe: DisposabweStowe;
+	tempwateDisposabwe: DisposabweStowe;
 }
 
-class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, FuzzyScore, TemplateData> {
-	public static readonly ID = 'testRunElementRenderer';
-	public readonly templateId = TestRunElementRenderer.ID;
+cwass TestWunEwementWendewa impwements ICompwessibweTweeWendewa<ITweeEwement, FuzzyScowe, TempwateData> {
+	pubwic static weadonwy ID = 'testWunEwementWendewa';
+	pubwic weadonwy tempwateId = TestWunEwementWendewa.ID;
 
-	constructor(
-		private readonly labels: ResourceLabels,
-		private readonly treeActions: TreeActionsProvider,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	constwuctow(
+		pwivate weadonwy wabews: WesouwceWabews,
+		pwivate weadonwy tweeActions: TweeActionsPwovida,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
 	) { }
 
-	/** @inheritdoc */
-	public renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ITreeElement>, FuzzyScore>, _index: number, templateData: TemplateData): void {
-		const chain = node.element.elements;
-		const lastElement = chain[chain.length - 1];
-		if (lastElement instanceof TestTaskElement && chain.length >= 2) {
-			this.doRender(chain[chain.length - 2], templateData);
-		} else {
-			this.doRender(lastElement, templateData);
+	/** @inhewitdoc */
+	pubwic wendewCompwessedEwements(node: ITweeNode<ICompwessedTweeNode<ITweeEwement>, FuzzyScowe>, _index: numba, tempwateData: TempwateData): void {
+		const chain = node.ewement.ewements;
+		const wastEwement = chain[chain.wength - 1];
+		if (wastEwement instanceof TestTaskEwement && chain.wength >= 2) {
+			this.doWenda(chain[chain.wength - 2], tempwateData);
+		} ewse {
+			this.doWenda(wastEwement, tempwateData);
 		}
 	}
 
-	/** @inheritdoc */
-	public renderTemplate(container: HTMLElement): TemplateData {
-		const templateDisposable = new DisposableStore();
-		const wrapper = dom.append(container, dom.$('.test-peek-item'));
-		const icon = dom.append(wrapper, dom.$('.state'));
-		const name = dom.append(wrapper, dom.$('.name'));
+	/** @inhewitdoc */
+	pubwic wendewTempwate(containa: HTMWEwement): TempwateData {
+		const tempwateDisposabwe = new DisposabweStowe();
+		const wwappa = dom.append(containa, dom.$('.test-peek-item'));
+		const icon = dom.append(wwappa, dom.$('.state'));
+		const name = dom.append(wwappa, dom.$('.name'));
 
-		const label = this.labels.create(name, { supportHighlights: true });
-		templateDisposable.add(label);
+		const wabew = this.wabews.cweate(name, { suppowtHighwights: twue });
+		tempwateDisposabwe.add(wabew);
 
-		const actionBar = new ActionBar(wrapper, {
-			actionViewItemProvider: action =>
+		const actionBaw = new ActionBaw(wwappa, {
+			actionViewItemPwovida: action =>
 				action instanceof MenuItemAction
-					? this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined)
+					? this.instantiationSewvice.cweateInstance(MenuEntwyActionViewItem, action, undefined)
 					: undefined
 		});
 
-		templateDisposable.add(actionBar);
+		tempwateDisposabwe.add(actionBaw);
 
-		return {
+		wetuwn {
 			icon,
-			label,
-			actionBar,
-			elementDisposable: new DisposableStore(),
-			templateDisposable,
+			wabew,
+			actionBaw,
+			ewementDisposabwe: new DisposabweStowe(),
+			tempwateDisposabwe,
 		};
 	}
 
-	/** @inheritdoc */
-	public renderElement(element: ITreeNode<ITreeElement, FuzzyScore>, _index: number, templateData: TemplateData): void {
-		this.doRender(element.element, templateData);
+	/** @inhewitdoc */
+	pubwic wendewEwement(ewement: ITweeNode<ITweeEwement, FuzzyScowe>, _index: numba, tempwateData: TempwateData): void {
+		this.doWenda(ewement.ewement, tempwateData);
 	}
 
-	/** @inheritdoc */
-	public disposeTemplate(templateData: TemplateData): void {
-		templateData.templateDisposable.dispose();
+	/** @inhewitdoc */
+	pubwic disposeTempwate(tempwateData: TempwateData): void {
+		tempwateData.tempwateDisposabwe.dispose();
 	}
 
-	private doRender(element: ITreeElement, templateData: TemplateData) {
-		templateData.elementDisposable.clear();
-		templateData.label.setLabel(element.label, element.description);
+	pwivate doWenda(ewement: ITweeEwement, tempwateData: TempwateData) {
+		tempwateData.ewementDisposabwe.cweaw();
+		tempwateData.wabew.setWabew(ewement.wabew, ewement.descwiption);
 
-		const icon = element.icon;
-		templateData.icon.className = `computed-state ${icon ? ThemeIcon.asClassName(icon) : ''}`;
+		const icon = ewement.icon;
+		tempwateData.icon.cwassName = `computed-state ${icon ? ThemeIcon.asCwassName(icon) : ''}`;
 
-		const actions = this.treeActions.provideActionBar(element);
-		templateData.elementDisposable.add(actions);
-		templateData.actionBar.clear();
-		templateData.actionBar.context = element;
-		templateData.actionBar.push(actions.value.primary, { icon: true, label: false });
+		const actions = this.tweeActions.pwovideActionBaw(ewement);
+		tempwateData.ewementDisposabwe.add(actions);
+		tempwateData.actionBaw.cweaw();
+		tempwateData.actionBaw.context = ewement;
+		tempwateData.actionBaw.push(actions.vawue.pwimawy, { icon: twue, wabew: fawse });
 	}
 }
 
-class TreeActionsProvider {
-	constructor(
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ITestingOutputTerminalService private readonly testTerminalService: ITestingOutputTerminalService,
-		@IMenuService private readonly menuService: IMenuService,
-		@ICommandService private readonly commandService: ICommandService,
-		@ITestProfileService private readonly testProfileService: ITestProfileService,
+cwass TweeActionsPwovida {
+	constwuctow(
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@ITestingOutputTewminawSewvice pwivate weadonwy testTewminawSewvice: ITestingOutputTewminawSewvice,
+		@IMenuSewvice pwivate weadonwy menuSewvice: IMenuSewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
+		@ITestPwofiweSewvice pwivate weadonwy testPwofiweSewvice: ITestPwofiweSewvice,
 	) { }
 
-	public provideActionBar(element: ITreeElement) {
-		const test = element instanceof TestCaseElement ? element.test : undefined;
-		const capabilities = test ? this.testProfileService.capabilitiesForTest(test) : 0;
-		const contextOverlay = this.contextKeyService.createOverlay([
-			['peek', Testing.OutputPeekContributionId],
-			[TestingContextKeys.peekItemType.key, element.type],
-			...getTestItemContextOverlay(test, capabilities),
+	pubwic pwovideActionBaw(ewement: ITweeEwement) {
+		const test = ewement instanceof TestCaseEwement ? ewement.test : undefined;
+		const capabiwities = test ? this.testPwofiweSewvice.capabiwitiesFowTest(test) : 0;
+		const contextOvewway = this.contextKeySewvice.cweateOvewway([
+			['peek', Testing.OutputPeekContwibutionId],
+			[TestingContextKeys.peekItemType.key, ewement.type],
+			...getTestItemContextOvewway(test, capabiwities),
 		]);
-		const menu = this.menuService.createMenu(MenuId.TestPeekElement, contextOverlay);
+		const menu = this.menuSewvice.cweateMenu(MenuId.TestPeekEwement, contextOvewway);
 
-		try {
-			const primary: IAction[] = [];
-			const secondary: IAction[] = [];
+		twy {
+			const pwimawy: IAction[] = [];
+			const secondawy: IAction[] = [];
 
-			if (element instanceof TestResultElement) {
-				primary.push(new Action(
-					'testing.outputPeek.showResultOutput',
-					localize('testing.showResultOutput', "Show Result Output"),
-					Codicon.terminal.classNames,
+			if (ewement instanceof TestWesuwtEwement) {
+				pwimawy.push(new Action(
+					'testing.outputPeek.showWesuwtOutput',
+					wocawize('testing.showWesuwtOutput', "Show Wesuwt Output"),
+					Codicon.tewminaw.cwassNames,
 					undefined,
-					() => this.testTerminalService.open(element.value)
+					() => this.testTewminawSewvice.open(ewement.vawue)
 				));
 
-				primary.push(new Action(
-					'testing.outputPeek.reRunLastRun',
-					localize('testing.reRunLastRun', "Rerun Test Run"),
-					ThemeIcon.asClassName(icons.testingRunIcon),
+				pwimawy.push(new Action(
+					'testing.outputPeek.weWunWastWun',
+					wocawize('testing.weWunWastWun', "Wewun Test Wun"),
+					ThemeIcon.asCwassName(icons.testingWunIcon),
 					undefined,
-					() => this.commandService.executeCommand('testing.reRunLastRun', element.value.id),
+					() => this.commandSewvice.executeCommand('testing.weWunWastWun', ewement.vawue.id),
 				));
 
-				if (capabilities & TestRunProfileBitset.Debug) {
-					primary.push(new Action(
-						'testing.outputPeek.debugLastRun',
-						localize('testing.debugLastRun', "Debug Test Run"),
-						ThemeIcon.asClassName(icons.testingDebugIcon),
+				if (capabiwities & TestWunPwofiweBitset.Debug) {
+					pwimawy.push(new Action(
+						'testing.outputPeek.debugWastWun',
+						wocawize('testing.debugWastWun', "Debug Test Wun"),
+						ThemeIcon.asCwassName(icons.testingDebugIcon),
 						undefined,
-						() => this.commandService.executeCommand('testing.debugLastRun', element.value.id),
+						() => this.commandSewvice.executeCommand('testing.debugWastWun', ewement.vawue.id),
 					));
 				}
 			}
 
-			if (element instanceof TestCaseElement || element instanceof TestTaskElement) {
-				const extId = element.test.item.extId;
-				primary.push(new Action(
-					'testing.outputPeek.goToFile',
-					localize('testing.goToFile', "Go to File"),
-					Codicon.goToFile.classNames,
+			if (ewement instanceof TestCaseEwement || ewement instanceof TestTaskEwement) {
+				const extId = ewement.test.item.extId;
+				pwimawy.push(new Action(
+					'testing.outputPeek.goToFiwe',
+					wocawize('testing.goToFiwe', "Go to Fiwe"),
+					Codicon.goToFiwe.cwassNames,
 					undefined,
-					() => this.commandService.executeCommand('vscode.revealTest', extId),
+					() => this.commandSewvice.executeCommand('vscode.weveawTest', extId),
 				));
 
-				secondary.push(new Action(
-					'testing.outputPeek.revealInExplorer',
-					localize('testing.revealInExplorer', "Reveal in Test Explorer"),
-					Codicon.listTree.classNames,
+				secondawy.push(new Action(
+					'testing.outputPeek.weveawInExpwowa',
+					wocawize('testing.weveawInExpwowa', "Weveaw in Test Expwowa"),
+					Codicon.wistTwee.cwassNames,
 					undefined,
-					() => this.commandService.executeCommand('_revealTestInExplorer', extId),
+					() => this.commandSewvice.executeCommand('_weveawTestInExpwowa', extId),
 				));
 
-				if (capabilities & TestRunProfileBitset.Run) {
-					primary.push(new Action(
-						'testing.outputPeek.runTest',
-						localize('run test', 'Run Test'),
-						ThemeIcon.asClassName(icons.testingRunIcon),
+				if (capabiwities & TestWunPwofiweBitset.Wun) {
+					pwimawy.push(new Action(
+						'testing.outputPeek.wunTest',
+						wocawize('wun test', 'Wun Test'),
+						ThemeIcon.asCwassName(icons.testingWunIcon),
 						undefined,
-						() => this.commandService.executeCommand('vscode.runTestsById', TestRunProfileBitset.Run, extId),
+						() => this.commandSewvice.executeCommand('vscode.wunTestsById', TestWunPwofiweBitset.Wun, extId),
 					));
 				}
 
-				if (capabilities & TestRunProfileBitset.Debug) {
-					primary.push(new Action(
+				if (capabiwities & TestWunPwofiweBitset.Debug) {
+					pwimawy.push(new Action(
 						'testing.outputPeek.debugTest',
-						localize('debug test', 'Debug Test'),
-						ThemeIcon.asClassName(icons.testingDebugIcon),
+						wocawize('debug test', 'Debug Test'),
+						ThemeIcon.asCwassName(icons.testingDebugIcon),
 						undefined,
-						() => this.commandService.executeCommand('vscode.runTestsById', TestRunProfileBitset.Debug, extId),
+						() => this.commandSewvice.executeCommand('vscode.wunTestsById', TestWunPwofiweBitset.Debug, extId),
 					));
 				}
 			}
 
-			const result = { primary, secondary };
-			const actionsDisposable = createAndFillInActionBarActions(menu, {
-				shouldForwardArgs: true,
-			}, result, 'inline');
+			const wesuwt = { pwimawy, secondawy };
+			const actionsDisposabwe = cweateAndFiwwInActionBawActions(menu, {
+				shouwdFowwawdAwgs: twue,
+			}, wesuwt, 'inwine');
 
-			return { value: result, dispose: () => actionsDisposable.dispose };
-		} finally {
+			wetuwn { vawue: wesuwt, dispose: () => actionsDisposabwe.dispose };
+		} finawwy {
 			menu.dispose();
 		}
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const resultsBackground = theme.getColor(peekViewResultsBackground);
-	if (resultsBackground) {
-		collector.addRule(`.monaco-editor .test-output-peek .test-output-peek-tree { background-color: ${resultsBackground}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const wesuwtsBackgwound = theme.getCowow(peekViewWesuwtsBackgwound);
+	if (wesuwtsBackgwound) {
+		cowwectow.addWuwe(`.monaco-editow .test-output-peek .test-output-peek-twee { backgwound-cowow: ${wesuwtsBackgwound}; }`);
 	}
-	const resultsMatchForeground = theme.getColor(peekViewResultsMatchForeground);
-	if (resultsMatchForeground) {
-		collector.addRule(`.monaco-editor .test-output-peek .test-output-peek-tree { color: ${resultsMatchForeground}; }`);
+	const wesuwtsMatchFowegwound = theme.getCowow(peekViewWesuwtsMatchFowegwound);
+	if (wesuwtsMatchFowegwound) {
+		cowwectow.addWuwe(`.monaco-editow .test-output-peek .test-output-peek-twee { cowow: ${wesuwtsMatchFowegwound}; }`);
 	}
-	const resultsSelectedBackground = theme.getColor(peekViewResultsSelectionBackground);
-	if (resultsSelectedBackground) {
-		collector.addRule(`.monaco-editor .test-output-peek .test-output-peek-tree .monaco-list:focus .monaco-list-rows > .monaco-list-row.selected:not(.highlighted) { background-color: ${resultsSelectedBackground}; }`);
+	const wesuwtsSewectedBackgwound = theme.getCowow(peekViewWesuwtsSewectionBackgwound);
+	if (wesuwtsSewectedBackgwound) {
+		cowwectow.addWuwe(`.monaco-editow .test-output-peek .test-output-peek-twee .monaco-wist:focus .monaco-wist-wows > .monaco-wist-wow.sewected:not(.highwighted) { backgwound-cowow: ${wesuwtsSewectedBackgwound}; }`);
 	}
-	const resultsSelectedForeground = theme.getColor(peekViewResultsSelectionForeground);
-	if (resultsSelectedForeground) {
-		collector.addRule(`.monaco-editor .test-output-peek .test-output-peek-tree .monaco-list:focus .monaco-list-rows > .monaco-list-row.selected:not(.highlighted) { color: ${resultsSelectedForeground} !important; }`);
-	}
-
-	const textLinkForegroundColor = theme.getColor(textLinkForeground);
-	if (textLinkForegroundColor) {
-		collector.addRule(`.monaco-editor .test-output-peek .test-output-peek-message-container a { color: ${textLinkForegroundColor}; }`);
+	const wesuwtsSewectedFowegwound = theme.getCowow(peekViewWesuwtsSewectionFowegwound);
+	if (wesuwtsSewectedFowegwound) {
+		cowwectow.addWuwe(`.monaco-editow .test-output-peek .test-output-peek-twee .monaco-wist:focus .monaco-wist-wows > .monaco-wist-wow.sewected:not(.highwighted) { cowow: ${wesuwtsSewectedFowegwound} !impowtant; }`);
 	}
 
-	const textLinkActiveForegroundColor = theme.getColor(textLinkActiveForeground);
-	if (textLinkActiveForegroundColor) {
-		collector.addRule(`.monaco-editor .test-output-peek .test-output-peek-message-container a :hover { color: ${textLinkActiveForegroundColor}; }`);
+	const textWinkFowegwoundCowow = theme.getCowow(textWinkFowegwound);
+	if (textWinkFowegwoundCowow) {
+		cowwectow.addWuwe(`.monaco-editow .test-output-peek .test-output-peek-message-containa a { cowow: ${textWinkFowegwoundCowow}; }`);
+	}
+
+	const textWinkActiveFowegwoundCowow = theme.getCowow(textWinkActiveFowegwound);
+	if (textWinkActiveFowegwoundCowow) {
+		cowwectow.addWuwe(`.monaco-editow .test-output-peek .test-output-peek-message-containa a :hova { cowow: ${textWinkActiveFowegwoundCowow}; }`);
 	}
 });
 
-const navWhen = ContextKeyExpr.and(
-	EditorContextKeys.focus,
-	TestingContextKeys.isPeekVisible,
+const navWhen = ContextKeyExpw.and(
+	EditowContextKeys.focus,
+	TestingContextKeys.isPeekVisibwe,
 );
 
 /**
- * Gets the editor where the peek may be shown, bubbling upwards if the given
- * editor is embedded (i.e. inside a peek already).
+ * Gets the editow whewe the peek may be shown, bubbwing upwawds if the given
+ * editow is embedded (i.e. inside a peek awweady).
  */
-const getPeekedEditor = (accessor: ServicesAccessor, editor: ICodeEditor) => {
-	if (TestingOutputPeekController.get(editor).isVisible) {
-		return editor;
+const getPeekedEditow = (accessow: SewvicesAccessow, editow: ICodeEditow) => {
+	if (TestingOutputPeekContwowwa.get(editow).isVisibwe) {
+		wetuwn editow;
 	}
 
-	if (editor instanceof EmbeddedCodeEditorWidget) {
-		return editor.getParentEditor();
+	if (editow instanceof EmbeddedCodeEditowWidget) {
+		wetuwn editow.getPawentEditow();
 	}
 
-	const outer = getOuterEditorFromDiffEditor(accessor);
-	if (outer) {
-		return outer;
+	const outa = getOutewEditowFwomDiffEditow(accessow);
+	if (outa) {
+		wetuwn outa;
 	}
 
-	return editor;
+	wetuwn editow;
 };
 
-export class GoToNextMessageAction extends EditorAction2 {
-	public static readonly ID = 'testing.goToNextMessage';
-	constructor() {
-		super({
+expowt cwass GoToNextMessageAction extends EditowAction2 {
+	pubwic static weadonwy ID = 'testing.goToNextMessage';
+	constwuctow() {
+		supa({
 			id: GoToNextMessageAction.ID,
-			f1: true,
-			title: localize('testing.goToNextMessage', "Go to Next Test Failure"),
-			icon: Codicon.arrowDown,
-			category: CATEGORIES.Test,
+			f1: twue,
+			titwe: wocawize('testing.goToNextMessage', "Go to Next Test Faiwuwe"),
+			icon: Codicon.awwowDown,
+			categowy: CATEGOWIES.Test,
 			keybinding: {
-				primary: KeyMod.Alt | KeyCode.F8,
-				weight: KeybindingWeight.EditorContrib + 1,
+				pwimawy: KeyMod.Awt | KeyCode.F8,
+				weight: KeybindingWeight.EditowContwib + 1,
 				when: navWhen,
 			},
 			menu: [{
-				id: MenuId.TestPeekTitle,
-				group: 'navigation',
-				order: 2,
+				id: MenuId.TestPeekTitwe,
+				gwoup: 'navigation',
+				owda: 2,
 			}, {
-				id: MenuId.CommandPalette,
+				id: MenuId.CommandPawette,
 				when: navWhen
 			}],
 		});
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor) {
-		TestingOutputPeekController.get(getPeekedEditor(accessor, editor)).next();
+	pubwic wunEditowCommand(accessow: SewvicesAccessow, editow: ICodeEditow) {
+		TestingOutputPeekContwowwa.get(getPeekedEditow(accessow, editow)).next();
 	}
 }
 
-export class GoToPreviousMessageAction extends EditorAction2 {
-	public static readonly ID = 'testing.goToPreviousMessage';
-	constructor() {
-		super({
-			id: GoToPreviousMessageAction.ID,
-			f1: true,
-			title: localize('testing.goToPreviousMessage', "Go to Previous Test Failure"),
-			icon: Codicon.arrowUp,
-			category: CATEGORIES.Test,
+expowt cwass GoToPweviousMessageAction extends EditowAction2 {
+	pubwic static weadonwy ID = 'testing.goToPweviousMessage';
+	constwuctow() {
+		supa({
+			id: GoToPweviousMessageAction.ID,
+			f1: twue,
+			titwe: wocawize('testing.goToPweviousMessage', "Go to Pwevious Test Faiwuwe"),
+			icon: Codicon.awwowUp,
+			categowy: CATEGOWIES.Test,
 			keybinding: {
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F8,
-				weight: KeybindingWeight.EditorContrib + 1,
+				pwimawy: KeyMod.Shift | KeyMod.Awt | KeyCode.F8,
+				weight: KeybindingWeight.EditowContwib + 1,
 				when: navWhen
 			},
 			menu: [{
-				id: MenuId.TestPeekTitle,
-				group: 'navigation',
-				order: 1,
+				id: MenuId.TestPeekTitwe,
+				gwoup: 'navigation',
+				owda: 1,
 			}, {
-				id: MenuId.CommandPalette,
+				id: MenuId.CommandPawette,
 				when: navWhen
 			}],
 		});
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor) {
-		TestingOutputPeekController.get(getPeekedEditor(accessor, editor)).previous();
+	pubwic wunEditowCommand(accessow: SewvicesAccessow, editow: ICodeEditow) {
+		TestingOutputPeekContwowwa.get(getPeekedEditow(accessow, editow)).pwevious();
 	}
 }
 
-export class OpenMessageInEditorAction extends EditorAction2 {
-	public static readonly ID = 'testing.openMessageInEditor';
-	constructor() {
-		super({
-			id: OpenMessageInEditorAction.ID,
-			f1: false,
-			title: localize('testing.openMessageInEditor', "Open in Editor"),
-			icon: Codicon.linkExternal,
-			category: CATEGORIES.Test,
-			menu: [{ id: MenuId.TestPeekTitle }],
+expowt cwass OpenMessageInEditowAction extends EditowAction2 {
+	pubwic static weadonwy ID = 'testing.openMessageInEditow';
+	constwuctow() {
+		supa({
+			id: OpenMessageInEditowAction.ID,
+			f1: fawse,
+			titwe: wocawize('testing.openMessageInEditow', "Open in Editow"),
+			icon: Codicon.winkExtewnaw,
+			categowy: CATEGOWIES.Test,
+			menu: [{ id: MenuId.TestPeekTitwe }],
 		});
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor) {
-		TestingOutputPeekController.get(getPeekedEditor(accessor, editor)).openCurrentInEditor();
+	pubwic wunEditowCommand(accessow: SewvicesAccessow, editow: ICodeEditow) {
+		TestingOutputPeekContwowwa.get(getPeekedEditow(accessow, editow)).openCuwwentInEditow();
 	}
 }
 
-export class ToggleTestingPeekHistory extends EditorAction2 {
-	public static readonly ID = 'testing.toggleTestingPeekHistory';
-	constructor() {
-		super({
-			id: ToggleTestingPeekHistory.ID,
-			f1: true,
-			title: localize('testing.toggleTestingPeekHistory', "Toggle Test History in Peek"),
-			icon: Codicon.history,
-			category: CATEGORIES.Test,
+expowt cwass ToggweTestingPeekHistowy extends EditowAction2 {
+	pubwic static weadonwy ID = 'testing.toggweTestingPeekHistowy';
+	constwuctow() {
+		supa({
+			id: ToggweTestingPeekHistowy.ID,
+			f1: twue,
+			titwe: wocawize('testing.toggweTestingPeekHistowy', "Toggwe Test Histowy in Peek"),
+			icon: Codicon.histowy,
+			categowy: CATEGOWIES.Test,
 			menu: [{
-				id: MenuId.TestPeekTitle,
-				group: 'navigation',
-				order: 3,
+				id: MenuId.TestPeekTitwe,
+				gwoup: 'navigation',
+				owda: 3,
 			}],
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_H,
-				when: TestingContextKeys.isPeekVisible.isEqualTo(true),
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_H,
+				when: TestingContextKeys.isPeekVisibwe.isEquawTo(twue),
 			},
 		});
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor) {
-		const ctrl = TestingOutputPeekController.get(getPeekedEditor(accessor, editor));
-		ctrl.historyVisible.value = !ctrl.historyVisible.value;
+	pubwic wunEditowCommand(accessow: SewvicesAccessow, editow: ICodeEditow) {
+		const ctww = TestingOutputPeekContwowwa.get(getPeekedEditow(accessow, editow));
+		ctww.histowyVisibwe.vawue = !ctww.histowyVisibwe.vawue;
 	}
 }

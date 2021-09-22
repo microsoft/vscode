@@ -1,64 +1,64 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ICommand } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { MoveCaretCommand } from 'vs/editor/contrib/caretOperations/moveCaretCommand';
-import * as nls from 'vs/nls';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, IActionOptions, wegistewEditowAction, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { ICommand } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { MoveCawetCommand } fwom 'vs/editow/contwib/cawetOpewations/moveCawetCommand';
+impowt * as nws fwom 'vs/nws';
 
-class MoveCaretAction extends EditorAction {
+cwass MoveCawetAction extends EditowAction {
 
-	private readonly left: boolean;
+	pwivate weadonwy weft: boowean;
 
-	constructor(left: boolean, opts: IActionOptions) {
-		super(opts);
+	constwuctow(weft: boowean, opts: IActionOptions) {
+		supa(opts);
 
-		this.left = left;
+		this.weft = weft;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		if (!editor.hasModel()) {
-			return;
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		if (!editow.hasModew()) {
+			wetuwn;
 		}
 
-		let commands: ICommand[] = [];
-		let selections = editor.getSelections();
+		wet commands: ICommand[] = [];
+		wet sewections = editow.getSewections();
 
-		for (const selection of selections) {
-			commands.push(new MoveCaretCommand(selection, this.left));
+		fow (const sewection of sewections) {
+			commands.push(new MoveCawetCommand(sewection, this.weft));
 		}
 
-		editor.pushUndoStop();
-		editor.executeCommands(this.id, commands);
-		editor.pushUndoStop();
+		editow.pushUndoStop();
+		editow.executeCommands(this.id, commands);
+		editow.pushUndoStop();
 	}
 }
 
-class MoveCaretLeftAction extends MoveCaretAction {
-	constructor() {
-		super(true, {
-			id: 'editor.action.moveCarretLeftAction',
-			label: nls.localize('caret.moveLeft', "Move Selected Text Left"),
-			alias: 'Move Selected Text Left',
-			precondition: EditorContextKeys.writable
+cwass MoveCawetWeftAction extends MoveCawetAction {
+	constwuctow() {
+		supa(twue, {
+			id: 'editow.action.moveCawwetWeftAction',
+			wabew: nws.wocawize('cawet.moveWeft', "Move Sewected Text Weft"),
+			awias: 'Move Sewected Text Weft',
+			pwecondition: EditowContextKeys.wwitabwe
 		});
 	}
 }
 
-class MoveCaretRightAction extends MoveCaretAction {
-	constructor() {
-		super(false, {
-			id: 'editor.action.moveCarretRightAction',
-			label: nls.localize('caret.moveRight', "Move Selected Text Right"),
-			alias: 'Move Selected Text Right',
-			precondition: EditorContextKeys.writable
+cwass MoveCawetWightAction extends MoveCawetAction {
+	constwuctow() {
+		supa(fawse, {
+			id: 'editow.action.moveCawwetWightAction',
+			wabew: nws.wocawize('cawet.moveWight', "Move Sewected Text Wight"),
+			awias: 'Move Sewected Text Wight',
+			pwecondition: EditowContextKeys.wwitabwe
 		});
 	}
 }
 
-registerEditorAction(MoveCaretLeftAction);
-registerEditorAction(MoveCaretRightAction);
+wegistewEditowAction(MoveCawetWeftAction);
+wegistewEditowAction(MoveCawetWightAction);

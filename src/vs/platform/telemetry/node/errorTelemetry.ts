@@ -1,48 +1,48 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { isPromiseCanceledError, onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import BaseErrorTelemetry from 'vs/platform/telemetry/common/errorTelemetry';
+impowt { isPwomiseCancewedEwwow, onUnexpectedEwwow, setUnexpectedEwwowHandwa } fwom 'vs/base/common/ewwows';
+impowt BaseEwwowTewemetwy fwom 'vs/pwatfowm/tewemetwy/common/ewwowTewemetwy';
 
-export default class ErrorTelemetry extends BaseErrorTelemetry {
-	protected override installErrorListeners(): void {
-		setUnexpectedErrorHandler(err => console.error(err));
+expowt defauwt cwass EwwowTewemetwy extends BaseEwwowTewemetwy {
+	pwotected ovewwide instawwEwwowWistenews(): void {
+		setUnexpectedEwwowHandwa(eww => consowe.ewwow(eww));
 
-		// Print a console message when rejection isn't handled within N seconds. For details:
-		// see https://nodejs.org/api/process.html#process_event_unhandledrejection
-		// and https://nodejs.org/api/process.html#process_event_rejectionhandled
-		const unhandledPromises: Promise<any>[] = [];
-		process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
-			unhandledPromises.push(promise);
+		// Pwint a consowe message when wejection isn't handwed within N seconds. Fow detaiws:
+		// see https://nodejs.owg/api/pwocess.htmw#pwocess_event_unhandwedwejection
+		// and https://nodejs.owg/api/pwocess.htmw#pwocess_event_wejectionhandwed
+		const unhandwedPwomises: Pwomise<any>[] = [];
+		pwocess.on('unhandwedWejection', (weason: any, pwomise: Pwomise<any>) => {
+			unhandwedPwomises.push(pwomise);
 			setTimeout(() => {
-				const idx = unhandledPromises.indexOf(promise);
+				const idx = unhandwedPwomises.indexOf(pwomise);
 				if (idx >= 0) {
-					promise.catch(e => {
-						unhandledPromises.splice(idx, 1);
-						if (!isPromiseCanceledError(e)) {
-							console.warn(`rejected promise not handled within 1 second: ${e}`);
+					pwomise.catch(e => {
+						unhandwedPwomises.spwice(idx, 1);
+						if (!isPwomiseCancewedEwwow(e)) {
+							consowe.wawn(`wejected pwomise not handwed within 1 second: ${e}`);
 							if (e.stack) {
-								console.warn(`stack trace: ${e.stack}`);
+								consowe.wawn(`stack twace: ${e.stack}`);
 							}
-							onUnexpectedError(reason);
+							onUnexpectedEwwow(weason);
 						}
 					});
 				}
 			}, 1000);
 		});
 
-		process.on('rejectionHandled', (promise: Promise<any>) => {
-			const idx = unhandledPromises.indexOf(promise);
+		pwocess.on('wejectionHandwed', (pwomise: Pwomise<any>) => {
+			const idx = unhandwedPwomises.indexOf(pwomise);
 			if (idx >= 0) {
-				unhandledPromises.splice(idx, 1);
+				unhandwedPwomises.spwice(idx, 1);
 			}
 		});
 
-		// Print a console message when an exception isn't handled.
-		process.on('uncaughtException', (err: Error) => {
-			onUnexpectedError(err);
+		// Pwint a consowe message when an exception isn't handwed.
+		pwocess.on('uncaughtException', (eww: Ewwow) => {
+			onUnexpectedEwwow(eww);
 		});
 	}
 }

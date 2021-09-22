@@ -1,32 +1,32 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-select-box {
+.monaco-sewect-box {
 	width: 100%;
 }
 
-.monaco-select-box-dropdown-container {
+.monaco-sewect-box-dwopdown-containa {
 	font-size: 13px;
-	font-weight: normal;
-	text-transform: none;
+	font-weight: nowmaw;
+	text-twansfowm: none;
 }
 
 /** Actions */
 
-.monaco-action-bar .action-item.select-container {
-	cursor: default;
+.monaco-action-baw .action-item.sewect-containa {
+	cuwsow: defauwt;
 }
 
-.monaco-action-bar .action-item .monaco-select-box {
-	cursor: pointer;
+.monaco-action-baw .action-item .monaco-sewect-box {
+	cuwsow: pointa;
 	min-width: 110px;
 	min-height: 18px;
 	padding: 2px 23px 2px 8px;
 }
 
-.mac .monaco-action-bar .action-item .monaco-select-box {
+.mac .monaco-action-baw .action-item .monaco-sewect-box {
 	font-size: 11px;
-	border-radius: 5px;
+	bowda-wadius: 5px;
 }

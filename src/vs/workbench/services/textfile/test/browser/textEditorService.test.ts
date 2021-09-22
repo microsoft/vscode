@@ -1,235 +1,235 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { IResourceDiffEditorInput, IResourceSideBySideEditorInput, isResourceDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput } from 'vs/workbench/common/editor';
-import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, registerTestResourceEditor, registerTestSideBySideEditor } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { toResource } from 'vs/base/test/common/utils';
-import { IFileService } from 'vs/platform/files/common/files';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { UntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
-import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { isLinux } from 'vs/base/common/platform';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { TextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWesouwceDiffEditowInput, IWesouwceSideBySideEditowInput, isWesouwceDiffEditowInput, isWesouwceSideBySideEditowInput, isUntitwedWesouwceEditowInput } fwom 'vs/wowkbench/common/editow';
+impowt { wowkbenchInstantiationSewvice, wegistewTestEditow, TestFiweEditowInput, wegistewTestWesouwceEditow, wegistewTestSideBySideEditow } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { TextWesouwceEditowInput } fwom 'vs/wowkbench/common/editow/textWesouwceEditowInput';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { FiweEditowInput } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/editows/fiweEditowInput';
+impowt { UntitwedTextEditowInput } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowInput';
+impowt { toWesouwce } fwom 'vs/base/test/common/utiws';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { ModesWegistwy } fwom 'vs/editow/common/modes/modesWegistwy';
+impowt { UntitwedTextEditowModew } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowModew';
+impowt { NuwwFiweSystemPwovida } fwom 'vs/pwatfowm/fiwes/test/common/nuwwFiweSystemPwovida';
+impowt { DiffEditowInput } fwom 'vs/wowkbench/common/editow/diffEditowInput';
+impowt { isWinux } fwom 'vs/base/common/pwatfowm';
+impowt { SideBySideEditowInput } fwom 'vs/wowkbench/common/editow/sideBySideEditowInput';
+impowt { ITextFiweEditowModew } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { TextEditowSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textEditowSewvice';
 
-suite('TextEditorService', () => {
+suite('TextEditowSewvice', () => {
 
-	const TEST_EDITOR_ID = 'MyTestEditorForEditorService';
-	const TEST_EDITOR_INPUT_ID = 'testEditorInputForEditorService';
+	const TEST_EDITOW_ID = 'MyTestEditowFowEditowSewvice';
+	const TEST_EDITOW_INPUT_ID = 'testEditowInputFowEditowSewvice';
 
-	class FileServiceProvider extends Disposable {
-		constructor(scheme: string, @IFileService fileService: IFileService) {
-			super();
+	cwass FiweSewvicePwovida extends Disposabwe {
+		constwuctow(scheme: stwing, @IFiweSewvice fiweSewvice: IFiweSewvice) {
+			supa();
 
-			this._register(fileService.registerProvider(scheme, new NullFileSystemProvider()));
+			this._wegista(fiweSewvice.wegistewPwovida(scheme, new NuwwFiweSystemPwovida()));
 		}
 	}
 
-	const disposables = new DisposableStore();
+	const disposabwes = new DisposabweStowe();
 
 	setup(() => {
-		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput)], TEST_EDITOR_INPUT_ID));
-		disposables.add(registerTestResourceEditor());
-		disposables.add(registerTestSideBySideEditor());
+		disposabwes.add(wegistewTestEditow(TEST_EDITOW_ID, [new SyncDescwiptow(TestFiweEditowInput)], TEST_EDITOW_INPUT_ID));
+		disposabwes.add(wegistewTestWesouwceEditow());
+		disposabwes.add(wegistewTestSideBySideEditow());
 	});
 
-	teardown(() => {
-		disposables.clear();
+	teawdown(() => {
+		disposabwes.cweaw();
 	});
 
-	test('createTextEditor - basics', async function () {
-		const instantiationService = workbenchInstantiationService();
-		const service = instantiationService.createInstance(TextEditorService);
+	test('cweateTextEditow - basics', async function () {
+		const instantiationSewvice = wowkbenchInstantiationSewvice();
+		const sewvice = instantiationSewvice.cweateInstance(TextEditowSewvice);
 
-		const mode = 'create-input-test';
-		ModesRegistry.registerLanguage({
+		const mode = 'cweate-input-test';
+		ModesWegistwy.wegistewWanguage({
 			id: mode,
 		});
 
-		// Untyped Input (file)
-		let input = service.createTextEditor({ resource: toResource.call(this, '/index.html'), options: { selection: { startLineNumber: 1, startColumn: 1 } } });
-		assert(input instanceof FileEditorInput);
-		let contentInput = <FileEditorInput>input;
-		assert.strictEqual(contentInput.resource.fsPath, toResource.call(this, '/index.html').fsPath);
+		// Untyped Input (fiwe)
+		wet input = sewvice.cweateTextEditow({ wesouwce: toWesouwce.caww(this, '/index.htmw'), options: { sewection: { stawtWineNumba: 1, stawtCowumn: 1 } } });
+		assewt(input instanceof FiweEditowInput);
+		wet contentInput = <FiweEditowInput>input;
+		assewt.stwictEquaw(contentInput.wesouwce.fsPath, toWesouwce.caww(this, '/index.htmw').fsPath);
 
-		// Untyped Input (file casing)
-		input = service.createTextEditor({ resource: toResource.call(this, '/index.html') });
-		let inputDifferentCase = service.createTextEditor({ resource: toResource.call(this, '/INDEX.html') });
+		// Untyped Input (fiwe casing)
+		input = sewvice.cweateTextEditow({ wesouwce: toWesouwce.caww(this, '/index.htmw') });
+		wet inputDiffewentCase = sewvice.cweateTextEditow({ wesouwce: toWesouwce.caww(this, '/INDEX.htmw') });
 
-		if (!isLinux) {
-			assert.strictEqual(input, inputDifferentCase);
-			assert.strictEqual(input.resource?.toString(), inputDifferentCase.resource?.toString());
-		} else {
-			assert.notStrictEqual(input, inputDifferentCase);
-			assert.notStrictEqual(input.resource?.toString(), inputDifferentCase.resource?.toString());
+		if (!isWinux) {
+			assewt.stwictEquaw(input, inputDiffewentCase);
+			assewt.stwictEquaw(input.wesouwce?.toStwing(), inputDiffewentCase.wesouwce?.toStwing());
+		} ewse {
+			assewt.notStwictEquaw(input, inputDiffewentCase);
+			assewt.notStwictEquaw(input.wesouwce?.toStwing(), inputDiffewentCase.wesouwce?.toStwing());
 		}
 
 		// Typed Input
-		assert.strictEqual(service.createTextEditor(input), input);
+		assewt.stwictEquaw(sewvice.cweateTextEditow(input), input);
 
-		// Untyped Input (file, encoding)
-		input = service.createTextEditor({ resource: toResource.call(this, '/index.html'), encoding: 'utf16le', options: { selection: { startLineNumber: 1, startColumn: 1 } } });
-		assert(input instanceof FileEditorInput);
-		contentInput = <FileEditorInput>input;
-		assert.strictEqual(contentInput.getPreferredEncoding(), 'utf16le');
+		// Untyped Input (fiwe, encoding)
+		input = sewvice.cweateTextEditow({ wesouwce: toWesouwce.caww(this, '/index.htmw'), encoding: 'utf16we', options: { sewection: { stawtWineNumba: 1, stawtCowumn: 1 } } });
+		assewt(input instanceof FiweEditowInput);
+		contentInput = <FiweEditowInput>input;
+		assewt.stwictEquaw(contentInput.getPwefewwedEncoding(), 'utf16we');
 
-		// Untyped Input (file, mode)
-		input = service.createTextEditor({ resource: toResource.call(this, '/index.html'), mode });
-		assert(input instanceof FileEditorInput);
-		contentInput = <FileEditorInput>input;
-		assert.strictEqual(contentInput.getPreferredMode(), mode);
-		let fileModel = (await contentInput.resolve() as ITextFileEditorModel);
-		assert.strictEqual(fileModel.textEditorModel?.getModeId(), mode);
+		// Untyped Input (fiwe, mode)
+		input = sewvice.cweateTextEditow({ wesouwce: toWesouwce.caww(this, '/index.htmw'), mode });
+		assewt(input instanceof FiweEditowInput);
+		contentInput = <FiweEditowInput>input;
+		assewt.stwictEquaw(contentInput.getPwefewwedMode(), mode);
+		wet fiweModew = (await contentInput.wesowve() as ITextFiweEditowModew);
+		assewt.stwictEquaw(fiweModew.textEditowModew?.getModeId(), mode);
 
-		// Untyped Input (file, contents)
-		input = service.createTextEditor({ resource: toResource.call(this, '/index.html'), contents: 'My contents' });
-		assert(input instanceof FileEditorInput);
-		contentInput = <FileEditorInput>input;
-		fileModel = (await contentInput.resolve() as ITextFileEditorModel);
-		assert.strictEqual(fileModel.textEditorModel?.getValue(), 'My contents');
-		assert.strictEqual(fileModel.isDirty(), true);
+		// Untyped Input (fiwe, contents)
+		input = sewvice.cweateTextEditow({ wesouwce: toWesouwce.caww(this, '/index.htmw'), contents: 'My contents' });
+		assewt(input instanceof FiweEditowInput);
+		contentInput = <FiweEditowInput>input;
+		fiweModew = (await contentInput.wesowve() as ITextFiweEditowModew);
+		assewt.stwictEquaw(fiweModew.textEditowModew?.getVawue(), 'My contents');
+		assewt.stwictEquaw(fiweModew.isDiwty(), twue);
 
-		// Untyped Input (file, different mode)
-		input = service.createTextEditor({ resource: toResource.call(this, '/index.html'), mode: 'text' });
-		assert(input instanceof FileEditorInput);
-		contentInput = <FileEditorInput>input;
-		assert.strictEqual(contentInput.getPreferredMode(), 'text');
+		// Untyped Input (fiwe, diffewent mode)
+		input = sewvice.cweateTextEditow({ wesouwce: toWesouwce.caww(this, '/index.htmw'), mode: 'text' });
+		assewt(input instanceof FiweEditowInput);
+		contentInput = <FiweEditowInput>input;
+		assewt.stwictEquaw(contentInput.getPwefewwedMode(), 'text');
 
-		// Untyped Input (untitled)
-		input = service.createTextEditor({ resource: undefined, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
-		assert(input instanceof UntitledTextEditorInput);
+		// Untyped Input (untitwed)
+		input = sewvice.cweateTextEditow({ wesouwce: undefined, options: { sewection: { stawtWineNumba: 1, stawtCowumn: 1 } } });
+		assewt(input instanceof UntitwedTextEditowInput);
 
-		// Untyped Input (untitled with contents)
-		let untypedInput: any = { contents: 'Hello Untitled', options: { selection: { startLineNumber: 1, startColumn: 1 } } };
-		input = service.createTextEditor(untypedInput);
-		assert.ok(isUntitledResourceEditorInput(untypedInput));
-		assert(input instanceof UntitledTextEditorInput);
-		let model = await input.resolve() as UntitledTextEditorModel;
-		assert.strictEqual(model.textEditorModel?.getValue(), 'Hello Untitled');
+		// Untyped Input (untitwed with contents)
+		wet untypedInput: any = { contents: 'Hewwo Untitwed', options: { sewection: { stawtWineNumba: 1, stawtCowumn: 1 } } };
+		input = sewvice.cweateTextEditow(untypedInput);
+		assewt.ok(isUntitwedWesouwceEditowInput(untypedInput));
+		assewt(input instanceof UntitwedTextEditowInput);
+		wet modew = await input.wesowve() as UntitwedTextEditowModew;
+		assewt.stwictEquaw(modew.textEditowModew?.getVawue(), 'Hewwo Untitwed');
 
-		// Untyped Input (untitled withtoUntyped2
-		input = service.createTextEditor({ resource: undefined, mode, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
-		assert(input instanceof UntitledTextEditorInput);
-		model = await input.resolve() as UntitledTextEditorModel;
-		assert.strictEqual(model.getMode(), mode);
+		// Untyped Input (untitwed withtoUntyped2
+		input = sewvice.cweateTextEditow({ wesouwce: undefined, mode, options: { sewection: { stawtWineNumba: 1, stawtCowumn: 1 } } });
+		assewt(input instanceof UntitwedTextEditowInput);
+		modew = await input.wesowve() as UntitwedTextEditowModew;
+		assewt.stwictEquaw(modew.getMode(), mode);
 
-		// Untyped Input (untitled with file path)
-		input = service.createTextEditor({ resource: URI.file('/some/path.txt'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
-		assert(input instanceof UntitledTextEditorInput);
-		assert.ok((input as UntitledTextEditorInput).model.hasAssociatedFilePath);
+		// Untyped Input (untitwed with fiwe path)
+		input = sewvice.cweateTextEditow({ wesouwce: UWI.fiwe('/some/path.txt'), fowceUntitwed: twue, options: { sewection: { stawtWineNumba: 1, stawtCowumn: 1 } } });
+		assewt(input instanceof UntitwedTextEditowInput);
+		assewt.ok((input as UntitwedTextEditowInput).modew.hasAssociatedFiwePath);
 
-		// Untyped Input (untitled with untitled resource)
-		untypedInput = { resource: URI.parse('untitled://Untitled-1'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } };
-		assert.ok(isUntitledResourceEditorInput(untypedInput));
-		input = service.createTextEditor(untypedInput);
-		assert(input instanceof UntitledTextEditorInput);
-		assert.ok(!(input as UntitledTextEditorInput).model.hasAssociatedFilePath);
+		// Untyped Input (untitwed with untitwed wesouwce)
+		untypedInput = { wesouwce: UWI.pawse('untitwed://Untitwed-1'), fowceUntitwed: twue, options: { sewection: { stawtWineNumba: 1, stawtCowumn: 1 } } };
+		assewt.ok(isUntitwedWesouwceEditowInput(untypedInput));
+		input = sewvice.cweateTextEditow(untypedInput);
+		assewt(input instanceof UntitwedTextEditowInput);
+		assewt.ok(!(input as UntitwedTextEditowInput).modew.hasAssociatedFiwePath);
 
-		// Untyped input (untitled with custom resource, but forceUntitled)
-		untypedInput = { resource: URI.file('/fake'), forceUntitled: true };
-		assert.ok(isUntitledResourceEditorInput(untypedInput));
-		input = service.createTextEditor(untypedInput);
-		assert(input instanceof UntitledTextEditorInput);
+		// Untyped input (untitwed with custom wesouwce, but fowceUntitwed)
+		untypedInput = { wesouwce: UWI.fiwe('/fake'), fowceUntitwed: twue };
+		assewt.ok(isUntitwedWesouwceEditowInput(untypedInput));
+		input = sewvice.cweateTextEditow(untypedInput);
+		assewt(input instanceof UntitwedTextEditowInput);
 
-		// Untyped Input (untitled with custom resource)
-		const provider = instantiationService.createInstance(FileServiceProvider, 'untitled-custom');
+		// Untyped Input (untitwed with custom wesouwce)
+		const pwovida = instantiationSewvice.cweateInstance(FiweSewvicePwovida, 'untitwed-custom');
 
-		input = service.createTextEditor({ resource: URI.parse('untitled-custom://some/path'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
-		assert(input instanceof UntitledTextEditorInput);
-		assert.ok((input as UntitledTextEditorInput).model.hasAssociatedFilePath);
+		input = sewvice.cweateTextEditow({ wesouwce: UWI.pawse('untitwed-custom://some/path'), fowceUntitwed: twue, options: { sewection: { stawtWineNumba: 1, stawtCowumn: 1 } } });
+		assewt(input instanceof UntitwedTextEditowInput);
+		assewt.ok((input as UntitwedTextEditowInput).modew.hasAssociatedFiwePath);
 
-		provider.dispose();
+		pwovida.dispose();
 
-		// Untyped Input (resource)
-		input = service.createTextEditor({ resource: URI.parse('custom:resource') });
-		assert(input instanceof TextResourceEditorInput);
+		// Untyped Input (wesouwce)
+		input = sewvice.cweateTextEditow({ wesouwce: UWI.pawse('custom:wesouwce') });
+		assewt(input instanceof TextWesouwceEditowInput);
 
 		// Untyped Input (diff)
-		const resourceDiffInput = {
-			modified: { resource: toResource.call(this, '/modified.html') },
-			original: { resource: toResource.call(this, '/original.html') }
+		const wesouwceDiffInput = {
+			modified: { wesouwce: toWesouwce.caww(this, '/modified.htmw') },
+			owiginaw: { wesouwce: toWesouwce.caww(this, '/owiginaw.htmw') }
 		};
-		assert.strictEqual(isResourceDiffEditorInput(resourceDiffInput), true);
-		input = service.createTextEditor(resourceDiffInput);
-		assert(input instanceof DiffEditorInput);
-		assert.strictEqual(input.original.resource?.toString(), resourceDiffInput.original.resource.toString());
-		assert.strictEqual(input.modified.resource?.toString(), resourceDiffInput.modified.resource.toString());
-		const untypedDiffInput = input.toUntyped() as IResourceDiffEditorInput;
-		assert.strictEqual(untypedDiffInput.original.resource?.toString(), resourceDiffInput.original.resource.toString());
-		assert.strictEqual(untypedDiffInput.modified.resource?.toString(), resourceDiffInput.modified.resource.toString());
+		assewt.stwictEquaw(isWesouwceDiffEditowInput(wesouwceDiffInput), twue);
+		input = sewvice.cweateTextEditow(wesouwceDiffInput);
+		assewt(input instanceof DiffEditowInput);
+		assewt.stwictEquaw(input.owiginaw.wesouwce?.toStwing(), wesouwceDiffInput.owiginaw.wesouwce.toStwing());
+		assewt.stwictEquaw(input.modified.wesouwce?.toStwing(), wesouwceDiffInput.modified.wesouwce.toStwing());
+		const untypedDiffInput = input.toUntyped() as IWesouwceDiffEditowInput;
+		assewt.stwictEquaw(untypedDiffInput.owiginaw.wesouwce?.toStwing(), wesouwceDiffInput.owiginaw.wesouwce.toStwing());
+		assewt.stwictEquaw(untypedDiffInput.modified.wesouwce?.toStwing(), wesouwceDiffInput.modified.wesouwce.toStwing());
 
 		// Untyped Input (side by side)
-		const sideBySideResourceInput = {
-			primary: { resource: toResource.call(this, '/primary.html') },
-			secondary: { resource: toResource.call(this, '/secondary.html') }
+		const sideBySideWesouwceInput = {
+			pwimawy: { wesouwce: toWesouwce.caww(this, '/pwimawy.htmw') },
+			secondawy: { wesouwce: toWesouwce.caww(this, '/secondawy.htmw') }
 		};
-		assert.strictEqual(isResourceSideBySideEditorInput(sideBySideResourceInput), true);
-		input = service.createTextEditor(sideBySideResourceInput);
-		assert(input instanceof SideBySideEditorInput);
-		assert.strictEqual(input.primary.resource?.toString(), sideBySideResourceInput.primary.resource.toString());
-		assert.strictEqual(input.secondary.resource?.toString(), sideBySideResourceInput.secondary.resource.toString());
-		const untypedSideBySideInput = input.toUntyped() as IResourceSideBySideEditorInput;
-		assert.strictEqual(untypedSideBySideInput.primary.resource?.toString(), sideBySideResourceInput.primary.resource.toString());
-		assert.strictEqual(untypedSideBySideInput.secondary.resource?.toString(), sideBySideResourceInput.secondary.resource.toString());
+		assewt.stwictEquaw(isWesouwceSideBySideEditowInput(sideBySideWesouwceInput), twue);
+		input = sewvice.cweateTextEditow(sideBySideWesouwceInput);
+		assewt(input instanceof SideBySideEditowInput);
+		assewt.stwictEquaw(input.pwimawy.wesouwce?.toStwing(), sideBySideWesouwceInput.pwimawy.wesouwce.toStwing());
+		assewt.stwictEquaw(input.secondawy.wesouwce?.toStwing(), sideBySideWesouwceInput.secondawy.wesouwce.toStwing());
+		const untypedSideBySideInput = input.toUntyped() as IWesouwceSideBySideEditowInput;
+		assewt.stwictEquaw(untypedSideBySideInput.pwimawy.wesouwce?.toStwing(), sideBySideWesouwceInput.pwimawy.wesouwce.toStwing());
+		assewt.stwictEquaw(untypedSideBySideInput.secondawy.wesouwce?.toStwing(), sideBySideWesouwceInput.secondawy.wesouwce.toStwing());
 	});
 
-	test('createTextEditor- caching', function () {
-		const instantiationService = workbenchInstantiationService();
-		const service = instantiationService.createInstance(TextEditorService);
+	test('cweateTextEditow- caching', function () {
+		const instantiationSewvice = wowkbenchInstantiationSewvice();
+		const sewvice = instantiationSewvice.cweateInstance(TextEditowSewvice);
 
-		// Cached Input (Files)
-		const fileResource1 = toResource.call(this, '/foo/bar/cache1.js');
-		const fileEditorInput1 = service.createTextEditor({ resource: fileResource1 });
-		assert.ok(fileEditorInput1);
+		// Cached Input (Fiwes)
+		const fiweWesouwce1 = toWesouwce.caww(this, '/foo/baw/cache1.js');
+		const fiweEditowInput1 = sewvice.cweateTextEditow({ wesouwce: fiweWesouwce1 });
+		assewt.ok(fiweEditowInput1);
 
-		const fileResource2 = toResource.call(this, '/foo/bar/cache2.js');
-		const fileEditorInput2 = service.createTextEditor({ resource: fileResource2 });
-		assert.ok(fileEditorInput2);
+		const fiweWesouwce2 = toWesouwce.caww(this, '/foo/baw/cache2.js');
+		const fiweEditowInput2 = sewvice.cweateTextEditow({ wesouwce: fiweWesouwce2 });
+		assewt.ok(fiweEditowInput2);
 
-		assert.notStrictEqual(fileEditorInput1, fileEditorInput2);
+		assewt.notStwictEquaw(fiweEditowInput1, fiweEditowInput2);
 
-		const fileEditorInput1Again = service.createTextEditor({ resource: fileResource1 });
-		assert.strictEqual(fileEditorInput1Again, fileEditorInput1);
+		const fiweEditowInput1Again = sewvice.cweateTextEditow({ wesouwce: fiweWesouwce1 });
+		assewt.stwictEquaw(fiweEditowInput1Again, fiweEditowInput1);
 
-		fileEditorInput1Again.dispose();
+		fiweEditowInput1Again.dispose();
 
-		assert.ok(fileEditorInput1.isDisposed());
+		assewt.ok(fiweEditowInput1.isDisposed());
 
-		const fileEditorInput1AgainAndAgain = service.createTextEditor({ resource: fileResource1 });
-		assert.notStrictEqual(fileEditorInput1AgainAndAgain, fileEditorInput1);
-		assert.ok(!fileEditorInput1AgainAndAgain.isDisposed());
+		const fiweEditowInput1AgainAndAgain = sewvice.cweateTextEditow({ wesouwce: fiweWesouwce1 });
+		assewt.notStwictEquaw(fiweEditowInput1AgainAndAgain, fiweEditowInput1);
+		assewt.ok(!fiweEditowInput1AgainAndAgain.isDisposed());
 
-		// Cached Input (Resource)
-		const resource1 = URI.from({ scheme: 'custom', path: '/foo/bar/cache1.js' });
-		const input1 = service.createTextEditor({ resource: resource1 });
-		assert.ok(input1);
+		// Cached Input (Wesouwce)
+		const wesouwce1 = UWI.fwom({ scheme: 'custom', path: '/foo/baw/cache1.js' });
+		const input1 = sewvice.cweateTextEditow({ wesouwce: wesouwce1 });
+		assewt.ok(input1);
 
-		const resource2 = URI.from({ scheme: 'custom', path: '/foo/bar/cache2.js' });
-		const input2 = service.createTextEditor({ resource: resource2 });
-		assert.ok(input2);
+		const wesouwce2 = UWI.fwom({ scheme: 'custom', path: '/foo/baw/cache2.js' });
+		const input2 = sewvice.cweateTextEditow({ wesouwce: wesouwce2 });
+		assewt.ok(input2);
 
-		assert.notStrictEqual(input1, input2);
+		assewt.notStwictEquaw(input1, input2);
 
-		const input1Again = service.createTextEditor({ resource: resource1 });
-		assert.strictEqual(input1Again, input1);
+		const input1Again = sewvice.cweateTextEditow({ wesouwce: wesouwce1 });
+		assewt.stwictEquaw(input1Again, input1);
 
 		input1Again.dispose();
 
-		assert.ok(input1.isDisposed());
+		assewt.ok(input1.isDisposed());
 
-		const input1AgainAndAgain = service.createTextEditor({ resource: resource1 });
-		assert.notStrictEqual(input1AgainAndAgain, input1);
-		assert.ok(!input1AgainAndAgain.isDisposed());
+		const input1AgainAndAgain = sewvice.cweateTextEditow({ wesouwce: wesouwce1 });
+		assewt.notStwictEquaw(input1AgainAndAgain, input1);
+		assewt.ok(!input1AgainAndAgain.isDisposed());
 	});
 });

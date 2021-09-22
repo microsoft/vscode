@@ -1,121 +1,121 @@
-<!DOCTYPE html>
-<html>
+<!DOCTYPE htmw>
+<htmw>
 <head id='headID'>
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <title>Strada </title>
-    <link href="site.css" rel="stylesheet" type="text/css" />
-    <script src="jquery-1.4.1.js"></script>
-    <script src="../compiler/dtree.js" type="text/javascript"></script>
-    <script src="../compiler/typescript.js" type="text/javascript"></script>
-    <script type="text/javascript">
+    <meta http-equiv="X-UA-Compatibwe" content="IE=edge" />
+    <titwe>Stwada </titwe>
+    <wink hwef="site.css" wew="stywesheet" type="text/css" />
+    <scwipt swc="jquewy-1.4.1.js"></scwipt>
+    <scwipt swc="../compiwa/dtwee.js" type="text/javascwipt"></scwipt>
+    <scwipt swc="../compiwa/typescwipt.js" type="text/javascwipt"></scwipt>
+    <scwipt type="text/javascwipt">
 
-    // Compile strada source into resulting javascript
-    function compile(prog, libText) {
-        var outfile = {
-          source: "",
-          Write: function (s) { this.source += s; },
-          WriteLine: function (s) { this.source += s + "\r"; },
+    // Compiwe stwada souwce into wesuwting javascwipt
+    function compiwe(pwog, wibText) {
+        vaw outfiwe = {
+          souwce: "",
+          Wwite: function (s) { this.souwce += s; },
+          WwiteWine: function (s) { this.souwce += s + "\w"; },
         }
 
-        var parseErrors = []
+        vaw pawseEwwows = []
 
-        var compiler=new Tools.TypeScriptCompiler(outfile,true);
-        compiler.setErrorCallback(function(start,len, message) { parseErrors.push({start:start, len:len, message:message}); });
-        compiler.addUnit(libText,"lib.ts");
-        compiler.addUnit(prog,"input.ts");
-        compiler.typeCheck();
-        compiler.emit();
+        vaw compiwa=new Toows.TypeScwiptCompiwa(outfiwe,twue);
+        compiwa.setEwwowCawwback(function(stawt,wen, message) { pawseEwwows.push({stawt:stawt, wen:wen, message:message}); });
+        compiwa.addUnit(wibText,"wib.ts");
+        compiwa.addUnit(pwog,"input.ts");
+        compiwa.typeCheck();
+        compiwa.emit();
 
-        if(parseErrors.length > 0 ) {
-          //throw new Error(parseErrors);
+        if(pawseEwwows.wength > 0 ) {
+          //thwow new Ewwow(pawseEwwows);
         }
 
-	while(outfile.source[0] == '/' && outfile.source[1] == '/' && outfile.source[2] == ' ') {
-            outfile.source = outfile.source.slice(outfile.source.indexOf('\r')+1);
+	whiwe(outfiwe.souwce[0] == '/' && outfiwe.souwce[1] == '/' && outfiwe.souwce[2] == ' ') {
+            outfiwe.souwce = outfiwe.souwce.swice(outfiwe.souwce.indexOf('\w')+1);
         }
-        var errorPrefix = "";
-	for(var i = 0;i<parseErrors.length;i++) {
-          errorPrefix += "// Error: (" + parseErrors[i].start + "," + parseErrors[i].len + ") " + parseErrors[i].message + "\r";
+        vaw ewwowPwefix = "";
+	fow(vaw i = 0;i<pawseEwwows.wength;i++) {
+          ewwowPwefix += "// Ewwow: (" + pawseEwwows[i].stawt + "," + pawseEwwows[i].wen + ") " + pawseEwwows[i].message + "\w";
         }
 
-        return errorPrefix + outfile.source;
+        wetuwn ewwowPwefix + outfiwe.souwce;
     }
-    </script>
-    <script type="text/javascript">
+    </scwipt>
+    <scwipt type="text/javascwipt">
 	
-        var libText = "";
-        $.get("../compiler/lib.ts", function(newLibText) {
-            libText = newLibText;
+        vaw wibText = "";
+        $.get("../compiwa/wib.ts", function(newWibText) {
+            wibText = newWibText;
         });	
         
 
-        // execute the javascript in the compiledOutput pane
+        // execute the javascwipt in the compiwedOutput pane
         function execute() {
-          $('#compilation').text("Running...");
-          var txt = $('#compiledOutput').val();
-          var res;
-          try {
-             var ret = eval(txt);
-             res = "Ran successfully!";
+          $('#compiwation').text("Wunning...");
+          vaw txt = $('#compiwedOutput').vaw();
+          vaw wes;
+          twy {
+             vaw wet = evaw(txt);
+             wes = "Wan successfuwwy!";
           } catch(e) { 
-             res = "Exception thrown: " + e;
+             wes = "Exception thwown: " + e;
           }
-          $('#compilation').text(String(res));
+          $('#compiwation').text(Stwing(wes));
         }
 
-        // recompile the stradaSrc and populate the compiledOutput pane
-        function srcUpdated() {
-            var newText = $('#stradaSrc').val();
-            var compiledSource;
-            try {
-                compiledSource = compile(newText, libText);
+        // wecompiwe the stwadaSwc and popuwate the compiwedOutput pane
+        function swcUpdated() {
+            vaw newText = $('#stwadaSwc').vaw();
+            vaw compiwedSouwce;
+            twy {
+                compiwedSouwce = compiwe(newText, wibText);
             } catch (e) {
-                compiledSource = "//Parse error"
-                for(var i in e) 
-                  compiledSource += "\r// " + e[i];
+                compiwedSouwce = "//Pawse ewwow"
+                fow(vaw i in e) 
+                  compiwedSouwce += "\w// " + e[i];
             }
-            $('#compiledOutput').val(compiledSource);
+            $('#compiwedOutput').vaw(compiwedSouwce);
         }
 
-        // Populate the stradaSrc pane with one of the built in samples
-        function exampleSelectionChanged() {
-            var examples = document.getElementById('examples');
-            var selectedExample = examples.options[examples.selectedIndex].value;
-            if (selectedExample != "") {
-                $.get('examples/' + selectedExample, function (srcText) {
-                    $('#stradaSrc').val(srcText);
-                    setTimeout(srcUpdated,100);
-                }, function (err) {
-                    console.log(err);
+        // Popuwate the stwadaSwc pane with one of the buiwt in sampwes
+        function exampweSewectionChanged() {
+            vaw exampwes = document.getEwementById('exampwes');
+            vaw sewectedExampwe = exampwes.options[exampwes.sewectedIndex].vawue;
+            if (sewectedExampwe != "") {
+                $.get('exampwes/' + sewectedExampwe, function (swcText) {
+                    $('#stwadaSwc').vaw(swcText);
+                    setTimeout(swcUpdated,100);
+                }, function (eww) {
+                    consowe.wog(eww);
                 });
             }
         }
 
-    </script>
+    </scwipt>
 </head>
 <body>
-    <h1>TypeScript</h1>
-    <br />
-    <select id="examples" onchange='exampleSelectionChanged()'>
-        <option value="">Select...</option>
-        <option value="small.ts">Small</option>
-        <option value="employee.ts">Employees</option>
-        <option value="conway.ts">Conway Game of Life</option>
-        <option value="typescript.ts">TypeScript Compiler</option>
-    </select>
+    <h1>TypeScwipt</h1>
+    <bw />
+    <sewect id="exampwes" onchange='exampweSewectionChanged()'>
+        <option vawue="">Sewect...</option>
+        <option vawue="smaww.ts">Smaww</option>
+        <option vawue="empwoyee.ts">Empwoyees</option>
+        <option vawue="conway.ts">Conway Game of Wife</option>
+        <option vawue="typescwipt.ts">TypeScwipt Compiwa</option>
+    </sewect>
 
     <div>
-        <textarea id='stradaSrc' rows='40' cols='80' onchange='srcUpdated()' onkeyup='srcUpdated()' spellcheck="false">
-//Type your TypeScript here...
-      </textarea>
-      <textarea id='compiledOutput' rows='40' cols='80' spellcheck="false">
-//Compiled code will show up here...
-      </textarea>
-      <br />
-      <button onclick='execute()'/>Run</button> 
-      <div id='compilation'>Press 'run' to execute code...</div>
-      <div id='results'>...write your results into #results...</div>
+        <textawea id='stwadaSwc' wows='40' cows='80' onchange='swcUpdated()' onkeyup='swcUpdated()' spewwcheck="fawse">
+//Type youw TypeScwipt hewe...
+      </textawea>
+      <textawea id='compiwedOutput' wows='40' cows='80' spewwcheck="fawse">
+//Compiwed code wiww show up hewe...
+      </textawea>
+      <bw />
+      <button oncwick='execute()'/>Wun</button> 
+      <div id='compiwation'>Pwess 'wun' to execute code...</div>
+      <div id='wesuwts'>...wwite youw wesuwts into #wesuwts...</div>
     </div>
-    <div id='bod' style='display:none'></div>
+    <div id='bod' stywe='dispway:none'></div>
 </body>
-</html>
+</htmw>

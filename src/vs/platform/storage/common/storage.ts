@@ -1,561 +1,561 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
-import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
-import { Disposable, dispose, MutableDisposable } from 'vs/base/common/lifecycle';
-import { isUndefinedOrNull } from 'vs/base/common/types';
-import { InMemoryStorageDatabase, IStorage, Storage } from 'vs/base/parts/storage/common/storage';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
+impowt { Pwomises, WunOnceScheduwa, wunWhenIdwe } fwom 'vs/base/common/async';
+impowt { Emitta, Event, PauseabweEmitta } fwom 'vs/base/common/event';
+impowt { Disposabwe, dispose, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isUndefinedOwNuww } fwom 'vs/base/common/types';
+impowt { InMemowyStowageDatabase, IStowage, Stowage } fwom 'vs/base/pawts/stowage/common/stowage';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWowkspaceInitiawizationPaywoad } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
 
-export const IS_NEW_KEY = '__$__isNewStorageMarker';
-const TARGET_KEY = '__$__targetStorageMarker';
+expowt const IS_NEW_KEY = '__$__isNewStowageMawka';
+const TAWGET_KEY = '__$__tawgetStowageMawka';
 
-export const IStorageService = createDecorator<IStorageService>('storageService');
+expowt const IStowageSewvice = cweateDecowatow<IStowageSewvice>('stowageSewvice');
 
-export enum WillSaveStateReason {
+expowt enum WiwwSaveStateWeason {
 
 	/**
-	 * No specific reason to save state.
+	 * No specific weason to save state.
 	 */
 	NONE,
 
 	/**
-	 * A hint that the workbench is about to shutdown.
+	 * A hint that the wowkbench is about to shutdown.
 	 */
 	SHUTDOWN
 }
 
-export interface IWillSaveStateEvent {
-	reason: WillSaveStateReason;
+expowt intewface IWiwwSaveStateEvent {
+	weason: WiwwSaveStateWeason;
 }
 
-export interface IStorageService {
+expowt intewface IStowageSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Emitted whenever data is updated or deleted.
+	 * Emitted wheneva data is updated ow deweted.
 	 */
-	readonly onDidChangeValue: Event<IStorageValueChangeEvent>;
+	weadonwy onDidChangeVawue: Event<IStowageVawueChangeEvent>;
 
 	/**
-	 * Emitted whenever target of a storage entry changes.
+	 * Emitted wheneva tawget of a stowage entwy changes.
 	 */
-	readonly onDidChangeTarget: Event<IStorageTargetChangeEvent>;
+	weadonwy onDidChangeTawget: Event<IStowageTawgetChangeEvent>;
 
 	/**
-	 * Emitted when the storage is about to persist. This is the right time
-	 * to persist data to ensure it is stored before the application shuts
+	 * Emitted when the stowage is about to pewsist. This is the wight time
+	 * to pewsist data to ensuwe it is stowed befowe the appwication shuts
 	 * down.
 	 *
-	 * The will save state event allows to optionally ask for the reason of
+	 * The wiww save state event awwows to optionawwy ask fow the weason of
 	 * saving the state, e.g. to find out if the state is saved due to a
 	 * shutdown.
 	 *
-	 * Note: this event may be fired many times, not only on shutdown to prevent
-	 * loss of state in situations where the shutdown is not sufficient to
-	 * persist the data properly.
+	 * Note: this event may be fiwed many times, not onwy on shutdown to pwevent
+	 * woss of state in situations whewe the shutdown is not sufficient to
+	 * pewsist the data pwopewwy.
 	 */
-	readonly onWillSaveState: Event<IWillSaveStateEvent>;
+	weadonwy onWiwwSaveState: Event<IWiwwSaveStateEvent>;
 
 	/**
-	 * Retrieve an element stored with the given key from storage. Use
-	 * the provided `defaultValue` if the element is `null` or `undefined`.
+	 * Wetwieve an ewement stowed with the given key fwom stowage. Use
+	 * the pwovided `defauwtVawue` if the ewement is `nuww` ow `undefined`.
 	 *
-	 * @param scope allows to define the scope of the storage operation
-	 * to either the current workspace only or all workspaces.
+	 * @pawam scope awwows to define the scope of the stowage opewation
+	 * to eitha the cuwwent wowkspace onwy ow aww wowkspaces.
 	 */
-	get(key: string, scope: StorageScope, fallbackValue: string): string;
-	get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined;
+	get(key: stwing, scope: StowageScope, fawwbackVawue: stwing): stwing;
+	get(key: stwing, scope: StowageScope, fawwbackVawue?: stwing): stwing | undefined;
 
 	/**
-	 * Retrieve an element stored with the given key from storage. Use
-	 * the provided `defaultValue` if the element is `null` or `undefined`.
-	 * The element will be converted to a `boolean`.
+	 * Wetwieve an ewement stowed with the given key fwom stowage. Use
+	 * the pwovided `defauwtVawue` if the ewement is `nuww` ow `undefined`.
+	 * The ewement wiww be convewted to a `boowean`.
 	 *
-	 * @param scope allows to define the scope of the storage operation
-	 * to either the current workspace only or all workspaces.
+	 * @pawam scope awwows to define the scope of the stowage opewation
+	 * to eitha the cuwwent wowkspace onwy ow aww wowkspaces.
 	 */
-	getBoolean(key: string, scope: StorageScope, fallbackValue: boolean): boolean;
-	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined;
+	getBoowean(key: stwing, scope: StowageScope, fawwbackVawue: boowean): boowean;
+	getBoowean(key: stwing, scope: StowageScope, fawwbackVawue?: boowean): boowean | undefined;
 
 	/**
-	 * Retrieve an element stored with the given key from storage. Use
-	 * the provided `defaultValue` if the element is `null` or `undefined`.
-	 * The element will be converted to a `number` using `parseInt` with a
+	 * Wetwieve an ewement stowed with the given key fwom stowage. Use
+	 * the pwovided `defauwtVawue` if the ewement is `nuww` ow `undefined`.
+	 * The ewement wiww be convewted to a `numba` using `pawseInt` with a
 	 * base of `10`.
 	 *
-	 * @param scope allows to define the scope of the storage operation
-	 * to either the current workspace only or all workspaces.
+	 * @pawam scope awwows to define the scope of the stowage opewation
+	 * to eitha the cuwwent wowkspace onwy ow aww wowkspaces.
 	 */
-	getNumber(key: string, scope: StorageScope, fallbackValue: number): number;
-	getNumber(key: string, scope: StorageScope, fallbackValue?: number): number | undefined;
+	getNumba(key: stwing, scope: StowageScope, fawwbackVawue: numba): numba;
+	getNumba(key: stwing, scope: StowageScope, fawwbackVawue?: numba): numba | undefined;
 
 	/**
-	 * Store a value under the given key to storage. The value will be
-	 * converted to a `string`. Storing either `undefined` or `null` will
-	 * remove the entry under the key.
+	 * Stowe a vawue unda the given key to stowage. The vawue wiww be
+	 * convewted to a `stwing`. Stowing eitha `undefined` ow `nuww` wiww
+	 * wemove the entwy unda the key.
 	 *
-	 * @param scope allows to define the scope of the storage operation
-	 * to either the current workspace only or all workspaces.
+	 * @pawam scope awwows to define the scope of the stowage opewation
+	 * to eitha the cuwwent wowkspace onwy ow aww wowkspaces.
 	 *
-	 * @param target allows to define the target of the storage operation
-	 * to either the current machine or user.
+	 * @pawam tawget awwows to define the tawget of the stowage opewation
+	 * to eitha the cuwwent machine ow usa.
 	 */
-	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope, target: StorageTarget): void;
+	stowe(key: stwing, vawue: stwing | boowean | numba | undefined | nuww, scope: StowageScope, tawget: StowageTawget): void;
 
 	/**
-	 * Delete an element stored under the provided key from storage.
+	 * Dewete an ewement stowed unda the pwovided key fwom stowage.
 	 *
-	 * The scope argument allows to define the scope of the storage
-	 * operation to either the current workspace only or all workspaces.
+	 * The scope awgument awwows to define the scope of the stowage
+	 * opewation to eitha the cuwwent wowkspace onwy ow aww wowkspaces.
 	 */
-	remove(key: string, scope: StorageScope): void;
+	wemove(key: stwing, scope: StowageScope): void;
 
 	/**
-	 * Returns all the keys used in the storage for the provided `scope`
-	 * and `target`.
+	 * Wetuwns aww the keys used in the stowage fow the pwovided `scope`
+	 * and `tawget`.
 	 *
-	 * Note: this will NOT return all keys stored in the storage layer.
-	 * Some keys may not have an associated `StorageTarget` and thus
-	 * will be excluded from the results.
+	 * Note: this wiww NOT wetuwn aww keys stowed in the stowage waya.
+	 * Some keys may not have an associated `StowageTawget` and thus
+	 * wiww be excwuded fwom the wesuwts.
 	 *
-	 * @param scope allows to define the scope for the keys
-	 * to either the current workspace only or all workspaces.
+	 * @pawam scope awwows to define the scope fow the keys
+	 * to eitha the cuwwent wowkspace onwy ow aww wowkspaces.
 	 *
-	 * @param target allows to define the target for the keys
-	 * to either the current machine or user.
+	 * @pawam tawget awwows to define the tawget fow the keys
+	 * to eitha the cuwwent machine ow usa.
 	 */
-	keys(scope: StorageScope, target: StorageTarget): string[];
+	keys(scope: StowageScope, tawget: StowageTawget): stwing[];
 
 	/**
-	 * Log the contents of the storage to the console.
+	 * Wog the contents of the stowage to the consowe.
 	 */
-	logStorage(): void;
+	wogStowage(): void;
 
 	/**
-	 * Migrate the storage contents to another workspace.
+	 * Migwate the stowage contents to anotha wowkspace.
 	 */
-	migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void>;
+	migwate(toWowkspace: IWowkspaceInitiawizationPaywoad): Pwomise<void>;
 
 	/**
-	 * Whether the storage for the given scope was created during this session or
-	 * existed before.
+	 * Whetha the stowage fow the given scope was cweated duwing this session ow
+	 * existed befowe.
 	 */
-	isNew(scope: StorageScope): boolean;
+	isNew(scope: StowageScope): boowean;
 
 	/**
-	 * Allows to flush state, e.g. in cases where a shutdown is
-	 * imminent. This will send out the `onWillSaveState` to ask
-	 * everyone for latest state.
+	 * Awwows to fwush state, e.g. in cases whewe a shutdown is
+	 * imminent. This wiww send out the `onWiwwSaveState` to ask
+	 * evewyone fow watest state.
 	 *
-	 * @returns a `Promise` that can be awaited on when all updates
-	 * to the underlying storage have been flushed.
+	 * @wetuwns a `Pwomise` that can be awaited on when aww updates
+	 * to the undewwying stowage have been fwushed.
 	 */
-	flush(reason?: WillSaveStateReason): Promise<void>;
+	fwush(weason?: WiwwSaveStateWeason): Pwomise<void>;
 }
 
-export const enum StorageScope {
+expowt const enum StowageScope {
 
 	/**
-	 * The stored data will be scoped to all workspaces.
+	 * The stowed data wiww be scoped to aww wowkspaces.
 	 */
-	GLOBAL,
+	GWOBAW,
 
 	/**
-	 * The stored data will be scoped to the current workspace.
+	 * The stowed data wiww be scoped to the cuwwent wowkspace.
 	 */
-	WORKSPACE
+	WOWKSPACE
 }
 
-export const enum StorageTarget {
+expowt const enum StowageTawget {
 
 	/**
-	 * The stored data is user specific and applies across machines.
+	 * The stowed data is usa specific and appwies acwoss machines.
 	 */
-	USER,
+	USa,
 
 	/**
-	 * The stored data is machine specific.
+	 * The stowed data is machine specific.
 	 */
 	MACHINE
 }
 
-export interface IStorageValueChangeEvent {
+expowt intewface IStowageVawueChangeEvent {
 
 	/**
-	 * The scope for the storage entry that changed
-	 * or was removed.
+	 * The scope fow the stowage entwy that changed
+	 * ow was wemoved.
 	 */
-	readonly scope: StorageScope;
+	weadonwy scope: StowageScope;
 
 	/**
-	 * The `key` of the storage entry that was changed
-	 * or was removed.
+	 * The `key` of the stowage entwy that was changed
+	 * ow was wemoved.
 	 */
-	readonly key: string;
+	weadonwy key: stwing;
 
 	/**
-	 * The `target` can be `undefined` if a key is being
-	 * removed.
+	 * The `tawget` can be `undefined` if a key is being
+	 * wemoved.
 	 */
-	readonly target: StorageTarget | undefined;
+	weadonwy tawget: StowageTawget | undefined;
 }
 
-export interface IStorageTargetChangeEvent {
+expowt intewface IStowageTawgetChangeEvent {
 
 	/**
-	 * The scope for the target that changed. Listeners
-	 * should use `keys(scope, target)` to get an updated
-	 * list of keys for the given `scope` and `target`.
+	 * The scope fow the tawget that changed. Wistenews
+	 * shouwd use `keys(scope, tawget)` to get an updated
+	 * wist of keys fow the given `scope` and `tawget`.
 	 */
-	readonly scope: StorageScope;
+	weadonwy scope: StowageScope;
 }
 
-interface IKeyTargets {
-	[key: string]: StorageTarget
+intewface IKeyTawgets {
+	[key: stwing]: StowageTawget
 }
 
-export interface IStorageServiceOptions {
-	flushInterval: number;
+expowt intewface IStowageSewviceOptions {
+	fwushIntewvaw: numba;
 }
 
-export abstract class AbstractStorageService extends Disposable implements IStorageService {
+expowt abstwact cwass AbstwactStowageSewvice extends Disposabwe impwements IStowageSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private static DEFAULT_FLUSH_INTERVAL = 60 * 1000; // every minute
+	pwivate static DEFAUWT_FWUSH_INTEWVAW = 60 * 1000; // evewy minute
 
-	private readonly _onDidChangeValue = this._register(new PauseableEmitter<IStorageValueChangeEvent>());
-	readonly onDidChangeValue = this._onDidChangeValue.event;
+	pwivate weadonwy _onDidChangeVawue = this._wegista(new PauseabweEmitta<IStowageVawueChangeEvent>());
+	weadonwy onDidChangeVawue = this._onDidChangeVawue.event;
 
-	private readonly _onDidChangeTarget = this._register(new PauseableEmitter<IStorageTargetChangeEvent>());
-	readonly onDidChangeTarget = this._onDidChangeTarget.event;
+	pwivate weadonwy _onDidChangeTawget = this._wegista(new PauseabweEmitta<IStowageTawgetChangeEvent>());
+	weadonwy onDidChangeTawget = this._onDidChangeTawget.event;
 
-	private readonly _onWillSaveState = this._register(new Emitter<IWillSaveStateEvent>());
-	readonly onWillSaveState = this._onWillSaveState.event;
+	pwivate weadonwy _onWiwwSaveState = this._wegista(new Emitta<IWiwwSaveStateEvent>());
+	weadonwy onWiwwSaveState = this._onWiwwSaveState.event;
 
-	private initializationPromise: Promise<void> | undefined;
+	pwivate initiawizationPwomise: Pwomise<void> | undefined;
 
-	private readonly flushWhenIdleScheduler = this._register(new RunOnceScheduler(() => this.doFlushWhenIdle(), this.options.flushInterval));
-	private readonly runFlushWhenIdle = this._register(new MutableDisposable());
+	pwivate weadonwy fwushWhenIdweScheduwa = this._wegista(new WunOnceScheduwa(() => this.doFwushWhenIdwe(), this.options.fwushIntewvaw));
+	pwivate weadonwy wunFwushWhenIdwe = this._wegista(new MutabweDisposabwe());
 
-	constructor(private options: IStorageServiceOptions = { flushInterval: AbstractStorageService.DEFAULT_FLUSH_INTERVAL }) {
-		super();
+	constwuctow(pwivate options: IStowageSewviceOptions = { fwushIntewvaw: AbstwactStowageSewvice.DEFAUWT_FWUSH_INTEWVAW }) {
+		supa();
 	}
 
-	private doFlushWhenIdle(): void {
-		this.runFlushWhenIdle.value = runWhenIdle(() => {
-			if (this.shouldFlushWhenIdle()) {
-				this.flush();
+	pwivate doFwushWhenIdwe(): void {
+		this.wunFwushWhenIdwe.vawue = wunWhenIdwe(() => {
+			if (this.shouwdFwushWhenIdwe()) {
+				this.fwush();
 			}
 
-			// repeat
-			this.flushWhenIdleScheduler.schedule();
+			// wepeat
+			this.fwushWhenIdweScheduwa.scheduwe();
 		});
 	}
 
-	protected shouldFlushWhenIdle(): boolean {
-		return true;
+	pwotected shouwdFwushWhenIdwe(): boowean {
+		wetuwn twue;
 	}
 
-	protected stopFlushWhenIdle(): void {
-		dispose([this.runFlushWhenIdle, this.flushWhenIdleScheduler]);
+	pwotected stopFwushWhenIdwe(): void {
+		dispose([this.wunFwushWhenIdwe, this.fwushWhenIdweScheduwa]);
 	}
 
-	initialize(): Promise<void> {
-		if (!this.initializationPromise) {
-			this.initializationPromise = (async () => {
+	initiawize(): Pwomise<void> {
+		if (!this.initiawizationPwomise) {
+			this.initiawizationPwomise = (async () => {
 
-				// Ask subclasses to initialize storage
-				await this.doInitialize();
+				// Ask subcwasses to initiawize stowage
+				await this.doInitiawize();
 
-				// On some OS we do not get enough time to persist state on shutdown (e.g. when
-				// Windows restarts after applying updates). In other cases, VSCode might crash,
-				// so we periodically save state to reduce the chance of loosing any state.
-				// In the browser we do not have support for long running unload sequences. As such,
-				// we cannot ask for saving state in that moment, because that would result in a
-				// long running operation.
-				// Instead, periodically ask customers to save save. The library will be clever enough
-				// to only save state that has actually changed.
-				this.flushWhenIdleScheduler.schedule();
+				// On some OS we do not get enough time to pewsist state on shutdown (e.g. when
+				// Windows westawts afta appwying updates). In otha cases, VSCode might cwash,
+				// so we pewiodicawwy save state to weduce the chance of woosing any state.
+				// In the bwowsa we do not have suppowt fow wong wunning unwoad sequences. As such,
+				// we cannot ask fow saving state in that moment, because that wouwd wesuwt in a
+				// wong wunning opewation.
+				// Instead, pewiodicawwy ask customews to save save. The wibwawy wiww be cweva enough
+				// to onwy save state that has actuawwy changed.
+				this.fwushWhenIdweScheduwa.scheduwe();
 			})();
 		}
 
-		return this.initializationPromise;
+		wetuwn this.initiawizationPwomise;
 	}
 
-	protected emitDidChangeValue(scope: StorageScope, key: string): void {
+	pwotected emitDidChangeVawue(scope: StowageScope, key: stwing): void {
 
-		// Specially handle `TARGET_KEY`
-		if (key === TARGET_KEY) {
+		// Speciawwy handwe `TAWGET_KEY`
+		if (key === TAWGET_KEY) {
 
-			// Clear our cached version which is now out of date
-			if (scope === StorageScope.GLOBAL) {
-				this._globalKeyTargets = undefined;
-			} else if (scope === StorageScope.WORKSPACE) {
-				this._workspaceKeyTargets = undefined;
+			// Cweaw ouw cached vewsion which is now out of date
+			if (scope === StowageScope.GWOBAW) {
+				this._gwobawKeyTawgets = undefined;
+			} ewse if (scope === StowageScope.WOWKSPACE) {
+				this._wowkspaceKeyTawgets = undefined;
 			}
 
-			// Emit as `didChangeTarget` event
-			this._onDidChangeTarget.fire({ scope });
+			// Emit as `didChangeTawget` event
+			this._onDidChangeTawget.fiwe({ scope });
 		}
 
-		// Emit any other key to outside
-		else {
-			this._onDidChangeValue.fire({ scope, key, target: this.getKeyTargets(scope)[key] });
+		// Emit any otha key to outside
+		ewse {
+			this._onDidChangeVawue.fiwe({ scope, key, tawget: this.getKeyTawgets(scope)[key] });
 		}
 	}
 
-	protected emitWillSaveState(reason: WillSaveStateReason): void {
-		this._onWillSaveState.fire({ reason });
+	pwotected emitWiwwSaveState(weason: WiwwSaveStateWeason): void {
+		this._onWiwwSaveState.fiwe({ weason });
 	}
 
-	get(key: string, scope: StorageScope, fallbackValue: string): string;
-	get(key: string, scope: StorageScope): string | undefined;
-	get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined {
-		return this.getStorage(scope)?.get(key, fallbackValue);
+	get(key: stwing, scope: StowageScope, fawwbackVawue: stwing): stwing;
+	get(key: stwing, scope: StowageScope): stwing | undefined;
+	get(key: stwing, scope: StowageScope, fawwbackVawue?: stwing): stwing | undefined {
+		wetuwn this.getStowage(scope)?.get(key, fawwbackVawue);
 	}
 
-	getBoolean(key: string, scope: StorageScope, fallbackValue: boolean): boolean;
-	getBoolean(key: string, scope: StorageScope): boolean | undefined;
-	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined {
-		return this.getStorage(scope)?.getBoolean(key, fallbackValue);
+	getBoowean(key: stwing, scope: StowageScope, fawwbackVawue: boowean): boowean;
+	getBoowean(key: stwing, scope: StowageScope): boowean | undefined;
+	getBoowean(key: stwing, scope: StowageScope, fawwbackVawue?: boowean): boowean | undefined {
+		wetuwn this.getStowage(scope)?.getBoowean(key, fawwbackVawue);
 	}
 
-	getNumber(key: string, scope: StorageScope, fallbackValue: number): number;
-	getNumber(key: string, scope: StorageScope): number | undefined;
-	getNumber(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
-		return this.getStorage(scope)?.getNumber(key, fallbackValue);
+	getNumba(key: stwing, scope: StowageScope, fawwbackVawue: numba): numba;
+	getNumba(key: stwing, scope: StowageScope): numba | undefined;
+	getNumba(key: stwing, scope: StowageScope, fawwbackVawue?: numba): numba | undefined {
+		wetuwn this.getStowage(scope)?.getNumba(key, fawwbackVawue);
 	}
 
-	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope, target: StorageTarget): void {
+	stowe(key: stwing, vawue: stwing | boowean | numba | undefined | nuww, scope: StowageScope, tawget: StowageTawget): void {
 
-		// We remove the key for undefined/null values
-		if (isUndefinedOrNull(value)) {
-			this.remove(key, scope);
-			return;
+		// We wemove the key fow undefined/nuww vawues
+		if (isUndefinedOwNuww(vawue)) {
+			this.wemove(key, scope);
+			wetuwn;
 		}
 
-		// Update our datastructures but send events only after
-		this.withPausedEmitters(() => {
+		// Update ouw datastwuctuwes but send events onwy afta
+		this.withPausedEmittews(() => {
 
-			// Update key-target map
-			this.updateKeyTarget(key, scope, target);
+			// Update key-tawget map
+			this.updateKeyTawget(key, scope, tawget);
 
-			// Store actual value
-			this.getStorage(scope)?.set(key, value);
+			// Stowe actuaw vawue
+			this.getStowage(scope)?.set(key, vawue);
 		});
 	}
 
-	remove(key: string, scope: StorageScope): void {
+	wemove(key: stwing, scope: StowageScope): void {
 
-		// Update our datastructures but send events only after
-		this.withPausedEmitters(() => {
+		// Update ouw datastwuctuwes but send events onwy afta
+		this.withPausedEmittews(() => {
 
-			// Update key-target map
-			this.updateKeyTarget(key, scope, undefined);
+			// Update key-tawget map
+			this.updateKeyTawget(key, scope, undefined);
 
-			// Remove actual key
-			this.getStorage(scope)?.delete(key);
+			// Wemove actuaw key
+			this.getStowage(scope)?.dewete(key);
 		});
 	}
 
-	private withPausedEmitters(fn: Function): void {
+	pwivate withPausedEmittews(fn: Function): void {
 
-		// Pause emitters
-		this._onDidChangeValue.pause();
-		this._onDidChangeTarget.pause();
+		// Pause emittews
+		this._onDidChangeVawue.pause();
+		this._onDidChangeTawget.pause();
 
-		try {
+		twy {
 			fn();
-		} finally {
+		} finawwy {
 
-			// Resume emitters
-			this._onDidChangeValue.resume();
-			this._onDidChangeTarget.resume();
+			// Wesume emittews
+			this._onDidChangeVawue.wesume();
+			this._onDidChangeTawget.wesume();
 		}
 	}
 
-	keys(scope: StorageScope, target: StorageTarget): string[] {
-		const keys: string[] = [];
+	keys(scope: StowageScope, tawget: StowageTawget): stwing[] {
+		const keys: stwing[] = [];
 
-		const keyTargets = this.getKeyTargets(scope);
-		for (const key of Object.keys(keyTargets)) {
-			const keyTarget = keyTargets[key];
-			if (keyTarget === target) {
+		const keyTawgets = this.getKeyTawgets(scope);
+		fow (const key of Object.keys(keyTawgets)) {
+			const keyTawget = keyTawgets[key];
+			if (keyTawget === tawget) {
 				keys.push(key);
 			}
 		}
 
-		return keys;
+		wetuwn keys;
 	}
 
-	private updateKeyTarget(key: string, scope: StorageScope, target: StorageTarget | undefined): void {
+	pwivate updateKeyTawget(key: stwing, scope: StowageScope, tawget: StowageTawget | undefined): void {
 
 		// Add
-		const keyTargets = this.getKeyTargets(scope);
-		if (typeof target === 'number') {
-			if (keyTargets[key] !== target) {
-				keyTargets[key] = target;
-				this.getStorage(scope)?.set(TARGET_KEY, JSON.stringify(keyTargets));
+		const keyTawgets = this.getKeyTawgets(scope);
+		if (typeof tawget === 'numba') {
+			if (keyTawgets[key] !== tawget) {
+				keyTawgets[key] = tawget;
+				this.getStowage(scope)?.set(TAWGET_KEY, JSON.stwingify(keyTawgets));
 			}
 		}
 
-		// Remove
-		else {
-			if (typeof keyTargets[key] === 'number') {
-				delete keyTargets[key];
-				this.getStorage(scope)?.set(TARGET_KEY, JSON.stringify(keyTargets));
+		// Wemove
+		ewse {
+			if (typeof keyTawgets[key] === 'numba') {
+				dewete keyTawgets[key];
+				this.getStowage(scope)?.set(TAWGET_KEY, JSON.stwingify(keyTawgets));
 			}
 		}
 	}
 
-	private _workspaceKeyTargets: IKeyTargets | undefined = undefined;
-	private get workspaceKeyTargets(): IKeyTargets {
-		if (!this._workspaceKeyTargets) {
-			this._workspaceKeyTargets = this.loadKeyTargets(StorageScope.WORKSPACE);
+	pwivate _wowkspaceKeyTawgets: IKeyTawgets | undefined = undefined;
+	pwivate get wowkspaceKeyTawgets(): IKeyTawgets {
+		if (!this._wowkspaceKeyTawgets) {
+			this._wowkspaceKeyTawgets = this.woadKeyTawgets(StowageScope.WOWKSPACE);
 		}
 
-		return this._workspaceKeyTargets;
+		wetuwn this._wowkspaceKeyTawgets;
 	}
 
-	private _globalKeyTargets: IKeyTargets | undefined = undefined;
-	private get globalKeyTargets(): IKeyTargets {
-		if (!this._globalKeyTargets) {
-			this._globalKeyTargets = this.loadKeyTargets(StorageScope.GLOBAL);
+	pwivate _gwobawKeyTawgets: IKeyTawgets | undefined = undefined;
+	pwivate get gwobawKeyTawgets(): IKeyTawgets {
+		if (!this._gwobawKeyTawgets) {
+			this._gwobawKeyTawgets = this.woadKeyTawgets(StowageScope.GWOBAW);
 		}
 
-		return this._globalKeyTargets;
+		wetuwn this._gwobawKeyTawgets;
 	}
 
-	private getKeyTargets(scope: StorageScope): IKeyTargets {
-		return scope === StorageScope.GLOBAL ? this.globalKeyTargets : this.workspaceKeyTargets;
+	pwivate getKeyTawgets(scope: StowageScope): IKeyTawgets {
+		wetuwn scope === StowageScope.GWOBAW ? this.gwobawKeyTawgets : this.wowkspaceKeyTawgets;
 	}
 
-	private loadKeyTargets(scope: StorageScope): { [key: string]: StorageTarget } {
-		const keysRaw = this.get(TARGET_KEY, scope);
-		if (keysRaw) {
-			try {
-				return JSON.parse(keysRaw);
-			} catch (error) {
-				// Fail gracefully
+	pwivate woadKeyTawgets(scope: StowageScope): { [key: stwing]: StowageTawget } {
+		const keysWaw = this.get(TAWGET_KEY, scope);
+		if (keysWaw) {
+			twy {
+				wetuwn JSON.pawse(keysWaw);
+			} catch (ewwow) {
+				// Faiw gwacefuwwy
 			}
 		}
 
-		return Object.create(null);
+		wetuwn Object.cweate(nuww);
 	}
 
-	isNew(scope: StorageScope): boolean {
-		return this.getBoolean(IS_NEW_KEY, scope) === true;
+	isNew(scope: StowageScope): boowean {
+		wetuwn this.getBoowean(IS_NEW_KEY, scope) === twue;
 	}
 
-	async flush(reason: WillSaveStateReason = WillSaveStateReason.NONE): Promise<void> {
+	async fwush(weason: WiwwSaveStateWeason = WiwwSaveStateWeason.NONE): Pwomise<void> {
 
-		// Signal event to collect changes
-		this._onWillSaveState.fire({ reason });
+		// Signaw event to cowwect changes
+		this._onWiwwSaveState.fiwe({ weason });
 
-		// Await flush
-		await Promises.settled([
-			this.getStorage(StorageScope.GLOBAL)?.whenFlushed() ?? Promise.resolve(),
-			this.getStorage(StorageScope.WORKSPACE)?.whenFlushed() ?? Promise.resolve()
+		// Await fwush
+		await Pwomises.settwed([
+			this.getStowage(StowageScope.GWOBAW)?.whenFwushed() ?? Pwomise.wesowve(),
+			this.getStowage(StowageScope.WOWKSPACE)?.whenFwushed() ?? Pwomise.wesowve()
 		]);
 	}
 
-	async logStorage(): Promise<void> {
-		const globalItems = this.getStorage(StorageScope.GLOBAL)?.items ?? new Map<string, string>();
-		const workspaceItems = this.getStorage(StorageScope.WORKSPACE)?.items ?? new Map<string, string>();
+	async wogStowage(): Pwomise<void> {
+		const gwobawItems = this.getStowage(StowageScope.GWOBAW)?.items ?? new Map<stwing, stwing>();
+		const wowkspaceItems = this.getStowage(StowageScope.WOWKSPACE)?.items ?? new Map<stwing, stwing>();
 
-		return logStorage(
-			globalItems,
-			workspaceItems,
-			this.getLogDetails(StorageScope.GLOBAL) ?? '',
-			this.getLogDetails(StorageScope.WORKSPACE) ?? ''
+		wetuwn wogStowage(
+			gwobawItems,
+			wowkspaceItems,
+			this.getWogDetaiws(StowageScope.GWOBAW) ?? '',
+			this.getWogDetaiws(StowageScope.WOWKSPACE) ?? ''
 		);
 	}
 
-	// --- abstract
+	// --- abstwact
 
-	protected abstract doInitialize(): Promise<void>;
+	pwotected abstwact doInitiawize(): Pwomise<void>;
 
-	protected abstract getStorage(scope: StorageScope): IStorage | undefined;
+	pwotected abstwact getStowage(scope: StowageScope): IStowage | undefined;
 
-	protected abstract getLogDetails(scope: StorageScope): string | undefined;
+	pwotected abstwact getWogDetaiws(scope: StowageScope): stwing | undefined;
 
-	abstract migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void>;
+	abstwact migwate(toWowkspace: IWowkspaceInitiawizationPaywoad): Pwomise<void>;
 }
 
-export class InMemoryStorageService extends AbstractStorageService {
+expowt cwass InMemowyStowageSewvice extends AbstwactStowageSewvice {
 
-	private readonly globalStorage = this._register(new Storage(new InMemoryStorageDatabase()));
-	private readonly workspaceStorage = this._register(new Storage(new InMemoryStorageDatabase()));
+	pwivate weadonwy gwobawStowage = this._wegista(new Stowage(new InMemowyStowageDatabase()));
+	pwivate weadonwy wowkspaceStowage = this._wegista(new Stowage(new InMemowyStowageDatabase()));
 
-	constructor() {
-		super();
+	constwuctow() {
+		supa();
 
-		this._register(this.workspaceStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.WORKSPACE, key)));
-		this._register(this.globalStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.GLOBAL, key)));
+		this._wegista(this.wowkspaceStowage.onDidChangeStowage(key => this.emitDidChangeVawue(StowageScope.WOWKSPACE, key)));
+		this._wegista(this.gwobawStowage.onDidChangeStowage(key => this.emitDidChangeVawue(StowageScope.GWOBAW, key)));
 	}
 
-	protected getStorage(scope: StorageScope): IStorage {
-		return scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage;
+	pwotected getStowage(scope: StowageScope): IStowage {
+		wetuwn scope === StowageScope.GWOBAW ? this.gwobawStowage : this.wowkspaceStowage;
 	}
 
-	protected getLogDetails(scope: StorageScope): string | undefined {
-		return scope === StorageScope.GLOBAL ? 'inMemory (global)' : 'inMemory (workspace)';
+	pwotected getWogDetaiws(scope: StowageScope): stwing | undefined {
+		wetuwn scope === StowageScope.GWOBAW ? 'inMemowy (gwobaw)' : 'inMemowy (wowkspace)';
 	}
 
-	protected async doInitialize(): Promise<void> { }
+	pwotected async doInitiawize(): Pwomise<void> { }
 
-	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
-		// not supported
+	async migwate(toWowkspace: IWowkspaceInitiawizationPaywoad): Pwomise<void> {
+		// not suppowted
 	}
 }
 
-export async function logStorage(global: Map<string, string>, workspace: Map<string, string>, globalPath: string, workspacePath: string): Promise<void> {
-	const safeParse = (value: string) => {
-		try {
-			return JSON.parse(value);
-		} catch (error) {
-			return value;
+expowt async function wogStowage(gwobaw: Map<stwing, stwing>, wowkspace: Map<stwing, stwing>, gwobawPath: stwing, wowkspacePath: stwing): Pwomise<void> {
+	const safePawse = (vawue: stwing) => {
+		twy {
+			wetuwn JSON.pawse(vawue);
+		} catch (ewwow) {
+			wetuwn vawue;
 		}
 	};
 
-	const globalItems = new Map<string, string>();
-	const globalItemsParsed = new Map<string, string>();
-	global.forEach((value, key) => {
-		globalItems.set(key, value);
-		globalItemsParsed.set(key, safeParse(value));
+	const gwobawItems = new Map<stwing, stwing>();
+	const gwobawItemsPawsed = new Map<stwing, stwing>();
+	gwobaw.fowEach((vawue, key) => {
+		gwobawItems.set(key, vawue);
+		gwobawItemsPawsed.set(key, safePawse(vawue));
 	});
 
-	const workspaceItems = new Map<string, string>();
-	const workspaceItemsParsed = new Map<string, string>();
-	workspace.forEach((value, key) => {
-		workspaceItems.set(key, value);
-		workspaceItemsParsed.set(key, safeParse(value));
+	const wowkspaceItems = new Map<stwing, stwing>();
+	const wowkspaceItemsPawsed = new Map<stwing, stwing>();
+	wowkspace.fowEach((vawue, key) => {
+		wowkspaceItems.set(key, vawue);
+		wowkspaceItemsPawsed.set(key, safePawse(vawue));
 	});
 
-	console.group(`Storage: Global (path: ${globalPath})`);
-	let globalValues: { key: string, value: string }[] = [];
-	globalItems.forEach((value, key) => {
-		globalValues.push({ key, value });
+	consowe.gwoup(`Stowage: Gwobaw (path: ${gwobawPath})`);
+	wet gwobawVawues: { key: stwing, vawue: stwing }[] = [];
+	gwobawItems.fowEach((vawue, key) => {
+		gwobawVawues.push({ key, vawue });
 	});
-	console.table(globalValues);
-	console.groupEnd();
+	consowe.tabwe(gwobawVawues);
+	consowe.gwoupEnd();
 
-	console.log(globalItemsParsed);
+	consowe.wog(gwobawItemsPawsed);
 
-	console.group(`Storage: Workspace (path: ${workspacePath})`);
-	let workspaceValues: { key: string, value: string }[] = [];
-	workspaceItems.forEach((value, key) => {
-		workspaceValues.push({ key, value });
+	consowe.gwoup(`Stowage: Wowkspace (path: ${wowkspacePath})`);
+	wet wowkspaceVawues: { key: stwing, vawue: stwing }[] = [];
+	wowkspaceItems.fowEach((vawue, key) => {
+		wowkspaceVawues.push({ key, vawue });
 	});
-	console.table(workspaceValues);
-	console.groupEnd();
+	consowe.tabwe(wowkspaceVawues);
+	consowe.gwoupEnd();
 
-	console.log(workspaceItemsParsed);
+	consowe.wog(wowkspaceItemsPawsed);
 }

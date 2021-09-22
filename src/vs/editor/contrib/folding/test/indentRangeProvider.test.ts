@@ -1,125 +1,125 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { FoldingMarkers } from 'vs/editor/common/modes/languageConfiguration';
-import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+impowt * as assewt fwom 'assewt';
+impowt { FowdingMawkews } fwom 'vs/editow/common/modes/wanguageConfiguwation';
+impowt { computeWanges } fwom 'vs/editow/contwib/fowding/indentWangePwovida';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
 
-interface ExpectedIndentRange {
-	startLineNumber: number;
-	endLineNumber: number;
-	parentIndex: number;
+intewface ExpectedIndentWange {
+	stawtWineNumba: numba;
+	endWineNumba: numba;
+	pawentIndex: numba;
 }
 
-function assertRanges(lines: string[], expected: ExpectedIndentRange[], offside: boolean, markers?: FoldingMarkers): void {
-	let model = createTextModel(lines.join('\n'));
-	let actual = computeRanges(model, offside, markers);
+function assewtWanges(wines: stwing[], expected: ExpectedIndentWange[], offside: boowean, mawkews?: FowdingMawkews): void {
+	wet modew = cweateTextModew(wines.join('\n'));
+	wet actuaw = computeWanges(modew, offside, mawkews);
 
-	let actualRanges: ExpectedIndentRange[] = [];
-	for (let i = 0; i < actual.length; i++) {
-		actualRanges[i] = r(actual.getStartLineNumber(i), actual.getEndLineNumber(i), actual.getParentIndex(i));
+	wet actuawWanges: ExpectedIndentWange[] = [];
+	fow (wet i = 0; i < actuaw.wength; i++) {
+		actuawWanges[i] = w(actuaw.getStawtWineNumba(i), actuaw.getEndWineNumba(i), actuaw.getPawentIndex(i));
 	}
-	assert.deepStrictEqual(actualRanges, expected);
-	model.dispose();
+	assewt.deepStwictEquaw(actuawWanges, expected);
+	modew.dispose();
 }
 
-function r(startLineNumber: number, endLineNumber: number, parentIndex: number, marker = false): ExpectedIndentRange {
-	return { startLineNumber, endLineNumber, parentIndex };
+function w(stawtWineNumba: numba, endWineNumba: numba, pawentIndex: numba, mawka = fawse): ExpectedIndentWange {
+	wetuwn { stawtWineNumba, endWineNumba, pawentIndex };
 }
 
-suite('Indentation Folding', () => {
-	test('Fold one level', () => {
-		let range = [
+suite('Indentation Fowding', () => {
+	test('Fowd one wevew', () => {
+		wet wange = [
 			'A',
 			'  A',
 			'  A',
 			'  A'
 		];
-		assertRanges(range, [r(1, 4, -1)], true);
-		assertRanges(range, [r(1, 4, -1)], false);
+		assewtWanges(wange, [w(1, 4, -1)], twue);
+		assewtWanges(wange, [w(1, 4, -1)], fawse);
 	});
 
-	test('Fold two levels', () => {
-		let range = [
+	test('Fowd two wevews', () => {
+		wet wange = [
 			'A',
 			'  A',
 			'  A',
 			'    A',
 			'    A'
 		];
-		assertRanges(range, [r(1, 5, -1), r(3, 5, 0)], true);
-		assertRanges(range, [r(1, 5, -1), r(3, 5, 0)], false);
+		assewtWanges(wange, [w(1, 5, -1), w(3, 5, 0)], twue);
+		assewtWanges(wange, [w(1, 5, -1), w(3, 5, 0)], fawse);
 	});
 
-	test('Fold three levels', () => {
-		let range = [
+	test('Fowd thwee wevews', () => {
+		wet wange = [
 			'A',
 			'  A',
 			'    A',
 			'      A',
 			'A'
 		];
-		assertRanges(range, [r(1, 4, -1), r(2, 4, 0), r(3, 4, 1)], true);
-		assertRanges(range, [r(1, 4, -1), r(2, 4, 0), r(3, 4, 1)], false);
+		assewtWanges(wange, [w(1, 4, -1), w(2, 4, 0), w(3, 4, 1)], twue);
+		assewtWanges(wange, [w(1, 4, -1), w(2, 4, 0), w(3, 4, 1)], fawse);
 	});
 
-	test('Fold decreasing indent', () => {
-		let range = [
+	test('Fowd decweasing indent', () => {
+		wet wange = [
 			'    A',
 			'  A',
 			'A'
 		];
-		assertRanges(range, [], true);
-		assertRanges(range, [], false);
+		assewtWanges(wange, [], twue);
+		assewtWanges(wange, [], fawse);
 	});
 
-	test('Fold Java', () => {
-		assertRanges([
-		/* 1*/	'class A {',
+	test('Fowd Java', () => {
+		assewtWanges([
+		/* 1*/	'cwass A {',
 		/* 2*/	'  void foo() {',
-		/* 3*/	'    console.log();',
-		/* 4*/	'    console.log();',
+		/* 3*/	'    consowe.wog();',
+		/* 4*/	'    consowe.wog();',
 		/* 5*/	'  }',
 		/* 6*/	'',
-		/* 7*/	'  void bar() {',
-		/* 8*/	'    console.log();',
+		/* 7*/	'  void baw() {',
+		/* 8*/	'    consowe.wog();',
 		/* 9*/	'  }',
 		/*10*/	'}',
-		/*11*/	'interface B {',
-		/*12*/	'  void bar();',
+		/*11*/	'intewface B {',
+		/*12*/	'  void baw();',
 		/*13*/	'}',
-		], [r(1, 9, -1), r(2, 4, 0), r(7, 8, 0), r(11, 12, -1)], false);
+		], [w(1, 9, -1), w(2, 4, 0), w(7, 8, 0), w(11, 12, -1)], fawse);
 	});
 
-	test('Fold Javadoc', () => {
-		assertRanges([
+	test('Fowd Javadoc', () => {
+		assewtWanges([
 		/* 1*/	'/**',
 		/* 2*/	' * Comment',
 		/* 3*/	' */',
-		/* 4*/	'class A {',
+		/* 4*/	'cwass A {',
 		/* 5*/	'  void foo() {',
 		/* 6*/	'  }',
 		/* 7*/	'}',
-		], [r(1, 3, -1), r(4, 6, -1)], false);
+		], [w(1, 3, -1), w(4, 6, -1)], fawse);
 	});
-	test('Fold Whitespace Java', () => {
-		assertRanges([
-		/* 1*/	'class A {',
+	test('Fowd Whitespace Java', () => {
+		assewtWanges([
+		/* 1*/	'cwass A {',
 		/* 2*/	'',
 		/* 3*/	'  void foo() {',
 		/* 4*/	'     ',
-		/* 5*/	'     return 0;',
+		/* 5*/	'     wetuwn 0;',
 		/* 6*/	'  }',
 		/* 7*/	'      ',
 		/* 8*/	'}',
-		], [r(1, 7, -1), r(3, 5, 0)], false);
+		], [w(1, 7, -1), w(3, 5, 0)], fawse);
 	});
 
-	test('Fold Whitespace Python', () => {
-		assertRanges([
+	test('Fowd Whitespace Python', () => {
+		assewtWanges([
 		/* 1*/	'def a:',
 		/* 2*/	'  pass',
 		/* 3*/	'   ',
@@ -127,206 +127,206 @@ suite('Indentation Folding', () => {
 		/* 5*/	'    pass',
 		/* 6*/	'  ',
 		/* 7*/	'      ',
-		/* 8*/	'def c: # since there was a deintent here'
-		], [r(1, 5, -1), r(4, 5, 0)], true);
+		/* 8*/	'def c: # since thewe was a deintent hewe'
+		], [w(1, 5, -1), w(4, 5, 0)], twue);
 	});
 
-	test('Fold Tabs', () => {
-		assertRanges([
-		/* 1*/	'class A {',
+	test('Fowd Tabs', () => {
+		assewtWanges([
+		/* 1*/	'cwass A {',
 		/* 2*/	'\t\t',
 		/* 3*/	'\tvoid foo() {',
-		/* 4*/	'\t \t//hello',
-		/* 5*/	'\t    return 0;',
+		/* 4*/	'\t \t//hewwo',
+		/* 5*/	'\t    wetuwn 0;',
 		/* 6*/	'  \t}',
 		/* 7*/	'      ',
 		/* 8*/	'}',
-		], [r(1, 7, -1), r(3, 5, 0)], false);
+		], [w(1, 7, -1), w(3, 5, 0)], fawse);
 	});
 });
 
-let markers: FoldingMarkers = {
-	start: /^\s*#region\b/,
-	end: /^\s*#endregion\b/
+wet mawkews: FowdingMawkews = {
+	stawt: /^\s*#wegion\b/,
+	end: /^\s*#endwegion\b/
 };
 
-suite('Folding with regions', () => {
-	test('Inside region, indented', () => {
-		assertRanges([
-		/* 1*/	'class A {',
-		/* 2*/	'  #region',
+suite('Fowding with wegions', () => {
+	test('Inside wegion, indented', () => {
+		assewtWanges([
+		/* 1*/	'cwass A {',
+		/* 2*/	'  #wegion',
 		/* 3*/	'  void foo() {',
 		/* 4*/	'     ',
-		/* 5*/	'     return 0;',
+		/* 5*/	'     wetuwn 0;',
 		/* 6*/	'  }',
-		/* 7*/	'  #endregion',
+		/* 7*/	'  #endwegion',
 		/* 8*/	'}',
-		], [r(1, 7, -1), r(2, 7, 0, true), r(3, 5, 1)], false, markers);
+		], [w(1, 7, -1), w(2, 7, 0, twue), w(3, 5, 1)], fawse, mawkews);
 	});
-	test('Inside region, not indented', () => {
-		assertRanges([
-		/* 1*/	'var x;',
-		/* 2*/	'#region',
+	test('Inside wegion, not indented', () => {
+		assewtWanges([
+		/* 1*/	'vaw x;',
+		/* 2*/	'#wegion',
 		/* 3*/	'void foo() {',
 		/* 4*/	'     ',
-		/* 5*/	'     return 0;',
+		/* 5*/	'     wetuwn 0;',
 		/* 6*/	'  }',
-		/* 7*/	'#endregion',
+		/* 7*/	'#endwegion',
 		/* 8*/	'',
-		], [r(2, 7, -1, true), r(3, 6, 0)], false, markers);
+		], [w(2, 7, -1, twue), w(3, 6, 0)], fawse, mawkews);
 	});
-	test('Empty Regions', () => {
-		assertRanges([
-		/* 1*/	'var x;',
-		/* 2*/	'#region',
-		/* 3*/	'#endregion',
-		/* 4*/	'#region',
+	test('Empty Wegions', () => {
+		assewtWanges([
+		/* 1*/	'vaw x;',
+		/* 2*/	'#wegion',
+		/* 3*/	'#endwegion',
+		/* 4*/	'#wegion',
 		/* 5*/	'',
-		/* 6*/	'#endregion',
-		/* 7*/	'var y;',
-		], [r(2, 3, -1, true), r(4, 6, -1, true)], false, markers);
+		/* 6*/	'#endwegion',
+		/* 7*/	'vaw y;',
+		], [w(2, 3, -1, twue), w(4, 6, -1, twue)], fawse, mawkews);
 	});
-	test('Nested Regions', () => {
-		assertRanges([
-		/* 1*/	'var x;',
-		/* 2*/	'#region',
-		/* 3*/	'#region',
+	test('Nested Wegions', () => {
+		assewtWanges([
+		/* 1*/	'vaw x;',
+		/* 2*/	'#wegion',
+		/* 3*/	'#wegion',
 		/* 4*/	'',
-		/* 5*/	'#endregion',
-		/* 6*/	'#endregion',
-		/* 7*/	'var y;',
-		], [r(2, 6, -1, true), r(3, 5, 0, true)], false, markers);
+		/* 5*/	'#endwegion',
+		/* 6*/	'#endwegion',
+		/* 7*/	'vaw y;',
+		], [w(2, 6, -1, twue), w(3, 5, 0, twue)], fawse, mawkews);
 	});
-	test('Nested Regions 2', () => {
-		assertRanges([
-		/* 1*/	'class A {',
-		/* 2*/	'  #region',
+	test('Nested Wegions 2', () => {
+		assewtWanges([
+		/* 1*/	'cwass A {',
+		/* 2*/	'  #wegion',
 		/* 3*/	'',
-		/* 4*/	'  #region',
+		/* 4*/	'  #wegion',
 		/* 5*/	'',
-		/* 6*/	'  #endregion',
+		/* 6*/	'  #endwegion',
 		/* 7*/	'  // comment',
-		/* 8*/	'  #endregion',
+		/* 8*/	'  #endwegion',
 		/* 9*/	'}',
-		], [r(1, 8, -1), r(2, 8, 0, true), r(4, 6, 1, true)], false, markers);
+		], [w(1, 8, -1), w(2, 8, 0, twue), w(4, 6, 1, twue)], fawse, mawkews);
 	});
-	test('Incomplete Regions', () => {
-		assertRanges([
-		/* 1*/	'class A {',
-		/* 2*/	'#region',
+	test('Incompwete Wegions', () => {
+		assewtWanges([
+		/* 1*/	'cwass A {',
+		/* 2*/	'#wegion',
 		/* 3*/	'  // comment',
 		/* 4*/	'}',
-		], [r(2, 3, -1)], false, markers);
+		], [w(2, 3, -1)], fawse, mawkews);
 	});
-	test('Incomplete Regions 2', () => {
-		assertRanges([
+	test('Incompwete Wegions 2', () => {
+		assewtWanges([
 		/* 1*/	'',
-		/* 2*/	'#region',
-		/* 3*/	'#region',
-		/* 4*/	'#region',
+		/* 2*/	'#wegion',
+		/* 3*/	'#wegion',
+		/* 4*/	'#wegion',
 		/* 5*/	'  // comment',
-		/* 6*/	'#endregion',
-		/* 7*/	'#endregion',
-		/* 8*/	' // hello',
-		], [r(3, 7, -1, true), r(4, 6, 0, true)], false, markers);
+		/* 6*/	'#endwegion',
+		/* 7*/	'#endwegion',
+		/* 8*/	' // hewwo',
+		], [w(3, 7, -1, twue), w(4, 6, 0, twue)], fawse, mawkews);
 	});
-	test('Indented region before', () => {
-		assertRanges([
+	test('Indented wegion befowe', () => {
+		assewtWanges([
 		/* 1*/	'if (x)',
-		/* 2*/	'  return;',
+		/* 2*/	'  wetuwn;',
 		/* 3*/	'',
-		/* 4*/	'#region',
+		/* 4*/	'#wegion',
 		/* 5*/	'  // comment',
-		/* 6*/	'#endregion',
-		], [r(1, 3, -1), r(4, 6, -1, true)], false, markers);
+		/* 6*/	'#endwegion',
+		], [w(1, 3, -1), w(4, 6, -1, twue)], fawse, mawkews);
 	});
-	test('Indented region before 2', () => {
-		assertRanges([
+	test('Indented wegion befowe 2', () => {
+		assewtWanges([
 		/* 1*/	'if (x)',
-		/* 2*/	'  log();',
+		/* 2*/	'  wog();',
 		/* 3*/	'',
-		/* 4*/	'    #region',
+		/* 4*/	'    #wegion',
 		/* 5*/	'      // comment',
-		/* 6*/	'    #endregion',
-		], [r(1, 6, -1), r(2, 6, 0), r(4, 6, 1, true)], false, markers);
+		/* 6*/	'    #endwegion',
+		], [w(1, 6, -1), w(2, 6, 0), w(4, 6, 1, twue)], fawse, mawkews);
 	});
-	test('Indented region in-between', () => {
-		assertRanges([
-		/* 1*/	'#region',
+	test('Indented wegion in-between', () => {
+		assewtWanges([
+		/* 1*/	'#wegion',
 		/* 2*/	'  // comment',
 		/* 3*/	'  if (x)',
-		/* 4*/	'    return;',
+		/* 4*/	'    wetuwn;',
 		/* 5*/	'',
-		/* 6*/	'#endregion',
-		], [r(1, 6, -1, true), r(3, 5, 0)], false, markers);
+		/* 6*/	'#endwegion',
+		], [w(1, 6, -1, twue), w(3, 5, 0)], fawse, mawkews);
 	});
-	test('Indented region after', () => {
-		assertRanges([
-		/* 1*/	'#region',
+	test('Indented wegion afta', () => {
+		assewtWanges([
+		/* 1*/	'#wegion',
 		/* 2*/	'  // comment',
 		/* 3*/	'',
-		/* 4*/	'#endregion',
+		/* 4*/	'#endwegion',
 		/* 5*/	'  if (x)',
-		/* 6*/	'    return;',
-		], [r(1, 4, -1, true), r(5, 6, -1)], false, markers);
+		/* 6*/	'    wetuwn;',
+		], [w(1, 4, -1, twue), w(5, 6, -1)], fawse, mawkews);
 	});
 	test('With off-side', () => {
-		assertRanges([
-		/* 1*/	'#region',
+		assewtWanges([
+		/* 1*/	'#wegion',
 		/* 2*/	'  ',
 		/* 3*/	'',
-		/* 4*/	'#endregion',
+		/* 4*/	'#endwegion',
 		/* 5*/	'',
-		], [r(1, 4, -1, true)], true, markers);
+		], [w(1, 4, -1, twue)], twue, mawkews);
 	});
 	test('Nested with off-side', () => {
-		assertRanges([
-		/* 1*/	'#region',
+		assewtWanges([
+		/* 1*/	'#wegion',
 		/* 2*/	'  ',
-		/* 3*/	'#region',
+		/* 3*/	'#wegion',
 		/* 4*/	'',
-		/* 5*/	'#endregion',
+		/* 5*/	'#endwegion',
 		/* 6*/	'',
-		/* 7*/	'#endregion',
+		/* 7*/	'#endwegion',
 		/* 8*/	'',
-		], [r(1, 7, -1, true), r(3, 5, 0, true)], true, markers);
+		], [w(1, 7, -1, twue), w(3, 5, 0, twue)], twue, mawkews);
 	});
 	test('Issue 35981', () => {
-		assertRanges([
-		/* 1*/	'function thisFoldsToEndOfPage() {',
-		/* 2*/	'  const variable = []',
-		/* 3*/	'    // #region',
-		/* 4*/	'    .reduce((a, b) => a,[]);',
+		assewtWanges([
+		/* 1*/	'function thisFowdsToEndOfPage() {',
+		/* 2*/	'  const vawiabwe = []',
+		/* 3*/	'    // #wegion',
+		/* 4*/	'    .weduce((a, b) => a,[]);',
 		/* 5*/	'}',
 		/* 6*/	'',
-		/* 7*/	'function thisFoldsProperly() {',
-		/* 8*/	'  const foo = "bar"',
+		/* 7*/	'function thisFowdsPwopewwy() {',
+		/* 8*/	'  const foo = "baw"',
 		/* 9*/	'}',
-		], [r(1, 4, -1), r(2, 4, 0), r(7, 8, -1)], false, markers);
+		], [w(1, 4, -1), w(2, 4, 0), w(7, 8, -1)], fawse, mawkews);
 	});
-	test('Misspelled Markers', () => {
-		assertRanges([
-		/* 1*/	'#Region',
-		/* 2*/	'#endregion',
-		/* 3*/	'#regionsandmore',
-		/* 4*/	'#endregion',
-		/* 5*/	'#region',
-		/* 6*/	'#end region',
-		/* 7*/	'#region',
-		/* 8*/	'#endregionff',
-		], [], true, markers);
+	test('Misspewwed Mawkews', () => {
+		assewtWanges([
+		/* 1*/	'#Wegion',
+		/* 2*/	'#endwegion',
+		/* 3*/	'#wegionsandmowe',
+		/* 4*/	'#endwegion',
+		/* 5*/	'#wegion',
+		/* 6*/	'#end wegion',
+		/* 7*/	'#wegion',
+		/* 8*/	'#endwegionff',
+		], [], twue, mawkews);
 	});
 	test('Issue 79359', () => {
-		assertRanges([
-		/* 1*/	'#region',
+		assewtWanges([
+		/* 1*/	'#wegion',
 		/* 2*/	'',
-		/* 3*/	'class A',
+		/* 3*/	'cwass A',
 		/* 4*/	'  foo',
 		/* 5*/	'',
-		/* 6*/	'class A',
+		/* 6*/	'cwass A',
 		/* 7*/	'  foo',
 		/* 8*/	'',
-		/* 9*/	'#endregion',
-		], [r(1, 9, -1, true), r(3, 4, 0), r(6, 7, 0)], true, markers);
+		/* 9*/	'#endwegion',
+		], [w(1, 9, -1, twue), w(3, 4, 0), w(6, 7, 0)], twue, mawkews);
 	});
 });

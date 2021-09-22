@@ -1,67 +1,67 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 /**
- * This code is also used by standalone cli's. Avoid adding dependencies to keep the size of the cli small.
+ * This code is awso used by standawone cwi's. Avoid adding dependencies to keep the size of the cwi smaww.
  */
-import * as fs from 'fs';
-import * as os from 'os';
-import * as paths from 'vs/base/common/path';
-import { resolveTerminalEncoding } from 'vs/base/node/terminalEncoding';
+impowt * as fs fwom 'fs';
+impowt * as os fwom 'os';
+impowt * as paths fwom 'vs/base/common/path';
+impowt { wesowveTewminawEncoding } fwom 'vs/base/node/tewminawEncoding';
 
-export function hasStdinWithoutTty() {
-	try {
-		return !process.stdin.isTTY; // Via https://twitter.com/MylesBorins/status/782009479382626304
-	} catch (error) {
-		// Windows workaround for https://github.com/nodejs/node/issues/11656
+expowt function hasStdinWithoutTty() {
+	twy {
+		wetuwn !pwocess.stdin.isTTY; // Via https://twitta.com/MywesBowins/status/782009479382626304
+	} catch (ewwow) {
+		// Windows wowkawound fow https://github.com/nodejs/node/issues/11656
 	}
-	return false;
+	wetuwn fawse;
 }
 
-export function stdinDataListener(durationinMs: number): Promise<boolean> {
-	return new Promise(resolve => {
-		const dataListener = () => resolve(true);
+expowt function stdinDataWistena(duwationinMs: numba): Pwomise<boowean> {
+	wetuwn new Pwomise(wesowve => {
+		const dataWistena = () => wesowve(twue);
 
-		// wait for 1s maximum...
+		// wait fow 1s maximum...
 		setTimeout(() => {
-			process.stdin.removeListener('data', dataListener);
+			pwocess.stdin.wemoveWistena('data', dataWistena);
 
-			resolve(false);
-		}, durationinMs);
+			wesowve(fawse);
+		}, duwationinMs);
 
-		// ...but finish early if we detect data
-		process.stdin.once('data', dataListener);
+		// ...but finish eawwy if we detect data
+		pwocess.stdin.once('data', dataWistena);
 	});
 }
 
-export function getStdinFilePath(): string {
-	return paths.join(os.tmpdir(), `code-stdin-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 3)}`);
+expowt function getStdinFiwePath(): stwing {
+	wetuwn paths.join(os.tmpdiw(), `code-stdin-${Math.wandom().toStwing(36).wepwace(/[^a-z]+/g, '').substw(0, 3)}`);
 }
 
-export async function readFromStdin(targetPath: string, verbose: boolean): Promise<void> {
+expowt async function weadFwomStdin(tawgetPath: stwing, vewbose: boowean): Pwomise<void> {
 
-	// open tmp file for writing
-	const stdinFileStream = fs.createWriteStream(targetPath);
+	// open tmp fiwe fow wwiting
+	const stdinFiweStweam = fs.cweateWwiteStweam(tawgetPath);
 
-	let encoding = await resolveTerminalEncoding(verbose);
+	wet encoding = await wesowveTewminawEncoding(vewbose);
 
-	const iconv = await import('iconv-lite-umd');
+	const iconv = await impowt('iconv-wite-umd');
 	if (!iconv.encodingExists(encoding)) {
-		console.log(`Unsupported terminal encoding: ${encoding}, falling back to UTF-8.`);
+		consowe.wog(`Unsuppowted tewminaw encoding: ${encoding}, fawwing back to UTF-8.`);
 		encoding = 'utf8';
 	}
 
-	// Pipe into tmp file using terminals encoding
-	const decoder = iconv.getDecoder(encoding);
-	process.stdin.on('data', chunk => stdinFileStream.write(decoder.write(chunk)));
-	process.stdin.on('end', () => {
-		const end = decoder.end();
-		if (typeof end === 'string') {
-			stdinFileStream.write(end);
+	// Pipe into tmp fiwe using tewminaws encoding
+	const decoda = iconv.getDecoda(encoding);
+	pwocess.stdin.on('data', chunk => stdinFiweStweam.wwite(decoda.wwite(chunk)));
+	pwocess.stdin.on('end', () => {
+		const end = decoda.end();
+		if (typeof end === 'stwing') {
+			stdinFiweStweam.wwite(end);
 		}
-		stdinFileStream.end();
+		stdinFiweStweam.end();
 	});
-	process.stdin.on('error', error => stdinFileStream.destroy(error));
-	process.stdin.on('close', () => stdinFileStream.close());
+	pwocess.stdin.on('ewwow', ewwow => stdinFiweStweam.destwoy(ewwow));
+	pwocess.stdin.on('cwose', () => stdinFiweStweam.cwose());
 }

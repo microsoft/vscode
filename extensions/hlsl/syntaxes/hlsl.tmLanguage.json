@@ -1,214 +1,214 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/tgjones/shaders-tmLanguage/blob/master/grammars/hlsl.json",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/tgjones/shadews-tmWanguage/bwob/masta/gwammaws/hwsw.json",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/tgjones/shaders-tmLanguage/commit/87c0dca3a39170dbd7ee7e277db4f915fb2de14a",
-	"name": "HLSL",
-	"scopeName": "source.hlsl",
-	"patterns": [
+	"vewsion": "https://github.com/tgjones/shadews-tmWanguage/commit/87c0dca3a39170dbd7ee7e277db4f915fb2de14a",
+	"name": "HWSW",
+	"scopeName": "souwce.hwsw",
+	"pattewns": [
 		{
-			"name": "comment.line.block.hlsl",
+			"name": "comment.wine.bwock.hwsw",
 			"begin": "/\\*",
 			"end": "\\*/"
 		},
 		{
-			"name": "comment.line.double-slash.hlsl",
+			"name": "comment.wine.doubwe-swash.hwsw",
 			"begin": "//",
 			"end": "$"
 		},
 		{
-			"name": "constant.numeric.decimal.hlsl",
+			"name": "constant.numewic.decimaw.hwsw",
 			"match": "\\b[0-9]+\\.[0-9]*(F|f)?\\b"
 		},
 		{
-			"name": "constant.numeric.decimal.hlsl",
+			"name": "constant.numewic.decimaw.hwsw",
 			"match": "(\\.([0-9]+)(F|f)?)\\b"
 		},
 		{
-			"name": "constant.numeric.decimal.hlsl",
+			"name": "constant.numewic.decimaw.hwsw",
 			"match": "\\b([0-9]+(F|f)?)\\b"
 		},
 		{
-			"name": "constant.numeric.hex.hlsl",
+			"name": "constant.numewic.hex.hwsw",
 			"match": "\\b(0(x|X)[0-9a-fA-F]+)\\b"
 		},
 		{
-			"name": "constant.language.hlsl",
-			"match": "\\b(false|true)\\b"
+			"name": "constant.wanguage.hwsw",
+			"match": "\\b(fawse|twue)\\b"
 		},
 		{
-			"name": "keyword.preprocessor.hlsl",
-			"match": "^\\s*#\\s*(define|elif|else|endif|ifdef|ifndef|if|undef|include|line|error|pragma)"
+			"name": "keywowd.pwepwocessow.hwsw",
+			"match": "^\\s*#\\s*(define|ewif|ewse|endif|ifdef|ifndef|if|undef|incwude|wine|ewwow|pwagma)"
 		},
 		{
-			"name": "keyword.control.hlsl",
-			"match": "\\b(break|case|continue|default|discard|do|else|for|if|return|switch|while)\\b"
+			"name": "keywowd.contwow.hwsw",
+			"match": "\\b(bweak|case|continue|defauwt|discawd|do|ewse|fow|if|wetuwn|switch|whiwe)\\b"
 		},
 		{
-			"name": "keyword.control.fx.hlsl",
-			"match": "\\b(compile)\\b"
+			"name": "keywowd.contwow.fx.hwsw",
+			"match": "\\b(compiwe)\\b"
 		},
 		{
-			"name": "keyword.typealias.hlsl",
+			"name": "keywowd.typeawias.hwsw",
 			"match": "\\b(typedef)\\b"
 		},
 		{
-			"name": "storage.type.basic.hlsl",
-			"match": "\\b(bool([1-4](x[1-4])?)?|double([1-4](x[1-4])?)?|dword|float([1-4](x[1-4])?)?|half([1-4](x[1-4])?)?|int([1-4](x[1-4])?)?|matrix|min10float([1-4](x[1-4])?)?|min12int([1-4](x[1-4])?)?|min16float([1-4](x[1-4])?)?|min16int([1-4](x[1-4])?)?|min16uint([1-4](x[1-4])?)?|unsigned|uint([1-4](x[1-4])?)?|vector|void)\\b"
+			"name": "stowage.type.basic.hwsw",
+			"match": "\\b(boow([1-4](x[1-4])?)?|doubwe([1-4](x[1-4])?)?|dwowd|fwoat([1-4](x[1-4])?)?|hawf([1-4](x[1-4])?)?|int([1-4](x[1-4])?)?|matwix|min10fwoat([1-4](x[1-4])?)?|min12int([1-4](x[1-4])?)?|min16fwoat([1-4](x[1-4])?)?|min16int([1-4](x[1-4])?)?|min16uint([1-4](x[1-4])?)?|unsigned|uint([1-4](x[1-4])?)?|vectow|void)\\b"
 		},
 		{
-			"name": "support.function.hlsl",
+			"name": "suppowt.function.hwsw",
 			"match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)(?=[\\s]*\\()"
 		},
 		{
-			"name": "support.variable.semantic.hlsl",
-			"match": "(?<=\\:\\s|\\:)(?i:BINORMAL[0-9]*|BLENDINDICES[0-9]*|BLENDWEIGHT[0-9]*|COLOR[0-9]*|NORMAL[0-9]*|POSITIONT|POSITION|PSIZE[0-9]*|TANGENT[0-9]*|TEXCOORD[0-9]*|FOG|TESSFACTOR[0-9]*|VFACE|VPOS|DEPTH[0-9]*)\\b"
+			"name": "suppowt.vawiabwe.semantic.hwsw",
+			"match": "(?<=\\:\\s|\\:)(?i:BINOWMAW[0-9]*|BWENDINDICES[0-9]*|BWENDWEIGHT[0-9]*|COWOW[0-9]*|NOWMAW[0-9]*|POSITIONT|POSITION|PSIZE[0-9]*|TANGENT[0-9]*|TEXCOOWD[0-9]*|FOG|TESSFACTOW[0-9]*|VFACE|VPOS|DEPTH[0-9]*)\\b"
 		},
 		{
-			"name": "support.variable.semantic.sm4.hlsl",
-			"match": "(?<=\\:\\s|\\:)(?i:SV_ClipDistance[0-9]*|SV_CullDistance[0-9]*|SV_Coverage|SV_Depth|SV_DepthGreaterEqual[0-9]*|SV_DepthLessEqual[0-9]*|SV_InstanceID|SV_IsFrontFace|SV_Position|SV_RenderTargetArrayIndex|SV_SampleIndex|SV_StencilRef|SV_Target[0-7]?|SV_VertexID|SV_ViewportArrayIndex)\\b"
+			"name": "suppowt.vawiabwe.semantic.sm4.hwsw",
+			"match": "(?<=\\:\\s|\\:)(?i:SV_CwipDistance[0-9]*|SV_CuwwDistance[0-9]*|SV_Covewage|SV_Depth|SV_DepthGweatewEquaw[0-9]*|SV_DepthWessEquaw[0-9]*|SV_InstanceID|SV_IsFwontFace|SV_Position|SV_WendewTawgetAwwayIndex|SV_SampweIndex|SV_StenciwWef|SV_Tawget[0-7]?|SV_VewtexID|SV_ViewpowtAwwayIndex)\\b"
 		},
 		{
-			"name": "support.variable.semantic.sm5.hlsl",
-			"match": "(?<=\\:\\s|\\:)(?i:SV_DispatchThreadID|SV_DomainLocation|SV_GroupID|SV_GroupIndex|SV_GroupThreadID|SV_GSInstanceID|SV_InsideTessFactor|SV_OutputControlPointID|SV_TessFactor)\\b"
+			"name": "suppowt.vawiabwe.semantic.sm5.hwsw",
+			"match": "(?<=\\:\\s|\\:)(?i:SV_DispatchThweadID|SV_DomainWocation|SV_GwoupID|SV_GwoupIndex|SV_GwoupThweadID|SV_GSInstanceID|SV_InsideTessFactow|SV_OutputContwowPointID|SV_TessFactow)\\b"
 		},
 		{
-			"name": "support.variable.semantic.sm5_1.hlsl",
-			"match": "(?<=\\:\\s|\\:)(?i:SV_InnerCoverage|SV_StencilRef)\\b"
+			"name": "suppowt.vawiabwe.semantic.sm5_1.hwsw",
+			"match": "(?<=\\:\\s|\\:)(?i:SV_InnewCovewage|SV_StenciwWef)\\b"
 		},
 		{
-			"name": "storage.modifier.hlsl",
-			"match": "\\b(column_major|const|export|extern|globallycoherent|groupshared|inline|inout|in|out|precise|row_major|shared|static|uniform|volatile)\\b"
+			"name": "stowage.modifia.hwsw",
+			"match": "\\b(cowumn_majow|const|expowt|extewn|gwobawwycohewent|gwoupshawed|inwine|inout|in|out|pwecise|wow_majow|shawed|static|unifowm|vowatiwe)\\b"
 		},
 		{
-			"name": "storage.modifier.float.hlsl",
-			"match": "\\b(snorm|unorm)\\b"
+			"name": "stowage.modifia.fwoat.hwsw",
+			"match": "\\b(snowm|unowm)\\b"
 		},
 		{
-			"name": "storage.modifier.postfix.hlsl",
-			"match": "\\b(packoffset|register)\\b"
+			"name": "stowage.modifia.postfix.hwsw",
+			"match": "\\b(packoffset|wegista)\\b"
 		},
 		{
-			"name": "storage.modifier.interpolation.hlsl",
-			"match": "\\b(centroid|linear|nointerpolation|noperspective|sample)\\b"
+			"name": "stowage.modifia.intewpowation.hwsw",
+			"match": "\\b(centwoid|wineaw|nointewpowation|nopewspective|sampwe)\\b"
 		},
 		{
-			"name": "storage.modifier.geometryshader.hlsl",
-			"match": "\\b(lineadj|line|point|triangle|triangleadj)\\b"
+			"name": "stowage.modifia.geometwyshada.hwsw",
+			"match": "\\b(wineadj|wine|point|twiangwe|twiangweadj)\\b"
 		},
 		{
-			"name": "support.type.other.hlsl",
-			"match": "\\b(string)\\b"
+			"name": "suppowt.type.otha.hwsw",
+			"match": "\\b(stwing)\\b"
 		},
 		{
-			"name": "support.type.object.hlsl",
-			"match": "\\b(AppendStructuredBuffer|Buffer|ByteAddressBuffer|ConstantBuffer|ConsumeStructuredBuffer|InputPatch|OutputPatch)\\b"
+			"name": "suppowt.type.object.hwsw",
+			"match": "\\b(AppendStwuctuwedBuffa|Buffa|ByteAddwessBuffa|ConstantBuffa|ConsumeStwuctuwedBuffa|InputPatch|OutputPatch)\\b"
 		},
 		{
-			"name": "support.type.object.rasterizerordered.hlsl",
-			"match": "\\b(RasterizerOrderedBuffer|RasterizerOrderedByteAddressBuffer|RasterizerOrderedStructuredBuffer|RasterizerOrderedTexture1D|RasterizerOrderedTexture1DArray|RasterizerOrderedTexture2D|RasterizerOrderedTexture2DArray|RasterizerOrderedTexture3D)\\b"
+			"name": "suppowt.type.object.wastewizewowdewed.hwsw",
+			"match": "\\b(WastewizewOwdewedBuffa|WastewizewOwdewedByteAddwessBuffa|WastewizewOwdewedStwuctuwedBuffa|WastewizewOwdewedTextuwe1D|WastewizewOwdewedTextuwe1DAwway|WastewizewOwdewedTextuwe2D|WastewizewOwdewedTextuwe2DAwway|WastewizewOwdewedTextuwe3D)\\b"
 		},
 		{
-			"name": "support.type.object.rw.hlsl",
-			"match": "\\b(RWBuffer|RWByteAddressBuffer|RWStructuredBuffer|RWTexture1D|RWTexture1DArray|RWTexture2D|RWTexture2DArray|RWTexture3D)\\b"
+			"name": "suppowt.type.object.ww.hwsw",
+			"match": "\\b(WWBuffa|WWByteAddwessBuffa|WWStwuctuwedBuffa|WWTextuwe1D|WWTextuwe1DAwway|WWTextuwe2D|WWTextuwe2DAwway|WWTextuwe3D)\\b"
 		},
 		{
-			"name": "support.type.object.geometryshader.hlsl",
-			"match": "\\b(LineStream|PointStream|TriangleStream)\\b"
+			"name": "suppowt.type.object.geometwyshada.hwsw",
+			"match": "\\b(WineStweam|PointStweam|TwiangweStweam)\\b"
 		},
 		{
-			"name": "support.type.sampler.legacy.hlsl",
-			"match": "\\b(sampler|sampler1D|sampler2D|sampler3D|samplerCUBE|sampler_state)\\b"
+			"name": "suppowt.type.sampwa.wegacy.hwsw",
+			"match": "\\b(sampwa|sampwew1D|sampwew2D|sampwew3D|sampwewCUBE|sampwew_state)\\b"
 		},
 		{
-			"name": "support.type.sampler.hlsl",
-			"match": "\\b(SamplerState|SamplerComparisonState)\\b"
+			"name": "suppowt.type.sampwa.hwsw",
+			"match": "\\b(SampwewState|SampwewCompawisonState)\\b"
 		},
 		{
-			"name": "support.type.texture.legacy.hlsl",
-			"match": "\\b(texture2D|textureCUBE)\\b"
+			"name": "suppowt.type.textuwe.wegacy.hwsw",
+			"match": "\\b(textuwe2D|textuweCUBE)\\b"
 		},
 		{
-			"name": "support.type.texture.hlsl",
-			"match": "\\b(Texture1D|Texture1DArray|Texture2D|Texture2DArray|Texture2DMS|Texture2DMSArray|Texture3D|TextureCube|TextureCubeArray)\\b"
+			"name": "suppowt.type.textuwe.hwsw",
+			"match": "\\b(Textuwe1D|Textuwe1DAwway|Textuwe2D|Textuwe2DAwway|Textuwe2DMS|Textuwe2DMSAwway|Textuwe3D|TextuweCube|TextuweCubeAwway)\\b"
 		},
 		{
-			"name": "storage.type.structured.hlsl",
-			"match": "\\b(cbuffer|class|interface|namespace|struct|tbuffer)\\b"
+			"name": "stowage.type.stwuctuwed.hwsw",
+			"match": "\\b(cbuffa|cwass|intewface|namespace|stwuct|tbuffa)\\b"
 		},
 		{
-			"name": "support.constant.property-value.fx.hlsl",
-			"match": "\\b(FALSE|TRUE|NULL)\\b"
+			"name": "suppowt.constant.pwopewty-vawue.fx.hwsw",
+			"match": "\\b(FAWSE|TWUE|NUWW)\\b"
 		},
 		{
-			"name": "support.type.fx.hlsl",
-			"match": "\\b(BlendState|DepthStencilState|RasterizerState)\\b"
+			"name": "suppowt.type.fx.hwsw",
+			"match": "\\b(BwendState|DepthStenciwState|WastewizewState)\\b"
 		},
 		{
-			"name": "storage.type.fx.technique.hlsl",
+			"name": "stowage.type.fx.technique.hwsw",
 			"match": "\\b(technique|Technique|technique10|technique11|pass)\\b"
 		},
 		{
-			"name": "meta.object-literal.key.fx.blendstate.hlsl",
-			"match": "\\b(AlphaToCoverageEnable|BlendEnable|SrcBlend|DestBlend|BlendOp|SrcBlendAlpha|DestBlendAlpha|BlendOpAlpha|RenderTargetWriteMask)\\b"
+			"name": "meta.object-witewaw.key.fx.bwendstate.hwsw",
+			"match": "\\b(AwphaToCovewageEnabwe|BwendEnabwe|SwcBwend|DestBwend|BwendOp|SwcBwendAwpha|DestBwendAwpha|BwendOpAwpha|WendewTawgetWwiteMask)\\b"
 		},
 		{
-			"name": "meta.object-literal.key.fx.depthstencilstate.hlsl",
-			"match": "\\b(DepthEnable|DepthWriteMask|DepthFunc|StencilEnable|StencilReadMask|StencilWriteMask|FrontFaceStencilFail|FrontFaceStencilZFail|FrontFaceStencilPass|FrontFaceStencilFunc|BackFaceStencilFail|BackFaceStencilZFail|BackFaceStencilPass|BackFaceStencilFunc)\\b"
+			"name": "meta.object-witewaw.key.fx.depthstenciwstate.hwsw",
+			"match": "\\b(DepthEnabwe|DepthWwiteMask|DepthFunc|StenciwEnabwe|StenciwWeadMask|StenciwWwiteMask|FwontFaceStenciwFaiw|FwontFaceStenciwZFaiw|FwontFaceStenciwPass|FwontFaceStenciwFunc|BackFaceStenciwFaiw|BackFaceStenciwZFaiw|BackFaceStenciwPass|BackFaceStenciwFunc)\\b"
 		},
 		{
-			"name": "meta.object-literal.key.fx.rasterizerstate.hlsl",
-			"match": "\\b(FillMode|CullMode|FrontCounterClockwise|DepthBias|DepthBiasClamp|SlopeScaleDepthBias|ZClipEnable|ScissorEnable|MultiSampleEnable|AntiAliasedLineEnable)\\b"
+			"name": "meta.object-witewaw.key.fx.wastewizewstate.hwsw",
+			"match": "\\b(FiwwMode|CuwwMode|FwontCountewCwockwise|DepthBias|DepthBiasCwamp|SwopeScaweDepthBias|ZCwipEnabwe|ScissowEnabwe|MuwtiSampweEnabwe|AntiAwiasedWineEnabwe)\\b"
 		},
 		{
-			"name": "meta.object-literal.key.fx.samplerstate.hlsl",
-			"match": "\\b(Filter|AddressU|AddressV|AddressW|MipLODBias|MaxAnisotropy|ComparisonFunc|BorderColor|MinLOD|MaxLOD)\\b"
+			"name": "meta.object-witewaw.key.fx.sampwewstate.hwsw",
+			"match": "\\b(Fiwta|AddwessU|AddwessV|AddwessW|MipWODBias|MaxAnisotwopy|CompawisonFunc|BowdewCowow|MinWOD|MaxWOD)\\b"
 		},
 		{
-			"name": "support.constant.property-value.fx.blend.hlsl",
-			"match": "\\b(?i:ZERO|ONE|SRC_COLOR|INV_SRC_COLOR|SRC_ALPHA|INV_SRC_ALPHA|DEST_ALPHA|INV_DEST_ALPHA|DEST_COLOR|INV_DEST_COLOR|SRC_ALPHA_SAT|BLEND_FACTOR|INV_BLEND_FACTOR|SRC1_COLOR|INV_SRC1_COLOR|SRC1_ALPHA|INV_SRC1_ALPHA)\\b"
+			"name": "suppowt.constant.pwopewty-vawue.fx.bwend.hwsw",
+			"match": "\\b(?i:ZEWO|ONE|SWC_COWOW|INV_SWC_COWOW|SWC_AWPHA|INV_SWC_AWPHA|DEST_AWPHA|INV_DEST_AWPHA|DEST_COWOW|INV_DEST_COWOW|SWC_AWPHA_SAT|BWEND_FACTOW|INV_BWEND_FACTOW|SWC1_COWOW|INV_SWC1_COWOW|SWC1_AWPHA|INV_SWC1_AWPHA)\\b"
 		},
 		{
-			"name": "support.constant.property-value.fx.blendop.hlsl",
-			"match": "\\b(?i:ADD|SUBTRACT|REV_SUBTRACT|MIN|MAX)\\b"
+			"name": "suppowt.constant.pwopewty-vawue.fx.bwendop.hwsw",
+			"match": "\\b(?i:ADD|SUBTWACT|WEV_SUBTWACT|MIN|MAX)\\b"
 		},
 		{
-			"name": "support.constant.property-value.fx.depthwritemask.hlsl",
-			"match": "\\b(?i:ALL)\\b"
+			"name": "suppowt.constant.pwopewty-vawue.fx.depthwwitemask.hwsw",
+			"match": "\\b(?i:AWW)\\b"
 		},
 		{
-			"name": "support.constant.property-value.fx.comparisonfunc.hlsl",
-			"match": "\\b(?i:NEVER|LESS|EQUAL|LESS_EQUAL|GREATER|NOT_EQUAL|GREATER_EQUAL|ALWAYS)\\b"
+			"name": "suppowt.constant.pwopewty-vawue.fx.compawisonfunc.hwsw",
+			"match": "\\b(?i:NEVa|WESS|EQUAW|WESS_EQUAW|GWEATa|NOT_EQUAW|GWEATEW_EQUAW|AWWAYS)\\b"
 		},
 		{
-			"name": "support.constant.property-value.fx.stencilop.hlsl",
-			"match": "\\b(?i:KEEP|REPLACE|INCR_SAT|DECR_SAT|INVERT|INCR|DECR)\\b"
+			"name": "suppowt.constant.pwopewty-vawue.fx.stenciwop.hwsw",
+			"match": "\\b(?i:KEEP|WEPWACE|INCW_SAT|DECW_SAT|INVEWT|INCW|DECW)\\b"
 		},
 		{
-			"name": "support.constant.property-value.fx.fillmode.hlsl",
-			"match": "\\b(?i:WIREFRAME|SOLID)\\b"
+			"name": "suppowt.constant.pwopewty-vawue.fx.fiwwmode.hwsw",
+			"match": "\\b(?i:WIWEFWAME|SOWID)\\b"
 		},
 		{
-			"name": "support.constant.property-value.fx.cullmode.hlsl",
-			"match": "\\b(?i:NONE|FRONT|BACK)\\b"
+			"name": "suppowt.constant.pwopewty-vawue.fx.cuwwmode.hwsw",
+			"match": "\\b(?i:NONE|FWONT|BACK)\\b"
 		},
 		{
-			"name": "support.constant.property-value.fx.filter.hlsl",
-			"match": "\\b(?i:MIN_MAG_MIP_POINT|MIN_MAG_POINT_MIP_LINEAR|MIN_POINT_MAG_LINEAR_MIP_POINT|MIN_POINT_MAG_MIP_LINEAR|MIN_LINEAR_MAG_MIP_POINT|MIN_LINEAR_MAG_POINT_MIP_LINEAR|MIN_MAG_LINEAR_MIP_POINT|MIN_MAG_MIP_LINEAR|ANISOTROPIC|COMPARISON_MIN_MAG_MIP_POINT|COMPARISON_MIN_MAG_POINT_MIP_LINEAR|COMPARISON_MIN_POINT_MAG_LINEAR_MIP_POINT|COMPARISON_MIN_POINT_MAG_MIP_LINEAR|COMPARISON_MIN_LINEAR_MAG_MIP_POINT|COMPARISON_MIN_LINEAR_MAG_POINT_MIP_LINEAR|COMPARISON_MIN_MAG_LINEAR_MIP_POINT|COMPARISON_MIN_MAG_MIP_LINEAR|COMPARISON_ANISOTROPIC|TEXT_1BIT)\\b"
+			"name": "suppowt.constant.pwopewty-vawue.fx.fiwta.hwsw",
+			"match": "\\b(?i:MIN_MAG_MIP_POINT|MIN_MAG_POINT_MIP_WINEAW|MIN_POINT_MAG_WINEAW_MIP_POINT|MIN_POINT_MAG_MIP_WINEAW|MIN_WINEAW_MAG_MIP_POINT|MIN_WINEAW_MAG_POINT_MIP_WINEAW|MIN_MAG_WINEAW_MIP_POINT|MIN_MAG_MIP_WINEAW|ANISOTWOPIC|COMPAWISON_MIN_MAG_MIP_POINT|COMPAWISON_MIN_MAG_POINT_MIP_WINEAW|COMPAWISON_MIN_POINT_MAG_WINEAW_MIP_POINT|COMPAWISON_MIN_POINT_MAG_MIP_WINEAW|COMPAWISON_MIN_WINEAW_MAG_MIP_POINT|COMPAWISON_MIN_WINEAW_MAG_POINT_MIP_WINEAW|COMPAWISON_MIN_MAG_WINEAW_MIP_POINT|COMPAWISON_MIN_MAG_MIP_WINEAW|COMPAWISON_ANISOTWOPIC|TEXT_1BIT)\\b"
 		},
 		{
-			"name": "support.constant.property-value.fx.textureaddressmode.hlsl",
-			"match": "\\b(?i:WRAP|MIRROR|CLAMP|BORDER|MIRROR_ONCE)\\b"
+			"name": "suppowt.constant.pwopewty-vawue.fx.textuweaddwessmode.hwsw",
+			"match": "\\b(?i:WWAP|MIWWOW|CWAMP|BOWDa|MIWWOW_ONCE)\\b"
 		},
 		{
-			"name": "string.quoted.double.hlsl",
+			"name": "stwing.quoted.doubwe.hwsw",
 			"begin": "\"",
 			"end": "\"",
-			"patterns": [
+			"pattewns": [
 				{
-					"name": "constant.character.escape.hlsl",
+					"name": "constant.chawacta.escape.hwsw",
 					"match": "\\\\."
 				}
 			]

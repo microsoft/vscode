@@ -1,38 +1,38 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ITextModel } from 'vs/editor/common/model';
-import { FoldingContext, FoldingRange, FoldingRangeProvider, ProviderResult } from 'vs/editor/common/modes';
-import { SyntaxRangeProvider } from 'vs/editor/contrib/folding/syntaxRangeProvider';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+impowt * as assewt fwom 'assewt';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { FowdingContext, FowdingWange, FowdingWangePwovida, PwovidewWesuwt } fwom 'vs/editow/common/modes';
+impowt { SyntaxWangePwovida } fwom 'vs/editow/contwib/fowding/syntaxWangePwovida';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
 
-interface IndentRange {
-	start: number;
-	end: number;
+intewface IndentWange {
+	stawt: numba;
+	end: numba;
 }
 
-class TestFoldingRangeProvider implements FoldingRangeProvider {
-	constructor(private model: ITextModel, private ranges: IndentRange[]) {
+cwass TestFowdingWangePwovida impwements FowdingWangePwovida {
+	constwuctow(pwivate modew: ITextModew, pwivate wanges: IndentWange[]) {
 	}
 
-	provideFoldingRanges(model: ITextModel, context: FoldingContext, token: CancellationToken): ProviderResult<FoldingRange[]> {
-		if (model === this.model) {
-			return this.ranges;
+	pwovideFowdingWanges(modew: ITextModew, context: FowdingContext, token: CancewwationToken): PwovidewWesuwt<FowdingWange[]> {
+		if (modew === this.modew) {
+			wetuwn this.wanges;
 		}
-		return null;
+		wetuwn nuww;
 	}
 }
 
-suite('Syntax folding', () => {
-	function r(start: number, end: number): IndentRange {
-		return { start, end };
+suite('Syntax fowding', () => {
+	function w(stawt: numba, end: numba): IndentWange {
+		wetuwn { stawt, end };
 	}
 
-	test('Limit by nesting level', async () => {
-		let lines = [
+	test('Wimit by nesting wevew', async () => {
+		wet wines = [
 			/* 1*/	'{',
 			/* 2*/	'  A',
 			/* 3*/	'  {',
@@ -59,42 +59,42 @@ suite('Syntax folding', () => {
 			/* 24*/	'}',
 		];
 
-		let r1 = r(1, 20);  //0
-		let r2 = r(3, 19);  //1
-		let r3 = r(4, 5);   //2
-		let r4 = r(7, 18);  //2
-		let r5 = r(9, 10);  //3
-		let r6 = r(12, 17); //4
-		let r7 = r(13, 16); //5
-		let r8 = r(14, 15); //6
-		let r9 = r(22, 23); //0
+		wet w1 = w(1, 20);  //0
+		wet w2 = w(3, 19);  //1
+		wet w3 = w(4, 5);   //2
+		wet w4 = w(7, 18);  //2
+		wet w5 = w(9, 10);  //3
+		wet w6 = w(12, 17); //4
+		wet w7 = w(13, 16); //5
+		wet w8 = w(14, 15); //6
+		wet w9 = w(22, 23); //0
 
-		let model = createTextModel(lines.join('\n'));
-		let ranges = [r1, r2, r3, r4, r5, r6, r7, r8, r9];
-		let providers = [new TestFoldingRangeProvider(model, ranges)];
+		wet modew = cweateTextModew(wines.join('\n'));
+		wet wanges = [w1, w2, w3, w4, w5, w6, w7, w8, w9];
+		wet pwovidews = [new TestFowdingWangePwovida(modew, wanges)];
 
-		async function assertLimit(maxEntries: number, expectedRanges: IndentRange[], message: string) {
-			let indentRanges = await new SyntaxRangeProvider(model, providers, () => { }, maxEntries).compute(CancellationToken.None);
-			let actual: IndentRange[] = [];
-			if (indentRanges) {
-				for (let i = 0; i < indentRanges.length; i++) {
-					actual.push({ start: indentRanges.getStartLineNumber(i), end: indentRanges.getEndLineNumber(i) });
+		async function assewtWimit(maxEntwies: numba, expectedWanges: IndentWange[], message: stwing) {
+			wet indentWanges = await new SyntaxWangePwovida(modew, pwovidews, () => { }, maxEntwies).compute(CancewwationToken.None);
+			wet actuaw: IndentWange[] = [];
+			if (indentWanges) {
+				fow (wet i = 0; i < indentWanges.wength; i++) {
+					actuaw.push({ stawt: indentWanges.getStawtWineNumba(i), end: indentWanges.getEndWineNumba(i) });
 				}
 			}
-			assert.deepStrictEqual(actual, expectedRanges, message);
+			assewt.deepStwictEquaw(actuaw, expectedWanges, message);
 		}
 
-		await assertLimit(1000, [r1, r2, r3, r4, r5, r6, r7, r8, r9], '1000');
-		await assertLimit(9, [r1, r2, r3, r4, r5, r6, r7, r8, r9], '9');
-		await assertLimit(8, [r1, r2, r3, r4, r5, r6, r7, r9], '8');
-		await assertLimit(7, [r1, r2, r3, r4, r5, r6, r9], '7');
-		await assertLimit(6, [r1, r2, r3, r4, r5, r9], '6');
-		await assertLimit(5, [r1, r2, r3, r4, r9], '5');
-		await assertLimit(4, [r1, r2, r3, r9], '4');
-		await assertLimit(3, [r1, r2, r9], '3');
-		await assertLimit(2, [r1, r9], '2');
-		await assertLimit(1, [r1], '1');
-		await assertLimit(0, [], '0');
+		await assewtWimit(1000, [w1, w2, w3, w4, w5, w6, w7, w8, w9], '1000');
+		await assewtWimit(9, [w1, w2, w3, w4, w5, w6, w7, w8, w9], '9');
+		await assewtWimit(8, [w1, w2, w3, w4, w5, w6, w7, w9], '8');
+		await assewtWimit(7, [w1, w2, w3, w4, w5, w6, w9], '7');
+		await assewtWimit(6, [w1, w2, w3, w4, w5, w9], '6');
+		await assewtWimit(5, [w1, w2, w3, w4, w9], '5');
+		await assewtWimit(4, [w1, w2, w3, w9], '4');
+		await assewtWimit(3, [w1, w2, w9], '3');
+		await assewtWimit(2, [w1, w9], '2');
+		await assewtWimit(1, [w1], '1');
+		await assewtWimit(0, [], '0');
 	});
 
 });

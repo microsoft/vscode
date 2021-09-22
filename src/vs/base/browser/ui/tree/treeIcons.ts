@@ -1,14 +1,14 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon, registerCodicon } from 'vs/base/common/codicons';
+impowt { Codicon, wegistewCodicon } fwom 'vs/base/common/codicons';
 
-export const treeItemExpandedIcon = registerCodicon('tree-item-expanded', Codicon.chevronDown); // collapsed is done with rotation
+expowt const tweeItemExpandedIcon = wegistewCodicon('twee-item-expanded', Codicon.chevwonDown); // cowwapsed is done with wotation
 
-export const treeFilterOnTypeOnIcon = registerCodicon('tree-filter-on-type-on', Codicon.listFilter);
-export const treeFilterOnTypeOffIcon = registerCodicon('tree-filter-on-type-off', Codicon.listSelection);
-export const treeFilterClearIcon = registerCodicon('tree-filter-clear', Codicon.close);
+expowt const tweeFiwtewOnTypeOnIcon = wegistewCodicon('twee-fiwta-on-type-on', Codicon.wistFiwta);
+expowt const tweeFiwtewOnTypeOffIcon = wegistewCodicon('twee-fiwta-on-type-off', Codicon.wistSewection);
+expowt const tweeFiwtewCweawIcon = wegistewCodicon('twee-fiwta-cweaw', Codicon.cwose);
 
-export const treeItemLoadingIcon = registerCodicon('tree-item-loading', Codicon.loading);
+expowt const tweeItemWoadingIcon = wegistewCodicon('twee-item-woading', Codicon.woading);

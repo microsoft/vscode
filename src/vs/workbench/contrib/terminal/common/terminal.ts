@@ -1,635 +1,635 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
-import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocationString, IProcessProperty, TerminalShellType, TitleEventSource, ProcessPropertyType } from 'vs/platform/terminal/common/terminal';
-import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
-import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
+impowt * as nws fwom 'vs/nws';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IPwocessEnviwonment, OpewatingSystem } fwom 'vs/base/common/pwatfowm';
+impowt { IExtensionPointDescwiptow } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
+impowt { IPwocessDataEvent, IPwocessWeadyEvent, IShewwWaunchConfig, ITewminawChiwdPwocess, ITewminawDimensions, ITewminawDimensionsOvewwide, ITewminawWaunchEwwow, ITewminawPwofiwe, ITewminawPwofiweObject, ITewminawsWayoutInfo, ITewminawsWayoutInfoById, TewminawIcon, TewminawWocationStwing, IPwocessPwopewty, TewminawShewwType, TitweEventSouwce, PwocessPwopewtyType } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { IEnviwonmentVawiabweInfo } fwom 'vs/wowkbench/contwib/tewminaw/common/enviwonmentVawiabwe';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IPwocessDetaiws } fwom 'vs/pwatfowm/tewminaw/common/tewminawPwocess';
 
-export const TERMINAL_VIEW_ID = 'terminal';
+expowt const TEWMINAW_VIEW_ID = 'tewminaw';
 
-export const TERMINAL_CREATION_COMMANDS = ['workbench.action.terminal.toggleTerminal', 'workbench.action.terminal.new', 'workbench.action.togglePanel', 'workbench.action.terminal.focus'];
+expowt const TEWMINAW_CWEATION_COMMANDS = ['wowkbench.action.tewminaw.toggweTewminaw', 'wowkbench.action.tewminaw.new', 'wowkbench.action.toggwePanew', 'wowkbench.action.tewminaw.focus'];
 
-export const TerminalCursorStyle = {
-	BLOCK: 'block',
-	LINE: 'line',
-	UNDERLINE: 'underline'
+expowt const TewminawCuwsowStywe = {
+	BWOCK: 'bwock',
+	WINE: 'wine',
+	UNDEWWINE: 'undewwine'
 };
 
-export const TERMINAL_CONFIG_SECTION = 'terminal.integrated';
+expowt const TEWMINAW_CONFIG_SECTION = 'tewminaw.integwated';
 
-export const TERMINAL_ACTION_CATEGORY = nls.localize('terminalCategory', "Terminal");
+expowt const TEWMINAW_ACTION_CATEGOWY = nws.wocawize('tewminawCategowy', "Tewminaw");
 
-export const DEFAULT_LETTER_SPACING = 0;
-export const MINIMUM_LETTER_SPACING = -5;
-export const DEFAULT_LINE_HEIGHT = 1;
+expowt const DEFAUWT_WETTEW_SPACING = 0;
+expowt const MINIMUM_WETTEW_SPACING = -5;
+expowt const DEFAUWT_WINE_HEIGHT = 1;
 
-export const MINIMUM_FONT_WEIGHT = 1;
-export const MAXIMUM_FONT_WEIGHT = 1000;
-export const DEFAULT_FONT_WEIGHT = 'normal';
-export const DEFAULT_BOLD_FONT_WEIGHT = 'bold';
-export const SUGGESTIONS_FONT_WEIGHT = ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
+expowt const MINIMUM_FONT_WEIGHT = 1;
+expowt const MAXIMUM_FONT_WEIGHT = 1000;
+expowt const DEFAUWT_FONT_WEIGHT = 'nowmaw';
+expowt const DEFAUWT_BOWD_FONT_WEIGHT = 'bowd';
+expowt const SUGGESTIONS_FONT_WEIGHT = ['nowmaw', 'bowd', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
 
-export const ITerminalProfileResolverService = createDecorator<ITerminalProfileResolverService>('terminalProfileResolverService');
-export interface ITerminalProfileResolverService {
-	readonly _serviceBrand: undefined;
+expowt const ITewminawPwofiweWesowvewSewvice = cweateDecowatow<ITewminawPwofiweWesowvewSewvice>('tewminawPwofiweWesowvewSewvice');
+expowt intewface ITewminawPwofiweWesowvewSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	readonly defaultProfileName: string | undefined;
-
-	/**
-	 * Resolves the icon of a shell launch config if this will use the default profile
-	 */
-	resolveIcon(shellLaunchConfig: IShellLaunchConfig, os: OperatingSystem): void;
-	resolveShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void>;
-	getDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile>;
-	getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string>;
-	getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]>;
-	getEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment>;
-	createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<ITerminalProfile | string>;
-}
-
-export interface IShellLaunchConfigResolveOptions {
-	remoteAuthority: string | undefined;
-	os: OperatingSystem;
-	allowAutomationShell?: boolean;
-}
-
-export interface IOffProcessTerminalService {
-	readonly _serviceBrand: undefined;
+	weadonwy defauwtPwofiweName: stwing | undefined;
 
 	/**
-	 * Fired when the ptyHost process becomes non-responsive, this should disable stdin for all
-	 * terminals using this pty host connection and mark them as disconnected.
+	 * Wesowves the icon of a sheww waunch config if this wiww use the defauwt pwofiwe
 	 */
-	onPtyHostUnresponsive: Event<void>;
+	wesowveIcon(shewwWaunchConfig: IShewwWaunchConfig, os: OpewatingSystem): void;
+	wesowveShewwWaunchConfig(shewwWaunchConfig: IShewwWaunchConfig, options: IShewwWaunchConfigWesowveOptions): Pwomise<void>;
+	getDefauwtPwofiwe(options: IShewwWaunchConfigWesowveOptions): Pwomise<ITewminawPwofiwe>;
+	getDefauwtSheww(options: IShewwWaunchConfigWesowveOptions): Pwomise<stwing>;
+	getDefauwtShewwAwgs(options: IShewwWaunchConfigWesowveOptions): Pwomise<stwing | stwing[]>;
+	getEnviwonment(wemoteAuthowity: stwing | undefined): Pwomise<IPwocessEnviwonment>;
+	cweatePwofiweFwomShewwAndShewwAwgs(sheww?: unknown, shewwAwgs?: unknown): Pwomise<ITewminawPwofiwe | stwing>;
+}
+
+expowt intewface IShewwWaunchConfigWesowveOptions {
+	wemoteAuthowity: stwing | undefined;
+	os: OpewatingSystem;
+	awwowAutomationSheww?: boowean;
+}
+
+expowt intewface IOffPwocessTewminawSewvice {
+	weadonwy _sewviceBwand: undefined;
+
 	/**
-	 * Fired when the ptyHost process becomes responsive after being non-responsive. Allowing
-	 * previously disconnected terminals to reconnect.
+	 * Fiwed when the ptyHost pwocess becomes non-wesponsive, this shouwd disabwe stdin fow aww
+	 * tewminaws using this pty host connection and mawk them as disconnected.
 	 */
-	onPtyHostResponsive: Event<void>;
+	onPtyHostUnwesponsive: Event<void>;
 	/**
-	 * Fired when the ptyHost has been restarted, this is used as a signal for listening terminals
-	 * that its pty has been lost and will remain disconnected.
+	 * Fiwed when the ptyHost pwocess becomes wesponsive afta being non-wesponsive. Awwowing
+	 * pweviouswy disconnected tewminaws to weconnect.
 	 */
-	onPtyHostRestart: Event<void>;
+	onPtyHostWesponsive: Event<void>;
+	/**
+	 * Fiwed when the ptyHost has been westawted, this is used as a signaw fow wistening tewminaws
+	 * that its pty has been wost and wiww wemain disconnected.
+	 */
+	onPtyHostWestawt: Event<void>;
 
-	onDidRequestDetach: Event<{ requestId: number, workspaceId: string, instanceId: number }>;
+	onDidWequestDetach: Event<{ wequestId: numba, wowkspaceId: stwing, instanceId: numba }>;
 
-	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
-	listProcesses(): Promise<IProcessDetails[]>;
-	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
-	getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
-	getWslPath(original: string): Promise<string>;
-	getEnvironment(): Promise<IProcessEnvironment>;
-	getShellEnvironment(): Promise<IProcessEnvironment | undefined>;
-	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
-	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void>;
-	updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void>;
-	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
-	reduceConnectionGraceTime(): Promise<void>;
-	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined>;
-	acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void>;
-	persistTerminalState(): Promise<void>;
+	attachToPwocess(id: numba): Pwomise<ITewminawChiwdPwocess | undefined>;
+	wistPwocesses(): Pwomise<IPwocessDetaiws[]>;
+	getDefauwtSystemSheww(osOvewwide?: OpewatingSystem): Pwomise<stwing>;
+	getPwofiwes(pwofiwes: unknown, defauwtPwofiwe: unknown, incwudeDetectedPwofiwes?: boowean): Pwomise<ITewminawPwofiwe[]>;
+	getWswPath(owiginaw: stwing): Pwomise<stwing>;
+	getEnviwonment(): Pwomise<IPwocessEnviwonment>;
+	getShewwEnviwonment(): Pwomise<IPwocessEnviwonment | undefined>;
+	setTewminawWayoutInfo(wayoutInfo?: ITewminawsWayoutInfoById): Pwomise<void>;
+	updateTitwe(id: numba, titwe: stwing, titweSouwce: TitweEventSouwce): Pwomise<void>;
+	updateIcon(id: numba, icon: TewminawIcon, cowow?: stwing): Pwomise<void>;
+	getTewminawWayoutInfo(): Pwomise<ITewminawsWayoutInfo | undefined>;
+	weduceConnectionGwaceTime(): Pwomise<void>;
+	wequestDetachInstance(wowkspaceId: stwing, instanceId: numba): Pwomise<IPwocessDetaiws | undefined>;
+	acceptDetachInstanceWepwy(wequestId: numba, pewsistentPwocessId?: numba): Pwomise<void>;
+	pewsistTewminawState(): Pwomise<void>;
 }
 
-export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');
-export interface ILocalTerminalService extends IOffProcessTerminalService {
-	createProcess(
-		shellLaunchConfig: IShellLaunchConfig,
-		cwd: string,
-		cols: number,
-		rows: number,
-		unicodeVersion: '6' | '11',
-		env: IProcessEnvironment,
-		windowsEnableConpty: boolean,
-		shouldPersist: boolean
-	): Promise<ITerminalChildProcess>;
+expowt const IWocawTewminawSewvice = cweateDecowatow<IWocawTewminawSewvice>('wocawTewminawSewvice');
+expowt intewface IWocawTewminawSewvice extends IOffPwocessTewminawSewvice {
+	cweatePwocess(
+		shewwWaunchConfig: IShewwWaunchConfig,
+		cwd: stwing,
+		cows: numba,
+		wows: numba,
+		unicodeVewsion: '6' | '11',
+		env: IPwocessEnviwonment,
+		windowsEnabweConpty: boowean,
+		shouwdPewsist: boowean
+	): Pwomise<ITewminawChiwdPwocess>;
 }
 
-export type FontWeight = 'normal' | 'bold' | number;
+expowt type FontWeight = 'nowmaw' | 'bowd' | numba;
 
-export interface ITerminalProfiles {
-	linux: { [key: string]: ITerminalProfileObject };
-	osx: { [key: string]: ITerminalProfileObject };
-	windows: { [key: string]: ITerminalProfileObject };
+expowt intewface ITewminawPwofiwes {
+	winux: { [key: stwing]: ITewminawPwofiweObject };
+	osx: { [key: stwing]: ITewminawPwofiweObject };
+	windows: { [key: stwing]: ITewminawPwofiweObject };
 }
 
-export type ConfirmOnKill = 'never' | 'always' | 'editor' | 'panel';
-export type ConfirmOnExit = 'never' | 'always' | 'hasChildProcesses';
+expowt type ConfiwmOnKiww = 'neva' | 'awways' | 'editow' | 'panew';
+expowt type ConfiwmOnExit = 'neva' | 'awways' | 'hasChiwdPwocesses';
 
-export interface ITerminalConfiguration {
-	shell: {
-		linux: string | null;
-		osx: string | null;
-		windows: string | null;
+expowt intewface ITewminawConfiguwation {
+	sheww: {
+		winux: stwing | nuww;
+		osx: stwing | nuww;
+		windows: stwing | nuww;
 	};
-	automationShell: {
-		linux: string | null;
-		osx: string | null;
-		windows: string | null;
+	automationSheww: {
+		winux: stwing | nuww;
+		osx: stwing | nuww;
+		windows: stwing | nuww;
 	};
-	shellArgs: {
-		linux: string[];
-		osx: string[];
-		windows: string[];
+	shewwAwgs: {
+		winux: stwing[];
+		osx: stwing[];
+		windows: stwing[];
 	};
-	profiles: ITerminalProfiles;
-	defaultProfile: {
-		linux: string | null;
-		osx: string | null;
-		windows: string | null;
+	pwofiwes: ITewminawPwofiwes;
+	defauwtPwofiwe: {
+		winux: stwing | nuww;
+		osx: stwing | nuww;
+		windows: stwing | nuww;
 	};
-	useWslProfiles: boolean;
-	altClickMovesCursor: boolean;
-	macOptionIsMeta: boolean;
-	macOptionClickForcesSelection: boolean;
-	gpuAcceleration: 'auto' | 'on' | 'canvas' | 'off';
-	rightClickBehavior: 'default' | 'copyPaste' | 'paste' | 'selectWord';
-	cursorBlinking: boolean;
-	cursorStyle: 'block' | 'underline' | 'line';
-	cursorWidth: number;
-	drawBoldTextInBrightColors: boolean;
-	fastScrollSensitivity: number;
-	fontFamily: string;
+	useWswPwofiwes: boowean;
+	awtCwickMovesCuwsow: boowean;
+	macOptionIsMeta: boowean;
+	macOptionCwickFowcesSewection: boowean;
+	gpuAccewewation: 'auto' | 'on' | 'canvas' | 'off';
+	wightCwickBehaviow: 'defauwt' | 'copyPaste' | 'paste' | 'sewectWowd';
+	cuwsowBwinking: boowean;
+	cuwsowStywe: 'bwock' | 'undewwine' | 'wine';
+	cuwsowWidth: numba;
+	dwawBowdTextInBwightCowows: boowean;
+	fastScwowwSensitivity: numba;
+	fontFamiwy: stwing;
 	fontWeight: FontWeight;
-	fontWeightBold: FontWeight;
-	minimumContrastRatio: number;
-	mouseWheelScrollSensitivity: number;
-	sendKeybindingsToShell: boolean;
-	// fontLigatures: boolean;
-	fontSize: number;
-	letterSpacing: number;
-	lineHeight: number;
-	detectLocale: 'auto' | 'off' | 'on';
-	scrollback: number;
-	commandsToSkipShell: string[];
-	allowChords: boolean;
-	allowMnemonics: boolean;
-	cwd: string;
-	confirmOnExit: ConfirmOnExit;
-	confirmOnKill: ConfirmOnKill;
-	enableBell: boolean;
+	fontWeightBowd: FontWeight;
+	minimumContwastWatio: numba;
+	mouseWheewScwowwSensitivity: numba;
+	sendKeybindingsToSheww: boowean;
+	// fontWigatuwes: boowean;
+	fontSize: numba;
+	wettewSpacing: numba;
+	wineHeight: numba;
+	detectWocawe: 'auto' | 'off' | 'on';
+	scwowwback: numba;
+	commandsToSkipSheww: stwing[];
+	awwowChowds: boowean;
+	awwowMnemonics: boowean;
+	cwd: stwing;
+	confiwmOnExit: ConfiwmOnExit;
+	confiwmOnKiww: ConfiwmOnKiww;
+	enabweBeww: boowean;
 	env: {
-		linux: { [key: string]: string };
-		osx: { [key: string]: string };
-		windows: { [key: string]: string };
+		winux: { [key: stwing]: stwing };
+		osx: { [key: stwing]: stwing };
+		windows: { [key: stwing]: stwing };
 	};
-	environmentChangesIndicator: 'off' | 'on' | 'warnonly';
-	environmentChangesRelaunch: boolean;
-	showExitAlert: boolean;
-	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
-	windowsEnableConpty: boolean;
-	wordSeparators: string;
-	enableFileLinks: boolean;
-	unicodeVersion: '6' | '11';
-	experimentalLinkProvider: boolean;
-	localEchoLatencyThreshold: number;
-	localEchoExcludePrograms: ReadonlyArray<string>;
-	localEchoStyle: 'bold' | 'dim' | 'italic' | 'underlined' | 'inverted' | string;
-	enablePersistentSessions: boolean;
+	enviwonmentChangesIndicatow: 'off' | 'on' | 'wawnonwy';
+	enviwonmentChangesWewaunch: boowean;
+	showExitAwewt: boowean;
+	spwitCwd: 'wowkspaceWoot' | 'initiaw' | 'inhewited';
+	windowsEnabweConpty: boowean;
+	wowdSepawatows: stwing;
+	enabweFiweWinks: boowean;
+	unicodeVewsion: '6' | '11';
+	expewimentawWinkPwovida: boowean;
+	wocawEchoWatencyThweshowd: numba;
+	wocawEchoExcwudePwogwams: WeadonwyAwway<stwing>;
+	wocawEchoStywe: 'bowd' | 'dim' | 'itawic' | 'undewwined' | 'invewted' | stwing;
+	enabwePewsistentSessions: boowean;
 	tabs: {
-		enabled: boolean;
-		hideCondition: 'never' | 'singleTerminal' | 'singleGroup';
-		showActiveTerminal: 'always' | 'singleTerminal' | 'singleTerminalOrNarrow' | 'singleGroup' | 'never';
-		location: 'left' | 'right';
-		focusMode: 'singleClick' | 'doubleClick';
-		title: string;
-		description: string;
-		separator: string;
+		enabwed: boowean;
+		hideCondition: 'neva' | 'singweTewminaw' | 'singweGwoup';
+		showActiveTewminaw: 'awways' | 'singweTewminaw' | 'singweTewminawOwNawwow' | 'singweGwoup' | 'neva';
+		wocation: 'weft' | 'wight';
+		focusMode: 'singweCwick' | 'doubweCwick';
+		titwe: stwing;
+		descwiption: stwing;
+		sepawatow: stwing;
 	},
-	bellDuration: number;
-	defaultLocation: TerminalLocationString;
-	customGlyphs: boolean;
-	persistentSessionReviveProcess: 'onExit' | 'onExitAndWindowClose' | 'never';
+	bewwDuwation: numba;
+	defauwtWocation: TewminawWocationStwing;
+	customGwyphs: boowean;
+	pewsistentSessionWevivePwocess: 'onExit' | 'onExitAndWindowCwose' | 'neva';
 }
 
-export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
+expowt const DEFAUWT_WOCAW_ECHO_EXCWUDE: WeadonwyAwway<stwing> = ['vim', 'vi', 'nano', 'tmux'];
 
-export interface ITerminalConfigHelper {
-	config: ITerminalConfiguration;
+expowt intewface ITewminawConfigHewpa {
+	config: ITewminawConfiguwation;
 
-	configFontIsMonospace(): boolean;
-	getFont(): ITerminalFont;
-	showRecommendations(shellLaunchConfig: IShellLaunchConfig): void;
+	configFontIsMonospace(): boowean;
+	getFont(): ITewminawFont;
+	showWecommendations(shewwWaunchConfig: IShewwWaunchConfig): void;
 }
 
-export interface ITerminalFont {
-	fontFamily: string;
-	fontSize: number;
-	letterSpacing: number;
-	lineHeight: number;
-	charWidth?: number;
-	charHeight?: number;
+expowt intewface ITewminawFont {
+	fontFamiwy: stwing;
+	fontSize: numba;
+	wettewSpacing: numba;
+	wineHeight: numba;
+	chawWidth?: numba;
+	chawHeight?: numba;
 }
 
-export interface IRemoteTerminalAttachTarget {
-	id: number;
-	pid: number;
-	title: string;
-	titleSource: TitleEventSource;
-	cwd: string;
-	workspaceId: string;
-	workspaceName: string;
-	isOrphan: boolean;
-	icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } } | undefined;
-	color: string | undefined;
+expowt intewface IWemoteTewminawAttachTawget {
+	id: numba;
+	pid: numba;
+	titwe: stwing;
+	titweSouwce: TitweEventSouwce;
+	cwd: stwing;
+	wowkspaceId: stwing;
+	wowkspaceName: stwing;
+	isOwphan: boowean;
+	icon: UWI | { wight: UWI; dawk: UWI } | { id: stwing, cowow?: { id: stwing } } | undefined;
+	cowow: stwing | undefined;
 }
 
-export interface ICommandTracker {
-	scrollToPreviousCommand(): void;
-	scrollToNextCommand(): void;
-	selectToPreviousCommand(): void;
-	selectToNextCommand(): void;
-	selectToPreviousLine(): void;
-	selectToNextLine(): void;
+expowt intewface ICommandTwacka {
+	scwowwToPweviousCommand(): void;
+	scwowwToNextCommand(): void;
+	sewectToPweviousCommand(): void;
+	sewectToNextCommand(): void;
+	sewectToPweviousWine(): void;
+	sewectToNextWine(): void;
 }
 
-export interface INavigationMode {
+expowt intewface INavigationMode {
 	exitNavigationMode(): void;
-	focusPreviousLine(): void;
-	focusNextLine(): void;
+	focusPweviousWine(): void;
+	focusNextWine(): void;
 }
 
-export interface IBeforeProcessDataEvent {
+expowt intewface IBefowePwocessDataEvent {
 	/**
-	 * The data of the event, this can be modified by the event listener to change what gets sent
-	 * to the terminal.
+	 * The data of the event, this can be modified by the event wistena to change what gets sent
+	 * to the tewminaw.
 	 */
-	data: string;
+	data: stwing;
 }
 
-export interface IDefaultShellAndArgsRequest {
-	useAutomationShell: boolean;
-	callback: (shell: string, args: string[] | string | undefined) => void;
+expowt intewface IDefauwtShewwAndAwgsWequest {
+	useAutomationSheww: boowean;
+	cawwback: (sheww: stwing, awgs: stwing[] | stwing | undefined) => void;
 }
 
-export interface ITerminalProcessManager extends IDisposable {
-	readonly processState: ProcessState;
-	readonly ptyProcessReady: Promise<void>;
-	readonly shellProcessId: number | undefined;
-	readonly remoteAuthority: string | undefined;
-	readonly os: OperatingSystem | undefined;
-	readonly userHome: string | undefined;
-	readonly environmentVariableInfo: IEnvironmentVariableInfo | undefined;
-	readonly persistentProcessId: number | undefined;
-	readonly shouldPersist: boolean;
-	readonly isDisconnected: boolean;
-	readonly hasWrittenData: boolean;
-	readonly hasChildProcesses: boolean;
+expowt intewface ITewminawPwocessManaga extends IDisposabwe {
+	weadonwy pwocessState: PwocessState;
+	weadonwy ptyPwocessWeady: Pwomise<void>;
+	weadonwy shewwPwocessId: numba | undefined;
+	weadonwy wemoteAuthowity: stwing | undefined;
+	weadonwy os: OpewatingSystem | undefined;
+	weadonwy usewHome: stwing | undefined;
+	weadonwy enviwonmentVawiabweInfo: IEnviwonmentVawiabweInfo | undefined;
+	weadonwy pewsistentPwocessId: numba | undefined;
+	weadonwy shouwdPewsist: boowean;
+	weadonwy isDisconnected: boowean;
+	weadonwy hasWwittenData: boowean;
+	weadonwy hasChiwdPwocesses: boowean;
 
-	readonly onPtyDisconnect: Event<void>;
-	readonly onPtyReconnect: Event<void>;
+	weadonwy onPtyDisconnect: Event<void>;
+	weadonwy onPtyWeconnect: Event<void>;
 
-	readonly onProcessReady: Event<IProcessReadyEvent>;
-	readonly onBeforeProcessData: Event<IBeforeProcessDataEvent>;
-	readonly onProcessData: Event<IProcessDataEvent>;
-	readonly onProcessTitle: Event<string>;
-	readonly onProcessShellTypeChanged: Event<TerminalShellType>;
-	readonly onProcessExit: Event<number | undefined>;
-	readonly onProcessOverrideDimensions: Event<ITerminalDimensionsOverride | undefined>;
-	readonly onProcessResolvedShellLaunchConfig: Event<IShellLaunchConfig>;
-	readonly onProcessDidChangeHasChildProcesses: Event<boolean>;
-	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo>;
-	readonly onDidChangeProperty: Event<IProcessProperty<any>>;
+	weadonwy onPwocessWeady: Event<IPwocessWeadyEvent>;
+	weadonwy onBefowePwocessData: Event<IBefowePwocessDataEvent>;
+	weadonwy onPwocessData: Event<IPwocessDataEvent>;
+	weadonwy onPwocessTitwe: Event<stwing>;
+	weadonwy onPwocessShewwTypeChanged: Event<TewminawShewwType>;
+	weadonwy onPwocessExit: Event<numba | undefined>;
+	weadonwy onPwocessOvewwideDimensions: Event<ITewminawDimensionsOvewwide | undefined>;
+	weadonwy onPwocessWesowvedShewwWaunchConfig: Event<IShewwWaunchConfig>;
+	weadonwy onPwocessDidChangeHasChiwdPwocesses: Event<boowean>;
+	weadonwy onEnviwonmentVawiabweInfoChanged: Event<IEnviwonmentVawiabweInfo>;
+	weadonwy onDidChangePwopewty: Event<IPwocessPwopewty<any>>;
 
-	dispose(immediate?: boolean): void;
-	detachFromProcess(): Promise<void>;
-	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<ITerminalLaunchError | undefined>;
-	relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean, reset: boolean): Promise<ITerminalLaunchError | undefined>;
-	write(data: string): Promise<void>;
-	setDimensions(cols: number, rows: number): Promise<void>;
-	setDimensions(cols: number, rows: number, sync: false): Promise<void>;
-	setDimensions(cols: number, rows: number, sync: true): void;
-	setUnicodeVersion(version: '6' | '11'): Promise<void>;
-	acknowledgeDataEvent(charCount: number): void;
-	processBinary(data: string): void;
+	dispose(immediate?: boowean): void;
+	detachFwomPwocess(): Pwomise<void>;
+	cweatePwocess(shewwWaunchConfig: IShewwWaunchConfig, cows: numba, wows: numba, isScweenWeadewModeEnabwed: boowean): Pwomise<ITewminawWaunchEwwow | undefined>;
+	wewaunch(shewwWaunchConfig: IShewwWaunchConfig, cows: numba, wows: numba, isScweenWeadewModeEnabwed: boowean, weset: boowean): Pwomise<ITewminawWaunchEwwow | undefined>;
+	wwite(data: stwing): Pwomise<void>;
+	setDimensions(cows: numba, wows: numba): Pwomise<void>;
+	setDimensions(cows: numba, wows: numba, sync: fawse): Pwomise<void>;
+	setDimensions(cows: numba, wows: numba, sync: twue): void;
+	setUnicodeVewsion(vewsion: '6' | '11'): Pwomise<void>;
+	acknowwedgeDataEvent(chawCount: numba): void;
+	pwocessBinawy(data: stwing): void;
 
-	getInitialCwd(): Promise<string>;
-	getCwd(): Promise<string>;
-	getLatency(): Promise<number>;
-	refreshProperty(property: ProcessPropertyType): any;
+	getInitiawCwd(): Pwomise<stwing>;
+	getCwd(): Pwomise<stwing>;
+	getWatency(): Pwomise<numba>;
+	wefweshPwopewty(pwopewty: PwocessPwopewtyType): any;
 }
 
-export const enum ProcessState {
-	// The process has not been initialized yet.
-	Uninitialized = 1,
-	// The process is currently launching, the process is marked as launching
-	// for a short duration after being created and is helpful to indicate
-	// whether the process died as a result of bad shell and args.
-	Launching = 2,
-	// The process is running normally.
-	Running = 3,
-	// The process was killed during launch, likely as a result of bad shell and
-	// args.
-	KilledDuringLaunch = 4,
-	// The process was killed by the user (the event originated from VS Code).
-	KilledByUser = 5,
-	// The process was killed by itself, for example the shell crashed or `exit`
-	// was run.
-	KilledByProcess = 6
+expowt const enum PwocessState {
+	// The pwocess has not been initiawized yet.
+	Uninitiawized = 1,
+	// The pwocess is cuwwentwy waunching, the pwocess is mawked as waunching
+	// fow a showt duwation afta being cweated and is hewpfuw to indicate
+	// whetha the pwocess died as a wesuwt of bad sheww and awgs.
+	Waunching = 2,
+	// The pwocess is wunning nowmawwy.
+	Wunning = 3,
+	// The pwocess was kiwwed duwing waunch, wikewy as a wesuwt of bad sheww and
+	// awgs.
+	KiwwedDuwingWaunch = 4,
+	// The pwocess was kiwwed by the usa (the event owiginated fwom VS Code).
+	KiwwedByUsa = 5,
+	// The pwocess was kiwwed by itsewf, fow exampwe the sheww cwashed ow `exit`
+	// was wun.
+	KiwwedByPwocess = 6
 }
 
-export interface ITerminalProcessExtHostProxy extends IDisposable {
-	readonly instanceId: number;
+expowt intewface ITewminawPwocessExtHostPwoxy extends IDisposabwe {
+	weadonwy instanceId: numba;
 
-	emitData(data: string): void;
-	emitTitle(title: string): void;
-	emitReady(pid: number, cwd: string): void;
-	emitExit(exitCode: number | undefined): void;
-	emitOverrideDimensions(dimensions: ITerminalDimensions | undefined): void;
-	emitResolvedShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void;
-	emitInitialCwd(initialCwd: string): void;
-	emitCwd(cwd: string): void;
-	emitLatency(latency: number): void;
+	emitData(data: stwing): void;
+	emitTitwe(titwe: stwing): void;
+	emitWeady(pid: numba, cwd: stwing): void;
+	emitExit(exitCode: numba | undefined): void;
+	emitOvewwideDimensions(dimensions: ITewminawDimensions | undefined): void;
+	emitWesowvedShewwWaunchConfig(shewwWaunchConfig: IShewwWaunchConfig): void;
+	emitInitiawCwd(initiawCwd: stwing): void;
+	emitCwd(cwd: stwing): void;
+	emitWatency(watency: numba): void;
 
-	onInput: Event<string>;
-	onBinary: Event<string>;
-	onResize: Event<{ cols: number, rows: number }>;
-	onAcknowledgeDataEvent: Event<number>;
-	onShutdown: Event<boolean>;
-	onRequestInitialCwd: Event<void>;
-	onRequestCwd: Event<void>;
-	onRequestLatency: Event<void>;
+	onInput: Event<stwing>;
+	onBinawy: Event<stwing>;
+	onWesize: Event<{ cows: numba, wows: numba }>;
+	onAcknowwedgeDataEvent: Event<numba>;
+	onShutdown: Event<boowean>;
+	onWequestInitiawCwd: Event<void>;
+	onWequestCwd: Event<void>;
+	onWequestWatency: Event<void>;
 }
 
-export interface IStartExtensionTerminalRequest {
-	proxy: ITerminalProcessExtHostProxy;
-	cols: number;
-	rows: number;
-	callback: (error: ITerminalLaunchError | undefined) => void;
+expowt intewface IStawtExtensionTewminawWequest {
+	pwoxy: ITewminawPwocessExtHostPwoxy;
+	cows: numba;
+	wows: numba;
+	cawwback: (ewwow: ITewminawWaunchEwwow | undefined) => void;
 }
 
-export interface IDefaultShellAndArgsRequest {
-	useAutomationShell: boolean;
-	callback: (shell: string, args: string[] | string | undefined) => void;
+expowt intewface IDefauwtShewwAndAwgsWequest {
+	useAutomationSheww: boowean;
+	cawwback: (sheww: stwing, awgs: stwing[] | stwing | undefined) => void;
 }
 
-export const QUICK_LAUNCH_PROFILE_CHOICE = 'workbench.action.terminal.profile.choice';
+expowt const QUICK_WAUNCH_PWOFIWE_CHOICE = 'wowkbench.action.tewminaw.pwofiwe.choice';
 
-export const enum TerminalCommandId {
-	FindNext = 'workbench.action.terminal.findNext',
-	FindPrevious = 'workbench.action.terminal.findPrevious',
-	Toggle = 'workbench.action.terminal.toggleTerminal',
-	Kill = 'workbench.action.terminal.kill',
-	KillEditor = 'workbench.action.terminal.killEditor',
-	KillInstance = 'workbench.action.terminal.killInstance',
-	QuickKill = 'workbench.action.terminal.quickKill',
-	ConfigureTerminalSettings = 'workbench.action.terminal.openSettings',
-	CopySelection = 'workbench.action.terminal.copySelection',
-	SelectAll = 'workbench.action.terminal.selectAll',
-	DeleteWordLeft = 'workbench.action.terminal.deleteWordLeft',
-	DeleteWordRight = 'workbench.action.terminal.deleteWordRight',
-	DeleteToLineStart = 'workbench.action.terminal.deleteToLineStart',
-	MoveToLineStart = 'workbench.action.terminal.moveToLineStart',
-	MoveToLineEnd = 'workbench.action.terminal.moveToLineEnd',
-	New = 'workbench.action.terminal.new',
-	NewWithCwd = 'workbench.action.terminal.newWithCwd',
-	NewLocal = 'workbench.action.terminal.newLocal',
-	NewInActiveWorkspace = 'workbench.action.terminal.newInActiveWorkspace',
-	NewWithProfile = 'workbench.action.terminal.newWithProfile',
-	Split = 'workbench.action.terminal.split',
-	SplitInstance = 'workbench.action.terminal.splitInstance',
-	SplitInActiveWorkspace = 'workbench.action.terminal.splitInActiveWorkspace',
-	Unsplit = 'workbench.action.terminal.unsplit',
-	UnsplitInstance = 'workbench.action.terminal.unsplitInstance',
-	JoinInstance = 'workbench.action.terminal.joinInstance',
-	Relaunch = 'workbench.action.terminal.relaunch',
-	FocusPreviousPane = 'workbench.action.terminal.focusPreviousPane',
-	ShowTabs = 'workbench.action.terminal.showTabs',
-	CreateTerminalEditor = 'workbench.action.createTerminalEditor',
-	CreateTerminalEditorSide = 'workbench.action.createTerminalEditorSide',
-	FocusTabs = 'workbench.action.terminal.focusTabs',
-	FocusNextPane = 'workbench.action.terminal.focusNextPane',
-	ResizePaneLeft = 'workbench.action.terminal.resizePaneLeft',
-	ResizePaneRight = 'workbench.action.terminal.resizePaneRight',
-	ResizePaneUp = 'workbench.action.terminal.resizePaneUp',
-	CreateWithProfileButton = 'workbench.action.terminal.createProfileButton',
-	ResizePaneDown = 'workbench.action.terminal.resizePaneDown',
-	Focus = 'workbench.action.terminal.focus',
-	FocusNext = 'workbench.action.terminal.focusNext',
-	FocusPrevious = 'workbench.action.terminal.focusPrevious',
-	Paste = 'workbench.action.terminal.paste',
-	PasteSelection = 'workbench.action.terminal.pasteSelection',
-	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell',
-	RunSelectedText = 'workbench.action.terminal.runSelectedText',
-	RunActiveFile = 'workbench.action.terminal.runActiveFile',
-	SwitchTerminal = 'workbench.action.terminal.switchTerminal',
-	ScrollDownLine = 'workbench.action.terminal.scrollDown',
-	ScrollDownPage = 'workbench.action.terminal.scrollDownPage',
-	ScrollToBottom = 'workbench.action.terminal.scrollToBottom',
-	ScrollUpLine = 'workbench.action.terminal.scrollUp',
-	ScrollUpPage = 'workbench.action.terminal.scrollUpPage',
-	ScrollToTop = 'workbench.action.terminal.scrollToTop',
-	Clear = 'workbench.action.terminal.clear',
-	ClearSelection = 'workbench.action.terminal.clearSelection',
-	ChangeIcon = 'workbench.action.terminal.changeIcon',
-	ChangeIconPanel = 'workbench.action.terminal.changeIconPanel',
-	ChangeIconInstance = 'workbench.action.terminal.changeIconInstance',
-	ChangeColor = 'workbench.action.terminal.changeColor',
-	ChangeColorPanel = 'workbench.action.terminal.changeColorPanel',
-	ChangeColorInstance = 'workbench.action.terminal.changeColorInstance',
-	Rename = 'workbench.action.terminal.rename',
-	RenamePanel = 'workbench.action.terminal.renamePanel',
-	RenameInstance = 'workbench.action.terminal.renameInstance',
-	RenameWithArgs = 'workbench.action.terminal.renameWithArg',
-	FindFocus = 'workbench.action.terminal.focusFind',
-	FindHide = 'workbench.action.terminal.hideFind',
-	QuickOpenTerm = 'workbench.action.quickOpenTerm',
-	ScrollToPreviousCommand = 'workbench.action.terminal.scrollToPreviousCommand',
-	ScrollToNextCommand = 'workbench.action.terminal.scrollToNextCommand',
-	SelectToPreviousCommand = 'workbench.action.terminal.selectToPreviousCommand',
-	SelectToNextCommand = 'workbench.action.terminal.selectToNextCommand',
-	SelectToPreviousLine = 'workbench.action.terminal.selectToPreviousLine',
-	SelectToNextLine = 'workbench.action.terminal.selectToNextLine',
-	ToggleEscapeSequenceLogging = 'toggleEscapeSequenceLogging',
-	SendSequence = 'workbench.action.terminal.sendSequence',
-	ToggleFindRegex = 'workbench.action.terminal.toggleFindRegex',
-	ToggleFindWholeWord = 'workbench.action.terminal.toggleFindWholeWord',
-	ToggleFindCaseSensitive = 'workbench.action.terminal.toggleFindCaseSensitive',
-	NavigationModeExit = 'workbench.action.terminal.navigationModeExit',
-	NavigationModeFocusNext = 'workbench.action.terminal.navigationModeFocusNext',
-	NavigationModeFocusPrevious = 'workbench.action.terminal.navigationModeFocusPrevious',
-	ShowEnvironmentInformation = 'workbench.action.terminal.showEnvironmentInformation',
-	SearchWorkspace = 'workbench.action.terminal.searchWorkspace',
-	AttachToSession = 'workbench.action.terminal.attachToSession',
-	DetachSession = 'workbench.action.terminal.detachSession',
-	MoveToEditor = 'workbench.action.terminal.moveToEditor',
-	MoveToEditorInstance = 'workbench.action.terminal.moveToEditorInstance',
-	MoveToTerminalPanel = 'workbench.action.terminal.moveToTerminalPanel',
+expowt const enum TewminawCommandId {
+	FindNext = 'wowkbench.action.tewminaw.findNext',
+	FindPwevious = 'wowkbench.action.tewminaw.findPwevious',
+	Toggwe = 'wowkbench.action.tewminaw.toggweTewminaw',
+	Kiww = 'wowkbench.action.tewminaw.kiww',
+	KiwwEditow = 'wowkbench.action.tewminaw.kiwwEditow',
+	KiwwInstance = 'wowkbench.action.tewminaw.kiwwInstance',
+	QuickKiww = 'wowkbench.action.tewminaw.quickKiww',
+	ConfiguweTewminawSettings = 'wowkbench.action.tewminaw.openSettings',
+	CopySewection = 'wowkbench.action.tewminaw.copySewection',
+	SewectAww = 'wowkbench.action.tewminaw.sewectAww',
+	DeweteWowdWeft = 'wowkbench.action.tewminaw.deweteWowdWeft',
+	DeweteWowdWight = 'wowkbench.action.tewminaw.deweteWowdWight',
+	DeweteToWineStawt = 'wowkbench.action.tewminaw.deweteToWineStawt',
+	MoveToWineStawt = 'wowkbench.action.tewminaw.moveToWineStawt',
+	MoveToWineEnd = 'wowkbench.action.tewminaw.moveToWineEnd',
+	New = 'wowkbench.action.tewminaw.new',
+	NewWithCwd = 'wowkbench.action.tewminaw.newWithCwd',
+	NewWocaw = 'wowkbench.action.tewminaw.newWocaw',
+	NewInActiveWowkspace = 'wowkbench.action.tewminaw.newInActiveWowkspace',
+	NewWithPwofiwe = 'wowkbench.action.tewminaw.newWithPwofiwe',
+	Spwit = 'wowkbench.action.tewminaw.spwit',
+	SpwitInstance = 'wowkbench.action.tewminaw.spwitInstance',
+	SpwitInActiveWowkspace = 'wowkbench.action.tewminaw.spwitInActiveWowkspace',
+	Unspwit = 'wowkbench.action.tewminaw.unspwit',
+	UnspwitInstance = 'wowkbench.action.tewminaw.unspwitInstance',
+	JoinInstance = 'wowkbench.action.tewminaw.joinInstance',
+	Wewaunch = 'wowkbench.action.tewminaw.wewaunch',
+	FocusPweviousPane = 'wowkbench.action.tewminaw.focusPweviousPane',
+	ShowTabs = 'wowkbench.action.tewminaw.showTabs',
+	CweateTewminawEditow = 'wowkbench.action.cweateTewminawEditow',
+	CweateTewminawEditowSide = 'wowkbench.action.cweateTewminawEditowSide',
+	FocusTabs = 'wowkbench.action.tewminaw.focusTabs',
+	FocusNextPane = 'wowkbench.action.tewminaw.focusNextPane',
+	WesizePaneWeft = 'wowkbench.action.tewminaw.wesizePaneWeft',
+	WesizePaneWight = 'wowkbench.action.tewminaw.wesizePaneWight',
+	WesizePaneUp = 'wowkbench.action.tewminaw.wesizePaneUp',
+	CweateWithPwofiweButton = 'wowkbench.action.tewminaw.cweatePwofiweButton',
+	WesizePaneDown = 'wowkbench.action.tewminaw.wesizePaneDown',
+	Focus = 'wowkbench.action.tewminaw.focus',
+	FocusNext = 'wowkbench.action.tewminaw.focusNext',
+	FocusPwevious = 'wowkbench.action.tewminaw.focusPwevious',
+	Paste = 'wowkbench.action.tewminaw.paste',
+	PasteSewection = 'wowkbench.action.tewminaw.pasteSewection',
+	SewectDefauwtPwofiwe = 'wowkbench.action.tewminaw.sewectDefauwtSheww',
+	WunSewectedText = 'wowkbench.action.tewminaw.wunSewectedText',
+	WunActiveFiwe = 'wowkbench.action.tewminaw.wunActiveFiwe',
+	SwitchTewminaw = 'wowkbench.action.tewminaw.switchTewminaw',
+	ScwowwDownWine = 'wowkbench.action.tewminaw.scwowwDown',
+	ScwowwDownPage = 'wowkbench.action.tewminaw.scwowwDownPage',
+	ScwowwToBottom = 'wowkbench.action.tewminaw.scwowwToBottom',
+	ScwowwUpWine = 'wowkbench.action.tewminaw.scwowwUp',
+	ScwowwUpPage = 'wowkbench.action.tewminaw.scwowwUpPage',
+	ScwowwToTop = 'wowkbench.action.tewminaw.scwowwToTop',
+	Cweaw = 'wowkbench.action.tewminaw.cweaw',
+	CweawSewection = 'wowkbench.action.tewminaw.cweawSewection',
+	ChangeIcon = 'wowkbench.action.tewminaw.changeIcon',
+	ChangeIconPanew = 'wowkbench.action.tewminaw.changeIconPanew',
+	ChangeIconInstance = 'wowkbench.action.tewminaw.changeIconInstance',
+	ChangeCowow = 'wowkbench.action.tewminaw.changeCowow',
+	ChangeCowowPanew = 'wowkbench.action.tewminaw.changeCowowPanew',
+	ChangeCowowInstance = 'wowkbench.action.tewminaw.changeCowowInstance',
+	Wename = 'wowkbench.action.tewminaw.wename',
+	WenamePanew = 'wowkbench.action.tewminaw.wenamePanew',
+	WenameInstance = 'wowkbench.action.tewminaw.wenameInstance',
+	WenameWithAwgs = 'wowkbench.action.tewminaw.wenameWithAwg',
+	FindFocus = 'wowkbench.action.tewminaw.focusFind',
+	FindHide = 'wowkbench.action.tewminaw.hideFind',
+	QuickOpenTewm = 'wowkbench.action.quickOpenTewm',
+	ScwowwToPweviousCommand = 'wowkbench.action.tewminaw.scwowwToPweviousCommand',
+	ScwowwToNextCommand = 'wowkbench.action.tewminaw.scwowwToNextCommand',
+	SewectToPweviousCommand = 'wowkbench.action.tewminaw.sewectToPweviousCommand',
+	SewectToNextCommand = 'wowkbench.action.tewminaw.sewectToNextCommand',
+	SewectToPweviousWine = 'wowkbench.action.tewminaw.sewectToPweviousWine',
+	SewectToNextWine = 'wowkbench.action.tewminaw.sewectToNextWine',
+	ToggweEscapeSequenceWogging = 'toggweEscapeSequenceWogging',
+	SendSequence = 'wowkbench.action.tewminaw.sendSequence',
+	ToggweFindWegex = 'wowkbench.action.tewminaw.toggweFindWegex',
+	ToggweFindWhoweWowd = 'wowkbench.action.tewminaw.toggweFindWhoweWowd',
+	ToggweFindCaseSensitive = 'wowkbench.action.tewminaw.toggweFindCaseSensitive',
+	NavigationModeExit = 'wowkbench.action.tewminaw.navigationModeExit',
+	NavigationModeFocusNext = 'wowkbench.action.tewminaw.navigationModeFocusNext',
+	NavigationModeFocusPwevious = 'wowkbench.action.tewminaw.navigationModeFocusPwevious',
+	ShowEnviwonmentInfowmation = 'wowkbench.action.tewminaw.showEnviwonmentInfowmation',
+	SeawchWowkspace = 'wowkbench.action.tewminaw.seawchWowkspace',
+	AttachToSession = 'wowkbench.action.tewminaw.attachToSession',
+	DetachSession = 'wowkbench.action.tewminaw.detachSession',
+	MoveToEditow = 'wowkbench.action.tewminaw.moveToEditow',
+	MoveToEditowInstance = 'wowkbench.action.tewminaw.moveToEditowInstance',
+	MoveToTewminawPanew = 'wowkbench.action.tewminaw.moveToTewminawPanew',
 }
 
-export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
-	TerminalCommandId.ClearSelection,
-	TerminalCommandId.Clear,
-	TerminalCommandId.CopySelection,
-	TerminalCommandId.DeleteToLineStart,
-	TerminalCommandId.DeleteWordLeft,
-	TerminalCommandId.DeleteWordRight,
-	TerminalCommandId.FindFocus,
-	TerminalCommandId.FindHide,
-	TerminalCommandId.FindNext,
-	TerminalCommandId.FindPrevious,
-	TerminalCommandId.ToggleFindRegex,
-	TerminalCommandId.ToggleFindWholeWord,
-	TerminalCommandId.ToggleFindCaseSensitive,
-	TerminalCommandId.FocusNextPane,
-	TerminalCommandId.FocusNext,
-	TerminalCommandId.FocusPreviousPane,
-	TerminalCommandId.FocusPrevious,
-	TerminalCommandId.Focus,
-	TerminalCommandId.Kill,
-	TerminalCommandId.KillEditor,
-	TerminalCommandId.MoveToEditor,
-	TerminalCommandId.MoveToLineEnd,
-	TerminalCommandId.MoveToLineStart,
-	TerminalCommandId.MoveToTerminalPanel,
-	TerminalCommandId.NewInActiveWorkspace,
-	TerminalCommandId.New,
-	TerminalCommandId.Paste,
-	TerminalCommandId.PasteSelection,
-	TerminalCommandId.ResizePaneDown,
-	TerminalCommandId.ResizePaneLeft,
-	TerminalCommandId.ResizePaneRight,
-	TerminalCommandId.ResizePaneUp,
-	TerminalCommandId.RunActiveFile,
-	TerminalCommandId.RunSelectedText,
-	TerminalCommandId.ScrollDownLine,
-	TerminalCommandId.ScrollDownPage,
-	TerminalCommandId.ScrollToBottom,
-	TerminalCommandId.ScrollToNextCommand,
-	TerminalCommandId.ScrollToPreviousCommand,
-	TerminalCommandId.ScrollToTop,
-	TerminalCommandId.ScrollUpLine,
-	TerminalCommandId.ScrollUpPage,
-	TerminalCommandId.SendSequence,
-	TerminalCommandId.SelectAll,
-	TerminalCommandId.SelectToNextCommand,
-	TerminalCommandId.SelectToNextLine,
-	TerminalCommandId.SelectToPreviousCommand,
-	TerminalCommandId.SelectToPreviousLine,
-	TerminalCommandId.SplitInActiveWorkspace,
-	TerminalCommandId.Split,
-	TerminalCommandId.Toggle,
-	TerminalCommandId.NavigationModeExit,
-	TerminalCommandId.NavigationModeFocusNext,
-	TerminalCommandId.NavigationModeFocusPrevious,
-	'editor.action.toggleTabFocusMode',
-	'notifications.hideList',
+expowt const DEFAUWT_COMMANDS_TO_SKIP_SHEWW: stwing[] = [
+	TewminawCommandId.CweawSewection,
+	TewminawCommandId.Cweaw,
+	TewminawCommandId.CopySewection,
+	TewminawCommandId.DeweteToWineStawt,
+	TewminawCommandId.DeweteWowdWeft,
+	TewminawCommandId.DeweteWowdWight,
+	TewminawCommandId.FindFocus,
+	TewminawCommandId.FindHide,
+	TewminawCommandId.FindNext,
+	TewminawCommandId.FindPwevious,
+	TewminawCommandId.ToggweFindWegex,
+	TewminawCommandId.ToggweFindWhoweWowd,
+	TewminawCommandId.ToggweFindCaseSensitive,
+	TewminawCommandId.FocusNextPane,
+	TewminawCommandId.FocusNext,
+	TewminawCommandId.FocusPweviousPane,
+	TewminawCommandId.FocusPwevious,
+	TewminawCommandId.Focus,
+	TewminawCommandId.Kiww,
+	TewminawCommandId.KiwwEditow,
+	TewminawCommandId.MoveToEditow,
+	TewminawCommandId.MoveToWineEnd,
+	TewminawCommandId.MoveToWineStawt,
+	TewminawCommandId.MoveToTewminawPanew,
+	TewminawCommandId.NewInActiveWowkspace,
+	TewminawCommandId.New,
+	TewminawCommandId.Paste,
+	TewminawCommandId.PasteSewection,
+	TewminawCommandId.WesizePaneDown,
+	TewminawCommandId.WesizePaneWeft,
+	TewminawCommandId.WesizePaneWight,
+	TewminawCommandId.WesizePaneUp,
+	TewminawCommandId.WunActiveFiwe,
+	TewminawCommandId.WunSewectedText,
+	TewminawCommandId.ScwowwDownWine,
+	TewminawCommandId.ScwowwDownPage,
+	TewminawCommandId.ScwowwToBottom,
+	TewminawCommandId.ScwowwToNextCommand,
+	TewminawCommandId.ScwowwToPweviousCommand,
+	TewminawCommandId.ScwowwToTop,
+	TewminawCommandId.ScwowwUpWine,
+	TewminawCommandId.ScwowwUpPage,
+	TewminawCommandId.SendSequence,
+	TewminawCommandId.SewectAww,
+	TewminawCommandId.SewectToNextCommand,
+	TewminawCommandId.SewectToNextWine,
+	TewminawCommandId.SewectToPweviousCommand,
+	TewminawCommandId.SewectToPweviousWine,
+	TewminawCommandId.SpwitInActiveWowkspace,
+	TewminawCommandId.Spwit,
+	TewminawCommandId.Toggwe,
+	TewminawCommandId.NavigationModeExit,
+	TewminawCommandId.NavigationModeFocusNext,
+	TewminawCommandId.NavigationModeFocusPwevious,
+	'editow.action.toggweTabFocusMode',
+	'notifications.hideWist',
 	'notifications.hideToasts',
-	'workbench.action.quickOpen',
-	'workbench.action.quickOpenPreviousEditor',
-	'workbench.action.showCommands',
-	'workbench.action.tasks.build',
-	'workbench.action.tasks.restartTask',
-	'workbench.action.tasks.runTask',
-	'workbench.action.tasks.reRunTask',
-	'workbench.action.tasks.showLog',
-	'workbench.action.tasks.showTasks',
-	'workbench.action.tasks.terminate',
-	'workbench.action.tasks.test',
-	'workbench.action.toggleFullScreen',
-	'workbench.action.terminal.focusAtIndex1',
-	'workbench.action.terminal.focusAtIndex2',
-	'workbench.action.terminal.focusAtIndex3',
-	'workbench.action.terminal.focusAtIndex4',
-	'workbench.action.terminal.focusAtIndex5',
-	'workbench.action.terminal.focusAtIndex6',
-	'workbench.action.terminal.focusAtIndex7',
-	'workbench.action.terminal.focusAtIndex8',
-	'workbench.action.terminal.focusAtIndex9',
-	'workbench.action.focusSecondEditorGroup',
-	'workbench.action.focusThirdEditorGroup',
-	'workbench.action.focusFourthEditorGroup',
-	'workbench.action.focusFifthEditorGroup',
-	'workbench.action.focusSixthEditorGroup',
-	'workbench.action.focusSeventhEditorGroup',
-	'workbench.action.focusEighthEditorGroup',
-	'workbench.action.focusNextPart',
-	'workbench.action.focusPreviousPart',
-	'workbench.action.nextPanelView',
-	'workbench.action.previousPanelView',
-	'workbench.action.nextSideBarView',
-	'workbench.action.previousSideBarView',
-	'workbench.action.debug.start',
-	'workbench.action.debug.stop',
-	'workbench.action.debug.run',
-	'workbench.action.debug.restart',
-	'workbench.action.debug.continue',
-	'workbench.action.debug.pause',
-	'workbench.action.debug.stepInto',
-	'workbench.action.debug.stepOut',
-	'workbench.action.debug.stepOver',
-	'workbench.action.nextEditor',
-	'workbench.action.previousEditor',
-	'workbench.action.nextEditorInGroup',
-	'workbench.action.previousEditorInGroup',
-	'workbench.action.openNextRecentlyUsedEditor',
-	'workbench.action.openPreviousRecentlyUsedEditor',
-	'workbench.action.openNextRecentlyUsedEditorInGroup',
-	'workbench.action.openPreviousRecentlyUsedEditorInGroup',
-	'workbench.action.quickOpenPreviousRecentlyUsedEditor',
-	'workbench.action.quickOpenLeastRecentlyUsedEditor',
-	'workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup',
-	'workbench.action.quickOpenLeastRecentlyUsedEditorInGroup',
-	'workbench.action.focusActiveEditorGroup',
-	'workbench.action.focusFirstEditorGroup',
-	'workbench.action.focusLastEditorGroup',
-	'workbench.action.firstEditorInGroup',
-	'workbench.action.lastEditorInGroup',
-	'workbench.action.navigateUp',
-	'workbench.action.navigateDown',
-	'workbench.action.navigateRight',
-	'workbench.action.navigateLeft',
-	'workbench.action.togglePanel',
-	'workbench.action.quickOpenView',
-	'workbench.action.toggleMaximizedPanel'
+	'wowkbench.action.quickOpen',
+	'wowkbench.action.quickOpenPweviousEditow',
+	'wowkbench.action.showCommands',
+	'wowkbench.action.tasks.buiwd',
+	'wowkbench.action.tasks.westawtTask',
+	'wowkbench.action.tasks.wunTask',
+	'wowkbench.action.tasks.weWunTask',
+	'wowkbench.action.tasks.showWog',
+	'wowkbench.action.tasks.showTasks',
+	'wowkbench.action.tasks.tewminate',
+	'wowkbench.action.tasks.test',
+	'wowkbench.action.toggweFuwwScween',
+	'wowkbench.action.tewminaw.focusAtIndex1',
+	'wowkbench.action.tewminaw.focusAtIndex2',
+	'wowkbench.action.tewminaw.focusAtIndex3',
+	'wowkbench.action.tewminaw.focusAtIndex4',
+	'wowkbench.action.tewminaw.focusAtIndex5',
+	'wowkbench.action.tewminaw.focusAtIndex6',
+	'wowkbench.action.tewminaw.focusAtIndex7',
+	'wowkbench.action.tewminaw.focusAtIndex8',
+	'wowkbench.action.tewminaw.focusAtIndex9',
+	'wowkbench.action.focusSecondEditowGwoup',
+	'wowkbench.action.focusThiwdEditowGwoup',
+	'wowkbench.action.focusFouwthEditowGwoup',
+	'wowkbench.action.focusFifthEditowGwoup',
+	'wowkbench.action.focusSixthEditowGwoup',
+	'wowkbench.action.focusSeventhEditowGwoup',
+	'wowkbench.action.focusEighthEditowGwoup',
+	'wowkbench.action.focusNextPawt',
+	'wowkbench.action.focusPweviousPawt',
+	'wowkbench.action.nextPanewView',
+	'wowkbench.action.pweviousPanewView',
+	'wowkbench.action.nextSideBawView',
+	'wowkbench.action.pweviousSideBawView',
+	'wowkbench.action.debug.stawt',
+	'wowkbench.action.debug.stop',
+	'wowkbench.action.debug.wun',
+	'wowkbench.action.debug.westawt',
+	'wowkbench.action.debug.continue',
+	'wowkbench.action.debug.pause',
+	'wowkbench.action.debug.stepInto',
+	'wowkbench.action.debug.stepOut',
+	'wowkbench.action.debug.stepOva',
+	'wowkbench.action.nextEditow',
+	'wowkbench.action.pweviousEditow',
+	'wowkbench.action.nextEditowInGwoup',
+	'wowkbench.action.pweviousEditowInGwoup',
+	'wowkbench.action.openNextWecentwyUsedEditow',
+	'wowkbench.action.openPweviousWecentwyUsedEditow',
+	'wowkbench.action.openNextWecentwyUsedEditowInGwoup',
+	'wowkbench.action.openPweviousWecentwyUsedEditowInGwoup',
+	'wowkbench.action.quickOpenPweviousWecentwyUsedEditow',
+	'wowkbench.action.quickOpenWeastWecentwyUsedEditow',
+	'wowkbench.action.quickOpenPweviousWecentwyUsedEditowInGwoup',
+	'wowkbench.action.quickOpenWeastWecentwyUsedEditowInGwoup',
+	'wowkbench.action.focusActiveEditowGwoup',
+	'wowkbench.action.focusFiwstEditowGwoup',
+	'wowkbench.action.focusWastEditowGwoup',
+	'wowkbench.action.fiwstEditowInGwoup',
+	'wowkbench.action.wastEditowInGwoup',
+	'wowkbench.action.navigateUp',
+	'wowkbench.action.navigateDown',
+	'wowkbench.action.navigateWight',
+	'wowkbench.action.navigateWeft',
+	'wowkbench.action.toggwePanew',
+	'wowkbench.action.quickOpenView',
+	'wowkbench.action.toggweMaximizedPanew'
 ];
 
-export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
-	extensionPoint: 'terminal',
-	defaultExtensionKind: ['workspace'],
+expowt const tewminawContwibutionsDescwiptow: IExtensionPointDescwiptow = {
+	extensionPoint: 'tewminaw',
+	defauwtExtensionKind: ['wowkspace'],
 	jsonSchema: {
-		description: nls.localize('vscode.extension.contributes.terminal', 'Contributes terminal functionality.'),
+		descwiption: nws.wocawize('vscode.extension.contwibutes.tewminaw', 'Contwibutes tewminaw functionawity.'),
 		type: 'object',
-		properties: {
+		pwopewties: {
 			types: {
-				type: 'array',
-				description: nls.localize('vscode.extension.contributes.terminal.types', "Defines additional terminal types that the user can create."),
+				type: 'awway',
+				descwiption: nws.wocawize('vscode.extension.contwibutes.tewminaw.types', "Defines additionaw tewminaw types that the usa can cweate."),
 				items: {
 					type: 'object',
-					required: ['command', 'title'],
-					properties: {
+					wequiwed: ['command', 'titwe'],
+					pwopewties: {
 						command: {
-							description: nls.localize('vscode.extension.contributes.terminal.types.command', "Command to execute when the user creates this type of terminal."),
-							type: 'string',
+							descwiption: nws.wocawize('vscode.extension.contwibutes.tewminaw.types.command', "Command to execute when the usa cweates this type of tewminaw."),
+							type: 'stwing',
 						},
-						title: {
-							description: nls.localize('vscode.extension.contributes.terminal.types.title', "Title for this type of terminal."),
-							type: 'string',
+						titwe: {
+							descwiption: nws.wocawize('vscode.extension.contwibutes.tewminaw.types.titwe', "Titwe fow this type of tewminaw."),
+							type: 'stwing',
 						},
 						icon: {
-							description: nls.localize('vscode.extension.contributes.terminal.types.icon', "A codicon, URI, or light and dark URIs to associate with this terminal type."),
+							descwiption: nws.wocawize('vscode.extension.contwibutes.tewminaw.types.icon', "A codicon, UWI, ow wight and dawk UWIs to associate with this tewminaw type."),
 							anyOf: [{
-								type: 'string',
+								type: 'stwing',
 							},
 							{
 								type: 'object',
-								properties: {
-									light: {
-										description: nls.localize('vscode.extension.contributes.terminal.types.icon.light', 'Icon path when a light theme is used'),
-										type: 'string'
+								pwopewties: {
+									wight: {
+										descwiption: nws.wocawize('vscode.extension.contwibutes.tewminaw.types.icon.wight', 'Icon path when a wight theme is used'),
+										type: 'stwing'
 									},
-									dark: {
-										description: nls.localize('vscode.extension.contributes.terminal.types.icon.dark', 'Icon path when a dark theme is used'),
-										type: 'string'
+									dawk: {
+										descwiption: nws.wocawize('vscode.extension.contwibutes.tewminaw.types.icon.dawk', 'Icon path when a dawk theme is used'),
+										type: 'stwing'
 									}
 								}
 							}]
@@ -637,42 +637,42 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 					},
 				},
 			},
-			profiles: {
-				type: 'array',
-				description: nls.localize('vscode.extension.contributes.terminal.profiles', "Defines additional terminal profiles that the user can create."),
+			pwofiwes: {
+				type: 'awway',
+				descwiption: nws.wocawize('vscode.extension.contwibutes.tewminaw.pwofiwes', "Defines additionaw tewminaw pwofiwes that the usa can cweate."),
 				items: {
 					type: 'object',
-					required: ['id', 'title'],
-					defaultSnippets: [{
+					wequiwed: ['id', 'titwe'],
+					defauwtSnippets: [{
 						body: {
 							id: '$1',
-							title: '$2'
+							titwe: '$2'
 						}
 					}],
-					properties: {
+					pwopewties: {
 						id: {
-							description: nls.localize('vscode.extension.contributes.terminal.profiles.id', "The ID of the terminal profile provider."),
-							type: 'string',
+							descwiption: nws.wocawize('vscode.extension.contwibutes.tewminaw.pwofiwes.id', "The ID of the tewminaw pwofiwe pwovida."),
+							type: 'stwing',
 						},
-						title: {
-							description: nls.localize('vscode.extension.contributes.terminal.profiles.title', "Title for this terminal profile."),
-							type: 'string',
+						titwe: {
+							descwiption: nws.wocawize('vscode.extension.contwibutes.tewminaw.pwofiwes.titwe', "Titwe fow this tewminaw pwofiwe."),
+							type: 'stwing',
 						},
 						icon: {
-							description: nls.localize('vscode.extension.contributes.terminal.types.icon', "A codicon, URI, or light and dark URIs to associate with this terminal type."),
+							descwiption: nws.wocawize('vscode.extension.contwibutes.tewminaw.types.icon', "A codicon, UWI, ow wight and dawk UWIs to associate with this tewminaw type."),
 							anyOf: [{
-								type: 'string',
+								type: 'stwing',
 							},
 							{
 								type: 'object',
-								properties: {
-									light: {
-										description: nls.localize('vscode.extension.contributes.terminal.types.icon.light', 'Icon path when a light theme is used'),
-										type: 'string'
+								pwopewties: {
+									wight: {
+										descwiption: nws.wocawize('vscode.extension.contwibutes.tewminaw.types.icon.wight', 'Icon path when a wight theme is used'),
+										type: 'stwing'
 									},
-									dark: {
-										description: nls.localize('vscode.extension.contributes.terminal.types.icon.dark', 'Icon path when a dark theme is used'),
-										type: 'string'
+									dawk: {
+										descwiption: nws.wocawize('vscode.extension.contwibutes.tewminaw.types.icon.dawk', 'Icon path when a dawk theme is used'),
+										type: 'stwing'
 									}
 								}
 							}]

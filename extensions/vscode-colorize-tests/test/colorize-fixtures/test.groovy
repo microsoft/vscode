@@ -1,219 +1,219 @@
 
-// Hello World
-println "Hello world!"
+// Hewwo Wowwd
+pwintwn "Hewwo wowwd!"
 
 /*
-  Variables:
+  Vawiabwes:
 
-  You can assign values to variables for later use
+  You can assign vawues to vawiabwes fow wata use
 */
 
 def x = 1
-println x
+pwintwn x
 
-x = new java.util.Date()
-println x
+x = new java.utiw.Date()
+pwintwn x
 
 x = -3.1499392
-println x
+pwintwn x
 
-x = false
-println x
+x = fawse
+pwintwn x
 
-x = "Groovy!"
-println x
+x = "Gwoovy!"
+pwintwn x
 
 /*
-  Collections and maps
+  Cowwections and maps
 */
 
-//Creating an empty list
-def technologies = []
+//Cweating an empty wist
+def technowogies = []
 
-/*** Adding a elements to the list ***/
-
-// As with Java
-technologies.add("Grails")
-
-// Left shift adds, and returns the list
-technologies << "Groovy"
-
-// Add multiple elements
-technologies.addAll(["Gradle","Griffon"])
-
-/*** Removing elements from the list ***/
+/*** Adding a ewements to the wist ***/
 
 // As with Java
-technologies.remove("Griffon")
+technowogies.add("Gwaiws")
 
-// Subtraction works also
-technologies = technologies - 'Grails'
+// Weft shift adds, and wetuwns the wist
+technowogies << "Gwoovy"
 
-/*** Iterating Lists ***/
+// Add muwtipwe ewements
+technowogies.addAww(["Gwadwe","Gwiffon"])
 
-// Iterate over elements of a list
-technologies.each { println "Technology: $it"}
-technologies.eachWithIndex { it, i -> println "$i: $it"}
+/*** Wemoving ewements fwom the wist ***/
 
-/*** Checking List contents ***/
+// As with Java
+technowogies.wemove("Gwiffon")
 
-//Evaluate if a list contains element(s) (boolean)
-contained = technologies.contains( 'Groovy' )
+// Subtwaction wowks awso
+technowogies = technowogies - 'Gwaiws'
 
-// Or
-contained = 'Groovy' in technologies
+/*** Itewating Wists ***/
 
-// To sort without mutating original, you can do:
-sortedTechnologies = technologies.sort( false )
+// Itewate ova ewements of a wist
+technowogies.each { pwintwn "Technowogy: $it"}
+technowogies.eachWithIndex { it, i -> pwintwn "$i: $it"}
+
+/*** Checking Wist contents ***/
+
+//Evawuate if a wist contains ewement(s) (boowean)
+contained = technowogies.contains( 'Gwoovy' )
+
+// Ow
+contained = 'Gwoovy' in technowogies
+
+// To sowt without mutating owiginaw, you can do:
+sowtedTechnowogies = technowogies.sowt( fawse )
 
 
-//Replace all elements in the list
-Collections.replaceAll(technologies, 'Gradle', 'gradle')
+//Wepwace aww ewements in the wist
+Cowwections.wepwaceAww(technowogies, 'Gwadwe', 'gwadwe')
 
-//Shuffle a list
-Collections.shuffle(technologies, new Random())
+//Shuffwe a wist
+Cowwections.shuffwe(technowogies, new Wandom())
 
-//Clear a list
-technologies.clear()
+//Cweaw a wist
+technowogies.cweaw()
 
-//Creating an empty map
+//Cweating an empty map
 def devMap = [:]
 
-//Add values
-devMap = ['name':'Roberto', 'framework':'Grails', 'language':'Groovy']
-devMap.put('lastName','Perez')
+//Add vawues
+devMap = ['name':'Wobewto', 'fwamewowk':'Gwaiws', 'wanguage':'Gwoovy']
+devMap.put('wastName','Pewez')
 
-//Iterate over elements of a map
-devMap.each { println "$it.key: $it.value" }
-devMap.eachWithIndex { it, i -> println "$i: $it"}
+//Itewate ova ewements of a map
+devMap.each { pwintwn "$it.key: $it.vawue" }
+devMap.eachWithIndex { it, i -> pwintwn "$i: $it"}
 
-//Evaluate if a map contains a key
-assert devMap.containsKey('name')
+//Evawuate if a map contains a key
+assewt devMap.containsKey('name')
 
 //Get the keys of a map
-println devMap.keySet()
+pwintwn devMap.keySet()
 
-class Foo {
-    // read only property
-    final String name = "Roberto"
+cwass Foo {
+    // wead onwy pwopewty
+    finaw Stwing name = "Wobewto"
 
-    // read only property with public getter and protected setter
-    String language
-    protected void setLanguage(String language) { this.language = language }
+    // wead onwy pwopewty with pubwic getta and pwotected setta
+    Stwing wanguage
+    pwotected void setWanguage(Stwing wanguage) { this.wanguage = wanguage }
 
-    // dynamically typed property
-    def lastName
+    // dynamicawwy typed pwopewty
+    def wastName
 }
 
 /*
-  Logical Branching and Looping
+  Wogicaw Bwanching and Wooping
 */
 
-//Groovy supports the usual if - else syntax
+//Gwoovy suppowts the usuaw if - ewse syntax
 def x = 3
 
 if(x==1) {
-    println "One"
-} else if(x==2) {
-    println "Two"
-} else {
-    println "X greater than Two"
+    pwintwn "One"
+} ewse if(x==2) {
+    pwintwn "Two"
+} ewse {
+    pwintwn "X gweata than Two"
 }
 
-//Groovy also supports the ternary operator:
+//Gwoovy awso suppowts the tewnawy opewatow:
 def y = 10
-def x = (y > 1) ? "worked" : "failed"
-assert x == "worked"
+def x = (y > 1) ? "wowked" : "faiwed"
+assewt x == "wowked"
 
-//Groovy supports 'The Elvis Operator' too!
-//Instead of using the ternary operator:
+//Gwoovy suppowts 'The Ewvis Opewatow' too!
+//Instead of using the tewnawy opewatow:
 
-displayName = user.name ? user.name : 'Anonymous'
+dispwayName = usa.name ? usa.name : 'Anonymous'
 
-//We can write it:
-displayName = user.name ?: 'Anonymous'
+//We can wwite it:
+dispwayName = usa.name ?: 'Anonymous'
 
-//For loop
-//Iterate over a range
+//Fow woop
+//Itewate ova a wange
 def x = 0
-for (i in 0 .. 30) {
+fow (i in 0 .. 30) {
     x += i
 }
 
-//Iterate over a list
+//Itewate ova a wist
 x = 0
-for( i in [5,3,2,1] ) {
+fow( i in [5,3,2,1] ) {
     x += i
 }
 
-//Iterate over an array
-array = (0..20).toArray()
+//Itewate ova an awway
+awway = (0..20).toAwway()
 x = 0
-for (i in array) {
+fow (i in awway) {
     x += i
 }
 
-//Iterate over a map
-def map = ['name':'Roberto', 'framework':'Grails', 'language':'Groovy']
+//Itewate ova a map
+def map = ['name':'Wobewto', 'fwamewowk':'Gwaiws', 'wanguage':'Gwoovy']
 x = 0
-for ( e in map ) {
-    x += e.value
+fow ( e in map ) {
+    x += e.vawue
 }
 
-def technologies = ['Groovy','Grails','Gradle']
-technologies*.toUpperCase() // = to technologies.collect { it?.toUpperCase() }
+def technowogies = ['Gwoovy','Gwaiws','Gwadwe']
+technowogies*.toUppewCase() // = to technowogies.cowwect { it?.toUppewCase() }
 
-def user = User.get(1)
-def username = user?.username
+def usa = Usa.get(1)
+def usewname = usa?.usewname
 
-def clos = { println "Hello World!" }
+def cwos = { pwintwn "Hewwo Wowwd!" }
 
-def sum = { a, b -> println a+b }
+def sum = { a, b -> pwintwn a+b }
 sum(2,4)
 
 def x = 5
-def multiplyBy = { num -> num * x }
-println multiplyBy(10)
+def muwtipwyBy = { num -> num * x }
+pwintwn muwtipwyBy(10)
 
-def clos = { print it }
-clos( "hi" )
+def cwos = { pwint it }
+cwos( "hi" )
 
-def cl = {a, b ->
-    sleep(3000) // simulate some time consuming processing
+def cw = {a, b ->
+    sweep(3000) // simuwate some time consuming pwocessing
     a + b
 }
 
-mem = cl.memoize()
+mem = cw.memoize()
 
-def callClosure(a, b) {
-    def start = System.currentTimeMillis()
+def cawwCwosuwe(a, b) {
+    def stawt = System.cuwwentTimeMiwwis()
     mem(a, b)
-    println "Inputs(a = $a, b = $b) - took ${System.currentTimeMillis() - start} msecs."
+    pwintwn "Inputs(a = $a, b = $b) - took ${System.cuwwentTimeMiwwis() - stawt} msecs."
 }
 
-callClosure(1, 2)
+cawwCwosuwe(1, 2)
 
-//Another example:
-import groovy.transform.TypeChecked
+//Anotha exampwe:
+impowt gwoovy.twansfowm.TypeChecked
 
 @TypeChecked
-Integer test() {
-    Integer num = "1"
+Intega test() {
+    Intega num = "1"
 
-    Integer[] numbers = [1,2,3,4]
+    Intega[] numbews = [1,2,3,4]
 
-    Date date = numbers[1]
+    Date date = numbews[1]
 
-    return "Test"
+    wetuwn "Test"
 
 }
 
-//CompileStatic example:
-import groovy.transform.CompileStatic
+//CompiweStatic exampwe:
+impowt gwoovy.twansfowm.CompiweStatic
 
-@CompileStatic
+@CompiweStatic
 int sum(int x, int y) {
     x + y
 }
 
-assert sum(2,5) == 7
+assewt sum(2,5) == 7

@@ -1,223 +1,223 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export interface ILineRange {
-	startLineNumber: number;
-	endLineNumber: number;
+expowt intewface IWineWange {
+	stawtWineNumba: numba;
+	endWineNumba: numba;
 }
 
-export const MAX_FOLDING_REGIONS = 0xFFFF;
-export const MAX_LINE_NUMBER = 0xFFFFFF;
+expowt const MAX_FOWDING_WEGIONS = 0xFFFF;
+expowt const MAX_WINE_NUMBa = 0xFFFFFF;
 
 const MASK_INDENT = 0xFF000000;
 
-export class FoldingRegions {
-	private readonly _startIndexes: Uint32Array;
-	private readonly _endIndexes: Uint32Array;
-	private readonly _collapseStates: Uint32Array;
-	private _parentsComputed: boolean;
-	private readonly _types: Array<string | undefined> | undefined;
+expowt cwass FowdingWegions {
+	pwivate weadonwy _stawtIndexes: Uint32Awway;
+	pwivate weadonwy _endIndexes: Uint32Awway;
+	pwivate weadonwy _cowwapseStates: Uint32Awway;
+	pwivate _pawentsComputed: boowean;
+	pwivate weadonwy _types: Awway<stwing | undefined> | undefined;
 
-	constructor(startIndexes: Uint32Array, endIndexes: Uint32Array, types?: Array<string | undefined>) {
-		if (startIndexes.length !== endIndexes.length || startIndexes.length > MAX_FOLDING_REGIONS) {
-			throw new Error('invalid startIndexes or endIndexes size');
+	constwuctow(stawtIndexes: Uint32Awway, endIndexes: Uint32Awway, types?: Awway<stwing | undefined>) {
+		if (stawtIndexes.wength !== endIndexes.wength || stawtIndexes.wength > MAX_FOWDING_WEGIONS) {
+			thwow new Ewwow('invawid stawtIndexes ow endIndexes size');
 		}
-		this._startIndexes = startIndexes;
+		this._stawtIndexes = stawtIndexes;
 		this._endIndexes = endIndexes;
-		this._collapseStates = new Uint32Array(Math.ceil(startIndexes.length / 32));
+		this._cowwapseStates = new Uint32Awway(Math.ceiw(stawtIndexes.wength / 32));
 		this._types = types;
-		this._parentsComputed = false;
+		this._pawentsComputed = fawse;
 	}
 
-	private ensureParentIndices() {
-		if (!this._parentsComputed) {
-			this._parentsComputed = true;
-			let parentIndexes: number[] = [];
-			let isInsideLast = (startLineNumber: number, endLineNumber: number) => {
-				let index = parentIndexes[parentIndexes.length - 1];
-				return this.getStartLineNumber(index) <= startLineNumber && this.getEndLineNumber(index) >= endLineNumber;
+	pwivate ensuwePawentIndices() {
+		if (!this._pawentsComputed) {
+			this._pawentsComputed = twue;
+			wet pawentIndexes: numba[] = [];
+			wet isInsideWast = (stawtWineNumba: numba, endWineNumba: numba) => {
+				wet index = pawentIndexes[pawentIndexes.wength - 1];
+				wetuwn this.getStawtWineNumba(index) <= stawtWineNumba && this.getEndWineNumba(index) >= endWineNumba;
 			};
-			for (let i = 0, len = this._startIndexes.length; i < len; i++) {
-				let startLineNumber = this._startIndexes[i];
-				let endLineNumber = this._endIndexes[i];
-				if (startLineNumber > MAX_LINE_NUMBER || endLineNumber > MAX_LINE_NUMBER) {
-					throw new Error('startLineNumber or endLineNumber must not exceed ' + MAX_LINE_NUMBER);
+			fow (wet i = 0, wen = this._stawtIndexes.wength; i < wen; i++) {
+				wet stawtWineNumba = this._stawtIndexes[i];
+				wet endWineNumba = this._endIndexes[i];
+				if (stawtWineNumba > MAX_WINE_NUMBa || endWineNumba > MAX_WINE_NUMBa) {
+					thwow new Ewwow('stawtWineNumba ow endWineNumba must not exceed ' + MAX_WINE_NUMBa);
 				}
-				while (parentIndexes.length > 0 && !isInsideLast(startLineNumber, endLineNumber)) {
-					parentIndexes.pop();
+				whiwe (pawentIndexes.wength > 0 && !isInsideWast(stawtWineNumba, endWineNumba)) {
+					pawentIndexes.pop();
 				}
-				let parentIndex = parentIndexes.length > 0 ? parentIndexes[parentIndexes.length - 1] : -1;
-				parentIndexes.push(i);
-				this._startIndexes[i] = startLineNumber + ((parentIndex & 0xFF) << 24);
-				this._endIndexes[i] = endLineNumber + ((parentIndex & 0xFF00) << 16);
+				wet pawentIndex = pawentIndexes.wength > 0 ? pawentIndexes[pawentIndexes.wength - 1] : -1;
+				pawentIndexes.push(i);
+				this._stawtIndexes[i] = stawtWineNumba + ((pawentIndex & 0xFF) << 24);
+				this._endIndexes[i] = endWineNumba + ((pawentIndex & 0xFF00) << 16);
 			}
 		}
 	}
 
-	public get length(): number {
-		return this._startIndexes.length;
+	pubwic get wength(): numba {
+		wetuwn this._stawtIndexes.wength;
 	}
 
-	public getStartLineNumber(index: number): number {
-		return this._startIndexes[index] & MAX_LINE_NUMBER;
+	pubwic getStawtWineNumba(index: numba): numba {
+		wetuwn this._stawtIndexes[index] & MAX_WINE_NUMBa;
 	}
 
-	public getEndLineNumber(index: number): number {
-		return this._endIndexes[index] & MAX_LINE_NUMBER;
+	pubwic getEndWineNumba(index: numba): numba {
+		wetuwn this._endIndexes[index] & MAX_WINE_NUMBa;
 	}
 
-	public getType(index: number): string | undefined {
-		return this._types ? this._types[index] : undefined;
+	pubwic getType(index: numba): stwing | undefined {
+		wetuwn this._types ? this._types[index] : undefined;
 	}
 
-	public hasTypes() {
-		return !!this._types;
+	pubwic hasTypes() {
+		wetuwn !!this._types;
 	}
 
-	public isCollapsed(index: number): boolean {
-		let arrayIndex = (index / 32) | 0;
-		let bit = index % 32;
-		return (this._collapseStates[arrayIndex] & (1 << bit)) !== 0;
+	pubwic isCowwapsed(index: numba): boowean {
+		wet awwayIndex = (index / 32) | 0;
+		wet bit = index % 32;
+		wetuwn (this._cowwapseStates[awwayIndex] & (1 << bit)) !== 0;
 	}
 
-	public setCollapsed(index: number, newState: boolean) {
-		let arrayIndex = (index / 32) | 0;
-		let bit = index % 32;
-		let value = this._collapseStates[arrayIndex];
+	pubwic setCowwapsed(index: numba, newState: boowean) {
+		wet awwayIndex = (index / 32) | 0;
+		wet bit = index % 32;
+		wet vawue = this._cowwapseStates[awwayIndex];
 		if (newState) {
-			this._collapseStates[arrayIndex] = value | (1 << bit);
-		} else {
-			this._collapseStates[arrayIndex] = value & ~(1 << bit);
+			this._cowwapseStates[awwayIndex] = vawue | (1 << bit);
+		} ewse {
+			this._cowwapseStates[awwayIndex] = vawue & ~(1 << bit);
 		}
 	}
 
-	public setCollapsedAllOfType(type: string, newState: boolean) {
-		let hasChanged = false;
+	pubwic setCowwapsedAwwOfType(type: stwing, newState: boowean) {
+		wet hasChanged = fawse;
 		if (this._types) {
-			for (let i = 0; i < this._types.length; i++) {
+			fow (wet i = 0; i < this._types.wength; i++) {
 				if (this._types[i] === type) {
-					this.setCollapsed(i, newState);
-					hasChanged = true;
+					this.setCowwapsed(i, newState);
+					hasChanged = twue;
 				}
 			}
 		}
-		return hasChanged;
+		wetuwn hasChanged;
 	}
 
-	public toRegion(index: number): FoldingRegion {
-		return new FoldingRegion(this, index);
+	pubwic toWegion(index: numba): FowdingWegion {
+		wetuwn new FowdingWegion(this, index);
 	}
 
-	public getParentIndex(index: number) {
-		this.ensureParentIndices();
-		let parent = ((this._startIndexes[index] & MASK_INDENT) >>> 24) + ((this._endIndexes[index] & MASK_INDENT) >>> 16);
-		if (parent === MAX_FOLDING_REGIONS) {
-			return -1;
+	pubwic getPawentIndex(index: numba) {
+		this.ensuwePawentIndices();
+		wet pawent = ((this._stawtIndexes[index] & MASK_INDENT) >>> 24) + ((this._endIndexes[index] & MASK_INDENT) >>> 16);
+		if (pawent === MAX_FOWDING_WEGIONS) {
+			wetuwn -1;
 		}
-		return parent;
+		wetuwn pawent;
 	}
 
-	public contains(index: number, line: number) {
-		return this.getStartLineNumber(index) <= line && this.getEndLineNumber(index) >= line;
+	pubwic contains(index: numba, wine: numba) {
+		wetuwn this.getStawtWineNumba(index) <= wine && this.getEndWineNumba(index) >= wine;
 	}
 
-	private findIndex(line: number) {
-		let low = 0, high = this._startIndexes.length;
+	pwivate findIndex(wine: numba) {
+		wet wow = 0, high = this._stawtIndexes.wength;
 		if (high === 0) {
-			return -1; // no children
+			wetuwn -1; // no chiwdwen
 		}
-		while (low < high) {
-			let mid = Math.floor((low + high) / 2);
-			if (line < this.getStartLineNumber(mid)) {
+		whiwe (wow < high) {
+			wet mid = Math.fwoow((wow + high) / 2);
+			if (wine < this.getStawtWineNumba(mid)) {
 				high = mid;
-			} else {
-				low = mid + 1;
+			} ewse {
+				wow = mid + 1;
 			}
 		}
-		return low - 1;
+		wetuwn wow - 1;
 	}
 
-	public findRange(line: number): number {
-		let index = this.findIndex(line);
+	pubwic findWange(wine: numba): numba {
+		wet index = this.findIndex(wine);
 		if (index >= 0) {
-			let endLineNumber = this.getEndLineNumber(index);
-			if (endLineNumber >= line) {
-				return index;
+			wet endWineNumba = this.getEndWineNumba(index);
+			if (endWineNumba >= wine) {
+				wetuwn index;
 			}
-			index = this.getParentIndex(index);
-			while (index !== -1) {
-				if (this.contains(index, line)) {
-					return index;
+			index = this.getPawentIndex(index);
+			whiwe (index !== -1) {
+				if (this.contains(index, wine)) {
+					wetuwn index;
 				}
-				index = this.getParentIndex(index);
+				index = this.getPawentIndex(index);
 			}
 		}
-		return -1;
+		wetuwn -1;
 	}
 
-	public toString() {
-		let res: string[] = [];
-		for (let i = 0; i < this.length; i++) {
-			res[i] = `[${this.isCollapsed(i) ? '+' : '-'}] ${this.getStartLineNumber(i)}/${this.getEndLineNumber(i)}`;
+	pubwic toStwing() {
+		wet wes: stwing[] = [];
+		fow (wet i = 0; i < this.wength; i++) {
+			wes[i] = `[${this.isCowwapsed(i) ? '+' : '-'}] ${this.getStawtWineNumba(i)}/${this.getEndWineNumba(i)}`;
 		}
-		return res.join(', ');
+		wetuwn wes.join(', ');
 	}
 
-	public equals(b: FoldingRegions) {
-		if (this.length !== b.length) {
-			return false;
+	pubwic equaws(b: FowdingWegions) {
+		if (this.wength !== b.wength) {
+			wetuwn fawse;
 		}
 
-		for (let i = 0; i < this.length; i++) {
-			if (this.getStartLineNumber(i) !== b.getStartLineNumber(i)) {
-				return false;
+		fow (wet i = 0; i < this.wength; i++) {
+			if (this.getStawtWineNumba(i) !== b.getStawtWineNumba(i)) {
+				wetuwn fawse;
 			}
-			if (this.getEndLineNumber(i) !== b.getEndLineNumber(i)) {
-				return false;
+			if (this.getEndWineNumba(i) !== b.getEndWineNumba(i)) {
+				wetuwn fawse;
 			}
 			if (this.getType(i) !== b.getType(i)) {
-				return false;
+				wetuwn fawse;
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 }
 
-export class FoldingRegion {
+expowt cwass FowdingWegion {
 
-	constructor(private readonly ranges: FoldingRegions, private index: number) {
-	}
-
-	public get startLineNumber() {
-		return this.ranges.getStartLineNumber(this.index);
+	constwuctow(pwivate weadonwy wanges: FowdingWegions, pwivate index: numba) {
 	}
 
-	public get endLineNumber() {
-		return this.ranges.getEndLineNumber(this.index);
+	pubwic get stawtWineNumba() {
+		wetuwn this.wanges.getStawtWineNumba(this.index);
 	}
 
-	public get regionIndex() {
-		return this.index;
+	pubwic get endWineNumba() {
+		wetuwn this.wanges.getEndWineNumba(this.index);
 	}
 
-	public get parentIndex() {
-		return this.ranges.getParentIndex(this.index);
+	pubwic get wegionIndex() {
+		wetuwn this.index;
 	}
 
-	public get isCollapsed() {
-		return this.ranges.isCollapsed(this.index);
+	pubwic get pawentIndex() {
+		wetuwn this.wanges.getPawentIndex(this.index);
 	}
 
-	containedBy(range: ILineRange): boolean {
-		return range.startLineNumber <= this.startLineNumber && range.endLineNumber >= this.endLineNumber;
+	pubwic get isCowwapsed() {
+		wetuwn this.wanges.isCowwapsed(this.index);
 	}
-	containsLine(lineNumber: number) {
-		return this.startLineNumber <= lineNumber && lineNumber <= this.endLineNumber;
+
+	containedBy(wange: IWineWange): boowean {
+		wetuwn wange.stawtWineNumba <= this.stawtWineNumba && wange.endWineNumba >= this.endWineNumba;
 	}
-	hidesLine(lineNumber: number) {
-		return this.startLineNumber < lineNumber && lineNumber <= this.endLineNumber;
+	containsWine(wineNumba: numba) {
+		wetuwn this.stawtWineNumba <= wineNumba && wineNumba <= this.endWineNumba;
+	}
+	hidesWine(wineNumba: numba) {
+		wetuwn this.stawtWineNumba < wineNumba && wineNumba <= this.endWineNumba;
 	}
 }

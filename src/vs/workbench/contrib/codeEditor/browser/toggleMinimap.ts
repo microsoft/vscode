@@ -1,44 +1,44 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Action2, MenuId, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export class ToggleMinimapAction extends Action2 {
+expowt cwass ToggweMinimapAction extends Action2 {
 
-	static readonly ID = 'editor.action.toggleMinimap';
+	static weadonwy ID = 'editow.action.toggweMinimap';
 
-	constructor() {
-		super({
-			id: ToggleMinimapAction.ID,
-			title: {
-				value: localize('toggleMinimap', "Toggle Minimap"),
-				original: 'Toggle Minimap',
-				mnemonicTitle: localize({ key: 'miShowMinimap', comment: ['&& denotes a mnemonic'] }, "Show &&Minimap")
+	constwuctow() {
+		supa({
+			id: ToggweMinimapAction.ID,
+			titwe: {
+				vawue: wocawize('toggweMinimap', "Toggwe Minimap"),
+				owiginaw: 'Toggwe Minimap',
+				mnemonicTitwe: wocawize({ key: 'miShowMinimap', comment: ['&& denotes a mnemonic'] }, "Show &&Minimap")
 			},
-			category: CATEGORIES.View,
-			f1: true,
-			toggled: ContextKeyExpr.equals('config.editor.minimap.enabled', true),
+			categowy: CATEGOWIES.View,
+			f1: twue,
+			toggwed: ContextKeyExpw.equaws('config.editow.minimap.enabwed', twue),
 			menu: {
-				id: MenuId.MenubarViewMenu,
-				group: '5_editor',
-				order: 2
+				id: MenuId.MenubawViewMenu,
+				gwoup: '5_editow',
+				owda: 2
 			}
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
+	ovewwide async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const configuwationSewvice = accessow.get(IConfiguwationSewvice);
 
-		const newValue = !configurationService.getValue('editor.minimap.enabled');
-		return configurationService.updateValue('editor.minimap.enabled', newValue);
+		const newVawue = !configuwationSewvice.getVawue('editow.minimap.enabwed');
+		wetuwn configuwationSewvice.updateVawue('editow.minimap.enabwed', newVawue);
 	}
 }
 
-registerAction2(ToggleMinimapAction);
+wegistewAction2(ToggweMinimapAction);

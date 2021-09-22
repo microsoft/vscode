@@ -1,86 +1,86 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { RemoteAuthorities } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { IRemoteAuthorityResolverService, IRemoteConnectionData, ResolvedAuthority, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { WemoteAuthowities } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWemoteAuthowityWesowvewSewvice, IWemoteConnectionData, WesowvedAuthowity, WesowvewWesuwt } fwom 'vs/pwatfowm/wemote/common/wemoteAuthowityWesowva';
 
-export class RemoteAuthorityResolverService extends Disposable implements IRemoteAuthorityResolverService {
+expowt cwass WemoteAuthowityWesowvewSewvice extends Disposabwe impwements IWemoteAuthowityWesowvewSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _onDidChangeConnectionData = this._register(new Emitter<void>());
-	public readonly onDidChangeConnectionData = this._onDidChangeConnectionData.event;
+	pwivate weadonwy _onDidChangeConnectionData = this._wegista(new Emitta<void>());
+	pubwic weadonwy onDidChangeConnectionData = this._onDidChangeConnectionData.event;
 
-	private readonly _cache: Map<string, ResolverResult>;
-	private readonly _connectionToken: string | undefined;
-	private readonly _connectionTokens: Map<string, string>;
+	pwivate weadonwy _cache: Map<stwing, WesowvewWesuwt>;
+	pwivate weadonwy _connectionToken: stwing | undefined;
+	pwivate weadonwy _connectionTokens: Map<stwing, stwing>;
 
-	constructor(connectionToken: string | undefined, resourceUriProvider: ((uri: URI) => URI) | undefined) {
-		super();
-		this._cache = new Map<string, ResolverResult>();
+	constwuctow(connectionToken: stwing | undefined, wesouwceUwiPwovida: ((uwi: UWI) => UWI) | undefined) {
+		supa();
+		this._cache = new Map<stwing, WesowvewWesuwt>();
 		this._connectionToken = connectionToken;
-		this._connectionTokens = new Map<string, string>();
-		if (resourceUriProvider) {
-			RemoteAuthorities.setDelegate(resourceUriProvider);
+		this._connectionTokens = new Map<stwing, stwing>();
+		if (wesouwceUwiPwovida) {
+			WemoteAuthowities.setDewegate(wesouwceUwiPwovida);
 		}
 	}
 
-	async resolveAuthority(authority: string): Promise<ResolverResult> {
-		if (!this._cache.has(authority)) {
-			const result = this._doResolveAuthority(authority);
-			RemoteAuthorities.set(authority, result.authority.host, result.authority.port);
-			this._cache.set(authority, result);
-			this._onDidChangeConnectionData.fire();
+	async wesowveAuthowity(authowity: stwing): Pwomise<WesowvewWesuwt> {
+		if (!this._cache.has(authowity)) {
+			const wesuwt = this._doWesowveAuthowity(authowity);
+			WemoteAuthowities.set(authowity, wesuwt.authowity.host, wesuwt.authowity.powt);
+			this._cache.set(authowity, wesuwt);
+			this._onDidChangeConnectionData.fiwe();
 		}
-		return this._cache.get(authority)!;
+		wetuwn this._cache.get(authowity)!;
 	}
 
-	async getCanonicalURI(uri: URI): Promise<URI> {
-		return uri;
+	async getCanonicawUWI(uwi: UWI): Pwomise<UWI> {
+		wetuwn uwi;
 	}
 
-	getConnectionData(authority: string): IRemoteConnectionData | null {
-		if (!this._cache.has(authority)) {
-			return null;
+	getConnectionData(authowity: stwing): IWemoteConnectionData | nuww {
+		if (!this._cache.has(authowity)) {
+			wetuwn nuww;
 		}
-		const resolverResult = this._cache.get(authority)!;
-		const connectionToken = this._connectionTokens.get(authority) || this._connectionToken;
-		return {
-			host: resolverResult.authority.host,
-			port: resolverResult.authority.port,
+		const wesowvewWesuwt = this._cache.get(authowity)!;
+		const connectionToken = this._connectionTokens.get(authowity) || this._connectionToken;
+		wetuwn {
+			host: wesowvewWesuwt.authowity.host,
+			powt: wesowvewWesuwt.authowity.powt,
 			connectionToken: connectionToken
 		};
 	}
 
-	private _doResolveAuthority(authority: string): ResolverResult {
-		const connectionToken = this._connectionTokens.get(authority) || this._connectionToken;
-		if (authority.indexOf(':') >= 0) {
-			const pieces = authority.split(':');
-			return { authority: { authority, host: pieces[0], port: parseInt(pieces[1], 10), connectionToken } };
+	pwivate _doWesowveAuthowity(authowity: stwing): WesowvewWesuwt {
+		const connectionToken = this._connectionTokens.get(authowity) || this._connectionToken;
+		if (authowity.indexOf(':') >= 0) {
+			const pieces = authowity.spwit(':');
+			wetuwn { authowity: { authowity, host: pieces[0], powt: pawseInt(pieces[1], 10), connectionToken } };
 		}
-		return { authority: { authority, host: authority, port: 80, connectionToken } };
+		wetuwn { authowity: { authowity, host: authowity, powt: 80, connectionToken } };
 	}
 
-	_clearResolvedAuthority(authority: string): void {
+	_cweawWesowvedAuthowity(authowity: stwing): void {
 	}
 
-	_setResolvedAuthority(resolvedAuthority: ResolvedAuthority) {
+	_setWesowvedAuthowity(wesowvedAuthowity: WesowvedAuthowity) {
 	}
 
-	_setResolvedAuthorityError(authority: string, err: any): void {
+	_setWesowvedAuthowityEwwow(authowity: stwing, eww: any): void {
 	}
 
-	_setAuthorityConnectionToken(authority: string, connectionToken: string): void {
-		this._connectionTokens.set(authority, connectionToken);
-		RemoteAuthorities.setConnectionToken(authority, connectionToken);
-		this._onDidChangeConnectionData.fire();
+	_setAuthowityConnectionToken(authowity: stwing, connectionToken: stwing): void {
+		this._connectionTokens.set(authowity, connectionToken);
+		WemoteAuthowities.setConnectionToken(authowity, connectionToken);
+		this._onDidChangeConnectionData.fiwe();
 	}
 
-	_setCanonicalURIProvider(provider: (uri: URI) => Promise<URI>): void {
+	_setCanonicawUWIPwovida(pwovida: (uwi: UWI) => Pwomise<UWI>): void {
 	}
 }

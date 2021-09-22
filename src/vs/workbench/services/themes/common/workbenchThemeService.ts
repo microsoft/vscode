@@ -1,204 +1,204 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
-import { Color } from 'vs/base/common/color';
-import { IColorTheme, IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeService';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { isBoolean, isString } from 'vs/base/common/types';
+impowt { wefineSewviceDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { ICowowTheme, IThemeSewvice, IFiweIconTheme } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { ConfiguwationTawget } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { isBoowean, isStwing } fwom 'vs/base/common/types';
 
-export const IWorkbenchThemeService = refineServiceDecorator<IThemeService, IWorkbenchThemeService>(IThemeService);
+expowt const IWowkbenchThemeSewvice = wefineSewviceDecowatow<IThemeSewvice, IWowkbenchThemeSewvice>(IThemeSewvice);
 
-export const VS_LIGHT_THEME = 'vs';
-export const VS_DARK_THEME = 'vs-dark';
-export const VS_HC_THEME = 'hc-black';
+expowt const VS_WIGHT_THEME = 'vs';
+expowt const VS_DAWK_THEME = 'vs-dawk';
+expowt const VS_HC_THEME = 'hc-bwack';
 
-export const HC_THEME_ID = 'Default High Contrast';
+expowt const HC_THEME_ID = 'Defauwt High Contwast';
 
-export const THEME_SCOPE_OPEN_PAREN = '[';
-export const THEME_SCOPE_CLOSE_PAREN = ']';
-export const THEME_SCOPE_WILDCARD = '*';
+expowt const THEME_SCOPE_OPEN_PAWEN = '[';
+expowt const THEME_SCOPE_CWOSE_PAWEN = ']';
+expowt const THEME_SCOPE_WIWDCAWD = '*';
 
-export const themeScopeRegex = /\[(.+?)\]/g;
+expowt const themeScopeWegex = /\[(.+?)\]/g;
 
-export enum ThemeSettings {
-	COLOR_THEME = 'workbench.colorTheme',
-	FILE_ICON_THEME = 'workbench.iconTheme',
-	PRODUCT_ICON_THEME = 'workbench.productIconTheme',
-	COLOR_CUSTOMIZATIONS = 'workbench.colorCustomizations',
-	TOKEN_COLOR_CUSTOMIZATIONS = 'editor.tokenColorCustomizations',
-	SEMANTIC_TOKEN_COLOR_CUSTOMIZATIONS = 'editor.semanticTokenColorCustomizations',
+expowt enum ThemeSettings {
+	COWOW_THEME = 'wowkbench.cowowTheme',
+	FIWE_ICON_THEME = 'wowkbench.iconTheme',
+	PWODUCT_ICON_THEME = 'wowkbench.pwoductIconTheme',
+	COWOW_CUSTOMIZATIONS = 'wowkbench.cowowCustomizations',
+	TOKEN_COWOW_CUSTOMIZATIONS = 'editow.tokenCowowCustomizations',
+	SEMANTIC_TOKEN_COWOW_CUSTOMIZATIONS = 'editow.semanticTokenCowowCustomizations',
 
-	PREFERRED_DARK_THEME = 'workbench.preferredDarkColorTheme',
-	PREFERRED_LIGHT_THEME = 'workbench.preferredLightColorTheme',
-	PREFERRED_HC_THEME = 'workbench.preferredHighContrastColorTheme',
-	DETECT_COLOR_SCHEME = 'window.autoDetectColorScheme',
-	DETECT_HC = 'window.autoDetectHighContrast'
+	PWEFEWWED_DAWK_THEME = 'wowkbench.pwefewwedDawkCowowTheme',
+	PWEFEWWED_WIGHT_THEME = 'wowkbench.pwefewwedWightCowowTheme',
+	PWEFEWWED_HC_THEME = 'wowkbench.pwefewwedHighContwastCowowTheme',
+	DETECT_COWOW_SCHEME = 'window.autoDetectCowowScheme',
+	DETECT_HC = 'window.autoDetectHighContwast'
 }
 
-export interface IWorkbenchTheme {
-	readonly id: string;
-	readonly label: string;
-	readonly extensionData?: ExtensionData;
-	readonly description?: string;
-	readonly settingsId: string | null;
+expowt intewface IWowkbenchTheme {
+	weadonwy id: stwing;
+	weadonwy wabew: stwing;
+	weadonwy extensionData?: ExtensionData;
+	weadonwy descwiption?: stwing;
+	weadonwy settingsId: stwing | nuww;
 }
 
-export interface IWorkbenchColorTheme extends IWorkbenchTheme, IColorTheme {
-	readonly settingsId: string;
-	readonly tokenColors: ITextMateThemingRule[];
+expowt intewface IWowkbenchCowowTheme extends IWowkbenchTheme, ICowowTheme {
+	weadonwy settingsId: stwing;
+	weadonwy tokenCowows: ITextMateThemingWuwe[];
 }
 
-export interface IColorMap {
-	[id: string]: Color;
+expowt intewface ICowowMap {
+	[id: stwing]: Cowow;
 }
 
-export interface IWorkbenchFileIconTheme extends IWorkbenchTheme, IFileIconTheme {
+expowt intewface IWowkbenchFiweIconTheme extends IWowkbenchTheme, IFiweIconTheme {
 }
 
-export interface IWorkbenchProductIconTheme extends IWorkbenchTheme {
-	readonly settingsId: string;
+expowt intewface IWowkbenchPwoductIconTheme extends IWowkbenchTheme {
+	weadonwy settingsId: stwing;
 }
 
-export type ThemeSettingTarget = ConfigurationTarget | undefined | 'auto' | 'preview';
+expowt type ThemeSettingTawget = ConfiguwationTawget | undefined | 'auto' | 'pweview';
 
 
-export interface IWorkbenchThemeService extends IThemeService {
-	readonly _serviceBrand: undefined;
-	setColorTheme(themeId: string | undefined, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchColorTheme | null>;
-	getColorTheme(): IWorkbenchColorTheme;
-	getColorThemes(): Promise<IWorkbenchColorTheme[]>;
-	onDidColorThemeChange: Event<IWorkbenchColorTheme>;
-	restoreColorTheme(): void;
+expowt intewface IWowkbenchThemeSewvice extends IThemeSewvice {
+	weadonwy _sewviceBwand: undefined;
+	setCowowTheme(themeId: stwing | undefined, settingsTawget: ThemeSettingTawget): Pwomise<IWowkbenchCowowTheme | nuww>;
+	getCowowTheme(): IWowkbenchCowowTheme;
+	getCowowThemes(): Pwomise<IWowkbenchCowowTheme[]>;
+	onDidCowowThemeChange: Event<IWowkbenchCowowTheme>;
+	westoweCowowTheme(): void;
 
-	setFileIconTheme(iconThemeId: string | undefined, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchFileIconTheme>;
-	getFileIconTheme(): IWorkbenchFileIconTheme;
-	getFileIconThemes(): Promise<IWorkbenchFileIconTheme[]>;
-	onDidFileIconThemeChange: Event<IWorkbenchFileIconTheme>;
+	setFiweIconTheme(iconThemeId: stwing | undefined, settingsTawget: ThemeSettingTawget): Pwomise<IWowkbenchFiweIconTheme>;
+	getFiweIconTheme(): IWowkbenchFiweIconTheme;
+	getFiweIconThemes(): Pwomise<IWowkbenchFiweIconTheme[]>;
+	onDidFiweIconThemeChange: Event<IWowkbenchFiweIconTheme>;
 
-	setProductIconTheme(iconThemeId: string | undefined, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchProductIconTheme>;
-	getProductIconTheme(): IWorkbenchProductIconTheme;
-	getProductIconThemes(): Promise<IWorkbenchProductIconTheme[]>;
-	onDidProductIconThemeChange: Event<IWorkbenchProductIconTheme>;
+	setPwoductIconTheme(iconThemeId: stwing | undefined, settingsTawget: ThemeSettingTawget): Pwomise<IWowkbenchPwoductIconTheme>;
+	getPwoductIconTheme(): IWowkbenchPwoductIconTheme;
+	getPwoductIconThemes(): Pwomise<IWowkbenchPwoductIconTheme[]>;
+	onDidPwoductIconThemeChange: Event<IWowkbenchPwoductIconTheme>;
 }
 
-export interface IThemeScopedColorCustomizations {
-	[colorId: string]: string;
+expowt intewface IThemeScopedCowowCustomizations {
+	[cowowId: stwing]: stwing;
 }
 
-export interface IColorCustomizations {
-	[colorIdOrThemeScope: string]: IThemeScopedColorCustomizations | string;
+expowt intewface ICowowCustomizations {
+	[cowowIdOwThemeScope: stwing]: IThemeScopedCowowCustomizations | stwing;
 }
 
-export interface IThemeScopedTokenColorCustomizations {
-	[groupId: string]: ITextMateThemingRule[] | ITokenColorizationSetting | boolean | string | undefined;
-	comments?: string | ITokenColorizationSetting;
-	strings?: string | ITokenColorizationSetting;
-	numbers?: string | ITokenColorizationSetting;
-	keywords?: string | ITokenColorizationSetting;
-	types?: string | ITokenColorizationSetting;
-	functions?: string | ITokenColorizationSetting;
-	variables?: string | ITokenColorizationSetting;
-	textMateRules?: ITextMateThemingRule[];
-	semanticHighlighting?: boolean; // deprecated, use ISemanticTokenColorCustomizations.enabled instead
+expowt intewface IThemeScopedTokenCowowCustomizations {
+	[gwoupId: stwing]: ITextMateThemingWuwe[] | ITokenCowowizationSetting | boowean | stwing | undefined;
+	comments?: stwing | ITokenCowowizationSetting;
+	stwings?: stwing | ITokenCowowizationSetting;
+	numbews?: stwing | ITokenCowowizationSetting;
+	keywowds?: stwing | ITokenCowowizationSetting;
+	types?: stwing | ITokenCowowizationSetting;
+	functions?: stwing | ITokenCowowizationSetting;
+	vawiabwes?: stwing | ITokenCowowizationSetting;
+	textMateWuwes?: ITextMateThemingWuwe[];
+	semanticHighwighting?: boowean; // depwecated, use ISemanticTokenCowowCustomizations.enabwed instead
 }
 
-export interface ITokenColorCustomizations {
-	[groupIdOrThemeScope: string]: IThemeScopedTokenColorCustomizations | ITextMateThemingRule[] | ITokenColorizationSetting | boolean | string | undefined;
-	comments?: string | ITokenColorizationSetting;
-	strings?: string | ITokenColorizationSetting;
-	numbers?: string | ITokenColorizationSetting;
-	keywords?: string | ITokenColorizationSetting;
-	types?: string | ITokenColorizationSetting;
-	functions?: string | ITokenColorizationSetting;
-	variables?: string | ITokenColorizationSetting;
-	textMateRules?: ITextMateThemingRule[];
-	semanticHighlighting?: boolean; // deprecated, use ISemanticTokenColorCustomizations.enabled instead
+expowt intewface ITokenCowowCustomizations {
+	[gwoupIdOwThemeScope: stwing]: IThemeScopedTokenCowowCustomizations | ITextMateThemingWuwe[] | ITokenCowowizationSetting | boowean | stwing | undefined;
+	comments?: stwing | ITokenCowowizationSetting;
+	stwings?: stwing | ITokenCowowizationSetting;
+	numbews?: stwing | ITokenCowowizationSetting;
+	keywowds?: stwing | ITokenCowowizationSetting;
+	types?: stwing | ITokenCowowizationSetting;
+	functions?: stwing | ITokenCowowizationSetting;
+	vawiabwes?: stwing | ITokenCowowizationSetting;
+	textMateWuwes?: ITextMateThemingWuwe[];
+	semanticHighwighting?: boowean; // depwecated, use ISemanticTokenCowowCustomizations.enabwed instead
 }
 
-export interface IThemeScopedSemanticTokenColorCustomizations {
-	[styleRule: string]: ISemanticTokenRules | boolean | undefined;
-	enabled?: boolean;
-	rules?: ISemanticTokenRules;
+expowt intewface IThemeScopedSemanticTokenCowowCustomizations {
+	[styweWuwe: stwing]: ISemanticTokenWuwes | boowean | undefined;
+	enabwed?: boowean;
+	wuwes?: ISemanticTokenWuwes;
 }
 
-export interface ISemanticTokenColorCustomizations {
-	[styleRuleOrThemeScope: string]: IThemeScopedSemanticTokenColorCustomizations | ISemanticTokenRules | boolean | undefined;
-	enabled?: boolean;
-	rules?: ISemanticTokenRules;
+expowt intewface ISemanticTokenCowowCustomizations {
+	[styweWuweOwThemeScope: stwing]: IThemeScopedSemanticTokenCowowCustomizations | ISemanticTokenWuwes | boowean | undefined;
+	enabwed?: boowean;
+	wuwes?: ISemanticTokenWuwes;
 }
 
-export interface IThemeScopedExperimentalSemanticTokenColorCustomizations {
-	[themeScope: string]: ISemanticTokenRules | undefined;
+expowt intewface IThemeScopedExpewimentawSemanticTokenCowowCustomizations {
+	[themeScope: stwing]: ISemanticTokenWuwes | undefined;
 }
 
-export interface IExperimentalSemanticTokenColorCustomizations {
-	[styleRuleOrThemeScope: string]: IThemeScopedExperimentalSemanticTokenColorCustomizations | ISemanticTokenRules | undefined;
+expowt intewface IExpewimentawSemanticTokenCowowCustomizations {
+	[styweWuweOwThemeScope: stwing]: IThemeScopedExpewimentawSemanticTokenCowowCustomizations | ISemanticTokenWuwes | undefined;
 }
 
-export type IThemeScopedCustomizations =
-	IThemeScopedColorCustomizations
-	| IThemeScopedTokenColorCustomizations
-	| IThemeScopedExperimentalSemanticTokenColorCustomizations
-	| IThemeScopedSemanticTokenColorCustomizations;
+expowt type IThemeScopedCustomizations =
+	IThemeScopedCowowCustomizations
+	| IThemeScopedTokenCowowCustomizations
+	| IThemeScopedExpewimentawSemanticTokenCowowCustomizations
+	| IThemeScopedSemanticTokenCowowCustomizations;
 
-export type IThemeScopableCustomizations =
-	IColorCustomizations
-	| ITokenColorCustomizations
-	| IExperimentalSemanticTokenColorCustomizations
-	| ISemanticTokenColorCustomizations;
+expowt type IThemeScopabweCustomizations =
+	ICowowCustomizations
+	| ITokenCowowCustomizations
+	| IExpewimentawSemanticTokenCowowCustomizations
+	| ISemanticTokenCowowCustomizations;
 
-export interface ISemanticTokenRules {
-	[selector: string]: string | ISemanticTokenColorizationSetting | undefined;
+expowt intewface ISemanticTokenWuwes {
+	[sewectow: stwing]: stwing | ISemanticTokenCowowizationSetting | undefined;
 }
 
-export interface ITextMateThemingRule {
-	name?: string;
-	scope?: string | string[];
-	settings: ITokenColorizationSetting;
+expowt intewface ITextMateThemingWuwe {
+	name?: stwing;
+	scope?: stwing | stwing[];
+	settings: ITokenCowowizationSetting;
 }
 
-export interface ITokenColorizationSetting {
-	foreground?: string;
-	background?: string;
-	fontStyle?: string; /* [italic|underline|bold] */
+expowt intewface ITokenCowowizationSetting {
+	fowegwound?: stwing;
+	backgwound?: stwing;
+	fontStywe?: stwing; /* [itawic|undewwine|bowd] */
 }
 
-export interface ISemanticTokenColorizationSetting {
-	foreground?: string;
-	fontStyle?: string; /* [italic|underline|bold] */
-	bold?: boolean;
-	underline?: boolean;
-	italic?: boolean;
+expowt intewface ISemanticTokenCowowizationSetting {
+	fowegwound?: stwing;
+	fontStywe?: stwing; /* [itawic|undewwine|bowd] */
+	bowd?: boowean;
+	undewwine?: boowean;
+	itawic?: boowean;
 }
 
-export interface ExtensionData {
-	extensionId: string;
-	extensionPublisher: string;
-	extensionName: string;
-	extensionIsBuiltin: boolean;
+expowt intewface ExtensionData {
+	extensionId: stwing;
+	extensionPubwisha: stwing;
+	extensionName: stwing;
+	extensionIsBuiwtin: boowean;
 }
 
-export namespace ExtensionData {
-	export function toJSONObject(d: ExtensionData | undefined): any {
-		return d && { _extensionId: d.extensionId, _extensionIsBuiltin: d.extensionIsBuiltin, _extensionName: d.extensionName, _extensionPublisher: d.extensionPublisher };
+expowt namespace ExtensionData {
+	expowt function toJSONObject(d: ExtensionData | undefined): any {
+		wetuwn d && { _extensionId: d.extensionId, _extensionIsBuiwtin: d.extensionIsBuiwtin, _extensionName: d.extensionName, _extensionPubwisha: d.extensionPubwisha };
 	}
-	export function fromJSONObject(o: any): ExtensionData | undefined {
-		if (o && isString(o._extensionId) && isBoolean(o._extensionIsBuiltin) && isString(o._extensionName) && isString(o._extensionPublisher)) {
-			return { extensionId: o._extensionId, extensionIsBuiltin: o._extensionIsBuiltin, extensionName: o._extensionName, extensionPublisher: o._extensionPublisher };
+	expowt function fwomJSONObject(o: any): ExtensionData | undefined {
+		if (o && isStwing(o._extensionId) && isBoowean(o._extensionIsBuiwtin) && isStwing(o._extensionName) && isStwing(o._extensionPubwisha)) {
+			wetuwn { extensionId: o._extensionId, extensionIsBuiwtin: o._extensionIsBuiwtin, extensionName: o._extensionName, extensionPubwisha: o._extensionPubwisha };
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-export interface IThemeExtensionPoint {
-	id: string;
-	label?: string;
-	description?: string;
-	path: string;
-	uiTheme?: typeof VS_LIGHT_THEME | typeof VS_DARK_THEME | typeof VS_HC_THEME;
-	_watch: boolean; // unsupported options to watch location
+expowt intewface IThemeExtensionPoint {
+	id: stwing;
+	wabew?: stwing;
+	descwiption?: stwing;
+	path: stwing;
+	uiTheme?: typeof VS_WIGHT_THEME | typeof VS_DAWK_THEME | typeof VS_HC_THEME;
+	_watch: boowean; // unsuppowted options to watch wocation
 }

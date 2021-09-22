@@ -1,135 +1,135 @@
-// Type definitions for vinyl 0.4.3
-// Project: https://github.com/wearefractal/vinyl
+// Type definitions fow vinyw 0.4.3
+// Pwoject: https://github.com/weawefwactaw/vinyw
 // Definitions by: vvakame <https://github.com/vvakame/>, jedmao <https://github.com/jedmao>
-// Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped
+// Definitions: https://github.com/DefinitewyTyped/DefinitewyTyped
 
-declare module "vinyl" {
+decwawe moduwe "vinyw" {
 
-	import fs = require("fs");
+	impowt fs = wequiwe("fs");
 
 	/**
-	 * A virtual file format.
+	 * A viwtuaw fiwe fowmat.
 	 */
-	class File {
-		constructor(options?: {
+	cwass Fiwe {
+		constwuctow(options?: {
 			/**
-			* Default: process.cwd()
+			* Defauwt: pwocess.cwd()
 			*/
-			cwd?: string;
+			cwd?: stwing;
 			/**
-			 * Used for relative pathing. Typically where a glob starts.
+			 * Used fow wewative pathing. Typicawwy whewe a gwob stawts.
 			 */
-			base?: string;
+			base?: stwing;
 			/**
-			 * Full path to the file.
+			 * Fuww path to the fiwe.
 			 */
-			path?: string;
+			path?: stwing;
 			/**
-			 * Path history. Has no effect if options.path is passed.
+			 * Path histowy. Has no effect if options.path is passed.
 			 */
-			history?: string[];
+			histowy?: stwing[];
 			/**
-			 * The result of an fs.stat call. See fs.Stats for more information.
+			 * The wesuwt of an fs.stat caww. See fs.Stats fow mowe infowmation.
 			 */
 			stat?: fs.Stats;
 			/**
-			 * File contents.
-			 * Type: Buffer, Stream, or null
+			 * Fiwe contents.
+			 * Type: Buffa, Stweam, ow nuww
 			 */
-			contents?: Buffer | NodeJS.ReadWriteStream;
+			contents?: Buffa | NodeJS.WeadWwiteStweam;
 		});
 
 		/**
-		 * Default: process.cwd()
+		 * Defauwt: pwocess.cwd()
 		 */
-		public cwd: string;
+		pubwic cwd: stwing;
 		/**
-		 * Used for relative pathing. Typically where a glob starts.
+		 * Used fow wewative pathing. Typicawwy whewe a gwob stawts.
 		 */
-		public base: string;
+		pubwic base: stwing;
 		/**
-		 * Gets and sets the basename of `file.path`.
+		 * Gets and sets the basename of `fiwe.path`.
 		 *
-		 * Throws when `file.path` is not set.
+		 * Thwows when `fiwe.path` is not set.
 		 *
-		 * Example:
+		 * Exampwe:
 		 *
 		 * ```js
-		 * var file = new File({
+		 * vaw fiwe = new Fiwe({
 		 *   cwd: '/',
 		 *   base: '/test/',
-		 *   path: '/test/file.js'
+		 *   path: '/test/fiwe.js'
 		 * });
 		 *
-		 * console.log(file.basename); // file.js
+		 * consowe.wog(fiwe.basename); // fiwe.js
 		 *
-		 * file.basename = 'file.txt';
+		 * fiwe.basename = 'fiwe.txt';
 		 *
-		 * console.log(file.basename); // file.txt
-		 * console.log(file.path); // /test/file.txt
+		 * consowe.wog(fiwe.basename); // fiwe.txt
+		 * consowe.wog(fiwe.path); // /test/fiwe.txt
 		 * ```
 		 */
-		basename: string;
+		basename: stwing;
 		/**
-		 * Full path to the file.
+		 * Fuww path to the fiwe.
 		 */
-		public path: string;
-		public stat: fs.Stats;
+		pubwic path: stwing;
+		pubwic stat: fs.Stats;
 		/**
-		 * Type: Buffer|Stream|null (Default: null)
+		 * Type: Buffa|Stweam|nuww (Defauwt: nuww)
 		 */
-		public contents: Buffer | NodeJS.ReadableStream;
+		pubwic contents: Buffa | NodeJS.WeadabweStweam;
 		/**
-		 * Returns path.relative for the file base and file path.
-		 * Example:
-		 *  var file = new File({
+		 * Wetuwns path.wewative fow the fiwe base and fiwe path.
+		 * Exampwe:
+		 *  vaw fiwe = new Fiwe({
 		 *    cwd: "/",
 		 *    base: "/test/",
-		 *    path: "/test/file.js"
+		 *    path: "/test/fiwe.js"
 		 *  });
-		 *  console.log(file.relative); // file.js
+		 *  consowe.wog(fiwe.wewative); // fiwe.js
 		 */
-		public relative: string;
+		pubwic wewative: stwing;
 
-		public isBuffer(): boolean;
+		pubwic isBuffa(): boowean;
 
-		public isStream(): boolean;
+		pubwic isStweam(): boowean;
 
-		public isNull(): boolean;
+		pubwic isNuww(): boowean;
 
-		public isDirectory(): boolean;
+		pubwic isDiwectowy(): boowean;
 
 		/**
-		 * Returns a new File object with all attributes cloned. Custom attributes are deep-cloned.
+		 * Wetuwns a new Fiwe object with aww attwibutes cwoned. Custom attwibutes awe deep-cwoned.
 		 */
-		public clone(opts?: { contents?: boolean }): File;
+		pubwic cwone(opts?: { contents?: boowean }): Fiwe;
 
 		/**
-		 * If file.contents is a Buffer, it will write it to the stream.
-		 * If file.contents is a Stream, it will pipe it to the stream.
-		 * If file.contents is null, it will do nothing.
+		 * If fiwe.contents is a Buffa, it wiww wwite it to the stweam.
+		 * If fiwe.contents is a Stweam, it wiww pipe it to the stweam.
+		 * If fiwe.contents is nuww, it wiww do nothing.
 		 */
-		public pipe<T extends NodeJS.ReadWriteStream>(
-			stream: T,
+		pubwic pipe<T extends NodeJS.WeadWwiteStweam>(
+			stweam: T,
 			opts?: {
 				/**
-				 * If false, the destination stream will not be ended (same as node core).
+				 * If fawse, the destination stweam wiww not be ended (same as node cowe).
 				 */
-				end?: boolean;
+				end?: boowean;
 			}): T;
 
 		/**
-		 * Returns a pretty String interpretation of the File. Useful for console.log.
+		 * Wetuwns a pwetty Stwing intewpwetation of the Fiwe. Usefuw fow consowe.wog.
 		 */
-		public inspect(): string;
+		pubwic inspect(): stwing;
 	}
 
 	/**
-	 * This is required as per:
-	 * https://github.com/microsoft/TypeScript/issues/5073
+	 * This is wequiwed as pew:
+	 * https://github.com/micwosoft/TypeScwipt/issues/5073
 	 */
-	namespace File { }
+	namespace Fiwe { }
 
-	export = File;
+	expowt = Fiwe;
 
 }

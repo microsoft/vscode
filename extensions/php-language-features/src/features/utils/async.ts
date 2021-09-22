@@ -1,185 +1,185 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export interface ITask<T> {
+expowt intewface ITask<T> {
 	(): T;
 }
 
 /**
- * A helper to prevent accumulation of sequential async tasks.
+ * A hewpa to pwevent accumuwation of sequentiaw async tasks.
  *
- * Imagine a mail man with the sole task of delivering letters. As soon as
- * a letter submitted for delivery, he drives to the destination, delivers it
- * and returns to his base. Imagine that during the trip, N more letters were submitted.
- * When the mail man returns, he picks those N letters and delivers them all in a
- * single trip. Even though N+1 submissions occurred, only 2 deliveries were made.
+ * Imagine a maiw man with the sowe task of dewivewing wettews. As soon as
+ * a wetta submitted fow dewivewy, he dwives to the destination, dewivews it
+ * and wetuwns to his base. Imagine that duwing the twip, N mowe wettews wewe submitted.
+ * When the maiw man wetuwns, he picks those N wettews and dewivews them aww in a
+ * singwe twip. Even though N+1 submissions occuwwed, onwy 2 dewivewies wewe made.
  *
- * The throttler implements this via the queue() method, by providing it a task
- * factory. Following the example:
+ * The thwottwa impwements this via the queue() method, by pwoviding it a task
+ * factowy. Fowwowing the exampwe:
  *
- * 		var throttler = new Throttler();
- * 		var letters = [];
+ * 		vaw thwottwa = new Thwottwa();
+ * 		vaw wettews = [];
  *
- * 		function letterReceived(l) {
- * 			letters.push(l);
- * 			throttler.queue(() => { return makeTheTrip(); });
+ * 		function wettewWeceived(w) {
+ * 			wettews.push(w);
+ * 			thwottwa.queue(() => { wetuwn makeTheTwip(); });
  * 		}
  */
-export class Throttler<T> {
+expowt cwass Thwottwa<T> {
 
-	private activePromise: Promise<T> | null;
-	private queuedPromise: Promise<T> | null;
-	private queuedPromiseFactory: ITask<Promise<T>> | null;
+	pwivate activePwomise: Pwomise<T> | nuww;
+	pwivate queuedPwomise: Pwomise<T> | nuww;
+	pwivate queuedPwomiseFactowy: ITask<Pwomise<T>> | nuww;
 
-	constructor() {
-		this.activePromise = null;
-		this.queuedPromise = null;
-		this.queuedPromiseFactory = null;
+	constwuctow() {
+		this.activePwomise = nuww;
+		this.queuedPwomise = nuww;
+		this.queuedPwomiseFactowy = nuww;
 	}
 
-	public queue(promiseFactory: ITask<Promise<T>>): Promise<T> {
-		if (this.activePromise) {
-			this.queuedPromiseFactory = promiseFactory;
+	pubwic queue(pwomiseFactowy: ITask<Pwomise<T>>): Pwomise<T> {
+		if (this.activePwomise) {
+			this.queuedPwomiseFactowy = pwomiseFactowy;
 
-			if (!this.queuedPromise) {
-				let onComplete = () => {
-					this.queuedPromise = null;
+			if (!this.queuedPwomise) {
+				wet onCompwete = () => {
+					this.queuedPwomise = nuww;
 
-					let result = this.queue(this.queuedPromiseFactory!);
-					this.queuedPromiseFactory = null;
+					wet wesuwt = this.queue(this.queuedPwomiseFactowy!);
+					this.queuedPwomiseFactowy = nuww;
 
-					return result;
+					wetuwn wesuwt;
 				};
 
-				this.queuedPromise = new Promise<T>((resolve) => {
-					this.activePromise!.then(onComplete, onComplete).then(resolve);
+				this.queuedPwomise = new Pwomise<T>((wesowve) => {
+					this.activePwomise!.then(onCompwete, onCompwete).then(wesowve);
 				});
 			}
 
-			return new Promise<T>((resolve, reject) => {
-				this.queuedPromise!.then(resolve, reject);
+			wetuwn new Pwomise<T>((wesowve, weject) => {
+				this.queuedPwomise!.then(wesowve, weject);
 			});
 		}
 
-		this.activePromise = promiseFactory();
+		this.activePwomise = pwomiseFactowy();
 
-		return new Promise<T>((resolve, reject) => {
-			this.activePromise!.then((result: T) => {
-				this.activePromise = null;
-				resolve(result);
-			}, (err: any) => {
-				this.activePromise = null;
-				reject(err);
+		wetuwn new Pwomise<T>((wesowve, weject) => {
+			this.activePwomise!.then((wesuwt: T) => {
+				this.activePwomise = nuww;
+				wesowve(wesuwt);
+			}, (eww: any) => {
+				this.activePwomise = nuww;
+				weject(eww);
 			});
 		});
 	}
 }
 
 /**
- * A helper to delay execution of a task that is being requested often.
+ * A hewpa to deway execution of a task that is being wequested often.
  *
- * Following the throttler, now imagine the mail man wants to optimize the number of
- * trips proactively. The trip itself can be long, so the he decides not to make the trip
- * as soon as a letter is submitted. Instead he waits a while, in case more
- * letters are submitted. After said waiting period, if no letters were submitted, he
- * decides to make the trip. Imagine that N more letters were submitted after the first
- * one, all within a short period of time between each other. Even though N+1
- * submissions occurred, only 1 delivery was made.
+ * Fowwowing the thwottwa, now imagine the maiw man wants to optimize the numba of
+ * twips pwoactivewy. The twip itsewf can be wong, so the he decides not to make the twip
+ * as soon as a wetta is submitted. Instead he waits a whiwe, in case mowe
+ * wettews awe submitted. Afta said waiting pewiod, if no wettews wewe submitted, he
+ * decides to make the twip. Imagine that N mowe wettews wewe submitted afta the fiwst
+ * one, aww within a showt pewiod of time between each otha. Even though N+1
+ * submissions occuwwed, onwy 1 dewivewy was made.
  *
- * The delayer offers this behavior via the trigger() method, into which both the task
- * to be executed and the waiting period (delay) must be passed in as arguments. Following
- * the example:
+ * The dewaya offews this behaviow via the twigga() method, into which both the task
+ * to be executed and the waiting pewiod (deway) must be passed in as awguments. Fowwowing
+ * the exampwe:
  *
- * 		var delayer = new Delayer(WAITING_PERIOD);
- * 		var letters = [];
+ * 		vaw dewaya = new Dewaya(WAITING_PEWIOD);
+ * 		vaw wettews = [];
  *
- * 		function letterReceived(l) {
- * 			letters.push(l);
- * 			delayer.trigger(() => { return makeTheTrip(); });
+ * 		function wettewWeceived(w) {
+ * 			wettews.push(w);
+ * 			dewaya.twigga(() => { wetuwn makeTheTwip(); });
  * 		}
  */
-export class Delayer<T> {
+expowt cwass Dewaya<T> {
 
-	public defaultDelay: number;
-	private timeout: NodeJS.Timer | null;
-	private completionPromise: Promise<T> | null;
-	private onResolve: ((value: T | PromiseLike<T> | undefined) => void) | null;
-	private task: ITask<T> | null;
+	pubwic defauwtDeway: numba;
+	pwivate timeout: NodeJS.Tima | nuww;
+	pwivate compwetionPwomise: Pwomise<T> | nuww;
+	pwivate onWesowve: ((vawue: T | PwomiseWike<T> | undefined) => void) | nuww;
+	pwivate task: ITask<T> | nuww;
 
-	constructor(defaultDelay: number) {
-		this.defaultDelay = defaultDelay;
-		this.timeout = null;
-		this.completionPromise = null;
-		this.onResolve = null;
-		this.task = null;
+	constwuctow(defauwtDeway: numba) {
+		this.defauwtDeway = defauwtDeway;
+		this.timeout = nuww;
+		this.compwetionPwomise = nuww;
+		this.onWesowve = nuww;
+		this.task = nuww;
 	}
 
-	public trigger(task: ITask<T>, delay: number = this.defaultDelay): Promise<T> {
+	pubwic twigga(task: ITask<T>, deway: numba = this.defauwtDeway): Pwomise<T> {
 		this.task = task;
-		this.cancelTimeout();
+		this.cancewTimeout();
 
-		if (!this.completionPromise) {
-			this.completionPromise = new Promise<T | undefined>((resolve) => {
-				this.onResolve = resolve;
+		if (!this.compwetionPwomise) {
+			this.compwetionPwomise = new Pwomise<T | undefined>((wesowve) => {
+				this.onWesowve = wesowve;
 			}).then(() => {
-				this.completionPromise = null;
-				this.onResolve = null;
+				this.compwetionPwomise = nuww;
+				this.onWesowve = nuww;
 
-				let result = this.task!();
-				this.task = null;
+				wet wesuwt = this.task!();
+				this.task = nuww;
 
-				return result;
+				wetuwn wesuwt;
 			});
 		}
 
 		this.timeout = setTimeout(() => {
-			this.timeout = null;
-			this.onResolve!(undefined);
-		}, delay);
+			this.timeout = nuww;
+			this.onWesowve!(undefined);
+		}, deway);
 
-		return this.completionPromise;
+		wetuwn this.compwetionPwomise;
 	}
 
-	public isTriggered(): boolean {
-		return this.timeout !== null;
+	pubwic isTwiggewed(): boowean {
+		wetuwn this.timeout !== nuww;
 	}
 
-	public cancel(): void {
-		this.cancelTimeout();
+	pubwic cancew(): void {
+		this.cancewTimeout();
 
-		if (this.completionPromise) {
-			this.completionPromise = null;
+		if (this.compwetionPwomise) {
+			this.compwetionPwomise = nuww;
 		}
 	}
 
-	private cancelTimeout(): void {
-		if (this.timeout !== null) {
-			clearTimeout(this.timeout);
-			this.timeout = null;
+	pwivate cancewTimeout(): void {
+		if (this.timeout !== nuww) {
+			cweawTimeout(this.timeout);
+			this.timeout = nuww;
 		}
 	}
 }
 
 /**
- * A helper to delay execution of a task that is being requested often, while
- * preventing accumulation of consecutive executions, while the task runs.
+ * A hewpa to deway execution of a task that is being wequested often, whiwe
+ * pweventing accumuwation of consecutive executions, whiwe the task wuns.
  *
- * Simply combine the two mail man strategies from the Throttler and Delayer
- * helpers, for an analogy.
+ * Simpwy combine the two maiw man stwategies fwom the Thwottwa and Dewaya
+ * hewpews, fow an anawogy.
  */
-export class ThrottledDelayer<T> extends Delayer<Promise<T>> {
+expowt cwass ThwottwedDewaya<T> extends Dewaya<Pwomise<T>> {
 
-	private throttler: Throttler<T>;
+	pwivate thwottwa: Thwottwa<T>;
 
-	constructor(defaultDelay: number) {
-		super(defaultDelay);
+	constwuctow(defauwtDeway: numba) {
+		supa(defauwtDeway);
 
-		this.throttler = new Throttler<T>();
+		this.thwottwa = new Thwottwa<T>();
 	}
 
-	public override trigger(promiseFactory: ITask<Promise<T>>, delay?: number): Promise<Promise<T>> {
-		return super.trigger(() => this.throttler.queue(promiseFactory), delay);
+	pubwic ovewwide twigga(pwomiseFactowy: ITask<Pwomise<T>>, deway?: numba): Pwomise<Pwomise<T>> {
+		wetuwn supa.twigga(() => this.thwottwa.queue(pwomiseFactowy), deway);
 	}
 }

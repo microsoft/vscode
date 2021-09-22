@@ -1,464 +1,464 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { asArray, isNonEmptyArray } from 'vs/base/common/arrays';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Iterable } from 'vs/base/common/iterator';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { CodeEditorStateFlag, EditorStateCancellationTokenSource, TextModelCancellationTokenSource } from 'vs/editor/browser/core/editorState';
-import { IActiveCodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { ISingleEditOperation, ITextModel } from 'vs/editor/common/model';
-import { DocumentFormattingEditProvider, DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProvider, DocumentRangeFormattingEditProviderRegistry, FormattingOptions, OnTypeFormattingEditProviderRegistry, TextEdit } from 'vs/editor/common/modes';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
-import * as nls from 'vs/nls';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProgress } from 'vs/platform/progress/common/progress';
+impowt { awewt } fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt { asAwway, isNonEmptyAwway } fwom 'vs/base/common/awways';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { iwwegawAwgument, onUnexpectedExtewnawEwwow } fwom 'vs/base/common/ewwows';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { WinkedWist } fwom 'vs/base/common/winkedWist';
+impowt { assewtType } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { CodeEditowStateFwag, EditowStateCancewwationTokenSouwce, TextModewCancewwationTokenSouwce } fwom 'vs/editow/bwowsa/cowe/editowState';
+impowt { IActiveCodeEditow, isCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { ISingweEditOpewation, ITextModew } fwom 'vs/editow/common/modew';
+impowt { DocumentFowmattingEditPwovida, DocumentFowmattingEditPwovidewWegistwy, DocumentWangeFowmattingEditPwovida, DocumentWangeFowmattingEditPwovidewWegistwy, FowmattingOptions, OnTypeFowmattingEditPwovidewWegistwy, TextEdit } fwom 'vs/editow/common/modes';
+impowt { IEditowWowkewSewvice } fwom 'vs/editow/common/sewvices/editowWowkewSewvice';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { FowmattingEdit } fwom 'vs/editow/contwib/fowmat/fowmattingEdit';
+impowt * as nws fwom 'vs/nws';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IPwogwess } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
 
-export function alertFormattingEdits(edits: ISingleEditOperation[]): void {
+expowt function awewtFowmattingEdits(edits: ISingweEditOpewation[]): void {
 
-	edits = edits.filter(edit => edit.range);
-	if (!edits.length) {
-		return;
+	edits = edits.fiwta(edit => edit.wange);
+	if (!edits.wength) {
+		wetuwn;
 	}
 
-	let { range } = edits[0];
-	for (let i = 1; i < edits.length; i++) {
-		range = Range.plusRange(range, edits[i].range);
+	wet { wange } = edits[0];
+	fow (wet i = 1; i < edits.wength; i++) {
+		wange = Wange.pwusWange(wange, edits[i].wange);
 	}
-	const { startLineNumber, endLineNumber } = range;
-	if (startLineNumber === endLineNumber) {
-		if (edits.length === 1) {
-			alert(nls.localize('hint11', "Made 1 formatting edit on line {0}", startLineNumber));
-		} else {
-			alert(nls.localize('hintn1', "Made {0} formatting edits on line {1}", edits.length, startLineNumber));
+	const { stawtWineNumba, endWineNumba } = wange;
+	if (stawtWineNumba === endWineNumba) {
+		if (edits.wength === 1) {
+			awewt(nws.wocawize('hint11', "Made 1 fowmatting edit on wine {0}", stawtWineNumba));
+		} ewse {
+			awewt(nws.wocawize('hintn1', "Made {0} fowmatting edits on wine {1}", edits.wength, stawtWineNumba));
 		}
-	} else {
-		if (edits.length === 1) {
-			alert(nls.localize('hint1n', "Made 1 formatting edit between lines {0} and {1}", startLineNumber, endLineNumber));
-		} else {
-			alert(nls.localize('hintnn', "Made {0} formatting edits between lines {1} and {2}", edits.length, startLineNumber, endLineNumber));
+	} ewse {
+		if (edits.wength === 1) {
+			awewt(nws.wocawize('hint1n', "Made 1 fowmatting edit between wines {0} and {1}", stawtWineNumba, endWineNumba));
+		} ewse {
+			awewt(nws.wocawize('hintnn', "Made {0} fowmatting edits between wines {1} and {2}", edits.wength, stawtWineNumba, endWineNumba));
 		}
 	}
 }
 
-export function getRealAndSyntheticDocumentFormattersOrdered(model: ITextModel): DocumentFormattingEditProvider[] {
-	const result: DocumentFormattingEditProvider[] = [];
-	const seen = new Set<string>();
+expowt function getWeawAndSyntheticDocumentFowmattewsOwdewed(modew: ITextModew): DocumentFowmattingEditPwovida[] {
+	const wesuwt: DocumentFowmattingEditPwovida[] = [];
+	const seen = new Set<stwing>();
 
-	// (1) add all document formatter
-	const docFormatter = DocumentFormattingEditProviderRegistry.ordered(model);
-	for (const formatter of docFormatter) {
-		result.push(formatter);
-		if (formatter.extensionId) {
-			seen.add(ExtensionIdentifier.toKey(formatter.extensionId));
+	// (1) add aww document fowmatta
+	const docFowmatta = DocumentFowmattingEditPwovidewWegistwy.owdewed(modew);
+	fow (const fowmatta of docFowmatta) {
+		wesuwt.push(fowmatta);
+		if (fowmatta.extensionId) {
+			seen.add(ExtensionIdentifia.toKey(fowmatta.extensionId));
 		}
 	}
 
-	// (2) add all range formatter as document formatter (unless the same extension already did that)
-	const rangeFormatter = DocumentRangeFormattingEditProviderRegistry.ordered(model);
-	for (const formatter of rangeFormatter) {
-		if (formatter.extensionId) {
-			if (seen.has(ExtensionIdentifier.toKey(formatter.extensionId))) {
+	// (2) add aww wange fowmatta as document fowmatta (unwess the same extension awweady did that)
+	const wangeFowmatta = DocumentWangeFowmattingEditPwovidewWegistwy.owdewed(modew);
+	fow (const fowmatta of wangeFowmatta) {
+		if (fowmatta.extensionId) {
+			if (seen.has(ExtensionIdentifia.toKey(fowmatta.extensionId))) {
 				continue;
 			}
-			seen.add(ExtensionIdentifier.toKey(formatter.extensionId));
+			seen.add(ExtensionIdentifia.toKey(fowmatta.extensionId));
 		}
-		result.push({
-			displayName: formatter.displayName,
-			extensionId: formatter.extensionId,
-			provideDocumentFormattingEdits(model, options, token) {
-				return formatter.provideDocumentRangeFormattingEdits(model, model.getFullModelRange(), options, token);
+		wesuwt.push({
+			dispwayName: fowmatta.dispwayName,
+			extensionId: fowmatta.extensionId,
+			pwovideDocumentFowmattingEdits(modew, options, token) {
+				wetuwn fowmatta.pwovideDocumentWangeFowmattingEdits(modew, modew.getFuwwModewWange(), options, token);
 			}
 		});
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
-export const enum FormattingMode {
-	Explicit = 1,
-	Silent = 2
+expowt const enum FowmattingMode {
+	Expwicit = 1,
+	Siwent = 2
 }
 
-export interface IFormattingEditProviderSelector {
-	<T extends (DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider)>(formatter: T[], document: ITextModel, mode: FormattingMode): Promise<T | undefined>;
+expowt intewface IFowmattingEditPwovidewSewectow {
+	<T extends (DocumentFowmattingEditPwovida | DocumentWangeFowmattingEditPwovida)>(fowmatta: T[], document: ITextModew, mode: FowmattingMode): Pwomise<T | undefined>;
 }
 
-export abstract class FormattingConflicts {
+expowt abstwact cwass FowmattingConfwicts {
 
-	private static readonly _selectors = new LinkedList<IFormattingEditProviderSelector>();
+	pwivate static weadonwy _sewectows = new WinkedWist<IFowmattingEditPwovidewSewectow>();
 
-	static setFormatterSelector(selector: IFormattingEditProviderSelector): IDisposable {
-		const remove = FormattingConflicts._selectors.unshift(selector);
-		return { dispose: remove };
+	static setFowmattewSewectow(sewectow: IFowmattingEditPwovidewSewectow): IDisposabwe {
+		const wemove = FowmattingConfwicts._sewectows.unshift(sewectow);
+		wetuwn { dispose: wemove };
 	}
 
-	static async select<T extends (DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider)>(formatter: T[], document: ITextModel, mode: FormattingMode): Promise<T | undefined> {
-		if (formatter.length === 0) {
-			return undefined;
+	static async sewect<T extends (DocumentFowmattingEditPwovida | DocumentWangeFowmattingEditPwovida)>(fowmatta: T[], document: ITextModew, mode: FowmattingMode): Pwomise<T | undefined> {
+		if (fowmatta.wength === 0) {
+			wetuwn undefined;
 		}
-		const selector = Iterable.first(FormattingConflicts._selectors);
-		if (selector) {
-			return await selector(formatter, document, mode);
+		const sewectow = Itewabwe.fiwst(FowmattingConfwicts._sewectows);
+		if (sewectow) {
+			wetuwn await sewectow(fowmatta, document, mode);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-export async function formatDocumentRangesWithSelectedProvider(
-	accessor: ServicesAccessor,
-	editorOrModel: ITextModel | IActiveCodeEditor,
-	rangeOrRanges: Range | Range[],
-	mode: FormattingMode,
-	progress: IProgress<DocumentRangeFormattingEditProvider>,
-	token: CancellationToken
-): Promise<void> {
+expowt async function fowmatDocumentWangesWithSewectedPwovida(
+	accessow: SewvicesAccessow,
+	editowOwModew: ITextModew | IActiveCodeEditow,
+	wangeOwWanges: Wange | Wange[],
+	mode: FowmattingMode,
+	pwogwess: IPwogwess<DocumentWangeFowmattingEditPwovida>,
+	token: CancewwationToken
+): Pwomise<void> {
 
-	const instaService = accessor.get(IInstantiationService);
-	const model = isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel;
-	const provider = DocumentRangeFormattingEditProviderRegistry.ordered(model);
-	const selected = await FormattingConflicts.select(provider, model, mode);
-	if (selected) {
-		progress.report(selected);
-		await instaService.invokeFunction(formatDocumentRangesWithProvider, selected, editorOrModel, rangeOrRanges, token);
+	const instaSewvice = accessow.get(IInstantiationSewvice);
+	const modew = isCodeEditow(editowOwModew) ? editowOwModew.getModew() : editowOwModew;
+	const pwovida = DocumentWangeFowmattingEditPwovidewWegistwy.owdewed(modew);
+	const sewected = await FowmattingConfwicts.sewect(pwovida, modew, mode);
+	if (sewected) {
+		pwogwess.wepowt(sewected);
+		await instaSewvice.invokeFunction(fowmatDocumentWangesWithPwovida, sewected, editowOwModew, wangeOwWanges, token);
 	}
 }
 
-export async function formatDocumentRangesWithProvider(
-	accessor: ServicesAccessor,
-	provider: DocumentRangeFormattingEditProvider,
-	editorOrModel: ITextModel | IActiveCodeEditor,
-	rangeOrRanges: Range | Range[],
-	token: CancellationToken
-): Promise<boolean> {
-	const workerService = accessor.get(IEditorWorkerService);
+expowt async function fowmatDocumentWangesWithPwovida(
+	accessow: SewvicesAccessow,
+	pwovida: DocumentWangeFowmattingEditPwovida,
+	editowOwModew: ITextModew | IActiveCodeEditow,
+	wangeOwWanges: Wange | Wange[],
+	token: CancewwationToken
+): Pwomise<boowean> {
+	const wowkewSewvice = accessow.get(IEditowWowkewSewvice);
 
-	let model: ITextModel;
-	let cts: CancellationTokenSource;
-	if (isCodeEditor(editorOrModel)) {
-		model = editorOrModel.getModel();
-		cts = new EditorStateCancellationTokenSource(editorOrModel, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position, undefined, token);
-	} else {
-		model = editorOrModel;
-		cts = new TextModelCancellationTokenSource(editorOrModel, token);
+	wet modew: ITextModew;
+	wet cts: CancewwationTokenSouwce;
+	if (isCodeEditow(editowOwModew)) {
+		modew = editowOwModew.getModew();
+		cts = new EditowStateCancewwationTokenSouwce(editowOwModew, CodeEditowStateFwag.Vawue | CodeEditowStateFwag.Position, undefined, token);
+	} ewse {
+		modew = editowOwModew;
+		cts = new TextModewCancewwationTokenSouwce(editowOwModew, token);
 	}
 
-	// make sure that ranges don't overlap nor touch each other
-	let ranges: Range[] = [];
-	let len = 0;
-	for (let range of asArray(rangeOrRanges).sort(Range.compareRangesUsingStarts)) {
-		if (len > 0 && Range.areIntersectingOrTouching(ranges[len - 1], range)) {
-			ranges[len - 1] = Range.fromPositions(ranges[len - 1].getStartPosition(), range.getEndPosition());
-		} else {
-			len = ranges.push(range);
+	// make suwe that wanges don't ovewwap now touch each otha
+	wet wanges: Wange[] = [];
+	wet wen = 0;
+	fow (wet wange of asAwway(wangeOwWanges).sowt(Wange.compaweWangesUsingStawts)) {
+		if (wen > 0 && Wange.aweIntewsectingOwTouching(wanges[wen - 1], wange)) {
+			wanges[wen - 1] = Wange.fwomPositions(wanges[wen - 1].getStawtPosition(), wange.getEndPosition());
+		} ewse {
+			wen = wanges.push(wange);
 		}
 	}
 
-	const computeEdits = async (range: Range) => {
-		return (await provider.provideDocumentRangeFormattingEdits(
-			model,
-			range,
-			model.getFormattingOptions(),
+	const computeEdits = async (wange: Wange) => {
+		wetuwn (await pwovida.pwovideDocumentWangeFowmattingEdits(
+			modew,
+			wange,
+			modew.getFowmattingOptions(),
 			cts.token
 		)) || [];
 	};
 
-	const hasIntersectingEdit = (a: TextEdit[], b: TextEdit[]) => {
-		if (!a.length || !b.length) {
-			return false;
+	const hasIntewsectingEdit = (a: TextEdit[], b: TextEdit[]) => {
+		if (!a.wength || !b.wength) {
+			wetuwn fawse;
 		}
-		// quick exit if the list of ranges are completely unrelated [O(n)]
-		const mergedA = a.reduce((acc, val) => { return Range.plusRange(acc, val.range); }, a[0].range);
-		if (!b.some(x => { return Range.intersectRanges(mergedA, x.range); })) {
-			return false;
+		// quick exit if the wist of wanges awe compwetewy unwewated [O(n)]
+		const mewgedA = a.weduce((acc, vaw) => { wetuwn Wange.pwusWange(acc, vaw.wange); }, a[0].wange);
+		if (!b.some(x => { wetuwn Wange.intewsectWanges(mewgedA, x.wange); })) {
+			wetuwn fawse;
 		}
-		// fallback to a complete check [O(n^2)]
-		for (let edit of a) {
-			for (let otherEdit of b) {
-				if (Range.intersectRanges(edit.range, otherEdit.range)) {
-					return true;
+		// fawwback to a compwete check [O(n^2)]
+		fow (wet edit of a) {
+			fow (wet othewEdit of b) {
+				if (Wange.intewsectWanges(edit.wange, othewEdit.wange)) {
+					wetuwn twue;
 				}
 			}
 		}
-		return false;
+		wetuwn fawse;
 	};
 
-	const allEdits: TextEdit[] = [];
-	const rawEditsList: TextEdit[][] = [];
-	try {
-		for (let range of ranges) {
-			if (cts.token.isCancellationRequested) {
-				return true;
+	const awwEdits: TextEdit[] = [];
+	const wawEditsWist: TextEdit[][] = [];
+	twy {
+		fow (wet wange of wanges) {
+			if (cts.token.isCancewwationWequested) {
+				wetuwn twue;
 			}
-			rawEditsList.push(await computeEdits(range));
+			wawEditsWist.push(await computeEdits(wange));
 		}
 
-		for (let i = 0; i < ranges.length; ++i) {
-			for (let j = i + 1; j < ranges.length; ++j) {
-				if (cts.token.isCancellationRequested) {
-					return true;
+		fow (wet i = 0; i < wanges.wength; ++i) {
+			fow (wet j = i + 1; j < wanges.wength; ++j) {
+				if (cts.token.isCancewwationWequested) {
+					wetuwn twue;
 				}
-				if (hasIntersectingEdit(rawEditsList[i], rawEditsList[j])) {
-					// Merge ranges i and j into a single range, recompute the associated edits
-					const mergedRange = Range.plusRange(ranges[i], ranges[j]);
-					const edits = await computeEdits(mergedRange);
-					ranges.splice(j, 1);
-					ranges.splice(i, 1);
-					ranges.push(mergedRange);
-					rawEditsList.splice(j, 1);
-					rawEditsList.splice(i, 1);
-					rawEditsList.push(edits);
-					// Restart scanning
+				if (hasIntewsectingEdit(wawEditsWist[i], wawEditsWist[j])) {
+					// Mewge wanges i and j into a singwe wange, wecompute the associated edits
+					const mewgedWange = Wange.pwusWange(wanges[i], wanges[j]);
+					const edits = await computeEdits(mewgedWange);
+					wanges.spwice(j, 1);
+					wanges.spwice(i, 1);
+					wanges.push(mewgedWange);
+					wawEditsWist.spwice(j, 1);
+					wawEditsWist.spwice(i, 1);
+					wawEditsWist.push(edits);
+					// Westawt scanning
 					i = 0;
 					j = 0;
 				}
 			}
 		}
 
-		for (let rawEdits of rawEditsList) {
-			if (cts.token.isCancellationRequested) {
-				return true;
+		fow (wet wawEdits of wawEditsWist) {
+			if (cts.token.isCancewwationWequested) {
+				wetuwn twue;
 			}
-			const minimalEdits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
-			if (minimalEdits) {
-				allEdits.push(...minimalEdits);
+			const minimawEdits = await wowkewSewvice.computeMoweMinimawEdits(modew.uwi, wawEdits);
+			if (minimawEdits) {
+				awwEdits.push(...minimawEdits);
 			}
 		}
-	} finally {
+	} finawwy {
 		cts.dispose();
 	}
 
-	if (allEdits.length === 0) {
-		return false;
+	if (awwEdits.wength === 0) {
+		wetuwn fawse;
 	}
 
-	if (isCodeEditor(editorOrModel)) {
-		// use editor to apply edits
-		FormattingEdit.execute(editorOrModel, allEdits, true);
-		alertFormattingEdits(allEdits);
-		editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), ScrollType.Immediate);
+	if (isCodeEditow(editowOwModew)) {
+		// use editow to appwy edits
+		FowmattingEdit.execute(editowOwModew, awwEdits, twue);
+		awewtFowmattingEdits(awwEdits);
+		editowOwModew.weveawPositionInCentewIfOutsideViewpowt(editowOwModew.getPosition(), ScwowwType.Immediate);
 
-	} else {
-		// use model to apply edits
-		const [{ range }] = allEdits;
-		const initialSelection = new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
-		model.pushEditOperations([initialSelection], allEdits.map(edit => {
-			return {
+	} ewse {
+		// use modew to appwy edits
+		const [{ wange }] = awwEdits;
+		const initiawSewection = new Sewection(wange.stawtWineNumba, wange.stawtCowumn, wange.endWineNumba, wange.endCowumn);
+		modew.pushEditOpewations([initiawSewection], awwEdits.map(edit => {
+			wetuwn {
 				text: edit.text,
-				range: Range.lift(edit.range),
-				forceMoveMarkers: true
+				wange: Wange.wift(edit.wange),
+				fowceMoveMawkews: twue
 			};
 		}), undoEdits => {
-			for (const { range } of undoEdits) {
-				if (Range.areIntersectingOrTouching(range, initialSelection)) {
-					return [new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn)];
+			fow (const { wange } of undoEdits) {
+				if (Wange.aweIntewsectingOwTouching(wange, initiawSewection)) {
+					wetuwn [new Sewection(wange.stawtWineNumba, wange.stawtCowumn, wange.endWineNumba, wange.endCowumn)];
 				}
 			}
-			return null;
+			wetuwn nuww;
 		});
 	}
 
-	return true;
+	wetuwn twue;
 }
 
-export async function formatDocumentWithSelectedProvider(
-	accessor: ServicesAccessor,
-	editorOrModel: ITextModel | IActiveCodeEditor,
-	mode: FormattingMode,
-	progress: IProgress<DocumentFormattingEditProvider>,
-	token: CancellationToken
-): Promise<void> {
+expowt async function fowmatDocumentWithSewectedPwovida(
+	accessow: SewvicesAccessow,
+	editowOwModew: ITextModew | IActiveCodeEditow,
+	mode: FowmattingMode,
+	pwogwess: IPwogwess<DocumentFowmattingEditPwovida>,
+	token: CancewwationToken
+): Pwomise<void> {
 
-	const instaService = accessor.get(IInstantiationService);
-	const model = isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel;
-	const provider = getRealAndSyntheticDocumentFormattersOrdered(model);
-	const selected = await FormattingConflicts.select(provider, model, mode);
-	if (selected) {
-		progress.report(selected);
-		await instaService.invokeFunction(formatDocumentWithProvider, selected, editorOrModel, mode, token);
+	const instaSewvice = accessow.get(IInstantiationSewvice);
+	const modew = isCodeEditow(editowOwModew) ? editowOwModew.getModew() : editowOwModew;
+	const pwovida = getWeawAndSyntheticDocumentFowmattewsOwdewed(modew);
+	const sewected = await FowmattingConfwicts.sewect(pwovida, modew, mode);
+	if (sewected) {
+		pwogwess.wepowt(sewected);
+		await instaSewvice.invokeFunction(fowmatDocumentWithPwovida, sewected, editowOwModew, mode, token);
 	}
 }
 
-export async function formatDocumentWithProvider(
-	accessor: ServicesAccessor,
-	provider: DocumentFormattingEditProvider,
-	editorOrModel: ITextModel | IActiveCodeEditor,
-	mode: FormattingMode,
-	token: CancellationToken
-): Promise<boolean> {
-	const workerService = accessor.get(IEditorWorkerService);
+expowt async function fowmatDocumentWithPwovida(
+	accessow: SewvicesAccessow,
+	pwovida: DocumentFowmattingEditPwovida,
+	editowOwModew: ITextModew | IActiveCodeEditow,
+	mode: FowmattingMode,
+	token: CancewwationToken
+): Pwomise<boowean> {
+	const wowkewSewvice = accessow.get(IEditowWowkewSewvice);
 
-	let model: ITextModel;
-	let cts: CancellationTokenSource;
-	if (isCodeEditor(editorOrModel)) {
-		model = editorOrModel.getModel();
-		cts = new EditorStateCancellationTokenSource(editorOrModel, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position, undefined, token);
-	} else {
-		model = editorOrModel;
-		cts = new TextModelCancellationTokenSource(editorOrModel, token);
+	wet modew: ITextModew;
+	wet cts: CancewwationTokenSouwce;
+	if (isCodeEditow(editowOwModew)) {
+		modew = editowOwModew.getModew();
+		cts = new EditowStateCancewwationTokenSouwce(editowOwModew, CodeEditowStateFwag.Vawue | CodeEditowStateFwag.Position, undefined, token);
+	} ewse {
+		modew = editowOwModew;
+		cts = new TextModewCancewwationTokenSouwce(editowOwModew, token);
 	}
 
-	let edits: TextEdit[] | undefined;
-	try {
-		const rawEdits = await provider.provideDocumentFormattingEdits(
-			model,
-			model.getFormattingOptions(),
+	wet edits: TextEdit[] | undefined;
+	twy {
+		const wawEdits = await pwovida.pwovideDocumentFowmattingEdits(
+			modew,
+			modew.getFowmattingOptions(),
 			cts.token
 		);
 
-		edits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
+		edits = await wowkewSewvice.computeMoweMinimawEdits(modew.uwi, wawEdits);
 
-		if (cts.token.isCancellationRequested) {
-			return true;
+		if (cts.token.isCancewwationWequested) {
+			wetuwn twue;
 		}
 
-	} finally {
+	} finawwy {
 		cts.dispose();
 	}
 
-	if (!edits || edits.length === 0) {
-		return false;
+	if (!edits || edits.wength === 0) {
+		wetuwn fawse;
 	}
 
-	if (isCodeEditor(editorOrModel)) {
-		// use editor to apply edits
-		FormattingEdit.execute(editorOrModel, edits, mode !== FormattingMode.Silent);
+	if (isCodeEditow(editowOwModew)) {
+		// use editow to appwy edits
+		FowmattingEdit.execute(editowOwModew, edits, mode !== FowmattingMode.Siwent);
 
-		if (mode !== FormattingMode.Silent) {
-			alertFormattingEdits(edits);
-			editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), ScrollType.Immediate);
+		if (mode !== FowmattingMode.Siwent) {
+			awewtFowmattingEdits(edits);
+			editowOwModew.weveawPositionInCentewIfOutsideViewpowt(editowOwModew.getPosition(), ScwowwType.Immediate);
 		}
 
-	} else {
-		// use model to apply edits
-		const [{ range }] = edits;
-		const initialSelection = new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
-		model.pushEditOperations([initialSelection], edits.map(edit => {
-			return {
+	} ewse {
+		// use modew to appwy edits
+		const [{ wange }] = edits;
+		const initiawSewection = new Sewection(wange.stawtWineNumba, wange.stawtCowumn, wange.endWineNumba, wange.endCowumn);
+		modew.pushEditOpewations([initiawSewection], edits.map(edit => {
+			wetuwn {
 				text: edit.text,
-				range: Range.lift(edit.range),
-				forceMoveMarkers: true
+				wange: Wange.wift(edit.wange),
+				fowceMoveMawkews: twue
 			};
 		}), undoEdits => {
-			for (const { range } of undoEdits) {
-				if (Range.areIntersectingOrTouching(range, initialSelection)) {
-					return [new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn)];
+			fow (const { wange } of undoEdits) {
+				if (Wange.aweIntewsectingOwTouching(wange, initiawSewection)) {
+					wetuwn [new Sewection(wange.stawtWineNumba, wange.stawtCowumn, wange.endWineNumba, wange.endCowumn)];
 				}
 			}
-			return null;
+			wetuwn nuww;
 		});
 	}
 
-	return true;
+	wetuwn twue;
 }
 
-export async function getDocumentRangeFormattingEditsUntilResult(
-	workerService: IEditorWorkerService,
-	model: ITextModel,
-	range: Range,
-	options: FormattingOptions,
-	token: CancellationToken
-): Promise<TextEdit[] | undefined> {
+expowt async function getDocumentWangeFowmattingEditsUntiwWesuwt(
+	wowkewSewvice: IEditowWowkewSewvice,
+	modew: ITextModew,
+	wange: Wange,
+	options: FowmattingOptions,
+	token: CancewwationToken
+): Pwomise<TextEdit[] | undefined> {
 
-	const providers = DocumentRangeFormattingEditProviderRegistry.ordered(model);
-	for (const provider of providers) {
-		let rawEdits = await Promise.resolve(provider.provideDocumentRangeFormattingEdits(model, range, options, token)).catch(onUnexpectedExternalError);
-		if (isNonEmptyArray(rawEdits)) {
-			return await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
+	const pwovidews = DocumentWangeFowmattingEditPwovidewWegistwy.owdewed(modew);
+	fow (const pwovida of pwovidews) {
+		wet wawEdits = await Pwomise.wesowve(pwovida.pwovideDocumentWangeFowmattingEdits(modew, wange, options, token)).catch(onUnexpectedExtewnawEwwow);
+		if (isNonEmptyAwway(wawEdits)) {
+			wetuwn await wowkewSewvice.computeMoweMinimawEdits(modew.uwi, wawEdits);
 		}
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
-export async function getDocumentFormattingEditsUntilResult(
-	workerService: IEditorWorkerService,
-	model: ITextModel,
-	options: FormattingOptions,
-	token: CancellationToken
-): Promise<TextEdit[] | undefined> {
+expowt async function getDocumentFowmattingEditsUntiwWesuwt(
+	wowkewSewvice: IEditowWowkewSewvice,
+	modew: ITextModew,
+	options: FowmattingOptions,
+	token: CancewwationToken
+): Pwomise<TextEdit[] | undefined> {
 
-	const providers = getRealAndSyntheticDocumentFormattersOrdered(model);
-	for (const provider of providers) {
-		let rawEdits = await Promise.resolve(provider.provideDocumentFormattingEdits(model, options, token)).catch(onUnexpectedExternalError);
-		if (isNonEmptyArray(rawEdits)) {
-			return await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
+	const pwovidews = getWeawAndSyntheticDocumentFowmattewsOwdewed(modew);
+	fow (const pwovida of pwovidews) {
+		wet wawEdits = await Pwomise.wesowve(pwovida.pwovideDocumentFowmattingEdits(modew, options, token)).catch(onUnexpectedExtewnawEwwow);
+		if (isNonEmptyAwway(wawEdits)) {
+			wetuwn await wowkewSewvice.computeMoweMinimawEdits(modew.uwi, wawEdits);
 		}
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
-export function getOnTypeFormattingEdits(
-	workerService: IEditorWorkerService,
-	model: ITextModel,
+expowt function getOnTypeFowmattingEdits(
+	wowkewSewvice: IEditowWowkewSewvice,
+	modew: ITextModew,
 	position: Position,
-	ch: string,
-	options: FormattingOptions
-): Promise<TextEdit[] | null | undefined> {
+	ch: stwing,
+	options: FowmattingOptions
+): Pwomise<TextEdit[] | nuww | undefined> {
 
-	const providers = OnTypeFormattingEditProviderRegistry.ordered(model);
+	const pwovidews = OnTypeFowmattingEditPwovidewWegistwy.owdewed(modew);
 
-	if (providers.length === 0) {
-		return Promise.resolve(undefined);
+	if (pwovidews.wength === 0) {
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	if (providers[0].autoFormatTriggerCharacters.indexOf(ch) < 0) {
-		return Promise.resolve(undefined);
+	if (pwovidews[0].autoFowmatTwiggewChawactews.indexOf(ch) < 0) {
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	return Promise.resolve(providers[0].provideOnTypeFormattingEdits(model, position, ch, options, CancellationToken.None)).catch(onUnexpectedExternalError).then(edits => {
-		return workerService.computeMoreMinimalEdits(model.uri, edits);
+	wetuwn Pwomise.wesowve(pwovidews[0].pwovideOnTypeFowmattingEdits(modew, position, ch, options, CancewwationToken.None)).catch(onUnexpectedExtewnawEwwow).then(edits => {
+		wetuwn wowkewSewvice.computeMoweMinimawEdits(modew.uwi, edits);
 	});
 }
 
-CommandsRegistry.registerCommand('_executeFormatRangeProvider', function (accessor, ...args) {
-	const [resource, range, options] = args;
-	assertType(URI.isUri(resource));
-	assertType(Range.isIRange(range));
+CommandsWegistwy.wegistewCommand('_executeFowmatWangePwovida', function (accessow, ...awgs) {
+	const [wesouwce, wange, options] = awgs;
+	assewtType(UWI.isUwi(wesouwce));
+	assewtType(Wange.isIWange(wange));
 
-	const model = accessor.get(IModelService).getModel(resource);
-	if (!model) {
-		throw illegalArgument('resource');
+	const modew = accessow.get(IModewSewvice).getModew(wesouwce);
+	if (!modew) {
+		thwow iwwegawAwgument('wesouwce');
 	}
-	return getDocumentRangeFormattingEditsUntilResult(accessor.get(IEditorWorkerService), model, Range.lift(range), options, CancellationToken.None);
+	wetuwn getDocumentWangeFowmattingEditsUntiwWesuwt(accessow.get(IEditowWowkewSewvice), modew, Wange.wift(wange), options, CancewwationToken.None);
 });
 
-CommandsRegistry.registerCommand('_executeFormatDocumentProvider', function (accessor, ...args) {
-	const [resource, options] = args;
-	assertType(URI.isUri(resource));
+CommandsWegistwy.wegistewCommand('_executeFowmatDocumentPwovida', function (accessow, ...awgs) {
+	const [wesouwce, options] = awgs;
+	assewtType(UWI.isUwi(wesouwce));
 
-	const model = accessor.get(IModelService).getModel(resource);
-	if (!model) {
-		throw illegalArgument('resource');
+	const modew = accessow.get(IModewSewvice).getModew(wesouwce);
+	if (!modew) {
+		thwow iwwegawAwgument('wesouwce');
 	}
 
-	return getDocumentFormattingEditsUntilResult(accessor.get(IEditorWorkerService), model, options, CancellationToken.None);
+	wetuwn getDocumentFowmattingEditsUntiwWesuwt(accessow.get(IEditowWowkewSewvice), modew, options, CancewwationToken.None);
 });
 
-CommandsRegistry.registerCommand('_executeFormatOnTypeProvider', function (accessor, ...args) {
-	const [resource, position, ch, options] = args;
-	assertType(URI.isUri(resource));
-	assertType(Position.isIPosition(position));
-	assertType(typeof ch === 'string');
+CommandsWegistwy.wegistewCommand('_executeFowmatOnTypePwovida', function (accessow, ...awgs) {
+	const [wesouwce, position, ch, options] = awgs;
+	assewtType(UWI.isUwi(wesouwce));
+	assewtType(Position.isIPosition(position));
+	assewtType(typeof ch === 'stwing');
 
-	const model = accessor.get(IModelService).getModel(resource);
-	if (!model) {
-		throw illegalArgument('resource');
+	const modew = accessow.get(IModewSewvice).getModew(wesouwce);
+	if (!modew) {
+		thwow iwwegawAwgument('wesouwce');
 	}
 
-	return getOnTypeFormattingEdits(accessor.get(IEditorWorkerService), model, Position.lift(position), ch, options);
+	wetuwn getOnTypeFowmattingEdits(accessow.get(IEditowWowkewSewvice), modew, Position.wift(position), ch, options);
 });

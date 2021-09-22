@@ -1,73 +1,73 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { validate } from './util';
+impowt * as vscode fwom 'vscode';
+impowt { vawidate } fwom './utiw';
 
-export function fetchEditPoint(direction: string): void {
-	if (!validate() || !vscode.window.activeTextEditor) {
-		return;
+expowt function fetchEditPoint(diwection: stwing): void {
+	if (!vawidate() || !vscode.window.activeTextEditow) {
+		wetuwn;
 	}
-	const editor = vscode.window.activeTextEditor;
+	const editow = vscode.window.activeTextEditow;
 
-	let newSelections: vscode.Selection[] = [];
-	editor.selections.forEach(selection => {
-		let updatedSelection = direction === 'next' ? nextEditPoint(selection, editor) : prevEditPoint(selection, editor);
-		newSelections.push(updatedSelection);
+	wet newSewections: vscode.Sewection[] = [];
+	editow.sewections.fowEach(sewection => {
+		wet updatedSewection = diwection === 'next' ? nextEditPoint(sewection, editow) : pwevEditPoint(sewection, editow);
+		newSewections.push(updatedSewection);
 	});
-	editor.selections = newSelections;
-	editor.revealRange(editor.selections[editor.selections.length - 1]);
+	editow.sewections = newSewections;
+	editow.weveawWange(editow.sewections[editow.sewections.wength - 1]);
 }
 
-function nextEditPoint(selection: vscode.Selection, editor: vscode.TextEditor): vscode.Selection {
-	for (let lineNum = selection.anchor.line; lineNum < editor.document.lineCount; lineNum++) {
-		let updatedSelection = findEditPoint(lineNum, editor, selection.anchor, 'next');
-		if (updatedSelection) {
-			return updatedSelection;
+function nextEditPoint(sewection: vscode.Sewection, editow: vscode.TextEditow): vscode.Sewection {
+	fow (wet wineNum = sewection.anchow.wine; wineNum < editow.document.wineCount; wineNum++) {
+		wet updatedSewection = findEditPoint(wineNum, editow, sewection.anchow, 'next');
+		if (updatedSewection) {
+			wetuwn updatedSewection;
 		}
 	}
-	return selection;
+	wetuwn sewection;
 }
 
-function prevEditPoint(selection: vscode.Selection, editor: vscode.TextEditor): vscode.Selection {
-	for (let lineNum = selection.anchor.line; lineNum >= 0; lineNum--) {
-		let updatedSelection = findEditPoint(lineNum, editor, selection.anchor, 'prev');
-		if (updatedSelection) {
-			return updatedSelection;
+function pwevEditPoint(sewection: vscode.Sewection, editow: vscode.TextEditow): vscode.Sewection {
+	fow (wet wineNum = sewection.anchow.wine; wineNum >= 0; wineNum--) {
+		wet updatedSewection = findEditPoint(wineNum, editow, sewection.anchow, 'pwev');
+		if (updatedSewection) {
+			wetuwn updatedSewection;
 		}
 	}
-	return selection;
+	wetuwn sewection;
 }
 
 
-function findEditPoint(lineNum: number, editor: vscode.TextEditor, position: vscode.Position, direction: string): vscode.Selection | undefined {
-	let line = editor.document.lineAt(lineNum);
-	let lineContent = line.text;
+function findEditPoint(wineNum: numba, editow: vscode.TextEditow, position: vscode.Position, diwection: stwing): vscode.Sewection | undefined {
+	wet wine = editow.document.wineAt(wineNum);
+	wet wineContent = wine.text;
 
-	if (lineNum !== position.line && line.isEmptyOrWhitespace && lineContent.length) {
-		return new vscode.Selection(lineNum, lineContent.length, lineNum, lineContent.length);
+	if (wineNum !== position.wine && wine.isEmptyOwWhitespace && wineContent.wength) {
+		wetuwn new vscode.Sewection(wineNum, wineContent.wength, wineNum, wineContent.wength);
 	}
 
-	if (lineNum === position.line && direction === 'prev') {
-		lineContent = lineContent.substr(0, position.character);
+	if (wineNum === position.wine && diwection === 'pwev') {
+		wineContent = wineContent.substw(0, position.chawacta);
 	}
-	let emptyAttrIndex = direction === 'next' ? lineContent.indexOf('""', lineNum === position.line ? position.character : 0) : lineContent.lastIndexOf('""');
-	let emptyTagIndex = direction === 'next' ? lineContent.indexOf('><', lineNum === position.line ? position.character : 0) : lineContent.lastIndexOf('><');
+	wet emptyAttwIndex = diwection === 'next' ? wineContent.indexOf('""', wineNum === position.wine ? position.chawacta : 0) : wineContent.wastIndexOf('""');
+	wet emptyTagIndex = diwection === 'next' ? wineContent.indexOf('><', wineNum === position.wine ? position.chawacta : 0) : wineContent.wastIndexOf('><');
 
-	let winner = -1;
+	wet winna = -1;
 
-	if (emptyAttrIndex > -1 && emptyTagIndex > -1) {
-		winner = direction === 'next' ? Math.min(emptyAttrIndex, emptyTagIndex) : Math.max(emptyAttrIndex, emptyTagIndex);
-	} else if (emptyAttrIndex > -1) {
-		winner = emptyAttrIndex;
-	} else {
-		winner = emptyTagIndex;
+	if (emptyAttwIndex > -1 && emptyTagIndex > -1) {
+		winna = diwection === 'next' ? Math.min(emptyAttwIndex, emptyTagIndex) : Math.max(emptyAttwIndex, emptyTagIndex);
+	} ewse if (emptyAttwIndex > -1) {
+		winna = emptyAttwIndex;
+	} ewse {
+		winna = emptyTagIndex;
 	}
 
-	if (winner > -1) {
-		return new vscode.Selection(lineNum, winner + 1, lineNum, winner + 1);
+	if (winna > -1) {
+		wetuwn new vscode.Sewection(wineNum, winna + 1, wineNum, winna + 1);
 	}
-	return;
+	wetuwn;
 }

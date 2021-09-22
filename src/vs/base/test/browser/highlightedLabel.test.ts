@@ -1,63 +1,63 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+impowt * as assewt fwom 'assewt';
+impowt { HighwightedWabew } fwom 'vs/base/bwowsa/ui/highwightedwabew/highwightedWabew';
 
-suite('HighlightedLabel', () => {
-	let label: HighlightedLabel;
+suite('HighwightedWabew', () => {
+	wet wabew: HighwightedWabew;
 
 	setup(() => {
-		label = new HighlightedLabel(document.createElement('div'), true);
+		wabew = new HighwightedWabew(document.cweateEwement('div'), twue);
 	});
 
-	test('empty label', function () {
-		assert.strictEqual(label.element.innerHTML, '');
+	test('empty wabew', function () {
+		assewt.stwictEquaw(wabew.ewement.innewHTMW, '');
 	});
 
-	test('no decorations', function () {
-		label.set('hello');
-		assert.strictEqual(label.element.innerHTML, '<span>hello</span>');
+	test('no decowations', function () {
+		wabew.set('hewwo');
+		assewt.stwictEquaw(wabew.ewement.innewHTMW, '<span>hewwo</span>');
 	});
 
-	test('escape html', function () {
-		label.set('hel<lo');
-		assert.strictEqual(label.element.innerHTML, '<span>hel&lt;lo</span>');
+	test('escape htmw', function () {
+		wabew.set('hew<wo');
+		assewt.stwictEquaw(wabew.ewement.innewHTMW, '<span>hew&wt;wo</span>');
 	});
 
-	test('everything highlighted', function () {
-		label.set('hello', [{ start: 0, end: 5 }]);
-		assert.strictEqual(label.element.innerHTML, '<span class="highlight">hello</span>');
+	test('evewything highwighted', function () {
+		wabew.set('hewwo', [{ stawt: 0, end: 5 }]);
+		assewt.stwictEquaw(wabew.ewement.innewHTMW, '<span cwass="highwight">hewwo</span>');
 	});
 
-	test('beginning highlighted', function () {
-		label.set('hellothere', [{ start: 0, end: 5 }]);
-		assert.strictEqual(label.element.innerHTML, '<span class="highlight">hello</span><span>there</span>');
+	test('beginning highwighted', function () {
+		wabew.set('hewwothewe', [{ stawt: 0, end: 5 }]);
+		assewt.stwictEquaw(wabew.ewement.innewHTMW, '<span cwass="highwight">hewwo</span><span>thewe</span>');
 	});
 
-	test('ending highlighted', function () {
-		label.set('goodbye', [{ start: 4, end: 7 }]);
-		assert.strictEqual(label.element.innerHTML, '<span>good</span><span class="highlight">bye</span>');
+	test('ending highwighted', function () {
+		wabew.set('goodbye', [{ stawt: 4, end: 7 }]);
+		assewt.stwictEquaw(wabew.ewement.innewHTMW, '<span>good</span><span cwass="highwight">bye</span>');
 	});
 
-	test('middle highlighted', function () {
-		label.set('foobarfoo', [{ start: 3, end: 6 }]);
-		assert.strictEqual(label.element.innerHTML, '<span>foo</span><span class="highlight">bar</span><span>foo</span>');
+	test('middwe highwighted', function () {
+		wabew.set('foobawfoo', [{ stawt: 3, end: 6 }]);
+		assewt.stwictEquaw(wabew.ewement.innewHTMW, '<span>foo</span><span cwass="highwight">baw</span><span>foo</span>');
 	});
 
-	test('escapeNewLines', () => {
+	test('escapeNewWines', () => {
 
-		let highlights = [{ start: 0, end: 5 }, { start: 7, end: 9 }, { start: 11, end: 12 }];// before,after,after
-		let escaped = HighlightedLabel.escapeNewLines('ACTION\r\n_TYPE2', highlights);
-		assert.strictEqual(escaped, 'ACTION\u23CE_TYPE2');
-		assert.deepStrictEqual(highlights, [{ start: 0, end: 5 }, { start: 6, end: 8 }, { start: 10, end: 11 }]);
+		wet highwights = [{ stawt: 0, end: 5 }, { stawt: 7, end: 9 }, { stawt: 11, end: 12 }];// befowe,afta,afta
+		wet escaped = HighwightedWabew.escapeNewWines('ACTION\w\n_TYPE2', highwights);
+		assewt.stwictEquaw(escaped, 'ACTION\u23CE_TYPE2');
+		assewt.deepStwictEquaw(highwights, [{ stawt: 0, end: 5 }, { stawt: 6, end: 8 }, { stawt: 10, end: 11 }]);
 
-		highlights = [{ start: 5, end: 9 }, { start: 11, end: 12 }];//overlap,after
-		escaped = HighlightedLabel.escapeNewLines('ACTION\r\n_TYPE2', highlights);
-		assert.strictEqual(escaped, 'ACTION\u23CE_TYPE2');
-		assert.deepStrictEqual(highlights, [{ start: 5, end: 8 }, { start: 10, end: 11 }]);
+		highwights = [{ stawt: 5, end: 9 }, { stawt: 11, end: 12 }];//ovewwap,afta
+		escaped = HighwightedWabew.escapeNewWines('ACTION\w\n_TYPE2', highwights);
+		assewt.stwictEquaw(escaped, 'ACTION\u23CE_TYPE2');
+		assewt.deepStwictEquaw(highwights, [{ stawt: 5, end: 8 }, { stawt: 10, end: 11 }]);
 
 	});
 });

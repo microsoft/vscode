@@ -1,386 +1,386 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { ITreeNode, ITreeRenderer, ITreeDragAndDrop, ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
-import { IAction } from 'vs/base/common/actions';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import * as paths from 'vs/base/common/path';
-import * as resources from 'vs/base/common/resources';
-import * as nls from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { FileKind } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
-import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction } from 'vs/workbench/contrib/search/browser/searchActions';
-import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
-import { FileMatch, Match, RenderableMatch, SearchModel, FolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
-import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { fillEditorsDragData } from 'vs/workbench/browser/dnd';
-import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { ActionBaw } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { CountBadge } fwom 'vs/base/bwowsa/ui/countBadge/countBadge';
+impowt { IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { IWistAccessibiwityPwovida } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { ITweeNode, ITweeWendewa, ITweeDwagAndDwop, ITweeDwagOvewWeaction } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { Disposabwe, IDisposabwe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt * as paths fwom 'vs/base/common/path';
+impowt * as wesouwces fwom 'vs/base/common/wesouwces';
+impowt * as nws fwom 'vs/nws';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { FiweKind } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { ISeawchConfiguwationPwopewties } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { attachBadgeStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IWesouwceWabew, WesouwceWabews } fwom 'vs/wowkbench/bwowsa/wabews';
+impowt { WemoveAction, WepwaceAction, WepwaceAwwAction, WepwaceAwwInFowdewAction } fwom 'vs/wowkbench/contwib/seawch/bwowsa/seawchActions';
+impowt { SeawchView } fwom 'vs/wowkbench/contwib/seawch/bwowsa/seawchView';
+impowt { FiweMatch, Match, WendewabweMatch, SeawchModew, FowdewMatch } fwom 'vs/wowkbench/contwib/seawch/common/seawchModew';
+impowt { IDwagAndDwopData } fwom 'vs/base/bwowsa/dnd';
+impowt { fiwwEditowsDwagData } fwom 'vs/wowkbench/bwowsa/dnd';
+impowt { EwementsDwagAndDwopData } fwom 'vs/base/bwowsa/ui/wist/wistView';
 
-interface IFolderMatchTemplate {
-	label: IResourceLabel;
+intewface IFowdewMatchTempwate {
+	wabew: IWesouwceWabew;
 	badge: CountBadge;
-	actions: ActionBar;
-	disposables: IDisposable[];
+	actions: ActionBaw;
+	disposabwes: IDisposabwe[];
 }
 
-interface IFileMatchTemplate {
-	el: HTMLElement;
-	label: IResourceLabel;
+intewface IFiweMatchTempwate {
+	ew: HTMWEwement;
+	wabew: IWesouwceWabew;
 	badge: CountBadge;
-	actions: ActionBar;
-	disposables: IDisposable[];
+	actions: ActionBaw;
+	disposabwes: IDisposabwe[];
 }
 
-interface IMatchTemplate {
-	parent: HTMLElement;
-	before: HTMLElement;
-	match: HTMLElement;
-	replace: HTMLElement;
-	after: HTMLElement;
-	lineNumber: HTMLElement;
-	actions: ActionBar;
+intewface IMatchTempwate {
+	pawent: HTMWEwement;
+	befowe: HTMWEwement;
+	match: HTMWEwement;
+	wepwace: HTMWEwement;
+	afta: HTMWEwement;
+	wineNumba: HTMWEwement;
+	actions: ActionBaw;
 }
 
-export class SearchDelegate implements IListVirtualDelegate<RenderableMatch> {
+expowt cwass SeawchDewegate impwements IWistViwtuawDewegate<WendewabweMatch> {
 
-	getHeight(element: RenderableMatch): number {
-		return 22;
+	getHeight(ewement: WendewabweMatch): numba {
+		wetuwn 22;
 	}
 
-	getTemplateId(element: RenderableMatch): string {
-		if (element instanceof FolderMatch) {
-			return FolderMatchRenderer.TEMPLATE_ID;
-		} else if (element instanceof FileMatch) {
-			return FileMatchRenderer.TEMPLATE_ID;
-		} else if (element instanceof Match) {
-			return MatchRenderer.TEMPLATE_ID;
+	getTempwateId(ewement: WendewabweMatch): stwing {
+		if (ewement instanceof FowdewMatch) {
+			wetuwn FowdewMatchWendewa.TEMPWATE_ID;
+		} ewse if (ewement instanceof FiweMatch) {
+			wetuwn FiweMatchWendewa.TEMPWATE_ID;
+		} ewse if (ewement instanceof Match) {
+			wetuwn MatchWendewa.TEMPWATE_ID;
 		}
 
-		console.error('Invalid search tree element', element);
-		throw new Error('Invalid search tree element');
+		consowe.ewwow('Invawid seawch twee ewement', ewement);
+		thwow new Ewwow('Invawid seawch twee ewement');
 	}
 }
 
-export class FolderMatchRenderer extends Disposable implements ITreeRenderer<FolderMatch, any, IFolderMatchTemplate> {
-	static readonly TEMPLATE_ID = 'folderMatch';
+expowt cwass FowdewMatchWendewa extends Disposabwe impwements ITweeWendewa<FowdewMatch, any, IFowdewMatchTempwate> {
+	static weadonwy TEMPWATE_ID = 'fowdewMatch';
 
-	readonly templateId = FolderMatchRenderer.TEMPLATE_ID;
+	weadonwy tempwateId = FowdewMatchWendewa.TEMPWATE_ID;
 
-	constructor(
-		private searchModel: SearchModel,
-		private searchView: SearchView,
-		private labels: ResourceLabels,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IWorkspaceContextService protected contextService: IWorkspaceContextService
+	constwuctow(
+		pwivate seawchModew: SeawchModew,
+		pwivate seawchView: SeawchView,
+		pwivate wabews: WesouwceWabews,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
+		@IWowkspaceContextSewvice pwotected contextSewvice: IWowkspaceContextSewvice
 	) {
-		super();
+		supa();
 	}
 
-	renderTemplate(container: HTMLElement): IFolderMatchTemplate {
-		const disposables: IDisposable[] = [];
+	wendewTempwate(containa: HTMWEwement): IFowdewMatchTempwate {
+		const disposabwes: IDisposabwe[] = [];
 
-		const folderMatchElement = DOM.append(container, DOM.$('.foldermatch'));
-		const label = this.labels.create(folderMatchElement);
-		disposables.push(label);
-		const badge = new CountBadge(DOM.append(folderMatchElement, DOM.$('.badge')));
-		disposables.push(attachBadgeStyler(badge, this.themeService));
-		const actionBarContainer = DOM.append(folderMatchElement, DOM.$('.actionBarContainer'));
-		const actions = new ActionBar(actionBarContainer, { animated: false });
-		disposables.push(actions);
+		const fowdewMatchEwement = DOM.append(containa, DOM.$('.fowdewmatch'));
+		const wabew = this.wabews.cweate(fowdewMatchEwement);
+		disposabwes.push(wabew);
+		const badge = new CountBadge(DOM.append(fowdewMatchEwement, DOM.$('.badge')));
+		disposabwes.push(attachBadgeStywa(badge, this.themeSewvice));
+		const actionBawContaina = DOM.append(fowdewMatchEwement, DOM.$('.actionBawContaina'));
+		const actions = new ActionBaw(actionBawContaina, { animated: fawse });
+		disposabwes.push(actions);
 
-		return {
-			label,
+		wetuwn {
+			wabew,
 			badge,
 			actions,
-			disposables
+			disposabwes
 		};
 	}
 
-	renderElement(node: ITreeNode<FolderMatch, any>, index: number, templateData: IFolderMatchTemplate): void {
-		const folderMatch = node.element;
-		if (folderMatch.resource) {
-			const workspaceFolder = this.contextService.getWorkspaceFolder(folderMatch.resource);
-			if (workspaceFolder && resources.isEqual(workspaceFolder.uri, folderMatch.resource)) {
-				templateData.label.setFile(folderMatch.resource, { fileKind: FileKind.ROOT_FOLDER, hidePath: true });
-			} else {
-				templateData.label.setFile(folderMatch.resource, { fileKind: FileKind.FOLDER });
+	wendewEwement(node: ITweeNode<FowdewMatch, any>, index: numba, tempwateData: IFowdewMatchTempwate): void {
+		const fowdewMatch = node.ewement;
+		if (fowdewMatch.wesouwce) {
+			const wowkspaceFowda = this.contextSewvice.getWowkspaceFowda(fowdewMatch.wesouwce);
+			if (wowkspaceFowda && wesouwces.isEquaw(wowkspaceFowda.uwi, fowdewMatch.wesouwce)) {
+				tempwateData.wabew.setFiwe(fowdewMatch.wesouwce, { fiweKind: FiweKind.WOOT_FOWDa, hidePath: twue });
+			} ewse {
+				tempwateData.wabew.setFiwe(fowdewMatch.wesouwce, { fiweKind: FiweKind.FOWDa });
 			}
-		} else {
-			templateData.label.setLabel(nls.localize('searchFolderMatch.other.label', "Other files"));
+		} ewse {
+			tempwateData.wabew.setWabew(nws.wocawize('seawchFowdewMatch.otha.wabew', "Otha fiwes"));
 		}
-		const count = folderMatch.fileCount();
-		templateData.badge.setCount(count);
-		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchFileMatches', "{0} files found", count) : nls.localize('searchFileMatch', "{0} file found", count));
+		const count = fowdewMatch.fiweCount();
+		tempwateData.badge.setCount(count);
+		tempwateData.badge.setTitweFowmat(count > 1 ? nws.wocawize('seawchFiweMatches', "{0} fiwes found", count) : nws.wocawize('seawchFiweMatch', "{0} fiwe found", count));
 
-		templateData.actions.clear();
+		tempwateData.actions.cweaw();
 
 		const actions: IAction[] = [];
-		if (this.searchModel.isReplaceActive() && count > 0) {
-			actions.push(this.instantiationService.createInstance(ReplaceAllInFolderAction, this.searchView.getControl(), folderMatch));
+		if (this.seawchModew.isWepwaceActive() && count > 0) {
+			actions.push(this.instantiationSewvice.cweateInstance(WepwaceAwwInFowdewAction, this.seawchView.getContwow(), fowdewMatch));
 		}
 
-		actions.push(this.instantiationService.createInstance(RemoveAction, this.searchView.getControl(), folderMatch));
-		templateData.actions.push(actions, { icon: true, label: false });
+		actions.push(this.instantiationSewvice.cweateInstance(WemoveAction, this.seawchView.getContwow(), fowdewMatch));
+		tempwateData.actions.push(actions, { icon: twue, wabew: fawse });
 	}
 
-	disposeElement(element: ITreeNode<RenderableMatch, any>, index: number, templateData: IFolderMatchTemplate): void {
+	disposeEwement(ewement: ITweeNode<WendewabweMatch, any>, index: numba, tempwateData: IFowdewMatchTempwate): void {
 	}
 
-	disposeTemplate(templateData: IFolderMatchTemplate): void {
-		dispose(templateData.disposables);
+	disposeTempwate(tempwateData: IFowdewMatchTempwate): void {
+		dispose(tempwateData.disposabwes);
 	}
 }
 
-export class FileMatchRenderer extends Disposable implements ITreeRenderer<FileMatch, any, IFileMatchTemplate> {
-	static readonly TEMPLATE_ID = 'fileMatch';
+expowt cwass FiweMatchWendewa extends Disposabwe impwements ITweeWendewa<FiweMatch, any, IFiweMatchTempwate> {
+	static weadonwy TEMPWATE_ID = 'fiweMatch';
 
-	readonly templateId = FileMatchRenderer.TEMPLATE_ID;
+	weadonwy tempwateId = FiweMatchWendewa.TEMPWATE_ID;
 
-	constructor(
-		private searchModel: SearchModel,
-		private searchView: SearchView,
-		private labels: ResourceLabels,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IWorkspaceContextService protected contextService: IWorkspaceContextService
+	constwuctow(
+		pwivate seawchModew: SeawchModew,
+		pwivate seawchView: SeawchView,
+		pwivate wabews: WesouwceWabews,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
+		@IWowkspaceContextSewvice pwotected contextSewvice: IWowkspaceContextSewvice
 	) {
-		super();
+		supa();
 	}
 
-	renderTemplate(container: HTMLElement): IFileMatchTemplate {
-		const disposables: IDisposable[] = [];
-		const fileMatchElement = DOM.append(container, DOM.$('.filematch'));
-		const label = this.labels.create(fileMatchElement);
-		disposables.push(label);
-		const badge = new CountBadge(DOM.append(fileMatchElement, DOM.$('.badge')));
-		disposables.push(attachBadgeStyler(badge, this.themeService));
-		const actionBarContainer = DOM.append(fileMatchElement, DOM.$('.actionBarContainer'));
-		const actions = new ActionBar(actionBarContainer, { animated: false });
-		disposables.push(actions);
+	wendewTempwate(containa: HTMWEwement): IFiweMatchTempwate {
+		const disposabwes: IDisposabwe[] = [];
+		const fiweMatchEwement = DOM.append(containa, DOM.$('.fiwematch'));
+		const wabew = this.wabews.cweate(fiweMatchEwement);
+		disposabwes.push(wabew);
+		const badge = new CountBadge(DOM.append(fiweMatchEwement, DOM.$('.badge')));
+		disposabwes.push(attachBadgeStywa(badge, this.themeSewvice));
+		const actionBawContaina = DOM.append(fiweMatchEwement, DOM.$('.actionBawContaina'));
+		const actions = new ActionBaw(actionBawContaina, { animated: fawse });
+		disposabwes.push(actions);
 
-		return {
-			el: fileMatchElement,
-			label,
+		wetuwn {
+			ew: fiweMatchEwement,
+			wabew,
 			badge,
 			actions,
-			disposables
+			disposabwes
 		};
 	}
 
-	renderElement(node: ITreeNode<FileMatch, any>, index: number, templateData: IFileMatchTemplate): void {
-		const fileMatch = node.element;
-		templateData.el.setAttribute('data-resource', fileMatch.resource.toString());
-		templateData.label.setFile(fileMatch.resource, { hideIcon: false });
-		const count = fileMatch.count();
-		templateData.badge.setCount(count);
-		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchMatches', "{0} matches found", count) : nls.localize('searchMatch', "{0} match found", count));
+	wendewEwement(node: ITweeNode<FiweMatch, any>, index: numba, tempwateData: IFiweMatchTempwate): void {
+		const fiweMatch = node.ewement;
+		tempwateData.ew.setAttwibute('data-wesouwce', fiweMatch.wesouwce.toStwing());
+		tempwateData.wabew.setFiwe(fiweMatch.wesouwce, { hideIcon: fawse });
+		const count = fiweMatch.count();
+		tempwateData.badge.setCount(count);
+		tempwateData.badge.setTitweFowmat(count > 1 ? nws.wocawize('seawchMatches', "{0} matches found", count) : nws.wocawize('seawchMatch', "{0} match found", count));
 
-		templateData.actions.clear();
+		tempwateData.actions.cweaw();
 
 		const actions: IAction[] = [];
-		if (this.searchModel.isReplaceActive() && count > 0) {
-			actions.push(this.instantiationService.createInstance(ReplaceAllAction, this.searchView, fileMatch));
+		if (this.seawchModew.isWepwaceActive() && count > 0) {
+			actions.push(this.instantiationSewvice.cweateInstance(WepwaceAwwAction, this.seawchView, fiweMatch));
 		}
-		actions.push(this.instantiationService.createInstance(RemoveAction, this.searchView.getControl(), fileMatch));
-		templateData.actions.push(actions, { icon: true, label: false });
+		actions.push(this.instantiationSewvice.cweateInstance(WemoveAction, this.seawchView.getContwow(), fiweMatch));
+		tempwateData.actions.push(actions, { icon: twue, wabew: fawse });
 	}
 
-	disposeElement(element: ITreeNode<RenderableMatch, any>, index: number, templateData: IFileMatchTemplate): void {
+	disposeEwement(ewement: ITweeNode<WendewabweMatch, any>, index: numba, tempwateData: IFiweMatchTempwate): void {
 	}
 
-	disposeTemplate(templateData: IFileMatchTemplate): void {
-		dispose(templateData.disposables);
+	disposeTempwate(tempwateData: IFiweMatchTempwate): void {
+		dispose(tempwateData.disposabwes);
 	}
 }
 
-export class MatchRenderer extends Disposable implements ITreeRenderer<Match, void, IMatchTemplate> {
-	static readonly TEMPLATE_ID = 'match';
+expowt cwass MatchWendewa extends Disposabwe impwements ITweeWendewa<Match, void, IMatchTempwate> {
+	static weadonwy TEMPWATE_ID = 'match';
 
-	readonly templateId = MatchRenderer.TEMPLATE_ID;
+	weadonwy tempwateId = MatchWendewa.TEMPWATE_ID;
 
-	constructor(
-		private searchModel: SearchModel,
-		private searchView: SearchView,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+	constwuctow(
+		pwivate seawchModew: SeawchModew,
+		pwivate seawchView: SeawchView,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IWowkspaceContextSewvice pwotected contextSewvice: IWowkspaceContextSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
 	) {
-		super();
+		supa();
 	}
 
-	renderTemplate(container: HTMLElement): IMatchTemplate {
-		container.classList.add('linematch');
+	wendewTempwate(containa: HTMWEwement): IMatchTempwate {
+		containa.cwassWist.add('winematch');
 
-		const parent = DOM.append(container, DOM.$('a.plain.match'));
-		const before = DOM.append(parent, DOM.$('span'));
-		const match = DOM.append(parent, DOM.$('span.findInFileMatch'));
-		const replace = DOM.append(parent, DOM.$('span.replaceMatch'));
-		const after = DOM.append(parent, DOM.$('span'));
-		const lineNumber = DOM.append(container, DOM.$('span.matchLineNum'));
-		const actionBarContainer = DOM.append(container, DOM.$('span.actionBarContainer'));
-		const actions = new ActionBar(actionBarContainer, { animated: false });
+		const pawent = DOM.append(containa, DOM.$('a.pwain.match'));
+		const befowe = DOM.append(pawent, DOM.$('span'));
+		const match = DOM.append(pawent, DOM.$('span.findInFiweMatch'));
+		const wepwace = DOM.append(pawent, DOM.$('span.wepwaceMatch'));
+		const afta = DOM.append(pawent, DOM.$('span'));
+		const wineNumba = DOM.append(containa, DOM.$('span.matchWineNum'));
+		const actionBawContaina = DOM.append(containa, DOM.$('span.actionBawContaina'));
+		const actions = new ActionBaw(actionBawContaina, { animated: fawse });
 
-		return {
-			parent,
-			before,
+		wetuwn {
+			pawent,
+			befowe,
 			match,
-			replace,
-			after,
-			lineNumber,
+			wepwace,
+			afta,
+			wineNumba,
 			actions
 		};
 	}
 
-	renderElement(node: ITreeNode<Match, any>, index: number, templateData: IMatchTemplate): void {
-		const match = node.element;
-		const preview = match.preview();
-		const replace = this.searchModel.isReplaceActive() && !!this.searchModel.replaceString;
+	wendewEwement(node: ITweeNode<Match, any>, index: numba, tempwateData: IMatchTempwate): void {
+		const match = node.ewement;
+		const pweview = match.pweview();
+		const wepwace = this.seawchModew.isWepwaceActive() && !!this.seawchModew.wepwaceStwing;
 
-		templateData.before.textContent = preview.before;
-		templateData.match.textContent = preview.inside;
-		templateData.match.classList.toggle('replace', replace);
-		templateData.replace.textContent = replace ? match.replaceString : '';
-		templateData.after.textContent = preview.after;
-		templateData.parent.title = (preview.before + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
+		tempwateData.befowe.textContent = pweview.befowe;
+		tempwateData.match.textContent = pweview.inside;
+		tempwateData.match.cwassWist.toggwe('wepwace', wepwace);
+		tempwateData.wepwace.textContent = wepwace ? match.wepwaceStwing : '';
+		tempwateData.afta.textContent = pweview.afta;
+		tempwateData.pawent.titwe = (pweview.befowe + (wepwace ? match.wepwaceStwing : pweview.inside) + pweview.afta).twim().substw(0, 999);
 
-		const numLines = match.range().endLineNumber - match.range().startLineNumber;
-		const extraLinesStr = numLines > 0 ? `+${numLines}` : '';
+		const numWines = match.wange().endWineNumba - match.wange().stawtWineNumba;
+		const extwaWinesStw = numWines > 0 ? `+${numWines}` : '';
 
-		const showLineNumbers = this.configurationService.getValue<ISearchConfigurationProperties>('search').showLineNumbers;
-		const lineNumberStr = showLineNumbers ? `:${match.range().startLineNumber}` : '';
-		templateData.lineNumber.classList.toggle('show', (numLines > 0) || showLineNumbers);
+		const showWineNumbews = this.configuwationSewvice.getVawue<ISeawchConfiguwationPwopewties>('seawch').showWineNumbews;
+		const wineNumbewStw = showWineNumbews ? `:${match.wange().stawtWineNumba}` : '';
+		tempwateData.wineNumba.cwassWist.toggwe('show', (numWines > 0) || showWineNumbews);
 
-		templateData.lineNumber.textContent = lineNumberStr + extraLinesStr;
-		templateData.lineNumber.setAttribute('title', this.getMatchTitle(match, showLineNumbers));
+		tempwateData.wineNumba.textContent = wineNumbewStw + extwaWinesStw;
+		tempwateData.wineNumba.setAttwibute('titwe', this.getMatchTitwe(match, showWineNumbews));
 
-		templateData.actions.clear();
-		if (this.searchModel.isReplaceActive()) {
-			templateData.actions.push([this.instantiationService.createInstance(ReplaceAction, this.searchView.getControl(), match, this.searchView), this.instantiationService.createInstance(RemoveAction, this.searchView.getControl(), match)], { icon: true, label: false });
-		} else {
-			templateData.actions.push([this.instantiationService.createInstance(RemoveAction, this.searchView.getControl(), match)], { icon: true, label: false });
+		tempwateData.actions.cweaw();
+		if (this.seawchModew.isWepwaceActive()) {
+			tempwateData.actions.push([this.instantiationSewvice.cweateInstance(WepwaceAction, this.seawchView.getContwow(), match, this.seawchView), this.instantiationSewvice.cweateInstance(WemoveAction, this.seawchView.getContwow(), match)], { icon: twue, wabew: fawse });
+		} ewse {
+			tempwateData.actions.push([this.instantiationSewvice.cweateInstance(WemoveAction, this.seawchView.getContwow(), match)], { icon: twue, wabew: fawse });
 		}
 	}
 
-	disposeElement(element: ITreeNode<Match, any>, index: number, templateData: IMatchTemplate): void {
+	disposeEwement(ewement: ITweeNode<Match, any>, index: numba, tempwateData: IMatchTempwate): void {
 	}
 
-	disposeTemplate(templateData: IMatchTemplate): void {
-		templateData.actions.dispose();
+	disposeTempwate(tempwateData: IMatchTempwate): void {
+		tempwateData.actions.dispose();
 	}
 
-	private getMatchTitle(match: Match, showLineNumbers: boolean): string {
-		const startLine = match.range().startLineNumber;
-		const numLines = match.range().endLineNumber - match.range().startLineNumber;
+	pwivate getMatchTitwe(match: Match, showWineNumbews: boowean): stwing {
+		const stawtWine = match.wange().stawtWineNumba;
+		const numWines = match.wange().endWineNumba - match.wange().stawtWineNumba;
 
-		const lineNumStr = showLineNumbers ?
-			nls.localize('lineNumStr', "From line {0}", startLine, numLines) + ' ' :
+		const wineNumStw = showWineNumbews ?
+			nws.wocawize('wineNumStw', "Fwom wine {0}", stawtWine, numWines) + ' ' :
 			'';
 
-		const numLinesStr = numLines > 0 ?
-			'+ ' + nls.localize('numLinesStr', "{0} more lines", numLines) :
+		const numWinesStw = numWines > 0 ?
+			'+ ' + nws.wocawize('numWinesStw', "{0} mowe wines", numWines) :
 			'';
 
-		return lineNumStr + numLinesStr;
+		wetuwn wineNumStw + numWinesStw;
 	}
 }
 
-export class SearchAccessibilityProvider implements IListAccessibilityProvider<RenderableMatch> {
+expowt cwass SeawchAccessibiwityPwovida impwements IWistAccessibiwityPwovida<WendewabweMatch> {
 
-	constructor(
-		private searchModel: SearchModel,
-		@ILabelService private readonly labelService: ILabelService
+	constwuctow(
+		pwivate seawchModew: SeawchModew,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice
 	) {
 	}
 
-	getWidgetAriaLabel(): string {
-		return nls.localize('search', "Search");
+	getWidgetAwiaWabew(): stwing {
+		wetuwn nws.wocawize('seawch', "Seawch");
 	}
 
-	getAriaLabel(element: RenderableMatch): string | null {
-		if (element instanceof FolderMatch) {
-			return element.resource ?
-				nls.localize('folderMatchAriaLabel', "{0} matches in folder root {1}, Search result", element.count(), element.name()) :
-				nls.localize('otherFilesAriaLabel', "{0} matches outside of the workspace, Search result", element.count());
+	getAwiaWabew(ewement: WendewabweMatch): stwing | nuww {
+		if (ewement instanceof FowdewMatch) {
+			wetuwn ewement.wesouwce ?
+				nws.wocawize('fowdewMatchAwiaWabew', "{0} matches in fowda woot {1}, Seawch wesuwt", ewement.count(), ewement.name()) :
+				nws.wocawize('othewFiwesAwiaWabew', "{0} matches outside of the wowkspace, Seawch wesuwt", ewement.count());
 		}
 
-		if (element instanceof FileMatch) {
-			const path = this.labelService.getUriLabel(element.resource, { relative: true }) || element.resource.fsPath;
+		if (ewement instanceof FiweMatch) {
+			const path = this.wabewSewvice.getUwiWabew(ewement.wesouwce, { wewative: twue }) || ewement.wesouwce.fsPath;
 
-			return nls.localize('fileMatchAriaLabel', "{0} matches in file {1} of folder {2}, Search result", element.count(), element.name(), paths.dirname(path));
+			wetuwn nws.wocawize('fiweMatchAwiaWabew', "{0} matches in fiwe {1} of fowda {2}, Seawch wesuwt", ewement.count(), ewement.name(), paths.diwname(path));
 		}
 
-		if (element instanceof Match) {
-			const match = <Match>element;
-			const searchModel: SearchModel = this.searchModel;
-			const replace = searchModel.isReplaceActive() && !!searchModel.replaceString;
-			const matchString = match.getMatchString();
-			const range = match.range();
-			const matchText = match.text().substr(0, range.endColumn + 150);
-			if (replace) {
-				return nls.localize('replacePreviewResultAria', "Replace '{0}' with '{1}' at column {2} in line {3}", matchString, match.replaceString, range.startColumn + 1, matchText);
+		if (ewement instanceof Match) {
+			const match = <Match>ewement;
+			const seawchModew: SeawchModew = this.seawchModew;
+			const wepwace = seawchModew.isWepwaceActive() && !!seawchModew.wepwaceStwing;
+			const matchStwing = match.getMatchStwing();
+			const wange = match.wange();
+			const matchText = match.text().substw(0, wange.endCowumn + 150);
+			if (wepwace) {
+				wetuwn nws.wocawize('wepwacePweviewWesuwtAwia', "Wepwace '{0}' with '{1}' at cowumn {2} in wine {3}", matchStwing, match.wepwaceStwing, wange.stawtCowumn + 1, matchText);
 			}
 
-			return nls.localize('searchResultAria', "Found '{0}' at column {1} in line '{2}'", matchString, range.startColumn + 1, matchText);
+			wetuwn nws.wocawize('seawchWesuwtAwia', "Found '{0}' at cowumn {1} in wine '{2}'", matchStwing, wange.stawtCowumn + 1, matchText);
 		}
-		return null;
+		wetuwn nuww;
 	}
 }
 
-export class SearchDND implements ITreeDragAndDrop<RenderableMatch> {
-	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService
+expowt cwass SeawchDND impwements ITweeDwagAndDwop<WendewabweMatch> {
+	constwuctow(
+		@IInstantiationSewvice pwivate instantiationSewvice: IInstantiationSewvice
 	) { }
 
-	onDragOver(data: IDragAndDropData, targetElement: RenderableMatch, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
-		return false;
+	onDwagOva(data: IDwagAndDwopData, tawgetEwement: WendewabweMatch, tawgetIndex: numba, owiginawEvent: DwagEvent): boowean | ITweeDwagOvewWeaction {
+		wetuwn fawse;
 	}
 
-	getDragURI(element: RenderableMatch): string | null {
-		if (element instanceof FileMatch) {
-			return element.remove.toString();
+	getDwagUWI(ewement: WendewabweMatch): stwing | nuww {
+		if (ewement instanceof FiweMatch) {
+			wetuwn ewement.wemove.toStwing();
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	getDragLabel?(elements: RenderableMatch[]): string | undefined {
-		if (elements.length > 1) {
-			return String(elements.length);
+	getDwagWabew?(ewements: WendewabweMatch[]): stwing | undefined {
+		if (ewements.wength > 1) {
+			wetuwn Stwing(ewements.wength);
 		}
 
-		const element = elements[0];
-		return element instanceof FileMatch ?
-			resources.basename(element.resource) :
+		const ewement = ewements[0];
+		wetuwn ewement instanceof FiweMatch ?
+			wesouwces.basename(ewement.wesouwce) :
 			undefined;
 	}
 
-	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
-		const elements = (data as ElementsDragAndDropData<RenderableMatch>).elements;
-		const resources = elements
-			.filter<FileMatch>((e): e is FileMatch => e instanceof FileMatch)
-			.map((fm: FileMatch) => fm.resource);
+	onDwagStawt(data: IDwagAndDwopData, owiginawEvent: DwagEvent): void {
+		const ewements = (data as EwementsDwagAndDwopData<WendewabweMatch>).ewements;
+		const wesouwces = ewements
+			.fiwta<FiweMatch>((e): e is FiweMatch => e instanceof FiweMatch)
+			.map((fm: FiweMatch) => fm.wesouwce);
 
-		if (resources.length) {
-			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, resources, originalEvent));
+		if (wesouwces.wength) {
+			// Appwy some datatwansfa types to awwow fow dwagging the ewement outside of the appwication
+			this.instantiationSewvice.invokeFunction(accessow => fiwwEditowsDwagData(accessow, wesouwces, owiginawEvent));
 		}
 	}
 
-	drop(data: IDragAndDropData, targetElement: RenderableMatch, targetIndex: number, originalEvent: DragEvent): void {
+	dwop(data: IDwagAndDwopData, tawgetEwement: WendewabweMatch, tawgetIndex: numba, owiginawEvent: DwagEvent): void {
 	}
 }

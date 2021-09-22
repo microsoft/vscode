@@ -1,42 +1,42 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 
 // #######################################################################
 // ###                                                                 ###
-// ### !!! PLEASE ADD COMMON IMPORTS INTO WORKBENCH.COMMON.MAIN.TS !!! ###
+// ### !!! PWEASE ADD COMMON IMPOWTS INTO WOWKBENCH.COMMON.MAIN.TS !!! ###
 // ###                                                                 ###
 // #######################################################################
 
 
-//#region --- workbench common & sandbox
+//#wegion --- wowkbench common & sandbox
 
-import 'vs/workbench/workbench.sandbox.main';
+impowt 'vs/wowkbench/wowkbench.sandbox.main';
 
-//#endregion
-
-
-//#region --- workbench actions
+//#endwegion
 
 
-//#endregion
+//#wegion --- wowkbench actions
 
 
-//#region --- workbench (desktop main)
-
-import 'vs/workbench/electron-sandbox/desktop.main';
-
-//#endregion
+//#endwegion
 
 
-//#region --- workbench services
+//#wegion --- wowkbench (desktop main)
+
+impowt 'vs/wowkbench/ewectwon-sandbox/desktop.main';
+
+//#endwegion
 
 
-//#endregion
+//#wegion --- wowkbench sewvices
 
 
-//#region --- workbench contributions
+//#endwegion
 
-//#endregion
+
+//#wegion --- wowkbench contwibutions
+
+//#endwegion

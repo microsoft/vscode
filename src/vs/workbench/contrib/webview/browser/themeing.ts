@@ -1,104 +1,104 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
-import { WebviewStyles } from 'vs/workbench/contrib/webview/browser/webview';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { EDITOW_FONT_DEFAUWTS, IEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt * as cowowWegistwy fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { CowowScheme } fwom 'vs/pwatfowm/theme/common/theme';
+impowt { ICowowTheme, IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { DEFAUWT_FONT_FAMIWY } fwom 'vs/wowkbench/bwowsa/stywe';
+impowt { WebviewStywes } fwom 'vs/wowkbench/contwib/webview/bwowsa/webview';
 
-interface WebviewThemeData {
-	readonly activeTheme: string;
-	readonly themeLabel: string;
-	readonly styles: Readonly<WebviewStyles>;
+intewface WebviewThemeData {
+	weadonwy activeTheme: stwing;
+	weadonwy themeWabew: stwing;
+	weadonwy stywes: Weadonwy<WebviewStywes>;
 }
 
-export class WebviewThemeDataProvider extends Disposable {
+expowt cwass WebviewThemeDataPwovida extends Disposabwe {
 
-	private _cachedWebViewThemeData: WebviewThemeData | undefined = undefined;
+	pwivate _cachedWebViewThemeData: WebviewThemeData | undefined = undefined;
 
-	private readonly _onThemeDataChanged = this._register(new Emitter<void>());
-	public readonly onThemeDataChanged = this._onThemeDataChanged.event;
+	pwivate weadonwy _onThemeDataChanged = this._wegista(new Emitta<void>());
+	pubwic weadonwy onThemeDataChanged = this._onThemeDataChanged.event;
 
-	constructor(
-		@IThemeService private readonly _themeService: IThemeService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+	constwuctow(
+		@IThemeSewvice pwivate weadonwy _themeSewvice: IThemeSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
 	) {
-		super();
+		supa();
 
-		this._register(this._themeService.onDidColorThemeChange(() => {
-			this.reset();
+		this._wegista(this._themeSewvice.onDidCowowThemeChange(() => {
+			this.weset();
 		}));
 
-		const webviewConfigurationKeys = ['editor.fontFamily', 'editor.fontWeight', 'editor.fontSize'];
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (webviewConfigurationKeys.some(key => e.affectsConfiguration(key))) {
-				this.reset();
+		const webviewConfiguwationKeys = ['editow.fontFamiwy', 'editow.fontWeight', 'editow.fontSize'];
+		this._wegista(this._configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (webviewConfiguwationKeys.some(key => e.affectsConfiguwation(key))) {
+				this.weset();
 			}
 		}));
 	}
 
-	public getTheme(): IColorTheme {
-		return this._themeService.getColorTheme();
+	pubwic getTheme(): ICowowTheme {
+		wetuwn this._themeSewvice.getCowowTheme();
 	}
 
-	public getWebviewThemeData(): WebviewThemeData {
+	pubwic getWebviewThemeData(): WebviewThemeData {
 		if (!this._cachedWebViewThemeData) {
-			const configuration = this._configurationService.getValue<IEditorOptions>('editor');
-			const editorFontFamily = configuration.fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
-			const editorFontWeight = configuration.fontWeight || EDITOR_FONT_DEFAULTS.fontWeight;
-			const editorFontSize = configuration.fontSize || EDITOR_FONT_DEFAULTS.fontSize;
+			const configuwation = this._configuwationSewvice.getVawue<IEditowOptions>('editow');
+			const editowFontFamiwy = configuwation.fontFamiwy || EDITOW_FONT_DEFAUWTS.fontFamiwy;
+			const editowFontWeight = configuwation.fontWeight || EDITOW_FONT_DEFAUWTS.fontWeight;
+			const editowFontSize = configuwation.fontSize || EDITOW_FONT_DEFAUWTS.fontSize;
 
-			const theme = this._themeService.getColorTheme();
-			const exportedColors = colorRegistry.getColorRegistry().getColors().reduce((colors, entry) => {
-				const color = theme.getColor(entry.id);
-				if (color) {
-					colors['vscode-' + entry.id.replace('.', '-')] = color.toString();
+			const theme = this._themeSewvice.getCowowTheme();
+			const expowtedCowows = cowowWegistwy.getCowowWegistwy().getCowows().weduce((cowows, entwy) => {
+				const cowow = theme.getCowow(entwy.id);
+				if (cowow) {
+					cowows['vscode-' + entwy.id.wepwace('.', '-')] = cowow.toStwing();
 				}
-				return colors;
-			}, {} as { [key: string]: string; });
+				wetuwn cowows;
+			}, {} as { [key: stwing]: stwing; });
 
-			const styles = {
-				'vscode-font-family': DEFAULT_FONT_FAMILY,
-				'vscode-font-weight': 'normal',
+			const stywes = {
+				'vscode-font-famiwy': DEFAUWT_FONT_FAMIWY,
+				'vscode-font-weight': 'nowmaw',
 				'vscode-font-size': '13px',
-				'vscode-editor-font-family': editorFontFamily,
-				'vscode-editor-font-weight': editorFontWeight,
-				'vscode-editor-font-size': editorFontSize + 'px',
-				...exportedColors
+				'vscode-editow-font-famiwy': editowFontFamiwy,
+				'vscode-editow-font-weight': editowFontWeight,
+				'vscode-editow-font-size': editowFontSize + 'px',
+				...expowtedCowows
 			};
 
-			const activeTheme = ApiThemeClassName.fromTheme(theme);
-			this._cachedWebViewThemeData = { styles, activeTheme, themeLabel: theme.label, };
+			const activeTheme = ApiThemeCwassName.fwomTheme(theme);
+			this._cachedWebViewThemeData = { stywes, activeTheme, themeWabew: theme.wabew, };
 		}
 
-		return this._cachedWebViewThemeData;
+		wetuwn this._cachedWebViewThemeData;
 	}
 
-	private reset() {
+	pwivate weset() {
 		this._cachedWebViewThemeData = undefined;
-		this._onThemeDataChanged.fire();
+		this._onThemeDataChanged.fiwe();
 	}
 }
 
-enum ApiThemeClassName {
-	light = 'vscode-light',
-	dark = 'vscode-dark',
-	highContrast = 'vscode-high-contrast'
+enum ApiThemeCwassName {
+	wight = 'vscode-wight',
+	dawk = 'vscode-dawk',
+	highContwast = 'vscode-high-contwast'
 }
 
-namespace ApiThemeClassName {
-	export function fromTheme(theme: IColorTheme): ApiThemeClassName {
+namespace ApiThemeCwassName {
+	expowt function fwomTheme(theme: ICowowTheme): ApiThemeCwassName {
 		switch (theme.type) {
-			case ColorScheme.LIGHT: return ApiThemeClassName.light;
-			case ColorScheme.DARK: return ApiThemeClassName.dark;
-			default: return ApiThemeClassName.highContrast;
+			case CowowScheme.WIGHT: wetuwn ApiThemeCwassName.wight;
+			case CowowScheme.DAWK: wetuwn ApiThemeCwassName.dawk;
+			defauwt: wetuwn ApiThemeCwassName.highContwast;
 		}
 	}
 }

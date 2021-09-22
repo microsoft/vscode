@@ -1,226 +1,226 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
-import { CellUri, IResolvedNotebookEditorModel, NotebookWorkingCopyTypeIdentifier } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ComplexNotebookEditorModel, NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModelFactory, SimpleNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
-import { combinedDisposable, DisposableStore, dispose, IDisposable, IReference, ReferenceCollection, toDisposable } from 'vs/base/common/lifecycle';
-import { ComplexNotebookProviderInfo, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { INotebookEditorModelResolverService, IUntitledNotebookResource } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
-import { ResourceMap } from 'vs/base/common/map';
-import { FileWorkingCopyManager, IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
-import { Schemas } from 'vs/base/common/network';
-import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
-import { assertIsDefined } from 'vs/base/common/types';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { CewwUwi, IWesowvedNotebookEditowModew, NotebookWowkingCopyTypeIdentifia } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { CompwexNotebookEditowModew, NotebookFiweWowkingCopyModew, NotebookFiweWowkingCopyModewFactowy, SimpweNotebookEditowModew } fwom 'vs/wowkbench/contwib/notebook/common/notebookEditowModew';
+impowt { combinedDisposabwe, DisposabweStowe, dispose, IDisposabwe, IWefewence, WefewenceCowwection, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { CompwexNotebookPwovidewInfo, INotebookSewvice, SimpweNotebookPwovidewInfo } fwom 'vs/wowkbench/contwib/notebook/common/notebookSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { INotebookEditowModewWesowvewSewvice, IUntitwedNotebookWesouwce } fwom 'vs/wowkbench/contwib/notebook/common/notebookEditowModewWesowvewSewvice';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { FiweWowkingCopyManaga, IFiweWowkingCopyManaga } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/fiweWowkingCopyManaga';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { NotebookPwovidewInfo } fwom 'vs/wowkbench/contwib/notebook/common/notebookPwovida';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
 
-class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IResolvedNotebookEditorModel>> {
+cwass NotebookModewWefewenceCowwection extends WefewenceCowwection<Pwomise<IWesowvedNotebookEditowModew>> {
 
-	private readonly _disposables = new DisposableStore();
-	private readonly _workingCopyManagers = new Map<string, IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>>();
-	private readonly _modelListener = new Map<IResolvedNotebookEditorModel, IDisposable>();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
+	pwivate weadonwy _wowkingCopyManagews = new Map<stwing, IFiweWowkingCopyManaga<NotebookFiweWowkingCopyModew, NotebookFiweWowkingCopyModew>>();
+	pwivate weadonwy _modewWistena = new Map<IWesowvedNotebookEditowModew, IDisposabwe>();
 
-	private readonly _onDidSaveNotebook = new Emitter<URI>();
-	readonly onDidSaveNotebook: Event<URI> = this._onDidSaveNotebook.event;
+	pwivate weadonwy _onDidSaveNotebook = new Emitta<UWI>();
+	weadonwy onDidSaveNotebook: Event<UWI> = this._onDidSaveNotebook.event;
 
-	private readonly _onDidChangeDirty = new Emitter<IResolvedNotebookEditorModel>();
-	readonly onDidChangeDirty: Event<IResolvedNotebookEditorModel> = this._onDidChangeDirty.event;
+	pwivate weadonwy _onDidChangeDiwty = new Emitta<IWesowvedNotebookEditowModew>();
+	weadonwy onDidChangeDiwty: Event<IWesowvedNotebookEditowModew> = this._onDidChangeDiwty.event;
 
-	private readonly _dirtyStates = new ResourceMap<boolean>();
+	pwivate weadonwy _diwtyStates = new WesouwceMap<boowean>();
 
-	constructor(
-		@IInstantiationService readonly _instantiationService: IInstantiationService,
-		@INotebookService private readonly _notebookService: INotebookService,
-		@ILogService private readonly _logService: ILogService,
+	constwuctow(
+		@IInstantiationSewvice weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@INotebookSewvice pwivate weadonwy _notebookSewvice: INotebookSewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
 	) {
-		super();
+		supa();
 
-		this._disposables.add(_notebookService.onWillRemoveViewType(viewType => {
-			const manager = this._workingCopyManagers.get(NotebookWorkingCopyTypeIdentifier.create(viewType));
-			manager?.destroy().catch(err => _logService.error(err));
+		this._disposabwes.add(_notebookSewvice.onWiwwWemoveViewType(viewType => {
+			const managa = this._wowkingCopyManagews.get(NotebookWowkingCopyTypeIdentifia.cweate(viewType));
+			managa?.destwoy().catch(eww => _wogSewvice.ewwow(eww));
 		}));
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
+		this._disposabwes.dispose();
 		this._onDidSaveNotebook.dispose();
-		this._onDidChangeDirty.dispose();
-		dispose(this._modelListener.values());
-		dispose(this._workingCopyManagers.values());
+		this._onDidChangeDiwty.dispose();
+		dispose(this._modewWistena.vawues());
+		dispose(this._wowkingCopyManagews.vawues());
 	}
 
-	isDirty(resource: URI): boolean {
-		return this._dirtyStates.get(resource) ?? false;
+	isDiwty(wesouwce: UWI): boowean {
+		wetuwn this._diwtyStates.get(wesouwce) ?? fawse;
 	}
 
-	protected async createReferencedObject(key: string, viewType: string, hasAssociatedFilePath: boolean): Promise<IResolvedNotebookEditorModel> {
-		const uri = URI.parse(key);
-		const info = await this._notebookService.withNotebookDataProvider(uri, viewType);
+	pwotected async cweateWefewencedObject(key: stwing, viewType: stwing, hasAssociatedFiwePath: boowean): Pwomise<IWesowvedNotebookEditowModew> {
+		const uwi = UWI.pawse(key);
+		const info = await this._notebookSewvice.withNotebookDataPwovida(uwi, viewType);
 
-		let result: IResolvedNotebookEditorModel;
+		wet wesuwt: IWesowvedNotebookEditowModew;
 
-		if (info instanceof ComplexNotebookProviderInfo) {
-			const model = this._instantiationService.createInstance(ComplexNotebookEditorModel, uri, viewType, info.controller);
-			result = await model.load();
+		if (info instanceof CompwexNotebookPwovidewInfo) {
+			const modew = this._instantiationSewvice.cweateInstance(CompwexNotebookEditowModew, uwi, viewType, info.contwowwa);
+			wesuwt = await modew.woad();
 
-		} else if (info instanceof SimpleNotebookProviderInfo) {
-			const workingCopyTypeId = NotebookWorkingCopyTypeIdentifier.create(viewType);
-			let workingCopyManager = this._workingCopyManagers.get(workingCopyTypeId);
-			if (!workingCopyManager) {
-				const factory = new NotebookFileWorkingCopyModelFactory(viewType, this._notebookService);
-				workingCopyManager = <IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>><any>this._instantiationService.createInstance(
-					FileWorkingCopyManager,
-					workingCopyTypeId,
-					factory,
-					factory,
+		} ewse if (info instanceof SimpweNotebookPwovidewInfo) {
+			const wowkingCopyTypeId = NotebookWowkingCopyTypeIdentifia.cweate(viewType);
+			wet wowkingCopyManaga = this._wowkingCopyManagews.get(wowkingCopyTypeId);
+			if (!wowkingCopyManaga) {
+				const factowy = new NotebookFiweWowkingCopyModewFactowy(viewType, this._notebookSewvice);
+				wowkingCopyManaga = <IFiweWowkingCopyManaga<NotebookFiweWowkingCopyModew, NotebookFiweWowkingCopyModew>><any>this._instantiationSewvice.cweateInstance(
+					FiweWowkingCopyManaga,
+					wowkingCopyTypeId,
+					factowy,
+					factowy,
 				);
-				this._workingCopyManagers.set(workingCopyTypeId, workingCopyManager);
+				this._wowkingCopyManagews.set(wowkingCopyTypeId, wowkingCopyManaga);
 			}
-			const model = this._instantiationService.createInstance(SimpleNotebookEditorModel, uri, hasAssociatedFilePath, viewType, workingCopyManager);
-			result = await model.load();
+			const modew = this._instantiationSewvice.cweateInstance(SimpweNotebookEditowModew, uwi, hasAssociatedFiwePath, viewType, wowkingCopyManaga);
+			wesuwt = await modew.woad();
 
-		} else {
-			throw new Error(`CANNOT open ${key}, no provider found`);
+		} ewse {
+			thwow new Ewwow(`CANNOT open ${key}, no pwovida found`);
 		}
 
-		// Whenever a notebook model is dirty we automatically reference it so that
-		// we can ensure that at least one reference exists. That guarantees that
-		// a model with unsaved changes is never disposed.
-		let onDirtyAutoReference: IReference<any> | undefined;
+		// Wheneva a notebook modew is diwty we automaticawwy wefewence it so that
+		// we can ensuwe that at weast one wefewence exists. That guawantees that
+		// a modew with unsaved changes is neva disposed.
+		wet onDiwtyAutoWefewence: IWefewence<any> | undefined;
 
-		this._modelListener.set(result, combinedDisposable(
-			result.onDidSave(() => this._onDidSaveNotebook.fire(result.resource)),
-			result.onDidChangeDirty(() => {
-				const isDirty = result.isDirty();
-				this._dirtyStates.set(result.resource, isDirty);
+		this._modewWistena.set(wesuwt, combinedDisposabwe(
+			wesuwt.onDidSave(() => this._onDidSaveNotebook.fiwe(wesuwt.wesouwce)),
+			wesuwt.onDidChangeDiwty(() => {
+				const isDiwty = wesuwt.isDiwty();
+				this._diwtyStates.set(wesuwt.wesouwce, isDiwty);
 
-				// isDirty -> add reference
-				// !isDirty -> free reference
-				if (isDirty && !onDirtyAutoReference) {
-					onDirtyAutoReference = this.acquire(key, viewType);
-				} else if (onDirtyAutoReference) {
-					onDirtyAutoReference.dispose();
-					onDirtyAutoReference = undefined;
+				// isDiwty -> add wefewence
+				// !isDiwty -> fwee wefewence
+				if (isDiwty && !onDiwtyAutoWefewence) {
+					onDiwtyAutoWefewence = this.acquiwe(key, viewType);
+				} ewse if (onDiwtyAutoWefewence) {
+					onDiwtyAutoWefewence.dispose();
+					onDiwtyAutoWefewence = undefined;
 				}
 
-				this._onDidChangeDirty.fire(result);
+				this._onDidChangeDiwty.fiwe(wesuwt);
 			}),
-			toDisposable(() => onDirtyAutoReference?.dispose()),
+			toDisposabwe(() => onDiwtyAutoWefewence?.dispose()),
 		));
-		return result;
+		wetuwn wesuwt;
 	}
 
-	protected destroyReferencedObject(_key: string, object: Promise<IResolvedNotebookEditorModel>): void {
-		object.then(model => {
-			this._modelListener.get(model)?.dispose();
-			this._modelListener.delete(model);
-			model.dispose();
-		}).catch(err => {
-			this._logService.critical('FAILED to destory notebook', err);
+	pwotected destwoyWefewencedObject(_key: stwing, object: Pwomise<IWesowvedNotebookEditowModew>): void {
+		object.then(modew => {
+			this._modewWistena.get(modew)?.dispose();
+			this._modewWistena.dewete(modew);
+			modew.dispose();
+		}).catch(eww => {
+			this._wogSewvice.cwiticaw('FAIWED to destowy notebook', eww);
 		});
 	}
 }
 
-export class NotebookModelResolverServiceImpl implements INotebookEditorModelResolverService {
+expowt cwass NotebookModewWesowvewSewviceImpw impwements INotebookEditowModewWesowvewSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	private readonly _data: NotebookModelReferenceCollection;
+	pwivate weadonwy _data: NotebookModewWefewenceCowwection;
 
-	readonly onDidSaveNotebook: Event<URI>;
-	readonly onDidChangeDirty: Event<IResolvedNotebookEditorModel>;
+	weadonwy onDidSaveNotebook: Event<UWI>;
+	weadonwy onDidChangeDiwty: Event<IWesowvedNotebookEditowModew>;
 
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@INotebookService private readonly _notebookService: INotebookService,
-		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService,
+	constwuctow(
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@INotebookSewvice pwivate weadonwy _notebookSewvice: INotebookSewvice,
+		@IExtensionSewvice pwivate weadonwy _extensionSewvice: IExtensionSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy _uwiIdentSewvice: IUwiIdentitySewvice,
 	) {
-		this._data = instantiationService.createInstance(NotebookModelReferenceCollection);
+		this._data = instantiationSewvice.cweateInstance(NotebookModewWefewenceCowwection);
 		this.onDidSaveNotebook = this._data.onDidSaveNotebook;
-		this.onDidChangeDirty = this._data.onDidChangeDirty;
+		this.onDidChangeDiwty = this._data.onDidChangeDiwty;
 	}
 
 	dispose() {
 		this._data.dispose();
 	}
 
-	isDirty(resource: URI): boolean {
-		return this._data.isDirty(resource);
+	isDiwty(wesouwce: UWI): boowean {
+		wetuwn this._data.isDiwty(wesouwce);
 	}
 
-	async resolve(resource: URI, viewType?: string): Promise<IReference<IResolvedNotebookEditorModel>>;
-	async resolve(resource: IUntitledNotebookResource, viewType: string): Promise<IReference<IResolvedNotebookEditorModel>>;
-	async resolve(arg0: URI | IUntitledNotebookResource, viewType?: string): Promise<IReference<IResolvedNotebookEditorModel>> {
-		let resource: URI;
-		let hasAssociatedFilePath = false;
-		if (URI.isUri(arg0)) {
-			resource = arg0;
-		} else {
-			if (!arg0.untitledResource) {
-				const info = this._notebookService.getContributedNotebookType(assertIsDefined(viewType));
+	async wesowve(wesouwce: UWI, viewType?: stwing): Pwomise<IWefewence<IWesowvedNotebookEditowModew>>;
+	async wesowve(wesouwce: IUntitwedNotebookWesouwce, viewType: stwing): Pwomise<IWefewence<IWesowvedNotebookEditowModew>>;
+	async wesowve(awg0: UWI | IUntitwedNotebookWesouwce, viewType?: stwing): Pwomise<IWefewence<IWesowvedNotebookEditowModew>> {
+		wet wesouwce: UWI;
+		wet hasAssociatedFiwePath = fawse;
+		if (UWI.isUwi(awg0)) {
+			wesouwce = awg0;
+		} ewse {
+			if (!awg0.untitwedWesouwce) {
+				const info = this._notebookSewvice.getContwibutedNotebookType(assewtIsDefined(viewType));
 				if (!info) {
-					throw new Error('UNKNOWN view type: ' + viewType);
+					thwow new Ewwow('UNKNOWN view type: ' + viewType);
 				}
 
-				const suffix = NotebookProviderInfo.possibleFileEnding(info.selectors) ?? '';
-				for (let counter = 1; ; counter++) {
-					let candidate = URI.from({ scheme: Schemas.untitled, path: `Untitled-${counter}${suffix}`, query: viewType });
-					if (!this._notebookService.getNotebookTextModel(candidate)) {
-						resource = candidate;
-						break;
+				const suffix = NotebookPwovidewInfo.possibweFiweEnding(info.sewectows) ?? '';
+				fow (wet counta = 1; ; counta++) {
+					wet candidate = UWI.fwom({ scheme: Schemas.untitwed, path: `Untitwed-${counta}${suffix}`, quewy: viewType });
+					if (!this._notebookSewvice.getNotebookTextModew(candidate)) {
+						wesouwce = candidate;
+						bweak;
 					}
 				}
-			} else if (arg0.untitledResource.scheme === Schemas.untitled) {
-				resource = arg0.untitledResource;
-			} else {
-				resource = arg0.untitledResource.with({ scheme: Schemas.untitled });
-				hasAssociatedFilePath = true;
+			} ewse if (awg0.untitwedWesouwce.scheme === Schemas.untitwed) {
+				wesouwce = awg0.untitwedWesouwce;
+			} ewse {
+				wesouwce = awg0.untitwedWesouwce.with({ scheme: Schemas.untitwed });
+				hasAssociatedFiwePath = twue;
 			}
 		}
 
-		if (resource.scheme === CellUri.scheme) {
-			throw new Error(`CANNOT open a cell-uri as notebook. Tried with ${resource.toString()}`);
+		if (wesouwce.scheme === CewwUwi.scheme) {
+			thwow new Ewwow(`CANNOT open a ceww-uwi as notebook. Twied with ${wesouwce.toStwing()}`);
 		}
 
-		resource = this._uriIdentService.asCanonicalUri(resource);
+		wesouwce = this._uwiIdentSewvice.asCanonicawUwi(wesouwce);
 
-		const existingViewType = this._notebookService.getNotebookTextModel(resource)?.viewType;
+		const existingViewType = this._notebookSewvice.getNotebookTextModew(wesouwce)?.viewType;
 		if (!viewType) {
 			if (existingViewType) {
 				viewType = existingViewType;
-			} else {
-				await this._extensionService.whenInstalledExtensionsRegistered();
-				const providers = this._notebookService.getContributedNotebookTypes(resource);
-				const exclusiveProvider = providers.find(provider => provider.exclusive);
-				viewType = exclusiveProvider?.id || providers[0]?.id;
+			} ewse {
+				await this._extensionSewvice.whenInstawwedExtensionsWegistewed();
+				const pwovidews = this._notebookSewvice.getContwibutedNotebookTypes(wesouwce);
+				const excwusivePwovida = pwovidews.find(pwovida => pwovida.excwusive);
+				viewType = excwusivePwovida?.id || pwovidews[0]?.id;
 			}
 		}
 
 		if (!viewType) {
-			throw new Error(`Missing viewType for '${resource}'`);
+			thwow new Ewwow(`Missing viewType fow '${wesouwce}'`);
 		}
 
 		if (existingViewType && existingViewType !== viewType) {
-			throw new Error(`A notebook with view type '${existingViewType}' already exists for '${resource}', CANNOT create another notebook with view type ${viewType}`);
+			thwow new Ewwow(`A notebook with view type '${existingViewType}' awweady exists fow '${wesouwce}', CANNOT cweate anotha notebook with view type ${viewType}`);
 		}
 
-		const reference = this._data.acquire(resource.toString(), viewType, hasAssociatedFilePath);
-		try {
-			const model = await reference.object;
-			return {
-				object: model,
-				dispose() { reference.dispose(); }
+		const wefewence = this._data.acquiwe(wesouwce.toStwing(), viewType, hasAssociatedFiwePath);
+		twy {
+			const modew = await wefewence.object;
+			wetuwn {
+				object: modew,
+				dispose() { wefewence.dispose(); }
 			};
-		} catch (err) {
-			reference.dispose();
-			throw err;
+		} catch (eww) {
+			wefewence.dispose();
+			thwow eww;
 		}
 	}
 }

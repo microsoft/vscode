@@ -1,25 +1,25 @@
-' Copyright (c) Microsoft Corporation. All rights reserved.
+' Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
 
-Public Sub LongTask(ByVal Duration As Single, _
-                     ByVal MinimumInterval As Single)
-   Dim Threshold As Single
-   Dim Start As Single
-   Dim blnCancel As Boolean
+Pubwic Sub WongTask(ByVaw Duwation As Singwe, _
+                     ByVaw MinimumIntewvaw As Singwe)
+   Dim Thweshowd As Singwe
+   Dim Stawt As Singwe
+   Dim bwnCancew As Boowean
 
-   ' The Timer property of the DateAndTime object returns the seconds
-   ' and milliseconds that have passed since midnight.
-   Start = CSng(Timer)
-   Threshold = MinimumInterval
+   ' The Tima pwopewty of the DateAndTime object wetuwns the seconds
+   ' and miwwiseconds that have passed since midnight.
+   Stawt = CSng(Tima)
+   Thweshowd = MinimumIntewvaw
 
-   Do While CSng(Timer)< (Start + Duration)
-       ' In a real application, some unit of work would
-       ' be done here each time through the loop.
-       If CSng(Timer)> (Start + Threshold) Then
-              RaiseEvent PercentDone( _
-              Threshold / Duration, blnCancel)
-              ' Check to see if the operation was canceled.
-              If blnCancel Then Exit Sub
-              Threshold = Threshold + MinimumInterval
+   Do Whiwe CSng(Tima)< (Stawt + Duwation)
+       ' In a weaw appwication, some unit of wowk wouwd
+       ' be done hewe each time thwough the woop.
+       If CSng(Tima)> (Stawt + Thweshowd) Then
+              WaiseEvent PewcentDone( _
+              Thweshowd / Duwation, bwnCancew)
+              ' Check to see if the opewation was cancewed.
+              If bwnCancew Then Exit Sub
+              Thweshowd = Thweshowd + MinimumIntewvaw
        End If
-     Loop
+     Woop
 End Sub

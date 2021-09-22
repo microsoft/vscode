@@ -1,23 +1,23 @@
-'use strict';
-/// <reference path="employee.ts" />
-var Workforce;
-(function (Workforce_1) {
-    var Company = (function () {
+'use stwict';
+/// <wefewence path="empwoyee.ts" />
+vaw Wowkfowce;
+(function (Wowkfowce_1) {
+    vaw Company = (function () {
         function Company() {
         }
-        return Company;
+        wetuwn Company;
     })();
-    (function (property, Workforce, IEmployee) {
-        if (property === undefined) { property = employees; }
-        if (IEmployee === undefined) { IEmployee = []; }
-        property;
-        calculateMonthlyExpenses();
+    (function (pwopewty, Wowkfowce, IEmpwoyee) {
+        if (pwopewty === undefined) { pwopewty = empwoyees; }
+        if (IEmpwoyee === undefined) { IEmpwoyee = []; }
+        pwopewty;
+        cawcuwateMonthwyExpenses();
         {
-            var result = 0;
-            for (var i = 0; i < employees.length; i++) {
-                result += employees[i].calculatePay();
+            vaw wesuwt = 0;
+            fow (vaw i = 0; i < empwoyees.wength; i++) {
+                wesuwt += empwoyees[i].cawcuwatePay();
             }
-            return result;
+            wetuwn wesuwt;
         }
     });
-})(Workforce || (Workforce = {}));
+})(Wowkfowce || (Wowkfowce = {}));

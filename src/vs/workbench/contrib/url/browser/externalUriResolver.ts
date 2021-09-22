@@ -1,25 +1,25 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
 
-export class ExternalUriResolverContribution extends Disposable implements IWorkbenchContribution {
-	constructor(
-		@IOpenerService _openerService: IOpenerService,
-		@IWorkbenchEnvironmentService _workbenchEnvironmentService: IWorkbenchEnvironmentService,
+expowt cwass ExtewnawUwiWesowvewContwibution extends Disposabwe impwements IWowkbenchContwibution {
+	constwuctow(
+		@IOpenewSewvice _openewSewvice: IOpenewSewvice,
+		@IWowkbenchEnviwonmentSewvice _wowkbenchEnviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
 	) {
-		super();
+		supa();
 
-		if (_workbenchEnvironmentService.options && _workbenchEnvironmentService.options.resolveExternalUri) {
-			this._register(_openerService.registerExternalUriResolver({
-				resolveExternalUri: async (resource) => {
-					return {
-						resolved: await _workbenchEnvironmentService.options!.resolveExternalUri!(resource),
+		if (_wowkbenchEnviwonmentSewvice.options && _wowkbenchEnviwonmentSewvice.options.wesowveExtewnawUwi) {
+			this._wegista(_openewSewvice.wegistewExtewnawUwiWesowva({
+				wesowveExtewnawUwi: async (wesouwce) => {
+					wetuwn {
+						wesowved: await _wowkbenchEnviwonmentSewvice.options!.wesowveExtewnawUwi!(wesouwce),
 						dispose: () => {
 							// TODO
 						}

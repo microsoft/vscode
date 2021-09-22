@@ -1,9 +1,9 @@
-.gitignore
-src/**
-!src/common/config.json
+.gitignowe
+swc/**
+!swc/common/config.json
 out/**
-build/**
+buiwd/**
 extension.webpack.config.js
-extension-browser.webpack.config.js
+extension-bwowsa.webpack.config.js
 tsconfig.json
-yarn.lock
+yawn.wock

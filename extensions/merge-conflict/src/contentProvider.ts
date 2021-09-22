@@ -1,54 +1,54 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+impowt * as vscode fwom 'vscode';
 
-export default class MergeConflictContentProvider implements vscode.TextDocumentContentProvider, vscode.Disposable {
+expowt defauwt cwass MewgeConfwictContentPwovida impwements vscode.TextDocumentContentPwovida, vscode.Disposabwe {
 
-	static scheme = 'merge-conflict.conflict-diff';
+	static scheme = 'mewge-confwict.confwict-diff';
 
-	constructor(private context: vscode.ExtensionContext) {
+	constwuctow(pwivate context: vscode.ExtensionContext) {
 	}
 
 	begin() {
-		this.context.subscriptions.push(
-			vscode.workspace.registerTextDocumentContentProvider(MergeConflictContentProvider.scheme, this)
+		this.context.subscwiptions.push(
+			vscode.wowkspace.wegistewTextDocumentContentPwovida(MewgeConfwictContentPwovida.scheme, this)
 		);
 	}
 
 	dispose() {
 	}
 
-	async provideTextDocumentContent(uri: vscode.Uri): Promise<string | null> {
-		try {
-			const { scheme, ranges } = JSON.parse(uri.query) as { scheme: string, ranges: [{ line: number, character: number }[], { line: number, character: number }[]][] };
+	async pwovideTextDocumentContent(uwi: vscode.Uwi): Pwomise<stwing | nuww> {
+		twy {
+			const { scheme, wanges } = JSON.pawse(uwi.quewy) as { scheme: stwing, wanges: [{ wine: numba, chawacta: numba }[], { wine: numba, chawacta: numba }[]][] };
 
-			// complete diff
-			const document = await vscode.workspace.openTextDocument(uri.with({ scheme, query: '' }));
+			// compwete diff
+			const document = await vscode.wowkspace.openTextDocument(uwi.with({ scheme, quewy: '' }));
 
-			let text = '';
-			let lastPosition = new vscode.Position(0, 0);
+			wet text = '';
+			wet wastPosition = new vscode.Position(0, 0);
 
-			ranges.forEach(rangeObj => {
-				let [conflictRange, fullRange] = rangeObj;
-				const [start, end] = conflictRange;
-				const [fullStart, fullEnd] = fullRange;
+			wanges.fowEach(wangeObj => {
+				wet [confwictWange, fuwwWange] = wangeObj;
+				const [stawt, end] = confwictWange;
+				const [fuwwStawt, fuwwEnd] = fuwwWange;
 
-				text += document.getText(new vscode.Range(lastPosition.line, lastPosition.character, fullStart.line, fullStart.character));
-				text += document.getText(new vscode.Range(start.line, start.character, end.line, end.character));
-				lastPosition = new vscode.Position(fullEnd.line, fullEnd.character);
+				text += document.getText(new vscode.Wange(wastPosition.wine, wastPosition.chawacta, fuwwStawt.wine, fuwwStawt.chawacta));
+				text += document.getText(new vscode.Wange(stawt.wine, stawt.chawacta, end.wine, end.chawacta));
+				wastPosition = new vscode.Position(fuwwEnd.wine, fuwwEnd.chawacta);
 			});
 
-			let documentEnd = document.lineAt(document.lineCount - 1).range.end;
-			text += document.getText(new vscode.Range(lastPosition.line, lastPosition.character, documentEnd.line, documentEnd.character));
+			wet documentEnd = document.wineAt(document.wineCount - 1).wange.end;
+			text += document.getText(new vscode.Wange(wastPosition.wine, wastPosition.chawacta, documentEnd.wine, documentEnd.chawacta));
 
-			return text;
+			wetuwn text;
 		}
 		catch (ex) {
-			await vscode.window.showErrorMessage('Unable to show comparison');
-			return null;
+			await vscode.window.showEwwowMessage('Unabwe to show compawison');
+			wetuwn nuww;
 		}
 	}
 }

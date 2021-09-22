@@ -1,3 +1,3 @@
-declare module 'github-releases' {
+decwawe moduwe 'github-weweases' {
 
 }

@@ -1,381 +1,381 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/atom/language-xml/blob/master/grammars/xml.cson",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/atom/wanguage-xmw/bwob/masta/gwammaws/xmw.cson",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/atom/language-xml/commit/7bc75dfe779ad5b35d9bf4013d9181864358cb49",
-	"name": "XML",
-	"scopeName": "text.xml",
-	"patterns": [
+	"vewsion": "https://github.com/atom/wanguage-xmw/commit/7bc75dfe779ad5b35d9bf4013d9181864358cb49",
+	"name": "XMW",
+	"scopeName": "text.xmw",
+	"pattewns": [
 		{
 			"begin": "(<\\?)\\s*([-_a-zA-Z0-9]+)",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.tag.xml"
+					"name": "punctuation.definition.tag.xmw"
 				},
 				"2": {
-					"name": "entity.name.tag.xml"
+					"name": "entity.name.tag.xmw"
 				}
 			},
 			"end": "(\\?>)",
-			"name": "meta.tag.preprocessor.xml",
-			"patterns": [
+			"name": "meta.tag.pwepwocessow.xmw",
+			"pattewns": [
 				{
 					"match": " ([a-zA-Z-]+)",
-					"name": "entity.other.attribute-name.xml"
+					"name": "entity.otha.attwibute-name.xmw"
 				},
 				{
-					"include": "#doublequotedString"
+					"incwude": "#doubwequotedStwing"
 				},
 				{
-					"include": "#singlequotedString"
+					"incwude": "#singwequotedStwing"
 				}
 			]
 		},
 		{
 			"begin": "(<!)(DOCTYPE)\\s+([:a-zA-Z_][:a-zA-Z0-9_.-]*)",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.tag.xml"
+					"name": "punctuation.definition.tag.xmw"
 				},
 				"2": {
-					"name": "keyword.other.doctype.xml"
+					"name": "keywowd.otha.doctype.xmw"
 				},
 				"3": {
-					"name": "variable.language.documentroot.xml"
+					"name": "vawiabwe.wanguage.documentwoot.xmw"
 				}
 			},
 			"end": "\\s*(>)",
-			"name": "meta.tag.sgml.doctype.xml",
-			"patterns": [
+			"name": "meta.tag.sgmw.doctype.xmw",
+			"pattewns": [
 				{
-					"include": "#internalSubset"
+					"incwude": "#intewnawSubset"
 				}
 			]
 		},
 		{
-			"include": "#comments"
+			"incwude": "#comments"
 		},
 		{
 			"begin": "(<)((?:([-_a-zA-Z0-9]+)(:))?([-_a-zA-Z0-9:]+))(?=(\\s[^>]*)?></\\2>)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.definition.tag.xml"
+					"name": "punctuation.definition.tag.xmw"
 				},
 				"2": {
-					"name": "entity.name.tag.xml"
+					"name": "entity.name.tag.xmw"
 				},
 				"3": {
-					"name": "entity.name.tag.namespace.xml"
+					"name": "entity.name.tag.namespace.xmw"
 				},
 				"4": {
-					"name": "punctuation.separator.namespace.xml"
+					"name": "punctuation.sepawatow.namespace.xmw"
 				},
 				"5": {
-					"name": "entity.name.tag.localname.xml"
+					"name": "entity.name.tag.wocawname.xmw"
 				}
 			},
 			"end": "(>)(</)((?:([-_a-zA-Z0-9]+)(:))?([-_a-zA-Z0-9:]+))(>)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.definition.tag.xml"
+					"name": "punctuation.definition.tag.xmw"
 				},
 				"2": {
-					"name": "punctuation.definition.tag.xml"
+					"name": "punctuation.definition.tag.xmw"
 				},
 				"3": {
-					"name": "entity.name.tag.xml"
+					"name": "entity.name.tag.xmw"
 				},
 				"4": {
-					"name": "entity.name.tag.namespace.xml"
+					"name": "entity.name.tag.namespace.xmw"
 				},
 				"5": {
-					"name": "punctuation.separator.namespace.xml"
+					"name": "punctuation.sepawatow.namespace.xmw"
 				},
 				"6": {
-					"name": "entity.name.tag.localname.xml"
+					"name": "entity.name.tag.wocawname.xmw"
 				},
 				"7": {
-					"name": "punctuation.definition.tag.xml"
+					"name": "punctuation.definition.tag.xmw"
 				}
 			},
-			"name": "meta.tag.no-content.xml",
-			"patterns": [
+			"name": "meta.tag.no-content.xmw",
+			"pattewns": [
 				{
-					"include": "#tagStuff"
+					"incwude": "#tagStuff"
 				}
 			]
 		},
 		{
 			"begin": "(</?)(?:([-\\w\\.]+)((:)))?([-\\w\\.:]+)",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.tag.xml"
+					"name": "punctuation.definition.tag.xmw"
 				},
 				"2": {
-					"name": "entity.name.tag.namespace.xml"
+					"name": "entity.name.tag.namespace.xmw"
 				},
 				"3": {
-					"name": "entity.name.tag.xml"
+					"name": "entity.name.tag.xmw"
 				},
 				"4": {
-					"name": "punctuation.separator.namespace.xml"
+					"name": "punctuation.sepawatow.namespace.xmw"
 				},
 				"5": {
-					"name": "entity.name.tag.localname.xml"
+					"name": "entity.name.tag.wocawname.xmw"
 				}
 			},
 			"end": "(/?>)",
-			"name": "meta.tag.xml",
-			"patterns": [
+			"name": "meta.tag.xmw",
+			"pattewns": [
 				{
-					"include": "#tagStuff"
+					"incwude": "#tagStuff"
 				}
 			]
 		},
 		{
-			"include": "#entity"
+			"incwude": "#entity"
 		},
 		{
-			"include": "#bare-ampersand"
+			"incwude": "#bawe-ampewsand"
 		},
 		{
 			"begin": "<%@",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.section.embedded.begin.xml"
+					"name": "punctuation.section.embedded.begin.xmw"
 				}
 			},
 			"end": "%>",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.section.embedded.end.xml"
+					"name": "punctuation.section.embedded.end.xmw"
 				}
 			},
-			"name": "source.java-props.embedded.xml",
-			"patterns": [
+			"name": "souwce.java-pwops.embedded.xmw",
+			"pattewns": [
 				{
-					"match": "page|include|taglib",
-					"name": "keyword.other.page-props.xml"
+					"match": "page|incwude|tagwib",
+					"name": "keywowd.otha.page-pwops.xmw"
 				}
 			]
 		},
 		{
 			"begin": "<%[!=]?(?!--)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.section.embedded.begin.xml"
+					"name": "punctuation.section.embedded.begin.xmw"
 				}
 			},
 			"end": "(?!--)%>",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.section.embedded.end.xml"
+					"name": "punctuation.section.embedded.end.xmw"
 				}
 			},
-			"name": "source.java.embedded.xml",
-			"patterns": [
+			"name": "souwce.java.embedded.xmw",
+			"pattewns": [
 				{
-					"include": "source.java"
+					"incwude": "souwce.java"
 				}
 			]
 		},
 		{
 			"begin": "<!\\[CDATA\\[",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.xml"
+					"name": "punctuation.definition.stwing.begin.xmw"
 				}
 			},
 			"end": "]]>",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.xml"
+					"name": "punctuation.definition.stwing.end.xmw"
 				}
 			},
-			"name": "string.unquoted.cdata.xml"
+			"name": "stwing.unquoted.cdata.xmw"
 		}
 	],
-	"repository": {
-		"EntityDecl": {
-			"begin": "(<!)(ENTITY)\\s+(%\\s+)?([:a-zA-Z_][:a-zA-Z0-9_.-]*)(\\s+(?:SYSTEM|PUBLIC)\\s+)?",
-			"captures": {
+	"wepositowy": {
+		"EntityDecw": {
+			"begin": "(<!)(ENTITY)\\s+(%\\s+)?([:a-zA-Z_][:a-zA-Z0-9_.-]*)(\\s+(?:SYSTEM|PUBWIC)\\s+)?",
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.tag.xml"
+					"name": "punctuation.definition.tag.xmw"
 				},
 				"2": {
-					"name": "keyword.other.entity.xml"
+					"name": "keywowd.otha.entity.xmw"
 				},
 				"3": {
-					"name": "punctuation.definition.entity.xml"
+					"name": "punctuation.definition.entity.xmw"
 				},
 				"4": {
-					"name": "variable.language.entity.xml"
+					"name": "vawiabwe.wanguage.entity.xmw"
 				},
 				"5": {
-					"name": "keyword.other.entitytype.xml"
+					"name": "keywowd.otha.entitytype.xmw"
 				}
 			},
 			"end": "(>)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#doublequotedString"
+					"incwude": "#doubwequotedStwing"
 				},
 				{
-					"include": "#singlequotedString"
+					"incwude": "#singwequotedStwing"
 				}
 			]
 		},
-		"bare-ampersand": {
+		"bawe-ampewsand": {
 			"match": "&",
-			"name": "invalid.illegal.bad-ampersand.xml"
+			"name": "invawid.iwwegaw.bad-ampewsand.xmw"
 		},
-		"doublequotedString": {
+		"doubwequotedStwing": {
 			"begin": "\"",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.xml"
+					"name": "punctuation.definition.stwing.begin.xmw"
 				}
 			},
 			"end": "\"",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.xml"
+					"name": "punctuation.definition.stwing.end.xmw"
 				}
 			},
-			"name": "string.quoted.double.xml",
-			"patterns": [
+			"name": "stwing.quoted.doubwe.xmw",
+			"pattewns": [
 				{
-					"include": "#entity"
+					"incwude": "#entity"
 				},
 				{
-					"include": "#bare-ampersand"
+					"incwude": "#bawe-ampewsand"
 				}
 			]
 		},
 		"entity": {
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.constant.xml"
+					"name": "punctuation.definition.constant.xmw"
 				},
 				"3": {
-					"name": "punctuation.definition.constant.xml"
+					"name": "punctuation.definition.constant.xmw"
 				}
 			},
 			"match": "(&)([:a-zA-Z_][:a-zA-Z0-9_.-]*|#[0-9]+|#x[0-9a-fA-F]+)(;)",
-			"name": "constant.character.entity.xml"
+			"name": "constant.chawacta.entity.xmw"
 		},
-		"internalSubset": {
+		"intewnawSubset": {
 			"begin": "(\\[)",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.constant.xml"
+					"name": "punctuation.definition.constant.xmw"
 				}
 			},
 			"end": "(\\])",
-			"name": "meta.internalsubset.xml",
-			"patterns": [
+			"name": "meta.intewnawsubset.xmw",
+			"pattewns": [
 				{
-					"include": "#EntityDecl"
+					"incwude": "#EntityDecw"
 				},
 				{
-					"include": "#parameterEntity"
+					"incwude": "#pawametewEntity"
 				},
 				{
-					"include": "#comments"
+					"incwude": "#comments"
 				}
 			]
 		},
-		"parameterEntity": {
-			"captures": {
+		"pawametewEntity": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.constant.xml"
+					"name": "punctuation.definition.constant.xmw"
 				},
 				"3": {
-					"name": "punctuation.definition.constant.xml"
+					"name": "punctuation.definition.constant.xmw"
 				}
 			},
 			"match": "(%)([:a-zA-Z_][:a-zA-Z0-9_.-]*)(;)",
-			"name": "constant.character.parameter-entity.xml"
+			"name": "constant.chawacta.pawameta-entity.xmw"
 		},
-		"singlequotedString": {
+		"singwequotedStwing": {
 			"begin": "'",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.xml"
+					"name": "punctuation.definition.stwing.begin.xmw"
 				}
 			},
 			"end": "'",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.xml"
+					"name": "punctuation.definition.stwing.end.xmw"
 				}
 			},
-			"name": "string.quoted.single.xml",
-			"patterns": [
+			"name": "stwing.quoted.singwe.xmw",
+			"pattewns": [
 				{
-					"include": "#entity"
+					"incwude": "#entity"
 				},
 				{
-					"include": "#bare-ampersand"
+					"incwude": "#bawe-ampewsand"
 				}
 			]
 		},
 		"tagStuff": {
-			"patterns": [
+			"pattewns": [
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "entity.other.attribute-name.namespace.xml"
+							"name": "entity.otha.attwibute-name.namespace.xmw"
 						},
 						"2": {
-							"name": "entity.other.attribute-name.xml"
+							"name": "entity.otha.attwibute-name.xmw"
 						},
 						"3": {
-							"name": "punctuation.separator.namespace.xml"
+							"name": "punctuation.sepawatow.namespace.xmw"
 						},
 						"4": {
-							"name": "entity.other.attribute-name.localname.xml"
+							"name": "entity.otha.attwibute-name.wocawname.xmw"
 						}
 					},
 					"match": "(?:^|\\s+)(?:([-\\w.]+)((:)))?([-\\w.:]+)\\s*="
 				},
 				{
-					"include": "#doublequotedString"
+					"incwude": "#doubwequotedStwing"
 				},
 				{
-					"include": "#singlequotedString"
+					"incwude": "#singwequotedStwing"
 				}
 			]
 		},
 		"comments": {
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "<%--",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.comment.xml"
+							"name": "punctuation.definition.comment.xmw"
 						},
 						"end": "--%>",
-						"name": "comment.block.xml"
+						"name": "comment.bwock.xmw"
 					}
 				},
 				{
 					"begin": "<!--",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.comment.xml"
+							"name": "punctuation.definition.comment.xmw"
 						}
 					},
 					"end": "-->",
-					"name": "comment.block.xml",
-					"patterns": [
+					"name": "comment.bwock.xmw",
+					"pattewns": [
 						{
 							"begin": "--(?!>)",
-							"captures": {
+							"captuwes": {
 								"0": {
-									"name": "invalid.illegal.bad-comments-or-CDATA.xml"
+									"name": "invawid.iwwegaw.bad-comments-ow-CDATA.xmw"
 								}
 							}
 						}

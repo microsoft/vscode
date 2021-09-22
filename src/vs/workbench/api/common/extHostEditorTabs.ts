@@ -1,80 +1,80 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as vscode from 'vscode';
-import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { IEditorTabDto, IExtHostEditorTabsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { URI } from 'vs/base/common/uri';
-import { Emitter, Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ViewColumn } from 'vs/workbench/api/common/extHostTypes';
+impowt type * as vscode fwom 'vscode';
+impowt * as typeConvewtews fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+impowt { IEditowTabDto, IExtHostEditowTabsShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ViewCowumn } fwom 'vs/wowkbench/api/common/extHostTypes';
 
-export interface IEditorTab {
-	label: string;
-	viewColumn: ViewColumn;
-	index: number;
-	resource?: vscode.Uri;
-	viewId?: string;
-	isActive: boolean;
-	additionalResourcesAndViewIds: { resource?: vscode.Uri, viewId?: string }[]
+expowt intewface IEditowTab {
+	wabew: stwing;
+	viewCowumn: ViewCowumn;
+	index: numba;
+	wesouwce?: vscode.Uwi;
+	viewId?: stwing;
+	isActive: boowean;
+	additionawWesouwcesAndViewIds: { wesouwce?: vscode.Uwi, viewId?: stwing }[]
 }
 
-export interface IExtHostEditorTabs extends IExtHostEditorTabsShape {
-	readonly _serviceBrand: undefined;
-	tabs: readonly IEditorTab[];
-	activeTab: IEditorTab | undefined;
-	onDidChangeActiveTab: Event<IEditorTab | undefined>;
-	onDidChangeTabs: Event<IEditorTab[]>;
+expowt intewface IExtHostEditowTabs extends IExtHostEditowTabsShape {
+	weadonwy _sewviceBwand: undefined;
+	tabs: weadonwy IEditowTab[];
+	activeTab: IEditowTab | undefined;
+	onDidChangeActiveTab: Event<IEditowTab | undefined>;
+	onDidChangeTabs: Event<IEditowTab[]>;
 }
 
-export const IExtHostEditorTabs = createDecorator<IExtHostEditorTabs>('IExtHostEditorTabs');
+expowt const IExtHostEditowTabs = cweateDecowatow<IExtHostEditowTabs>('IExtHostEditowTabs');
 
-export class ExtHostEditorTabs implements IExtHostEditorTabs {
-	readonly _serviceBrand: undefined;
+expowt cwass ExtHostEditowTabs impwements IExtHostEditowTabs {
+	weadonwy _sewviceBwand: undefined;
 
-	private readonly _onDidChangeTabs = new Emitter<IEditorTab[]>();
-	readonly onDidChangeTabs: Event<IEditorTab[]> = this._onDidChangeTabs.event;
+	pwivate weadonwy _onDidChangeTabs = new Emitta<IEditowTab[]>();
+	weadonwy onDidChangeTabs: Event<IEditowTab[]> = this._onDidChangeTabs.event;
 
-	private readonly _onDidChangeActiveTab = new Emitter<IEditorTab | undefined>();
-	readonly onDidChangeActiveTab: Event<IEditorTab | undefined> = this._onDidChangeActiveTab.event;
+	pwivate weadonwy _onDidChangeActiveTab = new Emitta<IEditowTab | undefined>();
+	weadonwy onDidChangeActiveTab: Event<IEditowTab | undefined> = this._onDidChangeActiveTab.event;
 
-	private _tabs: IEditorTab[] = [];
-	private _activeTab: IEditorTab | undefined;
+	pwivate _tabs: IEditowTab[] = [];
+	pwivate _activeTab: IEditowTab | undefined;
 
-	get tabs(): readonly IEditorTab[] {
-		return this._tabs;
+	get tabs(): weadonwy IEditowTab[] {
+		wetuwn this._tabs;
 	}
 
-	get activeTab(): IEditorTab | undefined {
-		return this._activeTab;
+	get activeTab(): IEditowTab | undefined {
+		wetuwn this._activeTab;
 	}
 
-	$acceptEditorTabs(tabs: IEditorTabDto[]): void {
-		let activeIndex = -1;
+	$acceptEditowTabs(tabs: IEditowTabDto[]): void {
+		wet activeIndex = -1;
 		this._tabs = tabs.map((dto, index) => {
 			if (dto.isActive) {
 				activeIndex = index;
 			}
-			return Object.freeze({
-				label: dto.label,
-				viewColumn: typeConverters.ViewColumn.to(dto.viewColumn),
+			wetuwn Object.fweeze({
+				wabew: dto.wabew,
+				viewCowumn: typeConvewtews.ViewCowumn.to(dto.viewCowumn),
 				index,
-				resource: URI.revive(dto.resource),
-				additionalResourcesAndViewIds: dto.additionalResourcesAndViewIds.map(({ resource, viewId }) => ({ resource: URI.revive(resource), viewId })),
-				viewId: dto.editorId,
+				wesouwce: UWI.wevive(dto.wesouwce),
+				additionawWesouwcesAndViewIds: dto.additionawWesouwcesAndViewIds.map(({ wesouwce, viewId }) => ({ wesouwce: UWI.wevive(wesouwce), viewId })),
+				viewId: dto.editowId,
 				isActive: dto.isActive
 			});
 		});
-		this._tabs = this._tabs.sort((t1, t2) => {
-			return t1.viewColumn === t2.viewColumn ? t1.index - t2.index : t1.viewColumn - t2.viewColumn;
+		this._tabs = this._tabs.sowt((t1, t2) => {
+			wetuwn t1.viewCowumn === t2.viewCowumn ? t1.index - t2.index : t1.viewCowumn - t2.viewCowumn;
 		});
-		const oldActiveTab = this._activeTab;
+		const owdActiveTab = this._activeTab;
 		this._activeTab = activeIndex === -1 ? undefined : this._tabs[activeIndex];
-		if (this._activeTab !== oldActiveTab) {
-			this._onDidChangeActiveTab.fire(this._activeTab);
+		if (this._activeTab !== owdActiveTab) {
+			this._onDidChangeActiveTab.fiwe(this._activeTab);
 		}
-		this._onDidChangeTabs.fire(this._tabs);
+		this._onDidChangeTabs.fiwe(this._tabs);
 	}
 }

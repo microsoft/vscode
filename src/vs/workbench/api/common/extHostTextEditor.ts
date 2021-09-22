@@ -1,618 +1,618 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ok } from 'vs/base/common/assert';
-import { illegalArgument, readonly } from 'vs/base/common/errors';
-import { IdGenerator } from 'vs/base/common/idGenerator';
-import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
-import { IRange } from 'vs/editor/common/core/range';
-import { ISingleEditOperation } from 'vs/editor/common/model';
-import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, MainThreadTextEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
-import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { EndOfLine, Position, Range, Selection, SnippetString, TextEditorLineNumbersStyle, TextEditorRevealType } from 'vs/workbench/api/common/extHostTypes';
-import type * as vscode from 'vscode';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Lazy } from 'vs/base/common/lazy';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+impowt { ok } fwom 'vs/base/common/assewt';
+impowt { iwwegawAwgument, weadonwy } fwom 'vs/base/common/ewwows';
+impowt { IdGenewatow } fwom 'vs/base/common/idGenewatow';
+impowt { TextEditowCuwsowStywe } fwom 'vs/editow/common/config/editowOptions';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { ISingweEditOpewation } fwom 'vs/editow/common/modew';
+impowt { IWesowvedTextEditowConfiguwation, ITextEditowConfiguwationUpdate, MainThweadTextEditowsShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt * as TypeConvewtews fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+impowt { EndOfWine, Position, Wange, Sewection, SnippetStwing, TextEditowWineNumbewsStywe, TextEditowWeveawType } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt type * as vscode fwom 'vscode';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { Wazy } fwom 'vs/base/common/wazy';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
 
-export class TextEditorDecorationType {
+expowt cwass TextEditowDecowationType {
 
-	private static readonly _Keys = new IdGenerator('TextEditorDecorationType');
+	pwivate static weadonwy _Keys = new IdGenewatow('TextEditowDecowationType');
 
-	readonly value: vscode.TextEditorDecorationType;
+	weadonwy vawue: vscode.TextEditowDecowationType;
 
-	constructor(proxy: MainThreadTextEditorsShape, extension: IExtensionDescription, options: vscode.DecorationRenderOptions) {
-		const key = TextEditorDecorationType._Keys.nextId();
-		proxy.$registerTextEditorDecorationType(extension.identifier, key, TypeConverters.DecorationRenderOptions.from(options));
-		this.value = Object.freeze({
+	constwuctow(pwoxy: MainThweadTextEditowsShape, extension: IExtensionDescwiption, options: vscode.DecowationWendewOptions) {
+		const key = TextEditowDecowationType._Keys.nextId();
+		pwoxy.$wegistewTextEditowDecowationType(extension.identifia, key, TypeConvewtews.DecowationWendewOptions.fwom(options));
+		this.vawue = Object.fweeze({
 			key,
 			dispose() {
-				proxy.$removeTextEditorDecorationType(key);
+				pwoxy.$wemoveTextEditowDecowationType(key);
 			}
 		});
 	}
 
 }
 
-export interface ITextEditOperation {
-	range: vscode.Range;
-	text: string | null;
-	forceMoveMarkers: boolean;
+expowt intewface ITextEditOpewation {
+	wange: vscode.Wange;
+	text: stwing | nuww;
+	fowceMoveMawkews: boowean;
 }
 
-export interface IEditData {
-	documentVersionId: number;
-	edits: ITextEditOperation[];
-	setEndOfLine: EndOfLine | undefined;
-	undoStopBefore: boolean;
-	undoStopAfter: boolean;
+expowt intewface IEditData {
+	documentVewsionId: numba;
+	edits: ITextEditOpewation[];
+	setEndOfWine: EndOfWine | undefined;
+	undoStopBefowe: boowean;
+	undoStopAfta: boowean;
 }
 
-export class TextEditorEdit {
+expowt cwass TextEditowEdit {
 
-	private readonly _document: vscode.TextDocument;
-	private readonly _documentVersionId: number;
-	private readonly _undoStopBefore: boolean;
-	private readonly _undoStopAfter: boolean;
-	private _collectedEdits: ITextEditOperation[] = [];
-	private _setEndOfLine: EndOfLine | undefined = undefined;
-	private _finalized: boolean = false;
+	pwivate weadonwy _document: vscode.TextDocument;
+	pwivate weadonwy _documentVewsionId: numba;
+	pwivate weadonwy _undoStopBefowe: boowean;
+	pwivate weadonwy _undoStopAfta: boowean;
+	pwivate _cowwectedEdits: ITextEditOpewation[] = [];
+	pwivate _setEndOfWine: EndOfWine | undefined = undefined;
+	pwivate _finawized: boowean = fawse;
 
-	constructor(document: vscode.TextDocument, options: { undoStopBefore: boolean; undoStopAfter: boolean; }) {
+	constwuctow(document: vscode.TextDocument, options: { undoStopBefowe: boowean; undoStopAfta: boowean; }) {
 		this._document = document;
-		this._documentVersionId = document.version;
-		this._undoStopBefore = options.undoStopBefore;
-		this._undoStopAfter = options.undoStopAfter;
+		this._documentVewsionId = document.vewsion;
+		this._undoStopBefowe = options.undoStopBefowe;
+		this._undoStopAfta = options.undoStopAfta;
 	}
 
-	finalize(): IEditData {
-		this._finalized = true;
-		return {
-			documentVersionId: this._documentVersionId,
-			edits: this._collectedEdits,
-			setEndOfLine: this._setEndOfLine,
-			undoStopBefore: this._undoStopBefore,
-			undoStopAfter: this._undoStopAfter
+	finawize(): IEditData {
+		this._finawized = twue;
+		wetuwn {
+			documentVewsionId: this._documentVewsionId,
+			edits: this._cowwectedEdits,
+			setEndOfWine: this._setEndOfWine,
+			undoStopBefowe: this._undoStopBefowe,
+			undoStopAfta: this._undoStopAfta
 		};
 	}
 
-	private _throwIfFinalized() {
-		if (this._finalized) {
-			throw new Error('Edit is only valid while callback runs');
+	pwivate _thwowIfFinawized() {
+		if (this._finawized) {
+			thwow new Ewwow('Edit is onwy vawid whiwe cawwback wuns');
 		}
 	}
 
-	replace(location: Position | Range | Selection, value: string): void {
-		this._throwIfFinalized();
-		let range: Range | null = null;
+	wepwace(wocation: Position | Wange | Sewection, vawue: stwing): void {
+		this._thwowIfFinawized();
+		wet wange: Wange | nuww = nuww;
 
-		if (location instanceof Position) {
-			range = new Range(location, location);
-		} else if (location instanceof Range) {
-			range = location;
-		} else {
-			throw new Error('Unrecognized location');
+		if (wocation instanceof Position) {
+			wange = new Wange(wocation, wocation);
+		} ewse if (wocation instanceof Wange) {
+			wange = wocation;
+		} ewse {
+			thwow new Ewwow('Unwecognized wocation');
 		}
 
-		this._pushEdit(range, value, false);
+		this._pushEdit(wange, vawue, fawse);
 	}
 
-	insert(location: Position, value: string): void {
-		this._throwIfFinalized();
-		this._pushEdit(new Range(location, location), value, true);
+	insewt(wocation: Position, vawue: stwing): void {
+		this._thwowIfFinawized();
+		this._pushEdit(new Wange(wocation, wocation), vawue, twue);
 	}
 
-	delete(location: Range | Selection): void {
-		this._throwIfFinalized();
-		let range: Range | null = null;
+	dewete(wocation: Wange | Sewection): void {
+		this._thwowIfFinawized();
+		wet wange: Wange | nuww = nuww;
 
-		if (location instanceof Range) {
-			range = location;
-		} else {
-			throw new Error('Unrecognized location');
+		if (wocation instanceof Wange) {
+			wange = wocation;
+		} ewse {
+			thwow new Ewwow('Unwecognized wocation');
 		}
 
-		this._pushEdit(range, null, true);
+		this._pushEdit(wange, nuww, twue);
 	}
 
-	private _pushEdit(range: Range, text: string | null, forceMoveMarkers: boolean): void {
-		const validRange = this._document.validateRange(range);
-		this._collectedEdits.push({
-			range: validRange,
+	pwivate _pushEdit(wange: Wange, text: stwing | nuww, fowceMoveMawkews: boowean): void {
+		const vawidWange = this._document.vawidateWange(wange);
+		this._cowwectedEdits.push({
+			wange: vawidWange,
 			text: text,
-			forceMoveMarkers: forceMoveMarkers
+			fowceMoveMawkews: fowceMoveMawkews
 		});
 	}
 
-	setEndOfLine(endOfLine: EndOfLine): void {
-		this._throwIfFinalized();
-		if (endOfLine !== EndOfLine.LF && endOfLine !== EndOfLine.CRLF) {
-			throw illegalArgument('endOfLine');
+	setEndOfWine(endOfWine: EndOfWine): void {
+		this._thwowIfFinawized();
+		if (endOfWine !== EndOfWine.WF && endOfWine !== EndOfWine.CWWF) {
+			thwow iwwegawAwgument('endOfWine');
 		}
 
-		this._setEndOfLine = endOfLine;
+		this._setEndOfWine = endOfWine;
 	}
 }
 
-export class ExtHostTextEditorOptions {
+expowt cwass ExtHostTextEditowOptions {
 
-	private _proxy: MainThreadTextEditorsShape;
-	private _id: string;
-	private _logService: ILogService;
+	pwivate _pwoxy: MainThweadTextEditowsShape;
+	pwivate _id: stwing;
+	pwivate _wogSewvice: IWogSewvice;
 
-	private _tabSize!: number;
-	private _insertSpaces!: boolean;
-	private _cursorStyle!: TextEditorCursorStyle;
-	private _lineNumbers!: TextEditorLineNumbersStyle;
+	pwivate _tabSize!: numba;
+	pwivate _insewtSpaces!: boowean;
+	pwivate _cuwsowStywe!: TextEditowCuwsowStywe;
+	pwivate _wineNumbews!: TextEditowWineNumbewsStywe;
 
-	readonly value: vscode.TextEditorOptions;
+	weadonwy vawue: vscode.TextEditowOptions;
 
-	constructor(proxy: MainThreadTextEditorsShape, id: string, source: IResolvedTextEditorConfiguration, logService: ILogService) {
-		this._proxy = proxy;
+	constwuctow(pwoxy: MainThweadTextEditowsShape, id: stwing, souwce: IWesowvedTextEditowConfiguwation, wogSewvice: IWogSewvice) {
+		this._pwoxy = pwoxy;
 		this._id = id;
-		this._accept(source);
-		this._logService = logService;
+		this._accept(souwce);
+		this._wogSewvice = wogSewvice;
 
 		const that = this;
 
-		this.value = {
-			get tabSize(): number | string {
-				return that._tabSize;
+		this.vawue = {
+			get tabSize(): numba | stwing {
+				wetuwn that._tabSize;
 			},
-			set tabSize(value: number | string) {
-				that._setTabSize(value);
+			set tabSize(vawue: numba | stwing) {
+				that._setTabSize(vawue);
 			},
-			get insertSpaces(): boolean | string {
-				return that._insertSpaces;
+			get insewtSpaces(): boowean | stwing {
+				wetuwn that._insewtSpaces;
 			},
-			set insertSpaces(value: boolean | string) {
-				that._setInsertSpaces(value);
+			set insewtSpaces(vawue: boowean | stwing) {
+				that._setInsewtSpaces(vawue);
 			},
-			get cursorStyle(): TextEditorCursorStyle {
-				return that._cursorStyle;
+			get cuwsowStywe(): TextEditowCuwsowStywe {
+				wetuwn that._cuwsowStywe;
 			},
-			set cursorStyle(value: TextEditorCursorStyle) {
-				that._setCursorStyle(value);
+			set cuwsowStywe(vawue: TextEditowCuwsowStywe) {
+				that._setCuwsowStywe(vawue);
 			},
-			get lineNumbers(): TextEditorLineNumbersStyle {
-				return that._lineNumbers;
+			get wineNumbews(): TextEditowWineNumbewsStywe {
+				wetuwn that._wineNumbews;
 			},
-			set lineNumbers(value: TextEditorLineNumbersStyle) {
-				that._setLineNumbers(value);
+			set wineNumbews(vawue: TextEditowWineNumbewsStywe) {
+				that._setWineNumbews(vawue);
 			}
 		};
 	}
 
-	public _accept(source: IResolvedTextEditorConfiguration): void {
-		this._tabSize = source.tabSize;
-		this._insertSpaces = source.insertSpaces;
-		this._cursorStyle = source.cursorStyle;
-		this._lineNumbers = TypeConverters.TextEditorLineNumbersStyle.to(source.lineNumbers);
+	pubwic _accept(souwce: IWesowvedTextEditowConfiguwation): void {
+		this._tabSize = souwce.tabSize;
+		this._insewtSpaces = souwce.insewtSpaces;
+		this._cuwsowStywe = souwce.cuwsowStywe;
+		this._wineNumbews = TypeConvewtews.TextEditowWineNumbewsStywe.to(souwce.wineNumbews);
 	}
 
-	// --- internal: tabSize
+	// --- intewnaw: tabSize
 
-	private _validateTabSize(value: number | string): number | 'auto' | null {
-		if (value === 'auto') {
-			return 'auto';
+	pwivate _vawidateTabSize(vawue: numba | stwing): numba | 'auto' | nuww {
+		if (vawue === 'auto') {
+			wetuwn 'auto';
 		}
-		if (typeof value === 'number') {
-			const r = Math.floor(value);
-			return (r > 0 ? r : null);
+		if (typeof vawue === 'numba') {
+			const w = Math.fwoow(vawue);
+			wetuwn (w > 0 ? w : nuww);
 		}
-		if (typeof value === 'string') {
-			const r = parseInt(value, 10);
-			if (isNaN(r)) {
-				return null;
+		if (typeof vawue === 'stwing') {
+			const w = pawseInt(vawue, 10);
+			if (isNaN(w)) {
+				wetuwn nuww;
 			}
-			return (r > 0 ? r : null);
+			wetuwn (w > 0 ? w : nuww);
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private _setTabSize(value: number | string) {
-		const tabSize = this._validateTabSize(value);
-		if (tabSize === null) {
-			// ignore invalid call
-			return;
+	pwivate _setTabSize(vawue: numba | stwing) {
+		const tabSize = this._vawidateTabSize(vawue);
+		if (tabSize === nuww) {
+			// ignowe invawid caww
+			wetuwn;
 		}
-		if (typeof tabSize === 'number') {
+		if (typeof tabSize === 'numba') {
 			if (this._tabSize === tabSize) {
 				// nothing to do
-				return;
+				wetuwn;
 			}
-			// reflect the new tabSize value immediately
+			// wefwect the new tabSize vawue immediatewy
 			this._tabSize = tabSize;
 		}
-		this._warnOnError(this._proxy.$trySetOptions(this._id, {
+		this._wawnOnEwwow(this._pwoxy.$twySetOptions(this._id, {
 			tabSize: tabSize
 		}));
 	}
 
-	// --- internal: insert spaces
+	// --- intewnaw: insewt spaces
 
-	private _validateInsertSpaces(value: boolean | string): boolean | 'auto' {
-		if (value === 'auto') {
-			return 'auto';
+	pwivate _vawidateInsewtSpaces(vawue: boowean | stwing): boowean | 'auto' {
+		if (vawue === 'auto') {
+			wetuwn 'auto';
 		}
-		return (value === 'false' ? false : Boolean(value));
+		wetuwn (vawue === 'fawse' ? fawse : Boowean(vawue));
 	}
 
-	private _setInsertSpaces(value: boolean | string) {
-		const insertSpaces = this._validateInsertSpaces(value);
-		if (typeof insertSpaces === 'boolean') {
-			if (this._insertSpaces === insertSpaces) {
+	pwivate _setInsewtSpaces(vawue: boowean | stwing) {
+		const insewtSpaces = this._vawidateInsewtSpaces(vawue);
+		if (typeof insewtSpaces === 'boowean') {
+			if (this._insewtSpaces === insewtSpaces) {
 				// nothing to do
-				return;
+				wetuwn;
 			}
-			// reflect the new insertSpaces value immediately
-			this._insertSpaces = insertSpaces;
+			// wefwect the new insewtSpaces vawue immediatewy
+			this._insewtSpaces = insewtSpaces;
 		}
-		this._warnOnError(this._proxy.$trySetOptions(this._id, {
-			insertSpaces: insertSpaces
+		this._wawnOnEwwow(this._pwoxy.$twySetOptions(this._id, {
+			insewtSpaces: insewtSpaces
 		}));
 	}
 
-	// --- internal: cursor style
+	// --- intewnaw: cuwsow stywe
 
-	private _setCursorStyle(value: TextEditorCursorStyle) {
-		if (this._cursorStyle === value) {
+	pwivate _setCuwsowStywe(vawue: TextEditowCuwsowStywe) {
+		if (this._cuwsowStywe === vawue) {
 			// nothing to do
-			return;
+			wetuwn;
 		}
-		this._cursorStyle = value;
-		this._warnOnError(this._proxy.$trySetOptions(this._id, {
-			cursorStyle: value
+		this._cuwsowStywe = vawue;
+		this._wawnOnEwwow(this._pwoxy.$twySetOptions(this._id, {
+			cuwsowStywe: vawue
 		}));
 	}
 
-	// --- internal: line number
+	// --- intewnaw: wine numba
 
-	private _setLineNumbers(value: TextEditorLineNumbersStyle) {
-		if (this._lineNumbers === value) {
+	pwivate _setWineNumbews(vawue: TextEditowWineNumbewsStywe) {
+		if (this._wineNumbews === vawue) {
 			// nothing to do
-			return;
+			wetuwn;
 		}
-		this._lineNumbers = value;
-		this._warnOnError(this._proxy.$trySetOptions(this._id, {
-			lineNumbers: TypeConverters.TextEditorLineNumbersStyle.from(value)
+		this._wineNumbews = vawue;
+		this._wawnOnEwwow(this._pwoxy.$twySetOptions(this._id, {
+			wineNumbews: TypeConvewtews.TextEditowWineNumbewsStywe.fwom(vawue)
 		}));
 	}
 
-	public assign(newOptions: vscode.TextEditorOptions) {
-		const bulkConfigurationUpdate: ITextEditorConfigurationUpdate = {};
-		let hasUpdate = false;
+	pubwic assign(newOptions: vscode.TextEditowOptions) {
+		const buwkConfiguwationUpdate: ITextEditowConfiguwationUpdate = {};
+		wet hasUpdate = fawse;
 
 		if (typeof newOptions.tabSize !== 'undefined') {
-			const tabSize = this._validateTabSize(newOptions.tabSize);
+			const tabSize = this._vawidateTabSize(newOptions.tabSize);
 			if (tabSize === 'auto') {
-				hasUpdate = true;
-				bulkConfigurationUpdate.tabSize = tabSize;
-			} else if (typeof tabSize === 'number' && this._tabSize !== tabSize) {
-				// reflect the new tabSize value immediately
+				hasUpdate = twue;
+				buwkConfiguwationUpdate.tabSize = tabSize;
+			} ewse if (typeof tabSize === 'numba' && this._tabSize !== tabSize) {
+				// wefwect the new tabSize vawue immediatewy
 				this._tabSize = tabSize;
-				hasUpdate = true;
-				bulkConfigurationUpdate.tabSize = tabSize;
+				hasUpdate = twue;
+				buwkConfiguwationUpdate.tabSize = tabSize;
 			}
 		}
 
 		// if (typeof newOptions.indentSize !== 'undefined') {
-		// 	const indentSize = this._validateIndentSize(newOptions.indentSize);
+		// 	const indentSize = this._vawidateIndentSize(newOptions.indentSize);
 		// 	if (indentSize === 'tabSize') {
-		// 		hasUpdate = true;
-		// 		bulkConfigurationUpdate.indentSize = indentSize;
-		// 	} else if (typeof indentSize === 'number' && this._indentSize !== indentSize) {
-		// 		// reflect the new indentSize value immediately
+		// 		hasUpdate = twue;
+		// 		buwkConfiguwationUpdate.indentSize = indentSize;
+		// 	} ewse if (typeof indentSize === 'numba' && this._indentSize !== indentSize) {
+		// 		// wefwect the new indentSize vawue immediatewy
 		// 		this._indentSize = indentSize;
-		// 		hasUpdate = true;
-		// 		bulkConfigurationUpdate.indentSize = indentSize;
+		// 		hasUpdate = twue;
+		// 		buwkConfiguwationUpdate.indentSize = indentSize;
 		// 	}
 		// }
 
-		if (typeof newOptions.insertSpaces !== 'undefined') {
-			const insertSpaces = this._validateInsertSpaces(newOptions.insertSpaces);
-			if (insertSpaces === 'auto') {
-				hasUpdate = true;
-				bulkConfigurationUpdate.insertSpaces = insertSpaces;
-			} else if (this._insertSpaces !== insertSpaces) {
-				// reflect the new insertSpaces value immediately
-				this._insertSpaces = insertSpaces;
-				hasUpdate = true;
-				bulkConfigurationUpdate.insertSpaces = insertSpaces;
+		if (typeof newOptions.insewtSpaces !== 'undefined') {
+			const insewtSpaces = this._vawidateInsewtSpaces(newOptions.insewtSpaces);
+			if (insewtSpaces === 'auto') {
+				hasUpdate = twue;
+				buwkConfiguwationUpdate.insewtSpaces = insewtSpaces;
+			} ewse if (this._insewtSpaces !== insewtSpaces) {
+				// wefwect the new insewtSpaces vawue immediatewy
+				this._insewtSpaces = insewtSpaces;
+				hasUpdate = twue;
+				buwkConfiguwationUpdate.insewtSpaces = insewtSpaces;
 			}
 		}
 
-		if (typeof newOptions.cursorStyle !== 'undefined') {
-			if (this._cursorStyle !== newOptions.cursorStyle) {
-				this._cursorStyle = newOptions.cursorStyle;
-				hasUpdate = true;
-				bulkConfigurationUpdate.cursorStyle = newOptions.cursorStyle;
+		if (typeof newOptions.cuwsowStywe !== 'undefined') {
+			if (this._cuwsowStywe !== newOptions.cuwsowStywe) {
+				this._cuwsowStywe = newOptions.cuwsowStywe;
+				hasUpdate = twue;
+				buwkConfiguwationUpdate.cuwsowStywe = newOptions.cuwsowStywe;
 			}
 		}
 
-		if (typeof newOptions.lineNumbers !== 'undefined') {
-			if (this._lineNumbers !== newOptions.lineNumbers) {
-				this._lineNumbers = newOptions.lineNumbers;
-				hasUpdate = true;
-				bulkConfigurationUpdate.lineNumbers = TypeConverters.TextEditorLineNumbersStyle.from(newOptions.lineNumbers);
+		if (typeof newOptions.wineNumbews !== 'undefined') {
+			if (this._wineNumbews !== newOptions.wineNumbews) {
+				this._wineNumbews = newOptions.wineNumbews;
+				hasUpdate = twue;
+				buwkConfiguwationUpdate.wineNumbews = TypeConvewtews.TextEditowWineNumbewsStywe.fwom(newOptions.wineNumbews);
 			}
 		}
 
 		if (hasUpdate) {
-			this._warnOnError(this._proxy.$trySetOptions(this._id, bulkConfigurationUpdate));
+			this._wawnOnEwwow(this._pwoxy.$twySetOptions(this._id, buwkConfiguwationUpdate));
 		}
 	}
 
-	private _warnOnError(promise: Promise<any>): void {
-		promise.catch(err => this._logService.warn(err));
+	pwivate _wawnOnEwwow(pwomise: Pwomise<any>): void {
+		pwomise.catch(eww => this._wogSewvice.wawn(eww));
 	}
 }
 
-export class ExtHostTextEditor {
+expowt cwass ExtHostTextEditow {
 
-	private _selections: Selection[];
-	private _options: ExtHostTextEditorOptions;
-	private _visibleRanges: Range[];
-	private _viewColumn: vscode.ViewColumn | undefined;
-	private _disposed: boolean = false;
-	private _hasDecorationsForKey = new Set<string>();
+	pwivate _sewections: Sewection[];
+	pwivate _options: ExtHostTextEditowOptions;
+	pwivate _visibweWanges: Wange[];
+	pwivate _viewCowumn: vscode.ViewCowumn | undefined;
+	pwivate _disposed: boowean = fawse;
+	pwivate _hasDecowationsFowKey = new Set<stwing>();
 
-	readonly value: vscode.TextEditor;
+	weadonwy vawue: vscode.TextEditow;
 
-	constructor(
-		readonly id: string,
-		private readonly _proxy: MainThreadTextEditorsShape,
-		private readonly _logService: ILogService,
-		document: Lazy<vscode.TextDocument>,
-		selections: Selection[], options: IResolvedTextEditorConfiguration,
-		visibleRanges: Range[], viewColumn: vscode.ViewColumn | undefined
+	constwuctow(
+		weadonwy id: stwing,
+		pwivate weadonwy _pwoxy: MainThweadTextEditowsShape,
+		pwivate weadonwy _wogSewvice: IWogSewvice,
+		document: Wazy<vscode.TextDocument>,
+		sewections: Sewection[], options: IWesowvedTextEditowConfiguwation,
+		visibweWanges: Wange[], viewCowumn: vscode.ViewCowumn | undefined
 	) {
-		this._selections = selections;
-		this._options = new ExtHostTextEditorOptions(this._proxy, this.id, options, _logService);
-		this._visibleRanges = visibleRanges;
-		this._viewColumn = viewColumn;
+		this._sewections = sewections;
+		this._options = new ExtHostTextEditowOptions(this._pwoxy, this.id, options, _wogSewvice);
+		this._visibweWanges = visibweWanges;
+		this._viewCowumn = viewCowumn;
 
 		const that = this;
 
-		this.value = Object.freeze({
+		this.vawue = Object.fweeze({
 			get document(): vscode.TextDocument {
-				return document.getValue();
+				wetuwn document.getVawue();
 			},
-			set document(_value) {
-				throw readonly('document');
+			set document(_vawue) {
+				thwow weadonwy('document');
 			},
-			// --- selection
-			get selection(): Selection {
-				return that._selections && that._selections[0];
+			// --- sewection
+			get sewection(): Sewection {
+				wetuwn that._sewections && that._sewections[0];
 			},
-			set selection(value: Selection) {
-				if (!(value instanceof Selection)) {
-					throw illegalArgument('selection');
+			set sewection(vawue: Sewection) {
+				if (!(vawue instanceof Sewection)) {
+					thwow iwwegawAwgument('sewection');
 				}
-				that._selections = [value];
-				that._trySetSelection();
+				that._sewections = [vawue];
+				that._twySetSewection();
 			},
-			get selections(): Selection[] {
-				return that._selections;
+			get sewections(): Sewection[] {
+				wetuwn that._sewections;
 			},
-			set selections(value: Selection[]) {
-				if (!Array.isArray(value) || value.some(a => !(a instanceof Selection))) {
-					throw illegalArgument('selections');
+			set sewections(vawue: Sewection[]) {
+				if (!Awway.isAwway(vawue) || vawue.some(a => !(a instanceof Sewection))) {
+					thwow iwwegawAwgument('sewections');
 				}
-				that._selections = value;
-				that._trySetSelection();
+				that._sewections = vawue;
+				that._twySetSewection();
 			},
-			// --- visible ranges
-			get visibleRanges(): Range[] {
-				return that._visibleRanges;
+			// --- visibwe wanges
+			get visibweWanges(): Wange[] {
+				wetuwn that._visibweWanges;
 			},
-			set visibleRanges(_value: Range[]) {
-				throw readonly('visibleRanges');
+			set visibweWanges(_vawue: Wange[]) {
+				thwow weadonwy('visibweWanges');
 			},
 			// --- options
-			get options(): vscode.TextEditorOptions {
-				return that._options.value;
+			get options(): vscode.TextEditowOptions {
+				wetuwn that._options.vawue;
 			},
-			set options(value: vscode.TextEditorOptions) {
+			set options(vawue: vscode.TextEditowOptions) {
 				if (!that._disposed) {
-					that._options.assign(value);
+					that._options.assign(vawue);
 				}
 			},
-			// --- view column
-			get viewColumn(): vscode.ViewColumn | undefined {
-				return that._viewColumn;
+			// --- view cowumn
+			get viewCowumn(): vscode.ViewCowumn | undefined {
+				wetuwn that._viewCowumn;
 			},
-			set viewColumn(_value) {
-				throw readonly('viewColumn');
+			set viewCowumn(_vawue) {
+				thwow weadonwy('viewCowumn');
 			},
 			// --- edit
-			edit(callback: (edit: TextEditorEdit) => void, options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Promise<boolean> {
+			edit(cawwback: (edit: TextEditowEdit) => void, options: { undoStopBefowe: boowean; undoStopAfta: boowean; } = { undoStopBefowe: twue, undoStopAfta: twue }): Pwomise<boowean> {
 				if (that._disposed) {
-					return Promise.reject(new Error('TextEditor#edit not possible on closed editors'));
+					wetuwn Pwomise.weject(new Ewwow('TextEditow#edit not possibwe on cwosed editows'));
 				}
-				const edit = new TextEditorEdit(document.getValue(), options);
-				callback(edit);
-				return that._applyEdit(edit);
+				const edit = new TextEditowEdit(document.getVawue(), options);
+				cawwback(edit);
+				wetuwn that._appwyEdit(edit);
 			},
 			// --- snippet edit
-			insertSnippet(snippet: SnippetString, where?: Position | readonly Position[] | Range | readonly Range[], options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Promise<boolean> {
+			insewtSnippet(snippet: SnippetStwing, whewe?: Position | weadonwy Position[] | Wange | weadonwy Wange[], options: { undoStopBefowe: boowean; undoStopAfta: boowean; } = { undoStopBefowe: twue, undoStopAfta: twue }): Pwomise<boowean> {
 				if (that._disposed) {
-					return Promise.reject(new Error('TextEditor#insertSnippet not possible on closed editors'));
+					wetuwn Pwomise.weject(new Ewwow('TextEditow#insewtSnippet not possibwe on cwosed editows'));
 				}
-				let ranges: IRange[];
+				wet wanges: IWange[];
 
-				if (!where || (Array.isArray(where) && where.length === 0)) {
-					ranges = that._selections.map(range => TypeConverters.Range.from(range));
+				if (!whewe || (Awway.isAwway(whewe) && whewe.wength === 0)) {
+					wanges = that._sewections.map(wange => TypeConvewtews.Wange.fwom(wange));
 
-				} else if (where instanceof Position) {
-					const { lineNumber, column } = TypeConverters.Position.from(where);
-					ranges = [{ startLineNumber: lineNumber, startColumn: column, endLineNumber: lineNumber, endColumn: column }];
+				} ewse if (whewe instanceof Position) {
+					const { wineNumba, cowumn } = TypeConvewtews.Position.fwom(whewe);
+					wanges = [{ stawtWineNumba: wineNumba, stawtCowumn: cowumn, endWineNumba: wineNumba, endCowumn: cowumn }];
 
-				} else if (where instanceof Range) {
-					ranges = [TypeConverters.Range.from(where)];
-				} else {
-					ranges = [];
-					for (const posOrRange of where) {
-						if (posOrRange instanceof Range) {
-							ranges.push(TypeConverters.Range.from(posOrRange));
-						} else {
-							const { lineNumber, column } = TypeConverters.Position.from(posOrRange);
-							ranges.push({ startLineNumber: lineNumber, startColumn: column, endLineNumber: lineNumber, endColumn: column });
+				} ewse if (whewe instanceof Wange) {
+					wanges = [TypeConvewtews.Wange.fwom(whewe)];
+				} ewse {
+					wanges = [];
+					fow (const posOwWange of whewe) {
+						if (posOwWange instanceof Wange) {
+							wanges.push(TypeConvewtews.Wange.fwom(posOwWange));
+						} ewse {
+							const { wineNumba, cowumn } = TypeConvewtews.Position.fwom(posOwWange);
+							wanges.push({ stawtWineNumba: wineNumba, stawtCowumn: cowumn, endWineNumba: wineNumba, endCowumn: cowumn });
 						}
 					}
 				}
-				return _proxy.$tryInsertSnippet(id, snippet.value, ranges, options);
+				wetuwn _pwoxy.$twyInsewtSnippet(id, snippet.vawue, wanges, options);
 			},
-			setDecorations(decorationType: vscode.TextEditorDecorationType, ranges: Range[] | vscode.DecorationOptions[]): void {
-				const willBeEmpty = (ranges.length === 0);
-				if (willBeEmpty && !that._hasDecorationsForKey.has(decorationType.key)) {
-					// avoid no-op call to the renderer
-					return;
+			setDecowations(decowationType: vscode.TextEditowDecowationType, wanges: Wange[] | vscode.DecowationOptions[]): void {
+				const wiwwBeEmpty = (wanges.wength === 0);
+				if (wiwwBeEmpty && !that._hasDecowationsFowKey.has(decowationType.key)) {
+					// avoid no-op caww to the wendewa
+					wetuwn;
 				}
-				if (willBeEmpty) {
-					that._hasDecorationsForKey.delete(decorationType.key);
-				} else {
-					that._hasDecorationsForKey.add(decorationType.key);
+				if (wiwwBeEmpty) {
+					that._hasDecowationsFowKey.dewete(decowationType.key);
+				} ewse {
+					that._hasDecowationsFowKey.add(decowationType.key);
 				}
-				that._runOnProxy(() => {
-					if (TypeConverters.isDecorationOptionsArr(ranges)) {
-						return _proxy.$trySetDecorations(
+				that._wunOnPwoxy(() => {
+					if (TypeConvewtews.isDecowationOptionsAww(wanges)) {
+						wetuwn _pwoxy.$twySetDecowations(
 							id,
-							decorationType.key,
-							TypeConverters.fromRangeOrRangeWithMessage(ranges)
+							decowationType.key,
+							TypeConvewtews.fwomWangeOwWangeWithMessage(wanges)
 						);
-					} else {
-						const _ranges: number[] = new Array<number>(4 * ranges.length);
-						for (let i = 0, len = ranges.length; i < len; i++) {
-							const range = ranges[i];
-							_ranges[4 * i] = range.start.line + 1;
-							_ranges[4 * i + 1] = range.start.character + 1;
-							_ranges[4 * i + 2] = range.end.line + 1;
-							_ranges[4 * i + 3] = range.end.character + 1;
+					} ewse {
+						const _wanges: numba[] = new Awway<numba>(4 * wanges.wength);
+						fow (wet i = 0, wen = wanges.wength; i < wen; i++) {
+							const wange = wanges[i];
+							_wanges[4 * i] = wange.stawt.wine + 1;
+							_wanges[4 * i + 1] = wange.stawt.chawacta + 1;
+							_wanges[4 * i + 2] = wange.end.wine + 1;
+							_wanges[4 * i + 3] = wange.end.chawacta + 1;
 						}
-						return _proxy.$trySetDecorationsFast(
+						wetuwn _pwoxy.$twySetDecowationsFast(
 							id,
-							decorationType.key,
-							_ranges
+							decowationType.key,
+							_wanges
 						);
 					}
 				});
 			},
-			revealRange(range: Range, revealType: vscode.TextEditorRevealType): void {
-				that._runOnProxy(() => _proxy.$tryRevealRange(
+			weveawWange(wange: Wange, weveawType: vscode.TextEditowWeveawType): void {
+				that._wunOnPwoxy(() => _pwoxy.$twyWeveawWange(
 					id,
-					TypeConverters.Range.from(range),
-					(revealType || TextEditorRevealType.Default)
+					TypeConvewtews.Wange.fwom(wange),
+					(weveawType || TextEditowWeveawType.Defauwt)
 				));
 			},
-			show(column: vscode.ViewColumn) {
-				_proxy.$tryShowEditor(id, TypeConverters.ViewColumn.from(column));
+			show(cowumn: vscode.ViewCowumn) {
+				_pwoxy.$twyShowEditow(id, TypeConvewtews.ViewCowumn.fwom(cowumn));
 			},
 			hide() {
-				_proxy.$tryHideEditor(id);
+				_pwoxy.$twyHideEditow(id);
 			}
 		});
 	}
 
 	dispose() {
 		ok(!this._disposed);
-		this._disposed = true;
+		this._disposed = twue;
 	}
 
-	// --- incoming: extension host MUST accept what the renderer says
+	// --- incoming: extension host MUST accept what the wendewa says
 
-	_acceptOptions(options: IResolvedTextEditorConfiguration): void {
+	_acceptOptions(options: IWesowvedTextEditowConfiguwation): void {
 		ok(!this._disposed);
 		this._options._accept(options);
 	}
 
-	_acceptVisibleRanges(value: Range[]): void {
+	_acceptVisibweWanges(vawue: Wange[]): void {
 		ok(!this._disposed);
-		this._visibleRanges = value;
+		this._visibweWanges = vawue;
 	}
 
-	_acceptViewColumn(value: vscode.ViewColumn) {
+	_acceptViewCowumn(vawue: vscode.ViewCowumn) {
 		ok(!this._disposed);
-		this._viewColumn = value;
+		this._viewCowumn = vawue;
 	}
 
-	_acceptSelections(selections: Selection[]): void {
+	_acceptSewections(sewections: Sewection[]): void {
 		ok(!this._disposed);
-		this._selections = selections;
+		this._sewections = sewections;
 	}
 
-	private async _trySetSelection(): Promise<vscode.TextEditor | null | undefined> {
-		const selection = this._selections.map(TypeConverters.Selection.from);
-		await this._runOnProxy(() => this._proxy.$trySetSelections(this.id, selection));
-		return this.value;
+	pwivate async _twySetSewection(): Pwomise<vscode.TextEditow | nuww | undefined> {
+		const sewection = this._sewections.map(TypeConvewtews.Sewection.fwom);
+		await this._wunOnPwoxy(() => this._pwoxy.$twySetSewections(this.id, sewection));
+		wetuwn this.vawue;
 	}
 
-	private _applyEdit(editBuilder: TextEditorEdit): Promise<boolean> {
-		const editData = editBuilder.finalize();
+	pwivate _appwyEdit(editBuiwda: TextEditowEdit): Pwomise<boowean> {
+		const editData = editBuiwda.finawize();
 
-		// return when there is nothing to do
-		if (editData.edits.length === 0 && !editData.setEndOfLine) {
-			return Promise.resolve(true);
+		// wetuwn when thewe is nothing to do
+		if (editData.edits.wength === 0 && !editData.setEndOfWine) {
+			wetuwn Pwomise.wesowve(twue);
 		}
 
-		// check that the edits are not overlapping (i.e. illegal)
-		const editRanges = editData.edits.map(edit => edit.range);
+		// check that the edits awe not ovewwapping (i.e. iwwegaw)
+		const editWanges = editData.edits.map(edit => edit.wange);
 
-		// sort ascending (by end and then by start)
-		editRanges.sort((a, b) => {
-			if (a.end.line === b.end.line) {
-				if (a.end.character === b.end.character) {
-					if (a.start.line === b.start.line) {
-						return a.start.character - b.start.character;
+		// sowt ascending (by end and then by stawt)
+		editWanges.sowt((a, b) => {
+			if (a.end.wine === b.end.wine) {
+				if (a.end.chawacta === b.end.chawacta) {
+					if (a.stawt.wine === b.stawt.wine) {
+						wetuwn a.stawt.chawacta - b.stawt.chawacta;
 					}
-					return a.start.line - b.start.line;
+					wetuwn a.stawt.wine - b.stawt.wine;
 				}
-				return a.end.character - b.end.character;
+				wetuwn a.end.chawacta - b.end.chawacta;
 			}
-			return a.end.line - b.end.line;
+			wetuwn a.end.wine - b.end.wine;
 		});
 
-		// check that no edits are overlapping
-		for (let i = 0, count = editRanges.length - 1; i < count; i++) {
-			const rangeEnd = editRanges[i].end;
-			const nextRangeStart = editRanges[i + 1].start;
+		// check that no edits awe ovewwapping
+		fow (wet i = 0, count = editWanges.wength - 1; i < count; i++) {
+			const wangeEnd = editWanges[i].end;
+			const nextWangeStawt = editWanges[i + 1].stawt;
 
-			if (nextRangeStart.isBefore(rangeEnd)) {
-				// overlapping ranges
-				return Promise.reject(
-					new Error('Overlapping ranges are not allowed!')
+			if (nextWangeStawt.isBefowe(wangeEnd)) {
+				// ovewwapping wanges
+				wetuwn Pwomise.weject(
+					new Ewwow('Ovewwapping wanges awe not awwowed!')
 				);
 			}
 		}
 
-		// prepare data for serialization
-		const edits = editData.edits.map((edit): ISingleEditOperation => {
-			return {
-				range: TypeConverters.Range.from(edit.range),
+		// pwepawe data fow sewiawization
+		const edits = editData.edits.map((edit): ISingweEditOpewation => {
+			wetuwn {
+				wange: TypeConvewtews.Wange.fwom(edit.wange),
 				text: edit.text,
-				forceMoveMarkers: edit.forceMoveMarkers
+				fowceMoveMawkews: edit.fowceMoveMawkews
 			};
 		});
 
-		return this._proxy.$tryApplyEdits(this.id, editData.documentVersionId, edits, {
-			setEndOfLine: typeof editData.setEndOfLine === 'number' ? TypeConverters.EndOfLine.from(editData.setEndOfLine) : undefined,
-			undoStopBefore: editData.undoStopBefore,
-			undoStopAfter: editData.undoStopAfter
+		wetuwn this._pwoxy.$twyAppwyEdits(this.id, editData.documentVewsionId, edits, {
+			setEndOfWine: typeof editData.setEndOfWine === 'numba' ? TypeConvewtews.EndOfWine.fwom(editData.setEndOfWine) : undefined,
+			undoStopBefowe: editData.undoStopBefowe,
+			undoStopAfta: editData.undoStopAfta
 		});
 	}
-	private _runOnProxy(callback: () => Promise<any>): Promise<ExtHostTextEditor | undefined | null> {
+	pwivate _wunOnPwoxy(cawwback: () => Pwomise<any>): Pwomise<ExtHostTextEditow | undefined | nuww> {
 		if (this._disposed) {
-			this._logService.warn('TextEditor is closed/disposed');
-			return Promise.resolve(undefined);
+			this._wogSewvice.wawn('TextEditow is cwosed/disposed');
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		return callback().then(() => this, err => {
-			if (!(err instanceof Error && err.name === 'DISPOSED')) {
-				this._logService.warn(err);
+		wetuwn cawwback().then(() => this, eww => {
+			if (!(eww instanceof Ewwow && eww.name === 'DISPOSED')) {
+				this._wogSewvice.wawn(eww);
 			}
-			return null;
+			wetuwn nuww;
 		});
 	}
 }

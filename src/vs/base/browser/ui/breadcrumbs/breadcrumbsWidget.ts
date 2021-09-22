@@ -1,346 +1,346 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { commonPrefixLength } from 'vs/base/common/arrays';
-import { Codicon, registerCodicon } from 'vs/base/common/codicons';
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import 'vs/css!./breadcrumbsWidget';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { DomScwowwabweEwement } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwabweEwement';
+impowt { commonPwefixWength } fwom 'vs/base/common/awways';
+impowt { Codicon, wegistewCodicon } fwom 'vs/base/common/codicons';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { DisposabweStowe, dispose, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ScwowwbawVisibiwity } fwom 'vs/base/common/scwowwabwe';
+impowt 'vs/css!./bweadcwumbsWidget';
 
-export abstract class BreadcrumbsItem {
+expowt abstwact cwass BweadcwumbsItem {
 	dispose(): void { }
-	abstract equals(other: BreadcrumbsItem): boolean;
-	abstract render(container: HTMLElement): void;
+	abstwact equaws(otha: BweadcwumbsItem): boowean;
+	abstwact wenda(containa: HTMWEwement): void;
 }
 
-export interface IBreadcrumbsWidgetStyles {
-	breadcrumbsBackground?: Color;
-	breadcrumbsForeground?: Color;
-	breadcrumbsHoverForeground?: Color;
-	breadcrumbsFocusForeground?: Color;
-	breadcrumbsFocusAndSelectionForeground?: Color;
+expowt intewface IBweadcwumbsWidgetStywes {
+	bweadcwumbsBackgwound?: Cowow;
+	bweadcwumbsFowegwound?: Cowow;
+	bweadcwumbsHovewFowegwound?: Cowow;
+	bweadcwumbsFocusFowegwound?: Cowow;
+	bweadcwumbsFocusAndSewectionFowegwound?: Cowow;
 }
 
-export interface IBreadcrumbsItemEvent {
-	type: 'select' | 'focus';
-	item: BreadcrumbsItem;
-	node: HTMLElement;
-	payload: any;
+expowt intewface IBweadcwumbsItemEvent {
+	type: 'sewect' | 'focus';
+	item: BweadcwumbsItem;
+	node: HTMWEwement;
+	paywoad: any;
 }
 
-const breadcrumbSeparatorIcon = registerCodicon('breadcrumb-separator', Codicon.chevronRight);
+const bweadcwumbSepawatowIcon = wegistewCodicon('bweadcwumb-sepawatow', Codicon.chevwonWight);
 
-export class BreadcrumbsWidget {
+expowt cwass BweadcwumbsWidget {
 
-	private readonly _disposables = new DisposableStore();
-	private readonly _domNode: HTMLDivElement;
-	private readonly _styleElement: HTMLStyleElement;
-	private readonly _scrollable: DomScrollableElement;
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
+	pwivate weadonwy _domNode: HTMWDivEwement;
+	pwivate weadonwy _styweEwement: HTMWStyweEwement;
+	pwivate weadonwy _scwowwabwe: DomScwowwabweEwement;
 
-	private readonly _onDidSelectItem = new Emitter<IBreadcrumbsItemEvent>();
-	private readonly _onDidFocusItem = new Emitter<IBreadcrumbsItemEvent>();
-	private readonly _onDidChangeFocus = new Emitter<boolean>();
+	pwivate weadonwy _onDidSewectItem = new Emitta<IBweadcwumbsItemEvent>();
+	pwivate weadonwy _onDidFocusItem = new Emitta<IBweadcwumbsItemEvent>();
+	pwivate weadonwy _onDidChangeFocus = new Emitta<boowean>();
 
-	readonly onDidSelectItem: Event<IBreadcrumbsItemEvent> = this._onDidSelectItem.event;
-	readonly onDidFocusItem: Event<IBreadcrumbsItemEvent> = this._onDidFocusItem.event;
-	readonly onDidChangeFocus: Event<boolean> = this._onDidChangeFocus.event;
+	weadonwy onDidSewectItem: Event<IBweadcwumbsItemEvent> = this._onDidSewectItem.event;
+	weadonwy onDidFocusItem: Event<IBweadcwumbsItemEvent> = this._onDidFocusItem.event;
+	weadonwy onDidChangeFocus: Event<boowean> = this._onDidChangeFocus.event;
 
-	private readonly _items = new Array<BreadcrumbsItem>();
-	private readonly _nodes = new Array<HTMLDivElement>();
-	private readonly _freeNodes = new Array<HTMLDivElement>();
+	pwivate weadonwy _items = new Awway<BweadcwumbsItem>();
+	pwivate weadonwy _nodes = new Awway<HTMWDivEwement>();
+	pwivate weadonwy _fweeNodes = new Awway<HTMWDivEwement>();
 
-	private _enabled: boolean = true;
-	private _focusedItemIdx: number = -1;
-	private _selectedItemIdx: number = -1;
+	pwivate _enabwed: boowean = twue;
+	pwivate _focusedItemIdx: numba = -1;
+	pwivate _sewectedItemIdx: numba = -1;
 
-	private _pendingLayout: IDisposable | undefined;
-	private _dimension: dom.Dimension | undefined;
+	pwivate _pendingWayout: IDisposabwe | undefined;
+	pwivate _dimension: dom.Dimension | undefined;
 
-	constructor(
-		container: HTMLElement,
-		horizontalScrollbarSize: number,
+	constwuctow(
+		containa: HTMWEwement,
+		howizontawScwowwbawSize: numba,
 	) {
-		this._domNode = document.createElement('div');
-		this._domNode.className = 'monaco-breadcrumbs';
+		this._domNode = document.cweateEwement('div');
+		this._domNode.cwassName = 'monaco-bweadcwumbs';
 		this._domNode.tabIndex = 0;
-		this._domNode.setAttribute('role', 'list');
-		this._scrollable = new DomScrollableElement(this._domNode, {
-			vertical: ScrollbarVisibility.Hidden,
-			horizontal: ScrollbarVisibility.Auto,
-			horizontalScrollbarSize,
-			useShadows: false,
-			scrollYToX: true
+		this._domNode.setAttwibute('wowe', 'wist');
+		this._scwowwabwe = new DomScwowwabweEwement(this._domNode, {
+			vewticaw: ScwowwbawVisibiwity.Hidden,
+			howizontaw: ScwowwbawVisibiwity.Auto,
+			howizontawScwowwbawSize,
+			useShadows: fawse,
+			scwowwYToX: twue
 		});
-		this._disposables.add(this._scrollable);
-		this._disposables.add(dom.addStandardDisposableListener(this._domNode, 'click', e => this._onClick(e)));
-		container.appendChild(this._scrollable.getDomNode());
+		this._disposabwes.add(this._scwowwabwe);
+		this._disposabwes.add(dom.addStandawdDisposabweWistena(this._domNode, 'cwick', e => this._onCwick(e)));
+		containa.appendChiwd(this._scwowwabwe.getDomNode());
 
-		this._styleElement = dom.createStyleSheet(this._domNode);
+		this._styweEwement = dom.cweateStyweSheet(this._domNode);
 
-		const focusTracker = dom.trackFocus(this._domNode);
-		this._disposables.add(focusTracker);
-		this._disposables.add(focusTracker.onDidBlur(_ => this._onDidChangeFocus.fire(false)));
-		this._disposables.add(focusTracker.onDidFocus(_ => this._onDidChangeFocus.fire(true)));
+		const focusTwacka = dom.twackFocus(this._domNode);
+		this._disposabwes.add(focusTwacka);
+		this._disposabwes.add(focusTwacka.onDidBwuw(_ => this._onDidChangeFocus.fiwe(fawse)));
+		this._disposabwes.add(focusTwacka.onDidFocus(_ => this._onDidChangeFocus.fiwe(twue)));
 	}
 
-	setHorizontalScrollbarSize(size: number) {
-		this._scrollable.updateOptions({
-			horizontalScrollbarSize: size
+	setHowizontawScwowwbawSize(size: numba) {
+		this._scwowwabwe.updateOptions({
+			howizontawScwowwbawSize: size
 		});
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
-		this._pendingLayout?.dispose();
-		this._onDidSelectItem.dispose();
+		this._disposabwes.dispose();
+		this._pendingWayout?.dispose();
+		this._onDidSewectItem.dispose();
 		this._onDidFocusItem.dispose();
 		this._onDidChangeFocus.dispose();
-		this._domNode.remove();
-		this._nodes.length = 0;
-		this._freeNodes.length = 0;
+		this._domNode.wemove();
+		this._nodes.wength = 0;
+		this._fweeNodes.wength = 0;
 	}
 
-	layout(dim: dom.Dimension | undefined): void {
-		if (dim && dom.Dimension.equals(dim, this._dimension)) {
-			return;
+	wayout(dim: dom.Dimension | undefined): void {
+		if (dim && dom.Dimension.equaws(dim, this._dimension)) {
+			wetuwn;
 		}
-		this._pendingLayout?.dispose();
+		this._pendingWayout?.dispose();
 		if (dim) {
-			// only measure
-			this._pendingLayout = this._updateDimensions(dim);
-		} else {
-			this._pendingLayout = this._updateScrollbar();
+			// onwy measuwe
+			this._pendingWayout = this._updateDimensions(dim);
+		} ewse {
+			this._pendingWayout = this._updateScwowwbaw();
 		}
 	}
 
-	private _updateDimensions(dim: dom.Dimension): IDisposable {
-		const disposables = new DisposableStore();
-		disposables.add(dom.modify(() => {
+	pwivate _updateDimensions(dim: dom.Dimension): IDisposabwe {
+		const disposabwes = new DisposabweStowe();
+		disposabwes.add(dom.modify(() => {
 			this._dimension = dim;
-			this._domNode.style.width = `${dim.width}px`;
-			this._domNode.style.height = `${dim.height}px`;
-			disposables.add(this._updateScrollbar());
+			this._domNode.stywe.width = `${dim.width}px`;
+			this._domNode.stywe.height = `${dim.height}px`;
+			disposabwes.add(this._updateScwowwbaw());
 		}));
-		return disposables;
+		wetuwn disposabwes;
 	}
 
-	private _updateScrollbar(): IDisposable {
-		return dom.measure(() => {
-			dom.measure(() => { // double RAF
-				this._scrollable.setRevealOnScroll(false);
-				this._scrollable.scanDomNode();
-				this._scrollable.setRevealOnScroll(true);
+	pwivate _updateScwowwbaw(): IDisposabwe {
+		wetuwn dom.measuwe(() => {
+			dom.measuwe(() => { // doubwe WAF
+				this._scwowwabwe.setWeveawOnScwoww(fawse);
+				this._scwowwabwe.scanDomNode();
+				this._scwowwabwe.setWeveawOnScwoww(twue);
 			});
 		});
 	}
 
-	style(style: IBreadcrumbsWidgetStyles): void {
-		let content = '';
-		if (style.breadcrumbsBackground) {
-			content += `.monaco-breadcrumbs { background-color: ${style.breadcrumbsBackground}}`;
+	stywe(stywe: IBweadcwumbsWidgetStywes): void {
+		wet content = '';
+		if (stywe.bweadcwumbsBackgwound) {
+			content += `.monaco-bweadcwumbs { backgwound-cowow: ${stywe.bweadcwumbsBackgwound}}`;
 		}
-		if (style.breadcrumbsForeground) {
-			content += `.monaco-breadcrumbs .monaco-breadcrumb-item { color: ${style.breadcrumbsForeground}}\n`;
+		if (stywe.bweadcwumbsFowegwound) {
+			content += `.monaco-bweadcwumbs .monaco-bweadcwumb-item { cowow: ${stywe.bweadcwumbsFowegwound}}\n`;
 		}
-		if (style.breadcrumbsFocusForeground) {
-			content += `.monaco-breadcrumbs .monaco-breadcrumb-item.focused { color: ${style.breadcrumbsFocusForeground}}\n`;
+		if (stywe.bweadcwumbsFocusFowegwound) {
+			content += `.monaco-bweadcwumbs .monaco-bweadcwumb-item.focused { cowow: ${stywe.bweadcwumbsFocusFowegwound}}\n`;
 		}
-		if (style.breadcrumbsFocusAndSelectionForeground) {
-			content += `.monaco-breadcrumbs .monaco-breadcrumb-item.focused.selected { color: ${style.breadcrumbsFocusAndSelectionForeground}}\n`;
+		if (stywe.bweadcwumbsFocusAndSewectionFowegwound) {
+			content += `.monaco-bweadcwumbs .monaco-bweadcwumb-item.focused.sewected { cowow: ${stywe.bweadcwumbsFocusAndSewectionFowegwound}}\n`;
 		}
-		if (style.breadcrumbsHoverForeground) {
-			content += `.monaco-breadcrumbs:not(.disabled	) .monaco-breadcrumb-item:hover:not(.focused):not(.selected) { color: ${style.breadcrumbsHoverForeground}}\n`;
+		if (stywe.bweadcwumbsHovewFowegwound) {
+			content += `.monaco-bweadcwumbs:not(.disabwed	) .monaco-bweadcwumb-item:hova:not(.focused):not(.sewected) { cowow: ${stywe.bweadcwumbsHovewFowegwound}}\n`;
 		}
-		if (this._styleElement.innerText !== content) {
-			this._styleElement.innerText = content;
+		if (this._styweEwement.innewText !== content) {
+			this._styweEwement.innewText = content;
 		}
 	}
 
-	setEnabled(value: boolean) {
-		this._enabled = value;
-		this._domNode.classList.toggle('disabled', !this._enabled);
+	setEnabwed(vawue: boowean) {
+		this._enabwed = vawue;
+		this._domNode.cwassWist.toggwe('disabwed', !this._enabwed);
 	}
 
 	domFocus(): void {
-		let idx = this._focusedItemIdx >= 0 ? this._focusedItemIdx : this._items.length - 1;
-		if (idx >= 0 && idx < this._items.length) {
+		wet idx = this._focusedItemIdx >= 0 ? this._focusedItemIdx : this._items.wength - 1;
+		if (idx >= 0 && idx < this._items.wength) {
 			this._focus(idx, undefined);
-		} else {
+		} ewse {
 			this._domNode.focus();
 		}
 	}
 
-	isDOMFocused(): boolean {
-		let candidate = document.activeElement;
-		while (candidate) {
+	isDOMFocused(): boowean {
+		wet candidate = document.activeEwement;
+		whiwe (candidate) {
 			if (this._domNode === candidate) {
-				return true;
+				wetuwn twue;
 			}
-			candidate = candidate.parentElement;
+			candidate = candidate.pawentEwement;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	getFocused(): BreadcrumbsItem {
-		return this._items[this._focusedItemIdx];
+	getFocused(): BweadcwumbsItem {
+		wetuwn this._items[this._focusedItemIdx];
 	}
 
-	setFocused(item: BreadcrumbsItem | undefined, payload?: any): void {
-		this._focus(this._items.indexOf(item!), payload);
+	setFocused(item: BweadcwumbsItem | undefined, paywoad?: any): void {
+		this._focus(this._items.indexOf(item!), paywoad);
 	}
 
-	focusPrev(payload?: any): any {
+	focusPwev(paywoad?: any): any {
 		if (this._focusedItemIdx > 0) {
-			this._focus(this._focusedItemIdx - 1, payload);
+			this._focus(this._focusedItemIdx - 1, paywoad);
 		}
 	}
 
-	focusNext(payload?: any): any {
-		if (this._focusedItemIdx + 1 < this._nodes.length) {
-			this._focus(this._focusedItemIdx + 1, payload);
+	focusNext(paywoad?: any): any {
+		if (this._focusedItemIdx + 1 < this._nodes.wength) {
+			this._focus(this._focusedItemIdx + 1, paywoad);
 		}
 	}
 
-	private _focus(nth: number, payload: any): void {
+	pwivate _focus(nth: numba, paywoad: any): void {
 		this._focusedItemIdx = -1;
-		for (let i = 0; i < this._nodes.length; i++) {
+		fow (wet i = 0; i < this._nodes.wength; i++) {
 			const node = this._nodes[i];
 			if (i !== nth) {
-				node.classList.remove('focused');
-			} else {
+				node.cwassWist.wemove('focused');
+			} ewse {
 				this._focusedItemIdx = i;
-				node.classList.add('focused');
+				node.cwassWist.add('focused');
 				node.focus();
 			}
 		}
-		this._reveal(this._focusedItemIdx, true);
-		this._onDidFocusItem.fire({ type: 'focus', item: this._items[this._focusedItemIdx], node: this._nodes[this._focusedItemIdx], payload });
+		this._weveaw(this._focusedItemIdx, twue);
+		this._onDidFocusItem.fiwe({ type: 'focus', item: this._items[this._focusedItemIdx], node: this._nodes[this._focusedItemIdx], paywoad });
 	}
 
-	reveal(item: BreadcrumbsItem): void {
-		let idx = this._items.indexOf(item);
+	weveaw(item: BweadcwumbsItem): void {
+		wet idx = this._items.indexOf(item);
 		if (idx >= 0) {
-			this._reveal(idx, false);
+			this._weveaw(idx, fawse);
 		}
 	}
 
-	private _reveal(nth: number, minimal: boolean): void {
+	pwivate _weveaw(nth: numba, minimaw: boowean): void {
 		const node = this._nodes[nth];
 		if (node) {
-			const { width } = this._scrollable.getScrollDimensions();
-			const { scrollLeft } = this._scrollable.getScrollPosition();
-			if (!minimal || node.offsetLeft > scrollLeft + width || node.offsetLeft < scrollLeft) {
-				this._scrollable.setRevealOnScroll(false);
-				this._scrollable.setScrollPosition({ scrollLeft: node.offsetLeft });
-				this._scrollable.setRevealOnScroll(true);
+			const { width } = this._scwowwabwe.getScwowwDimensions();
+			const { scwowwWeft } = this._scwowwabwe.getScwowwPosition();
+			if (!minimaw || node.offsetWeft > scwowwWeft + width || node.offsetWeft < scwowwWeft) {
+				this._scwowwabwe.setWeveawOnScwoww(fawse);
+				this._scwowwabwe.setScwowwPosition({ scwowwWeft: node.offsetWeft });
+				this._scwowwabwe.setWeveawOnScwoww(twue);
 			}
 		}
 	}
 
-	getSelection(): BreadcrumbsItem {
-		return this._items[this._selectedItemIdx];
+	getSewection(): BweadcwumbsItem {
+		wetuwn this._items[this._sewectedItemIdx];
 	}
 
-	setSelection(item: BreadcrumbsItem | undefined, payload?: any): void {
-		this._select(this._items.indexOf(item!), payload);
+	setSewection(item: BweadcwumbsItem | undefined, paywoad?: any): void {
+		this._sewect(this._items.indexOf(item!), paywoad);
 	}
 
-	private _select(nth: number, payload: any): void {
-		this._selectedItemIdx = -1;
-		for (let i = 0; i < this._nodes.length; i++) {
+	pwivate _sewect(nth: numba, paywoad: any): void {
+		this._sewectedItemIdx = -1;
+		fow (wet i = 0; i < this._nodes.wength; i++) {
 			const node = this._nodes[i];
 			if (i !== nth) {
-				node.classList.remove('selected');
-			} else {
-				this._selectedItemIdx = i;
-				node.classList.add('selected');
+				node.cwassWist.wemove('sewected');
+			} ewse {
+				this._sewectedItemIdx = i;
+				node.cwassWist.add('sewected');
 			}
 		}
-		this._onDidSelectItem.fire({ type: 'select', item: this._items[this._selectedItemIdx], node: this._nodes[this._selectedItemIdx], payload });
+		this._onDidSewectItem.fiwe({ type: 'sewect', item: this._items[this._sewectedItemIdx], node: this._nodes[this._sewectedItemIdx], paywoad });
 	}
 
-	getItems(): readonly BreadcrumbsItem[] {
-		return this._items;
+	getItems(): weadonwy BweadcwumbsItem[] {
+		wetuwn this._items;
 	}
 
-	setItems(items: BreadcrumbsItem[]): void {
-		let prefix: number | undefined;
-		let removed: BreadcrumbsItem[] = [];
-		try {
-			prefix = commonPrefixLength(this._items, items, (a, b) => a.equals(b));
-			removed = this._items.splice(prefix, this._items.length - prefix, ...items.slice(prefix));
-			this._render(prefix);
-			dispose(removed);
+	setItems(items: BweadcwumbsItem[]): void {
+		wet pwefix: numba | undefined;
+		wet wemoved: BweadcwumbsItem[] = [];
+		twy {
+			pwefix = commonPwefixWength(this._items, items, (a, b) => a.equaws(b));
+			wemoved = this._items.spwice(pwefix, this._items.wength - pwefix, ...items.swice(pwefix));
+			this._wenda(pwefix);
+			dispose(wemoved);
 			this._focus(-1, undefined);
 		} catch (e) {
-			let newError = new Error(`BreadcrumbsItem#setItems: newItems: ${items.length}, prefix: ${prefix}, removed: ${removed.length}`);
-			newError.name = e.name;
-			newError.stack = e.stack;
-			throw newError;
+			wet newEwwow = new Ewwow(`BweadcwumbsItem#setItems: newItems: ${items.wength}, pwefix: ${pwefix}, wemoved: ${wemoved.wength}`);
+			newEwwow.name = e.name;
+			newEwwow.stack = e.stack;
+			thwow newEwwow;
 		}
 	}
 
-	private _render(start: number): void {
-		for (; start < this._items.length && start < this._nodes.length; start++) {
-			let item = this._items[start];
-			let node = this._nodes[start];
-			this._renderItem(item, node);
+	pwivate _wenda(stawt: numba): void {
+		fow (; stawt < this._items.wength && stawt < this._nodes.wength; stawt++) {
+			wet item = this._items[stawt];
+			wet node = this._nodes[stawt];
+			this._wendewItem(item, node);
 		}
-		// case a: more nodes -> remove them
-		while (start < this._nodes.length) {
-			const free = this._nodes.pop();
-			if (free) {
-				this._freeNodes.push(free);
-				free.remove();
+		// case a: mowe nodes -> wemove them
+		whiwe (stawt < this._nodes.wength) {
+			const fwee = this._nodes.pop();
+			if (fwee) {
+				this._fweeNodes.push(fwee);
+				fwee.wemove();
 			}
 		}
 
-		// case b: more items -> render them
-		for (; start < this._items.length; start++) {
-			let item = this._items[start];
-			let node = this._freeNodes.length > 0 ? this._freeNodes.pop() : document.createElement('div');
+		// case b: mowe items -> wenda them
+		fow (; stawt < this._items.wength; stawt++) {
+			wet item = this._items[stawt];
+			wet node = this._fweeNodes.wength > 0 ? this._fweeNodes.pop() : document.cweateEwement('div');
 			if (node) {
-				this._renderItem(item, node);
-				this._domNode.appendChild(node);
+				this._wendewItem(item, node);
+				this._domNode.appendChiwd(node);
 				this._nodes.push(node);
 			}
 		}
-		this.layout(undefined);
+		this.wayout(undefined);
 	}
 
-	private _renderItem(item: BreadcrumbsItem, container: HTMLDivElement): void {
-		dom.clearNode(container);
-		container.className = '';
-		try {
-			item.render(container);
-		} catch (err) {
-			container.innerText = '<<RENDER ERROR>>';
-			console.error(err);
+	pwivate _wendewItem(item: BweadcwumbsItem, containa: HTMWDivEwement): void {
+		dom.cweawNode(containa);
+		containa.cwassName = '';
+		twy {
+			item.wenda(containa);
+		} catch (eww) {
+			containa.innewText = '<<WENDa EWWOW>>';
+			consowe.ewwow(eww);
 		}
-		container.tabIndex = -1;
-		container.setAttribute('role', 'listitem');
-		container.classList.add('monaco-breadcrumb-item');
-		const iconContainer = dom.$(breadcrumbSeparatorIcon.cssSelector);
-		container.appendChild(iconContainer);
+		containa.tabIndex = -1;
+		containa.setAttwibute('wowe', 'wistitem');
+		containa.cwassWist.add('monaco-bweadcwumb-item');
+		const iconContaina = dom.$(bweadcwumbSepawatowIcon.cssSewectow);
+		containa.appendChiwd(iconContaina);
 	}
 
-	private _onClick(event: IMouseEvent): void {
-		if (!this._enabled) {
-			return;
+	pwivate _onCwick(event: IMouseEvent): void {
+		if (!this._enabwed) {
+			wetuwn;
 		}
-		for (let el: HTMLElement | null = event.target; el; el = el.parentElement) {
-			let idx = this._nodes.indexOf(el as HTMLDivElement);
+		fow (wet ew: HTMWEwement | nuww = event.tawget; ew; ew = ew.pawentEwement) {
+			wet idx = this._nodes.indexOf(ew as HTMWDivEwement);
 			if (idx >= 0) {
 				this._focus(idx, event);
-				this._select(idx, event);
-				break;
+				this._sewect(idx, event);
+				bweak;
 			}
 		}
 	}

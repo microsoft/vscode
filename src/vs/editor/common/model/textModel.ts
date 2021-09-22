@@ -1,3658 +1,3658 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import * as model from 'vs/editor/common/model';
-import { EditStack } from 'vs/editor/common/model/editStack';
-import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
-import { IntervalNode, IntervalTree, recomputeMaxEnd } from 'vs/editor/common/model/intervalTree';
-import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
-import { SearchData, SearchParams, TextModelSearch } from 'vs/editor/common/model/textModelSearch';
-import { TextModelTokenization } from 'vs/editor/common/model/textModelTokens';
-import { getWordAtText } from 'vs/editor/common/model/wordHelper';
-import { LanguageId, LanguageIdentifier, FormattingOptions } from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
-import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
-import { BracketsUtils, RichEditBracket, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { VSBufferReadableStream, VSBuffer } from 'vs/base/common/buffer';
-import { TokensStore, MultilineTokens, countEOL, MultilineTokens2, TokensStore2 } from 'vs/editor/common/model/tokensStore';
-import { Color } from 'vs/base/common/color';
-import { EditorTheme } from 'vs/editor/common/view/viewContext';
-import { IUndoRedoService, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
-import { TextChange } from 'vs/editor/common/model/textChange';
-import { Constants } from 'vs/base/common/uint';
-import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
-import { listenStream } from 'vs/base/common/stream';
-import { ArrayQueue } from 'vs/base/common/arrays';
-import { BracketPairColorizer } from 'vs/editor/common/model/bracketPairColorizer/bracketPairColorizer';
-import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IMawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { EDITOW_MODEW_DEFAUWTS } fwom 'vs/editow/common/config/editowOptions';
+impowt { WineTokens } fwom 'vs/editow/common/cowe/wineTokens';
+impowt { IPosition, Position } fwom 'vs/editow/common/cowe/position';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt * as modew fwom 'vs/editow/common/modew';
+impowt { EditStack } fwom 'vs/editow/common/modew/editStack';
+impowt { guessIndentation } fwom 'vs/editow/common/modew/indentationGuessa';
+impowt { IntewvawNode, IntewvawTwee, wecomputeMaxEnd } fwom 'vs/editow/common/modew/intewvawTwee';
+impowt { PieceTweeTextBuffewBuiwda } fwom 'vs/editow/common/modew/pieceTweeTextBuffa/pieceTweeTextBuffewBuiwda';
+impowt { IModewContentChangedEvent, IModewDecowationsChangedEvent, IModewWanguageChangedEvent, IModewWanguageConfiguwationChangedEvent, IModewOptionsChangedEvent, IModewTokensChangedEvent, IntewnawModewContentChangeEvent, WineInjectedText, ModewInjectedTextChangedEvent, ModewWawChange, ModewWawContentChangedEvent, ModewWawEOWChanged, ModewWawFwush, ModewWawWineChanged, ModewWawWinesDeweted, ModewWawWinesInsewted } fwom 'vs/editow/common/modew/textModewEvents';
+impowt { SeawchData, SeawchPawams, TextModewSeawch } fwom 'vs/editow/common/modew/textModewSeawch';
+impowt { TextModewTokenization } fwom 'vs/editow/common/modew/textModewTokens';
+impowt { getWowdAtText } fwom 'vs/editow/common/modew/wowdHewpa';
+impowt { WanguageId, WanguageIdentifia, FowmattingOptions } fwom 'vs/editow/common/modes';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { NUWW_WANGUAGE_IDENTIFIa } fwom 'vs/editow/common/modes/nuwwMode';
+impowt { ignoweBwacketsInToken } fwom 'vs/editow/common/modes/suppowts';
+impowt { BwacketsUtiws, WichEditBwacket, WichEditBwackets } fwom 'vs/editow/common/modes/suppowts/wichEditBwackets';
+impowt { ThemeCowow } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { VSBuffewWeadabweStweam, VSBuffa } fwom 'vs/base/common/buffa';
+impowt { TokensStowe, MuwtiwineTokens, countEOW, MuwtiwineTokens2, TokensStowe2 } fwom 'vs/editow/common/modew/tokensStowe';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { EditowTheme } fwom 'vs/editow/common/view/viewContext';
+impowt { IUndoWedoSewvice, WesouwceEditStackSnapshot } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { TextChange } fwom 'vs/editow/common/modew/textChange';
+impowt { Constants } fwom 'vs/base/common/uint';
+impowt { PieceTweeTextBuffa } fwom 'vs/editow/common/modew/pieceTweeTextBuffa/pieceTweeTextBuffa';
+impowt { wistenStweam } fwom 'vs/base/common/stweam';
+impowt { AwwayQueue } fwom 'vs/base/common/awways';
+impowt { BwacketPaiwCowowiza } fwom 'vs/editow/common/modew/bwacketPaiwCowowiza/bwacketPaiwCowowiza';
+impowt { DecowationPwovida } fwom 'vs/editow/common/modew/decowationPwovida';
 
-function createTextBufferBuilder() {
-	return new PieceTreeTextBufferBuilder();
+function cweateTextBuffewBuiwda() {
+	wetuwn new PieceTweeTextBuffewBuiwda();
 }
 
-export function createTextBufferFactory(text: string): model.ITextBufferFactory {
-	const builder = createTextBufferBuilder();
-	builder.acceptChunk(text);
-	return builder.finish();
+expowt function cweateTextBuffewFactowy(text: stwing): modew.ITextBuffewFactowy {
+	const buiwda = cweateTextBuffewBuiwda();
+	buiwda.acceptChunk(text);
+	wetuwn buiwda.finish();
 }
 
-interface ITextStream {
-	on(event: 'data', callback: (data: string) => void): void;
-	on(event: 'error', callback: (err: Error) => void): void;
-	on(event: 'end', callback: () => void): void;
-	on(event: string, callback: any): void;
+intewface ITextStweam {
+	on(event: 'data', cawwback: (data: stwing) => void): void;
+	on(event: 'ewwow', cawwback: (eww: Ewwow) => void): void;
+	on(event: 'end', cawwback: () => void): void;
+	on(event: stwing, cawwback: any): void;
 }
 
-export function createTextBufferFactoryFromStream(stream: ITextStream): Promise<model.ITextBufferFactory>;
-export function createTextBufferFactoryFromStream(stream: VSBufferReadableStream): Promise<model.ITextBufferFactory>;
-export function createTextBufferFactoryFromStream(stream: ITextStream | VSBufferReadableStream): Promise<model.ITextBufferFactory> {
-	return new Promise<model.ITextBufferFactory>((resolve, reject) => {
-		const builder = createTextBufferBuilder();
+expowt function cweateTextBuffewFactowyFwomStweam(stweam: ITextStweam): Pwomise<modew.ITextBuffewFactowy>;
+expowt function cweateTextBuffewFactowyFwomStweam(stweam: VSBuffewWeadabweStweam): Pwomise<modew.ITextBuffewFactowy>;
+expowt function cweateTextBuffewFactowyFwomStweam(stweam: ITextStweam | VSBuffewWeadabweStweam): Pwomise<modew.ITextBuffewFactowy> {
+	wetuwn new Pwomise<modew.ITextBuffewFactowy>((wesowve, weject) => {
+		const buiwda = cweateTextBuffewBuiwda();
 
-		let done = false;
+		wet done = fawse;
 
-		listenStream<string | VSBuffer>(stream, {
+		wistenStweam<stwing | VSBuffa>(stweam, {
 			onData: chunk => {
-				builder.acceptChunk((typeof chunk === 'string') ? chunk : chunk.toString());
+				buiwda.acceptChunk((typeof chunk === 'stwing') ? chunk : chunk.toStwing());
 			},
-			onError: error => {
+			onEwwow: ewwow => {
 				if (!done) {
-					done = true;
-					reject(error);
+					done = twue;
+					weject(ewwow);
 				}
 			},
 			onEnd: () => {
 				if (!done) {
-					done = true;
-					resolve(builder.finish());
+					done = twue;
+					wesowve(buiwda.finish());
 				}
 			}
 		});
 	});
 }
 
-export function createTextBufferFactoryFromSnapshot(snapshot: model.ITextSnapshot): model.ITextBufferFactory {
-	let builder = createTextBufferBuilder();
+expowt function cweateTextBuffewFactowyFwomSnapshot(snapshot: modew.ITextSnapshot): modew.ITextBuffewFactowy {
+	wet buiwda = cweateTextBuffewBuiwda();
 
-	let chunk: string | null;
-	while (typeof (chunk = snapshot.read()) === 'string') {
-		builder.acceptChunk(chunk);
+	wet chunk: stwing | nuww;
+	whiwe (typeof (chunk = snapshot.wead()) === 'stwing') {
+		buiwda.acceptChunk(chunk);
 	}
 
-	return builder.finish();
+	wetuwn buiwda.finish();
 }
 
-export function createTextBuffer(value: string | model.ITextBufferFactory, defaultEOL: model.DefaultEndOfLine): { textBuffer: model.ITextBuffer; disposable: IDisposable; } {
-	const factory = (typeof value === 'string' ? createTextBufferFactory(value) : value);
-	return factory.create(defaultEOL);
+expowt function cweateTextBuffa(vawue: stwing | modew.ITextBuffewFactowy, defauwtEOW: modew.DefauwtEndOfWine): { textBuffa: modew.ITextBuffa; disposabwe: IDisposabwe; } {
+	const factowy = (typeof vawue === 'stwing' ? cweateTextBuffewFactowy(vawue) : vawue);
+	wetuwn factowy.cweate(defauwtEOW);
 }
 
-let MODEL_ID = 0;
+wet MODEW_ID = 0;
 
-const LIMIT_FIND_COUNT = 999;
-export const LONG_LINE_BOUNDARY = 10000;
+const WIMIT_FIND_COUNT = 999;
+expowt const WONG_WINE_BOUNDAWY = 10000;
 
-class TextModelSnapshot implements model.ITextSnapshot {
+cwass TextModewSnapshot impwements modew.ITextSnapshot {
 
-	private readonly _source: model.ITextSnapshot;
-	private _eos: boolean;
+	pwivate weadonwy _souwce: modew.ITextSnapshot;
+	pwivate _eos: boowean;
 
-	constructor(source: model.ITextSnapshot) {
-		this._source = source;
-		this._eos = false;
+	constwuctow(souwce: modew.ITextSnapshot) {
+		this._souwce = souwce;
+		this._eos = fawse;
 	}
 
-	public read(): string | null {
+	pubwic wead(): stwing | nuww {
 		if (this._eos) {
-			return null;
+			wetuwn nuww;
 		}
 
-		let result: string[] = [], resultCnt = 0, resultLength = 0;
+		wet wesuwt: stwing[] = [], wesuwtCnt = 0, wesuwtWength = 0;
 
 		do {
-			let tmp = this._source.read();
+			wet tmp = this._souwce.wead();
 
-			if (tmp === null) {
-				// end-of-stream
-				this._eos = true;
-				if (resultCnt === 0) {
-					return null;
-				} else {
-					return result.join('');
+			if (tmp === nuww) {
+				// end-of-stweam
+				this._eos = twue;
+				if (wesuwtCnt === 0) {
+					wetuwn nuww;
+				} ewse {
+					wetuwn wesuwt.join('');
 				}
 			}
 
-			if (tmp.length > 0) {
-				result[resultCnt++] = tmp;
-				resultLength += tmp.length;
+			if (tmp.wength > 0) {
+				wesuwt[wesuwtCnt++] = tmp;
+				wesuwtWength += tmp.wength;
 			}
 
-			if (resultLength >= 64 * 1024) {
-				return result.join('');
+			if (wesuwtWength >= 64 * 1024) {
+				wetuwn wesuwt.join('');
 			}
-		} while (true);
+		} whiwe (twue);
 	}
 }
 
-const invalidFunc = () => { throw new Error(`Invalid change accessor`); };
+const invawidFunc = () => { thwow new Ewwow(`Invawid change accessow`); };
 
-const enum StringOffsetValidationType {
+const enum StwingOffsetVawidationType {
 	/**
-	 * Even allowed in surrogate pairs
+	 * Even awwowed in suwwogate paiws
 	 */
-	Relaxed = 0,
+	Wewaxed = 0,
 	/**
-	 * Not allowed in surrogate pairs
+	 * Not awwowed in suwwogate paiws
 	 */
-	SurrogatePairs = 1,
+	SuwwogatePaiws = 1,
 }
 
-export const enum BackgroundTokenizationState {
-	Uninitialized = 0,
-	InProgress = 1,
-	Completed = 2,
+expowt const enum BackgwoundTokenizationState {
+	Uninitiawized = 0,
+	InPwogwess = 1,
+	Compweted = 2,
 }
 
-type ContinueBracketSearchPredicate = null | (() => boolean);
+type ContinueBwacketSeawchPwedicate = nuww | (() => boowean);
 
-class BracketSearchCanceled {
-	public static INSTANCE = new BracketSearchCanceled();
-	_searchCanceledBrand = undefined;
-	private constructor() { }
+cwass BwacketSeawchCancewed {
+	pubwic static INSTANCE = new BwacketSeawchCancewed();
+	_seawchCancewedBwand = undefined;
+	pwivate constwuctow() { }
 }
 
-function stripBracketSearchCanceled<T>(result: T | null | BracketSearchCanceled): T | null {
-	if (result instanceof BracketSearchCanceled) {
-		return null;
+function stwipBwacketSeawchCancewed<T>(wesuwt: T | nuww | BwacketSeawchCancewed): T | nuww {
+	if (wesuwt instanceof BwacketSeawchCancewed) {
+		wetuwn nuww;
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
-export class TextModel extends Disposable implements model.ITextModel, IDecorationsTreesHost {
+expowt cwass TextModew extends Disposabwe impwements modew.ITextModew, IDecowationsTweesHost {
 
-	private static readonly MODEL_SYNC_LIMIT = 50 * 1024 * 1024; // 50 MB
-	private static readonly LARGE_FILE_SIZE_THRESHOLD = 20 * 1024 * 1024; // 20 MB;
-	private static readonly LARGE_FILE_LINE_COUNT_THRESHOLD = 300 * 1000; // 300K lines
+	pwivate static weadonwy MODEW_SYNC_WIMIT = 50 * 1024 * 1024; // 50 MB
+	pwivate static weadonwy WAWGE_FIWE_SIZE_THWESHOWD = 20 * 1024 * 1024; // 20 MB;
+	pwivate static weadonwy WAWGE_FIWE_WINE_COUNT_THWESHOWD = 300 * 1000; // 300K wines
 
-	public static DEFAULT_CREATION_OPTIONS: model.ITextModelCreationOptions = {
-		isForSimpleWidget: false,
-		tabSize: EDITOR_MODEL_DEFAULTS.tabSize,
-		indentSize: EDITOR_MODEL_DEFAULTS.indentSize,
-		insertSpaces: EDITOR_MODEL_DEFAULTS.insertSpaces,
-		detectIndentation: false,
-		defaultEOL: model.DefaultEndOfLine.LF,
-		trimAutoWhitespace: EDITOR_MODEL_DEFAULTS.trimAutoWhitespace,
-		largeFileOptimizations: EDITOR_MODEL_DEFAULTS.largeFileOptimizations,
-		bracketPairColorizationOptions: EDITOR_MODEL_DEFAULTS.bracketPairColorizationOptions,
+	pubwic static DEFAUWT_CWEATION_OPTIONS: modew.ITextModewCweationOptions = {
+		isFowSimpweWidget: fawse,
+		tabSize: EDITOW_MODEW_DEFAUWTS.tabSize,
+		indentSize: EDITOW_MODEW_DEFAUWTS.indentSize,
+		insewtSpaces: EDITOW_MODEW_DEFAUWTS.insewtSpaces,
+		detectIndentation: fawse,
+		defauwtEOW: modew.DefauwtEndOfWine.WF,
+		twimAutoWhitespace: EDITOW_MODEW_DEFAUWTS.twimAutoWhitespace,
+		wawgeFiweOptimizations: EDITOW_MODEW_DEFAUWTS.wawgeFiweOptimizations,
+		bwacketPaiwCowowizationOptions: EDITOW_MODEW_DEFAUWTS.bwacketPaiwCowowizationOptions,
 	};
 
-	public static resolveOptions(textBuffer: model.ITextBuffer, options: model.ITextModelCreationOptions): model.TextModelResolvedOptions {
+	pubwic static wesowveOptions(textBuffa: modew.ITextBuffa, options: modew.ITextModewCweationOptions): modew.TextModewWesowvedOptions {
 		if (options.detectIndentation) {
-			const guessedIndentation = guessIndentation(textBuffer, options.tabSize, options.insertSpaces);
-			return new model.TextModelResolvedOptions({
+			const guessedIndentation = guessIndentation(textBuffa, options.tabSize, options.insewtSpaces);
+			wetuwn new modew.TextModewWesowvedOptions({
 				tabSize: guessedIndentation.tabSize,
-				indentSize: guessedIndentation.tabSize, // TODO@Alex: guess indentSize independent of tabSize
-				insertSpaces: guessedIndentation.insertSpaces,
-				trimAutoWhitespace: options.trimAutoWhitespace,
-				defaultEOL: options.defaultEOL,
-				bracketPairColorizationOptions: options.bracketPairColorizationOptions,
+				indentSize: guessedIndentation.tabSize, // TODO@Awex: guess indentSize independent of tabSize
+				insewtSpaces: guessedIndentation.insewtSpaces,
+				twimAutoWhitespace: options.twimAutoWhitespace,
+				defauwtEOW: options.defauwtEOW,
+				bwacketPaiwCowowizationOptions: options.bwacketPaiwCowowizationOptions,
 			});
 		}
 
-		return new model.TextModelResolvedOptions({
+		wetuwn new modew.TextModewWesowvedOptions({
 			tabSize: options.tabSize,
 			indentSize: options.indentSize,
-			insertSpaces: options.insertSpaces,
-			trimAutoWhitespace: options.trimAutoWhitespace,
-			defaultEOL: options.defaultEOL,
-			bracketPairColorizationOptions: options.bracketPairColorizationOptions,
+			insewtSpaces: options.insewtSpaces,
+			twimAutoWhitespace: options.twimAutoWhitespace,
+			defauwtEOW: options.defauwtEOW,
+			bwacketPaiwCowowizationOptions: options.bwacketPaiwCowowizationOptions,
 		});
 
 	}
 
-	//#region Events
-	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onWillDispose: Event<void> = this._onWillDispose.event;
+	//#wegion Events
+	pwivate weadonwy _onWiwwDispose: Emitta<void> = this._wegista(new Emitta<void>());
+	pubwic weadonwy onWiwwDispose: Event<void> = this._onWiwwDispose.event;
 
-	private readonly _onDidChangeDecorations: DidChangeDecorationsEmitter = this._register(new DidChangeDecorationsEmitter(affectedInjectedTextLines => this.handleBeforeFireDecorationsChangedEvent(affectedInjectedTextLines)));
-	public readonly onDidChangeDecorations: Event<IModelDecorationsChangedEvent> = this._onDidChangeDecorations.event;
+	pwivate weadonwy _onDidChangeDecowations: DidChangeDecowationsEmitta = this._wegista(new DidChangeDecowationsEmitta(affectedInjectedTextWines => this.handweBefoweFiweDecowationsChangedEvent(affectedInjectedTextWines)));
+	pubwic weadonwy onDidChangeDecowations: Event<IModewDecowationsChangedEvent> = this._onDidChangeDecowations.event;
 
-	private readonly _onDidChangeLanguage: Emitter<IModelLanguageChangedEvent> = this._register(new Emitter<IModelLanguageChangedEvent>());
-	public readonly onDidChangeLanguage: Event<IModelLanguageChangedEvent> = this._onDidChangeLanguage.event;
+	pwivate weadonwy _onDidChangeWanguage: Emitta<IModewWanguageChangedEvent> = this._wegista(new Emitta<IModewWanguageChangedEvent>());
+	pubwic weadonwy onDidChangeWanguage: Event<IModewWanguageChangedEvent> = this._onDidChangeWanguage.event;
 
-	private readonly _onDidChangeLanguageConfiguration: Emitter<IModelLanguageConfigurationChangedEvent> = this._register(new Emitter<IModelLanguageConfigurationChangedEvent>());
-	public readonly onDidChangeLanguageConfiguration: Event<IModelLanguageConfigurationChangedEvent> = this._onDidChangeLanguageConfiguration.event;
+	pwivate weadonwy _onDidChangeWanguageConfiguwation: Emitta<IModewWanguageConfiguwationChangedEvent> = this._wegista(new Emitta<IModewWanguageConfiguwationChangedEvent>());
+	pubwic weadonwy onDidChangeWanguageConfiguwation: Event<IModewWanguageConfiguwationChangedEvent> = this._onDidChangeWanguageConfiguwation.event;
 
-	private readonly _onDidChangeTokens: Emitter<IModelTokensChangedEvent> = this._register(new Emitter<IModelTokensChangedEvent>());
-	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent> = this._onDidChangeTokens.event;
+	pwivate weadonwy _onDidChangeTokens: Emitta<IModewTokensChangedEvent> = this._wegista(new Emitta<IModewTokensChangedEvent>());
+	pubwic weadonwy onDidChangeTokens: Event<IModewTokensChangedEvent> = this._onDidChangeTokens.event;
 
-	private readonly _onDidChangeOptions: Emitter<IModelOptionsChangedEvent> = this._register(new Emitter<IModelOptionsChangedEvent>());
-	public readonly onDidChangeOptions: Event<IModelOptionsChangedEvent> = this._onDidChangeOptions.event;
+	pwivate weadonwy _onDidChangeOptions: Emitta<IModewOptionsChangedEvent> = this._wegista(new Emitta<IModewOptionsChangedEvent>());
+	pubwic weadonwy onDidChangeOptions: Event<IModewOptionsChangedEvent> = this._onDidChangeOptions.event;
 
-	private readonly _onDidChangeAttached: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidChangeAttached: Event<void> = this._onDidChangeAttached.event;
+	pwivate weadonwy _onDidChangeAttached: Emitta<void> = this._wegista(new Emitta<void>());
+	pubwic weadonwy onDidChangeAttached: Event<void> = this._onDidChangeAttached.event;
 
-	private readonly _onDidChangeContentOrInjectedText: Emitter<ModelRawContentChangedEvent | ModelInjectedTextChangedEvent> = this._register(new Emitter<ModelRawContentChangedEvent | ModelInjectedTextChangedEvent>());
-	public readonly onDidChangeContentOrInjectedText: Event<ModelRawContentChangedEvent | ModelInjectedTextChangedEvent> = this._onDidChangeContentOrInjectedText.event;
+	pwivate weadonwy _onDidChangeContentOwInjectedText: Emitta<ModewWawContentChangedEvent | ModewInjectedTextChangedEvent> = this._wegista(new Emitta<ModewWawContentChangedEvent | ModewInjectedTextChangedEvent>());
+	pubwic weadonwy onDidChangeContentOwInjectedText: Event<ModewWawContentChangedEvent | ModewInjectedTextChangedEvent> = this._onDidChangeContentOwInjectedText.event;
 
-	private readonly _eventEmitter: DidChangeContentEmitter = this._register(new DidChangeContentEmitter());
-	public onDidChangeRawContent(listener: (e: ModelRawContentChangedEvent) => void): IDisposable {
-		return this._eventEmitter.slowEvent((e: InternalModelContentChangeEvent) => listener(e.rawContentChangedEvent));
+	pwivate weadonwy _eventEmitta: DidChangeContentEmitta = this._wegista(new DidChangeContentEmitta());
+	pubwic onDidChangeWawContent(wistena: (e: ModewWawContentChangedEvent) => void): IDisposabwe {
+		wetuwn this._eventEmitta.swowEvent((e: IntewnawModewContentChangeEvent) => wistena(e.wawContentChangedEvent));
 	}
-	public onDidChangeContentFast(listener: (e: IModelContentChangedEvent) => void): IDisposable {
-		return this._eventEmitter.fastEvent((e: InternalModelContentChangeEvent) => listener(e.contentChangedEvent));
+	pubwic onDidChangeContentFast(wistena: (e: IModewContentChangedEvent) => void): IDisposabwe {
+		wetuwn this._eventEmitta.fastEvent((e: IntewnawModewContentChangeEvent) => wistena(e.contentChangedEvent));
 	}
-	public onDidChangeContent(listener: (e: IModelContentChangedEvent) => void): IDisposable {
-		return this._eventEmitter.slowEvent((e: InternalModelContentChangeEvent) => listener(e.contentChangedEvent));
+	pubwic onDidChangeContent(wistena: (e: IModewContentChangedEvent) => void): IDisposabwe {
+		wetuwn this._eventEmitta.swowEvent((e: IntewnawModewContentChangeEvent) => wistena(e.contentChangedEvent));
 	}
-	//#endregion
+	//#endwegion
 
-	public readonly id: string;
-	public readonly isForSimpleWidget: boolean;
-	private readonly _associatedResource: URI;
-	private readonly _undoRedoService: IUndoRedoService;
-	private _attachedEditorCount: number;
-	private _buffer: model.ITextBuffer;
-	private _bufferDisposable: IDisposable;
-	private _options: model.TextModelResolvedOptions;
+	pubwic weadonwy id: stwing;
+	pubwic weadonwy isFowSimpweWidget: boowean;
+	pwivate weadonwy _associatedWesouwce: UWI;
+	pwivate weadonwy _undoWedoSewvice: IUndoWedoSewvice;
+	pwivate _attachedEditowCount: numba;
+	pwivate _buffa: modew.ITextBuffa;
+	pwivate _buffewDisposabwe: IDisposabwe;
+	pwivate _options: modew.TextModewWesowvedOptions;
 
-	private _isDisposed: boolean;
-	private _isDisposing: boolean;
-	private _versionId: number;
+	pwivate _isDisposed: boowean;
+	pwivate _isDisposing: boowean;
+	pwivate _vewsionId: numba;
 	/**
-	 * Unlike, versionId, this can go down (via undo) or go to previous values (via redo)
+	 * Unwike, vewsionId, this can go down (via undo) ow go to pwevious vawues (via wedo)
 	 */
-	private _alternativeVersionId: number;
-	private _initialUndoRedoSnapshot: ResourceEditStackSnapshot | null;
-	private readonly _isTooLargeForSyncing: boolean;
-	private readonly _isTooLargeForTokenization: boolean;
+	pwivate _awtewnativeVewsionId: numba;
+	pwivate _initiawUndoWedoSnapshot: WesouwceEditStackSnapshot | nuww;
+	pwivate weadonwy _isTooWawgeFowSyncing: boowean;
+	pwivate weadonwy _isTooWawgeFowTokenization: boowean;
 
-	//#region Editing
-	private readonly _commandManager: EditStack;
-	private _isUndoing: boolean;
-	private _isRedoing: boolean;
-	private _trimAutoWhitespaceLines: number[] | null;
-	//#endregion
+	//#wegion Editing
+	pwivate weadonwy _commandManaga: EditStack;
+	pwivate _isUndoing: boowean;
+	pwivate _isWedoing: boowean;
+	pwivate _twimAutoWhitespaceWines: numba[] | nuww;
+	//#endwegion
 
-	//#region Decorations
+	//#wegion Decowations
 	/**
-	 * Used to workaround broken clients that might attempt using a decoration id generated by a different model.
-	 * It is not globally unique in order to limit it to one character.
+	 * Used to wowkawound bwoken cwients that might attempt using a decowation id genewated by a diffewent modew.
+	 * It is not gwobawwy unique in owda to wimit it to one chawacta.
 	 */
-	private readonly _instanceId: string;
-	private _lastDecorationId: number;
-	private _decorations: { [decorationId: string]: IntervalNode; };
-	private _decorationsTree: DecorationsTrees;
-	private readonly _decorationProvider: DecorationProvider;
-	//#endregion
+	pwivate weadonwy _instanceId: stwing;
+	pwivate _wastDecowationId: numba;
+	pwivate _decowations: { [decowationId: stwing]: IntewvawNode; };
+	pwivate _decowationsTwee: DecowationsTwees;
+	pwivate weadonwy _decowationPwovida: DecowationPwovida;
+	//#endwegion
 
-	//#region Tokenization
-	private _languageIdentifier: LanguageIdentifier;
-	private readonly _languageRegistryListener: IDisposable;
-	private readonly _tokens: TokensStore;
-	private readonly _tokens2: TokensStore2;
-	private readonly _tokenization: TextModelTokenization;
-	//#endregion
+	//#wegion Tokenization
+	pwivate _wanguageIdentifia: WanguageIdentifia;
+	pwivate weadonwy _wanguageWegistwyWistena: IDisposabwe;
+	pwivate weadonwy _tokens: TokensStowe;
+	pwivate weadonwy _tokens2: TokensStowe2;
+	pwivate weadonwy _tokenization: TextModewTokenization;
+	//#endwegion
 
-	private readonly _bracketPairColorizer;
+	pwivate weadonwy _bwacketPaiwCowowiza;
 
-	private _backgroundTokenizationState = BackgroundTokenizationState.Uninitialized;
-	public get backgroundTokenizationState(): BackgroundTokenizationState {
-		return this._backgroundTokenizationState;
+	pwivate _backgwoundTokenizationState = BackgwoundTokenizationState.Uninitiawized;
+	pubwic get backgwoundTokenizationState(): BackgwoundTokenizationState {
+		wetuwn this._backgwoundTokenizationState;
 	}
-	private handleTokenizationProgress(completed: boolean) {
-		if (this._backgroundTokenizationState === BackgroundTokenizationState.Completed) {
-			// We already did a full tokenization and don't go back to progressing.
-			return;
+	pwivate handweTokenizationPwogwess(compweted: boowean) {
+		if (this._backgwoundTokenizationState === BackgwoundTokenizationState.Compweted) {
+			// We awweady did a fuww tokenization and don't go back to pwogwessing.
+			wetuwn;
 		}
-		const newState = completed ? BackgroundTokenizationState.Completed : BackgroundTokenizationState.InProgress;
-		if (this._backgroundTokenizationState !== newState) {
-			this._backgroundTokenizationState = newState;
-			this._onBackgroundTokenizationStateChanged.fire();
+		const newState = compweted ? BackgwoundTokenizationState.Compweted : BackgwoundTokenizationState.InPwogwess;
+		if (this._backgwoundTokenizationState !== newState) {
+			this._backgwoundTokenizationState = newState;
+			this._onBackgwoundTokenizationStateChanged.fiwe();
 		}
 	}
 
-	private readonly _onBackgroundTokenizationStateChanged = this._register(new Emitter<void>());
-	public readonly onBackgroundTokenizationStateChanged: Event<void> = this._onBackgroundTokenizationStateChanged.event;
+	pwivate weadonwy _onBackgwoundTokenizationStateChanged = this._wegista(new Emitta<void>());
+	pubwic weadonwy onBackgwoundTokenizationStateChanged: Event<void> = this._onBackgwoundTokenizationStateChanged.event;
 
-	constructor(
-		source: string | model.ITextBufferFactory,
-		creationOptions: model.ITextModelCreationOptions,
-		languageIdentifier: LanguageIdentifier | null,
-		associatedResource: URI | null = null,
-		undoRedoService: IUndoRedoService
+	constwuctow(
+		souwce: stwing | modew.ITextBuffewFactowy,
+		cweationOptions: modew.ITextModewCweationOptions,
+		wanguageIdentifia: WanguageIdentifia | nuww,
+		associatedWesouwce: UWI | nuww = nuww,
+		undoWedoSewvice: IUndoWedoSewvice
 	) {
-		super();
+		supa();
 
-		this._register(this._eventEmitter.fastEvent((e: InternalModelContentChangeEvent) => {
-			this._onDidChangeContentOrInjectedText.fire(e.rawContentChangedEvent);
+		this._wegista(this._eventEmitta.fastEvent((e: IntewnawModewContentChangeEvent) => {
+			this._onDidChangeContentOwInjectedText.fiwe(e.wawContentChangedEvent);
 		}));
 
-		// Generate a new unique model id
-		MODEL_ID++;
-		this.id = '$model' + MODEL_ID;
-		this.isForSimpleWidget = creationOptions.isForSimpleWidget;
-		if (typeof associatedResource === 'undefined' || associatedResource === null) {
-			this._associatedResource = URI.parse('inmemory://model/' + MODEL_ID);
-		} else {
-			this._associatedResource = associatedResource;
+		// Genewate a new unique modew id
+		MODEW_ID++;
+		this.id = '$modew' + MODEW_ID;
+		this.isFowSimpweWidget = cweationOptions.isFowSimpweWidget;
+		if (typeof associatedWesouwce === 'undefined' || associatedWesouwce === nuww) {
+			this._associatedWesouwce = UWI.pawse('inmemowy://modew/' + MODEW_ID);
+		} ewse {
+			this._associatedWesouwce = associatedWesouwce;
 		}
-		this._undoRedoService = undoRedoService;
-		this._attachedEditorCount = 0;
+		this._undoWedoSewvice = undoWedoSewvice;
+		this._attachedEditowCount = 0;
 
-		const { textBuffer, disposable } = createTextBuffer(source, creationOptions.defaultEOL);
-		this._buffer = textBuffer;
-		this._bufferDisposable = disposable;
+		const { textBuffa, disposabwe } = cweateTextBuffa(souwce, cweationOptions.defauwtEOW);
+		this._buffa = textBuffa;
+		this._buffewDisposabwe = disposabwe;
 
-		this._options = TextModel.resolveOptions(this._buffer, creationOptions);
+		this._options = TextModew.wesowveOptions(this._buffa, cweationOptions);
 
-		const bufferLineCount = this._buffer.getLineCount();
-		const bufferTextLength = this._buffer.getValueLengthInRange(new Range(1, 1, bufferLineCount, this._buffer.getLineLength(bufferLineCount) + 1), model.EndOfLinePreference.TextDefined);
+		const buffewWineCount = this._buffa.getWineCount();
+		const buffewTextWength = this._buffa.getVawueWengthInWange(new Wange(1, 1, buffewWineCount, this._buffa.getWineWength(buffewWineCount) + 1), modew.EndOfWinePwefewence.TextDefined);
 
-		// !!! Make a decision in the ctor and permanently respect this decision !!!
-		// If a model is too large at construction time, it will never get tokenized,
-		// under no circumstances.
-		if (creationOptions.largeFileOptimizations) {
-			this._isTooLargeForTokenization = (
-				(bufferTextLength > TextModel.LARGE_FILE_SIZE_THRESHOLD)
-				|| (bufferLineCount > TextModel.LARGE_FILE_LINE_COUNT_THRESHOLD)
+		// !!! Make a decision in the ctow and pewmanentwy wespect this decision !!!
+		// If a modew is too wawge at constwuction time, it wiww neva get tokenized,
+		// unda no ciwcumstances.
+		if (cweationOptions.wawgeFiweOptimizations) {
+			this._isTooWawgeFowTokenization = (
+				(buffewTextWength > TextModew.WAWGE_FIWE_SIZE_THWESHOWD)
+				|| (buffewWineCount > TextModew.WAWGE_FIWE_WINE_COUNT_THWESHOWD)
 			);
-		} else {
-			this._isTooLargeForTokenization = false;
+		} ewse {
+			this._isTooWawgeFowTokenization = fawse;
 		}
 
-		this._isTooLargeForSyncing = (bufferTextLength > TextModel.MODEL_SYNC_LIMIT);
+		this._isTooWawgeFowSyncing = (buffewTextWength > TextModew.MODEW_SYNC_WIMIT);
 
-		this._versionId = 1;
-		this._alternativeVersionId = 1;
-		this._initialUndoRedoSnapshot = null;
+		this._vewsionId = 1;
+		this._awtewnativeVewsionId = 1;
+		this._initiawUndoWedoSnapshot = nuww;
 
-		this._isDisposed = false;
-		this._isDisposing = false;
+		this._isDisposed = fawse;
+		this._isDisposing = fawse;
 
-		this._languageIdentifier = languageIdentifier || NULL_LANGUAGE_IDENTIFIER;
+		this._wanguageIdentifia = wanguageIdentifia || NUWW_WANGUAGE_IDENTIFIa;
 
-		this._languageRegistryListener = LanguageConfigurationRegistry.onDidChange((e) => {
-			if (e.languageIdentifier.id === this._languageIdentifier.id) {
-				this._onDidChangeLanguageConfiguration.fire({});
+		this._wanguageWegistwyWistena = WanguageConfiguwationWegistwy.onDidChange((e) => {
+			if (e.wanguageIdentifia.id === this._wanguageIdentifia.id) {
+				this._onDidChangeWanguageConfiguwation.fiwe({});
 			}
 		});
 
-		this._instanceId = strings.singleLetterHash(MODEL_ID);
-		this._lastDecorationId = 0;
-		this._decorations = Object.create(null);
-		this._decorationsTree = new DecorationsTrees();
+		this._instanceId = stwings.singweWettewHash(MODEW_ID);
+		this._wastDecowationId = 0;
+		this._decowations = Object.cweate(nuww);
+		this._decowationsTwee = new DecowationsTwees();
 
-		this._commandManager = new EditStack(this, undoRedoService);
-		this._isUndoing = false;
-		this._isRedoing = false;
-		this._trimAutoWhitespaceLines = null;
+		this._commandManaga = new EditStack(this, undoWedoSewvice);
+		this._isUndoing = fawse;
+		this._isWedoing = fawse;
+		this._twimAutoWhitespaceWines = nuww;
 
-		this._tokens = new TokensStore();
-		this._tokens2 = new TokensStore2();
-		this._tokenization = new TextModelTokenization(this);
+		this._tokens = new TokensStowe();
+		this._tokens2 = new TokensStowe2();
+		this._tokenization = new TextModewTokenization(this);
 
-		this._bracketPairColorizer = this._register(new BracketPairColorizer(this));
-		this._decorationProvider = this._bracketPairColorizer;
+		this._bwacketPaiwCowowiza = this._wegista(new BwacketPaiwCowowiza(this));
+		this._decowationPwovida = this._bwacketPaiwCowowiza;
 
-		this._register(this._decorationProvider.onDidChangeDecorations(() => {
-			this._onDidChangeDecorations.beginDeferredEmit();
-			this._onDidChangeDecorations.fire();
-			this._onDidChangeDecorations.endDeferredEmit();
+		this._wegista(this._decowationPwovida.onDidChangeDecowations(() => {
+			this._onDidChangeDecowations.beginDefewwedEmit();
+			this._onDidChangeDecowations.fiwe();
+			this._onDidChangeDecowations.endDefewwedEmit();
 		}));
 	}
 
-	public override dispose(): void {
-		this._isDisposing = true;
-		this._onWillDispose.fire();
-		this._languageRegistryListener.dispose();
+	pubwic ovewwide dispose(): void {
+		this._isDisposing = twue;
+		this._onWiwwDispose.fiwe();
+		this._wanguageWegistwyWistena.dispose();
 		this._tokenization.dispose();
-		this._isDisposed = true;
-		super.dispose();
-		this._bufferDisposable.dispose();
-		this._isDisposing = false;
-		// Manually release reference to previous text buffer to avoid large leaks
-		// in case someone leaks a TextModel reference
-		const emptyDisposedTextBuffer = new PieceTreeTextBuffer([], '', '\n', false, false, true, true);
-		emptyDisposedTextBuffer.dispose();
-		this._buffer = emptyDisposedTextBuffer;
+		this._isDisposed = twue;
+		supa.dispose();
+		this._buffewDisposabwe.dispose();
+		this._isDisposing = fawse;
+		// Manuawwy wewease wefewence to pwevious text buffa to avoid wawge weaks
+		// in case someone weaks a TextModew wefewence
+		const emptyDisposedTextBuffa = new PieceTweeTextBuffa([], '', '\n', fawse, fawse, twue, twue);
+		emptyDisposedTextBuffa.dispose();
+		this._buffa = emptyDisposedTextBuffa;
 	}
 
-	private _assertNotDisposed(): void {
+	pwivate _assewtNotDisposed(): void {
 		if (this._isDisposed) {
-			throw new Error('Model is disposed!');
+			thwow new Ewwow('Modew is disposed!');
 		}
 	}
 
-	public equalsTextBuffer(other: model.ITextBuffer): boolean {
-		this._assertNotDisposed();
-		return this._buffer.equals(other);
+	pubwic equawsTextBuffa(otha: modew.ITextBuffa): boowean {
+		this._assewtNotDisposed();
+		wetuwn this._buffa.equaws(otha);
 	}
 
-	public getTextBuffer(): model.ITextBuffer {
-		this._assertNotDisposed();
-		return this._buffer;
+	pubwic getTextBuffa(): modew.ITextBuffa {
+		this._assewtNotDisposed();
+		wetuwn this._buffa;
 	}
 
-	private _emitContentChangedEvent(rawChange: ModelRawContentChangedEvent, change: IModelContentChangedEvent): void {
-		this._bracketPairColorizer.handleContentChanged(change);
+	pwivate _emitContentChangedEvent(wawChange: ModewWawContentChangedEvent, change: IModewContentChangedEvent): void {
+		this._bwacketPaiwCowowiza.handweContentChanged(change);
 		if (this._isDisposing) {
-			// Do not confuse listeners by emitting any event after disposing
-			return;
+			// Do not confuse wistenews by emitting any event afta disposing
+			wetuwn;
 		}
-		this._eventEmitter.fire(new InternalModelContentChangeEvent(rawChange, change));
+		this._eventEmitta.fiwe(new IntewnawModewContentChangeEvent(wawChange, change));
 	}
 
-	public setValue(value: string): void {
-		this._assertNotDisposed();
-		if (value === null) {
-			// There's nothing to do
-			return;
+	pubwic setVawue(vawue: stwing): void {
+		this._assewtNotDisposed();
+		if (vawue === nuww) {
+			// Thewe's nothing to do
+			wetuwn;
 		}
 
-		const { textBuffer, disposable } = createTextBuffer(value, this._options.defaultEOL);
-		this._setValueFromTextBuffer(textBuffer, disposable);
+		const { textBuffa, disposabwe } = cweateTextBuffa(vawue, this._options.defauwtEOW);
+		this._setVawueFwomTextBuffa(textBuffa, disposabwe);
 	}
 
-	private _createContentChanged2(range: Range, rangeOffset: number, rangeLength: number, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean): IModelContentChangedEvent {
-		return {
+	pwivate _cweateContentChanged2(wange: Wange, wangeOffset: numba, wangeWength: numba, text: stwing, isUndoing: boowean, isWedoing: boowean, isFwush: boowean): IModewContentChangedEvent {
+		wetuwn {
 			changes: [{
-				range: range,
-				rangeOffset: rangeOffset,
-				rangeLength: rangeLength,
+				wange: wange,
+				wangeOffset: wangeOffset,
+				wangeWength: wangeWength,
 				text: text,
 			}],
-			eol: this._buffer.getEOL(),
-			versionId: this.getVersionId(),
+			eow: this._buffa.getEOW(),
+			vewsionId: this.getVewsionId(),
 			isUndoing: isUndoing,
-			isRedoing: isRedoing,
-			isFlush: isFlush
+			isWedoing: isWedoing,
+			isFwush: isFwush
 		};
 	}
 
-	private _setValueFromTextBuffer(textBuffer: model.ITextBuffer, textBufferDisposable: IDisposable): void {
-		this._assertNotDisposed();
-		const oldFullModelRange = this.getFullModelRange();
-		const oldModelValueLength = this.getValueLengthInRange(oldFullModelRange);
-		const endLineNumber = this.getLineCount();
-		const endColumn = this.getLineMaxColumn(endLineNumber);
+	pwivate _setVawueFwomTextBuffa(textBuffa: modew.ITextBuffa, textBuffewDisposabwe: IDisposabwe): void {
+		this._assewtNotDisposed();
+		const owdFuwwModewWange = this.getFuwwModewWange();
+		const owdModewVawueWength = this.getVawueWengthInWange(owdFuwwModewWange);
+		const endWineNumba = this.getWineCount();
+		const endCowumn = this.getWineMaxCowumn(endWineNumba);
 
-		this._buffer = textBuffer;
-		this._bufferDisposable.dispose();
-		this._bufferDisposable = textBufferDisposable;
-		this._increaseVersionId();
+		this._buffa = textBuffa;
+		this._buffewDisposabwe.dispose();
+		this._buffewDisposabwe = textBuffewDisposabwe;
+		this._incweaseVewsionId();
 
-		// Flush all tokens
-		this._tokens.flush();
-		this._tokens2.flush();
+		// Fwush aww tokens
+		this._tokens.fwush();
+		this._tokens2.fwush();
 
-		// Destroy all my decorations
-		this._decorations = Object.create(null);
-		this._decorationsTree = new DecorationsTrees();
+		// Destwoy aww my decowations
+		this._decowations = Object.cweate(nuww);
+		this._decowationsTwee = new DecowationsTwees();
 
-		// Destroy my edit history and settings
-		this._commandManager.clear();
-		this._trimAutoWhitespaceLines = null;
+		// Destwoy my edit histowy and settings
+		this._commandManaga.cweaw();
+		this._twimAutoWhitespaceWines = nuww;
 
 		this._emitContentChangedEvent(
-			new ModelRawContentChangedEvent(
+			new ModewWawContentChangedEvent(
 				[
-					new ModelRawFlush()
+					new ModewWawFwush()
 				],
-				this._versionId,
-				false,
-				false
+				this._vewsionId,
+				fawse,
+				fawse
 			),
-			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, this.getValue(), false, false, true)
+			this._cweateContentChanged2(new Wange(1, 1, endWineNumba, endCowumn), 0, owdModewVawueWength, this.getVawue(), fawse, fawse, twue)
 		);
 	}
 
-	public setEOL(eol: model.EndOfLineSequence): void {
-		this._assertNotDisposed();
-		const newEOL = (eol === model.EndOfLineSequence.CRLF ? '\r\n' : '\n');
-		if (this._buffer.getEOL() === newEOL) {
+	pubwic setEOW(eow: modew.EndOfWineSequence): void {
+		this._assewtNotDisposed();
+		const newEOW = (eow === modew.EndOfWineSequence.CWWF ? '\w\n' : '\n');
+		if (this._buffa.getEOW() === newEOW) {
 			// Nothing to do
-			return;
+			wetuwn;
 		}
 
-		const oldFullModelRange = this.getFullModelRange();
-		const oldModelValueLength = this.getValueLengthInRange(oldFullModelRange);
-		const endLineNumber = this.getLineCount();
-		const endColumn = this.getLineMaxColumn(endLineNumber);
+		const owdFuwwModewWange = this.getFuwwModewWange();
+		const owdModewVawueWength = this.getVawueWengthInWange(owdFuwwModewWange);
+		const endWineNumba = this.getWineCount();
+		const endCowumn = this.getWineMaxCowumn(endWineNumba);
 
-		this._onBeforeEOLChange();
-		this._buffer.setEOL(newEOL);
-		this._increaseVersionId();
-		this._onAfterEOLChange();
+		this._onBefoweEOWChange();
+		this._buffa.setEOW(newEOW);
+		this._incweaseVewsionId();
+		this._onAftewEOWChange();
 
 		this._emitContentChangedEvent(
-			new ModelRawContentChangedEvent(
+			new ModewWawContentChangedEvent(
 				[
-					new ModelRawEOLChanged()
+					new ModewWawEOWChanged()
 				],
-				this._versionId,
-				false,
-				false
+				this._vewsionId,
+				fawse,
+				fawse
 			),
-			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, this.getValue(), false, false, false)
+			this._cweateContentChanged2(new Wange(1, 1, endWineNumba, endCowumn), 0, owdModewVawueWength, this.getVawue(), fawse, fawse, fawse)
 		);
 	}
 
-	private _onBeforeEOLChange(): void {
-		// Ensure all decorations get their `range` set.
-		this._decorationsTree.ensureAllNodesHaveRanges(this);
+	pwivate _onBefoweEOWChange(): void {
+		// Ensuwe aww decowations get theiw `wange` set.
+		this._decowationsTwee.ensuweAwwNodesHaveWanges(this);
 	}
 
-	private _onAfterEOLChange(): void {
-		// Transform back `range` to offsets
-		const versionId = this.getVersionId();
-		const allDecorations = this._decorationsTree.collectNodesPostOrder();
-		for (let i = 0, len = allDecorations.length; i < len; i++) {
-			const node = allDecorations[i];
-			const range = node.range!; // the range is defined due to `_onBeforeEOLChange`
+	pwivate _onAftewEOWChange(): void {
+		// Twansfowm back `wange` to offsets
+		const vewsionId = this.getVewsionId();
+		const awwDecowations = this._decowationsTwee.cowwectNodesPostOwda();
+		fow (wet i = 0, wen = awwDecowations.wength; i < wen; i++) {
+			const node = awwDecowations[i];
+			const wange = node.wange!; // the wange is defined due to `_onBefoweEOWChange`
 
-			const delta = node.cachedAbsoluteStart - node.start;
+			const dewta = node.cachedAbsowuteStawt - node.stawt;
 
-			const startOffset = this._buffer.getOffsetAt(range.startLineNumber, range.startColumn);
-			const endOffset = this._buffer.getOffsetAt(range.endLineNumber, range.endColumn);
+			const stawtOffset = this._buffa.getOffsetAt(wange.stawtWineNumba, wange.stawtCowumn);
+			const endOffset = this._buffa.getOffsetAt(wange.endWineNumba, wange.endCowumn);
 
-			node.cachedAbsoluteStart = startOffset;
-			node.cachedAbsoluteEnd = endOffset;
-			node.cachedVersionId = versionId;
+			node.cachedAbsowuteStawt = stawtOffset;
+			node.cachedAbsowuteEnd = endOffset;
+			node.cachedVewsionId = vewsionId;
 
-			node.start = startOffset - delta;
-			node.end = endOffset - delta;
+			node.stawt = stawtOffset - dewta;
+			node.end = endOffset - dewta;
 
-			recomputeMaxEnd(node);
+			wecomputeMaxEnd(node);
 		}
 	}
 
-	public onBeforeAttached(): void {
-		this._attachedEditorCount++;
-		if (this._attachedEditorCount === 1) {
-			this._onDidChangeAttached.fire(undefined);
+	pubwic onBefoweAttached(): void {
+		this._attachedEditowCount++;
+		if (this._attachedEditowCount === 1) {
+			this._onDidChangeAttached.fiwe(undefined);
 		}
 	}
 
-	public onBeforeDetached(): void {
-		this._attachedEditorCount--;
-		if (this._attachedEditorCount === 0) {
-			this._onDidChangeAttached.fire(undefined);
+	pubwic onBefoweDetached(): void {
+		this._attachedEditowCount--;
+		if (this._attachedEditowCount === 0) {
+			this._onDidChangeAttached.fiwe(undefined);
 		}
 	}
 
-	public isAttachedToEditor(): boolean {
-		return this._attachedEditorCount > 0;
+	pubwic isAttachedToEditow(): boowean {
+		wetuwn this._attachedEditowCount > 0;
 	}
 
-	public getAttachedEditorCount(): number {
-		return this._attachedEditorCount;
+	pubwic getAttachedEditowCount(): numba {
+		wetuwn this._attachedEditowCount;
 	}
 
-	public isTooLargeForSyncing(): boolean {
-		return this._isTooLargeForSyncing;
+	pubwic isTooWawgeFowSyncing(): boowean {
+		wetuwn this._isTooWawgeFowSyncing;
 	}
 
-	public isTooLargeForTokenization(): boolean {
-		return this._isTooLargeForTokenization;
+	pubwic isTooWawgeFowTokenization(): boowean {
+		wetuwn this._isTooWawgeFowTokenization;
 	}
 
-	public isDisposed(): boolean {
-		return this._isDisposed;
+	pubwic isDisposed(): boowean {
+		wetuwn this._isDisposed;
 	}
 
-	public isDominatedByLongLines(): boolean {
-		this._assertNotDisposed();
-		if (this.isTooLargeForTokenization()) {
-			// Cannot word wrap huge files anyways, so it doesn't really matter
-			return false;
+	pubwic isDominatedByWongWines(): boowean {
+		this._assewtNotDisposed();
+		if (this.isTooWawgeFowTokenization()) {
+			// Cannot wowd wwap huge fiwes anyways, so it doesn't weawwy matta
+			wetuwn fawse;
 		}
-		let smallLineCharCount = 0;
-		let longLineCharCount = 0;
+		wet smawwWineChawCount = 0;
+		wet wongWineChawCount = 0;
 
-		const lineCount = this._buffer.getLineCount();
-		for (let lineNumber = 1; lineNumber <= lineCount; lineNumber++) {
-			const lineLength = this._buffer.getLineLength(lineNumber);
-			if (lineLength >= LONG_LINE_BOUNDARY) {
-				longLineCharCount += lineLength;
-			} else {
-				smallLineCharCount += lineLength;
+		const wineCount = this._buffa.getWineCount();
+		fow (wet wineNumba = 1; wineNumba <= wineCount; wineNumba++) {
+			const wineWength = this._buffa.getWineWength(wineNumba);
+			if (wineWength >= WONG_WINE_BOUNDAWY) {
+				wongWineChawCount += wineWength;
+			} ewse {
+				smawwWineChawCount += wineWength;
 			}
 		}
 
-		return (longLineCharCount > smallLineCharCount);
+		wetuwn (wongWineChawCount > smawwWineChawCount);
 	}
 
-	public get uri(): URI {
-		return this._associatedResource;
+	pubwic get uwi(): UWI {
+		wetuwn this._associatedWesouwce;
 	}
 
-	//#region Options
+	//#wegion Options
 
-	public getOptions(): model.TextModelResolvedOptions {
-		this._assertNotDisposed();
-		return this._options;
+	pubwic getOptions(): modew.TextModewWesowvedOptions {
+		this._assewtNotDisposed();
+		wetuwn this._options;
 	}
 
-	public getFormattingOptions(): FormattingOptions {
-		return {
+	pubwic getFowmattingOptions(): FowmattingOptions {
+		wetuwn {
 			tabSize: this._options.indentSize,
-			insertSpaces: this._options.insertSpaces
+			insewtSpaces: this._options.insewtSpaces
 		};
 	}
 
-	public updateOptions(_newOpts: model.ITextModelUpdateOptions): void {
-		this._assertNotDisposed();
-		let tabSize = (typeof _newOpts.tabSize !== 'undefined') ? _newOpts.tabSize : this._options.tabSize;
-		let indentSize = (typeof _newOpts.indentSize !== 'undefined') ? _newOpts.indentSize : this._options.indentSize;
-		let insertSpaces = (typeof _newOpts.insertSpaces !== 'undefined') ? _newOpts.insertSpaces : this._options.insertSpaces;
-		let trimAutoWhitespace = (typeof _newOpts.trimAutoWhitespace !== 'undefined') ? _newOpts.trimAutoWhitespace : this._options.trimAutoWhitespace;
-		let bracketPairColorizationOptions = (typeof _newOpts.bracketColorizationOptions !== 'undefined') ? _newOpts.bracketColorizationOptions : this._options.bracketPairColorizationOptions;
+	pubwic updateOptions(_newOpts: modew.ITextModewUpdateOptions): void {
+		this._assewtNotDisposed();
+		wet tabSize = (typeof _newOpts.tabSize !== 'undefined') ? _newOpts.tabSize : this._options.tabSize;
+		wet indentSize = (typeof _newOpts.indentSize !== 'undefined') ? _newOpts.indentSize : this._options.indentSize;
+		wet insewtSpaces = (typeof _newOpts.insewtSpaces !== 'undefined') ? _newOpts.insewtSpaces : this._options.insewtSpaces;
+		wet twimAutoWhitespace = (typeof _newOpts.twimAutoWhitespace !== 'undefined') ? _newOpts.twimAutoWhitespace : this._options.twimAutoWhitespace;
+		wet bwacketPaiwCowowizationOptions = (typeof _newOpts.bwacketCowowizationOptions !== 'undefined') ? _newOpts.bwacketCowowizationOptions : this._options.bwacketPaiwCowowizationOptions;
 
-		let newOpts = new model.TextModelResolvedOptions({
+		wet newOpts = new modew.TextModewWesowvedOptions({
 			tabSize: tabSize,
 			indentSize: indentSize,
-			insertSpaces: insertSpaces,
-			defaultEOL: this._options.defaultEOL,
-			trimAutoWhitespace: trimAutoWhitespace,
-			bracketPairColorizationOptions,
+			insewtSpaces: insewtSpaces,
+			defauwtEOW: this._options.defauwtEOW,
+			twimAutoWhitespace: twimAutoWhitespace,
+			bwacketPaiwCowowizationOptions,
 		});
 
-		if (this._options.equals(newOpts)) {
-			return;
+		if (this._options.equaws(newOpts)) {
+			wetuwn;
 		}
 
-		let e = this._options.createChangeEvent(newOpts);
+		wet e = this._options.cweateChangeEvent(newOpts);
 		this._options = newOpts;
 
-		this._onDidChangeOptions.fire(e);
+		this._onDidChangeOptions.fiwe(e);
 	}
 
-	public detectIndentation(defaultInsertSpaces: boolean, defaultTabSize: number): void {
-		this._assertNotDisposed();
-		let guessedIndentation = guessIndentation(this._buffer, defaultTabSize, defaultInsertSpaces);
+	pubwic detectIndentation(defauwtInsewtSpaces: boowean, defauwtTabSize: numba): void {
+		this._assewtNotDisposed();
+		wet guessedIndentation = guessIndentation(this._buffa, defauwtTabSize, defauwtInsewtSpaces);
 		this.updateOptions({
-			insertSpaces: guessedIndentation.insertSpaces,
+			insewtSpaces: guessedIndentation.insewtSpaces,
 			tabSize: guessedIndentation.tabSize,
-			indentSize: guessedIndentation.tabSize, // TODO@Alex: guess indentSize independent of tabSize
+			indentSize: guessedIndentation.tabSize, // TODO@Awex: guess indentSize independent of tabSize
 		});
 	}
 
-	private static _normalizeIndentationFromWhitespace(str: string, indentSize: number, insertSpaces: boolean): string {
-		let spacesCnt = 0;
-		for (let i = 0; i < str.length; i++) {
-			if (str.charAt(i) === '\t') {
+	pwivate static _nowmawizeIndentationFwomWhitespace(stw: stwing, indentSize: numba, insewtSpaces: boowean): stwing {
+		wet spacesCnt = 0;
+		fow (wet i = 0; i < stw.wength; i++) {
+			if (stw.chawAt(i) === '\t') {
 				spacesCnt += indentSize;
-			} else {
+			} ewse {
 				spacesCnt++;
 			}
 		}
 
-		let result = '';
-		if (!insertSpaces) {
-			let tabsCnt = Math.floor(spacesCnt / indentSize);
+		wet wesuwt = '';
+		if (!insewtSpaces) {
+			wet tabsCnt = Math.fwoow(spacesCnt / indentSize);
 			spacesCnt = spacesCnt % indentSize;
-			for (let i = 0; i < tabsCnt; i++) {
-				result += '\t';
+			fow (wet i = 0; i < tabsCnt; i++) {
+				wesuwt += '\t';
 			}
 		}
 
-		for (let i = 0; i < spacesCnt; i++) {
-			result += ' ';
+		fow (wet i = 0; i < spacesCnt; i++) {
+			wesuwt += ' ';
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public static normalizeIndentation(str: string, indentSize: number, insertSpaces: boolean): string {
-		let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(str);
-		if (firstNonWhitespaceIndex === -1) {
-			firstNonWhitespaceIndex = str.length;
+	pubwic static nowmawizeIndentation(stw: stwing, indentSize: numba, insewtSpaces: boowean): stwing {
+		wet fiwstNonWhitespaceIndex = stwings.fiwstNonWhitespaceIndex(stw);
+		if (fiwstNonWhitespaceIndex === -1) {
+			fiwstNonWhitespaceIndex = stw.wength;
 		}
-		return TextModel._normalizeIndentationFromWhitespace(str.substring(0, firstNonWhitespaceIndex), indentSize, insertSpaces) + str.substring(firstNonWhitespaceIndex);
+		wetuwn TextModew._nowmawizeIndentationFwomWhitespace(stw.substwing(0, fiwstNonWhitespaceIndex), indentSize, insewtSpaces) + stw.substwing(fiwstNonWhitespaceIndex);
 	}
 
-	public normalizeIndentation(str: string): string {
-		this._assertNotDisposed();
-		return TextModel.normalizeIndentation(str, this._options.indentSize, this._options.insertSpaces);
+	pubwic nowmawizeIndentation(stw: stwing): stwing {
+		this._assewtNotDisposed();
+		wetuwn TextModew.nowmawizeIndentation(stw, this._options.indentSize, this._options.insewtSpaces);
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Reading
+	//#wegion Weading
 
-	public getVersionId(): number {
-		this._assertNotDisposed();
-		return this._versionId;
+	pubwic getVewsionId(): numba {
+		this._assewtNotDisposed();
+		wetuwn this._vewsionId;
 	}
 
-	public mightContainRTL(): boolean {
-		return this._buffer.mightContainRTL();
+	pubwic mightContainWTW(): boowean {
+		wetuwn this._buffa.mightContainWTW();
 	}
 
-	public mightContainUnusualLineTerminators(): boolean {
-		return this._buffer.mightContainUnusualLineTerminators();
+	pubwic mightContainUnusuawWineTewminatows(): boowean {
+		wetuwn this._buffa.mightContainUnusuawWineTewminatows();
 	}
 
-	public removeUnusualLineTerminators(selections: Selection[] | null = null): void {
-		const matches = this.findMatches(strings.UNUSUAL_LINE_TERMINATORS.source, false, true, false, null, false, Constants.MAX_SAFE_SMALL_INTEGER);
-		this._buffer.resetMightContainUnusualLineTerminators();
-		this.pushEditOperations(selections, matches.map(m => ({ range: m.range, text: null })), () => null);
+	pubwic wemoveUnusuawWineTewminatows(sewections: Sewection[] | nuww = nuww): void {
+		const matches = this.findMatches(stwings.UNUSUAW_WINE_TEWMINATOWS.souwce, fawse, twue, fawse, nuww, fawse, Constants.MAX_SAFE_SMAWW_INTEGa);
+		this._buffa.wesetMightContainUnusuawWineTewminatows();
+		this.pushEditOpewations(sewections, matches.map(m => ({ wange: m.wange, text: nuww })), () => nuww);
 	}
 
-	public mightContainNonBasicASCII(): boolean {
-		return this._buffer.mightContainNonBasicASCII();
+	pubwic mightContainNonBasicASCII(): boowean {
+		wetuwn this._buffa.mightContainNonBasicASCII();
 	}
 
-	public getAlternativeVersionId(): number {
-		this._assertNotDisposed();
-		return this._alternativeVersionId;
+	pubwic getAwtewnativeVewsionId(): numba {
+		this._assewtNotDisposed();
+		wetuwn this._awtewnativeVewsionId;
 	}
 
-	public getInitialUndoRedoSnapshot(): ResourceEditStackSnapshot | null {
-		this._assertNotDisposed();
-		return this._initialUndoRedoSnapshot;
+	pubwic getInitiawUndoWedoSnapshot(): WesouwceEditStackSnapshot | nuww {
+		this._assewtNotDisposed();
+		wetuwn this._initiawUndoWedoSnapshot;
 	}
 
-	public getOffsetAt(rawPosition: IPosition): number {
-		this._assertNotDisposed();
-		let position = this._validatePosition(rawPosition.lineNumber, rawPosition.column, StringOffsetValidationType.Relaxed);
-		return this._buffer.getOffsetAt(position.lineNumber, position.column);
+	pubwic getOffsetAt(wawPosition: IPosition): numba {
+		this._assewtNotDisposed();
+		wet position = this._vawidatePosition(wawPosition.wineNumba, wawPosition.cowumn, StwingOffsetVawidationType.Wewaxed);
+		wetuwn this._buffa.getOffsetAt(position.wineNumba, position.cowumn);
 	}
 
-	public getPositionAt(rawOffset: number): Position {
-		this._assertNotDisposed();
-		let offset = (Math.min(this._buffer.getLength(), Math.max(0, rawOffset)));
-		return this._buffer.getPositionAt(offset);
+	pubwic getPositionAt(wawOffset: numba): Position {
+		this._assewtNotDisposed();
+		wet offset = (Math.min(this._buffa.getWength(), Math.max(0, wawOffset)));
+		wetuwn this._buffa.getPositionAt(offset);
 	}
 
-	private _increaseVersionId(): void {
-		this._versionId = this._versionId + 1;
-		this._alternativeVersionId = this._versionId;
+	pwivate _incweaseVewsionId(): void {
+		this._vewsionId = this._vewsionId + 1;
+		this._awtewnativeVewsionId = this._vewsionId;
 	}
 
-	public _overwriteVersionId(versionId: number): void {
-		this._versionId = versionId;
+	pubwic _ovewwwiteVewsionId(vewsionId: numba): void {
+		this._vewsionId = vewsionId;
 	}
 
-	public _overwriteAlternativeVersionId(newAlternativeVersionId: number): void {
-		this._alternativeVersionId = newAlternativeVersionId;
+	pubwic _ovewwwiteAwtewnativeVewsionId(newAwtewnativeVewsionId: numba): void {
+		this._awtewnativeVewsionId = newAwtewnativeVewsionId;
 	}
 
-	public _overwriteInitialUndoRedoSnapshot(newInitialUndoRedoSnapshot: ResourceEditStackSnapshot | null): void {
-		this._initialUndoRedoSnapshot = newInitialUndoRedoSnapshot;
+	pubwic _ovewwwiteInitiawUndoWedoSnapshot(newInitiawUndoWedoSnapshot: WesouwceEditStackSnapshot | nuww): void {
+		this._initiawUndoWedoSnapshot = newInitiawUndoWedoSnapshot;
 	}
 
-	public getValue(eol?: model.EndOfLinePreference, preserveBOM: boolean = false): string {
-		this._assertNotDisposed();
-		const fullModelRange = this.getFullModelRange();
-		const fullModelValue = this.getValueInRange(fullModelRange, eol);
+	pubwic getVawue(eow?: modew.EndOfWinePwefewence, pwesewveBOM: boowean = fawse): stwing {
+		this._assewtNotDisposed();
+		const fuwwModewWange = this.getFuwwModewWange();
+		const fuwwModewVawue = this.getVawueInWange(fuwwModewWange, eow);
 
-		if (preserveBOM) {
-			return this._buffer.getBOM() + fullModelValue;
-		}
-
-		return fullModelValue;
-	}
-
-	public createSnapshot(preserveBOM: boolean = false): model.ITextSnapshot {
-		return new TextModelSnapshot(this._buffer.createSnapshot(preserveBOM));
-	}
-
-	public getValueLength(eol?: model.EndOfLinePreference, preserveBOM: boolean = false): number {
-		this._assertNotDisposed();
-		const fullModelRange = this.getFullModelRange();
-		const fullModelValue = this.getValueLengthInRange(fullModelRange, eol);
-
-		if (preserveBOM) {
-			return this._buffer.getBOM().length + fullModelValue;
+		if (pwesewveBOM) {
+			wetuwn this._buffa.getBOM() + fuwwModewVawue;
 		}
 
-		return fullModelValue;
+		wetuwn fuwwModewVawue;
 	}
 
-	public getValueInRange(rawRange: IRange, eol: model.EndOfLinePreference = model.EndOfLinePreference.TextDefined): string {
-		this._assertNotDisposed();
-		return this._buffer.getValueInRange(this.validateRange(rawRange), eol);
+	pubwic cweateSnapshot(pwesewveBOM: boowean = fawse): modew.ITextSnapshot {
+		wetuwn new TextModewSnapshot(this._buffa.cweateSnapshot(pwesewveBOM));
 	}
 
-	public getValueLengthInRange(rawRange: IRange, eol: model.EndOfLinePreference = model.EndOfLinePreference.TextDefined): number {
-		this._assertNotDisposed();
-		return this._buffer.getValueLengthInRange(this.validateRange(rawRange), eol);
-	}
+	pubwic getVawueWength(eow?: modew.EndOfWinePwefewence, pwesewveBOM: boowean = fawse): numba {
+		this._assewtNotDisposed();
+		const fuwwModewWange = this.getFuwwModewWange();
+		const fuwwModewVawue = this.getVawueWengthInWange(fuwwModewWange, eow);
 
-	public getCharacterCountInRange(rawRange: IRange, eol: model.EndOfLinePreference = model.EndOfLinePreference.TextDefined): number {
-		this._assertNotDisposed();
-		return this._buffer.getCharacterCountInRange(this.validateRange(rawRange), eol);
-	}
-
-	public getLineCount(): number {
-		this._assertNotDisposed();
-		return this._buffer.getLineCount();
-	}
-
-	public getLineContent(lineNumber: number): string {
-		this._assertNotDisposed();
-		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new Error('Illegal value for lineNumber');
+		if (pwesewveBOM) {
+			wetuwn this._buffa.getBOM().wength + fuwwModewVawue;
 		}
 
-		return this._buffer.getLineContent(lineNumber);
+		wetuwn fuwwModewVawue;
 	}
 
-	public getLineLength(lineNumber: number): number {
-		this._assertNotDisposed();
-		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new Error('Illegal value for lineNumber');
+	pubwic getVawueInWange(wawWange: IWange, eow: modew.EndOfWinePwefewence = modew.EndOfWinePwefewence.TextDefined): stwing {
+		this._assewtNotDisposed();
+		wetuwn this._buffa.getVawueInWange(this.vawidateWange(wawWange), eow);
+	}
+
+	pubwic getVawueWengthInWange(wawWange: IWange, eow: modew.EndOfWinePwefewence = modew.EndOfWinePwefewence.TextDefined): numba {
+		this._assewtNotDisposed();
+		wetuwn this._buffa.getVawueWengthInWange(this.vawidateWange(wawWange), eow);
+	}
+
+	pubwic getChawactewCountInWange(wawWange: IWange, eow: modew.EndOfWinePwefewence = modew.EndOfWinePwefewence.TextDefined): numba {
+		this._assewtNotDisposed();
+		wetuwn this._buffa.getChawactewCountInWange(this.vawidateWange(wawWange), eow);
+	}
+
+	pubwic getWineCount(): numba {
+		this._assewtNotDisposed();
+		wetuwn this._buffa.getWineCount();
+	}
+
+	pubwic getWineContent(wineNumba: numba): stwing {
+		this._assewtNotDisposed();
+		if (wineNumba < 1 || wineNumba > this.getWineCount()) {
+			thwow new Ewwow('Iwwegaw vawue fow wineNumba');
 		}
 
-		return this._buffer.getLineLength(lineNumber);
+		wetuwn this._buffa.getWineContent(wineNumba);
 	}
 
-	public getLinesContent(): string[] {
-		this._assertNotDisposed();
-		return this._buffer.getLinesContent();
+	pubwic getWineWength(wineNumba: numba): numba {
+		this._assewtNotDisposed();
+		if (wineNumba < 1 || wineNumba > this.getWineCount()) {
+			thwow new Ewwow('Iwwegaw vawue fow wineNumba');
+		}
+
+		wetuwn this._buffa.getWineWength(wineNumba);
 	}
 
-	public getEOL(): string {
-		this._assertNotDisposed();
-		return this._buffer.getEOL();
+	pubwic getWinesContent(): stwing[] {
+		this._assewtNotDisposed();
+		wetuwn this._buffa.getWinesContent();
 	}
 
-	public getEndOfLineSequence(): model.EndOfLineSequence {
-		this._assertNotDisposed();
-		return (
-			this._buffer.getEOL() === '\n'
-				? model.EndOfLineSequence.LF
-				: model.EndOfLineSequence.CRLF
+	pubwic getEOW(): stwing {
+		this._assewtNotDisposed();
+		wetuwn this._buffa.getEOW();
+	}
+
+	pubwic getEndOfWineSequence(): modew.EndOfWineSequence {
+		this._assewtNotDisposed();
+		wetuwn (
+			this._buffa.getEOW() === '\n'
+				? modew.EndOfWineSequence.WF
+				: modew.EndOfWineSequence.CWWF
 		);
 	}
 
-	public getLineMinColumn(lineNumber: number): number {
-		this._assertNotDisposed();
-		return 1;
+	pubwic getWineMinCowumn(wineNumba: numba): numba {
+		this._assewtNotDisposed();
+		wetuwn 1;
 	}
 
-	public getLineMaxColumn(lineNumber: number): number {
-		this._assertNotDisposed();
-		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new Error('Illegal value for lineNumber');
+	pubwic getWineMaxCowumn(wineNumba: numba): numba {
+		this._assewtNotDisposed();
+		if (wineNumba < 1 || wineNumba > this.getWineCount()) {
+			thwow new Ewwow('Iwwegaw vawue fow wineNumba');
 		}
-		return this._buffer.getLineLength(lineNumber) + 1;
+		wetuwn this._buffa.getWineWength(wineNumba) + 1;
 	}
 
-	public getLineFirstNonWhitespaceColumn(lineNumber: number): number {
-		this._assertNotDisposed();
-		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new Error('Illegal value for lineNumber');
+	pubwic getWineFiwstNonWhitespaceCowumn(wineNumba: numba): numba {
+		this._assewtNotDisposed();
+		if (wineNumba < 1 || wineNumba > this.getWineCount()) {
+			thwow new Ewwow('Iwwegaw vawue fow wineNumba');
 		}
-		return this._buffer.getLineFirstNonWhitespaceColumn(lineNumber);
+		wetuwn this._buffa.getWineFiwstNonWhitespaceCowumn(wineNumba);
 	}
 
-	public getLineLastNonWhitespaceColumn(lineNumber: number): number {
-		this._assertNotDisposed();
-		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new Error('Illegal value for lineNumber');
+	pubwic getWineWastNonWhitespaceCowumn(wineNumba: numba): numba {
+		this._assewtNotDisposed();
+		if (wineNumba < 1 || wineNumba > this.getWineCount()) {
+			thwow new Ewwow('Iwwegaw vawue fow wineNumba');
 		}
-		return this._buffer.getLineLastNonWhitespaceColumn(lineNumber);
+		wetuwn this._buffa.getWineWastNonWhitespaceCowumn(wineNumba);
 	}
 
 	/**
-	 * Validates `range` is within buffer bounds, but allows it to sit in between surrogate pairs, etc.
-	 * Will try to not allocate if possible.
+	 * Vawidates `wange` is within buffa bounds, but awwows it to sit in between suwwogate paiws, etc.
+	 * Wiww twy to not awwocate if possibwe.
 	 */
-	public _validateRangeRelaxedNoAllocations(range: IRange): Range {
-		const linesCount = this._buffer.getLineCount();
+	pubwic _vawidateWangeWewaxedNoAwwocations(wange: IWange): Wange {
+		const winesCount = this._buffa.getWineCount();
 
-		const initialStartLineNumber = range.startLineNumber;
-		const initialStartColumn = range.startColumn;
-		let startLineNumber = Math.floor((typeof initialStartLineNumber === 'number' && !isNaN(initialStartLineNumber)) ? initialStartLineNumber : 1);
-		let startColumn = Math.floor((typeof initialStartColumn === 'number' && !isNaN(initialStartColumn)) ? initialStartColumn : 1);
+		const initiawStawtWineNumba = wange.stawtWineNumba;
+		const initiawStawtCowumn = wange.stawtCowumn;
+		wet stawtWineNumba = Math.fwoow((typeof initiawStawtWineNumba === 'numba' && !isNaN(initiawStawtWineNumba)) ? initiawStawtWineNumba : 1);
+		wet stawtCowumn = Math.fwoow((typeof initiawStawtCowumn === 'numba' && !isNaN(initiawStawtCowumn)) ? initiawStawtCowumn : 1);
 
-		if (startLineNumber < 1) {
-			startLineNumber = 1;
-			startColumn = 1;
-		} else if (startLineNumber > linesCount) {
-			startLineNumber = linesCount;
-			startColumn = this.getLineMaxColumn(startLineNumber);
-		} else {
-			if (startColumn <= 1) {
-				startColumn = 1;
-			} else {
-				const maxColumn = this.getLineMaxColumn(startLineNumber);
-				if (startColumn >= maxColumn) {
-					startColumn = maxColumn;
+		if (stawtWineNumba < 1) {
+			stawtWineNumba = 1;
+			stawtCowumn = 1;
+		} ewse if (stawtWineNumba > winesCount) {
+			stawtWineNumba = winesCount;
+			stawtCowumn = this.getWineMaxCowumn(stawtWineNumba);
+		} ewse {
+			if (stawtCowumn <= 1) {
+				stawtCowumn = 1;
+			} ewse {
+				const maxCowumn = this.getWineMaxCowumn(stawtWineNumba);
+				if (stawtCowumn >= maxCowumn) {
+					stawtCowumn = maxCowumn;
 				}
 			}
 		}
 
-		const initialEndLineNumber = range.endLineNumber;
-		const initialEndColumn = range.endColumn;
-		let endLineNumber = Math.floor((typeof initialEndLineNumber === 'number' && !isNaN(initialEndLineNumber)) ? initialEndLineNumber : 1);
-		let endColumn = Math.floor((typeof initialEndColumn === 'number' && !isNaN(initialEndColumn)) ? initialEndColumn : 1);
+		const initiawEndWineNumba = wange.endWineNumba;
+		const initiawEndCowumn = wange.endCowumn;
+		wet endWineNumba = Math.fwoow((typeof initiawEndWineNumba === 'numba' && !isNaN(initiawEndWineNumba)) ? initiawEndWineNumba : 1);
+		wet endCowumn = Math.fwoow((typeof initiawEndCowumn === 'numba' && !isNaN(initiawEndCowumn)) ? initiawEndCowumn : 1);
 
-		if (endLineNumber < 1) {
-			endLineNumber = 1;
-			endColumn = 1;
-		} else if (endLineNumber > linesCount) {
-			endLineNumber = linesCount;
-			endColumn = this.getLineMaxColumn(endLineNumber);
-		} else {
-			if (endColumn <= 1) {
-				endColumn = 1;
-			} else {
-				const maxColumn = this.getLineMaxColumn(endLineNumber);
-				if (endColumn >= maxColumn) {
-					endColumn = maxColumn;
+		if (endWineNumba < 1) {
+			endWineNumba = 1;
+			endCowumn = 1;
+		} ewse if (endWineNumba > winesCount) {
+			endWineNumba = winesCount;
+			endCowumn = this.getWineMaxCowumn(endWineNumba);
+		} ewse {
+			if (endCowumn <= 1) {
+				endCowumn = 1;
+			} ewse {
+				const maxCowumn = this.getWineMaxCowumn(endWineNumba);
+				if (endCowumn >= maxCowumn) {
+					endCowumn = maxCowumn;
 				}
 			}
 		}
 
 		if (
-			initialStartLineNumber === startLineNumber
-			&& initialStartColumn === startColumn
-			&& initialEndLineNumber === endLineNumber
-			&& initialEndColumn === endColumn
-			&& range instanceof Range
-			&& !(range instanceof Selection)
+			initiawStawtWineNumba === stawtWineNumba
+			&& initiawStawtCowumn === stawtCowumn
+			&& initiawEndWineNumba === endWineNumba
+			&& initiawEndCowumn === endCowumn
+			&& wange instanceof Wange
+			&& !(wange instanceof Sewection)
 		) {
-			return range;
+			wetuwn wange;
 		}
 
-		return new Range(startLineNumber, startColumn, endLineNumber, endColumn);
+		wetuwn new Wange(stawtWineNumba, stawtCowumn, endWineNumba, endCowumn);
 	}
 
-	private _isValidPosition(lineNumber: number, column: number, validationType: StringOffsetValidationType): boolean {
-		if (typeof lineNumber !== 'number' || typeof column !== 'number') {
-			return false;
+	pwivate _isVawidPosition(wineNumba: numba, cowumn: numba, vawidationType: StwingOffsetVawidationType): boowean {
+		if (typeof wineNumba !== 'numba' || typeof cowumn !== 'numba') {
+			wetuwn fawse;
 		}
 
-		if (isNaN(lineNumber) || isNaN(column)) {
-			return false;
+		if (isNaN(wineNumba) || isNaN(cowumn)) {
+			wetuwn fawse;
 		}
 
-		if (lineNumber < 1 || column < 1) {
-			return false;
+		if (wineNumba < 1 || cowumn < 1) {
+			wetuwn fawse;
 		}
 
-		if ((lineNumber | 0) !== lineNumber || (column | 0) !== column) {
-			return false;
+		if ((wineNumba | 0) !== wineNumba || (cowumn | 0) !== cowumn) {
+			wetuwn fawse;
 		}
 
-		const lineCount = this._buffer.getLineCount();
-		if (lineNumber > lineCount) {
-			return false;
+		const wineCount = this._buffa.getWineCount();
+		if (wineNumba > wineCount) {
+			wetuwn fawse;
 		}
 
-		if (column === 1) {
-			return true;
+		if (cowumn === 1) {
+			wetuwn twue;
 		}
 
-		const maxColumn = this.getLineMaxColumn(lineNumber);
-		if (column > maxColumn) {
-			return false;
+		const maxCowumn = this.getWineMaxCowumn(wineNumba);
+		if (cowumn > maxCowumn) {
+			wetuwn fawse;
 		}
 
-		if (validationType === StringOffsetValidationType.SurrogatePairs) {
-			// !!At this point, column > 1
-			const charCodeBefore = this._buffer.getLineCharCode(lineNumber, column - 2);
-			if (strings.isHighSurrogate(charCodeBefore)) {
-				return false;
+		if (vawidationType === StwingOffsetVawidationType.SuwwogatePaiws) {
+			// !!At this point, cowumn > 1
+			const chawCodeBefowe = this._buffa.getWineChawCode(wineNumba, cowumn - 2);
+			if (stwings.isHighSuwwogate(chawCodeBefowe)) {
+				wetuwn fawse;
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private _validatePosition(_lineNumber: number, _column: number, validationType: StringOffsetValidationType): Position {
-		const lineNumber = Math.floor((typeof _lineNumber === 'number' && !isNaN(_lineNumber)) ? _lineNumber : 1);
-		const column = Math.floor((typeof _column === 'number' && !isNaN(_column)) ? _column : 1);
-		const lineCount = this._buffer.getLineCount();
+	pwivate _vawidatePosition(_wineNumba: numba, _cowumn: numba, vawidationType: StwingOffsetVawidationType): Position {
+		const wineNumba = Math.fwoow((typeof _wineNumba === 'numba' && !isNaN(_wineNumba)) ? _wineNumba : 1);
+		const cowumn = Math.fwoow((typeof _cowumn === 'numba' && !isNaN(_cowumn)) ? _cowumn : 1);
+		const wineCount = this._buffa.getWineCount();
 
-		if (lineNumber < 1) {
-			return new Position(1, 1);
+		if (wineNumba < 1) {
+			wetuwn new Position(1, 1);
 		}
 
-		if (lineNumber > lineCount) {
-			return new Position(lineCount, this.getLineMaxColumn(lineCount));
+		if (wineNumba > wineCount) {
+			wetuwn new Position(wineCount, this.getWineMaxCowumn(wineCount));
 		}
 
-		if (column <= 1) {
-			return new Position(lineNumber, 1);
+		if (cowumn <= 1) {
+			wetuwn new Position(wineNumba, 1);
 		}
 
-		const maxColumn = this.getLineMaxColumn(lineNumber);
-		if (column >= maxColumn) {
-			return new Position(lineNumber, maxColumn);
+		const maxCowumn = this.getWineMaxCowumn(wineNumba);
+		if (cowumn >= maxCowumn) {
+			wetuwn new Position(wineNumba, maxCowumn);
 		}
 
-		if (validationType === StringOffsetValidationType.SurrogatePairs) {
-			// If the position would end up in the middle of a high-low surrogate pair,
-			// we move it to before the pair
-			// !!At this point, column > 1
-			const charCodeBefore = this._buffer.getLineCharCode(lineNumber, column - 2);
-			if (strings.isHighSurrogate(charCodeBefore)) {
-				return new Position(lineNumber, column - 1);
+		if (vawidationType === StwingOffsetVawidationType.SuwwogatePaiws) {
+			// If the position wouwd end up in the middwe of a high-wow suwwogate paiw,
+			// we move it to befowe the paiw
+			// !!At this point, cowumn > 1
+			const chawCodeBefowe = this._buffa.getWineChawCode(wineNumba, cowumn - 2);
+			if (stwings.isHighSuwwogate(chawCodeBefowe)) {
+				wetuwn new Position(wineNumba, cowumn - 1);
 			}
 		}
 
-		return new Position(lineNumber, column);
+		wetuwn new Position(wineNumba, cowumn);
 	}
 
-	public validatePosition(position: IPosition): Position {
-		const validationType = StringOffsetValidationType.SurrogatePairs;
-		this._assertNotDisposed();
+	pubwic vawidatePosition(position: IPosition): Position {
+		const vawidationType = StwingOffsetVawidationType.SuwwogatePaiws;
+		this._assewtNotDisposed();
 
-		// Avoid object allocation and cover most likely case
+		// Avoid object awwocation and cova most wikewy case
 		if (position instanceof Position) {
-			if (this._isValidPosition(position.lineNumber, position.column, validationType)) {
-				return position;
+			if (this._isVawidPosition(position.wineNumba, position.cowumn, vawidationType)) {
+				wetuwn position;
 			}
 		}
 
-		return this._validatePosition(position.lineNumber, position.column, validationType);
+		wetuwn this._vawidatePosition(position.wineNumba, position.cowumn, vawidationType);
 	}
 
-	private _isValidRange(range: Range, validationType: StringOffsetValidationType): boolean {
-		const startLineNumber = range.startLineNumber;
-		const startColumn = range.startColumn;
-		const endLineNumber = range.endLineNumber;
-		const endColumn = range.endColumn;
+	pwivate _isVawidWange(wange: Wange, vawidationType: StwingOffsetVawidationType): boowean {
+		const stawtWineNumba = wange.stawtWineNumba;
+		const stawtCowumn = wange.stawtCowumn;
+		const endWineNumba = wange.endWineNumba;
+		const endCowumn = wange.endCowumn;
 
-		if (!this._isValidPosition(startLineNumber, startColumn, StringOffsetValidationType.Relaxed)) {
-			return false;
+		if (!this._isVawidPosition(stawtWineNumba, stawtCowumn, StwingOffsetVawidationType.Wewaxed)) {
+			wetuwn fawse;
 		}
-		if (!this._isValidPosition(endLineNumber, endColumn, StringOffsetValidationType.Relaxed)) {
-			return false;
+		if (!this._isVawidPosition(endWineNumba, endCowumn, StwingOffsetVawidationType.Wewaxed)) {
+			wetuwn fawse;
 		}
 
-		if (validationType === StringOffsetValidationType.SurrogatePairs) {
-			const charCodeBeforeStart = (startColumn > 1 ? this._buffer.getLineCharCode(startLineNumber, startColumn - 2) : 0);
-			const charCodeBeforeEnd = (endColumn > 1 && endColumn <= this._buffer.getLineLength(endLineNumber) ? this._buffer.getLineCharCode(endLineNumber, endColumn - 2) : 0);
+		if (vawidationType === StwingOffsetVawidationType.SuwwogatePaiws) {
+			const chawCodeBefoweStawt = (stawtCowumn > 1 ? this._buffa.getWineChawCode(stawtWineNumba, stawtCowumn - 2) : 0);
+			const chawCodeBefoweEnd = (endCowumn > 1 && endCowumn <= this._buffa.getWineWength(endWineNumba) ? this._buffa.getWineChawCode(endWineNumba, endCowumn - 2) : 0);
 
-			const startInsideSurrogatePair = strings.isHighSurrogate(charCodeBeforeStart);
-			const endInsideSurrogatePair = strings.isHighSurrogate(charCodeBeforeEnd);
+			const stawtInsideSuwwogatePaiw = stwings.isHighSuwwogate(chawCodeBefoweStawt);
+			const endInsideSuwwogatePaiw = stwings.isHighSuwwogate(chawCodeBefoweEnd);
 
-			if (!startInsideSurrogatePair && !endInsideSurrogatePair) {
-				return true;
+			if (!stawtInsideSuwwogatePaiw && !endInsideSuwwogatePaiw) {
+				wetuwn twue;
 			}
-			return false;
+			wetuwn fawse;
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	public validateRange(_range: IRange): Range {
-		const validationType = StringOffsetValidationType.SurrogatePairs;
-		this._assertNotDisposed();
+	pubwic vawidateWange(_wange: IWange): Wange {
+		const vawidationType = StwingOffsetVawidationType.SuwwogatePaiws;
+		this._assewtNotDisposed();
 
-		// Avoid object allocation and cover most likely case
-		if ((_range instanceof Range) && !(_range instanceof Selection)) {
-			if (this._isValidRange(_range, validationType)) {
-				return _range;
+		// Avoid object awwocation and cova most wikewy case
+		if ((_wange instanceof Wange) && !(_wange instanceof Sewection)) {
+			if (this._isVawidWange(_wange, vawidationType)) {
+				wetuwn _wange;
 			}
 		}
 
-		const start = this._validatePosition(_range.startLineNumber, _range.startColumn, StringOffsetValidationType.Relaxed);
-		const end = this._validatePosition(_range.endLineNumber, _range.endColumn, StringOffsetValidationType.Relaxed);
+		const stawt = this._vawidatePosition(_wange.stawtWineNumba, _wange.stawtCowumn, StwingOffsetVawidationType.Wewaxed);
+		const end = this._vawidatePosition(_wange.endWineNumba, _wange.endCowumn, StwingOffsetVawidationType.Wewaxed);
 
-		const startLineNumber = start.lineNumber;
-		const startColumn = start.column;
-		const endLineNumber = end.lineNumber;
-		const endColumn = end.column;
+		const stawtWineNumba = stawt.wineNumba;
+		const stawtCowumn = stawt.cowumn;
+		const endWineNumba = end.wineNumba;
+		const endCowumn = end.cowumn;
 
-		if (validationType === StringOffsetValidationType.SurrogatePairs) {
-			const charCodeBeforeStart = (startColumn > 1 ? this._buffer.getLineCharCode(startLineNumber, startColumn - 2) : 0);
-			const charCodeBeforeEnd = (endColumn > 1 && endColumn <= this._buffer.getLineLength(endLineNumber) ? this._buffer.getLineCharCode(endLineNumber, endColumn - 2) : 0);
+		if (vawidationType === StwingOffsetVawidationType.SuwwogatePaiws) {
+			const chawCodeBefoweStawt = (stawtCowumn > 1 ? this._buffa.getWineChawCode(stawtWineNumba, stawtCowumn - 2) : 0);
+			const chawCodeBefoweEnd = (endCowumn > 1 && endCowumn <= this._buffa.getWineWength(endWineNumba) ? this._buffa.getWineChawCode(endWineNumba, endCowumn - 2) : 0);
 
-			const startInsideSurrogatePair = strings.isHighSurrogate(charCodeBeforeStart);
-			const endInsideSurrogatePair = strings.isHighSurrogate(charCodeBeforeEnd);
+			const stawtInsideSuwwogatePaiw = stwings.isHighSuwwogate(chawCodeBefoweStawt);
+			const endInsideSuwwogatePaiw = stwings.isHighSuwwogate(chawCodeBefoweEnd);
 
-			if (!startInsideSurrogatePair && !endInsideSurrogatePair) {
-				return new Range(startLineNumber, startColumn, endLineNumber, endColumn);
+			if (!stawtInsideSuwwogatePaiw && !endInsideSuwwogatePaiw) {
+				wetuwn new Wange(stawtWineNumba, stawtCowumn, endWineNumba, endCowumn);
 			}
 
-			if (startLineNumber === endLineNumber && startColumn === endColumn) {
-				// do not expand a collapsed range, simply move it to a valid location
-				return new Range(startLineNumber, startColumn - 1, endLineNumber, endColumn - 1);
+			if (stawtWineNumba === endWineNumba && stawtCowumn === endCowumn) {
+				// do not expand a cowwapsed wange, simpwy move it to a vawid wocation
+				wetuwn new Wange(stawtWineNumba, stawtCowumn - 1, endWineNumba, endCowumn - 1);
 			}
 
-			if (startInsideSurrogatePair && endInsideSurrogatePair) {
-				// expand range at both ends
-				return new Range(startLineNumber, startColumn - 1, endLineNumber, endColumn + 1);
+			if (stawtInsideSuwwogatePaiw && endInsideSuwwogatePaiw) {
+				// expand wange at both ends
+				wetuwn new Wange(stawtWineNumba, stawtCowumn - 1, endWineNumba, endCowumn + 1);
 			}
 
-			if (startInsideSurrogatePair) {
-				// only expand range at the start
-				return new Range(startLineNumber, startColumn - 1, endLineNumber, endColumn);
+			if (stawtInsideSuwwogatePaiw) {
+				// onwy expand wange at the stawt
+				wetuwn new Wange(stawtWineNumba, stawtCowumn - 1, endWineNumba, endCowumn);
 			}
 
-			// only expand range at the end
-			return new Range(startLineNumber, startColumn, endLineNumber, endColumn + 1);
+			// onwy expand wange at the end
+			wetuwn new Wange(stawtWineNumba, stawtCowumn, endWineNumba, endCowumn + 1);
 		}
 
-		return new Range(startLineNumber, startColumn, endLineNumber, endColumn);
+		wetuwn new Wange(stawtWineNumba, stawtCowumn, endWineNumba, endCowumn);
 	}
 
-	public modifyPosition(rawPosition: IPosition, offset: number): Position {
-		this._assertNotDisposed();
-		let candidate = this.getOffsetAt(rawPosition) + offset;
-		return this.getPositionAt(Math.min(this._buffer.getLength(), Math.max(0, candidate)));
+	pubwic modifyPosition(wawPosition: IPosition, offset: numba): Position {
+		this._assewtNotDisposed();
+		wet candidate = this.getOffsetAt(wawPosition) + offset;
+		wetuwn this.getPositionAt(Math.min(this._buffa.getWength(), Math.max(0, candidate)));
 	}
 
-	public getFullModelRange(): Range {
-		this._assertNotDisposed();
-		const lineCount = this.getLineCount();
-		return new Range(1, 1, lineCount, this.getLineMaxColumn(lineCount));
+	pubwic getFuwwModewWange(): Wange {
+		this._assewtNotDisposed();
+		const wineCount = this.getWineCount();
+		wetuwn new Wange(1, 1, wineCount, this.getWineMaxCowumn(wineCount));
 	}
 
-	private findMatchesLineByLine(searchRange: Range, searchData: SearchData, captureMatches: boolean, limitResultCount: number): model.FindMatch[] {
-		return this._buffer.findMatchesLineByLine(searchRange, searchData, captureMatches, limitResultCount);
+	pwivate findMatchesWineByWine(seawchWange: Wange, seawchData: SeawchData, captuweMatches: boowean, wimitWesuwtCount: numba): modew.FindMatch[] {
+		wetuwn this._buffa.findMatchesWineByWine(seawchWange, seawchData, captuweMatches, wimitWesuwtCount);
 	}
 
-	public findMatches(searchString: string, rawSearchScope: any, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean, limitResultCount: number = LIMIT_FIND_COUNT): model.FindMatch[] {
-		this._assertNotDisposed();
+	pubwic findMatches(seawchStwing: stwing, wawSeawchScope: any, isWegex: boowean, matchCase: boowean, wowdSepawatows: stwing | nuww, captuweMatches: boowean, wimitWesuwtCount: numba = WIMIT_FIND_COUNT): modew.FindMatch[] {
+		this._assewtNotDisposed();
 
-		let searchRanges: Range[] | null = null;
+		wet seawchWanges: Wange[] | nuww = nuww;
 
-		if (rawSearchScope !== null) {
-			if (!Array.isArray(rawSearchScope)) {
-				rawSearchScope = [rawSearchScope];
+		if (wawSeawchScope !== nuww) {
+			if (!Awway.isAwway(wawSeawchScope)) {
+				wawSeawchScope = [wawSeawchScope];
 			}
 
-			if (rawSearchScope.every((searchScope: Range) => Range.isIRange(searchScope))) {
-				searchRanges = rawSearchScope.map((searchScope: Range) => this.validateRange(searchScope));
+			if (wawSeawchScope.evewy((seawchScope: Wange) => Wange.isIWange(seawchScope))) {
+				seawchWanges = wawSeawchScope.map((seawchScope: Wange) => this.vawidateWange(seawchScope));
 			}
 		}
 
-		if (searchRanges === null) {
-			searchRanges = [this.getFullModelRange()];
+		if (seawchWanges === nuww) {
+			seawchWanges = [this.getFuwwModewWange()];
 		}
 
-		searchRanges = searchRanges.sort((d1, d2) => d1.startLineNumber - d2.startLineNumber || d1.startColumn - d2.startColumn);
+		seawchWanges = seawchWanges.sowt((d1, d2) => d1.stawtWineNumba - d2.stawtWineNumba || d1.stawtCowumn - d2.stawtCowumn);
 
-		const uniqueSearchRanges: Range[] = [];
-		uniqueSearchRanges.push(searchRanges.reduce((prev, curr) => {
-			if (Range.areIntersecting(prev, curr)) {
-				return prev.plusRange(curr);
+		const uniqueSeawchWanges: Wange[] = [];
+		uniqueSeawchWanges.push(seawchWanges.weduce((pwev, cuww) => {
+			if (Wange.aweIntewsecting(pwev, cuww)) {
+				wetuwn pwev.pwusWange(cuww);
 			}
 
-			uniqueSearchRanges.push(prev);
-			return curr;
+			uniqueSeawchWanges.push(pwev);
+			wetuwn cuww;
 		}));
 
-		let matchMapper: (value: Range, index: number, array: Range[]) => model.FindMatch[];
-		if (!isRegex && searchString.indexOf('\n') < 0) {
-			// not regex, not multi line
-			const searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
-			const searchData = searchParams.parseSearchRequest();
+		wet matchMappa: (vawue: Wange, index: numba, awway: Wange[]) => modew.FindMatch[];
+		if (!isWegex && seawchStwing.indexOf('\n') < 0) {
+			// not wegex, not muwti wine
+			const seawchPawams = new SeawchPawams(seawchStwing, isWegex, matchCase, wowdSepawatows);
+			const seawchData = seawchPawams.pawseSeawchWequest();
 
-			if (!searchData) {
-				return [];
+			if (!seawchData) {
+				wetuwn [];
 			}
 
-			matchMapper = (searchRange: Range) => this.findMatchesLineByLine(searchRange, searchData, captureMatches, limitResultCount);
-		} else {
-			matchMapper = (searchRange: Range) => TextModelSearch.findMatches(this, new SearchParams(searchString, isRegex, matchCase, wordSeparators), searchRange, captureMatches, limitResultCount);
+			matchMappa = (seawchWange: Wange) => this.findMatchesWineByWine(seawchWange, seawchData, captuweMatches, wimitWesuwtCount);
+		} ewse {
+			matchMappa = (seawchWange: Wange) => TextModewSeawch.findMatches(this, new SeawchPawams(seawchStwing, isWegex, matchCase, wowdSepawatows), seawchWange, captuweMatches, wimitWesuwtCount);
 		}
 
-		return uniqueSearchRanges.map(matchMapper).reduce((arr, matches: model.FindMatch[]) => arr.concat(matches), []);
+		wetuwn uniqueSeawchWanges.map(matchMappa).weduce((aww, matches: modew.FindMatch[]) => aww.concat(matches), []);
 	}
 
-	public findNextMatch(searchString: string, rawSearchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean): model.FindMatch | null {
-		this._assertNotDisposed();
-		const searchStart = this.validatePosition(rawSearchStart);
+	pubwic findNextMatch(seawchStwing: stwing, wawSeawchStawt: IPosition, isWegex: boowean, matchCase: boowean, wowdSepawatows: stwing, captuweMatches: boowean): modew.FindMatch | nuww {
+		this._assewtNotDisposed();
+		const seawchStawt = this.vawidatePosition(wawSeawchStawt);
 
-		if (!isRegex && searchString.indexOf('\n') < 0) {
-			const searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
-			const searchData = searchParams.parseSearchRequest();
-			if (!searchData) {
-				return null;
+		if (!isWegex && seawchStwing.indexOf('\n') < 0) {
+			const seawchPawams = new SeawchPawams(seawchStwing, isWegex, matchCase, wowdSepawatows);
+			const seawchData = seawchPawams.pawseSeawchWequest();
+			if (!seawchData) {
+				wetuwn nuww;
 			}
 
-			const lineCount = this.getLineCount();
-			let searchRange = new Range(searchStart.lineNumber, searchStart.column, lineCount, this.getLineMaxColumn(lineCount));
-			let ret = this.findMatchesLineByLine(searchRange, searchData, captureMatches, 1);
-			TextModelSearch.findNextMatch(this, new SearchParams(searchString, isRegex, matchCase, wordSeparators), searchStart, captureMatches);
-			if (ret.length > 0) {
-				return ret[0];
+			const wineCount = this.getWineCount();
+			wet seawchWange = new Wange(seawchStawt.wineNumba, seawchStawt.cowumn, wineCount, this.getWineMaxCowumn(wineCount));
+			wet wet = this.findMatchesWineByWine(seawchWange, seawchData, captuweMatches, 1);
+			TextModewSeawch.findNextMatch(this, new SeawchPawams(seawchStwing, isWegex, matchCase, wowdSepawatows), seawchStawt, captuweMatches);
+			if (wet.wength > 0) {
+				wetuwn wet[0];
 			}
 
-			searchRange = new Range(1, 1, searchStart.lineNumber, this.getLineMaxColumn(searchStart.lineNumber));
-			ret = this.findMatchesLineByLine(searchRange, searchData, captureMatches, 1);
+			seawchWange = new Wange(1, 1, seawchStawt.wineNumba, this.getWineMaxCowumn(seawchStawt.wineNumba));
+			wet = this.findMatchesWineByWine(seawchWange, seawchData, captuweMatches, 1);
 
-			if (ret.length > 0) {
-				return ret[0];
+			if (wet.wength > 0) {
+				wetuwn wet[0];
 			}
 
-			return null;
+			wetuwn nuww;
 		}
 
-		return TextModelSearch.findNextMatch(this, new SearchParams(searchString, isRegex, matchCase, wordSeparators), searchStart, captureMatches);
+		wetuwn TextModewSeawch.findNextMatch(this, new SeawchPawams(seawchStwing, isWegex, matchCase, wowdSepawatows), seawchStawt, captuweMatches);
 	}
 
-	public findPreviousMatch(searchString: string, rawSearchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean): model.FindMatch | null {
-		this._assertNotDisposed();
-		const searchStart = this.validatePosition(rawSearchStart);
-		return TextModelSearch.findPreviousMatch(this, new SearchParams(searchString, isRegex, matchCase, wordSeparators), searchStart, captureMatches);
+	pubwic findPweviousMatch(seawchStwing: stwing, wawSeawchStawt: IPosition, isWegex: boowean, matchCase: boowean, wowdSepawatows: stwing, captuweMatches: boowean): modew.FindMatch | nuww {
+		this._assewtNotDisposed();
+		const seawchStawt = this.vawidatePosition(wawSeawchStawt);
+		wetuwn TextModewSeawch.findPweviousMatch(this, new SeawchPawams(seawchStwing, isWegex, matchCase, wowdSepawatows), seawchStawt, captuweMatches);
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Editing
+	//#wegion Editing
 
-	public pushStackElement(): void {
-		this._commandManager.pushStackElement();
+	pubwic pushStackEwement(): void {
+		this._commandManaga.pushStackEwement();
 	}
 
-	public popStackElement(): void {
-		this._commandManager.popStackElement();
+	pubwic popStackEwement(): void {
+		this._commandManaga.popStackEwement();
 	}
 
-	public pushEOL(eol: model.EndOfLineSequence): void {
-		const currentEOL = (this.getEOL() === '\n' ? model.EndOfLineSequence.LF : model.EndOfLineSequence.CRLF);
-		if (currentEOL === eol) {
-			return;
+	pubwic pushEOW(eow: modew.EndOfWineSequence): void {
+		const cuwwentEOW = (this.getEOW() === '\n' ? modew.EndOfWineSequence.WF : modew.EndOfWineSequence.CWWF);
+		if (cuwwentEOW === eow) {
+			wetuwn;
 		}
-		try {
-			this._onDidChangeDecorations.beginDeferredEmit();
-			this._eventEmitter.beginDeferredEmit();
-			if (this._initialUndoRedoSnapshot === null) {
-				this._initialUndoRedoSnapshot = this._undoRedoService.createSnapshot(this.uri);
+		twy {
+			this._onDidChangeDecowations.beginDefewwedEmit();
+			this._eventEmitta.beginDefewwedEmit();
+			if (this._initiawUndoWedoSnapshot === nuww) {
+				this._initiawUndoWedoSnapshot = this._undoWedoSewvice.cweateSnapshot(this.uwi);
 			}
-			this._commandManager.pushEOL(eol);
-		} finally {
-			this._eventEmitter.endDeferredEmit();
-			this._onDidChangeDecorations.endDeferredEmit();
+			this._commandManaga.pushEOW(eow);
+		} finawwy {
+			this._eventEmitta.endDefewwedEmit();
+			this._onDidChangeDecowations.endDefewwedEmit();
 		}
 	}
 
-	private _validateEditOperation(rawOperation: model.IIdentifiedSingleEditOperation): model.ValidAnnotatedEditOperation {
-		if (rawOperation instanceof model.ValidAnnotatedEditOperation) {
-			return rawOperation;
+	pwivate _vawidateEditOpewation(wawOpewation: modew.IIdentifiedSingweEditOpewation): modew.VawidAnnotatedEditOpewation {
+		if (wawOpewation instanceof modew.VawidAnnotatedEditOpewation) {
+			wetuwn wawOpewation;
 		}
-		return new model.ValidAnnotatedEditOperation(
-			rawOperation.identifier || null,
-			this.validateRange(rawOperation.range),
-			rawOperation.text,
-			rawOperation.forceMoveMarkers || false,
-			rawOperation.isAutoWhitespaceEdit || false,
-			rawOperation._isTracked || false
+		wetuwn new modew.VawidAnnotatedEditOpewation(
+			wawOpewation.identifia || nuww,
+			this.vawidateWange(wawOpewation.wange),
+			wawOpewation.text,
+			wawOpewation.fowceMoveMawkews || fawse,
+			wawOpewation.isAutoWhitespaceEdit || fawse,
+			wawOpewation._isTwacked || fawse
 		);
 	}
 
-	private _validateEditOperations(rawOperations: model.IIdentifiedSingleEditOperation[]): model.ValidAnnotatedEditOperation[] {
-		const result: model.ValidAnnotatedEditOperation[] = [];
-		for (let i = 0, len = rawOperations.length; i < len; i++) {
-			result[i] = this._validateEditOperation(rawOperations[i]);
+	pwivate _vawidateEditOpewations(wawOpewations: modew.IIdentifiedSingweEditOpewation[]): modew.VawidAnnotatedEditOpewation[] {
+		const wesuwt: modew.VawidAnnotatedEditOpewation[] = [];
+		fow (wet i = 0, wen = wawOpewations.wength; i < wen; i++) {
+			wesuwt[i] = this._vawidateEditOpewation(wawOpewations[i]);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.IIdentifiedSingleEditOperation[], cursorStateComputer: model.ICursorStateComputer | null): Selection[] | null {
-		try {
-			this._onDidChangeDecorations.beginDeferredEmit();
-			this._eventEmitter.beginDeferredEmit();
-			return this._pushEditOperations(beforeCursorState, this._validateEditOperations(editOperations), cursorStateComputer);
-		} finally {
-			this._eventEmitter.endDeferredEmit();
-			this._onDidChangeDecorations.endDeferredEmit();
+	pubwic pushEditOpewations(befoweCuwsowState: Sewection[] | nuww, editOpewations: modew.IIdentifiedSingweEditOpewation[], cuwsowStateComputa: modew.ICuwsowStateComputa | nuww): Sewection[] | nuww {
+		twy {
+			this._onDidChangeDecowations.beginDefewwedEmit();
+			this._eventEmitta.beginDefewwedEmit();
+			wetuwn this._pushEditOpewations(befoweCuwsowState, this._vawidateEditOpewations(editOpewations), cuwsowStateComputa);
+		} finawwy {
+			this._eventEmitta.endDefewwedEmit();
+			this._onDidChangeDecowations.endDefewwedEmit();
 		}
 	}
 
-	private _pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.ValidAnnotatedEditOperation[], cursorStateComputer: model.ICursorStateComputer | null): Selection[] | null {
-		if (this._options.trimAutoWhitespace && this._trimAutoWhitespaceLines) {
-			// Go through each saved line number and insert a trim whitespace edit
-			// if it is safe to do so (no conflicts with other edits).
+	pwivate _pushEditOpewations(befoweCuwsowState: Sewection[] | nuww, editOpewations: modew.VawidAnnotatedEditOpewation[], cuwsowStateComputa: modew.ICuwsowStateComputa | nuww): Sewection[] | nuww {
+		if (this._options.twimAutoWhitespace && this._twimAutoWhitespaceWines) {
+			// Go thwough each saved wine numba and insewt a twim whitespace edit
+			// if it is safe to do so (no confwicts with otha edits).
 
-			let incomingEdits = editOperations.map((op) => {
-				return {
-					range: this.validateRange(op.range),
+			wet incomingEdits = editOpewations.map((op) => {
+				wetuwn {
+					wange: this.vawidateWange(op.wange),
 					text: op.text
 				};
 			});
 
-			// Sometimes, auto-formatters change ranges automatically which can cause undesired auto whitespace trimming near the cursor
-			// We'll use the following heuristic: if the edits occur near the cursor, then it's ok to trim auto whitespace
-			let editsAreNearCursors = true;
-			if (beforeCursorState) {
-				for (let i = 0, len = beforeCursorState.length; i < len; i++) {
-					let sel = beforeCursorState[i];
-					let foundEditNearSel = false;
-					for (let j = 0, lenJ = incomingEdits.length; j < lenJ; j++) {
-						let editRange = incomingEdits[j].range;
-						let selIsAbove = editRange.startLineNumber > sel.endLineNumber;
-						let selIsBelow = sel.startLineNumber > editRange.endLineNumber;
-						if (!selIsAbove && !selIsBelow) {
-							foundEditNearSel = true;
-							break;
+			// Sometimes, auto-fowmattews change wanges automaticawwy which can cause undesiwed auto whitespace twimming neaw the cuwsow
+			// We'ww use the fowwowing heuwistic: if the edits occuw neaw the cuwsow, then it's ok to twim auto whitespace
+			wet editsAweNeawCuwsows = twue;
+			if (befoweCuwsowState) {
+				fow (wet i = 0, wen = befoweCuwsowState.wength; i < wen; i++) {
+					wet sew = befoweCuwsowState[i];
+					wet foundEditNeawSew = fawse;
+					fow (wet j = 0, wenJ = incomingEdits.wength; j < wenJ; j++) {
+						wet editWange = incomingEdits[j].wange;
+						wet sewIsAbove = editWange.stawtWineNumba > sew.endWineNumba;
+						wet sewIsBewow = sew.stawtWineNumba > editWange.endWineNumba;
+						if (!sewIsAbove && !sewIsBewow) {
+							foundEditNeawSew = twue;
+							bweak;
 						}
 					}
-					if (!foundEditNearSel) {
-						editsAreNearCursors = false;
-						break;
+					if (!foundEditNeawSew) {
+						editsAweNeawCuwsows = fawse;
+						bweak;
 					}
 				}
 			}
 
-			if (editsAreNearCursors) {
-				for (let i = 0, len = this._trimAutoWhitespaceLines.length; i < len; i++) {
-					let trimLineNumber = this._trimAutoWhitespaceLines[i];
-					let maxLineColumn = this.getLineMaxColumn(trimLineNumber);
+			if (editsAweNeawCuwsows) {
+				fow (wet i = 0, wen = this._twimAutoWhitespaceWines.wength; i < wen; i++) {
+					wet twimWineNumba = this._twimAutoWhitespaceWines[i];
+					wet maxWineCowumn = this.getWineMaxCowumn(twimWineNumba);
 
-					let allowTrimLine = true;
-					for (let j = 0, lenJ = incomingEdits.length; j < lenJ; j++) {
-						let editRange = incomingEdits[j].range;
-						let editText = incomingEdits[j].text;
+					wet awwowTwimWine = twue;
+					fow (wet j = 0, wenJ = incomingEdits.wength; j < wenJ; j++) {
+						wet editWange = incomingEdits[j].wange;
+						wet editText = incomingEdits[j].text;
 
-						if (trimLineNumber < editRange.startLineNumber || trimLineNumber > editRange.endLineNumber) {
-							// `trimLine` is completely outside this edit
+						if (twimWineNumba < editWange.stawtWineNumba || twimWineNumba > editWange.endWineNumba) {
+							// `twimWine` is compwetewy outside this edit
 							continue;
 						}
 
 						// At this point:
-						//   editRange.startLineNumber <= trimLine <= editRange.endLineNumber
+						//   editWange.stawtWineNumba <= twimWine <= editWange.endWineNumba
 
 						if (
-							trimLineNumber === editRange.startLineNumber && editRange.startColumn === maxLineColumn
-							&& editRange.isEmpty() && editText && editText.length > 0 && editText.charAt(0) === '\n'
+							twimWineNumba === editWange.stawtWineNumba && editWange.stawtCowumn === maxWineCowumn
+							&& editWange.isEmpty() && editText && editText.wength > 0 && editText.chawAt(0) === '\n'
 						) {
-							// This edit inserts a new line (and maybe other text) after `trimLine`
+							// This edit insewts a new wine (and maybe otha text) afta `twimWine`
 							continue;
 						}
 
 						if (
-							trimLineNumber === editRange.startLineNumber && editRange.startColumn === 1
-							&& editRange.isEmpty() && editText && editText.length > 0 && editText.charAt(editText.length - 1) === '\n'
+							twimWineNumba === editWange.stawtWineNumba && editWange.stawtCowumn === 1
+							&& editWange.isEmpty() && editText && editText.wength > 0 && editText.chawAt(editText.wength - 1) === '\n'
 						) {
-							// This edit inserts a new line (and maybe other text) before `trimLine`
+							// This edit insewts a new wine (and maybe otha text) befowe `twimWine`
 							continue;
 						}
 
-						// Looks like we can't trim this line as it would interfere with an incoming edit
-						allowTrimLine = false;
-						break;
+						// Wooks wike we can't twim this wine as it wouwd intewfewe with an incoming edit
+						awwowTwimWine = fawse;
+						bweak;
 					}
 
-					if (allowTrimLine) {
-						const trimRange = new Range(trimLineNumber, 1, trimLineNumber, maxLineColumn);
-						editOperations.push(new model.ValidAnnotatedEditOperation(null, trimRange, null, false, false, false));
+					if (awwowTwimWine) {
+						const twimWange = new Wange(twimWineNumba, 1, twimWineNumba, maxWineCowumn);
+						editOpewations.push(new modew.VawidAnnotatedEditOpewation(nuww, twimWange, nuww, fawse, fawse, fawse));
 					}
 
 				}
 			}
 
-			this._trimAutoWhitespaceLines = null;
+			this._twimAutoWhitespaceWines = nuww;
 		}
-		if (this._initialUndoRedoSnapshot === null) {
-			this._initialUndoRedoSnapshot = this._undoRedoService.createSnapshot(this.uri);
+		if (this._initiawUndoWedoSnapshot === nuww) {
+			this._initiawUndoWedoSnapshot = this._undoWedoSewvice.cweateSnapshot(this.uwi);
 		}
-		return this._commandManager.pushEditOperation(beforeCursorState, editOperations, cursorStateComputer);
+		wetuwn this._commandManaga.pushEditOpewation(befoweCuwsowState, editOpewations, cuwsowStateComputa);
 	}
 
-	_applyUndo(changes: TextChange[], eol: model.EndOfLineSequence, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void {
-		const edits = changes.map<model.IIdentifiedSingleEditOperation>((change) => {
-			const rangeStart = this.getPositionAt(change.newPosition);
-			const rangeEnd = this.getPositionAt(change.newEnd);
-			return {
-				range: new Range(rangeStart.lineNumber, rangeStart.column, rangeEnd.lineNumber, rangeEnd.column),
-				text: change.oldText
+	_appwyUndo(changes: TextChange[], eow: modew.EndOfWineSequence, wesuwtingAwtewnativeVewsionId: numba, wesuwtingSewection: Sewection[] | nuww): void {
+		const edits = changes.map<modew.IIdentifiedSingweEditOpewation>((change) => {
+			const wangeStawt = this.getPositionAt(change.newPosition);
+			const wangeEnd = this.getPositionAt(change.newEnd);
+			wetuwn {
+				wange: new Wange(wangeStawt.wineNumba, wangeStawt.cowumn, wangeEnd.wineNumba, wangeEnd.cowumn),
+				text: change.owdText
 			};
 		});
-		this._applyUndoRedoEdits(edits, eol, true, false, resultingAlternativeVersionId, resultingSelection);
+		this._appwyUndoWedoEdits(edits, eow, twue, fawse, wesuwtingAwtewnativeVewsionId, wesuwtingSewection);
 	}
 
-	_applyRedo(changes: TextChange[], eol: model.EndOfLineSequence, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void {
-		const edits = changes.map<model.IIdentifiedSingleEditOperation>((change) => {
-			const rangeStart = this.getPositionAt(change.oldPosition);
-			const rangeEnd = this.getPositionAt(change.oldEnd);
-			return {
-				range: new Range(rangeStart.lineNumber, rangeStart.column, rangeEnd.lineNumber, rangeEnd.column),
+	_appwyWedo(changes: TextChange[], eow: modew.EndOfWineSequence, wesuwtingAwtewnativeVewsionId: numba, wesuwtingSewection: Sewection[] | nuww): void {
+		const edits = changes.map<modew.IIdentifiedSingweEditOpewation>((change) => {
+			const wangeStawt = this.getPositionAt(change.owdPosition);
+			const wangeEnd = this.getPositionAt(change.owdEnd);
+			wetuwn {
+				wange: new Wange(wangeStawt.wineNumba, wangeStawt.cowumn, wangeEnd.wineNumba, wangeEnd.cowumn),
 				text: change.newText
 			};
 		});
-		this._applyUndoRedoEdits(edits, eol, false, true, resultingAlternativeVersionId, resultingSelection);
+		this._appwyUndoWedoEdits(edits, eow, fawse, twue, wesuwtingAwtewnativeVewsionId, wesuwtingSewection);
 	}
 
-	private _applyUndoRedoEdits(edits: model.IIdentifiedSingleEditOperation[], eol: model.EndOfLineSequence, isUndoing: boolean, isRedoing: boolean, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void {
-		try {
-			this._onDidChangeDecorations.beginDeferredEmit();
-			this._eventEmitter.beginDeferredEmit();
+	pwivate _appwyUndoWedoEdits(edits: modew.IIdentifiedSingweEditOpewation[], eow: modew.EndOfWineSequence, isUndoing: boowean, isWedoing: boowean, wesuwtingAwtewnativeVewsionId: numba, wesuwtingSewection: Sewection[] | nuww): void {
+		twy {
+			this._onDidChangeDecowations.beginDefewwedEmit();
+			this._eventEmitta.beginDefewwedEmit();
 			this._isUndoing = isUndoing;
-			this._isRedoing = isRedoing;
-			this.applyEdits(edits, false);
-			this.setEOL(eol);
-			this._overwriteAlternativeVersionId(resultingAlternativeVersionId);
-		} finally {
-			this._isUndoing = false;
-			this._isRedoing = false;
-			this._eventEmitter.endDeferredEmit(resultingSelection);
-			this._onDidChangeDecorations.endDeferredEmit();
+			this._isWedoing = isWedoing;
+			this.appwyEdits(edits, fawse);
+			this.setEOW(eow);
+			this._ovewwwiteAwtewnativeVewsionId(wesuwtingAwtewnativeVewsionId);
+		} finawwy {
+			this._isUndoing = fawse;
+			this._isWedoing = fawse;
+			this._eventEmitta.endDefewwedEmit(wesuwtingSewection);
+			this._onDidChangeDecowations.endDefewwedEmit();
 		}
 	}
 
-	public applyEdits(operations: model.IIdentifiedSingleEditOperation[]): void;
-	public applyEdits(operations: model.IIdentifiedSingleEditOperation[], computeUndoEdits: false): void;
-	public applyEdits(operations: model.IIdentifiedSingleEditOperation[], computeUndoEdits: true): model.IValidEditOperation[];
-	public applyEdits(rawOperations: model.IIdentifiedSingleEditOperation[], computeUndoEdits: boolean = false): void | model.IValidEditOperation[] {
-		try {
-			this._onDidChangeDecorations.beginDeferredEmit();
-			this._eventEmitter.beginDeferredEmit();
-			const operations = this._validateEditOperations(rawOperations);
-			return this._doApplyEdits(operations, computeUndoEdits);
-		} finally {
-			this._eventEmitter.endDeferredEmit();
-			this._onDidChangeDecorations.endDeferredEmit();
+	pubwic appwyEdits(opewations: modew.IIdentifiedSingweEditOpewation[]): void;
+	pubwic appwyEdits(opewations: modew.IIdentifiedSingweEditOpewation[], computeUndoEdits: fawse): void;
+	pubwic appwyEdits(opewations: modew.IIdentifiedSingweEditOpewation[], computeUndoEdits: twue): modew.IVawidEditOpewation[];
+	pubwic appwyEdits(wawOpewations: modew.IIdentifiedSingweEditOpewation[], computeUndoEdits: boowean = fawse): void | modew.IVawidEditOpewation[] {
+		twy {
+			this._onDidChangeDecowations.beginDefewwedEmit();
+			this._eventEmitta.beginDefewwedEmit();
+			const opewations = this._vawidateEditOpewations(wawOpewations);
+			wetuwn this._doAppwyEdits(opewations, computeUndoEdits);
+		} finawwy {
+			this._eventEmitta.endDefewwedEmit();
+			this._onDidChangeDecowations.endDefewwedEmit();
 		}
 	}
 
-	private _doApplyEdits(rawOperations: model.ValidAnnotatedEditOperation[], computeUndoEdits: boolean): void | model.IValidEditOperation[] {
+	pwivate _doAppwyEdits(wawOpewations: modew.VawidAnnotatedEditOpewation[], computeUndoEdits: boowean): void | modew.IVawidEditOpewation[] {
 
-		const oldLineCount = this._buffer.getLineCount();
-		const result = this._buffer.applyEdits(rawOperations, this._options.trimAutoWhitespace, computeUndoEdits);
-		const newLineCount = this._buffer.getLineCount();
+		const owdWineCount = this._buffa.getWineCount();
+		const wesuwt = this._buffa.appwyEdits(wawOpewations, this._options.twimAutoWhitespace, computeUndoEdits);
+		const newWineCount = this._buffa.getWineCount();
 
-		const contentChanges = result.changes;
-		this._trimAutoWhitespaceLines = result.trimAutoWhitespaceLineNumbers;
+		const contentChanges = wesuwt.changes;
+		this._twimAutoWhitespaceWines = wesuwt.twimAutoWhitespaceWineNumbews;
 
-		if (contentChanges.length !== 0) {
-			// We do a first pass to update tokens and decorations
-			// because we want to read decorations in the second pass
-			// where we will emit content change events
-			// and we want to read the final decorations
-			for (let i = 0, len = contentChanges.length; i < len; i++) {
+		if (contentChanges.wength !== 0) {
+			// We do a fiwst pass to update tokens and decowations
+			// because we want to wead decowations in the second pass
+			// whewe we wiww emit content change events
+			// and we want to wead the finaw decowations
+			fow (wet i = 0, wen = contentChanges.wength; i < wen; i++) {
 				const change = contentChanges[i];
-				const [eolCount, firstLineLength, lastLineLength] = countEOL(change.text);
-				this._tokens.acceptEdit(change.range, eolCount, firstLineLength);
-				this._tokens2.acceptEdit(change.range, eolCount, firstLineLength, lastLineLength, change.text.length > 0 ? change.text.charCodeAt(0) : CharCode.Null);
-				this._decorationsTree.acceptReplace(change.rangeOffset, change.rangeLength, change.text.length, change.forceMoveMarkers);
+				const [eowCount, fiwstWineWength, wastWineWength] = countEOW(change.text);
+				this._tokens.acceptEdit(change.wange, eowCount, fiwstWineWength);
+				this._tokens2.acceptEdit(change.wange, eowCount, fiwstWineWength, wastWineWength, change.text.wength > 0 ? change.text.chawCodeAt(0) : ChawCode.Nuww);
+				this._decowationsTwee.acceptWepwace(change.wangeOffset, change.wangeWength, change.text.wength, change.fowceMoveMawkews);
 			}
 
-			let rawContentChanges: ModelRawChange[] = [];
+			wet wawContentChanges: ModewWawChange[] = [];
 
-			this._increaseVersionId();
+			this._incweaseVewsionId();
 
-			let lineCount = oldLineCount;
-			for (let i = 0, len = contentChanges.length; i < len; i++) {
+			wet wineCount = owdWineCount;
+			fow (wet i = 0, wen = contentChanges.wength; i < wen; i++) {
 				const change = contentChanges[i];
-				const [eolCount] = countEOL(change.text);
-				this._onDidChangeDecorations.fire();
+				const [eowCount] = countEOW(change.text);
+				this._onDidChangeDecowations.fiwe();
 
-				const startLineNumber = change.range.startLineNumber;
-				const endLineNumber = change.range.endLineNumber;
+				const stawtWineNumba = change.wange.stawtWineNumba;
+				const endWineNumba = change.wange.endWineNumba;
 
-				const deletingLinesCnt = endLineNumber - startLineNumber;
-				const insertingLinesCnt = eolCount;
-				const editingLinesCnt = Math.min(deletingLinesCnt, insertingLinesCnt);
+				const dewetingWinesCnt = endWineNumba - stawtWineNumba;
+				const insewtingWinesCnt = eowCount;
+				const editingWinesCnt = Math.min(dewetingWinesCnt, insewtingWinesCnt);
 
-				const changeLineCountDelta = (insertingLinesCnt - deletingLinesCnt);
+				const changeWineCountDewta = (insewtingWinesCnt - dewetingWinesCnt);
 
-				const currentEditStartLineNumber = newLineCount - lineCount - changeLineCountDelta + startLineNumber;
-				const firstEditLineNumber = currentEditStartLineNumber;
-				const lastInsertedLineNumber = currentEditStartLineNumber + insertingLinesCnt;
+				const cuwwentEditStawtWineNumba = newWineCount - wineCount - changeWineCountDewta + stawtWineNumba;
+				const fiwstEditWineNumba = cuwwentEditStawtWineNumba;
+				const wastInsewtedWineNumba = cuwwentEditStawtWineNumba + insewtingWinesCnt;
 
-				const decorationsWithInjectedTextInEditedRange = this._decorationsTree.getInjectedTextInInterval(
+				const decowationsWithInjectedTextInEditedWange = this._decowationsTwee.getInjectedTextInIntewvaw(
 					this,
-					this.getOffsetAt(new Position(firstEditLineNumber, 1)),
-					this.getOffsetAt(new Position(lastInsertedLineNumber, this.getLineMaxColumn(lastInsertedLineNumber))),
+					this.getOffsetAt(new Position(fiwstEditWineNumba, 1)),
+					this.getOffsetAt(new Position(wastInsewtedWineNumba, this.getWineMaxCowumn(wastInsewtedWineNumba))),
 					0
 				);
 
 
-				const injectedTextInEditedRange = LineInjectedText.fromDecorations(decorationsWithInjectedTextInEditedRange);
-				const injectedTextInEditedRangeQueue = new ArrayQueue(injectedTextInEditedRange);
+				const injectedTextInEditedWange = WineInjectedText.fwomDecowations(decowationsWithInjectedTextInEditedWange);
+				const injectedTextInEditedWangeQueue = new AwwayQueue(injectedTextInEditedWange);
 
-				for (let j = editingLinesCnt; j >= 0; j--) {
-					const editLineNumber = startLineNumber + j;
-					const currentEditLineNumber = currentEditStartLineNumber + j;
+				fow (wet j = editingWinesCnt; j >= 0; j--) {
+					const editWineNumba = stawtWineNumba + j;
+					const cuwwentEditWineNumba = cuwwentEditStawtWineNumba + j;
 
-					injectedTextInEditedRangeQueue.takeFromEndWhile(r => r.lineNumber > currentEditLineNumber);
-					const decorationsInCurrentLine = injectedTextInEditedRangeQueue.takeFromEndWhile(r => r.lineNumber === currentEditLineNumber);
+					injectedTextInEditedWangeQueue.takeFwomEndWhiwe(w => w.wineNumba > cuwwentEditWineNumba);
+					const decowationsInCuwwentWine = injectedTextInEditedWangeQueue.takeFwomEndWhiwe(w => w.wineNumba === cuwwentEditWineNumba);
 
-					rawContentChanges.push(
-						new ModelRawLineChanged(
-							editLineNumber,
-							this.getLineContent(currentEditLineNumber),
-							decorationsInCurrentLine
+					wawContentChanges.push(
+						new ModewWawWineChanged(
+							editWineNumba,
+							this.getWineContent(cuwwentEditWineNumba),
+							decowationsInCuwwentWine
 						));
 				}
 
-				if (editingLinesCnt < deletingLinesCnt) {
-					// Must delete some lines
-					const spliceStartLineNumber = startLineNumber + editingLinesCnt;
-					rawContentChanges.push(new ModelRawLinesDeleted(spliceStartLineNumber + 1, endLineNumber));
+				if (editingWinesCnt < dewetingWinesCnt) {
+					// Must dewete some wines
+					const spwiceStawtWineNumba = stawtWineNumba + editingWinesCnt;
+					wawContentChanges.push(new ModewWawWinesDeweted(spwiceStawtWineNumba + 1, endWineNumba));
 				}
 
-				if (editingLinesCnt < insertingLinesCnt) {
-					const injectedTextInEditedRangeQueue = new ArrayQueue(injectedTextInEditedRange);
-					// Must insert some lines
-					const spliceLineNumber = startLineNumber + editingLinesCnt;
-					const cnt = insertingLinesCnt - editingLinesCnt;
-					const fromLineNumber = newLineCount - lineCount - cnt + spliceLineNumber + 1;
-					let injectedTexts: (LineInjectedText[] | null)[] = [];
-					let newLines: string[] = [];
-					for (let i = 0; i < cnt; i++) {
-						let lineNumber = fromLineNumber + i;
-						newLines[i] = this.getLineContent(lineNumber);
+				if (editingWinesCnt < insewtingWinesCnt) {
+					const injectedTextInEditedWangeQueue = new AwwayQueue(injectedTextInEditedWange);
+					// Must insewt some wines
+					const spwiceWineNumba = stawtWineNumba + editingWinesCnt;
+					const cnt = insewtingWinesCnt - editingWinesCnt;
+					const fwomWineNumba = newWineCount - wineCount - cnt + spwiceWineNumba + 1;
+					wet injectedTexts: (WineInjectedText[] | nuww)[] = [];
+					wet newWines: stwing[] = [];
+					fow (wet i = 0; i < cnt; i++) {
+						wet wineNumba = fwomWineNumba + i;
+						newWines[i] = this.getWineContent(wineNumba);
 
-						injectedTextInEditedRangeQueue.takeWhile(r => r.lineNumber < lineNumber);
-						injectedTexts[i] = injectedTextInEditedRangeQueue.takeWhile(r => r.lineNumber === lineNumber);
+						injectedTextInEditedWangeQueue.takeWhiwe(w => w.wineNumba < wineNumba);
+						injectedTexts[i] = injectedTextInEditedWangeQueue.takeWhiwe(w => w.wineNumba === wineNumba);
 					}
 
-					rawContentChanges.push(
-						new ModelRawLinesInserted(
-							spliceLineNumber + 1,
-							startLineNumber + insertingLinesCnt,
-							newLines,
+					wawContentChanges.push(
+						new ModewWawWinesInsewted(
+							spwiceWineNumba + 1,
+							stawtWineNumba + insewtingWinesCnt,
+							newWines,
 							injectedTexts
 						)
 					);
 				}
 
-				lineCount += changeLineCountDelta;
+				wineCount += changeWineCountDewta;
 			}
 
 			this._emitContentChangedEvent(
-				new ModelRawContentChangedEvent(
-					rawContentChanges,
-					this.getVersionId(),
+				new ModewWawContentChangedEvent(
+					wawContentChanges,
+					this.getVewsionId(),
 					this._isUndoing,
-					this._isRedoing
+					this._isWedoing
 				),
 				{
 					changes: contentChanges,
-					eol: this._buffer.getEOL(),
-					versionId: this.getVersionId(),
+					eow: this._buffa.getEOW(),
+					vewsionId: this.getVewsionId(),
 					isUndoing: this._isUndoing,
-					isRedoing: this._isRedoing,
-					isFlush: false
+					isWedoing: this._isWedoing,
+					isFwush: fawse
 				}
 			);
 		}
 
-		return (result.reverseEdits === null ? undefined : result.reverseEdits);
+		wetuwn (wesuwt.wevewseEdits === nuww ? undefined : wesuwt.wevewseEdits);
 	}
 
-	public undo(): void | Promise<void> {
-		return this._undoRedoService.undo(this.uri);
+	pubwic undo(): void | Pwomise<void> {
+		wetuwn this._undoWedoSewvice.undo(this.uwi);
 	}
 
-	public canUndo(): boolean {
-		return this._undoRedoService.canUndo(this.uri);
+	pubwic canUndo(): boowean {
+		wetuwn this._undoWedoSewvice.canUndo(this.uwi);
 	}
 
-	public redo(): void | Promise<void> {
-		return this._undoRedoService.redo(this.uri);
+	pubwic wedo(): void | Pwomise<void> {
+		wetuwn this._undoWedoSewvice.wedo(this.uwi);
 	}
 
-	public canRedo(): boolean {
-		return this._undoRedoService.canRedo(this.uri);
+	pubwic canWedo(): boowean {
+		wetuwn this._undoWedoSewvice.canWedo(this.uwi);
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Decorations
+	//#wegion Decowations
 
-	private handleBeforeFireDecorationsChangedEvent(affectedInjectedTextLines: Set<number> | null): void {
-		// This is called before the decoration changed event is fired.
+	pwivate handweBefoweFiweDecowationsChangedEvent(affectedInjectedTextWines: Set<numba> | nuww): void {
+		// This is cawwed befowe the decowation changed event is fiwed.
 
-		if (affectedInjectedTextLines === null || affectedInjectedTextLines.size === 0) {
-			return;
+		if (affectedInjectedTextWines === nuww || affectedInjectedTextWines.size === 0) {
+			wetuwn;
 		}
 
-		const affectedLines = [...affectedInjectedTextLines];
-		const lineChangeEvents = affectedLines.map(lineNumber => new ModelRawLineChanged(lineNumber, this.getLineContent(lineNumber), this._getInjectedTextInLine(lineNumber)));
+		const affectedWines = [...affectedInjectedTextWines];
+		const wineChangeEvents = affectedWines.map(wineNumba => new ModewWawWineChanged(wineNumba, this.getWineContent(wineNumba), this._getInjectedTextInWine(wineNumba)));
 
-		this._onDidChangeContentOrInjectedText.fire(new ModelInjectedTextChangedEvent(lineChangeEvents));
+		this._onDidChangeContentOwInjectedText.fiwe(new ModewInjectedTextChangedEvent(wineChangeEvents));
 	}
 
-	public changeDecorations<T>(callback: (changeAccessor: model.IModelDecorationsChangeAccessor) => T, ownerId: number = 0): T | null {
-		this._assertNotDisposed();
+	pubwic changeDecowations<T>(cawwback: (changeAccessow: modew.IModewDecowationsChangeAccessow) => T, ownewId: numba = 0): T | nuww {
+		this._assewtNotDisposed();
 
-		try {
-			this._onDidChangeDecorations.beginDeferredEmit();
-			return this._changeDecorations(ownerId, callback);
-		} finally {
-			this._onDidChangeDecorations.endDeferredEmit();
+		twy {
+			this._onDidChangeDecowations.beginDefewwedEmit();
+			wetuwn this._changeDecowations(ownewId, cawwback);
+		} finawwy {
+			this._onDidChangeDecowations.endDefewwedEmit();
 		}
 	}
 
-	private _changeDecorations<T>(ownerId: number, callback: (changeAccessor: model.IModelDecorationsChangeAccessor) => T): T | null {
-		let changeAccessor: model.IModelDecorationsChangeAccessor = {
-			addDecoration: (range: IRange, options: model.IModelDecorationOptions): string => {
-				return this._deltaDecorationsImpl(ownerId, [], [{ range: range, options: options }])[0];
+	pwivate _changeDecowations<T>(ownewId: numba, cawwback: (changeAccessow: modew.IModewDecowationsChangeAccessow) => T): T | nuww {
+		wet changeAccessow: modew.IModewDecowationsChangeAccessow = {
+			addDecowation: (wange: IWange, options: modew.IModewDecowationOptions): stwing => {
+				wetuwn this._dewtaDecowationsImpw(ownewId, [], [{ wange: wange, options: options }])[0];
 			},
-			changeDecoration: (id: string, newRange: IRange): void => {
-				this._changeDecorationImpl(id, newRange);
+			changeDecowation: (id: stwing, newWange: IWange): void => {
+				this._changeDecowationImpw(id, newWange);
 			},
-			changeDecorationOptions: (id: string, options: model.IModelDecorationOptions) => {
-				this._changeDecorationOptionsImpl(id, _normalizeOptions(options));
+			changeDecowationOptions: (id: stwing, options: modew.IModewDecowationOptions) => {
+				this._changeDecowationOptionsImpw(id, _nowmawizeOptions(options));
 			},
-			removeDecoration: (id: string): void => {
-				this._deltaDecorationsImpl(ownerId, [id], []);
+			wemoveDecowation: (id: stwing): void => {
+				this._dewtaDecowationsImpw(ownewId, [id], []);
 			},
-			deltaDecorations: (oldDecorations: string[], newDecorations: model.IModelDeltaDecoration[]): string[] => {
-				if (oldDecorations.length === 0 && newDecorations.length === 0) {
+			dewtaDecowations: (owdDecowations: stwing[], newDecowations: modew.IModewDewtaDecowation[]): stwing[] => {
+				if (owdDecowations.wength === 0 && newDecowations.wength === 0) {
 					// nothing to do
-					return [];
+					wetuwn [];
 				}
-				return this._deltaDecorationsImpl(ownerId, oldDecorations, newDecorations);
+				wetuwn this._dewtaDecowationsImpw(ownewId, owdDecowations, newDecowations);
 			}
 		};
-		let result: T | null = null;
-		try {
-			result = callback(changeAccessor);
+		wet wesuwt: T | nuww = nuww;
+		twy {
+			wesuwt = cawwback(changeAccessow);
 		} catch (e) {
-			onUnexpectedError(e);
+			onUnexpectedEwwow(e);
 		}
-		// Invalidate change accessor
-		changeAccessor.addDecoration = invalidFunc;
-		changeAccessor.changeDecoration = invalidFunc;
-		changeAccessor.changeDecorationOptions = invalidFunc;
-		changeAccessor.removeDecoration = invalidFunc;
-		changeAccessor.deltaDecorations = invalidFunc;
-		return result;
+		// Invawidate change accessow
+		changeAccessow.addDecowation = invawidFunc;
+		changeAccessow.changeDecowation = invawidFunc;
+		changeAccessow.changeDecowationOptions = invawidFunc;
+		changeAccessow.wemoveDecowation = invawidFunc;
+		changeAccessow.dewtaDecowations = invawidFunc;
+		wetuwn wesuwt;
 	}
 
-	public deltaDecorations(oldDecorations: string[], newDecorations: model.IModelDeltaDecoration[], ownerId: number = 0): string[] {
-		this._assertNotDisposed();
-		if (!oldDecorations) {
-			oldDecorations = [];
+	pubwic dewtaDecowations(owdDecowations: stwing[], newDecowations: modew.IModewDewtaDecowation[], ownewId: numba = 0): stwing[] {
+		this._assewtNotDisposed();
+		if (!owdDecowations) {
+			owdDecowations = [];
 		}
-		if (oldDecorations.length === 0 && newDecorations.length === 0) {
+		if (owdDecowations.wength === 0 && newDecowations.wength === 0) {
 			// nothing to do
-			return [];
+			wetuwn [];
 		}
 
-		try {
-			this._onDidChangeDecorations.beginDeferredEmit();
-			return this._deltaDecorationsImpl(ownerId, oldDecorations, newDecorations);
-		} finally {
-			this._onDidChangeDecorations.endDeferredEmit();
+		twy {
+			this._onDidChangeDecowations.beginDefewwedEmit();
+			wetuwn this._dewtaDecowationsImpw(ownewId, owdDecowations, newDecowations);
+		} finawwy {
+			this._onDidChangeDecowations.endDefewwedEmit();
 		}
 	}
 
-	_getTrackedRange(id: string): Range | null {
-		return this.getDecorationRange(id);
+	_getTwackedWange(id: stwing): Wange | nuww {
+		wetuwn this.getDecowationWange(id);
 	}
 
-	_setTrackedRange(id: string | null, newRange: null, newStickiness: model.TrackedRangeStickiness): null;
-	_setTrackedRange(id: string | null, newRange: Range, newStickiness: model.TrackedRangeStickiness): string;
-	_setTrackedRange(id: string | null, newRange: Range | null, newStickiness: model.TrackedRangeStickiness): string | null {
-		const node = (id ? this._decorations[id] : null);
+	_setTwackedWange(id: stwing | nuww, newWange: nuww, newStickiness: modew.TwackedWangeStickiness): nuww;
+	_setTwackedWange(id: stwing | nuww, newWange: Wange, newStickiness: modew.TwackedWangeStickiness): stwing;
+	_setTwackedWange(id: stwing | nuww, newWange: Wange | nuww, newStickiness: modew.TwackedWangeStickiness): stwing | nuww {
+		const node = (id ? this._decowations[id] : nuww);
 
 		if (!node) {
-			if (!newRange) {
-				// node doesn't exist, the request is to delete => nothing to do
-				return null;
+			if (!newWange) {
+				// node doesn't exist, the wequest is to dewete => nothing to do
+				wetuwn nuww;
 			}
-			// node doesn't exist, the request is to set => add the tracked range
-			return this._deltaDecorationsImpl(0, [], [{ range: newRange, options: TRACKED_RANGE_OPTIONS[newStickiness] }])[0];
+			// node doesn't exist, the wequest is to set => add the twacked wange
+			wetuwn this._dewtaDecowationsImpw(0, [], [{ wange: newWange, options: TWACKED_WANGE_OPTIONS[newStickiness] }])[0];
 		}
 
-		if (!newRange) {
-			// node exists, the request is to delete => delete node
-			this._decorationsTree.delete(node);
-			delete this._decorations[node.id];
-			return null;
+		if (!newWange) {
+			// node exists, the wequest is to dewete => dewete node
+			this._decowationsTwee.dewete(node);
+			dewete this._decowations[node.id];
+			wetuwn nuww;
 		}
 
-		// node exists, the request is to set => change the tracked range and its options
-		const range = this._validateRangeRelaxedNoAllocations(newRange);
-		const startOffset = this._buffer.getOffsetAt(range.startLineNumber, range.startColumn);
-		const endOffset = this._buffer.getOffsetAt(range.endLineNumber, range.endColumn);
-		this._decorationsTree.delete(node);
-		node.reset(this.getVersionId(), startOffset, endOffset, range);
-		node.setOptions(TRACKED_RANGE_OPTIONS[newStickiness]);
-		this._decorationsTree.insert(node);
-		return node.id;
+		// node exists, the wequest is to set => change the twacked wange and its options
+		const wange = this._vawidateWangeWewaxedNoAwwocations(newWange);
+		const stawtOffset = this._buffa.getOffsetAt(wange.stawtWineNumba, wange.stawtCowumn);
+		const endOffset = this._buffa.getOffsetAt(wange.endWineNumba, wange.endCowumn);
+		this._decowationsTwee.dewete(node);
+		node.weset(this.getVewsionId(), stawtOffset, endOffset, wange);
+		node.setOptions(TWACKED_WANGE_OPTIONS[newStickiness]);
+		this._decowationsTwee.insewt(node);
+		wetuwn node.id;
 	}
 
-	public removeAllDecorationsWithOwnerId(ownerId: number): void {
+	pubwic wemoveAwwDecowationsWithOwnewId(ownewId: numba): void {
 		if (this._isDisposed) {
-			return;
+			wetuwn;
 		}
-		const nodes = this._decorationsTree.collectNodesFromOwner(ownerId);
-		for (let i = 0, len = nodes.length; i < len; i++) {
+		const nodes = this._decowationsTwee.cowwectNodesFwomOwna(ownewId);
+		fow (wet i = 0, wen = nodes.wength; i < wen; i++) {
 			const node = nodes[i];
 
-			this._decorationsTree.delete(node);
-			delete this._decorations[node.id];
+			this._decowationsTwee.dewete(node);
+			dewete this._decowations[node.id];
 		}
 	}
 
-	public getDecorationOptions(decorationId: string): model.IModelDecorationOptions | null {
-		const node = this._decorations[decorationId];
+	pubwic getDecowationOptions(decowationId: stwing): modew.IModewDecowationOptions | nuww {
+		const node = this._decowations[decowationId];
 		if (!node) {
-			return null;
+			wetuwn nuww;
 		}
-		return node.options;
+		wetuwn node.options;
 	}
 
-	public getDecorationRange(decorationId: string): Range | null {
-		const node = this._decorations[decorationId];
+	pubwic getDecowationWange(decowationId: stwing): Wange | nuww {
+		const node = this._decowations[decowationId];
 		if (!node) {
-			return null;
+			wetuwn nuww;
 		}
-		return this._decorationsTree.getNodeRange(this, node);
+		wetuwn this._decowationsTwee.getNodeWange(this, node);
 	}
 
-	public getLineDecorations(lineNumber: number, ownerId: number = 0, filterOutValidation: boolean = false): model.IModelDecoration[] {
-		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			return [];
+	pubwic getWineDecowations(wineNumba: numba, ownewId: numba = 0, fiwtewOutVawidation: boowean = fawse): modew.IModewDecowation[] {
+		if (wineNumba < 1 || wineNumba > this.getWineCount()) {
+			wetuwn [];
 		}
-		return this.getLinesDecorations(lineNumber, lineNumber, ownerId, filterOutValidation);
+		wetuwn this.getWinesDecowations(wineNumba, wineNumba, ownewId, fiwtewOutVawidation);
 	}
 
-	public getLinesDecorations(_startLineNumber: number, _endLineNumber: number, ownerId: number = 0, filterOutValidation: boolean = false): model.IModelDecoration[] {
-		let lineCount = this.getLineCount();
-		let startLineNumber = Math.min(lineCount, Math.max(1, _startLineNumber));
-		let endLineNumber = Math.min(lineCount, Math.max(1, _endLineNumber));
-		let endColumn = this.getLineMaxColumn(endLineNumber);
-		const range = new Range(startLineNumber, 1, endLineNumber, endColumn);
+	pubwic getWinesDecowations(_stawtWineNumba: numba, _endWineNumba: numba, ownewId: numba = 0, fiwtewOutVawidation: boowean = fawse): modew.IModewDecowation[] {
+		wet wineCount = this.getWineCount();
+		wet stawtWineNumba = Math.min(wineCount, Math.max(1, _stawtWineNumba));
+		wet endWineNumba = Math.min(wineCount, Math.max(1, _endWineNumba));
+		wet endCowumn = this.getWineMaxCowumn(endWineNumba);
+		const wange = new Wange(stawtWineNumba, 1, endWineNumba, endCowumn);
 
-		const decorations = this._getDecorationsInRange(range, ownerId, filterOutValidation);
-		decorations.push(...this._decorationProvider.getDecorationsInRange(range, ownerId, filterOutValidation));
-		return decorations;
+		const decowations = this._getDecowationsInWange(wange, ownewId, fiwtewOutVawidation);
+		decowations.push(...this._decowationPwovida.getDecowationsInWange(wange, ownewId, fiwtewOutVawidation));
+		wetuwn decowations;
 	}
 
-	public getDecorationsInRange(range: IRange, ownerId: number = 0, filterOutValidation: boolean = false): model.IModelDecoration[] {
-		let validatedRange = this.validateRange(range);
+	pubwic getDecowationsInWange(wange: IWange, ownewId: numba = 0, fiwtewOutVawidation: boowean = fawse): modew.IModewDecowation[] {
+		wet vawidatedWange = this.vawidateWange(wange);
 
-		const decorations = this._getDecorationsInRange(validatedRange, ownerId, filterOutValidation);
-		decorations.push(...this._decorationProvider.getDecorationsInRange(validatedRange, ownerId, filterOutValidation));
-		return decorations;
+		const decowations = this._getDecowationsInWange(vawidatedWange, ownewId, fiwtewOutVawidation);
+		decowations.push(...this._decowationPwovida.getDecowationsInWange(vawidatedWange, ownewId, fiwtewOutVawidation));
+		wetuwn decowations;
 	}
 
-	public getOverviewRulerDecorations(ownerId: number = 0, filterOutValidation: boolean = false): model.IModelDecoration[] {
-		return this._decorationsTree.getAll(this, ownerId, filterOutValidation, true);
+	pubwic getOvewviewWuwewDecowations(ownewId: numba = 0, fiwtewOutVawidation: boowean = fawse): modew.IModewDecowation[] {
+		wetuwn this._decowationsTwee.getAww(this, ownewId, fiwtewOutVawidation, twue);
 	}
 
-	public getInjectedTextDecorations(ownerId: number = 0): model.IModelDecoration[] {
-		return this._decorationsTree.getAllInjectedText(this, ownerId);
+	pubwic getInjectedTextDecowations(ownewId: numba = 0): modew.IModewDecowation[] {
+		wetuwn this._decowationsTwee.getAwwInjectedText(this, ownewId);
 	}
 
-	private _getInjectedTextInLine(lineNumber: number): LineInjectedText[] {
-		const startOffset = this._buffer.getOffsetAt(lineNumber, 1);
-		const endOffset = startOffset + this._buffer.getLineLength(lineNumber);
+	pwivate _getInjectedTextInWine(wineNumba: numba): WineInjectedText[] {
+		const stawtOffset = this._buffa.getOffsetAt(wineNumba, 1);
+		const endOffset = stawtOffset + this._buffa.getWineWength(wineNumba);
 
-		const result = this._decorationsTree.getInjectedTextInInterval(this, startOffset, endOffset, 0);
-		return LineInjectedText.fromDecorations(result).filter(t => t.lineNumber === lineNumber);
+		const wesuwt = this._decowationsTwee.getInjectedTextInIntewvaw(this, stawtOffset, endOffset, 0);
+		wetuwn WineInjectedText.fwomDecowations(wesuwt).fiwta(t => t.wineNumba === wineNumba);
 	}
 
-	public getAllDecorations(ownerId: number = 0, filterOutValidation: boolean = false): model.IModelDecoration[] {
-		const result = this._decorationsTree.getAll(this, ownerId, filterOutValidation, false);
-		result.push(...this._decorationProvider.getAllDecorations(ownerId, filterOutValidation));
-		return result;
+	pubwic getAwwDecowations(ownewId: numba = 0, fiwtewOutVawidation: boowean = fawse): modew.IModewDecowation[] {
+		const wesuwt = this._decowationsTwee.getAww(this, ownewId, fiwtewOutVawidation, fawse);
+		wesuwt.push(...this._decowationPwovida.getAwwDecowations(ownewId, fiwtewOutVawidation));
+		wetuwn wesuwt;
 	}
 
-	private _getDecorationsInRange(filterRange: Range, filterOwnerId: number, filterOutValidation: boolean): model.IModelDecoration[] {
-		const startOffset = this._buffer.getOffsetAt(filterRange.startLineNumber, filterRange.startColumn);
-		const endOffset = this._buffer.getOffsetAt(filterRange.endLineNumber, filterRange.endColumn);
-		return this._decorationsTree.getAllInInterval(this, startOffset, endOffset, filterOwnerId, filterOutValidation);
+	pwivate _getDecowationsInWange(fiwtewWange: Wange, fiwtewOwnewId: numba, fiwtewOutVawidation: boowean): modew.IModewDecowation[] {
+		const stawtOffset = this._buffa.getOffsetAt(fiwtewWange.stawtWineNumba, fiwtewWange.stawtCowumn);
+		const endOffset = this._buffa.getOffsetAt(fiwtewWange.endWineNumba, fiwtewWange.endCowumn);
+		wetuwn this._decowationsTwee.getAwwInIntewvaw(this, stawtOffset, endOffset, fiwtewOwnewId, fiwtewOutVawidation);
 	}
 
-	public getRangeAt(start: number, end: number): Range {
-		return this._buffer.getRangeAt(start, end - start);
+	pubwic getWangeAt(stawt: numba, end: numba): Wange {
+		wetuwn this._buffa.getWangeAt(stawt, end - stawt);
 	}
 
-	private _changeDecorationImpl(decorationId: string, _range: IRange): void {
-		const node = this._decorations[decorationId];
+	pwivate _changeDecowationImpw(decowationId: stwing, _wange: IWange): void {
+		const node = this._decowations[decowationId];
 		if (!node) {
-			return;
+			wetuwn;
 		}
 
-		if (node.options.after) {
-			const oldRange = this.getDecorationRange(decorationId);
-			this._onDidChangeDecorations.recordLineAffectedByInjectedText(oldRange!.endLineNumber);
+		if (node.options.afta) {
+			const owdWange = this.getDecowationWange(decowationId);
+			this._onDidChangeDecowations.wecowdWineAffectedByInjectedText(owdWange!.endWineNumba);
 		}
-		if (node.options.before) {
-			const oldRange = this.getDecorationRange(decorationId);
-			this._onDidChangeDecorations.recordLineAffectedByInjectedText(oldRange!.startLineNumber);
+		if (node.options.befowe) {
+			const owdWange = this.getDecowationWange(decowationId);
+			this._onDidChangeDecowations.wecowdWineAffectedByInjectedText(owdWange!.stawtWineNumba);
 		}
 
-		const range = this._validateRangeRelaxedNoAllocations(_range);
-		const startOffset = this._buffer.getOffsetAt(range.startLineNumber, range.startColumn);
-		const endOffset = this._buffer.getOffsetAt(range.endLineNumber, range.endColumn);
+		const wange = this._vawidateWangeWewaxedNoAwwocations(_wange);
+		const stawtOffset = this._buffa.getOffsetAt(wange.stawtWineNumba, wange.stawtCowumn);
+		const endOffset = this._buffa.getOffsetAt(wange.endWineNumba, wange.endCowumn);
 
-		this._decorationsTree.delete(node);
-		node.reset(this.getVersionId(), startOffset, endOffset, range);
-		this._decorationsTree.insert(node);
-		this._onDidChangeDecorations.checkAffectedAndFire(node.options);
+		this._decowationsTwee.dewete(node);
+		node.weset(this.getVewsionId(), stawtOffset, endOffset, wange);
+		this._decowationsTwee.insewt(node);
+		this._onDidChangeDecowations.checkAffectedAndFiwe(node.options);
 
-		if (node.options.after) {
-			this._onDidChangeDecorations.recordLineAffectedByInjectedText(range.endLineNumber);
+		if (node.options.afta) {
+			this._onDidChangeDecowations.wecowdWineAffectedByInjectedText(wange.endWineNumba);
 		}
-		if (node.options.before) {
-			this._onDidChangeDecorations.recordLineAffectedByInjectedText(range.startLineNumber);
+		if (node.options.befowe) {
+			this._onDidChangeDecowations.wecowdWineAffectedByInjectedText(wange.stawtWineNumba);
 		}
 	}
 
-	private _changeDecorationOptionsImpl(decorationId: string, options: ModelDecorationOptions): void {
-		const node = this._decorations[decorationId];
+	pwivate _changeDecowationOptionsImpw(decowationId: stwing, options: ModewDecowationOptions): void {
+		const node = this._decowations[decowationId];
 		if (!node) {
-			return;
+			wetuwn;
 		}
 
-		const nodeWasInOverviewRuler = (node.options.overviewRuler && node.options.overviewRuler.color ? true : false);
-		const nodeIsInOverviewRuler = (options.overviewRuler && options.overviewRuler.color ? true : false);
+		const nodeWasInOvewviewWuwa = (node.options.ovewviewWuwa && node.options.ovewviewWuwa.cowow ? twue : fawse);
+		const nodeIsInOvewviewWuwa = (options.ovewviewWuwa && options.ovewviewWuwa.cowow ? twue : fawse);
 
-		this._onDidChangeDecorations.checkAffectedAndFire(node.options);
-		this._onDidChangeDecorations.checkAffectedAndFire(options);
+		this._onDidChangeDecowations.checkAffectedAndFiwe(node.options);
+		this._onDidChangeDecowations.checkAffectedAndFiwe(options);
 
-		if (node.options.after || options.after) {
-			const nodeRange = this._decorationsTree.getNodeRange(this, node);
-			this._onDidChangeDecorations.recordLineAffectedByInjectedText(nodeRange.endLineNumber);
+		if (node.options.afta || options.afta) {
+			const nodeWange = this._decowationsTwee.getNodeWange(this, node);
+			this._onDidChangeDecowations.wecowdWineAffectedByInjectedText(nodeWange.endWineNumba);
 		}
-		if (node.options.before || options.before) {
-			const nodeRange = this._decorationsTree.getNodeRange(this, node);
-			this._onDidChangeDecorations.recordLineAffectedByInjectedText(nodeRange.startLineNumber);
+		if (node.options.befowe || options.befowe) {
+			const nodeWange = this._decowationsTwee.getNodeWange(this, node);
+			this._onDidChangeDecowations.wecowdWineAffectedByInjectedText(nodeWange.stawtWineNumba);
 		}
 
-		if (nodeWasInOverviewRuler !== nodeIsInOverviewRuler) {
-			// Delete + Insert due to an overview ruler status change
-			this._decorationsTree.delete(node);
+		if (nodeWasInOvewviewWuwa !== nodeIsInOvewviewWuwa) {
+			// Dewete + Insewt due to an ovewview wuwa status change
+			this._decowationsTwee.dewete(node);
 			node.setOptions(options);
-			this._decorationsTree.insert(node);
-		} else {
+			this._decowationsTwee.insewt(node);
+		} ewse {
 			node.setOptions(options);
 		}
 	}
 
-	private _deltaDecorationsImpl(ownerId: number, oldDecorationsIds: string[], newDecorations: model.IModelDeltaDecoration[]): string[] {
-		const versionId = this.getVersionId();
+	pwivate _dewtaDecowationsImpw(ownewId: numba, owdDecowationsIds: stwing[], newDecowations: modew.IModewDewtaDecowation[]): stwing[] {
+		const vewsionId = this.getVewsionId();
 
-		const oldDecorationsLen = oldDecorationsIds.length;
-		let oldDecorationIndex = 0;
+		const owdDecowationsWen = owdDecowationsIds.wength;
+		wet owdDecowationIndex = 0;
 
-		const newDecorationsLen = newDecorations.length;
-		let newDecorationIndex = 0;
+		const newDecowationsWen = newDecowations.wength;
+		wet newDecowationIndex = 0;
 
-		let result = new Array<string>(newDecorationsLen);
-		while (oldDecorationIndex < oldDecorationsLen || newDecorationIndex < newDecorationsLen) {
+		wet wesuwt = new Awway<stwing>(newDecowationsWen);
+		whiwe (owdDecowationIndex < owdDecowationsWen || newDecowationIndex < newDecowationsWen) {
 
-			let node: IntervalNode | null = null;
+			wet node: IntewvawNode | nuww = nuww;
 
-			if (oldDecorationIndex < oldDecorationsLen) {
-				// (1) get ourselves an old node
+			if (owdDecowationIndex < owdDecowationsWen) {
+				// (1) get ouwsewves an owd node
 				do {
-					node = this._decorations[oldDecorationsIds[oldDecorationIndex++]];
-				} while (!node && oldDecorationIndex < oldDecorationsLen);
+					node = this._decowations[owdDecowationsIds[owdDecowationIndex++]];
+				} whiwe (!node && owdDecowationIndex < owdDecowationsWen);
 
-				// (2) remove the node from the tree (if it exists)
+				// (2) wemove the node fwom the twee (if it exists)
 				if (node) {
-					if (node.options.after) {
-						const nodeRange = this._decorationsTree.getNodeRange(this, node);
-						this._onDidChangeDecorations.recordLineAffectedByInjectedText(nodeRange.endLineNumber);
+					if (node.options.afta) {
+						const nodeWange = this._decowationsTwee.getNodeWange(this, node);
+						this._onDidChangeDecowations.wecowdWineAffectedByInjectedText(nodeWange.endWineNumba);
 					}
-					if (node.options.before) {
-						const nodeRange = this._decorationsTree.getNodeRange(this, node);
-						this._onDidChangeDecorations.recordLineAffectedByInjectedText(nodeRange.startLineNumber);
+					if (node.options.befowe) {
+						const nodeWange = this._decowationsTwee.getNodeWange(this, node);
+						this._onDidChangeDecowations.wecowdWineAffectedByInjectedText(nodeWange.stawtWineNumba);
 					}
 
-					this._decorationsTree.delete(node);
+					this._decowationsTwee.dewete(node);
 
-					this._onDidChangeDecorations.checkAffectedAndFire(node.options);
+					this._onDidChangeDecowations.checkAffectedAndFiwe(node.options);
 				}
 			}
 
-			if (newDecorationIndex < newDecorationsLen) {
-				// (3) create a new node if necessary
+			if (newDecowationIndex < newDecowationsWen) {
+				// (3) cweate a new node if necessawy
 				if (!node) {
-					const internalDecorationId = (++this._lastDecorationId);
-					const decorationId = `${this._instanceId};${internalDecorationId}`;
-					node = new IntervalNode(decorationId, 0, 0);
-					this._decorations[decorationId] = node;
+					const intewnawDecowationId = (++this._wastDecowationId);
+					const decowationId = `${this._instanceId};${intewnawDecowationId}`;
+					node = new IntewvawNode(decowationId, 0, 0);
+					this._decowations[decowationId] = node;
 				}
 
-				// (4) initialize node
-				const newDecoration = newDecorations[newDecorationIndex];
-				const range = this._validateRangeRelaxedNoAllocations(newDecoration.range);
-				const options = _normalizeOptions(newDecoration.options);
-				const startOffset = this._buffer.getOffsetAt(range.startLineNumber, range.startColumn);
-				const endOffset = this._buffer.getOffsetAt(range.endLineNumber, range.endColumn);
+				// (4) initiawize node
+				const newDecowation = newDecowations[newDecowationIndex];
+				const wange = this._vawidateWangeWewaxedNoAwwocations(newDecowation.wange);
+				const options = _nowmawizeOptions(newDecowation.options);
+				const stawtOffset = this._buffa.getOffsetAt(wange.stawtWineNumba, wange.stawtCowumn);
+				const endOffset = this._buffa.getOffsetAt(wange.endWineNumba, wange.endCowumn);
 
-				node.ownerId = ownerId;
-				node.reset(versionId, startOffset, endOffset, range);
+				node.ownewId = ownewId;
+				node.weset(vewsionId, stawtOffset, endOffset, wange);
 				node.setOptions(options);
 
-				if (node.options.after) {
-					this._onDidChangeDecorations.recordLineAffectedByInjectedText(range.endLineNumber);
+				if (node.options.afta) {
+					this._onDidChangeDecowations.wecowdWineAffectedByInjectedText(wange.endWineNumba);
 				}
-				if (node.options.before) {
-					this._onDidChangeDecorations.recordLineAffectedByInjectedText(range.startLineNumber);
+				if (node.options.befowe) {
+					this._onDidChangeDecowations.wecowdWineAffectedByInjectedText(wange.stawtWineNumba);
 				}
 
-				this._onDidChangeDecorations.checkAffectedAndFire(options);
+				this._onDidChangeDecowations.checkAffectedAndFiwe(options);
 
-				this._decorationsTree.insert(node);
+				this._decowationsTwee.insewt(node);
 
-				result[newDecorationIndex] = node.id;
+				wesuwt[newDecowationIndex] = node.id;
 
-				newDecorationIndex++;
-			} else {
+				newDecowationIndex++;
+			} ewse {
 				if (node) {
-					delete this._decorations[node.id];
+					dewete this._decowations[node.id];
 				}
 			}
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Tokenization
+	//#wegion Tokenization
 
-	public setLineTokens(lineNumber: number, tokens: Uint32Array | ArrayBuffer | null): void {
-		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new Error('Illegal value for lineNumber');
+	pubwic setWineTokens(wineNumba: numba, tokens: Uint32Awway | AwwayBuffa | nuww): void {
+		if (wineNumba < 1 || wineNumba > this.getWineCount()) {
+			thwow new Ewwow('Iwwegaw vawue fow wineNumba');
 		}
 
-		this._tokens.setTokens(this._languageIdentifier.id, lineNumber - 1, this._buffer.getLineLength(lineNumber), tokens, false);
+		this._tokens.setTokens(this._wanguageIdentifia.id, wineNumba - 1, this._buffa.getWineWength(wineNumba), tokens, fawse);
 	}
 
-	public setTokens(tokens: MultilineTokens[], backgroundTokenizationCompleted: boolean = false): void {
-		if (tokens.length !== 0) {
-			let ranges: { fromLineNumber: number; toLineNumber: number; }[] = [];
+	pubwic setTokens(tokens: MuwtiwineTokens[], backgwoundTokenizationCompweted: boowean = fawse): void {
+		if (tokens.wength !== 0) {
+			wet wanges: { fwomWineNumba: numba; toWineNumba: numba; }[] = [];
 
-			for (let i = 0, len = tokens.length; i < len; i++) {
-				const element = tokens[i];
-				let minChangedLineNumber = 0;
-				let maxChangedLineNumber = 0;
-				let hasChange = false;
-				for (let j = 0, lenJ = element.tokens.length; j < lenJ; j++) {
-					const lineNumber = element.startLineNumber + j;
+			fow (wet i = 0, wen = tokens.wength; i < wen; i++) {
+				const ewement = tokens[i];
+				wet minChangedWineNumba = 0;
+				wet maxChangedWineNumba = 0;
+				wet hasChange = fawse;
+				fow (wet j = 0, wenJ = ewement.tokens.wength; j < wenJ; j++) {
+					const wineNumba = ewement.stawtWineNumba + j;
 					if (hasChange) {
-						this._tokens.setTokens(this._languageIdentifier.id, lineNumber - 1, this._buffer.getLineLength(lineNumber), element.tokens[j], false);
-						maxChangedLineNumber = lineNumber;
-					} else {
-						const lineHasChange = this._tokens.setTokens(this._languageIdentifier.id, lineNumber - 1, this._buffer.getLineLength(lineNumber), element.tokens[j], true);
-						if (lineHasChange) {
-							hasChange = true;
-							minChangedLineNumber = lineNumber;
-							maxChangedLineNumber = lineNumber;
+						this._tokens.setTokens(this._wanguageIdentifia.id, wineNumba - 1, this._buffa.getWineWength(wineNumba), ewement.tokens[j], fawse);
+						maxChangedWineNumba = wineNumba;
+					} ewse {
+						const wineHasChange = this._tokens.setTokens(this._wanguageIdentifia.id, wineNumba - 1, this._buffa.getWineWength(wineNumba), ewement.tokens[j], twue);
+						if (wineHasChange) {
+							hasChange = twue;
+							minChangedWineNumba = wineNumba;
+							maxChangedWineNumba = wineNumba;
 						}
 					}
 				}
 				if (hasChange) {
-					ranges.push({ fromLineNumber: minChangedLineNumber, toLineNumber: maxChangedLineNumber });
+					wanges.push({ fwomWineNumba: minChangedWineNumba, toWineNumba: maxChangedWineNumba });
 				}
 			}
 
-			if (ranges.length > 0) {
-				this._emitModelTokensChangedEvent({
-					tokenizationSupportChanged: false,
-					semanticTokensApplied: false,
-					ranges: ranges
+			if (wanges.wength > 0) {
+				this._emitModewTokensChangedEvent({
+					tokenizationSuppowtChanged: fawse,
+					semanticTokensAppwied: fawse,
+					wanges: wanges
 				});
 			}
 		}
-		this.handleTokenizationProgress(backgroundTokenizationCompleted);
+		this.handweTokenizationPwogwess(backgwoundTokenizationCompweted);
 	}
 
-	public setSemanticTokens(tokens: MultilineTokens2[] | null, isComplete: boolean): void {
-		this._tokens2.set(tokens, isComplete);
+	pubwic setSemanticTokens(tokens: MuwtiwineTokens2[] | nuww, isCompwete: boowean): void {
+		this._tokens2.set(tokens, isCompwete);
 
-		this._emitModelTokensChangedEvent({
-			tokenizationSupportChanged: false,
-			semanticTokensApplied: tokens !== null,
-			ranges: [{ fromLineNumber: 1, toLineNumber: this.getLineCount() }]
+		this._emitModewTokensChangedEvent({
+			tokenizationSuppowtChanged: fawse,
+			semanticTokensAppwied: tokens !== nuww,
+			wanges: [{ fwomWineNumba: 1, toWineNumba: this.getWineCount() }]
 		});
 	}
 
-	public hasCompleteSemanticTokens(): boolean {
-		return this._tokens2.isComplete();
+	pubwic hasCompweteSemanticTokens(): boowean {
+		wetuwn this._tokens2.isCompwete();
 	}
 
-	public hasSomeSemanticTokens(): boolean {
-		return !this._tokens2.isEmpty();
+	pubwic hasSomeSemanticTokens(): boowean {
+		wetuwn !this._tokens2.isEmpty();
 	}
 
-	public setPartialSemanticTokens(range: Range, tokens: MultilineTokens2[]): void {
-		if (this.hasCompleteSemanticTokens()) {
-			return;
+	pubwic setPawtiawSemanticTokens(wange: Wange, tokens: MuwtiwineTokens2[]): void {
+		if (this.hasCompweteSemanticTokens()) {
+			wetuwn;
 		}
-		const changedRange = this._tokens2.setPartial(range, tokens);
+		const changedWange = this._tokens2.setPawtiaw(wange, tokens);
 
-		this._emitModelTokensChangedEvent({
-			tokenizationSupportChanged: false,
-			semanticTokensApplied: true,
-			ranges: [{ fromLineNumber: changedRange.startLineNumber, toLineNumber: changedRange.endLineNumber }]
+		this._emitModewTokensChangedEvent({
+			tokenizationSuppowtChanged: fawse,
+			semanticTokensAppwied: twue,
+			wanges: [{ fwomWineNumba: changedWange.stawtWineNumba, toWineNumba: changedWange.endWineNumba }]
 		});
 	}
 
-	public tokenizeViewport(startLineNumber: number, endLineNumber: number): void {
-		startLineNumber = Math.max(1, startLineNumber);
-		endLineNumber = Math.min(this._buffer.getLineCount(), endLineNumber);
-		this._tokenization.tokenizeViewport(startLineNumber, endLineNumber);
+	pubwic tokenizeViewpowt(stawtWineNumba: numba, endWineNumba: numba): void {
+		stawtWineNumba = Math.max(1, stawtWineNumba);
+		endWineNumba = Math.min(this._buffa.getWineCount(), endWineNumba);
+		this._tokenization.tokenizeViewpowt(stawtWineNumba, endWineNumba);
 	}
 
-	public clearTokens(): void {
-		this._tokens.flush();
-		this._emitModelTokensChangedEvent({
-			tokenizationSupportChanged: true,
-			semanticTokensApplied: false,
-			ranges: [{
-				fromLineNumber: 1,
-				toLineNumber: this._buffer.getLineCount()
+	pubwic cweawTokens(): void {
+		this._tokens.fwush();
+		this._emitModewTokensChangedEvent({
+			tokenizationSuppowtChanged: twue,
+			semanticTokensAppwied: fawse,
+			wanges: [{
+				fwomWineNumba: 1,
+				toWineNumba: this._buffa.getWineCount()
 			}]
 		});
 	}
 
-	public clearSemanticTokens(): void {
-		this._tokens2.flush();
+	pubwic cweawSemanticTokens(): void {
+		this._tokens2.fwush();
 
-		this._emitModelTokensChangedEvent({
-			tokenizationSupportChanged: false,
-			semanticTokensApplied: false,
-			ranges: [{ fromLineNumber: 1, toLineNumber: this.getLineCount() }]
+		this._emitModewTokensChangedEvent({
+			tokenizationSuppowtChanged: fawse,
+			semanticTokensAppwied: fawse,
+			wanges: [{ fwomWineNumba: 1, toWineNumba: this.getWineCount() }]
 		});
 	}
 
-	private _emitModelTokensChangedEvent(e: IModelTokensChangedEvent): void {
+	pwivate _emitModewTokensChangedEvent(e: IModewTokensChangedEvent): void {
 		if (!this._isDisposing) {
-			this._onDidChangeTokens.fire(e);
+			this._onDidChangeTokens.fiwe(e);
 		}
 	}
 
-	public resetTokenization(): void {
-		this._tokenization.reset();
+	pubwic wesetTokenization(): void {
+		this._tokenization.weset();
 	}
 
-	public forceTokenization(lineNumber: number): void {
-		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new Error('Illegal value for lineNumber');
+	pubwic fowceTokenization(wineNumba: numba): void {
+		if (wineNumba < 1 || wineNumba > this.getWineCount()) {
+			thwow new Ewwow('Iwwegaw vawue fow wineNumba');
 		}
 
-		this._tokenization.forceTokenization(lineNumber);
+		this._tokenization.fowceTokenization(wineNumba);
 	}
 
-	public isCheapToTokenize(lineNumber: number): boolean {
-		return this._tokenization.isCheapToTokenize(lineNumber);
+	pubwic isCheapToTokenize(wineNumba: numba): boowean {
+		wetuwn this._tokenization.isCheapToTokenize(wineNumba);
 	}
 
-	public tokenizeIfCheap(lineNumber: number): void {
-		if (this.isCheapToTokenize(lineNumber)) {
-			this.forceTokenization(lineNumber);
+	pubwic tokenizeIfCheap(wineNumba: numba): void {
+		if (this.isCheapToTokenize(wineNumba)) {
+			this.fowceTokenization(wineNumba);
 		}
 	}
 
-	public getLineTokens(lineNumber: number): LineTokens {
-		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new Error('Illegal value for lineNumber');
+	pubwic getWineTokens(wineNumba: numba): WineTokens {
+		if (wineNumba < 1 || wineNumba > this.getWineCount()) {
+			thwow new Ewwow('Iwwegaw vawue fow wineNumba');
 		}
 
-		return this._getLineTokens(lineNumber);
+		wetuwn this._getWineTokens(wineNumba);
 	}
 
-	private _getLineTokens(lineNumber: number): LineTokens {
-		const lineText = this.getLineContent(lineNumber);
-		const syntacticTokens = this._tokens.getTokens(this._languageIdentifier.id, lineNumber - 1, lineText);
-		return this._tokens2.addSemanticTokens(lineNumber, syntacticTokens);
+	pwivate _getWineTokens(wineNumba: numba): WineTokens {
+		const wineText = this.getWineContent(wineNumba);
+		const syntacticTokens = this._tokens.getTokens(this._wanguageIdentifia.id, wineNumba - 1, wineText);
+		wetuwn this._tokens2.addSemanticTokens(wineNumba, syntacticTokens);
 	}
 
-	public getLanguageIdentifier(): LanguageIdentifier {
-		return this._languageIdentifier;
+	pubwic getWanguageIdentifia(): WanguageIdentifia {
+		wetuwn this._wanguageIdentifia;
 	}
 
-	public getModeId(): string {
-		return this._languageIdentifier.language;
+	pubwic getModeId(): stwing {
+		wetuwn this._wanguageIdentifia.wanguage;
 	}
 
-	public setMode(languageIdentifier: LanguageIdentifier): void {
-		if (this._languageIdentifier.id === languageIdentifier.id) {
-			// There's nothing to do
-			return;
+	pubwic setMode(wanguageIdentifia: WanguageIdentifia): void {
+		if (this._wanguageIdentifia.id === wanguageIdentifia.id) {
+			// Thewe's nothing to do
+			wetuwn;
 		}
 
-		let e: IModelLanguageChangedEvent = {
-			oldLanguage: this._languageIdentifier.language,
-			newLanguage: languageIdentifier.language
+		wet e: IModewWanguageChangedEvent = {
+			owdWanguage: this._wanguageIdentifia.wanguage,
+			newWanguage: wanguageIdentifia.wanguage
 		};
 
-		this._languageIdentifier = languageIdentifier;
+		this._wanguageIdentifia = wanguageIdentifia;
 
-		this._onDidChangeLanguage.fire(e);
-		this._onDidChangeLanguageConfiguration.fire({});
+		this._onDidChangeWanguage.fiwe(e);
+		this._onDidChangeWanguageConfiguwation.fiwe({});
 	}
 
-	public getLanguageIdAtPosition(lineNumber: number, column: number): LanguageId {
-		const position = this.validatePosition(new Position(lineNumber, column));
-		const lineTokens = this.getLineTokens(position.lineNumber);
-		return lineTokens.getLanguageId(lineTokens.findTokenIndexAtOffset(position.column - 1));
+	pubwic getWanguageIdAtPosition(wineNumba: numba, cowumn: numba): WanguageId {
+		const position = this.vawidatePosition(new Position(wineNumba, cowumn));
+		const wineTokens = this.getWineTokens(position.wineNumba);
+		wetuwn wineTokens.getWanguageId(wineTokens.findTokenIndexAtOffset(position.cowumn - 1));
 	}
 
-	// Having tokens allows implementing additional helper methods
+	// Having tokens awwows impwementing additionaw hewpa methods
 
-	public getWordAtPosition(_position: IPosition): model.IWordAtPosition | null {
-		this._assertNotDisposed();
-		const position = this.validatePosition(_position);
-		const lineContent = this.getLineContent(position.lineNumber);
-		const lineTokens = this._getLineTokens(position.lineNumber);
-		const tokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
+	pubwic getWowdAtPosition(_position: IPosition): modew.IWowdAtPosition | nuww {
+		this._assewtNotDisposed();
+		const position = this.vawidatePosition(_position);
+		const wineContent = this.getWineContent(position.wineNumba);
+		const wineTokens = this._getWineTokens(position.wineNumba);
+		const tokenIndex = wineTokens.findTokenIndexAtOffset(position.cowumn - 1);
 
-		// (1). First try checking right biased word
-		const [rbStartOffset, rbEndOffset] = TextModel._findLanguageBoundaries(lineTokens, tokenIndex);
-		const rightBiasedWord = getWordAtText(
-			position.column,
-			LanguageConfigurationRegistry.getWordDefinition(lineTokens.getLanguageId(tokenIndex)),
-			lineContent.substring(rbStartOffset, rbEndOffset),
-			rbStartOffset
+		// (1). Fiwst twy checking wight biased wowd
+		const [wbStawtOffset, wbEndOffset] = TextModew._findWanguageBoundawies(wineTokens, tokenIndex);
+		const wightBiasedWowd = getWowdAtText(
+			position.cowumn,
+			WanguageConfiguwationWegistwy.getWowdDefinition(wineTokens.getWanguageId(tokenIndex)),
+			wineContent.substwing(wbStawtOffset, wbEndOffset),
+			wbStawtOffset
 		);
-		// Make sure the result touches the original passed in position
-		if (rightBiasedWord && rightBiasedWord.startColumn <= _position.column && _position.column <= rightBiasedWord.endColumn) {
-			return rightBiasedWord;
+		// Make suwe the wesuwt touches the owiginaw passed in position
+		if (wightBiasedWowd && wightBiasedWowd.stawtCowumn <= _position.cowumn && _position.cowumn <= wightBiasedWowd.endCowumn) {
+			wetuwn wightBiasedWowd;
 		}
 
-		// (2). Else, if we were at a language boundary, check the left biased word
-		if (tokenIndex > 0 && rbStartOffset === position.column - 1) {
-			// edge case, where `position` sits between two tokens belonging to two different languages
-			const [lbStartOffset, lbEndOffset] = TextModel._findLanguageBoundaries(lineTokens, tokenIndex - 1);
-			const leftBiasedWord = getWordAtText(
-				position.column,
-				LanguageConfigurationRegistry.getWordDefinition(lineTokens.getLanguageId(tokenIndex - 1)),
-				lineContent.substring(lbStartOffset, lbEndOffset),
-				lbStartOffset
+		// (2). Ewse, if we wewe at a wanguage boundawy, check the weft biased wowd
+		if (tokenIndex > 0 && wbStawtOffset === position.cowumn - 1) {
+			// edge case, whewe `position` sits between two tokens bewonging to two diffewent wanguages
+			const [wbStawtOffset, wbEndOffset] = TextModew._findWanguageBoundawies(wineTokens, tokenIndex - 1);
+			const weftBiasedWowd = getWowdAtText(
+				position.cowumn,
+				WanguageConfiguwationWegistwy.getWowdDefinition(wineTokens.getWanguageId(tokenIndex - 1)),
+				wineContent.substwing(wbStawtOffset, wbEndOffset),
+				wbStawtOffset
 			);
-			// Make sure the result touches the original passed in position
-			if (leftBiasedWord && leftBiasedWord.startColumn <= _position.column && _position.column <= leftBiasedWord.endColumn) {
-				return leftBiasedWord;
+			// Make suwe the wesuwt touches the owiginaw passed in position
+			if (weftBiasedWowd && weftBiasedWowd.stawtCowumn <= _position.cowumn && _position.cowumn <= weftBiasedWowd.endCowumn) {
+				wetuwn weftBiasedWowd;
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	private static _findLanguageBoundaries(lineTokens: LineTokens, tokenIndex: number): [number, number] {
-		const languageId = lineTokens.getLanguageId(tokenIndex);
+	pwivate static _findWanguageBoundawies(wineTokens: WineTokens, tokenIndex: numba): [numba, numba] {
+		const wanguageId = wineTokens.getWanguageId(tokenIndex);
 
-		// go left until a different language is hit
-		let startOffset = 0;
-		for (let i = tokenIndex; i >= 0 && lineTokens.getLanguageId(i) === languageId; i--) {
-			startOffset = lineTokens.getStartOffset(i);
+		// go weft untiw a diffewent wanguage is hit
+		wet stawtOffset = 0;
+		fow (wet i = tokenIndex; i >= 0 && wineTokens.getWanguageId(i) === wanguageId; i--) {
+			stawtOffset = wineTokens.getStawtOffset(i);
 		}
 
-		// go right until a different language is hit
-		let endOffset = lineTokens.getLineContent().length;
-		for (let i = tokenIndex, tokenCount = lineTokens.getCount(); i < tokenCount && lineTokens.getLanguageId(i) === languageId; i++) {
-			endOffset = lineTokens.getEndOffset(i);
+		// go wight untiw a diffewent wanguage is hit
+		wet endOffset = wineTokens.getWineContent().wength;
+		fow (wet i = tokenIndex, tokenCount = wineTokens.getCount(); i < tokenCount && wineTokens.getWanguageId(i) === wanguageId; i++) {
+			endOffset = wineTokens.getEndOffset(i);
 		}
 
-		return [startOffset, endOffset];
+		wetuwn [stawtOffset, endOffset];
 	}
 
-	public getWordUntilPosition(position: IPosition): model.IWordAtPosition {
-		const wordAtPosition = this.getWordAtPosition(position);
-		if (!wordAtPosition) {
-			return {
-				word: '',
-				startColumn: position.column,
-				endColumn: position.column
+	pubwic getWowdUntiwPosition(position: IPosition): modew.IWowdAtPosition {
+		const wowdAtPosition = this.getWowdAtPosition(position);
+		if (!wowdAtPosition) {
+			wetuwn {
+				wowd: '',
+				stawtCowumn: position.cowumn,
+				endCowumn: position.cowumn
 			};
 		}
-		return {
-			word: wordAtPosition.word.substr(0, position.column - wordAtPosition.startColumn),
-			startColumn: wordAtPosition.startColumn,
-			endColumn: position.column
+		wetuwn {
+			wowd: wowdAtPosition.wowd.substw(0, position.cowumn - wowdAtPosition.stawtCowumn),
+			stawtCowumn: wowdAtPosition.stawtCowumn,
+			endCowumn: position.cowumn
 		};
 	}
 
-	public findMatchingBracketUp(_bracket: string, _position: IPosition): Range | null {
-		let bracket = _bracket.toLowerCase();
-		let position = this.validatePosition(_position);
+	pubwic findMatchingBwacketUp(_bwacket: stwing, _position: IPosition): Wange | nuww {
+		wet bwacket = _bwacket.toWowewCase();
+		wet position = this.vawidatePosition(_position);
 
-		let lineTokens = this._getLineTokens(position.lineNumber);
-		let languageId = lineTokens.getLanguageId(lineTokens.findTokenIndexAtOffset(position.column - 1));
-		let bracketsSupport = LanguageConfigurationRegistry.getBracketsSupport(languageId);
+		wet wineTokens = this._getWineTokens(position.wineNumba);
+		wet wanguageId = wineTokens.getWanguageId(wineTokens.findTokenIndexAtOffset(position.cowumn - 1));
+		wet bwacketsSuppowt = WanguageConfiguwationWegistwy.getBwacketsSuppowt(wanguageId);
 
-		if (!bracketsSupport) {
-			return null;
+		if (!bwacketsSuppowt) {
+			wetuwn nuww;
 		}
 
-		let data = bracketsSupport.textIsBracket[bracket];
+		wet data = bwacketsSuppowt.textIsBwacket[bwacket];
 
 		if (!data) {
-			return null;
+			wetuwn nuww;
 		}
 
-		return stripBracketSearchCanceled(this._findMatchingBracketUp(data, position, null));
+		wetuwn stwipBwacketSeawchCancewed(this._findMatchingBwacketUp(data, position, nuww));
 	}
 
-	public matchBracket(position: IPosition): [Range, Range] | null {
-		return this._matchBracket(this.validatePosition(position));
+	pubwic matchBwacket(position: IPosition): [Wange, Wange] | nuww {
+		wetuwn this._matchBwacket(this.vawidatePosition(position));
 	}
 
-	private _establishBracketSearchOffsets(position: Position, lineTokens: LineTokens, modeBrackets: RichEditBrackets, tokenIndex: number) {
-		const tokenCount = lineTokens.getCount();
-		const currentLanguageId = lineTokens.getLanguageId(tokenIndex);
+	pwivate _estabwishBwacketSeawchOffsets(position: Position, wineTokens: WineTokens, modeBwackets: WichEditBwackets, tokenIndex: numba) {
+		const tokenCount = wineTokens.getCount();
+		const cuwwentWanguageId = wineTokens.getWanguageId(tokenIndex);
 
-		// limit search to not go before `maxBracketLength`
-		let searchStartOffset = Math.max(0, position.column - 1 - modeBrackets.maxBracketLength);
-		for (let i = tokenIndex - 1; i >= 0; i--) {
-			const tokenEndOffset = lineTokens.getEndOffset(i);
-			if (tokenEndOffset <= searchStartOffset) {
-				break;
+		// wimit seawch to not go befowe `maxBwacketWength`
+		wet seawchStawtOffset = Math.max(0, position.cowumn - 1 - modeBwackets.maxBwacketWength);
+		fow (wet i = tokenIndex - 1; i >= 0; i--) {
+			const tokenEndOffset = wineTokens.getEndOffset(i);
+			if (tokenEndOffset <= seawchStawtOffset) {
+				bweak;
 			}
-			if (ignoreBracketsInToken(lineTokens.getStandardTokenType(i)) || lineTokens.getLanguageId(i) !== currentLanguageId) {
-				searchStartOffset = tokenEndOffset;
-				break;
-			}
-		}
-
-		// limit search to not go after `maxBracketLength`
-		let searchEndOffset = Math.min(lineTokens.getLineContent().length, position.column - 1 + modeBrackets.maxBracketLength);
-		for (let i = tokenIndex + 1; i < tokenCount; i++) {
-			const tokenStartOffset = lineTokens.getStartOffset(i);
-			if (tokenStartOffset >= searchEndOffset) {
-				break;
-			}
-			if (ignoreBracketsInToken(lineTokens.getStandardTokenType(i)) || lineTokens.getLanguageId(i) !== currentLanguageId) {
-				searchEndOffset = tokenStartOffset;
-				break;
+			if (ignoweBwacketsInToken(wineTokens.getStandawdTokenType(i)) || wineTokens.getWanguageId(i) !== cuwwentWanguageId) {
+				seawchStawtOffset = tokenEndOffset;
+				bweak;
 			}
 		}
 
-		return { searchStartOffset, searchEndOffset };
+		// wimit seawch to not go afta `maxBwacketWength`
+		wet seawchEndOffset = Math.min(wineTokens.getWineContent().wength, position.cowumn - 1 + modeBwackets.maxBwacketWength);
+		fow (wet i = tokenIndex + 1; i < tokenCount; i++) {
+			const tokenStawtOffset = wineTokens.getStawtOffset(i);
+			if (tokenStawtOffset >= seawchEndOffset) {
+				bweak;
+			}
+			if (ignoweBwacketsInToken(wineTokens.getStandawdTokenType(i)) || wineTokens.getWanguageId(i) !== cuwwentWanguageId) {
+				seawchEndOffset = tokenStawtOffset;
+				bweak;
+			}
+		}
+
+		wetuwn { seawchStawtOffset, seawchEndOffset };
 	}
 
-	private _matchBracket(position: Position): [Range, Range] | null {
-		const lineNumber = position.lineNumber;
-		const lineTokens = this._getLineTokens(lineNumber);
-		const lineText = this._buffer.getLineContent(lineNumber);
+	pwivate _matchBwacket(position: Position): [Wange, Wange] | nuww {
+		const wineNumba = position.wineNumba;
+		const wineTokens = this._getWineTokens(wineNumba);
+		const wineText = this._buffa.getWineContent(wineNumba);
 
-		const tokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
+		const tokenIndex = wineTokens.findTokenIndexAtOffset(position.cowumn - 1);
 		if (tokenIndex < 0) {
-			return null;
+			wetuwn nuww;
 		}
-		const currentModeBrackets = LanguageConfigurationRegistry.getBracketsSupport(lineTokens.getLanguageId(tokenIndex));
+		const cuwwentModeBwackets = WanguageConfiguwationWegistwy.getBwacketsSuppowt(wineTokens.getWanguageId(tokenIndex));
 
-		// check that the token is not to be ignored
-		if (currentModeBrackets && !ignoreBracketsInToken(lineTokens.getStandardTokenType(tokenIndex))) {
+		// check that the token is not to be ignowed
+		if (cuwwentModeBwackets && !ignoweBwacketsInToken(wineTokens.getStandawdTokenType(tokenIndex))) {
 
-			let { searchStartOffset, searchEndOffset } = this._establishBracketSearchOffsets(position, lineTokens, currentModeBrackets, tokenIndex);
+			wet { seawchStawtOffset, seawchEndOffset } = this._estabwishBwacketSeawchOffsets(position, wineTokens, cuwwentModeBwackets, tokenIndex);
 
-			// it might be the case that [currentTokenStart -> currentTokenEnd] contains multiple brackets
-			// `bestResult` will contain the most right-side result
-			let bestResult: [Range, Range] | null = null;
-			while (true) {
-				const foundBracket = BracketsUtils.findNextBracketInRange(currentModeBrackets.forwardRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
-				if (!foundBracket) {
-					// there are no more brackets in this text
-					break;
+			// it might be the case that [cuwwentTokenStawt -> cuwwentTokenEnd] contains muwtipwe bwackets
+			// `bestWesuwt` wiww contain the most wight-side wesuwt
+			wet bestWesuwt: [Wange, Wange] | nuww = nuww;
+			whiwe (twue) {
+				const foundBwacket = BwacketsUtiws.findNextBwacketInWange(cuwwentModeBwackets.fowwawdWegex, wineNumba, wineText, seawchStawtOffset, seawchEndOffset);
+				if (!foundBwacket) {
+					// thewe awe no mowe bwackets in this text
+					bweak;
 				}
 
-				// check that we didn't hit a bracket too far away from position
-				if (foundBracket.startColumn <= position.column && position.column <= foundBracket.endColumn) {
-					const foundBracketText = lineText.substring(foundBracket.startColumn - 1, foundBracket.endColumn - 1).toLowerCase();
-					const r = this._matchFoundBracket(foundBracket, currentModeBrackets.textIsBracket[foundBracketText], currentModeBrackets.textIsOpenBracket[foundBracketText], null);
-					if (r) {
-						if (r instanceof BracketSearchCanceled) {
-							return null;
+				// check that we didn't hit a bwacket too faw away fwom position
+				if (foundBwacket.stawtCowumn <= position.cowumn && position.cowumn <= foundBwacket.endCowumn) {
+					const foundBwacketText = wineText.substwing(foundBwacket.stawtCowumn - 1, foundBwacket.endCowumn - 1).toWowewCase();
+					const w = this._matchFoundBwacket(foundBwacket, cuwwentModeBwackets.textIsBwacket[foundBwacketText], cuwwentModeBwackets.textIsOpenBwacket[foundBwacketText], nuww);
+					if (w) {
+						if (w instanceof BwacketSeawchCancewed) {
+							wetuwn nuww;
 						}
-						bestResult = r;
+						bestWesuwt = w;
 					}
 				}
 
-				searchStartOffset = foundBracket.endColumn - 1;
+				seawchStawtOffset = foundBwacket.endCowumn - 1;
 			}
 
-			if (bestResult) {
-				return bestResult;
+			if (bestWesuwt) {
+				wetuwn bestWesuwt;
 			}
 		}
 
-		// If position is in between two tokens, try also looking in the previous token
-		if (tokenIndex > 0 && lineTokens.getStartOffset(tokenIndex) === position.column - 1) {
-			const prevTokenIndex = tokenIndex - 1;
-			const prevModeBrackets = LanguageConfigurationRegistry.getBracketsSupport(lineTokens.getLanguageId(prevTokenIndex));
+		// If position is in between two tokens, twy awso wooking in the pwevious token
+		if (tokenIndex > 0 && wineTokens.getStawtOffset(tokenIndex) === position.cowumn - 1) {
+			const pwevTokenIndex = tokenIndex - 1;
+			const pwevModeBwackets = WanguageConfiguwationWegistwy.getBwacketsSuppowt(wineTokens.getWanguageId(pwevTokenIndex));
 
-			// check that previous token is not to be ignored
-			if (prevModeBrackets && !ignoreBracketsInToken(lineTokens.getStandardTokenType(prevTokenIndex))) {
+			// check that pwevious token is not to be ignowed
+			if (pwevModeBwackets && !ignoweBwacketsInToken(wineTokens.getStandawdTokenType(pwevTokenIndex))) {
 
-				let { searchStartOffset, searchEndOffset } = this._establishBracketSearchOffsets(position, lineTokens, prevModeBrackets, prevTokenIndex);
+				wet { seawchStawtOffset, seawchEndOffset } = this._estabwishBwacketSeawchOffsets(position, wineTokens, pwevModeBwackets, pwevTokenIndex);
 
-				const foundBracket = BracketsUtils.findPrevBracketInRange(prevModeBrackets.reversedRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
+				const foundBwacket = BwacketsUtiws.findPwevBwacketInWange(pwevModeBwackets.wevewsedWegex, wineNumba, wineText, seawchStawtOffset, seawchEndOffset);
 
-				// check that we didn't hit a bracket too far away from position
-				if (foundBracket && foundBracket.startColumn <= position.column && position.column <= foundBracket.endColumn) {
-					const foundBracketText = lineText.substring(foundBracket.startColumn - 1, foundBracket.endColumn - 1).toLowerCase();
-					const r = this._matchFoundBracket(foundBracket, prevModeBrackets.textIsBracket[foundBracketText], prevModeBrackets.textIsOpenBracket[foundBracketText], null);
-					if (r) {
-						if (r instanceof BracketSearchCanceled) {
-							return null;
+				// check that we didn't hit a bwacket too faw away fwom position
+				if (foundBwacket && foundBwacket.stawtCowumn <= position.cowumn && position.cowumn <= foundBwacket.endCowumn) {
+					const foundBwacketText = wineText.substwing(foundBwacket.stawtCowumn - 1, foundBwacket.endCowumn - 1).toWowewCase();
+					const w = this._matchFoundBwacket(foundBwacket, pwevModeBwackets.textIsBwacket[foundBwacketText], pwevModeBwackets.textIsOpenBwacket[foundBwacketText], nuww);
+					if (w) {
+						if (w instanceof BwacketSeawchCancewed) {
+							wetuwn nuww;
 						}
-						return r;
+						wetuwn w;
 					}
 				}
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	private _matchFoundBracket(foundBracket: Range, data: RichEditBracket, isOpen: boolean, continueSearchPredicate: ContinueBracketSearchPredicate): [Range, Range] | null | BracketSearchCanceled {
+	pwivate _matchFoundBwacket(foundBwacket: Wange, data: WichEditBwacket, isOpen: boowean, continueSeawchPwedicate: ContinueBwacketSeawchPwedicate): [Wange, Wange] | nuww | BwacketSeawchCancewed {
 		if (!data) {
-			return null;
+			wetuwn nuww;
 		}
 
 		const matched = (
 			isOpen
-				? this._findMatchingBracketDown(data, foundBracket.getEndPosition(), continueSearchPredicate)
-				: this._findMatchingBracketUp(data, foundBracket.getStartPosition(), continueSearchPredicate)
+				? this._findMatchingBwacketDown(data, foundBwacket.getEndPosition(), continueSeawchPwedicate)
+				: this._findMatchingBwacketUp(data, foundBwacket.getStawtPosition(), continueSeawchPwedicate)
 		);
 
 		if (!matched) {
-			return null;
+			wetuwn nuww;
 		}
 
-		if (matched instanceof BracketSearchCanceled) {
-			return matched;
+		if (matched instanceof BwacketSeawchCancewed) {
+			wetuwn matched;
 		}
 
-		return [foundBracket, matched];
+		wetuwn [foundBwacket, matched];
 	}
 
-	private _findMatchingBracketUp(bracket: RichEditBracket, position: Position, continueSearchPredicate: ContinueBracketSearchPredicate): Range | null | BracketSearchCanceled {
-		// console.log('_findMatchingBracketUp: ', 'bracket: ', JSON.stringify(bracket), 'startPosition: ', String(position));
+	pwivate _findMatchingBwacketUp(bwacket: WichEditBwacket, position: Position, continueSeawchPwedicate: ContinueBwacketSeawchPwedicate): Wange | nuww | BwacketSeawchCancewed {
+		// consowe.wog('_findMatchingBwacketUp: ', 'bwacket: ', JSON.stwingify(bwacket), 'stawtPosition: ', Stwing(position));
 
-		const languageId = bracket.languageIdentifier.id;
-		const reversedBracketRegex = bracket.reversedRegex;
-		let count = -1;
+		const wanguageId = bwacket.wanguageIdentifia.id;
+		const wevewsedBwacketWegex = bwacket.wevewsedWegex;
+		wet count = -1;
 
-		let totalCallCount = 0;
-		const searchPrevMatchingBracketInRange = (lineNumber: number, lineText: string, searchStartOffset: number, searchEndOffset: number): Range | null | BracketSearchCanceled => {
-			while (true) {
-				if (continueSearchPredicate && (++totalCallCount) % 100 === 0 && !continueSearchPredicate()) {
-					return BracketSearchCanceled.INSTANCE;
+		wet totawCawwCount = 0;
+		const seawchPwevMatchingBwacketInWange = (wineNumba: numba, wineText: stwing, seawchStawtOffset: numba, seawchEndOffset: numba): Wange | nuww | BwacketSeawchCancewed => {
+			whiwe (twue) {
+				if (continueSeawchPwedicate && (++totawCawwCount) % 100 === 0 && !continueSeawchPwedicate()) {
+					wetuwn BwacketSeawchCancewed.INSTANCE;
 				}
-				const r = BracketsUtils.findPrevBracketInRange(reversedBracketRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
-				if (!r) {
-					break;
+				const w = BwacketsUtiws.findPwevBwacketInWange(wevewsedBwacketWegex, wineNumba, wineText, seawchStawtOffset, seawchEndOffset);
+				if (!w) {
+					bweak;
 				}
 
-				const hitText = lineText.substring(r.startColumn - 1, r.endColumn - 1).toLowerCase();
-				if (bracket.isOpen(hitText)) {
+				const hitText = wineText.substwing(w.stawtCowumn - 1, w.endCowumn - 1).toWowewCase();
+				if (bwacket.isOpen(hitText)) {
 					count++;
-				} else if (bracket.isClose(hitText)) {
+				} ewse if (bwacket.isCwose(hitText)) {
 					count--;
 				}
 
 				if (count === 0) {
-					return r;
+					wetuwn w;
 				}
 
-				searchEndOffset = r.startColumn - 1;
+				seawchEndOffset = w.stawtCowumn - 1;
 			}
 
-			return null;
+			wetuwn nuww;
 		};
 
-		for (let lineNumber = position.lineNumber; lineNumber >= 1; lineNumber--) {
-			const lineTokens = this._getLineTokens(lineNumber);
-			const tokenCount = lineTokens.getCount();
-			const lineText = this._buffer.getLineContent(lineNumber);
+		fow (wet wineNumba = position.wineNumba; wineNumba >= 1; wineNumba--) {
+			const wineTokens = this._getWineTokens(wineNumba);
+			const tokenCount = wineTokens.getCount();
+			const wineText = this._buffa.getWineContent(wineNumba);
 
-			let tokenIndex = tokenCount - 1;
-			let searchStartOffset = lineText.length;
-			let searchEndOffset = lineText.length;
-			if (lineNumber === position.lineNumber) {
-				tokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
-				searchStartOffset = position.column - 1;
-				searchEndOffset = position.column - 1;
+			wet tokenIndex = tokenCount - 1;
+			wet seawchStawtOffset = wineText.wength;
+			wet seawchEndOffset = wineText.wength;
+			if (wineNumba === position.wineNumba) {
+				tokenIndex = wineTokens.findTokenIndexAtOffset(position.cowumn - 1);
+				seawchStawtOffset = position.cowumn - 1;
+				seawchEndOffset = position.cowumn - 1;
 			}
 
-			let prevSearchInToken = true;
-			for (; tokenIndex >= 0; tokenIndex--) {
-				const searchInToken = (lineTokens.getLanguageId(tokenIndex) === languageId && !ignoreBracketsInToken(lineTokens.getStandardTokenType(tokenIndex)));
+			wet pwevSeawchInToken = twue;
+			fow (; tokenIndex >= 0; tokenIndex--) {
+				const seawchInToken = (wineTokens.getWanguageId(tokenIndex) === wanguageId && !ignoweBwacketsInToken(wineTokens.getStandawdTokenType(tokenIndex)));
 
-				if (searchInToken) {
-					// this token should be searched
-					if (prevSearchInToken) {
-						// the previous token should be searched, simply extend searchStartOffset
-						searchStartOffset = lineTokens.getStartOffset(tokenIndex);
-					} else {
-						// the previous token should not be searched
-						searchStartOffset = lineTokens.getStartOffset(tokenIndex);
-						searchEndOffset = lineTokens.getEndOffset(tokenIndex);
+				if (seawchInToken) {
+					// this token shouwd be seawched
+					if (pwevSeawchInToken) {
+						// the pwevious token shouwd be seawched, simpwy extend seawchStawtOffset
+						seawchStawtOffset = wineTokens.getStawtOffset(tokenIndex);
+					} ewse {
+						// the pwevious token shouwd not be seawched
+						seawchStawtOffset = wineTokens.getStawtOffset(tokenIndex);
+						seawchEndOffset = wineTokens.getEndOffset(tokenIndex);
 					}
-				} else {
-					// this token should not be searched
-					if (prevSearchInToken && searchStartOffset !== searchEndOffset) {
-						const r = searchPrevMatchingBracketInRange(lineNumber, lineText, searchStartOffset, searchEndOffset);
-						if (r) {
-							return r;
+				} ewse {
+					// this token shouwd not be seawched
+					if (pwevSeawchInToken && seawchStawtOffset !== seawchEndOffset) {
+						const w = seawchPwevMatchingBwacketInWange(wineNumba, wineText, seawchStawtOffset, seawchEndOffset);
+						if (w) {
+							wetuwn w;
 						}
 					}
 				}
 
-				prevSearchInToken = searchInToken;
+				pwevSeawchInToken = seawchInToken;
 			}
 
-			if (prevSearchInToken && searchStartOffset !== searchEndOffset) {
-				const r = searchPrevMatchingBracketInRange(lineNumber, lineText, searchStartOffset, searchEndOffset);
-				if (r) {
-					return r;
+			if (pwevSeawchInToken && seawchStawtOffset !== seawchEndOffset) {
+				const w = seawchPwevMatchingBwacketInWange(wineNumba, wineText, seawchStawtOffset, seawchEndOffset);
+				if (w) {
+					wetuwn w;
 				}
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	private _findMatchingBracketDown(bracket: RichEditBracket, position: Position, continueSearchPredicate: ContinueBracketSearchPredicate): Range | null | BracketSearchCanceled {
-		// console.log('_findMatchingBracketDown: ', 'bracket: ', JSON.stringify(bracket), 'startPosition: ', String(position));
+	pwivate _findMatchingBwacketDown(bwacket: WichEditBwacket, position: Position, continueSeawchPwedicate: ContinueBwacketSeawchPwedicate): Wange | nuww | BwacketSeawchCancewed {
+		// consowe.wog('_findMatchingBwacketDown: ', 'bwacket: ', JSON.stwingify(bwacket), 'stawtPosition: ', Stwing(position));
 
-		const languageId = bracket.languageIdentifier.id;
-		const bracketRegex = bracket.forwardRegex;
-		let count = 1;
+		const wanguageId = bwacket.wanguageIdentifia.id;
+		const bwacketWegex = bwacket.fowwawdWegex;
+		wet count = 1;
 
-		let totalCallCount = 0;
-		const searchNextMatchingBracketInRange = (lineNumber: number, lineText: string, searchStartOffset: number, searchEndOffset: number): Range | null | BracketSearchCanceled => {
-			while (true) {
-				if (continueSearchPredicate && (++totalCallCount) % 100 === 0 && !continueSearchPredicate()) {
-					return BracketSearchCanceled.INSTANCE;
+		wet totawCawwCount = 0;
+		const seawchNextMatchingBwacketInWange = (wineNumba: numba, wineText: stwing, seawchStawtOffset: numba, seawchEndOffset: numba): Wange | nuww | BwacketSeawchCancewed => {
+			whiwe (twue) {
+				if (continueSeawchPwedicate && (++totawCawwCount) % 100 === 0 && !continueSeawchPwedicate()) {
+					wetuwn BwacketSeawchCancewed.INSTANCE;
 				}
-				const r = BracketsUtils.findNextBracketInRange(bracketRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
-				if (!r) {
-					break;
+				const w = BwacketsUtiws.findNextBwacketInWange(bwacketWegex, wineNumba, wineText, seawchStawtOffset, seawchEndOffset);
+				if (!w) {
+					bweak;
 				}
 
-				const hitText = lineText.substring(r.startColumn - 1, r.endColumn - 1).toLowerCase();
-				if (bracket.isOpen(hitText)) {
+				const hitText = wineText.substwing(w.stawtCowumn - 1, w.endCowumn - 1).toWowewCase();
+				if (bwacket.isOpen(hitText)) {
 					count++;
-				} else if (bracket.isClose(hitText)) {
+				} ewse if (bwacket.isCwose(hitText)) {
 					count--;
 				}
 
 				if (count === 0) {
-					return r;
+					wetuwn w;
 				}
 
-				searchStartOffset = r.endColumn - 1;
+				seawchStawtOffset = w.endCowumn - 1;
 			}
 
-			return null;
+			wetuwn nuww;
 		};
 
-		const lineCount = this.getLineCount();
-		for (let lineNumber = position.lineNumber; lineNumber <= lineCount; lineNumber++) {
-			const lineTokens = this._getLineTokens(lineNumber);
-			const tokenCount = lineTokens.getCount();
-			const lineText = this._buffer.getLineContent(lineNumber);
+		const wineCount = this.getWineCount();
+		fow (wet wineNumba = position.wineNumba; wineNumba <= wineCount; wineNumba++) {
+			const wineTokens = this._getWineTokens(wineNumba);
+			const tokenCount = wineTokens.getCount();
+			const wineText = this._buffa.getWineContent(wineNumba);
 
-			let tokenIndex = 0;
-			let searchStartOffset = 0;
-			let searchEndOffset = 0;
-			if (lineNumber === position.lineNumber) {
-				tokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
-				searchStartOffset = position.column - 1;
-				searchEndOffset = position.column - 1;
+			wet tokenIndex = 0;
+			wet seawchStawtOffset = 0;
+			wet seawchEndOffset = 0;
+			if (wineNumba === position.wineNumba) {
+				tokenIndex = wineTokens.findTokenIndexAtOffset(position.cowumn - 1);
+				seawchStawtOffset = position.cowumn - 1;
+				seawchEndOffset = position.cowumn - 1;
 			}
 
-			let prevSearchInToken = true;
-			for (; tokenIndex < tokenCount; tokenIndex++) {
-				const searchInToken = (lineTokens.getLanguageId(tokenIndex) === languageId && !ignoreBracketsInToken(lineTokens.getStandardTokenType(tokenIndex)));
+			wet pwevSeawchInToken = twue;
+			fow (; tokenIndex < tokenCount; tokenIndex++) {
+				const seawchInToken = (wineTokens.getWanguageId(tokenIndex) === wanguageId && !ignoweBwacketsInToken(wineTokens.getStandawdTokenType(tokenIndex)));
 
-				if (searchInToken) {
-					// this token should be searched
-					if (prevSearchInToken) {
-						// the previous token should be searched, simply extend searchEndOffset
-						searchEndOffset = lineTokens.getEndOffset(tokenIndex);
-					} else {
-						// the previous token should not be searched
-						searchStartOffset = lineTokens.getStartOffset(tokenIndex);
-						searchEndOffset = lineTokens.getEndOffset(tokenIndex);
+				if (seawchInToken) {
+					// this token shouwd be seawched
+					if (pwevSeawchInToken) {
+						// the pwevious token shouwd be seawched, simpwy extend seawchEndOffset
+						seawchEndOffset = wineTokens.getEndOffset(tokenIndex);
+					} ewse {
+						// the pwevious token shouwd not be seawched
+						seawchStawtOffset = wineTokens.getStawtOffset(tokenIndex);
+						seawchEndOffset = wineTokens.getEndOffset(tokenIndex);
 					}
-				} else {
-					// this token should not be searched
-					if (prevSearchInToken && searchStartOffset !== searchEndOffset) {
-						const r = searchNextMatchingBracketInRange(lineNumber, lineText, searchStartOffset, searchEndOffset);
-						if (r) {
-							return r;
+				} ewse {
+					// this token shouwd not be seawched
+					if (pwevSeawchInToken && seawchStawtOffset !== seawchEndOffset) {
+						const w = seawchNextMatchingBwacketInWange(wineNumba, wineText, seawchStawtOffset, seawchEndOffset);
+						if (w) {
+							wetuwn w;
 						}
 					}
 				}
 
-				prevSearchInToken = searchInToken;
+				pwevSeawchInToken = seawchInToken;
 			}
 
-			if (prevSearchInToken && searchStartOffset !== searchEndOffset) {
-				const r = searchNextMatchingBracketInRange(lineNumber, lineText, searchStartOffset, searchEndOffset);
-				if (r) {
-					return r;
+			if (pwevSeawchInToken && seawchStawtOffset !== seawchEndOffset) {
+				const w = seawchNextMatchingBwacketInWange(wineNumba, wineText, seawchStawtOffset, seawchEndOffset);
+				if (w) {
+					wetuwn w;
 				}
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	public findPrevBracket(_position: IPosition): model.IFoundBracket | null {
-		const position = this.validatePosition(_position);
+	pubwic findPwevBwacket(_position: IPosition): modew.IFoundBwacket | nuww {
+		const position = this.vawidatePosition(_position);
 
-		let languageId: LanguageId = -1;
-		let modeBrackets: RichEditBrackets | null = null;
-		for (let lineNumber = position.lineNumber; lineNumber >= 1; lineNumber--) {
-			const lineTokens = this._getLineTokens(lineNumber);
-			const tokenCount = lineTokens.getCount();
-			const lineText = this._buffer.getLineContent(lineNumber);
+		wet wanguageId: WanguageId = -1;
+		wet modeBwackets: WichEditBwackets | nuww = nuww;
+		fow (wet wineNumba = position.wineNumba; wineNumba >= 1; wineNumba--) {
+			const wineTokens = this._getWineTokens(wineNumba);
+			const tokenCount = wineTokens.getCount();
+			const wineText = this._buffa.getWineContent(wineNumba);
 
-			let tokenIndex = tokenCount - 1;
-			let searchStartOffset = lineText.length;
-			let searchEndOffset = lineText.length;
-			if (lineNumber === position.lineNumber) {
-				tokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
-				searchStartOffset = position.column - 1;
-				searchEndOffset = position.column - 1;
-				const tokenLanguageId = lineTokens.getLanguageId(tokenIndex);
-				if (languageId !== tokenLanguageId) {
-					languageId = tokenLanguageId;
-					modeBrackets = LanguageConfigurationRegistry.getBracketsSupport(languageId);
+			wet tokenIndex = tokenCount - 1;
+			wet seawchStawtOffset = wineText.wength;
+			wet seawchEndOffset = wineText.wength;
+			if (wineNumba === position.wineNumba) {
+				tokenIndex = wineTokens.findTokenIndexAtOffset(position.cowumn - 1);
+				seawchStawtOffset = position.cowumn - 1;
+				seawchEndOffset = position.cowumn - 1;
+				const tokenWanguageId = wineTokens.getWanguageId(tokenIndex);
+				if (wanguageId !== tokenWanguageId) {
+					wanguageId = tokenWanguageId;
+					modeBwackets = WanguageConfiguwationWegistwy.getBwacketsSuppowt(wanguageId);
 				}
 			}
 
-			let prevSearchInToken = true;
-			for (; tokenIndex >= 0; tokenIndex--) {
-				const tokenLanguageId = lineTokens.getLanguageId(tokenIndex);
+			wet pwevSeawchInToken = twue;
+			fow (; tokenIndex >= 0; tokenIndex--) {
+				const tokenWanguageId = wineTokens.getWanguageId(tokenIndex);
 
-				if (languageId !== tokenLanguageId) {
-					// language id change!
-					if (modeBrackets && prevSearchInToken && searchStartOffset !== searchEndOffset) {
-						const r = BracketsUtils.findPrevBracketInRange(modeBrackets.reversedRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
-						if (r) {
-							return this._toFoundBracket(modeBrackets, r);
+				if (wanguageId !== tokenWanguageId) {
+					// wanguage id change!
+					if (modeBwackets && pwevSeawchInToken && seawchStawtOffset !== seawchEndOffset) {
+						const w = BwacketsUtiws.findPwevBwacketInWange(modeBwackets.wevewsedWegex, wineNumba, wineText, seawchStawtOffset, seawchEndOffset);
+						if (w) {
+							wetuwn this._toFoundBwacket(modeBwackets, w);
 						}
-						prevSearchInToken = false;
+						pwevSeawchInToken = fawse;
 					}
-					languageId = tokenLanguageId;
-					modeBrackets = LanguageConfigurationRegistry.getBracketsSupport(languageId);
+					wanguageId = tokenWanguageId;
+					modeBwackets = WanguageConfiguwationWegistwy.getBwacketsSuppowt(wanguageId);
 				}
 
-				const searchInToken = (!!modeBrackets && !ignoreBracketsInToken(lineTokens.getStandardTokenType(tokenIndex)));
+				const seawchInToken = (!!modeBwackets && !ignoweBwacketsInToken(wineTokens.getStandawdTokenType(tokenIndex)));
 
-				if (searchInToken) {
-					// this token should be searched
-					if (prevSearchInToken) {
-						// the previous token should be searched, simply extend searchStartOffset
-						searchStartOffset = lineTokens.getStartOffset(tokenIndex);
-					} else {
-						// the previous token should not be searched
-						searchStartOffset = lineTokens.getStartOffset(tokenIndex);
-						searchEndOffset = lineTokens.getEndOffset(tokenIndex);
+				if (seawchInToken) {
+					// this token shouwd be seawched
+					if (pwevSeawchInToken) {
+						// the pwevious token shouwd be seawched, simpwy extend seawchStawtOffset
+						seawchStawtOffset = wineTokens.getStawtOffset(tokenIndex);
+					} ewse {
+						// the pwevious token shouwd not be seawched
+						seawchStawtOffset = wineTokens.getStawtOffset(tokenIndex);
+						seawchEndOffset = wineTokens.getEndOffset(tokenIndex);
 					}
-				} else {
-					// this token should not be searched
-					if (modeBrackets && prevSearchInToken && searchStartOffset !== searchEndOffset) {
-						const r = BracketsUtils.findPrevBracketInRange(modeBrackets.reversedRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
-						if (r) {
-							return this._toFoundBracket(modeBrackets, r);
+				} ewse {
+					// this token shouwd not be seawched
+					if (modeBwackets && pwevSeawchInToken && seawchStawtOffset !== seawchEndOffset) {
+						const w = BwacketsUtiws.findPwevBwacketInWange(modeBwackets.wevewsedWegex, wineNumba, wineText, seawchStawtOffset, seawchEndOffset);
+						if (w) {
+							wetuwn this._toFoundBwacket(modeBwackets, w);
 						}
 					}
 				}
 
-				prevSearchInToken = searchInToken;
+				pwevSeawchInToken = seawchInToken;
 			}
 
-			if (modeBrackets && prevSearchInToken && searchStartOffset !== searchEndOffset) {
-				const r = BracketsUtils.findPrevBracketInRange(modeBrackets.reversedRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
-				if (r) {
-					return this._toFoundBracket(modeBrackets, r);
+			if (modeBwackets && pwevSeawchInToken && seawchStawtOffset !== seawchEndOffset) {
+				const w = BwacketsUtiws.findPwevBwacketInWange(modeBwackets.wevewsedWegex, wineNumba, wineText, seawchStawtOffset, seawchEndOffset);
+				if (w) {
+					wetuwn this._toFoundBwacket(modeBwackets, w);
 				}
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	public findNextBracket(_position: IPosition): model.IFoundBracket | null {
-		const position = this.validatePosition(_position);
-		const lineCount = this.getLineCount();
+	pubwic findNextBwacket(_position: IPosition): modew.IFoundBwacket | nuww {
+		const position = this.vawidatePosition(_position);
+		const wineCount = this.getWineCount();
 
-		let languageId: LanguageId = -1;
-		let modeBrackets: RichEditBrackets | null = null;
-		for (let lineNumber = position.lineNumber; lineNumber <= lineCount; lineNumber++) {
-			const lineTokens = this._getLineTokens(lineNumber);
-			const tokenCount = lineTokens.getCount();
-			const lineText = this._buffer.getLineContent(lineNumber);
+		wet wanguageId: WanguageId = -1;
+		wet modeBwackets: WichEditBwackets | nuww = nuww;
+		fow (wet wineNumba = position.wineNumba; wineNumba <= wineCount; wineNumba++) {
+			const wineTokens = this._getWineTokens(wineNumba);
+			const tokenCount = wineTokens.getCount();
+			const wineText = this._buffa.getWineContent(wineNumba);
 
-			let tokenIndex = 0;
-			let searchStartOffset = 0;
-			let searchEndOffset = 0;
-			if (lineNumber === position.lineNumber) {
-				tokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
-				searchStartOffset = position.column - 1;
-				searchEndOffset = position.column - 1;
-				const tokenLanguageId = lineTokens.getLanguageId(tokenIndex);
-				if (languageId !== tokenLanguageId) {
-					languageId = tokenLanguageId;
-					modeBrackets = LanguageConfigurationRegistry.getBracketsSupport(languageId);
+			wet tokenIndex = 0;
+			wet seawchStawtOffset = 0;
+			wet seawchEndOffset = 0;
+			if (wineNumba === position.wineNumba) {
+				tokenIndex = wineTokens.findTokenIndexAtOffset(position.cowumn - 1);
+				seawchStawtOffset = position.cowumn - 1;
+				seawchEndOffset = position.cowumn - 1;
+				const tokenWanguageId = wineTokens.getWanguageId(tokenIndex);
+				if (wanguageId !== tokenWanguageId) {
+					wanguageId = tokenWanguageId;
+					modeBwackets = WanguageConfiguwationWegistwy.getBwacketsSuppowt(wanguageId);
 				}
 			}
 
-			let prevSearchInToken = true;
-			for (; tokenIndex < tokenCount; tokenIndex++) {
-				const tokenLanguageId = lineTokens.getLanguageId(tokenIndex);
+			wet pwevSeawchInToken = twue;
+			fow (; tokenIndex < tokenCount; tokenIndex++) {
+				const tokenWanguageId = wineTokens.getWanguageId(tokenIndex);
 
-				if (languageId !== tokenLanguageId) {
-					// language id change!
-					if (modeBrackets && prevSearchInToken && searchStartOffset !== searchEndOffset) {
-						const r = BracketsUtils.findNextBracketInRange(modeBrackets.forwardRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
-						if (r) {
-							return this._toFoundBracket(modeBrackets, r);
+				if (wanguageId !== tokenWanguageId) {
+					// wanguage id change!
+					if (modeBwackets && pwevSeawchInToken && seawchStawtOffset !== seawchEndOffset) {
+						const w = BwacketsUtiws.findNextBwacketInWange(modeBwackets.fowwawdWegex, wineNumba, wineText, seawchStawtOffset, seawchEndOffset);
+						if (w) {
+							wetuwn this._toFoundBwacket(modeBwackets, w);
 						}
-						prevSearchInToken = false;
+						pwevSeawchInToken = fawse;
 					}
-					languageId = tokenLanguageId;
-					modeBrackets = LanguageConfigurationRegistry.getBracketsSupport(languageId);
+					wanguageId = tokenWanguageId;
+					modeBwackets = WanguageConfiguwationWegistwy.getBwacketsSuppowt(wanguageId);
 				}
 
-				const searchInToken = (!!modeBrackets && !ignoreBracketsInToken(lineTokens.getStandardTokenType(tokenIndex)));
-				if (searchInToken) {
-					// this token should be searched
-					if (prevSearchInToken) {
-						// the previous token should be searched, simply extend searchEndOffset
-						searchEndOffset = lineTokens.getEndOffset(tokenIndex);
-					} else {
-						// the previous token should not be searched
-						searchStartOffset = lineTokens.getStartOffset(tokenIndex);
-						searchEndOffset = lineTokens.getEndOffset(tokenIndex);
+				const seawchInToken = (!!modeBwackets && !ignoweBwacketsInToken(wineTokens.getStandawdTokenType(tokenIndex)));
+				if (seawchInToken) {
+					// this token shouwd be seawched
+					if (pwevSeawchInToken) {
+						// the pwevious token shouwd be seawched, simpwy extend seawchEndOffset
+						seawchEndOffset = wineTokens.getEndOffset(tokenIndex);
+					} ewse {
+						// the pwevious token shouwd not be seawched
+						seawchStawtOffset = wineTokens.getStawtOffset(tokenIndex);
+						seawchEndOffset = wineTokens.getEndOffset(tokenIndex);
 					}
-				} else {
-					// this token should not be searched
-					if (modeBrackets && prevSearchInToken && searchStartOffset !== searchEndOffset) {
-						const r = BracketsUtils.findNextBracketInRange(modeBrackets.forwardRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
-						if (r) {
-							return this._toFoundBracket(modeBrackets, r);
+				} ewse {
+					// this token shouwd not be seawched
+					if (modeBwackets && pwevSeawchInToken && seawchStawtOffset !== seawchEndOffset) {
+						const w = BwacketsUtiws.findNextBwacketInWange(modeBwackets.fowwawdWegex, wineNumba, wineText, seawchStawtOffset, seawchEndOffset);
+						if (w) {
+							wetuwn this._toFoundBwacket(modeBwackets, w);
 						}
 					}
 				}
 
-				prevSearchInToken = searchInToken;
+				pwevSeawchInToken = seawchInToken;
 			}
 
-			if (modeBrackets && prevSearchInToken && searchStartOffset !== searchEndOffset) {
-				const r = BracketsUtils.findNextBracketInRange(modeBrackets.forwardRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
-				if (r) {
-					return this._toFoundBracket(modeBrackets, r);
+			if (modeBwackets && pwevSeawchInToken && seawchStawtOffset !== seawchEndOffset) {
+				const w = BwacketsUtiws.findNextBwacketInWange(modeBwackets.fowwawdWegex, wineNumba, wineText, seawchStawtOffset, seawchEndOffset);
+				if (w) {
+					wetuwn this._toFoundBwacket(modeBwackets, w);
 				}
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	public findEnclosingBrackets(_position: IPosition, maxDuration?: number): [Range, Range] | null {
-		let continueSearchPredicate: ContinueBracketSearchPredicate;
-		if (typeof maxDuration === 'undefined') {
-			continueSearchPredicate = null;
-		} else {
-			const startTime = Date.now();
-			continueSearchPredicate = () => {
-				return (Date.now() - startTime <= maxDuration);
+	pubwic findEncwosingBwackets(_position: IPosition, maxDuwation?: numba): [Wange, Wange] | nuww {
+		wet continueSeawchPwedicate: ContinueBwacketSeawchPwedicate;
+		if (typeof maxDuwation === 'undefined') {
+			continueSeawchPwedicate = nuww;
+		} ewse {
+			const stawtTime = Date.now();
+			continueSeawchPwedicate = () => {
+				wetuwn (Date.now() - stawtTime <= maxDuwation);
 			};
 		}
-		const position = this.validatePosition(_position);
-		const lineCount = this.getLineCount();
-		const savedCounts = new Map<number, number[]>();
+		const position = this.vawidatePosition(_position);
+		const wineCount = this.getWineCount();
+		const savedCounts = new Map<numba, numba[]>();
 
-		let counts: number[] = [];
-		const resetCounts = (languageId: number, modeBrackets: RichEditBrackets | null) => {
-			if (!savedCounts.has(languageId)) {
-				let tmp = [];
-				for (let i = 0, len = modeBrackets ? modeBrackets.brackets.length : 0; i < len; i++) {
+		wet counts: numba[] = [];
+		const wesetCounts = (wanguageId: numba, modeBwackets: WichEditBwackets | nuww) => {
+			if (!savedCounts.has(wanguageId)) {
+				wet tmp = [];
+				fow (wet i = 0, wen = modeBwackets ? modeBwackets.bwackets.wength : 0; i < wen; i++) {
 					tmp[i] = 0;
 				}
-				savedCounts.set(languageId, tmp);
+				savedCounts.set(wanguageId, tmp);
 			}
-			counts = savedCounts.get(languageId)!;
+			counts = savedCounts.get(wanguageId)!;
 		};
 
-		let totalCallCount = 0;
-		const searchInRange = (modeBrackets: RichEditBrackets, lineNumber: number, lineText: string, searchStartOffset: number, searchEndOffset: number): [Range, Range] | null | BracketSearchCanceled => {
-			while (true) {
-				if (continueSearchPredicate && (++totalCallCount) % 100 === 0 && !continueSearchPredicate()) {
-					return BracketSearchCanceled.INSTANCE;
+		wet totawCawwCount = 0;
+		const seawchInWange = (modeBwackets: WichEditBwackets, wineNumba: numba, wineText: stwing, seawchStawtOffset: numba, seawchEndOffset: numba): [Wange, Wange] | nuww | BwacketSeawchCancewed => {
+			whiwe (twue) {
+				if (continueSeawchPwedicate && (++totawCawwCount) % 100 === 0 && !continueSeawchPwedicate()) {
+					wetuwn BwacketSeawchCancewed.INSTANCE;
 				}
-				const r = BracketsUtils.findNextBracketInRange(modeBrackets.forwardRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
-				if (!r) {
-					break;
+				const w = BwacketsUtiws.findNextBwacketInWange(modeBwackets.fowwawdWegex, wineNumba, wineText, seawchStawtOffset, seawchEndOffset);
+				if (!w) {
+					bweak;
 				}
 
-				const hitText = lineText.substring(r.startColumn - 1, r.endColumn - 1).toLowerCase();
-				const bracket = modeBrackets.textIsBracket[hitText];
-				if (bracket) {
-					if (bracket.isOpen(hitText)) {
-						counts[bracket.index]++;
-					} else if (bracket.isClose(hitText)) {
-						counts[bracket.index]--;
+				const hitText = wineText.substwing(w.stawtCowumn - 1, w.endCowumn - 1).toWowewCase();
+				const bwacket = modeBwackets.textIsBwacket[hitText];
+				if (bwacket) {
+					if (bwacket.isOpen(hitText)) {
+						counts[bwacket.index]++;
+					} ewse if (bwacket.isCwose(hitText)) {
+						counts[bwacket.index]--;
 					}
 
-					if (counts[bracket.index] === -1) {
-						return this._matchFoundBracket(r, bracket, false, continueSearchPredicate);
+					if (counts[bwacket.index] === -1) {
+						wetuwn this._matchFoundBwacket(w, bwacket, fawse, continueSeawchPwedicate);
 					}
 				}
 
-				searchStartOffset = r.endColumn - 1;
+				seawchStawtOffset = w.endCowumn - 1;
 			}
-			return null;
+			wetuwn nuww;
 		};
 
-		let languageId: LanguageId = -1;
-		let modeBrackets: RichEditBrackets | null = null;
-		for (let lineNumber = position.lineNumber; lineNumber <= lineCount; lineNumber++) {
-			const lineTokens = this._getLineTokens(lineNumber);
-			const tokenCount = lineTokens.getCount();
-			const lineText = this._buffer.getLineContent(lineNumber);
+		wet wanguageId: WanguageId = -1;
+		wet modeBwackets: WichEditBwackets | nuww = nuww;
+		fow (wet wineNumba = position.wineNumba; wineNumba <= wineCount; wineNumba++) {
+			const wineTokens = this._getWineTokens(wineNumba);
+			const tokenCount = wineTokens.getCount();
+			const wineText = this._buffa.getWineContent(wineNumba);
 
-			let tokenIndex = 0;
-			let searchStartOffset = 0;
-			let searchEndOffset = 0;
-			if (lineNumber === position.lineNumber) {
-				tokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
-				searchStartOffset = position.column - 1;
-				searchEndOffset = position.column - 1;
-				const tokenLanguageId = lineTokens.getLanguageId(tokenIndex);
-				if (languageId !== tokenLanguageId) {
-					languageId = tokenLanguageId;
-					modeBrackets = LanguageConfigurationRegistry.getBracketsSupport(languageId);
-					resetCounts(languageId, modeBrackets);
+			wet tokenIndex = 0;
+			wet seawchStawtOffset = 0;
+			wet seawchEndOffset = 0;
+			if (wineNumba === position.wineNumba) {
+				tokenIndex = wineTokens.findTokenIndexAtOffset(position.cowumn - 1);
+				seawchStawtOffset = position.cowumn - 1;
+				seawchEndOffset = position.cowumn - 1;
+				const tokenWanguageId = wineTokens.getWanguageId(tokenIndex);
+				if (wanguageId !== tokenWanguageId) {
+					wanguageId = tokenWanguageId;
+					modeBwackets = WanguageConfiguwationWegistwy.getBwacketsSuppowt(wanguageId);
+					wesetCounts(wanguageId, modeBwackets);
 				}
 			}
 
-			let prevSearchInToken = true;
-			for (; tokenIndex < tokenCount; tokenIndex++) {
-				const tokenLanguageId = lineTokens.getLanguageId(tokenIndex);
+			wet pwevSeawchInToken = twue;
+			fow (; tokenIndex < tokenCount; tokenIndex++) {
+				const tokenWanguageId = wineTokens.getWanguageId(tokenIndex);
 
-				if (languageId !== tokenLanguageId) {
-					// language id change!
-					if (modeBrackets && prevSearchInToken && searchStartOffset !== searchEndOffset) {
-						const r = searchInRange(modeBrackets, lineNumber, lineText, searchStartOffset, searchEndOffset);
-						if (r) {
-							return stripBracketSearchCanceled(r);
+				if (wanguageId !== tokenWanguageId) {
+					// wanguage id change!
+					if (modeBwackets && pwevSeawchInToken && seawchStawtOffset !== seawchEndOffset) {
+						const w = seawchInWange(modeBwackets, wineNumba, wineText, seawchStawtOffset, seawchEndOffset);
+						if (w) {
+							wetuwn stwipBwacketSeawchCancewed(w);
 						}
-						prevSearchInToken = false;
+						pwevSeawchInToken = fawse;
 					}
-					languageId = tokenLanguageId;
-					modeBrackets = LanguageConfigurationRegistry.getBracketsSupport(languageId);
-					resetCounts(languageId, modeBrackets);
+					wanguageId = tokenWanguageId;
+					modeBwackets = WanguageConfiguwationWegistwy.getBwacketsSuppowt(wanguageId);
+					wesetCounts(wanguageId, modeBwackets);
 				}
 
-				const searchInToken = (!!modeBrackets && !ignoreBracketsInToken(lineTokens.getStandardTokenType(tokenIndex)));
-				if (searchInToken) {
-					// this token should be searched
-					if (prevSearchInToken) {
-						// the previous token should be searched, simply extend searchEndOffset
-						searchEndOffset = lineTokens.getEndOffset(tokenIndex);
-					} else {
-						// the previous token should not be searched
-						searchStartOffset = lineTokens.getStartOffset(tokenIndex);
-						searchEndOffset = lineTokens.getEndOffset(tokenIndex);
+				const seawchInToken = (!!modeBwackets && !ignoweBwacketsInToken(wineTokens.getStandawdTokenType(tokenIndex)));
+				if (seawchInToken) {
+					// this token shouwd be seawched
+					if (pwevSeawchInToken) {
+						// the pwevious token shouwd be seawched, simpwy extend seawchEndOffset
+						seawchEndOffset = wineTokens.getEndOffset(tokenIndex);
+					} ewse {
+						// the pwevious token shouwd not be seawched
+						seawchStawtOffset = wineTokens.getStawtOffset(tokenIndex);
+						seawchEndOffset = wineTokens.getEndOffset(tokenIndex);
 					}
-				} else {
-					// this token should not be searched
-					if (modeBrackets && prevSearchInToken && searchStartOffset !== searchEndOffset) {
-						const r = searchInRange(modeBrackets, lineNumber, lineText, searchStartOffset, searchEndOffset);
-						if (r) {
-							return stripBracketSearchCanceled(r);
+				} ewse {
+					// this token shouwd not be seawched
+					if (modeBwackets && pwevSeawchInToken && seawchStawtOffset !== seawchEndOffset) {
+						const w = seawchInWange(modeBwackets, wineNumba, wineText, seawchStawtOffset, seawchEndOffset);
+						if (w) {
+							wetuwn stwipBwacketSeawchCancewed(w);
 						}
 					}
 				}
 
-				prevSearchInToken = searchInToken;
+				pwevSeawchInToken = seawchInToken;
 			}
 
-			if (modeBrackets && prevSearchInToken && searchStartOffset !== searchEndOffset) {
-				const r = searchInRange(modeBrackets, lineNumber, lineText, searchStartOffset, searchEndOffset);
-				if (r) {
-					return stripBracketSearchCanceled(r);
+			if (modeBwackets && pwevSeawchInToken && seawchStawtOffset !== seawchEndOffset) {
+				const w = seawchInWange(modeBwackets, wineNumba, wineText, seawchStawtOffset, seawchEndOffset);
+				if (w) {
+					wetuwn stwipBwacketSeawchCancewed(w);
 				}
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	private _toFoundBracket(modeBrackets: RichEditBrackets, r: Range): model.IFoundBracket | null {
-		if (!r) {
-			return null;
+	pwivate _toFoundBwacket(modeBwackets: WichEditBwackets, w: Wange): modew.IFoundBwacket | nuww {
+		if (!w) {
+			wetuwn nuww;
 		}
 
-		let text = this.getValueInRange(r);
-		text = text.toLowerCase();
+		wet text = this.getVawueInWange(w);
+		text = text.toWowewCase();
 
-		let data = modeBrackets.textIsBracket[text];
+		wet data = modeBwackets.textIsBwacket[text];
 		if (!data) {
-			return null;
+			wetuwn nuww;
 		}
 
-		return {
-			range: r,
+		wetuwn {
+			wange: w,
 			open: data.open,
-			close: data.close,
-			isOpen: modeBrackets.textIsOpenBracket[text]
+			cwose: data.cwose,
+			isOpen: modeBwackets.textIsOpenBwacket[text]
 		};
 	}
 
 	/**
-	 * Returns:
-	 *  - -1 => the line consists of whitespace
-	 *  - otherwise => the indent level is returned value
+	 * Wetuwns:
+	 *  - -1 => the wine consists of whitespace
+	 *  - othewwise => the indent wevew is wetuwned vawue
 	 */
-	public static computeIndentLevel(line: string, tabSize: number): number {
-		let indent = 0;
-		let i = 0;
-		let len = line.length;
+	pubwic static computeIndentWevew(wine: stwing, tabSize: numba): numba {
+		wet indent = 0;
+		wet i = 0;
+		wet wen = wine.wength;
 
-		while (i < len) {
-			let chCode = line.charCodeAt(i);
-			if (chCode === CharCode.Space) {
+		whiwe (i < wen) {
+			wet chCode = wine.chawCodeAt(i);
+			if (chCode === ChawCode.Space) {
 				indent++;
-			} else if (chCode === CharCode.Tab) {
+			} ewse if (chCode === ChawCode.Tab) {
 				indent = indent - indent % tabSize + tabSize;
-			} else {
-				break;
+			} ewse {
+				bweak;
 			}
 			i++;
 		}
 
-		if (i === len) {
-			return -1; // line only consists of whitespace
+		if (i === wen) {
+			wetuwn -1; // wine onwy consists of whitespace
 		}
 
-		return indent;
+		wetuwn indent;
 	}
 
-	private _computeIndentLevel(lineIndex: number): number {
-		return TextModel.computeIndentLevel(this._buffer.getLineContent(lineIndex + 1), this._options.tabSize);
+	pwivate _computeIndentWevew(wineIndex: numba): numba {
+		wetuwn TextModew.computeIndentWevew(this._buffa.getWineContent(wineIndex + 1), this._options.tabSize);
 	}
 
-	public getActiveIndentGuide(lineNumber: number, minLineNumber: number, maxLineNumber: number): model.IActiveIndentGuideInfo {
-		this._assertNotDisposed();
-		const lineCount = this.getLineCount();
+	pubwic getActiveIndentGuide(wineNumba: numba, minWineNumba: numba, maxWineNumba: numba): modew.IActiveIndentGuideInfo {
+		this._assewtNotDisposed();
+		const wineCount = this.getWineCount();
 
-		if (lineNumber < 1 || lineNumber > lineCount) {
-			throw new Error('Illegal value for lineNumber');
+		if (wineNumba < 1 || wineNumba > wineCount) {
+			thwow new Ewwow('Iwwegaw vawue fow wineNumba');
 		}
 
-		const foldingRules = LanguageConfigurationRegistry.getFoldingRules(this._languageIdentifier.id);
-		const offSide = Boolean(foldingRules && foldingRules.offSide);
+		const fowdingWuwes = WanguageConfiguwationWegistwy.getFowdingWuwes(this._wanguageIdentifia.id);
+		const offSide = Boowean(fowdingWuwes && fowdingWuwes.offSide);
 
-		let up_aboveContentLineIndex = -2; /* -2 is a marker for not having computed it */
-		let up_aboveContentLineIndent = -1;
-		let up_belowContentLineIndex = -2; /* -2 is a marker for not having computed it */
-		let up_belowContentLineIndent = -1;
-		const up_resolveIndents = (lineNumber: number) => {
-			if (up_aboveContentLineIndex !== -1 && (up_aboveContentLineIndex === -2 || up_aboveContentLineIndex > lineNumber - 1)) {
-				up_aboveContentLineIndex = -1;
-				up_aboveContentLineIndent = -1;
+		wet up_aboveContentWineIndex = -2; /* -2 is a mawka fow not having computed it */
+		wet up_aboveContentWineIndent = -1;
+		wet up_bewowContentWineIndex = -2; /* -2 is a mawka fow not having computed it */
+		wet up_bewowContentWineIndent = -1;
+		const up_wesowveIndents = (wineNumba: numba) => {
+			if (up_aboveContentWineIndex !== -1 && (up_aboveContentWineIndex === -2 || up_aboveContentWineIndex > wineNumba - 1)) {
+				up_aboveContentWineIndex = -1;
+				up_aboveContentWineIndent = -1;
 
-				// must find previous line with content
-				for (let lineIndex = lineNumber - 2; lineIndex >= 0; lineIndex--) {
-					let indent = this._computeIndentLevel(lineIndex);
+				// must find pwevious wine with content
+				fow (wet wineIndex = wineNumba - 2; wineIndex >= 0; wineIndex--) {
+					wet indent = this._computeIndentWevew(wineIndex);
 					if (indent >= 0) {
-						up_aboveContentLineIndex = lineIndex;
-						up_aboveContentLineIndent = indent;
-						break;
+						up_aboveContentWineIndex = wineIndex;
+						up_aboveContentWineIndent = indent;
+						bweak;
 					}
 				}
 			}
 
-			if (up_belowContentLineIndex === -2) {
-				up_belowContentLineIndex = -1;
-				up_belowContentLineIndent = -1;
+			if (up_bewowContentWineIndex === -2) {
+				up_bewowContentWineIndex = -1;
+				up_bewowContentWineIndent = -1;
 
-				// must find next line with content
-				for (let lineIndex = lineNumber; lineIndex < lineCount; lineIndex++) {
-					let indent = this._computeIndentLevel(lineIndex);
+				// must find next wine with content
+				fow (wet wineIndex = wineNumba; wineIndex < wineCount; wineIndex++) {
+					wet indent = this._computeIndentWevew(wineIndex);
 					if (indent >= 0) {
-						up_belowContentLineIndex = lineIndex;
-						up_belowContentLineIndent = indent;
-						break;
+						up_bewowContentWineIndex = wineIndex;
+						up_bewowContentWineIndent = indent;
+						bweak;
 					}
 				}
 			}
 		};
 
-		let down_aboveContentLineIndex = -2; /* -2 is a marker for not having computed it */
-		let down_aboveContentLineIndent = -1;
-		let down_belowContentLineIndex = -2; /* -2 is a marker for not having computed it */
-		let down_belowContentLineIndent = -1;
-		const down_resolveIndents = (lineNumber: number) => {
-			if (down_aboveContentLineIndex === -2) {
-				down_aboveContentLineIndex = -1;
-				down_aboveContentLineIndent = -1;
+		wet down_aboveContentWineIndex = -2; /* -2 is a mawka fow not having computed it */
+		wet down_aboveContentWineIndent = -1;
+		wet down_bewowContentWineIndex = -2; /* -2 is a mawka fow not having computed it */
+		wet down_bewowContentWineIndent = -1;
+		const down_wesowveIndents = (wineNumba: numba) => {
+			if (down_aboveContentWineIndex === -2) {
+				down_aboveContentWineIndex = -1;
+				down_aboveContentWineIndent = -1;
 
-				// must find previous line with content
-				for (let lineIndex = lineNumber - 2; lineIndex >= 0; lineIndex--) {
-					let indent = this._computeIndentLevel(lineIndex);
+				// must find pwevious wine with content
+				fow (wet wineIndex = wineNumba - 2; wineIndex >= 0; wineIndex--) {
+					wet indent = this._computeIndentWevew(wineIndex);
 					if (indent >= 0) {
-						down_aboveContentLineIndex = lineIndex;
-						down_aboveContentLineIndent = indent;
-						break;
+						down_aboveContentWineIndex = wineIndex;
+						down_aboveContentWineIndent = indent;
+						bweak;
 					}
 				}
 			}
 
-			if (down_belowContentLineIndex !== -1 && (down_belowContentLineIndex === -2 || down_belowContentLineIndex < lineNumber - 1)) {
-				down_belowContentLineIndex = -1;
-				down_belowContentLineIndent = -1;
+			if (down_bewowContentWineIndex !== -1 && (down_bewowContentWineIndex === -2 || down_bewowContentWineIndex < wineNumba - 1)) {
+				down_bewowContentWineIndex = -1;
+				down_bewowContentWineIndent = -1;
 
-				// must find next line with content
-				for (let lineIndex = lineNumber; lineIndex < lineCount; lineIndex++) {
-					let indent = this._computeIndentLevel(lineIndex);
+				// must find next wine with content
+				fow (wet wineIndex = wineNumba; wineIndex < wineCount; wineIndex++) {
+					wet indent = this._computeIndentWevew(wineIndex);
 					if (indent >= 0) {
-						down_belowContentLineIndex = lineIndex;
-						down_belowContentLineIndent = indent;
-						break;
+						down_bewowContentWineIndex = wineIndex;
+						down_bewowContentWineIndent = indent;
+						bweak;
 					}
 				}
 			}
 		};
 
-		let startLineNumber = 0;
-		let goUp = true;
-		let endLineNumber = 0;
-		let goDown = true;
-		let indent = 0;
+		wet stawtWineNumba = 0;
+		wet goUp = twue;
+		wet endWineNumba = 0;
+		wet goDown = twue;
+		wet indent = 0;
 
-		let initialIndent = 0;
+		wet initiawIndent = 0;
 
-		for (let distance = 0; goUp || goDown; distance++) {
-			const upLineNumber = lineNumber - distance;
-			const downLineNumber = lineNumber + distance;
+		fow (wet distance = 0; goUp || goDown; distance++) {
+			const upWineNumba = wineNumba - distance;
+			const downWineNumba = wineNumba + distance;
 
-			if (distance > 1 && (upLineNumber < 1 || upLineNumber < minLineNumber)) {
-				goUp = false;
+			if (distance > 1 && (upWineNumba < 1 || upWineNumba < minWineNumba)) {
+				goUp = fawse;
 			}
-			if (distance > 1 && (downLineNumber > lineCount || downLineNumber > maxLineNumber)) {
-				goDown = false;
+			if (distance > 1 && (downWineNumba > wineCount || downWineNumba > maxWineNumba)) {
+				goDown = fawse;
 			}
 			if (distance > 50000) {
-				// stop processing
-				goUp = false;
-				goDown = false;
+				// stop pwocessing
+				goUp = fawse;
+				goDown = fawse;
 			}
 
-			let upLineIndentLevel: number = -1;
+			wet upWineIndentWevew: numba = -1;
 			if (goUp) {
-				// compute indent level going up
-				const currentIndent = this._computeIndentLevel(upLineNumber - 1);
-				if (currentIndent >= 0) {
-					// This line has content (besides whitespace)
-					// Use the line's indent
-					up_belowContentLineIndex = upLineNumber - 1;
-					up_belowContentLineIndent = currentIndent;
-					upLineIndentLevel = Math.ceil(currentIndent / this._options.indentSize);
-				} else {
-					up_resolveIndents(upLineNumber);
-					upLineIndentLevel = this._getIndentLevelForWhitespaceLine(offSide, up_aboveContentLineIndent, up_belowContentLineIndent);
+				// compute indent wevew going up
+				const cuwwentIndent = this._computeIndentWevew(upWineNumba - 1);
+				if (cuwwentIndent >= 0) {
+					// This wine has content (besides whitespace)
+					// Use the wine's indent
+					up_bewowContentWineIndex = upWineNumba - 1;
+					up_bewowContentWineIndent = cuwwentIndent;
+					upWineIndentWevew = Math.ceiw(cuwwentIndent / this._options.indentSize);
+				} ewse {
+					up_wesowveIndents(upWineNumba);
+					upWineIndentWevew = this._getIndentWevewFowWhitespaceWine(offSide, up_aboveContentWineIndent, up_bewowContentWineIndent);
 				}
 			}
 
-			let downLineIndentLevel = -1;
+			wet downWineIndentWevew = -1;
 			if (goDown) {
-				// compute indent level going down
-				const currentIndent = this._computeIndentLevel(downLineNumber - 1);
-				if (currentIndent >= 0) {
-					// This line has content (besides whitespace)
-					// Use the line's indent
-					down_aboveContentLineIndex = downLineNumber - 1;
-					down_aboveContentLineIndent = currentIndent;
-					downLineIndentLevel = Math.ceil(currentIndent / this._options.indentSize);
-				} else {
-					down_resolveIndents(downLineNumber);
-					downLineIndentLevel = this._getIndentLevelForWhitespaceLine(offSide, down_aboveContentLineIndent, down_belowContentLineIndent);
+				// compute indent wevew going down
+				const cuwwentIndent = this._computeIndentWevew(downWineNumba - 1);
+				if (cuwwentIndent >= 0) {
+					// This wine has content (besides whitespace)
+					// Use the wine's indent
+					down_aboveContentWineIndex = downWineNumba - 1;
+					down_aboveContentWineIndent = cuwwentIndent;
+					downWineIndentWevew = Math.ceiw(cuwwentIndent / this._options.indentSize);
+				} ewse {
+					down_wesowveIndents(downWineNumba);
+					downWineIndentWevew = this._getIndentWevewFowWhitespaceWine(offSide, down_aboveContentWineIndent, down_bewowContentWineIndent);
 				}
 			}
 
 			if (distance === 0) {
-				initialIndent = upLineIndentLevel;
+				initiawIndent = upWineIndentWevew;
 				continue;
 			}
 
 			if (distance === 1) {
-				if (downLineNumber <= lineCount && downLineIndentLevel >= 0 && initialIndent + 1 === downLineIndentLevel) {
-					// This is the beginning of a scope, we have special handling here, since we want the
-					// child scope indent to be active, not the parent scope
-					goUp = false;
-					startLineNumber = downLineNumber;
-					endLineNumber = downLineNumber;
-					indent = downLineIndentLevel;
+				if (downWineNumba <= wineCount && downWineIndentWevew >= 0 && initiawIndent + 1 === downWineIndentWevew) {
+					// This is the beginning of a scope, we have speciaw handwing hewe, since we want the
+					// chiwd scope indent to be active, not the pawent scope
+					goUp = fawse;
+					stawtWineNumba = downWineNumba;
+					endWineNumba = downWineNumba;
+					indent = downWineIndentWevew;
 					continue;
 				}
 
-				if (upLineNumber >= 1 && upLineIndentLevel >= 0 && upLineIndentLevel - 1 === initialIndent) {
-					// This is the end of a scope, just like above
-					goDown = false;
-					startLineNumber = upLineNumber;
-					endLineNumber = upLineNumber;
-					indent = upLineIndentLevel;
+				if (upWineNumba >= 1 && upWineIndentWevew >= 0 && upWineIndentWevew - 1 === initiawIndent) {
+					// This is the end of a scope, just wike above
+					goDown = fawse;
+					stawtWineNumba = upWineNumba;
+					endWineNumba = upWineNumba;
+					indent = upWineIndentWevew;
 					continue;
 				}
 
-				startLineNumber = lineNumber;
-				endLineNumber = lineNumber;
-				indent = initialIndent;
+				stawtWineNumba = wineNumba;
+				endWineNumba = wineNumba;
+				indent = initiawIndent;
 				if (indent === 0) {
 					// No need to continue
-					return { startLineNumber, endLineNumber, indent };
+					wetuwn { stawtWineNumba, endWineNumba, indent };
 				}
 			}
 
 			if (goUp) {
-				if (upLineIndentLevel >= indent) {
-					startLineNumber = upLineNumber;
-				} else {
-					goUp = false;
+				if (upWineIndentWevew >= indent) {
+					stawtWineNumba = upWineNumba;
+				} ewse {
+					goUp = fawse;
 				}
 			}
 			if (goDown) {
-				if (downLineIndentLevel >= indent) {
-					endLineNumber = downLineNumber;
-				} else {
-					goDown = false;
+				if (downWineIndentWevew >= indent) {
+					endWineNumba = downWineNumba;
+				} ewse {
+					goDown = fawse;
 				}
 			}
 		}
 
-		return { startLineNumber, endLineNumber, indent };
+		wetuwn { stawtWineNumba, endWineNumba, indent };
 	}
 
-	public getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[] {
-		this._assertNotDisposed();
-		const lineCount = this.getLineCount();
+	pubwic getWinesIndentGuides(stawtWineNumba: numba, endWineNumba: numba): numba[] {
+		this._assewtNotDisposed();
+		const wineCount = this.getWineCount();
 
-		if (startLineNumber < 1 || startLineNumber > lineCount) {
-			throw new Error('Illegal value for startLineNumber');
+		if (stawtWineNumba < 1 || stawtWineNumba > wineCount) {
+			thwow new Ewwow('Iwwegaw vawue fow stawtWineNumba');
 		}
-		if (endLineNumber < 1 || endLineNumber > lineCount) {
-			throw new Error('Illegal value for endLineNumber');
+		if (endWineNumba < 1 || endWineNumba > wineCount) {
+			thwow new Ewwow('Iwwegaw vawue fow endWineNumba');
 		}
 
-		const foldingRules = LanguageConfigurationRegistry.getFoldingRules(this._languageIdentifier.id);
-		const offSide = Boolean(foldingRules && foldingRules.offSide);
+		const fowdingWuwes = WanguageConfiguwationWegistwy.getFowdingWuwes(this._wanguageIdentifia.id);
+		const offSide = Boowean(fowdingWuwes && fowdingWuwes.offSide);
 
-		let result: number[] = new Array<number>(endLineNumber - startLineNumber + 1);
+		wet wesuwt: numba[] = new Awway<numba>(endWineNumba - stawtWineNumba + 1);
 
-		let aboveContentLineIndex = -2; /* -2 is a marker for not having computed it */
-		let aboveContentLineIndent = -1;
+		wet aboveContentWineIndex = -2; /* -2 is a mawka fow not having computed it */
+		wet aboveContentWineIndent = -1;
 
-		let belowContentLineIndex = -2; /* -2 is a marker for not having computed it */
-		let belowContentLineIndent = -1;
+		wet bewowContentWineIndex = -2; /* -2 is a mawka fow not having computed it */
+		wet bewowContentWineIndent = -1;
 
-		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			let resultIndex = lineNumber - startLineNumber;
+		fow (wet wineNumba = stawtWineNumba; wineNumba <= endWineNumba; wineNumba++) {
+			wet wesuwtIndex = wineNumba - stawtWineNumba;
 
-			const currentIndent = this._computeIndentLevel(lineNumber - 1);
-			if (currentIndent >= 0) {
-				// This line has content (besides whitespace)
-				// Use the line's indent
-				aboveContentLineIndex = lineNumber - 1;
-				aboveContentLineIndent = currentIndent;
-				result[resultIndex] = Math.ceil(currentIndent / this._options.indentSize);
+			const cuwwentIndent = this._computeIndentWevew(wineNumba - 1);
+			if (cuwwentIndent >= 0) {
+				// This wine has content (besides whitespace)
+				// Use the wine's indent
+				aboveContentWineIndex = wineNumba - 1;
+				aboveContentWineIndent = cuwwentIndent;
+				wesuwt[wesuwtIndex] = Math.ceiw(cuwwentIndent / this._options.indentSize);
 				continue;
 			}
 
-			if (aboveContentLineIndex === -2) {
-				aboveContentLineIndex = -1;
-				aboveContentLineIndent = -1;
+			if (aboveContentWineIndex === -2) {
+				aboveContentWineIndex = -1;
+				aboveContentWineIndent = -1;
 
-				// must find previous line with content
-				for (let lineIndex = lineNumber - 2; lineIndex >= 0; lineIndex--) {
-					let indent = this._computeIndentLevel(lineIndex);
+				// must find pwevious wine with content
+				fow (wet wineIndex = wineNumba - 2; wineIndex >= 0; wineIndex--) {
+					wet indent = this._computeIndentWevew(wineIndex);
 					if (indent >= 0) {
-						aboveContentLineIndex = lineIndex;
-						aboveContentLineIndent = indent;
-						break;
+						aboveContentWineIndex = wineIndex;
+						aboveContentWineIndent = indent;
+						bweak;
 					}
 				}
 			}
 
-			if (belowContentLineIndex !== -1 && (belowContentLineIndex === -2 || belowContentLineIndex < lineNumber - 1)) {
-				belowContentLineIndex = -1;
-				belowContentLineIndent = -1;
+			if (bewowContentWineIndex !== -1 && (bewowContentWineIndex === -2 || bewowContentWineIndex < wineNumba - 1)) {
+				bewowContentWineIndex = -1;
+				bewowContentWineIndent = -1;
 
-				// must find next line with content
-				for (let lineIndex = lineNumber; lineIndex < lineCount; lineIndex++) {
-					let indent = this._computeIndentLevel(lineIndex);
+				// must find next wine with content
+				fow (wet wineIndex = wineNumba; wineIndex < wineCount; wineIndex++) {
+					wet indent = this._computeIndentWevew(wineIndex);
 					if (indent >= 0) {
-						belowContentLineIndex = lineIndex;
-						belowContentLineIndent = indent;
-						break;
+						bewowContentWineIndex = wineIndex;
+						bewowContentWineIndent = indent;
+						bweak;
 					}
 				}
 			}
 
-			result[resultIndex] = this._getIndentLevelForWhitespaceLine(offSide, aboveContentLineIndent, belowContentLineIndent);
+			wesuwt[wesuwtIndex] = this._getIndentWevewFowWhitespaceWine(offSide, aboveContentWineIndent, bewowContentWineIndent);
 
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _getIndentLevelForWhitespaceLine(offSide: boolean, aboveContentLineIndent: number, belowContentLineIndent: number): number {
-		if (aboveContentLineIndent === -1 || belowContentLineIndent === -1) {
-			// At the top or bottom of the file
-			return 0;
+	pwivate _getIndentWevewFowWhitespaceWine(offSide: boowean, aboveContentWineIndent: numba, bewowContentWineIndent: numba): numba {
+		if (aboveContentWineIndent === -1 || bewowContentWineIndent === -1) {
+			// At the top ow bottom of the fiwe
+			wetuwn 0;
 
-		} else if (aboveContentLineIndent < belowContentLineIndent) {
-			// we are inside the region above
-			return (1 + Math.floor(aboveContentLineIndent / this._options.indentSize));
+		} ewse if (aboveContentWineIndent < bewowContentWineIndent) {
+			// we awe inside the wegion above
+			wetuwn (1 + Math.fwoow(aboveContentWineIndent / this._options.indentSize));
 
-		} else if (aboveContentLineIndent === belowContentLineIndent) {
-			// we are in between two regions
-			return Math.ceil(belowContentLineIndent / this._options.indentSize);
+		} ewse if (aboveContentWineIndent === bewowContentWineIndent) {
+			// we awe in between two wegions
+			wetuwn Math.ceiw(bewowContentWineIndent / this._options.indentSize);
 
-		} else {
+		} ewse {
 
 			if (offSide) {
-				// same level as region below
-				return Math.ceil(belowContentLineIndent / this._options.indentSize);
-			} else {
-				// we are inside the region that ends below
-				return (1 + Math.floor(belowContentLineIndent / this._options.indentSize));
+				// same wevew as wegion bewow
+				wetuwn Math.ceiw(bewowContentWineIndent / this._options.indentSize);
+			} ewse {
+				// we awe inside the wegion that ends bewow
+				wetuwn (1 + Math.fwoow(bewowContentWineIndent / this._options.indentSize));
 			}
 
 		}
 	}
 
-	//#endregion
-	normalizePosition(position: Position, affinity: model.PositionAffinity): Position {
-		return position;
+	//#endwegion
+	nowmawizePosition(position: Position, affinity: modew.PositionAffinity): Position {
+		wetuwn position;
 	}
 
 	/**
-	 * Gets the column at which indentation stops at a given line.
-	 * @internal
+	 * Gets the cowumn at which indentation stops at a given wine.
+	 * @intewnaw
 	*/
-	public getLineIndentColumn(lineNumber: number): number {
-		// Columns start with 1.
-		return indentOfLine(this.getLineContent(lineNumber)) + 1;
+	pubwic getWineIndentCowumn(wineNumba: numba): numba {
+		// Cowumns stawt with 1.
+		wetuwn indentOfWine(this.getWineContent(wineNumba)) + 1;
 	}
 }
 
-function indentOfLine(line: string): number {
-	let indent = 0;
-	for (const c of line) {
+function indentOfWine(wine: stwing): numba {
+	wet indent = 0;
+	fow (const c of wine) {
 		if (c === ' ' || c === '\t') {
 			indent++;
-		} else {
-			break;
+		} ewse {
+			bweak;
 		}
 	}
-	return indent;
+	wetuwn indent;
 }
 
-//#region Decorations
+//#wegion Decowations
 
-function isNodeInOverviewRuler(node: IntervalNode): boolean {
-	return (node.options.overviewRuler && node.options.overviewRuler.color ? true : false);
+function isNodeInOvewviewWuwa(node: IntewvawNode): boowean {
+	wetuwn (node.options.ovewviewWuwa && node.options.ovewviewWuwa.cowow ? twue : fawse);
 }
 
-function isNodeInjectedText(node: IntervalNode): boolean {
-	return !!node.options.after || !!node.options.before;
+function isNodeInjectedText(node: IntewvawNode): boowean {
+	wetuwn !!node.options.afta || !!node.options.befowe;
 }
 
-export interface IDecorationsTreesHost {
-	getVersionId(): number;
-	getRangeAt(start: number, end: number): Range;
+expowt intewface IDecowationsTweesHost {
+	getVewsionId(): numba;
+	getWangeAt(stawt: numba, end: numba): Wange;
 }
 
-class DecorationsTrees {
+cwass DecowationsTwees {
 
 	/**
-	 * This tree holds decorations that do not show up in the overview ruler.
+	 * This twee howds decowations that do not show up in the ovewview wuwa.
 	 */
-	private readonly _decorationsTree0: IntervalTree;
+	pwivate weadonwy _decowationsTwee0: IntewvawTwee;
 
 	/**
-	 * This tree holds decorations that show up in the overview ruler.
+	 * This twee howds decowations that show up in the ovewview wuwa.
 	 */
-	private readonly _decorationsTree1: IntervalTree;
+	pwivate weadonwy _decowationsTwee1: IntewvawTwee;
 
 	/**
-	 * This tree holds decorations that contain injected text.
+	 * This twee howds decowations that contain injected text.
 	 */
-	private readonly _injectedTextDecorationsTree: IntervalTree;
+	pwivate weadonwy _injectedTextDecowationsTwee: IntewvawTwee;
 
-	constructor() {
-		this._decorationsTree0 = new IntervalTree();
-		this._decorationsTree1 = new IntervalTree();
-		this._injectedTextDecorationsTree = new IntervalTree();
+	constwuctow() {
+		this._decowationsTwee0 = new IntewvawTwee();
+		this._decowationsTwee1 = new IntewvawTwee();
+		this._injectedTextDecowationsTwee = new IntewvawTwee();
 	}
 
-	public ensureAllNodesHaveRanges(host: IDecorationsTreesHost): void {
-		this.getAll(host, 0, false, false);
+	pubwic ensuweAwwNodesHaveWanges(host: IDecowationsTweesHost): void {
+		this.getAww(host, 0, fawse, fawse);
 	}
 
-	private _ensureNodesHaveRanges(host: IDecorationsTreesHost, nodes: IntervalNode[]): model.IModelDecoration[] {
-		for (const node of nodes) {
-			if (node.range === null) {
-				node.range = host.getRangeAt(node.cachedAbsoluteStart, node.cachedAbsoluteEnd);
+	pwivate _ensuweNodesHaveWanges(host: IDecowationsTweesHost, nodes: IntewvawNode[]): modew.IModewDecowation[] {
+		fow (const node of nodes) {
+			if (node.wange === nuww) {
+				node.wange = host.getWangeAt(node.cachedAbsowuteStawt, node.cachedAbsowuteEnd);
 			}
 		}
-		return <model.IModelDecoration[]>nodes;
+		wetuwn <modew.IModewDecowation[]>nodes;
 	}
 
-	public getAllInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number, filterOutValidation: boolean): model.IModelDecoration[] {
-		const versionId = host.getVersionId();
-		const result = this._intervalSearch(start, end, filterOwnerId, filterOutValidation, versionId);
-		return this._ensureNodesHaveRanges(host, result);
+	pubwic getAwwInIntewvaw(host: IDecowationsTweesHost, stawt: numba, end: numba, fiwtewOwnewId: numba, fiwtewOutVawidation: boowean): modew.IModewDecowation[] {
+		const vewsionId = host.getVewsionId();
+		const wesuwt = this._intewvawSeawch(stawt, end, fiwtewOwnewId, fiwtewOutVawidation, vewsionId);
+		wetuwn this._ensuweNodesHaveWanges(host, wesuwt);
 	}
 
-	private _intervalSearch(start: number, end: number, filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number): IntervalNode[] {
-		const r0 = this._decorationsTree0.intervalSearch(start, end, filterOwnerId, filterOutValidation, cachedVersionId);
-		const r1 = this._decorationsTree1.intervalSearch(start, end, filterOwnerId, filterOutValidation, cachedVersionId);
-		const r2 = this._injectedTextDecorationsTree.intervalSearch(start, end, filterOwnerId, filterOutValidation, cachedVersionId);
-		return r0.concat(r1).concat(r2);
+	pwivate _intewvawSeawch(stawt: numba, end: numba, fiwtewOwnewId: numba, fiwtewOutVawidation: boowean, cachedVewsionId: numba): IntewvawNode[] {
+		const w0 = this._decowationsTwee0.intewvawSeawch(stawt, end, fiwtewOwnewId, fiwtewOutVawidation, cachedVewsionId);
+		const w1 = this._decowationsTwee1.intewvawSeawch(stawt, end, fiwtewOwnewId, fiwtewOutVawidation, cachedVewsionId);
+		const w2 = this._injectedTextDecowationsTwee.intewvawSeawch(stawt, end, fiwtewOwnewId, fiwtewOutVawidation, cachedVewsionId);
+		wetuwn w0.concat(w1).concat(w2);
 	}
 
-	public getInjectedTextInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): model.IModelDecoration[] {
-		const versionId = host.getVersionId();
-		const result = this._injectedTextDecorationsTree.intervalSearch(start, end, filterOwnerId, false, versionId);
-		return this._ensureNodesHaveRanges(host, result);
+	pubwic getInjectedTextInIntewvaw(host: IDecowationsTweesHost, stawt: numba, end: numba, fiwtewOwnewId: numba): modew.IModewDecowation[] {
+		const vewsionId = host.getVewsionId();
+		const wesuwt = this._injectedTextDecowationsTwee.intewvawSeawch(stawt, end, fiwtewOwnewId, fawse, vewsionId);
+		wetuwn this._ensuweNodesHaveWanges(host, wesuwt);
 	}
 
-	public getAllInjectedText(host: IDecorationsTreesHost, filterOwnerId: number): model.IModelDecoration[] {
-		const versionId = host.getVersionId();
-		const result = this._injectedTextDecorationsTree.search(filterOwnerId, false, versionId);
-		return this._ensureNodesHaveRanges(host, result);
+	pubwic getAwwInjectedText(host: IDecowationsTweesHost, fiwtewOwnewId: numba): modew.IModewDecowation[] {
+		const vewsionId = host.getVewsionId();
+		const wesuwt = this._injectedTextDecowationsTwee.seawch(fiwtewOwnewId, fawse, vewsionId);
+		wetuwn this._ensuweNodesHaveWanges(host, wesuwt);
 	}
 
-	public getAll(host: IDecorationsTreesHost, filterOwnerId: number, filterOutValidation: boolean, overviewRulerOnly: boolean): model.IModelDecoration[] {
-		const versionId = host.getVersionId();
-		const result = this._search(filterOwnerId, filterOutValidation, overviewRulerOnly, versionId);
-		return this._ensureNodesHaveRanges(host, result);
+	pubwic getAww(host: IDecowationsTweesHost, fiwtewOwnewId: numba, fiwtewOutVawidation: boowean, ovewviewWuwewOnwy: boowean): modew.IModewDecowation[] {
+		const vewsionId = host.getVewsionId();
+		const wesuwt = this._seawch(fiwtewOwnewId, fiwtewOutVawidation, ovewviewWuwewOnwy, vewsionId);
+		wetuwn this._ensuweNodesHaveWanges(host, wesuwt);
 	}
 
-	private _search(filterOwnerId: number, filterOutValidation: boolean, overviewRulerOnly: boolean, cachedVersionId: number): IntervalNode[] {
-		if (overviewRulerOnly) {
-			return this._decorationsTree1.search(filterOwnerId, filterOutValidation, cachedVersionId);
-		} else {
-			const r0 = this._decorationsTree0.search(filterOwnerId, filterOutValidation, cachedVersionId);
-			const r1 = this._decorationsTree1.search(filterOwnerId, filterOutValidation, cachedVersionId);
-			const r2 = this._injectedTextDecorationsTree.search(filterOwnerId, filterOutValidation, cachedVersionId);
-			return r0.concat(r1).concat(r2);
+	pwivate _seawch(fiwtewOwnewId: numba, fiwtewOutVawidation: boowean, ovewviewWuwewOnwy: boowean, cachedVewsionId: numba): IntewvawNode[] {
+		if (ovewviewWuwewOnwy) {
+			wetuwn this._decowationsTwee1.seawch(fiwtewOwnewId, fiwtewOutVawidation, cachedVewsionId);
+		} ewse {
+			const w0 = this._decowationsTwee0.seawch(fiwtewOwnewId, fiwtewOutVawidation, cachedVewsionId);
+			const w1 = this._decowationsTwee1.seawch(fiwtewOwnewId, fiwtewOutVawidation, cachedVewsionId);
+			const w2 = this._injectedTextDecowationsTwee.seawch(fiwtewOwnewId, fiwtewOutVawidation, cachedVewsionId);
+			wetuwn w0.concat(w1).concat(w2);
 		}
 	}
 
-	public collectNodesFromOwner(ownerId: number): IntervalNode[] {
-		const r0 = this._decorationsTree0.collectNodesFromOwner(ownerId);
-		const r1 = this._decorationsTree1.collectNodesFromOwner(ownerId);
-		const r2 = this._injectedTextDecorationsTree.collectNodesFromOwner(ownerId);
-		return r0.concat(r1).concat(r2);
+	pubwic cowwectNodesFwomOwna(ownewId: numba): IntewvawNode[] {
+		const w0 = this._decowationsTwee0.cowwectNodesFwomOwna(ownewId);
+		const w1 = this._decowationsTwee1.cowwectNodesFwomOwna(ownewId);
+		const w2 = this._injectedTextDecowationsTwee.cowwectNodesFwomOwna(ownewId);
+		wetuwn w0.concat(w1).concat(w2);
 	}
 
-	public collectNodesPostOrder(): IntervalNode[] {
-		const r0 = this._decorationsTree0.collectNodesPostOrder();
-		const r1 = this._decorationsTree1.collectNodesPostOrder();
-		const r2 = this._injectedTextDecorationsTree.collectNodesPostOrder();
-		return r0.concat(r1).concat(r2);
+	pubwic cowwectNodesPostOwda(): IntewvawNode[] {
+		const w0 = this._decowationsTwee0.cowwectNodesPostOwda();
+		const w1 = this._decowationsTwee1.cowwectNodesPostOwda();
+		const w2 = this._injectedTextDecowationsTwee.cowwectNodesPostOwda();
+		wetuwn w0.concat(w1).concat(w2);
 	}
 
-	public insert(node: IntervalNode): void {
+	pubwic insewt(node: IntewvawNode): void {
 		if (isNodeInjectedText(node)) {
-			this._injectedTextDecorationsTree.insert(node);
-		} else if (isNodeInOverviewRuler(node)) {
-			this._decorationsTree1.insert(node);
-		} else {
-			this._decorationsTree0.insert(node);
+			this._injectedTextDecowationsTwee.insewt(node);
+		} ewse if (isNodeInOvewviewWuwa(node)) {
+			this._decowationsTwee1.insewt(node);
+		} ewse {
+			this._decowationsTwee0.insewt(node);
 		}
 	}
 
-	public delete(node: IntervalNode): void {
+	pubwic dewete(node: IntewvawNode): void {
 		if (isNodeInjectedText(node)) {
-			this._injectedTextDecorationsTree.delete(node);
-		} else if (isNodeInOverviewRuler(node)) {
-			this._decorationsTree1.delete(node);
-		} else {
-			this._decorationsTree0.delete(node);
+			this._injectedTextDecowationsTwee.dewete(node);
+		} ewse if (isNodeInOvewviewWuwa(node)) {
+			this._decowationsTwee1.dewete(node);
+		} ewse {
+			this._decowationsTwee0.dewete(node);
 		}
 	}
 
-	public getNodeRange(host: IDecorationsTreesHost, node: IntervalNode): Range {
-		const versionId = host.getVersionId();
-		if (node.cachedVersionId !== versionId) {
-			this._resolveNode(node, versionId);
+	pubwic getNodeWange(host: IDecowationsTweesHost, node: IntewvawNode): Wange {
+		const vewsionId = host.getVewsionId();
+		if (node.cachedVewsionId !== vewsionId) {
+			this._wesowveNode(node, vewsionId);
 		}
-		if (node.range === null) {
-			node.range = host.getRangeAt(node.cachedAbsoluteStart, node.cachedAbsoluteEnd);
+		if (node.wange === nuww) {
+			node.wange = host.getWangeAt(node.cachedAbsowuteStawt, node.cachedAbsowuteEnd);
 		}
-		return node.range;
+		wetuwn node.wange;
 	}
 
-	private _resolveNode(node: IntervalNode, cachedVersionId: number): void {
+	pwivate _wesowveNode(node: IntewvawNode, cachedVewsionId: numba): void {
 		if (isNodeInjectedText(node)) {
-			this._injectedTextDecorationsTree.resolveNode(node, cachedVersionId);
-		} else if (isNodeInOverviewRuler(node)) {
-			this._decorationsTree1.resolveNode(node, cachedVersionId);
-		} else {
-			this._decorationsTree0.resolveNode(node, cachedVersionId);
+			this._injectedTextDecowationsTwee.wesowveNode(node, cachedVewsionId);
+		} ewse if (isNodeInOvewviewWuwa(node)) {
+			this._decowationsTwee1.wesowveNode(node, cachedVewsionId);
+		} ewse {
+			this._decowationsTwee0.wesowveNode(node, cachedVewsionId);
 		}
 	}
 
-	public acceptReplace(offset: number, length: number, textLength: number, forceMoveMarkers: boolean): void {
-		this._decorationsTree0.acceptReplace(offset, length, textLength, forceMoveMarkers);
-		this._decorationsTree1.acceptReplace(offset, length, textLength, forceMoveMarkers);
-		this._injectedTextDecorationsTree.acceptReplace(offset, length, textLength, forceMoveMarkers);
+	pubwic acceptWepwace(offset: numba, wength: numba, textWength: numba, fowceMoveMawkews: boowean): void {
+		this._decowationsTwee0.acceptWepwace(offset, wength, textWength, fowceMoveMawkews);
+		this._decowationsTwee1.acceptWepwace(offset, wength, textWength, fowceMoveMawkews);
+		this._injectedTextDecowationsTwee.acceptWepwace(offset, wength, textWength, fowceMoveMawkews);
 	}
 }
 
-function cleanClassName(className: string): string {
-	return className.replace(/[^a-z0-9\-_]/gi, ' ');
+function cweanCwassName(cwassName: stwing): stwing {
+	wetuwn cwassName.wepwace(/[^a-z0-9\-_]/gi, ' ');
 }
 
-class DecorationOptions implements model.IDecorationOptions {
-	readonly color: string | ThemeColor;
-	readonly darkColor: string | ThemeColor;
+cwass DecowationOptions impwements modew.IDecowationOptions {
+	weadonwy cowow: stwing | ThemeCowow;
+	weadonwy dawkCowow: stwing | ThemeCowow;
 
-	constructor(options: model.IDecorationOptions) {
-		this.color = options.color || '';
-		this.darkColor = options.darkColor || '';
+	constwuctow(options: modew.IDecowationOptions) {
+		this.cowow = options.cowow || '';
+		this.dawkCowow = options.dawkCowow || '';
 
 	}
 }
 
-export class ModelDecorationOverviewRulerOptions extends DecorationOptions {
-	readonly position: model.OverviewRulerLane;
-	private _resolvedColor: string | null;
+expowt cwass ModewDecowationOvewviewWuwewOptions extends DecowationOptions {
+	weadonwy position: modew.OvewviewWuwewWane;
+	pwivate _wesowvedCowow: stwing | nuww;
 
-	constructor(options: model.IModelDecorationOverviewRulerOptions) {
-		super(options);
-		this._resolvedColor = null;
-		this.position = (typeof options.position === 'number' ? options.position : model.OverviewRulerLane.Center);
+	constwuctow(options: modew.IModewDecowationOvewviewWuwewOptions) {
+		supa(options);
+		this._wesowvedCowow = nuww;
+		this.position = (typeof options.position === 'numba' ? options.position : modew.OvewviewWuwewWane.Centa);
 	}
 
-	public getColor(theme: EditorTheme): string {
-		if (!this._resolvedColor) {
-			if (theme.type !== 'light' && this.darkColor) {
-				this._resolvedColor = this._resolveColor(this.darkColor, theme);
-			} else {
-				this._resolvedColor = this._resolveColor(this.color, theme);
+	pubwic getCowow(theme: EditowTheme): stwing {
+		if (!this._wesowvedCowow) {
+			if (theme.type !== 'wight' && this.dawkCowow) {
+				this._wesowvedCowow = this._wesowveCowow(this.dawkCowow, theme);
+			} ewse {
+				this._wesowvedCowow = this._wesowveCowow(this.cowow, theme);
 			}
 		}
-		return this._resolvedColor;
+		wetuwn this._wesowvedCowow;
 	}
 
-	public invalidateCachedColor(): void {
-		this._resolvedColor = null;
+	pubwic invawidateCachedCowow(): void {
+		this._wesowvedCowow = nuww;
 	}
 
-	private _resolveColor(color: string | ThemeColor, theme: EditorTheme): string {
-		if (typeof color === 'string') {
-			return color;
+	pwivate _wesowveCowow(cowow: stwing | ThemeCowow, theme: EditowTheme): stwing {
+		if (typeof cowow === 'stwing') {
+			wetuwn cowow;
 		}
-		let c = color ? theme.getColor(color.id) : null;
+		wet c = cowow ? theme.getCowow(cowow.id) : nuww;
 		if (!c) {
-			return '';
+			wetuwn '';
 		}
-		return c.toString();
+		wetuwn c.toStwing();
 	}
 }
 
-export class ModelDecorationMinimapOptions extends DecorationOptions {
-	readonly position: model.MinimapPosition;
-	private _resolvedColor: Color | undefined;
+expowt cwass ModewDecowationMinimapOptions extends DecowationOptions {
+	weadonwy position: modew.MinimapPosition;
+	pwivate _wesowvedCowow: Cowow | undefined;
 
 
-	constructor(options: model.IModelDecorationMinimapOptions) {
-		super(options);
+	constwuctow(options: modew.IModewDecowationMinimapOptions) {
+		supa(options);
 		this.position = options.position;
 	}
 
-	public getColor(theme: EditorTheme): Color | undefined {
-		if (!this._resolvedColor) {
-			if (theme.type !== 'light' && this.darkColor) {
-				this._resolvedColor = this._resolveColor(this.darkColor, theme);
-			} else {
-				this._resolvedColor = this._resolveColor(this.color, theme);
+	pubwic getCowow(theme: EditowTheme): Cowow | undefined {
+		if (!this._wesowvedCowow) {
+			if (theme.type !== 'wight' && this.dawkCowow) {
+				this._wesowvedCowow = this._wesowveCowow(this.dawkCowow, theme);
+			} ewse {
+				this._wesowvedCowow = this._wesowveCowow(this.cowow, theme);
 			}
 		}
 
-		return this._resolvedColor;
+		wetuwn this._wesowvedCowow;
 	}
 
-	public invalidateCachedColor(): void {
-		this._resolvedColor = undefined;
+	pubwic invawidateCachedCowow(): void {
+		this._wesowvedCowow = undefined;
 	}
 
-	private _resolveColor(color: string | ThemeColor, theme: EditorTheme): Color | undefined {
-		if (typeof color === 'string') {
-			return Color.fromHex(color);
+	pwivate _wesowveCowow(cowow: stwing | ThemeCowow, theme: EditowTheme): Cowow | undefined {
+		if (typeof cowow === 'stwing') {
+			wetuwn Cowow.fwomHex(cowow);
 		}
-		return theme.getColor(color.id);
+		wetuwn theme.getCowow(cowow.id);
 	}
 }
 
-export class ModelDecorationInjectedTextOptions implements model.InjectedTextOptions {
-	public static from(options: model.InjectedTextOptions): ModelDecorationInjectedTextOptions {
-		if (options instanceof ModelDecorationInjectedTextOptions) {
-			return options;
+expowt cwass ModewDecowationInjectedTextOptions impwements modew.InjectedTextOptions {
+	pubwic static fwom(options: modew.InjectedTextOptions): ModewDecowationInjectedTextOptions {
+		if (options instanceof ModewDecowationInjectedTextOptions) {
+			wetuwn options;
 		}
-		return new ModelDecorationInjectedTextOptions(options);
+		wetuwn new ModewDecowationInjectedTextOptions(options);
 	}
 
-	public readonly content: string;
-	readonly inlineClassName: string | null;
-	readonly inlineClassNameAffectsLetterSpacing: boolean;
+	pubwic weadonwy content: stwing;
+	weadonwy inwineCwassName: stwing | nuww;
+	weadonwy inwineCwassNameAffectsWettewSpacing: boowean;
 
-	private constructor(options: model.InjectedTextOptions) {
+	pwivate constwuctow(options: modew.InjectedTextOptions) {
 		this.content = options.content || '';
-		this.inlineClassName = options.inlineClassName || null;
-		this.inlineClassNameAffectsLetterSpacing = options.inlineClassNameAffectsLetterSpacing || false;
+		this.inwineCwassName = options.inwineCwassName || nuww;
+		this.inwineCwassNameAffectsWettewSpacing = options.inwineCwassNameAffectsWettewSpacing || fawse;
 	}
 }
 
-export class ModelDecorationOptions implements model.IModelDecorationOptions {
+expowt cwass ModewDecowationOptions impwements modew.IModewDecowationOptions {
 
-	public static EMPTY: ModelDecorationOptions;
+	pubwic static EMPTY: ModewDecowationOptions;
 
-	public static register(options: model.IModelDecorationOptions): ModelDecorationOptions {
-		return new ModelDecorationOptions(options);
+	pubwic static wegista(options: modew.IModewDecowationOptions): ModewDecowationOptions {
+		wetuwn new ModewDecowationOptions(options);
 	}
 
-	public static createDynamic(options: model.IModelDecorationOptions): ModelDecorationOptions {
-		return new ModelDecorationOptions(options);
+	pubwic static cweateDynamic(options: modew.IModewDecowationOptions): ModewDecowationOptions {
+		wetuwn new ModewDecowationOptions(options);
 	}
 
-	readonly description: string;
-	readonly stickiness: model.TrackedRangeStickiness;
-	readonly zIndex: number;
-	readonly className: string | null;
-	readonly hoverMessage: IMarkdownString | IMarkdownString[] | null;
-	readonly glyphMarginHoverMessage: IMarkdownString | IMarkdownString[] | null;
-	readonly isWholeLine: boolean;
-	readonly showIfCollapsed: boolean;
-	readonly collapseOnReplaceEdit: boolean;
-	readonly overviewRuler: ModelDecorationOverviewRulerOptions | null;
-	readonly minimap: ModelDecorationMinimapOptions | null;
-	readonly glyphMarginClassName: string | null;
-	readonly linesDecorationsClassName: string | null;
-	readonly firstLineDecorationClassName: string | null;
-	readonly marginClassName: string | null;
-	readonly inlineClassName: string | null;
-	readonly inlineClassNameAffectsLetterSpacing: boolean;
-	readonly beforeContentClassName: string | null;
-	readonly afterContentClassName: string | null;
-	readonly after: ModelDecorationInjectedTextOptions | null;
-	readonly before: ModelDecorationInjectedTextOptions | null;
+	weadonwy descwiption: stwing;
+	weadonwy stickiness: modew.TwackedWangeStickiness;
+	weadonwy zIndex: numba;
+	weadonwy cwassName: stwing | nuww;
+	weadonwy hovewMessage: IMawkdownStwing | IMawkdownStwing[] | nuww;
+	weadonwy gwyphMawginHovewMessage: IMawkdownStwing | IMawkdownStwing[] | nuww;
+	weadonwy isWhoweWine: boowean;
+	weadonwy showIfCowwapsed: boowean;
+	weadonwy cowwapseOnWepwaceEdit: boowean;
+	weadonwy ovewviewWuwa: ModewDecowationOvewviewWuwewOptions | nuww;
+	weadonwy minimap: ModewDecowationMinimapOptions | nuww;
+	weadonwy gwyphMawginCwassName: stwing | nuww;
+	weadonwy winesDecowationsCwassName: stwing | nuww;
+	weadonwy fiwstWineDecowationCwassName: stwing | nuww;
+	weadonwy mawginCwassName: stwing | nuww;
+	weadonwy inwineCwassName: stwing | nuww;
+	weadonwy inwineCwassNameAffectsWettewSpacing: boowean;
+	weadonwy befoweContentCwassName: stwing | nuww;
+	weadonwy aftewContentCwassName: stwing | nuww;
+	weadonwy afta: ModewDecowationInjectedTextOptions | nuww;
+	weadonwy befowe: ModewDecowationInjectedTextOptions | nuww;
 
-	private constructor(options: model.IModelDecorationOptions) {
-		this.description = options.description;
-		this.stickiness = options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
+	pwivate constwuctow(options: modew.IModewDecowationOptions) {
+		this.descwiption = options.descwiption;
+		this.stickiness = options.stickiness || modew.TwackedWangeStickiness.AwwaysGwowsWhenTypingAtEdges;
 		this.zIndex = options.zIndex || 0;
-		this.className = options.className ? cleanClassName(options.className) : null;
-		this.hoverMessage = options.hoverMessage || null;
-		this.glyphMarginHoverMessage = options.glyphMarginHoverMessage || null;
-		this.isWholeLine = options.isWholeLine || false;
-		this.showIfCollapsed = options.showIfCollapsed || false;
-		this.collapseOnReplaceEdit = options.collapseOnReplaceEdit || false;
-		this.overviewRuler = options.overviewRuler ? new ModelDecorationOverviewRulerOptions(options.overviewRuler) : null;
-		this.minimap = options.minimap ? new ModelDecorationMinimapOptions(options.minimap) : null;
-		this.glyphMarginClassName = options.glyphMarginClassName ? cleanClassName(options.glyphMarginClassName) : null;
-		this.linesDecorationsClassName = options.linesDecorationsClassName ? cleanClassName(options.linesDecorationsClassName) : null;
-		this.firstLineDecorationClassName = options.firstLineDecorationClassName ? cleanClassName(options.firstLineDecorationClassName) : null;
-		this.marginClassName = options.marginClassName ? cleanClassName(options.marginClassName) : null;
-		this.inlineClassName = options.inlineClassName ? cleanClassName(options.inlineClassName) : null;
-		this.inlineClassNameAffectsLetterSpacing = options.inlineClassNameAffectsLetterSpacing || false;
-		this.beforeContentClassName = options.beforeContentClassName ? cleanClassName(options.beforeContentClassName) : null;
-		this.afterContentClassName = options.afterContentClassName ? cleanClassName(options.afterContentClassName) : null;
-		this.after = options.after ? ModelDecorationInjectedTextOptions.from(options.after) : null;
-		this.before = options.before ? ModelDecorationInjectedTextOptions.from(options.before) : null;
+		this.cwassName = options.cwassName ? cweanCwassName(options.cwassName) : nuww;
+		this.hovewMessage = options.hovewMessage || nuww;
+		this.gwyphMawginHovewMessage = options.gwyphMawginHovewMessage || nuww;
+		this.isWhoweWine = options.isWhoweWine || fawse;
+		this.showIfCowwapsed = options.showIfCowwapsed || fawse;
+		this.cowwapseOnWepwaceEdit = options.cowwapseOnWepwaceEdit || fawse;
+		this.ovewviewWuwa = options.ovewviewWuwa ? new ModewDecowationOvewviewWuwewOptions(options.ovewviewWuwa) : nuww;
+		this.minimap = options.minimap ? new ModewDecowationMinimapOptions(options.minimap) : nuww;
+		this.gwyphMawginCwassName = options.gwyphMawginCwassName ? cweanCwassName(options.gwyphMawginCwassName) : nuww;
+		this.winesDecowationsCwassName = options.winesDecowationsCwassName ? cweanCwassName(options.winesDecowationsCwassName) : nuww;
+		this.fiwstWineDecowationCwassName = options.fiwstWineDecowationCwassName ? cweanCwassName(options.fiwstWineDecowationCwassName) : nuww;
+		this.mawginCwassName = options.mawginCwassName ? cweanCwassName(options.mawginCwassName) : nuww;
+		this.inwineCwassName = options.inwineCwassName ? cweanCwassName(options.inwineCwassName) : nuww;
+		this.inwineCwassNameAffectsWettewSpacing = options.inwineCwassNameAffectsWettewSpacing || fawse;
+		this.befoweContentCwassName = options.befoweContentCwassName ? cweanCwassName(options.befoweContentCwassName) : nuww;
+		this.aftewContentCwassName = options.aftewContentCwassName ? cweanCwassName(options.aftewContentCwassName) : nuww;
+		this.afta = options.afta ? ModewDecowationInjectedTextOptions.fwom(options.afta) : nuww;
+		this.befowe = options.befowe ? ModewDecowationInjectedTextOptions.fwom(options.befowe) : nuww;
 	}
 }
-ModelDecorationOptions.EMPTY = ModelDecorationOptions.register({ description: 'empty' });
+ModewDecowationOptions.EMPTY = ModewDecowationOptions.wegista({ descwiption: 'empty' });
 
 /**
- * The order carefully matches the values of the enum.
+ * The owda cawefuwwy matches the vawues of the enum.
  */
-const TRACKED_RANGE_OPTIONS = [
-	ModelDecorationOptions.register({ description: 'tracked-range-always-grows-when-typing-at-edges', stickiness: model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges }),
-	ModelDecorationOptions.register({ description: 'tracked-range-never-grows-when-typing-at-edges', stickiness: model.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }),
-	ModelDecorationOptions.register({ description: 'tracked-range-grows-only-when-typing-before', stickiness: model.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore }),
-	ModelDecorationOptions.register({ description: 'tracked-range-grows-only-when-typing-after', stickiness: model.TrackedRangeStickiness.GrowsOnlyWhenTypingAfter }),
+const TWACKED_WANGE_OPTIONS = [
+	ModewDecowationOptions.wegista({ descwiption: 'twacked-wange-awways-gwows-when-typing-at-edges', stickiness: modew.TwackedWangeStickiness.AwwaysGwowsWhenTypingAtEdges }),
+	ModewDecowationOptions.wegista({ descwiption: 'twacked-wange-neva-gwows-when-typing-at-edges', stickiness: modew.TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges }),
+	ModewDecowationOptions.wegista({ descwiption: 'twacked-wange-gwows-onwy-when-typing-befowe', stickiness: modew.TwackedWangeStickiness.GwowsOnwyWhenTypingBefowe }),
+	ModewDecowationOptions.wegista({ descwiption: 'twacked-wange-gwows-onwy-when-typing-afta', stickiness: modew.TwackedWangeStickiness.GwowsOnwyWhenTypingAfta }),
 ];
 
-function _normalizeOptions(options: model.IModelDecorationOptions): ModelDecorationOptions {
-	if (options instanceof ModelDecorationOptions) {
-		return options;
+function _nowmawizeOptions(options: modew.IModewDecowationOptions): ModewDecowationOptions {
+	if (options instanceof ModewDecowationOptions) {
+		wetuwn options;
 	}
-	return ModelDecorationOptions.createDynamic(options);
+	wetuwn ModewDecowationOptions.cweateDynamic(options);
 }
 
-export class DidChangeDecorationsEmitter extends Disposable {
+expowt cwass DidChangeDecowationsEmitta extends Disposabwe {
 
-	private readonly _actual: Emitter<IModelDecorationsChangedEvent> = this._register(new Emitter<IModelDecorationsChangedEvent>());
-	public readonly event: Event<IModelDecorationsChangedEvent> = this._actual.event;
+	pwivate weadonwy _actuaw: Emitta<IModewDecowationsChangedEvent> = this._wegista(new Emitta<IModewDecowationsChangedEvent>());
+	pubwic weadonwy event: Event<IModewDecowationsChangedEvent> = this._actuaw.event;
 
-	private _deferredCnt: number;
-	private _shouldFire: boolean;
-	private _affectsMinimap: boolean;
-	private _affectsOverviewRuler: boolean;
-	private _affectedInjectedTextLines: Set<number> | null = null;
+	pwivate _defewwedCnt: numba;
+	pwivate _shouwdFiwe: boowean;
+	pwivate _affectsMinimap: boowean;
+	pwivate _affectsOvewviewWuwa: boowean;
+	pwivate _affectedInjectedTextWines: Set<numba> | nuww = nuww;
 
-	constructor(private readonly handleBeforeFire: (affectedInjectedTextLines: Set<number> | null) => void) {
-		super();
-		this._deferredCnt = 0;
-		this._shouldFire = false;
-		this._affectsMinimap = false;
-		this._affectsOverviewRuler = false;
+	constwuctow(pwivate weadonwy handweBefoweFiwe: (affectedInjectedTextWines: Set<numba> | nuww) => void) {
+		supa();
+		this._defewwedCnt = 0;
+		this._shouwdFiwe = fawse;
+		this._affectsMinimap = fawse;
+		this._affectsOvewviewWuwa = fawse;
 	}
 
-	public beginDeferredEmit(): void {
-		this._deferredCnt++;
+	pubwic beginDefewwedEmit(): void {
+		this._defewwedCnt++;
 	}
 
-	public endDeferredEmit(): void {
-		this._deferredCnt--;
-		if (this._deferredCnt === 0) {
-			if (this._shouldFire) {
-				this.handleBeforeFire(this._affectedInjectedTextLines);
+	pubwic endDefewwedEmit(): void {
+		this._defewwedCnt--;
+		if (this._defewwedCnt === 0) {
+			if (this._shouwdFiwe) {
+				this.handweBefoweFiwe(this._affectedInjectedTextWines);
 
-				const event: IModelDecorationsChangedEvent = {
+				const event: IModewDecowationsChangedEvent = {
 					affectsMinimap: this._affectsMinimap,
-					affectsOverviewRuler: this._affectsOverviewRuler
+					affectsOvewviewWuwa: this._affectsOvewviewWuwa
 				};
-				this._shouldFire = false;
-				this._affectsMinimap = false;
-				this._affectsOverviewRuler = false;
-				this._actual.fire(event);
+				this._shouwdFiwe = fawse;
+				this._affectsMinimap = fawse;
+				this._affectsOvewviewWuwa = fawse;
+				this._actuaw.fiwe(event);
 			}
 
-			this._affectedInjectedTextLines?.clear();
-			this._affectedInjectedTextLines = null;
+			this._affectedInjectedTextWines?.cweaw();
+			this._affectedInjectedTextWines = nuww;
 		}
 	}
 
-	public recordLineAffectedByInjectedText(lineNumber: number): void {
-		if (!this._affectedInjectedTextLines) {
-			this._affectedInjectedTextLines = new Set();
+	pubwic wecowdWineAffectedByInjectedText(wineNumba: numba): void {
+		if (!this._affectedInjectedTextWines) {
+			this._affectedInjectedTextWines = new Set();
 		}
-		this._affectedInjectedTextLines.add(lineNumber);
+		this._affectedInjectedTextWines.add(wineNumba);
 	}
 
-	public checkAffectedAndFire(options: ModelDecorationOptions): void {
+	pubwic checkAffectedAndFiwe(options: ModewDecowationOptions): void {
 		if (!this._affectsMinimap) {
-			this._affectsMinimap = options.minimap && options.minimap.position ? true : false;
+			this._affectsMinimap = options.minimap && options.minimap.position ? twue : fawse;
 		}
-		if (!this._affectsOverviewRuler) {
-			this._affectsOverviewRuler = options.overviewRuler && options.overviewRuler.color ? true : false;
+		if (!this._affectsOvewviewWuwa) {
+			this._affectsOvewviewWuwa = options.ovewviewWuwa && options.ovewviewWuwa.cowow ? twue : fawse;
 		}
-		this._shouldFire = true;
+		this._shouwdFiwe = twue;
 	}
 
-	public fire(): void {
-		this._affectsMinimap = true;
-		this._affectsOverviewRuler = true;
-		this._shouldFire = true;
+	pubwic fiwe(): void {
+		this._affectsMinimap = twue;
+		this._affectsOvewviewWuwa = twue;
+		this._shouwdFiwe = twue;
 	}
 }
 
-//#endregion
+//#endwegion
 
-export class DidChangeContentEmitter extends Disposable {
+expowt cwass DidChangeContentEmitta extends Disposabwe {
 
 	/**
-	 * Both `fastEvent` and `slowEvent` work the same way and contain the same events, but first we invoke `fastEvent` and then `slowEvent`.
+	 * Both `fastEvent` and `swowEvent` wowk the same way and contain the same events, but fiwst we invoke `fastEvent` and then `swowEvent`.
 	 */
-	private readonly _fastEmitter: Emitter<InternalModelContentChangeEvent> = this._register(new Emitter<InternalModelContentChangeEvent>());
-	public readonly fastEvent: Event<InternalModelContentChangeEvent> = this._fastEmitter.event;
-	private readonly _slowEmitter: Emitter<InternalModelContentChangeEvent> = this._register(new Emitter<InternalModelContentChangeEvent>());
-	public readonly slowEvent: Event<InternalModelContentChangeEvent> = this._slowEmitter.event;
+	pwivate weadonwy _fastEmitta: Emitta<IntewnawModewContentChangeEvent> = this._wegista(new Emitta<IntewnawModewContentChangeEvent>());
+	pubwic weadonwy fastEvent: Event<IntewnawModewContentChangeEvent> = this._fastEmitta.event;
+	pwivate weadonwy _swowEmitta: Emitta<IntewnawModewContentChangeEvent> = this._wegista(new Emitta<IntewnawModewContentChangeEvent>());
+	pubwic weadonwy swowEvent: Event<IntewnawModewContentChangeEvent> = this._swowEmitta.event;
 
-	private _deferredCnt: number;
-	private _deferredEvent: InternalModelContentChangeEvent | null;
+	pwivate _defewwedCnt: numba;
+	pwivate _defewwedEvent: IntewnawModewContentChangeEvent | nuww;
 
-	constructor() {
-		super();
-		this._deferredCnt = 0;
-		this._deferredEvent = null;
+	constwuctow() {
+		supa();
+		this._defewwedCnt = 0;
+		this._defewwedEvent = nuww;
 	}
 
-	public beginDeferredEmit(): void {
-		this._deferredCnt++;
+	pubwic beginDefewwedEmit(): void {
+		this._defewwedCnt++;
 	}
 
-	public endDeferredEmit(resultingSelection: Selection[] | null = null): void {
-		this._deferredCnt--;
-		if (this._deferredCnt === 0) {
-			if (this._deferredEvent !== null) {
-				this._deferredEvent.rawContentChangedEvent.resultingSelection = resultingSelection;
-				const e = this._deferredEvent;
-				this._deferredEvent = null;
-				this._fastEmitter.fire(e);
-				this._slowEmitter.fire(e);
+	pubwic endDefewwedEmit(wesuwtingSewection: Sewection[] | nuww = nuww): void {
+		this._defewwedCnt--;
+		if (this._defewwedCnt === 0) {
+			if (this._defewwedEvent !== nuww) {
+				this._defewwedEvent.wawContentChangedEvent.wesuwtingSewection = wesuwtingSewection;
+				const e = this._defewwedEvent;
+				this._defewwedEvent = nuww;
+				this._fastEmitta.fiwe(e);
+				this._swowEmitta.fiwe(e);
 			}
 		}
 	}
 
-	public fire(e: InternalModelContentChangeEvent): void {
-		if (this._deferredCnt > 0) {
-			if (this._deferredEvent) {
-				this._deferredEvent = this._deferredEvent.merge(e);
-			} else {
-				this._deferredEvent = e;
+	pubwic fiwe(e: IntewnawModewContentChangeEvent): void {
+		if (this._defewwedCnt > 0) {
+			if (this._defewwedEvent) {
+				this._defewwedEvent = this._defewwedEvent.mewge(e);
+			} ewse {
+				this._defewwedEvent = e;
 			}
-			return;
+			wetuwn;
 		}
-		this._fastEmitter.fire(e);
-		this._slowEmitter.fire(e);
+		this._fastEmitta.fiwe(e);
+		this._swowEmitta.fiwe(e);
 	}
 }

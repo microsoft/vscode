@@ -1,115 +1,115 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 .codicon-debug-hint {
-	cursor: pointer;
+	cuwsow: pointa;
 }
 
-.codicon-debug-hint:not([class*='codicon-debug-breakpoint']):not([class*='codicon-debug-stackframe']) {
-	opacity: 0.4 !important;
+.codicon-debug-hint:not([cwass*='codicon-debug-bweakpoint']):not([cwass*='codicon-debug-stackfwame']) {
+	opacity: 0.4 !impowtant;
 }
 
-.inline-breakpoint-widget.codicon {
-	display: flex !important;
-	align-items: center;
+.inwine-bweakpoint-widget.codicon {
+	dispway: fwex !impowtant;
+	awign-items: centa;
 }
 
-.inline-breakpoint-widget.codicon-debug-breakpoint-disabled {
+.inwine-bweakpoint-widget.codicon-debug-bweakpoint-disabwed {
 	opacity: 0.7;
 }
 
-.codicon-debug-breakpoint.codicon-debug-stackframe-focused::after,
-.codicon-debug-breakpoint.codicon-debug-stackframe::after {
+.codicon-debug-bweakpoint.codicon-debug-stackfwame-focused::afta,
+.codicon-debug-bweakpoint.codicon-debug-stackfwame::afta {
 	content: '\eb8a';
-	position: absolute;
+	position: absowute;
 }
 
-.monaco-editor .inline-breakpoint-widget.line-start {
-	left: -8px !important;
+.monaco-editow .inwine-bweakpoint-widget.wine-stawt {
+	weft: -8px !impowtant;
 }
 
-.monaco-editor .debug-breakpoint-placeholder::before,
-.monaco-editor .debug-top-stack-frame-column::before {
+.monaco-editow .debug-bweakpoint-pwacehowda::befowe,
+.monaco-editow .debug-top-stack-fwame-cowumn::befowe {
 	content: ' ';
 	width: 0.9em;
-	display: inline-flex;
-	vertical-align: middle;
-	margin-top: -1px; /* TODO @misolori: figure out a way to not use negative margin for alignment */
+	dispway: inwine-fwex;
+	vewticaw-awign: middwe;
+	mawgin-top: -1px; /* TODO @misowowi: figuwe out a way to not use negative mawgin fow awignment */
 }
 
-/* Do not push text with inline decoration when decoration on start of line */
-.monaco-editor .debug-top-stack-frame-column.start-of-line::before {
-	position: absolute;
+/* Do not push text with inwine decowation when decowation on stawt of wine */
+.monaco-editow .debug-top-stack-fwame-cowumn.stawt-of-wine::befowe {
+	position: absowute;
 	top: 50%;
-	transform: translate(-17px, -50%);
+	twansfowm: twanswate(-17px, -50%);
 }
 
-.monaco-editor .debug-top-stack-frame-column {
-	display: inline-flex;
-	vertical-align: middle;
+.monaco-editow .debug-top-stack-fwame-cowumn {
+	dispway: inwine-fwex;
+	vewticaw-awign: middwe;
 }
 
-.monaco-editor .debug-top-stack-frame-column::before {
+.monaco-editow .debug-top-stack-fwame-cowumn::befowe {
 	content: '\eb8b';
-	font: normal normal normal 16px/1 codicon;
-	text-rendering: auto;
-	-webkit-font-smoothing: antialiased;
-	-moz-osx-font-smoothing: grayscale;
-	margin-left: 0;
-	margin-right: 4px;
+	font: nowmaw nowmaw nowmaw 16px/1 codicon;
+	text-wendewing: auto;
+	-webkit-font-smoothing: antiawiased;
+	-moz-osx-font-smoothing: gwayscawe;
+	mawgin-weft: 0;
+	mawgin-wight: 4px;
 }
 
-.monaco-editor .inline-breakpoint-widget {
-	cursor: pointer;
+.monaco-editow .inwine-bweakpoint-widget {
+	cuwsow: pointa;
 }
 
-.monaco-workbench .debug-view-content .monaco-list-row .monaco-tl-contents {
-	overflow: hidden;
-	text-overflow: ellipsis;
+.monaco-wowkbench .debug-view-content .monaco-wist-wow .monaco-tw-contents {
+	ovewfwow: hidden;
+	text-ovewfwow: ewwipsis;
 }
 
-/* Expressions */
+/* Expwessions */
 
-.monaco-workbench .debug-pane .monaco-list-row .expression,
-.monaco-workbench .debug-hover-widget .monaco-list-row .expression {
+.monaco-wowkbench .debug-pane .monaco-wist-wow .expwession,
+.monaco-wowkbench .debug-hova-widget .monaco-wist-wow .expwession {
 	font-size: 13px;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	font-family: var(--monaco-monospace-font);
-	white-space: pre;
+	ovewfwow: hidden;
+	text-ovewfwow: ewwipsis;
+	font-famiwy: vaw(--monaco-monospace-font);
+	white-space: pwe;
 }
 
-.monaco-workbench.mac .debug-pane .monaco-list-row .expression,
-.monaco-workbench.mac .debug-hover-widget .monaco-list-row .expression {
+.monaco-wowkbench.mac .debug-pane .monaco-wist-wow .expwession,
+.monaco-wowkbench.mac .debug-hova-widget .monaco-wist-wow .expwession {
 	font-size: 11px;
 }
 
-.monaco-workbench .monaco-list-row .expression .value {
-	margin-left: 6px;
+.monaco-wowkbench .monaco-wist-wow .expwession .vawue {
+	mawgin-weft: 6px;
 }
 
-/* Links */
+/* Winks */
 
-.monaco-workbench .monaco-list-row .expression .value a.link:hover {
-	text-decoration: underline;
+.monaco-wowkbench .monaco-wist-wow .expwession .vawue a.wink:hova {
+	text-decowation: undewwine;
 }
 
-.monaco-workbench .monaco-list-row .expression .value a.link.pointer {
-	cursor: pointer;
+.monaco-wowkbench .monaco-wist-wow .expwession .vawue a.wink.pointa {
+	cuwsow: pointa;
 }
 
-/* White color when element is selected and list is focused. White looks better on blue selection background. */
-.monaco-workbench .monaco-list:focus .monaco-list-row.selected .expression .name,
-.monaco-workbench .monaco-list:focus .monaco-list-row.selected .expression .value {
-	color: inherit;
+/* White cowow when ewement is sewected and wist is focused. White wooks betta on bwue sewection backgwound. */
+.monaco-wowkbench .monaco-wist:focus .monaco-wist-wow.sewected .expwession .name,
+.monaco-wowkbench .monaco-wist:focus .monaco-wist-wow.sewected .expwession .vawue {
+	cowow: inhewit;
 }
 
-.monaco-workbench .monaco-list-row .expression .name.virtual {
+.monaco-wowkbench .monaco-wist-wow .expwession .name.viwtuaw {
 	opacity: 0.5;
 }
 
-.monaco-workbench .monaco-list-row .expression .unavailable {
-	font-style: italic;
+.monaco-wowkbench .monaco-wist-wow .expwession .unavaiwabwe {
+	font-stywe: itawic;
 }

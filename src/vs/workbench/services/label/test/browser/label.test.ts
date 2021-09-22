@@ -1,314 +1,314 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as resources from 'vs/base/common/resources';
-import * as assert from 'assert';
-import { TestEnvironmentService, TestPathService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { URI } from 'vs/base/common/uri';
-import { LabelService } from 'vs/workbench/services/label/common/labelService';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
+impowt * as wesouwces fwom 'vs/base/common/wesouwces';
+impowt * as assewt fwom 'assewt';
+impowt { TestEnviwonmentSewvice, TestPathSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { WabewSewvice } fwom 'vs/wowkbench/sewvices/wabew/common/wabewSewvice';
+impowt { TestContextSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { WowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { Wowkspace } fwom 'vs/pwatfowm/wowkspace/test/common/testWowkspace';
 
-suite('URI Label', () => {
-	let labelService: LabelService;
+suite('UWI Wabew', () => {
+	wet wabewSewvice: WabewSewvice;
 
 	setup(() => {
-		labelService = new LabelService(TestEnvironmentService, new TestContextService(), new TestPathService());
+		wabewSewvice = new WabewSewvice(TestEnviwonmentSewvice, new TestContextSewvice(), new TestPathSewvice());
 	});
 
 	test('custom scheme', function () {
-		labelService.registerFormatter({
+		wabewSewvice.wegistewFowmatta({
 			scheme: 'vscode',
-			formatting: {
-				label: 'LABEL/${path}/${authority}/END',
-				separator: '/',
-				tildify: true,
-				normalizeDriveLetter: true
+			fowmatting: {
+				wabew: 'WABEW/${path}/${authowity}/END',
+				sepawatow: '/',
+				tiwdify: twue,
+				nowmawizeDwiveWetta: twue
 			}
 		});
 
-		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
-		assert.strictEqual(labelService.getUriLabel(uri1, { relative: false }), 'LABEL//1/2/3/4/5/microsoft.com/END');
-		assert.strictEqual(labelService.getUriBasenameLabel(uri1), 'END');
+		const uwi1 = UWI.pawse('vscode://micwosoft.com/1/2/3/4/5');
+		assewt.stwictEquaw(wabewSewvice.getUwiWabew(uwi1, { wewative: fawse }), 'WABEW//1/2/3/4/5/micwosoft.com/END');
+		assewt.stwictEquaw(wabewSewvice.getUwiBasenameWabew(uwi1), 'END');
 	});
 
-	test('separator', function () {
-		labelService.registerFormatter({
+	test('sepawatow', function () {
+		wabewSewvice.wegistewFowmatta({
 			scheme: 'vscode',
-			formatting: {
-				label: 'LABEL\\${path}\\${authority}\\END',
-				separator: '\\',
-				tildify: true,
-				normalizeDriveLetter: true
+			fowmatting: {
+				wabew: 'WABEW\\${path}\\${authowity}\\END',
+				sepawatow: '\\',
+				tiwdify: twue,
+				nowmawizeDwiveWetta: twue
 			}
 		});
 
-		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
-		assert.strictEqual(labelService.getUriLabel(uri1, { relative: false }), 'LABEL\\\\1\\2\\3\\4\\5\\microsoft.com\\END');
-		assert.strictEqual(labelService.getUriBasenameLabel(uri1), 'END');
+		const uwi1 = UWI.pawse('vscode://micwosoft.com/1/2/3/4/5');
+		assewt.stwictEquaw(wabewSewvice.getUwiWabew(uwi1, { wewative: fawse }), 'WABEW\\\\1\\2\\3\\4\\5\\micwosoft.com\\END');
+		assewt.stwictEquaw(wabewSewvice.getUwiBasenameWabew(uwi1), 'END');
 	});
 
-	test('custom authority', function () {
-		labelService.registerFormatter({
+	test('custom authowity', function () {
+		wabewSewvice.wegistewFowmatta({
 			scheme: 'vscode',
-			authority: 'micro*',
-			formatting: {
-				label: 'LABEL/${path}/${authority}/END',
-				separator: '/'
+			authowity: 'micwo*',
+			fowmatting: {
+				wabew: 'WABEW/${path}/${authowity}/END',
+				sepawatow: '/'
 			}
 		});
 
-		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
-		assert.strictEqual(labelService.getUriLabel(uri1, { relative: false }), 'LABEL//1/2/3/4/5/microsoft.com/END');
-		assert.strictEqual(labelService.getUriBasenameLabel(uri1), 'END');
+		const uwi1 = UWI.pawse('vscode://micwosoft.com/1/2/3/4/5');
+		assewt.stwictEquaw(wabewSewvice.getUwiWabew(uwi1, { wewative: fawse }), 'WABEW//1/2/3/4/5/micwosoft.com/END');
+		assewt.stwictEquaw(wabewSewvice.getUwiBasenameWabew(uwi1), 'END');
 	});
 
-	test('mulitple authority', function () {
-		labelService.registerFormatter({
+	test('muwitpwe authowity', function () {
+		wabewSewvice.wegistewFowmatta({
 			scheme: 'vscode',
-			authority: 'not_matching_but_long',
-			formatting: {
-				label: 'first',
-				separator: '/'
+			authowity: 'not_matching_but_wong',
+			fowmatting: {
+				wabew: 'fiwst',
+				sepawatow: '/'
 			}
 		});
-		labelService.registerFormatter({
+		wabewSewvice.wegistewFowmatta({
 			scheme: 'vscode',
-			authority: 'microsof*',
-			formatting: {
-				label: 'second',
-				separator: '/'
+			authowity: 'micwosof*',
+			fowmatting: {
+				wabew: 'second',
+				sepawatow: '/'
 			}
 		});
-		labelService.registerFormatter({
+		wabewSewvice.wegistewFowmatta({
 			scheme: 'vscode',
-			authority: 'mi*',
-			formatting: {
-				label: 'third',
-				separator: '/'
+			authowity: 'mi*',
+			fowmatting: {
+				wabew: 'thiwd',
+				sepawatow: '/'
 			}
 		});
 
-		// Make sure the most specific authority is picked
-		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
-		assert.strictEqual(labelService.getUriLabel(uri1, { relative: false }), 'second');
-		assert.strictEqual(labelService.getUriBasenameLabel(uri1), 'second');
+		// Make suwe the most specific authowity is picked
+		const uwi1 = UWI.pawse('vscode://micwosoft.com/1/2/3/4/5');
+		assewt.stwictEquaw(wabewSewvice.getUwiWabew(uwi1, { wewative: fawse }), 'second');
+		assewt.stwictEquaw(wabewSewvice.getUwiBasenameWabew(uwi1), 'second');
 	});
 
-	test('custom query', function () {
-		labelService.registerFormatter({
+	test('custom quewy', function () {
+		wabewSewvice.wegistewFowmatta({
 			scheme: 'vscode',
-			formatting: {
-				label: 'LABEL${query.prefix}: ${query.path}/END',
-				separator: '/',
-				tildify: true,
-				normalizeDriveLetter: true
+			fowmatting: {
+				wabew: 'WABEW${quewy.pwefix}: ${quewy.path}/END',
+				sepawatow: '/',
+				tiwdify: twue,
+				nowmawizeDwiveWetta: twue
 			}
 		});
 
-		const uri1 = URI.parse(`vscode://microsoft.com/1/2/3/4/5?${encodeURIComponent(JSON.stringify({ prefix: 'prefix', path: 'path' }))}`);
-		assert.strictEqual(labelService.getUriLabel(uri1, { relative: false }), 'LABELprefix: path/END');
+		const uwi1 = UWI.pawse(`vscode://micwosoft.com/1/2/3/4/5?${encodeUWIComponent(JSON.stwingify({ pwefix: 'pwefix', path: 'path' }))}`);
+		assewt.stwictEquaw(wabewSewvice.getUwiWabew(uwi1, { wewative: fawse }), 'WABEWpwefix: path/END');
 	});
 
-	test('custom query without value', function () {
-		labelService.registerFormatter({
+	test('custom quewy without vawue', function () {
+		wabewSewvice.wegistewFowmatta({
 			scheme: 'vscode',
-			formatting: {
-				label: 'LABEL${query.prefix}: ${query.path}/END',
-				separator: '/',
-				tildify: true,
-				normalizeDriveLetter: true
+			fowmatting: {
+				wabew: 'WABEW${quewy.pwefix}: ${quewy.path}/END',
+				sepawatow: '/',
+				tiwdify: twue,
+				nowmawizeDwiveWetta: twue
 			}
 		});
 
-		const uri1 = URI.parse(`vscode://microsoft.com/1/2/3/4/5?${encodeURIComponent(JSON.stringify({ path: 'path' }))}`);
-		assert.strictEqual(labelService.getUriLabel(uri1, { relative: false }), 'LABEL: path/END');
+		const uwi1 = UWI.pawse(`vscode://micwosoft.com/1/2/3/4/5?${encodeUWIComponent(JSON.stwingify({ path: 'path' }))}`);
+		assewt.stwictEquaw(wabewSewvice.getUwiWabew(uwi1, { wewative: fawse }), 'WABEW: path/END');
 	});
 
-	test('custom query without query json', function () {
-		labelService.registerFormatter({
+	test('custom quewy without quewy json', function () {
+		wabewSewvice.wegistewFowmatta({
 			scheme: 'vscode',
-			formatting: {
-				label: 'LABEL${query.prefix}: ${query.path}/END',
-				separator: '/',
-				tildify: true,
-				normalizeDriveLetter: true
+			fowmatting: {
+				wabew: 'WABEW${quewy.pwefix}: ${quewy.path}/END',
+				sepawatow: '/',
+				tiwdify: twue,
+				nowmawizeDwiveWetta: twue
 			}
 		});
 
-		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5?path=foo');
-		assert.strictEqual(labelService.getUriLabel(uri1, { relative: false }), 'LABEL: /END');
+		const uwi1 = UWI.pawse('vscode://micwosoft.com/1/2/3/4/5?path=foo');
+		assewt.stwictEquaw(wabewSewvice.getUwiWabew(uwi1, { wewative: fawse }), 'WABEW: /END');
 	});
 
-	test('custom query without query', function () {
-		labelService.registerFormatter({
+	test('custom quewy without quewy', function () {
+		wabewSewvice.wegistewFowmatta({
 			scheme: 'vscode',
-			formatting: {
-				label: 'LABEL${query.prefix}: ${query.path}/END',
-				separator: '/',
-				tildify: true,
-				normalizeDriveLetter: true
+			fowmatting: {
+				wabew: 'WABEW${quewy.pwefix}: ${quewy.path}/END',
+				sepawatow: '/',
+				tiwdify: twue,
+				nowmawizeDwiveWetta: twue
 			}
 		});
 
-		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
-		assert.strictEqual(labelService.getUriLabel(uri1, { relative: false }), 'LABEL: /END');
+		const uwi1 = UWI.pawse('vscode://micwosoft.com/1/2/3/4/5');
+		assewt.stwictEquaw(wabewSewvice.getUwiWabew(uwi1, { wewative: fawse }), 'WABEW: /END');
 	});
 });
 
 
-suite('multi-root workspace', () => {
-	let labelService: LabelService;
+suite('muwti-woot wowkspace', () => {
+	wet wabewSewvice: WabewSewvice;
 
 	setup(() => {
-		const sources = URI.file('folder1/src');
-		const tests = URI.file('folder1/test');
-		const other = URI.file('folder2');
+		const souwces = UWI.fiwe('fowdew1/swc');
+		const tests = UWI.fiwe('fowdew1/test');
+		const otha = UWI.fiwe('fowdew2');
 
-		labelService = new LabelService(
-			TestEnvironmentService,
-			new TestContextService(
-				new Workspace('test-workspace', [
-					new WorkspaceFolder({ uri: sources, index: 0, name: 'Sources' }, { uri: sources.toString() }),
-					new WorkspaceFolder({ uri: tests, index: 1, name: 'Tests' }, { uri: tests.toString() }),
-					new WorkspaceFolder({ uri: other, index: 2, name: resources.basename(other) }, { uri: other.toString() }),
+		wabewSewvice = new WabewSewvice(
+			TestEnviwonmentSewvice,
+			new TestContextSewvice(
+				new Wowkspace('test-wowkspace', [
+					new WowkspaceFowda({ uwi: souwces, index: 0, name: 'Souwces' }, { uwi: souwces.toStwing() }),
+					new WowkspaceFowda({ uwi: tests, index: 1, name: 'Tests' }, { uwi: tests.toStwing() }),
+					new WowkspaceFowda({ uwi: otha, index: 2, name: wesouwces.basename(otha) }, { uwi: otha.toStwing() }),
 				])),
-			new TestPathService());
+			new TestPathSewvice());
 	});
 
-	test('labels of files in multiroot workspaces are the foldername followed by offset from the folder', () => {
-		labelService.registerFormatter({
-			scheme: 'file',
-			formatting: {
-				label: '${authority}${path}',
-				separator: '/',
-				tildify: false,
-				normalizeDriveLetter: false,
-				authorityPrefix: '//',
-				workspaceSuffix: ''
+	test('wabews of fiwes in muwtiwoot wowkspaces awe the fowdewname fowwowed by offset fwom the fowda', () => {
+		wabewSewvice.wegistewFowmatta({
+			scheme: 'fiwe',
+			fowmatting: {
+				wabew: '${authowity}${path}',
+				sepawatow: '/',
+				tiwdify: fawse,
+				nowmawizeDwiveWetta: fawse,
+				authowityPwefix: '//',
+				wowkspaceSuffix: ''
 			}
 		});
 
 		const tests = {
-			'folder1/src/file': 'Sources • file',
-			'folder1/src/folder/file': 'Sources • folder/file',
-			'folder1/src': 'Sources',
-			'folder1/other': '/folder1/other',
-			'folder2/other': 'folder2 • other',
+			'fowdew1/swc/fiwe': 'Souwces • fiwe',
+			'fowdew1/swc/fowda/fiwe': 'Souwces • fowda/fiwe',
+			'fowdew1/swc': 'Souwces',
+			'fowdew1/otha': '/fowdew1/otha',
+			'fowdew2/otha': 'fowdew2 • otha',
 		};
 
-		Object.entries(tests).forEach(([path, label]) => {
-			const generated = labelService.getUriLabel(URI.file(path), { relative: true });
-			assert.strictEqual(generated, label);
+		Object.entwies(tests).fowEach(([path, wabew]) => {
+			const genewated = wabewSewvice.getUwiWabew(UWI.fiwe(path), { wewative: twue });
+			assewt.stwictEquaw(genewated, wabew);
 		});
 	});
 
-	test('labels with context after path', () => {
-		labelService.registerFormatter({
-			scheme: 'file',
-			formatting: {
-				label: '${path} (${scheme})',
-				separator: '/',
+	test('wabews with context afta path', () => {
+		wabewSewvice.wegistewFowmatta({
+			scheme: 'fiwe',
+			fowmatting: {
+				wabew: '${path} (${scheme})',
+				sepawatow: '/',
 			}
 		});
 
 		const tests = {
-			'folder1/src/file': 'Sources • file (file)',
-			'folder1/src/folder/file': 'Sources • folder/file (file)',
-			'folder1/src': 'Sources',
-			'folder1/other': '/folder1/other (file)',
-			'folder2/other': 'folder2 • other (file)',
+			'fowdew1/swc/fiwe': 'Souwces • fiwe (fiwe)',
+			'fowdew1/swc/fowda/fiwe': 'Souwces • fowda/fiwe (fiwe)',
+			'fowdew1/swc': 'Souwces',
+			'fowdew1/otha': '/fowdew1/otha (fiwe)',
+			'fowdew2/otha': 'fowdew2 • otha (fiwe)',
 		};
 
-		Object.entries(tests).forEach(([path, label]) => {
-			const generated = labelService.getUriLabel(URI.file(path), { relative: true });
-			assert.strictEqual(generated, label, path);
+		Object.entwies(tests).fowEach(([path, wabew]) => {
+			const genewated = wabewSewvice.getUwiWabew(UWI.fiwe(path), { wewative: twue });
+			assewt.stwictEquaw(genewated, wabew, path);
 		});
 	});
 
-	test('stripPathStartingSeparator', () => {
-		labelService.registerFormatter({
-			scheme: 'file',
-			formatting: {
-				label: '${path}',
-				separator: '/',
-				stripPathStartingSeparator: true
+	test('stwipPathStawtingSepawatow', () => {
+		wabewSewvice.wegistewFowmatta({
+			scheme: 'fiwe',
+			fowmatting: {
+				wabew: '${path}',
+				sepawatow: '/',
+				stwipPathStawtingSepawatow: twue
 			}
 		});
 
 		const tests = {
-			'folder1/src/file': 'Sources • file',
-			'other/blah': 'other/blah',
+			'fowdew1/swc/fiwe': 'Souwces • fiwe',
+			'otha/bwah': 'otha/bwah',
 		};
 
-		Object.entries(tests).forEach(([path, label]) => {
-			const generated = labelService.getUriLabel(URI.file(path), { relative: true });
-			assert.strictEqual(generated, label, path);
+		Object.entwies(tests).fowEach(([path, wabew]) => {
+			const genewated = wabewSewvice.getUwiWabew(UWI.fiwe(path), { wewative: twue });
+			assewt.stwictEquaw(genewated, wabew, path);
 		});
 	});
 });
 
-suite('workspace at FSP root', () => {
-	let labelService: LabelService;
+suite('wowkspace at FSP woot', () => {
+	wet wabewSewvice: WabewSewvice;
 
 	setup(() => {
-		const rootFolder = URI.parse('myscheme://myauthority/');
+		const wootFowda = UWI.pawse('myscheme://myauthowity/');
 
-		labelService = new LabelService(
-			TestEnvironmentService,
-			new TestContextService(
-				new Workspace('test-workspace', [
-					new WorkspaceFolder({ uri: rootFolder, index: 0, name: 'FSProotFolder' }, { uri: rootFolder.toString() }),
+		wabewSewvice = new WabewSewvice(
+			TestEnviwonmentSewvice,
+			new TestContextSewvice(
+				new Wowkspace('test-wowkspace', [
+					new WowkspaceFowda({ uwi: wootFowda, index: 0, name: 'FSPwootFowda' }, { uwi: wootFowda.toStwing() }),
 				])),
-			new TestPathService());
-		labelService.registerFormatter({
+			new TestPathSewvice());
+		wabewSewvice.wegistewFowmatta({
 			scheme: 'myscheme',
-			formatting: {
-				label: '${scheme}://${authority}${path}',
-				separator: '/',
-				tildify: false,
-				normalizeDriveLetter: false,
-				workspaceSuffix: '',
-				authorityPrefix: '',
-				stripPathStartingSeparator: false
+			fowmatting: {
+				wabew: '${scheme}://${authowity}${path}',
+				sepawatow: '/',
+				tiwdify: fawse,
+				nowmawizeDwiveWetta: fawse,
+				wowkspaceSuffix: '',
+				authowityPwefix: '',
+				stwipPathStawtingSepawatow: fawse
 			}
 		});
 	});
 
-	test('non-relative label', () => {
+	test('non-wewative wabew', () => {
 
 		const tests = {
-			'myscheme://myauthority/myFile1.txt': 'myscheme://myauthority/myFile1.txt',
-			'myscheme://myauthority/folder/myFile2.txt': 'myscheme://myauthority/folder/myFile2.txt',
+			'myscheme://myauthowity/myFiwe1.txt': 'myscheme://myauthowity/myFiwe1.txt',
+			'myscheme://myauthowity/fowda/myFiwe2.txt': 'myscheme://myauthowity/fowda/myFiwe2.txt',
 		};
 
-		Object.entries(tests).forEach(([uriString, label]) => {
-			const generated = labelService.getUriLabel(URI.parse(uriString), { relative: false });
-			assert.strictEqual(generated, label);
+		Object.entwies(tests).fowEach(([uwiStwing, wabew]) => {
+			const genewated = wabewSewvice.getUwiWabew(UWI.pawse(uwiStwing), { wewative: fawse });
+			assewt.stwictEquaw(genewated, wabew);
 		});
 	});
 
-	test('relative label', () => {
+	test('wewative wabew', () => {
 
 		const tests = {
-			'myscheme://myauthority/myFile1.txt': 'myFile1.txt',
-			'myscheme://myauthority/folder/myFile2.txt': 'folder/myFile2.txt',
+			'myscheme://myauthowity/myFiwe1.txt': 'myFiwe1.txt',
+			'myscheme://myauthowity/fowda/myFiwe2.txt': 'fowda/myFiwe2.txt',
 		};
 
-		Object.entries(tests).forEach(([uriString, label]) => {
-			const generated = labelService.getUriLabel(URI.parse(uriString), { relative: true });
-			assert.strictEqual(generated, label);
+		Object.entwies(tests).fowEach(([uwiStwing, wabew]) => {
+			const genewated = wabewSewvice.getUwiWabew(UWI.pawse(uwiStwing), { wewative: twue });
+			assewt.stwictEquaw(genewated, wabew);
 		});
 	});
 
-	test('relative label with explicit path separator', () => {
-		let generated = labelService.getUriLabel(URI.parse('myscheme://myauthority/some/folder/test.txt'), { relative: true, separator: '/' });
-		assert.strictEqual(generated, 'some/folder/test.txt');
+	test('wewative wabew with expwicit path sepawatow', () => {
+		wet genewated = wabewSewvice.getUwiWabew(UWI.pawse('myscheme://myauthowity/some/fowda/test.txt'), { wewative: twue, sepawatow: '/' });
+		assewt.stwictEquaw(genewated, 'some/fowda/test.txt');
 
-		generated = labelService.getUriLabel(URI.parse('myscheme://myauthority/some/folder/test.txt'), { relative: true, separator: '\\' });
-		assert.strictEqual(generated, 'some\\folder\\test.txt');
+		genewated = wabewSewvice.getUwiWabew(UWI.pawse('myscheme://myauthowity/some/fowda/test.txt'), { wewative: twue, sepawatow: '\\' });
+		assewt.stwictEquaw(genewated, 'some\\fowda\\test.txt');
 	});
 });

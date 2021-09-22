@@ -1,116 +1,116 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { LanguageId } from 'vs/editor/common/modes';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { WanguageId } fwom 'vs/editow/common/modes';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const ITextMateService = createDecorator<ITextMateService>('textMateService');
+expowt const ITextMateSewvice = cweateDecowatow<ITextMateSewvice>('textMateSewvice');
 
-export interface ITextMateService {
-	readonly _serviceBrand: undefined;
+expowt intewface ITextMateSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	onDidEncounterLanguage: Event<LanguageId>;
+	onDidEncountewWanguage: Event<WanguageId>;
 
-	createGrammar(modeId: string): Promise<IGrammar | null>;
+	cweateGwammaw(modeId: stwing): Pwomise<IGwammaw | nuww>;
 
-	startDebugMode(printFn: (str: string) => void, onStop: () => void): void;
+	stawtDebugMode(pwintFn: (stw: stwing) => void, onStop: () => void): void;
 }
 
-// -------------- Types "liberated" from vscode-textmate due to usage in /common/
+// -------------- Types "wibewated" fwom vscode-textmate due to usage in /common/
 
-export const enum StandardTokenType {
-	Other = 0,
+expowt const enum StandawdTokenType {
+	Otha = 0,
 	Comment = 1,
-	String = 2,
-	RegEx = 4,
+	Stwing = 2,
+	WegEx = 4,
 }
 /**
- * A grammar
+ * A gwammaw
  */
-export interface IGrammar {
+expowt intewface IGwammaw {
 	/**
-	 * Tokenize `lineText` using previous line state `prevState`.
+	 * Tokenize `wineText` using pwevious wine state `pwevState`.
 	 */
-	tokenizeLine(lineText: string, prevState: StackElement | null): ITokenizeLineResult;
+	tokenizeWine(wineText: stwing, pwevState: StackEwement | nuww): ITokenizeWineWesuwt;
 	/**
-	 * Tokenize `lineText` using previous line state `prevState`.
-	 * The result contains the tokens in binary format, resolved with the following information:
-	 *  - language
-	 *  - token type (regex, string, comment, other)
-	 *  - font style
-	 *  - foreground color
-	 *  - background color
-	 * e.g. for getting the languageId: `(metadata & MetadataConsts.LANGUAGEID_MASK) >>> MetadataConsts.LANGUAGEID_OFFSET`
+	 * Tokenize `wineText` using pwevious wine state `pwevState`.
+	 * The wesuwt contains the tokens in binawy fowmat, wesowved with the fowwowing infowmation:
+	 *  - wanguage
+	 *  - token type (wegex, stwing, comment, otha)
+	 *  - font stywe
+	 *  - fowegwound cowow
+	 *  - backgwound cowow
+	 * e.g. fow getting the wanguageId: `(metadata & MetadataConsts.WANGUAGEID_MASK) >>> MetadataConsts.WANGUAGEID_OFFSET`
 	 */
-	tokenizeLine2(lineText: string, prevState: StackElement | null): ITokenizeLineResult2;
+	tokenizeWine2(wineText: stwing, pwevState: StackEwement | nuww): ITokenizeWineWesuwt2;
 }
-export interface ITokenizeLineResult {
-	readonly tokens: IToken[];
+expowt intewface ITokenizeWineWesuwt {
+	weadonwy tokens: IToken[];
 	/**
-	 * The `prevState` to be passed on to the next line tokenization.
+	 * The `pwevState` to be passed on to the next wine tokenization.
 	 */
-	readonly ruleStack: StackElement;
+	weadonwy wuweStack: StackEwement;
 }
 /**
- * Helpers to manage the "collapsed" metadata of an entire StackElement stack.
- * The following assumptions have been made:
- *  - languageId < 256 => needs 8 bits
- *  - unique color count < 512 => needs 9 bits
+ * Hewpews to manage the "cowwapsed" metadata of an entiwe StackEwement stack.
+ * The fowwowing assumptions have been made:
+ *  - wanguageId < 256 => needs 8 bits
+ *  - unique cowow count < 512 => needs 9 bits
  *
- * The binary format is:
+ * The binawy fowmat is:
  * - -------------------------------------------
  *     3322 2222 2222 1111 1111 1100 0000 0000
  *     1098 7654 3210 9876 5432 1098 7654 3210
  * - -------------------------------------------
  *     xxxx xxxx xxxx xxxx xxxx xxxx xxxx xxxx
- *     bbbb bbbb bfff ffff ffFF FTTT LLLL LLLL
+ *     bbbb bbbb bfff ffff ffFF FTTT WWWW WWWW
  * - -------------------------------------------
- *  - L = LanguageId (8 bits)
- *  - T = StandardTokenType (3 bits)
- *  - F = FontStyle (3 bits)
- *  - f = foreground color (9 bits)
- *  - b = background color (9 bits)
+ *  - W = WanguageId (8 bits)
+ *  - T = StandawdTokenType (3 bits)
+ *  - F = FontStywe (3 bits)
+ *  - f = fowegwound cowow (9 bits)
+ *  - b = backgwound cowow (9 bits)
  */
-export const enum MetadataConsts {
-	LANGUAGEID_MASK = 255,
+expowt const enum MetadataConsts {
+	WANGUAGEID_MASK = 255,
 	TOKEN_TYPE_MASK = 1792,
-	FONT_STYLE_MASK = 14336,
-	FOREGROUND_MASK = 8372224,
-	BACKGROUND_MASK = 4286578688,
-	LANGUAGEID_OFFSET = 0,
+	FONT_STYWE_MASK = 14336,
+	FOWEGWOUND_MASK = 8372224,
+	BACKGWOUND_MASK = 4286578688,
+	WANGUAGEID_OFFSET = 0,
 	TOKEN_TYPE_OFFSET = 8,
-	FONT_STYLE_OFFSET = 11,
-	FOREGROUND_OFFSET = 14,
-	BACKGROUND_OFFSET = 23,
+	FONT_STYWE_OFFSET = 11,
+	FOWEGWOUND_OFFSET = 14,
+	BACKGWOUND_OFFSET = 23,
 }
-export interface ITokenizeLineResult2 {
+expowt intewface ITokenizeWineWesuwt2 {
 	/**
-	 * The tokens in binary format. Each token occupies two array indices. For token i:
-	 *  - at offset 2*i => startIndex
+	 * The tokens in binawy fowmat. Each token occupies two awway indices. Fow token i:
+	 *  - at offset 2*i => stawtIndex
 	 *  - at offset 2*i + 1 => metadata
 	 *
 	 */
-	readonly tokens: Uint32Array;
+	weadonwy tokens: Uint32Awway;
 	/**
-	 * The `prevState` to be passed on to the next line tokenization.
+	 * The `pwevState` to be passed on to the next wine tokenization.
 	 */
-	readonly ruleStack: StackElement;
+	weadonwy wuweStack: StackEwement;
 }
-export interface IToken {
-	startIndex: number;
-	readonly endIndex: number;
-	readonly scopes: string[];
+expowt intewface IToken {
+	stawtIndex: numba;
+	weadonwy endIndex: numba;
+	weadonwy scopes: stwing[];
 }
 /**
- * **IMPORTANT** - Immutable!
+ * **IMPOWTANT** - Immutabwe!
  */
-export interface StackElement {
-	_stackElementBrand: void;
-	readonly depth: number;
-	clone(): StackElement;
-	equals(other: StackElement): boolean;
+expowt intewface StackEwement {
+	_stackEwementBwand: void;
+	weadonwy depth: numba;
+	cwone(): StackEwement;
+	equaws(otha: StackEwement): boowean;
 }
-// -------------- End Types "liberated" from vscode-textmate due to usage in /common/
+// -------------- End Types "wibewated" fwom vscode-textmate due to usage in /common/

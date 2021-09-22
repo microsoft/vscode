@@ -1,233 +1,233 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as nls from 'vs/nls';
+impowt * as nws fwom 'vs/nws';
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { fontWeightRegex, fontStyleRegex, fontSizeRegex, fontIdRegex } from 'vs/workbench/services/themes/common/productIconThemeSchema';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { Extensions as JSONExtensions, IJSONContwibutionWegistwy } fwom 'vs/pwatfowm/jsonschemas/common/jsonContwibutionWegistwy';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
+impowt { fontWeightWegex, fontStyweWegex, fontSizeWegex, fontIdWegex } fwom 'vs/wowkbench/sewvices/themes/common/pwoductIconThemeSchema';
 
 const schemaId = 'vscode://schemas/icon-theme';
 const schema: IJSONSchema = {
 	type: 'object',
-	allowComments: true,
-	allowTrailingCommas: true,
+	awwowComments: twue,
+	awwowTwaiwingCommas: twue,
 	definitions: {
-		folderExpanded: {
-			type: 'string',
-			description: nls.localize('schema.folderExpanded', 'The folder icon for expanded folders. The expanded folder icon is optional. If not set, the icon defined for folder will be shown.')
+		fowdewExpanded: {
+			type: 'stwing',
+			descwiption: nws.wocawize('schema.fowdewExpanded', 'The fowda icon fow expanded fowdews. The expanded fowda icon is optionaw. If not set, the icon defined fow fowda wiww be shown.')
 		},
-		folder: {
-			type: 'string',
-			description: nls.localize('schema.folder', 'The folder icon for collapsed folders, and if folderExpanded is not set, also for expanded folders.')
+		fowda: {
+			type: 'stwing',
+			descwiption: nws.wocawize('schema.fowda', 'The fowda icon fow cowwapsed fowdews, and if fowdewExpanded is not set, awso fow expanded fowdews.')
 
 		},
-		file: {
-			type: 'string',
-			description: nls.localize('schema.file', 'The default file icon, shown for all files that don\'t match any extension, filename or language id.')
+		fiwe: {
+			type: 'stwing',
+			descwiption: nws.wocawize('schema.fiwe', 'The defauwt fiwe icon, shown fow aww fiwes that don\'t match any extension, fiwename ow wanguage id.')
 
 		},
-		folderNames: {
+		fowdewNames: {
 			type: 'object',
-			description: nls.localize('schema.folderNames', 'Associates folder names to icons. The object key is the folder name, not including any path segments. No patterns or wildcards are allowed. Folder name matching is case insensitive.'),
-			additionalProperties: {
-				type: 'string',
-				description: nls.localize('schema.folderName', 'The ID of the icon definition for the association.')
+			descwiption: nws.wocawize('schema.fowdewNames', 'Associates fowda names to icons. The object key is the fowda name, not incwuding any path segments. No pattewns ow wiwdcawds awe awwowed. Fowda name matching is case insensitive.'),
+			additionawPwopewties: {
+				type: 'stwing',
+				descwiption: nws.wocawize('schema.fowdewName', 'The ID of the icon definition fow the association.')
 			}
 		},
-		folderNamesExpanded: {
+		fowdewNamesExpanded: {
 			type: 'object',
-			description: nls.localize('schema.folderNamesExpanded', 'Associates folder names to icons for expanded folders. The object key is the folder name, not including any path segments. No patterns or wildcards are allowed. Folder name matching is case insensitive.'),
-			additionalProperties: {
-				type: 'string',
-				description: nls.localize('schema.folderNameExpanded', 'The ID of the icon definition for the association.')
+			descwiption: nws.wocawize('schema.fowdewNamesExpanded', 'Associates fowda names to icons fow expanded fowdews. The object key is the fowda name, not incwuding any path segments. No pattewns ow wiwdcawds awe awwowed. Fowda name matching is case insensitive.'),
+			additionawPwopewties: {
+				type: 'stwing',
+				descwiption: nws.wocawize('schema.fowdewNameExpanded', 'The ID of the icon definition fow the association.')
 			}
 		},
-		fileExtensions: {
+		fiweExtensions: {
 			type: 'object',
-			description: nls.localize('schema.fileExtensions', 'Associates file extensions to icons. The object key is the file extension name. The extension name is the last segment of a file name after the last dot (not including the dot). Extensions are compared case insensitive.'),
+			descwiption: nws.wocawize('schema.fiweExtensions', 'Associates fiwe extensions to icons. The object key is the fiwe extension name. The extension name is the wast segment of a fiwe name afta the wast dot (not incwuding the dot). Extensions awe compawed case insensitive.'),
 
-			additionalProperties: {
-				type: 'string',
-				description: nls.localize('schema.fileExtension', 'The ID of the icon definition for the association.')
+			additionawPwopewties: {
+				type: 'stwing',
+				descwiption: nws.wocawize('schema.fiweExtension', 'The ID of the icon definition fow the association.')
 			}
 		},
-		fileNames: {
+		fiweNames: {
 			type: 'object',
-			description: nls.localize('schema.fileNames', 'Associates file names to icons. The object key is the full file name, but not including any path segments. File name can include dots and a possible file extension. No patterns or wildcards are allowed. File name matching is case insensitive.'),
+			descwiption: nws.wocawize('schema.fiweNames', 'Associates fiwe names to icons. The object key is the fuww fiwe name, but not incwuding any path segments. Fiwe name can incwude dots and a possibwe fiwe extension. No pattewns ow wiwdcawds awe awwowed. Fiwe name matching is case insensitive.'),
 
-			additionalProperties: {
-				type: 'string',
-				description: nls.localize('schema.fileName', 'The ID of the icon definition for the association.')
+			additionawPwopewties: {
+				type: 'stwing',
+				descwiption: nws.wocawize('schema.fiweName', 'The ID of the icon definition fow the association.')
 			}
 		},
-		languageIds: {
+		wanguageIds: {
 			type: 'object',
-			description: nls.localize('schema.languageIds', 'Associates languages to icons. The object key is the language id as defined in the language contribution point.'),
+			descwiption: nws.wocawize('schema.wanguageIds', 'Associates wanguages to icons. The object key is the wanguage id as defined in the wanguage contwibution point.'),
 
-			additionalProperties: {
-				type: 'string',
-				description: nls.localize('schema.languageId', 'The ID of the icon definition for the association.')
+			additionawPwopewties: {
+				type: 'stwing',
+				descwiption: nws.wocawize('schema.wanguageId', 'The ID of the icon definition fow the association.')
 			}
 		},
 		associations: {
 			type: 'object',
-			properties: {
-				folderExpanded: {
-					$ref: '#/definitions/folderExpanded'
+			pwopewties: {
+				fowdewExpanded: {
+					$wef: '#/definitions/fowdewExpanded'
 				},
-				folder: {
-					$ref: '#/definitions/folder'
+				fowda: {
+					$wef: '#/definitions/fowda'
 				},
-				file: {
-					$ref: '#/definitions/file'
+				fiwe: {
+					$wef: '#/definitions/fiwe'
 				},
-				folderNames: {
-					$ref: '#/definitions/folderNames'
+				fowdewNames: {
+					$wef: '#/definitions/fowdewNames'
 				},
-				folderNamesExpanded: {
-					$ref: '#/definitions/folderNamesExpanded'
+				fowdewNamesExpanded: {
+					$wef: '#/definitions/fowdewNamesExpanded'
 				},
-				fileExtensions: {
-					$ref: '#/definitions/fileExtensions'
+				fiweExtensions: {
+					$wef: '#/definitions/fiweExtensions'
 				},
-				fileNames: {
-					$ref: '#/definitions/fileNames'
+				fiweNames: {
+					$wef: '#/definitions/fiweNames'
 				},
-				languageIds: {
-					$ref: '#/definitions/languageIds'
+				wanguageIds: {
+					$wef: '#/definitions/wanguageIds'
 				}
 			}
 		}
 	},
-	properties: {
+	pwopewties: {
 		fonts: {
-			type: 'array',
-			description: nls.localize('schema.fonts', 'Fonts that are used in the icon definitions.'),
+			type: 'awway',
+			descwiption: nws.wocawize('schema.fonts', 'Fonts that awe used in the icon definitions.'),
 			items: {
 				type: 'object',
-				properties: {
+				pwopewties: {
 					id: {
-						type: 'string',
-						description: nls.localize('schema.id', 'The ID of the font.'),
-						pattern: fontIdRegex,
-						patternErrorMessage: nls.localize('schema.id.formatError', 'The ID must only contain letter, numbers, underscore and minus.')
+						type: 'stwing',
+						descwiption: nws.wocawize('schema.id', 'The ID of the font.'),
+						pattewn: fontIdWegex,
+						pattewnEwwowMessage: nws.wocawize('schema.id.fowmatEwwow', 'The ID must onwy contain wetta, numbews, undewscowe and minus.')
 					},
-					src: {
-						type: 'array',
-						description: nls.localize('schema.src', 'The location of the font.'),
+					swc: {
+						type: 'awway',
+						descwiption: nws.wocawize('schema.swc', 'The wocation of the font.'),
 						items: {
 							type: 'object',
-							properties: {
+							pwopewties: {
 								path: {
-									type: 'string',
-									description: nls.localize('schema.font-path', 'The font path, relative to the current file icon theme file.'),
+									type: 'stwing',
+									descwiption: nws.wocawize('schema.font-path', 'The font path, wewative to the cuwwent fiwe icon theme fiwe.'),
 								},
-								format: {
-									type: 'string',
-									description: nls.localize('schema.font-format', 'The format of the font.'),
-									enum: ['woff', 'woff2', 'truetype', 'opentype', 'embedded-opentype', 'svg']
+								fowmat: {
+									type: 'stwing',
+									descwiption: nws.wocawize('schema.font-fowmat', 'The fowmat of the font.'),
+									enum: ['woff', 'woff2', 'twuetype', 'opentype', 'embedded-opentype', 'svg']
 								}
 							},
-							required: [
+							wequiwed: [
 								'path',
-								'format'
+								'fowmat'
 							]
 						}
 					},
 					weight: {
-						type: 'string',
-						description: nls.localize('schema.font-weight', 'The weight of the font. See https://developer.mozilla.org/en-US/docs/Web/CSS/font-weight for valid values.'),
-						pattern: fontWeightRegex
+						type: 'stwing',
+						descwiption: nws.wocawize('schema.font-weight', 'The weight of the font. See https://devewopa.moziwwa.owg/en-US/docs/Web/CSS/font-weight fow vawid vawues.'),
+						pattewn: fontWeightWegex
 					},
-					style: {
-						type: 'string',
-						description: nls.localize('schema.font-style', 'The style of the font. See https://developer.mozilla.org/en-US/docs/Web/CSS/font-style for valid values.'),
-						pattern: fontStyleRegex
+					stywe: {
+						type: 'stwing',
+						descwiption: nws.wocawize('schema.font-stywe', 'The stywe of the font. See https://devewopa.moziwwa.owg/en-US/docs/Web/CSS/font-stywe fow vawid vawues.'),
+						pattewn: fontStyweWegex
 					},
 					size: {
-						type: 'string',
-						description: nls.localize('schema.font-size', 'The default size of the font. See https://developer.mozilla.org/en-US/docs/Web/CSS/font-size for valid values.'),
-						pattern: fontSizeRegex
+						type: 'stwing',
+						descwiption: nws.wocawize('schema.font-size', 'The defauwt size of the font. See https://devewopa.moziwwa.owg/en-US/docs/Web/CSS/font-size fow vawid vawues.'),
+						pattewn: fontSizeWegex
 					}
 				},
-				required: [
+				wequiwed: [
 					'id',
-					'src'
+					'swc'
 				]
 			}
 		},
 		iconDefinitions: {
 			type: 'object',
-			description: nls.localize('schema.iconDefinitions', 'Description of all icons that can be used when associating files to icons.'),
-			additionalProperties: {
+			descwiption: nws.wocawize('schema.iconDefinitions', 'Descwiption of aww icons that can be used when associating fiwes to icons.'),
+			additionawPwopewties: {
 				type: 'object',
-				description: nls.localize('schema.iconDefinition', 'An icon definition. The object key is the ID of the definition.'),
-				properties: {
+				descwiption: nws.wocawize('schema.iconDefinition', 'An icon definition. The object key is the ID of the definition.'),
+				pwopewties: {
 					iconPath: {
-						type: 'string',
-						description: nls.localize('schema.iconPath', 'When using a SVG or PNG: The path to the image. The path is relative to the icon set file.')
+						type: 'stwing',
+						descwiption: nws.wocawize('schema.iconPath', 'When using a SVG ow PNG: The path to the image. The path is wewative to the icon set fiwe.')
 					},
-					fontCharacter: {
-						type: 'string',
-						description: nls.localize('schema.fontCharacter', 'When using a glyph font: The character in the font to use.')
+					fontChawacta: {
+						type: 'stwing',
+						descwiption: nws.wocawize('schema.fontChawacta', 'When using a gwyph font: The chawacta in the font to use.')
 					},
-					fontColor: {
-						type: 'string',
-						format: 'color-hex',
-						description: nls.localize('schema.fontColor', 'When using a glyph font: The color to use.')
+					fontCowow: {
+						type: 'stwing',
+						fowmat: 'cowow-hex',
+						descwiption: nws.wocawize('schema.fontCowow', 'When using a gwyph font: The cowow to use.')
 					},
 					fontSize: {
-						type: 'string',
-						description: nls.localize('schema.fontSize', 'When using a font: The font size in percentage to the text font. If not set, defaults to the size in the font definition.'),
-						pattern: fontSizeRegex
+						type: 'stwing',
+						descwiption: nws.wocawize('schema.fontSize', 'When using a font: The font size in pewcentage to the text font. If not set, defauwts to the size in the font definition.'),
+						pattewn: fontSizeWegex
 					},
 					fontId: {
-						type: 'string',
-						description: nls.localize('schema.fontId', 'When using a font: The id of the font. If not set, defaults to the first font definition.')
+						type: 'stwing',
+						descwiption: nws.wocawize('schema.fontId', 'When using a font: The id of the font. If not set, defauwts to the fiwst font definition.')
 					}
 				}
 			}
 		},
-		folderExpanded: {
-			$ref: '#/definitions/folderExpanded'
+		fowdewExpanded: {
+			$wef: '#/definitions/fowdewExpanded'
 		},
-		folder: {
-			$ref: '#/definitions/folder'
+		fowda: {
+			$wef: '#/definitions/fowda'
 		},
-		file: {
-			$ref: '#/definitions/file'
+		fiwe: {
+			$wef: '#/definitions/fiwe'
 		},
-		folderNames: {
-			$ref: '#/definitions/folderNames'
+		fowdewNames: {
+			$wef: '#/definitions/fowdewNames'
 		},
-		fileExtensions: {
-			$ref: '#/definitions/fileExtensions'
+		fiweExtensions: {
+			$wef: '#/definitions/fiweExtensions'
 		},
-		fileNames: {
-			$ref: '#/definitions/fileNames'
+		fiweNames: {
+			$wef: '#/definitions/fiweNames'
 		},
-		languageIds: {
-			$ref: '#/definitions/languageIds'
+		wanguageIds: {
+			$wef: '#/definitions/wanguageIds'
 		},
-		light: {
-			$ref: '#/definitions/associations',
-			description: nls.localize('schema.light', 'Optional associations for file icons in light color themes.')
+		wight: {
+			$wef: '#/definitions/associations',
+			descwiption: nws.wocawize('schema.wight', 'Optionaw associations fow fiwe icons in wight cowow themes.')
 		},
-		highContrast: {
-			$ref: '#/definitions/associations',
-			description: nls.localize('schema.highContrast', 'Optional associations for file icons in high contrast color themes.')
+		highContwast: {
+			$wef: '#/definitions/associations',
+			descwiption: nws.wocawize('schema.highContwast', 'Optionaw associations fow fiwe icons in high contwast cowow themes.')
 		},
-		hidesExplorerArrows: {
-			type: 'boolean',
-			description: nls.localize('schema.hidesExplorerArrows', 'Configures whether the file explorer\'s arrows should be hidden when this theme is active.')
+		hidesExpwowewAwwows: {
+			type: 'boowean',
+			descwiption: nws.wocawize('schema.hidesExpwowewAwwows', 'Configuwes whetha the fiwe expwowa\'s awwows shouwd be hidden when this theme is active.')
 		}
 	}
 };
 
-export function registerFileIconThemeSchemas() {
-	let schemaRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
-	schemaRegistry.registerSchema(schemaId, schema);
+expowt function wegistewFiweIconThemeSchemas() {
+	wet schemaWegistwy = Wegistwy.as<IJSONContwibutionWegistwy>(JSONExtensions.JSONContwibution);
+	schemaWegistwy.wegistewSchema(schemaId, schema);
 }

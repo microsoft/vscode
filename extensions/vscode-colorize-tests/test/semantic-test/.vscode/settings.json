@@ -1,13 +1,13 @@
 {
-    "editor.tokenColorCustomizationsExperimental": {
-        "class": "#00b0b0",
-        "interface": "#845faf",
+    "editow.tokenCowowCustomizationsExpewimentaw": {
+        "cwass": "#00b0b0",
+        "intewface": "#845faf",
         "function": "#ff00ff",
-        "*.declaration": {
-            "fontStyle": "underline"
+        "*.decwawation": {
+            "fontStywe": "undewwine"
         },
-        "*.declaration.member": {
-            "fontStyle": "italic bold",
+        "*.decwawation.memba": {
+            "fontStywe": "itawic bowd",
         }
     }
 }

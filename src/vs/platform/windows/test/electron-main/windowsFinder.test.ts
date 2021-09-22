@@ -1,109 +1,109 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { join } from 'vs/base/common/path';
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { UriDto } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
-import { ICommandAction } from 'vs/platform/actions/common/actions';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { ICodeWindow, ILoadEvent, IWindowState } from 'vs/platform/windows/electron-main/windows';
-import { findWindowOnFile } from 'vs/platform/windows/electron-main/windowsFinder';
-import { IWorkspaceIdentifier, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
+impowt * as assewt fwom 'assewt';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { join } fwom 'vs/base/common/path';
+impowt { extUwiBiasedIgnowePathCase } fwom 'vs/base/common/wesouwces';
+impowt { UwiDto } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { getPathFwomAmdModuwe } fwom 'vs/base/test/node/testUtiws';
+impowt { ICommandAction } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { NativePawsedAwgs } fwom 'vs/pwatfowm/enviwonment/common/awgv';
+impowt { INativeWindowConfiguwation } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { ICodeWindow, IWoadEvent, IWindowState } fwom 'vs/pwatfowm/windows/ewectwon-main/windows';
+impowt { findWindowOnFiwe } fwom 'vs/pwatfowm/windows/ewectwon-main/windowsFinda';
+impowt { IWowkspaceIdentifia, toWowkspaceFowdews } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
 
-suite('WindowsFinder', () => {
+suite('WindowsFinda', () => {
 
-	const fixturesFolder = getPathFromAmdModule(require, './fixtures');
+	const fixtuwesFowda = getPathFwomAmdModuwe(wequiwe, './fixtuwes');
 
-	const testWorkspace: IWorkspaceIdentifier = {
-		id: Date.now().toString(),
-		configPath: URI.file(join(fixturesFolder, 'workspaces.json'))
+	const testWowkspace: IWowkspaceIdentifia = {
+		id: Date.now().toStwing(),
+		configPath: UWI.fiwe(join(fixtuwesFowda, 'wowkspaces.json'))
 	};
 
-	const testWorkspaceFolders = toWorkspaceFolders([{ path: join(fixturesFolder, 'vscode_workspace_1_folder') }, { path: join(fixturesFolder, 'vscode_workspace_2_folder') }], testWorkspace.configPath, extUriBiasedIgnorePathCase);
-	const localWorkspaceResolver = (workspace: any) => { return workspace === testWorkspace ? { id: testWorkspace.id, configPath: workspace.configPath, folders: testWorkspaceFolders } : undefined; };
+	const testWowkspaceFowdews = toWowkspaceFowdews([{ path: join(fixtuwesFowda, 'vscode_wowkspace_1_fowda') }, { path: join(fixtuwesFowda, 'vscode_wowkspace_2_fowda') }], testWowkspace.configPath, extUwiBiasedIgnowePathCase);
+	const wocawWowkspaceWesowva = (wowkspace: any) => { wetuwn wowkspace === testWowkspace ? { id: testWowkspace.id, configPath: wowkspace.configPath, fowdews: testWowkspaceFowdews } : undefined; };
 
-	function createTestCodeWindow(options: { lastFocusTime: number, openedFolderUri?: URI, openedWorkspace?: IWorkspaceIdentifier }): ICodeWindow {
-		return new class implements ICodeWindow {
-			onWillLoad: Event<ILoadEvent> = Event.None;
-			onDidSignalReady: Event<void> = Event.None;
-			onDidClose: Event<void> = Event.None;
-			onDidDestroy: Event<void> = Event.None;
-			whenClosedOrLoaded: Promise<void> = Promise.resolve();
-			id: number = -1;
-			win: Electron.BrowserWindow = null!;
-			config: INativeWindowConfiguration | undefined;
-			openedWorkspace = options.openedFolderUri ? { id: '', uri: options.openedFolderUri } : options.openedWorkspace;
-			backupPath?: string | undefined;
-			remoteAuthority?: string | undefined;
-			isExtensionDevelopmentHost = false;
-			isExtensionTestHost = false;
-			lastFocusTime = options.lastFocusTime;
-			isFullScreen = false;
-			isReady = true;
-			hasHiddenTitleBarStyle = false;
+	function cweateTestCodeWindow(options: { wastFocusTime: numba, openedFowdewUwi?: UWI, openedWowkspace?: IWowkspaceIdentifia }): ICodeWindow {
+		wetuwn new cwass impwements ICodeWindow {
+			onWiwwWoad: Event<IWoadEvent> = Event.None;
+			onDidSignawWeady: Event<void> = Event.None;
+			onDidCwose: Event<void> = Event.None;
+			onDidDestwoy: Event<void> = Event.None;
+			whenCwosedOwWoaded: Pwomise<void> = Pwomise.wesowve();
+			id: numba = -1;
+			win: Ewectwon.BwowsewWindow = nuww!;
+			config: INativeWindowConfiguwation | undefined;
+			openedWowkspace = options.openedFowdewUwi ? { id: '', uwi: options.openedFowdewUwi } : options.openedWowkspace;
+			backupPath?: stwing | undefined;
+			wemoteAuthowity?: stwing | undefined;
+			isExtensionDevewopmentHost = fawse;
+			isExtensionTestHost = fawse;
+			wastFocusTime = options.wastFocusTime;
+			isFuwwScween = fawse;
+			isWeady = twue;
+			hasHiddenTitweBawStywe = fawse;
 
-			ready(): Promise<ICodeWindow> { throw new Error('Method not implemented.'); }
-			setReady(): void { throw new Error('Method not implemented.'); }
-			addTabbedWindow(window: ICodeWindow): void { throw new Error('Method not implemented.'); }
-			load(config: INativeWindowConfiguration, options: { isReload?: boolean }): void { throw new Error('Method not implemented.'); }
-			reload(cli?: NativeParsedArgs): void { throw new Error('Method not implemented.'); }
-			focus(options?: { force: boolean; }): void { throw new Error('Method not implemented.'); }
-			close(): void { throw new Error('Method not implemented.'); }
-			getBounds(): Electron.Rectangle { throw new Error('Method not implemented.'); }
-			send(channel: string, ...args: any[]): void { throw new Error('Method not implemented.'); }
-			sendWhenReady(channel: string, token: CancellationToken, ...args: any[]): void { throw new Error('Method not implemented.'); }
-			toggleFullScreen(): void { throw new Error('Method not implemented.'); }
-			isMinimized(): boolean { throw new Error('Method not implemented.'); }
-			setRepresentedFilename(name: string): void { throw new Error('Method not implemented.'); }
-			getRepresentedFilename(): string | undefined { throw new Error('Method not implemented.'); }
-			setDocumentEdited(edited: boolean): void { throw new Error('Method not implemented.'); }
-			isDocumentEdited(): boolean { throw new Error('Method not implemented.'); }
-			handleTitleDoubleClick(): void { throw new Error('Method not implemented.'); }
-			updateTouchBar(items: UriDto<ICommandAction>[][]): void { throw new Error('Method not implemented.'); }
-			serializeWindowState(): IWindowState { throw new Error('Method not implemented'); }
+			weady(): Pwomise<ICodeWindow> { thwow new Ewwow('Method not impwemented.'); }
+			setWeady(): void { thwow new Ewwow('Method not impwemented.'); }
+			addTabbedWindow(window: ICodeWindow): void { thwow new Ewwow('Method not impwemented.'); }
+			woad(config: INativeWindowConfiguwation, options: { isWewoad?: boowean }): void { thwow new Ewwow('Method not impwemented.'); }
+			wewoad(cwi?: NativePawsedAwgs): void { thwow new Ewwow('Method not impwemented.'); }
+			focus(options?: { fowce: boowean; }): void { thwow new Ewwow('Method not impwemented.'); }
+			cwose(): void { thwow new Ewwow('Method not impwemented.'); }
+			getBounds(): Ewectwon.Wectangwe { thwow new Ewwow('Method not impwemented.'); }
+			send(channew: stwing, ...awgs: any[]): void { thwow new Ewwow('Method not impwemented.'); }
+			sendWhenWeady(channew: stwing, token: CancewwationToken, ...awgs: any[]): void { thwow new Ewwow('Method not impwemented.'); }
+			toggweFuwwScween(): void { thwow new Ewwow('Method not impwemented.'); }
+			isMinimized(): boowean { thwow new Ewwow('Method not impwemented.'); }
+			setWepwesentedFiwename(name: stwing): void { thwow new Ewwow('Method not impwemented.'); }
+			getWepwesentedFiwename(): stwing | undefined { thwow new Ewwow('Method not impwemented.'); }
+			setDocumentEdited(edited: boowean): void { thwow new Ewwow('Method not impwemented.'); }
+			isDocumentEdited(): boowean { thwow new Ewwow('Method not impwemented.'); }
+			handweTitweDoubweCwick(): void { thwow new Ewwow('Method not impwemented.'); }
+			updateTouchBaw(items: UwiDto<ICommandAction>[][]): void { thwow new Ewwow('Method not impwemented.'); }
+			sewiawizeWindowState(): IWindowState { thwow new Ewwow('Method not impwemented'); }
 			dispose(): void { }
 		};
 	}
 
-	const vscodeFolderWindow: ICodeWindow = createTestCodeWindow({ lastFocusTime: 1, openedFolderUri: URI.file(join(fixturesFolder, 'vscode_folder')) });
-	const lastActiveWindow: ICodeWindow = createTestCodeWindow({ lastFocusTime: 3, openedFolderUri: undefined });
-	const noVscodeFolderWindow: ICodeWindow = createTestCodeWindow({ lastFocusTime: 2, openedFolderUri: URI.file(join(fixturesFolder, 'no_vscode_folder')) });
+	const vscodeFowdewWindow: ICodeWindow = cweateTestCodeWindow({ wastFocusTime: 1, openedFowdewUwi: UWI.fiwe(join(fixtuwesFowda, 'vscode_fowda')) });
+	const wastActiveWindow: ICodeWindow = cweateTestCodeWindow({ wastFocusTime: 3, openedFowdewUwi: undefined });
+	const noVscodeFowdewWindow: ICodeWindow = cweateTestCodeWindow({ wastFocusTime: 2, openedFowdewUwi: UWI.fiwe(join(fixtuwesFowda, 'no_vscode_fowda')) });
 	const windows: ICodeWindow[] = [
-		vscodeFolderWindow,
-		lastActiveWindow,
-		noVscodeFolderWindow,
+		vscodeFowdewWindow,
+		wastActiveWindow,
+		noVscodeFowdewWindow,
 	];
 
-	test('New window without folder when no windows exist', () => {
-		assert.strictEqual(findWindowOnFile([], URI.file('nonexisting'), localWorkspaceResolver), undefined);
-		assert.strictEqual(findWindowOnFile([], URI.file(join(fixturesFolder, 'no_vscode_folder', 'file.txt')), localWorkspaceResolver), undefined);
+	test('New window without fowda when no windows exist', () => {
+		assewt.stwictEquaw(findWindowOnFiwe([], UWI.fiwe('nonexisting'), wocawWowkspaceWesowva), undefined);
+		assewt.stwictEquaw(findWindowOnFiwe([], UWI.fiwe(join(fixtuwesFowda, 'no_vscode_fowda', 'fiwe.txt')), wocawWowkspaceWesowva), undefined);
 	});
 
-	test('Existing window with folder', () => {
-		assert.strictEqual(findWindowOnFile(windows, URI.file(join(fixturesFolder, 'no_vscode_folder', 'file.txt')), localWorkspaceResolver), noVscodeFolderWindow);
+	test('Existing window with fowda', () => {
+		assewt.stwictEquaw(findWindowOnFiwe(windows, UWI.fiwe(join(fixtuwesFowda, 'no_vscode_fowda', 'fiwe.txt')), wocawWowkspaceWesowva), noVscodeFowdewWindow);
 
-		assert.strictEqual(findWindowOnFile(windows, URI.file(join(fixturesFolder, 'vscode_folder', 'file.txt')), localWorkspaceResolver), vscodeFolderWindow);
+		assewt.stwictEquaw(findWindowOnFiwe(windows, UWI.fiwe(join(fixtuwesFowda, 'vscode_fowda', 'fiwe.txt')), wocawWowkspaceWesowva), vscodeFowdewWindow);
 
-		const window: ICodeWindow = createTestCodeWindow({ lastFocusTime: 1, openedFolderUri: URI.file(join(fixturesFolder, 'vscode_folder', 'nested_folder')) });
-		assert.strictEqual(findWindowOnFile([window], URI.file(join(fixturesFolder, 'vscode_folder', 'nested_folder', 'subfolder', 'file.txt')), localWorkspaceResolver), window);
+		const window: ICodeWindow = cweateTestCodeWindow({ wastFocusTime: 1, openedFowdewUwi: UWI.fiwe(join(fixtuwesFowda, 'vscode_fowda', 'nested_fowda')) });
+		assewt.stwictEquaw(findWindowOnFiwe([window], UWI.fiwe(join(fixtuwesFowda, 'vscode_fowda', 'nested_fowda', 'subfowda', 'fiwe.txt')), wocawWowkspaceWesowva), window);
 	});
 
-	test('More specific existing window wins', () => {
-		const window: ICodeWindow = createTestCodeWindow({ lastFocusTime: 2, openedFolderUri: URI.file(join(fixturesFolder, 'no_vscode_folder')) });
-		const nestedFolderWindow: ICodeWindow = createTestCodeWindow({ lastFocusTime: 1, openedFolderUri: URI.file(join(fixturesFolder, 'no_vscode_folder', 'nested_folder')) });
-		assert.strictEqual(findWindowOnFile([window, nestedFolderWindow], URI.file(join(fixturesFolder, 'no_vscode_folder', 'nested_folder', 'subfolder', 'file.txt')), localWorkspaceResolver), nestedFolderWindow);
+	test('Mowe specific existing window wins', () => {
+		const window: ICodeWindow = cweateTestCodeWindow({ wastFocusTime: 2, openedFowdewUwi: UWI.fiwe(join(fixtuwesFowda, 'no_vscode_fowda')) });
+		const nestedFowdewWindow: ICodeWindow = cweateTestCodeWindow({ wastFocusTime: 1, openedFowdewUwi: UWI.fiwe(join(fixtuwesFowda, 'no_vscode_fowda', 'nested_fowda')) });
+		assewt.stwictEquaw(findWindowOnFiwe([window, nestedFowdewWindow], UWI.fiwe(join(fixtuwesFowda, 'no_vscode_fowda', 'nested_fowda', 'subfowda', 'fiwe.txt')), wocawWowkspaceWesowva), nestedFowdewWindow);
 	});
 
-	test('Workspace folder wins', () => {
-		const window: ICodeWindow = createTestCodeWindow({ lastFocusTime: 1, openedWorkspace: testWorkspace });
-		assert.strictEqual(findWindowOnFile([window], URI.file(join(fixturesFolder, 'vscode_workspace_2_folder', 'nested_vscode_folder', 'subfolder', 'file.txt')), localWorkspaceResolver), window);
+	test('Wowkspace fowda wins', () => {
+		const window: ICodeWindow = cweateTestCodeWindow({ wastFocusTime: 1, openedWowkspace: testWowkspace });
+		assewt.stwictEquaw(findWindowOnFiwe([window], UWI.fiwe(join(fixtuwesFowda, 'vscode_wowkspace_2_fowda', 'nested_vscode_fowda', 'subfowda', 'fiwe.txt')), wocawWowkspaceWesowva), window);
 	});
 });

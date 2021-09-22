@@ -1,761 +1,761 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action2, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
-import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IAction, Action, SubmenuAction, Separator } from 'vs/base/common/actions';
-import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { isMacintosh, isWeb, isIOS, isNative } from 'vs/base/common/platform';
-import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IRecentlyOpened, isRecentFolder, IRecent, isRecentWorkspace, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { MENUBAR_SELECTION_FOREGROUND, MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_BORDER, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
-import { URI } from 'vs/base/common/uri';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IUpdateService, StateType } from 'vs/platform/update/common/update';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { MenuBar, IMenuBarOptions } from 'vs/base/browser/ui/menu/menubar';
-import { Direction } from 'vs/base/browser/ui/menu/menu';
-import { attachMenuStyler } from 'vs/platform/theme/common/styler';
-import { mnemonicMenuLabel, unmnemonicLabel } from 'vs/base/common/labels';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { isFullscreen } from 'vs/base/browser/browser';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IsMacNativeContext, IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IMenuSewvice, MenuId, IMenu, SubmenuItemAction, wegistewAction2, Action2, MenuItemAction, MenuWegistwy } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { wegistewThemingPawticipant, IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { MenuBawVisibiwity, getTitweBawStywe, IWindowOpenabwe, getMenuBawVisibiwity } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { ContextKeyExpw, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IAction, Action, SubmenuAction, Sepawatow } fwom 'vs/base/common/actions';
+impowt { addDisposabweWistena, Dimension, EventType } fwom 'vs/base/bwowsa/dom';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { isMacintosh, isWeb, isIOS, isNative } fwom 'vs/base/common/pwatfowm';
+impowt { IConfiguwationSewvice, IConfiguwationChangeEvent } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IWecentwyOpened, isWecentFowda, IWecent, isWecentWowkspace, IWowkspacesSewvice } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { MENUBAW_SEWECTION_FOWEGWOUND, MENUBAW_SEWECTION_BACKGWOUND, MENUBAW_SEWECTION_BOWDa, TITWE_BAW_ACTIVE_FOWEGWOUND, TITWE_BAW_INACTIVE_FOWEGWOUND, ACTIVITY_BAW_FOWEGWOUND, ACTIVITY_BAW_INACTIVE_FOWEGWOUND } fwom 'vs/wowkbench/common/theme';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IUpdateSewvice, StateType } fwom 'vs/pwatfowm/update/common/update';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IPwefewencesSewvice } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { MenuBaw, IMenuBawOptions } fwom 'vs/base/bwowsa/ui/menu/menubaw';
+impowt { Diwection } fwom 'vs/base/bwowsa/ui/menu/menu';
+impowt { attachMenuStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { mnemonicMenuWabew, unmnemonicWabew } fwom 'vs/base/common/wabews';
+impowt { IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { IWowkbenchWayoutSewvice } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { isFuwwscween } fwom 'vs/base/bwowsa/bwowsa';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { BwowsewFeatuwes } fwom 'vs/base/bwowsa/canIUse';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { IsMacNativeContext, IsWebContext } fwom 'vs/pwatfowm/contextkey/common/contextkeys';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
 
-export type IOpenRecentAction = IAction & { uri: URI, remoteAuthority?: string };
+expowt type IOpenWecentAction = IAction & { uwi: UWI, wemoteAuthowity?: stwing };
 
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarFileMenu,
-	title: {
-		value: 'File',
-		original: 'File',
-		mnemonicTitle: localize({ key: 'mFile', comment: ['&& denotes a mnemonic'] }, "&&File"),
+MenuWegistwy.appendMenuItem(MenuId.MenubawMainMenu, {
+	submenu: MenuId.MenubawFiweMenu,
+	titwe: {
+		vawue: 'Fiwe',
+		owiginaw: 'Fiwe',
+		mnemonicTitwe: wocawize({ key: 'mFiwe', comment: ['&& denotes a mnemonic'] }, "&&Fiwe"),
 	},
-	order: 1
+	owda: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarEditMenu,
-	title: {
-		value: 'Edit',
-		original: 'Edit',
-		mnemonicTitle: localize({ key: 'mEdit', comment: ['&& denotes a mnemonic'] }, "&&Edit")
+MenuWegistwy.appendMenuItem(MenuId.MenubawMainMenu, {
+	submenu: MenuId.MenubawEditMenu,
+	titwe: {
+		vawue: 'Edit',
+		owiginaw: 'Edit',
+		mnemonicTitwe: wocawize({ key: 'mEdit', comment: ['&& denotes a mnemonic'] }, "&&Edit")
 	},
-	order: 2
+	owda: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarSelectionMenu,
-	title: {
-		value: 'Selection',
-		original: 'Selection',
-		mnemonicTitle: localize({ key: 'mSelection', comment: ['&& denotes a mnemonic'] }, "&&Selection")
+MenuWegistwy.appendMenuItem(MenuId.MenubawMainMenu, {
+	submenu: MenuId.MenubawSewectionMenu,
+	titwe: {
+		vawue: 'Sewection',
+		owiginaw: 'Sewection',
+		mnemonicTitwe: wocawize({ key: 'mSewection', comment: ['&& denotes a mnemonic'] }, "&&Sewection")
 	},
-	order: 3
+	owda: 3
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarViewMenu,
-	title: {
-		value: 'View',
-		original: 'View',
-		mnemonicTitle: localize({ key: 'mView', comment: ['&& denotes a mnemonic'] }, "&&View")
+MenuWegistwy.appendMenuItem(MenuId.MenubawMainMenu, {
+	submenu: MenuId.MenubawViewMenu,
+	titwe: {
+		vawue: 'View',
+		owiginaw: 'View',
+		mnemonicTitwe: wocawize({ key: 'mView', comment: ['&& denotes a mnemonic'] }, "&&View")
 	},
-	order: 4
+	owda: 4
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarGoMenu,
-	title: {
-		value: 'Go',
-		original: 'Go',
-		mnemonicTitle: localize({ key: 'mGoto', comment: ['&& denotes a mnemonic'] }, "&&Go")
+MenuWegistwy.appendMenuItem(MenuId.MenubawMainMenu, {
+	submenu: MenuId.MenubawGoMenu,
+	titwe: {
+		vawue: 'Go',
+		owiginaw: 'Go',
+		mnemonicTitwe: wocawize({ key: 'mGoto', comment: ['&& denotes a mnemonic'] }, "&&Go")
 	},
-	order: 5
+	owda: 5
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarTerminalMenu,
-	title: {
-		value: 'Terminal',
-		original: 'Terminal',
-		mnemonicTitle: localize({ key: 'mTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal")
+MenuWegistwy.appendMenuItem(MenuId.MenubawMainMenu, {
+	submenu: MenuId.MenubawTewminawMenu,
+	titwe: {
+		vawue: 'Tewminaw',
+		owiginaw: 'Tewminaw',
+		mnemonicTitwe: wocawize({ key: 'mTewminaw', comment: ['&& denotes a mnemonic'] }, "&&Tewminaw")
 	},
-	order: 7,
-	when: ContextKeyExpr.has('terminalProcessSupported')
+	owda: 7,
+	when: ContextKeyExpw.has('tewminawPwocessSuppowted')
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarHelpMenu,
-	title: {
-		value: 'Help',
-		original: 'Help',
-		mnemonicTitle: localize({ key: 'mHelp', comment: ['&& denotes a mnemonic'] }, "&&Help")
+MenuWegistwy.appendMenuItem(MenuId.MenubawMainMenu, {
+	submenu: MenuId.MenubawHewpMenu,
+	titwe: {
+		vawue: 'Hewp',
+		owiginaw: 'Hewp',
+		mnemonicTitwe: wocawize({ key: 'mHewp', comment: ['&& denotes a mnemonic'] }, "&&Hewp")
 	},
-	order: 8
+	owda: 8
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarPreferencesMenu,
-	title: {
-		value: 'Preferences',
-		original: 'Preferences',
-		mnemonicTitle: localize('mPreferences', "Preferences")
+MenuWegistwy.appendMenuItem(MenuId.MenubawMainMenu, {
+	submenu: MenuId.MenubawPwefewencesMenu,
+	titwe: {
+		vawue: 'Pwefewences',
+		owiginaw: 'Pwefewences',
+		mnemonicTitwe: wocawize('mPwefewences', "Pwefewences")
 	},
 	when: IsMacNativeContext,
-	order: 9
+	owda: 9
 });
 
-export abstract class MenubarControl extends Disposable {
+expowt abstwact cwass MenubawContwow extends Disposabwe {
 
-	protected keys = [
-		'window.menuBarVisibility',
-		'window.enableMenuBarMnemonics',
-		'window.customMenuBarAltFocus',
-		'workbench.sideBar.location',
+	pwotected keys = [
+		'window.menuBawVisibiwity',
+		'window.enabweMenuBawMnemonics',
+		'window.customMenuBawAwtFocus',
+		'wowkbench.sideBaw.wocation',
 		'window.nativeTabs'
 	];
 
-	protected mainMenu: IMenu;
-	protected menus: {
-		[index: string]: IMenu | undefined;
+	pwotected mainMenu: IMenu;
+	pwotected menus: {
+		[index: stwing]: IMenu | undefined;
 	} = {};
 
-	protected topLevelTitles: { [menu: string]: string } = {};
+	pwotected topWevewTitwes: { [menu: stwing]: stwing } = {};
 
-	protected mainMenuDisposables: DisposableStore;
+	pwotected mainMenuDisposabwes: DisposabweStowe;
 
-	protected recentlyOpened: IRecentlyOpened = { files: [], workspaces: [] };
+	pwotected wecentwyOpened: IWecentwyOpened = { fiwes: [], wowkspaces: [] };
 
-	protected menuUpdater: RunOnceScheduler;
+	pwotected menuUpdata: WunOnceScheduwa;
 
-	protected static readonly MAX_MENU_RECENT_ENTRIES = 10;
+	pwotected static weadonwy MAX_MENU_WECENT_ENTWIES = 10;
 
-	constructor(
-		protected readonly menuService: IMenuService,
-		protected readonly workspacesService: IWorkspacesService,
-		protected readonly contextKeyService: IContextKeyService,
-		protected readonly keybindingService: IKeybindingService,
-		protected readonly configurationService: IConfigurationService,
-		protected readonly labelService: ILabelService,
-		protected readonly updateService: IUpdateService,
-		protected readonly storageService: IStorageService,
-		protected readonly notificationService: INotificationService,
-		protected readonly preferencesService: IPreferencesService,
-		protected readonly environmentService: IWorkbenchEnvironmentService,
-		protected readonly accessibilityService: IAccessibilityService,
-		protected readonly hostService: IHostService,
-		protected readonly commandService: ICommandService
+	constwuctow(
+		pwotected weadonwy menuSewvice: IMenuSewvice,
+		pwotected weadonwy wowkspacesSewvice: IWowkspacesSewvice,
+		pwotected weadonwy contextKeySewvice: IContextKeySewvice,
+		pwotected weadonwy keybindingSewvice: IKeybindingSewvice,
+		pwotected weadonwy configuwationSewvice: IConfiguwationSewvice,
+		pwotected weadonwy wabewSewvice: IWabewSewvice,
+		pwotected weadonwy updateSewvice: IUpdateSewvice,
+		pwotected weadonwy stowageSewvice: IStowageSewvice,
+		pwotected weadonwy notificationSewvice: INotificationSewvice,
+		pwotected weadonwy pwefewencesSewvice: IPwefewencesSewvice,
+		pwotected weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		pwotected weadonwy accessibiwitySewvice: IAccessibiwitySewvice,
+		pwotected weadonwy hostSewvice: IHostSewvice,
+		pwotected weadonwy commandSewvice: ICommandSewvice
 	) {
 
-		super();
+		supa();
 
-		this.mainMenu = this._register(this.menuService.createMenu(MenuId.MenubarMainMenu, this.contextKeyService));
-		this.mainMenuDisposables = this._register(new DisposableStore());
+		this.mainMenu = this._wegista(this.menuSewvice.cweateMenu(MenuId.MenubawMainMenu, this.contextKeySewvice));
+		this.mainMenuDisposabwes = this._wegista(new DisposabweStowe());
 
 		this.setupMainMenu();
 
-		this.menuUpdater = this._register(new RunOnceScheduler(() => this.doUpdateMenubar(false), 200));
+		this.menuUpdata = this._wegista(new WunOnceScheduwa(() => this.doUpdateMenubaw(fawse), 200));
 
-		this.notifyUserOfCustomMenubarAccessibility();
+		this.notifyUsewOfCustomMenubawAccessibiwity();
 	}
 
-	protected abstract doUpdateMenubar(firstTime: boolean): void;
+	pwotected abstwact doUpdateMenubaw(fiwstTime: boowean): void;
 
-	protected registerListeners(): void {
-		// Listen for window focus changes
-		this._register(this.hostService.onDidChangeFocus(e => this.onDidChangeWindowFocus(e)));
+	pwotected wegistewWistenews(): void {
+		// Wisten fow window focus changes
+		this._wegista(this.hostSewvice.onDidChangeFocus(e => this.onDidChangeWindowFocus(e)));
 
 		// Update when config changes
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => this.onConfiguwationUpdated(e)));
 
-		// Listen to update service
-		this.updateService.onStateChange(() => this.onUpdateStateChange());
+		// Wisten to update sewvice
+		this.updateSewvice.onStateChange(() => this.onUpdateStateChange());
 
-		// Listen for changes in recently opened menu
-		this._register(this.workspacesService.onDidChangeRecentlyOpened(() => { this.onDidChangeRecentlyOpened(); }));
+		// Wisten fow changes in wecentwy opened menu
+		this._wegista(this.wowkspacesSewvice.onDidChangeWecentwyOpened(() => { this.onDidChangeWecentwyOpened(); }));
 
-		// Listen to keybindings change
-		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.updateMenubar()));
+		// Wisten to keybindings change
+		this._wegista(this.keybindingSewvice.onDidUpdateKeybindings(() => this.updateMenubaw()));
 
-		// Update recent menu items on formatter registration
-		this._register(this.labelService.onDidChangeFormatters(() => { this.onDidChangeRecentlyOpened(); }));
+		// Update wecent menu items on fowmatta wegistwation
+		this._wegista(this.wabewSewvice.onDidChangeFowmattews(() => { this.onDidChangeWecentwyOpened(); }));
 
-		// Listen for changes on the main menu
-		this._register(this.mainMenu.onDidChange(() => { this.setupMainMenu(); this.doUpdateMenubar(true); }));
+		// Wisten fow changes on the main menu
+		this._wegista(this.mainMenu.onDidChange(() => { this.setupMainMenu(); this.doUpdateMenubaw(twue); }));
 	}
 
-	protected setupMainMenu(): void {
-		this.mainMenuDisposables.clear();
+	pwotected setupMainMenu(): void {
+		this.mainMenuDisposabwes.cweaw();
 		this.menus = {};
-		this.topLevelTitles = {};
+		this.topWevewTitwes = {};
 
 		const [, mainMenuActions] = this.mainMenu.getActions()[0];
-		for (const mainMenuAction of mainMenuActions) {
-			if (mainMenuAction instanceof SubmenuItemAction && typeof mainMenuAction.item.title !== 'string') {
-				this.menus[mainMenuAction.item.title.original] = this.mainMenuDisposables.add(this.menuService.createMenu(mainMenuAction.item.submenu, this.contextKeyService));
-				this.topLevelTitles[mainMenuAction.item.title.original] = mainMenuAction.item.title.mnemonicTitle ?? mainMenuAction.item.title.value;
+		fow (const mainMenuAction of mainMenuActions) {
+			if (mainMenuAction instanceof SubmenuItemAction && typeof mainMenuAction.item.titwe !== 'stwing') {
+				this.menus[mainMenuAction.item.titwe.owiginaw] = this.mainMenuDisposabwes.add(this.menuSewvice.cweateMenu(mainMenuAction.item.submenu, this.contextKeySewvice));
+				this.topWevewTitwes[mainMenuAction.item.titwe.owiginaw] = mainMenuAction.item.titwe.mnemonicTitwe ?? mainMenuAction.item.titwe.vawue;
 			}
 		}
 	}
 
-	protected updateMenubar(): void {
-		this.menuUpdater.schedule();
+	pwotected updateMenubaw(): void {
+		this.menuUpdata.scheduwe();
 	}
 
-	protected calculateActionLabel(action: { id: string; label: string; }): string {
-		let label = action.label;
+	pwotected cawcuwateActionWabew(action: { id: stwing; wabew: stwing; }): stwing {
+		wet wabew = action.wabew;
 		switch (action.id) {
-			default:
-				break;
+			defauwt:
+				bweak;
 		}
 
-		return label;
+		wetuwn wabew;
 	}
 
-	protected onUpdateStateChange(): void {
-		this.updateMenubar();
+	pwotected onUpdateStateChange(): void {
+		this.updateMenubaw();
 	}
 
-	protected onUpdateKeybindings(): void {
-		this.updateMenubar();
+	pwotected onUpdateKeybindings(): void {
+		this.updateMenubaw();
 	}
 
-	protected getOpenRecentActions(): (Separator | IOpenRecentAction)[] {
-		if (!this.recentlyOpened) {
-			return [];
+	pwotected getOpenWecentActions(): (Sepawatow | IOpenWecentAction)[] {
+		if (!this.wecentwyOpened) {
+			wetuwn [];
 		}
 
-		const { workspaces, files } = this.recentlyOpened;
+		const { wowkspaces, fiwes } = this.wecentwyOpened;
 
-		const result = [];
+		const wesuwt = [];
 
-		if (workspaces.length > 0) {
-			for (let i = 0; i < MenubarControl.MAX_MENU_RECENT_ENTRIES && i < workspaces.length; i++) {
-				result.push(this.createOpenRecentMenuAction(workspaces[i]));
+		if (wowkspaces.wength > 0) {
+			fow (wet i = 0; i < MenubawContwow.MAX_MENU_WECENT_ENTWIES && i < wowkspaces.wength; i++) {
+				wesuwt.push(this.cweateOpenWecentMenuAction(wowkspaces[i]));
 			}
 
-			result.push(new Separator());
+			wesuwt.push(new Sepawatow());
 		}
 
-		if (files.length > 0) {
-			for (let i = 0; i < MenubarControl.MAX_MENU_RECENT_ENTRIES && i < files.length; i++) {
-				result.push(this.createOpenRecentMenuAction(files[i]));
+		if (fiwes.wength > 0) {
+			fow (wet i = 0; i < MenubawContwow.MAX_MENU_WECENT_ENTWIES && i < fiwes.wength; i++) {
+				wesuwt.push(this.cweateOpenWecentMenuAction(fiwes[i]));
 			}
 
-			result.push(new Separator());
+			wesuwt.push(new Sepawatow());
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	protected onDidChangeWindowFocus(hasFocus: boolean): void {
-		// When we regain focus, update the recent menu items
+	pwotected onDidChangeWindowFocus(hasFocus: boowean): void {
+		// When we wegain focus, update the wecent menu items
 		if (hasFocus) {
-			this.onDidChangeRecentlyOpened();
+			this.onDidChangeWecentwyOpened();
 		}
 	}
 
-	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {
-		if (this.keys.some(key => event.affectsConfiguration(key))) {
-			this.updateMenubar();
+	pwivate onConfiguwationUpdated(event: IConfiguwationChangeEvent): void {
+		if (this.keys.some(key => event.affectsConfiguwation(key))) {
+			this.updateMenubaw();
 		}
 
-		if (event.affectsConfiguration('editor.accessibilitySupport')) {
-			this.notifyUserOfCustomMenubarAccessibility();
+		if (event.affectsConfiguwation('editow.accessibiwitySuppowt')) {
+			this.notifyUsewOfCustomMenubawAccessibiwity();
 		}
 
-		// Since we try not update when hidden, we should
-		// try to update the recently opened list on visibility changes
-		if (event.affectsConfiguration('window.menuBarVisibility')) {
-			this.onDidChangeRecentlyOpened();
+		// Since we twy not update when hidden, we shouwd
+		// twy to update the wecentwy opened wist on visibiwity changes
+		if (event.affectsConfiguwation('window.menuBawVisibiwity')) {
+			this.onDidChangeWecentwyOpened();
 		}
 	}
 
-	private get menubarHidden(): boolean {
-		return isMacintosh && isNative ? false : getMenuBarVisibility(this.configurationService) === 'hidden';
+	pwivate get menubawHidden(): boowean {
+		wetuwn isMacintosh && isNative ? fawse : getMenuBawVisibiwity(this.configuwationSewvice) === 'hidden';
 	}
 
-	protected onDidChangeRecentlyOpened(): void {
+	pwotected onDidChangeWecentwyOpened(): void {
 
-		// Do not update recently opened when the menubar is hidden #108712
-		if (!this.menubarHidden) {
-			this.workspacesService.getRecentlyOpened().then(recentlyOpened => {
-				this.recentlyOpened = recentlyOpened;
-				this.updateMenubar();
+		// Do not update wecentwy opened when the menubaw is hidden #108712
+		if (!this.menubawHidden) {
+			this.wowkspacesSewvice.getWecentwyOpened().then(wecentwyOpened => {
+				this.wecentwyOpened = wecentwyOpened;
+				this.updateMenubaw();
 			});
 		}
 	}
 
-	private createOpenRecentMenuAction(recent: IRecent): IOpenRecentAction {
+	pwivate cweateOpenWecentMenuAction(wecent: IWecent): IOpenWecentAction {
 
-		let label: string;
-		let uri: URI;
-		let commandId: string;
-		let openable: IWindowOpenable;
-		const remoteAuthority = recent.remoteAuthority;
+		wet wabew: stwing;
+		wet uwi: UWI;
+		wet commandId: stwing;
+		wet openabwe: IWindowOpenabwe;
+		const wemoteAuthowity = wecent.wemoteAuthowity;
 
-		if (isRecentFolder(recent)) {
-			uri = recent.folderUri;
-			label = recent.label || this.labelService.getWorkspaceLabel(uri, { verbose: true });
-			commandId = 'openRecentFolder';
-			openable = { folderUri: uri };
-		} else if (isRecentWorkspace(recent)) {
-			uri = recent.workspace.configPath;
-			label = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
-			commandId = 'openRecentWorkspace';
-			openable = { workspaceUri: uri };
-		} else {
-			uri = recent.fileUri;
-			label = recent.label || this.labelService.getUriLabel(uri);
-			commandId = 'openRecentFile';
-			openable = { fileUri: uri };
+		if (isWecentFowda(wecent)) {
+			uwi = wecent.fowdewUwi;
+			wabew = wecent.wabew || this.wabewSewvice.getWowkspaceWabew(uwi, { vewbose: twue });
+			commandId = 'openWecentFowda';
+			openabwe = { fowdewUwi: uwi };
+		} ewse if (isWecentWowkspace(wecent)) {
+			uwi = wecent.wowkspace.configPath;
+			wabew = wecent.wabew || this.wabewSewvice.getWowkspaceWabew(wecent.wowkspace, { vewbose: twue });
+			commandId = 'openWecentWowkspace';
+			openabwe = { wowkspaceUwi: uwi };
+		} ewse {
+			uwi = wecent.fiweUwi;
+			wabew = wecent.wabew || this.wabewSewvice.getUwiWabew(uwi);
+			commandId = 'openWecentFiwe';
+			openabwe = { fiweUwi: uwi };
 		}
 
-		const ret: IAction = new Action(commandId, unmnemonicLabel(label), undefined, undefined, event => {
-			const browserEvent = event as KeyboardEvent;
-			const openInNewWindow = event && ((!isMacintosh && (browserEvent.ctrlKey || browserEvent.shiftKey)) || (isMacintosh && (browserEvent.metaKey || browserEvent.altKey)));
+		const wet: IAction = new Action(commandId, unmnemonicWabew(wabew), undefined, undefined, event => {
+			const bwowsewEvent = event as KeyboawdEvent;
+			const openInNewWindow = event && ((!isMacintosh && (bwowsewEvent.ctwwKey || bwowsewEvent.shiftKey)) || (isMacintosh && (bwowsewEvent.metaKey || bwowsewEvent.awtKey)));
 
-			return this.hostService.openWindow([openable], {
-				forceNewWindow: !!openInNewWindow,
-				remoteAuthority
+			wetuwn this.hostSewvice.openWindow([openabwe], {
+				fowceNewWindow: !!openInNewWindow,
+				wemoteAuthowity
 			});
 		});
 
-		return Object.assign(ret, { uri, remoteAuthority });
+		wetuwn Object.assign(wet, { uwi, wemoteAuthowity });
 	}
 
-	private notifyUserOfCustomMenubarAccessibility(): void {
+	pwivate notifyUsewOfCustomMenubawAccessibiwity(): void {
 		if (isWeb || isMacintosh) {
-			return;
+			wetuwn;
 		}
 
-		const hasBeenNotified = this.storageService.getBoolean('menubar/accessibleMenubarNotified', StorageScope.GLOBAL, false);
-		const usingCustomMenubar = getTitleBarStyle(this.configurationService) === 'custom';
+		const hasBeenNotified = this.stowageSewvice.getBoowean('menubaw/accessibweMenubawNotified', StowageScope.GWOBAW, fawse);
+		const usingCustomMenubaw = getTitweBawStywe(this.configuwationSewvice) === 'custom';
 
-		if (hasBeenNotified || usingCustomMenubar || !this.accessibilityService.isScreenReaderOptimized()) {
-			return;
+		if (hasBeenNotified || usingCustomMenubaw || !this.accessibiwitySewvice.isScweenWeadewOptimized()) {
+			wetuwn;
 		}
 
-		const message = localize('menubar.customTitlebarAccessibilityNotification', "Accessibility support is enabled for you. For the most accessible experience, we recommend the custom title bar style.");
-		this.notificationService.prompt(Severity.Info, message, [
+		const message = wocawize('menubaw.customTitwebawAccessibiwityNotification', "Accessibiwity suppowt is enabwed fow you. Fow the most accessibwe expewience, we wecommend the custom titwe baw stywe.");
+		this.notificationSewvice.pwompt(Sevewity.Info, message, [
 			{
-				label: localize('goToSetting', "Open Settings"),
-				run: () => {
-					return this.preferencesService.openUserSettings({ query: 'window.titleBarStyle' });
+				wabew: wocawize('goToSetting', "Open Settings"),
+				wun: () => {
+					wetuwn this.pwefewencesSewvice.openUsewSettings({ quewy: 'window.titweBawStywe' });
 				}
 			}
 		]);
 
-		this.storageService.store('menubar/accessibleMenubarNotified', true, StorageScope.GLOBAL, StorageTarget.USER);
+		this.stowageSewvice.stowe('menubaw/accessibweMenubawNotified', twue, StowageScope.GWOBAW, StowageTawget.USa);
 	}
 }
 
-export class CustomMenubarControl extends MenubarControl {
-	private menubar: MenuBar | undefined;
-	private container: HTMLElement | undefined;
-	private alwaysOnMnemonics: boolean = false;
-	private focusInsideMenubar: boolean = false;
-	private visible: boolean = true;
-	private readonly webNavigationMenu = this._register(this.menuService.createMenu(MenuId.MenubarHomeMenu, this.contextKeyService));
+expowt cwass CustomMenubawContwow extends MenubawContwow {
+	pwivate menubaw: MenuBaw | undefined;
+	pwivate containa: HTMWEwement | undefined;
+	pwivate awwaysOnMnemonics: boowean = fawse;
+	pwivate focusInsideMenubaw: boowean = fawse;
+	pwivate visibwe: boowean = twue;
+	pwivate weadonwy webNavigationMenu = this._wegista(this.menuSewvice.cweateMenu(MenuId.MenubawHomeMenu, this.contextKeySewvice));
 
-	private readonly _onVisibilityChange: Emitter<boolean>;
-	private readonly _onFocusStateChange: Emitter<boolean>;
+	pwivate weadonwy _onVisibiwityChange: Emitta<boowean>;
+	pwivate weadonwy _onFocusStateChange: Emitta<boowean>;
 
-	constructor(
-		@IMenuService menuService: IMenuService,
-		@IWorkspacesService workspacesService: IWorkspacesService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ILabelService labelService: ILabelService,
-		@IUpdateService updateService: IUpdateService,
-		@IStorageService storageService: IStorageService,
-		@INotificationService notificationService: INotificationService,
-		@IPreferencesService preferencesService: IPreferencesService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IHostService hostService: IHostService,
-		@ICommandService commandService: ICommandService
+	constwuctow(
+		@IMenuSewvice menuSewvice: IMenuSewvice,
+		@IWowkspacesSewvice wowkspacesSewvice: IWowkspacesSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IWabewSewvice wabewSewvice: IWabewSewvice,
+		@IUpdateSewvice updateSewvice: IUpdateSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IPwefewencesSewvice pwefewencesSewvice: IPwefewencesSewvice,
+		@IWowkbenchEnviwonmentSewvice enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IAccessibiwitySewvice accessibiwitySewvice: IAccessibiwitySewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
+		@IWowkbenchWayoutSewvice pwivate weadonwy wayoutSewvice: IWowkbenchWayoutSewvice,
+		@IHostSewvice hostSewvice: IHostSewvice,
+		@ICommandSewvice commandSewvice: ICommandSewvice
 	) {
-		super(menuService, workspacesService, contextKeyService, keybindingService, configurationService, labelService, updateService, storageService, notificationService, preferencesService, environmentService, accessibilityService, hostService, commandService);
+		supa(menuSewvice, wowkspacesSewvice, contextKeySewvice, keybindingSewvice, configuwationSewvice, wabewSewvice, updateSewvice, stowageSewvice, notificationSewvice, pwefewencesSewvice, enviwonmentSewvice, accessibiwitySewvice, hostSewvice, commandSewvice);
 
-		this._onVisibilityChange = this._register(new Emitter<boolean>());
-		this._onFocusStateChange = this._register(new Emitter<boolean>());
+		this._onVisibiwityChange = this._wegista(new Emitta<boowean>());
+		this._onFocusStateChange = this._wegista(new Emitta<boowean>());
 
-		this.workspacesService.getRecentlyOpened().then((recentlyOpened) => {
-			this.recentlyOpened = recentlyOpened;
+		this.wowkspacesSewvice.getWecentwyOpened().then((wecentwyOpened) => {
+			this.wecentwyOpened = wecentwyOpened;
 		});
 
-		this.registerListeners();
+		this.wegistewWistenews();
 
-		this.registerActions();
+		this.wegistewActions();
 
-		registerThemingParticipant((theme, collector) => {
-			const menubarActiveWindowFgColor = theme.getColor(TITLE_BAR_ACTIVE_FOREGROUND);
-			if (menubarActiveWindowFgColor) {
-				collector.addRule(`
-				.monaco-workbench .menubar > .menubar-menu-button,
-				.monaco-workbench .menubar .toolbar-toggle-more {
-					color: ${menubarActiveWindowFgColor};
+		wegistewThemingPawticipant((theme, cowwectow) => {
+			const menubawActiveWindowFgCowow = theme.getCowow(TITWE_BAW_ACTIVE_FOWEGWOUND);
+			if (menubawActiveWindowFgCowow) {
+				cowwectow.addWuwe(`
+				.monaco-wowkbench .menubaw > .menubaw-menu-button,
+				.monaco-wowkbench .menubaw .toowbaw-toggwe-mowe {
+					cowow: ${menubawActiveWindowFgCowow};
 				}
 				`);
 			}
 
-			const activityBarInactiveFgColor = theme.getColor(ACTIVITY_BAR_INACTIVE_FOREGROUND);
-			if (activityBarInactiveFgColor) {
-				collector.addRule(`
-				.monaco-workbench .menubar.compact > .menubar-menu-button,
-				.monaco-workbench .menubar.compact .toolbar-toggle-more {
-					color: ${activityBarInactiveFgColor};
+			const activityBawInactiveFgCowow = theme.getCowow(ACTIVITY_BAW_INACTIVE_FOWEGWOUND);
+			if (activityBawInactiveFgCowow) {
+				cowwectow.addWuwe(`
+				.monaco-wowkbench .menubaw.compact > .menubaw-menu-button,
+				.monaco-wowkbench .menubaw.compact .toowbaw-toggwe-mowe {
+					cowow: ${activityBawInactiveFgCowow};
 				}
 				`);
 			}
 
-			const activityBarFgColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
-			if (activityBarFgColor) {
-				collector.addRule(`
-				.monaco-workbench .menubar.compact > .menubar-menu-button.open,
-				.monaco-workbench .menubar.compact > .menubar-menu-button:focus,
-				.monaco-workbench .menubar.compact:not(:focus-within) > .menubar-menu-button:hover,
-				.monaco-workbench .menubar.compact  > .menubar-menu-button.open .toolbar-toggle-more,
-				.monaco-workbench .menubar.compact > .menubar-menu-button:focus .toolbar-toggle-more,
-				.monaco-workbench .menubar.compact:not(:focus-within) > .menubar-menu-button:hover .toolbar-toggle-more {
-					color: ${activityBarFgColor};
+			const activityBawFgCowow = theme.getCowow(ACTIVITY_BAW_FOWEGWOUND);
+			if (activityBawFgCowow) {
+				cowwectow.addWuwe(`
+				.monaco-wowkbench .menubaw.compact > .menubaw-menu-button.open,
+				.monaco-wowkbench .menubaw.compact > .menubaw-menu-button:focus,
+				.monaco-wowkbench .menubaw.compact:not(:focus-within) > .menubaw-menu-button:hova,
+				.monaco-wowkbench .menubaw.compact  > .menubaw-menu-button.open .toowbaw-toggwe-mowe,
+				.monaco-wowkbench .menubaw.compact > .menubaw-menu-button:focus .toowbaw-toggwe-mowe,
+				.monaco-wowkbench .menubaw.compact:not(:focus-within) > .menubaw-menu-button:hova .toowbaw-toggwe-mowe {
+					cowow: ${activityBawFgCowow};
 				}
 			`);
 			}
 
-			const menubarInactiveWindowFgColor = theme.getColor(TITLE_BAR_INACTIVE_FOREGROUND);
-			if (menubarInactiveWindowFgColor) {
-				collector.addRule(`
-					.monaco-workbench .menubar.inactive:not(.compact) > .menubar-menu-button,
-					.monaco-workbench .menubar.inactive:not(.compact) > .menubar-menu-button .toolbar-toggle-more  {
-						color: ${menubarInactiveWindowFgColor};
+			const menubawInactiveWindowFgCowow = theme.getCowow(TITWE_BAW_INACTIVE_FOWEGWOUND);
+			if (menubawInactiveWindowFgCowow) {
+				cowwectow.addWuwe(`
+					.monaco-wowkbench .menubaw.inactive:not(.compact) > .menubaw-menu-button,
+					.monaco-wowkbench .menubaw.inactive:not(.compact) > .menubaw-menu-button .toowbaw-toggwe-mowe  {
+						cowow: ${menubawInactiveWindowFgCowow};
 					}
 				`);
 			}
 
-			const menubarSelectedFgColor = theme.getColor(MENUBAR_SELECTION_FOREGROUND);
-			if (menubarSelectedFgColor) {
-				collector.addRule(`
-					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button.open,
-					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus,
-					.monaco-workbench .menubar:not(:focus-within):not(.compact) > .menubar-menu-button:hover,
-					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button.open .toolbar-toggle-more,
-					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus .toolbar-toggle-more,
-					.monaco-workbench .menubar:not(:focus-within):not(.compact) > .menubar-menu-button:hover .toolbar-toggle-more {
-						color: ${menubarSelectedFgColor};
+			const menubawSewectedFgCowow = theme.getCowow(MENUBAW_SEWECTION_FOWEGWOUND);
+			if (menubawSewectedFgCowow) {
+				cowwectow.addWuwe(`
+					.monaco-wowkbench .menubaw:not(.compact) > .menubaw-menu-button.open,
+					.monaco-wowkbench .menubaw:not(.compact) > .menubaw-menu-button:focus,
+					.monaco-wowkbench .menubaw:not(:focus-within):not(.compact) > .menubaw-menu-button:hova,
+					.monaco-wowkbench .menubaw:not(.compact) > .menubaw-menu-button.open .toowbaw-toggwe-mowe,
+					.monaco-wowkbench .menubaw:not(.compact) > .menubaw-menu-button:focus .toowbaw-toggwe-mowe,
+					.monaco-wowkbench .menubaw:not(:focus-within):not(.compact) > .menubaw-menu-button:hova .toowbaw-toggwe-mowe {
+						cowow: ${menubawSewectedFgCowow};
 					}
 				`);
 			}
 
-			const menubarSelectedBgColor = theme.getColor(MENUBAR_SELECTION_BACKGROUND);
-			if (menubarSelectedBgColor) {
-				collector.addRule(`
-					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button.open,
-					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus,
-					.monaco-workbench .menubar:not(:focus-within):not(.compact) > .menubar-menu-button:hover {
-						background-color: ${menubarSelectedBgColor};
+			const menubawSewectedBgCowow = theme.getCowow(MENUBAW_SEWECTION_BACKGWOUND);
+			if (menubawSewectedBgCowow) {
+				cowwectow.addWuwe(`
+					.monaco-wowkbench .menubaw:not(.compact) > .menubaw-menu-button.open,
+					.monaco-wowkbench .menubaw:not(.compact) > .menubaw-menu-button:focus,
+					.monaco-wowkbench .menubaw:not(:focus-within):not(.compact) > .menubaw-menu-button:hova {
+						backgwound-cowow: ${menubawSewectedBgCowow};
 					}
 				`);
 			}
 
-			const menubarSelectedBorderColor = theme.getColor(MENUBAR_SELECTION_BORDER);
-			if (menubarSelectedBorderColor) {
-				collector.addRule(`
-					.monaco-workbench .menubar > .menubar-menu-button:hover {
-						outline: dashed 1px;
+			const menubawSewectedBowdewCowow = theme.getCowow(MENUBAW_SEWECTION_BOWDa);
+			if (menubawSewectedBowdewCowow) {
+				cowwectow.addWuwe(`
+					.monaco-wowkbench .menubaw > .menubaw-menu-button:hova {
+						outwine: dashed 1px;
 					}
 
-					.monaco-workbench .menubar > .menubar-menu-button.open,
-					.monaco-workbench .menubar > .menubar-menu-button:focus {
-						outline: solid 1px;
+					.monaco-wowkbench .menubaw > .menubaw-menu-button.open,
+					.monaco-wowkbench .menubaw > .menubaw-menu-button:focus {
+						outwine: sowid 1px;
 					}
 
-					.monaco-workbench .menubar > .menubar-menu-button.open,
-					.monaco-workbench .menubar > .menubar-menu-button:focus,
-					.monaco-workbench .menubar > .menubar-menu-button:hover {
-						outline-color: ${menubarSelectedBorderColor};
+					.monaco-wowkbench .menubaw > .menubaw-menu-button.open,
+					.monaco-wowkbench .menubaw > .menubaw-menu-button:focus,
+					.monaco-wowkbench .menubaw > .menubaw-menu-button:hova {
+						outwine-cowow: ${menubawSewectedBowdewCowow};
 					}
 				`);
 			}
 		});
 	}
 
-	protected doUpdateMenubar(firstTime: boolean): void {
-		this.setupCustomMenubar(firstTime);
+	pwotected doUpdateMenubaw(fiwstTime: boowean): void {
+		this.setupCustomMenubaw(fiwstTime);
 	}
 
-	private registerActions(): void {
+	pwivate wegistewActions(): void {
 		const that = this;
 
 		if (isWeb) {
-			this._register(registerAction2(class extends Action2 {
-				constructor() {
-					super({
-						id: `workbench.actions.menubar.focus`,
-						title: { value: localize('focusMenu', "Focus Application Menu"), original: 'Focus Application Menu' },
+			this._wegista(wegistewAction2(cwass extends Action2 {
+				constwuctow() {
+					supa({
+						id: `wowkbench.actions.menubaw.focus`,
+						titwe: { vawue: wocawize('focusMenu', "Focus Appwication Menu"), owiginaw: 'Focus Appwication Menu' },
 						keybinding: {
-							primary: KeyCode.F10,
-							weight: KeybindingWeight.WorkbenchContrib,
+							pwimawy: KeyCode.F10,
+							weight: KeybindingWeight.WowkbenchContwib,
 							when: IsWebContext
 						},
-						f1: true
+						f1: twue
 					});
 				}
 
-				async run(): Promise<void> {
-					if (that.menubar) {
-						that.menubar.toggleFocus();
+				async wun(): Pwomise<void> {
+					if (that.menubaw) {
+						that.menubaw.toggweFocus();
 					}
 				}
 			}));
 		}
 	}
 
-	private getUpdateAction(): IAction | null {
-		const state = this.updateService.state;
+	pwivate getUpdateAction(): IAction | nuww {
+		const state = this.updateSewvice.state;
 
 		switch (state.type) {
-			case StateType.Uninitialized:
-				return null;
+			case StateType.Uninitiawized:
+				wetuwn nuww;
 
-			case StateType.Idle:
-				return new Action('update.check', localize({ key: 'checkForUpdates', comment: ['&& denotes a mnemonic'] }, "Check for &&Updates..."), undefined, true, () =>
-					this.updateService.checkForUpdates(true));
+			case StateType.Idwe:
+				wetuwn new Action('update.check', wocawize({ key: 'checkFowUpdates', comment: ['&& denotes a mnemonic'] }, "Check fow &&Updates..."), undefined, twue, () =>
+					this.updateSewvice.checkFowUpdates(twue));
 
-			case StateType.CheckingForUpdates:
-				return new Action('update.checking', localize('checkingForUpdates', "Checking for Updates..."), undefined, false);
+			case StateType.CheckingFowUpdates:
+				wetuwn new Action('update.checking', wocawize('checkingFowUpdates', "Checking fow Updates..."), undefined, fawse);
 
-			case StateType.AvailableForDownload:
-				return new Action('update.downloadNow', localize({ key: 'download now', comment: ['&& denotes a mnemonic'] }, "D&&ownload Update"), undefined, true, () =>
-					this.updateService.downloadUpdate());
+			case StateType.AvaiwabweFowDownwoad:
+				wetuwn new Action('update.downwoadNow', wocawize({ key: 'downwoad now', comment: ['&& denotes a mnemonic'] }, "D&&ownwoad Update"), undefined, twue, () =>
+					this.updateSewvice.downwoadUpdate());
 
-			case StateType.Downloading:
-				return new Action('update.downloading', localize('DownloadingUpdate', "Downloading Update..."), undefined, false);
+			case StateType.Downwoading:
+				wetuwn new Action('update.downwoading', wocawize('DownwoadingUpdate', "Downwoading Update..."), undefined, fawse);
 
-			case StateType.Downloaded:
-				return new Action('update.install', localize({ key: 'installUpdate...', comment: ['&& denotes a mnemonic'] }, "Install &&Update..."), undefined, true, () =>
-					this.updateService.applyUpdate());
+			case StateType.Downwoaded:
+				wetuwn new Action('update.instaww', wocawize({ key: 'instawwUpdate...', comment: ['&& denotes a mnemonic'] }, "Instaww &&Update..."), undefined, twue, () =>
+					this.updateSewvice.appwyUpdate());
 
 			case StateType.Updating:
-				return new Action('update.updating', localize('installingUpdate', "Installing Update..."), undefined, false);
+				wetuwn new Action('update.updating', wocawize('instawwingUpdate', "Instawwing Update..."), undefined, fawse);
 
-			case StateType.Ready:
-				return new Action('update.restart', localize({ key: 'restartToUpdate', comment: ['&& denotes a mnemonic'] }, "Restart to &&Update"), undefined, true, () =>
-					this.updateService.quitAndInstall());
+			case StateType.Weady:
+				wetuwn new Action('update.westawt', wocawize({ key: 'westawtToUpdate', comment: ['&& denotes a mnemonic'] }, "Westawt to &&Update"), undefined, twue, () =>
+					this.updateSewvice.quitAndInstaww());
 		}
 	}
 
-	private get currentMenubarVisibility(): MenuBarVisibility {
-		return getMenuBarVisibility(this.configurationService);
+	pwivate get cuwwentMenubawVisibiwity(): MenuBawVisibiwity {
+		wetuwn getMenuBawVisibiwity(this.configuwationSewvice);
 	}
 
-	private get currentDisableMenuBarAltFocus(): boolean {
-		let settingValue = this.configurationService.getValue<boolean>('window.customMenuBarAltFocus');
+	pwivate get cuwwentDisabweMenuBawAwtFocus(): boowean {
+		wet settingVawue = this.configuwationSewvice.getVawue<boowean>('window.customMenuBawAwtFocus');
 
-		let disableMenuBarAltBehavior = false;
-		if (typeof settingValue === 'boolean') {
-			disableMenuBarAltBehavior = !settingValue;
+		wet disabweMenuBawAwtBehaviow = fawse;
+		if (typeof settingVawue === 'boowean') {
+			disabweMenuBawAwtBehaviow = !settingVawue;
 		}
 
-		return disableMenuBarAltBehavior;
+		wetuwn disabweMenuBawAwtBehaviow;
 	}
 
-	private insertActionsBefore(nextAction: IAction, target: IAction[]): void {
+	pwivate insewtActionsBefowe(nextAction: IAction, tawget: IAction[]): void {
 		switch (nextAction.id) {
-			case 'workbench.action.openRecent':
-				target.push(...this.getOpenRecentActions());
-				break;
+			case 'wowkbench.action.openWecent':
+				tawget.push(...this.getOpenWecentActions());
+				bweak;
 
-			case 'workbench.action.showAboutDialog':
+			case 'wowkbench.action.showAboutDiawog':
 				if (!isMacintosh && !isWeb) {
 					const updateAction = this.getUpdateAction();
 					if (updateAction) {
-						updateAction.label = mnemonicMenuLabel(updateAction.label);
-						target.push(updateAction);
-						target.push(new Separator());
+						updateAction.wabew = mnemonicMenuWabew(updateAction.wabew);
+						tawget.push(updateAction);
+						tawget.push(new Sepawatow());
 					}
 				}
 
-				break;
+				bweak;
 
-			default:
-				break;
+			defauwt:
+				bweak;
 		}
 	}
 
-	private get currentEnableMenuBarMnemonics(): boolean {
-		let enableMenuBarMnemonics = this.configurationService.getValue<boolean>('window.enableMenuBarMnemonics');
-		if (typeof enableMenuBarMnemonics !== 'boolean') {
-			enableMenuBarMnemonics = true;
+	pwivate get cuwwentEnabweMenuBawMnemonics(): boowean {
+		wet enabweMenuBawMnemonics = this.configuwationSewvice.getVawue<boowean>('window.enabweMenuBawMnemonics');
+		if (typeof enabweMenuBawMnemonics !== 'boowean') {
+			enabweMenuBawMnemonics = twue;
 		}
 
-		return enableMenuBarMnemonics && (!isWeb || isFullscreen());
+		wetuwn enabweMenuBawMnemonics && (!isWeb || isFuwwscween());
 	}
 
-	private get currentCompactMenuMode(): Direction | undefined {
-		if (this.currentMenubarVisibility !== 'compact') {
-			return undefined;
+	pwivate get cuwwentCompactMenuMode(): Diwection | undefined {
+		if (this.cuwwentMenubawVisibiwity !== 'compact') {
+			wetuwn undefined;
 		}
 
-		const currentSidebarLocation = this.configurationService.getValue<string>('workbench.sideBar.location');
-		return currentSidebarLocation === 'right' ? Direction.Left : Direction.Right;
+		const cuwwentSidebawWocation = this.configuwationSewvice.getVawue<stwing>('wowkbench.sideBaw.wocation');
+		wetuwn cuwwentSidebawWocation === 'wight' ? Diwection.Weft : Diwection.Wight;
 	}
 
-	private onDidVisibilityChange(visible: boolean): void {
-		this.visible = visible;
-		this.onDidChangeRecentlyOpened();
-		this._onVisibilityChange.fire(visible);
+	pwivate onDidVisibiwityChange(visibwe: boowean): void {
+		this.visibwe = visibwe;
+		this.onDidChangeWecentwyOpened();
+		this._onVisibiwityChange.fiwe(visibwe);
 	}
 
-	private reinstallDisposables = this._register(new DisposableStore());
-	private setupCustomMenubar(firstTime: boolean): void {
-		// If there is no container, we cannot setup the menubar
-		if (!this.container) {
-			return;
+	pwivate weinstawwDisposabwes = this._wegista(new DisposabweStowe());
+	pwivate setupCustomMenubaw(fiwstTime: boowean): void {
+		// If thewe is no containa, we cannot setup the menubaw
+		if (!this.containa) {
+			wetuwn;
 		}
 
-		if (firstTime) {
-			// Reset and create new menubar
-			if (this.menubar) {
-				this.reinstallDisposables.clear();
+		if (fiwstTime) {
+			// Weset and cweate new menubaw
+			if (this.menubaw) {
+				this.weinstawwDisposabwes.cweaw();
 			}
 
-			this.menubar = this.reinstallDisposables.add(new MenuBar(this.container, this.getMenuBarOptions()));
+			this.menubaw = this.weinstawwDisposabwes.add(new MenuBaw(this.containa, this.getMenuBawOptions()));
 
-			this.accessibilityService.alwaysUnderlineAccessKeys().then(val => {
-				this.alwaysOnMnemonics = val;
-				this.menubar?.update(this.getMenuBarOptions());
+			this.accessibiwitySewvice.awwaysUndewwineAccessKeys().then(vaw => {
+				this.awwaysOnMnemonics = vaw;
+				this.menubaw?.update(this.getMenuBawOptions());
 			});
 
-			this.reinstallDisposables.add(this.menubar.onFocusStateChange(focused => {
-				this._onFocusStateChange.fire(focused);
+			this.weinstawwDisposabwes.add(this.menubaw.onFocusStateChange(focused => {
+				this._onFocusStateChange.fiwe(focused);
 
-				// When the menubar loses focus, update it to clear any pending updates
+				// When the menubaw woses focus, update it to cweaw any pending updates
 				if (!focused) {
-					this.updateMenubar();
-					this.focusInsideMenubar = false;
+					this.updateMenubaw();
+					this.focusInsideMenubaw = fawse;
 				}
 			}));
 
-			this.reinstallDisposables.add(this.menubar.onVisibilityChange(e => this.onDidVisibilityChange(e)));
+			this.weinstawwDisposabwes.add(this.menubaw.onVisibiwityChange(e => this.onDidVisibiwityChange(e)));
 
-			// Before we focus the menubar, stop updates to it so that focus-related context keys will work
-			this.reinstallDisposables.add(addDisposableListener(this.container, EventType.FOCUS_IN, () => {
-				this.focusInsideMenubar = true;
+			// Befowe we focus the menubaw, stop updates to it so that focus-wewated context keys wiww wowk
+			this.weinstawwDisposabwes.add(addDisposabweWistena(this.containa, EventType.FOCUS_IN, () => {
+				this.focusInsideMenubaw = twue;
 			}));
 
-			this.reinstallDisposables.add(addDisposableListener(this.container, EventType.FOCUS_OUT, () => {
-				this.focusInsideMenubar = false;
+			this.weinstawwDisposabwes.add(addDisposabweWistena(this.containa, EventType.FOCUS_OUT, () => {
+				this.focusInsideMenubaw = fawse;
 			}));
 
-			this.reinstallDisposables.add(attachMenuStyler(this.menubar, this.themeService));
-		} else {
-			this.menubar?.update(this.getMenuBarOptions());
+			this.weinstawwDisposabwes.add(attachMenuStywa(this.menubaw, this.themeSewvice));
+		} ewse {
+			this.menubaw?.update(this.getMenuBawOptions());
 		}
 
 		// Update the menu actions
-		const updateActions = (menu: IMenu, target: IAction[], topLevelTitle: string) => {
-			target.splice(0);
-			let groups = menu.getActions();
+		const updateActions = (menu: IMenu, tawget: IAction[], topWevewTitwe: stwing) => {
+			tawget.spwice(0);
+			wet gwoups = menu.getActions();
 
-			for (let group of groups) {
-				const [, actions] = group;
+			fow (wet gwoup of gwoups) {
+				const [, actions] = gwoup;
 
-				for (let action of actions) {
-					this.insertActionsBefore(action, target);
+				fow (wet action of actions) {
+					this.insewtActionsBefowe(action, tawget);
 
-					// use mnemonicTitle whenever possible
-					const title = typeof action.item.title === 'string'
-						? action.item.title
-						: action.item.title.mnemonicTitle ?? action.item.title.value;
+					// use mnemonicTitwe wheneva possibwe
+					const titwe = typeof action.item.titwe === 'stwing'
+						? action.item.titwe
+						: action.item.titwe.mnemonicTitwe ?? action.item.titwe.vawue;
 
 					if (action instanceof SubmenuItemAction) {
-						let submenu = this.menus[action.item.submenu.id];
+						wet submenu = this.menus[action.item.submenu.id];
 						if (!submenu) {
-							submenu = this._register(this.menus[action.item.submenu.id] = this.menuService.createMenu(action.item.submenu, this.contextKeyService));
-							this._register(submenu.onDidChange(() => {
-								if (!this.focusInsideMenubar) {
+							submenu = this._wegista(this.menus[action.item.submenu.id] = this.menuSewvice.cweateMenu(action.item.submenu, this.contextKeySewvice));
+							this._wegista(submenu.onDidChange(() => {
+								if (!this.focusInsideMenubaw) {
 									const actions: IAction[] = [];
-									updateActions(menu, actions, topLevelTitle);
-									if (this.menubar && this.topLevelTitles[topLevelTitle]) {
-										this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[topLevelTitle]) });
+									updateActions(menu, actions, topWevewTitwe);
+									if (this.menubaw && this.topWevewTitwes[topWevewTitwe]) {
+										this.menubaw.updateMenu({ actions: actions, wabew: mnemonicMenuWabew(this.topWevewTitwes[topWevewTitwe]) });
 									}
 								}
 							}, this));
 						}
 
 						const submenuActions: SubmenuAction[] = [];
-						updateActions(submenu, submenuActions, topLevelTitle);
+						updateActions(submenu, submenuActions, topWevewTitwe);
 
-						if (submenuActions.length > 0) {
-							target.push(new SubmenuAction(action.id, mnemonicMenuLabel(title), submenuActions));
+						if (submenuActions.wength > 0) {
+							tawget.push(new SubmenuAction(action.id, mnemonicMenuWabew(titwe), submenuActions));
 						}
-					} else {
-						const newAction = new Action(action.id, mnemonicMenuLabel(title), action.class, action.enabled, () => this.commandService.executeCommand(action.id));
-						newAction.tooltip = action.tooltip;
+					} ewse {
+						const newAction = new Action(action.id, mnemonicMenuWabew(titwe), action.cwass, action.enabwed, () => this.commandSewvice.executeCommand(action.id));
+						newAction.toowtip = action.toowtip;
 						newAction.checked = action.checked;
-						target.push(newAction);
+						tawget.push(newAction);
 					}
 				}
 
-				target.push(new Separator());
+				tawget.push(new Sepawatow());
 			}
 
-			// Append web navigation menu items to the file menu when not compact
-			if (menu === this.menus.File && this.currentCompactMenuMode === undefined) {
+			// Append web navigation menu items to the fiwe menu when not compact
+			if (menu === this.menus.Fiwe && this.cuwwentCompactMenuMode === undefined) {
 				const webActions = this.getWebNavigationActions();
-				if (webActions.length) {
-					target.push(...webActions);
-					target.push(new Separator()); // to account for pop below
+				if (webActions.wength) {
+					tawget.push(...webActions);
+					tawget.push(new Sepawatow()); // to account fow pop bewow
 				}
 			}
 
-			target.pop();
+			tawget.pop();
 		};
 
-		for (const title of Object.keys(this.topLevelTitles)) {
-			const menu = this.menus[title];
-			if (firstTime && menu) {
-				this.reinstallDisposables.add(menu.onDidChange(() => {
-					if (!this.focusInsideMenubar) {
+		fow (const titwe of Object.keys(this.topWevewTitwes)) {
+			const menu = this.menus[titwe];
+			if (fiwstTime && menu) {
+				this.weinstawwDisposabwes.add(menu.onDidChange(() => {
+					if (!this.focusInsideMenubaw) {
 						const actions: IAction[] = [];
-						updateActions(menu, actions, title);
-						if (this.menubar) {
-							this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
+						updateActions(menu, actions, titwe);
+						if (this.menubaw) {
+							this.menubaw.updateMenu({ actions: actions, wabew: mnemonicMenuWabew(this.topWevewTitwes[titwe]) });
 						}
 					}
 				}));
 
-				// For the file menu, we need to update if the web nav menu updates as well
-				if (menu === this.menus.File) {
-					this.reinstallDisposables.add(this.webNavigationMenu.onDidChange(() => {
-						if (!this.focusInsideMenubar) {
+				// Fow the fiwe menu, we need to update if the web nav menu updates as weww
+				if (menu === this.menus.Fiwe) {
+					this.weinstawwDisposabwes.add(this.webNavigationMenu.onDidChange(() => {
+						if (!this.focusInsideMenubaw) {
 							const actions: IAction[] = [];
-							updateActions(menu, actions, title);
-							if (this.menubar) {
-								this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
+							updateActions(menu, actions, titwe);
+							if (this.menubaw) {
+								this.menubaw.updateMenu({ actions: actions, wabew: mnemonicMenuWabew(this.topWevewTitwes[titwe]) });
 							}
 						}
 					}));
@@ -764,163 +764,163 @@ export class CustomMenubarControl extends MenubarControl {
 
 			const actions: IAction[] = [];
 			if (menu) {
-				updateActions(menu, actions, title);
+				updateActions(menu, actions, titwe);
 			}
 
-			if (this.menubar) {
-				if (!firstTime) {
-					this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
-				} else {
-					this.menubar.push({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
+			if (this.menubaw) {
+				if (!fiwstTime) {
+					this.menubaw.updateMenu({ actions: actions, wabew: mnemonicMenuWabew(this.topWevewTitwes[titwe]) });
+				} ewse {
+					this.menubaw.push({ actions: actions, wabew: mnemonicMenuWabew(this.topWevewTitwes[titwe]) });
 				}
 			}
 		}
 	}
 
-	private getWebNavigationActions(): IAction[] {
+	pwivate getWebNavigationActions(): IAction[] {
 		if (!isWeb) {
-			return []; // only for web
+			wetuwn []; // onwy fow web
 		}
 
 		const webNavigationActions = [];
-		for (const groups of this.webNavigationMenu.getActions()) {
-			const [, actions] = groups;
-			for (const action of actions) {
+		fow (const gwoups of this.webNavigationMenu.getActions()) {
+			const [, actions] = gwoups;
+			fow (const action of actions) {
 				if (action instanceof MenuItemAction) {
-					const title = typeof action.item.title === 'string'
-						? action.item.title
-						: action.item.title.mnemonicTitle ?? action.item.title.value;
-					webNavigationActions.push(new Action(action.id, mnemonicMenuLabel(title), action.class, action.enabled, async (event?: any) => {
-						this.commandService.executeCommand(action.id, event);
+					const titwe = typeof action.item.titwe === 'stwing'
+						? action.item.titwe
+						: action.item.titwe.mnemonicTitwe ?? action.item.titwe.vawue;
+					webNavigationActions.push(new Action(action.id, mnemonicMenuWabew(titwe), action.cwass, action.enabwed, async (event?: any) => {
+						this.commandSewvice.executeCommand(action.id, event);
 					}));
 				}
 			}
 
-			webNavigationActions.push(new Separator());
+			webNavigationActions.push(new Sepawatow());
 		}
 
-		if (webNavigationActions.length) {
+		if (webNavigationActions.wength) {
 			webNavigationActions.pop();
 		}
 
-		return webNavigationActions;
+		wetuwn webNavigationActions;
 	}
 
-	private getMenuBarOptions(): IMenuBarOptions {
-		return {
-			enableMnemonics: this.currentEnableMenuBarMnemonics,
-			disableAltFocus: this.currentDisableMenuBarAltFocus,
-			visibility: this.currentMenubarVisibility,
-			getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id),
-			alwaysOnMnemonics: this.alwaysOnMnemonics,
-			compactMode: this.currentCompactMenuMode,
+	pwivate getMenuBawOptions(): IMenuBawOptions {
+		wetuwn {
+			enabweMnemonics: this.cuwwentEnabweMenuBawMnemonics,
+			disabweAwtFocus: this.cuwwentDisabweMenuBawAwtFocus,
+			visibiwity: this.cuwwentMenubawVisibiwity,
+			getKeybinding: (action) => this.keybindingSewvice.wookupKeybinding(action.id),
+			awwaysOnMnemonics: this.awwaysOnMnemonics,
+			compactMode: this.cuwwentCompactMenuMode,
 			getCompactMenuActions: () => {
 				if (!isWeb) {
-					return []; // only for web
+					wetuwn []; // onwy fow web
 				}
 
-				return this.getWebNavigationActions();
+				wetuwn this.getWebNavigationActions();
 			}
 		};
 	}
 
-	protected override onDidChangeWindowFocus(hasFocus: boolean): void {
-		if (!this.visible) {
-			return;
+	pwotected ovewwide onDidChangeWindowFocus(hasFocus: boowean): void {
+		if (!this.visibwe) {
+			wetuwn;
 		}
 
-		super.onDidChangeWindowFocus(hasFocus);
+		supa.onDidChangeWindowFocus(hasFocus);
 
-		if (this.container) {
+		if (this.containa) {
 			if (hasFocus) {
-				this.container.classList.remove('inactive');
-			} else {
-				this.container.classList.add('inactive');
-				if (this.menubar) {
-					this.menubar.blur();
+				this.containa.cwassWist.wemove('inactive');
+			} ewse {
+				this.containa.cwassWist.add('inactive');
+				if (this.menubaw) {
+					this.menubaw.bwuw();
 				}
 			}
 		}
 	}
 
-	protected override onUpdateStateChange(): void {
-		if (!this.visible) {
-			return;
+	pwotected ovewwide onUpdateStateChange(): void {
+		if (!this.visibwe) {
+			wetuwn;
 		}
 
-		super.onUpdateStateChange();
+		supa.onUpdateStateChange();
 	}
 
-	protected override onDidChangeRecentlyOpened(): void {
-		if (!this.visible) {
-			return;
+	pwotected ovewwide onDidChangeWecentwyOpened(): void {
+		if (!this.visibwe) {
+			wetuwn;
 		}
 
-		super.onDidChangeRecentlyOpened();
+		supa.onDidChangeWecentwyOpened();
 	}
 
-	protected override onUpdateKeybindings(): void {
-		if (!this.visible) {
-			return;
+	pwotected ovewwide onUpdateKeybindings(): void {
+		if (!this.visibwe) {
+			wetuwn;
 		}
 
-		super.onUpdateKeybindings();
+		supa.onUpdateKeybindings();
 	}
 
-	protected override registerListeners(): void {
-		super.registerListeners();
+	pwotected ovewwide wegistewWistenews(): void {
+		supa.wegistewWistenews();
 
-		this._register(addDisposableListener(window, EventType.RESIZE, () => {
-			if (this.menubar && !(isIOS && BrowserFeatures.pointerEvents)) {
-				this.menubar.blur();
+		this._wegista(addDisposabweWistena(window, EventType.WESIZE, () => {
+			if (this.menubaw && !(isIOS && BwowsewFeatuwes.pointewEvents)) {
+				this.menubaw.bwuw();
 			}
 		}));
 
-		// Mnemonics require fullscreen in web
+		// Mnemonics wequiwe fuwwscween in web
 		if (isWeb) {
-			this._register(this.layoutService.onDidChangeFullscreen(e => this.updateMenubar()));
-			this._register(this.webNavigationMenu.onDidChange(() => this.updateMenubar()));
+			this._wegista(this.wayoutSewvice.onDidChangeFuwwscween(e => this.updateMenubaw()));
+			this._wegista(this.webNavigationMenu.onDidChange(() => this.updateMenubaw()));
 		}
 	}
 
-	get onVisibilityChange(): Event<boolean> {
-		return this._onVisibilityChange.event;
+	get onVisibiwityChange(): Event<boowean> {
+		wetuwn this._onVisibiwityChange.event;
 	}
 
-	get onFocusStateChange(): Event<boolean> {
-		return this._onFocusStateChange.event;
+	get onFocusStateChange(): Event<boowean> {
+		wetuwn this._onFocusStateChange.event;
 	}
 
-	getMenubarItemsDimensions(): Dimension {
-		if (this.menubar) {
-			return new Dimension(this.menubar.getWidth(), this.menubar.getHeight());
+	getMenubawItemsDimensions(): Dimension {
+		if (this.menubaw) {
+			wetuwn new Dimension(this.menubaw.getWidth(), this.menubaw.getHeight());
 		}
 
-		return new Dimension(0, 0);
+		wetuwn new Dimension(0, 0);
 	}
 
-	create(parent: HTMLElement): HTMLElement {
-		this.container = parent;
+	cweate(pawent: HTMWEwement): HTMWEwement {
+		this.containa = pawent;
 
-		// Build the menubar
-		if (this.container) {
-			this.doUpdateMenubar(true);
+		// Buiwd the menubaw
+		if (this.containa) {
+			this.doUpdateMenubaw(twue);
 		}
 
-		return this.container;
+		wetuwn this.containa;
 	}
 
-	layout(dimension: Dimension) {
-		if (this.container) {
-			this.container.style.height = `${dimension.height}px`;
+	wayout(dimension: Dimension) {
+		if (this.containa) {
+			this.containa.stywe.height = `${dimension.height}px`;
 		}
 
-		this.menubar?.update(this.getMenuBarOptions());
+		this.menubaw?.update(this.getMenuBawOptions());
 	}
 
-	toggleFocus() {
-		if (this.menubar) {
-			this.menubar.toggleFocus();
+	toggweFocus() {
+		if (this.menubaw) {
+			this.menubaw.toggweFocus();
 		}
 	}
 }

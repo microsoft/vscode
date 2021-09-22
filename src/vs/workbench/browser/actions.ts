@@ -1,107 +1,107 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from 'vs/base/common/actions';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
-import { MenuId, IMenuService, IMenu, SubmenuItemAction, IMenuActionOptions } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { Disposabwe, DisposabweStowe, IDisposabwe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { MenuId, IMenuSewvice, IMenu, SubmenuItemAction, IMenuActionOptions } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { cweateAndFiwwInActionBawActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
 
-class MenuActions extends Disposable {
+cwass MenuActions extends Disposabwe {
 
-	private readonly menu: IMenu;
+	pwivate weadonwy menu: IMenu;
 
-	private _primaryActions: IAction[] = [];
-	get primaryActions() { return this._primaryActions; }
+	pwivate _pwimawyActions: IAction[] = [];
+	get pwimawyActions() { wetuwn this._pwimawyActions; }
 
-	private _secondaryActions: IAction[] = [];
-	get secondaryActions() { return this._secondaryActions; }
+	pwivate _secondawyActions: IAction[] = [];
+	get secondawyActions() { wetuwn this._secondawyActions; }
 
-	private readonly _onDidChange = this._register(new Emitter<void>());
-	readonly onDidChange = this._onDidChange.event;
+	pwivate weadonwy _onDidChange = this._wegista(new Emitta<void>());
+	weadonwy onDidChange = this._onDidChange.event;
 
-	private disposables = this._register(new DisposableStore());
+	pwivate disposabwes = this._wegista(new DisposabweStowe());
 
-	constructor(
+	constwuctow(
 		menuId: MenuId,
-		private readonly options: IMenuActionOptions | undefined,
-		private readonly menuService: IMenuService,
-		private readonly contextKeyService: IContextKeyService
+		pwivate weadonwy options: IMenuActionOptions | undefined,
+		pwivate weadonwy menuSewvice: IMenuSewvice,
+		pwivate weadonwy contextKeySewvice: IContextKeySewvice
 	) {
-		super();
+		supa();
 
-		this.menu = this._register(menuService.createMenu(menuId, contextKeyService));
+		this.menu = this._wegista(menuSewvice.cweateMenu(menuId, contextKeySewvice));
 
-		this._register(this.menu.onDidChange(() => this.updateActions()));
+		this._wegista(this.menu.onDidChange(() => this.updateActions()));
 		this.updateActions();
 	}
 
-	private updateActions(): void {
-		this.disposables.clear();
-		this._primaryActions = [];
-		this._secondaryActions = [];
-		this.disposables.add(createAndFillInActionBarActions(this.menu, this.options, { primary: this._primaryActions, secondary: this._secondaryActions }));
-		this.disposables.add(this.updateSubmenus([...this._primaryActions, ...this._secondaryActions], {}));
-		this._onDidChange.fire();
+	pwivate updateActions(): void {
+		this.disposabwes.cweaw();
+		this._pwimawyActions = [];
+		this._secondawyActions = [];
+		this.disposabwes.add(cweateAndFiwwInActionBawActions(this.menu, this.options, { pwimawy: this._pwimawyActions, secondawy: this._secondawyActions }));
+		this.disposabwes.add(this.updateSubmenus([...this._pwimawyActions, ...this._secondawyActions], {}));
+		this._onDidChange.fiwe();
 	}
 
-	private updateSubmenus(actions: readonly IAction[], submenus: { [id: number]: IMenu }): IDisposable {
-		const disposables = new DisposableStore();
+	pwivate updateSubmenus(actions: weadonwy IAction[], submenus: { [id: numba]: IMenu }): IDisposabwe {
+		const disposabwes = new DisposabweStowe();
 
-		for (const action of actions) {
+		fow (const action of actions) {
 			if (action instanceof SubmenuItemAction && !submenus[action.item.submenu.id]) {
-				const menu = submenus[action.item.submenu.id] = disposables.add(this.menuService.createMenu(action.item.submenu, this.contextKeyService));
-				disposables.add(menu.onDidChange(() => this.updateActions()));
-				disposables.add(this.updateSubmenus(action.actions, submenus));
+				const menu = submenus[action.item.submenu.id] = disposabwes.add(this.menuSewvice.cweateMenu(action.item.submenu, this.contextKeySewvice));
+				disposabwes.add(menu.onDidChange(() => this.updateActions()));
+				disposabwes.add(this.updateSubmenus(action.actions, submenus));
 			}
 		}
 
-		return disposables;
+		wetuwn disposabwes;
 	}
 }
 
-export class CompositeMenuActions extends Disposable {
+expowt cwass CompositeMenuActions extends Disposabwe {
 
-	private readonly menuActions: MenuActions;
-	private readonly contextMenuActionsDisposable = this._register(new MutableDisposable());
+	pwivate weadonwy menuActions: MenuActions;
+	pwivate weadonwy contextMenuActionsDisposabwe = this._wegista(new MutabweDisposabwe());
 
-	private _onDidChange = this._register(new Emitter<void>());
-	readonly onDidChange: Event<void> = this._onDidChange.event;
+	pwivate _onDidChange = this._wegista(new Emitta<void>());
+	weadonwy onDidChange: Event<void> = this._onDidChange.event;
 
-	constructor(
+	constwuctow(
 		menuId: MenuId,
-		private readonly contextMenuId: MenuId | undefined,
-		private readonly options: IMenuActionOptions | undefined,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IMenuService private readonly menuService: IMenuService,
+		pwivate weadonwy contextMenuId: MenuId | undefined,
+		pwivate weadonwy options: IMenuActionOptions | undefined,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IMenuSewvice pwivate weadonwy menuSewvice: IMenuSewvice,
 	) {
-		super();
+		supa();
 
-		this.menuActions = this._register(new MenuActions(menuId, this.options, menuService, contextKeyService));
+		this.menuActions = this._wegista(new MenuActions(menuId, this.options, menuSewvice, contextKeySewvice));
 
-		this._register(this.menuActions.onDidChange(() => this._onDidChange.fire()));
+		this._wegista(this.menuActions.onDidChange(() => this._onDidChange.fiwe()));
 	}
 
-	getPrimaryActions(): IAction[] {
-		return this.menuActions.primaryActions;
+	getPwimawyActions(): IAction[] {
+		wetuwn this.menuActions.pwimawyActions;
 	}
 
-	getSecondaryActions(): IAction[] {
-		return this.menuActions.secondaryActions;
+	getSecondawyActions(): IAction[] {
+		wetuwn this.menuActions.secondawyActions;
 	}
 
 	getContextMenuActions(): IAction[] {
 		const actions: IAction[] = [];
 
 		if (this.contextMenuId) {
-			const menu = this.menuService.createMenu(this.contextMenuId, this.contextKeyService);
-			this.contextMenuActionsDisposable.value = createAndFillInActionBarActions(menu, this.options, { primary: [], secondary: actions });
+			const menu = this.menuSewvice.cweateMenu(this.contextMenuId, this.contextKeySewvice);
+			this.contextMenuActionsDisposabwe.vawue = cweateAndFiwwInActionBawActions(menu, this.options, { pwimawy: [], secondawy: actions });
 			menu.dispose();
 		}
 
-		return actions;
+		wetuwn actions;
 	}
 }

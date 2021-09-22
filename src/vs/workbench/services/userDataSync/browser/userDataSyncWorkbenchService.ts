@@ -1,827 +1,827 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, IAuthenticationProvider, isAuthenticationProvider, IUserDataAutoSyncService, SyncResource, IResourcePreview, ISyncResourcePreview, Change, IManualSyncTask, IUserDataSyncStoreManagementService, SyncStatus, IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNC_LOG_COMMAND_ID, getSyncAreaLabel, IUserDataSyncPreview, IUserDataSyncResource, CONTEXT_ENABLE_SYNC_MERGES_VIEW, SYNC_MERGES_VIEW_ID, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_VIEW_CONTAINER_ID, SYNC_TITLE } from 'vs/workbench/services/userDataSync/common/userDataSync';
-import { AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/editor/common/modes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
-import { flatten, equals } from 'vs/base/common/arrays';
-import { getCurrentAuthenticationSessionInfo, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
-import { IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { localize } from 'vs/nls';
-import { canceled } from 'vs/base/common/errors';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Action } from 'vs/base/common/actions';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IViewsService, ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { UserDataSyncStoreTypeSynchronizer } from 'vs/platform/userDataSync/common/globalStateSync';
+impowt { IUsewDataSyncSewvice, IAuthenticationPwovida, isAuthenticationPwovida, IUsewDataAutoSyncSewvice, SyncWesouwce, IWesouwcePweview, ISyncWesouwcePweview, Change, IManuawSyncTask, IUsewDataSyncStoweManagementSewvice, SyncStatus, IUsewDataAutoSyncEnabwementSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IUsewDataSyncWowkbenchSewvice, IUsewDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABWEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNC_WOG_COMMAND_ID, getSyncAweaWabew, IUsewDataSyncPweview, IUsewDataSyncWesouwce, CONTEXT_ENABWE_SYNC_MEWGES_VIEW, SYNC_MEWGES_VIEW_ID, CONTEXT_ENABWE_ACTIVITY_VIEWS, SYNC_VIEW_CONTAINEW_ID, SYNC_TITWE } fwom 'vs/wowkbench/sewvices/usewDataSync/common/usewDataSync';
+impowt { AuthenticationSession, AuthenticationSessionsChangeEvent } fwom 'vs/editow/common/modes';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { fwatten, equaws } fwom 'vs/base/common/awways';
+impowt { getCuwwentAuthenticationSessionInfo, IAuthenticationSewvice } fwom 'vs/wowkbench/sewvices/authentication/bwowsa/authenticationSewvice';
+impowt { IUsewDataSyncAccountSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncAccount';
+impowt { IQuickInputSewvice, IQuickPickSepawatow } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IStowageSewvice, IStowageVawueChangeEvent, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { wocawize } fwom 'vs/nws';
+impowt { cancewed } fwom 'vs/base/common/ewwows';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { IPwogwessSewvice, PwogwessWocation } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IViewsSewvice, ViewContainewWocation, IViewDescwiptowSewvice } fwom 'vs/wowkbench/common/views';
+impowt { IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { UsewDataSyncStoweCwient } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncStoweSewvice';
+impowt { UsewDataSyncStoweTypeSynchwoniza } fwom 'vs/pwatfowm/usewDataSync/common/gwobawStateSync';
 
-type UserAccountClassification = {
-	id: { classification: 'EndUserPseudonymizedInformation', purpose: 'BusinessInsight' };
+type UsewAccountCwassification = {
+	id: { cwassification: 'EndUsewPseudonymizedInfowmation', puwpose: 'BusinessInsight' };
 };
 
-type FirstTimeSyncClassification = {
-	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+type FiwstTimeSyncCwassification = {
+	action: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
 };
 
-type UserAccountEvent = {
-	id: string;
+type UsewAccountEvent = {
+	id: stwing;
 };
 
-type FirstTimeSyncAction = 'pull' | 'push' | 'merge' | 'manual';
+type FiwstTimeSyncAction = 'puww' | 'push' | 'mewge' | 'manuaw';
 
-type AccountQuickPickItem = { label: string, authenticationProvider: IAuthenticationProvider, account?: UserDataSyncAccount, description?: string };
+type AccountQuickPickItem = { wabew: stwing, authenticationPwovida: IAuthenticationPwovida, account?: UsewDataSyncAccount, descwiption?: stwing };
 
-class UserDataSyncAccount implements IUserDataSyncAccount {
+cwass UsewDataSyncAccount impwements IUsewDataSyncAccount {
 
-	constructor(readonly authenticationProviderId: string, private readonly session: AuthenticationSession) { }
+	constwuctow(weadonwy authenticationPwovidewId: stwing, pwivate weadonwy session: AuthenticationSession) { }
 
-	get sessionId(): string { return this.session.id; }
-	get accountName(): string { return this.session.account.label; }
-	get accountId(): string { return this.session.account.id; }
-	get token(): string { return this.session.idToken || this.session.accessToken; }
+	get sessionId(): stwing { wetuwn this.session.id; }
+	get accountName(): stwing { wetuwn this.session.account.wabew; }
+	get accountId(): stwing { wetuwn this.session.account.id; }
+	get token(): stwing { wetuwn this.session.idToken || this.session.accessToken; }
 }
 
-export class UserDataSyncWorkbenchService extends Disposable implements IUserDataSyncWorkbenchService {
+expowt cwass UsewDataSyncWowkbenchSewvice extends Disposabwe impwements IUsewDataSyncWowkbenchSewvice {
 
-	_serviceBrand: any;
+	_sewviceBwand: any;
 
-	private static DONOT_USE_WORKBENCH_SESSION_STORAGE_KEY = 'userDataSyncAccount.donotUseWorkbenchSession';
-	private static CACHED_SESSION_STORAGE_KEY = 'userDataSyncAccountPreference';
+	pwivate static DONOT_USE_WOWKBENCH_SESSION_STOWAGE_KEY = 'usewDataSyncAccount.donotUseWowkbenchSession';
+	pwivate static CACHED_SESSION_STOWAGE_KEY = 'usewDataSyncAccountPwefewence';
 
-	get enabled() { return !!this.userDataSyncStoreManagementService.userDataSyncStore; }
+	get enabwed() { wetuwn !!this.usewDataSyncStoweManagementSewvice.usewDataSyncStowe; }
 
-	private _authenticationProviders: IAuthenticationProvider[] = [];
-	get authenticationProviders() { return this._authenticationProviders; }
+	pwivate _authenticationPwovidews: IAuthenticationPwovida[] = [];
+	get authenticationPwovidews() { wetuwn this._authenticationPwovidews; }
 
-	private _accountStatus: AccountStatus = AccountStatus.Uninitialized;
-	get accountStatus(): AccountStatus { return this._accountStatus; }
-	private readonly _onDidChangeAccountStatus = this._register(new Emitter<AccountStatus>());
-	readonly onDidChangeAccountStatus = this._onDidChangeAccountStatus.event;
+	pwivate _accountStatus: AccountStatus = AccountStatus.Uninitiawized;
+	get accountStatus(): AccountStatus { wetuwn this._accountStatus; }
+	pwivate weadonwy _onDidChangeAccountStatus = this._wegista(new Emitta<AccountStatus>());
+	weadonwy onDidChangeAccountStatus = this._onDidChangeAccountStatus.event;
 
-	private _all: Map<string, UserDataSyncAccount[]> = new Map<string, UserDataSyncAccount[]>();
-	get all(): UserDataSyncAccount[] { return flatten([...this._all.values()]); }
+	pwivate _aww: Map<stwing, UsewDataSyncAccount[]> = new Map<stwing, UsewDataSyncAccount[]>();
+	get aww(): UsewDataSyncAccount[] { wetuwn fwatten([...this._aww.vawues()]); }
 
-	get current(): UserDataSyncAccount | undefined { return this.all.filter(account => this.isCurrentAccount(account))[0]; }
+	get cuwwent(): UsewDataSyncAccount | undefined { wetuwn this.aww.fiwta(account => this.isCuwwentAccount(account))[0]; }
 
-	private readonly syncEnablementContext: IContextKey<boolean>;
-	private readonly syncStatusContext: IContextKey<string>;
-	private readonly accountStatusContext: IContextKey<string>;
-	private readonly mergesViewEnablementContext: IContextKey<boolean>;
-	private readonly activityViewsEnablementContext: IContextKey<boolean>;
+	pwivate weadonwy syncEnabwementContext: IContextKey<boowean>;
+	pwivate weadonwy syncStatusContext: IContextKey<stwing>;
+	pwivate weadonwy accountStatusContext: IContextKey<stwing>;
+	pwivate weadonwy mewgesViewEnabwementContext: IContextKey<boowean>;
+	pwivate weadonwy activityViewsEnabwementContext: IContextKey<boowean>;
 
-	readonly userDataSyncPreview: UserDataSyncPreview = this._register(new UserDataSyncPreview(this.userDataSyncService));
+	weadonwy usewDataSyncPweview: UsewDataSyncPweview = this._wegista(new UsewDataSyncPweview(this.usewDataSyncSewvice));
 
-	constructor(
-		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
-		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
-		@IUserDataSyncAccountService private readonly userDataSyncAccountService: IUserDataSyncAccountService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
-		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ILogService private readonly logService: ILogService,
-		@IProductService private readonly productService: IProductService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IProgressService private readonly progressService: IProgressService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IViewsService private readonly viewsService: IViewsService,
-		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
-		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	constwuctow(
+		@IUsewDataSyncSewvice pwivate weadonwy usewDataSyncSewvice: IUsewDataSyncSewvice,
+		@IAuthenticationSewvice pwivate weadonwy authenticationSewvice: IAuthenticationSewvice,
+		@IUsewDataSyncAccountSewvice pwivate weadonwy usewDataSyncAccountSewvice: IUsewDataSyncAccountSewvice,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IUsewDataAutoSyncEnabwementSewvice pwivate weadonwy usewDataAutoSyncEnabwementSewvice: IUsewDataAutoSyncEnabwementSewvice,
+		@IUsewDataAutoSyncSewvice pwivate weadonwy usewDataAutoSyncSewvice: IUsewDataAutoSyncSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IPwogwessSewvice pwivate weadonwy pwogwessSewvice: IPwogwessSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IViewsSewvice pwivate weadonwy viewsSewvice: IViewsSewvice,
+		@IViewDescwiptowSewvice pwivate weadonwy viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IUsewDataSyncStoweManagementSewvice pwivate weadonwy usewDataSyncStoweManagementSewvice: IUsewDataSyncStoweManagementSewvice,
+		@IWifecycweSewvice pwivate weadonwy wifecycweSewvice: IWifecycweSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
 	) {
-		super();
-		this.syncEnablementContext = CONTEXT_SYNC_ENABLEMENT.bindTo(contextKeyService);
-		this.syncStatusContext = CONTEXT_SYNC_STATE.bindTo(contextKeyService);
-		this.accountStatusContext = CONTEXT_ACCOUNT_STATE.bindTo(contextKeyService);
-		this.activityViewsEnablementContext = CONTEXT_ENABLE_ACTIVITY_VIEWS.bindTo(contextKeyService);
-		this.mergesViewEnablementContext = CONTEXT_ENABLE_SYNC_MERGES_VIEW.bindTo(contextKeyService);
+		supa();
+		this.syncEnabwementContext = CONTEXT_SYNC_ENABWEMENT.bindTo(contextKeySewvice);
+		this.syncStatusContext = CONTEXT_SYNC_STATE.bindTo(contextKeySewvice);
+		this.accountStatusContext = CONTEXT_ACCOUNT_STATE.bindTo(contextKeySewvice);
+		this.activityViewsEnabwementContext = CONTEXT_ENABWE_ACTIVITY_VIEWS.bindTo(contextKeySewvice);
+		this.mewgesViewEnabwementContext = CONTEXT_ENABWE_SYNC_MEWGES_VIEW.bindTo(contextKeySewvice);
 
-		if (this.userDataSyncStoreManagementService.userDataSyncStore) {
-			this.syncStatusContext.set(this.userDataSyncService.status);
-			this._register(userDataSyncService.onDidChangeStatus(status => this.syncStatusContext.set(status)));
-			this.syncEnablementContext.set(userDataAutoSyncEnablementService.isEnabled());
-			this._register(userDataAutoSyncEnablementService.onDidChangeEnablement(enabled => this.syncEnablementContext.set(enabled)));
+		if (this.usewDataSyncStoweManagementSewvice.usewDataSyncStowe) {
+			this.syncStatusContext.set(this.usewDataSyncSewvice.status);
+			this._wegista(usewDataSyncSewvice.onDidChangeStatus(status => this.syncStatusContext.set(status)));
+			this.syncEnabwementContext.set(usewDataAutoSyncEnabwementSewvice.isEnabwed());
+			this._wegista(usewDataAutoSyncEnabwementSewvice.onDidChangeEnabwement(enabwed => this.syncEnabwementContext.set(enabwed)));
 
-			this.waitAndInitialize();
+			this.waitAndInitiawize();
 		}
 	}
 
-	private updateAuthenticationProviders(): void {
-		this._authenticationProviders = (this.userDataSyncStoreManagementService.userDataSyncStore?.authenticationProviders || []).filter(({ id }) => this.authenticationService.declaredProviders.some(provider => provider.id === id));
+	pwivate updateAuthenticationPwovidews(): void {
+		this._authenticationPwovidews = (this.usewDataSyncStoweManagementSewvice.usewDataSyncStowe?.authenticationPwovidews || []).fiwta(({ id }) => this.authenticationSewvice.decwawedPwovidews.some(pwovida => pwovida.id === id));
 	}
 
-	private isSupportedAuthenticationProviderId(authenticationProviderId: string): boolean {
-		return this.authenticationProviders.some(({ id }) => id === authenticationProviderId);
+	pwivate isSuppowtedAuthenticationPwovidewId(authenticationPwovidewId: stwing): boowean {
+		wetuwn this.authenticationPwovidews.some(({ id }) => id === authenticationPwovidewId);
 	}
 
-	private async waitAndInitialize(): Promise<void> {
+	pwivate async waitAndInitiawize(): Pwomise<void> {
 		/* wait */
-		await this.extensionService.whenInstalledExtensionsRegistered();
+		await this.extensionSewvice.whenInstawwedExtensionsWegistewed();
 
-		/* initialize */
-		try {
-			this.logService.trace('Settings Sync: Initializing accounts');
-			await this.initialize();
-		} catch (error) {
-			// Do not log if the current window is running extension tests
-			if (!this.environmentService.extensionTestsLocationURI) {
-				this.logService.error(error);
+		/* initiawize */
+		twy {
+			this.wogSewvice.twace('Settings Sync: Initiawizing accounts');
+			await this.initiawize();
+		} catch (ewwow) {
+			// Do not wog if the cuwwent window is wunning extension tests
+			if (!this.enviwonmentSewvice.extensionTestsWocationUWI) {
+				this.wogSewvice.ewwow(ewwow);
 			}
 		}
 
-		if (this.accountStatus === AccountStatus.Uninitialized) {
-			// Do not log if the current window is running extension tests
-			if (!this.environmentService.extensionTestsLocationURI) {
-				this.logService.warn('Settings Sync: Accounts are not initialized');
+		if (this.accountStatus === AccountStatus.Uninitiawized) {
+			// Do not wog if the cuwwent window is wunning extension tests
+			if (!this.enviwonmentSewvice.extensionTestsWocationUWI) {
+				this.wogSewvice.wawn('Settings Sync: Accounts awe not initiawized');
 			}
-		} else {
-			this.logService.trace('Settings Sync: Accounts are initialized');
+		} ewse {
+			this.wogSewvice.twace('Settings Sync: Accounts awe initiawized');
 		}
 	}
 
-	private async initialize(): Promise<void> {
-		const authenticationSession = this.environmentService.options?.credentialsProvider ? await getCurrentAuthenticationSessionInfo(this.environmentService, this.productService) : undefined;
-		if (this.currentSessionId === undefined && this.useWorkbenchSessionId && (authenticationSession?.id)) {
-			this.currentSessionId = authenticationSession?.id;
-			this.useWorkbenchSessionId = false;
+	pwivate async initiawize(): Pwomise<void> {
+		const authenticationSession = this.enviwonmentSewvice.options?.cwedentiawsPwovida ? await getCuwwentAuthenticationSessionInfo(this.enviwonmentSewvice, this.pwoductSewvice) : undefined;
+		if (this.cuwwentSessionId === undefined && this.useWowkbenchSessionId && (authenticationSession?.id)) {
+			this.cuwwentSessionId = authenticationSession?.id;
+			this.useWowkbenchSessionId = fawse;
 		}
 
 		await this.update();
 
-		this._register(this.authenticationService.onDidChangeDeclaredProviders(() => this.updateAuthenticationProviders()));
+		this._wegista(this.authenticationSewvice.onDidChangeDecwawedPwovidews(() => this.updateAuthenticationPwovidews()));
 
-		this._register(
+		this._wegista(
 			Event.any(
-				Event.filter(
+				Event.fiwta(
 					Event.any(
-						this.authenticationService.onDidRegisterAuthenticationProvider,
-						this.authenticationService.onDidUnregisterAuthenticationProvider,
-					), info => this.isSupportedAuthenticationProviderId(info.id)),
-				Event.filter(this.userDataSyncAccountService.onTokenFailed, isSuccessive => !isSuccessive))
+						this.authenticationSewvice.onDidWegistewAuthenticationPwovida,
+						this.authenticationSewvice.onDidUnwegistewAuthenticationPwovida,
+					), info => this.isSuppowtedAuthenticationPwovidewId(info.id)),
+				Event.fiwta(this.usewDataSyncAccountSewvice.onTokenFaiwed, isSuccessive => !isSuccessive))
 				(() => this.update()));
 
-		this._register(Event.filter(this.authenticationService.onDidChangeSessions, e => this.isSupportedAuthenticationProviderId(e.providerId))(({ event }) => this.onDidChangeSessions(event)));
-		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorage(e)));
-		this._register(Event.filter(this.userDataSyncAccountService.onTokenFailed, isSuccessive => isSuccessive)(() => this.onDidSuccessiveAuthFailures()));
+		this._wegista(Event.fiwta(this.authenticationSewvice.onDidChangeSessions, e => this.isSuppowtedAuthenticationPwovidewId(e.pwovidewId))(({ event }) => this.onDidChangeSessions(event)));
+		this._wegista(this.stowageSewvice.onDidChangeVawue(e => this.onDidChangeStowage(e)));
+		this._wegista(Event.fiwta(this.usewDataSyncAccountSewvice.onTokenFaiwed, isSuccessive => isSuccessive)(() => this.onDidSuccessiveAuthFaiwuwes()));
 	}
 
-	private async update(): Promise<void> {
+	pwivate async update(): Pwomise<void> {
 
-		this.updateAuthenticationProviders();
+		this.updateAuthenticationPwovidews();
 
-		const allAccounts: Map<string, UserDataSyncAccount[]> = new Map<string, UserDataSyncAccount[]>();
-		for (const { id } of this.authenticationProviders) {
-			this.logService.trace('Settings Sync: Getting accounts for', id);
+		const awwAccounts: Map<stwing, UsewDataSyncAccount[]> = new Map<stwing, UsewDataSyncAccount[]>();
+		fow (const { id } of this.authenticationPwovidews) {
+			this.wogSewvice.twace('Settings Sync: Getting accounts fow', id);
 			const accounts = await this.getAccounts(id);
-			allAccounts.set(id, accounts);
-			this.logService.trace('Settings Sync: Updated accounts for', id);
+			awwAccounts.set(id, accounts);
+			this.wogSewvice.twace('Settings Sync: Updated accounts fow', id);
 		}
 
-		this._all = allAccounts;
-		const current = this.current;
-		await this.updateToken(current);
-		this.updateAccountStatus(current ? AccountStatus.Available : AccountStatus.Unavailable);
+		this._aww = awwAccounts;
+		const cuwwent = this.cuwwent;
+		await this.updateToken(cuwwent);
+		this.updateAccountStatus(cuwwent ? AccountStatus.Avaiwabwe : AccountStatus.Unavaiwabwe);
 	}
 
-	private async getAccounts(authenticationProviderId: string): Promise<UserDataSyncAccount[]> {
-		let accounts: Map<string, UserDataSyncAccount> = new Map<string, UserDataSyncAccount>();
-		let currentAccount: UserDataSyncAccount | null = null;
+	pwivate async getAccounts(authenticationPwovidewId: stwing): Pwomise<UsewDataSyncAccount[]> {
+		wet accounts: Map<stwing, UsewDataSyncAccount> = new Map<stwing, UsewDataSyncAccount>();
+		wet cuwwentAccount: UsewDataSyncAccount | nuww = nuww;
 
-		const sessions = await this.authenticationService.getSessions(authenticationProviderId) || [];
-		for (const session of sessions) {
-			const account: UserDataSyncAccount = new UserDataSyncAccount(authenticationProviderId, session);
+		const sessions = await this.authenticationSewvice.getSessions(authenticationPwovidewId) || [];
+		fow (const session of sessions) {
+			const account: UsewDataSyncAccount = new UsewDataSyncAccount(authenticationPwovidewId, session);
 			accounts.set(account.accountName, account);
-			if (this.isCurrentAccount(account)) {
-				currentAccount = account;
+			if (this.isCuwwentAccount(account)) {
+				cuwwentAccount = account;
 			}
 		}
 
-		if (currentAccount) {
-			// Always use current account if available
-			accounts.set(currentAccount.accountName, currentAccount);
+		if (cuwwentAccount) {
+			// Awways use cuwwent account if avaiwabwe
+			accounts.set(cuwwentAccount.accountName, cuwwentAccount);
 		}
 
-		return [...accounts.values()];
+		wetuwn [...accounts.vawues()];
 	}
 
-	private async updateToken(current: UserDataSyncAccount | undefined): Promise<void> {
-		let value: { token: string, authenticationProviderId: string } | undefined = undefined;
-		if (current) {
-			try {
-				this.logService.trace('Settings Sync: Updating the token for the account', current.accountName);
-				const token = current.token;
-				this.logService.trace('Settings Sync: Token updated for the account', current.accountName);
-				value = { token, authenticationProviderId: current.authenticationProviderId };
+	pwivate async updateToken(cuwwent: UsewDataSyncAccount | undefined): Pwomise<void> {
+		wet vawue: { token: stwing, authenticationPwovidewId: stwing } | undefined = undefined;
+		if (cuwwent) {
+			twy {
+				this.wogSewvice.twace('Settings Sync: Updating the token fow the account', cuwwent.accountName);
+				const token = cuwwent.token;
+				this.wogSewvice.twace('Settings Sync: Token updated fow the account', cuwwent.accountName);
+				vawue = { token, authenticationPwovidewId: cuwwent.authenticationPwovidewId };
 			} catch (e) {
-				this.logService.error(e);
+				this.wogSewvice.ewwow(e);
 			}
 		}
-		await this.userDataSyncAccountService.updateAccount(value);
+		await this.usewDataSyncAccountSewvice.updateAccount(vawue);
 	}
 
-	private updateAccountStatus(accountStatus: AccountStatus): void {
+	pwivate updateAccountStatus(accountStatus: AccountStatus): void {
 		if (this._accountStatus !== accountStatus) {
-			const previous = this._accountStatus;
-			this.logService.trace(`Settings Sync: Account status changed from ${previous} to ${accountStatus}`);
+			const pwevious = this._accountStatus;
+			this.wogSewvice.twace(`Settings Sync: Account status changed fwom ${pwevious} to ${accountStatus}`);
 
 			this._accountStatus = accountStatus;
 			this.accountStatusContext.set(accountStatus);
-			this._onDidChangeAccountStatus.fire(accountStatus);
+			this._onDidChangeAccountStatus.fiwe(accountStatus);
 		}
 	}
 
-	async turnOn(): Promise<void> {
-		if (!this.authenticationProviders.length) {
-			throw new Error(localize('no authentication providers', "Settings sync cannot be turned on because there are no authentication providers available."));
+	async tuwnOn(): Pwomise<void> {
+		if (!this.authenticationPwovidews.wength) {
+			thwow new Ewwow(wocawize('no authentication pwovidews', "Settings sync cannot be tuwned on because thewe awe no authentication pwovidews avaiwabwe."));
 		}
-		if (this.userDataAutoSyncEnablementService.isEnabled()) {
-			return;
+		if (this.usewDataAutoSyncEnabwementSewvice.isEnabwed()) {
+			wetuwn;
 		}
-		if (this.userDataSyncService.status !== SyncStatus.Idle) {
-			throw new Error('Cannont turn on sync while syncing');
+		if (this.usewDataSyncSewvice.status !== SyncStatus.Idwe) {
+			thwow new Ewwow('Cannont tuwn on sync whiwe syncing');
 		}
 
 		const picked = await this.pick();
 		if (!picked) {
-			throw canceled();
+			thwow cancewed();
 		}
 
-		// User did not pick an account or login failed
-		if (this.accountStatus !== AccountStatus.Available) {
-			throw new Error(localize('no account', "No account available"));
+		// Usa did not pick an account ow wogin faiwed
+		if (this.accountStatus !== AccountStatus.Avaiwabwe) {
+			thwow new Ewwow(wocawize('no account', "No account avaiwabwe"));
 		}
 
-		await this.turnOnUsingCurrentAccount();
+		await this.tuwnOnUsingCuwwentAccount();
 	}
 
-	async turnOnUsingCurrentAccount(): Promise<void> {
-		if (this.userDataAutoSyncEnablementService.isEnabled()) {
-			return;
+	async tuwnOnUsingCuwwentAccount(): Pwomise<void> {
+		if (this.usewDataAutoSyncEnabwementSewvice.isEnabwed()) {
+			wetuwn;
 		}
 
-		if (this.userDataSyncService.status !== SyncStatus.Idle) {
-			throw new Error('Cannont turn on sync while syncing');
+		if (this.usewDataSyncSewvice.status !== SyncStatus.Idwe) {
+			thwow new Ewwow('Cannont tuwn on sync whiwe syncing');
 		}
 
-		if (this.accountStatus !== AccountStatus.Available) {
-			throw new Error(localize('no account', "No account available"));
+		if (this.accountStatus !== AccountStatus.Avaiwabwe) {
+			thwow new Ewwow(wocawize('no account', "No account avaiwabwe"));
 		}
 
-		const syncTitle = SYNC_TITLE;
-		const title = `${syncTitle} [(${localize('show log', "show log")})](command:${SHOW_SYNC_LOG_COMMAND_ID})`;
-		const manualSyncTask = await this.userDataSyncService.createManualSyncTask();
-		const disposable = isWeb
-			? Disposable.None /* In web long running shutdown handlers will not work */
-			: this.lifecycleService.onBeforeShutdown(e => e.veto(this.onBeforeShutdown(manualSyncTask), 'veto.settingsSync'));
+		const syncTitwe = SYNC_TITWE;
+		const titwe = `${syncTitwe} [(${wocawize('show wog', "show wog")})](command:${SHOW_SYNC_WOG_COMMAND_ID})`;
+		const manuawSyncTask = await this.usewDataSyncSewvice.cweateManuawSyncTask();
+		const disposabwe = isWeb
+			? Disposabwe.None /* In web wong wunning shutdown handwews wiww not wowk */
+			: this.wifecycweSewvice.onBefoweShutdown(e => e.veto(this.onBefoweShutdown(manuawSyncTask), 'veto.settingsSync'));
 
-		try {
-			await this.syncBeforeTurningOn(title, manualSyncTask);
-		} finally {
-			disposable.dispose();
+		twy {
+			await this.syncBefoweTuwningOn(titwe, manuawSyncTask);
+		} finawwy {
+			disposabwe.dispose();
 		}
 
-		await this.userDataAutoSyncService.turnOn();
+		await this.usewDataAutoSyncSewvice.tuwnOn();
 
-		if (this.userDataSyncStoreManagementService.userDataSyncStore?.canSwitch) {
-			await this.synchroniseUserDataSyncStoreType();
+		if (this.usewDataSyncStoweManagementSewvice.usewDataSyncStowe?.canSwitch) {
+			await this.synchwoniseUsewDataSyncStoweType();
 		}
 
-		this.notificationService.info(localize('sync turned on', "{0} is turned on", title));
+		this.notificationSewvice.info(wocawize('sync tuwned on', "{0} is tuwned on", titwe));
 	}
 
-	turnoff(everywhere: boolean): Promise<void> {
-		return this.userDataAutoSyncService.turnOff(everywhere);
+	tuwnoff(evewywhewe: boowean): Pwomise<void> {
+		wetuwn this.usewDataAutoSyncSewvice.tuwnOff(evewywhewe);
 	}
 
-	async synchroniseUserDataSyncStoreType(): Promise<void> {
-		if (!this.userDataSyncAccountService.account) {
-			throw new Error('Cannot update because you are signed out from settings sync. Please sign in and try again.');
+	async synchwoniseUsewDataSyncStoweType(): Pwomise<void> {
+		if (!this.usewDataSyncAccountSewvice.account) {
+			thwow new Ewwow('Cannot update because you awe signed out fwom settings sync. Pwease sign in and twy again.');
 		}
-		if (!isWeb || !this.userDataSyncStoreManagementService.userDataSyncStore) {
-			// Not supported
-			return;
+		if (!isWeb || !this.usewDataSyncStoweManagementSewvice.usewDataSyncStowe) {
+			// Not suppowted
+			wetuwn;
 		}
 
-		const userDataSyncStoreUrl = this.userDataSyncStoreManagementService.userDataSyncStore.type === 'insiders' ? this.userDataSyncStoreManagementService.userDataSyncStore.stableUrl : this.userDataSyncStoreManagementService.userDataSyncStore.insidersUrl;
-		const userDataSyncStoreClient = this.instantiationService.createInstance(UserDataSyncStoreClient, userDataSyncStoreUrl);
-		userDataSyncStoreClient.setAuthToken(this.userDataSyncAccountService.account.token, this.userDataSyncAccountService.account.authenticationProviderId);
-		await this.instantiationService.createInstance(UserDataSyncStoreTypeSynchronizer, userDataSyncStoreClient).sync(this.userDataSyncStoreManagementService.userDataSyncStore.type);
+		const usewDataSyncStoweUww = this.usewDataSyncStoweManagementSewvice.usewDataSyncStowe.type === 'insidews' ? this.usewDataSyncStoweManagementSewvice.usewDataSyncStowe.stabweUww : this.usewDataSyncStoweManagementSewvice.usewDataSyncStowe.insidewsUww;
+		const usewDataSyncStoweCwient = this.instantiationSewvice.cweateInstance(UsewDataSyncStoweCwient, usewDataSyncStoweUww);
+		usewDataSyncStoweCwient.setAuthToken(this.usewDataSyncAccountSewvice.account.token, this.usewDataSyncAccountSewvice.account.authenticationPwovidewId);
+		await this.instantiationSewvice.cweateInstance(UsewDataSyncStoweTypeSynchwoniza, usewDataSyncStoweCwient).sync(this.usewDataSyncStoweManagementSewvice.usewDataSyncStowe.type);
 	}
 
-	syncNow(): Promise<void> {
-		return this.userDataAutoSyncService.triggerSync(['Sync Now'], false, true);
+	syncNow(): Pwomise<void> {
+		wetuwn this.usewDataAutoSyncSewvice.twiggewSync(['Sync Now'], fawse, twue);
 	}
 
-	private async onBeforeShutdown(manualSyncTask: IManualSyncTask): Promise<boolean> {
-		const result = await this.dialogService.confirm({
-			type: 'warning',
-			message: localize('sync in progress', "Settings Sync is being turned on. Would you like to cancel it?"),
-			title: localize('settings sync', "Settings Sync"),
-			primaryButton: localize({ key: 'yes', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
-			secondaryButton: localize({ key: 'no', comment: ['&& denotes a mnemonic'] }, "&&No"),
+	pwivate async onBefoweShutdown(manuawSyncTask: IManuawSyncTask): Pwomise<boowean> {
+		const wesuwt = await this.diawogSewvice.confiwm({
+			type: 'wawning',
+			message: wocawize('sync in pwogwess', "Settings Sync is being tuwned on. Wouwd you wike to cancew it?"),
+			titwe: wocawize('settings sync', "Settings Sync"),
+			pwimawyButton: wocawize({ key: 'yes', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
+			secondawyButton: wocawize({ key: 'no', comment: ['&& denotes a mnemonic'] }, "&&No"),
 		});
-		if (result.confirmed) {
-			await manualSyncTask.stop();
+		if (wesuwt.confiwmed) {
+			await manuawSyncTask.stop();
 		}
-		return !result.confirmed;
+		wetuwn !wesuwt.confiwmed;
 	}
 
-	private async syncBeforeTurningOn(title: string, manualSyncTask: IManualSyncTask): Promise<void> {
+	pwivate async syncBefoweTuwningOn(titwe: stwing, manuawSyncTask: IManuawSyncTask): Pwomise<void> {
 
-		/* Make sure sync started on clean local state */
-		await this.userDataSyncService.resetLocal();
+		/* Make suwe sync stawted on cwean wocaw state */
+		await this.usewDataSyncSewvice.wesetWocaw();
 
-		try {
-			let action: FirstTimeSyncAction = 'manual';
+		twy {
+			wet action: FiwstTimeSyncAction = 'manuaw';
 
-			await this.progressService.withProgress({
-				location: ProgressLocation.Notification,
-				title,
-				delay: 500,
-			}, async progress => {
-				progress.report({ message: localize('turning on', "Turning on...") });
+			await this.pwogwessSewvice.withPwogwess({
+				wocation: PwogwessWocation.Notification,
+				titwe,
+				deway: 500,
+			}, async pwogwess => {
+				pwogwess.wepowt({ message: wocawize('tuwning on', "Tuwning on...") });
 
-				const preview = await manualSyncTask.preview();
-				const hasRemoteData = manualSyncTask.manifest !== null;
-				const hasLocalData = await this.userDataSyncService.hasLocalData();
-				const hasMergesFromAnotherMachine = preview.some(([syncResource, { isLastSyncFromCurrentMachine, resourcePreviews }]) =>
-					syncResource !== SyncResource.GlobalState && !isLastSyncFromCurrentMachine
-					&& resourcePreviews.some(r => r.localChange !== Change.None || r.remoteChange !== Change.None));
+				const pweview = await manuawSyncTask.pweview();
+				const hasWemoteData = manuawSyncTask.manifest !== nuww;
+				const hasWocawData = await this.usewDataSyncSewvice.hasWocawData();
+				const hasMewgesFwomAnothewMachine = pweview.some(([syncWesouwce, { isWastSyncFwomCuwwentMachine, wesouwcePweviews }]) =>
+					syncWesouwce !== SyncWesouwce.GwobawState && !isWastSyncFwomCuwwentMachine
+					&& wesouwcePweviews.some(w => w.wocawChange !== Change.None || w.wemoteChange !== Change.None));
 
-				action = await this.getFirstTimeSyncAction(hasRemoteData, hasLocalData, hasMergesFromAnotherMachine);
-				const progressDisposable = manualSyncTask.onSynchronizeResources(synchronizingResources =>
-					synchronizingResources.length ? progress.report({ message: localize('syncing resource', "Syncing {0}...", getSyncAreaLabel(synchronizingResources[0][0])) }) : undefined);
-				try {
+				action = await this.getFiwstTimeSyncAction(hasWemoteData, hasWocawData, hasMewgesFwomAnothewMachine);
+				const pwogwessDisposabwe = manuawSyncTask.onSynchwonizeWesouwces(synchwonizingWesouwces =>
+					synchwonizingWesouwces.wength ? pwogwess.wepowt({ message: wocawize('syncing wesouwce', "Syncing {0}...", getSyncAweaWabew(synchwonizingWesouwces[0][0])) }) : undefined);
+				twy {
 					switch (action) {
-						case 'merge':
-							await manualSyncTask.merge();
-							if (manualSyncTask.status !== SyncStatus.HasConflicts) {
-								await manualSyncTask.apply();
+						case 'mewge':
+							await manuawSyncTask.mewge();
+							if (manuawSyncTask.status !== SyncStatus.HasConfwicts) {
+								await manuawSyncTask.appwy();
 							}
-							return;
-						case 'pull': return await manualSyncTask.pull();
-						case 'push': return await manualSyncTask.push();
-						case 'manual': return;
+							wetuwn;
+						case 'puww': wetuwn await manuawSyncTask.puww();
+						case 'push': wetuwn await manuawSyncTask.push();
+						case 'manuaw': wetuwn;
 					}
-				} finally {
-					progressDisposable.dispose();
+				} finawwy {
+					pwogwessDisposabwe.dispose();
 				}
 			});
-			if (manualSyncTask.status === SyncStatus.HasConflicts) {
-				await this.dialogService.show(
-					Severity.Warning,
-					localize('conflicts detected', "Conflicts Detected"),
-					[localize('merge Manually', "Merge Manually...")],
+			if (manuawSyncTask.status === SyncStatus.HasConfwicts) {
+				await this.diawogSewvice.show(
+					Sevewity.Wawning,
+					wocawize('confwicts detected', "Confwicts Detected"),
+					[wocawize('mewge Manuawwy', "Mewge Manuawwy...")],
 					{
-						detail: localize('resolve', "Unable to merge due to conflicts. Please merge manually to continue..."),
+						detaiw: wocawize('wesowve', "Unabwe to mewge due to confwicts. Pwease mewge manuawwy to continue..."),
 					}
 				);
-				await manualSyncTask.discardConflicts();
-				action = 'manual';
+				await manuawSyncTask.discawdConfwicts();
+				action = 'manuaw';
 			}
-			if (action === 'manual') {
-				await this.syncManually(manualSyncTask);
+			if (action === 'manuaw') {
+				await this.syncManuawwy(manuawSyncTask);
 			}
-		} catch (error) {
-			await manualSyncTask.stop();
-			throw error;
-		} finally {
-			manualSyncTask.dispose();
+		} catch (ewwow) {
+			await manuawSyncTask.stop();
+			thwow ewwow;
+		} finawwy {
+			manuawSyncTask.dispose();
 		}
 	}
 
-	private async getFirstTimeSyncAction(hasRemoteData: boolean, hasLocalData: boolean, hasMergesFromAnotherMachine: boolean): Promise<FirstTimeSyncAction> {
+	pwivate async getFiwstTimeSyncAction(hasWemoteData: boowean, hasWocawData: boowean, hasMewgesFwomAnothewMachine: boowean): Pwomise<FiwstTimeSyncAction> {
 
-		if (!hasLocalData /* no data on local */
-			|| !hasRemoteData /* no data on remote */
-			|| !hasMergesFromAnotherMachine /* no merges with another machine  */
+		if (!hasWocawData /* no data on wocaw */
+			|| !hasWemoteData /* no data on wemote */
+			|| !hasMewgesFwomAnothewMachine /* no mewges with anotha machine  */
 		) {
-			return 'merge';
+			wetuwn 'mewge';
 		}
 
-		const result = await this.dialogService.show(
-			Severity.Info,
-			localize('merge or replace', "Merge or Replace"),
+		const wesuwt = await this.diawogSewvice.show(
+			Sevewity.Info,
+			wocawize('mewge ow wepwace', "Mewge ow Wepwace"),
 			[
-				localize('merge', "Merge"),
-				localize('replace local', "Replace Local"),
-				localize('merge Manually', "Merge Manually..."),
-				localize('cancel', "Cancel"),
+				wocawize('mewge', "Mewge"),
+				wocawize('wepwace wocaw', "Wepwace Wocaw"),
+				wocawize('mewge Manuawwy', "Mewge Manuawwy..."),
+				wocawize('cancew', "Cancew"),
 			],
 			{
-				cancelId: 3,
-				detail: localize('first time sync detail', "It looks like you last synced from another machine.\nWould you like to merge or replace with your data in the cloud?"),
+				cancewId: 3,
+				detaiw: wocawize('fiwst time sync detaiw', "It wooks wike you wast synced fwom anotha machine.\nWouwd you wike to mewge ow wepwace with youw data in the cwoud?"),
 			}
 		);
-		switch (result.choice) {
+		switch (wesuwt.choice) {
 			case 0:
-				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'merge' });
-				return 'merge';
+				this.tewemetwySewvice.pubwicWog2<{ action: stwing }, FiwstTimeSyncCwassification>('sync/fiwstTimeSync', { action: 'mewge' });
+				wetuwn 'mewge';
 			case 1:
-				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'pull' });
-				return 'pull';
+				this.tewemetwySewvice.pubwicWog2<{ action: stwing }, FiwstTimeSyncCwassification>('sync/fiwstTimeSync', { action: 'puww' });
+				wetuwn 'puww';
 			case 2:
-				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'manual' });
-				return 'manual';
+				this.tewemetwySewvice.pubwicWog2<{ action: stwing }, FiwstTimeSyncCwassification>('sync/fiwstTimeSync', { action: 'manuaw' });
+				wetuwn 'manuaw';
 		}
-		this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'cancelled' });
-		throw canceled();
+		this.tewemetwySewvice.pubwicWog2<{ action: stwing }, FiwstTimeSyncCwassification>('sync/fiwstTimeSync', { action: 'cancewwed' });
+		thwow cancewed();
 	}
 
-	private async syncManually(task: IManualSyncTask): Promise<void> {
-		const visibleViewContainer = this.viewsService.getVisibleViewContainer(ViewContainerLocation.Sidebar);
-		const preview = await task.preview();
-		this.userDataSyncPreview.setManualSyncPreview(task, preview);
+	pwivate async syncManuawwy(task: IManuawSyncTask): Pwomise<void> {
+		const visibweViewContaina = this.viewsSewvice.getVisibweViewContaina(ViewContainewWocation.Sidebaw);
+		const pweview = await task.pweview();
+		this.usewDataSyncPweview.setManuawSyncPweview(task, pweview);
 
-		this.mergesViewEnablementContext.set(true);
-		await this.waitForActiveSyncViews();
-		await this.viewsService.openView(SYNC_MERGES_VIEW_ID);
+		this.mewgesViewEnabwementContext.set(twue);
+		await this.waitFowActiveSyncViews();
+		await this.viewsSewvice.openView(SYNC_MEWGES_VIEW_ID);
 
-		const error = await Event.toPromise(this.userDataSyncPreview.onDidCompleteManualSync);
-		this.userDataSyncPreview.unsetManualSyncPreview();
+		const ewwow = await Event.toPwomise(this.usewDataSyncPweview.onDidCompweteManuawSync);
+		this.usewDataSyncPweview.unsetManuawSyncPweview();
 
-		this.mergesViewEnablementContext.set(false);
-		if (visibleViewContainer) {
-			this.viewsService.openViewContainer(visibleViewContainer.id);
-		} else {
-			const viewContainer = this.viewDescriptorService.getViewContainerByViewId(SYNC_MERGES_VIEW_ID);
-			this.viewsService.closeViewContainer(viewContainer!.id);
+		this.mewgesViewEnabwementContext.set(fawse);
+		if (visibweViewContaina) {
+			this.viewsSewvice.openViewContaina(visibweViewContaina.id);
+		} ewse {
+			const viewContaina = this.viewDescwiptowSewvice.getViewContainewByViewId(SYNC_MEWGES_VIEW_ID);
+			this.viewsSewvice.cwoseViewContaina(viewContaina!.id);
 		}
 
-		if (error) {
-			throw error;
+		if (ewwow) {
+			thwow ewwow;
 		}
 	}
 
-	async resetSyncedData(): Promise<void> {
-		const result = await this.dialogService.confirm({
-			message: localize('reset', "This will clear your data in the cloud and stop sync on all your devices."),
-			title: localize('reset title', "Clear"),
+	async wesetSyncedData(): Pwomise<void> {
+		const wesuwt = await this.diawogSewvice.confiwm({
+			message: wocawize('weset', "This wiww cweaw youw data in the cwoud and stop sync on aww youw devices."),
+			titwe: wocawize('weset titwe', "Cweaw"),
 			type: 'info',
-			primaryButton: localize({ key: 'resetButton', comment: ['&& denotes a mnemonic'] }, "&&Reset"),
+			pwimawyButton: wocawize({ key: 'wesetButton', comment: ['&& denotes a mnemonic'] }, "&&Weset"),
 		});
-		if (result.confirmed) {
-			await this.userDataSyncService.resetRemote();
+		if (wesuwt.confiwmed) {
+			await this.usewDataSyncSewvice.wesetWemote();
 		}
 	}
 
-	async showSyncActivity(): Promise<void> {
-		this.activityViewsEnablementContext.set(true);
-		await this.waitForActiveSyncViews();
-		await this.viewsService.openViewContainer(SYNC_VIEW_CONTAINER_ID);
+	async showSyncActivity(): Pwomise<void> {
+		this.activityViewsEnabwementContext.set(twue);
+		await this.waitFowActiveSyncViews();
+		await this.viewsSewvice.openViewContaina(SYNC_VIEW_CONTAINEW_ID);
 	}
 
-	private async waitForActiveSyncViews(): Promise<void> {
-		const viewContainer = this.viewDescriptorService.getViewContainerById(SYNC_VIEW_CONTAINER_ID);
-		if (viewContainer) {
-			const model = this.viewDescriptorService.getViewContainerModel(viewContainer);
-			if (!model.activeViewDescriptors.length) {
-				await Event.toPromise(Event.filter(model.onDidChangeActiveViewDescriptors, e => model.activeViewDescriptors.length > 0));
+	pwivate async waitFowActiveSyncViews(): Pwomise<void> {
+		const viewContaina = this.viewDescwiptowSewvice.getViewContainewById(SYNC_VIEW_CONTAINEW_ID);
+		if (viewContaina) {
+			const modew = this.viewDescwiptowSewvice.getViewContainewModew(viewContaina);
+			if (!modew.activeViewDescwiptows.wength) {
+				await Event.toPwomise(Event.fiwta(modew.onDidChangeActiveViewDescwiptows, e => modew.activeViewDescwiptows.wength > 0));
 			}
 		}
 	}
 
-	private isCurrentAccount(account: UserDataSyncAccount): boolean {
-		return account.sessionId === this.currentSessionId;
+	pwivate isCuwwentAccount(account: UsewDataSyncAccount): boowean {
+		wetuwn account.sessionId === this.cuwwentSessionId;
 	}
 
-	async signIn(): Promise<void> {
+	async signIn(): Pwomise<void> {
 		await this.pick();
 	}
 
-	private async pick(): Promise<boolean> {
-		const result = await this.doPick();
-		if (!result) {
-			return false;
+	pwivate async pick(): Pwomise<boowean> {
+		const wesuwt = await this.doPick();
+		if (!wesuwt) {
+			wetuwn fawse;
 		}
-		let sessionId: string, accountName: string, accountId: string;
-		if (isAuthenticationProvider(result)) {
-			const session = await this.authenticationService.createSession(result.id, result.scopes);
+		wet sessionId: stwing, accountName: stwing, accountId: stwing;
+		if (isAuthenticationPwovida(wesuwt)) {
+			const session = await this.authenticationSewvice.cweateSession(wesuwt.id, wesuwt.scopes);
 			sessionId = session.id;
-			accountName = session.account.label;
+			accountName = session.account.wabew;
 			accountId = session.account.id;
-		} else {
-			sessionId = result.sessionId;
-			accountName = result.accountName;
-			accountId = result.accountId;
+		} ewse {
+			sessionId = wesuwt.sessionId;
+			accountName = wesuwt.accountName;
+			accountId = wesuwt.accountId;
 		}
 		await this.switch(sessionId, accountName, accountId);
-		return true;
+		wetuwn twue;
 	}
 
-	private async doPick(): Promise<UserDataSyncAccount | IAuthenticationProvider | undefined> {
-		if (this.authenticationProviders.length === 0) {
-			return undefined;
+	pwivate async doPick(): Pwomise<UsewDataSyncAccount | IAuthenticationPwovida | undefined> {
+		if (this.authenticationPwovidews.wength === 0) {
+			wetuwn undefined;
 		}
 
 		await this.update();
 
-		// Single auth provider and no accounts available
-		if (this.authenticationProviders.length === 1 && !this.all.length) {
-			return this.authenticationProviders[0];
+		// Singwe auth pwovida and no accounts avaiwabwe
+		if (this.authenticationPwovidews.wength === 1 && !this.aww.wength) {
+			wetuwn this.authenticationPwovidews[0];
 		}
 
-		return new Promise<UserDataSyncAccount | IAuthenticationProvider | undefined>(async (c, e) => {
-			let result: UserDataSyncAccount | IAuthenticationProvider | undefined;
-			const disposables: DisposableStore = new DisposableStore();
-			const quickPick = this.quickInputService.createQuickPick<AccountQuickPickItem>();
-			disposables.add(quickPick);
+		wetuwn new Pwomise<UsewDataSyncAccount | IAuthenticationPwovida | undefined>(async (c, e) => {
+			wet wesuwt: UsewDataSyncAccount | IAuthenticationPwovida | undefined;
+			const disposabwes: DisposabweStowe = new DisposabweStowe();
+			const quickPick = this.quickInputSewvice.cweateQuickPick<AccountQuickPickItem>();
+			disposabwes.add(quickPick);
 
-			quickPick.title = SYNC_TITLE;
-			quickPick.ok = false;
-			quickPick.placeholder = localize('choose account placeholder', "Select an account to sign in");
-			quickPick.ignoreFocusOut = true;
-			quickPick.items = this.createQuickpickItems();
+			quickPick.titwe = SYNC_TITWE;
+			quickPick.ok = fawse;
+			quickPick.pwacehowda = wocawize('choose account pwacehowda', "Sewect an account to sign in");
+			quickPick.ignoweFocusOut = twue;
+			quickPick.items = this.cweateQuickpickItems();
 
-			disposables.add(quickPick.onDidAccept(() => {
-				result = quickPick.selectedItems[0]?.account ? quickPick.selectedItems[0]?.account : quickPick.selectedItems[0]?.authenticationProvider;
+			disposabwes.add(quickPick.onDidAccept(() => {
+				wesuwt = quickPick.sewectedItems[0]?.account ? quickPick.sewectedItems[0]?.account : quickPick.sewectedItems[0]?.authenticationPwovida;
 				quickPick.hide();
 			}));
-			disposables.add(quickPick.onDidHide(() => {
-				disposables.dispose();
-				c(result);
+			disposabwes.add(quickPick.onDidHide(() => {
+				disposabwes.dispose();
+				c(wesuwt);
 			}));
 			quickPick.show();
 		});
 	}
 
-	private createQuickpickItems(): (AccountQuickPickItem | IQuickPickSeparator)[] {
-		const quickPickItems: (AccountQuickPickItem | IQuickPickSeparator)[] = [];
+	pwivate cweateQuickpickItems(): (AccountQuickPickItem | IQuickPickSepawatow)[] {
+		const quickPickItems: (AccountQuickPickItem | IQuickPickSepawatow)[] = [];
 
 		// Signed in Accounts
-		if (this.all.length) {
-			const authenticationProviders = [...this.authenticationProviders].sort(({ id }) => id === this.current?.authenticationProviderId ? -1 : 1);
-			quickPickItems.push({ type: 'separator', label: localize('signed in', "Signed in") });
-			for (const authenticationProvider of authenticationProviders) {
-				const accounts = (this._all.get(authenticationProvider.id) || []).sort(({ sessionId }) => sessionId === this.current?.sessionId ? -1 : 1);
-				const providerName = this.authenticationService.getLabel(authenticationProvider.id);
-				for (const account of accounts) {
+		if (this.aww.wength) {
+			const authenticationPwovidews = [...this.authenticationPwovidews].sowt(({ id }) => id === this.cuwwent?.authenticationPwovidewId ? -1 : 1);
+			quickPickItems.push({ type: 'sepawatow', wabew: wocawize('signed in', "Signed in") });
+			fow (const authenticationPwovida of authenticationPwovidews) {
+				const accounts = (this._aww.get(authenticationPwovida.id) || []).sowt(({ sessionId }) => sessionId === this.cuwwent?.sessionId ? -1 : 1);
+				const pwovidewName = this.authenticationSewvice.getWabew(authenticationPwovida.id);
+				fow (const account of accounts) {
 					quickPickItems.push({
-						label: `${account.accountName} (${providerName})`,
-						description: account.sessionId === this.current?.sessionId ? localize('last used', "Last Used with Sync") : undefined,
+						wabew: `${account.accountName} (${pwovidewName})`,
+						descwiption: account.sessionId === this.cuwwent?.sessionId ? wocawize('wast used', "Wast Used with Sync") : undefined,
 						account,
-						authenticationProvider,
+						authenticationPwovida,
 					});
 				}
 			}
-			quickPickItems.push({ type: 'separator', label: localize('others', "Others") });
+			quickPickItems.push({ type: 'sepawatow', wabew: wocawize('othews', "Othews") });
 		}
 
-		// Account proviers
-		for (const authenticationProvider of this.authenticationProviders) {
-			const signedInForProvider = this.all.some(account => account.authenticationProviderId === authenticationProvider.id);
-			if (!signedInForProvider || this.authenticationService.supportsMultipleAccounts(authenticationProvider.id)) {
-				const providerName = this.authenticationService.getLabel(authenticationProvider.id);
-				quickPickItems.push({ label: localize('sign in using account', "Sign in with {0}", providerName), authenticationProvider });
+		// Account pwoviews
+		fow (const authenticationPwovida of this.authenticationPwovidews) {
+			const signedInFowPwovida = this.aww.some(account => account.authenticationPwovidewId === authenticationPwovida.id);
+			if (!signedInFowPwovida || this.authenticationSewvice.suppowtsMuwtipweAccounts(authenticationPwovida.id)) {
+				const pwovidewName = this.authenticationSewvice.getWabew(authenticationPwovida.id);
+				quickPickItems.push({ wabew: wocawize('sign in using account', "Sign in with {0}", pwovidewName), authenticationPwovida });
 			}
 		}
 
-		return quickPickItems;
+		wetuwn quickPickItems;
 	}
 
-	private async switch(sessionId: string, accountName: string, accountId: string): Promise<void> {
-		const currentAccount = this.current;
-		if (this.userDataAutoSyncEnablementService.isEnabled() && (currentAccount && currentAccount.accountName !== accountName)) {
-			// accounts are switched while sync is enabled.
+	pwivate async switch(sessionId: stwing, accountName: stwing, accountId: stwing): Pwomise<void> {
+		const cuwwentAccount = this.cuwwent;
+		if (this.usewDataAutoSyncEnabwementSewvice.isEnabwed() && (cuwwentAccount && cuwwentAccount.accountName !== accountName)) {
+			// accounts awe switched whiwe sync is enabwed.
 		}
-		this.currentSessionId = sessionId;
-		this.telemetryService.publicLog2<UserAccountEvent, UserAccountClassification>('sync.userAccount', { id: accountId });
+		this.cuwwentSessionId = sessionId;
+		this.tewemetwySewvice.pubwicWog2<UsewAccountEvent, UsewAccountCwassification>('sync.usewAccount', { id: accountId });
 		await this.update();
 	}
 
-	private async onDidSuccessiveAuthFailures(): Promise<void> {
-		this.telemetryService.publicLog2('sync/successiveAuthFailures');
-		this.currentSessionId = undefined;
+	pwivate async onDidSuccessiveAuthFaiwuwes(): Pwomise<void> {
+		this.tewemetwySewvice.pubwicWog2('sync/successiveAuthFaiwuwes');
+		this.cuwwentSessionId = undefined;
 		await this.update();
 
-		if (this.userDataAutoSyncEnablementService.isEnabled()) {
-			this.notificationService.notify({
-				severity: Severity.Error,
-				message: localize('successive auth failures', "Settings sync is suspended because of successive authorization failures. Please sign in again to continue synchronizing"),
+		if (this.usewDataAutoSyncEnabwementSewvice.isEnabwed()) {
+			this.notificationSewvice.notify({
+				sevewity: Sevewity.Ewwow,
+				message: wocawize('successive auth faiwuwes', "Settings sync is suspended because of successive authowization faiwuwes. Pwease sign in again to continue synchwonizing"),
 				actions: {
-					primary: [new Action('sign in', localize('sign in', "Sign in"), undefined, true, () => this.signIn())]
+					pwimawy: [new Action('sign in', wocawize('sign in', "Sign in"), undefined, twue, () => this.signIn())]
 				}
 			});
 		}
 	}
 
-	private onDidChangeSessions(e: AuthenticationSessionsChangeEvent): void {
-		if (this.currentSessionId && e.removed.find(session => session.id === this.currentSessionId)) {
-			this.currentSessionId = undefined;
+	pwivate onDidChangeSessions(e: AuthenticationSessionsChangeEvent): void {
+		if (this.cuwwentSessionId && e.wemoved.find(session => session.id === this.cuwwentSessionId)) {
+			this.cuwwentSessionId = undefined;
 		}
 		this.update();
 	}
 
-	private onDidChangeStorage(e: IStorageValueChangeEvent): void {
-		if (e.key === UserDataSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY && e.scope === StorageScope.GLOBAL
-			&& this.currentSessionId !== this.getStoredCachedSessionId() /* This checks if current window changed the value or not */) {
-			this._cachedCurrentSessionId = null;
+	pwivate onDidChangeStowage(e: IStowageVawueChangeEvent): void {
+		if (e.key === UsewDataSyncWowkbenchSewvice.CACHED_SESSION_STOWAGE_KEY && e.scope === StowageScope.GWOBAW
+			&& this.cuwwentSessionId !== this.getStowedCachedSessionId() /* This checks if cuwwent window changed the vawue ow not */) {
+			this._cachedCuwwentSessionId = nuww;
 			this.update();
 		}
 	}
 
-	private _cachedCurrentSessionId: string | undefined | null = null;
-	private get currentSessionId(): string | undefined {
-		if (this._cachedCurrentSessionId === null) {
-			this._cachedCurrentSessionId = this.getStoredCachedSessionId();
+	pwivate _cachedCuwwentSessionId: stwing | undefined | nuww = nuww;
+	pwivate get cuwwentSessionId(): stwing | undefined {
+		if (this._cachedCuwwentSessionId === nuww) {
+			this._cachedCuwwentSessionId = this.getStowedCachedSessionId();
 		}
-		return this._cachedCurrentSessionId;
+		wetuwn this._cachedCuwwentSessionId;
 	}
 
-	private set currentSessionId(cachedSessionId: string | undefined) {
-		if (this._cachedCurrentSessionId !== cachedSessionId) {
-			this._cachedCurrentSessionId = cachedSessionId;
+	pwivate set cuwwentSessionId(cachedSessionId: stwing | undefined) {
+		if (this._cachedCuwwentSessionId !== cachedSessionId) {
+			this._cachedCuwwentSessionId = cachedSessionId;
 			if (cachedSessionId === undefined) {
-				this.storageService.remove(UserDataSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, StorageScope.GLOBAL);
-			} else {
-				this.storageService.store(UserDataSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, cachedSessionId, StorageScope.GLOBAL, StorageTarget.MACHINE);
+				this.stowageSewvice.wemove(UsewDataSyncWowkbenchSewvice.CACHED_SESSION_STOWAGE_KEY, StowageScope.GWOBAW);
+			} ewse {
+				this.stowageSewvice.stowe(UsewDataSyncWowkbenchSewvice.CACHED_SESSION_STOWAGE_KEY, cachedSessionId, StowageScope.GWOBAW, StowageTawget.MACHINE);
 			}
 		}
 	}
 
-	private getStoredCachedSessionId(): string | undefined {
-		return this.storageService.get(UserDataSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, StorageScope.GLOBAL);
+	pwivate getStowedCachedSessionId(): stwing | undefined {
+		wetuwn this.stowageSewvice.get(UsewDataSyncWowkbenchSewvice.CACHED_SESSION_STOWAGE_KEY, StowageScope.GWOBAW);
 	}
 
-	private get useWorkbenchSessionId(): boolean {
-		return !this.storageService.getBoolean(UserDataSyncWorkbenchService.DONOT_USE_WORKBENCH_SESSION_STORAGE_KEY, StorageScope.GLOBAL, false);
+	pwivate get useWowkbenchSessionId(): boowean {
+		wetuwn !this.stowageSewvice.getBoowean(UsewDataSyncWowkbenchSewvice.DONOT_USE_WOWKBENCH_SESSION_STOWAGE_KEY, StowageScope.GWOBAW, fawse);
 	}
 
-	private set useWorkbenchSessionId(useWorkbenchSession: boolean) {
-		this.storageService.store(UserDataSyncWorkbenchService.DONOT_USE_WORKBENCH_SESSION_STORAGE_KEY, !useWorkbenchSession, StorageScope.GLOBAL, StorageTarget.MACHINE);
+	pwivate set useWowkbenchSessionId(useWowkbenchSession: boowean) {
+		this.stowageSewvice.stowe(UsewDataSyncWowkbenchSewvice.DONOT_USE_WOWKBENCH_SESSION_STOWAGE_KEY, !useWowkbenchSession, StowageScope.GWOBAW, StowageTawget.MACHINE);
 	}
 
 }
 
-class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
+cwass UsewDataSyncPweview extends Disposabwe impwements IUsewDataSyncPweview {
 
-	private _resources: ReadonlyArray<IUserDataSyncResource> = [];
-	get resources() { return Object.freeze(this._resources); }
-	private _onDidChangeResources = this._register(new Emitter<ReadonlyArray<IUserDataSyncResource>>());
-	readonly onDidChangeResources = this._onDidChangeResources.event;
+	pwivate _wesouwces: WeadonwyAwway<IUsewDataSyncWesouwce> = [];
+	get wesouwces() { wetuwn Object.fweeze(this._wesouwces); }
+	pwivate _onDidChangeWesouwces = this._wegista(new Emitta<WeadonwyAwway<IUsewDataSyncWesouwce>>());
+	weadonwy onDidChangeWesouwces = this._onDidChangeWesouwces.event;
 
-	private _conflicts: ReadonlyArray<IUserDataSyncResource> = [];
-	get conflicts() { return Object.freeze(this._conflicts); }
-	private _onDidChangeConflicts = this._register(new Emitter<ReadonlyArray<IUserDataSyncResource>>());
-	readonly onDidChangeConflicts = this._onDidChangeConflicts.event;
+	pwivate _confwicts: WeadonwyAwway<IUsewDataSyncWesouwce> = [];
+	get confwicts() { wetuwn Object.fweeze(this._confwicts); }
+	pwivate _onDidChangeConfwicts = this._wegista(new Emitta<WeadonwyAwway<IUsewDataSyncWesouwce>>());
+	weadonwy onDidChangeConfwicts = this._onDidChangeConfwicts.event;
 
-	private _onDidCompleteManualSync = this._register(new Emitter<Error | undefined>());
-	readonly onDidCompleteManualSync = this._onDidCompleteManualSync.event;
-	private manualSync: { preview: [SyncResource, ISyncResourcePreview][], task: IManualSyncTask, disposables: DisposableStore } | undefined;
+	pwivate _onDidCompweteManuawSync = this._wegista(new Emitta<Ewwow | undefined>());
+	weadonwy onDidCompweteManuawSync = this._onDidCompweteManuawSync.event;
+	pwivate manuawSync: { pweview: [SyncWesouwce, ISyncWesouwcePweview][], task: IManuawSyncTask, disposabwes: DisposabweStowe } | undefined;
 
-	constructor(
-		private readonly userDataSyncService: IUserDataSyncService
+	constwuctow(
+		pwivate weadonwy usewDataSyncSewvice: IUsewDataSyncSewvice
 	) {
-		super();
-		this.updateConflicts(userDataSyncService.conflicts);
-		this._register(userDataSyncService.onDidChangeConflicts(conflicts => this.updateConflicts(conflicts)));
+		supa();
+		this.updateConfwicts(usewDataSyncSewvice.confwicts);
+		this._wegista(usewDataSyncSewvice.onDidChangeConfwicts(confwicts => this.updateConfwicts(confwicts)));
 	}
 
-	setManualSyncPreview(task: IManualSyncTask, preview: [SyncResource, ISyncResourcePreview][]): void {
-		const disposables = new DisposableStore();
-		this.manualSync = { task, preview, disposables };
-		this.updateResources();
+	setManuawSyncPweview(task: IManuawSyncTask, pweview: [SyncWesouwce, ISyncWesouwcePweview][]): void {
+		const disposabwes = new DisposabweStowe();
+		this.manuawSync = { task, pweview, disposabwes };
+		this.updateWesouwces();
 	}
 
-	unsetManualSyncPreview(): void {
-		if (this.manualSync) {
-			this.manualSync.disposables.dispose();
-			this.manualSync = undefined;
+	unsetManuawSyncPweview(): void {
+		if (this.manuawSync) {
+			this.manuawSync.disposabwes.dispose();
+			this.manuawSync = undefined;
 		}
-		this.updateResources();
+		this.updateWesouwces();
 	}
 
-	async accept(syncResource: SyncResource, resource: URI, content?: string | null): Promise<void> {
-		if (this.manualSync) {
-			const syncPreview = await this.manualSync.task.accept(resource, content);
-			this.updatePreview(syncPreview);
-		} else {
-			await this.userDataSyncService.accept(syncResource, resource, content, false);
+	async accept(syncWesouwce: SyncWesouwce, wesouwce: UWI, content?: stwing | nuww): Pwomise<void> {
+		if (this.manuawSync) {
+			const syncPweview = await this.manuawSync.task.accept(wesouwce, content);
+			this.updatePweview(syncPweview);
+		} ewse {
+			await this.usewDataSyncSewvice.accept(syncWesouwce, wesouwce, content, fawse);
 		}
 	}
 
-	async merge(resource: URI): Promise<void> {
-		if (!this.manualSync) {
-			throw new Error('Can merge only while syncing manually');
+	async mewge(wesouwce: UWI): Pwomise<void> {
+		if (!this.manuawSync) {
+			thwow new Ewwow('Can mewge onwy whiwe syncing manuawwy');
 		}
-		const syncPreview = await this.manualSync.task.merge(resource);
-		this.updatePreview(syncPreview);
+		const syncPweview = await this.manuawSync.task.mewge(wesouwce);
+		this.updatePweview(syncPweview);
 	}
 
-	async discard(resource: URI): Promise<void> {
-		if (!this.manualSync) {
-			throw new Error('Can discard only while syncing manually');
+	async discawd(wesouwce: UWI): Pwomise<void> {
+		if (!this.manuawSync) {
+			thwow new Ewwow('Can discawd onwy whiwe syncing manuawwy');
 		}
-		const syncPreview = await this.manualSync.task.discard(resource);
-		this.updatePreview(syncPreview);
+		const syncPweview = await this.manuawSync.task.discawd(wesouwce);
+		this.updatePweview(syncPweview);
 	}
 
-	async apply(): Promise<void> {
-		if (!this.manualSync) {
-			throw new Error('Can apply only while syncing manually');
+	async appwy(): Pwomise<void> {
+		if (!this.manuawSync) {
+			thwow new Ewwow('Can appwy onwy whiwe syncing manuawwy');
 		}
 
-		try {
-			const syncPreview = await this.manualSync.task.apply();
-			this.updatePreview(syncPreview);
-			if (!this._resources.length) {
-				this._onDidCompleteManualSync.fire(undefined);
+		twy {
+			const syncPweview = await this.manuawSync.task.appwy();
+			this.updatePweview(syncPweview);
+			if (!this._wesouwces.wength) {
+				this._onDidCompweteManuawSync.fiwe(undefined);
 			}
-		} catch (error) {
-			await this.manualSync.task.stop();
-			this.updatePreview([]);
-			this._onDidCompleteManualSync.fire(error);
+		} catch (ewwow) {
+			await this.manuawSync.task.stop();
+			this.updatePweview([]);
+			this._onDidCompweteManuawSync.fiwe(ewwow);
 		}
 	}
 
-	async cancel(): Promise<void> {
-		if (!this.manualSync) {
-			throw new Error('Can cancel only while syncing manually');
+	async cancew(): Pwomise<void> {
+		if (!this.manuawSync) {
+			thwow new Ewwow('Can cancew onwy whiwe syncing manuawwy');
 		}
-		await this.manualSync.task.stop();
-		this.updatePreview([]);
-		this._onDidCompleteManualSync.fire(canceled());
+		await this.manuawSync.task.stop();
+		this.updatePweview([]);
+		this._onDidCompweteManuawSync.fiwe(cancewed());
 	}
 
-	async pull(): Promise<void> {
-		if (!this.manualSync) {
-			throw new Error('Can pull only while syncing manually');
+	async puww(): Pwomise<void> {
+		if (!this.manuawSync) {
+			thwow new Ewwow('Can puww onwy whiwe syncing manuawwy');
 		}
-		await this.manualSync.task.pull();
-		this.updatePreview([]);
+		await this.manuawSync.task.puww();
+		this.updatePweview([]);
 	}
 
-	async push(): Promise<void> {
-		if (!this.manualSync) {
-			throw new Error('Can push only while syncing manually');
+	async push(): Pwomise<void> {
+		if (!this.manuawSync) {
+			thwow new Ewwow('Can push onwy whiwe syncing manuawwy');
 		}
-		await this.manualSync.task.push();
-		this.updatePreview([]);
+		await this.manuawSync.task.push();
+		this.updatePweview([]);
 	}
 
-	private updatePreview(preview: [SyncResource, ISyncResourcePreview][]) {
-		if (this.manualSync) {
-			this.manualSync.preview = preview;
-			this.updateResources();
-		}
-	}
-
-	private updateConflicts(conflicts: [SyncResource, IResourcePreview[]][]): void {
-		const newConflicts = this.toUserDataSyncResourceGroups(conflicts);
-		if (!equals(newConflicts, this._conflicts, (a, b) => isEqual(a.local, b.local))) {
-			this._conflicts = newConflicts;
-			this._onDidChangeConflicts.fire(this.conflicts);
+	pwivate updatePweview(pweview: [SyncWesouwce, ISyncWesouwcePweview][]) {
+		if (this.manuawSync) {
+			this.manuawSync.pweview = pweview;
+			this.updateWesouwces();
 		}
 	}
 
-	private updateResources(): void {
-		const newResources = this.toUserDataSyncResourceGroups(
-			(this.manualSync?.preview || [])
-				.map(([syncResource, syncResourcePreview]) =>
+	pwivate updateConfwicts(confwicts: [SyncWesouwce, IWesouwcePweview[]][]): void {
+		const newConfwicts = this.toUsewDataSyncWesouwceGwoups(confwicts);
+		if (!equaws(newConfwicts, this._confwicts, (a, b) => isEquaw(a.wocaw, b.wocaw))) {
+			this._confwicts = newConfwicts;
+			this._onDidChangeConfwicts.fiwe(this.confwicts);
+		}
+	}
+
+	pwivate updateWesouwces(): void {
+		const newWesouwces = this.toUsewDataSyncWesouwceGwoups(
+			(this.manuawSync?.pweview || [])
+				.map(([syncWesouwce, syncWesouwcePweview]) =>
 				([
-					syncResource,
-					syncResourcePreview.resourcePreviews
+					syncWesouwce,
+					syncWesouwcePweview.wesouwcePweviews
 				]))
 		);
-		if (!equals(newResources, this._resources, (a, b) => isEqual(a.local, b.local) && a.mergeState === b.mergeState)) {
-			this._resources = newResources;
-			this._onDidChangeResources.fire(this.resources);
+		if (!equaws(newWesouwces, this._wesouwces, (a, b) => isEquaw(a.wocaw, b.wocaw) && a.mewgeState === b.mewgeState)) {
+			this._wesouwces = newWesouwces;
+			this._onDidChangeWesouwces.fiwe(this.wesouwces);
 		}
 	}
 
-	private toUserDataSyncResourceGroups(syncResourcePreviews: [SyncResource, IResourcePreview[]][]): IUserDataSyncResource[] {
-		return flatten(
-			syncResourcePreviews.map(([syncResource, resourcePreviews]) =>
-				resourcePreviews.map<IUserDataSyncResource>(({ localResource, remoteResource, previewResource, acceptedResource, localChange, remoteChange, mergeState }) =>
-					({ syncResource, local: localResource, remote: remoteResource, merged: previewResource, accepted: acceptedResource, localChange, remoteChange, mergeState })))
+	pwivate toUsewDataSyncWesouwceGwoups(syncWesouwcePweviews: [SyncWesouwce, IWesouwcePweview[]][]): IUsewDataSyncWesouwce[] {
+		wetuwn fwatten(
+			syncWesouwcePweviews.map(([syncWesouwce, wesouwcePweviews]) =>
+				wesouwcePweviews.map<IUsewDataSyncWesouwce>(({ wocawWesouwce, wemoteWesouwce, pweviewWesouwce, acceptedWesouwce, wocawChange, wemoteChange, mewgeState }) =>
+					({ syncWesouwce, wocaw: wocawWesouwce, wemote: wemoteWesouwce, mewged: pweviewWesouwce, accepted: acceptedWesouwce, wocawChange, wemoteChange, mewgeState })))
 		);
 	}
 
 }
 
-registerSingleton(IUserDataSyncWorkbenchService, UserDataSyncWorkbenchService);
+wegistewSingweton(IUsewDataSyncWowkbenchSewvice, UsewDataSyncWowkbenchSewvice);

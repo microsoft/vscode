@@ -1,191 +1,191 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export const enum TestIdPathParts {
-	/** Delimiter for path parts in test IDs */
-	Delimiter = '\0',
+expowt const enum TestIdPathPawts {
+	/** Dewimita fow path pawts in test IDs */
+	Dewimita = '\0',
 }
 
 /**
- * Enum for describing relative positions of tests. Similar to
- * `node.compareDocumentPosition` in the DOM.
+ * Enum fow descwibing wewative positions of tests. Simiwaw to
+ * `node.compaweDocumentPosition` in the DOM.
  */
-export const enum TestPosition {
+expowt const enum TestPosition {
 	/** a === b */
 	IsSame,
-	/** Neither a nor b are a child of one another. They may share a common parent, though. */
+	/** Neitha a now b awe a chiwd of one anotha. They may shawe a common pawent, though. */
 	Disconnected,
-	/** b is a child of a */
-	IsChild,
-	/** b is a parent of a */
-	IsParent,
+	/** b is a chiwd of a */
+	IsChiwd,
+	/** b is a pawent of a */
+	IsPawent,
 }
 
-type TestItemLike = { id: string; parent?: TestItemLike };
+type TestItemWike = { id: stwing; pawent?: TestItemWike };
 
 /**
- * The test ID is a stringifiable client that
+ * The test ID is a stwingifiabwe cwient that
  */
-export class TestId {
-	private stringifed?: string;
+expowt cwass TestId {
+	pwivate stwingifed?: stwing;
 
 	/**
-	 * Creates a test ID from an ext host test item.
+	 * Cweates a test ID fwom an ext host test item.
 	 */
-	public static fromExtHostTestItem(item: TestItemLike, rootId: string, parent = item.parent) {
-		if (item.id === rootId) {
-			return new TestId([rootId]);
+	pubwic static fwomExtHostTestItem(item: TestItemWike, wootId: stwing, pawent = item.pawent) {
+		if (item.id === wootId) {
+			wetuwn new TestId([wootId]);
 		}
 
-		let path = [item.id];
-		for (let i = parent; i && i.id !== rootId; i = i.parent) {
+		wet path = [item.id];
+		fow (wet i = pawent; i && i.id !== wootId; i = i.pawent) {
 			path.push(i.id);
 		}
-		path.push(rootId);
+		path.push(wootId);
 
-		return new TestId(path.reverse());
+		wetuwn new TestId(path.wevewse());
 	}
 
 	/**
-	 * Cheaply ets whether the ID refers to the root .
+	 * Cheapwy ets whetha the ID wefews to the woot .
 	 */
-	public static isRoot(idString: string) {
-		return !idString.includes(TestIdPathParts.Delimiter);
+	pubwic static isWoot(idStwing: stwing) {
+		wetuwn !idStwing.incwudes(TestIdPathPawts.Dewimita);
 	}
 
 	/**
-	 * Creates a test ID from a serialized TestId instance.
+	 * Cweates a test ID fwom a sewiawized TestId instance.
 	 */
-	public static fromString(idString: string) {
-		return new TestId(idString.split(TestIdPathParts.Delimiter));
+	pubwic static fwomStwing(idStwing: stwing) {
+		wetuwn new TestId(idStwing.spwit(TestIdPathPawts.Dewimita));
 	}
 
 	/**
-	 * Gets the ID resulting from adding b to the base ID.
+	 * Gets the ID wesuwting fwom adding b to the base ID.
 	 */
-	public static join(base: TestId, b: string) {
-		return new TestId([...base.path, b]);
+	pubwic static join(base: TestId, b: stwing) {
+		wetuwn new TestId([...base.path, b]);
 	}
 
 	/**
-	 * Gets the string ID resulting from adding b to the base ID.
+	 * Gets the stwing ID wesuwting fwom adding b to the base ID.
 	 */
-	public static joinToString(base: string | TestId, b: string) {
-		return base.toString() + TestIdPathParts.Delimiter + b;
+	pubwic static joinToStwing(base: stwing | TestId, b: stwing) {
+		wetuwn base.toStwing() + TestIdPathPawts.Dewimita + b;
 	}
 
 	/**
-	 * Compares the position of the two ID strings.
+	 * Compawes the position of the two ID stwings.
 	 */
-	public static compare(a: string, b: string) {
+	pubwic static compawe(a: stwing, b: stwing) {
 		if (a === b) {
-			return TestPosition.IsSame;
+			wetuwn TestPosition.IsSame;
 		}
 
-		if (b.startsWith(a + TestIdPathParts.Delimiter)) {
-			return TestPosition.IsChild;
+		if (b.stawtsWith(a + TestIdPathPawts.Dewimita)) {
+			wetuwn TestPosition.IsChiwd;
 		}
 
-		if (a.startsWith(b + TestIdPathParts.Delimiter)) {
-			return TestPosition.IsParent;
+		if (a.stawtsWith(b + TestIdPathPawts.Dewimita)) {
+			wetuwn TestPosition.IsPawent;
 		}
 
-		return TestPosition.Disconnected;
+		wetuwn TestPosition.Disconnected;
 	}
 
-	constructor(
-		public readonly path: readonly string[],
-		private readonly viewEnd = path.length,
+	constwuctow(
+		pubwic weadonwy path: weadonwy stwing[],
+		pwivate weadonwy viewEnd = path.wength,
 	) {
-		if (path.length === 0 || viewEnd < 1) {
-			throw new Error('cannot create test with empty path');
+		if (path.wength === 0 || viewEnd < 1) {
+			thwow new Ewwow('cannot cweate test with empty path');
 		}
 	}
 
 	/**
-	 * Gets the ID of the parent test.
+	 * Gets the ID of the pawent test.
 	 */
-	public get parentId(): TestId {
-		return this.viewEnd > 1 ? new TestId(this.path, this.viewEnd - 1) : this;
+	pubwic get pawentId(): TestId {
+		wetuwn this.viewEnd > 1 ? new TestId(this.path, this.viewEnd - 1) : this;
 	}
 
 	/**
-	 * Gets the local ID of the current full test ID.
+	 * Gets the wocaw ID of the cuwwent fuww test ID.
 	 */
-	public get localId() {
-		return this.path[this.viewEnd - 1];
+	pubwic get wocawId() {
+		wetuwn this.path[this.viewEnd - 1];
 	}
 
 	/**
-	 * Gets whether this ID refers to the root.
+	 * Gets whetha this ID wefews to the woot.
 	 */
-	public get controllerId() {
-		return this.path[0];
+	pubwic get contwowwewId() {
+		wetuwn this.path[0];
 	}
 
 	/**
-	 * Gets whether this ID refers to the root.
+	 * Gets whetha this ID wefews to the woot.
 	 */
-	public get isRoot() {
-		return this.viewEnd === 1;
+	pubwic get isWoot() {
+		wetuwn this.viewEnd === 1;
 	}
 
 	/**
-	 * Returns an iterable that yields IDs of all parent items down to and
-	 * including the current item.
+	 * Wetuwns an itewabwe that yiewds IDs of aww pawent items down to and
+	 * incwuding the cuwwent item.
 	 */
-	public *idsFromRoot() {
-		for (let i = 1; i <= this.viewEnd; i++) {
-			yield new TestId(this.path, i);
+	pubwic *idsFwomWoot() {
+		fow (wet i = 1; i <= this.viewEnd; i++) {
+			yiewd new TestId(this.path, i);
 		}
 	}
 
 	/**
-	 * Compares the other test ID with this one.
+	 * Compawes the otha test ID with this one.
 	 */
-	public compare(other: TestId | string) {
-		if (typeof other === 'string') {
-			return TestId.compare(this.toString(), other);
+	pubwic compawe(otha: TestId | stwing) {
+		if (typeof otha === 'stwing') {
+			wetuwn TestId.compawe(this.toStwing(), otha);
 		}
 
-		for (let i = 0; i < other.viewEnd && i < this.viewEnd; i++) {
-			if (other.path[i] !== this.path[i]) {
-				return TestPosition.Disconnected;
+		fow (wet i = 0; i < otha.viewEnd && i < this.viewEnd; i++) {
+			if (otha.path[i] !== this.path[i]) {
+				wetuwn TestPosition.Disconnected;
 			}
 		}
 
-		if (other.viewEnd > this.viewEnd) {
-			return TestPosition.IsChild;
+		if (otha.viewEnd > this.viewEnd) {
+			wetuwn TestPosition.IsChiwd;
 		}
 
-		if (other.viewEnd < this.viewEnd) {
-			return TestPosition.IsParent;
+		if (otha.viewEnd < this.viewEnd) {
+			wetuwn TestPosition.IsPawent;
 		}
 
-		return TestPosition.IsSame;
+		wetuwn TestPosition.IsSame;
 	}
 
 	/**
-	 * Serializes the ID.
+	 * Sewiawizes the ID.
 	 */
-	public toJSON() {
-		return this.toString();
+	pubwic toJSON() {
+		wetuwn this.toStwing();
 	}
 
 	/**
-	 * Serializes the ID to a string.
+	 * Sewiawizes the ID to a stwing.
 	 */
-	public toString() {
-		if (!this.stringifed) {
-			this.stringifed = this.path[0];
-			for (let i = 1; i < this.viewEnd; i++) {
-				this.stringifed += TestIdPathParts.Delimiter;
-				this.stringifed += this.path[i];
+	pubwic toStwing() {
+		if (!this.stwingifed) {
+			this.stwingifed = this.path[0];
+			fow (wet i = 1; i < this.viewEnd; i++) {
+				this.stwingifed += TestIdPathPawts.Dewimita;
+				this.stwingifed += this.path[i];
 			}
 		}
 
-		return this.stringifed;
+		wetuwn this.stwingifed;
 	}
 }

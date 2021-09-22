@@ -1,123 +1,123 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-/* Use custom CSS vars to expose padding into parent select for padding calculation */
-.monaco-select-box-dropdown-padding {
-	--dropdown-padding-top: 1px;
-	--dropdown-padding-bottom: 1px;
+/* Use custom CSS vaws to expose padding into pawent sewect fow padding cawcuwation */
+.monaco-sewect-box-dwopdown-padding {
+	--dwopdown-padding-top: 1px;
+	--dwopdown-padding-bottom: 1px;
 }
 
-.hc-black .monaco-select-box-dropdown-padding {
-	--dropdown-padding-top: 3px;
-	--dropdown-padding-bottom: 4px;
+.hc-bwack .monaco-sewect-box-dwopdown-padding {
+	--dwopdown-padding-top: 3px;
+	--dwopdown-padding-bottom: 4px;
 }
 
-.monaco-select-box-dropdown-container {
-	display: none;
-	box-sizing:	border-box;
+.monaco-sewect-box-dwopdown-containa {
+	dispway: none;
+	box-sizing:	bowda-box;
 }
 
-.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown * {
-	margin: 0;
+.monaco-sewect-box-dwopdown-containa > .sewect-box-detaiws-pane > .sewect-box-descwiption-mawkdown * {
+	mawgin: 0;
 }
 
-.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown a:focus {
-	outline: 1px solid -webkit-focus-ring-color;
-	outline-offset: -1px;
+.monaco-sewect-box-dwopdown-containa > .sewect-box-detaiws-pane > .sewect-box-descwiption-mawkdown a:focus {
+	outwine: 1px sowid -webkit-focus-wing-cowow;
+	outwine-offset: -1px;
 }
 
-.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown code {
-	line-height: 15px; /** For some reason, this is needed, otherwise <code> will take up 20px height */
-	font-family: var(--monaco-monospace-font);
+.monaco-sewect-box-dwopdown-containa > .sewect-box-detaiws-pane > .sewect-box-descwiption-mawkdown code {
+	wine-height: 15px; /** Fow some weason, this is needed, othewwise <code> wiww take up 20px height */
+	font-famiwy: vaw(--monaco-monospace-font);
 }
 
 
-.monaco-select-box-dropdown-container.visible {
-	display: flex;
-	flex-direction: column;
-	text-align: left;
+.monaco-sewect-box-dwopdown-containa.visibwe {
+	dispway: fwex;
+	fwex-diwection: cowumn;
+	text-awign: weft;
 	width: 1px;
-	overflow: hidden;
+	ovewfwow: hidden;
 }
 
-.monaco-select-box-dropdown-container > .select-box-dropdown-list-container {
-	flex: 0 0 auto;
-	align-self: flex-start;
-	padding-top: var(--dropdown-padding-top);
-	padding-bottom: var(--dropdown-padding-bottom);
-	padding-left: 1px;
-	padding-right: 1px;
+.monaco-sewect-box-dwopdown-containa > .sewect-box-dwopdown-wist-containa {
+	fwex: 0 0 auto;
+	awign-sewf: fwex-stawt;
+	padding-top: vaw(--dwopdown-padding-top);
+	padding-bottom: vaw(--dwopdown-padding-bottom);
+	padding-weft: 1px;
+	padding-wight: 1px;
 	width: 100%;
-	overflow: hidden;
-	box-sizing:	border-box;
+	ovewfwow: hidden;
+	box-sizing:	bowda-box;
 }
 
-.monaco-select-box-dropdown-container > .select-box-details-pane {
+.monaco-sewect-box-dwopdown-containa > .sewect-box-detaiws-pane {
 	padding: 5px;
 }
 
-.hc-black .monaco-select-box-dropdown-container > .select-box-dropdown-list-container {
-	padding-top: var(--dropdown-padding-top);
-	padding-bottom: var(--dropdown-padding-bottom);
+.hc-bwack .monaco-sewect-box-dwopdown-containa > .sewect-box-dwopdown-wist-containa {
+	padding-top: vaw(--dwopdown-padding-top);
+	padding-bottom: vaw(--dwopdown-padding-bottom);
 }
 
-.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row {
-	cursor: pointer;
+.monaco-sewect-box-dwopdown-containa > .sewect-box-dwopdown-wist-containa .monaco-wist .monaco-wist-wow {
+	cuwsow: pointa;
 }
 
-.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row > .option-text {
-	text-overflow: ellipsis;
-	overflow: hidden;
-	padding-left: 3.5px;
-	white-space: nowrap;
-	float: left;
+.monaco-sewect-box-dwopdown-containa > .sewect-box-dwopdown-wist-containa .monaco-wist .monaco-wist-wow > .option-text {
+	text-ovewfwow: ewwipsis;
+	ovewfwow: hidden;
+	padding-weft: 3.5px;
+	white-space: nowwap;
+	fwoat: weft;
 }
 
-.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row > .option-detail {
-	text-overflow: ellipsis;
-	overflow: hidden;
-	padding-left: 3.5px;
-	white-space: nowrap;
-	float: left;
+.monaco-sewect-box-dwopdown-containa > .sewect-box-dwopdown-wist-containa .monaco-wist .monaco-wist-wow > .option-detaiw {
+	text-ovewfwow: ewwipsis;
+	ovewfwow: hidden;
+	padding-weft: 3.5px;
+	white-space: nowwap;
+	fwoat: weft;
 	opacity: 0.7;
 }
 
-.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row > .option-decorator-right {
-	text-overflow: ellipsis;
-	overflow: hidden;
-	padding-right: 10px;
-	white-space: nowrap;
-	float: right;
+.monaco-sewect-box-dwopdown-containa > .sewect-box-dwopdown-wist-containa .monaco-wist .monaco-wist-wow > .option-decowatow-wight {
+	text-ovewfwow: ewwipsis;
+	ovewfwow: hidden;
+	padding-wight: 10px;
+	white-space: nowwap;
+	fwoat: wight;
 }
 
 
-/* Accepted CSS hiding technique for accessibility reader text  */
-/* https://webaim.org/techniques/css/invisiblecontent/ */
+/* Accepted CSS hiding technique fow accessibiwity weada text  */
+/* https://webaim.owg/techniques/css/invisibwecontent/ */
 
-.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row > .visually-hidden {
-		position: absolute;
-		left: -10000px;
+.monaco-sewect-box-dwopdown-containa > .sewect-box-dwopdown-wist-containa .monaco-wist .monaco-wist-wow > .visuawwy-hidden {
+		position: absowute;
+		weft: -10000px;
 		top: auto;
 		width: 1px;
 		height: 1px;
-		overflow: hidden;
+		ovewfwow: hidden;
 }
 
-.monaco-select-box-dropdown-container > .select-box-dropdown-container-width-control {
-	flex: 1 1 auto;
-	align-self: flex-start;
+.monaco-sewect-box-dwopdown-containa > .sewect-box-dwopdown-containa-width-contwow {
+	fwex: 1 1 auto;
+	awign-sewf: fwex-stawt;
 	opacity: 0;
 }
 
-.monaco-select-box-dropdown-container > .select-box-dropdown-container-width-control > .width-control-div {
-	overflow: hidden;
+.monaco-sewect-box-dwopdown-containa > .sewect-box-dwopdown-containa-width-contwow > .width-contwow-div {
+	ovewfwow: hidden;
 	max-height: 0px;
 }
 
-.monaco-select-box-dropdown-container > .select-box-dropdown-container-width-control > .width-control-div > .option-text-width-control {
-	padding-left: 4px;
-	padding-right: 8px;
-	white-space: nowrap;
+.monaco-sewect-box-dwopdown-containa > .sewect-box-dwopdown-containa-width-contwow > .width-contwow-div > .option-text-width-contwow {
+	padding-weft: 4px;
+	padding-wight: 8px;
+	white-space: nowwap;
 }

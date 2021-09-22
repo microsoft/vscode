@@ -1,219 +1,219 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./workspaceTrustEditor';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Severity } from 'vs/platform/notification/common/notification';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, workspaceTrustToString, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeColor } from 'vs/workbench/api/common/extHostTypes';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
-import { shieldIcon, WorkspaceTrustEditor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustEditor';
-import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
-import { WORKSPACE_TRUST_BANNER, WORKSPACE_TRUST_EMPTY_WINDOW, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_STARTUP_PROMPT, WORKSPACE_TRUST_UNTRUSTED_FILES } from 'vs/workbench/services/workspaces/common/workspaceTrust';
-import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { isWeb } from 'vs/base/common/platform';
-import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
-import { dirname, resolve } from 'vs/base/common/path';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import product from 'vs/platform/product/common/product';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { splitName } from 'vs/base/common/labels';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
-import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
-import { LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { WORKSPACE_TRUST_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { ILabelService } from 'vs/platform/label/common/label';
+impowt 'vs/css!./wowkspaceTwustEditow';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { Disposabwe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Action2, MenuId, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ConfiguwationScope, Extensions as ConfiguwationExtensions, IConfiguwationWegistwy } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IWowkspaceTwustEnabwementSewvice, IWowkspaceTwustManagementSewvice, IWowkspaceTwustWequestSewvice, wowkspaceTwustToStwing, WowkspaceTwustUwiWesponse } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { ThemeCowow } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { ContextKeyExpw, IContextKey, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IStatusbawEntwy, IStatusbawEntwyAccessow, IStatusbawSewvice, StatusbawAwignment } fwom 'vs/wowkbench/sewvices/statusbaw/bwowsa/statusbaw';
+impowt { IEditowPaneWegistwy, EditowPaneDescwiptow } fwom 'vs/wowkbench/bwowsa/editow';
+impowt { shiewdIcon, WowkspaceTwustEditow } fwom 'vs/wowkbench/contwib/wowkspace/bwowsa/wowkspaceTwustEditow';
+impowt { WowkspaceTwustEditowInput } fwom 'vs/wowkbench/sewvices/wowkspaces/bwowsa/wowkspaceTwustEditowInput';
+impowt { WOWKSPACE_TWUST_BANNa, WOWKSPACE_TWUST_EMPTY_WINDOW, WOWKSPACE_TWUST_ENABWED, WOWKSPACE_TWUST_STAWTUP_PWOMPT, WOWKSPACE_TWUST_UNTWUSTED_FIWES } fwom 'vs/wowkbench/sewvices/wowkspaces/common/wowkspaceTwust';
+impowt { IEditowSewiawiza, IEditowFactowyWegistwy, EditowExtensions } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { IsWebContext } fwom 'vs/pwatfowm/contextkey/common/contextkeys';
+impowt { diwname, wesowve } fwom 'vs/base/common/path';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
+impowt { IMawkdownStwing, MawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { ISingweFowdewWowkspaceIdentifia, isSingweFowdewWowkspaceIdentifia, toWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { STATUS_BAW_PWOMINENT_ITEM_BACKGWOUND, STATUS_BAW_PWOMINENT_ITEM_FOWEGWOUND } fwom 'vs/wowkbench/common/theme';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { spwitName } fwom 'vs/base/common/wabews';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { IBannewItem, IBannewSewvice } fwom 'vs/wowkbench/sewvices/banna/bwowsa/bannewSewvice';
+impowt { isViwtuawWowkspace } fwom 'vs/pwatfowm/wemote/common/wemoteHosts';
+impowt { WIST_WOWKSPACE_UNSUPPOWTED_EXTENSIONS_COMMAND_ID } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { WOWKSPACE_TWUST_SETTING_TAG } fwom 'vs/wowkbench/contwib/pwefewences/common/pwefewences';
+impowt { IPwefewencesSewvice } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
 
-const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
-const STARTUP_PROMPT_SHOWN_KEY = 'workspace.trust.startupPrompt.shown';
-const BANNER_RESTRICTED_MODE_DISMISSED_KEY = 'workbench.banner.restrictedMode.dismissed';
+const BANNEW_WESTWICTED_MODE = 'wowkbench.banna.westwictedMode';
+const STAWTUP_PWOMPT_SHOWN_KEY = 'wowkspace.twust.stawtupPwompt.shown';
+const BANNEW_WESTWICTED_MODE_DISMISSED_KEY = 'wowkbench.banna.westwictedMode.dismissed';
 
 /**
- * Trust Context Keys
+ * Twust Context Keys
  */
 
-export const WorkspaceTrustContext = {
-	IsEnabled: new RawContextKey<boolean>('isWorkspaceTrustEnabled', false, localize('workspaceTrustEnabledCtx', "Whether the workspace trust feature is enabled.")),
-	IsTrusted: new RawContextKey<boolean>('isWorkspaceTrusted', false, localize('workspaceTrustedCtx', "Whether the current workspace has been trusted by the user."))
+expowt const WowkspaceTwustContext = {
+	IsEnabwed: new WawContextKey<boowean>('isWowkspaceTwustEnabwed', fawse, wocawize('wowkspaceTwustEnabwedCtx', "Whetha the wowkspace twust featuwe is enabwed.")),
+	IsTwusted: new WawContextKey<boowean>('isWowkspaceTwusted', fawse, wocawize('wowkspaceTwustedCtx', "Whetha the cuwwent wowkspace has been twusted by the usa."))
 };
 
-export class WorkspaceTrustContextKeys extends Disposable implements IWorkbenchContribution {
+expowt cwass WowkspaceTwustContextKeys extends Disposabwe impwements IWowkbenchContwibution {
 
-	private readonly _ctxWorkspaceTrustEnabled: IContextKey<boolean>;
-	private readonly _ctxWorkspaceTrustState: IContextKey<boolean>;
+	pwivate weadonwy _ctxWowkspaceTwustEnabwed: IContextKey<boowean>;
+	pwivate weadonwy _ctxWowkspaceTwustState: IContextKey<boowean>;
 
-	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IWorkspaceTrustEnablementService workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
-		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService
+	constwuctow(
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IWowkspaceTwustEnabwementSewvice wowkspaceTwustEnabwementSewvice: IWowkspaceTwustEnabwementSewvice,
+		@IWowkspaceTwustManagementSewvice wowkspaceTwustManagementSewvice: IWowkspaceTwustManagementSewvice
 	) {
-		super();
+		supa();
 
-		this._ctxWorkspaceTrustEnabled = WorkspaceTrustContext.IsEnabled.bindTo(contextKeyService);
-		this._ctxWorkspaceTrustEnabled.set(workspaceTrustEnablementService.isWorkspaceTrustEnabled());
+		this._ctxWowkspaceTwustEnabwed = WowkspaceTwustContext.IsEnabwed.bindTo(contextKeySewvice);
+		this._ctxWowkspaceTwustEnabwed.set(wowkspaceTwustEnabwementSewvice.isWowkspaceTwustEnabwed());
 
-		this._ctxWorkspaceTrustState = WorkspaceTrustContext.IsTrusted.bindTo(contextKeyService);
-		this._ctxWorkspaceTrustState.set(workspaceTrustManagementService.isWorkspaceTrusted());
+		this._ctxWowkspaceTwustState = WowkspaceTwustContext.IsTwusted.bindTo(contextKeySewvice);
+		this._ctxWowkspaceTwustState.set(wowkspaceTwustManagementSewvice.isWowkspaceTwusted());
 
-		this._register(workspaceTrustManagementService.onDidChangeTrust(trusted => this._ctxWorkspaceTrustState.set(trusted)));
+		this._wegista(wowkspaceTwustManagementSewvice.onDidChangeTwust(twusted => this._ctxWowkspaceTwustState.set(twusted)));
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTrustContextKeys, LifecyclePhase.Restored);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(WowkspaceTwustContextKeys, WifecycwePhase.Westowed);
 
 
 /*
- * Trust Request via Service UX handler
+ * Twust Wequest via Sewvice UX handwa
  */
 
-export class WorkspaceTrustRequestHandler extends Disposable implements IWorkbenchContribution {
-	constructor(
-		@IDialogService private readonly dialogService: IDialogService,
-		@ICommandService private readonly commandService: ICommandService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService) {
-		super();
+expowt cwass WowkspaceTwustWequestHandwa extends Disposabwe impwements IWowkbenchContwibution {
+	constwuctow(
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy wowkspaceContextSewvice: IWowkspaceContextSewvice,
+		@IWowkspaceTwustManagementSewvice pwivate weadonwy wowkspaceTwustManagementSewvice: IWowkspaceTwustManagementSewvice,
+		@IWowkspaceTwustWequestSewvice pwivate weadonwy wowkspaceTwustWequestSewvice: IWowkspaceTwustWequestSewvice) {
+		supa();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private get useWorkspaceLanguage(): boolean {
-		return !isSingleFolderWorkspaceIdentifier(toWorkspaceIdentifier(this.workspaceContextService.getWorkspace()));
+	pwivate get useWowkspaceWanguage(): boowean {
+		wetuwn !isSingweFowdewWowkspaceIdentifia(toWowkspaceIdentifia(this.wowkspaceContextSewvice.getWowkspace()));
 	}
 
-	private async registerListeners(): Promise<void> {
-		await this.workspaceTrustManagementService.workspaceResolved;
+	pwivate async wegistewWistenews(): Pwomise<void> {
+		await this.wowkspaceTwustManagementSewvice.wowkspaceWesowved;
 
-		// Open files trust request
-		this._register(this.workspaceTrustRequestService.onDidInitiateOpenFilesTrustRequest(async () => {
-			// Details
-			const markdownDetails = [
-				this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY ?
-					localize('openLooseFileWorkspaceDetails', "You are trying to open untrusted files in a workspace which is trusted.") :
-					localize('openLooseFileWindowDetails', "You are trying to open untrusted files in a window which is trusted."),
-				localize('openLooseFileLearnMore', "If you don't trust the authors of these files, we recommend to open them in Restricted Mode in a new window as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more.")
+		// Open fiwes twust wequest
+		this._wegista(this.wowkspaceTwustWequestSewvice.onDidInitiateOpenFiwesTwustWequest(async () => {
+			// Detaiws
+			const mawkdownDetaiws = [
+				this.wowkspaceContextSewvice.getWowkbenchState() !== WowkbenchState.EMPTY ?
+					wocawize('openWooseFiweWowkspaceDetaiws', "You awe twying to open untwusted fiwes in a wowkspace which is twusted.") :
+					wocawize('openWooseFiweWindowDetaiws', "You awe twying to open untwusted fiwes in a window which is twusted."),
+				wocawize('openWooseFiweWeawnMowe', "If you don't twust the authows of these fiwes, we wecommend to open them in Westwicted Mode in a new window as the fiwes may be mawicious. See [ouw docs](https://aka.ms/vscode-wowkspace-twust) to weawn mowe.")
 			];
 
-			// Dialog
-			const startTime = Date.now();
-			const result = await this.dialogService.show(
-				Severity.Info,
-				localize('openLooseFileMesssage', "Do you trust the authors of these files?"),
-				[localize('open', "Open"), localize('newWindow', "Open in Restricted Mode"), localize('cancel', "Cancel")],
+			// Diawog
+			const stawtTime = Date.now();
+			const wesuwt = await this.diawogSewvice.show(
+				Sevewity.Info,
+				wocawize('openWooseFiweMesssage', "Do you twust the authows of these fiwes?"),
+				[wocawize('open', "Open"), wocawize('newWindow', "Open in Westwicted Mode"), wocawize('cancew', "Cancew")],
 				{
-					cancelId: 2,
+					cancewId: 2,
 					checkbox: {
-						label: localize('openLooseFileWorkspaceCheckbox', "Remember my decision for all workspaces"),
-						checked: false
+						wabew: wocawize('openWooseFiweWowkspaceCheckbox', "Wememba my decision fow aww wowkspaces"),
+						checked: fawse
 					},
 					custom: {
-						icon: Codicon.shield,
-						markdownDetails: markdownDetails.map(md => { return { markdown: new MarkdownString(md) }; })
+						icon: Codicon.shiewd,
+						mawkdownDetaiws: mawkdownDetaiws.map(md => { wetuwn { mawkdown: new MawkdownStwing(md) }; })
 					}
 				});
 
-			// Log dialog result
-			this.telemetryService.publicLog2<WorkspaceTrustDialogResultEvent, WorkspaceTrustDialogResultEventClassification>('workspaceTrustOpenFileRequestDialogResult', { duration: Date.now() - startTime, ...result });
+			// Wog diawog wesuwt
+			this.tewemetwySewvice.pubwicWog2<WowkspaceTwustDiawogWesuwtEvent, WowkspaceTwustDiawogWesuwtEventCwassification>('wowkspaceTwustOpenFiweWequestDiawogWesuwt', { duwation: Date.now() - stawtTime, ...wesuwt });
 
-			switch (result.choice) {
+			switch (wesuwt.choice) {
 				case 0:
-					await this.workspaceTrustRequestService.completeOpenFilesTrustRequest(WorkspaceTrustUriResponse.Open, !!result.checkboxChecked);
-					break;
+					await this.wowkspaceTwustWequestSewvice.compweteOpenFiwesTwustWequest(WowkspaceTwustUwiWesponse.Open, !!wesuwt.checkboxChecked);
+					bweak;
 				case 1:
-					await this.workspaceTrustRequestService.completeOpenFilesTrustRequest(WorkspaceTrustUriResponse.OpenInNewWindow, !!result.checkboxChecked);
-					break;
-				default:
-					await this.workspaceTrustRequestService.completeOpenFilesTrustRequest(WorkspaceTrustUriResponse.Cancel);
-					break;
+					await this.wowkspaceTwustWequestSewvice.compweteOpenFiwesTwustWequest(WowkspaceTwustUwiWesponse.OpenInNewWindow, !!wesuwt.checkboxChecked);
+					bweak;
+				defauwt:
+					await this.wowkspaceTwustWequestSewvice.compweteOpenFiwesTwustWequest(WowkspaceTwustUwiWesponse.Cancew);
+					bweak;
 			}
 		}));
 
-		// Workspace trust request
-		this._register(this.workspaceTrustRequestService.onDidInitiateWorkspaceTrustRequest(async requestOptions => {
-			// Title
-			const title = this.useWorkspaceLanguage ?
-				localize('workspaceTrust', "Do you trust the authors of the files in this workspace?") :
-				localize('folderTrust', "Do you trust the authors of the files in this folder?");
+		// Wowkspace twust wequest
+		this._wegista(this.wowkspaceTwustWequestSewvice.onDidInitiateWowkspaceTwustWequest(async wequestOptions => {
+			// Titwe
+			const titwe = this.useWowkspaceWanguage ?
+				wocawize('wowkspaceTwust', "Do you twust the authows of the fiwes in this wowkspace?") :
+				wocawize('fowdewTwust', "Do you twust the authows of the fiwes in this fowda?");
 
 			// Message
-			const defaultMessage = localize('immediateTrustRequestMessage', "A feature you are trying to use may be a security risk if you do not trust the source of the files or folders you currently have open.");
-			const message = requestOptions?.message ?? defaultMessage;
+			const defauwtMessage = wocawize('immediateTwustWequestMessage', "A featuwe you awe twying to use may be a secuwity wisk if you do not twust the souwce of the fiwes ow fowdews you cuwwentwy have open.");
+			const message = wequestOptions?.message ?? defauwtMessage;
 
 			// Buttons
-			const buttons = requestOptions?.buttons ?? [
-				{ label: this.useWorkspaceLanguage ? localize('grantWorkspaceTrustButton', "Trust Workspace & Continue") : localize('grantFolderTrustButton', "Trust Folder & Continue"), type: 'ContinueWithTrust' },
-				{ label: localize('manageWorkspaceTrustButton', "Manage"), type: 'Manage' }
+			const buttons = wequestOptions?.buttons ?? [
+				{ wabew: this.useWowkspaceWanguage ? wocawize('gwantWowkspaceTwustButton', "Twust Wowkspace & Continue") : wocawize('gwantFowdewTwustButton', "Twust Fowda & Continue"), type: 'ContinueWithTwust' },
+				{ wabew: wocawize('manageWowkspaceTwustButton', "Manage"), type: 'Manage' }
 			];
 
-			// Add Cancel button if not provided
-			if (!buttons.some(b => b.type === 'Cancel')) {
-				buttons.push({ label: localize('cancelWorkspaceTrustButton', "Cancel"), type: 'Cancel' });
+			// Add Cancew button if not pwovided
+			if (!buttons.some(b => b.type === 'Cancew')) {
+				buttons.push({ wabew: wocawize('cancewWowkspaceTwustButton', "Cancew"), type: 'Cancew' });
 			}
 
-			// Dialog
-			const startTime = Date.now();
-			const result = await this.dialogService.show(
-				Severity.Info,
-				title,
-				buttons.map(b => b.label),
+			// Diawog
+			const stawtTime = Date.now();
+			const wesuwt = await this.diawogSewvice.show(
+				Sevewity.Info,
+				titwe,
+				buttons.map(b => b.wabew),
 				{
-					cancelId: buttons.findIndex(b => b.type === 'Cancel'),
+					cancewId: buttons.findIndex(b => b.type === 'Cancew'),
 					custom: {
-						icon: Codicon.shield,
-						markdownDetails: [
-							{ markdown: new MarkdownString(message) },
-							{ markdown: new MarkdownString(localize('immediateTrustRequestLearnMore', "If you don't trust the authors of these files, we do not recommend continuing as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more.")) }
+						icon: Codicon.shiewd,
+						mawkdownDetaiws: [
+							{ mawkdown: new MawkdownStwing(message) },
+							{ mawkdown: new MawkdownStwing(wocawize('immediateTwustWequestWeawnMowe', "If you don't twust the authows of these fiwes, we do not wecommend continuing as the fiwes may be mawicious. See [ouw docs](https://aka.ms/vscode-wowkspace-twust) to weawn mowe.")) }
 						]
 					}
 				}
 			);
 
-			// Log dialog result
-			this.telemetryService.publicLog2<WorkspaceTrustDialogResultEvent, WorkspaceTrustDialogResultEventClassification>('workspaceTrustRequestDialogResult', { duration: Date.now() - startTime, ...result });
+			// Wog diawog wesuwt
+			this.tewemetwySewvice.pubwicWog2<WowkspaceTwustDiawogWesuwtEvent, WowkspaceTwustDiawogWesuwtEventCwassification>('wowkspaceTwustWequestDiawogWesuwt', { duwation: Date.now() - stawtTime, ...wesuwt });
 
-			// Dialog result
-			switch (buttons[result.choice].type) {
-				case 'ContinueWithTrust':
-					await this.workspaceTrustRequestService.completeWorkspaceTrustRequest(true);
-					break;
-				case 'ContinueWithoutTrust':
-					await this.workspaceTrustRequestService.completeWorkspaceTrustRequest(undefined);
-					break;
+			// Diawog wesuwt
+			switch (buttons[wesuwt.choice].type) {
+				case 'ContinueWithTwust':
+					await this.wowkspaceTwustWequestSewvice.compweteWowkspaceTwustWequest(twue);
+					bweak;
+				case 'ContinueWithoutTwust':
+					await this.wowkspaceTwustWequestSewvice.compweteWowkspaceTwustWequest(undefined);
+					bweak;
 				case 'Manage':
-					this.workspaceTrustRequestService.cancelWorkspaceTrustRequest();
-					await this.commandService.executeCommand(MANAGE_TRUST_COMMAND_ID);
-					break;
-				case 'Cancel':
-					this.workspaceTrustRequestService.cancelWorkspaceTrustRequest();
-					break;
+					this.wowkspaceTwustWequestSewvice.cancewWowkspaceTwustWequest();
+					await this.commandSewvice.executeCommand(MANAGE_TWUST_COMMAND_ID);
+					bweak;
+				case 'Cancew':
+					this.wowkspaceTwustWequestSewvice.cancewWowkspaceTwustWequest();
+					bweak;
 			}
 		}));
 	}
@@ -221,48 +221,48 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 
 /*
- * Trust UX and Startup Handler
+ * Twust UX and Stawtup Handwa
  */
-export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchContribution {
+expowt cwass WowkspaceTwustUXHandwa extends Disposabwe impwements IWowkbenchContwibution {
 
-	private readonly entryId = `status.workspaceTrust.${this.workspaceContextService.getWorkspace().id}`;
+	pwivate weadonwy entwyId = `status.wowkspaceTwust.${this.wowkspaceContextSewvice.getWowkspace().id}`;
 
-	private readonly statusbarEntryAccessor: MutableDisposable<IStatusbarEntryAccessor>;
+	pwivate weadonwy statusbawEntwyAccessow: MutabweDisposabwe<IStatusbawEntwyAccessow>;
 
-	constructor(
-		@IDialogService private readonly dialogService: IDialogService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IWorkspaceTrustEnablementService private readonly workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IStorageService private readonly storageService: IStorageService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@IBannerService private readonly bannerService: IBannerService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IHostService private readonly hostService: IHostService,
+	constwuctow(
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy wowkspaceContextSewvice: IWowkspaceContextSewvice,
+		@IWowkspaceTwustEnabwementSewvice pwivate weadonwy wowkspaceTwustEnabwementSewvice: IWowkspaceTwustEnabwementSewvice,
+		@IWowkspaceTwustManagementSewvice pwivate weadonwy wowkspaceTwustManagementSewvice: IWowkspaceTwustManagementSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IStatusbawSewvice pwivate weadonwy statusbawSewvice: IStatusbawSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IWowkspaceTwustWequestSewvice pwivate weadonwy wowkspaceTwustWequestSewvice: IWowkspaceTwustWequestSewvice,
+		@IBannewSewvice pwivate weadonwy bannewSewvice: IBannewSewvice,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@IHostSewvice pwivate weadonwy hostSewvice: IHostSewvice,
 	) {
-		super();
+		supa();
 
-		this.statusbarEntryAccessor = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+		this.statusbawEntwyAccessow = this._wegista(new MutabweDisposabwe<IStatusbawEntwyAccessow>());
 
 		(async () => {
 
-			await this.workspaceTrustManagementService.workspaceTrustInitialized;
+			await this.wowkspaceTwustManagementSewvice.wowkspaceTwustInitiawized;
 
-			if (this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
-				this.registerListeners();
-				this.createStatusbarEntry();
+			if (this.wowkspaceTwustEnabwementSewvice.isWowkspaceTwustEnabwed()) {
+				this.wegistewWistenews();
+				this.cweateStatusbawEntwy();
 
-				// Show modal dialog
-				if (this.hostService.hasFocus) {
-					this.showModalOnStart();
-				} else {
-					const focusDisposable = this.hostService.onDidChangeFocus(focused => {
+				// Show modaw diawog
+				if (this.hostSewvice.hasFocus) {
+					this.showModawOnStawt();
+				} ewse {
+					const focusDisposabwe = this.hostSewvice.onDidChangeFocus(focused => {
 						if (focused) {
-							focusDisposable.dispose();
-							this.showModalOnStart();
+							focusDisposabwe.dispose();
+							this.showModawOnStawt();
 						}
 					});
 				}
@@ -270,371 +270,371 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 		})();
 	}
 
-	private registerListeners(): void {
-		this._register(this.workspaceContextService.onWillChangeWorkspaceFolders(e => {
-			if (e.fromCache) {
-				return;
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.wowkspaceContextSewvice.onWiwwChangeWowkspaceFowdews(e => {
+			if (e.fwomCache) {
+				wetuwn;
 			}
-			if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
-				return;
+			if (!this.wowkspaceTwustEnabwementSewvice.isWowkspaceTwustEnabwed()) {
+				wetuwn;
 			}
-			const trusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
+			const twusted = this.wowkspaceTwustManagementSewvice.isWowkspaceTwusted();
 
-			return e.join(new Promise(async resolve => {
-				// Workspace is trusted and there are added/changed folders
-				if (trusted && (e.changes.added.length || e.changes.changed.length)) {
-					const addedFoldersTrustInfo = await Promise.all(e.changes.added.map(folder => this.workspaceTrustManagementService.getUriTrustInfo(folder.uri)));
+			wetuwn e.join(new Pwomise(async wesowve => {
+				// Wowkspace is twusted and thewe awe added/changed fowdews
+				if (twusted && (e.changes.added.wength || e.changes.changed.wength)) {
+					const addedFowdewsTwustInfo = await Pwomise.aww(e.changes.added.map(fowda => this.wowkspaceTwustManagementSewvice.getUwiTwustInfo(fowda.uwi)));
 
-					if (!addedFoldersTrustInfo.map(info => info.trusted).every(trusted => trusted)) {
-						const startTime = Date.now();
-						const result = await this.dialogService.show(
-							Severity.Info,
-							localize('addWorkspaceFolderMessage', "Do you trust the authors of the files in this folder?"),
-							[localize('yes', 'Yes'), localize('no', 'No')],
+					if (!addedFowdewsTwustInfo.map(info => info.twusted).evewy(twusted => twusted)) {
+						const stawtTime = Date.now();
+						const wesuwt = await this.diawogSewvice.show(
+							Sevewity.Info,
+							wocawize('addWowkspaceFowdewMessage', "Do you twust the authows of the fiwes in this fowda?"),
+							[wocawize('yes', 'Yes'), wocawize('no', 'No')],
 							{
-								detail: localize('addWorkspaceFolderDetail', "You are adding files to a trusted workspace that are not currently trusted. Do you trust the authors of these new files?"),
-								cancelId: 1,
-								custom: { icon: Codicon.shield }
+								detaiw: wocawize('addWowkspaceFowdewDetaiw', "You awe adding fiwes to a twusted wowkspace that awe not cuwwentwy twusted. Do you twust the authows of these new fiwes?"),
+								cancewId: 1,
+								custom: { icon: Codicon.shiewd }
 							}
 						);
 
-						// Log dialog result
-						this.telemetryService.publicLog2<WorkspaceTrustDialogResultEvent, WorkspaceTrustDialogResultEventClassification>('workspaceTrustAddWorkspaceFolderDialogResult', { duration: Date.now() - startTime, ...result });
+						// Wog diawog wesuwt
+						this.tewemetwySewvice.pubwicWog2<WowkspaceTwustDiawogWesuwtEvent, WowkspaceTwustDiawogWesuwtEventCwassification>('wowkspaceTwustAddWowkspaceFowdewDiawogWesuwt', { duwation: Date.now() - stawtTime, ...wesuwt });
 
-						// Mark added/changed folders as trusted
-						await this.workspaceTrustManagementService.setUrisTrust(addedFoldersTrustInfo.map(i => i.uri), result.choice === 0);
+						// Mawk added/changed fowdews as twusted
+						await this.wowkspaceTwustManagementSewvice.setUwisTwust(addedFowdewsTwustInfo.map(i => i.uwi), wesuwt.choice === 0);
 
-						resolve();
+						wesowve();
 					}
 				}
 
-				resolve();
+				wesowve();
 			}));
 		}));
 
-		this._register(this.workspaceTrustManagementService.onDidChangeTrust(trusted => {
-			this.updateWorkbenchIndicators(trusted);
+		this._wegista(this.wowkspaceTwustManagementSewvice.onDidChangeTwust(twusted => {
+			this.updateWowkbenchIndicatows(twusted);
 		}));
 	}
 
-	private updateWorkbenchIndicators(trusted: boolean): void {
-		const bannerItem = this.getBannerItem(!trusted);
+	pwivate updateWowkbenchIndicatows(twusted: boowean): void {
+		const bannewItem = this.getBannewItem(!twusted);
 
-		this.updateStatusbarEntry(trusted);
+		this.updateStatusbawEntwy(twusted);
 
-		if (bannerItem) {
-			if (!trusted) {
-				this.bannerService.show(bannerItem);
-			} else {
-				this.bannerService.hide(BANNER_RESTRICTED_MODE);
+		if (bannewItem) {
+			if (!twusted) {
+				this.bannewSewvice.show(bannewItem);
+			} ewse {
+				this.bannewSewvice.hide(BANNEW_WESTWICTED_MODE);
 			}
 		}
 	}
 
-	//#region Dialog
+	//#wegion Diawog
 
-	private async doShowModal(question: string, trustedOption: { label: string, sublabel: string }, untrustedOption: { label: string, sublabel: string }, markdownStrings: string[], trustParentString?: string): Promise<void> {
-		const startTime = Date.now();
-		const result = await this.dialogService.show(
-			Severity.Info,
+	pwivate async doShowModaw(question: stwing, twustedOption: { wabew: stwing, subwabew: stwing }, untwustedOption: { wabew: stwing, subwabew: stwing }, mawkdownStwings: stwing[], twustPawentStwing?: stwing): Pwomise<void> {
+		const stawtTime = Date.now();
+		const wesuwt = await this.diawogSewvice.show(
+			Sevewity.Info,
 			question,
 			[
-				trustedOption.label,
-				untrustedOption.label,
+				twustedOption.wabew,
+				untwustedOption.wabew,
 			],
 			{
-				checkbox: trustParentString ? {
-					label: trustParentString
+				checkbox: twustPawentStwing ? {
+					wabew: twustPawentStwing
 				} : undefined,
 				custom: {
-					buttonDetails: [
-						trustedOption.sublabel,
-						untrustedOption.sublabel
+					buttonDetaiws: [
+						twustedOption.subwabew,
+						untwustedOption.subwabew
 					],
-					disableCloseAction: true,
-					icon: Codicon.shield,
-					markdownDetails: markdownStrings.map(md => { return { markdown: new MarkdownString(md) }; })
+					disabweCwoseAction: twue,
+					icon: Codicon.shiewd,
+					mawkdownDetaiws: mawkdownStwings.map(md => { wetuwn { mawkdown: new MawkdownStwing(md) }; })
 				},
 			}
 		);
 
-		// Log dialog result
-		this.telemetryService.publicLog2<WorkspaceTrustDialogResultEvent, WorkspaceTrustDialogResultEventClassification>('workspaceTrustStartupDialogResult', { duration: Date.now() - startTime, ...result });
+		// Wog diawog wesuwt
+		this.tewemetwySewvice.pubwicWog2<WowkspaceTwustDiawogWesuwtEvent, WowkspaceTwustDiawogWesuwtEventCwassification>('wowkspaceTwustStawtupDiawogWesuwt', { duwation: Date.now() - stawtTime, ...wesuwt });
 
-		// Dialog result
-		switch (result.choice) {
+		// Diawog wesuwt
+		switch (wesuwt.choice) {
 			case 0:
-				if (result.checkboxChecked) {
-					await this.workspaceTrustManagementService.setParentFolderTrust(true);
-				} else {
-					await this.workspaceTrustRequestService.completeWorkspaceTrustRequest(true);
+				if (wesuwt.checkboxChecked) {
+					await this.wowkspaceTwustManagementSewvice.setPawentFowdewTwust(twue);
+				} ewse {
+					await this.wowkspaceTwustWequestSewvice.compweteWowkspaceTwustWequest(twue);
 				}
-				break;
+				bweak;
 			case 1:
-				this.updateWorkbenchIndicators(false);
-				this.workspaceTrustRequestService.cancelWorkspaceTrustRequest();
-				break;
+				this.updateWowkbenchIndicatows(fawse);
+				this.wowkspaceTwustWequestSewvice.cancewWowkspaceTwustWequest();
+				bweak;
 		}
 
-		this.storageService.store(STARTUP_PROMPT_SHOWN_KEY, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.stowageSewvice.stowe(STAWTUP_PWOMPT_SHOWN_KEY, twue, StowageScope.WOWKSPACE, StowageTawget.MACHINE);
 	}
 
-	private async showModalOnStart(): Promise<void> {
-		if (this.workspaceTrustManagementService.isWorkspaceTrusted()) {
-			this.updateWorkbenchIndicators(true);
-			return;
+	pwivate async showModawOnStawt(): Pwomise<void> {
+		if (this.wowkspaceTwustManagementSewvice.isWowkspaceTwusted()) {
+			this.updateWowkbenchIndicatows(twue);
+			wetuwn;
 		}
 
-		// Don't show modal prompt if workspace trust cannot be changed
-		if (!(this.workspaceTrustManagementService.canSetWorkspaceTrust())) {
-			return;
+		// Don't show modaw pwompt if wowkspace twust cannot be changed
+		if (!(this.wowkspaceTwustManagementSewvice.canSetWowkspaceTwust())) {
+			wetuwn;
 		}
 
-		// Don't show modal prompt for virtual workspaces by default
-		if (isVirtualWorkspace(this.workspaceContextService.getWorkspace())) {
-			this.updateWorkbenchIndicators(false);
-			return;
+		// Don't show modaw pwompt fow viwtuaw wowkspaces by defauwt
+		if (isViwtuawWowkspace(this.wowkspaceContextSewvice.getWowkspace())) {
+			this.updateWowkbenchIndicatows(fawse);
+			wetuwn;
 		}
 
-		// Don't show modal prompt for empty workspaces by default
-		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			this.updateWorkbenchIndicators(false);
-			return;
+		// Don't show modaw pwompt fow empty wowkspaces by defauwt
+		if (this.wowkspaceContextSewvice.getWowkbenchState() === WowkbenchState.EMPTY) {
+			this.updateWowkbenchIndicatows(fawse);
+			wetuwn;
 		}
 
-		if (this.startupPromptSetting === 'never') {
-			this.updateWorkbenchIndicators(false);
-			return;
+		if (this.stawtupPwomptSetting === 'neva') {
+			this.updateWowkbenchIndicatows(fawse);
+			wetuwn;
 		}
 
-		if (this.startupPromptSetting === 'once' && this.storageService.getBoolean(STARTUP_PROMPT_SHOWN_KEY, StorageScope.WORKSPACE, false)) {
-			this.updateWorkbenchIndicators(false);
-			return;
+		if (this.stawtupPwomptSetting === 'once' && this.stowageSewvice.getBoowean(STAWTUP_PWOMPT_SHOWN_KEY, StowageScope.WOWKSPACE, fawse)) {
+			this.updateWowkbenchIndicatows(fawse);
+			wetuwn;
 		}
 
-		const title = this.useWorkspaceLanguage ?
-			localize('workspaceTrust', "Do you trust the authors of the files in this workspace?") :
-			localize('folderTrust', "Do you trust the authors of the files in this folder?");
+		const titwe = this.useWowkspaceWanguage ?
+			wocawize('wowkspaceTwust', "Do you twust the authows of the fiwes in this wowkspace?") :
+			wocawize('fowdewTwust', "Do you twust the authows of the fiwes in this fowda?");
 
-		let checkboxText: string | undefined;
-		const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceContextService.getWorkspace())!;
-		const isSingleFolderWorkspace = isSingleFolderWorkspaceIdentifier(workspaceIdentifier);
-		if (this.workspaceTrustManagementService.canSetParentFolderTrust()) {
-			const { name } = splitName(splitName((workspaceIdentifier as ISingleFolderWorkspaceIdentifier).uri.fsPath).parentPath);
-			checkboxText = localize('checkboxString', "Trust the authors of all files in the parent folder '{0}'", name);
+		wet checkboxText: stwing | undefined;
+		const wowkspaceIdentifia = toWowkspaceIdentifia(this.wowkspaceContextSewvice.getWowkspace())!;
+		const isSingweFowdewWowkspace = isSingweFowdewWowkspaceIdentifia(wowkspaceIdentifia);
+		if (this.wowkspaceTwustManagementSewvice.canSetPawentFowdewTwust()) {
+			const { name } = spwitName(spwitName((wowkspaceIdentifia as ISingweFowdewWowkspaceIdentifia).uwi.fsPath).pawentPath);
+			checkboxText = wocawize('checkboxStwing', "Twust the authows of aww fiwes in the pawent fowda '{0}'", name);
 		}
 
-		// Show Workspace Trust Start Dialog
-		this.doShowModal(
-			title,
-			{ label: localize('trustOption', "Yes, I trust the authors"), sublabel: isSingleFolderWorkspace ? localize('trustFolderOptionDescription', "Trust folder and enable all features") : localize('trustWorkspaceOptionDescription', "Trust workspace and enable all features") },
-			{ label: localize('dontTrustOption', "No, I don't trust the authors"), sublabel: isSingleFolderWorkspace ? localize('dontTrustFolderOptionDescription', "Browse folder in restricted mode") : localize('dontTrustWorkspaceOptionDescription', "Browse workspace in restricted mode") },
+		// Show Wowkspace Twust Stawt Diawog
+		this.doShowModaw(
+			titwe,
+			{ wabew: wocawize('twustOption', "Yes, I twust the authows"), subwabew: isSingweFowdewWowkspace ? wocawize('twustFowdewOptionDescwiption', "Twust fowda and enabwe aww featuwes") : wocawize('twustWowkspaceOptionDescwiption', "Twust wowkspace and enabwe aww featuwes") },
+			{ wabew: wocawize('dontTwustOption', "No, I don't twust the authows"), subwabew: isSingweFowdewWowkspace ? wocawize('dontTwustFowdewOptionDescwiption', "Bwowse fowda in westwicted mode") : wocawize('dontTwustWowkspaceOptionDescwiption', "Bwowse wowkspace in westwicted mode") },
 			[
-				!isSingleFolderWorkspace ?
-					localize('workspaceStartupTrustDetails', "{0} provides features that may automatically execute files in this workspace.", product.nameShort) :
-					localize('folderStartupTrustDetails', "{0} provides features that may automatically execute files in this folder.", product.nameShort),
-				localize('startupTrustRequestLearnMore', "If you don't trust the authors of these files, we recommend to continue in restricted mode as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more."),
-				`\`${this.labelService.getWorkspaceLabel(workspaceIdentifier, { verbose: true })}\``,
+				!isSingweFowdewWowkspace ?
+					wocawize('wowkspaceStawtupTwustDetaiws', "{0} pwovides featuwes that may automaticawwy execute fiwes in this wowkspace.", pwoduct.nameShowt) :
+					wocawize('fowdewStawtupTwustDetaiws', "{0} pwovides featuwes that may automaticawwy execute fiwes in this fowda.", pwoduct.nameShowt),
+				wocawize('stawtupTwustWequestWeawnMowe', "If you don't twust the authows of these fiwes, we wecommend to continue in westwicted mode as the fiwes may be mawicious. See [ouw docs](https://aka.ms/vscode-wowkspace-twust) to weawn mowe."),
+				`\`${this.wabewSewvice.getWowkspaceWabew(wowkspaceIdentifia, { vewbose: twue })}\``,
 			],
 			checkboxText
 		);
 	}
 
-	private get startupPromptSetting(): 'always' | 'once' | 'never' {
-		return this.configurationService.getValue(WORKSPACE_TRUST_STARTUP_PROMPT);
+	pwivate get stawtupPwomptSetting(): 'awways' | 'once' | 'neva' {
+		wetuwn this.configuwationSewvice.getVawue(WOWKSPACE_TWUST_STAWTUP_PWOMPT);
 	}
 
-	private get useWorkspaceLanguage(): boolean {
-		return !isSingleFolderWorkspaceIdentifier(toWorkspaceIdentifier(this.workspaceContextService.getWorkspace()));
+	pwivate get useWowkspaceWanguage(): boowean {
+		wetuwn !isSingweFowdewWowkspaceIdentifia(toWowkspaceIdentifia(this.wowkspaceContextSewvice.getWowkspace()));
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Banner
+	//#wegion Banna
 
-	private getBannerItem(restrictedMode: boolean): IBannerItem | undefined {
-		const dismissedRestricted = this.storageService.getBoolean(BANNER_RESTRICTED_MODE_DISMISSED_KEY, StorageScope.WORKSPACE, false);
+	pwivate getBannewItem(westwictedMode: boowean): IBannewItem | undefined {
+		const dismissedWestwicted = this.stowageSewvice.getBoowean(BANNEW_WESTWICTED_MODE_DISMISSED_KEY, StowageScope.WOWKSPACE, fawse);
 
-		// never show the banner
-		if (this.bannerSetting === 'never') {
-			return undefined;
+		// neva show the banna
+		if (this.bannewSetting === 'neva') {
+			wetuwn undefined;
 		}
 
 		// info has been dismissed
-		if (this.bannerSetting === 'untilDismissed' && dismissedRestricted) {
-			return undefined;
+		if (this.bannewSetting === 'untiwDismissed' && dismissedWestwicted) {
+			wetuwn undefined;
 		}
 
 		const actions =
 			[
 				{
-					label: localize('restrictedModeBannerManage', "Manage"),
-					href: 'command:' + MANAGE_TRUST_COMMAND_ID
+					wabew: wocawize('westwictedModeBannewManage', "Manage"),
+					hwef: 'command:' + MANAGE_TWUST_COMMAND_ID
 				},
 				{
-					label: localize('restrictedModeBannerLearnMore', "Learn More"),
-					href: 'https://aka.ms/vscode-workspace-trust'
+					wabew: wocawize('westwictedModeBannewWeawnMowe', "Weawn Mowe"),
+					hwef: 'https://aka.ms/vscode-wowkspace-twust'
 				}
 			];
 
-		return {
-			id: BANNER_RESTRICTED_MODE,
-			icon: shieldIcon,
-			ariaLabel: this.getBannerItemAriaLabels(),
-			message: this.getBannerItemMessages(),
+		wetuwn {
+			id: BANNEW_WESTWICTED_MODE,
+			icon: shiewdIcon,
+			awiaWabew: this.getBannewItemAwiaWabews(),
+			message: this.getBannewItemMessages(),
 			actions,
-			onClose: () => {
-				if (restrictedMode) {
-					this.storageService.store(BANNER_RESTRICTED_MODE_DISMISSED_KEY, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			onCwose: () => {
+				if (westwictedMode) {
+					this.stowageSewvice.stowe(BANNEW_WESTWICTED_MODE_DISMISSED_KEY, twue, StowageScope.WOWKSPACE, StowageTawget.MACHINE);
 				}
 			}
 		};
 	}
 
-	private getBannerItemAriaLabels(): string {
-		switch (this.workspaceContextService.getWorkbenchState()) {
-			case WorkbenchState.EMPTY:
-				return localize('restrictedModeBannerAriaLabelWindow', "Restricted Mode is intended for safe code browsing. Trust this window to enable all features. Use navigation keys to access banner actions.");
-			case WorkbenchState.FOLDER:
-				return localize('restrictedModeBannerAriaLabelFolder', "Restricted Mode is intended for safe code browsing. Trust this folder to enable all features. Use navigation keys to access banner actions.");
-			case WorkbenchState.WORKSPACE:
-				return localize('restrictedModeBannerAriaLabelWorkspace', "Restricted Mode is intended for safe code browsing. Trust this workspace to enable all features. Use navigation keys to access banner actions.");
+	pwivate getBannewItemAwiaWabews(): stwing {
+		switch (this.wowkspaceContextSewvice.getWowkbenchState()) {
+			case WowkbenchState.EMPTY:
+				wetuwn wocawize('westwictedModeBannewAwiaWabewWindow', "Westwicted Mode is intended fow safe code bwowsing. Twust this window to enabwe aww featuwes. Use navigation keys to access banna actions.");
+			case WowkbenchState.FOWDa:
+				wetuwn wocawize('westwictedModeBannewAwiaWabewFowda', "Westwicted Mode is intended fow safe code bwowsing. Twust this fowda to enabwe aww featuwes. Use navigation keys to access banna actions.");
+			case WowkbenchState.WOWKSPACE:
+				wetuwn wocawize('westwictedModeBannewAwiaWabewWowkspace', "Westwicted Mode is intended fow safe code bwowsing. Twust this wowkspace to enabwe aww featuwes. Use navigation keys to access banna actions.");
 		}
 	}
 
-	private getBannerItemMessages(): string {
-		switch (this.workspaceContextService.getWorkbenchState()) {
-			case WorkbenchState.EMPTY:
-				return localize('restrictedModeBannerMessageWindow', "Restricted Mode is intended for safe code browsing. Trust this window to enable all features.");
-			case WorkbenchState.FOLDER:
-				return localize('restrictedModeBannerMessageFolder', "Restricted Mode is intended for safe code browsing. Trust this folder to enable all features.");
-			case WorkbenchState.WORKSPACE:
-				return localize('restrictedModeBannerMessageWorkspace', "Restricted Mode is intended for safe code browsing. Trust this workspace to enable all features.");
+	pwivate getBannewItemMessages(): stwing {
+		switch (this.wowkspaceContextSewvice.getWowkbenchState()) {
+			case WowkbenchState.EMPTY:
+				wetuwn wocawize('westwictedModeBannewMessageWindow', "Westwicted Mode is intended fow safe code bwowsing. Twust this window to enabwe aww featuwes.");
+			case WowkbenchState.FOWDa:
+				wetuwn wocawize('westwictedModeBannewMessageFowda', "Westwicted Mode is intended fow safe code bwowsing. Twust this fowda to enabwe aww featuwes.");
+			case WowkbenchState.WOWKSPACE:
+				wetuwn wocawize('westwictedModeBannewMessageWowkspace', "Westwicted Mode is intended fow safe code bwowsing. Twust this wowkspace to enabwe aww featuwes.");
 		}
 	}
 
 
-	private get bannerSetting(): 'always' | 'untilDismissed' | 'never' {
-		return this.configurationService.getValue(WORKSPACE_TRUST_BANNER);
+	pwivate get bannewSetting(): 'awways' | 'untiwDismissed' | 'neva' {
+		wetuwn this.configuwationSewvice.getVawue(WOWKSPACE_TWUST_BANNa);
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Statusbar
+	//#wegion Statusbaw
 
-	private createStatusbarEntry(): void {
-		const entry = this.getStatusbarEntry(this.workspaceTrustManagementService.isWorkspaceTrusted());
-		this.statusbarEntryAccessor.value = this.statusbarService.addEntry(entry, this.entryId, StatusbarAlignment.LEFT, 0.99 * Number.MAX_VALUE /* Right of remote indicator */);
-		this.statusbarService.updateEntryVisibility(this.entryId, false);
+	pwivate cweateStatusbawEntwy(): void {
+		const entwy = this.getStatusbawEntwy(this.wowkspaceTwustManagementSewvice.isWowkspaceTwusted());
+		this.statusbawEntwyAccessow.vawue = this.statusbawSewvice.addEntwy(entwy, this.entwyId, StatusbawAwignment.WEFT, 0.99 * Numba.MAX_VAWUE /* Wight of wemote indicatow */);
+		this.statusbawSewvice.updateEntwyVisibiwity(this.entwyId, fawse);
 	}
 
-	private getStatusbarEntry(trusted: boolean): IStatusbarEntry {
-		const text = workspaceTrustToString(trusted);
-		const backgroundColor = new ThemeColor(STATUS_BAR_PROMINENT_ITEM_BACKGROUND);
-		const color = new ThemeColor(STATUS_BAR_PROMINENT_ITEM_FOREGROUND);
+	pwivate getStatusbawEntwy(twusted: boowean): IStatusbawEntwy {
+		const text = wowkspaceTwustToStwing(twusted);
+		const backgwoundCowow = new ThemeCowow(STATUS_BAW_PWOMINENT_ITEM_BACKGWOUND);
+		const cowow = new ThemeCowow(STATUS_BAW_PWOMINENT_ITEM_FOWEGWOUND);
 
-		let ariaLabel = '';
-		let toolTip: IMarkdownString | string | undefined;
-		switch (this.workspaceContextService.getWorkbenchState()) {
-			case WorkbenchState.EMPTY: {
-				ariaLabel = trusted ? localize('status.ariaTrustedWindow', "This window is trusted.") :
-					localize('status.ariaUntrustedWindow', "Restricted Mode: Some features are disabled because this window is not trusted.");
-				toolTip = trusted ? ariaLabel : {
-					value: localize(
-						{ key: 'status.tooltipUntrustedWindow2', comment: ['[abc]({n}) are links.  Only translate `features are disabled` and `window is not trusted`. Do not change brackets and parentheses or {n}'] },
-						"Running in Restricted Mode\n\nSome [features are disabled]({0}) because this [window is not trusted]({1}).",
-						`command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`,
-						`command:${MANAGE_TRUST_COMMAND_ID}`
+		wet awiaWabew = '';
+		wet toowTip: IMawkdownStwing | stwing | undefined;
+		switch (this.wowkspaceContextSewvice.getWowkbenchState()) {
+			case WowkbenchState.EMPTY: {
+				awiaWabew = twusted ? wocawize('status.awiaTwustedWindow', "This window is twusted.") :
+					wocawize('status.awiaUntwustedWindow', "Westwicted Mode: Some featuwes awe disabwed because this window is not twusted.");
+				toowTip = twusted ? awiaWabew : {
+					vawue: wocawize(
+						{ key: 'status.toowtipUntwustedWindow2', comment: ['[abc]({n}) awe winks.  Onwy twanswate `featuwes awe disabwed` and `window is not twusted`. Do not change bwackets and pawentheses ow {n}'] },
+						"Wunning in Westwicted Mode\n\nSome [featuwes awe disabwed]({0}) because this [window is not twusted]({1}).",
+						`command:${WIST_WOWKSPACE_UNSUPPOWTED_EXTENSIONS_COMMAND_ID}`,
+						`command:${MANAGE_TWUST_COMMAND_ID}`
 					),
-					isTrusted: true,
-					supportThemeIcons: true
+					isTwusted: twue,
+					suppowtThemeIcons: twue
 				};
-				break;
+				bweak;
 			}
-			case WorkbenchState.FOLDER: {
-				ariaLabel = trusted ? localize('status.ariaTrustedFolder', "This folder is trusted.") :
-					localize('status.ariaUntrustedFolder', "Restricted Mode: Some features are disabled because this folder is not trusted.");
-				toolTip = trusted ? ariaLabel : {
-					value: localize(
-						{ key: 'status.tooltipUntrustedFolder2', comment: ['[abc]({n}) are links.  Only translate `features are disabled` and `folder is not trusted`. Do not change brackets and parentheses or {n}'] },
-						"Running in Restricted Mode\n\nSome [features are disabled]({0}) because this [folder is not trusted]({1}).",
-						`command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`,
-						`command:${MANAGE_TRUST_COMMAND_ID}`
+			case WowkbenchState.FOWDa: {
+				awiaWabew = twusted ? wocawize('status.awiaTwustedFowda', "This fowda is twusted.") :
+					wocawize('status.awiaUntwustedFowda', "Westwicted Mode: Some featuwes awe disabwed because this fowda is not twusted.");
+				toowTip = twusted ? awiaWabew : {
+					vawue: wocawize(
+						{ key: 'status.toowtipUntwustedFowdew2', comment: ['[abc]({n}) awe winks.  Onwy twanswate `featuwes awe disabwed` and `fowda is not twusted`. Do not change bwackets and pawentheses ow {n}'] },
+						"Wunning in Westwicted Mode\n\nSome [featuwes awe disabwed]({0}) because this [fowda is not twusted]({1}).",
+						`command:${WIST_WOWKSPACE_UNSUPPOWTED_EXTENSIONS_COMMAND_ID}`,
+						`command:${MANAGE_TWUST_COMMAND_ID}`
 					),
-					isTrusted: true,
-					supportThemeIcons: true
+					isTwusted: twue,
+					suppowtThemeIcons: twue
 				};
-				break;
+				bweak;
 			}
-			case WorkbenchState.WORKSPACE: {
-				ariaLabel = trusted ? localize('status.ariaTrustedWorkspace', "This workspace is trusted.") :
-					localize('status.ariaUntrustedWorkspace', "Restricted Mode: Some features are disabled because this workspace is not trusted.");
-				toolTip = trusted ? ariaLabel : {
-					value: localize(
-						{ key: 'status.tooltipUntrustedWorkspace2', comment: ['[abc]({n}) are links. Only translate `features are disabled` and `workspace is not trusted`. Do not change brackets and parentheses or {n}'] },
-						"Running in Restricted Mode\n\nSome [features are disabled]({0}) because this [workspace is not trusted]({1}).",
-						`command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`,
-						`command:${MANAGE_TRUST_COMMAND_ID}`
+			case WowkbenchState.WOWKSPACE: {
+				awiaWabew = twusted ? wocawize('status.awiaTwustedWowkspace', "This wowkspace is twusted.") :
+					wocawize('status.awiaUntwustedWowkspace', "Westwicted Mode: Some featuwes awe disabwed because this wowkspace is not twusted.");
+				toowTip = twusted ? awiaWabew : {
+					vawue: wocawize(
+						{ key: 'status.toowtipUntwustedWowkspace2', comment: ['[abc]({n}) awe winks. Onwy twanswate `featuwes awe disabwed` and `wowkspace is not twusted`. Do not change bwackets and pawentheses ow {n}'] },
+						"Wunning in Westwicted Mode\n\nSome [featuwes awe disabwed]({0}) because this [wowkspace is not twusted]({1}).",
+						`command:${WIST_WOWKSPACE_UNSUPPOWTED_EXTENSIONS_COMMAND_ID}`,
+						`command:${MANAGE_TWUST_COMMAND_ID}`
 					),
-					isTrusted: true,
-					supportThemeIcons: true
+					isTwusted: twue,
+					suppowtThemeIcons: twue
 				};
-				break;
+				bweak;
 			}
 		}
 
-		return {
-			name: localize('status.WorkspaceTrust', "Workspace Trust"),
-			text: trusted ? `$(shield)` : `$(shield) ${text}`,
-			ariaLabel: ariaLabel,
-			tooltip: toolTip,
-			command: MANAGE_TRUST_COMMAND_ID,
-			backgroundColor,
-			color
+		wetuwn {
+			name: wocawize('status.WowkspaceTwust', "Wowkspace Twust"),
+			text: twusted ? `$(shiewd)` : `$(shiewd) ${text}`,
+			awiaWabew: awiaWabew,
+			toowtip: toowTip,
+			command: MANAGE_TWUST_COMMAND_ID,
+			backgwoundCowow,
+			cowow
 		};
 	}
 
-	private updateStatusbarEntry(trusted: boolean): void {
-		this.statusbarEntryAccessor.value?.update(this.getStatusbarEntry(trusted));
-		this.statusbarService.updateEntryVisibility(this.entryId, !trusted);
+	pwivate updateStatusbawEntwy(twusted: boowean): void {
+		this.statusbawEntwyAccessow.vawue?.update(this.getStatusbawEntwy(twusted));
+		this.statusbawSewvice.updateEntwyVisibiwity(this.entwyId, !twusted);
 	}
 
-	//#endregion
+	//#endwegion
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTrustRequestHandler, LifecyclePhase.Ready);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTrustUXHandler, LifecyclePhase.Restored);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(WowkspaceTwustWequestHandwa, WifecycwePhase.Weady);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(WowkspaceTwustUXHandwa, WifecycwePhase.Westowed);
 
 
 /**
- * Trusted Workspace GUI Editor
+ * Twusted Wowkspace GUI Editow
  */
-class WorkspaceTrustEditorInputSerializer implements IEditorSerializer {
+cwass WowkspaceTwustEditowInputSewiawiza impwements IEditowSewiawiza {
 
-	canSerialize(editorInput: EditorInput): boolean {
-		return true;
+	canSewiawize(editowInput: EditowInput): boowean {
+		wetuwn twue;
 	}
 
-	serialize(input: WorkspaceTrustEditorInput): string {
-		return '';
+	sewiawize(input: WowkspaceTwustEditowInput): stwing {
+		wetuwn '';
 	}
 
-	deserialize(instantiationService: IInstantiationService): WorkspaceTrustEditorInput {
-		return instantiationService.createInstance(WorkspaceTrustEditorInput);
+	desewiawize(instantiationSewvice: IInstantiationSewvice): WowkspaceTwustEditowInput {
+		wetuwn instantiationSewvice.cweateInstance(WowkspaceTwustEditowInput);
 	}
 }
 
-Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory)
-	.registerEditorSerializer(WorkspaceTrustEditorInput.ID, WorkspaceTrustEditorInputSerializer);
+Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy)
+	.wegistewEditowSewiawiza(WowkspaceTwustEditowInput.ID, WowkspaceTwustEditowInputSewiawiza);
 
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(
-		WorkspaceTrustEditor,
-		WorkspaceTrustEditor.ID,
-		localize('workspaceTrustEditor', "Workspace Trust Editor")
+Wegistwy.as<IEditowPaneWegistwy>(EditowExtensions.EditowPane).wegistewEditowPane(
+	EditowPaneDescwiptow.cweate(
+		WowkspaceTwustEditow,
+		WowkspaceTwustEditow.ID,
+		wocawize('wowkspaceTwustEditow', "Wowkspace Twust Editow")
 	),
 	[
-		new SyncDescriptor(WorkspaceTrustEditorInput)
+		new SyncDescwiptow(WowkspaceTwustEditowInput)
 	]
 );
 
@@ -643,281 +643,281 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
  * Actions
  */
 
-// Configure Workspace Trust
+// Configuwe Wowkspace Twust
 
-const CONFIGURE_TRUST_COMMAND_ID = 'workbench.trust.configure';
+const CONFIGUWE_TWUST_COMMAND_ID = 'wowkbench.twust.configuwe';
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: CONFIGURE_TRUST_COMMAND_ID,
-			title: { original: 'Configure Workspace Trust', value: localize('configureWorkspaceTrust', "Configure Workspace Trust") },
-			precondition: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, IsWebContext.negate(), ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true)),
-			category: localize('workspacesCategory', "Workspaces"),
-			f1: true
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: CONFIGUWE_TWUST_COMMAND_ID,
+			titwe: { owiginaw: 'Configuwe Wowkspace Twust', vawue: wocawize('configuweWowkspaceTwust', "Configuwe Wowkspace Twust") },
+			pwecondition: ContextKeyExpw.and(WowkspaceTwustContext.IsEnabwed, IsWebContext.negate(), ContextKeyExpw.equaws(`config.${WOWKSPACE_TWUST_ENABWED}`, twue)),
+			categowy: wocawize('wowkspacesCategowy', "Wowkspaces"),
+			f1: twue
 		});
 	}
 
-	run(accessor: ServicesAccessor) {
-		accessor.get(IPreferencesService).openUserSettings({ jsonEditor: false, query: `@tag:${WORKSPACE_TRUST_SETTING_TAG}` });
+	wun(accessow: SewvicesAccessow) {
+		accessow.get(IPwefewencesSewvice).openUsewSettings({ jsonEditow: fawse, quewy: `@tag:${WOWKSPACE_TWUST_SETTING_TAG}` });
 	}
 });
 
-// Manage Workspace Trust
+// Manage Wowkspace Twust
 
-const MANAGE_TRUST_COMMAND_ID = 'workbench.trust.manage';
+const MANAGE_TWUST_COMMAND_ID = 'wowkbench.twust.manage';
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: MANAGE_TRUST_COMMAND_ID,
-			title: { original: 'Manage Workspace Trust', value: localize('manageWorkspaceTrust', "Manage Workspace Trust") },
-			precondition: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, IsWebContext.negate(), ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true)),
-			category: localize('workspacesCategory', "Workspaces"),
-			f1: true,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: MANAGE_TWUST_COMMAND_ID,
+			titwe: { owiginaw: 'Manage Wowkspace Twust', vawue: wocawize('manageWowkspaceTwust', "Manage Wowkspace Twust") },
+			pwecondition: ContextKeyExpw.and(WowkspaceTwustContext.IsEnabwed, IsWebContext.negate(), ContextKeyExpw.equaws(`config.${WOWKSPACE_TWUST_ENABWED}`, twue)),
+			categowy: wocawize('wowkspacesCategowy', "Wowkspaces"),
+			f1: twue,
 			menu: {
-				id: MenuId.GlobalActivity,
-				group: '6_workspace_trust',
-				order: 40,
-				when: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, IsWebContext.negate(), ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true))
+				id: MenuId.GwobawActivity,
+				gwoup: '6_wowkspace_twust',
+				owda: 40,
+				when: ContextKeyExpw.and(WowkspaceTwustContext.IsEnabwed, IsWebContext.negate(), ContextKeyExpw.equaws(`config.${WOWKSPACE_TWUST_ENABWED}`, twue))
 			},
 		});
 	}
 
-	run(accessor: ServicesAccessor) {
-		const editorService = accessor.get(IEditorService);
-		const instantiationService = accessor.get(IInstantiationService);
+	wun(accessow: SewvicesAccessow) {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const instantiationSewvice = accessow.get(IInstantiationSewvice);
 
-		const input = instantiationService.createInstance(WorkspaceTrustEditorInput);
+		const input = instantiationSewvice.cweateInstance(WowkspaceTwustEditowInput);
 
-		editorService.openEditor(input, { pinned: true, revealIfOpened: true });
-		return;
+		editowSewvice.openEditow(input, { pinned: twue, weveawIfOpened: twue });
+		wetuwn;
 	}
 });
 
 
 /*
- * Configuration
+ * Configuwation
  */
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-	.registerConfiguration({
-		id: 'security',
-		scope: ConfigurationScope.APPLICATION,
-		title: localize('securityConfigurationTitle', "Security"),
+Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation)
+	.wegistewConfiguwation({
+		id: 'secuwity',
+		scope: ConfiguwationScope.APPWICATION,
+		titwe: wocawize('secuwityConfiguwationTitwe', "Secuwity"),
 		type: 'object',
-		order: 7,
-		properties: {
-			[WORKSPACE_TRUST_ENABLED]: {
-				type: 'boolean',
-				default: true,
-				included: !isWeb,
-				description: localize('workspace.trust.description', "Controls whether or not workspace trust is enabled within VS Code."),
-				tags: [WORKSPACE_TRUST_SETTING_TAG],
-				scope: ConfigurationScope.APPLICATION,
+		owda: 7,
+		pwopewties: {
+			[WOWKSPACE_TWUST_ENABWED]: {
+				type: 'boowean',
+				defauwt: twue,
+				incwuded: !isWeb,
+				descwiption: wocawize('wowkspace.twust.descwiption', "Contwows whetha ow not wowkspace twust is enabwed within VS Code."),
+				tags: [WOWKSPACE_TWUST_SETTING_TAG],
+				scope: ConfiguwationScope.APPWICATION,
 			},
-			[WORKSPACE_TRUST_STARTUP_PROMPT]: {
-				type: 'string',
-				default: 'once',
-				included: !isWeb,
-				description: localize('workspace.trust.startupPrompt.description', "Controls when the startup prompt to trust a workspace is shown."),
-				tags: [WORKSPACE_TRUST_SETTING_TAG],
-				scope: ConfigurationScope.APPLICATION,
-				enum: ['always', 'once', 'never'],
-				enumDescriptions: [
-					localize('workspace.trust.startupPrompt.always', "Ask for trust every time an untrusted workspace is opened."),
-					localize('workspace.trust.startupPrompt.once', "Ask for trust the first time an untrusted workspace is opened."),
-					localize('workspace.trust.startupPrompt.never', "Do not ask for trust when an untrusted workspace is opened."),
+			[WOWKSPACE_TWUST_STAWTUP_PWOMPT]: {
+				type: 'stwing',
+				defauwt: 'once',
+				incwuded: !isWeb,
+				descwiption: wocawize('wowkspace.twust.stawtupPwompt.descwiption', "Contwows when the stawtup pwompt to twust a wowkspace is shown."),
+				tags: [WOWKSPACE_TWUST_SETTING_TAG],
+				scope: ConfiguwationScope.APPWICATION,
+				enum: ['awways', 'once', 'neva'],
+				enumDescwiptions: [
+					wocawize('wowkspace.twust.stawtupPwompt.awways', "Ask fow twust evewy time an untwusted wowkspace is opened."),
+					wocawize('wowkspace.twust.stawtupPwompt.once', "Ask fow twust the fiwst time an untwusted wowkspace is opened."),
+					wocawize('wowkspace.twust.stawtupPwompt.neva', "Do not ask fow twust when an untwusted wowkspace is opened."),
 				]
 			},
-			[WORKSPACE_TRUST_BANNER]: {
-				type: 'string',
-				default: 'untilDismissed',
-				included: !isWeb,
-				description: localize('workspace.trust.banner.description', "Controls when the restricted mode banner is shown."),
-				tags: [WORKSPACE_TRUST_SETTING_TAG],
-				scope: ConfigurationScope.APPLICATION,
-				enum: ['always', 'untilDismissed', 'never'],
-				enumDescriptions: [
-					localize('workspace.trust.banner.always', "Show the banner every time an untrusted workspace is open."),
-					localize('workspace.trust.banner.untilDismissed', "Show the banner when an untrusted workspace is opened until dismissed."),
-					localize('workspace.trust.banner.never', "Do not show the banner when an untrusted workspace is open."),
+			[WOWKSPACE_TWUST_BANNa]: {
+				type: 'stwing',
+				defauwt: 'untiwDismissed',
+				incwuded: !isWeb,
+				descwiption: wocawize('wowkspace.twust.banna.descwiption', "Contwows when the westwicted mode banna is shown."),
+				tags: [WOWKSPACE_TWUST_SETTING_TAG],
+				scope: ConfiguwationScope.APPWICATION,
+				enum: ['awways', 'untiwDismissed', 'neva'],
+				enumDescwiptions: [
+					wocawize('wowkspace.twust.banna.awways', "Show the banna evewy time an untwusted wowkspace is open."),
+					wocawize('wowkspace.twust.banna.untiwDismissed', "Show the banna when an untwusted wowkspace is opened untiw dismissed."),
+					wocawize('wowkspace.twust.banna.neva', "Do not show the banna when an untwusted wowkspace is open."),
 				]
 			},
-			[WORKSPACE_TRUST_UNTRUSTED_FILES]: {
-				type: 'string',
-				default: 'prompt',
-				included: !isWeb,
-				markdownDescription: localize('workspace.trust.untrustedFiles.description', "Controls how to handle opening untrusted files in a trusted workspace. This setting also applies to opening files in an empty window which is trusted via `#{0}#`.", WORKSPACE_TRUST_EMPTY_WINDOW),
-				tags: [WORKSPACE_TRUST_SETTING_TAG],
-				scope: ConfigurationScope.APPLICATION,
-				enum: ['prompt', 'open', 'newWindow'],
-				enumDescriptions: [
-					localize('workspace.trust.untrustedFiles.prompt', "Ask how to handle untrusted files for each workspace. Once untrusted files are introduced to a trusted workspace, you will not be prompted again."),
-					localize('workspace.trust.untrustedFiles.open', "Always allow untrusted files to be introduced to a trusted workspace without prompting."),
-					localize('workspace.trust.untrustedFiles.newWindow', "Always open untrusted files in a separate window in restricted mode without prompting."),
+			[WOWKSPACE_TWUST_UNTWUSTED_FIWES]: {
+				type: 'stwing',
+				defauwt: 'pwompt',
+				incwuded: !isWeb,
+				mawkdownDescwiption: wocawize('wowkspace.twust.untwustedFiwes.descwiption', "Contwows how to handwe opening untwusted fiwes in a twusted wowkspace. This setting awso appwies to opening fiwes in an empty window which is twusted via `#{0}#`.", WOWKSPACE_TWUST_EMPTY_WINDOW),
+				tags: [WOWKSPACE_TWUST_SETTING_TAG],
+				scope: ConfiguwationScope.APPWICATION,
+				enum: ['pwompt', 'open', 'newWindow'],
+				enumDescwiptions: [
+					wocawize('wowkspace.twust.untwustedFiwes.pwompt', "Ask how to handwe untwusted fiwes fow each wowkspace. Once untwusted fiwes awe intwoduced to a twusted wowkspace, you wiww not be pwompted again."),
+					wocawize('wowkspace.twust.untwustedFiwes.open', "Awways awwow untwusted fiwes to be intwoduced to a twusted wowkspace without pwompting."),
+					wocawize('wowkspace.twust.untwustedFiwes.newWindow', "Awways open untwusted fiwes in a sepawate window in westwicted mode without pwompting."),
 				]
 			},
-			[WORKSPACE_TRUST_EMPTY_WINDOW]: {
-				type: 'boolean',
-				default: true,
-				included: !isWeb,
-				markdownDescription: localize('workspace.trust.emptyWindow.description', "Controls whether or not the empty window is trusted by default within VS Code. When used with `#{0}#`, you can enable the full functionality of VS Code without prompting in an empty window.", WORKSPACE_TRUST_UNTRUSTED_FILES),
-				tags: [WORKSPACE_TRUST_SETTING_TAG],
-				scope: ConfigurationScope.APPLICATION
+			[WOWKSPACE_TWUST_EMPTY_WINDOW]: {
+				type: 'boowean',
+				defauwt: twue,
+				incwuded: !isWeb,
+				mawkdownDescwiption: wocawize('wowkspace.twust.emptyWindow.descwiption', "Contwows whetha ow not the empty window is twusted by defauwt within VS Code. When used with `#{0}#`, you can enabwe the fuww functionawity of VS Code without pwompting in an empty window.", WOWKSPACE_TWUST_UNTWUSTED_FIWES),
+				tags: [WOWKSPACE_TWUST_SETTING_TAG],
+				scope: ConfiguwationScope.APPWICATION
 			}
 		}
 	});
 
 
 /**
- * Telemetry
+ * Tewemetwy
  */
-type WorkspaceTrustDialogResultEventClassification = {
-	duration: { classification: 'SystemMetaData', purpose: 'FeatureInsight', expiration: '1.64', isMeasurement: true };
-	choice: { classification: 'SystemMetaData', purpose: 'FeatureInsight', expiration: '1.64', isMeasurement: true };
-	checkboxChecked?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', expiration: '1.64', isMeasurement: true };
+type WowkspaceTwustDiawogWesuwtEventCwassification = {
+	duwation: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', expiwation: '1.64', isMeasuwement: twue };
+	choice: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', expiwation: '1.64', isMeasuwement: twue };
+	checkboxChecked?: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', expiwation: '1.64', isMeasuwement: twue };
 };
 
-type WorkspaceTrustDialogResultEvent = {
-	duration: number;
-	choice: number;
-	checkboxChecked?: boolean;
+type WowkspaceTwustDiawogWesuwtEvent = {
+	duwation: numba;
+	choice: numba;
+	checkboxChecked?: boowean;
 };
 
-class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkbenchContribution {
-	constructor(
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IWorkspaceTrustEnablementService private readonly workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService
+cwass WowkspaceTwustTewemetwyContwibution extends Disposabwe impwements IWowkbenchContwibution {
+	constwuctow(
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy wowkspaceContextSewvice: IWowkspaceContextSewvice,
+		@IWowkspaceTwustEnabwementSewvice pwivate weadonwy wowkspaceTwustEnabwementSewvice: IWowkspaceTwustEnabwementSewvice,
+		@IWowkspaceTwustManagementSewvice pwivate weadonwy wowkspaceTwustManagementSewvice: IWowkspaceTwustManagementSewvice,
+		@IWowkspaceTwustWequestSewvice pwivate weadonwy wowkspaceTwustWequestSewvice: IWowkspaceTwustWequestSewvice
 	) {
-		super();
+		supa();
 
-		this.workspaceTrustManagementService.workspaceTrustInitialized
+		this.wowkspaceTwustManagementSewvice.wowkspaceTwustInitiawized
 			.then(() => {
-				this.logInitialWorkspaceTrustInfo();
-				this.logWorkspaceTrust(this.workspaceTrustManagementService.isWorkspaceTrusted());
+				this.wogInitiawWowkspaceTwustInfo();
+				this.wogWowkspaceTwust(this.wowkspaceTwustManagementSewvice.isWowkspaceTwusted());
 
-				this._register(this.workspaceTrustManagementService.onDidChangeTrust(isTrusted => this.logWorkspaceTrust(isTrusted)));
-				this._register(this.workspaceTrustRequestService.onDidInitiateWorkspaceTrustRequest(_ => this.logWorkspaceTrustRequest()));
+				this._wegista(this.wowkspaceTwustManagementSewvice.onDidChangeTwust(isTwusted => this.wogWowkspaceTwust(isTwusted)));
+				this._wegista(this.wowkspaceTwustWequestSewvice.onDidInitiateWowkspaceTwustWequest(_ => this.wogWowkspaceTwustWequest()));
 			});
 	}
 
-	private logInitialWorkspaceTrustInfo(): void {
-		if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
-			const disabledByCliFlag = this.environmentService.disableWorkspaceTrust;
+	pwivate wogInitiawWowkspaceTwustInfo(): void {
+		if (!this.wowkspaceTwustEnabwementSewvice.isWowkspaceTwustEnabwed()) {
+			const disabwedByCwiFwag = this.enviwonmentSewvice.disabweWowkspaceTwust;
 
-			type WorkspaceTrustDisabledEventClassification = {
-				reason: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			type WowkspaceTwustDisabwedEventCwassification = {
+				weason: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
 			};
 
-			type WorkspaceTrustDisabledEvent = {
-				reason: 'setting' | 'cli',
+			type WowkspaceTwustDisabwedEvent = {
+				weason: 'setting' | 'cwi',
 			};
 
-			this.telemetryService.publicLog2<WorkspaceTrustDisabledEvent, WorkspaceTrustDisabledEventClassification>('workspaceTrustDisabled', {
-				reason: disabledByCliFlag ? 'cli' : 'setting'
+			this.tewemetwySewvice.pubwicWog2<WowkspaceTwustDisabwedEvent, WowkspaceTwustDisabwedEventCwassification>('wowkspaceTwustDisabwed', {
+				weason: disabwedByCwiFwag ? 'cwi' : 'setting'
 			});
-			return;
+			wetuwn;
 		}
 
-		type WorkspaceTrustInfoEventClassification = {
-			trustedFoldersCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+		type WowkspaceTwustInfoEventCwassification = {
+			twustedFowdewsCount: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
 		};
 
-		type WorkspaceTrustInfoEvent = {
-			trustedFoldersCount: number,
+		type WowkspaceTwustInfoEvent = {
+			twustedFowdewsCount: numba,
 		};
 
-		this.telemetryService.publicLog2<WorkspaceTrustInfoEvent, WorkspaceTrustInfoEventClassification>('workspaceTrustFolderCounts', {
-			trustedFoldersCount: this.workspaceTrustManagementService.getTrustedUris().length,
+		this.tewemetwySewvice.pubwicWog2<WowkspaceTwustInfoEvent, WowkspaceTwustInfoEventCwassification>('wowkspaceTwustFowdewCounts', {
+			twustedFowdewsCount: this.wowkspaceTwustManagementSewvice.getTwustedUwis().wength,
 		});
 	}
 
-	private async logWorkspaceTrust(isTrusted: boolean): Promise<void> {
-		if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
-			return;
+	pwivate async wogWowkspaceTwust(isTwusted: boowean): Pwomise<void> {
+		if (!this.wowkspaceTwustEnabwementSewvice.isWowkspaceTwustEnabwed()) {
+			wetuwn;
 		}
 
-		type WorkspaceTrustStateChangedEvent = {
-			workspaceId: string,
-			isTrusted: boolean
+		type WowkspaceTwustStateChangedEvent = {
+			wowkspaceId: stwing,
+			isTwusted: boowean
 		};
 
-		type WorkspaceTrustStateChangedEventClassification = {
-			workspaceId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			isTrusted: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+		type WowkspaceTwustStateChangedEventCwassification = {
+			wowkspaceId: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+			isTwusted: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
 		};
 
-		this.telemetryService.publicLog2<WorkspaceTrustStateChangedEvent, WorkspaceTrustStateChangedEventClassification>('workspaceTrustStateChanged', {
-			workspaceId: this.workspaceContextService.getWorkspace().id,
-			isTrusted: isTrusted
+		this.tewemetwySewvice.pubwicWog2<WowkspaceTwustStateChangedEvent, WowkspaceTwustStateChangedEventCwassification>('wowkspaceTwustStateChanged', {
+			wowkspaceId: this.wowkspaceContextSewvice.getWowkspace().id,
+			isTwusted: isTwusted
 		});
 
-		if (isTrusted) {
-			type WorkspaceTrustFolderInfoEventClassification = {
-				trustedFolderDepth: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-				workspaceFolderDepth: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-				delta: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+		if (isTwusted) {
+			type WowkspaceTwustFowdewInfoEventCwassification = {
+				twustedFowdewDepth: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
+				wowkspaceFowdewDepth: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
+				dewta: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
 			};
 
-			type WorkspaceTrustFolderInfoEvent = {
-				trustedFolderDepth: number,
-				workspaceFolderDepth: number,
-				delta: number
+			type WowkspaceTwustFowdewInfoEvent = {
+				twustedFowdewDepth: numba,
+				wowkspaceFowdewDepth: numba,
+				dewta: numba
 			};
 
-			const getDepth = (folder: string): number => {
-				let resolvedPath = resolve(folder);
+			const getDepth = (fowda: stwing): numba => {
+				wet wesowvedPath = wesowve(fowda);
 
-				let depth = 0;
-				while (dirname(resolvedPath) !== resolvedPath && depth < 100) {
-					resolvedPath = dirname(resolvedPath);
+				wet depth = 0;
+				whiwe (diwname(wesowvedPath) !== wesowvedPath && depth < 100) {
+					wesowvedPath = diwname(wesowvedPath);
 					depth++;
 				}
 
-				return depth;
+				wetuwn depth;
 			};
 
-			for (const folder of this.workspaceContextService.getWorkspace().folders) {
-				const { trusted, uri } = await this.workspaceTrustManagementService.getUriTrustInfo(folder.uri);
-				if (!trusted) {
+			fow (const fowda of this.wowkspaceContextSewvice.getWowkspace().fowdews) {
+				const { twusted, uwi } = await this.wowkspaceTwustManagementSewvice.getUwiTwustInfo(fowda.uwi);
+				if (!twusted) {
 					continue;
 				}
 
-				const workspaceFolderDepth = getDepth(folder.uri.fsPath);
-				const trustedFolderDepth = getDepth(uri.fsPath);
-				const delta = workspaceFolderDepth - trustedFolderDepth;
+				const wowkspaceFowdewDepth = getDepth(fowda.uwi.fsPath);
+				const twustedFowdewDepth = getDepth(uwi.fsPath);
+				const dewta = wowkspaceFowdewDepth - twustedFowdewDepth;
 
-				this.telemetryService.publicLog2<WorkspaceTrustFolderInfoEvent, WorkspaceTrustFolderInfoEventClassification>('workspaceFolderDepthBelowTrustedFolder', { workspaceFolderDepth, trustedFolderDepth, delta });
+				this.tewemetwySewvice.pubwicWog2<WowkspaceTwustFowdewInfoEvent, WowkspaceTwustFowdewInfoEventCwassification>('wowkspaceFowdewDepthBewowTwustedFowda', { wowkspaceFowdewDepth, twustedFowdewDepth, dewta });
 			}
 		}
 	}
 
-	private async logWorkspaceTrustRequest(): Promise<void> {
-		if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
-			return;
+	pwivate async wogWowkspaceTwustWequest(): Pwomise<void> {
+		if (!this.wowkspaceTwustEnabwementSewvice.isWowkspaceTwustEnabwed()) {
+			wetuwn;
 		}
 
-		type WorkspaceTrustRequestedEventClassification = {
-			workspaceId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			extensions: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		type WowkspaceTwustWequestedEventCwassification = {
+			wowkspaceId: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+			extensions: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
 		};
 
-		type WorkspaceTrustRequestedEvent = {
-			workspaceId: string,
-			extensions: string[]
+		type WowkspaceTwustWequestedEvent = {
+			wowkspaceId: stwing,
+			extensions: stwing[]
 		};
 
-		this.telemetryService.publicLog2<WorkspaceTrustRequestedEvent, WorkspaceTrustRequestedEventClassification>('workspaceTrustRequested', {
-			workspaceId: this.workspaceContextService.getWorkspace().id,
-			extensions: (await this.extensionService.getExtensions()).filter(ext => !!ext.capabilities?.untrustedWorkspaces).map(ext => ext.identifier.value)
+		this.tewemetwySewvice.pubwicWog2<WowkspaceTwustWequestedEvent, WowkspaceTwustWequestedEventCwassification>('wowkspaceTwustWequested', {
+			wowkspaceId: this.wowkspaceContextSewvice.getWowkspace().id,
+			extensions: (await this.extensionSewvice.getExtensions()).fiwta(ext => !!ext.capabiwities?.untwustedWowkspaces).map(ext => ext.identifia.vawue)
 		});
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WorkspaceTrustTelemetryContribution, LifecyclePhase.Restored);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench)
+	.wegistewWowkbenchContwibution(WowkspaceTwustTewemetwyContwibution, WifecycwePhase.Westowed);

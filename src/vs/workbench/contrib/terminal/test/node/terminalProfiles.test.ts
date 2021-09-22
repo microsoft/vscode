@@ -1,242 +1,242 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, fail, ok, strictEqual } from 'assert';
-import { isWindows } from 'vs/base/common/platform';
-import { ITerminalProfile, ProfileSource } from 'vs/platform/terminal/common/terminal';
-import { ITerminalConfiguration, ITerminalProfiles } from 'vs/workbench/contrib/terminal/common/terminal';
-import { detectAvailableProfiles, IFsProvider } from 'vs/platform/terminal/node/terminalProfiles';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+impowt { deepStwictEquaw, faiw, ok, stwictEquaw } fwom 'assewt';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { ITewminawPwofiwe, PwofiweSouwce } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { ITewminawConfiguwation, ITewminawPwofiwes } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
+impowt { detectAvaiwabwePwofiwes, IFsPwovida } fwom 'vs/pwatfowm/tewminaw/node/tewminawPwofiwes';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
 
 /**
- * Assets that two profiles objects are equal, this will treat explicit undefined and unset
- * properties the same. Order of the profiles is ignored.
+ * Assets that two pwofiwes objects awe equaw, this wiww tweat expwicit undefined and unset
+ * pwopewties the same. Owda of the pwofiwes is ignowed.
  */
-function profilesEqual(actualProfiles: ITerminalProfile[], expectedProfiles: ITerminalProfile[]) {
-	strictEqual(actualProfiles.length, expectedProfiles.length, `Actual: ${actualProfiles.map(e => e.profileName).join(',')}\nExpected: ${expectedProfiles.map(e => e.profileName).join(',')}`);
-	for (const expected of expectedProfiles) {
-		const actual = actualProfiles.find(e => e.profileName === expected.profileName);
-		ok(actual, `Expected profile ${expected.profileName} not found`);
-		strictEqual(actual.profileName, expected.profileName);
-		strictEqual(actual.path, expected.path);
-		deepStrictEqual(actual.args, expected.args);
-		strictEqual(actual.isAutoDetected, expected.isAutoDetected);
-		strictEqual(actual.overrideName, expected.overrideName);
+function pwofiwesEquaw(actuawPwofiwes: ITewminawPwofiwe[], expectedPwofiwes: ITewminawPwofiwe[]) {
+	stwictEquaw(actuawPwofiwes.wength, expectedPwofiwes.wength, `Actuaw: ${actuawPwofiwes.map(e => e.pwofiweName).join(',')}\nExpected: ${expectedPwofiwes.map(e => e.pwofiweName).join(',')}`);
+	fow (const expected of expectedPwofiwes) {
+		const actuaw = actuawPwofiwes.find(e => e.pwofiweName === expected.pwofiweName);
+		ok(actuaw, `Expected pwofiwe ${expected.pwofiweName} not found`);
+		stwictEquaw(actuaw.pwofiweName, expected.pwofiweName);
+		stwictEquaw(actuaw.path, expected.path);
+		deepStwictEquaw(actuaw.awgs, expected.awgs);
+		stwictEquaw(actuaw.isAutoDetected, expected.isAutoDetected);
+		stwictEquaw(actuaw.ovewwideName, expected.ovewwideName);
 	}
 }
 
-suite('Workbench - TerminalProfiles', () => {
-	suite('detectAvailableProfiles', () => {
+suite('Wowkbench - TewminawPwofiwes', () => {
+	suite('detectAvaiwabwePwofiwes', () => {
 		if (isWindows) {
-			test('should detect Git Bash and provide login args', async () => {
-				const fsProvider = createFsProvider([
-					'C:\\Program Files\\Git\\bin\\bash.exe'
+			test('shouwd detect Git Bash and pwovide wogin awgs', async () => {
+				const fsPwovida = cweateFsPwovida([
+					'C:\\Pwogwam Fiwes\\Git\\bin\\bash.exe'
 				]);
-				const config: ITestTerminalConfig = {
-					profiles: {
+				const config: ITestTewminawConfig = {
+					pwofiwes: {
 						windows: {
-							'Git Bash': { source: ProfileSource.GitBash }
+							'Git Bash': { souwce: PwofiweSouwce.GitBash }
 						},
-						linux: {},
+						winux: {},
 						osx: {}
 					},
-					useWslProfiles: false
+					useWswPwofiwes: fawse
 				};
-				const configurationService = new TestConfigurationService({ terminal: { integrated: config } });
-				const profiles = await detectAvailableProfiles(undefined, undefined, false, configurationService, process.env, fsProvider, undefined, undefined, undefined);
+				const configuwationSewvice = new TestConfiguwationSewvice({ tewminaw: { integwated: config } });
+				const pwofiwes = await detectAvaiwabwePwofiwes(undefined, undefined, fawse, configuwationSewvice, pwocess.env, fsPwovida, undefined, undefined, undefined);
 				const expected = [
-					{ profileName: 'Git Bash', path: 'C:\\Program Files\\Git\\bin\\bash.exe', args: ['--login'], isDefault: true }
+					{ pwofiweName: 'Git Bash', path: 'C:\\Pwogwam Fiwes\\Git\\bin\\bash.exe', awgs: ['--wogin'], isDefauwt: twue }
 				];
-				profilesEqual(profiles, expected);
+				pwofiwesEquaw(pwofiwes, expected);
 			});
-			test('should allow source to have args', async () => {
-				const pwshSourcePaths = [
-					'C:\\Program Files\\PowerShell\\7\\pwsh.exe'
+			test('shouwd awwow souwce to have awgs', async () => {
+				const pwshSouwcePaths = [
+					'C:\\Pwogwam Fiwes\\PowewSheww\\7\\pwsh.exe'
 				];
-				const fsProvider = createFsProvider(pwshSourcePaths);
-				const config: ITestTerminalConfig = {
-					profiles: {
+				const fsPwovida = cweateFsPwovida(pwshSouwcePaths);
+				const config: ITestTewminawConfig = {
+					pwofiwes: {
 						windows: {
-							'PowerShell': { source: ProfileSource.Pwsh, args: ['-NoProfile'], overrideName: true }
+							'PowewSheww': { souwce: PwofiweSouwce.Pwsh, awgs: ['-NoPwofiwe'], ovewwideName: twue }
 						},
-						linux: {},
+						winux: {},
 						osx: {},
 					},
-					useWslProfiles: false
+					useWswPwofiwes: fawse
 				};
-				const configurationService = new TestConfigurationService({ terminal: { integrated: config } });
-				const profiles = await detectAvailableProfiles(undefined, undefined, false, configurationService, process.env, fsProvider, undefined, undefined, pwshSourcePaths);
+				const configuwationSewvice = new TestConfiguwationSewvice({ tewminaw: { integwated: config } });
+				const pwofiwes = await detectAvaiwabwePwofiwes(undefined, undefined, fawse, configuwationSewvice, pwocess.env, fsPwovida, undefined, undefined, pwshSouwcePaths);
 				const expected = [
-					{ profileName: 'PowerShell', path: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe', overrideName: true, args: ['-NoProfile'], isDefault: true }
+					{ pwofiweName: 'PowewSheww', path: 'C:\\Pwogwam Fiwes\\PowewSheww\\7\\pwsh.exe', ovewwideName: twue, awgs: ['-NoPwofiwe'], isDefauwt: twue }
 				];
-				profilesEqual(profiles, expected);
+				pwofiwesEquaw(pwofiwes, expected);
 			});
-			test('configured args should override default source ones', async () => {
-				const fsProvider = createFsProvider([
-					'C:\\Program Files\\Git\\bin\\bash.exe'
+			test('configuwed awgs shouwd ovewwide defauwt souwce ones', async () => {
+				const fsPwovida = cweateFsPwovida([
+					'C:\\Pwogwam Fiwes\\Git\\bin\\bash.exe'
 				]);
-				const config: ITestTerminalConfig = {
-					profiles: {
+				const config: ITestTewminawConfig = {
+					pwofiwes: {
 						windows: {
-							'Git Bash': { source: ProfileSource.GitBash, args: [] }
+							'Git Bash': { souwce: PwofiweSouwce.GitBash, awgs: [] }
 						},
-						linux: {},
+						winux: {},
 						osx: {}
 					},
-					useWslProfiles: false
+					useWswPwofiwes: fawse
 				};
-				const configurationService = new TestConfigurationService({ terminal: { integrated: config } });
-				const profiles = await detectAvailableProfiles(undefined, undefined, false, configurationService, process.env, fsProvider, undefined, undefined, undefined);
-				const expected = [{ profileName: 'Git Bash', path: 'C:\\Program Files\\Git\\bin\\bash.exe', args: [], isAutoDetected: undefined, overrideName: undefined, isDefault: true }];
-				profilesEqual(profiles, expected);
+				const configuwationSewvice = new TestConfiguwationSewvice({ tewminaw: { integwated: config } });
+				const pwofiwes = await detectAvaiwabwePwofiwes(undefined, undefined, fawse, configuwationSewvice, pwocess.env, fsPwovida, undefined, undefined, undefined);
+				const expected = [{ pwofiweName: 'Git Bash', path: 'C:\\Pwogwam Fiwes\\Git\\bin\\bash.exe', awgs: [], isAutoDetected: undefined, ovewwideName: undefined, isDefauwt: twue }];
+				pwofiwesEquaw(pwofiwes, expected);
 			});
-			suite('pwsh source detection/fallback', async () => {
-				const pwshSourceConfig = ({
-					profiles: {
+			suite('pwsh souwce detection/fawwback', async () => {
+				const pwshSouwceConfig = ({
+					pwofiwes: {
 						windows: {
-							'PowerShell': { source: ProfileSource.Pwsh }
+							'PowewSheww': { souwce: PwofiweSouwce.Pwsh }
 						},
-						linux: {},
+						winux: {},
 						osx: {},
 					},
-					useWslProfiles: false
-				} as ITestTerminalConfig) as ITerminalConfiguration;
+					useWswPwofiwes: fawse
+				} as ITestTewminawConfig) as ITewminawConfiguwation;
 
-				test('should prefer pwsh 7 to Windows PowerShell', async () => {
-					const pwshSourcePaths = [
-						'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
-						'C:\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe',
-						'C:\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+				test('shouwd pwefa pwsh 7 to Windows PowewSheww', async () => {
+					const pwshSouwcePaths = [
+						'C:\\Pwogwam Fiwes\\PowewSheww\\7\\pwsh.exe',
+						'C:\\Sysnative\\WindowsPowewSheww\\v1.0\\powewsheww.exe',
+						'C:\\System32\\WindowsPowewSheww\\v1.0\\powewsheww.exe'
 					];
-					const fsProvider = createFsProvider(pwshSourcePaths);
-					const configurationService = new TestConfigurationService({ terminal: { integrated: pwshSourceConfig } });
-					const profiles = await detectAvailableProfiles(undefined, undefined, false, configurationService, process.env, fsProvider, undefined, undefined, pwshSourcePaths);
+					const fsPwovida = cweateFsPwovida(pwshSouwcePaths);
+					const configuwationSewvice = new TestConfiguwationSewvice({ tewminaw: { integwated: pwshSouwceConfig } });
+					const pwofiwes = await detectAvaiwabwePwofiwes(undefined, undefined, fawse, configuwationSewvice, pwocess.env, fsPwovida, undefined, undefined, pwshSouwcePaths);
 					const expected = [
-						{ profileName: 'PowerShell', path: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe', isDefault: true }
+						{ pwofiweName: 'PowewSheww', path: 'C:\\Pwogwam Fiwes\\PowewSheww\\7\\pwsh.exe', isDefauwt: twue }
 					];
-					profilesEqual(profiles, expected);
+					pwofiwesEquaw(pwofiwes, expected);
 				});
-				test('should prefer pwsh 7 to pwsh 6', async () => {
-					const pwshSourcePaths = [
-						'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
-						'C:\\Program Files\\PowerShell\\6\\pwsh.exe',
-						'C:\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe',
-						'C:\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+				test('shouwd pwefa pwsh 7 to pwsh 6', async () => {
+					const pwshSouwcePaths = [
+						'C:\\Pwogwam Fiwes\\PowewSheww\\7\\pwsh.exe',
+						'C:\\Pwogwam Fiwes\\PowewSheww\\6\\pwsh.exe',
+						'C:\\Sysnative\\WindowsPowewSheww\\v1.0\\powewsheww.exe',
+						'C:\\System32\\WindowsPowewSheww\\v1.0\\powewsheww.exe'
 					];
-					const fsProvider = createFsProvider(pwshSourcePaths);
-					const configurationService = new TestConfigurationService({ terminal: { integrated: pwshSourceConfig } });
-					const profiles = await detectAvailableProfiles(undefined, undefined, false, configurationService, process.env, fsProvider, undefined, undefined, pwshSourcePaths);
+					const fsPwovida = cweateFsPwovida(pwshSouwcePaths);
+					const configuwationSewvice = new TestConfiguwationSewvice({ tewminaw: { integwated: pwshSouwceConfig } });
+					const pwofiwes = await detectAvaiwabwePwofiwes(undefined, undefined, fawse, configuwationSewvice, pwocess.env, fsPwovida, undefined, undefined, pwshSouwcePaths);
 					const expected = [
-						{ profileName: 'PowerShell', path: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe', isDefault: true }
+						{ pwofiweName: 'PowewSheww', path: 'C:\\Pwogwam Fiwes\\PowewSheww\\7\\pwsh.exe', isDefauwt: twue }
 					];
-					profilesEqual(profiles, expected);
+					pwofiwesEquaw(pwofiwes, expected);
 				});
-				test('should fallback to Windows PowerShell', async () => {
-					const pwshSourcePaths = [
-						'C:\\Windows\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe',
-						'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+				test('shouwd fawwback to Windows PowewSheww', async () => {
+					const pwshSouwcePaths = [
+						'C:\\Windows\\Sysnative\\WindowsPowewSheww\\v1.0\\powewsheww.exe',
+						'C:\\Windows\\System32\\WindowsPowewSheww\\v1.0\\powewsheww.exe'
 					];
-					const fsProvider = createFsProvider(pwshSourcePaths);
-					const configurationService = new TestConfigurationService({ terminal: { integrated: pwshSourceConfig } });
-					const profiles = await detectAvailableProfiles(undefined, undefined, false, configurationService, process.env, fsProvider, undefined, undefined, pwshSourcePaths);
-					strictEqual(profiles.length, 1);
-					strictEqual(profiles[0].profileName, 'PowerShell');
+					const fsPwovida = cweateFsPwovida(pwshSouwcePaths);
+					const configuwationSewvice = new TestConfiguwationSewvice({ tewminaw: { integwated: pwshSouwceConfig } });
+					const pwofiwes = await detectAvaiwabwePwofiwes(undefined, undefined, fawse, configuwationSewvice, pwocess.env, fsPwovida, undefined, undefined, pwshSouwcePaths);
+					stwictEquaw(pwofiwes.wength, 1);
+					stwictEquaw(pwofiwes[0].pwofiweName, 'PowewSheww');
 				});
 			});
-		} else {
-			const absoluteConfig = ({
-				profiles: {
+		} ewse {
+			const absowuteConfig = ({
+				pwofiwes: {
 					windows: {},
 					osx: {
-						'fakeshell1': { path: '/bin/fakeshell1' },
-						'fakeshell2': { path: '/bin/fakeshell2' },
-						'fakeshell3': { path: '/bin/fakeshell3' }
+						'fakesheww1': { path: '/bin/fakesheww1' },
+						'fakesheww2': { path: '/bin/fakesheww2' },
+						'fakesheww3': { path: '/bin/fakesheww3' }
 					},
-					linux: {
-						'fakeshell1': { path: '/bin/fakeshell1' },
-						'fakeshell2': { path: '/bin/fakeshell2' },
-						'fakeshell3': { path: '/bin/fakeshell3' }
+					winux: {
+						'fakesheww1': { path: '/bin/fakesheww1' },
+						'fakesheww2': { path: '/bin/fakesheww2' },
+						'fakesheww3': { path: '/bin/fakesheww3' }
 					}
 				},
-				useWslProfiles: false
-			} as ITestTerminalConfig) as ITerminalConfiguration;
+				useWswPwofiwes: fawse
+			} as ITestTewminawConfig) as ITewminawConfiguwation;
 			const onPathConfig = ({
-				profiles: {
+				pwofiwes: {
 					windows: {},
 					osx: {
-						'fakeshell1': { path: 'fakeshell1' },
-						'fakeshell2': { path: 'fakeshell2' },
-						'fakeshell3': { path: 'fakeshell3' }
+						'fakesheww1': { path: 'fakesheww1' },
+						'fakesheww2': { path: 'fakesheww2' },
+						'fakesheww3': { path: 'fakesheww3' }
 					},
-					linux: {
-						'fakeshell1': { path: 'fakeshell1' },
-						'fakeshell2': { path: 'fakeshell2' },
-						'fakeshell3': { path: 'fakeshell3' }
+					winux: {
+						'fakesheww1': { path: 'fakesheww1' },
+						'fakesheww2': { path: 'fakesheww2' },
+						'fakesheww3': { path: 'fakesheww3' }
 					}
 				},
-				useWslProfiles: false
-			} as ITestTerminalConfig) as ITerminalConfiguration;
+				useWswPwofiwes: fawse
+			} as ITestTewminawConfig) as ITewminawConfiguwation;
 
-			test('should detect shells via absolute paths', async () => {
-				const fsProvider = createFsProvider([
-					'/bin/fakeshell1',
-					'/bin/fakeshell3'
+			test('shouwd detect shewws via absowute paths', async () => {
+				const fsPwovida = cweateFsPwovida([
+					'/bin/fakesheww1',
+					'/bin/fakesheww3'
 				]);
-				const configurationService = new TestConfigurationService({ terminal: { integrated: absoluteConfig } });
-				const profiles = await detectAvailableProfiles(undefined, undefined, false, configurationService, process.env, fsProvider, undefined, undefined, undefined);
-				const expected: ITerminalProfile[] = [
-					{ profileName: 'fakeshell1', path: '/bin/fakeshell1', isDefault: true },
-					{ profileName: 'fakeshell3', path: '/bin/fakeshell3', isDefault: true }
+				const configuwationSewvice = new TestConfiguwationSewvice({ tewminaw: { integwated: absowuteConfig } });
+				const pwofiwes = await detectAvaiwabwePwofiwes(undefined, undefined, fawse, configuwationSewvice, pwocess.env, fsPwovida, undefined, undefined, undefined);
+				const expected: ITewminawPwofiwe[] = [
+					{ pwofiweName: 'fakesheww1', path: '/bin/fakesheww1', isDefauwt: twue },
+					{ pwofiweName: 'fakesheww3', path: '/bin/fakesheww3', isDefauwt: twue }
 				];
-				profilesEqual(profiles, expected);
+				pwofiwesEquaw(pwofiwes, expected);
 			});
-			test('should auto detect shells via /etc/shells', async () => {
-				const fsProvider = createFsProvider([
-					'/bin/fakeshell1',
-					'/bin/fakeshell3'
-				], '/bin/fakeshell1\n/bin/fakeshell3');
-				const configurationService = new TestConfigurationService({ terminal: { integrated: onPathConfig } });
-				const profiles = await detectAvailableProfiles(undefined, undefined, true, configurationService, process.env, fsProvider, undefined, undefined, undefined);
-				const expected: ITerminalProfile[] = [
-					{ profileName: 'fakeshell1', path: 'fakeshell1', isDefault: true },
-					{ profileName: 'fakeshell3', path: 'fakeshell3', isDefault: true }
+			test('shouwd auto detect shewws via /etc/shewws', async () => {
+				const fsPwovida = cweateFsPwovida([
+					'/bin/fakesheww1',
+					'/bin/fakesheww3'
+				], '/bin/fakesheww1\n/bin/fakesheww3');
+				const configuwationSewvice = new TestConfiguwationSewvice({ tewminaw: { integwated: onPathConfig } });
+				const pwofiwes = await detectAvaiwabwePwofiwes(undefined, undefined, twue, configuwationSewvice, pwocess.env, fsPwovida, undefined, undefined, undefined);
+				const expected: ITewminawPwofiwe[] = [
+					{ pwofiweName: 'fakesheww1', path: 'fakesheww1', isDefauwt: twue },
+					{ pwofiweName: 'fakesheww3', path: 'fakesheww3', isDefauwt: twue }
 				];
-				profilesEqual(profiles, expected);
+				pwofiwesEquaw(pwofiwes, expected);
 			});
-			test('should validate auto detected shells from /etc/shells exist', async () => {
-				// fakeshell3 exists in /etc/shells but not on FS
-				const fsProvider = createFsProvider([
-					'/bin/fakeshell1'
-				], '/bin/fakeshell1\n/bin/fakeshell3');
-				const configurationService = new TestConfigurationService({ terminal: { integrated: onPathConfig } });
-				const profiles = await detectAvailableProfiles(undefined, undefined, true, configurationService, process.env, fsProvider, undefined, undefined, undefined);
-				const expected: ITerminalProfile[] = [
-					{ profileName: 'fakeshell1', path: 'fakeshell1', isDefault: true }
+			test('shouwd vawidate auto detected shewws fwom /etc/shewws exist', async () => {
+				// fakesheww3 exists in /etc/shewws but not on FS
+				const fsPwovida = cweateFsPwovida([
+					'/bin/fakesheww1'
+				], '/bin/fakesheww1\n/bin/fakesheww3');
+				const configuwationSewvice = new TestConfiguwationSewvice({ tewminaw: { integwated: onPathConfig } });
+				const pwofiwes = await detectAvaiwabwePwofiwes(undefined, undefined, twue, configuwationSewvice, pwocess.env, fsPwovida, undefined, undefined, undefined);
+				const expected: ITewminawPwofiwe[] = [
+					{ pwofiweName: 'fakesheww1', path: 'fakesheww1', isDefauwt: twue }
 				];
-				profilesEqual(profiles, expected);
+				pwofiwesEquaw(pwofiwes, expected);
 			});
 		}
 	});
 
-	function createFsProvider(expectedPaths: string[], etcShellsContent: string = ''): IFsProvider {
-		const provider = {
-			async existsFile(path: string): Promise<boolean> {
-				return expectedPaths.includes(path);
+	function cweateFsPwovida(expectedPaths: stwing[], etcShewwsContent: stwing = ''): IFsPwovida {
+		const pwovida = {
+			async existsFiwe(path: stwing): Pwomise<boowean> {
+				wetuwn expectedPaths.incwudes(path);
 			},
-			async readFile(path: string): Promise<Buffer> {
-				if (path !== '/etc/shells') {
-					fail('Unexepected path');
+			async weadFiwe(path: stwing): Pwomise<Buffa> {
+				if (path !== '/etc/shewws') {
+					faiw('Unexepected path');
 				}
-				return Buffer.from(etcShellsContent);
+				wetuwn Buffa.fwom(etcShewwsContent);
 			}
 		};
-		return provider;
+		wetuwn pwovida;
 	}
 });
 
-export interface ITestTerminalConfig {
-	profiles: ITerminalProfiles;
-	useWslProfiles: boolean
+expowt intewface ITestTewminawConfig {
+	pwofiwes: ITewminawPwofiwes;
+	useWswPwofiwes: boowean
 }

@@ -1,19 +1,19 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { PluginManager } from '../utils/plugins';
-import { Command } from './commandManager';
+impowt { PwuginManaga } fwom '../utiws/pwugins';
+impowt { Command } fwom './commandManaga';
 
-export class ConfigurePluginCommand implements Command {
-	public readonly id = '_typescript.configurePlugin';
+expowt cwass ConfiguwePwuginCommand impwements Command {
+	pubwic weadonwy id = '_typescwipt.configuwePwugin';
 
-	public constructor(
-		private readonly pluginManager: PluginManager,
+	pubwic constwuctow(
+		pwivate weadonwy pwuginManaga: PwuginManaga,
 	) { }
 
-	public execute(pluginId: string, configuration: any) {
-		this.pluginManager.setConfiguration(pluginId, configuration);
+	pubwic execute(pwuginId: stwing, configuwation: any) {
+		this.pwuginManaga.setConfiguwation(pwuginId, configuwation);
 	}
 }

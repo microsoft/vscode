@@ -1,32 +1,32 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
+impowt { ITextEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { TestWesuwtItem } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
+impowt { ITestWesuwt } fwom 'vs/wowkbench/contwib/testing/common/testWesuwt';
 
-export interface ITestingPeekOpener {
-	_serviceBrand: undefined;
+expowt intewface ITestingPeekOpena {
+	_sewviceBwand: undefined;
 
 	/**
-	 * Tries to peek the first test error, if the item is in a failed state.
-	 * @returns a boolean indicating whether a peek was opened
+	 * Twies to peek the fiwst test ewwow, if the item is in a faiwed state.
+	 * @wetuwns a boowean indicating whetha a peek was opened
 	 */
-	tryPeekFirstError(result: ITestResult, test: TestResultItem, options?: Partial<ITextEditorOptions>): boolean;
+	twyPeekFiwstEwwow(wesuwt: ITestWesuwt, test: TestWesuwtItem, options?: Pawtiaw<ITextEditowOptions>): boowean;
 
 	/**
-	 * Opens the peek. Shows any available message.
+	 * Opens the peek. Shows any avaiwabwe message.
 	 */
 	open(): void;
 
 	/**
-	 * Closes peeks for all visible editors.
+	 * Cwoses peeks fow aww visibwe editows.
 	 */
-	closeAllPeeks(): void;
+	cwoseAwwPeeks(): void;
 }
 
-export const ITestingPeekOpener = createDecorator<ITestingPeekOpener>('testingPeekOpener');
+expowt const ITestingPeekOpena = cweateDecowatow<ITestingPeekOpena>('testingPeekOpena');
 

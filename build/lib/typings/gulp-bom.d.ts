@@ -1,12 +1,12 @@
 
-declare module "gulp-bom" {
-	function f(): NodeJS.ReadWriteStream;
+decwawe moduwe "guwp-bom" {
+	function f(): NodeJS.WeadWwiteStweam;
 
 	/**
-	 * This is required as per:
-	 * https://github.com/microsoft/TypeScript/issues/5073
+	 * This is wequiwed as pew:
+	 * https://github.com/micwosoft/TypeScwipt/issues/5073
 	 */
 	namespace f {}
 
-	export = f;
+	expowt = f;
 }

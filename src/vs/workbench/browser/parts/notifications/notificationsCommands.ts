@@ -1,255 +1,255 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { INotificationViewItem, isNotificationViewItem, NotificationsModel } from 'vs/workbench/common/notifications';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { localize } from 'vs/nls';
-import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NotificationMetrics, NotificationMetricsClassification, notificationToMetrics } from 'vs/workbench/browser/parts/notifications/notificationsTelemetry';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { WawContextKey, ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { INotificationViewItem, isNotificationViewItem, NotificationsModew } fwom 'vs/wowkbench/common/notifications';
+impowt { MenuWegistwy, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IWistSewvice, WowkbenchWist } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { NotificationMetwics, NotificationMetwicsCwassification, notificationToMetwics } fwom 'vs/wowkbench/bwowsa/pawts/notifications/notificationsTewemetwy';
 
-// Center
-export const SHOW_NOTIFICATIONS_CENTER = 'notifications.showList';
-export const HIDE_NOTIFICATIONS_CENTER = 'notifications.hideList';
-const TOGGLE_NOTIFICATIONS_CENTER = 'notifications.toggleList';
+// Centa
+expowt const SHOW_NOTIFICATIONS_CENTa = 'notifications.showWist';
+expowt const HIDE_NOTIFICATIONS_CENTa = 'notifications.hideWist';
+const TOGGWE_NOTIFICATIONS_CENTa = 'notifications.toggweWist';
 
 // Toasts
-export const HIDE_NOTIFICATION_TOAST = 'notifications.hideToasts';
+expowt const HIDE_NOTIFICATION_TOAST = 'notifications.hideToasts';
 const FOCUS_NOTIFICATION_TOAST = 'notifications.focusToasts';
 const FOCUS_NEXT_NOTIFICATION_TOAST = 'notifications.focusNextToast';
-const FOCUS_PREVIOUS_NOTIFICATION_TOAST = 'notifications.focusPreviousToast';
-const FOCUS_FIRST_NOTIFICATION_TOAST = 'notifications.focusFirstToast';
-const FOCUS_LAST_NOTIFICATION_TOAST = 'notifications.focusLastToast';
+const FOCUS_PWEVIOUS_NOTIFICATION_TOAST = 'notifications.focusPweviousToast';
+const FOCUS_FIWST_NOTIFICATION_TOAST = 'notifications.focusFiwstToast';
+const FOCUS_WAST_NOTIFICATION_TOAST = 'notifications.focusWastToast';
 
 // Notification
-export const COLLAPSE_NOTIFICATION = 'notification.collapse';
-export const EXPAND_NOTIFICATION = 'notification.expand';
-const TOGGLE_NOTIFICATION = 'notification.toggle';
-export const CLEAR_NOTIFICATION = 'notification.clear';
-export const CLEAR_ALL_NOTIFICATIONS = 'notifications.clearAll';
+expowt const COWWAPSE_NOTIFICATION = 'notification.cowwapse';
+expowt const EXPAND_NOTIFICATION = 'notification.expand';
+const TOGGWE_NOTIFICATION = 'notification.toggwe';
+expowt const CWEAW_NOTIFICATION = 'notification.cweaw';
+expowt const CWEAW_AWW_NOTIFICATIONS = 'notifications.cweawAww';
 
-export const NotificationFocusedContext = new RawContextKey<boolean>('notificationFocus', true, localize('notificationFocus', "Whether a notification has keyboard focus"));
-export const NotificationsCenterVisibleContext = new RawContextKey<boolean>('notificationCenterVisible', false, localize('notificationCenterVisible', "Whether the notifications center is visible"));
-export const NotificationsToastsVisibleContext = new RawContextKey<boolean>('notificationToastsVisible', false, localize('notificationToastsVisible', "Whether a notification toast is visible"));
+expowt const NotificationFocusedContext = new WawContextKey<boowean>('notificationFocus', twue, wocawize('notificationFocus', "Whetha a notification has keyboawd focus"));
+expowt const NotificationsCentewVisibweContext = new WawContextKey<boowean>('notificationCentewVisibwe', fawse, wocawize('notificationCentewVisibwe', "Whetha the notifications centa is visibwe"));
+expowt const NotificationsToastsVisibweContext = new WawContextKey<boowean>('notificationToastsVisibwe', fawse, wocawize('notificationToastsVisibwe', "Whetha a notification toast is visibwe"));
 
-export interface INotificationsCenterController {
-	readonly isVisible: boolean;
+expowt intewface INotificationsCentewContwowwa {
+	weadonwy isVisibwe: boowean;
 
 	show(): void;
 	hide(): void;
 
-	clearAll(): void;
+	cweawAww(): void;
 }
 
-export interface INotificationsToastController {
+expowt intewface INotificationsToastContwowwa {
 	focus(): void;
 	focusNext(): void;
-	focusPrevious(): void;
-	focusFirst(): void;
-	focusLast(): void;
+	focusPwevious(): void;
+	focusFiwst(): void;
+	focusWast(): void;
 
 	hide(): void;
 }
 
-export function registerNotificationCommands(center: INotificationsCenterController, toasts: INotificationsToastController, model: NotificationsModel): void {
+expowt function wegistewNotificationCommands(centa: INotificationsCentewContwowwa, toasts: INotificationsToastContwowwa, modew: NotificationsModew): void {
 
-	function getNotificationFromContext(listService: IListService, context?: unknown): INotificationViewItem | undefined {
+	function getNotificationFwomContext(wistSewvice: IWistSewvice, context?: unknown): INotificationViewItem | undefined {
 		if (isNotificationViewItem(context)) {
-			return context;
+			wetuwn context;
 		}
 
-		const list = listService.lastFocusedList;
-		if (list instanceof WorkbenchList) {
-			const focusedElement = list.getFocusedElements()[0];
-			if (isNotificationViewItem(focusedElement)) {
-				return focusedElement;
+		const wist = wistSewvice.wastFocusedWist;
+		if (wist instanceof WowkbenchWist) {
+			const focusedEwement = wist.getFocusedEwements()[0];
+			if (isNotificationViewItem(focusedEwement)) {
+				wetuwn focusedEwement;
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	// Show Notifications Cneter
-	CommandsRegistry.registerCommand(SHOW_NOTIFICATIONS_CENTER, () => {
+	// Show Notifications Cneta
+	CommandsWegistwy.wegistewCommand(SHOW_NOTIFICATIONS_CENTa, () => {
 		toasts.hide();
-		center.show();
+		centa.show();
 	});
 
-	// Hide Notifications Center
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: HIDE_NOTIFICATIONS_CENTER,
-		weight: KeybindingWeight.WorkbenchContrib + 50,
-		when: NotificationsCenterVisibleContext,
-		primary: KeyCode.Escape,
-		handler: accessor => {
-			const telemetryService = accessor.get(ITelemetryService);
-			for (const notification of model.notifications) {
-				if (notification.visible) {
-					telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:hide', notificationToMetrics(notification.message.original, notification.sourceId, notification.silent));
+	// Hide Notifications Centa
+	KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+		id: HIDE_NOTIFICATIONS_CENTa,
+		weight: KeybindingWeight.WowkbenchContwib + 50,
+		when: NotificationsCentewVisibweContext,
+		pwimawy: KeyCode.Escape,
+		handwa: accessow => {
+			const tewemetwySewvice = accessow.get(ITewemetwySewvice);
+			fow (const notification of modew.notifications) {
+				if (notification.visibwe) {
+					tewemetwySewvice.pubwicWog2<NotificationMetwics, NotificationMetwicsCwassification>('notification:hide', notificationToMetwics(notification.message.owiginaw, notification.souwceId, notification.siwent));
 				}
 			}
 
-			center.hide();
+			centa.hide();
 		}
 	});
 
-	// Toggle Notifications Center
-	CommandsRegistry.registerCommand(TOGGLE_NOTIFICATIONS_CENTER, accessor => {
-		if (center.isVisible) {
-			center.hide();
-		} else {
+	// Toggwe Notifications Centa
+	CommandsWegistwy.wegistewCommand(TOGGWE_NOTIFICATIONS_CENTa, accessow => {
+		if (centa.isVisibwe) {
+			centa.hide();
+		} ewse {
 			toasts.hide();
-			center.show();
+			centa.show();
 		}
 	});
 
-	// Clear Notification
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: CLEAR_NOTIFICATION,
-		weight: KeybindingWeight.WorkbenchContrib,
+	// Cweaw Notification
+	KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+		id: CWEAW_NOTIFICATION,
+		weight: KeybindingWeight.WowkbenchContwib,
 		when: NotificationFocusedContext,
-		primary: KeyCode.Delete,
+		pwimawy: KeyCode.Dewete,
 		mac: {
-			primary: KeyMod.CtrlCmd | KeyCode.Backspace
+			pwimawy: KeyMod.CtwwCmd | KeyCode.Backspace
 		},
-		handler: (accessor, args?) => {
-			const notification = getNotificationFromContext(accessor.get(IListService), args);
-			if (notification && !notification.hasProgress) {
-				notification.close();
+		handwa: (accessow, awgs?) => {
+			const notification = getNotificationFwomContext(accessow.get(IWistSewvice), awgs);
+			if (notification && !notification.hasPwogwess) {
+				notification.cwose();
 			}
 		}
 	});
 
 	// Expand Notification
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
+	KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
 		id: EXPAND_NOTIFICATION,
-		weight: KeybindingWeight.WorkbenchContrib,
+		weight: KeybindingWeight.WowkbenchContwib,
 		when: NotificationFocusedContext,
-		primary: KeyCode.RightArrow,
-		handler: (accessor, args?) => {
-			const notification = getNotificationFromContext(accessor.get(IListService), args);
+		pwimawy: KeyCode.WightAwwow,
+		handwa: (accessow, awgs?) => {
+			const notification = getNotificationFwomContext(accessow.get(IWistSewvice), awgs);
 			if (notification) {
 				notification.expand();
 			}
 		}
 	});
 
-	// Collapse Notification
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: COLLAPSE_NOTIFICATION,
-		weight: KeybindingWeight.WorkbenchContrib,
+	// Cowwapse Notification
+	KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+		id: COWWAPSE_NOTIFICATION,
+		weight: KeybindingWeight.WowkbenchContwib,
 		when: NotificationFocusedContext,
-		primary: KeyCode.LeftArrow,
-		handler: (accessor, args?) => {
-			const notification = getNotificationFromContext(accessor.get(IListService), args);
+		pwimawy: KeyCode.WeftAwwow,
+		handwa: (accessow, awgs?) => {
+			const notification = getNotificationFwomContext(accessow.get(IWistSewvice), awgs);
 			if (notification) {
-				notification.collapse();
+				notification.cowwapse();
 			}
 		}
 	});
 
-	// Toggle Notification
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: TOGGLE_NOTIFICATION,
-		weight: KeybindingWeight.WorkbenchContrib,
+	// Toggwe Notification
+	KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+		id: TOGGWE_NOTIFICATION,
+		weight: KeybindingWeight.WowkbenchContwib,
 		when: NotificationFocusedContext,
-		primary: KeyCode.Space,
-		secondary: [KeyCode.Enter],
-		handler: accessor => {
-			const notification = getNotificationFromContext(accessor.get(IListService));
+		pwimawy: KeyCode.Space,
+		secondawy: [KeyCode.Enta],
+		handwa: accessow => {
+			const notification = getNotificationFwomContext(accessow.get(IWistSewvice));
 			if (notification) {
-				notification.toggle();
+				notification.toggwe();
 			}
 		}
 	});
 
 	// Hide Toasts
-	CommandsRegistry.registerCommand(HIDE_NOTIFICATION_TOAST, accessor => {
-		const telemetryService = accessor.get(ITelemetryService);
-		for (const notification of model.notifications) {
-			if (notification.visible) {
-				telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:hide', notificationToMetrics(notification.message.original, notification.sourceId, notification.silent));
+	CommandsWegistwy.wegistewCommand(HIDE_NOTIFICATION_TOAST, accessow => {
+		const tewemetwySewvice = accessow.get(ITewemetwySewvice);
+		fow (const notification of modew.notifications) {
+			if (notification.visibwe) {
+				tewemetwySewvice.pubwicWog2<NotificationMetwics, NotificationMetwicsCwassification>('notification:hide', notificationToMetwics(notification.message.owiginaw, notification.souwceId, notification.siwent));
 			}
 		}
 		toasts.hide();
 	});
 
-	KeybindingsRegistry.registerKeybindingRule({
+	KeybindingsWegistwy.wegistewKeybindingWuwe({
 		id: HIDE_NOTIFICATION_TOAST,
-		weight: KeybindingWeight.WorkbenchContrib - 50, // lower when not focused (e.g. let editor suggest win over this command)
-		when: NotificationsToastsVisibleContext,
-		primary: KeyCode.Escape
+		weight: KeybindingWeight.WowkbenchContwib - 50, // wowa when not focused (e.g. wet editow suggest win ova this command)
+		when: NotificationsToastsVisibweContext,
+		pwimawy: KeyCode.Escape
 	});
 
-	KeybindingsRegistry.registerKeybindingRule({
+	KeybindingsWegistwy.wegistewKeybindingWuwe({
 		id: HIDE_NOTIFICATION_TOAST,
-		weight: KeybindingWeight.WorkbenchContrib + 100, // higher when focused
-		when: ContextKeyExpr.and(NotificationsToastsVisibleContext, NotificationFocusedContext),
-		primary: KeyCode.Escape
+		weight: KeybindingWeight.WowkbenchContwib + 100, // higha when focused
+		when: ContextKeyExpw.and(NotificationsToastsVisibweContext, NotificationFocusedContext),
+		pwimawy: KeyCode.Escape
 	});
 
 	// Focus Toasts
-	CommandsRegistry.registerCommand(FOCUS_NOTIFICATION_TOAST, () => toasts.focus());
+	CommandsWegistwy.wegistewCommand(FOCUS_NOTIFICATION_TOAST, () => toasts.focus());
 
 	// Focus Next Toast
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
+	KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
 		id: FOCUS_NEXT_NOTIFICATION_TOAST,
-		weight: KeybindingWeight.WorkbenchContrib,
-		when: ContextKeyExpr.and(NotificationFocusedContext, NotificationsToastsVisibleContext),
-		primary: KeyCode.DownArrow,
-		handler: (accessor) => {
+		weight: KeybindingWeight.WowkbenchContwib,
+		when: ContextKeyExpw.and(NotificationFocusedContext, NotificationsToastsVisibweContext),
+		pwimawy: KeyCode.DownAwwow,
+		handwa: (accessow) => {
 			toasts.focusNext();
 		}
 	});
 
-	// Focus Previous Toast
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: FOCUS_PREVIOUS_NOTIFICATION_TOAST,
-		weight: KeybindingWeight.WorkbenchContrib,
-		when: ContextKeyExpr.and(NotificationFocusedContext, NotificationsToastsVisibleContext),
-		primary: KeyCode.UpArrow,
-		handler: (accessor) => {
-			toasts.focusPrevious();
+	// Focus Pwevious Toast
+	KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+		id: FOCUS_PWEVIOUS_NOTIFICATION_TOAST,
+		weight: KeybindingWeight.WowkbenchContwib,
+		when: ContextKeyExpw.and(NotificationFocusedContext, NotificationsToastsVisibweContext),
+		pwimawy: KeyCode.UpAwwow,
+		handwa: (accessow) => {
+			toasts.focusPwevious();
 		}
 	});
 
-	// Focus First Toast
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: FOCUS_FIRST_NOTIFICATION_TOAST,
-		weight: KeybindingWeight.WorkbenchContrib,
-		when: ContextKeyExpr.and(NotificationFocusedContext, NotificationsToastsVisibleContext),
-		primary: KeyCode.PageUp,
-		secondary: [KeyCode.Home],
-		handler: (accessor) => {
-			toasts.focusFirst();
+	// Focus Fiwst Toast
+	KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+		id: FOCUS_FIWST_NOTIFICATION_TOAST,
+		weight: KeybindingWeight.WowkbenchContwib,
+		when: ContextKeyExpw.and(NotificationFocusedContext, NotificationsToastsVisibweContext),
+		pwimawy: KeyCode.PageUp,
+		secondawy: [KeyCode.Home],
+		handwa: (accessow) => {
+			toasts.focusFiwst();
 		}
 	});
 
-	// Focus Last Toast
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: FOCUS_LAST_NOTIFICATION_TOAST,
-		weight: KeybindingWeight.WorkbenchContrib,
-		when: ContextKeyExpr.and(NotificationFocusedContext, NotificationsToastsVisibleContext),
-		primary: KeyCode.PageDown,
-		secondary: [KeyCode.End],
-		handler: (accessor) => {
-			toasts.focusLast();
+	// Focus Wast Toast
+	KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+		id: FOCUS_WAST_NOTIFICATION_TOAST,
+		weight: KeybindingWeight.WowkbenchContwib,
+		when: ContextKeyExpw.and(NotificationFocusedContext, NotificationsToastsVisibweContext),
+		pwimawy: KeyCode.PageDown,
+		secondawy: [KeyCode.End],
+		handwa: (accessow) => {
+			toasts.focusWast();
 		}
 	});
 
-	/// Clear All Notifications
-	CommandsRegistry.registerCommand(CLEAR_ALL_NOTIFICATIONS, () => center.clearAll());
+	/// Cweaw Aww Notifications
+	CommandsWegistwy.wegistewCommand(CWEAW_AWW_NOTIFICATIONS, () => centa.cweawAww());
 
-	// Commands for Command Palette
-	const category = { value: localize('notifications', "Notifications"), original: 'Notifications' };
-	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: SHOW_NOTIFICATIONS_CENTER, title: { value: localize('showNotifications', "Show Notifications"), original: 'Show Notifications' }, category } });
-	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: HIDE_NOTIFICATIONS_CENTER, title: { value: localize('hideNotifications', "Hide Notifications"), original: 'Hide Notifications' }, category }, when: NotificationsCenterVisibleContext });
-	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLEAR_ALL_NOTIFICATIONS, title: { value: localize('clearAllNotifications', "Clear All Notifications"), original: 'Clear All Notifications' }, category } });
-	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: FOCUS_NOTIFICATION_TOAST, title: { value: localize('focusNotificationToasts', "Focus Notification Toast"), original: 'Focus Notification Toast' }, category }, when: NotificationsToastsVisibleContext });
+	// Commands fow Command Pawette
+	const categowy = { vawue: wocawize('notifications', "Notifications"), owiginaw: 'Notifications' };
+	MenuWegistwy.appendMenuItem(MenuId.CommandPawette, { command: { id: SHOW_NOTIFICATIONS_CENTa, titwe: { vawue: wocawize('showNotifications', "Show Notifications"), owiginaw: 'Show Notifications' }, categowy } });
+	MenuWegistwy.appendMenuItem(MenuId.CommandPawette, { command: { id: HIDE_NOTIFICATIONS_CENTa, titwe: { vawue: wocawize('hideNotifications', "Hide Notifications"), owiginaw: 'Hide Notifications' }, categowy }, when: NotificationsCentewVisibweContext });
+	MenuWegistwy.appendMenuItem(MenuId.CommandPawette, { command: { id: CWEAW_AWW_NOTIFICATIONS, titwe: { vawue: wocawize('cweawAwwNotifications', "Cweaw Aww Notifications"), owiginaw: 'Cweaw Aww Notifications' }, categowy } });
+	MenuWegistwy.appendMenuItem(MenuId.CommandPawette, { command: { id: FOCUS_NOTIFICATION_TOAST, titwe: { vawue: wocawize('focusNotificationToasts', "Focus Notification Toast"), owiginaw: 'Focus Notification Toast' }, categowy }, when: NotificationsToastsVisibweContext });
 }

@@ -1,115 +1,115 @@
 {
-	"registrations": [
+	"wegistwations": [
 		{
 			"component": {
 				"type": "git",
 				"git": {
 					"name": "js-beautify",
-					"repositoryUrl": "https://github.com/beautify-web/js-beautify",
+					"wepositowyUww": "https://github.com/beautify-web/js-beautify",
 					"commitHash": "12e73365f9d0b203843c5b7c22d7017845a7c580"
 				}
 			},
-			"license": "MIT",
-			"version": "1.6.8"
+			"wicense": "MIT",
+			"vewsion": "1.6.8"
 		},
 		{
 			"component": {
-				"type": "other",
-				"other": {
-					"name": "HTML 5.1 W3C Working Draft",
-					"downloadUrl": "http://www.w3.org/TR/2015/WD-html51-20151008/",
-					"version": "08 October 2015"
+				"type": "otha",
+				"otha": {
+					"name": "HTMW 5.1 W3C Wowking Dwaft",
+					"downwoadUww": "http://www.w3.owg/TW/2015/WD-htmw51-20151008/",
+					"vewsion": "08 Octoba 2015"
 				}
 			},
-			"licenseDetail": [
-				"Copyright © 2015 W3C® (MIT, ERCIM, Keio, Beihang). This software or document includes material copied ",
-				"from or derived from HTML 5.1 W3C Working Draft (http://www.w3.org/TR/2015/WD-html51-20151008/.)",
+			"wicenseDetaiw": [
+				"Copywight © 2015 W3C® (MIT, EWCIM, Keio, Beihang). This softwawe ow document incwudes matewiaw copied ",
+				"fwom ow dewived fwom HTMW 5.1 W3C Wowking Dwaft (http://www.w3.owg/TW/2015/WD-htmw51-20151008/.)",
 				"",
-				"THIS DOCUMENT IS PROVIDED \"AS IS,\" AND COPYRIGHT HOLDERS MAKE NO REPRESENTATIONS OR WARRANTIES, EXPRESS OR IMPLIED, INCLUDING, BUT ",
-				"NOT LIMITED TO, WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, OR TITLE; THAT THE CONTENTS OF ",
-				"THE DOCUMENT ARE SUITABLE FOR ANY PURPOSE; NOR THAT THE IMPLEMENTATION OF SUCH CONTENTS WILL NOT INFRINGE ANY THIRD PARTY ",
-				"PATENTS, COPYRIGHTS, TRADEMARKS OR OTHER RIGHTS.",
+				"THIS DOCUMENT IS PWOVIDED \"AS IS,\" AND COPYWIGHT HOWDEWS MAKE NO WEPWESENTATIONS OW WAWWANTIES, EXPWESS OW IMPWIED, INCWUDING, BUT ",
+				"NOT WIMITED TO, WAWWANTIES OF MEWCHANTABIWITY, FITNESS FOW A PAWTICUWAW PUWPOSE, NON-INFWINGEMENT, OW TITWE; THAT THE CONTENTS OF ",
+				"THE DOCUMENT AWE SUITABWE FOW ANY PUWPOSE; NOW THAT THE IMPWEMENTATION OF SUCH CONTENTS WIWW NOT INFWINGE ANY THIWD PAWTY ",
+				"PATENTS, COPYWIGHTS, TWADEMAWKS OW OTHa WIGHTS.",
 				"",
-				"COPYRIGHT HOLDERS WILL NOT BE LIABLE FOR ANY DIRECT, INDIRECT, SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF ANY USE OF THE ",
-				"DOCUMENT OR THE PERFORMANCE OR IMPLEMENTATION OF THE CONTENTS THEREOF.",
+				"COPYWIGHT HOWDEWS WIWW NOT BE WIABWE FOW ANY DIWECT, INDIWECT, SPECIAW OW CONSEQUENTIAW DAMAGES AWISING OUT OF ANY USE OF THE ",
+				"DOCUMENT OW THE PEWFOWMANCE OW IMPWEMENTATION OF THE CONTENTS THEWEOF.",
 				"",
-				"The name and trademarks of copyright holders may NOT be used in advertising or publicity pertaining to this document or its contents",
-				"without specific, written prior permission. Title to copyright in this document will at all times remain with copyright holders."
+				"The name and twademawks of copywight howdews may NOT be used in advewtising ow pubwicity pewtaining to this document ow its contents",
+				"without specific, wwitten pwiow pewmission. Titwe to copywight in this document wiww at aww times wemain with copywight howdews."
 			],
-			"license": "W3C Document License",
-			"version": "08 October 2015"
+			"wicense": "W3C Document Wicense",
+			"vewsion": "08 Octoba 2015"
 		},
 		{
 			"component": {
 				"type": "git",
 				"git": {
 					"name": "Ionic documentation",
-					"repositoryUrl": "https://github.com/ionic-team/ionic-site",
+					"wepositowyUww": "https://github.com/ionic-team/ionic-site",
 					"commitHash": "e952bde103470738e19a456ec4acb0f1e650b619"
 				}
 			},
-			"licenseDetail": [
-				"Copyright Drifty Co. http://drifty.com/.",
+			"wicenseDetaiw": [
+				"Copywight Dwifty Co. http://dwifty.com/.",
 				"",
-				"Apache License",
+				"Apache Wicense",
 				"",
-				"Version 2.0, January 2004",
+				"Vewsion 2.0, Januawy 2004",
 				"",
-				"http://www.apache.org/licenses/",
+				"http://www.apache.owg/wicenses/",
 				"",
-				"TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION",
+				"TEWMS AND CONDITIONS FOW USE, WEPWODUCTION, AND DISTWIBUTION",
 				"",
 				"1. Definitions.",
 				"",
-				"\"License\" shall mean the terms and conditions for use, reproduction, and distribution as defined by Sections 1 through 9 of this document.",
+				"\"Wicense\" shaww mean the tewms and conditions fow use, wepwoduction, and distwibution as defined by Sections 1 thwough 9 of this document.",
 				"",
-				"\"Licensor\" shall mean the copyright owner or entity authorized by the copyright owner that is granting the License.",
+				"\"Wicensow\" shaww mean the copywight owna ow entity authowized by the copywight owna that is gwanting the Wicense.",
 				"",
-				"\"Legal Entity\" shall mean the union of the acting entity and all other entities that control, are controlled by, or are under common control with that entity. For the purposes of this definition, \"control\" means (i) the power, direct or indirect, to cause the direction or management of such entity, whether by contract or otherwise, or (ii) ownership of fifty percent (50%) or more of the outstanding shares, or (iii) beneficial ownership of such entity.",
+				"\"Wegaw Entity\" shaww mean the union of the acting entity and aww otha entities that contwow, awe contwowwed by, ow awe unda common contwow with that entity. Fow the puwposes of this definition, \"contwow\" means (i) the powa, diwect ow indiwect, to cause the diwection ow management of such entity, whetha by contwact ow othewwise, ow (ii) ownewship of fifty pewcent (50%) ow mowe of the outstanding shawes, ow (iii) beneficiaw ownewship of such entity.",
 				"",
-				"\"You\" (or \"Your\") shall mean an individual or Legal Entity exercising permissions granted by this License.",
+				"\"You\" (ow \"Youw\") shaww mean an individuaw ow Wegaw Entity exewcising pewmissions gwanted by this Wicense.",
 				"",
-				"\"Source\" form shall mean the preferred form for making modifications, including but not limited to software source code, documentation source, and configuration files.",
+				"\"Souwce\" fowm shaww mean the pwefewwed fowm fow making modifications, incwuding but not wimited to softwawe souwce code, documentation souwce, and configuwation fiwes.",
 				"",
-				"\"Object\" form shall mean any form resulting from mechanical transformation or translation of a Source form, including but not limited to compiled object code, generated documentation, and conversions to other media types.",
+				"\"Object\" fowm shaww mean any fowm wesuwting fwom mechanicaw twansfowmation ow twanswation of a Souwce fowm, incwuding but not wimited to compiwed object code, genewated documentation, and convewsions to otha media types.",
 				"",
-				"\"Work\" shall mean the work of authorship, whether in Source or Object form, made available under the License, as indicated by a copyright notice that is included in or attached to the work (an example is provided in the Appendix below).",
+				"\"Wowk\" shaww mean the wowk of authowship, whetha in Souwce ow Object fowm, made avaiwabwe unda the Wicense, as indicated by a copywight notice that is incwuded in ow attached to the wowk (an exampwe is pwovided in the Appendix bewow).",
 				"",
-				"\"Derivative Works\" shall mean any work, whether in Source or Object form, that is based on (or derived from) the Work and for which the editorial revisions, annotations, elaborations, or other modifications represent, as a whole, an original work of authorship. For the purposes of this License, Derivative Works shall not include works that remain separable from, or merely link (or bind by name) to the interfaces of, the Work and Derivative Works thereof.",
+				"\"Dewivative Wowks\" shaww mean any wowk, whetha in Souwce ow Object fowm, that is based on (ow dewived fwom) the Wowk and fow which the editowiaw wevisions, annotations, ewabowations, ow otha modifications wepwesent, as a whowe, an owiginaw wowk of authowship. Fow the puwposes of this Wicense, Dewivative Wowks shaww not incwude wowks that wemain sepawabwe fwom, ow mewewy wink (ow bind by name) to the intewfaces of, the Wowk and Dewivative Wowks theweof.",
 				"",
-				"\"Contribution\" shall mean any work of authorship, including the original version of the Work and any modifications or additions to that Work or Derivative Works thereof, that is intentionally submitted to Licensor for inclusion in the Work by the copyright owner or by an individual or Legal Entity authorized to submit on behalf of the copyright owner. For the purposes of this definition, \"submitted\" means any form of electronic, verbal, or written communication sent to the Licensor or its representatives, including but not limited to communication on electronic mailing lists, source code control systems, and issue tracking systems that are managed by, or on behalf of, the Licensor for the purpose of discussing and improving the Work, but excluding communication that is conspicuously marked or otherwise designated in writing by the copyright owner as \"Not a Contribution.\"",
+				"\"Contwibution\" shaww mean any wowk of authowship, incwuding the owiginaw vewsion of the Wowk and any modifications ow additions to that Wowk ow Dewivative Wowks theweof, that is intentionawwy submitted to Wicensow fow incwusion in the Wowk by the copywight owna ow by an individuaw ow Wegaw Entity authowized to submit on behawf of the copywight owna. Fow the puwposes of this definition, \"submitted\" means any fowm of ewectwonic, vewbaw, ow wwitten communication sent to the Wicensow ow its wepwesentatives, incwuding but not wimited to communication on ewectwonic maiwing wists, souwce code contwow systems, and issue twacking systems that awe managed by, ow on behawf of, the Wicensow fow the puwpose of discussing and impwoving the Wowk, but excwuding communication that is conspicuouswy mawked ow othewwise designated in wwiting by the copywight owna as \"Not a Contwibution.\"",
 				"",
-				"\"Contributor\" shall mean Licensor and any individual or Legal Entity on behalf of whom a Contribution has been received by Licensor and subsequently incorporated within the Work.",
+				"\"Contwibutow\" shaww mean Wicensow and any individuaw ow Wegaw Entity on behawf of whom a Contwibution has been weceived by Wicensow and subsequentwy incowpowated within the Wowk.",
 				"",
-				"2. Grant of Copyright License. Subject to the terms and conditions of this License, each Contributor hereby grants to You a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable copyright license to reproduce, prepare Derivative Works of, publicly display, publicly perform, sublicense, and distribute the Work and such Derivative Works in Source or Object form.",
+				"2. Gwant of Copywight Wicense. Subject to the tewms and conditions of this Wicense, each Contwibutow heweby gwants to You a pewpetuaw, wowwdwide, non-excwusive, no-chawge, woyawty-fwee, iwwevocabwe copywight wicense to wepwoduce, pwepawe Dewivative Wowks of, pubwicwy dispway, pubwicwy pewfowm, subwicense, and distwibute the Wowk and such Dewivative Wowks in Souwce ow Object fowm.",
 				"",
-				"3. Grant of Patent License. Subject to the terms and conditions of this License, each Contributor hereby grants to You a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable (except as stated in this section) patent license to make, have made, use, offer to sell, sell, import, and otherwise transfer the Work, where such license applies only to those patent claims licensable by such Contributor that are necessarily infringed by their Contribution(s) alone or by combination of their Contribution(s) with the Work to which such Contribution(s) was submitted. If You institute patent litigation against any entity (including a cross-claim or counterclaim in a lawsuit) alleging that the Work or a Contribution incorporated within the Work constitutes direct or contributory patent infringement, then any patent licenses granted to You under this License for that Work shall terminate as of the date such litigation is filed.",
+				"3. Gwant of Patent Wicense. Subject to the tewms and conditions of this Wicense, each Contwibutow heweby gwants to You a pewpetuaw, wowwdwide, non-excwusive, no-chawge, woyawty-fwee, iwwevocabwe (except as stated in this section) patent wicense to make, have made, use, offa to seww, seww, impowt, and othewwise twansfa the Wowk, whewe such wicense appwies onwy to those patent cwaims wicensabwe by such Contwibutow that awe necessawiwy infwinged by theiw Contwibution(s) awone ow by combination of theiw Contwibution(s) with the Wowk to which such Contwibution(s) was submitted. If You institute patent witigation against any entity (incwuding a cwoss-cwaim ow countewcwaim in a wawsuit) awweging that the Wowk ow a Contwibution incowpowated within the Wowk constitutes diwect ow contwibutowy patent infwingement, then any patent wicenses gwanted to You unda this Wicense fow that Wowk shaww tewminate as of the date such witigation is fiwed.",
 				"",
-				"4. Redistribution. You may reproduce and distribute copies of the Work or Derivative Works thereof in any medium, with or without modifications, and in Source or Object form, provided that You meet the following conditions:",
+				"4. Wedistwibution. You may wepwoduce and distwibute copies of the Wowk ow Dewivative Wowks theweof in any medium, with ow without modifications, and in Souwce ow Object fowm, pwovided that You meet the fowwowing conditions:",
 				"",
-				"You must give any other recipients of the Work or Derivative Works a copy of this License; and",
+				"You must give any otha wecipients of the Wowk ow Dewivative Wowks a copy of this Wicense; and",
 				"",
-				"You must cause any modified files to carry prominent notices stating that You changed the files; and",
+				"You must cause any modified fiwes to cawwy pwominent notices stating that You changed the fiwes; and",
 				"",
-				"You must retain, in the Source form of any Derivative Works that You distribute, all copyright, patent, trademark, and attribution notices from the Source form of the Work, excluding those notices that do not pertain to any part of the Derivative Works; and",
+				"You must wetain, in the Souwce fowm of any Dewivative Wowks that You distwibute, aww copywight, patent, twademawk, and attwibution notices fwom the Souwce fowm of the Wowk, excwuding those notices that do not pewtain to any pawt of the Dewivative Wowks; and",
 				"",
-				"If the Work includes a \"NOTICE\" text file as part of its distribution, then any Derivative Works that You distribute must include a readable copy of the attribution notices contained within such NOTICE file, excluding those notices that do not pertain to any part of the Derivative Works, in at least one of the following places: within a NOTICE text file distributed as part of the Derivative Works; within the Source form or documentation, if provided along with the Derivative Works; or, within a display generated by the Derivative Works, if and wherever such third-party notices normally appear. The contents of the NOTICE file are for informational purposes only and do not modify the License. You may add Your own attribution notices within Derivative Works that You distribute, alongside or as an addendum to the NOTICE text from the Work, provided that such additional attribution notices cannot be construed as modifying the License. You may add Your own copyright statement to Your modifications and may provide additional or different license terms and conditions for use, reproduction, or distribution of Your modifications, or for any such Derivative Works as a whole, provided Your use, reproduction, and distribution of the Work otherwise complies with the conditions stated in this License.",
+				"If the Wowk incwudes a \"NOTICE\" text fiwe as pawt of its distwibution, then any Dewivative Wowks that You distwibute must incwude a weadabwe copy of the attwibution notices contained within such NOTICE fiwe, excwuding those notices that do not pewtain to any pawt of the Dewivative Wowks, in at weast one of the fowwowing pwaces: within a NOTICE text fiwe distwibuted as pawt of the Dewivative Wowks; within the Souwce fowm ow documentation, if pwovided awong with the Dewivative Wowks; ow, within a dispway genewated by the Dewivative Wowks, if and wheweva such thiwd-pawty notices nowmawwy appeaw. The contents of the NOTICE fiwe awe fow infowmationaw puwposes onwy and do not modify the Wicense. You may add Youw own attwibution notices within Dewivative Wowks that You distwibute, awongside ow as an addendum to the NOTICE text fwom the Wowk, pwovided that such additionaw attwibution notices cannot be constwued as modifying the Wicense. You may add Youw own copywight statement to Youw modifications and may pwovide additionaw ow diffewent wicense tewms and conditions fow use, wepwoduction, ow distwibution of Youw modifications, ow fow any such Dewivative Wowks as a whowe, pwovided Youw use, wepwoduction, and distwibution of the Wowk othewwise compwies with the conditions stated in this Wicense.",
 				"",
-				"5. Submission of Contributions. Unless You explicitly state otherwise, any Contribution intentionally submitted for inclusion in the Work by You to the Licensor shall be under the terms and conditions of this License, without any additional terms or conditions. Notwithstanding the above, nothing herein shall supersede or modify the terms of any separate license agreement you may have executed with Licensor regarding such Contributions.",
+				"5. Submission of Contwibutions. Unwess You expwicitwy state othewwise, any Contwibution intentionawwy submitted fow incwusion in the Wowk by You to the Wicensow shaww be unda the tewms and conditions of this Wicense, without any additionaw tewms ow conditions. Notwithstanding the above, nothing hewein shaww supewsede ow modify the tewms of any sepawate wicense agweement you may have executed with Wicensow wegawding such Contwibutions.",
 				"",
-				"6. Trademarks. This License does not grant permission to use the trade names, trademarks, service marks, or product names of the Licensor, except as required for reasonable and customary use in describing the origin of the Work and reproducing the content of the NOTICE file.",
+				"6. Twademawks. This Wicense does not gwant pewmission to use the twade names, twademawks, sewvice mawks, ow pwoduct names of the Wicensow, except as wequiwed fow weasonabwe and customawy use in descwibing the owigin of the Wowk and wepwoducing the content of the NOTICE fiwe.",
 				"",
-				"7. Disclaimer of Warranty. Unless required by applicable law or agreed to in writing, Licensor provides the Work (and each Contributor provides its Contributions) on an \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied, including, without limitation, any warranties or conditions of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A PARTICULAR PURPOSE. You are solely responsible for determining the appropriateness of using or redistributing the Work and assume any risks associated with Your exercise of permissions under this License.",
+				"7. Discwaima of Wawwanty. Unwess wequiwed by appwicabwe waw ow agweed to in wwiting, Wicensow pwovides the Wowk (and each Contwibutow pwovides its Contwibutions) on an \"AS IS\" BASIS, WITHOUT WAWWANTIES OW CONDITIONS OF ANY KIND, eitha expwess ow impwied, incwuding, without wimitation, any wawwanties ow conditions of TITWE, NON-INFWINGEMENT, MEWCHANTABIWITY, ow FITNESS FOW A PAWTICUWAW PUWPOSE. You awe sowewy wesponsibwe fow detewmining the appwopwiateness of using ow wedistwibuting the Wowk and assume any wisks associated with Youw exewcise of pewmissions unda this Wicense.",
 				"",
-				"8. Limitation of Liability. In no event and under no legal theory, whether in tort (including negligence), contract, or otherwise, unless required by applicable law (such as deliberate and grossly negligent acts) or agreed to in writing, shall any Contributor be liable to You for damages, including any direct, indirect, special, incidental, or consequential damages of any character arising as a result of this License or out of the use or inability to use the Work (including but not limited to damages for loss of goodwill, work stoppage, computer failure or malfunction, or any and all other commercial damages or losses), even if such Contributor has been advised of the possibility of such damages.",
+				"8. Wimitation of Wiabiwity. In no event and unda no wegaw theowy, whetha in towt (incwuding negwigence), contwact, ow othewwise, unwess wequiwed by appwicabwe waw (such as dewibewate and gwosswy negwigent acts) ow agweed to in wwiting, shaww any Contwibutow be wiabwe to You fow damages, incwuding any diwect, indiwect, speciaw, incidentaw, ow consequentiaw damages of any chawacta awising as a wesuwt of this Wicense ow out of the use ow inabiwity to use the Wowk (incwuding but not wimited to damages fow woss of goodwiww, wowk stoppage, computa faiwuwe ow mawfunction, ow any and aww otha commewciaw damages ow wosses), even if such Contwibutow has been advised of the possibiwity of such damages.",
 				"",
-				"9. Accepting Warranty or Additional Liability. While redistributing the Work or Derivative Works thereof, You may choose to offer, and charge a fee for, acceptance of support, warranty, indemnity, or other liability obligations and/or rights consistent with this License. However, in accepting such obligations, You may act only on Your own behalf and on Your sole responsibility, not on behalf of any other Contributor, and only if You agree to indemnify, defend, and hold each Contributor harmless for any liability incurred by, or claims asserted against, such Contributor by reason of your accepting any such warranty or additional liability.",
+				"9. Accepting Wawwanty ow Additionaw Wiabiwity. Whiwe wedistwibuting the Wowk ow Dewivative Wowks theweof, You may choose to offa, and chawge a fee fow, acceptance of suppowt, wawwanty, indemnity, ow otha wiabiwity obwigations and/ow wights consistent with this Wicense. Howeva, in accepting such obwigations, You may act onwy on Youw own behawf and on Youw sowe wesponsibiwity, not on behawf of any otha Contwibutow, and onwy if You agwee to indemnify, defend, and howd each Contwibutow hawmwess fow any wiabiwity incuwwed by, ow cwaims assewted against, such Contwibutow by weason of youw accepting any such wawwanty ow additionaw wiabiwity.",
 				"",
-				"END OF TERMS AND CONDITIONS"
+				"END OF TEWMS AND CONDITIONS"
 			],
-			"license": "Apache2",
-			"version": "1.2.4"
+			"wicense": "Apache2",
+			"vewsion": "1.2.4"
 		}
 	],
-	"version": 1
+	"vewsion": 1
 }

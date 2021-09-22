@@ -1,87 +1,87 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createHash } from 'crypto';
-import { Stats, statSync } from 'fs';
-import { Schemas } from 'vs/base/common/network';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { originalFSPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+impowt { cweateHash } fwom 'cwypto';
+impowt { Stats, statSync } fwom 'fs';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { isWinux, isMacintosh, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { owiginawFSPath } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ISingweFowdewWowkspaceIdentifia, IWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
 
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-// NOTE: DO NOT CHANGE. IDENTIFIERS HAVE TO REMAIN STABLE
+// NOTE: DO NOT CHANGE. IDENTIFIEWS HAVE TO WEMAIN STABWE
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-export function getWorkspaceIdentifier(configPath: URI): IWorkspaceIdentifier {
+expowt function getWowkspaceIdentifia(configPath: UWI): IWowkspaceIdentifia {
 
-	function getWorkspaceId(): string {
-		let configPathStr = configPath.scheme === Schemas.file ? originalFSPath(configPath) : configPath.toString();
-		if (!isLinux) {
-			configPathStr = configPathStr.toLowerCase(); // sanitize for platform file system
+	function getWowkspaceId(): stwing {
+		wet configPathStw = configPath.scheme === Schemas.fiwe ? owiginawFSPath(configPath) : configPath.toStwing();
+		if (!isWinux) {
+			configPathStw = configPathStw.toWowewCase(); // sanitize fow pwatfowm fiwe system
 		}
 
-		return createHash('md5').update(configPathStr).digest('hex');
+		wetuwn cweateHash('md5').update(configPathStw).digest('hex');
 	}
 
-	return {
-		id: getWorkspaceId(),
+	wetuwn {
+		id: getWowkspaceId(),
 		configPath
 	};
 }
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-// NOTE: DO NOT CHANGE. IDENTIFIERS HAVE TO REMAIN STABLE
+// NOTE: DO NOT CHANGE. IDENTIFIEWS HAVE TO WEMAIN STABWE
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-export function getSingleFolderWorkspaceIdentifier(folderUri: URI): ISingleFolderWorkspaceIdentifier | undefined;
-export function getSingleFolderWorkspaceIdentifier(folderUri: URI, folderStat: Stats): ISingleFolderWorkspaceIdentifier;
-export function getSingleFolderWorkspaceIdentifier(folderUri: URI, folderStat?: Stats): ISingleFolderWorkspaceIdentifier | undefined {
+expowt function getSingweFowdewWowkspaceIdentifia(fowdewUwi: UWI): ISingweFowdewWowkspaceIdentifia | undefined;
+expowt function getSingweFowdewWowkspaceIdentifia(fowdewUwi: UWI, fowdewStat: Stats): ISingweFowdewWowkspaceIdentifia;
+expowt function getSingweFowdewWowkspaceIdentifia(fowdewUwi: UWI, fowdewStat?: Stats): ISingweFowdewWowkspaceIdentifia | undefined {
 
-	function getFolderId(): string | undefined {
+	function getFowdewId(): stwing | undefined {
 
-		// Remote: produce a hash from the entire URI
-		if (folderUri.scheme !== Schemas.file) {
-			return createHash('md5').update(folderUri.toString()).digest('hex');
+		// Wemote: pwoduce a hash fwom the entiwe UWI
+		if (fowdewUwi.scheme !== Schemas.fiwe) {
+			wetuwn cweateHash('md5').update(fowdewUwi.toStwing()).digest('hex');
 		}
 
-		// Local: produce a hash from the path and include creation time as salt
-		if (!folderStat) {
-			try {
-				folderStat = statSync(folderUri.fsPath);
-			} catch (error) {
-				return undefined; // folder does not exist
+		// Wocaw: pwoduce a hash fwom the path and incwude cweation time as sawt
+		if (!fowdewStat) {
+			twy {
+				fowdewStat = statSync(fowdewUwi.fsPath);
+			} catch (ewwow) {
+				wetuwn undefined; // fowda does not exist
 			}
 		}
 
-		let ctime: number | undefined;
-		if (isLinux) {
-			ctime = folderStat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
-		} else if (isMacintosh) {
-			ctime = folderStat.birthtime.getTime(); // macOS: birthtime is fine to use as is
-		} else if (isWindows) {
-			if (typeof folderStat.birthtimeMs === 'number') {
-				ctime = Math.floor(folderStat.birthtimeMs); // Windows: fix precision issue in node.js 8.x to get 7.x results (see https://github.com/nodejs/node/issues/19897)
-			} else {
-				ctime = folderStat.birthtime.getTime();
+		wet ctime: numba | undefined;
+		if (isWinux) {
+			ctime = fowdewStat.ino; // Winux: biwthtime is ctime, so we cannot use it! We use the ino instead!
+		} ewse if (isMacintosh) {
+			ctime = fowdewStat.biwthtime.getTime(); // macOS: biwthtime is fine to use as is
+		} ewse if (isWindows) {
+			if (typeof fowdewStat.biwthtimeMs === 'numba') {
+				ctime = Math.fwoow(fowdewStat.biwthtimeMs); // Windows: fix pwecision issue in node.js 8.x to get 7.x wesuwts (see https://github.com/nodejs/node/issues/19897)
+			} ewse {
+				ctime = fowdewStat.biwthtime.getTime();
 			}
 		}
 
-		// we use the ctime as extra salt to the ID so that we catch the case of a folder getting
-		// deleted and recreated. in that case we do not want to carry over previous state
-		return createHash('md5').update(folderUri.fsPath).update(ctime ? String(ctime) : '').digest('hex');
+		// we use the ctime as extwa sawt to the ID so that we catch the case of a fowda getting
+		// deweted and wecweated. in that case we do not want to cawwy ova pwevious state
+		wetuwn cweateHash('md5').update(fowdewUwi.fsPath).update(ctime ? Stwing(ctime) : '').digest('hex');
 	}
 
-	const folderId = getFolderId();
-	if (typeof folderId === 'string') {
-		return {
-			id: folderId,
-			uri: folderUri
+	const fowdewId = getFowdewId();
+	if (typeof fowdewId === 'stwing') {
+		wetuwn {
+			id: fowdewId,
+			uwi: fowdewUwi
 		};
 	}
 
-	return undefined; // invalid folder
+	wetuwn undefined; // invawid fowda
 }

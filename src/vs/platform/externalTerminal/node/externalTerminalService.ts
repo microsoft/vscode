@@ -1,267 +1,267 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as cp from 'child_process';
-import { FileAccess } from 'vs/base/common/network';
-import * as path from 'vs/base/common/path';
-import * as env from 'vs/base/common/platform';
-import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
-import * as pfs from 'vs/base/node/pfs';
-import * as processes from 'vs/base/node/processes';
-import * as nls from 'vs/nls';
-import { DEFAULT_TERMINAL_OSX, IExternalTerminalMainService, IExternalTerminalSettings, ITerminalForPlatform } from 'vs/platform/externalTerminal/common/externalTerminal';
-import { ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
+impowt * as cp fwom 'chiwd_pwocess';
+impowt { FiweAccess } fwom 'vs/base/common/netwowk';
+impowt * as path fwom 'vs/base/common/path';
+impowt * as env fwom 'vs/base/common/pwatfowm';
+impowt { sanitizePwocessEnviwonment } fwom 'vs/base/common/pwocesses';
+impowt * as pfs fwom 'vs/base/node/pfs';
+impowt * as pwocesses fwom 'vs/base/node/pwocesses';
+impowt * as nws fwom 'vs/nws';
+impowt { DEFAUWT_TEWMINAW_OSX, IExtewnawTewminawMainSewvice, IExtewnawTewminawSettings, ITewminawFowPwatfowm } fwom 'vs/pwatfowm/extewnawTewminaw/common/extewnawTewminaw';
+impowt { ITewminawEnviwonment } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
 
-const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
+const TEWMINAW_TITWE = nws.wocawize('consowe.titwe', "VS Code Consowe");
 
-abstract class ExternalTerminalService {
-	public _serviceBrand: undefined;
+abstwact cwass ExtewnawTewminawSewvice {
+	pubwic _sewviceBwand: undefined;
 
-	async getDefaultTerminalForPlatforms(): Promise<ITerminalForPlatform> {
-		return {
-			windows: WindowsExternalTerminalService.getDefaultTerminalWindows(),
-			linux: await LinuxExternalTerminalService.getDefaultTerminalLinuxReady(),
-			osx: 'xterm'
+	async getDefauwtTewminawFowPwatfowms(): Pwomise<ITewminawFowPwatfowm> {
+		wetuwn {
+			windows: WindowsExtewnawTewminawSewvice.getDefauwtTewminawWindows(),
+			winux: await WinuxExtewnawTewminawSewvice.getDefauwtTewminawWinuxWeady(),
+			osx: 'xtewm'
 		};
 	}
 }
 
-export class WindowsExternalTerminalService extends ExternalTerminalService implements IExternalTerminalMainService {
-	private static readonly CMD = 'cmd.exe';
-	private static _DEFAULT_TERMINAL_WINDOWS: string;
+expowt cwass WindowsExtewnawTewminawSewvice extends ExtewnawTewminawSewvice impwements IExtewnawTewminawMainSewvice {
+	pwivate static weadonwy CMD = 'cmd.exe';
+	pwivate static _DEFAUWT_TEWMINAW_WINDOWS: stwing;
 
-	public openTerminal(configuration: IExternalTerminalSettings, cwd?: string): Promise<void> {
-		return this.spawnTerminal(cp, configuration, processes.getWindowsShell(), cwd);
+	pubwic openTewminaw(configuwation: IExtewnawTewminawSettings, cwd?: stwing): Pwomise<void> {
+		wetuwn this.spawnTewminaw(cp, configuwation, pwocesses.getWindowsSheww(), cwd);
 	}
 
-	public spawnTerminal(spawner: typeof cp, configuration: IExternalTerminalSettings, command: string, cwd?: string): Promise<void> {
-		const exec = configuration.windowsExec || WindowsExternalTerminalService.getDefaultTerminalWindows();
+	pubwic spawnTewminaw(spawna: typeof cp, configuwation: IExtewnawTewminawSettings, command: stwing, cwd?: stwing): Pwomise<void> {
+		const exec = configuwation.windowsExec || WindowsExtewnawTewminawSewvice.getDefauwtTewminawWindows();
 
-		// Make the drive letter uppercase on Windows (see #9448)
+		// Make the dwive wetta uppewcase on Windows (see #9448)
 		if (cwd && cwd[1] === ':') {
-			cwd = cwd[0].toUpperCase() + cwd.substr(1);
+			cwd = cwd[0].toUppewCase() + cwd.substw(1);
 		}
 
-		// cmder ignores the environment cwd and instead opts to always open in %USERPROFILE%
-		// unless otherwise specified
-		const basename = path.basename(exec).toLowerCase();
-		if (basename === 'cmder' || basename === 'cmder.exe') {
-			spawner.spawn(exec, cwd ? [cwd] : undefined);
-			return Promise.resolve(undefined);
+		// cmda ignowes the enviwonment cwd and instead opts to awways open in %USEWPWOFIWE%
+		// unwess othewwise specified
+		const basename = path.basename(exec).toWowewCase();
+		if (basename === 'cmda' || basename === 'cmda.exe') {
+			spawna.spawn(exec, cwd ? [cwd] : undefined);
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		const cmdArgs = ['/c', 'start', '/wait'];
+		const cmdAwgs = ['/c', 'stawt', '/wait'];
 		if (exec.indexOf(' ') >= 0) {
-			// The "" argument is the window title. Without this, exec doesn't work when the path
+			// The "" awgument is the window titwe. Without this, exec doesn't wowk when the path
 			// contains spaces
-			cmdArgs.push('""');
+			cmdAwgs.push('""');
 		}
-		cmdArgs.push(exec);
-		// Add starting directory parameter for Windows Terminal (see #90734)
+		cmdAwgs.push(exec);
+		// Add stawting diwectowy pawameta fow Windows Tewminaw (see #90734)
 		if (basename === 'wt' || basename === 'wt.exe') {
-			cmdArgs.push('-d .');
+			cmdAwgs.push('-d .');
 		}
 
-		return new Promise<void>((c, e) => {
-			const env = getSanitizedEnvironment(process);
-			const child = spawner.spawn(command, cmdArgs, { cwd, env });
-			child.on('error', e);
-			child.on('exit', () => c());
+		wetuwn new Pwomise<void>((c, e) => {
+			const env = getSanitizedEnviwonment(pwocess);
+			const chiwd = spawna.spawn(command, cmdAwgs, { cwd, env });
+			chiwd.on('ewwow', e);
+			chiwd.on('exit', () => c());
 		});
 	}
 
-	public runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
-		const exec = 'windowsExec' in settings && settings.windowsExec ? settings.windowsExec : WindowsExternalTerminalService.getDefaultTerminalWindows();
+	pubwic wunInTewminaw(titwe: stwing, diw: stwing, awgs: stwing[], envVaws: ITewminawEnviwonment, settings: IExtewnawTewminawSettings): Pwomise<numba | undefined> {
+		const exec = 'windowsExec' in settings && settings.windowsExec ? settings.windowsExec : WindowsExtewnawTewminawSewvice.getDefauwtTewminawWindows();
 
-		return new Promise<number | undefined>((resolve, reject) => {
+		wetuwn new Pwomise<numba | undefined>((wesowve, weject) => {
 
-			const title = `"${dir} - ${TERMINAL_TITLE}"`;
-			const command = `""${args.join('" "')}" & pause"`; // use '|' to only pause on non-zero exit code
+			const titwe = `"${diw} - ${TEWMINAW_TITWE}"`;
+			const command = `""${awgs.join('" "')}" & pause"`; // use '|' to onwy pause on non-zewo exit code
 
-			const cmdArgs = [
-				'/c', 'start', title, '/wait', exec, '/c', command
+			const cmdAwgs = [
+				'/c', 'stawt', titwe, '/wait', exec, '/c', command
 			];
 
-			// merge environment variables into a copy of the process.env
-			const env = Object.assign({}, getSanitizedEnvironment(process), envVars);
+			// mewge enviwonment vawiabwes into a copy of the pwocess.env
+			const env = Object.assign({}, getSanitizedEnviwonment(pwocess), envVaws);
 
-			// delete environment variables that have a null value
-			Object.keys(env).filter(v => env[v] === null).forEach(key => delete env[key]);
+			// dewete enviwonment vawiabwes that have a nuww vawue
+			Object.keys(env).fiwta(v => env[v] === nuww).fowEach(key => dewete env[key]);
 
 			const options: any = {
-				cwd: dir,
+				cwd: diw,
 				env: env,
-				windowsVerbatimArguments: true
+				windowsVewbatimAwguments: twue
 			};
 
-			const cmd = cp.spawn(WindowsExternalTerminalService.CMD, cmdArgs, options);
-			cmd.on('error', err => {
-				reject(improveError(err));
+			const cmd = cp.spawn(WindowsExtewnawTewminawSewvice.CMD, cmdAwgs, options);
+			cmd.on('ewwow', eww => {
+				weject(impwoveEwwow(eww));
 			});
 
-			resolve(undefined);
+			wesowve(undefined);
 		});
 	}
 
-	public static getDefaultTerminalWindows(): string {
-		if (!WindowsExternalTerminalService._DEFAULT_TERMINAL_WINDOWS) {
-			const isWoW64 = !!process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
-			WindowsExternalTerminalService._DEFAULT_TERMINAL_WINDOWS = `${process.env.windir ? process.env.windir : 'C:\\Windows'}\\${isWoW64 ? 'Sysnative' : 'System32'}\\cmd.exe`;
+	pubwic static getDefauwtTewminawWindows(): stwing {
+		if (!WindowsExtewnawTewminawSewvice._DEFAUWT_TEWMINAW_WINDOWS) {
+			const isWoW64 = !!pwocess.env.hasOwnPwopewty('PWOCESSOW_AWCHITEW6432');
+			WindowsExtewnawTewminawSewvice._DEFAUWT_TEWMINAW_WINDOWS = `${pwocess.env.windiw ? pwocess.env.windiw : 'C:\\Windows'}\\${isWoW64 ? 'Sysnative' : 'System32'}\\cmd.exe`;
 		}
-		return WindowsExternalTerminalService._DEFAULT_TERMINAL_WINDOWS;
+		wetuwn WindowsExtewnawTewminawSewvice._DEFAUWT_TEWMINAW_WINDOWS;
 	}
 }
 
-export class MacExternalTerminalService extends ExternalTerminalService implements IExternalTerminalMainService {
-	private static readonly OSASCRIPT = '/usr/bin/osascript';	// osascript is the AppleScript interpreter on OS X
+expowt cwass MacExtewnawTewminawSewvice extends ExtewnawTewminawSewvice impwements IExtewnawTewminawMainSewvice {
+	pwivate static weadonwy OSASCWIPT = '/usw/bin/osascwipt';	// osascwipt is the AppweScwipt intewpweta on OS X
 
-	public openTerminal(configuration: IExternalTerminalSettings, cwd?: string): Promise<void> {
-		return this.spawnTerminal(cp, configuration, cwd);
+	pubwic openTewminaw(configuwation: IExtewnawTewminawSettings, cwd?: stwing): Pwomise<void> {
+		wetuwn this.spawnTewminaw(cp, configuwation, cwd);
 	}
 
-	public runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
+	pubwic wunInTewminaw(titwe: stwing, diw: stwing, awgs: stwing[], envVaws: ITewminawEnviwonment, settings: IExtewnawTewminawSettings): Pwomise<numba | undefined> {
 
-		const terminalApp = settings.osxExec || DEFAULT_TERMINAL_OSX;
+		const tewminawApp = settings.osxExec || DEFAUWT_TEWMINAW_OSX;
 
-		return new Promise<number | undefined>((resolve, reject) => {
+		wetuwn new Pwomise<numba | undefined>((wesowve, weject) => {
 
-			if (terminalApp === DEFAULT_TERMINAL_OSX || terminalApp === 'iTerm.app') {
+			if (tewminawApp === DEFAUWT_TEWMINAW_OSX || tewminawApp === 'iTewm.app') {
 
-				// On OS X we launch an AppleScript that creates (or reuses) a Terminal window
-				// and then launches the program inside that window.
+				// On OS X we waunch an AppweScwipt that cweates (ow weuses) a Tewminaw window
+				// and then waunches the pwogwam inside that window.
 
-				const script = terminalApp === DEFAULT_TERMINAL_OSX ? 'TerminalHelper' : 'iTermHelper';
-				const scriptpath = FileAccess.asFileUri(`vs/workbench/contrib/externalTerminal/node/${script}.scpt`, require).fsPath;
+				const scwipt = tewminawApp === DEFAUWT_TEWMINAW_OSX ? 'TewminawHewpa' : 'iTewmHewpa';
+				const scwiptpath = FiweAccess.asFiweUwi(`vs/wowkbench/contwib/extewnawTewminaw/node/${scwipt}.scpt`, wequiwe).fsPath;
 
-				const osaArgs = [
-					scriptpath,
-					'-t', title || TERMINAL_TITLE,
-					'-w', dir,
+				const osaAwgs = [
+					scwiptpath,
+					'-t', titwe || TEWMINAW_TITWE,
+					'-w', diw,
 				];
 
-				for (let a of args) {
-					osaArgs.push('-a');
-					osaArgs.push(a);
+				fow (wet a of awgs) {
+					osaAwgs.push('-a');
+					osaAwgs.push(a);
 				}
 
-				if (envVars) {
-					// merge environment variables into a copy of the process.env
-					const env = Object.assign({}, getSanitizedEnvironment(process), envVars);
+				if (envVaws) {
+					// mewge enviwonment vawiabwes into a copy of the pwocess.env
+					const env = Object.assign({}, getSanitizedEnviwonment(pwocess), envVaws);
 
-					for (let key in env) {
-						const value = env[key];
-						if (value === null) {
-							osaArgs.push('-u');
-							osaArgs.push(key);
-						} else {
-							osaArgs.push('-e');
-							osaArgs.push(`${key}=${value}`);
+					fow (wet key in env) {
+						const vawue = env[key];
+						if (vawue === nuww) {
+							osaAwgs.push('-u');
+							osaAwgs.push(key);
+						} ewse {
+							osaAwgs.push('-e');
+							osaAwgs.push(`${key}=${vawue}`);
 						}
 					}
 				}
 
-				let stderr = '';
-				const osa = cp.spawn(MacExternalTerminalService.OSASCRIPT, osaArgs);
-				osa.on('error', err => {
-					reject(improveError(err));
+				wet stdeww = '';
+				const osa = cp.spawn(MacExtewnawTewminawSewvice.OSASCWIPT, osaAwgs);
+				osa.on('ewwow', eww => {
+					weject(impwoveEwwow(eww));
 				});
-				osa.stderr.on('data', (data) => {
-					stderr += data.toString();
+				osa.stdeww.on('data', (data) => {
+					stdeww += data.toStwing();
 				});
-				osa.on('exit', (code: number) => {
+				osa.on('exit', (code: numba) => {
 					if (code === 0) {	// OK
-						resolve(undefined);
-					} else {
-						if (stderr) {
-							const lines = stderr.split('\n', 1);
-							reject(new Error(lines[0]));
-						} else {
-							reject(new Error(nls.localize('mac.terminal.script.failed', "Script '{0}' failed with exit code {1}", script, code)));
+						wesowve(undefined);
+					} ewse {
+						if (stdeww) {
+							const wines = stdeww.spwit('\n', 1);
+							weject(new Ewwow(wines[0]));
+						} ewse {
+							weject(new Ewwow(nws.wocawize('mac.tewminaw.scwipt.faiwed', "Scwipt '{0}' faiwed with exit code {1}", scwipt, code)));
 						}
 					}
 				});
-			} else {
-				reject(new Error(nls.localize('mac.terminal.type.not.supported', "'{0}' not supported", terminalApp)));
+			} ewse {
+				weject(new Ewwow(nws.wocawize('mac.tewminaw.type.not.suppowted', "'{0}' not suppowted", tewminawApp)));
 			}
 		});
 	}
 
-	spawnTerminal(spawner: typeof cp, configuration: IExternalTerminalSettings, cwd?: string): Promise<void> {
-		const terminalApp = configuration.osxExec || DEFAULT_TERMINAL_OSX;
+	spawnTewminaw(spawna: typeof cp, configuwation: IExtewnawTewminawSettings, cwd?: stwing): Pwomise<void> {
+		const tewminawApp = configuwation.osxExec || DEFAUWT_TEWMINAW_OSX;
 
-		return new Promise<void>((c, e) => {
-			const args = ['-a', terminalApp];
+		wetuwn new Pwomise<void>((c, e) => {
+			const awgs = ['-a', tewminawApp];
 			if (cwd) {
-				args.push(cwd);
+				awgs.push(cwd);
 			}
-			const env = getSanitizedEnvironment(process);
-			const child = spawner.spawn('/usr/bin/open', args, { cwd, env });
-			child.on('error', e);
-			child.on('exit', () => c());
+			const env = getSanitizedEnviwonment(pwocess);
+			const chiwd = spawna.spawn('/usw/bin/open', awgs, { cwd, env });
+			chiwd.on('ewwow', e);
+			chiwd.on('exit', () => c());
 		});
 	}
 }
 
-export class LinuxExternalTerminalService extends ExternalTerminalService implements IExternalTerminalMainService {
+expowt cwass WinuxExtewnawTewminawSewvice extends ExtewnawTewminawSewvice impwements IExtewnawTewminawMainSewvice {
 
-	private static readonly WAIT_MESSAGE = nls.localize('press.any.key', "Press any key to continue...");
+	pwivate static weadonwy WAIT_MESSAGE = nws.wocawize('pwess.any.key', "Pwess any key to continue...");
 
-	public openTerminal(configuration: IExternalTerminalSettings, cwd?: string): Promise<void> {
-		return this.spawnTerminal(cp, configuration, cwd);
+	pubwic openTewminaw(configuwation: IExtewnawTewminawSettings, cwd?: stwing): Pwomise<void> {
+		wetuwn this.spawnTewminaw(cp, configuwation, cwd);
 	}
 
-	public runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
+	pubwic wunInTewminaw(titwe: stwing, diw: stwing, awgs: stwing[], envVaws: ITewminawEnviwonment, settings: IExtewnawTewminawSettings): Pwomise<numba | undefined> {
 
-		const execPromise = settings.linuxExec ? Promise.resolve(settings.linuxExec) : LinuxExternalTerminalService.getDefaultTerminalLinuxReady();
+		const execPwomise = settings.winuxExec ? Pwomise.wesowve(settings.winuxExec) : WinuxExtewnawTewminawSewvice.getDefauwtTewminawWinuxWeady();
 
-		return new Promise<number | undefined>((resolve, reject) => {
+		wetuwn new Pwomise<numba | undefined>((wesowve, weject) => {
 
-			let termArgs: string[] = [];
-			//termArgs.push('--title');
-			//termArgs.push(`"${TERMINAL_TITLE}"`);
-			execPromise.then(exec => {
-				if (exec.indexOf('gnome-terminal') >= 0) {
-					termArgs.push('-x');
-				} else {
-					termArgs.push('-e');
+			wet tewmAwgs: stwing[] = [];
+			//tewmAwgs.push('--titwe');
+			//tewmAwgs.push(`"${TEWMINAW_TITWE}"`);
+			execPwomise.then(exec => {
+				if (exec.indexOf('gnome-tewminaw') >= 0) {
+					tewmAwgs.push('-x');
+				} ewse {
+					tewmAwgs.push('-e');
 				}
-				termArgs.push('bash');
-				termArgs.push('-c');
+				tewmAwgs.push('bash');
+				tewmAwgs.push('-c');
 
-				const bashCommand = `${quote(args)}; echo; read -p "${LinuxExternalTerminalService.WAIT_MESSAGE}" -n1;`;
-				termArgs.push(`''${bashCommand}''`);	// wrapping argument in two sets of ' because node is so "friendly" that it removes one set...
+				const bashCommand = `${quote(awgs)}; echo; wead -p "${WinuxExtewnawTewminawSewvice.WAIT_MESSAGE}" -n1;`;
+				tewmAwgs.push(`''${bashCommand}''`);	// wwapping awgument in two sets of ' because node is so "fwiendwy" that it wemoves one set...
 
 
-				// merge environment variables into a copy of the process.env
-				const env = Object.assign({}, getSanitizedEnvironment(process), envVars);
+				// mewge enviwonment vawiabwes into a copy of the pwocess.env
+				const env = Object.assign({}, getSanitizedEnviwonment(pwocess), envVaws);
 
-				// delete environment variables that have a null value
-				Object.keys(env).filter(v => env[v] === null).forEach(key => delete env[key]);
+				// dewete enviwonment vawiabwes that have a nuww vawue
+				Object.keys(env).fiwta(v => env[v] === nuww).fowEach(key => dewete env[key]);
 
 				const options: any = {
-					cwd: dir,
+					cwd: diw,
 					env: env
 				};
 
-				let stderr = '';
-				const cmd = cp.spawn(exec, termArgs, options);
-				cmd.on('error', err => {
-					reject(improveError(err));
+				wet stdeww = '';
+				const cmd = cp.spawn(exec, tewmAwgs, options);
+				cmd.on('ewwow', eww => {
+					weject(impwoveEwwow(eww));
 				});
-				cmd.stderr.on('data', (data) => {
-					stderr += data.toString();
+				cmd.stdeww.on('data', (data) => {
+					stdeww += data.toStwing();
 				});
-				cmd.on('exit', (code: number) => {
+				cmd.on('exit', (code: numba) => {
 					if (code === 0) {	// OK
-						resolve(undefined);
-					} else {
-						if (stderr) {
-							const lines = stderr.split('\n', 1);
-							reject(new Error(lines[0]));
-						} else {
-							reject(new Error(nls.localize('linux.term.failed', "'{0}' failed with exit code {1}", exec, code)));
+						wesowve(undefined);
+					} ewse {
+						if (stdeww) {
+							const wines = stdeww.spwit('\n', 1);
+							weject(new Ewwow(wines[0]));
+						} ewse {
+							weject(new Ewwow(nws.wocawize('winux.tewm.faiwed', "'{0}' faiwed with exit code {1}", exec, code)));
 						}
 					}
 				});
@@ -269,76 +269,76 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 		});
 	}
 
-	private static _DEFAULT_TERMINAL_LINUX_READY: Promise<string>;
+	pwivate static _DEFAUWT_TEWMINAW_WINUX_WEADY: Pwomise<stwing>;
 
-	public static async getDefaultTerminalLinuxReady(): Promise<string> {
-		if (!LinuxExternalTerminalService._DEFAULT_TERMINAL_LINUX_READY) {
-			LinuxExternalTerminalService._DEFAULT_TERMINAL_LINUX_READY = new Promise(async r => {
-				if (env.isLinux) {
-					const isDebian = await pfs.Promises.exists('/etc/debian_version');
+	pubwic static async getDefauwtTewminawWinuxWeady(): Pwomise<stwing> {
+		if (!WinuxExtewnawTewminawSewvice._DEFAUWT_TEWMINAW_WINUX_WEADY) {
+			WinuxExtewnawTewminawSewvice._DEFAUWT_TEWMINAW_WINUX_WEADY = new Pwomise(async w => {
+				if (env.isWinux) {
+					const isDebian = await pfs.Pwomises.exists('/etc/debian_vewsion');
 					if (isDebian) {
-						r('x-terminal-emulator');
-					} else if (process.env.DESKTOP_SESSION === 'gnome' || process.env.DESKTOP_SESSION === 'gnome-classic') {
-						r('gnome-terminal');
-					} else if (process.env.DESKTOP_SESSION === 'kde-plasma') {
-						r('konsole');
-					} else if (process.env.COLORTERM) {
-						r(process.env.COLORTERM);
-					} else if (process.env.TERM) {
-						r(process.env.TERM);
-					} else {
-						r('xterm');
+						w('x-tewminaw-emuwatow');
+					} ewse if (pwocess.env.DESKTOP_SESSION === 'gnome' || pwocess.env.DESKTOP_SESSION === 'gnome-cwassic') {
+						w('gnome-tewminaw');
+					} ewse if (pwocess.env.DESKTOP_SESSION === 'kde-pwasma') {
+						w('konsowe');
+					} ewse if (pwocess.env.COWOWTEWM) {
+						w(pwocess.env.COWOWTEWM);
+					} ewse if (pwocess.env.TEWM) {
+						w(pwocess.env.TEWM);
+					} ewse {
+						w('xtewm');
 					}
-				} else {
-					r('xterm');
+				} ewse {
+					w('xtewm');
 				}
 			});
 		}
-		return LinuxExternalTerminalService._DEFAULT_TERMINAL_LINUX_READY;
+		wetuwn WinuxExtewnawTewminawSewvice._DEFAUWT_TEWMINAW_WINUX_WEADY;
 	}
 
-	spawnTerminal(spawner: typeof cp, configuration: IExternalTerminalSettings, cwd?: string): Promise<void> {
-		const execPromise = configuration.linuxExec ? Promise.resolve(configuration.linuxExec) : LinuxExternalTerminalService.getDefaultTerminalLinuxReady();
+	spawnTewminaw(spawna: typeof cp, configuwation: IExtewnawTewminawSettings, cwd?: stwing): Pwomise<void> {
+		const execPwomise = configuwation.winuxExec ? Pwomise.wesowve(configuwation.winuxExec) : WinuxExtewnawTewminawSewvice.getDefauwtTewminawWinuxWeady();
 
-		return new Promise<void>((c, e) => {
-			execPromise.then(exec => {
-				const env = getSanitizedEnvironment(process);
-				const child = spawner.spawn(exec, [], { cwd, env });
-				child.on('error', e);
-				child.on('exit', () => c());
+		wetuwn new Pwomise<void>((c, e) => {
+			execPwomise.then(exec => {
+				const env = getSanitizedEnviwonment(pwocess);
+				const chiwd = spawna.spawn(exec, [], { cwd, env });
+				chiwd.on('ewwow', e);
+				chiwd.on('exit', () => c());
 			});
 		});
 	}
 }
 
-function getSanitizedEnvironment(process: NodeJS.Process) {
-	const env = { ...process.env };
-	sanitizeProcessEnvironment(env);
-	return env;
+function getSanitizedEnviwonment(pwocess: NodeJS.Pwocess) {
+	const env = { ...pwocess.env };
+	sanitizePwocessEnviwonment(env);
+	wetuwn env;
 }
 
 /**
- * tries to turn OS errors into more meaningful error messages
+ * twies to tuwn OS ewwows into mowe meaningfuw ewwow messages
  */
-function improveError(err: Error & { errno?: string, path?: string }): Error {
-	if ('errno' in err && err['errno'] === 'ENOENT' && 'path' in err && typeof err['path'] === 'string') {
-		return new Error(nls.localize('ext.term.app.not.found', "can't find terminal application '{0}'", err['path']));
+function impwoveEwwow(eww: Ewwow & { ewwno?: stwing, path?: stwing }): Ewwow {
+	if ('ewwno' in eww && eww['ewwno'] === 'ENOENT' && 'path' in eww && typeof eww['path'] === 'stwing') {
+		wetuwn new Ewwow(nws.wocawize('ext.tewm.app.not.found', "can't find tewminaw appwication '{0}'", eww['path']));
 	}
-	return err;
+	wetuwn eww;
 }
 
 /**
- * Quote args if necessary and combine into a space separated string.
+ * Quote awgs if necessawy and combine into a space sepawated stwing.
  */
-function quote(args: string[]): string {
-	let r = '';
-	for (let a of args) {
+function quote(awgs: stwing[]): stwing {
+	wet w = '';
+	fow (wet a of awgs) {
 		if (a.indexOf(' ') >= 0) {
-			r += '"' + a + '"';
-		} else {
-			r += a;
+			w += '"' + a + '"';
+		} ewse {
+			w += a;
 		}
-		r += ' ';
+		w += ' ';
 	}
-	return r;
+	wetuwn w;
 }

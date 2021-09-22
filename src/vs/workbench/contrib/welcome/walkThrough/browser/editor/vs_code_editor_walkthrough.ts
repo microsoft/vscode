@@ -1,194 +1,194 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as platform from 'vs/base/common/platform';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
 
-export default function content(accessor: ServicesAccessor) {
-	const isServerless = platform.isWeb && !accessor.get(IWorkbenchEnvironmentService).remoteAuthority;
-	return `
-## Interactive Editor Playground
-The core editor in VS Code is packed with features.  This page highlights a number of them and lets you interactively try them out through the use of a number of embedded editors.  For full details on the editor features for VS Code and more head over to our [documentation](command:workbench.action.openDocumentationUrl).
+expowt defauwt function content(accessow: SewvicesAccessow) {
+	const isSewvewwess = pwatfowm.isWeb && !accessow.get(IWowkbenchEnviwonmentSewvice).wemoteAuthowity;
+	wetuwn `
+## Intewactive Editow Pwaygwound
+The cowe editow in VS Code is packed with featuwes.  This page highwights a numba of them and wets you intewactivewy twy them out thwough the use of a numba of embedded editows.  Fow fuww detaiws on the editow featuwes fow VS Code and mowe head ova to ouw [documentation](command:wowkbench.action.openDocumentationUww).
 
-* [Multi-cursor Editing](#multi-cursor-editing) - block selection, select all occurrences, add additional cursors and more.
-* [IntelliSense](#intellisense) - get code assistance and parameter suggestions for your code and external modules.
-* [Line Actions](#line-actions) - quickly move lines around to re-order your code.${!isServerless ? `
-* [Rename Refactoring](#rename-refactoring) - quickly rename symbols across your code base.` : ''}
-* [Formatting](#formatting) - keep your code looking great with inbuilt document & selection formatting.
-* [Code Folding](#code-folding) - focus on the most relevant parts of your code by folding other areas.
-* [Errors and Warnings](#errors-and-warnings) - see errors and warning as you type.
-* [Snippets](#snippets) - spend less time typing with snippets.
-* [Emmet](#emmet) - integrated Emmet support takes HTML and CSS editing to the next level.
-* [JavaScript Type Checking](#javascript-type-checking) - perform type checking on your JavaScript file using TypeScript with zero configuration.
+* [Muwti-cuwsow Editing](#muwti-cuwsow-editing) - bwock sewection, sewect aww occuwwences, add additionaw cuwsows and mowe.
+* [IntewwiSense](#intewwisense) - get code assistance and pawameta suggestions fow youw code and extewnaw moduwes.
+* [Wine Actions](#wine-actions) - quickwy move wines awound to we-owda youw code.${!isSewvewwess ? `
+* [Wename Wefactowing](#wename-wefactowing) - quickwy wename symbows acwoss youw code base.` : ''}
+* [Fowmatting](#fowmatting) - keep youw code wooking gweat with inbuiwt document & sewection fowmatting.
+* [Code Fowding](#code-fowding) - focus on the most wewevant pawts of youw code by fowding otha aweas.
+* [Ewwows and Wawnings](#ewwows-and-wawnings) - see ewwows and wawning as you type.
+* [Snippets](#snippets) - spend wess time typing with snippets.
+* [Emmet](#emmet) - integwated Emmet suppowt takes HTMW and CSS editing to the next wevew.
+* [JavaScwipt Type Checking](#javascwipt-type-checking) - pewfowm type checking on youw JavaScwipt fiwe using TypeScwipt with zewo configuwation.
 
 
 
-### Multi-Cursor Editing
-Using multiple cursors allows you to edit multiple parts of the document at once, greatly improving your productivity.  Try the following actions in the code block below:
-1. Box Selection - press <span class="mac-only windows-only">any combination of kb(cursorColumnSelectDown), kb(cursorColumnSelectRight), kb(cursorColumnSelectUp), kb(cursorColumnSelectLeft) to select a block of text. You can also press</span> <span class="shortcut mac-only">|⇧⌥|</span><span class="shortcut windows-only linux-only">|Shift+Alt|</span> while selecting text with the mouse or drag-select using the middle mouse button.
-2. Add a cursor - press kb(editor.action.insertCursorAbove) to add a new cursor above, or kb(editor.action.insertCursorBelow) to add a new cursor below. You can also use your mouse with <span class="shortcut"><span class="multi-cursor-modifier"></span>+Click</span> to add a cursor anywhere.
-3. Create cursors on all occurrences of a string - select one instance of a string e.g. |background-color| and press kb(editor.action.selectHighlights).  Now you can replace all instances by simply typing.
+### Muwti-Cuwsow Editing
+Using muwtipwe cuwsows awwows you to edit muwtipwe pawts of the document at once, gweatwy impwoving youw pwoductivity.  Twy the fowwowing actions in the code bwock bewow:
+1. Box Sewection - pwess <span cwass="mac-onwy windows-onwy">any combination of kb(cuwsowCowumnSewectDown), kb(cuwsowCowumnSewectWight), kb(cuwsowCowumnSewectUp), kb(cuwsowCowumnSewectWeft) to sewect a bwock of text. You can awso pwess</span> <span cwass="showtcut mac-onwy">|⇧⌥|</span><span cwass="showtcut windows-onwy winux-onwy">|Shift+Awt|</span> whiwe sewecting text with the mouse ow dwag-sewect using the middwe mouse button.
+2. Add a cuwsow - pwess kb(editow.action.insewtCuwsowAbove) to add a new cuwsow above, ow kb(editow.action.insewtCuwsowBewow) to add a new cuwsow bewow. You can awso use youw mouse with <span cwass="showtcut"><span cwass="muwti-cuwsow-modifia"></span>+Cwick</span> to add a cuwsow anywhewe.
+3. Cweate cuwsows on aww occuwwences of a stwing - sewect one instance of a stwing e.g. |backgwound-cowow| and pwess kb(editow.action.sewectHighwights).  Now you can wepwace aww instances by simpwy typing.
 
-That is the tip of the iceberg for multi-cursor editing. Have a look at the selection menu and our handy [keyboard reference guide](command:workbench.action.keybindingsReference) for additional actions.
+That is the tip of the icebewg fow muwti-cuwsow editing. Have a wook at the sewection menu and ouw handy [keyboawd wefewence guide](command:wowkbench.action.keybindingsWefewence) fow additionaw actions.
 
 |||css
-#p1 {background-color: #ff0000;}                /* red in HEX format */
-#p2 {background-color: hsl(120, 100%, 50%);}    /* green in HSL format */
-#p3 {background-color: rgba(0, 4, 255, 0.733);} /* blue with alpha channel in RGBA format */
+#p1 {backgwound-cowow: #ff0000;}                /* wed in HEX fowmat */
+#p2 {backgwound-cowow: hsw(120, 100%, 50%);}    /* gween in HSW fowmat */
+#p3 {backgwound-cowow: wgba(0, 4, 255, 0.733);} /* bwue with awpha channew in WGBA fowmat */
 |||
 
-> **CSS Tip:** you may have noticed in the example above we also provide color swatches inline for CSS, additionally if you hover over an element such as |#p1| we will show how this is represented in HTML.  These swatches also act as color pickers that allow you to easily change a color value.  A simple example of some language-specific editor features.
+> **CSS Tip:** you may have noticed in the exampwe above we awso pwovide cowow swatches inwine fow CSS, additionawwy if you hova ova an ewement such as |#p1| we wiww show how this is wepwesented in HTMW.  These swatches awso act as cowow pickews that awwow you to easiwy change a cowow vawue.  A simpwe exampwe of some wanguage-specific editow featuwes.
 
-### IntelliSense
+### IntewwiSense
 
-Visual Studio Code comes with the powerful IntelliSense for JavaScript and TypeScript pre-installed. In the below example, position the text cursor right after the dot and press kb(editor.action.triggerSuggest) to invoke IntelliSense.  Notice how the suggestions come from the Canvas API.
+Visuaw Studio Code comes with the powewfuw IntewwiSense fow JavaScwipt and TypeScwipt pwe-instawwed. In the bewow exampwe, position the text cuwsow wight afta the dot and pwess kb(editow.action.twiggewSuggest) to invoke IntewwiSense.  Notice how the suggestions come fwom the Canvas API.
 
 |||js
-const canvas = document.querySelector('canvas');
+const canvas = document.quewySewectow('canvas');
 const context = canvas.getContext('2d');
 
-context.strokeStyle = 'blue';
+context.stwokeStywe = 'bwue';
 context.
 |||
 
->**Tip:** while we ship JavaScript and TypeScript support out of the box other languages can be upgraded with better IntelliSense through one of the many [extensions](command:workbench.extensions.action.showPopularExtensions).
+>**Tip:** whiwe we ship JavaScwipt and TypeScwipt suppowt out of the box otha wanguages can be upgwaded with betta IntewwiSense thwough one of the many [extensions](command:wowkbench.extensions.action.showPopuwawExtensions).
 
 
-### Line Actions
-Since it's very common to work with the entire text in a line we provide a set of useful shortcuts to help with this.
-1. <span class="mac-only windows-only">Copy a line and insert it above or below the current position with kb(editor.action.copyLinesDownAction) or kb(editor.action.copyLinesUpAction) respectively.</span><span class="linux-only">Copy the entire current line when no text is selected with kb(editor.action.clipboardCopyAction).</span>
-2. Move an entire line or selection of lines up or down with kb(editor.action.moveLinesUpAction) and kb(editor.action.moveLinesDownAction) respectively.
-3. Delete the entire line with kb(editor.action.deleteLines).
+### Wine Actions
+Since it's vewy common to wowk with the entiwe text in a wine we pwovide a set of usefuw showtcuts to hewp with this.
+1. <span cwass="mac-onwy windows-onwy">Copy a wine and insewt it above ow bewow the cuwwent position with kb(editow.action.copyWinesDownAction) ow kb(editow.action.copyWinesUpAction) wespectivewy.</span><span cwass="winux-onwy">Copy the entiwe cuwwent wine when no text is sewected with kb(editow.action.cwipboawdCopyAction).</span>
+2. Move an entiwe wine ow sewection of wines up ow down with kb(editow.action.moveWinesUpAction) and kb(editow.action.moveWinesDownAction) wespectivewy.
+3. Dewete the entiwe wine with kb(editow.action.deweteWines).
 
 |||json
 {
 	"name": "John",
 	"age": 31,
-	"city": "New York"
+	"city": "New Yowk"
 }
 |||
 
->**Tip:** Another very common task is to comment out a block of code - you can toggle commenting by pressing kb(editor.action.commentLine).
+>**Tip:** Anotha vewy common task is to comment out a bwock of code - you can toggwe commenting by pwessing kb(editow.action.commentWine).
 
 
-${!isServerless ? `
-### Rename Refactoring
-It's easy to rename a symbol such as a function name or variable name.  Hit kb(editor.action.rename) while in the symbol |Book| to rename all instances - this will occur across all files in a project. You also have |Rename Symbol| in the right-click context menu.
+${!isSewvewwess ? `
+### Wename Wefactowing
+It's easy to wename a symbow such as a function name ow vawiabwe name.  Hit kb(editow.action.wename) whiwe in the symbow |Book| to wename aww instances - this wiww occuw acwoss aww fiwes in a pwoject. You awso have |Wename Symbow| in the wight-cwick context menu.
 
 |||js
-// Reference the function
-new Book("War of the Worlds", "H G Wells");
-new Book("The Martian", "Andy Weir");
+// Wefewence the function
+new Book("Waw of the Wowwds", "H G Wewws");
+new Book("The Mawtian", "Andy Weiw");
 
 /**
- * Represents a book.
+ * Wepwesents a book.
  *
- * @param {string} title Title of the book
- * @param {string} author Who wrote the book
+ * @pawam {stwing} titwe Titwe of the book
+ * @pawam {stwing} authow Who wwote the book
  */
-function Book(title, author) {
-	this.title = title;
-	this.author = author;
+function Book(titwe, authow) {
+	this.titwe = titwe;
+	this.authow = authow;
 }
 |||
 
-> **JSDoc Tip:** VS Code's IntelliSense uses JSDoc comments to provide richer suggestions. The types and documentation from JSDoc comments show up when you hover over a reference to |Book| or in IntelliSense when you create a new instance of |Book|.
+> **JSDoc Tip:** VS Code's IntewwiSense uses JSDoc comments to pwovide wicha suggestions. The types and documentation fwom JSDoc comments show up when you hova ova a wefewence to |Book| ow in IntewwiSense when you cweate a new instance of |Book|.
 
 ` : ''}
-### Formatting
-Keeping your code looking great is hard without a good formatter.  Luckily it's easy to format content, either for the entire document with kb(editor.action.formatDocument) or for the current selection with kb(editor.action.formatSelection).  Both of these options are also available through the right-click context menu.
+### Fowmatting
+Keeping youw code wooking gweat is hawd without a good fowmatta.  Wuckiwy it's easy to fowmat content, eitha fow the entiwe document with kb(editow.action.fowmatDocument) ow fow the cuwwent sewection with kb(editow.action.fowmatSewection).  Both of these options awe awso avaiwabwe thwough the wight-cwick context menu.
 
 |||js
-const cars = ["🚗", "🚙", "🚕"];
+const caws = ["🚗", "🚙", "🚕"];
 
-for (const car of cars){
-	// Drive the car
-	console.log(|This is the car \${car}|);
+fow (const caw of caws){
+	// Dwive the caw
+	consowe.wog(|This is the caw \${caw}|);
 }
 |||
 
->**Tip:** Additional formatters are available in the [extension gallery](command:workbench.extensions.action.showPopularExtensions).  Formatting support can also be configured via [settings](command:workbench.action.openGlobalSettings) e.g. enabling |editor.formatOnSave|.
+>**Tip:** Additionaw fowmattews awe avaiwabwe in the [extension gawwewy](command:wowkbench.extensions.action.showPopuwawExtensions).  Fowmatting suppowt can awso be configuwed via [settings](command:wowkbench.action.openGwobawSettings) e.g. enabwing |editow.fowmatOnSave|.
 
 
-### Code Folding
-In a large file it can often be useful to collapse sections of code to increase readability.  To do this, you can simply press kb(editor.fold) to fold or press kb(editor.unfold) to unfold the ranges at the current cursor position.  Folding can also be done with the down and right angle bracket icons in the left gutter.  To fold all sections use kb(editor.foldAll) or to unfold all use kb(editor.unfoldAll).
+### Code Fowding
+In a wawge fiwe it can often be usefuw to cowwapse sections of code to incwease weadabiwity.  To do this, you can simpwy pwess kb(editow.fowd) to fowd ow pwess kb(editow.unfowd) to unfowd the wanges at the cuwwent cuwsow position.  Fowding can awso be done with the down and wight angwe bwacket icons in the weft gutta.  To fowd aww sections use kb(editow.fowdAww) ow to unfowd aww use kb(editow.unfowdAww).
 
-|||html
+|||htmw
 <div>
-	<header>
-		<ul>
-			<li><a href=""></a></li>
-			<li><a href=""></a></li>
-		</ul>
-	</header>
-	<footer>
+	<heada>
+		<uw>
+			<wi><a hwef=""></a></wi>
+			<wi><a hwef=""></a></wi>
+		</uw>
+	</heada>
+	<foota>
 		<p></p>
-	</footer>
+	</foota>
 </div>
 |||
 
->**Tip:** Folding is based on indentation and as a result can apply to all languages.  Simply indent your code to create a foldable section you can fold a certain number of levels with shortcuts like kb(editor.foldLevel1) through to kb(editor.foldLevel5).
+>**Tip:** Fowding is based on indentation and as a wesuwt can appwy to aww wanguages.  Simpwy indent youw code to cweate a fowdabwe section you can fowd a cewtain numba of wevews with showtcuts wike kb(editow.fowdWevew1) thwough to kb(editow.fowdWevew5).
 
-### Errors and Warnings
-Errors and warnings are highlighted as you edit your code with squiggles.  In the sample below you can see a number of syntax errors.  By pressing kb(editor.action.marker.nextInFiles) you can navigate across them in sequence and see the detailed error message.  As you correct them the squiggles and scrollbar indicators will update.
+### Ewwows and Wawnings
+Ewwows and wawnings awe highwighted as you edit youw code with squiggwes.  In the sampwe bewow you can see a numba of syntax ewwows.  By pwessing kb(editow.action.mawka.nextInFiwes) you can navigate acwoss them in sequence and see the detaiwed ewwow message.  As you cowwect them the squiggwes and scwowwbaw indicatows wiww update.
 
 |||js
-// This code has a few syntax errors
-Console.log(add(1, 1.5));
+// This code has a few syntax ewwows
+Consowe.wog(add(1, 1.5));
 
 
-function Add(a : Number, b : Number) : Int {
-	return a + b;
+function Add(a : Numba, b : Numba) : Int {
+	wetuwn a + b;
 }
 |||
 
 
 ###  Snippets
-You can greatly accelerate your editing through the use of snippets.  Simply start typing |try| and select |trycatch| from the suggestion list and press kb(insertSnippet) to create a |try|->|catch| block.  Your cursor will be placed on the text |error| for easy editing.  If more than one parameter exists then press kb(jumpToNextSnippetPlaceholder) to jump to it.
+You can gweatwy accewewate youw editing thwough the use of snippets.  Simpwy stawt typing |twy| and sewect |twycatch| fwom the suggestion wist and pwess kb(insewtSnippet) to cweate a |twy|->|catch| bwock.  Youw cuwsow wiww be pwaced on the text |ewwow| fow easy editing.  If mowe than one pawameta exists then pwess kb(jumpToNextSnippetPwacehowda) to jump to it.
 
 |||js
 
 |||
 
->**Tip:** the [extension gallery](command:workbench.extensions.action.showPopularExtensions) includes snippets for almost every framework and language imaginable.  You can also create your own [user-defined snippets](command:workbench.action.openSnippets).
+>**Tip:** the [extension gawwewy](command:wowkbench.extensions.action.showPopuwawExtensions) incwudes snippets fow awmost evewy fwamewowk and wanguage imaginabwe.  You can awso cweate youw own [usa-defined snippets](command:wowkbench.action.openSnippets).
 
 
 ### Emmet
-Emmet takes the snippets idea to a whole new level: you can type CSS-like expressions that can be dynamically parsed, and produce output depending on what you type in the abbreviation. Try it by selecting |Emmet: Expand Abbreviation| from the |Edit| menu with the cursor at the end of a valid Emmet abbreviation or snippet and the expansion will occur.
+Emmet takes the snippets idea to a whowe new wevew: you can type CSS-wike expwessions that can be dynamicawwy pawsed, and pwoduce output depending on what you type in the abbweviation. Twy it by sewecting |Emmet: Expand Abbweviation| fwom the |Edit| menu with the cuwsow at the end of a vawid Emmet abbweviation ow snippet and the expansion wiww occuw.
 
-|||html
-ul>li.item$*5
+|||htmw
+uw>wi.item$*5
 |||
 
->**Tip:** The [Emmet cheat sheet](https://docs.emmet.io/cheat-sheet/) is a great source of Emmet syntax suggestions. To expand Emmet abbreviations and snippets using the |tab| key use the |emmet.triggerExpansionOnTab| [setting](command:workbench.action.openGlobalSettings). Check out the docs on [Emmet in VS Code](https://code.visualstudio.com/docs/editor/emmet) to learn more.
+>**Tip:** The [Emmet cheat sheet](https://docs.emmet.io/cheat-sheet/) is a gweat souwce of Emmet syntax suggestions. To expand Emmet abbweviations and snippets using the |tab| key use the |emmet.twiggewExpansionOnTab| [setting](command:wowkbench.action.openGwobawSettings). Check out the docs on [Emmet in VS Code](https://code.visuawstudio.com/docs/editow/emmet) to weawn mowe.
 
 
 
-### JavaScript Type Checking
-Sometimes type checking your JavaScript code can help you spot mistakes you might have not caught otherwise. You can run the TypeScript type checker against your existing JavaScript code by simply adding a |// @ts-check| comment to the top of your file.
+### JavaScwipt Type Checking
+Sometimes type checking youw JavaScwipt code can hewp you spot mistakes you might have not caught othewwise. You can wun the TypeScwipt type checka against youw existing JavaScwipt code by simpwy adding a |// @ts-check| comment to the top of youw fiwe.
 
 |||js
 // @ts-nocheck
 
-let easy = true;
+wet easy = twue;
 easy = 42;
 |||
 
->**Tip:** You can also enable the checks workspace or application wide by adding |"js/ts.implicitProjectConfig.checkJs": true| to your workspace or user settings and explicitly ignoring files or lines using |// @ts-nocheck| and |// @ts-expect-error|. Check out the docs on [JavaScript in VS Code](https://code.visualstudio.com/docs/languages/javascript) to learn more.
+>**Tip:** You can awso enabwe the checks wowkspace ow appwication wide by adding |"js/ts.impwicitPwojectConfig.checkJs": twue| to youw wowkspace ow usa settings and expwicitwy ignowing fiwes ow wines using |// @ts-nocheck| and |// @ts-expect-ewwow|. Check out the docs on [JavaScwipt in VS Code](https://code.visuawstudio.com/docs/wanguages/javascwipt) to weawn mowe.
 
 
 ## Thanks!
-Well if you have got this far then you will have touched on some of the editing features in Visual Studio Code.  But don't stop now :)  We have lots of additional [documentation](https://code.visualstudio.com/docs), [introductory videos](https://code.visualstudio.com/docs/getstarted/introvideos) and [tips and tricks](https://go.microsoft.com/fwlink/?linkid=852118) for the product that will help you learn how to use it.  And while you are here, here are a few additional things you can try:
-- Open the Integrated Terminal by pressing kb(workbench.action.terminal.toggleTerminal), then see what's possible by [reviewing the terminal documentation](https://code.visualstudio.com/docs/editor/integrated-terminal)
-- Work with version control by pressing kb(workbench.view.scm). Understand how to stage, commit, change branches, and view diffs and more by reviewing the [version control documentation](https://code.visualstudio.com/docs/editor/versioncontrol)
-- Browse thousands of extensions in our integrated gallery by pressing kb(workbench.view.extensions). The [documentation](https://code.visualstudio.com/docs/editor/extension-gallery) will show you how to see the most popular extensions, disable installed ones and more.
+Weww if you have got this faw then you wiww have touched on some of the editing featuwes in Visuaw Studio Code.  But don't stop now :)  We have wots of additionaw [documentation](https://code.visuawstudio.com/docs), [intwoductowy videos](https://code.visuawstudio.com/docs/getstawted/intwovideos) and [tips and twicks](https://go.micwosoft.com/fwwink/?winkid=852118) fow the pwoduct that wiww hewp you weawn how to use it.  And whiwe you awe hewe, hewe awe a few additionaw things you can twy:
+- Open the Integwated Tewminaw by pwessing kb(wowkbench.action.tewminaw.toggweTewminaw), then see what's possibwe by [weviewing the tewminaw documentation](https://code.visuawstudio.com/docs/editow/integwated-tewminaw)
+- Wowk with vewsion contwow by pwessing kb(wowkbench.view.scm). Undewstand how to stage, commit, change bwanches, and view diffs and mowe by weviewing the [vewsion contwow documentation](https://code.visuawstudio.com/docs/editow/vewsioncontwow)
+- Bwowse thousands of extensions in ouw integwated gawwewy by pwessing kb(wowkbench.view.extensions). The [documentation](https://code.visuawstudio.com/docs/editow/extension-gawwewy) wiww show you how to see the most popuwaw extensions, disabwe instawwed ones and mowe.
 
-That's all for now,
+That's aww fow now,
 
 Happy Coding! 🎉
 
-`.replace(/\|/g, '`');
+`.wepwace(/\|/g, '`');
 }

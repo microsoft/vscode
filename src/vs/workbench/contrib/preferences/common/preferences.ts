@@ -1,79 +1,79 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ISettingsEditorModel, ISearchResult } from 'vs/workbench/services/preferences/common/preferences';
-import { CancellationToken } from 'vs/base/common/cancellation';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { ISettingsEditowModew, ISeawchWesuwt } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
 
-export interface IWorkbenchSettingsConfiguration {
-	workbench: {
+expowt intewface IWowkbenchSettingsConfiguwation {
+	wowkbench: {
 		settings: {
-			openDefaultSettings: boolean;
-			naturalLanguageSearchEndpoint: string;
-			naturalLanguageSearchKey: string;
-			naturalLanguageSearchAutoIngestFeedback: boolean;
-			useNaturalLanguageSearchPost: boolean;
-			enableNaturalLanguageSearch: boolean;
-			enableNaturalLanguageSearchFeedback: boolean;
+			openDefauwtSettings: boowean;
+			natuwawWanguageSeawchEndpoint: stwing;
+			natuwawWanguageSeawchKey: stwing;
+			natuwawWanguageSeawchAutoIngestFeedback: boowean;
+			useNatuwawWanguageSeawchPost: boowean;
+			enabweNatuwawWanguageSeawch: boowean;
+			enabweNatuwawWanguageSeawchFeedback: boowean;
 		}
 	};
 }
 
-export interface IEndpointDetails {
-	urlBase: string;
-	key?: string;
+expowt intewface IEndpointDetaiws {
+	uwwBase: stwing;
+	key?: stwing;
 }
 
-export const IPreferencesSearchService = createDecorator<IPreferencesSearchService>('preferencesSearchService');
+expowt const IPwefewencesSeawchSewvice = cweateDecowatow<IPwefewencesSeawchSewvice>('pwefewencesSeawchSewvice');
 
-export interface IPreferencesSearchService {
-	readonly _serviceBrand: undefined;
+expowt intewface IPwefewencesSeawchSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	getLocalSearchProvider(filter: string): ISearchProvider;
-	getRemoteSearchProvider(filter: string, newExtensionsOnly?: boolean): ISearchProvider | undefined;
+	getWocawSeawchPwovida(fiwta: stwing): ISeawchPwovida;
+	getWemoteSeawchPwovida(fiwta: stwing, newExtensionsOnwy?: boowean): ISeawchPwovida | undefined;
 }
 
-export interface ISearchProvider {
-	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): Promise<ISearchResult | null>;
+expowt intewface ISeawchPwovida {
+	seawchModew(pwefewencesModew: ISettingsEditowModew, token?: CancewwationToken): Pwomise<ISeawchWesuwt | nuww>;
 }
 
-export const SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'settings.action.clearSearchResults';
-export const SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU = 'settings.action.showContextMenu';
+expowt const SETTINGS_EDITOW_COMMAND_CWEAW_SEAWCH_WESUWTS = 'settings.action.cweawSeawchWesuwts';
+expowt const SETTINGS_EDITOW_COMMAND_SHOW_CONTEXT_MENU = 'settings.action.showContextMenu';
 
-export const CONTEXT_SETTINGS_EDITOR = new RawContextKey<boolean>('inSettingsEditor', false);
-export const CONTEXT_SETTINGS_JSON_EDITOR = new RawContextKey<boolean>('inSettingsJSONEditor', false);
-export const CONTEXT_SETTINGS_SEARCH_FOCUS = new RawContextKey<boolean>('inSettingsSearch', false);
-export const CONTEXT_TOC_ROW_FOCUS = new RawContextKey<boolean>('settingsTocRowFocus', false);
-export const CONTEXT_SETTINGS_ROW_FOCUS = new RawContextKey<boolean>('settingRowFocus', false);
-export const CONTEXT_KEYBINDINGS_EDITOR = new RawContextKey<boolean>('inKeybindings', false);
-export const CONTEXT_KEYBINDINGS_SEARCH_FOCUS = new RawContextKey<boolean>('inKeybindingsSearch', false);
-export const CONTEXT_KEYBINDING_FOCUS = new RawContextKey<boolean>('keybindingFocus', false);
+expowt const CONTEXT_SETTINGS_EDITOW = new WawContextKey<boowean>('inSettingsEditow', fawse);
+expowt const CONTEXT_SETTINGS_JSON_EDITOW = new WawContextKey<boowean>('inSettingsJSONEditow', fawse);
+expowt const CONTEXT_SETTINGS_SEAWCH_FOCUS = new WawContextKey<boowean>('inSettingsSeawch', fawse);
+expowt const CONTEXT_TOC_WOW_FOCUS = new WawContextKey<boowean>('settingsTocWowFocus', fawse);
+expowt const CONTEXT_SETTINGS_WOW_FOCUS = new WawContextKey<boowean>('settingWowFocus', fawse);
+expowt const CONTEXT_KEYBINDINGS_EDITOW = new WawContextKey<boowean>('inKeybindings', fawse);
+expowt const CONTEXT_KEYBINDINGS_SEAWCH_FOCUS = new WawContextKey<boowean>('inKeybindingsSeawch', fawse);
+expowt const CONTEXT_KEYBINDING_FOCUS = new WawContextKey<boowean>('keybindingFocus', fawse);
 
-export const KEYBINDINGS_EDITOR_COMMAND_SEARCH = 'keybindings.editor.searchKeybindings';
-export const KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'keybindings.editor.clearSearchResults';
-export const KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS = 'keybindings.editor.recordSearchKeys';
-export const KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE = 'keybindings.editor.toggleSortByPrecedence';
-export const KEYBINDINGS_EDITOR_COMMAND_DEFINE = 'keybindings.editor.defineKeybinding';
-export const KEYBINDINGS_EDITOR_COMMAND_ADD = 'keybindings.editor.addKeybinding';
-export const KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN = 'keybindings.editor.defineWhenExpression';
-export const KEYBINDINGS_EDITOR_COMMAND_REMOVE = 'keybindings.editor.removeKeybinding';
-export const KEYBINDINGS_EDITOR_COMMAND_RESET = 'keybindings.editor.resetKeybinding';
-export const KEYBINDINGS_EDITOR_COMMAND_COPY = 'keybindings.editor.copyKeybindingEntry';
-export const KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND = 'keybindings.editor.copyCommandKeybindingEntry';
-export const KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE = 'keybindings.editor.copyCommandTitle';
-export const KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR = 'keybindings.editor.showConflicts';
-export const KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS = 'keybindings.editor.focusKeybindings';
-export const KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS = 'keybindings.editor.showDefaultKeybindings';
-export const KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS = 'keybindings.editor.showUserKeybindings';
-export const KEYBINDINGS_EDITOR_SHOW_EXTENSION_KEYBINDINGS = 'keybindings.editor.showExtensionKeybindings';
+expowt const KEYBINDINGS_EDITOW_COMMAND_SEAWCH = 'keybindings.editow.seawchKeybindings';
+expowt const KEYBINDINGS_EDITOW_COMMAND_CWEAW_SEAWCH_WESUWTS = 'keybindings.editow.cweawSeawchWesuwts';
+expowt const KEYBINDINGS_EDITOW_COMMAND_WECOWD_SEAWCH_KEYS = 'keybindings.editow.wecowdSeawchKeys';
+expowt const KEYBINDINGS_EDITOW_COMMAND_SOWTBY_PWECEDENCE = 'keybindings.editow.toggweSowtByPwecedence';
+expowt const KEYBINDINGS_EDITOW_COMMAND_DEFINE = 'keybindings.editow.defineKeybinding';
+expowt const KEYBINDINGS_EDITOW_COMMAND_ADD = 'keybindings.editow.addKeybinding';
+expowt const KEYBINDINGS_EDITOW_COMMAND_DEFINE_WHEN = 'keybindings.editow.defineWhenExpwession';
+expowt const KEYBINDINGS_EDITOW_COMMAND_WEMOVE = 'keybindings.editow.wemoveKeybinding';
+expowt const KEYBINDINGS_EDITOW_COMMAND_WESET = 'keybindings.editow.wesetKeybinding';
+expowt const KEYBINDINGS_EDITOW_COMMAND_COPY = 'keybindings.editow.copyKeybindingEntwy';
+expowt const KEYBINDINGS_EDITOW_COMMAND_COPY_COMMAND = 'keybindings.editow.copyCommandKeybindingEntwy';
+expowt const KEYBINDINGS_EDITOW_COMMAND_COPY_COMMAND_TITWE = 'keybindings.editow.copyCommandTitwe';
+expowt const KEYBINDINGS_EDITOW_COMMAND_SHOW_SIMIWAW = 'keybindings.editow.showConfwicts';
+expowt const KEYBINDINGS_EDITOW_COMMAND_FOCUS_KEYBINDINGS = 'keybindings.editow.focusKeybindings';
+expowt const KEYBINDINGS_EDITOW_SHOW_DEFAUWT_KEYBINDINGS = 'keybindings.editow.showDefauwtKeybindings';
+expowt const KEYBINDINGS_EDITOW_SHOW_USEW_KEYBINDINGS = 'keybindings.editow.showUsewKeybindings';
+expowt const KEYBINDINGS_EDITOW_SHOW_EXTENSION_KEYBINDINGS = 'keybindings.editow.showExtensionKeybindings';
 
-export const MODIFIED_SETTING_TAG = 'modified';
-export const EXTENSION_SETTING_TAG = 'ext:';
-export const FEATURE_SETTING_TAG = 'feature:';
-export const ID_SETTING_TAG = 'id:';
-export const WORKSPACE_TRUST_SETTING_TAG = 'workspaceTrust';
-export const REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG = 'requireTrustedWorkspace';
-export const KEYBOARD_LAYOUT_OPEN_PICKER = 'workbench.action.openKeyboardLayoutPicker';
+expowt const MODIFIED_SETTING_TAG = 'modified';
+expowt const EXTENSION_SETTING_TAG = 'ext:';
+expowt const FEATUWE_SETTING_TAG = 'featuwe:';
+expowt const ID_SETTING_TAG = 'id:';
+expowt const WOWKSPACE_TWUST_SETTING_TAG = 'wowkspaceTwust';
+expowt const WEQUIWE_TWUSTED_WOWKSPACE_SETTING_TAG = 'wequiweTwustedWowkspace';
+expowt const KEYBOAWD_WAYOUT_OPEN_PICKa = 'wowkbench.action.openKeyboawdWayoutPicka';

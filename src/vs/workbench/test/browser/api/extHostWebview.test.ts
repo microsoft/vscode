@@ -1,198 +1,198 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { MainThreadWebviewManager } from 'vs/workbench/api/browser/mainThreadWebviewManager';
-import { IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
-import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
-import { ExtHostWebviewPanels } from 'vs/workbench/api/common/extHostWebviewPanels';
-import { decodeAuthority, webviewResourceBaseHost } from 'vs/workbench/api/common/shared/webview';
-import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import type * as vscode from 'vscode';
-import { SingleProxyRPCProtocol } from './testRPCProtocol';
+impowt * as assewt fwom 'assewt';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { MainThweadWebviewManaga } fwom 'vs/wowkbench/api/bwowsa/mainThweadWebviewManaga';
+impowt { IExtHostContext } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { NuwwApiDepwecationSewvice } fwom 'vs/wowkbench/api/common/extHostApiDepwecationSewvice';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt { ExtHostWebviews } fwom 'vs/wowkbench/api/common/extHostWebview';
+impowt { ExtHostWebviewPanews } fwom 'vs/wowkbench/api/common/extHostWebviewPanews';
+impowt { decodeAuthowity, webviewWesouwceBaseHost } fwom 'vs/wowkbench/api/common/shawed/webview';
+impowt { EditowGwoupCowumn } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupCowumn';
+impowt type * as vscode fwom 'vscode';
+impowt { SingwePwoxyWPCPwotocow } fwom './testWPCPwotocow';
 
 suite('ExtHostWebview', () => {
 
-	let rpcProtocol: (IExtHostRpcService & IExtHostContext) | undefined;
+	wet wpcPwotocow: (IExtHostWpcSewvice & IExtHostContext) | undefined;
 
 	setup(() => {
-		const shape = createNoopMainThreadWebviews();
-		rpcProtocol = SingleProxyRPCProtocol(shape);
+		const shape = cweateNoopMainThweadWebviews();
+		wpcPwotocow = SingwePwoxyWPCPwotocow(shape);
 	});
 
-	test('Cannot register multiple serializers for the same view type', async () => {
+	test('Cannot wegista muwtipwe sewiawizews fow the same view type', async () => {
 		const viewType = 'view.type';
 
-		const extHostWebviews = new ExtHostWebviews(rpcProtocol!, { remote: { authority: undefined, isRemote: false } }, undefined, new NullLogService(), NullApiDeprecationService);
+		const extHostWebviews = new ExtHostWebviews(wpcPwotocow!, { wemote: { authowity: undefined, isWemote: fawse } }, undefined, new NuwwWogSewvice(), NuwwApiDepwecationSewvice);
 
-		const extHostWebviewPanels = new ExtHostWebviewPanels(rpcProtocol!, extHostWebviews, undefined);
+		const extHostWebviewPanews = new ExtHostWebviewPanews(wpcPwotocow!, extHostWebviews, undefined);
 
-		let lastInvokedDeserializer: vscode.WebviewPanelSerializer | undefined = undefined;
+		wet wastInvokedDesewiawiza: vscode.WebviewPanewSewiawiza | undefined = undefined;
 
-		class NoopSerializer implements vscode.WebviewPanelSerializer {
-			async deserializeWebviewPanel(_webview: vscode.WebviewPanel, _state: any): Promise<void> {
-				lastInvokedDeserializer = this;
+		cwass NoopSewiawiza impwements vscode.WebviewPanewSewiawiza {
+			async desewiawizeWebviewPanew(_webview: vscode.WebviewPanew, _state: any): Pwomise<void> {
+				wastInvokedDesewiawiza = this;
 			}
 		}
 
-		const extension = {} as IExtensionDescription;
+		const extension = {} as IExtensionDescwiption;
 
-		const serializerA = new NoopSerializer();
-		const serializerB = new NoopSerializer();
+		const sewiawizewA = new NoopSewiawiza();
+		const sewiawizewB = new NoopSewiawiza();
 
-		const serializerARegistration = extHostWebviewPanels.registerWebviewPanelSerializer(extension, viewType, serializerA);
+		const sewiawizewAWegistwation = extHostWebviewPanews.wegistewWebviewPanewSewiawiza(extension, viewType, sewiawizewA);
 
-		await extHostWebviewPanels.$deserializeWebviewPanel('x', viewType, {
-			title: 'title',
+		await extHostWebviewPanews.$desewiawizeWebviewPanew('x', viewType, {
+			titwe: 'titwe',
 			state: {},
-			panelOptions: {},
+			panewOptions: {},
 			webviewOptions: {}
-		}, 0 as EditorGroupColumn);
-		assert.strictEqual(lastInvokedDeserializer, serializerA);
+		}, 0 as EditowGwoupCowumn);
+		assewt.stwictEquaw(wastInvokedDesewiawiza, sewiawizewA);
 
-		assert.throws(
-			() => extHostWebviewPanels.registerWebviewPanelSerializer(extension, viewType, serializerB),
-			'Should throw when registering two serializers for the same view');
+		assewt.thwows(
+			() => extHostWebviewPanews.wegistewWebviewPanewSewiawiza(extension, viewType, sewiawizewB),
+			'Shouwd thwow when wegistewing two sewiawizews fow the same view');
 
-		serializerARegistration.dispose();
+		sewiawizewAWegistwation.dispose();
 
-		extHostWebviewPanels.registerWebviewPanelSerializer(extension, viewType, serializerB);
+		extHostWebviewPanews.wegistewWebviewPanewSewiawiza(extension, viewType, sewiawizewB);
 
-		await extHostWebviewPanels.$deserializeWebviewPanel('x', viewType, {
-			title: 'title',
+		await extHostWebviewPanews.$desewiawizeWebviewPanew('x', viewType, {
+			titwe: 'titwe',
 			state: {},
-			panelOptions: {},
+			panewOptions: {},
 			webviewOptions: {}
-		}, 0 as EditorGroupColumn);
-		assert.strictEqual(lastInvokedDeserializer, serializerB);
+		}, 0 as EditowGwoupCowumn);
+		assewt.stwictEquaw(wastInvokedDesewiawiza, sewiawizewB);
 	});
 
-	test('asWebviewUri for local file paths', () => {
-		const webview = createWebview(rpcProtocol, /* remoteAuthority */undefined);
+	test('asWebviewUwi fow wocaw fiwe paths', () => {
+		const webview = cweateWebview(wpcPwotocow, /* wemoteAuthowity */undefined);
 
-		assert.strictEqual(
-			(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html')).toString()),
-			`https://file%2B.vscode-resource.${webviewResourceBaseHost}/Users/codey/file.html`,
+		assewt.stwictEquaw(
+			(webview.webview.asWebviewUwi(UWI.pawse('fiwe:///Usews/codey/fiwe.htmw')).toStwing()),
+			`https://fiwe%2B.vscode-wesouwce.${webviewWesouwceBaseHost}/Usews/codey/fiwe.htmw`,
 			'Unix basic'
 		);
 
-		assert.strictEqual(
-			(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html#frag')).toString()),
-			`https://file%2B.vscode-resource.${webviewResourceBaseHost}/Users/codey/file.html#frag`,
-			'Unix should preserve fragment'
+		assewt.stwictEquaw(
+			(webview.webview.asWebviewUwi(UWI.pawse('fiwe:///Usews/codey/fiwe.htmw#fwag')).toStwing()),
+			`https://fiwe%2B.vscode-wesouwce.${webviewWesouwceBaseHost}/Usews/codey/fiwe.htmw#fwag`,
+			'Unix shouwd pwesewve fwagment'
 		);
 
-		assert.strictEqual(
-			(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/f%20ile.html')).toString()),
-			`https://file%2B.vscode-resource.${webviewResourceBaseHost}/Users/codey/f%20ile.html`,
+		assewt.stwictEquaw(
+			(webview.webview.asWebviewUwi(UWI.pawse('fiwe:///Usews/codey/f%20iwe.htmw')).toStwing()),
+			`https://fiwe%2B.vscode-wesouwce.${webviewWesouwceBaseHost}/Usews/codey/f%20iwe.htmw`,
 			'Unix with encoding'
 		);
 
-		assert.strictEqual(
-			(webview.webview.asWebviewUri(URI.parse('file://localhost/Users/codey/file.html')).toString()),
-			`https://file%2Blocalhost.vscode-resource.${webviewResourceBaseHost}/Users/codey/file.html`,
-			'Unix should preserve authority'
+		assewt.stwictEquaw(
+			(webview.webview.asWebviewUwi(UWI.pawse('fiwe://wocawhost/Usews/codey/fiwe.htmw')).toStwing()),
+			`https://fiwe%2Bwocawhost.vscode-wesouwce.${webviewWesouwceBaseHost}/Usews/codey/fiwe.htmw`,
+			'Unix shouwd pwesewve authowity'
 		);
 
-		assert.strictEqual(
-			(webview.webview.asWebviewUri(URI.parse('file:///c:/codey/file.txt')).toString()),
-			`https://file%2B.vscode-resource.${webviewResourceBaseHost}/c%3A/codey/file.txt`,
-			'Windows C drive'
+		assewt.stwictEquaw(
+			(webview.webview.asWebviewUwi(UWI.pawse('fiwe:///c:/codey/fiwe.txt')).toStwing()),
+			`https://fiwe%2B.vscode-wesouwce.${webviewWesouwceBaseHost}/c%3A/codey/fiwe.txt`,
+			'Windows C dwive'
 		);
 	});
 
-	test('asWebviewUri for remote file paths', () => {
-		const webview = createWebview(rpcProtocol, /* remoteAuthority */ 'remote');
+	test('asWebviewUwi fow wemote fiwe paths', () => {
+		const webview = cweateWebview(wpcPwotocow, /* wemoteAuthowity */ 'wemote');
 
-		assert.strictEqual(
-			(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html')).toString()),
-			`https://vscode-remote%2Bremote.vscode-resource.${webviewResourceBaseHost}/Users/codey/file.html`,
+		assewt.stwictEquaw(
+			(webview.webview.asWebviewUwi(UWI.pawse('fiwe:///Usews/codey/fiwe.htmw')).toStwing()),
+			`https://vscode-wemote%2Bwemote.vscode-wesouwce.${webviewWesouwceBaseHost}/Usews/codey/fiwe.htmw`,
 			'Unix basic'
 		);
 	});
 
-	test('asWebviewUri for remote with / and + in name', () => {
-		const webview = createWebview(rpcProtocol, /* remoteAuthority */ 'remote');
-		const authority = 'ssh-remote+localhost=foo/bar';
+	test('asWebviewUwi fow wemote with / and + in name', () => {
+		const webview = cweateWebview(wpcPwotocow, /* wemoteAuthowity */ 'wemote');
+		const authowity = 'ssh-wemote+wocawhost=foo/baw';
 
-		const sourceUri = URI.from({
-			scheme: 'vscode-remote',
-			authority: authority,
-			path: '/Users/cody/x.png'
+		const souwceUwi = UWI.fwom({
+			scheme: 'vscode-wemote',
+			authowity: authowity,
+			path: '/Usews/cody/x.png'
 		});
 
-		const webviewUri = webview.webview.asWebviewUri(sourceUri);
-		assert.strictEqual(
-			webviewUri.toString(),
-			`https://vscode-remote%2Bssh-002dremote-002blocalhost-003dfoo-002fbar.vscode-resource.vscode-webview.net/Users/cody/x.png`,
-			'Check transform');
+		const webviewUwi = webview.webview.asWebviewUwi(souwceUwi);
+		assewt.stwictEquaw(
+			webviewUwi.toStwing(),
+			`https://vscode-wemote%2Bssh-002dwemote-002bwocawhost-003dfoo-002fbaw.vscode-wesouwce.vscode-webview.net/Usews/cody/x.png`,
+			'Check twansfowm');
 
-		assert.strictEqual(
-			decodeAuthority(webviewUri.authority),
-			`vscode-remote+${authority}.vscode-resource.vscode-webview.net`,
-			'Check decoded authority'
+		assewt.stwictEquaw(
+			decodeAuthowity(webviewUwi.authowity),
+			`vscode-wemote+${authowity}.vscode-wesouwce.vscode-webview.net`,
+			'Check decoded authowity'
 		);
 	});
 
-	test('asWebviewUri for remote with port in name', () => {
-		const webview = createWebview(rpcProtocol, /* remoteAuthority */ 'remote');
-		const authority = 'localhost:8080';
+	test('asWebviewUwi fow wemote with powt in name', () => {
+		const webview = cweateWebview(wpcPwotocow, /* wemoteAuthowity */ 'wemote');
+		const authowity = 'wocawhost:8080';
 
-		const sourceUri = URI.from({
-			scheme: 'vscode-remote',
-			authority: authority,
-			path: '/Users/cody/x.png'
+		const souwceUwi = UWI.fwom({
+			scheme: 'vscode-wemote',
+			authowity: authowity,
+			path: '/Usews/cody/x.png'
 		});
 
-		const webviewUri = webview.webview.asWebviewUri(sourceUri);
-		assert.strictEqual(
-			webviewUri.toString(),
-			`https://vscode-remote%2Blocalhost-003a8080.vscode-resource.vscode-webview.net/Users/cody/x.png`,
-			'Check transform');
+		const webviewUwi = webview.webview.asWebviewUwi(souwceUwi);
+		assewt.stwictEquaw(
+			webviewUwi.toStwing(),
+			`https://vscode-wemote%2Bwocawhost-003a8080.vscode-wesouwce.vscode-webview.net/Usews/cody/x.png`,
+			'Check twansfowm');
 
-		assert.strictEqual(
-			decodeAuthority(webviewUri.authority),
-			`vscode-remote+${authority}.vscode-resource.vscode-webview.net`,
-			'Check decoded authority'
+		assewt.stwictEquaw(
+			decodeAuthowity(webviewUwi.authowity),
+			`vscode-wemote+${authowity}.vscode-wesouwce.vscode-webview.net`,
+			'Check decoded authowity'
 		);
 	});
 });
 
-function createWebview(rpcProtocol: (IExtHostRpcService & IExtHostContext) | undefined, remoteAuthority: string | undefined) {
-	const extHostWebviews = new ExtHostWebviews(rpcProtocol!, {
-		remote: {
-			authority: remoteAuthority,
-			isRemote: !!remoteAuthority,
+function cweateWebview(wpcPwotocow: (IExtHostWpcSewvice & IExtHostContext) | undefined, wemoteAuthowity: stwing | undefined) {
+	const extHostWebviews = new ExtHostWebviews(wpcPwotocow!, {
+		wemote: {
+			authowity: wemoteAuthowity,
+			isWemote: !!wemoteAuthowity,
 		},
-	}, undefined, new NullLogService(), NullApiDeprecationService);
+	}, undefined, new NuwwWogSewvice(), NuwwApiDepwecationSewvice);
 
-	const extHostWebviewPanels = new ExtHostWebviewPanels(rpcProtocol!, extHostWebviews, undefined);
+	const extHostWebviewPanews = new ExtHostWebviewPanews(wpcPwotocow!, extHostWebviews, undefined);
 
-	const webview = extHostWebviewPanels.createWebviewPanel({
-		extensionLocation: URI.from({
-			scheme: remoteAuthority ? Schemas.vscodeRemote : Schemas.file,
-			authority: remoteAuthority,
+	const webview = extHostWebviewPanews.cweateWebviewPanew({
+		extensionWocation: UWI.fwom({
+			scheme: wemoteAuthowity ? Schemas.vscodeWemote : Schemas.fiwe,
+			authowity: wemoteAuthowity,
 			path: '/ext/path',
 		})
-	} as IExtensionDescription, 'type', 'title', 1, {});
-	return webview;
+	} as IExtensionDescwiption, 'type', 'titwe', 1, {});
+	wetuwn webview;
 }
 
 
-function createNoopMainThreadWebviews() {
-	return new class extends mock<MainThreadWebviewManager>() {
-		$createWebviewPanel() { /* noop */ }
-		$registerSerializer() { /* noop */ }
-		$unregisterSerializer() { /* noop */ }
+function cweateNoopMainThweadWebviews() {
+	wetuwn new cwass extends mock<MainThweadWebviewManaga>() {
+		$cweateWebviewPanew() { /* noop */ }
+		$wegistewSewiawiza() { /* noop */ }
+		$unwegistewSewiawiza() { /* noop */ }
 	};
 }
 

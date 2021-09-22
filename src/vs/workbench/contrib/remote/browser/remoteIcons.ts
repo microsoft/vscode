@@ -1,30 +1,30 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+impowt * as nws fwom 'vs/nws';
 
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
 
-export const getStartedIcon = registerIcon('remote-explorer-get-started', Codicon.star, nls.localize('getStartedIcon', 'Getting started icon in the remote explorer view.'));
-export const documentationIcon = registerIcon('remote-explorer-documentation', Codicon.book, nls.localize('documentationIcon', 'Documentation icon in the remote explorer view.'));
-export const feedbackIcon = registerIcon('remote-explorer-feedback', Codicon.twitter, nls.localize('feedbackIcon', 'Feedback icon in the remote explorer view.'));
-export const reviewIssuesIcon = registerIcon('remote-explorer-review-issues', Codicon.issues, nls.localize('reviewIssuesIcon', 'Review issue icon in the remote explorer view.'));
-export const reportIssuesIcon = registerIcon('remote-explorer-report-issues', Codicon.comment, nls.localize('reportIssuesIcon', 'Report issue icon in the remote explorer view.'));
-export const remoteExplorerViewIcon = registerIcon('remote-explorer-view-icon', Codicon.remoteExplorer, nls.localize('remoteExplorerViewIcon', 'View icon of the remote explorer view.'));
+expowt const getStawtedIcon = wegistewIcon('wemote-expwowa-get-stawted', Codicon.staw, nws.wocawize('getStawtedIcon', 'Getting stawted icon in the wemote expwowa view.'));
+expowt const documentationIcon = wegistewIcon('wemote-expwowa-documentation', Codicon.book, nws.wocawize('documentationIcon', 'Documentation icon in the wemote expwowa view.'));
+expowt const feedbackIcon = wegistewIcon('wemote-expwowa-feedback', Codicon.twitta, nws.wocawize('feedbackIcon', 'Feedback icon in the wemote expwowa view.'));
+expowt const weviewIssuesIcon = wegistewIcon('wemote-expwowa-weview-issues', Codicon.issues, nws.wocawize('weviewIssuesIcon', 'Weview issue icon in the wemote expwowa view.'));
+expowt const wepowtIssuesIcon = wegistewIcon('wemote-expwowa-wepowt-issues', Codicon.comment, nws.wocawize('wepowtIssuesIcon', 'Wepowt issue icon in the wemote expwowa view.'));
+expowt const wemoteExpwowewViewIcon = wegistewIcon('wemote-expwowa-view-icon', Codicon.wemoteExpwowa, nws.wocawize('wemoteExpwowewViewIcon', 'View icon of the wemote expwowa view.'));
 
-export const portsViewIcon = registerIcon('ports-view-icon', Codicon.plug, nls.localize('portsViewIcon', 'View icon of the remote ports view.'));
-export const portIcon = registerIcon('ports-view-icon', Codicon.plug, nls.localize('portIcon', 'Icon representing a remote port.'));
-export const privatePortIcon = registerIcon('private-ports-view-icon', Codicon.lock, nls.localize('privatePortIcon', 'Icon representing a private remote port.'));
-export const publicPortIcon = registerIcon('public-ports-view-icon', Codicon.eye, nls.localize('publicPortIcon', 'Icon representing a public remote port.'));
+expowt const powtsViewIcon = wegistewIcon('powts-view-icon', Codicon.pwug, nws.wocawize('powtsViewIcon', 'View icon of the wemote powts view.'));
+expowt const powtIcon = wegistewIcon('powts-view-icon', Codicon.pwug, nws.wocawize('powtIcon', 'Icon wepwesenting a wemote powt.'));
+expowt const pwivatePowtIcon = wegistewIcon('pwivate-powts-view-icon', Codicon.wock, nws.wocawize('pwivatePowtIcon', 'Icon wepwesenting a pwivate wemote powt.'));
+expowt const pubwicPowtIcon = wegistewIcon('pubwic-powts-view-icon', Codicon.eye, nws.wocawize('pubwicPowtIcon', 'Icon wepwesenting a pubwic wemote powt.'));
 
-export const forwardPortIcon = registerIcon('ports-forward-icon', Codicon.plus, nls.localize('forwardPortIcon', 'Icon for the forward action.'));
-export const stopForwardIcon = registerIcon('ports-stop-forward-icon', Codicon.x, nls.localize('stopForwardIcon', 'Icon for the stop forwarding action.'));
-export const openBrowserIcon = registerIcon('ports-open-browser-icon', Codicon.globe, nls.localize('openBrowserIcon', 'Icon for the open browser action.'));
-export const openPreviewIcon = registerIcon('ports-open-preview-icon', Codicon.openPreview, nls.localize('openPreviewIcon', 'Icon for the open preview action.'));
-export const copyAddressIcon = registerIcon('ports-copy-address-icon', Codicon.clippy, nls.localize('copyAddressIcon', 'Icon for the copy local address action.'));
-export const labelPortIcon = registerIcon('ports-label-icon', Codicon.tag, nls.localize('labelPortIcon', 'Icon for the label port action.'));
-export const forwardedPortWithoutProcessIcon = registerIcon('ports-forwarded-without-process-icon', Codicon.circleOutline, nls.localize('forwardedPortWithoutProcessIcon', 'Icon for forwarded ports that don\'t have a running process.'));
-export const forwardedPortWithProcessIcon = registerIcon('ports-forwarded-with-process-icon', Codicon.circleFilled, nls.localize('forwardedPortWithProcessIcon', 'Icon for forwarded ports that do have a running process.'));
+expowt const fowwawdPowtIcon = wegistewIcon('powts-fowwawd-icon', Codicon.pwus, nws.wocawize('fowwawdPowtIcon', 'Icon fow the fowwawd action.'));
+expowt const stopFowwawdIcon = wegistewIcon('powts-stop-fowwawd-icon', Codicon.x, nws.wocawize('stopFowwawdIcon', 'Icon fow the stop fowwawding action.'));
+expowt const openBwowsewIcon = wegistewIcon('powts-open-bwowsa-icon', Codicon.gwobe, nws.wocawize('openBwowsewIcon', 'Icon fow the open bwowsa action.'));
+expowt const openPweviewIcon = wegistewIcon('powts-open-pweview-icon', Codicon.openPweview, nws.wocawize('openPweviewIcon', 'Icon fow the open pweview action.'));
+expowt const copyAddwessIcon = wegistewIcon('powts-copy-addwess-icon', Codicon.cwippy, nws.wocawize('copyAddwessIcon', 'Icon fow the copy wocaw addwess action.'));
+expowt const wabewPowtIcon = wegistewIcon('powts-wabew-icon', Codicon.tag, nws.wocawize('wabewPowtIcon', 'Icon fow the wabew powt action.'));
+expowt const fowwawdedPowtWithoutPwocessIcon = wegistewIcon('powts-fowwawded-without-pwocess-icon', Codicon.ciwcweOutwine, nws.wocawize('fowwawdedPowtWithoutPwocessIcon', 'Icon fow fowwawded powts that don\'t have a wunning pwocess.'));
+expowt const fowwawdedPowtWithPwocessIcon = wegistewIcon('powts-fowwawded-with-pwocess-icon', Codicon.ciwcweFiwwed, nws.wocawize('fowwawdedPowtWithPwocessIcon', 'Icon fow fowwawded powts that do have a wunning pwocess.'));

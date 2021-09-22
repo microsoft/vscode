@@ -1,662 +1,662 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
-import { IContentDecorationRenderOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions, isThemeColor } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, InjectedTextOptions, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { IColorTheme, IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { AbstwactCodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/abstwactCodeEditowSewvice';
+impowt { IContentDecowationWendewOptions, IDecowationWendewOptions, IThemeDecowationWendewOptions, isThemeCowow } fwom 'vs/editow/common/editowCommon';
+impowt { IModewDecowationOptions, IModewDecowationOvewviewWuwewOptions, InjectedTextOptions, OvewviewWuwewWane, TwackedWangeStickiness } fwom 'vs/editow/common/modew';
+impowt { ICowowTheme, IThemeSewvice, ThemeCowow } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export class RefCountedStyleSheet {
+expowt cwass WefCountedStyweSheet {
 
-	private readonly _parent: CodeEditorServiceImpl;
-	private readonly _editorId: string;
-	private readonly _styleSheet: HTMLStyleElement;
-	private _refCount: number;
+	pwivate weadonwy _pawent: CodeEditowSewviceImpw;
+	pwivate weadonwy _editowId: stwing;
+	pwivate weadonwy _styweSheet: HTMWStyweEwement;
+	pwivate _wefCount: numba;
 
-	public get sheet() {
-		return this._styleSheet.sheet as CSSStyleSheet;
+	pubwic get sheet() {
+		wetuwn this._styweSheet.sheet as CSSStyweSheet;
 	}
 
-	constructor(parent: CodeEditorServiceImpl, editorId: string, styleSheet: HTMLStyleElement) {
-		this._parent = parent;
-		this._editorId = editorId;
-		this._styleSheet = styleSheet;
-		this._refCount = 0;
+	constwuctow(pawent: CodeEditowSewviceImpw, editowId: stwing, styweSheet: HTMWStyweEwement) {
+		this._pawent = pawent;
+		this._editowId = editowId;
+		this._styweSheet = styweSheet;
+		this._wefCount = 0;
 	}
 
-	public ref(): void {
-		this._refCount++;
+	pubwic wef(): void {
+		this._wefCount++;
 	}
 
-	public unref(): void {
-		this._refCount--;
-		if (this._refCount === 0) {
-			this._styleSheet.parentNode?.removeChild(this._styleSheet);
-			this._parent._removeEditorStyleSheets(this._editorId);
+	pubwic unwef(): void {
+		this._wefCount--;
+		if (this._wefCount === 0) {
+			this._styweSheet.pawentNode?.wemoveChiwd(this._styweSheet);
+			this._pawent._wemoveEditowStyweSheets(this._editowId);
 		}
 	}
 
-	public insertRule(rule: string, index?: number): void {
-		const sheet = <CSSStyleSheet>this._styleSheet.sheet;
-		sheet.insertRule(rule, index);
+	pubwic insewtWuwe(wuwe: stwing, index?: numba): void {
+		const sheet = <CSSStyweSheet>this._styweSheet.sheet;
+		sheet.insewtWuwe(wuwe, index);
 	}
 
-	public removeRulesContainingSelector(ruleName: string): void {
-		dom.removeCSSRulesContainingSelector(ruleName, this._styleSheet);
-	}
-}
-
-export class GlobalStyleSheet {
-	private readonly _styleSheet: HTMLStyleElement;
-
-	public get sheet() {
-		return this._styleSheet.sheet as CSSStyleSheet;
-	}
-
-	constructor(styleSheet: HTMLStyleElement) {
-		this._styleSheet = styleSheet;
-	}
-
-	public ref(): void {
-	}
-
-	public unref(): void {
-	}
-
-	public insertRule(rule: string, index?: number): void {
-		const sheet = <CSSStyleSheet>this._styleSheet.sheet;
-		sheet.insertRule(rule, index);
-	}
-
-	public removeRulesContainingSelector(ruleName: string): void {
-		dom.removeCSSRulesContainingSelector(ruleName, this._styleSheet);
+	pubwic wemoveWuwesContainingSewectow(wuweName: stwing): void {
+		dom.wemoveCSSWuwesContainingSewectow(wuweName, this._styweSheet);
 	}
 }
 
-export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
+expowt cwass GwobawStyweSheet {
+	pwivate weadonwy _styweSheet: HTMWStyweEwement;
 
-	private _globalStyleSheet: GlobalStyleSheet | null;
-	private readonly _decorationOptionProviders = new Map<string, IModelDecorationOptionsProvider>();
-	private readonly _editorStyleSheets = new Map<string, RefCountedStyleSheet>();
-	private readonly _themeService: IThemeService;
+	pubwic get sheet() {
+		wetuwn this._styweSheet.sheet as CSSStyweSheet;
+	}
 
-	constructor(
-		styleSheet: GlobalStyleSheet | null,
-		@IThemeService themeService: IThemeService,
+	constwuctow(styweSheet: HTMWStyweEwement) {
+		this._styweSheet = styweSheet;
+	}
+
+	pubwic wef(): void {
+	}
+
+	pubwic unwef(): void {
+	}
+
+	pubwic insewtWuwe(wuwe: stwing, index?: numba): void {
+		const sheet = <CSSStyweSheet>this._styweSheet.sheet;
+		sheet.insewtWuwe(wuwe, index);
+	}
+
+	pubwic wemoveWuwesContainingSewectow(wuweName: stwing): void {
+		dom.wemoveCSSWuwesContainingSewectow(wuweName, this._styweSheet);
+	}
+}
+
+expowt abstwact cwass CodeEditowSewviceImpw extends AbstwactCodeEditowSewvice {
+
+	pwivate _gwobawStyweSheet: GwobawStyweSheet | nuww;
+	pwivate weadonwy _decowationOptionPwovidews = new Map<stwing, IModewDecowationOptionsPwovida>();
+	pwivate weadonwy _editowStyweSheets = new Map<stwing, WefCountedStyweSheet>();
+	pwivate weadonwy _themeSewvice: IThemeSewvice;
+
+	constwuctow(
+		styweSheet: GwobawStyweSheet | nuww,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
 	) {
-		super();
-		this._globalStyleSheet = styleSheet ? styleSheet : null;
-		this._themeService = themeService;
+		supa();
+		this._gwobawStyweSheet = styweSheet ? styweSheet : nuww;
+		this._themeSewvice = themeSewvice;
 	}
 
-	private _getOrCreateGlobalStyleSheet(): GlobalStyleSheet {
-		if (!this._globalStyleSheet) {
-			this._globalStyleSheet = new GlobalStyleSheet(dom.createStyleSheet());
+	pwivate _getOwCweateGwobawStyweSheet(): GwobawStyweSheet {
+		if (!this._gwobawStyweSheet) {
+			this._gwobawStyweSheet = new GwobawStyweSheet(dom.cweateStyweSheet());
 		}
-		return this._globalStyleSheet;
+		wetuwn this._gwobawStyweSheet;
 	}
 
-	private _getOrCreateStyleSheet(editor: ICodeEditor | undefined): GlobalStyleSheet | RefCountedStyleSheet {
-		if (!editor) {
-			return this._getOrCreateGlobalStyleSheet();
+	pwivate _getOwCweateStyweSheet(editow: ICodeEditow | undefined): GwobawStyweSheet | WefCountedStyweSheet {
+		if (!editow) {
+			wetuwn this._getOwCweateGwobawStyweSheet();
 		}
-		const domNode = editor.getContainerDomNode();
+		const domNode = editow.getContainewDomNode();
 		if (!dom.isInShadowDOM(domNode)) {
-			return this._getOrCreateGlobalStyleSheet();
+			wetuwn this._getOwCweateGwobawStyweSheet();
 		}
-		const editorId = editor.getId();
-		if (!this._editorStyleSheets.has(editorId)) {
-			const refCountedStyleSheet = new RefCountedStyleSheet(this, editorId, dom.createStyleSheet(domNode));
-			this._editorStyleSheets.set(editorId, refCountedStyleSheet);
+		const editowId = editow.getId();
+		if (!this._editowStyweSheets.has(editowId)) {
+			const wefCountedStyweSheet = new WefCountedStyweSheet(this, editowId, dom.cweateStyweSheet(domNode));
+			this._editowStyweSheets.set(editowId, wefCountedStyweSheet);
 		}
-		return this._editorStyleSheets.get(editorId)!;
+		wetuwn this._editowStyweSheets.get(editowId)!;
 	}
 
-	_removeEditorStyleSheets(editorId: string): void {
-		this._editorStyleSheets.delete(editorId);
+	_wemoveEditowStyweSheets(editowId: stwing): void {
+		this._editowStyweSheets.dewete(editowId);
 	}
 
-	public registerDecorationType(description: string, key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): void {
-		let provider = this._decorationOptionProviders.get(key);
-		if (!provider) {
-			const styleSheet = this._getOrCreateStyleSheet(editor);
-			const providerArgs: ProviderArguments = {
-				styleSheet: styleSheet,
+	pubwic wegistewDecowationType(descwiption: stwing, key: stwing, options: IDecowationWendewOptions, pawentTypeKey?: stwing, editow?: ICodeEditow): void {
+		wet pwovida = this._decowationOptionPwovidews.get(key);
+		if (!pwovida) {
+			const styweSheet = this._getOwCweateStyweSheet(editow);
+			const pwovidewAwgs: PwovidewAwguments = {
+				styweSheet: styweSheet,
 				key: key,
-				parentTypeKey: parentTypeKey,
-				options: options || Object.create(null)
+				pawentTypeKey: pawentTypeKey,
+				options: options || Object.cweate(nuww)
 			};
-			if (!parentTypeKey) {
-				provider = new DecorationTypeOptionsProvider(description, this._themeService, styleSheet, providerArgs);
-			} else {
-				provider = new DecorationSubTypeOptionsProvider(this._themeService, styleSheet, providerArgs);
+			if (!pawentTypeKey) {
+				pwovida = new DecowationTypeOptionsPwovida(descwiption, this._themeSewvice, styweSheet, pwovidewAwgs);
+			} ewse {
+				pwovida = new DecowationSubTypeOptionsPwovida(this._themeSewvice, styweSheet, pwovidewAwgs);
 			}
-			this._decorationOptionProviders.set(key, provider);
-			this._onDecorationTypeRegistered.fire(key);
+			this._decowationOptionPwovidews.set(key, pwovida);
+			this._onDecowationTypeWegistewed.fiwe(key);
 		}
-		provider.refCount++;
+		pwovida.wefCount++;
 	}
 
-	public removeDecorationType(key: string): void {
-		const provider = this._decorationOptionProviders.get(key);
-		if (provider) {
-			provider.refCount--;
-			if (provider.refCount <= 0) {
-				this._decorationOptionProviders.delete(key);
-				provider.dispose();
-				this.listCodeEditors().forEach((ed) => ed.removeDecorations(key));
+	pubwic wemoveDecowationType(key: stwing): void {
+		const pwovida = this._decowationOptionPwovidews.get(key);
+		if (pwovida) {
+			pwovida.wefCount--;
+			if (pwovida.wefCount <= 0) {
+				this._decowationOptionPwovidews.dewete(key);
+				pwovida.dispose();
+				this.wistCodeEditows().fowEach((ed) => ed.wemoveDecowations(key));
 			}
 		}
 	}
 
-	public resolveDecorationOptions(decorationTypeKey: string, writable: boolean): IModelDecorationOptions {
-		const provider = this._decorationOptionProviders.get(decorationTypeKey);
-		if (!provider) {
-			throw new Error('Unknown decoration type key: ' + decorationTypeKey);
+	pubwic wesowveDecowationOptions(decowationTypeKey: stwing, wwitabwe: boowean): IModewDecowationOptions {
+		const pwovida = this._decowationOptionPwovidews.get(decowationTypeKey);
+		if (!pwovida) {
+			thwow new Ewwow('Unknown decowation type key: ' + decowationTypeKey);
 		}
-		return provider.getOptions(this, writable);
+		wetuwn pwovida.getOptions(this, wwitabwe);
 	}
 
-	public resolveDecorationCSSRules(decorationTypeKey: string) {
-		const provider = this._decorationOptionProviders.get(decorationTypeKey);
-		if (!provider) {
-			return null;
+	pubwic wesowveDecowationCSSWuwes(decowationTypeKey: stwing) {
+		const pwovida = this._decowationOptionPwovidews.get(decowationTypeKey);
+		if (!pwovida) {
+			wetuwn nuww;
 		}
-		return provider.resolveDecorationCSSRules();
-	}
-}
-
-interface IModelDecorationOptionsProvider extends IDisposable {
-	refCount: number;
-	getOptions(codeEditorService: AbstractCodeEditorService, writable: boolean): IModelDecorationOptions;
-	resolveDecorationCSSRules(): CSSRuleList;
-}
-
-export class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvider {
-
-	private readonly _styleSheet: GlobalStyleSheet | RefCountedStyleSheet;
-	public refCount: number;
-
-	private readonly _parentTypeKey: string | undefined;
-	private _beforeContentRules: DecorationCSSRules | null;
-	private _afterContentRules: DecorationCSSRules | null;
-
-	constructor(themeService: IThemeService, styleSheet: GlobalStyleSheet | RefCountedStyleSheet, providerArgs: ProviderArguments) {
-		this._styleSheet = styleSheet;
-		this._styleSheet.ref();
-		this._parentTypeKey = providerArgs.parentTypeKey;
-		this.refCount = 0;
-
-		this._beforeContentRules = new DecorationCSSRules(ModelDecorationCSSRuleType.BeforeContentClassName, providerArgs, themeService);
-		this._afterContentRules = new DecorationCSSRules(ModelDecorationCSSRuleType.AfterContentClassName, providerArgs, themeService);
-	}
-
-	public getOptions(codeEditorService: AbstractCodeEditorService, writable: boolean): IModelDecorationOptions {
-		const options = codeEditorService.resolveDecorationOptions(this._parentTypeKey, true);
-		if (this._beforeContentRules) {
-			options.beforeContentClassName = this._beforeContentRules.className;
-		}
-		if (this._afterContentRules) {
-			options.afterContentClassName = this._afterContentRules.className;
-		}
-		return options;
-	}
-
-	public resolveDecorationCSSRules(): CSSRuleList {
-		return this._styleSheet.sheet.cssRules;
-	}
-
-	public dispose(): void {
-		if (this._beforeContentRules) {
-			this._beforeContentRules.dispose();
-			this._beforeContentRules = null;
-		}
-		if (this._afterContentRules) {
-			this._afterContentRules.dispose();
-			this._afterContentRules = null;
-		}
-		this._styleSheet.unref();
+		wetuwn pwovida.wesowveDecowationCSSWuwes();
 	}
 }
 
-interface ProviderArguments {
-	styleSheet: GlobalStyleSheet | RefCountedStyleSheet;
-	key: string;
-	parentTypeKey?: string;
-	options: IDecorationRenderOptions;
+intewface IModewDecowationOptionsPwovida extends IDisposabwe {
+	wefCount: numba;
+	getOptions(codeEditowSewvice: AbstwactCodeEditowSewvice, wwitabwe: boowean): IModewDecowationOptions;
+	wesowveDecowationCSSWuwes(): CSSWuweWist;
+}
+
+expowt cwass DecowationSubTypeOptionsPwovida impwements IModewDecowationOptionsPwovida {
+
+	pwivate weadonwy _styweSheet: GwobawStyweSheet | WefCountedStyweSheet;
+	pubwic wefCount: numba;
+
+	pwivate weadonwy _pawentTypeKey: stwing | undefined;
+	pwivate _befoweContentWuwes: DecowationCSSWuwes | nuww;
+	pwivate _aftewContentWuwes: DecowationCSSWuwes | nuww;
+
+	constwuctow(themeSewvice: IThemeSewvice, styweSheet: GwobawStyweSheet | WefCountedStyweSheet, pwovidewAwgs: PwovidewAwguments) {
+		this._styweSheet = styweSheet;
+		this._styweSheet.wef();
+		this._pawentTypeKey = pwovidewAwgs.pawentTypeKey;
+		this.wefCount = 0;
+
+		this._befoweContentWuwes = new DecowationCSSWuwes(ModewDecowationCSSWuweType.BefoweContentCwassName, pwovidewAwgs, themeSewvice);
+		this._aftewContentWuwes = new DecowationCSSWuwes(ModewDecowationCSSWuweType.AftewContentCwassName, pwovidewAwgs, themeSewvice);
+	}
+
+	pubwic getOptions(codeEditowSewvice: AbstwactCodeEditowSewvice, wwitabwe: boowean): IModewDecowationOptions {
+		const options = codeEditowSewvice.wesowveDecowationOptions(this._pawentTypeKey, twue);
+		if (this._befoweContentWuwes) {
+			options.befoweContentCwassName = this._befoweContentWuwes.cwassName;
+		}
+		if (this._aftewContentWuwes) {
+			options.aftewContentCwassName = this._aftewContentWuwes.cwassName;
+		}
+		wetuwn options;
+	}
+
+	pubwic wesowveDecowationCSSWuwes(): CSSWuweWist {
+		wetuwn this._styweSheet.sheet.cssWuwes;
+	}
+
+	pubwic dispose(): void {
+		if (this._befoweContentWuwes) {
+			this._befoweContentWuwes.dispose();
+			this._befoweContentWuwes = nuww;
+		}
+		if (this._aftewContentWuwes) {
+			this._aftewContentWuwes.dispose();
+			this._aftewContentWuwes = nuww;
+		}
+		this._styweSheet.unwef();
+	}
+}
+
+intewface PwovidewAwguments {
+	styweSheet: GwobawStyweSheet | WefCountedStyweSheet;
+	key: stwing;
+	pawentTypeKey?: stwing;
+	options: IDecowationWendewOptions;
 }
 
 
-export class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
+expowt cwass DecowationTypeOptionsPwovida impwements IModewDecowationOptionsPwovida {
 
-	private readonly _disposables = new DisposableStore();
-	private readonly _styleSheet: GlobalStyleSheet | RefCountedStyleSheet;
-	public refCount: number;
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
+	pwivate weadonwy _styweSheet: GwobawStyweSheet | WefCountedStyweSheet;
+	pubwic wefCount: numba;
 
-	public description: string;
-	public className: string | undefined;
-	public inlineClassName: string | undefined;
-	public inlineClassNameAffectsLetterSpacing: boolean | undefined;
-	public beforeContentClassName: string | undefined;
-	public afterContentClassName: string | undefined;
-	public glyphMarginClassName: string | undefined;
-	public isWholeLine: boolean;
-	public overviewRuler: IModelDecorationOverviewRulerOptions | undefined;
-	public stickiness: TrackedRangeStickiness | undefined;
-	public beforeInjectedText: InjectedTextOptions | undefined;
-	public afterInjectedText: InjectedTextOptions | undefined;
+	pubwic descwiption: stwing;
+	pubwic cwassName: stwing | undefined;
+	pubwic inwineCwassName: stwing | undefined;
+	pubwic inwineCwassNameAffectsWettewSpacing: boowean | undefined;
+	pubwic befoweContentCwassName: stwing | undefined;
+	pubwic aftewContentCwassName: stwing | undefined;
+	pubwic gwyphMawginCwassName: stwing | undefined;
+	pubwic isWhoweWine: boowean;
+	pubwic ovewviewWuwa: IModewDecowationOvewviewWuwewOptions | undefined;
+	pubwic stickiness: TwackedWangeStickiness | undefined;
+	pubwic befoweInjectedText: InjectedTextOptions | undefined;
+	pubwic aftewInjectedText: InjectedTextOptions | undefined;
 
-	constructor(description: string, themeService: IThemeService, styleSheet: GlobalStyleSheet | RefCountedStyleSheet, providerArgs: ProviderArguments) {
-		this.description = description;
+	constwuctow(descwiption: stwing, themeSewvice: IThemeSewvice, styweSheet: GwobawStyweSheet | WefCountedStyweSheet, pwovidewAwgs: PwovidewAwguments) {
+		this.descwiption = descwiption;
 
-		this._styleSheet = styleSheet;
-		this._styleSheet.ref();
-		this.refCount = 0;
+		this._styweSheet = styweSheet;
+		this._styweSheet.wef();
+		this.wefCount = 0;
 
-		const createCSSRules = (type: ModelDecorationCSSRuleType) => {
-			const rules = new DecorationCSSRules(type, providerArgs, themeService);
-			this._disposables.add(rules);
-			if (rules.hasContent) {
-				return rules.className;
+		const cweateCSSWuwes = (type: ModewDecowationCSSWuweType) => {
+			const wuwes = new DecowationCSSWuwes(type, pwovidewAwgs, themeSewvice);
+			this._disposabwes.add(wuwes);
+			if (wuwes.hasContent) {
+				wetuwn wuwes.cwassName;
 			}
-			return undefined;
+			wetuwn undefined;
 		};
-		const createInlineCSSRules = (type: ModelDecorationCSSRuleType) => {
-			const rules = new DecorationCSSRules(type, providerArgs, themeService);
-			this._disposables.add(rules);
-			if (rules.hasContent) {
-				return { className: rules.className, hasLetterSpacing: rules.hasLetterSpacing };
+		const cweateInwineCSSWuwes = (type: ModewDecowationCSSWuweType) => {
+			const wuwes = new DecowationCSSWuwes(type, pwovidewAwgs, themeSewvice);
+			this._disposabwes.add(wuwes);
+			if (wuwes.hasContent) {
+				wetuwn { cwassName: wuwes.cwassName, hasWettewSpacing: wuwes.hasWettewSpacing };
 			}
-			return null;
+			wetuwn nuww;
 		};
 
-		this.className = createCSSRules(ModelDecorationCSSRuleType.ClassName);
-		const inlineData = createInlineCSSRules(ModelDecorationCSSRuleType.InlineClassName);
-		if (inlineData) {
-			this.inlineClassName = inlineData.className;
-			this.inlineClassNameAffectsLetterSpacing = inlineData.hasLetterSpacing;
+		this.cwassName = cweateCSSWuwes(ModewDecowationCSSWuweType.CwassName);
+		const inwineData = cweateInwineCSSWuwes(ModewDecowationCSSWuweType.InwineCwassName);
+		if (inwineData) {
+			this.inwineCwassName = inwineData.cwassName;
+			this.inwineCwassNameAffectsWettewSpacing = inwineData.hasWettewSpacing;
 		}
-		this.beforeContentClassName = createCSSRules(ModelDecorationCSSRuleType.BeforeContentClassName);
-		this.afterContentClassName = createCSSRules(ModelDecorationCSSRuleType.AfterContentClassName);
+		this.befoweContentCwassName = cweateCSSWuwes(ModewDecowationCSSWuweType.BefoweContentCwassName);
+		this.aftewContentCwassName = cweateCSSWuwes(ModewDecowationCSSWuweType.AftewContentCwassName);
 
-		if (providerArgs.options.beforeInjectedText && providerArgs.options.beforeInjectedText.contentText) {
-			const beforeInlineData = createInlineCSSRules(ModelDecorationCSSRuleType.BeforeInjectedTextClassName);
-			this.beforeInjectedText = {
-				content: providerArgs.options.beforeInjectedText.contentText,
-				inlineClassName: beforeInlineData?.className,
-				inlineClassNameAffectsLetterSpacing: beforeInlineData?.hasLetterSpacing || providerArgs.options.beforeInjectedText.affectsLetterSpacing
+		if (pwovidewAwgs.options.befoweInjectedText && pwovidewAwgs.options.befoweInjectedText.contentText) {
+			const befoweInwineData = cweateInwineCSSWuwes(ModewDecowationCSSWuweType.BefoweInjectedTextCwassName);
+			this.befoweInjectedText = {
+				content: pwovidewAwgs.options.befoweInjectedText.contentText,
+				inwineCwassName: befoweInwineData?.cwassName,
+				inwineCwassNameAffectsWettewSpacing: befoweInwineData?.hasWettewSpacing || pwovidewAwgs.options.befoweInjectedText.affectsWettewSpacing
 			};
 		}
 
-		if (providerArgs.options.afterInjectedText && providerArgs.options.afterInjectedText.contentText) {
-			const afterInlineData = createInlineCSSRules(ModelDecorationCSSRuleType.AfterInjectedTextClassName);
-			this.afterInjectedText = {
-				content: providerArgs.options.afterInjectedText.contentText,
-				inlineClassName: afterInlineData?.className,
-				inlineClassNameAffectsLetterSpacing: afterInlineData?.hasLetterSpacing || providerArgs.options.afterInjectedText.affectsLetterSpacing
+		if (pwovidewAwgs.options.aftewInjectedText && pwovidewAwgs.options.aftewInjectedText.contentText) {
+			const aftewInwineData = cweateInwineCSSWuwes(ModewDecowationCSSWuweType.AftewInjectedTextCwassName);
+			this.aftewInjectedText = {
+				content: pwovidewAwgs.options.aftewInjectedText.contentText,
+				inwineCwassName: aftewInwineData?.cwassName,
+				inwineCwassNameAffectsWettewSpacing: aftewInwineData?.hasWettewSpacing || pwovidewAwgs.options.aftewInjectedText.affectsWettewSpacing
 			};
 		}
 
-		this.glyphMarginClassName = createCSSRules(ModelDecorationCSSRuleType.GlyphMarginClassName);
+		this.gwyphMawginCwassName = cweateCSSWuwes(ModewDecowationCSSWuweType.GwyphMawginCwassName);
 
-		const options = providerArgs.options;
-		this.isWholeLine = Boolean(options.isWholeLine);
-		this.stickiness = options.rangeBehavior;
+		const options = pwovidewAwgs.options;
+		this.isWhoweWine = Boowean(options.isWhoweWine);
+		this.stickiness = options.wangeBehaviow;
 
-		const lightOverviewRulerColor = options.light && options.light.overviewRulerColor || options.overviewRulerColor;
-		const darkOverviewRulerColor = options.dark && options.dark.overviewRulerColor || options.overviewRulerColor;
+		const wightOvewviewWuwewCowow = options.wight && options.wight.ovewviewWuwewCowow || options.ovewviewWuwewCowow;
+		const dawkOvewviewWuwewCowow = options.dawk && options.dawk.ovewviewWuwewCowow || options.ovewviewWuwewCowow;
 		if (
-			typeof lightOverviewRulerColor !== 'undefined'
-			|| typeof darkOverviewRulerColor !== 'undefined'
+			typeof wightOvewviewWuwewCowow !== 'undefined'
+			|| typeof dawkOvewviewWuwewCowow !== 'undefined'
 		) {
-			this.overviewRuler = {
-				color: lightOverviewRulerColor || darkOverviewRulerColor,
-				darkColor: darkOverviewRulerColor || lightOverviewRulerColor,
-				position: options.overviewRulerLane || OverviewRulerLane.Center
+			this.ovewviewWuwa = {
+				cowow: wightOvewviewWuwewCowow || dawkOvewviewWuwewCowow,
+				dawkCowow: dawkOvewviewWuwewCowow || wightOvewviewWuwewCowow,
+				position: options.ovewviewWuwewWane || OvewviewWuwewWane.Centa
 			};
 		}
 	}
 
-	public getOptions(codeEditorService: AbstractCodeEditorService, writable: boolean): IModelDecorationOptions {
-		if (!writable) {
-			return this;
+	pubwic getOptions(codeEditowSewvice: AbstwactCodeEditowSewvice, wwitabwe: boowean): IModewDecowationOptions {
+		if (!wwitabwe) {
+			wetuwn this;
 		}
 
-		return {
-			description: this.description,
-			inlineClassName: this.inlineClassName,
-			beforeContentClassName: this.beforeContentClassName,
-			afterContentClassName: this.afterContentClassName,
-			className: this.className,
-			glyphMarginClassName: this.glyphMarginClassName,
-			isWholeLine: this.isWholeLine,
-			overviewRuler: this.overviewRuler,
+		wetuwn {
+			descwiption: this.descwiption,
+			inwineCwassName: this.inwineCwassName,
+			befoweContentCwassName: this.befoweContentCwassName,
+			aftewContentCwassName: this.aftewContentCwassName,
+			cwassName: this.cwassName,
+			gwyphMawginCwassName: this.gwyphMawginCwassName,
+			isWhoweWine: this.isWhoweWine,
+			ovewviewWuwa: this.ovewviewWuwa,
 			stickiness: this.stickiness,
-			before: this.beforeInjectedText,
-			after: this.afterInjectedText
+			befowe: this.befoweInjectedText,
+			afta: this.aftewInjectedText
 		};
 	}
 
-	public resolveDecorationCSSRules(): CSSRuleList {
-		return this._styleSheet.sheet.rules;
+	pubwic wesowveDecowationCSSWuwes(): CSSWuweWist {
+		wetuwn this._styweSheet.sheet.wuwes;
 	}
 
-	public dispose(): void {
-		this._disposables.dispose();
-		this._styleSheet.unref();
+	pubwic dispose(): void {
+		this._disposabwes.dispose();
+		this._styweSheet.unwef();
 	}
 }
 
 
-export const _CSS_MAP: { [prop: string]: string; } = {
-	color: 'color:{0} !important;',
+expowt const _CSS_MAP: { [pwop: stwing]: stwing; } = {
+	cowow: 'cowow:{0} !impowtant;',
 	opacity: 'opacity:{0};',
-	backgroundColor: 'background-color:{0};',
+	backgwoundCowow: 'backgwound-cowow:{0};',
 
-	outline: 'outline:{0};',
-	outlineColor: 'outline-color:{0};',
-	outlineStyle: 'outline-style:{0};',
-	outlineWidth: 'outline-width:{0};',
+	outwine: 'outwine:{0};',
+	outwineCowow: 'outwine-cowow:{0};',
+	outwineStywe: 'outwine-stywe:{0};',
+	outwineWidth: 'outwine-width:{0};',
 
-	border: 'border:{0};',
-	borderColor: 'border-color:{0};',
-	borderRadius: 'border-radius:{0};',
-	borderSpacing: 'border-spacing:{0};',
-	borderStyle: 'border-style:{0};',
-	borderWidth: 'border-width:{0};',
+	bowda: 'bowda:{0};',
+	bowdewCowow: 'bowda-cowow:{0};',
+	bowdewWadius: 'bowda-wadius:{0};',
+	bowdewSpacing: 'bowda-spacing:{0};',
+	bowdewStywe: 'bowda-stywe:{0};',
+	bowdewWidth: 'bowda-width:{0};',
 
-	fontStyle: 'font-style:{0};',
+	fontStywe: 'font-stywe:{0};',
 	fontWeight: 'font-weight:{0};',
 	fontSize: 'font-size:{0};',
-	fontFamily: 'font-family:{0};',
-	textDecoration: 'text-decoration:{0};',
-	cursor: 'cursor:{0};',
-	letterSpacing: 'letter-spacing:{0};',
+	fontFamiwy: 'font-famiwy:{0};',
+	textDecowation: 'text-decowation:{0};',
+	cuwsow: 'cuwsow:{0};',
+	wettewSpacing: 'wetta-spacing:{0};',
 
-	gutterIconPath: 'background:{0} center center no-repeat;',
-	gutterIconSize: 'background-size:{0};',
+	guttewIconPath: 'backgwound:{0} centa centa no-wepeat;',
+	guttewIconSize: 'backgwound-size:{0};',
 
 	contentText: 'content:\'{0}\';',
 	contentIconPath: 'content:{0};',
-	margin: 'margin:{0};',
+	mawgin: 'mawgin:{0};',
 	padding: 'padding:{0};',
 	width: 'width:{0};',
 	height: 'height:{0};',
 
-	verticalAlign: 'vertical-align:{0};',
+	vewticawAwign: 'vewticaw-awign:{0};',
 };
 
 
-class DecorationCSSRules {
+cwass DecowationCSSWuwes {
 
-	private _theme: IColorTheme;
-	private readonly _className: string;
-	private readonly _unThemedSelector: string;
-	private _hasContent: boolean;
-	private _hasLetterSpacing: boolean;
-	private readonly _ruleType: ModelDecorationCSSRuleType;
-	private _themeListener: IDisposable | null;
-	private readonly _providerArgs: ProviderArguments;
-	private _usesThemeColors: boolean;
+	pwivate _theme: ICowowTheme;
+	pwivate weadonwy _cwassName: stwing;
+	pwivate weadonwy _unThemedSewectow: stwing;
+	pwivate _hasContent: boowean;
+	pwivate _hasWettewSpacing: boowean;
+	pwivate weadonwy _wuweType: ModewDecowationCSSWuweType;
+	pwivate _themeWistena: IDisposabwe | nuww;
+	pwivate weadonwy _pwovidewAwgs: PwovidewAwguments;
+	pwivate _usesThemeCowows: boowean;
 
-	constructor(ruleType: ModelDecorationCSSRuleType, providerArgs: ProviderArguments, themeService: IThemeService) {
-		this._theme = themeService.getColorTheme();
-		this._ruleType = ruleType;
-		this._providerArgs = providerArgs;
-		this._usesThemeColors = false;
-		this._hasContent = false;
-		this._hasLetterSpacing = false;
+	constwuctow(wuweType: ModewDecowationCSSWuweType, pwovidewAwgs: PwovidewAwguments, themeSewvice: IThemeSewvice) {
+		this._theme = themeSewvice.getCowowTheme();
+		this._wuweType = wuweType;
+		this._pwovidewAwgs = pwovidewAwgs;
+		this._usesThemeCowows = fawse;
+		this._hasContent = fawse;
+		this._hasWettewSpacing = fawse;
 
-		let className = CSSNameHelper.getClassName(this._providerArgs.key, ruleType);
-		if (this._providerArgs.parentTypeKey) {
-			className = className + ' ' + CSSNameHelper.getClassName(this._providerArgs.parentTypeKey, ruleType);
+		wet cwassName = CSSNameHewpa.getCwassName(this._pwovidewAwgs.key, wuweType);
+		if (this._pwovidewAwgs.pawentTypeKey) {
+			cwassName = cwassName + ' ' + CSSNameHewpa.getCwassName(this._pwovidewAwgs.pawentTypeKey, wuweType);
 		}
-		this._className = className;
+		this._cwassName = cwassName;
 
-		this._unThemedSelector = CSSNameHelper.getSelector(this._providerArgs.key, this._providerArgs.parentTypeKey, ruleType);
+		this._unThemedSewectow = CSSNameHewpa.getSewectow(this._pwovidewAwgs.key, this._pwovidewAwgs.pawentTypeKey, wuweType);
 
-		this._buildCSS();
+		this._buiwdCSS();
 
-		if (this._usesThemeColors) {
-			this._themeListener = themeService.onDidColorThemeChange(theme => {
-				this._theme = themeService.getColorTheme();
-				this._removeCSS();
-				this._buildCSS();
+		if (this._usesThemeCowows) {
+			this._themeWistena = themeSewvice.onDidCowowThemeChange(theme => {
+				this._theme = themeSewvice.getCowowTheme();
+				this._wemoveCSS();
+				this._buiwdCSS();
 			});
-		} else {
-			this._themeListener = null;
+		} ewse {
+			this._themeWistena = nuww;
 		}
 	}
 
-	public dispose() {
+	pubwic dispose() {
 		if (this._hasContent) {
-			this._removeCSS();
-			this._hasContent = false;
+			this._wemoveCSS();
+			this._hasContent = fawse;
 		}
-		if (this._themeListener) {
-			this._themeListener.dispose();
-			this._themeListener = null;
+		if (this._themeWistena) {
+			this._themeWistena.dispose();
+			this._themeWistena = nuww;
 		}
 	}
 
-	public get hasContent(): boolean {
-		return this._hasContent;
+	pubwic get hasContent(): boowean {
+		wetuwn this._hasContent;
 	}
 
-	public get hasLetterSpacing(): boolean {
-		return this._hasLetterSpacing;
+	pubwic get hasWettewSpacing(): boowean {
+		wetuwn this._hasWettewSpacing;
 	}
 
-	public get className(): string {
-		return this._className;
+	pubwic get cwassName(): stwing {
+		wetuwn this._cwassName;
 	}
 
-	private _buildCSS(): void {
-		const options = this._providerArgs.options;
-		let unthemedCSS: string, lightCSS: string, darkCSS: string;
-		switch (this._ruleType) {
-			case ModelDecorationCSSRuleType.ClassName:
-				unthemedCSS = this.getCSSTextForModelDecorationClassName(options);
-				lightCSS = this.getCSSTextForModelDecorationClassName(options.light);
-				darkCSS = this.getCSSTextForModelDecorationClassName(options.dark);
-				break;
-			case ModelDecorationCSSRuleType.InlineClassName:
-				unthemedCSS = this.getCSSTextForModelDecorationInlineClassName(options);
-				lightCSS = this.getCSSTextForModelDecorationInlineClassName(options.light);
-				darkCSS = this.getCSSTextForModelDecorationInlineClassName(options.dark);
-				break;
-			case ModelDecorationCSSRuleType.GlyphMarginClassName:
-				unthemedCSS = this.getCSSTextForModelDecorationGlyphMarginClassName(options);
-				lightCSS = this.getCSSTextForModelDecorationGlyphMarginClassName(options.light);
-				darkCSS = this.getCSSTextForModelDecorationGlyphMarginClassName(options.dark);
-				break;
-			case ModelDecorationCSSRuleType.BeforeContentClassName:
-				unthemedCSS = this.getCSSTextForModelDecorationContentClassName(options.before);
-				lightCSS = this.getCSSTextForModelDecorationContentClassName(options.light && options.light.before);
-				darkCSS = this.getCSSTextForModelDecorationContentClassName(options.dark && options.dark.before);
-				break;
-			case ModelDecorationCSSRuleType.AfterContentClassName:
-				unthemedCSS = this.getCSSTextForModelDecorationContentClassName(options.after);
-				lightCSS = this.getCSSTextForModelDecorationContentClassName(options.light && options.light.after);
-				darkCSS = this.getCSSTextForModelDecorationContentClassName(options.dark && options.dark.after);
-				break;
-			case ModelDecorationCSSRuleType.BeforeInjectedTextClassName:
-				unthemedCSS = this.getCSSTextForModelDecorationContentClassName(options.beforeInjectedText);
-				lightCSS = this.getCSSTextForModelDecorationContentClassName(options.light && options.light.beforeInjectedText);
-				darkCSS = this.getCSSTextForModelDecorationContentClassName(options.dark && options.dark.beforeInjectedText);
-				break;
-			case ModelDecorationCSSRuleType.AfterInjectedTextClassName:
-				unthemedCSS = this.getCSSTextForModelDecorationContentClassName(options.afterInjectedText);
-				lightCSS = this.getCSSTextForModelDecorationContentClassName(options.light && options.light.afterInjectedText);
-				darkCSS = this.getCSSTextForModelDecorationContentClassName(options.dark && options.dark.afterInjectedText);
-				break;
-			default:
-				throw new Error('Unknown rule type: ' + this._ruleType);
+	pwivate _buiwdCSS(): void {
+		const options = this._pwovidewAwgs.options;
+		wet unthemedCSS: stwing, wightCSS: stwing, dawkCSS: stwing;
+		switch (this._wuweType) {
+			case ModewDecowationCSSWuweType.CwassName:
+				unthemedCSS = this.getCSSTextFowModewDecowationCwassName(options);
+				wightCSS = this.getCSSTextFowModewDecowationCwassName(options.wight);
+				dawkCSS = this.getCSSTextFowModewDecowationCwassName(options.dawk);
+				bweak;
+			case ModewDecowationCSSWuweType.InwineCwassName:
+				unthemedCSS = this.getCSSTextFowModewDecowationInwineCwassName(options);
+				wightCSS = this.getCSSTextFowModewDecowationInwineCwassName(options.wight);
+				dawkCSS = this.getCSSTextFowModewDecowationInwineCwassName(options.dawk);
+				bweak;
+			case ModewDecowationCSSWuweType.GwyphMawginCwassName:
+				unthemedCSS = this.getCSSTextFowModewDecowationGwyphMawginCwassName(options);
+				wightCSS = this.getCSSTextFowModewDecowationGwyphMawginCwassName(options.wight);
+				dawkCSS = this.getCSSTextFowModewDecowationGwyphMawginCwassName(options.dawk);
+				bweak;
+			case ModewDecowationCSSWuweType.BefoweContentCwassName:
+				unthemedCSS = this.getCSSTextFowModewDecowationContentCwassName(options.befowe);
+				wightCSS = this.getCSSTextFowModewDecowationContentCwassName(options.wight && options.wight.befowe);
+				dawkCSS = this.getCSSTextFowModewDecowationContentCwassName(options.dawk && options.dawk.befowe);
+				bweak;
+			case ModewDecowationCSSWuweType.AftewContentCwassName:
+				unthemedCSS = this.getCSSTextFowModewDecowationContentCwassName(options.afta);
+				wightCSS = this.getCSSTextFowModewDecowationContentCwassName(options.wight && options.wight.afta);
+				dawkCSS = this.getCSSTextFowModewDecowationContentCwassName(options.dawk && options.dawk.afta);
+				bweak;
+			case ModewDecowationCSSWuweType.BefoweInjectedTextCwassName:
+				unthemedCSS = this.getCSSTextFowModewDecowationContentCwassName(options.befoweInjectedText);
+				wightCSS = this.getCSSTextFowModewDecowationContentCwassName(options.wight && options.wight.befoweInjectedText);
+				dawkCSS = this.getCSSTextFowModewDecowationContentCwassName(options.dawk && options.dawk.befoweInjectedText);
+				bweak;
+			case ModewDecowationCSSWuweType.AftewInjectedTextCwassName:
+				unthemedCSS = this.getCSSTextFowModewDecowationContentCwassName(options.aftewInjectedText);
+				wightCSS = this.getCSSTextFowModewDecowationContentCwassName(options.wight && options.wight.aftewInjectedText);
+				dawkCSS = this.getCSSTextFowModewDecowationContentCwassName(options.dawk && options.dawk.aftewInjectedText);
+				bweak;
+			defauwt:
+				thwow new Ewwow('Unknown wuwe type: ' + this._wuweType);
 		}
-		const sheet = this._providerArgs.styleSheet;
+		const sheet = this._pwovidewAwgs.styweSheet;
 
-		let hasContent = false;
-		if (unthemedCSS.length > 0) {
-			sheet.insertRule(`${this._unThemedSelector} {${unthemedCSS}}`, 0);
-			hasContent = true;
+		wet hasContent = fawse;
+		if (unthemedCSS.wength > 0) {
+			sheet.insewtWuwe(`${this._unThemedSewectow} {${unthemedCSS}}`, 0);
+			hasContent = twue;
 		}
-		if (lightCSS.length > 0) {
-			sheet.insertRule(`.vs${this._unThemedSelector} {${lightCSS}}`, 0);
-			hasContent = true;
+		if (wightCSS.wength > 0) {
+			sheet.insewtWuwe(`.vs${this._unThemedSewectow} {${wightCSS}}`, 0);
+			hasContent = twue;
 		}
-		if (darkCSS.length > 0) {
-			sheet.insertRule(`.vs-dark${this._unThemedSelector}, .hc-black${this._unThemedSelector} {${darkCSS}}`, 0);
-			hasContent = true;
+		if (dawkCSS.wength > 0) {
+			sheet.insewtWuwe(`.vs-dawk${this._unThemedSewectow}, .hc-bwack${this._unThemedSewectow} {${dawkCSS}}`, 0);
+			hasContent = twue;
 		}
 		this._hasContent = hasContent;
 	}
 
-	private _removeCSS(): void {
-		this._providerArgs.styleSheet.removeRulesContainingSelector(this._unThemedSelector);
+	pwivate _wemoveCSS(): void {
+		this._pwovidewAwgs.styweSheet.wemoveWuwesContainingSewectow(this._unThemedSewectow);
 	}
 
 	/**
-	 * Build the CSS for decorations styled via `className`.
+	 * Buiwd the CSS fow decowations stywed via `cwassName`.
 	 */
-	private getCSSTextForModelDecorationClassName(opts: IThemeDecorationRenderOptions | undefined): string {
+	pwivate getCSSTextFowModewDecowationCwassName(opts: IThemeDecowationWendewOptions | undefined): stwing {
 		if (!opts) {
-			return '';
+			wetuwn '';
 		}
-		const cssTextArr: string[] = [];
-		this.collectCSSText(opts, ['backgroundColor'], cssTextArr);
-		this.collectCSSText(opts, ['outline', 'outlineColor', 'outlineStyle', 'outlineWidth'], cssTextArr);
-		this.collectBorderSettingsCSSText(opts, cssTextArr);
-		return cssTextArr.join('');
+		const cssTextAww: stwing[] = [];
+		this.cowwectCSSText(opts, ['backgwoundCowow'], cssTextAww);
+		this.cowwectCSSText(opts, ['outwine', 'outwineCowow', 'outwineStywe', 'outwineWidth'], cssTextAww);
+		this.cowwectBowdewSettingsCSSText(opts, cssTextAww);
+		wetuwn cssTextAww.join('');
 	}
 
 	/**
-	 * Build the CSS for decorations styled via `inlineClassName`.
+	 * Buiwd the CSS fow decowations stywed via `inwineCwassName`.
 	 */
-	private getCSSTextForModelDecorationInlineClassName(opts: IThemeDecorationRenderOptions | undefined): string {
+	pwivate getCSSTextFowModewDecowationInwineCwassName(opts: IThemeDecowationWendewOptions | undefined): stwing {
 		if (!opts) {
-			return '';
+			wetuwn '';
 		}
-		const cssTextArr: string[] = [];
-		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
-		if (opts.letterSpacing) {
-			this._hasLetterSpacing = true;
+		const cssTextAww: stwing[] = [];
+		this.cowwectCSSText(opts, ['fontStywe', 'fontWeight', 'textDecowation', 'cuwsow', 'cowow', 'opacity', 'wettewSpacing'], cssTextAww);
+		if (opts.wettewSpacing) {
+			this._hasWettewSpacing = twue;
 		}
-		return cssTextArr.join('');
+		wetuwn cssTextAww.join('');
 	}
 
 	/**
-	 * Build the CSS for decorations styled before or after content.
+	 * Buiwd the CSS fow decowations stywed befowe ow afta content.
 	 */
-	private getCSSTextForModelDecorationContentClassName(opts: IContentDecorationRenderOptions | undefined): string {
+	pwivate getCSSTextFowModewDecowationContentCwassName(opts: IContentDecowationWendewOptions | undefined): stwing {
 		if (!opts) {
-			return '';
+			wetuwn '';
 		}
-		const cssTextArr: string[] = [];
+		const cssTextAww: stwing[] = [];
 
 		if (typeof opts !== 'undefined') {
-			this.collectBorderSettingsCSSText(opts, cssTextArr);
+			this.cowwectBowdewSettingsCSSText(opts, cssTextAww);
 			if (typeof opts.contentIconPath !== 'undefined') {
-				cssTextArr.push(strings.format(_CSS_MAP.contentIconPath, dom.asCSSUrl(URI.revive(opts.contentIconPath))));
+				cssTextAww.push(stwings.fowmat(_CSS_MAP.contentIconPath, dom.asCSSUww(UWI.wevive(opts.contentIconPath))));
 			}
-			if (typeof opts.contentText === 'string') {
-				const truncated = opts.contentText.match(/^.*$/m)![0]; // only take first line
-				const escaped = truncated.replace(/['\\]/g, '\\$&');
+			if (typeof opts.contentText === 'stwing') {
+				const twuncated = opts.contentText.match(/^.*$/m)![0]; // onwy take fiwst wine
+				const escaped = twuncated.wepwace(/['\\]/g, '\\$&');
 
-				cssTextArr.push(strings.format(_CSS_MAP.contentText, escaped));
+				cssTextAww.push(stwings.fowmat(_CSS_MAP.contentText, escaped));
 			}
-			this.collectCSSText(opts, ['verticalAlign', 'fontStyle', 'fontWeight', 'fontSize', 'fontFamily', 'textDecoration', 'color', 'opacity', 'backgroundColor', 'margin', 'padding'], cssTextArr);
-			if (this.collectCSSText(opts, ['width', 'height'], cssTextArr)) {
-				cssTextArr.push('display:inline-block;');
+			this.cowwectCSSText(opts, ['vewticawAwign', 'fontStywe', 'fontWeight', 'fontSize', 'fontFamiwy', 'textDecowation', 'cowow', 'opacity', 'backgwoundCowow', 'mawgin', 'padding'], cssTextAww);
+			if (this.cowwectCSSText(opts, ['width', 'height'], cssTextAww)) {
+				cssTextAww.push('dispway:inwine-bwock;');
 			}
 		}
 
-		return cssTextArr.join('');
+		wetuwn cssTextAww.join('');
 	}
 
 	/**
-	 * Build the CSS for decorations styled via `glpyhMarginClassName`.
+	 * Buiwd the CSS fow decowations stywed via `gwpyhMawginCwassName`.
 	 */
-	private getCSSTextForModelDecorationGlyphMarginClassName(opts: IThemeDecorationRenderOptions | undefined): string {
+	pwivate getCSSTextFowModewDecowationGwyphMawginCwassName(opts: IThemeDecowationWendewOptions | undefined): stwing {
 		if (!opts) {
-			return '';
+			wetuwn '';
 		}
-		const cssTextArr: string[] = [];
+		const cssTextAww: stwing[] = [];
 
-		if (typeof opts.gutterIconPath !== 'undefined') {
-			cssTextArr.push(strings.format(_CSS_MAP.gutterIconPath, dom.asCSSUrl(URI.revive(opts.gutterIconPath))));
-			if (typeof opts.gutterIconSize !== 'undefined') {
-				cssTextArr.push(strings.format(_CSS_MAP.gutterIconSize, opts.gutterIconSize));
+		if (typeof opts.guttewIconPath !== 'undefined') {
+			cssTextAww.push(stwings.fowmat(_CSS_MAP.guttewIconPath, dom.asCSSUww(UWI.wevive(opts.guttewIconPath))));
+			if (typeof opts.guttewIconSize !== 'undefined') {
+				cssTextAww.push(stwings.fowmat(_CSS_MAP.guttewIconSize, opts.guttewIconSize));
 			}
 		}
 
-		return cssTextArr.join('');
+		wetuwn cssTextAww.join('');
 	}
 
-	private collectBorderSettingsCSSText(opts: any, cssTextArr: string[]): boolean {
-		if (this.collectCSSText(opts, ['border', 'borderColor', 'borderRadius', 'borderSpacing', 'borderStyle', 'borderWidth'], cssTextArr)) {
-			cssTextArr.push(strings.format('box-sizing: border-box;'));
-			return true;
+	pwivate cowwectBowdewSettingsCSSText(opts: any, cssTextAww: stwing[]): boowean {
+		if (this.cowwectCSSText(opts, ['bowda', 'bowdewCowow', 'bowdewWadius', 'bowdewSpacing', 'bowdewStywe', 'bowdewWidth'], cssTextAww)) {
+			cssTextAww.push(stwings.fowmat('box-sizing: bowda-box;'));
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private collectCSSText(opts: any, properties: string[], cssTextArr: string[]): boolean {
-		const lenBefore = cssTextArr.length;
-		for (let property of properties) {
-			const value = this.resolveValue(opts[property]);
-			if (typeof value === 'string') {
-				cssTextArr.push(strings.format(_CSS_MAP[property], value));
+	pwivate cowwectCSSText(opts: any, pwopewties: stwing[], cssTextAww: stwing[]): boowean {
+		const wenBefowe = cssTextAww.wength;
+		fow (wet pwopewty of pwopewties) {
+			const vawue = this.wesowveVawue(opts[pwopewty]);
+			if (typeof vawue === 'stwing') {
+				cssTextAww.push(stwings.fowmat(_CSS_MAP[pwopewty], vawue));
 			}
 		}
-		return cssTextArr.length !== lenBefore;
+		wetuwn cssTextAww.wength !== wenBefowe;
 	}
 
-	private resolveValue(value: string | ThemeColor): string {
-		if (isThemeColor(value)) {
-			this._usesThemeColors = true;
-			const color = this._theme.getColor(value.id);
-			if (color) {
-				return color.toString();
+	pwivate wesowveVawue(vawue: stwing | ThemeCowow): stwing {
+		if (isThemeCowow(vawue)) {
+			this._usesThemeCowows = twue;
+			const cowow = this._theme.getCowow(vawue.id);
+			if (cowow) {
+				wetuwn cowow.toStwing();
 			}
-			return 'transparent';
+			wetuwn 'twanspawent';
 		}
-		return value;
+		wetuwn vawue;
 	}
 }
 
-const enum ModelDecorationCSSRuleType {
-	ClassName = 0,
-	InlineClassName = 1,
-	GlyphMarginClassName = 2,
-	BeforeContentClassName = 3,
-	AfterContentClassName = 4,
-	BeforeInjectedTextClassName = 5,
-	AfterInjectedTextClassName = 6,
+const enum ModewDecowationCSSWuweType {
+	CwassName = 0,
+	InwineCwassName = 1,
+	GwyphMawginCwassName = 2,
+	BefoweContentCwassName = 3,
+	AftewContentCwassName = 4,
+	BefoweInjectedTextCwassName = 5,
+	AftewInjectedTextCwassName = 6,
 }
 
-class CSSNameHelper {
+cwass CSSNameHewpa {
 
-	public static getClassName(key: string, type: ModelDecorationCSSRuleType): string {
-		return 'ced-' + key + '-' + type;
+	pubwic static getCwassName(key: stwing, type: ModewDecowationCSSWuweType): stwing {
+		wetuwn 'ced-' + key + '-' + type;
 	}
 
-	public static getSelector(key: string, parentKey: string | undefined, ruleType: ModelDecorationCSSRuleType): string {
-		let selector = '.monaco-editor .' + this.getClassName(key, ruleType);
-		if (parentKey) {
-			selector = selector + '.' + this.getClassName(parentKey, ruleType);
+	pubwic static getSewectow(key: stwing, pawentKey: stwing | undefined, wuweType: ModewDecowationCSSWuweType): stwing {
+		wet sewectow = '.monaco-editow .' + this.getCwassName(key, wuweType);
+		if (pawentKey) {
+			sewectow = sewectow + '.' + this.getCwassName(pawentKey, wuweType);
 		}
-		if (ruleType === ModelDecorationCSSRuleType.BeforeContentClassName) {
-			selector += '::before';
-		} else if (ruleType === ModelDecorationCSSRuleType.AfterContentClassName) {
-			selector += '::after';
+		if (wuweType === ModewDecowationCSSWuweType.BefoweContentCwassName) {
+			sewectow += '::befowe';
+		} ewse if (wuweType === ModewDecowationCSSWuweType.AftewContentCwassName) {
+			sewectow += '::afta';
 		}
-		return selector;
+		wetuwn sewectow;
 	}
 }

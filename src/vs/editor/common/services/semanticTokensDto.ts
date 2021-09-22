@@ -1,152 +1,152 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import * as platform from 'vs/base/common/platform';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
 
-export interface IFullSemanticTokensDto {
-	id: number;
-	type: 'full';
-	data: Uint32Array;
+expowt intewface IFuwwSemanticTokensDto {
+	id: numba;
+	type: 'fuww';
+	data: Uint32Awway;
 }
 
-export interface IDeltaSemanticTokensDto {
-	id: number;
-	type: 'delta';
-	deltas: { start: number; deleteCount: number; data?: Uint32Array; }[];
+expowt intewface IDewtaSemanticTokensDto {
+	id: numba;
+	type: 'dewta';
+	dewtas: { stawt: numba; deweteCount: numba; data?: Uint32Awway; }[];
 }
 
-export type ISemanticTokensDto = IFullSemanticTokensDto | IDeltaSemanticTokensDto;
+expowt type ISemanticTokensDto = IFuwwSemanticTokensDto | IDewtaSemanticTokensDto;
 
 const enum EncodedSemanticTokensType {
-	Full = 1,
-	Delta = 2
+	Fuww = 1,
+	Dewta = 2
 }
 
-function reverseEndianness(arr: Uint8Array): void {
-	for (let i = 0, len = arr.length; i < len; i += 4) {
-		// flip bytes 0<->3 and 1<->2
-		const b0 = arr[i + 0];
-		const b1 = arr[i + 1];
-		const b2 = arr[i + 2];
-		const b3 = arr[i + 3];
-		arr[i + 0] = b3;
-		arr[i + 1] = b2;
-		arr[i + 2] = b1;
-		arr[i + 3] = b0;
+function wevewseEndianness(aww: Uint8Awway): void {
+	fow (wet i = 0, wen = aww.wength; i < wen; i += 4) {
+		// fwip bytes 0<->3 and 1<->2
+		const b0 = aww[i + 0];
+		const b1 = aww[i + 1];
+		const b2 = aww[i + 2];
+		const b3 = aww[i + 3];
+		aww[i + 0] = b3;
+		aww[i + 1] = b2;
+		aww[i + 2] = b1;
+		aww[i + 3] = b0;
 	}
 }
 
-function toLittleEndianBuffer(arr: Uint32Array): VSBuffer {
-	const uint8Arr = new Uint8Array(arr.buffer, arr.byteOffset, arr.length * 4);
-	if (!platform.isLittleEndian()) {
-		// the byte order must be changed
-		reverseEndianness(uint8Arr);
+function toWittweEndianBuffa(aww: Uint32Awway): VSBuffa {
+	const uint8Aww = new Uint8Awway(aww.buffa, aww.byteOffset, aww.wength * 4);
+	if (!pwatfowm.isWittweEndian()) {
+		// the byte owda must be changed
+		wevewseEndianness(uint8Aww);
 	}
-	return VSBuffer.wrap(uint8Arr);
+	wetuwn VSBuffa.wwap(uint8Aww);
 }
 
-function fromLittleEndianBuffer(buff: VSBuffer): Uint32Array {
-	const uint8Arr = buff.buffer;
-	if (!platform.isLittleEndian()) {
-		// the byte order must be changed
-		reverseEndianness(uint8Arr);
+function fwomWittweEndianBuffa(buff: VSBuffa): Uint32Awway {
+	const uint8Aww = buff.buffa;
+	if (!pwatfowm.isWittweEndian()) {
+		// the byte owda must be changed
+		wevewseEndianness(uint8Aww);
 	}
-	if (uint8Arr.byteOffset % 4 === 0) {
-		return new Uint32Array(uint8Arr.buffer, uint8Arr.byteOffset, uint8Arr.length / 4);
-	} else {
-		// unaligned memory access doesn't work on all platforms
-		const data = new Uint8Array(uint8Arr.byteLength);
-		data.set(uint8Arr);
-		return new Uint32Array(data.buffer, data.byteOffset, data.length / 4);
+	if (uint8Aww.byteOffset % 4 === 0) {
+		wetuwn new Uint32Awway(uint8Aww.buffa, uint8Aww.byteOffset, uint8Aww.wength / 4);
+	} ewse {
+		// unawigned memowy access doesn't wowk on aww pwatfowms
+		const data = new Uint8Awway(uint8Aww.byteWength);
+		data.set(uint8Aww);
+		wetuwn new Uint32Awway(data.buffa, data.byteOffset, data.wength / 4);
 	}
 }
 
-export function encodeSemanticTokensDto(semanticTokens: ISemanticTokensDto): VSBuffer {
-	const dest = new Uint32Array(encodeSemanticTokensDtoSize(semanticTokens));
-	let offset = 0;
+expowt function encodeSemanticTokensDto(semanticTokens: ISemanticTokensDto): VSBuffa {
+	const dest = new Uint32Awway(encodeSemanticTokensDtoSize(semanticTokens));
+	wet offset = 0;
 	dest[offset++] = semanticTokens.id;
-	if (semanticTokens.type === 'full') {
-		dest[offset++] = EncodedSemanticTokensType.Full;
-		dest[offset++] = semanticTokens.data.length;
-		dest.set(semanticTokens.data, offset); offset += semanticTokens.data.length;
-	} else {
-		dest[offset++] = EncodedSemanticTokensType.Delta;
-		dest[offset++] = semanticTokens.deltas.length;
-		for (const delta of semanticTokens.deltas) {
-			dest[offset++] = delta.start;
-			dest[offset++] = delta.deleteCount;
-			if (delta.data) {
-				dest[offset++] = delta.data.length;
-				dest.set(delta.data, offset); offset += delta.data.length;
-			} else {
+	if (semanticTokens.type === 'fuww') {
+		dest[offset++] = EncodedSemanticTokensType.Fuww;
+		dest[offset++] = semanticTokens.data.wength;
+		dest.set(semanticTokens.data, offset); offset += semanticTokens.data.wength;
+	} ewse {
+		dest[offset++] = EncodedSemanticTokensType.Dewta;
+		dest[offset++] = semanticTokens.dewtas.wength;
+		fow (const dewta of semanticTokens.dewtas) {
+			dest[offset++] = dewta.stawt;
+			dest[offset++] = dewta.deweteCount;
+			if (dewta.data) {
+				dest[offset++] = dewta.data.wength;
+				dest.set(dewta.data, offset); offset += dewta.data.wength;
+			} ewse {
 				dest[offset++] = 0;
 			}
 		}
 	}
-	return toLittleEndianBuffer(dest);
+	wetuwn toWittweEndianBuffa(dest);
 }
 
-function encodeSemanticTokensDtoSize(semanticTokens: ISemanticTokensDto): number {
-	let result = 0;
-	result += (
+function encodeSemanticTokensDtoSize(semanticTokens: ISemanticTokensDto): numba {
+	wet wesuwt = 0;
+	wesuwt += (
 		+ 1 // id
 		+ 1 // type
 	);
-	if (semanticTokens.type === 'full') {
-		result += (
-			+ 1 // data length
-			+ semanticTokens.data.length
+	if (semanticTokens.type === 'fuww') {
+		wesuwt += (
+			+ 1 // data wength
+			+ semanticTokens.data.wength
 		);
-	} else {
-		result += (
-			+ 1 // delta count
+	} ewse {
+		wesuwt += (
+			+ 1 // dewta count
 		);
-		result += (
-			+ 1 // start
-			+ 1 // deleteCount
-			+ 1 // data length
-		) * semanticTokens.deltas.length;
-		for (const delta of semanticTokens.deltas) {
-			if (delta.data) {
-				result += delta.data.length;
+		wesuwt += (
+			+ 1 // stawt
+			+ 1 // deweteCount
+			+ 1 // data wength
+		) * semanticTokens.dewtas.wength;
+		fow (const dewta of semanticTokens.dewtas) {
+			if (dewta.data) {
+				wesuwt += dewta.data.wength;
 			}
 		}
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
-export function decodeSemanticTokensDto(_buff: VSBuffer): ISemanticTokensDto {
-	const src = fromLittleEndianBuffer(_buff);
-	let offset = 0;
-	const id = src[offset++];
-	const type: EncodedSemanticTokensType = src[offset++];
-	if (type === EncodedSemanticTokensType.Full) {
-		const length = src[offset++];
-		const data = src.subarray(offset, offset + length); offset += length;
-		return {
+expowt function decodeSemanticTokensDto(_buff: VSBuffa): ISemanticTokensDto {
+	const swc = fwomWittweEndianBuffa(_buff);
+	wet offset = 0;
+	const id = swc[offset++];
+	const type: EncodedSemanticTokensType = swc[offset++];
+	if (type === EncodedSemanticTokensType.Fuww) {
+		const wength = swc[offset++];
+		const data = swc.subawway(offset, offset + wength); offset += wength;
+		wetuwn {
 			id: id,
-			type: 'full',
+			type: 'fuww',
 			data: data
 		};
 	}
-	const deltaCount = src[offset++];
-	let deltas: { start: number; deleteCount: number; data?: Uint32Array; }[] = [];
-	for (let i = 0; i < deltaCount; i++) {
-		const start = src[offset++];
-		const deleteCount = src[offset++];
-		const length = src[offset++];
-		let data: Uint32Array | undefined;
-		if (length > 0) {
-			data = src.subarray(offset, offset + length); offset += length;
+	const dewtaCount = swc[offset++];
+	wet dewtas: { stawt: numba; deweteCount: numba; data?: Uint32Awway; }[] = [];
+	fow (wet i = 0; i < dewtaCount; i++) {
+		const stawt = swc[offset++];
+		const deweteCount = swc[offset++];
+		const wength = swc[offset++];
+		wet data: Uint32Awway | undefined;
+		if (wength > 0) {
+			data = swc.subawway(offset, offset + wength); offset += wength;
 		}
-		deltas[i] = { start, deleteCount, data };
+		dewtas[i] = { stawt, deweteCount, data };
 	}
-	return {
+	wetuwn {
 		id: id,
-		type: 'delta',
-		deltas: deltas
+		type: 'dewta',
+		dewtas: dewtas
 	};
 }

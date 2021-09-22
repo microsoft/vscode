@@ -1,208 +1,208 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import { ICodeEditor, IEditorMouseEvent, IMouseTarget } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+impowt { IKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { ICodeEditow, IEditowMouseEvent, IMouseTawget } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { ICuwsowSewectionChangedEvent } fwom 'vs/editow/common/contwowwa/cuwsowEvents';
 
-function hasModifier(e: { ctrlKey: boolean; shiftKey: boolean; altKey: boolean; metaKey: boolean }, modifier: 'ctrlKey' | 'shiftKey' | 'altKey' | 'metaKey'): boolean {
-	return !!e[modifier];
+function hasModifia(e: { ctwwKey: boowean; shiftKey: boowean; awtKey: boowean; metaKey: boowean }, modifia: 'ctwwKey' | 'shiftKey' | 'awtKey' | 'metaKey'): boowean {
+	wetuwn !!e[modifia];
 }
 
 /**
- * An event that encapsulates the various trigger modifiers logic needed for go to definition.
+ * An event that encapsuwates the vawious twigga modifiews wogic needed fow go to definition.
  */
-export class ClickLinkMouseEvent {
+expowt cwass CwickWinkMouseEvent {
 
-	public readonly target: IMouseTarget;
-	public readonly hasTriggerModifier: boolean;
-	public readonly hasSideBySideModifier: boolean;
-	public readonly isNoneOrSingleMouseDown: boolean;
+	pubwic weadonwy tawget: IMouseTawget;
+	pubwic weadonwy hasTwiggewModifia: boowean;
+	pubwic weadonwy hasSideBySideModifia: boowean;
+	pubwic weadonwy isNoneOwSingweMouseDown: boowean;
 
-	constructor(source: IEditorMouseEvent, opts: ClickLinkOptions) {
-		this.target = source.target;
-		this.hasTriggerModifier = hasModifier(source.event, opts.triggerModifier);
-		this.hasSideBySideModifier = hasModifier(source.event, opts.triggerSideBySideModifier);
-		this.isNoneOrSingleMouseDown = (source.event.detail <= 1);
+	constwuctow(souwce: IEditowMouseEvent, opts: CwickWinkOptions) {
+		this.tawget = souwce.tawget;
+		this.hasTwiggewModifia = hasModifia(souwce.event, opts.twiggewModifia);
+		this.hasSideBySideModifia = hasModifia(souwce.event, opts.twiggewSideBySideModifia);
+		this.isNoneOwSingweMouseDown = (souwce.event.detaiw <= 1);
 	}
 }
 
 /**
- * An event that encapsulates the various trigger modifiers logic needed for go to definition.
+ * An event that encapsuwates the vawious twigga modifiews wogic needed fow go to definition.
  */
-export class ClickLinkKeyboardEvent {
+expowt cwass CwickWinkKeyboawdEvent {
 
-	public readonly keyCodeIsTriggerKey: boolean;
-	public readonly keyCodeIsSideBySideKey: boolean;
-	public readonly hasTriggerModifier: boolean;
+	pubwic weadonwy keyCodeIsTwiggewKey: boowean;
+	pubwic weadonwy keyCodeIsSideBySideKey: boowean;
+	pubwic weadonwy hasTwiggewModifia: boowean;
 
-	constructor(source: IKeyboardEvent, opts: ClickLinkOptions) {
-		this.keyCodeIsTriggerKey = (source.keyCode === opts.triggerKey);
-		this.keyCodeIsSideBySideKey = (source.keyCode === opts.triggerSideBySideKey);
-		this.hasTriggerModifier = hasModifier(source, opts.triggerModifier);
+	constwuctow(souwce: IKeyboawdEvent, opts: CwickWinkOptions) {
+		this.keyCodeIsTwiggewKey = (souwce.keyCode === opts.twiggewKey);
+		this.keyCodeIsSideBySideKey = (souwce.keyCode === opts.twiggewSideBySideKey);
+		this.hasTwiggewModifia = hasModifia(souwce, opts.twiggewModifia);
 	}
 }
-export type TriggerModifier = 'ctrlKey' | 'shiftKey' | 'altKey' | 'metaKey';
+expowt type TwiggewModifia = 'ctwwKey' | 'shiftKey' | 'awtKey' | 'metaKey';
 
-export class ClickLinkOptions {
+expowt cwass CwickWinkOptions {
 
-	public readonly triggerKey: KeyCode;
-	public readonly triggerModifier: TriggerModifier;
-	public readonly triggerSideBySideKey: KeyCode;
-	public readonly triggerSideBySideModifier: TriggerModifier;
+	pubwic weadonwy twiggewKey: KeyCode;
+	pubwic weadonwy twiggewModifia: TwiggewModifia;
+	pubwic weadonwy twiggewSideBySideKey: KeyCode;
+	pubwic weadonwy twiggewSideBySideModifia: TwiggewModifia;
 
-	constructor(
-		triggerKey: KeyCode,
-		triggerModifier: TriggerModifier,
-		triggerSideBySideKey: KeyCode,
-		triggerSideBySideModifier: TriggerModifier
+	constwuctow(
+		twiggewKey: KeyCode,
+		twiggewModifia: TwiggewModifia,
+		twiggewSideBySideKey: KeyCode,
+		twiggewSideBySideModifia: TwiggewModifia
 	) {
-		this.triggerKey = triggerKey;
-		this.triggerModifier = triggerModifier;
-		this.triggerSideBySideKey = triggerSideBySideKey;
-		this.triggerSideBySideModifier = triggerSideBySideModifier;
+		this.twiggewKey = twiggewKey;
+		this.twiggewModifia = twiggewModifia;
+		this.twiggewSideBySideKey = twiggewSideBySideKey;
+		this.twiggewSideBySideModifia = twiggewSideBySideModifia;
 	}
 
-	public equals(other: ClickLinkOptions): boolean {
-		return (
-			this.triggerKey === other.triggerKey
-			&& this.triggerModifier === other.triggerModifier
-			&& this.triggerSideBySideKey === other.triggerSideBySideKey
-			&& this.triggerSideBySideModifier === other.triggerSideBySideModifier
+	pubwic equaws(otha: CwickWinkOptions): boowean {
+		wetuwn (
+			this.twiggewKey === otha.twiggewKey
+			&& this.twiggewModifia === otha.twiggewModifia
+			&& this.twiggewSideBySideKey === otha.twiggewSideBySideKey
+			&& this.twiggewSideBySideModifia === otha.twiggewSideBySideModifia
 		);
 	}
 }
 
-function createOptions(multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey'): ClickLinkOptions {
-	if (multiCursorModifier === 'altKey') {
-		if (platform.isMacintosh) {
-			return new ClickLinkOptions(KeyCode.Meta, 'metaKey', KeyCode.Alt, 'altKey');
+function cweateOptions(muwtiCuwsowModifia: 'awtKey' | 'ctwwKey' | 'metaKey'): CwickWinkOptions {
+	if (muwtiCuwsowModifia === 'awtKey') {
+		if (pwatfowm.isMacintosh) {
+			wetuwn new CwickWinkOptions(KeyCode.Meta, 'metaKey', KeyCode.Awt, 'awtKey');
 		}
-		return new ClickLinkOptions(KeyCode.Ctrl, 'ctrlKey', KeyCode.Alt, 'altKey');
+		wetuwn new CwickWinkOptions(KeyCode.Ctww, 'ctwwKey', KeyCode.Awt, 'awtKey');
 	}
 
-	if (platform.isMacintosh) {
-		return new ClickLinkOptions(KeyCode.Alt, 'altKey', KeyCode.Meta, 'metaKey');
+	if (pwatfowm.isMacintosh) {
+		wetuwn new CwickWinkOptions(KeyCode.Awt, 'awtKey', KeyCode.Meta, 'metaKey');
 	}
-	return new ClickLinkOptions(KeyCode.Alt, 'altKey', KeyCode.Ctrl, 'ctrlKey');
+	wetuwn new CwickWinkOptions(KeyCode.Awt, 'awtKey', KeyCode.Ctww, 'ctwwKey');
 }
 
-export class ClickLinkGesture extends Disposable {
+expowt cwass CwickWinkGestuwe extends Disposabwe {
 
-	private readonly _onMouseMoveOrRelevantKeyDown: Emitter<[ClickLinkMouseEvent, ClickLinkKeyboardEvent | null]> = this._register(new Emitter<[ClickLinkMouseEvent, ClickLinkKeyboardEvent | null]>());
-	public readonly onMouseMoveOrRelevantKeyDown: Event<[ClickLinkMouseEvent, ClickLinkKeyboardEvent | null]> = this._onMouseMoveOrRelevantKeyDown.event;
+	pwivate weadonwy _onMouseMoveOwWewevantKeyDown: Emitta<[CwickWinkMouseEvent, CwickWinkKeyboawdEvent | nuww]> = this._wegista(new Emitta<[CwickWinkMouseEvent, CwickWinkKeyboawdEvent | nuww]>());
+	pubwic weadonwy onMouseMoveOwWewevantKeyDown: Event<[CwickWinkMouseEvent, CwickWinkKeyboawdEvent | nuww]> = this._onMouseMoveOwWewevantKeyDown.event;
 
-	private readonly _onExecute: Emitter<ClickLinkMouseEvent> = this._register(new Emitter<ClickLinkMouseEvent>());
-	public readonly onExecute: Event<ClickLinkMouseEvent> = this._onExecute.event;
+	pwivate weadonwy _onExecute: Emitta<CwickWinkMouseEvent> = this._wegista(new Emitta<CwickWinkMouseEvent>());
+	pubwic weadonwy onExecute: Event<CwickWinkMouseEvent> = this._onExecute.event;
 
-	private readonly _onCancel: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onCancel: Event<void> = this._onCancel.event;
+	pwivate weadonwy _onCancew: Emitta<void> = this._wegista(new Emitta<void>());
+	pubwic weadonwy onCancew: Event<void> = this._onCancew.event;
 
-	private readonly _editor: ICodeEditor;
-	private _opts: ClickLinkOptions;
+	pwivate weadonwy _editow: ICodeEditow;
+	pwivate _opts: CwickWinkOptions;
 
-	private _lastMouseMoveEvent: ClickLinkMouseEvent | null;
-	private _hasTriggerKeyOnMouseDown: boolean;
-	private _lineNumberOnMouseDown: number;
+	pwivate _wastMouseMoveEvent: CwickWinkMouseEvent | nuww;
+	pwivate _hasTwiggewKeyOnMouseDown: boowean;
+	pwivate _wineNumbewOnMouseDown: numba;
 
-	constructor(editor: ICodeEditor) {
-		super();
+	constwuctow(editow: ICodeEditow) {
+		supa();
 
-		this._editor = editor;
-		this._opts = createOptions(this._editor.getOption(EditorOption.multiCursorModifier));
+		this._editow = editow;
+		this._opts = cweateOptions(this._editow.getOption(EditowOption.muwtiCuwsowModifia));
 
-		this._lastMouseMoveEvent = null;
-		this._hasTriggerKeyOnMouseDown = false;
-		this._lineNumberOnMouseDown = 0;
+		this._wastMouseMoveEvent = nuww;
+		this._hasTwiggewKeyOnMouseDown = fawse;
+		this._wineNumbewOnMouseDown = 0;
 
-		this._register(this._editor.onDidChangeConfiguration((e) => {
-			if (e.hasChanged(EditorOption.multiCursorModifier)) {
-				const newOpts = createOptions(this._editor.getOption(EditorOption.multiCursorModifier));
-				if (this._opts.equals(newOpts)) {
-					return;
+		this._wegista(this._editow.onDidChangeConfiguwation((e) => {
+			if (e.hasChanged(EditowOption.muwtiCuwsowModifia)) {
+				const newOpts = cweateOptions(this._editow.getOption(EditowOption.muwtiCuwsowModifia));
+				if (this._opts.equaws(newOpts)) {
+					wetuwn;
 				}
 				this._opts = newOpts;
-				this._lastMouseMoveEvent = null;
-				this._hasTriggerKeyOnMouseDown = false;
-				this._lineNumberOnMouseDown = 0;
-				this._onCancel.fire();
+				this._wastMouseMoveEvent = nuww;
+				this._hasTwiggewKeyOnMouseDown = fawse;
+				this._wineNumbewOnMouseDown = 0;
+				this._onCancew.fiwe();
 			}
 		}));
-		this._register(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(new ClickLinkMouseEvent(e, this._opts))));
-		this._register(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(new ClickLinkMouseEvent(e, this._opts))));
-		this._register(this._editor.onMouseUp((e: IEditorMouseEvent) => this._onEditorMouseUp(new ClickLinkMouseEvent(e, this._opts))));
-		this._register(this._editor.onKeyDown((e: IKeyboardEvent) => this._onEditorKeyDown(new ClickLinkKeyboardEvent(e, this._opts))));
-		this._register(this._editor.onKeyUp((e: IKeyboardEvent) => this._onEditorKeyUp(new ClickLinkKeyboardEvent(e, this._opts))));
-		this._register(this._editor.onMouseDrag(() => this._resetHandler()));
+		this._wegista(this._editow.onMouseMove((e: IEditowMouseEvent) => this._onEditowMouseMove(new CwickWinkMouseEvent(e, this._opts))));
+		this._wegista(this._editow.onMouseDown((e: IEditowMouseEvent) => this._onEditowMouseDown(new CwickWinkMouseEvent(e, this._opts))));
+		this._wegista(this._editow.onMouseUp((e: IEditowMouseEvent) => this._onEditowMouseUp(new CwickWinkMouseEvent(e, this._opts))));
+		this._wegista(this._editow.onKeyDown((e: IKeyboawdEvent) => this._onEditowKeyDown(new CwickWinkKeyboawdEvent(e, this._opts))));
+		this._wegista(this._editow.onKeyUp((e: IKeyboawdEvent) => this._onEditowKeyUp(new CwickWinkKeyboawdEvent(e, this._opts))));
+		this._wegista(this._editow.onMouseDwag(() => this._wesetHandwa()));
 
-		this._register(this._editor.onDidChangeCursorSelection((e) => this._onDidChangeCursorSelection(e)));
-		this._register(this._editor.onDidChangeModel((e) => this._resetHandler()));
-		this._register(this._editor.onDidChangeModelContent(() => this._resetHandler()));
-		this._register(this._editor.onDidScrollChange((e) => {
-			if (e.scrollTopChanged || e.scrollLeftChanged) {
-				this._resetHandler();
+		this._wegista(this._editow.onDidChangeCuwsowSewection((e) => this._onDidChangeCuwsowSewection(e)));
+		this._wegista(this._editow.onDidChangeModew((e) => this._wesetHandwa()));
+		this._wegista(this._editow.onDidChangeModewContent(() => this._wesetHandwa()));
+		this._wegista(this._editow.onDidScwowwChange((e) => {
+			if (e.scwowwTopChanged || e.scwowwWeftChanged) {
+				this._wesetHandwa();
 			}
 		}));
 	}
 
-	private _onDidChangeCursorSelection(e: ICursorSelectionChangedEvent): void {
-		if (e.selection && e.selection.startColumn !== e.selection.endColumn) {
-			this._resetHandler(); // immediately stop this feature if the user starts to select (https://github.com/microsoft/vscode/issues/7827)
+	pwivate _onDidChangeCuwsowSewection(e: ICuwsowSewectionChangedEvent): void {
+		if (e.sewection && e.sewection.stawtCowumn !== e.sewection.endCowumn) {
+			this._wesetHandwa(); // immediatewy stop this featuwe if the usa stawts to sewect (https://github.com/micwosoft/vscode/issues/7827)
 		}
 	}
 
-	private _onEditorMouseMove(mouseEvent: ClickLinkMouseEvent): void {
-		this._lastMouseMoveEvent = mouseEvent;
+	pwivate _onEditowMouseMove(mouseEvent: CwickWinkMouseEvent): void {
+		this._wastMouseMoveEvent = mouseEvent;
 
-		this._onMouseMoveOrRelevantKeyDown.fire([mouseEvent, null]);
+		this._onMouseMoveOwWewevantKeyDown.fiwe([mouseEvent, nuww]);
 	}
 
-	private _onEditorMouseDown(mouseEvent: ClickLinkMouseEvent): void {
-		// We need to record if we had the trigger key on mouse down because someone might select something in the editor
-		// holding the mouse down and then while mouse is down start to press Ctrl/Cmd to start a copy operation and then
-		// release the mouse button without wanting to do the navigation.
-		// With this flag we prevent goto definition if the mouse was down before the trigger key was pressed.
-		this._hasTriggerKeyOnMouseDown = mouseEvent.hasTriggerModifier;
-		this._lineNumberOnMouseDown = mouseEvent.target.position ? mouseEvent.target.position.lineNumber : 0;
+	pwivate _onEditowMouseDown(mouseEvent: CwickWinkMouseEvent): void {
+		// We need to wecowd if we had the twigga key on mouse down because someone might sewect something in the editow
+		// howding the mouse down and then whiwe mouse is down stawt to pwess Ctww/Cmd to stawt a copy opewation and then
+		// wewease the mouse button without wanting to do the navigation.
+		// With this fwag we pwevent goto definition if the mouse was down befowe the twigga key was pwessed.
+		this._hasTwiggewKeyOnMouseDown = mouseEvent.hasTwiggewModifia;
+		this._wineNumbewOnMouseDown = mouseEvent.tawget.position ? mouseEvent.tawget.position.wineNumba : 0;
 	}
 
-	private _onEditorMouseUp(mouseEvent: ClickLinkMouseEvent): void {
-		const currentLineNumber = mouseEvent.target.position ? mouseEvent.target.position.lineNumber : 0;
-		if (this._hasTriggerKeyOnMouseDown && this._lineNumberOnMouseDown && this._lineNumberOnMouseDown === currentLineNumber) {
-			this._onExecute.fire(mouseEvent);
+	pwivate _onEditowMouseUp(mouseEvent: CwickWinkMouseEvent): void {
+		const cuwwentWineNumba = mouseEvent.tawget.position ? mouseEvent.tawget.position.wineNumba : 0;
+		if (this._hasTwiggewKeyOnMouseDown && this._wineNumbewOnMouseDown && this._wineNumbewOnMouseDown === cuwwentWineNumba) {
+			this._onExecute.fiwe(mouseEvent);
 		}
 	}
 
-	private _onEditorKeyDown(e: ClickLinkKeyboardEvent): void {
+	pwivate _onEditowKeyDown(e: CwickWinkKeyboawdEvent): void {
 		if (
-			this._lastMouseMoveEvent
+			this._wastMouseMoveEvent
 			&& (
-				e.keyCodeIsTriggerKey // User just pressed Ctrl/Cmd (normal goto definition)
-				|| (e.keyCodeIsSideBySideKey && e.hasTriggerModifier) // User pressed Ctrl/Cmd+Alt (goto definition to the side)
+				e.keyCodeIsTwiggewKey // Usa just pwessed Ctww/Cmd (nowmaw goto definition)
+				|| (e.keyCodeIsSideBySideKey && e.hasTwiggewModifia) // Usa pwessed Ctww/Cmd+Awt (goto definition to the side)
 			)
 		) {
-			this._onMouseMoveOrRelevantKeyDown.fire([this._lastMouseMoveEvent, e]);
-		} else if (e.hasTriggerModifier) {
-			this._onCancel.fire(); // remove decorations if user holds another key with ctrl/cmd to prevent accident goto declaration
+			this._onMouseMoveOwWewevantKeyDown.fiwe([this._wastMouseMoveEvent, e]);
+		} ewse if (e.hasTwiggewModifia) {
+			this._onCancew.fiwe(); // wemove decowations if usa howds anotha key with ctww/cmd to pwevent accident goto decwawation
 		}
 	}
 
-	private _onEditorKeyUp(e: ClickLinkKeyboardEvent): void {
-		if (e.keyCodeIsTriggerKey) {
-			this._onCancel.fire();
+	pwivate _onEditowKeyUp(e: CwickWinkKeyboawdEvent): void {
+		if (e.keyCodeIsTwiggewKey) {
+			this._onCancew.fiwe();
 		}
 	}
 
-	private _resetHandler(): void {
-		this._lastMouseMoveEvent = null;
-		this._hasTriggerKeyOnMouseDown = false;
-		this._onCancel.fire();
+	pwivate _wesetHandwa(): void {
+		this._wastMouseMoveEvent = nuww;
+		this._hasTwiggewKeyOnMouseDown = fawse;
+		this._onCancew.fiwe();
 	}
 }

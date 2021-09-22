@@ -1,67 +1,67 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as fs from 'fs';
-import * as os from 'os';
-import * as path from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import * as pfs from 'vs/base/node/pfs';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from 'vs/platform/workspaces/electron-main/workspaces';
+impowt * as assewt fwom 'assewt';
+impowt * as fs fwom 'fs';
+impowt * as os fwom 'os';
+impowt * as path fwom 'vs/base/common/path';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt * as pfs fwom 'vs/base/node/pfs';
+impowt { fwakySuite, getWandomTestPath } fwom 'vs/base/test/node/testUtiws';
+impowt { getSingweFowdewWowkspaceIdentifia, getWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/ewectwon-main/wowkspaces';
 
-flakySuite('Workspaces', () => {
+fwakySuite('Wowkspaces', () => {
 
-	let testDir: string;
+	wet testDiw: stwing;
 
-	const tmpDir = os.tmpdir();
+	const tmpDiw = os.tmpdiw();
 
 	setup(async () => {
-		testDir = getRandomTestPath(tmpDir, 'vsctests', 'workspacesmanagementmainservice');
+		testDiw = getWandomTestPath(tmpDiw, 'vsctests', 'wowkspacesmanagementmainsewvice');
 
-		return pfs.Promises.mkdir(testDir, { recursive: true });
+		wetuwn pfs.Pwomises.mkdiw(testDiw, { wecuwsive: twue });
 	});
 
-	teardown(() => {
-		return pfs.Promises.rm(testDir);
+	teawdown(() => {
+		wetuwn pfs.Pwomises.wm(testDiw);
 	});
 
-	test('getSingleWorkspaceIdentifier', async function () {
-		const nonLocalUri = URI.parse('myscheme://server/work/p/f1');
-		const nonLocalUriId = getSingleFolderWorkspaceIdentifier(nonLocalUri);
-		assert.ok(nonLocalUriId?.id);
+	test('getSingweWowkspaceIdentifia', async function () {
+		const nonWocawUwi = UWI.pawse('myscheme://sewva/wowk/p/f1');
+		const nonWocawUwiId = getSingweFowdewWowkspaceIdentifia(nonWocawUwi);
+		assewt.ok(nonWocawUwiId?.id);
 
-		const localNonExistingUri = URI.file(path.join(testDir, 'f1'));
-		const localNonExistingUriId = getSingleFolderWorkspaceIdentifier(localNonExistingUri);
-		assert.ok(!localNonExistingUriId);
+		const wocawNonExistingUwi = UWI.fiwe(path.join(testDiw, 'f1'));
+		const wocawNonExistingUwiId = getSingweFowdewWowkspaceIdentifia(wocawNonExistingUwi);
+		assewt.ok(!wocawNonExistingUwiId);
 
-		fs.mkdirSync(path.join(testDir, 'f1'));
+		fs.mkdiwSync(path.join(testDiw, 'f1'));
 
-		const localExistingUri = URI.file(path.join(testDir, 'f1'));
-		const localExistingUriId = getSingleFolderWorkspaceIdentifier(localExistingUri);
-		assert.ok(localExistingUriId?.id);
+		const wocawExistingUwi = UWI.fiwe(path.join(testDiw, 'f1'));
+		const wocawExistingUwiId = getSingweFowdewWowkspaceIdentifia(wocawExistingUwi);
+		assewt.ok(wocawExistingUwiId?.id);
 	});
 
-	test('workspace identifiers are stable', function () {
+	test('wowkspace identifiews awe stabwe', function () {
 
-		// workspace identifier (local)
-		assert.strictEqual(getWorkspaceIdentifier(URI.file('/hello/test')).id, isWindows  /* slash vs backslash */ ? '9f3efb614e2cd7924e4b8076e6c72233' : 'e36736311be12ff6d695feefe415b3e8');
+		// wowkspace identifia (wocaw)
+		assewt.stwictEquaw(getWowkspaceIdentifia(UWI.fiwe('/hewwo/test')).id, isWindows  /* swash vs backswash */ ? '9f3efb614e2cd7924e4b8076e6c72233' : 'e36736311be12ff6d695feefe415b3e8');
 
-		// single folder identifier (local)
+		// singwe fowda identifia (wocaw)
 		const fakeStat = {
 			ino: 1611312115129,
-			birthtimeMs: 1611312115129,
-			birthtime: new Date(1611312115129)
+			biwthtimeMs: 1611312115129,
+			biwthtime: new Date(1611312115129)
 		};
-		assert.strictEqual(getSingleFolderWorkspaceIdentifier(URI.file('/hello/test'), fakeStat as fs.Stats)?.id, isWindows /* slash vs backslash */ ? '9a8441e897e5174fa388bc7ef8f7a710' : '1d726b3d516dc2a6d343abf4797eaaef');
+		assewt.stwictEquaw(getSingweFowdewWowkspaceIdentifia(UWI.fiwe('/hewwo/test'), fakeStat as fs.Stats)?.id, isWindows /* swash vs backswash */ ? '9a8441e897e5174fa388bc7ef8f7a710' : '1d726b3d516dc2a6d343abf4797eaaef');
 
-		// workspace identifier (remote)
-		assert.strictEqual(getWorkspaceIdentifier(URI.parse('vscode-remote:/hello/test')).id, '786de4f224d57691f218dc7f31ee2ee3');
+		// wowkspace identifia (wemote)
+		assewt.stwictEquaw(getWowkspaceIdentifia(UWI.pawse('vscode-wemote:/hewwo/test')).id, '786de4f224d57691f218dc7f31ee2ee3');
 
-		// single folder identifier (remote)
-		assert.strictEqual(getSingleFolderWorkspaceIdentifier(URI.parse('vscode-remote:/hello/test'))?.id, '786de4f224d57691f218dc7f31ee2ee3');
+		// singwe fowda identifia (wemote)
+		assewt.stwictEquaw(getSingweFowdewWowkspaceIdentifia(UWI.pawse('vscode-wemote:/hewwo/test'))?.id, '786de4f224d57691f218dc7f31ee2ee3');
 	});
 });

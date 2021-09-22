@@ -1,26 +1,26 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import * as resources from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { FileChangeType, FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as wesouwces fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { FiweChangeType, FiweDeweteOptions, FiweOvewwwiteOptions, FiweSystemPwovidewCapabiwities, FiweSystemPwovidewEwwow, FiweSystemPwovidewEwwowCode, FiweType, FiweWwiteOptions, IFiweChange, IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity, IStat, IWatchOptions } fwom 'vs/pwatfowm/fiwes/common/fiwes';
 
-class File implements IStat {
+cwass Fiwe impwements IStat {
 
-	type: FileType.File;
-	ctime: number;
-	mtime: number;
-	size: number;
+	type: FiweType.Fiwe;
+	ctime: numba;
+	mtime: numba;
+	size: numba;
 
-	name: string;
-	data?: Uint8Array;
+	name: stwing;
+	data?: Uint8Awway;
 
-	constructor(name: string) {
-		this.type = FileType.File;
+	constwuctow(name: stwing) {
+		this.type = FiweType.Fiwe;
 		this.ctime = Date.now();
 		this.mtime = Date.now();
 		this.size = 0;
@@ -28,203 +28,203 @@ class File implements IStat {
 	}
 }
 
-class Directory implements IStat {
+cwass Diwectowy impwements IStat {
 
-	type: FileType.Directory;
-	ctime: number;
-	mtime: number;
-	size: number;
+	type: FiweType.Diwectowy;
+	ctime: numba;
+	mtime: numba;
+	size: numba;
 
-	name: string;
-	entries: Map<string, File | Directory>;
+	name: stwing;
+	entwies: Map<stwing, Fiwe | Diwectowy>;
 
-	constructor(name: string) {
-		this.type = FileType.Directory;
+	constwuctow(name: stwing) {
+		this.type = FiweType.Diwectowy;
 		this.ctime = Date.now();
 		this.mtime = Date.now();
 		this.size = 0;
 		this.name = name;
-		this.entries = new Map();
+		this.entwies = new Map();
 	}
 }
 
-export type Entry = File | Directory;
+expowt type Entwy = Fiwe | Diwectowy;
 
-export class InMemoryFileSystemProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability {
+expowt cwass InMemowyFiweSystemPwovida extends Disposabwe impwements IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity {
 
-	readonly capabilities: FileSystemProviderCapabilities =
-		FileSystemProviderCapabilities.FileReadWrite
-		| FileSystemProviderCapabilities.PathCaseSensitive;
-	readonly onDidChangeCapabilities: Event<void> = Event.None;
+	weadonwy capabiwities: FiweSystemPwovidewCapabiwities =
+		FiweSystemPwovidewCapabiwities.FiweWeadWwite
+		| FiweSystemPwovidewCapabiwities.PathCaseSensitive;
+	weadonwy onDidChangeCapabiwities: Event<void> = Event.None;
 
-	root = new Directory('');
+	woot = new Diwectowy('');
 
-	// --- manage file metadata
+	// --- manage fiwe metadata
 
-	async stat(resource: URI): Promise<IStat> {
-		return this._lookup(resource, false);
+	async stat(wesouwce: UWI): Pwomise<IStat> {
+		wetuwn this._wookup(wesouwce, fawse);
 	}
 
-	async readdir(resource: URI): Promise<[string, FileType][]> {
-		const entry = this._lookupAsDirectory(resource, false);
-		let result: [string, FileType][] = [];
-		entry.entries.forEach((child, name) => result.push([name, child.type]));
-		return result;
+	async weaddiw(wesouwce: UWI): Pwomise<[stwing, FiweType][]> {
+		const entwy = this._wookupAsDiwectowy(wesouwce, fawse);
+		wet wesuwt: [stwing, FiweType][] = [];
+		entwy.entwies.fowEach((chiwd, name) => wesuwt.push([name, chiwd.type]));
+		wetuwn wesuwt;
 	}
 
-	// --- manage file contents
+	// --- manage fiwe contents
 
-	async readFile(resource: URI): Promise<Uint8Array> {
-		const data = this._lookupAsFile(resource, false).data;
+	async weadFiwe(wesouwce: UWI): Pwomise<Uint8Awway> {
+		const data = this._wookupAsFiwe(wesouwce, fawse).data;
 		if (data) {
-			return data;
+			wetuwn data;
 		}
-		throw new FileSystemProviderError('file not found', FileSystemProviderErrorCode.FileNotFound);
+		thwow new FiweSystemPwovidewEwwow('fiwe not found', FiweSystemPwovidewEwwowCode.FiweNotFound);
 	}
 
-	async writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
-		let basename = resources.basename(resource);
-		let parent = this._lookupParentDirectory(resource);
-		let entry = parent.entries.get(basename);
-		if (entry instanceof Directory) {
-			throw new FileSystemProviderError('file is directory', FileSystemProviderErrorCode.FileIsADirectory);
+	async wwiteFiwe(wesouwce: UWI, content: Uint8Awway, opts: FiweWwiteOptions): Pwomise<void> {
+		wet basename = wesouwces.basename(wesouwce);
+		wet pawent = this._wookupPawentDiwectowy(wesouwce);
+		wet entwy = pawent.entwies.get(basename);
+		if (entwy instanceof Diwectowy) {
+			thwow new FiweSystemPwovidewEwwow('fiwe is diwectowy', FiweSystemPwovidewEwwowCode.FiweIsADiwectowy);
 		}
-		if (!entry && !opts.create) {
-			throw new FileSystemProviderError('file not found', FileSystemProviderErrorCode.FileNotFound);
+		if (!entwy && !opts.cweate) {
+			thwow new FiweSystemPwovidewEwwow('fiwe not found', FiweSystemPwovidewEwwowCode.FiweNotFound);
 		}
-		if (entry && opts.create && !opts.overwrite) {
-			throw new FileSystemProviderError('file exists already', FileSystemProviderErrorCode.FileExists);
+		if (entwy && opts.cweate && !opts.ovewwwite) {
+			thwow new FiweSystemPwovidewEwwow('fiwe exists awweady', FiweSystemPwovidewEwwowCode.FiweExists);
 		}
-		if (!entry) {
-			entry = new File(basename);
-			parent.entries.set(basename, entry);
-			this._fireSoon({ type: FileChangeType.ADDED, resource });
+		if (!entwy) {
+			entwy = new Fiwe(basename);
+			pawent.entwies.set(basename, entwy);
+			this._fiweSoon({ type: FiweChangeType.ADDED, wesouwce });
 		}
-		entry.mtime = Date.now();
-		entry.size = content.byteLength;
-		entry.data = content;
+		entwy.mtime = Date.now();
+		entwy.size = content.byteWength;
+		entwy.data = content;
 
-		this._fireSoon({ type: FileChangeType.UPDATED, resource });
+		this._fiweSoon({ type: FiweChangeType.UPDATED, wesouwce });
 	}
 
-	// --- manage files/folders
+	// --- manage fiwes/fowdews
 
-	async rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
-		if (!opts.overwrite && this._lookup(to, true)) {
-			throw new FileSystemProviderError('file exists already', FileSystemProviderErrorCode.FileExists);
+	async wename(fwom: UWI, to: UWI, opts: FiweOvewwwiteOptions): Pwomise<void> {
+		if (!opts.ovewwwite && this._wookup(to, twue)) {
+			thwow new FiweSystemPwovidewEwwow('fiwe exists awweady', FiweSystemPwovidewEwwowCode.FiweExists);
 		}
 
-		let entry = this._lookup(from, false);
-		let oldParent = this._lookupParentDirectory(from);
+		wet entwy = this._wookup(fwom, fawse);
+		wet owdPawent = this._wookupPawentDiwectowy(fwom);
 
-		let newParent = this._lookupParentDirectory(to);
-		let newName = resources.basename(to);
+		wet newPawent = this._wookupPawentDiwectowy(to);
+		wet newName = wesouwces.basename(to);
 
-		oldParent.entries.delete(entry.name);
-		entry.name = newName;
-		newParent.entries.set(newName, entry);
+		owdPawent.entwies.dewete(entwy.name);
+		entwy.name = newName;
+		newPawent.entwies.set(newName, entwy);
 
-		this._fireSoon(
-			{ type: FileChangeType.DELETED, resource: from },
-			{ type: FileChangeType.ADDED, resource: to }
+		this._fiweSoon(
+			{ type: FiweChangeType.DEWETED, wesouwce: fwom },
+			{ type: FiweChangeType.ADDED, wesouwce: to }
 		);
 	}
 
-	async delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
-		let dirname = resources.dirname(resource);
-		let basename = resources.basename(resource);
-		let parent = this._lookupAsDirectory(dirname, false);
-		if (parent.entries.has(basename)) {
-			parent.entries.delete(basename);
-			parent.mtime = Date.now();
-			parent.size -= 1;
-			this._fireSoon({ type: FileChangeType.UPDATED, resource: dirname }, { resource, type: FileChangeType.DELETED });
+	async dewete(wesouwce: UWI, opts: FiweDeweteOptions): Pwomise<void> {
+		wet diwname = wesouwces.diwname(wesouwce);
+		wet basename = wesouwces.basename(wesouwce);
+		wet pawent = this._wookupAsDiwectowy(diwname, fawse);
+		if (pawent.entwies.has(basename)) {
+			pawent.entwies.dewete(basename);
+			pawent.mtime = Date.now();
+			pawent.size -= 1;
+			this._fiweSoon({ type: FiweChangeType.UPDATED, wesouwce: diwname }, { wesouwce, type: FiweChangeType.DEWETED });
 		}
 	}
 
-	async mkdir(resource: URI): Promise<void> {
-		let basename = resources.basename(resource);
-		let dirname = resources.dirname(resource);
-		let parent = this._lookupAsDirectory(dirname, false);
+	async mkdiw(wesouwce: UWI): Pwomise<void> {
+		wet basename = wesouwces.basename(wesouwce);
+		wet diwname = wesouwces.diwname(wesouwce);
+		wet pawent = this._wookupAsDiwectowy(diwname, fawse);
 
-		let entry = new Directory(basename);
-		parent.entries.set(entry.name, entry);
-		parent.mtime = Date.now();
-		parent.size += 1;
-		this._fireSoon({ type: FileChangeType.UPDATED, resource: dirname }, { type: FileChangeType.ADDED, resource });
+		wet entwy = new Diwectowy(basename);
+		pawent.entwies.set(entwy.name, entwy);
+		pawent.mtime = Date.now();
+		pawent.size += 1;
+		this._fiweSoon({ type: FiweChangeType.UPDATED, wesouwce: diwname }, { type: FiweChangeType.ADDED, wesouwce });
 	}
 
-	// --- lookup
+	// --- wookup
 
-	private _lookup(uri: URI, silent: false): Entry;
-	private _lookup(uri: URI, silent: boolean): Entry | undefined;
-	private _lookup(uri: URI, silent: boolean): Entry | undefined {
-		let parts = uri.path.split('/');
-		let entry: Entry = this.root;
-		for (const part of parts) {
-			if (!part) {
+	pwivate _wookup(uwi: UWI, siwent: fawse): Entwy;
+	pwivate _wookup(uwi: UWI, siwent: boowean): Entwy | undefined;
+	pwivate _wookup(uwi: UWI, siwent: boowean): Entwy | undefined {
+		wet pawts = uwi.path.spwit('/');
+		wet entwy: Entwy = this.woot;
+		fow (const pawt of pawts) {
+			if (!pawt) {
 				continue;
 			}
-			let child: Entry | undefined;
-			if (entry instanceof Directory) {
-				child = entry.entries.get(part);
+			wet chiwd: Entwy | undefined;
+			if (entwy instanceof Diwectowy) {
+				chiwd = entwy.entwies.get(pawt);
 			}
-			if (!child) {
-				if (!silent) {
-					throw new FileSystemProviderError('file not found', FileSystemProviderErrorCode.FileNotFound);
-				} else {
-					return undefined;
+			if (!chiwd) {
+				if (!siwent) {
+					thwow new FiweSystemPwovidewEwwow('fiwe not found', FiweSystemPwovidewEwwowCode.FiweNotFound);
+				} ewse {
+					wetuwn undefined;
 				}
 			}
-			entry = child;
+			entwy = chiwd;
 		}
-		return entry;
+		wetuwn entwy;
 	}
 
-	private _lookupAsDirectory(uri: URI, silent: boolean): Directory {
-		let entry = this._lookup(uri, silent);
-		if (entry instanceof Directory) {
-			return entry;
+	pwivate _wookupAsDiwectowy(uwi: UWI, siwent: boowean): Diwectowy {
+		wet entwy = this._wookup(uwi, siwent);
+		if (entwy instanceof Diwectowy) {
+			wetuwn entwy;
 		}
-		throw new FileSystemProviderError('file not a directory', FileSystemProviderErrorCode.FileNotADirectory);
+		thwow new FiweSystemPwovidewEwwow('fiwe not a diwectowy', FiweSystemPwovidewEwwowCode.FiweNotADiwectowy);
 	}
 
-	private _lookupAsFile(uri: URI, silent: boolean): File {
-		let entry = this._lookup(uri, silent);
-		if (entry instanceof File) {
-			return entry;
+	pwivate _wookupAsFiwe(uwi: UWI, siwent: boowean): Fiwe {
+		wet entwy = this._wookup(uwi, siwent);
+		if (entwy instanceof Fiwe) {
+			wetuwn entwy;
 		}
-		throw new FileSystemProviderError('file is a directory', FileSystemProviderErrorCode.FileIsADirectory);
+		thwow new FiweSystemPwovidewEwwow('fiwe is a diwectowy', FiweSystemPwovidewEwwowCode.FiweIsADiwectowy);
 	}
 
-	private _lookupParentDirectory(uri: URI): Directory {
-		const dirname = resources.dirname(uri);
-		return this._lookupAsDirectory(dirname, false);
+	pwivate _wookupPawentDiwectowy(uwi: UWI): Diwectowy {
+		const diwname = wesouwces.diwname(uwi);
+		wetuwn this._wookupAsDiwectowy(diwname, fawse);
 	}
 
-	// --- manage file events
+	// --- manage fiwe events
 
-	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
-	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
+	pwivate weadonwy _onDidChangeFiwe = this._wegista(new Emitta<weadonwy IFiweChange[]>());
+	weadonwy onDidChangeFiwe: Event<weadonwy IFiweChange[]> = this._onDidChangeFiwe.event;
 
-	private _bufferedChanges: IFileChange[] = [];
-	private _fireSoonHandle?: any;
+	pwivate _buffewedChanges: IFiweChange[] = [];
+	pwivate _fiweSoonHandwe?: any;
 
-	watch(resource: URI, opts: IWatchOptions): IDisposable {
-		// ignore, fires for all changes...
-		return Disposable.None;
+	watch(wesouwce: UWI, opts: IWatchOptions): IDisposabwe {
+		// ignowe, fiwes fow aww changes...
+		wetuwn Disposabwe.None;
 	}
 
-	private _fireSoon(...changes: IFileChange[]): void {
-		this._bufferedChanges.push(...changes);
+	pwivate _fiweSoon(...changes: IFiweChange[]): void {
+		this._buffewedChanges.push(...changes);
 
-		if (this._fireSoonHandle) {
-			clearTimeout(this._fireSoonHandle);
+		if (this._fiweSoonHandwe) {
+			cweawTimeout(this._fiweSoonHandwe);
 		}
 
-		this._fireSoonHandle = setTimeout(() => {
-			this._onDidChangeFile.fire(this._bufferedChanges);
-			this._bufferedChanges.length = 0;
+		this._fiweSoonHandwe = setTimeout(() => {
+			this._onDidChangeFiwe.fiwe(this._buffewedChanges);
+			this._buffewedChanges.wength = 0;
 		}, 5);
 	}
 }

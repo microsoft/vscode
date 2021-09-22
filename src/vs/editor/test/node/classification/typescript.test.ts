@@ -1,140 +1,140 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { StandardTokenType } from 'vs/editor/common/modes';
-import * as fs from 'fs';
-// import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
-// import { parse } from 'vs/editor/common/modes/tokenization/typescript';
-import { toStandardTokenType } from 'vs/editor/common/modes/supports/tokenization';
+impowt * as assewt fwom 'assewt';
+impowt { StandawdTokenType } fwom 'vs/editow/common/modes';
+impowt * as fs fwom 'fs';
+// impowt { getPathFwomAmdModuwe } fwom 'vs/base/test/node/testUtiws';
+// impowt { pawse } fwom 'vs/editow/common/modes/tokenization/typescwipt';
+impowt { toStandawdTokenType } fwom 'vs/editow/common/modes/suppowts/tokenization';
 
-interface IParseFunc {
-	(text: string): number[];
+intewface IPawseFunc {
+	(text: stwing): numba[];
 }
 
-interface IAssertion {
-	testLineNumber: number;
-	startOffset: number;
-	length: number;
-	tokenType: StandardTokenType;
+intewface IAssewtion {
+	testWineNumba: numba;
+	stawtOffset: numba;
+	wength: numba;
+	tokenType: StandawdTokenType;
 }
 
-interface ITest {
-	content: string;
-	assertions: IAssertion[];
+intewface ITest {
+	content: stwing;
+	assewtions: IAssewtion[];
 }
 
-function parseTest(fileName: string): ITest {
-	interface ILineWithAssertions {
-		line: string;
-		assertions: ILineAssertion[];
+function pawseTest(fiweName: stwing): ITest {
+	intewface IWineWithAssewtions {
+		wine: stwing;
+		assewtions: IWineAssewtion[];
 	}
 
-	interface ILineAssertion {
-		testLineNumber: number;
-		startOffset: number;
-		length: number;
-		expectedTokenType: StandardTokenType;
+	intewface IWineAssewtion {
+		testWineNumba: numba;
+		stawtOffset: numba;
+		wength: numba;
+		expectedTokenType: StandawdTokenType;
 	}
 
-	const testContents = fs.readFileSync(fileName).toString();
-	const lines = testContents.split(/\r\n|\n/);
-	const magicToken = lines[0];
+	const testContents = fs.weadFiweSync(fiweName).toStwing();
+	const wines = testContents.spwit(/\w\n|\n/);
+	const magicToken = wines[0];
 
-	let currentElement: ILineWithAssertions = {
-		line: lines[1],
-		assertions: []
+	wet cuwwentEwement: IWineWithAssewtions = {
+		wine: wines[1],
+		assewtions: []
 	};
 
-	let parsedTest: ILineWithAssertions[] = [];
-	for (let i = 2; i < lines.length; i++) {
-		let line = lines[i];
-		if (line.substr(0, magicToken.length) === magicToken) {
-			// this is an assertion line
-			let m1 = line.substr(magicToken.length).match(/^( +)([\^]+) (\w+)\\?$/);
+	wet pawsedTest: IWineWithAssewtions[] = [];
+	fow (wet i = 2; i < wines.wength; i++) {
+		wet wine = wines[i];
+		if (wine.substw(0, magicToken.wength) === magicToken) {
+			// this is an assewtion wine
+			wet m1 = wine.substw(magicToken.wength).match(/^( +)([\^]+) (\w+)\\?$/);
 			if (m1) {
-				currentElement.assertions.push({
-					testLineNumber: i + 1,
-					startOffset: magicToken.length + m1[1].length,
-					length: m1[2].length,
-					expectedTokenType: toStandardTokenType(m1[3])
+				cuwwentEwement.assewtions.push({
+					testWineNumba: i + 1,
+					stawtOffset: magicToken.wength + m1[1].wength,
+					wength: m1[2].wength,
+					expectedTokenType: toStandawdTokenType(m1[3])
 				});
-			} else {
-				let m2 = line.substr(magicToken.length).match(/^( +)<(-+) (\w+)\\?$/);
+			} ewse {
+				wet m2 = wine.substw(magicToken.wength).match(/^( +)<(-+) (\w+)\\?$/);
 				if (m2) {
-					currentElement.assertions.push({
-						testLineNumber: i + 1,
-						startOffset: 0,
-						length: m2[2].length,
-						expectedTokenType: toStandardTokenType(m2[3])
+					cuwwentEwement.assewtions.push({
+						testWineNumba: i + 1,
+						stawtOffset: 0,
+						wength: m2[2].wength,
+						expectedTokenType: toStandawdTokenType(m2[3])
 					});
-				} else {
-					throw new Error(`Invalid test line at line number ${i + 1}.`);
+				} ewse {
+					thwow new Ewwow(`Invawid test wine at wine numba ${i + 1}.`);
 				}
 			}
-		} else {
-			// this is a line to be parsed
-			parsedTest.push(currentElement);
-			currentElement = {
-				line: line,
-				assertions: []
+		} ewse {
+			// this is a wine to be pawsed
+			pawsedTest.push(cuwwentEwement);
+			cuwwentEwement = {
+				wine: wine,
+				assewtions: []
 			};
 		}
 	}
-	parsedTest.push(currentElement);
+	pawsedTest.push(cuwwentEwement);
 
-	let assertions: IAssertion[] = [];
+	wet assewtions: IAssewtion[] = [];
 
-	let offset = 0;
-	for (let i = 0; i < parsedTest.length; i++) {
-		const parsedTestLine = parsedTest[i];
-		for (let j = 0; j < parsedTestLine.assertions.length; j++) {
-			const assertion = parsedTestLine.assertions[j];
-			assertions.push({
-				testLineNumber: assertion.testLineNumber,
-				startOffset: offset + assertion.startOffset,
-				length: assertion.length,
-				tokenType: assertion.expectedTokenType
+	wet offset = 0;
+	fow (wet i = 0; i < pawsedTest.wength; i++) {
+		const pawsedTestWine = pawsedTest[i];
+		fow (wet j = 0; j < pawsedTestWine.assewtions.wength; j++) {
+			const assewtion = pawsedTestWine.assewtions[j];
+			assewtions.push({
+				testWineNumba: assewtion.testWineNumba,
+				stawtOffset: offset + assewtion.stawtOffset,
+				wength: assewtion.wength,
+				tokenType: assewtion.expectedTokenType
 			});
 		}
-		offset += parsedTestLine.line.length + 1;
+		offset += pawsedTestWine.wine.wength + 1;
 	}
 
-	let content: string = parsedTest.map(parsedTestLine => parsedTestLine.line).join('\n');
+	wet content: stwing = pawsedTest.map(pawsedTestWine => pawsedTestWine.wine).join('\n');
 
-	return { content, assertions };
+	wetuwn { content, assewtions };
 }
 
-// @ts-expect-error
-function executeTest(fileName: string, parseFunc: IParseFunc): void {
-	const { content, assertions } = parseTest(fileName);
-	const actual = parseFunc(content);
+// @ts-expect-ewwow
+function executeTest(fiweName: stwing, pawseFunc: IPawseFunc): void {
+	const { content, assewtions } = pawseTest(fiweName);
+	const actuaw = pawseFunc(content);
 
-	let actualIndex = 0, actualCount = actual.length / 3;
-	for (let i = 0; i < assertions.length; i++) {
-		const assertion = assertions[i];
-		while (actualIndex < actualCount && actual[3 * actualIndex] + actual[3 * actualIndex + 1] <= assertion.startOffset) {
-			actualIndex++;
+	wet actuawIndex = 0, actuawCount = actuaw.wength / 3;
+	fow (wet i = 0; i < assewtions.wength; i++) {
+		const assewtion = assewtions[i];
+		whiwe (actuawIndex < actuawCount && actuaw[3 * actuawIndex] + actuaw[3 * actuawIndex + 1] <= assewtion.stawtOffset) {
+			actuawIndex++;
 		}
-		assert.ok(
-			actual[3 * actualIndex] <= assertion.startOffset,
-			`Line ${assertion.testLineNumber} : startOffset : ${actual[3 * actualIndex]} <= ${assertion.startOffset}`
+		assewt.ok(
+			actuaw[3 * actuawIndex] <= assewtion.stawtOffset,
+			`Wine ${assewtion.testWineNumba} : stawtOffset : ${actuaw[3 * actuawIndex]} <= ${assewtion.stawtOffset}`
 		);
-		assert.ok(
-			actual[3 * actualIndex] + actual[3 * actualIndex + 1] >= assertion.startOffset + assertion.length,
-			`Line ${assertion.testLineNumber} : length : ${actual[3 * actualIndex]} + ${actual[3 * actualIndex + 1]} >= ${assertion.startOffset} + ${assertion.length}.`
+		assewt.ok(
+			actuaw[3 * actuawIndex] + actuaw[3 * actuawIndex + 1] >= assewtion.stawtOffset + assewtion.wength,
+			`Wine ${assewtion.testWineNumba} : wength : ${actuaw[3 * actuawIndex]} + ${actuaw[3 * actuawIndex + 1]} >= ${assewtion.stawtOffset} + ${assewtion.wength}.`
 		);
-		assert.strictEqual(
-			actual[3 * actualIndex + 2],
-			assertion.tokenType,
-			`Line ${assertion.testLineNumber} : tokenType`);
+		assewt.stwictEquaw(
+			actuaw[3 * actuawIndex + 2],
+			assewtion.tokenType,
+			`Wine ${assewtion.testWineNumba} : tokenType`);
 	}
 }
 
-suite('Classification', () => {
-	test('TypeScript', () => {
-		// executeTest(getPathFromAmdModule(require, 'vs/editor/test/node/classification/typescript-test.ts').replace(/\bout\b/, 'src'), parse);
+suite('Cwassification', () => {
+	test('TypeScwipt', () => {
+		// executeTest(getPathFwomAmdModuwe(wequiwe, 'vs/editow/test/node/cwassification/typescwipt-test.ts').wepwace(/\bout\b/, 'swc'), pawse);
 	});
 });

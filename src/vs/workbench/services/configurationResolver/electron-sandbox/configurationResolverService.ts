@@ -1,44 +1,44 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { BaseConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
+impowt { INativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IConfiguwationWesowvewSewvice } fwom 'vs/wowkbench/sewvices/configuwationWesowva/common/configuwationWesowva';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { BaseConfiguwationWesowvewSewvice } fwom 'vs/wowkbench/sewvices/configuwationWesowva/bwowsa/configuwationWesowvewSewvice';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IShewwEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/shewwEnviwonmentSewvice';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
 
-export class ConfigurationResolverService extends BaseConfigurationResolverService {
+expowt cwass ConfiguwationWesowvewSewvice extends BaseConfiguwationWesowvewSewvice {
 
-	constructor(
-		@IEditorService editorService: IEditorService,
-		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ICommandService commandService: ICommandService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IQuickInputService quickInputService: IQuickInputService,
-		@ILabelService labelService: ILabelService,
-		@IShellEnvironmentService shellEnvironmentService: IShellEnvironmentService,
-		@IPathService pathService: IPathService
+	constwuctow(
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@INativeWowkbenchEnviwonmentSewvice enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@ICommandSewvice commandSewvice: ICommandSewvice,
+		@IWowkspaceContextSewvice wowkspaceContextSewvice: IWowkspaceContextSewvice,
+		@IQuickInputSewvice quickInputSewvice: IQuickInputSewvice,
+		@IWabewSewvice wabewSewvice: IWabewSewvice,
+		@IShewwEnviwonmentSewvice shewwEnviwonmentSewvice: IShewwEnviwonmentSewvice,
+		@IPathSewvice pathSewvice: IPathSewvice
 	) {
-		super({
-			getAppRoot: (): string | undefined => {
-				return environmentService.appRoot;
+		supa({
+			getAppWoot: (): stwing | undefined => {
+				wetuwn enviwonmentSewvice.appWoot;
 			},
-			getExecPath: (): string | undefined => {
-				return environmentService.execPath;
+			getExecPath: (): stwing | undefined => {
+				wetuwn enviwonmentSewvice.execPath;
 			}
-		}, shellEnvironmentService.getShellEnv(), editorService, configurationService, commandService,
-			workspaceContextService, quickInputService, labelService, pathService);
+		}, shewwEnviwonmentSewvice.getShewwEnv(), editowSewvice, configuwationSewvice, commandSewvice,
+			wowkspaceContextSewvice, quickInputSewvice, wabewSewvice, pathSewvice);
 	}
 }
 
-registerSingleton(IConfigurationResolverService, ConfigurationResolverService, true);
+wegistewSingweton(IConfiguwationWesowvewSewvice, ConfiguwationWesowvewSewvice, twue);

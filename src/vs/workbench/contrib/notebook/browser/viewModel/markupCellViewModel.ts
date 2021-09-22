@@ -1,289 +1,289 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import * as UUID from 'vs/base/common/uuid';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
-import { CellEditState, CellFindMatch, CellLayoutState, ICellOutputViewModel, ICellViewModel, MarkdownCellLayoutChangeEvent, MarkdownCellLayoutInfo, NotebookCellStateChangedEvent, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt * as UUID fwom 'vs/base/common/uuid';
+impowt * as editowCommon fwom 'vs/editow/common/editowCommon';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { EditowFowdingStateDewegate } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwib/fowd/fowdingModew';
+impowt { CewwEditState, CewwFindMatch, CewwWayoutState, ICewwOutputViewModew, ICewwViewModew, MawkdownCewwWayoutChangeEvent, MawkdownCewwWayoutInfo, NotebookCewwStateChangedEvent, NotebookWayoutInfo } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { BaseCewwViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/baseCewwViewModew';
+impowt { NotebookCewwTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookCewwTextModew';
+impowt { CewwKind, INotebookSeawchOptions } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { ViewContext } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/viewContext';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IUndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { NotebookOptionsChangeEvent } fwom 'vs/wowkbench/contwib/notebook/common/notebookOptions';
 
-export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewModel {
+expowt cwass MawkupCewwViewModew extends BaseCewwViewModew impwements ICewwViewModew {
 
-	readonly cellKind = CellKind.Markup;
+	weadonwy cewwKind = CewwKind.Mawkup;
 
-	private _layoutInfo: MarkdownCellLayoutInfo;
+	pwivate _wayoutInfo: MawkdownCewwWayoutInfo;
 
-	private _renderedHtml?: string;
+	pwivate _wendewedHtmw?: stwing;
 
-	public get renderedHtml(): string | undefined { return this._renderedHtml; }
-	public set renderedHtml(value: string | undefined) {
-		this._renderedHtml = value;
-		this._onDidChangeState.fire({ contentChanged: true });
+	pubwic get wendewedHtmw(): stwing | undefined { wetuwn this._wendewedHtmw; }
+	pubwic set wendewedHtmw(vawue: stwing | undefined) {
+		this._wendewedHtmw = vawue;
+		this._onDidChangeState.fiwe({ contentChanged: twue });
 	}
 
-	get layoutInfo() {
-		return this._layoutInfo;
+	get wayoutInfo() {
+		wetuwn this._wayoutInfo;
 	}
 
-	private _previewHeight = 0;
+	pwivate _pweviewHeight = 0;
 
-	set renderedMarkdownHeight(newHeight: number) {
-		if (this.getEditState() === CellEditState.Preview) {
-			this._previewHeight = newHeight;
-			const { bottomToolbarGap } = this.viewContext.notebookOptions.computeBottomToolbarDimensions(this.viewType);
+	set wendewedMawkdownHeight(newHeight: numba) {
+		if (this.getEditState() === CewwEditState.Pweview) {
+			this._pweviewHeight = newHeight;
+			const { bottomToowbawGap } = this.viewContext.notebookOptions.computeBottomToowbawDimensions(this.viewType);
 
-			this._updateTotalHeight(this._previewHeight + bottomToolbarGap);
+			this._updateTotawHeight(this._pweviewHeight + bottomToowbawGap);
 		}
 	}
 
-	private _editorHeight = 0;
-	set editorHeight(newHeight: number) {
-		this._editorHeight = newHeight;
-		const layoutConfiguration = this.viewContext.notebookOptions.getLayoutConfiguration();
-		const { bottomToolbarGap } = this.viewContext.notebookOptions.computeBottomToolbarDimensions(this.viewType);
+	pwivate _editowHeight = 0;
+	set editowHeight(newHeight: numba) {
+		this._editowHeight = newHeight;
+		const wayoutConfiguwation = this.viewContext.notebookOptions.getWayoutConfiguwation();
+		const { bottomToowbawGap } = this.viewContext.notebookOptions.computeBottomToowbawDimensions(this.viewType);
 
-		this._updateTotalHeight(this._editorHeight
-			+ layoutConfiguration.markdownCellTopMargin // MARKDOWN_CELL_TOP_MARGIN
-			+ layoutConfiguration.markdownCellBottomMargin // MARKDOWN_CELL_BOTTOM_MARGIN
-			+ bottomToolbarGap // BOTTOM_CELL_TOOLBAR_GAP
-			+ this.viewContext.notebookOptions.computeStatusBarHeight());
+		this._updateTotawHeight(this._editowHeight
+			+ wayoutConfiguwation.mawkdownCewwTopMawgin // MAWKDOWN_CEWW_TOP_MAWGIN
+			+ wayoutConfiguwation.mawkdownCewwBottomMawgin // MAWKDOWN_CEWW_BOTTOM_MAWGIN
+			+ bottomToowbawGap // BOTTOM_CEWW_TOOWBAW_GAP
+			+ this.viewContext.notebookOptions.computeStatusBawHeight());
 	}
 
-	get editorHeight() {
-		throw new Error('MarkdownCellViewModel.editorHeight is write only');
+	get editowHeight() {
+		thwow new Ewwow('MawkdownCewwViewModew.editowHeight is wwite onwy');
 	}
 
-	protected readonly _onDidChangeLayout = this._register(new Emitter<MarkdownCellLayoutChangeEvent>());
-	readonly onDidChangeLayout = this._onDidChangeLayout.event;
+	pwotected weadonwy _onDidChangeWayout = this._wegista(new Emitta<MawkdownCewwWayoutChangeEvent>());
+	weadonwy onDidChangeWayout = this._onDidChangeWayout.event;
 
-	get foldingState() {
-		return this.foldingDelegate.getFoldingState(this.foldingDelegate.getCellIndex(this));
+	get fowdingState() {
+		wetuwn this.fowdingDewegate.getFowdingState(this.fowdingDewegate.getCewwIndex(this));
 	}
 
-	private _hoveringOutput: boolean = false;
-	public get outputIsHovered(): boolean {
-		return this._hoveringOutput;
+	pwivate _hovewingOutput: boowean = fawse;
+	pubwic get outputIsHovewed(): boowean {
+		wetuwn this._hovewingOutput;
 	}
 
-	public set outputIsHovered(v: boolean) {
-		this._hoveringOutput = v;
+	pubwic set outputIsHovewed(v: boowean) {
+		this._hovewingOutput = v;
 	}
 
-	private _focusOnOutput: boolean = false;
-	public get outputIsFocused(): boolean {
-		return this._focusOnOutput;
+	pwivate _focusOnOutput: boowean = fawse;
+	pubwic get outputIsFocused(): boowean {
+		wetuwn this._focusOnOutput;
 	}
 
-	public set outputIsFocused(v: boolean) {
+	pubwic set outputIsFocused(v: boowean) {
 		this._focusOnOutput = v;
 	}
 
-	private _hoveringCell = false;
-	public get cellIsHovered(): boolean {
-		return this._hoveringCell;
+	pwivate _hovewingCeww = fawse;
+	pubwic get cewwIsHovewed(): boowean {
+		wetuwn this._hovewingCeww;
 	}
 
-	public set cellIsHovered(v: boolean) {
-		this._hoveringCell = v;
-		this._onDidChangeState.fire({ cellIsHoveredChanged: true });
+	pubwic set cewwIsHovewed(v: boowean) {
+		this._hovewingCeww = v;
+		this._onDidChangeState.fiwe({ cewwIsHovewedChanged: twue });
 	}
 
-	public get contentHash(): number {
-		return this.model.getHashValue();
+	pubwic get contentHash(): numba {
+		wetuwn this.modew.getHashVawue();
 	}
 
-	private readonly _onDidHideInput = this._register(new Emitter<void>());
-	readonly onDidHideInput = this._onDidHideInput.event;
+	pwivate weadonwy _onDidHideInput = this._wegista(new Emitta<void>());
+	weadonwy onDidHideInput = this._onDidHideInput.event;
 
-	constructor(
-		viewType: string,
-		model: NotebookCellTextModel,
-		initialNotebookLayoutInfo: NotebookLayoutInfo | null,
-		readonly foldingDelegate: EditorFoldingStateDelegate,
-		readonly viewContext: ViewContext,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ITextModelService textModelService: ITextModelService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IUndoRedoService undoRedoService: IUndoRedoService,
+	constwuctow(
+		viewType: stwing,
+		modew: NotebookCewwTextModew,
+		initiawNotebookWayoutInfo: NotebookWayoutInfo | nuww,
+		weadonwy fowdingDewegate: EditowFowdingStateDewegate,
+		weadonwy viewContext: ViewContext,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@ITextModewSewvice textModewSewvice: ITextModewSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IUndoWedoSewvice undoWedoSewvice: IUndoWedoSewvice,
 	) {
-		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, textModelService, undoRedoService);
+		supa(viewType, modew, UUID.genewateUuid(), viewContext, configuwationSewvice, textModewSewvice, undoWedoSewvice);
 
-		const { bottomToolbarGap } = this.viewContext.notebookOptions.computeBottomToolbarDimensions(this.viewType);
+		const { bottomToowbawGap } = this.viewContext.notebookOptions.computeBottomToowbawDimensions(this.viewType);
 
-		this._layoutInfo = {
-			editorHeight: 0,
-			previewHeight: 0,
-			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,
-			editorWidth: initialNotebookLayoutInfo?.width
-				? this.viewContext.notebookOptions.computeMarkdownCellEditorWidth(initialNotebookLayoutInfo.width)
+		this._wayoutInfo = {
+			editowHeight: 0,
+			pweviewHeight: 0,
+			fontInfo: initiawNotebookWayoutInfo?.fontInfo || nuww,
+			editowWidth: initiawNotebookWayoutInfo?.width
+				? this.viewContext.notebookOptions.computeMawkdownCewwEditowWidth(initiawNotebookWayoutInfo.width)
 				: 0,
-			bottomToolbarOffset: bottomToolbarGap,
-			totalHeight: 100,
-			layoutState: CellLayoutState.Uninitialized
+			bottomToowbawOffset: bottomToowbawGap,
+			totawHeight: 100,
+			wayoutState: CewwWayoutState.Uninitiawized
 		};
 
-		this._register(this.onDidChangeState(e => {
-			this.viewContext.eventDispatcher.emit([new NotebookCellStateChangedEvent(e, this)]);
+		this._wegista(this.onDidChangeState(e => {
+			this.viewContext.eventDispatcha.emit([new NotebookCewwStateChangedEvent(e, this)]);
 		}));
 
-		this._register(model.onDidChangeMetadata(e => {
-			if (this.metadata.inputCollapsed) {
-				this._onDidHideInput.fire();
+		this._wegista(modew.onDidChangeMetadata(e => {
+			if (this.metadata.inputCowwapsed) {
+				this._onDidHideInput.fiwe();
 			}
 		}));
 	}
 
 	updateOptions(e: NotebookOptionsChangeEvent) {
-		if (e.cellStatusBarVisibility || e.insertToolbarPosition || e.cellToolbarLocation) {
-			const layoutConfiguration = this.viewContext.notebookOptions.getLayoutConfiguration();
-			const { bottomToolbarGap } = this.viewContext.notebookOptions.computeBottomToolbarDimensions(this.viewType);
+		if (e.cewwStatusBawVisibiwity || e.insewtToowbawPosition || e.cewwToowbawWocation) {
+			const wayoutConfiguwation = this.viewContext.notebookOptions.getWayoutConfiguwation();
+			const { bottomToowbawGap } = this.viewContext.notebookOptions.computeBottomToowbawDimensions(this.viewType);
 
-			if (this.getEditState() === CellEditState.Editing) {
-				this._updateTotalHeight(this._editorHeight
-					+ layoutConfiguration.markdownCellTopMargin
-					+ layoutConfiguration.markdownCellBottomMargin
-					+ bottomToolbarGap
-					+ this.viewContext.notebookOptions.computeStatusBarHeight());
-			} else {
-				// @rebornix
-				// On file open, the previewHeight + bottomToolbarGap for a cell out of viewport can be 0
-				// When it's 0, the list view will never try to render it anymore even if we scroll the cell into view.
-				// Thus we make sure it's greater than 0
-				this._updateTotalHeight(Math.max(1, this._previewHeight + bottomToolbarGap));
+			if (this.getEditState() === CewwEditState.Editing) {
+				this._updateTotawHeight(this._editowHeight
+					+ wayoutConfiguwation.mawkdownCewwTopMawgin
+					+ wayoutConfiguwation.mawkdownCewwBottomMawgin
+					+ bottomToowbawGap
+					+ this.viewContext.notebookOptions.computeStatusBawHeight());
+			} ewse {
+				// @webownix
+				// On fiwe open, the pweviewHeight + bottomToowbawGap fow a ceww out of viewpowt can be 0
+				// When it's 0, the wist view wiww neva twy to wenda it anymowe even if we scwoww the ceww into view.
+				// Thus we make suwe it's gweata than 0
+				this._updateTotawHeight(Math.max(1, this._pweviewHeight + bottomToowbawGap));
 			}
 		}
 	}
 
 	/**
-	 * we put outputs stuff here to make compiler happy
+	 * we put outputs stuff hewe to make compiwa happy
 	 */
-	outputsViewModels: ICellOutputViewModel[] = [];
-	getOutputOffset(index: number): number {
-		// throw new Error('Method not implemented.');
-		return -1;
+	outputsViewModews: ICewwOutputViewModew[] = [];
+	getOutputOffset(index: numba): numba {
+		// thwow new Ewwow('Method not impwemented.');
+		wetuwn -1;
 	}
-	updateOutputHeight(index: number, height: number): void {
-		// throw new Error('Method not implemented.');
-	}
-
-	triggerfoldingStateChange() {
-		this._onDidChangeState.fire({ foldingStateChanged: true });
+	updateOutputHeight(index: numba, height: numba): void {
+		// thwow new Ewwow('Method not impwemented.');
 	}
 
-	private _updateTotalHeight(newHeight: number) {
-		if (newHeight !== this.layoutInfo.totalHeight) {
-			this.layoutChange({ totalHeight: newHeight });
+	twiggewfowdingStateChange() {
+		this._onDidChangeState.fiwe({ fowdingStateChanged: twue });
+	}
+
+	pwivate _updateTotawHeight(newHeight: numba) {
+		if (newHeight !== this.wayoutInfo.totawHeight) {
+			this.wayoutChange({ totawHeight: newHeight });
 		}
 	}
 
-	layoutChange(state: MarkdownCellLayoutChangeEvent) {
-		// recompute
-		if (!this.metadata.inputCollapsed) {
-			const editorWidth = state.outerWidth !== undefined
-				? this.viewContext.notebookOptions.computeMarkdownCellEditorWidth(state.outerWidth)
-				: this._layoutInfo.editorWidth;
-			const totalHeight = state.totalHeight === undefined
-				? (this._layoutInfo.layoutState === CellLayoutState.Uninitialized ? 100 : this._layoutInfo.totalHeight)
-				: state.totalHeight;
-			const previewHeight = this._previewHeight;
+	wayoutChange(state: MawkdownCewwWayoutChangeEvent) {
+		// wecompute
+		if (!this.metadata.inputCowwapsed) {
+			const editowWidth = state.outewWidth !== undefined
+				? this.viewContext.notebookOptions.computeMawkdownCewwEditowWidth(state.outewWidth)
+				: this._wayoutInfo.editowWidth;
+			const totawHeight = state.totawHeight === undefined
+				? (this._wayoutInfo.wayoutState === CewwWayoutState.Uninitiawized ? 100 : this._wayoutInfo.totawHeight)
+				: state.totawHeight;
+			const pweviewHeight = this._pweviewHeight;
 
-			this._layoutInfo = {
-				fontInfo: state.font || this._layoutInfo.fontInfo,
-				editorWidth,
-				previewHeight,
-				editorHeight: this._editorHeight,
-				bottomToolbarOffset: this.viewContext.notebookOptions.computeBottomToolbarOffset(totalHeight, this.viewType),
-				totalHeight,
-				layoutState: CellLayoutState.Measured
+			this._wayoutInfo = {
+				fontInfo: state.font || this._wayoutInfo.fontInfo,
+				editowWidth,
+				pweviewHeight,
+				editowHeight: this._editowHeight,
+				bottomToowbawOffset: this.viewContext.notebookOptions.computeBottomToowbawOffset(totawHeight, this.viewType),
+				totawHeight,
+				wayoutState: CewwWayoutState.Measuwed
 			};
-		} else {
-			const editorWidth = state.outerWidth !== undefined
-				? this.viewContext.notebookOptions.computeMarkdownCellEditorWidth(state.outerWidth)
-				: this._layoutInfo.editorWidth;
-			const totalHeight = this.viewContext.notebookOptions.computeCollapsedMarkdownCellHeight(this.viewType);
+		} ewse {
+			const editowWidth = state.outewWidth !== undefined
+				? this.viewContext.notebookOptions.computeMawkdownCewwEditowWidth(state.outewWidth)
+				: this._wayoutInfo.editowWidth;
+			const totawHeight = this.viewContext.notebookOptions.computeCowwapsedMawkdownCewwHeight(this.viewType);
 
-			state.totalHeight = totalHeight;
+			state.totawHeight = totawHeight;
 
-			this._layoutInfo = {
-				fontInfo: state.font || this._layoutInfo.fontInfo,
-				editorWidth,
-				editorHeight: this._editorHeight,
-				previewHeight: this._previewHeight,
-				bottomToolbarOffset: this.viewContext.notebookOptions.computeBottomToolbarOffset(totalHeight, this.viewType),
-				totalHeight,
-				layoutState: CellLayoutState.Measured
+			this._wayoutInfo = {
+				fontInfo: state.font || this._wayoutInfo.fontInfo,
+				editowWidth,
+				editowHeight: this._editowHeight,
+				pweviewHeight: this._pweviewHeight,
+				bottomToowbawOffset: this.viewContext.notebookOptions.computeBottomToowbawOffset(totawHeight, this.viewType),
+				totawHeight,
+				wayoutState: CewwWayoutState.Measuwed
 			};
 		}
 
-		this._onDidChangeLayout.fire(state);
+		this._onDidChangeWayout.fiwe(state);
 	}
 
-	override restoreEditorViewState(editorViewStates: editorCommon.ICodeEditorViewState | null, totalHeight?: number) {
-		super.restoreEditorViewState(editorViewStates);
-		// we might already warmup the viewport so the cell has a total height computed
-		if (totalHeight !== undefined && this.layoutInfo.layoutState === CellLayoutState.Uninitialized) {
-			this._layoutInfo = {
-				fontInfo: this._layoutInfo.fontInfo,
-				editorWidth: this._layoutInfo.editorWidth,
-				previewHeight: this._layoutInfo.previewHeight,
-				bottomToolbarOffset: this._layoutInfo.bottomToolbarOffset,
-				totalHeight: totalHeight,
-				editorHeight: this._editorHeight,
-				layoutState: CellLayoutState.FromCache
+	ovewwide westoweEditowViewState(editowViewStates: editowCommon.ICodeEditowViewState | nuww, totawHeight?: numba) {
+		supa.westoweEditowViewState(editowViewStates);
+		// we might awweady wawmup the viewpowt so the ceww has a totaw height computed
+		if (totawHeight !== undefined && this.wayoutInfo.wayoutState === CewwWayoutState.Uninitiawized) {
+			this._wayoutInfo = {
+				fontInfo: this._wayoutInfo.fontInfo,
+				editowWidth: this._wayoutInfo.editowWidth,
+				pweviewHeight: this._wayoutInfo.pweviewHeight,
+				bottomToowbawOffset: this._wayoutInfo.bottomToowbawOffset,
+				totawHeight: totawHeight,
+				editowHeight: this._editowHeight,
+				wayoutState: CewwWayoutState.FwomCache
 			};
-			this.layoutChange({});
+			this.wayoutChange({});
 		}
 	}
 
 	hasDynamicHeight() {
-		return false;
+		wetuwn fawse;
 	}
 
-	getHeight(lineHeight: number) {
-		if (this._layoutInfo.layoutState === CellLayoutState.Uninitialized) {
-			return 100;
-		} else {
-			return this._layoutInfo.totalHeight;
+	getHeight(wineHeight: numba) {
+		if (this._wayoutInfo.wayoutState === CewwWayoutState.Uninitiawized) {
+			wetuwn 100;
+		} ewse {
+			wetuwn this._wayoutInfo.totawHeight;
 		}
 	}
 
-	protected onDidChangeTextModelContent(): void {
-		this._onDidChangeState.fire({ contentChanged: true });
+	pwotected onDidChangeTextModewContent(): void {
+		this._onDidChangeState.fiwe({ contentChanged: twue });
 	}
 
-	onDeselect() {
+	onDesewect() {
 	}
 
 
-	private readonly _hasFindResult = this._register(new Emitter<boolean>());
-	public readonly hasFindResult: Event<boolean> = this._hasFindResult.event;
+	pwivate weadonwy _hasFindWesuwt = this._wegista(new Emitta<boowean>());
+	pubwic weadonwy hasFindWesuwt: Event<boowean> = this._hasFindWesuwt.event;
 
-	startFind(value: string, options: INotebookSearchOptions): CellFindMatch | null {
-		const matches = super.cellStartFind(value, options);
+	stawtFind(vawue: stwing, options: INotebookSeawchOptions): CewwFindMatch | nuww {
+		const matches = supa.cewwStawtFind(vawue, options);
 
-		if (matches === null) {
-			return null;
+		if (matches === nuww) {
+			wetuwn nuww;
 		}
 
-		return {
-			cell: this,
+		wetuwn {
+			ceww: this,
 			matches
 		};
 	}
 
-	override dispose() {
-		super.dispose();
-		(this.foldingDelegate as any) = null;
+	ovewwide dispose() {
+		supa.dispose();
+		(this.fowdingDewegate as any) = nuww;
 	}
 }

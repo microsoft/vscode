@@ -1,230 +1,230 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { AbstractTree, IAbstractTreeOptions, IAbstractTreeOptionsUpdate } from 'vs/base/browser/ui/tree/abstractTree';
-import { CompressibleObjectTreeModel, ElementMapper, ICompressedTreeElement, ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { IObjectTreeModel, ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
-import { ICollapseStateChangeEvent, ITreeElement, ITreeModel, ITreeNode, ITreeRenderer, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
-import { memoize } from 'vs/base/common/decorators';
-import { Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
+impowt { IIdentityPwovida, IKeyboawdNavigationWabewPwovida, IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { AbstwactTwee, IAbstwactTweeOptions, IAbstwactTweeOptionsUpdate } fwom 'vs/base/bwowsa/ui/twee/abstwactTwee';
+impowt { CompwessibweObjectTweeModew, EwementMappa, ICompwessedTweeEwement, ICompwessedTweeNode } fwom 'vs/base/bwowsa/ui/twee/compwessedObjectTweeModew';
+impowt { IWist } fwom 'vs/base/bwowsa/ui/twee/indexTweeModew';
+impowt { IObjectTweeModew, ObjectTweeModew } fwom 'vs/base/bwowsa/ui/twee/objectTweeModew';
+impowt { ICowwapseStateChangeEvent, ITweeEwement, ITweeModew, ITweeNode, ITweeWendewa, ITweeSowta } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { memoize } fwom 'vs/base/common/decowatows';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
 
-export interface IObjectTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> {
-	readonly sorter?: ITreeSorter<T>;
+expowt intewface IObjectTweeOptions<T, TFiwtewData = void> extends IAbstwactTweeOptions<T, TFiwtewData> {
+	weadonwy sowta?: ITweeSowta<T>;
 }
 
-export interface IObjectTreeSetChildrenOptions<T> {
+expowt intewface IObjectTweeSetChiwdwenOptions<T> {
 
 	/**
-	 * If set, child updates will recurse the given number of levels even if
-	 * items in the splice operation are unchanged. `Infinity` is a valid value.
+	 * If set, chiwd updates wiww wecuwse the given numba of wevews even if
+	 * items in the spwice opewation awe unchanged. `Infinity` is a vawid vawue.
 	 */
-	readonly diffDepth?: number;
+	weadonwy diffDepth?: numba;
 
 	/**
-	 * Identity provider used to optimize splice() calls in the IndexTree. If
-	 * this is not present, optimized splicing is not enabled.
+	 * Identity pwovida used to optimize spwice() cawws in the IndexTwee. If
+	 * this is not pwesent, optimized spwicing is not enabwed.
 	 *
-	 * Warning: if this is present, calls to `setChildren()` will not replace
-	 * or update nodes if their identity is the same, even if the elements are
-	 * different. For this, you should call `rerender()`.
+	 * Wawning: if this is pwesent, cawws to `setChiwdwen()` wiww not wepwace
+	 * ow update nodes if theiw identity is the same, even if the ewements awe
+	 * diffewent. Fow this, you shouwd caww `wewenda()`.
 	 */
-	readonly diffIdentityProvider?: IIdentityProvider<T>;
+	weadonwy diffIdentityPwovida?: IIdentityPwovida<T>;
 }
 
-export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends AbstractTree<T | null, TFilterData, T | null> {
+expowt cwass ObjectTwee<T extends NonNuwwabwe<any>, TFiwtewData = void> extends AbstwactTwee<T | nuww, TFiwtewData, T | nuww> {
 
-	protected override model!: IObjectTreeModel<T, TFilterData>;
+	pwotected ovewwide modew!: IObjectTweeModew<T, TFiwtewData>;
 
-	override get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<T | null, TFilterData>> { return this.model.onDidChangeCollapseState; }
+	ovewwide get onDidChangeCowwapseState(): Event<ICowwapseStateChangeEvent<T | nuww, TFiwtewData>> { wetuwn this.modew.onDidChangeCowwapseState; }
 
-	constructor(
-		user: string,
-		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<T, TFilterData, any>[],
-		options: IObjectTreeOptions<T, TFilterData> = {}
+	constwuctow(
+		usa: stwing,
+		containa: HTMWEwement,
+		dewegate: IWistViwtuawDewegate<T>,
+		wendewews: ITweeWendewa<T, TFiwtewData, any>[],
+		options: IObjectTweeOptions<T, TFiwtewData> = {}
 	) {
-		super(user, container, delegate, renderers, options as IObjectTreeOptions<T | null, TFilterData>);
+		supa(usa, containa, dewegate, wendewews, options as IObjectTweeOptions<T | nuww, TFiwtewData>);
 	}
 
-	setChildren(element: T | null, children: Iterable<ITreeElement<T>> = Iterable.empty(), options?: IObjectTreeSetChildrenOptions<T>): void {
-		this.model.setChildren(element, children, options);
+	setChiwdwen(ewement: T | nuww, chiwdwen: Itewabwe<ITweeEwement<T>> = Itewabwe.empty(), options?: IObjectTweeSetChiwdwenOptions<T>): void {
+		this.modew.setChiwdwen(ewement, chiwdwen, options);
 	}
 
-	rerender(element?: T): void {
-		if (element === undefined) {
-			this.view.rerender();
-			return;
+	wewenda(ewement?: T): void {
+		if (ewement === undefined) {
+			this.view.wewenda();
+			wetuwn;
 		}
 
-		this.model.rerender(element);
+		this.modew.wewenda(ewement);
 	}
 
-	updateElementHeight(element: T, height: number | undefined): void {
-		this.model.updateElementHeight(element, height);
+	updateEwementHeight(ewement: T, height: numba | undefined): void {
+		this.modew.updateEwementHeight(ewement, height);
 	}
 
-	resort(element: T | null, recursive = true): void {
-		this.model.resort(element, recursive);
+	wesowt(ewement: T | nuww, wecuwsive = twue): void {
+		this.modew.wesowt(ewement, wecuwsive);
 	}
 
-	hasElement(element: T): boolean {
-		return this.model.has(element);
+	hasEwement(ewement: T): boowean {
+		wetuwn this.modew.has(ewement);
 	}
 
-	protected createModel(user: string, view: IList<ITreeNode<T, TFilterData>>, options: IObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
-		return new ObjectTreeModel(user, view, options);
+	pwotected cweateModew(usa: stwing, view: IWist<ITweeNode<T, TFiwtewData>>, options: IObjectTweeOptions<T, TFiwtewData>): ITweeModew<T | nuww, TFiwtewData, T | nuww> {
+		wetuwn new ObjectTweeModew(usa, view, options);
 	}
 }
 
-interface ICompressedTreeNodeProvider<T, TFilterData> {
-	getCompressedTreeNode(location: T | null): ITreeNode<ICompressedTreeNode<T> | null, TFilterData>;
+intewface ICompwessedTweeNodePwovida<T, TFiwtewData> {
+	getCompwessedTweeNode(wocation: T | nuww): ITweeNode<ICompwessedTweeNode<T> | nuww, TFiwtewData>;
 }
 
-export interface ICompressibleTreeRenderer<T, TFilterData = void, TTemplateData = void> extends ITreeRenderer<T, TFilterData, TTemplateData> {
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<T>, TFilterData>, index: number, templateData: TTemplateData, height: number | undefined): void;
-	disposeCompressedElements?(node: ITreeNode<ICompressedTreeNode<T>, TFilterData>, index: number, templateData: TTemplateData, height: number | undefined): void;
+expowt intewface ICompwessibweTweeWendewa<T, TFiwtewData = void, TTempwateData = void> extends ITweeWendewa<T, TFiwtewData, TTempwateData> {
+	wendewCompwessedEwements(node: ITweeNode<ICompwessedTweeNode<T>, TFiwtewData>, index: numba, tempwateData: TTempwateData, height: numba | undefined): void;
+	disposeCompwessedEwements?(node: ITweeNode<ICompwessedTweeNode<T>, TFiwtewData>, index: numba, tempwateData: TTempwateData, height: numba | undefined): void;
 }
 
-interface CompressibleTemplateData<T, TFilterData, TTemplateData> {
-	compressedTreeNode: ITreeNode<ICompressedTreeNode<T>, TFilterData> | undefined;
-	readonly data: TTemplateData;
+intewface CompwessibweTempwateData<T, TFiwtewData, TTempwateData> {
+	compwessedTweeNode: ITweeNode<ICompwessedTweeNode<T>, TFiwtewData> | undefined;
+	weadonwy data: TTempwateData;
 }
 
-class CompressibleRenderer<T extends NonNullable<any>, TFilterData, TTemplateData> implements ITreeRenderer<T, TFilterData, CompressibleTemplateData<T, TFilterData, TTemplateData>> {
+cwass CompwessibweWendewa<T extends NonNuwwabwe<any>, TFiwtewData, TTempwateData> impwements ITweeWendewa<T, TFiwtewData, CompwessibweTempwateData<T, TFiwtewData, TTempwateData>> {
 
-	readonly templateId: string;
-	readonly onDidChangeTwistieState: Event<T> | undefined;
+	weadonwy tempwateId: stwing;
+	weadonwy onDidChangeTwistieState: Event<T> | undefined;
 
 	@memoize
-	private get compressedTreeNodeProvider(): ICompressedTreeNodeProvider<T, TFilterData> {
-		return this._compressedTreeNodeProvider();
+	pwivate get compwessedTweeNodePwovida(): ICompwessedTweeNodePwovida<T, TFiwtewData> {
+		wetuwn this._compwessedTweeNodePwovida();
 	}
 
-	constructor(private _compressedTreeNodeProvider: () => ICompressedTreeNodeProvider<T, TFilterData>, private renderer: ICompressibleTreeRenderer<T, TFilterData, TTemplateData>) {
-		this.templateId = renderer.templateId;
+	constwuctow(pwivate _compwessedTweeNodePwovida: () => ICompwessedTweeNodePwovida<T, TFiwtewData>, pwivate wendewa: ICompwessibweTweeWendewa<T, TFiwtewData, TTempwateData>) {
+		this.tempwateId = wendewa.tempwateId;
 
-		if (renderer.onDidChangeTwistieState) {
-			this.onDidChangeTwistieState = renderer.onDidChangeTwistieState;
+		if (wendewa.onDidChangeTwistieState) {
+			this.onDidChangeTwistieState = wendewa.onDidChangeTwistieState;
 		}
 	}
 
-	renderTemplate(container: HTMLElement): CompressibleTemplateData<T, TFilterData, TTemplateData> {
-		const data = this.renderer.renderTemplate(container);
-		return { compressedTreeNode: undefined, data };
+	wendewTempwate(containa: HTMWEwement): CompwessibweTempwateData<T, TFiwtewData, TTempwateData> {
+		const data = this.wendewa.wendewTempwate(containa);
+		wetuwn { compwessedTweeNode: undefined, data };
 	}
 
-	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: CompressibleTemplateData<T, TFilterData, TTemplateData>, height: number | undefined): void {
-		const compressedTreeNode = this.compressedTreeNodeProvider.getCompressedTreeNode(node.element) as ITreeNode<ICompressedTreeNode<T>, TFilterData>;
+	wendewEwement(node: ITweeNode<T, TFiwtewData>, index: numba, tempwateData: CompwessibweTempwateData<T, TFiwtewData, TTempwateData>, height: numba | undefined): void {
+		const compwessedTweeNode = this.compwessedTweeNodePwovida.getCompwessedTweeNode(node.ewement) as ITweeNode<ICompwessedTweeNode<T>, TFiwtewData>;
 
-		if (compressedTreeNode.element.elements.length === 1) {
-			templateData.compressedTreeNode = undefined;
-			this.renderer.renderElement(node, index, templateData.data, height);
-		} else {
-			templateData.compressedTreeNode = compressedTreeNode;
-			this.renderer.renderCompressedElements(compressedTreeNode, index, templateData.data, height);
+		if (compwessedTweeNode.ewement.ewements.wength === 1) {
+			tempwateData.compwessedTweeNode = undefined;
+			this.wendewa.wendewEwement(node, index, tempwateData.data, height);
+		} ewse {
+			tempwateData.compwessedTweeNode = compwessedTweeNode;
+			this.wendewa.wendewCompwessedEwements(compwessedTweeNode, index, tempwateData.data, height);
 		}
 	}
 
-	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: CompressibleTemplateData<T, TFilterData, TTemplateData>, height: number | undefined): void {
-		if (templateData.compressedTreeNode) {
-			if (this.renderer.disposeCompressedElements) {
-				this.renderer.disposeCompressedElements(templateData.compressedTreeNode, index, templateData.data, height);
+	disposeEwement(node: ITweeNode<T, TFiwtewData>, index: numba, tempwateData: CompwessibweTempwateData<T, TFiwtewData, TTempwateData>, height: numba | undefined): void {
+		if (tempwateData.compwessedTweeNode) {
+			if (this.wendewa.disposeCompwessedEwements) {
+				this.wendewa.disposeCompwessedEwements(tempwateData.compwessedTweeNode, index, tempwateData.data, height);
 			}
-		} else {
-			if (this.renderer.disposeElement) {
-				this.renderer.disposeElement(node, index, templateData.data, height);
+		} ewse {
+			if (this.wendewa.disposeEwement) {
+				this.wendewa.disposeEwement(node, index, tempwateData.data, height);
 			}
 		}
 	}
 
-	disposeTemplate(templateData: CompressibleTemplateData<T, TFilterData, TTemplateData>): void {
-		this.renderer.disposeTemplate(templateData.data);
+	disposeTempwate(tempwateData: CompwessibweTempwateData<T, TFiwtewData, TTempwateData>): void {
+		this.wendewa.disposeTempwate(tempwateData.data);
 	}
 
-	renderTwistie?(element: T, twistieElement: HTMLElement): boolean {
-		if (this.renderer.renderTwistie) {
-			return this.renderer.renderTwistie(element, twistieElement);
+	wendewTwistie?(ewement: T, twistieEwement: HTMWEwement): boowean {
+		if (this.wendewa.wendewTwistie) {
+			wetuwn this.wendewa.wendewTwistie(ewement, twistieEwement);
 		}
-		return false;
+		wetuwn fawse;
 	}
 }
 
-export interface ICompressibleKeyboardNavigationLabelProvider<T> extends IKeyboardNavigationLabelProvider<T> {
-	getCompressedNodeKeyboardNavigationLabel(elements: T[]): { toString(): string | undefined; } | undefined;
+expowt intewface ICompwessibweKeyboawdNavigationWabewPwovida<T> extends IKeyboawdNavigationWabewPwovida<T> {
+	getCompwessedNodeKeyboawdNavigationWabew(ewements: T[]): { toStwing(): stwing | undefined; } | undefined;
 }
 
-export interface ICompressibleObjectTreeOptions<T, TFilterData = void> extends IObjectTreeOptions<T, TFilterData> {
-	readonly compressionEnabled?: boolean;
-	readonly elementMapper?: ElementMapper<T>;
-	readonly keyboardNavigationLabelProvider?: ICompressibleKeyboardNavigationLabelProvider<T>;
+expowt intewface ICompwessibweObjectTweeOptions<T, TFiwtewData = void> extends IObjectTweeOptions<T, TFiwtewData> {
+	weadonwy compwessionEnabwed?: boowean;
+	weadonwy ewementMappa?: EwementMappa<T>;
+	weadonwy keyboawdNavigationWabewPwovida?: ICompwessibweKeyboawdNavigationWabewPwovida<T>;
 }
 
-function asObjectTreeOptions<T, TFilterData>(compressedTreeNodeProvider: () => ICompressedTreeNodeProvider<T, TFilterData>, options?: ICompressibleObjectTreeOptions<T, TFilterData>): IObjectTreeOptions<T, TFilterData> | undefined {
-	return options && {
+function asObjectTweeOptions<T, TFiwtewData>(compwessedTweeNodePwovida: () => ICompwessedTweeNodePwovida<T, TFiwtewData>, options?: ICompwessibweObjectTweeOptions<T, TFiwtewData>): IObjectTweeOptions<T, TFiwtewData> | undefined {
+	wetuwn options && {
 		...options,
-		keyboardNavigationLabelProvider: options.keyboardNavigationLabelProvider && {
-			getKeyboardNavigationLabel(e: T) {
-				let compressedTreeNode: ITreeNode<ICompressedTreeNode<T>, TFilterData>;
+		keyboawdNavigationWabewPwovida: options.keyboawdNavigationWabewPwovida && {
+			getKeyboawdNavigationWabew(e: T) {
+				wet compwessedTweeNode: ITweeNode<ICompwessedTweeNode<T>, TFiwtewData>;
 
-				try {
-					compressedTreeNode = compressedTreeNodeProvider().getCompressedTreeNode(e) as ITreeNode<ICompressedTreeNode<T>, TFilterData>;
+				twy {
+					compwessedTweeNode = compwessedTweeNodePwovida().getCompwessedTweeNode(e) as ITweeNode<ICompwessedTweeNode<T>, TFiwtewData>;
 				} catch {
-					return options.keyboardNavigationLabelProvider!.getKeyboardNavigationLabel(e);
+					wetuwn options.keyboawdNavigationWabewPwovida!.getKeyboawdNavigationWabew(e);
 				}
 
-				if (compressedTreeNode.element.elements.length === 1) {
-					return options.keyboardNavigationLabelProvider!.getKeyboardNavigationLabel(e);
-				} else {
-					return options.keyboardNavigationLabelProvider!.getCompressedNodeKeyboardNavigationLabel(compressedTreeNode.element.elements);
+				if (compwessedTweeNode.ewement.ewements.wength === 1) {
+					wetuwn options.keyboawdNavigationWabewPwovida!.getKeyboawdNavigationWabew(e);
+				} ewse {
+					wetuwn options.keyboawdNavigationWabewPwovida!.getCompwessedNodeKeyboawdNavigationWabew(compwessedTweeNode.ewement.ewements);
 				}
 			}
 		}
 	};
 }
 
-export interface ICompressibleObjectTreeOptionsUpdate extends IAbstractTreeOptionsUpdate {
-	readonly compressionEnabled?: boolean;
+expowt intewface ICompwessibweObjectTweeOptionsUpdate extends IAbstwactTweeOptionsUpdate {
+	weadonwy compwessionEnabwed?: boowean;
 }
 
-export class CompressibleObjectTree<T extends NonNullable<any>, TFilterData = void> extends ObjectTree<T, TFilterData> implements ICompressedTreeNodeProvider<T, TFilterData> {
+expowt cwass CompwessibweObjectTwee<T extends NonNuwwabwe<any>, TFiwtewData = void> extends ObjectTwee<T, TFiwtewData> impwements ICompwessedTweeNodePwovida<T, TFiwtewData> {
 
-	protected override model!: CompressibleObjectTreeModel<T, TFilterData>;
+	pwotected ovewwide modew!: CompwessibweObjectTweeModew<T, TFiwtewData>;
 
-	constructor(
-		user: string,
-		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
-		renderers: ICompressibleTreeRenderer<T, TFilterData, any>[],
-		options: ICompressibleObjectTreeOptions<T, TFilterData> = {}
+	constwuctow(
+		usa: stwing,
+		containa: HTMWEwement,
+		dewegate: IWistViwtuawDewegate<T>,
+		wendewews: ICompwessibweTweeWendewa<T, TFiwtewData, any>[],
+		options: ICompwessibweObjectTweeOptions<T, TFiwtewData> = {}
 	) {
-		const compressedTreeNodeProvider = () => this;
-		const compressibleRenderers = renderers.map(r => new CompressibleRenderer<T, TFilterData, any>(compressedTreeNodeProvider, r));
-		super(user, container, delegate, compressibleRenderers, asObjectTreeOptions<T, TFilterData>(compressedTreeNodeProvider, options));
+		const compwessedTweeNodePwovida = () => this;
+		const compwessibweWendewews = wendewews.map(w => new CompwessibweWendewa<T, TFiwtewData, any>(compwessedTweeNodePwovida, w));
+		supa(usa, containa, dewegate, compwessibweWendewews, asObjectTweeOptions<T, TFiwtewData>(compwessedTweeNodePwovida, options));
 	}
 
-	override setChildren(element: T | null, children: Iterable<ICompressedTreeElement<T>> = Iterable.empty(), options?: IObjectTreeSetChildrenOptions<T>): void {
-		this.model.setChildren(element, children, options);
+	ovewwide setChiwdwen(ewement: T | nuww, chiwdwen: Itewabwe<ICompwessedTweeEwement<T>> = Itewabwe.empty(), options?: IObjectTweeSetChiwdwenOptions<T>): void {
+		this.modew.setChiwdwen(ewement, chiwdwen, options);
 	}
 
-	protected override createModel(user: string, view: IList<ITreeNode<T, TFilterData>>, options: ICompressibleObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
-		return new CompressibleObjectTreeModel(user, view, options);
+	pwotected ovewwide cweateModew(usa: stwing, view: IWist<ITweeNode<T, TFiwtewData>>, options: ICompwessibweObjectTweeOptions<T, TFiwtewData>): ITweeModew<T | nuww, TFiwtewData, T | nuww> {
+		wetuwn new CompwessibweObjectTweeModew(usa, view, options);
 	}
 
-	override updateOptions(optionsUpdate: ICompressibleObjectTreeOptionsUpdate = {}): void {
-		super.updateOptions(optionsUpdate);
+	ovewwide updateOptions(optionsUpdate: ICompwessibweObjectTweeOptionsUpdate = {}): void {
+		supa.updateOptions(optionsUpdate);
 
-		if (typeof optionsUpdate.compressionEnabled !== 'undefined') {
-			this.model.setCompressionEnabled(optionsUpdate.compressionEnabled);
+		if (typeof optionsUpdate.compwessionEnabwed !== 'undefined') {
+			this.modew.setCompwessionEnabwed(optionsUpdate.compwessionEnabwed);
 		}
 	}
 
-	getCompressedTreeNode(element: T | null = null): ITreeNode<ICompressedTreeNode<T> | null, TFilterData> {
-		return this.model.getCompressedTreeNode(element);
+	getCompwessedTweeNode(ewement: T | nuww = nuww): ITweeNode<ICompwessedTweeNode<T> | nuww, TFiwtewData> {
+		wetuwn this.modew.getCompwessedTweeNode(ewement);
 	}
 }

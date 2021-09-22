@@ -1,22 +1,22 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import './menuPreventer';
-import './accessibility/accessibility';
-import './diffEditorHelper';
-import './inspectKeybindings';
-import './largeFileOptimizations';
-import './inspectEditorTokens/inspectEditorTokens';
-import './quickaccess/gotoLineQuickAccess';
-import './quickaccess/gotoSymbolQuickAccess';
-import './saveParticipants';
-import './toggleColumnSelection';
-import './toggleMinimap';
-import './toggleMultiCursorModifier';
-import './toggleRenderControlCharacter';
-import './toggleRenderWhitespace';
-import './toggleWordWrap';
-import './untitledTextEditorHint';
-import './workbenchReferenceSearch';
+impowt './menuPweventa';
+impowt './accessibiwity/accessibiwity';
+impowt './diffEditowHewpa';
+impowt './inspectKeybindings';
+impowt './wawgeFiweOptimizations';
+impowt './inspectEditowTokens/inspectEditowTokens';
+impowt './quickaccess/gotoWineQuickAccess';
+impowt './quickaccess/gotoSymbowQuickAccess';
+impowt './savePawticipants';
+impowt './toggweCowumnSewection';
+impowt './toggweMinimap';
+impowt './toggweMuwtiCuwsowModifia';
+impowt './toggweWendewContwowChawacta';
+impowt './toggweWendewWhitespace';
+impowt './toggweWowdWwap';
+impowt './untitwedTextEditowHint';
+impowt './wowkbenchWefewenceSeawch';

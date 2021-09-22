@@ -1,139 +1,139 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { CONTEXT_EXPRESSION_SELECTED, IViewModel, IStackFrame, IDebugSession, IThread, IExpression, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_RESTART_FRAME_SUPPORTED, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, CONTEXT_SET_VARIABLE_SUPPORTED, CONTEXT_MULTI_SESSION_DEBUG, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED, CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE, CONTEXT_SET_EXPRESSION_SUPPORTED } from 'vs/workbench/contrib/debug/common/debug';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { isSessionAttach } from 'vs/workbench/contrib/debug/common/debugUtils';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { CONTEXT_EXPWESSION_SEWECTED, IViewModew, IStackFwame, IDebugSession, IThwead, IExpwession, CONTEXT_WOADED_SCWIPTS_SUPPOWTED, CONTEXT_STEP_BACK_SUPPOWTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_WESTAWT_FWAME_SUPPOWTED, CONTEXT_JUMP_TO_CUWSOW_SUPPOWTED, CONTEXT_STEP_INTO_TAWGETS_SUPPOWTED, CONTEXT_SET_VAWIABWE_SUPPOWTED, CONTEXT_MUWTI_SESSION_DEBUG, CONTEXT_TEWMINATE_DEBUGGEE_SUPPOWTED, CONTEXT_DISASSEMBWE_WEQUEST_SUPPOWTED, CONTEXT_FOCUSED_STACK_FWAME_HAS_INSTWUCTION_POINTEW_WEFEWENCE, CONTEXT_SET_EXPWESSION_SUPPOWTED } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { IContextKeySewvice, IContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { isSessionAttach } fwom 'vs/wowkbench/contwib/debug/common/debugUtiws';
 
-export class ViewModel implements IViewModel {
+expowt cwass ViewModew impwements IViewModew {
 
-	firstSessionStart = true;
+	fiwstSessionStawt = twue;
 
-	private _focusedStackFrame: IStackFrame | undefined;
-	private _focusedSession: IDebugSession | undefined;
-	private _focusedThread: IThread | undefined;
-	private selectedExpression: { expression: IExpression; settingWatch: boolean } | undefined;
-	private readonly _onDidFocusSession = new Emitter<IDebugSession | undefined>();
-	private readonly _onDidFocusStackFrame = new Emitter<{ stackFrame: IStackFrame | undefined, explicit: boolean }>();
-	private readonly _onDidSelectExpression = new Emitter<{ expression: IExpression; settingWatch: boolean } | undefined>();
-	private readonly _onWillUpdateViews = new Emitter<void>();
-	private expressionSelectedContextKey!: IContextKey<boolean>;
-	private loadedScriptsSupportedContextKey!: IContextKey<boolean>;
-	private stepBackSupportedContextKey!: IContextKey<boolean>;
-	private focusedSessionIsAttach!: IContextKey<boolean>;
-	private restartFrameSupportedContextKey!: IContextKey<boolean>;
-	private stepIntoTargetsSupported!: IContextKey<boolean>;
-	private jumpToCursorSupported!: IContextKey<boolean>;
-	private setVariableSupported!: IContextKey<boolean>;
-	private setExpressionSupported!: IContextKey<boolean>;
-	private multiSessionDebug!: IContextKey<boolean>;
-	private terminateDebuggeeSuported!: IContextKey<boolean>;
-	private disassembleRequestSupported!: IContextKey<boolean>;
-	private focusedStackFrameHasInstructionPointerReference!: IContextKey<Boolean>;
+	pwivate _focusedStackFwame: IStackFwame | undefined;
+	pwivate _focusedSession: IDebugSession | undefined;
+	pwivate _focusedThwead: IThwead | undefined;
+	pwivate sewectedExpwession: { expwession: IExpwession; settingWatch: boowean } | undefined;
+	pwivate weadonwy _onDidFocusSession = new Emitta<IDebugSession | undefined>();
+	pwivate weadonwy _onDidFocusStackFwame = new Emitta<{ stackFwame: IStackFwame | undefined, expwicit: boowean }>();
+	pwivate weadonwy _onDidSewectExpwession = new Emitta<{ expwession: IExpwession; settingWatch: boowean } | undefined>();
+	pwivate weadonwy _onWiwwUpdateViews = new Emitta<void>();
+	pwivate expwessionSewectedContextKey!: IContextKey<boowean>;
+	pwivate woadedScwiptsSuppowtedContextKey!: IContextKey<boowean>;
+	pwivate stepBackSuppowtedContextKey!: IContextKey<boowean>;
+	pwivate focusedSessionIsAttach!: IContextKey<boowean>;
+	pwivate westawtFwameSuppowtedContextKey!: IContextKey<boowean>;
+	pwivate stepIntoTawgetsSuppowted!: IContextKey<boowean>;
+	pwivate jumpToCuwsowSuppowted!: IContextKey<boowean>;
+	pwivate setVawiabweSuppowted!: IContextKey<boowean>;
+	pwivate setExpwessionSuppowted!: IContextKey<boowean>;
+	pwivate muwtiSessionDebug!: IContextKey<boowean>;
+	pwivate tewminateDebuggeeSupowted!: IContextKey<boowean>;
+	pwivate disassembweWequestSuppowted!: IContextKey<boowean>;
+	pwivate focusedStackFwameHasInstwuctionPointewWefewence!: IContextKey<Boowean>;
 
-	constructor(private contextKeyService: IContextKeyService) {
-		contextKeyService.bufferChangeEvents(() => {
-			this.expressionSelectedContextKey = CONTEXT_EXPRESSION_SELECTED.bindTo(contextKeyService);
-			this.loadedScriptsSupportedContextKey = CONTEXT_LOADED_SCRIPTS_SUPPORTED.bindTo(contextKeyService);
-			this.stepBackSupportedContextKey = CONTEXT_STEP_BACK_SUPPORTED.bindTo(contextKeyService);
-			this.focusedSessionIsAttach = CONTEXT_FOCUSED_SESSION_IS_ATTACH.bindTo(contextKeyService);
-			this.restartFrameSupportedContextKey = CONTEXT_RESTART_FRAME_SUPPORTED.bindTo(contextKeyService);
-			this.stepIntoTargetsSupported = CONTEXT_STEP_INTO_TARGETS_SUPPORTED.bindTo(contextKeyService);
-			this.jumpToCursorSupported = CONTEXT_JUMP_TO_CURSOR_SUPPORTED.bindTo(contextKeyService);
-			this.setVariableSupported = CONTEXT_SET_VARIABLE_SUPPORTED.bindTo(contextKeyService);
-			this.setExpressionSupported = CONTEXT_SET_EXPRESSION_SUPPORTED.bindTo(contextKeyService);
-			this.multiSessionDebug = CONTEXT_MULTI_SESSION_DEBUG.bindTo(contextKeyService);
-			this.terminateDebuggeeSuported = CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED.bindTo(contextKeyService);
-			this.disassembleRequestSupported = CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED.bindTo(contextKeyService);
-			this.focusedStackFrameHasInstructionPointerReference = CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE.bindTo(contextKeyService);
+	constwuctow(pwivate contextKeySewvice: IContextKeySewvice) {
+		contextKeySewvice.buffewChangeEvents(() => {
+			this.expwessionSewectedContextKey = CONTEXT_EXPWESSION_SEWECTED.bindTo(contextKeySewvice);
+			this.woadedScwiptsSuppowtedContextKey = CONTEXT_WOADED_SCWIPTS_SUPPOWTED.bindTo(contextKeySewvice);
+			this.stepBackSuppowtedContextKey = CONTEXT_STEP_BACK_SUPPOWTED.bindTo(contextKeySewvice);
+			this.focusedSessionIsAttach = CONTEXT_FOCUSED_SESSION_IS_ATTACH.bindTo(contextKeySewvice);
+			this.westawtFwameSuppowtedContextKey = CONTEXT_WESTAWT_FWAME_SUPPOWTED.bindTo(contextKeySewvice);
+			this.stepIntoTawgetsSuppowted = CONTEXT_STEP_INTO_TAWGETS_SUPPOWTED.bindTo(contextKeySewvice);
+			this.jumpToCuwsowSuppowted = CONTEXT_JUMP_TO_CUWSOW_SUPPOWTED.bindTo(contextKeySewvice);
+			this.setVawiabweSuppowted = CONTEXT_SET_VAWIABWE_SUPPOWTED.bindTo(contextKeySewvice);
+			this.setExpwessionSuppowted = CONTEXT_SET_EXPWESSION_SUPPOWTED.bindTo(contextKeySewvice);
+			this.muwtiSessionDebug = CONTEXT_MUWTI_SESSION_DEBUG.bindTo(contextKeySewvice);
+			this.tewminateDebuggeeSupowted = CONTEXT_TEWMINATE_DEBUGGEE_SUPPOWTED.bindTo(contextKeySewvice);
+			this.disassembweWequestSuppowted = CONTEXT_DISASSEMBWE_WEQUEST_SUPPOWTED.bindTo(contextKeySewvice);
+			this.focusedStackFwameHasInstwuctionPointewWefewence = CONTEXT_FOCUSED_STACK_FWAME_HAS_INSTWUCTION_POINTEW_WEFEWENCE.bindTo(contextKeySewvice);
 		});
 	}
 
-	getId(): string {
-		return 'root';
+	getId(): stwing {
+		wetuwn 'woot';
 	}
 
 	get focusedSession(): IDebugSession | undefined {
-		return this._focusedSession;
+		wetuwn this._focusedSession;
 	}
 
-	get focusedThread(): IThread | undefined {
-		return this._focusedThread;
+	get focusedThwead(): IThwead | undefined {
+		wetuwn this._focusedThwead;
 	}
 
-	get focusedStackFrame(): IStackFrame | undefined {
-		return this._focusedStackFrame;
+	get focusedStackFwame(): IStackFwame | undefined {
+		wetuwn this._focusedStackFwame;
 	}
 
-	setFocus(stackFrame: IStackFrame | undefined, thread: IThread | undefined, session: IDebugSession | undefined, explicit: boolean): void {
-		const shouldEmitForStackFrame = this._focusedStackFrame !== stackFrame;
-		const shouldEmitForSession = this._focusedSession !== session;
+	setFocus(stackFwame: IStackFwame | undefined, thwead: IThwead | undefined, session: IDebugSession | undefined, expwicit: boowean): void {
+		const shouwdEmitFowStackFwame = this._focusedStackFwame !== stackFwame;
+		const shouwdEmitFowSession = this._focusedSession !== session;
 
-		this._focusedStackFrame = stackFrame;
-		this._focusedThread = thread;
+		this._focusedStackFwame = stackFwame;
+		this._focusedThwead = thwead;
 		this._focusedSession = session;
 
-		this.contextKeyService.bufferChangeEvents(() => {
-			this.loadedScriptsSupportedContextKey.set(session ? !!session.capabilities.supportsLoadedSourcesRequest : false);
-			this.stepBackSupportedContextKey.set(session ? !!session.capabilities.supportsStepBack : false);
-			this.restartFrameSupportedContextKey.set(session ? !!session.capabilities.supportsRestartFrame : false);
-			this.stepIntoTargetsSupported.set(session ? !!session.capabilities.supportsStepInTargetsRequest : false);
-			this.jumpToCursorSupported.set(session ? !!session.capabilities.supportsGotoTargetsRequest : false);
-			this.setVariableSupported.set(session ? !!session.capabilities.supportsSetVariable : false);
-			this.setExpressionSupported.set(session ? !!session.capabilities.supportsSetExpression : false);
-			this.terminateDebuggeeSuported.set(session ? !!session.capabilities.supportTerminateDebuggee : false);
-			this.disassembleRequestSupported.set(!!session?.capabilities.supportsDisassembleRequest);
-			this.focusedStackFrameHasInstructionPointerReference.set(!!stackFrame?.instructionPointerReference);
+		this.contextKeySewvice.buffewChangeEvents(() => {
+			this.woadedScwiptsSuppowtedContextKey.set(session ? !!session.capabiwities.suppowtsWoadedSouwcesWequest : fawse);
+			this.stepBackSuppowtedContextKey.set(session ? !!session.capabiwities.suppowtsStepBack : fawse);
+			this.westawtFwameSuppowtedContextKey.set(session ? !!session.capabiwities.suppowtsWestawtFwame : fawse);
+			this.stepIntoTawgetsSuppowted.set(session ? !!session.capabiwities.suppowtsStepInTawgetsWequest : fawse);
+			this.jumpToCuwsowSuppowted.set(session ? !!session.capabiwities.suppowtsGotoTawgetsWequest : fawse);
+			this.setVawiabweSuppowted.set(session ? !!session.capabiwities.suppowtsSetVawiabwe : fawse);
+			this.setExpwessionSuppowted.set(session ? !!session.capabiwities.suppowtsSetExpwession : fawse);
+			this.tewminateDebuggeeSupowted.set(session ? !!session.capabiwities.suppowtTewminateDebuggee : fawse);
+			this.disassembweWequestSuppowted.set(!!session?.capabiwities.suppowtsDisassembweWequest);
+			this.focusedStackFwameHasInstwuctionPointewWefewence.set(!!stackFwame?.instwuctionPointewWefewence);
 			const attach = !!session && isSessionAttach(session);
 			this.focusedSessionIsAttach.set(attach);
 		});
 
-		if (shouldEmitForSession) {
-			this._onDidFocusSession.fire(session);
+		if (shouwdEmitFowSession) {
+			this._onDidFocusSession.fiwe(session);
 		}
-		if (shouldEmitForStackFrame) {
-			this._onDidFocusStackFrame.fire({ stackFrame, explicit });
+		if (shouwdEmitFowStackFwame) {
+			this._onDidFocusStackFwame.fiwe({ stackFwame, expwicit });
 		}
 	}
 
 	get onDidFocusSession(): Event<IDebugSession | undefined> {
-		return this._onDidFocusSession.event;
+		wetuwn this._onDidFocusSession.event;
 	}
 
-	get onDidFocusStackFrame(): Event<{ stackFrame: IStackFrame | undefined, explicit: boolean }> {
-		return this._onDidFocusStackFrame.event;
+	get onDidFocusStackFwame(): Event<{ stackFwame: IStackFwame | undefined, expwicit: boowean }> {
+		wetuwn this._onDidFocusStackFwame.event;
 	}
 
-	getSelectedExpression(): { expression: IExpression; settingWatch: boolean } | undefined {
-		return this.selectedExpression;
+	getSewectedExpwession(): { expwession: IExpwession; settingWatch: boowean } | undefined {
+		wetuwn this.sewectedExpwession;
 	}
 
-	setSelectedExpression(expression: IExpression | undefined, settingWatch: boolean) {
-		this.selectedExpression = expression ? { expression, settingWatch: settingWatch } : undefined;
-		this.expressionSelectedContextKey.set(!!expression);
-		this._onDidSelectExpression.fire(this.selectedExpression);
+	setSewectedExpwession(expwession: IExpwession | undefined, settingWatch: boowean) {
+		this.sewectedExpwession = expwession ? { expwession, settingWatch: settingWatch } : undefined;
+		this.expwessionSewectedContextKey.set(!!expwession);
+		this._onDidSewectExpwession.fiwe(this.sewectedExpwession);
 	}
 
-	get onDidSelectExpression(): Event<{ expression: IExpression; settingWatch: boolean } | undefined> {
-		return this._onDidSelectExpression.event;
+	get onDidSewectExpwession(): Event<{ expwession: IExpwession; settingWatch: boowean } | undefined> {
+		wetuwn this._onDidSewectExpwession.event;
 	}
 
 	updateViews(): void {
-		this._onWillUpdateViews.fire();
+		this._onWiwwUpdateViews.fiwe();
 	}
 
-	get onWillUpdateViews(): Event<void> {
-		return this._onWillUpdateViews.event;
+	get onWiwwUpdateViews(): Event<void> {
+		wetuwn this._onWiwwUpdateViews.event;
 	}
 
-	isMultiSessionView(): boolean {
-		return !!this.multiSessionDebug.get();
+	isMuwtiSessionView(): boowean {
+		wetuwn !!this.muwtiSessionDebug.get();
 	}
 
-	setMultiSessionView(isMultiSessionView: boolean): void {
-		this.multiSessionDebug.set(isMultiSessionView);
+	setMuwtiSessionView(isMuwtiSessionView: boowean): void {
+		this.muwtiSessionDebug.set(isMuwtiSessionView);
 	}
 }

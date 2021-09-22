@@ -1,183 +1,183 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+impowt * as nws fwom 'vs/nws';
 
-import { registerColor, ColorIdentifier, ColorDefaults } from 'vs/platform/theme/common/colorRegistry';
-import { EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_BORDER, TAB_ACTIVE_BORDER } from 'vs/workbench/common/theme';
+impowt { wegistewCowow, CowowIdentifia, CowowDefauwts } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { EDITOW_DWAG_AND_DWOP_BACKGWOUND, PANEW_BOWDa, TAB_ACTIVE_BOWDa } fwom 'vs/wowkbench/common/theme';
 
 /**
- * The color identifiers for the terminal's ansi colors. The index in the array corresponds to the index
- * of the color in the terminal color table.
+ * The cowow identifiews fow the tewminaw's ansi cowows. The index in the awway cowwesponds to the index
+ * of the cowow in the tewminaw cowow tabwe.
  */
-export const ansiColorIdentifiers: ColorIdentifier[] = [];
+expowt const ansiCowowIdentifiews: CowowIdentifia[] = [];
 
-export const TERMINAL_BACKGROUND_COLOR = registerColor('terminal.background', null, nls.localize('terminal.background', 'The background color of the terminal, this allows coloring the terminal differently to the panel.'));
-export const TERMINAL_FOREGROUND_COLOR = registerColor('terminal.foreground', {
-	light: '#333333',
-	dark: '#CCCCCC',
+expowt const TEWMINAW_BACKGWOUND_COWOW = wegistewCowow('tewminaw.backgwound', nuww, nws.wocawize('tewminaw.backgwound', 'The backgwound cowow of the tewminaw, this awwows cowowing the tewminaw diffewentwy to the panew.'));
+expowt const TEWMINAW_FOWEGWOUND_COWOW = wegistewCowow('tewminaw.fowegwound', {
+	wight: '#333333',
+	dawk: '#CCCCCC',
 	hc: '#FFFFFF'
-}, nls.localize('terminal.foreground', 'The foreground color of the terminal.'));
-export const TERMINAL_CURSOR_FOREGROUND_COLOR = registerColor('terminalCursor.foreground', null, nls.localize('terminalCursor.foreground', 'The foreground color of the terminal cursor.'));
-export const TERMINAL_CURSOR_BACKGROUND_COLOR = registerColor('terminalCursor.background', null, nls.localize('terminalCursor.background', 'The background color of the terminal cursor. Allows customizing the color of a character overlapped by a block cursor.'));
-export const TERMINAL_SELECTION_BACKGROUND_COLOR = registerColor('terminal.selectionBackground', {
-	light: '#00000040',
-	dark: '#FFFFFF40',
+}, nws.wocawize('tewminaw.fowegwound', 'The fowegwound cowow of the tewminaw.'));
+expowt const TEWMINAW_CUWSOW_FOWEGWOUND_COWOW = wegistewCowow('tewminawCuwsow.fowegwound', nuww, nws.wocawize('tewminawCuwsow.fowegwound', 'The fowegwound cowow of the tewminaw cuwsow.'));
+expowt const TEWMINAW_CUWSOW_BACKGWOUND_COWOW = wegistewCowow('tewminawCuwsow.backgwound', nuww, nws.wocawize('tewminawCuwsow.backgwound', 'The backgwound cowow of the tewminaw cuwsow. Awwows customizing the cowow of a chawacta ovewwapped by a bwock cuwsow.'));
+expowt const TEWMINAW_SEWECTION_BACKGWOUND_COWOW = wegistewCowow('tewminaw.sewectionBackgwound', {
+	wight: '#00000040',
+	dawk: '#FFFFFF40',
 	hc: '#FFFFFF80'
-}, nls.localize('terminal.selectionBackground', 'The selection background color of the terminal.'));
-export const TERMINAL_BORDER_COLOR = registerColor('terminal.border', {
-	dark: PANEL_BORDER,
-	light: PANEL_BORDER,
-	hc: PANEL_BORDER
-}, nls.localize('terminal.border', 'The color of the border that separates split panes within the terminal. This defaults to panel.border.'));
-export const TERMINAL_DRAG_AND_DROP_BACKGROUND = registerColor('terminal.dropBackground', {
-	dark: EDITOR_DRAG_AND_DROP_BACKGROUND,
-	light: EDITOR_DRAG_AND_DROP_BACKGROUND,
-	hc: EDITOR_DRAG_AND_DROP_BACKGROUND
-}, nls.localize('terminal.dragAndDropBackground', "Background color when dragging on top of terminals. The color should have transparency so that the terminal contents can still shine through."));
-export const TERMINAL_TAB_ACTIVE_BORDER = registerColor('terminal.tab.activeBorder', {
-	dark: TAB_ACTIVE_BORDER,
-	light: TAB_ACTIVE_BORDER,
-	hc: TAB_ACTIVE_BORDER
-}, nls.localize('terminal.tab.activeBorder', 'Border on the side of the terminal tab in the panel. This defaults to tab.activeBorder.'));
+}, nws.wocawize('tewminaw.sewectionBackgwound', 'The sewection backgwound cowow of the tewminaw.'));
+expowt const TEWMINAW_BOWDEW_COWOW = wegistewCowow('tewminaw.bowda', {
+	dawk: PANEW_BOWDa,
+	wight: PANEW_BOWDa,
+	hc: PANEW_BOWDa
+}, nws.wocawize('tewminaw.bowda', 'The cowow of the bowda that sepawates spwit panes within the tewminaw. This defauwts to panew.bowda.'));
+expowt const TEWMINAW_DWAG_AND_DWOP_BACKGWOUND = wegistewCowow('tewminaw.dwopBackgwound', {
+	dawk: EDITOW_DWAG_AND_DWOP_BACKGWOUND,
+	wight: EDITOW_DWAG_AND_DWOP_BACKGWOUND,
+	hc: EDITOW_DWAG_AND_DWOP_BACKGWOUND
+}, nws.wocawize('tewminaw.dwagAndDwopBackgwound', "Backgwound cowow when dwagging on top of tewminaws. The cowow shouwd have twanspawency so that the tewminaw contents can stiww shine thwough."));
+expowt const TEWMINAW_TAB_ACTIVE_BOWDa = wegistewCowow('tewminaw.tab.activeBowda', {
+	dawk: TAB_ACTIVE_BOWDa,
+	wight: TAB_ACTIVE_BOWDa,
+	hc: TAB_ACTIVE_BOWDa
+}, nws.wocawize('tewminaw.tab.activeBowda', 'Bowda on the side of the tewminaw tab in the panew. This defauwts to tab.activeBowda.'));
 
-export const ansiColorMap: { [key: string]: { index: number, defaults: ColorDefaults } } = {
-	'terminal.ansiBlack': {
+expowt const ansiCowowMap: { [key: stwing]: { index: numba, defauwts: CowowDefauwts } } = {
+	'tewminaw.ansiBwack': {
 		index: 0,
-		defaults: {
-			light: '#000000',
-			dark: '#000000',
+		defauwts: {
+			wight: '#000000',
+			dawk: '#000000',
 			hc: '#000000'
 		}
 	},
-	'terminal.ansiRed': {
+	'tewminaw.ansiWed': {
 		index: 1,
-		defaults: {
-			light: '#cd3131',
-			dark: '#cd3131',
+		defauwts: {
+			wight: '#cd3131',
+			dawk: '#cd3131',
 			hc: '#cd0000'
 		}
 	},
-	'terminal.ansiGreen': {
+	'tewminaw.ansiGween': {
 		index: 2,
-		defaults: {
-			light: '#00BC00',
-			dark: '#0DBC79',
+		defauwts: {
+			wight: '#00BC00',
+			dawk: '#0DBC79',
 			hc: '#00cd00'
 		}
 	},
-	'terminal.ansiYellow': {
+	'tewminaw.ansiYewwow': {
 		index: 3,
-		defaults: {
-			light: '#949800',
-			dark: '#e5e510',
+		defauwts: {
+			wight: '#949800',
+			dawk: '#e5e510',
 			hc: '#cdcd00'
 		}
 	},
-	'terminal.ansiBlue': {
+	'tewminaw.ansiBwue': {
 		index: 4,
-		defaults: {
-			light: '#0451a5',
-			dark: '#2472c8',
+		defauwts: {
+			wight: '#0451a5',
+			dawk: '#2472c8',
 			hc: '#0000ee'
 		}
 	},
-	'terminal.ansiMagenta': {
+	'tewminaw.ansiMagenta': {
 		index: 5,
-		defaults: {
-			light: '#bc05bc',
-			dark: '#bc3fbc',
+		defauwts: {
+			wight: '#bc05bc',
+			dawk: '#bc3fbc',
 			hc: '#cd00cd'
 		}
 	},
-	'terminal.ansiCyan': {
+	'tewminaw.ansiCyan': {
 		index: 6,
-		defaults: {
-			light: '#0598bc',
-			dark: '#11a8cd',
+		defauwts: {
+			wight: '#0598bc',
+			dawk: '#11a8cd',
 			hc: '#00cdcd'
 		}
 	},
-	'terminal.ansiWhite': {
+	'tewminaw.ansiWhite': {
 		index: 7,
-		defaults: {
-			light: '#555555',
-			dark: '#e5e5e5',
+		defauwts: {
+			wight: '#555555',
+			dawk: '#e5e5e5',
 			hc: '#e5e5e5'
 		}
 	},
-	'terminal.ansiBrightBlack': {
+	'tewminaw.ansiBwightBwack': {
 		index: 8,
-		defaults: {
-			light: '#666666',
-			dark: '#666666',
+		defauwts: {
+			wight: '#666666',
+			dawk: '#666666',
 			hc: '#7f7f7f'
 		}
 	},
-	'terminal.ansiBrightRed': {
+	'tewminaw.ansiBwightWed': {
 		index: 9,
-		defaults: {
-			light: '#cd3131',
-			dark: '#f14c4c',
+		defauwts: {
+			wight: '#cd3131',
+			dawk: '#f14c4c',
 			hc: '#ff0000'
 		}
 	},
-	'terminal.ansiBrightGreen': {
+	'tewminaw.ansiBwightGween': {
 		index: 10,
-		defaults: {
-			light: '#14CE14',
-			dark: '#23d18b',
+		defauwts: {
+			wight: '#14CE14',
+			dawk: '#23d18b',
 			hc: '#00ff00'
 		}
 	},
-	'terminal.ansiBrightYellow': {
+	'tewminaw.ansiBwightYewwow': {
 		index: 11,
-		defaults: {
-			light: '#b5ba00',
-			dark: '#f5f543',
+		defauwts: {
+			wight: '#b5ba00',
+			dawk: '#f5f543',
 			hc: '#ffff00'
 		}
 	},
-	'terminal.ansiBrightBlue': {
+	'tewminaw.ansiBwightBwue': {
 		index: 12,
-		defaults: {
-			light: '#0451a5',
-			dark: '#3b8eea',
+		defauwts: {
+			wight: '#0451a5',
+			dawk: '#3b8eea',
 			hc: '#5c5cff'
 		}
 	},
-	'terminal.ansiBrightMagenta': {
+	'tewminaw.ansiBwightMagenta': {
 		index: 13,
-		defaults: {
-			light: '#bc05bc',
-			dark: '#d670d6',
+		defauwts: {
+			wight: '#bc05bc',
+			dawk: '#d670d6',
 			hc: '#ff00ff'
 		}
 	},
-	'terminal.ansiBrightCyan': {
+	'tewminaw.ansiBwightCyan': {
 		index: 14,
-		defaults: {
-			light: '#0598bc',
-			dark: '#29b8db',
+		defauwts: {
+			wight: '#0598bc',
+			dawk: '#29b8db',
 			hc: '#00ffff'
 		}
 	},
-	'terminal.ansiBrightWhite': {
+	'tewminaw.ansiBwightWhite': {
 		index: 15,
-		defaults: {
-			light: '#a5a5a5',
-			dark: '#e5e5e5',
+		defauwts: {
+			wight: '#a5a5a5',
+			dawk: '#e5e5e5',
 			hc: '#ffffff'
 		}
 	}
 };
 
-export function registerColors(): void {
-	for (const id in ansiColorMap) {
-		const entry = ansiColorMap[id];
-		const colorName = id.substring(13);
-		ansiColorIdentifiers[entry.index] = registerColor(id, entry.defaults, nls.localize('terminal.ansiColor', '\'{0}\' ANSI color in the terminal.', colorName));
+expowt function wegistewCowows(): void {
+	fow (const id in ansiCowowMap) {
+		const entwy = ansiCowowMap[id];
+		const cowowName = id.substwing(13);
+		ansiCowowIdentifiews[entwy.index] = wegistewCowow(id, entwy.defauwts, nws.wocawize('tewminaw.ansiCowow', '\'{0}\' ANSI cowow in the tewminaw.', cowowName));
 	}
 }

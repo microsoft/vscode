@@ -1,13 +1,13 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+impowt { wocawize } fwom 'vs/nws';
+impowt { WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
 
-export const ActivePanelContext = new RawContextKey<string>('activePanel', '', localize('activePanel', "The identifier of the active panel"));
-export const PanelFocusContext = new RawContextKey<boolean>('panelFocus', false, localize('panelFocus', "Whether the panel has keyboard focus"));
-export const PanelPositionContext = new RawContextKey<string>('panelPosition', 'bottom', localize('panelPosition', "The position of the panel, either 'left', 'right' or 'bottom'"));
-export const PanelVisibleContext = new RawContextKey<boolean>('panelVisible', false, localize('panelVisible', "Whether the panel is visible"));
-export const PanelMaximizedContext = new RawContextKey<boolean>('panelMaximized', false, localize('panelMaximized', "Whether the panel is maximized"));
+expowt const ActivePanewContext = new WawContextKey<stwing>('activePanew', '', wocawize('activePanew', "The identifia of the active panew"));
+expowt const PanewFocusContext = new WawContextKey<boowean>('panewFocus', fawse, wocawize('panewFocus', "Whetha the panew has keyboawd focus"));
+expowt const PanewPositionContext = new WawContextKey<stwing>('panewPosition', 'bottom', wocawize('panewPosition', "The position of the panew, eitha 'weft', 'wight' ow 'bottom'"));
+expowt const PanewVisibweContext = new WawContextKey<boowean>('panewVisibwe', fawse, wocawize('panewVisibwe', "Whetha the panew is visibwe"));
+expowt const PanewMaximizedContext = new WawContextKey<boowean>('panewMaximized', fawse, wocawize('panewMaximized', "Whetha the panew is maximized"));

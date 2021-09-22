@@ -1,222 +1,222 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
-import { SingleProxyRPCProtocol } from './testRPCProtocol';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta } from 'vs/workbench/api/common/extHost.protocol';
-import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { mock } from 'vs/base/test/common/mock';
-import { TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestPathService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { Event } from 'vs/base/common/event';
-import { ITextModel } from 'vs/editor/common/model';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { TestTextResourcePropertiesService, TestWorkingCopyFileService } from 'vs/workbench/test/common/workbenchTestServices';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+impowt * as assewt fwom 'assewt';
+impowt { MainThweadDocumentsAndEditows } fwom 'vs/wowkbench/api/bwowsa/mainThweadDocumentsAndEditows';
+impowt { SingwePwoxyWPCPwotocow } fwom './testWPCPwotocow';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { ModewSewviceImpw } fwom 'vs/editow/common/sewvices/modewSewviceImpw';
+impowt { TestCodeEditowSewvice } fwom 'vs/editow/test/bwowsa/editowTestSewvices';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { ExtHostDocumentsAndEditowsShape, IDocumentsAndEditowsDewta } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { cweateTestCodeEditow, ITestCodeEditow } fwom 'vs/editow/test/bwowsa/testCodeEditow';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { TestEditowSewvice, TestEditowGwoupsSewvice, TestEnviwonmentSewvice, TestPathSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { TestThemeSewvice } fwom 'vs/pwatfowm/theme/test/common/testThemeSewvice';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { UndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedoSewvice';
+impowt { TestDiawogSewvice } fwom 'vs/pwatfowm/diawogs/test/common/testDiawogSewvice';
+impowt { TestNotificationSewvice } fwom 'vs/pwatfowm/notification/test/common/testNotificationSewvice';
+impowt { TestTextWesouwcePwopewtiesSewvice, TestWowkingCopyFiweSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { UwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentitySewvice';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
 
-suite('MainThreadDocumentsAndEditors', () => {
+suite('MainThweadDocumentsAndEditows', () => {
 
-	let modelService: ModelServiceImpl;
-	let codeEditorService: TestCodeEditorService;
-	let textFileService: ITextFileService;
-	let deltas: IDocumentsAndEditorsDelta[] = [];
-	const hugeModelString = new Array(2 + (50 * 1024 * 1024)).join('-');
+	wet modewSewvice: ModewSewviceImpw;
+	wet codeEditowSewvice: TestCodeEditowSewvice;
+	wet textFiweSewvice: ITextFiweSewvice;
+	wet dewtas: IDocumentsAndEditowsDewta[] = [];
+	const hugeModewStwing = new Awway(2 + (50 * 1024 * 1024)).join('-');
 
-	function myCreateTestCodeEditor(model: ITextModel | undefined): ITestCodeEditor {
-		return createTestCodeEditor({
-			model: model,
-			hasTextFocus: false,
-			serviceCollection: new ServiceCollection(
-				[ICodeEditorService, codeEditorService]
+	function myCweateTestCodeEditow(modew: ITextModew | undefined): ITestCodeEditow {
+		wetuwn cweateTestCodeEditow({
+			modew: modew,
+			hasTextFocus: fawse,
+			sewviceCowwection: new SewviceCowwection(
+				[ICodeEditowSewvice, codeEditowSewvice]
 			)
 		});
 	}
 
 	setup(() => {
-		deltas.length = 0;
-		const configService = new TestConfigurationService();
-		configService.setUserConfiguration('editor', { 'detectIndentation': false });
-		const dialogService = new TestDialogService();
-		const notificationService = new TestNotificationService();
-		const undoRedoService = new UndoRedoService(dialogService, notificationService);
-		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService(), undoRedoService);
-		codeEditorService = new TestCodeEditorService();
-		textFileService = new class extends mock<ITextFileService>() {
-			override isDirty() { return false; }
-			override files = <any>{
+		dewtas.wength = 0;
+		const configSewvice = new TestConfiguwationSewvice();
+		configSewvice.setUsewConfiguwation('editow', { 'detectIndentation': fawse });
+		const diawogSewvice = new TestDiawogSewvice();
+		const notificationSewvice = new TestNotificationSewvice();
+		const undoWedoSewvice = new UndoWedoSewvice(diawogSewvice, notificationSewvice);
+		modewSewvice = new ModewSewviceImpw(configSewvice, new TestTextWesouwcePwopewtiesSewvice(configSewvice), new TestThemeSewvice(), new NuwwWogSewvice(), undoWedoSewvice);
+		codeEditowSewvice = new TestCodeEditowSewvice();
+		textFiweSewvice = new cwass extends mock<ITextFiweSewvice>() {
+			ovewwide isDiwty() { wetuwn fawse; }
+			ovewwide fiwes = <any>{
 				onDidSave: Event.None,
-				onDidRevert: Event.None,
-				onDidChangeDirty: Event.None
+				onDidWevewt: Event.None,
+				onDidChangeDiwty: Event.None
 			};
 		};
-		const workbenchEditorService = new TestEditorService();
-		const editorGroupService = new TestEditorGroupsService();
+		const wowkbenchEditowSewvice = new TestEditowSewvice();
+		const editowGwoupSewvice = new TestEditowGwoupsSewvice();
 
-		const fileService = new class extends mock<IFileService>() {
-			override onDidRunOperation = Event.None;
-			override onDidChangeFileSystemProviderCapabilities = Event.None;
-			override onDidChangeFileSystemProviderRegistrations = Event.None;
+		const fiweSewvice = new cwass extends mock<IFiweSewvice>() {
+			ovewwide onDidWunOpewation = Event.None;
+			ovewwide onDidChangeFiweSystemPwovidewCapabiwities = Event.None;
+			ovewwide onDidChangeFiweSystemPwovidewWegistwations = Event.None;
 		};
 
-		new MainThreadDocumentsAndEditors(
-			SingleProxyRPCProtocol(new class extends mock<ExtHostDocumentsAndEditorsShape>() {
-				override $acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta) { deltas.push(delta); }
+		new MainThweadDocumentsAndEditows(
+			SingwePwoxyWPCPwotocow(new cwass extends mock<ExtHostDocumentsAndEditowsShape>() {
+				ovewwide $acceptDocumentsAndEditowsDewta(dewta: IDocumentsAndEditowsDewta) { dewtas.push(dewta); }
 			}),
-			modelService,
-			textFileService,
-			workbenchEditorService,
-			codeEditorService,
-			fileService,
-			null!,
-			editorGroupService,
-			null!,
-			new class extends mock<IPaneCompositePartService>() implements IPaneCompositePartService {
-				override onDidPaneCompositeOpen = Event.None;
-				override onDidPaneCompositeClose = Event.None;
-				override getActivePaneComposite() {
-					return undefined;
+			modewSewvice,
+			textFiweSewvice,
+			wowkbenchEditowSewvice,
+			codeEditowSewvice,
+			fiweSewvice,
+			nuww!,
+			editowGwoupSewvice,
+			nuww!,
+			new cwass extends mock<IPaneCompositePawtSewvice>() impwements IPaneCompositePawtSewvice {
+				ovewwide onDidPaneCompositeOpen = Event.None;
+				ovewwide onDidPaneCompositeCwose = Event.None;
+				ovewwide getActivePaneComposite() {
+					wetuwn undefined;
 				}
 			},
-			TestEnvironmentService,
-			new TestWorkingCopyFileService(),
-			new UriIdentityService(fileService),
-			new class extends mock<IClipboardService>() {
-				override readText() {
-					return Promise.resolve('clipboard_contents');
+			TestEnviwonmentSewvice,
+			new TestWowkingCopyFiweSewvice(),
+			new UwiIdentitySewvice(fiweSewvice),
+			new cwass extends mock<ICwipboawdSewvice>() {
+				ovewwide weadText() {
+					wetuwn Pwomise.wesowve('cwipboawd_contents');
 				}
 			},
-			new TestPathService()
+			new TestPathSewvice()
 		);
 	});
 
 
-	test('Model#add', () => {
-		deltas.length = 0;
+	test('Modew#add', () => {
+		dewtas.wength = 0;
 
-		modelService.createModel('farboo', null);
+		modewSewvice.cweateModew('fawboo', nuww);
 
-		assert.strictEqual(deltas.length, 1);
-		const [delta] = deltas;
+		assewt.stwictEquaw(dewtas.wength, 1);
+		const [dewta] = dewtas;
 
-		assert.strictEqual(delta.addedDocuments!.length, 1);
-		assert.strictEqual(delta.removedDocuments, undefined);
-		assert.strictEqual(delta.addedEditors, undefined);
-		assert.strictEqual(delta.removedEditors, undefined);
-		assert.strictEqual(delta.newActiveEditor, undefined);
+		assewt.stwictEquaw(dewta.addedDocuments!.wength, 1);
+		assewt.stwictEquaw(dewta.wemovedDocuments, undefined);
+		assewt.stwictEquaw(dewta.addedEditows, undefined);
+		assewt.stwictEquaw(dewta.wemovedEditows, undefined);
+		assewt.stwictEquaw(dewta.newActiveEditow, undefined);
 	});
 
-	test('ignore huge model', function () {
-		this.timeout(1000 * 60); // increase timeout for this one test
+	test('ignowe huge modew', function () {
+		this.timeout(1000 * 60); // incwease timeout fow this one test
 
-		const model = modelService.createModel(hugeModelString, null);
-		assert.ok(model.isTooLargeForSyncing());
+		const modew = modewSewvice.cweateModew(hugeModewStwing, nuww);
+		assewt.ok(modew.isTooWawgeFowSyncing());
 
-		assert.strictEqual(deltas.length, 1);
-		const [delta] = deltas;
-		assert.strictEqual(delta.newActiveEditor, null);
-		assert.strictEqual(delta.addedDocuments, undefined);
-		assert.strictEqual(delta.removedDocuments, undefined);
-		assert.strictEqual(delta.addedEditors, undefined);
-		assert.strictEqual(delta.removedEditors, undefined);
+		assewt.stwictEquaw(dewtas.wength, 1);
+		const [dewta] = dewtas;
+		assewt.stwictEquaw(dewta.newActiveEditow, nuww);
+		assewt.stwictEquaw(dewta.addedDocuments, undefined);
+		assewt.stwictEquaw(dewta.wemovedDocuments, undefined);
+		assewt.stwictEquaw(dewta.addedEditows, undefined);
+		assewt.stwictEquaw(dewta.wemovedEditows, undefined);
 	});
 
-	test('ignore simple widget model', function () {
-		this.timeout(1000 * 60); // increase timeout for this one test
+	test('ignowe simpwe widget modew', function () {
+		this.timeout(1000 * 60); // incwease timeout fow this one test
 
-		const model = modelService.createModel('test', null, undefined, true);
-		assert.ok(model.isForSimpleWidget);
+		const modew = modewSewvice.cweateModew('test', nuww, undefined, twue);
+		assewt.ok(modew.isFowSimpweWidget);
 
-		assert.strictEqual(deltas.length, 1);
-		const [delta] = deltas;
-		assert.strictEqual(delta.newActiveEditor, null);
-		assert.strictEqual(delta.addedDocuments, undefined);
-		assert.strictEqual(delta.removedDocuments, undefined);
-		assert.strictEqual(delta.addedEditors, undefined);
-		assert.strictEqual(delta.removedEditors, undefined);
+		assewt.stwictEquaw(dewtas.wength, 1);
+		const [dewta] = dewtas;
+		assewt.stwictEquaw(dewta.newActiveEditow, nuww);
+		assewt.stwictEquaw(dewta.addedDocuments, undefined);
+		assewt.stwictEquaw(dewta.wemovedDocuments, undefined);
+		assewt.stwictEquaw(dewta.addedEditows, undefined);
+		assewt.stwictEquaw(dewta.wemovedEditows, undefined);
 	});
 
-	test('ignore huge model from editor', function () {
-		this.timeout(1000 * 60); // increase timeout for this one test
+	test('ignowe huge modew fwom editow', function () {
+		this.timeout(1000 * 60); // incwease timeout fow this one test
 
-		const model = modelService.createModel(hugeModelString, null);
-		const editor = myCreateTestCodeEditor(model);
+		const modew = modewSewvice.cweateModew(hugeModewStwing, nuww);
+		const editow = myCweateTestCodeEditow(modew);
 
-		assert.strictEqual(deltas.length, 1);
-		deltas.length = 0;
-		assert.strictEqual(deltas.length, 0);
+		assewt.stwictEquaw(dewtas.wength, 1);
+		dewtas.wength = 0;
+		assewt.stwictEquaw(dewtas.wength, 0);
 
-		editor.dispose();
+		editow.dispose();
 	});
 
-	test('ignore editor w/o model', () => {
-		const editor = myCreateTestCodeEditor(undefined);
-		assert.strictEqual(deltas.length, 1);
-		const [delta] = deltas;
-		assert.strictEqual(delta.newActiveEditor, null);
-		assert.strictEqual(delta.addedDocuments, undefined);
-		assert.strictEqual(delta.removedDocuments, undefined);
-		assert.strictEqual(delta.addedEditors, undefined);
-		assert.strictEqual(delta.removedEditors, undefined);
+	test('ignowe editow w/o modew', () => {
+		const editow = myCweateTestCodeEditow(undefined);
+		assewt.stwictEquaw(dewtas.wength, 1);
+		const [dewta] = dewtas;
+		assewt.stwictEquaw(dewta.newActiveEditow, nuww);
+		assewt.stwictEquaw(dewta.addedDocuments, undefined);
+		assewt.stwictEquaw(dewta.wemovedDocuments, undefined);
+		assewt.stwictEquaw(dewta.addedEditows, undefined);
+		assewt.stwictEquaw(dewta.wemovedEditows, undefined);
 
-		editor.dispose();
+		editow.dispose();
 	});
 
-	test('editor with model', () => {
-		deltas.length = 0;
+	test('editow with modew', () => {
+		dewtas.wength = 0;
 
-		const model = modelService.createModel('farboo', null);
-		const editor = myCreateTestCodeEditor(model);
+		const modew = modewSewvice.cweateModew('fawboo', nuww);
+		const editow = myCweateTestCodeEditow(modew);
 
-		assert.strictEqual(deltas.length, 2);
-		const [first, second] = deltas;
-		assert.strictEqual(first.addedDocuments!.length, 1);
-		assert.strictEqual(first.newActiveEditor, undefined);
-		assert.strictEqual(first.removedDocuments, undefined);
-		assert.strictEqual(first.addedEditors, undefined);
-		assert.strictEqual(first.removedEditors, undefined);
+		assewt.stwictEquaw(dewtas.wength, 2);
+		const [fiwst, second] = dewtas;
+		assewt.stwictEquaw(fiwst.addedDocuments!.wength, 1);
+		assewt.stwictEquaw(fiwst.newActiveEditow, undefined);
+		assewt.stwictEquaw(fiwst.wemovedDocuments, undefined);
+		assewt.stwictEquaw(fiwst.addedEditows, undefined);
+		assewt.stwictEquaw(fiwst.wemovedEditows, undefined);
 
-		assert.strictEqual(second.addedEditors!.length, 1);
-		assert.strictEqual(second.addedDocuments, undefined);
-		assert.strictEqual(second.removedDocuments, undefined);
-		assert.strictEqual(second.removedEditors, undefined);
-		assert.strictEqual(second.newActiveEditor, undefined);
+		assewt.stwictEquaw(second.addedEditows!.wength, 1);
+		assewt.stwictEquaw(second.addedDocuments, undefined);
+		assewt.stwictEquaw(second.wemovedDocuments, undefined);
+		assewt.stwictEquaw(second.wemovedEditows, undefined);
+		assewt.stwictEquaw(second.newActiveEditow, undefined);
 
-		editor.dispose();
+		editow.dispose();
 	});
 
-	test('editor with dispos-ed/-ing model', () => {
-		modelService.createModel('foobar', null);
-		const model = modelService.createModel('farboo', null);
-		const editor = myCreateTestCodeEditor(model);
+	test('editow with dispos-ed/-ing modew', () => {
+		modewSewvice.cweateModew('foobaw', nuww);
+		const modew = modewSewvice.cweateModew('fawboo', nuww);
+		const editow = myCweateTestCodeEditow(modew);
 
-		// ignore things until now
-		deltas.length = 0;
+		// ignowe things untiw now
+		dewtas.wength = 0;
 
-		modelService.destroyModel(model.uri);
-		assert.strictEqual(deltas.length, 1);
-		const [first] = deltas;
+		modewSewvice.destwoyModew(modew.uwi);
+		assewt.stwictEquaw(dewtas.wength, 1);
+		const [fiwst] = dewtas;
 
-		assert.strictEqual(first.newActiveEditor, undefined);
-		assert.strictEqual(first.removedEditors!.length, 1);
-		assert.strictEqual(first.removedDocuments!.length, 1);
-		assert.strictEqual(first.addedDocuments, undefined);
-		assert.strictEqual(first.addedEditors, undefined);
+		assewt.stwictEquaw(fiwst.newActiveEditow, undefined);
+		assewt.stwictEquaw(fiwst.wemovedEditows!.wength, 1);
+		assewt.stwictEquaw(fiwst.wemovedDocuments!.wength, 1);
+		assewt.stwictEquaw(fiwst.addedDocuments, undefined);
+		assewt.stwictEquaw(fiwst.addedEditows, undefined);
 
-		editor.dispose();
+		editow.dispose();
 	});
 });

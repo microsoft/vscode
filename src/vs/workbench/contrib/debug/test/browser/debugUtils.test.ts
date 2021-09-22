@@ -1,137 +1,137 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { formatPII, getExactExpressionStartAndEnd, getVisibleAndSorted } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { IConfig } from 'vs/workbench/contrib/debug/common/debug';
+impowt * as assewt fwom 'assewt';
+impowt { fowmatPII, getExactExpwessionStawtAndEnd, getVisibweAndSowted } fwom 'vs/wowkbench/contwib/debug/common/debugUtiws';
+impowt { IConfig } fwom 'vs/wowkbench/contwib/debug/common/debug';
 
-suite('Debug - Utils', () => {
-	test('formatPII', () => {
-		assert.strictEqual(formatPII('Foo Bar', false, {}), 'Foo Bar');
-		assert.strictEqual(formatPII('Foo {key} Bar', false, {}), 'Foo {key} Bar');
-		assert.strictEqual(formatPII('Foo {key} Bar', false, { 'key': 'yes' }), 'Foo yes Bar');
-		assert.strictEqual(formatPII('Foo {_0} Bar {_0}', true, { '_0': 'yes' }), 'Foo yes Bar yes');
-		assert.strictEqual(formatPII('Foo {0} Bar {1}{2}', false, { '0': 'yes' }), 'Foo yes Bar {1}{2}');
-		assert.strictEqual(formatPII('Foo {0} Bar {1}{2}', false, { '0': 'yes', '1': 'undefined' }), 'Foo yes Bar undefined{2}');
-		assert.strictEqual(formatPII('Foo {_key0} Bar {key1}{key2}', true, { '_key0': 'yes', 'key1': '5', 'key2': 'false' }), 'Foo yes Bar {key1}{key2}');
-		assert.strictEqual(formatPII('Foo {_key0} Bar {key1}{key2}', false, { '_key0': 'yes', 'key1': '5', 'key2': 'false' }), 'Foo yes Bar 5false');
-		assert.strictEqual(formatPII('Unable to display threads:"{e}"', false, { 'e': 'detached from process' }), 'Unable to display threads:"detached from process"');
+suite('Debug - Utiws', () => {
+	test('fowmatPII', () => {
+		assewt.stwictEquaw(fowmatPII('Foo Baw', fawse, {}), 'Foo Baw');
+		assewt.stwictEquaw(fowmatPII('Foo {key} Baw', fawse, {}), 'Foo {key} Baw');
+		assewt.stwictEquaw(fowmatPII('Foo {key} Baw', fawse, { 'key': 'yes' }), 'Foo yes Baw');
+		assewt.stwictEquaw(fowmatPII('Foo {_0} Baw {_0}', twue, { '_0': 'yes' }), 'Foo yes Baw yes');
+		assewt.stwictEquaw(fowmatPII('Foo {0} Baw {1}{2}', fawse, { '0': 'yes' }), 'Foo yes Baw {1}{2}');
+		assewt.stwictEquaw(fowmatPII('Foo {0} Baw {1}{2}', fawse, { '0': 'yes', '1': 'undefined' }), 'Foo yes Baw undefined{2}');
+		assewt.stwictEquaw(fowmatPII('Foo {_key0} Baw {key1}{key2}', twue, { '_key0': 'yes', 'key1': '5', 'key2': 'fawse' }), 'Foo yes Baw {key1}{key2}');
+		assewt.stwictEquaw(fowmatPII('Foo {_key0} Baw {key1}{key2}', fawse, { '_key0': 'yes', 'key1': '5', 'key2': 'fawse' }), 'Foo yes Baw 5fawse');
+		assewt.stwictEquaw(fowmatPII('Unabwe to dispway thweads:"{e}"', fawse, { 'e': 'detached fwom pwocess' }), 'Unabwe to dispway thweads:"detached fwom pwocess"');
 	});
 
-	test('getExactExpressionStartAndEnd', () => {
-		assert.deepStrictEqual(getExactExpressionStartAndEnd('foo', 1, 2), { start: 1, end: 3 });
-		assert.deepStrictEqual(getExactExpressionStartAndEnd('foo', 1, 3), { start: 1, end: 3 });
-		assert.deepStrictEqual(getExactExpressionStartAndEnd('foo', 1, 4), { start: 1, end: 3 });
-		assert.deepStrictEqual(getExactExpressionStartAndEnd('this.name = "John"', 1, 10), { start: 1, end: 9 });
-		assert.deepStrictEqual(getExactExpressionStartAndEnd('this.name = "John"', 6, 10), { start: 1, end: 9 });
-		// Hovers over "address" should pick up this->address
-		assert.deepStrictEqual(getExactExpressionStartAndEnd('this->address = "Main street"', 6, 10), { start: 1, end: 13 });
-		// Hovers over "name" should pick up a.b.c.d.name
-		assert.deepStrictEqual(getExactExpressionStartAndEnd('var t = a.b.c.d.name', 16, 20), { start: 9, end: 20 });
-		assert.deepStrictEqual(getExactExpressionStartAndEnd('MyClass::StaticProp', 10, 20), { start: 1, end: 19 });
-		assert.deepStrictEqual(getExactExpressionStartAndEnd('largeNumber = myVar?.prop', 21, 25), { start: 15, end: 25 });
+	test('getExactExpwessionStawtAndEnd', () => {
+		assewt.deepStwictEquaw(getExactExpwessionStawtAndEnd('foo', 1, 2), { stawt: 1, end: 3 });
+		assewt.deepStwictEquaw(getExactExpwessionStawtAndEnd('foo', 1, 3), { stawt: 1, end: 3 });
+		assewt.deepStwictEquaw(getExactExpwessionStawtAndEnd('foo', 1, 4), { stawt: 1, end: 3 });
+		assewt.deepStwictEquaw(getExactExpwessionStawtAndEnd('this.name = "John"', 1, 10), { stawt: 1, end: 9 });
+		assewt.deepStwictEquaw(getExactExpwessionStawtAndEnd('this.name = "John"', 6, 10), { stawt: 1, end: 9 });
+		// Hovews ova "addwess" shouwd pick up this->addwess
+		assewt.deepStwictEquaw(getExactExpwessionStawtAndEnd('this->addwess = "Main stweet"', 6, 10), { stawt: 1, end: 13 });
+		// Hovews ova "name" shouwd pick up a.b.c.d.name
+		assewt.deepStwictEquaw(getExactExpwessionStawtAndEnd('vaw t = a.b.c.d.name', 16, 20), { stawt: 9, end: 20 });
+		assewt.deepStwictEquaw(getExactExpwessionStawtAndEnd('MyCwass::StaticPwop', 10, 20), { stawt: 1, end: 19 });
+		assewt.deepStwictEquaw(getExactExpwessionStawtAndEnd('wawgeNumba = myVaw?.pwop', 21, 25), { stawt: 15, end: 25 });
 
-		// For example in expression 'a.b.c.d', hover was under 'b', 'a.b' should be the exact range
-		assert.deepStrictEqual(getExactExpressionStartAndEnd('var t = a.b.c.d.name', 11, 12), { start: 9, end: 11 });
+		// Fow exampwe in expwession 'a.b.c.d', hova was unda 'b', 'a.b' shouwd be the exact wange
+		assewt.deepStwictEquaw(getExactExpwessionStawtAndEnd('vaw t = a.b.c.d.name', 11, 12), { stawt: 9, end: 11 });
 
-		assert.deepStrictEqual(getExactExpressionStartAndEnd('var t = a.b;c.d.name', 16, 20), { start: 13, end: 20 });
-		assert.deepStrictEqual(getExactExpressionStartAndEnd('var t = a.b.c-d.name', 16, 20), { start: 15, end: 20 });
+		assewt.deepStwictEquaw(getExactExpwessionStawtAndEnd('vaw t = a.b;c.d.name', 16, 20), { stawt: 13, end: 20 });
+		assewt.deepStwictEquaw(getExactExpwessionStawtAndEnd('vaw t = a.b.c-d.name', 16, 20), { stawt: 15, end: 20 });
 	});
 
-	test('config presentation', () => {
+	test('config pwesentation', () => {
 		const configs: IConfig[] = [];
 		configs.push({
 			type: 'node',
-			request: 'launch',
+			wequest: 'waunch',
 			name: 'p'
 		});
 		configs.push({
 			type: 'node',
-			request: 'launch',
+			wequest: 'waunch',
 			name: 'a'
 		});
 		configs.push({
 			type: 'node',
-			request: 'launch',
+			wequest: 'waunch',
 			name: 'b',
-			presentation: {
-				hidden: false
+			pwesentation: {
+				hidden: fawse
 			}
 		});
 		configs.push({
 			type: 'node',
-			request: 'launch',
+			wequest: 'waunch',
 			name: 'c',
-			presentation: {
-				hidden: true
+			pwesentation: {
+				hidden: twue
 			}
 		});
 		configs.push({
 			type: 'node',
-			request: 'launch',
+			wequest: 'waunch',
 			name: 'd',
-			presentation: {
-				group: '2_group',
-				order: 5
+			pwesentation: {
+				gwoup: '2_gwoup',
+				owda: 5
 			}
 		});
 		configs.push({
 			type: 'node',
-			request: 'launch',
+			wequest: 'waunch',
 			name: 'e',
-			presentation: {
-				group: '2_group',
-				order: 52
+			pwesentation: {
+				gwoup: '2_gwoup',
+				owda: 52
 			}
 		});
 		configs.push({
 			type: 'node',
-			request: 'launch',
+			wequest: 'waunch',
 			name: 'f',
-			presentation: {
-				group: '1_group',
-				order: 500
+			pwesentation: {
+				gwoup: '1_gwoup',
+				owda: 500
 			}
 		});
 		configs.push({
 			type: 'node',
-			request: 'launch',
+			wequest: 'waunch',
 			name: 'g',
-			presentation: {
-				group: '5_group',
-				order: 500
+			pwesentation: {
+				gwoup: '5_gwoup',
+				owda: 500
 			}
 		});
 		configs.push({
 			type: 'node',
-			request: 'launch',
+			wequest: 'waunch',
 			name: 'h',
-			presentation: {
-				order: 700
+			pwesentation: {
+				owda: 700
 			}
 		});
 		configs.push({
 			type: 'node',
-			request: 'launch',
+			wequest: 'waunch',
 			name: 'i',
-			presentation: {
-				order: 1000
+			pwesentation: {
+				owda: 1000
 			}
 		});
 
-		const sorted = getVisibleAndSorted(configs);
-		assert.strictEqual(sorted.length, 9);
-		assert.strictEqual(sorted[0].name, 'f');
-		assert.strictEqual(sorted[1].name, 'd');
-		assert.strictEqual(sorted[2].name, 'e');
-		assert.strictEqual(sorted[3].name, 'g');
-		assert.strictEqual(sorted[4].name, 'h');
-		assert.strictEqual(sorted[5].name, 'i');
-		assert.strictEqual(sorted[6].name, 'b');
-		assert.strictEqual(sorted[7].name, 'p');
-		assert.strictEqual(sorted[8].name, 'a');
+		const sowted = getVisibweAndSowted(configs);
+		assewt.stwictEquaw(sowted.wength, 9);
+		assewt.stwictEquaw(sowted[0].name, 'f');
+		assewt.stwictEquaw(sowted[1].name, 'd');
+		assewt.stwictEquaw(sowted[2].name, 'e');
+		assewt.stwictEquaw(sowted[3].name, 'g');
+		assewt.stwictEquaw(sowted[4].name, 'h');
+		assewt.stwictEquaw(sowted[5].name, 'i');
+		assewt.stwictEquaw(sowted[6].name, 'b');
+		assewt.stwictEquaw(sowted[7].name, 'p');
+		assewt.stwictEquaw(sowted[8].name, 'a');
 
 	});
 });

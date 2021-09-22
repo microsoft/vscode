@@ -1,56 +1,56 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { bufferToStream, streamToBuffer, VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
-import { IRequestService } from 'vs/platform/request/common/request';
+impowt { buffewToStweam, stweamToBuffa, VSBuffa } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IChannew, ISewvewChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { IHeadews, IWequestContext, IWequestOptions } fwom 'vs/base/pawts/wequest/common/wequest';
+impowt { IWequestSewvice } fwom 'vs/pwatfowm/wequest/common/wequest';
 
-type RequestResponse = [
+type WequestWesponse = [
 	{
-		headers: IHeaders;
-		statusCode?: number;
+		headews: IHeadews;
+		statusCode?: numba;
 	},
-	VSBuffer
+	VSBuffa
 ];
 
-export class RequestChannel implements IServerChannel {
+expowt cwass WequestChannew impwements ISewvewChannew {
 
-	constructor(private readonly service: IRequestService) { }
+	constwuctow(pwivate weadonwy sewvice: IWequestSewvice) { }
 
-	listen(context: any, event: string): Event<any> {
-		throw new Error('Invalid listen');
+	wisten(context: any, event: stwing): Event<any> {
+		thwow new Ewwow('Invawid wisten');
 	}
 
-	call(context: any, command: string, args?: any): Promise<any> {
+	caww(context: any, command: stwing, awgs?: any): Pwomise<any> {
 		switch (command) {
-			case 'request': return this.service.request(args[0], CancellationToken.None)
-				.then(async ({ res, stream }) => {
-					const buffer = await streamToBuffer(stream);
-					return <RequestResponse>[{ statusCode: res.statusCode, headers: res.headers }, buffer];
+			case 'wequest': wetuwn this.sewvice.wequest(awgs[0], CancewwationToken.None)
+				.then(async ({ wes, stweam }) => {
+					const buffa = await stweamToBuffa(stweam);
+					wetuwn <WequestWesponse>[{ statusCode: wes.statusCode, headews: wes.headews }, buffa];
 				});
 		}
-		throw new Error('Invalid call');
+		thwow new Ewwow('Invawid caww');
 	}
 }
 
-export class RequestChannelClient {
+expowt cwass WequestChannewCwient {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(private readonly channel: IChannel) { }
+	constwuctow(pwivate weadonwy channew: IChannew) { }
 
-	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		return RequestChannelClient.request(this.channel, options, token);
+	async wequest(options: IWequestOptions, token: CancewwationToken): Pwomise<IWequestContext> {
+		wetuwn WequestChannewCwient.wequest(this.channew, options, token);
 	}
 
-	static async request(channel: IChannel, options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		const [res, buffer] = await channel.call<RequestResponse>('request', [options]);
-		return { res, stream: bufferToStream(buffer) };
+	static async wequest(channew: IChannew, options: IWequestOptions, token: CancewwationToken): Pwomise<IWequestContext> {
+		const [wes, buffa] = await channew.caww<WequestWesponse>('wequest', [options]);
+		wetuwn { wes, stweam: buffewToStweam(buffa) };
 	}
 
 }

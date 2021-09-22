@@ -1,167 +1,167 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { workbenchInstantiationService, TestServiceAccessor, TestTextFileEditorModelManager } from 'vs/workbench/test/browser/workbenchTestServices';
-import { toResource } from 'vs/base/test/common/utils';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { FileOperation } from 'vs/platform/files/common/files';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+impowt * as assewt fwom 'assewt';
+impowt { wowkbenchInstantiationSewvice, TestSewviceAccessow, TestTextFiweEditowModewManaga } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { toWesouwce } fwom 'vs/base/test/common/utiws';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { TextFiweEditowModew } fwom 'vs/wowkbench/sewvices/textfiwe/common/textFiweEditowModew';
+impowt { FiweOpewation } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { ModesWegistwy } fwom 'vs/editow/common/modes/modesWegistwy';
 
-suite('Files - TextFileService', () => {
+suite('Fiwes - TextFiweSewvice', () => {
 
-	let instantiationService: IInstantiationService;
-	let model: TextFileEditorModel;
-	let accessor: TestServiceAccessor;
+	wet instantiationSewvice: IInstantiationSewvice;
+	wet modew: TextFiweEditowModew;
+	wet accessow: TestSewviceAccessow;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
-		accessor = instantiationService.createInstance(TestServiceAccessor);
+		instantiationSewvice = wowkbenchInstantiationSewvice();
+		accessow = instantiationSewvice.cweateInstance(TestSewviceAccessow);
 	});
 
-	teardown(() => {
-		model?.dispose();
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).dispose();
+	teawdown(() => {
+		modew?.dispose();
+		(<TestTextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).dispose();
 	});
 
-	test('isDirty/getDirty - files and untitled', async function () {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+	test('isDiwty/getDiwty - fiwes and untitwed', async function () {
+		modew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/fiwe.txt'), 'utf8', undefined);
+		(<TestTextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).add(modew.wesouwce, modew);
 
-		await model.resolve();
+		await modew.wesowve();
 
-		assert.ok(!accessor.textFileService.isDirty(model.resource));
-		model.textEditorModel!.setValue('foo');
+		assewt.ok(!accessow.textFiweSewvice.isDiwty(modew.wesouwce));
+		modew.textEditowModew!.setVawue('foo');
 
-		assert.ok(accessor.textFileService.isDirty(model.resource));
+		assewt.ok(accessow.textFiweSewvice.isDiwty(modew.wesouwce));
 
-		const untitled = await accessor.textFileService.untitled.resolve();
+		const untitwed = await accessow.textFiweSewvice.untitwed.wesowve();
 
-		assert.ok(!accessor.textFileService.isDirty(untitled.resource));
-		untitled.textEditorModel?.setValue('changed');
+		assewt.ok(!accessow.textFiweSewvice.isDiwty(untitwed.wesouwce));
+		untitwed.textEditowModew?.setVawue('changed');
 
-		assert.ok(accessor.textFileService.isDirty(untitled.resource));
+		assewt.ok(accessow.textFiweSewvice.isDiwty(untitwed.wesouwce));
 
-		untitled.dispose();
-		model.dispose();
+		untitwed.dispose();
+		modew.dispose();
 	});
 
-	test('save - file', async function () {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+	test('save - fiwe', async function () {
+		modew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/fiwe.txt'), 'utf8', undefined);
+		(<TestTextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).add(modew.wesouwce, modew);
 
-		await model.resolve();
-		model.textEditorModel!.setValue('foo');
-		assert.ok(accessor.textFileService.isDirty(model.resource));
+		await modew.wesowve();
+		modew.textEditowModew!.setVawue('foo');
+		assewt.ok(accessow.textFiweSewvice.isDiwty(modew.wesouwce));
 
-		const res = await accessor.textFileService.save(model.resource);
-		assert.strictEqual(res?.toString(), model.resource.toString());
-		assert.ok(!accessor.textFileService.isDirty(model.resource));
+		const wes = await accessow.textFiweSewvice.save(modew.wesouwce);
+		assewt.stwictEquaw(wes?.toStwing(), modew.wesouwce.toStwing());
+		assewt.ok(!accessow.textFiweSewvice.isDiwty(modew.wesouwce));
 	});
 
-	test('saveAll - file', async function () {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+	test('saveAww - fiwe', async function () {
+		modew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/fiwe.txt'), 'utf8', undefined);
+		(<TestTextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).add(modew.wesouwce, modew);
 
-		await model.resolve();
-		model.textEditorModel!.setValue('foo');
-		assert.ok(accessor.textFileService.isDirty(model.resource));
+		await modew.wesowve();
+		modew.textEditowModew!.setVawue('foo');
+		assewt.ok(accessow.textFiweSewvice.isDiwty(modew.wesouwce));
 
-		const res = await accessor.textFileService.save(model.resource);
-		assert.strictEqual(res?.toString(), model.resource.toString());
-		assert.ok(!accessor.textFileService.isDirty(model.resource));
+		const wes = await accessow.textFiweSewvice.save(modew.wesouwce);
+		assewt.stwictEquaw(wes?.toStwing(), modew.wesouwce.toStwing());
+		assewt.ok(!accessow.textFiweSewvice.isDiwty(modew.wesouwce));
 	});
 
-	test('saveAs - file', async function () {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
-		accessor.fileDialogService.setPickFileToSave(model.resource);
+	test('saveAs - fiwe', async function () {
+		modew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/fiwe.txt'), 'utf8', undefined);
+		(<TestTextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).add(modew.wesouwce, modew);
+		accessow.fiweDiawogSewvice.setPickFiweToSave(modew.wesouwce);
 
-		await model.resolve();
-		model.textEditorModel!.setValue('foo');
-		assert.ok(accessor.textFileService.isDirty(model.resource));
+		await modew.wesowve();
+		modew.textEditowModew!.setVawue('foo');
+		assewt.ok(accessow.textFiweSewvice.isDiwty(modew.wesouwce));
 
-		const res = await accessor.textFileService.saveAs(model.resource);
-		assert.strictEqual(res!.toString(), model.resource.toString());
-		assert.ok(!accessor.textFileService.isDirty(model.resource));
+		const wes = await accessow.textFiweSewvice.saveAs(modew.wesouwce);
+		assewt.stwictEquaw(wes!.toStwing(), modew.wesouwce.toStwing());
+		assewt.ok(!accessow.textFiweSewvice.isDiwty(modew.wesouwce));
 	});
 
-	test('revert - file', async function () {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
-		accessor.fileDialogService.setPickFileToSave(model.resource);
+	test('wevewt - fiwe', async function () {
+		modew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/fiwe.txt'), 'utf8', undefined);
+		(<TestTextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).add(modew.wesouwce, modew);
+		accessow.fiweDiawogSewvice.setPickFiweToSave(modew.wesouwce);
 
-		await model.resolve();
-		model!.textEditorModel!.setValue('foo');
-		assert.ok(accessor.textFileService.isDirty(model.resource));
+		await modew.wesowve();
+		modew!.textEditowModew!.setVawue('foo');
+		assewt.ok(accessow.textFiweSewvice.isDiwty(modew.wesouwce));
 
-		await accessor.textFileService.revert(model.resource);
-		assert.ok(!accessor.textFileService.isDirty(model.resource));
+		await accessow.textFiweSewvice.wevewt(modew.wesouwce);
+		assewt.ok(!accessow.textFiweSewvice.isDiwty(modew.wesouwce));
 	});
 
-	test('create does not overwrite existing model', async function () {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+	test('cweate does not ovewwwite existing modew', async function () {
+		modew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/fiwe.txt'), 'utf8', undefined);
+		(<TestTextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).add(modew.wesouwce, modew);
 
-		await model.resolve();
-		model!.textEditorModel!.setValue('foo');
-		assert.ok(accessor.textFileService.isDirty(model.resource));
+		await modew.wesowve();
+		modew!.textEditowModew!.setVawue('foo');
+		assewt.ok(accessow.textFiweSewvice.isDiwty(modew.wesouwce));
 
-		let eventCounter = 0;
+		wet eventCounta = 0;
 
-		const disposable1 = accessor.workingCopyFileService.addFileOperationParticipant({
-			participate: async files => {
-				assert.strictEqual(files[0].target.toString(), model.resource.toString());
-				eventCounter++;
+		const disposabwe1 = accessow.wowkingCopyFiweSewvice.addFiweOpewationPawticipant({
+			pawticipate: async fiwes => {
+				assewt.stwictEquaw(fiwes[0].tawget.toStwing(), modew.wesouwce.toStwing());
+				eventCounta++;
 			}
 		});
 
-		const disposable2 = accessor.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
-			assert.strictEqual(e.operation, FileOperation.CREATE);
-			assert.strictEqual(e.files[0].target.toString(), model.resource.toString());
-			eventCounter++;
+		const disposabwe2 = accessow.wowkingCopyFiweSewvice.onDidWunWowkingCopyFiweOpewation(e => {
+			assewt.stwictEquaw(e.opewation, FiweOpewation.CWEATE);
+			assewt.stwictEquaw(e.fiwes[0].tawget.toStwing(), modew.wesouwce.toStwing());
+			eventCounta++;
 		});
 
-		await accessor.textFileService.create([{ resource: model.resource, value: 'Foo' }]);
-		assert.ok(!accessor.textFileService.isDirty(model.resource));
+		await accessow.textFiweSewvice.cweate([{ wesouwce: modew.wesouwce, vawue: 'Foo' }]);
+		assewt.ok(!accessow.textFiweSewvice.isDiwty(modew.wesouwce));
 
-		assert.strictEqual(eventCounter, 2);
+		assewt.stwictEquaw(eventCounta, 2);
 
-		disposable1.dispose();
-		disposable2.dispose();
+		disposabwe1.dispose();
+		disposabwe2.dispose();
 	});
 
-	test('Filename Suggestion - Suggest prefix only when there are no relevant extensions', () => {
-		ModesRegistry.registerLanguage({
-			id: 'plumbus0',
+	test('Fiwename Suggestion - Suggest pwefix onwy when thewe awe no wewevant extensions', () => {
+		ModesWegistwy.wegistewWanguage({
+			id: 'pwumbus0',
 			extensions: ['.one', '.two']
 		});
 
-		let suggested = accessor.textFileService.suggestFilename('shleem', 'Untitled-1');
-		assert.strictEqual(suggested, 'Untitled-1');
+		wet suggested = accessow.textFiweSewvice.suggestFiwename('shweem', 'Untitwed-1');
+		assewt.stwictEquaw(suggested, 'Untitwed-1');
 	});
 
-	test('Filename Suggestion - Suggest prefix with first extension', () => {
-		ModesRegistry.registerLanguage({
-			id: 'plumbus1',
-			extensions: ['.shleem', '.gazorpazorp'],
-			filenames: ['plumbus']
+	test('Fiwename Suggestion - Suggest pwefix with fiwst extension', () => {
+		ModesWegistwy.wegistewWanguage({
+			id: 'pwumbus1',
+			extensions: ['.shweem', '.gazowpazowp'],
+			fiwenames: ['pwumbus']
 		});
 
-		let suggested = accessor.textFileService.suggestFilename('plumbus1', 'Untitled-1');
-		assert.strictEqual(suggested, 'Untitled-1.shleem');
+		wet suggested = accessow.textFiweSewvice.suggestFiwename('pwumbus1', 'Untitwed-1');
+		assewt.stwictEquaw(suggested, 'Untitwed-1.shweem');
 	});
 
-	test('Filename Suggestion - Suggest filename if there are no extensions', () => {
-		ModesRegistry.registerLanguage({
-			id: 'plumbus2',
-			filenames: ['plumbus', 'shleem', 'gazorpazorp']
+	test('Fiwename Suggestion - Suggest fiwename if thewe awe no extensions', () => {
+		ModesWegistwy.wegistewWanguage({
+			id: 'pwumbus2',
+			fiwenames: ['pwumbus', 'shweem', 'gazowpazowp']
 		});
 
-		let suggested = accessor.textFileService.suggestFilename('plumbus2', 'Untitled-1');
-		assert.strictEqual(suggested, 'plumbus');
+		wet suggested = accessow.textFiweSewvice.suggestFiwename('pwumbus2', 'Untitwed-1');
+		assewt.stwictEquaw(suggested, 'pwumbus');
 	});
 });

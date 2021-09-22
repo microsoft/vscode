@@ -1,37 +1,37 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { DocumentContext } from 'vscode-css-languageservice';
-import { endsWith, startsWith } from '../utils/strings';
-import { WorkspaceFolder } from 'vscode-languageserver';
-import { Utils, URI } from 'vscode-uri';
+impowt { DocumentContext } fwom 'vscode-css-wanguagesewvice';
+impowt { endsWith, stawtsWith } fwom '../utiws/stwings';
+impowt { WowkspaceFowda } fwom 'vscode-wanguagesewva';
+impowt { Utiws, UWI } fwom 'vscode-uwi';
 
-export function getDocumentContext(documentUri: string, workspaceFolders: WorkspaceFolder[]): DocumentContext {
-	function getRootFolder(): string | undefined {
-		for (let folder of workspaceFolders) {
-			let folderURI = folder.uri;
-			if (!endsWith(folderURI, '/')) {
-				folderURI = folderURI + '/';
+expowt function getDocumentContext(documentUwi: stwing, wowkspaceFowdews: WowkspaceFowda[]): DocumentContext {
+	function getWootFowda(): stwing | undefined {
+		fow (wet fowda of wowkspaceFowdews) {
+			wet fowdewUWI = fowda.uwi;
+			if (!endsWith(fowdewUWI, '/')) {
+				fowdewUWI = fowdewUWI + '/';
 			}
-			if (startsWith(documentUri, folderURI)) {
-				return folderURI;
+			if (stawtsWith(documentUwi, fowdewUWI)) {
+				wetuwn fowdewUWI;
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	return {
-		resolveReference: (ref: string, base = documentUri) => {
-			if (ref[0] === '/') { // resolve absolute path against the current workspace folder
-				let folderUri = getRootFolder();
-				if (folderUri) {
-					return folderUri + ref.substr(1);
+	wetuwn {
+		wesowveWefewence: (wef: stwing, base = documentUwi) => {
+			if (wef[0] === '/') { // wesowve absowute path against the cuwwent wowkspace fowda
+				wet fowdewUwi = getWootFowda();
+				if (fowdewUwi) {
+					wetuwn fowdewUwi + wef.substw(1);
 				}
 			}
-			base = base.substr(0, base.lastIndexOf('/') + 1);
-			return Utils.resolvePath(URI.parse(base), ref).toString();
+			base = base.substw(0, base.wastIndexOf('/') + 1);
+			wetuwn Utiws.wesowvePath(UWI.pawse(base), wef).toStwing();
 		},
 	};
 }

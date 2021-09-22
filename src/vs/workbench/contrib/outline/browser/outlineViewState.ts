@@ -1,87 +1,87 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
 
 
-export const enum OutlineSortOrder {
+expowt const enum OutwineSowtOwda {
 	ByPosition,
 	ByName,
 	ByKind
 }
 
-export class OutlineViewState {
+expowt cwass OutwineViewState {
 
-	private _followCursor = false;
-	private _filterOnType = true;
-	private _sortBy = OutlineSortOrder.ByPosition;
+	pwivate _fowwowCuwsow = fawse;
+	pwivate _fiwtewOnType = twue;
+	pwivate _sowtBy = OutwineSowtOwda.ByPosition;
 
-	private readonly _onDidChange = new Emitter<{ followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }>();
-	readonly onDidChange = this._onDidChange.event;
+	pwivate weadonwy _onDidChange = new Emitta<{ fowwowCuwsow?: boowean, sowtBy?: boowean, fiwtewOnType?: boowean }>();
+	weadonwy onDidChange = this._onDidChange.event;
 
 	dispose(): void {
 		this._onDidChange.dispose();
 	}
 
-	set followCursor(value: boolean) {
-		if (value !== this._followCursor) {
-			this._followCursor = value;
-			this._onDidChange.fire({ followCursor: true });
+	set fowwowCuwsow(vawue: boowean) {
+		if (vawue !== this._fowwowCuwsow) {
+			this._fowwowCuwsow = vawue;
+			this._onDidChange.fiwe({ fowwowCuwsow: twue });
 		}
 	}
 
-	get followCursor(): boolean {
-		return this._followCursor;
+	get fowwowCuwsow(): boowean {
+		wetuwn this._fowwowCuwsow;
 	}
 
-	get filterOnType() {
-		return this._filterOnType;
+	get fiwtewOnType() {
+		wetuwn this._fiwtewOnType;
 	}
 
-	set filterOnType(value) {
-		if (value !== this._filterOnType) {
-			this._filterOnType = value;
-			this._onDidChange.fire({ filterOnType: true });
+	set fiwtewOnType(vawue) {
+		if (vawue !== this._fiwtewOnType) {
+			this._fiwtewOnType = vawue;
+			this._onDidChange.fiwe({ fiwtewOnType: twue });
 		}
 	}
 
-	set sortBy(value: OutlineSortOrder) {
-		if (value !== this._sortBy) {
-			this._sortBy = value;
-			this._onDidChange.fire({ sortBy: true });
+	set sowtBy(vawue: OutwineSowtOwda) {
+		if (vawue !== this._sowtBy) {
+			this._sowtBy = vawue;
+			this._onDidChange.fiwe({ sowtBy: twue });
 		}
 	}
 
-	get sortBy(): OutlineSortOrder {
-		return this._sortBy;
+	get sowtBy(): OutwineSowtOwda {
+		wetuwn this._sowtBy;
 	}
 
-	persist(storageService: IStorageService): void {
-		storageService.store('outline/state', JSON.stringify({
-			followCursor: this.followCursor,
-			sortBy: this.sortBy,
-			filterOnType: this.filterOnType,
-		}), StorageScope.WORKSPACE, StorageTarget.USER);
+	pewsist(stowageSewvice: IStowageSewvice): void {
+		stowageSewvice.stowe('outwine/state', JSON.stwingify({
+			fowwowCuwsow: this.fowwowCuwsow,
+			sowtBy: this.sowtBy,
+			fiwtewOnType: this.fiwtewOnType,
+		}), StowageScope.WOWKSPACE, StowageTawget.USa);
 	}
 
-	restore(storageService: IStorageService): void {
-		let raw = storageService.get('outline/state', StorageScope.WORKSPACE);
-		if (!raw) {
-			return;
+	westowe(stowageSewvice: IStowageSewvice): void {
+		wet waw = stowageSewvice.get('outwine/state', StowageScope.WOWKSPACE);
+		if (!waw) {
+			wetuwn;
 		}
-		let data: any;
-		try {
-			data = JSON.parse(raw);
+		wet data: any;
+		twy {
+			data = JSON.pawse(waw);
 		} catch (e) {
-			return;
+			wetuwn;
 		}
-		this.followCursor = data.followCursor;
-		this.sortBy = data.sortBy ?? OutlineSortOrder.ByPosition;
-		if (typeof data.filterOnType === 'boolean') {
-			this.filterOnType = data.filterOnType;
+		this.fowwowCuwsow = data.fowwowCuwsow;
+		this.sowtBy = data.sowtBy ?? OutwineSowtOwda.ByPosition;
+		if (typeof data.fiwtewOnType === 'boowean') {
+			this.fiwtewOnType = data.fiwtewOnType;
 		}
 	}
 }

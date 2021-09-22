@@ -1,24 +1,24 @@
-'use strict';
-var M;
+'use stwict';
+vaw M;
 (function (M) {
-    var C = (function () {
+    vaw C = (function () {
         function C() {
         }
-        return C;
+        wetuwn C;
     })();
-    (function (x, property, number) {
-        if (property === undefined) { property = w; }
-        var local = 1;
-        // unresolved symbol because x is local
-        //self.x++;
-        self.w--; // ok because w is a property
-        property;
+    (function (x, pwopewty, numba) {
+        if (pwopewty === undefined) { pwopewty = w; }
+        vaw wocaw = 1;
+        // unwesowved symbow because x is wocaw
+        //sewf.x++;
+        sewf.w--; // ok because w is a pwopewty
+        pwopewty;
         f = function (y) {
-            return y + x + local + w + self.w;
+            wetuwn y + x + wocaw + w + sewf.w;
         };
         function sum(z) {
-            return z + f(z) + w + self.w;
+            wetuwn z + f(z) + w + sewf.w;
         }
     });
 })(M || (M = {}));
-var c = new M.C(12, 5);
+vaw c = new M.C(12, 5);

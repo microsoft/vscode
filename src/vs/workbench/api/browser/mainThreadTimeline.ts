@@ -1,65 +1,65 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { ILogService } from 'vs/platform/log/common/log';
-import { MainContext, MainThreadTimelineShape, IExtHostContext, ExtHostTimelineShape, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor, ITimelineService, InternalTimelineOptions } from 'vs/workbench/contrib/timeline/common/timeline';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { MainContext, MainThweadTimewineShape, IExtHostContext, ExtHostTimewineShape, ExtHostContext } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { TimewineChangeEvent, TimewineOptions, TimewinePwovidewDescwiptow, ITimewineSewvice, IntewnawTimewineOptions } fwom 'vs/wowkbench/contwib/timewine/common/timewine';
 
-@extHostNamedCustomer(MainContext.MainThreadTimeline)
-export class MainThreadTimeline implements MainThreadTimelineShape {
-	private readonly _proxy: ExtHostTimelineShape;
-	private readonly _providerEmitters = new Map<string, Emitter<TimelineChangeEvent>>();
+@extHostNamedCustoma(MainContext.MainThweadTimewine)
+expowt cwass MainThweadTimewine impwements MainThweadTimewineShape {
+	pwivate weadonwy _pwoxy: ExtHostTimewineShape;
+	pwivate weadonwy _pwovidewEmittews = new Map<stwing, Emitta<TimewineChangeEvent>>();
 
-	constructor(
+	constwuctow(
 		context: IExtHostContext,
-		@ILogService private readonly logService: ILogService,
-		@ITimelineService private readonly _timelineService: ITimelineService
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@ITimewineSewvice pwivate weadonwy _timewineSewvice: ITimewineSewvice
 	) {
-		this._proxy = context.getProxy(ExtHostContext.ExtHostTimeline);
+		this._pwoxy = context.getPwoxy(ExtHostContext.ExtHostTimewine);
 	}
 
-	$registerTimelineProvider(provider: TimelineProviderDescriptor): void {
-		this.logService.trace(`MainThreadTimeline#registerTimelineProvider: id=${provider.id}`);
+	$wegistewTimewinePwovida(pwovida: TimewinePwovidewDescwiptow): void {
+		this.wogSewvice.twace(`MainThweadTimewine#wegistewTimewinePwovida: id=${pwovida.id}`);
 
-		const proxy = this._proxy;
+		const pwoxy = this._pwoxy;
 
-		const emitters = this._providerEmitters;
-		let onDidChange = emitters.get(provider.id);
+		const emittews = this._pwovidewEmittews;
+		wet onDidChange = emittews.get(pwovida.id);
 		if (onDidChange === undefined) {
-			onDidChange = new Emitter<TimelineChangeEvent>();
-			emitters.set(provider.id, onDidChange);
+			onDidChange = new Emitta<TimewineChangeEvent>();
+			emittews.set(pwovida.id, onDidChange);
 		}
 
-		this._timelineService.registerTimelineProvider({
-			...provider,
+		this._timewineSewvice.wegistewTimewinePwovida({
+			...pwovida,
 			onDidChange: onDidChange.event,
-			provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions) {
-				return proxy.$getTimeline(provider.id, uri, options, token, internalOptions);
+			pwovideTimewine(uwi: UWI, options: TimewineOptions, token: CancewwationToken, intewnawOptions?: IntewnawTimewineOptions) {
+				wetuwn pwoxy.$getTimewine(pwovida.id, uwi, options, token, intewnawOptions);
 			},
 			dispose() {
-				emitters.delete(provider.id);
+				emittews.dewete(pwovida.id);
 				onDidChange?.dispose();
 			}
 		});
 	}
 
-	$unregisterTimelineProvider(id: string): void {
-		this.logService.trace(`MainThreadTimeline#unregisterTimelineProvider: id=${id}`);
+	$unwegistewTimewinePwovida(id: stwing): void {
+		this.wogSewvice.twace(`MainThweadTimewine#unwegistewTimewinePwovida: id=${id}`);
 
-		this._timelineService.unregisterTimelineProvider(id);
+		this._timewineSewvice.unwegistewTimewinePwovida(id);
 	}
 
-	$emitTimelineChangeEvent(e: TimelineChangeEvent): void {
-		this.logService.trace(`MainThreadTimeline#emitChangeEvent: id=${e.id}, uri=${e.uri?.toString(true)}`);
+	$emitTimewineChangeEvent(e: TimewineChangeEvent): void {
+		this.wogSewvice.twace(`MainThweadTimewine#emitChangeEvent: id=${e.id}, uwi=${e.uwi?.toStwing(twue)}`);
 
-		const emitter = this._providerEmitters.get(e.id!);
-		emitter?.fire(e);
+		const emitta = this._pwovidewEmittews.get(e.id!);
+		emitta?.fiwe(e);
 	}
 
 	dispose(): void {

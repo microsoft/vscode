@@ -1,373 +1,373 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IExtensionManifest, ExtensionKind, ExtensionIdentifier, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionIdentifier, ALL_EXTENSION_KINDS } from 'vs/platform/extensions/common/extensions';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ExtensionUntrustedWorkspaceSupport } from 'vs/base/common/product';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { WORKSPACE_TRUST_EXTENSION_SUPPORT } from 'vs/workbench/services/workspaces/common/workspaceTrust';
-import { isBoolean } from 'vs/base/common/types';
-import { IWorkspaceTrustEnablementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { ILogService } from 'vs/platform/log/common/log';
-import { isWeb } from 'vs/base/common/platform';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IExtensionManifest, ExtensionKind, ExtensionIdentifia, ExtensionUntwustedWowkspaceSuppowtType, ExtensionViwtuawWowkspaceSuppowtType, IExtensionIdentifia, AWW_EXTENSION_KINDS } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { ExtensionsWegistwy } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
+impowt { getGawwewyExtensionId } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { isNonEmptyAwway } fwom 'vs/base/common/awways';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { ExtensionUntwustedWowkspaceSuppowt } fwom 'vs/base/common/pwoduct';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { WOWKSPACE_TWUST_EXTENSION_SUPPOWT } fwom 'vs/wowkbench/sewvices/wowkspaces/common/wowkspaceTwust';
+impowt { isBoowean } fwom 'vs/base/common/types';
+impowt { IWowkspaceTwustEnabwementSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
 
-export const IExtensionManifestPropertiesService = createDecorator<IExtensionManifestPropertiesService>('extensionManifestPropertiesService');
+expowt const IExtensionManifestPwopewtiesSewvice = cweateDecowatow<IExtensionManifestPwopewtiesSewvice>('extensionManifestPwopewtiesSewvice');
 
-export interface IExtensionManifestPropertiesService {
-	readonly _serviceBrand: undefined;
+expowt intewface IExtensionManifestPwopewtiesSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	prefersExecuteOnUI(manifest: IExtensionManifest): boolean;
-	prefersExecuteOnWorkspace(manifest: IExtensionManifest): boolean;
-	prefersExecuteOnWeb(manifest: IExtensionManifest): boolean;
+	pwefewsExecuteOnUI(manifest: IExtensionManifest): boowean;
+	pwefewsExecuteOnWowkspace(manifest: IExtensionManifest): boowean;
+	pwefewsExecuteOnWeb(manifest: IExtensionManifest): boowean;
 
-	canExecuteOnUI(manifest: IExtensionManifest): boolean;
-	canExecuteOnWorkspace(manifest: IExtensionManifest): boolean;
-	canExecuteOnWeb(manifest: IExtensionManifest): boolean;
+	canExecuteOnUI(manifest: IExtensionManifest): boowean;
+	canExecuteOnWowkspace(manifest: IExtensionManifest): boowean;
+	canExecuteOnWeb(manifest: IExtensionManifest): boowean;
 
 	getExtensionKind(manifest: IExtensionManifest): ExtensionKind[];
-	getUserConfiguredExtensionKind(extensionIdentifier: IExtensionIdentifier): ExtensionKind[] | undefined;
-	getExtensionUntrustedWorkspaceSupportType(manifest: IExtensionManifest): ExtensionUntrustedWorkspaceSupportType;
-	getExtensionVirtualWorkspaceSupportType(manifest: IExtensionManifest): ExtensionVirtualWorkspaceSupportType;
+	getUsewConfiguwedExtensionKind(extensionIdentifia: IExtensionIdentifia): ExtensionKind[] | undefined;
+	getExtensionUntwustedWowkspaceSuppowtType(manifest: IExtensionManifest): ExtensionUntwustedWowkspaceSuppowtType;
+	getExtensionViwtuawWowkspaceSuppowtType(manifest: IExtensionManifest): ExtensionViwtuawWowkspaceSuppowtType;
 }
 
-export class ExtensionManifestPropertiesService extends Disposable implements IExtensionManifestPropertiesService {
+expowt cwass ExtensionManifestPwopewtiesSewvice extends Disposabwe impwements IExtensionManifestPwopewtiesSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	private _extensionPointExtensionKindsMap: Map<string, ExtensionKind[]> | null = null;
-	private _productExtensionKindsMap: Map<string, ExtensionKind[]> | null = null;
-	private _configuredExtensionKindsMap: Map<string, ExtensionKind | ExtensionKind[]> | null = null;
+	pwivate _extensionPointExtensionKindsMap: Map<stwing, ExtensionKind[]> | nuww = nuww;
+	pwivate _pwoductExtensionKindsMap: Map<stwing, ExtensionKind[]> | nuww = nuww;
+	pwivate _configuwedExtensionKindsMap: Map<stwing, ExtensionKind | ExtensionKind[]> | nuww = nuww;
 
-	private _productVirtualWorkspaceSupportMap: Map<string, { default?: boolean, override?: boolean }> | null = null;
-	private _configuredVirtualWorkspaceSupportMap: Map<string, boolean> | null = null;
+	pwivate _pwoductViwtuawWowkspaceSuppowtMap: Map<stwing, { defauwt?: boowean, ovewwide?: boowean }> | nuww = nuww;
+	pwivate _configuwedViwtuawWowkspaceSuppowtMap: Map<stwing, boowean> | nuww = nuww;
 
-	private readonly _configuredExtensionWorkspaceTrustRequestMap: Map<string, { supported: ExtensionUntrustedWorkspaceSupportType, version?: string }>;
-	private readonly _productExtensionWorkspaceTrustRequestMap: Map<string, ExtensionUntrustedWorkspaceSupport>;
+	pwivate weadonwy _configuwedExtensionWowkspaceTwustWequestMap: Map<stwing, { suppowted: ExtensionUntwustedWowkspaceSuppowtType, vewsion?: stwing }>;
+	pwivate weadonwy _pwoductExtensionWowkspaceTwustWequestMap: Map<stwing, ExtensionUntwustedWowkspaceSuppowt>;
 
-	constructor(
-		@IProductService private readonly productService: IProductService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkspaceTrustEnablementService private readonly workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
-		@ILogService private readonly logService: ILogService,
+	constwuctow(
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IWowkspaceTwustEnabwementSewvice pwivate weadonwy wowkspaceTwustEnabwementSewvice: IWowkspaceTwustEnabwementSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
 	) {
-		super();
+		supa();
 
-		// Workspace trust request type (settings.json)
-		this._configuredExtensionWorkspaceTrustRequestMap = new Map<string, { supported: ExtensionUntrustedWorkspaceSupportType, version?: string }>();
-		const configuredExtensionWorkspaceTrustRequests = configurationService.inspect<{ [key: string]: { supported: ExtensionUntrustedWorkspaceSupportType, version?: string } }>(WORKSPACE_TRUST_EXTENSION_SUPPORT).userValue || {};
-		for (const id of Object.keys(configuredExtensionWorkspaceTrustRequests)) {
-			this._configuredExtensionWorkspaceTrustRequestMap.set(ExtensionIdentifier.toKey(id), configuredExtensionWorkspaceTrustRequests[id]);
+		// Wowkspace twust wequest type (settings.json)
+		this._configuwedExtensionWowkspaceTwustWequestMap = new Map<stwing, { suppowted: ExtensionUntwustedWowkspaceSuppowtType, vewsion?: stwing }>();
+		const configuwedExtensionWowkspaceTwustWequests = configuwationSewvice.inspect<{ [key: stwing]: { suppowted: ExtensionUntwustedWowkspaceSuppowtType, vewsion?: stwing } }>(WOWKSPACE_TWUST_EXTENSION_SUPPOWT).usewVawue || {};
+		fow (const id of Object.keys(configuwedExtensionWowkspaceTwustWequests)) {
+			this._configuwedExtensionWowkspaceTwustWequestMap.set(ExtensionIdentifia.toKey(id), configuwedExtensionWowkspaceTwustWequests[id]);
 		}
 
-		// Workspace trust request type (products.json)
-		this._productExtensionWorkspaceTrustRequestMap = new Map<string, ExtensionUntrustedWorkspaceSupport>();
-		if (productService.extensionUntrustedWorkspaceSupport) {
-			for (const id of Object.keys(productService.extensionUntrustedWorkspaceSupport)) {
-				this._productExtensionWorkspaceTrustRequestMap.set(ExtensionIdentifier.toKey(id), productService.extensionUntrustedWorkspaceSupport[id]);
+		// Wowkspace twust wequest type (pwoducts.json)
+		this._pwoductExtensionWowkspaceTwustWequestMap = new Map<stwing, ExtensionUntwustedWowkspaceSuppowt>();
+		if (pwoductSewvice.extensionUntwustedWowkspaceSuppowt) {
+			fow (const id of Object.keys(pwoductSewvice.extensionUntwustedWowkspaceSuppowt)) {
+				this._pwoductExtensionWowkspaceTwustWequestMap.set(ExtensionIdentifia.toKey(id), pwoductSewvice.extensionUntwustedWowkspaceSuppowt[id]);
 			}
 		}
 	}
 
-	prefersExecuteOnUI(manifest: IExtensionManifest): boolean {
+	pwefewsExecuteOnUI(manifest: IExtensionManifest): boowean {
 		const extensionKind = this.getExtensionKind(manifest);
-		return (extensionKind.length > 0 && extensionKind[0] === 'ui');
+		wetuwn (extensionKind.wength > 0 && extensionKind[0] === 'ui');
 	}
 
-	prefersExecuteOnWorkspace(manifest: IExtensionManifest): boolean {
+	pwefewsExecuteOnWowkspace(manifest: IExtensionManifest): boowean {
 		const extensionKind = this.getExtensionKind(manifest);
-		return (extensionKind.length > 0 && extensionKind[0] === 'workspace');
+		wetuwn (extensionKind.wength > 0 && extensionKind[0] === 'wowkspace');
 	}
 
-	prefersExecuteOnWeb(manifest: IExtensionManifest): boolean {
+	pwefewsExecuteOnWeb(manifest: IExtensionManifest): boowean {
 		const extensionKind = this.getExtensionKind(manifest);
-		return (extensionKind.length > 0 && extensionKind[0] === 'web');
+		wetuwn (extensionKind.wength > 0 && extensionKind[0] === 'web');
 	}
 
-	canExecuteOnUI(manifest: IExtensionManifest): boolean {
+	canExecuteOnUI(manifest: IExtensionManifest): boowean {
 		const extensionKind = this.getExtensionKind(manifest);
-		return extensionKind.some(kind => kind === 'ui');
+		wetuwn extensionKind.some(kind => kind === 'ui');
 	}
 
-	canExecuteOnWorkspace(manifest: IExtensionManifest): boolean {
+	canExecuteOnWowkspace(manifest: IExtensionManifest): boowean {
 		const extensionKind = this.getExtensionKind(manifest);
-		return extensionKind.some(kind => kind === 'workspace');
+		wetuwn extensionKind.some(kind => kind === 'wowkspace');
 	}
 
-	canExecuteOnWeb(manifest: IExtensionManifest): boolean {
+	canExecuteOnWeb(manifest: IExtensionManifest): boowean {
 		const extensionKind = this.getExtensionKind(manifest);
-		return extensionKind.some(kind => kind === 'web');
+		wetuwn extensionKind.some(kind => kind === 'web');
 	}
 
 	getExtensionKind(manifest: IExtensionManifest): ExtensionKind[] {
 		const deducedExtensionKind = this.deduceExtensionKind(manifest);
-		const configuredExtensionKind = this.getConfiguredExtensionKind(manifest);
+		const configuwedExtensionKind = this.getConfiguwedExtensionKind(manifest);
 
-		if (configuredExtensionKind) {
-			const result: ExtensionKind[] = [];
-			for (const extensionKind of configuredExtensionKind) {
+		if (configuwedExtensionKind) {
+			const wesuwt: ExtensionKind[] = [];
+			fow (const extensionKind of configuwedExtensionKind) {
 				if (extensionKind !== '-web') {
-					result.push(extensionKind);
+					wesuwt.push(extensionKind);
 				}
 			}
 
-			// If opted out from web without specifying other extension kinds then default to ui, workspace
-			if (configuredExtensionKind.includes('-web') && !result.length) {
-				result.push('ui');
-				result.push('workspace');
+			// If opted out fwom web without specifying otha extension kinds then defauwt to ui, wowkspace
+			if (configuwedExtensionKind.incwudes('-web') && !wesuwt.wength) {
+				wesuwt.push('ui');
+				wesuwt.push('wowkspace');
 			}
 
-			// Add web kind if not opted out from web and can run in web
-			if (!configuredExtensionKind.includes('-web') && !configuredExtensionKind.includes('web') && deducedExtensionKind.includes('web')) {
-				result.push('web');
+			// Add web kind if not opted out fwom web and can wun in web
+			if (!configuwedExtensionKind.incwudes('-web') && !configuwedExtensionKind.incwudes('web') && deducedExtensionKind.incwudes('web')) {
+				wesuwt.push('web');
 			}
 
-			return result;
+			wetuwn wesuwt;
 		}
 
-		return deducedExtensionKind;
+		wetuwn deducedExtensionKind;
 	}
 
-	getUserConfiguredExtensionKind(extensionIdentifier: IExtensionIdentifier): ExtensionKind[] | undefined {
-		if (this._configuredExtensionKindsMap === null) {
-			const configuredExtensionKindsMap = new Map<string, ExtensionKind | ExtensionKind[]>();
-			const configuredExtensionKinds = this.configurationService.getValue<{ [key: string]: ExtensionKind | ExtensionKind[] }>('remote.extensionKind') || {};
-			for (const id of Object.keys(configuredExtensionKinds)) {
-				configuredExtensionKindsMap.set(ExtensionIdentifier.toKey(id), configuredExtensionKinds[id]);
+	getUsewConfiguwedExtensionKind(extensionIdentifia: IExtensionIdentifia): ExtensionKind[] | undefined {
+		if (this._configuwedExtensionKindsMap === nuww) {
+			const configuwedExtensionKindsMap = new Map<stwing, ExtensionKind | ExtensionKind[]>();
+			const configuwedExtensionKinds = this.configuwationSewvice.getVawue<{ [key: stwing]: ExtensionKind | ExtensionKind[] }>('wemote.extensionKind') || {};
+			fow (const id of Object.keys(configuwedExtensionKinds)) {
+				configuwedExtensionKindsMap.set(ExtensionIdentifia.toKey(id), configuwedExtensionKinds[id]);
 			}
-			this._configuredExtensionKindsMap = configuredExtensionKindsMap;
+			this._configuwedExtensionKindsMap = configuwedExtensionKindsMap;
 		}
 
-		const userConfiguredExtensionKind = this._configuredExtensionKindsMap.get(ExtensionIdentifier.toKey(extensionIdentifier.id));
-		return userConfiguredExtensionKind ? this.toArray(userConfiguredExtensionKind) : undefined;
+		const usewConfiguwedExtensionKind = this._configuwedExtensionKindsMap.get(ExtensionIdentifia.toKey(extensionIdentifia.id));
+		wetuwn usewConfiguwedExtensionKind ? this.toAwway(usewConfiguwedExtensionKind) : undefined;
 	}
 
-	getExtensionUntrustedWorkspaceSupportType(manifest: IExtensionManifest): ExtensionUntrustedWorkspaceSupportType {
-		// Workspace trust feature is disabled, or extension has no entry point
-		if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled() || !manifest.main) {
-			return true;
+	getExtensionUntwustedWowkspaceSuppowtType(manifest: IExtensionManifest): ExtensionUntwustedWowkspaceSuppowtType {
+		// Wowkspace twust featuwe is disabwed, ow extension has no entwy point
+		if (!this.wowkspaceTwustEnabwementSewvice.isWowkspaceTwustEnabwed() || !manifest.main) {
+			wetuwn twue;
 		}
 
-		// Get extension workspace trust requirements from settings.json
-		const configuredWorkspaceTrustRequest = this.getConfiguredExtensionWorkspaceTrustRequest(manifest);
+		// Get extension wowkspace twust wequiwements fwom settings.json
+		const configuwedWowkspaceTwustWequest = this.getConfiguwedExtensionWowkspaceTwustWequest(manifest);
 
-		// Get extension workspace trust requirements from product.json
-		const productWorkspaceTrustRequest = this.getProductExtensionWorkspaceTrustRequest(manifest);
+		// Get extension wowkspace twust wequiwements fwom pwoduct.json
+		const pwoductWowkspaceTwustWequest = this.getPwoductExtensionWowkspaceTwustWequest(manifest);
 
-		// Use settings.json override value if it exists
-		if (configuredWorkspaceTrustRequest !== undefined) {
-			return configuredWorkspaceTrustRequest;
+		// Use settings.json ovewwide vawue if it exists
+		if (configuwedWowkspaceTwustWequest !== undefined) {
+			wetuwn configuwedWowkspaceTwustWequest;
 		}
 
-		// Use product.json override value if it exists
-		if (productWorkspaceTrustRequest?.override !== undefined) {
-			return productWorkspaceTrustRequest.override;
+		// Use pwoduct.json ovewwide vawue if it exists
+		if (pwoductWowkspaceTwustWequest?.ovewwide !== undefined) {
+			wetuwn pwoductWowkspaceTwustWequest.ovewwide;
 		}
 
-		// Use extension manifest value if it exists
-		if (manifest.capabilities?.untrustedWorkspaces?.supported !== undefined) {
-			return manifest.capabilities.untrustedWorkspaces.supported;
+		// Use extension manifest vawue if it exists
+		if (manifest.capabiwities?.untwustedWowkspaces?.suppowted !== undefined) {
+			wetuwn manifest.capabiwities.untwustedWowkspaces.suppowted;
 		}
 
-		// Use product.json default value if it exists
-		if (productWorkspaceTrustRequest?.default !== undefined) {
-			return productWorkspaceTrustRequest.default;
+		// Use pwoduct.json defauwt vawue if it exists
+		if (pwoductWowkspaceTwustWequest?.defauwt !== undefined) {
+			wetuwn pwoductWowkspaceTwustWequest.defauwt;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	getExtensionVirtualWorkspaceSupportType(manifest: IExtensionManifest): ExtensionVirtualWorkspaceSupportType {
-		// check user configured
-		const userConfiguredVirtualWorkspaceSupport = this.getConfiguredVirtualWorkspaceSupport(manifest);
-		if (userConfiguredVirtualWorkspaceSupport !== undefined) {
-			return userConfiguredVirtualWorkspaceSupport;
+	getExtensionViwtuawWowkspaceSuppowtType(manifest: IExtensionManifest): ExtensionViwtuawWowkspaceSuppowtType {
+		// check usa configuwed
+		const usewConfiguwedViwtuawWowkspaceSuppowt = this.getConfiguwedViwtuawWowkspaceSuppowt(manifest);
+		if (usewConfiguwedViwtuawWowkspaceSuppowt !== undefined) {
+			wetuwn usewConfiguwedViwtuawWowkspaceSuppowt;
 		}
 
-		const productConfiguredWorkspaceSchemes = this.getProductVirtualWorkspaceSupport(manifest);
+		const pwoductConfiguwedWowkspaceSchemes = this.getPwoductViwtuawWowkspaceSuppowt(manifest);
 
-		// check override from product
-		if (productConfiguredWorkspaceSchemes?.override !== undefined) {
-			return productConfiguredWorkspaceSchemes.override;
+		// check ovewwide fwom pwoduct
+		if (pwoductConfiguwedWowkspaceSchemes?.ovewwide !== undefined) {
+			wetuwn pwoductConfiguwedWowkspaceSchemes.ovewwide;
 		}
 
 		// check the manifest
-		const virtualWorkspaces = manifest.capabilities?.virtualWorkspaces;
-		if (isBoolean(virtualWorkspaces)) {
-			return virtualWorkspaces;
-		} else if (virtualWorkspaces) {
-			const supported = virtualWorkspaces.supported;
-			if (isBoolean(supported) || supported === 'limited') {
-				return supported;
+		const viwtuawWowkspaces = manifest.capabiwities?.viwtuawWowkspaces;
+		if (isBoowean(viwtuawWowkspaces)) {
+			wetuwn viwtuawWowkspaces;
+		} ewse if (viwtuawWowkspaces) {
+			const suppowted = viwtuawWowkspaces.suppowted;
+			if (isBoowean(suppowted) || suppowted === 'wimited') {
+				wetuwn suppowted;
 			}
 		}
 
-		// check default from product
-		if (productConfiguredWorkspaceSchemes?.default !== undefined) {
-			return productConfiguredWorkspaceSchemes.default;
+		// check defauwt fwom pwoduct
+		if (pwoductConfiguwedWowkspaceSchemes?.defauwt !== undefined) {
+			wetuwn pwoductConfiguwedWowkspaceSchemes.defauwt;
 		}
 
-		// Default - supports virtual workspace
-		return true;
+		// Defauwt - suppowts viwtuaw wowkspace
+		wetuwn twue;
 	}
 
-	private deduceExtensionKind(manifest: IExtensionManifest): ExtensionKind[] {
+	pwivate deduceExtensionKind(manifest: IExtensionManifest): ExtensionKind[] {
 		// Not an UI extension if it has main
 		if (manifest.main) {
-			if (manifest.browser) {
-				return isWeb ? ['workspace', 'web'] : ['workspace'];
+			if (manifest.bwowsa) {
+				wetuwn isWeb ? ['wowkspace', 'web'] : ['wowkspace'];
 			}
-			return ['workspace'];
+			wetuwn ['wowkspace'];
 		}
 
-		if (manifest.browser) {
-			return ['web'];
+		if (manifest.bwowsa) {
+			wetuwn ['web'];
 		}
 
-		let result = [...ALL_EXTENSION_KINDS];
+		wet wesuwt = [...AWW_EXTENSION_KINDS];
 
-		if (isNonEmptyArray(manifest.extensionPack) || isNonEmptyArray(manifest.extensionDependencies)) {
-			// Extension pack defaults to [workspace, web] in web and only [workspace] in desktop
-			result = isWeb ? ['workspace', 'web'] : ['workspace'];
+		if (isNonEmptyAwway(manifest.extensionPack) || isNonEmptyAwway(manifest.extensionDependencies)) {
+			// Extension pack defauwts to [wowkspace, web] in web and onwy [wowkspace] in desktop
+			wesuwt = isWeb ? ['wowkspace', 'web'] : ['wowkspace'];
 		}
 
-		if (manifest.contributes) {
-			for (const contribution of Object.keys(manifest.contributes)) {
-				const supportedExtensionKinds = this.getSupportedExtensionKindsForExtensionPoint(contribution);
-				if (supportedExtensionKinds.length) {
-					result = result.filter(extensionKind => supportedExtensionKinds.includes(extensionKind));
+		if (manifest.contwibutes) {
+			fow (const contwibution of Object.keys(manifest.contwibutes)) {
+				const suppowtedExtensionKinds = this.getSuppowtedExtensionKindsFowExtensionPoint(contwibution);
+				if (suppowtedExtensionKinds.wength) {
+					wesuwt = wesuwt.fiwta(extensionKind => suppowtedExtensionKinds.incwudes(extensionKind));
 				}
 			}
 		}
 
-		if (!result.length) {
-			this.logService.warn('Cannot deduce extensionKind for extension', getGalleryExtensionId(manifest.publisher, manifest.name));
+		if (!wesuwt.wength) {
+			this.wogSewvice.wawn('Cannot deduce extensionKind fow extension', getGawwewyExtensionId(manifest.pubwisha, manifest.name));
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private getSupportedExtensionKindsForExtensionPoint(extensionPoint: string): ExtensionKind[] {
-		if (this._extensionPointExtensionKindsMap === null) {
-			const extensionPointExtensionKindsMap = new Map<string, ExtensionKind[]>();
-			ExtensionsRegistry.getExtensionPoints().forEach(e => extensionPointExtensionKindsMap.set(e.name, e.defaultExtensionKind || [] /* supports all */));
+	pwivate getSuppowtedExtensionKindsFowExtensionPoint(extensionPoint: stwing): ExtensionKind[] {
+		if (this._extensionPointExtensionKindsMap === nuww) {
+			const extensionPointExtensionKindsMap = new Map<stwing, ExtensionKind[]>();
+			ExtensionsWegistwy.getExtensionPoints().fowEach(e => extensionPointExtensionKindsMap.set(e.name, e.defauwtExtensionKind || [] /* suppowts aww */));
 			this._extensionPointExtensionKindsMap = extensionPointExtensionKindsMap;
 		}
 
-		let extensionPointExtensionKind = this._extensionPointExtensionKindsMap.get(extensionPoint);
+		wet extensionPointExtensionKind = this._extensionPointExtensionKindsMap.get(extensionPoint);
 		if (extensionPointExtensionKind) {
-			return extensionPointExtensionKind;
+			wetuwn extensionPointExtensionKind;
 		}
 
-		extensionPointExtensionKind = this.productService.extensionPointExtensionKind ? this.productService.extensionPointExtensionKind[extensionPoint] : undefined;
+		extensionPointExtensionKind = this.pwoductSewvice.extensionPointExtensionKind ? this.pwoductSewvice.extensionPointExtensionKind[extensionPoint] : undefined;
 		if (extensionPointExtensionKind) {
-			return extensionPointExtensionKind;
+			wetuwn extensionPointExtensionKind;
 		}
 
 		/* Unknown extension point */
-		return isWeb ? ['workspace', 'web'] : ['workspace'];
+		wetuwn isWeb ? ['wowkspace', 'web'] : ['wowkspace'];
 	}
 
-	private getConfiguredExtensionKind(manifest: IExtensionManifest): (ExtensionKind | '-web')[] | null {
-		const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
+	pwivate getConfiguwedExtensionKind(manifest: IExtensionManifest): (ExtensionKind | '-web')[] | nuww {
+		const extensionIdentifia = { id: getGawwewyExtensionId(manifest.pubwisha, manifest.name) };
 
 		// check in config
-		let result: ExtensionKind | ExtensionKind[] | undefined = this.getUserConfiguredExtensionKind(extensionIdentifier);
-		if (typeof result !== 'undefined') {
-			return this.toArray(result);
+		wet wesuwt: ExtensionKind | ExtensionKind[] | undefined = this.getUsewConfiguwedExtensionKind(extensionIdentifia);
+		if (typeof wesuwt !== 'undefined') {
+			wetuwn this.toAwway(wesuwt);
 		}
 
-		// check product.json
-		result = this.getProductExtensionKind(manifest);
-		if (typeof result !== 'undefined') {
-			return result;
+		// check pwoduct.json
+		wesuwt = this.getPwoductExtensionKind(manifest);
+		if (typeof wesuwt !== 'undefined') {
+			wetuwn wesuwt;
 		}
 
-		// check the manifest itself
-		result = manifest.extensionKind;
-		if (typeof result !== 'undefined') {
-			result = this.toArray(result);
-			return result.filter(r => ['ui', 'workspace'].includes(r));
+		// check the manifest itsewf
+		wesuwt = manifest.extensionKind;
+		if (typeof wesuwt !== 'undefined') {
+			wesuwt = this.toAwway(wesuwt);
+			wetuwn wesuwt.fiwta(w => ['ui', 'wowkspace'].incwudes(w));
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	private getProductExtensionKind(manifest: IExtensionManifest): ExtensionKind[] | undefined {
-		if (this._productExtensionKindsMap === null) {
-			const productExtensionKindsMap = new Map<string, ExtensionKind[]>();
-			if (this.productService.extensionKind) {
-				for (const id of Object.keys(this.productService.extensionKind)) {
-					productExtensionKindsMap.set(ExtensionIdentifier.toKey(id), this.productService.extensionKind[id]);
+	pwivate getPwoductExtensionKind(manifest: IExtensionManifest): ExtensionKind[] | undefined {
+		if (this._pwoductExtensionKindsMap === nuww) {
+			const pwoductExtensionKindsMap = new Map<stwing, ExtensionKind[]>();
+			if (this.pwoductSewvice.extensionKind) {
+				fow (const id of Object.keys(this.pwoductSewvice.extensionKind)) {
+					pwoductExtensionKindsMap.set(ExtensionIdentifia.toKey(id), this.pwoductSewvice.extensionKind[id]);
 				}
 			}
-			this._productExtensionKindsMap = productExtensionKindsMap;
+			this._pwoductExtensionKindsMap = pwoductExtensionKindsMap;
 		}
 
-		const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
-		return this._productExtensionKindsMap.get(ExtensionIdentifier.toKey(extensionId));
+		const extensionId = getGawwewyExtensionId(manifest.pubwisha, manifest.name);
+		wetuwn this._pwoductExtensionKindsMap.get(ExtensionIdentifia.toKey(extensionId));
 	}
 
-	private getProductVirtualWorkspaceSupport(manifest: IExtensionManifest): { default?: boolean, override?: boolean } | undefined {
-		if (this._productVirtualWorkspaceSupportMap === null) {
-			const productWorkspaceSchemesMap = new Map<string, { default?: boolean, override?: boolean }>();
-			if (this.productService.extensionVirtualWorkspacesSupport) {
-				for (const id of Object.keys(this.productService.extensionVirtualWorkspacesSupport)) {
-					productWorkspaceSchemesMap.set(ExtensionIdentifier.toKey(id), this.productService.extensionVirtualWorkspacesSupport[id]);
+	pwivate getPwoductViwtuawWowkspaceSuppowt(manifest: IExtensionManifest): { defauwt?: boowean, ovewwide?: boowean } | undefined {
+		if (this._pwoductViwtuawWowkspaceSuppowtMap === nuww) {
+			const pwoductWowkspaceSchemesMap = new Map<stwing, { defauwt?: boowean, ovewwide?: boowean }>();
+			if (this.pwoductSewvice.extensionViwtuawWowkspacesSuppowt) {
+				fow (const id of Object.keys(this.pwoductSewvice.extensionViwtuawWowkspacesSuppowt)) {
+					pwoductWowkspaceSchemesMap.set(ExtensionIdentifia.toKey(id), this.pwoductSewvice.extensionViwtuawWowkspacesSuppowt[id]);
 				}
 			}
-			this._productVirtualWorkspaceSupportMap = productWorkspaceSchemesMap;
+			this._pwoductViwtuawWowkspaceSuppowtMap = pwoductWowkspaceSchemesMap;
 		}
 
-		const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
-		return this._productVirtualWorkspaceSupportMap.get(ExtensionIdentifier.toKey(extensionId));
+		const extensionId = getGawwewyExtensionId(manifest.pubwisha, manifest.name);
+		wetuwn this._pwoductViwtuawWowkspaceSuppowtMap.get(ExtensionIdentifia.toKey(extensionId));
 	}
 
-	private getConfiguredVirtualWorkspaceSupport(manifest: IExtensionManifest): boolean | undefined {
-		if (this._configuredVirtualWorkspaceSupportMap === null) {
-			const configuredWorkspaceSchemesMap = new Map<string, boolean>();
-			const configuredWorkspaceSchemes = this.configurationService.getValue<{ [key: string]: boolean }>('extensions.supportVirtualWorkspaces') || {};
-			for (const id of Object.keys(configuredWorkspaceSchemes)) {
-				if (configuredWorkspaceSchemes[id] !== undefined) {
-					configuredWorkspaceSchemesMap.set(ExtensionIdentifier.toKey(id), configuredWorkspaceSchemes[id]);
+	pwivate getConfiguwedViwtuawWowkspaceSuppowt(manifest: IExtensionManifest): boowean | undefined {
+		if (this._configuwedViwtuawWowkspaceSuppowtMap === nuww) {
+			const configuwedWowkspaceSchemesMap = new Map<stwing, boowean>();
+			const configuwedWowkspaceSchemes = this.configuwationSewvice.getVawue<{ [key: stwing]: boowean }>('extensions.suppowtViwtuawWowkspaces') || {};
+			fow (const id of Object.keys(configuwedWowkspaceSchemes)) {
+				if (configuwedWowkspaceSchemes[id] !== undefined) {
+					configuwedWowkspaceSchemesMap.set(ExtensionIdentifia.toKey(id), configuwedWowkspaceSchemes[id]);
 				}
 			}
-			this._configuredVirtualWorkspaceSupportMap = configuredWorkspaceSchemesMap;
+			this._configuwedViwtuawWowkspaceSuppowtMap = configuwedWowkspaceSchemesMap;
 		}
 
-		const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
-		return this._configuredVirtualWorkspaceSupportMap.get(ExtensionIdentifier.toKey(extensionId));
+		const extensionId = getGawwewyExtensionId(manifest.pubwisha, manifest.name);
+		wetuwn this._configuwedViwtuawWowkspaceSuppowtMap.get(ExtensionIdentifia.toKey(extensionId));
 	}
 
-	private getConfiguredExtensionWorkspaceTrustRequest(manifest: IExtensionManifest): ExtensionUntrustedWorkspaceSupportType | undefined {
-		const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
-		const extensionWorkspaceTrustRequest = this._configuredExtensionWorkspaceTrustRequestMap.get(ExtensionIdentifier.toKey(extensionId));
+	pwivate getConfiguwedExtensionWowkspaceTwustWequest(manifest: IExtensionManifest): ExtensionUntwustedWowkspaceSuppowtType | undefined {
+		const extensionId = getGawwewyExtensionId(manifest.pubwisha, manifest.name);
+		const extensionWowkspaceTwustWequest = this._configuwedExtensionWowkspaceTwustWequestMap.get(ExtensionIdentifia.toKey(extensionId));
 
-		if (extensionWorkspaceTrustRequest && (extensionWorkspaceTrustRequest.version === undefined || extensionWorkspaceTrustRequest.version === manifest.version)) {
-			return extensionWorkspaceTrustRequest.supported;
+		if (extensionWowkspaceTwustWequest && (extensionWowkspaceTwustWequest.vewsion === undefined || extensionWowkspaceTwustWequest.vewsion === manifest.vewsion)) {
+			wetuwn extensionWowkspaceTwustWequest.suppowted;
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private getProductExtensionWorkspaceTrustRequest(manifest: IExtensionManifest): ExtensionUntrustedWorkspaceSupport | undefined {
-		const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
-		return this._productExtensionWorkspaceTrustRequestMap.get(ExtensionIdentifier.toKey(extensionId));
+	pwivate getPwoductExtensionWowkspaceTwustWequest(manifest: IExtensionManifest): ExtensionUntwustedWowkspaceSuppowt | undefined {
+		const extensionId = getGawwewyExtensionId(manifest.pubwisha, manifest.name);
+		wetuwn this._pwoductExtensionWowkspaceTwustWequestMap.get(ExtensionIdentifia.toKey(extensionId));
 	}
 
-	private toArray(extensionKind: ExtensionKind | ExtensionKind[]): ExtensionKind[] {
-		if (Array.isArray(extensionKind)) {
-			return extensionKind;
+	pwivate toAwway(extensionKind: ExtensionKind | ExtensionKind[]): ExtensionKind[] {
+		if (Awway.isAwway(extensionKind)) {
+			wetuwn extensionKind;
 		}
-		return extensionKind === 'ui' ? ['ui', 'workspace'] : [extensionKind];
+		wetuwn extensionKind === 'ui' ? ['ui', 'wowkspace'] : [extensionKind];
 	}
 }
 
-registerSingleton(IExtensionManifestPropertiesService, ExtensionManifestPropertiesService);
+wegistewSingweton(IExtensionManifestPwopewtiesSewvice, ExtensionManifestPwopewtiesSewvice);

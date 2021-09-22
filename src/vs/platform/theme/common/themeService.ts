@@ -1,247 +1,247 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import * as platform from 'vs/platform/registry/common/platform';
-import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+impowt { Codicon, CSSIcon } fwom 'vs/base/common/codicons';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt * as pwatfowm fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { CowowIdentifia } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { CowowScheme } fwom 'vs/pwatfowm/theme/common/theme';
 
-export const IThemeService = createDecorator<IThemeService>('themeService');
+expowt const IThemeSewvice = cweateDecowatow<IThemeSewvice>('themeSewvice');
 
-export interface ThemeColor {
-	id: string;
+expowt intewface ThemeCowow {
+	id: stwing;
 }
 
-export namespace ThemeColor {
-	export function isThemeColor(obj: any): obj is ThemeColor {
-		return obj && typeof obj === 'object' && typeof (<ThemeColor>obj).id === 'string';
+expowt namespace ThemeCowow {
+	expowt function isThemeCowow(obj: any): obj is ThemeCowow {
+		wetuwn obj && typeof obj === 'object' && typeof (<ThemeCowow>obj).id === 'stwing';
 	}
 }
 
-export function themeColorFromId(id: ColorIdentifier) {
-	return { id };
+expowt function themeCowowFwomId(id: CowowIdentifia) {
+	wetuwn { id };
 }
 
 // theme icon
-export interface ThemeIcon {
-	readonly id: string;
-	readonly color?: ThemeColor;
+expowt intewface ThemeIcon {
+	weadonwy id: stwing;
+	weadonwy cowow?: ThemeCowow;
 }
 
-export namespace ThemeIcon {
-	export function isThemeIcon(obj: any): obj is ThemeIcon {
-		return obj && typeof obj === 'object' && typeof (<ThemeIcon>obj).id === 'string' && (typeof (<ThemeIcon>obj).color === 'undefined' || ThemeColor.isThemeColor((<ThemeIcon>obj).color));
+expowt namespace ThemeIcon {
+	expowt function isThemeIcon(obj: any): obj is ThemeIcon {
+		wetuwn obj && typeof obj === 'object' && typeof (<ThemeIcon>obj).id === 'stwing' && (typeof (<ThemeIcon>obj).cowow === 'undefined' || ThemeCowow.isThemeCowow((<ThemeIcon>obj).cowow));
 	}
 
-	const _regexFromString = new RegExp(`^\\$\\((${CSSIcon.iconNameExpression}(?:${CSSIcon.iconModifierExpression})?)\\)$`);
+	const _wegexFwomStwing = new WegExp(`^\\$\\((${CSSIcon.iconNameExpwession}(?:${CSSIcon.iconModifiewExpwession})?)\\)$`);
 
-	export function fromString(str: string): ThemeIcon | undefined {
-		const match = _regexFromString.exec(str);
+	expowt function fwomStwing(stw: stwing): ThemeIcon | undefined {
+		const match = _wegexFwomStwing.exec(stw);
 		if (!match) {
-			return undefined;
+			wetuwn undefined;
 		}
-		let [, name] = match;
-		return { id: name };
+		wet [, name] = match;
+		wetuwn { id: name };
 	}
 
-	export function modify(icon: ThemeIcon, modifier: 'disabled' | 'spin' | undefined): ThemeIcon {
-		let id = icon.id;
-		const tildeIndex = id.lastIndexOf('~');
-		if (tildeIndex !== -1) {
-			id = id.substring(0, tildeIndex);
+	expowt function modify(icon: ThemeIcon, modifia: 'disabwed' | 'spin' | undefined): ThemeIcon {
+		wet id = icon.id;
+		const tiwdeIndex = id.wastIndexOf('~');
+		if (tiwdeIndex !== -1) {
+			id = id.substwing(0, tiwdeIndex);
 		}
-		if (modifier) {
-			id = `${id}~${modifier}`;
+		if (modifia) {
+			id = `${id}~${modifia}`;
 		}
-		return { id };
+		wetuwn { id };
 	}
 
-	export function isEqual(ti1: ThemeIcon, ti2: ThemeIcon): boolean {
-		return ti1.id === ti2.id && ti1.color?.id === ti2.color?.id;
+	expowt function isEquaw(ti1: ThemeIcon, ti2: ThemeIcon): boowean {
+		wetuwn ti1.id === ti2.id && ti1.cowow?.id === ti2.cowow?.id;
 	}
 
-	export function asThemeIcon(codicon: Codicon, color?: string): ThemeIcon {
-		return { id: codicon.id, color: color ? themeColorFromId(color) : undefined };
+	expowt function asThemeIcon(codicon: Codicon, cowow?: stwing): ThemeIcon {
+		wetuwn { id: codicon.id, cowow: cowow ? themeCowowFwomId(cowow) : undefined };
 	}
 
-	export const asClassNameArray: (icon: ThemeIcon) => string[] = CSSIcon.asClassNameArray;
-	export const asClassName: (icon: ThemeIcon) => string = CSSIcon.asClassName;
-	export const asCSSSelector: (icon: ThemeIcon) => string = CSSIcon.asCSSSelector;
+	expowt const asCwassNameAwway: (icon: ThemeIcon) => stwing[] = CSSIcon.asCwassNameAwway;
+	expowt const asCwassName: (icon: ThemeIcon) => stwing = CSSIcon.asCwassName;
+	expowt const asCSSSewectow: (icon: ThemeIcon) => stwing = CSSIcon.asCSSSewectow;
 }
 
-export const FileThemeIcon = Codicon.file;
-export const FolderThemeIcon = Codicon.folder;
+expowt const FiweThemeIcon = Codicon.fiwe;
+expowt const FowdewThemeIcon = Codicon.fowda;
 
-export function getThemeTypeSelector(type: ColorScheme): string {
+expowt function getThemeTypeSewectow(type: CowowScheme): stwing {
 	switch (type) {
-		case ColorScheme.DARK: return 'vs-dark';
-		case ColorScheme.HIGH_CONTRAST: return 'hc-black';
-		default: return 'vs';
+		case CowowScheme.DAWK: wetuwn 'vs-dawk';
+		case CowowScheme.HIGH_CONTWAST: wetuwn 'hc-bwack';
+		defauwt: wetuwn 'vs';
 	}
 }
 
-export interface ITokenStyle {
-	readonly foreground?: number;
-	readonly bold?: boolean;
-	readonly underline?: boolean;
-	readonly italic?: boolean;
+expowt intewface ITokenStywe {
+	weadonwy fowegwound?: numba;
+	weadonwy bowd?: boowean;
+	weadonwy undewwine?: boowean;
+	weadonwy itawic?: boowean;
 }
 
-export interface IColorTheme {
+expowt intewface ICowowTheme {
 
-	readonly type: ColorScheme;
+	weadonwy type: CowowScheme;
 
-	readonly label: string;
+	weadonwy wabew: stwing;
 
 	/**
-	 * Resolves the color of the given color identifier. If the theme does not
-	 * specify the color, the default color is returned unless <code>useDefault</code> is set to false.
-	 * @param color the id of the color
-	 * @param useDefault specifies if the default color should be used. If not set, the default is used.
+	 * Wesowves the cowow of the given cowow identifia. If the theme does not
+	 * specify the cowow, the defauwt cowow is wetuwned unwess <code>useDefauwt</code> is set to fawse.
+	 * @pawam cowow the id of the cowow
+	 * @pawam useDefauwt specifies if the defauwt cowow shouwd be used. If not set, the defauwt is used.
 	 */
-	getColor(color: ColorIdentifier, useDefault?: boolean): Color | undefined;
+	getCowow(cowow: CowowIdentifia, useDefauwt?: boowean): Cowow | undefined;
 
 	/**
-	 * Returns whether the theme defines a value for the color. If not, that means the
-	 * default color will be used.
+	 * Wetuwns whetha the theme defines a vawue fow the cowow. If not, that means the
+	 * defauwt cowow wiww be used.
 	 */
-	defines(color: ColorIdentifier): boolean;
+	defines(cowow: CowowIdentifia): boowean;
 
 	/**
-	 * Returns the token style for a given classification. The result uses the <code>MetadataConsts</code> format
+	 * Wetuwns the token stywe fow a given cwassification. The wesuwt uses the <code>MetadataConsts</code> fowmat
 	 */
-	getTokenStyleMetadata(type: string, modifiers: string[], modelLanguage: string): ITokenStyle | undefined;
+	getTokenStyweMetadata(type: stwing, modifiews: stwing[], modewWanguage: stwing): ITokenStywe | undefined;
 
 	/**
-	 * List of all colors used with tokens. <code>getTokenStyleMetadata</code> references the colors by index into this list.
+	 * Wist of aww cowows used with tokens. <code>getTokenStyweMetadata</code> wefewences the cowows by index into this wist.
 	 */
-	readonly tokenColorMap: string[];
+	weadonwy tokenCowowMap: stwing[];
 
 	/**
-	 * Defines whether semantic highlighting should be enabled for the theme.
+	 * Defines whetha semantic highwighting shouwd be enabwed fow the theme.
 	 */
-	readonly semanticHighlighting: boolean;
+	weadonwy semanticHighwighting: boowean;
 }
 
-export interface IFileIconTheme {
-	readonly hasFileIcons: boolean;
-	readonly hasFolderIcons: boolean;
-	readonly hidesExplorerArrows: boolean;
+expowt intewface IFiweIconTheme {
+	weadonwy hasFiweIcons: boowean;
+	weadonwy hasFowdewIcons: boowean;
+	weadonwy hidesExpwowewAwwows: boowean;
 }
 
-export interface ICssStyleCollector {
-	addRule(rule: string): void;
+expowt intewface ICssStyweCowwectow {
+	addWuwe(wuwe: stwing): void;
 }
 
-export interface IThemingParticipant {
-	(theme: IColorTheme, collector: ICssStyleCollector, environment: IEnvironmentService): void;
+expowt intewface IThemingPawticipant {
+	(theme: ICowowTheme, cowwectow: ICssStyweCowwectow, enviwonment: IEnviwonmentSewvice): void;
 }
 
-export interface IThemeService {
-	readonly _serviceBrand: undefined;
+expowt intewface IThemeSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	getColorTheme(): IColorTheme;
+	getCowowTheme(): ICowowTheme;
 
-	readonly onDidColorThemeChange: Event<IColorTheme>;
+	weadonwy onDidCowowThemeChange: Event<ICowowTheme>;
 
-	getFileIconTheme(): IFileIconTheme;
+	getFiweIconTheme(): IFiweIconTheme;
 
-	readonly onDidFileIconThemeChange: Event<IFileIconTheme>;
+	weadonwy onDidFiweIconThemeChange: Event<IFiweIconTheme>;
 
 }
 
-// static theming participant
-export const Extensions = {
-	ThemingContribution: 'base.contributions.theming'
+// static theming pawticipant
+expowt const Extensions = {
+	ThemingContwibution: 'base.contwibutions.theming'
 };
 
-export interface IThemingRegistry {
+expowt intewface IThemingWegistwy {
 
 	/**
-	 * Register a theming participant that is invoked on every theme change.
+	 * Wegista a theming pawticipant that is invoked on evewy theme change.
 	 */
-	onColorThemeChange(participant: IThemingParticipant): IDisposable;
+	onCowowThemeChange(pawticipant: IThemingPawticipant): IDisposabwe;
 
-	getThemingParticipants(): IThemingParticipant[];
+	getThemingPawticipants(): IThemingPawticipant[];
 
-	readonly onThemingParticipantAdded: Event<IThemingParticipant>;
+	weadonwy onThemingPawticipantAdded: Event<IThemingPawticipant>;
 }
 
-class ThemingRegistry implements IThemingRegistry {
-	private themingParticipants: IThemingParticipant[] = [];
-	private readonly onThemingParticipantAddedEmitter: Emitter<IThemingParticipant>;
+cwass ThemingWegistwy impwements IThemingWegistwy {
+	pwivate themingPawticipants: IThemingPawticipant[] = [];
+	pwivate weadonwy onThemingPawticipantAddedEmitta: Emitta<IThemingPawticipant>;
 
-	constructor() {
-		this.themingParticipants = [];
-		this.onThemingParticipantAddedEmitter = new Emitter<IThemingParticipant>();
+	constwuctow() {
+		this.themingPawticipants = [];
+		this.onThemingPawticipantAddedEmitta = new Emitta<IThemingPawticipant>();
 	}
 
-	public onColorThemeChange(participant: IThemingParticipant): IDisposable {
-		this.themingParticipants.push(participant);
-		this.onThemingParticipantAddedEmitter.fire(participant);
-		return toDisposable(() => {
-			const idx = this.themingParticipants.indexOf(participant);
-			this.themingParticipants.splice(idx, 1);
+	pubwic onCowowThemeChange(pawticipant: IThemingPawticipant): IDisposabwe {
+		this.themingPawticipants.push(pawticipant);
+		this.onThemingPawticipantAddedEmitta.fiwe(pawticipant);
+		wetuwn toDisposabwe(() => {
+			const idx = this.themingPawticipants.indexOf(pawticipant);
+			this.themingPawticipants.spwice(idx, 1);
 		});
 	}
 
-	public get onThemingParticipantAdded(): Event<IThemingParticipant> {
-		return this.onThemingParticipantAddedEmitter.event;
+	pubwic get onThemingPawticipantAdded(): Event<IThemingPawticipant> {
+		wetuwn this.onThemingPawticipantAddedEmitta.event;
 	}
 
-	public getThemingParticipants(): IThemingParticipant[] {
-		return this.themingParticipants;
+	pubwic getThemingPawticipants(): IThemingPawticipant[] {
+		wetuwn this.themingPawticipants;
 	}
 }
 
-let themingRegistry = new ThemingRegistry();
-platform.Registry.add(Extensions.ThemingContribution, themingRegistry);
+wet themingWegistwy = new ThemingWegistwy();
+pwatfowm.Wegistwy.add(Extensions.ThemingContwibution, themingWegistwy);
 
-export function registerThemingParticipant(participant: IThemingParticipant): IDisposable {
-	return themingRegistry.onColorThemeChange(participant);
+expowt function wegistewThemingPawticipant(pawticipant: IThemingPawticipant): IDisposabwe {
+	wetuwn themingWegistwy.onCowowThemeChange(pawticipant);
 }
 
 /**
- * Utility base class for all themable components.
+ * Utiwity base cwass fow aww themabwe components.
  */
-export class Themable extends Disposable {
-	protected theme: IColorTheme;
+expowt cwass Themabwe extends Disposabwe {
+	pwotected theme: ICowowTheme;
 
-	constructor(
-		protected themeService: IThemeService
+	constwuctow(
+		pwotected themeSewvice: IThemeSewvice
 	) {
-		super();
+		supa();
 
-		this.theme = themeService.getColorTheme();
+		this.theme = themeSewvice.getCowowTheme();
 
 		// Hook up to theme changes
-		this._register(this.themeService.onDidColorThemeChange(theme => this.onThemeChange(theme)));
+		this._wegista(this.themeSewvice.onDidCowowThemeChange(theme => this.onThemeChange(theme)));
 	}
 
-	protected onThemeChange(theme: IColorTheme): void {
+	pwotected onThemeChange(theme: ICowowTheme): void {
 		this.theme = theme;
 
-		this.updateStyles();
+		this.updateStywes();
 	}
 
-	protected updateStyles(): void {
-		// Subclasses to override
+	pwotected updateStywes(): void {
+		// Subcwasses to ovewwide
 	}
 
-	protected getColor(id: string, modify?: (color: Color, theme: IColorTheme) => Color): string | null {
-		let color = this.theme.getColor(id);
+	pwotected getCowow(id: stwing, modify?: (cowow: Cowow, theme: ICowowTheme) => Cowow): stwing | nuww {
+		wet cowow = this.theme.getCowow(id);
 
-		if (color && modify) {
-			color = modify(color, this.theme);
+		if (cowow && modify) {
+			cowow = modify(cowow, this.theme);
 		}
 
-		return color ? color.toString() : null;
+		wetuwn cowow ? cowow.toStwing() : nuww;
 	}
 }

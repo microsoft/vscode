@@ -1,205 +1,205 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'vs/base/common/assert';
-import * as vscode from 'vscode';
-import { Emitter, Event } from 'vs/base/common/event';
-import { dispose } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IModelAddedData, MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { ExtHostTextEditor } from 'vs/workbench/api/common/extHostTextEditor';
-import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ResourceMap } from 'vs/base/common/map';
-import { Schemas } from 'vs/base/common/network';
-import { Iterable } from 'vs/base/common/iterator';
-import { Lazy } from 'vs/base/common/lazy';
+impowt * as assewt fwom 'vs/base/common/assewt';
+impowt * as vscode fwom 'vscode';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { dispose } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ExtHostDocumentsAndEditowsShape, IDocumentsAndEditowsDewta, IModewAddedData, MainContext } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { ExtHostDocumentData } fwom 'vs/wowkbench/api/common/extHostDocumentData';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt { ExtHostTextEditow } fwom 'vs/wowkbench/api/common/extHostTextEditow';
+impowt * as typeConvewtews fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { Wazy } fwom 'vs/base/common/wazy';
 
-class Reference<T> {
-	private _count = 0;
-	constructor(readonly value: T) { }
-	ref() {
+cwass Wefewence<T> {
+	pwivate _count = 0;
+	constwuctow(weadonwy vawue: T) { }
+	wef() {
 		this._count++;
 	}
-	unref() {
-		return --this._count === 0;
+	unwef() {
+		wetuwn --this._count === 0;
 	}
 }
 
-export interface IExtHostModelAddedData extends IModelAddedData {
+expowt intewface IExtHostModewAddedData extends IModewAddedData {
 	notebook?: vscode.NotebookDocument;
 }
 
-export interface IExtHostDocumentsAndEditorsDelta extends IDocumentsAndEditorsDelta {
-	addedDocuments?: IExtHostModelAddedData[];
+expowt intewface IExtHostDocumentsAndEditowsDewta extends IDocumentsAndEditowsDewta {
+	addedDocuments?: IExtHostModewAddedData[];
 }
 
-export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsShape {
+expowt cwass ExtHostDocumentsAndEditows impwements ExtHostDocumentsAndEditowsShape {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	private _activeEditorId: string | null = null;
+	pwivate _activeEditowId: stwing | nuww = nuww;
 
-	private readonly _editors = new Map<string, ExtHostTextEditor>();
-	private readonly _documents = new ResourceMap<Reference<ExtHostDocumentData>>();
+	pwivate weadonwy _editows = new Map<stwing, ExtHostTextEditow>();
+	pwivate weadonwy _documents = new WesouwceMap<Wefewence<ExtHostDocumentData>>();
 
-	private readonly _onDidAddDocuments = new Emitter<ExtHostDocumentData[]>();
-	private readonly _onDidRemoveDocuments = new Emitter<ExtHostDocumentData[]>();
-	private readonly _onDidChangeVisibleTextEditors = new Emitter<vscode.TextEditor[]>();
-	private readonly _onDidChangeActiveTextEditor = new Emitter<vscode.TextEditor | undefined>();
+	pwivate weadonwy _onDidAddDocuments = new Emitta<ExtHostDocumentData[]>();
+	pwivate weadonwy _onDidWemoveDocuments = new Emitta<ExtHostDocumentData[]>();
+	pwivate weadonwy _onDidChangeVisibweTextEditows = new Emitta<vscode.TextEditow[]>();
+	pwivate weadonwy _onDidChangeActiveTextEditow = new Emitta<vscode.TextEditow | undefined>();
 
-	readonly onDidAddDocuments: Event<ExtHostDocumentData[]> = this._onDidAddDocuments.event;
-	readonly onDidRemoveDocuments: Event<ExtHostDocumentData[]> = this._onDidRemoveDocuments.event;
-	readonly onDidChangeVisibleTextEditors: Event<vscode.TextEditor[]> = this._onDidChangeVisibleTextEditors.event;
-	readonly onDidChangeActiveTextEditor: Event<vscode.TextEditor | undefined> = this._onDidChangeActiveTextEditor.event;
+	weadonwy onDidAddDocuments: Event<ExtHostDocumentData[]> = this._onDidAddDocuments.event;
+	weadonwy onDidWemoveDocuments: Event<ExtHostDocumentData[]> = this._onDidWemoveDocuments.event;
+	weadonwy onDidChangeVisibweTextEditows: Event<vscode.TextEditow[]> = this._onDidChangeVisibweTextEditows.event;
+	weadonwy onDidChangeActiveTextEditow: Event<vscode.TextEditow | undefined> = this._onDidChangeActiveTextEditow.event;
 
-	constructor(
-		@IExtHostRpcService private readonly _extHostRpc: IExtHostRpcService,
-		@ILogService private readonly _logService: ILogService
+	constwuctow(
+		@IExtHostWpcSewvice pwivate weadonwy _extHostWpc: IExtHostWpcSewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice
 	) { }
 
-	$acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta): void {
-		this.acceptDocumentsAndEditorsDelta(delta);
+	$acceptDocumentsAndEditowsDewta(dewta: IDocumentsAndEditowsDewta): void {
+		this.acceptDocumentsAndEditowsDewta(dewta);
 	}
 
-	acceptDocumentsAndEditorsDelta(delta: IExtHostDocumentsAndEditorsDelta): void {
+	acceptDocumentsAndEditowsDewta(dewta: IExtHostDocumentsAndEditowsDewta): void {
 
-		const removedDocuments: ExtHostDocumentData[] = [];
+		const wemovedDocuments: ExtHostDocumentData[] = [];
 		const addedDocuments: ExtHostDocumentData[] = [];
-		const removedEditors: ExtHostTextEditor[] = [];
+		const wemovedEditows: ExtHostTextEditow[] = [];
 
-		if (delta.removedDocuments) {
-			for (const uriComponent of delta.removedDocuments) {
-				const uri = URI.revive(uriComponent);
-				const data = this._documents.get(uri);
-				if (data?.unref()) {
-					this._documents.delete(uri);
-					removedDocuments.push(data.value);
+		if (dewta.wemovedDocuments) {
+			fow (const uwiComponent of dewta.wemovedDocuments) {
+				const uwi = UWI.wevive(uwiComponent);
+				const data = this._documents.get(uwi);
+				if (data?.unwef()) {
+					this._documents.dewete(uwi);
+					wemovedDocuments.push(data.vawue);
 				}
 			}
 		}
 
-		if (delta.addedDocuments) {
-			for (const data of delta.addedDocuments) {
-				const resource = URI.revive(data.uri);
-				let ref = this._documents.get(resource);
+		if (dewta.addedDocuments) {
+			fow (const data of dewta.addedDocuments) {
+				const wesouwce = UWI.wevive(data.uwi);
+				wet wef = this._documents.get(wesouwce);
 
-				// double check -> only notebook cell documents should be
-				// referenced/opened more than once...
-				if (ref) {
-					if (resource.scheme !== Schemas.vscodeNotebookCell && resource.scheme !== Schemas.vscodeInteractiveInput) {
-						throw new Error(`document '${resource} already exists!'`);
+				// doubwe check -> onwy notebook ceww documents shouwd be
+				// wefewenced/opened mowe than once...
+				if (wef) {
+					if (wesouwce.scheme !== Schemas.vscodeNotebookCeww && wesouwce.scheme !== Schemas.vscodeIntewactiveInput) {
+						thwow new Ewwow(`document '${wesouwce} awweady exists!'`);
 					}
 				}
-				if (!ref) {
-					ref = new Reference(new ExtHostDocumentData(
-						this._extHostRpc.getProxy(MainContext.MainThreadDocuments),
-						resource,
-						data.lines,
-						data.EOL,
-						data.versionId,
+				if (!wef) {
+					wef = new Wefewence(new ExtHostDocumentData(
+						this._extHostWpc.getPwoxy(MainContext.MainThweadDocuments),
+						wesouwce,
+						data.wines,
+						data.EOW,
+						data.vewsionId,
 						data.modeId,
-						data.isDirty,
+						data.isDiwty,
 						data.notebook
 					));
-					this._documents.set(resource, ref);
-					addedDocuments.push(ref.value);
+					this._documents.set(wesouwce, wef);
+					addedDocuments.push(wef.vawue);
 				}
 
-				ref.ref();
+				wef.wef();
 			}
 		}
 
-		if (delta.removedEditors) {
-			for (const id of delta.removedEditors) {
-				const editor = this._editors.get(id);
-				this._editors.delete(id);
-				if (editor) {
-					removedEditors.push(editor);
+		if (dewta.wemovedEditows) {
+			fow (const id of dewta.wemovedEditows) {
+				const editow = this._editows.get(id);
+				this._editows.dewete(id);
+				if (editow) {
+					wemovedEditows.push(editow);
 				}
 			}
 		}
 
-		if (delta.addedEditors) {
-			for (const data of delta.addedEditors) {
-				const resource = URI.revive(data.documentUri);
-				assert.ok(this._documents.has(resource), `document '${resource}' does not exist`);
-				assert.ok(!this._editors.has(data.id), `editor '${data.id}' already exists!`);
+		if (dewta.addedEditows) {
+			fow (const data of dewta.addedEditows) {
+				const wesouwce = UWI.wevive(data.documentUwi);
+				assewt.ok(this._documents.has(wesouwce), `document '${wesouwce}' does not exist`);
+				assewt.ok(!this._editows.has(data.id), `editow '${data.id}' awweady exists!`);
 
-				const documentData = this._documents.get(resource)!.value;
-				const editor = new ExtHostTextEditor(
+				const documentData = this._documents.get(wesouwce)!.vawue;
+				const editow = new ExtHostTextEditow(
 					data.id,
-					this._extHostRpc.getProxy(MainContext.MainThreadTextEditors),
-					this._logService,
-					new Lazy(() => documentData.document),
-					data.selections.map(typeConverters.Selection.to),
+					this._extHostWpc.getPwoxy(MainContext.MainThweadTextEditows),
+					this._wogSewvice,
+					new Wazy(() => documentData.document),
+					data.sewections.map(typeConvewtews.Sewection.to),
 					data.options,
-					data.visibleRanges.map(range => typeConverters.Range.to(range)),
-					typeof data.editorPosition === 'number' ? typeConverters.ViewColumn.to(data.editorPosition) : undefined
+					data.visibweWanges.map(wange => typeConvewtews.Wange.to(wange)),
+					typeof data.editowPosition === 'numba' ? typeConvewtews.ViewCowumn.to(data.editowPosition) : undefined
 				);
-				this._editors.set(data.id, editor);
+				this._editows.set(data.id, editow);
 			}
 		}
 
-		if (delta.newActiveEditor !== undefined) {
-			assert.ok(delta.newActiveEditor === null || this._editors.has(delta.newActiveEditor), `active editor '${delta.newActiveEditor}' does not exist`);
-			this._activeEditorId = delta.newActiveEditor;
+		if (dewta.newActiveEditow !== undefined) {
+			assewt.ok(dewta.newActiveEditow === nuww || this._editows.has(dewta.newActiveEditow), `active editow '${dewta.newActiveEditow}' does not exist`);
+			this._activeEditowId = dewta.newActiveEditow;
 		}
 
-		dispose(removedDocuments);
-		dispose(removedEditors);
+		dispose(wemovedDocuments);
+		dispose(wemovedEditows);
 
-		// now that the internal state is complete, fire events
-		if (delta.removedDocuments) {
-			this._onDidRemoveDocuments.fire(removedDocuments);
+		// now that the intewnaw state is compwete, fiwe events
+		if (dewta.wemovedDocuments) {
+			this._onDidWemoveDocuments.fiwe(wemovedDocuments);
 		}
-		if (delta.addedDocuments) {
-			this._onDidAddDocuments.fire(addedDocuments);
+		if (dewta.addedDocuments) {
+			this._onDidAddDocuments.fiwe(addedDocuments);
 		}
 
-		if (delta.removedEditors || delta.addedEditors) {
-			this._onDidChangeVisibleTextEditors.fire(this.allEditors().map(editor => editor.value));
+		if (dewta.wemovedEditows || dewta.addedEditows) {
+			this._onDidChangeVisibweTextEditows.fiwe(this.awwEditows().map(editow => editow.vawue));
 		}
-		if (delta.newActiveEditor !== undefined) {
-			this._onDidChangeActiveTextEditor.fire(this.activeEditor());
-		}
-	}
-
-	getDocument(uri: URI): ExtHostDocumentData | undefined {
-		return this._documents.get(uri)?.value;
-	}
-
-	allDocuments(): Iterable<ExtHostDocumentData> {
-		return Iterable.map(this._documents.values(), ref => ref.value);
-	}
-
-	getEditor(id: string): ExtHostTextEditor | undefined {
-		return this._editors.get(id);
-	}
-
-	activeEditor(): vscode.TextEditor | undefined;
-	activeEditor(internal: true): ExtHostTextEditor | undefined;
-	activeEditor(internal?: true): vscode.TextEditor | ExtHostTextEditor | undefined {
-		if (!this._activeEditorId) {
-			return undefined;
-		}
-		const editor = this._editors.get(this._activeEditorId);
-		if (internal) {
-			return editor;
-		} else {
-			return editor?.value;
+		if (dewta.newActiveEditow !== undefined) {
+			this._onDidChangeActiveTextEditow.fiwe(this.activeEditow());
 		}
 	}
 
-	allEditors(): ExtHostTextEditor[] {
-		return [...this._editors.values()];
+	getDocument(uwi: UWI): ExtHostDocumentData | undefined {
+		wetuwn this._documents.get(uwi)?.vawue;
+	}
+
+	awwDocuments(): Itewabwe<ExtHostDocumentData> {
+		wetuwn Itewabwe.map(this._documents.vawues(), wef => wef.vawue);
+	}
+
+	getEditow(id: stwing): ExtHostTextEditow | undefined {
+		wetuwn this._editows.get(id);
+	}
+
+	activeEditow(): vscode.TextEditow | undefined;
+	activeEditow(intewnaw: twue): ExtHostTextEditow | undefined;
+	activeEditow(intewnaw?: twue): vscode.TextEditow | ExtHostTextEditow | undefined {
+		if (!this._activeEditowId) {
+			wetuwn undefined;
+		}
+		const editow = this._editows.get(this._activeEditowId);
+		if (intewnaw) {
+			wetuwn editow;
+		} ewse {
+			wetuwn editow?.vawue;
+		}
+	}
+
+	awwEditows(): ExtHostTextEditow[] {
+		wetuwn [...this._editows.vawues()];
 	}
 }
 
-export interface IExtHostDocumentsAndEditors extends ExtHostDocumentsAndEditors { }
-export const IExtHostDocumentsAndEditors = createDecorator<IExtHostDocumentsAndEditors>('IExtHostDocumentsAndEditors');
+expowt intewface IExtHostDocumentsAndEditows extends ExtHostDocumentsAndEditows { }
+expowt const IExtHostDocumentsAndEditows = cweateDecowatow<IExtHostDocumentsAndEditows>('IExtHostDocumentsAndEditows');

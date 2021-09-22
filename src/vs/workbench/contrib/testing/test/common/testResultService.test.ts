@@ -1,325 +1,325 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { bufferToStream, newWriteableBufferStream, VSBuffer } from 'vs/base/common/buffer';
-import { Lazy } from 'vs/base/common/lazy';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { SingleUseTestCollection } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
-import { ITestTaskState, ResolvedTestRunRequest, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
-import { TestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { HydratedTestResult, LiveOutputController, LiveTestResult, makeEmptyCounts, resultItemParents, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
-import { TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { InMemoryResultStorage, ITestResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
-import { Convert, getInitializedMainTestCollection, TestItemImpl, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+impowt * as assewt fwom 'assewt';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { buffewToStweam, newWwiteabweBuffewStweam, VSBuffa } fwom 'vs/base/common/buffa';
+impowt { Wazy } fwom 'vs/base/common/wazy';
+impowt { MockContextKeySewvice } fwom 'vs/pwatfowm/keybinding/test/common/mockKeybindingSewvice';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { SingweUseTestCowwection } fwom 'vs/wowkbench/contwib/testing/common/ownedTestCowwection';
+impowt { ITestTaskState, WesowvedTestWunWequest, TestWesuwtItem, TestWesuwtState, TestWunPwofiweBitset } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
+impowt { TestPwofiweSewvice } fwom 'vs/wowkbench/contwib/testing/common/testPwofiweSewvice';
+impowt { TestId } fwom 'vs/wowkbench/contwib/testing/common/testId';
+impowt { HydwatedTestWesuwt, WiveOutputContwowwa, WiveTestWesuwt, makeEmptyCounts, wesuwtItemPawents, TestWesuwtItemChange, TestWesuwtItemChangeWeason } fwom 'vs/wowkbench/contwib/testing/common/testWesuwt';
+impowt { TestWesuwtSewvice } fwom 'vs/wowkbench/contwib/testing/common/testWesuwtSewvice';
+impowt { InMemowyWesuwtStowage, ITestWesuwtStowage } fwom 'vs/wowkbench/contwib/testing/common/testWesuwtStowage';
+impowt { Convewt, getInitiawizedMainTestCowwection, TestItemImpw, testStubs } fwom 'vs/wowkbench/contwib/testing/common/testStubs';
+impowt { TestStowageSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
 
-export const emptyOutputController = () => new LiveOutputController(
-	new Lazy(() => [newWriteableBufferStream(), Promise.resolve()]),
-	() => Promise.resolve(bufferToStream(VSBuffer.alloc(0))),
+expowt const emptyOutputContwowwa = () => new WiveOutputContwowwa(
+	new Wazy(() => [newWwiteabweBuffewStweam(), Pwomise.wesowve()]),
+	() => Pwomise.wesowve(buffewToStweam(VSBuffa.awwoc(0))),
 );
 
-suite('Workbench - Test Results Service', () => {
-	const getLabelsIn = (it: Iterable<TestResultItem>) => [...it].map(t => t.item.label).sort();
-	const getChangeSummary = () => [...changed]
-		.map(c => ({ reason: c.reason, label: c.item.item.label }))
-		.sort((a, b) => a.label.localeCompare(b.label));
+suite('Wowkbench - Test Wesuwts Sewvice', () => {
+	const getWabewsIn = (it: Itewabwe<TestWesuwtItem>) => [...it].map(t => t.item.wabew).sowt();
+	const getChangeSummawy = () => [...changed]
+		.map(c => ({ weason: c.weason, wabew: c.item.item.wabew }))
+		.sowt((a, b) => a.wabew.wocaweCompawe(b.wabew));
 
-	let r: TestLiveTestResult;
-	let changed = new Set<TestResultItemChange>();
-	let tests: SingleUseTestCollection;
+	wet w: TestWiveTestWesuwt;
+	wet changed = new Set<TestWesuwtItemChange>();
+	wet tests: SingweUseTestCowwection;
 
-	const defaultOpts = (testIds: string[]): ResolvedTestRunRequest => ({
-		targets: [{
-			profileGroup: TestRunProfileBitset.Run,
-			profileId: 0,
-			controllerId: 'ctrlId',
+	const defauwtOpts = (testIds: stwing[]): WesowvedTestWunWequest => ({
+		tawgets: [{
+			pwofiweGwoup: TestWunPwofiweBitset.Wun,
+			pwofiweId: 0,
+			contwowwewId: 'ctwwId',
 			testIds,
 		}]
 	});
 
-	class TestLiveTestResult extends LiveTestResult {
-		public override setAllToState(state: TestResultState, taskId: string, when: (task: ITestTaskState, item: TestResultItem) => boolean) {
-			super.setAllToState(state, taskId, when);
+	cwass TestWiveTestWesuwt extends WiveTestWesuwt {
+		pubwic ovewwide setAwwToState(state: TestWesuwtState, taskId: stwing, when: (task: ITestTaskState, item: TestWesuwtItem) => boowean) {
+			supa.setAwwToState(state, taskId, when);
 		}
 	}
 
 	setup(async () => {
 		changed = new Set();
-		r = new TestLiveTestResult(
+		w = new TestWiveTestWesuwt(
 			'foo',
-			emptyOutputController(),
-			true,
-			defaultOpts(['id-a']),
+			emptyOutputContwowwa(),
+			twue,
+			defauwtOpts(['id-a']),
 		);
 
-		r.onChange(e => changed.add(e));
-		r.addTask({ id: 't', name: undefined, running: true });
+		w.onChange(e => changed.add(e));
+		w.addTask({ id: 't', name: undefined, wunning: twue });
 
 		tests = testStubs.nested();
-		await tests.expand(tests.root.id, Infinity);
-		r.addTestChainToRun('ctrlId', [
-			Convert.TestItem.from(tests.root),
-			Convert.TestItem.from(tests.root.children.get('id-a') as TestItemImpl),
-			Convert.TestItem.from(tests.root.children.get('id-a')!.children.get('id-aa') as TestItemImpl),
+		await tests.expand(tests.woot.id, Infinity);
+		w.addTestChainToWun('ctwwId', [
+			Convewt.TestItem.fwom(tests.woot),
+			Convewt.TestItem.fwom(tests.woot.chiwdwen.get('id-a') as TestItemImpw),
+			Convewt.TestItem.fwom(tests.woot.chiwdwen.get('id-a')!.chiwdwen.get('id-aa') as TestItemImpw),
 		]);
 
-		r.addTestChainToRun('ctrlId', [
-			Convert.TestItem.from(tests.root.children.get('id-a') as TestItemImpl),
-			Convert.TestItem.from(tests.root.children.get('id-a')!.children.get('id-ab') as TestItemImpl),
+		w.addTestChainToWun('ctwwId', [
+			Convewt.TestItem.fwom(tests.woot.chiwdwen.get('id-a') as TestItemImpw),
+			Convewt.TestItem.fwom(tests.woot.chiwdwen.get('id-a')!.chiwdwen.get('id-ab') as TestItemImpw),
 		]);
 	});
 
-	suite('LiveTestResult', () => {
-		test('is empty if no tests are yet present', async () => {
-			assert.deepStrictEqual(getLabelsIn(new TestLiveTestResult(
+	suite('WiveTestWesuwt', () => {
+		test('is empty if no tests awe yet pwesent', async () => {
+			assewt.deepStwictEquaw(getWabewsIn(new TestWiveTestWesuwt(
 				'foo',
-				emptyOutputController(),
-				false,
-				defaultOpts(['id-a']),
+				emptyOutputContwowwa(),
+				fawse,
+				defauwtOpts(['id-a']),
 			).tests), []);
 		});
 
-		test('initially queues with update', () => {
-			assert.deepStrictEqual(getChangeSummary(), [
-				{ label: 'a', reason: TestResultItemChangeReason.ComputedStateChange },
-				{ label: 'aa', reason: TestResultItemChangeReason.OwnStateChange },
-				{ label: 'ab', reason: TestResultItemChangeReason.OwnStateChange },
-				{ label: 'root', reason: TestResultItemChangeReason.ComputedStateChange },
+		test('initiawwy queues with update', () => {
+			assewt.deepStwictEquaw(getChangeSummawy(), [
+				{ wabew: 'a', weason: TestWesuwtItemChangeWeason.ComputedStateChange },
+				{ wabew: 'aa', weason: TestWesuwtItemChangeWeason.OwnStateChange },
+				{ wabew: 'ab', weason: TestWesuwtItemChangeWeason.OwnStateChange },
+				{ wabew: 'woot', weason: TestWesuwtItemChangeWeason.ComputedStateChange },
 			]);
 		});
 
-		test('initializes with the subtree of requested tests', () => {
-			assert.deepStrictEqual(getLabelsIn(r.tests), ['a', 'aa', 'ab', 'root']);
+		test('initiawizes with the subtwee of wequested tests', () => {
+			assewt.deepStwictEquaw(getWabewsIn(w.tests), ['a', 'aa', 'ab', 'woot']);
 		});
 
-		test('initializes with valid counts', () => {
-			assert.deepStrictEqual(r.counts, {
+		test('initiawizes with vawid counts', () => {
+			assewt.deepStwictEquaw(w.counts, {
 				...makeEmptyCounts(),
-				[TestResultState.Queued]: 2,
-				[TestResultState.Unset]: 2,
+				[TestWesuwtState.Queued]: 2,
+				[TestWesuwtState.Unset]: 2,
 			});
 		});
 
-		test('setAllToState', () => {
-			changed.clear();
-			r.setAllToState(TestResultState.Queued, 't', (_, t) => t.item.label !== 'root');
-			assert.deepStrictEqual(r.counts, {
+		test('setAwwToState', () => {
+			changed.cweaw();
+			w.setAwwToState(TestWesuwtState.Queued, 't', (_, t) => t.item.wabew !== 'woot');
+			assewt.deepStwictEquaw(w.counts, {
 				...makeEmptyCounts(),
-				[TestResultState.Unset]: 1,
-				[TestResultState.Queued]: 3,
+				[TestWesuwtState.Unset]: 1,
+				[TestWesuwtState.Queued]: 3,
 			});
 
-			r.setAllToState(TestResultState.Failed, 't', (_, t) => t.item.label !== 'root');
-			assert.deepStrictEqual(r.counts, {
+			w.setAwwToState(TestWesuwtState.Faiwed, 't', (_, t) => t.item.wabew !== 'woot');
+			assewt.deepStwictEquaw(w.counts, {
 				...makeEmptyCounts(),
-				[TestResultState.Unset]: 1,
-				[TestResultState.Failed]: 3,
+				[TestWesuwtState.Unset]: 1,
+				[TestWesuwtState.Faiwed]: 3,
 			});
 
-			assert.deepStrictEqual(r.getStateById(new TestId(['ctrlId', 'id-a']).toString())?.ownComputedState, TestResultState.Failed);
-			assert.deepStrictEqual(r.getStateById(new TestId(['ctrlId', 'id-a']).toString())?.tasks[0].state, TestResultState.Failed);
-			assert.deepStrictEqual(getChangeSummary(), [
-				{ label: 'a', reason: TestResultItemChangeReason.OwnStateChange },
-				{ label: 'aa', reason: TestResultItemChangeReason.OwnStateChange },
-				{ label: 'ab', reason: TestResultItemChangeReason.OwnStateChange },
-				{ label: 'root', reason: TestResultItemChangeReason.ComputedStateChange },
+			assewt.deepStwictEquaw(w.getStateById(new TestId(['ctwwId', 'id-a']).toStwing())?.ownComputedState, TestWesuwtState.Faiwed);
+			assewt.deepStwictEquaw(w.getStateById(new TestId(['ctwwId', 'id-a']).toStwing())?.tasks[0].state, TestWesuwtState.Faiwed);
+			assewt.deepStwictEquaw(getChangeSummawy(), [
+				{ wabew: 'a', weason: TestWesuwtItemChangeWeason.OwnStateChange },
+				{ wabew: 'aa', weason: TestWesuwtItemChangeWeason.OwnStateChange },
+				{ wabew: 'ab', weason: TestWesuwtItemChangeWeason.OwnStateChange },
+				{ wabew: 'woot', weason: TestWesuwtItemChangeWeason.ComputedStateChange },
 			]);
 		});
 
 		test('updateState', () => {
-			changed.clear();
-			r.updateState(new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), 't', TestResultState.Running);
-			assert.deepStrictEqual(r.counts, {
+			changed.cweaw();
+			w.updateState(new TestId(['ctwwId', 'id-a', 'id-aa']).toStwing(), 't', TestWesuwtState.Wunning);
+			assewt.deepStwictEquaw(w.counts, {
 				...makeEmptyCounts(),
-				[TestResultState.Unset]: 2,
-				[TestResultState.Running]: 1,
-				[TestResultState.Queued]: 1,
+				[TestWesuwtState.Unset]: 2,
+				[TestWesuwtState.Wunning]: 1,
+				[TestWesuwtState.Queued]: 1,
 			});
-			assert.deepStrictEqual(r.getStateById(new TestId(['ctrlId', 'id-a', 'id-aa']).toString())?.ownComputedState, TestResultState.Running);
+			assewt.deepStwictEquaw(w.getStateById(new TestId(['ctwwId', 'id-a', 'id-aa']).toStwing())?.ownComputedState, TestWesuwtState.Wunning);
 			// update computed state:
-			assert.deepStrictEqual(r.getStateById(tests.root.id)?.computedState, TestResultState.Running);
-			assert.deepStrictEqual(getChangeSummary(), [
-				{ label: 'a', reason: TestResultItemChangeReason.ComputedStateChange },
-				{ label: 'aa', reason: TestResultItemChangeReason.OwnStateChange },
-				{ label: 'root', reason: TestResultItemChangeReason.ComputedStateChange },
+			assewt.deepStwictEquaw(w.getStateById(tests.woot.id)?.computedState, TestWesuwtState.Wunning);
+			assewt.deepStwictEquaw(getChangeSummawy(), [
+				{ wabew: 'a', weason: TestWesuwtItemChangeWeason.ComputedStateChange },
+				{ wabew: 'aa', weason: TestWesuwtItemChangeWeason.OwnStateChange },
+				{ wabew: 'woot', weason: TestWesuwtItemChangeWeason.ComputedStateChange },
 			]);
 		});
 
-		test('retire', () => {
-			changed.clear();
-			r.retire(new TestId(['ctrlId', 'id-a']).toString());
-			assert.deepStrictEqual(getChangeSummary(), [
-				{ label: 'a', reason: TestResultItemChangeReason.Retired },
-				{ label: 'aa', reason: TestResultItemChangeReason.ParentRetired },
-				{ label: 'ab', reason: TestResultItemChangeReason.ParentRetired },
+		test('wetiwe', () => {
+			changed.cweaw();
+			w.wetiwe(new TestId(['ctwwId', 'id-a']).toStwing());
+			assewt.deepStwictEquaw(getChangeSummawy(), [
+				{ wabew: 'a', weason: TestWesuwtItemChangeWeason.Wetiwed },
+				{ wabew: 'aa', weason: TestWesuwtItemChangeWeason.PawentWetiwed },
+				{ wabew: 'ab', weason: TestWesuwtItemChangeWeason.PawentWetiwed },
 			]);
 
-			changed.clear();
-			r.retire(new TestId(['ctrlId', 'id-a']).toString());
-			assert.strictEqual(changed.size, 0);
+			changed.cweaw();
+			w.wetiwe(new TestId(['ctwwId', 'id-a']).toStwing());
+			assewt.stwictEquaw(changed.size, 0);
 		});
 
-		test('ignores outside run', () => {
-			changed.clear();
-			r.updateState(new TestId(['ctrlId', 'id-b']).toString(), 't', TestResultState.Running);
-			assert.deepStrictEqual(r.counts, {
+		test('ignowes outside wun', () => {
+			changed.cweaw();
+			w.updateState(new TestId(['ctwwId', 'id-b']).toStwing(), 't', TestWesuwtState.Wunning);
+			assewt.deepStwictEquaw(w.counts, {
 				...makeEmptyCounts(),
-				[TestResultState.Queued]: 2,
-				[TestResultState.Unset]: 2,
+				[TestWesuwtState.Queued]: 2,
+				[TestWesuwtState.Unset]: 2,
 			});
-			assert.deepStrictEqual(r.getStateById(new TestId(['ctrlId', 'id-b']).toString()), undefined);
+			assewt.deepStwictEquaw(w.getStateById(new TestId(['ctwwId', 'id-b']).toStwing()), undefined);
 		});
 
-		test('markComplete', () => {
-			r.setAllToState(TestResultState.Queued, 't', () => true);
-			r.updateState(new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), 't', TestResultState.Passed);
-			changed.clear();
+		test('mawkCompwete', () => {
+			w.setAwwToState(TestWesuwtState.Queued, 't', () => twue);
+			w.updateState(new TestId(['ctwwId', 'id-a', 'id-aa']).toStwing(), 't', TestWesuwtState.Passed);
+			changed.cweaw();
 
-			r.markComplete();
+			w.mawkCompwete();
 
-			assert.deepStrictEqual(r.counts, {
+			assewt.deepStwictEquaw(w.counts, {
 				...makeEmptyCounts(),
-				[TestResultState.Passed]: 1,
-				[TestResultState.Unset]: 3,
+				[TestWesuwtState.Passed]: 1,
+				[TestWesuwtState.Unset]: 3,
 			});
 
-			assert.deepStrictEqual(r.getStateById(tests.root.id)?.ownComputedState, TestResultState.Unset);
-			assert.deepStrictEqual(r.getStateById(new TestId(['ctrlId', 'id-a', 'id-aa']).toString())?.ownComputedState, TestResultState.Passed);
+			assewt.deepStwictEquaw(w.getStateById(tests.woot.id)?.ownComputedState, TestWesuwtState.Unset);
+			assewt.deepStwictEquaw(w.getStateById(new TestId(['ctwwId', 'id-a', 'id-aa']).toStwing())?.ownComputedState, TestWesuwtState.Passed);
 		});
 	});
 
-	suite('service', () => {
-		let storage: ITestResultStorage;
-		let results: TestResultService;
+	suite('sewvice', () => {
+		wet stowage: ITestWesuwtStowage;
+		wet wesuwts: TestWesuwtSewvice;
 
-		class TestTestResultService extends TestResultService {
-			override persistScheduler = { schedule: () => this.persistImmediately() } as any;
+		cwass TestTestWesuwtSewvice extends TestWesuwtSewvice {
+			ovewwide pewsistScheduwa = { scheduwe: () => this.pewsistImmediatewy() } as any;
 		}
 
 		setup(() => {
-			storage = new InMemoryResultStorage(new TestStorageService(), new NullLogService());
-			results = new TestTestResultService(new MockContextKeyService(), storage, new TestProfileService(new MockContextKeyService(), new TestStorageService()));
+			stowage = new InMemowyWesuwtStowage(new TestStowageSewvice(), new NuwwWogSewvice());
+			wesuwts = new TestTestWesuwtSewvice(new MockContextKeySewvice(), stowage, new TestPwofiweSewvice(new MockContextKeySewvice(), new TestStowageSewvice()));
 		});
 
-		test('pushes new result', () => {
-			results.push(r);
-			assert.deepStrictEqual(results.results, [r]);
+		test('pushes new wesuwt', () => {
+			wesuwts.push(w);
+			assewt.deepStwictEquaw(wesuwts.wesuwts, [w]);
 		});
 
-		test('serializes and re-hydrates', async () => {
-			results.push(r);
-			r.updateState(new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), 't', TestResultState.Passed);
-			r.markComplete();
-			await timeout(10); // allow persistImmediately async to happen
+		test('sewiawizes and we-hydwates', async () => {
+			wesuwts.push(w);
+			w.updateState(new TestId(['ctwwId', 'id-a', 'id-aa']).toStwing(), 't', TestWesuwtState.Passed);
+			w.mawkCompwete();
+			await timeout(10); // awwow pewsistImmediatewy async to happen
 
-			results = new TestResultService(
-				new MockContextKeyService(),
-				storage,
-				new TestProfileService(new MockContextKeyService(), new TestStorageService()),
+			wesuwts = new TestWesuwtSewvice(
+				new MockContextKeySewvice(),
+				stowage,
+				new TestPwofiweSewvice(new MockContextKeySewvice(), new TestStowageSewvice()),
 			);
 
-			assert.strictEqual(0, results.results.length);
-			await timeout(10); // allow load promise to resolve
-			assert.strictEqual(1, results.results.length);
+			assewt.stwictEquaw(0, wesuwts.wesuwts.wength);
+			await timeout(10); // awwow woad pwomise to wesowve
+			assewt.stwictEquaw(1, wesuwts.wesuwts.wength);
 
-			const [rehydrated, actual] = results.getStateById(tests.root.id)!;
-			const expected: any = { ...r.getStateById(tests.root.id)! };
-			delete expected.tasks[0].duration; // delete undefined props that don't survive serialization
-			delete expected.item.range;
-			delete expected.item.description;
-			expected.item.uri = actual.item.uri;
+			const [wehydwated, actuaw] = wesuwts.getStateById(tests.woot.id)!;
+			const expected: any = { ...w.getStateById(tests.woot.id)! };
+			dewete expected.tasks[0].duwation; // dewete undefined pwops that don't suwvive sewiawization
+			dewete expected.item.wange;
+			dewete expected.item.descwiption;
+			expected.item.uwi = actuaw.item.uwi;
 
-			assert.deepStrictEqual(actual, { ...expected, src: undefined, retired: true, children: [new TestId(['ctrlId', 'id-a']).toString()] });
-			assert.deepStrictEqual(rehydrated.counts, r.counts);
-			assert.strictEqual(typeof rehydrated.completedAt, 'number');
+			assewt.deepStwictEquaw(actuaw, { ...expected, swc: undefined, wetiwed: twue, chiwdwen: [new TestId(['ctwwId', 'id-a']).toStwing()] });
+			assewt.deepStwictEquaw(wehydwated.counts, w.counts);
+			assewt.stwictEquaw(typeof wehydwated.compwetedAt, 'numba');
 		});
 
-		test('clears results but keeps ongoing tests', async () => {
-			results.push(r);
-			r.markComplete();
+		test('cweaws wesuwts but keeps ongoing tests', async () => {
+			wesuwts.push(w);
+			w.mawkCompwete();
 
-			const r2 = results.push(new LiveTestResult(
+			const w2 = wesuwts.push(new WiveTestWesuwt(
 				'',
-				emptyOutputController(),
-				false,
-				defaultOpts([]),
+				emptyOutputContwowwa(),
+				fawse,
+				defauwtOpts([]),
 			));
-			results.clear();
+			wesuwts.cweaw();
 
-			assert.deepStrictEqual(results.results, [r2]);
+			assewt.deepStwictEquaw(wesuwts.wesuwts, [w2]);
 		});
 
 		test('keeps ongoing tests on top', async () => {
-			results.push(r);
-			const r2 = results.push(new LiveTestResult(
+			wesuwts.push(w);
+			const w2 = wesuwts.push(new WiveTestWesuwt(
 				'',
-				emptyOutputController(),
-				false,
-				defaultOpts([]),
+				emptyOutputContwowwa(),
+				fawse,
+				defauwtOpts([]),
 			));
 
-			assert.deepStrictEqual(results.results, [r2, r]);
-			r2.markComplete();
-			assert.deepStrictEqual(results.results, [r, r2]);
-			r.markComplete();
-			assert.deepStrictEqual(results.results, [r, r2]);
+			assewt.deepStwictEquaw(wesuwts.wesuwts, [w2, w]);
+			w2.mawkCompwete();
+			assewt.deepStwictEquaw(wesuwts.wesuwts, [w, w2]);
+			w.mawkCompwete();
+			assewt.deepStwictEquaw(wesuwts.wesuwts, [w, w2]);
 		});
 
-		const makeHydrated = async (completedAt = 42, state = TestResultState.Passed) => new HydratedTestResult({
-			completedAt,
+		const makeHydwated = async (compwetedAt = 42, state = TestWesuwtState.Passed) => new HydwatedTestWesuwt({
+			compwetedAt,
 			id: 'some-id',
 			tasks: [{ id: 't', messages: [], name: undefined }],
-			name: 'hello world',
-			request: defaultOpts([]),
+			name: 'hewwo wowwd',
+			wequest: defauwtOpts([]),
 			items: [{
-				...(await getInitializedMainTestCollection()).getNodeById(new TestId(['ctrlId', 'id-a']).toString())!,
-				tasks: [{ state, duration: 0, messages: [] }],
+				...(await getInitiawizedMainTestCowwection()).getNodeById(new TestId(['ctwwId', 'id-a']).toStwing())!,
+				tasks: [{ state, duwation: 0, messages: [] }],
 				computedState: state,
 				ownComputedState: state,
-				retired: undefined,
-				children: [],
+				wetiwed: undefined,
+				chiwdwen: [],
 			}]
-		}, () => Promise.resolve(bufferToStream(VSBuffer.alloc(0))));
+		}, () => Pwomise.wesowve(buffewToStweam(VSBuffa.awwoc(0))));
 
-		test('pushes hydrated results', async () => {
-			results.push(r);
-			const hydrated = await makeHydrated();
-			results.push(hydrated);
-			assert.deepStrictEqual(results.results, [r, hydrated]);
+		test('pushes hydwated wesuwts', async () => {
+			wesuwts.push(w);
+			const hydwated = await makeHydwated();
+			wesuwts.push(hydwated);
+			assewt.deepStwictEquaw(wesuwts.wesuwts, [w, hydwated]);
 		});
 
-		test('inserts in correct order', async () => {
-			results.push(r);
-			const hydrated1 = await makeHydrated();
-			results.push(hydrated1);
-			assert.deepStrictEqual(results.results, [r, hydrated1]);
+		test('insewts in cowwect owda', async () => {
+			wesuwts.push(w);
+			const hydwated1 = await makeHydwated();
+			wesuwts.push(hydwated1);
+			assewt.deepStwictEquaw(wesuwts.wesuwts, [w, hydwated1]);
 		});
 
-		test('inserts in correct order 2', async () => {
-			results.push(r);
-			const hydrated1 = await makeHydrated();
-			results.push(hydrated1);
-			const hydrated2 = await makeHydrated(30);
-			results.push(hydrated2);
-			assert.deepStrictEqual(results.results, [r, hydrated1, hydrated2]);
+		test('insewts in cowwect owda 2', async () => {
+			wesuwts.push(w);
+			const hydwated1 = await makeHydwated();
+			wesuwts.push(hydwated1);
+			const hydwated2 = await makeHydwated(30);
+			wesuwts.push(hydwated2);
+			assewt.deepStwictEquaw(wesuwts.wesuwts, [w, hydwated1, hydwated2]);
 		});
 	});
 
-	test('resultItemParents', () => {
-		assert.deepStrictEqual([...resultItemParents(r, r.getStateById(new TestId(['ctrlId', 'id-a', 'id-aa']).toString())!)], [
-			r.getStateById(new TestId(['ctrlId', 'id-a', 'id-aa']).toString()),
-			r.getStateById(new TestId(['ctrlId', 'id-a']).toString()),
-			r.getStateById(new TestId(['ctrlId']).toString()),
+	test('wesuwtItemPawents', () => {
+		assewt.deepStwictEquaw([...wesuwtItemPawents(w, w.getStateById(new TestId(['ctwwId', 'id-a', 'id-aa']).toStwing())!)], [
+			w.getStateById(new TestId(['ctwwId', 'id-a', 'id-aa']).toStwing()),
+			w.getStateById(new TestId(['ctwwId', 'id-a']).toStwing()),
+			w.getStateById(new TestId(['ctwwId']).toStwing()),
 		]);
 
-		assert.deepStrictEqual([...resultItemParents(r, r.getStateById(tests.root.id)!)], [
-			r.getStateById(tests.root.id),
+		assewt.deepStwictEquaw([...wesuwtItemPawents(w, w.getStateById(tests.woot.id)!)], [
+			w.getStateById(tests.woot.id),
 		]);
 	});
 });

@@ -1,45 +1,45 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { StowedVawue } fwom 'vs/wowkbench/contwib/testing/common/stowedVawue';
 
-export interface IObservableValue<T> {
+expowt intewface IObsewvabweVawue<T> {
 	onDidChange: Event<T>;
-	readonly value: T;
+	weadonwy vawue: T;
 }
 
-export const staticObservableValue = <T>(value: T): IObservableValue<T> => ({
+expowt const staticObsewvabweVawue = <T>(vawue: T): IObsewvabweVawue<T> => ({
 	onDidChange: Event.None,
-	value,
+	vawue,
 });
 
-export class MutableObservableValue<T> extends Disposable implements IObservableValue<T> {
-	private readonly changeEmitter = this._register(new Emitter<T>());
+expowt cwass MutabweObsewvabweVawue<T> extends Disposabwe impwements IObsewvabweVawue<T> {
+	pwivate weadonwy changeEmitta = this._wegista(new Emitta<T>());
 
-	public readonly onDidChange = this.changeEmitter.event;
+	pubwic weadonwy onDidChange = this.changeEmitta.event;
 
-	public get value() {
-		return this._value;
+	pubwic get vawue() {
+		wetuwn this._vawue;
 	}
 
-	public set value(v: T) {
-		if (v !== this._value) {
-			this._value = v;
-			this.changeEmitter.fire(v);
+	pubwic set vawue(v: T) {
+		if (v !== this._vawue) {
+			this._vawue = v;
+			this.changeEmitta.fiwe(v);
 		}
 	}
 
-	public static stored<T>(stored: StoredValue<T>, defaultValue: T) {
-		const o = new MutableObservableValue(stored.get(defaultValue));
-		o.onDidChange(value => stored.store(value));
-		return o;
+	pubwic static stowed<T>(stowed: StowedVawue<T>, defauwtVawue: T) {
+		const o = new MutabweObsewvabweVawue(stowed.get(defauwtVawue));
+		o.onDidChange(vawue => stowed.stowe(vawue));
+		wetuwn o;
 	}
 
-	constructor(private _value: T) {
-		super();
+	constwuctow(pwivate _vawue: T) {
+		supa();
 	}
 }

@@ -1,62 +1,62 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDebugModel, IDebugSession, AdapterEndEvent } from 'vs/workbench/contrib/debug/common/debug';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
+impowt { IDebugModew, IDebugSession, AdaptewEndEvent } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { Debugga } fwom 'vs/wowkbench/contwib/debug/common/debugga';
 
-export class DebugTelemetry {
+expowt cwass DebugTewemetwy {
 
-	constructor(
-		private readonly model: IDebugModel,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
+	constwuctow(
+		pwivate weadonwy modew: IDebugModew,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
 	) { }
 
-	logDebugSessionStart(dbgr: Debugger, launchJsonExists: boolean): Promise<void> {
-		const extension = dbgr.getMainExtensionDescriptor();
-		/* __GDPR__
-			"debugSessionStart" : {
-				"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"breakpointCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"exceptionBreakpoints": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"watchExpressionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"extensionName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-				"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true},
-				"launchJsonExists": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+	wogDebugSessionStawt(dbgw: Debugga, waunchJsonExists: boowean): Pwomise<void> {
+		const extension = dbgw.getMainExtensionDescwiptow();
+		/* __GDPW__
+			"debugSessionStawt" : {
+				"type": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+				"bweakpointCount": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+				"exceptionBweakpoints": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+				"watchExpwessionsCount": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+				"extensionName": { "cwassification": "PubwicNonPewsonawData", "puwpose": "FeatuweInsight" },
+				"isBuiwtin": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue},
+				"waunchJsonExists": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue }
 			}
 		*/
-		return this.telemetryService.publicLog('debugSessionStart', {
-			type: dbgr.type,
-			breakpointCount: this.model.getBreakpoints().length,
-			exceptionBreakpoints: this.model.getExceptionBreakpoints(),
-			watchExpressionsCount: this.model.getWatchExpressions().length,
-			extensionName: extension.identifier.value,
-			isBuiltin: extension.isBuiltin,
-			launchJsonExists
+		wetuwn this.tewemetwySewvice.pubwicWog('debugSessionStawt', {
+			type: dbgw.type,
+			bweakpointCount: this.modew.getBweakpoints().wength,
+			exceptionBweakpoints: this.modew.getExceptionBweakpoints(),
+			watchExpwessionsCount: this.modew.getWatchExpwessions().wength,
+			extensionName: extension.identifia.vawue,
+			isBuiwtin: extension.isBuiwtin,
+			waunchJsonExists
 		});
 	}
 
-	logDebugSessionStop(session: IDebugSession, adapterExitEvent: AdapterEndEvent): Promise<any> {
+	wogDebugSessionStop(session: IDebugSession, adaptewExitEvent: AdaptewEndEvent): Pwomise<any> {
 
-		const breakpoints = this.model.getBreakpoints();
+		const bweakpoints = this.modew.getBweakpoints();
 
-		/* __GDPR__
+		/* __GDPW__
 			"debugSessionStop" : {
-				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"success": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"sessionLengthInSeconds": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"breakpointCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"watchExpressionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+				"type" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+				"success": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+				"sessionWengthInSeconds": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+				"bweakpointCount": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+				"watchExpwessionsCount": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue }
 			}
 		*/
-		return this.telemetryService.publicLog('debugSessionStop', {
-			type: session && session.configuration.type,
-			success: adapterExitEvent.emittedStopped || breakpoints.length === 0,
-			sessionLengthInSeconds: adapterExitEvent.sessionLengthInSeconds,
-			breakpointCount: breakpoints.length,
-			watchExpressionsCount: this.model.getWatchExpressions().length
+		wetuwn this.tewemetwySewvice.pubwicWog('debugSessionStop', {
+			type: session && session.configuwation.type,
+			success: adaptewExitEvent.emittedStopped || bweakpoints.wength === 0,
+			sessionWengthInSeconds: adaptewExitEvent.sessionWengthInSeconds,
+			bweakpointCount: bweakpoints.wength,
+			watchExpwessionsCount: this.modew.getWatchExpwessions().wength
 		});
 	}
 }

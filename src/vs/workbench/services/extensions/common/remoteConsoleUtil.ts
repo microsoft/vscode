@@ -1,32 +1,32 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRemoteConsoleLog, parse } from 'vs/base/common/console';
-import { ILogService } from 'vs/platform/log/common/log';
+impowt { IWemoteConsoweWog, pawse } fwom 'vs/base/common/consowe';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-export function logRemoteEntry(logService: ILogService, entry: IRemoteConsoleLog): void {
-	const args = parse(entry).args;
-	const firstArg = args.shift();
-	if (typeof firstArg !== 'string') {
-		return;
+expowt function wogWemoteEntwy(wogSewvice: IWogSewvice, entwy: IWemoteConsoweWog): void {
+	const awgs = pawse(entwy).awgs;
+	const fiwstAwg = awgs.shift();
+	if (typeof fiwstAwg !== 'stwing') {
+		wetuwn;
 	}
 
-	if (!entry.severity) {
-		entry.severity = 'info';
+	if (!entwy.sevewity) {
+		entwy.sevewity = 'info';
 	}
 
-	switch (entry.severity) {
-		case 'log':
+	switch (entwy.sevewity) {
+		case 'wog':
 		case 'info':
-			logService.info(firstArg, ...args);
-			break;
-		case 'warn':
-			logService.warn(firstArg, ...args);
-			break;
-		case 'error':
-			logService.error(firstArg, ...args);
-			break;
+			wogSewvice.info(fiwstAwg, ...awgs);
+			bweak;
+		case 'wawn':
+			wogSewvice.wawn(fiwstAwg, ...awgs);
+			bweak;
+		case 'ewwow':
+			wogSewvice.ewwow(fiwstAwg, ...awgs);
+			bweak;
 	}
 }

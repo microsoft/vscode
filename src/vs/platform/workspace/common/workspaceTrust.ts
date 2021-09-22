@@ -1,106 +1,106 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export enum WorkspaceTrustScope {
-	Local = 0,
-	Remote = 1
+expowt enum WowkspaceTwustScope {
+	Wocaw = 0,
+	Wemote = 1
 }
 
-export function workspaceTrustToString(trustState: boolean) {
-	if (trustState) {
-		return localize('trusted', "Trusted");
-	} else {
-		return localize('untrusted', "Restricted Mode");
+expowt function wowkspaceTwustToStwing(twustState: boowean) {
+	if (twustState) {
+		wetuwn wocawize('twusted', "Twusted");
+	} ewse {
+		wetuwn wocawize('untwusted', "Westwicted Mode");
 	}
 }
 
-export interface WorkspaceTrustRequestButton {
-	readonly label: string;
-	readonly type: 'ContinueWithTrust' | 'ContinueWithoutTrust' | 'Manage' | 'Cancel'
+expowt intewface WowkspaceTwustWequestButton {
+	weadonwy wabew: stwing;
+	weadonwy type: 'ContinueWithTwust' | 'ContinueWithoutTwust' | 'Manage' | 'Cancew'
 }
 
-export interface WorkspaceTrustRequestOptions {
-	readonly buttons?: WorkspaceTrustRequestButton[];
-	readonly message?: string;
+expowt intewface WowkspaceTwustWequestOptions {
+	weadonwy buttons?: WowkspaceTwustWequestButton[];
+	weadonwy message?: stwing;
 }
 
-export const IWorkspaceTrustEnablementService = createDecorator<IWorkspaceTrustEnablementService>('workspaceTrustEnablementService');
+expowt const IWowkspaceTwustEnabwementSewvice = cweateDecowatow<IWowkspaceTwustEnabwementSewvice>('wowkspaceTwustEnabwementSewvice');
 
-export interface IWorkspaceTrustEnablementService {
-	readonly _serviceBrand: undefined;
+expowt intewface IWowkspaceTwustEnabwementSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	isWorkspaceTrustEnabled(): boolean;
+	isWowkspaceTwustEnabwed(): boowean;
 }
 
-export const IWorkspaceTrustManagementService = createDecorator<IWorkspaceTrustManagementService>('workspaceTrustManagementService');
+expowt const IWowkspaceTwustManagementSewvice = cweateDecowatow<IWowkspaceTwustManagementSewvice>('wowkspaceTwustManagementSewvice');
 
-export interface IWorkspaceTrustManagementService {
-	readonly _serviceBrand: undefined;
+expowt intewface IWowkspaceTwustManagementSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	onDidChangeTrust: Event<boolean>;
-	onDidChangeTrustedFolders: Event<void>;
+	onDidChangeTwust: Event<boowean>;
+	onDidChangeTwustedFowdews: Event<void>;
 
-	readonly workspaceResolved: Promise<void>;
-	readonly workspaceTrustInitialized: Promise<void>;
-	acceptsOutOfWorkspaceFiles: boolean;
+	weadonwy wowkspaceWesowved: Pwomise<void>;
+	weadonwy wowkspaceTwustInitiawized: Pwomise<void>;
+	acceptsOutOfWowkspaceFiwes: boowean;
 
-	isWorkspaceTrusted(): boolean;
-	isWorkspaceTrustForced(): boolean;
+	isWowkspaceTwusted(): boowean;
+	isWowkspaceTwustFowced(): boowean;
 
-	canSetParentFolderTrust(): boolean;
-	setParentFolderTrust(trusted: boolean): Promise<void>;
+	canSetPawentFowdewTwust(): boowean;
+	setPawentFowdewTwust(twusted: boowean): Pwomise<void>;
 
-	canSetWorkspaceTrust(): boolean;
-	setWorkspaceTrust(trusted: boolean): Promise<void>;
+	canSetWowkspaceTwust(): boowean;
+	setWowkspaceTwust(twusted: boowean): Pwomise<void>;
 
-	getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo>;
-	setUrisTrust(uri: URI[], trusted: boolean): Promise<void>;
+	getUwiTwustInfo(uwi: UWI): Pwomise<IWowkspaceTwustUwiInfo>;
+	setUwisTwust(uwi: UWI[], twusted: boowean): Pwomise<void>;
 
-	getTrustedUris(): URI[];
-	setTrustedUris(uris: URI[]): Promise<void>;
+	getTwustedUwis(): UWI[];
+	setTwustedUwis(uwis: UWI[]): Pwomise<void>;
 
-	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable;
+	addWowkspaceTwustTwansitionPawticipant(pawticipant: IWowkspaceTwustTwansitionPawticipant): IDisposabwe;
 }
 
-export const enum WorkspaceTrustUriResponse {
+expowt const enum WowkspaceTwustUwiWesponse {
 	Open = 1,
 	OpenInNewWindow = 2,
-	Cancel = 3
+	Cancew = 3
 }
 
-export const IWorkspaceTrustRequestService = createDecorator<IWorkspaceTrustRequestService>('workspaceTrustRequestService');
+expowt const IWowkspaceTwustWequestSewvice = cweateDecowatow<IWowkspaceTwustWequestSewvice>('wowkspaceTwustWequestSewvice');
 
-export interface IWorkspaceTrustRequestService {
-	readonly _serviceBrand: undefined;
+expowt intewface IWowkspaceTwustWequestSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	readonly onDidInitiateOpenFilesTrustRequest: Event<void>;
-	readonly onDidInitiateWorkspaceTrustRequest: Event<WorkspaceTrustRequestOptions | undefined>;
+	weadonwy onDidInitiateOpenFiwesTwustWequest: Event<void>;
+	weadonwy onDidInitiateWowkspaceTwustWequest: Event<WowkspaceTwustWequestOptions | undefined>;
 
-	completeOpenFilesTrustRequest(result: WorkspaceTrustUriResponse, saveResponse?: boolean): Promise<void>;
-	requestOpenFilesTrust(openFiles: URI[]): Promise<WorkspaceTrustUriResponse>;
+	compweteOpenFiwesTwustWequest(wesuwt: WowkspaceTwustUwiWesponse, saveWesponse?: boowean): Pwomise<void>;
+	wequestOpenFiwesTwust(openFiwes: UWI[]): Pwomise<WowkspaceTwustUwiWesponse>;
 
-	cancelWorkspaceTrustRequest(): void;
-	completeWorkspaceTrustRequest(trusted?: boolean): Promise<void>;
-	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined>;
+	cancewWowkspaceTwustWequest(): void;
+	compweteWowkspaceTwustWequest(twusted?: boowean): Pwomise<void>;
+	wequestWowkspaceTwust(options?: WowkspaceTwustWequestOptions): Pwomise<boowean | undefined>;
 }
 
-export interface IWorkspaceTrustTransitionParticipant {
-	participate(trusted: boolean): Promise<void>;
+expowt intewface IWowkspaceTwustTwansitionPawticipant {
+	pawticipate(twusted: boowean): Pwomise<void>;
 }
 
-export interface IWorkspaceTrustUriInfo {
-	uri: URI,
-	trusted: boolean
+expowt intewface IWowkspaceTwustUwiInfo {
+	uwi: UWI,
+	twusted: boowean
 }
 
-export interface IWorkspaceTrustInfo {
-	uriTrustInfo: IWorkspaceTrustUriInfo[]
+expowt intewface IWowkspaceTwustInfo {
+	uwiTwustInfo: IWowkspaceTwustUwiInfo[]
 }

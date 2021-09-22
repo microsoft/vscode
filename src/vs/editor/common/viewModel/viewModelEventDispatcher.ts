@@ -1,125 +1,125 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
-import { ViewEvent } from 'vs/editor/common/view/viewEvents';
-import { IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
-import { Emitter } from 'vs/base/common/event';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
+impowt { ViewEventHandwa } fwom 'vs/editow/common/viewModew/viewEventHandwa';
+impowt { ViewEvent } fwom 'vs/editow/common/view/viewEvents';
+impowt { IContentSizeChangedEvent } fwom 'vs/editow/common/editowCommon';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { CuwsowChangeWeason } fwom 'vs/editow/common/contwowwa/cuwsowEvents';
 
-export class ViewModelEventDispatcher extends Disposable {
+expowt cwass ViewModewEventDispatcha extends Disposabwe {
 
-	private readonly _onEvent = this._register(new Emitter<OutgoingViewModelEvent>());
-	public readonly onEvent = this._onEvent.event;
+	pwivate weadonwy _onEvent = this._wegista(new Emitta<OutgoingViewModewEvent>());
+	pubwic weadonwy onEvent = this._onEvent.event;
 
-	private readonly _eventHandlers: ViewEventHandler[];
-	private _viewEventQueue: ViewEvent[] | null;
-	private _isConsumingViewEventQueue: boolean;
-	private _collector: ViewModelEventsCollector | null;
-	private _collectorCnt: number;
-	private _outgoingEvents: OutgoingViewModelEvent[];
+	pwivate weadonwy _eventHandwews: ViewEventHandwa[];
+	pwivate _viewEventQueue: ViewEvent[] | nuww;
+	pwivate _isConsumingViewEventQueue: boowean;
+	pwivate _cowwectow: ViewModewEventsCowwectow | nuww;
+	pwivate _cowwectowCnt: numba;
+	pwivate _outgoingEvents: OutgoingViewModewEvent[];
 
-	constructor() {
-		super();
-		this._eventHandlers = [];
-		this._viewEventQueue = null;
-		this._isConsumingViewEventQueue = false;
-		this._collector = null;
-		this._collectorCnt = 0;
+	constwuctow() {
+		supa();
+		this._eventHandwews = [];
+		this._viewEventQueue = nuww;
+		this._isConsumingViewEventQueue = fawse;
+		this._cowwectow = nuww;
+		this._cowwectowCnt = 0;
 		this._outgoingEvents = [];
 	}
 
-	public emitOutgoingEvent(e: OutgoingViewModelEvent): void {
+	pubwic emitOutgoingEvent(e: OutgoingViewModewEvent): void {
 		this._addOutgoingEvent(e);
 		this._emitOutgoingEvents();
 	}
 
-	private _addOutgoingEvent(e: OutgoingViewModelEvent): void {
-		for (let i = 0, len = this._outgoingEvents.length; i < len; i++) {
+	pwivate _addOutgoingEvent(e: OutgoingViewModewEvent): void {
+		fow (wet i = 0, wen = this._outgoingEvents.wength; i < wen; i++) {
 			if (this._outgoingEvents[i].kind === e.kind) {
-				this._outgoingEvents[i] = this._outgoingEvents[i].merge(e);
-				return;
+				this._outgoingEvents[i] = this._outgoingEvents[i].mewge(e);
+				wetuwn;
 			}
 		}
-		// not merged
+		// not mewged
 		this._outgoingEvents.push(e);
 	}
 
-	private _emitOutgoingEvents(): void {
-		while (this._outgoingEvents.length > 0) {
-			if (this._collector || this._isConsumingViewEventQueue) {
-				// right now collecting or emitting view events, so let's postpone emitting
-				return;
+	pwivate _emitOutgoingEvents(): void {
+		whiwe (this._outgoingEvents.wength > 0) {
+			if (this._cowwectow || this._isConsumingViewEventQueue) {
+				// wight now cowwecting ow emitting view events, so wet's postpone emitting
+				wetuwn;
 			}
 			const event = this._outgoingEvents.shift()!;
 			if (event.isNoOp()) {
 				continue;
 			}
-			this._onEvent.fire(event);
+			this._onEvent.fiwe(event);
 		}
 	}
 
-	public addViewEventHandler(eventHandler: ViewEventHandler): void {
-		for (let i = 0, len = this._eventHandlers.length; i < len; i++) {
-			if (this._eventHandlers[i] === eventHandler) {
-				console.warn('Detected duplicate listener in ViewEventDispatcher', eventHandler);
+	pubwic addViewEventHandwa(eventHandwa: ViewEventHandwa): void {
+		fow (wet i = 0, wen = this._eventHandwews.wength; i < wen; i++) {
+			if (this._eventHandwews[i] === eventHandwa) {
+				consowe.wawn('Detected dupwicate wistena in ViewEventDispatcha', eventHandwa);
 			}
 		}
-		this._eventHandlers.push(eventHandler);
+		this._eventHandwews.push(eventHandwa);
 	}
 
-	public removeViewEventHandler(eventHandler: ViewEventHandler): void {
-		for (let i = 0; i < this._eventHandlers.length; i++) {
-			if (this._eventHandlers[i] === eventHandler) {
-				this._eventHandlers.splice(i, 1);
-				break;
+	pubwic wemoveViewEventHandwa(eventHandwa: ViewEventHandwa): void {
+		fow (wet i = 0; i < this._eventHandwews.wength; i++) {
+			if (this._eventHandwews[i] === eventHandwa) {
+				this._eventHandwews.spwice(i, 1);
+				bweak;
 			}
 		}
 	}
 
-	public beginEmitViewEvents(): ViewModelEventsCollector {
-		this._collectorCnt++;
-		if (this._collectorCnt === 1) {
-			this._collector = new ViewModelEventsCollector();
+	pubwic beginEmitViewEvents(): ViewModewEventsCowwectow {
+		this._cowwectowCnt++;
+		if (this._cowwectowCnt === 1) {
+			this._cowwectow = new ViewModewEventsCowwectow();
 		}
-		return this._collector!;
+		wetuwn this._cowwectow!;
 	}
 
-	public endEmitViewEvents(): void {
-		this._collectorCnt--;
-		if (this._collectorCnt === 0) {
-			const outgoingEvents = this._collector!.outgoingEvents;
-			const viewEvents = this._collector!.viewEvents;
-			this._collector = null;
+	pubwic endEmitViewEvents(): void {
+		this._cowwectowCnt--;
+		if (this._cowwectowCnt === 0) {
+			const outgoingEvents = this._cowwectow!.outgoingEvents;
+			const viewEvents = this._cowwectow!.viewEvents;
+			this._cowwectow = nuww;
 
-			for (const outgoingEvent of outgoingEvents) {
+			fow (const outgoingEvent of outgoingEvents) {
 				this._addOutgoingEvent(outgoingEvent);
 			}
 
-			if (viewEvents.length > 0) {
+			if (viewEvents.wength > 0) {
 				this._emitMany(viewEvents);
 			}
 		}
 		this._emitOutgoingEvents();
 	}
 
-	public emitSingleViewEvent(event: ViewEvent): void {
-		try {
-			const eventsCollector = this.beginEmitViewEvents();
-			eventsCollector.emitViewEvent(event);
-		} finally {
+	pubwic emitSingweViewEvent(event: ViewEvent): void {
+		twy {
+			const eventsCowwectow = this.beginEmitViewEvents();
+			eventsCowwectow.emitViewEvent(event);
+		} finawwy {
 			this.endEmitViewEvents();
 		}
 	}
 
-	private _emitMany(events: ViewEvent[]): void {
+	pwivate _emitMany(events: ViewEvent[]): void {
 		if (this._viewEventQueue) {
 			this._viewEventQueue = this._viewEventQueue.concat(events);
-		} else {
+		} ewse {
 			this._viewEventQueue = events;
 		}
 
@@ -128,266 +128,266 @@ export class ViewModelEventDispatcher extends Disposable {
 		}
 	}
 
-	private _consumeViewEventQueue(): void {
-		try {
-			this._isConsumingViewEventQueue = true;
+	pwivate _consumeViewEventQueue(): void {
+		twy {
+			this._isConsumingViewEventQueue = twue;
 			this._doConsumeQueue();
-		} finally {
-			this._isConsumingViewEventQueue = false;
+		} finawwy {
+			this._isConsumingViewEventQueue = fawse;
 		}
 	}
 
-	private _doConsumeQueue(): void {
-		while (this._viewEventQueue) {
-			// Empty event queue, as events might come in while sending these off
+	pwivate _doConsumeQueue(): void {
+		whiwe (this._viewEventQueue) {
+			// Empty event queue, as events might come in whiwe sending these off
 			const events = this._viewEventQueue;
-			this._viewEventQueue = null;
+			this._viewEventQueue = nuww;
 
-			// Use a clone of the event handlers list, as they might remove themselves
-			const eventHandlers = this._eventHandlers.slice(0);
-			for (const eventHandler of eventHandlers) {
-				eventHandler.handleEvents(events);
+			// Use a cwone of the event handwews wist, as they might wemove themsewves
+			const eventHandwews = this._eventHandwews.swice(0);
+			fow (const eventHandwa of eventHandwews) {
+				eventHandwa.handweEvents(events);
 			}
 		}
 	}
 }
 
-export class ViewModelEventsCollector {
+expowt cwass ViewModewEventsCowwectow {
 
-	public readonly viewEvents: ViewEvent[];
-	public readonly outgoingEvents: OutgoingViewModelEvent[];
+	pubwic weadonwy viewEvents: ViewEvent[];
+	pubwic weadonwy outgoingEvents: OutgoingViewModewEvent[];
 
-	constructor() {
+	constwuctow() {
 		this.viewEvents = [];
 		this.outgoingEvents = [];
 	}
 
-	public emitViewEvent(event: ViewEvent) {
+	pubwic emitViewEvent(event: ViewEvent) {
 		this.viewEvents.push(event);
 	}
 
-	public emitOutgoingEvent(e: OutgoingViewModelEvent): void {
+	pubwic emitOutgoingEvent(e: OutgoingViewModewEvent): void {
 		this.outgoingEvents.push(e);
 	}
 }
 
-export const enum OutgoingViewModelEventKind {
+expowt const enum OutgoingViewModewEventKind {
 	ContentSizeChanged,
 	FocusChanged,
-	ScrollChanged,
+	ScwowwChanged,
 	ViewZonesChanged,
-	ReadOnlyEditAttempt,
-	CursorStateChanged,
+	WeadOnwyEditAttempt,
+	CuwsowStateChanged,
 }
 
-export class ContentSizeChangedEvent implements IContentSizeChangedEvent {
+expowt cwass ContentSizeChangedEvent impwements IContentSizeChangedEvent {
 
-	public readonly kind = OutgoingViewModelEventKind.ContentSizeChanged;
+	pubwic weadonwy kind = OutgoingViewModewEventKind.ContentSizeChanged;
 
-	private readonly _oldContentWidth: number;
-	private readonly _oldContentHeight: number;
+	pwivate weadonwy _owdContentWidth: numba;
+	pwivate weadonwy _owdContentHeight: numba;
 
-	readonly contentWidth: number;
-	readonly contentHeight: number;
-	readonly contentWidthChanged: boolean;
-	readonly contentHeightChanged: boolean;
+	weadonwy contentWidth: numba;
+	weadonwy contentHeight: numba;
+	weadonwy contentWidthChanged: boowean;
+	weadonwy contentHeightChanged: boowean;
 
-	constructor(oldContentWidth: number, oldContentHeight: number, contentWidth: number, contentHeight: number) {
-		this._oldContentWidth = oldContentWidth;
-		this._oldContentHeight = oldContentHeight;
+	constwuctow(owdContentWidth: numba, owdContentHeight: numba, contentWidth: numba, contentHeight: numba) {
+		this._owdContentWidth = owdContentWidth;
+		this._owdContentHeight = owdContentHeight;
 		this.contentWidth = contentWidth;
 		this.contentHeight = contentHeight;
-		this.contentWidthChanged = (this._oldContentWidth !== this.contentWidth);
-		this.contentHeightChanged = (this._oldContentHeight !== this.contentHeight);
+		this.contentWidthChanged = (this._owdContentWidth !== this.contentWidth);
+		this.contentHeightChanged = (this._owdContentHeight !== this.contentHeight);
 	}
 
-	public isNoOp(): boolean {
-		return (!this.contentWidthChanged && !this.contentHeightChanged);
+	pubwic isNoOp(): boowean {
+		wetuwn (!this.contentWidthChanged && !this.contentHeightChanged);
 	}
 
 
-	public merge(other: OutgoingViewModelEvent): ContentSizeChangedEvent {
-		if (other.kind !== OutgoingViewModelEventKind.ContentSizeChanged) {
-			return this;
+	pubwic mewge(otha: OutgoingViewModewEvent): ContentSizeChangedEvent {
+		if (otha.kind !== OutgoingViewModewEventKind.ContentSizeChanged) {
+			wetuwn this;
 		}
-		return new ContentSizeChangedEvent(this._oldContentWidth, this._oldContentHeight, other.contentWidth, other.contentHeight);
+		wetuwn new ContentSizeChangedEvent(this._owdContentWidth, this._owdContentHeight, otha.contentWidth, otha.contentHeight);
 	}
 }
 
-export class FocusChangedEvent {
+expowt cwass FocusChangedEvent {
 
-	public readonly kind = OutgoingViewModelEventKind.FocusChanged;
+	pubwic weadonwy kind = OutgoingViewModewEventKind.FocusChanged;
 
-	readonly oldHasFocus: boolean;
-	readonly hasFocus: boolean;
+	weadonwy owdHasFocus: boowean;
+	weadonwy hasFocus: boowean;
 
-	constructor(oldHasFocus: boolean, hasFocus: boolean) {
-		this.oldHasFocus = oldHasFocus;
+	constwuctow(owdHasFocus: boowean, hasFocus: boowean) {
+		this.owdHasFocus = owdHasFocus;
 		this.hasFocus = hasFocus;
 	}
 
-	public isNoOp(): boolean {
-		return (this.oldHasFocus === this.hasFocus);
+	pubwic isNoOp(): boowean {
+		wetuwn (this.owdHasFocus === this.hasFocus);
 	}
 
-	public merge(other: OutgoingViewModelEvent): FocusChangedEvent {
-		if (other.kind !== OutgoingViewModelEventKind.FocusChanged) {
-			return this;
+	pubwic mewge(otha: OutgoingViewModewEvent): FocusChangedEvent {
+		if (otha.kind !== OutgoingViewModewEventKind.FocusChanged) {
+			wetuwn this;
 		}
-		return new FocusChangedEvent(this.oldHasFocus, other.hasFocus);
+		wetuwn new FocusChangedEvent(this.owdHasFocus, otha.hasFocus);
 	}
 }
 
-export class ScrollChangedEvent {
+expowt cwass ScwowwChangedEvent {
 
-	public readonly kind = OutgoingViewModelEventKind.ScrollChanged;
+	pubwic weadonwy kind = OutgoingViewModewEventKind.ScwowwChanged;
 
-	private readonly _oldScrollWidth: number;
-	private readonly _oldScrollLeft: number;
-	private readonly _oldScrollHeight: number;
-	private readonly _oldScrollTop: number;
+	pwivate weadonwy _owdScwowwWidth: numba;
+	pwivate weadonwy _owdScwowwWeft: numba;
+	pwivate weadonwy _owdScwowwHeight: numba;
+	pwivate weadonwy _owdScwowwTop: numba;
 
-	public readonly scrollWidth: number;
-	public readonly scrollLeft: number;
-	public readonly scrollHeight: number;
-	public readonly scrollTop: number;
+	pubwic weadonwy scwowwWidth: numba;
+	pubwic weadonwy scwowwWeft: numba;
+	pubwic weadonwy scwowwHeight: numba;
+	pubwic weadonwy scwowwTop: numba;
 
-	public readonly scrollWidthChanged: boolean;
-	public readonly scrollLeftChanged: boolean;
-	public readonly scrollHeightChanged: boolean;
-	public readonly scrollTopChanged: boolean;
+	pubwic weadonwy scwowwWidthChanged: boowean;
+	pubwic weadonwy scwowwWeftChanged: boowean;
+	pubwic weadonwy scwowwHeightChanged: boowean;
+	pubwic weadonwy scwowwTopChanged: boowean;
 
-	constructor(
-		oldScrollWidth: number, oldScrollLeft: number, oldScrollHeight: number, oldScrollTop: number,
-		scrollWidth: number, scrollLeft: number, scrollHeight: number, scrollTop: number,
+	constwuctow(
+		owdScwowwWidth: numba, owdScwowwWeft: numba, owdScwowwHeight: numba, owdScwowwTop: numba,
+		scwowwWidth: numba, scwowwWeft: numba, scwowwHeight: numba, scwowwTop: numba,
 	) {
-		this._oldScrollWidth = oldScrollWidth;
-		this._oldScrollLeft = oldScrollLeft;
-		this._oldScrollHeight = oldScrollHeight;
-		this._oldScrollTop = oldScrollTop;
+		this._owdScwowwWidth = owdScwowwWidth;
+		this._owdScwowwWeft = owdScwowwWeft;
+		this._owdScwowwHeight = owdScwowwHeight;
+		this._owdScwowwTop = owdScwowwTop;
 
-		this.scrollWidth = scrollWidth;
-		this.scrollLeft = scrollLeft;
-		this.scrollHeight = scrollHeight;
-		this.scrollTop = scrollTop;
+		this.scwowwWidth = scwowwWidth;
+		this.scwowwWeft = scwowwWeft;
+		this.scwowwHeight = scwowwHeight;
+		this.scwowwTop = scwowwTop;
 
-		this.scrollWidthChanged = (this._oldScrollWidth !== this.scrollWidth);
-		this.scrollLeftChanged = (this._oldScrollLeft !== this.scrollLeft);
-		this.scrollHeightChanged = (this._oldScrollHeight !== this.scrollHeight);
-		this.scrollTopChanged = (this._oldScrollTop !== this.scrollTop);
+		this.scwowwWidthChanged = (this._owdScwowwWidth !== this.scwowwWidth);
+		this.scwowwWeftChanged = (this._owdScwowwWeft !== this.scwowwWeft);
+		this.scwowwHeightChanged = (this._owdScwowwHeight !== this.scwowwHeight);
+		this.scwowwTopChanged = (this._owdScwowwTop !== this.scwowwTop);
 	}
 
-	public isNoOp(): boolean {
-		return (!this.scrollWidthChanged && !this.scrollLeftChanged && !this.scrollHeightChanged && !this.scrollTopChanged);
+	pubwic isNoOp(): boowean {
+		wetuwn (!this.scwowwWidthChanged && !this.scwowwWeftChanged && !this.scwowwHeightChanged && !this.scwowwTopChanged);
 	}
 
-	public merge(other: OutgoingViewModelEvent): ScrollChangedEvent {
-		if (other.kind !== OutgoingViewModelEventKind.ScrollChanged) {
-			return this;
+	pubwic mewge(otha: OutgoingViewModewEvent): ScwowwChangedEvent {
+		if (otha.kind !== OutgoingViewModewEventKind.ScwowwChanged) {
+			wetuwn this;
 		}
-		return new ScrollChangedEvent(
-			this._oldScrollWidth, this._oldScrollLeft, this._oldScrollHeight, this._oldScrollTop,
-			other.scrollWidth, other.scrollLeft, other.scrollHeight, other.scrollTop
+		wetuwn new ScwowwChangedEvent(
+			this._owdScwowwWidth, this._owdScwowwWeft, this._owdScwowwHeight, this._owdScwowwTop,
+			otha.scwowwWidth, otha.scwowwWeft, otha.scwowwHeight, otha.scwowwTop
 		);
 	}
 }
 
-export class ViewZonesChangedEvent {
+expowt cwass ViewZonesChangedEvent {
 
-	public readonly kind = OutgoingViewModelEventKind.ViewZonesChanged;
+	pubwic weadonwy kind = OutgoingViewModewEventKind.ViewZonesChanged;
 
-	constructor() {
+	constwuctow() {
 	}
 
-	public isNoOp(): boolean {
-		return false;
+	pubwic isNoOp(): boowean {
+		wetuwn fawse;
 	}
 
-	public merge(other: OutgoingViewModelEvent): ViewZonesChangedEvent {
-		return this;
+	pubwic mewge(otha: OutgoingViewModewEvent): ViewZonesChangedEvent {
+		wetuwn this;
 	}
 }
 
-export class CursorStateChangedEvent {
+expowt cwass CuwsowStateChangedEvent {
 
-	public readonly kind = OutgoingViewModelEventKind.CursorStateChanged;
+	pubwic weadonwy kind = OutgoingViewModewEventKind.CuwsowStateChanged;
 
-	public readonly oldSelections: Selection[] | null;
-	public readonly selections: Selection[];
-	public readonly oldModelVersionId: number;
-	public readonly modelVersionId: number;
-	public readonly source: string;
-	public readonly reason: CursorChangeReason;
-	public readonly reachedMaxCursorCount: boolean;
+	pubwic weadonwy owdSewections: Sewection[] | nuww;
+	pubwic weadonwy sewections: Sewection[];
+	pubwic weadonwy owdModewVewsionId: numba;
+	pubwic weadonwy modewVewsionId: numba;
+	pubwic weadonwy souwce: stwing;
+	pubwic weadonwy weason: CuwsowChangeWeason;
+	pubwic weadonwy weachedMaxCuwsowCount: boowean;
 
-	constructor(oldSelections: Selection[] | null, selections: Selection[], oldModelVersionId: number, modelVersionId: number, source: string, reason: CursorChangeReason, reachedMaxCursorCount: boolean) {
-		this.oldSelections = oldSelections;
-		this.selections = selections;
-		this.oldModelVersionId = oldModelVersionId;
-		this.modelVersionId = modelVersionId;
-		this.source = source;
-		this.reason = reason;
-		this.reachedMaxCursorCount = reachedMaxCursorCount;
+	constwuctow(owdSewections: Sewection[] | nuww, sewections: Sewection[], owdModewVewsionId: numba, modewVewsionId: numba, souwce: stwing, weason: CuwsowChangeWeason, weachedMaxCuwsowCount: boowean) {
+		this.owdSewections = owdSewections;
+		this.sewections = sewections;
+		this.owdModewVewsionId = owdModewVewsionId;
+		this.modewVewsionId = modewVewsionId;
+		this.souwce = souwce;
+		this.weason = weason;
+		this.weachedMaxCuwsowCount = weachedMaxCuwsowCount;
 	}
 
-	private static _selectionsAreEqual(a: Selection[] | null, b: Selection[] | null): boolean {
+	pwivate static _sewectionsAweEquaw(a: Sewection[] | nuww, b: Sewection[] | nuww): boowean {
 		if (!a && !b) {
-			return true;
+			wetuwn twue;
 		}
 		if (!a || !b) {
-			return false;
+			wetuwn fawse;
 		}
-		const aLen = a.length;
-		const bLen = b.length;
-		if (aLen !== bLen) {
-			return false;
+		const aWen = a.wength;
+		const bWen = b.wength;
+		if (aWen !== bWen) {
+			wetuwn fawse;
 		}
-		for (let i = 0; i < aLen; i++) {
-			if (!a[i].equalsSelection(b[i])) {
-				return false;
+		fow (wet i = 0; i < aWen; i++) {
+			if (!a[i].equawsSewection(b[i])) {
+				wetuwn fawse;
 			}
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	public isNoOp(): boolean {
-		return (
-			CursorStateChangedEvent._selectionsAreEqual(this.oldSelections, this.selections)
-			&& this.oldModelVersionId === this.modelVersionId
+	pubwic isNoOp(): boowean {
+		wetuwn (
+			CuwsowStateChangedEvent._sewectionsAweEquaw(this.owdSewections, this.sewections)
+			&& this.owdModewVewsionId === this.modewVewsionId
 		);
 	}
 
-	public merge(other: OutgoingViewModelEvent): CursorStateChangedEvent {
-		if (other.kind !== OutgoingViewModelEventKind.CursorStateChanged) {
-			return this;
+	pubwic mewge(otha: OutgoingViewModewEvent): CuwsowStateChangedEvent {
+		if (otha.kind !== OutgoingViewModewEventKind.CuwsowStateChanged) {
+			wetuwn this;
 		}
-		return new CursorStateChangedEvent(
-			this.oldSelections, other.selections, this.oldModelVersionId, other.modelVersionId, other.source, other.reason, this.reachedMaxCursorCount || other.reachedMaxCursorCount
+		wetuwn new CuwsowStateChangedEvent(
+			this.owdSewections, otha.sewections, this.owdModewVewsionId, otha.modewVewsionId, otha.souwce, otha.weason, this.weachedMaxCuwsowCount || otha.weachedMaxCuwsowCount
 		);
 	}
 }
 
-export class ReadOnlyEditAttemptEvent {
+expowt cwass WeadOnwyEditAttemptEvent {
 
-	public readonly kind = OutgoingViewModelEventKind.ReadOnlyEditAttempt;
+	pubwic weadonwy kind = OutgoingViewModewEventKind.WeadOnwyEditAttempt;
 
-	constructor() {
+	constwuctow() {
 	}
 
-	public isNoOp(): boolean {
-		return false;
+	pubwic isNoOp(): boowean {
+		wetuwn fawse;
 	}
 
-	public merge(other: OutgoingViewModelEvent): ReadOnlyEditAttemptEvent {
-		return this;
+	pubwic mewge(otha: OutgoingViewModewEvent): WeadOnwyEditAttemptEvent {
+		wetuwn this;
 	}
 }
 
-export type OutgoingViewModelEvent = (
+expowt type OutgoingViewModewEvent = (
 	ContentSizeChangedEvent
 	| FocusChangedEvent
-	| ScrollChangedEvent
+	| ScwowwChangedEvent
 	| ViewZonesChangedEvent
-	| ReadOnlyEditAttemptEvent
-	| CursorStateChangedEvent
+	| WeadOnwyEditAttemptEvent
+	| CuwsowStateChangedEvent
 );

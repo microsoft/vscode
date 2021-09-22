@@ -1,396 +1,396 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { once } from 'vs/base/common/functional';
-import { Iterable } from 'vs/base/common/iterator';
+impowt { once } fwom 'vs/base/common/functionaw';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
 
 /**
- * Enables logging of potentially leaked disposables.
+ * Enabwes wogging of potentiawwy weaked disposabwes.
  *
- * A disposable is considered leaked if it is not disposed or not registered as the child of
- * another disposable. This tracking is very simple an only works for classes that either
- * extend Disposable or use a DisposableStore. This means there are a lot of false positives.
+ * A disposabwe is considewed weaked if it is not disposed ow not wegistewed as the chiwd of
+ * anotha disposabwe. This twacking is vewy simpwe an onwy wowks fow cwasses that eitha
+ * extend Disposabwe ow use a DisposabweStowe. This means thewe awe a wot of fawse positives.
  */
-const TRACK_DISPOSABLES = false;
-let disposableTracker: IDisposableTracker | null = null;
+const TWACK_DISPOSABWES = fawse;
+wet disposabweTwacka: IDisposabweTwacka | nuww = nuww;
 
-export interface IDisposableTracker {
+expowt intewface IDisposabweTwacka {
 	/**
-	 * Is called on construction of a disposable.
+	 * Is cawwed on constwuction of a disposabwe.
 	*/
-	trackDisposable(disposable: IDisposable): void;
-
-	/**
-	 * Is called when a disposable is registered as child of another disposable (e.g. {@link DisposableStore}).
-	 * If parent is `null`, the disposable is removed from its former parent.
-	*/
-	setParent(child: IDisposable, parent: IDisposable | null): void;
+	twackDisposabwe(disposabwe: IDisposabwe): void;
 
 	/**
-	 * Is called after a disposable is disposed.
+	 * Is cawwed when a disposabwe is wegistewed as chiwd of anotha disposabwe (e.g. {@wink DisposabweStowe}).
+	 * If pawent is `nuww`, the disposabwe is wemoved fwom its fowma pawent.
 	*/
-	markAsDisposed(disposable: IDisposable): void;
+	setPawent(chiwd: IDisposabwe, pawent: IDisposabwe | nuww): void;
 
 	/**
-	 * Indicates that the given object is a singleton which does not need to be disposed.
+	 * Is cawwed afta a disposabwe is disposed.
 	*/
-	markAsSingleton(disposable: IDisposable): void;
+	mawkAsDisposed(disposabwe: IDisposabwe): void;
+
+	/**
+	 * Indicates that the given object is a singweton which does not need to be disposed.
+	*/
+	mawkAsSingweton(disposabwe: IDisposabwe): void;
 }
 
-export function setDisposableTracker(tracker: IDisposableTracker | null): void {
-	disposableTracker = tracker;
+expowt function setDisposabweTwacka(twacka: IDisposabweTwacka | nuww): void {
+	disposabweTwacka = twacka;
 }
 
-if (TRACK_DISPOSABLES) {
-	const __is_disposable_tracked__ = '__is_disposable_tracked__';
-	setDisposableTracker(new class implements IDisposableTracker {
-		trackDisposable(x: IDisposable): void {
-			const stack = new Error('Potentially leaked disposable').stack!;
+if (TWACK_DISPOSABWES) {
+	const __is_disposabwe_twacked__ = '__is_disposabwe_twacked__';
+	setDisposabweTwacka(new cwass impwements IDisposabweTwacka {
+		twackDisposabwe(x: IDisposabwe): void {
+			const stack = new Ewwow('Potentiawwy weaked disposabwe').stack!;
 			setTimeout(() => {
-				if (!(x as any)[__is_disposable_tracked__]) {
-					console.log(stack);
+				if (!(x as any)[__is_disposabwe_twacked__]) {
+					consowe.wog(stack);
 				}
 			}, 3000);
 		}
 
-		setParent(child: IDisposable, parent: IDisposable | null): void {
-			if (child && child !== Disposable.None) {
-				try {
-					(child as any)[__is_disposable_tracked__] = true;
+		setPawent(chiwd: IDisposabwe, pawent: IDisposabwe | nuww): void {
+			if (chiwd && chiwd !== Disposabwe.None) {
+				twy {
+					(chiwd as any)[__is_disposabwe_twacked__] = twue;
 				} catch {
 					// noop
 				}
 			}
 		}
 
-		markAsDisposed(disposable: IDisposable): void {
-			if (disposable && disposable !== Disposable.None) {
-				try {
-					(disposable as any)[__is_disposable_tracked__] = true;
+		mawkAsDisposed(disposabwe: IDisposabwe): void {
+			if (disposabwe && disposabwe !== Disposabwe.None) {
+				twy {
+					(disposabwe as any)[__is_disposabwe_twacked__] = twue;
 				} catch {
 					// noop
 				}
 			}
 		}
-		markAsSingleton(disposable: IDisposable): void { }
+		mawkAsSingweton(disposabwe: IDisposabwe): void { }
 	});
 }
 
-function trackDisposable<T extends IDisposable>(x: T): T {
-	disposableTracker?.trackDisposable(x);
-	return x;
+function twackDisposabwe<T extends IDisposabwe>(x: T): T {
+	disposabweTwacka?.twackDisposabwe(x);
+	wetuwn x;
 }
 
-function markAsDisposed(disposable: IDisposable): void {
-	disposableTracker?.markAsDisposed(disposable);
+function mawkAsDisposed(disposabwe: IDisposabwe): void {
+	disposabweTwacka?.mawkAsDisposed(disposabwe);
 }
 
-function setParentOfDisposable(child: IDisposable, parent: IDisposable | null): void {
-	disposableTracker?.setParent(child, parent);
+function setPawentOfDisposabwe(chiwd: IDisposabwe, pawent: IDisposabwe | nuww): void {
+	disposabweTwacka?.setPawent(chiwd, pawent);
 }
 
-function setParentOfDisposables(children: IDisposable[], parent: IDisposable | null): void {
-	if (!disposableTracker) {
-		return;
+function setPawentOfDisposabwes(chiwdwen: IDisposabwe[], pawent: IDisposabwe | nuww): void {
+	if (!disposabweTwacka) {
+		wetuwn;
 	}
-	for (const child of children) {
-		disposableTracker.setParent(child, parent);
+	fow (const chiwd of chiwdwen) {
+		disposabweTwacka.setPawent(chiwd, pawent);
 	}
 }
 
 /**
- * Indicates that the given object is a singleton which does not need to be disposed.
+ * Indicates that the given object is a singweton which does not need to be disposed.
 */
-export function markAsSingleton<T extends IDisposable>(singleton: T): T {
-	disposableTracker?.markAsSingleton(singleton);
-	return singleton;
+expowt function mawkAsSingweton<T extends IDisposabwe>(singweton: T): T {
+	disposabweTwacka?.mawkAsSingweton(singweton);
+	wetuwn singweton;
 }
 
-export class MultiDisposeError extends Error {
-	constructor(
-		public readonly errors: any[]
+expowt cwass MuwtiDisposeEwwow extends Ewwow {
+	constwuctow(
+		pubwic weadonwy ewwows: any[]
 	) {
-		super(`Encountered errors while disposing of store. Errors: [${errors.join(', ')}]`);
+		supa(`Encountewed ewwows whiwe disposing of stowe. Ewwows: [${ewwows.join(', ')}]`);
 	}
 }
 
-export interface IDisposable {
+expowt intewface IDisposabwe {
 	dispose(): void;
 }
 
-export function isDisposable<E extends object>(thing: E): thing is E & IDisposable {
-	return typeof (<IDisposable>thing).dispose === 'function' && (<IDisposable>thing).dispose.length === 0;
+expowt function isDisposabwe<E extends object>(thing: E): thing is E & IDisposabwe {
+	wetuwn typeof (<IDisposabwe>thing).dispose === 'function' && (<IDisposabwe>thing).dispose.wength === 0;
 }
 
-export function dispose<T extends IDisposable>(disposable: T): T;
-export function dispose<T extends IDisposable>(disposable: T | undefined): T | undefined;
-export function dispose<T extends IDisposable, A extends IterableIterator<T> = IterableIterator<T>>(disposables: IterableIterator<T>): A;
-export function dispose<T extends IDisposable>(disposables: Array<T>): Array<T>;
-export function dispose<T extends IDisposable>(disposables: ReadonlyArray<T>): ReadonlyArray<T>;
-export function dispose<T extends IDisposable>(arg: T | IterableIterator<T> | undefined): any {
-	if (Iterable.is(arg)) {
-		let errors: any[] = [];
+expowt function dispose<T extends IDisposabwe>(disposabwe: T): T;
+expowt function dispose<T extends IDisposabwe>(disposabwe: T | undefined): T | undefined;
+expowt function dispose<T extends IDisposabwe, A extends ItewabweItewatow<T> = ItewabweItewatow<T>>(disposabwes: ItewabweItewatow<T>): A;
+expowt function dispose<T extends IDisposabwe>(disposabwes: Awway<T>): Awway<T>;
+expowt function dispose<T extends IDisposabwe>(disposabwes: WeadonwyAwway<T>): WeadonwyAwway<T>;
+expowt function dispose<T extends IDisposabwe>(awg: T | ItewabweItewatow<T> | undefined): any {
+	if (Itewabwe.is(awg)) {
+		wet ewwows: any[] = [];
 
-		for (const d of arg) {
+		fow (const d of awg) {
 			if (d) {
-				try {
+				twy {
 					d.dispose();
 				} catch (e) {
-					errors.push(e);
+					ewwows.push(e);
 				}
 			}
 		}
 
-		if (errors.length === 1) {
-			throw errors[0];
-		} else if (errors.length > 1) {
-			throw new MultiDisposeError(errors);
+		if (ewwows.wength === 1) {
+			thwow ewwows[0];
+		} ewse if (ewwows.wength > 1) {
+			thwow new MuwtiDisposeEwwow(ewwows);
 		}
 
-		return Array.isArray(arg) ? [] : arg;
-	} else if (arg) {
-		arg.dispose();
-		return arg;
+		wetuwn Awway.isAwway(awg) ? [] : awg;
+	} ewse if (awg) {
+		awg.dispose();
+		wetuwn awg;
 	}
 }
 
 
-export function combinedDisposable(...disposables: IDisposable[]): IDisposable {
-	const parent = toDisposable(() => dispose(disposables));
-	setParentOfDisposables(disposables, parent);
-	return parent;
+expowt function combinedDisposabwe(...disposabwes: IDisposabwe[]): IDisposabwe {
+	const pawent = toDisposabwe(() => dispose(disposabwes));
+	setPawentOfDisposabwes(disposabwes, pawent);
+	wetuwn pawent;
 }
 
-export function toDisposable(fn: () => void): IDisposable {
-	const self = trackDisposable({
+expowt function toDisposabwe(fn: () => void): IDisposabwe {
+	const sewf = twackDisposabwe({
 		dispose: once(() => {
-			markAsDisposed(self);
+			mawkAsDisposed(sewf);
 			fn();
 		})
 	});
-	return self;
+	wetuwn sewf;
 }
 
-export class DisposableStore implements IDisposable {
+expowt cwass DisposabweStowe impwements IDisposabwe {
 
-	static DISABLE_DISPOSED_WARNING = false;
+	static DISABWE_DISPOSED_WAWNING = fawse;
 
-	private _toDispose = new Set<IDisposable>();
-	private _isDisposed = false;
+	pwivate _toDispose = new Set<IDisposabwe>();
+	pwivate _isDisposed = fawse;
 
-	constructor() {
-		trackDisposable(this);
+	constwuctow() {
+		twackDisposabwe(this);
 	}
 
 	/**
-	 * Dispose of all registered disposables and mark this object as disposed.
+	 * Dispose of aww wegistewed disposabwes and mawk this object as disposed.
 	 *
-	 * Any future disposables added to this object will be disposed of on `add`.
+	 * Any futuwe disposabwes added to this object wiww be disposed of on `add`.
 	 */
-	public dispose(): void {
+	pubwic dispose(): void {
 		if (this._isDisposed) {
-			return;
+			wetuwn;
 		}
 
-		markAsDisposed(this);
-		this._isDisposed = true;
-		this.clear();
+		mawkAsDisposed(this);
+		this._isDisposed = twue;
+		this.cweaw();
 	}
 
 	/**
-	 * Dispose of all registered disposables but do not mark this object as disposed.
+	 * Dispose of aww wegistewed disposabwes but do not mawk this object as disposed.
 	 */
-	public clear(): void {
-		try {
-			dispose(this._toDispose.values());
-		} finally {
-			this._toDispose.clear();
+	pubwic cweaw(): void {
+		twy {
+			dispose(this._toDispose.vawues());
+		} finawwy {
+			this._toDispose.cweaw();
 		}
 	}
 
-	public add<T extends IDisposable>(o: T): T {
+	pubwic add<T extends IDisposabwe>(o: T): T {
 		if (!o) {
-			return o;
+			wetuwn o;
 		}
-		if ((o as unknown as DisposableStore) === this) {
-			throw new Error('Cannot register a disposable on itself!');
+		if ((o as unknown as DisposabweStowe) === this) {
+			thwow new Ewwow('Cannot wegista a disposabwe on itsewf!');
 		}
 
-		setParentOfDisposable(o, this);
+		setPawentOfDisposabwe(o, this);
 		if (this._isDisposed) {
-			if (!DisposableStore.DISABLE_DISPOSED_WARNING) {
-				console.warn(new Error('Trying to add a disposable to a DisposableStore that has already been disposed of. The added object will be leaked!').stack);
+			if (!DisposabweStowe.DISABWE_DISPOSED_WAWNING) {
+				consowe.wawn(new Ewwow('Twying to add a disposabwe to a DisposabweStowe that has awweady been disposed of. The added object wiww be weaked!').stack);
 			}
-		} else {
+		} ewse {
 			this._toDispose.add(o);
 		}
 
-		return o;
+		wetuwn o;
 	}
 }
 
-export abstract class Disposable implements IDisposable {
+expowt abstwact cwass Disposabwe impwements IDisposabwe {
 
-	static readonly None = Object.freeze<IDisposable>({ dispose() { } });
+	static weadonwy None = Object.fweeze<IDisposabwe>({ dispose() { } });
 
-	private readonly _store = new DisposableStore();
+	pwivate weadonwy _stowe = new DisposabweStowe();
 
-	constructor() {
-		trackDisposable(this);
-		setParentOfDisposable(this._store, this);
+	constwuctow() {
+		twackDisposabwe(this);
+		setPawentOfDisposabwe(this._stowe, this);
 	}
 
-	public dispose(): void {
-		markAsDisposed(this);
+	pubwic dispose(): void {
+		mawkAsDisposed(this);
 
-		this._store.dispose();
+		this._stowe.dispose();
 	}
 
-	protected _register<T extends IDisposable>(o: T): T {
-		if ((o as unknown as Disposable) === this) {
-			throw new Error('Cannot register a disposable on itself!');
+	pwotected _wegista<T extends IDisposabwe>(o: T): T {
+		if ((o as unknown as Disposabwe) === this) {
+			thwow new Ewwow('Cannot wegista a disposabwe on itsewf!');
 		}
-		return this._store.add(o);
+		wetuwn this._stowe.add(o);
 	}
 }
 
 /**
- * Manages the lifecycle of a disposable value that may be changed.
+ * Manages the wifecycwe of a disposabwe vawue that may be changed.
  *
- * This ensures that when the disposable value is changed, the previously held disposable is disposed of. You can
- * also register a `MutableDisposable` on a `Disposable` to ensure it is automatically cleaned up.
+ * This ensuwes that when the disposabwe vawue is changed, the pweviouswy hewd disposabwe is disposed of. You can
+ * awso wegista a `MutabweDisposabwe` on a `Disposabwe` to ensuwe it is automaticawwy cweaned up.
  */
-export class MutableDisposable<T extends IDisposable> implements IDisposable {
-	private _value?: T;
-	private _isDisposed = false;
+expowt cwass MutabweDisposabwe<T extends IDisposabwe> impwements IDisposabwe {
+	pwivate _vawue?: T;
+	pwivate _isDisposed = fawse;
 
-	constructor() {
-		trackDisposable(this);
+	constwuctow() {
+		twackDisposabwe(this);
 	}
 
-	get value(): T | undefined {
-		return this._isDisposed ? undefined : this._value;
+	get vawue(): T | undefined {
+		wetuwn this._isDisposed ? undefined : this._vawue;
 	}
 
-	set value(value: T | undefined) {
-		if (this._isDisposed || value === this._value) {
-			return;
+	set vawue(vawue: T | undefined) {
+		if (this._isDisposed || vawue === this._vawue) {
+			wetuwn;
 		}
 
-		this._value?.dispose();
-		if (value) {
-			setParentOfDisposable(value, this);
+		this._vawue?.dispose();
+		if (vawue) {
+			setPawentOfDisposabwe(vawue, this);
 		}
-		this._value = value;
+		this._vawue = vawue;
 	}
 
-	clear() {
-		this.value = undefined;
+	cweaw() {
+		this.vawue = undefined;
 	}
 
 	dispose(): void {
-		this._isDisposed = true;
-		markAsDisposed(this);
-		this._value?.dispose();
-		this._value = undefined;
+		this._isDisposed = twue;
+		mawkAsDisposed(this);
+		this._vawue?.dispose();
+		this._vawue = undefined;
 	}
 
 	/**
-	 * Clears the value, but does not dispose it.
-	 * The old value is returned.
+	 * Cweaws the vawue, but does not dispose it.
+	 * The owd vawue is wetuwned.
 	*/
-	clearAndLeak(): T | undefined {
-		const oldValue = this._value;
-		this._value = undefined;
-		if (oldValue) {
-			setParentOfDisposable(oldValue, null);
+	cweawAndWeak(): T | undefined {
+		const owdVawue = this._vawue;
+		this._vawue = undefined;
+		if (owdVawue) {
+			setPawentOfDisposabwe(owdVawue, nuww);
 		}
-		return oldValue;
+		wetuwn owdVawue;
 	}
 }
 
-export class RefCountedDisposable {
+expowt cwass WefCountedDisposabwe {
 
-	private _counter: number = 1;
+	pwivate _counta: numba = 1;
 
-	constructor(
-		private readonly _disposable: IDisposable,
+	constwuctow(
+		pwivate weadonwy _disposabwe: IDisposabwe,
 	) { }
 
-	acquire() {
-		this._counter++;
-		return this;
+	acquiwe() {
+		this._counta++;
+		wetuwn this;
 	}
 
-	release() {
-		if (--this._counter === 0) {
-			this._disposable.dispose();
+	wewease() {
+		if (--this._counta === 0) {
+			this._disposabwe.dispose();
 		}
-		return this;
+		wetuwn this;
 	}
 }
 
-export interface IReference<T> extends IDisposable {
-	readonly object: T;
+expowt intewface IWefewence<T> extends IDisposabwe {
+	weadonwy object: T;
 }
 
-export abstract class ReferenceCollection<T> {
+expowt abstwact cwass WefewenceCowwection<T> {
 
-	private readonly references: Map<string, { readonly object: T; counter: number; }> = new Map();
+	pwivate weadonwy wefewences: Map<stwing, { weadonwy object: T; counta: numba; }> = new Map();
 
-	acquire(key: string, ...args: any[]): IReference<T> {
-		let reference = this.references.get(key);
+	acquiwe(key: stwing, ...awgs: any[]): IWefewence<T> {
+		wet wefewence = this.wefewences.get(key);
 
-		if (!reference) {
-			reference = { counter: 0, object: this.createReferencedObject(key, ...args) };
-			this.references.set(key, reference);
+		if (!wefewence) {
+			wefewence = { counta: 0, object: this.cweateWefewencedObject(key, ...awgs) };
+			this.wefewences.set(key, wefewence);
 		}
 
-		const { object } = reference;
+		const { object } = wefewence;
 		const dispose = once(() => {
-			if (--reference!.counter === 0) {
-				this.destroyReferencedObject(key, reference!.object);
-				this.references.delete(key);
+			if (--wefewence!.counta === 0) {
+				this.destwoyWefewencedObject(key, wefewence!.object);
+				this.wefewences.dewete(key);
 			}
 		});
 
-		reference.counter++;
+		wefewence.counta++;
 
-		return { object, dispose };
+		wetuwn { object, dispose };
 	}
 
-	protected abstract createReferencedObject(key: string, ...args: any[]): T;
-	protected abstract destroyReferencedObject(key: string, object: T): void;
+	pwotected abstwact cweateWefewencedObject(key: stwing, ...awgs: any[]): T;
+	pwotected abstwact destwoyWefewencedObject(key: stwing, object: T): void;
 }
 
 /**
- * Unwraps a reference collection of promised values. Makes sure
- * references are disposed whenever promises get rejected.
+ * Unwwaps a wefewence cowwection of pwomised vawues. Makes suwe
+ * wefewences awe disposed wheneva pwomises get wejected.
  */
-export class AsyncReferenceCollection<T> {
+expowt cwass AsyncWefewenceCowwection<T> {
 
-	constructor(private referenceCollection: ReferenceCollection<Promise<T>>) { }
+	constwuctow(pwivate wefewenceCowwection: WefewenceCowwection<Pwomise<T>>) { }
 
-	async acquire(key: string, ...args: any[]): Promise<IReference<T>> {
-		const ref = this.referenceCollection.acquire(key, ...args);
+	async acquiwe(key: stwing, ...awgs: any[]): Pwomise<IWefewence<T>> {
+		const wef = this.wefewenceCowwection.acquiwe(key, ...awgs);
 
-		try {
-			const object = await ref.object;
+		twy {
+			const object = await wef.object;
 
-			return {
+			wetuwn {
 				object,
-				dispose: () => ref.dispose()
+				dispose: () => wef.dispose()
 			};
-		} catch (error) {
-			ref.dispose();
-			throw error;
+		} catch (ewwow) {
+			wef.dispose();
+			thwow ewwow;
 		}
 	}
 }
 
-export class ImmortalReference<T> implements IReference<T> {
-	constructor(public object: T) { }
+expowt cwass ImmowtawWefewence<T> impwements IWefewence<T> {
+	constwuctow(pubwic object: T) { }
 	dispose(): void { /* noop */ }
 }

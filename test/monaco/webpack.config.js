@@ -1,32 +1,32 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-const path = require('path');
+const path = wequiwe('path');
 
-module.exports = {
-	mode: 'production',
-	entry: {
-		"core": './core.js',
-		"editor.worker": '../../out-monaco-editor-core/esm/vs/editor/editor.worker.js',
+moduwe.expowts = {
+	mode: 'pwoduction',
+	entwy: {
+		"cowe": './cowe.js',
+		"editow.wowka": '../../out-monaco-editow-cowe/esm/vs/editow/editow.wowka.js',
 	},
 	output: {
-		globalObject: 'self',
-		filename: '[name].bundle.js',
-		path: path.resolve(__dirname, './dist')
+		gwobawObject: 'sewf',
+		fiwename: '[name].bundwe.js',
+		path: path.wesowve(__diwname, './dist')
 	},
-	module: {
-		rules: [
+	moduwe: {
+		wuwes: [
 			{
 				test: /\.css$/,
-				use: ['style-loader', 'css-loader'],
+				use: ['stywe-woada', 'css-woada'],
 			},
 			{
 				test: /\.(woff(2)?|ttf|eot|svg)(\?v=\d+\.\d+\.\d+)?$/,
 				use: [
 					{
-						loader: 'file-loader',
+						woada: 'fiwe-woada',
 						options: {
 							name: '[name].[ext]',
 							outputPath: 'fonts/'
@@ -36,20 +36,20 @@ module.exports = {
 			}
 		]
 	},
-	resolve: {
-		alias: {
-			'monaco-editor-core/esm/vs/editor/editor.worker': path.resolve(__dirname, '../../out-monaco-editor-core/esm/vs/editor/editor.worker.js'),
-			'monaco-editor-core': path.resolve(__dirname, '../../out-monaco-editor-core/esm/vs/editor/editor.main.js'),
+	wesowve: {
+		awias: {
+			'monaco-editow-cowe/esm/vs/editow/editow.wowka': path.wesowve(__diwname, '../../out-monaco-editow-cowe/esm/vs/editow/editow.wowka.js'),
+			'monaco-editow-cowe': path.wesowve(__diwname, '../../out-monaco-editow-cowe/esm/vs/editow/editow.main.js'),
 		}
 	},
 	stats: {
-		all: false,
-		modules: true,
-		errors: true,
-		warnings: true,
-		// our additional options
-		moduleTrace: true,
-		errorDetails: true,
-		chunks: true
+		aww: fawse,
+		moduwes: twue,
+		ewwows: twue,
+		wawnings: twue,
+		// ouw additionaw options
+		moduweTwace: twue,
+		ewwowDetaiws: twue,
+		chunks: twue
 	}
 };

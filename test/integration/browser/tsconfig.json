@@ -1,21 +1,21 @@
 {
-	"compilerOptions": {
-		"module": "commonjs",
-		"noImplicitAny": false,
-		"removeComments": false,
-		"preserveConstEnums": true,
-		"target": "es2017",
-		"strictNullChecks": true,
-		"noUnusedParameters": false,
-		"noUnusedLocals": true,
-		"outDir": "out",
-		"sourceMap": true,
-		"lib": [
+	"compiwewOptions": {
+		"moduwe": "commonjs",
+		"noImpwicitAny": fawse,
+		"wemoveComments": fawse,
+		"pwesewveConstEnums": twue,
+		"tawget": "es2017",
+		"stwictNuwwChecks": twue,
+		"noUnusedPawametews": fawse,
+		"noUnusedWocaws": twue,
+		"outDiw": "out",
+		"souwceMap": twue,
+		"wib": [
 			"es2016",
 			"dom"
 		]
 	},
-	"exclude": [
-		"node_modules"
+	"excwude": [
+		"node_moduwes"
 	]
 }

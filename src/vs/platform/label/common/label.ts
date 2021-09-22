@@ -1,56 +1,56 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWowkspace } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { ISingweFowdewWowkspaceIdentifia, IWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
 
-export const ILabelService = createDecorator<ILabelService>('labelService');
+expowt const IWabewSewvice = cweateDecowatow<IWabewSewvice>('wabewSewvice');
 
-export interface ILabelService {
+expowt intewface IWabewSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Gets the human readable label for a uri.
-	 * If `relative` is passed returns a label relative to the workspace root that the uri belongs to.
-	 * If `noPrefix` is passed does not tildify the label and also does not prepand the root name for relative labels in a multi root scenario.
-	 * If `separator` is passed, will use that over the defined path separator of the formatter.
+	 * Gets the human weadabwe wabew fow a uwi.
+	 * If `wewative` is passed wetuwns a wabew wewative to the wowkspace woot that the uwi bewongs to.
+	 * If `noPwefix` is passed does not tiwdify the wabew and awso does not pwepand the woot name fow wewative wabews in a muwti woot scenawio.
+	 * If `sepawatow` is passed, wiww use that ova the defined path sepawatow of the fowmatta.
 	 */
-	getUriLabel(resource: URI, options?: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean, separator?: '/' | '\\' }): string;
-	getUriBasenameLabel(resource: URI): string;
-	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace), options?: { verbose: boolean }): string;
-	getHostLabel(scheme: string, authority?: string): string;
-	getHostTooltip(scheme: string, authority?: string): string | undefined;
-	getSeparator(scheme: string, authority?: string): '/' | '\\';
+	getUwiWabew(wesouwce: UWI, options?: { wewative?: boowean, noPwefix?: boowean, endWithSepawatow?: boowean, sepawatow?: '/' | '\\' }): stwing;
+	getUwiBasenameWabew(wesouwce: UWI): stwing;
+	getWowkspaceWabew(wowkspace: (IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia | UWI | IWowkspace), options?: { vewbose: boowean }): stwing;
+	getHostWabew(scheme: stwing, authowity?: stwing): stwing;
+	getHostToowtip(scheme: stwing, authowity?: stwing): stwing | undefined;
+	getSepawatow(scheme: stwing, authowity?: stwing): '/' | '\\';
 
-	registerFormatter(formatter: ResourceLabelFormatter): IDisposable;
-	onDidChangeFormatters: Event<IFormatterChangeEvent>;
+	wegistewFowmatta(fowmatta: WesouwceWabewFowmatta): IDisposabwe;
+	onDidChangeFowmattews: Event<IFowmattewChangeEvent>;
 }
 
-export interface IFormatterChangeEvent {
-	scheme: string;
+expowt intewface IFowmattewChangeEvent {
+	scheme: stwing;
 }
 
-export interface ResourceLabelFormatter {
-	scheme: string;
-	authority?: string;
-	priority?: boolean;
-	formatting: ResourceLabelFormatting;
+expowt intewface WesouwceWabewFowmatta {
+	scheme: stwing;
+	authowity?: stwing;
+	pwiowity?: boowean;
+	fowmatting: WesouwceWabewFowmatting;
 }
 
-export interface ResourceLabelFormatting {
-	label: string; // myLabel:/${path}
-	separator: '/' | '\\' | '';
-	tildify?: boolean;
-	normalizeDriveLetter?: boolean;
-	workspaceSuffix?: string;
-	workspaceTooltip?: string;
-	authorityPrefix?: string;
-	stripPathStartingSeparator?: boolean;
+expowt intewface WesouwceWabewFowmatting {
+	wabew: stwing; // myWabew:/${path}
+	sepawatow: '/' | '\\' | '';
+	tiwdify?: boowean;
+	nowmawizeDwiveWetta?: boowean;
+	wowkspaceSuffix?: stwing;
+	wowkspaceToowtip?: stwing;
+	authowityPwefix?: stwing;
+	stwipPathStawtingSepawatow?: boowean;
 }

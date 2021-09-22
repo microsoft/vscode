@@ -1,56 +1,56 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionTipsService, IExecutableBasedExtensionTip, IWorkspaceTips, IConfigBasedExtensionTip } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionTipsService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Schemas } from 'vs/base/common/network';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IShawedPwocessSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/sewvices';
+impowt { IChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { IExtensionTipsSewvice, IExecutabweBasedExtensionTip, IWowkspaceTips, IConfigBasedExtensionTip } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ExtensionTipsSewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionTipsSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IWequestSewvice } fwom 'vs/pwatfowm/wequest/common/wequest';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
 
-class NativeExtensionTipsService extends ExtensionTipsService implements IExtensionTipsService {
+cwass NativeExtensionTipsSewvice extends ExtensionTipsSewvice impwements IExtensionTipsSewvice {
 
-	override _serviceBrand: any;
+	ovewwide _sewviceBwand: any;
 
-	private readonly channel: IChannel;
+	pwivate weadonwy channew: IChannew;
 
-	constructor(
-		@IFileService fileService: IFileService,
-		@IProductService productService: IProductService,
-		@IRequestService requestService: IRequestService,
-		@ILogService logService: ILogService,
-		@ISharedProcessService sharedProcessService: ISharedProcessService
+	constwuctow(
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice,
+		@IWequestSewvice wequestSewvice: IWequestSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IShawedPwocessSewvice shawedPwocessSewvice: IShawedPwocessSewvice
 	) {
-		super(fileService, productService, requestService, logService);
-		this.channel = sharedProcessService.getChannel('extensionTipsService');
+		supa(fiweSewvice, pwoductSewvice, wequestSewvice, wogSewvice);
+		this.channew = shawedPwocessSewvice.getChannew('extensionTipsSewvice');
 	}
 
-	override getConfigBasedTips(folder: URI): Promise<IConfigBasedExtensionTip[]> {
-		if (folder.scheme === Schemas.file) {
-			return this.channel.call<IConfigBasedExtensionTip[]>('getConfigBasedTips', [folder]);
+	ovewwide getConfigBasedTips(fowda: UWI): Pwomise<IConfigBasedExtensionTip[]> {
+		if (fowda.scheme === Schemas.fiwe) {
+			wetuwn this.channew.caww<IConfigBasedExtensionTip[]>('getConfigBasedTips', [fowda]);
 		}
-		return super.getConfigBasedTips(folder);
+		wetuwn supa.getConfigBasedTips(fowda);
 	}
 
-	override getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
-		return this.channel.call<IExecutableBasedExtensionTip[]>('getImportantExecutableBasedTips');
+	ovewwide getImpowtantExecutabweBasedTips(): Pwomise<IExecutabweBasedExtensionTip[]> {
+		wetuwn this.channew.caww<IExecutabweBasedExtensionTip[]>('getImpowtantExecutabweBasedTips');
 	}
 
-	override getOtherExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
-		return this.channel.call<IExecutableBasedExtensionTip[]>('getOtherExecutableBasedTips');
+	ovewwide getOthewExecutabweBasedTips(): Pwomise<IExecutabweBasedExtensionTip[]> {
+		wetuwn this.channew.caww<IExecutabweBasedExtensionTip[]>('getOthewExecutabweBasedTips');
 	}
 
-	override getAllWorkspacesTips(): Promise<IWorkspaceTips[]> {
-		return this.channel.call<IWorkspaceTips[]>('getAllWorkspacesTips');
+	ovewwide getAwwWowkspacesTips(): Pwomise<IWowkspaceTips[]> {
+		wetuwn this.channew.caww<IWowkspaceTips[]>('getAwwWowkspacesTips');
 	}
 
 }
 
-registerSingleton(IExtensionTipsService, NativeExtensionTipsService);
+wegistewSingweton(IExtensionTipsSewvice, NativeExtensionTipsSewvice);

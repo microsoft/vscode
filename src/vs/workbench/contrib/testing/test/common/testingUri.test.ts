@@ -1,22 +1,22 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { buildTestUri, ParsedTestUri, parseTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
+impowt * as assewt fwom 'assewt';
+impowt { buiwdTestUwi, PawsedTestUwi, pawseTestUwi, TestUwiType } fwom 'vs/wowkbench/contwib/testing/common/testingUwi';
 
-suite('Workbench - Testing URIs', () => {
-	test('round trip', () => {
-		const uris: ParsedTestUri[] = [
-			{ type: TestUriType.ResultActualOutput, taskIndex: 1, messageIndex: 42, resultId: 'r', testExtId: 't' },
-			{ type: TestUriType.ResultExpectedOutput, taskIndex: 1, messageIndex: 42, resultId: 'r', testExtId: 't' },
-			{ type: TestUriType.ResultMessage, taskIndex: 1, messageIndex: 42, resultId: 'r', testExtId: 't' },
+suite('Wowkbench - Testing UWIs', () => {
+	test('wound twip', () => {
+		const uwis: PawsedTestUwi[] = [
+			{ type: TestUwiType.WesuwtActuawOutput, taskIndex: 1, messageIndex: 42, wesuwtId: 'w', testExtId: 't' },
+			{ type: TestUwiType.WesuwtExpectedOutput, taskIndex: 1, messageIndex: 42, wesuwtId: 'w', testExtId: 't' },
+			{ type: TestUwiType.WesuwtMessage, taskIndex: 1, messageIndex: 42, wesuwtId: 'w', testExtId: 't' },
 		];
 
-		for (const uri of uris) {
-			const serialized = buildTestUri(uri);
-			assert.deepStrictEqual(uri, parseTestUri(serialized));
+		fow (const uwi of uwis) {
+			const sewiawized = buiwdTestUwi(uwi);
+			assewt.deepStwictEquaw(uwi, pawseTestUwi(sewiawized));
 		}
 	});
 });

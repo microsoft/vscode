@@ -1,84 +1,84 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textFileEditor';
-import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
-import { FileOperationError, FileOperationResult, IFileService, MIN_MAX_MEMORY_SIZE_MB, FALLBACK_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/common/files';
-import { createErrorWithActions } from 'vs/base/common/errors';
-import { toAction } from 'vs/base/common/actions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+impowt { wocawize } fwom 'vs/nws';
+impowt { TextFiweEditow } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/editows/textFiweEditow';
+impowt { FiweEditowInput } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/editows/fiweEditowInput';
+impowt { FiweOpewationEwwow, FiweOpewationWesuwt, IFiweSewvice, MIN_MAX_MEMOWY_SIZE_MB, FAWWBACK_MAX_MEMOWY_SIZE_MB } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { cweateEwwowWithActions } fwom 'vs/base/common/ewwows';
+impowt { toAction } fwom 'vs/base/common/actions';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { IPwefewencesSewvice } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { IExpwowewSewvice } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/fiwes';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { ITextEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
 
 /**
- * An implementation of editor for file system resources.
+ * An impwementation of editow fow fiwe system wesouwces.
  */
-export class NativeTextFileEditor extends TextFileEditor {
+expowt cwass NativeTextFiweEditow extends TextFiweEditow {
 
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IFileService fileService: IFileService,
-		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IStorageService storageService: IStorageService,
-		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IEditorService editorService: IEditorService,
-		@IThemeService themeService: IThemeService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@ITextFileService textFileService: ITextFileService,
-		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IExplorerService explorerService: IExplorerService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IProductService private readonly productService: IProductService
+	constwuctow(
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IPaneCompositePawtSewvice paneCompositeSewvice: IPaneCompositePawtSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IWowkspaceContextSewvice contextSewvice: IWowkspaceContextSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@ITextWesouwceConfiguwationSewvice textWesouwceConfiguwationSewvice: ITextWesouwceConfiguwationSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice,
+		@ITextFiweSewvice textFiweSewvice: ITextFiweSewvice,
+		@INativeHostSewvice pwivate weadonwy nativeHostSewvice: INativeHostSewvice,
+		@IPwefewencesSewvice pwivate weadonwy pwefewencesSewvice: IPwefewencesSewvice,
+		@IExpwowewSewvice expwowewSewvice: IExpwowewSewvice,
+		@IUwiIdentitySewvice uwiIdentitySewvice: IUwiIdentitySewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice
 	) {
-		super(telemetryService, fileService, paneCompositeService, instantiationService, contextService, storageService, textResourceConfigurationService, editorService, themeService, editorGroupService, textFileService, explorerService, uriIdentityService);
+		supa(tewemetwySewvice, fiweSewvice, paneCompositeSewvice, instantiationSewvice, contextSewvice, stowageSewvice, textWesouwceConfiguwationSewvice, editowSewvice, themeSewvice, editowGwoupSewvice, textFiweSewvice, expwowewSewvice, uwiIdentitySewvice);
 	}
 
-	protected override handleSetInputError(error: Error, input: FileEditorInput, options: ITextEditorOptions | undefined): void {
+	pwotected ovewwide handweSetInputEwwow(ewwow: Ewwow, input: FiweEditowInput, options: ITextEditowOptions | undefined): void {
 
-		// Allow to restart with higher memory limit if the file is too large
-		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT) {
-			const memoryLimit = Math.max(MIN_MAX_MEMORY_SIZE_MB, +this.textResourceConfigurationService.getValue<number>(undefined, 'files.maxMemoryForLargeFilesMB') || FALLBACK_MAX_MEMORY_SIZE_MB);
+		// Awwow to westawt with higha memowy wimit if the fiwe is too wawge
+		if ((<FiweOpewationEwwow>ewwow).fiweOpewationWesuwt === FiweOpewationWesuwt.FIWE_EXCEEDS_MEMOWY_WIMIT) {
+			const memowyWimit = Math.max(MIN_MAX_MEMOWY_SIZE_MB, +this.textWesouwceConfiguwationSewvice.getVawue<numba>(undefined, 'fiwes.maxMemowyFowWawgeFiwesMB') || FAWWBACK_MAX_MEMOWY_SIZE_MB);
 
-			throw createErrorWithActions(localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart and allow {0} to use more memory", this.productService.nameShort), {
+			thwow cweateEwwowWithActions(wocawize('fiweTooWawgeFowHeapEwwow', "To open a fiwe of this size, you need to westawt and awwow {0} to use mowe memowy", this.pwoductSewvice.nameShowt), {
 				actions: [
 					toAction({
-						id: 'workbench.window.action.relaunchWithIncreasedMemoryLimit', label: localize('relaunchWithIncreasedMemoryLimit', "Restart with {0} MB", memoryLimit), run: () => {
-							return this.nativeHostService.relaunch({
-								addArgs: [
-									`--max-memory=${memoryLimit}`
+						id: 'wowkbench.window.action.wewaunchWithIncweasedMemowyWimit', wabew: wocawize('wewaunchWithIncweasedMemowyWimit', "Westawt with {0} MB", memowyWimit), wun: () => {
+							wetuwn this.nativeHostSewvice.wewaunch({
+								addAwgs: [
+									`--max-memowy=${memowyWimit}`
 								]
 							});
 						}
 					}),
 					toAction({
-						id: 'workbench.window.action.configureMemoryLimit', label: localize('configureMemoryLimit', 'Configure Memory Limit'), run: () => {
-							return this.preferencesService.openUserSettings({ query: 'files.maxMemoryForLargeFilesMB' });
+						id: 'wowkbench.window.action.configuweMemowyWimit', wabew: wocawize('configuweMemowyWimit', 'Configuwe Memowy Wimit'), wun: () => {
+							wetuwn this.pwefewencesSewvice.openUsewSettings({ quewy: 'fiwes.maxMemowyFowWawgeFiwesMB' });
 						}
 					}),
 				]
 			});
 		}
 
-		// Fallback to handling in super type
-		super.handleSetInputError(error, input, options);
+		// Fawwback to handwing in supa type
+		supa.handweSetInputEwwow(ewwow, input, options);
 	}
 }

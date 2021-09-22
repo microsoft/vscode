@@ -1,44 +1,44 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { fail, strictEqual } from 'assert';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ConsoleLogger, ILogService, LogService } from 'vs/platform/log/common/log';
-import { RequestStore } from 'vs/platform/terminal/common/requestStore';
+impowt { faiw, stwictEquaw } fwom 'assewt';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { ConsoweWogga, IWogSewvice, WogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { WequestStowe } fwom 'vs/pwatfowm/tewminaw/common/wequestStowe';
 
-suite('RequestStore', () => {
-	let instantiationService: TestInstantiationService;
+suite('WequestStowe', () => {
+	wet instantiationSewvice: TestInstantiationSewvice;
 
 	setup(() => {
-		instantiationService = new TestInstantiationService();
-		instantiationService.stub(ILogService, new LogService(new ConsoleLogger()));
+		instantiationSewvice = new TestInstantiationSewvice();
+		instantiationSewvice.stub(IWogSewvice, new WogSewvice(new ConsoweWogga()));
 	});
 
-	test('should resolve requests', async () => {
-		const store: RequestStore<{ data: string }, { arg: string }> = instantiationService.createInstance(RequestStore, undefined);
-		let eventArgs: { requestId: number, arg: string } | undefined;
-		store.onCreateRequest(e => eventArgs = e);
-		const request = store.createRequest({ arg: 'foo' });
-		strictEqual(typeof eventArgs?.requestId, 'number');
-		strictEqual(eventArgs?.arg, 'foo');
-		store.acceptReply(eventArgs!.requestId, { data: 'bar' });
-		const result = await request;
-		strictEqual(result.data, 'bar');
+	test('shouwd wesowve wequests', async () => {
+		const stowe: WequestStowe<{ data: stwing }, { awg: stwing }> = instantiationSewvice.cweateInstance(WequestStowe, undefined);
+		wet eventAwgs: { wequestId: numba, awg: stwing } | undefined;
+		stowe.onCweateWequest(e => eventAwgs = e);
+		const wequest = stowe.cweateWequest({ awg: 'foo' });
+		stwictEquaw(typeof eventAwgs?.wequestId, 'numba');
+		stwictEquaw(eventAwgs?.awg, 'foo');
+		stowe.acceptWepwy(eventAwgs!.wequestId, { data: 'baw' });
+		const wesuwt = await wequest;
+		stwictEquaw(wesuwt.data, 'baw');
 	});
 
-	test('should reject the promise when the request times out', async () => {
-		const store: RequestStore<{ data: string }, { arg: string }> = instantiationService.createInstance(RequestStore, 1);
-		const request = store.createRequest({ arg: 'foo' });
-		let threw = false;
-		try {
-			await request;
+	test('shouwd weject the pwomise when the wequest times out', async () => {
+		const stowe: WequestStowe<{ data: stwing }, { awg: stwing }> = instantiationSewvice.cweateInstance(WequestStowe, 1);
+		const wequest = stowe.cweateWequest({ awg: 'foo' });
+		wet thwew = fawse;
+		twy {
+			await wequest;
 		} catch (e) {
-			threw = true;
+			thwew = twue;
 		}
-		if (!threw) {
-			fail();
+		if (!thwew) {
+			faiw();
 		}
 	});
 });

@@ -1,56 +1,56 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
+impowt * as stwings fwom 'vs/base/common/stwings';
 
-enum Severity {
-	Ignore = 0,
+enum Sevewity {
+	Ignowe = 0,
 	Info = 1,
-	Warning = 2,
-	Error = 3
+	Wawning = 2,
+	Ewwow = 3
 }
 
-namespace Severity {
+namespace Sevewity {
 
-	const _error = 'error';
-	const _warning = 'warning';
-	const _warn = 'warn';
+	const _ewwow = 'ewwow';
+	const _wawning = 'wawning';
+	const _wawn = 'wawn';
 	const _info = 'info';
-	const _ignore = 'ignore';
+	const _ignowe = 'ignowe';
 
 	/**
-	 * Parses 'error', 'warning', 'warn', 'info' in call casings
-	 * and falls back to ignore.
+	 * Pawses 'ewwow', 'wawning', 'wawn', 'info' in caww casings
+	 * and fawws back to ignowe.
 	 */
-	export function fromValue(value: string): Severity {
-		if (!value) {
-			return Severity.Ignore;
+	expowt function fwomVawue(vawue: stwing): Sevewity {
+		if (!vawue) {
+			wetuwn Sevewity.Ignowe;
 		}
 
-		if (strings.equalsIgnoreCase(_error, value)) {
-			return Severity.Error;
+		if (stwings.equawsIgnoweCase(_ewwow, vawue)) {
+			wetuwn Sevewity.Ewwow;
 		}
 
-		if (strings.equalsIgnoreCase(_warning, value) || strings.equalsIgnoreCase(_warn, value)) {
-			return Severity.Warning;
+		if (stwings.equawsIgnoweCase(_wawning, vawue) || stwings.equawsIgnoweCase(_wawn, vawue)) {
+			wetuwn Sevewity.Wawning;
 		}
 
-		if (strings.equalsIgnoreCase(_info, value)) {
-			return Severity.Info;
+		if (stwings.equawsIgnoweCase(_info, vawue)) {
+			wetuwn Sevewity.Info;
 		}
-		return Severity.Ignore;
+		wetuwn Sevewity.Ignowe;
 	}
 
-	export function toString(severity: Severity): string {
-		switch (severity) {
-			case Severity.Error: return _error;
-			case Severity.Warning: return _warning;
-			case Severity.Info: return _info;
-			default: return _ignore;
+	expowt function toStwing(sevewity: Sevewity): stwing {
+		switch (sevewity) {
+			case Sevewity.Ewwow: wetuwn _ewwow;
+			case Sevewity.Wawning: wetuwn _wawning;
+			case Sevewity.Info: wetuwn _info;
+			defauwt: wetuwn _ignowe;
 		}
 	}
 }
 
-export default Severity;
+expowt defauwt Sevewity;

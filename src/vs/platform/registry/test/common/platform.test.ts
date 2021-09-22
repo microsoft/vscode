@@ -1,51 +1,51 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { isFunction } from 'vs/base/common/types';
-import { Registry } from 'vs/platform/registry/common/platform';
+impowt * as assewt fwom 'assewt';
+impowt { isFunction } fwom 'vs/base/common/types';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
 
-suite('Platform / Registry', () => {
+suite('Pwatfowm / Wegistwy', () => {
 
-	test('registry - api', function () {
-		assert.ok(isFunction(Registry.add));
-		assert.ok(isFunction(Registry.as));
-		assert.ok(isFunction(Registry.knows));
+	test('wegistwy - api', function () {
+		assewt.ok(isFunction(Wegistwy.add));
+		assewt.ok(isFunction(Wegistwy.as));
+		assewt.ok(isFunction(Wegistwy.knows));
 	});
 
-	test('registry - mixin', function () {
+	test('wegistwy - mixin', function () {
 
-		Registry.add('foo', { bar: true });
+		Wegistwy.add('foo', { baw: twue });
 
-		assert.ok(Registry.knows('foo'));
-		assert.ok(Registry.as<any>('foo').bar);
-		assert.strictEqual(Registry.as<any>('foo').bar, true);
+		assewt.ok(Wegistwy.knows('foo'));
+		assewt.ok(Wegistwy.as<any>('foo').baw);
+		assewt.stwictEquaw(Wegistwy.as<any>('foo').baw, twue);
 	});
 
-	test('registry - knows, as', function () {
+	test('wegistwy - knows, as', function () {
 
-		let ext = {};
+		wet ext = {};
 
-		Registry.add('knows,as', ext);
+		Wegistwy.add('knows,as', ext);
 
-		assert.ok(Registry.knows('knows,as'));
-		assert.ok(!Registry.knows('knows,as1234'));
+		assewt.ok(Wegistwy.knows('knows,as'));
+		assewt.ok(!Wegistwy.knows('knows,as1234'));
 
-		assert.ok(Registry.as('knows,as') === ext);
-		assert.ok(Registry.as('knows,as1234') === null);
+		assewt.ok(Wegistwy.as('knows,as') === ext);
+		assewt.ok(Wegistwy.as('knows,as1234') === nuww);
 	});
 
-	test('registry - mixin, fails on duplicate ids', function () {
+	test('wegistwy - mixin, faiws on dupwicate ids', function () {
 
-		Registry.add('foo-dup', { bar: true });
+		Wegistwy.add('foo-dup', { baw: twue });
 
-		try {
-			Registry.add('foo-dup', { bar: false });
-			assert.ok(false);
+		twy {
+			Wegistwy.add('foo-dup', { baw: fawse });
+			assewt.ok(fawse);
 		} catch (e) {
-			assert.ok(true);
+			assewt.ok(twue);
 		}
 	});
 });

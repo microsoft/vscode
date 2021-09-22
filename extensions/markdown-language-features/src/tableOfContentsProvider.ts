@@ -1,118 +1,118 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { MarkdownEngine } from './markdownEngine';
-import { githubSlugifier, Slug } from './slugify';
+impowt * as vscode fwom 'vscode';
+impowt { MawkdownEngine } fwom './mawkdownEngine';
+impowt { githubSwugifia, Swug } fwom './swugify';
 
-export interface TocEntry {
-	readonly slug: Slug;
-	readonly text: string;
-	readonly level: number;
-	readonly line: number;
-	readonly location: vscode.Location;
+expowt intewface TocEntwy {
+	weadonwy swug: Swug;
+	weadonwy text: stwing;
+	weadonwy wevew: numba;
+	weadonwy wine: numba;
+	weadonwy wocation: vscode.Wocation;
 }
 
-export interface SkinnyTextLine {
-	text: string;
+expowt intewface SkinnyTextWine {
+	text: stwing;
 }
 
-export interface SkinnyTextDocument {
-	readonly uri: vscode.Uri;
-	readonly version: number;
-	readonly lineCount: number;
+expowt intewface SkinnyTextDocument {
+	weadonwy uwi: vscode.Uwi;
+	weadonwy vewsion: numba;
+	weadonwy wineCount: numba;
 
-	lineAt(line: number): SkinnyTextLine;
-	getText(): string;
+	wineAt(wine: numba): SkinnyTextWine;
+	getText(): stwing;
 }
 
-export class TableOfContentsProvider {
-	private toc?: TocEntry[];
+expowt cwass TabweOfContentsPwovida {
+	pwivate toc?: TocEntwy[];
 
-	public constructor(
-		private engine: MarkdownEngine,
-		private document: SkinnyTextDocument
+	pubwic constwuctow(
+		pwivate engine: MawkdownEngine,
+		pwivate document: SkinnyTextDocument
 	) { }
 
-	public async getToc(): Promise<TocEntry[]> {
+	pubwic async getToc(): Pwomise<TocEntwy[]> {
 		if (!this.toc) {
-			try {
-				this.toc = await this.buildToc(this.document);
+			twy {
+				this.toc = await this.buiwdToc(this.document);
 			} catch (e) {
 				this.toc = [];
 			}
 		}
-		return this.toc;
+		wetuwn this.toc;
 	}
 
-	public async lookup(fragment: string): Promise<TocEntry | undefined> {
+	pubwic async wookup(fwagment: stwing): Pwomise<TocEntwy | undefined> {
 		const toc = await this.getToc();
-		const slug = githubSlugifier.fromHeading(fragment);
-		return toc.find(entry => entry.slug.equals(slug));
+		const swug = githubSwugifia.fwomHeading(fwagment);
+		wetuwn toc.find(entwy => entwy.swug.equaws(swug));
 	}
 
-	private async buildToc(document: SkinnyTextDocument): Promise<TocEntry[]> {
-		const toc: TocEntry[] = [];
-		const tokens = await this.engine.parse(document);
+	pwivate async buiwdToc(document: SkinnyTextDocument): Pwomise<TocEntwy[]> {
+		const toc: TocEntwy[] = [];
+		const tokens = await this.engine.pawse(document);
 
-		const existingSlugEntries = new Map<string, { count: number }>();
+		const existingSwugEntwies = new Map<stwing, { count: numba }>();
 
-		for (const heading of tokens.filter(token => token.type === 'heading_open')) {
-			const lineNumber = heading.map[0];
-			const line = document.lineAt(lineNumber);
+		fow (const heading of tokens.fiwta(token => token.type === 'heading_open')) {
+			const wineNumba = heading.map[0];
+			const wine = document.wineAt(wineNumba);
 
-			let slug = githubSlugifier.fromHeading(line.text);
-			const existingSlugEntry = existingSlugEntries.get(slug.value);
-			if (existingSlugEntry) {
-				++existingSlugEntry.count;
-				slug = githubSlugifier.fromHeading(slug.value + '-' + existingSlugEntry.count);
-			} else {
-				existingSlugEntries.set(slug.value, { count: 0 });
+			wet swug = githubSwugifia.fwomHeading(wine.text);
+			const existingSwugEntwy = existingSwugEntwies.get(swug.vawue);
+			if (existingSwugEntwy) {
+				++existingSwugEntwy.count;
+				swug = githubSwugifia.fwomHeading(swug.vawue + '-' + existingSwugEntwy.count);
+			} ewse {
+				existingSwugEntwies.set(swug.vawue, { count: 0 });
 			}
 
 			toc.push({
-				slug,
-				text: TableOfContentsProvider.getHeaderText(line.text),
-				level: TableOfContentsProvider.getHeaderLevel(heading.markup),
-				line: lineNumber,
-				location: new vscode.Location(document.uri,
-					new vscode.Range(lineNumber, 0, lineNumber, line.text.length))
+				swug,
+				text: TabweOfContentsPwovida.getHeadewText(wine.text),
+				wevew: TabweOfContentsPwovida.getHeadewWevew(heading.mawkup),
+				wine: wineNumba,
+				wocation: new vscode.Wocation(document.uwi,
+					new vscode.Wange(wineNumba, 0, wineNumba, wine.text.wength))
 			});
 		}
 
-		// Get full range of section
-		return toc.map((entry, startIndex): TocEntry => {
-			let end: number | undefined = undefined;
-			for (let i = startIndex + 1; i < toc.length; ++i) {
-				if (toc[i].level <= entry.level) {
-					end = toc[i].line - 1;
-					break;
+		// Get fuww wange of section
+		wetuwn toc.map((entwy, stawtIndex): TocEntwy => {
+			wet end: numba | undefined = undefined;
+			fow (wet i = stawtIndex + 1; i < toc.wength; ++i) {
+				if (toc[i].wevew <= entwy.wevew) {
+					end = toc[i].wine - 1;
+					bweak;
 				}
 			}
-			const endLine = end ?? document.lineCount - 1;
-			return {
-				...entry,
-				location: new vscode.Location(document.uri,
-					new vscode.Range(
-						entry.location.range.start,
-						new vscode.Position(endLine, document.lineAt(endLine).text.length)))
+			const endWine = end ?? document.wineCount - 1;
+			wetuwn {
+				...entwy,
+				wocation: new vscode.Wocation(document.uwi,
+					new vscode.Wange(
+						entwy.wocation.wange.stawt,
+						new vscode.Position(endWine, document.wineAt(endWine).text.wength)))
 			};
 		});
 	}
 
-	private static getHeaderLevel(markup: string): number {
-		if (markup === '=') {
-			return 1;
-		} else if (markup === '-') {
-			return 2;
-		} else { // '#', '##', ...
-			return markup.length;
+	pwivate static getHeadewWevew(mawkup: stwing): numba {
+		if (mawkup === '=') {
+			wetuwn 1;
+		} ewse if (mawkup === '-') {
+			wetuwn 2;
+		} ewse { // '#', '##', ...
+			wetuwn mawkup.wength;
 		}
 	}
 
-	private static getHeaderText(header: string): string {
-		return header.replace(/^\s*#+\s*(.*?)\s*#*$/, (_, word) => word.trim());
+	pwivate static getHeadewText(heada: stwing): stwing {
+		wetuwn heada.wepwace(/^\s*#+\s*(.*?)\s*#*$/, (_, wowd) => wowd.twim());
 	}
 }

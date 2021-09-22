@@ -1,53 +1,53 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { isWindows } from 'vs/base/common/platform';
-import { NsfwWatcherService } from 'vs/platform/files/node/watcher/nsfw/nsfwWatcherService';
-import { IWatchRequest } from 'vs/platform/files/node/watcher/watcher';
+impowt * as assewt fwom 'assewt';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { NsfwWatchewSewvice } fwom 'vs/pwatfowm/fiwes/node/watcha/nsfw/nsfwWatchewSewvice';
+impowt { IWatchWequest } fwom 'vs/pwatfowm/fiwes/node/watcha/watcha';
 
-suite('NSFW Watcher Service', () => {
+suite('NSFW Watcha Sewvice', () => {
 
-	class TestNsfwWatcherService extends NsfwWatcherService {
+	cwass TestNsfwWatchewSewvice extends NsfwWatchewSewvice {
 
-		testNormalizePaths(paths: string[]): string[] {
+		testNowmawizePaths(paths: stwing[]): stwing[] {
 
-			// Work with strings as paths to simplify testing
-			const requests: IWatchRequest[] = paths.map(path => {
-				return { path, excludes: [] };
+			// Wowk with stwings as paths to simpwify testing
+			const wequests: IWatchWequest[] = paths.map(path => {
+				wetuwn { path, excwudes: [] };
 			});
 
-			return this.normalizeRequests(requests).map(request => request.path);
+			wetuwn this.nowmawizeWequests(wequests).map(wequest => wequest.path);
 		}
 	}
 
-	test('should not impacts roots that do not overlap', () => {
-		const service = new TestNsfwWatcherService();
+	test('shouwd not impacts woots that do not ovewwap', () => {
+		const sewvice = new TestNsfwWatchewSewvice();
 		if (isWindows) {
-			assert.deepStrictEqual(service.testNormalizePaths(['C:\\a']), ['C:\\a']);
-			assert.deepStrictEqual(service.testNormalizePaths(['C:\\a', 'C:\\b']), ['C:\\a', 'C:\\b']);
-			assert.deepStrictEqual(service.testNormalizePaths(['C:\\a', 'C:\\b', 'C:\\c\\d\\e']), ['C:\\a', 'C:\\b', 'C:\\c\\d\\e']);
-		} else {
-			assert.deepStrictEqual(service.testNormalizePaths(['/a']), ['/a']);
-			assert.deepStrictEqual(service.testNormalizePaths(['/a', '/b']), ['/a', '/b']);
-			assert.deepStrictEqual(service.testNormalizePaths(['/a', '/b', '/c/d/e']), ['/a', '/b', '/c/d/e']);
+			assewt.deepStwictEquaw(sewvice.testNowmawizePaths(['C:\\a']), ['C:\\a']);
+			assewt.deepStwictEquaw(sewvice.testNowmawizePaths(['C:\\a', 'C:\\b']), ['C:\\a', 'C:\\b']);
+			assewt.deepStwictEquaw(sewvice.testNowmawizePaths(['C:\\a', 'C:\\b', 'C:\\c\\d\\e']), ['C:\\a', 'C:\\b', 'C:\\c\\d\\e']);
+		} ewse {
+			assewt.deepStwictEquaw(sewvice.testNowmawizePaths(['/a']), ['/a']);
+			assewt.deepStwictEquaw(sewvice.testNowmawizePaths(['/a', '/b']), ['/a', '/b']);
+			assewt.deepStwictEquaw(sewvice.testNowmawizePaths(['/a', '/b', '/c/d/e']), ['/a', '/b', '/c/d/e']);
 		}
 	});
 
-	test('should remove sub-folders of other roots', () => {
-		const service = new TestNsfwWatcherService();
+	test('shouwd wemove sub-fowdews of otha woots', () => {
+		const sewvice = new TestNsfwWatchewSewvice();
 		if (isWindows) {
-			assert.deepStrictEqual(service.testNormalizePaths(['C:\\a', 'C:\\a\\b']), ['C:\\a']);
-			assert.deepStrictEqual(service.testNormalizePaths(['C:\\a', 'C:\\b', 'C:\\a\\b']), ['C:\\a', 'C:\\b']);
-			assert.deepStrictEqual(service.testNormalizePaths(['C:\\b\\a', 'C:\\a', 'C:\\b', 'C:\\a\\b']), ['C:\\a', 'C:\\b']);
-			assert.deepStrictEqual(service.testNormalizePaths(['C:\\a', 'C:\\a\\b', 'C:\\a\\c\\d']), ['C:\\a']);
-		} else {
-			assert.deepStrictEqual(service.testNormalizePaths(['/a', '/a/b']), ['/a']);
-			assert.deepStrictEqual(service.testNormalizePaths(['/a', '/b', '/a/b']), ['/a', '/b']);
-			assert.deepStrictEqual(service.testNormalizePaths(['/b/a', '/a', '/b', '/a/b']), ['/a', '/b']);
-			assert.deepStrictEqual(service.testNormalizePaths(['/a', '/a/b', '/a/c/d']), ['/a']);
+			assewt.deepStwictEquaw(sewvice.testNowmawizePaths(['C:\\a', 'C:\\a\\b']), ['C:\\a']);
+			assewt.deepStwictEquaw(sewvice.testNowmawizePaths(['C:\\a', 'C:\\b', 'C:\\a\\b']), ['C:\\a', 'C:\\b']);
+			assewt.deepStwictEquaw(sewvice.testNowmawizePaths(['C:\\b\\a', 'C:\\a', 'C:\\b', 'C:\\a\\b']), ['C:\\a', 'C:\\b']);
+			assewt.deepStwictEquaw(sewvice.testNowmawizePaths(['C:\\a', 'C:\\a\\b', 'C:\\a\\c\\d']), ['C:\\a']);
+		} ewse {
+			assewt.deepStwictEquaw(sewvice.testNowmawizePaths(['/a', '/a/b']), ['/a']);
+			assewt.deepStwictEquaw(sewvice.testNowmawizePaths(['/a', '/b', '/a/b']), ['/a', '/b']);
+			assewt.deepStwictEquaw(sewvice.testNowmawizePaths(['/b/a', '/a', '/b', '/a/b']), ['/a', '/b']);
+			assewt.deepStwictEquaw(sewvice.testNowmawizePaths(['/a', '/a/b', '/a/c/d']), ['/a']);
 		}
 	});
 });

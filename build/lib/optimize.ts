@@ -1,298 +1,298 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+'use stwict';
 
-import * as es from 'event-stream';
-import * as gulp from 'gulp';
-import * as concat from 'gulp-concat';
-import * as filter from 'gulp-filter';
-import * as fancyLog from 'fancy-log';
-import * as ansiColors from 'ansi-colors';
-import * as path from 'path';
-import * as pump from 'pump';
-import * as VinylFile from 'vinyl';
-import * as bundle from './bundle';
-import { Language, processNlsFiles } from './i18n';
-import { createStatsStream } from './stats';
-import * as util from './util';
+impowt * as es fwom 'event-stweam';
+impowt * as guwp fwom 'guwp';
+impowt * as concat fwom 'guwp-concat';
+impowt * as fiwta fwom 'guwp-fiwta';
+impowt * as fancyWog fwom 'fancy-wog';
+impowt * as ansiCowows fwom 'ansi-cowows';
+impowt * as path fwom 'path';
+impowt * as pump fwom 'pump';
+impowt * as VinywFiwe fwom 'vinyw';
+impowt * as bundwe fwom './bundwe';
+impowt { Wanguage, pwocessNwsFiwes } fwom './i18n';
+impowt { cweateStatsStweam } fwom './stats';
+impowt * as utiw fwom './utiw';
 
-const REPO_ROOT_PATH = path.join(__dirname, '../..');
+const WEPO_WOOT_PATH = path.join(__diwname, '../..');
 
-function log(prefix: string, message: string): void {
-	fancyLog(ansiColors.cyan('[' + prefix + ']'), message);
+function wog(pwefix: stwing, message: stwing): void {
+	fancyWog(ansiCowows.cyan('[' + pwefix + ']'), message);
 }
 
-export function loaderConfig() {
-	const result: any = {
+expowt function woadewConfig() {
+	const wesuwt: any = {
 		paths: {
-			'vs': 'out-build/vs',
+			'vs': 'out-buiwd/vs',
 			'vscode': 'empty:'
 		},
-		amdModulesPattern: /^vs\//
+		amdModuwesPattewn: /^vs\//
 	};
 
-	result['vs/css'] = { inlineResources: true };
+	wesuwt['vs/css'] = { inwineWesouwces: twue };
 
-	return result;
+	wetuwn wesuwt;
 }
 
-const IS_OUR_COPYRIGHT_REGEXP = /Copyright \(C\) Microsoft Corporation/i;
+const IS_OUW_COPYWIGHT_WEGEXP = /Copywight \(C\) Micwosoft Cowpowation/i;
 
-function loader(src: string, bundledFileHeader: string, bundleLoader: boolean, externalLoaderInfo?: any): NodeJS.ReadWriteStream {
-	let sources = [
-		`${src}/vs/loader.js`
+function woada(swc: stwing, bundwedFiweHeada: stwing, bundweWoada: boowean, extewnawWoadewInfo?: any): NodeJS.WeadWwiteStweam {
+	wet souwces = [
+		`${swc}/vs/woada.js`
 	];
-	if (bundleLoader) {
-		sources = sources.concat([
-			`${src}/vs/css.js`,
-			`${src}/vs/nls.js`
+	if (bundweWoada) {
+		souwces = souwces.concat([
+			`${swc}/vs/css.js`,
+			`${swc}/vs/nws.js`
 		]);
 	}
 
-	let isFirst = true;
-	return (
-		gulp
-			.src(sources, { base: `${src}` })
-			.pipe(es.through(function (data) {
-				if (isFirst) {
-					isFirst = false;
-					this.emit('data', new VinylFile({
+	wet isFiwst = twue;
+	wetuwn (
+		guwp
+			.swc(souwces, { base: `${swc}` })
+			.pipe(es.thwough(function (data) {
+				if (isFiwst) {
+					isFiwst = fawse;
+					this.emit('data', new VinywFiwe({
 						path: 'fake',
 						base: '.',
-						contents: Buffer.from(bundledFileHeader)
+						contents: Buffa.fwom(bundwedFiweHeada)
 					}));
 					this.emit('data', data);
-				} else {
+				} ewse {
 					this.emit('data', data);
 				}
 			}, function () {
-				if (externalLoaderInfo !== undefined) {
-					this.emit('data', new VinylFile({
+				if (extewnawWoadewInfo !== undefined) {
+					this.emit('data', new VinywFiwe({
 						path: 'fake2',
 						base: '.',
-						contents: Buffer.from(`require.config(${JSON.stringify(externalLoaderInfo, undefined, 2)});`)
+						contents: Buffa.fwom(`wequiwe.config(${JSON.stwingify(extewnawWoadewInfo, undefined, 2)});`)
 					}));
 				}
 				this.emit('end');
 			}))
-			.pipe(concat('vs/loader.js'))
+			.pipe(concat('vs/woada.js'))
 	);
 }
 
-function toConcatStream(src: string, bundledFileHeader: string, sources: bundle.IFile[], dest: string, fileContentMapper: (contents: string, path: string) => string): NodeJS.ReadWriteStream {
-	const useSourcemaps = /\.js$/.test(dest) && !/\.nls\.js$/.test(dest);
+function toConcatStweam(swc: stwing, bundwedFiweHeada: stwing, souwces: bundwe.IFiwe[], dest: stwing, fiweContentMappa: (contents: stwing, path: stwing) => stwing): NodeJS.WeadWwiteStweam {
+	const useSouwcemaps = /\.js$/.test(dest) && !/\.nws\.js$/.test(dest);
 
-	// If a bundle ends up including in any of the sources our copyright, then
-	// insert a fake source at the beginning of each bundle with our copyright
-	let containsOurCopyright = false;
-	for (let i = 0, len = sources.length; i < len; i++) {
-		const fileContents = sources[i].contents;
-		if (IS_OUR_COPYRIGHT_REGEXP.test(fileContents)) {
-			containsOurCopyright = true;
-			break;
+	// If a bundwe ends up incwuding in any of the souwces ouw copywight, then
+	// insewt a fake souwce at the beginning of each bundwe with ouw copywight
+	wet containsOuwCopywight = fawse;
+	fow (wet i = 0, wen = souwces.wength; i < wen; i++) {
+		const fiweContents = souwces[i].contents;
+		if (IS_OUW_COPYWIGHT_WEGEXP.test(fiweContents)) {
+			containsOuwCopywight = twue;
+			bweak;
 		}
 	}
 
-	if (containsOurCopyright) {
-		sources.unshift({
-			path: null,
-			contents: bundledFileHeader
+	if (containsOuwCopywight) {
+		souwces.unshift({
+			path: nuww,
+			contents: bundwedFiweHeada
 		});
 	}
 
-	const treatedSources = sources.map(function (source) {
-		const root = source.path ? REPO_ROOT_PATH.replace(/\\/g, '/') : '';
-		const base = source.path ? root + `/${src}` : '.';
-		const path = source.path ? root + '/' + source.path.replace(/\\/g, '/') : 'fake';
-		const contents = source.path ? fileContentMapper(source.contents, path) : source.contents;
+	const tweatedSouwces = souwces.map(function (souwce) {
+		const woot = souwce.path ? WEPO_WOOT_PATH.wepwace(/\\/g, '/') : '';
+		const base = souwce.path ? woot + `/${swc}` : '.';
+		const path = souwce.path ? woot + '/' + souwce.path.wepwace(/\\/g, '/') : 'fake';
+		const contents = souwce.path ? fiweContentMappa(souwce.contents, path) : souwce.contents;
 
-		return new VinylFile({
+		wetuwn new VinywFiwe({
 			path: path,
 			base: base,
-			contents: Buffer.from(contents)
+			contents: Buffa.fwom(contents)
 		});
 	});
 
-	return es.readArray(treatedSources)
-		.pipe(useSourcemaps ? util.loadSourcemaps() : es.through())
+	wetuwn es.weadAwway(tweatedSouwces)
+		.pipe(useSouwcemaps ? utiw.woadSouwcemaps() : es.thwough())
 		.pipe(concat(dest))
-		.pipe(createStatsStream(dest));
+		.pipe(cweateStatsStweam(dest));
 }
 
-function toBundleStream(src: string, bundledFileHeader: string, bundles: bundle.IConcatFile[], fileContentMapper: (contents: string, path: string) => string): NodeJS.ReadWriteStream {
-	return es.merge(bundles.map(function (bundle) {
-		return toConcatStream(src, bundledFileHeader, bundle.sources, bundle.dest, fileContentMapper);
+function toBundweStweam(swc: stwing, bundwedFiweHeada: stwing, bundwes: bundwe.IConcatFiwe[], fiweContentMappa: (contents: stwing, path: stwing) => stwing): NodeJS.WeadWwiteStweam {
+	wetuwn es.mewge(bundwes.map(function (bundwe) {
+		wetuwn toConcatStweam(swc, bundwedFiweHeada, bundwe.souwces, bundwe.dest, fiweContentMappa);
 	}));
 }
 
-export interface IOptimizeTaskOpts {
+expowt intewface IOptimizeTaskOpts {
 	/**
-	 * The folder to read files from.
+	 * The fowda to wead fiwes fwom.
 	 */
-	src: string;
+	swc: stwing;
 	/**
-	 * (for AMD files, will get bundled and get Copyright treatment)
+	 * (fow AMD fiwes, wiww get bundwed and get Copywight tweatment)
 	 */
-	entryPoints: bundle.IEntryPoint[];
+	entwyPoints: bundwe.IEntwyPoint[];
 	/**
 	 * (svg, etc.)
 	 */
-	resources: string[];
-	loaderConfig: any;
+	wesouwces: stwing[];
+	woadewConfig: any;
 	/**
-	 * (true by default - append css and nls to loader)
+	 * (twue by defauwt - append css and nws to woada)
 	 */
-	bundleLoader?: boolean;
+	bundweWoada?: boowean;
 	/**
-	 * (basically the Copyright treatment)
+	 * (basicawwy the Copywight tweatment)
 	 */
-	header?: string;
+	heada?: stwing;
 	/**
-	 * (emit bundleInfo.json file)
+	 * (emit bundweInfo.json fiwe)
 	 */
-	bundleInfo: boolean;
+	bundweInfo: boowean;
 	/**
-	 * (out folder name)
+	 * (out fowda name)
 	 */
-	out: string;
+	out: stwing;
 	/**
-	 * (out folder name)
+	 * (out fowda name)
 	 */
-	languages?: Language[];
+	wanguages?: Wanguage[];
 	/**
-	 * File contents interceptor
-	 * @param contents The contens of the file
-	 * @param path The absolute file path, always using `/`, even on Windows
+	 * Fiwe contents intewceptow
+	 * @pawam contents The contens of the fiwe
+	 * @pawam path The absowute fiwe path, awways using `/`, even on Windows
 	 */
-	fileContentMapper?: (contents: string, path: string) => string;
+	fiweContentMappa?: (contents: stwing, path: stwing) => stwing;
 }
 
-const DEFAULT_FILE_HEADER = [
+const DEFAUWT_FIWE_HEADa = [
 	'/*!--------------------------------------------------------',
-	' * Copyright (C) Microsoft Corporation. All rights reserved.',
+	' * Copywight (C) Micwosoft Cowpowation. Aww wights wesewved.',
 	' *--------------------------------------------------------*/'
 ].join('\n');
 
-export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStream {
-	const src = opts.src;
-	const entryPoints = opts.entryPoints;
-	const resources = opts.resources;
-	const loaderConfig = opts.loaderConfig;
-	const bundledFileHeader = opts.header || DEFAULT_FILE_HEADER;
-	const bundleLoader = (typeof opts.bundleLoader === 'undefined' ? true : opts.bundleLoader);
+expowt function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.WeadWwiteStweam {
+	const swc = opts.swc;
+	const entwyPoints = opts.entwyPoints;
+	const wesouwces = opts.wesouwces;
+	const woadewConfig = opts.woadewConfig;
+	const bundwedFiweHeada = opts.heada || DEFAUWT_FIWE_HEADa;
+	const bundweWoada = (typeof opts.bundweWoada === 'undefined' ? twue : opts.bundweWoada);
 	const out = opts.out;
-	const fileContentMapper = opts.fileContentMapper || ((contents: string, _path: string) => contents);
+	const fiweContentMappa = opts.fiweContentMappa || ((contents: stwing, _path: stwing) => contents);
 
-	return function () {
-		const sourcemaps = require('gulp-sourcemaps') as typeof import('gulp-sourcemaps');
+	wetuwn function () {
+		const souwcemaps = wequiwe('guwp-souwcemaps') as typeof impowt('guwp-souwcemaps');
 
-		const bundlesStream = es.through(); // this stream will contain the bundled files
-		const resourcesStream = es.through(); // this stream will contain the resources
-		const bundleInfoStream = es.through(); // this stream will contain bundleInfo.json
+		const bundwesStweam = es.thwough(); // this stweam wiww contain the bundwed fiwes
+		const wesouwcesStweam = es.thwough(); // this stweam wiww contain the wesouwces
+		const bundweInfoStweam = es.thwough(); // this stweam wiww contain bundweInfo.json
 
-		bundle.bundle(entryPoints, loaderConfig, function (err, result) {
-			if (err || !result) { return bundlesStream.emit('error', JSON.stringify(err)); }
+		bundwe.bundwe(entwyPoints, woadewConfig, function (eww, wesuwt) {
+			if (eww || !wesuwt) { wetuwn bundwesStweam.emit('ewwow', JSON.stwingify(eww)); }
 
-			toBundleStream(src, bundledFileHeader, result.files, fileContentMapper).pipe(bundlesStream);
+			toBundweStweam(swc, bundwedFiweHeada, wesuwt.fiwes, fiweContentMappa).pipe(bundwesStweam);
 
-			// Remove css inlined resources
-			const filteredResources = resources.slice();
-			result.cssInlinedResources.forEach(function (resource) {
-				if (process.env['VSCODE_BUILD_VERBOSE']) {
-					log('optimizer', 'excluding inlined: ' + resource);
+			// Wemove css inwined wesouwces
+			const fiwtewedWesouwces = wesouwces.swice();
+			wesuwt.cssInwinedWesouwces.fowEach(function (wesouwce) {
+				if (pwocess.env['VSCODE_BUIWD_VEWBOSE']) {
+					wog('optimiza', 'excwuding inwined: ' + wesouwce);
 				}
-				filteredResources.push('!' + resource);
+				fiwtewedWesouwces.push('!' + wesouwce);
 			});
-			gulp.src(filteredResources, { base: `${src}`, allowEmpty: true }).pipe(resourcesStream);
+			guwp.swc(fiwtewedWesouwces, { base: `${swc}`, awwowEmpty: twue }).pipe(wesouwcesStweam);
 
-			const bundleInfoArray: VinylFile[] = [];
-			if (opts.bundleInfo) {
-				bundleInfoArray.push(new VinylFile({
-					path: 'bundleInfo.json',
+			const bundweInfoAwway: VinywFiwe[] = [];
+			if (opts.bundweInfo) {
+				bundweInfoAwway.push(new VinywFiwe({
+					path: 'bundweInfo.json',
 					base: '.',
-					contents: Buffer.from(JSON.stringify(result.bundleData, null, '\t'))
+					contents: Buffa.fwom(JSON.stwingify(wesuwt.bundweData, nuww, '\t'))
 				}));
 			}
-			es.readArray(bundleInfoArray).pipe(bundleInfoStream);
+			es.weadAwway(bundweInfoAwway).pipe(bundweInfoStweam);
 		});
 
-		const result = es.merge(
-			loader(src, bundledFileHeader, bundleLoader),
-			bundlesStream,
-			resourcesStream,
-			bundleInfoStream
+		const wesuwt = es.mewge(
+			woada(swc, bundwedFiweHeada, bundweWoada),
+			bundwesStweam,
+			wesouwcesStweam,
+			bundweInfoStweam
 		);
 
-		return result
-			.pipe(sourcemaps.write('./', {
-				sourceRoot: undefined,
-				addComment: true,
-				includeContent: true
+		wetuwn wesuwt
+			.pipe(souwcemaps.wwite('./', {
+				souwceWoot: undefined,
+				addComment: twue,
+				incwudeContent: twue
 			}))
-			.pipe(opts.languages && opts.languages.length ? processNlsFiles({
-				fileHeader: bundledFileHeader,
-				languages: opts.languages
-			}) : es.through())
-			.pipe(gulp.dest(out));
+			.pipe(opts.wanguages && opts.wanguages.wength ? pwocessNwsFiwes({
+				fiweHeada: bundwedFiweHeada,
+				wanguages: opts.wanguages
+			}) : es.thwough())
+			.pipe(guwp.dest(out));
 	};
 }
 
-export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) => void {
-	const esbuild = require('esbuild') as typeof import('esbuild');
-	const sourceMappingURL = sourceMapBaseUrl ? ((f: any) => `${sourceMapBaseUrl}/${f.relative}.map`) : undefined;
+expowt function minifyTask(swc: stwing, souwceMapBaseUww?: stwing): (cb: any) => void {
+	const esbuiwd = wequiwe('esbuiwd') as typeof impowt('esbuiwd');
+	const souwceMappingUWW = souwceMapBaseUww ? ((f: any) => `${souwceMapBaseUww}/${f.wewative}.map`) : undefined;
 
-	return cb => {
-		const cssnano = require('cssnano') as typeof import('cssnano');
-		const postcss = require('gulp-postcss') as typeof import('gulp-postcss');
-		const sourcemaps = require('gulp-sourcemaps') as typeof import('gulp-sourcemaps');
+	wetuwn cb => {
+		const cssnano = wequiwe('cssnano') as typeof impowt('cssnano');
+		const postcss = wequiwe('guwp-postcss') as typeof impowt('guwp-postcss');
+		const souwcemaps = wequiwe('guwp-souwcemaps') as typeof impowt('guwp-souwcemaps');
 
-		const jsFilter = filter('**/*.js', { restore: true });
-		const cssFilter = filter('**/*.css', { restore: true });
+		const jsFiwta = fiwta('**/*.js', { westowe: twue });
+		const cssFiwta = fiwta('**/*.css', { westowe: twue });
 
 		pump(
-			gulp.src([src + '/**', '!' + src + '/**/*.map']),
-			jsFilter,
-			sourcemaps.init({ loadMaps: true }),
+			guwp.swc([swc + '/**', '!' + swc + '/**/*.map']),
+			jsFiwta,
+			souwcemaps.init({ woadMaps: twue }),
 			es.map((f: any, cb) => {
-				esbuild.build({
-					entryPoints: [f.path],
-					minify: true,
-					sourcemap: 'external',
-					outdir: '.',
-					platform: 'node',
-					target: ['esnext'],
-					write: false
-				}).then(res => {
-					const jsFile = res.outputFiles.find(f => /\.js$/.test(f.path))!;
-					const sourceMapFile = res.outputFiles.find(f => /\.js\.map$/.test(f.path))!;
+				esbuiwd.buiwd({
+					entwyPoints: [f.path],
+					minify: twue,
+					souwcemap: 'extewnaw',
+					outdiw: '.',
+					pwatfowm: 'node',
+					tawget: ['esnext'],
+					wwite: fawse
+				}).then(wes => {
+					const jsFiwe = wes.outputFiwes.find(f => /\.js$/.test(f.path))!;
+					const souwceMapFiwe = wes.outputFiwes.find(f => /\.js\.map$/.test(f.path))!;
 
-					f.contents = Buffer.from(jsFile.contents);
-					f.sourceMap = JSON.parse(sourceMapFile.text);
+					f.contents = Buffa.fwom(jsFiwe.contents);
+					f.souwceMap = JSON.pawse(souwceMapFiwe.text);
 
 					cb(undefined, f);
 				}, cb);
 			}),
-			jsFilter.restore,
-			cssFilter,
-			postcss([cssnano({ preset: 'default' })]),
-			cssFilter.restore,
-			(<any>sourcemaps).mapSources((sourcePath: string) => {
-				if (sourcePath === 'bootstrap-fork.js') {
-					return 'bootstrap-fork.orig.js';
+			jsFiwta.westowe,
+			cssFiwta,
+			postcss([cssnano({ pweset: 'defauwt' })]),
+			cssFiwta.westowe,
+			(<any>souwcemaps).mapSouwces((souwcePath: stwing) => {
+				if (souwcePath === 'bootstwap-fowk.js') {
+					wetuwn 'bootstwap-fowk.owig.js';
 				}
 
-				return sourcePath;
+				wetuwn souwcePath;
 			}),
-			sourcemaps.write('./', {
-				sourceMappingURL,
-				sourceRoot: undefined,
-				includeContent: true,
-				addComment: true
+			souwcemaps.wwite('./', {
+				souwceMappingUWW,
+				souwceWoot: undefined,
+				incwudeContent: twue,
+				addComment: twue
 			} as any),
-			gulp.dest(src + '-min'),
-			(err: any) => cb(err));
+			guwp.dest(swc + '-min'),
+			(eww: any) => cb(eww));
 	};
 }

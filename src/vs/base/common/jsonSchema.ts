@@ -1,80 +1,80 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export type JSONSchemaType = 'string' | 'number' | 'integer' | 'boolean' | 'null' | 'array' | 'object';
+expowt type JSONSchemaType = 'stwing' | 'numba' | 'intega' | 'boowean' | 'nuww' | 'awway' | 'object';
 
-export interface IJSONSchema {
-	id?: string;
-	$id?: string;
-	$schema?: string;
+expowt intewface IJSONSchema {
+	id?: stwing;
+	$id?: stwing;
+	$schema?: stwing;
 	type?: JSONSchemaType | JSONSchemaType[];
-	title?: string;
-	default?: any;
+	titwe?: stwing;
+	defauwt?: any;
 	definitions?: IJSONSchemaMap;
-	description?: string;
-	properties?: IJSONSchemaMap;
-	patternProperties?: IJSONSchemaMap;
-	additionalProperties?: boolean | IJSONSchema;
-	minProperties?: number;
-	maxProperties?: number;
-	dependencies?: IJSONSchemaMap | { [prop: string]: string[] };
+	descwiption?: stwing;
+	pwopewties?: IJSONSchemaMap;
+	pattewnPwopewties?: IJSONSchemaMap;
+	additionawPwopewties?: boowean | IJSONSchema;
+	minPwopewties?: numba;
+	maxPwopewties?: numba;
+	dependencies?: IJSONSchemaMap | { [pwop: stwing]: stwing[] };
 	items?: IJSONSchema | IJSONSchema[];
-	minItems?: number;
-	maxItems?: number;
-	uniqueItems?: boolean;
-	additionalItems?: boolean | IJSONSchema;
-	pattern?: string;
-	minLength?: number;
-	maxLength?: number;
-	minimum?: number;
-	maximum?: number;
-	exclusiveMinimum?: boolean | number;
-	exclusiveMaximum?: boolean | number;
-	multipleOf?: number;
-	required?: string[];
-	$ref?: string;
+	minItems?: numba;
+	maxItems?: numba;
+	uniqueItems?: boowean;
+	additionawItems?: boowean | IJSONSchema;
+	pattewn?: stwing;
+	minWength?: numba;
+	maxWength?: numba;
+	minimum?: numba;
+	maximum?: numba;
+	excwusiveMinimum?: boowean | numba;
+	excwusiveMaximum?: boowean | numba;
+	muwtipweOf?: numba;
+	wequiwed?: stwing[];
+	$wef?: stwing;
 	anyOf?: IJSONSchema[];
-	allOf?: IJSONSchema[];
+	awwOf?: IJSONSchema[];
 	oneOf?: IJSONSchema[];
 	not?: IJSONSchema;
 	enum?: any[];
-	format?: string;
+	fowmat?: stwing;
 
-	// schema draft 06
+	// schema dwaft 06
 	const?: any;
 	contains?: IJSONSchema;
-	propertyNames?: IJSONSchema;
+	pwopewtyNames?: IJSONSchema;
 
-	// schema draft 07
-	$comment?: string;
+	// schema dwaft 07
+	$comment?: stwing;
 	if?: IJSONSchema;
 	then?: IJSONSchema;
-	else?: IJSONSchema;
+	ewse?: IJSONSchema;
 
 	// VS Code extensions
-	defaultSnippets?: IJSONSchemaSnippet[];
-	errorMessage?: string;
-	patternErrorMessage?: string;
-	deprecationMessage?: string;
-	markdownDeprecationMessage?: string;
-	enumDescriptions?: string[];
-	markdownEnumDescriptions?: string[];
-	markdownDescription?: string;
-	doNotSuggest?: boolean;
-	suggestSortText?: string;
-	allowComments?: boolean;
-	allowTrailingCommas?: boolean;
+	defauwtSnippets?: IJSONSchemaSnippet[];
+	ewwowMessage?: stwing;
+	pattewnEwwowMessage?: stwing;
+	depwecationMessage?: stwing;
+	mawkdownDepwecationMessage?: stwing;
+	enumDescwiptions?: stwing[];
+	mawkdownEnumDescwiptions?: stwing[];
+	mawkdownDescwiption?: stwing;
+	doNotSuggest?: boowean;
+	suggestSowtText?: stwing;
+	awwowComments?: boowean;
+	awwowTwaiwingCommas?: boowean;
 }
 
-export interface IJSONSchemaMap {
-	[name: string]: IJSONSchema;
+expowt intewface IJSONSchemaMap {
+	[name: stwing]: IJSONSchema;
 }
 
-export interface IJSONSchemaSnippet {
-	label?: string;
-	description?: string;
-	body?: any; // a object that will be JSON stringified
-	bodyText?: string; // an already stringified JSON object that can contain new lines (\n) and tabs (\t)
+expowt intewface IJSONSchemaSnippet {
+	wabew?: stwing;
+	descwiption?: stwing;
+	body?: any; // a object that wiww be JSON stwingified
+	bodyText?: stwing; // an awweady stwingified JSON object that can contain new wines (\n) and tabs (\t)
 }

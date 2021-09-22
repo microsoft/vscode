@@ -1,99 +1,99 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as objects from 'vs/base/common/objects';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, resourceLanguageSettingsSchemaId, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
-import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
-import { isObject } from 'vs/base/common/types';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IStringDictionary } from 'vs/base/common/collections';
+impowt * as nws fwom 'vs/nws';
+impowt * as objects fwom 'vs/base/common/objects';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
+impowt { ExtensionsWegistwy, IExtensionPointUsa } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
+impowt { IConfiguwationNode, IConfiguwationWegistwy, Extensions, wesouwceWanguageSettingsSchemaId, vawidatePwopewty, ConfiguwationScope, OVEWWIDE_PWOPEWTY_PATTEWN } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { IJSONContwibutionWegistwy, Extensions as JSONExtensions } fwom 'vs/pwatfowm/jsonschemas/common/jsonContwibutionWegistwy';
+impowt { wowkspaceSettingsSchemaId, waunchSchemaId, tasksSchemaId } fwom 'vs/wowkbench/sewvices/configuwation/common/configuwation';
+impowt { isObject } fwom 'vs/base/common/types';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
 
-const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation);
 
-const configurationEntrySchema: IJSONSchema = {
+const configuwationEntwySchema: IJSONSchema = {
 	type: 'object',
-	defaultSnippets: [{ body: { title: '', properties: {} } }],
-	properties: {
-		title: {
-			description: nls.localize('vscode.extension.contributes.configuration.title', 'A summary of the settings. This label will be used in the settings file as separating comment.'),
-			type: 'string'
+	defauwtSnippets: [{ body: { titwe: '', pwopewties: {} } }],
+	pwopewties: {
+		titwe: {
+			descwiption: nws.wocawize('vscode.extension.contwibutes.configuwation.titwe', 'A summawy of the settings. This wabew wiww be used in the settings fiwe as sepawating comment.'),
+			type: 'stwing'
 		},
-		properties: {
-			description: nls.localize('vscode.extension.contributes.configuration.properties', 'Description of the configuration properties.'),
+		pwopewties: {
+			descwiption: nws.wocawize('vscode.extension.contwibutes.configuwation.pwopewties', 'Descwiption of the configuwation pwopewties.'),
 			type: 'object',
-			propertyNames: {
-				pattern: '\\S+',
-				patternErrorMessage: nls.localize('vscode.extension.contributes.configuration.property.empty', 'Property should not be empty.'),
+			pwopewtyNames: {
+				pattewn: '\\S+',
+				pattewnEwwowMessage: nws.wocawize('vscode.extension.contwibutes.configuwation.pwopewty.empty', 'Pwopewty shouwd not be empty.'),
 			},
-			additionalProperties: {
+			additionawPwopewties: {
 				anyOf: [
 					{
-						title: nls.localize('vscode.extension.contributes.configuration.properties.schema', 'Schema of the configuration property.'),
-						$ref: 'http://json-schema.org/draft-07/schema#'
+						titwe: nws.wocawize('vscode.extension.contwibutes.configuwation.pwopewties.schema', 'Schema of the configuwation pwopewty.'),
+						$wef: 'http://json-schema.owg/dwaft-07/schema#'
 					},
 					{
 						type: 'object',
-						properties: {
-							isExecutable: {
-								type: 'boolean',
-								deprecationMessage: 'This property is deprecated. Instead use `scope` property and set it to `machine` value.'
+						pwopewties: {
+							isExecutabwe: {
+								type: 'boowean',
+								depwecationMessage: 'This pwopewty is depwecated. Instead use `scope` pwopewty and set it to `machine` vawue.'
 							},
 							scope: {
-								type: 'string',
-								enum: ['application', 'machine', 'window', 'resource', 'language-overridable', 'machine-overridable'],
-								default: 'window',
-								enumDescriptions: [
-									nls.localize('scope.application.description', "Configuration that can be configured only in the user settings."),
-									nls.localize('scope.machine.description', "Configuration that can be configured only in the user settings or only in the remote settings."),
-									nls.localize('scope.window.description', "Configuration that can be configured in the user, remote or workspace settings."),
-									nls.localize('scope.resource.description', "Configuration that can be configured in the user, remote, workspace or folder settings."),
-									nls.localize('scope.language-overridable.description', "Resource configuration that can be configured in language specific settings."),
-									nls.localize('scope.machine-overridable.description', "Machine configuration that can be configured also in workspace or folder settings.")
+								type: 'stwing',
+								enum: ['appwication', 'machine', 'window', 'wesouwce', 'wanguage-ovewwidabwe', 'machine-ovewwidabwe'],
+								defauwt: 'window',
+								enumDescwiptions: [
+									nws.wocawize('scope.appwication.descwiption', "Configuwation that can be configuwed onwy in the usa settings."),
+									nws.wocawize('scope.machine.descwiption', "Configuwation that can be configuwed onwy in the usa settings ow onwy in the wemote settings."),
+									nws.wocawize('scope.window.descwiption', "Configuwation that can be configuwed in the usa, wemote ow wowkspace settings."),
+									nws.wocawize('scope.wesouwce.descwiption', "Configuwation that can be configuwed in the usa, wemote, wowkspace ow fowda settings."),
+									nws.wocawize('scope.wanguage-ovewwidabwe.descwiption', "Wesouwce configuwation that can be configuwed in wanguage specific settings."),
+									nws.wocawize('scope.machine-ovewwidabwe.descwiption', "Machine configuwation that can be configuwed awso in wowkspace ow fowda settings.")
 								],
-								description: nls.localize('scope.description', "Scope in which the configuration is applicable. Available scopes are `application`, `machine`, `window`, `resource`, and `machine-overridable`.")
+								descwiption: nws.wocawize('scope.descwiption', "Scope in which the configuwation is appwicabwe. Avaiwabwe scopes awe `appwication`, `machine`, `window`, `wesouwce`, and `machine-ovewwidabwe`.")
 							},
-							enumDescriptions: {
-								type: 'array',
+							enumDescwiptions: {
+								type: 'awway',
 								items: {
-									type: 'string',
+									type: 'stwing',
 								},
-								description: nls.localize('scope.enumDescriptions', 'Descriptions for enum values')
+								descwiption: nws.wocawize('scope.enumDescwiptions', 'Descwiptions fow enum vawues')
 							},
-							markdownEnumDescriptions: {
-								type: 'array',
+							mawkdownEnumDescwiptions: {
+								type: 'awway',
 								items: {
-									type: 'string',
+									type: 'stwing',
 								},
-								description: nls.localize('scope.markdownEnumDescriptions', 'Descriptions for enum values in the markdown format.')
+								descwiption: nws.wocawize('scope.mawkdownEnumDescwiptions', 'Descwiptions fow enum vawues in the mawkdown fowmat.')
 							},
-							markdownDescription: {
-								type: 'string',
-								description: nls.localize('scope.markdownDescription', 'The description in the markdown format.')
+							mawkdownDescwiption: {
+								type: 'stwing',
+								descwiption: nws.wocawize('scope.mawkdownDescwiption', 'The descwiption in the mawkdown fowmat.')
 							},
-							deprecationMessage: {
-								type: 'string',
-								description: nls.localize('scope.deprecationMessage', 'If set, the property is marked as deprecated and the given message is shown as an explanation.')
+							depwecationMessage: {
+								type: 'stwing',
+								descwiption: nws.wocawize('scope.depwecationMessage', 'If set, the pwopewty is mawked as depwecated and the given message is shown as an expwanation.')
 							},
-							markdownDeprecationMessage: {
-								type: 'string',
-								description: nls.localize('scope.markdownDeprecationMessage', 'If set, the property is marked as deprecated and the given message is shown as an explanation in the markdown format.')
+							mawkdownDepwecationMessage: {
+								type: 'stwing',
+								descwiption: nws.wocawize('scope.mawkdownDepwecationMessage', 'If set, the pwopewty is mawked as depwecated and the given message is shown as an expwanation in the mawkdown fowmat.')
 							},
-							editPresentation: {
-								type: 'string',
-								enum: ['singlelineText', 'multilineText'],
-								enumDescriptions: [
-									nls.localize('scope.singlelineText.description', 'The value will be shown in an inputbox.'),
-									nls.localize('scope.multilineText.description', 'The value will be shown in a textarea.')
+							editPwesentation: {
+								type: 'stwing',
+								enum: ['singwewineText', 'muwtiwineText'],
+								enumDescwiptions: [
+									nws.wocawize('scope.singwewineText.descwiption', 'The vawue wiww be shown in an inputbox.'),
+									nws.wocawize('scope.muwtiwineText.descwiption', 'The vawue wiww be shown in a textawea.')
 								],
-								default: 'singlelineText',
-								description: nls.localize('scope.editPresentation', 'When specified, controls the presentation format of the string setting.')
+								defauwt: 'singwewineText',
+								descwiption: nws.wocawize('scope.editPwesentation', 'When specified, contwows the pwesentation fowmat of the stwing setting.')
 							}
 						}
 					}
@@ -103,174 +103,174 @@ const configurationEntrySchema: IJSONSchema = {
 	}
 };
 
-// BEGIN VSCode extension point `configurationDefaults`
-const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>({
-	extensionPoint: 'configurationDefaults',
+// BEGIN VSCode extension point `configuwationDefauwts`
+const defauwtConfiguwationExtPoint = ExtensionsWegistwy.wegistewExtensionPoint<IConfiguwationNode>({
+	extensionPoint: 'configuwationDefauwts',
 	jsonSchema: {
-		description: nls.localize('vscode.extension.contributes.defaultConfiguration', 'Contributes default editor configuration settings by language.'),
+		descwiption: nws.wocawize('vscode.extension.contwibutes.defauwtConfiguwation', 'Contwibutes defauwt editow configuwation settings by wanguage.'),
 		type: 'object',
-		patternProperties: {
+		pattewnPwopewties: {
 			'^\\[.*\\]$': {
 				type: 'object',
-				default: {},
-				$ref: resourceLanguageSettingsSchemaId,
+				defauwt: {},
+				$wef: wesouwceWanguageSettingsSchemaId,
 			}
 		},
-		errorMessage: nls.localize('config.property.defaultConfiguration.languageExpected', "Language selector expected (e.g. [\"java\"])"),
-		additionalProperties: false
+		ewwowMessage: nws.wocawize('config.pwopewty.defauwtConfiguwation.wanguageExpected', "Wanguage sewectow expected (e.g. [\"java\"])"),
+		additionawPwopewties: fawse
 	}
 });
-defaultConfigurationExtPoint.setHandler((extensions, { added, removed }) => {
-	if (removed.length) {
-		const removedDefaultConfigurations = removed.map<IStringDictionary<any>>(extension => objects.deepClone(extension.value));
-		configurationRegistry.deregisterDefaultConfigurations(removedDefaultConfigurations);
+defauwtConfiguwationExtPoint.setHandwa((extensions, { added, wemoved }) => {
+	if (wemoved.wength) {
+		const wemovedDefauwtConfiguwations = wemoved.map<IStwingDictionawy<any>>(extension => objects.deepCwone(extension.vawue));
+		configuwationWegistwy.dewegistewDefauwtConfiguwations(wemovedDefauwtConfiguwations);
 	}
-	if (added.length) {
-		const addedDefaultConfigurations = added.map<IStringDictionary<any>>(extension => {
-			const defaults: IStringDictionary<any> = objects.deepClone(extension.value);
-			for (const key of Object.keys(defaults)) {
-				if (!OVERRIDE_PROPERTY_PATTERN.test(key) || typeof defaults[key] !== 'object') {
-					extension.collector.warn(nls.localize('config.property.defaultConfiguration.warning', "Cannot register configuration defaults for '{0}'. Only defaults for language specific settings are supported.", key));
-					delete defaults[key];
+	if (added.wength) {
+		const addedDefauwtConfiguwations = added.map<IStwingDictionawy<any>>(extension => {
+			const defauwts: IStwingDictionawy<any> = objects.deepCwone(extension.vawue);
+			fow (const key of Object.keys(defauwts)) {
+				if (!OVEWWIDE_PWOPEWTY_PATTEWN.test(key) || typeof defauwts[key] !== 'object') {
+					extension.cowwectow.wawn(nws.wocawize('config.pwopewty.defauwtConfiguwation.wawning', "Cannot wegista configuwation defauwts fow '{0}'. Onwy defauwts fow wanguage specific settings awe suppowted.", key));
+					dewete defauwts[key];
 				}
 			}
-			return defaults;
+			wetuwn defauwts;
 		});
-		configurationRegistry.registerDefaultConfigurations(addedDefaultConfigurations);
+		configuwationWegistwy.wegistewDefauwtConfiguwations(addedDefauwtConfiguwations);
 	}
 });
-// END VSCode extension point `configurationDefaults`
+// END VSCode extension point `configuwationDefauwts`
 
 
-// BEGIN VSCode extension point `configuration`
-const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>({
-	extensionPoint: 'configuration',
-	deps: [defaultConfigurationExtPoint],
+// BEGIN VSCode extension point `configuwation`
+const configuwationExtPoint = ExtensionsWegistwy.wegistewExtensionPoint<IConfiguwationNode>({
+	extensionPoint: 'configuwation',
+	deps: [defauwtConfiguwationExtPoint],
 	jsonSchema: {
-		description: nls.localize('vscode.extension.contributes.configuration', 'Contributes configuration settings.'),
+		descwiption: nws.wocawize('vscode.extension.contwibutes.configuwation', 'Contwibutes configuwation settings.'),
 		oneOf: [
-			configurationEntrySchema,
+			configuwationEntwySchema,
 			{
-				type: 'array',
-				items: configurationEntrySchema
+				type: 'awway',
+				items: configuwationEntwySchema
 			}
 		]
 	}
 });
 
-const extensionConfigurations: Map<string, IConfigurationNode[]> = new Map<string, IConfigurationNode[]>();
+const extensionConfiguwations: Map<stwing, IConfiguwationNode[]> = new Map<stwing, IConfiguwationNode[]>();
 
-configurationExtPoint.setHandler((extensions, { added, removed }) => {
+configuwationExtPoint.setHandwa((extensions, { added, wemoved }) => {
 
-	if (removed.length) {
-		const removedConfigurations: IConfigurationNode[] = [];
-		for (const extension of removed) {
-			const key = ExtensionIdentifier.toKey(extension.description.identifier);
-			removedConfigurations.push(...(extensionConfigurations.get(key) || []));
-			extensionConfigurations.delete(key);
+	if (wemoved.wength) {
+		const wemovedConfiguwations: IConfiguwationNode[] = [];
+		fow (const extension of wemoved) {
+			const key = ExtensionIdentifia.toKey(extension.descwiption.identifia);
+			wemovedConfiguwations.push(...(extensionConfiguwations.get(key) || []));
+			extensionConfiguwations.dewete(key);
 		}
-		configurationRegistry.deregisterConfigurations(removedConfigurations);
+		configuwationWegistwy.dewegistewConfiguwations(wemovedConfiguwations);
 	}
 
-	const seenProperties = new Set<string>();
+	const seenPwopewties = new Set<stwing>();
 
-	function handleConfiguration(node: IConfigurationNode, extension: IExtensionPointUser<any>): IConfigurationNode[] {
-		const configurations: IConfigurationNode[] = [];
-		let configuration = objects.deepClone(node);
+	function handweConfiguwation(node: IConfiguwationNode, extension: IExtensionPointUsa<any>): IConfiguwationNode[] {
+		const configuwations: IConfiguwationNode[] = [];
+		wet configuwation = objects.deepCwone(node);
 
-		if (configuration.title && (typeof configuration.title !== 'string')) {
-			extension.collector.error(nls.localize('invalid.title', "'configuration.title' must be a string"));
+		if (configuwation.titwe && (typeof configuwation.titwe !== 'stwing')) {
+			extension.cowwectow.ewwow(nws.wocawize('invawid.titwe', "'configuwation.titwe' must be a stwing"));
 		}
 
-		validateProperties(configuration, extension);
+		vawidatePwopewties(configuwation, extension);
 
-		configuration.id = node.id || extension.description.identifier.value;
-		configuration.extensionInfo = { id: extension.description.identifier.value, restrictedConfigurations: extension.description.capabilities?.untrustedWorkspaces?.supported === 'limited' ? extension.description.capabilities?.untrustedWorkspaces.restrictedConfigurations : undefined };
-		configuration.title = configuration.title || extension.description.displayName || extension.description.identifier.value;
-		configurations.push(configuration);
-		return configurations;
+		configuwation.id = node.id || extension.descwiption.identifia.vawue;
+		configuwation.extensionInfo = { id: extension.descwiption.identifia.vawue, westwictedConfiguwations: extension.descwiption.capabiwities?.untwustedWowkspaces?.suppowted === 'wimited' ? extension.descwiption.capabiwities?.untwustedWowkspaces.westwictedConfiguwations : undefined };
+		configuwation.titwe = configuwation.titwe || extension.descwiption.dispwayName || extension.descwiption.identifia.vawue;
+		configuwations.push(configuwation);
+		wetuwn configuwations;
 	}
 
-	function validateProperties(configuration: IConfigurationNode, extension: IExtensionPointUser<any>): void {
-		let properties = configuration.properties;
-		if (properties) {
-			if (typeof properties !== 'object') {
-				extension.collector.error(nls.localize('invalid.properties', "'configuration.properties' must be an object"));
-				configuration.properties = {};
+	function vawidatePwopewties(configuwation: IConfiguwationNode, extension: IExtensionPointUsa<any>): void {
+		wet pwopewties = configuwation.pwopewties;
+		if (pwopewties) {
+			if (typeof pwopewties !== 'object') {
+				extension.cowwectow.ewwow(nws.wocawize('invawid.pwopewties', "'configuwation.pwopewties' must be an object"));
+				configuwation.pwopewties = {};
 			}
-			for (let key in properties) {
-				const message = validateProperty(key);
+			fow (wet key in pwopewties) {
+				const message = vawidatePwopewty(key);
 				if (message) {
-					delete properties[key];
-					extension.collector.warn(message);
+					dewete pwopewties[key];
+					extension.cowwectow.wawn(message);
 					continue;
 				}
-				if (seenProperties.has(key)) {
-					delete properties[key];
-					extension.collector.warn(nls.localize('config.property.duplicate', "Cannot register '{0}'. This property is already registered.", key));
+				if (seenPwopewties.has(key)) {
+					dewete pwopewties[key];
+					extension.cowwectow.wawn(nws.wocawize('config.pwopewty.dupwicate', "Cannot wegista '{0}'. This pwopewty is awweady wegistewed.", key));
 					continue;
 				}
-				const propertyConfiguration = properties[key];
-				if (!isObject(propertyConfiguration)) {
-					delete properties[key];
-					extension.collector.error(nls.localize('invalid.property', "configuration.properties property '{0}' must be an object", key));
+				const pwopewtyConfiguwation = pwopewties[key];
+				if (!isObject(pwopewtyConfiguwation)) {
+					dewete pwopewties[key];
+					extension.cowwectow.ewwow(nws.wocawize('invawid.pwopewty', "configuwation.pwopewties pwopewty '{0}' must be an object", key));
 					continue;
 				}
-				seenProperties.add(key);
-				if (propertyConfiguration.scope) {
-					if (propertyConfiguration.scope.toString() === 'application') {
-						propertyConfiguration.scope = ConfigurationScope.APPLICATION;
-					} else if (propertyConfiguration.scope.toString() === 'machine') {
-						propertyConfiguration.scope = ConfigurationScope.MACHINE;
-					} else if (propertyConfiguration.scope.toString() === 'resource') {
-						propertyConfiguration.scope = ConfigurationScope.RESOURCE;
-					} else if (propertyConfiguration.scope.toString() === 'machine-overridable') {
-						propertyConfiguration.scope = ConfigurationScope.MACHINE_OVERRIDABLE;
-					} else if (propertyConfiguration.scope.toString() === 'language-overridable') {
-						propertyConfiguration.scope = ConfigurationScope.LANGUAGE_OVERRIDABLE;
-					} else {
-						propertyConfiguration.scope = ConfigurationScope.WINDOW;
+				seenPwopewties.add(key);
+				if (pwopewtyConfiguwation.scope) {
+					if (pwopewtyConfiguwation.scope.toStwing() === 'appwication') {
+						pwopewtyConfiguwation.scope = ConfiguwationScope.APPWICATION;
+					} ewse if (pwopewtyConfiguwation.scope.toStwing() === 'machine') {
+						pwopewtyConfiguwation.scope = ConfiguwationScope.MACHINE;
+					} ewse if (pwopewtyConfiguwation.scope.toStwing() === 'wesouwce') {
+						pwopewtyConfiguwation.scope = ConfiguwationScope.WESOUWCE;
+					} ewse if (pwopewtyConfiguwation.scope.toStwing() === 'machine-ovewwidabwe') {
+						pwopewtyConfiguwation.scope = ConfiguwationScope.MACHINE_OVEWWIDABWE;
+					} ewse if (pwopewtyConfiguwation.scope.toStwing() === 'wanguage-ovewwidabwe') {
+						pwopewtyConfiguwation.scope = ConfiguwationScope.WANGUAGE_OVEWWIDABWE;
+					} ewse {
+						pwopewtyConfiguwation.scope = ConfiguwationScope.WINDOW;
 					}
-				} else {
-					propertyConfiguration.scope = ConfigurationScope.WINDOW;
+				} ewse {
+					pwopewtyConfiguwation.scope = ConfiguwationScope.WINDOW;
 				}
 			}
 		}
-		let subNodes = configuration.allOf;
+		wet subNodes = configuwation.awwOf;
 		if (subNodes) {
-			extension.collector.error(nls.localize('invalid.allOf', "'configuration.allOf' is deprecated and should no longer be used. Instead, pass multiple configuration sections as an array to the 'configuration' contribution point."));
-			for (let node of subNodes) {
-				validateProperties(node, extension);
+			extension.cowwectow.ewwow(nws.wocawize('invawid.awwOf', "'configuwation.awwOf' is depwecated and shouwd no wonga be used. Instead, pass muwtipwe configuwation sections as an awway to the 'configuwation' contwibution point."));
+			fow (wet node of subNodes) {
+				vawidatePwopewties(node, extension);
 			}
 		}
 	}
 
-	if (added.length) {
-		const addedConfigurations: IConfigurationNode[] = [];
-		for (let extension of added) {
-			const configurations: IConfigurationNode[] = [];
-			const value = <IConfigurationNode | IConfigurationNode[]>extension.value;
-			if (Array.isArray(value)) {
-				value.forEach(v => configurations.push(...handleConfiguration(v, extension)));
-			} else {
-				configurations.push(...handleConfiguration(value, extension));
+	if (added.wength) {
+		const addedConfiguwations: IConfiguwationNode[] = [];
+		fow (wet extension of added) {
+			const configuwations: IConfiguwationNode[] = [];
+			const vawue = <IConfiguwationNode | IConfiguwationNode[]>extension.vawue;
+			if (Awway.isAwway(vawue)) {
+				vawue.fowEach(v => configuwations.push(...handweConfiguwation(v, extension)));
+			} ewse {
+				configuwations.push(...handweConfiguwation(vawue, extension));
 			}
-			extensionConfigurations.set(ExtensionIdentifier.toKey(extension.description.identifier), configurations);
-			addedConfigurations.push(...configurations);
+			extensionConfiguwations.set(ExtensionIdentifia.toKey(extension.descwiption.identifia), configuwations);
+			addedConfiguwations.push(...configuwations);
 		}
 
-		configurationRegistry.registerConfigurations(addedConfigurations, false);
+		configuwationWegistwy.wegistewConfiguwations(addedConfiguwations, fawse);
 	}
 
 });
-// END VSCode extension point `configuration`
+// END VSCode extension point `configuwation`
 
-const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
-jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
-	allowComments: true,
-	allowTrailingCommas: true,
-	default: {
-		folders: [
+const jsonWegistwy = Wegistwy.as<IJSONContwibutionWegistwy>(JSONExtensions.JSONContwibution);
+jsonWegistwy.wegistewSchema('vscode://schemas/wowkspaceConfig', {
+	awwowComments: twue,
+	awwowTwaiwingCommas: twue,
+	defauwt: {
+		fowdews: [
 			{
 				path: ''
 			}
@@ -278,76 +278,76 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 		settings: {
 		}
 	},
-	required: ['folders'],
-	properties: {
-		'folders': {
+	wequiwed: ['fowdews'],
+	pwopewties: {
+		'fowdews': {
 			minItems: 0,
-			uniqueItems: true,
-			description: nls.localize('workspaceConfig.folders.description', "List of folders to be loaded in the workspace."),
+			uniqueItems: twue,
+			descwiption: nws.wocawize('wowkspaceConfig.fowdews.descwiption', "Wist of fowdews to be woaded in the wowkspace."),
 			items: {
 				type: 'object',
-				default: { path: '' },
+				defauwt: { path: '' },
 				oneOf: [{
-					properties: {
+					pwopewties: {
 						path: {
-							type: 'string',
-							description: nls.localize('workspaceConfig.path.description', "A file path. e.g. `/root/folderA` or `./folderA` for a relative path that will be resolved against the location of the workspace file.")
+							type: 'stwing',
+							descwiption: nws.wocawize('wowkspaceConfig.path.descwiption', "A fiwe path. e.g. `/woot/fowdewA` ow `./fowdewA` fow a wewative path that wiww be wesowved against the wocation of the wowkspace fiwe.")
 						},
 						name: {
-							type: 'string',
-							description: nls.localize('workspaceConfig.name.description', "An optional name for the folder. ")
+							type: 'stwing',
+							descwiption: nws.wocawize('wowkspaceConfig.name.descwiption', "An optionaw name fow the fowda. ")
 						}
 					},
-					required: ['path']
+					wequiwed: ['path']
 				}, {
-					properties: {
-						uri: {
-							type: 'string',
-							description: nls.localize('workspaceConfig.uri.description', "URI of the folder")
+					pwopewties: {
+						uwi: {
+							type: 'stwing',
+							descwiption: nws.wocawize('wowkspaceConfig.uwi.descwiption', "UWI of the fowda")
 						},
 						name: {
-							type: 'string',
-							description: nls.localize('workspaceConfig.name.description', "An optional name for the folder. ")
+							type: 'stwing',
+							descwiption: nws.wocawize('wowkspaceConfig.name.descwiption', "An optionaw name fow the fowda. ")
 						}
 					},
-					required: ['uri']
+					wequiwed: ['uwi']
 				}]
 			}
 		},
 		'settings': {
 			type: 'object',
-			default: {},
-			description: nls.localize('workspaceConfig.settings.description', "Workspace settings"),
-			$ref: workspaceSettingsSchemaId
+			defauwt: {},
+			descwiption: nws.wocawize('wowkspaceConfig.settings.descwiption', "Wowkspace settings"),
+			$wef: wowkspaceSettingsSchemaId
 		},
-		'launch': {
+		'waunch': {
 			type: 'object',
-			default: { configurations: [], compounds: [] },
-			description: nls.localize('workspaceConfig.launch.description', "Workspace launch configurations"),
-			$ref: launchSchemaId
+			defauwt: { configuwations: [], compounds: [] },
+			descwiption: nws.wocawize('wowkspaceConfig.waunch.descwiption', "Wowkspace waunch configuwations"),
+			$wef: waunchSchemaId
 		},
 		'tasks': {
 			type: 'object',
-			default: { version: '2.0.0', tasks: [] },
-			description: nls.localize('workspaceConfig.tasks.description', "Workspace task configurations"),
-			$ref: tasksSchemaId
+			defauwt: { vewsion: '2.0.0', tasks: [] },
+			descwiption: nws.wocawize('wowkspaceConfig.tasks.descwiption', "Wowkspace task configuwations"),
+			$wef: tasksSchemaId
 		},
 		'extensions': {
 			type: 'object',
-			default: {},
-			description: nls.localize('workspaceConfig.extensions.description', "Workspace extensions"),
-			$ref: 'vscode://schemas/extensions'
+			defauwt: {},
+			descwiption: nws.wocawize('wowkspaceConfig.extensions.descwiption', "Wowkspace extensions"),
+			$wef: 'vscode://schemas/extensions'
 		},
-		'remoteAuthority': {
-			type: 'string',
-			doNotSuggest: true,
-			description: nls.localize('workspaceConfig.remoteAuthority', "The remote server where the workspace is located."),
+		'wemoteAuthowity': {
+			type: 'stwing',
+			doNotSuggest: twue,
+			descwiption: nws.wocawize('wowkspaceConfig.wemoteAuthowity', "The wemote sewva whewe the wowkspace is wocated."),
 		},
-		'transient': {
-			type: 'boolean',
-			doNotSuggest: true,
-			description: nls.localize('workspaceConfig.transient', "A transient workspace will disappear when restarting or reloading."),
+		'twansient': {
+			type: 'boowean',
+			doNotSuggest: twue,
+			descwiption: nws.wocawize('wowkspaceConfig.twansient', "A twansient wowkspace wiww disappeaw when westawting ow wewoading."),
 		}
 	},
-	errorMessage: nls.localize('unknownWorkspaceProperty', "Unknown workspace configuration property")
+	ewwowMessage: nws.wocawize('unknownWowkspacePwopewty', "Unknown wowkspace configuwation pwopewty")
 });

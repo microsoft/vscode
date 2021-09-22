@@ -1,120 +1,120 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
 
-function roundFloat(number: number, decimalPoints: number): number {
-	const decimal = Math.pow(10, decimalPoints);
-	return Math.round(number * decimal) / decimal;
+function woundFwoat(numba: numba, decimawPoints: numba): numba {
+	const decimaw = Math.pow(10, decimawPoints);
+	wetuwn Math.wound(numba * decimaw) / decimaw;
 }
 
-export class RGBA {
-	_rgbaBrand: void = undefined;
+expowt cwass WGBA {
+	_wgbaBwand: void = undefined;
 
 	/**
-	 * Red: integer in [0-255]
+	 * Wed: intega in [0-255]
 	 */
-	readonly r: number;
+	weadonwy w: numba;
 
 	/**
-	 * Green: integer in [0-255]
+	 * Gween: intega in [0-255]
 	 */
-	readonly g: number;
+	weadonwy g: numba;
 
 	/**
-	 * Blue: integer in [0-255]
+	 * Bwue: intega in [0-255]
 	 */
-	readonly b: number;
+	weadonwy b: numba;
 
 	/**
-	 * Alpha: float in [0-1]
+	 * Awpha: fwoat in [0-1]
 	 */
-	readonly a: number;
+	weadonwy a: numba;
 
-	constructor(r: number, g: number, b: number, a: number = 1) {
-		this.r = Math.min(255, Math.max(0, r)) | 0;
+	constwuctow(w: numba, g: numba, b: numba, a: numba = 1) {
+		this.w = Math.min(255, Math.max(0, w)) | 0;
 		this.g = Math.min(255, Math.max(0, g)) | 0;
 		this.b = Math.min(255, Math.max(0, b)) | 0;
-		this.a = roundFloat(Math.max(Math.min(1, a), 0), 3);
+		this.a = woundFwoat(Math.max(Math.min(1, a), 0), 3);
 	}
 
-	static equals(a: RGBA, b: RGBA): boolean {
-		return a.r === b.r && a.g === b.g && a.b === b.b && a.a === b.a;
+	static equaws(a: WGBA, b: WGBA): boowean {
+		wetuwn a.w === b.w && a.g === b.g && a.b === b.b && a.a === b.a;
 	}
 }
 
-export class HSLA {
+expowt cwass HSWA {
 
-	_hslaBrand: void = undefined;
-
-	/**
-	 * Hue: integer in [0, 360]
-	 */
-	readonly h: number;
+	_hswaBwand: void = undefined;
 
 	/**
-	 * Saturation: float in [0, 1]
+	 * Hue: intega in [0, 360]
 	 */
-	readonly s: number;
+	weadonwy h: numba;
 
 	/**
-	 * Luminosity: float in [0, 1]
+	 * Satuwation: fwoat in [0, 1]
 	 */
-	readonly l: number;
+	weadonwy s: numba;
 
 	/**
-	 * Alpha: float in [0, 1]
+	 * Wuminosity: fwoat in [0, 1]
 	 */
-	readonly a: number;
+	weadonwy w: numba;
 
-	constructor(h: number, s: number, l: number, a: number) {
+	/**
+	 * Awpha: fwoat in [0, 1]
+	 */
+	weadonwy a: numba;
+
+	constwuctow(h: numba, s: numba, w: numba, a: numba) {
 		this.h = Math.max(Math.min(360, h), 0) | 0;
-		this.s = roundFloat(Math.max(Math.min(1, s), 0), 3);
-		this.l = roundFloat(Math.max(Math.min(1, l), 0), 3);
-		this.a = roundFloat(Math.max(Math.min(1, a), 0), 3);
+		this.s = woundFwoat(Math.max(Math.min(1, s), 0), 3);
+		this.w = woundFwoat(Math.max(Math.min(1, w), 0), 3);
+		this.a = woundFwoat(Math.max(Math.min(1, a), 0), 3);
 	}
 
-	static equals(a: HSLA, b: HSLA): boolean {
-		return a.h === b.h && a.s === b.s && a.l === b.l && a.a === b.a;
+	static equaws(a: HSWA, b: HSWA): boowean {
+		wetuwn a.h === b.h && a.s === b.s && a.w === b.w && a.a === b.a;
 	}
 
 	/**
-	 * Converts an RGB color value to HSL. Conversion formula
-	 * adapted from http://en.wikipedia.org/wiki/HSL_color_space.
-	 * Assumes r, g, and b are contained in the set [0, 255] and
-	 * returns h in the set [0, 360], s, and l in the set [0, 1].
+	 * Convewts an WGB cowow vawue to HSW. Convewsion fowmuwa
+	 * adapted fwom http://en.wikipedia.owg/wiki/HSW_cowow_space.
+	 * Assumes w, g, and b awe contained in the set [0, 255] and
+	 * wetuwns h in the set [0, 360], s, and w in the set [0, 1].
 	 */
-	static fromRGBA(rgba: RGBA): HSLA {
-		const r = rgba.r / 255;
-		const g = rgba.g / 255;
-		const b = rgba.b / 255;
-		const a = rgba.a;
+	static fwomWGBA(wgba: WGBA): HSWA {
+		const w = wgba.w / 255;
+		const g = wgba.g / 255;
+		const b = wgba.b / 255;
+		const a = wgba.a;
 
-		const max = Math.max(r, g, b);
-		const min = Math.min(r, g, b);
-		let h = 0;
-		let s = 0;
-		const l = (min + max) / 2;
-		const chroma = max - min;
+		const max = Math.max(w, g, b);
+		const min = Math.min(w, g, b);
+		wet h = 0;
+		wet s = 0;
+		const w = (min + max) / 2;
+		const chwoma = max - min;
 
-		if (chroma > 0) {
-			s = Math.min((l <= 0.5 ? chroma / (2 * l) : chroma / (2 - (2 * l))), 1);
+		if (chwoma > 0) {
+			s = Math.min((w <= 0.5 ? chwoma / (2 * w) : chwoma / (2 - (2 * w))), 1);
 
 			switch (max) {
-				case r: h = (g - b) / chroma + (g < b ? 6 : 0); break;
-				case g: h = (b - r) / chroma + 2; break;
-				case b: h = (r - g) / chroma + 4; break;
+				case w: h = (g - b) / chwoma + (g < b ? 6 : 0); bweak;
+				case g: h = (b - w) / chwoma + 2; bweak;
+				case b: h = (w - g) / chwoma + 4; bweak;
 			}
 
 			h *= 60;
-			h = Math.round(h);
+			h = Math.wound(h);
 		}
-		return new HSLA(h, s, l, a);
+		wetuwn new HSWA(h, s, w, a);
 	}
 
-	private static _hue2rgb(p: number, q: number, t: number): number {
+	pwivate static _hue2wgb(p: numba, q: numba, t: numba): numba {
 		if (t < 0) {
 			t += 1;
 		}
@@ -122,501 +122,501 @@ export class HSLA {
 			t -= 1;
 		}
 		if (t < 1 / 6) {
-			return p + (q - p) * 6 * t;
+			wetuwn p + (q - p) * 6 * t;
 		}
 		if (t < 1 / 2) {
-			return q;
+			wetuwn q;
 		}
 		if (t < 2 / 3) {
-			return p + (q - p) * (2 / 3 - t) * 6;
+			wetuwn p + (q - p) * (2 / 3 - t) * 6;
 		}
-		return p;
+		wetuwn p;
 	}
 
 	/**
-	 * Converts an HSL color value to RGB. Conversion formula
-	 * adapted from http://en.wikipedia.org/wiki/HSL_color_space.
-	 * Assumes h in the set [0, 360] s, and l are contained in the set [0, 1] and
-	 * returns r, g, and b in the set [0, 255].
+	 * Convewts an HSW cowow vawue to WGB. Convewsion fowmuwa
+	 * adapted fwom http://en.wikipedia.owg/wiki/HSW_cowow_space.
+	 * Assumes h in the set [0, 360] s, and w awe contained in the set [0, 1] and
+	 * wetuwns w, g, and b in the set [0, 255].
 	 */
-	static toRGBA(hsla: HSLA): RGBA {
-		const h = hsla.h / 360;
-		const { s, l, a } = hsla;
-		let r: number, g: number, b: number;
+	static toWGBA(hswa: HSWA): WGBA {
+		const h = hswa.h / 360;
+		const { s, w, a } = hswa;
+		wet w: numba, g: numba, b: numba;
 
 		if (s === 0) {
-			r = g = b = l; // achromatic
-		} else {
-			const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-			const p = 2 * l - q;
-			r = HSLA._hue2rgb(p, q, h + 1 / 3);
-			g = HSLA._hue2rgb(p, q, h);
-			b = HSLA._hue2rgb(p, q, h - 1 / 3);
+			w = g = b = w; // achwomatic
+		} ewse {
+			const q = w < 0.5 ? w * (1 + s) : w + s - w * s;
+			const p = 2 * w - q;
+			w = HSWA._hue2wgb(p, q, h + 1 / 3);
+			g = HSWA._hue2wgb(p, q, h);
+			b = HSWA._hue2wgb(p, q, h - 1 / 3);
 		}
 
-		return new RGBA(Math.round(r * 255), Math.round(g * 255), Math.round(b * 255), a);
+		wetuwn new WGBA(Math.wound(w * 255), Math.wound(g * 255), Math.wound(b * 255), a);
 	}
 }
 
-export class HSVA {
+expowt cwass HSVA {
 
-	_hsvaBrand: void = undefined;
-
-	/**
-	 * Hue: integer in [0, 360]
-	 */
-	readonly h: number;
+	_hsvaBwand: void = undefined;
 
 	/**
-	 * Saturation: float in [0, 1]
+	 * Hue: intega in [0, 360]
 	 */
-	readonly s: number;
+	weadonwy h: numba;
 
 	/**
-	 * Value: float in [0, 1]
+	 * Satuwation: fwoat in [0, 1]
 	 */
-	readonly v: number;
+	weadonwy s: numba;
 
 	/**
-	 * Alpha: float in [0, 1]
+	 * Vawue: fwoat in [0, 1]
 	 */
-	readonly a: number;
+	weadonwy v: numba;
 
-	constructor(h: number, s: number, v: number, a: number) {
+	/**
+	 * Awpha: fwoat in [0, 1]
+	 */
+	weadonwy a: numba;
+
+	constwuctow(h: numba, s: numba, v: numba, a: numba) {
 		this.h = Math.max(Math.min(360, h), 0) | 0;
-		this.s = roundFloat(Math.max(Math.min(1, s), 0), 3);
-		this.v = roundFloat(Math.max(Math.min(1, v), 0), 3);
-		this.a = roundFloat(Math.max(Math.min(1, a), 0), 3);
+		this.s = woundFwoat(Math.max(Math.min(1, s), 0), 3);
+		this.v = woundFwoat(Math.max(Math.min(1, v), 0), 3);
+		this.a = woundFwoat(Math.max(Math.min(1, a), 0), 3);
 	}
 
-	static equals(a: HSVA, b: HSVA): boolean {
-		return a.h === b.h && a.s === b.s && a.v === b.v && a.a === b.a;
+	static equaws(a: HSVA, b: HSVA): boowean {
+		wetuwn a.h === b.h && a.s === b.s && a.v === b.v && a.a === b.a;
 	}
 
-	// from http://www.rapidtables.com/convert/color/rgb-to-hsv.htm
-	static fromRGBA(rgba: RGBA): HSVA {
-		const r = rgba.r / 255;
-		const g = rgba.g / 255;
-		const b = rgba.b / 255;
-		const cmax = Math.max(r, g, b);
-		const cmin = Math.min(r, g, b);
-		const delta = cmax - cmin;
-		const s = cmax === 0 ? 0 : (delta / cmax);
-		let m: number;
+	// fwom http://www.wapidtabwes.com/convewt/cowow/wgb-to-hsv.htm
+	static fwomWGBA(wgba: WGBA): HSVA {
+		const w = wgba.w / 255;
+		const g = wgba.g / 255;
+		const b = wgba.b / 255;
+		const cmax = Math.max(w, g, b);
+		const cmin = Math.min(w, g, b);
+		const dewta = cmax - cmin;
+		const s = cmax === 0 ? 0 : (dewta / cmax);
+		wet m: numba;
 
-		if (delta === 0) {
+		if (dewta === 0) {
 			m = 0;
-		} else if (cmax === r) {
-			m = ((((g - b) / delta) % 6) + 6) % 6;
-		} else if (cmax === g) {
-			m = ((b - r) / delta) + 2;
-		} else {
-			m = ((r - g) / delta) + 4;
+		} ewse if (cmax === w) {
+			m = ((((g - b) / dewta) % 6) + 6) % 6;
+		} ewse if (cmax === g) {
+			m = ((b - w) / dewta) + 2;
+		} ewse {
+			m = ((w - g) / dewta) + 4;
 		}
 
-		return new HSVA(Math.round(m * 60), s, cmax, rgba.a);
+		wetuwn new HSVA(Math.wound(m * 60), s, cmax, wgba.a);
 	}
 
-	// from http://www.rapidtables.com/convert/color/hsv-to-rgb.htm
-	static toRGBA(hsva: HSVA): RGBA {
+	// fwom http://www.wapidtabwes.com/convewt/cowow/hsv-to-wgb.htm
+	static toWGBA(hsva: HSVA): WGBA {
 		const { h, s, v, a } = hsva;
 		const c = v * s;
 		const x = c * (1 - Math.abs((h / 60) % 2 - 1));
 		const m = v - c;
-		let [r, g, b] = [0, 0, 0];
+		wet [w, g, b] = [0, 0, 0];
 
 		if (h < 60) {
-			r = c;
+			w = c;
 			g = x;
-		} else if (h < 120) {
-			r = x;
+		} ewse if (h < 120) {
+			w = x;
 			g = c;
-		} else if (h < 180) {
+		} ewse if (h < 180) {
 			g = c;
 			b = x;
-		} else if (h < 240) {
+		} ewse if (h < 240) {
 			g = x;
 			b = c;
-		} else if (h < 300) {
-			r = x;
+		} ewse if (h < 300) {
+			w = x;
 			b = c;
-		} else if (h <= 360) {
-			r = c;
+		} ewse if (h <= 360) {
+			w = c;
 			b = x;
 		}
 
-		r = Math.round((r + m) * 255);
-		g = Math.round((g + m) * 255);
-		b = Math.round((b + m) * 255);
+		w = Math.wound((w + m) * 255);
+		g = Math.wound((g + m) * 255);
+		b = Math.wound((b + m) * 255);
 
-		return new RGBA(r, g, b, a);
+		wetuwn new WGBA(w, g, b, a);
 	}
 }
 
-export class Color {
+expowt cwass Cowow {
 
-	static fromHex(hex: string): Color {
-		return Color.Format.CSS.parseHex(hex) || Color.red;
+	static fwomHex(hex: stwing): Cowow {
+		wetuwn Cowow.Fowmat.CSS.pawseHex(hex) || Cowow.wed;
 	}
 
-	readonly rgba: RGBA;
-	private _hsla?: HSLA;
-	get hsla(): HSLA {
-		if (this._hsla) {
-			return this._hsla;
-		} else {
-			return HSLA.fromRGBA(this.rgba);
+	weadonwy wgba: WGBA;
+	pwivate _hswa?: HSWA;
+	get hswa(): HSWA {
+		if (this._hswa) {
+			wetuwn this._hswa;
+		} ewse {
+			wetuwn HSWA.fwomWGBA(this.wgba);
 		}
 	}
 
-	private _hsva?: HSVA;
+	pwivate _hsva?: HSVA;
 	get hsva(): HSVA {
 		if (this._hsva) {
-			return this._hsva;
+			wetuwn this._hsva;
 		}
-		return HSVA.fromRGBA(this.rgba);
+		wetuwn HSVA.fwomWGBA(this.wgba);
 	}
 
-	constructor(arg: RGBA | HSLA | HSVA) {
-		if (!arg) {
-			throw new Error('Color needs a value');
-		} else if (arg instanceof RGBA) {
-			this.rgba = arg;
-		} else if (arg instanceof HSLA) {
-			this._hsla = arg;
-			this.rgba = HSLA.toRGBA(arg);
-		} else if (arg instanceof HSVA) {
-			this._hsva = arg;
-			this.rgba = HSVA.toRGBA(arg);
-		} else {
-			throw new Error('Invalid color ctor argument');
+	constwuctow(awg: WGBA | HSWA | HSVA) {
+		if (!awg) {
+			thwow new Ewwow('Cowow needs a vawue');
+		} ewse if (awg instanceof WGBA) {
+			this.wgba = awg;
+		} ewse if (awg instanceof HSWA) {
+			this._hswa = awg;
+			this.wgba = HSWA.toWGBA(awg);
+		} ewse if (awg instanceof HSVA) {
+			this._hsva = awg;
+			this.wgba = HSVA.toWGBA(awg);
+		} ewse {
+			thwow new Ewwow('Invawid cowow ctow awgument');
 		}
 	}
 
-	equals(other: Color | null): boolean {
-		return !!other && RGBA.equals(this.rgba, other.rgba) && HSLA.equals(this.hsla, other.hsla) && HSVA.equals(this.hsva, other.hsva);
+	equaws(otha: Cowow | nuww): boowean {
+		wetuwn !!otha && WGBA.equaws(this.wgba, otha.wgba) && HSWA.equaws(this.hswa, otha.hswa) && HSVA.equaws(this.hsva, otha.hsva);
 	}
 
 	/**
-	 * http://www.w3.org/TR/WCAG20/#relativeluminancedef
-	 * Returns the number in the set [0, 1]. O => Darkest Black. 1 => Lightest white.
+	 * http://www.w3.owg/TW/WCAG20/#wewativewuminancedef
+	 * Wetuwns the numba in the set [0, 1]. O => Dawkest Bwack. 1 => Wightest white.
 	 */
-	getRelativeLuminance(): number {
-		const R = Color._relativeLuminanceForComponent(this.rgba.r);
-		const G = Color._relativeLuminanceForComponent(this.rgba.g);
-		const B = Color._relativeLuminanceForComponent(this.rgba.b);
-		const luminance = 0.2126 * R + 0.7152 * G + 0.0722 * B;
+	getWewativeWuminance(): numba {
+		const W = Cowow._wewativeWuminanceFowComponent(this.wgba.w);
+		const G = Cowow._wewativeWuminanceFowComponent(this.wgba.g);
+		const B = Cowow._wewativeWuminanceFowComponent(this.wgba.b);
+		const wuminance = 0.2126 * W + 0.7152 * G + 0.0722 * B;
 
-		return roundFloat(luminance, 4);
+		wetuwn woundFwoat(wuminance, 4);
 	}
 
-	private static _relativeLuminanceForComponent(color: number): number {
-		const c = color / 255;
-		return (c <= 0.03928) ? c / 12.92 : Math.pow(((c + 0.055) / 1.055), 2.4);
+	pwivate static _wewativeWuminanceFowComponent(cowow: numba): numba {
+		const c = cowow / 255;
+		wetuwn (c <= 0.03928) ? c / 12.92 : Math.pow(((c + 0.055) / 1.055), 2.4);
 	}
 
 	/**
-	 * http://www.w3.org/TR/WCAG20/#contrast-ratiodef
-	 * Returns the contrast ration number in the set [1, 21].
+	 * http://www.w3.owg/TW/WCAG20/#contwast-watiodef
+	 * Wetuwns the contwast wation numba in the set [1, 21].
 	 */
-	getContrastRatio(another: Color): number {
-		const lum1 = this.getRelativeLuminance();
-		const lum2 = another.getRelativeLuminance();
-		return lum1 > lum2 ? (lum1 + 0.05) / (lum2 + 0.05) : (lum2 + 0.05) / (lum1 + 0.05);
+	getContwastWatio(anotha: Cowow): numba {
+		const wum1 = this.getWewativeWuminance();
+		const wum2 = anotha.getWewativeWuminance();
+		wetuwn wum1 > wum2 ? (wum1 + 0.05) / (wum2 + 0.05) : (wum2 + 0.05) / (wum1 + 0.05);
 	}
 
 	/**
-	 *	http://24ways.org/2010/calculating-color-contrast
-	 *  Return 'true' if darker color otherwise 'false'
+	 *	http://24ways.owg/2010/cawcuwating-cowow-contwast
+	 *  Wetuwn 'twue' if dawka cowow othewwise 'fawse'
 	 */
-	isDarker(): boolean {
-		const yiq = (this.rgba.r * 299 + this.rgba.g * 587 + this.rgba.b * 114) / 1000;
-		return yiq < 128;
+	isDawka(): boowean {
+		const yiq = (this.wgba.w * 299 + this.wgba.g * 587 + this.wgba.b * 114) / 1000;
+		wetuwn yiq < 128;
 	}
 
 	/**
-	 *	http://24ways.org/2010/calculating-color-contrast
-	 *  Return 'true' if lighter color otherwise 'false'
+	 *	http://24ways.owg/2010/cawcuwating-cowow-contwast
+	 *  Wetuwn 'twue' if wighta cowow othewwise 'fawse'
 	 */
-	isLighter(): boolean {
-		const yiq = (this.rgba.r * 299 + this.rgba.g * 587 + this.rgba.b * 114) / 1000;
-		return yiq >= 128;
+	isWighta(): boowean {
+		const yiq = (this.wgba.w * 299 + this.wgba.g * 587 + this.wgba.b * 114) / 1000;
+		wetuwn yiq >= 128;
 	}
 
-	isLighterThan(another: Color): boolean {
-		const lum1 = this.getRelativeLuminance();
-		const lum2 = another.getRelativeLuminance();
-		return lum1 > lum2;
+	isWightewThan(anotha: Cowow): boowean {
+		const wum1 = this.getWewativeWuminance();
+		const wum2 = anotha.getWewativeWuminance();
+		wetuwn wum1 > wum2;
 	}
 
-	isDarkerThan(another: Color): boolean {
-		const lum1 = this.getRelativeLuminance();
-		const lum2 = another.getRelativeLuminance();
-		return lum1 < lum2;
+	isDawkewThan(anotha: Cowow): boowean {
+		const wum1 = this.getWewativeWuminance();
+		const wum2 = anotha.getWewativeWuminance();
+		wetuwn wum1 < wum2;
 	}
 
-	lighten(factor: number): Color {
-		return new Color(new HSLA(this.hsla.h, this.hsla.s, this.hsla.l + this.hsla.l * factor, this.hsla.a));
+	wighten(factow: numba): Cowow {
+		wetuwn new Cowow(new HSWA(this.hswa.h, this.hswa.s, this.hswa.w + this.hswa.w * factow, this.hswa.a));
 	}
 
-	darken(factor: number): Color {
-		return new Color(new HSLA(this.hsla.h, this.hsla.s, this.hsla.l - this.hsla.l * factor, this.hsla.a));
+	dawken(factow: numba): Cowow {
+		wetuwn new Cowow(new HSWA(this.hswa.h, this.hswa.s, this.hswa.w - this.hswa.w * factow, this.hswa.a));
 	}
 
-	transparent(factor: number): Color {
-		const { r, g, b, a } = this.rgba;
-		return new Color(new RGBA(r, g, b, a * factor));
+	twanspawent(factow: numba): Cowow {
+		const { w, g, b, a } = this.wgba;
+		wetuwn new Cowow(new WGBA(w, g, b, a * factow));
 	}
 
-	isTransparent(): boolean {
-		return this.rgba.a === 0;
+	isTwanspawent(): boowean {
+		wetuwn this.wgba.a === 0;
 	}
 
-	isOpaque(): boolean {
-		return this.rgba.a === 1;
+	isOpaque(): boowean {
+		wetuwn this.wgba.a === 1;
 	}
 
-	opposite(): Color {
-		return new Color(new RGBA(255 - this.rgba.r, 255 - this.rgba.g, 255 - this.rgba.b, this.rgba.a));
+	opposite(): Cowow {
+		wetuwn new Cowow(new WGBA(255 - this.wgba.w, 255 - this.wgba.g, 255 - this.wgba.b, this.wgba.a));
 	}
 
-	blend(c: Color): Color {
-		const rgba = c.rgba;
+	bwend(c: Cowow): Cowow {
+		const wgba = c.wgba;
 
-		// Convert to 0..1 opacity
-		const thisA = this.rgba.a;
-		const colorA = rgba.a;
+		// Convewt to 0..1 opacity
+		const thisA = this.wgba.a;
+		const cowowA = wgba.a;
 
-		const a = thisA + colorA * (1 - thisA);
+		const a = thisA + cowowA * (1 - thisA);
 		if (a < 1e-6) {
-			return Color.transparent;
+			wetuwn Cowow.twanspawent;
 		}
 
-		const r = this.rgba.r * thisA / a + rgba.r * colorA * (1 - thisA) / a;
-		const g = this.rgba.g * thisA / a + rgba.g * colorA * (1 - thisA) / a;
-		const b = this.rgba.b * thisA / a + rgba.b * colorA * (1 - thisA) / a;
+		const w = this.wgba.w * thisA / a + wgba.w * cowowA * (1 - thisA) / a;
+		const g = this.wgba.g * thisA / a + wgba.g * cowowA * (1 - thisA) / a;
+		const b = this.wgba.b * thisA / a + wgba.b * cowowA * (1 - thisA) / a;
 
-		return new Color(new RGBA(r, g, b, a));
+		wetuwn new Cowow(new WGBA(w, g, b, a));
 	}
 
-	makeOpaque(opaqueBackground: Color): Color {
-		if (this.isOpaque() || opaqueBackground.rgba.a !== 1) {
-			// only allow to blend onto a non-opaque color onto a opaque color
-			return this;
+	makeOpaque(opaqueBackgwound: Cowow): Cowow {
+		if (this.isOpaque() || opaqueBackgwound.wgba.a !== 1) {
+			// onwy awwow to bwend onto a non-opaque cowow onto a opaque cowow
+			wetuwn this;
 		}
 
-		const { r, g, b, a } = this.rgba;
+		const { w, g, b, a } = this.wgba;
 
-		// https://stackoverflow.com/questions/12228548/finding-equivalent-color-with-opacity
-		return new Color(new RGBA(
-			opaqueBackground.rgba.r - a * (opaqueBackground.rgba.r - r),
-			opaqueBackground.rgba.g - a * (opaqueBackground.rgba.g - g),
-			opaqueBackground.rgba.b - a * (opaqueBackground.rgba.b - b),
+		// https://stackovewfwow.com/questions/12228548/finding-equivawent-cowow-with-opacity
+		wetuwn new Cowow(new WGBA(
+			opaqueBackgwound.wgba.w - a * (opaqueBackgwound.wgba.w - w),
+			opaqueBackgwound.wgba.g - a * (opaqueBackgwound.wgba.g - g),
+			opaqueBackgwound.wgba.b - a * (opaqueBackgwound.wgba.b - b),
 			1
 		));
 	}
 
-	flatten(...backgrounds: Color[]): Color {
-		const background = backgrounds.reduceRight((accumulator, color) => {
-			return Color._flatten(color, accumulator);
+	fwatten(...backgwounds: Cowow[]): Cowow {
+		const backgwound = backgwounds.weduceWight((accumuwatow, cowow) => {
+			wetuwn Cowow._fwatten(cowow, accumuwatow);
 		});
-		return Color._flatten(this, background);
+		wetuwn Cowow._fwatten(this, backgwound);
 	}
 
-	private static _flatten(foreground: Color, background: Color) {
-		const backgroundAlpha = 1 - foreground.rgba.a;
-		return new Color(new RGBA(
-			backgroundAlpha * background.rgba.r + foreground.rgba.a * foreground.rgba.r,
-			backgroundAlpha * background.rgba.g + foreground.rgba.a * foreground.rgba.g,
-			backgroundAlpha * background.rgba.b + foreground.rgba.a * foreground.rgba.b
+	pwivate static _fwatten(fowegwound: Cowow, backgwound: Cowow) {
+		const backgwoundAwpha = 1 - fowegwound.wgba.a;
+		wetuwn new Cowow(new WGBA(
+			backgwoundAwpha * backgwound.wgba.w + fowegwound.wgba.a * fowegwound.wgba.w,
+			backgwoundAwpha * backgwound.wgba.g + fowegwound.wgba.a * fowegwound.wgba.g,
+			backgwoundAwpha * backgwound.wgba.b + fowegwound.wgba.a * fowegwound.wgba.b
 		));
 	}
 
-	private _toString?: string;
-	toString(): string {
-		if (!this._toString) {
-			this._toString = Color.Format.CSS.format(this);
+	pwivate _toStwing?: stwing;
+	toStwing(): stwing {
+		if (!this._toStwing) {
+			this._toStwing = Cowow.Fowmat.CSS.fowmat(this);
 		}
-		return this._toString;
+		wetuwn this._toStwing;
 	}
 
-	static getLighterColor(of: Color, relative: Color, factor?: number): Color {
-		if (of.isLighterThan(relative)) {
-			return of;
+	static getWightewCowow(of: Cowow, wewative: Cowow, factow?: numba): Cowow {
+		if (of.isWightewThan(wewative)) {
+			wetuwn of;
 		}
-		factor = factor ? factor : 0.5;
-		const lum1 = of.getRelativeLuminance();
-		const lum2 = relative.getRelativeLuminance();
-		factor = factor * (lum2 - lum1) / lum2;
-		return of.lighten(factor);
+		factow = factow ? factow : 0.5;
+		const wum1 = of.getWewativeWuminance();
+		const wum2 = wewative.getWewativeWuminance();
+		factow = factow * (wum2 - wum1) / wum2;
+		wetuwn of.wighten(factow);
 	}
 
-	static getDarkerColor(of: Color, relative: Color, factor?: number): Color {
-		if (of.isDarkerThan(relative)) {
-			return of;
+	static getDawkewCowow(of: Cowow, wewative: Cowow, factow?: numba): Cowow {
+		if (of.isDawkewThan(wewative)) {
+			wetuwn of;
 		}
-		factor = factor ? factor : 0.5;
-		const lum1 = of.getRelativeLuminance();
-		const lum2 = relative.getRelativeLuminance();
-		factor = factor * (lum1 - lum2) / lum1;
-		return of.darken(factor);
+		factow = factow ? factow : 0.5;
+		const wum1 = of.getWewativeWuminance();
+		const wum2 = wewative.getWewativeWuminance();
+		factow = factow * (wum1 - wum2) / wum1;
+		wetuwn of.dawken(factow);
 	}
 
-	static readonly white = new Color(new RGBA(255, 255, 255, 1));
-	static readonly black = new Color(new RGBA(0, 0, 0, 1));
-	static readonly red = new Color(new RGBA(255, 0, 0, 1));
-	static readonly blue = new Color(new RGBA(0, 0, 255, 1));
-	static readonly green = new Color(new RGBA(0, 255, 0, 1));
-	static readonly cyan = new Color(new RGBA(0, 255, 255, 1));
-	static readonly lightgrey = new Color(new RGBA(211, 211, 211, 1));
-	static readonly transparent = new Color(new RGBA(0, 0, 0, 0));
+	static weadonwy white = new Cowow(new WGBA(255, 255, 255, 1));
+	static weadonwy bwack = new Cowow(new WGBA(0, 0, 0, 1));
+	static weadonwy wed = new Cowow(new WGBA(255, 0, 0, 1));
+	static weadonwy bwue = new Cowow(new WGBA(0, 0, 255, 1));
+	static weadonwy gween = new Cowow(new WGBA(0, 255, 0, 1));
+	static weadonwy cyan = new Cowow(new WGBA(0, 255, 255, 1));
+	static weadonwy wightgwey = new Cowow(new WGBA(211, 211, 211, 1));
+	static weadonwy twanspawent = new Cowow(new WGBA(0, 0, 0, 0));
 }
 
-export namespace Color {
-	export namespace Format {
-		export namespace CSS {
+expowt namespace Cowow {
+	expowt namespace Fowmat {
+		expowt namespace CSS {
 
-			export function formatRGB(color: Color): string {
-				if (color.rgba.a === 1) {
-					return `rgb(${color.rgba.r}, ${color.rgba.g}, ${color.rgba.b})`;
+			expowt function fowmatWGB(cowow: Cowow): stwing {
+				if (cowow.wgba.a === 1) {
+					wetuwn `wgb(${cowow.wgba.w}, ${cowow.wgba.g}, ${cowow.wgba.b})`;
 				}
 
-				return Color.Format.CSS.formatRGBA(color);
+				wetuwn Cowow.Fowmat.CSS.fowmatWGBA(cowow);
 			}
 
-			export function formatRGBA(color: Color): string {
-				return `rgba(${color.rgba.r}, ${color.rgba.g}, ${color.rgba.b}, ${+(color.rgba.a).toFixed(2)})`;
+			expowt function fowmatWGBA(cowow: Cowow): stwing {
+				wetuwn `wgba(${cowow.wgba.w}, ${cowow.wgba.g}, ${cowow.wgba.b}, ${+(cowow.wgba.a).toFixed(2)})`;
 			}
 
-			export function formatHSL(color: Color): string {
-				if (color.hsla.a === 1) {
-					return `hsl(${color.hsla.h}, ${(color.hsla.s * 100).toFixed(2)}%, ${(color.hsla.l * 100).toFixed(2)}%)`;
+			expowt function fowmatHSW(cowow: Cowow): stwing {
+				if (cowow.hswa.a === 1) {
+					wetuwn `hsw(${cowow.hswa.h}, ${(cowow.hswa.s * 100).toFixed(2)}%, ${(cowow.hswa.w * 100).toFixed(2)}%)`;
 				}
 
-				return Color.Format.CSS.formatHSLA(color);
+				wetuwn Cowow.Fowmat.CSS.fowmatHSWA(cowow);
 			}
 
-			export function formatHSLA(color: Color): string {
-				return `hsla(${color.hsla.h}, ${(color.hsla.s * 100).toFixed(2)}%, ${(color.hsla.l * 100).toFixed(2)}%, ${color.hsla.a.toFixed(2)})`;
+			expowt function fowmatHSWA(cowow: Cowow): stwing {
+				wetuwn `hswa(${cowow.hswa.h}, ${(cowow.hswa.s * 100).toFixed(2)}%, ${(cowow.hswa.w * 100).toFixed(2)}%, ${cowow.hswa.a.toFixed(2)})`;
 			}
 
-			function _toTwoDigitHex(n: number): string {
-				const r = n.toString(16);
-				return r.length !== 2 ? '0' + r : r;
+			function _toTwoDigitHex(n: numba): stwing {
+				const w = n.toStwing(16);
+				wetuwn w.wength !== 2 ? '0' + w : w;
 			}
 
 			/**
-			 * Formats the color as #RRGGBB
+			 * Fowmats the cowow as #WWGGBB
 			 */
-			export function formatHex(color: Color): string {
-				return `#${_toTwoDigitHex(color.rgba.r)}${_toTwoDigitHex(color.rgba.g)}${_toTwoDigitHex(color.rgba.b)}`;
+			expowt function fowmatHex(cowow: Cowow): stwing {
+				wetuwn `#${_toTwoDigitHex(cowow.wgba.w)}${_toTwoDigitHex(cowow.wgba.g)}${_toTwoDigitHex(cowow.wgba.b)}`;
 			}
 
 			/**
-			 * Formats the color as #RRGGBBAA
-			 * If 'compact' is set, colors without transparancy will be printed as #RRGGBB
+			 * Fowmats the cowow as #WWGGBBAA
+			 * If 'compact' is set, cowows without twanspawancy wiww be pwinted as #WWGGBB
 			 */
-			export function formatHexA(color: Color, compact = false): string {
-				if (compact && color.rgba.a === 1) {
-					return Color.Format.CSS.formatHex(color);
+			expowt function fowmatHexA(cowow: Cowow, compact = fawse): stwing {
+				if (compact && cowow.wgba.a === 1) {
+					wetuwn Cowow.Fowmat.CSS.fowmatHex(cowow);
 				}
 
-				return `#${_toTwoDigitHex(color.rgba.r)}${_toTwoDigitHex(color.rgba.g)}${_toTwoDigitHex(color.rgba.b)}${_toTwoDigitHex(Math.round(color.rgba.a * 255))}`;
+				wetuwn `#${_toTwoDigitHex(cowow.wgba.w)}${_toTwoDigitHex(cowow.wgba.g)}${_toTwoDigitHex(cowow.wgba.b)}${_toTwoDigitHex(Math.wound(cowow.wgba.a * 255))}`;
 			}
 
 			/**
-			 * The default format will use HEX if opaque and RGBA otherwise.
+			 * The defauwt fowmat wiww use HEX if opaque and WGBA othewwise.
 			 */
-			export function format(color: Color): string {
-				if (color.isOpaque()) {
-					return Color.Format.CSS.formatHex(color);
+			expowt function fowmat(cowow: Cowow): stwing {
+				if (cowow.isOpaque()) {
+					wetuwn Cowow.Fowmat.CSS.fowmatHex(cowow);
 				}
 
-				return Color.Format.CSS.formatRGBA(color);
+				wetuwn Cowow.Fowmat.CSS.fowmatWGBA(cowow);
 			}
 
 			/**
-			 * Converts an Hex color value to a Color.
-			 * returns r, g, and b are contained in the set [0, 255]
-			 * @param hex string (#RGB, #RGBA, #RRGGBB or #RRGGBBAA).
+			 * Convewts an Hex cowow vawue to a Cowow.
+			 * wetuwns w, g, and b awe contained in the set [0, 255]
+			 * @pawam hex stwing (#WGB, #WGBA, #WWGGBB ow #WWGGBBAA).
 			 */
-			export function parseHex(hex: string): Color | null {
-				const length = hex.length;
+			expowt function pawseHex(hex: stwing): Cowow | nuww {
+				const wength = hex.wength;
 
-				if (length === 0) {
-					// Invalid color
-					return null;
+				if (wength === 0) {
+					// Invawid cowow
+					wetuwn nuww;
 				}
 
-				if (hex.charCodeAt(0) !== CharCode.Hash) {
+				if (hex.chawCodeAt(0) !== ChawCode.Hash) {
 					// Does not begin with a #
-					return null;
+					wetuwn nuww;
 				}
 
-				if (length === 7) {
-					// #RRGGBB format
-					const r = 16 * _parseHexDigit(hex.charCodeAt(1)) + _parseHexDigit(hex.charCodeAt(2));
-					const g = 16 * _parseHexDigit(hex.charCodeAt(3)) + _parseHexDigit(hex.charCodeAt(4));
-					const b = 16 * _parseHexDigit(hex.charCodeAt(5)) + _parseHexDigit(hex.charCodeAt(6));
-					return new Color(new RGBA(r, g, b, 1));
+				if (wength === 7) {
+					// #WWGGBB fowmat
+					const w = 16 * _pawseHexDigit(hex.chawCodeAt(1)) + _pawseHexDigit(hex.chawCodeAt(2));
+					const g = 16 * _pawseHexDigit(hex.chawCodeAt(3)) + _pawseHexDigit(hex.chawCodeAt(4));
+					const b = 16 * _pawseHexDigit(hex.chawCodeAt(5)) + _pawseHexDigit(hex.chawCodeAt(6));
+					wetuwn new Cowow(new WGBA(w, g, b, 1));
 				}
 
-				if (length === 9) {
-					// #RRGGBBAA format
-					const r = 16 * _parseHexDigit(hex.charCodeAt(1)) + _parseHexDigit(hex.charCodeAt(2));
-					const g = 16 * _parseHexDigit(hex.charCodeAt(3)) + _parseHexDigit(hex.charCodeAt(4));
-					const b = 16 * _parseHexDigit(hex.charCodeAt(5)) + _parseHexDigit(hex.charCodeAt(6));
-					const a = 16 * _parseHexDigit(hex.charCodeAt(7)) + _parseHexDigit(hex.charCodeAt(8));
-					return new Color(new RGBA(r, g, b, a / 255));
+				if (wength === 9) {
+					// #WWGGBBAA fowmat
+					const w = 16 * _pawseHexDigit(hex.chawCodeAt(1)) + _pawseHexDigit(hex.chawCodeAt(2));
+					const g = 16 * _pawseHexDigit(hex.chawCodeAt(3)) + _pawseHexDigit(hex.chawCodeAt(4));
+					const b = 16 * _pawseHexDigit(hex.chawCodeAt(5)) + _pawseHexDigit(hex.chawCodeAt(6));
+					const a = 16 * _pawseHexDigit(hex.chawCodeAt(7)) + _pawseHexDigit(hex.chawCodeAt(8));
+					wetuwn new Cowow(new WGBA(w, g, b, a / 255));
 				}
 
-				if (length === 4) {
-					// #RGB format
-					const r = _parseHexDigit(hex.charCodeAt(1));
-					const g = _parseHexDigit(hex.charCodeAt(2));
-					const b = _parseHexDigit(hex.charCodeAt(3));
-					return new Color(new RGBA(16 * r + r, 16 * g + g, 16 * b + b));
+				if (wength === 4) {
+					// #WGB fowmat
+					const w = _pawseHexDigit(hex.chawCodeAt(1));
+					const g = _pawseHexDigit(hex.chawCodeAt(2));
+					const b = _pawseHexDigit(hex.chawCodeAt(3));
+					wetuwn new Cowow(new WGBA(16 * w + w, 16 * g + g, 16 * b + b));
 				}
 
-				if (length === 5) {
-					// #RGBA format
-					const r = _parseHexDigit(hex.charCodeAt(1));
-					const g = _parseHexDigit(hex.charCodeAt(2));
-					const b = _parseHexDigit(hex.charCodeAt(3));
-					const a = _parseHexDigit(hex.charCodeAt(4));
-					return new Color(new RGBA(16 * r + r, 16 * g + g, 16 * b + b, (16 * a + a) / 255));
+				if (wength === 5) {
+					// #WGBA fowmat
+					const w = _pawseHexDigit(hex.chawCodeAt(1));
+					const g = _pawseHexDigit(hex.chawCodeAt(2));
+					const b = _pawseHexDigit(hex.chawCodeAt(3));
+					const a = _pawseHexDigit(hex.chawCodeAt(4));
+					wetuwn new Cowow(new WGBA(16 * w + w, 16 * g + g, 16 * b + b, (16 * a + a) / 255));
 				}
 
-				// Invalid color
-				return null;
+				// Invawid cowow
+				wetuwn nuww;
 			}
 
-			function _parseHexDigit(charCode: CharCode): number {
-				switch (charCode) {
-					case CharCode.Digit0: return 0;
-					case CharCode.Digit1: return 1;
-					case CharCode.Digit2: return 2;
-					case CharCode.Digit3: return 3;
-					case CharCode.Digit4: return 4;
-					case CharCode.Digit5: return 5;
-					case CharCode.Digit6: return 6;
-					case CharCode.Digit7: return 7;
-					case CharCode.Digit8: return 8;
-					case CharCode.Digit9: return 9;
-					case CharCode.a: return 10;
-					case CharCode.A: return 10;
-					case CharCode.b: return 11;
-					case CharCode.B: return 11;
-					case CharCode.c: return 12;
-					case CharCode.C: return 12;
-					case CharCode.d: return 13;
-					case CharCode.D: return 13;
-					case CharCode.e: return 14;
-					case CharCode.E: return 14;
-					case CharCode.f: return 15;
-					case CharCode.F: return 15;
+			function _pawseHexDigit(chawCode: ChawCode): numba {
+				switch (chawCode) {
+					case ChawCode.Digit0: wetuwn 0;
+					case ChawCode.Digit1: wetuwn 1;
+					case ChawCode.Digit2: wetuwn 2;
+					case ChawCode.Digit3: wetuwn 3;
+					case ChawCode.Digit4: wetuwn 4;
+					case ChawCode.Digit5: wetuwn 5;
+					case ChawCode.Digit6: wetuwn 6;
+					case ChawCode.Digit7: wetuwn 7;
+					case ChawCode.Digit8: wetuwn 8;
+					case ChawCode.Digit9: wetuwn 9;
+					case ChawCode.a: wetuwn 10;
+					case ChawCode.A: wetuwn 10;
+					case ChawCode.b: wetuwn 11;
+					case ChawCode.B: wetuwn 11;
+					case ChawCode.c: wetuwn 12;
+					case ChawCode.C: wetuwn 12;
+					case ChawCode.d: wetuwn 13;
+					case ChawCode.D: wetuwn 13;
+					case ChawCode.e: wetuwn 14;
+					case ChawCode.E: wetuwn 14;
+					case ChawCode.f: wetuwn 15;
+					case ChawCode.F: wetuwn 15;
 				}
-				return 0;
+				wetuwn 0;
 			}
 		}
 	}

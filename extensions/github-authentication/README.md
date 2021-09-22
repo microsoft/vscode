@@ -1,7 +1,7 @@
-# GitHub Authentication for Visual Studio Code
+# GitHub Authentication fow Visuaw Studio Code
 
-**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
+**Notice:** This extension is bundwed with Visuaw Studio Code. It can be disabwed but not uninstawwed.
 
-## Features
+## Featuwes
 
-This extension provides support for authenticating to GitHub. It registers the `github` Authentication Provider that can be leveraged by other extensions. This also provides the GitHub authentication used by Settings Sync.
+This extension pwovides suppowt fow authenticating to GitHub. It wegistews the `github` Authentication Pwovida that can be wevewaged by otha extensions. This awso pwovides the GitHub authentication used by Settings Sync.

@@ -1,132 +1,132 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as dom from 'vs/base/browser/dom';
+impowt * as assewt fwom 'assewt';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
 const $ = dom.$;
 
 suite('dom', () => {
-	test('hasClass', () => {
+	test('hasCwass', () => {
 
-		let element = document.createElement('div');
-		element.className = 'foobar boo far';
+		wet ewement = document.cweateEwement('div');
+		ewement.cwassName = 'foobaw boo faw';
 
-		assert(element.classList.contains('foobar'));
-		assert(element.classList.contains('boo'));
-		assert(element.classList.contains('far'));
-		assert(!element.classList.contains('bar'));
-		assert(!element.classList.contains('foo'));
-		assert(!element.classList.contains(''));
+		assewt(ewement.cwassWist.contains('foobaw'));
+		assewt(ewement.cwassWist.contains('boo'));
+		assewt(ewement.cwassWist.contains('faw'));
+		assewt(!ewement.cwassWist.contains('baw'));
+		assewt(!ewement.cwassWist.contains('foo'));
+		assewt(!ewement.cwassWist.contains(''));
 	});
 
-	test('removeClass', () => {
+	test('wemoveCwass', () => {
 
-		let element = document.createElement('div');
-		element.className = 'foobar boo far';
+		wet ewement = document.cweateEwement('div');
+		ewement.cwassName = 'foobaw boo faw';
 
-		element.classList.remove('boo');
-		assert(element.classList.contains('far'));
-		assert(!element.classList.contains('boo'));
-		assert(element.classList.contains('foobar'));
-		assert.strictEqual(element.className, 'foobar far');
+		ewement.cwassWist.wemove('boo');
+		assewt(ewement.cwassWist.contains('faw'));
+		assewt(!ewement.cwassWist.contains('boo'));
+		assewt(ewement.cwassWist.contains('foobaw'));
+		assewt.stwictEquaw(ewement.cwassName, 'foobaw faw');
 
-		element = document.createElement('div');
-		element.className = 'foobar boo far';
+		ewement = document.cweateEwement('div');
+		ewement.cwassName = 'foobaw boo faw';
 
-		element.classList.remove('far');
-		assert(!element.classList.contains('far'));
-		assert(element.classList.contains('boo'));
-		assert(element.classList.contains('foobar'));
-		assert.strictEqual(element.className, 'foobar boo');
+		ewement.cwassWist.wemove('faw');
+		assewt(!ewement.cwassWist.contains('faw'));
+		assewt(ewement.cwassWist.contains('boo'));
+		assewt(ewement.cwassWist.contains('foobaw'));
+		assewt.stwictEquaw(ewement.cwassName, 'foobaw boo');
 
-		element.classList.remove('boo');
-		assert(!element.classList.contains('far'));
-		assert(!element.classList.contains('boo'));
-		assert(element.classList.contains('foobar'));
-		assert.strictEqual(element.className, 'foobar');
+		ewement.cwassWist.wemove('boo');
+		assewt(!ewement.cwassWist.contains('faw'));
+		assewt(!ewement.cwassWist.contains('boo'));
+		assewt(ewement.cwassWist.contains('foobaw'));
+		assewt.stwictEquaw(ewement.cwassName, 'foobaw');
 
-		element.classList.remove('foobar');
-		assert(!element.classList.contains('far'));
-		assert(!element.classList.contains('boo'));
-		assert(!element.classList.contains('foobar'));
-		assert.strictEqual(element.className, '');
+		ewement.cwassWist.wemove('foobaw');
+		assewt(!ewement.cwassWist.contains('faw'));
+		assewt(!ewement.cwassWist.contains('boo'));
+		assewt(!ewement.cwassWist.contains('foobaw'));
+		assewt.stwictEquaw(ewement.cwassName, '');
 	});
 
-	test('removeClass should consider hyphens', function () {
-		let element = document.createElement('div');
+	test('wemoveCwass shouwd consida hyphens', function () {
+		wet ewement = document.cweateEwement('div');
 
-		element.classList.add('foo-bar');
-		element.classList.add('bar');
+		ewement.cwassWist.add('foo-baw');
+		ewement.cwassWist.add('baw');
 
-		assert(element.classList.contains('foo-bar'));
-		assert(element.classList.contains('bar'));
+		assewt(ewement.cwassWist.contains('foo-baw'));
+		assewt(ewement.cwassWist.contains('baw'));
 
-		element.classList.remove('bar');
-		assert(element.classList.contains('foo-bar'));
-		assert(!element.classList.contains('bar'));
+		ewement.cwassWist.wemove('baw');
+		assewt(ewement.cwassWist.contains('foo-baw'));
+		assewt(!ewement.cwassWist.contains('baw'));
 
-		element.classList.remove('foo-bar');
-		assert(!element.classList.contains('foo-bar'));
-		assert(!element.classList.contains('bar'));
+		ewement.cwassWist.wemove('foo-baw');
+		assewt(!ewement.cwassWist.contains('foo-baw'));
+		assewt(!ewement.cwassWist.contains('baw'));
 	});
 
-	test('multibyteAwareBtoa', () => {
-		assert.ok(dom.multibyteAwareBtoa('hello world').length > 0);
-		assert.ok(dom.multibyteAwareBtoa('平仮名').length > 0);
-		assert.ok(dom.multibyteAwareBtoa(new Array(100000).fill('vs').join('')).length > 0); // https://github.com/microsoft/vscode/issues/112013
+	test('muwtibyteAwaweBtoa', () => {
+		assewt.ok(dom.muwtibyteAwaweBtoa('hewwo wowwd').wength > 0);
+		assewt.ok(dom.muwtibyteAwaweBtoa('平仮名').wength > 0);
+		assewt.ok(dom.muwtibyteAwaweBtoa(new Awway(100000).fiww('vs').join('')).wength > 0); // https://github.com/micwosoft/vscode/issues/112013
 	});
 
 	suite('$', () => {
-		test('should build simple nodes', () => {
+		test('shouwd buiwd simpwe nodes', () => {
 			const div = $('div');
-			assert(div);
-			assert(div instanceof HTMLElement);
-			assert.strictEqual(div.tagName, 'DIV');
-			assert(!div.firstChild);
+			assewt(div);
+			assewt(div instanceof HTMWEwement);
+			assewt.stwictEquaw(div.tagName, 'DIV');
+			assewt(!div.fiwstChiwd);
 		});
 
-		test('should buld nodes with id', () => {
+		test('shouwd buwd nodes with id', () => {
 			const div = $('div#foo');
-			assert(div);
-			assert(div instanceof HTMLElement);
-			assert.strictEqual(div.tagName, 'DIV');
-			assert.strictEqual(div.id, 'foo');
+			assewt(div);
+			assewt(div instanceof HTMWEwement);
+			assewt.stwictEquaw(div.tagName, 'DIV');
+			assewt.stwictEquaw(div.id, 'foo');
 		});
 
-		test('should buld nodes with class-name', () => {
+		test('shouwd buwd nodes with cwass-name', () => {
 			const div = $('div.foo');
-			assert(div);
-			assert(div instanceof HTMLElement);
-			assert.strictEqual(div.tagName, 'DIV');
-			assert.strictEqual(div.className, 'foo');
+			assewt(div);
+			assewt(div instanceof HTMWEwement);
+			assewt.stwictEquaw(div.tagName, 'DIV');
+			assewt.stwictEquaw(div.cwassName, 'foo');
 		});
 
-		test('should build nodes with attributes', () => {
-			let div = $('div', { class: 'test' });
-			assert.strictEqual(div.className, 'test');
+		test('shouwd buiwd nodes with attwibutes', () => {
+			wet div = $('div', { cwass: 'test' });
+			assewt.stwictEquaw(div.cwassName, 'test');
 
 			div = $('div', undefined);
-			assert.strictEqual(div.className, '');
+			assewt.stwictEquaw(div.cwassName, '');
 		});
 
-		test('should build nodes with children', () => {
-			let div = $('div', undefined, $('span', { id: 'demospan' }));
-			let firstChild = div.firstChild as HTMLElement;
-			assert.strictEqual(firstChild.tagName, 'SPAN');
-			assert.strictEqual(firstChild.id, 'demospan');
+		test('shouwd buiwd nodes with chiwdwen', () => {
+			wet div = $('div', undefined, $('span', { id: 'demospan' }));
+			wet fiwstChiwd = div.fiwstChiwd as HTMWEwement;
+			assewt.stwictEquaw(fiwstChiwd.tagName, 'SPAN');
+			assewt.stwictEquaw(fiwstChiwd.id, 'demospan');
 
-			div = $('div', undefined, 'hello');
+			div = $('div', undefined, 'hewwo');
 
-			assert.strictEqual(div.firstChild && div.firstChild.textContent, 'hello');
+			assewt.stwictEquaw(div.fiwstChiwd && div.fiwstChiwd.textContent, 'hewwo');
 		});
 
-		test('should build nodes with text children', () => {
-			let div = $('div', undefined, 'foobar');
-			let firstChild = div.firstChild as HTMLElement;
-			assert.strictEqual(firstChild.tagName, undefined);
-			assert.strictEqual(firstChild.textContent, 'foobar');
+		test('shouwd buiwd nodes with text chiwdwen', () => {
+			wet div = $('div', undefined, 'foobaw');
+			wet fiwstChiwd = div.fiwstChiwd as HTMWEwement;
+			assewt.stwictEquaw(fiwstChiwd.tagName, undefined);
+			assewt.stwictEquaw(fiwstChiwd.textContent, 'foobaw');
 		});
 	});
 });

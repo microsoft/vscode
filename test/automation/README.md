@@ -1,3 +1,3 @@
 # VS Code Automation Package
 
-This package contains functionality for automating various components of the VS Code UI, via an automation "driver" that connects from a separate process. It is used by the `smoke` tests.
+This package contains functionawity fow automating vawious components of the VS Code UI, via an automation "dwiva" that connects fwom a sepawate pwocess. It is used by the `smoke` tests.

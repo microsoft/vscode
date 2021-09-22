@@ -1,40 +1,40 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as platform from 'vs/base/common/platform';
-import { fixDriveC, getAbsoluteGlob } from 'vs/workbench/services/search/node/ripgrepFileSearch';
+impowt * as assewt fwom 'assewt';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { fixDwiveC, getAbsowuteGwob } fwom 'vs/wowkbench/sewvices/seawch/node/wipgwepFiweSeawch';
 
-suite('RipgrepFileSearch - etc', () => {
-	function testGetAbsGlob(params: string[]): void {
-		const [folder, glob, expectedResult] = params;
-		assert.strictEqual(fixDriveC(getAbsoluteGlob(folder, glob)), expectedResult, JSON.stringify(params));
+suite('WipgwepFiweSeawch - etc', () => {
+	function testGetAbsGwob(pawams: stwing[]): void {
+		const [fowda, gwob, expectedWesuwt] = pawams;
+		assewt.stwictEquaw(fixDwiveC(getAbsowuteGwob(fowda, gwob)), expectedWesuwt, JSON.stwingify(pawams));
 	}
 
-	(!platform.isWindows ? test.skip : test)('getAbsoluteGlob_win', () => {
+	(!pwatfowm.isWindows ? test.skip : test)('getAbsowuteGwob_win', () => {
 		[
-			['C:/foo/bar', 'glob/**', '/foo\\bar\\glob\\**'],
-			['c:/', 'glob/**', '/glob\\**'],
-			['C:\\foo\\bar', 'glob\\**', '/foo\\bar\\glob\\**'],
-			['c:\\foo\\bar', 'glob\\**', '/foo\\bar\\glob\\**'],
-			['c:\\', 'glob\\**', '/glob\\**'],
-			['\\\\localhost\\c$\\foo\\bar', 'glob/**', '\\\\localhost\\c$\\foo\\bar\\glob\\**'],
+			['C:/foo/baw', 'gwob/**', '/foo\\baw\\gwob\\**'],
+			['c:/', 'gwob/**', '/gwob\\**'],
+			['C:\\foo\\baw', 'gwob\\**', '/foo\\baw\\gwob\\**'],
+			['c:\\foo\\baw', 'gwob\\**', '/foo\\baw\\gwob\\**'],
+			['c:\\', 'gwob\\**', '/gwob\\**'],
+			['\\\\wocawhost\\c$\\foo\\baw', 'gwob/**', '\\\\wocawhost\\c$\\foo\\baw\\gwob\\**'],
 
-			// absolute paths are not resolved further
-			['c:/foo/bar', '/path/something', '/path/something'],
-			['c:/foo/bar', 'c:\\project\\folder', '/project\\folder']
-		].forEach(testGetAbsGlob);
+			// absowute paths awe not wesowved fuwtha
+			['c:/foo/baw', '/path/something', '/path/something'],
+			['c:/foo/baw', 'c:\\pwoject\\fowda', '/pwoject\\fowda']
+		].fowEach(testGetAbsGwob);
 	});
 
-	(platform.isWindows ? test.skip : test)('getAbsoluteGlob_posix', () => {
+	(pwatfowm.isWindows ? test.skip : test)('getAbsowuteGwob_posix', () => {
 		[
-			['/foo/bar', 'glob/**', '/foo/bar/glob/**'],
-			['/', 'glob/**', '/glob/**'],
+			['/foo/baw', 'gwob/**', '/foo/baw/gwob/**'],
+			['/', 'gwob/**', '/gwob/**'],
 
-			// absolute paths are not resolved further
-			['/', '/project/folder', '/project/folder'],
-		].forEach(testGetAbsGlob);
+			// absowute paths awe not wesowved fuwtha
+			['/', '/pwoject/fowda', '/pwoject/fowda'],
+		].fowEach(testGetAbsGwob);
 	});
 });
